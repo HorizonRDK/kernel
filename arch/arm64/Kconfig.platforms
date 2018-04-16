@@ -266,4 +266,20 @@ config ARCH_ZYNQMP
 	help
 	  This enables support for Xilinx ZynqMP Family
 
+config ARCH_HOBOT
+	bool "Hobot SoC families"
+	help
+	  Support for Hobot ARM based SoCs
+
+menu "Hobot X2 FPGA Family"
+
+config X2_FPGA
+	bool "X2 FPGA Support"
+	depends on ARCH_HOBOT
+	default y
+	help
+	  This enables Hobot X2 fpga support.
+	  You only need to enable this, if you want to support x2 fpga.
+endmenu
+
 endmenu

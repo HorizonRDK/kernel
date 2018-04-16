@@ -1,0 +1,111 @@
+/*
+ * dts file for Hobot X2 FPGA
+ *
+ * (C) Copyright 2018, Horizon, Inc.
+ *
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
+ */
+
+ / {
+	compatible = "hobot,x2";
+	#address-cells = <2>;
+	#size-cells = <2>;
+
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		cpu0: cpu@0 {
+			compatible = "arm,cortex-a53", "arm,armv8";
+			device_type = "cpu";
+			enable-method = "psci";
+			operating-points-v2 = <&cpu_opp_table>;
+			reg = <0x0>;
+			cpu-idle-states = <&CPU_SLEEP_0>;
+		};
+
+		cpu1: cpu@1 {
+			compatible = "arm,cortex-a53", "arm,armv8";
+			device_type = "cpu";
+			enable-method = "psci";
+			reg = <0x1>;
+			operating-points-v2 = <&cpu_opp_table>;
+			cpu-idle-states = <&CPU_SLEEP_0>;
+		};
+
+		/*TODO: maybe need to change */
+		idle-states {
+			entry-method = "arm,psci";
+
+			CPU_SLEEP_0: cpu-sleep-0 {
+				compatible = "arm,idle-state";
+				arm,psci-suspend-param = <0x40000000>;
+				local-timer-stop;
+				entry-latency-us = <300>;
+				exit-latency-us = <600>;
+				min-residency-us = <100000>;
+			};
+		};
+	};
+
+	/*TODO: maybe need to change or delete */
+	cpu_opp_table: cpu_opp_table {
+		compatible = "operating-points-v2";
+		opp-shared;
+		opp00 {
+			opp-hz = /bits/ 64 <1199999988>;
+			opp-microvolt = <1000000>;
+			clock-latency-ns = <500000>;
+		};
+		opp01 {
+			opp-hz = /bits/ 64 <599999994>;
+			opp-microvolt = <1000000>;
+			clock-latency-ns = <500000>;
+		};
+	};
+
+	psci {
+		compatible = "arm,psci-0.2";
+		method = "smc";
+	};
+
+	/*TODO: maybe need to change */
+	gic: interrupt-controller@90000000 {
+			compatible = "arm,gic-400", "arm,cortex-a53-gic";
+			#interrupt-cells = <3>;
+			reg = <0x0 0x0 0x90000000 0x10000>;
+			interrupt-controller;
+			interrupt-parent = <&gic>;
+			interrupts = <1 9 0xf04>;
+		};
+
+	uart0: serial@0xA5000000 {
+		   compatible = "x2,uart";
+		   reg = <0 0xA5000000 0 0x1000>;
+		   status = "disabled";
+	   };
+
+	uart1: serial@0xA5001000 {
+		   compatible = "x2,uart";
+		   reg = <0 0xA5001000 0 0x1000>;
+		   status = "disabled";
+	   };
+
+	uart2: serial@0xA5002000 {
+		   compatible = "x2,uart";
+		   reg = <0 0xA5002000 0 0x1000>;
+		   status = "disabled";
+	   };
+
+	uart3: serial@0xA5003000 {
+		   compatible = "x2,uart";
+		   reg = <0 0xA5003000 0 0x1000>;
+		   interrupts = <>;
+		   status = "disabled";
+	   };
+
+ };
