@@ -84,28 +84,34 @@
 		};
 
 	uart0: serial@0xA5000000 {
-		   compatible = "x2,uart";
+		   compatible = "hobot,x2-uart";
 		   reg = <0 0xA5000000 0 0x1000>;
+		   interrupt-parent = <&gic>;
+		   interrupts = <0 23 4>;
 		   status = "disabled";
 	   };
 
 	uart1: serial@0xA5001000 {
-		   compatible = "x2,uart";
+		   compatible = "hobot,x2-uart";
 		   reg = <0 0xA5001000 0 0x1000>;
+		   interrupt-parent = <&gic>;
+		   interrupts = <0 24 4>;
 		   status = "disabled";
 	   };
 
 	uart2: serial@0xA5002000 {
-		   compatible = "x2,uart";
+		   compatible = "hobot,x2-uart";
 		   reg = <0 0xA5002000 0 0x1000>;
+		   interrupt-parent = <&gic>;
+		   interrupts = <0 25 4>;
 		   status = "disabled";
 	   };
 
 	uart3: serial@0xA5003000 {
-		   compatible = "x2,uart";
+		   compatible = "hobot,x2-uart";
 		   reg = <0 0xA5003000 0 0x1000>;
-		   interrupts = <>;
+		   interrupt-parent = <&gic>;
+		   interrupts = <0 26 4>;
 		   status = "disabled";
 	   };
-
  };
