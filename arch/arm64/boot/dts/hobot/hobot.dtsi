@@ -10,6 +10,8 @@
  * the License, or (at your option) any later version.
  */
 
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+
  / {
 	compatible = "hobot,x2";
 	#address-cells = <2>;
@@ -82,6 +84,20 @@
 			interrupt-parent = <&gic>;
 			interrupts = <1 9 0xf04>;
 		};
+
+	timer {
+		compatible = "arm,armv8-timer";
+		interrupts = <GIC_PPI 13 (GIC_CPU_MASK_SIMPLE(2)
+					 | IRQ_TYPE_LEVEL_LOW)>,
+			     <GIC_PPI 14 (GIC_CPU_MASK_SIMPLE(2)
+					 | IRQ_TYPE_LEVEL_LOW)>,
+			     <GIC_PPI 11 (GIC_CPU_MASK_SIMPLE(2)
+					 | IRQ_TYPE_LEVEL_LOW)>,
+			     <GIC_PPI 10 (GIC_CPU_MASK_SIMPLE(2)
+					 | IRQ_TYPE_LEVEL_LOW)>;
+		clock-frequency = <24000000>;
+	};
+
 
 	uart0: serial@0xA5000000 {
 		   compatible = "hobot,x2-uart";
