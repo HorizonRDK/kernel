@@ -25,8 +25,8 @@
 		cpu0: cpu@0 {
 			compatible = "arm,cortex-a53", "arm,armv8";
 			device_type = "cpu";
-			enable-method = "psci";
-			operating-points-v2 = <&cpu_opp_table>;
+			/*enable-method = "psci";*/
+			/*operating-points-v2 = <&cpu_opp_table>;*/
 			reg = <0x0>;
 			cpu-idle-states = <&CPU_SLEEP_0>;
 		};
@@ -34,9 +34,9 @@
 		cpu1: cpu@1 {
 			compatible = "arm,cortex-a53", "arm,armv8";
 			device_type = "cpu";
-			enable-method = "psci";
+			/*enable-method = "psci";*/
 			reg = <0x1>;
-			operating-points-v2 = <&cpu_opp_table>;
+			/*operating-points-v2 = <&cpu_opp_table>;*/
 			cpu-idle-states = <&CPU_SLEEP_0>;
 		};
 
@@ -71,22 +71,31 @@
 		};
 	};
 
+/*
 	psci {
 		compatible = "arm,psci-0.2";
 		method = "smc";
 	};
+*/
 
-	/*TODO: maybe need to change */
-	gic: interrupt-controller@90001000 {
+	ap_ahb: ap-ahb@0 {
+		compatible = "simple-bus";
+		#address-cells = <2>;
+		#size-cells = <1>;
+		ranges = <0 0 0 0 0xffffffff>;
+
+		gic: interrupt-controller@90001000 {
 			compatible = "arm,gic-400", "arm,cortex-a53-gic";
 			#interrupt-cells = <3>;
-			reg = <0x0 0x0 0x90001000 0x1000>,
-			      <0x0 0x0 0x90002000 0x2000>,
-			      <0x0 0x0 0x90004000 0x2000>,
-			      <0x0 0x0 0x90006000 0x2000>;
+			reg = <0x0 0x90001000 0x1000>,
+			      <0x0 0x90002000 0x2000>,
+			      <0x0 0x90004000 0x2000>,
+			      <0x0 0x90006000 0x2000>;
 			interrupt-controller;
+			interrupt-parent = <&gic>;
 			interrupts = <GIC_PPI 9 (GIC_CPU_MASK_SIMPLE(2) | IRQ_TYPE_LEVEL_HIGH)>;
 		};
+	};
 
 	timer {
 		compatible = "arm,armv8-timer";
@@ -98,6 +107,7 @@
 					 | IRQ_TYPE_LEVEL_LOW)>,
 			     <GIC_PPI 10 (GIC_CPU_MASK_SIMPLE(2)
 					 | IRQ_TYPE_LEVEL_LOW)>;
+		interrupt-parent = <&gic>;
 		clock-frequency = <24000000>;
 	};
 
