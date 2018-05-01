@@ -87,10 +87,8 @@
 		gic: interrupt-controller@90001000 {
 			compatible = "arm,gic-400", "arm,cortex-a53-gic";
 			#interrupt-cells = <3>;
-			reg = <0x0 0x90001000 0x1000>,
-			      <0x0 0x90002000 0x2000>,
-			      <0x0 0x90004000 0x2000>,
-			      <0x0 0x90006000 0x2000>;
+			reg = <0x0 0x90001000 0x1000>,		/* GICD */
+			      <0x0 0x90002000 0x2000>;		/* GICC */
 			interrupt-controller;
 			interrupt-parent = <&gic>;
 			interrupts = <GIC_PPI 9 (GIC_CPU_MASK_SIMPLE(2) | IRQ_TYPE_LEVEL_HIGH)>;

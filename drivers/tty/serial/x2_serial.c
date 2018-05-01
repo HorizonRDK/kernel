@@ -112,8 +112,8 @@ MODULE_PARM_DESC(tx_trigger_level, "Tx trigger level, 0-15 (uint: 4 bytes)");
 
 /* Uart BAUD Rate Register Bits define */
 #define UART_BCR_BRDIV_INT_MASK (0xFFFF)
-#define UART_BCR_BRDIV_INT(x) (((x) & UART_BCR_BRDIV_INT_MASK) << 0u)
-#define UART_BCR_BRDIV_FRAC_MASK (0xFFFF)
+#define UART_BCR_BRDIV_INT(x) (((x) & UART_BCR_BRDIV_INT_MASK) << 0U)
+#define UART_BCR_BRDIV_FRAC_MASK (0x3FF)
 #define UART_BCR_BRDIV_FRAC(x) (((x) & UART_BCR_BRDIV_FRAC_MASK) << 16U)
 #define UART_BCR_BRDIV_MODE_MASK  (0x3)
 #define UART_BCR_BRDIV_MODE(x) (((x) & UART_BCR_BRDIV_MODE_MASK) << 28U)
@@ -434,7 +434,7 @@ static unsigned int x2_uart_set_baud_rate(struct uart_port *port,
 	bcr_reg |= UART_BCR_BRDIV_MODE(2);
 #endif
 
-	bcr_reg |= bdiv_int | bdiv_frac;
+	bcr_reg |= (UART_BCR_BRDIV_INT(bdiv_int) | UART_BCR_BRDIV_FRAC(bdiv_frac));
 	writel(bcr_reg, port->membase + X2_UART_BCR);
 
 	x2_uart->baud = baud;
@@ -550,7 +550,7 @@ static void x2_uart_set_termios(struct uart_port *port,
 
 	/* Disable the TX and RX to set baud rate */
 	ctrl_reg = readl(port->membase + X2_UART_ENR);
-	ctrl_reg &= UART_ENR_TX_DIS | UART_ENR_RX_DIS;
+	ctrl_reg &= ~(UART_ENR_TX_EN | UART_ENR_RX_EN);
 	writel(ctrl_reg, port->membase + X2_UART_ENR);
 
 	minbaud = X2_UART_BCR_MINBAUD;
@@ -591,7 +591,7 @@ static void x2_uart_set_termios(struct uart_port *port,
 	if ((termios->c_cflag & CREAD) == 0)
 		port->ignore_status_mask |= UART_RXFUL |
 			UART_RXTO | UART_PE | UART_FE | UART_RXOE;
-
+#if 0
 	lcr_reg = readl(port->membase + X2_UART_LCR);
 
 	/* Handling Data Size */
@@ -628,7 +628,7 @@ static void x2_uart_set_termios(struct uart_port *port,
 		lcr_reg |= UART_LCR_RTS_EN | UART_LCR_CTS_EN;
 
 	writel(lcr_reg, port->membase + X2_UART_LCR);
-
+#endif /* #if 0 */
 	spin_unlock_irqrestore(&port->lock, flags);
 }
 
@@ -834,7 +834,7 @@ static int x2_uart_poll_get_char(struct uart_port *port)
 	spin_lock_irqsave(&port->lock, flags);
 
 	/* Check if FIFO is empty */
-	if (!readl(port->membase + X2_UART_LSR) & UART_LSR_RXRDY)
+	if (!(readl(port->membase + X2_UART_LSR) & UART_LSR_RXRDY))
 		c = NO_POLL_CHAR;
 	else /* Read a character */
 		c = (unsigned char) readl(port->membase + X2_UART_RDR);
@@ -941,6 +941,7 @@ static struct uart_port *x2_uart_get_port(int id)
 	port->fifosize	= X2_UART_FIFO_SIZE;
 	port->line	= id;
 	port->dev	= NULL;
+	port->uartclk = 20000000;
 	return port;
 }
 
