@@ -822,6 +822,7 @@ config SERIAL_CORE_CONSOLE
 	bool
 
 config CONSOLE_POLL
+	default y
 	bool
 
 config SERIAL_MCF
