@@ -42,7 +42,7 @@
 
 		/*TODO: maybe need to change */
 		idle-states {
-			entry-method = "arm,psci";
+			/*entry-method = "arm,psci";*/
 
 			CPU_SLEEP_0: cpu-sleep-0 {
 				compatible = "arm,idle-state";
@@ -78,21 +78,12 @@
 	};
 */
 
-	ap_ahb: ap-ahb@0 {
-		compatible = "simple-bus";
-		#address-cells = <2>;
-		#size-cells = <1>;
-		ranges = <0 0 0 0 0xffffffff>;
-
-		gic: interrupt-controller@90001000 {
-			compatible = "arm,gic-400", "arm,cortex-a53-gic";
-			#interrupt-cells = <3>;
-			reg = <0x0 0x90001000 0x1000>,		/* GICD */
-			      <0x0 0x90002000 0x2000>;		/* GICC */
-			interrupt-controller;
-			interrupt-parent = <&gic>;
-			interrupts = <GIC_PPI 9 (GIC_CPU_MASK_SIMPLE(2) | IRQ_TYPE_LEVEL_HIGH)>;
-		};
+	gic: interrupt-controller@90001000 {
+		compatible = "arm,gic-400", "arm,cortex-a53-gic";
+		#interrupt-cells = <3>;
+		reg = <0x0 0x90001000 0x0 0x1000>,		/* GICD */
+		      <0x0 0x90002000 0x0 0x2000>;		/* GICC */
+		interrupt-controller;
 	};
 
 	timer {
@@ -106,9 +97,21 @@
 			     <GIC_PPI 10 (GIC_CPU_MASK_SIMPLE(2)
 					 | IRQ_TYPE_LEVEL_LOW)>;
 		interrupt-parent = <&gic>;
-		clock-frequency = <24000000>;
+		clock-frequency = <20000000>;
 	};
 
+    rst: reset-controller {
+                compatible = "hobot,x2-reset";
+                #reset-cells = <1>;
+                reg = <0x0 0xA1000000 0x0 0x1000>;
+                x2,modrst-offset = <0x400>;
+     };
+
+    soc {
+        compatible = "simple-bus";
+        #address-cells = <2>;
+        #size-cells = <2>;
+        ranges;
 
 	uart0: serial@0xA5000000 {
 		   compatible = "hobot,x2-uart";
@@ -116,7 +119,7 @@
 		   interrupt-parent = <&gic>;
 		   interrupts = <0 23 4>;
 		   status = "disabled";
-	   };
+	};
 
 	uart1: serial@0xA5001000 {
 		   compatible = "hobot,x2-uart";
@@ -124,7 +127,7 @@
 		   interrupt-parent = <&gic>;
 		   interrupts = <0 24 4>;
 		   status = "disabled";
-	   };
+	};
 
 	uart2: serial@0xA5002000 {
 		   compatible = "hobot,x2-uart";
@@ -132,13 +135,14 @@
 		   interrupt-parent = <&gic>;
 		   interrupts = <0 25 4>;
 		   status = "disabled";
-	   };
+	};
 
-	uart3: serial@0xA5003000 {
-		   compatible = "hobot,x2-uart";
-		   reg = <0 0xA5003000 0 0x1000>;
-		   interrupt-parent = <&gic>;
-		   interrupts = <0 26 4>;
-		   status = "disabled";
-	   };
- };
+        uart3: serial@0xA5003000 {
+            compatible = "hobot,x2-uart";
+            reg = <0 0xA5003000 0 0x1000>;
+            interrupt-parent = <&gic>;
+            interrupts = <0 26 4>;
+            status = "disabled";
+        };
+};
+
