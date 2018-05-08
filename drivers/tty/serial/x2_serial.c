@@ -28,6 +28,8 @@
 #include <linux/module.h>
 #include <linux/pm_runtime.h>
 
+#include "x2_serial.h"
+
 #define X2_UART_TTY_NAME	"ttyS"
 #define X2_UART_NAME		"x2-uart"
 #define X2_UART_MAJOR		0	/* use dynamic node allocation */
@@ -37,7 +39,7 @@
 #define X2_UART_REGISTER_SPACE	0x1000
 
 /* Rx Trigger level */
-static int rx_trigger_level = 8;
+static int rx_trigger_level = 1;
 module_param(rx_trigger_level, uint, S_IRUGO);
 MODULE_PARM_DESC(rx_trigger_level, "Rx trigger level, 1-16(uint 4 bytes)");
 
@@ -46,179 +48,11 @@ static int tx_trigger_level = 8;
 module_param(tx_trigger_level, uint, S_IRUGO);
 MODULE_PARM_DESC(tx_trigger_level, "Tx trigger level, 0-15 (uint: 4 bytes)");
 
+#define CONFIG_X2_TTY_POLL_MODE
 
-/* the offset of uart registers and BITs for them */
-#define X2_UART_RDR			0x0000		/* RO: UART Receive Data Register */
-#define X2_UART_TDR			0x0004		/* WO: UART RX Data Register */
-#define X2_UART_LCR			0x0008		/* RW: UART Line Control Register */
-#define X2_UART_ENR			0x000c      /* RW: UART Enable Regsiter */
-#define X2_UART_BCR			0x0010      /* RW: UART BAUD Rate Configuration Register */
-#define X2_UART_MCR			0x0014      /* RW: UART Modem Control Register */
-#define X2_UART_TCR			0x0018      /* RW: UART Test Contorl Register */
-#define X2_UART_FCR			0x001c      /* RW: UART FIFO Configuration Register.*/
-#define X2_UART_LSR			0x0020      /* RU: UART Line Status Register.*/
-#define X2_UART_MSR			0x0024      /* RU: UART Modem Status Register */
-#define X2_UART_RXADDR		0x0028      /* RW: UART Receive DMA Base Address Register.*/
-#define X2_UART_RXSIZE		0x002c      /* RW: UART Receive DMA Size Register */
-#define X2_UART_RXDMA		0x0030      /* RW: UART Receive DMA Control Register */
-#define X2_UART_TXADDR		0x0034      /* RW: UART Transmit DMA Base Address Register */
-#define X2_UART_TXSIZE		0x0038      /* RW: UART Transmit DMA Size Register */
-#define X2_UART_TXDMA		0x003c      /* RW: UART Transmit DMA Control Register.*/
-#define X2_UART_SRC_PND		0x0040      /* WC: UART Interrupt Source Pending Register */
-#define X2_UART_INT_MASK	0x0044      /* RO: UART Interrupt Mask Register */
-#define X2_UART_INT_SETMASK 0x0048      /* WO: UART Interrupt Set Mask Register */
-#define X2_UART_INT_UNMASK  0x004c      /* WO: UART Interrupt Unmask Register.*/
-#define X2_UART_IR_EN		0x0100      /* RW: IR mode enable*/
-#define X2_UART_IR_CTRL		0x0104      /* RW: IR configuration registers*/
-#define X2_UART_IR_FIL		0x0108      /* RW: IR glitch filter time = IR_FIL*Period of cir_clock. Default = 1us*/
-#define X2_UART_IR_LEADS	0x010c      /* RW: IR AGC timing cont*/
-#define X2_UART_IR_LEADE	0x0110      /* RW: time lag of AGC to generate repeat Register */
-#define X2_UART_IR_SLEADE   0x0114      /* RW: IR time lag of AGC to generate command Regsiter */
-#define X2_UART_IR_BIT0     0x0118      /* RW: IR time to generate 0 */
-#define X2_UART_IR_BIT1     0x011c      /* RW: IR time to generate 1 */
-#define X2_UART_IR_BUSY     0x0120      /* RU: IR busy stauts */
-#define X2_UART_IR_SRCPND   0x0124      /* WC: IR interrupt source pending register */
-#define X2_UART_IR_INTMASK  0x0128      /* RU: IR interrupt mask Register */
-#define X2_UART_IR_SETMASK  0x012c      /* WO: IR setmask register */
-#define X2_UART_IR_UNMASK   0x0130      /* WO: IR unmask register */
-#define X2_UART_IR_DATA_H   0x0134      /* RU: receive high 16 bits data Register*/
-#define X2_UART_IR_DATA_L   0x0138      /* RU: receive low 32 bits data Register */
-#define X2_UART_IR_TIMEOUT  0x013c      /* RW: IR timeout for high recovery= period *IR_TIMEOUT Register */
-
-/* Uart line control register bits define */
-#define	UART_LCR_8_BIT 	(1U << 0)
-#define UART_LCR_7_BIT  (0U << 0)
-#define UART_LCR_2_STOP	(1U << 1)
-#define UART_LCR_1_STOP (~UART_LCR_2_STOP)
-#define UART_LCR_PEN 		(1U << 2)
-#define UART_LCR_EPS		(1U << 3)
-#define UART_LCR_SP		(1U << 4)
-#define UART_LCR_CTS_EN	(1U << 5)
-#define UART_LCR_RTS_EN	(1U << 6)
-#define UART_LCR_SFC_EN	(1U << 7)
-#define UART_LCR_TOI_MASK (0xF)
-#define UART_LCR_TOI(x)		(((x) & UART_LCR_TOI_MASK) << 8U)
-#define UART_LCR_IREN		(1U << 12)
-#define UART_LCR_RXPOL    (1U << 13)
-
-/* Uart enable register bits define */
-#define UART_ENR_MASK (0x7)
-#define UART_ENR_EN 		(UART_ENR_MASK & (1U << 0))	/* uart gloabl enabled bit */
-#define UART_ENR_DIS  (UART_ENR_MASK & (~(1U << 0)))
-#define UART_ENR_RX_EN	(UART_ENR_MASK & (1U << 1))		/* RX enabled bit */
-#define UART_ENR_RX_DIS (UART_ENR_MASK & (~(1U << 1)))  /* RX disable bit */
-#define UART_ENR_TX_EN	(UART_ENR_MASK & (1U << 2))		/* TX enabled bit */
-#define UART_ENR_TX_DIS	(UART_ENR_MASK & (~(1U << 2)))	/* TX disable bit */
-
-/* Uart BAUD Rate Register Bits define */
-#define UART_BCR_BRDIV_INT_MASK (0xFFFF)
-#define UART_BCR_BRDIV_INT(x) (((x) & UART_BCR_BRDIV_INT_MASK) << 0U)
-#define UART_BCR_BRDIV_FRAC_MASK (0x3FF)
-#define UART_BCR_BRDIV_FRAC(x) (((x) & UART_BCR_BRDIV_FRAC_MASK) << 16U)
-#define UART_BCR_BRDIV_MODE_MASK  (0x3)
-#define UART_BCR_BRDIV_MODE(x) (((x) & UART_BCR_BRDIV_MODE_MASK) << 28U)
-#define LOW_SPEED_MODE_DIV 	16
-#define MID_SPEED_MODE_DIV 	8
-#define HIGH_SPEED_MODE_DIV	4
-#define X2_UART_BCR_MINBAUD 0
-#define X2_UART_BCR_MAXBAUD 115200
-
-/* Uart modem control register bits define */
-#define UART_MCR_DTRN			(1U << 0)
-#define UART_MCR_RTSN			(1U << 1)
-#define UART_MCR_LMD_MASK		0x3
-#define UART_MCR_LMD(x)		(((x) & X2_MCR_LMD_MASK) << 2U)
-#define UART_MCR_XON_MASK		0xFF
-#define UART_MCR_XON(x)		(((x) & X2_MCR_XON_MASK) << 8U)
-#define UART_MCR_XOFF_MASK	0xFF
-#define UART_MCR_XOFF(x)		(((x) & X2_MCR_XOFF_MASK) << 16U)
-
-/* Uart test control register bits define */
-#define UART_TCR_LB			(1U << 0)
-#define UART_TCR_FFE			(1U << 1)
-#define UART_TCR_FPE			(1U << 2)
-#define UART_TCR_BRK			(1U << 3)
-
-/* Uart fifo configuration register bits define */
-#define UART_FCR_RDMA_EN		(1U << 0)
-#define UART_FCR_TDMA_EN		(1U << 1)
-#define UART_FCR_RFRST		(1U << 2)
-#define UART_FCR_TFRST		(1U << 3)
-#define UART_FCR_RFTRL_MASK	0x1F
-#define UART_FCR_RFTRL(x)		(((x) & UART_FCR_RFTRL_MASK) << 16U)
-#define UART_FCR_TFTRL_MASK	0x1F
-#define UART_FCR_TFTRL(x)		(((x) & UART_FCR_TFTRL_MASK) << 24U)
-
-/* Uart line status register bits define */
-#define UART_LSR_TX_EMPTY		(1U << 12)
-#define UART_LSR_TF_EMPTY 	(1U << 11)
-#define UART_LSR_TF_TLR 		(1U << 10)
-#define UART_LSR_TXRDY 		(1U << 9)
-#define UART_LSR_TXBUSY 		(1U << 8)
-#define UART_LSR_RF_TLR 		(1U << 7)
-#define UART_LSR_RX_TO 		(1U << 6)
-#define UART_LSR_RX_OE		(1U << 5)
-#define UART_LSR_B_INT		(1U << 4)
-#define UART_LSR_F_ERR		(1U << 3)
-#define UART_LSR_P_ERR		(1U << 2)
-#define UART_LSR_RXRDY 		(1U << 1)
-#define UART_LSR_RXBUSY 		(1U << 0)
-
-/*Uart modem status register bits define */
-#define UART_MSR_CTS_N (1U << 0)
-#define UART_MSR_DSR_N (1U << 1)
-#define UART_MSR_DCD_N (1U << 2)
-#define UART_MSR_RI_N  (1U << 3)
-#define UART_MSR_CTS_C (1U << 4)
-#define UART_MSR_DSR_C (1U << 5)
-#define UART_MSR_DCD_C (1U << 6)
-#define UART_MSR_RI_C  (1U << 7)
-
-/*Uart receive DMA register bits define */
-#define UART_RXTHD_MASK (0xF)
-#define UART_DMA_RXTHD(x) (((x) & UART_RXTHD_MASK) << 12u)
-#define UART_RXMOS_MASK (0xF)
-#define UART_RXMOS(x) (((x) & UART_RXMOS_MASK) << 8U)
-#define UART_RXLEN_MASK (0xF)
-#define UART_RXLEN(x) (((x) & UART_RXLEN_MASK) << 4U)
-#define UART_RXAE (1U << 3)
-#define UART_RXWRAP (1U << 2)
-#define UART_RXSTP (1U << 1)
-#define UART_RXSTA (1U << 0)
-
-/*Uart Transmit DMA register bits define */
-#define UART_TXTHD_MASK (0xF)
-#define UART_DMA_TXTHD(x) (((x) & UART_TXTHD_MASK) << 12u)
-#define UART_TXMOS_MASK (0xF)
-#define UART_TXMOS(x) (((x) & UART_TXMOS_MASK) << 8U)
-#define UART_TXLEN_MASK (0xF)
-#define UART_TXLEN(x) (((x) & UART_TXLEN_MASK) << 4U)
-#define UART_TXAE (1U << 3)
-#define UART_TXWRAP (1U << 2)
-#define UART_TXSTP (1U << 1)
-#define UART_TXSTA (1U << 0)
-
-/*
- * UART Interrupt Source Pending Register \
- * UART Interrupt Mask Register \
- * UART Interrupt Set Mask Register \
- * UART Interrupt Unmask Register bits define
- * */
-#define UART_TXEPT (1U << 14)
-#define UART_TXTHD (1U << 13)
-#define UART_TXDON (1U << 12)
-#define UART_RXFUL (1U << 11)
-#define UART_RXTO  (1U << 10)
-#define UART_RXOE  (1U << 9)
-#define UART_BI    (1U << 8)
-#define UART_FE    (1U << 7)
-#define UART_PE    (1U << 6)
-#define UART_RXTHD (1U << 5)
-#define UART_RXDON (1U << 4)
-#define UART_RIC   (1U << 3)
-#define UART_DCDC  (1U << 2)
-#define UART_DSRC  (1U << 1)
-#define UART_CTSC  (1U << 0)
+#ifdef CONFIG_X2_TTY_POLL_MODE
+#define X2_UART_RX_POLL_TIME	50		/* Unit is ms */
+#endif /* CONFIG_X2_TTY_POLL_MODE */
 
 /**
  * struct x2_uart - device data
@@ -228,6 +62,10 @@ MODULE_PARM_DESC(tx_trigger_level, "Tx trigger level, 0-15 (uint: 4 bytes)");
 struct x2_uart {
 	struct uart_port	*port;
 	unsigned int		baud;
+
+#ifdef CONFIG_X2_TTY_POLL_MODE
+	struct timer_list	rx_timer;
+#endif /* CONFIG_X2_TTY_POLL_MODE */
 };
 
 #define to_x2_uart(_nb) container_of(_nb, struct x2_uart, \
@@ -284,16 +122,16 @@ static void x2_uart_handle_rx(void *dev_id, unsigned int irqstatus)
 }
 
 /**
- * x2_uart_stop_tx - Stop TX
+ * x2_uart_stop_rx - Stop RX
  * @port: Handle to the uart port structure
  */
-static void x2_uart_stop_tx(struct uart_port *port)
+static void x2_uart_stop_rx(struct uart_port *port)
 {
 	unsigned int regval;
 
-	/* Disable the transmitter */
+	/* Disable the receiver */
 	regval = readl(port->membase + X2_UART_ENR);
-	regval &= UART_ENR_TX_DIS;
+	regval &= ~UART_ENR_RX_EN;
 	writel(regval, port->membase + X2_UART_ENR);
 }
 
@@ -305,39 +143,35 @@ static void x2_uart_stop_tx(struct uart_port *port)
 static void x2_uart_handle_tx(void *dev_id)
 {
 	struct uart_port *port = (struct uart_port *)dev_id;
-	unsigned int numbytes;
 
 	if (uart_circ_empty(&port->state->xmit)) {
-		x2_uart_stop_tx(port);
-	} else {
-		numbytes = port->fifosize;
-		while (numbytes && !uart_circ_empty(&port->state->xmit) &&
-		       (readl(port->membase + X2_UART_SRC_PND) & UART_TXEPT)) {
-			/*
-			 * Get the data from the UART circular buffer
-			 * and write it to the cdns_uart's TX_FIFO
-			 * register.
-			 */
-			writel(port->state->xmit.buf[port->state->xmit.tail],
+		return;
+	}
+
+	while (!uart_circ_empty(&port->state->xmit)) {
+		while (!(readl(port->membase + X2_UART_LSR) & UART_LSR_TX_EMPTY));
+		/*
+		 * Get the data from the UART circular buffer
+		 * and write it to the cdns_uart's TX_FIFO
+		 * register.
+		 */
+		writel(port->state->xmit.buf[port->state->xmit.tail],
 				port->membase + X2_UART_TDR);
 
-			port->icount.tx++;
+		port->icount.tx++;
 
-			/*
-			 * Adjust the tail of the UART buffer and wrap
-			 * the buffer if it reaches limit.
-			 */
-			port->state->xmit.tail =
-				(port->state->xmit.tail + 1) &
-					(UART_XMIT_SIZE - 1);
-
-			numbytes--;
-		}
-
-		if (uart_circ_chars_pending(
-				&port->state->xmit) < WAKEUP_CHARS)
-			uart_write_wakeup(port);
+		/*
+		 * Adjust the tail of the UART buffer and wrap
+		 * the buffer if it reaches limit.
+		 */
+		port->state->xmit.tail =
+			(port->state->xmit.tail + 1) & (UART_XMIT_SIZE - 1);
 	}
+
+	if (uart_circ_chars_pending(&port->state->xmit) < WAKEUP_CHARS)
+		uart_write_wakeup(port);
+
+	return;
 }
 
 /**
@@ -349,6 +183,7 @@ static void x2_uart_handle_tx(void *dev_id)
  */
 static irqreturn_t x2_uart_isr(int irq, void *dev_id)
 {
+#ifdef CONFIG_X2_TTY_IRQ_MODE
 	struct uart_port *port = (struct uart_port *)dev_id;
 	unsigned int irqstatus;
 
@@ -364,10 +199,13 @@ static irqreturn_t x2_uart_isr(int irq, void *dev_id)
 		x2_uart_handle_tx(dev_id);
 		irqstatus &= ~UART_TXEPT;
 	}
+
 	if (irqstatus & UART_RXFUL)
 		x2_uart_handle_rx(dev_id, irqstatus);
 
 	spin_unlock(&port->lock);
+#endif /* CONFIG_X2_TTY_IRQ_MODE */
+
 	return IRQ_HANDLED;
 }
 
@@ -441,22 +279,6 @@ static unsigned int x2_uart_set_baud_rate(struct uart_port *port,
 	return calc_baud;
 }
 
-#if 0
-/**
- * x2_uart_clk_notitifer_cb - Clock notifier callback
- * @nb:		Notifier block
- * @event:	Notify event
- * @data:	Notifier data
- * Return:	NOTIFY_OK or NOTIFY_DONE on success, NOTIFY_BAD on error.
- */
-static int x2_uart_clk_notifier_cb(struct notifier_block *nb,
-		unsigned long event, void *data)
-{
-	/* Current no implement */
-	return 0;
-}
-#endif
-
 /**
  * x2_uart_start_tx -  Start transmitting bytes
  * @port: Handle to the uart port structure
@@ -468,6 +290,9 @@ static void x2_uart_start_tx(struct uart_port *port)
 	if (uart_tx_stopped(port))
 		return;
 
+#ifdef CONFIG_X2_TTY_IRQ_MODE
+	writel(0x7000, port->membase + X2_UART_INT_UNMASK);
+#endif /* CONFIG_X2_TTY_IRQ_MODE */
 	/*
 	 * Set the TX enable bit and clear the TX disable bit to enable the
 	 * transmitter.
@@ -483,19 +308,22 @@ static void x2_uart_start_tx(struct uart_port *port)
 }
 
 /**
- * x2_uart_stop_rx - Stop RX
+ * x2_uart_stop_tx - Stop TX
  * @port: Handle to the uart port structure
  */
-static void x2_uart_stop_rx(struct uart_port *port)
+static void x2_uart_stop_tx(struct uart_port *port)
 {
 	unsigned int regval;
 
-	/* Disable the receiver */
+#ifdef CONFIG_X2_TTY_IRQ_MODE
+	writel(0x7000, port->membase + X2_UART_INT_SETMASK);
+#endif /* CONFIG_X2_TTY_IRQ_MODE */
+
+	/* Disable the transmitter */
 	regval = readl(port->membase + X2_UART_ENR);
-	regval &= UART_ENR_RX_DIS;
+	regval &= ~UART_ENR_TX_EN;
 	writel(regval, port->membase + X2_UART_ENR);
 }
-
 
 /**
  * x2_uart_tx_empty -  Check whether TX is empty
@@ -507,8 +335,7 @@ static unsigned int x2_uart_tx_empty(struct uart_port *port)
 {
 	unsigned int status;
 
-	status = readl(port->membase + X2_UART_LSR) &
-				UART_LSR_TX_EMPTY;
+	status = readl(port->membase + X2_UART_LSR) & UART_LSR_TX_EMPTY;
 
 	return status ? TIOCSER_TEMT : 0;
 }
@@ -597,7 +424,7 @@ static void x2_uart_set_termios(struct uart_port *port,
 	/* Handling Data Size */
 	switch (termios->c_cflag & CSIZE) {
 	case CS7:
-		lcr_reg |= UART_LCR_7_BIT;
+		lcr_reg &= UART_LCR_7_BIT;
 		break;
 	default:
 	case CS8:
@@ -611,7 +438,7 @@ static void x2_uart_set_termios(struct uart_port *port,
 	if (termios->c_cflag & CSTOPB)
 		lcr_reg |= UART_LCR_2_STOP; /* 2 STOP bits */
 	else
-		lcr_reg |= UART_LCR_1_STOP; /* 1 STOP bit */
+		lcr_reg &= UART_LCR_1_STOP; /* 1 STOP bit */
 
 	termios->c_cflag &= ~CMSPAR;	/* no support mark/space */
 
@@ -632,6 +459,33 @@ static void x2_uart_set_termios(struct uart_port *port,
 	spin_unlock_irqrestore(&port->lock, flags);
 }
 
+#ifdef CONFIG_X2_TTY_POLL_MODE
+static void x2_uart_rx_polling_func(unsigned long data)
+{
+	struct uart_port *port = (struct uart_port *)data;
+	struct x2_uart *x2_uart = port->private_data;
+	unsigned char val;
+	char status = TTY_NORMAL;
+
+	if (!(readl(port->membase + X2_UART_LSR) & UART_LSR_RXRDY)) {
+		mod_timer(&x2_uart->rx_timer, jiffies + msecs_to_jiffies(X2_UART_RX_POLL_TIME));
+		return;
+	}
+
+	while ((readl(port->membase + X2_UART_LSR)) & UART_LSR_RXRDY) {
+		val = readb(port->membase + X2_UART_RDR);
+		port->icount.rx++;
+		tty_insert_flip_char(&port->state->port, val, status);
+	}
+
+	tty_flip_buffer_push(&port->state->port);
+
+	mod_timer(&x2_uart->rx_timer, jiffies + msecs_to_jiffies(X2_UART_RX_POLL_TIME));
+
+	return;
+}
+#endif /* CONFIG_X2_TTY_POLL_MODE */
+
 /**
  * x2_uart_startup - Called when an application opens a x2_uart port
  * @port: Handle to the uart port structure
@@ -643,12 +497,15 @@ static int x2_uart_startup(struct uart_port *port)
 	int ret;
 	unsigned long flags;
 	unsigned int val = 0;
+	struct x2_uart *x2_uart = port->private_data;
 
 	spin_lock_irqsave(&port->lock, flags);
 
 	/* First Disable Uart */
-	writel(UART_ENR_DIS, port->membase + X2_UART_ENR);
-
+	val = readl(port->membase + X2_UART_ENR);
+	val &= ~UART_ENR_EN;
+	writel(val, port->membase + X2_UART_ENR);
+#if 0
 	/* Set the line Control Register with normal mode,8 data bits,1 stop bit,
 	 * no parity.
 	 */
@@ -665,6 +522,7 @@ static int x2_uart_startup(struct uart_port *port)
 	while (readl(port->membase + X2_UART_FCR) &
 		(UART_FCR_RFRST | UART_FCR_TFRST))
 		cpu_relax();
+#endif /* #if 0 */
 
 	/* Set TX/RX FIFO Trigger level and disable dma tx/rx */
 	val = readl(port->membase + X2_UART_FCR);
@@ -674,12 +532,12 @@ static int x2_uart_startup(struct uart_port *port)
 
 	/* Clear all pending Interrupt */
 	writel(0xffffffff, port->membase + X2_UART_SRC_PND);
-	writel(0x0, port->membase + X2_UART_INT_SETMASK);
-	writel(0xffffffff, port->membase + X2_UART_INT_UNMASK);
+	writel(0xfff, port->membase + X2_UART_INT_UNMASK);
+	writel(0x7FFF, port->membase + X2_UART_INT_SETMASK);
 
 	/* Enable  global uart */
 	val = readl(port->membase + X2_UART_ENR);
-	val |= UART_ENR_EN;
+	val |= (UART_ENR_EN | UART_ENR_RX_EN);
 	writel(val, port->membase + X2_UART_ENR);
 
 	spin_unlock_irqrestore(&port->lock, flags);
@@ -690,6 +548,11 @@ static int x2_uart_startup(struct uart_port *port)
 			port->irq, ret);
 		return ret;
 	}
+
+#ifdef CONFIG_X2_TTY_POLL_MODE
+	setup_timer(&x2_uart->rx_timer, x2_uart_rx_polling_func, (unsigned long)port);
+	mod_timer(&x2_uart->rx_timer, jiffies + msecs_to_jiffies(X2_UART_RX_POLL_TIME));
+#endif /* CONFIG_X2_TTY_POLL_MODE */
 
 	return 0;
 }
@@ -702,6 +565,11 @@ static void x2_uart_shutdown(struct uart_port *port)
 {
 	int status;
 	unsigned long flags;
+	struct x2_uart *x2_uart = port->private_data;
+
+#ifdef CONFIG_X2_TTY_POLL_MODE
+	del_timer(&x2_uart->rx_timer);
+#endif /* CONFIG_X2_TTY_POLL_MODE */
 
 	spin_lock_irqsave(&port->lock, flags);
 
@@ -717,7 +585,7 @@ static void x2_uart_shutdown(struct uart_port *port)
 
 	/* Disable the TX and RX */
 	status = readl(port->membase + X2_UART_ENR);
-	status &= UART_ENR_DIS | UART_ENR_RX_DIS | UART_ENR_TX_DIS;
+	status &= ~(UART_ENR_EN | UART_ENR_RX_EN | UART_ENR_TX_EN);
 	writel(status, port->membase + X2_UART_ENR);
 
 	spin_unlock_irqrestore(&port->lock, flags);
