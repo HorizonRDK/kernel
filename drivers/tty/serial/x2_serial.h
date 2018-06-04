@@ -170,4 +170,6 @@
 #define UART_DSRC  (1U << 1)
 #define UART_CTSC  (1U << 0)
 
+#define UART_IRQ_SRC_MASK	(0x7FFF)
+
 #endif /* __X2_SERIAL_H__ */

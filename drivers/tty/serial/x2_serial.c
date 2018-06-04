@@ -44,11 +44,13 @@ module_param(rx_trigger_level, uint, S_IRUGO);
 MODULE_PARM_DESC(rx_trigger_level, "Rx trigger level, 1-16(uint 4 bytes)");
 
 /* Tx Trigger level */
-static int tx_trigger_level = 8;
+static int tx_trigger_level = 0;
 module_param(tx_trigger_level, uint, S_IRUGO);
 MODULE_PARM_DESC(tx_trigger_level, "Tx trigger level, 0-15 (uint: 4 bytes)");
 
-#define CONFIG_X2_TTY_POLL_MODE
+//#define CONFIG_X2_TTY_POLL_MODE
+#define CONFIG_X2_TTY_IRQ_MODE
+//#define CONFIG_X2_TTY_DMA_MODE
 
 #ifdef CONFIG_X2_TTY_POLL_MODE
 #define X2_UART_RX_POLL_TIME	50		/* Unit is ms */
@@ -61,7 +63,7 @@ MODULE_PARM_DESC(tx_trigger_level, "Tx trigger level, 0-15 (uint: 4 bytes)");
  */
 struct x2_uart {
 	struct uart_port	*port;
-	unsigned int		baud;
+	unsigned int	baud;
 
 #ifdef CONFIG_X2_TTY_POLL_MODE
 	struct timer_list	rx_timer;
@@ -140,7 +142,7 @@ static void x2_uart_stop_rx(struct uart_port *port)
  * @dev_id: Id of the UART port
  * Return: None
  */
-static void x2_uart_handle_tx(void *dev_id)
+static void x2_uart_handle_tx(void *dev_id, unsigned char in_irq)
 {
 	struct uart_port *port = (struct uart_port *)dev_id;
 
@@ -148,7 +150,7 @@ static void x2_uart_handle_tx(void *dev_id)
 		return;
 	}
 
-	while (!uart_circ_empty(&port->state->xmit)) {
+	do {
 		while (!(readl(port->membase + X2_UART_LSR) & UART_LSR_TX_EMPTY));
 		/*
 		 * Get the data from the UART circular buffer
@@ -166,7 +168,16 @@ static void x2_uart_handle_tx(void *dev_id)
 		 */
 		port->state->xmit.tail =
 			(port->state->xmit.tail + 1) & (UART_XMIT_SIZE - 1);
-	}
+
+		/*
+		 * Hardware needs to transmit a char to make the interrupt of tx.
+		 */
+#ifdef CONFIG_X2_TTY_IRQ_MODE
+		if (!in_irq) {
+			return;
+		}
+#endif /* CONFIG_X2_TTY_IRQ_MODE */
+	} while (!uart_circ_empty(&port->state->xmit));
 
 	if (uart_circ_chars_pending(&port->state->xmit) < WAKEUP_CHARS)
 		uart_write_wakeup(port);
@@ -185,23 +196,24 @@ static irqreturn_t x2_uart_isr(int irq, void *dev_id)
 {
 #ifdef CONFIG_X2_TTY_IRQ_MODE
 	struct uart_port *port = (struct uart_port *)dev_id;
-	unsigned int irqstatus;
+	unsigned int status;
 
 	spin_lock(&port->lock);
+	status = readl(port->membase + X2_UART_SRC_PND);
+	/* Disable the special irq */
+	writel(status, port->membase + X2_UART_INT_SETMASK);
+	/* Clear irq's status */
+	writel(status, port->membase + X2_UART_SRC_PND);
 
-	/* Read the interrupt status register to determine which
-	 * interrupt(s) is/are active and clear them.
-	 */
-	irqstatus = readl(port->membase + X2_UART_SRC_PND);
-	writel(irqstatus, port->membase + X2_UART_SRC_PND);
-
-	if (irqstatus & UART_TXEPT) {
-		x2_uart_handle_tx(dev_id);
-		irqstatus &= ~UART_TXEPT;
+	if (status & UART_RXFUL) {
+		x2_uart_handle_rx(dev_id, status);
 	}
 
-	if (irqstatus & UART_RXFUL)
-		x2_uart_handle_rx(dev_id, irqstatus);
+	if (status & UART_TXEPT) {
+		x2_uart_handle_tx(dev_id, 1);
+	}
+
+	writel(status, port->membase + X2_UART_INT_UNMASK);
 
 	spin_unlock(&port->lock);
 #endif /* CONFIG_X2_TTY_IRQ_MODE */
@@ -285,26 +297,24 @@ static unsigned int x2_uart_set_baud_rate(struct uart_port *port,
  */
 static void x2_uart_start_tx(struct uart_port *port)
 {
-	unsigned int status;
+	unsigned int ctrl;
 
 	if (uart_tx_stopped(port))
 		return;
 
-#ifdef CONFIG_X2_TTY_IRQ_MODE
-	writel(0x7000, port->membase + X2_UART_INT_UNMASK);
-#endif /* CONFIG_X2_TTY_IRQ_MODE */
-	/*
-	 * Set the TX enable bit and clear the TX disable bit to enable the
-	 * transmitter.
-	 */
-	status = readl(port->membase + X2_UART_ENR);
-	status |= UART_ENR_TX_EN;
-	writel(status, port->membase + X2_UART_ENR);
-
 	if (uart_circ_empty(&port->state->xmit))
 		return;
 
-	x2_uart_handle_tx(port);
+#ifdef CONFIG_X2_TTY_IRQ_MODE
+	writel(UART_TXEPT | UART_TXTHD | UART_TXDON,
+		port->membase + X2_UART_INT_UNMASK);
+#endif /* CONFIG_X2_TTY_IRQ_MODE */
+
+	ctrl = readl(port->membase + X2_UART_ENR);
+	ctrl |= UART_ENR_TX_EN;
+	writel(ctrl, port->membase + X2_UART_ENR);
+
+	x2_uart_handle_tx(port, 0);
 }
 
 /**
@@ -313,16 +323,17 @@ static void x2_uart_start_tx(struct uart_port *port)
  */
 static void x2_uart_stop_tx(struct uart_port *port)
 {
-	unsigned int regval;
+	unsigned int ctrl;
 
 #ifdef CONFIG_X2_TTY_IRQ_MODE
-	writel(0x7000, port->membase + X2_UART_INT_SETMASK);
+	writel(UART_TXEPT | UART_TXTHD | UART_TXDON,
+		port->membase + X2_UART_INT_SETMASK);
 #endif /* CONFIG_X2_TTY_IRQ_MODE */
 
 	/* Disable the transmitter */
-	regval = readl(port->membase + X2_UART_ENR);
-	regval &= ~UART_ENR_TX_EN;
-	writel(regval, port->membase + X2_UART_ENR);
+	ctrl = readl(port->membase + X2_UART_ENR);
+	ctrl &= ~UART_ENR_TX_EN;
+	writel(ctrl, port->membase + X2_UART_ENR);
 }
 
 /**
@@ -497,7 +508,10 @@ static int x2_uart_startup(struct uart_port *port)
 	int ret;
 	unsigned long flags;
 	unsigned int val = 0;
+	unsigned int mask;
+#ifdef CONFIG_X2_TTY_POLL_MODE
 	struct x2_uart *x2_uart = port->private_data;
+#endif /* CONFIG_X2_TTY_POLL_MODE */
 
 	spin_lock_irqsave(&port->lock, flags);
 
@@ -531,9 +545,19 @@ static int x2_uart_startup(struct uart_port *port)
 	writel(val, port->membase + X2_UART_FCR);
 
 	/* Clear all pending Interrupt */
-	writel(0xffffffff, port->membase + X2_UART_SRC_PND);
-	writel(0xfff, port->membase + X2_UART_INT_UNMASK);
-	writel(0x7FFF, port->membase + X2_UART_INT_SETMASK);
+	writel(0x7FFF, port->membase + X2_UART_SRC_PND);
+
+#ifdef CONFIG_X2_TTY_IRQ_MODE
+	mask = UART_TXEPT | UART_TXTHD | UART_TXDON;
+	writel(mask, port->membase + X2_UART_INT_SETMASK);
+
+	mask = UART_RXFUL | UART_RXTO | UART_RXOE |
+		UART_BI | UART_FE | UART_PE |
+		UART_RXTHD | UART_RXDON | UART_CTSC;
+	writel(mask, port->membase + X2_UART_INT_UNMASK);
+#else
+	writel(UART_IRQ_SRC_MASK, port->membase + X2_UART_INT_SETMASK);
+#endif /* #if 0 */
 
 	/* Enable  global uart */
 	val = readl(port->membase + X2_UART_ENR);
@@ -542,7 +566,7 @@ static int x2_uart_startup(struct uart_port *port)
 
 	spin_unlock_irqrestore(&port->lock, flags);
 
-	ret = request_irq(port->irq, x2_uart_isr, 0, X2_UART_NAME, port);
+	ret = request_irq(port->irq, x2_uart_isr, IRQF_TRIGGER_HIGH, X2_UART_NAME, port);
 	if (ret) {
 		dev_err(port->dev, "request_irq '%d' failed with %d\n",
 			port->irq, ret);
@@ -565,9 +589,10 @@ static void x2_uart_shutdown(struct uart_port *port)
 {
 	int status;
 	unsigned long flags;
-	struct x2_uart *x2_uart = port->private_data;
 
 #ifdef CONFIG_X2_TTY_POLL_MODE
+	struct x2_uart *x2_uart = port->private_data;
+
 	del_timer(&x2_uart->rx_timer);
 #endif /* CONFIG_X2_TTY_POLL_MODE */
 
@@ -575,8 +600,8 @@ static void x2_uart_shutdown(struct uart_port *port)
 
 	/* Disable interrupts */
 	status = readl(port->membase + X2_UART_INT_MASK);
-	writel(status, port->membase + X2_UART_SRC_PND);
-	writel(0xffffffff, port->membase + X2_UART_INT_SETMASK);
+	writel(status, port->membase + X2_UART_INT_SETMASK);
+	writel(0x7FFF, port->membase + X2_UART_SRC_PND);
 
 	/* Reset FIFO */
 	status = readl(port->membase + X2_UART_FCR);
