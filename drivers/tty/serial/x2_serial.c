@@ -26,6 +26,7 @@
 #include <linux/io.h>
 #include <linux/of.h>
 #include <linux/module.h>
+#include <linux/dma-mapping.h>
 #include <linux/pm_runtime.h>
 
 #include "x2_serial.h"
@@ -39,7 +40,7 @@
 #define X2_UART_REGISTER_SPACE	0x1000
 
 /* Rx Trigger level */
-static int rx_trigger_level = 1;
+static int rx_trigger_level = 4;
 module_param(rx_trigger_level, uint, S_IRUGO);
 MODULE_PARM_DESC(rx_trigger_level, "Rx trigger level, 1-16(uint 4 bytes)");
 
@@ -49,8 +50,8 @@ module_param(tx_trigger_level, uint, S_IRUGO);
 MODULE_PARM_DESC(tx_trigger_level, "Tx trigger level, 0-15 (uint: 4 bytes)");
 
 //#define CONFIG_X2_TTY_POLL_MODE
-#define CONFIG_X2_TTY_IRQ_MODE
-//#define CONFIG_X2_TTY_DMA_MODE
+//#define CONFIG_X2_TTY_IRQ_MODE
+#define CONFIG_X2_TTY_DMA_MODE
 
 #ifdef CONFIG_X2_TTY_POLL_MODE
 #define X2_UART_RX_POLL_TIME	50		/* Unit is ms */
@@ -68,10 +69,240 @@ struct x2_uart {
 #ifdef CONFIG_X2_TTY_POLL_MODE
 	struct timer_list	rx_timer;
 #endif /* CONFIG_X2_TTY_POLL_MODE */
+
+#ifdef CONFIG_X2_TTY_DMA_MODE
+	dma_addr_t tx_dma_buf;   /* dma tx buffer bus address */
+	unsigned int tx_bytes_requested;
+
+	dma_addr_t rx_dma_buf;   /* dma rx buffer bus address */
+	unsigned char *rx_buf;   /* dma rx buffer cpu address */
+	unsigned int rx_off;     /* valid data head position */
+
+	bool rx_enabled;
+#endif
+
 };
 
 #define to_x2_uart(_nb) container_of(_nb, struct x2_uart, \
 		clk_rate_change_nb);
+
+#ifdef X2_UART_DBG
+static unsigned int dbg_tx_cnt[1024];
+static unsigned int dbg_tx_index = 0;
+
+static unsigned char dbg_str[4096];
+static unsigned int dbg_str_off = 0;
+#endif /* X2_UART_DBG */
+
+#ifdef CONFIG_X2_TTY_DMA_MODE
+
+#define X2_UART_DMA_SIZE	UART_XMIT_SIZE
+
+static int x2_uart_dma_alloc(struct uart_port *port)
+{
+	int ret = 0;
+	struct x2_uart *x2_port = port->private_data;
+
+	x2_port->rx_buf = dma_alloc_coherent(port->dev,
+		X2_UART_DMA_SIZE, &x2_port->rx_dma_buf, GFP_KERNEL);
+	if (!x2_port->rx_buf) {
+		ret = -ENOMEM;
+		goto alloc_err;
+	}
+
+	x2_port->rx_off = 0;
+
+	x2_port->tx_dma_buf = dma_map_single(port->dev,
+			port->state->xmit.buf, UART_XMIT_SIZE,
+			DMA_TO_DEVICE);
+	if (dma_mapping_error(port->dev, x2_port->tx_dma_buf)) {
+		dev_err(port->dev, "dma_map_single tx failed\n");
+		ret = -ENOMEM;
+		goto alloc_err;
+	}
+
+	memset(x2_port->rx_buf, 0, X2_UART_DMA_SIZE);
+
+	return ret;
+
+alloc_err:
+	if (x2_port->rx_buf) {
+		dma_free_coherent(port->dev,
+			X2_UART_DMA_SIZE, x2_port->rx_buf, x2_port->rx_dma_buf);
+	}
+
+	return ret;
+}
+
+static void x2_uart_dma_tx_start(struct uart_port *port)
+{
+	unsigned int count = 0;
+	unsigned int val = 0;
+	struct circ_buf *xmit = &port->state->xmit;
+	struct x2_uart *x2_port = port->private_data;
+	dma_addr_t tx_phys_addr;
+
+	if (xmit->head >= xmit->tail) {
+		count = CIRC_CNT(xmit->head, xmit->tail, UART_XMIT_SIZE);
+	} else {
+		count = CIRC_CNT_TO_END(xmit->head, xmit->tail, UART_XMIT_SIZE);
+	}
+
+	if (!count) {
+		return;
+	}
+
+#ifdef X2_UART_DBG
+	dbg_tx_cnt[dbg_tx_index] = count;
+	dbg_tx_index = (dbg_tx_index + 1) & (1024 - 1);
+	dbg_tx_cnt[dbg_tx_index] = xmit->head;
+	dbg_tx_index = (dbg_tx_index + 1) & (1024 - 1);
+	dbg_tx_cnt[dbg_tx_index] = xmit->tail;
+	dbg_tx_index = (dbg_tx_index + 1) & (1024 - 1);
+
+	if (dbg_str_off + count <= 4096) {
+		memcpy(&dbg_str[dbg_str_off], &xmit->buf[xmit->tail], count);
+			dbg_str_off = (dbg_str_off + count) & (4096 - 1);
+	}
+#endif /* X2_UART_DBG */
+
+	dma_sync_single_for_device(port->dev, x2_port->tx_dma_buf,
+		UART_XMIT_SIZE, DMA_TO_DEVICE);
+	tx_phys_addr = x2_port->tx_dma_buf + xmit->tail;
+
+	x2_port->tx_bytes_requested = count;
+
+	val = readl(port->membase + X2_UART_FCR);
+	val |= UART_FCR_TDMA_EN;
+	writel(val, port->membase + X2_UART_FCR);
+
+	/*Set Transmit DMA size and Start DMA TX*/
+	writel(tx_phys_addr, port->membase + X2_UART_TXADDR);
+	writel(count, port->membase + X2_UART_TXSIZE);
+	val = readl(port->membase + X2_UART_TXDMA);
+	val &= 0xFFFFFF00;
+	val |= (UART_TXLEN(3) | UART_TXSTA);
+	writel(val, port->membase + X2_UART_TXDMA);
+
+	return;
+}
+
+static void x2_uart_dma_rx_start(struct uart_port *port)
+{
+	unsigned int val;
+	struct x2_uart *x2_port = port->private_data;
+
+	dma_sync_single_for_device(port->dev, x2_port->rx_dma_buf,
+		X2_UART_DMA_SIZE, DMA_TO_DEVICE);
+
+	/*Set recvice DMA size and Start DMA RX*/
+	writel(x2_port->rx_dma_buf, port->membase + X2_UART_RXADDR);
+	writel(X2_UART_DMA_SIZE, port->membase + X2_UART_RXSIZE);
+	val = readl(port->membase + X2_UART_RXDMA);
+	val &= 0xFFFFFF00;
+	val |= UART_RXSTA | UART_RXWRAP;
+	writel(val, port->membase + X2_UART_RXDMA);
+
+	x2_port->rx_enabled = 1;
+
+	return;
+}
+
+static void x2_uart_dma_txdone(void *dev_id)
+{
+	unsigned int val;
+	unsigned int count = 0;
+	struct uart_port *port = (struct uart_port *)dev_id;
+	struct circ_buf *xmit = &port->state->xmit;
+	struct x2_uart *x2_port = port->private_data;
+
+	val = readl(port->membase + X2_UART_FCR);
+	val &= ~UART_FCR_TDMA_EN;
+	writel(val, port->membase + X2_UART_FCR);
+
+	count = x2_port->tx_bytes_requested;
+	x2_port->tx_bytes_requested = 0;
+	xmit->tail = (xmit->tail + count) & (UART_XMIT_SIZE - 1);
+	port->icount.tx += count;
+#ifdef X2_UART_DBG
+	dbg_tx_cnt[dbg_tx_index] = xmit->tail;
+	dbg_tx_index = (dbg_tx_index + 1) & (1024 - 1);
+#endif /* X2_UART_DBG */
+
+	if (uart_circ_chars_pending(&port->state->xmit) < WAKEUP_CHARS) {
+		uart_write_wakeup(port);
+	}
+
+	return;
+}
+
+static void x2_uart_dma_rxdone(void *dev_id)
+{
+	unsigned int rx_bytes;
+	unsigned int count1, count2;
+	unsigned int copied;
+	struct uart_port *port = (struct uart_port *)dev_id;
+	struct tty_port *tty_port = &port->state->port;
+	struct x2_uart *x2_port = port->private_data;
+	unsigned int val;
+
+	rx_bytes = readl(port->membase + X2_UART_RXSIZE);
+	dma_sync_single_for_cpu(port->dev, x2_port->rx_dma_buf,
+		X2_UART_DMA_SIZE, DMA_FROM_DEVICE);
+
+	if (rx_bytes > x2_port->rx_off) {
+		count1 = rx_bytes - x2_port->rx_off;
+		count2 = 0;
+	} else {
+		count1 = X2_UART_DMA_SIZE - x2_port->rx_off;
+		count2 = rx_bytes;
+	}
+
+	copied = tty_insert_flip_string(tty_port,
+		((unsigned char *)(x2_port->rx_buf + x2_port->rx_off)), count1);
+	if (copied != count1) {
+		WARN_ON(1);
+		dev_err(port->dev, "first, rxdata copy to tty layer failed\n");
+		port->icount.rx += copied;
+	} else {
+		port->icount.rx += count1;
+
+		x2_port->rx_off = (x2_port->rx_off + count1) &
+			(X2_UART_DMA_SIZE -1);
+
+		if (count2 > 0) {
+			copied = tty_insert_flip_string(tty_port,
+				((unsigned char *)(x2_port->rx_buf + x2_port->rx_off)), count2);
+			if (copied != count2) {
+				WARN_ON(1);
+				dev_err(port->dev, "second, rxdata copy to tty layer failed\n");
+				port->icount.rx += copied;
+			} else {
+				port->icount.rx += count2;
+
+				x2_port->rx_off = (x2_port->rx_off + count2) &
+					(X2_UART_DMA_SIZE -1);
+			}
+		}
+	}
+
+	dma_sync_single_for_device(port->dev, x2_port->rx_dma_buf,
+		X2_UART_DMA_SIZE, DMA_TO_DEVICE);
+
+	spin_unlock(&port->lock);
+	tty_flip_buffer_push(&port->state->port);
+	spin_lock(&port->lock);
+
+	val = readl(port->membase + X2_UART_RXDMA);
+	val &= ~UART_RXSTA;
+	val |= UART_RXSTA;
+	writel(val, port->membase + X2_UART_RXDMA);
+
+	return;
+}
+
+#endif /* CONFIG_X2_TTY_DMA_MODE */
+
 /**
  * x2_uart_handle_rx - Handle the received bytes along with Rx errors.
  * @dev_id: Id of the UART port
@@ -85,7 +316,7 @@ static void x2_uart_handle_rx(void *dev_id, unsigned int irqstatus)
 	char status = TTY_NORMAL;
 
 	//while ((readl(port->membase + x2_UART_LSR) & UART_LSR_RXRDY)) {
-	  while (irqstatus & UART_RXFUL) {
+	while (irqstatus & UART_RXFUL) {
 		data = readl(port->membase + X2_UART_RDR);
 		port->icount.rx++;
 
@@ -216,6 +447,29 @@ static irqreturn_t x2_uart_isr(int irq, void *dev_id)
 	writel(status, port->membase + X2_UART_INT_UNMASK);
 
 	spin_unlock(&port->lock);
+#elif defined(CONFIG_X2_TTY_DMA_MODE)
+	struct uart_port *port = (struct uart_port *)dev_id;
+	unsigned int status;
+
+	spin_lock(&port->lock);
+	status = readl(port->membase + X2_UART_SRC_PND);
+	/* Disable the special irq */
+	writel(status, port->membase + X2_UART_INT_SETMASK);
+	/* Clear irq's status */
+	writel(status, port->membase + X2_UART_SRC_PND);
+
+	if (status & UART_RXTO) {
+		x2_uart_dma_rxdone(dev_id);
+	}
+
+	if (status & UART_TXDON) {
+		x2_uart_dma_txdone(dev_id);
+	}
+
+	status &= ~UART_TXEPT;
+	writel(status, port->membase + X2_UART_INT_UNMASK);
+
+	spin_unlock(&port->lock);
 #endif /* CONFIG_X2_TTY_IRQ_MODE */
 
 	return IRQ_HANDLED;
@@ -298,23 +552,37 @@ static unsigned int x2_uart_set_baud_rate(struct uart_port *port,
 static void x2_uart_start_tx(struct uart_port *port)
 {
 	unsigned int ctrl;
+	unsigned int val;
+	unsigned int mask = 0;
 
-	if (uart_tx_stopped(port))
+	if (uart_tx_stopped(port) ||
+		uart_circ_empty(&port->state->xmit)) {
 		return;
+	}
 
-	if (uart_circ_empty(&port->state->xmit))
+#ifdef CONFIG_X2_TTY_DMA_MODE
+	val = readl(port->membase + X2_UART_TXDMA);
+	if (val & UART_TXSTA) {
 		return;
+	}
+#endif /* CONFIG_X2_TTY_DMA_MODE */
 
 #ifdef CONFIG_X2_TTY_IRQ_MODE
-	writel(UART_TXEPT | UART_TXTHD | UART_TXDON,
-		port->membase + X2_UART_INT_UNMASK);
+	mask = UART_TXEPT;
+#elif defined (CONFIG_X2_TTY_DMA_MODE)
+	mask = UART_TXTHD | UART_TXDON;
 #endif /* CONFIG_X2_TTY_IRQ_MODE */
+	writel(mask, port->membase + X2_UART_INT_UNMASK);
 
 	ctrl = readl(port->membase + X2_UART_ENR);
 	ctrl |= UART_ENR_TX_EN;
 	writel(ctrl, port->membase + X2_UART_ENR);
 
+#ifdef CONFIG_X2_TTY_DMA_MODE
+	x2_uart_dma_tx_start(port);
+#else
 	x2_uart_handle_tx(port, 0);
+#endif /* CONFIG_X2_TTY_DMA_MODE */
 }
 
 /**
@@ -375,6 +643,7 @@ static void x2_uart_set_termios(struct uart_port *port,
 	uint32_t ctrl_reg, lcr_reg;
 	uint32_t baud, minbaud, maxbaud;
 	unsigned long flags;
+	struct x2_uart *x2_uart = port->private_data;
 
 	spin_lock_irqsave(&port->lock, flags);
 
@@ -415,7 +684,7 @@ static void x2_uart_set_termios(struct uart_port *port,
 	ctrl_reg |= UART_ENR_TX_EN | UART_ENR_RX_EN;
 	writel(ctrl_reg, port->membase + X2_UART_ENR);
 
-	port->read_status_mask = UART_TXEPT | UART_RXFUL | UART_RXOE;
+	port->read_status_mask = UART_TXEPT | UART_RXOE | UART_RXTO | UART_RXOE;
 	port->ignore_status_mask = 0;
 
 	if (termios->c_iflag & INPCK)
@@ -427,8 +696,16 @@ static void x2_uart_set_termios(struct uart_port *port,
 
 	/* ignore all characters if CREAD is not set */
 	if ((termios->c_cflag & CREAD) == 0)
-		port->ignore_status_mask |= UART_RXFUL |
-			UART_RXTO | UART_PE | UART_FE | UART_RXOE;
+		port->ignore_status_mask |= UART_RXFUL | UART_PE | UART_FE;
+
+#ifdef CONFIG_X2_TTY_DMA_MODE
+	if (x2_uart->rx_enabled) {
+		ctrl_reg = readl(port->membase + X2_UART_RXDMA);
+		ctrl_reg |= UART_RXSTA;
+		writel(ctrl_reg, port->membase + X2_UART_RXDMA);
+	}
+#endif /* CONFIG_X2_TTY_DMA_MODE */
+
 #if 0
 	lcr_reg = readl(port->membase + X2_UART_LCR);
 
@@ -519,14 +796,6 @@ static int x2_uart_startup(struct uart_port *port)
 	val = readl(port->membase + X2_UART_ENR);
 	val &= ~UART_ENR_EN;
 	writel(val, port->membase + X2_UART_ENR);
-#if 0
-	/* Set the line Control Register with normal mode,8 data bits,1 stop bit,
-	 * no parity.
-	 */
-	val = readl(port->membase + X2_UART_LCR);
-	val |= UART_LCR_8_BIT | UART_LCR_1_STOP | (~UART_LCR_PEN);
-	writel(val, port->membase + X2_UART_LCR);
-
 	/* Reset TX/RX FIFO */
 	val = readl(port->membase + X2_UART_FCR);
 	val |= UART_FCR_RFRST | UART_FCR_TFRST;
@@ -536,24 +805,31 @@ static int x2_uart_startup(struct uart_port *port)
 	while (readl(port->membase + X2_UART_FCR) &
 		(UART_FCR_RFRST | UART_FCR_TFRST))
 		cpu_relax();
-#endif /* #if 0 */
 
 	/* Set TX/RX FIFO Trigger level and disable dma tx/rx */
 	val = readl(port->membase + X2_UART_FCR);
+#ifdef CONFIG_X2_TTY_DMA_MODE
+	/* Only enable rx dma */
+	val |= UART_FCR_RDMA_EN;
+#else
 	val &= ~(UART_FCR_RDMA_EN | UART_FCR_TDMA_EN);
+#endif /* CONFIG_X2_TTY_DMA_MODE */
 	val |= UART_FCR_RFTRL(rx_trigger_level) | UART_FCR_TFTRL(tx_trigger_level);
 	writel(val, port->membase + X2_UART_FCR);
+
+	val = readl(port->membase + X2_UART_LCR);
+	val |= 5 << 8;
+	writel(val, port->membase + X2_UART_LCR);
 
 	/* Clear all pending Interrupt */
 	writel(0x7FFF, port->membase + X2_UART_SRC_PND);
 
-#ifdef CONFIG_X2_TTY_IRQ_MODE
+#if defined(CONFIG_X2_TTY_IRQ_MODE) || defined(CONFIG_X2_TTY_DMA_MODE)
 	mask = UART_TXEPT | UART_TXTHD | UART_TXDON;
 	writel(mask, port->membase + X2_UART_INT_SETMASK);
 
-	mask = UART_RXFUL | UART_RXTO | UART_RXOE |
-		UART_BI | UART_FE | UART_PE |
-		UART_RXTHD | UART_RXDON | UART_CTSC;
+	mask = UART_RXTO | UART_RXOE | UART_BI |
+		UART_FE | UART_PE | UART_CTSC;
 	writel(mask, port->membase + X2_UART_INT_UNMASK);
 #else
 	writel(UART_IRQ_SRC_MASK, port->membase + X2_UART_INT_SETMASK);
@@ -566,6 +842,16 @@ static int x2_uart_startup(struct uart_port *port)
 
 	spin_unlock_irqrestore(&port->lock, flags);
 
+#ifdef CONFIG_X2_TTY_DMA_MODE
+	ret = x2_uart_dma_alloc(port);
+	if (ret < 0) {
+		dev_err(port->dev, "could not allocate dma buffers!\n");
+		return ret;
+	}
+
+	x2_uart_dma_rx_start(port);
+#endif /* CONFIG_X2_TTY_DMA_MODE */
+
 	ret = request_irq(port->irq, x2_uart_isr, IRQF_TRIGGER_HIGH, X2_UART_NAME, port);
 	if (ret) {
 		dev_err(port->dev, "request_irq '%d' failed with %d\n",
@@ -576,7 +862,7 @@ static int x2_uart_startup(struct uart_port *port)
 #ifdef CONFIG_X2_TTY_POLL_MODE
 	setup_timer(&x2_uart->rx_timer, x2_uart_rx_polling_func, (unsigned long)port);
 	mod_timer(&x2_uart->rx_timer, jiffies + msecs_to_jiffies(X2_UART_RX_POLL_TIME));
-#endif /* CONFIG_X2_TTY_POLL_MODE */
+#endif
 
 	return 0;
 }
@@ -894,6 +1180,12 @@ static void x2_uart_console_write(struct console *co, const char *s,
 	unsigned int ctrl;
 	int locked = 1;
 
+	/* Check if tx dma is enabled. */
+	ctrl = readl(port->membase + X2_UART_TXDMA);
+	while (ctrl & UART_TXSTA) {
+		cpu_relax();
+	}
+
 	if (port->sysrq)
 		locked = 0;
 	else if (oops_in_progress)
@@ -916,6 +1208,7 @@ static void x2_uart_console_write(struct console *co, const char *s,
 
 	if (locked)
 		spin_unlock_irqrestore(&port->lock, flags);
+
 }
 
 /**
@@ -968,6 +1261,7 @@ static struct console x2_uart_console = {
 static int __init x2_uart_console_init(void)
 {
 	register_console(&x2_uart_console);
+
 	return 0;
 }
 
@@ -1102,11 +1396,16 @@ static int x2_uart_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, port);
 
 	rc = uart_add_one_port(&x2_uart_driver, port);
-	if (rc) {
+	if (rc < 0) {
 		dev_err(&pdev->dev,
 			"uart_add_one_port() failed; err=%i\n", rc);
 		goto err_out;
 	}
+
+#ifdef X2_UART_DBG
+	pr_info("====> address of dbg_tx_cnt : 0x%16lx\n", &dbg_tx_cnt);
+	pr_info("====> address of dbg_str : 0x%16lx\n", &dbg_str);
+#endif /* X2_UART_DBG */
 
 	return 0;
 
