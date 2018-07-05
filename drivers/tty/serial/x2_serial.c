@@ -90,8 +90,6 @@ struct x2_uart {
 static unsigned int dbg_tx_cnt[1024];
 static unsigned int dbg_tx_index = 0;
 
-static unsigned char dbg_str[4096];
-static unsigned int dbg_str_off = 0;
 #endif /* X2_UART_DBG */
 
 #ifdef CONFIG_X2_TTY_DMA_MODE
@@ -159,11 +157,6 @@ static void x2_uart_dma_tx_start(struct uart_port *port)
 	dbg_tx_index = (dbg_tx_index + 1) & (1024 - 1);
 	dbg_tx_cnt[dbg_tx_index] = xmit->tail;
 	dbg_tx_index = (dbg_tx_index + 1) & (1024 - 1);
-
-	if (dbg_str_off + count <= 4096) {
-		memcpy(&dbg_str[dbg_str_off], &xmit->buf[xmit->tail], count);
-			dbg_str_off = (dbg_str_off + count) & (4096 - 1);
-	}
 #endif /* X2_UART_DBG */
 
 	dma_sync_single_for_device(port->dev, x2_port->tx_dma_buf,
@@ -210,15 +203,10 @@ static void x2_uart_dma_rx_start(struct uart_port *port)
 
 static void x2_uart_dma_txdone(void *dev_id)
 {
-	unsigned int val;
 	unsigned int count = 0;
 	struct uart_port *port = (struct uart_port *)dev_id;
 	struct circ_buf *xmit = &port->state->xmit;
 	struct x2_uart *x2_port = port->private_data;
-
-	val = readl(port->membase + X2_UART_FCR);
-	val &= ~UART_FCR_TDMA_EN;
-	writel(val, port->membase + X2_UART_FCR);
 
 	count = x2_port->tx_bytes_requested;
 	x2_port->tx_bytes_requested = 0;
@@ -227,11 +215,16 @@ static void x2_uart_dma_txdone(void *dev_id)
 #ifdef X2_UART_DBG
 	dbg_tx_cnt[dbg_tx_index] = xmit->tail;
 	dbg_tx_index = (dbg_tx_index + 1) & (1024 - 1);
+
+	dbg_tx_cnt[dbg_tx_index] = xmit->head;
+	dbg_tx_index = (dbg_tx_index + 1) & (1024 - 1);
 #endif /* X2_UART_DBG */
 
 	if (uart_circ_chars_pending(&port->state->xmit) < WAKEUP_CHARS) {
 		uart_write_wakeup(port);
 	}
+
+	x2_uart_dma_tx_start(port);
 
 	return;
 }
@@ -593,7 +586,7 @@ static void x2_uart_stop_tx(struct uart_port *port)
 {
 	unsigned int ctrl;
 
-#ifdef CONFIG_X2_TTY_IRQ_MODE
+#if defined(CONFIG_X2_TTY_IRQ_MODE) || defined(CONFIG_X2_TTY_DMA_MODE)
 	writel(UART_TXEPT | UART_TXTHD | UART_TXDON,
 		port->membase + X2_UART_INT_SETMASK);
 #endif /* CONFIG_X2_TTY_IRQ_MODE */
@@ -1177,7 +1170,7 @@ static void x2_uart_console_write(struct console *co, const char *s,
 {
 	struct uart_port *port = &x2_uart_port[co->index];
 	unsigned long flags;
-	unsigned int ctrl;
+	volatile unsigned int ctrl;
 	int locked = 1;
 
 	/* Check if tx dma is enabled. */
@@ -1404,7 +1397,6 @@ static int x2_uart_probe(struct platform_device *pdev)
 
 #ifdef X2_UART_DBG
 	pr_info("====> address of dbg_tx_cnt : 0x%16lx\n", &dbg_tx_cnt);
-	pr_info("====> address of dbg_str : 0x%16lx\n", &dbg_str);
 #endif /* X2_UART_DBG */
 
 	return 0;
