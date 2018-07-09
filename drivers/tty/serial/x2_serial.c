@@ -65,6 +65,7 @@ MODULE_PARM_DESC(tx_trigger_level, "Tx trigger level, 0-15 (uint: 4 bytes)");
 struct x2_uart {
 	struct uart_port	*port;
 	unsigned int	baud;
+	char name[16];
 
 #ifdef CONFIG_X2_TTY_POLL_MODE
 	struct timer_list	rx_timer;
@@ -699,13 +700,12 @@ static void x2_uart_set_termios(struct uart_port *port,
 	}
 #endif /* CONFIG_X2_TTY_DMA_MODE */
 
-#if 0
 	lcr_reg = readl(port->membase + X2_UART_LCR);
 
 	/* Handling Data Size */
 	switch (termios->c_cflag & CSIZE) {
 	case CS7:
-		lcr_reg &= UART_LCR_7_BIT;
+		lcr_reg &= (~UART_LCR_8_BIT);
 		break;
 	default:
 	case CS8:
@@ -719,24 +719,43 @@ static void x2_uart_set_termios(struct uart_port *port,
 	if (termios->c_cflag & CSTOPB)
 		lcr_reg |= UART_LCR_2_STOP; /* 2 STOP bits */
 	else
-		lcr_reg &= UART_LCR_1_STOP; /* 1 STOP bit */
+		lcr_reg &= (~UART_LCR_2_STOP); /* 1 STOP bit */
 
-	termios->c_cflag &= ~CMSPAR;	/* no support mark/space */
-
+	/*
+	 * stick  even_parity  parity_en  parity
+	 *   -        -           -         no
+	 *   0        0           1         odd
+	 *   0        1           1         even
+	 *   1        0           1         mark
+	 *   1        1           1         space
+	 */
 	if (termios->c_cflag & PARENB) {
+		lcr_reg |= UART_LCR_PEN;
+
+		/* Odd or Even parity */
 		if (termios->c_cflag & PARODD) {
 			lcr_reg &= ~UART_LCR_EPS;
 		} else {
 			lcr_reg |= UART_LCR_EPS;
 		}
+		/* Mark or Space parity */
+		if (termios->c_cflag & CMSPAR) {
+			lcr_reg |= UART_LCR_SP;
+		} else {
+			lcr_reg &= ~UART_LCR_SP;
+		}
+	} else {
+		lcr_reg &= ~UART_LCR_PEN;
 	}
 
 	/* flow control */
 	if (termios->c_cflag & CRTSCTS)
 		lcr_reg |= UART_LCR_RTS_EN | UART_LCR_CTS_EN;
+	else
+		lcr_reg &= (~UART_LCR_RTS_EN) & (~UART_LCR_CTS_EN);
 
 	writel(lcr_reg, port->membase + X2_UART_LCR);
-#endif /* #if 0 */
+
 	spin_unlock_irqrestore(&port->lock, flags);
 }
 
@@ -779,9 +798,7 @@ static int x2_uart_startup(struct uart_port *port)
 	unsigned long flags;
 	unsigned int val = 0;
 	unsigned int mask;
-#ifdef CONFIG_X2_TTY_POLL_MODE
 	struct x2_uart *x2_uart = port->private_data;
-#endif /* CONFIG_X2_TTY_POLL_MODE */
 
 	spin_lock_irqsave(&port->lock, flags);
 
@@ -811,6 +828,7 @@ static int x2_uart_startup(struct uart_port *port)
 	writel(val, port->membase + X2_UART_FCR);
 
 	val = readl(port->membase + X2_UART_LCR);
+	val &= (~0x0F00);
 	val |= 5 << 8;
 	writel(val, port->membase + X2_UART_LCR);
 
@@ -845,7 +863,7 @@ static int x2_uart_startup(struct uart_port *port)
 	x2_uart_dma_rx_start(port);
 #endif /* CONFIG_X2_TTY_DMA_MODE */
 
-	ret = request_irq(port->irq, x2_uart_isr, IRQF_TRIGGER_HIGH, X2_UART_NAME, port);
+	ret = request_irq(port->irq, x2_uart_isr, IRQF_TRIGGER_HIGH, x2_uart->name, port);
 	if (ret) {
 		dev_err(port->dev, "request_irq '%d' failed with %d\n",
 			port->irq, ret);
@@ -1366,7 +1384,7 @@ static int x2_uart_probe(struct platform_device *pdev)
 	id = of_alias_get_id(pdev->dev.of_node, "serial");
 	if (id < 0)
 		id = 0;
-
+	sprintf(x2_uart_data->name, "%s%d", X2_UART_NAME, id);
 	/* Initialize the port structure */
 	port = x2_uart_get_port(id);
 

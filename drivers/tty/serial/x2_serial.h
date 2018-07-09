@@ -40,25 +40,23 @@
 #define X2_UART_IR_TIMEOUT  0x013c      /* RW: IR timeout for high recovery= period *IR_TIMEOUT Register */
 
 /* Uart line control register bits define */
-#define	UART_LCR_8_BIT 	(1U << 0)
-#define UART_LCR_7_BIT  (0U << 0)
-#define UART_LCR_2_STOP	(1U << 1)
-#define UART_LCR_1_STOP (~UART_LCR_2_STOP)
-#define UART_LCR_PEN 		(1U << 2)
-#define UART_LCR_EPS		(1U << 3)
-#define UART_LCR_SP		(1U << 4)
-#define UART_LCR_CTS_EN	(1U << 5)
-#define UART_LCR_RTS_EN	(1U << 6)
-#define UART_LCR_SFC_EN	(1U << 7)
-#define UART_LCR_TOI_MASK (0xF)
-#define UART_LCR_TOI(x)		(((x) & UART_LCR_TOI_MASK) << 8U)
-#define UART_LCR_IREN		(1U << 12)
-#define UART_LCR_RXPOL    (1U << 13)
+#define UART_LCR_8_BIT      (1U << 0)
+#define UART_LCR_2_STOP     (1U << 1)
+#define UART_LCR_PEN        (1U << 2)
+#define UART_LCR_EPS        (1U << 3)
+#define UART_LCR_SP         (1U << 4)
+#define UART_LCR_CTS_EN     (1U << 5)
+#define UART_LCR_RTS_EN     (1U << 6)
+#define UART_LCR_SFC_EN     (1U << 7)
+#define UART_LCR_TOI_MASK   (0xF)
+#define UART_LCR_TOI(x)     (((x) & UART_LCR_TOI_MASK) << 8U)
+#define UART_LCR_IREN       (1U << 12)
+#define UART_LCR_RXPOL      (1U << 13)
 
 /* Uart enable register bits define */
-#define UART_ENR_EN 		(1U << 0)	/* uart gloabl enabled bit */
-#define UART_ENR_RX_EN		(1U << 1)		/* RX enabled bit */
-#define UART_ENR_TX_EN		(1U << 2)		/* TX enabled bit */
+#define UART_ENR_EN         (1U << 0)    /* uart gloabl enabled bit */
+#define UART_ENR_RX_EN      (1U << 1)    /* RX enabled bit */
+#define UART_ENR_TX_EN      (1U << 2)    /* TX enabled bit */
 
 /* Uart BAUD Rate Register Bits define */
 #define UART_BCR_BRDIV_INT_MASK (0xFFFF)
