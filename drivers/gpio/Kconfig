@@ -74,6 +74,12 @@ config GPIO_MAX730X
 menu "Memory mapped GPIO drivers"
 	depends on HAS_IOMEM
 
+config GPIO_X2
+	tristate "x2 gpio"
+	depends on ARCH_HOBOT
+	select GPIO_GENERIC
+	default n
+
 config GPIO_74XX_MMIO
 	tristate "GPIO driver for 74xx-ICs with MMIO access"
 	depends on OF_GPIO
