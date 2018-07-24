@@ -25,6 +25,9 @@
 		serial1 = &uart1;
 		serial2 = &uart2;
 		serial3 = &uart3;
+		pwm0    = &pwm_0;
+		pwm1    = &pwm_1;
+		pwm2    = &pwm_2;
 	};
 
 	chosen {
@@ -41,4 +44,17 @@
 
 &uart0 {
 	status = "okay";
+};
+
+
+&dma {
+	status = "disabled";
+};
+
+&rtc {
+	status = "disabled";
+};
+
+&pwm_0 {
+	status = "disabled";
 };
