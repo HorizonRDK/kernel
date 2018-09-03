@@ -452,7 +452,7 @@ static irqreturn_t x2_uart_isr(int irq, void *dev_id)
 	/* Clear irq's status */
 	writel(status, port->membase + X2_UART_SRC_PND);
 
-	if (status & UART_RXTO) {
+	if (status & (UART_RXTO | UART_RXDON)) {
 		x2_uart_dma_rxdone(dev_id);
 	}
 
@@ -840,7 +840,7 @@ static int x2_uart_startup(struct uart_port *port)
 	writel(mask, port->membase + X2_UART_INT_SETMASK);
 
 	mask = UART_RXTO | UART_RXOE | UART_BI |
-		UART_FE | UART_PE | UART_CTSC;
+		UART_FE | UART_PE | UART_CTSC | UART_RXDON;
 	writel(mask, port->membase + X2_UART_INT_UNMASK);
 #else
 	writel(UART_IRQ_SRC_MASK, port->membase + X2_UART_INT_SETMASK);
