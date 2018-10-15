@@ -319,7 +319,7 @@ static void x2_dma_do_tasklet(unsigned long data)
  */
 static int x2_dma_alloc_chan_resources(struct dma_chan *dchan)
 {
-	unsigned int val;
+	unsigned int val = 0;
 	struct x2_dma_chan *chan = to_x2_chan(dchan);
 
 	/* Has this channel already been allocated? */
