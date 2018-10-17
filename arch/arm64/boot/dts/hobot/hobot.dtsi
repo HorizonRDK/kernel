@@ -155,12 +155,51 @@
             status = "disabled";
         };
 
+        i2c0: i2c@0xA5009000 {
+            compatible = "hobot,x2-i2c";
+            reg = <0 0xA5009000 0 0x1000>,
+                  <0 0xA6003000 0 0x10>;
+            interrupt-parent = <&gic>;
+            interrupts = <0 32 4>;
+            clock-frequency = <24000000>;
+            status = "disabled";
+        };
+        i2c1: i2c@0xA500A000 {
+            compatible = "hobot,x2-i2c";
+            reg = <0 0xA500A000 0 0x100>,
+                  <0 0xA6003000 0 0x10>;
+            interrupt-parent = <&gic>;
+            interrupts = <0 33 4>;
+            clock-frequency = <24000000>;
+            status = "disabled";
+        };
+        i2c2: i2c@0xA500B000 {
+            compatible = "hobot,x2-i2c";
+            reg = <0 0xA500B000 0 0x100>,
+                  <0 0xA6003000 0 0x10>;
+            interrupt-parent = <&gic>;
+            interrupts = <0 34 4>;
+            clock-frequency = <24000000>;
+            status = "disabled";
+        };
+        i2c3: i2c@0xA500C000 {
+            compatible = "hobot,x2-i2c";
+            reg = <0 0xA500C000 0 0x100>,
+                  <0 0xA6003000 0 0x10>;
+            interrupt-parent = <&gic>;
+            interrupts = <0 35 4>;
+            clock-frequency = <24000000>;
+            status = "disabled";
+        };
+
         ips: ips@0xA4000000 {
             compatible = "hobot,x2-ips";
             reg = <0 0xA4000000 0 0x100>;
             interrupt-parent = <&gic>;
             interrupts = <0 50 4>;
             status = "disabled";
+            resets = <&rst 0x200>;
+            reset-names = "ips";
         };
 
         ipu: ipu@0xA4000900 {
