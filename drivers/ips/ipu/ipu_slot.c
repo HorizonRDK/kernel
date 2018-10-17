@@ -1,10 +1,19 @@
 #include "ipu_slot.h"
+#include "ipu_common.h"
 
 static ipu_slot_h_t *g_ipu_slot_[IPU_MAX_SLOT];
 static struct list_head g_free_list;
 static struct list_head g_busy_list;
 static struct list_head g_done_list;
 
+/********************************************************************
+ * @brief init_ipu_slot
+ *
+ * @param base virtual address
+ * @param data
+ *
+ * @return
+ ********************************************************************/
 int8_t init_ipu_slot(uint64_t base, slot_ddr_info_t * data)
 {
 	int8_t i = 0, j = 0;
@@ -15,11 +24,11 @@ int8_t init_ipu_slot(uint64_t base, slot_ddr_info_t * data)
 
 	for (i = 0; i < IPU_MAX_SLOT; i++) {
 		g_ipu_slot_[i] = (ipu_slot_h_t *) IPU_GET_SLOT(i, base);
+		ipu_dbg("slot-%d, vaddr=%llx\n", i, (uint64_t) g_ipu_slot_[i]);
 		INIT_LIST_HEAD(&g_ipu_slot_[i]->list);
 		list_add_tail(&g_ipu_slot_[i]->list, &g_free_list);
 
 		g_ipu_slot_[i]->slot_id = i;
-		g_ipu_slot_[i]->membase = (uint64_t) IPU_GET_SLOT(i, base);
 		g_ipu_slot_[i]->ddr_info.crop.offset = data->crop.offset;
 		g_ipu_slot_[i]->ddr_info.crop.size = data->crop.size;
 		g_ipu_slot_[i]->ddr_info.scale.offset = data->scale.offset;
@@ -49,6 +58,7 @@ ipu_slot_h_t *ipu_get_free_slot()
 		return NULL;
 	}
 	slot = (ipu_slot_h_t *) g_free_list.next;
+	ipu_dbg("get-free-slot, vaddr=%llx\n", (uint64_t) slot);
 
 	return slot;
 }

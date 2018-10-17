@@ -8,7 +8,7 @@
 /* 64M per slot
  * 1080p 28M for crop, scale, pym_ds, 36M for pym_us
  */
-#define IPU_SLOT_SIZE               0x4e00000
+#define IPU_SLOT_SIZE               0x4000000
 #define IPU_GET_SLOT(id, base)      ((base) + (id) * IPU_SLOT_SIZE)
 
 typedef struct {
@@ -28,9 +28,16 @@ typedef struct {
 	uint8_t slot_id;
 	uint8_t ipu_flag;
 	uint16_t cnn_flag;
-	uint64_t membase;	/* virtual address */
 	slot_ddr_info_t ddr_info;
 } ipu_slot_h_t;
+
+typedef struct {
+	uint8_t slot_id;
+	uint8_t ipu_flag;
+	uint16_t cnn_flag;
+	uint64_t base;
+	slot_ddr_info_t ddr_info;
+} info_h_t;
 
 typedef enum {
 	ELIST_EMPTY = 1,

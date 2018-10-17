@@ -88,7 +88,7 @@ typedef struct {
 	ddr_t scale_ddr;
 	ddr_t ds_ddr[24];
 	ddr_t us_ddr[6];
-} ipu_info_t;
+} ipu_cfg_t;
 
 int8_t set_ipu_regbase(unsigned char __iomem * base);
 int8_t clr_ipu_regbase(void);

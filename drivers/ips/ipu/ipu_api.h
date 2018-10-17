@@ -5,6 +5,7 @@ typedef enum {
 	IPUC_INIT = 0,
 	IPUC_GET_IMG = 1,
 	IPUC_CNN_DONE = 2,
+	IPUC_GET_DONE_INFO = 3,
 } ipu_cmd_e;
 
 typedef struct {

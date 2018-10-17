@@ -1,6 +1,7 @@
 #include <asm-generic/io.h>
 #include "ipu_dev_regs.h"
 #include "ipu_dev.h"
+#include "ipu_common.h"
 
 /* reg ipu ctrl */
 #define SET_XC9080_EN               (1 << 9)
@@ -146,7 +147,7 @@ int8_t set_ipu_ctrl(ipu_ctrl_t * info)
 	if (info->testpattern_en == 1)
 		d |= SET_TESTPATTERN_EN;
 
-	writel(d, g_regbase + IPU_CTRL);
+	ipu_reg_w(d, g_regbase + IPU_CTRL);
 
 	return 0;
 }
@@ -159,7 +160,7 @@ int8_t set_ipu_video_size(wh_t * info)
 		return -1;
 
 	d = MAKEUP_WH(info->w, info->h);
-	writel(d, g_regbase + IPU_VIDEO_IN);
+	ipu_reg_w(d, g_regbase + IPU_VIDEO_IN);
 
 	return 0;
 }
@@ -172,10 +173,10 @@ int8_t set_ipu_crop(crop_t * info)
 		return -1;
 
 	d = MAKEUP_HW(info->crop_st.w, info->crop_st.h);
-	writel(d, g_regbase + IPU_CROP_ST);
+	ipu_reg_w(d, g_regbase + IPU_CROP_ST);
 
 	d = MAKEUP_HW(info->crop_ed.w, info->crop_ed.h);
-	writel(d, g_regbase + IPU_CROP_ED);
+	ipu_reg_w(d, g_regbase + IPU_CROP_ED);
 
 	return 0;
 }
@@ -188,21 +189,21 @@ int8_t set_ipu_scale(scale_t * info)
 		return -1;
 
 	d = MAKEUP_WH(info->scale_src.w, info->scale_src.h);
-	writel(d, g_regbase + IPU_SCALAR_SRC);
+	ipu_reg_w(d, g_regbase + IPU_SCALAR_SRC);
 
 	d = MAKEUP_WH(info->scale_tgt.w, info->scale_tgt.h);
-	writel(d, g_regbase + IPU_SCALAR_TGT);
+	ipu_reg_w(d, g_regbase + IPU_SCALAR_TGT);
 
 	d = SET_SCALE_STEP(info->step_x, info->step_y);
-	writel(d, g_regbase + IPU_SCALAR_STEP);
+	ipu_reg_w(d, g_regbase + IPU_SCALAR_STEP);
 
 	d = SET_PRE_SCALE(info->pre_scale_x, info->pre_scale_y);
-	writel(d, g_regbase + IPU_SCALAR_STEP);
+	ipu_reg_w(d, g_regbase + IPU_SCALAR_STEP);
 	if (info->bypass_x == 1)
 		d |= SET_SCALE_X_BYPASS;
 	if (info->bypass_y == 1)
 		d |= SET_SCALE_Y_BYPASS;
-	writel(d, g_regbase + IPU_SCALAR_BYPASS);
+	ipu_reg_w(d, g_regbase + IPU_SCALAR_BYPASS);
 
 	return 0;
 }
@@ -223,7 +224,7 @@ int8_t set_ipu_frame_id(frame_id_t * info)
 	if (info->scale_en == 1)
 		d |= SET_FRAME_ID_SCALE_EN;
 
-	writel(d, g_regbase + IPU_FRAME_ID);
+	ipu_reg_w(d, g_regbase + IPU_FRAME_ID);
 
 	return 0;
 }
@@ -265,7 +266,7 @@ int8_t set_ipu_pymid(pymid_t * info)
 		m |= 1;
 	}
 	d |= SET_DS_LAYER_EN(m);
-	writel(d, g_regbase + PYMID_DS_CTRL);
+	ipu_reg_w(d, g_regbase + PYMID_DS_CTRL);
 
 	/* step 1.2. write ds factor reg */
 	d = SET_DS_FACTOR_P1(info->ds_factor[1]);
@@ -273,183 +274,187 @@ int8_t set_ipu_pymid(pymid_t * info)
 	d |= SET_DS_FACTOR_P3(info->ds_factor[3]);
 	d |= SET_DS_FACTOR_P5(info->ds_factor[5]);
 	d |= SET_DS_FACTOR_P6(info->ds_factor[6]);
-	writel(d, g_regbase + PYMID_FACTOR1);
+	ipu_reg_w(d, g_regbase + PYMID_FACTOR1);
 
 	d = SET_DS_FACTOR_P7(info->ds_factor[7]);
 	d |= SET_DS_FACTOR_P9(info->ds_factor[9]);
 	d |= SET_DS_FACTOR_P10(info->ds_factor[10]);
 	d |= SET_DS_FACTOR_P11(info->ds_factor[11]);
 	d |= SET_DS_FACTOR_P13(info->ds_factor[13]);
-	writel(d, g_regbase + PYMID_FACTOR2);
+	ipu_reg_w(d, g_regbase + PYMID_FACTOR2);
 
 	d = SET_DS_FACTOR_P14(info->ds_factor[14]);
 	d |= SET_DS_FACTOR_P15(info->ds_factor[15]);
 	d |= SET_DS_FACTOR_P17(info->ds_factor[17]);
 	d |= SET_DS_FACTOR_P18(info->ds_factor[18]);
 	d |= SET_DS_FACTOR_P19(info->ds_factor[19]);
-	writel(d, g_regbase + PYMID_FACTOR3);
+	ipu_reg_w(d, g_regbase + PYMID_FACTOR3);
 
 	d = SET_DS_FACTOR_P21(info->ds_factor[21]);
 	d |= SET_DS_FACTOR_P22(info->ds_factor[22]);
 	d |= SET_DS_FACTOR_P23(info->ds_factor[23]);
-	writel(d, g_regbase + PYMID_FACTOR4);
+	ipu_reg_w(d, g_regbase + PYMID_FACTOR4);
 
 	/* step 1.3. write ds src width reg */
 	d = SET_SRC_WIDTH(info->ds_src_width[2], info->ds_src_width[1]);
-	writel(d, g_regbase + PYMID_SRC_WIDTH_P1);
+	ipu_reg_w(d, g_regbase + PYMID_SRC_WIDTH_P1);
 	d |= SET_SRC_WIDTH(info->ds_src_width[5], info->ds_src_width[3]);
-	writel(d, g_regbase + PYMID_SRC_WIDTH_P2);
+	ipu_reg_w(d, g_regbase + PYMID_SRC_WIDTH_P2);
 	d |= SET_SRC_WIDTH(info->ds_src_width[7], info->ds_src_width[6]);
-	writel(d, g_regbase + PYMID_SRC_WIDTH_P3);
+	ipu_reg_w(d, g_regbase + PYMID_SRC_WIDTH_P3);
 	d |= SET_SRC_WIDTH(info->ds_src_width[10], info->ds_src_width[9]);
-	writel(d, g_regbase + PYMID_SRC_WIDTH_P4);
+	ipu_reg_w(d, g_regbase + PYMID_SRC_WIDTH_P4);
 	d |= SET_SRC_WIDTH(info->ds_src_width[13], info->ds_src_width[11]);
-	writel(d, g_regbase + PYMID_SRC_WIDTH_P5);
+	ipu_reg_w(d, g_regbase + PYMID_SRC_WIDTH_P5);
 	d |= SET_SRC_WIDTH(info->ds_src_width[15], info->ds_src_width[14]);
-	writel(d, g_regbase + PYMID_SRC_WIDTH_P6);
+	ipu_reg_w(d, g_regbase + PYMID_SRC_WIDTH_P6);
 	d |= SET_SRC_WIDTH(info->ds_src_width[18], info->ds_src_width[17]);
-	writel(d, g_regbase + PYMID_SRC_WIDTH_P7);
+	ipu_reg_w(d, g_regbase + PYMID_SRC_WIDTH_P7);
 	d |= SET_SRC_WIDTH(info->ds_src_width[21], info->ds_src_width[19]);
-	writel(d, g_regbase + PYMID_SRC_WIDTH_P8);
+	ipu_reg_w(d, g_regbase + PYMID_SRC_WIDTH_P8);
 	d |= SET_SRC_WIDTH(info->ds_src_width[23], info->ds_src_width[22]);
-	writel(d, g_regbase + PYMID_SRC_WIDTH_P9);
+	ipu_reg_w(d, g_regbase + PYMID_SRC_WIDTH_P9);
 
 	/* step 1.4. write ds roi reg */
 	d = SET_ROI0_P0(info->ds_roi[1].l, info->ds_roi[1].t);
-	writel(d, g_regbase + PYMID_ROI0_P1);
+	ipu_reg_w(d, g_regbase + PYMID_ROI0_P1);
 	d = SET_ROI1_P0(info->ds_roi[1].w, info->ds_roi[1].h);
-	writel(d, g_regbase + PYMID_ROI1_P1);
+	ipu_reg_w(d, g_regbase + PYMID_ROI1_P1);
 	d = SET_ROI0_P0(info->ds_roi[2].l, info->ds_roi[2].t);
-	writel(d, g_regbase + PYMID_ROI0_P2);
+	ipu_reg_w(d, g_regbase + PYMID_ROI0_P2);
 	d = SET_ROI1_P0(info->ds_roi[2].w, info->ds_roi[2].h);
-	writel(d, g_regbase + PYMID_ROI1_P2);
+	ipu_reg_w(d, g_regbase + PYMID_ROI1_P2);
 	d = SET_ROI0_P0(info->ds_roi[3].l, info->ds_roi[3].t);
-	writel(d, g_regbase + PYMID_ROI0_P3);
+	ipu_reg_w(d, g_regbase + PYMID_ROI0_P3);
 	d = SET_ROI1_P0(info->ds_roi[3].w, info->ds_roi[3].h);
-	writel(d, g_regbase + PYMID_ROI1_P3);
+	ipu_reg_w(d, g_regbase + PYMID_ROI1_P3);
 
 	d = SET_ROI0_P1(info->ds_roi[5].l, info->ds_roi[5].t);
-	writel(d, g_regbase + PYMID_ROI0_P5);
+	ipu_reg_w(d, g_regbase + PYMID_ROI0_P5);
 	d = SET_ROI1_P1(info->ds_roi[5].w, info->ds_roi[5].h);
-	writel(d, g_regbase + PYMID_ROI1_P5);
+	ipu_reg_w(d, g_regbase + PYMID_ROI1_P5);
 	d = SET_ROI0_P1(info->ds_roi[6].l, info->ds_roi[6].t);
-	writel(d, g_regbase + PYMID_ROI0_P6);
+	ipu_reg_w(d, g_regbase + PYMID_ROI0_P6);
 	d = SET_ROI1_P1(info->ds_roi[6].w, info->ds_roi[6].h);
-	writel(d, g_regbase + PYMID_ROI1_P6);
+	ipu_reg_w(d, g_regbase + PYMID_ROI1_P6);
 	d = SET_ROI0_P1(info->ds_roi[7].l, info->ds_roi[7].t);
-	writel(d, g_regbase + PYMID_ROI0_P7);
+	ipu_reg_w(d, g_regbase + PYMID_ROI0_P7);
 	d = SET_ROI1_P1(info->ds_roi[7].w, info->ds_roi[7].h);
-	writel(d, g_regbase + PYMID_ROI1_P7);
+	ipu_reg_w(d, g_regbase + PYMID_ROI1_P7);
 
 	d = SET_ROI0_P2(info->ds_roi[9].l, info->ds_roi[9].t);
-	writel(d, g_regbase + PYMID_ROI0_P9);
+	ipu_reg_w(d, g_regbase + PYMID_ROI0_P9);
 	d = SET_ROI1_P2(info->ds_roi[9].w, info->ds_roi[9].h);
-	writel(d, g_regbase + PYMID_ROI1_P9);
+	ipu_reg_w(d, g_regbase + PYMID_ROI1_P9);
 	d = SET_ROI0_P2(info->ds_roi[10].l, info->ds_roi[10].t);
-	writel(d, g_regbase + PYMID_ROI0_P10);
+	ipu_reg_w(d, g_regbase + PYMID_ROI0_P10);
 	d = SET_ROI1_P2(info->ds_roi[10].w, info->ds_roi[10].h);
-	writel(d, g_regbase + PYMID_ROI1_P10);
+	ipu_reg_w(d, g_regbase + PYMID_ROI1_P10);
 	d = SET_ROI0_P2(info->ds_roi[11].l, info->ds_roi[11].t);
-	writel(d, g_regbase + PYMID_ROI0_P11);
+	ipu_reg_w(d, g_regbase + PYMID_ROI0_P11);
 	d = SET_ROI1_P2(info->ds_roi[11].w, info->ds_roi[11].h);
-	writel(d, g_regbase + PYMID_ROI1_P11);
+	ipu_reg_w(d, g_regbase + PYMID_ROI1_P11);
 
 	d = SET_ROI0_P3(info->ds_roi[13].l, info->ds_roi[13].t);
-	writel(d, g_regbase + PYMID_ROI0_P13);
+	ipu_reg_w(d, g_regbase + PYMID_ROI0_P13);
 	d = SET_ROI1_P3(info->ds_roi[13].w, info->ds_roi[13].h);
-	writel(d, g_regbase + PYMID_ROI1_P13);
+	ipu_reg_w(d, g_regbase + PYMID_ROI1_P13);
 	d = SET_ROI0_P3(info->ds_roi[14].l, info->ds_roi[14].t);
-	writel(d, g_regbase + PYMID_ROI0_P14);
+	ipu_reg_w(d, g_regbase + PYMID_ROI0_P14);
 	d = SET_ROI1_P3(info->ds_roi[14].w, info->ds_roi[14].h);
-	writel(d, g_regbase + PYMID_ROI1_P14);
+	ipu_reg_w(d, g_regbase + PYMID_ROI1_P14);
 	d = SET_ROI0_P3(info->ds_roi[15].l, info->ds_roi[15].t);
-	writel(d, g_regbase + PYMID_ROI0_P15);
+	ipu_reg_w(d, g_regbase + PYMID_ROI0_P15);
 	d = SET_ROI1_P3(info->ds_roi[15].w, info->ds_roi[15].h);
-	writel(d, g_regbase + PYMID_ROI1_P15);
+	ipu_reg_w(d, g_regbase + PYMID_ROI1_P15);
 
 	d = SET_ROI0_P4(info->ds_roi[17].l, info->ds_roi[17].t);
-	writel(d, g_regbase + PYMID_ROI0_P17);
+	ipu_reg_w(d, g_regbase + PYMID_ROI0_P17);
 	d = SET_ROI1_P4(info->ds_roi[17].w, info->ds_roi[17].h);
-	writel(d, g_regbase + PYMID_ROI1_P17);
+	ipu_reg_w(d, g_regbase + PYMID_ROI1_P17);
 	d = SET_ROI0_P4(info->ds_roi[18].l, info->ds_roi[18].t);
-	writel(d, g_regbase + PYMID_ROI0_P18);
+	ipu_reg_w(d, g_regbase + PYMID_ROI0_P18);
 	d = SET_ROI1_P4(info->ds_roi[18].w, info->ds_roi[18].h);
-	writel(d, g_regbase + PYMID_ROI1_P18);
+	ipu_reg_w(d, g_regbase + PYMID_ROI1_P18);
 	d = SET_ROI0_P4(info->ds_roi[19].l, info->ds_roi[19].t);
-	writel(d, g_regbase + PYMID_ROI0_P19);
+	ipu_reg_w(d, g_regbase + PYMID_ROI0_P19);
 	d = SET_ROI1_P4(info->ds_roi[19].w, info->ds_roi[19].h);
-	writel(d, g_regbase + PYMID_ROI1_P19);
+	ipu_reg_w(d, g_regbase + PYMID_ROI1_P19);
 
 	d = SET_ROI0_P5(info->ds_roi[21].l, info->ds_roi[21].t);
-	writel(d, g_regbase + PYMID_ROI0_P21);
+	ipu_reg_w(d, g_regbase + PYMID_ROI0_P21);
 	d = SET_ROI1_P5(info->ds_roi[21].w, info->ds_roi[21].h);
-	writel(d, g_regbase + PYMID_ROI1_P21);
+	ipu_reg_w(d, g_regbase + PYMID_ROI1_P21);
 	d = SET_ROI0_P5(info->ds_roi[22].l, info->ds_roi[22].t);
-	writel(d, g_regbase + PYMID_ROI0_P22);
+	ipu_reg_w(d, g_regbase + PYMID_ROI0_P22);
 	d = SET_ROI1_P5(info->ds_roi[22].w, info->ds_roi[22].h);
-	writel(d, g_regbase + PYMID_ROI1_P22);
+	ipu_reg_w(d, g_regbase + PYMID_ROI1_P22);
 	d = SET_ROI0_P5(info->ds_roi[23].l, info->ds_roi[23].t);
-	writel(d, g_regbase + PYMID_ROI0_P23);
+	ipu_reg_w(d, g_regbase + PYMID_ROI0_P23);
 	d = SET_ROI1_P5(info->ds_roi[23].w, info->ds_roi[23].h);
-	writel(d, g_regbase + PYMID_ROI1_P23);
+	ipu_reg_w(d, g_regbase + PYMID_ROI1_P23);
 
 	/* step 2. write us ctrl reg */
 	d = SET_US_UV_BYPASS(info->us_uv_bypass);
 	d |= SET_US_LAYER_EN(info->us_layer_en);
-	writel(d, g_regbase + PYMID_US_CTRL);
+	ipu_reg_w(d, g_regbase + PYMID_US_CTRL);
 
 	/* step 2.2. write us factor reg */
-	d = SET_US_FACTOR_P0(info->us_factor[0]);
-	d |= SET_US_FACTOR_P1(info->us_factor[1]);
-	d |= SET_US_FACTOR_P2(info->us_factor[2]);
-	d |= SET_US_FACTOR_P3(info->us_factor[3]);
-	writel(d, g_regbase + PYMID_US_FACTOR1);
-
-	d = SET_US_FACTOR_P4(info->us_factor[4]);
-	d |= SET_US_FACTOR_P5(info->us_factor[5]);
-	writel(d, g_regbase + PYMID_US_FACTOR2);
+	if (info->us_factor[0] != 0 && info->us_factor[1] != 0 &&
+	    info->us_factor[2] != 0 && info->us_factor[3] != 0) {
+		d = SET_US_FACTOR_P0(info->us_factor[0]);
+		d |= SET_US_FACTOR_P1(info->us_factor[1]);
+		d |= SET_US_FACTOR_P2(info->us_factor[2]);
+		d |= SET_US_FACTOR_P3(info->us_factor[3]);
+		ipu_reg_w(d, g_regbase + PYMID_US_FACTOR1);
+	}
+	if (info->us_factor[4] != 0 && info->us_factor[5] != 0) {
+		d = SET_US_FACTOR_P4(info->us_factor[4]);
+		d |= SET_US_FACTOR_P5(info->us_factor[5]);
+		ipu_reg_w(d, g_regbase + PYMID_US_FACTOR2);
+	}
 	/* step 2.3. write us src width reg */
 	d = SET_SRC_WIDTH(info->ds_src_width[1], info->ds_src_width[0]);
-	writel(d, g_regbase + PYMID_SRC_WIDTH_U1);
+	ipu_reg_w(d, g_regbase + PYMID_SRC_WIDTH_U1);
 	d |= SET_SRC_WIDTH(info->ds_src_width[3], info->ds_src_width[2]);
-	writel(d, g_regbase + PYMID_SRC_WIDTH_U2);
+	ipu_reg_w(d, g_regbase + PYMID_SRC_WIDTH_U2);
 	d |= SET_SRC_WIDTH(info->ds_src_width[5], info->ds_src_width[4]);
-	writel(d, g_regbase + PYMID_SRC_WIDTH_U3);
+	ipu_reg_w(d, g_regbase + PYMID_SRC_WIDTH_U3);
 
 	/* step 2.4. write us roi reg */
 	d = SET_US_ROI0(info->us_roi[0].l, info->us_roi[0].t);
-	writel(d, g_regbase + PYMID_ROI0_U0);
+	ipu_reg_w(d, g_regbase + PYMID_ROI0_U0);
 	d = SET_US_ROI1(info->us_roi[0].w, info->us_roi[0].h);
-	writel(d, g_regbase + PYMID_ROI1_U0);
+	ipu_reg_w(d, g_regbase + PYMID_ROI1_U0);
 
 	d = SET_US_ROI0(info->us_roi[1].l, info->us_roi[1].t);
-	writel(d, g_regbase + PYMID_ROI0_U1);
+	ipu_reg_w(d, g_regbase + PYMID_ROI0_U1);
 	d = SET_US_ROI1(info->us_roi[1].w, info->us_roi[1].h);
-	writel(d, g_regbase + PYMID_ROI1_U1);
+	ipu_reg_w(d, g_regbase + PYMID_ROI1_U1);
 
 	d = SET_US_ROI0(info->us_roi[2].l, info->us_roi[2].t);
-	writel(d, g_regbase + PYMID_ROI0_U2);
+	ipu_reg_w(d, g_regbase + PYMID_ROI0_U2);
 	d = SET_US_ROI1(info->us_roi[2].w, info->us_roi[2].h);
-	writel(d, g_regbase + PYMID_ROI1_U2);
+	ipu_reg_w(d, g_regbase + PYMID_ROI1_U2);
 
 	d = SET_US_ROI0(info->us_roi[3].l, info->us_roi[3].t);
-	writel(d, g_regbase + PYMID_ROI0_U3);
+	ipu_reg_w(d, g_regbase + PYMID_ROI0_U3);
 	d = SET_US_ROI1(info->us_roi[3].w, info->us_roi[3].h);
-	writel(d, g_regbase + PYMID_ROI1_U3);
+	ipu_reg_w(d, g_regbase + PYMID_ROI1_U3);
 
 	d = SET_US_ROI0(info->us_roi[4].l, info->us_roi[4].t);
-	writel(d, g_regbase + PYMID_ROI0_U4);
+	ipu_reg_w(d, g_regbase + PYMID_ROI0_U4);
 	d = SET_US_ROI1(info->us_roi[4].w, info->us_roi[4].h);
-	writel(d, g_regbase + PYMID_ROI1_U4);
+	ipu_reg_w(d, g_regbase + PYMID_ROI1_U4);
 
 	d = SET_US_ROI0(info->us_roi[5].l, info->us_roi[5].t);
-	writel(d, g_regbase + PYMID_ROI0_U5);
+	ipu_reg_w(d, g_regbase + PYMID_ROI0_U5);
 	d = SET_US_ROI1(info->us_roi[5].w, info->us_roi[5].h);
-	writel(d, g_regbase + PYMID_ROI1_U5);
+	ipu_reg_w(d, g_regbase + PYMID_ROI1_U5);
 
 	/* step 3. write pymid reg */
 	d = MAKEUP_WH(info->ds_roi[0].w, info->ds_roi[0].h);
-	writel(d, g_regbase + PYMID_SRC_IMG);
+	ipu_reg_w(d, g_regbase + PYMID_SRC_IMG);
 
 	return 0;
 }
@@ -461,12 +466,12 @@ int8_t set_ipu_addr(uint8_t id, uint32_t y_addr, uint32_t c_addr)
 
 	switch (id) {
 	case 0:
-		writel(y_addr, g_regbase + IPU_Y_BASE_ADDR_0);
-		writel(c_addr, g_regbase + IPU_C_BASE_ADDR_0);
+		ipu_reg_w(y_addr, g_regbase + IPU_Y_BASE_ADDR_0);
+		ipu_reg_w(c_addr, g_regbase + IPU_C_BASE_ADDR_0);
 		break;
 	case 1:
-		writel(y_addr, g_regbase + IPU_Y_BASE_ADDR_1);
-		writel(c_addr, g_regbase + IPU_C_BASE_ADDR_1);
+		ipu_reg_w(y_addr, g_regbase + IPU_Y_BASE_ADDR_1);
+		ipu_reg_w(c_addr, g_regbase + IPU_C_BASE_ADDR_1);
 		break;
 	default:
 		return -1;
@@ -484,100 +489,100 @@ int8_t set_ds_layer_addr(uint8_t id, uint32_t y_addr, uint32_t c_addr)
 
 	switch (id) {
 	case 0:
-		writel(y_addr, g_regbase + PYMID_Y_ADDR_P0);
-		writel(c_addr, g_regbase + PYMID_C_ADDR_P0);
+		ipu_reg_w(y_addr, g_regbase + PYMID_Y_ADDR_P0);
+		ipu_reg_w(c_addr, g_regbase + PYMID_C_ADDR_P0);
 		break;
 	case 1:
-		writel(y_addr, g_regbase + PYMID_Y_ADDR_P1);
-		writel(c_addr, g_regbase + PYMID_C_ADDR_P1);
+		ipu_reg_w(y_addr, g_regbase + PYMID_Y_ADDR_P1);
+		ipu_reg_w(c_addr, g_regbase + PYMID_C_ADDR_P1);
 		break;
 	case 2:
-		writel(y_addr, g_regbase + PYMID_Y_ADDR_P2);
-		writel(c_addr, g_regbase + PYMID_C_ADDR_P2);
+		ipu_reg_w(y_addr, g_regbase + PYMID_Y_ADDR_P2);
+		ipu_reg_w(c_addr, g_regbase + PYMID_C_ADDR_P2);
 		break;
 	case 3:
-		writel(y_addr, g_regbase + PYMID_Y_ADDR_P3);
-		writel(c_addr, g_regbase + PYMID_C_ADDR_P3);
+		ipu_reg_w(y_addr, g_regbase + PYMID_Y_ADDR_P3);
+		ipu_reg_w(c_addr, g_regbase + PYMID_C_ADDR_P3);
 		break;
 	case 4:
-		writel(y_addr, g_regbase + PYMID_Y_ADDR_P4);
-		writel(c_addr, g_regbase + PYMID_C_ADDR_P4);
+		ipu_reg_w(y_addr, g_regbase + PYMID_Y_ADDR_P4);
+		ipu_reg_w(c_addr, g_regbase + PYMID_C_ADDR_P4);
 		break;
 	case 5:
-		writel(y_addr, g_regbase + PYMID_Y_ADDR_P5);
-		writel(c_addr, g_regbase + PYMID_C_ADDR_P5);
+		ipu_reg_w(y_addr, g_regbase + PYMID_Y_ADDR_P5);
+		ipu_reg_w(c_addr, g_regbase + PYMID_C_ADDR_P5);
 		break;
 	case 6:
-		writel(y_addr, g_regbase + PYMID_Y_ADDR_P6);
-		writel(c_addr, g_regbase + PYMID_C_ADDR_P6);
+		ipu_reg_w(y_addr, g_regbase + PYMID_Y_ADDR_P6);
+		ipu_reg_w(c_addr, g_regbase + PYMID_C_ADDR_P6);
 		break;
 	case 7:
-		writel(y_addr, g_regbase + PYMID_Y_ADDR_P7);
-		writel(c_addr, g_regbase + PYMID_C_ADDR_P7);
+		ipu_reg_w(y_addr, g_regbase + PYMID_Y_ADDR_P7);
+		ipu_reg_w(c_addr, g_regbase + PYMID_C_ADDR_P7);
 		break;
 	case 8:
-		writel(y_addr, g_regbase + PYMID_Y_ADDR_P8);
-		writel(c_addr, g_regbase + PYMID_C_ADDR_P8);
+		ipu_reg_w(y_addr, g_regbase + PYMID_Y_ADDR_P8);
+		ipu_reg_w(c_addr, g_regbase + PYMID_C_ADDR_P8);
 		break;
 	case 9:
-		writel(y_addr, g_regbase + PYMID_Y_ADDR_P9);
-		writel(c_addr, g_regbase + PYMID_C_ADDR_P9);
+		ipu_reg_w(y_addr, g_regbase + PYMID_Y_ADDR_P9);
+		ipu_reg_w(c_addr, g_regbase + PYMID_C_ADDR_P9);
 		break;
 	case 10:
-		writel(y_addr, g_regbase + PYMID_Y_ADDR_P10);
-		writel(c_addr, g_regbase + PYMID_C_ADDR_P10);
+		ipu_reg_w(y_addr, g_regbase + PYMID_Y_ADDR_P10);
+		ipu_reg_w(c_addr, g_regbase + PYMID_C_ADDR_P10);
 		break;
 	case 11:
-		writel(y_addr, g_regbase + PYMID_Y_ADDR_P11);
-		writel(c_addr, g_regbase + PYMID_C_ADDR_P11);
+		ipu_reg_w(y_addr, g_regbase + PYMID_Y_ADDR_P11);
+		ipu_reg_w(c_addr, g_regbase + PYMID_C_ADDR_P11);
 		break;
 	case 12:
-		writel(y_addr, g_regbase + PYMID_Y_ADDR_P12);
-		writel(c_addr, g_regbase + PYMID_C_ADDR_P12);
+		ipu_reg_w(y_addr, g_regbase + PYMID_Y_ADDR_P12);
+		ipu_reg_w(c_addr, g_regbase + PYMID_C_ADDR_P12);
 		break;
 	case 13:
-		writel(y_addr, g_regbase + PYMID_Y_ADDR_P13);
-		writel(c_addr, g_regbase + PYMID_C_ADDR_P13);
+		ipu_reg_w(y_addr, g_regbase + PYMID_Y_ADDR_P13);
+		ipu_reg_w(c_addr, g_regbase + PYMID_C_ADDR_P13);
 		break;
 	case 14:
-		writel(y_addr, g_regbase + PYMID_Y_ADDR_P14);
-		writel(c_addr, g_regbase + PYMID_C_ADDR_P14);
+		ipu_reg_w(y_addr, g_regbase + PYMID_Y_ADDR_P14);
+		ipu_reg_w(c_addr, g_regbase + PYMID_C_ADDR_P14);
 		break;
 	case 15:
-		writel(y_addr, g_regbase + PYMID_Y_ADDR_P15);
-		writel(c_addr, g_regbase + PYMID_C_ADDR_P15);
+		ipu_reg_w(y_addr, g_regbase + PYMID_Y_ADDR_P15);
+		ipu_reg_w(c_addr, g_regbase + PYMID_C_ADDR_P15);
 		break;
 	case 16:
-		writel(y_addr, g_regbase + PYMID_Y_ADDR_P16);
-		writel(c_addr, g_regbase + PYMID_C_ADDR_P16);
+		ipu_reg_w(y_addr, g_regbase + PYMID_Y_ADDR_P16);
+		ipu_reg_w(c_addr, g_regbase + PYMID_C_ADDR_P16);
 		break;
 	case 17:
-		writel(y_addr, g_regbase + PYMID_Y_ADDR_P17);
-		writel(c_addr, g_regbase + PYMID_C_ADDR_P17);
+		ipu_reg_w(y_addr, g_regbase + PYMID_Y_ADDR_P17);
+		ipu_reg_w(c_addr, g_regbase + PYMID_C_ADDR_P17);
 		break;
 	case 18:
-		writel(y_addr, g_regbase + PYMID_Y_ADDR_P18);
-		writel(c_addr, g_regbase + PYMID_C_ADDR_P18);
+		ipu_reg_w(y_addr, g_regbase + PYMID_Y_ADDR_P18);
+		ipu_reg_w(c_addr, g_regbase + PYMID_C_ADDR_P18);
 		break;
 	case 19:
-		writel(y_addr, g_regbase + PYMID_Y_ADDR_P19);
-		writel(c_addr, g_regbase + PYMID_C_ADDR_P19);
+		ipu_reg_w(y_addr, g_regbase + PYMID_Y_ADDR_P19);
+		ipu_reg_w(c_addr, g_regbase + PYMID_C_ADDR_P19);
 		break;
 	case 20:
-		writel(y_addr, g_regbase + PYMID_Y_ADDR_P20);
-		writel(c_addr, g_regbase + PYMID_C_ADDR_P20);
+		ipu_reg_w(y_addr, g_regbase + PYMID_Y_ADDR_P20);
+		ipu_reg_w(c_addr, g_regbase + PYMID_C_ADDR_P20);
 		break;
 	case 21:
-		writel(y_addr, g_regbase + PYMID_Y_ADDR_P21);
-		writel(c_addr, g_regbase + PYMID_C_ADDR_P21);
+		ipu_reg_w(y_addr, g_regbase + PYMID_Y_ADDR_P21);
+		ipu_reg_w(c_addr, g_regbase + PYMID_C_ADDR_P21);
 		break;
 	case 22:
-		writel(y_addr, g_regbase + PYMID_Y_ADDR_P22);
-		writel(c_addr, g_regbase + PYMID_C_ADDR_P22);
+		ipu_reg_w(y_addr, g_regbase + PYMID_Y_ADDR_P22);
+		ipu_reg_w(c_addr, g_regbase + PYMID_C_ADDR_P22);
 		break;
 	case 23:
-		writel(y_addr, g_regbase + PYMID_Y_ADDR_P23);
-		writel(c_addr, g_regbase + PYMID_C_ADDR_P23);
+		ipu_reg_w(y_addr, g_regbase + PYMID_Y_ADDR_P23);
+		ipu_reg_w(c_addr, g_regbase + PYMID_C_ADDR_P23);
 		break;
 	default:
 		return -1;
@@ -595,28 +600,28 @@ int8_t set_us_layer_addr(uint8_t id, uint32_t y_addr, uint32_t c_addr)
 
 	switch (id) {
 	case 0:
-		writel(y_addr, g_regbase + PYMID_Y_ADDR_U0);
-		writel(c_addr, g_regbase + PYMID_C_ADDR_U0);
+		ipu_reg_w(y_addr, g_regbase + PYMID_Y_ADDR_U0);
+		ipu_reg_w(c_addr, g_regbase + PYMID_C_ADDR_U0);
 		break;
 	case 1:
-		writel(y_addr, g_regbase + PYMID_Y_ADDR_U1);
-		writel(c_addr, g_regbase + PYMID_C_ADDR_U1);
+		ipu_reg_w(y_addr, g_regbase + PYMID_Y_ADDR_U1);
+		ipu_reg_w(c_addr, g_regbase + PYMID_C_ADDR_U1);
 		break;
 	case 2:
-		writel(y_addr, g_regbase + PYMID_Y_ADDR_U2);
-		writel(c_addr, g_regbase + PYMID_C_ADDR_U2);
+		ipu_reg_w(y_addr, g_regbase + PYMID_Y_ADDR_U2);
+		ipu_reg_w(c_addr, g_regbase + PYMID_C_ADDR_U2);
 		break;
 	case 3:
-		writel(y_addr, g_regbase + PYMID_Y_ADDR_U3);
-		writel(c_addr, g_regbase + PYMID_C_ADDR_U3);
+		ipu_reg_w(y_addr, g_regbase + PYMID_Y_ADDR_U3);
+		ipu_reg_w(c_addr, g_regbase + PYMID_C_ADDR_U3);
 		break;
 	case 4:
-		writel(y_addr, g_regbase + PYMID_Y_ADDR_U4);
-		writel(c_addr, g_regbase + PYMID_C_ADDR_U4);
+		ipu_reg_w(y_addr, g_regbase + PYMID_Y_ADDR_U4);
+		ipu_reg_w(c_addr, g_regbase + PYMID_C_ADDR_U4);
 		break;
 	case 5:
-		writel(y_addr, g_regbase + PYMID_Y_ADDR_U5);
-		writel(c_addr, g_regbase + PYMID_C_ADDR_U5);
+		ipu_reg_w(y_addr, g_regbase + PYMID_Y_ADDR_U5);
+		ipu_reg_w(c_addr, g_regbase + PYMID_C_ADDR_U5);
 		break;
 	default:
 		return -1;
