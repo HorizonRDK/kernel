@@ -97,7 +97,6 @@ int32_t iar_write_framebuf_poll(uint32_t channel, void __user * srcaddr,
 	bufaddr = iar_get_framebuf_addr(channel);
 	copy_from_user(bufaddr->vaddr, srcaddr, size);
 #else
-	printk("srcaddr:%p size:%d\n", srcaddr, size);
 	extern int32_t bifdev_set_cpchip_ddr(uint32_t addr, uint16_t size,
 					     uint8_t * value);
 	bufaddr = iar_get_framebuf_addr(channel);
@@ -106,7 +105,6 @@ int32_t iar_write_framebuf_poll(uint32_t channel, void __user * srcaddr,
 	uint32_t src = g_iar_cdev->tmpbufaddr;
 	uint32_t dst = bufaddr->paddr;
 	int cursize = size;
-	printk("srcaddr:%x dstaddr:%x size:%d\n", src, dst, cursize);
 	while (cursize > 0) {
 		if (cursize > 4096) {
 			bifdev_set_cpchip_ddr(dst, 4096, src);
@@ -119,7 +117,6 @@ int32_t iar_write_framebuf_poll(uint32_t channel, void __user * srcaddr,
 		cursize -= 4096;
 
 	}
-	//bif wirte to bufaddr TODO
 #endif
 
 	return iar_switch_buf(channel);
@@ -187,7 +184,6 @@ int32_t iar_display_update(update_cmd_t * update_cmd)
 	frame_buf_t *bufaddr;
 	int ret = 0;
 	for (index = 0; index < IAR_CHANNEL_MAX; index++) {
-		printk("iar_display_update:%d\n", index);
 		if (index == 1 || index == 3)
 			continue;	//TODO, now channnel 2 and 4 is disable
 
@@ -306,8 +302,7 @@ static ssize_t iar_cdev_read(struct file *filp, char __user * ubuf,
 int iar_cdev_release(struct inode *inode, struct file *filp)
 {
 	filp->private_data = NULL;
-	//return iar_close();
-	return 0;
+	return iar_close();
 }
 
 static const struct file_operations iar_cdev_ops = {
@@ -373,7 +368,6 @@ int __init iar_cdev_init(void)
 		printk(KERN_ERR "Unable to alloc IAR DEV\n");
 		return -ENOMEM;
 	}
-	printk("iar_cdev_init\n");
 	g_iar_cdev->name = "iar_cdev";
 	mutex_init(&g_iar_cdev->iar_mutex);
 	init_completion(&g_iar_cdev->completion);

@@ -450,7 +450,9 @@ int32_t iar_config_pixeladdr(void)
 					    g_iar_dev->
 					    pingpong_buf[i].framebuf[0].paddr +
 					    uoffset;
-					g_iar_dev->pingpong_buf[i].pixel_addr[0].Vaddr = 0;	//g_iar_dev->pingpong_buf[i].framebuf[0].paddr + voffset;
+					g_iar_dev->
+					    pingpong_buf[i].pixel_addr[0].
+					    Vaddr = 0;
 					g_iar_dev->
 					    pingpong_buf[i].pixel_addr[1].
 					    Yaddr =
@@ -462,7 +464,9 @@ int32_t iar_config_pixeladdr(void)
 					    g_iar_dev->
 					    pingpong_buf[i].framebuf[1].paddr +
 					    uoffset;
-					g_iar_dev->pingpong_buf[i].pixel_addr[1].Vaddr = 0;	//g_iar_dev->pingpong_buf[i].framebuf[1].paddr + voffset;
+					g_iar_dev->
+					    pingpong_buf[i].pixel_addr[1].
+					    Vaddr = 0;
 				}
 				break;
 			case FORMAT_YUV422P_UV:
@@ -659,10 +663,6 @@ int32_t iar_channel_base_cfg(channel_base_cfg_t * cfg)
 	target_filed = IAR_LAYER_PRIORITY_1 - channelid;	//set layer pri
 	value = IAR_REG_SET_FILED(target_filed, cfg->pri, value);
 
-	printk("target_filed:%d ### %x, %x, %x, %x \n", cfg->pri, target_filed,
-	       g_iarReg_cfg_table[target_filed][TABLE_MASK],
-	       g_iarReg_cfg_table[target_filed][TABLE_OFFSET], value);
-
 	value = IAR_REG_SET_FILED(IAR_EN_OVERLAY_PRI1, 0x1, value);
 	value = IAR_REG_SET_FILED(IAR_EN_OVERLAY_PRI2, 0x1, value);
 	value = IAR_REG_SET_FILED(IAR_EN_OVERLAY_PRI3, 0x1, value);
@@ -791,8 +791,6 @@ int32_t iar_output_cfg(output_cfg_t * cfg)
 		printk(KERN_ERR "IAR dev not inited!");
 		return -1;
 	}
-	printk("cfg->out_sel:%d w:%d h:%d \n", cfg->out_sel, cfg->width,
-	       cfg->height);
 	iar_set_hvsync_timing(cfg->out_sel);
 
 	IAR_REG_WRITE(cfg->bgcolor, g_iar_dev->regaddr + REG_IAR_BG_COLOR);
@@ -916,7 +914,6 @@ int32_t iar_set_bufaddr(uint32_t channel, buf_addr_t * addr)
 		printk(KERN_ERR "IAR dev not inited!");
 		return -1;
 	}
-	printk("addr:%p\n", addr);
 	switch (channel) {
 	case IAR_CHANNEL_1:
 		{
@@ -974,7 +971,6 @@ int32_t iar_switch_buf(uint32_t channel)
 		return -1;
 	}
 	index = g_iar_dev->cur_framebuf_id[channel];
-	printk("iar_switch_buf channel:%d index:%d\n", channel, index);
 	iar_set_bufaddr(channel,
 			&g_iar_dev->pingpong_buf[channel].pixel_addr[index]);
 	g_iar_dev->cur_framebuf_id[channel] = !index;
@@ -991,9 +987,9 @@ int32_t iar_open(void)
 		return -1;
 	}
 
-	value = IAR_REG_READ(g_iar_dev->sysctrl + 0x140);
+	value = IAR_REG_READ(g_iar_dev->sysctrl + 0x144);
 	value |= (0x1 << 2);
-	IAR_REG_WRITE(value, g_iar_dev->sysctrl + 0x140);
+	IAR_REG_WRITE(value, g_iar_dev->sysctrl + 0x144);
 	iar_pre_init();
 	return 0;
 }
@@ -1008,9 +1004,9 @@ int32_t iar_close(void)
 		return -1;
 	}
 
-	value = IAR_REG_READ(g_iar_dev->sysctrl + 0x140);
-	value &= ~(0x1 << 2);
-	IAR_REG_WRITE(value, g_iar_dev->sysctrl + 0x140);
+	value = IAR_REG_READ(g_iar_dev->sysctrl + 0x148);
+	value |= (0x1 << 2);
+	IAR_REG_WRITE(value, g_iar_dev->sysctrl + 0x148);
 
 	return 0;
 }
@@ -1075,9 +1071,6 @@ int32_t iar_pre_init(void)
 		return -1;
 	}
 	int value;
-	//test
-	printk("test read 0xA100607c :%x \n", IAR_REG_READ(0xA100607c));
-	//end
 
 	iar_idma_init();
 	buf_addr_t *bufaddr_channe1 =
@@ -1118,12 +1111,10 @@ static int x2_iar_probe(struct platform_device *pdev)
 	int ret, value;
 	struct device_node *np;
 	struct resource r;
-	ret = 0;
-	printk("x2_iar_probe\n");
 	g_iar_dev =
 	    devm_kzalloc(&pdev->dev, sizeof(struct iar_dev_s), GFP_KERNEL);
 	if (!g_iar_dev) {
-		printk(KERN_ERR "Unable to alloc IAR DEV\n");
+		dev_err(&pdev->dev, "Unable to alloc IAR DEV\n");
 		return -ENOMEM;
 	}
 	dev_set_drvdata(&pdev->dev, g_iar_dev);
@@ -1199,6 +1190,7 @@ static int x2_iar_probe(struct platform_device *pdev)
 	    g_iar_dev->pingpong_buf[2].framebuf[0].paddr + MAX_FRAME_BUF_SIZE;
 #endif
 	//iar_pre_init();
+	iar_close();
 	return ret;
 }
 
