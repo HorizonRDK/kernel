@@ -1,0 +1,6 @@
+config X2_I2S
+	tristate "x2 i2s"
+	depends on ARCH_HOBOT
+	default n
+	help
+	  X2 i2s interface
