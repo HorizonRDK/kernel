@@ -46,6 +46,17 @@
 	status = "okay";
 };
 
+&isp {
+	status = "okay";
+};
+
+&ipu {
+	status = "okay";
+};
+
+&sif {
+	status = "okay";
+};
 
 &dma {
 	status = "disabled";
