@@ -1,0 +1,47 @@
+#
+# IPS configuration
+#
+
+menu "IPS Configuratio"
+config X2_IPS
+	tristate "X2 IPS Drivers"
+	default n
+	---help---
+	   Drivers for the X2 IPS
+if X2_IPS
+
+config X2_IPU
+	tristate "X2 IPU Driver"
+	---help---
+	   Driver for the X2 IPU
+
+config X2_SIF
+	tristate "X2 SIF Driver"
+	---help---
+	   Driver for the X2 SIF
+if X2_SIF
+config X2_SIF_DEV
+	tristate "X2 SIF Dev Driver"
+	---help---
+	   Driver for the X2 SIF Dev
+config X2_MIPI_HOST
+	tristate "X2 MIPI Host Driver"
+	---help---
+	   Driver for the X2 MIPI Host
+config X2_MIPI_DEV
+	tristate "X2 MIPI Device Driver"
+	---help---
+	   Driver for the X2 MIPI Device
+config X2_MIPI_PHY
+	tristate "X2 MIPI DPHY Driver"
+	---help---
+	   Driver for the X2 MIPI DPHY
+endif
+
+config X2_ISP
+	tristate "X2 ISP Driver"
+	---help---
+	   Driver for the X2 ISP
+
+endif
+endmenu
