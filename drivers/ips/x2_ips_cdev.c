@@ -74,7 +74,8 @@ static long ips_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 		return 0;
 	case IPS_BUSCTL_SET:
 		copy_from_user(&setcmd, arg, sizeof(setcmd));
-		//ips_busctl_set(setcmd.type, setcmd.index, setcmd.region, setcmd.value);
+		ips_busctl_set(setcmd.type, setcmd.index, setcmd.region,
+			       setcmd.value);
 		return 0;
 	default:
 		return -EPERM;
