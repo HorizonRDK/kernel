@@ -73,3 +73,17 @@
 &pwm_0 {
 	status = "disabled";
 };
+
+&ethernet {
+	status = "okay";
+	phy-handle = <&phy1>;
+	phy-mode = "rgmii";
+	mdio {
+		#address-cells = <0x1>;
+		#size-cells = <0x0>;
+		phy1: phy@3 {
+			compatible = "marvell,88E1111","ethernet-phy-ieee802.3-c22";
+			reg = <0x3>;
+		};
+	};
+};
