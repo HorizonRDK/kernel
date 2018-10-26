@@ -1192,8 +1192,8 @@ static void x2_uart_console_write(struct console *co, const char *s,
 	int locked = 1;
 
 	/* Check if tx dma is enabled. */
-	ctrl = readl(port->membase + X2_UART_TXDMA);
-	while (ctrl & UART_TXSTA) {
+	while ((ctrl = readl(port->membase + X2_UART_TXDMA)) &
+		UART_TXSTA) {
 		cpu_relax();
 	}
 
