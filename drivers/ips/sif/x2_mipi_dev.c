@@ -97,58 +97,68 @@ typedef struct _mipi_dev_s {
 
 mipi_dev_t *g_mipi_dev = NULL;
 
+/**
+ * @brief mipi_dev_vpg_get_hline : get hline time in vpg mode
+ *
+ * @param [in] control : mipi dev config
+ *
+ * @return uint16_t hline
+ */
 static uint16_t mipi_dev_vpg_get_hline(mipi_dev_control_t * control)
 {
-	uint16_t tx_byte_clk = control->mipiclk / control->lane / 8;
-	uint16_t hfptime = 0;
-	uint16_t vfptime = 0;
-	uint32_t bytes_to_trans = 0;
-	uint32_t hline = 0;
-	uint32_t pixclk = 0;
+	uint16_t hline = 0;
 
 	switch (control->datatype) {
 	case MIPI_CSI2_DT_YUV420_8:
+		hline = (12 * control->linelenth) / 8;
+		break;
 	case MIPI_CSI2_DT_YUV422_8:
-		bytes_to_trans = (16 * control->width) / 8;
+		hline = (16 * control->linelenth) / 8;
+		break;
+	case MIPI_CSI2_DT_YUV420_10:
+		hline = (12 * 2 * control->linelenth) / 8;
+		break;
+	case MIPI_CSI2_DT_YUV422_10:
+		hline = (16 * 2 * control->linelenth) / 8;
+		break;
+	case MIPI_CSI2_DT_RAW_8:
+		hline = (8 * control->linelenth) / 8;
 		break;
 	case MIPI_CSI2_DT_RAW_10:
-		bytes_to_trans = (10 * control->width) / 8;
+		hline = (10 * control->linelenth) / 8;
+		break;
+	case MIPI_CSI2_DT_RAW_12:
+		hline = (12 * control->linelenth) / 8;
+		break;
+	case MIPI_CSI2_DT_RAW_14:
+		hline = (14 * control->linelenth) / 8;
 		break;
 	default:
-		bytes_to_trans = (16 * control->width) / 8;
-		break;
+		siferr("data type 0x%x not support", control->datatype);
+		return 0;
 	}
-	hfptime = bytes_to_trans / tx_byte_clk;
-	hline =
-	    MIPI_DEV_VPG_HSA_TIME + MIPI_DEV_VPG_HBP_TIME + bytes_to_trans +
-	    hfptime;
-	hline = (hline + 16) & (~0xf);
-	//hline = hline > MIPI_DEV_VPG_HLINE_TIME ? MIPI_DEV_VPG_HLINE_TIME : hline;
+	if (control->linelenth == 0 || control->linelenth == control->width)
+		hline = MIPI_DEV_VPG_HLINE_TIME;
 	sifinfo("mipi dev vpg hline: %d", hline);
-	switch (control->datatype) {
-	case MIPI_CSI2_DT_YUV420_8:
-	case MIPI_CSI2_DT_YUV422_8:
-		control->linelenth = (hline * 8) / 16;
-		pixclk = control->mipiclk * 1000000 / 16;
-		break;
-	case MIPI_CSI2_DT_RAW_10:
-		control->linelenth = (hline * 8) / 10;
-		pixclk = control->mipiclk * 1000000 / 10;
-		break;
-	default:
-		control->linelenth = (hline * 8) / 16;
-		pixclk = control->mipiclk * 1000000 / 16;
-		break;
-	}
-	vfptime = hfptime * control->height / control->width;
-	control->framelenth =
-	    MIPI_DEV_VPG_VSA_LINES + MIPI_DEV_VPG_VBP_LINES + control->height +
-	    vfptime;
-	control->framelenth = (control->framelenth >> 1) << 1;
-	control->fps = pixclk / control->linelenth / control->framelenth;
-	sifinfo("mipi dev vpg fps: %d, linelenth: %d, framelenth: %d",
-		control->fps, control->linelenth, control->framelenth);
-	return (uint16_t) hline;
+	return hline;
+}
+
+/**
+ * @brief mipi_dev_vpg_get_vfp : get mipi dev vfp in vpg mode
+ *
+ * @param [in] control : mipi dev config
+ *
+ * @return uint16_t vfp
+ */
+static uint16_t mipi_dev_vpg_get_vfp(mipi_dev_control_t * control)
+{
+	uint16_t vfp =
+	    control->framelenth - MIPI_DEV_VPG_VSA_LINES -
+	    MIPI_DEV_VPG_VBP_LINES - control->height;
+	if (control->framelenth == 0 || control->framelenth == control->height)
+		vfp = MIPI_DEV_VPG_VFP_LINES;
+	sifinfo("mipi dev vpg vfp: %d", vfp);
+	return vfp;
 }
 
 /**
@@ -226,7 +236,8 @@ static int32_t mipi_dev_initialize_vgp(mipi_dev_control_t * control)
 		   mipi_dev_vpg_get_hline(control));
 	sif_putreg(iomem + REG_MIPI_DEV_VPG_VSA_LINES, MIPI_DEV_VPG_VSA_LINES);
 	sif_putreg(iomem + REG_MIPI_DEV_VPG_VBP_LINES, MIPI_DEV_VPG_VBP_LINES);
-	sif_putreg(iomem + REG_MIPI_DEV_VPG_VFP_LINES, MIPI_DEV_VPG_VFP_LINES);
+	sif_putreg(iomem + REG_MIPI_DEV_VPG_VFP_LINES,
+		   mipi_dev_vpg_get_vfp(control));
 	//sif_putreg(iomem+REG_MIPI_DEV_VPG_HLINE_TIME, MIPI_DEV_VPG_VLINE_TIME(control->width));
 	sif_putreg(iomem + REG_MIPI_DEV_VPG_ACT_LINES, control->height);
 	sif_putreg(iomem + REG_MIPI_DEV_VPG_MAX_FRAME_NUM,
