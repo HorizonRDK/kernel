@@ -44,6 +44,55 @@
 		reg = <0x0 0x0 0x0 0x80000000>;
 	};
 
+        reserved-memory {
+                #address-cells = <2>;
+                #size-cells = <2>;
+                ranges;
+
+                /* Reserved 512MB memory for cnn subsystem */
+                cnn_reserved: cnn_reserved@0x40000000 {
+                        reg = <0x0 0x40000000 0x0 0x20000000>;
+                };
+
+                /* Reserved 512MB memory for ipu subsystem */
+                ipu_reserved: ipu_reserved@0x60000000 {
+                        reg = <0x0 0x60000000 0x0 0x20000000>;
+                        no-map;
+                };
+        };
+
+        cnn_mm {
+		compatible = "hobot,cnn-mm";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		memory-region = <&cnn_reserved>;
+
+		cnn_heap@0 {
+			reg = <0>;
+			label = "cnn0_model_mm";
+			type = <1>;
+		};
+
+		cnn_heap@1 {
+			reg = <1>;
+			label = "cnn1_model_mm";
+			type = <1>;
+		};
+
+		cnn_heap@2 {
+			reg = <2>;
+			label = "cnn_rt_mm";
+			type = <1>;
+		};
+
+		cnn_heap@3 {
+			reg = <3>;
+			label = "cnn_result_mm";
+			type = <1>;
+		};
+	};
+
 };
 
 &uart0 {
@@ -86,4 +135,12 @@
 			reg = <0x3>;
 		};
 	};
+};
+
+&cnn0 {
+        status = "okay";
+};
+
+&cnn1 {
+        status = "okay";
 };

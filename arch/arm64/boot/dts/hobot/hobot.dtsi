@@ -100,16 +100,6 @@
 		clock-frequency = <20000000>;
 	};
 
-    reserved-memory {
-        #address-cells = <2>;
-        #size-cells = <2>;
-        ranges;
-        ipu_reserved: ipu_reserved@0xA4000900 {
-            reg = <0 0x40000000 0 0x20000000>;
-            no-map;
-        };
-    };
-
     rst: reset-controller {
                 compatible = "hobot,x2-reset";
                 #reset-cells = <1>;
@@ -340,6 +330,31 @@
 			reg = <0x0 0xA1004000 0x0 0x1000>;
 			timer-freq = <20000000>;
 	};
+
+        cnn0: cnn@0xA3000000 {
+            compatible = "hobot,x2-cnn-host";
+            reg = <0x0 0xA3000000 0x0 0x1000>;
+            reg-names = "cnn_base";
+            cnn-id = <0x0>;
+            interrupt-parent = <&gic>;
+            interrupts = <0 46 4>;
+            resets = <&rst 0x11>;
+            reset-names = "cnn0_rst";
+            status = "disabled";
+        };
+
+        cnn1: cnn@0xA3001000 {
+            compatible = "hobot,x2-cnn-host";
+            reg = <0x0 0xA3001000 0x0 0x1000>;
+            reg-names = "cnn_base";
+            cnn-id = <0x1>;
+            interrupt-parent = <&gic>;
+            interrupts = <0 47 4>;
+            resets = <&rst 0x12>;
+            reset-names = "cnn1_rst";
+            status = "disabled";
+        };
+
     };
 };
 

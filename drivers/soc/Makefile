@@ -23,3 +23,5 @@ obj-$(CONFIG_SOC_TI)		+= ti/
 obj-$(CONFIG_ARCH_U8500)	+= ux500/
 obj-$(CONFIG_PLAT_VERSATILE)	+= versatile/
 obj-$(CONFIG_ARCH_ZX)		+= zte/
+obj-$(CONFIG_X2_CNN_HOST)	+= hobot/cnn_host/
+obj-$(CONFIG_X2_CNN_MM)	+= hobot/cnn_mm/
