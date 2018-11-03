@@ -126,7 +126,7 @@
 &ethernet {
 	status = "okay";
 	phy-handle = <&phy1>;
-	phy-mode = "rgmii";
+	phy-mode = "rgmii-id";
 	mdio {
 		#address-cells = <0x1>;
 		#size-cells = <0x0>;
