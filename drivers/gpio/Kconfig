@@ -78,6 +78,12 @@ config GPIO_X2
 	tristate "x2 gpio"
 	depends on ARCH_HOBOT
 	select GPIO_GENERIC
+	default y
+
+config GPIO_X2_CDEV
+	tristate "x2 gpio test"
+	depends on ARCH_HOBOT
+	select GPIO_GENERIC
 	default n
 
 config GPIO_74XX_MMIO

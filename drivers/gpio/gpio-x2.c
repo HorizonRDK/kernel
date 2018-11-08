@@ -12,24 +12,26 @@
 
 #define GPIO_GROUP_NUM 15
 
-#define GOIO_CFG 	0x0
-#define GOIO_PE 	0x4
+#define GOIO_CFG	0x0
+#define GOIO_PE		0x4
 #define GOIO_CTL	0x8
-#define GOIO_IN_VALUE 	0xc
+#define GOIO_IN_VALUE	0xc
 
 #define OUT_DIR_SHIFT	16
 
 #define X2_GPIO_MIN 1
 #define X2_GPIO_MAX 118
 
-#define GROUP0_MAX 	14
-#define GROUP1_MAX 	30
-#define GROUP2_MAX 	45
-#define GROUP3_MAX 	61
-#define GROUP4_MAX 	77
-#define GROUP5_MAX 	93
-#define GROUP6_MAX 	109
-#define GROUP7_MAX 	118
+#define GROUP0_MAX	14
+#define GROUP1_MAX	30
+#define GROUP2_MAX	45
+#define GROUP3_MAX	61
+#define GROUP4_MAX	77
+#define GROUP5_MAX	93
+#define GROUP6_MAX	109
+#define GROUP7_MAX	118
+
+void __iomem *pinctl_regbase;
 
 struct x2_gpio_dev {
 	struct device *dev;
@@ -65,7 +67,7 @@ static struct __gpio_group gpio_groups[] = {
 		.end	= GROUP1_MAX,
 		.regoffset	= 0x10,
 	},
-    [2] = {
+	[2] = {
 		.start	= GROUP1_MAX+1,
 		.end	= GROUP2_MAX,
 		.regoffset	= 0x20,
@@ -148,7 +150,7 @@ static int x2_gpio_get(struct gpio_chip *chip, unsigned offset)
 	return 0;
 }
 
-static void x2_gpio_set(struct gpio_chip *chip, unsigned offset, bool val)
+static void x2_gpio_set(struct gpio_chip *chip, unsigned offset, int val)
 {
 	u32 value,ret;
 	int index;
@@ -163,7 +165,7 @@ static void x2_gpio_set(struct gpio_chip *chip, unsigned offset, bool val)
 	value = readl(regaddr + GOIO_CTL);
 	if(val == GPIO_LOW)
 		value &= ~(0x1 << (gpio - gpio_groups[index].start));
-	else if (val == GPIO_LOW)
+	else if (val == GPIO_HIGH)
 		value |= (0x1 << (gpio - gpio_groups[index].start));
 
 	writel(value, regaddr + GOIO_CTL);
@@ -203,6 +205,12 @@ static int x2_gpio_direction_output(struct gpio_chip *chip,
 	regaddr = gpiodev->regbase + gpio_groups[index].regoffset;
 	value = readl(regaddr + GOIO_CTL);
 	value |= (0x1 << (gpio - gpio_groups[index].start + OUT_DIR_SHIFT));
+
+	if(val == GPIO_LOW)
+		value &= ~(0x1 << (gpio - gpio_groups[index].start));
+	else if (val == GPIO_HIGH)
+		value |= (0x1 << (gpio - gpio_groups[index].start));
+
 	writel(value, regaddr + GOIO_CTL);
 
 	return 0;
@@ -217,15 +225,15 @@ static int x2_gpio_to_irq(struct gpio_chip *chip, unsigned offset)
 
 static struct gpio_chip x2_gpio =
 {
-		.base             = X2_GPIO_MIN,
-		.ngpio            = X2_GPIO_MAX - X2_GPIO_MIN + 1,
+		.base			  = X2_GPIO_MIN,
+		.ngpio			  = X2_GPIO_MAX - X2_GPIO_MIN + 1,
 		.direction_input  = x2_gpio_direction_input,
 		.direction_output = x2_gpio_direction_output,
-		.get              = x2_gpio_get,
-		.set              = x2_gpio_set,
-		.to_irq           = x2_gpio_to_irq,
-		.request          = NULL,
-		.free             = NULL,
+		.get			  = x2_gpio_get,
+		.set			  = x2_gpio_set,
+		.to_irq			  = x2_gpio_to_irq,
+		.request		  = NULL,
+		.free			  = NULL,
 };
 
 static int __init x2_gpio_probe(struct platform_device *pdev)
@@ -235,8 +243,7 @@ static int __init x2_gpio_probe(struct platform_device *pdev)
 	struct resource *mem;
 
 	x2_gpio.label = pdev->name;
-	ret = gpiochip_add(&x2_gpio);
-
+	printk("x2_gpio_probe\n");
 	gpio_dev = devm_kzalloc(&pdev->dev, sizeof(*gpio_dev), GFP_KERNEL);
 	if (!gpio_dev)
 		return -ENOMEM;
@@ -244,7 +251,8 @@ static int __init x2_gpio_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, gpio_dev);
 	mem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	gpio_dev->regbase = devm_ioremap_resource(&pdev->dev, mem);
-
+	pinctl_regbase = gpio_dev->regbase;
+	gpiochip_add_data(&x2_gpio, gpio_dev);
 	if (ret < 0)
 		return ret;
 
@@ -262,7 +270,7 @@ static const struct of_device_id x2_gpio_of_match[] = {
 	{},
 };
 static struct platform_driver x2_gpio_driver = {
-	.probe  = x2_gpio_probe,
+	.probe	= x2_gpio_probe,
 	.remove = x2_gpio_remove,
 	.driver		= {
 		.name	= "x2_gpio",
@@ -275,7 +283,7 @@ static int __init x2_gpio_init(void)
 
 	rc = platform_driver_register(&x2_gpio_driver);
 
-    if(!rc)
+	if(!rc)
 		pr_info("[GPIO]x2 GPIO initialized\n");
 
 	return rc;
