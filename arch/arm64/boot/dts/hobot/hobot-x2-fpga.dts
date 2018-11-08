@@ -44,24 +44,24 @@
 		reg = <0x0 0x0 0x0 0x80000000>;
 	};
 
-        reserved-memory {
-                #address-cells = <2>;
-                #size-cells = <2>;
-                ranges;
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
 
-                /* Reserved 512MB memory for cnn subsystem */
-                cnn_reserved: cnn_reserved@0x40000000 {
-                        reg = <0x0 0x40000000 0x0 0x20000000>;
-                };
+		/* Reserved 512MB memory for cnn subsystem */
+		cnn_reserved: cnn_reserved@0x40000000 {
+			reg = <0x0 0x40000000 0x0 0x20000000>;
+		};
 
-                /* Reserved 512MB memory for ipu subsystem */
-                ipu_reserved: ipu_reserved@0x60000000 {
-                        reg = <0x0 0x60000000 0x0 0x20000000>;
-                        no-map;
-                };
-        };
+		/* Reserved 512MB memory for ipu subsystem */
+		ipu_reserved: ipu_reserved@0x60000000 {
+			reg = <0x0 0x60000000 0x0 0x20000000>;
+			no-map;
+		};
+	};
 
-        cnn_mm {
+	cnn_mm {
 		compatible = "hobot,cnn-mm";
 		#address-cells = <1>;
 		#size-cells = <0>;
@@ -92,7 +92,6 @@
 			type = <1>;
 		};
 	};
-
 };
 
 &uart0 {
@@ -112,15 +111,15 @@
 };
 
 &dma {
-    status = "okay";
+	status = "okay";
 };
 
 &x2dmatest {
-    status = "okay";
+	status = "okay";
 };
 
 &rtc {
-    status = "okay";
+	status = "okay";
 };
 
 &pwm_0 {
@@ -142,9 +141,9 @@
 };
 
 &cnn0 {
-        status = "okay";
+	status = "okay";
 };
 
 &cnn1 {
-        status = "okay";
+	status = "okay";
 };
