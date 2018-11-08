@@ -120,7 +120,7 @@
 };
 
 &rtc {
-	status = "disabled";
+    status = "okay";
 };
 
 &pwm_0 {

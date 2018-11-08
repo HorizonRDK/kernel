@@ -88,20 +88,6 @@ struct x2_rtc {
 	int irq;
 	void __iomem *rtc_base;
 };
-static int x2_rtc_open(struct device *dev)
-{
-	int ret = 0;
-	//struct x2_rtc *rtc = dev_get_drvdata(dev);
-
-	return ret;
-}
-
-static void x2_rtc_release(struct device *dev)
-{
-	//struct x2_rtc *rtc = dev_get_drvdata(dev);
-
-	return;
-}
 
 static int x2_rtc_set_time(struct device *dev, struct rtc_time *tm)
 {
@@ -255,8 +241,6 @@ static irqreturn_t x2_rtc_int_handle(int irq, void *data)
 }
 
 static const struct rtc_class_ops x2_rtc_ops = {
-	.open             = x2_rtc_open,
-	.release          = x2_rtc_release,
 	.read_time		  = x2_rtc_read_time,
 	.set_time		  = x2_rtc_set_time,
 	.read_alarm		  = x2_rtc_read_alarm,
