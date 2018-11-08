@@ -236,6 +236,10 @@
             status = "disabled";
         };
 
+        x2dmatest: x2dmatest {
+            compatible = "hobot,x2-dma-test";
+        };
+
         rtc: rtc@0xA6002000 {
             compatible = "hobot,x2-rtc";
             reg = <0 0xA6002000 0 0x1000>;

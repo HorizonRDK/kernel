@@ -112,7 +112,11 @@
 };
 
 &dma {
-	status = "disabled";
+    status = "okay";
+};
+
+&x2dmatest {
+    status = "okay";
 };
 
 &rtc {
