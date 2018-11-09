@@ -1,9 +1,9 @@
 #ifndef __IPU_COMMON_H__
 #define __IPU_COMMON_H__
 
-#define X2_ZU3
 #define DEBUG
-#define IPU_DEBUG
+//#define X2_ZU3
+//#define IPU_DEBUG
 
 #ifdef X2_ZU3
 extern int bifdev_get_cpchip_reg(uint32_t addr, int *value);
@@ -11,8 +11,8 @@ extern int bifdev_set_cpchip_reg(uint32_t addr, int value);
 #define ipu_reg_w(d, addr)      bifdev_set_cpchip_reg((uint64_t)(addr), (d));
 #define ipu_reg_r(addr)         ({uint32_t v=0; bifdev_get_cpchip_reg((uint64_t)(addr), &v); v;})
 #else
-#define ipu_reg_w(d, addr)      writel(d, addr)
-#define ipu_reg_r(addr)         readl(addr)
+#define ipu_reg_w(d, addr)      writel((d), (addr))
+#define ipu_reg_r(addr)         readl((addr))
 #endif
 
 #ifdef DEBUG

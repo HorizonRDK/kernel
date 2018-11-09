@@ -20,6 +20,7 @@
 #define IPU_SCALAR_TGT          0x030
 #define IPU_SCALAR_STEP         0x034
 #define IPU_SCALAR_BYPASS       0x038
+#define IPU_CONFIG_DONE         0x03c
 #define IPU_FRAME_ID            0x040
 
 #define PYMID_DS_CTRL           0x100

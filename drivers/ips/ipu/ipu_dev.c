@@ -5,7 +5,7 @@
 
 /* reg ipu ctrl */
 #define SET_XC9080_EN               (1 << 9)
-#define SET_FROM_ISP                (1 << 8)
+#define SET_FROM_ISP                (1 << 7)
 #define SET_FMT_UV                  (1 << 5)
 #define SET_SCALE_DDR_EN            (1 << 4)
 #define SET_CROP_DDR_EN             (1 << 3)
@@ -103,6 +103,33 @@
 #define SET_US_ROI1(w, h)           (((w) & 0xfff) << 16 | ((h) & 0xfff))
 
 unsigned char __iomem *g_regbase = NULL;
+
+int8_t ipu_dump_regs(void)
+{
+	uint8_t i = 0;
+	uint32_t d = 0;
+	uint64_t addr = 0;
+
+	for (i = 0; i < 17; i++) {
+		addr = g_regbase + i * 4;
+		d = ipu_reg_r(addr);
+		ipu_dbg("0x%x=0x%x\n", addr, d);
+	}
+
+	for (i = 0; i < 16; i++) {
+		addr = g_regbase + i * 4 + 0x100;
+		d = ipu_reg_r(addr);
+		ipu_dbg("0x%x=0x%x\n", addr, d);
+	}
+
+	for (i = 0; i < 16; i++) {
+		addr = g_regbase + i * 4 + 0x200;
+		d = ipu_reg_r(addr);
+		ipu_dbg("0x%x=0x%x\n", addr, d);
+	}
+
+	return 0;
+}
 
 int8_t set_ipu_regbase(unsigned char __iomem * base)
 {
@@ -240,7 +267,7 @@ int8_t set_ipu_pymid(pymid_t * info)
 	/* step 1. write ds ctrl reg */
 	if (info->ds_uv_bypass != 0) {
 		s = info->ds_uv_bypass;
-		for (i = 23; i >= 0; i--) {
+		for (i = 23; i >= 1; i--) {
 			if (i == 4 || i == 8 || i == 12 || i == 16 || i == 20)
 				continue;
 			m <<= 1;

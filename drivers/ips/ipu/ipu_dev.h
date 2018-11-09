@@ -90,6 +90,18 @@ typedef struct {
 	ddr_t us_ddr[6];
 } ipu_cfg_t;
 
+typedef struct {
+	wh_t video_in;
+	ipu_ctrl_t ctrl;
+	crop_t crop;
+	scale_t scale;
+	frame_id_t frame_id;
+	pymid_t pymid;
+	ddr_t crop_ddr;
+	ddr_t scale_ddr;
+} ipu_init_t;
+
+int8_t ipu_dump_regs(void);
 int8_t set_ipu_regbase(unsigned char __iomem * base);
 int8_t clr_ipu_regbase(void);
 int8_t set_ipu_ctrl(ipu_ctrl_t * info);

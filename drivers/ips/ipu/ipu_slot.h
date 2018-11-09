@@ -26,15 +26,17 @@ typedef struct {
 typedef struct {
 	struct list_head list;
 	uint8_t slot_id;
+	uint8_t slot_flag;
 	uint8_t ipu_flag;
-	uint16_t cnn_flag;
+	uint8_t cnn_flag;
 	slot_ddr_info_t ddr_info;
 } ipu_slot_h_t;
 
 typedef struct {
 	uint8_t slot_id;
+	uint8_t slot_flag;
 	uint8_t ipu_flag;
-	uint16_t cnn_flag;
+	uint8_t cnn_flag;
 	uint64_t base;
 	slot_ddr_info_t ddr_info;
 } info_h_t;

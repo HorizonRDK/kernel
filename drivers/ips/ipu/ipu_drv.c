@@ -24,12 +24,8 @@
 #include "ipu_common.h"
 #include <asm-generic/io.h>
 #include <asm/string.h>
-
-#ifdef X2_ZU3
 #include <linux/uaccess.h>
-#else
-#include <asm-generic/uaccess.h>
-#endif
+
 #define X2_IPU_NAME         "x2-ipu"
 
 struct x2_ipu_data {
@@ -49,6 +45,7 @@ struct x2_ipu_data {
 	bool pymid_done;
 	int8_t done_idx;
 	uint32_t isr_data;
+	uint32_t err_status;
 	int32_t major;
 	ipu_cfg_t *cfg;
 	void *private;
@@ -219,20 +216,23 @@ static int ipu_thread(void *data)
 	do {
 		wait_event_interruptible(ipu->wq_head,
 					 ipu->trigger_isr == true);
+		ipu->err_status = 0;
+		ipu->pymid_done = false;
+		ipu->done_idx = -1;
 		status = ipu->isr_data;
-
 		spin_lock_irq(&ipu->slock);
-		if (status & IPU_BUS01_TRANSMIT_ERRORS) {
-			ipu_err("ipu bus01 error\n");
-		}
-		if (status & IPU_BUS23_TRANSMIT_ERRORS) {
-			ipu_err("ipu bus23 error\n");
-		}
-		if (status & PYM_DS_FRAME_DROP) {
-			ipu_err("pymid ds drop\n");
-		}
-		if (status & PYM_US_FRAME_DROP) {
-			ipu_err("pymid us drop\n");
+
+		if (status & IPU_BUS01_TRANSMIT_ERRORS ||
+		    status & IPU_BUS23_TRANSMIT_ERRORS ||
+		    status & PYM_DS_FRAME_DROP || status & PYM_US_FRAME_DROP) {
+			ipu->err_status = status;
+			slot_h = ipu_get_busy_slot();
+			if (slot_h) {
+				slot_to_free_list(slot_h);
+				ipu_err("meet error, slot-%d, 0x%x\n",
+					slot_h->slot_id, status);
+				wake_up_interruptible(&ipu->event_head);
+			}
 		}
 
 		if (status & IPU_FRAME_START) {
@@ -251,12 +251,6 @@ static int ipu_thread(void *data)
 			}
 		}
 
-		if (status & IPU_FRAME_DONE) {
-		}
-
-		if (status & PYM_FRAME_START) {
-		}
-
 		if (status & PYM_FRAME_DONE) {
 			/* TODO need flash cache? */
 			slot_h = ipu_get_busy_slot();
@@ -270,13 +264,13 @@ static int ipu_thread(void *data)
 			} else {
 				ipu_dbg("busy slot empty\n");
 			}
-//#ifdef IPU_DEBUG
-//            /* TODO for test */
-//            slot_h = ipu_get_done_slot();
-//            if (slot_h) {
-//                slot_to_free_list(slot_h);
-//            }
-//#endif
+#ifdef IPU_DEBUG
+			/* TODO for test */
+			slot_h = ipu_get_done_slot();
+			if (slot_h) {
+				slot_to_free_list(slot_h);
+			}
+#endif
 		}
 		ipu->trigger_isr = false;
 		ipu->isr_data = 0;
@@ -453,10 +447,9 @@ long ipu_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 
 	switch (cmd) {
 	case IPUC_INIT:
-		/* TODO need confirm init file format */
-		ret =
-		    copy_from_user((void *)ipu_cfg, (const void __user *)data,
-				   sizeof(data));
+		ret = copy_from_user((void *)ipu_cfg,
+				     (const void __user *)data,
+				     sizeof(ipu_init_t));
 		if (ret) {
 			ipu_err("ioctl init fail\n");
 			return -EFAULT;
@@ -474,6 +467,12 @@ long ipu_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 		//dma_transfer((void *)data, IPU_SLOT_SIZE);
 		ret = IPU_SLOT_SIZE;
 		break;
+	case IPUC_GET_ERR_STATUS:
+		ret =
+		    copy_to_user((void __user *)data,
+				 (const void *)&g_ipu->err_status,
+				 sizeof(uint32_t));
+		break;
 	case IPUC_CNN_DONE:
 		/* step 1 mv slot from done to free */
 		slot_h = ipu_get_done_slot();
@@ -490,7 +489,7 @@ long ipu_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 		if (!slot_h)
 			return -EFAULT;
 
-		if (g_ipu->done_idx != slot_h->slot_id) {
+		if (g_ipu->done_idx != -1 && g_ipu->done_idx != slot_h->slot_id) {
 			ipu_err("cnn slot delay\n");
 		}
 		memcpy((void *)&info.ddr_info, (const void *)&slot_h->ddr_info,
@@ -504,6 +503,9 @@ long ipu_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 		ret =
 		    copy_to_user((void __user *)data, (const void *)&info,
 				 sizeof(info_h_t));
+		break;
+	case IPUC_DUMP_REG:
+		ipu_dump_regs();
 		break;
 	default:
 		break;
@@ -532,6 +534,10 @@ unsigned int ipu_poll(struct file *file, struct poll_table_struct *wait)
 
 	poll_wait(file, &g_ipu->event_head, wait);
 	spin_lock_irq(&g_ipu->elock);
+	if (g_ipu->err_status) {
+		mask |= POLLERR;
+	}
+
 	if (g_ipu->pymid_done) {
 		mask |= POLLIN;
 		mask |= POLLRDNORM;
@@ -585,8 +591,8 @@ void init_test_data(ipu_cfg_t * info)
 	info->frame_id.crop_en = 0;
 	info->frame_id.scale_en = 0;
 
-	info->pymid.pymid_en = 1;
-	info->pymid.src_from = 1;	//isp mode
+	info->pymid.pymid_en = 0;
+	info->pymid.src_from = 0;	//isp mode
 	info->pymid.ds_layer_en = 3;
 	info->pymid.ds_factor[1] = 18;
 	info->pymid.ds_roi[1].l = 600;
@@ -654,6 +660,7 @@ static int x2_ipu_probe(struct platform_device *pdev)
 	ipu->trigger_isr = false;
 	ipu->isr_data = 0;
 	ipu->pymid_done = false;
+	ipu->err_status = 0;
 	spin_lock_init(&ipu->slock);
 	init_waitqueue_head(&ipu->wq_head);
 	spin_lock_init(&ipu->elock);
@@ -666,9 +673,6 @@ static int x2_ipu_probe(struct platform_device *pdev)
 	}
 
 	ipu->cfg = ipu_cfg;
-#ifdef IPU_DEBUG
-	init_test_data(ipu_cfg);
-#endif
 
 	/* get driver info from dts */
 	//match = of_match_node(x2_ipu_of_match, pdev->dev.of_node);
@@ -742,14 +746,6 @@ static int x2_ipu_probe(struct platform_device *pdev)
 	}
 
 	g_ipu = ipu;
-
-//#ifdef IPU_DEBUG
-//    rc = ipu_core_init(ipu_cfg);
-//    if (rc < 0) {
-//        dev_err(&pdev->dev, "init fail\n");
-//        goto err_out4;
-//    }
-//#endif
 
 	dev_info(&pdev->dev, "x2 ipu probe success\n");
 	return 0;

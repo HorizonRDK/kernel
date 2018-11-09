@@ -43,6 +43,7 @@ int8_t init_ipu_slot(uint64_t base, slot_ddr_info_t * data)
 			    data->us[j].offset;
 			g_ipu_slot_[i]->ddr_info.us[j].size = data->us[j].size;
 		}
+		g_ipu_slot_[i]->slot_flag = 0;
 		g_ipu_slot_[i]->ipu_flag = 0;
 		g_ipu_slot_[i]->cnn_flag = 0;
 	}
@@ -68,7 +69,7 @@ int8_t slot_to_busy_list(ipu_slot_h_t * slot_h)
 	struct list_head *node = (struct list_head *)slot_h;
 	list_del(node);
 	list_add_tail(node, &g_busy_list);
-	slot_h->ipu_flag = SLOT_BUSY;
+	slot_h->slot_flag = SLOT_BUSY;
 
 	return 0;
 }
@@ -92,7 +93,7 @@ int8_t slot_to_done_list(ipu_slot_h_t * slot_h)
 	struct list_head *node = (struct list_head *)slot_h;
 	list_del(node);
 	list_add_tail(node, &g_done_list);
-	slot_h->ipu_flag = SLOT_DONE;
+	slot_h->slot_flag = SLOT_DONE;
 
 	return 0;
 }
@@ -117,7 +118,7 @@ int8_t slot_to_free_list(ipu_slot_h_t * slot_h)
 	list_del(node);
 	list_add_tail(node, &g_free_list);
 	slot_h->cnn_flag = 0;
-	slot_h->ipu_flag = SLOT_FREE;
+	slot_h->slot_flag = SLOT_FREE;
 
 	return 0;
 }
