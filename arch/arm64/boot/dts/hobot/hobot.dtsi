@@ -102,7 +102,7 @@
 
 	rst: reset-controller {
 		compatible = "hobot,x2-reset";
-		#reset-cells = <1>;
+		#reset-cells = <2>;
 		reg = <0x0 0xA1000000 0x0 0x1000>;
 		x2,modrst-offset = <0x400>;
 	 };
@@ -191,7 +191,7 @@
 			interrupt-parent = <&gic>;
 			interrupts = <0 50 4>;
 			status = "disabled";
-			resets = <&rst 0x200>;
+			resets = <&rst 0x40 2>;
 			reset-names = "ips";
 		};
 
@@ -295,6 +295,11 @@
 			status = "disabled";
 		};
 
+		gpio: gpio@0xA6003000 {
+			compatible = "hobot,x2-gpio";
+			reg = <0 0xA6003000 0 0x100>;
+			status = "disabled";
+		};
 		timer0: timer@0xA1002000 {
 			compatible = "Hobot,x2-timer";
 			status = "disabled";
@@ -344,7 +349,7 @@
 			cnn-id = <0x0>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 46 4>;
-			resets = <&rst 0x11>;
+			resets = <&rst 0x20 0 >;
 			reset-names = "cnn0_rst";
 			status = "disabled";
 		};
@@ -356,7 +361,7 @@
 			cnn-id = <0x1>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 47 4>;
-			resets = <&rst 0x12>;
+			resets = <&rst 0x20 1 >;
 			reset-names = "cnn1_rst";
 			status = "disabled";
 		};

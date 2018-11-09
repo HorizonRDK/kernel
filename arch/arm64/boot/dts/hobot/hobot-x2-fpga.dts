@@ -94,6 +94,12 @@
 	};
 };
 
+&i2c0 {
+	status = "okay";
+};
+&gpio {
+	status = "okay";
+};
 &uart0 {
 	status = "okay";
 };
