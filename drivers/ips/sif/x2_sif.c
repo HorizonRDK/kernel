@@ -138,7 +138,6 @@ static int32_t sif_mipi_init(sif_cfg_t * sif_cfg)
 		host_ctl.linelenth = sif_cfg->mipi_csi.linelenth;
 		host_ctl.framelenth = sif_cfg->mipi_csi.framelenth;
 		host_ctl.settle = sif_cfg->mipi_csi.settle;
-		host_ctl.bitWidth = MIPI_HOST_BITWIDTH_16;
 		host_ctl.datatype = datatype;
 		if (0 != (ret = mipi_host_init(&host_ctl))) {
 			siferr("mipi host init error: %d", ret);
@@ -157,13 +156,6 @@ static int32_t sif_mipi_init(sif_cfg_t * sif_cfg)
 	dev_ctl.width = sif_cfg->sif_init.width;
 	dev_ctl.height = sif_cfg->sif_init.height;
 	dev_ctl.datatype = datatype;
-	if (0 == dev_ctl.datatype) {
-		siferr("mipi device get datatype failed!");
-#ifdef CONFIG_X2_MIPI_HOST
-		mipi_host_deinit();
-#endif
-		return ret;
-	}
 	if (0 != (ret = mipi_dev_init(&dev_ctl))) {
 		siferr("mipi device controller init error: %d", ret);
 #ifdef CONFIG_X2_MIPI_HOST
@@ -226,7 +218,13 @@ static int sif_start(sif_t * dev)
 static int sif_stop(sif_t * dev)
 {
 	int ret = 0;
+	unsigned long flags;
 	ips_irq_disable(SIF_INT);
+	spin_lock_irqsave(&dev->sif_file.event_lock, flags);
+	dev->sif_file.event = SIF_STOP;
+	dev->sif_file.receive_frame = false;
+	spin_unlock_irqrestore(&dev->sif_file.event_lock, flags);
+	wake_up_interruptible(&dev->sif_file.event_queue);
 #ifdef CONFIG_X2_MIPI_DEV
 	if (BUS_TYPE_MIPI == dev->config.sif_init.bus_type) {
 		if (0 != (ret = mipi_dev_stop())) {

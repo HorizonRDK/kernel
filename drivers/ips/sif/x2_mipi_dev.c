@@ -32,6 +32,11 @@
 
 #define MIPI_DEV_INT_DBG            (0)
 
+#define MIPI_DEV_CLKMGR_RAISE       (0x09)
+#define MIPI_DEV_LPCLK_CONT         (0x01)
+#define MIPI_DEV_LPCLK_NCONT        (0x00)
+#define MIPI_DEV_LPCLK_CTRL         (MIPI_DEV_LPCLK_CONT)
+
 #define MIPI_DEV_INT_VPG            (0x1)
 #define MIPI_DEV_INT_IDI            (0x1<<1)
 #define MIPI_DEV_INT_IPI            (0x1<<2)
@@ -71,6 +76,17 @@
 #define MIPI_DEV_VPG_DEF_FPS        (30)
 #define MIPI_DEV_VPG_DEF_BLANK      (0x5f4)
 
+#define DEV_DPHY_LANE_MAX           (4)
+#define DEV_DPHY_CHECK_MAX          (500)
+#define DEV_DPHY_STATE_BASIC        (0x3F)
+#define DEV_DPHY_STATE_NLANE        (0x38|(3)) /*b'(01 01 01 01) 00 1xxx*/ /*max lane num is 4 now*/
+#define DEV_DPHY_STATE(s)           ((s>>6))	/*b'00 1xxx */
+#define DEV_DPHY_STATE_STOP(l)      (0xFF>>((DEV_DPHY_LANE_MAX-l)<<1))	/*b'11 11 11 11 (00 1xxx) */
+#define DEV_DPHY_SHUTDOWNZ          (0x01)
+#define DEV_DPHY_RSTZ               (0x02)
+#define DEV_DPHY_ENABLEZ            (0x04)
+#define DEV_DPHY_FORCEPOLL          (0x08)
+
 #define MIPI_CSI2_DT_YUV420_8   (0x18)
 #define MIPI_CSI2_DT_YUV420_10  (0x19)
 #define MIPI_CSI2_DT_YUV422_8   (0x1E)
@@ -89,6 +105,9 @@ typedef struct _reg_s {
 
 #define MIPIDEVIOC_READ        _IOWR('v', 0, reg_t)
 #define MIPIDEVIOC_WRITE       _IOW('v', 1, reg_t)
+
+#define mipi_getreg(a)          readl(a)
+#define mipi_putreg(a,v)        writel(v,a)
 
 typedef struct _mipi_dev_s {
 	void __iomem *iomem;
@@ -179,14 +198,14 @@ static int32_t mipi_dev_initialize_ipi(mipi_dev_control_t * control)
 	/*Configure the IPI packet header */
 	/*Configure the IPI line numbering */
 	/*Configure IPI frame number */
-	sif_putreg(iomem + REG_MIPI_DEV_IPI_PKT_CFG, MIPI_DEV_IPI_PKT_CFG | control->datatype);	/*vc change from 2'b11 to 2'b00 */
+	mipi_putreg(iomem + REG_MIPI_DEV_IPI_PKT_CFG, MIPI_DEV_IPI_PKT_CFG | control->datatype);	/*vc change from 2'b11 to 2'b00 */
 	/*Configure IPI maximum frame number */
-	sif_putreg(iomem + REG_MIPI_DEV_IPI_MAX_FRAME_NUM,
-		   MIPI_DEV_IPI_MAX_FRAME);
+	mipi_putreg(iomem + REG_MIPI_DEV_IPI_MAX_FRAME_NUM,
+		    MIPI_DEV_IPI_MAX_FRAME);
 	/*Configure IPI horizontal resolution */
-	sif_putreg(iomem + REG_MIPI_DEV_IPI_PIXELS, control->width);
+	mipi_putreg(iomem + REG_MIPI_DEV_IPI_PIXELS, control->width);
 	/*Configure IPI vertical resolution */
-	sif_putreg(iomem + REG_MIPI_DEV_IPI_LINES, control->height + 2);
+	mipi_putreg(iomem + REG_MIPI_DEV_IPI_LINES, control->height + 2);
 
 	return 0;
 }
@@ -211,11 +230,11 @@ static int32_t mipi_dev_initialize_vgp(mipi_dev_control_t * control)
 
 	sifinfo("mipi device initialize vgp begin");
 	/*Disable the Video Pattern Generator */
-	sif_putreg(iomem + REG_MIPI_DEV_VPG_CTRL, MIPI_DEV_VPG_DISABLE);
+	mipi_putreg(iomem + REG_MIPI_DEV_VPG_CTRL, MIPI_DEV_VPG_DISABLE);
 
 	/*Wait for VPG idle */
 	do {
-		status = sif_getreg(iomem + REG_MIPI_DEV_VPG_STATUS);
+		status = mipi_getreg(iomem + REG_MIPI_DEV_VPG_STATUS);
 		if (ncount >= MIPI_DEV_CHECK_MAX) {
 			siferr("vga status of dev is error: 0x%x", status);
 			return -1;
@@ -224,31 +243,29 @@ static int32_t mipi_dev_initialize_vgp(mipi_dev_control_t * control)
 	} while (MIPI_DEV_VPG_DISABLE != status);
 
 	/*Configure the VPG mode */
-	sif_putreg(iomem + REG_MIPI_DEV_VPG_MODE_CFG,
-		   MIPI_DEV_VPG_ORI | MIPI_DEV_VPG_MODE);
-	sif_putreg(iomem + REG_MIPI_DEV_VPG_PKT_CFG,
-		   MIPI_DEV_VPG_LINENUM | MIPI_DEV_VPG_HSYNC | MIPI_DEV_VPG_VC |
-		   control->datatype);
-	sif_putreg(iomem + REG_MIPI_DEV_VPG_PKT_SIZE, control->width);
-	sif_putreg(iomem + REG_MIPI_DEV_VPG_HSA_TIME, MIPI_DEV_VPG_HSA_TIME);
-	sif_putreg(iomem + REG_MIPI_DEV_VPG_HBP_TIME, MIPI_DEV_VPG_HBP_TIME);
-	sif_putreg(iomem + REG_MIPI_DEV_VPG_HLINE_TIME,
-		   mipi_dev_vpg_get_hline(control));
-	sif_putreg(iomem + REG_MIPI_DEV_VPG_VSA_LINES, MIPI_DEV_VPG_VSA_LINES);
-	sif_putreg(iomem + REG_MIPI_DEV_VPG_VBP_LINES, MIPI_DEV_VPG_VBP_LINES);
-	sif_putreg(iomem + REG_MIPI_DEV_VPG_VFP_LINES,
-		   mipi_dev_vpg_get_vfp(control));
-	//sif_putreg(iomem+REG_MIPI_DEV_VPG_HLINE_TIME, MIPI_DEV_VPG_VLINE_TIME(control->width));
-	sif_putreg(iomem + REG_MIPI_DEV_VPG_ACT_LINES, control->height);
-	sif_putreg(iomem + REG_MIPI_DEV_VPG_MAX_FRAME_NUM,
-		   MIPI_DEV_IPI_MAX_FRAME);
-	sif_putreg(iomem + REG_MIPI_DEV_VPG_START_LINE_NUM,
-		   MIPI_DEV_VPG_START_LINE);
-	sif_putreg(iomem + REG_MIPI_DEV_VPG_STEP_LINE_NUM,
-		   MIPI_DEV_VPG_STEP_LINE);
+	mipi_putreg(iomem + REG_MIPI_DEV_VPG_MODE_CFG,
+		    MIPI_DEV_VPG_ORI | MIPI_DEV_VPG_MODE);
+	mipi_putreg(iomem + REG_MIPI_DEV_VPG_PKT_CFG,
+		    MIPI_DEV_VPG_LINENUM | MIPI_DEV_VPG_HSYNC | MIPI_DEV_VPG_VC
+		    | control->datatype);
+	mipi_putreg(iomem + REG_MIPI_DEV_VPG_PKT_SIZE, control->width);
+	mipi_putreg(iomem + REG_MIPI_DEV_VPG_HSA_TIME, MIPI_DEV_VPG_HSA_TIME);
+	mipi_putreg(iomem + REG_MIPI_DEV_VPG_HBP_TIME, MIPI_DEV_VPG_HBP_TIME);
+	mipi_putreg(iomem + REG_MIPI_DEV_VPG_HLINE_TIME,
+		    mipi_dev_vpg_get_hline(control));
+	mipi_putreg(iomem + REG_MIPI_DEV_VPG_VSA_LINES, MIPI_DEV_VPG_VSA_LINES);
+	mipi_putreg(iomem + REG_MIPI_DEV_VPG_VBP_LINES, MIPI_DEV_VPG_VBP_LINES);
+	mipi_putreg(iomem + REG_MIPI_DEV_VPG_VFP_LINES,
+		    mipi_dev_vpg_get_vfp(control));
+	//mipi_putreg(iomem+REG_MIPI_DEV_VPG_HLINE_TIME, MIPI_DEV_VPG_VLINE_TIME(control->width));
+	mipi_putreg(iomem + REG_MIPI_DEV_VPG_ACT_LINES, control->height);
+	mipi_putreg(iomem + REG_MIPI_DEV_VPG_MAX_FRAME_NUM,
+		    MIPI_DEV_IPI_MAX_FRAME);
+	//mipi_putreg(iomem + REG_MIPI_DEV_VPG_START_LINE_NUM, MIPI_DEV_VPG_START_LINE);
+	//mipi_putreg(iomem + REG_MIPI_DEV_VPG_STEP_LINE_NUM, MIPI_DEV_VPG_STEP_LINE);
 
 	/*Enalbe the Video Pattern Generator */
-	sif_putreg(iomem + REG_MIPI_DEV_VPG_CTRL, MIPI_DEV_VPG_ENABLE);
+	mipi_putreg(iomem + REG_MIPI_DEV_VPG_CTRL, MIPI_DEV_VPG_ENABLE);
 
 	sifinfo("mipi device initialize vgp end");
 	return 0;
@@ -275,23 +292,23 @@ static void mipi_dev_irq_enable(void)
 	iomem = g_mipi_dev->iomem;
 	reg = REG_MIPI_DEV_INT_MASK_N_PHY;
 	mask = 0xff;
-	temp = sif_getreg(iomem + reg);
+	temp = mipi_getreg(iomem + reg);
 	temp &= ~(0xff);
 	temp |= mask;
-	sif_putreg(iomem + (reg), temp);
+	mipi_putreg(iomem + (reg), temp);
 	reg = REG_MIPI_DEV_INT_MASK_N_IPI;
 	mask = 0xff;
-	temp = sif_getreg(iomem + reg);
+	temp = mipi_getreg(iomem + reg);
 	temp &= ~(0xff);
 	temp |= mask;
-	sif_putreg(iomem + (reg), temp);
+	mipi_putreg(iomem + (reg), temp);
 #ifdef CHIP_TEST
 	reg = REG_MIPI_DEV_INT_MASK_N_VPG;
 	mask = 0xff;
-	temp = sif_getreg(iomem + reg);
+	temp = mipi_getreg(iomem + reg);
 	temp &= ~(0xff);
 	temp |= mask;
-	sif_putreg(iomem + (reg), temp);
+	mipi_putreg(iomem + (reg), temp);
 #endif
 	return;
 }
@@ -316,20 +333,20 @@ static void mipi_dev_irq_disable(void)
 	iomem = g_mipi_dev->iomem;
 	reg = REG_MIPI_DEV_INT_MASK_N_PHY;
 	mask = 0xff;
-	temp = sif_getreg(iomem + reg);
+	temp = mipi_getreg(iomem + reg);
 	temp &= ~(mask);
-	sif_putreg(iomem + (reg), temp);
+	mipi_putreg(iomem + (reg), temp);
 	reg = REG_MIPI_DEV_INT_MASK_N_IPI;
 	mask = 0xff;
-	temp = sif_getreg(iomem + reg);
+	temp = mipi_getreg(iomem + reg);
 	temp &= ~(mask);
-	sif_putreg(iomem + (reg), temp);
+	mipi_putreg(iomem + (reg), temp);
 #ifdef CHIP_TEST
 	reg = REG_MIPI_DEV_INT_MASK_N_VPG;
 	mask = 0xff;
-	temp = sif_getreg(iomem + reg);
+	temp = mipi_getreg(iomem + reg);
 	temp &= ~(mask);
-	sif_putreg(iomem + (reg), temp);
+	mipi_putreg(iomem + (reg), temp);
 #endif
 	return;
 }
@@ -350,27 +367,53 @@ static void mipi_dev_irq_func(void)
 		return -1;
 	}
 	iomem = g_mipi_dev->iomem;
-	irq = sif_getreg(iomem + REG_MIPI_DEV_INT_ST_MAIN);
+	irq = mipi_getreg(iomem + REG_MIPI_DEV_INT_ST_MAIN);
 	sifinfo("mipi dev irq status 0x%x\n", irq);
 	if (irq & MIPI_DEV_INT_VPG) {
-		irq = sif_getreg(iomem + REG_MIPI_DEV_INT_ST_VPG);
+		irq = mipi_getreg(iomem + REG_MIPI_DEV_INT_ST_VPG);
 		sifinfo("mipi dev VPG ST: 0x%x", irq);
 	}
 	if (irq & MIPI_DEV_INT_IDI) {
-		irq = sif_getreg(iomem + REG_MIPI_DEV_INT_ST_IDI);
+		irq = mipi_getreg(iomem + REG_MIPI_DEV_INT_ST_IDI);
 		sifinfo("mipi dev IDI ST: 0x%x", irq);
 	}
 	if (irq & MIPI_DEV_INT_IPI) {
-		irq = sif_getreg(iomem + REG_MIPI_DEV_INT_ST_IPI);
+		irq = mipi_getreg(iomem + REG_MIPI_DEV_INT_ST_IPI);
 		sifinfo("mipi dev IPI ST: 0x%x", irq);
 	}
 	if (irq & MIPI_DEV_INT_PHY) {
-		irq = sif_getreg(iomem + REG_MIPI_DEV_INT_ST_PHY);
+		irq = mipi_getreg(iomem + REG_MIPI_DEV_INT_ST_PHY);
 		sifinfo("mipi dev PHY ST: 0x%x", irq);
 	}
 	return;
 }
 #endif
+
+int32_t mipi_dev_wait_phy_powerup(mipi_dev_control_t * control)
+{
+	uint16_t ncount = 0;
+	uint32_t state = 0;
+	void __iomem *iomem = NULL;
+	if (NULL == g_mipi_dev) {
+		siferr("mipi dev not inited!");
+		return -1;
+	}
+	iomem = g_mipi_dev->iomem;
+	/*Wait for the PHY power-up */
+	do {
+		state = mipi_getreg(iomem + REG_MIPI_DEV_PHY_STATUS);
+		sifinfo("dphy state 0x%x", state);
+		if ((state & DEV_DPHY_STATE_BASIC) == DEV_DPHY_STATE_NLANE) {
+			if ((DEV_DPHY_STATE(state) &
+			     DEV_DPHY_STATE_STOP(control->lane)) ==
+			    DEV_DPHY_STATE_STOP(control->lane))
+				return 0;
+		}
+		ncount++;
+	} while (1);		//ncount <= MIPI_DEV_PHY_CHECK_MAX );
+	siferr("lane state of dev phy is error: 0x%x", state);
+	return -1;
+}
 
 int32_t mipi_dev_start(void)
 {
@@ -381,7 +424,7 @@ int32_t mipi_dev_start(void)
 	}
 	iomem = g_mipi_dev->iomem;
 	/*Configure the High-Speed clock */
-	sif_putreg(iomem + REG_MIPI_DEV_LPCLK_CTRL, MIPI_DEV_LPCLK_CONT);
+	mipi_putreg(iomem + REG_MIPI_DEV_LPCLK_CTRL, MIPI_DEV_LPCLK_CONT);
 	return 0;
 }
 
@@ -394,7 +437,7 @@ int32_t mipi_dev_stop(void)
 	}
 	iomem = g_mipi_dev->iomem;
 	/*stop mipi dev here */
-	sif_putreg(iomem + REG_MIPI_DEV_LPCLK_CTRL, MIPI_DEV_LPCLK_NCONT);
+	mipi_putreg(iomem + REG_MIPI_DEV_LPCLK_CTRL, MIPI_DEV_LPCLK_NCONT);
 	return 0;
 }
 
@@ -407,6 +450,7 @@ int32_t mipi_dev_stop(void)
  */
 int32_t mipi_dev_init(mipi_dev_control_t * control)
 {
+	uint32_t power = 0;
 	void __iomem *iomem = NULL;
 	if (NULL == g_mipi_dev) {
 		siferr("mipi dev not inited!");
@@ -416,7 +460,18 @@ int32_t mipi_dev_init(mipi_dev_control_t * control)
 	sifinfo("mipi device init begin");
 
 	/*Reset DWC_mipicsi2_device */
-	sif_putreg(iomem + REG_MIPI_DEV_CSI2_RESETN, MIPI_DEV_CSI2_RESETN);
+	mipi_putreg(iomem + REG_MIPI_DEV_CSI2_RESETN, MIPI_DEV_CSI2_RESETN);
+#ifdef CONFIG_X2_MIPI_PHY
+	/*Shut down and reset SNPS D-PHY */
+	mipi_putreg(iomem + REG_MIPI_DEV_PHY_RSTZ, MIPI_DEV_CSI2_RESETN);
+	mipi_putreg(iomem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_CLEAR);
+	mipi_putreg(iomem + REG_MIPI_DEV_CLKMGR_CFG, MIPI_DEV_CSI2_RESETN);
+	mipi_putreg(iomem + REG_MIPI_DEV_PHY_IF_CFG, MIPI_DEV_CSI2_RESETN);
+#endif
+	/*Configure the number of lanes */
+	mipi_putreg(iomem + REG_MIPI_DEV_PHY_IF_CFG, control->lane - 1);
+	/*Configure the Escape mode transmit clock */
+	mipi_putreg(iomem + REG_MIPI_DEV_CLKMGR_CFG, MIPI_DEV_CLKMGR_RAISE);
 
 #ifdef CONFIG_X2_MIPI_PHY
 	/*Initialize the PHY */
@@ -425,9 +480,23 @@ int32_t mipi_dev_init(mipi_dev_control_t * control)
 		return -1;
 	}
 #endif
-
+	/*Power on PHY */
+	power = DEV_DPHY_ENABLEZ;
+	mipi_putreg(iomem + REG_MIPI_DEV_PHY_RSTZ, power);
+	power |= DEV_DPHY_SHUTDOWNZ;
+	mipi_putreg(iomem + REG_MIPI_DEV_PHY_RSTZ, power);
+	power |= DEV_DPHY_RSTZ;
+	mipi_putreg(iomem + REG_MIPI_DEV_PHY_RSTZ, power);
+	power |= DEV_DPHY_FORCEPOLL;
+	mipi_putreg(iomem + REG_MIPI_DEV_PHY_RSTZ, power);
+	mipi_putreg(iomem + REG_MIPI_DEV_LPCLK_CTRL, MIPI_DEV_LPCLK_NCONT);
 	/*Wake up DWC_mipicsi2_device */
-	sif_putreg(iomem + REG_MIPI_DEV_CSI2_RESETN, MIPI_DEV_CSI2_RAISE);
+	mipi_putreg(iomem + REG_MIPI_DEV_CSI2_RESETN, MIPI_DEV_CSI2_RAISE);
+	if (0 != mipi_dev_wait_phy_powerup(control)) {
+		mipi_dev_deinit();
+		siferr("mipi dev phy stop state error!!!");
+		return -1;
+	}
 
 	if (!control->vpg) {
 		if (0 != mipi_dev_initialize_ipi(control)) {
@@ -470,11 +539,14 @@ int32_t mipi_dev_deinit(void)
 #if MIPI_DEV_INT_DBG
 	mipi_dev_irq_disable();
 #endif
+	/*stop mipi dev here */
+	mipi_putreg(iomem + REG_MIPI_DEV_LPCLK_CTRL, MIPI_DEV_LPCLK_NCONT);
 #ifdef CONFIG_X2_MIPI_PHY
 	mipi_dev_dphy_reset();
 #endif
-	sif_putreg(iomem + REG_MIPI_DEV_VPG_CTRL, MIPI_DEV_VPG_DISABLE);
-	sif_putreg(iomem + REG_MIPI_DEV_CSI2_RESETN, MIPI_DEV_CSI2_RESETN);
+	/*Set DWC_mipi_csi2_dev reset */
+	mipi_putreg(iomem + REG_MIPI_DEV_VPG_CTRL, MIPI_DEV_VPG_DISABLE);
+	mipi_putreg(iomem + REG_MIPI_DEV_CSI2_RESETN, MIPI_DEV_CSI2_RESETN);
 	return 0;
 }
 

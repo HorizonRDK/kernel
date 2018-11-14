@@ -16,13 +16,8 @@
 
 #include <linux/types.h>
 
-#define MIPI_DEV_CLKMGR_RAISE       (0x09)
 #define MIPI_DEV_CSI2_RAISE         (0x01)
 #define MIPI_DEV_CSI2_RESETN        (0x00)
-
-#define MIPI_DEV_LPCLK_CONT         (0x01)
-#define MIPI_DEV_LPCLK_NCONT        (0x00)
-#define MIPI_DEV_LPCLK_CTRL         (MIPI_DEV_LPCLK_CONT)
 
 typedef struct _mipi_dev_control_t {
 	uint16_t lane;

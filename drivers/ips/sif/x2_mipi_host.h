@@ -18,8 +18,6 @@
 
 #define MIPI_HOST_CSI2_RAISE       (0x01)
 #define MIPI_HOST_CSI2_RESETN      (0x00)
-#define MIPI_HOST_BITWIDTH_48      (0)
-#define MIPI_HOST_BITWIDTH_16      (1)
 
 typedef struct _mipi_host_control_t {
 	uint16_t lane;

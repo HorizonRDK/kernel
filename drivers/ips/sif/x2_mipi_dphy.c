@@ -61,21 +61,6 @@
 #define DPHY_PLL_CTL             (0x30)
 #define DPHY_RX_HS_SETTLE(s)     (0x80|((s)&0x7F))
 
-#define DPHY_LANE_MAX            (4)
-#define DPHY_CHECK_MAX           (500)
-
-#define HOST_DPHY_LANE_STOP(l)   (0xF>>(DPHY_LANE_MAX-(l)))
-#define HOST_DPHY_RX_HS          (0x030000)
-
-#define DEV_DPHY_SHUTDOWNZ       (0x01)
-#define DEV_DPHY_RSTZ            (0x02)
-#define DEV_DPHY_ENABLEZ         (0x04)
-#define DEV_DPHY_FORCEPOLL       (0x08)
-#define DEV_DPHY_STATE_BASIC     (0x3F)
-#define DEV_DPHY_STATE_NLANE     (0x38|(3)) /*b'(01 01 01 01) 00 1xxx*/ /*max lane num is 4 now*/
-#define DEV_DPHY_STATE(s)        ((s>>6))	/*b'00 1xxx */
-#define DEV_DPHY_STATE_STOP(l)   (0xFF>>((DPHY_LANE_MAX-l)<<1))	/*b'11 11 11 11 (00 1xxx) */
-
 typedef struct _reg_s {
 	uint32_t offset;
 	uint32_t value;
@@ -234,47 +219,6 @@ static void mipi_host_dphy_testdata(uint8_t * testdata, uint8_t size)
 	}
 }
 
-int32_t mipi_host_dphy_wait_stop(mipi_host_control_t * control)
-{
-	uint16_t ncount = 0;
-	uint32_t stopstate = 0;
-	/*Check that data lanes are in Stop state */
-	do {
-		ncount++;
-		stopstate = sif_getreg(g_hostmem + REG_MIPI_HOST_PHY_STOPSTATE);
-		if ((stopstate & 0xF) == HOST_DPHY_LANE_STOP(control->lane))
-			return 0;
-	} while (1);		//ncount <= MIPI_HOST_PHY_CHECK_MAX );
-	siferr("lane state of host phy is error: 0x%x", stopstate);
-	return -1;
-}
-
-/**
- * @brief mipi_host_dphy_start_hs_reception : check if mipi host in hs mode
- *
- * @param []
- *
- * @return int32_t : 0/-1
- */
-int32_t mipi_host_dphy_start_hs_reception(void)
-{
-	uint16_t ncount = 0;
-	uint32_t state = 0;
-
-	sifinfo("mipi host check hs reception");
-	/*Check that clock lane is in HS mode */
-	do {
-		ncount++;
-		state = sif_getreg(g_hostmem + REG_MIPI_HOST_PHY_RX);
-		if ((state & HOST_DPHY_RX_HS) == HOST_DPHY_RX_HS) {
-			sifinfo("mipi host entry hs reception");
-			return 0;
-		}
-	} while (1);		//ncount <= MIPI_HOST_PHY_CHECK_MAX );
-	sifinfo("mipi host hs reception check error");
-	return -1;
-}
-
 /**
  * @brief mipi_host_initialize : initialize mipi host
  *
@@ -291,10 +235,6 @@ int32_t mipi_host_dphy_initialize(mipi_host_control_t * control,
 	g_hostmem = iomem;
 
 	sifinfo("mipi host initialize begin");
-	/*Set Synopsys D-PHY Reset */
-	sif_putreg(g_hostmem + REG_MIPI_HOST_DPHY_RSTZ, MIPI_HOST_CSI2_RESETN);
-	sif_putreg(g_hostmem + REG_MIPI_HOST_PHY_SHUTDOWNZ,
-		   MIPI_HOST_CSI2_RESETN);
 	/*Release Synopsys-PHY test codes from reset */
 	sif_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL1, DPHY_TEST_RESETN);
 	sif_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_CLEAR);
@@ -325,11 +265,6 @@ int32_t mipi_host_dphy_initialize(mipi_host_control_t * control,
 	mipi_host_dphy_testcode(REGS_DPHY_RX_HS_SETTLE);
 	testdata[0] = DPHY_RX_HS_SETTLE(control->settle);
 	mipi_host_dphy_testdata(testdata, 1);
-
-	/*Clear Synopsys D-PHY Reset */
-	sif_putreg(g_hostmem + REG_MIPI_HOST_PHY_SHUTDOWNZ,
-		   MIPI_HOST_CSI2_RAISE);
-	sif_putreg(g_hostmem + REG_MIPI_HOST_DPHY_RSTZ, MIPI_HOST_CSI2_RAISE);
 	return 0;
 }
 
@@ -392,26 +327,6 @@ static void mipi_dev_dphy_testdata(uint8_t * testdata, uint8_t size)
 	}
 }
 
-int32_t mipi_dev_wait_phy_powerup(mipi_dev_control_t * control)
-{
-	uint16_t ncount = 0;
-	uint32_t state = 0;
-	/*Wait for the PHY power-up */
-	do {
-		state = sif_getreg(g_devmem + REG_MIPI_DEV_PHY_STATUS);
-		siferr("dphy state 0x%x", state);
-		if ((state & DEV_DPHY_STATE_BASIC) == DEV_DPHY_STATE_NLANE) {
-			if ((DEV_DPHY_STATE(state) &
-			     DEV_DPHY_STATE_STOP(control->lane)) ==
-			    DEV_DPHY_STATE_STOP(control->lane))
-				return 0;
-		}
-		ncount++;
-	} while (1);		//ncount <= MIPI_DEV_PHY_CHECK_MAX );
-	siferr("lane state of dev phy is error: 0x%x", state);
-	return -1;
-}
-
 /**
  * @brief mipi_dev_initialize_dphy : initialize dev phy
  *
@@ -426,19 +341,9 @@ int32_t mipi_dev_dphy_initialize(mipi_dev_control_t * control,
 	uint8_t n = 0;
 	uint16_t m = 0;
 	uint16_t outclk = 0;
-	uint32_t power = 0;
 	g_devmem = iomem;
 
 	sifinfo("mipi device initialize dphy begin");
-	/*Shut down and reset SNPS D-PHY */
-	sif_putreg(g_devmem + REG_MIPI_DEV_PHY_RSTZ, MIPI_DEV_CSI2_RESETN);
-	sif_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_CLEAR);
-	sif_putreg(g_devmem + REG_MIPI_DEV_CLKMGR_CFG, MIPI_DEV_CSI2_RESETN);
-	sif_putreg(g_devmem + REG_MIPI_DEV_PHY_IF_CFG, MIPI_DEV_CSI2_RESETN);
-	/*Configure the number of lanes */
-	sif_putreg(g_devmem + REG_MIPI_DEV_PHY_IF_CFG, control->lane - 1);
-	/*Configure the Escape mode transmit clock */
-	sif_putreg(g_devmem + REG_MIPI_DEV_CLKMGR_CFG, MIPI_DEV_CLKMGR_RAISE);
 	/*Configure the D-PHY PLL */
 	sif_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_RESETN);
 	if (0 !=
@@ -465,18 +370,7 @@ int32_t mipi_dev_dphy_initialize(mipi_dev_control_t * control,
 	testdata[0] = DPHY_PLL_LOOP_DIV_L(m);
 	testdata[1] = DPHY_PLL_LOOP_DIV_H(m);
 	mipi_dev_dphy_testdata(testdata, 2);
-	/*Power on PHY */
-	power = DEV_DPHY_ENABLEZ;
-	sif_putreg(g_devmem + REG_MIPI_DEV_PHY_RSTZ, power);
-	power |= DEV_DPHY_SHUTDOWNZ;
-	sif_putreg(g_devmem + REG_MIPI_DEV_PHY_RSTZ, power);
-	power |= DEV_DPHY_RSTZ;
-	sif_putreg(g_devmem + REG_MIPI_DEV_PHY_RSTZ, power);
-	power |= DEV_DPHY_FORCEPOLL;
-	sif_putreg(g_devmem + REG_MIPI_DEV_PHY_RSTZ, power);
-
-	sif_putreg(g_devmem + REG_MIPI_DEV_LPCLK_CTRL, MIPI_DEV_LPCLK_NCONT);
-	return mipi_dev_wait_phy_powerup(control);
+	return 0;
 }
 
 /**

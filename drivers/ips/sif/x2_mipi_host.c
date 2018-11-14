@@ -41,12 +41,20 @@
 #define MIPI_HOST_INT_IPI          (0x1<<19)
 
 #define MIPI_HOST_PIXCLK_DEFAULT   (288)
+#define MIPI_HOST_BITWIDTH_48      (0)
+#define MIPI_HOST_BITWIDTH_16      (1)
+#define MIPI_HOST_BITWIDTH_OFFSET  (8)
+#define MIPI_HOST_EMB_DATA         (0x01 << 8)
+#define MIPI_HOST_IPI_ENABLE       (0x01 << 24)
+#define MIPI_HOST_LEGCYMODE_ENABLE (0x01 << 24)
 #define MIPI_HOST_HSATIME          (0x04)
 #define MIPI_HOST_HBPTIME          (0x04)
 #define MIPI_HOST_HSDTIME          (0x5f4)
-#define MIPI_HOST_HLINE_TIME(l)    (MIPI_HOST_HSATIME+MIPI_HOST_HBPTIME+MIPI_HOST_HSDTIME+(l))
 
-#define MIPI_HOST_BITWIDTH_OFFSET  (8)
+#define HOST_DPHY_LANE_MAX         (4)
+#define HOST_DPHY_CHECK_MAX        (500)
+#define HOST_DPHY_LANE_STOP(l)     (0xF>>(HOST_DPHY_LANE_MAX-(l)))
+#define HOST_DPHY_RX_HS            (0x030000)
 
 #define MIPI_CSI2_DT_YUV420_8   (0x18)
 #define MIPI_CSI2_DT_YUV420_10  (0x19)
@@ -67,6 +75,9 @@ typedef struct _reg_s {
 #define MIPIHOSTIOC_READ        _IOWR('v', 0, reg_t)
 #define MIPIHOSTIOC_WRITE       _IOW('v', 1, reg_t)
 
+#define mipi_getreg(a)          readl(a)
+#define mipi_putreg(a,v)        writel(v,a)
+
 typedef struct _mipi_host_s {
 	void __iomem *iomem;
 	int irq;
@@ -79,13 +90,13 @@ static void mipi_host_pix_clk_div(uint32_t div)
 {
 	uint32_t reg_value;
 
-	reg_value = sif_getreg(iomem + SYSC_VIDEO_DIV_REG);
+	reg_value = mipi_getreg(iomem + SYSC_VIDEO_DIV_REG);
 	sifinfo("host read sysc video div reg: 0x%x", reg_value);
 
 	reg_value &= (~(0x7UL << 6));
 	reg_value |= ((div - 1) << 6);
 
-	sif_putreg(iomem + SYSC_VIDEO_DIV_REG, reg_value);
+	mipi_putreg(iomem + SYSC_VIDEO_DIV_REG, reg_value);
 	sifinfo("host write sysc video div reg: 0x%x", reg_value);
 }
 #endif
@@ -245,14 +256,18 @@ static int32_t mipi_host_configure_ipi(mipi_host_control_t * control)
 	iomem = g_mipi_host->iomem;
 	sifinfo("mipi host config ipi");
 	/*Select virtual channel and data type to be processed by IPI */
-	sif_putreg(iomem + REG_MIPI_HOST_IPI_DATA_TYPE, control->datatype);
+	mipi_putreg(iomem + REG_MIPI_HOST_IPI_DATA_TYPE, control->datatype);
 	/*Select the IPI mode */
-	sif_putreg(iomem + REG_MIPI_HOST_IPI_MODE,
-		   control->bitWidth << MIPI_HOST_BITWIDTH_OFFSET);
+	mipi_putreg(iomem + REG_MIPI_HOST_IPI_MODE,
+		    MIPI_HOST_IPI_ENABLE | (control->
+					    bitWidth <<
+					    MIPI_HOST_BITWIDTH_OFFSET));
 	/*Configure the IPI horizontal frame information */
-	sif_putreg(iomem + REG_MIPI_HOST_IPI_HSA_TIME, control->hsaTime);
-	sif_putreg(iomem + REG_MIPI_HOST_IPI_HBP_TIME, control->hbpTime);
-	sif_putreg(iomem + REG_MIPI_HOST_IPI_HSD_TIME, control->hsdTime);
+	mipi_putreg(iomem + REG_MIPI_HOST_IPI_HSA_TIME, control->hsaTime);
+	mipi_putreg(iomem + REG_MIPI_HOST_IPI_HBP_TIME, control->hbpTime);
+	mipi_putreg(iomem + REG_MIPI_HOST_IPI_HSD_TIME, control->hsdTime);
+	mipi_putreg(iomem + REG_MIPI_HOST_IPI_ADV_FEATURES,
+		    MIPI_HOST_LEGCYMODE_ENABLE);
 
 	return 0;
 }
@@ -278,46 +293,46 @@ static void mipi_host_irq_enable(void)
 	iomem = g_mipi_host->iomem;
 	reg = REG_MIPI_HOST_INT_MSK_PHY_FATAL;
 	mask = 0xff;
-	temp = sif_getreg(iomem + reg);
+	temp = mipi_getreg(iomem + reg);
 	temp &= ~(0xff);
 	temp |= mask;
-	sif_putreg(iomem + (reg), temp);
+	mipi_putreg(iomem + (reg), temp);
 	reg = REG_MIPI_HOST_INT_MSK_PKT_FATAL;
 	mask = 0xff;
-	temp = sif_getreg(iomem + reg);
+	temp = mipi_getreg(iomem + reg);
 	temp &= ~(0xff);
 	temp |= mask;
-	sif_putreg(iomem + (reg), temp);
+	mipi_putreg(iomem + (reg), temp);
 	reg = REG_MIPI_HOST_INT_MSK_FRAME_FATAL;
 	mask = 0xff;
-	temp = sif_getreg(iomem + reg);
+	temp = mipi_getreg(iomem + reg);
 	temp &= ~(0xff);
 	temp |= mask;
-	sif_putreg(iomem + (reg), temp);
+	mipi_putreg(iomem + (reg), temp);
 	reg = REG_MIPI_HOST_INT_MSK_PHY;
 	mask = 0xff;
-	temp = sif_getreg(iomem + reg);
+	temp = mipi_getreg(iomem + reg);
 	temp &= ~(0xff);
 	temp |= mask;
-	sif_putreg(iomem + (reg), temp);
+	mipi_putreg(iomem + (reg), temp);
 	reg = REG_MIPI_HOST_INT_MSK_PKT;
 	mask = 0xff;
-	temp = sif_getreg(iomem + reg);
+	temp = mipi_getreg(iomem + reg);
 	temp &= ~(0xff);
 	temp |= mask;
-	sif_putreg(iomem + (reg), temp);
+	mipi_putreg(iomem + (reg), temp);
 	reg = REG_MIPI_HOST_INT_MSK_LINE;
 	mask = 0xff;
-	temp = sif_getreg(iomem + reg);
+	temp = mipi_getreg(iomem + reg);
 	temp &= ~(0xff);
 	temp |= mask;
-	sif_putreg(iomem + (reg), temp);
+	mipi_putreg(iomem + (reg), temp);
 	reg = REG_MIPI_HOST_INT_MSK_IPI;
 	mask = 0xff;
-	temp = sif_getreg(iomem + reg);
+	temp = mipi_getreg(iomem + reg);
 	temp &= ~(0xff);
 	temp |= mask;
-	sif_putreg(iomem + (reg), temp);
+	mipi_putreg(iomem + (reg), temp);
 	return;
 }
 
@@ -341,39 +356,39 @@ static void mipi_host_irq_disable(void)
 	iomem = g_mipi_host->iomem;
 	reg = REG_MIPI_HOST_INT_MSK_PHY_FATAL;
 	mask = 0xff;
-	temp = sif_getreg(iomem + reg);
+	temp = mipi_getreg(iomem + reg);
 	temp &= ~(mask);
-	sif_putreg(iomem + (reg), temp);
+	mipi_putreg(iomem + (reg), temp);
 	reg = REG_MIPI_HOST_INT_MSK_PKT_FATAL;
 	mask = 0xff;
-	temp = sif_getreg(iomem + reg);
+	temp = mipi_getreg(iomem + reg);
 	temp &= ~(mask);
-	sif_putreg(iomem + (reg), temp);
+	mipi_putreg(iomem + (reg), temp);
 	reg = REG_MIPI_HOST_INT_MSK_FRAME_FATAL;
 	mask = 0xff;
-	temp = sif_getreg(iomem + reg);
+	temp = mipi_getreg(iomem + reg);
 	temp &= ~(mask);
-	sif_putreg(iomem + (reg), temp);
+	mipi_putreg(iomem + (reg), temp);
 	reg = REG_MIPI_HOST_INT_MSK_PHY;
 	mask = 0xff;
-	temp = sif_getreg(iomem + reg);
+	temp = mipi_getreg(iomem + reg);
 	temp &= ~(mask);
-	sif_putreg(iomem + (reg), temp);
+	mipi_putreg(iomem + (reg), temp);
 	reg = REG_MIPI_HOST_INT_MSK_PKT;
 	mask = 0xff;
-	temp = sif_getreg(iomem + reg);
+	temp = mipi_getreg(iomem + reg);
 	temp &= ~(mask);
-	sif_putreg(iomem + (reg), temp);
+	mipi_putreg(iomem + (reg), temp);
 	reg = REG_MIPI_HOST_INT_MSK_LINE;
 	mask = 0xff;
-	temp = sif_getreg(iomem + reg);
+	temp = mipi_getreg(iomem + reg);
 	temp &= ~(mask);
-	sif_putreg(iomem + (reg), temp);
+	mipi_putreg(iomem + (reg), temp);
 	reg = REG_MIPI_HOST_INT_MSK_IPI;
 	mask = 0xff;
-	temp = sif_getreg(iomem + reg);
+	temp = mipi_getreg(iomem + reg);
 	temp &= ~(mask);
-	sif_putreg(iomem + (reg), temp);
+	mipi_putreg(iomem + (reg), temp);
 	return;
 }
 
@@ -393,39 +408,92 @@ static void mipi_host_irq_func(void)
 		return -1;
 	}
 	iomem = g_mipi_host->iomem;
-	irq = sif_getreg(iomem + REG_MIPI_HOST_INT_ST_MAIN);
+	irq = mipi_getreg(iomem + REG_MIPI_HOST_INT_ST_MAIN);
 	uart_printf("mipi host irq status 0x%x\n", irq);
 	if (irq & MIPI_HOST_INT_PHY_FATAL) {
-		irq = sif_getreg(iomem + REG_MIPI_HOST_INT_ST_PHY_FATAL);
+		irq = mipi_getreg(iomem + REG_MIPI_HOST_INT_ST_PHY_FATAL);
 		sifinfo("mipi host PHY FATAL: 0x%x", irq);
 	}
 	if (irq & MIPI_HOST_INT_PKT_FATAL) {
-		irq = sif_getreg(iomem + REG_MIPI_HOST_INT_ST_PKT_FATAL);
+		irq = mipi_getreg(iomem + REG_MIPI_HOST_INT_ST_PKT_FATAL);
 		sifinfo("mipi host PKT FATAL: 0x%x", irq);
 	}
 	if (irq & MIPI_HOST_INT_FRM_FATAL) {
-		irq = sif_getreg(iomem + REG_MIPI_HOST_INT_ST_FRAME_FATAL);
+		irq = mipi_getreg(iomem + REG_MIPI_HOST_INT_ST_FRAME_FATAL);
 		sifinfo("mipi host FRAME FATAL: 0x%x", irq);
 	}
 	if (irq & MIPI_HOST_INT_PHY) {
-		irq = sif_getreg(iomem + REG_MIPI_HOST_INT_ST_PHY);
+		irq = mipi_getreg(iomem + REG_MIPI_HOST_INT_ST_PHY);
 		sifinfo("mipi host PHY ST: 0x%x", irq);
 	}
 	if (irq & MIPI_HOST_INT_PKT) {
-		irq = sif_getreg(iomem + REG_MIPI_HOST_INT_ST_PKT);
+		irq = mipi_getreg(iomem + REG_MIPI_HOST_INT_ST_PKT);
 		sifinfo("mipi host PKT ST: 0x%x", irq);
 	}
 	if (irq & MIPI_HOST_INT_LINE) {
-		irq = sif_getreg(iomem + REG_MIPI_HOST_INT_ST_LINE);
+		irq = mipi_getreg(iomem + REG_MIPI_HOST_INT_ST_LINE);
 		sifinfo("mipi host LINE ST: 0x%x", irq);
 	}
 	if (irq & MIPI_HOST_INT_IPI) {
-		irq = sif_getreg(iomem + REG_MIPI_HOST_INT_ST_IPI);
+		irq = mipi_getreg(iomem + REG_MIPI_HOST_INT_ST_IPI);
 		sifinfo("mipi host IPI ST: 0x%x", irq);
 	}
 	return;
 }
 #endif
+
+int32_t mipi_host_dphy_wait_stop(mipi_host_control_t * control)
+{
+	uint16_t ncount = 0;
+	uint32_t stopstate = 0;
+	void __iomem *iomem = NULL;
+	if (NULL == g_mipi_host) {
+		siferr("mipi host not inited!");
+		return -1;
+	}
+	iomem = g_mipi_host->iomem;
+	sifinfo("mipi host check phy stop state");
+	/*Check that data lanes are in Stop state */
+	do {
+		ncount++;
+		stopstate = mipi_getreg(iomem + REG_MIPI_HOST_PHY_STOPSTATE);
+		if ((stopstate & 0xF) == HOST_DPHY_LANE_STOP(control->lane))
+			return 0;
+	} while (1);		//ncount <= MIPI_HOST_PHY_CHECK_MAX );
+	siferr("lane state of host phy is error: 0x%x", stopstate);
+	return -1;
+}
+
+/**
+ * @brief mipi_host_dphy_start_hs_reception : check if mipi host in hs mode
+ *
+ * @param []
+ *
+ * @return int32_t : 0/-1
+ */
+int32_t mipi_host_dphy_start_hs_reception(void)
+{
+	uint16_t ncount = 0;
+	uint32_t state = 0;
+	void __iomem *iomem = NULL;
+	if (NULL == g_mipi_host) {
+		siferr("mipi host not inited!");
+		return -1;
+	}
+	iomem = g_mipi_host->iomem;
+	sifinfo("mipi host check hs reception");
+	/*Check that clock lane is in HS mode */
+	do {
+		ncount++;
+		state = mipi_getreg(iomem + REG_MIPI_HOST_PHY_RX);
+		if ((state & HOST_DPHY_RX_HS) == HOST_DPHY_RX_HS) {
+			sifinfo("mipi host entry hs reception");
+			return 0;
+		}
+	} while (1);		//ncount <= MIPI_HOST_PHY_CHECK_MAX );
+	sifinfo("mipi host hs reception check error");
+	return -1;
+}
 
 /**
  * @brief mipi_host_start : set mipi host start working
@@ -485,36 +553,42 @@ int32_t mipi_host_init(mipi_host_control_t * control)
 		return -1;
 	}
 	/*Set DWC_mipi_csi2_host reset */
-	sif_putreg(iomem + REG_MIPI_HOST_CSI2_RESETN, MIPI_HOST_CSI2_RESETN);
+	mipi_putreg(iomem + REG_MIPI_HOST_CSI2_RESETN, MIPI_HOST_CSI2_RESETN);
 
 #ifdef CONFIG_X2_MIPI_PHY
+	/*Set Synopsys D-PHY Reset */
+	mipi_putreg(iomem + REG_MIPI_HOST_DPHY_RSTZ, MIPI_HOST_CSI2_RESETN);
+	mipi_putreg(iomem + REG_MIPI_HOST_PHY_SHUTDOWNZ, MIPI_HOST_CSI2_RESETN);
 	if (0 != mipi_host_dphy_initialize(control, iomem)) {
 		siferr("mipi host dphy initialize error!!!");
-		goto err;
+		mipi_host_deinit();
+		return -1;
 	}
 #endif
+	/*Clear Synopsys D-PHY Reset */
+	mipi_putreg(iomem + REG_MIPI_HOST_PHY_SHUTDOWNZ, MIPI_HOST_CSI2_RAISE);
+	mipi_putreg(iomem + REG_MIPI_HOST_DPHY_RSTZ, MIPI_HOST_CSI2_RAISE);
 	/*Configure the number of active lanes */
-	sif_putreg(iomem + REG_MIPI_HOST_N_LANES, control->lane - 1);
+	mipi_putreg(iomem + REG_MIPI_HOST_N_LANES, control->lane - 1);
 	/*Release DWC_mipi_csi2_host from reset */
-	sif_putreg(iomem + REG_MIPI_HOST_CSI2_RESETN, MIPI_HOST_CSI2_RAISE);
+	mipi_putreg(iomem + REG_MIPI_HOST_CSI2_RESETN, MIPI_HOST_CSI2_RAISE);
 
 #ifdef CONFIG_X2_MIPI_PHY
 	if (0 != mipi_host_dphy_wait_stop(control)) {
 		/*Release DWC_mipi_csi2_host from reset */
 		siferr("mipi host wait phy stop state error!!!");
-		goto err;
+		mipi_host_deinit();
+		return -1;
 	}
 #endif
-
+	control->bitWidth = MIPI_HOST_BITWIDTH_48;
 	control->hsaTime = MIPI_HOST_HSATIME;
 	control->hbpTime = MIPI_HOST_HBPTIME;
-	control->hsdTime = MIPI_HOST_HSDTIME;
 	control->hsdTime = mipi_host_get_hsd(control);
-	sifinfo("mipi host hsdtime: %d", control->hsdTime);
-
 	if (0 != mipi_host_configure_ipi(control)) {
 		siferr("mipi host configure ipi error!!!");
-		goto err;
+		mipi_host_deinit();
+		return -1;
 	}
 #if MIPI_HOST_INT_DBG
 	register_irq(ISR_TYPE_IRQ, INTC_MIPI_HOST_INT_NUM, mipi_host_irq_func);
@@ -524,12 +598,6 @@ int32_t mipi_host_init(mipi_host_control_t * control)
 #endif
 	sifinfo("mipi host init end");
 	return 0;
-err:
-#ifdef CONFIG_X2_MIPI_PHY
-	mipi_dev_dphy_reset();
-#endif
-	sif_putreg(iomem + REG_MIPI_HOST_CSI2_RESETN, MIPI_HOST_CSI2_RESETN);
-	return -1;
 }
 
 /**
@@ -554,7 +622,7 @@ void mipi_host_deinit(void)
 	mipi_dev_dphy_reset();
 #endif
 	/*Release DWC_mipi_csi2_host from reset */
-	sif_putreg(iomem + REG_MIPI_HOST_CSI2_RESETN, MIPI_HOST_CSI2_RESETN);
+	mipi_putreg(iomem + REG_MIPI_HOST_CSI2_RESETN, MIPI_HOST_CSI2_RESETN);
 	return;
 }
 
