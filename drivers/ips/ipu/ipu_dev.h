@@ -97,8 +97,6 @@ typedef struct {
 	scale_t scale;
 	frame_id_t frame_id;
 	pymid_t pymid;
-	ddr_t crop_ddr;
-	ddr_t scale_ddr;
 } ipu_init_t;
 
 int8_t ipu_dump_regs(void);
