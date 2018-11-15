@@ -104,6 +104,9 @@
 	status = "okay";
 };
 
+&ips {
+	status = "okay";
+};
 &isp {
 	status = "okay";
 };
@@ -113,6 +116,12 @@
 };
 
 &sif {
+	status = "okay";
+};
+&mipi_host {
+	status = "okay";
+};
+&mipi_dev {
 	status = "okay";
 };
 

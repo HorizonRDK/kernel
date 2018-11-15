@@ -11,19 +11,12 @@
 #include <linux/fs.h>
 #include <linux/poll.h>
 
+#include "x2/x2_ips.h"
 #include "x2/x2_sif.h"
-#include "x2/x2_sensor_dev.h"
 #ifdef CONFIG_X2_SIF_DEV
 #include "x2_sif_dev.h"
 #endif
-#ifdef CONFIG_X2_MIPI_HOST
-#include "x2_mipi_host.h"
-#endif
-#ifdef CONFIG_X2_MIPI_DEV
-#include "x2_mipi_dev.h"
-#endif
 #include "x2_sif_utils.h"
-#include "x2/x2_ips.h"
 
 /*reg driver info*/
 #define X2_SIF_MAJOR 253
@@ -57,134 +50,6 @@ static struct device *g_sif_dev;
 
 #define sifdrv(f) (dev_get_drvdata((f)->private_data))
 
-#define MIPI_CSI2_DT_YUV420_8   (0x18)
-#define MIPI_CSI2_DT_YUV420_10  (0x19)
-#define MIPI_CSI2_DT_YUV422_8   (0x1E)
-#define MIPI_CSI2_DT_YUV422_10  (0x1F)
-#define MIPI_CSI2_DT_RGB565     (0x22)
-#define MIPI_CSI2_DT_RGB888     (0x24)
-#define MIPI_CSI2_DT_RAW_8      (0x2A)
-#define MIPI_CSI2_DT_RAW_10     (0x2B)
-#define MIPI_CSI2_DT_RAW_12     (0x2C)
-#define MIPI_CSI2_DT_RAW_14     (0x2D)
-
-/**
-* @brief get_mipi_csi_datatype : transform user format to MIPI CSI2 format
-*
-* @param [in] format : user format
-* @param [in] pix_len : pixel lenth
-*
-* @return uint32_t : MIPI CSI2 data type
-*/
-uint32_t get_mipi_csi_datatype(sif_fmt_in_t format, sif_pix_len_t pix_len)
-{
-	uint32_t data_type = 0;
-	if (format == FMT_RAW) {
-		if (pix_len == PIX_LEN_8)
-			data_type = MIPI_CSI2_DT_RAW_8;
-		else if (pix_len == PIX_LEN_10)
-			data_type = MIPI_CSI2_DT_RAW_10;
-		else if (pix_len == PIX_LEN_12)
-			data_type = MIPI_CSI2_DT_RAW_12;
-		else if (pix_len == PIX_LEN_14)
-			data_type = MIPI_CSI2_DT_RAW_14;
-	} else if (format <= FMT_YUV422_VYUY) {
-		if (pix_len == PIX_LEN_8)
-			data_type = MIPI_CSI2_DT_YUV422_8;
-		else if (pix_len == PIX_LEN_10)
-			data_type = MIPI_CSI2_DT_YUV422_10;
-	}
-	if (0 == data_type)
-		siferr("can't match any data type for format: %d, pix_len: %d",
-		       format, pix_len);
-	return data_type;
-}
-
-/**
- * @brief sif_mipi_init : MIPI pathway init function
- *
- * @param [in] sif_cfg : SIF Driver configuration struct
- * @param [in] vpg : VPG mode enable or not
- *
- * @return int32_t : 0/-1
- */
-static int32_t sif_mipi_init(sif_cfg_t * sif_cfg)
-{
-#ifdef CONFIG_X2_MIPI_HOST
-	mipi_host_control_t host_ctl = { 0 };
-#endif
-#ifdef CONFIG_X2_MIPI_DEV
-	mipi_dev_control_t dev_ctl = { 0 };
-#endif
-	int32_t ret = 0;
-	uint8_t datatype = 0;
-
-	datatype =
-	    get_mipi_csi_datatype(sif_cfg->sif_init.format,
-				  sif_cfg->sif_init.pix_len);
-	if (0 == datatype) {
-		siferr("get mipi csi datatype failed!");
-		return -1;
-	}
-#ifdef CONFIG_X2_MIPI_HOST
-	if (!sif_cfg->sif_init.vpg) {
-		host_ctl.lane = sif_cfg->mipi_csi.lane_num;
-		host_ctl.fps = sif_cfg->mipi_csi.fps;
-		host_ctl.pixlen = sif_cfg->sif_init.pix_len;
-		host_ctl.mclk = sif_cfg->mipi_csi.mclk;
-		host_ctl.mipiclk = sif_cfg->mipi_csi.mipiclk;
-		host_ctl.width = sif_cfg->sif_init.width;
-		host_ctl.height = sif_cfg->sif_init.height;
-		host_ctl.linelenth = sif_cfg->mipi_csi.linelenth;
-		host_ctl.framelenth = sif_cfg->mipi_csi.framelenth;
-		host_ctl.settle = sif_cfg->mipi_csi.settle;
-		host_ctl.datatype = datatype;
-		if (0 != (ret = mipi_host_init(&host_ctl))) {
-			siferr("mipi host init error: %d", ret);
-			return ret;
-		}
-	}
-#endif
-#ifdef CONFIG_X2_MIPI_DEV
-	dev_ctl.lane = sif_cfg->mipi_csi.lane_num;
-	dev_ctl.mclk = sif_cfg->mipi_csi.mclk;
-	dev_ctl.mipiclk = sif_cfg->mipi_csi.mipiclk;
-	dev_ctl.linelenth = sif_cfg->mipi_csi.linelenth;
-	dev_ctl.framelenth = sif_cfg->mipi_csi.framelenth;
-	dev_ctl.settle = sif_cfg->mipi_csi.settle;
-	dev_ctl.vpg = sif_cfg->sif_init.vpg;
-	dev_ctl.width = sif_cfg->sif_init.width;
-	dev_ctl.height = sif_cfg->sif_init.height;
-	dev_ctl.datatype = datatype;
-	if (0 != (ret = mipi_dev_init(&dev_ctl))) {
-		siferr("mipi device controller init error: %d", ret);
-#ifdef CONFIG_X2_MIPI_HOST
-		mipi_host_deinit();
-#endif
-		return ret;
-	}
-#endif
-	return ret;
-}
-
-/**
- * @brief sif_deinit : SIF driver deinit function
- *
- * @param []  :
- *
- * @return void
- */
-static void sif_mipi_deinit(void)
-{
-#ifdef CONFIG_X2_MIPI_DEV
-	mipi_dev_deinit();
-#endif
-#ifdef CONFIG_X2_MIPI_HOST
-	mipi_host_deinit();
-#endif
-	return;
-}
-
 static int sif_start(sif_t * dev)
 {
 	int ret = 0;
@@ -192,23 +57,6 @@ static int sif_start(sif_t * dev)
 	if (0 != (ret = sif_dev_start())) {
 		siferr("ERROR: sif dev start error: %d", ret);
 		return ret;
-	}
-#endif
-#ifdef CONFIG_X2_MIPI_HOST
-	if ((BUS_TYPE_MIPI == dev->config.sif_init.bus_type)
-	    && !dev->config.sif_init.vpg) {
-		if (0 != (ret = mipi_host_start())) {
-			siferr("mipi host start error: %d", ret);
-			return ret;
-		}
-	}
-#endif
-#ifdef CONFIG_X2_MIPI_DEV
-	if (BUS_TYPE_MIPI == dev->config.sif_init.bus_type) {
-		if (0 != (ret = mipi_dev_start())) {
-			siferr("mipi dev start error: %d", ret);
-			return ret;
-		}
 	}
 #endif
 	ips_irq_enable(SIF_INT);
@@ -225,22 +73,6 @@ static int sif_stop(sif_t * dev)
 	dev->sif_file.receive_frame = false;
 	spin_unlock_irqrestore(&dev->sif_file.event_lock, flags);
 	wake_up_interruptible(&dev->sif_file.event_queue);
-#ifdef CONFIG_X2_MIPI_DEV
-	if (BUS_TYPE_MIPI == dev->config.sif_init.bus_type) {
-		if (0 != (ret = mipi_dev_stop())) {
-			siferr("mipi dev stop error: %d", ret);
-			return ret;
-		}
-	}
-#endif
-#ifdef CONFIG_X2_MIPI_HOST
-	if (BUS_TYPE_MIPI == dev->config.sif_init.bus_type) {
-		if (0 != (ret = mipi_host_stop())) {
-			siferr("mipi host stop error: %d", ret);
-			return ret;
-		}
-	}
-#endif
 #ifdef CONFIG_X2_SIF_DEV
 	sif_dev_stop();
 #endif
@@ -278,17 +110,11 @@ static int sif_init(sif_t * dev, sif_cfg_t * cfg)
 	int ret = 0;
 	memset(&dev->config, 0, sizeof(sif_cfg_t));
 	memcpy(&dev->config, cfg, sizeof(sif_cfg_t));
-	sifinfo
-	    ("sif config format: %d pixlen: %d bus: %d width: %d height: %d lane: %d\n",
-	     cfg->sif_init.format, cfg->sif_init.pix_len,
-	     cfg->sif_init.bus_type, cfg->sif_init.width, cfg->sif_init.height,
-	     cfg->mipi_csi.lane_num);
-	if (BUS_TYPE_MIPI == dev->config.sif_init.bus_type) {
-		if (0 != (ret = sif_mipi_init(&dev->config))) {
-			siferr("mipi init error: %d", ret);
-			return ret;
-		}
-	}
+	sifinfo("sif config format: %d pixlen: %d bus: %d width: %d height: %d",
+		cfg->sif_init.format,
+		cfg->sif_init.pix_len,
+		cfg->sif_init.bus_type,
+		cfg->sif_init.width, cfg->sif_init.height);
 #ifdef CONFIG_X2_SIF_DEV
 	if (0 != (ret = sif_dev_init(&dev->config.sif_init))) {
 		siferr("ERROR: sif dev init error: %d", ret);
@@ -318,16 +144,13 @@ static int sif_init(sif_t * dev, sif_cfg_t * cfg)
 
 static void sif_deinit(sif_t * dev)
 {
-	if (BUS_TYPE_MIPI == dev->config.sif_init.bus_type) {
-		sif_mipi_deinit();
-	}
 #ifdef CONFIG_X2_SIF_DEV
 	sif_dev_stop();
 #endif
 	dev->sif_file.receive_frame = false;
 }
 
-static int sif_open(struct inode *inode, struct file *file)
+static int x2_sif_open(struct inode *inode, struct file *file)
 {
 	sif_t *sif = dev_get_drvdata(g_sif_dev);
 	spin_lock_init(&sif->sif_file.event_lock);
@@ -337,14 +160,14 @@ static int sif_open(struct inode *inode, struct file *file)
 	return 0;
 }
 
-static ssize_t sif_write(struct file *file, const char __user * buf,
-			 size_t count, loff_t * ppos)
+static ssize_t x2_sif_write(struct file *file, const char __user * buf,
+			    size_t count, loff_t * ppos)
 {
 	return 0;
 }
 
-static ssize_t sif_read(struct file *file, char __user * buf, size_t size,
-			loff_t * ppos)
+static ssize_t x2_sif_read(struct file *file, char __user * buf, size_t size,
+			   loff_t * ppos)
 {
 	sif_t *dev = sifdrv(file);
 	sif_file_t *priv = &dev->sif_file;
@@ -378,12 +201,13 @@ static ssize_t sif_read(struct file *file, char __user * buf, size_t size,
 	return ret;
 }
 
-static int sif_close(struct inode *inode, struct file *file)
+static int x2_sif_close(struct inode *inode, struct file *file)
 {
 	return 0;
 }
 
-static unsigned int sif_poll(struct file *file, struct poll_table_struct *wait)
+static unsigned int x2_sif_poll(struct file *file,
+				struct poll_table_struct *wait)
 {
 	sif_t *dev = sifdrv(file);
 	sif_file_t *priv = &dev->sif_file;
@@ -401,7 +225,7 @@ static unsigned int sif_poll(struct file *file, struct poll_table_struct *wait)
 	return mask;
 }
 
-static long sif_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+static long x2_sif_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	int ret = 0;
 	sif_t *dev = sifdrv(file);
@@ -568,13 +392,13 @@ static long sif_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 static struct file_operations sif_fops = {
 	.owner = THIS_MODULE,
-	.open = sif_open,
-	.write = sif_write,
-	.read = sif_read,
-	.poll = sif_poll,
-	.release = sif_close,
-	.unlocked_ioctl = sif_ioctl,
-	.compat_ioctl = sif_ioctl,
+	.open = x2_sif_open,
+	.write = x2_sif_write,
+	.read = x2_sif_read,
+	.poll = x2_sif_poll,
+	.release = x2_sif_close,
+	.unlocked_ioctl = x2_sif_ioctl,
+	.compat_ioctl = x2_sif_ioctl,
 };
 
 static int sif_major = 0;

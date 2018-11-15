@@ -16,18 +16,12 @@
 
 #include <linux/types.h>
 
-#define MIPI_HOST_CSI2_RAISE       (0x01)
-#define MIPI_HOST_CSI2_RESETN      (0x00)
-
-typedef struct _mipi_host_control_t {
+typedef struct _mipi_host_cfg_t {
 	uint16_t lane;
-	uint16_t pixlen;
 	uint16_t datatype;
-	uint16_t bitWidth;
 	uint16_t fps;
 	uint16_t mclk;
 	uint16_t mipiclk;
-	uint16_t pixclk;
 	uint16_t width;
 	uint16_t height;
 	uint16_t linelenth;
@@ -36,11 +30,12 @@ typedef struct _mipi_host_control_t {
 	uint16_t hsaTime;
 	uint16_t hbpTime;
 	uint16_t hsdTime;
-} mipi_host_control_t;
+} mipi_host_cfg_t;
 
-int32_t mipi_host_start(void);
-int32_t mipi_host_stop(void);
-int32_t mipi_host_init(mipi_host_control_t * control);
-void mipi_host_deinit(void);
+#define MIPIHOSTIOC_MAGIC 'v'
+#define MIPIHOSTIOC_INIT             _IOW(MIPIHOSTIOC_MAGIC, 0, mipi_host_cfg_t)
+#define MIPIHOSTIOC_DEINIT           _IO(MIPIHOSTIOC_MAGIC,  1)
+#define MIPIHOSTIOC_START            _IO(MIPIHOSTIOC_MAGIC,  2)
+#define MIPIHOSTIOC_STOP             _IO(MIPIHOSTIOC_MAGIC,  3)
 
 #endif /*__X2_MIPI_HOST_H__*/

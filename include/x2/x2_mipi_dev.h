@@ -16,26 +16,25 @@
 
 #include <linux/types.h>
 
-#define MIPI_DEV_CSI2_RAISE         (0x01)
-#define MIPI_DEV_CSI2_RESETN        (0x00)
-
-typedef struct _mipi_dev_control_t {
+typedef struct _mipi_dev_cfg_t {
 	uint16_t lane;
 	uint16_t datatype;
-	uint16_t vpg;
-	uint16_t mclk;
 	uint16_t fps;
+	uint16_t mclk;
 	uint16_t mipiclk;
 	uint16_t width;
 	uint16_t height;
 	uint16_t linelenth;
 	uint16_t framelenth;
 	uint16_t settle;
-} mipi_dev_control_t;
+	uint16_t vpg;
+	uint16_t ipi_lines;
+} mipi_dev_cfg_t;
 
-int32_t mipi_dev_start(void);
-int32_t mipi_dev_stop(void);
-int32_t mipi_dev_init(mipi_dev_control_t * control);
-int32_t mipi_dev_deinit(void);
+#define MIPIDEVIOC_MAGIC 'v'
+#define MIPIDEVIOC_INIT             _IOW(MIPIDEVIOC_MAGIC, 0, mipi_dev_cfg_t)
+#define MIPIDEVIOC_DEINIT           _IO(MIPIDEVIOC_MAGIC,  1)
+#define MIPIDEVIOC_START            _IO(MIPIDEVIOC_MAGIC,  2)
+#define MIPIDEVIOC_STOP             _IO(MIPIDEVIOC_MAGIC,  3)
 
 #endif /*__X2_MIPI_DEV_H__*/

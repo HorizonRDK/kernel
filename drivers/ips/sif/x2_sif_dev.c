@@ -233,9 +233,10 @@ typedef struct _sif_dev_s {
 
 sif_dev_t *g_sif_dev = NULL;
 
-#ifndef CONFIG_X2_FPGA
-#undef sif_getreg
-#undef sif_putreg
+#ifdef CONFIG_X2_FPGA
+#define sif_getreg(a)          readl(a)
+#define sif_putreg(a,v)        writel(v,a)
+#else
 extern int bifdev_get_cpchip_reg(unsigned int addr, int *value);
 extern int bifdev_set_cpchip_reg(unsigned int addr, int value);
 #define sif_getreg(a)          ({uint32_t value = 0;\
@@ -269,12 +270,12 @@ static void sif_dev_base_config(sif_init_t * cfg)
 	base |= CONFIG_SET(BASE_DUALRX_MODE, cfg->dualrx_mode);
 	base |= CONFIG_SET(BASE_MIPI2AP_SEL, cfg->mipi2ap_sel);
 	if (BUS_TYPE_BT1120 == cfg->bus_type) {
-		base |= CONFIG_SET(BASE_BT2AP_ENABLE, SIF_ENABLE);
+		base |= CONFIG_SET(BASE_BT2AP_ENABLE, cfg->bypass_en);
 	} else if (BUS_TYPE_DVP == cfg->bus_type) {
-		base |= CONFIG_SET(BASE_DVP2AP_ENABLE, SIF_ENABLE);
+		base |= CONFIG_SET(BASE_DVP2AP_ENABLE, cfg->bypass_en);
 	} else if (BUS_TYPE_MIPI == cfg->bus_type
 		   || BUS_TYPE_DUALRX == cfg->bus_type) {
-		base |= CONFIG_SET(BASE_MIPI2AP_ENABLE, SIF_ENABLE);
+		base |= CONFIG_SET(BASE_MIPI2AP_ENABLE, cfg->bypass_en);
 	}
 	sif_putreg(iomem + REG_SIF_BASE_CTRL, base);
 	return;

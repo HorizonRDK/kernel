@@ -25,12 +25,13 @@
 #include <linux/fs.h>
 #include <linux/seq_file.h>
 
-#include "x2_mipi_host.h"
 #include "x2_mipi_host_regs.h"
-#include "x2_mipi_dev.h"
 #include "x2_mipi_dev_regs.h"
 #include "x2_mipi_dphy.h"
-#include "x2_sif_utils.h"
+#include "x2_mipi_utils.h"
+
+#define DPHY_RAISE               (1)
+#define DPHY_RESETN              (0)
 
 #define HOST_REFCLK_DEFAULT      (24)
 #define DEV_REFSCLK_DEFAULT      (288)
@@ -226,8 +227,8 @@ static void mipi_host_dphy_testdata(uint8_t * testdata, uint8_t size)
  *
  * @return int32_t : 0/-1
  */
-int32_t mipi_host_dphy_initialize(mipi_host_control_t * control,
-				  void __iomem * iomem)
+int32_t mipi_host_dphy_initialize(uint16_t mipiclk, uint16_t lane,
+				  uint16_t settle, void __iomem * iomem)
 {
 	uint8_t n = 0;
 	uint16_t m = 0;
@@ -240,13 +241,12 @@ int32_t mipi_host_dphy_initialize(mipi_host_control_t * control,
 	sif_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_CLEAR);
 	/*Configure the D-PHY frequency range */
 	if (0 !=
-	    mipi_dphy_pll_div(HOST_REFCLK_DEFAULT,
-			      (control->mipiclk / control->lane), &n, &m)) {
+	    mipi_dphy_pll_div(HOST_REFCLK_DEFAULT, (mipiclk / lane), &n, &m)) {
 		siferr("pll control error!");
 		return -1;
 	}
 	mipi_host_dphy_testcode(REGS_DPHY_RX_CTL_LANE0);
-	testdata[0] = mipi_dphy_pll_range(control->mipiclk / control->lane);
+	testdata[0] = mipi_dphy_pll_range(mipiclk / lane);
 	mipi_host_dphy_testdata(testdata, 1);
 
 	mipi_host_dphy_testcode(REGS_DPHY_PLL_CTL);
@@ -263,7 +263,7 @@ int32_t mipi_host_dphy_initialize(mipi_host_control_t * control,
 	mipi_host_dphy_testdata(testdata, 2);
 
 	mipi_host_dphy_testcode(REGS_DPHY_RX_HS_SETTLE);
-	testdata[0] = DPHY_RX_HS_SETTLE(control->settle);
+	testdata[0] = DPHY_RX_HS_SETTLE(settle);
 	mipi_host_dphy_testdata(testdata, 1);
 	return 0;
 }
@@ -278,9 +278,8 @@ int32_t mipi_host_dphy_initialize(mipi_host_control_t * control,
 void mipi_host_dphy_reset(void)
 {
 	/*Set Synopsys D-PHY Reset */
-	sif_putreg(g_hostmem + REG_MIPI_HOST_DPHY_RSTZ, MIPI_HOST_CSI2_RESETN);
-	sif_putreg(g_hostmem + REG_MIPI_HOST_PHY_SHUTDOWNZ,
-		   MIPI_HOST_CSI2_RESETN);
+	sif_putreg(g_hostmem + REG_MIPI_HOST_DPHY_RSTZ, DPHY_RESETN);
+	sif_putreg(g_hostmem + REG_MIPI_HOST_PHY_SHUTDOWNZ, DPHY_RESETN);
 	/*Release Synopsys-PHY test codes from reset */
 	sif_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL1, DPHY_TEST_RESETN);
 	sif_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_CLEAR);
@@ -334,7 +333,7 @@ static void mipi_dev_dphy_testdata(uint8_t * testdata, uint8_t size)
  *
  * @return int32_t : 0/-1
  */
-int32_t mipi_dev_dphy_initialize(mipi_dev_control_t * control,
+int32_t mipi_dev_dphy_initialize(uint16_t mipiclk, uint16_t lane,
 				 void __iomem * iomem)
 {
 	uint8_t testdata[DPHY_TEST_DATA_MAX] = { 0, };
@@ -347,8 +346,7 @@ int32_t mipi_dev_dphy_initialize(mipi_dev_control_t * control,
 	/*Configure the D-PHY PLL */
 	sif_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_RESETN);
 	if (0 !=
-	    mipi_dphy_pll_div(DEV_REFSCLK_DEFAULT,
-			      (control->mipiclk / control->lane), &n, &m)) {
+	    mipi_dphy_pll_div(DEV_REFSCLK_DEFAULT, (mipiclk / lane), &n, &m)) {
 		siferr("pll control error!");
 		return -1;
 	}
@@ -382,7 +380,7 @@ int32_t mipi_dev_dphy_initialize(mipi_dev_control_t * control,
  */
 void mipi_dev_dphy_reset(void)
 {
-	sif_putreg(g_devmem + REG_MIPI_DEV_PHY_RSTZ, MIPI_DEV_CSI2_RESETN);
+	sif_putreg(g_devmem + REG_MIPI_DEV_PHY_RSTZ, DPHY_RESETN);
 	sif_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_CLEAR);
 }
 
