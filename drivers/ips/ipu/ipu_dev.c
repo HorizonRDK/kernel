@@ -293,6 +293,7 @@ int8_t set_ipu_pymid(pymid_t * info)
 		m |= 1;
 	}
 	d |= SET_DS_LAYER_EN(m);
+	d |= (0xf << 28);
 	ipu_reg_w(d, g_regbase + PYMID_DS_CTRL);
 
 	/* step 1.2. write ds factor reg */

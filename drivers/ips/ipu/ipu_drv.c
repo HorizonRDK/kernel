@@ -43,6 +43,7 @@ struct x2_ipu_data {
 	spinlock_t elock;
 	bool trigger_isr;
 	bool pymid_done;
+	bool thread_exit;
 	int8_t done_idx;
 	uint32_t isr_data;
 	uint32_t err_status;
@@ -293,8 +294,11 @@ void x2_ipu_isr(unsigned int status, void *data)
 
 static int8_t ipu_stop_thread(struct x2_ipu_data *ipu)
 {
-	if (!IS_ERR(ipu->ipu_task))
+	if (!IS_ERR(ipu->ipu_task)) {
 		kthread_stop(ipu->ipu_task);
+		ipu->thread_exit = true;
+		wake_up_interruptible(&ipu->event_head);
+	}
 	ipu->ipu_task = NULL;
 	return 0;
 }
@@ -342,12 +346,6 @@ static int8_t ipu_core_init(ipu_cfg_t * ipu_cfg)
 	s_head = ipu_get_free_slot();
 	if (s_head)
 		slot_to_busy_list(s_head);
-
-	g_ipu->ipu_task = kthread_run(ipu_thread, (void *)g_ipu, "ipu_daemon");
-	if (IS_ERR(g_ipu->ipu_task)) {
-		ipu_err("thread create fail\n");
-		return -1;
-	}
 
 	ips_register_irqhandle(IPU_INT, x2_ipu_isr, (void *)g_ipu);
 
@@ -507,6 +505,19 @@ long ipu_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 	case IPUC_DUMP_REG:
 		ipu_dump_regs();
 		break;
+	case IPUC_STOP:
+		ipu_stop_thread(g_ipu);
+	case IPUC_START:
+		if (g_ipu->ipu_task == NULL) {
+			g_ipu->ipu_task =
+			    kthread_run(ipu_thread, (void *)g_ipu,
+					"ipu_thread");
+			if (IS_ERR(g_ipu->ipu_task)) {
+				g_ipu->ipu_task = NULL;
+				ipu_err("thread create fail\n");
+				return -1;
+			}
+		}
 	default:
 		break;
 	}
@@ -534,8 +545,10 @@ unsigned int ipu_poll(struct file *file, struct poll_table_struct *wait)
 
 	poll_wait(file, &g_ipu->event_head, wait);
 	spin_lock_irq(&g_ipu->elock);
-	if (g_ipu->err_status) {
+	if (g_ipu->err_status || g_ipu->thread_exit) {
 		mask |= POLLERR;
+		if (g_ipu->thread_exit)
+			g_ipu->thread_exit = false;
 	}
 
 	if (g_ipu->pymid_done) {
@@ -661,6 +674,7 @@ static int x2_ipu_probe(struct platform_device *pdev)
 	ipu->isr_data = 0;
 	ipu->pymid_done = false;
 	ipu->err_status = 0;
+	ipu->thread_exit = false;
 	spin_lock_init(&ipu->slock);
 	init_waitqueue_head(&ipu->wq_head);
 	spin_lock_init(&ipu->elock);
@@ -771,7 +785,6 @@ static int x2_ipu_remove(struct platform_device *pdev)
 {
 	struct x2_ipu_data *ipu = platform_get_drvdata(pdev);
 
-	ipu_stop_thread(ipu);
 	release_mem_region(ipu->io_r->start, resource_size(ipu->io_r));
 	clr_ipu_regbase();
 	iounmap(ipu->regbase);
