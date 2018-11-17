@@ -109,7 +109,7 @@ static int8_t ipu_set_ddr(ipu_cfg_t * ipu, uint64_t ddrbase)
 	/* step3. calculate pymid ds space */
 	if (ipu->pymid.pymid_en == 1) {
 		for (i = 0; i < ipu->pymid.ds_layer_en; i++) {
-			if (ipu->pymid.ds_factor[i] == 0) {
+			if (i != 0 && ipu->pymid.ds_factor[i] == 0) {
 				/* if factor == 0, bypass layer */
 				ipu->ds_ddr[i].y_addr = 0;
 				ipu->ds_ddr[i].y_size = 0;
@@ -220,6 +220,8 @@ static int ipu_thread(void *data)
 		ipu->err_status = 0;
 		ipu->pymid_done = false;
 		ipu->done_idx = -1;
+		if (ipu->thread_exit)
+			break;
 		status = ipu->isr_data;
 		spin_lock_irq(&ipu->slock);
 
@@ -276,8 +278,7 @@ static int ipu_thread(void *data)
 		ipu->trigger_isr = false;
 		ipu->isr_data = 0;
 		spin_unlock_irq(&ipu->slock);
-	} while (!kthread_should_stop());
-
+	} while (!ipu->thread_exit);
 	return 0;
 }
 
@@ -286,17 +287,17 @@ void x2_ipu_isr(unsigned int status, void *data)
 	struct x2_ipu_data *ipu = (struct x2_ipu_data *)data;
 
 	ipu->isr_data = status;
-	spin_lock_irq(&ipu->slock);
+	spin_lock(&ipu->slock);
 	ipu->trigger_isr = true;
-	spin_unlock_irq(&ipu->slock);
+	spin_unlock(&ipu->slock);
 	wake_up_interruptible(&ipu->wq_head);
 }
 
 static int8_t ipu_stop_thread(struct x2_ipu_data *ipu)
 {
 	if (!IS_ERR(ipu->ipu_task)) {
-		kthread_stop(ipu->ipu_task);
 		ipu->thread_exit = true;
+		wake_up_interruptible(&ipu->wq_head);
 		wake_up_interruptible(&ipu->event_head);
 	}
 	ipu->ipu_task = NULL;
@@ -327,26 +328,39 @@ static int8_t ipu_core_init(ipu_cfg_t * ipu_cfg)
 	ipu_set(IPUC_SET_FRAME_ID, ipu_cfg, 0);
 	ipu_set(IPUC_SET_DDR, ipu_cfg, pbase);
 
-	s_info.crop.offset = ipu_cfg->crop_ddr.y_addr - pbase;
-	s_info.crop.size = ipu_cfg->crop_ddr.y_size + ipu_cfg->crop_ddr.c_size;
-	s_info.scale.offset = ipu_cfg->scale_ddr.y_addr - pbase;
-	s_info.scale.size =
-	    ipu_cfg->scale_ddr.y_size + ipu_cfg->scale_ddr.c_size;
-	for (i = 0; i < 24; i++) {
-		s_info.ds[i].offset = ipu_cfg->ds_ddr[i].y_addr - pbase;
-		s_info.ds[i].size =
-		    ipu_cfg->ds_ddr[i].y_size + ipu_cfg->ds_ddr[i].c_size;
+	if (g_ipu->ctrl.crop_ddr_en == 1) {
+		s_info.crop.offset = ipu_cfg->crop_ddr.y_addr - pbase;
+		s_info.crop.size =
+		    ipu_cfg->crop_ddr.y_size + ipu_cfg->crop_ddr.c_size;
 	}
-	for (i = 0; i < 6; i++) {
-		s_info.us[i].offset = ipu_cfg->us_ddr[i].y_addr - pbase;
-		s_info.us[i].size =
-		    ipu_cfg->us_ddr[i].y_size + ipu_cfg->us_ddr[i].c_size;
+	if (g_ipu->ctrl.scale_ddr_en == 1) {
+		s_info.scale.offset = ipu_cfg->scale_ddr.y_addr - pbase;
+		s_info.scale.size =
+		    ipu_cfg->scale_ddr.y_size + ipu_cfg->scale_ddr.c_size;
+	}
+	if (g_ipu->pymid.pymid_en == 1) {
+		for (i = 0; i < g_ipu->pymid.ds_layer_en; i++) {
+			s_info.ds[i].offset = ipu_cfg->ds_ddr[i].y_addr - pbase;
+			s_info.ds[i].size =
+			    ipu_cfg->ds_ddr[i].y_size +
+			    ipu_cfg->ds_ddr[i].c_size;
+		}
+		for (i = 0; i < 6; i++) {
+			if (g_ipu->pymid.us_layer_en & 1 << i) {
+				s_info.us[i].offset =
+				    ipu_cfg->us_ddr[i].y_addr - pbase;
+				s_info.us[i].size =
+				    ipu_cfg->us_ddr[i].y_size +
+				    ipu_cfg->us_ddr[i].c_size;
+			}
+		}
 	}
 	init_ipu_slot((uint64_t) g_ipu->vaddr, &s_info);
 	s_head = ipu_get_free_slot();
 	if (s_head)
 		slot_to_busy_list(s_head);
 
+	ips_irq_disable(IPU_INT);
 	ips_register_irqhandle(IPU_INT, x2_ipu_isr, (void *)g_ipu);
 
 	return 0;
@@ -506,9 +520,11 @@ long ipu_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 		ipu_dump_regs();
 		break;
 	case IPUC_STOP:
+		ips_irq_disable(IPU_INT);
 		ipu_stop_thread(g_ipu);
 	case IPUC_START:
 		if (g_ipu->ipu_task == NULL) {
+			g_ipu->thread_exit = false;
 			g_ipu->ipu_task =
 			    kthread_run(ipu_thread, (void *)g_ipu,
 					"ipu_thread");
@@ -517,6 +533,7 @@ long ipu_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 				ipu_err("thread create fail\n");
 				return -1;
 			}
+			ips_irq_enable(IPU_INT);
 		}
 	default:
 		break;
@@ -547,8 +564,8 @@ unsigned int ipu_poll(struct file *file, struct poll_table_struct *wait)
 	spin_lock_irq(&g_ipu->elock);
 	if (g_ipu->err_status || g_ipu->thread_exit) {
 		mask |= POLLERR;
-		if (g_ipu->thread_exit)
-			g_ipu->thread_exit = false;
+		ipu_err("POLLERR: err_status 0x%x, thread_exit 0x%x\n",
+			g_ipu->err_status, g_ipu->thread_exit);
 	}
 
 	if (g_ipu->pymid_done) {

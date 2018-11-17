@@ -48,9 +48,9 @@ typedef struct {
 
 typedef struct {
 	uint64_t y_addr;	/* align to 16 bytes */
-	uint16_t y_size;
+	uint32_t y_size;
 	uint64_t c_addr;	/* align to 16 bytes */
-	uint16_t c_size;
+	uint32_t c_size;
 } ddr_t;
 
 typedef struct {
