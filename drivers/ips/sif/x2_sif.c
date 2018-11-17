@@ -82,27 +82,24 @@ static int sif_stop(sif_t * dev)
 static void x2_sif_irq(unsigned int status, void *data)
 {
 	sif_t *sif = NULL;
-	unsigned long flags;
 	if (NULL == data) {
 		siferr("sif irq input data error!");
 		return;
 	}
 	sif = (sif_t *) data;
 	//TODO
+	spin_lock(&sif->sif_file.event_lock);
 	if (!sif->sif_file.receive_frame && (status & SIF_FRAME_END_INTERRUPT)) {
-		sifinfo("sif frame done irq");
-		spin_lock_irqsave(&sif->sif_file.event_lock, flags);
-		sif->sif_file.event = SIF_START;
+		sif->sif_file.event |= SIF_START;
 		sif->sif_file.receive_frame = true;
-		spin_unlock_irqrestore(&sif->sif_file.event_lock, flags);
-		wake_up_interruptible(&sif->sif_file.event_queue);
 	}
-	if (status & (SIF_SIZE_ERR0 | SIF_SIZE_ERR1)) {
-		spin_lock_irqsave(&sif->sif_file.event_lock, flags);
-		sif->sif_file.event = SIF_ERROR;
-		spin_unlock_irqrestore(&sif->sif_file.event_lock, flags);
+	if (status & (SIF_SIZE_ERR0 | SIF_SIZE_ERR1))
+		sif->sif_file.event |= SIF_ERROR;
+	if (status & MOT_DET)
+		sif->sif_file.event |= SIF_MOTDET;
+	spin_unlock(&sif->sif_file.event_lock);
+	if (sif->sif_file.event)
 		wake_up_interruptible(&sif->sif_file.event_queue);
-	}
 }
 
 static int sif_init(sif_t * dev, sif_cfg_t * cfg)

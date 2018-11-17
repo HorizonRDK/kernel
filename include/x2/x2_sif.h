@@ -9,11 +9,10 @@
 #define FRAME_ID_NUM_MAX  (4)
 
 typedef enum _sif_event_e {
-	SIF_REGISTER,
-	SIF_UNREGISTER,
-	SIF_ERROR,
-	SIF_START,
-	SIF_STOP,
+	SIF_START = 1,
+	SIF_STOP = 2,
+	SIF_ERROR = 4,
+	SIF_MOTDET = 8,
 } sif_event_t;
 
 typedef enum _sif_fmt_in_e {
