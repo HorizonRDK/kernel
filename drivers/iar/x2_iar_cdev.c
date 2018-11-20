@@ -25,32 +25,6 @@
 
 #include "x2_iar.h"
 
-#ifdef CONFIG_X2_FPGA
-#define IAR_REG_READ_1(addr) readl(addr)
-#define IAR_REG_WRITE_1(value, addr) writel(value, addr)
-#else
-extern int32_t bifdev_get_cpchip_reg(uint32_t addr, int32_t * value);
-extern int32_t bifdev_set_cpchip_reg(uint32_t addr, int32_t value);
-uint32_t iar_read_reg_1(uint32_t addr)
-{
-	int32_t value;
-	if (bifdev_get_cpchip_reg(addr, &value) < 0) {
-		printk(KERN_ERR "bifdev_get_cpchip_reg err %x\n", addr);
-		return 0;
-	} else
-		return value;
-}
-
-void iar_write_reg_1(uint32_t addr, int32_t value)
-{
-	if (bifdev_set_cpchip_reg(addr, value))
-		printk(KERN_ERR "bifdev_set_cpchip_reg err %x\n", addr);
-}
-
-#define IAR_REG_READ_1(addr) iar_read_reg_1(addr)
-#define IAR_REG_WRITE_1(value, addr) iar_write_reg_1(addr, value)
-#endif
-
 #define IAR_CDEV_MAGIC 'R'
 #define IAR_GETVALUE        _IOR(IAR_CDEV_MAGIC,0x11, unsigned int)
 #define IAR_START           _IO(IAR_CDEV_MAGIC,0x12)
@@ -83,19 +57,51 @@ struct iar_cdev_s {
 };
 struct iar_cdev_s *g_iar_cdev;
 
-static void iar_edma_callback(void *data)
+//cache clean*inv tmp use, replace when has formal version
+extern void __dma_map_area(const void *, size_t, int);
+extern void __dma_unmap_area(const void *, size_t, int);
+void dma_cache_sync(const void *vir_addr, size_t size, int direction)
 {
-	complete(&g_iar_cdev->completion);
+	switch (direction) {
+	case DMA_FROM_DEVICE:	/* invalidate only */
+		__dma_unmap_area(vir_addr, size, direction);
+		break;
+	case DMA_TO_DEVICE:	/* writeback only */
+		__dma_map_area(vir_addr, size, direction);
+		break;
+	default:
+		BUG();
+	}
 }
+
+void invalid_cache(unsigned char *data, int len)
+{
+	dma_cache_sync(data, len, DMA_FROM_DEVICE);
+}
+
+EXPORT_SYMBOL(invalid_cache);
+
+void clean_cache(unsigned char *data, int len)
+{
+	dma_cache_sync(data, len, DMA_TO_DEVICE);
+}
+
+EXPORT_SYMBOL(clean_cache);
 
 int32_t iar_write_framebuf_poll(uint32_t channel, void __user * srcaddr,
 				uint32_t size)
 {
-	int curindex = 0;
 	frame_buf_t *bufaddr;
 #ifdef CONFIG_X2_FPGA
 	bufaddr = iar_get_framebuf_addr(channel);
-	copy_from_user(bufaddr->vaddr, srcaddr, size);
+	if (copy_from_user(bufaddr->vaddr, srcaddr, size))
+		return -EFAULT;
+
+	clean_cache(bufaddr->vaddr, size);
+	IAR_DEBUG_PRINT
+	    ("iar_write_framebuf_poll :%d vaddr:0x%p paddr:0x%llx,size:%d\n",
+	     channel, bufaddr->vaddr, bufaddr->paddr, size);
+
 #else
 	extern int32_t bifdev_set_cpchip_ddr(uint32_t addr, uint16_t size,
 					     uint8_t * value);
@@ -115,7 +121,6 @@ int32_t iar_write_framebuf_poll(uint32_t channel, void __user * srcaddr,
 		src += 4096;
 		dst += 4096;
 		cursize -= 4096;
-
 	}
 #endif
 
@@ -123,15 +128,17 @@ int32_t iar_write_framebuf_poll(uint32_t channel, void __user * srcaddr,
 
 }
 
+static void iar_edma_callback(void *data)
+{
+	complete(&g_iar_cdev->completion);
+}
+
 int32_t iar_write_framebuf_dma(uint32_t channel, phys_addr_t srcaddr,
 			       uint32_t size)
 {
 	struct dma_chan *ch;
 	int ret = 0;
-	int curindex = 0;
 	struct dma_async_tx_descriptor *tx;
-	dma_addr_t *src, *dst;
-	void *src_virt, *dst_virt;
 	dma_cap_mask_t mask;
 	dma_cookie_t cookie;
 	frame_buf_t *bufaddr;
@@ -181,12 +188,13 @@ int32_t iar_write_framebuf_dma(uint32_t channel, phys_addr_t srcaddr,
 int32_t iar_display_update(update_cmd_t * update_cmd)
 {
 	int index = 0;
-	frame_buf_t *bufaddr;
 	int ret = 0;
 	for (index = 0; index < IAR_CHANNEL_MAX; index++) {
 		if (index == 1 || index == 3)
 			continue;	//TODO, now channnel 2 and 4 is disable
-
+		IAR_DEBUG_PRINT("update_cmd->enable_flag[index]:%d addr:0x%p\n",
+				update_cmd->enable_flag[index],
+				update_cmd->srcframe[index].vaddr);
 		if (update_cmd->enable_flag[index]) {
 #ifdef IAR_DMA_MODE
 			if (update_cmd->srcframe[index].paddr)
@@ -212,7 +220,6 @@ int32_t iar_display_update(update_cmd_t * update_cmd)
 
 static int iar_cdev_open(struct inode *inode, struct file *filp)
 {
-	dev_t device = inode->i_rdev;
 	struct iar_cdev_s *iarcdev_p;
 
 	iarcdev_p = container_of(inode->i_cdev, struct iar_cdev_s, cdev);
@@ -224,24 +231,28 @@ static int iar_cdev_open(struct inode *inode, struct file *filp)
 static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 {
 	int ret;
-	unsigned int result, region;
 	void __user *arg = (void __user *)p;
 	mutex_lock(&g_iar_cdev->iar_mutex);
 	switch (cmd) {
 	case IAR_START:
 		{
+			IAR_DEBUG_PRINT("IAR_START \n");
 			ret = iar_start(1);
 		}
 		break;
 	case IAR_STOP:
 		{
+			IAR_DEBUG_PRINT("IAR_STOP \n");
 			ret = iar_stop();
 		}
 		break;
 	case IAR_DISPLAY_UPDATE:
 		{
 			update_cmd_t update_cmd;
-			copy_from_user(&update_cmd, arg, sizeof(update_cmd_t));
+			IAR_DEBUG_PRINT("IAR_DISPLAY_UPDATE \n");
+			if (copy_from_user
+			    (&update_cmd, arg, sizeof(update_cmd_t)))
+				return -EFAULT;
 			ret = iar_display_update(&update_cmd);
 			if (!ret)
 				iar_update();
@@ -250,30 +261,40 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 	case IAR_CHANNEL_CFG:
 		{
 			channel_base_cfg_t channel_cfg;
-			copy_from_user(&channel_cfg, arg,
-				       sizeof(channel_base_cfg_t));
+			IAR_DEBUG_PRINT("IAR_CHANNEL_CFG \n");
+			if (copy_from_user
+			    (&channel_cfg, arg, sizeof(channel_base_cfg_t)))
+				return -EFAULT;
 			ret = iar_channel_base_cfg(&channel_cfg);
 		}
 		break;
 	case IAR_GAMMA_CFG:
 		{
 			gamma_cfg_t gamma_cfg;
-			copy_from_user(&gamma_cfg, arg, sizeof(gamma_cfg_t));
+			IAR_DEBUG_PRINT("IAR_GAMMA_CFG \n");
+			if (copy_from_user
+			    (&gamma_cfg, arg, sizeof(gamma_cfg_t)))
+				return -EFAULT;
 			ret = iar_gamma_cfg(&gamma_cfg);
 		}
 		break;
 	case IAR_SCALE_CFG:
 		{
 			upscaling_cfg_t upscaling_cfg;
-			copy_from_user(&upscaling_cfg, arg,
-				       sizeof(upscaling_cfg_t));
+			IAR_DEBUG_PRINT("IAR_SCALE_CFG \n");
+			if (copy_from_user
+			    (&upscaling_cfg, arg, sizeof(upscaling_cfg_t)))
+				return -EFAULT;
 			ret = iar_upscaling_cfg(&upscaling_cfg);
 		}
 		break;
 	case IAR_OUTPUT_CFG:
 		{
 			output_cfg_t output_cfg;
-			copy_from_user(&output_cfg, arg, sizeof(output_cfg_t));
+			IAR_DEBUG_PRINT("IAR_OUTPUT_CFG \n");
+			if (copy_from_user
+			    (&output_cfg, arg, sizeof(output_cfg_t)))
+				return -EFAULT;
 			ret = iar_output_cfg(&output_cfg);
 		}
 		break;
@@ -295,7 +316,7 @@ static ssize_t iar_cdev_read(struct file *filp, char __user * ubuf,
 			     size_t len, loff_t * offp)
 {
 	unsigned int size;
-
+	size = 0;
 	return size;
 }
 
@@ -319,12 +340,8 @@ static ssize_t x2_iar_show(struct kobject *kobj, struct kobj_attribute *attr,
 			   char *buf)
 {
 	char *s = buf;
-	int i = 0;
-	phys_addr_t regaddr = 0xA4001000;
-	for (; regaddr <= 0xA4001404; regaddr += 0x4) {
-		int regval = IAR_REG_READ_1(regaddr);
-		printk("iar reg:[0x%x]: 0x%x \n", regaddr, regval);
-	}
+
+	x2_iar_dump();
 
 	return (s - buf);
 }
@@ -332,10 +349,6 @@ static ssize_t x2_iar_show(struct kobject *kobj, struct kobj_attribute *attr,
 static ssize_t x2_iar_store(struct kobject *kobj, struct kobj_attribute *attr,
 			    const char *buf, size_t n)
 {
-	int level;
-	char *p, *tmpv;
-	int len;
-	uint regvalue;
 	int error = -EINVAL;
 	return error ? error : n;
 }
@@ -361,7 +374,6 @@ static struct attribute_group attr_group = {
 int __init iar_cdev_init(void)
 {
 	int error;
-	int ret;
 
 	g_iar_cdev = kmalloc(sizeof(struct iar_cdev_s), GFP_KERNEL);
 	if (!g_iar_cdev) {
@@ -393,17 +405,13 @@ int __init iar_cdev_init(void)
 		return error;
 	}
 
-	ret =
-	    device_create(g_iar_cdev->iar_classes, NULL, g_iar_cdev->dev_num,
-			  NULL, g_iar_cdev->name);
+	device_create(g_iar_cdev->iar_classes, NULL, g_iar_cdev->dev_num, NULL,
+		      g_iar_cdev->name);
 
 	x2_iar_kobj = kobject_create_and_add("x2_iar", NULL);
 	if (!x2_iar_kobj)
 		return -ENOMEM;
 	return sysfs_create_group(x2_iar_kobj, &attr_group);
-
-	if (ret)
-		return ret;
 
 	return 0;
 }

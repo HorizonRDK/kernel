@@ -20,6 +20,8 @@
 #include <linux/kernel.h>
 #include <asm/uaccess.h>
 #include <linux/types.h>
+#include <linux/reset.h>
+#include "x2_iar.h"
 
 #ifdef CONFIG_X2_FPGA
 #define IAR_REG_READ(addr) readl(addr)
@@ -41,7 +43,7 @@ uint32_t iar_read_reg(uint32_t addr)
 
 void iar_write_reg(uint32_t addr, int32_t value)
 {
-	printk("write addr:0x%x  value:0x%x \n", addr, value);
+	IAR_DEBUG_PRINT("write addr:0x%x  value:0x%x \n", addr, value);
 	if (bifdev_set_cpchip_reg(addr, value) < 0)
 		printk(KERN_ERR "bifdev_set_cpchip_reg err %x\n", addr);
 }
@@ -49,8 +51,6 @@ void iar_write_reg(uint32_t addr, int32_t value)
 #define IAR_REG_READ(addr) iar_read_reg(addr)
 #define IAR_REG_WRITE(value, addr) iar_write_reg(addr, value)
 #endif
-
-#include "x2_iar.h"
 
 #define IAR_ENABLE 1
 #define IAR_DISABLE 0
@@ -306,8 +306,8 @@ struct iar_dev_s {
 	struct platform_device *pdev;
 #ifdef CONFIG_X2_FPGA
 	void __iomem *regaddr;
-	void __iomem *gpioregs;
 	void __iomem *sysctrl;
+	struct reset_control *rst;
 #else
 	phys_addr_t regaddr;
 	phys_addr_t gpioregs;
@@ -322,6 +322,15 @@ struct iar_dev_s {
 	int cur_framebuf_id[IAR_CHANNEL_MAX];
 };
 struct iar_dev_s *g_iar_dev;
+
+void x2_iar_dump(void)
+{
+	void __iomem *regaddr = g_iar_dev->regaddr;
+	for (; (regaddr - g_iar_dev->regaddr) <= 0x404; regaddr += 0x4) {
+		int regval = IAR_REG_READ(regaddr);
+		printk("iar reg:[0x%p]: 0x%x \n", regaddr, regval);
+	}
+}
 
 buf_addr_t iar_addr_convert(phys_addr_t paddr)
 {
@@ -722,7 +731,6 @@ EXPORT_SYMBOL_GPL(iar_upscaling_cfg);
 
 int32_t iar_gamma_cfg(gamma_cfg_t * cfg)
 {
-	uint32_t value;
 	if (NULL == g_iar_dev) {
 		printk(KERN_ERR "IAR dev not inited!");
 		return -1;
@@ -914,6 +922,7 @@ int32_t iar_set_bufaddr(uint32_t channel, buf_addr_t * addr)
 		printk(KERN_ERR "IAR dev not inited!");
 		return -1;
 	}
+	IAR_DEBUG_PRINT("channel:%d addr:0x%x", channel, addr->Yaddr);
 	switch (channel) {
 	case IAR_CHANNEL_1:
 		{
@@ -981,16 +990,14 @@ EXPORT_SYMBOL_GPL(iar_switch_buf);
 
 int32_t iar_open(void)
 {
-	uint32_t value;
 	if (NULL == g_iar_dev) {
 		printk(KERN_ERR "IAR dev not inited!");
 		return -1;
 	}
-
-	value = IAR_REG_READ(g_iar_dev->sysctrl + 0x144);
-	value |= (0x1 << 2);
-	IAR_REG_WRITE(value, g_iar_dev->sysctrl + 0x144);
-	iar_pre_init();
+	//value = IAR_REG_READ(g_iar_dev->sysctrl + 0x144);
+	//value |= (0x1<<2);
+	//IAR_REG_WRITE(value, g_iar_dev->sysctrl + 0x144);
+	//iar_pre_init();
 	return 0;
 }
 
@@ -998,15 +1005,14 @@ EXPORT_SYMBOL_GPL(iar_open);
 
 int32_t iar_close(void)
 {
-	uint32_t value;
 	if (NULL == g_iar_dev) {
 		printk(KERN_ERR "IAR dev not inited!");
 		return -1;
 	}
-
-	value = IAR_REG_READ(g_iar_dev->sysctrl + 0x148);
-	value |= (0x1 << 2);
-	IAR_REG_WRITE(value, g_iar_dev->sysctrl + 0x148);
+	iar_stop();
+	//value = IAR_REG_READ(g_iar_dev->sysctrl + 0x148);
+	//value |= (0x1<<2);
+	//IAR_REG_WRITE(value, g_iar_dev->sysctrl + 0x148);
 
 	return 0;
 }
@@ -1066,41 +1072,37 @@ EXPORT_SYMBOL_GPL(iar_update);
 
 int32_t iar_pre_init(void)
 {
+	buf_addr_t *bufaddr_channe1, *bufaddr_channe3;
+
 	if (NULL == g_iar_dev) {
 		printk(KERN_ERR "IAR dev not inited!");
 		return -1;
 	}
-	int value;
 
 	iar_idma_init();
-	buf_addr_t *bufaddr_channe1 =
-	    &g_iar_dev->pingpong_buf[IAR_CHANNEL_1].pixel_addr[0];
+	bufaddr_channe1 = &g_iar_dev->pingpong_buf[IAR_CHANNEL_1].pixel_addr[0];
 	bufaddr_channe1->Yaddr =
 	    g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr;
 	iar_set_bufaddr(IAR_CHANNEL_1, bufaddr_channe1);
 
-	buf_addr_t *bufaddr_channe3 =
-	    &g_iar_dev->pingpong_buf[IAR_CHANNEL_3].pixel_addr[0];
+	bufaddr_channe3 = &g_iar_dev->pingpong_buf[IAR_CHANNEL_3].pixel_addr[0];
 	bufaddr_channe3->addr =
 	    g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].paddr;
 	iar_set_bufaddr(IAR_CHANNEL_3, bufaddr_channe3);
 
-	value = IAR_REG_READ(g_iar_dev->gpioregs + 0x50);	// bt out pinmux config
-	value &= 0x3fffffff;
-	IAR_REG_WRITE(value, g_iar_dev->gpioregs + 0x50);
-	value = IAR_REG_READ(g_iar_dev->gpioregs + 0x60);
-	value = 0x0;
-	IAR_REG_WRITE(value, g_iar_dev->gpioregs + 0x60);
+	IAR_REG_WRITE(0x7ffffff, g_iar_dev->regaddr + REG_IAR_DE_UNMASK);
 
 	return 0;
 }
 
 static irqreturn_t x2_iar_irq(int this_irq, void *data)
 {
-	struct iar_dev_s *iar = data;
-	unsigned long flags;
+	//struct iar_dev_s *iar = data;
+	int regval = 0;
 	disable_irq_nosync(this_irq);
 	//TODO
+	regval = IAR_REG_READ(g_iar_dev->regaddr + REG_IAR_DE_SRCPNDREG);
+	IAR_DEBUG_PRINT("IAR int:0x%x", regval);
 	enable_irq(this_irq);
 	return IRQ_HANDLED;
 }
@@ -1108,9 +1110,11 @@ static irqreturn_t x2_iar_irq(int this_irq, void *data)
 static int x2_iar_probe(struct platform_device *pdev)
 {
 	struct resource *res, *irq;
-	int ret, value;
+	int ret;
 	struct device_node *np;
 	struct resource r;
+	//dma_addr_t iar_dma_addr;
+	//void* iar_vaddr;
 	g_iar_dev =
 	    devm_kzalloc(&pdev->dev, sizeof(struct iar_dev_s), GFP_KERNEL);
 	if (!g_iar_dev) {
@@ -1128,11 +1132,14 @@ static int x2_iar_probe(struct platform_device *pdev)
 	if (IS_ERR(g_iar_dev->regaddr))
 		return PTR_ERR(g_iar_dev->regaddr);
 
-	res = platform_get_resource(pdev, IORESOURCE_MEM, 1);
-	g_iar_dev->gpioregs = devm_ioremap_resource(&pdev->dev, res);
-
-	res = platform_get_resource(pdev, IORESOURCE_MEM, 2);
-	g_iar_dev->sysctrl = devm_ioremap_resource(&pdev->dev, res);
+	g_iar_dev->rst = devm_reset_control_get(&pdev->dev, "iar");
+	if (IS_ERR(g_iar_dev->rst)) {
+		dev_err(&pdev->dev, "missing controller reset\n");
+		return PTR_ERR(g_iar_dev->rst);
+	}
+	reset_control_assert(g_iar_dev->rst);
+	udelay(2);
+	reset_control_deassert(g_iar_dev->rst);
 
 	irq = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
 	if (!irq) {
@@ -1145,36 +1152,71 @@ static int x2_iar_probe(struct platform_device *pdev)
 	    request_threaded_irq(g_iar_dev->irq, x2_iar_irq, NULL,
 				 IRQF_TRIGGER_HIGH, dev_name(&pdev->dev),
 				 g_iar_dev);
+	disable_irq(g_iar_dev->irq);
 
+#if 1
 	np = of_parse_phandle(pdev->dev.of_node, "memory-region", 0);
 	if (!np) {
 		dev_err(&g_iar_dev->pdev->dev, "No %s specified\n",
 			"memory-region");
 		return -1;
 	}
-
 	ret = of_address_to_resource(np, 0, &r);
 	if (ret) {
 		dev_err(&pdev->dev,
 			"No memory address assigned to the region\n");
 		return -1;
 	}
-	g_iar_dev->pingpong_buf[0].framebuf[0].paddr = r.start;
-	g_iar_dev->pingpong_buf[0].framebuf[0].vaddr =
+#else
+	iar_vaddr =
+	    dmam_alloc_coherent(&g_iar_dev->pdev->dev, 0x1fa4000, &iar_dma_addr,
+				GFP_KERNEL);
+	if (!iar_vaddr) {
+		dev_err(&pdev->dev, "No memory alloc from dma\n");
+		return -1;
+	}
+#endif
+	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr = r.start;
+	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr =
 	    memremap(r.start, resource_size(&r), MEMREMAP_WB);
-	g_iar_dev->pingpong_buf[0].framebuf[1].paddr =
-	    g_iar_dev->pingpong_buf[0].framebuf[0].paddr + MAX_FRAME_BUF_SIZE;
-	g_iar_dev->pingpong_buf[0].framebuf[1].vaddr =
-	    g_iar_dev->pingpong_buf[0].framebuf[0].vaddr + MAX_FRAME_BUF_SIZE;
 
-	g_iar_dev->pingpong_buf[2].framebuf[0].paddr =
-	    g_iar_dev->pingpong_buf[0].framebuf[1].paddr + MAX_FRAME_BUF_SIZE;
-	g_iar_dev->pingpong_buf[2].framebuf[0].vaddr =
-	    g_iar_dev->pingpong_buf[0].framebuf[1].vaddr + MAX_FRAME_BUF_SIZE;
-	g_iar_dev->pingpong_buf[2].framebuf[1].paddr =
-	    g_iar_dev->pingpong_buf[2].framebuf[0].paddr + MAX_FRAME_BUF_SIZE;
-	g_iar_dev->pingpong_buf[2].framebuf[1].vaddr =
-	    g_iar_dev->pingpong_buf[2].framebuf[0].vaddr + MAX_FRAME_BUF_SIZE;
+	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].paddr
+	    =
+	    g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr +
+	    MAX_FRAME_BUF_SIZE;
+
+	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].vaddr
+	    =
+	    g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr +
+	    MAX_FRAME_BUF_SIZE;
+
+	//channel 2&4 disabled
+
+	g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].paddr
+	    =
+	    g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].paddr +
+	    MAX_FRAME_BUF_SIZE;
+
+	g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].vaddr
+	    =
+	    g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].vaddr +
+	    MAX_FRAME_BUF_SIZE;
+
+	g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[1].paddr
+	    =
+	    g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].paddr +
+	    MAX_FRAME_BUF_SIZE;
+
+	g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[1].vaddr
+	    =
+	    g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].vaddr +
+	    MAX_FRAME_BUF_SIZE;
+
+	IAR_DEBUG_PRINT("iar 0x%llx  0x%llx\n",
+			g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].
+			paddr,
+			g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[1].
+			paddr);
 #else
 	g_iar_dev->regaddr = 0xA4001000;
 	g_iar_dev->sysctrl = 0xA1000000;
@@ -1189,7 +1231,7 @@ static int x2_iar_probe(struct platform_device *pdev)
 	g_iar_dev->pingpong_buf[2].framebuf[1].paddr =
 	    g_iar_dev->pingpong_buf[2].framebuf[0].paddr + MAX_FRAME_BUF_SIZE;
 #endif
-	//iar_pre_init();
+	iar_pre_init();
 	iar_close();
 	return ret;
 }
@@ -1243,7 +1285,6 @@ static int __init x2_iar_init(void)
 
 static void __exit x2_iar_exit(void)
 {
-
 	return 0;
 }
 
