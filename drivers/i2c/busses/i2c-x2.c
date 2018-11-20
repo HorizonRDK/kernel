@@ -3,7 +3,7 @@
  *             Copyright 2018 Horizon Robotics, Inc.
  *                     All rights reserved.
  ***************************************************************************/
-
+#include <linux/delay.h>
 #include <linux/clk.h>
 #include <linux/completion.h>
 #include <linux/err.h>
@@ -16,12 +16,10 @@
 #include <linux/debugfs.h>
 #include <linux/seq_file.h>
 #include <linux/string.h>
-
+#include <linux/reset.h>
 #include "i2c-x2.h"
 //#define X2_I2C_CDIV_MIN   0x0
 //#define X2_I2C_CDIV_MAX   0xFF
-
-extern void __iomem *pinctl_regbase;
 
 unsigned int i2c_debug_ctl = 0;
 module_param(i2c_debug_ctl, uint, S_IRUGO | S_IWUSR);
@@ -40,8 +38,8 @@ enum {
 };
 struct x2_i2c_dev_s {
 	struct device *dev;
-	void __iomem *gpioregs;
 	volatile struct x2_i2c_regs_s *i2c_regs;
+	struct reset_control *rst;
 	struct clk *clk;
 	int irq;
 	struct i2c_adapter adapter;
@@ -152,6 +150,7 @@ static void x2_drain_rxfifo(struct x2_i2c_dev_s *i2c_dev)
 	}
 }
 
+#if 0
 static void x2_fill_txfifo_byte(struct x2_i2c_dev_s *i2c_dev)
 {
 	//u32 val;
@@ -171,18 +170,20 @@ static void x2_drain_rxfifo_byte(struct x2_i2c_dev_s *i2c_dev)
 	i2c_dev->msg_buf++;
 	i2c_dev->msg_buf_remaining--;
 }
+#endif
 
 static irqreturn_t x2_i2c_isr(int this_irq, void *data)
 {
 	struct x2_i2c_dev_s *i2c_dev = data;
 	u32 err;
-	disable_irq_nosync(this_irq);
-	I2C_DEBUG_PRINT("x2_i2c_isr\n");	//test
 	union sprcpnd_reg_e int_status;
-	union status_reg_e i2c_status;
+	//union status_reg_e i2c_status;
+	disable_irq_nosync(this_irq);
+
+	I2C_DEBUG_PRINT("x2_i2c_isr\n");	//test
 	x2_mask_int(i2c_dev);
 	int_status.all = i2c_dev->i2c_regs->srcpnd.all;
-	i2c_status.all = i2c_dev->i2c_regs->status.all;
+	//i2c_status.all = i2c_dev->i2c_regs->status.all;
 	x2_clear_int(i2c_dev);
 
 	err =
@@ -366,9 +367,8 @@ static int x2_i2c_probe(struct platform_device *pdev)
 {
 	struct x2_i2c_dev_s *i2c_dev;
 	struct resource *mem, *irq;
-	u32 bus_clk_rate, divider;
+	//u32 bus_clk_rate, divider;
 	int ret;
-	uint tmpvalue;
 	//union CFG_REG cfg_reg_e;
 	struct i2c_adapter *adap;
 	printk("x2_i2c_probe start\n");
@@ -383,12 +383,16 @@ static int x2_i2c_probe(struct platform_device *pdev)
 	mem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	i2c_dev->i2c_regs = devm_ioremap_resource(&pdev->dev, mem);
 	mem = platform_get_resource(pdev, IORESOURCE_MEM, 1);
-	//i2c_dev->gpioregs = devm_ioremap_resource(&pdev->dev, mem);
-	i2c_dev->gpioregs = pinctl_regbase;
 
-	tmpvalue = readl(i2c_dev->gpioregs);
-	tmpvalue &= ~(0xf << 18);
-	writel(tmpvalue, i2c_dev->gpioregs);
+	i2c_dev->rst = devm_reset_control_get(&pdev->dev, "i2c");
+	if (IS_ERR(i2c_dev->rst)) {
+		dev_err(&pdev->dev, "missing controller reset\n");
+		return PTR_ERR(i2c_dev->rst);
+	}
+	reset_control_assert(i2c_dev->rst);
+	udelay(2);
+	reset_control_deassert(i2c_dev->rst);
+
 	g_i2c_regs = i2c_dev->i2c_regs;
 	if (IS_ERR((const void *)i2c_dev->i2c_regs))
 		return PTR_ERR((const void *)i2c_dev->i2c_regs);
@@ -543,7 +547,7 @@ static ssize_t x2_i2c_store(struct kobject *kobj, struct kobj_attribute *attr,
 	uint regvalue;
 	int error = -EINVAL;
 	//struct x2_i2c_regs_s * i2c_regs = 0xA5009000;
-//p = memchr(buf, '\n', n);
+	//p = memchr(buf, '\n', n);
 	p = memchr(buf, ' ', n);
 
 	len = p ? p - buf : n;
