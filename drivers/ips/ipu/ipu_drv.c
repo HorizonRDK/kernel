@@ -328,25 +328,25 @@ static int8_t ipu_core_init(ipu_cfg_t * ipu_cfg)
 	ipu_set(IPUC_SET_FRAME_ID, ipu_cfg, 0);
 	ipu_set(IPUC_SET_DDR, ipu_cfg, pbase);
 
-	if (g_ipu->ctrl.crop_ddr_en == 1) {
+	if (ipu_cfg->ctrl.crop_ddr_en == 1) {
 		s_info.crop.offset = ipu_cfg->crop_ddr.y_addr - pbase;
 		s_info.crop.size =
 		    ipu_cfg->crop_ddr.y_size + ipu_cfg->crop_ddr.c_size;
 	}
-	if (g_ipu->ctrl.scale_ddr_en == 1) {
+	if (ipu_cfg->ctrl.scale_ddr_en == 1) {
 		s_info.scale.offset = ipu_cfg->scale_ddr.y_addr - pbase;
 		s_info.scale.size =
 		    ipu_cfg->scale_ddr.y_size + ipu_cfg->scale_ddr.c_size;
 	}
-	if (g_ipu->pymid.pymid_en == 1) {
-		for (i = 0; i < g_ipu->pymid.ds_layer_en; i++) {
+	if (ipu_cfg->pymid.pymid_en == 1) {
+		for (i = 0; i < ipu_cfg->pymid.ds_layer_en; i++) {
 			s_info.ds[i].offset = ipu_cfg->ds_ddr[i].y_addr - pbase;
 			s_info.ds[i].size =
 			    ipu_cfg->ds_ddr[i].y_size +
 			    ipu_cfg->ds_ddr[i].c_size;
 		}
 		for (i = 0; i < 6; i++) {
-			if (g_ipu->pymid.us_layer_en & 1 << i) {
+			if (ipu_cfg->pymid.us_layer_en & 1 << i) {
 				s_info.us[i].offset =
 				    ipu_cfg->us_ddr[i].y_addr - pbase;
 				s_info.us[i].size =
