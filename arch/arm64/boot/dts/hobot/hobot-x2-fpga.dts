@@ -25,13 +25,13 @@
 		serial1 = &uart1;
 		serial2 = &uart2;
 		serial3 = &uart3;
-		i2c0    = &i2c0;
-		i2c1    = &i2c1;
-		i2c2    = &i2c2;
-		i2c3    = &i2c3;
-		pwm0    = &pwm_0;
-		pwm1    = &pwm_1;
-		pwm2    = &pwm_2;
+		i2c0	= &i2c0;
+		i2c1	= &i2c1;
+		i2c2	= &i2c2;
+		i2c3	= &i2c3;
+		pwm0	= &pwm_0;
+		pwm1	= &pwm_1;
+		pwm2	= &pwm_2;
 	};
 
 	chosen {
@@ -48,6 +48,11 @@
 		#address-cells = <2>;
 		#size-cells = <2>;
 		ranges;
+
+		iar_reserved: iar_reserved@0x3E05C000 {
+				reg = <0x0 0x3E05C000 0x0 0x1fa4000>;
+				no-map;
+		};
 
 		/* Reserved 512MB memory for cnn subsystem */
 		cnn_reserved: cnn_reserved@0x40000000 {
@@ -97,9 +102,11 @@
 &i2c0 {
 	status = "okay";
 };
-&gpio {
+
+&pinctrl {
 	status = "okay";
 };
+
 &uart0 {
 	status = "okay";
 };
@@ -160,5 +167,9 @@
 };
 
 &cnn1 {
+	status = "okay";
+};
+
+&iar {
 	status = "okay";
 };
