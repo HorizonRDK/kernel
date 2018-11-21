@@ -307,7 +307,9 @@ enum x2_pinmux_functions {
 	x2_pmux_i2s0,
 	x2_pmux_i2s1,
 	x2_pmux_btin,
+	x2_pmux_dvpin,
 	x2_pmux_btout,
+	x2_pmux_dvpout,
 	x2_pmux_max_func,
 };
 
@@ -325,25 +327,39 @@ static const unsigned int btin_0_pins[] =
 static const unsigned int btin_0_muxs[] =
     { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
+static const unsigned int dvpin_0_pins[] =
+    { 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75 };
+static const unsigned int dvpin_0_muxs[] =
+    { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+
 static const unsigned int btout_0_pins[] =
     { 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108,
 109 };
 static const unsigned int btout_0_muxs[] =
     { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
+static const unsigned int dvpout_0_pins[] =
+    { 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107 };
+static const unsigned int dvpout_0_muxs[] =
+    { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+
 /* function groups */
 static const char *const i2c0_groups[] = { "i2c0_0_grp" };
 static const char *const i2s0_groups[] = { "i2s0_0_grp" };
 static const char *const i2s1_groups[] = { "i2s1_0_grp" };
 static const char *const btin_groups[] = { "btin_0_grp" };
+static const char *const dvpin_groups[] = { "dvpin_0_grp" };
 static const char *const btout_groups[] = { "btout_0_grp" };
+static const char *const dvpout_groups[] = { "dvpout_0_grp" };
 
 static const struct x2_pctrl_group x2_pctrl_groups[] = {
 	DEFINE_X2_PINCTRL_GRP(i2c0_0),
 	DEFINE_X2_PINCTRL_GRP(i2s0_0),
 	DEFINE_X2_PINCTRL_GRP(i2s1_0),
 	DEFINE_X2_PINCTRL_GRP(btin_0),
-	DEFINE_X2_PINCTRL_GRP(btout_0)
+	DEFINE_X2_PINCTRL_GRP(dvpin_0),
+	DEFINE_X2_PINCTRL_GRP(btout_0),
+	DEFINE_X2_PINCTRL_GRP(dvpout_0),
 };
 
 static const struct x2_pinmux_function x2_pmux_functions[] = {
@@ -351,7 +367,9 @@ static const struct x2_pinmux_function x2_pmux_functions[] = {
 	DEFINE_X2_PINMUX_FUNCTION(i2s0),
 	DEFINE_X2_PINMUX_FUNCTION(i2s1),
 	DEFINE_X2_PINMUX_FUNCTION(btin),
+	DEFINE_X2_PINMUX_FUNCTION(dvpin),
 	DEFINE_X2_PINMUX_FUNCTION(btout),
+	DEFINE_X2_PINMUX_FUNCTION(dvpout),
 };
 
 static int x2_pctrl_get_groups_count(struct pinctrl_dev *pctldev)
@@ -390,7 +408,6 @@ static int reserve_map(struct device *dev, struct pinctrl_map **map,
 	struct pinctrl_map *new_map;
 	if (old_num >= new_num)
 		return 0;
-
 	new_map = krealloc(*map, sizeof(*new_map) * new_num, GFP_KERNEL);
 	if (!new_map) {
 		dev_err(dev, "krealloc(map) failed\n");
@@ -527,11 +544,25 @@ static int x2_pmux_get_function_groups(struct pinctrl_dev *pctldev,
 	return 0;
 }
 
+static inline void x2_pinctrl_fsel_set(struct x2_pinctrl *pctrl,
+				       unsigned pin, unsigned int fsel)
+{
+	int index, value;
+	void __iomem *regaddr;
+	index = find_io_group_index(pin);
+	if (index < 0)
+		return;
+	regaddr = pctrl->regbase + io_groups[index].regoffset;
+	value = readl(regaddr + X2_IO_CFG);
+	value &= ~(0x3 << (pin - io_groups[index].start) * 2);
+	value |= (fsel << (pin - io_groups[index].start));
+	writel(value, regaddr + X2_IO_CFG);
+}
+
 static int x2_pinmux_set_mux(struct pinctrl_dev *pctldev,
 			     unsigned int function, unsigned int group)
 {
-	int i, index, value;
-	void __iomem *regaddr;
+	int i;
 	struct x2_pinctrl *pctrl = pinctrl_dev_get_drvdata(pctldev);
 	const struct x2_pctrl_group *pgrp = &pctrl->groups[group];
 	//const struct x2_pinmux_function *func = &pctrl->funcs[function];
@@ -539,14 +570,7 @@ static int x2_pinmux_set_mux(struct pinctrl_dev *pctldev,
 	for (i = 0; i < pgrp->npins; i++) {
 		unsigned int pin = pgrp->pins[i];
 		unsigned int mux_val = pgrp->mux_val[i];
-		index = find_io_group_index(pin);
-		if (index < 0)
-			return -1;
-		regaddr = pctrl->regbase + io_groups[index].regoffset;
-		value = readl(regaddr + X2_IO_CFG);
-		value &= ~(0x3 << (pin - io_groups[index].start) * 2);
-		value |= (mux_val << (pin - io_groups[index].start));
-		writel(value, regaddr + X2_IO_CFG);
+		x2_pinctrl_fsel_set(pctrl, pin, mux_val);
 	}
 	return 0;
 }
@@ -745,9 +769,11 @@ static int x2_gpio_to_irq(struct gpio_chip *chip, unsigned offset)
 static int x2_gpio_request(struct gpio_chip *chip, unsigned int offset)
 {
 	int ret;
+	struct x2_pinctrl *pctrl = gpiochip_get_data(chip);
 	ret = pinctrl_request_gpio(chip->base + offset);
 	if (ret)
 		return ret;
+	x2_pinctrl_fsel_set(pctrl, chip->base + offset, 0);
 	return 0;
 }
 

@@ -112,6 +112,11 @@ static int sif_init(sif_t * dev, sif_cfg_t * cfg)
 		cfg->sif_init.pix_len,
 		cfg->sif_init.bus_type,
 		cfg->sif_init.width, cfg->sif_init.height);
+	if (BUS_TYPE_DVP == cfg->sif_init.bus_type) {
+		ips_pinmux_dvp();
+	} else if (BUS_TYPE_BT1120 == cfg->sif_init.bus_type) {
+		ips_pinmux_bt();
+	}
 #ifdef CONFIG_X2_SIF_DEV
 	if (0 != (ret = sif_dev_init(&dev->config.sif_init))) {
 		siferr("ERROR: sif dev init error: %d", ret);

@@ -117,18 +117,28 @@
 			compatible = "hobot,x2-pinctrl";
 			reg = <0 0xA6003000 0 0x100>;
 			status = "disabled";
-
-			pinctrl-names = "default";
-			pinctrl-0 = <&state_default>;
-
-			state_default: pinctrl {
-				i2c0 {
+			i2c0_func: i2c0_func {
+				i2c0_pins {
 					hobot,pin-function = "i2c0";
 					hobot,pin-group = "i2c0_0_grp";
 				};
-				btout {
+			};
+			iar_func: iar_func {
+				bt_pins {
 					hobot,pin-function = "btout";
 					hobot,pin-group = "btout_0_grp";
+				};
+			};
+			btin_func:btin_func {
+				btin_pins {
+					hobot,pin-function = "btin";
+					hobot,pin-group = "btin_0_grp";
+				};
+			};
+			dvpin_func: dvpin_func {
+				dvpin_pins {
+					hobot,pin-function = "dvpin";
+					hobot,pin-group = "dvpin_0_grp";
 				};
 			};
 		};
@@ -174,6 +184,8 @@
 			resets = <&rst 0x50 11>;
 			reset-names = "i2c";
 			status = "disabled";
+			pinctrl-names = "default";
+			pinctrl-0 = <&i2c0_func>;
 		};
 
 		i2c1: i2c@0xA500A000 {
@@ -217,6 +229,9 @@
 			status = "disabled";
 			resets = <&rst 0x40 2>;
 			reset-names = "ips";
+			pinctrl-names = "bt_mode", "dvp_mode";
+			pinctrl-0 = <&btin_func>;
+			pinctrl-1 = <&dvpin_func>;
 		};
 
 		ipu: ipu@0xA4000900 {
@@ -328,6 +343,8 @@
 			resets = <&rst 0x40 6>;
 			reset-names = "iar";
 			status = "disabled";
+			pinctrl-names = "default";
+			pinctrl-0 = <&iar_func>;
 		};
 
 		timer0: timer@0xA1002000 {

@@ -493,7 +493,7 @@ enum {
 	OUTPUT_RGB888 = 2,
 };
 
-#define IAR_DEBUG_PRINT(format, args...)	//printk("IAR debug: " format, ## args)
+#define IAR_DEBUG_PRINT(format, args...)    printk("IAR debug: " format, ## args)
 
 frame_buf_t *iar_get_framebuf_addr(uint32_t channel);
 int32_t iar_set_bufaddr(uint32_t channel, buf_addr_t * addr);

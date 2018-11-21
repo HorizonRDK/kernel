@@ -22,6 +22,7 @@
 #include <linux/kthread.h>
 #include <linux/uaccess.h>
 #include <linux/reset.h>
+#include <linux/pinctrl/consumer.h>
 
 #include "x2/x2_ips.h"
 
@@ -39,6 +40,9 @@ struct ips_dev_s {
 	ips_irqhandler_t irq_handle[3];
 	void *irq_data[3];
 	struct reset_control *rst;
+	struct pinctrl *pinctrl;
+	struct pinctrl_state *pins_bt;
+	struct pinctrl_state *pins_dvp;
 #ifndef CONFIG_X2_FPGA
 	struct task_struct *irq_polling;
 #endif
@@ -534,11 +538,32 @@ int ips_get_mipi_freqrange(unsigned int region)
 
 EXPORT_SYMBOL_GPL(ips_get_mipi_freqrange);
 
+int ips_pinmux_bt(void)
+{
+	if (g_ipsdev->pins_bt)
+		return pinctrl_select_state(g_ipsdev->pinctrl,
+					    g_ipsdev->pins_bt);
+	return 0;
+}
+
+EXPORT_SYMBOL_GPL(ips_pinmux_bt);
+
+int ips_pinmux_dvp(void)
+{
+	if (g_ipsdev->pins_dvp)
+		return pinctrl_select_state(g_ipsdev->pinctrl,
+					    g_ipsdev->pins_dvp);
+	return 0;
+}
+
+EXPORT_SYMBOL_GPL(ips_pinmux_dvp);
+
 static int x2_ips_probe(struct platform_device *pdev)
 {
 	struct resource *res, *irq;
 	int ret = 0;
 
+	printk(KERN_INFO "ips driver init enter\n");
 	g_ipsdev =
 	    devm_kzalloc(&pdev->dev, sizeof(struct ips_dev_s), GFP_KERNEL);
 	if (!g_ipsdev) {
@@ -563,8 +588,10 @@ static int x2_ips_probe(struct platform_device *pdev)
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	g_ipsdev->regaddr = devm_ioremap_resource(&pdev->dev, res);
-	if (IS_ERR(g_ipsdev->regaddr))
+	if (IS_ERR(g_ipsdev->regaddr)) {
+		dev_err(&pdev->dev, "ioremap regaddr error\n");
 		return PTR_ERR(g_ipsdev->regaddr);
+	}
 
 	irq = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
 	if (!irq) {
@@ -576,6 +603,24 @@ static int x2_ips_probe(struct platform_device *pdev)
 	    request_threaded_irq(g_ipsdev->irq, x2_ips_irq, NULL,
 				 IRQF_TRIGGER_HIGH, dev_name(&pdev->dev),
 				 g_ipsdev);
+
+	g_ipsdev->pinctrl = devm_pinctrl_get(&pdev->dev);
+	if (IS_ERR(g_ipsdev->pinctrl)) {
+		dev_err(&pdev->dev, "pinctrl get error\n");
+		return PTR_ERR(g_ipsdev->pinctrl);
+	}
+
+	g_ipsdev->pins_bt = pinctrl_lookup_state(g_ipsdev->pinctrl, "bt_mode");
+	if (IS_ERR(g_ipsdev->pins_bt)) {
+		dev_err(&pdev->dev, "bt pinctrl state error\n");
+		return PTR_ERR(g_ipsdev->pins_bt);
+	}
+	g_ipsdev->pins_dvp =
+	    pinctrl_lookup_state(g_ipsdev->pinctrl, "dvp_mode");
+	if (IS_ERR(g_ipsdev->pins_dvp)) {
+		dev_err(&pdev->dev, "dvp pinctrl state error\n");
+		return PTR_ERR(g_ipsdev->pins_dvp);
+	}
 #else
 	IPS_REG_WRITE(0xA1000440, 0xff);
 	udelay(2);
@@ -588,6 +633,7 @@ static int x2_ips_probe(struct platform_device *pdev)
 	g_ipsdev->irqnum = 3;
 	g_ipsdev->intstatus = 0;
 
+	printk(KERN_INFO "ips driver init end\n");
 	return ret;
 }
 
@@ -640,9 +686,14 @@ ssize_t ips_debug_write(struct file * file, const char __user * buf,
 
 	char info[255];
 	memset(info, 0, 255);
-	copy_from_user(info, buf, size);
+	if (copy_from_user(info, buf, size))
+		return size;
 	printk("ips:%s\n", info);
-	if (!memcmp(info, "regdump", 7)) {
+	if (!memcmp(info, "bt", 2)) {
+		ips_pinmux_bt();
+	} else if (!memcmp(info, "dvp", 3)) {
+		ips_pinmux_dvp();
+	} else if (!memcmp(info, "regdump", 7)) {
 		for (i = 0; i <= IPS_CTL; i += 0x4) {
 			printk("regaddr:0x%p, value:0x%x \n",
 			       (g_ipsdev->regaddr + i),
