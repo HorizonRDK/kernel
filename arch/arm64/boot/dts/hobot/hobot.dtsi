@@ -234,8 +234,8 @@
 			interrupt-parent = <&gic>;
 			interrupts = <0 50 4>;
 			status = "disabled";
-			resets = <&rst 0x40 2>;
-			reset-names = "ips";
+			resets = <&rst 0x40 0>, <&rst 0x40 1>, <&rst 0x40 2>, <&rst 0x40 3>, <&rst 0x40 4>, <&rst 0x40 5>;
+			reset-names = "mipi_ipi", "mipi_cfg", "sif", "ipu", "dvp", "bt";
 			pinctrl-names = "bt_in", "bt_out", "dvp_in", "dvp_out";
 			pinctrl-0 = <&btin_func>;
 			pinctrl-1 = <&btout_func>;

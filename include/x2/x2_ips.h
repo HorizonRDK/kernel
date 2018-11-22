@@ -169,6 +169,16 @@ enum
     IAR_CLK,
     BYPASS_CLK,
 };
+enum
+{
+    RST_MIPI_IPI,
+    RST_MIPI_CFG,
+    RST_SIF,
+    RST_IPU,
+    RST_DVP,
+    RST_BT,
+    RST_MAX,
+};
 typedef void (*ips_irqhandler_t)(unsigned int intstatus, void* data);
 int ips_irq_enable(int irq);
 int ips_irq_disable(int irq);
@@ -189,5 +199,6 @@ int ips_get_mipi_freqrange(unsigned int region);
 int ips_pinmux_bt(bool b_in, bool b_out);
 int ips_pinmux_dvp(bool b_in, bool b_out);
 int ips_set_btout_clksrc(unsigned int mode);
+void ips_module_reset(unsigned int module);
 
 #endif /* __X2_IPS_H */

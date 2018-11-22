@@ -40,7 +40,7 @@ struct ips_dev_s {
 	spinlock_t *lock;
 	ips_irqhandler_t irq_handle[3];
 	void *irq_data[3];
-	struct reset_control *rst;
+	struct reset_control *rst[RST_MAX];
 	struct pinctrl *pinctrl;
 	struct pinctrl_state *pins_bt[2];
 	struct pinctrl_state *pins_dvp[2];
@@ -50,7 +50,10 @@ struct ips_dev_s {
 };
 struct ips_dev_s *g_ipsdev;
 
-unsigned int ips_debug_ctl = 0;
+char *reset_name[RST_MAX] =
+    { "mipi_ipi", "mipi_cfg", "sif", "ipu", "dvp", "bt" };
+
+unsigned int ips_debug_ctl = 1;
 module_param(ips_debug_ctl, uint, S_IRUGO | S_IWUSR);
 #define IPS_DEBUG_PRINT(format, args...)    \
     do {                                    \
@@ -592,10 +595,25 @@ int ips_set_btout_clksrc(unsigned int mode)
 
 EXPORT_SYMBOL_GPL(ips_set_btout_clksrc);
 
+void ips_module_reset(unsigned int module)
+{
+	int i;
+	for (i = 0; i < RST_MAX; i++) {
+		if (BIT(i) & module) {
+			reset_control_assert(g_ipsdev->rst[i]);
+			udelay(2);
+			reset_control_deassert(g_ipsdev->rst[i]);
+			IPS_DEBUG_PRINT("reset %d end \n", i);
+		}
+	}
+}
+
+EXPORT_SYMBOL_GPL(ips_module_reset);
+
 static int x2_ips_probe(struct platform_device *pdev)
 {
 	struct resource *res, *irq;
-	int ret = 0;
+	int i, ret = 0;
 
 	printk(KERN_INFO "ips driver init enter\n");
 	g_ipsdev =
@@ -611,14 +629,17 @@ static int x2_ips_probe(struct platform_device *pdev)
 	g_ipsdev->pdev = pdev;
 #ifdef CONFIG_X2_FPGA
 
-	g_ipsdev->rst = devm_reset_control_get(&pdev->dev, "ips");
-	if (IS_ERR(g_ipsdev->rst)) {
-		dev_err(&pdev->dev, "missing controller reset\n");
-		return PTR_ERR(g_ipsdev->rst);
+	for (i = 0; i < RST_MAX; i++) {
+		g_ipsdev->rst[i] =
+		    devm_reset_control_get(&pdev->dev, reset_name[i]);
+		if (IS_ERR(g_ipsdev->rst)) {
+			dev_err(&pdev->dev, "missing controller reset %s\n",
+				reset_name[i]);
+			return PTR_ERR(g_ipsdev->rst);
+		}
 	}
-	reset_control_assert(g_ipsdev->rst);
-	udelay(2);
-	reset_control_deassert(g_ipsdev->rst);
+	ips_module_reset(BIT(RST_MIPI_IPI) | BIT(RST_MIPI_CFG) | BIT(RST_SIF) |
+			 BIT(RST_IPU) | BIT(RST_DVP) | BIT(RST_BT));
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	g_ipsdev->regaddr = devm_ioremap_resource(&pdev->dev, res);
