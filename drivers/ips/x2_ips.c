@@ -32,6 +32,7 @@ struct ips_dev_s {
 	uint32_t need_irq;
 #endif
 	void __iomem *regaddr;
+	void __iomem *clkaddr;
 	int irq;
 	int irqnum;
 	unsigned int intstatus;
@@ -557,11 +558,11 @@ EXPORT_SYMBOL_GPL(ips_pinmux_bt);
 int ips_pinmux_dvp(bool b_in, bool b_out)
 {
 	int ret = 0;
-	if (g_ipsdev->pins_dvp[0])
+	if (b_in && g_ipsdev->pins_dvp[0])
 		ret |=
 		    pinctrl_select_state(g_ipsdev->pinctrl,
 					 g_ipsdev->pins_dvp[0]);
-	if (g_ipsdev->pins_dvp[1])
+	if (b_out && g_ipsdev->pins_dvp[1])
 		ret |=
 		    pinctrl_select_state(g_ipsdev->pinctrl,
 					 g_ipsdev->pins_dvp[1]);
@@ -569,6 +570,27 @@ int ips_pinmux_dvp(bool b_in, bool b_out)
 }
 
 EXPORT_SYMBOL_GPL(ips_pinmux_dvp);
+
+int ips_set_btout_clksrc(unsigned int mode)
+{
+	int val, ret = 0;
+	unsigned long flags;
+	SPIN_LOCK_IRQ_SAVE(g_ipsdev->lock, flags);
+	val = IPS_REG_READ(g_ipsdev->clkaddr + VIOSYS_CLK_CTRL);
+	SPIN_UNLOCK_IRQ_RESTORE(g_ipsdev->lock, flags);
+	if (mode == BYPASS_CLK)
+		val |= BIT(16);
+	else if (mode == IAR_CLK)
+		val &= ~BIT(16);
+	else
+		return -1;
+	SPIN_LOCK_IRQ_SAVE(g_ipsdev->lock, flags);
+	IPS_REG_WRITE(val, g_ipsdev->clkaddr + VIOSYS_CLK_CTRL);
+	SPIN_UNLOCK_IRQ_RESTORE(g_ipsdev->lock, flags);
+	return ret;
+}
+
+EXPORT_SYMBOL_GPL(ips_set_btout_clksrc);
 
 static int x2_ips_probe(struct platform_device *pdev)
 {
@@ -605,6 +627,13 @@ static int x2_ips_probe(struct platform_device *pdev)
 		return PTR_ERR(g_ipsdev->regaddr);
 	}
 
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 1);
+	g_ipsdev->clkaddr =
+	    devm_ioremap(&pdev->dev, res->start, resource_size(res));
+	if (IS_ERR(g_ipsdev->clkaddr)) {
+		dev_err(&pdev->dev, "ioremap regaddr error\n");
+		return PTR_ERR(g_ipsdev->clkaddr);
+	}
 	irq = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
 	if (!irq) {
 		dev_err(&pdev->dev, "No IRQ resource\n");

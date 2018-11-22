@@ -21,6 +21,7 @@
 #include <asm/uaccess.h>
 #include <linux/types.h>
 #include <linux/reset.h>
+#include "x2/x2_ips.h"
 #include "x2_iar.h"
 
 #ifdef CONFIG_X2_FPGA
@@ -798,6 +799,10 @@ int32_t iar_output_cfg(output_cfg_t * cfg)
 	if (NULL == g_iar_dev) {
 		printk(KERN_ERR "IAR dev not inited!");
 		return -1;
+	}
+	if (cfg->out_sel == OUTPUT_BT1120) {
+		ips_pinmux_bt(false, true);
+		ips_set_btout_clksrc(IAR_CLK);
 	}
 	iar_set_hvsync_timing(cfg->out_sel);
 

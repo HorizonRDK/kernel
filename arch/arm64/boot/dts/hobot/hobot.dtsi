@@ -229,7 +229,8 @@
 
 		ips: ips@0xA4000000 {
 			compatible = "hobot,x2-ips";
-			reg = <0 0xA4000000 0 0x100>;
+			reg = <0 0xA4000000 0 0x100>,
+				  <0 0xA1000000 0  0x1000>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 50 4>;
 			status = "disabled";

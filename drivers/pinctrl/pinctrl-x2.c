@@ -557,6 +557,7 @@ static inline void x2_pinctrl_fsel_set(struct x2_pinctrl *pctrl,
 	value &= ~(0x3 << (pin - io_groups[index].start) * 2);
 	value |= (fsel << (pin - io_groups[index].start) * 2);
 	writel(value, regaddr + X2_IO_CFG);
+	pr_debug("pin:%d fsel:%d add:0x%p value:0x%x\n", pin, fsel, regaddr + X2_IO_CFG, value);
 }
 
 static int x2_pinmux_set_mux(struct pinctrl_dev *pctldev,
@@ -773,7 +774,7 @@ static int x2_gpio_request(struct gpio_chip *chip, unsigned int offset)
 	ret = pinctrl_request_gpio(chip->base + offset);
 	if (ret)
 		return ret;
-	x2_pinctrl_fsel_set(pctrl, chip->base + offset, 0);
+	x2_pinctrl_fsel_set(pctrl, chip->base + offset, 0x3);
 	return 0;
 }
 

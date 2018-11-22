@@ -116,6 +116,8 @@ static int sif_init(sif_t * dev, sif_cfg_t * cfg)
 		ips_pinmux_dvp(true, (bool) cfg->sif_init.bypass_en);
 	} else if (BUS_TYPE_BT1120 == cfg->sif_init.bus_type) {
 		ips_pinmux_bt(true, (bool) cfg->sif_init.bypass_en);
+		if (cfg->sif_init.bypass_en)
+			ips_set_btout_clksrc(BYPASS_CLK);
 	}
 #ifdef CONFIG_X2_SIF_DEV
 	if (0 != (ret = sif_dev_init(&dev->config.sif_init))) {

@@ -112,6 +112,8 @@
 #define IPU_SRAM_CLK        (1 << 1)
 #define IPS_SRAM_CLK        (1 << 0)
 
+#define VIOSYS_CLK_CTRL 0x310
+
 enum busctl_region_e
 {
     BUSCTL_REGION_PRI,
@@ -156,12 +158,16 @@ enum ips_mipictl_region_e
     MIPI_BYPASS_GEN_HSYNC_EN,
     MIPI_DEV_SHADOW_CLEAR,
 };
-
 enum
 {
     SIF_INT,
     ISP_INT,
     IPU_INT,
+};
+enum
+{
+    IAR_CLK,
+    BYPASS_CLK,
 };
 typedef void (*ips_irqhandler_t)(unsigned int intstatus, void* data);
 int ips_irq_enable(int irq);
@@ -182,5 +188,6 @@ int ips_get_status(unsigned int region);
 int ips_get_mipi_freqrange(unsigned int region);
 int ips_pinmux_bt(bool b_in, bool b_out);
 int ips_pinmux_dvp(bool b_in, bool b_out);
+int ips_set_btout_clksrc(unsigned int mode);
 
 #endif /* __X2_IPS_H */
