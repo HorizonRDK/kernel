@@ -555,7 +555,7 @@ static inline void x2_pinctrl_fsel_set(struct x2_pinctrl *pctrl,
 	regaddr = pctrl->regbase + io_groups[index].regoffset;
 	value = readl(regaddr + X2_IO_CFG);
 	value &= ~(0x3 << (pin - io_groups[index].start) * 2);
-	value |= (fsel << (pin - io_groups[index].start));
+	value |= (fsel << (pin - io_groups[index].start) * 2);
 	writel(value, regaddr + X2_IO_CFG);
 }
 

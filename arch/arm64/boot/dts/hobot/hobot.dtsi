@@ -123,22 +123,28 @@
 					hobot,pin-group = "i2c0_0_grp";
 				};
 			};
-			iar_func: iar_func {
-				bt_pins {
-					hobot,pin-function = "btout";
-					hobot,pin-group = "btout_0_grp";
-				};
-			};
 			btin_func:btin_func {
 				btin_pins {
 					hobot,pin-function = "btin";
 					hobot,pin-group = "btin_0_grp";
 				};
 			};
+			btout_func: btout_func {
+				btout_pins {
+					hobot,pin-function = "btout";
+					hobot,pin-group = "btout_0_grp";
+				};
+			};
 			dvpin_func: dvpin_func {
 				dvpin_pins {
 					hobot,pin-function = "dvpin";
 					hobot,pin-group = "dvpin_0_grp";
+				};
+			};
+			dvpout_func:dvpout_func {
+				dvpout_pins {
+					hobot,pin-function = "dvpout";
+					hobot,pin-group = "dvpout_0_grp";
 				};
 			};
 		};
@@ -229,9 +235,11 @@
 			status = "disabled";
 			resets = <&rst 0x40 2>;
 			reset-names = "ips";
-			pinctrl-names = "bt_mode", "dvp_mode";
+			pinctrl-names = "bt_in", "bt_out", "dvp_in", "dvp_out";
 			pinctrl-0 = <&btin_func>;
-			pinctrl-1 = <&dvpin_func>;
+			pinctrl-1 = <&btout_func>;
+			pinctrl-2 = <&dvpin_func>;
+			pinctrl-3 = <&dvpout_func>;
 		};
 
 		ipu: ipu@0xA4000900 {
@@ -343,8 +351,6 @@
 			resets = <&rst 0x40 6>;
 			reset-names = "iar";
 			status = "disabled";
-			pinctrl-names = "default";
-			pinctrl-0 = <&iar_func>;
 		};
 
 		timer0: timer@0xA1002000 {

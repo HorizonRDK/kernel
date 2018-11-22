@@ -180,7 +180,7 @@ int ips_control_set(unsigned int region, unsigned int state);
 int ips_control_get(unsigned int region);
 int ips_get_status(unsigned int region);
 int ips_get_mipi_freqrange(unsigned int region);
-int ips_pinmux_bt(void);
-int ips_pinmux_dvp(void);
+int ips_pinmux_bt(bool b_in, bool b_out);
+int ips_pinmux_dvp(bool b_in, bool b_out);
 
 #endif /* __X2_IPS_H */
