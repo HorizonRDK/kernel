@@ -2185,6 +2185,7 @@ static int dwceqos_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 {
 	struct net_local *lp = netdev_priv(ndev);
 	struct dwceqos_tx trans;
+	unsigned long flags;
 	int err;
 
 	dwceqos_tx_prepare(skb, lp, &trans);
@@ -2205,11 +2206,11 @@ static int dwceqos_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 		((trans.initial_descriptor + trans.nr_descriptors) %
 		 DWCEQOS_TX_DCNT));
 
-	spin_lock_bh(&lp->tx_lock);
+    spin_lock_irqsave(&lp->tx_lock, flags);
 	lp->tx_free -= trans.nr_descriptors;
 	dwceqos_tx_finalize(skb, lp, &trans);
 	netdev_sent_queue(ndev, skb->len);
-	spin_unlock_bh(&lp->tx_lock);
+    spin_unlock_irqrestore(&lp->tx_lock, flags);
 
 	netif_trans_update(ndev);
 
@@ -2498,42 +2499,6 @@ static void dwceqos_read_mmc_counters(struct net_local *lp, u32 rx_mask,
 	if (rx_mask & BIT(0))
 		lp->mmc_counters.rxpacketcount_gb +=
 			dwceqos_read(lp, DWC_MMC_RXPACKETCOUNT_GB);
-}
-
-static struct rtnl_link_stats64*
-dwceqos_get_stats64(struct net_device *ndev, struct rtnl_link_stats64 *s)
-{
-	unsigned long flags;
-	struct net_local *lp = netdev_priv(ndev);
-	struct dwceqos_mmc_counters *hwstats = &lp->mmc_counters;
-
-	spin_lock_irqsave(&lp->stats_lock, flags);
-	dwceqos_read_mmc_counters(lp, lp->mmc_rx_counters_mask,
-				  lp->mmc_tx_counters_mask);
-	spin_unlock_irqrestore(&lp->stats_lock, flags);
-
-	s->rx_packets = hwstats->rxpacketcount_gb;
-	s->rx_bytes = hwstats->rxoctetcount_gb;
-	s->rx_errors = hwstats->rxpacketcount_gb -
-		hwstats->rxbroadcastpackets_g -
-		hwstats->rxmulticastpackets_g -
-		hwstats->rxunicastpackets_g;
-	s->multicast = hwstats->rxmulticastpackets_g;
-	s->rx_length_errors = hwstats->rxlengtherror;
-	s->rx_crc_errors = hwstats->rxcrcerror;
-	s->rx_fifo_errors = hwstats->rxfifooverflow;
-
-	s->tx_packets = hwstats->txpacketcount_gb;
-	s->tx_bytes = hwstats->txoctetcount_gb;
-
-	if (lp->mmc_tx_counters_mask & BIT(21))
-		s->tx_errors = hwstats->txpacketcount_gb -
-			hwstats->txpacketcount_g;
-	else
-		s->tx_errors = hwstats->txunderflowerror +
-			hwstats->txcarriererror;
-
-	return s;
 }
 
 static struct net_device_stats*
