@@ -113,9 +113,9 @@ static int sif_init(sif_t * dev, sif_cfg_t * cfg)
 		cfg->sif_init.bus_type,
 		cfg->sif_init.width, cfg->sif_init.height);
 	if (BUS_TYPE_DVP == cfg->sif_init.bus_type) {
-		ips_pinmux_dvp(true, (bool) cfg->sif_init.bypass_en);
+		ips_pinmux_dvp();
 	} else if (BUS_TYPE_BT1120 == cfg->sif_init.bus_type) {
-		ips_pinmux_bt(true, (bool) cfg->sif_init.bypass_en);
+		ips_pinmux_bt();
 		if (cfg->sif_init.bypass_en)
 			ips_set_btout_clksrc(BYPASS_CLK);
 	}

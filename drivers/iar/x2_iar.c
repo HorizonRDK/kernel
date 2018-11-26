@@ -801,7 +801,7 @@ int32_t iar_output_cfg(output_cfg_t * cfg)
 		return -1;
 	}
 	if (cfg->out_sel == OUTPUT_BT1120) {
-		ips_pinmux_bt(false, true);
+		ips_pinmux_bt();
 		ips_set_btout_clksrc(IAR_CLK);
 	}
 	iar_set_hvsync_timing(cfg->out_sel);
@@ -1218,10 +1218,10 @@ static int x2_iar_probe(struct platform_device *pdev)
 	    MAX_FRAME_BUF_SIZE;
 
 	IAR_DEBUG_PRINT("iar 0x%llx  0x%llx\n",
-			g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].
-			paddr,
-			g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[1].
-			paddr);
+			g_iar_dev->pingpong_buf[IAR_CHANNEL_1].
+			framebuf[0].paddr,
+			g_iar_dev->pingpong_buf[IAR_CHANNEL_3].
+			framebuf[1].paddr);
 #else
 	g_iar_dev->regaddr = 0xA4001000;
 	g_iar_dev->sysctrl = 0xA1000000;

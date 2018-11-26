@@ -36,14 +36,15 @@ struct x2_pctrl_group {
 	const char *name;
 	const unsigned int *pins;
 	const unsigned int *mux_val;
-	const unsigned npins;
+	unsigned npins;
+	struct list_head node;
 };
 
 struct x2_pinmux_function {
 	const char *name;
 	const char *const *groups;
 	unsigned int ngroups;
-	const unsigned int *mux_val;
+	struct list_head node;
 };
 struct __io_group {
 	unsigned int start;
@@ -52,14 +53,18 @@ struct __io_group {
 };
 
 struct x2_pinctrl {
+	struct device *dev;
 	struct pinctrl_dev *pctrl;
+	struct mutex mutex;
 	struct gpio_chip *gpio_chip;
 	struct pinctrl_gpio_range *gpio_range;
 	void __iomem *regbase;
-	const struct x2_pctrl_group *groups;
 	unsigned int ngroups;
-	const struct x2_pinmux_function *funcs;
 	unsigned int nfuncs;
+	struct list_head pingroups;
+	struct list_head functions;
+	struct radix_tree_root pgtree;
+	struct radix_tree_root ftree;
 };
 
 enum {
@@ -287,194 +292,273 @@ static const struct pinctrl_pin_desc x2_pins[] = {
 	PINCTRL_PIN(118, "IO118"),
 };
 
-#define DEFINE_X2_PINCTRL_GRP(nm) \
-	{ \
-		.name = #nm "_grp", \
-		.pins = nm ## _pins, \
-		.npins = ARRAY_SIZE(nm ## _pins), \
-		.mux_val = nm ## _muxs, \
-	}
-
-#define DEFINE_X2_PINMUX_FUNCTION(fname)	\
-	[x2_pmux_##fname] = {				\
-		.name = #fname,				\
-		.groups = fname##_groups,		\
-		.ngroups = ARRAY_SIZE(fname##_groups),	\
-	}
-
-enum x2_pinmux_functions {
-	x2_pmux_i2c0,
-	x2_pmux_i2s0,
-	x2_pmux_i2s1,
-	x2_pmux_btin,
-	x2_pmux_dvpin,
-	x2_pmux_btout,
-	x2_pmux_dvpout,
-	x2_pmux_max_func,
-};
-
-static const unsigned int i2c0_0_pins[] = { 9, 10 };
-static const unsigned int i2c0_0_muxs[] = { 0, 0 };
-
-static const unsigned int i2s0_0_pins[] = { 88, 89, 90, 91 };
-static const unsigned int i2s0_0_muxs[] = { 0, 0, 0, 0 };
-
-static const unsigned int i2s1_0_pins[] = { 5, 61, 62, 63 };
-static const unsigned int i2s1_0_muxs[] = { 1, 2, 2, 2 };
-
-static const unsigned int btin_0_pins[] =
-    { 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77 };
-static const unsigned int btin_0_muxs[] =
-    { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-
-static const unsigned int dvpin_0_pins[] =
-    { 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75 };
-static const unsigned int dvpin_0_muxs[] =
-    { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
-
-static const unsigned int btout_0_pins[] =
-    { 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108,
-109 };
-static const unsigned int btout_0_muxs[] =
-    { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-
-static const unsigned int dvpout_0_pins[] =
-    { 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107 };
-static const unsigned int dvpout_0_muxs[] =
-    { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
-
-/* function groups */
-static const char *const i2c0_groups[] = { "i2c0_0_grp" };
-static const char *const i2s0_groups[] = { "i2s0_0_grp" };
-static const char *const i2s1_groups[] = { "i2s1_0_grp" };
-static const char *const btin_groups[] = { "btin_0_grp" };
-static const char *const dvpin_groups[] = { "dvpin_0_grp" };
-static const char *const btout_groups[] = { "btout_0_grp" };
-static const char *const dvpout_groups[] = { "dvpout_0_grp" };
-
-static const struct x2_pctrl_group x2_pctrl_groups[] = {
-	DEFINE_X2_PINCTRL_GRP(i2c0_0),
-	DEFINE_X2_PINCTRL_GRP(i2s0_0),
-	DEFINE_X2_PINCTRL_GRP(i2s1_0),
-	DEFINE_X2_PINCTRL_GRP(btin_0),
-	DEFINE_X2_PINCTRL_GRP(dvpin_0),
-	DEFINE_X2_PINCTRL_GRP(btout_0),
-	DEFINE_X2_PINCTRL_GRP(dvpout_0),
-};
-
-static const struct x2_pinmux_function x2_pmux_functions[] = {
-	DEFINE_X2_PINMUX_FUNCTION(i2c0),
-	DEFINE_X2_PINMUX_FUNCTION(i2s0),
-	DEFINE_X2_PINMUX_FUNCTION(i2s1),
-	DEFINE_X2_PINMUX_FUNCTION(btin),
-	DEFINE_X2_PINMUX_FUNCTION(dvpin),
-	DEFINE_X2_PINMUX_FUNCTION(btout),
-	DEFINE_X2_PINMUX_FUNCTION(dvpout),
-};
-
-static int x2_pctrl_get_groups_count(struct pinctrl_dev *pctldev)
+static int x2_pinctrl_get_groups_count(struct pinctrl_dev *pctldev)
 {
 	struct x2_pinctrl *pctrl = pinctrl_dev_get_drvdata(pctldev);
-
 	return pctrl->ngroups;
 }
 
-static const char *x2_pctrl_get_group_name(struct pinctrl_dev *pctldev,
-					   unsigned selector)
+static const char *x2_pinctrl_get_group_name(struct pinctrl_dev *pctldev,
+					     unsigned selector)
 {
 	struct x2_pinctrl *pctrl = pinctrl_dev_get_drvdata(pctldev);
-
-	return pctrl->groups[selector].name;
+	struct x2_pctrl_group *group;
+	group = radix_tree_lookup(&pctrl->pgtree, selector);
+	if (!group) {
+		dev_err(pctrl->dev, "%s could not find pingroup%i\n", __func__,
+			selector);
+		return NULL;
+	}
+	return group->name;
 }
 
-static int x2_pctrl_get_group_pins(struct pinctrl_dev *pctldev,
-				   unsigned selector,
-				   const unsigned **pins, unsigned *num_pins)
+static int x2_pinctrl_get_group_pins(struct pinctrl_dev *pctldev,
+				     unsigned selector,
+				     const unsigned **pins, unsigned *num_pins)
 {
 	struct x2_pinctrl *pctrl = pinctrl_dev_get_drvdata(pctldev);
-
-	*pins = pctrl->groups[selector].pins;
-	*num_pins = pctrl->groups[selector].npins;
-
+	struct x2_pctrl_group *group;
+	group = radix_tree_lookup(&pctrl->pgtree, selector);
+	if (!group) {
+		dev_err(pctrl->dev, "%s could not find pingroup%i\n", __func__,
+			selector);
+		return -EINVAL;
+	}
+	*pins = group->pins;
+	*num_pins = group->npins;
 	return 0;
 }
 
-static int reserve_map(struct device *dev, struct pinctrl_map **map,
-		       unsigned *reserved_maps, unsigned *num_maps,
-		       unsigned reserve)
+static unsigned int x2_add_pingroup(struct x2_pinctrl *x2_pctrl,
+				    const char *name,
+				    int *pins, int *muxs, unsigned npins)
 {
-	unsigned old_num = *reserved_maps;
-	unsigned new_num = *num_maps + reserve;
-	struct pinctrl_map *new_map;
-	if (old_num >= new_num)
-		return 0;
-	new_map = krealloc(*map, sizeof(*new_map) * new_num, GFP_KERNEL);
-	if (!new_map) {
-		dev_err(dev, "krealloc(map) failed\n");
+	struct x2_pctrl_group *pingroup;
+	pingroup = devm_kzalloc(x2_pctrl->dev, sizeof(*pingroup), GFP_KERNEL);
+	if (!pingroup)
 		return -ENOMEM;
+	pingroup->name = name;
+	pingroup->npins = npins;
+	pingroup->pins = pins;
+	pingroup->mux_val = muxs;
+
+	mutex_lock(&x2_pctrl->mutex);
+	list_add_tail(&pingroup->node, &x2_pctrl->pingroups);
+	radix_tree_insert(&x2_pctrl->pgtree, x2_pctrl->ngroups, pingroup);
+	x2_pctrl->ngroups++;
+	mutex_unlock(&x2_pctrl->mutex);
+	return 0;
+
+}
+
+static struct x2_pinmux_function *x2_add_function(struct x2_pinctrl *x2_pctrl,
+						  const char *name,
+						  const char **pgnames,
+						  unsigned npgnames)
+{
+	struct x2_pinmux_function *function;
+	function = devm_kzalloc(x2_pctrl->dev, sizeof(*function), GFP_KERNEL);
+	if (!function)
+		return NULL;
+	function->name = name;
+	function->groups = pgnames;
+	function->ngroups = npgnames;
+
+	mutex_lock(&x2_pctrl->mutex);
+	list_add_tail(&function->node, &x2_pctrl->functions);
+	radix_tree_insert(&x2_pctrl->ftree, x2_pctrl->nfuncs, function);
+	x2_pctrl->nfuncs++;
+	mutex_unlock(&x2_pctrl->mutex);
+	return function;
+}
+
+static void x2_remove_function(struct x2_pinctrl *x2_pctrl,
+			       struct x2_pinmux_function *function)
+{
+	int i;
+	mutex_lock(&x2_pctrl->mutex);
+	for (i = 0; i < x2_pctrl->nfuncs; i++) {
+		struct x2_pinmux_function *found;
+		found = radix_tree_lookup(&x2_pctrl->ftree, i);
+		if (found == function)
+			radix_tree_delete(&x2_pctrl->ftree, i);
+	}
+	list_del(&function->node);
+	x2_pctrl->nfuncs--;
+	mutex_unlock(&x2_pctrl->mutex);
+}
+
+static void x2_remove_group(struct x2_pinctrl *x2_pctrl,
+			    struct x2_pctrl_group *pingroup)
+{
+	int i;
+	mutex_lock(&x2_pctrl->mutex);
+	for (i = 0; i < x2_pctrl->ngroups; i++) {
+		struct x2_pctrl_group *found;
+		found = radix_tree_lookup(&x2_pctrl->pgtree, i);
+		if (found == pingroup)
+			radix_tree_delete(&x2_pctrl->pgtree, i);
+	}
+	list_del(&pingroup->node);
+	x2_pctrl->ngroups--;
+	mutex_unlock(&x2_pctrl->mutex);
+}
+
+static int x2_find_func_byname(struct x2_pinctrl *pctrl, const char *func_name)
+{
+	struct x2_pinmux_function *func;
+	int selector = 0;
+
+	while (selector < pctrl->nfuncs) {
+		func = radix_tree_lookup(&pctrl->ftree, selector);
+		if (func && !strcmp(func_name, func->name))
+			return selector;
+		selector++;
+	}
+	return -1;
+}
+
+static void x2_pinctrl_free_funcs(struct x2_pinctrl *x2_pctrl)
+{
+	struct list_head *pos, *tmp;
+	int i;
+
+	mutex_lock(&x2_pctrl->mutex);
+	for (i = 0; i < x2_pctrl->nfuncs; i++) {
+		struct x2_pinmux_function *func;
+		func = radix_tree_lookup(&x2_pctrl->ftree, i);
+		if (!func)
+			continue;
+		radix_tree_delete(&x2_pctrl->ftree, i);
+	}
+	list_for_each_safe(pos, tmp, &x2_pctrl->functions) {
+		struct x2_pinmux_function *function;
+		function = list_entry(pos, struct x2_pinmux_function, node);
+		list_del(&function->node);
+	}
+	mutex_unlock(&x2_pctrl->mutex);
+}
+
+static void x2_pinctrl_free_pingroups(struct x2_pinctrl *x2_pctrl)
+{
+	struct list_head *pos, *tmp;
+	int i;
+
+	mutex_lock(&x2_pctrl->mutex);
+	for (i = 0; i < x2_pctrl->ngroups; i++) {
+		struct x2_pctrl_group *pingroup;
+		pingroup = radix_tree_lookup(&x2_pctrl->pgtree, i);
+		if (!pingroup)
+			continue;
+		radix_tree_delete(&x2_pctrl->pgtree, i);
+	}
+	list_for_each_safe(pos, tmp, &x2_pctrl->pingroups) {
+		struct x2_pctrl_group *pingroup;
+		pingroup = list_entry(pos, struct x2_pctrl_group, node);
+		list_del(&pingroup->node);
+	}
+	mutex_unlock(&x2_pctrl->mutex);
+}
+
+static int x2_parse_one_pinctrl_entry(struct x2_pinctrl *x2_pctrl,
+				      struct device_node *np,
+				      struct pinctrl_map **map,
+				      unsigned *num_maps, const char **pgnames)
+{
+	const __be32 *pinmux_group;
+	int size, rows, *pins, *muxs, index = 0, found = 0, res = -ENOMEM;
+	struct x2_pinmux_function *function = NULL;
+	pinmux_group = of_get_property(np, "pinctrl-x2,pins-muxs", &size);
+	if ((!pinmux_group) || (size < sizeof(*pinmux_group) * 2)) {
+		dev_err(x2_pctrl->dev, "bad data for mux %s\n", np->name);
+		return -EINVAL;
+	}
+	if (x2_find_func_byname(x2_pctrl, np->name) >= 0) {
+		pr_debug("existed func group\n");
+		goto existed_func;
 	}
 
-	memset(new_map + old_num, 0, (new_num - old_num) * sizeof(*new_map));
+	size /= sizeof(*pinmux_group);	/* Number of elements in array */
+	rows = size / 2;
 
-	*map = new_map;
-	*reserved_maps = new_num;
+	pins = devm_kzalloc(x2_pctrl->dev, sizeof(*pins) * rows, GFP_KERNEL);
+	if (!pins)
+		return -ENOMEM;
+	muxs = devm_kzalloc(x2_pctrl->dev, sizeof(*muxs) * rows, GFP_KERNEL);
+	if (!muxs)
+		goto free_pins;
+
+	while (index < size) {
+		unsigned val1, val2;
+
+		val1 = be32_to_cpup(pinmux_group + index++);
+		val2 = be32_to_cpup(pinmux_group + index++);
+		pins[found] = val1;
+		muxs[found++] = val2;
+	}
+
+	pgnames[0] = np->name;
+	function = x2_add_function(x2_pctrl, np->name, pgnames, 1);
+	if (!function)
+		goto free_muxs;
+	if (x2_add_pingroup(x2_pctrl, np->name, pins, muxs, found))
+		goto free_function;
+
+existed_func:
+	(*map)->type = PIN_MAP_TYPE_MUX_GROUP;
+	(*map)->data.mux.group = np->name;
+	(*map)->data.mux.function = np->name;
+
+	*num_maps = 1;
 	return 0;
+
+free_function:
+	x2_remove_function(x2_pctrl, function);
+free_muxs:
+	devm_kfree(x2_pctrl->dev, muxs);
+free_pins:
+	devm_kfree(x2_pctrl->dev, pins);
+
+	return res;
 }
 
-static int add_map_mux(struct pinctrl_map **map, unsigned int *reserved_maps,
-		       unsigned int *num_maps, const char *group,
-		       const char *function)
+static int x2_pinctrl_dt_node_to_map(struct pinctrl_dev *pctldev,
+				     struct device_node *np_config,
+				     struct pinctrl_map **map,
+				     unsigned *num_maps)
 {
-	if (WARN_ON(*num_maps == *reserved_maps))
-		return -ENOSPC;
-
-	(*map)[*num_maps].type = PIN_MAP_TYPE_MUX_GROUP;
-	(*map)[*num_maps].data.mux.group = group;
-	(*map)[*num_maps].data.mux.function = function;
-	(*num_maps)++;
-	return 0;
-}
-
-static int x2_pinctrl_dt_subnode_to_map(struct device *dev,
-					struct device_node *np,
-					struct pinctrl_map **map,
-					unsigned int *reserved_maps,
-					unsigned int *num_maps)
-{
+	struct x2_pinctrl *x2_pctrl;
+	const char **pgnames;
 	int ret;
-	const char *function;
-	const char *group;
-	unsigned int reserve;
-	ret = of_property_read_string(np, "hobot,pin-function", &function);
-	if (ret < 0) {
-		/* EINVAL=missing, which is fine since it's optional */
-		if (ret != -EINVAL)
-			dev_err(dev, "could not parse property function\n");
-		function = NULL;
+
+	x2_pctrl = pinctrl_dev_get_drvdata(pctldev);
+
+	/* create 2 maps. One is for pinmux, and the other is for pinconf.      pinconf TODO */
+	*map = devm_kzalloc(x2_pctrl->dev, sizeof(**map) * 2, GFP_KERNEL);
+	if (!*map)
+		return -ENOMEM;
+
+	*num_maps = 0;
+	pgnames = devm_kzalloc(x2_pctrl->dev, sizeof(*pgnames), GFP_KERNEL);
+	if (!pgnames) {
+		ret = -ENOMEM;
+		goto free_map;
 	}
-	ret = of_property_read_string(np, "hobot,pin-group", &group);
+	ret =
+	    x2_parse_one_pinctrl_entry(x2_pctrl, np_config, map, num_maps,
+				       pgnames);
 	if (ret < 0) {
-		/* EINVAL=missing, which is fine since it's optional */
-		if (ret != -EINVAL)
-			dev_err(dev, "could not parse property group\n");
-		group = NULL;
+		dev_err(x2_pctrl->dev, "no pins entries for %s ret:%d\n",
+			np_config->name, ret);
+		goto free_pgnames;
 	}
-	reserve = 0;
-	if (function != NULL)
-		reserve++;
-	if (group != NULL)
-		reserve++;
+	return 0;
 
-	ret = reserve_map(dev, map, reserved_maps, num_maps, reserve);
-	if (ret < 0)
-		goto exit;
+free_pgnames:
+	devm_kfree(x2_pctrl->dev, pgnames);
+free_map:
+	devm_kfree(x2_pctrl->dev, *map);
 
-	ret = add_map_mux(map, reserved_maps, num_maps, group, function);
-	if (ret < 0)
-		goto exit;
-
-	ret = 0;
-exit:
 	return ret;
 }
 
@@ -482,37 +566,14 @@ static void x2_pinctrl_dt_free_map(struct pinctrl_dev *pctldev,
 				   struct pinctrl_map *map,
 				   unsigned int num_maps)
 {
-	kfree(map);
-}
-
-static int x2_pinctrl_dt_node_to_map(struct pinctrl_dev *pctldev,
-				     struct device_node *np_config,
-				     struct pinctrl_map **map,
-				     unsigned int *num_maps)
-{
-	unsigned int reserved_maps;
-	struct device_node *np;
-	int ret;
-
-	reserved_maps = 0;
-	*map = NULL;
-	*num_maps = 0;
-	for_each_child_of_node(np_config, np) {
-		ret = x2_pinctrl_dt_subnode_to_map(pctldev->dev, np, map,
-						   &reserved_maps, num_maps);
-		if (ret < 0) {
-			x2_pinctrl_dt_free_map(pctldev, *map, *num_maps);
-			return ret;
-		}
-	}
-
-	return 0;
+	struct x2_pinctrl *pctrl = pinctrl_dev_get_drvdata(pctldev);
+	devm_kfree(pctrl->dev, map);
 }
 
 static const struct pinctrl_ops x2_pctrl_ops = {
-	.get_groups_count = x2_pctrl_get_groups_count,
-	.get_group_name = x2_pctrl_get_group_name,
-	.get_group_pins = x2_pctrl_get_group_pins,
+	.get_groups_count = x2_pinctrl_get_groups_count,
+	.get_group_name = x2_pinctrl_get_group_name,
+	.get_group_pins = x2_pinctrl_get_group_pins,
 	.dt_node_to_map = x2_pinctrl_dt_node_to_map,
 	.dt_free_map = x2_pinctrl_dt_free_map,
 };
@@ -520,7 +581,6 @@ static const struct pinctrl_ops x2_pctrl_ops = {
 static int x2_pmux_get_functions_count(struct pinctrl_dev *pctldev)
 {
 	struct x2_pinctrl *pctrl = pinctrl_dev_get_drvdata(pctldev);
-
 	return pctrl->nfuncs;
 }
 
@@ -528,8 +588,14 @@ static const char *x2_pmux_get_function_name(struct pinctrl_dev *pctldev,
 					     unsigned selector)
 {
 	struct x2_pinctrl *pctrl = pinctrl_dev_get_drvdata(pctldev);
-
-	return pctrl->funcs[selector].name;
+	struct x2_pinmux_function *func;
+	func = radix_tree_lookup(&pctrl->ftree, selector);
+	if (!func) {
+		dev_err(pctrl->dev, "%s could not find function%i\n", __func__,
+			selector);
+		return NULL;
+	}
+	return func->name;
 }
 
 static int x2_pmux_get_function_groups(struct pinctrl_dev *pctldev,
@@ -538,9 +604,15 @@ static int x2_pmux_get_function_groups(struct pinctrl_dev *pctldev,
 				       unsigned *const num_groups)
 {
 	struct x2_pinctrl *pctrl = pinctrl_dev_get_drvdata(pctldev);
-
-	*groups = pctrl->funcs[selector].groups;
-	*num_groups = pctrl->funcs[selector].ngroups;
+	struct x2_pinmux_function *func;
+	func = radix_tree_lookup(&pctrl->ftree, selector);
+	if (!func) {
+		dev_err(pctrl->dev, "%s could not find function%i\n", __func__,
+			selector);
+		return -EINVAL;
+	}
+	*groups = func->groups;
+	*num_groups = func->ngroups;
 	return 0;
 }
 
@@ -557,7 +629,8 @@ static inline void x2_pinctrl_fsel_set(struct x2_pinctrl *pctrl,
 	value &= ~(0x3 << (pin - io_groups[index].start) * 2);
 	value |= (fsel << (pin - io_groups[index].start) * 2);
 	writel(value, regaddr + X2_IO_CFG);
-	pr_debug("pin:%d fsel:%d add:0x%p value:0x%x\n", pin, fsel, regaddr + X2_IO_CFG, value);
+	pr_debug("pin:%d fsel:%d add:0x%p value:0x%x\n", pin, fsel,
+		 regaddr + X2_IO_CFG, value);
 }
 
 static int x2_pinmux_set_mux(struct pinctrl_dev *pctldev,
@@ -565,8 +638,8 @@ static int x2_pinmux_set_mux(struct pinctrl_dev *pctldev,
 {
 	int i;
 	struct x2_pinctrl *pctrl = pinctrl_dev_get_drvdata(pctldev);
-	const struct x2_pctrl_group *pgrp = &pctrl->groups[group];
-	//const struct x2_pinmux_function *func = &pctrl->funcs[function];
+	const struct x2_pctrl_group *pgrp;
+	pgrp = radix_tree_lookup(&pctrl->pgtree, group);
 
 	for (i = 0; i < pgrp->npins; i++) {
 		unsigned int pin = pgrp->pins[i];
@@ -804,7 +877,7 @@ static int x2_pinctrl_probe(struct platform_device *pdev)
 {
 	struct resource *res;
 	struct x2_pinctrl *x2_pctrl;
-	int err;
+	int ret = 0;
 
 	x2_pctrl =
 	    devm_kzalloc(&pdev->dev, sizeof(struct x2_pinctrl), GFP_KERNEL);
@@ -817,25 +890,26 @@ static int x2_pinctrl_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 	x2_pctrl->regbase = devm_ioremap_resource(&pdev->dev, res);
+	x2_pctrl->dev = &pdev->dev;
+	mutex_init(&x2_pctrl->mutex);
+	INIT_LIST_HEAD(&x2_pctrl->pingroups);
+	INIT_LIST_HEAD(&x2_pctrl->functions);
 
 	x2_pctrl->gpio_chip = &x2_gpio;
 	x2_pctrl->gpio_chip->parent = &pdev->dev;
 	x2_pctrl->gpio_chip->of_node = pdev->dev.of_node;
 
-	err = gpiochip_add_data(x2_pctrl->gpio_chip, x2_pctrl);
-	if (err) {
+	ret = gpiochip_add_data(x2_pctrl->gpio_chip, x2_pctrl);
+	if (ret) {
 		dev_err(&pdev->dev, "could not add GPIO chip\n");
-		return err;
+		goto free;
 	}
 
-	x2_pctrl->groups = x2_pctrl_groups;
-	x2_pctrl->ngroups = ARRAY_SIZE(x2_pctrl_groups);
-	x2_pctrl->funcs = x2_pmux_functions;
-	x2_pctrl->nfuncs = ARRAY_SIZE(x2_pmux_functions);
-
 	x2_pctrl->pctrl = devm_pinctrl_register(&pdev->dev, &x2_desc, x2_pctrl);
-	if (IS_ERR(x2_pctrl->pctrl))
-		return PTR_ERR(x2_pctrl->pctrl);
+	if (IS_ERR(x2_pctrl->pctrl)) {
+		ret = PTR_ERR(x2_pctrl->pctrl);
+		goto free;
+	}
 
 	x2_pctrl->gpio_range = &x2_pinctrl_gpio_range;
 	x2_pctrl->gpio_range->base = X2_IO_MIN;
@@ -848,6 +922,10 @@ static int x2_pinctrl_probe(struct platform_device *pdev)
 	dev_info(&pdev->dev, "x2 pinctrl initialized\n");
 
 	return 0;
+free:
+	x2_pinctrl_free_funcs(x2_pctrl);
+	x2_pinctrl_free_pingroups(x2_pctrl);
+	return ret;
 }
 
 static const struct of_device_id x2_pinctrl_of_match[] = {

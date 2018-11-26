@@ -42,8 +42,8 @@ struct ips_dev_s {
 	void *irq_data[3];
 	struct reset_control *rst[RST_MAX];
 	struct pinctrl *pinctrl;
-	struct pinctrl_state *pins_bt[2];
-	struct pinctrl_state *pins_dvp[2];
+	struct pinctrl_state *pins_bt;
+	struct pinctrl_state *pins_dvp;
 #ifndef CONFIG_X2_FPGA
 	struct task_struct *irq_polling;
 #endif
@@ -542,34 +542,22 @@ int ips_get_mipi_freqrange(unsigned int region)
 
 EXPORT_SYMBOL_GPL(ips_get_mipi_freqrange);
 
-int ips_pinmux_bt(bool b_in, bool b_out)
+int ips_pinmux_bt(void)
 {
-	int ret = 0;
-	if (b_in && g_ipsdev->pins_bt[0])
-		ret |=
-		    pinctrl_select_state(g_ipsdev->pinctrl,
-					 g_ipsdev->pins_bt[0]);
-	if (b_out && g_ipsdev->pins_bt[1])
-		ret |=
-		    pinctrl_select_state(g_ipsdev->pinctrl,
-					 g_ipsdev->pins_bt[1]);
-	return ret;
+	if (!g_ipsdev->pins_bt)
+		return -ENODEV;
+	return pinctrl_select_state(g_ipsdev->pinctrl, g_ipsdev->pins_bt);
+
 }
 
 EXPORT_SYMBOL_GPL(ips_pinmux_bt);
 
-int ips_pinmux_dvp(bool b_in, bool b_out)
+int ips_pinmux_dvp(void)
 {
-	int ret = 0;
-	if (b_in && g_ipsdev->pins_dvp[0])
-		ret |=
-		    pinctrl_select_state(g_ipsdev->pinctrl,
-					 g_ipsdev->pins_dvp[0]);
-	if (b_out && g_ipsdev->pins_dvp[1])
-		ret |=
-		    pinctrl_select_state(g_ipsdev->pinctrl,
-					 g_ipsdev->pins_dvp[1]);
-	return ret;
+	if (!g_ipsdev->pins_dvp)
+		return -ENODEV;
+	return pinctrl_select_state(g_ipsdev->pinctrl, g_ipsdev->pins_dvp);
+
 }
 
 EXPORT_SYMBOL_GPL(ips_pinmux_dvp);
@@ -671,29 +659,17 @@ static int x2_ips_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "pinctrl get error\n");
 		return PTR_ERR(g_ipsdev->pinctrl);
 	}
-
-	g_ipsdev->pins_bt[0] = pinctrl_lookup_state(g_ipsdev->pinctrl, "bt_in");
-	if (IS_ERR(g_ipsdev->pins_bt[0])) {
+	g_ipsdev->pins_bt = pinctrl_lookup_state(g_ipsdev->pinctrl, "bt_func");
+	if (IS_ERR(g_ipsdev->pins_bt)) {
 		dev_err(&pdev->dev, "bt in pinctrl state error\n");
-		return PTR_ERR(g_ipsdev->pins_bt[0]);
+		return PTR_ERR(g_ipsdev->pins_bt);
 	}
-	g_ipsdev->pins_bt[1] =
-	    pinctrl_lookup_state(g_ipsdev->pinctrl, "bt_out");
-	if (IS_ERR(g_ipsdev->pins_bt[1])) {
-		dev_err(&pdev->dev, "bt out pinctrl state error\n");
-		return PTR_ERR(g_ipsdev->pins_bt[1]);
-	}
-	g_ipsdev->pins_dvp[0] =
-	    pinctrl_lookup_state(g_ipsdev->pinctrl, "dvp_in");
-	if (IS_ERR(g_ipsdev->pins_dvp[0])) {
+
+	g_ipsdev->pins_dvp =
+	    pinctrl_lookup_state(g_ipsdev->pinctrl, "dvp_func");
+	if (IS_ERR(g_ipsdev->pins_dvp)) {
 		dev_err(&pdev->dev, "dvp in pinctrl state error\n");
-		return PTR_ERR(g_ipsdev->pins_dvp[0]);
-	}
-	g_ipsdev->pins_dvp[1] =
-	    pinctrl_lookup_state(g_ipsdev->pinctrl, "dvp_out");
-	if (IS_ERR(g_ipsdev->pins_dvp[1])) {
-		dev_err(&pdev->dev, "dvp out pinctrl state error\n");
-		return PTR_ERR(g_ipsdev->pins_dvp[1]);
+		return PTR_ERR(g_ipsdev->pins_dvp);
 	}
 #else
 	IPS_REG_WRITE(0xA1000440, 0xff);
@@ -764,9 +740,9 @@ ssize_t ips_debug_write(struct file * file, const char __user * buf,
 		return size;
 	printk("ips:%s\n", info);
 	if (!memcmp(info, "bt", 2)) {
-		ips_pinmux_bt(true, true);
+		ips_pinmux_bt();
 	} else if (!memcmp(info, "dvp", 3)) {
-		ips_pinmux_dvp(true, true);
+		ips_pinmux_dvp();
 	} else if (!memcmp(info, "regdump", 7)) {
 		for (i = 0; i <= IPS_CTL; i += 0x4) {
 			printk("regaddr:0x%p, value:0x%x \n",

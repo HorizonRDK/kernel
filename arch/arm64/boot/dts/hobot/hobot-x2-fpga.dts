@@ -11,7 +11,7 @@
  */
 
 /dts-v1/;
-
+#include "hobot-pinctrl.dtsi"
 #include "hobot.dtsi"
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/phy/phy.h>
