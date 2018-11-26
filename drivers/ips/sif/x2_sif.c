@@ -119,6 +119,7 @@ static int sif_init(sif_t * dev, sif_cfg_t * cfg)
 		if (cfg->sif_init.bypass_en)
 			ips_set_btout_clksrc(BYPASS_CLK);
 	}
+	ips_module_reset(RST_SIF);
 #ifdef CONFIG_X2_SIF_DEV
 	if (0 != (ret = sif_dev_init(&dev->config.sif_init))) {
 		siferr("ERROR: sif dev init error: %d", ret);

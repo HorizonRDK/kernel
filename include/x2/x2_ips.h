@@ -171,13 +171,12 @@ enum
 };
 enum
 {
-    RST_MIPI_IPI,
-    RST_MIPI_CFG,
-    RST_SIF,
-    RST_IPU,
-    RST_DVP,
-    RST_BT,
-    RST_MAX,
+    RST_MIPI_IPI = 0x01,
+    RST_MIPI_CFG = 0x02,
+    RST_SIF      = 0x04,
+    RST_IPU      = 0x08,
+    RST_DVP      = 0x10,
+    RST_BT       = 0x20,
 };
 typedef void (*ips_irqhandler_t)(unsigned int intstatus, void* data);
 int ips_irq_enable(int irq);

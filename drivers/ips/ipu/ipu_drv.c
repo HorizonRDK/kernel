@@ -209,11 +209,11 @@ int8_t ipu_set(ipu_cmd_e cmd, ipu_cfg_t * ipu_cfg, uint64_t data)
 
 static int ipu_thread(void *data)
 {
+	unsigned long flags;
 	uint32_t status = 0;
 	struct x2_ipu_data *ipu = (struct x2_ipu_data *)data;
 	ipu_cfg_t *ipu_cfg = (ipu_cfg_t *) ipu->cfg;
 	ipu_slot_h_t *slot_h = NULL;
-
 	do {
 		wait_event_interruptible(ipu->wq_head,
 					 ipu->trigger_isr == true);
@@ -223,7 +223,7 @@ static int ipu_thread(void *data)
 		if (ipu->thread_exit)
 			break;
 		status = ipu->isr_data;
-		spin_lock_irq(&ipu->slock);
+		spin_lock_irqsave(&ipu->slock, flags);
 
 		if (status & IPU_BUS01_TRANSMIT_ERRORS ||
 		    status & IPU_BUS23_TRANSMIT_ERRORS ||
@@ -259,8 +259,8 @@ static int ipu_thread(void *data)
 			slot_h = ipu_get_busy_slot();
 			if (slot_h) {
 				slot_to_done_list(slot_h);
-				ipu_dbg("pyramid done, slot-%d\n",
-					slot_h->slot_id);
+				ipu_info("pyramid done, slot-%d\n",
+					 slot_h->slot_id);
 				ipu->pymid_done = true;
 				ipu->done_idx = slot_h->slot_id;
 				wake_up_interruptible(&ipu->event_head);
@@ -277,7 +277,7 @@ static int ipu_thread(void *data)
 		}
 		ipu->trigger_isr = false;
 		ipu->isr_data = 0;
-		spin_unlock_irq(&ipu->slock);
+		spin_unlock_irqrestore(&ipu->slock, flags);
 	} while (!ipu->thread_exit);
 	return 0;
 }
@@ -368,6 +368,9 @@ static int8_t ipu_core_init(ipu_cfg_t * ipu_cfg)
 
 int ipu_open(struct inode *node, struct file *filp)
 {
+	g_ipu->thread_exit = false;
+	init_waitqueue_head(&g_ipu->wq_head);
+	init_waitqueue_head(&g_ipu->event_head);
 	return 0;
 }
 
@@ -456,6 +459,8 @@ long ipu_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 	ipu_slot_h_t *slot_h = NULL;
 	info_h_t info;
 	int ret = 0;
+	unsigned long flag;
+	ipu_info("ipu cmd: %d\n", _IOC_NR(cmd));
 
 	switch (cmd) {
 	case IPUC_INIT:
@@ -487,17 +492,22 @@ long ipu_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 		break;
 	case IPUC_CNN_DONE:
 		/* step 1 mv slot from done to free */
+		ret = 0;
+		spin_lock_irqsave(&g_ipu->slock, flag);
 		slot_h = ipu_get_done_slot();
 		if (!slot_h) {
-			return -EFAULT;
+			ipu_err("no done slot exist!!!\n");
+			ret = -EFAULT;
+		} else {
+			slot_to_free_list(slot_h);
 		}
-		slot_to_free_list(slot_h);
-		ret = 0;
+		spin_unlock_irqrestore(&g_ipu->slock, flag);
 		break;
 	case IPUC_GET_DONE_INFO:
 		memset(&info, 0, sizeof(info_h_t));
-
+		spin_lock_irqsave(&g_ipu->slock, flag);
 		slot_h = ipu_get_done_slot();
+		spin_unlock_irqrestore(&g_ipu->slock, flag);
 		if (!slot_h)
 			return -EFAULT;
 
@@ -522,6 +532,7 @@ long ipu_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 	case IPUC_STOP:
 		ips_irq_disable(IPU_INT);
 		ipu_stop_thread(g_ipu);
+		break;
 	case IPUC_START:
 		if (g_ipu->ipu_task == NULL) {
 			g_ipu->thread_exit = false;
@@ -535,7 +546,9 @@ long ipu_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 			}
 			ips_irq_enable(IPU_INT);
 		}
+		break;
 	default:
+		ipu_err("ipu cmd: %d not supported\n", _IOC_NR(cmd));
 		break;
 	}
 
@@ -558,21 +571,20 @@ int ipu_mmap(struct file *filp, struct vm_area_struct *vma)
 
 unsigned int ipu_poll(struct file *file, struct poll_table_struct *wait)
 {
+	unsigned long flags;
 	unsigned int mask = 0;
 
 	poll_wait(file, &g_ipu->event_head, wait);
-	spin_lock_irq(&g_ipu->elock);
+	spin_lock_irqsave(&g_ipu->elock, flags);
 	if (g_ipu->err_status || g_ipu->thread_exit) {
 		mask |= POLLERR;
 		ipu_err("POLLERR: err_status 0x%x, thread_exit 0x%x\n",
 			g_ipu->err_status, g_ipu->thread_exit);
-	}
-
-	if (g_ipu->pymid_done) {
+	} else if (g_ipu->pymid_done) {
 		mask |= POLLIN;
 		mask |= POLLRDNORM;
 	}
-	spin_unlock_irq(&g_ipu->elock);
+	spin_unlock_irqrestore(&g_ipu->elock, flags);
 	return mask;
 }
 
@@ -693,9 +705,7 @@ static int x2_ipu_probe(struct platform_device *pdev)
 	ipu->err_status = 0;
 	ipu->thread_exit = false;
 	spin_lock_init(&ipu->slock);
-	init_waitqueue_head(&ipu->wq_head);
 	spin_lock_init(&ipu->elock);
-	init_waitqueue_head(&ipu->event_head);
 
 	ipu_cfg = (ipu_cfg_t *) kzalloc(sizeof(ipu_cfg_t), GFP_KERNEL);
 	if (!ipu_cfg) {

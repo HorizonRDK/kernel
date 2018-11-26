@@ -25,7 +25,7 @@
 #include <linux/pinctrl/consumer.h>
 
 #include "x2/x2_ips.h"
-
+#define  RST_MAX (6)
 struct ips_dev_s {
 	struct platform_device *pdev;
 #ifndef CONFIG_X2_FPGA
@@ -53,7 +53,7 @@ struct ips_dev_s *g_ipsdev;
 char *reset_name[RST_MAX] =
     { "mipi_ipi", "mipi_cfg", "sif", "ipu", "dvp", "bt" };
 
-unsigned int ips_debug_ctl = 1;
+unsigned int ips_debug_ctl = 0;
 module_param(ips_debug_ctl, uint, S_IRUGO | S_IWUSR);
 #define IPS_DEBUG_PRINT(format, args...)    \
     do {                                    \
@@ -127,6 +127,7 @@ int ips_irq_enable(int irq)
 	val &= irqmask;
 	IPS_REG_WRITE(val, g_ipsdev->regaddr + IPSINTMASK);
 	SPIN_UNLOCK_IRQ_RESTORE(g_ipsdev->lock, flags);
+	printk(KERN_INFO "module %d's irq enabled\n", irq);
 #ifndef CONFIG_X2_FPGA
 	g_ipsdev->need_irq = 1;
 #endif
@@ -147,6 +148,7 @@ int ips_irq_disable(int irq)
 	val |= irqmask;
 	IPS_REG_WRITE(val, g_ipsdev->regaddr + IPSINTMASK);
 	SPIN_UNLOCK_IRQ_RESTORE(g_ipsdev->lock, flags);
+	printk(KERN_INFO "module %d's irq disabled\n", irq);
 #ifndef CONFIG_X2_FPGA
 	if ((!g_ipsdev->irq_handle[ISP_INT]
 	     || ((val & ISP_INT_BITS) == ISP_INT_BITS))
@@ -626,8 +628,8 @@ static int x2_ips_probe(struct platform_device *pdev)
 			return PTR_ERR(g_ipsdev->rst);
 		}
 	}
-	ips_module_reset(BIT(RST_MIPI_IPI) | BIT(RST_MIPI_CFG) | BIT(RST_SIF) |
-			 BIT(RST_IPU) | BIT(RST_DVP) | BIT(RST_BT));
+	ips_module_reset(RST_MIPI_IPI | RST_MIPI_CFG | RST_SIF | RST_IPU |
+			 RST_DVP | RST_BT);
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	g_ipsdev->regaddr = devm_ioremap_resource(&pdev->dev, res);
