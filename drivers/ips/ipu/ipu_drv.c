@@ -507,9 +507,10 @@ long ipu_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 		memset(&info, 0, sizeof(info_h_t));
 		spin_lock_irqsave(&g_ipu->slock, flag);
 		slot_h = ipu_get_done_slot();
-		spin_unlock_irqrestore(&g_ipu->slock, flag);
-		if (!slot_h)
+		if (!slot_h) {
+			spin_unlock_irqrestore(&g_ipu->slock, flag);
 			return -EFAULT;
+		}
 
 		if (g_ipu->done_idx != -1 && g_ipu->done_idx != slot_h->slot_id) {
 			ipu_err("cnn slot delay\n");
@@ -522,6 +523,7 @@ long ipu_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 					    (uint64_t) g_ipu->paddr);
 		info.ipu_flag = slot_h->ipu_flag;
 		info.cnn_flag = slot_h->cnn_flag;
+		spin_unlock_irqrestore(&g_ipu->slock, flag);
 		ret =
 		    copy_to_user((void __user *)data, (const void *)&info,
 				 sizeof(info_h_t));
