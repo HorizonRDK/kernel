@@ -381,6 +381,18 @@
 			reset-names = "cnn1_rst";
 			status = "disabled";
 		};
+	    bifsd: bifsd@A1007000 {
+		    compatible = "hobot,bifsd";
+		    reg = <0x0 0xA1007000 0x0 0x1000>;
+            interrupt-parent = <&gic>;
+            interrupts = <0 17 4>;
+            memory-region = <&bifsd_reserved>;
+		    status = "disabled";
+			resets = <&rst 0x00 5>;
+			reset-names = "bifsd";
+			pinctrl-names = "bifsd";
+			pinctrl-0 = <&bifsd_func>;
+	    };
 	};
 };
 

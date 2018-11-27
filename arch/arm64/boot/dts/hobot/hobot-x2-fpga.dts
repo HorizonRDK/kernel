@@ -32,6 +32,7 @@
 		pwm0	= &pwm_0;
 		pwm1	= &pwm_1;
 		pwm2	= &pwm_2;
+        bifsd   = &bifsd;
 	};
 
 	chosen {
@@ -49,6 +50,10 @@
 		#size-cells = <2>;
 		ranges;
 
+        bifsd_reserved: bifsd_reserved@0x3E05B000 {
+                reg = <0x0 0x3E05B000 0x0 0x1000>;
+                no-map;
+		};
 		iar_reserved: iar_reserved@0x3E05C000 {
 				reg = <0x0 0x3E05C000 0x0 0x1fa4000>;
 				no-map;
@@ -64,6 +69,7 @@
 			reg = <0x0 0x60000000 0x0 0x20000000>;
 			no-map;
 		};
+
 	};
 
 	cnn_mm {
@@ -172,4 +178,8 @@
 
 &iar {
 	status = "okay";
+};
+
+&bifsd {
+    status = "okay";
 };

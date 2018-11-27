@@ -186,3 +186,4 @@ obj-$(CONFIG_MULTIPLEXER)	+= mux/
 
 obj-$(CONFIG_X2_IPS)		+= ips/
 obj-$(CONFIG_X2_IAR)		+= iar/
+obj-$(CONFIG_X2_BIFSD_DEV)	+= bifsd/

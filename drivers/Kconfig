@@ -212,4 +212,6 @@ source "drivers/mux/Kconfig"
 source "drivers/ips/Kconfig"
 source "drivers/iar/Kconfig"
 
+source "drivers/bifsd/Kconfig"
+
 endmenu
