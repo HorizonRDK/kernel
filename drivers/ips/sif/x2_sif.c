@@ -10,6 +10,7 @@
 #include <linux/uaccess.h>
 #include <linux/fs.h>
 #include <linux/poll.h>
+#include <linux/eventpoll.h>
 
 #include "x2/x2_ips.h"
 #include "x2/x2_sif.h"
@@ -223,7 +224,7 @@ static unsigned int x2_sif_poll(struct file *file,
 	spin_lock_irqsave(&priv->event_lock, flags);
 
 	if (priv->event)
-		mask |= (POLLIN | POLLRDNORM);
+		mask = EPOLLIN | EPOLLET;
 
 	spin_unlock_irqrestore(&priv->event_lock, flags);
 
