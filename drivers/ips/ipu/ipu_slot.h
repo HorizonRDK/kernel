@@ -12,8 +12,10 @@
 #define IPU_GET_SLOT(id, base)      ((base) + (id) * IPU_SLOT_SIZE)
 
 typedef struct {
-	uint32_t offset;
-	uint32_t size;
+	uint32_t y_offset;
+	uint32_t c_offset;
+	uint16_t y_width;	/// contain blanking data
+	uint16_t c_width;	/// contain blanking data
 } slot_ddr_t;
 
 typedef struct {
@@ -29,14 +31,18 @@ typedef struct {
 	uint8_t slot_flag;
 	uint8_t ipu_flag;
 	uint8_t cnn_flag;
+	uint16_t cf_id;
+	uint16_t sf_id;
 	slot_ddr_info_t ddr_info;
 } ipu_slot_h_t;
 
 typedef struct {
 	uint8_t slot_id;
-	uint8_t slot_flag;
-	uint8_t ipu_flag;
-	uint8_t cnn_flag;
+	uint8_t slot_flag;	/// busy, free, done
+	uint8_t ipu_flag;	/// start, done, pym start, done
+	uint8_t cnn_flag;	/// start, done
+	uint16_t cf_id;
+	uint16_t sf_id;
 	uint64_t base;
 	slot_ddr_info_t ddr_info;
 } info_h_t;
@@ -56,6 +62,7 @@ typedef enum {
 } slot_cnn_flag_e;
 
 int8_t init_ipu_slot(uint64_t base, slot_ddr_info_t * data);
+int8_t ipu_clean_slot(void);
 ipu_slot_h_t *ipu_get_free_slot(void);
 ipu_slot_h_t *ipu_get_busy_slot(void);
 ipu_slot_h_t *ipu_get_done_slot(void);

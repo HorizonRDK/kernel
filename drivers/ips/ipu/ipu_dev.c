@@ -111,19 +111,19 @@ int8_t ipu_dump_regs(void)
 	uint64_t addr = 0;
 
 	for (i = 0; i < 17; i++) {
-		addr = g_regbase + i * 4;
+		addr = (uint64_t) (g_regbase + i * 4);
 		d = ipu_reg_r(addr);
 		ipu_dbg("0x%x=0x%x\n", addr, d);
 	}
 
 	for (i = 0; i < 16; i++) {
-		addr = g_regbase + i * 4 + 0x100;
+		addr = (uint64_t) (g_regbase + i * 4 + 0x100);
 		d = ipu_reg_r(addr);
 		ipu_dbg("0x%x=0x%x\n", addr, d);
 	}
 
 	for (i = 0; i < 16; i++) {
-		addr = g_regbase + i * 4 + 0x200;
+		addr = (uint64_t) (g_regbase + i * 4 + 0x200);
 		d = ipu_reg_r(addr);
 		ipu_dbg("0x%x=0x%x\n", addr, d);
 	}
@@ -242,7 +242,7 @@ int8_t set_ipu_frame_id(frame_id_t * info)
 	if (g_regbase == NULL)
 		return -1;
 
-	if (info->id_mode == 1)
+	if (info->bus_mode == 1)
 		d |= SET_FRAME_ID_BT_MODE;
 
 	if (info->crop_en == 1)

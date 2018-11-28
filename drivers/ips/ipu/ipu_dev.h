@@ -54,10 +54,10 @@ typedef struct {
 } ddr_t;
 
 typedef struct {
-	uint8_t id_mode;	/* 0 for dvp/mipi, 1 for bt */
+	uint8_t id_en;
+	uint8_t bus_mode;	/* 0 for dvp/mipi, 1 for bt */
 	uint8_t scale_en;
 	uint8_t crop_en;
-	uint8_t reserved;
 } frame_id_t;
 
 typedef struct {

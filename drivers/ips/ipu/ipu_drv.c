@@ -18,7 +18,6 @@
 #include <linux/proc_fs.h>
 #include <linux/delay.h>
 #include <linux/poll.h>
-#include <linux/eventpoll.h>
 #include "ipu_slot.h"
 #include "ipu_dev.h"
 #include "ipu_drv.h"
@@ -208,6 +207,70 @@ int8_t ipu_set(ipu_cmd_e cmd, ipu_cfg_t * ipu_cfg, uint64_t data)
 	return 0;
 }
 
+static uint32_t decode_frame_id(uint16_t * addr)
+{
+	uint32_t d = 0;
+	uint8_t i = 0;
+
+	for (i = 0; i < 8; i++) {
+		if (addr[i] == 0xffff) {
+			d |= 1 << i;
+		}
+	}
+	return d;
+}
+
+static int8_t ipu_get_frameid(struct x2_ipu_data *ipu, ipu_slot_h_t * slot)
+{
+	uint8_t *tmp = NULL;
+	uint64_t vaddr = (uint64_t) IPU_GET_SLOT(slot->slot_id, ipu->vaddr);
+	ipu_cfg_t *cfg = (ipu_cfg_t *) ipu->cfg;
+
+	if (!cfg->frame_id.id_en)
+		return 0;
+
+	if (cfg->frame_id.crop_en && cfg->ctrl.crop_ddr_en) {
+		/* get id from crop ddr address */
+		tmp = (uint8_t *) (slot->ddr_info.crop.y_offset + vaddr);
+		if (cfg->frame_id.bus_mode == 0) {
+			slot->cf_id = tmp[1] << 8 | tmp[0];
+			ipu_dbg("cframe_id=%d, %d, %d\n", tmp[0], tmp[1],
+				slot->cf_id);
+		} else {
+			slot->cf_id = decode_frame_id((uint16_t *) tmp);
+			ipu_dbg("cframe_id=%d\n", slot->cf_id);
+		}
+	}
+	if (cfg->frame_id.scale_en) {
+		if (cfg->ctrl.scale_ddr_en) {
+			/* get id from scale ddr address */
+			tmp =
+			    (uint8_t *) (slot->ddr_info.scale.y_offset + vaddr);
+			if (cfg->frame_id.bus_mode == 0) {
+				slot->sf_id = tmp[1] << 8 | tmp[0];
+				ipu_dbg("sframe_id=%d, %d, %d\n", tmp[0],
+					tmp[1], slot->sf_id);
+			} else {
+				slot->sf_id = decode_frame_id((uint16_t *) tmp);
+				ipu_dbg("sframe_id=%d\n", slot->sf_id);
+			}
+		} else {
+			/* get id from pymid ddr address */
+			tmp =
+			    (uint8_t *) (slot->ddr_info.ds[0].y_offset + vaddr);
+			if (cfg->frame_id.bus_mode == 0) {
+				slot->sf_id = tmp[1] << 8 | tmp[0];
+				ipu_dbg("pframe_id=%d, %d, %d\n", tmp[0],
+					tmp[1], slot->sf_id);
+			} else {
+				slot->sf_id = decode_frame_id((uint16_t *) tmp);
+				ipu_dbg("pframe_id=%d\n", slot->sf_id);
+			}
+		}
+	}
+	return 0;
+}
+
 static int ipu_thread(void *data)
 {
 	unsigned long flags;
@@ -264,6 +327,7 @@ static int ipu_thread(void *data)
 					 slot_h->slot_id);
 				ipu->pymid_done = true;
 				ipu->done_idx = slot_h->slot_id;
+				ipu_get_frameid(ipu, slot_h);
 				wake_up_interruptible(&ipu->event_head);
 			} else {
 				ipu_dbg("busy slot empty\n");
@@ -330,29 +394,42 @@ static int8_t ipu_core_init(ipu_cfg_t * ipu_cfg)
 	ipu_set(IPUC_SET_DDR, ipu_cfg, pbase);
 
 	if (ipu_cfg->ctrl.crop_ddr_en == 1) {
-		s_info.crop.offset = ipu_cfg->crop_ddr.y_addr - pbase;
-		s_info.crop.size =
-		    ipu_cfg->crop_ddr.y_size + ipu_cfg->crop_ddr.c_size;
+		s_info.crop.y_offset = ipu_cfg->crop_ddr.y_addr - pbase;
+		s_info.crop.c_offset = ipu_cfg->crop_ddr.c_addr - pbase;
+		s_info.crop.y_width =
+		    ALIGN_16(ipu_cfg->crop.crop_ed.w - ipu_cfg->crop.crop_st.w);
+		s_info.crop.c_width =
+		    ALIGN_16((ipu_cfg->crop.crop_ed.w -
+			      ipu_cfg->crop.crop_st.w) >> 1);
 	}
 	if (ipu_cfg->ctrl.scale_ddr_en == 1) {
-		s_info.scale.offset = ipu_cfg->scale_ddr.y_addr - pbase;
-		s_info.scale.size =
-		    ipu_cfg->scale_ddr.y_size + ipu_cfg->scale_ddr.c_size;
+		s_info.scale.y_offset = ipu_cfg->scale_ddr.y_addr - pbase;
+		s_info.scale.c_offset = ipu_cfg->scale_ddr.c_addr - pbase;
+		s_info.scale.y_width = ALIGN_16(ipu_cfg->scale.scale_tgt.w);
+		s_info.scale.c_width =
+		    ALIGN_16(ipu_cfg->scale.scale_tgt.w >> 1);
 	}
 	if (ipu_cfg->pymid.pymid_en == 1) {
 		for (i = 0; i < ipu_cfg->pymid.ds_layer_en; i++) {
-			s_info.ds[i].offset = ipu_cfg->ds_ddr[i].y_addr - pbase;
-			s_info.ds[i].size =
-			    ipu_cfg->ds_ddr[i].y_size +
-			    ipu_cfg->ds_ddr[i].c_size;
+			s_info.ds[i].y_offset =
+			    ipu_cfg->ds_ddr[i].y_addr - pbase;
+			s_info.ds[i].c_offset =
+			    ipu_cfg->ds_ddr[i].c_addr - pbase;
+			s_info.ds[i].y_width =
+			    ALIGN_16(ipu_cfg->pymid.ds_roi[i].w);
+			s_info.ds[i].c_width =
+			    ALIGN_16(ipu_cfg->pymid.ds_roi[i].w >> 1);
 		}
 		for (i = 0; i < 6; i++) {
 			if (ipu_cfg->pymid.us_layer_en & 1 << i) {
-				s_info.us[i].offset =
+				s_info.us[i].y_offset =
 				    ipu_cfg->us_ddr[i].y_addr - pbase;
-				s_info.us[i].size =
-				    ipu_cfg->us_ddr[i].y_size +
-				    ipu_cfg->us_ddr[i].c_size;
+				s_info.us[i].c_offset =
+				    ipu_cfg->us_ddr[i].c_addr - pbase;
+				s_info.us[i].y_width =
+				    ALIGN_16(ipu_cfg->pymid.us_roi[i].w);
+				s_info.us[i].c_width =
+				    ALIGN_16(ipu_cfg->pymid.us_roi[i].w >> 1);
 			}
 		}
 	}
@@ -524,6 +601,8 @@ long ipu_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 					    (uint64_t) g_ipu->paddr);
 		info.ipu_flag = slot_h->ipu_flag;
 		info.cnn_flag = slot_h->cnn_flag;
+		info.cf_id = slot_h->cf_id;
+		info.sf_id = slot_h->sf_id;
 		spin_unlock_irqrestore(&g_ipu->slock, flag);
 		ret =
 		    copy_to_user((void __user *)data, (const void *)&info,
@@ -535,6 +614,7 @@ long ipu_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 	case IPUC_STOP:
 		ips_irq_disable(IPU_INT);
 		ipu_stop_thread(g_ipu);
+		ipu_clean_slot();
 		break;
 	case IPUC_START:
 		if (g_ipu->ipu_task == NULL) {
@@ -564,7 +644,7 @@ int ipu_mmap(struct file *filp, struct vm_area_struct *vma)
 	struct page *page = NULL;
 	slot_ddr_info_t *slot_h =
 	    (slot_ddr_info_t *) IPU_GET_SLOT(vma->vm_pgoff, g_ipu->vaddr);
-	page = virt_to_page(((uint64_t) slot_h) + slot_h->ds[0].offset);
+	page = virt_to_page(((uint64_t) slot_h) + slot_h->ds[0].y_offset);
 	ret = remap_pfn_range(vma, vma->vm_start, page_to_pfn(page),
 			      vma->vm_end - vma->vm_start, vma->vm_page_prot);
 	if (ret)
@@ -580,11 +660,12 @@ unsigned int ipu_poll(struct file *file, struct poll_table_struct *wait)
 	poll_wait(file, &g_ipu->event_head, wait);
 	spin_lock_irqsave(&g_ipu->elock, flags);
 	if (g_ipu->err_status || g_ipu->thread_exit) {
-		mask = EPOLLERR;
+		mask |= POLLERR;
 		ipu_err("POLLERR: err_status 0x%x, thread_exit 0x%x\n",
 			g_ipu->err_status, g_ipu->thread_exit);
 	} else if (g_ipu->pymid_done) {
-		mask = EPOLLIN | EPOLLET;
+		mask |= POLLIN;
+		mask |= POLLRDNORM;
 	}
 	spin_unlock_irqrestore(&g_ipu->elock, flags);
 	return mask;
@@ -631,7 +712,7 @@ void init_test_data(ipu_cfg_t * info)
 	info->scale.pre_scale_x = 0;
 	info->scale.pre_scale_y = 0;
 
-	info->frame_id.id_mode = 0;
+	info->frame_id.bus_mode = 0;
 	info->frame_id.crop_en = 0;
 	info->frame_id.scale_en = 0;
 
