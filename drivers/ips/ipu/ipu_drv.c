@@ -660,12 +660,11 @@ unsigned int ipu_poll(struct file *file, struct poll_table_struct *wait)
 	poll_wait(file, &g_ipu->event_head, wait);
 	spin_lock_irqsave(&g_ipu->elock, flags);
 	if (g_ipu->err_status || g_ipu->thread_exit) {
-		mask |= POLLERR;
+		mask = EPOLLERR;
 		ipu_err("POLLERR: err_status 0x%x, thread_exit 0x%x\n",
 			g_ipu->err_status, g_ipu->thread_exit);
 	} else if (g_ipu->pymid_done) {
-		mask |= POLLIN;
-		mask |= POLLRDNORM;
+		mask = EPOLLIN | EPOLLET;
 	}
 	spin_unlock_irqrestore(&g_ipu->elock, flags);
 	return mask;
