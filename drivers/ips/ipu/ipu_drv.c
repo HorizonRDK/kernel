@@ -18,6 +18,7 @@
 #include <linux/proc_fs.h>
 #include <linux/delay.h>
 #include <linux/poll.h>
+#include <linux/eventpoll.h>
 #include "ipu_slot.h"
 #include "ipu_dev.h"
 #include "ipu_drv.h"
