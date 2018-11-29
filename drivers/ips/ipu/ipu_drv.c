@@ -215,7 +215,10 @@ static uint32_t decode_frame_id(uint16_t * addr)
 
 	for (i = 0; i < 8; i++) {
 		if (addr[i] == 0xffff) {
-			d |= 1 << i;
+			d <<= 1;
+			d |= 1;
+		} else {
+			d <<= 1;
 		}
 	}
 	return d;
@@ -234,7 +237,7 @@ static int8_t ipu_get_frameid(struct x2_ipu_data *ipu, ipu_slot_h_t * slot)
 		/* get id from crop ddr address */
 		tmp = (uint8_t *) (slot->ddr_info.crop.y_offset + vaddr);
 		if (cfg->frame_id.bus_mode == 0) {
-			slot->cf_id = tmp[1] << 8 | tmp[0];
+			slot->cf_id = tmp[0] << 8 | tmp[1];
 			ipu_dbg("cframe_id=%d, %d, %d\n", tmp[0], tmp[1],
 				slot->cf_id);
 		} else {
@@ -248,7 +251,7 @@ static int8_t ipu_get_frameid(struct x2_ipu_data *ipu, ipu_slot_h_t * slot)
 			tmp =
 			    (uint8_t *) (slot->ddr_info.scale.y_offset + vaddr);
 			if (cfg->frame_id.bus_mode == 0) {
-				slot->sf_id = tmp[1] << 8 | tmp[0];
+				slot->sf_id = tmp[0] << 8 | tmp[1];
 				ipu_dbg("sframe_id=%d, %d, %d\n", tmp[0],
 					tmp[1], slot->sf_id);
 			} else {
@@ -260,7 +263,7 @@ static int8_t ipu_get_frameid(struct x2_ipu_data *ipu, ipu_slot_h_t * slot)
 			tmp =
 			    (uint8_t *) (slot->ddr_info.ds[0].y_offset + vaddr);
 			if (cfg->frame_id.bus_mode == 0) {
-				slot->sf_id = tmp[1] << 8 | tmp[0];
+				slot->sf_id = tmp[0] << 8 | tmp[1];
 				ipu_dbg("pframe_id=%d, %d, %d\n", tmp[0],
 					tmp[1], slot->sf_id);
 			} else {

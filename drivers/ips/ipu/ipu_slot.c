@@ -54,6 +54,8 @@ int8_t init_ipu_slot(uint64_t base, slot_ddr_info_t * data)
 #else
 		memcpy(&g_ipu_slot_[i]->ddr_info, data,
 		       sizeof(slot_ddr_info_t));
+		ipu_dbg("ds[%d].y_offset=0x%x\n", i,
+			g_ipu_slot_[i]->ddr_info.ds[i].y_offset);
 #endif
 		g_ipu_slot_[i]->slot_flag = 0;
 		g_ipu_slot_[i]->ipu_flag = 0;
