@@ -225,7 +225,6 @@ int8_t set_ipu_scale(scale_t * info)
 	ipu_reg_w(d, g_regbase + IPU_SCALAR_STEP);
 
 	d = SET_PRE_SCALE(info->pre_scale_x, info->pre_scale_y);
-	ipu_reg_w(d, g_regbase + IPU_SCALAR_STEP);
 	if (info->bypass_x == 1)
 		d |= SET_SCALE_X_BYPASS;
 	if (info->bypass_y == 1)

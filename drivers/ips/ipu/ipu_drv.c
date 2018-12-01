@@ -270,6 +270,7 @@ static int8_t ipu_get_frameid(struct x2_ipu_data *ipu, ipu_slot_h_t * slot)
 				slot->sf_id = decode_frame_id((uint16_t *) tmp);
 				ipu_dbg("pframe_id=%d\n", slot->sf_id);
 			}
+			memset((void *)tmp, 0, 16);
 		}
 	}
 	return 0;
@@ -411,25 +412,31 @@ static int8_t ipu_core_init(ipu_cfg_t * ipu_cfg)
 	}
 	if (ipu_cfg->pymid.pymid_en == 1) {
 		for (i = 0; i < ipu_cfg->pymid.ds_layer_en; i++) {
-			s_info.ds[i].y_offset =
-			    ipu_cfg->ds_ddr[i].y_addr - pbase;
-			s_info.ds[i].c_offset =
-			    ipu_cfg->ds_ddr[i].c_addr - pbase;
-			s_info.ds[i].y_width =
-			    ALIGN_16(ipu_cfg->pymid.ds_roi[i].w);
-			s_info.ds[i].c_width =
-			    ALIGN_16(ipu_cfg->pymid.ds_roi[i].w >> 1);
+			if (ipu_cfg->ds_ddr[i].y_size) {
+				s_info.ds[i].y_offset =
+				    ipu_cfg->ds_ddr[i].y_addr - pbase;
+				s_info.ds[i].c_offset =
+				    ipu_cfg->ds_ddr[i].c_addr - pbase;
+				s_info.ds[i].y_width =
+				    ALIGN_16(ipu_cfg->pymid.ds_roi[i].w);
+				s_info.ds[i].c_width =
+				    ALIGN_16(ipu_cfg->pymid.ds_roi[i].w >> 1);
+			}
 		}
 		for (i = 0; i < 6; i++) {
 			if (ipu_cfg->pymid.us_layer_en & 1 << i) {
-				s_info.us[i].y_offset =
-				    ipu_cfg->us_ddr[i].y_addr - pbase;
-				s_info.us[i].c_offset =
-				    ipu_cfg->us_ddr[i].c_addr - pbase;
-				s_info.us[i].y_width =
-				    ALIGN_16(ipu_cfg->pymid.us_roi[i].w);
-				s_info.us[i].c_width =
-				    ALIGN_16(ipu_cfg->pymid.us_roi[i].w >> 1);
+				if (ipu_cfg->us_ddr[i].y_size) {
+					s_info.us[i].y_offset =
+					    ipu_cfg->us_ddr[i].y_addr - pbase;
+					s_info.us[i].c_offset =
+					    ipu_cfg->us_ddr[i].c_addr - pbase;
+					s_info.us[i].y_width =
+					    ALIGN_16(ipu_cfg->pymid.us_roi[i].
+						     w);
+					s_info.us[i].c_width =
+					    ALIGN_16(ipu_cfg->pymid.us_roi[i].
+						     w >> 1);
+				}
 			}
 		}
 	}
