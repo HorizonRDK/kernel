@@ -44,7 +44,7 @@ struct x2_ipu_data {
 	spinlock_t elock;
 	bool trigger_isr;
 	bool pymid_done;
-	bool thread_exit;
+	bool stop;
 	int8_t done_idx;
 	uint32_t isr_data;
 	uint32_t err_status;
@@ -282,13 +282,14 @@ static int ipu_thread(void *data)
 	struct x2_ipu_data *ipu = (struct x2_ipu_data *)data;
 	ipu_cfg_t *ipu_cfg = (ipu_cfg_t *) ipu->cfg;
 	ipu_slot_h_t *slot_h = NULL;
+	ipu_info("ipu thread run\n");
 	do {
 		wait_event_interruptible(ipu->wq_head,
 					 ipu->trigger_isr == true);
 		ipu->err_status = 0;
 		ipu->pymid_done = false;
 		ipu->done_idx = -1;
-		if (ipu->thread_exit)
+		if (kthread_should_stop())
 			break;
 		status = ipu->isr_data;
 		spin_lock_irqsave(&ipu->slock, flags);
@@ -297,9 +298,9 @@ static int ipu_thread(void *data)
 		    status & IPU_BUS23_TRANSMIT_ERRORS ||
 		    status & PYM_DS_FRAME_DROP || status & PYM_US_FRAME_DROP) {
 			ipu->err_status = status;
-			slot_h = ipu_get_busy_slot();
+			ipu_err("ipu error 0x%x\n", ipu->err_status);
+			slot_h = slot_busy_to_free();
 			if (slot_h) {
-				slot_to_free_list(slot_h);
 				ipu_err("meet error, slot-%d, 0x%x\n",
 					slot_h->slot_id, status);
 				wake_up_interruptible(&ipu->event_head);
@@ -307,9 +308,8 @@ static int ipu_thread(void *data)
 		}
 
 		if (status & IPU_FRAME_START) {
-			slot_h = ipu_get_free_slot();
+			slot_h = slot_free_to_busy();
 			if (slot_h) {
-				slot_to_busy_list(slot_h);
 				ipu_dbg("slot-%d, 0x%llx\n", slot_h->slot_id,
 					(uint64_t) IPU_GET_SLOT(slot_h->slot_id,
 								(uint64_t) ipu->
@@ -324,9 +324,8 @@ static int ipu_thread(void *data)
 
 		if (status & PYM_FRAME_DONE) {
 			/* TODO need flash cache? */
-			slot_h = ipu_get_busy_slot();
+			slot_h = slot_busy_to_done();
 			if (slot_h) {
-				slot_to_done_list(slot_h);
 				ipu_info("pyramid done, slot-%d\n",
 					 slot_h->slot_id);
 				ipu->pymid_done = true;
@@ -338,16 +337,14 @@ static int ipu_thread(void *data)
 			}
 #ifdef IPU_DEBUG
 			/* TODO for test */
-			slot_h = ipu_get_done_slot();
-			if (slot_h) {
-				slot_to_free_list(slot_h);
-			}
+			slot_h = slot_done_to_free();
 #endif
 		}
 		ipu->trigger_isr = false;
 		ipu->isr_data = 0;
 		spin_unlock_irqrestore(&ipu->slock, flags);
-	} while (!ipu->thread_exit);
+	} while (!kthread_should_stop());
+	ipu_info("ipu thread exit\n");
 	return 0;
 }
 
@@ -365,9 +362,8 @@ void x2_ipu_isr(unsigned int status, void *data)
 static int8_t ipu_stop_thread(struct x2_ipu_data *ipu)
 {
 	if (!IS_ERR(ipu->ipu_task)) {
-		ipu->thread_exit = true;
+		kthread_stop(g_ipu->ipu_task);
 		wake_up_interruptible(&ipu->wq_head);
-		wake_up_interruptible(&ipu->event_head);
 	}
 	ipu->ipu_task = NULL;
 	return 0;
@@ -438,9 +434,7 @@ static int8_t ipu_core_init(ipu_cfg_t * ipu_cfg)
 		}
 	}
 	init_ipu_slot((uint64_t) g_ipu->vaddr, &s_info);
-	s_head = ipu_get_free_slot();
-	if (s_head)
-		slot_to_busy_list(s_head);
+	s_head = slot_free_to_busy();
 
 	ips_irq_disable(IPU_INT);
 	ips_register_irqhandle(IPU_INT, x2_ipu_isr, (void *)g_ipu);
@@ -450,9 +444,11 @@ static int8_t ipu_core_init(ipu_cfg_t * ipu_cfg)
 
 int ipu_open(struct inode *node, struct file *filp)
 {
-	g_ipu->thread_exit = false;
-	init_waitqueue_head(&g_ipu->wq_head);
-	init_waitqueue_head(&g_ipu->event_head);
+	g_ipu->trigger_isr = false;
+	g_ipu->isr_data = 0;
+	g_ipu->pymid_done = false;
+	g_ipu->err_status = 0;
+	g_ipu->stop = false;
 	return 0;
 }
 
@@ -576,12 +572,10 @@ long ipu_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 		/* step 1 mv slot from done to free */
 		ret = 0;
 		spin_lock_irqsave(&g_ipu->slock, flag);
-		slot_h = ipu_get_done_slot();
+		slot_h = slot_done_to_free();
 		if (!slot_h) {
 			ipu_err("no done slot exist!!!\n");
 			ret = -EFAULT;
-		} else {
-			slot_to_free_list(slot_h);
 		}
 		spin_unlock_irqrestore(&g_ipu->slock, flag);
 		break;
@@ -617,28 +611,22 @@ long ipu_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 		break;
 	case IPUC_STOP:
 		ips_irq_disable(IPU_INT);
-		ipu_stop_thread(g_ipu);
+		spin_lock_irqsave(&g_ipu->elock, flag);
+		g_ipu->stop = true;
+		spin_unlock_irqrestore(&g_ipu->elock, flag);
+		wake_up_interruptible(&g_ipu->event_head);
+		spin_lock_irqsave(&g_ipu->slock, flag);
 		ipu_clean_slot();
+		spin_unlock_irqrestore(&g_ipu->slock, flag);
 		break;
 	case IPUC_START:
-		if (g_ipu->ipu_task == NULL) {
-			g_ipu->thread_exit = false;
-			g_ipu->ipu_task =
-			    kthread_run(ipu_thread, (void *)g_ipu,
-					"ipu_thread");
-			if (IS_ERR(g_ipu->ipu_task)) {
-				g_ipu->ipu_task = NULL;
-				ipu_err("thread create fail\n");
-				return -1;
-			}
-			ips_irq_enable(IPU_INT);
-		}
+		ips_irq_enable(IPU_INT);
 		break;
 	default:
 		ipu_err("ipu cmd: %d not supported\n", _IOC_NR(cmd));
 		break;
 	}
-
+	ipu_info("ipu cmd: %d end\n", _IOC_NR(cmd));
 	return ret;
 }
 
@@ -663,10 +651,12 @@ unsigned int ipu_poll(struct file *file, struct poll_table_struct *wait)
 
 	poll_wait(file, &g_ipu->event_head, wait);
 	spin_lock_irqsave(&g_ipu->elock, flags);
-	if (g_ipu->err_status || g_ipu->thread_exit) {
+	if (g_ipu->stop) {
+		mask = EPOLLHUP;
+		ipu_info("ipu exit request\n");
+	} else if (g_ipu->err_status) {
+		ipu_info("POLLERR: err_status 0x%x\n", g_ipu->err_status);
 		mask = EPOLLERR;
-		ipu_err("POLLERR: err_status 0x%x, thread_exit 0x%x\n",
-			g_ipu->err_status, g_ipu->thread_exit);
 	} else if (g_ipu->pymid_done) {
 		mask = EPOLLIN | EPOLLET;
 	}
@@ -785,13 +775,6 @@ static int x2_ipu_probe(struct platform_device *pdev)
 	if (!ipu) {
 		return -ENOMEM;
 	}
-	ipu->trigger_isr = false;
-	ipu->isr_data = 0;
-	ipu->pymid_done = false;
-	ipu->err_status = 0;
-	ipu->thread_exit = false;
-	spin_lock_init(&ipu->slock);
-	spin_lock_init(&ipu->elock);
 
 	ipu_cfg = (ipu_cfg_t *) kzalloc(sizeof(ipu_cfg_t), GFP_KERNEL);
 	if (!ipu_cfg) {
@@ -873,7 +856,19 @@ static int x2_ipu_probe(struct platform_device *pdev)
 	}
 
 	g_ipu = ipu;
-
+	spin_lock_init(&ipu->slock);
+	spin_lock_init(&ipu->elock);
+	init_waitqueue_head(&ipu->wq_head);
+	init_waitqueue_head(&ipu->event_head);
+	if (ipu->ipu_task == NULL) {
+		ipu->ipu_task =
+		    kthread_run(ipu_thread, (void *)g_ipu, "ipu_thread");
+		if (IS_ERR(ipu->ipu_task)) {
+			ipu->ipu_task = NULL;
+			ipu_err("thread create fail\n");
+			return -1;
+		}
+	}
 	dev_info(&pdev->dev, "x2 ipu probe success\n");
 	return 0;
 
@@ -898,6 +893,7 @@ static int x2_ipu_remove(struct platform_device *pdev)
 {
 	struct x2_ipu_data *ipu = platform_get_drvdata(pdev);
 
+	ipu_stop_thread(ipu);
 	release_mem_region(ipu->io_r->start, resource_size(ipu->io_r));
 	clr_ipu_regbase();
 	iounmap(ipu->regbase);

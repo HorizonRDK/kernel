@@ -35,6 +35,7 @@ typedef struct sif_file_s {
 	spinlock_t event_lock;
 	uint32_t event;
 	uint32_t receive_frame;
+	uint32_t status;
 	wait_queue_head_t event_queue;
 } sif_file_t;
 
@@ -90,12 +91,15 @@ static void x2_sif_irq(unsigned int status, void *data)
 	sif = (sif_t *) data;
 	//TODO
 	spin_lock(&sif->sif_file.event_lock);
-	if (!sif->sif_file.receive_frame && (status & SIF_FRAME_END_INTERRUPT)) {
+	if (!sif->sif_file.receive_frame
+	    && (status & SIF_FRAME_START_INTERRUPT)) {
 		sif->sif_file.event |= SIF_START;
 		sif->sif_file.receive_frame = true;
 	}
-	if (status & (SIF_SIZE_ERR0 | SIF_SIZE_ERR1))
+	if (status & (SIF_SIZE_ERR0 | SIF_SIZE_ERR1)) {
 		sif->sif_file.event |= SIF_ERROR;
+		sif->sif_file.status = status & (SIF_SIZE_ERR0 | SIF_SIZE_ERR1);
+	}
 	if (status & MOT_DET)
 		sif->sif_file.event |= SIF_MOTDET;
 	spin_unlock(&sif->sif_file.event_lock);
@@ -159,8 +163,6 @@ static void sif_deinit(sif_t * dev)
 static int x2_sif_open(struct inode *inode, struct file *file)
 {
 	sif_t *sif = dev_get_drvdata(g_sif_dev);
-	spin_lock_init(&sif->sif_file.event_lock);
-	init_waitqueue_head(&sif->sif_file.event_queue);
 	sif->sif_file.event = 0;
 	file->private_data = g_sif_dev;
 	return 0;
@@ -178,32 +180,15 @@ static ssize_t x2_sif_read(struct file *file, char __user * buf, size_t size,
 	sif_t *dev = sifdrv(file);
 	sif_file_t *priv = &dev->sif_file;
 	int ret = 0;
-	unsigned long flags;
 
-	sifinfo("sif read");
-	spin_lock_irqsave(&priv->event_lock, flags);
-	while (!priv->event) {
-		spin_unlock_irqrestore(&priv->event_lock, flags);
-
-		if (file->f_flags & O_NONBLOCK)
-			return -EAGAIN;
-
-		if (wait_event_interruptible(priv->event_queue, priv->event))
-			return -ERESTARTSYS;
-
-		/* If device was disassociated and no event exists set an error */
-		if (!priv->event)
-			return -EIO;
-
-		spin_lock_irqsave(&priv->event_lock, flags);
+	if (0 == priv->status) {
+		sifinfo("sif status OK");
 	}
-	spin_unlock_irqrestore(&priv->event_lock, flags);
-
-	if (copy_to_user(buf, &priv->event, sizeof(priv->event)))
+	if (copy_to_user(buf, &priv->status, sizeof(priv->status)))
 		ret = -EFAULT;
 	else
-		ret = sizeof(priv->event);
-	priv->event = 0;
+		ret = sizeof(priv->status);
+	priv->status = 0;
 	return ret;
 }
 
@@ -222,10 +207,16 @@ static unsigned int x2_sif_poll(struct file *file,
 
 	poll_wait(file, &priv->event_queue, wait);
 	spin_lock_irqsave(&priv->event_lock, flags);
-
-	if (priv->event)
+	if (SIF_STOP == priv->event)
+		mask = EPOLLHUP;
+	else if (SIF_MOTDET == priv->event) {
+		mask = EPOLLPRI;
+	} else if (SIF_ERROR == priv->event) {
+		mask = EPOLLERR;
+	} else if (priv->event) {
 		mask = EPOLLIN | EPOLLET;
-
+	}
+	priv->event = 0;
 	spin_unlock_irqrestore(&priv->event_lock, flags);
 
 	return mask;
@@ -450,6 +441,8 @@ static int __init sif_module_init(void)
 		ret = PTR_ERR(g_sif_dev);
 		goto err;
 	}
+	spin_lock_init(&sif->sif_file.event_lock);
+	init_waitqueue_head(&sif->sif_file.event_queue);
 
 	printk(KERN_INFO "sif driver init exit\n");
 	return 0;
