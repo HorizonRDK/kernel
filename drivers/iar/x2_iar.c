@@ -24,35 +24,6 @@
 #include "x2/x2_ips.h"
 #include "x2_iar.h"
 
-#ifdef CONFIG_X2_FPGA
-#define IAR_REG_READ(addr) readl(addr)
-#define IAR_REG_WRITE(value, addr) writel(value, addr)
-#else
-extern int32_t bifdev_get_cpchip_reg(uint32_t addr, int32_t * value);
-extern int32_t bifdev_set_cpchip_reg(uint32_t addr, int32_t value);
-uint32_t iar_read_reg(uint32_t addr)
-{
-	int32_t value;
-	if (bifdev_get_cpchip_reg(addr, &value) < 0) {
-		printk(KERN_ERR "bifdev_get_cpchip_reg err %x\n", addr);
-		return 0;
-	} else {
-		printk("read addr:0x%x  value:0x%x \n", addr, value);
-		return value;
-	}
-}
-
-void iar_write_reg(uint32_t addr, int32_t value)
-{
-	IAR_DEBUG_PRINT("write addr:0x%x  value:0x%x \n", addr, value);
-	if (bifdev_set_cpchip_reg(addr, value) < 0)
-		printk(KERN_ERR "bifdev_set_cpchip_reg err %x\n", addr);
-}
-
-#define IAR_REG_READ(addr) iar_read_reg(addr)
-#define IAR_REG_WRITE(value, addr) iar_write_reg(addr, value)
-#endif
-
 #define IAR_ENABLE 1
 #define IAR_DISABLE 0
 
@@ -301,22 +272,15 @@ typedef enum _iar_table_e {
 #define IAR_REG_SET_FILED(key, value, regvalue) VALUE_SET(value, g_iarReg_cfg_table[key][TABLE_MASK], g_iarReg_cfg_table[key][TABLE_OFFSET], regvalue)
 #define IAR_REG_GET_FILED(key, regvalue) VALUE_GET(value, g_iarReg_cfg_table[key][TABLE_MASK], g_iarReg_cfg_table[key][TABLE_OFFSET], regvalue)
 
-#define MAX_FRAME_BUF_SIZE  (1920*1080*4)
-
 struct iar_dev_s {
 	struct platform_device *pdev;
-#ifdef CONFIG_X2_FPGA
 	void __iomem *regaddr;
 	void __iomem *sysctrl;
 	struct reset_control *rst;
-#else
-	phys_addr_t regaddr;
-	phys_addr_t gpioregs;
-	phys_addr_t sysctrl;
-#endif
 	int irq;
 	spinlock_t spinlock;
 	spinlock_t *lock;
+	frame_buf_t frambuf[IAR_CHANNEL_MAX];
 	pingpong_buf_t pingpong_buf[IAR_CHANNEL_MAX];
 	unsigned int channel_format[IAR_CHANNEL_MAX];
 	unsigned int buf_w_h[IAR_CHANNEL_MAX][2];
@@ -328,7 +292,7 @@ void x2_iar_dump(void)
 {
 	void __iomem *regaddr = g_iar_dev->regaddr;
 	for (; (regaddr - g_iar_dev->regaddr) <= 0x404; regaddr += 0x4) {
-		int regval = IAR_REG_READ(regaddr);
+		int regval = readl(regaddr);
 		printk("iar reg:[0x%p]: 0x%x \n", regaddr, regval);
 	}
 }
@@ -359,40 +323,30 @@ int32_t iar_config_pixeladdr(void)
 					uoffset =
 					    g_iar_dev->buf_w_h[i][0] *
 					    g_iar_dev->buf_w_h[i][1] * 5 / 4;
-					g_iar_dev->
-					    pingpong_buf[i].pixel_addr[0].
-					    Yaddr =
-					    g_iar_dev->
-					    pingpong_buf[i].framebuf[0].paddr;
-					g_iar_dev->
-					    pingpong_buf[i].pixel_addr[0].
-					    Uaddr =
-					    g_iar_dev->
-					    pingpong_buf[i].framebuf[0].paddr +
-					    uoffset;
-					g_iar_dev->
-					    pingpong_buf[i].pixel_addr[0].
-					    Vaddr =
-					    g_iar_dev->
-					    pingpong_buf[i].framebuf[0].paddr +
-					    voffset;
-					g_iar_dev->
-					    pingpong_buf[i].pixel_addr[1].
-					    Yaddr =
-					    g_iar_dev->
-					    pingpong_buf[i].framebuf[1].paddr;
-					g_iar_dev->
-					    pingpong_buf[i].pixel_addr[1].
-					    Uaddr =
-					    g_iar_dev->
-					    pingpong_buf[i].framebuf[1].paddr +
-					    uoffset;
-					g_iar_dev->
-					    pingpong_buf[i].pixel_addr[1].
-					    Vaddr =
-					    g_iar_dev->
-					    pingpong_buf[i].framebuf[1].paddr +
-					    voffset;
+					g_iar_dev->pingpong_buf[i].
+					    pixel_addr[0].Yaddr =
+					    g_iar_dev->pingpong_buf[i].
+					    framebuf[0].paddr;
+					g_iar_dev->pingpong_buf[i].
+					    pixel_addr[0].Uaddr =
+					    g_iar_dev->pingpong_buf[i].
+					    framebuf[0].paddr + uoffset;
+					g_iar_dev->pingpong_buf[i].
+					    pixel_addr[0].Vaddr =
+					    g_iar_dev->pingpong_buf[i].
+					    framebuf[0].paddr + voffset;
+					g_iar_dev->pingpong_buf[i].
+					    pixel_addr[1].Yaddr =
+					    g_iar_dev->pingpong_buf[i].
+					    framebuf[1].paddr;
+					g_iar_dev->pingpong_buf[i].
+					    pixel_addr[1].Uaddr =
+					    g_iar_dev->pingpong_buf[i].
+					    framebuf[1].paddr + uoffset;
+					g_iar_dev->pingpong_buf[i].
+					    pixel_addr[1].Vaddr =
+					    g_iar_dev->pingpong_buf[i].
+					    framebuf[1].paddr + voffset;
 				}
 				break;
 			case FORMAT_YUV420P_UV:
@@ -404,40 +358,30 @@ int32_t iar_config_pixeladdr(void)
 					voffset =
 					    g_iar_dev->buf_w_h[i][0] *
 					    g_iar_dev->buf_w_h[i][1] * 5 / 4;
-					g_iar_dev->
-					    pingpong_buf[i].pixel_addr[0].
-					    Yaddr =
-					    g_iar_dev->
-					    pingpong_buf[i].framebuf[0].paddr;
-					g_iar_dev->
-					    pingpong_buf[i].pixel_addr[0].
-					    Uaddr =
-					    g_iar_dev->
-					    pingpong_buf[i].framebuf[0].paddr +
-					    uoffset;
-					g_iar_dev->
-					    pingpong_buf[i].pixel_addr[0].
-					    Vaddr =
-					    g_iar_dev->
-					    pingpong_buf[i].framebuf[0].paddr +
-					    voffset;
-					g_iar_dev->
-					    pingpong_buf[i].pixel_addr[1].
-					    Yaddr =
-					    g_iar_dev->
-					    pingpong_buf[i].framebuf[1].paddr;
-					g_iar_dev->
-					    pingpong_buf[i].pixel_addr[1].
-					    Uaddr =
-					    g_iar_dev->
-					    pingpong_buf[i].framebuf[1].paddr +
-					    uoffset;
-					g_iar_dev->
-					    pingpong_buf[i].pixel_addr[1].
-					    Vaddr =
-					    g_iar_dev->
-					    pingpong_buf[i].framebuf[1].paddr +
-					    voffset;
+					g_iar_dev->pingpong_buf[i].
+					    pixel_addr[0].Yaddr =
+					    g_iar_dev->pingpong_buf[i].
+					    framebuf[0].paddr;
+					g_iar_dev->pingpong_buf[i].
+					    pixel_addr[0].Uaddr =
+					    g_iar_dev->pingpong_buf[i].
+					    framebuf[0].paddr + uoffset;
+					g_iar_dev->pingpong_buf[i].
+					    pixel_addr[0].Vaddr =
+					    g_iar_dev->pingpong_buf[i].
+					    framebuf[0].paddr + voffset;
+					g_iar_dev->pingpong_buf[i].
+					    pixel_addr[1].Yaddr =
+					    g_iar_dev->pingpong_buf[i].
+					    framebuf[1].paddr;
+					g_iar_dev->pingpong_buf[i].
+					    pixel_addr[1].Uaddr =
+					    g_iar_dev->pingpong_buf[i].
+					    framebuf[1].paddr + uoffset;
+					g_iar_dev->pingpong_buf[i].
+					    pixel_addr[1].Vaddr =
+					    g_iar_dev->pingpong_buf[i].
+					    framebuf[1].paddr + voffset;
 				}
 				break;
 			case FORMAT_YUV420SP_UV:
@@ -449,34 +393,26 @@ int32_t iar_config_pixeladdr(void)
 					uoffset = voffset =
 					    g_iar_dev->buf_w_h[i][0] *
 					    g_iar_dev->buf_w_h[i][1];
-					g_iar_dev->
-					    pingpong_buf[i].pixel_addr[0].
-					    Yaddr =
-					    g_iar_dev->
-					    pingpong_buf[i].framebuf[0].paddr;
-					g_iar_dev->
-					    pingpong_buf[i].pixel_addr[0].
-					    Uaddr =
-					    g_iar_dev->
-					    pingpong_buf[i].framebuf[0].paddr +
-					    uoffset;
-					g_iar_dev->
-					    pingpong_buf[i].pixel_addr[0].
-					    Vaddr = 0;
-					g_iar_dev->
-					    pingpong_buf[i].pixel_addr[1].
-					    Yaddr =
-					    g_iar_dev->
-					    pingpong_buf[i].framebuf[1].paddr;
-					g_iar_dev->
-					    pingpong_buf[i].pixel_addr[1].
-					    Uaddr =
-					    g_iar_dev->
-					    pingpong_buf[i].framebuf[1].paddr +
-					    uoffset;
-					g_iar_dev->
-					    pingpong_buf[i].pixel_addr[1].
-					    Vaddr = 0;
+					g_iar_dev->pingpong_buf[i].
+					    pixel_addr[0].Yaddr =
+					    g_iar_dev->pingpong_buf[i].
+					    framebuf[0].paddr;
+					g_iar_dev->pingpong_buf[i].
+					    pixel_addr[0].Uaddr =
+					    g_iar_dev->pingpong_buf[i].
+					    framebuf[0].paddr + uoffset;
+					g_iar_dev->pingpong_buf[i].
+					    pixel_addr[0].Vaddr = 0;
+					g_iar_dev->pingpong_buf[i].
+					    pixel_addr[1].Yaddr =
+					    g_iar_dev->pingpong_buf[i].
+					    framebuf[1].paddr;
+					g_iar_dev->pingpong_buf[i].
+					    pixel_addr[1].Uaddr =
+					    g_iar_dev->pingpong_buf[i].
+					    framebuf[1].paddr + uoffset;
+					g_iar_dev->pingpong_buf[i].
+					    pixel_addr[1].Vaddr = 0;
 				}
 				break;
 			case FORMAT_YUV422P_UV:
@@ -488,40 +424,30 @@ int32_t iar_config_pixeladdr(void)
 					voffset =
 					    g_iar_dev->buf_w_h[i][0] *
 					    g_iar_dev->buf_w_h[i][1] * 3 / 2;
-					g_iar_dev->
-					    pingpong_buf[i].pixel_addr[0].
-					    Yaddr =
-					    g_iar_dev->
-					    pingpong_buf[i].framebuf[0].paddr;
-					g_iar_dev->
-					    pingpong_buf[i].pixel_addr[0].
-					    Uaddr =
-					    g_iar_dev->
-					    pingpong_buf[i].framebuf[0].paddr +
-					    uoffset;
-					g_iar_dev->
-					    pingpong_buf[i].pixel_addr[0].
-					    Vaddr =
-					    g_iar_dev->
-					    pingpong_buf[i].framebuf[0].paddr +
-					    voffset;
-					g_iar_dev->
-					    pingpong_buf[i].pixel_addr[1].
-					    Yaddr =
-					    g_iar_dev->
-					    pingpong_buf[i].framebuf[1].paddr;
-					g_iar_dev->
-					    pingpong_buf[i].pixel_addr[1].
-					    Uaddr =
-					    g_iar_dev->
-					    pingpong_buf[i].framebuf[1].paddr +
-					    uoffset;
-					g_iar_dev->
-					    pingpong_buf[i].pixel_addr[1].
-					    Vaddr =
-					    g_iar_dev->
-					    pingpong_buf[i].framebuf[1].paddr +
-					    voffset;
+					g_iar_dev->pingpong_buf[i].
+					    pixel_addr[0].Yaddr =
+					    g_iar_dev->pingpong_buf[i].
+					    framebuf[0].paddr;
+					g_iar_dev->pingpong_buf[i].
+					    pixel_addr[0].Uaddr =
+					    g_iar_dev->pingpong_buf[i].
+					    framebuf[0].paddr + uoffset;
+					g_iar_dev->pingpong_buf[i].
+					    pixel_addr[0].Vaddr =
+					    g_iar_dev->pingpong_buf[i].
+					    framebuf[0].paddr + voffset;
+					g_iar_dev->pingpong_buf[i].
+					    pixel_addr[1].Yaddr =
+					    g_iar_dev->pingpong_buf[i].
+					    framebuf[1].paddr;
+					g_iar_dev->pingpong_buf[i].
+					    pixel_addr[1].Uaddr =
+					    g_iar_dev->pingpong_buf[i].
+					    framebuf[1].paddr + uoffset;
+					g_iar_dev->pingpong_buf[i].
+					    pixel_addr[1].Vaddr =
+					    g_iar_dev->pingpong_buf[i].
+					    framebuf[1].paddr + voffset;
 				}
 				break;
 			case FORMAT_YUV422P_VU:
@@ -533,40 +459,30 @@ int32_t iar_config_pixeladdr(void)
 					uoffset =
 					    g_iar_dev->buf_w_h[i][0] *
 					    g_iar_dev->buf_w_h[i][1] * 3 / 2;
-					g_iar_dev->
-					    pingpong_buf[i].pixel_addr[0].
-					    Yaddr =
-					    g_iar_dev->
-					    pingpong_buf[i].framebuf[0].paddr;
-					g_iar_dev->
-					    pingpong_buf[i].pixel_addr[0].
-					    Uaddr =
-					    g_iar_dev->
-					    pingpong_buf[i].framebuf[0].paddr +
-					    uoffset;
-					g_iar_dev->
-					    pingpong_buf[i].pixel_addr[0].
-					    Vaddr =
-					    g_iar_dev->
-					    pingpong_buf[i].framebuf[0].paddr +
-					    voffset;
-					g_iar_dev->
-					    pingpong_buf[i].pixel_addr[1].
-					    Yaddr =
-					    g_iar_dev->
-					    pingpong_buf[i].framebuf[1].paddr;
-					g_iar_dev->
-					    pingpong_buf[i].pixel_addr[1].
-					    Uaddr =
-					    g_iar_dev->
-					    pingpong_buf[i].framebuf[1].paddr +
-					    uoffset;
-					g_iar_dev->
-					    pingpong_buf[i].pixel_addr[1].
-					    Vaddr =
-					    g_iar_dev->
-					    pingpong_buf[i].framebuf[1].paddr +
-					    voffset;
+					g_iar_dev->pingpong_buf[i].
+					    pixel_addr[0].Yaddr =
+					    g_iar_dev->pingpong_buf[i].
+					    framebuf[0].paddr;
+					g_iar_dev->pingpong_buf[i].
+					    pixel_addr[0].Uaddr =
+					    g_iar_dev->pingpong_buf[i].
+					    framebuf[0].paddr + uoffset;
+					g_iar_dev->pingpong_buf[i].
+					    pixel_addr[0].Vaddr =
+					    g_iar_dev->pingpong_buf[i].
+					    framebuf[0].paddr + voffset;
+					g_iar_dev->pingpong_buf[i].
+					    pixel_addr[1].Yaddr =
+					    g_iar_dev->pingpong_buf[i].
+					    framebuf[1].paddr;
+					g_iar_dev->pingpong_buf[i].
+					    pixel_addr[1].Uaddr =
+					    g_iar_dev->pingpong_buf[i].
+					    framebuf[1].paddr + uoffset;
+					g_iar_dev->pingpong_buf[i].
+					    pixel_addr[1].Vaddr =
+					    g_iar_dev->pingpong_buf[i].
+					    framebuf[1].paddr + voffset;
 				}
 				break;
 			case FORMAT_YUV422_UYVY:
@@ -574,16 +490,14 @@ int32_t iar_config_pixeladdr(void)
 			case FORMAT_YUV422_YVYU:
 			case FORMAT_YUV422_YUYV:
 				{
-					g_iar_dev->
-					    pingpong_buf[i].pixel_addr[0].
-					    Yaddr =
-					    g_iar_dev->
-					    pingpong_buf[i].framebuf[0].paddr;
-					g_iar_dev->
-					    pingpong_buf[i].pixel_addr[1].
-					    Yaddr =
-					    g_iar_dev->
-					    pingpong_buf[i].framebuf[1].paddr;
+					g_iar_dev->pingpong_buf[i].
+					    pixel_addr[0].Yaddr =
+					    g_iar_dev->pingpong_buf[i].
+					    framebuf[0].paddr;
+					g_iar_dev->pingpong_buf[i].
+					    pixel_addr[1].Yaddr =
+					    g_iar_dev->pingpong_buf[i].
+					    framebuf[1].paddr;
 				}
 				break;
 			default:
@@ -608,27 +522,22 @@ int32_t iar_set_hvsync_timing(int outmode)
 		return -1;
 	}
 
-	value =
-	    IAR_REG_READ(g_iar_dev->regaddr + REG_IAR_PARAMETER_HTIM_FIELD1);
+	value = readl(g_iar_dev->regaddr + REG_IAR_PARAMETER_HTIM_FIELD1);
 	value = IAR_REG_SET_FILED(IAR_DPI_HBP_FIELD2, 0x3e8, value);
 	value = IAR_REG_SET_FILED(IAR_DPI_HFP_FIELD2, 0x3e8, value);
 	value = IAR_REG_SET_FILED(IAR_DPI_HSW_FIELD2, 0x5, value);
-	IAR_REG_WRITE(value,
-		      g_iar_dev->regaddr + REG_IAR_PARAMETER_HTIM_FIELD1);
+	writel(value, g_iar_dev->regaddr + REG_IAR_PARAMETER_HTIM_FIELD1);
 
-	value =
-	    IAR_REG_READ(g_iar_dev->regaddr + REG_IAR_PARAMETER_VTIM_FIELD1);
+	value = readl(g_iar_dev->regaddr + REG_IAR_PARAMETER_VTIM_FIELD1);
 	value = IAR_REG_SET_FILED(IAR_DPI_VBP_FIELD, 0x4, value);
 	if (outmode == OUTPUT_BT1120)
 		value = IAR_REG_SET_FILED(IAR_DPI_VFP_FIELD, 0x6, value);
 	else
 		value = IAR_REG_SET_FILED(IAR_DPI_VFP_FIELD, 0x1, value);
 	value = IAR_REG_SET_FILED(IAR_DPI_VSW_FIELD, 0x1, value);
-	IAR_REG_WRITE(value,
-		      g_iar_dev->regaddr + REG_IAR_PARAMETER_VTIM_FIELD1);
+	writel(value, g_iar_dev->regaddr + REG_IAR_PARAMETER_VTIM_FIELD1);
 
-	IAR_REG_WRITE(0xa,
-		      g_iar_dev->regaddr + REG_IAR_PARAMETER_VFP_CNT_FIELD12);
+	writel(0xa, g_iar_dev->regaddr + REG_IAR_PARAMETER_VFP_CNT_FIELD12);
 
 	return 0;
 }
@@ -645,31 +554,29 @@ int32_t iar_channel_base_cfg(channel_base_cfg_t * cfg)
 
 	value = IAR_REG_SET_FILED(IAR_WINDOW_WIDTH, cfg->width, 0);	//set width
 	value = IAR_REG_SET_FILED(IAR_WINDOW_HEIGTH, cfg->height, value);
-	IAR_REG_WRITE(value,
-		      g_iar_dev->regaddr + FBUF_SIZE_ADDR_OFFSET(channelid));
+	writel(value, g_iar_dev->regaddr + FBUF_SIZE_ADDR_OFFSET(channelid));
 
-	IAR_REG_WRITE(cfg->buf_width,
-		      g_iar_dev->regaddr + FBUF_WIDTH_ADDR_OFFSET(channelid));
+	writel(cfg->buf_width,
+	       g_iar_dev->regaddr + FBUF_WIDTH_ADDR_OFFSET(channelid));
 
 	value = IAR_REG_SET_FILED(IAR_WINDOW_START_X, cfg->xposition, 0);	//set display position
 	value = IAR_REG_SET_FILED(IAR_WINDOW_START_Y, cfg->yposition, value);
-	IAR_REG_WRITE(value,
-		      g_iar_dev->regaddr + WIN_POS_ADDR_OFFSET(channelid));
+	writel(value, g_iar_dev->regaddr + WIN_POS_ADDR_OFFSET(channelid));
 
 	target_filed = IAR_IMAGE_FORMAT_ORG_RD1 - channelid;	//set format
-	value = IAR_REG_READ(g_iar_dev->regaddr + REG_IAR_FORMAT_ORGANIZATION);
+	value = readl(g_iar_dev->regaddr + REG_IAR_FORMAT_ORGANIZATION);
 	value = IAR_REG_SET_FILED(target_filed, cfg->format, value);
-	IAR_REG_WRITE(value, g_iar_dev->regaddr + REG_IAR_FORMAT_ORGANIZATION);
+	writel(value, g_iar_dev->regaddr + REG_IAR_FORMAT_ORGANIZATION);
 	g_iar_dev->channel_format[channelid] = cfg->format;
 
-	value = IAR_REG_READ(g_iar_dev->regaddr + REG_IAR_ALPHA_VALUE);
+	value = readl(g_iar_dev->regaddr + REG_IAR_ALPHA_VALUE);
 	target_filed = IAR_ALPHA_RD1 - channelid;	//set alpha
 	value = IAR_REG_SET_FILED(target_filed, cfg->alpha, value);
-	IAR_REG_WRITE(value, g_iar_dev->regaddr + REG_IAR_ALPHA_VALUE);
+	writel(value, g_iar_dev->regaddr + REG_IAR_ALPHA_VALUE);
 
-	IAR_REG_WRITE(cfg->keycolor, g_iar_dev->regaddr + KEY_COLOR_ADDR_OFFSET(channelid));	//set keycolor
+	writel(cfg->keycolor, g_iar_dev->regaddr + KEY_COLOR_ADDR_OFFSET(channelid));	//set keycolor
 
-	value = IAR_REG_READ(g_iar_dev->regaddr + REG_IAR_OVERLAY_OPT);
+	value = readl(g_iar_dev->regaddr + REG_IAR_OVERLAY_OPT);
 	target_filed = IAR_LAYER_PRIORITY_1 - channelid;	//set layer pri
 	value = IAR_REG_SET_FILED(target_filed, cfg->pri, value);
 
@@ -686,7 +593,7 @@ int32_t iar_channel_base_cfg(channel_base_cfg_t * cfg)
 	value = IAR_REG_SET_FILED(target_filed, cfg->ov_mode, value);
 	target_filed = IAR_EN_ALPHA_PRI1 - pri;	//set alpha en
 	value = IAR_REG_SET_FILED(target_filed, cfg->alpha_en, value);
-	IAR_REG_WRITE(value, g_iar_dev->regaddr + REG_IAR_OVERLAY_OPT);
+	writel(value, g_iar_dev->regaddr + REG_IAR_OVERLAY_OPT);
 
 	g_iar_dev->buf_w_h[channelid][0] = cfg->buf_width;
 	g_iar_dev->buf_w_h[channelid][1] = cfg->buf_height;
@@ -707,23 +614,23 @@ int32_t iar_upscaling_cfg(upscaling_cfg_t * cfg)
 
 	value = IAR_REG_SET_FILED(IAR_SRC_HEIGTH, cfg->src_height, 0);
 	value = IAR_REG_SET_FILED(IAR_SRC_WIDTH, cfg->src_width, value);
-	IAR_REG_WRITE(value, g_iar_dev->regaddr + REG_IAR_SRC_SIZE_UP);
+	writel(value, g_iar_dev->regaddr + REG_IAR_SRC_SIZE_UP);
 
 	value = IAR_REG_SET_FILED(IAR_TGT_HEIGTH, cfg->tgt_height, 0);
 	value = IAR_REG_SET_FILED(IAR_TGT_WIDTH, cfg->tgt_width, value);
-	IAR_REG_WRITE(value, g_iar_dev->regaddr + REG_IAR_TGT_SIZE_UP);
+	writel(value, g_iar_dev->regaddr + REG_IAR_TGT_SIZE_UP);
 
 	value = IAR_REG_SET_FILED(IAR_STEP_Y, cfg->step_y, 0);
 	value = IAR_REG_SET_FILED(IAR_STEP_X, cfg->step_x, value);
-	IAR_REG_WRITE(value, g_iar_dev->regaddr + REG_IAR_STEP_UP);
+	writel(value, g_iar_dev->regaddr + REG_IAR_STEP_UP);
 
 	value = IAR_REG_SET_FILED(IAR_UP_IMAGE_LEFT_X, cfg->pos_x, 0);
 	value = IAR_REG_SET_FILED(IAR_UP_IMAGE_TOP_Y, cfg->pos_y, value);
-	IAR_REG_WRITE(value, g_iar_dev->regaddr + REG_IAR_STEP_UP);
+	writel(value, g_iar_dev->regaddr + REG_IAR_STEP_UP);
 
-	value = IAR_REG_READ(g_iar_dev->regaddr + REG_IAR_PP_CON_1);
+	value = readl(g_iar_dev->regaddr + REG_IAR_PP_CON_1);
 	value = IAR_REG_SET_FILED(IAR_UP_SCALING_EN, cfg->enable, value);
-	IAR_REG_WRITE(value, g_iar_dev->regaddr + REG_IAR_PP_CON_1);
+	writel(value, g_iar_dev->regaddr + REG_IAR_PP_CON_1);
 
 	return 0;
 }
@@ -736,58 +643,58 @@ int32_t iar_gamma_cfg(gamma_cfg_t * cfg)
 		printk(KERN_ERR "IAR dev not inited!");
 		return -1;
 	}
-	IAR_REG_WRITE(cfg->gamma_xr[0].value,
-		      g_iar_dev->regaddr + REG_IAR_GAMMA_X1_X4_R);
-	IAR_REG_WRITE(cfg->gamma_xr[1].value,
-		      g_iar_dev->regaddr + REG_IAR_GAMMA_X5_X8_R);
-	IAR_REG_WRITE(cfg->gamma_xr[2].value,
-		      g_iar_dev->regaddr + REG_IAR_GAMMA_X9_X12_R);
-	IAR_REG_WRITE(cfg->gamma_xr[3].value,
-		      g_iar_dev->regaddr + REG_IAR_GAMMA_X13_X15_R);
-	IAR_REG_WRITE(cfg->gamma_xg[0].value,
-		      g_iar_dev->regaddr + REG_IAR_GAMMA_X1_X4_G);
-	IAR_REG_WRITE(cfg->gamma_xg[1].value,
-		      g_iar_dev->regaddr + REG_IAR_GAMMA_X5_X8_G);
-	IAR_REG_WRITE(cfg->gamma_xg[2].value,
-		      g_iar_dev->regaddr + REG_IAR_GAMMA_X9_X12_G);
-	IAR_REG_WRITE(cfg->gamma_xg[3].value,
-		      g_iar_dev->regaddr + REG_IAR_GAMMA_X13_X15_G);
-	IAR_REG_WRITE(cfg->gamma_xb[0].value,
-		      g_iar_dev->regaddr + REG_IAR_GAMMA_X1_X4_B);
-	IAR_REG_WRITE(cfg->gamma_xb[1].value,
-		      g_iar_dev->regaddr + REG_IAR_GAMMA_X5_X8_B);
-	IAR_REG_WRITE(cfg->gamma_xb[2].value,
-		      g_iar_dev->regaddr + REG_IAR_GAMMA_X9_X12_B);
-	IAR_REG_WRITE(cfg->gamma_xb[3].value,
-		      g_iar_dev->regaddr + REG_IAR_GAMMA_X13_X15_B);
+	writel(cfg->gamma_xr[0].value,
+	       g_iar_dev->regaddr + REG_IAR_GAMMA_X1_X4_R);
+	writel(cfg->gamma_xr[1].value,
+	       g_iar_dev->regaddr + REG_IAR_GAMMA_X5_X8_R);
+	writel(cfg->gamma_xr[2].value,
+	       g_iar_dev->regaddr + REG_IAR_GAMMA_X9_X12_R);
+	writel(cfg->gamma_xr[3].value,
+	       g_iar_dev->regaddr + REG_IAR_GAMMA_X13_X15_R);
+	writel(cfg->gamma_xg[0].value,
+	       g_iar_dev->regaddr + REG_IAR_GAMMA_X1_X4_G);
+	writel(cfg->gamma_xg[1].value,
+	       g_iar_dev->regaddr + REG_IAR_GAMMA_X5_X8_G);
+	writel(cfg->gamma_xg[2].value,
+	       g_iar_dev->regaddr + REG_IAR_GAMMA_X9_X12_G);
+	writel(cfg->gamma_xg[3].value,
+	       g_iar_dev->regaddr + REG_IAR_GAMMA_X13_X15_G);
+	writel(cfg->gamma_xb[0].value,
+	       g_iar_dev->regaddr + REG_IAR_GAMMA_X1_X4_B);
+	writel(cfg->gamma_xb[1].value,
+	       g_iar_dev->regaddr + REG_IAR_GAMMA_X5_X8_B);
+	writel(cfg->gamma_xb[2].value,
+	       g_iar_dev->regaddr + REG_IAR_GAMMA_X9_X12_B);
+	writel(cfg->gamma_xb[3].value,
+	       g_iar_dev->regaddr + REG_IAR_GAMMA_X13_X15_B);
 
-	IAR_REG_WRITE(cfg->gamma_xr[0].value,
-		      g_iar_dev->regaddr + REG_IAR_GAMMA_Y1_Y3_R);
-	IAR_REG_WRITE(cfg->gamma_xr[1].value,
-		      g_iar_dev->regaddr + REG_IAR_GAMMA_Y4_Y7_R);
-	IAR_REG_WRITE(cfg->gamma_xr[2].value,
-		      g_iar_dev->regaddr + REG_IAR_GAMMA_Y8_Y11_R);
-	IAR_REG_WRITE(cfg->gamma_xr[3].value,
-		      g_iar_dev->regaddr + REG_IAR_GAMMA_Y12_Y15_R);
-	IAR_REG_WRITE(cfg->gamma_xg[0].value,
-		      g_iar_dev->regaddr + REG_IAR_GAMMA_Y1_Y3_G);
-	IAR_REG_WRITE(cfg->gamma_xg[1].value,
-		      g_iar_dev->regaddr + REG_IAR_GAMMA_Y4_Y7_G);
-	IAR_REG_WRITE(cfg->gamma_xg[2].value,
-		      g_iar_dev->regaddr + REG_IAR_GAMMA_Y8_Y11_G);
-	IAR_REG_WRITE(cfg->gamma_xg[3].value,
-		      g_iar_dev->regaddr + REG_IAR_GAMMA_Y12_Y15_G);
-	IAR_REG_WRITE(cfg->gamma_xb[0].value,
-		      g_iar_dev->regaddr + REG_IAR_GAMMA_Y1_Y3_B);
-	IAR_REG_WRITE(cfg->gamma_xb[1].value,
-		      g_iar_dev->regaddr + REG_IAR_GAMMA_Y4_Y7_B);
-	IAR_REG_WRITE(cfg->gamma_xb[2].value,
-		      g_iar_dev->regaddr + REG_IAR_GAMMA_Y8_Y11_B);
-	IAR_REG_WRITE(cfg->gamma_xb[3].value,
-		      g_iar_dev->regaddr + REG_IAR_GAMMA_Y12_Y15_B);
+	writel(cfg->gamma_xr[0].value,
+	       g_iar_dev->regaddr + REG_IAR_GAMMA_Y1_Y3_R);
+	writel(cfg->gamma_xr[1].value,
+	       g_iar_dev->regaddr + REG_IAR_GAMMA_Y4_Y7_R);
+	writel(cfg->gamma_xr[2].value,
+	       g_iar_dev->regaddr + REG_IAR_GAMMA_Y8_Y11_R);
+	writel(cfg->gamma_xr[3].value,
+	       g_iar_dev->regaddr + REG_IAR_GAMMA_Y12_Y15_R);
+	writel(cfg->gamma_xg[0].value,
+	       g_iar_dev->regaddr + REG_IAR_GAMMA_Y1_Y3_G);
+	writel(cfg->gamma_xg[1].value,
+	       g_iar_dev->regaddr + REG_IAR_GAMMA_Y4_Y7_G);
+	writel(cfg->gamma_xg[2].value,
+	       g_iar_dev->regaddr + REG_IAR_GAMMA_Y8_Y11_G);
+	writel(cfg->gamma_xg[3].value,
+	       g_iar_dev->regaddr + REG_IAR_GAMMA_Y12_Y15_G);
+	writel(cfg->gamma_xb[0].value,
+	       g_iar_dev->regaddr + REG_IAR_GAMMA_Y1_Y3_B);
+	writel(cfg->gamma_xb[1].value,
+	       g_iar_dev->regaddr + REG_IAR_GAMMA_Y4_Y7_B);
+	writel(cfg->gamma_xb[2].value,
+	       g_iar_dev->regaddr + REG_IAR_GAMMA_Y8_Y11_B);
+	writel(cfg->gamma_xb[3].value,
+	       g_iar_dev->regaddr + REG_IAR_GAMMA_Y12_Y15_B);
 
-	IAR_REG_WRITE(cfg->gamma_y16rgb.value,
-		      g_iar_dev->regaddr + REG_IAR_GAMMA_Y16_RGB);
+	writel(cfg->gamma_y16rgb.value,
+	       g_iar_dev->regaddr + REG_IAR_GAMMA_Y16_RGB);
 	return 0;
 }
 
@@ -806,12 +713,12 @@ int32_t iar_output_cfg(output_cfg_t * cfg)
 	}
 	iar_set_hvsync_timing(cfg->out_sel);
 
-	IAR_REG_WRITE(cfg->bgcolor, g_iar_dev->regaddr + REG_IAR_BG_COLOR);
-	IAR_REG_WRITE((0x1 << cfg->out_sel),
-		      g_iar_dev->regaddr + REG_IAR_DE_OUTPUT_SEL);
+	writel(cfg->bgcolor, g_iar_dev->regaddr + REG_IAR_BG_COLOR);
+	writel((0x1 << cfg->out_sel),
+	       g_iar_dev->regaddr + REG_IAR_DE_OUTPUT_SEL);
 	value = IAR_REG_SET_FILED(IAR_PANEL_WIDTH, cfg->width, 0);
 	value = IAR_REG_SET_FILED(IAR_PANEL_HEIGHT, cfg->height, value);
-	IAR_REG_WRITE(value, g_iar_dev->regaddr + REG_IAR_PANEL_SIZE);
+	writel(value, g_iar_dev->regaddr + REG_IAR_PANEL_SIZE);
 
 	value = IAR_REG_SET_FILED(IAR_CONTRAST, cfg->ppcon1.contrast, 0);
 	value =
@@ -828,7 +735,7 @@ int32_t iar_output_cfg(output_cfg_t * cfg)
 	value =
 	    IAR_REG_SET_FILED(IAR_DITHERING_FLAG, cfg->ppcon1.dithering_flag,
 			      value);
-	IAR_REG_WRITE(value, g_iar_dev->regaddr + REG_IAR_PP_CON_1);
+	writel(value, g_iar_dev->regaddr + REG_IAR_PP_CON_1);
 
 	value = IAR_REG_SET_FILED(IAR_OFF_BRIGHT, cfg->ppcon2.off_bright, 0);
 	value =
@@ -837,7 +744,7 @@ int32_t iar_output_cfg(output_cfg_t * cfg)
 	value =
 	    IAR_REG_SET_FILED(IAR_SATURATION, cfg->ppcon2.saturation, value);
 	value = IAR_REG_SET_FILED(IAR_THETA_ABS, cfg->ppcon2.theta_abs, value);
-	IAR_REG_WRITE(value, g_iar_dev->regaddr + REG_IAR_PP_CON_2);
+	writel(value, g_iar_dev->regaddr + REG_IAR_PP_CON_2);
 
 	value =
 	    IAR_REG_SET_FILED(IAR_DBI_REFRESH_MODE,
@@ -863,16 +770,9 @@ int32_t iar_output_cfg(output_cfg_t * cfg)
 	value =
 	    IAR_REG_SET_FILED(IAR_ITU_R_656_EN, cfg->refresh_cfg.itu_r656_en,
 			      value);
-	IAR_REG_WRITE(value, g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
+	value = IAR_REG_SET_FILED(IAR_PIXEL_RATE, 0, value);
+	writel(value, g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
 
-	IAR_REG_WRITE(cfg->refresh_cfg.auto_dbi_refresh_cnt,
-		      g_iar_dev->regaddr + REG_IAR_AUTO_DBI_REFRESH_CNT);
-
-	value = IAR_REG_READ(g_iar_dev->regaddr + REG_IAR_DE_REFRESH_EN);
-	value =
-	    IAR_REG_SET_FILED(IAR_AUTO_DBI_REFRESH_EN,
-			      cfg->refresh_cfg.auto_dbi_refresh_en, value);
-	IAR_REG_WRITE(value, g_iar_dev->regaddr + REG_IAR_DE_REFRESH_EN);
 	return 0;
 }
 
@@ -894,16 +794,16 @@ int32_t iar_idma_init(void)
 	value = IAR_REG_SET_FILED(IAR_MAXOSNUM_DMA2_RD2, 0x2, value);
 	value = IAR_REG_SET_FILED(IAR_MAXOSNUM_RD3, 0x5, value);
 	value = IAR_REG_SET_FILED(IAR_MAXOSNUM_RD4, 0x7, value);
-	IAR_REG_WRITE(value, g_iar_dev->regaddr + REG_IAR_DE_MAXOSNUM_RD);
+	writel(value, g_iar_dev->regaddr + REG_IAR_DE_MAXOSNUM_RD);
 
 	value = IAR_REG_SET_FILED(IAR_MAXOSNUM_DMA0_WR, 0x0, 0);
 	value = IAR_REG_SET_FILED(IAR_MAXOSNUM_DMA1_WR, 0x6, value);
-	IAR_REG_WRITE(value, g_iar_dev->regaddr + REG_IAR_DE_MAXOSNUM_WR);
+	writel(value, g_iar_dev->regaddr + REG_IAR_DE_MAXOSNUM_WR);
 
 	//set burst length
 	value = IAR_REG_SET_FILED(IAR_BURST_LEN_WR, 0xf, 0);
 	value = IAR_REG_SET_FILED(IAR_BURST_LEN_RD, 0xf, value);
-	IAR_REG_WRITE(value, g_iar_dev->regaddr + REG_IAR_BURST_LEN);
+	writel(value, g_iar_dev->regaddr + REG_IAR_BURST_LEN);
 
 	return 0;
 }
@@ -931,42 +831,34 @@ int32_t iar_set_bufaddr(uint32_t channel, buf_addr_t * addr)
 	switch (channel) {
 	case IAR_CHANNEL_1:
 		{
-			IAR_REG_WRITE(addr->Yaddr,
-				      g_iar_dev->regaddr +
-				      REG_IAR_FBUF_ADDR_RD1_Y);
-			IAR_REG_WRITE(addr->Uaddr,
-				      g_iar_dev->regaddr +
-				      REG_IAR_FBUF_ADDR_RD1_U);
-			IAR_REG_WRITE(addr->Vaddr,
-				      g_iar_dev->regaddr +
-				      REG_IAR_FBUF_ADDR_RD1_V);
+			writel(addr->Yaddr,
+			       g_iar_dev->regaddr + REG_IAR_FBUF_ADDR_RD1_Y);
+			writel(addr->Uaddr,
+			       g_iar_dev->regaddr + REG_IAR_FBUF_ADDR_RD1_U);
+			writel(addr->Vaddr,
+			       g_iar_dev->regaddr + REG_IAR_FBUF_ADDR_RD1_V);
 		}
 		break;
 	case IAR_CHANNEL_2:
 		{
-			IAR_REG_WRITE(addr->Yaddr,
-				      g_iar_dev->regaddr +
-				      REG_IAR_FBUF_ADDR_RD2_Y);
-			IAR_REG_WRITE(addr->Uaddr,
-				      g_iar_dev->regaddr +
-				      REG_IAR_FBUF_ADDR_RD2_U);
-			IAR_REG_WRITE(addr->Vaddr,
-				      g_iar_dev->regaddr +
-				      REG_IAR_FBUF_ADDR_RD2_V);
+			writel(addr->Yaddr,
+			       g_iar_dev->regaddr + REG_IAR_FBUF_ADDR_RD2_Y);
+			writel(addr->Uaddr,
+			       g_iar_dev->regaddr + REG_IAR_FBUF_ADDR_RD2_U);
+			writel(addr->Vaddr,
+			       g_iar_dev->regaddr + REG_IAR_FBUF_ADDR_RD2_V);
 		}
 		break;
 	case IAR_CHANNEL_3:
 		{
-			IAR_REG_WRITE(addr->addr,
-				      g_iar_dev->regaddr +
-				      REG_IAR_FBUF_ADDR_RD3);
+			writel(addr->addr,
+			       g_iar_dev->regaddr + REG_IAR_FBUF_ADDR_RD3);
 		}
 		break;
 	case IAR_CHANNEL_4:
 		{
-			IAR_REG_WRITE(addr->addr,
-				      g_iar_dev->regaddr +
-				      REG_IAR_FBUF_ADDR_RD4);
+			writel(addr->addr,
+			       g_iar_dev->regaddr + REG_IAR_FBUF_ADDR_RD4);
 		}
 		break;
 	default:
@@ -999,9 +891,9 @@ int32_t iar_open(void)
 		printk(KERN_ERR "IAR dev not inited!");
 		return -1;
 	}
-	//value = IAR_REG_READ(g_iar_dev->sysctrl + 0x144);
+	//value = readl(g_iar_dev->sysctrl + 0x144);
 	//value |= (0x1<<2);
-	//IAR_REG_WRITE(value, g_iar_dev->sysctrl + 0x144);
+	//writel(value, g_iar_dev->sysctrl + 0x144);
 	//iar_pre_init();
 	return 0;
 }
@@ -1015,14 +907,30 @@ int32_t iar_close(void)
 		return -1;
 	}
 	iar_stop();
-	//value = IAR_REG_READ(g_iar_dev->sysctrl + 0x148);
+	//value = readl(g_iar_dev->sysctrl + 0x148);
 	//value |= (0x1<<2);
-	//IAR_REG_WRITE(value, g_iar_dev->sysctrl + 0x148);
+	//writel(value, g_iar_dev->sysctrl + 0x148);
 
 	return 0;
 }
 
 EXPORT_SYMBOL_GPL(iar_close);
+
+#if 1
+unsigned int frequency_iar = 0;
+module_param(frequency_iar, uint, S_IRUGO | S_IWUSR);
+
+static void iar_timer(unsigned long dontcare);
+
+static DEFINE_TIMER(iartimer, iar_timer, 0, 0);
+static void iar_timer(unsigned long dontcare)
+{
+	printk("fq:%d\n", frequency_iar);
+	frequency_iar = 0;
+
+	mod_timer(&iartimer, jiffies + msecs_to_jiffies(MSEC_PER_SEC));
+}
+#endif
 
 int32_t iar_start(int update)
 {
@@ -1032,11 +940,11 @@ int32_t iar_start(int update)
 		return -1;
 	}
 
-	value = IAR_REG_READ(g_iar_dev->regaddr + REG_IAR_DE_REFRESH_EN);
+	value = readl(g_iar_dev->regaddr + REG_IAR_DE_REFRESH_EN);
 	value = IAR_REG_SET_FILED(IAR_DPI_TV_START, 0x1, value);
-	IAR_REG_WRITE(value, g_iar_dev->regaddr + REG_IAR_DE_REFRESH_EN);
-
-	IAR_REG_WRITE(0x1, g_iar_dev->regaddr + REG_IAR_UPDATE);
+	writel(value, g_iar_dev->regaddr + REG_IAR_DE_REFRESH_EN);
+	//mod_timer(&iartimer,jiffies + msecs_to_jiffies( MSEC_PER_SEC));
+	writel(0x1, g_iar_dev->regaddr + REG_IAR_UPDATE);
 
 	return 0;
 }
@@ -1050,13 +958,12 @@ int32_t iar_stop(void)
 		printk(KERN_ERR "IAR dev not inited!");
 		return -1;
 	}
-
-	value = IAR_REG_READ(g_iar_dev->regaddr + REG_IAR_DE_REFRESH_EN);
+	value = readl(g_iar_dev->regaddr + REG_IAR_DE_REFRESH_EN);
 	value = IAR_REG_SET_FILED(IAR_DPI_TV_START, 0x0, value);
-	IAR_REG_WRITE(value, g_iar_dev->regaddr + REG_IAR_DE_REFRESH_EN);
+	writel(value, g_iar_dev->regaddr + REG_IAR_DE_REFRESH_EN);
 
-	IAR_REG_WRITE(0x1, g_iar_dev->regaddr + REG_IAR_UPDATE);
-
+	writel(0x1, g_iar_dev->regaddr + REG_IAR_UPDATE);
+	//del_timer(&iartimer);
 	return 0;
 }
 
@@ -1068,7 +975,7 @@ int32_t iar_update(void)
 		printk(KERN_ERR "IAR dev not inited!");
 		return -1;
 	}
-	IAR_REG_WRITE(0x1, g_iar_dev->regaddr + REG_IAR_UPDATE);
+	writel(0x1, g_iar_dev->regaddr + REG_IAR_UPDATE);
 
 	return 0;
 }
@@ -1095,9 +1002,18 @@ int32_t iar_pre_init(void)
 	    g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].paddr;
 	iar_set_bufaddr(IAR_CHANNEL_3, bufaddr_channe3);
 
-	IAR_REG_WRITE(0x7ffffff, g_iar_dev->regaddr + REG_IAR_DE_UNMASK);
+	writel(0x7ffffff, g_iar_dev->regaddr + REG_IAR_DE_SETMASK);
 
 	return 0;
+}
+
+frame_buf_t *x2_iar_get_framebuf_addr(int channel)
+{
+	if (NULL == g_iar_dev || channel < 0 || channel > IAR_CHANNEL_4) {
+		printk(KERN_ERR "IAR dev not inited!");
+		return NULL;
+	}
+	return &g_iar_dev->frambuf[channel];
 }
 
 static irqreturn_t x2_iar_irq(int this_irq, void *data)
@@ -1106,7 +1022,12 @@ static irqreturn_t x2_iar_irq(int this_irq, void *data)
 	int regval = 0;
 	disable_irq_nosync(this_irq);
 	//TODO
-	regval = IAR_REG_READ(g_iar_dev->regaddr + REG_IAR_DE_SRCPNDREG);
+	regval = readl(g_iar_dev->regaddr + REG_IAR_DE_SRCPNDREG);
+	if (regval & BIT(22)) {
+		writel(0xffffffff, g_iar_dev->regaddr + REG_IAR_DE_SRCPNDREG);
+		//frequency_iar++;
+		//printk("FD\n");
+	}
 	IAR_DEBUG_PRINT("IAR int:0x%x", regval);
 	enable_irq(this_irq);
 	return IRQ_HANDLED;
@@ -1118,8 +1039,6 @@ static int x2_iar_probe(struct platform_device *pdev)
 	int ret;
 	struct device_node *np;
 	struct resource r;
-	//dma_addr_t iar_dma_addr;
-	//void* iar_vaddr;
 	g_iar_dev =
 	    devm_kzalloc(&pdev->dev, sizeof(struct iar_dev_s), GFP_KERNEL);
 	if (!g_iar_dev) {
@@ -1131,12 +1050,11 @@ static int x2_iar_probe(struct platform_device *pdev)
 	g_iar_dev->lock = &g_iar_dev->spinlock;
 	g_iar_dev->pdev = pdev;
 	memset(&g_iar_dev->cur_framebuf_id, 0, IAR_CHANNEL_MAX * sizeof(int));
-#ifdef CONFIG_X2_FPGA
+
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	g_iar_dev->regaddr = devm_ioremap_resource(&pdev->dev, res);
 	if (IS_ERR(g_iar_dev->regaddr))
 		return PTR_ERR(g_iar_dev->regaddr);
-
 	g_iar_dev->rst = devm_reset_control_get(&pdev->dev, "iar");
 	if (IS_ERR(g_iar_dev->rst)) {
 		dev_err(&pdev->dev, "missing controller reset\n");
@@ -1159,7 +1077,6 @@ static int x2_iar_probe(struct platform_device *pdev)
 				 g_iar_dev);
 	disable_irq(g_iar_dev->irq);
 
-#if 1
 	np = of_parse_phandle(pdev->dev.of_node, "memory-region", 0);
 	if (!np) {
 		dev_err(&g_iar_dev->pdev->dev, "No %s specified\n",
@@ -1172,18 +1089,24 @@ static int x2_iar_probe(struct platform_device *pdev)
 			"No memory address assigned to the region\n");
 		return -1;
 	}
-#else
-	iar_vaddr =
-	    dmam_alloc_coherent(&g_iar_dev->pdev->dev, 0x1fa4000, &iar_dma_addr,
-				GFP_KERNEL);
-	if (!iar_vaddr) {
-		dev_err(&pdev->dev, "No memory alloc from dma\n");
-		return -1;
-	}
-#endif
-	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr = r.start;
+	//channel 2&4 disabled
+	g_iar_dev->frambuf[IAR_CHANNEL_1].paddr = r.start;
+	g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr =
+	    memremap(r.start, MAX_FRAME_BUF_SIZE * 2, MEMREMAP_WB);
+	g_iar_dev->frambuf[IAR_CHANNEL_3].paddr = r.start + MAX_FRAME_BUF_SIZE;
+	g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr =
+	    g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr + MAX_FRAME_BUF_SIZE;
+	printk("g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr:%p\n",
+	       g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr);
+	memset(g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr, 0,
+	       MAX_FRAME_BUF_SIZE * 2);
+
+	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr =
+	    r.start + MAX_FRAME_BUF_SIZE * 2;
 	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr =
-	    memremap(r.start, resource_size(&r), MEMREMAP_WB);
+	    ioremap_nocache(r.start + MAX_FRAME_BUF_SIZE * 2,
+			    resource_size(&r) - MAX_FRAME_BUF_SIZE * 2);
+	//g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr = memremap(r.start + MAX_FRAME_BUF_SIZE*2, resource_size(&r) - MAX_FRAME_BUF_SIZE*2, MEMREMAP_WT);
 
 	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].paddr
 	    =
@@ -1194,8 +1117,6 @@ static int x2_iar_probe(struct platform_device *pdev)
 	    =
 	    g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr +
 	    MAX_FRAME_BUF_SIZE;
-
-	//channel 2&4 disabled
 
 	g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].paddr
 	    =
@@ -1216,26 +1137,18 @@ static int x2_iar_probe(struct platform_device *pdev)
 	    =
 	    g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].vaddr +
 	    MAX_FRAME_BUF_SIZE;
+	IAR_DEBUG_PRINT("iar 0x%p  0x%p %lld\n",
+			g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].
+			vaddr,
+			g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[1].
+			vaddr, resource_size(&r) - MAX_FRAME_BUF_SIZE * 2);
+	//memset(g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr, 0, MAX_FRAME_BUF_SIZE*4);
+	char *temp1 = g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr;
+	int tmpi = 0;
+	temp1 = g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr;
+	for (tmpi = 0; tmpi < MAX_FRAME_BUF_SIZE * 4; tmpi++)
+		*temp1++ = 0x5a;
 
-	IAR_DEBUG_PRINT("iar 0x%llx  0x%llx\n",
-			g_iar_dev->pingpong_buf[IAR_CHANNEL_1].
-			framebuf[0].paddr,
-			g_iar_dev->pingpong_buf[IAR_CHANNEL_3].
-			framebuf[1].paddr);
-#else
-	g_iar_dev->regaddr = 0xA4001000;
-	g_iar_dev->sysctrl = 0xA1000000;
-	g_iar_dev->gpioregs = 0xa6003000;
-
-	g_iar_dev->pingpong_buf[0].framebuf[0].paddr = 0x42000000;
-	g_iar_dev->pingpong_buf[0].framebuf[1].paddr =
-	    g_iar_dev->pingpong_buf[0].framebuf[0].paddr + MAX_FRAME_BUF_SIZE;
-
-	g_iar_dev->pingpong_buf[2].framebuf[0].paddr =
-	    g_iar_dev->pingpong_buf[0].framebuf[1].paddr + MAX_FRAME_BUF_SIZE;
-	g_iar_dev->pingpong_buf[2].framebuf[1].paddr =
-	    g_iar_dev->pingpong_buf[2].framebuf[0].paddr + MAX_FRAME_BUF_SIZE;
-#endif
 	iar_pre_init();
 	iar_close();
 	return ret;
@@ -1269,32 +1182,5 @@ static struct platform_driver x2_iar_driver = {
 		   },
 };
 
-#ifdef CONFIG_X2_FPGA
 module_platform_driver(x2_iar_driver);
-#else
-static int __init x2_iar_init(void)
-{
-	int error = 0;
-	struct platform_device *pdev;
-	error = platform_driver_register(&x2_iar_driver);
-	if (error)
-		printk(KERN_ERR "x2_iar_driver error 0\n");
-	printk("x2_iar_init\n");
-	pdev = platform_device_register_simple("x2-iar", 0, NULL, 0);
-	if (IS_ERR(pdev)) {
-		error = PTR_ERR(pdev);
-		printk(KERN_ERR "x2_iar_driver error 1\n");
-	}
-	return 0;
-}
-
-static void __exit x2_iar_exit(void)
-{
-	return 0;
-}
-
-module_init(x2_iar_init);
-module_exit(x2_iar_exit);
-MODULE_ALIAS("platform: x2");
-#endif
 MODULE_LICENSE("GPL");

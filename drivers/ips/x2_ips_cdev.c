@@ -55,7 +55,7 @@ static int ips_cdev_open(struct inode *inode, struct file *filp)
 	struct ips_cdev_s *ipscdev_p;
 
 	ipscdev_p = container_of(inode->i_cdev, struct ips_cdev_s, cdev);
-	filp->private_data = &ipscdev_p;
+	filp->private_data = ipscdev_p;
 
 	return 0;
 }

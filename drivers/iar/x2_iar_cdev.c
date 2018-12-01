@@ -22,8 +22,9 @@
 #include <linux/fs.h>
 #include <asm/io.h>
 #include <linux/mutex.h>
-
 #include "x2_iar.h"
+
+#define IAR_DMA_MODE
 
 #define IAR_CDEV_MAGIC 'R'
 #define IAR_GETVALUE        _IOR(IAR_CDEV_MAGIC,0x11, unsigned int)
@@ -49,11 +50,8 @@ struct iar_cdev_s {
 	dev_t dev_num;
 	struct class *iar_classes;
 	struct completion completion;
-	frame_buf_t framebuf_user;
+	frame_buf_t *framebuf_user[IAR_CHANNEL_MAX];
 	struct mutex iar_mutex;
-#ifndef CONFIG_X2_FPGA
-	void *tmpbufaddr;
-#endif
 };
 struct iar_cdev_s *g_iar_cdev;
 
@@ -92,37 +90,13 @@ int32_t iar_write_framebuf_poll(uint32_t channel, void __user * srcaddr,
 				uint32_t size)
 {
 	frame_buf_t *bufaddr;
-#ifdef CONFIG_X2_FPGA
 	bufaddr = iar_get_framebuf_addr(channel);
 	if (copy_from_user(bufaddr->vaddr, srcaddr, size))
 		return -EFAULT;
 
-	clean_cache(bufaddr->vaddr, size);
 	IAR_DEBUG_PRINT
 	    ("iar_write_framebuf_poll :%d vaddr:0x%p paddr:0x%llx,size:%d\n",
 	     channel, bufaddr->vaddr, bufaddr->paddr, size);
-
-#else
-	extern int32_t bifdev_set_cpchip_ddr(uint32_t addr, uint16_t size,
-					     uint8_t * value);
-	bufaddr = iar_get_framebuf_addr(channel);
-	copy_from_user(g_iar_cdev->tmpbufaddr, srcaddr, size);
-	//bifdev_set_cpchip_ddr(bufaddr->paddr, size, g_iar_cdev->tmpbufaddr);
-	uint32_t src = g_iar_cdev->tmpbufaddr;
-	uint32_t dst = bufaddr->paddr;
-	int cursize = size;
-	while (cursize > 0) {
-		if (cursize > 4096) {
-			bifdev_set_cpchip_ddr(dst, 4096, src);
-		} else {
-			bifdev_set_cpchip_ddr(dst, cursize, src);
-			break;
-		}
-		src += 4096;
-		dst += 4096;
-		cursize -= 4096;
-	}
-#endif
 
 	return iar_switch_buf(channel);
 
@@ -147,14 +121,13 @@ int32_t iar_write_framebuf_dma(uint32_t channel, phys_addr_t srcaddr,
 	dma_cap_zero(mask);
 	dma_cap_set(DMA_MEMCPY, mask);
 	ch = dma_request_channel(mask, NULL, NULL);
-	if (IS_ERR(ch)) {
-		ret = PTR_ERR(ch);
-		printk(KERN_ERR "%s: dma_request_channel failed: %d\n",
-		       __func__, ret);
+	if (!ch) {
+		printk(KERN_ERR "%s: dma_request_channel failed\n", __func__);
 		return -1;
 	}
 	bufaddr = iar_get_framebuf_addr(channel);
-	tx = ch->device->device_prep_dma_memcpy(ch, srcaddr, bufaddr->paddr,
+
+	tx = ch->device->device_prep_dma_memcpy(ch, bufaddr->paddr, srcaddr,
 						size, 0);
 	if (!tx) {
 		printk(KERN_ERR "%s: device_prep_dma_memcpy failed\n",
@@ -181,6 +154,7 @@ int32_t iar_write_framebuf_dma(uint32_t channel, phys_addr_t srcaddr,
 		return -EIO;
 	}
 	iar_switch_buf(channel);
+	IAR_DEBUG_PRINT("DMA trans done\n");
 
 	return 0;
 }
@@ -188,30 +162,36 @@ int32_t iar_write_framebuf_dma(uint32_t channel, phys_addr_t srcaddr,
 int32_t iar_display_update(update_cmd_t * update_cmd)
 {
 	int index = 0;
-	int ret = 0;
-	for (index = 0; index < IAR_CHANNEL_MAX; index++) {
-		if (index == 1 || index == 3)
+	int ret = -1;
+	for (index = IAR_CHANNEL_1; index < IAR_CHANNEL_MAX; index++) {
+		if (index == IAR_CHANNEL_2 || index == IAR_CHANNEL_4)
 			continue;	//TODO, now channnel 2 and 4 is disable
 		IAR_DEBUG_PRINT("update_cmd->enable_flag[index]:%d addr:0x%p\n",
 				update_cmd->enable_flag[index],
 				update_cmd->srcframe[index].vaddr);
-		if (update_cmd->enable_flag[index]) {
+		if (update_cmd->enable_flag[index]
+		    && update_cmd->frame_size[index] < MAX_FRAME_BUF_SIZE) {
 #ifdef IAR_DMA_MODE
-			if (update_cmd->srcframe[index].paddr)
-				ret |=
+			if (g_iar_cdev->framebuf_user[index]) {
+				clean_cache(g_iar_cdev->framebuf_user[index]->
+					    vaddr,
+					    update_cmd->frame_size[index]);
+				ret =
 				    iar_write_framebuf_dma(index,
-							   update_cmd->srcframe
-							   [index].paddr,
-							   update_cmd->frame_size
-							   [index]);
+							   g_iar_cdev->
+							   framebuf_user
+							   [index]->paddr,
+							   update_cmd->
+							   frame_size[index]);
+			}
 #else
 			if (update_cmd->srcframe[index].vaddr)
-				ret |=
+				ret =
 				    iar_write_framebuf_poll(index,
 							    update_cmd->srcframe
 							    [index].vaddr,
-							    update_cmd->frame_size
-							    [index]);
+							    update_cmd->
+							    frame_size[index]);
 #endif
 		}
 	}
@@ -223,8 +203,7 @@ static int iar_cdev_open(struct inode *inode, struct file *filp)
 	struct iar_cdev_s *iarcdev_p;
 
 	iarcdev_p = container_of(inode->i_cdev, struct iar_cdev_s, cdev);
-	filp->private_data = &iarcdev_p;
-
+	filp->private_data = iarcdev_p;
 	return iar_open();
 }
 
@@ -383,9 +362,6 @@ int __init iar_cdev_init(void)
 	g_iar_cdev->name = "iar_cdev";
 	mutex_init(&g_iar_cdev->iar_mutex);
 	init_completion(&g_iar_cdev->completion);
-#ifndef CONFIG_X2_FPGA
-	g_iar_cdev->tmpbufaddr = vmalloc(1920 * 1080 * 4);
-#endif
 	g_iar_cdev->iar_classes = class_create(THIS_MODULE, g_iar_cdev->name);
 	if (IS_ERR(g_iar_cdev->iar_classes))
 		return PTR_ERR(g_iar_cdev->iar_classes);
@@ -407,6 +383,11 @@ int __init iar_cdev_init(void)
 
 	device_create(g_iar_cdev->iar_classes, NULL, g_iar_cdev->dev_num, NULL,
 		      g_iar_cdev->name);
+
+	g_iar_cdev->framebuf_user[IAR_CHANNEL_1] =
+	    x2_iar_get_framebuf_addr(IAR_CHANNEL_1);
+	g_iar_cdev->framebuf_user[IAR_CHANNEL_3] =
+	    x2_iar_get_framebuf_addr(IAR_CHANNEL_3);
 
 	x2_iar_kobj = kobject_create_and_add("x2_iar", NULL);
 	if (!x2_iar_kobj)

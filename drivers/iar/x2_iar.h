@@ -6,6 +6,8 @@
 #include <linux/of_address.h>
 #include <linux/slab.h>
 
+#define MAX_FRAME_BUF_SIZE  (1920*1080*4)
+
 #define REG_IAR_OVERLAY_OPT 0x0
 #define REG_IAR_ALPHA_VALUE 0x4
 #define REG_IAR_KEY_COLOR_RD4   0x8
@@ -510,5 +512,6 @@ int32_t iar_open(void);
 int32_t iar_close(void);
 int32_t iar_pre_init(void);
 void x2_iar_dump(void);
+frame_buf_t *x2_iar_get_framebuf_addr(int channel);
 
 #endif //__X2_IAR_H__

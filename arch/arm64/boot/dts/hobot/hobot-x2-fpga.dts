@@ -50,12 +50,12 @@
 		#size-cells = <2>;
 		ranges;
 
-        bifsd_reserved: bifsd_reserved@0x3E05B000 {
-                reg = <0x0 0x3E05B000 0x0 0x1000>;
+        bifsd_reserved: bifsd_reserved@0x3D089000 {
+                reg = <0x0 0x3D089000 0x0 0x1000>;
                 no-map;
 		};
-		iar_reserved: iar_reserved@0x3E05C000 {
-				reg = <0x0 0x3E05C000 0x0 0x1fa4000>;
+		iar_reserved: iar_reserved@0x3D08A000 {
+				reg = <0x0 0x3D08A000 0x0 0x2F76000>;
 				no-map;
 		};
 
@@ -143,7 +143,7 @@
 };
 
 &x2dmatest {
-	status = "okay";
+	status = "disabled";
 };
 
 &rtc {
