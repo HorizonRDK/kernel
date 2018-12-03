@@ -36,7 +36,7 @@
  * For full-chip erase, calibrated to a 2MB flash (M25P16); should be scaled up
  * for larger flash
  */
-#define CHIP_ERASE_2MB_READY_WAIT_JIFFIES	(40UL * HZ)
+#define CHIP_ERASE_2MB_READY_WAIT_JIFFIES       (40UL * HZ)
 
 #define SPI_NOR_MAX_ID_LEN	6
 #define SPI_NOR_MAX_ADDR_WIDTH	4
@@ -274,6 +274,7 @@ static inline int set_4byte(struct spi_nor *nor, const struct flash_info *info,
 		need_wren = true;
 	case SNOR_MFR_MACRONIX:
 	case SNOR_MFR_WINBOND:
+        case SNOR_MFR_GIGADEVICE:
 		if (need_wren)
 			write_enable(nor);
 
@@ -383,6 +384,30 @@ static int spi_nor_wait_till_ready(struct spi_nor *nor)
 	return spi_nor_wait_till_ready_with_timeout(nor,
 						    DEFAULT_READY_WAIT_JIFFIES);
 }
+
+static int giga_quad_enable(struct spi_nor *nor)
+{
+	int ret, val;
+
+	val = read_sr(nor);
+	if (val < 0)
+		return val;
+	write_enable(nor);
+
+	write_sr(nor, val | SR_QUAD_EN_GD);
+
+	if (spi_nor_wait_till_ready(nor))
+		return 1;
+
+	ret = read_sr(nor);
+	if (!(ret > 0 && (ret & SR_QUAD_EN_MX))) {
+		dev_err(nor->dev, "GigaDevice Quad bit not set\n");
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 
 /*
  * Erase the whole flash memory
@@ -997,6 +1022,12 @@ static const struct flash_info spi_nor_ids[] = {
 			SECT_4K | SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ |
 			SPI_NOR_HAS_LOCK | SPI_NOR_HAS_TB)
 	},
+	{
+		"gd25q256c", INFO(0xc84019, 0, 4 * 1024, 8192,
+			SECT_4K | SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ |
+			SPI_NOR_HAS_LOCK | SPI_NOR_HAS_TB)
+	},
+
 
 	/* Intel/Numonyx -- xxxs33b */
 	{ "160s33b",  INFO(0x898911, 0, 64 * 1024,  32, 0) },
@@ -1184,26 +1215,30 @@ static const struct flash_info spi_nor_ids[] = {
 
 static const struct flash_info *spi_nor_read_id(struct spi_nor *nor)
 {
-	int			tmp;
-	u8			id[SPI_NOR_MAX_ID_LEN];
-	const struct flash_info	*info;
+        int			tmp;
+        u8			id[SPI_NOR_MAX_ID_LEN];
+        const struct flash_info	*info;
 
-	tmp = nor->read_reg(nor, SPINOR_OP_RDID, id, SPI_NOR_MAX_ID_LEN);
-	if (tmp < 0) {
-		dev_dbg(nor->dev, "error %d reading JEDEC ID\n", tmp);
-		return ERR_PTR(tmp);
-	}
+        tmp = nor->read_reg(nor, SPINOR_OP_RDID, id, SPI_NOR_MAX_ID_LEN);
+        if (tmp < 0) {
+                dev_dbg(nor->dev, "error %d reading JEDEC ID\n", tmp);
+                return ERR_PTR(tmp);
+        }
 
-	for (tmp = 0; tmp < ARRAY_SIZE(spi_nor_ids) - 1; tmp++) {
-		info = &spi_nor_ids[tmp];
-		if (info->id_len) {
-			if (!memcmp(info->id, id, info->id_len))
-				return &spi_nor_ids[tmp];
-		}
-	}
-	dev_err(nor->dev, "unrecognized JEDEC id bytes: %02x, %02x, %02x\n",
-		id[0], id[1], id[2]);
-	return ERR_PTR(-ENODEV);
+        for (tmp = 0; tmp < ARRAY_SIZE(spi_nor_ids) - 1; tmp++) {
+                info = &spi_nor_ids[tmp];
+                if (info->id_len) {
+                        if (!memcmp(info->id, id, info->id_len)) {
+
+                                pr_err("JEDEC id bytes: %02x, %02x, %02x\n",
+                                        id[0], id[1], id[2]);
+                                return &spi_nor_ids[tmp];
+                        }
+                }
+        }
+        dev_err(nor->dev, "unrecognized JEDEC id bytes: %02x, %02x, %02x\n",
+                id[0], id[1], id[2]);
+        return ERR_PTR(-ENODEV);
 }
 
 static int spi_nor_read(struct mtd_info *mtd, loff_t from, size_t len,
@@ -2421,7 +2456,9 @@ static int spi_nor_init_params(struct spi_nor *nor,
 
 		case SNOR_MFR_MICRON:
 			break;
-
+                case SNOR_MFR_GIGADEVICE:
+		        params->quad_enable = giga_quad_enable;
+		        break;
 		default:
 			/* Kept only for backward compatibility purpose. */
 			params->quad_enable = spansion_quad_enable;
@@ -2652,6 +2689,7 @@ int spi_nor_scan(struct spi_nor *nor, const char *name,
 	int ret;
 	int i;
 
+        pr_info("%s:%d \n", __func__, __LINE__);
 	ret = spi_nor_check(nor);
 	if (ret)
 		return ret;
@@ -2660,9 +2698,14 @@ int spi_nor_scan(struct spi_nor *nor, const char *name,
 	nor->reg_proto = SNOR_PROTO_1_1_1;
 	nor->read_proto = SNOR_PROTO_1_1_1;
 	nor->write_proto = SNOR_PROTO_1_1_1;
+        pr_info("%s:%d reg_proto:0x%x read_proto:0x%x write_proto:0x%x\n",
+                __func__, __LINE__, nor->reg_proto, nor->read_proto, nor->write_proto);
+        pr_info("%s:%d nor chip name:%s\n",
+                __func__, __LINE__,name);
 
 	if (name)
 		info = spi_nor_match_id(name);
+
 	/* Try to auto-detect if chip name wasn't specified or not found */
 	if (!info)
 		info = spi_nor_read_id(nor);
@@ -2692,7 +2735,6 @@ int spi_nor_scan(struct spi_nor *nor, const char *name,
 			info = jinfo;
 		}
 	}
-
 	mutex_init(&nor->lock);
 
 	/*
@@ -2825,7 +2867,7 @@ int spi_nor_scan(struct spi_nor *nor, const char *name,
 	dev_info(dev, "%s (%lld Kbytes)\n", info->name,
 			(long long)mtd->size >> 10);
 
-	dev_dbg(dev,
+	dev_info(dev,
 		"mtd .name = %s, .size = 0x%llx (%lldMiB), "
 		".erasesize = 0x%.8x (%uKiB) .numeraseregions = %d\n",
 		mtd->name, (long long)mtd->size, (long long)(mtd->size >> 20),
@@ -2833,7 +2875,7 @@ int spi_nor_scan(struct spi_nor *nor, const char *name,
 
 	if (mtd->numeraseregions)
 		for (i = 0; i < mtd->numeraseregions; i++)
-			dev_dbg(dev,
+			dev_info(dev,
 				"mtd.eraseregions[%d] = { .offset = 0x%llx, "
 				".erasesize = 0x%.8x (%uKiB), "
 				".numblocks = %d }\n",

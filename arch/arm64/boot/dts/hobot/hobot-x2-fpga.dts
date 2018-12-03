@@ -183,3 +183,37 @@
 &bifsd {
     status = "okay";
 };
+
+&qspi {
+	status = "okay";
+	is-dual = <1>;
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	flash@0 {
+		compatible = "gd256q256c";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		reg = <0x0>;
+		spi-tx-bus-width = <1>;
+		spi-rx-bus-width = <1>;
+		spi-max-frequency = <20000000>; /* For FPGA max clk is 20Mhz */
+
+		partition@qspi-uboot {
+			label = "qspi-uboot";
+			reg = <0x200000 0x200000>;
+		};
+		partition@qspi-linux {
+			label = "qspi-linux";
+			reg = <0x400000 0x1000000>;
+		};
+		partition@qspi-device-tree {
+			label = "qspi-device-tree";
+			reg = <0x1400000 0x100000>;
+		};
+		partition@qspi-rootfs {
+			label = "qspi-rootfs";
+			reg = <0x1500000 0x500000>;
+		};
+	};
+};

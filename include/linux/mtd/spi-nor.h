@@ -97,6 +97,8 @@
 
 #define XSR_PAGESIZE		BIT(0)	/* Page size in Po2 or Linear */
 #define XSR_RDY			BIT(7)	/* Ready */
+#define BLOCK_64K_ERASE_SZIE		(64 * 1024)
+#define BLOCK_32K_ERASE_SZIE		(32 * 1024)
 
 
 /* Used for Macronix and Winbond flashes. */
@@ -125,6 +127,7 @@
 #define SR_P_ERR		BIT(6)
 
 #define SR_QUAD_EN_MX		BIT(6)	/* Macronix Quad I/O */
+#define SR_QUAD_EN_GD		BIT(6)	/* GigaDevice Quad I/O */
 
 /* Enhanced Volatile Configuration Register bits */
 #define EVCR_QUAD_EN_MICRON	BIT(7)	/* Micron Quad I/O */
