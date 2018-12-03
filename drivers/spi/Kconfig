@@ -765,6 +765,11 @@ config SPI_X2_QSPI
 	help
 	  Enables Hobot X2 QSPI controller driver.
 
+config SPI_X2
+	tristate "X2 SPI controller"
+	depends on SPI_MASTER
+	help
+	  This selects the X2 SPI controller master driver
 
 #
 # Add new SPI master controllers in alphabetical order above this line

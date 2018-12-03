@@ -1347,7 +1347,7 @@ CONFIG_I2C_SLAVE=y
 # CONFIG_I2C_DEBUG_ALGO is not set
 # CONFIG_I2C_DEBUG_BUS is not set
 CONFIG_SPI=y
-# CONFIG_SPI_DEBUG is not set
+#CONFIG_SPI_DEBUG is not set
 CONFIG_SPI_MASTER=y
 
 #
@@ -1368,6 +1368,7 @@ CONFIG_SPI_MASTER=y
 # CONFIG_SPI_XCOMM is not set
 # CONFIG_SPI_XILINX is not set
 # CONFIG_SPI_ZYNQMP_GQSPI is not set
+CONFIG_SPI_X2=y
 
 #
 # SPI Protocol Masters

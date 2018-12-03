@@ -154,6 +154,10 @@
 	status = "disabled";
 };
 
+&spi0 {
+	status = "okay";
+};
+
 &ethernet {
 	status = "okay";
 	phy-handle = <&phy1>;

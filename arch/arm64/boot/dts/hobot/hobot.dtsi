@@ -315,6 +315,41 @@
 			status = "disabled";
 		};
 
+		spi0: spi@0xA5004000 {
+			compatible = "hobot,x2-spi";
+			reg = <0 0xA5004000 0 0x1000>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 27 4>;
+			status = "disabled";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			spidev@0x00 {
+				compatible = "rohm,dh2228fv";
+				spi-max-frequency = <20000000>;
+				reg = <0>;
+			};
+		};
+
+		spi1: spi@0xA5005000 {
+			compatible = "hobot,x2-spi";
+			reg = <0 0xA5005000 0 0x1000>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 28 4>;
+			status = "disabled";
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+
+		spi2: spi@0xA5006000 {
+			compatible = "hobot,x2-spi";
+			reg = <0 0xA5006000 0 0x1000>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 29 4>;
+			status = "disabled";
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+
 		qspi: qspi@0xB0000000 {
 			compatible = "hobot,x2-qspi";
 			status = "disabled";
@@ -410,6 +445,7 @@
 			reset-names = "cnn1_rst";
 			status = "disabled";
 		};
+
 	    bifsd: bifsd@A1007000 {
 		    compatible = "hobot,bifsd";
 		    reg = <0x0 0xA1007000 0x0 0x1000>;
