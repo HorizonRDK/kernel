@@ -139,7 +139,6 @@ struct x2_cnn_dev {
 	struct class *dev_class;
 	struct cdev i_cdev;
 
-	bool is_open;
 	struct mutex cnn_lock;
 	spinlock_t cnn_spin_lock;
 
@@ -148,6 +147,24 @@ struct x2_cnn_dev {
 
 	/* wait queue for wait cnn interrupt occur */
 	wait_queue_head_t cnn_int_wait;
+
+	struct tasklet_struct tasklet;
+	struct dentry *debugfs_root;
+	struct list_head debugfs_list;
+	struct mutex debugfs_lock; /* Protects debugfs_list. */
+
+};
+
+struct cnn_debugfs_info {
+	const char *name;
+	int (*show)(struct seq_file*, void*); /** show callback */
+};
+
+struct cnn_info_node {
+	struct list_head list;
+	struct x2_cnn_dev *cnn_dev;
+	const struct cnn_debugfs_info *info_ent;
+	struct dentry *dent;
 };
 
 struct x2_cnn_allocation {
@@ -158,7 +175,7 @@ struct x2_cnn_allocation {
 };
 
 struct	x2_cnn_fc_info {
-	void *fc_data;
+	void *fc_info;
 	int fc_cnt;
 };
 
@@ -181,10 +198,15 @@ union cnn_ioctl_arg {
 	struct x2_cnn_int_num int_num_data;
 };
 
+#define CNN_MT_WB 0x1
+#define CNN_MT_UC 0x2
+#define CNN_MT_WC 0x3
+#define CNN_MT_WT 0x4
+
 #define CNN_IOCTL_MAGIC 'C'
 #define CNN_NUM_IOCTLS	6
 #define CNN_IOC_GET_FC_STA	(_IOR(CNN_IOCTL_MAGIC, 0, struct x2_cnn_fc_status))
 #define CNN_IOC_FC_ENQUEUE	(_IOW(CNN_IOCTL_MAGIC, 1, struct x2_cnn_fc_info))
 #define CNN_IOC_RST		(_IOW(CNN_IOCTL_MAGIC, 2, struct x2_cnn_rst_data))
-#define CNN_IOC_GET_INT_NUM	(_IOW(CNN_IOCTL_MAGIC, 3, struct x2_cnn_int_num))
+#define CNN_IOC_GET_INT_NUM	(_IOR(CNN_IOCTL_MAGIC, 3, struct x2_cnn_int_num))
 #endif	/* __X2_CNN_H__ */

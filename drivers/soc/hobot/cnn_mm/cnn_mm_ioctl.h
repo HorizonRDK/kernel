@@ -29,10 +29,6 @@ enum cnn_heap_type {
 
 #define CNN_NUM_HEAP_IDS		(sizeof(unsigned int) * 8)
 
-/*
- * mappings of this buffer to uncached(device memory: MT_DEVICE_nGnRnE)
- */
-#define CNN_FLAG_UNCACHE 0x0
 
 /*
  * mappings of this buffer should be cached, cnn will do cache maintenance
@@ -55,6 +51,11 @@ enum cnn_heap_type {
  * mappings of this buffer to writethrough(normal memory: MT_NORMAL_WT)
  */
 #define CNN_FLAG_WT      0x3
+
+/*
+ * mappings of this buffer to uncached(device memory: MT_DEVICE_nGnRnE)
+ */
+#define CNN_FLAG_UNCACHE 0x4
 
 /**
  * DOC: cnn_mm Userspace API

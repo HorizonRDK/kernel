@@ -161,6 +161,16 @@ static long x2_cnn_ioctl(struct cnn_client *client, unsigned int cmd,
 	return 0;
 }
 
+struct cnn_client *x2_cnn_client_create(const char *name)
+{
+	if (IS_ERR(idev)) {
+		pr_err("%s, idev is illegal\n", __func__);
+		return NULL;
+	}
+	return cnn_client_create(idev, name);
+}
+EXPORT_SYMBOL(x2_cnn_client_create);
+
 static int x2_cnn_mm_probe(struct platform_device *pdev)
 {
 	int i = 0, ret = 0;

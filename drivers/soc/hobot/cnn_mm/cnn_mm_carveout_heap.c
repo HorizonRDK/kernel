@@ -97,8 +97,6 @@ static void cnn_carveout_heap_free(struct cnn_buffer *buffer)
 	struct page *page = sg_page(table->sgl);
 	phys_addr_t paddr = PFN_PHYS(page_to_pfn(page));
 
-	cnn_heap_buffer_zero(buffer);
-
 	cnn_carveout_free(heap, paddr, buffer->size);
 	sg_free_table(table);
 	kfree(table);
@@ -124,7 +122,7 @@ struct cnn_heap *cnn_carveout_heap_create(struct cnn_plat_heap *heap_data)
 	page = pfn_to_page(PFN_DOWN(heap_data->base));
 	size = heap_data->size;
 
-	ret = cnn_heap_pages_zero(page, size, pgprot_writecombine(PAGE_KERNEL));
+	ret = cnn_heap_pages_zero(page, size, pgprot_noncached(PAGE_KERNEL));
 	if (ret)
 		return ERR_PTR(ret);
 

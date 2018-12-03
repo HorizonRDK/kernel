@@ -21,6 +21,7 @@
 #include <linux/scatterlist.h>
 #include <linux/sched/types.h>
 #include <linux/vmalloc.h>
+#include <linux/slab.h>
 
 #include "cnn_mm_heap.h"
 
@@ -108,7 +109,7 @@ static int cnn_heap_clear_pages(struct page **pages, int num, pgprot_t pgprot)
 
 	if (!addr)
 		return -ENOMEM;
-	memset(addr, 0, PAGE_SIZE * num);
+        memset_io(addr, 0, PAGE_SIZE * num);
 	vm_unmap_ram(addr, num);
 
 	return 0;
@@ -120,19 +121,29 @@ static int cnn_heap_sglist_zero(struct scatterlist *sgl, unsigned int nents,
 	int p = 0;
 	int ret = 0;
 	struct sg_page_iter piter;
-	struct page *pages[32];
+	struct page **page_list;
+        u32 nr_pages = 0;
+        size_t size;
+
+        size = sg_dma_len(sgl);
+        nr_pages = size / PAGE_SIZE;
+	page_list = kmalloc_array(nr_pages, sizeof(*page_list), GFP_KERNEL);
+	if (!page_list)
+		return -ENOMEM;
 
 	for_each_sg_page(sgl, &piter, nents, 0) {
-		pages[p++] = sg_page_iter_page(&piter);
-		if (p == ARRAY_SIZE(pages)) {
-			ret = cnn_heap_clear_pages(pages, p, pgprot);
+		page_list[p++] = sg_page_iter_page(&piter);
+		if (p == nr_pages) {
+			ret = cnn_heap_clear_pages(page_list, p, pgprot);
 			if (ret)
 				return ret;
 			p = 0;
 		}
 	}
 	if (p)
-		ret = cnn_heap_clear_pages(pages, p, pgprot);
+		ret = cnn_heap_clear_pages(page_list, p, pgprot);
+
+        kfree(page_list);
 
 	return ret;
 }
@@ -145,7 +156,7 @@ int cnn_heap_buffer_zero(struct cnn_buffer *buffer)
 	if (buffer->flags & CNN_FLAG_CACHED)
 		pgprot = PAGE_KERNEL;
 	else
-		pgprot = pgprot_writecombine(PAGE_KERNEL);
+		pgprot = pgprot_noncached(PAGE_KERNEL);
 
 	return cnn_heap_sglist_zero(table->sgl, table->nents, pgprot);
 }

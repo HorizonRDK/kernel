@@ -328,6 +328,22 @@ int cnn_heap_buffer_zero(struct cnn_buffer *buffer);
 int cnn_heap_pages_zero(struct page *page, size_t size, pgprot_t pgprot);
 
 /**
+ * cnn_client_create() -  allocate a client and returns it
+ * @dev:		the global cnn device
+ * @name:		used for debugging
+ */
+struct cnn_client *cnn_client_create(struct cnn_device *dev,
+				     const char *name);
+
+/**
+ * cnn_client_destroy() -  free's a client and all it's handles
+ * @client:	the client
+ *
+ * Free the provided client and all it's resources including
+ * any handles it is holding.
+ */
+void cnn_client_destroy(struct cnn_client *client);
+/**
  * cnn_alloc - allocate ion memory
  * @client:		the client
  * @len:		size of the allocation
