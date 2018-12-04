@@ -26,18 +26,6 @@ typedef struct {
 } slot_ddr_info_t;
 
 typedef struct {
-	struct list_head list;
-	uint8_t slot_id;
-	uint8_t slot_get;
-	uint8_t slot_flag;
-	uint8_t ipu_flag;
-	uint8_t cnn_flag;
-	uint16_t cf_id;
-	uint16_t sf_id;
-	slot_ddr_info_t ddr_info;
-} ipu_slot_h_t;
-
-typedef struct {
 	uint8_t slot_id;
 	uint8_t slot_flag;	/// busy, free, done
 	uint8_t ipu_flag;	/// start, done, pym start, done
@@ -47,6 +35,13 @@ typedef struct {
 	uint64_t base;
 	slot_ddr_info_t ddr_info;
 } info_h_t;
+
+typedef struct {
+	struct list_head list;
+	uint8_t slot_get;
+	uint8_t slot_cnt;
+	info_h_t info_h;
+} ipu_slot_h_t;
 
 typedef enum {
 	ELIST_EMPTY = 1,

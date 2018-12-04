@@ -50,24 +50,24 @@
 		#size-cells = <2>;
 		ranges;
 
-        bifsd_reserved: bifsd_reserved@0x3D089000 {
-                reg = <0x0 0x3D089000 0x0 0x1000>;
-                no-map;
+		bifsd_reserved: bifsd_reserved@0x3D089000 {
+		    reg = <0x0 0x3D089000 0x0 0x1000>;
+		    no-map;
 		};
 		iar_reserved: iar_reserved@0x3D08A000 {
-				reg = <0x0 0x3D08A000 0x0 0x2F76000>;
-				no-map;
+		    reg = <0x0 0x3D08A000 0x0 0x2F76000>;
+		    no-map;
 		};
 
 		/* Reserved 512MB memory for cnn subsystem */
 		cnn_reserved: cnn_reserved@0x40000000 {
-			reg = <0x0 0x40000000 0x0 0x20000000>;
+		    reg = <0x0 0x40000000 0x0 0x20000000>;
 		};
 
 		/* Reserved 512MB memory for ipu subsystem */
 		ipu_reserved: ipu_reserved@0x60000000 {
-			reg = <0x0 0x60000000 0x0 0x20000000>;
-			no-map;
+		    reg = <0x0 0x60000000 0x0 0x20000000>;
+		    /*no-map;*/
 		};
 
 	};

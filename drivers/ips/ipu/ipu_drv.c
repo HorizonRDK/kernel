@@ -32,7 +32,8 @@
 struct x2_ipu_data {
 	unsigned char __iomem *regbase;	/* read/write[bwl] */
 	unsigned char __iomem *paddr;
-	unsigned char __iomem *vaddr;
+	uint64_t vaddr;
+	uint32_t memsize;
 	struct task_struct *ipu_task;
 	struct class *class;
 	struct completion comp;
@@ -72,7 +73,6 @@ static int8_t ipu_set_ddr(ipu_cfg_t * ipu, uint64_t ddrbase)
 	uint32_t limit = ddrbase + IPU_SLOT_SIZE;
 
 	/* step0. calculate slot head info size */
-	ddrbase += sizeof(ipu_slot_h_t);
 	ddrbase = ALIGN_16(ddrbase);
 
 	/* step1. calculate crop space */
@@ -227,7 +227,8 @@ static uint32_t decode_frame_id(uint16_t * addr)
 static int8_t ipu_get_frameid(struct x2_ipu_data *ipu, ipu_slot_h_t * slot)
 {
 	uint8_t *tmp = NULL;
-	uint64_t vaddr = (uint64_t) IPU_GET_SLOT(slot->slot_id, ipu->vaddr);
+	uint64_t vaddr =
+	    (uint64_t) IPU_GET_SLOT(slot->info_h.slot_id, ipu->vaddr);
 	ipu_cfg_t *cfg = (ipu_cfg_t *) ipu->cfg;
 
 	if (!cfg->frame_id.id_en)
@@ -235,42 +236,45 @@ static int8_t ipu_get_frameid(struct x2_ipu_data *ipu, ipu_slot_h_t * slot)
 
 	if (cfg->frame_id.crop_en && cfg->ctrl.crop_ddr_en) {
 		/* get id from crop ddr address */
-		tmp = (uint8_t *) (slot->ddr_info.crop.y_offset + vaddr);
+		tmp = (uint8_t *) (slot->info_h.ddr_info.crop.y_offset + vaddr);
 		if (cfg->frame_id.bus_mode == 0) {
-			slot->cf_id = tmp[0] << 8 | tmp[1];
+			slot->info_h.cf_id = tmp[0] << 8 | tmp[1];
 			ipu_dbg("cframe_id=%d, %d, %d\n", tmp[0], tmp[1],
-				slot->cf_id);
+				slot->info_h.cf_id);
 		} else {
-			slot->cf_id = decode_frame_id((uint16_t *) tmp);
-			ipu_dbg("cframe_id=%d\n", slot->cf_id);
+			slot->info_h.cf_id = decode_frame_id((uint16_t *) tmp);
+			ipu_dbg("cframe_id=%d\n", slot->info_h.cf_id);
 		}
 	}
 	if (cfg->frame_id.scale_en) {
 		if (cfg->ctrl.scale_ddr_en) {
 			/* get id from scale ddr address */
 			tmp =
-			    (uint8_t *) (slot->ddr_info.scale.y_offset + vaddr);
+			    (uint8_t *) (slot->info_h.ddr_info.scale.y_offset +
+					 vaddr);
 			if (cfg->frame_id.bus_mode == 0) {
-				slot->sf_id = tmp[0] << 8 | tmp[1];
+				slot->info_h.sf_id = tmp[0] << 8 | tmp[1];
 				ipu_dbg("sframe_id=%d, %d, %d\n", tmp[0],
-					tmp[1], slot->sf_id);
+					tmp[1], slot->info_h.sf_id);
 			} else {
-				slot->sf_id = decode_frame_id((uint16_t *) tmp);
-				ipu_dbg("sframe_id=%d\n", slot->sf_id);
+				slot->info_h.sf_id =
+				    decode_frame_id((uint16_t *) tmp);
+				ipu_dbg("sframe_id=%d\n", slot->info_h.sf_id);
 			}
 		} else {
 			/* get id from pymid ddr address */
 			tmp =
-			    (uint8_t *) (slot->ddr_info.ds[0].y_offset + vaddr);
+			    (uint8_t *) (slot->info_h.ddr_info.ds[0].y_offset +
+					 vaddr);
 			if (cfg->frame_id.bus_mode == 0) {
-				slot->sf_id = tmp[0] << 8 | tmp[1];
-				ipu_dbg("pframe_id=%d, %d, %d\n", tmp[0],
-					tmp[1], slot->sf_id);
+				slot->info_h.sf_id = tmp[0] << 8 | tmp[1];
+				ipu_info("pframe_id=%d, %d, %d\n", tmp[0],
+					 tmp[1], slot->info_h.sf_id);
 			} else {
-				slot->sf_id = decode_frame_id((uint16_t *) tmp);
-				ipu_dbg("pframe_id=%d\n", slot->sf_id);
+				slot->info_h.sf_id =
+				    decode_frame_id((uint16_t *) tmp);
+				ipu_dbg("pframe_id=%d\n", slot->info_h.sf_id);
 			}
-			memset((void *)tmp, 0, 16);
 		}
 	}
 	return 0;
@@ -303,7 +307,7 @@ static int ipu_thread(void *data)
 			slot_h = slot_busy_to_free();
 			if (slot_h) {
 				ipu_err("meet error, slot-%d, 0x%x\n",
-					slot_h->slot_id, status);
+					slot_h->info_h.slot_id, status);
 				wake_up_interruptible(&ipu->event_head);
 			}
 		}
@@ -311,12 +315,14 @@ static int ipu_thread(void *data)
 		if (status & IPU_FRAME_START) {
 			slot_h = slot_free_to_busy();
 			if (slot_h) {
-				ipu_dbg("slot-%d, 0x%llx\n", slot_h->slot_id,
-					(uint64_t) IPU_GET_SLOT(slot_h->slot_id,
+				ipu_dbg("slot-%d, 0x%llx\n",
+					slot_h->info_h.slot_id,
+					(uint64_t) IPU_GET_SLOT(slot_h->info_h.
+								slot_id,
 								(uint64_t) ipu->
 								paddr));
 				ipu_set(IPUC_SET_DDR, ipu_cfg,
-					IPU_GET_SLOT(slot_h->slot_id,
+					IPU_GET_SLOT(slot_h->info_h.slot_id,
 						     (uint64_t) ipu->paddr));
 			} else {
 				ipu_dbg("free slot empty\n");
@@ -327,19 +333,16 @@ static int ipu_thread(void *data)
 			/* TODO need flash cache? */
 			slot_h = slot_busy_to_done();
 			if (slot_h) {
-				ipu_info("pyramid done, slot-%d\n",
-					 slot_h->slot_id);
+				ipu_info("pyramid done, slot-%d, cnt %d\n",
+					 slot_h->info_h.slot_id,
+					 slot_h->slot_cnt);
 				ipu->pymid_done = true;
-				ipu->done_idx = slot_h->slot_id;
+				ipu->done_idx = slot_h->info_h.slot_id;
 				ipu_get_frameid(ipu, slot_h);
 				wake_up_interruptible(&ipu->event_head);
 			} else {
 				ipu_dbg("busy slot empty\n");
 			}
-#ifdef IPU_DEBUG
-			/* TODO for test */
-			slot_h = slot_done_to_free();
-#endif
 		}
 		ipu->trigger_isr = false;
 		ipu->isr_data = 0;
@@ -381,10 +384,10 @@ MODULE_DEVICE_TABLE(of, x2_ipu_of_match);
 static int8_t ipu_core_init(ipu_cfg_t * ipu_cfg)
 {
 	slot_ddr_info_t s_info;
-	ipu_slot_h_t *s_head;
 	uint64_t pbase = (uint64_t) g_ipu->paddr;
 	uint8_t i = 0;
 
+	ips_module_reset(RST_IPU);
 	memset(&s_info, 0, sizeof(slot_ddr_info_t));
 
 	ipu_set(IPUC_SET_BASE, ipu_cfg, 0);
@@ -441,7 +444,6 @@ static int8_t ipu_core_init(ipu_cfg_t * ipu_cfg)
 		}
 	}
 	init_ipu_slot((uint64_t) g_ipu->vaddr, &s_info);
-	s_head = slot_free_to_busy();
 
 	ips_irq_disable(IPU_INT);
 	ips_register_irqhandle(IPU_INT, x2_ipu_isr, (void *)g_ipu);
@@ -451,11 +453,6 @@ static int8_t ipu_core_init(ipu_cfg_t * ipu_cfg)
 
 int ipu_open(struct inode *node, struct file *filp)
 {
-	g_ipu->trigger_isr = false;
-	g_ipu->isr_data = 0;
-	g_ipu->pymid_done = false;
-	g_ipu->err_status = 0;
-	g_ipu->stop = false;
 	return 0;
 }
 
@@ -542,7 +539,7 @@ long ipu_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 {
 	ipu_cfg_t *ipu_cfg = (ipu_cfg_t *) g_ipu->cfg;
 	ipu_slot_h_t *slot_h = NULL;
-	info_h_t info;
+	info_h_t *info = NULL;
 	int ret = 0;
 	unsigned long flag;
 	ipu_info("ipu cmd: %d\n", _IOC_NR(cmd));
@@ -574,6 +571,7 @@ long ipu_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 		    copy_to_user((void __user *)data,
 				 (const void *)&g_ipu->err_status,
 				 sizeof(uint32_t));
+		g_ipu->err_status = 0;
 		break;
 	case IPUC_CNN_DONE:
 		/* step 1 mv slot from done to free */
@@ -587,7 +585,6 @@ long ipu_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 		spin_unlock_irqrestore(&g_ipu->slock, flag);
 		break;
 	case IPUC_GET_DONE_INFO:
-		memset(&info, 0, sizeof(info_h_t));
 		spin_lock_irqsave(&g_ipu->slock, flag);
 		slot_h = ipu_get_done_slot();
 		if (!slot_h) {
@@ -595,22 +592,17 @@ long ipu_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 			return -EFAULT;
 		}
 
-		if (g_ipu->done_idx != -1 && g_ipu->done_idx != slot_h->slot_id) {
+		if (g_ipu->done_idx != -1 &&
+		    g_ipu->done_idx != slot_h->info_h.slot_id) {
 			ipu_err("cnn slot delay\n");
 		}
-		memcpy((void *)&info.ddr_info, (const void *)&slot_h->ddr_info,
-		       sizeof(slot_ddr_info_t));
-		info.slot_id = slot_h->slot_id;
-		info.base =
-		    (uint64_t) IPU_GET_SLOT(slot_h->slot_id,
+		info = &slot_h->info_h;
+		info->base =
+		    (uint64_t) IPU_GET_SLOT(slot_h->info_h.slot_id,
 					    (uint64_t) g_ipu->paddr);
-		info.ipu_flag = slot_h->ipu_flag;
-		info.cnn_flag = slot_h->cnn_flag;
-		info.cf_id = slot_h->cf_id;
-		info.sf_id = slot_h->sf_id;
 		spin_unlock_irqrestore(&g_ipu->slock, flag);
 		ret =
-		    copy_to_user((void __user *)data, (const void *)&info,
+		    copy_to_user((void __user *)data, (const void *)info,
 				 sizeof(info_h_t));
 		break;
 	case IPUC_DUMP_REG:
@@ -640,12 +632,10 @@ long ipu_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 int ipu_mmap(struct file *filp, struct vm_area_struct *vma)
 {
 	int8_t ret = 0;
-	struct page *page = NULL;
-	slot_ddr_info_t *slot_h =
-	    (slot_ddr_info_t *) IPU_GET_SLOT(vma->vm_pgoff, g_ipu->vaddr);
-	page = virt_to_page(((uint64_t) slot_h) + slot_h->ds[0].y_offset);
-	ret = remap_pfn_range(vma, vma->vm_start, page_to_pfn(page),
-			      vma->vm_end - vma->vm_start, vma->vm_page_prot);
+	ret =
+	    remap_pfn_range(vma, vma->vm_start,
+			    virt_to_pfn(g_ipu->vaddr + vma->vm_pgoff),
+			    vma->vm_end - vma->vm_start, vma->vm_page_prot);
 	if (ret)
 		return -EAGAIN;
 	return 0;
@@ -660,6 +650,7 @@ unsigned int ipu_poll(struct file *file, struct poll_table_struct *wait)
 	spin_lock_irqsave(&g_ipu->elock, flags);
 	if (g_ipu->stop) {
 		mask = EPOLLHUP;
+		g_ipu->stop = false;
 		ipu_info("ipu exit request\n");
 	} else if (g_ipu->err_status) {
 		ipu_info("POLLERR: err_status 0x%x\n", g_ipu->err_status);
@@ -761,6 +752,35 @@ void init_test_data(ipu_cfg_t * info)
 	info->pymid.us_src_width[2] = 260;
 }
 
+static void *ipu_vmap(phys_addr_t start, size_t size)
+{
+	struct page **pages;
+	phys_addr_t page_start;
+	unsigned int page_count;
+	pgprot_t prot;
+	unsigned int i;
+	void *vaddr;
+
+	page_start = start - offset_in_page(start);
+	page_count = DIV_ROUND_UP(size + offset_in_page(start), PAGE_SIZE);
+	prot = pgprot_noncached(PAGE_KERNEL);
+	pages = kmalloc_array(page_count, sizeof(struct page *), GFP_KERNEL);
+	if (!pages) {
+		pr_err("%s: Failed to allocate array for %u pages\n", __func__,
+		       page_count);
+		return NULL;
+	}
+
+	for (i = 0; i < page_count; i++) {
+		phys_addr_t addr = page_start + i * PAGE_SIZE;
+		pages[i] = pfn_to_page(addr >> PAGE_SHIFT);
+	}
+	vaddr = vm_map_ram(pages, page_count, -1, prot);
+	kfree(pages);
+
+	return vaddr;
+}
+
 static int x2_ipu_probe(struct platform_device *pdev)
 {
 	int rc = 0;
@@ -836,13 +856,13 @@ static int x2_ipu_probe(struct platform_device *pdev)
 		goto err_out2;
 	}
 	ipu->paddr = (unsigned char __iomem *)r.start;
-	ipu->vaddr =
-	    (unsigned char __iomem *)memremap(r.start, resource_size(&r),
-					      MEMREMAP_WB);
+	ipu->memsize = resource_size(&r);
+	//ipu->vaddr = (unsigned char __iomem *)memremap(r.start, resource_size(&r), MEMREMAP_WC);
+	//ipu->vaddr = (unsigned char __iomem *)ioremap_nocache(r.start, resource_size(&r));
+	ipu->vaddr = (uint64_t) ipu_vmap(r.start, ipu->memsize);
 	dev_info(&pdev->dev,
 		 "Allocate reserved memory, paddr: 0x%0llx, vaddr: 0x%0llx, len=0x%x\n",
-		 (uint64_t) ipu->paddr, (uint64_t) ipu->vaddr,
-		 (uint32_t) resource_size(&r));
+		 (uint64_t) ipu->paddr, (uint64_t) ipu->vaddr, ipu->memsize);
 
 	platform_set_drvdata(pdev, ipu);
 
@@ -901,6 +921,7 @@ static int x2_ipu_remove(struct platform_device *pdev)
 	struct x2_ipu_data *ipu = platform_get_drvdata(pdev);
 
 	ipu_stop_thread(ipu);
+	vm_unmap_ram(ipu->paddr, ipu->memsize / PAGE_SIZE);
 	release_mem_region(ipu->io_r->start, resource_size(ipu->io_r));
 	clr_ipu_regbase();
 	iounmap(ipu->regbase);

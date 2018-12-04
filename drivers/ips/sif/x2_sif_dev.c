@@ -525,6 +525,7 @@ int32_t sif_dev_stop(void)
 	base = sif_getreg(iomem + REG_SIF_BASE_CTRL);
 	base &= CONFIG_CLEAR(BASE_SIF_ENABLE);
 	sif_putreg(iomem + REG_SIF_BASE_CTRL, base);
+	sif_putreg(iomem + REG_FRAME_ID_CFG, 0);
 	return 0;
 }
 
