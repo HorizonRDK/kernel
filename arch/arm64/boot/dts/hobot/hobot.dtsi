@@ -145,6 +145,40 @@
 			status = "disabled";
 		};
 
+        i2s0: i2s@0xA5007000 {
+            compatible = "hobot,x2-i2s";
+            reg = <0 0xA5007000 0 0x100>,
+                  <0 0xA5007500 0 0x100>,
+                  <0 0xA1000000 0 0x1000>,
+                  <0 0xA6003000 0 0x100>,
+                  <0 0xA7000000 0 0x100>;
+            interrupt-parent = <&gic>;
+            interrupts = <0 30 4>;
+            i2s-pin-mclk = <88 0>;
+            i2s-pin-clk = <89 0>;
+            i2s-pin-ws = <90 0>;
+            i2s-pin-sd = <91 0>;
+            i2s-clk-reg = <0x350>;
+            i2s-rstn = <18>;
+        };
+
+        i2s1: i2s@0xA5008000 {
+            compatible = "hobot,x2-i2s";
+            reg = <0 0xA5008000 0 0x100>,
+                  <0 0xA5008500 0 0x100>,
+                  <0 0xA1000000 0 0x1000>,
+                  <0 0xA6003000 0 0x100>,
+                  <0 0xA7000000 0 0x10>;
+            interrupt-parent = <&gic>;
+            interrupts = <0 31 4>;
+            i2s-pin-mclk = <5 1>;
+            i2s-pin-clk = <61 2>;
+            i2s-pin-ws = <62 2>;
+            i2s-pin-sd = <63 2>;
+            i2s-clk-reg = <0x360>;
+            i2s-rstn = <19>;
+        };
+
 		i2c0: i2c@0xA5009000 {
 			compatible = "hobot,x2-i2c";
 			reg = <0 0xA5009000 0 0x100>;
