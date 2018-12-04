@@ -632,12 +632,15 @@ long ipu_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 int ipu_mmap(struct file *filp, struct vm_area_struct *vma)
 {
 	int8_t ret = 0;
-	ret =
-	    remap_pfn_range(vma, vma->vm_start,
-			    virt_to_pfn(g_ipu->vaddr + vma->vm_pgoff),
-			    vma->vm_end - vma->vm_start, vma->vm_page_prot);
+	uint64_t offset = vma->vm_pgoff << PAGE_SHIFT;
+	uint64_t vaddr = g_ipu->vaddr + (offset - (uint64_t) g_ipu->paddr);
+
+	ipu_info("ipu mmap offset: 0x%llx, vaddr: 0x%llx\n", offset, vaddr);
+	ret = remap_pfn_range(vma, vma->vm_start, virt_to_pfn(vaddr),
+			      vma->vm_end - vma->vm_start, vma->vm_page_prot);
 	if (ret)
 		return -EAGAIN;
+	ipu_info("ipu mmap ok\n");
 	return 0;
 }
 
