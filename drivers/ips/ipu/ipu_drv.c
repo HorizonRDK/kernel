@@ -268,8 +268,8 @@ static int8_t ipu_get_frameid(struct x2_ipu_data *ipu, ipu_slot_h_t * slot)
 					 vaddr);
 			if (cfg->frame_id.bus_mode == 0) {
 				slot->info_h.sf_id = tmp[0] << 8 | tmp[1];
-				ipu_info("pframe_id=%d, %d, %d\n", tmp[0],
-					 tmp[1], slot->info_h.sf_id);
+				ipu_dbg("pframe_id=%d, %d, %d\n", tmp[0],
+					tmp[1], slot->info_h.sf_id);
 			} else {
 				slot->info_h.sf_id =
 				    decode_frame_id((uint16_t *) tmp);
@@ -325,7 +325,7 @@ static int ipu_thread(void *data)
 					IPU_GET_SLOT(slot_h->info_h.slot_id,
 						     (uint64_t) ipu->paddr));
 			} else {
-				ipu_dbg("free slot empty\n");
+				ipu_info("free slot empty\n");
 			}
 		}
 
@@ -341,7 +341,7 @@ static int ipu_thread(void *data)
 				ipu_get_frameid(ipu, slot_h);
 				wake_up_interruptible(&ipu->event_head);
 			} else {
-				ipu_dbg("busy slot empty\n");
+				ipu_info("busy slot empty\n");
 			}
 		}
 		ipu->trigger_isr = false;
@@ -542,7 +542,7 @@ long ipu_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 	info_h_t *info = NULL;
 	int ret = 0;
 	unsigned long flag;
-	ipu_info("ipu cmd: %d\n", _IOC_NR(cmd));
+	ipu_dbg("ipu cmd: %d\n", _IOC_NR(cmd));
 
 	switch (cmd) {
 	case IPUC_INIT:
@@ -625,7 +625,7 @@ long ipu_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 		ipu_err("ipu cmd: %d not supported\n", _IOC_NR(cmd));
 		break;
 	}
-	ipu_info("ipu cmd: %d end\n", _IOC_NR(cmd));
+	ipu_dbg("ipu cmd: %d end\n", _IOC_NR(cmd));
 	return ret;
 }
 
@@ -633,11 +633,12 @@ int ipu_mmap(struct file *filp, struct vm_area_struct *vma)
 {
 	int8_t ret = 0;
 	uint64_t offset = vma->vm_pgoff << PAGE_SHIFT;
-	uint64_t vaddr = g_ipu->vaddr + (offset - (uint64_t) g_ipu->paddr);
 
-	ipu_info("ipu mmap offset: 0x%llx, vaddr: 0x%llx\n", offset, vaddr);
-	ret = remap_pfn_range(vma, vma->vm_start, virt_to_pfn(vaddr),
-			      vma->vm_end - vma->vm_start, vma->vm_page_prot);
+	ipu_info("ipu mmap offset: 0x%llx, size: %ld\n", offset,
+		 vma->vm_end - vma->vm_start);
+	ret =
+	    remap_pfn_range(vma, vma->vm_start, PFN_DOWN(offset),
+			    vma->vm_end - vma->vm_start, vma->vm_page_prot);
 	if (ret)
 		return -EAGAIN;
 	ipu_info("ipu mmap ok\n");
