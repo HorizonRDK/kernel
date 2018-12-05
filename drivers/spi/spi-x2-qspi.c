@@ -246,7 +246,6 @@ int x2_qspi_cfg_line_mode(struct x2_qspi *xqspi, uint32_t line_mode, bool enable
 {
 	uint32_t ret = 0, val;
 
-        pr_info("%s:%d enter \n", __func__, __LINE__);
 	if ((NULL == xqspi) || (line_mode == 0)) {
 		ret = -1;
 		pr_err("%s:%d Invalid line mode\n", __func__, __LINE__);
@@ -272,7 +271,6 @@ int x2_qspi_cfg_line_mode(struct x2_qspi *xqspi, uint32_t line_mode, bool enable
 			val &= ~(QPI_ENABLE | DPI_ENABLE);
 			x2_qspi_write(xqspi, QSPI_DUAL_QUAD_MODE, val);
 	}
-        pr_info("%s:%d exit \n", __func__, __LINE__);
 
 	return ret;
 }
@@ -726,7 +724,6 @@ static int x2_qspi_start_transfer(struct spi_master *master,
 	int transfer_len = 0;
 	struct x2_qspi *xqspi = spi_master_get_devdata(master);
 
-        dump_stack();
 	xqspi->txbuf = transfer->tx_buf;
 	xqspi->rxbuf = transfer->rx_buf;
 
@@ -812,7 +809,6 @@ static int x2_qspi_probe(struct platform_device *pdev)
 	u32 tx_bus_width;
 	u32 max_speed_hz;
 
-        pr_info("%s:%d \n", __func__, __LINE__);
 	master = spi_alloc_master(&pdev->dev, sizeof(*xqspi));
 	if (!master)
 		return -ENOMEM;
@@ -920,7 +916,6 @@ static int x2_qspi_probe(struct platform_device *pdev)
 	if (ret)
 		goto remove_master;
 
-        pr_info("%s:%d \n", __func__, __LINE__);
 	return 0;
 #if 0
 clk_dis_pclk:

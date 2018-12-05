@@ -2689,7 +2689,6 @@ int spi_nor_scan(struct spi_nor *nor, const char *name,
 	int ret;
 	int i;
 
-        pr_info("%s:%d \n", __func__, __LINE__);
 	ret = spi_nor_check(nor);
 	if (ret)
 		return ret;
@@ -2698,10 +2697,6 @@ int spi_nor_scan(struct spi_nor *nor, const char *name,
 	nor->reg_proto = SNOR_PROTO_1_1_1;
 	nor->read_proto = SNOR_PROTO_1_1_1;
 	nor->write_proto = SNOR_PROTO_1_1_1;
-        pr_info("%s:%d reg_proto:0x%x read_proto:0x%x write_proto:0x%x\n",
-                __func__, __LINE__, nor->reg_proto, nor->read_proto, nor->write_proto);
-        pr_info("%s:%d nor chip name:%s\n",
-                __func__, __LINE__,name);
 
 	if (name)
 		info = spi_nor_match_id(name);
