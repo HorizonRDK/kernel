@@ -20,6 +20,8 @@
 #include <linux/page-flags.h>
 #include <linux/dma-mapping.h>
 #include <linux/semaphore.h>
+#include <linux/reset.h>
+#include <linux/delay.h>
 
 #include "x2_i2s_reg.h"
 enum _X2_I2S_INT_MASK{
@@ -48,8 +50,9 @@ x2_i2s *g_x2_i2s[X2_I2S_DEV_NUMBER];
 static int x2_i2s_master_clk_enable(x2_i2s *i2s)
 {
 	x2_i2s_clk_ms_mode_config(i2s, 0);
-	x2_i2s_rstn_set(i2s, 0x1);
-	x2_i2s_rstn_set(i2s, 0x0);
+    reset_control_assert(i2s->rst);
+    ndelay(100);
+    reset_control_deassert(i2s->rst);
     return 0;
 }
 
@@ -59,92 +62,9 @@ static int x2_i2s_slave_clk_enable(x2_i2s *i2s)
     return 0;
 }
 
-static int x2_pcl_group_cal(int val)
-{
-	if(val >= 1 && val < 15)
-		return 0;
-	if(val >= 15 && val < 31)
-		return 1;
-	if(val >= 31 && val < 46)
-		return 2;
-	if(val >= 46 && val < 62)
-		return 3;
-	if(val >= 62 && val < 78)
-		return 4;
-	if(val >= 78 && val < 94)
-		return 5;
-	if(val >= 94 && val < 110)
-		return 6;
-	if(val >= 110 && val < 119)
-		return 7;
-	else
-		return -1;
-}
-
-static int x2_pcl_offset_cal(int val)
-{
-	if(val >= 1 && val < 15)
-		return 2 * (val - 1);
-	if(val >= 15 && val < 31)
-		return 2 * (val - 15);
-	if(val >= 31 && val < 46)
-		return 2 * (val - 31);
-	if(val >= 46 && val < 62)
-		return 2 * (val - 46);
-	if(val >= 62 && val < 78)
-		return 2 * (val - 62);
-	if(val >= 78 && val < 94)
-		return 2 * (val - 78);
-	if(val >= 94 && val < 110)
-		return 2 * (val - 94);
-	if(val >= 110 && val < 119)
-		return 2 * (val - 110);
-	else
-		return -1;
-}
-
-static int x2_i2s_pcl_config(x2_i2s *i2s)
-{
-	int group, offset;
-
-	group = x2_pcl_group_cal(i2s->pinctrl.mclk.pin);
-	offset = x2_pcl_offset_cal(i2s->pinctrl.mclk.pin);
-	if(group >=0 && offset >=0)
-		x2_i2s_pin_config(i2s, i2s->pinctrl.mclk.mode, group, offset);
-	else
-		return -EINVAL;
-	group = x2_pcl_group_cal(i2s->pinctrl.clk.pin);
-	offset = x2_pcl_offset_cal(i2s->pinctrl.clk.pin);
-	if(group >=0 && offset >=0)
-		x2_i2s_pin_config(i2s, i2s->pinctrl.clk.mode, group, offset);
-	else
-		return -EINVAL;
-
-	group = x2_pcl_group_cal(i2s->pinctrl.ws.pin);
-	offset = x2_pcl_offset_cal(i2s->pinctrl.ws.pin);
-	if(group >=0 && offset >=0)
-		x2_i2s_pin_config(i2s, i2s->pinctrl.ws.mode, group, offset);
-	else
-		return -EINVAL;
-
-	group = x2_pcl_group_cal(i2s->pinctrl.sd.pin);
-	offset = x2_pcl_offset_cal(i2s->pinctrl.sd.pin);
-	if(group >=0 && offset >=0)
-		x2_i2s_pin_config(i2s, i2s->pinctrl.sd.mode, group, offset);
-	else
-		return -EINVAL;
-
-	return 0;
-}
-
 int x2_i2s_pre_init(x2_i2s *i2s)
 {
 	int ret;
-	ret = x2_i2s_pcl_config(i2s);
-	if(ret){
-        printk("%s: failed to cpnfig pcl for i2s%d.\n", __func__, i2s->index);
-		return -EINVAL;
-    }
 	ret = x2_i2s_master_clk_enable(i2s);
 	if(ret){
         printk("%s: failed to cpnfig clk for i2s%d.\n", __func__, i2s->index);
@@ -296,23 +216,21 @@ int x2_i2s_buf_swap(x2_i2s *i2s, int buf_no)
             switch(buf_no){
                 case 0:
                     I2S_DEBUG("%s: no available entry for master i2s%d buf0, waiting.\n", __func__, i2s->index);
-                    x2_i2s_buf0_rdy_set(i2s, 0x1);
-                    /*
+                    //x2_i2s_buf0_rdy_set(i2s, 0x1); /*repeat the last frame for test*/
                     if(i2s->frame.buf0 != NULL){
                         list_add_tail(&i2s->frame.buf0->node, free_head);
                     }
                     i2s->frame.buf0 = NULL;
-                    list_add_tail(&i2s->frame.buf0_state.node, &i2s->frame.state);*/
+                    list_add_tail(&i2s->frame.buf0_state.node, &i2s->frame.state);
                     break;
                 case 1:
                     I2S_DEBUG("%s: no available entry for slave i2s%d buf1, waiting.\n", __func__, i2s->index);
-                    x2_i2s_buf1_rdy_set(i2s, 0x1);
-                    /*
+                    //ix2_i2s_buf1_rdy_set(i2s, 0x1);/*repeat send the last frame for test*/
                     if(i2s->frame.buf1 != NULL){
                         list_add_tail(&i2s->frame.buf1->node, free_head);
                     }
                     i2s->frame.buf1 = NULL;
-                    list_add_tail(&i2s->frame.buf1_state.node, &i2s->frame.state);*/
+                    list_add_tail(&i2s->frame.buf1_state.node, &i2s->frame.state);
                     break;
                 default:
                     return -EINVAL;
@@ -870,11 +788,7 @@ static int x2_i2s_probe(struct platform_device *pdev)
             dev_err(&pdev->dev, "Failed to get IO resource2!\n");
             return -ENOENT;
         }
-        /*i2s->sys_regs = devm_ioremap_resource(&pdev->dev, res);
-        if(IS_ERR(i2s->sys_regs)){
-            return PTR_ERR(i2s->sys_regs);
-        }*/
-        //since the system already use map the syste control resource
+
         i2s->sys_regs = devm_ioremap(&pdev->dev, res->start, resource_size(res));
         if(IS_ERR(i2s->sys_regs)){
             return PTR_ERR(i2s->sys_regs);
@@ -886,19 +800,6 @@ static int x2_i2s_probe(struct platform_device *pdev)
             dev_err(&pdev->dev, "Failed to get IO resource3!\n");
             return -ENOENT;
         }
-        /*
-        i2s->pcl_regs = devm_ioremap_resource(&pdev->dev, res);
-        if(IS_ERR(i2s->pcl_regs)){
-            return PTR_ERR(i2s->pcl_regs);
-        }*/
-        i2s->pcl_regs = devm_ioremap(&pdev->dev, res->start, resource_size(res));
-
-	    res = NULL;
-        res = platform_get_resource(pdev, IORESOURCE_MEM, 4);
-        if(!res){
-            dev_err(&pdev->dev, "Failed to get IO resource4!\n");
-            return -ENOENT;
-        }
         i2s->apb_regs = devm_ioremap_resource(&pdev->dev, res);
         if(IS_ERR(i2s->apb_regs)){
             return PTR_ERR(i2s->apb_regs);
@@ -907,16 +808,16 @@ static int x2_i2s_probe(struct platform_device *pdev)
         x2_i2s_apb_timeout_enable(i2s);
     }else{
         i2s->sys_regs = g_x2_i2s[0]->sys_regs;
-        i2s->pcl_regs = g_x2_i2s[0]->pcl_regs;
         i2s->apb_regs = g_x2_i2s[0]->apb_regs;
     }
 
-	of_property_read_u32_array(pdev->dev.of_node, "i2s-pin-mclk", (unsigned int*)&i2s->pinctrl.mclk, 2);
-	of_property_read_u32_array(pdev->dev.of_node, "i2s-pin-clk", (unsigned int*)&i2s->pinctrl.clk, 2);
-	of_property_read_u32_array(pdev->dev.of_node, "i2s-pin-ws", (unsigned int*)&i2s->pinctrl.ws, 2);
-	of_property_read_u32_array(pdev->dev.of_node, "i2s-pin-sd", (unsigned int*)&i2s->pinctrl.sd, 2);
 	of_property_read_u32_array(pdev->dev.of_node, "i2s-clk-reg", &i2s->clk_reg, 1);
-	of_property_read_u32_array(pdev->dev.of_node, "i2s-rstn", &i2s->rstn, 1);
+
+    i2s->rst = devm_reset_control_get(&pdev->dev, "i2s");
+    if (IS_ERR(i2s->rst)) {
+        dev_err(&pdev->dev, "Missing reset controller!\n");
+        return PTR_ERR(i2s->rst);
+    }
 
     ret = platform_get_irq(pdev, 0);
     if(ret <= 0){

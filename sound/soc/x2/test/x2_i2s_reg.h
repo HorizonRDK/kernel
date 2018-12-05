@@ -227,18 +227,6 @@ typedef struct _x2_i2s_hw_cfg {
         e_i2s_mode_clk_edge clk_edge;
 } x2_i2s_hw_cfg;
 
-typedef struct _x2_i2s_pin_cfg {
-	int pin;
-	int mode;
-} x2_i2s_pin_cfg;
-
-typedef struct _x2_i2s_pin_ctrl {
-	x2_i2s_pin_cfg mclk;
-	x2_i2s_pin_cfg clk;
-	x2_i2s_pin_cfg ws;
-	x2_i2s_pin_cfg sd;
-} x2_i2s_pin_ctrl;
-
 #define X2_I2S_FRAME_CACHE_SIZE 15
 #define X2_I2S_MASTER_BCLK_KHZ 3072
 #define X2_I2S_SLAVE_BCLK_KHZ 3072
@@ -274,7 +262,6 @@ typedef struct _x2_i2s{
     void __iomem *rx_regs;
     void __iomem *tx_regs;
     void __iomem *sys_regs;
-    void __iomem *pcl_regs;
     void __iomem *apb_regs;
     void __iomem *regs;
     unsigned int irq;
@@ -282,12 +269,11 @@ typedef struct _x2_i2s{
     unsigned int status;
     unsigned int index;
     int bclk;
-	x2_i2s_pin_ctrl pinctrl;
-	unsigned int rstn;
     struct device *dev;
 	e_i2s_mode_ms_mode state;
 	x2_i2s_hw_cfg hw_cfg;
 	x2_i2s_frame frame;
+    struct reset_control *rst;
 } x2_i2s;
 
 #define X2_I2S_DEV_NUMBER 2
@@ -544,13 +530,6 @@ static inline void x2_i2s_int_unmask(x2_i2s *i2s)
     writel(0xF, i2s->regs + I2S_UNMASK);
 }
 
-static void x2_i2s_pin_config(x2_i2s *i2s, int val, int offset, int bit)
-{
-    unsigned int reg_val;
-	reg_val = readl(i2s->pcl_regs + offset * 0x10);
-	writel(UPDATE_VALUE_FIELD(reg_val, val, bit, 0x3), i2s->pcl_regs + offset * 0x10);
-}
-
 #define I2S_CLK_CTRL_PRE_MCLK_DIV_SEL_BIT 0
 #define I2S_CLK_CTRL_MCLK_DIV_SEL_BIT 8
 #define I2S_CLK_CTRL_DIV_BCLK_DIV_SEL_BIT 16
@@ -596,15 +575,6 @@ static inline void x2_i2s_clk_bclk_phase_config(x2_i2s *i2s, int val)
     unsigned int reg_val;
 	reg_val = readl(i2s->sys_regs + i2s->clk_reg);
 	writel(UPDATE_VALUE_FIELD(reg_val, val, I2S_CLK_CTRL_BCLK_PHASE_SEL_BIT, I2S_CLK_CTRL_BCLK_PHASE_SEL_FIELD), i2s->sys_regs + i2s->clk_reg);
-}
-
-#define PERISYS_SW_RSTEN 0x450
-#define I2S_RSTN_FIELD 0x1
-static inline void x2_i2s_rstn_set(x2_i2s *i2s, int val)
-{
-    unsigned int reg_val;
-	reg_val = readl(i2s->sys_regs + PERISYS_SW_RSTEN);
-	writel(UPDATE_VALUE_FIELD(reg_val, val, i2s->rstn, I2S_RSTN_FIELD), i2s->sys_regs + PERISYS_SW_RSTEN);
 }
 
 static inline void x2_i2s_apb_timeout_enable(x2_i2s *i2s)

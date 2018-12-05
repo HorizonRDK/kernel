@@ -22,6 +22,22 @@
 					10	0 /*i2c SDA*/
 				>;
 			};
+            i2s0_func: i2s0_func {
+                pinctrl-x2,pins-muxs = <
+                    88 0
+                    89 0
+                    90 0
+                    91 0
+                >;
+            };
+            i2s1_func: i2s1_func {
+                pinctrl-x2,pins-muxs = <
+                    5 1
+                    61 2
+                    62 2
+                    63 2
+                >;
+            };
 			btin_func:btin_func {
 				pinctrl-x2,pins-muxs = <
 					61	0
