@@ -1251,100 +1251,133 @@ static unsigned int cnn_ioctl_dir(unsigned int cmd)
 
 long cnn_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
-	struct cnn_client *client = filp->private_data;
-	struct cnn_device *dev = client->dev;
-	struct cnn_handle *cleanup_handle = NULL;
-	int ret = 0;
-	unsigned int dir;
-	union cnn_ioctl_arg data;
+        struct cnn_client *client = filp->private_data;
+        struct cnn_device *dev = client->dev;
+        struct cnn_handle *cleanup_handle = NULL;
+        int ret = 0;
+        unsigned int dir;
+        union cnn_ioctl_arg data;
 
-	dir = cnn_ioctl_dir(cmd);
+        dir = cnn_ioctl_dir(cmd);
 
-        if (_IOC_SIZE(cmd) > sizeof(data))
+#ifdef CNN_MM_DEBUG
+        pr_info("%s:%d cmd 0x%x size:%d\n", __func__, __LINE__,
+                cmd, _IOC_SIZE(cmd));
+#endif
+
+        if (_IOC_SIZE(cmd) > sizeof(data)) {
+                pr_info("%s:%d invalid cmd:0x%x size:%d\n", __func__, __LINE__
+                        ,cmd, _IOC_SIZE(cmd));
                 return -EINVAL;
+        }
 
-	/*
-	 * The copy_from_user is unconditional here for both read and write
-	 * to do the validate. If there is no write for the ioctl, the
-	 * buffer is cleared
-	 */
-	if (copy_from_user(&data, (void __user *)arg, _IOC_SIZE(cmd)))
-		return -EFAULT;
+        /*
+         * The copy_from_user is unconditional here for both read and write
+         * to do the validate. If there is no write for the ioctl, the
+         * buffer is cleared
+         */
+        if (copy_from_user(&data, (void __user *)arg, _IOC_SIZE(cmd))) {
+                pr_info("%s:%d copy data from user failed\n", __func__, __LINE__);
+                return -EFAULT;
+        }
 
-	if (!(dir & _IOC_WRITE))
-		memset(&data, 0, sizeof(data));
+        if (!(dir & _IOC_WRITE))
+                memset(&data, 0, sizeof(data));
 
-	switch (cmd) {
-	case CNN_IOC_ALLOC:
-	{
-		struct cnn_handle *handle;
+        switch (cmd) {
+        case CNN_IOC_ALLOC:
+        {
+                struct cnn_handle *handle;
 
-		handle = cnn_alloc(client, data.allocation.len,
-						data.allocation.heap_id_mask,
-						data.allocation.flags);
-		if (IS_ERR(handle))
-			return PTR_ERR(handle);
+                mutex_lock(&client->lock);
+                handle = cnn_alloc(client, data.allocation.len,
+                        data.allocation.heap_id_mask,
+                        data.allocation.flags);
+                if (IS_ERR(handle)) {
+                        mutex_unlock(&client->lock);
+                        return PTR_ERR(handle);
+                }
                 cnn_phys(client, handle, &data.allocation.phys_addr, data.allocation.len);
-		data.allocation.handle = handle->id;
+                data.allocation.handle = handle->id;
 
-		cleanup_handle = handle;
-		break;
-	}
-	case CNN_IOC_FREE:
-	{
-		struct cnn_handle *handle;
+                cleanup_handle = handle;
+                mutex_unlock(&client->lock);
+                break;
+        }
+        case CNN_IOC_FREE:
+        {
+                struct cnn_handle *handle;
 
-		mutex_lock(&client->lock);
-		handle = cnn_handle_get_by_id_nolock(client, data.handle.handle);
-		if (IS_ERR(handle)) {
-			mutex_unlock(&client->lock);
-			return PTR_ERR(handle);
-		}
-		cnn_free_nolock(client, handle);
-		cnn_handle_put_nolock(handle);
-		mutex_unlock(&client->lock);
-		break;
-	}
-	case CNN_IOC_SHARE:
-	case CNN_IOC_MAP:
-	{
-		struct cnn_handle *handle;
+                mutex_lock(&client->lock);
+                handle = cnn_handle_get_by_id_nolock(client, data.handle.handle);
+                if (IS_ERR(handle)) {
+                        mutex_unlock(&client->lock);
+                        return PTR_ERR(handle);
+                }
+                cnn_free_nolock(client, handle);
+                cnn_handle_put_nolock(handle);
+                mutex_unlock(&client->lock);
+                break;
+        }
+        case CNN_IOC_SHARE:
+        case CNN_IOC_MAP:
+        {
+                        struct cnn_handle *handle;
 
-		handle = cnn_handle_get_by_id(client, data.handle.handle);
-		if (IS_ERR(handle))
-			return PTR_ERR(handle);
-		data.fd.fd = cnn_share_dma_buf_fd(client, handle);
-		cnn_handle_put(handle);
-		if (data.fd.fd < 0)
-			ret = data.fd.fd;
-		break;
-	}
-	case CNN_IOC_IMPORT:
-	{
-		struct cnn_handle *handle;
+                        mutex_lock(&client->lock);
+                        handle = cnn_handle_get_by_id(client, data.handle.handle);
+                        if (IS_ERR(handle)) {
+                                mutex_unlock(&client->lock);
+                                return PTR_ERR(handle);
+                        }
+                        data.fd.fd = cnn_share_dma_buf_fd(client, handle);
+                        cnn_handle_put(handle);
+                        if (data.fd.fd < 0) {
+                                mutex_unlock(&client->lock);
+                                ret = data.fd.fd;
+                        }
+                        mutex_unlock(&client->lock);
+                        break;
+        }
+        case CNN_IOC_IMPORT:
+        {
+                struct cnn_handle *handle;
 
-		handle = cnn_import_dma_buf_fd(client, data.fd.fd);
-		if (IS_ERR(handle))
-			ret = PTR_ERR(handle);
-		else
-			data.handle.handle = handle->id;
-		break;
-	}
-	case CNN_IOC_SYNC:
-	{
-		ret = cnn_sync_for_device(client, data.fd.fd);
-		break;
-	}
-	case CNN_IOC_CUSTOM:
-	{
-		if (!dev->custom_ioctl)
-			return -ENOTTY;
-		ret = dev->custom_ioctl(client, data.custom.cmd,
-						data.custom.arg);
-		break;
-	}
+                mutex_lock(&client->lock);
+                handle = cnn_import_dma_buf_fd(client, data.fd.fd);
+                if (IS_ERR(handle)) {
+                        mutex_unlock(&client->lock);
+                        ret = PTR_ERR(handle);
+                }
+                else
+                        data.handle.handle = handle->id;
+                mutex_unlock(&client->lock);
+                break;
+        }
+        case CNN_IOC_SYNC:
+        {
+                mutex_lock(&client->lock);
+                ret = cnn_sync_for_device(client, data.fd.fd);
+                mutex_unlock(&client->lock);
+                break;
+        }
+        case CNN_IOC_CUSTOM:
+        {
+                mutex_lock(&client->lock);
+                if (!dev->custom_ioctl) {
+                        mutex_unlock(&client->lock);
+                        return -ENOTTY;
+                }
+                ret = dev->custom_ioctl(client, data.custom.cmd,
+                        data.custom.arg);
+                mutex_unlock(&client->lock);
+                break;
+        }
 	default:
+        {
+                pr_err("invalid ioctl arg\n");
 		return -ENOTTY;
+        }
 	}
 
 	if (dir & _IOC_READ) {

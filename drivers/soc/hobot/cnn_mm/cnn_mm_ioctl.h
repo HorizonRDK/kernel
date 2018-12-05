@@ -177,7 +177,7 @@ union cnn_ioctl_arg {
  * can then be passed to another process.  The corresponding opaque handle can
  * be retrieved via CNN_IOC_IMPORT.
  */
-#define CNN_IOC_SHARE		_IOWR(CNN_IOC_MAGIC, 4, struct cnn_fd_data)
+#define CNN_IOC_SHARE		_IOWR(CNN_IOC_MAGIC, 3, struct cnn_fd_data)
 
 /**
  * DOC: CNN_IOC_IMPORT - imports a shared file descriptor
@@ -186,7 +186,7 @@ union cnn_ioctl_arg {
  * descriptor obtained from CNN_IOC_SHARE and returns the struct with the handle
  * filed set to the corresponding opaque handle.
  */
-#define CNN_IOC_IMPORT		_IOWR(CNN_IOC_MAGIC, 5, struct cnn_fd_data)
+#define CNN_IOC_IMPORT		_IOWR(CNN_IOC_MAGIC, 4, struct cnn_fd_data)
 
 /**
  * DOC: CNN_IOC_CUSTOM - call architecture specific ion ioctl
@@ -194,7 +194,7 @@ union cnn_ioctl_arg {
  * Takes the argument of the architecture specific ioctl to call and
  * passes appropriate userdata for that ioctl
  */
-#define CNN_IOC_CUSTOM		_IOWR(CNN_IOC_MAGIC, 6, struct cnn_custom_data)
+#define CNN_IOC_CUSTOM		_IOWR(CNN_IOC_MAGIC, 5, struct cnn_custom_data)
 
 /**
  * DOC: CNN_IOC_SYNC - syncs a shared file descriptors to memory
@@ -204,6 +204,6 @@ union cnn_ioctl_arg {
  * If necessary should be used after touching a cached buffer from the cpu,
  * this will make the buffer in memory coherent.
  */
-#define CNN_IOC_SYNC		_IOWR(CNN_IOC_MAGIC, 7, struct cnn_fd_data)
+#define CNN_IOC_SYNC		_IOWR(CNN_IOC_MAGIC, 6, struct cnn_fd_data)
 
 #endif /* _CNN_IOCTL_H */
