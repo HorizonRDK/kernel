@@ -787,6 +787,16 @@ config UNIPHIER_WATCHDOG
 	  To compile this driver as a module, choose M here: the
 	  module will be called uniphier_wdt.
 
+config X2_WATCHDOG
+	tristate "Hobot X2 SoCs watchdog support"
+	depends on ARCH_HOBOT
+	select WATCHDOG_CORE
+	help
+	  Say Y here to include support for the watchdog timer
+	  in HOBOT X2 SoCs.
+	  To compile this driver as a module, choose M here: the
+	  module will be called x2_wdt.
+
 # AVR32 Architecture
 
 config AT32AP700X_WDT

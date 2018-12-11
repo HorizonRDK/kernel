@@ -229,3 +229,7 @@
 &sdio1 {
 	status = "disabled";
 };
+
+&watchdog {
+	status = "okay";
+};

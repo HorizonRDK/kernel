@@ -424,6 +424,15 @@
 			timer-freq = <20000000>;
 		};
 
+		watchdog: watchdog@0xA1002000 {
+			compatible = "hobot,x2-wdt";
+			reg = <0 0xA1002000 0 0x1000>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 9 4>;
+			timeout-sec = <10>;
+			status = "disabled";
+		};
+
 		cnn0: cnn@0xA3000000 {
 			compatible = "hobot,x2-cnn-host";
 			reg = <0x0 0xA3000000 0x0 0x1000>;
