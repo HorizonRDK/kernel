@@ -1188,7 +1188,7 @@ static void x2_uart_console_write(struct console *co, const char *s,
 {
 	struct uart_port *port = &x2_uart_port[co->index];
 	unsigned long flags;
-	volatile unsigned int ctrl;
+	volatile unsigned int imr, ctrl, dma;
 	int locked = 1;
 
 	/* Check if tx dma is enabled. */
@@ -1204,6 +1204,14 @@ static void x2_uart_console_write(struct console *co, const char *s,
 	else
 		spin_lock_irqsave(&port->lock, flags);
 
+	/* save and disable interrupt */
+	imr = readl(port->membase + X2_UART_INT_MASK);
+	writel(imr, port->membase + X2_UART_INT_SETMASK);
+
+	/* save and disable dma model */
+	dma = readl(port->membase + X2_UART_FCR);
+	writel(dma&0xFFFFFFFC, port->membase + X2_UART_FCR);
+
 	/*
 	 * Make sure that the tx part is enabled. Set the TX enable bit and
 	 * clear the TX disable bit to enable the transmitter.
@@ -1217,6 +1225,11 @@ static void x2_uart_console_write(struct console *co, const char *s,
 	/* wait for transmitter to become empty */
 	x2_uart_console_wait_tx(port);
 
+	/* restore interrupt state */
+	writel(imr, port->membase + X2_UART_INT_UNMASK);
+
+	/* restore dma model */
+	writel(dma, port->membase + X2_UART_FCR);
 	if (locked)
 		spin_unlock_irqrestore(&port->lock, flags);
 
