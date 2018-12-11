@@ -574,6 +574,7 @@ int bifsd_hobot_priv_init(struct bif_sd *sd)
     mmc_set_out_range_addr(sd);
 
     device_mode_select(sd);
+    mmc_disable_acc_bypass(sd);
 #ifndef HUGO_PLM
     bifsd_config_timing(sd);
 #endif
@@ -970,6 +971,7 @@ int bifsd_pltfm_register(struct platform_device *pdev,
 {
 	struct resource	*regs;
     struct resource mem_reserved;
+    struct resource	*sysctrl;
     struct device_node *np = NULL;
 	struct bif_sd *sd;
     int ret;
@@ -991,6 +993,10 @@ int bifsd_pltfm_register(struct platform_device *pdev,
 	if (IS_ERR(sd->regs))
 		return PTR_ERR(sd->regs);
 
+    sysctrl = platform_get_resource(pdev, IORESOURCE_MEM, 1);
+    sd->sysctrl_reg = ioremap(sysctrl->start, 0x10);
+	if (IS_ERR(sd->sysctrl_reg))
+		return PTR_ERR(sd->sysctrl_reg);
 	/* Get registers' physical base address */
 	sd->phy_regs = regs->start;
 
@@ -1013,17 +1019,6 @@ int bifsd_pltfm_register(struct platform_device *pdev,
     }
     set_sd_info(sd);
 	platform_set_drvdata(pdev, sd);
-
-    sd->pinctrl = devm_pinctrl_get(&pdev->dev);
-    if (IS_ERR(sd->pinctrl)) {
-        dev_err(&pdev->dev, "pinctrl get error\n");
-        return PTR_ERR(sd->pinctrl);
-    }
-    sd->pins_bifsd = pinctrl_lookup_state(sd->pinctrl,"bifsd");
-    if (IS_ERR(sd->pins_bifsd)) {
-        dev_err(&pdev->dev, "bifsd in pinctrl state error\n");
-        return PTR_ERR(sd->pins_bifsd);
-    }
 
     sd->rst = devm_reset_control_get(&pdev->dev, "bifsd");
     if (IS_ERR(sd->rst)) {

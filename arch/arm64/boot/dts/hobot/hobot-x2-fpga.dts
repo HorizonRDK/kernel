@@ -32,7 +32,8 @@
 		pwm0	= &pwm_0;
 		pwm1	= &pwm_1;
 		pwm2	= &pwm_2;
-        bifsd   = &bifsd;
+		bifsd   = &bifsd;
+		mmc0    = &sdio0;
 	};
 
 	chosen {
@@ -185,7 +186,7 @@
 };
 
 &bifsd {
-    status = "okay";
+	status = "okay";
 };
 
 &qspi {
@@ -220,4 +221,11 @@
 			reg = <0x1500000 0x500000>;
 		};
 	};
+};
+&sdio0 {
+	status = "okay";
+};
+
+&sdio1 {
+	status = "disabled";
 };

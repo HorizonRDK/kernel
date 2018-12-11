@@ -234,9 +234,8 @@ struct bif_sd
 	spinlock_t		lock;
 	spinlock_t		irq_lock;
 	void __iomem	*regs;
+    void __iomem	*sysctrl_reg;
     struct reset_control *rst;
-    struct pinctrl *pinctrl;
-    struct pinctrl_state *pins_bifsd;
 	void __iomem	*fifo_reg;
     void __iomem    *paddr;
     void __iomem    *vaddr;
@@ -359,7 +358,6 @@ static inline void mmc_set_out_range_addr(struct bif_sd *sd)
 {
     sd_writel(sd, OUT_RANGE_ADDR, OUT_RANGE_ADDR, 0);
 }
-#if 0
 static inline void mmc_disable_acc_bypass(struct bif_sd *sd)
 {
     u32 reg_val;
@@ -367,12 +365,4 @@ static inline void mmc_disable_acc_bypass(struct bif_sd *sd)
     reg_val &= 0xFFFFFFFE;
     writel(reg_val, sd->sysctrl_reg);
 }
-static inline void bifsd_pin_mux_config(struct bif_sd *sd)
-{
-    u32 reg_val;
-    reg_val = readl(sd->padc_reg + 0x10);
-    reg_val &= 0xFFC00000;
-    writel(reg_val, sd->padc_reg + 0x10);
-}
-#endif
 #endif /* X2_BIFSD_DEV_H */
