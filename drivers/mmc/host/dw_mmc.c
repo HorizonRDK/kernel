@@ -2854,7 +2854,7 @@ static int dw_mci_init_slot(struct dw_mci *host)
 		goto err_host_allocated;
 
 	if (!mmc->ocr_avail)
-		mmc->ocr_avail = MMC_VDD_32_33 | MMC_VDD_33_34;
+		mmc->ocr_avail = MMC_VDD_32_33 | MMC_VDD_33_34 | MMC_VDD_165_195;
 
 	ret = mmc_of_parse(mmc);
 	if (ret)
