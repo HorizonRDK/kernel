@@ -14,8 +14,12 @@
 typedef struct {
 	uint32_t y_offset;
 	uint32_t c_offset;
-	uint16_t y_width;	/// contain blanking data
-	uint16_t c_width;	/// contain blanking data
+	uint16_t y_width;
+	uint16_t y_height;
+	uint16_t y_stride;	/// contain blanking data
+	uint16_t c_width;
+	uint16_t c_height;
+	uint16_t c_stride;	/// contain blanking data
 } slot_ddr_t;
 
 typedef struct {

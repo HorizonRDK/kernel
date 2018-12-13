@@ -66,5 +66,16 @@
 #define REG_MIPI_HOST_INT_ST_IPI               (0x140)
 #define REG_MIPI_HOST_INT_MSK_IPI              (0x144)
 #define REG_MIPI_HOST_INT_FORCE_IPI            (0x148)
+#define REG_MIPI_HOST_INT_ST_IPI2              (0x150)
+#define REG_MIPI_HOST_INT_MSK_IPI2             (0x154)
+#define REG_MIPI_HOST_INT_FORCE_IPI2           (0x158)
+#define REG_MIPI_HOST_IPI2_MODE                (0x200)
+#define REG_MIPI_HOST_IPI2_VCID                (0x204)
+#define REG_MIPI_HOST_IPI2_DATA_TYPE           (0x208)
+#define REG_MIPI_HOST_IPI2_MEM_FLUSH           (0x20c)
+#define REG_MIPI_HOST_IPI2_HSA_TIME            (0x210)
+#define REG_MIPI_HOST_IPI2_HBP_TIME            (0x214)
+#define REG_MIPI_HOST_IPI2_HSD_TIME            (0x218)
+#define REG_MIPI_HOST_IPI2_ADV_FEATURES        (0x21c)
 
 #endif //__X2_MIPI_HOST_REGS_H__

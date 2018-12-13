@@ -58,6 +58,9 @@
 #define HOST_DPHY_LANE_STOP(l)     (0xF>>(HOST_DPHY_LANE_MAX-(l)))
 #define HOST_DPHY_RX_HS            (0x030000)
 
+#define MIPIHOST_IPI_PORT_0        (0)
+#define MIPIHOST_IPI_PORT_1        (1)
+
 #define MIPI_CSI2_DT_YUV420_8   (0x18)
 #define MIPI_CSI2_DT_YUV420_10  (0x19)
 #define MIPI_CSI2_DT_YUV422_8   (0x1E)
@@ -271,6 +274,8 @@ static int32_t mipi_host_configure_ipi(mipi_host_cfg_t * control)
 	iomem = g_mipi_host->iomem;
 	mipiinfo("mipi host config ipi");
 	/*Select virtual channel and data type to be processed by IPI */
+	mipi_putreg(iomem + REG_MIPI_HOST_IPI_VCID,
+		    control->channel_sel[MIPIHOST_IPI_PORT_0]);
 	mipi_putreg(iomem + REG_MIPI_HOST_IPI_DATA_TYPE, control->datatype);
 	/*Select the IPI mode */
 	mipi_putreg(iomem + REG_MIPI_HOST_IPI_MODE,
@@ -283,6 +288,26 @@ static int32_t mipi_host_configure_ipi(mipi_host_cfg_t * control)
 	mipi_putreg(iomem + REG_MIPI_HOST_IPI_ADV_FEATURES,
 		    MIPI_HOST_LEGCYMODE_ENABLE);
 
+	if (MIPIHOST_CHANNEL_NUM == control->channel_num) {
+		/*Select virtual channel and data type to be processed by IPI */
+		mipi_putreg(iomem + REG_MIPI_HOST_IPI2_VCID,
+			    control->channel_sel[MIPIHOST_IPI_PORT_1]);
+		mipi_putreg(iomem + REG_MIPI_HOST_IPI2_DATA_TYPE,
+			    control->datatype);
+		/*Select the IPI mode */
+		mipi_putreg(iomem + REG_MIPI_HOST_IPI2_MODE,
+			    MIPI_HOST_IPI_ENABLE | (MIPI_HOST_BITWIDTH_48 <<
+						    MIPI_HOST_BITWIDTH_OFFSET));
+		/*Configure the IPI horizontal frame information */
+		mipi_putreg(iomem + REG_MIPI_HOST_IPI2_HSA_TIME,
+			    control->hsaTime);
+		mipi_putreg(iomem + REG_MIPI_HOST_IPI2_HBP_TIME,
+			    control->hbpTime);
+		mipi_putreg(iomem + REG_MIPI_HOST_IPI2_HSD_TIME,
+			    control->hsdTime);
+		mipi_putreg(iomem + REG_MIPI_HOST_IPI2_ADV_FEATURES,
+			    MIPI_HOST_LEGCYMODE_ENABLE);
+	}
 	return 0;
 }
 

@@ -82,8 +82,6 @@ static int8_t ipu_set_ddr(ipu_cfg_t * ipu, uint64_t ddrbase)
 		size = w * h;
 		ipu->crop_ddr.y_addr = ddrbase;
 		ipu->crop_ddr.c_addr = ddrbase + size;
-		ipu->crop_ddr.y_size = size;
-		ipu->crop_ddr.c_size = size >> 1;
 		ddrbase += size * 3 >> 1;
 		ddrbase = ALIGN_16(ddrbase);
 		if (ddrbase >= limit)
@@ -98,8 +96,6 @@ static int8_t ipu_set_ddr(ipu_cfg_t * ipu, uint64_t ddrbase)
 		size = w * h;
 		ipu->scale_ddr.y_addr = ddrbase;
 		ipu->scale_ddr.c_addr = ddrbase + size;
-		ipu->scale_ddr.y_size = size;
-		ipu->scale_ddr.c_size = size >> 1;
 		ddrbase += size * 3 >> 1;
 		ddrbase = ALIGN_16(ddrbase);
 		if (ddrbase >= limit)
@@ -113,9 +109,7 @@ static int8_t ipu_set_ddr(ipu_cfg_t * ipu, uint64_t ddrbase)
 			if (i != 0 && ipu->pymid.ds_factor[i] == 0) {
 				/* if factor == 0, bypass layer */
 				ipu->ds_ddr[i].y_addr = 0;
-				ipu->ds_ddr[i].y_size = 0;
 				ipu->ds_ddr[i].c_addr = 0;
-				ipu->ds_ddr[i].c_size = 0;
 				continue;
 			}
 
@@ -123,15 +117,12 @@ static int8_t ipu_set_ddr(ipu_cfg_t * ipu, uint64_t ddrbase)
 			h = ALIGN_16(ipu->pymid.ds_roi[i].h);
 			size = w * h;
 			ipu->ds_ddr[i].y_addr = ddrbase;
-			ipu->ds_ddr[i].y_size = size;
 			if (ipu->pymid.ds_uv_bypass & (1 << i)) {
 				/* uv bypass layer won't write to ddr */
 				ipu->ds_ddr[i].c_addr = 0;
-				ipu->ds_ddr[i].c_size = 0;
 				ddrbase += size;
 			} else {
 				ipu->ds_ddr[i].c_addr = ddrbase + size;
-				ipu->ds_ddr[i].c_size = size >> 1;
 				ddrbase += size * 3 >> 1;
 			}
 			ddrbase = ALIGN_16(ddrbase);
@@ -146,24 +137,19 @@ static int8_t ipu_set_ddr(ipu_cfg_t * ipu, uint64_t ddrbase)
 			if (!(ipu->pymid.us_layer_en & 1 << i)) {
 				/* layer disable */
 				ipu->us_ddr[i].y_addr = 0;
-				ipu->us_ddr[i].y_size = 0;
 				ipu->us_ddr[i].c_addr = 0;
-				ipu->us_ddr[i].c_size = 0;
 				continue;
 			}
 			w = ALIGN_16(ipu->pymid.us_roi[i].w);
 			h = ALIGN_16(ipu->pymid.us_roi[i].h);
 			size = w * h;
 			ipu->us_ddr[i].y_addr = ddrbase;
-			ipu->us_ddr[i].y_size = size;
 			if (ipu->pymid.us_uv_bypass & 1 << i) {
 				ipu->us_ddr[i].c_addr = ddrbase + size;
-				ipu->us_ddr[i].c_size = size >> 1;
 				ddrbase += size * 3 >> 1;
 			} else {
 				/* uv bypass layer won't write to ddr */
 				ipu->us_ddr[i].c_addr = 0;
-				ipu->us_ddr[i].c_size = 0;
 				ddrbase += size;
 			}
 			ddrbase = ALIGN_16(ddrbase);
@@ -388,7 +374,6 @@ static int8_t ipu_core_init(ipu_cfg_t * ipu_cfg)
 	uint8_t i = 0;
 
 	ips_module_reset(RST_IPU);
-	memset(&s_info, 0, sizeof(slot_ddr_info_t));
 
 	ipu_set(IPUC_SET_BASE, ipu_cfg, 0);
 	ipu_set(IPUC_SET_CROP, ipu_cfg, 0);
@@ -397,48 +382,72 @@ static int8_t ipu_core_init(ipu_cfg_t * ipu_cfg)
 	ipu_set(IPUC_SET_FRAME_ID, ipu_cfg, 0);
 	ipu_set(IPUC_SET_DDR, ipu_cfg, pbase);
 
+	memset(&s_info, 0, sizeof(slot_ddr_info_t));
 	if (ipu_cfg->ctrl.crop_ddr_en == 1) {
 		s_info.crop.y_offset = ipu_cfg->crop_ddr.y_addr - pbase;
 		s_info.crop.c_offset = ipu_cfg->crop_ddr.c_addr - pbase;
 		s_info.crop.y_width =
-		    ALIGN_16(ipu_cfg->crop.crop_ed.w - ipu_cfg->crop.crop_st.w);
+		    ipu_cfg->crop.crop_ed.w - ipu_cfg->crop.crop_st.w;
+		s_info.crop.y_height =
+		    ipu_cfg->crop.crop_ed.h - ipu_cfg->crop.crop_st.h;
+		s_info.crop.y_stride = ALIGN_16(s_info.crop.y_width);
 		s_info.crop.c_width =
-		    ALIGN_16((ipu_cfg->crop.crop_ed.w -
-			      ipu_cfg->crop.crop_st.w) >> 1);
+		    (ipu_cfg->crop.crop_ed.w - ipu_cfg->crop.crop_st.w) >> 1;
+		s_info.crop.c_height =
+		    ipu_cfg->crop.crop_ed.h - ipu_cfg->crop.crop_st.h;
+		s_info.crop.c_stride = ALIGN_16(s_info.crop.c_width);
 	}
 	if (ipu_cfg->ctrl.scale_ddr_en == 1) {
 		s_info.scale.y_offset = ipu_cfg->scale_ddr.y_addr - pbase;
 		s_info.scale.c_offset = ipu_cfg->scale_ddr.c_addr - pbase;
-		s_info.scale.y_width = ALIGN_16(ipu_cfg->scale.scale_tgt.w);
+		s_info.scale.y_width = ipu_cfg->scale.scale_tgt.w;
+		s_info.scale.y_height = ipu_cfg->scale.scale_tgt.h;
+		s_info.scale.y_stride = ALIGN_16(s_info.scale.y_width);
 		s_info.scale.c_width =
 		    ALIGN_16(ipu_cfg->scale.scale_tgt.w >> 1);
+		s_info.scale.c_height = ipu_cfg->scale.scale_tgt.h;
+		s_info.scale.c_stride = ALIGN_16(s_info.scale.c_width);
 	}
 	if (ipu_cfg->pymid.pymid_en == 1) {
 		for (i = 0; i < ipu_cfg->pymid.ds_layer_en; i++) {
-			if (ipu_cfg->ds_ddr[i].y_size) {
+			if (i == 0 || ipu_cfg->pymid.ds_factor[i]) {
 				s_info.ds[i].y_offset =
 				    ipu_cfg->ds_ddr[i].y_addr - pbase;
 				s_info.ds[i].c_offset =
 				    ipu_cfg->ds_ddr[i].c_addr - pbase;
 				s_info.ds[i].y_width =
-				    ALIGN_16(ipu_cfg->pymid.ds_roi[i].w);
+				    ipu_cfg->pymid.ds_roi[i].w;
+				s_info.ds[i].y_height =
+				    ipu_cfg->pymid.ds_roi[i].h;
+				s_info.ds[i].y_stride =
+				    ALIGN_16(s_info.ds[i].y_width);
 				s_info.ds[i].c_width =
-				    ALIGN_16(ipu_cfg->pymid.ds_roi[i].w >> 1);
+				    ipu_cfg->pymid.ds_roi[i].w >> 1;
+				s_info.ds[i].c_height =
+				    ipu_cfg->pymid.ds_roi[i].h;
+				s_info.ds[i].c_stride =
+				    ALIGN_16(s_info.ds[i].c_width);
 			}
 		}
 		for (i = 0; i < 6; i++) {
 			if (ipu_cfg->pymid.us_layer_en & 1 << i) {
-				if (ipu_cfg->us_ddr[i].y_size) {
+				if (ipu_cfg->pymid.us_factor[i]) {
 					s_info.us[i].y_offset =
 					    ipu_cfg->us_ddr[i].y_addr - pbase;
 					s_info.us[i].c_offset =
 					    ipu_cfg->us_ddr[i].c_addr - pbase;
 					s_info.us[i].y_width =
-					    ALIGN_16(ipu_cfg->pymid.us_roi[i].
-						     w);
+					    ipu_cfg->pymid.us_roi[i].w;
+					s_info.us[i].y_height =
+					    ipu_cfg->pymid.us_roi[i].h;
+					s_info.us[i].y_stride =
+					    ALIGN_16(s_info.us[i].y_width);
 					s_info.us[i].c_width =
-					    ALIGN_16(ipu_cfg->pymid.us_roi[i].
-						     w >> 1);
+					    ipu_cfg->pymid.us_roi[i].w >> 1;
+					s_info.us[i].c_height =
+					    ipu_cfg->pymid.us_roi[i].h;
+					s_info.us[i].c_stride =
+					    ALIGN_16(s_info.us[i].c_width);
 				}
 			}
 		}

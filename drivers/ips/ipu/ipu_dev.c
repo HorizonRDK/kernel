@@ -108,24 +108,24 @@ int8_t ipu_dump_regs(void)
 {
 	uint8_t i = 0;
 	uint32_t d = 0;
-	uint64_t addr = 0;
+	void __iomem *addr = NULL;
 
 	for (i = 0; i < 17; i++) {
-		addr = (uint64_t) (g_regbase + i * 4);
+		addr = g_regbase + i * 4;
 		d = ipu_reg_r(addr);
-		ipu_dbg("0x%x=0x%x\n", addr, d);
+		ipu_dbg("0x%llx=0x%x\n", (uint64_t) addr, d);
 	}
 
 	for (i = 0; i < 16; i++) {
-		addr = (uint64_t) (g_regbase + i * 4 + 0x100);
+		addr = g_regbase + i * 4 + 0x100;
 		d = ipu_reg_r(addr);
-		ipu_dbg("0x%x=0x%x\n", addr, d);
+		ipu_dbg("0x%llx=0x%x\n", (uint64_t) addr, d);
 	}
 
 	for (i = 0; i < 16; i++) {
-		addr = (uint64_t) (g_regbase + i * 4 + 0x200);
+		addr = g_regbase + i * 4 + 0x200;
 		d = ipu_reg_r(addr);
-		ipu_dbg("0x%x=0x%x\n", addr, d);
+		ipu_dbg("0x%llx=0x%x\n", (uint64_t) addr, d);
 	}
 
 	return 0;

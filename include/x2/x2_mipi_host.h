@@ -16,6 +16,10 @@
 
 #include <linux/types.h>
 
+#define MIPIHOST_CHANNEL_NUM (2)
+#define MIPIHOST_CHANNEL_0   (0)
+#define MIPIHOST_CHANNEL_1   (1)
+
 typedef struct _mipi_host_cfg_t {
 	uint16_t lane;
 	uint16_t datatype;
@@ -30,6 +34,8 @@ typedef struct _mipi_host_cfg_t {
 	uint16_t hsaTime;
 	uint16_t hbpTime;
 	uint16_t hsdTime;
+	uint16_t channel_num;
+	uint16_t channel_sel[MIPIHOST_CHANNEL_NUM];
 } mipi_host_cfg_t;
 
 #define MIPIHOSTIOC_MAGIC 'v'
