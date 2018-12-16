@@ -25,3 +25,4 @@ obj-$(CONFIG_PLAT_VERSATILE)	+= versatile/
 obj-$(CONFIG_ARCH_ZX)		+= zte/
 obj-$(CONFIG_X2_CNN_HOST)	+= hobot/cnn_host/
 obj-$(CONFIG_X2_CNN_MM)	+= hobot/cnn_mm/
+obj-$(CONFIG_HOBOT_BIF_BASE)	+= hobot/bif_base/
