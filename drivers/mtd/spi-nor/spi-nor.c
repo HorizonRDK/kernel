@@ -89,6 +89,7 @@ struct flash_info {
 #define NO_CHIP_ERASE		BIT(12) /* Chip does not support chip erase */
 #define SPI_NOR_SKIP_SFDP	BIT(13)	/* Skip parsing of SFDP tables */
 #define USE_CLSR		BIT(14)	/* use CLSR command */
+#define SPI_NOR_QUAD_WR         BIT(15) /* flash support Quad write */
 };
 
 #define JEDEC_MFR(info)	((info)->id[0])
@@ -444,6 +445,7 @@ static void spi_nor_unlock_and_unprep(struct spi_nor *nor, enum spi_nor_ops ops)
 		nor->unprepare(nor, ops);
 	mutex_unlock(&nor->lock);
 }
+
 
 /*
  * This code converts an address to the Default Address Mode, that has non
@@ -1023,9 +1025,9 @@ static const struct flash_info spi_nor_ids[] = {
 			SPI_NOR_HAS_LOCK | SPI_NOR_HAS_TB)
 	},
 	{
-		"gd25q256c", INFO(0xc84019, 0, 4 * 1024, 8192,
-			SECT_4K | SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ |
-			SPI_NOR_HAS_LOCK | SPI_NOR_HAS_TB)
+		"gd25q256c", INFO(0xc84019, 0, 64 * 1024, 512,
+			SECT_4K | SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ | SPI_NOR_QUAD_WR |
+			SPI_NOR_HAS_LOCK | SPI_NOR_HAS_TB | SPI_NOR_SKIP_SFDP)
 	},
 
 
@@ -1221,7 +1223,7 @@ static const struct flash_info *spi_nor_read_id(struct spi_nor *nor)
 
         tmp = nor->read_reg(nor, SPINOR_OP_RDID, id, SPI_NOR_MAX_ID_LEN);
         if (tmp < 0) {
-                dev_dbg(nor->dev, "error %d reading JEDEC ID\n", tmp);
+                dev_err(nor->dev, "error %d reading JEDEC ID\n", tmp);
                 return ERR_PTR(tmp);
         }
 
@@ -1229,9 +1231,6 @@ static const struct flash_info *spi_nor_read_id(struct spi_nor *nor)
                 info = &spi_nor_ids[tmp];
                 if (info->id_len) {
                         if (!memcmp(info->id, id, info->id_len)) {
-
-                                pr_err("JEDEC id bytes: %02x, %02x, %02x\n",
-                                        id[0], id[1], id[2]);
                                 return &spi_nor_ids[tmp];
                         }
                 }
@@ -2441,10 +2440,16 @@ static int spi_nor_init_params(struct spi_nor *nor,
 					  SNOR_PROTO_1_1_4);
 	}
 
-	/* Page Program settings. */
-	params->hwcaps.mask |= SNOR_HWCAPS_PP;
-	spi_nor_set_pp_settings(&params->page_programs[SNOR_CMD_PP],
-				SPINOR_OP_PP, SNOR_PROTO_1_1_1);
+        if (info->flags & SPI_NOR_QUAD_WR) {
+		params->hwcaps.mask |= SNOR_HWCAPS_PP_QUAD;
+                spi_nor_set_pp_settings(&params->page_programs[SNOR_CMD_PP_1_1_4],
+				SPINOR_OP_PP_1_4_4, SNOR_PROTO_1_1_4);
+        } else {
+                /* Page Program settings. */
+                params->hwcaps.mask |= SNOR_HWCAPS_PP;
+                spi_nor_set_pp_settings(&params->page_programs[SNOR_CMD_PP],
+                        SPINOR_OP_PP, SNOR_PROTO_1_1_1);
+        }
 
 	/* Select the procedure to set the Quad Enable bit. */
 	if (params->hwcaps.mask & (SNOR_HWCAPS_READ_QUAD |
@@ -2565,6 +2570,7 @@ static int spi_nor_select_read(struct spi_nor *nor,
 	 * into the so called dummy clock cycles.
 	 */
 	nor->read_dummy = read->num_mode_clocks + read->num_wait_states;
+
 	return 0;
 }
 

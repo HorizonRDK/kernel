@@ -105,12 +105,6 @@ config MTD_MCHP23K256
 	  platform data, or a device tree description if you want to
 	  specify device partitioning
 
-config MTD_GD256Q256C
-	tristate "Support GigaDevice SPI Flash chips (gd256q256c, ...)"
-	depends on SPI_MASTER && MTD_SPI_NOR
-	help
-	   This enable access to GigaDevice spi Flash
-
 config MTD_SPEAR_SMI
 	tristate "SPEAR MTD NOR Support through SMI controller"
 	depends on PLAT_SPEAR

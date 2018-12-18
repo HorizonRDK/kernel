@@ -1,4 +1,4 @@
-#
+
 # SPI driver configuration
 #
 # NOTE:  the reason this doesn't show SPI slave support is mostly that
@@ -758,12 +758,6 @@ config SPI_ZYNQMP_GQSPI
 	depends on SPI_MASTER && HAS_DMA
 	help
 	  Enables Xilinx GQSPI controller driver for Zynq UltraScale+ MPSoC.
-
-config SPI_X2_QSPI
-	tristate "Hobot QSPI controller support"
-	depends on SPI_MASTER && ARCH_HOBOT
-	help
-	  Enables Hobot X2 QSPI controller driver.
 
 config SPI_X2
 	tristate "X2 SPI controller"

@@ -351,7 +351,7 @@
 		};
 
 		qspi: qspi@0xB0000000 {
-			compatible = "hobot,x2-qspi";
+			compatible = "hobot,x2-qspi-nor";
 			status = "disabled";
 			num-cs = <1>;
 			reg = <0x0 0xB0000000 0x0 0x1000>;
