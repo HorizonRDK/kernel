@@ -12,9 +12,11 @@
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/reset.h>
+#include <linux/gpio.h>
 #include "x2_bifsd.h"
-
 #include <linux/slab.h>
+
+#define BIFSD_DETECT_GPIO 77
 /*****************************************************************************/
 /* static Global Variables                                                   */
 /*****************************************************************************/
@@ -1060,6 +1062,9 @@ int bifsd_pltfm_register(struct platform_device *pdev,
 		goto err;
 	}
     bifsd_register_notify(&sddev_nb);
+
+    gpio_request(BIFSD_DETECT_GPIO, NULL);
+    gpio_direction_output(BIFSD_DETECT_GPIO, 0);
 
  err:
     return ret;
