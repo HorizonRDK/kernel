@@ -25,10 +25,10 @@
 #include "x2/x2_ips.h"
 
 #define IPS_CDEV_MAGIC 'I'
-#define IPS_GETVALUE    _IOR(IPS_CDEV_MAGIC,0x11, unsigned int)
-#define IPS_SETVALUE    _IOW(IPS_CDEV_MAGIC,0x12, unsigned int)
-#define IPS_GETSTATUS   _IOWR(IPS_CDEV_MAGIC,0x13, unsigned int)
-#define IPS_BUSCTL_SET  _IOW(IPS_CDEV_MAGIC,0x14, cmdinfo_t)
+#define IPS_GETVALUE	_IOR(IPS_CDEV_MAGIC,0x11, unsigned int)
+#define IPS_SETVALUE	_IOW(IPS_CDEV_MAGIC,0x12, unsigned int)
+#define IPS_GETSTATUS	_IOWR(IPS_CDEV_MAGIC,0x13, unsigned int)
+#define IPS_BUSCTL_SET	_IOW(IPS_CDEV_MAGIC,0x14, cmdinfo_t)
 
 typedef struct _cmdinfo_t {
 	unsigned int type;
