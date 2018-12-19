@@ -20,10 +20,6 @@ config X2_SIF
 	---help---
 	   Driver for the X2 SIF
 if X2_SIF
-config X2_SIF_DEV
-	tristate "X2 SIF Dev Driver"
-	---help---
-	   Driver for the X2 SIF Dev
 config X2_MIPI_HOST
 	tristate "X2 MIPI Host Driver"
 	---help---

@@ -590,6 +590,9 @@ void mipi_host_deinit(void)
 #ifdef CONFIG_X2_MIPI_PHY
 	mipi_dev_dphy_reset();
 #endif
+	/*Set Synopsys D-PHY Reset */
+	mipi_putreg(iomem + REG_MIPI_HOST_DPHY_RSTZ, MIPI_HOST_CSI2_RESETN);
+	mipi_putreg(iomem + REG_MIPI_HOST_PHY_SHUTDOWNZ, MIPI_HOST_CSI2_RESETN);
 	/*Release DWC_mipi_csi2_host from reset */
 	mipi_putreg(iomem + REG_MIPI_HOST_CSI2_RESETN, MIPI_HOST_CSI2_RESETN);
 	return;
@@ -619,11 +622,11 @@ int32_t mipi_host_init(mipi_host_cfg_t * control)
 	}
 	/*Set DWC_mipi_csi2_host reset */
 	mipi_putreg(iomem + REG_MIPI_HOST_CSI2_RESETN, MIPI_HOST_CSI2_RESETN);
-
-#ifdef CONFIG_X2_MIPI_PHY
 	/*Set Synopsys D-PHY Reset */
 	mipi_putreg(iomem + REG_MIPI_HOST_DPHY_RSTZ, MIPI_HOST_CSI2_RESETN);
 	mipi_putreg(iomem + REG_MIPI_HOST_PHY_SHUTDOWNZ, MIPI_HOST_CSI2_RESETN);
+
+#ifdef CONFIG_X2_MIPI_PHY
 	if (0 !=
 	    mipi_host_dphy_initialize(control->mipiclk, control->lane,
 				      control->settle, iomem)) {

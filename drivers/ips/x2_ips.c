@@ -544,6 +544,43 @@ int ips_get_mipi_freqrange(unsigned int region)
 
 EXPORT_SYMBOL_GPL(ips_get_mipi_freqrange);
 
+int ips_set_mipi_freqrange(unsigned int region, unsigned int value)
+{
+	unsigned long flags;
+	u32 val;
+	if (!g_ipsdev)
+		return -1;
+	SPIN_LOCK_IRQ_SAVE(g_ipsdev->lock, flags);
+	val = IPS_REG_READ(g_ipsdev->regaddr + IPS_MIPI_FREQRANGE);
+	SPIN_UNLOCK_IRQ_RESTORE(g_ipsdev->lock, flags);
+	switch (region) {
+	case MIPI_DEV_CFGCLKFREQRANGE:
+		val &= (~MIPI_DEV_CFGCLK_FRANGE);
+		val |= ((value << 24) & MIPI_DEV_CFGCLK_FRANGE);
+		break;
+
+	case MIPI_DEV_HSFREQRANGE:
+		val &= (~MIPI_DEV_HS_FRANGE);
+		val |= ((value << 24) & MIPI_DEV_HS_FRANGE);
+		break;
+
+	case MIPI_HOST_CFGCLKFREQRANGE:
+		val &= (~MIPI_HOST_CFGCLK_FRANGE);
+		val |= ((value << 8) & MIPI_HOST_CFGCLK_FRANGE);
+		break;
+	case MIPI_HOST_HSFREQRANGE:
+		val &= (~MIPI_HOST_HS_FRANGE);
+		val |= ((value << 0) & MIPI_HOST_HS_FRANGE);
+		break;
+	default:
+		val = -1;
+		break;
+	}
+	return val;
+}
+
+EXPORT_SYMBOL_GPL(ips_set_mipi_freqrange);
+
 int ips_pinmux_bt(void)
 {
 	if (!g_ipsdev->pins_bt)

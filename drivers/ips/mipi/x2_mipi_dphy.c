@@ -29,12 +29,10 @@
 #include "x2_mipi_dev_regs.h"
 #include "x2_mipi_dphy.h"
 #include "x2_mipi_utils.h"
+#include "x2/x2_ips.h"
 
 #define DPHY_RAISE               (1)
 #define DPHY_RESETN              (0)
-
-#define HOST_REFCLK_DEFAULT      (24)
-#define DEV_REFSCLK_DEFAULT      (288)
 
 #define DPHY_TEST_CLEAR          (0x00000001)
 #define DPHY_TEST_RESETN         (0x00000000)
@@ -42,25 +40,69 @@
 #define DPHY_TEST_ENABLE         (0x00010000)
 #define DPHY_TEST_DATA_MAX       (4)
 
+#define RX_CFGCLK_DEFAULT        (24)
+#define TX_CFGCLK_DEFAULT        (24)
+#define TX_REFSCLK_DEFAULT       (24)
+#define TX_PLL_INPUT_DIV_MIN     (1)
+#define TX_PLL_INPUT_DIV_MAX     (16)
+#define TX_PLL_FB_MULTI_MIN      (64)
+#define TX_PLL_FB_MULTI_MAX      (625)
+#define TX_PLL_INPUT_FEQ_MIN     (2)
+#define TX_PLL_INPUT_FEQ_MAX     (8)
+
 /*test code: addr*/
-#define REGS_DPHY_RX_CTL_LANE0   (0x44)
-#define REGS_DPHY_PLL_INPUT_DIV  (0x17)
-#define REGS_DPHY_PLL_LOOP_DIV   (0x18)
-#define REGS_DPHY_PLL_CTL        (0x19)
-#define REGS_DPHY_RX_HS_SETTLE   (0x75)
+#define REGS_RX_SYS_7            (0x08)
+#define REGS_RX_STARTUP_OVR_4    (0xE4)
+#define REGS_RX_STARTUP_OVR_5    (0xE5)
+#define REGS_RX_STARTUP_OVR_17   (0xF1)
+#define REGS_RX_LANE0_DDL_4      (0x60A)
+#define REGS_RX_LANE0_DDL_5      (0x60B)
+#define REGS_RX_LANE0_DDL_6      (0x60C)
+#define REGS_RX_LANE1_DDL_4      (0x80A)
+#define REGS_RX_LANE1_DDL_5      (0x80B)
+#define REGS_RX_LANE1_DDL_6      (0x80C)
+#define REGS_RX_LANE2_DDL_4      (0xA0A)
+#define REGS_RX_LANE2_DDL_5      (0xA0B)
+#define REGS_RX_LANE2_DDL_6      (0xA0C)
+#define REGS_RX_LANE3_DDL_4      (0xC0A)
+#define REGS_RX_LANE3_DDL_5      (0xC0B)
+#define REGS_RX_LANE3_DDL_6      (0xC0C)
+
+#define REGS_TX_SYSTIMERS_23     (0x65)
+#define REGS_TX_PLL_2            (0x160)
+#define REGS_TX_PLL_1            (0x15E)
+#define REGS_TX_PLL_2            (0x160)
+#define REGS_TX_PLL_3            (0x161)
+#define REGS_TX_PLL_4            (0x162)
+#define REGS_TX_PLL_19           (0x170)
+#define REGS_TX_PLL_27           (0x178)
+#define REGS_TX_PLL_28           (0x179)
+#define REGS_TX_PLL_29           (0x17A)
+#define REGS_TX_PLL_30           (0x17B)
+#define REGS_TX_SLEW_5           (0x270)
+#define REGS_TX_SLEW_7           (0x272)
 
 /*test code: data*/
-#define DPHY_PLL_RANGE           (0x0A)
-#define DPHY_PLL_INPUT_DIV_MIN   (2)
-#define DPHY_PLL_INPUT_FEQ_MIN   (5)
-#define DPHY_PLL_INPUT_FEQ_MAX   (40)
-#define DPHY_PLL_LOOP_DIV_MIN    (2)
-#define DPHY_PLL_LOOP_DIV_MAX    (300)
-#define DPHY_PLL_RANGE           (0x0A)
-#define DPHY_PLL_LOOP_DIV_L(m)   ((m)&0x1F)
-#define DPHY_PLL_LOOP_DIV_H(m)   (0x80|((m)>>5))
-#define DPHY_PLL_CTL             (0x30)
-#define DPHY_RX_HS_SETTLE(s)     (0x80|((s)&0x7F))
+#define RX_CLK_SETTLE_EN         (0x01)
+#define RX_CLK_SETTLE            (0x5 << 4)
+#define RX_HS_SETTLE(s)          (0x80 | ((s) & 0x7F))
+#define RX_SYSTEM_CONFIG         (0x38)
+#define RX_OSCFREQ_HIGH          (0x1)
+#define RX_OSCFREQ_LOW           (0xB6)
+#define RX_OSCFREQ_EN            (0x1)
+
+#define TX_HS_ZERO(s)            (0x80 | ((s) & 0x7F))
+#define TX_SLEW_RATE_CAL         (0x55)
+#define TX_SLEW_RATE_CTL         (0x11)
+#define TX_PLL_DIV(n)            ((n) << 3 | 0x2)
+#define TX_PLL_MULTI_L(m)        ((m) & 0xFF)
+#define TX_PLL_MULTI_H(m)        (((m) & 0x300) >> 8)
+#define TX_PLL_VCO(v)            (0x80 | ((v) & 0x1F) << 1)
+#define TX_PLL_CPBIAS            (0x10)
+#define TX_PLL_INT_CTL           (0x4)
+#define TX_PLL_RST_TIME_L        (0xFF)
+#define TX_PLL_GEAR_SHIFT_L      (0x6)
+#define TX_PLL_GEAR_SHIFT_H      (0x1)
 
 typedef struct _reg_s {
 	uint32_t offset;
@@ -86,113 +128,116 @@ typedef struct _pll_range_table_s {
 } pll_range_table_t;
 
 static const pll_range_table_t g_pll_range_table[] = {
-	{80, 89, 0x00},
-	{90, 99, 0x10},
-	{100, 109, 0x20},
-	{110, 129, 0x01},
-	{130, 139, 0x11},
-	{140, 149, 0x21},
-	{150, 169, 0x02},
-	{170, 179, 0x12},
-	{180, 199, 0x22},
-	{200, 219, 0x03},
-	{220, 239, 0x13},
-	{240, 249, 0x23},
-	{250, 269, 0x04},
-	{270, 299, 0x14},
-	{300, 329, 0x05},
-	{330, 359, 0x15},
-	{360, 399, 0x25},
-	{400, 449, 0x06},
-	{450, 499, 0x16},
-	{500, 549, 0x07},
-	{550, 599, 0x17},
-	{600, 649, 0x08},
-	{650, 699, 0x18},
-	{700, 749, 0x09},
-	{750, 799, 0x19},
-	{800, 849, 0x29},
-	{850, 899, 0x39},
-	{900, 949, 0x0A},
-	{950, 999, 0x1A},
-	{1000, 1049, 0x2A},
-	{1050, 1099, 0x3A},
-	{1100, 1149, 0x0B},
-	{1150, 1199, 0x1B},
-	{1200, 1249, 0x2B},
-	{1250, 1299, 0x3B},
-	{1300, 1349, 0x0C},
-	{1350, 1399, 0x1C},
-	{1400, 1449, 0x2C},
-	{1450, 1500, 0x3C},
+	{80, 97, 0x00},
+	{80, 107, 0x10},
+	{83, 118, 0x20},
+	{92, 128, 0x30},
+	{102, 139, 0x01},
+	{111, 149, 0x11},
+	{121, 160, 0x21},
+	{131, 170, 0x31},
+	{140, 181, 0x02},
+	{149, 191, 0x12},
+	{159, 202, 0x22},
+	{168, 212, 0x32},
+	{182, 228, 0x03},
+	{197, 244, 0x13},
+	{211, 259, 0x23},
+	{225, 275, 0x33},
+	{249, 301, 0x04},
+	{273, 328, 0x14},
+	{297, 354, 0x25},
+	{320, 380, 0x35},
+	{368, 433, 0x05},
+	{415, 485, 0x16},
 };
 
-static int32_t mipi_dphy_pll_div(uint16_t refsclk, uint16_t pixclk, uint8_t * n,
-				 uint16_t * m)
-{
-	uint16_t n_tmp = DPHY_PLL_INPUT_DIV_MIN;
-	uint16_t m_tmp = DPHY_PLL_LOOP_DIV_MIN;
-	uint16_t outclk = 0;
-	if (!refsclk || !pixclk || NULL == n || NULL == m) {
-		siferr("pll input error!!!");
-		return -1;
-	}
-	if ((DPHY_PLL_INPUT_FEQ_MIN > refsclk / DPHY_PLL_INPUT_DIV_MIN) ||
-	    (pixclk < refsclk) ||
-	    (pixclk / DPHY_PLL_LOOP_DIV_MAX >
-	     refsclk / DPHY_PLL_INPUT_DIV_MIN)) {
-		siferr("pll parameter error!!! refsclk: %d, pixclk: %d",
-		       refsclk, pixclk);
-	}
-	while (refsclk / n_tmp > DPHY_PLL_INPUT_FEQ_MIN) {
-		n_tmp++;
-	}
-	n_tmp--;
-	outclk = refsclk / n_tmp;
-	while ((outclk * m_tmp) < pixclk) {
-		m_tmp += 2;
-	}
-	m_tmp -= 2;
-	*n = n_tmp - 1;
-	if (pixclk % m_tmp)
-		*m = m_tmp + 1;
-	else
-		*m = m_tmp - 1;
-	outclk = (refsclk / (*n + 1)) * (*m + 1);
-	sifinfo("pll div refsclk: %d, pixclk: %d, n: %d, m: %d, outclk: %d",
-		refsclk, pixclk, *n, *m, outclk);
-	return 0;
-}
+typedef struct _pll_sel_table_s {
+	uint16_t freq;
+	uint32_t value;
+} pll_sel_table_t;
 
-static uint32_t mipi_dphy_pll_range(uint32_t pixclk)
+static const pll_sel_table_t g_pll_sel_table[] = {
+	{80, 0x00},
+	{90, 0x10},
+	{100, 0x20},
+	{110, 0x30},
+	{120, 0x01},
+	{130, 0x11},
+	{140, 0x21},
+	{150, 0x31},
+	{160, 0x02},
+	{170, 0x12},
+	{180, 0x22},
+	{190, 0x32},
+	{205, 0x03},
+	{220, 0x13},
+	{235, 0x23},
+	{250, 0x33},
+	{275, 0x04},
+	{300, 0x14},
+	{325, 0x25},
+	{350, 0x35},
+	{400, 0x05},
+	{450, 0x16},
+	{500, 0x26},
+	{550, 0x37},
+	{600, 0x07},
+	{650, 0x18},
+	{700, 0x28},
+	{750, 0x39},
+	{800, 0x09},
+	{850, 0x19},
+	{900, 0x29},
+	{950, 0x3A},
+	{1000, 0x0A},
+	{1050, 0x1A},
+	{1100, 0x2A},
+	{1150, 0x3B},
+	{1200, 0x0B},
+	{1250, 0x1B},
+	{1300, 0x2B},
+	{1350, 0x3C},
+	{1400, 0x0C},
+	{1450, 0x1C},
+	{1500, 0x2C},
+	{1550, 0x3D},
+	{1600, 0x0D},
+	{1650, 0x1D},
+	{1700, 0x2D},
+	{1750, 0x3E},
+	{1800, 0x0E},
+	{1850, 0x1E},
+	{1900, 0x2F},
+	{1950, 0x3F},
+	{2000, 0x0F},
+	{2050, 0x40},
+	{2100, 0x41},
+	{2150, 0x42},
+	{2200, 0x43},
+	{2250, 0x44},
+	{2300, 0x45},
+	{2350, 0x46},
+	{2400, 0x47},
+	{2450, 0x48},
+	{2500, 0x49},
+};
+
+static uint32_t mipi_dphy_clk_range(uint32_t mipiclk)
 {
 	uint8_t index = 0;
 	for (index = 0;
-	     index < sizeof(g_pll_range_table) / sizeof(pll_range_table_t);
+	     index < sizeof(g_pll_sel_table) / sizeof(pll_sel_table_t);
 	     index++) {
-		if (pixclk <= g_pll_range_table[index].high)
-			break;
+		if (mipiclk <= g_pll_sel_table[index].freq)
+			mipiinfo
+			    ("pll div mipiclk: %d, selected clk: %d, range value: %d",
+			     mipiclk, g_pll_sel_table[index].freq,
+			     g_pll_sel_table[index].value);
+		return g_pll_sel_table[index].value;
 	}
-	sifinfo("pll div pixclk: %d, range value: %d, selected range: %d-%d",
-		pixclk, g_pll_range_table[index].value,
-		g_pll_range_table[index].low, g_pll_range_table[index].high);
-	return g_pll_range_table[index].value << 1;
-}
-
-/**
- * @brief mipi_host_dphy_testcode : write testcode to host phy
- *
- * @param [in] testcode : test code
- *
- * @return void
- */
-static void mipi_host_dphy_testcode(uint16_t testcode)
-{
-	sif_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_RESETN);
-	sif_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL1,
-		   DPHY_TEST_ENABLE | testcode);
-	sif_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_CLK);
-	sif_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_RESETN);
+	mipiinfo("mipi clock %d not supported", mipiclk);
+	return 0;
 }
 
 /**
@@ -203,21 +248,27 @@ static void mipi_host_dphy_testcode(uint16_t testcode)
  *
  * @return void
  */
-static void mipi_host_dphy_testdata(uint8_t * testdata, uint8_t size)
+static void mipi_host_dphy_testdata(uint16_t testcode, uint8_t testdata)
 {
-	uint8_t count = 0;
-	while (count < size) {
-		sif_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0,
-			   DPHY_TEST_RESETN);
-		sifinfo("mipi host dphy test data: 0x%x", testdata[count]);
-		sif_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL1,
-			   testdata[count]);
-		sif_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0,
-			   DPHY_TEST_CLK);
-		sif_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0,
-			   DPHY_TEST_RESETN);
-		count++;
-	}
+	/*write test code */
+	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_RESETN);	/*Ensure that testclk and testen is set to low */
+	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL1, DPHY_TEST_ENABLE);	/*set testen to high */
+	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_CLK);	/*set testclk to high */
+	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_RESETN);	/*set testclk to low */
+	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL1, testcode >> 8);	/*set testen to low, set test code MSBS */
+	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_CLK);	/*set testclk to high */
+
+	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_RESETN);	/*set testclk to low */
+	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL1, DPHY_TEST_ENABLE);	/*set testen to high */
+	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_CLK);	/*set testclk to high */
+	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL1, testcode & 0xff);	/*set test code LSBS */
+	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_RESETN);	/*set testclk to low */
+
+	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL1, testdata);	/*set test data */
+	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_CLK);	/*set testclk to high */
+	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_RESETN);	/*set testclk to low */
+	mipiinfo("mipi host dphy test code:0x%x, data: 0x%x", testcode,
+		 testdata);
 }
 
 /**
@@ -230,41 +281,34 @@ static void mipi_host_dphy_testdata(uint8_t * testdata, uint8_t size)
 int32_t mipi_host_dphy_initialize(uint16_t mipiclk, uint16_t lane,
 				  uint16_t settle, void __iomem * iomem)
 {
-	uint8_t n = 0;
-	uint16_t m = 0;
-	uint8_t testdata[DPHY_TEST_DATA_MAX] = { 0, };
 	g_hostmem = iomem;
 
-	sifinfo("mipi host initialize begin");
+	mipiinfo("mipi host initialize begin");
 	/*Release Synopsys-PHY test codes from reset */
-	sif_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL1, DPHY_TEST_RESETN);
-	sif_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_CLEAR);
+	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL1, DPHY_TEST_RESETN);
+	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_CLEAR);
 	/*Configure the D-PHY frequency range */
-	if (0 !=
-	    mipi_dphy_pll_div(HOST_REFCLK_DEFAULT, (mipiclk / lane), &n, &m)) {
-		siferr("pll control error!");
-		return -1;
-	}
-	mipi_host_dphy_testcode(REGS_DPHY_RX_CTL_LANE0);
-	testdata[0] = mipi_dphy_pll_range(mipiclk / lane);
-	mipi_host_dphy_testdata(testdata, 1);
+	ips_set_mipi_freqrange(MIPI_HOST_CFGCLKFREQRANGE, RX_CFGCLK_DEFAULT);
+	ips_set_mipi_freqrange(MIPI_HOST_HSFREQRANGE,
+			       mipi_dphy_clk_range(mipiclk / lane));
 
-	mipi_host_dphy_testcode(REGS_DPHY_PLL_CTL);
-	testdata[0] = DPHY_PLL_CTL;
-	mipi_host_dphy_testdata(testdata, 1);
+	mipi_host_dphy_testdata(REGS_RX_STARTUP_OVR_5, RX_CLK_SETTLE_EN);
+	mipi_host_dphy_testdata(REGS_RX_STARTUP_OVR_4, RX_CLK_SETTLE);
+	mipi_host_dphy_testdata(REGS_RX_STARTUP_OVR_17, RX_HS_SETTLE(settle));
+	mipi_host_dphy_testdata(REGS_RX_SYS_7, RX_SYSTEM_CONFIG);
+	mipi_host_dphy_testdata(REGS_RX_LANE0_DDL_4, RX_OSCFREQ_LOW);
+	mipi_host_dphy_testdata(REGS_RX_LANE0_DDL_5, RX_OSCFREQ_HIGH);
+	mipi_host_dphy_testdata(REGS_RX_LANE0_DDL_6, RX_OSCFREQ_EN);
+	mipi_host_dphy_testdata(REGS_RX_LANE1_DDL_4, RX_OSCFREQ_LOW);
+	mipi_host_dphy_testdata(REGS_RX_LANE1_DDL_5, RX_OSCFREQ_HIGH);
+	mipi_host_dphy_testdata(REGS_RX_LANE1_DDL_6, RX_OSCFREQ_EN);
+	mipi_host_dphy_testdata(REGS_RX_LANE2_DDL_4, RX_OSCFREQ_LOW);
+	mipi_host_dphy_testdata(REGS_RX_LANE2_DDL_5, RX_OSCFREQ_HIGH);
+	mipi_host_dphy_testdata(REGS_RX_LANE2_DDL_6, RX_OSCFREQ_EN);
+	mipi_host_dphy_testdata(REGS_RX_LANE3_DDL_4, RX_OSCFREQ_LOW);
+	mipi_host_dphy_testdata(REGS_RX_LANE3_DDL_5, RX_OSCFREQ_HIGH);
+	mipi_host_dphy_testdata(REGS_RX_LANE3_DDL_6, RX_OSCFREQ_EN);
 
-	mipi_host_dphy_testcode(REGS_DPHY_PLL_INPUT_DIV);
-	testdata[0] = n;
-	mipi_host_dphy_testdata(testdata, 1);
-
-	mipi_host_dphy_testcode(REGS_DPHY_PLL_LOOP_DIV);
-	testdata[0] = DPHY_PLL_LOOP_DIV_L(m);
-	testdata[1] = DPHY_PLL_LOOP_DIV_H(m);
-	mipi_host_dphy_testdata(testdata, 2);
-
-	mipi_host_dphy_testcode(REGS_DPHY_RX_HS_SETTLE);
-	testdata[0] = DPHY_RX_HS_SETTLE(settle);
-	mipi_host_dphy_testdata(testdata, 1);
 	return 0;
 }
 
@@ -277,53 +321,126 @@ int32_t mipi_host_dphy_initialize(uint16_t mipiclk, uint16_t lane,
  */
 void mipi_host_dphy_reset(void)
 {
-	/*Set Synopsys D-PHY Reset */
-	sif_putreg(g_hostmem + REG_MIPI_HOST_DPHY_RSTZ, DPHY_RESETN);
-	sif_putreg(g_hostmem + REG_MIPI_HOST_PHY_SHUTDOWNZ, DPHY_RESETN);
 	/*Release Synopsys-PHY test codes from reset */
-	sif_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL1, DPHY_TEST_RESETN);
-	sif_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_CLEAR);
-}
-
-/**
- * @brief mipi_dev_dphy_testcode : write testcode to phy
- *
- * @param [in] testcode : test code
- *
- * @return void
- */
-static void mipi_dev_dphy_testcode(uint16_t testcode)
-{
-	sif_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_RESETN);
-	sif_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL1,
-		   DPHY_TEST_ENABLE | testcode);
-	sif_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_CLK);
-	sif_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_RESETN);
+	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL1, DPHY_TEST_RESETN);
+	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_CLEAR);
 }
 
 /**
  * @brief mipi_dev_dphy_testdata : write test data
  *
  * @param [in] testdata : testdatas' array
- * @param [in] size : size of testdatas' array
+ * @param [in] size : size of testdata's array
  *
  * @return void
  */
-static void mipi_dev_dphy_testdata(uint8_t * testdata, uint8_t size)
+static void mipi_dev_dphy_testdata(uint16_t testcode, uint8_t testdata)
 {
-	uint8_t count = 0;
-	while (count < size) {
-		sif_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0,
-			   DPHY_TEST_RESETN);
-		sifinfo("mipi dev dphy test data: 0x%x", testdata[count]);
-		sif_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL1,
-			   testdata[count]);
-		sif_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0,
-			   DPHY_TEST_CLK);
-		sif_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0,
-			   DPHY_TEST_RESETN);
-		count++;
+	/*write test code */
+	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_RESETN);	/*Ensure that testclk and testen is set to low */
+	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL1, DPHY_TEST_ENABLE);	/*set testen to high */
+	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_CLK);	/*set testclk to high */
+	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_RESETN);	/*set testclk to low */
+	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL1, testcode >> 8);	/*set testen to low, set test code MSBS */
+	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_CLK);	/*set testclk to high */
+
+	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_RESETN);	/*set testclk to low */
+	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL1, DPHY_TEST_ENABLE);	/*set testen to high */
+	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_CLK);	/*set testclk to high */
+	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL1, testcode & 0xff);	/*set test code LSBS */
+	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_RESETN);	/*set testclk to low */
+
+	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL1, testdata);	/*set test data */
+	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_CLK);	/*set testclk to high */
+	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_RESETN);	/*set testclk to low */
+	mipiinfo("mipi host dphy test code:0x%x, data: 0x%x", testcode,
+		 testdata);
+}
+
+static const pll_range_table_t g_vco_range_table[] = {
+	{1150, 1250, 0x01},
+	{1100, 1152, 0x01},
+	{630, 1149, 0x03},
+	{420, 660, 0x09},
+	{320, 440, 0x0F},
+	{210, 330, 0x19},
+	{160, 220, 0x1F},
+	{105, 165, 0x29},
+	{80, 110, 0x2F},
+	{53, 83, 0x39},
+	{40, 55, 0x3F},
+};
+
+static uint32_t mipi_tx_vco_range(uint32_t vcoclk)
+{
+	uint8_t index = 0;
+	for (index = 0;
+	     index < sizeof(g_vco_range_table) / sizeof(pll_range_table_t);
+	     index++) {
+		if (vcoclk >= g_vco_range_table[index].low
+		    && vcoclk <= g_vco_range_table[index].high)
+			mipiinfo
+			    ("vcoclk: %d, selected range: %d-%d, range value: %d",
+			     vcoclk, g_vco_range_table[index].low,
+			     g_vco_range_table[index].high,
+			     g_vco_range_table[index].value);
+		return g_vco_range_table[index].value;
 	}
+	mipiinfo("vco clock %d not supported", vcoclk);
+	return 0;
+}
+
+static int32_t mipi_tx_pll_div(uint16_t refsclk, uint16_t laneclk, uint8_t * n,
+			       uint16_t * m, uint16_t * vco)
+{
+	uint16_t n_tmp = TX_PLL_INPUT_DIV_MIN;
+	uint16_t m_tmp = TX_PLL_FB_MULTI_MIN;
+	uint16_t fout = 0;
+	uint16_t fvco = 0;
+	uint16_t vco_div = 0;
+	uint16_t outclk = 0;
+	if (!refsclk || !laneclk || NULL == n || NULL == m) {
+		mipierr("pll input error!!!");
+		return 0;
+	}
+	fout = laneclk >> 1;	/* data rate(Gbps) = PLL Fout(GHz)*2 */
+	if (fout >= 320 && fout <= 1250) {
+		vco_div = 0;
+	} else if (fout >= 160 && fout < 320) {
+		vco_div = 1;
+	} else if (fout >= 80 && fout < 160) {
+		vco_div = 2;
+	} else if (fout >= 40 && fout < 80) {
+		vco_div = 3;
+	} else {
+		mipierr("pll output clk error!!! laneclk: %d", laneclk);
+		return 0;
+	}
+	fvco = fout << vco_div;
+	if ((TX_PLL_INPUT_FEQ_MIN > refsclk / TX_PLL_INPUT_DIV_MIN) ||
+	    (TX_PLL_INPUT_FEQ_MAX < refsclk / TX_PLL_INPUT_DIV_MAX)) {
+		mipierr("pll parameter error!!! refsclk: %d, laneclk: %d",
+			refsclk, laneclk);
+		return 0;
+	}
+	while (refsclk / n_tmp > TX_PLL_INPUT_FEQ_MIN) {
+		n_tmp++;
+	}
+	n_tmp -= 1;
+	outclk = refsclk / n_tmp;
+	while ((outclk * m_tmp) <= fvco) {
+		m_tmp++;
+	}
+	m_tmp -= 1;
+	*n = n_tmp - 1;
+	*m = m_tmp - 2;
+	fvco = (refsclk / (*n + 1)) * (*m + 2);
+	fout = fvco >> vco_div;
+	*vco = mipi_tx_vco_range(fout);
+	outclk = fout << 1;
+	mipiinfo("pll div refsclk: %d, laneclk: %d, n: %d, m: %d, outclk: %d",
+		 refsclk, laneclk, *n, *m, outclk);
+	return outclk;
 }
 
 /**
@@ -334,40 +451,44 @@ static void mipi_dev_dphy_testdata(uint8_t * testdata, uint8_t size)
  * @return int32_t : 0/-1
  */
 int32_t mipi_dev_dphy_initialize(uint16_t mipiclk, uint16_t lane,
-				 void __iomem * iomem)
+				 uint16_t settle, void __iomem * iomem)
 {
-	uint8_t testdata[DPHY_TEST_DATA_MAX] = { 0, };
 	uint8_t n = 0;
 	uint16_t m = 0;
+	uint16_t vco = 0;
 	uint16_t outclk = 0;
 	g_devmem = iomem;
 
-	sifinfo("mipi device initialize dphy begin");
+	mipiinfo("mipi device initialize dphy begin");
+
 	/*Configure the D-PHY PLL */
-	sif_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_RESETN);
-	if (0 !=
-	    mipi_dphy_pll_div(DEV_REFSCLK_DEFAULT, (mipiclk / lane), &n, &m)) {
-		siferr("pll control error!");
+	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_CLEAR);
+	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_RESETN);
+	outclk =
+	    mipi_tx_pll_div(TX_REFSCLK_DEFAULT, (mipiclk / lane), &n, &m, &vco);
+	if (0 == outclk) {
+		mipierr("pll control error!");
 		return -1;
 	}
-	outclk = (DEV_REFSCLK_DEFAULT / (n + 1)) * (m + 1);
+	/*Configure the D-PHY frequency range */
+	ips_set_mipi_freqrange(MIPI_DEV_CFGCLKFREQRANGE, TX_CFGCLK_DEFAULT);
+	ips_set_mipi_freqrange(MIPI_DEV_HSFREQRANGE,
+			       mipi_dphy_clk_range(mipiclk / lane));
 
-	mipi_dev_dphy_testcode(REGS_DPHY_RX_CTL_LANE0);
-	testdata[0] = mipi_dphy_pll_range(outclk);
-	mipi_dev_dphy_testdata(testdata, 1);
+	mipi_dev_dphy_testdata(REGS_TX_SLEW_5, TX_SLEW_RATE_CAL);
+	mipi_dev_dphy_testdata(REGS_TX_SLEW_7, TX_SLEW_RATE_CTL);
+	mipi_dev_dphy_testdata(REGS_TX_PLL_27, TX_PLL_DIV(n));
+	mipi_dev_dphy_testdata(REGS_TX_PLL_28, TX_PLL_MULTI_L(m));
+	mipi_dev_dphy_testdata(REGS_TX_PLL_29, TX_PLL_MULTI_H(m));
+	mipi_dev_dphy_testdata(REGS_TX_PLL_30, TX_PLL_VCO(vco));
+	mipi_dev_dphy_testdata(REGS_TX_SYSTIMERS_23, TX_HS_ZERO(settle));
+	mipi_dev_dphy_testdata(REGS_TX_PLL_1, TX_PLL_CPBIAS);
+	mipi_dev_dphy_testdata(REGS_TX_PLL_4, TX_PLL_INT_CTL);
+	mipi_dev_dphy_testdata(REGS_TX_PLL_19, TX_PLL_RST_TIME_L);
+	mipi_dev_dphy_testdata(REGS_TX_PLL_19, TX_PLL_RST_TIME_L);
+	mipi_dev_dphy_testdata(REGS_TX_PLL_2, TX_PLL_GEAR_SHIFT_L);
+	mipi_dev_dphy_testdata(REGS_TX_PLL_3, TX_PLL_GEAR_SHIFT_H);
 
-	mipi_dev_dphy_testcode(REGS_DPHY_PLL_CTL);
-	testdata[0] = DPHY_PLL_CTL;
-	mipi_dev_dphy_testdata(testdata, 1);
-
-	mipi_dev_dphy_testcode(REGS_DPHY_PLL_INPUT_DIV);
-	testdata[0] = n;
-	mipi_dev_dphy_testdata(testdata, 1);
-
-	mipi_dev_dphy_testcode(REGS_DPHY_PLL_LOOP_DIV);
-	testdata[0] = DPHY_PLL_LOOP_DIV_L(m);
-	testdata[1] = DPHY_PLL_LOOP_DIV_H(m);
-	mipi_dev_dphy_testdata(testdata, 2);
 	return 0;
 }
 
@@ -380,8 +501,7 @@ int32_t mipi_dev_dphy_initialize(uint16_t mipiclk, uint16_t lane,
  */
 void mipi_dev_dphy_reset(void)
 {
-	sif_putreg(g_devmem + REG_MIPI_DEV_PHY_RSTZ, DPHY_RESETN);
-	sif_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_CLEAR);
+	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_CLEAR);
 }
 
 static int x2_mipi_dphy_regs_show(struct seq_file *s, void *unused)

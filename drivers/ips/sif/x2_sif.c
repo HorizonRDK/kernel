@@ -14,9 +14,7 @@
 
 #include "x2/x2_ips.h"
 #include "x2/x2_sif.h"
-#ifdef CONFIG_X2_SIF_DEV
 #include "x2_sif_dev.h"
-#endif
 #include "x2_sif_utils.h"
 
 /*reg driver info*/
@@ -55,12 +53,10 @@ static struct device *g_sif_dev;
 static int sif_start(sif_t * dev)
 {
 	int ret = 0;
-#ifdef CONFIG_X2_SIF_DEV
 	if (0 != (ret = sif_dev_start())) {
 		siferr("ERROR: sif dev start error: %d", ret);
 		return ret;
 	}
-#endif
 	ips_irq_enable(SIF_INT);
 	return ret;
 }
@@ -75,9 +71,7 @@ static int sif_stop(sif_t * dev)
 	dev->sif_file.receive_frame = false;
 	spin_unlock_irqrestore(&dev->sif_file.event_lock, flags);
 	wake_up_interruptible(&dev->sif_file.event_queue);
-#ifdef CONFIG_X2_SIF_DEV
 	sif_dev_stop();
-#endif
 	return ret;
 }
 
@@ -123,9 +117,13 @@ static int sif_init(sif_t * dev, sif_cfg_t * cfg)
 		ips_pinmux_bt();
 		if (cfg->sif_init.bypass_en)
 			ips_set_btout_clksrc(BYPASS_CLK);
+	} else {
+		if (cfg->sif_init.bypass_en) {
+			ips_mipi_ctl_set(MIPI_BYPASS_GEN_HSYNC_DLY_CNT, 4);
+			ips_mipi_ctl_set(MIPI_BYPASS_GEN_HSYNC_EN, true);
+		}
 	}
 	ips_module_reset(RST_SIF);
-#ifdef CONFIG_X2_SIF_DEV
 	if (0 != (ret = sif_dev_init(&dev->config.sif_init))) {
 		siferr("ERROR: sif dev init error: %d", ret);
 		ret = -1;
@@ -145,7 +143,6 @@ static int sif_init(sif_t * dev, sif_cfg_t * cfg)
 			return ret;
 		}
 	}
-#endif
 	dev->sif_file.receive_frame = false;
 	ips_irq_disable(SIF_INT);
 	ips_register_irqhandle(SIF_INT, x2_sif_irq, dev);
@@ -154,9 +151,7 @@ static int sif_init(sif_t * dev, sif_cfg_t * cfg)
 
 static void sif_deinit(sif_t * dev)
 {
-#ifdef CONFIG_X2_SIF_DEV
 	sif_dev_stop();
-#endif
 	dev->sif_file.receive_frame = false;
 }
 
@@ -326,9 +321,7 @@ static long x2_sif_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				ret = EINVAL;
 				break;
 			}
-#ifdef CONFIG_X2_SIF_DEV
 			sif_dev_get_status(&status);
-#endif
 			if (copy_to_user
 			    ((void __user *)arg, (void *)&status,
 			     sizeof(sif_status_t))) {
@@ -347,9 +340,7 @@ static long x2_sif_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				ret = EINVAL;
 				break;
 			}
-#ifdef CONFIG_X2_SIF_DEV
 			sif_dev_get_info(&info);
-#endif
 			if (copy_to_user
 			    ((void __user *)arg, (void *)&info,
 			     sizeof(sif_info_t))) {
@@ -368,9 +359,7 @@ static long x2_sif_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				ret = EINVAL;
 				break;
 			}
-#ifdef CONFIG_X2_SIF_DEV
 			sif_dev_frame_id_get(&frame_id);
-#endif
 			if (copy_to_user
 			    ((void __user *)arg, (void *)&frame_id,
 			     sizeof(frame_id_info_t))) {

@@ -481,6 +481,7 @@ int32_t mipi_dev_deinit(void)
 #ifdef CONFIG_X2_MIPI_PHY
 	mipi_dev_dphy_reset();
 #endif
+	mipi_putreg(iomem + REG_MIPI_DEV_PHY_RSTZ, MIPI_DEV_CSI2_RESETN);
 	/*Set DWC_mipi_csi2_dev reset */
 	mipi_putreg(iomem + REG_MIPI_DEV_VPG_CTRL, MIPI_DEV_VPG_DISABLE);
 	mipi_putreg(iomem + REG_MIPI_DEV_CSI2_RESETN, MIPI_DEV_CSI2_RESETN);
@@ -510,7 +511,6 @@ int32_t mipi_dev_init(mipi_dev_cfg_t * control)
 #ifdef CONFIG_X2_MIPI_PHY
 	/*Shut down and reset SNPS D-PHY */
 	mipi_putreg(iomem + REG_MIPI_DEV_PHY_RSTZ, MIPI_DEV_CSI2_RESETN);
-	mipi_putreg(iomem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_CLEAR);
 	mipi_putreg(iomem + REG_MIPI_DEV_CLKMGR_CFG, MIPI_DEV_CSI2_RESETN);
 	mipi_putreg(iomem + REG_MIPI_DEV_PHY_IF_CFG, MIPI_DEV_CSI2_RESETN);
 #endif
@@ -522,7 +522,8 @@ int32_t mipi_dev_init(mipi_dev_cfg_t * control)
 #ifdef CONFIG_X2_MIPI_PHY
 	/*Initialize the PHY */
 	if (0 !=
-	    mipi_dev_dphy_initialize(control->mipiclk, control->lane, iomem)) {
+	    mipi_dev_dphy_initialize(control->mipiclk, control->lane,
+				     control->settle, iomem)) {
 		mipierr("mipi dev initialize error!!!");
 		return -1;
 	}
