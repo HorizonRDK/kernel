@@ -1,7 +1,7 @@
 /***************************************************************************
- *                      COPYRIGHT NOTICE
- *             Copyright 2018 Horizon Robotics, Inc.
- *                     All rights reserved.
+ *						COPYRIGHT NOTICE
+ *			   Copyright 2018 Horizon Robotics, Inc.
+ *					   All rights reserved.
  ***************************************************************************/
 
 #include <linux/init.h>
@@ -50,7 +50,6 @@ static int iar_mmap_open(struct inode *inode, struct file *filp)
 static long iar_mmap_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 {
 	int ret = 0;
-
 	return ret;
 }
 

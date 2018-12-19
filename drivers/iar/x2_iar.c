@@ -1,7 +1,7 @@
 /***************************************************************************
- *                      COPYRIGHT NOTICE
- *             Copyright 2018 Horizon Robotics, Inc.
- *                     All rights reserved.
+ *						COPYRIGHT NOTICE
+ *			   Copyright 2018 Horizon Robotics, Inc.
+ *					   All rights reserved.
  ***************************************************************************/
 
 #include <linux/delay.h>
@@ -28,7 +28,7 @@
 #define IAR_DISABLE 0
 
 const unsigned int g_iarReg_cfg_table[][3] = {
-	/*reg mask  reg offset */
+	/*reg mask      reg offset */
 	{0x1, 0x1f},		/*ALPHA_SELECT_PRI4 */
 	{0x1, 0x1e},		/*ALPHA_SELECT_PRI3 */
 	{0x1, 0x1d},		/*ALPHA_SELECT_PRI2 */
@@ -263,10 +263,10 @@ typedef enum _iar_table_e {
 
 #define FBUF_SIZE_ADDR_OFFSET(X)  (REG_IAR_CROPPED_WINDOW_RD1-((X)*0x4))
 #define FBUF_WIDTH_ADDR_OFFSET(X)  (REG_IAR_IMAGE_WIDTH_FBUF_RD1-((X)*0x4))
-#define WIN_POS_ADDR_OFFSET(X)  (REG_IAR_DISPLAY_POSTION_RD1-((X)*0x4))
+#define WIN_POS_ADDR_OFFSET(X)	(REG_IAR_DISPLAY_POSTION_RD1-((X)*0x4))
 #define KEY_COLOR_ADDR_OFFSET(X)  (REG_IAR_KEY_COLOR_RD1-((X)*0x4))
 
-#define VALUE_SET(value,mask,offset,regvalue)   ((((value)&(mask))<<(offset)) | ((regvalue)&~((mask)<<(offset))))
+#define VALUE_SET(value,mask,offset,regvalue)	((((value)&(mask))<<(offset)) | ((regvalue)&~((mask)<<(offset))))
 #define VALUE_GET(mask,offset,regvalue) (((regvalue)>>(offset)) & (mask))
 
 #define IAR_REG_SET_FILED(key, value, regvalue) VALUE_SET(value, g_iarReg_cfg_table[key][TABLE_MASK], g_iarReg_cfg_table[key][TABLE_OFFSET], regvalue)
@@ -1096,10 +1096,6 @@ static int x2_iar_probe(struct platform_device *pdev)
 	g_iar_dev->frambuf[IAR_CHANNEL_3].paddr = r.start + MAX_FRAME_BUF_SIZE;
 	g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr =
 	    g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr + MAX_FRAME_BUF_SIZE;
-	printk("g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr:%p\n",
-	       g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr);
-	memset(g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr, 0,
-	       MAX_FRAME_BUF_SIZE * 2);
 
 	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr =
 	    r.start + MAX_FRAME_BUF_SIZE * 2;
@@ -1142,12 +1138,6 @@ static int x2_iar_probe(struct platform_device *pdev)
 			vaddr,
 			g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[1].
 			vaddr, resource_size(&r) - MAX_FRAME_BUF_SIZE * 2);
-	//memset(g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr, 0, MAX_FRAME_BUF_SIZE*4);
-	char *temp1 = g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr;
-	int tmpi = 0;
-	temp1 = g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr;
-	for (tmpi = 0; tmpi < MAX_FRAME_BUF_SIZE * 4; tmpi++)
-		*temp1++ = 0x5a;
 
 	iar_pre_init();
 	iar_close();

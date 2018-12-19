@@ -1,7 +1,7 @@
 /***************************************************************************
- *                      COPYRIGHT NOTICE
- *             Copyright 2018 Horizon Robotics, Inc.
- *                     All rights reserved.
+ *						COPYRIGHT NOTICE
+ *			   Copyright 2018 Horizon Robotics, Inc.
+ *					   All rights reserved.
  ***************************************************************************/
 
 #include <linux/init.h>
@@ -27,14 +27,14 @@
 #define IAR_DMA_MODE
 
 #define IAR_CDEV_MAGIC 'R'
-#define IAR_GETVALUE        _IOR(IAR_CDEV_MAGIC,0x11, unsigned int)
-#define IAR_START           _IO(IAR_CDEV_MAGIC,0x12)
-#define IAR_STOP            _IO(IAR_CDEV_MAGIC,0x13)
-#define IAR_CHANNEL_CFG     _IOW(IAR_CDEV_MAGIC,0x14, channel_base_cfg_t)
-#define IAR_DISPLAY_UPDATE  _IOW(IAR_CDEV_MAGIC,0x15, update_cmd_t)
-#define IAR_GAMMA_CFG       _IOW(IAR_CDEV_MAGIC,0x17, gamma_cfg_t)
-#define IAR_SCALE_CFG       _IOW(IAR_CDEV_MAGIC,0x18, upscaling_cfg_t)
-#define IAR_OUTPUT_CFG      _IOW(IAR_CDEV_MAGIC,0x19, output_cfg_t)
+#define IAR_GETVALUE		_IOR(IAR_CDEV_MAGIC,0x11, unsigned int)
+#define IAR_START			_IO(IAR_CDEV_MAGIC,0x12)
+#define IAR_STOP			_IO(IAR_CDEV_MAGIC,0x13)
+#define IAR_CHANNEL_CFG 	_IOW(IAR_CDEV_MAGIC,0x14, channel_base_cfg_t)
+#define IAR_DISPLAY_UPDATE	_IOW(IAR_CDEV_MAGIC,0x15, update_cmd_t)
+#define IAR_GAMMA_CFG		_IOW(IAR_CDEV_MAGIC,0x17, gamma_cfg_t)
+#define IAR_SCALE_CFG		_IOW(IAR_CDEV_MAGIC,0x18, upscaling_cfg_t)
+#define IAR_OUTPUT_CFG		_IOW(IAR_CDEV_MAGIC,0x19, output_cfg_t)
 
 typedef struct _update_cmd_t {
 	unsigned int enable_flag[IAR_CHANNEL_MAX];
@@ -188,8 +188,9 @@ int32_t iar_display_update(update_cmd_t * update_cmd)
 			if (update_cmd->srcframe[index].vaddr)
 				ret =
 				    iar_write_framebuf_poll(index,
-							    update_cmd->srcframe
-							    [index].vaddr,
+							    update_cmd->
+							    srcframe[index].
+							    vaddr,
 							    update_cmd->
 							    frame_size[index]);
 #endif
