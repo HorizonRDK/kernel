@@ -97,7 +97,7 @@ enum {
 
 static struct __io_group io_groups[] = {
 	[0] = {
-	       .start = X2_IO_MIN,
+	       .start = 0,	//X2_IO_MIN,  special case, gpio0 is remove but bit is remain
 	       .end = GROUP0_MAX,
 	       .regoffset = 0x0,
 	       },
