@@ -2443,7 +2443,7 @@ static int spi_nor_init_params(struct spi_nor *nor,
         if (info->flags & SPI_NOR_QUAD_WR) {
 		params->hwcaps.mask |= SNOR_HWCAPS_PP_QUAD;
                 spi_nor_set_pp_settings(&params->page_programs[SNOR_CMD_PP_1_1_4],
-				SPINOR_OP_PP_1_4_4, SNOR_PROTO_1_1_4);
+				SPINOR_OP_PP_1_1_4, SNOR_PROTO_1_1_4);
         } else {
                 /* Page Program settings. */
                 params->hwcaps.mask |= SNOR_HWCAPS_PP;
