@@ -137,5 +137,6 @@ typedef struct _frame_id_info_t {
 #define SIFIOC_GET_STATUS       _IOR(SIF_IOC_MAGIC, 4, sif_status_t)
 #define SIFIOC_GET_INFO         _IOR(SIF_IOC_MAGIC, 5, sif_info_t)
 #define SIFIOC_GET_FRAME_ID     _IOR(SIF_IOC_MAGIC, 6, frame_id_info_t)
+#define SIFIOC_UPDATE           _IOR(SIF_IOC_MAGIC, 7, sif_cfg_t)
 
 #endif //__X2_SIF_H__

@@ -246,7 +246,7 @@ extern int bifdev_set_cpchip_reg(unsigned int addr, int value);
 #define sif_putreg(a,v)        ({bifdev_set_cpchip_reg((uint32_t)a, v);\
                                  sifinfo("write 0x%x: 0x%x", (uint32_t)a, v);})
 #endif
-static void sif_dev_base_config(sif_init_t * cfg)
+static void sif_dev_base_config(sif_init_t * cfg, uint8_t update)
 {
 	uint32_t base = 0;
 	void __iomem *iomem = NULL;
@@ -256,6 +256,9 @@ static void sif_dev_base_config(sif_init_t * cfg)
 	}
 	iomem = g_sif_dev->iomem;
 	g_sif_dev->bustype = cfg->bus_type;
+	if (update) {
+		base = sif_getreg(iomem + REG_SIF_BASE_CTRL);
+	}
 	base |= CONFIG_SET(BASE_FORMAT, cfg->format);
 	base |= CONFIG_SET(BASE_PIX_LEN, cfg->pix_len);
 	base |= CONFIG_SET(BASE_BUS_TYPE, cfg->bus_type);
@@ -530,6 +533,23 @@ int32_t sif_dev_stop(void)
 }
 
 /**
+ * @brief sif_dev_update : SIF Device update config
+ *
+ * @param [in] sif_cfg : SIF Device configuration
+ *
+ * @return int32_t : OK/ERROR
+ */
+int32_t sif_dev_update(sif_init_t * sif_cfg)
+{
+	sif_dev_base_config(sif_cfg, true);
+	sif_dev_input_size(sif_cfg);
+	if (BUS_TYPE_BT1120 == sif_cfg->bus_type) {
+		sif_dev_bt_mode(sif_cfg);
+	}
+	return 0;
+}
+
+/**
  * @brief sif_dev_init : SIF Device initialize
  *
  * @param [in] sif_cfg : SIF Device configuration
@@ -538,7 +558,7 @@ int32_t sif_dev_stop(void)
  */
 int32_t sif_dev_init(sif_init_t * sif_cfg)
 {
-	sif_dev_base_config(sif_cfg);
+	sif_dev_base_config(sif_cfg, false);
 	sif_dev_input_size(sif_cfg);
 	if (BUS_TYPE_BT1120 == sif_cfg->bus_type) {
 		sif_dev_bt_mode(sif_cfg);

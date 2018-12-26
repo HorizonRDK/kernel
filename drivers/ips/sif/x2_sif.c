@@ -101,7 +101,7 @@ static void x2_sif_irq(unsigned int status, void *data)
 		wake_up_interruptible(&sif->sif_file.event_queue);
 }
 
-static int sif_init(sif_t * dev, sif_cfg_t * cfg)
+static int sif_update(sif_t * dev, sif_cfg_t * cfg)
 {
 	int ret = 0;
 	memset(&dev->config, 0, sizeof(sif_cfg_t));
@@ -111,6 +111,37 @@ static int sif_init(sif_t * dev, sif_cfg_t * cfg)
 		cfg->sif_init.pix_len,
 		cfg->sif_init.bus_type,
 		cfg->sif_init.width, cfg->sif_init.height);
+	if (0 != (ret = sif_dev_update(&dev->config.sif_init))) {
+		siferr("ERROR: sif dev init error: %d", ret);
+		ret = -1;
+		return ret;
+	}
+	if (dev->config.mot_det.enable) {
+		if (0 != (ret = sif_dev_mot_det_cfg(&dev->config.mot_det))) {
+			siferr("ERROR: sif dev init error: %d", ret);
+			ret = -1;
+			return ret;
+		}
+	}
+	if (dev->config.frame_id.enable) {
+		if (0 != (ret = sif_dev_frame_id_cfg(&dev->config.frame_id))) {
+			siferr("ERROR: sif dev init error: %d", ret);
+			ret = -1;
+			return ret;
+		}
+	}
+	return 0;
+}
+
+static int sif_init(sif_t * dev, sif_cfg_t * cfg)
+{
+	int ret = 0;
+	memset(&dev->config, 0, sizeof(sif_cfg_t));
+	memcpy(&dev->config, cfg, sizeof(sif_cfg_t));
+	sifinfo
+	    ("sif update config format: %d pixlen: %d bus: %d width: %d height: %d",
+	     cfg->sif_init.format, cfg->sif_init.pix_len,
+	     cfg->sif_init.bus_type, cfg->sif_init.width, cfg->sif_init.height);
 	if (BUS_TYPE_DVP == cfg->sif_init.bus_type) {
 		ips_pinmux_dvp();
 	} else if (BUS_TYPE_BT1120 == cfg->sif_init.bus_type) {
@@ -233,12 +264,14 @@ static long x2_sif_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			if (!arg) {
 				siferr
 				    ("ERROR: sif init error, config should not be NULL");
-				ret = EINVAL;
+				ret = -EINVAL;
 				break;
 			}
-			if (SIF_STATE_DEFAULT != dev->state) {
-				siferr("WARNING: sif re-init, pre state: 0x%x",
-				       dev->state);
+			if (SIF_STATE_DEFAULT != dev->state
+			    && SIF_STATE_INIT != dev->state) {
+				sifinfo("sif has been init before");
+				ret = -EINVAL;
+				break;
 			}
 			if (copy_from_user
 			    ((void *)&sif_cfg, (void __user *)arg,
@@ -280,7 +313,7 @@ static long x2_sif_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				siferr
 				    ("ERROR: sif start state error, current state: 0x%x",
 				     dev->state);
-				ret = EINVAL;
+				ret = -EINVAL;
 				break;
 			}
 			if (0 != (ret = sif_start(dev))) {
@@ -301,7 +334,7 @@ static long x2_sif_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				siferr
 				    ("ERROR: sif dev stop state error, current state: 0x%x",
 				     dev->state);
-				ret = EINVAL;
+				ret = -EINVAL;
 				break;
 			}
 			if (0 != (ret = sif_stop(dev))) {
@@ -318,7 +351,7 @@ static long x2_sif_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			if (!arg) {
 				siferr
 				    ("ERROR: sif get status error, input should not be NULL");
-				ret = EINVAL;
+				ret = -EINVAL;
 				break;
 			}
 			sif_dev_get_status(&status);
@@ -337,7 +370,7 @@ static long x2_sif_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			if (!arg) {
 				siferr
 				    ("ERROR: sif get info error, input should not be NULL");
-				ret = EINVAL;
+				ret = -EINVAL;
 				break;
 			}
 			sif_dev_get_info(&info);
@@ -356,7 +389,7 @@ static long x2_sif_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			if (!arg) {
 				siferr
 				    ("ERROR: sif get frame id error, input should not be NULL");
-				ret = EINVAL;
+				ret = -EINVAL;
 				break;
 			}
 			sif_dev_frame_id_get(&frame_id);
@@ -367,6 +400,36 @@ static long x2_sif_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				       "sif copy data to user failed\n");
 				return -EINVAL;
 			}
+		}
+		break;
+	case SIFIOC_UPDATE:
+		{
+			sif_cfg_t sif_cfg;
+			printk(KERN_INFO "sif update cmd\n");
+			if (!arg) {
+				siferr
+				    ("ERROR: sif init error, config should not be NULL");
+				ret = -EINVAL;
+				break;
+			}
+			if (SIF_STATE_DEFAULT == dev->state) {
+				sifinfo("sif has not been init");
+				ret = -EINVAL;
+				break;
+			}
+			if (copy_from_user
+			    ((void *)&sif_cfg, (void __user *)arg,
+			     sizeof(sif_cfg_t))) {
+				siferr
+				    ("ERROR: sif copy data from user failed\n");
+				return -EINVAL;
+			}
+			if (0 != (ret = sif_update(dev, &sif_cfg))) {
+				siferr("ERROR: sif init error: %d", ret);
+				ret = -1;
+				return ret;
+			}
+			dev->state = SIF_STATE_INIT;
 		}
 		break;
 	default:

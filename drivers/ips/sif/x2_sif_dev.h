@@ -17,6 +17,7 @@
 #include "x2/x2_sif.h"
 
 int32_t sif_dev_init(sif_init_t * sif_cfg);
+int32_t sif_dev_update(sif_init_t * sif_cfg);
 int32_t sif_dev_start(void);
 int32_t sif_dev_stop(void);
 void sif_dev_get_status(sif_status_t * status);
