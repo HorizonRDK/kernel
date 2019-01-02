@@ -97,6 +97,14 @@ typedef struct {
 	frame_id_t frame_id;
 } ipu_init_t;
 
+enum {
+	CROP_TO_DDR = 0x01,
+	SCALAR_TO_DDR = 0x02,
+	PYM_TO_DDR = 0x04,
+};
+#define ENABLE 1
+#define DISABLE 0
+
 int8_t ipu_dump_regs(void);
 int8_t set_ipu_regbase(unsigned char __iomem * base);
 int8_t clr_ipu_regbase(void);
@@ -109,5 +117,6 @@ int8_t set_ipu_pymid(pymid_t * info);
 int8_t set_ipu_addr(uint8_t id, uint32_t y_addr, uint32_t c_addr);
 int8_t set_ds_layer_addr(uint8_t id, uint32_t y_addr, uint32_t c_addr);
 int8_t set_us_layer_addr(uint8_t id, uint32_t y_addr, uint32_t c_addr);
+void ctrl_ipu_to_ddr(uint32_t module, bool status);
 
 #endif

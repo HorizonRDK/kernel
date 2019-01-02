@@ -19,7 +19,6 @@
 #include <linux/delay.h>
 #include <linux/poll.h>
 #include <linux/eventpoll.h>
-#include "ipu_slot.h"
 #include "ipu_dev.h"
 #include "ipu_drv.h"
 #include "ipu_common.h"
@@ -27,49 +26,16 @@
 #include <asm/string.h>
 #include <linux/uaccess.h>
 
-#define X2_IPU_NAME         "x2-ipu"
+#define X2_IPU_NAME		"x2-ipu"
 
-struct x2_ipu_data {
-	unsigned char __iomem *regbase;	/* read/write[bwl] */
-	unsigned char __iomem *paddr;
-	uint64_t vaddr;
-	uint32_t memsize;
-	struct task_struct *ipu_task;
-	struct class *class;
-	struct completion comp;
-	struct dma_chan *dma_chan;
-	dma_addr_t io_phys;
-	wait_queue_head_t wq_head;
-	spinlock_t slock;
-	wait_queue_head_t event_head;
-	spinlock_t elock;
-	bool trigger_isr;
-	bool pymid_done;
-	bool stop;
-	int8_t done_idx;
-	uint32_t isr_data;
-	uint32_t err_status;
-	int32_t major;
-	ipu_cfg_t *cfg;
-	void *private;
-	struct resource *io_r;
-};
+struct x2_ipu_data *g_ipu = NULL;
 
-static struct x2_ipu_data *g_ipu = NULL;
-
-/********************************************************************
- * @brief ipu_set_ddr
- *
- * @param ipu
- * @param ddrbase physical address
- *
- * @return
- ********************************************************************/
-static int8_t ipu_set_ddr(ipu_cfg_t * ipu, uint64_t ddrbase)
+int8_t ipu_cfg_ddrinfo_init(ipu_cfg_t * ipu)
 {
 	uint32_t w = 0, h = 0;
 	uint32_t size = 0;
 	uint32_t i = 0;
+	uint64_t ddrbase = 0;	//(uint64_t)g_ipu->paddr;
 	uint32_t limit = ddrbase + IPU_SLOT_SIZE;
 
 	/* step0. calculate slot head info size */
@@ -86,7 +52,6 @@ static int8_t ipu_set_ddr(ipu_cfg_t * ipu, uint64_t ddrbase)
 		ddrbase = ALIGN_16(ddrbase);
 		if (ddrbase >= limit)
 			goto err_out;
-		set_ipu_addr(0, ipu->crop_ddr.y_addr, ipu->crop_ddr.c_addr);
 	}
 
 	/* step2. calculate scale space */
@@ -100,13 +65,12 @@ static int8_t ipu_set_ddr(ipu_cfg_t * ipu, uint64_t ddrbase)
 		ddrbase = ALIGN_16(ddrbase);
 		if (ddrbase >= limit)
 			goto err_out;
-		set_ipu_addr(1, ipu->scale_ddr.y_addr, ipu->scale_ddr.c_addr);
 	}
 
 	/* step3. calculate pymid ds space */
 	if (ipu->pymid.pymid_en == 1) {
 		for (i = 0; i < ipu->pymid.ds_layer_en; i++) {
-			if (i != 0 && ipu->pymid.ds_factor[i] == 0) {
+			if (i % 4 != 0 && ipu->pymid.ds_factor[i] == 0) {
 				/* if factor == 0, bypass layer */
 				ipu->ds_ddr[i].y_addr = 0;
 				ipu->ds_ddr[i].c_addr = 0;
@@ -128,8 +92,7 @@ static int8_t ipu_set_ddr(ipu_cfg_t * ipu, uint64_t ddrbase)
 			ddrbase = ALIGN_16(ddrbase);
 			if (ddrbase >= limit)
 				goto err_out;
-			set_ds_layer_addr(i, ipu->ds_ddr[i].y_addr,
-					  ipu->ds_ddr[i].c_addr);
+			//set_ds_layer_addr(i, ipu->ds_ddr[i].y_addr, ipu->ds_ddr[i].c_addr);
 		}
 
 		/* step3.1. calculate pymid us space */
@@ -155,8 +118,6 @@ static int8_t ipu_set_ddr(ipu_cfg_t * ipu, uint64_t ddrbase)
 			ddrbase = ALIGN_16(ddrbase);
 			if (ddrbase >= limit)
 				goto err_out;
-			set_us_layer_addr(i, ipu->us_ddr[i].y_addr,
-					  ipu->us_ddr[i].c_addr);
 		}
 	}
 
@@ -165,11 +126,129 @@ err_out:
 	return -1;
 }
 
+static int8_t ipu_set_crop_ddr(ipu_cfg_t * ipu, uint64_t ddrbase)
+{
+	/* step0. calculate slot head info size */
+	ddrbase = ALIGN_16(ddrbase);
+
+	/* step1. calculate crop space */
+	if (ipu->ctrl.crop_ddr_en == 1) {
+		set_ipu_addr(0, ipu->crop_ddr.y_addr + ddrbase,
+			     ipu->crop_ddr.c_addr + ddrbase);
+	}
+	return 0;
+}
+
+static int8_t ipu_set_scale_ddr(ipu_cfg_t * ipu, uint64_t ddrbase)
+{
+	/* step2. calculate scale space */
+	if (ipu->ctrl.scale_ddr_en == 1) {
+		set_ipu_addr(1, ipu->scale_ddr.y_addr + ddrbase,
+			     ipu->scale_ddr.c_addr + ddrbase);
+	}
+	return 0;
+}
+
+static int8_t ipu_set_pym_ddr(ipu_cfg_t * ipu, uint64_t ddrbase)
+{
+	uint32_t i = 0;
+
+	/* step3. calculate pymid ds space */
+	if (ipu->pymid.pymid_en == 1) {
+		for (i = 0; i < ipu->pymid.ds_layer_en; i++) {
+			if (i % 4 != 0 && ipu->pymid.ds_factor[i] == 0) {
+				/* if factor == 0, bypass layer */
+				ipu->ds_ddr[i].y_addr = 0;
+				ipu->ds_ddr[i].c_addr = 0;
+				continue;
+			}
+			set_ds_layer_addr(i, ipu->ds_ddr[i].y_addr + ddrbase,
+					  ipu->ds_ddr[i].c_addr + ddrbase);
+		}
+
+		/* step3.1. calculate pymid us space */
+		for (i = 0; i < 6; i++) {
+			if (!(ipu->pymid.us_layer_en & 1 << i)) {
+				/* layer disable */
+				ipu->us_ddr[i].y_addr = 0;
+				ipu->us_ddr[i].c_addr = 0;
+				continue;
+			}
+			set_us_layer_addr(i, ipu->us_ddr[i].y_addr + ddrbase,
+					  ipu->us_ddr[i].c_addr + ddrbase);
+		}
+	}
+
+	return 0;
+}
+
+/********************************************************************
+ * @brief ipu_set_ddr
+ *
+ * @param ipu
+ * @param ddrbase physical address
+ *
+ * @return
+ ********************************************************************/
+static int8_t ipu_set_ddr(ipu_cfg_t * ipu, uint64_t ddrbase)
+{
+	int8_t ret = 0;
+	uint32_t i = 0;
+	/* step1. set crop addr */
+	if (ipu->ctrl.crop_ddr_en == 1) {
+		ret |=
+		    set_ipu_addr(0, ipu->crop_ddr.y_addr + ddrbase,
+				 ipu->crop_ddr.c_addr + ddrbase);
+	}
+
+	/* step2. set scale addr */
+	if (ipu->ctrl.scale_ddr_en == 1) {
+		ret |=
+		    set_ipu_addr(1, ipu->scale_ddr.y_addr + ddrbase,
+				 ipu->scale_ddr.c_addr + ddrbase);
+	}
+
+	/* step3. set pymid addr */
+	if (ipu->pymid.pymid_en == 1) {
+		/* step3.1 set pymid ds addr */
+		for (i = 0; i < ipu->pymid.ds_layer_en; i++) {
+			if (i == 0 || ipu->pymid.ds_factor[i] != 0)
+				ret |=
+				    set_ds_layer_addr(i,
+						      ipu->ds_ddr[i].y_addr +
+						      ddrbase,
+						      ipu->ds_ddr[i].c_addr +
+						      ddrbase);
+		}
+
+		/* step3.2. set pymid us addr */
+		for (i = 0; i < 6; i++) {
+			if (ipu->pymid.us_layer_en & 1 << i)
+				ret |=
+				    set_us_layer_addr(i,
+						      ipu->us_ddr[i].y_addr +
+						      ddrbase,
+						      ipu->us_ddr[i].c_addr +
+						      ddrbase);
+		}
+	}
+	return ret;
+}
+
 int8_t ipu_set(ipu_cmd_e cmd, ipu_cfg_t * ipu_cfg, uint64_t data)
 {
 	switch (cmd) {
 	case IPUC_SET_DDR:
 		ipu_set_ddr(ipu_cfg, data);
+		break;
+	case IPUC_SET_CROP_DDR:
+		ipu_set_crop_ddr(ipu_cfg, data);
+		break;
+	case IPUC_SET_SCALE_DDR:
+		ipu_set_scale_ddr(ipu_cfg, data);
+		break;
+	case IPUC_SET_PYM_DDR:
+		ipu_set_pym_ddr(ipu_cfg, data);
 		break;
 	case IPUC_SET_BASE:
 		set_ipu_ctrl(&ipu_cfg->ctrl);
@@ -194,145 +273,65 @@ int8_t ipu_set(ipu_cmd_e cmd, ipu_cfg_t * ipu_cfg, uint64_t data)
 	return 0;
 }
 
-static uint32_t decode_frame_id(uint16_t * addr)
+int8_t ipu_drv_start(void)
 {
-	uint32_t d = 0;
-	uint8_t i = 0;
-
-	for (i = 0; i < 8; i++) {
-		if (addr[i] == 0xffff) {
-			d <<= 1;
-			d |= 1;
-		} else {
-			d <<= 1;
-		}
-	}
-	return d;
+	ipu_info("ipu start\n");
+	spin_lock(&g_ipu->elock);
+	if (g_ipu->cfg->ctrl.crop_ddr_en)
+		ctrl_ipu_to_ddr(CROP_TO_DDR, ENABLE);
+	if (g_ipu->cfg->ctrl.scale_ddr_en)
+		ctrl_ipu_to_ddr(SCALAR_TO_DDR, ENABLE);
+	ctrl_ipu_to_ddr(PYM_TO_DDR, ENABLE);
+	ips_irq_enable(IPU_INT);
+	g_ipu->stop = false;
+	spin_unlock(&g_ipu->elock);
+	return 0;
 }
 
-static int8_t ipu_get_frameid(struct x2_ipu_data *ipu, ipu_slot_h_t * slot)
+int8_t ipu_drv_stop(void)
 {
-	uint8_t *tmp = NULL;
-	uint64_t vaddr =
-	    (uint64_t) IPU_GET_SLOT(slot->info_h.slot_id, ipu->vaddr);
-	ipu_cfg_t *cfg = (ipu_cfg_t *) ipu->cfg;
-
-	if (!cfg->frame_id.id_en)
+	if (g_ipu->stop) {
+		ipu_info("ipu already stop\n");
 		return 0;
-
-	if (cfg->frame_id.crop_en && cfg->ctrl.crop_ddr_en) {
-		/* get id from crop ddr address */
-		tmp = (uint8_t *) (slot->info_h.ddr_info.crop.y_offset + vaddr);
-		if (cfg->frame_id.bus_mode == 0) {
-			slot->info_h.cf_id = tmp[0] << 8 | tmp[1];
-			ipu_dbg("cframe_id=%d, %d, %d\n", tmp[0], tmp[1],
-				slot->info_h.cf_id);
-		} else {
-			slot->info_h.cf_id = decode_frame_id((uint16_t *) tmp);
-			ipu_dbg("cframe_id=%d\n", slot->info_h.cf_id);
-		}
 	}
-	if (cfg->frame_id.scale_en) {
-		if (cfg->ctrl.scale_ddr_en) {
-			/* get id from scale ddr address */
-			tmp =
-			    (uint8_t *) (slot->info_h.ddr_info.scale.y_offset +
-					 vaddr);
-			if (cfg->frame_id.bus_mode == 0) {
-				slot->info_h.sf_id = tmp[0] << 8 | tmp[1];
-				ipu_dbg("sframe_id=%d, %d, %d\n", tmp[0],
-					tmp[1], slot->info_h.sf_id);
-			} else {
-				slot->info_h.sf_id =
-				    decode_frame_id((uint16_t *) tmp);
-				ipu_dbg("sframe_id=%d\n", slot->info_h.sf_id);
-			}
-		} else {
-			/* get id from pymid ddr address */
-			tmp =
-			    (uint8_t *) (slot->info_h.ddr_info.ds[0].y_offset +
-					 vaddr);
-			if (cfg->frame_id.bus_mode == 0) {
-				slot->info_h.sf_id = tmp[0] << 8 | tmp[1];
-				ipu_dbg("pframe_id=%d, %d, %d\n", tmp[0],
-					tmp[1], slot->info_h.sf_id);
-			} else {
-				slot->info_h.sf_id =
-				    decode_frame_id((uint16_t *) tmp);
-				ipu_dbg("pframe_id=%d\n", slot->info_h.sf_id);
-			}
-		}
-	}
+	spin_lock(&g_ipu->elock);
+	g_ipu->stop = true;
+	ctrl_ipu_to_ddr(CROP_TO_DDR | SCALAR_TO_DDR | PYM_TO_DDR, DISABLE);
+	ips_irq_disable(IPU_INT);
+	g_ipu->isr_data = 0;
+	spin_unlock(&g_ipu->elock);
 	return 0;
 }
 
 static int ipu_thread(void *data)
 {
-	unsigned long flags;
+	//unsigned long flag;
 	uint32_t status = 0;
 	struct x2_ipu_data *ipu = (struct x2_ipu_data *)data;
-	ipu_cfg_t *ipu_cfg = (ipu_cfg_t *) ipu->cfg;
-	ipu_slot_h_t *slot_h = NULL;
 	ipu_info("ipu thread run\n");
 	do {
 		wait_event_interruptible(ipu->wq_head,
-					 ipu->trigger_isr == true);
-		ipu->err_status = 0;
-		ipu->pymid_done = false;
-		ipu->done_idx = -1;
+					 test_and_clear_bit(IPU_TRIGGER_ISR,
+							    &ipu->runflags));
+
 		if (kthread_should_stop())
 			break;
+
+		spin_lock(&ipu->elock);
+		if (ipu->stop) {
+			ipu->isr_data = 0;
+			spin_unlock(&ipu->elock);
+			continue;
+		}
 		status = ipu->isr_data;
-		spin_lock_irqsave(&ipu->slock, flags);
-
-		if (status & IPU_BUS01_TRANSMIT_ERRORS ||
-		    status & IPU_BUS23_TRANSMIT_ERRORS ||
-		    status & PYM_DS_FRAME_DROP || status & PYM_US_FRAME_DROP) {
-			ipu->err_status = status;
-			ipu_err("ipu error 0x%x\n", ipu->err_status);
-			slot_h = slot_busy_to_free();
-			if (slot_h) {
-				ipu_err("meet error, slot-%d, 0x%x\n",
-					slot_h->info_h.slot_id, status);
-				wake_up_interruptible(&ipu->event_head);
-			}
-		}
-
-		if (status & IPU_FRAME_START) {
-			slot_h = slot_free_to_busy();
-			if (slot_h) {
-				ipu_dbg("slot-%d, 0x%llx\n",
-					slot_h->info_h.slot_id,
-					(uint64_t) IPU_GET_SLOT(slot_h->info_h.
-								slot_id,
-								(uint64_t) ipu->
-								paddr));
-				ipu_set(IPUC_SET_DDR, ipu_cfg,
-					IPU_GET_SLOT(slot_h->info_h.slot_id,
-						     (uint64_t) ipu->paddr));
-			} else {
-				ipu_info("free slot empty\n");
-			}
-		}
-
-		if (status & PYM_FRAME_DONE) {
-			/* TODO need flash cache? */
-			slot_h = slot_busy_to_done();
-			if (slot_h) {
-				ipu_info("pyramid done, slot-%d, cnt %d\n",
-					 slot_h->info_h.slot_id,
-					 slot_h->slot_cnt);
-				ipu->pymid_done = true;
-				ipu->done_idx = slot_h->info_h.slot_id;
-				ipu_get_frameid(ipu, slot_h);
-				wake_up_interruptible(&ipu->event_head);
-			} else {
-				ipu_info("busy slot empty\n");
-			}
-		}
-		ipu->trigger_isr = false;
 		ipu->isr_data = 0;
-		spin_unlock_irqrestore(&ipu->slock, flags);
+		ipu->pymid_done = false;
+		ipu->done_idx = -1;
+
+		if (ipu->ipu_mode && ipu->ipu_handle[ipu->ipu_mode])
+			ipu->ipu_handle[ipu->ipu_mode] (status);
+		spin_unlock(&ipu->elock);
+
 	} while (!kthread_should_stop());
 	ipu_info("ipu thread exit\n");
 	return 0;
@@ -341,12 +340,15 @@ static int ipu_thread(void *data)
 void x2_ipu_isr(unsigned int status, void *data)
 {
 	struct x2_ipu_data *ipu = (struct x2_ipu_data *)data;
-
-	ipu->isr_data = status;
-	spin_lock(&ipu->slock);
-	ipu->trigger_isr = true;
-	spin_unlock(&ipu->slock);
-	wake_up_interruptible(&ipu->wq_head);
+	//printk("x2_ipu_isr\n");
+	if (ipu->stop) {
+		ipu->isr_data = 0;
+		return;
+	} else {
+		ipu->isr_data |= status;
+	}
+	if (!test_and_set_bit(IPU_TRIGGER_ISR, &ipu->runflags))
+		wake_up_interruptible(&ipu->wq_head);
 }
 
 static int8_t ipu_stop_thread(struct x2_ipu_data *ipu)
@@ -358,336 +360,6 @@ static int8_t ipu_stop_thread(struct x2_ipu_data *ipu)
 	ipu->ipu_task = NULL;
 	return 0;
 }
-
-/* Match table for of_platform binding */
-static const struct of_device_id x2_ipu_of_match[] = {
-	{.compatible = "hobot,x2-ipu",},
-	{}
-};
-
-MODULE_DEVICE_TABLE(of, x2_ipu_of_match);
-
-static int8_t ipu_core_init(ipu_cfg_t * ipu_cfg)
-{
-	slot_ddr_info_t s_info;
-	uint64_t pbase = (uint64_t) g_ipu->paddr;
-	uint8_t i = 0;
-
-	ips_module_reset(RST_IPU);
-
-	ipu_set(IPUC_SET_BASE, ipu_cfg, 0);
-	ipu_set(IPUC_SET_CROP, ipu_cfg, 0);
-	ipu_set(IPUC_SET_SCALE, ipu_cfg, 0);
-	ipu_set(IPUC_SET_PYMID, ipu_cfg, 0);
-	ipu_set(IPUC_SET_FRAME_ID, ipu_cfg, 0);
-	ipu_set(IPUC_SET_DDR, ipu_cfg, pbase);
-
-	memset(&s_info, 0, sizeof(slot_ddr_info_t));
-	if (ipu_cfg->ctrl.crop_ddr_en == 1) {
-		s_info.crop.y_offset = ipu_cfg->crop_ddr.y_addr - pbase;
-		s_info.crop.c_offset = ipu_cfg->crop_ddr.c_addr - pbase;
-		s_info.crop.y_width =
-		    ipu_cfg->crop.crop_ed.w - ipu_cfg->crop.crop_st.w;
-		s_info.crop.y_height =
-		    ipu_cfg->crop.crop_ed.h - ipu_cfg->crop.crop_st.h;
-		s_info.crop.y_stride = ALIGN_16(s_info.crop.y_width);
-		s_info.crop.c_width =
-		    (ipu_cfg->crop.crop_ed.w - ipu_cfg->crop.crop_st.w) >> 1;
-		s_info.crop.c_height =
-		    ipu_cfg->crop.crop_ed.h - ipu_cfg->crop.crop_st.h;
-		s_info.crop.c_stride = ALIGN_16(s_info.crop.c_width);
-	}
-	if (ipu_cfg->ctrl.scale_ddr_en == 1) {
-		s_info.scale.y_offset = ipu_cfg->scale_ddr.y_addr - pbase;
-		s_info.scale.c_offset = ipu_cfg->scale_ddr.c_addr - pbase;
-		s_info.scale.y_width = ipu_cfg->scale.scale_tgt.w;
-		s_info.scale.y_height = ipu_cfg->scale.scale_tgt.h;
-		s_info.scale.y_stride = ALIGN_16(s_info.scale.y_width);
-		s_info.scale.c_width =
-		    ALIGN_16(ipu_cfg->scale.scale_tgt.w >> 1);
-		s_info.scale.c_height = ipu_cfg->scale.scale_tgt.h;
-		s_info.scale.c_stride = ALIGN_16(s_info.scale.c_width);
-	}
-	if (ipu_cfg->pymid.pymid_en == 1) {
-		for (i = 0; i < ipu_cfg->pymid.ds_layer_en; i++) {
-			if (i == 0 || ipu_cfg->pymid.ds_factor[i]) {
-				s_info.ds[i].y_offset =
-				    ipu_cfg->ds_ddr[i].y_addr - pbase;
-				s_info.ds[i].c_offset =
-				    ipu_cfg->ds_ddr[i].c_addr - pbase;
-				s_info.ds[i].y_width =
-				    ipu_cfg->pymid.ds_roi[i].w;
-				s_info.ds[i].y_height =
-				    ipu_cfg->pymid.ds_roi[i].h;
-				s_info.ds[i].y_stride =
-				    ALIGN_16(s_info.ds[i].y_width);
-				s_info.ds[i].c_width =
-				    ipu_cfg->pymid.ds_roi[i].w >> 1;
-				s_info.ds[i].c_height =
-				    ipu_cfg->pymid.ds_roi[i].h;
-				s_info.ds[i].c_stride =
-				    ALIGN_16(s_info.ds[i].c_width);
-			}
-		}
-		for (i = 0; i < 6; i++) {
-			if (ipu_cfg->pymid.us_layer_en & 1 << i) {
-				if (ipu_cfg->pymid.us_factor[i]) {
-					s_info.us[i].y_offset =
-					    ipu_cfg->us_ddr[i].y_addr - pbase;
-					s_info.us[i].c_offset =
-					    ipu_cfg->us_ddr[i].c_addr - pbase;
-					s_info.us[i].y_width =
-					    ipu_cfg->pymid.us_roi[i].w;
-					s_info.us[i].y_height =
-					    ipu_cfg->pymid.us_roi[i].h;
-					s_info.us[i].y_stride =
-					    ALIGN_16(s_info.us[i].y_width);
-					s_info.us[i].c_width =
-					    ipu_cfg->pymid.us_roi[i].w >> 1;
-					s_info.us[i].c_height =
-					    ipu_cfg->pymid.us_roi[i].h;
-					s_info.us[i].c_stride =
-					    ALIGN_16(s_info.us[i].c_width);
-				}
-			}
-		}
-	}
-	init_ipu_slot((uint64_t) g_ipu->vaddr, &s_info);
-
-	ips_irq_disable(IPU_INT);
-	ips_register_irqhandle(IPU_INT, x2_ipu_isr, (void *)g_ipu);
-
-	return 0;
-}
-
-int ipu_open(struct inode *node, struct file *filp)
-{
-	return 0;
-}
-
-#if 0
-static void dma_comp_func(void *completion)
-{
-	complete(completion);
-}
-
-int dma_transfer(void *buf, int len)
-{
-	struct dma_device *dma_dev;
-	struct dma_async_tx_descriptor *tx = NULL;
-	dma_addr_t dma_src_addr, dma_dst_addr, phys_addr;
-	dma_cap_mask_t mask;
-	ipu_slot_h_t *slot_h;
-	dma_cookie_t cookie;
-	enum dma_status status;
-	int rc = 0;
-
-	/* request dma */
-	dma_cap_zero(mask);
-	dma_cap_set(DMA_MEMCPY, mask);
-	g_ipu->dma_chan = dma_request_channel(mask, NULL, NULL);
-	if (!g_ipu->dma_chan) {
-		ipu_err("fail to request dma\n");
-		return -EFAULT;
-	} else {
-		ipu_err("Using %s for DMA transfer\n",
-			dma_chan_name(ipu->dma_chan));
-	}
-
-	dma_dev = g_ipu->dma_chan->device;
-	phys_addr = dma_map_single(dma_dev->dev, buf, len, DMA_BIDIRECTIONAL);
-	if (dma_mapping_error(dma_dev->dev, phys_addr)) {
-		ipu_err("fail to dma_map_single\n");
-		rc = -EFAULT;
-		goto err_out;
-	}
-
-	dma_dst_addr = phys_addr;
-	slot_h = ipu_get_done_slot();
-	if (!slot_h) {
-		rc = -ENODATA;
-		goto err_out1;
-	}
-	dma_src_addr = virt_to_phys((void *)slot_h->membase);
-
-	tx = dma_dev->device_prep_dma_memcpy(g_ipu->dma_chan, dma_dst_addr,
-					     dma_src_addr, len,
-					     DMA_CTRL_ACK | DMA_PREP_INTERRUPT);
-	if (!tx) {
-		ipu_err("fail to prepare dma memory\n");
-	}
-	init_completion(&g_ipu->comp);
-	tx->callback = dma_comp_func;
-	tx->callback_param = &g_ipu->comp;
-
-	cookie = tx->tx_submit(tx);
-	if (dma_submit_error(cookie)) {
-		ipu_err("fail to do dma tx\n");
-		rc = -EFAULT;
-		goto err_out1;
-	}
-	dma_async_issue_pending(g_ipu->dma_chan);
-	wait_for_completion(&g_ipu->comp);
-
-	status = dma_async_is_tx_complete(g_ipu->dma_chan, cookie, NULL, NULL);
-	if (status != DMA_COMPLETE) {
-		ipu_err("dma tx complete check fail\n");
-		rc = -EFAULT;
-		goto err_out1;
-	}
-
-err_out1:
-	dma_unmap_single(dma_dev->dev, phys_addr, len, DMA_BIDIRECTIONAL);
-err_out:
-	dma_release_channel(g_ipu->dma_chan);
-	return rc;
-}
-#endif
-
-long ipu_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
-{
-	ipu_cfg_t *ipu_cfg = (ipu_cfg_t *) g_ipu->cfg;
-	ipu_slot_h_t *slot_h = NULL;
-	info_h_t *info = NULL;
-	int ret = 0;
-	unsigned long flag;
-	ipu_dbg("ipu cmd: %d\n", _IOC_NR(cmd));
-
-	switch (cmd) {
-	case IPUC_INIT:
-		ret = copy_from_user((void *)ipu_cfg,
-				     (const void __user *)data,
-				     sizeof(ipu_init_t));
-		if (ret) {
-			ipu_err("ioctl init fail\n");
-			return -EFAULT;
-		}
-		ret = ipu_core_init(ipu_cfg);
-		if (ret < 0) {
-			ipu_err("ioctl init fail\n");
-			return -EFAULT;
-		}
-		ret = 0;
-		break;
-	case IPUC_GET_IMG:
-		/* TODO get description */
-		/* could be used read api, caused user can define length */
-		//dma_transfer((void *)data, IPU_SLOT_SIZE);
-		ret = IPU_SLOT_SIZE;
-		break;
-	case IPUC_GET_ERR_STATUS:
-		ret =
-		    copy_to_user((void __user *)data,
-				 (const void *)&g_ipu->err_status,
-				 sizeof(uint32_t));
-		g_ipu->err_status = 0;
-		break;
-	case IPUC_CNN_DONE:
-		/* step 1 mv slot from done to free */
-		ret = 0;
-		spin_lock_irqsave(&g_ipu->slock, flag);
-		slot_h = slot_done_to_free();
-		if (!slot_h) {
-			ipu_err("no done slot exist!!!\n");
-			ret = -EFAULT;
-		}
-		spin_unlock_irqrestore(&g_ipu->slock, flag);
-		break;
-	case IPUC_GET_DONE_INFO:
-		spin_lock_irqsave(&g_ipu->slock, flag);
-		slot_h = ipu_get_done_slot();
-		if (!slot_h) {
-			spin_unlock_irqrestore(&g_ipu->slock, flag);
-			return -EFAULT;
-		}
-
-		if (g_ipu->done_idx != -1 &&
-		    g_ipu->done_idx != slot_h->info_h.slot_id) {
-			ipu_err("cnn slot delay\n");
-		}
-		info = &slot_h->info_h;
-		info->base =
-		    (uint64_t) IPU_GET_SLOT(slot_h->info_h.slot_id,
-					    (uint64_t) g_ipu->paddr);
-		spin_unlock_irqrestore(&g_ipu->slock, flag);
-		ret =
-		    copy_to_user((void __user *)data, (const void *)info,
-				 sizeof(info_h_t));
-		break;
-	case IPUC_DUMP_REG:
-		ipu_dump_regs();
-		break;
-	case IPUC_STOP:
-		ips_irq_disable(IPU_INT);
-		spin_lock_irqsave(&g_ipu->elock, flag);
-		g_ipu->stop = true;
-		spin_unlock_irqrestore(&g_ipu->elock, flag);
-		wake_up_interruptible(&g_ipu->event_head);
-		spin_lock_irqsave(&g_ipu->slock, flag);
-		ipu_clean_slot();
-		spin_unlock_irqrestore(&g_ipu->slock, flag);
-		break;
-	case IPUC_START:
-		ips_irq_enable(IPU_INT);
-		break;
-	default:
-		ipu_err("ipu cmd: %d not supported\n", _IOC_NR(cmd));
-		break;
-	}
-	ipu_dbg("ipu cmd: %d end\n", _IOC_NR(cmd));
-	return ret;
-}
-
-int ipu_mmap(struct file *filp, struct vm_area_struct *vma)
-{
-	int8_t ret = 0;
-	uint64_t offset = vma->vm_pgoff << PAGE_SHIFT;
-
-	ipu_info("ipu mmap offset: 0x%llx, size: %ld\n", offset,
-		 vma->vm_end - vma->vm_start);
-	ret =
-	    remap_pfn_range(vma, vma->vm_start, PFN_DOWN(offset),
-			    vma->vm_end - vma->vm_start, vma->vm_page_prot);
-	if (ret)
-		return -EAGAIN;
-	ipu_info("ipu mmap ok\n");
-	return 0;
-}
-
-unsigned int ipu_poll(struct file *file, struct poll_table_struct *wait)
-{
-	unsigned long flags;
-	unsigned int mask = 0;
-
-	poll_wait(file, &g_ipu->event_head, wait);
-	spin_lock_irqsave(&g_ipu->elock, flags);
-	if (g_ipu->stop) {
-		mask = EPOLLHUP;
-		g_ipu->stop = false;
-		ipu_info("ipu exit request\n");
-	} else if (g_ipu->err_status) {
-		ipu_info("POLLERR: err_status 0x%x\n", g_ipu->err_status);
-		mask = EPOLLERR;
-	} else if (g_ipu->pymid_done) {
-		mask = EPOLLIN | EPOLLET;
-	}
-	spin_unlock_irqrestore(&g_ipu->elock, flags);
-	return mask;
-}
-
-int ipu_close(struct inode *inode, struct file *file)
-{
-	return 0;
-}
-
-static const struct file_operations ipu_fops = {
-	.owner = THIS_MODULE,
-	.mmap = ipu_mmap,
-	.open = ipu_open,
-	.poll = ipu_poll,
-	.release = ipu_close,
-	.unlocked_ioctl = ipu_ioctl,
-};
 
 void init_test_data(ipu_cfg_t * info)
 {
@@ -802,14 +474,6 @@ static int x2_ipu_probe(struct platform_device *pdev)
 	struct x2_ipu_data *ipu = NULL;
 	struct device_node *np = NULL;
 	ipu_cfg_t *ipu_cfg = NULL;
-	struct device *dev = NULL;
-	//const struct of_device_id *match;
-
-#ifdef IPU_SPT_PROC
-	struct proc_dir_entry *entry = NULL;
-	entry =
-	    proc_create("ipu", S_IRUGO | S_IWUGO | S_IXUGO, NULL, &ipu_fops);
-#endif
 
 	ipu = devm_kzalloc(&pdev->dev, sizeof(*ipu), GFP_KERNEL);
 	if (!ipu) {
@@ -824,12 +488,6 @@ static int x2_ipu_probe(struct platform_device *pdev)
 
 	ipu->cfg = ipu_cfg;
 
-	/* get driver info from dts */
-	//match = of_match_node(x2_ipu_of_match, pdev->dev.of_node);
-	//if (match && match->data) {
-	//    /* Nothing to do, maybe can be used in future */
-	//}
-
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!res) {
 		rc = -ENODEV;
@@ -839,16 +497,14 @@ static int x2_ipu_probe(struct platform_device *pdev)
 		rc = -ENOMEM;
 		goto err_out;
 	}
-#ifndef X2_ZU3
+
 	ipu->regbase = ioremap(res->start, resource_size(res));
 	if (!ipu->regbase) {
 		dev_err(&pdev->dev, "unable to map registers\n");
 		rc = -ENOMEM;
 		goto err_out1;
 	}
-#else
-	ipu->regbase = (unsigned char __iomem *)res->start;
-#endif
+
 	dev_info(&pdev->dev, "ipu res regbase=0x%x, mapbase=0x%llx\n",
 		 (uint32_t) res->start, (uint64_t) ipu->regbase);
 	set_ipu_regbase(ipu->regbase);
@@ -870,36 +526,19 @@ static int x2_ipu_probe(struct platform_device *pdev)
 	}
 	ipu->paddr = (unsigned char __iomem *)r.start;
 	ipu->memsize = resource_size(&r);
-	//ipu->vaddr = (unsigned char __iomem *)memremap(r.start, resource_size(&r), MEMREMAP_WC);
-	//ipu->vaddr = (unsigned char __iomem *)ioremap_nocache(r.start, resource_size(&r));
-	ipu->vaddr = (uint64_t) ipu_vmap(r.start, ipu->memsize);
+	ipu->vaddr = ipu_vmap(r.start, ipu->memsize);
 	dev_info(&pdev->dev,
 		 "Allocate reserved memory, paddr: 0x%0llx, vaddr: 0x%0llx, len=0x%x\n",
 		 (uint64_t) ipu->paddr, (uint64_t) ipu->vaddr, ipu->memsize);
 
 	platform_set_drvdata(pdev, ipu);
-
-	/* create device node */
-	ipu->class = class_create(THIS_MODULE, X2_IPU_NAME);
-	ipu->major = register_chrdev(0, X2_IPU_NAME, &ipu_fops);
-	if (ipu->major < 0) {
-		dev_err(&pdev->dev, "No major\n");
-		rc = -ENODEV;
-		goto err_out3;
-	}
-	dev =
-	    device_create(ipu->class, NULL, MKDEV(ipu->major, 0), NULL, "ipu");
-	if (IS_ERR(dev)) {
-		rc = -EINVAL;
-		dev_err(&pdev->dev, "ipu device create fail\n");
-		goto err_out4;
-	}
-
 	g_ipu = ipu;
-	spin_lock_init(&ipu->slock);
+	ips_irq_disable(IPU_INT);
+	ips_register_irqhandle(IPU_INT, x2_ipu_isr, (void *)g_ipu);
 	spin_lock_init(&ipu->elock);
 	init_waitqueue_head(&ipu->wq_head);
-	init_waitqueue_head(&ipu->event_head);
+	ipu->stop = true;
+	ips_module_reset(RST_IPU);
 	if (ipu->ipu_task == NULL) {
 		ipu->ipu_task =
 		    kthread_run(ipu_thread, (void *)g_ipu, "ipu_thread");
@@ -911,19 +550,14 @@ static int x2_ipu_probe(struct platform_device *pdev)
 	}
 	dev_info(&pdev->dev, "x2 ipu probe success\n");
 	return 0;
-
-err_out4:
-	device_destroy(ipu->class, MKDEV(ipu->major, 0));
-err_out3:
-	class_destroy(ipu->class);
 err_out2:
 	clr_ipu_regbase();
 	iounmap(ipu->regbase);
 	ipu->io_r = NULL;
-#ifndef X2_ZU3
+
 err_out1:
 	release_mem_region(res->start, resource_size(res));
-#endif
+
 err_out:
 	kfree(ipu);
 	return rc;
@@ -944,10 +578,6 @@ static int x2_ipu_remove(struct platform_device *pdev)
 	if (ipu->cfg)
 		kfree(ipu->cfg);
 
-	device_destroy(ipu->class, MKDEV(ipu->major, 0));
-	unregister_chrdev(ipu->major, X2_IPU_NAME);
-	class_destroy(ipu->class);
-
 	if (ipu)
 		devm_kfree(&pdev->dev, ipu);
 
@@ -955,6 +585,14 @@ static int x2_ipu_remove(struct platform_device *pdev)
 
 	return 0;
 }
+
+/* Match table for of_platform binding */
+static const struct of_device_id x2_ipu_of_match[] = {
+	{.compatible = "hobot,x2-ipu",},
+	{}
+};
+
+MODULE_DEVICE_TABLE(of, x2_ipu_of_match);
 
 static struct platform_driver x2_ipu_platform_driver = {
 	.probe = x2_ipu_probe,
@@ -965,12 +603,52 @@ static struct platform_driver x2_ipu_platform_driver = {
 		   },
 };
 
+struct kobject *x2_ipu_kobj;
+static ssize_t x2_ipu_show(struct kobject *kobj, struct kobj_attribute *attr,
+			   char *buf)
+{
+	char *s = buf;
+	extern void dump_slot_state(void);
+	ipu_dump_regs();
+	dump_slot_state();
+	return (s - buf);
+}
+
+static ssize_t x2_ipu_store(struct kobject *kobj, struct kobj_attribute *attr,
+			    const char *buf, size_t n)
+{
+	int error = -EINVAL;
+	return error ? error : n;
+}
+
+static struct kobj_attribute ipu_test_attr = {
+	.attr = {
+		 .name = __stringify(ipu_test_attr),
+		 .mode = 0644,
+		 },
+	.show = x2_ipu_show,
+	.store = x2_ipu_store,
+};
+
+static struct attribute *attributes[] = {
+	&ipu_test_attr.attr,
+	NULL,
+};
+
+static struct attribute_group attr_group = {
+	.attrs = attributes,
+};
+
 static int __init x2_ipu_init(void)
 {
 	int ret = 0;
 
 	/* Register the platform driver */
 	ret = platform_driver_register(&x2_ipu_platform_driver);
+	x2_ipu_kobj = kobject_create_and_add("x2_ipu", NULL);
+	if (!x2_ipu_kobj)
+		return -ENOMEM;
+	return sysfs_create_group(x2_ipu_kobj, &attr_group);
 	return ret;
 }
 

@@ -3,12 +3,15 @@
 #include "ipu_slot.h"
 #include "ipu_common.h"
 
-static spinlock_t g_listlock;
+enum {
+	FREE_SLOT_LIST,
+	BUSY_SLOT_LIST,
+	DONE_SLOT_LIST,
+	SLOT_LIST_NUM,
+};
 
 static ipu_slot_h_t g_ipu_slot_[IPU_MAX_SLOT];
-static struct list_head g_free_list;
-static struct list_head g_busy_list;
-static struct list_head g_done_list;
+static struct list_head g_ipu_slot_list[SLOT_LIST_NUM];
 
 /********************************************************************
  * @brief init_ipu_slot
@@ -22,53 +25,35 @@ int8_t init_ipu_slot(uint64_t base, slot_ddr_info_t * data)
 {
 	int8_t i = 0;
 
-	INIT_LIST_HEAD(&g_free_list);
-	INIT_LIST_HEAD(&g_busy_list);
-	INIT_LIST_HEAD(&g_done_list);
-
+	INIT_LIST_HEAD(&g_ipu_slot_list[FREE_SLOT_LIST]);
+	INIT_LIST_HEAD(&g_ipu_slot_list[BUSY_SLOT_LIST]);
+	INIT_LIST_HEAD(&g_ipu_slot_list[DONE_SLOT_LIST]);
 	for (i = 0; i < IPU_MAX_SLOT; i++) {
 		uint64_t slot_vaddr = IPU_GET_SLOT(i, base);
 		INIT_LIST_HEAD(&g_ipu_slot_[i].list);
 		ipu_dbg("slot-%d, vaddr=%llx\n", i, slot_vaddr);
-		list_add_tail(&g_ipu_slot_[i].list, &g_free_list);
+		list_add_tail(&g_ipu_slot_[i].list,
+			      &g_ipu_slot_list[FREE_SLOT_LIST]);
 
 		g_ipu_slot_[i].slot_get = 0;
 		g_ipu_slot_[i].slot_cnt = 0;
 		memset(&g_ipu_slot_[i].info_h, 0, sizeof(info_h_t));
 		g_ipu_slot_[i].info_h.slot_id = i;
-#if 0
-		g_ipu_slot_[i]->ddr_info.crop.y_offset = data->crop.y_offset;
-		g_ipu_slot_[i]->ddr_info.scale.offset = data->scale.offset;
-		g_ipu_slot_[i]->ddr_info.scale.size = data->scale.size;
-		for (j = 0; j < 23; j++) {
-			g_ipu_slot_[i]->ddr_info.ds[j].offset =
-			    data->ds[j].offset;
-			g_ipu_slot_[i]->ddr_info.ds[j].size = data->ds[j].size;
-		}
-		for (j = 0; j < 6; j++) {
-			g_ipu_slot_[i]->ddr_info.us[j].offset =
-			    data->us[j].offset;
-			g_ipu_slot_[i]->ddr_info.us[j].size = data->us[j].size;
-		}
-#else
 		memcpy(&g_ipu_slot_[i].info_h.ddr_info, data,
 		       sizeof(slot_ddr_info_t));
 		ipu_dbg("ds[%d].y_offset=0x%x\n", i,
 			g_ipu_slot_[i].info_h.ddr_info.ds[i].y_offset);
-#endif
 	}
-	slot_free_to_busy();
-	//spin_lock_init(&g_listlock);
 	return 0;
 }
 
 int8_t ipu_clean_slot(void)
 {
-	while (!list_empty(&g_done_list)) {
+	while (!list_empty(&g_ipu_slot_list[DONE_SLOT_LIST])) {
 		if (NULL == slot_done_to_free())
 			break;
 	}
-	while (!list_empty(&g_busy_list)) {
+	while (!list_empty(&g_ipu_slot_list[BUSY_SLOT_LIST])) {
 		if (NULL == slot_busy_to_free())
 			break;
 	}
@@ -78,25 +63,15 @@ int8_t ipu_clean_slot(void)
 ipu_slot_h_t *ipu_get_done_slot()
 {
 	struct list_head *node = NULL;
+	struct list_head *head = NULL;
 	ipu_slot_h_t *slot_h = NULL;
-
-	//spin_lock(&g_listlock);
-	if (list_empty(&g_done_list)) {
-		//spin_unlock(&g_listlock);
+	if (list_empty(&g_ipu_slot_list[DONE_SLOT_LIST])) {
 		return NULL;
 	}
-	node = g_done_list.next;
-	while (NULL != node) {
-		slot_h = (ipu_slot_h_t *) node;
-		if (!slot_h->slot_get) {
-			slot_h->slot_get = 1;
-			break;
-		}
-		slot_h = NULL;
-		node = node->next;
-	}
-	//spin_unlock(&g_listlock);
-
+	head = &g_ipu_slot_list[DONE_SLOT_LIST];
+	node = head->next;
+	slot_h = (ipu_slot_h_t *) node;
+	list_del_init(node);
 	return slot_h;
 }
 
@@ -104,17 +79,17 @@ ipu_slot_h_t *slot_free_to_busy(void)
 {
 	struct list_head *node = NULL;
 	ipu_slot_h_t *slot_h = NULL;
-	//spin_lock(&g_listlock);
-	if (list_empty(&g_free_list)) {
-		//spin_unlock(&g_listlock);
+
+	if (list_empty(&g_ipu_slot_list[FREE_SLOT_LIST])) {
+		if (printk_ratelimit())
+			ipu_info("free slot empty\n");
 		return NULL;
 	}
-	node = g_free_list.next;
-	list_move_tail(node, &g_busy_list);
+	node = g_ipu_slot_list[FREE_SLOT_LIST].next;
+	list_move_tail(node, &g_ipu_slot_list[BUSY_SLOT_LIST]);
 	slot_h = (ipu_slot_h_t *) node;
 	slot_h->info_h.slot_flag = SLOT_BUSY;
 	slot_h->slot_cnt++;
-	//spin_unlock(&g_listlock);
 	return slot_h;
 }
 
@@ -122,17 +97,14 @@ ipu_slot_h_t *slot_busy_to_done(void)
 {
 	struct list_head *node = NULL;
 	ipu_slot_h_t *slot_h = NULL;
-	//spin_lock(&g_listlock);
-	if (list_empty(&g_busy_list)) {
-		//spin_unlock(&g_listlock);
+	if (list_empty(&g_ipu_slot_list[BUSY_SLOT_LIST])) {
 		return NULL;
 	}
-	node = g_busy_list.next;
-	list_move_tail(node, &g_done_list);
+	node = g_ipu_slot_list[BUSY_SLOT_LIST].next;
+	list_move_tail(node, &g_ipu_slot_list[DONE_SLOT_LIST]);
 	slot_h = (ipu_slot_h_t *) node;
 	slot_h->info_h.slot_flag = SLOT_DONE;
 	slot_h->slot_get = 0;
-	//spin_unlock(&g_listlock);
 	return slot_h;
 }
 
@@ -140,17 +112,15 @@ ipu_slot_h_t *slot_busy_to_free(void)
 {
 	struct list_head *node = NULL;
 	ipu_slot_h_t *slot_h = NULL;
-	//spin_lock(&g_listlock);
-	if (list_empty(&g_busy_list)) {
-		//spin_unlock(&g_listlock);
+
+	if (list_empty(&g_ipu_slot_list[BUSY_SLOT_LIST])) {
 		return NULL;
 	}
-	node = g_busy_list.next;
-	list_move_tail(node, &g_free_list);
+	node = g_ipu_slot_list[BUSY_SLOT_LIST].next;
+	list_move_tail(node, &g_ipu_slot_list[FREE_SLOT_LIST]);
 	slot_h = (ipu_slot_h_t *) node;
 	slot_h->info_h.cnn_flag = 0;
 	slot_h->info_h.slot_flag = SLOT_FREE;
-	//spin_unlock(&g_listlock);
 	return slot_h;
 }
 
@@ -158,17 +128,93 @@ ipu_slot_h_t *slot_done_to_free(void)
 {
 	struct list_head *node = NULL;
 	ipu_slot_h_t *slot_h = NULL;
-	//spin_lock(&g_listlock);
-	if (list_empty(&g_done_list)) {
-		//spin_unlock(&g_listlock);
+
+	if (list_empty(&g_ipu_slot_list[DONE_SLOT_LIST])) {
 		return NULL;
 	}
-	node = g_done_list.next;
-	list_move_tail(node, &g_free_list);
+	node = g_ipu_slot_list[DONE_SLOT_LIST].next;
+	list_move_tail(node, &g_ipu_slot_list[FREE_SLOT_LIST]);
 	slot_h = (ipu_slot_h_t *) node;
 	slot_h->info_h.cnn_flag = 0;
 	slot_h->info_h.slot_flag = SLOT_FREE;
 	slot_h->slot_get = 0;
-	//spin_unlock(&g_listlock);
 	return slot_h;
+}
+
+int insert_slot_to_free(int slot_id)
+{
+	ipu_slot_h_t *slot_h = NULL;
+	if (slot_id < 0 || slot_id >= IPU_MAX_SLOT) {
+		printk("invalid slot id when free to done\n");
+		return -1;
+	}
+	slot_h = &g_ipu_slot_[slot_id];
+	list_move_tail(&slot_h->list, &g_ipu_slot_list[FREE_SLOT_LIST]);
+	slot_h->info_h.cnn_flag = 0;
+	slot_h->info_h.slot_flag = SLOT_FREE;
+	slot_h->slot_get = 0;
+	return 0;
+}
+
+bool is_slot_busy_empty(void)
+{
+
+	if (list_empty(&g_ipu_slot_list[BUSY_SLOT_LIST])) {
+		return true;
+	}
+	return false;
+}
+
+bool is_slot_free_empty(void)
+{
+	if (list_empty(&g_ipu_slot_list[FREE_SLOT_LIST])) {
+		return true;
+	}
+	return false;
+}
+
+bool is_slot_done_empty(void)
+{
+	if (list_empty(&g_ipu_slot_list[DONE_SLOT_LIST])) {
+		return true;
+	}
+	return false;
+}
+
+void dump_slot_state(void)
+{
+	struct list_head *head = NULL;
+	struct list_head *node = NULL;
+	int count = 0;
+	head = &g_ipu_slot_list[FREE_SLOT_LIST];
+	node = head->next;
+	if (!list_empty(head)) {
+		while (node != head) {
+			count++;
+			node = node->next;
+		}
+	}
+	printk("g_ipu_slot_list[FREE_SLOT_LIST] :%d\n", count);
+
+	head = &g_ipu_slot_list[BUSY_SLOT_LIST];
+	count = 0;
+	node = head->next;
+	if (!list_empty(head)) {
+		while (node != head) {
+			count++;
+			node = node->next;
+		}
+	}
+	printk("g_ipu_slot_list[BUSY_SLOT_LIST] :%d\n", count);
+
+	head = &g_ipu_slot_list[DONE_SLOT_LIST];
+	node = head->next;
+	count = 0;
+	if (!list_empty(head)) {
+		while (node != head) {
+			count++;
+			node = node->next;
+		}
+	}
+	printk("g_ipu_slot_list[DONE_SLOT_LIST] :%d\n", count);
 }

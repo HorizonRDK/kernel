@@ -4,12 +4,12 @@
 #include <linux/types.h>
 #include <linux/list.h>
 
-#define IPU_MAX_SLOT                8
 /* 64M per slot
  * 1080p 28M for crop, scale, pym_ds, 36M for pym_us
  */
-#define IPU_SLOT_SIZE               0x4000000
-#define IPU_GET_SLOT(id, base)      ((base) + (id) * IPU_SLOT_SIZE)
+#define IPU_MAX_SLOT				8
+#define IPU_SLOT_SIZE				0x4000000
+#define IPU_GET_SLOT(id, base)		((base) + (id) * IPU_SLOT_SIZE)
 
 typedef struct {
 	uint32_t y_offset;
@@ -52,9 +52,9 @@ typedef enum {
 } slot_err_e;
 
 typedef enum {
-	SLOT_FREE = 1,
-	SLOT_BUSY = 2,
-	SLOT_DONE = 3,
+	SLOT_FREE = 0,
+	SLOT_BUSY = 1,
+	SLOT_DONE = 2,
 } slot_flag_e;
 
 typedef enum {
@@ -68,5 +68,10 @@ ipu_slot_h_t *slot_free_to_busy(void);
 ipu_slot_h_t *slot_busy_to_done(void);
 ipu_slot_h_t *slot_done_to_free(void);
 ipu_slot_h_t *slot_busy_to_free(void);
+int insert_slot_to_free(int slot_id);
+bool is_slot_busy_empty(void);
+bool is_slot_free_empty(void);
+bool is_slot_done_empty(void);
+void dump_slot_state(void);
 
 #endif

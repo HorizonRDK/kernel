@@ -220,6 +220,11 @@ static ssize_t x2_sif_read(struct file *file, char __user * buf, size_t size,
 
 static int x2_sif_close(struct inode *inode, struct file *file)
 {
+	sif_t *dev = sifdrv(file);
+	if (dev->state != SIF_STATE_STOP) {
+		sif_stop(dev);
+		dev->state = SIF_STATE_STOP;
+	}
 	return 0;
 }
 
