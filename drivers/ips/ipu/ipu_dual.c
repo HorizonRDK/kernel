@@ -28,6 +28,9 @@
 #include <asm/string.h>
 #include <linux/uaccess.h>
 
+#define ENABLE 1
+#define DISABLE 0
+
 #define IPU_IOC_MAGIC       'm'
 
 #define IPUC_INIT               _IOW(IPU_IOC_MAGIC, 0, ipu_init_t)
@@ -50,7 +53,6 @@ struct ipu_dual_cdev {
 	dev_t dev_num;
 	spinlock_t slock;
 	wait_queue_head_t event_head;
-	spinlock_t elock;
 	bool pymid_done;
 	bool stop;
 	int8_t done_idx;
@@ -92,20 +94,6 @@ static int8_t ipu_get_frameid(struct x2_ipu_data *ipu, ipu_slot_dual_h_t * slot)
 
 	if (!cfg->frame_id.id_en)
 		return 0;
-#if 0
-	if (cfg->frame_id.crop_en && cfg->ctrl.crop_ddr_en) {
-		/* get id from crop ddr address */
-		tmp = (uint8_t *) (slot->info_h.ddr_info.crop.y_offset + vaddr);
-		if (cfg->frame_id.bus_mode == 0) {
-			slot->info_h.cf_id = tmp[0] << 8 | tmp[1];
-			ipu_dbg("cframe_id=%d, %d, %d\n", tmp[0], tmp[1],
-				slot->info_h.cf_id);
-		} else {
-			slot->info_h.cf_id = decode_frame_id((uint16_t *) tmp);
-			ipu_dbg("cframe_id=%d\n", slot->info_h.cf_id);
-		}
-	}
-#endif
 	/* get first id from pymid ddr address */
 	tmp = (uint8_t *) (slot->info_h.ddr_info.ds_1st[0].y_offset + vaddr);
 	if (cfg->frame_id.bus_mode == 0) {
@@ -134,6 +122,7 @@ int set_next_recv_frame(ipu_slot_dual_h_t * slot_h)
 {
 	if (!slot_h)
 		return -1;
+	slot_h->info_h.slot_flag = SLOT_RECVING;
 	ipu_set(IPUC_SET_CROP_DDR, g_ipu->cfg,
 		IPU_GET_DUAL_SLOT(slot_h->info_h.slot_id,
 				  (uint64_t) g_ipu->paddr));
@@ -148,12 +137,18 @@ int set_next_pym_frame(ipu_slot_dual_h_t * slot_h, bool first)
 	if (!slot_h)
 		return -1;
 	if (first) {
-		set_bit(IPU_PYM_FST_PIC, &g_ipu_d_cdev->ipuflags);
+		slot_h->info_h.slot_flag = SLOT_PYM_1ST;
+		ipu_set(IPUC_SET_PYM_1ST_SRC_DDR, g_ipu->cfg,
+			IPU_GET_DUAL_SLOT(slot_h->info_h.slot_id,
+					  (uint64_t) g_ipu->paddr));
 		ipu_set(IPUC_SET_PYM_DDR, g_ipu->cfg,
 			IPU_GET_FST_PYM_OF_SLOT(slot_h->info_h.slot_id,
 						(uint64_t) g_ipu->paddr));
 	} else {
-		set_bit(IPU_PYM_SEC_PIC, &g_ipu_d_cdev->ipuflags);
+		slot_h->info_h.slot_flag = SLOT_PYM_2ND;
+		ipu_set(IPUC_SET_PYM_2ND_SRC_DDR, g_ipu->cfg,
+			IPU_GET_DUAL_SLOT(slot_h->info_h.slot_id,
+					  (uint64_t) g_ipu->paddr));
 		ipu_set(IPUC_SET_PYM_DDR, g_ipu->cfg,
 			IPU_GET_SEC_PYM_OF_SLOT(slot_h->info_h.slot_id,
 						(uint64_t) g_ipu->paddr));
@@ -164,121 +159,112 @@ int set_next_pym_frame(ipu_slot_dual_h_t * slot_h, bool first)
 void ipu_dual_mode_process(uint32_t status)
 {
 	struct x2_ipu_data *ipu = g_ipu_d_cdev->ipu;
+
+	spin_lock(&g_ipu_d_cdev->slock);
 	if (status & IPU_BUS01_TRANSMIT_ERRORS ||
 	    status & IPU_BUS23_TRANSMIT_ERRORS ||
 	    status & PYM_DS_FRAME_DROP || status & PYM_US_FRAME_DROP) {
-		ipu_slot_dual_h_t *slot_h = NULL;
 		g_ipu_d_cdev->err_status = status;
 		ipu_err("ipu error 0x%x\n", g_ipu_d_cdev->err_status);
-		//TODO
-		slot_h = dequeue_slot(&g_pym_slot_queue);
-		if (slot_h)
-			enqueue_slot(&g_free_slot_queue, slot_h);
+		pym_slot_busy_to_free();
 	}
 
 	if (status & IPU_FRAME_DONE) {
 		ipu_slot_dual_h_t *slot_h = NULL;
-		slot_h = dequeue_slot(&g_recv_slot_queue);
-		if (slot_h) {
-			enqueue_slot(&g_recvdone_slot_queue, slot_h);
-			//pym first time startup or resume pym from stop when pic ava
-			if (test_and_clear_bit
-			    (IPU_PYM_STARTUP, &g_ipu_d_cdev->ipuflags)
-			    || test_and_clear_bit(IPU_PYM_NOT_AVALIABLE,
-						  &g_ipu_d_cdev->ipuflags)) {
-				slot_h = dequeue_slot(&g_recvdone_slot_queue);
-				if (slot_h) {
-					//ipu->cur_pym_slot = slot_h;
-					enqueue_slot(&g_pym_slot_queue, slot_h);
-					set_next_pym_frame(slot_h, true);
-					ctrl_ipu_to_ddr(PYM_TO_DDR, ENABLE);
-				}
+		ipu_info("ipu done\n");
+		slot_h = recv_slot_busy_to_done();
+		//pym first time startup or resume pym from stop when pic ava
+		if (slot_h && test_and_clear_bit(IPU_PYM_STARTUP, &g_ipu_d_cdev->ipuflags)) {	//||
+			// test_and_clear_bit(IPU_PYM_NOT_AVALIABLE, &g_ipu_d_cdev->ipuflags) ) {
+			slot_h = pym_slot_free_to_busy();
+			if (slot_h) {
+				set_next_pym_frame(slot_h, true);
+				pym_manual_start();
 			}
 		}
 	}
 
 	if (status & IPU_FRAME_START) {
 		ipu_slot_dual_h_t *slot_h = NULL;
-		slot_h = dequeue_slot(&g_free_slot_queue);
+		ipu_info("ipu start\n");
+		slot_h = recv_slot_free_to_busy();
 		if (slot_h) {
-			enqueue_slot(&g_recv_slot_queue, slot_h);
 			set_next_recv_frame(slot_h);
-
-			ipu_dbg("slot-%d, 0x%llx\n", slot_h->info_h.slot_id,
+			ipu_dbg("fram start slot-%d, 0x%llx\n",
+				slot_h->info_h.slot_id,
 				(uint64_t) IPU_GET_DUAL_SLOT(slot_h->info_h.
 							     slot_id,
 							     (uint64_t) ipu->
 							     paddr));
 			// resume to recv pic from stop
-			if (test_and_clear_bit
-			    (IPU_RCV_NOT_AVALIABLE, &g_ipu_d_cdev->ipuflags)) {
-				ctrl_ipu_to_ddr(CROP_TO_DDR | SCALAR_TO_DDR,
-						ENABLE);
-			}
+			//if ( test_and_clear_bit(IPU_RCV_NOT_AVALIABLE, &g_ipu_d_cdev->ipuflags) ) {
+			//      ctrl_ipu_to_ddr(CROP_TO_DDR | SCALAR_TO_DDR, ENABLE);
+			//}
 		}
 		//no avaliable slot to recv next pic
-		else if (!test_and_set_bit
-			 (IPU_RCV_NOT_AVALIABLE, &g_ipu_d_cdev->ipuflags)) {
-			ctrl_ipu_to_ddr(CROP_TO_DDR | SCALAR_TO_DDR, DISABLE);
+		//else if ( !test_and_set_bit(IPU_RCV_NOT_AVALIABLE, &g_ipu_d_cdev->ipuflags) ) {
+		//      ctrl_ipu_to_ddr(CROP_TO_DDR | SCALAR_TO_DDR, DISABLE);
+		//}
+	}
+	if (status & PYM_FRAME_START) {
+		ipu_slot_dual_h_t *slot_h = NULL;
+		ipu_info("pym start\n");
+		slot_h = get_last_pym_slot();
+		if (slot_h->info_h.slot_flag == SLOT_PYM_1ST)
+			set_next_pym_frame(slot_h, false);
+		else {
+			if (slot_h->info_h.slot_flag == SLOT_PYM_2ND)
+				slot_h->info_h.slot_flag = SLOT_DONE;
+			slot_h = pym_slot_free_to_busy();
+			if (slot_h)
+				set_next_pym_frame(slot_h, true);
 		}
 	}
 
 	if (status & PYM_FRAME_DONE) {
 		ipu_slot_dual_h_t *slot_h = NULL;
-		if (test_and_clear_bit
-		    (IPU_PYM_SEC_PIC, &g_ipu_d_cdev->ipuflags)) {
-			slot_h = dequeue_slot(&g_pym_slot_queue);
+		ipu_info("pym done\n");
+		slot_h = get_cur_pym_slot();
+		if (slot_h->info_h.slot_flag == SLOT_DONE) {
+			slot_h = pym_slot_busy_to_done();
 			if (slot_h) {
 				ipu_info("pyramid done, slot-%d, cnt %d\n",
 					 slot_h->info_h.slot_id,
 					 slot_h->slot_cnt);
-				enqueue_slot(&g_pymdone_slot_queue, slot_h);
 				ipu->pymid_done = true;
 				ipu->done_idx = slot_h->info_h.slot_id;
 				ipu_get_frameid(ipu, slot_h);
 				wake_up_interruptible(&g_ipu_d_cdev->
 						      event_head);
-				//no pic res to do pym, stop pym
-				if (g_pym_slot_queue.qlen == 0
-				    && !test_and_set_bit(IPU_PYM_NOT_AVALIABLE,
-							 &g_ipu_d_cdev->
-							 ipuflags)) {
-					ctrl_ipu_to_ddr(PYM_TO_DDR, DISABLE);
-				}
+
 			} else {
 				ipu_err("not finished slot in queue\n");
 			}
 		}
-
-	}
-	if (status & PYM_FRAME_START) {
-		ipu_slot_dual_h_t *slot_h = NULL;
-		if (test_and_clear_bit
-		    (IPU_PYM_FST_PIC, &g_ipu_d_cdev->ipuflags)) {
-			slot_h = get_first_of_queue(&g_pym_slot_queue);
-			set_next_pym_frame(slot_h, false);
-		} else {
-			slot_h = dequeue_slot(&g_recvdone_slot_queue);
-			if (slot_h) {
-				set_next_pym_frame(slot_h, true);
-			}
+		if (!ipu_is_pym_busy_empty())
+			pym_manual_start();
+		else {
+			set_bit(IPU_PYM_STARTUP, &g_ipu_d_cdev->ipuflags);
+			ipu_info("pym pause\n");
 		}
 	}
+
+	spin_unlock(&g_ipu_d_cdev->slock);
+
 }
 
 static int8_t ipu_core_init(ipu_cfg_t * ipu_cfg)
 {
 	slot_ddr_info_dual_t s_info;
-	//uint64_t pbase = (uint64_t)g_ipu->paddr;
 	uint8_t i = 0;
 	ips_module_reset(RST_IPU);
+	ipu_cfg_ddrinfo_init(ipu_cfg);
 
 	ipu_set(IPUC_SET_BASE, ipu_cfg, 0);
 	ipu_set(IPUC_SET_CROP, ipu_cfg, 0);
 	ipu_set(IPUC_SET_SCALE, ipu_cfg, 0);
 	ipu_set(IPUC_SET_PYMID, ipu_cfg, 0);
 	ipu_set(IPUC_SET_FRAME_ID, ipu_cfg, 0);
-	//ipu_set(IPUC_SET_DDR, ipu_cfg, pbase);
 
 	memset(&s_info, 0, sizeof(slot_ddr_info_dual_t));
 	if (ipu_cfg->ctrl.crop_ddr_en == 1) {
@@ -308,7 +294,7 @@ static int8_t ipu_core_init(ipu_cfg_t * ipu_cfg)
 	}
 	if (ipu_cfg->pymid.pymid_en == 1) {
 		for (i = 0; i < ipu_cfg->pymid.ds_layer_en; i++) {
-			if (i == 0 || ipu_cfg->pymid.ds_factor[i]) {
+			if (i % 4 == 0 || ipu_cfg->pymid.ds_factor[i]) {
 				s_info.ds_1st[i].y_offset =
 				    ipu_cfg->ds_ddr[i].y_addr;
 				s_info.ds_1st[i].c_offset =
@@ -396,6 +382,7 @@ static int8_t ipu_core_init(ipu_cfg_t * ipu_cfg)
 int ipu_dual_open(struct inode *node, struct file *filp)
 {
 	struct ipu_dual_cdev *ipu_cdev = NULL;
+	ipu_dbg("ipu_dual_open\n");
 	ipu_cdev = container_of(node->i_cdev, struct ipu_dual_cdev, cdev);
 	filp->private_data = ipu_cdev;
 	ipu_cdev->ipu->ipu_mode = IPU_DDR_DUAL;
@@ -410,7 +397,6 @@ long ipu_dual_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 	ipu_slot_dual_h_t *slot_h = NULL;
 	info_dual_h_t *info = NULL;
 	int ret = 0;
-	unsigned long flag;
 	ipu_dbg("ipu cmd: %d\n", _IOC_NR(cmd));
 
 	switch (cmd) {
@@ -452,58 +438,66 @@ long ipu_dual_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 		break;
 	case IPUC_CNN_DONE:
 		{
-			/* step 1 mv slot from done to free */
-			uint8_t slot_id = 0;
+			int slot_id = 0;
 			ret = copy_from_user((void *)&slot_id,
 					     (const void __user *)data,
-					     sizeof(uint8_t));
+					     sizeof(int));
 			if (ret) {
 				ipu_err("ioctl cnn done msg fail\n");
 				return -EFAULT;
 			}
-			if (slot_id >= 0 && slot_id < 4) {
-				slot_h = &g_ipu_slot_dual[slot_id];
-			} else {
-				ipu_err("no done slot exist!!!\n");
-				return -EFAULT;
-			}
-			enqueue_slot(&g_free_slot_queue, slot_h);
+			spin_lock(&g_ipu_d_cdev->slock);
+			insert_dual_slot_to_free(slot_id);
+			spin_unlock(&g_ipu_d_cdev->slock);
 		}
 		break;
 	case IPUC_GET_DONE_INFO:
 		{
-			slot_h = dequeue_slot(&g_pymdone_slot_queue);
+			spin_lock(&g_ipu_d_cdev->slock);
+			slot_h = ipu_get_pym_done_slot();
 			if (!slot_h) {
+				spin_unlock(&g_ipu_d_cdev->slock);
+				ipu_err("get_done failed\n");
 				return -EFAULT;
+			}
+
+			if (ipu->done_idx != -1 &&
+			    ipu->done_idx != slot_h->info_h.slot_id) {
+				ipu_err("cnn slot delay\n");
 			}
 			info = &slot_h->info_h;
 			info->base =
 			    (uint64_t) IPU_GET_DUAL_SLOT(slot_h->info_h.slot_id,
 							 (uint64_t) ipu->paddr);
+			spin_unlock(&g_ipu_d_cdev->slock);
 			ret =
 			    copy_to_user((void __user *)data,
 					 (const void *)info,
-					 sizeof(info_dual_h_t));
-			break;
+					 sizeof(ipu_slot_dual_h_t));
+			if (ret) {
+				printk("copy to user fail\n");
+			}
 		}
+		break;
 	case IPUC_DUMP_REG:
 		ipu_dump_regs();
 		break;
 	case IPUC_STOP:
 		{
-			ctrl_ipu_to_ddr(CROP_TO_DDR | SCALAR_TO_DDR |
-					PYM_TO_DDR, DISABLE);
 			ipu_drv_stop();
+			clear_bit(IPU_PYM_STARTUP, &g_ipu_d_cdev->ipuflags);
+			spin_lock(&g_ipu_d_cdev->slock);
+			ipu_clean_slot_queue();
+			spin_unlock(&g_ipu_d_cdev->slock);
 			wake_up_interruptible(&ipu_cdev->event_head);
-			ipu_clean_slot_queue();	//有可能把正在使用的slot clean到free list中了
 		}
 		break;
 	case IPUC_START:
 		{
-			slot_h = dequeue_slot(&g_free_slot_queue);
+#if 1
+			slot_h = recv_slot_free_to_busy();
 			if (slot_h) {
 				set_next_recv_frame(slot_h);
-				enqueue_slot(&g_recv_slot_queue, slot_h);
 				set_bit(IPU_PYM_STARTUP,
 					&g_ipu_d_cdev->ipuflags);
 			} else {
@@ -511,6 +505,17 @@ long ipu_dual_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 				break;
 			}
 			ipu_drv_start();
+#else
+			printk("g_ipu->stop %d\n", g_ipu->stop);
+			recv_slot_free_to_busy();
+			recv_slot_busy_to_done();
+			slot_h = pym_slot_free_to_busy();
+			if (slot_h) {
+				set_next_pym_frame(slot_h, true);
+				//ctrl_ipu_to_ddr(PYM_TO_DDR, ENABLE);
+				pym_manual_start();
+			}
+#endif
 		}
 		break;
 	default:
@@ -539,21 +544,23 @@ int ipu_dual_mmap(struct file *filp, struct vm_area_struct *vma)
 
 unsigned int ipu_dual_poll(struct file *file, struct poll_table_struct *wait)
 {
-	unsigned long flags;
 	unsigned int mask = 0;
-
-	poll_wait(file, &g_ipu_d_cdev->event_head, wait);
-	spin_lock_irqsave(&g_ipu_d_cdev->elock, flags);
+	if (!ipu_is_pym_done_empty()) {
+		mask = EPOLLIN | EPOLLET;
+		return mask;
+	} else
+		poll_wait(file, &g_ipu_d_cdev->event_head, wait);
 	if (g_ipu->stop) {
 		mask = EPOLLHUP;
-		//g_ipu->stop = false;
 		ipu_info("ipu exit request\n");
 	} else if (g_ipu_d_cdev->err_status) {
 		ipu_info("POLLERR: err_status 0x%x\n",
 			 g_ipu_d_cdev->err_status);
 		mask = EPOLLERR;
+	} else if (!ipu_is_pym_done_empty()) {
+		mask = EPOLLIN | EPOLLET;
+		return mask;
 	}
-	spin_unlock_irqrestore(&g_ipu_d_cdev->elock, flags);
 	return mask;
 }
 

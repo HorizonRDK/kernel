@@ -285,6 +285,7 @@ static int8_t ipu_core_init(ipu_cfg_t * ipu_cfg)
 int ipu_open(struct inode *node, struct file *filp)
 {
 	struct ipu_single_cdev *ipu_cdev = NULL;
+	ipu_dbg("ipu_dual_open\n");
 	ipu_cdev = container_of(node->i_cdev, struct ipu_single_cdev, cdev);
 	filp->private_data = ipu_cdev;
 	ipu_cdev->ipu->ipu_mode = IPU_ISP_SINGLE;
@@ -378,10 +379,9 @@ long ipu_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 			ret =
 			    copy_to_user((void __user *)data,
 					 (const void *)info, sizeof(info_h_t));
-			if (ret)
-				 {
-				printk("copy to user fail\n");
-				}
+			if (ret) {
+				printk("copy to user fail\n");
+			}
 		}
 		break;
 	case IPUC_DUMP_REG:
@@ -437,6 +437,7 @@ unsigned int ipu_poll(struct file *file, struct poll_table_struct *wait)
 {
 	//unsigned long flags;
 	unsigned int mask = 0;
+	printk("ipu_dual_poll \n");
 	if (!is_slot_done_empty()) {
 		mask = EPOLLIN | EPOLLET;
 		return mask;

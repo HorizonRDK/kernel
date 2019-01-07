@@ -57,9 +57,11 @@ typedef enum {
 } slot_err_e;
 
 typedef enum {
-	SLOT_FREE = 0,
-	SLOT_BUSY = 1,
-	SLOT_DONE = 2,
+	SLOT_FREE,
+	SLOT_RECVING,
+	SLOT_PYM_1ST,
+	SLOT_PYM_2ND,
+	SLOT_DONE,
 } slot_flag_e;
 
 typedef enum {
@@ -75,8 +77,18 @@ typedef struct {
 //dual below
 ipu_slot_dual_h_t *dequeue_slot(slot_queue_t * slot_queue);
 void enqueue_slot(slot_queue_t * slot_queue, ipu_slot_dual_h_t * slot_h);
-ipu_slot_dual_h_t *get_first_of_queue(slot_queue_t * slot_queue);
+int insert_dual_slot_to_free(int slot_id);
+ipu_slot_dual_h_t *ipu_get_pym_done_slot(void);
+bool ipu_is_pym_done_empty(void);
+ipu_slot_dual_h_t *get_cur_pym_slot(void);
+ipu_slot_dual_h_t *get_last_pym_slot(void);
+ipu_slot_dual_h_t *recv_slot_free_to_busy(void);
+ipu_slot_dual_h_t *recv_slot_busy_to_done(void);
+ipu_slot_dual_h_t *pym_slot_free_to_busy(void);
+ipu_slot_dual_h_t *pym_slot_busy_to_done(void);
 int8_t init_ipu_slot_dual(uint64_t base, slot_ddr_info_dual_t * data);
 int8_t ipu_clean_slot_queue(void);
+bool ipu_is_pym_busy_empty(void);
+ipu_slot_dual_h_t *pym_slot_busy_to_free(void);
 
 #endif

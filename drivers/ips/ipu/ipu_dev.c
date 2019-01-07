@@ -279,6 +279,7 @@ int8_t set_ipu_pymid(pymid_t * info)
 
 	if (info->src_from == 0) {
 		/* ddr mode */
+		d &= ~SET_PYMID_HW_MODE;
 	} else {
 		d |= SET_PYMID_HW_MODE;
 	}
@@ -506,6 +507,17 @@ int8_t set_ipu_addr(uint8_t id, uint32_t y_addr, uint32_t c_addr)
 	return 0;
 }
 
+int8_t set_ds_src_addr(uint32_t y_addr, uint32_t c_addr)
+{
+	if (g_regbase == NULL)
+		return -1;
+	printk("set_ds_src 0x%x 0x%x \n", y_addr, c_addr);
+	writel(y_addr, g_regbase + PYMID_SRC_Y_ADDR);
+	writel(c_addr, g_regbase + PYMID_SRC_C_ADDR);
+
+	return 0;
+}
+
 int8_t set_ds_layer_addr(uint8_t id, uint32_t y_addr, uint32_t c_addr)
 {
 	if (y_addr == 0)
@@ -614,6 +626,16 @@ int8_t set_ds_layer_addr(uint8_t id, uint32_t y_addr, uint32_t c_addr)
 	default:
 		return -1;
 	}
+	return 0;
+}
+
+int8_t pym_manual_start(void)
+{
+	uint32_t regval = 0;
+	printk("pym_manual_start\n");
+	regval = readl(g_regbase + PYMID_DS_CTRL);
+	regval |= SET_START_PYMID_SW_MODE;
+	writel(regval, g_regbase + PYMID_DS_CTRL);
 	return 0;
 }
 

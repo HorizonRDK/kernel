@@ -566,6 +566,57 @@ int32_t sif_dev_init(sif_init_t * sif_cfg)
 	return 0;
 }
 
+int32_t sif_reg_dump(void)
+{
+	uint32_t regval = 0;
+	int i = 0;
+	void __iomem *iomem = NULL;
+	if (NULL == g_sif_dev) {
+		siferr("sif dev not inited!");
+		return -1;
+	}
+	iomem = g_sif_dev->iomem;
+	for (i = 0; i <= REG_FRAME_ID_BT3; i += 4) {
+		regval = sif_getreg(iomem + i);
+		printk("reg 0x%x, 0x%x", iomem + i, regval);
+	}
+	return 0;
+}
+
+struct kobject *x2_sif_kobj;
+static ssize_t x2_sif_show(struct kobject *kobj, struct kobj_attribute *attr,
+			   char *buf)
+{
+	char *s = buf;
+	sif_reg_dump();
+	return (s - buf);
+}
+
+static ssize_t x2_sif_store(struct kobject *kobj, struct kobj_attribute *attr,
+			    const char *buf, size_t n)
+{
+	int error = -EINVAL;
+	return error ? error : n;
+}
+
+static struct kobj_attribute sif_test_attr = {
+	.attr = {
+		 .name = __stringify(sif_test_attr),
+		 .mode = 0644,
+		 },
+	.show = x2_sif_show,
+	.store = x2_sif_store,
+};
+
+static struct attribute *attributes[] = {
+	&sif_test_attr.attr,
+	NULL,
+};
+
+static struct attribute_group attr_group = {
+	.attrs = attributes,
+};
+
 static int x2_sif_dev_probe(struct platform_device *pdev)
 {
 	int ret = 0;
@@ -590,6 +641,12 @@ static int x2_sif_dev_probe(struct platform_device *pdev)
 #endif
 	platform_set_drvdata(pdev, pack_dev);
 	g_sif_dev = pack_dev;
+
+	x2_sif_kobj = kobject_create_and_add("x2_sif", NULL);
+	if (!x2_sif_kobj)
+		return -ENOMEM;
+	return sysfs_create_group(x2_sif_kobj, &attr_group);
+
 	dev_info(&pdev->dev, "X2 sif dev prop OK\n");
 	return ret;
 }

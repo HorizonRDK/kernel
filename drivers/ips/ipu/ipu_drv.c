@@ -28,6 +28,9 @@
 
 #define X2_IPU_NAME		"x2-ipu"
 
+#define ENABLE 1
+#define DISABLE 0
+
 struct x2_ipu_data *g_ipu = NULL;
 
 int8_t ipu_cfg_ddrinfo_init(ipu_cfg_t * ipu)
@@ -76,7 +79,6 @@ int8_t ipu_cfg_ddrinfo_init(ipu_cfg_t * ipu)
 				ipu->ds_ddr[i].c_addr = 0;
 				continue;
 			}
-
 			w = ALIGN_16(ipu->pymid.ds_roi[i].w);
 			h = ALIGN_16(ipu->pymid.ds_roi[i].h);
 			size = w * h;
@@ -90,6 +92,9 @@ int8_t ipu_cfg_ddrinfo_init(ipu_cfg_t * ipu)
 				ddrbase += size * 3 >> 1;
 			}
 			ddrbase = ALIGN_16(ddrbase);
+			ipu_info("pym%d %d %d %d %d 0x%llx 0x%llx", i, w, h,
+				 ipu->pymid.ds_roi[i].w, ipu->pymid.ds_roi[i].h,
+				 ipu->ds_ddr[i].y_addr, ipu->ds_ddr[i].c_addr);
 			if (ddrbase >= limit)
 				goto err_out;
 			//set_ds_layer_addr(i, ipu->ds_ddr[i].y_addr, ipu->ds_ddr[i].c_addr);
@@ -182,6 +187,18 @@ static int8_t ipu_set_pym_ddr(ipu_cfg_t * ipu, uint64_t ddrbase)
 	return 0;
 }
 
+static int8_t ipu_set_pymsrc_ddr(ipu_cfg_t * ipu, uint64_t ddrbase, bool first)
+{
+	if (first)
+		set_ds_src_addr(ipu->crop_ddr.y_addr + ddrbase,
+				ipu->crop_ddr.c_addr + ddrbase);
+	else
+		set_ds_src_addr(ipu->scale_ddr.y_addr + ddrbase,
+				ipu->scale_ddr.c_addr + ddrbase);
+
+	return 0;
+}
+
 /********************************************************************
  * @brief ipu_set_ddr
  *
@@ -249,6 +266,12 @@ int8_t ipu_set(ipu_cmd_e cmd, ipu_cfg_t * ipu_cfg, uint64_t data)
 		break;
 	case IPUC_SET_PYM_DDR:
 		ipu_set_pym_ddr(ipu_cfg, data);
+		break;
+	case IPUC_SET_PYM_1ST_SRC_DDR:
+		ipu_set_pymsrc_ddr(ipu_cfg, data, true);
+		break;
+	case IPUC_SET_PYM_2ND_SRC_DDR:
+		ipu_set_pymsrc_ddr(ipu_cfg, data, false);
 		break;
 	case IPUC_SET_BASE:
 		set_ipu_ctrl(&ipu_cfg->ctrl);
@@ -608,9 +631,7 @@ static ssize_t x2_ipu_show(struct kobject *kobj, struct kobj_attribute *attr,
 			   char *buf)
 {
 	char *s = buf;
-	extern void dump_slot_state(void);
 	ipu_dump_regs();
-	dump_slot_state();
 	return (s - buf);
 }
 
