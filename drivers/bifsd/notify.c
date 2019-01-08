@@ -8,7 +8,6 @@
  *
  */
 
-
 #include <linux/kernel.h>
 #include <linux/export.h>
 #include <linux/notifier.h>
@@ -26,6 +25,7 @@ void bifsd_register_notify(struct notifier_block *nb)
 {
 	blocking_notifier_chain_register(&bifsd_notifier_list, nb);
 }
+
 EXPORT_SYMBOL_GPL(bifsd_register_notify);
 
 /**
@@ -39,9 +39,11 @@ void bifsd_unregister_notify(struct notifier_block *nb)
 {
 	blocking_notifier_chain_unregister(&bifsd_notifier_list, nb);
 }
+
 EXPORT_SYMBOL_GPL(bifsd_unregister_notify);
 
 void bifsd_notify_rx_data(void *data)
 {
-	blocking_notifier_call_chain(&bifsd_notifier_list, BIFSD_DATA_RX_COMP, data);
+	blocking_notifier_call_chain(&bifsd_notifier_list, BIFSD_DATA_RX_COMP,
+				     data);
 }

@@ -32,8 +32,8 @@
 		pwm0	= &pwm_0;
 		pwm1	= &pwm_1;
 		pwm2	= &pwm_2;
-		bifsd   = &bifsd;
-		mmc0    = &sdio0;
+        	bifsd   = &bifsd;
+        	mmc0    = &sdio0;
 	};
 
 	chosen {
@@ -187,6 +187,7 @@
 
 &bifsd {
 	status = "okay";
+	/*cd-gpio = <77>;*/
 };
 
 &qspi {
