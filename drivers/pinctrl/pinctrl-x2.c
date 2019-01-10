@@ -27,6 +27,8 @@
 #include <linux/pinctrl/pinconf-generic.h>
 #include <linux/gpio.h>
 #include <linux/slab.h>
+#include <linux/interrupt.h>
+#include <linux/irq.h>
 #include "pinctrl-utils.h"
 #include "core.h"
 
@@ -52,6 +54,14 @@ struct __io_group {
 	unsigned int regoffset;
 };
 
+enum {
+	GPIO_IRQ_BANK0,
+	GPIO_IRQ_BANK1,
+	GPIO_IRQ_BANK2,
+	GPIO_IRQ_BANK3,
+	GPIO_IRQ_BANK_NUM,
+};
+
 struct x2_pinctrl {
 	struct device *dev;
 	struct pinctrl_dev *pctrl;
@@ -65,15 +75,18 @@ struct x2_pinctrl {
 	struct list_head functions;
 	struct radix_tree_root pgtree;
 	struct radix_tree_root ftree;
+	int irq_base;
+	DECLARE_BITMAP(gpio_irq_enabled_mask, X2_NUM_IOS);
+	int irqbind[GPIO_IRQ_BANK_NUM];
 };
 
 enum {
-	GPIO_IN = 0,
+	GPIO_IN  = 0,
 	GPIO_OUT = 1
 };
 
 enum {
-	GPIO_LOW = 0,
+	GPIO_LOW  = 0,
 	GPIO_HIGH = 1
 };
 
@@ -95,47 +108,57 @@ enum {
 #define X2_IO_IN_VALUE	0xc
 #define X2_IO_DIR_SHIFT	16
 
+#define X2_IO_INT_SEL		0x100
+#define X2_IO_INT_EN		0x104
+#define X2_IO_INT_POS		0x108
+#define X2_IO_INT_NEG		0x10c
+#define X2_IO_INT_WIDTH		0x110
+#define X2_IO_INT_MASK		0x120
+#define X2_IO_INT_SETMASK	0x124
+#define X2_IO_INT_UNMASK	0x128
+#define X2_IO_INT_SRCPND	0x12c
+
 static struct __io_group io_groups[] = {
 	[0] = {
-	       .start = 0,	//X2_IO_MIN,  special case, gpio0 is remove but bit is remain
-	       .end = GROUP0_MAX,
-	       .regoffset = 0x0,
-	       },
+		.start = 0,  //X2_IO_MIN,  special case, gpio0 is remove but bit is remain
+		.end = GROUP0_MAX,
+		.regoffset = 0x0,
+	},
 	[1] = {
-	       .start = GROUP0_MAX + 1,
-	       .end = GROUP1_MAX,
-	       .regoffset = 0x10,
-	       },
+		.start = GROUP0_MAX + 1,
+		.end = GROUP1_MAX,
+		.regoffset = 0x10,
+	},
 	[2] = {
-	       .start = GROUP1_MAX + 1,
-	       .end = GROUP2_MAX,
-	       .regoffset = 0x20,
-	       },
+		.start = GROUP1_MAX + 1,
+		.end = GROUP2_MAX,
+		.regoffset = 0x20,
+	},
 	[3] = {
-	       .start = GROUP2_MAX + 1,
-	       .end = GROUP3_MAX,
-	       .regoffset = 0x30,
-	       },
+		.start = GROUP2_MAX + 1,
+		.end = GROUP3_MAX,
+		.regoffset = 0x30,
+	},
 	[4] = {
-	       .start = GROUP3_MAX + 1,
-	       .end = GROUP4_MAX,
-	       .regoffset = 0x40,
-	       },
+		.start = GROUP3_MAX + 1,
+		.end = GROUP4_MAX,
+		.regoffset = 0x40,
+	},
 	[5] = {
-	       .start = GROUP4_MAX + 1,
-	       .end = GROUP5_MAX,
-	       .regoffset = 0x50,
-	       },
+		.start = GROUP4_MAX + 1,
+		.end = GROUP5_MAX,
+		.regoffset = 0x50,
+	},
 	[6] = {
-	       .start = GROUP5_MAX + 1,
-	       .end = GROUP6_MAX,
-	       .regoffset = 0x60,
-	       },
+		.start = GROUP5_MAX + 1,
+		.end = GROUP6_MAX,
+		.regoffset = 0x60,
+	},
 	[7] = {
-	       .start = GROUP6_MAX + 1,
-	       .end = GROUP7_MAX,
-	       .regoffset = 0x70,
-	       },
+		.start = GROUP6_MAX + 1,
+		.end = GROUP7_MAX,
+		.regoffset = 0x70,
+	},
 };
 
 unsigned int find_io_group_index(unsigned int io)
@@ -168,6 +191,15 @@ unsigned int find_io_group_index(unsigned int io)
 				return 0;
 		}
 	}
+}
+
+int find_irqbank(struct x2_pinctrl *x2_pctrl, unsigned int gpio)
+{
+	int i = 0;
+	for (i = 0; i < GPIO_IRQ_BANK_NUM; i++)
+		if (x2_pctrl->irqbind[i] == gpio)
+			return i;
+	return -1;
 }
 
 static const struct pinctrl_pin_desc x2_pins[] = {
@@ -298,30 +330,29 @@ static int x2_pinctrl_get_groups_count(struct pinctrl_dev *pctldev)
 	return pctrl->ngroups;
 }
 
-static const char *x2_pinctrl_get_group_name(struct pinctrl_dev *pctldev,
-					     unsigned selector)
+static const char* x2_pinctrl_get_group_name(struct pinctrl_dev *pctldev,
+											 unsigned selector)
 {
 	struct x2_pinctrl *pctrl = pinctrl_dev_get_drvdata(pctldev);
 	struct x2_pctrl_group *group;
 	group = radix_tree_lookup(&pctrl->pgtree, selector);
 	if (!group) {
-		dev_err(pctrl->dev, "%s could not find pingroup%i\n", __func__,
-			selector);
+		dev_err(pctrl->dev, "%s could not find pingroup%i\n", __func__, selector);
 		return NULL;
 	}
 	return group->name;
 }
 
 static int x2_pinctrl_get_group_pins(struct pinctrl_dev *pctldev,
-				     unsigned selector,
-				     const unsigned **pins, unsigned *num_pins)
+									 unsigned selector,
+									 const unsigned **pins,
+									 unsigned *num_pins)
 {
 	struct x2_pinctrl *pctrl = pinctrl_dev_get_drvdata(pctldev);
 	struct x2_pctrl_group *group;
 	group = radix_tree_lookup(&pctrl->pgtree, selector);
 	if (!group) {
-		dev_err(pctrl->dev, "%s could not find pingroup%i\n", __func__,
-			selector);
+		dev_err(pctrl->dev, "%s could not find pingroup%i\n", __func__, selector);
 		return -EINVAL;
 	}
 	*pins = group->pins;
@@ -330,8 +361,10 @@ static int x2_pinctrl_get_group_pins(struct pinctrl_dev *pctldev,
 }
 
 static unsigned int x2_add_pingroup(struct x2_pinctrl *x2_pctrl,
-				    const char *name,
-				    int *pins, int *muxs, unsigned npins)
+									const char *name,
+									int *pins,
+									int *muxs,
+									unsigned npins)
 {
 	struct x2_pctrl_group *pingroup;
 	pingroup = devm_kzalloc(x2_pctrl->dev, sizeof(*pingroup), GFP_KERNEL);
@@ -350,11 +383,10 @@ static unsigned int x2_add_pingroup(struct x2_pinctrl *x2_pctrl,
 	return 0;
 
 }
-
-static struct x2_pinmux_function *x2_add_function(struct x2_pinctrl *x2_pctrl,
-						  const char *name,
-						  const char **pgnames,
-						  unsigned npgnames)
+static struct x2_pinmux_function* x2_add_function(struct x2_pinctrl *x2_pctrl,
+												  const char *name,
+												  const char **pgnames,
+												  unsigned npgnames)
 {
 	struct x2_pinmux_function *function;
 	function = devm_kzalloc(x2_pctrl->dev, sizeof(*function), GFP_KERNEL);
@@ -372,8 +404,9 @@ static struct x2_pinmux_function *x2_add_function(struct x2_pinctrl *x2_pctrl,
 	return function;
 }
 
+
 static void x2_remove_function(struct x2_pinctrl *x2_pctrl,
-			       struct x2_pinmux_function *function)
+							   struct x2_pinmux_function *function)
 {
 	int i;
 	mutex_lock(&x2_pctrl->mutex);
@@ -387,9 +420,8 @@ static void x2_remove_function(struct x2_pinctrl *x2_pctrl,
 	x2_pctrl->nfuncs--;
 	mutex_unlock(&x2_pctrl->mutex);
 }
-
 static void x2_remove_group(struct x2_pinctrl *x2_pctrl,
-			    struct x2_pctrl_group *pingroup)
+							struct x2_pctrl_group *pingroup)
 {
 	int i;
 	mutex_lock(&x2_pctrl->mutex);
@@ -461,9 +493,10 @@ static void x2_pinctrl_free_pingroups(struct x2_pinctrl *x2_pctrl)
 }
 
 static int x2_parse_one_pinctrl_entry(struct x2_pinctrl *x2_pctrl,
-				      struct device_node *np,
-				      struct pinctrl_map **map,
-				      unsigned *num_maps, const char **pgnames)
+									  struct device_node *np,
+									  struct pinctrl_map **map,
+									  unsigned *num_maps,
+									  const char **pgnames)
 {
 	const __be32 *pinmux_group;
 	int size, rows, *pins, *muxs, index = 0, found = 0, res = -ENOMEM;
@@ -478,7 +511,7 @@ static int x2_parse_one_pinctrl_entry(struct x2_pinctrl *x2_pctrl,
 		goto existed_func;
 	}
 
-	size /= sizeof(*pinmux_group);	/* Number of elements in array */
+	size /= sizeof(*pinmux_group);  /* Number of elements in array */
 	rows = size / 2;
 
 	pins = devm_kzalloc(x2_pctrl->dev, sizeof(*pins) * rows, GFP_KERNEL);
@@ -523,9 +556,8 @@ free_pins:
 }
 
 static int x2_pinctrl_dt_node_to_map(struct pinctrl_dev *pctldev,
-				     struct device_node *np_config,
-				     struct pinctrl_map **map,
-				     unsigned *num_maps)
+									 struct device_node *np_config,
+									 struct pinctrl_map **map, unsigned *num_maps)
 {
 	struct x2_pinctrl *x2_pctrl;
 	const char **pgnames;
@@ -544,12 +576,9 @@ static int x2_pinctrl_dt_node_to_map(struct pinctrl_dev *pctldev,
 		ret = -ENOMEM;
 		goto free_map;
 	}
-	ret =
-	    x2_parse_one_pinctrl_entry(x2_pctrl, np_config, map, num_maps,
-				       pgnames);
+	ret = x2_parse_one_pinctrl_entry(x2_pctrl, np_config, map, num_maps, pgnames);
 	if (ret < 0) {
-		dev_err(x2_pctrl->dev, "no pins entries for %s ret:%d\n",
-			np_config->name, ret);
+		dev_err(x2_pctrl->dev, "no pins entries for %s ret:%d\n", np_config->name, ret);
 		goto free_pgnames;
 	}
 	return 0;
@@ -563,8 +592,8 @@ free_map:
 }
 
 static void x2_pinctrl_dt_free_map(struct pinctrl_dev *pctldev,
-				   struct pinctrl_map *map,
-				   unsigned int num_maps)
+								   struct pinctrl_map *map,
+								   unsigned int num_maps)
 {
 	struct x2_pinctrl *pctrl = pinctrl_dev_get_drvdata(pctldev);
 	devm_kfree(pctrl->dev, map);
@@ -584,31 +613,29 @@ static int x2_pmux_get_functions_count(struct pinctrl_dev *pctldev)
 	return pctrl->nfuncs;
 }
 
-static const char *x2_pmux_get_function_name(struct pinctrl_dev *pctldev,
-					     unsigned selector)
+static const char* x2_pmux_get_function_name(struct pinctrl_dev *pctldev,
+											 unsigned selector)
 {
 	struct x2_pinctrl *pctrl = pinctrl_dev_get_drvdata(pctldev);
 	struct x2_pinmux_function *func;
 	func = radix_tree_lookup(&pctrl->ftree, selector);
 	if (!func) {
-		dev_err(pctrl->dev, "%s could not find function%i\n", __func__,
-			selector);
+		dev_err(pctrl->dev, "%s could not find function%i\n", __func__, selector);
 		return NULL;
 	}
 	return func->name;
 }
 
 static int x2_pmux_get_function_groups(struct pinctrl_dev *pctldev,
-				       unsigned selector,
-				       const char *const **groups,
-				       unsigned *const num_groups)
+									   unsigned selector,
+									   const char *const **groups,
+									   unsigned *const num_groups)
 {
 	struct x2_pinctrl *pctrl = pinctrl_dev_get_drvdata(pctldev);
 	struct x2_pinmux_function *func;
 	func = radix_tree_lookup(&pctrl->ftree, selector);
 	if (!func) {
-		dev_err(pctrl->dev, "%s could not find function%i\n", __func__,
-			selector);
+		dev_err(pctrl->dev, "%s could not find function%i\n", __func__, selector);
 		return -EINVAL;
 	}
 	*groups = func->groups;
@@ -617,7 +644,8 @@ static int x2_pmux_get_function_groups(struct pinctrl_dev *pctldev,
 }
 
 static inline void x2_pinctrl_fsel_set(struct x2_pinctrl *pctrl,
-				       unsigned pin, unsigned int fsel)
+									   unsigned pin,
+									   unsigned int fsel)
 {
 	int index, value;
 	void __iomem *regaddr;
@@ -629,12 +657,12 @@ static inline void x2_pinctrl_fsel_set(struct x2_pinctrl *pctrl,
 	value &= ~(0x3 << (pin - io_groups[index].start) * 2);
 	value |= (fsel << (pin - io_groups[index].start) * 2);
 	writel(value, regaddr + X2_IO_CFG);
-	pr_debug("pin:%d fsel:%d add:0x%p value:0x%x\n", pin, fsel,
-		 regaddr + X2_IO_CFG, value);
+	pr_debug("pin:%d fsel:%d add:0x%p value:0x%x\n", pin, fsel, regaddr + X2_IO_CFG, value);
 }
 
 static int x2_pinmux_set_mux(struct pinctrl_dev *pctldev,
-			     unsigned int function, unsigned int group)
+							 unsigned int function,
+							 unsigned int group)
 {
 	int i;
 	struct x2_pinctrl *pctrl = pinctrl_dev_get_drvdata(pctldev);
@@ -658,7 +686,8 @@ static const struct pinmux_ops x2_pinmux_ops = {
 };
 
 static int x2_pinconf_cfg_get(struct pinctrl_dev *pctldev,
-			      unsigned pin, unsigned long *config)
+							  unsigned pin,
+							  unsigned long *config)
 {
 	u32 index, value;
 	unsigned int arg = 0;
@@ -677,9 +706,7 @@ static int x2_pinconf_cfg_get(struct pinctrl_dev *pctldev,
 	case PIN_CONFIG_DRIVE_PUSH_PULL:
 		{
 			value = readl(regaddr + X2_IO_CTL);
-			value &=
-			    (0x1 <<
-			     (pin - io_groups[index].start + X2_IO_DIR_SHIFT));
+			value &= (0x1 << (pin - io_groups[index].start + X2_IO_DIR_SHIFT));
 			if (!value)
 				return -EINVAL;
 			arg = 1;
@@ -694,8 +721,9 @@ static int x2_pinconf_cfg_get(struct pinctrl_dev *pctldev,
 }
 
 static int x2_pinconf_cfg_set(struct pinctrl_dev *pctldev,
-			      unsigned pin,
-			      unsigned long *configs, unsigned num_configs)
+							  unsigned pin,
+							  unsigned long *configs,
+							  unsigned num_configs)
 {
 	int i, index, value;
 	void __iomem *regaddr;
@@ -715,22 +743,16 @@ static int x2_pinconf_cfg_set(struct pinctrl_dev *pctldev,
 			{
 				value = readl(regaddr + X2_IO_CTL);
 				if (arg)
-					value |=
-					    (0x1 <<
-					     (pin - io_groups[index].start +
-					      X2_IO_DIR_SHIFT));
+					value |= (0x1 << (pin - io_groups[index].start + X2_IO_DIR_SHIFT));
 				else
-					value &=
-					    ~(0x1 <<
-					      (pin - io_groups[index].start +
-					       X2_IO_DIR_SHIFT));
+					value &= ~(0x1 << (pin - io_groups[index].start + X2_IO_DIR_SHIFT));
 				writel(value, regaddr + X2_IO_CTL);
 			}
 			break;
 		default:
 			dev_warn(pctldev->dev,
-				 "unsupported configuration parameter '%u'\n",
-				 param);
+					 "unsupported configuration parameter '%u'\n",
+					 param);
 			continue;
 		}
 	}
@@ -810,7 +832,8 @@ static int x2_gpio_direction_input(struct gpio_chip *chip, unsigned offset)
 }
 
 static int x2_gpio_direction_output(struct gpio_chip *chip,
-				    unsigned offset, int val)
+									unsigned offset,
+									int val)
 {
 	u32 value;
 	int index;
@@ -850,7 +873,6 @@ static int x2_gpio_request(struct gpio_chip *chip, unsigned int offset)
 	x2_pinctrl_fsel_set(pctrl, chip->base + offset, 0x3);
 	return 0;
 }
-
 static void x2_gpio_free(struct gpio_chip *chip, unsigned int offset)
 {
 	pinctrl_free_gpio(chip->base + offset);
@@ -873,14 +895,154 @@ static struct pinctrl_gpio_range x2_pinctrl_gpio_range = {
 	.npins = X2_IO_MAX - X2_IO_MIN + 1,
 };
 
+static void x2_gpio_irq_enable(struct irq_data *data)
+{
+	u32 value, bank;
+	void __iomem	*regaddr;
+	struct gpio_chip *chip = irq_data_get_irq_chip_data(data);
+	struct x2_pinctrl *pctrl = gpiochip_get_data(chip);
+	unsigned gpio = irqd_to_hwirq(data) + chip->base;
+	set_bit(gpio, pctrl->gpio_irq_enabled_mask);
+	bank = find_irqbank(pctrl, gpio);
+	if (bank < GPIO_IRQ_BANK0 || bank > GPIO_IRQ_BANK3)
+		return;
+	regaddr = pctrl->regbase + X2_IO_INT_EN;
+	value = readl(regaddr);
+	value |= 0x1 << bank;
+	writel(value, regaddr);
+}
+
+static void x2_gpio_irq_disable(struct irq_data *data)
+{
+	u32 value, bank;
+	void __iomem	*regaddr;
+	struct gpio_chip *chip = irq_data_get_irq_chip_data(data);
+	struct x2_pinctrl *pctrl = gpiochip_get_data(chip);
+	unsigned gpio = irqd_to_hwirq(data) + chip->base;
+	clear_bit(gpio, pctrl->gpio_irq_enabled_mask);
+	bank = find_irqbank(pctrl, gpio);
+	if (bank < GPIO_IRQ_BANK0 || bank > GPIO_IRQ_BANK3)
+		return;
+	regaddr = pctrl->regbase + X2_IO_INT_EN;
+	value = readl(regaddr);
+	value &= ~(0x1 << bank);
+	writel(value, regaddr);
+}
+
+static void x2_gpio_irq_unmask(struct irq_data *data)
+{
+	u32 value, bank;
+	struct gpio_chip *chip = irq_data_get_irq_chip_data(data);
+	struct x2_pinctrl *pctrl = gpiochip_get_data(chip);
+	unsigned gpio = irqd_to_hwirq(data) + chip->base;
+	bank = find_irqbank(pctrl, gpio);
+	if (bank < GPIO_IRQ_BANK0 || bank > GPIO_IRQ_BANK3)
+		return;
+	value = readl(pctrl->regbase + X2_IO_INT_UNMASK);
+	value &= ~(0x1 << bank);
+	writel(value, pctrl->regbase + X2_IO_INT_UNMASK);
+}
+
+static void x2_gpio_irq_mask(struct irq_data *data)
+{
+	u32 value, bank;
+	struct gpio_chip *chip = irq_data_get_irq_chip_data(data);
+	struct x2_pinctrl *pctrl = gpiochip_get_data(chip);
+	unsigned gpio = irqd_to_hwirq(data) + chip->base;
+	bank = find_irqbank(pctrl, gpio);
+	if (bank < GPIO_IRQ_BANK0 || bank > GPIO_IRQ_BANK3)
+		return;
+	value = readl(pctrl->regbase + X2_IO_INT_SETMASK);
+	value &= ~(0x1 << bank);
+	writel(value, pctrl->regbase + X2_IO_INT_SETMASK);
+}
+
+static int x2_gpio_irq_set_type(struct irq_data *data, unsigned int type)
+{
+	u32 value1, value2, gpio, bank;
+	struct gpio_chip *chip = irq_data_get_irq_chip_data(data);
+	struct x2_pinctrl *pctrl = gpiochip_get_data(chip);
+	gpio = irqd_to_hwirq(data) + chip->base;
+	bank = find_irqbank(pctrl, gpio);
+	if (bank < GPIO_IRQ_BANK0 || bank > GPIO_IRQ_BANK3)
+		return -EINVAL;
+	value1 = readl(pctrl->regbase + X2_IO_INT_POS);
+	value2 = readl(pctrl->regbase + X2_IO_INT_NEG);
+	switch (type) {
+	case IRQ_TYPE_EDGE_RISING:
+		value1 |= BIT(bank);
+		value2 &= ~BIT(bank);
+		break;
+	case IRQ_TYPE_EDGE_FALLING:
+		value1 &= ~BIT(bank);
+		value2 |= BIT(bank);
+		break;
+	case IRQ_TYPE_EDGE_BOTH:
+		value1 |= BIT(bank);
+		value2 |= BIT(bank);
+		break;
+	default:
+		return -EINVAL;
+	}
+	writel(value1, pctrl->regbase + X2_IO_INT_POS);
+	writel(value2, pctrl->regbase + X2_IO_INT_NEG);
+	return 0;
+}
+
+static int x2_set_gpio_irq_to_bank(struct x2_pinctrl *pctrl)
+{
+	u32 value, index, gpio;
+	for (index = 0; index < GPIO_IRQ_BANK_NUM; index++) {
+		gpio = pctrl->irqbind[index];
+		if (gpio < X2_IO_MIN || gpio > X2_IO_MAX)
+			continue;
+		value = readl(pctrl->regbase + X2_IO_INT_SEL);
+		value &= ~(0x3f << index * 6);
+		value |= (gpio << index * 6);
+		writel(value, pctrl->regbase + X2_IO_INT_SEL);
+	}
+	return 0;
+}
+
+static struct irq_chip x2_gpio_irq_chip = {
+	.name = "pinctrl-x2",
+	.irq_enable = x2_gpio_irq_enable,
+	.irq_disable = x2_gpio_irq_disable,
+	.irq_set_type = x2_gpio_irq_set_type,
+	.irq_ack = NULL,
+	.irq_mask = x2_gpio_irq_mask,
+	.irq_unmask = x2_gpio_irq_unmask,
+};
+
+static void x2_gpio_generic_handler(struct irq_desc *desc)
+{
+	u32 value, gpio, i;
+	void __iomem	*regaddr;
+	struct gpio_chip *chip = irq_desc_get_handler_data(desc);
+	struct irq_chip *irqchip = irq_desc_get_chip(desc);
+	struct x2_pinctrl *pctrl = gpiochip_get_data(chip);
+
+	chained_irq_enter(irqchip, desc);
+
+	regaddr = pctrl->regbase + X2_IO_INT_SRCPND;
+	value = readl(regaddr);
+	for (i = 0; i < GPIO_IRQ_BANK_NUM; i++) {
+		gpio = pctrl->irqbind[i];
+		if ((value & BIT(i)) && gpio && test_bit(gpio, pctrl->gpio_irq_enabled_mask)) {
+			generic_handle_irq(gpio_to_irq(gpio));
+		}
+	}
+	writel(value, regaddr);
+	chained_irq_exit(irqchip, desc);
+}
+
 static int x2_pinctrl_probe(struct platform_device *pdev)
 {
-	struct resource *res;
+	struct resource *res,*irq;
 	struct x2_pinctrl *x2_pctrl;
 	int ret = 0;
 
-	x2_pctrl =
-	    devm_kzalloc(&pdev->dev, sizeof(struct x2_pinctrl), GFP_KERNEL);
+	x2_pctrl = devm_kzalloc(&pdev->dev, sizeof(struct x2_pinctrl), GFP_KERNEL);
 	if (!x2_pctrl)
 		return -ENOMEM;
 	printk("x2_pinctrl_probe\n");
@@ -894,7 +1056,7 @@ static int x2_pinctrl_probe(struct platform_device *pdev)
 	mutex_init(&x2_pctrl->mutex);
 	INIT_LIST_HEAD(&x2_pctrl->pingroups);
 	INIT_LIST_HEAD(&x2_pctrl->functions);
-
+	bitmap_zero(x2_pctrl->gpio_irq_enabled_mask, X2_NUM_IOS);
 	x2_pctrl->gpio_chip = &x2_gpio;
 	x2_pctrl->gpio_chip->parent = &pdev->dev;
 	x2_pctrl->gpio_chip->of_node = pdev->dev.of_node;
@@ -910,7 +1072,6 @@ static int x2_pinctrl_probe(struct platform_device *pdev)
 		ret = PTR_ERR(x2_pctrl->pctrl);
 		goto free;
 	}
-
 	x2_pctrl->gpio_range = &x2_pinctrl_gpio_range;
 	x2_pctrl->gpio_range->base = X2_IO_MIN;
 	x2_pctrl->gpio_range->pin_base = X2_IO_MIN;
@@ -919,8 +1080,29 @@ static int x2_pinctrl_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, x2_pctrl);
 
-	dev_info(&pdev->dev, "x2 pinctrl initialized\n");
+	x2_pctrl->irq_base = devm_irq_alloc_descs(x2_pctrl->dev, -1, 0,
+											  x2_pctrl->gpio_chip->ngpio, NUMA_NO_NODE);
+	if (x2_pctrl->irq_base < 0) {
+		dev_err(x2_pctrl->dev, "Failed to allocate IRQ numbers\n");
+	}
+	ret = gpiochip_irqchip_add(x2_pctrl->gpio_chip, &x2_gpio_irq_chip, x2_pctrl->irq_base,
+							   handle_level_irq, IRQ_TYPE_NONE);
+	if (ret) {
+		dev_err(&pdev->dev, "Could not connect irqchip to gpiochip!\n");
+	}
+	irq = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
+	if (!irq) {
+		dev_err(&pdev->dev, "No IRQ resource\n");
+		return -ENODEV;
+	}
+	gpiochip_set_chained_irqchip(x2_pctrl->gpio_chip, &x2_gpio_irq_chip, irq->start,
+								 x2_gpio_generic_handler);
 
+	if (!of_property_read_u32_array(pdev->dev.of_node, "gpioirq-bank-cfg", x2_pctrl->irqbind, GPIO_IRQ_BANK_NUM)) {
+		x2_set_gpio_irq_to_bank(x2_pctrl);
+	}
+
+	dev_info(&pdev->dev, "x2 pinctrl initialized\n");
 	return 0;
 free:
 	x2_pinctrl_free_funcs(x2_pctrl);
@@ -935,9 +1117,9 @@ static const struct of_device_id x2_pinctrl_of_match[] = {
 
 static struct platform_driver x2_pinctrl_driver = {
 	.driver = {
-		   .name = "pinctrl-x2",
-		   .of_match_table = x2_pinctrl_of_match,
-		   },
+		.name = "pinctrl-x2",
+		.of_match_table = x2_pinctrl_of_match,
+	},
 	.probe = x2_pinctrl_probe,
 };
 
@@ -945,5 +1127,5 @@ static int __init x2_pinctrl_init(void)
 {
 	return platform_driver_register(&x2_pinctrl_driver);
 }
-
 arch_initcall(x2_pinctrl_init);
+

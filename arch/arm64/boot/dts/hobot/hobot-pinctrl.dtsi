@@ -15,6 +15,9 @@
 		pinctrl: pinctrl@0xA6003000 {
 			compatible = "hobot,x2-pinctrl";
 			reg = <0 0xA6003000 0 0x100>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 45 4>;
+			gpioirq-bank-cfg = <12 0 0 0>;/*specific the gpio of each irq banck, 0 is invalid*/
 			status = "disabled";
 			i2c0_func: i2c0_func {
 				pinctrl-x2,pins-muxs = <
@@ -22,22 +25,22 @@
 					10	0 /*i2c SDA*/
 				>;
 			};
-            i2s0_func: i2s0_func {
-                pinctrl-x2,pins-muxs = <
-                    88 0
-                    89 0
-                    90 0
-                    91 0
-                >;
-            };
-            i2s1_func: i2s1_func {
-                pinctrl-x2,pins-muxs = <
-                    5 1
-                    61 2
-                    62 2
-                    63 2
-                >;
-            };
+			i2s0_func: i2s0_func {
+				pinctrl-x2,pins-muxs = <
+					88 0
+					89 0
+					90 0
+					91 0
+				>;
+			};
+			i2s1_func: i2s1_func {
+				pinctrl-x2,pins-muxs = <
+					5 1
+					61 2
+					62 2
+					63 2
+				>;
+			};
 			btin_func:btin_func {
 				pinctrl-x2,pins-muxs = <
 					61	0
@@ -145,9 +148,9 @@
 					53	0
 					54	0
 					55	0
-					56  	0
-					57  	0
-					58  	0
+					56		0
+					57		0
+					58		0
 				>;
 			};
 			sdio1_func:sdio1_func {
@@ -163,3 +166,4 @@
 		};
 	};
 };
+
