@@ -52,14 +52,12 @@ static void netlink_recv(struct sk_buff *skb)
 }
 
 struct netlink_kernel_cfg nl_cfg = {
-	.input = netlink_recv,	/* recv callback */
+	.input = netlink_recv,      /* recv callback */
 };
 
 static int __init ipu_netlink_init(void)
 {
-	g_nlsk =
-	    (struct sock *)netlink_kernel_create(&g_ipu_net, NETLINK_IPU,
-						 &nl_cfg);
+	g_nlsk = (struct sock *)netlink_kernel_create(&g_ipu_net, NETLINK_IPU, &nl_cfg);
 	if (!g_nlsk) {
 		printk("[ipu] create netlink kernel fail\n");
 		return -1;

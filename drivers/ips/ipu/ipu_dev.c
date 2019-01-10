@@ -25,13 +25,13 @@
 #define MAKEUP_HW(w, h) 			(((h) & 0x1fff) << 16 | ((w) & 0x1fff))
 
 /* reg ipu frame id */
-#define SET_FRAME_ID_BT_MODE		(1 << 2)	/* 0 is dvp/mipi mode */
-#define SET_FRAME_ID_SCALE_EN		(1 << 1)	/* enable frame id when scale to ddr */
-#define SET_FRAME_ID_CROP_EN		(1 << 0)	/* enable frame id when crop to ddr */
+#define SET_FRAME_ID_BT_MODE		(1 << 2)						/* 0 is dvp/mipi mode */
+#define SET_FRAME_ID_SCALE_EN		(1 << 1)						/* enable frame id when scale to ddr */
+#define SET_FRAME_ID_CROP_EN		(1 << 0)						/* enable frame id when crop to ddr */
 
 /* reg pymid ds ctrl */
-#define SET_START_PYMID_SW_MODE 	(1 << 7)	/* only used in software pymid mode */
-#define SET_PYMID_HW_MODE			(1 << 6)	/* 0 for sw mode */
+#define SET_START_PYMID_SW_MODE 	(1 << 7)						/* only used in software pymid mode */
+#define SET_PYMID_HW_MODE			(1 << 6)						/* 0 for sw mode */
 #define SET_PYMID_EN				(1 << 5)
 #define SET_DS_UV_BYPASS(d) 		(((d) & 0x3f) << 8)
 #define SET_DS_LAYER_EN(d)			(((d) & 0x1f) << 0)
@@ -106,32 +106,32 @@ unsigned char __iomem *g_regbase = NULL;
 
 int8_t ipu_dump_regs(void)
 {
-	uint8_t i = 0;
-	uint32_t d = 0;
-	void __iomem *addr = NULL;
+	uint8_t 	   i = 0;
+	uint32_t	   d = 0;
+	void __iomem  *addr = NULL;
 
 	for (i = 0; i < 17; i++) {
 		addr = g_regbase + i * 4;
 		d = readl(addr);
-		ipu_dbg("0x%llx=0x%x\n", (uint64_t) addr, d);
+		ipu_dbg("0x%llx=0x%x\n", (uint64_t)addr, d);
 	}
 
 	for (i = 0; i < 16; i++) {
 		addr = g_regbase + i * 4 + 0x100;
 		d = readl(addr);
-		ipu_dbg("0x%llx=0x%x\n", (uint64_t) addr, d);
+		ipu_dbg("0x%llx=0x%x\n", (uint64_t)addr, d);
 	}
 
 	for (i = 0; i < 16; i++) {
 		addr = g_regbase + i * 4 + 0x200;
 		d = readl(addr);
-		ipu_dbg("0x%llx=0x%x\n", (uint64_t) addr, d);
+		ipu_dbg("0x%llx=0x%x\n", (uint64_t)addr, d);
 	}
 
 	return 0;
 }
 
-int8_t set_ipu_regbase(unsigned char __iomem * base)
+int8_t set_ipu_regbase(unsigned char __iomem *base)
 {
 	g_regbase = base;
 	return 0;
@@ -143,7 +143,7 @@ int8_t clr_ipu_regbase(void)
 	return 0;
 }
 
-int8_t set_ipu_ctrl(ipu_ctrl_t * info)
+int8_t set_ipu_ctrl(ipu_ctrl_t *info)
 {
 	uint32_t d = 0;
 
@@ -179,7 +179,7 @@ int8_t set_ipu_ctrl(ipu_ctrl_t * info)
 	return 0;
 }
 
-int8_t set_ipu_video_size(wh_t * info)
+int8_t set_ipu_video_size(wh_t *info)
 {
 	uint32_t d = 0;
 
@@ -192,7 +192,7 @@ int8_t set_ipu_video_size(wh_t * info)
 	return 0;
 }
 
-int8_t set_ipu_crop(crop_t * info)
+int8_t set_ipu_crop(crop_t *info)
 {
 	uint32_t d = 0;
 
@@ -208,7 +208,7 @@ int8_t set_ipu_crop(crop_t * info)
 	return 0;
 }
 
-int8_t set_ipu_scale(scale_t * info)
+int8_t set_ipu_scale(scale_t *info)
 {
 	uint32_t d = 0;
 
@@ -234,7 +234,7 @@ int8_t set_ipu_scale(scale_t * info)
 	return 0;
 }
 
-int8_t set_ipu_frame_id(frame_id_t * info)
+int8_t set_ipu_frame_id(frame_id_t *info)
 {
 	uint32_t d = 0;
 
@@ -255,7 +255,7 @@ int8_t set_ipu_frame_id(frame_id_t * info)
 	return 0;
 }
 
-int8_t set_ipu_pymid(pymid_t * info)
+int8_t set_ipu_pymid(pymid_t *info)
 {
 	uint32_t d = 0, s = 0, m = 0;
 	int8_t i = 0;
@@ -267,7 +267,8 @@ int8_t set_ipu_pymid(pymid_t * info)
 	if (info->ds_uv_bypass != 0) {
 		s = info->ds_uv_bypass;
 		for (i = 23; i >= 1; i--) {
-			if (i == 4 || i == 8 || i == 12 || i == 16 || i == 20)
+			if (i == 4 || i == 8 || i == 12\
+						|| i == 16 || i == 20)
 				continue;
 			m <<= 1;
 			if (s >> i & 0x1) {
@@ -288,7 +289,7 @@ int8_t set_ipu_pymid(pymid_t * info)
 		d |= SET_PYMID_EN;
 
 	m = 0;
-	for (i = 0; i < info->ds_layer_en >> 2; i++) {	// hard to understand
+	for (i = 0; i < info->ds_layer_en >> 2; i++) { // hard to understand
 		m <<= 1;
 		m |= 1;
 	}
@@ -428,8 +429,8 @@ int8_t set_ipu_pymid(pymid_t * info)
 	writel(d, g_regbase + PYMID_US_CTRL);
 
 	/* step 2.2. write us factor reg */
-	if (info->us_factor[0] != 0 && info->us_factor[1] != 0 &&
-	    info->us_factor[2] != 0 && info->us_factor[3] != 0) {
+	if (info->us_factor[0] != 0 && info->us_factor[1] != 0 &&\
+				info->us_factor[2] != 0 && info->us_factor[3] != 0) {
 		d = SET_US_FACTOR_P0(info->us_factor[0]);
 		d |= SET_US_FACTOR_P1(info->us_factor[1]);
 		d |= SET_US_FACTOR_P2(info->us_factor[2]);
@@ -511,7 +512,7 @@ int8_t set_ds_src_addr(uint32_t y_addr, uint32_t c_addr)
 {
 	if (g_regbase == NULL)
 		return -1;
-	printk("set_ds_src 0x%x 0x%x \n", y_addr, c_addr);
+	ipu_info("set_ds_src 0x%x 0x%x \n", y_addr, c_addr);
 	writel(y_addr, g_regbase + PYMID_SRC_Y_ADDR);
 	writel(c_addr, g_regbase + PYMID_SRC_C_ADDR);
 
@@ -525,7 +526,7 @@ int8_t set_ds_layer_addr(uint8_t id, uint32_t y_addr, uint32_t c_addr)
 
 	if (g_regbase == NULL)
 		return -1;
-	printk("set_ds %d 0x%x 0x%x \n", id, y_addr, c_addr);
+	ipu_info("set_ds %d 0x%x 0x%x \n", id, y_addr, c_addr);
 	switch (id) {
 	case 0:
 		writel(y_addr, g_regbase + PYMID_Y_ADDR_P0);
@@ -632,7 +633,7 @@ int8_t set_ds_layer_addr(uint8_t id, uint32_t y_addr, uint32_t c_addr)
 int8_t pym_manual_start(void)
 {
 	uint32_t regval = 0;
-	printk("pym_manual_start\n");
+	ipu_info("pym_manual_start\n");
 	regval = readl(g_regbase + PYMID_DS_CTRL);
 	regval |= SET_START_PYMID_SW_MODE;
 	writel(regval, g_regbase + PYMID_DS_CTRL);
@@ -677,7 +678,6 @@ int8_t set_us_layer_addr(uint8_t id, uint32_t y_addr, uint32_t c_addr)
 	}
 	return 0;
 }
-
 void ctrl_ipu_to_ddr(uint32_t module, bool status)
 {
 	uint32_t regval = 0;
@@ -704,11 +704,11 @@ void ctrl_ipu_to_ddr(uint32_t module, bool status)
 	if (module & PYM_TO_DDR) {
 		regval = readl(g_regbase + PYMID_DS_CTRL);
 		if (status) {
-			printk("start pym\n");
+			ipu_info("start pym\n");
 			regval |= BIT(5);
 		} else {
 			regval &= ~BIT(5);
-			printk("stop pym\n");
+			ipu_info("stop pym\n");
 		}
 		writel(regval, g_regbase + PYMID_DS_CTRL);
 	}

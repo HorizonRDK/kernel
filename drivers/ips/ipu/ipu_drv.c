@@ -32,13 +32,15 @@
 #define DISABLE 0
 
 struct x2_ipu_data *g_ipu = NULL;
+unsigned int ipu_debug_level = 0;
+module_param(ipu_debug_level, uint, 0644);
 
-int8_t ipu_cfg_ddrinfo_init(ipu_cfg_t * ipu)
+int8_t ipu_cfg_ddrinfo_init(ipu_cfg_t *ipu)
 {
 	uint32_t w = 0, h = 0;
 	uint32_t size = 0;
 	uint32_t i = 0;
-	uint64_t ddrbase = 0;	//(uint64_t)g_ipu->paddr;
+	uint64_t ddrbase = 0; //(uint64_t)g_ipu->paddr;
 	uint32_t limit = ddrbase + IPU_SLOT_SIZE;
 
 	/* step0. calculate slot head info size */
@@ -92,9 +94,7 @@ int8_t ipu_cfg_ddrinfo_init(ipu_cfg_t * ipu)
 				ddrbase += size * 3 >> 1;
 			}
 			ddrbase = ALIGN_16(ddrbase);
-			ipu_info("pym%d %d %d %d %d 0x%llx 0x%llx", i, w, h,
-				 ipu->pymid.ds_roi[i].w, ipu->pymid.ds_roi[i].h,
-				 ipu->ds_ddr[i].y_addr, ipu->ds_ddr[i].c_addr);
+			ipu_info("pym%d %d %d %d %d 0x%llx 0x%llx", i, w, h, ipu->pymid.ds_roi[i].w, ipu->pymid.ds_roi[i].h, ipu->ds_ddr[i].y_addr, ipu->ds_ddr[i].c_addr);
 			if (ddrbase >= limit)
 				goto err_out;
 			//set_ds_layer_addr(i, ipu->ds_ddr[i].y_addr, ipu->ds_ddr[i].c_addr);
@@ -131,30 +131,26 @@ err_out:
 	return -1;
 }
 
-static int8_t ipu_set_crop_ddr(ipu_cfg_t * ipu, uint64_t ddrbase)
+static int8_t ipu_set_crop_ddr(ipu_cfg_t *ipu, uint64_t ddrbase)
 {
 	/* step0. calculate slot head info size */
 	ddrbase = ALIGN_16(ddrbase);
 
 	/* step1. calculate crop space */
 	if (ipu->ctrl.crop_ddr_en == 1) {
-		set_ipu_addr(0, ipu->crop_ddr.y_addr + ddrbase,
-			     ipu->crop_ddr.c_addr + ddrbase);
+		set_ipu_addr(0, ipu->crop_ddr.y_addr + ddrbase, ipu->crop_ddr.c_addr + ddrbase);
 	}
 	return 0;
 }
-
-static int8_t ipu_set_scale_ddr(ipu_cfg_t * ipu, uint64_t ddrbase)
+static int8_t ipu_set_scale_ddr(ipu_cfg_t *ipu, uint64_t ddrbase)
 {
 	/* step2. calculate scale space */
 	if (ipu->ctrl.scale_ddr_en == 1) {
-		set_ipu_addr(1, ipu->scale_ddr.y_addr + ddrbase,
-			     ipu->scale_ddr.c_addr + ddrbase);
+		set_ipu_addr(1, ipu->scale_ddr.y_addr + ddrbase, ipu->scale_ddr.c_addr + ddrbase);
 	}
 	return 0;
 }
-
-static int8_t ipu_set_pym_ddr(ipu_cfg_t * ipu, uint64_t ddrbase)
+static int8_t ipu_set_pym_ddr(ipu_cfg_t *ipu, uint64_t ddrbase)
 {
 	uint32_t i = 0;
 
@@ -167,8 +163,7 @@ static int8_t ipu_set_pym_ddr(ipu_cfg_t * ipu, uint64_t ddrbase)
 				ipu->ds_ddr[i].c_addr = 0;
 				continue;
 			}
-			set_ds_layer_addr(i, ipu->ds_ddr[i].y_addr + ddrbase,
-					  ipu->ds_ddr[i].c_addr + ddrbase);
+			set_ds_layer_addr(i, ipu->ds_ddr[i].y_addr + ddrbase, ipu->ds_ddr[i].c_addr + ddrbase);
 		}
 
 		/* step3.1. calculate pymid us space */
@@ -179,25 +174,23 @@ static int8_t ipu_set_pym_ddr(ipu_cfg_t * ipu, uint64_t ddrbase)
 				ipu->us_ddr[i].c_addr = 0;
 				continue;
 			}
-			set_us_layer_addr(i, ipu->us_ddr[i].y_addr + ddrbase,
-					  ipu->us_ddr[i].c_addr + ddrbase);
+			set_us_layer_addr(i, ipu->us_ddr[i].y_addr + ddrbase, ipu->us_ddr[i].c_addr + ddrbase);
 		}
 	}
 
 	return 0;
 }
 
-static int8_t ipu_set_pymsrc_ddr(ipu_cfg_t * ipu, uint64_t ddrbase, bool first)
+static int8_t ipu_set_pymsrc_ddr(ipu_cfg_t *ipu, uint64_t ddrbase, bool first)
 {
 	if (first)
-		set_ds_src_addr(ipu->crop_ddr.y_addr + ddrbase,
-				ipu->crop_ddr.c_addr + ddrbase);
+		set_ds_src_addr(ipu->crop_ddr.y_addr + ddrbase, ipu->crop_ddr.c_addr + ddrbase);
 	else
-		set_ds_src_addr(ipu->scale_ddr.y_addr + ddrbase,
-				ipu->scale_ddr.c_addr + ddrbase);
+		set_ds_src_addr(ipu->scale_ddr.y_addr + ddrbase, ipu->scale_ddr.c_addr + ddrbase);
 
 	return 0;
 }
+
 
 /********************************************************************
  * @brief ipu_set_ddr
@@ -207,22 +200,18 @@ static int8_t ipu_set_pymsrc_ddr(ipu_cfg_t * ipu, uint64_t ddrbase, bool first)
  *
  * @return
  ********************************************************************/
-static int8_t ipu_set_ddr(ipu_cfg_t * ipu, uint64_t ddrbase)
+static int8_t ipu_set_ddr(ipu_cfg_t *ipu, uint64_t ddrbase)
 {
 	int8_t ret = 0;
 	uint32_t i = 0;
 	/* step1. set crop addr */
 	if (ipu->ctrl.crop_ddr_en == 1) {
-		ret |=
-		    set_ipu_addr(0, ipu->crop_ddr.y_addr + ddrbase,
-				 ipu->crop_ddr.c_addr + ddrbase);
+		ret |= set_ipu_addr(0, ipu->crop_ddr.y_addr + ddrbase, ipu->crop_ddr.c_addr + ddrbase);
 	}
 
 	/* step2. set scale addr */
 	if (ipu->ctrl.scale_ddr_en == 1) {
-		ret |=
-		    set_ipu_addr(1, ipu->scale_ddr.y_addr + ddrbase,
-				 ipu->scale_ddr.c_addr + ddrbase);
+		ret |= set_ipu_addr(1, ipu->scale_ddr.y_addr + ddrbase, ipu->scale_ddr.c_addr + ddrbase);
 	}
 
 	/* step3. set pymid addr */
@@ -230,29 +219,19 @@ static int8_t ipu_set_ddr(ipu_cfg_t * ipu, uint64_t ddrbase)
 		/* step3.1 set pymid ds addr */
 		for (i = 0; i < ipu->pymid.ds_layer_en; i++) {
 			if (i == 0 || ipu->pymid.ds_factor[i] != 0)
-				ret |=
-				    set_ds_layer_addr(i,
-						      ipu->ds_ddr[i].y_addr +
-						      ddrbase,
-						      ipu->ds_ddr[i].c_addr +
-						      ddrbase);
+				ret |= set_ds_layer_addr(i, ipu->ds_ddr[i].y_addr + ddrbase, ipu->ds_ddr[i].c_addr + ddrbase);
 		}
 
 		/* step3.2. set pymid us addr */
 		for (i = 0; i < 6; i++) {
 			if (ipu->pymid.us_layer_en & 1 << i)
-				ret |=
-				    set_us_layer_addr(i,
-						      ipu->us_ddr[i].y_addr +
-						      ddrbase,
-						      ipu->us_ddr[i].c_addr +
-						      ddrbase);
+				ret |= set_us_layer_addr(i, ipu->us_ddr[i].y_addr + ddrbase, ipu->us_ddr[i].c_addr + ddrbase);
 		}
 	}
 	return ret;
 }
 
-int8_t ipu_set(ipu_cmd_e cmd, ipu_cfg_t * ipu_cfg, uint64_t data)
+int8_t ipu_set(ipu_cmd_e cmd, ipu_cfg_t *ipu_cfg, uint64_t data)
 {
 	switch (cmd) {
 	case IPUC_SET_DDR:
@@ -333,9 +312,7 @@ static int ipu_thread(void *data)
 	struct x2_ipu_data *ipu = (struct x2_ipu_data *)data;
 	ipu_info("ipu thread run\n");
 	do {
-		wait_event_interruptible(ipu->wq_head,
-					 test_and_clear_bit(IPU_TRIGGER_ISR,
-							    &ipu->runflags));
+		wait_event_interruptible(ipu->wq_head, test_and_clear_bit(IPU_TRIGGER_ISR, &ipu->runflags));
 
 		if (kthread_should_stop())
 			break;
@@ -352,7 +329,7 @@ static int ipu_thread(void *data)
 		ipu->done_idx = -1;
 
 		if (ipu->ipu_mode && ipu->ipu_handle[ipu->ipu_mode])
-			ipu->ipu_handle[ipu->ipu_mode] (status);
+			ipu->ipu_handle[ipu->ipu_mode](status);
 		spin_unlock(&ipu->elock);
 
 	} while (!kthread_should_stop());
@@ -384,14 +361,14 @@ static int8_t ipu_stop_thread(struct x2_ipu_data *ipu)
 	return 0;
 }
 
-void init_test_data(ipu_cfg_t * info)
+void init_test_data(ipu_cfg_t *info)
 {
 	info->video_in.w = 1280;
 	info->video_in.h = 720;
 	info->ctrl.crop_ddr_en = 1;
 	info->ctrl.crop_en = 1;
 	info->ctrl.scale_ddr_en = 1;
-	info->ctrl.src_fmt = 0;	// from sif
+	info->ctrl.src_fmt = 0;  // from sif
 	info->ctrl.to_pymid = 1;
 	info->ctrl.uv_fmt = 1;
 
@@ -416,7 +393,7 @@ void init_test_data(ipu_cfg_t * info)
 	info->frame_id.scale_en = 0;
 
 	info->pymid.pymid_en = 0;
-	info->pymid.src_from = 0;	//isp mode
+	info->pymid.src_from = 0; //isp mode
 	info->pymid.ds_layer_en = 3;
 	info->pymid.ds_factor[1] = 18;
 	info->pymid.ds_roi[1].l = 600;
@@ -460,7 +437,7 @@ void init_test_data(ipu_cfg_t * info)
 	info->pymid.us_src_width[2] = 260;
 }
 
-static void *ipu_vmap(phys_addr_t start, size_t size)
+static void* ipu_vmap(phys_addr_t start, size_t size)
 {
 	struct page **pages;
 	phys_addr_t page_start;
@@ -474,8 +451,7 @@ static void *ipu_vmap(phys_addr_t start, size_t size)
 	prot = pgprot_noncached(PAGE_KERNEL);
 	pages = kmalloc_array(page_count, sizeof(struct page *), GFP_KERNEL);
 	if (!pages) {
-		pr_err("%s: Failed to allocate array for %u pages\n", __func__,
-		       page_count);
+		pr_err("%s: Failed to allocate array for %u pages\n", __func__, page_count);
 		return NULL;
 	}
 
@@ -503,7 +479,7 @@ static int x2_ipu_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 
-	ipu_cfg = (ipu_cfg_t *) kzalloc(sizeof(ipu_cfg_t), GFP_KERNEL);
+	ipu_cfg = (ipu_cfg_t *)kzalloc(sizeof(ipu_cfg_t), GFP_KERNEL);
 	if (!ipu_cfg) {
 		rc = -ENOMEM;
 		goto err_out;
@@ -529,7 +505,7 @@ static int x2_ipu_probe(struct platform_device *pdev)
 	}
 
 	dev_info(&pdev->dev, "ipu res regbase=0x%x, mapbase=0x%llx\n",
-		 (uint32_t) res->start, (uint64_t) ipu->regbase);
+			 (uint32_t)res->start, (uint64_t)ipu->regbase);
 	set_ipu_regbase(ipu->regbase);
 	ipu->io_r = res;
 
@@ -543,16 +519,14 @@ static int x2_ipu_probe(struct platform_device *pdev)
 
 	rc = of_address_to_resource(np, 0, &r);
 	if (rc) {
-		dev_err(&pdev->dev,
-			"No memory address assigned to the region\n");
+		dev_err(&pdev->dev, "No memory address assigned to the region\n");
 		goto err_out2;
 	}
 	ipu->paddr = (unsigned char __iomem *)r.start;
 	ipu->memsize = resource_size(&r);
 	ipu->vaddr = ipu_vmap(r.start, ipu->memsize);
-	dev_info(&pdev->dev,
-		 "Allocate reserved memory, paddr: 0x%0llx, vaddr: 0x%0llx, len=0x%x\n",
-		 (uint64_t) ipu->paddr, (uint64_t) ipu->vaddr, ipu->memsize);
+	dev_info(&pdev->dev, "Allocate reserved memory, paddr: 0x%0llx, vaddr: 0x%0llx, len=0x%x\n",
+			 (uint64_t)ipu->paddr, (uint64_t)ipu->vaddr, ipu->memsize);
 
 	platform_set_drvdata(pdev, ipu);
 	g_ipu = ipu;
@@ -563,8 +537,7 @@ static int x2_ipu_probe(struct platform_device *pdev)
 	ipu->stop = true;
 	ips_module_reset(RST_IPU);
 	if (ipu->ipu_task == NULL) {
-		ipu->ipu_task =
-		    kthread_run(ipu_thread, (void *)g_ipu, "ipu_thread");
+		ipu->ipu_task = kthread_run(ipu_thread, (void *)g_ipu, "ipu_thread");
 		if (IS_ERR(ipu->ipu_task)) {
 			ipu->ipu_task = NULL;
 			ipu_err("thread create fail\n");
@@ -611,44 +584,42 @@ static int x2_ipu_remove(struct platform_device *pdev)
 
 /* Match table for of_platform binding */
 static const struct of_device_id x2_ipu_of_match[] = {
-	{.compatible = "hobot,x2-ipu",},
+	{.compatible = "hobot,x2-ipu", },
 	{}
 };
 
 MODULE_DEVICE_TABLE(of, x2_ipu_of_match);
 
 static struct platform_driver x2_ipu_platform_driver = {
-	.probe = x2_ipu_probe,
-	.remove = x2_ipu_remove,
-	.driver = {
-		   .name = X2_IPU_NAME,
-		   .of_match_table = x2_ipu_of_match,
-		   },
+	.probe	 = x2_ipu_probe,
+	.remove  = x2_ipu_remove,
+	.driver  = {
+		.name = X2_IPU_NAME,
+		.of_match_table = x2_ipu_of_match,
+	},
 };
 
+
 struct kobject *x2_ipu_kobj;
-static ssize_t x2_ipu_show(struct kobject *kobj, struct kobj_attribute *attr,
-			   char *buf)
+static ssize_t x2_ipu_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
 	char *s = buf;
 	ipu_dump_regs();
 	return (s - buf);
 }
-
-static ssize_t x2_ipu_store(struct kobject *kobj, struct kobj_attribute *attr,
-			    const char *buf, size_t n)
+static ssize_t x2_ipu_store(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t n)
 {
 	int error = -EINVAL;
 	return error ? error : n;
 }
 
 static struct kobj_attribute ipu_test_attr = {
-	.attr = {
-		 .name = __stringify(ipu_test_attr),
-		 .mode = 0644,
-		 },
-	.show = x2_ipu_show,
-	.store = x2_ipu_store,
+	.attr   = {
+		.name = __stringify(ipu_test_attr),
+		.mode = 0644,
+	},
+	.show   = x2_ipu_show,
+	.store  = x2_ipu_store,
 };
 
 static struct attribute *attributes[] = {

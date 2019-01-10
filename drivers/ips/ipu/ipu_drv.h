@@ -24,13 +24,13 @@ enum {
 	IPU_DDR_DUAL,
 };
 
-typedef void (*ipu_handle_t) (uint32_t status);
+typedef void (*ipu_handle_t)(uint32_t status);
 
 struct x2_ipu_data {
-	void __iomem *regbase;	/* read/write[bwl] */
+	void __iomem *regbase;  /* read/write[bwl] */
 	void __iomem *paddr;
 	void *vaddr;
-	uint32_t memsize;
+	uint32_t			   memsize;
 	struct task_struct *ipu_task;
 	wait_queue_head_t wq_head;
 	spinlock_t elock;
@@ -48,7 +48,7 @@ struct x2_ipu_data {
 
 int8_t ipu_drv_start(void);
 int8_t ipu_drv_stop(void);
-int8_t ipu_cfg_ddrinfo_init(ipu_cfg_t * ipu);
-int8_t ipu_set(ipu_cmd_e cmd, ipu_cfg_t * ipu_cfg, uint64_t data);
+int8_t ipu_cfg_ddrinfo_init(ipu_cfg_t *ipu);
+int8_t ipu_set(ipu_cmd_e cmd, ipu_cfg_t *ipu_cfg, uint64_t data);
 
 #endif

@@ -1,8 +1,22 @@
 #ifndef __IPU_COMMON_H__
 #define __IPU_COMMON_H__
 
-#define IPU_DEBUG_LOG (0)
-#define IPU_INFO_LOG (0)
+#define IPU_LOG_DEBUG	(1)
+#define IPU_LOG_INFO	(2)
+extern unsigned int ipu_debug_level;
+#define ipu_info(fmt, args...)	\
+	do {									\
+		if((ipu_debug_level >= IPU_LOG_INFO) && printk_ratelimit())	\
+			printk(KERN_INFO "[ipu][info]: "fmt, ##args);		\
+	} while(0)
+
+#define ipu_dbg(fmt, args...)	\
+	do {									\
+		if((ipu_debug_level >= IPU_LOG_DEBUG) && printk_ratelimit()) \
+			printk(KERN_INFO "[ipu][debug]: "fmt, ##args);		\
+	} while(0)
+
+#define ipu_err(fmt, args...)       printk(KERN_ERR "[ipu][error]: "fmt, ##args)
 
 #define IPU_MAX_SLOT				8
 #define IPU_SLOT_SIZE				0x4000000
@@ -10,9 +24,6 @@
 #define IPU_MAX_SLOT_DUAL			4
 #define IPU_SLOT_DAUL_SIZE			0x8000000
 
-#define ipu_dbg(fmt, args...)       {if(IPU_INFO_LOG && printk_ratelimit()) printk(KERN_INFO "[ipu][debug]: "fmt, ##args);}
-#define ipu_info(fmt, args...)      {if(IPU_INFO_LOG && printk_ratelimit()) printk(KERN_INFO "[ipu][info]: "fmt, ##args);}
-#define ipu_err(fmt, args...)       printk(KERN_ERR "[ipu][error]: "fmt, ##args)
 #define ALIGN_16(d)         (((d) + 15) & ~0xf)
 
 #define IPU_SLOT_NOT_AVALIABLE	0
