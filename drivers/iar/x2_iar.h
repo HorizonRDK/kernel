@@ -355,7 +355,7 @@ enum iar_Reg_cfg_e {
 
 typedef struct _frame_buf_t {
 	void __iomem *vaddr;
-	phys_addr_t paddr;
+	phys_addr_t 	paddr;
 } frame_buf_t;
 typedef struct _buf_addr_t {
 	union {
@@ -367,6 +367,7 @@ typedef struct _buf_addr_t {
 		uint32_t addr;
 	};
 } buf_addr_t;
+
 typedef struct _pingpong_buf_t {
 	frame_buf_t framebuf[2];
 	buf_addr_t pixel_addr[2];
@@ -397,6 +398,7 @@ struct gamma_reg_bits_s {
 	unsigned int part_c:8;
 	unsigned int part_d:8;
 };
+
 typedef union _gamma_para_t {
 	unsigned int value;
 	struct gamma_reg_bits_s bit;
@@ -425,14 +427,14 @@ typedef struct _ppcon1_cfg_t {
 } ppcon1_cfg_t;
 
 typedef struct _ppcon2_cfg_t {
-	uint32_t theta_abs;	//ppcon2
+	uint32_t theta_abs; //ppcon2
 	uint32_t saturation;
 	uint32_t off_contrast;
 	uint32_t off_bright;
 } ppcon2_cfg_t;
 
 typedef struct _refresh_cfg_t {
-	uint32_t dbi_refresh_mode;	//refresh mode
+	uint32_t dbi_refresh_mode;  //refresh mode
 	uint32_t panel_corlor_type;
 	uint32_t interlace_sel;
 	uint32_t odd_polarity;
@@ -495,16 +497,21 @@ enum {
 	OUTPUT_RGB888 = 2,
 };
 
-#define IAR_DEBUG_PRINT(format, args...)	printk("IAR debug: " format, ## args)
+extern unsigned int iar_debug_level;
+#define IAR_DEBUG_PRINT(format, args...)	\
+	do {									\
+		if(iar_debug_level)					\
+			printk("IAR debug: " format, ## args);		\
+	} while(0)
 
-frame_buf_t *iar_get_framebuf_addr(uint32_t channel);
-int32_t iar_set_bufaddr(uint32_t channel, buf_addr_t * addr);
+frame_buf_t* iar_get_framebuf_addr(uint32_t channel);
+int32_t iar_set_bufaddr(uint32_t channel, buf_addr_t *addr);
 int32_t iar_update(void);
 buf_addr_t iar_addr_convert(phys_addr_t paddr);
-int32_t iar_channel_base_cfg(channel_base_cfg_t * cfg);
-int32_t iar_upscaling_cfg(upscaling_cfg_t * cfg);
-int32_t iar_gamma_cfg(gamma_cfg_t * cfg);
-int32_t iar_output_cfg(output_cfg_t * cfg);
+int32_t iar_channel_base_cfg(channel_base_cfg_t *cfg);
+int32_t iar_upscaling_cfg(upscaling_cfg_t *cfg);
+int32_t iar_gamma_cfg(gamma_cfg_t *cfg);
+int32_t iar_output_cfg(output_cfg_t *cfg);
 int32_t iar_switch_buf(uint32_t channel);
 int32_t iar_start(int update);
 int32_t iar_stop(void);
@@ -512,6 +519,6 @@ int32_t iar_open(void);
 int32_t iar_close(void);
 int32_t iar_pre_init(void);
 void x2_iar_dump(void);
-frame_buf_t *x2_iar_get_framebuf_addr(int channel);
+frame_buf_t* x2_iar_get_framebuf_addr(int channel);
 
 #endif //__X2_IAR_H__

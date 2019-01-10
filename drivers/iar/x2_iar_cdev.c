@@ -43,7 +43,7 @@ typedef struct _update_cmd_t {
 } update_cmd_t;
 
 struct iar_cdev_s {
-	const char *name;
+	const char	*name;
 	int major;
 	int minor;
 	struct cdev cdev;
@@ -61,42 +61,36 @@ extern void __dma_unmap_area(const void *, size_t, int);
 void dma_cache_sync(const void *vir_addr, size_t size, int direction)
 {
 	switch (direction) {
-	case DMA_FROM_DEVICE:	/* invalidate only */
+	case DMA_FROM_DEVICE:           /* invalidate only */
 		__dma_unmap_area(vir_addr, size, direction);
 		break;
-	case DMA_TO_DEVICE:	/* writeback only */
+	case DMA_TO_DEVICE:             /* writeback only */
 		__dma_map_area(vir_addr, size, direction);
 		break;
 	default:
 		BUG();
 	}
 }
-
 void invalid_cache(unsigned char *data, int len)
 {
 	dma_cache_sync(data, len, DMA_FROM_DEVICE);
 }
-
 EXPORT_SYMBOL(invalid_cache);
 
 void clean_cache(unsigned char *data, int len)
 {
 	dma_cache_sync(data, len, DMA_TO_DEVICE);
 }
-
 EXPORT_SYMBOL(clean_cache);
 
-int32_t iar_write_framebuf_poll(uint32_t channel, void __user * srcaddr,
-				uint32_t size)
+int32_t iar_write_framebuf_poll(uint32_t channel, void __user *srcaddr, uint32_t size)
 {
 	frame_buf_t *bufaddr;
 	bufaddr = iar_get_framebuf_addr(channel);
 	if (copy_from_user(bufaddr->vaddr, srcaddr, size))
 		return -EFAULT;
 
-	IAR_DEBUG_PRINT
-	    ("iar_write_framebuf_poll :%d vaddr:0x%p paddr:0x%llx,size:%d\n",
-	     channel, bufaddr->vaddr, bufaddr->paddr, size);
+	IAR_DEBUG_PRINT("iar_write_framebuf_poll :%d vaddr:0x%p paddr:0x%llx,size:%d\n", channel, bufaddr->vaddr, bufaddr->paddr, size);
 
 	return iar_switch_buf(channel);
 
@@ -107,8 +101,7 @@ static void iar_edma_callback(void *data)
 	complete(&g_iar_cdev->completion);
 }
 
-int32_t iar_write_framebuf_dma(uint32_t channel, phys_addr_t srcaddr,
-			       uint32_t size)
+int32_t iar_write_framebuf_dma(uint32_t channel, phys_addr_t srcaddr, uint32_t size)
 {
 	struct dma_chan *ch;
 	int ret = 0;
@@ -122,16 +115,14 @@ int32_t iar_write_framebuf_dma(uint32_t channel, phys_addr_t srcaddr,
 	dma_cap_set(DMA_MEMCPY, mask);
 	ch = dma_request_channel(mask, NULL, NULL);
 	if (!ch) {
-		printk(KERN_ERR "%s: dma_request_channel failed\n", __func__);
+		printk(KERN_ERR"%s: dma_request_channel failed\n", __func__);
 		return -1;
 	}
 	bufaddr = iar_get_framebuf_addr(channel);
 
-	tx = ch->device->device_prep_dma_memcpy(ch, bufaddr->paddr, srcaddr,
-						size, 0);
+	tx = ch->device->device_prep_dma_memcpy(ch, bufaddr->paddr, srcaddr, size, 0);
 	if (!tx) {
-		printk(KERN_ERR "%s: device_prep_dma_memcpy failed\n",
-		       __func__);
+		printk(KERN_ERR"%s: device_prep_dma_memcpy failed\n", __func__);
 		return -EIO;
 	}
 
@@ -141,16 +132,14 @@ int32_t iar_write_framebuf_dma(uint32_t channel, phys_addr_t srcaddr,
 	cookie = dmaengine_submit(tx);
 	ret = dma_submit_error(cookie);
 	if (ret) {
-		printk(KERN_ERR "dma_submit_error %d\n", cookie);
+		printk(KERN_ERR"dma_submit_error %d\n", cookie);
 		return -EIO;
 	}
 	dma_async_issue_pending(ch);
-	ret =
-	    wait_for_completion_timeout(&g_iar_cdev->completion,
-					msecs_to_jiffies(1000));
+	ret = wait_for_completion_timeout(&g_iar_cdev->completion, msecs_to_jiffies(1000));
 	dma_release_channel(ch);
 	if (!ret) {
-		printk(KERN_ERR "%s: timeout !!\n", __func__);
+		printk(KERN_ERR"%s: timeout !!\n", __func__);
 		return -EIO;
 	}
 	iar_switch_buf(channel);
@@ -159,40 +148,23 @@ int32_t iar_write_framebuf_dma(uint32_t channel, phys_addr_t srcaddr,
 	return 0;
 }
 
-int32_t iar_display_update(update_cmd_t * update_cmd)
+int32_t iar_display_update(update_cmd_t *update_cmd)
 {
 	int index = 0;
 	int ret = -1;
 	for (index = IAR_CHANNEL_1; index < IAR_CHANNEL_MAX; index++) {
 		if (index == IAR_CHANNEL_2 || index == IAR_CHANNEL_4)
-			continue;	//TODO, now channnel 2 and 4 is disable
-		IAR_DEBUG_PRINT("update_cmd->enable_flag[index]:%d addr:0x%p\n",
-				update_cmd->enable_flag[index],
-				update_cmd->srcframe[index].vaddr);
-		if (update_cmd->enable_flag[index]
-		    && update_cmd->frame_size[index] < MAX_FRAME_BUF_SIZE) {
+			continue; //TODO, now channnel 2 and 4 is disable
+		IAR_DEBUG_PRINT("update_cmd->enable_flag[index]:%d addr:0x%p\n", update_cmd->enable_flag[index], update_cmd->srcframe[index].vaddr);
+		if (update_cmd->enable_flag[index] && update_cmd->frame_size[index] < MAX_FRAME_BUF_SIZE) {
 #ifdef IAR_DMA_MODE
 			if (g_iar_cdev->framebuf_user[index]) {
-				clean_cache(g_iar_cdev->framebuf_user[index]->
-					    vaddr,
-					    update_cmd->frame_size[index]);
-				ret =
-				    iar_write_framebuf_dma(index,
-							   g_iar_cdev->
-							   framebuf_user
-							   [index]->paddr,
-							   update_cmd->
-							   frame_size[index]);
+				clean_cache(g_iar_cdev->framebuf_user[index]->vaddr, update_cmd->frame_size[index]);
+				ret = iar_write_framebuf_dma(index, g_iar_cdev->framebuf_user[index]->paddr, update_cmd->frame_size[index]);
 			}
 #else
 			if (update_cmd->srcframe[index].vaddr)
-				ret =
-				    iar_write_framebuf_poll(index,
-							    update_cmd->
-							    srcframe[index].
-							    vaddr,
-							    update_cmd->
-							    frame_size[index]);
+				ret = iar_write_framebuf_poll(index, update_cmd->srcframe[index].vaddr, update_cmd->frame_size[index]);
 #endif
 		}
 	}
@@ -211,7 +183,7 @@ static int iar_cdev_open(struct inode *inode, struct file *filp)
 static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 {
 	int ret;
-	void __user *arg = (void __user *)p;
+	void	__user *arg = (void __user *)p;
 	mutex_lock(&g_iar_cdev->iar_mutex);
 	switch (cmd) {
 	case IAR_START:
@@ -227,11 +199,11 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 		}
 		break;
 	case IAR_DISPLAY_UPDATE:
+
 		{
 			update_cmd_t update_cmd;
 			IAR_DEBUG_PRINT("IAR_DISPLAY_UPDATE \n");
-			if (copy_from_user
-			    (&update_cmd, arg, sizeof(update_cmd_t)))
+			if (copy_from_user(&update_cmd, arg, sizeof(update_cmd_t)))
 				return -EFAULT;
 			ret = iar_display_update(&update_cmd);
 			if (!ret)
@@ -242,8 +214,7 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 		{
 			channel_base_cfg_t channel_cfg;
 			IAR_DEBUG_PRINT("IAR_CHANNEL_CFG \n");
-			if (copy_from_user
-			    (&channel_cfg, arg, sizeof(channel_base_cfg_t)))
+			if (copy_from_user(&channel_cfg, arg, sizeof(channel_base_cfg_t)))
 				return -EFAULT;
 			ret = iar_channel_base_cfg(&channel_cfg);
 		}
@@ -252,8 +223,7 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 		{
 			gamma_cfg_t gamma_cfg;
 			IAR_DEBUG_PRINT("IAR_GAMMA_CFG \n");
-			if (copy_from_user
-			    (&gamma_cfg, arg, sizeof(gamma_cfg_t)))
+			if (copy_from_user(&gamma_cfg, arg, sizeof(gamma_cfg_t)))
 				return -EFAULT;
 			ret = iar_gamma_cfg(&gamma_cfg);
 		}
@@ -262,8 +232,7 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 		{
 			upscaling_cfg_t upscaling_cfg;
 			IAR_DEBUG_PRINT("IAR_SCALE_CFG \n");
-			if (copy_from_user
-			    (&upscaling_cfg, arg, sizeof(upscaling_cfg_t)))
+			if (copy_from_user(&upscaling_cfg, arg, sizeof(upscaling_cfg_t)))
 				return -EFAULT;
 			ret = iar_upscaling_cfg(&upscaling_cfg);
 		}
@@ -272,8 +241,7 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 		{
 			output_cfg_t output_cfg;
 			IAR_DEBUG_PRINT("IAR_OUTPUT_CFG \n");
-			if (copy_from_user
-			    (&output_cfg, arg, sizeof(output_cfg_t)))
+			if (copy_from_user(&output_cfg, arg, sizeof(output_cfg_t)))
 				return -EFAULT;
 			ret = iar_output_cfg(&output_cfg);
 		}
@@ -286,14 +254,14 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 	return ret;
 }
 
-static ssize_t iar_cdev_write(struct file *filp, const char __user * ubuf,
-			      size_t len, loff_t * ppos)
+static ssize_t iar_cdev_write(struct file *filp, const char __user *ubuf,
+							  size_t len, loff_t *ppos)
 {
 	return len;
 }
 
-static ssize_t iar_cdev_read(struct file *filp, char __user * ubuf,
-			     size_t len, loff_t * offp)
+static ssize_t iar_cdev_read(struct file *filp, char __user *ubuf,
+							 size_t len, loff_t *offp)
 {
 	unsigned int size;
 	size = 0;
@@ -307,17 +275,16 @@ int iar_cdev_release(struct inode *inode, struct file *filp)
 }
 
 static const struct file_operations iar_cdev_ops = {
-	.owner = THIS_MODULE,
-	.open = iar_cdev_open,
-	.release = iar_cdev_release,
-	.write = iar_cdev_write,
-	.read = iar_cdev_read,
+	.owner		= THIS_MODULE,
+	.open		= iar_cdev_open,
+	.release	= iar_cdev_release,
+	.write		= iar_cdev_write,
+	.read		= iar_cdev_read,
 	.unlocked_ioctl = iar_cdev_ioctl,
 };
 
 struct kobject *x2_iar_kobj;
-static ssize_t x2_iar_show(struct kobject *kobj, struct kobj_attribute *attr,
-			   char *buf)
+static ssize_t x2_iar_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
 	char *s = buf;
 
@@ -325,21 +292,19 @@ static ssize_t x2_iar_show(struct kobject *kobj, struct kobj_attribute *attr,
 
 	return (s - buf);
 }
-
-static ssize_t x2_iar_store(struct kobject *kobj, struct kobj_attribute *attr,
-			    const char *buf, size_t n)
+static ssize_t x2_iar_store(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t n)
 {
 	int error = -EINVAL;
 	return error ? error : n;
 }
 
 static struct kobj_attribute iar_test_attr = {
-	.attr = {
-		 .name = __stringify(iar_test_attr),
-		 .mode = 0644,
-		 },
-	.show = x2_iar_show,
-	.store = x2_iar_store,
+	.attr	= {
+		.name = __stringify(iar_test_attr),
+		.mode = 0644,
+	},
+	.show	= x2_iar_show,
+	.store	= x2_iar_store,
 };
 
 static struct attribute *attributes[] = {
@@ -357,7 +322,7 @@ int __init iar_cdev_init(void)
 
 	g_iar_cdev = kmalloc(sizeof(struct iar_cdev_s), GFP_KERNEL);
 	if (!g_iar_cdev) {
-		printk(KERN_ERR "Unable to alloc IAR DEV\n");
+		printk(KERN_ERR"Unable to alloc IAR DEV\n");
 		return -ENOMEM;
 	}
 	g_iar_cdev->name = "iar_cdev";
@@ -367,8 +332,7 @@ int __init iar_cdev_init(void)
 	if (IS_ERR(g_iar_cdev->iar_classes))
 		return PTR_ERR(g_iar_cdev->iar_classes);
 
-	error =
-	    alloc_chrdev_region(&g_iar_cdev->dev_num, 0, 1, g_iar_cdev->name);
+	error = alloc_chrdev_region(&g_iar_cdev->dev_num, 0, 1, g_iar_cdev->name);
 	if (!error) {
 		g_iar_cdev->major = MAJOR(g_iar_cdev->dev_num);
 		g_iar_cdev->minor = MINOR(g_iar_cdev->dev_num);
@@ -382,13 +346,10 @@ int __init iar_cdev_init(void)
 		return error;
 	}
 
-	device_create(g_iar_cdev->iar_classes, NULL, g_iar_cdev->dev_num, NULL,
-		      g_iar_cdev->name);
+	device_create(g_iar_cdev->iar_classes, NULL, g_iar_cdev->dev_num, NULL, g_iar_cdev->name);
 
-	g_iar_cdev->framebuf_user[IAR_CHANNEL_1] =
-	    x2_iar_get_framebuf_addr(IAR_CHANNEL_1);
-	g_iar_cdev->framebuf_user[IAR_CHANNEL_3] =
-	    x2_iar_get_framebuf_addr(IAR_CHANNEL_3);
+	g_iar_cdev->framebuf_user[IAR_CHANNEL_1] = x2_iar_get_framebuf_addr(IAR_CHANNEL_1);
+	g_iar_cdev->framebuf_user[IAR_CHANNEL_3] = x2_iar_get_framebuf_addr(IAR_CHANNEL_3);
 
 	x2_iar_kobj = kobject_create_and_add("x2_iar", NULL);
 	if (!x2_iar_kobj)
@@ -416,3 +377,4 @@ module_exit(iar_cdev_exit);
 
 MODULE_LICENSE("GPL");
 MODULE_ALIAS("platform: x2");
+

@@ -25,7 +25,7 @@
 #include "x2_iar.h"
 
 struct iar_mmap_s {
-	const char *name;
+	const char	*name;
 	int major;
 	int minor;
 	struct cdev cdev;
@@ -53,14 +53,14 @@ static long iar_mmap_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 	return ret;
 }
 
-static ssize_t iar_mmap_write(struct file *filp, const char __user * ubuf,
-			      size_t len, loff_t * ppos)
+static ssize_t iar_mmap_write(struct file *filp, const char __user *ubuf,
+							  size_t len, loff_t *ppos)
 {
 	return len;
 }
 
-static ssize_t iar_mmap_read(struct file *filp, char __user * ubuf,
-			     size_t len, loff_t * offp)
+static ssize_t iar_mmap_read(struct file *filp, char __user *ubuf,
+							 size_t len, loff_t *offp)
 {
 	unsigned int size;
 	size = 0;
@@ -85,9 +85,10 @@ int iar_mmap_mmap(struct file *filp, struct vm_area_struct *pvma)
 
 	pvma->vm_flags |= VM_IO;
 	pvma->vm_flags |= VM_LOCKED;
-	if (remap_pfn_range
-	    (pvma, pvma->vm_start, framebuf->paddr >> PAGE_SHIFT,
-	     pvma->vm_end - pvma->vm_start, pvma->vm_page_prot)) {
+	if (remap_pfn_range(pvma, pvma->vm_start,
+						framebuf->paddr >> PAGE_SHIFT,
+						pvma->vm_end - pvma->vm_start,
+						pvma->vm_page_prot)) {
 		printk(KERN_ERR "iar_mmap fail\n");
 		return -EAGAIN;
 	}
@@ -119,9 +120,7 @@ int __init iar_mmap_init(void)
 	if (IS_ERR(g_iar_mmap->iar_classes))
 		return PTR_ERR(g_iar_mmap->iar_classes);
 
-	error =
-	    alloc_chrdev_region(&g_iar_mmap->dev_num, 0, IAR_CHANNEL_MAX,
-				g_iar_mmap->name);
+	error = alloc_chrdev_region(&g_iar_mmap->dev_num, 0, IAR_CHANNEL_MAX, g_iar_mmap->name);
 	if (!error) {
 		g_iar_mmap->major = MAJOR(g_iar_mmap->dev_num);
 		g_iar_mmap->minor = MINOR(g_iar_mmap->dev_num);
@@ -129,12 +128,12 @@ int __init iar_mmap_init(void)
 
 	cdev_init(&g_iar_mmap->cdev, &iar_mmap_ops);
 
-	error =
-	    cdev_add(&g_iar_mmap->cdev, g_iar_mmap->dev_num, IAR_CHANNEL_MAX);
+	error = cdev_add(&g_iar_mmap->cdev, g_iar_mmap->dev_num, IAR_CHANNEL_MAX);
 	if (error) {
 		unregister_chrdev_region(g_iar_mmap->dev_num, IAR_CHANNEL_MAX);
 		return error;
 	}
+
 	//device_create(g_iar_mmap->iar_classes, NULL, g_iar_mmap->dev_num, NULL, g_iar_mmap->name);
 
 	for (index = 0; index < IAR_CHANNEL_MAX; index++) {
@@ -160,3 +159,4 @@ module_exit(iar_mmap_exit);
 
 MODULE_LICENSE("GPL");
 MODULE_ALIAS("platform: x2");
+
