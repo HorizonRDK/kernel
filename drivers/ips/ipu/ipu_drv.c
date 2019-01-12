@@ -522,11 +522,11 @@ static int x2_ipu_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "No memory address assigned to the region\n");
 		goto err_out2;
 	}
-	ipu->paddr = (unsigned char __iomem *)r.start;
+	ipu->paddr = r.start;
 	ipu->memsize = resource_size(&r);
 	ipu->vaddr = ipu_vmap(r.start, ipu->memsize);
 	dev_info(&pdev->dev, "Allocate reserved memory, paddr: 0x%0llx, vaddr: 0x%0llx, len=0x%x\n",
-			 (uint64_t)ipu->paddr, (uint64_t)ipu->vaddr, ipu->memsize);
+			 ipu->paddr, (uint64_t)ipu->vaddr, ipu->memsize);
 
 	platform_set_drvdata(pdev, ipu);
 	g_ipu = ipu;
@@ -564,7 +564,7 @@ static int x2_ipu_remove(struct platform_device *pdev)
 	struct x2_ipu_data *ipu = platform_get_drvdata(pdev);
 
 	ipu_stop_thread(ipu);
-	vm_unmap_ram(ipu->paddr, ipu->memsize / PAGE_SIZE);
+	vm_unmap_ram(ipu->vaddr, ipu->memsize / PAGE_SIZE);
 	release_mem_region(ipu->io_r->start, resource_size(ipu->io_r));
 	clr_ipu_regbase();
 	iounmap(ipu->regbase);

@@ -12,6 +12,7 @@ enum {
 
 static ipu_slot_h_t 	g_ipu_slot_[IPU_MAX_SLOT];
 static struct list_head g_ipu_slot_list[SLOT_LIST_NUM];
+static DECLARE_BITMAP(slot_init_mask, IPU_MAX_SLOT);
 
 /********************************************************************
  * @brief init_ipu_slot
@@ -24,7 +25,7 @@ static struct list_head g_ipu_slot_list[SLOT_LIST_NUM];
 int8_t init_ipu_slot(uint64_t base, slot_ddr_info_t *data)
 {
 	int8_t i = 0;
-
+	bitmap_zero(slot_init_mask, IPU_MAX_SLOT);
 	INIT_LIST_HEAD(&g_ipu_slot_list[FREE_SLOT_LIST]);
 	INIT_LIST_HEAD(&g_ipu_slot_list[BUSY_SLOT_LIST]);
 	INIT_LIST_HEAD(&g_ipu_slot_list[DONE_SLOT_LIST]);
@@ -44,14 +45,21 @@ int8_t init_ipu_slot(uint64_t base, slot_ddr_info_t *data)
 	return 0;
 }
 
-int8_t ipu_clean_slot(void)
+int8_t ipu_slot_recfg(slot_ddr_info_t *data)
+{
+	bitmap_fill(slot_init_mask, IPU_MAX_SLOT);
+	ipu_clean_slot(data);
+	return 0;
+}
+
+int8_t ipu_clean_slot(slot_ddr_info_t *data)
 {
 	while (!list_empty(&g_ipu_slot_list[DONE_SLOT_LIST])) {
-		if (NULL == slot_done_to_free())
+		if (NULL == slot_done_to_free(data))
 			break;
 	}
 	while (!list_empty(&g_ipu_slot_list[BUSY_SLOT_LIST])) {
-		if (NULL == slot_busy_to_free())
+		if (NULL == slot_busy_to_free(data))
 			break;
 	}
 	return 0;
@@ -104,7 +112,7 @@ ipu_slot_h_t* slot_busy_to_done(void)
 	return slot_h;
 }
 
-ipu_slot_h_t* slot_busy_to_free(void)
+ipu_slot_h_t* slot_busy_to_free(slot_ddr_info_t *data)
 {
 	struct list_head *node = NULL;
 	ipu_slot_h_t	 *slot_h = NULL;
@@ -115,12 +123,14 @@ ipu_slot_h_t* slot_busy_to_free(void)
 	node = g_ipu_slot_list[BUSY_SLOT_LIST].next;
 	list_move_tail(node, &g_ipu_slot_list[FREE_SLOT_LIST]);
 	slot_h = (ipu_slot_h_t *)node;
+	if (test_and_clear_bit(slot_h->info_h.slot_id, slot_init_mask))
+		memcpy(&slot_h->info_h.dual_ddr_info, data, sizeof(slot_ddr_info_dual_t));
 	slot_h->info_h.cnn_flag = 0;
 	slot_h->info_h.slot_flag = SLOT_FREE;
 	return slot_h;
 }
 
-ipu_slot_h_t* slot_done_to_free(void)
+ipu_slot_h_t* slot_done_to_free(slot_ddr_info_t *data)
 {
 	struct list_head *node = NULL;
 	ipu_slot_h_t	 *slot_h = NULL;
@@ -131,6 +141,8 @@ ipu_slot_h_t* slot_done_to_free(void)
 	node = g_ipu_slot_list[DONE_SLOT_LIST].next;
 	list_move_tail(node, &g_ipu_slot_list[FREE_SLOT_LIST]);
 	slot_h = (ipu_slot_h_t *)node;
+	if (test_and_clear_bit(slot_h->info_h.slot_id, slot_init_mask))
+		memcpy(&slot_h->info_h.dual_ddr_info, data, sizeof(slot_ddr_info_dual_t));
 	slot_h->info_h.cnn_flag = 0;
 	slot_h->info_h.slot_flag = SLOT_FREE;
 	slot_h->slot_get = 0;

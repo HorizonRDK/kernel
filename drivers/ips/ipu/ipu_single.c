@@ -30,15 +30,16 @@
 
 #define IPU_IOC_MAGIC       'm'
 
-#define IPUC_INIT               _IOW(IPU_IOC_MAGIC, 0, ipu_init_t)
-#define IPUC_GET_IMG            _IOR(IPU_IOC_MAGIC, 1, int)
-#define IPUC_CNN_DONE           _IO(IPU_IOC_MAGIC, 2)
-#define IPUC_GET_DONE_INFO      _IOR(IPU_IOC_MAGIC, 3, info_h_t)
-#define IPUC_GET_ERR_STATUS     _IOR(IPU_IOC_MAGIC, 4, uint32_t)
-#define IPUC_DUMP_REG           _IO(IPU_IOC_MAGIC, 5)
-#define IPUC_START              _IO(IPU_IOC_MAGIC, 6)
-#define IPUC_STOP               _IO(IPU_IOC_MAGIC, 7)
-
+#define IPUC_INIT			_IOW(IPU_IOC_MAGIC, 0, ipu_init_t)
+#define IPUC_GET_IMG		_IOR(IPU_IOC_MAGIC, 1, int)
+#define IPUC_CNN_DONE		_IO(IPU_IOC_MAGIC, 2)
+#define IPUC_GET_DONE_INFO	_IOR(IPU_IOC_MAGIC, 3, info_h_t)
+#define IPUC_GET_ERR_STATUS	_IOR(IPU_IOC_MAGIC, 4, uint32_t)
+#define IPUC_DUMP_REG		_IO(IPU_IOC_MAGIC, 5)
+#define IPUC_START 			_IO(IPU_IOC_MAGIC, 6)
+#define IPUC_STOP			_IO(IPU_IOC_MAGIC, 7)
+#define IPUC_UPDATE_CFG		_IOW(IPU_IOC_MAGIC, 8, ipu_init_t)
+#define IPUC_GET_MEM_INFO	_IOR(IPU_IOC_MAGIC, 9, ipu_meminfo_t)
 
 #define X2_IPU_NAME		"x2-ipu"
 
@@ -55,6 +56,7 @@ struct ipu_single_cdev {
 	int8_t done_idx;
 	uint32_t err_status;
 	unsigned long ipuflags;
+	slot_ddr_info_t s_info;
 };
 
 struct ipu_single_cdev *g_ipu_s_cdev;
@@ -134,7 +136,7 @@ void ipu_single_mode_process(uint32_t status)
 		ipu_slot_h_t *slot_h = NULL;
 		g_ipu_s_cdev->err_status = status;
 		ipu_err("ipu error 0x%x\n", g_ipu_s_cdev->err_status);
-		slot_h = slot_busy_to_free();
+		slot_h = slot_busy_to_free(&g_ipu_s_cdev->s_info);
 		if (slot_h) {
 			ipu_err("meet error, slot-%d, 0x%x\n",
 					slot_h->info_h.slot_id, status);
@@ -179,10 +181,79 @@ else if(is_slot_free_empty() && is_slot_busy_empty() && !test_and_set_bit(IPU_SL
 	spin_unlock(&g_ipu_s_cdev->slock);
 }
 
+static int8_t ipu_sinfo_init(ipu_cfg_t *ipu_cfg)
+{
+	uint8_t i = 0;
+	memset(&g_ipu_s_cdev->s_info, 0, sizeof(slot_ddr_info_t));
+	if (ipu_cfg->ctrl.crop_ddr_en == 1) {
+		g_ipu_s_cdev->s_info.crop.y_offset = ipu_cfg->crop_ddr.y_addr;
+		g_ipu_s_cdev->s_info.crop.c_offset = ipu_cfg->crop_ddr.c_addr;
+		g_ipu_s_cdev->s_info.crop.y_width = ipu_cfg->crop.crop_ed.w - ipu_cfg->crop.crop_st.w;
+		g_ipu_s_cdev->s_info.crop.y_height = ipu_cfg->crop.crop_ed.h - ipu_cfg->crop.crop_st.h;
+		g_ipu_s_cdev->s_info.crop.y_stride = ALIGN_16(g_ipu_s_cdev->s_info.crop.y_width);
+		g_ipu_s_cdev->s_info.crop.c_width = (ipu_cfg->crop.crop_ed.w - ipu_cfg->crop.crop_st.w) >> 1;
+		g_ipu_s_cdev->s_info.crop.c_height = ipu_cfg->crop.crop_ed.h - ipu_cfg->crop.crop_st.h;
+		g_ipu_s_cdev->s_info.crop.c_stride = ALIGN_16(g_ipu_s_cdev->s_info.crop.c_width);
+	}
+	if (ipu_cfg->ctrl.scale_ddr_en == 1) {
+		g_ipu_s_cdev->s_info.scale.y_offset = ipu_cfg->scale_ddr.y_addr;
+		g_ipu_s_cdev->s_info.scale.c_offset = ipu_cfg->scale_ddr.c_addr;
+		g_ipu_s_cdev->s_info.scale.y_width = ipu_cfg->scale.scale_tgt.w;
+		g_ipu_s_cdev->s_info.scale.y_height = ipu_cfg->scale.scale_tgt.h;
+		g_ipu_s_cdev->s_info.scale.y_stride = ALIGN_16(g_ipu_s_cdev->s_info.scale.y_width);
+		g_ipu_s_cdev->s_info.scale.c_width = ALIGN_16(ipu_cfg->scale.scale_tgt.w >> 1);
+		g_ipu_s_cdev->s_info.scale.c_height = ipu_cfg->scale.scale_tgt.h;
+		g_ipu_s_cdev->s_info.scale.c_stride = ALIGN_16(g_ipu_s_cdev->s_info.scale.c_width);
+	}
+	if (ipu_cfg->pymid.pymid_en == 1) {
+		for (i = 0; i < ipu_cfg->pymid.ds_layer_en; i++) {
+			if (i == 0 || ipu_cfg->pymid.ds_factor[i]) {
+				g_ipu_s_cdev->s_info.ds[i].y_offset = ipu_cfg->ds_ddr[i].y_addr;
+				g_ipu_s_cdev->s_info.ds[i].c_offset = ipu_cfg->ds_ddr[i].c_addr;
+				g_ipu_s_cdev->s_info.ds[i].y_width = ipu_cfg->pymid.ds_roi[i].w;
+				g_ipu_s_cdev->s_info.ds[i].y_height = ipu_cfg->pymid.ds_roi[i].h;
+				g_ipu_s_cdev->s_info.ds[i].y_stride = ALIGN_16(g_ipu_s_cdev->s_info.ds[i].y_width);
+				g_ipu_s_cdev->s_info.ds[i].c_width = ipu_cfg->pymid.ds_roi[i].w >> 1;
+				g_ipu_s_cdev->s_info.ds[i].c_height = ipu_cfg->pymid.ds_roi[i].h;
+				g_ipu_s_cdev->s_info.ds[i].c_stride = ALIGN_16(g_ipu_s_cdev->s_info.ds[i].c_width);
+			}
+		}
+		for (i = 0; i < 6; i++) {
+			if (ipu_cfg->pymid.us_layer_en & 1 << i) {
+				if (ipu_cfg->pymid.us_factor[i]) {
+					g_ipu_s_cdev->s_info.us[i].y_offset = ipu_cfg->us_ddr[i].y_addr;
+					g_ipu_s_cdev->s_info.us[i].c_offset = ipu_cfg->us_ddr[i].c_addr;
+					g_ipu_s_cdev->s_info.us[i].y_width = ipu_cfg->pymid.us_roi[i].w;
+					g_ipu_s_cdev->s_info.us[i].y_height = ipu_cfg->pymid.us_roi[i].h;
+					g_ipu_s_cdev->s_info.us[i].y_stride = ALIGN_16(g_ipu_s_cdev->s_info.us[i].y_width);
+					g_ipu_s_cdev->s_info.us[i].c_width = ipu_cfg->pymid.us_roi[i].w >> 1;
+					g_ipu_s_cdev->s_info.us[i].c_height = ipu_cfg->pymid.us_roi[i].h;
+					g_ipu_s_cdev->s_info.us[i].c_stride = ALIGN_16(g_ipu_s_cdev->s_info.us[i].c_width);
+				}
+			}
+		}
+	}
+	return 0;
+}
+
+static int8_t ipu_core_update(ipu_cfg_t *ipu_cfg)
+{
+	ips_module_reset(RST_IPU);
+	ipu_cfg_ddrinfo_init(ipu_cfg);
+	ipu_set(IPUC_SET_BASE, ipu_cfg, 0);
+	ipu_set(IPUC_SET_CROP, ipu_cfg, 0);
+	ipu_set(IPUC_SET_SCALE, ipu_cfg, 0);
+	ipu_set(IPUC_SET_PYMID, ipu_cfg, 0);
+	ipu_set(IPUC_SET_FRAME_ID, ipu_cfg, 0);
+	ipu_sinfo_init(ipu_cfg);
+	ipu_slot_recfg(&g_ipu_s_cdev->s_info);
+	ipu_clean_slot(&g_ipu_s_cdev->s_info);
+
+	return 0;
+}
+
 static int8_t ipu_core_init(ipu_cfg_t *ipu_cfg)
 {
-	slot_ddr_info_t s_info;
-	uint8_t i = 0;
 	ips_module_reset(RST_IPU);
 	ipu_cfg_ddrinfo_init(ipu_cfg);
 
@@ -191,57 +262,8 @@ static int8_t ipu_core_init(ipu_cfg_t *ipu_cfg)
 	ipu_set(IPUC_SET_SCALE, ipu_cfg, 0);
 	ipu_set(IPUC_SET_PYMID, ipu_cfg, 0);
 	ipu_set(IPUC_SET_FRAME_ID, ipu_cfg, 0);
-
-	memset(&s_info, 0, sizeof(slot_ddr_info_t));
-	if (ipu_cfg->ctrl.crop_ddr_en == 1) {
-		s_info.crop.y_offset = ipu_cfg->crop_ddr.y_addr;
-		s_info.crop.c_offset = ipu_cfg->crop_ddr.c_addr;
-		s_info.crop.y_width = ipu_cfg->crop.crop_ed.w - ipu_cfg->crop.crop_st.w;
-		s_info.crop.y_height = ipu_cfg->crop.crop_ed.h - ipu_cfg->crop.crop_st.h;
-		s_info.crop.y_stride = ALIGN_16(s_info.crop.y_width);
-		s_info.crop.c_width = (ipu_cfg->crop.crop_ed.w - ipu_cfg->crop.crop_st.w) >> 1;
-		s_info.crop.c_height = ipu_cfg->crop.crop_ed.h - ipu_cfg->crop.crop_st.h;
-		s_info.crop.c_stride = ALIGN_16(s_info.crop.c_width);
-	}
-	if (ipu_cfg->ctrl.scale_ddr_en == 1) {
-		s_info.scale.y_offset = ipu_cfg->scale_ddr.y_addr;
-		s_info.scale.c_offset = ipu_cfg->scale_ddr.c_addr;
-		s_info.scale.y_width = ipu_cfg->scale.scale_tgt.w;
-		s_info.scale.y_height = ipu_cfg->scale.scale_tgt.h;
-		s_info.scale.y_stride = ALIGN_16(s_info.scale.y_width);
-		s_info.scale.c_width = ALIGN_16(ipu_cfg->scale.scale_tgt.w >> 1);
-		s_info.scale.c_height = ipu_cfg->scale.scale_tgt.h;
-		s_info.scale.c_stride = ALIGN_16(s_info.scale.c_width);
-	}
-	if (ipu_cfg->pymid.pymid_en == 1) {
-		for (i = 0; i < ipu_cfg->pymid.ds_layer_en; i++) {
-			if (i == 0 || ipu_cfg->pymid.ds_factor[i]) {
-				s_info.ds[i].y_offset = ipu_cfg->ds_ddr[i].y_addr;
-				s_info.ds[i].c_offset = ipu_cfg->ds_ddr[i].c_addr;
-				s_info.ds[i].y_width = ipu_cfg->pymid.ds_roi[i].w;
-				s_info.ds[i].y_height = ipu_cfg->pymid.ds_roi[i].h;
-				s_info.ds[i].y_stride = ALIGN_16(s_info.ds[i].y_width);
-				s_info.ds[i].c_width = ipu_cfg->pymid.ds_roi[i].w >> 1;
-				s_info.ds[i].c_height = ipu_cfg->pymid.ds_roi[i].h;
-				s_info.ds[i].c_stride = ALIGN_16(s_info.ds[i].c_width);
-			}
-		}
-		for (i = 0; i < 6; i++) {
-			if (ipu_cfg->pymid.us_layer_en & 1 << i) {
-				if (ipu_cfg->pymid.us_factor[i]) {
-					s_info.us[i].y_offset = ipu_cfg->us_ddr[i].y_addr;
-					s_info.us[i].c_offset = ipu_cfg->us_ddr[i].c_addr;
-					s_info.us[i].y_width = ipu_cfg->pymid.us_roi[i].w;
-					s_info.us[i].y_height = ipu_cfg->pymid.us_roi[i].h;
-					s_info.us[i].y_stride = ALIGN_16(s_info.us[i].y_width);
-					s_info.us[i].c_width = ipu_cfg->pymid.us_roi[i].w >> 1;
-					s_info.us[i].c_height = ipu_cfg->pymid.us_roi[i].h;
-					s_info.us[i].c_stride = ALIGN_16(s_info.us[i].c_width);
-				}
-			}
-		}
-	}
-	init_ipu_slot((uint64_t)g_ipu->vaddr, &s_info);
+	ipu_sinfo_init(ipu_cfg);
+	init_ipu_slot((uint64_t)g_ipu->vaddr, &g_ipu_s_cdev->s_info);
 
 	return 0;
 }
@@ -347,7 +369,7 @@ long ipu_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 		{
 			ipu_drv_stop();
 			spin_lock(&g_ipu_s_cdev->slock);
-			ipu_clean_slot();
+			ipu_clean_slot(&g_ipu_s_cdev->s_info);
 			spin_unlock(&g_ipu_s_cdev->slock);
 			wake_up_interruptible(&ipu_cdev->event_head);
 		}
@@ -356,11 +378,54 @@ long ipu_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 		{
 			spin_lock(&g_ipu_s_cdev->slock);
 			slot_h = slot_free_to_busy();
-			ipu_set(IPUC_SET_DDR, ipu_cfg, IPU_GET_SLOT(slot_h->info_h.slot_id, (uint64_t)ipu->paddr));
+			if (slot_h)
+				ipu_set(IPUC_SET_DDR, ipu_cfg, IPU_GET_SLOT(slot_h->info_h.slot_id, (uint64_t)ipu->paddr));
+			else {
+				ret = EFAULT;
+				spin_unlock(&g_ipu_s_cdev->slock);
+				break;
+			}
 			spin_unlock(&g_ipu_s_cdev->slock);
 			ipu_drv_start();
 		}
 		break;
+	case IPUC_UPDATE_CFG:
+		{
+			ret = copy_from_user((void *)ipu_cfg,
+								 (const void __user *)data, sizeof(ipu_init_t));
+			if (ret) {
+				ipu_err("ioctl update fail\n");
+				return -EFAULT;
+			}
+			spin_lock(&g_ipu_s_cdev->slock);
+			//stop
+			ipu_drv_stop();
+			wake_up_interruptible(&ipu_cdev->event_head);
+			clear_bit(IPU_PYM_STARTUP, &g_ipu_s_cdev->ipuflags);
+			//update
+			ipu_core_update(ipu_cfg);
+			//restart
+			slot_h = slot_free_to_busy();
+			if (slot_h) {
+				ipu_set(IPUC_SET_DDR, ipu_cfg, IPU_GET_SLOT(slot_h->info_h.slot_id, (uint64_t)ipu->paddr));
+			} else {
+				ret = EFAULT;
+				spin_unlock(&g_ipu_s_cdev->slock);
+				break;
+			}
+			spin_unlock(&g_ipu_s_cdev->slock);
+			ipu_drv_start();
+		}
+	case IPUC_GET_MEM_INFO:
+		{
+			ipu_meminfo_t meminfo;
+			meminfo.paddr = g_ipu->paddr;
+			meminfo.memsize = g_ipu->memsize;
+			ret = copy_to_user((void __user *)data, (const void *)&meminfo, sizeof(ipu_meminfo_t));
+			if (ret) {
+				ipu_err("copy to user fail\n");
+			}
+		}
 	default:
 		ipu_err("ipu cmd: %d not supported\n", _IOC_NR(cmd));
 		break;
@@ -369,16 +434,22 @@ long ipu_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 	return ret;
 }
 
-int ipu_mmap(struct file *filp, struct vm_area_struct *vma) //????
+int ipu_mmap(struct file *filp, struct vm_area_struct *vma)
 {
-	int8_t	 ret = 0;
 	uint64_t offset = vma->vm_pgoff << PAGE_SHIFT;
-
+	if (!offset)
+		offset = g_ipu->paddr;
 	ipu_info("ipu mmap offset: 0x%llx, size: %ld\n", offset, vma->vm_end - vma->vm_start);
-	ret = remap_pfn_range(vma, vma->vm_start, PFN_DOWN(offset),
-						  vma->vm_end - vma->vm_start, vma->vm_page_prot);
-	if (ret)
+	if ((vma->vm_end - vma->vm_start) > g_ipu->memsize) {
+		return -ENOMEM;
+	}
+	vma->vm_flags |= VM_IO;
+	vma->vm_flags |= VM_LOCKED;
+	if (remap_pfn_range(vma, vma->vm_start, offset >> PAGE_SHIFT, vma->vm_end - vma->vm_start, vma->vm_page_prot)) {
+		ipu_err("ipu mmap fail\n");
 		return -EAGAIN;
+	}
+
 	ipu_info("ipu mmap ok\n");
 	return 0;
 }

@@ -6,13 +6,13 @@
 extern unsigned int ipu_debug_level;
 #define ipu_info(fmt, args...)	\
 	do {									\
-		if((ipu_debug_level >= IPU_LOG_INFO) && printk_ratelimit())	\
+		if((ipu_debug_level >= IPU_LOG_INFO))	\
 			printk(KERN_INFO "[ipu][info]: "fmt, ##args);		\
 	} while(0)
 
 #define ipu_dbg(fmt, args...)	\
 	do {									\
-		if((ipu_debug_level >= IPU_LOG_DEBUG) && printk_ratelimit()) \
+		if((ipu_debug_level >= IPU_LOG_DEBUG)) \
 			printk(KERN_INFO "[ipu][debug]: "fmt, ##args);		\
 	} while(0)
 
@@ -31,5 +31,7 @@ extern unsigned int ipu_debug_level;
 #define IPU_RCV_NOT_AVALIABLE	2
 #define IPU_PYM_NOT_AVALIABLE	3
 #define IPU_PYM_STARTUP		4
+#define IPU_RCV_CFG_UPDATE	5
+#define IPU_PYM_CFG_UPDATE	6
 
 #endif

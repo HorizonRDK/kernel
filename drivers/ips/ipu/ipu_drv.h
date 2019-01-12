@@ -28,9 +28,9 @@ typedef void (*ipu_handle_t)(uint32_t status);
 
 struct x2_ipu_data {
 	void __iomem *regbase;  /* read/write[bwl] */
-	void __iomem *paddr;
+	phys_addr_t paddr;
 	void *vaddr;
-	uint32_t			   memsize;
+	uint32_t memsize;
 	struct task_struct *ipu_task;
 	wait_queue_head_t wq_head;
 	spinlock_t elock;
@@ -45,6 +45,11 @@ struct x2_ipu_data {
 	unsigned int ipu_mode;
 	ipu_handle_t ipu_handle[IPU_DDR_DUAL];
 };
+
+typedef struct {
+	phys_addr_t paddr;
+	uint32_t memsize;
+} ipu_meminfo_t;
 
 int8_t ipu_drv_start(void);
 int8_t ipu_drv_stop(void);

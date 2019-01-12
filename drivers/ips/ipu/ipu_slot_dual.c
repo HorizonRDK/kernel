@@ -12,11 +12,10 @@ enum {
 	SLOT_QUEUE_MAX,
 };
 
-//dual mode
 ipu_slot_dual_h_t	g_ipu_slot_dual[IPU_MAX_SLOT_DUAL];
 slot_queue_t g_dual_slot_queue[SLOT_QUEUE_MAX];
+static DECLARE_BITMAP(slot_init_mask, IPU_MAX_SLOT_DUAL);
 
-//dual mode below
 void enqueue_slot(slot_queue_t *slot_queue, ipu_slot_dual_h_t *slot_h)
 {
 	struct list_head *phead;
@@ -45,13 +44,16 @@ ipu_slot_dual_h_t* dequeue_slot(slot_queue_t *slot_queue)
 	return slot_h;
 }
 
-int insert_dual_slot_to_free(int slot_id)
+int insert_dual_slot_to_free(int slot_id, slot_ddr_info_dual_t *data)
 {
 	ipu_slot_dual_h_t *slot_h = NULL;
 	if (slot_id < 0 || slot_id >= IPU_MAX_SLOT_DUAL) {
 		ipu_err("invalid slot id when free to done\n");
 		return -1;
 	}
+	if (test_and_clear_bit(slot_id, slot_init_mask))
+		memcpy(&g_ipu_slot_dual[slot_id].info_h.dual_ddr_info, data, sizeof(slot_ddr_info_dual_t));
+
 	ipu_info("insert slot-%d \n", slot_id);
 	slot_h = &g_ipu_slot_dual[slot_id];
 	slot_h->info_h.cnn_flag = 0;
@@ -170,7 +172,7 @@ ipu_slot_dual_h_t* pym_slot_busy_to_free(void)
 int8_t init_ipu_slot_dual(uint64_t base, slot_ddr_info_dual_t *data)
 {
 	int8_t i = 0;
-
+	bitmap_zero(slot_init_mask, IPU_MAX_SLOT_DUAL);
 	for (i = 0; i < SLOT_QUEUE_MAX; i++) {
 		INIT_LIST_HEAD(&g_dual_slot_queue[i].queue);
 		spin_lock_init(&g_dual_slot_queue[i].lock);
@@ -195,24 +197,33 @@ int8_t init_ipu_slot_dual(uint64_t base, slot_ddr_info_dual_t *data)
 	return 0;
 }
 
-int8_t ipu_clean_slot_queue(void)
+int8_t ipu_slot_dual_recfg(slot_ddr_info_dual_t *data)
+{
+	bitmap_fill(slot_init_mask, IPU_MAX_SLOT_DUAL);
+	ipu_clean_slot_queue(data);
+	return 0;
+}
+
+int8_t ipu_clean_slot_queue(slot_ddr_info_dual_t *data)
 {
 	ipu_slot_dual_h_t	*slot_h = NULL;
 	while (g_dual_slot_queue[RECVING_SLOT_QUEUE].qlen > 0) {
 		slot_h = dequeue_slot(&g_dual_slot_queue[RECVING_SLOT_QUEUE]);
-		enqueue_slot(&g_dual_slot_queue[FREE_SLOT_QUEUE], slot_h);
+		insert_dual_slot_to_free(slot_h->info_h.slot_id, data);
 	}
 	while (g_dual_slot_queue[RECVDONE_SLOT_QUEUE].qlen > 0) {
 		slot_h = dequeue_slot(&g_dual_slot_queue[RECVDONE_SLOT_QUEUE]);
-		enqueue_slot(&g_dual_slot_queue[FREE_SLOT_QUEUE], slot_h);
+		insert_dual_slot_to_free(slot_h->info_h.slot_id, data);
 	}
 	while (g_dual_slot_queue[PYMING_SLOT_QUEUE].qlen > 0) {
 		slot_h = dequeue_slot(&g_dual_slot_queue[PYMING_SLOT_QUEUE]);
-		enqueue_slot(&g_dual_slot_queue[FREE_SLOT_QUEUE], slot_h);
+		insert_dual_slot_to_free(slot_h->info_h.slot_id, data);
 	}
+#if 1
 	while (g_dual_slot_queue[PYMDONE_SLOT_QUEUE].qlen > 0) {
 		slot_h = dequeue_slot(&g_dual_slot_queue[PYMDONE_SLOT_QUEUE]);
-		enqueue_slot(&g_dual_slot_queue[FREE_SLOT_QUEUE], slot_h);
+		insert_dual_slot_to_free(slot_h->info_h.slot_id, data);
 	}
+#endif
 	return 0;
 }
