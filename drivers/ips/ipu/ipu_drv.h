@@ -47,7 +47,7 @@ struct x2_ipu_data {
 };
 
 typedef struct {
-	phys_addr_t paddr;
+	uint32_t paddr;
 	uint32_t memsize;
 } ipu_meminfo_t;
 

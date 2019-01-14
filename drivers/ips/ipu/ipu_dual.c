@@ -117,8 +117,8 @@ int set_next_recv_frame(ipu_slot_dual_h_t *slot_h)
 	if (!slot_h)
 		return -1;
 	slot_h->info_h.slot_flag = SLOT_RECVING;
-	ipu_set(IPUC_SET_CROP_DDR, g_ipu->cfg, IPU_GET_DUAL_SLOT(slot_h->info_h.slot_id, (uint64_t)g_ipu->paddr));
-	ipu_set(IPUC_SET_SCALE_DDR, g_ipu->cfg, IPU_GET_DUAL_SLOT(slot_h->info_h.slot_id, (uint64_t)g_ipu->paddr));
+	ipu_set(IPUC_SET_CROP_DDR, g_ipu->cfg, IPU_GET_DUAL_SLOT(slot_h->info_h.slot_id, g_ipu->paddr));
+	ipu_set(IPUC_SET_SCALE_DDR, g_ipu->cfg, IPU_GET_DUAL_SLOT(slot_h->info_h.slot_id, g_ipu->paddr));
 	return 0;
 }
 
@@ -128,12 +128,12 @@ int set_next_pym_frame(ipu_slot_dual_h_t *slot_h, bool first)
 		return -1;
 	if (first) {
 		slot_h->info_h.slot_flag = SLOT_PYM_1ST;
-		ipu_set(IPUC_SET_PYM_1ST_SRC_DDR, g_ipu->cfg, IPU_GET_DUAL_SLOT(slot_h->info_h.slot_id, (uint64_t)g_ipu->paddr));
-		ipu_set(IPUC_SET_PYM_DDR, g_ipu->cfg, IPU_GET_FST_PYM_OF_SLOT(slot_h->info_h.slot_id, (uint64_t)g_ipu->paddr));
+		ipu_set(IPUC_SET_PYM_1ST_SRC_DDR, g_ipu->cfg, IPU_GET_DUAL_SLOT(slot_h->info_h.slot_id, g_ipu->paddr));
+		ipu_set(IPUC_SET_PYM_DDR, g_ipu->cfg, IPU_GET_FST_PYM_OF_SLOT(slot_h->info_h.slot_id, g_ipu->paddr));
 	} else {
 		slot_h->info_h.slot_flag = SLOT_PYM_2ND;
-		ipu_set(IPUC_SET_PYM_2ND_SRC_DDR, g_ipu->cfg, IPU_GET_DUAL_SLOT(slot_h->info_h.slot_id, (uint64_t)g_ipu->paddr));
-		ipu_set(IPUC_SET_PYM_DDR, g_ipu->cfg, IPU_GET_SEC_PYM_OF_SLOT(slot_h->info_h.slot_id, (uint64_t)g_ipu->paddr));
+		ipu_set(IPUC_SET_PYM_2ND_SRC_DDR, g_ipu->cfg, IPU_GET_DUAL_SLOT(slot_h->info_h.slot_id, g_ipu->paddr));
+		ipu_set(IPUC_SET_PYM_DDR, g_ipu->cfg, IPU_GET_SEC_PYM_OF_SLOT(slot_h->info_h.slot_id, g_ipu->paddr));
 	}
 	return 0;
 }
@@ -174,7 +174,7 @@ void ipu_dual_mode_process(uint32_t status)
 		if (slot_h) {
 			set_next_recv_frame(slot_h);
 			ipu_dbg("fram start slot-%d, 0x%llx\n", slot_h->info_h.slot_id,
-					(uint64_t)IPU_GET_DUAL_SLOT(slot_h->info_h.slot_id, (uint64_t)ipu->paddr));
+					(uint64_t)IPU_GET_DUAL_SLOT(slot_h->info_h.slot_id, ipu->paddr));
 			// resume to recv pic from stop
 			//if ( test_and_clear_bit(IPU_RCV_NOT_AVALIABLE, &g_ipu_d_cdev->ipuflags) ) {
 			//	ctrl_ipu_to_ddr(CROP_TO_DDR | SCALAR_TO_DDR, ENABLE);
@@ -419,7 +419,7 @@ long ipu_dual_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 				ipu_err("cnn slot delay\n");
 			}
 			info = &slot_h->info_h;
-			info->base = (uint64_t)IPU_GET_DUAL_SLOT(slot_h->info_h.slot_id, (uint64_t)ipu->paddr);
+			info->base = (uint64_t)IPU_GET_DUAL_SLOT(slot_h->info_h.slot_id, ipu->paddr);
 			spin_unlock(&g_ipu_d_cdev->slock);
 			ret = copy_to_user((void __user *)data, (const void *)info, sizeof(ipu_slot_dual_h_t));
 			if (ret) {
@@ -496,6 +496,7 @@ long ipu_dual_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 			spin_unlock(&g_ipu_d_cdev->slock);
 			ipu_drv_start();
 		}
+		break;
 	case IPUC_GET_MEM_INFO:
 		{
 			ipu_meminfo_t meminfo;
@@ -506,8 +507,10 @@ long ipu_dual_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 				ipu_err("copy to user fail\n");
 			}
 		}
+		break;
 	default:
 		ipu_err("ipu cmd: %d not supported\n", _IOC_NR(cmd));
+		ret = -EINVAL;
 		break;
 	}
 	ipu_dbg("ipu cmd: %d end\n", _IOC_NR(cmd));

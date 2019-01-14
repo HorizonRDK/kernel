@@ -169,8 +169,8 @@ else if(is_slot_free_empty() && is_slot_busy_empty() && !test_and_set_bit(IPU_SL
 		slot_h = slot_free_to_busy();
 		if (slot_h) {
 			ipu_dbg("slot-%d, 0x%llx\n", slot_h->info_h.slot_id,
-					(uint64_t)IPU_GET_SLOT(slot_h->info_h.slot_id, (uint64_t)ipu->paddr));
-			ipu_set(IPUC_SET_DDR, ipu->cfg, IPU_GET_SLOT(slot_h->info_h.slot_id, (uint64_t)ipu->paddr));
+					(uint64_t)IPU_GET_SLOT(slot_h->info_h.slot_id, ipu->paddr));
+			ipu_set(IPUC_SET_DDR, ipu->cfg, IPU_GET_SLOT(slot_h->info_h.slot_id, ipu->paddr));
 #if 0	//may cause pym stop
 			if(test_and_clear_bit(IPU_SLOT_NOT_AVALIABLE, &g_ipu_s_cdev->ipuflags)){
 				ctrl_ipu_to_ddr(PYM_TO_DDR,ENABLE);
@@ -354,7 +354,7 @@ long ipu_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 				ipu_err("cnn slot delay\n");
 			}
 			info = &slot_h->info_h;
-			info->base = (uint64_t)IPU_GET_SLOT(slot_h->info_h.slot_id, (uint64_t)ipu->paddr);
+			info->base = (uint64_t)IPU_GET_SLOT(slot_h->info_h.slot_id, ipu->paddr);
 			spin_unlock(&g_ipu_s_cdev->slock);
 			ret = copy_to_user((void __user *)data, (const void *)info, sizeof(info_h_t));
 			if (ret) {
@@ -379,7 +379,7 @@ long ipu_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 			spin_lock(&g_ipu_s_cdev->slock);
 			slot_h = slot_free_to_busy();
 			if (slot_h)
-				ipu_set(IPUC_SET_DDR, ipu_cfg, IPU_GET_SLOT(slot_h->info_h.slot_id, (uint64_t)ipu->paddr));
+				ipu_set(IPUC_SET_DDR, ipu_cfg, IPU_GET_SLOT(slot_h->info_h.slot_id, ipu->paddr));
 			else {
 				ret = EFAULT;
 				spin_unlock(&g_ipu_s_cdev->slock);
@@ -407,7 +407,7 @@ long ipu_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 			//restart
 			slot_h = slot_free_to_busy();
 			if (slot_h) {
-				ipu_set(IPUC_SET_DDR, ipu_cfg, IPU_GET_SLOT(slot_h->info_h.slot_id, (uint64_t)ipu->paddr));
+				ipu_set(IPUC_SET_DDR, ipu_cfg, IPU_GET_SLOT(slot_h->info_h.slot_id, ipu->paddr));
 			} else {
 				ret = EFAULT;
 				spin_unlock(&g_ipu_s_cdev->slock);
@@ -416,6 +416,7 @@ long ipu_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 			spin_unlock(&g_ipu_s_cdev->slock);
 			ipu_drv_start();
 		}
+		break;
 	case IPUC_GET_MEM_INFO:
 		{
 			ipu_meminfo_t meminfo;
@@ -426,8 +427,10 @@ long ipu_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 				ipu_err("copy to user fail\n");
 			}
 		}
+		break;
 	default:
 		ipu_err("ipu cmd: %d not supported\n", _IOC_NR(cmd));
+		ret = -EINVAL;
 		break;
 	}
 	ipu_dbg("ipu cmd: %d end ret:%d\n", _IOC_NR(cmd), ret);
