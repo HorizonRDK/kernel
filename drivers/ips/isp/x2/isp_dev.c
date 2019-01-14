@@ -31,7 +31,7 @@ isp_dev_t *isp_get_dev(void)
 
 static int isp_dev_probe(struct platform_device *pdev)
 {
-	int ret;
+	int             ret;
 	struct resource *pres;
 
 	printk(KERN_INFO "isp_dev_probe()!\n");
@@ -48,9 +48,9 @@ static int isp_dev_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 
-	pIspDev->mapbase = pres->start;
-	pIspDev->regbase = ioremap(pIspDev->mapbase, X2_ISP_ISP_CONFIG);
-	pIspDev->irq = platform_get_irq(pdev, 0);
+	pIspDev->mapbase  = pres->start;
+	pIspDev->regbase  = ioremap(pIspDev->mapbase, X2_ISP_ISP_CONFIG);
+	pIspDev->irq      = platform_get_irq(pdev, 0);
 
 	platform_set_drvdata(pdev, pIspDev);
 
@@ -73,12 +73,12 @@ static const struct of_device_id isp_dev_match[] = {
 MODULE_DEVICE_TABLE(of, isp_dev_match);
 
 static struct platform_driver isp_dev_driver = {
-	.probe = isp_dev_probe,
+	.probe  = isp_dev_probe,
 	.remove = isp_dev_remove,
 	.driver = {
-		   .name = ISP_NAME,
-		   .of_match_table = isp_dev_match,
-		   },
+		.name   = ISP_NAME,
+		.of_match_table = isp_dev_match,
+	},
 };
 
 module_platform_driver(isp_dev_driver);

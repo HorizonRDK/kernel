@@ -114,76 +114,67 @@
 
 #define VIOSYS_CLK_CTRL 0x310
 
-enum busctl_region_e
-{
-    BUSCTL_REGION_PRI,
-    BUSCTL_REGION_ENDIAN,
-    BUSCTL_REGION_MAXLEN,
+enum busctl_region_e {
+	BUSCTL_REGION_PRI,
+	BUSCTL_REGION_ENDIAN,
+	BUSCTL_REGION_MAXLEN,
 };
-enum busctl_type_e
-{
-    BUSCTL_WM,
-    BUSCTL_RM,
+enum busctl_type_e {
+	BUSCTL_WM,
+	BUSCTL_RM,
 };
-enum ips_ctl_region_e
-{
-    MIPI_DEV_CFG_CLK_GATE_EN,
-    MIPI_HOST_CFG_CLK_GATE_EN,
-    MIPI_DEV_IPI_CLK_GATE_EN,
-    MIPI_HOST_IPI_CLK_GATE_EN,
-    PDM_SRAM_CLK_GATE_EN,
-    TILE_SRAM_CLK_GATE_EN,
-    MOT_DET_CLK_GATE_EN,
-    RCCB_CLK_GATE_EN,
-    IPU_CLK_GATE_EN,
-    ISP_CLK_GATE_EN,
+enum ips_ctl_region_e {
+	MIPI_DEV_CFG_CLK_GATE_EN,
+	MIPI_HOST_CFG_CLK_GATE_EN,
+	MIPI_DEV_IPI_CLK_GATE_EN,
+	MIPI_HOST_IPI_CLK_GATE_EN,
+	PDM_SRAM_CLK_GATE_EN,
+	TILE_SRAM_CLK_GATE_EN,
+	MOT_DET_CLK_GATE_EN,
+	RCCB_CLK_GATE_EN,
+	IPU_CLK_GATE_EN,
+	ISP_CLK_GATE_EN,
 };
-enum ips_status_region_e
-{
-    PYM_STATUS,
-    IPU_STATUS,
-    ISP_STATUS,
-    SIF_STATUS,
+enum ips_status_region_e {
+	PYM_STATUS,
+	IPU_STATUS,
+	ISP_STATUS,
+	SIF_STATUS,
 };
-enum ips_mipi_freqrange_region_e
-{
-    MIPI_DEV_CFGCLKFREQRANGE,
-    MIPI_DEV_HSFREQRANGE,
-    MIPI_HOST_CFGCLKFREQRANGE,
-    MIPI_HOST_HSFREQRANGE,
+enum ips_mipi_freqrange_region_e {
+	MIPI_DEV_CFGCLKFREQRANGE,
+	MIPI_DEV_HSFREQRANGE,
+	MIPI_HOST_CFGCLKFREQRANGE,
+	MIPI_HOST_HSFREQRANGE,
 };
-enum ips_mipictl_region_e
-{
-    MIPI_BYPASS_GEN_HSYNC_DLY_CNT,
-    MIPI_BYPASS_GEN_HSYNC_EN,
-    MIPI_DEV_SHADOW_CLEAR,
+enum ips_mipictl_region_e {
+	MIPI_BYPASS_GEN_HSYNC_DLY_CNT,
+	MIPI_BYPASS_GEN_HSYNC_EN,
+	MIPI_DEV_SHADOW_CLEAR,
 };
-enum
-{
-    SIF_INT,
-    ISP_INT,
-    IPU_INT,
+enum {
+	SIF_INT,
+	ISP_INT,
+	IPU_INT,
 };
-enum
-{
-    IAR_CLK,
-    BYPASS_CLK,
+enum {
+	IAR_CLK,
+	BYPASS_CLK,
 };
-enum
-{
-    RST_MIPI_IPI = 0x01,
-    RST_MIPI_CFG = 0x02,
-    RST_SIF      = 0x04,
-    RST_IPU      = 0x08,
-    RST_DVP      = 0x10,
-    RST_BT       = 0x20,
+enum {
+	RST_MIPI_IPI = 0x01,
+	RST_MIPI_CFG = 0x02,
+	RST_SIF      = 0x04,
+	RST_IPU      = 0x08,
+	RST_DVP      = 0x10,
+	RST_BT       = 0x20,
 };
-typedef void (*ips_irqhandler_t)(unsigned int intstatus, void* data);
+typedef void (*ips_irqhandler_t)(unsigned int intstatus, void *data);
 int ips_irq_enable(int irq);
 int ips_irq_disable(int irq);
 int ips_mask_int(unsigned int mask);
 int ips_unmask_int(unsigned int mask);
-int ips_register_irqhandle(int irq, ips_irqhandler_t handle, void* data);
+int ips_register_irqhandle(int irq, ips_irqhandler_t handle, void *data);
 unsigned int ips_get_intstatus(void);
 
 int ips_mipi_ctl_set(unsigned int region, unsigned int value);

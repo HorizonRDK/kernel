@@ -21,9 +21,9 @@
 #define ISP_NAME    "x2-isp"
 
 typedef struct isp_dev_s {
-	phys_addr_t mapbase;
-	void __iomem *regbase;
-	int irq;
+	phys_addr_t     mapbase;
+	void __iomem    *regbase;
+	int             irq;
 } isp_dev_t;
 
 /**

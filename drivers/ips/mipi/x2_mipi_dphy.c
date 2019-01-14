@@ -113,48 +113,49 @@ typedef struct _reg_s {
 #define MIPIDPHYTIOC_WRITE       _IOW('v', 1, reg_t)
 
 typedef struct _mipi_dphy_s {
-	void __iomem *iomem;
+	void __iomem  *iomem;
 } mipi_dphy_t;
 
-mipi_dphy_t *g_mipi_dphy = NULL;
+mipi_dphy_t  *g_mipi_dphy = NULL;
+
 
 void __iomem *g_hostmem = NULL;
 void __iomem *g_devmem = NULL;
 
 typedef struct _pll_range_table_s {
-	uint16_t low;
-	uint16_t high;
-	uint32_t value;
+	uint16_t     low;
+	uint16_t     high;
+	uint32_t     value;
 } pll_range_table_t;
 
 static const pll_range_table_t g_pll_range_table[] = {
-	{80, 97, 0x00},
-	{80, 107, 0x10},
-	{83, 118, 0x20},
-	{92, 128, 0x30},
-	{102, 139, 0x01},
-	{111, 149, 0x11},
-	{121, 160, 0x21},
-	{131, 170, 0x31},
-	{140, 181, 0x02},
-	{149, 191, 0x12},
-	{159, 202, 0x22},
-	{168, 212, 0x32},
-	{182, 228, 0x03},
-	{197, 244, 0x13},
-	{211, 259, 0x23},
-	{225, 275, 0x33},
-	{249, 301, 0x04},
-	{273, 328, 0x14},
-	{297, 354, 0x25},
-	{320, 380, 0x35},
-	{368, 433, 0x05},
-	{415, 485, 0x16},
+	{80,   97,  0x00},
+	{80,   107, 0x10},
+	{83,   118, 0x20},
+	{92,   128, 0x30},
+	{102,  139, 0x01},
+	{111,  149, 0x11},
+	{121,  160, 0x21},
+	{131,  170, 0x31},
+	{140,  181, 0x02},
+	{149,  191, 0x12},
+	{159,  202, 0x22},
+	{168,  212, 0x32},
+	{182,  228, 0x03},
+	{197,  244, 0x13},
+	{211,  259, 0x23},
+	{225,  275, 0x33},
+	{249,  301, 0x04},
+	{273,  328, 0x14},
+	{297,  354, 0x25},
+	{320,  380, 0x35},
+	{368,  433, 0x05},
+	{415,  485, 0x16},
 };
 
 typedef struct _pll_sel_table_s {
-	uint16_t freq;
-	uint32_t value;
+	uint16_t     freq;
+	uint32_t     value;
 } pll_sel_table_t;
 
 static const pll_sel_table_t g_pll_sel_table[] = {
@@ -225,15 +226,11 @@ static const pll_sel_table_t g_pll_sel_table[] = {
 
 static uint32_t mipi_dphy_clk_range(uint32_t mipiclk)
 {
-	uint8_t index = 0;
-	for (index = 0;
-	     index < sizeof(g_pll_sel_table) / sizeof(pll_sel_table_t);
-	     index++) {
+	uint8_t  index = 0;
+	for (index = 0; index < sizeof(g_pll_sel_table) / sizeof(pll_sel_table_t); index++) {
 		if (mipiclk <= g_pll_sel_table[index].freq)
-			mipiinfo
-			    ("pll div mipiclk: %d, selected clk: %d, range value: %d",
-			     mipiclk, g_pll_sel_table[index].freq,
-			     g_pll_sel_table[index].value);
+			mipiinfo("pll div mipiclk: %d, selected clk: %d, range value: %d",
+					 mipiclk, g_pll_sel_table[index].freq, g_pll_sel_table[index].value);
 		return g_pll_sel_table[index].value;
 	}
 	mipiinfo("mipi clock %d not supported", mipiclk);
@@ -250,25 +247,24 @@ static uint32_t mipi_dphy_clk_range(uint32_t mipiclk)
  */
 static void mipi_host_dphy_testdata(uint16_t testcode, uint8_t testdata)
 {
-	/*write test code */
-	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_RESETN);	/*Ensure that testclk and testen is set to low */
-	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL1, DPHY_TEST_ENABLE);	/*set testen to high */
-	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_CLK);	/*set testclk to high */
-	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_RESETN);	/*set testclk to low */
-	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL1, testcode >> 8);	/*set testen to low, set test code MSBS */
-	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_CLK);	/*set testclk to high */
+	/*write test code*/
+	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_RESETN); /*Ensure that testclk and testen is set to low*/
+	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL1, DPHY_TEST_ENABLE); /*set testen to high*/
+	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_CLK);    /*set testclk to high*/
+	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_RESETN); /*set testclk to low*/
+	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL1, testcode >> 8);    /*set testen to low, set test code MSBS*/
+	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_CLK);    /*set testclk to high*/
 
-	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_RESETN);	/*set testclk to low */
-	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL1, DPHY_TEST_ENABLE);	/*set testen to high */
-	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_CLK);	/*set testclk to high */
-	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL1, testcode & 0xff);	/*set test code LSBS */
-	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_RESETN);	/*set testclk to low */
+	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_RESETN); /*set testclk to low*/
+	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL1, DPHY_TEST_ENABLE); /*set testen to high*/
+	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_CLK);    /*set testclk to high*/
+	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL1, testcode & 0xff);  /*set test code LSBS*/
+	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_RESETN); /*set testclk to low*/
 
-	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL1, testdata);	/*set test data */
-	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_CLK);	/*set testclk to high */
-	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_RESETN);	/*set testclk to low */
-	mipiinfo("mipi host dphy test code:0x%x, data: 0x%x", testcode,
-		 testdata);
+	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL1, testdata);         /*set test data*/
+	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_CLK);    /*set testclk to high*/
+	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_RESETN); /*set testclk to low*/
+	mipiinfo("mipi host dphy test code:0x%x, data: 0x%x", testcode, testdata);
 }
 
 /**
@@ -278,19 +274,17 @@ static void mipi_host_dphy_testdata(uint16_t testcode, uint8_t testdata)
  *
  * @return int32_t : 0/-1
  */
-int32_t mipi_host_dphy_initialize(uint16_t mipiclk, uint16_t lane,
-				  uint16_t settle, void __iomem * iomem)
+int32_t mipi_host_dphy_initialize(uint16_t mipiclk, uint16_t lane, uint16_t settle, void __iomem *iomem)
 {
 	g_hostmem = iomem;
 
 	mipiinfo("mipi host initialize begin");
-	/*Release Synopsys-PHY test codes from reset */
+	/*Release Synopsys-PHY test codes from reset*/
 	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL1, DPHY_TEST_RESETN);
 	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_CLEAR);
-	/*Configure the D-PHY frequency range */
+	/*Configure the D-PHY frequency range*/
 	ips_set_mipi_freqrange(MIPI_HOST_CFGCLKFREQRANGE, RX_CFGCLK_DEFAULT);
-	ips_set_mipi_freqrange(MIPI_HOST_HSFREQRANGE,
-			       mipi_dphy_clk_range(mipiclk / lane));
+	ips_set_mipi_freqrange(MIPI_HOST_HSFREQRANGE, mipi_dphy_clk_range(mipiclk / lane));
 
 	mipi_host_dphy_testdata(REGS_RX_STARTUP_OVR_5, RX_CLK_SETTLE_EN);
 	mipi_host_dphy_testdata(REGS_RX_STARTUP_OVR_4, RX_CLK_SETTLE);
@@ -321,7 +315,7 @@ int32_t mipi_host_dphy_initialize(uint16_t mipiclk, uint16_t lane,
  */
 void mipi_host_dphy_reset(void)
 {
-	/*Release Synopsys-PHY test codes from reset */
+	/*Release Synopsys-PHY test codes from reset*/
 	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL1, DPHY_TEST_RESETN);
 	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_CLEAR);
 }
@@ -336,62 +330,54 @@ void mipi_host_dphy_reset(void)
  */
 static void mipi_dev_dphy_testdata(uint16_t testcode, uint8_t testdata)
 {
-	/*write test code */
-	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_RESETN);	/*Ensure that testclk and testen is set to low */
-	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL1, DPHY_TEST_ENABLE);	/*set testen to high */
-	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_CLK);	/*set testclk to high */
-	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_RESETN);	/*set testclk to low */
-	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL1, testcode >> 8);	/*set testen to low, set test code MSBS */
-	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_CLK);	/*set testclk to high */
+	/*write test code*/
+	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_RESETN); /*Ensure that testclk and testen is set to low*/
+	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL1, DPHY_TEST_ENABLE); /*set testen to high*/
+	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_CLK);    /*set testclk to high*/
+	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_RESETN); /*set testclk to low*/
+	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL1, testcode >> 8);    /*set testen to low, set test code MSBS*/
+	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_CLK);    /*set testclk to high*/
 
-	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_RESETN);	/*set testclk to low */
-	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL1, DPHY_TEST_ENABLE);	/*set testen to high */
-	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_CLK);	/*set testclk to high */
-	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL1, testcode & 0xff);	/*set test code LSBS */
-	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_RESETN);	/*set testclk to low */
+	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_RESETN); /*set testclk to low*/
+	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL1, DPHY_TEST_ENABLE); /*set testen to high*/
+	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_CLK);    /*set testclk to high*/
+	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL1, testcode & 0xff);  /*set test code LSBS*/
+	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_RESETN); /*set testclk to low*/
 
-	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL1, testdata);	/*set test data */
-	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_CLK);	/*set testclk to high */
-	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_RESETN);	/*set testclk to low */
-	mipiinfo("mipi host dphy test code:0x%x, data: 0x%x", testcode,
-		 testdata);
+	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL1, testdata);         /*set test data*/
+	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_CLK);    /*set testclk to high*/
+	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_RESETN); /*set testclk to low*/
+	mipiinfo("mipi host dphy test code:0x%x, data: 0x%x", testcode, testdata);
 }
 
 static const pll_range_table_t g_vco_range_table[] = {
 	{1150, 1250, 0x01},
 	{1100, 1152, 0x01},
-	{630, 1149, 0x03},
-	{420, 660, 0x09},
-	{320, 440, 0x0F},
-	{210, 330, 0x19},
-	{160, 220, 0x1F},
-	{105, 165, 0x29},
-	{80, 110, 0x2F},
-	{53, 83, 0x39},
-	{40, 55, 0x3F},
+	{630,  1149, 0x03},
+	{420,  660,  0x09},
+	{320,  440,  0x0F},
+	{210,  330,  0x19},
+	{160,  220,  0x1F},
+	{105,  165,  0x29},
+	{80,   110,  0x2F},
+	{53,   83,   0x39},
+	{40,   55,   0x3F},
 };
 
 static uint32_t mipi_tx_vco_range(uint32_t vcoclk)
 {
-	uint8_t index = 0;
-	for (index = 0;
-	     index < sizeof(g_vco_range_table) / sizeof(pll_range_table_t);
-	     index++) {
-		if (vcoclk >= g_vco_range_table[index].low
-		    && vcoclk <= g_vco_range_table[index].high)
-			mipiinfo
-			    ("vcoclk: %d, selected range: %d-%d, range value: %d",
-			     vcoclk, g_vco_range_table[index].low,
-			     g_vco_range_table[index].high,
-			     g_vco_range_table[index].value);
+	uint8_t  index = 0;
+	for (index = 0; index < sizeof(g_vco_range_table) / sizeof(pll_range_table_t); index++) {
+		if (vcoclk >= g_vco_range_table[index].low && vcoclk <= g_vco_range_table[index].high)
+			mipiinfo("vcoclk: %d, selected range: %d-%d, range value: %d",
+					 vcoclk, g_vco_range_table[index].low, g_vco_range_table[index].high, g_vco_range_table[index].value);
 		return g_vco_range_table[index].value;
 	}
 	mipiinfo("vco clock %d not supported", vcoclk);
 	return 0;
 }
 
-static int32_t mipi_tx_pll_div(uint16_t refsclk, uint16_t laneclk, uint8_t * n,
-			       uint16_t * m, uint16_t * vco)
+static int32_t mipi_tx_pll_div(uint16_t refsclk, uint16_t laneclk, uint8_t *n, uint16_t *m, uint16_t *vco)
 {
 	uint16_t n_tmp = TX_PLL_INPUT_DIV_MIN;
 	uint16_t m_tmp = TX_PLL_FB_MULTI_MIN;
@@ -403,14 +389,14 @@ static int32_t mipi_tx_pll_div(uint16_t refsclk, uint16_t laneclk, uint8_t * n,
 		mipierr("pll input error!!!");
 		return 0;
 	}
-	fout = laneclk >> 1;	/* data rate(Gbps) = PLL Fout(GHz)*2 */
-	if (fout >= 320 && fout <= 1250) {
+	fout = laneclk >> 1; /* data rate(Gbps) = PLL Fout(GHz)*2 */
+	if (fout >= 320  && fout <= 1250) {
 		vco_div = 0;
-	} else if (fout >= 160 && fout < 320) {
+	} else if (fout >= 160  && fout < 320) {
 		vco_div = 1;
-	} else if (fout >= 80 && fout < 160) {
+	} else if (fout >= 80  && fout < 160) {
 		vco_div = 2;
-	} else if (fout >= 40 && fout < 80) {
+	} else if (fout >= 40  && fout < 80) {
 		vco_div = 3;
 	} else {
 		mipierr("pll output clk error!!! laneclk: %d", laneclk);
@@ -418,9 +404,8 @@ static int32_t mipi_tx_pll_div(uint16_t refsclk, uint16_t laneclk, uint8_t * n,
 	}
 	fvco = fout << vco_div;
 	if ((TX_PLL_INPUT_FEQ_MIN > refsclk / TX_PLL_INPUT_DIV_MIN) ||
-	    (TX_PLL_INPUT_FEQ_MAX < refsclk / TX_PLL_INPUT_DIV_MAX)) {
-		mipierr("pll parameter error!!! refsclk: %d, laneclk: %d",
-			refsclk, laneclk);
+		(TX_PLL_INPUT_FEQ_MAX < refsclk / TX_PLL_INPUT_DIV_MAX)) {
+		mipierr("pll parameter error!!! refsclk: %d, laneclk: %d", refsclk, laneclk);
 		return 0;
 	}
 	while (refsclk / n_tmp > TX_PLL_INPUT_FEQ_MIN) {
@@ -439,7 +424,7 @@ static int32_t mipi_tx_pll_div(uint16_t refsclk, uint16_t laneclk, uint8_t * n,
 	*vco = mipi_tx_vco_range(fout);
 	outclk = fout << 1;
 	mipiinfo("pll div refsclk: %d, laneclk: %d, n: %d, m: %d, outclk: %d",
-		 refsclk, laneclk, *n, *m, outclk);
+			 refsclk, laneclk, *n, *m, outclk);
 	return outclk;
 }
 
@@ -450,30 +435,27 @@ static int32_t mipi_tx_pll_div(uint16_t refsclk, uint16_t laneclk, uint8_t * n,
  *
  * @return int32_t : 0/-1
  */
-int32_t mipi_dev_dphy_initialize(uint16_t mipiclk, uint16_t lane,
-				 uint16_t settle, void __iomem * iomem)
+int32_t mipi_dev_dphy_initialize(uint16_t mipiclk, uint16_t lane, uint16_t settle, void __iomem *iomem)
 {
-	uint8_t n = 0;
-	uint16_t m = 0;
-	uint16_t vco = 0;
-	uint16_t outclk = 0;
+	uint8_t    n = 0;
+	uint16_t   m = 0;
+	uint16_t   vco = 0;
+	uint16_t   outclk = 0;
 	g_devmem = iomem;
 
 	mipiinfo("mipi device initialize dphy begin");
 
-	/*Configure the D-PHY PLL */
+	/*Configure the D-PHY PLL*/
 	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_CLEAR);
 	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_RESETN);
-	outclk =
-	    mipi_tx_pll_div(TX_REFSCLK_DEFAULT, (mipiclk / lane), &n, &m, &vco);
+	outclk = mipi_tx_pll_div(TX_REFSCLK_DEFAULT, (mipiclk / lane), &n, &m, &vco);
 	if (0 == outclk) {
 		mipierr("pll control error!");
 		return -1;
 	}
-	/*Configure the D-PHY frequency range */
+	/*Configure the D-PHY frequency range*/
 	ips_set_mipi_freqrange(MIPI_DEV_CFGCLKFREQRANGE, TX_CFGCLK_DEFAULT);
-	ips_set_mipi_freqrange(MIPI_DEV_HSFREQRANGE,
-			       mipi_dphy_clk_range(mipiclk / lane));
+	ips_set_mipi_freqrange(MIPI_DEV_HSFREQRANGE, mipi_dphy_clk_range(mipiclk / lane));
 
 	mipi_dev_dphy_testdata(REGS_TX_SLEW_5, TX_SLEW_RATE_CAL);
 	mipi_dev_dphy_testdata(REGS_TX_SLEW_7, TX_SLEW_RATE_CTL);
@@ -482,12 +464,12 @@ int32_t mipi_dev_dphy_initialize(uint16_t mipiclk, uint16_t lane,
 	mipi_dev_dphy_testdata(REGS_TX_PLL_29, TX_PLL_MULTI_H(m));
 	mipi_dev_dphy_testdata(REGS_TX_PLL_30, TX_PLL_VCO(vco));
 	mipi_dev_dphy_testdata(REGS_TX_SYSTIMERS_23, TX_HS_ZERO(settle));
-	mipi_dev_dphy_testdata(REGS_TX_PLL_1, TX_PLL_CPBIAS);
-	mipi_dev_dphy_testdata(REGS_TX_PLL_4, TX_PLL_INT_CTL);
+	mipi_dev_dphy_testdata(REGS_TX_PLL_1,  TX_PLL_CPBIAS);
+	mipi_dev_dphy_testdata(REGS_TX_PLL_4,  TX_PLL_INT_CTL);
 	mipi_dev_dphy_testdata(REGS_TX_PLL_19, TX_PLL_RST_TIME_L);
 	mipi_dev_dphy_testdata(REGS_TX_PLL_19, TX_PLL_RST_TIME_L);
-	mipi_dev_dphy_testdata(REGS_TX_PLL_2, TX_PLL_GEAR_SHIFT_L);
-	mipi_dev_dphy_testdata(REGS_TX_PLL_3, TX_PLL_GEAR_SHIFT_H);
+	mipi_dev_dphy_testdata(REGS_TX_PLL_2,  TX_PLL_GEAR_SHIFT_L);
+	mipi_dev_dphy_testdata(REGS_TX_PLL_3,  TX_PLL_GEAR_SHIFT_H);
 
 	return 0;
 }
@@ -515,12 +497,11 @@ static int x2_mipi_dphy_regs_open(struct inode *inode, struct file *file)
 	return single_open(file, x2_mipi_dphy_regs_show, inode->i_private);
 }
 
-static long x2_mipi_dphy_regs_ioctl(struct file *file, unsigned int cmd,
-				    unsigned long arg)
+static long x2_mipi_dphy_regs_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
-	void __iomem *iomem = g_mipi_dphy->iomem;
-	reg_t reg;
-	uint32_t regv = 0;
+	void __iomem  *iomem = g_mipi_dphy->iomem;
+	reg_t          reg;
+	uint32_t       regv = 0;
 	/* Check type and command number */
 	if (_IOC_TYPE(cmd) != 'v')
 		return -ENOTTY;
@@ -528,41 +509,32 @@ static long x2_mipi_dphy_regs_ioctl(struct file *file, unsigned int cmd,
 	switch (cmd) {
 	case MIPIDPHYTIOC_READ:
 		if (!arg) {
-			printk(KERN_ERR
-			       "x2 mipi_dphy reg read error, reg should not be NULL");
+			printk(KERN_ERR "x2 mipi_dphy reg read error, reg should not be NULL");
 			return -EINVAL;
 		}
-		if (copy_from_user
-		    ((void *)&reg, (void __user *)arg, sizeof(reg))) {
-			printk(KERN_ERR
-			       "x2 mipi_dphy reg read error, copy data from user failed\n");
+		if (copy_from_user((void *)&reg, (void __user *)arg, sizeof(reg))) {
+			printk(KERN_ERR "x2 mipi_dphy reg read error, copy data from user failed\n");
 			return -EINVAL;
 		}
 		reg.value = readl(iomem + reg.offset);
 		if (copy_to_user((void __user *)arg, (void *)&reg, sizeof(reg))) {
-			printk(KERN_ERR
-			       "x2 mipi_dphy reg read error, copy data to user failed\n");
+			printk(KERN_ERR "x2 mipi_dphy reg read error, copy data to user failed\n");
 			return -EINVAL;
 		}
 		break;
 	case MIPIDPHYTIOC_WRITE:
 		if (!arg) {
-			printk(KERN_ERR
-			       "x2 mipi_dphy reg write error, reg should not be NULL");
+			printk(KERN_ERR "x2 mipi_dphy reg write error, reg should not be NULL");
 			return -EINVAL;
 		}
-		if (copy_from_user
-		    ((void *)&reg, (void __user *)arg, sizeof(reg))) {
-			printk(KERN_ERR
-			       "x2 mipi_dphy reg write error, copy data from user failed\n");
+		if (copy_from_user((void *)&reg, (void __user *)arg, sizeof(reg))) {
+			printk(KERN_ERR "x2 mipi_dphy reg write error, copy data from user failed\n");
 			return -EINVAL;
 		}
 		writel(reg.value, iomem + reg.offset);
 		regv = readl(iomem + reg.offset);
 		if (regv != reg.value) {
-			printk(KERN_ERR
-			       "x2 mipi_dphy reg write error, write 0x%x got 0x%x\n",
-			       reg.value, regv);
+			printk(KERN_ERR "x2 mipi_dphy reg write error, write 0x%x got 0x%x\n", reg.value, regv);
 			return -EINVAL;
 		}
 		break;
@@ -571,29 +543,28 @@ static long x2_mipi_dphy_regs_ioctl(struct file *file, unsigned int cmd,
 	}
 	return 0;
 }
-
 static const struct file_operations x2_mipi_dphy_regs_fops = {
-	.owner = THIS_MODULE,
-	.open = x2_mipi_dphy_regs_open,
-	.read = seq_read,
-	.llseek = seq_lseek,
-	.release = single_release,
+	.owner		= THIS_MODULE,
+	.open		= x2_mipi_dphy_regs_open,
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= single_release,
 	.unlocked_ioctl = x2_mipi_dphy_regs_ioctl,
 	.compat_ioctl = x2_mipi_dphy_regs_ioctl,
 };
 
-static int mipi_dphy_major = 0;
-struct cdev mipi_dphy_cdev;
-static struct class *x2_mipi_dphy_class;
+static int    mipi_dphy_major = 0;
+struct cdev   mipi_dphy_cdev;
+static struct class  *x2_mipi_dphy_class;
 static struct device *g_mipi_dphy_dev;
 
 static int x2_mipi_dphy_probe(struct platform_device *pdev)
 {
-	mipi_dphy_t *pack_dev;
-	int ret = 0;
-	dev_t devno;
+	mipi_dphy_t        *pack_dev;
+	int              ret = 0;
+	dev_t            devno;
 	struct resource *res;
-	struct cdev *p_cdev = &mipi_dphy_cdev;
+	struct cdev     *p_cdev = &mipi_dphy_cdev;
 
 	pack_dev = devm_kmalloc(&pdev->dev, sizeof(mipi_dphy_t), GFP_KERNEL);
 	if (!pack_dev) {
@@ -603,8 +574,7 @@ static int x2_mipi_dphy_probe(struct platform_device *pdev)
 
 	ret = alloc_chrdev_region(&devno, 0, 1, "x2_mipi_dphy");
 	if (ret < 0) {
-		printk(KERN_ERR "Error %d while alloc chrdev x2_mipi_dphy",
-		       ret);
+		printk(KERN_ERR "Error %d while alloc chrdev x2_mipi_dphy", ret);
 		goto err;
 	}
 	mipi_dphy_major = MAJOR(devno);
@@ -617,14 +587,11 @@ static int x2_mipi_dphy_probe(struct platform_device *pdev)
 	}
 	x2_mipi_dphy_class = class_create(THIS_MODULE, "x2_mipi_dphy");
 	if (IS_ERR(x2_mipi_dphy_class)) {
-		printk(KERN_INFO "[%s:%d] class_create error\n", __func__,
-		       __LINE__);
+		printk(KERN_INFO "[%s:%d] class_create error\n", __func__, __LINE__);
 		ret = PTR_ERR(x2_mipi_dphy_class);
 		goto err;
 	}
-	g_mipi_dphy_dev =
-	    device_create(x2_mipi_dphy_class, NULL, MKDEV(mipi_dphy_major, 0),
-			  (void *)pack_dev, "x2_mipi_dphy");
+	g_mipi_dphy_dev = device_create(x2_mipi_dphy_class, NULL, MKDEV(mipi_dphy_major, 0), (void *)pack_dev, "x2_mipi_dphy");
 	if (IS_ERR(g_mipi_dphy_dev)) {
 		printk(KERN_ERR "[%s] deivce create error\n", __func__);
 		ret = PTR_ERR(g_mipi_dphy_dev);
@@ -669,12 +636,12 @@ static const struct of_device_id x2_mipi_dphy_match[] = {
 MODULE_DEVICE_TABLE(of, x2_mipi_dphy_match);
 
 static struct platform_driver x2_mipi_dphy_driver = {
-	.probe = x2_mipi_dphy_probe,
+	.probe  = x2_mipi_dphy_probe,
 	.remove = x2_mipi_dphy_remove,
-	.driver = {
-		   .name = "x2_mipi_dphy",
-		   .of_match_table = x2_mipi_dphy_match,
-		   },
+	.driver	= {
+		.name = "x2_mipi_dphy",
+		.of_match_table = x2_mipi_dphy_match,
+	},
 };
 
 module_platform_driver(x2_mipi_dphy_driver);

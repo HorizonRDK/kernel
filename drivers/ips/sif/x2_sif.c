@@ -30,27 +30,27 @@ typedef enum _sif_state_e {
 } sif_state_t;
 
 typedef struct sif_file_s {
-	spinlock_t event_lock;
-	uint32_t event;
-	uint32_t receive_frame;
-	uint32_t status;
+	spinlock_t        event_lock;
+	uint32_t          event;
+	uint32_t          receive_frame;
+	uint32_t          status;
 	wait_queue_head_t event_queue;
 } sif_file_t;
 
 typedef struct sif_s {
-	sif_cfg_t config;
-	sif_state_t state;	/* sif state */
-	struct sock *nl_sk;
-	uint32_t usr_pid;
-	sif_file_t sif_file;
+	sif_cfg_t       config;
+	sif_state_t     state;   /* sif state */
+	struct sock    *nl_sk;
+	uint32_t        usr_pid;
+	sif_file_t      sif_file;
 } sif_t;
 
-static struct class *g_sif_class;
+static struct class  *g_sif_class;
 static struct device *g_sif_dev;
 
 #define sifdrv(f) (dev_get_drvdata((f)->private_data))
 
-static int sif_start(sif_t * dev)
+static int sif_start(sif_t *dev)
 {
 	int ret = 0;
 	if (0 != (ret = sif_dev_start())) {
@@ -61,9 +61,9 @@ static int sif_start(sif_t * dev)
 	return ret;
 }
 
-static int sif_stop(sif_t * dev)
+static int sif_stop(sif_t *dev)
 {
-	int ret = 0;
+	int           ret = 0;
 	unsigned long flags;
 	ips_irq_disable(SIF_INT);
 	spin_lock_irqsave(&dev->sif_file.event_lock, flags);
@@ -77,16 +77,15 @@ static int sif_stop(sif_t * dev)
 
 static void x2_sif_irq(unsigned int status, void *data)
 {
-	sif_t *sif = NULL;
+	sif_t          *sif = NULL;
 	if (NULL == data) {
 		siferr("sif irq input data error!");
 		return;
 	}
-	sif = (sif_t *) data;
+	sif = (sif_t *)data;
 	//TODO
 	spin_lock(&sif->sif_file.event_lock);
-	if (!sif->sif_file.receive_frame
-	    && (status & SIF_FRAME_START_INTERRUPT)) {
+	if (!sif->sif_file.receive_frame && (status & SIF_FRAME_START_INTERRUPT)) {
 		sif->sif_file.event |= SIF_START;
 		sif->sif_file.receive_frame = true;
 	}
@@ -101,16 +100,17 @@ static void x2_sif_irq(unsigned int status, void *data)
 		wake_up_interruptible(&sif->sif_file.event_queue);
 }
 
-static int sif_update(sif_t * dev, sif_cfg_t * cfg)
+static int sif_update(sif_t *dev, sif_cfg_t *cfg)
 {
-	int ret = 0;
+	int           ret = 0;
 	memset(&dev->config, 0, sizeof(sif_cfg_t));
 	memcpy(&dev->config, cfg, sizeof(sif_cfg_t));
 	sifinfo("sif config format: %d pixlen: %d bus: %d width: %d height: %d",
-		cfg->sif_init.format,
-		cfg->sif_init.pix_len,
-		cfg->sif_init.bus_type,
-		cfg->sif_init.width, cfg->sif_init.height);
+			cfg->sif_init.format,
+			cfg->sif_init.pix_len,
+			cfg->sif_init.bus_type,
+			cfg->sif_init.width,
+			cfg->sif_init.height);
 	if (0 != (ret = sif_dev_update(&dev->config.sif_init))) {
 		siferr("ERROR: sif dev init error: %d", ret);
 		ret = -1;
@@ -133,15 +133,17 @@ static int sif_update(sif_t * dev, sif_cfg_t * cfg)
 	return 0;
 }
 
-static int sif_init(sif_t * dev, sif_cfg_t * cfg)
+static int sif_init(sif_t *dev, sif_cfg_t *cfg)
 {
-	int ret = 0;
+	int           ret = 0;
 	memset(&dev->config, 0, sizeof(sif_cfg_t));
 	memcpy(&dev->config, cfg, sizeof(sif_cfg_t));
-	sifinfo
-	    ("sif update config format: %d pixlen: %d bus: %d width: %d height: %d",
-	     cfg->sif_init.format, cfg->sif_init.pix_len,
-	     cfg->sif_init.bus_type, cfg->sif_init.width, cfg->sif_init.height);
+	sifinfo("sif update config format: %d pixlen: %d bus: %d width: %d height: %d",
+			cfg->sif_init.format,
+			cfg->sif_init.pix_len,
+			cfg->sif_init.bus_type,
+			cfg->sif_init.width,
+			cfg->sif_init.height);
 	if (BUS_TYPE_DVP == cfg->sif_init.bus_type) {
 		ips_pinmux_dvp();
 	} else if (BUS_TYPE_BT1120 == cfg->sif_init.bus_type) {
@@ -180,7 +182,7 @@ static int sif_init(sif_t * dev, sif_cfg_t * cfg)
 	return 0;
 }
 
-static void sif_deinit(sif_t * dev)
+static void sif_deinit(sif_t *dev)
 {
 	sif_dev_stop();
 	dev->sif_file.receive_frame = false;
@@ -193,19 +195,16 @@ static int x2_sif_open(struct inode *inode, struct file *file)
 	file->private_data = g_sif_dev;
 	return 0;
 }
-
-static ssize_t x2_sif_write(struct file *file, const char __user * buf,
-			    size_t count, loff_t * ppos)
+static ssize_t x2_sif_write(struct file *file, const char __user *buf, size_t count, loff_t *ppos)
 {
 	return 0;
 }
 
-static ssize_t x2_sif_read(struct file *file, char __user * buf, size_t size,
-			   loff_t * ppos)
+static ssize_t x2_sif_read(struct file *file, char __user *buf, size_t size, loff_t *ppos)
 {
-	sif_t *dev = sifdrv(file);
-	sif_file_t *priv = &dev->sif_file;
-	int ret = 0;
+	sif_t          *dev = sifdrv(file);
+	sif_file_t     *priv = &dev->sif_file;
+	int             ret = 0;
 
 	if (0 == priv->status) {
 		sifinfo("sif status OK");
@@ -221,20 +220,20 @@ static ssize_t x2_sif_read(struct file *file, char __user * buf, size_t size,
 static int x2_sif_close(struct inode *inode, struct file *file)
 {
 	sif_t *dev = sifdrv(file);
-	if (dev->state != SIF_STATE_STOP) {
+	if (dev->state != SIF_STATE_DEFAULT) {
 		sif_stop(dev);
-		dev->state = SIF_STATE_STOP;
+		sif_deinit(dev);
+		dev->state = SIF_STATE_DEFAULT;
 	}
 	return 0;
 }
 
-static unsigned int x2_sif_poll(struct file *file,
-				struct poll_table_struct *wait)
+static unsigned int x2_sif_poll(struct file *file, struct poll_table_struct *wait)
 {
-	sif_t *dev = sifdrv(file);
-	sif_file_t *priv = &dev->sif_file;
-	unsigned int mask = 0;
-	unsigned long flags;
+	sif_t          *dev = sifdrv(file);
+	sif_file_t     *priv = &dev->sif_file;
+	unsigned int    mask = 0;
+	unsigned long   flags;
 
 	poll_wait(file, &priv->event_queue, wait);
 	spin_lock_irqsave(&priv->event_lock, flags);
@@ -255,7 +254,7 @@ static unsigned int x2_sif_poll(struct file *file,
 
 static long x2_sif_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
-	int ret = 0;
+	int    ret = 0;
 	sif_t *dev = sifdrv(file);
 	/* Check type and command number */
 	if (_IOC_TYPE(cmd) != SIF_IOC_MAGIC)
@@ -264,25 +263,20 @@ static long x2_sif_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	switch (cmd) {
 	case SIFIOC_INIT:
 		{
-			sif_cfg_t sif_cfg;
+			sif_cfg_t     sif_cfg;
 			printk(KERN_INFO "sif init cmd\n");
 			if (!arg) {
-				siferr
-				    ("ERROR: sif init error, config should not be NULL");
+				siferr("ERROR: sif init error, config should not be NULL");
 				ret = -EINVAL;
 				break;
 			}
-			if (SIF_STATE_DEFAULT != dev->state
-			    && SIF_STATE_INIT != dev->state) {
+			if (SIF_STATE_DEFAULT != dev->state && SIF_STATE_INIT != dev->state) {
 				sifinfo("sif has been init before");
 				ret = -EINVAL;
 				break;
 			}
-			if (copy_from_user
-			    ((void *)&sif_cfg, (void __user *)arg,
-			     sizeof(sif_cfg_t))) {
-				siferr
-				    ("ERROR: sif copy data from user failed\n");
+			if (copy_from_user((void *)&sif_cfg, (void __user *)arg, sizeof(sif_cfg_t))) {
+				siferr("ERROR: sif copy data from user failed\n");
 				return -EINVAL;
 			}
 			if (0 != (ret = sif_init(dev, &sif_cfg))) {
@@ -313,11 +307,8 @@ static long x2_sif_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			if (SIF_STATE_START == dev->state) {
 				sifinfo("sif already in start state");
 				break;
-			} else if (SIF_STATE_INIT != dev->state
-				   && SIF_STATE_STOP != dev->state) {
-				siferr
-				    ("ERROR: sif start state error, current state: 0x%x",
-				     dev->state);
+			} else if (SIF_STATE_INIT != dev->state && SIF_STATE_STOP != dev->state) {
+				siferr("ERROR: sif start state error, current state: 0x%x", dev->state);
 				ret = -EINVAL;
 				break;
 			}
@@ -336,9 +327,7 @@ static long x2_sif_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				sifinfo("sif already in stop state");
 				break;
 			} else if (SIF_STATE_START != dev->state) {
-				siferr
-				    ("ERROR: sif dev stop state error, current state: 0x%x",
-				     dev->state);
+				siferr("ERROR: sif dev stop state error, current state: 0x%x", dev->state);
 				ret = -EINVAL;
 				break;
 			}
@@ -354,17 +343,13 @@ static long x2_sif_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		{
 			sif_status_t status;
 			if (!arg) {
-				siferr
-				    ("ERROR: sif get status error, input should not be NULL");
+				siferr("ERROR: sif get status error, input should not be NULL");
 				ret = -EINVAL;
 				break;
 			}
 			sif_dev_get_status(&status);
-			if (copy_to_user
-			    ((void __user *)arg, (void *)&status,
-			     sizeof(sif_status_t))) {
-				printk(KERN_ERR
-				       "sif copy data from user failed\n");
+			if (copy_to_user((void __user *)arg, (void *)&status, sizeof(sif_status_t))) {
+				printk(KERN_ERR "sif copy data from user failed\n");
 				return -EINVAL;
 			}
 		}
@@ -373,47 +358,38 @@ static long x2_sif_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		{
 			sif_info_t info;
 			if (!arg) {
-				siferr
-				    ("ERROR: sif get info error, input should not be NULL");
+				siferr("ERROR: sif get info error, input should not be NULL");
 				ret = -EINVAL;
 				break;
 			}
 			sif_dev_get_info(&info);
-			if (copy_to_user
-			    ((void __user *)arg, (void *)&info,
-			     sizeof(sif_info_t))) {
-				printk(KERN_ERR
-				       "sif copy data to user failed\n");
+			if (copy_to_user((void __user *)arg, (void *)&info, sizeof(sif_info_t))) {
+				printk(KERN_ERR "sif copy data to user failed\n");
 				return -EINVAL;
 			}
 		}
 		break;
 	case SIFIOC_GET_FRAME_ID:
 		{
-			frame_id_info_t frame_id = { 0, };
+			frame_id_info_t frame_id = {0, };
 			if (!arg) {
-				siferr
-				    ("ERROR: sif get frame id error, input should not be NULL");
+				siferr("ERROR: sif get frame id error, input should not be NULL");
 				ret = -EINVAL;
 				break;
 			}
 			sif_dev_frame_id_get(&frame_id);
-			if (copy_to_user
-			    ((void __user *)arg, (void *)&frame_id,
-			     sizeof(frame_id_info_t))) {
-				printk(KERN_ERR
-				       "sif copy data to user failed\n");
+			if (copy_to_user((void __user *)arg, (void *)&frame_id, sizeof(frame_id_info_t))) {
+				printk(KERN_ERR "sif copy data to user failed\n");
 				return -EINVAL;
 			}
 		}
 		break;
 	case SIFIOC_UPDATE:
 		{
-			sif_cfg_t sif_cfg;
+			sif_cfg_t     sif_cfg;
 			printk(KERN_INFO "sif update cmd\n");
 			if (!arg) {
-				siferr
-				    ("ERROR: sif init error, config should not be NULL");
+				siferr("ERROR: sif init error, config should not be NULL");
 				ret = -EINVAL;
 				break;
 			}
@@ -422,11 +398,8 @@ static long x2_sif_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				ret = -EINVAL;
 				break;
 			}
-			if (copy_from_user
-			    ((void *)&sif_cfg, (void __user *)arg,
-			     sizeof(sif_cfg_t))) {
-				siferr
-				    ("ERROR: sif copy data from user failed\n");
+			if (copy_from_user((void *)&sif_cfg, (void __user *)arg, sizeof(sif_cfg_t))) {
+				siferr("ERROR: sif copy data from user failed\n");
 				return -EINVAL;
 			}
 			if (0 != (ret = sif_update(dev, &sif_cfg))) {
@@ -445,23 +418,23 @@ static long x2_sif_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 }
 
 static struct file_operations sif_fops = {
-	.owner = THIS_MODULE,
-	.open = x2_sif_open,
-	.write = x2_sif_write,
+	.owner  = THIS_MODULE,
+	.open   = x2_sif_open,
+	.write  = x2_sif_write,
 	.read = x2_sif_read,
 	.poll = x2_sif_poll,
-	.release = x2_sif_close,
+	.release  = x2_sif_close,
 	.unlocked_ioctl = x2_sif_ioctl,
 	.compat_ioctl = x2_sif_ioctl,
 };
 
-static int sif_major = 0;
-struct cdev sif_cdev;
+static int    sif_major = 0;
+struct cdev   sif_cdev;
 static int __init sif_module_init(void)
 {
-	int ret = 0;
-	dev_t devno;
-	struct cdev *p_cdev = &sif_cdev;
+	int           ret = 0;
+	dev_t         devno;
+	struct cdev  *p_cdev = &sif_cdev;
 	sif_t *sif = NULL;
 
 	printk(KERN_INFO "sif driver init enter\n");
@@ -485,14 +458,11 @@ static int __init sif_module_init(void)
 	}
 	g_sif_class = class_create(THIS_MODULE, "x2_sif");
 	if (IS_ERR(g_sif_class)) {
-		printk(KERN_INFO "[%s:%d] class_create error\n", __func__,
-		       __LINE__);
+		printk(KERN_INFO "[%s:%d] class_create error\n", __func__, __LINE__);
 		ret = PTR_ERR(g_sif_class);
 		goto err;
 	}
-	g_sif_dev =
-	    device_create(g_sif_class, NULL, MKDEV(sif_major, 0), (void *)sif,
-			  "x2_sif");
+	g_sif_dev = device_create(g_sif_class, NULL, MKDEV(sif_major, 0), (void *)sif, "x2_sif");
 	if (IS_ERR(g_sif_dev)) {
 		printk(KERN_ERR "[%s] deivce create error\n", __func__);
 		ret = PTR_ERR(g_sif_dev);
@@ -522,7 +492,7 @@ static void __exit sif_module_exit(void)
 	kzfree(sif);
 	return;
 }
-
 module_init(sif_module_init);
 module_exit(sif_module_exit);
 MODULE_LICENSE("GPL v2");
+

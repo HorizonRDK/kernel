@@ -82,8 +82,8 @@
 #define DEV_DPHY_CHECK_MAX          (500)
 #define DEV_DPHY_STATE_BASIC        (0x3F)
 #define DEV_DPHY_STATE_NLANE        (0x38|(3)) /*b'(01 01 01 01) 00 1xxx*/ /*max lane num is 4 now*/
-#define DEV_DPHY_STATE(s)           ((s>>6))	/*b'00 1xxx */
-#define DEV_DPHY_STATE_STOP(l)      (0xFF>>((DEV_DPHY_LANE_MAX-l)<<1))	/*b'11 11 11 11 (00 1xxx) */
+#define DEV_DPHY_STATE(s)           ((s>>6)) /*b'00 1xxx*/
+#define DEV_DPHY_STATE_STOP(l)      (0xFF>>((DEV_DPHY_LANE_MAX-l)<<1)) /*b'11 11 11 11 (00 1xxx)*/
 #define DEV_DPHY_SHUTDOWNZ          (0x01)
 #define DEV_DPHY_RSTZ               (0x02)
 #define DEV_DPHY_ENABLEZ            (0x04)
@@ -121,14 +121,14 @@ module_param(mipi_dev_nocheck, uint, S_IRUGO | S_IWUSR);
 
 typedef struct _mipi_dev_s {
 	void __iomem *iomem;
-	int irq;
-	mipi_state_t state;	/* mipi dev state */
+	int           irq;
+	mipi_state_t  state;   /* mipi dev state */
 } mipi_dev_t;
 
-mipi_dev_t *g_mipi_dev = NULL;
-static int mipi_dev_major = 0;
-struct cdev mipi_dev_cdev;
-static struct class *x2_mipi_dev_class;
+mipi_dev_t  *g_mipi_dev = NULL;
+static int    mipi_dev_major = 0;
+struct cdev   mipi_dev_cdev;
+static struct class  *x2_mipi_dev_class;
 static struct device *g_mipi_dev_dev;
 
 /**
@@ -138,7 +138,7 @@ static struct device *g_mipi_dev_dev;
  *
  * @return uint16_t hline
  */
-static uint16_t mipi_dev_vpg_get_hline(mipi_dev_cfg_t * control)
+static uint16_t mipi_dev_vpg_get_hline(mipi_dev_cfg_t *control)
 {
 	uint16_t hline = 0;
 
@@ -184,11 +184,9 @@ static uint16_t mipi_dev_vpg_get_hline(mipi_dev_cfg_t * control)
  *
  * @return uint16_t vfp
  */
-static uint16_t mipi_dev_vpg_get_vfp(mipi_dev_cfg_t * control)
+static uint16_t mipi_dev_vpg_get_vfp(mipi_dev_cfg_t *control)
 {
-	uint16_t vfp =
-	    control->framelenth - MIPI_DEV_VPG_VSA_LINES -
-	    MIPI_DEV_VPG_VBP_LINES - control->height;
+	uint16_t vfp = control->framelenth - MIPI_DEV_VPG_VSA_LINES - MIPI_DEV_VPG_VBP_LINES - control->height;
 	if (control->framelenth == 0 || control->framelenth == control->height)
 		vfp = MIPI_DEV_VPG_VFP_LINES;
 	mipiinfo("mipi dev vpg vfp: %d", vfp);
@@ -202,27 +200,24 @@ static uint16_t mipi_dev_vpg_get_vfp(mipi_dev_cfg_t * control)
  *
  * @return int32_t: 0/-1
  */
-static int32_t mipi_dev_initialize_ipi(mipi_dev_cfg_t * control)
+static int32_t mipi_dev_initialize_ipi(mipi_dev_cfg_t *control)
 {
-	void __iomem *iomem = NULL;
+	void __iomem  *iomem = NULL;
 	if (NULL == g_mipi_dev) {
 		mipierr("mipi dev not inited!");
 		return -1;
 	}
 	iomem = g_mipi_dev->iomem;
-	/*Configure the IPI packet header */
-	/*Configure the IPI line numbering */
-	/*Configure IPI frame number */
-	mipi_putreg(iomem + REG_MIPI_DEV_IPI_PKT_CFG, MIPI_DEV_IPI_PKT_CFG | control->datatype);	/*vc change from 2'b11 to 2'b00 */
-	/*Configure IPI maximum frame number */
-	mipi_putreg(iomem + REG_MIPI_DEV_IPI_MAX_FRAME_NUM,
-		    MIPI_DEV_IPI_MAX_FRAME);
-	/*Configure IPI horizontal resolution */
+	/*Configure the IPI packet header*/
+	/*Configure the IPI line numbering*/
+	/*Configure IPI frame number*/
+	mipi_putreg(iomem + REG_MIPI_DEV_IPI_PKT_CFG, MIPI_DEV_IPI_PKT_CFG | control->datatype); /*vc change from 2'b11 to 2'b00*/
+	/*Configure IPI maximum frame number*/
+	mipi_putreg(iomem + REG_MIPI_DEV_IPI_MAX_FRAME_NUM, MIPI_DEV_IPI_MAX_FRAME);
+	/*Configure IPI horizontal resolution*/
 	mipi_putreg(iomem + REG_MIPI_DEV_IPI_PIXELS, control->width);
-	/*Configure IPI vertical resolution */
-	mipi_putreg(iomem + REG_MIPI_DEV_IPI_LINES,
-		    control->ipi_lines ? control->ipi_lines : control->height +
-		    2);
+	/*Configure IPI vertical resolution*/
+	mipi_putreg(iomem + REG_MIPI_DEV_IPI_LINES, control->ipi_lines ? control->ipi_lines : control->height + 2);
 
 	return 0;
 }
@@ -234,11 +229,11 @@ static int32_t mipi_dev_initialize_ipi(mipi_dev_cfg_t * control)
  *
  * @return int32_t: 0/-1
  */
-static int32_t mipi_dev_initialize_vgp(mipi_dev_cfg_t * control)
+static int32_t mipi_dev_initialize_vgp(mipi_dev_cfg_t *control)
 {
-	uint8_t ncount = 0;
-	uint32_t status = 0;
-	void __iomem *iomem = NULL;
+	uint8_t    ncount = 0;
+	uint32_t   status = 0;
+	void __iomem  *iomem = NULL;
 	if (NULL == g_mipi_dev) {
 		mipierr("mipi dev not inited!");
 		return -1;
@@ -246,10 +241,10 @@ static int32_t mipi_dev_initialize_vgp(mipi_dev_cfg_t * control)
 	iomem = g_mipi_dev->iomem;
 
 	mipiinfo("mipi device initialize vgp begin");
-	/*Disable the Video Pattern Generator */
+	/*Disable the Video Pattern Generator*/
 	mipi_putreg(iomem + REG_MIPI_DEV_VPG_CTRL, MIPI_DEV_VPG_DISABLE);
 
-	/*Wait for VPG idle */
+	/*Wait for VPG idle*/
 	do {
 		status = mipi_getreg(iomem + REG_MIPI_DEV_VPG_STATUS);
 		if (ncount >= MIPI_DEV_CHECK_MAX) {
@@ -259,29 +254,23 @@ static int32_t mipi_dev_initialize_vgp(mipi_dev_cfg_t * control)
 		ncount++;
 	} while (MIPI_DEV_VPG_DISABLE != status);
 
-	/*Configure the VPG mode */
-	mipi_putreg(iomem + REG_MIPI_DEV_VPG_MODE_CFG,
-		    MIPI_DEV_VPG_ORI | MIPI_DEV_VPG_MODE);
-	mipi_putreg(iomem + REG_MIPI_DEV_VPG_PKT_CFG,
-		    MIPI_DEV_VPG_LINENUM | MIPI_DEV_VPG_HSYNC | MIPI_DEV_VPG_VC
-		    | control->datatype);
+	/*Configure the VPG mode*/
+	mipi_putreg(iomem + REG_MIPI_DEV_VPG_MODE_CFG, MIPI_DEV_VPG_ORI | MIPI_DEV_VPG_MODE);
+	mipi_putreg(iomem + REG_MIPI_DEV_VPG_PKT_CFG, MIPI_DEV_VPG_LINENUM | MIPI_DEV_VPG_HSYNC | MIPI_DEV_VPG_VC | control->datatype);
 	mipi_putreg(iomem + REG_MIPI_DEV_VPG_PKT_SIZE, control->width);
 	mipi_putreg(iomem + REG_MIPI_DEV_VPG_HSA_TIME, MIPI_DEV_VPG_HSA_TIME);
 	mipi_putreg(iomem + REG_MIPI_DEV_VPG_HBP_TIME, MIPI_DEV_VPG_HBP_TIME);
-	mipi_putreg(iomem + REG_MIPI_DEV_VPG_HLINE_TIME,
-		    mipi_dev_vpg_get_hline(control));
+	mipi_putreg(iomem + REG_MIPI_DEV_VPG_HLINE_TIME, mipi_dev_vpg_get_hline(control));
 	mipi_putreg(iomem + REG_MIPI_DEV_VPG_VSA_LINES, MIPI_DEV_VPG_VSA_LINES);
 	mipi_putreg(iomem + REG_MIPI_DEV_VPG_VBP_LINES, MIPI_DEV_VPG_VBP_LINES);
-	mipi_putreg(iomem + REG_MIPI_DEV_VPG_VFP_LINES,
-		    mipi_dev_vpg_get_vfp(control));
+	mipi_putreg(iomem + REG_MIPI_DEV_VPG_VFP_LINES, mipi_dev_vpg_get_vfp(control));
 	//mipi_putreg(iomem+REG_MIPI_DEV_VPG_HLINE_TIME, MIPI_DEV_VPG_VLINE_TIME(control->width));
 	mipi_putreg(iomem + REG_MIPI_DEV_VPG_ACT_LINES, control->height);
-	mipi_putreg(iomem + REG_MIPI_DEV_VPG_MAX_FRAME_NUM,
-		    MIPI_DEV_IPI_MAX_FRAME);
+	mipi_putreg(iomem + REG_MIPI_DEV_VPG_MAX_FRAME_NUM, MIPI_DEV_IPI_MAX_FRAME);
 	//mipi_putreg(iomem + REG_MIPI_DEV_VPG_START_LINE_NUM, MIPI_DEV_VPG_START_LINE);
 	//mipi_putreg(iomem + REG_MIPI_DEV_VPG_STEP_LINE_NUM, MIPI_DEV_VPG_STEP_LINE);
 
-	/*Enalbe the Video Pattern Generator */
+	/*Enalbe the Video Pattern Generator*/
 	mipi_putreg(iomem + REG_MIPI_DEV_VPG_CTRL, MIPI_DEV_VPG_ENABLE);
 
 	mipiinfo("mipi device initialize vgp end");
@@ -301,7 +290,7 @@ static void mipi_dev_irq_enable(void)
 	uint32_t reg = 0;
 	uint32_t mask = 0;
 	uint32_t temp = 0;
-	void __iomem *iomem = NULL;
+	void __iomem  *iomem = NULL;
 	if (NULL == g_mipi_dev) {
 		mipierr("mipi dev not inited!");
 		return -1;
@@ -342,7 +331,7 @@ static void mipi_dev_irq_disable(void)
 	uint32_t reg = 0;
 	uint32_t mask = 0;
 	uint32_t temp = 0;
-	void __iomem *iomem = NULL;
+	void __iomem  *iomem = NULL;
 	if (NULL == g_mipi_dev) {
 		mipierr("mipi dev not inited!");
 		return -1;
@@ -377,8 +366,8 @@ static void mipi_dev_irq_disable(void)
  */
 static void mipi_dev_irq_func(void)
 {
-	uint32_t irq = 0;
-	void __iomem *iomem = NULL;
+	uint32_t   irq = 0;
+	void __iomem  *iomem = NULL;
 	if (NULL == g_mipi_dev) {
 		mipierr("mipi dev not inited!");
 		return -1;
@@ -406,54 +395,53 @@ static void mipi_dev_irq_func(void)
 }
 #endif
 
-static int32_t mipi_dev_wait_phy_powerup(mipi_dev_cfg_t * control)
+static int32_t mipi_dev_wait_phy_powerup(mipi_dev_cfg_t *control)
 {
-	uint16_t ncount = 0;
-	uint32_t state = 0;
-	void __iomem *iomem = NULL;
+	uint16_t       ncount = 0;
+	uint32_t       state = 0;
+	void __iomem  *iomem = NULL;
 	if (NULL == g_mipi_dev) {
 		mipierr("mipi dev not inited!");
 		return -1;
 	}
 	iomem = g_mipi_dev->iomem;
-	/*Wait for the PHY power-up */
+	/*Wait for the PHY power-up*/
 	do {
 		state = mipi_getreg(iomem + REG_MIPI_DEV_PHY_STATUS);
 		mipiinfo("dphy state 0x%x", state);
 		if ((state & DEV_DPHY_STATE_BASIC) == DEV_DPHY_STATE_NLANE) {
-			if ((DEV_DPHY_STATE(state) &
-			     DEV_DPHY_STATE_STOP(control->lane)) ==
-			    DEV_DPHY_STATE_STOP(control->lane))
+			if ((DEV_DPHY_STATE(state) & DEV_DPHY_STATE_STOP(control->lane)) ==
+						DEV_DPHY_STATE_STOP(control->lane))
 				return 0;
 		}
 		ncount++;
-	} while (1);		//ncount <= MIPI_DEV_PHY_CHECK_MAX );
+	} while (1); //ncount <= MIPI_DEV_PHY_CHECK_MAX );
 	mipierr("lane state of dev phy is error: 0x%x", state);
 	return -1;
 }
 
 int32_t mipi_dev_start(void)
 {
-	void __iomem *iomem = NULL;
+	void __iomem  *iomem = NULL;
 	if (NULL == g_mipi_dev) {
 		mipierr("mipi dev not inited!");
 		return -1;
 	}
 	iomem = g_mipi_dev->iomem;
-	/*Configure the High-Speed clock */
+	/*Configure the High-Speed clock*/
 	mipi_putreg(iomem + REG_MIPI_DEV_LPCLK_CTRL, MIPI_DEV_LPCLK_CONT);
 	return 0;
 }
 
 int32_t mipi_dev_stop(void)
 {
-	void __iomem *iomem = NULL;
+	void __iomem  *iomem = NULL;
 	if (NULL == g_mipi_dev) {
 		mipierr("mipi dev not inited!");
 		return -1;
 	}
 	iomem = g_mipi_dev->iomem;
-	/*stop mipi dev here */
+	/*stop mipi dev here*/
 	mipi_putreg(iomem + REG_MIPI_DEV_LPCLK_CTRL, MIPI_DEV_LPCLK_NCONT);
 	return 0;
 }
@@ -467,7 +455,7 @@ int32_t mipi_dev_stop(void)
  */
 int32_t mipi_dev_deinit(void)
 {
-	void __iomem *iomem = NULL;
+	void __iomem  *iomem = NULL;
 	if (NULL == g_mipi_dev) {
 		mipierr("mipi dev not inited!");
 		return -1;
@@ -476,13 +464,13 @@ int32_t mipi_dev_deinit(void)
 #if MIPI_DEV_INT_DBG
 	mipi_dev_irq_disable();
 #endif
-	/*stop mipi dev here */
+	/*stop mipi dev here*/
 	mipi_putreg(iomem + REG_MIPI_DEV_LPCLK_CTRL, MIPI_DEV_LPCLK_NCONT);
 #ifdef CONFIG_X2_MIPI_PHY
 	mipi_dev_dphy_reset();
 #endif
 	mipi_putreg(iomem + REG_MIPI_DEV_PHY_RSTZ, MIPI_DEV_CSI2_RESETN);
-	/*Set DWC_mipi_csi2_dev reset */
+	/*Set DWC_mipi_csi2_dev reset*/
 	mipi_putreg(iomem + REG_MIPI_DEV_VPG_CTRL, MIPI_DEV_VPG_DISABLE);
 	mipi_putreg(iomem + REG_MIPI_DEV_CSI2_RESETN, MIPI_DEV_CSI2_RESETN);
 	return 0;
@@ -495,10 +483,10 @@ int32_t mipi_dev_deinit(void)
  *
  * @return int32_t: 0/-1
  */
-int32_t mipi_dev_init(mipi_dev_cfg_t * control)
+int32_t mipi_dev_init(mipi_dev_cfg_t *control)
 {
-	uint32_t power = 0;
-	void __iomem *iomem = NULL;
+	uint32_t       power = 0;
+	void __iomem  *iomem = NULL;
 	if (NULL == g_mipi_dev) {
 		mipierr("mipi dev not inited!");
 		return -1;
@@ -506,29 +494,27 @@ int32_t mipi_dev_init(mipi_dev_cfg_t * control)
 	iomem = g_mipi_dev->iomem;
 	mipiinfo("mipi device init begin");
 
-	/*Reset DWC_mipicsi2_device */
+	/*Reset DWC_mipicsi2_device*/
 	mipi_putreg(iomem + REG_MIPI_DEV_CSI2_RESETN, MIPI_DEV_CSI2_RESETN);
 #ifdef CONFIG_X2_MIPI_PHY
-	/*Shut down and reset SNPS D-PHY */
+	/*Shut down and reset SNPS D-PHY*/
 	mipi_putreg(iomem + REG_MIPI_DEV_PHY_RSTZ, MIPI_DEV_CSI2_RESETN);
 	mipi_putreg(iomem + REG_MIPI_DEV_CLKMGR_CFG, MIPI_DEV_CSI2_RESETN);
 	mipi_putreg(iomem + REG_MIPI_DEV_PHY_IF_CFG, MIPI_DEV_CSI2_RESETN);
 #endif
-	/*Configure the number of lanes */
+	/*Configure the number of lanes*/
 	mipi_putreg(iomem + REG_MIPI_DEV_PHY_IF_CFG, control->lane - 1);
-	/*Configure the Escape mode transmit clock */
+	/*Configure the Escape mode transmit clock*/
 	mipi_putreg(iomem + REG_MIPI_DEV_CLKMGR_CFG, MIPI_DEV_CLKMGR_RAISE);
 
 #ifdef CONFIG_X2_MIPI_PHY
-	/*Initialize the PHY */
-	if (0 !=
-	    mipi_dev_dphy_initialize(control->mipiclk, control->lane,
-				     control->settle, iomem)) {
+	/*Initialize the PHY*/
+	if (0 != mipi_dev_dphy_initialize(control->mipiclk, control->lane, control->settle, iomem)) {
 		mipierr("mipi dev initialize error!!!");
 		return -1;
 	}
 #endif
-	/*Power on PHY */
+	/*Power on PHY*/
 	power = DEV_DPHY_ENABLEZ;
 	mipi_putreg(iomem + REG_MIPI_DEV_PHY_RSTZ, power);
 	power |= DEV_DPHY_SHUTDOWNZ;
@@ -538,7 +524,7 @@ int32_t mipi_dev_init(mipi_dev_cfg_t * control)
 	power |= DEV_DPHY_FORCEPOLL;
 	mipi_putreg(iomem + REG_MIPI_DEV_PHY_RSTZ, power);
 	mipi_putreg(iomem + REG_MIPI_DEV_LPCLK_CTRL, MIPI_DEV_LPCLK_NCONT);
-	/*Wake up DWC_mipicsi2_device */
+	/*Wake up DWC_mipicsi2_device*/
 	mipi_putreg(iomem + REG_MIPI_DEV_CSI2_RESETN, MIPI_DEV_CSI2_RAISE);
 	if (!mipi_dev_nocheck) {
 		if (0 != mipi_dev_wait_phy_powerup(control)) {
@@ -578,14 +564,13 @@ static int x2_mipi_dev_open(struct inode *inode, struct file *file)
 	return 0;
 }
 
-static long x2_mipi_dev_ioctl(struct file *file, unsigned int cmd,
-			      unsigned long arg)
+static long x2_mipi_dev_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
-	mipi_dev_t *mipi_dev = file->private_data;
-	void __iomem *iomem = mipi_dev->iomem;
-	reg_t reg;
-	uint32_t regv = 0;
-	int ret = 0;
+	mipi_dev_t    *mipi_dev = file->private_data;
+	void __iomem  *iomem = mipi_dev->iomem;
+	reg_t          reg;
+	uint32_t       regv = 0;
+	int            ret = 0;
 	/* Check type and command number */
 	if (_IOC_TYPE(cmd) != MIPIDEVIOC_MAGIC)
 		return -ENOTTY;
@@ -593,24 +578,18 @@ static long x2_mipi_dev_ioctl(struct file *file, unsigned int cmd,
 	switch (cmd) {
 	case MIPIDEVIOC_INIT:
 		{
-			mipi_dev_cfg_t mipi_dev_cfg;
+			mipi_dev_cfg_t     mipi_dev_cfg;
 			printk(KERN_INFO "mipi dev init cmd\n");
 			if (!arg) {
-				mipierr
-				    ("ERROR: mipi dev init error, config should not be NULL");
+				mipierr("ERROR: mipi dev init error, config should not be NULL");
 				ret = EINVAL;
 				break;
 			}
 			if (MIPI_STATE_DEFAULT != mipi_dev->state) {
-				mipierr
-				    ("WARNING: mipi dev re-init, pre state: 0x%x",
-				     mipi_dev->state);
+				mipierr("WARNING: mipi dev re-init, pre state: 0x%x", mipi_dev->state);
 			}
-			if (copy_from_user
-			    ((void *)&mipi_dev_cfg, (void __user *)arg,
-			     sizeof(mipi_dev_cfg_t))) {
-				mipierr
-				    ("ERROR: mipi dev copy data from user failed\n");
+			if (copy_from_user((void *)&mipi_dev_cfg, (void __user *)arg, sizeof(mipi_dev_cfg_t))) {
+				mipierr("ERROR: mipi dev copy data from user failed\n");
 				return -EINVAL;
 			}
 			if (0 != (ret = mipi_dev_init(&mipi_dev_cfg))) {
@@ -641,11 +620,8 @@ static long x2_mipi_dev_ioctl(struct file *file, unsigned int cmd,
 			if (MIPI_STATE_START == mipi_dev->state) {
 				mipiinfo("mipi already in start state");
 				break;
-			} else if (MIPI_STATE_INIT != mipi_dev->state
-				   && MIPI_STATE_STOP != mipi_dev->state) {
-				mipierr
-				    ("ERROR: mipi dev start state error, current state: 0x%x",
-				     mipi_dev->state);
+			} else if (MIPI_STATE_INIT != mipi_dev->state && MIPI_STATE_STOP != mipi_dev->state) {
+				mipierr("ERROR: mipi dev start state error, current state: 0x%x", mipi_dev->state);
 				ret = EINVAL;
 				break;
 			}
@@ -664,9 +640,7 @@ static long x2_mipi_dev_ioctl(struct file *file, unsigned int cmd,
 				mipiinfo("mipi dev already in stop state");
 				break;
 			} else if (MIPI_STATE_START != mipi_dev->state) {
-				mipierr
-				    ("ERROR: mipi dev stop state error, current state: 0x%x",
-				     mipi_dev->state);
+				mipierr("ERROR: mipi dev stop state error, current state: 0x%x", mipi_dev->state);
 				ret = EINVAL;
 				break;
 			}
@@ -680,41 +654,32 @@ static long x2_mipi_dev_ioctl(struct file *file, unsigned int cmd,
 		break;
 	case MIPIDEVIOC_READ:
 		if (!arg) {
-			printk(KERN_ERR
-			       "x2 mipi_dev reg read error, reg should not be NULL");
+			printk(KERN_ERR "x2 mipi_dev reg read error, reg should not be NULL");
 			return -EINVAL;
 		}
-		if (copy_from_user
-		    ((void *)&reg, (void __user *)arg, sizeof(reg))) {
-			printk(KERN_ERR
-			       "x2 mipi_dev reg read error, copy data from user failed\n");
+		if (copy_from_user((void *)&reg, (void __user *)arg, sizeof(reg))) {
+			printk(KERN_ERR "x2 mipi_dev reg read error, copy data from user failed\n");
 			return -EINVAL;
 		}
 		reg.value = readl(iomem + reg.offset);
 		if (copy_to_user((void __user *)arg, (void *)&reg, sizeof(reg))) {
-			printk(KERN_ERR
-			       "x2 mipi_dev reg read error, copy data to user failed\n");
+			printk(KERN_ERR "x2 mipi_dev reg read error, copy data to user failed\n");
 			return -EINVAL;
 		}
 		break;
 	case MIPIDEVIOC_WRITE:
 		if (!arg) {
-			printk(KERN_ERR
-			       "x2 mipi_dev reg write error, reg should not be NULL");
+			printk(KERN_ERR "x2 mipi_dev reg write error, reg should not be NULL");
 			return -EINVAL;
 		}
-		if (copy_from_user
-		    ((void *)&reg, (void __user *)arg, sizeof(reg))) {
-			printk(KERN_ERR
-			       "x2 mipi_dev reg write error, copy data from user failed\n");
+		if (copy_from_user((void *)&reg, (void __user *)arg, sizeof(reg))) {
+			printk(KERN_ERR "x2 mipi_dev reg write error, copy data from user failed\n");
 			return -EINVAL;
 		}
 		writel(reg.value, iomem + reg.offset);
 		regv = readl(iomem + reg.offset);
 		if (regv != reg.value) {
-			printk(KERN_ERR
-			       "x2 mipi_dev reg write error, write 0x%x got 0x%x\n",
-			       reg.value, regv);
+			printk(KERN_ERR "x2 mipi_dev reg write error, write 0x%x got 0x%x\n", reg.value, regv);
 			return -EINVAL;
 		}
 		break;
@@ -723,24 +688,23 @@ static long x2_mipi_dev_ioctl(struct file *file, unsigned int cmd,
 	}
 	return 0;
 }
-
 static const struct file_operations x2_mipi_dev_fops = {
-	.owner = THIS_MODULE,
-	.open = x2_mipi_dev_open,
-	.read = seq_read,
-	.llseek = seq_lseek,
-	.release = single_release,
+	.owner      = THIS_MODULE,
+	.open       = x2_mipi_dev_open,
+	.read       = seq_read,
+	.llseek     = seq_lseek,
+	.release    = single_release,
 	.unlocked_ioctl = x2_mipi_dev_ioctl,
 	.compat_ioctl = x2_mipi_dev_ioctl,
 };
 
 static int x2_mipi_dev_probe(struct platform_device *pdev)
 {
-	mipi_dev_t *pack_dev;
-	int ret = 0;
-	dev_t devno;
+	mipi_dev_t      *pack_dev;
+	int              ret = 0;
+	dev_t            devno;
 	struct resource *res;
-	struct cdev *p_cdev = &mipi_dev_cdev;
+	struct cdev     *p_cdev = &mipi_dev_cdev;
 
 	pack_dev = devm_kmalloc(&pdev->dev, sizeof(mipi_dev_t), GFP_KERNEL);
 	if (!pack_dev) {
@@ -763,14 +727,11 @@ static int x2_mipi_dev_probe(struct platform_device *pdev)
 	}
 	x2_mipi_dev_class = class_create(THIS_MODULE, "x2_mipi_dev");
 	if (IS_ERR(x2_mipi_dev_class)) {
-		printk(KERN_INFO "[%s:%d] class_create error\n", __func__,
-		       __LINE__);
+		printk(KERN_INFO "[%s:%d] class_create error\n", __func__, __LINE__);
 		ret = PTR_ERR(x2_mipi_dev_class);
 		goto err;
 	}
-	g_mipi_dev_dev =
-	    device_create(x2_mipi_dev_class, NULL, MKDEV(mipi_dev_major, 0),
-			  (void *)pack_dev, "x2_mipi_dev");
+	g_mipi_dev_dev = device_create(x2_mipi_dev_class, NULL, MKDEV(mipi_dev_major, 0), (void *)pack_dev, "x2_mipi_dev");
 	if (IS_ERR(g_mipi_dev_dev)) {
 		printk(KERN_ERR "[%s] deivce create error\n", __func__);
 		ret = PTR_ERR(g_mipi_dev_dev);
@@ -815,12 +776,12 @@ static const struct of_device_id x2_mipi_dev_match[] = {
 MODULE_DEVICE_TABLE(of, x2_mipi_dev_match);
 
 static struct platform_driver x2_mipi_dev_driver = {
-	.probe = x2_mipi_dev_probe,
+	.probe  = x2_mipi_dev_probe,
 	.remove = x2_mipi_dev_remove,
 	.driver = {
-		   .name = "x2_mipi_dev",
-		   .of_match_table = x2_mipi_dev_match,
-		   },
+		.name = "x2_mipi_dev",
+		.of_match_table = x2_mipi_dev_match,
+	},
 };
 
 module_platform_driver(x2_mipi_dev_driver);

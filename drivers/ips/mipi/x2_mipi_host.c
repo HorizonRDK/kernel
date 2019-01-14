@@ -92,15 +92,15 @@ module_param(mipi_host_nocheck, uint, S_IRUGO | S_IWUSR);
 #define MIPIHOSTIOC_WRITE       _IOW(MIPIHOSTIOC_MAGIC, 5, reg_t)
 
 typedef struct _mipi_host_s {
-	void __iomem *iomem;
-	int irq;
-	mipi_state_t state;	/* mipi host state */
+	void __iomem  *iomem;
+	int            irq;
+	mipi_state_t   state;   /* mipi host state */
 } mipi_host_t;
 
-mipi_host_t *g_mipi_host = NULL;
-static int mipi_host_major = 0;
-struct cdev mipi_host_cdev;
-static struct class *x2_mipi_host_class;
+mipi_host_t  *g_mipi_host = NULL;
+static int    mipi_host_major = 0;
+struct cdev   mipi_host_cdev;
+static struct class  *x2_mipi_host_class;
 static struct device *g_mipi_host_dev;
 
 #ifdef SYSC_VIDEO_DIV_REG
@@ -119,11 +119,10 @@ static void mipi_host_pix_clk_div(uint32_t div)
 }
 #endif
 
-static int32_t mipi_host_pixel_clk_select(mipi_host_cfg_t * control)
+static int32_t mipi_host_pixel_clk_select(mipi_host_cfg_t *control)
 {
-	uint16_t pixclk =
-	    control->linelenth * control->framelenth * control->fps / 1000000;
-	uint16_t pixclkdiv = 0;
+	uint16_t  pixclk = control->linelenth * control->framelenth * control->fps / 1000000;
+	uint16_t  pixclkdiv = 0;
 
 	if (!control->linelenth || control->linelenth == control->width) {
 		switch (control->datatype) {
@@ -157,14 +156,11 @@ static int32_t mipi_host_pixel_clk_select(mipi_host_cfg_t * control)
 			mipi_host_pix_clk_div(pixclkdiv);
 #endif
 		pixclk = MIPI_HOST_PIXCLK_DEFAULT / pixclkdiv;
-		mipiinfo("host fifo clk pixclkdiv: %d, pixclk: %d", pixclkdiv,
-			 pixclk);
+		mipiinfo("host fifo clk pixclkdiv: %d, pixclk: %d", pixclkdiv, pixclk);
 	} else {
-		mipiinfo("host fifo clk error ! pixclkdiv: %d, pixclk: %d",
-			 pixclkdiv, pixclk);
+		mipiinfo("host fifo clk error ! pixclkdiv: %d, pixclk: %d", pixclkdiv, pixclk);
 		pixclk = MIPI_HOST_PIXCLK_DEFAULT;
-		mipiinfo("host fifo use default pixclk: %d",
-			 MIPI_HOST_PIXCLK_DEFAULT);
+		mipiinfo("host fifo use default pixclk: %d", MIPI_HOST_PIXCLK_DEFAULT);
 	}
 	return pixclk;
 }
@@ -176,35 +172,35 @@ static int32_t mipi_host_pixel_clk_select(mipi_host_cfg_t * control)
  *
  * @return uint16_t
  */
-static uint16_t mipi_host_get_hsd(mipi_host_cfg_t * control, uint32_t pixclk)
+static uint16_t mipi_host_get_hsd(mipi_host_cfg_t *control, uint32_t pixclk)
 {
-    /**
-     * Rxbyteclk = (Rxbitclk / Number_of_lanes) / 8
-     * Rxbyteclk_per = 1 / Rxbyteclk
-     * Bytes_to_transmi = BitsPerPixel * Line_size / 8
-     * time to transmit last pixel in PPI
-     * = (Bytes_to_transmit / Number_of_lanes) *  Rxbyteclk_per
-     * = ((BitsPerPixel * Line_size / 8) / Number_of_lanes) /((Rxbitclk /  Number_of_lanes) / 8)
-     * = (BitsPerPixel * Line_size) / Rxbitclk
-     *
-     * pixel_clk_per = 1 / pixel_clk
-     * time to transmit last pixel in IPI
-     * = (hsa + hbp + hsd + cycles_to_transmit_data) * pixel_clk_per
-     * = (hsa + hbp + hsd + cycles_to_transmit_data) / pixel_clk
-     *
-     * T(ppi) < T(ipi) ==>
-     * BitsPerPixel * Line_size * pixel_clk / Rxbitclk < (hsa + hbp + hsd + cycles_to_trans) ==>
-     *  hsd > BitsPerPixel * Line_size * pixel_clk / Rxbitclk - (cycles_to_trans+hsa+ hbp)
-     *  cycles_to_trans = Line_size in 48 bits IPI
-     *
-     */
+	/**
+	 * Rxbyteclk = (Rxbitclk / Number_of_lanes) / 8 
+	 * Rxbyteclk_per = 1 / Rxbyteclk 
+	 * Bytes_to_transmi = BitsPerPixel * Line_size / 8 
+	 * time to transmit last pixel in PPI 
+	 * = (Bytes_to_transmit / Number_of_lanes) *  Rxbyteclk_per 
+	 * = ((BitsPerPixel * Line_size / 8) / Number_of_lanes) /((Rxbitclk /  Number_of_lanes) / 8) 
+	 * = (BitsPerPixel * Line_size) / Rxbitclk 
+	 *  
+	 * pixel_clk_per = 1 / pixel_clk 
+	 * time to transmit last pixel in IPI 
+	 * = (hsa + hbp + hsd + cycles_to_transmit_data) * pixel_clk_per 
+	 * = (hsa + hbp + hsd + cycles_to_transmit_data) / pixel_clk
+	 *  
+	 * T(ppi) < T(ipi) ==> 
+	 * BitsPerPixel * Line_size * pixel_clk / Rxbitclk < (hsa + hbp + hsd + cycles_to_trans) ==> 
+	 *  hsd > BitsPerPixel * Line_size * pixel_clk / Rxbitclk - (cycles_to_trans+hsa+ hbp)
+	 *  cycles_to_trans = Line_size in 48 bits IPI
+	 *  
+	 */
 	uint32_t rx_bit_clk = 0;
 	uint32_t bits_per_pixel = 0;
 	uint32_t line_size = control->width;
 	uint32_t cycles_to_trans = 0;
 	uint32_t time_ppi = 0;
 	uint32_t time_ipi = 0;
-	int32_t hsdtime = 0;
+	int32_t  hsdtime = 0;
 
 	switch (control->datatype) {
 	case MIPI_CSI2_DT_YUV420_8:
@@ -232,29 +228,21 @@ static uint16_t mipi_host_get_hsd(mipi_host_cfg_t * control, uint32_t pixclk)
 	if (!control->linelenth || control->linelenth == control->width)
 		rx_bit_clk = control->mipiclk;
 	else
-		rx_bit_clk =
-		    control->linelenth * control->framelenth * control->fps *
-		    bits_per_pixel / 1000000;
+		rx_bit_clk = control->linelenth * control->framelenth * control->fps * bits_per_pixel / 1000000;
 	cycles_to_trans = control->width;
-	mipiinfo
-	    ("linelenth: %d, framelenth: %d, fps: %d, bits_per_pixel: %d, pixclk: %d",
-	     control->linelenth, control->framelenth, control->fps,
-	     bits_per_pixel, pixclk);
+	mipiinfo("linelenth: %d, framelenth: %d, fps: %d, bits_per_pixel: %d, pixclk: %d",
+			 control->linelenth, control->framelenth, control->fps, bits_per_pixel, pixclk);
 	time_ppi = (bits_per_pixel * line_size * 1000 / rx_bit_clk);
 	mipiinfo("time to transmit last pixel in ppi: %d", time_ppi);
-	hsdtime =
-	    (bits_per_pixel * line_size * pixclk / rx_bit_clk) -
-	    (control->hsaTime + control->hbpTime + cycles_to_trans);
+	hsdtime = (bits_per_pixel * line_size * pixclk / rx_bit_clk) - (control->hsaTime + control->hbpTime + cycles_to_trans);
 	mipiinfo("mipi host minium hsdtime: %d", hsdtime);
 	if (hsdtime < 0) {
 		hsdtime = 0;
 	}
 	hsdtime = (hsdtime + 16) & (~0xf);
-	time_ipi =
-	    (control->hsaTime + control->hbpTime + hsdtime +
-	     cycles_to_trans) * 1000 / pixclk;
+	time_ipi = (control->hsaTime + control->hbpTime + hsdtime + cycles_to_trans) * 1000 / pixclk;
 	mipiinfo("time to transmit last pixel in ipi: %d", time_ipi);
-	return (uint16_t) hsdtime;
+	return (uint16_t)hsdtime;
 }
 
 /**
@@ -264,49 +252,37 @@ static uint16_t mipi_host_get_hsd(mipi_host_cfg_t * control, uint32_t pixclk)
  *
  * @return int32_t : 0/-1
  */
-static int32_t mipi_host_configure_ipi(mipi_host_cfg_t * control)
+static int32_t mipi_host_configure_ipi(mipi_host_cfg_t *control)
 {
-	void __iomem *iomem = NULL;
+	void __iomem  *iomem = NULL;
 	if (NULL == g_mipi_host) {
 		mipierr("mipi host not inited!");
 		return -1;
 	}
 	iomem = g_mipi_host->iomem;
 	mipiinfo("mipi host config ipi");
-	/*Select virtual channel and data type to be processed by IPI */
-	mipi_putreg(iomem + REG_MIPI_HOST_IPI_VCID,
-		    control->channel_sel[MIPIHOST_IPI_PORT_0]);
+	/*Select virtual channel and data type to be processed by IPI*/
+	mipi_putreg(iomem + REG_MIPI_HOST_IPI_VCID, control->channel_sel[MIPIHOST_IPI_PORT_0]);
 	mipi_putreg(iomem + REG_MIPI_HOST_IPI_DATA_TYPE, control->datatype);
-	/*Select the IPI mode */
-	mipi_putreg(iomem + REG_MIPI_HOST_IPI_MODE,
-		    MIPI_HOST_IPI_ENABLE | (MIPI_HOST_BITWIDTH_48 <<
-					    MIPI_HOST_BITWIDTH_OFFSET));
-	/*Configure the IPI horizontal frame information */
+	/*Select the IPI mode*/
+	mipi_putreg(iomem + REG_MIPI_HOST_IPI_MODE, MIPI_HOST_IPI_ENABLE | (MIPI_HOST_BITWIDTH_48 << MIPI_HOST_BITWIDTH_OFFSET));
+	/*Configure the IPI horizontal frame information*/
 	mipi_putreg(iomem + REG_MIPI_HOST_IPI_HSA_TIME, control->hsaTime);
 	mipi_putreg(iomem + REG_MIPI_HOST_IPI_HBP_TIME, control->hbpTime);
 	mipi_putreg(iomem + REG_MIPI_HOST_IPI_HSD_TIME, control->hsdTime);
-	mipi_putreg(iomem + REG_MIPI_HOST_IPI_ADV_FEATURES,
-		    MIPI_HOST_LEGCYMODE_ENABLE);
+	mipi_putreg(iomem + REG_MIPI_HOST_IPI_ADV_FEATURES, MIPI_HOST_LEGCYMODE_ENABLE);
 
 	if (MIPIHOST_CHANNEL_NUM == control->channel_num) {
-		/*Select virtual channel and data type to be processed by IPI */
-		mipi_putreg(iomem + REG_MIPI_HOST_IPI2_VCID,
-			    control->channel_sel[MIPIHOST_IPI_PORT_1]);
-		mipi_putreg(iomem + REG_MIPI_HOST_IPI2_DATA_TYPE,
-			    control->datatype);
-		/*Select the IPI mode */
-		mipi_putreg(iomem + REG_MIPI_HOST_IPI2_MODE,
-			    MIPI_HOST_IPI_ENABLE | (MIPI_HOST_BITWIDTH_48 <<
-						    MIPI_HOST_BITWIDTH_OFFSET));
-		/*Configure the IPI horizontal frame information */
-		mipi_putreg(iomem + REG_MIPI_HOST_IPI2_HSA_TIME,
-			    control->hsaTime);
-		mipi_putreg(iomem + REG_MIPI_HOST_IPI2_HBP_TIME,
-			    control->hbpTime);
-		mipi_putreg(iomem + REG_MIPI_HOST_IPI2_HSD_TIME,
-			    control->hsdTime);
-		mipi_putreg(iomem + REG_MIPI_HOST_IPI2_ADV_FEATURES,
-			    MIPI_HOST_LEGCYMODE_ENABLE);
+		/*Select virtual channel and data type to be processed by IPI*/
+		mipi_putreg(iomem + REG_MIPI_HOST_IPI2_VCID, control->channel_sel[MIPIHOST_IPI_PORT_1]);
+		mipi_putreg(iomem + REG_MIPI_HOST_IPI2_DATA_TYPE, control->datatype);
+		/*Select the IPI mode*/
+		mipi_putreg(iomem + REG_MIPI_HOST_IPI2_MODE, MIPI_HOST_IPI_ENABLE | (MIPI_HOST_BITWIDTH_48 << MIPI_HOST_BITWIDTH_OFFSET));
+		/*Configure the IPI horizontal frame information*/
+		mipi_putreg(iomem + REG_MIPI_HOST_IPI2_HSA_TIME, control->hsaTime);
+		mipi_putreg(iomem + REG_MIPI_HOST_IPI2_HBP_TIME, control->hbpTime);
+		mipi_putreg(iomem + REG_MIPI_HOST_IPI2_HSD_TIME, control->hsdTime);
+		mipi_putreg(iomem + REG_MIPI_HOST_IPI2_ADV_FEATURES, MIPI_HOST_LEGCYMODE_ENABLE);
 	}
 	return 0;
 }
@@ -324,7 +300,7 @@ static void mipi_host_irq_enable(void)
 	uint32_t reg = 0;
 	uint32_t mask = 0;
 	uint32_t temp = 0;
-	void __iomem *iomem = NULL;
+	void __iomem  *iomem = NULL;
 	if (NULL == g_mipi_host) {
 		mipierr("mipi host not inited!");
 		return -1;
@@ -387,7 +363,7 @@ static void mipi_host_irq_disable(void)
 	uint32_t reg = 0;
 	uint32_t mask = 0;
 	uint32_t temp = 0;
-	void __iomem *iomem = NULL;
+	void __iomem  *iomem = NULL;
 	if (NULL == g_mipi_host) {
 		mipierr("mipi host not inited!");
 		return -1;
@@ -440,8 +416,8 @@ static void mipi_host_irq_disable(void)
  */
 static void mipi_host_irq_func(void)
 {
-	uint32_t irq = 0;
-	void __iomem *iomem = NULL;
+	uint32_t   irq = 0;
+	void __iomem  *iomem = NULL;
 	if (NULL == g_mipi_host) {
 		mipierr("mipi host not inited!");
 		return -1;
@@ -481,24 +457,24 @@ static void mipi_host_irq_func(void)
 }
 #endif
 
-static int32_t mipi_host_dphy_wait_stop(mipi_host_cfg_t * control)
+static int32_t mipi_host_dphy_wait_stop(mipi_host_cfg_t *control)
 {
-	uint16_t ncount = 0;
-	uint32_t stopstate = 0;
-	void __iomem *iomem = NULL;
+	uint16_t       ncount = 0;
+	uint32_t       stopstate = 0;
+	void __iomem  *iomem = NULL;
 	if (NULL == g_mipi_host) {
 		mipierr("mipi host not inited!");
 		return -1;
 	}
 	iomem = g_mipi_host->iomem;
 	mipiinfo("mipi host check phy stop state");
-	/*Check that data lanes are in Stop state */
+	/*Check that data lanes are in Stop state*/
 	do {
 		ncount++;
 		stopstate = mipi_getreg(iomem + REG_MIPI_HOST_PHY_STOPSTATE);
 		if ((stopstate & 0xF) == HOST_DPHY_LANE_STOP(control->lane))
 			return 0;
-	} while (1);		//ncount <= MIPI_HOST_PHY_CHECK_MAX );
+	} while (1); //ncount <= MIPI_HOST_PHY_CHECK_MAX );
 	mipierr("lane state of host phy is error: 0x%x", stopstate);
 	return -1;
 }
@@ -512,16 +488,16 @@ static int32_t mipi_host_dphy_wait_stop(mipi_host_cfg_t * control)
  */
 static int32_t mipi_host_dphy_start_hs_reception(void)
 {
-	uint16_t ncount = 0;
-	uint32_t state = 0;
-	void __iomem *iomem = NULL;
+	uint16_t       ncount = 0;
+	uint32_t       state = 0;
+	void __iomem  *iomem = NULL;
 	if (NULL == g_mipi_host) {
 		mipierr("mipi host not inited!");
 		return -1;
 	}
 	iomem = g_mipi_host->iomem;
 	mipiinfo("mipi host check hs reception");
-	/*Check that clock lane is in HS mode */
+	/*Check that clock lane is in HS mode*/
 	do {
 		ncount++;
 		state = mipi_getreg(iomem + REG_MIPI_HOST_PHY_RX);
@@ -529,7 +505,7 @@ static int32_t mipi_host_dphy_start_hs_reception(void)
 			mipiinfo("mipi host entry hs reception");
 			return 0;
 		}
-	} while (1);		//ncount <= MIPI_HOST_PHY_CHECK_MAX );
+	} while (1); //ncount <= MIPI_HOST_PHY_CHECK_MAX );
 	mipiinfo("mipi host hs reception check error");
 	return -1;
 }
@@ -565,7 +541,7 @@ int32_t mipi_host_start(void)
  */
 int32_t mipi_host_stop(void)
 {
-	/*stop mipi host here? */
+	/*stop mipi host here?*/
 	return 0;
 }
 
@@ -578,7 +554,7 @@ int32_t mipi_host_stop(void)
  */
 void mipi_host_deinit(void)
 {
-	void __iomem *iomem = NULL;
+	void __iomem  *iomem = NULL;
 	if (NULL == g_mipi_host) {
 		mipierr("mipi host not inited!");
 		return;
@@ -590,10 +566,10 @@ void mipi_host_deinit(void)
 #ifdef CONFIG_X2_MIPI_PHY
 	mipi_dev_dphy_reset();
 #endif
-	/*Set Synopsys D-PHY Reset */
+	/*Set Synopsys D-PHY Reset*/
 	mipi_putreg(iomem + REG_MIPI_HOST_DPHY_RSTZ, MIPI_HOST_CSI2_RESETN);
 	mipi_putreg(iomem + REG_MIPI_HOST_PHY_SHUTDOWNZ, MIPI_HOST_CSI2_RESETN);
-	/*Release DWC_mipi_csi2_host from reset */
+	/*Release DWC_mipi_csi2_host from reset*/
 	mipi_putreg(iomem + REG_MIPI_HOST_CSI2_RESETN, MIPI_HOST_CSI2_RESETN);
 	return;
 }
@@ -605,10 +581,10 @@ void mipi_host_deinit(void)
  *
  * @return int32_t : 0/-1
  */
-int32_t mipi_host_init(mipi_host_cfg_t * control)
+int32_t mipi_host_init(mipi_host_cfg_t *control)
 {
-	uint32_t pixclk = 0;
-	void __iomem *iomem = NULL;
+	uint32_t       pixclk = 0;
+	void __iomem  *iomem = NULL;
 	if (NULL == g_mipi_host) {
 		mipierr("mipi host not inited!");
 		return -1;
@@ -620,44 +596,38 @@ int32_t mipi_host_init(mipi_host_cfg_t * control)
 		mipierr("host pixel clk config error!");
 		return -1;
 	}
-	/*Set DWC_mipi_csi2_host reset */
+	/*Set DWC_mipi_csi2_host reset*/
 	mipi_putreg(iomem + REG_MIPI_HOST_CSI2_RESETN, MIPI_HOST_CSI2_RESETN);
-	/*Set Synopsys D-PHY Reset */
+	/*Set Synopsys D-PHY Reset*/
 	mipi_putreg(iomem + REG_MIPI_HOST_DPHY_RSTZ, MIPI_HOST_CSI2_RESETN);
 	mipi_putreg(iomem + REG_MIPI_HOST_PHY_SHUTDOWNZ, MIPI_HOST_CSI2_RESETN);
 
 #ifdef CONFIG_X2_MIPI_PHY
-	if (0 !=
-	    mipi_host_dphy_initialize(control->mipiclk, control->lane,
-				      control->settle, iomem)) {
+	if (0 != mipi_host_dphy_initialize(control->mipiclk, control->lane, control->settle, iomem)) {
 		mipierr("mipi host dphy initialize error!!!");
 		mipi_host_deinit();
 		return -1;
 	}
 #endif
-	/*Clear Synopsys D-PHY Reset */
+	/*Clear Synopsys D-PHY Reset*/
 	mipi_putreg(iomem + REG_MIPI_HOST_PHY_SHUTDOWNZ, MIPI_HOST_CSI2_RAISE);
 	mipi_putreg(iomem + REG_MIPI_HOST_DPHY_RSTZ, MIPI_HOST_CSI2_RAISE);
-	/*Configure the number of active lanes */
+	/*Configure the number of active lanes*/
 	mipi_putreg(iomem + REG_MIPI_HOST_N_LANES, control->lane - 1);
-	/*Release DWC_mipi_csi2_host from reset */
+	/*Release DWC_mipi_csi2_host from reset*/
 	mipi_putreg(iomem + REG_MIPI_HOST_CSI2_RESETN, MIPI_HOST_CSI2_RAISE);
 
 	if (!mipi_host_nocheck) {
 		if (0 != mipi_host_dphy_wait_stop(control)) {
-			/*Release DWC_mipi_csi2_host from reset */
+			/*Release DWC_mipi_csi2_host from reset*/
 			mipierr("mipi host wait phy stop state error!!!");
 			mipi_host_deinit();
 			return -1;
 		}
 	}
-	control->hsaTime =
-	    control->hsaTime ? control->hsaTime : MIPI_HOST_HSATIME;
-	control->hbpTime =
-	    control->hbpTime ? control->hbpTime : MIPI_HOST_HBPTIME;
-	control->hsdTime =
-	    control->hsdTime ? control->hsdTime : mipi_host_get_hsd(control,
-								    pixclk);
+	control->hsaTime = control->hsaTime ? control->hsaTime : MIPI_HOST_HSATIME;
+	control->hbpTime = control->hbpTime ? control->hbpTime : MIPI_HOST_HBPTIME;
+	control->hsdTime = control->hsdTime ? control->hsdTime : mipi_host_get_hsd(control, pixclk);
 	if (0 != mipi_host_configure_ipi(control)) {
 		mipierr("mipi host configure ipi error!!!");
 		mipi_host_deinit();
@@ -680,14 +650,13 @@ static int x2_mipi_host_open(struct inode *inode, struct file *file)
 	return 0;
 }
 
-static long x2_mipi_host_ioctl(struct file *file, unsigned int cmd,
-			       unsigned long arg)
+static long x2_mipi_host_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
-	mipi_host_t *mipi_host = file->private_data;
-	void __iomem *iomem = mipi_host->iomem;
-	reg_t reg;
-	uint32_t regv = 0;
-	int ret = 0;
+	mipi_host_t   *mipi_host = file->private_data;
+	void __iomem  *iomem = mipi_host->iomem;
+	reg_t          reg;
+	uint32_t       regv = 0;
+	int            ret = 0;
 	/* Check type and command number */
 	if (_IOC_TYPE(cmd) != MIPIHOSTIOC_MAGIC)
 		return -ENOTTY;
@@ -695,24 +664,18 @@ static long x2_mipi_host_ioctl(struct file *file, unsigned int cmd,
 	switch (cmd) {
 	case MIPIHOSTIOC_INIT:
 		{
-			mipi_host_cfg_t mipi_host_cfg;
+			mipi_host_cfg_t     mipi_host_cfg;
 			printk(KERN_INFO "mipi host init cmd\n");
 			if (!arg) {
-				mipierr
-				    ("ERROR: mipi host init error, config should not be NULL");
+				mipierr("ERROR: mipi host init error, config should not be NULL");
 				ret = EINVAL;
 				break;
 			}
 			if (MIPI_STATE_DEFAULT != mipi_host->state) {
-				mipierr
-				    ("WARNING: mipi host re-init, pre state: 0x%x",
-				     mipi_host->state);
+				mipierr("WARNING: mipi host re-init, pre state: 0x%x", mipi_host->state);
 			}
-			if (copy_from_user
-			    ((void *)&mipi_host_cfg, (void __user *)arg,
-			     sizeof(mipi_host_cfg_t))) {
-				mipierr
-				    ("ERROR: mipi host copy data from user failed\n");
+			if (copy_from_user((void *)&mipi_host_cfg, (void __user *)arg, sizeof(mipi_host_cfg_t))) {
+				mipierr("ERROR: mipi host copy data from user failed\n");
 				return -EINVAL;
 			}
 			if (0 != (ret = mipi_host_init(&mipi_host_cfg))) {
@@ -743,17 +706,13 @@ static long x2_mipi_host_ioctl(struct file *file, unsigned int cmd,
 			if (MIPI_STATE_START == mipi_host->state) {
 				mipiinfo("mipi already in start state");
 				break;
-			} else if (MIPI_STATE_INIT != mipi_host->state
-				   && MIPI_STATE_STOP != mipi_host->state) {
-				mipierr
-				    ("ERROR: mipi host start state error, current state: 0x%x",
-				     mipi_host->state);
+			} else if (MIPI_STATE_INIT != mipi_host->state && MIPI_STATE_STOP != mipi_host->state) {
+				mipierr("ERROR: mipi host start state error, current state: 0x%x", mipi_host->state);
 				ret = EINVAL;
 				break;
 			}
 			if (0 != (ret = mipi_host_start())) {
-				mipierr("ERROR: mipi host start error: %d",
-					ret);
+				mipierr("ERROR: mipi host start error: %d", ret);
 				ret = -1;
 				return ret;
 			}
@@ -767,9 +726,7 @@ static long x2_mipi_host_ioctl(struct file *file, unsigned int cmd,
 				mipiinfo("mipi host already in stop state");
 				break;
 			} else if (MIPI_STATE_START != mipi_host->state) {
-				mipierr
-				    ("ERROR: mipi host stop state error, current state: 0x%x",
-				     mipi_host->state);
+				mipierr("ERROR: mipi host stop state error, current state: 0x%x", mipi_host->state);
 				ret = EINVAL;
 				break;
 			}
@@ -783,41 +740,32 @@ static long x2_mipi_host_ioctl(struct file *file, unsigned int cmd,
 		break;
 	case MIPIHOSTIOC_READ:
 		if (!arg) {
-			printk(KERN_ERR
-			       "x2 mipi_host reg read error, reg should not be NULL");
+			printk(KERN_ERR "x2 mipi_host reg read error, reg should not be NULL");
 			return -EINVAL;
 		}
-		if (copy_from_user
-		    ((void *)&reg, (void __user *)arg, sizeof(reg))) {
-			printk(KERN_ERR
-			       "x2 mipi_host reg read error, copy data from user failed\n");
+		if (copy_from_user((void *)&reg, (void __user *)arg, sizeof(reg))) {
+			printk(KERN_ERR "x2 mipi_host reg read error, copy data from user failed\n");
 			return -EINVAL;
 		}
 		reg.value = readl(iomem + reg.offset);
 		if (copy_to_user((void __user *)arg, (void *)&reg, sizeof(reg))) {
-			printk(KERN_ERR
-			       "x2 mipi_host reg read error, copy data to user failed\n");
+			printk(KERN_ERR "x2 mipi_host reg read error, copy data to user failed\n");
 			return -EINVAL;
 		}
 		break;
 	case MIPIHOSTIOC_WRITE:
 		if (!arg) {
-			printk(KERN_ERR
-			       "x2 mipi_host reg write error, reg should not be NULL");
+			printk(KERN_ERR "x2 mipi_host reg write error, reg should not be NULL");
 			return -EINVAL;
 		}
-		if (copy_from_user
-		    ((void *)&reg, (void __user *)arg, sizeof(reg))) {
-			printk(KERN_ERR
-			       "x2 mipi_host reg write error, copy data from user failed\n");
+		if (copy_from_user((void *)&reg, (void __user *)arg, sizeof(reg))) {
+			printk(KERN_ERR "x2 mipi_host reg write error, copy data from user failed\n");
 			return -EINVAL;
 		}
 		writel(reg.value, iomem + reg.offset);
 		regv = readl(iomem + reg.offset);
 		if (regv != reg.value) {
-			printk(KERN_ERR
-			       "x2 mipi_host reg write error, write 0x%x got 0x%x\n",
-			       reg.value, regv);
+			printk(KERN_ERR "x2 mipi_host reg write error, write 0x%x got 0x%x\n", reg.value, regv);
 			return -EINVAL;
 		}
 		break;
@@ -826,24 +774,23 @@ static long x2_mipi_host_ioctl(struct file *file, unsigned int cmd,
 	}
 	return 0;
 }
-
 static const struct file_operations x2_mipi_host_fops = {
-	.owner = THIS_MODULE,
-	.open = x2_mipi_host_open,
-	.read = seq_read,
-	.llseek = seq_lseek,
-	.release = single_release,
+	.owner		= THIS_MODULE,
+	.open		= x2_mipi_host_open,
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= single_release,
 	.unlocked_ioctl = x2_mipi_host_ioctl,
 	.compat_ioctl = x2_mipi_host_ioctl,
 };
 
 static int x2_mipi_host_probe(struct platform_device *pdev)
 {
-	mipi_host_t *pack_dev;
-	int ret = 0;
-	dev_t devno;
+	mipi_host_t        *pack_dev;
+	int              ret = 0;
+	dev_t            devno;
 	struct resource *res;
-	struct cdev *p_cdev = &mipi_host_cdev;
+	struct cdev     *p_cdev = &mipi_host_cdev;
 
 	pack_dev = devm_kmalloc(&pdev->dev, sizeof(mipi_host_t), GFP_KERNEL);
 	if (!pack_dev) {
@@ -853,8 +800,7 @@ static int x2_mipi_host_probe(struct platform_device *pdev)
 
 	ret = alloc_chrdev_region(&devno, 0, 1, "x2_mipi_host");
 	if (ret < 0) {
-		printk(KERN_ERR "Error %d while alloc chrdev x2_mipi_host",
-		       ret);
+		printk(KERN_ERR "Error %d while alloc chrdev x2_mipi_host", ret);
 		goto err;
 	}
 	mipi_host_major = MAJOR(devno);
@@ -867,14 +813,11 @@ static int x2_mipi_host_probe(struct platform_device *pdev)
 	}
 	x2_mipi_host_class = class_create(THIS_MODULE, "x2_mipi_host");
 	if (IS_ERR(x2_mipi_host_class)) {
-		printk(KERN_INFO "[%s:%d] class_create error\n", __func__,
-		       __LINE__);
+		printk(KERN_INFO "[%s:%d] class_create error\n", __func__, __LINE__);
 		ret = PTR_ERR(x2_mipi_host_class);
 		goto err;
 	}
-	g_mipi_host_dev =
-	    device_create(x2_mipi_host_class, NULL, MKDEV(mipi_host_major, 0),
-			  (void *)pack_dev, "x2_mipi_host");
+	g_mipi_host_dev = device_create(x2_mipi_host_class, NULL, MKDEV(mipi_host_major, 0), (void *)pack_dev, "x2_mipi_host");
 	if (IS_ERR(g_mipi_host_dev)) {
 		printk(KERN_ERR "[%s] deivce create error\n", __func__);
 		ret = PTR_ERR(g_mipi_host_dev);
@@ -919,12 +862,12 @@ static const struct of_device_id x2_mipi_host_match[] = {
 MODULE_DEVICE_TABLE(of, x2_mipi_host_match);
 
 static struct platform_driver x2_mipi_host_driver = {
-	.probe = x2_mipi_host_probe,
+	.probe  = x2_mipi_host_probe,
 	.remove = x2_mipi_host_remove,
-	.driver = {
-		   .name = "x2_mipi_host",
-		   .of_match_table = x2_mipi_host_match,
-		   },
+	.driver	= {
+		.name = "x2_mipi_host",
+		.of_match_table = x2_mipi_host_match,
+	},
 };
 
 module_platform_driver(x2_mipi_host_driver);

@@ -54,9 +54,9 @@ static irqreturn_t isp_interrupt(int irq, void *dev_id)
 
 static int isp_mod_open(struct inode *pinode, struct file *pfile)
 {
-	int ret;
-	struct isp_mod_s *pdev;
-	isp_dev_t *pispdev;
+	int                 ret;
+	struct isp_mod_s    *pdev;
+	isp_dev_t           *pispdev;
 
 	printk(KERN_INFO "isp_mod_open()!\n");
 
@@ -83,7 +83,7 @@ static int isp_mod_open(struct inode *pinode, struct file *pfile)
 
 static int isp_mod_release(struct indoe *pinode, struct file *pfile)
 {
-	isp_dev_t *pispdev;
+	isp_dev_t           *pispdev;
 
 	printk(KERN_INFO "isp_mod_release()!\n");
 
@@ -96,22 +96,19 @@ static int isp_mod_release(struct indoe *pinode, struct file *pfile)
 	return 0;
 }
 
-static ssize_t isp_mod_read(struct file *pfile, char *puser_buf, size_t len,
-			    loff_t * poff)
+static ssize_t isp_mod_read(struct file *pfile, char *puser_buf, size_t len, loff_t *poff)
 {
 	printk(KERN_INFO "isp_mod_read()!\n");
 	return 0;
 }
 
-static ssize_t isp_mod_write(struct file *pfile, const char *puser_buf,
-			     size_t len, loff_t * poff)
+static ssize_t isp_mod_write(struct file *pfile, const char *puser_buf, size_t len, loff_t *poff)
 {
 	printk(KERN_INFO "isp_mod_write()!\n");
 	return 0;
 }
 
-static int isp_mod_ioctl(struct inode *pinode, struct file *pfile,
-			 unsigned int cmd, unsigned long arg)
+static int isp_mod_ioctl(struct inode *pinode, struct file *pfile, unsigned int cmd, unsigned long arg)
 {
 	printk(KERN_INFO "isp_mod_ioctrl()!\n");
 	return 0;
@@ -131,9 +128,7 @@ static int isp_mod_mmap(struct file *pfile, struct vm_area_struct *pvma)
 	pvma->vm_flags |= VM_IO;
 	pvma->vm_flags |= VM_LOCKED;
 
-	if (remap_pfn_range
-	    (pvma, pvma->vm_start, pispdev->mapbase >> PAGE_SHIFT,
-	     pvma->vm_end - pvma->vm_start, pvma->vm_page_prot)) {
+	if (remap_pfn_range(pvma, pvma->vm_start, pispdev->mapbase >> PAGE_SHIFT, pvma->vm_end - pvma->vm_start, pvma->vm_page_prot)) {
 		return -EAGAIN;
 	}
 
@@ -146,16 +141,17 @@ static int isp_mod_fasync(int fd, struct file *pfile, int on)
 	return fasync_helper(fd, pfile, on, &pisp_async);
 }
 
+
 struct file_operations isp_mod_fops = {
-	.owner = THIS_MODULE,
-	.open = isp_mod_open,
-	.read = isp_mod_read,
-	.write = isp_mod_write,
-	.release = isp_mod_release,
+	.owner          = THIS_MODULE,
+	.open           = isp_mod_open,
+	.read           = isp_mod_read,
+	.write          = isp_mod_write,
+	.release        = isp_mod_release,
 	.unlocked_ioctl = isp_mod_ioctl,
-	.compat_ioctl = isp_mod_ioctl,
-	.mmap = isp_mod_mmap,
-	.fasync = isp_mod_fasync,
+	.compat_ioctl   = isp_mod_ioctl,
+	.mmap           = isp_mod_mmap,
+	.fasync         = isp_mod_fasync,
 };
 
 static int __init isp_dev_init(void)
@@ -177,7 +173,7 @@ static int __init isp_dev_init(void)
 		return ret;
 
 	cdev_init(&isp_cdev, &isp_mod_fops);
-	isp_cdev.owner = THIS_MODULE;
+	isp_cdev.owner  = THIS_MODULE;
 
 	cdev_add(&isp_cdev, devno, ISP_NR_DEVS);
 
@@ -189,8 +185,8 @@ static int __init isp_dev_init(void)
 	memset(pIspMod, 0, sizeof(struct isp_mod_s));
 
 	for (i = 0; i < ISP_NR_DEVS; i++) {
-		pIspMod[i].size = ISP_DEV_SIZE;
-		pIspMod[i].pData = kmalloc(ISP_DEV_SIZE, GFP_KERNEL);
+		pIspMod[i].size    = ISP_DEV_SIZE;
+		pIspMod[i].pData   = kmalloc(ISP_DEV_SIZE, GFP_KERNEL);
 		if (!pIspMod[i].pData) {
 			kfree(pIspMod);
 			ret = -ENOMEM;

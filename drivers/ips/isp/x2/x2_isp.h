@@ -2267,4 +2267,4 @@
 #define   X2_ISP_ISP_CONFIG_DONE_MASK                (0x1 << 0x0)
 #define   X2_ISP_ISP_CONFIG_DONE_SHIT(n)                (((n) & 0x1) >> 0x0)
 
-#endif	 /*__X2_ISP__*/
+#endif   /*__X2_ISP__*/

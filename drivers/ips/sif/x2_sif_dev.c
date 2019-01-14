@@ -43,6 +43,7 @@
 #define OFFSET_MOT_DET_EN      (29)
 #define OFFSET_MOT_DET_REFRESH (30)
 
+
 /*SIF VIDEO SIZE REGISTER OFFSET*/
 #define OFFSET_INPUT_WIDTH     (16)
 #define OFFSET_INPUT_HEIGHT    (0)
@@ -95,6 +96,7 @@
 #define BT_OUT_D_NOEXCHG       (0)
 #define BT_IN_D_EXCHG          (1)
 #define BT_OUT_D_EXCHG         (1)
+
 
 #define SIF_BITS1              (0x00000001)
 #define SIF_BITS2              (0x00000003)
@@ -176,50 +178,50 @@ typedef enum _sif_table_e {
 } sif_table_e;
 
 const uint32_t g_sif_status_table[][TABLE_MAX] = {
-	{SIF_BITS16, OFFSET_WIDTH_ERROR},	/*STATUS_ERROR_CLEAR */
-	{SIF_BITS16, OFFSET_HEIGHT_ERROR},	/*STATUS_SIF_ENABLE */
-	{SIF_BITS16, OFFSET_WIDTH_ERROR},	/*STATUS_DVP2AP_ENABLE */
-	{SIF_BITS16, OFFSET_HEIGHT_ERROR},	/*STATUS_BT2AP_ENABLE */
+	{SIF_BITS16, OFFSET_WIDTH_ERROR}, /*STATUS_ERROR_CLEAR*/
+	{SIF_BITS16, OFFSET_HEIGHT_ERROR}, /*STATUS_SIF_ENABLE*/
+	{SIF_BITS16, OFFSET_WIDTH_ERROR}, /*STATUS_DVP2AP_ENABLE*/
+	{SIF_BITS16, OFFSET_HEIGHT_ERROR}, /*STATUS_BT2AP_ENABLE*/
 };
 
 const uint32_t g_sif_cfg_table[][TABLE_MAX] = {
-	{SIF_BITS4, OFFSET_PIC_FORMAT},	/*BASE_FORMAT */
-	{SIF_BITS3, OFFSET_PIXEL_LEN},	/*BASE_PIX_LEN */
-	{SIF_BITS2, OFFSET_BUS_TYPE},	/*BASE_BUS_TYPE */
-	{SIF_BITS1, OFFSET_VSYNC_INV},	/*BASE_VSYNC_INV */
-	{SIF_BITS1, OFFSET_HSYNC_INV},	/*BASE_HSYNC_INV */
-	{SIF_BITS1, OFFSET_PCLK_INV},	/*BASE_PCLK_IN_INV */
-	{SIF_BITS1, OFFSET_PCLK_OUTINV},	/*BASE_PCLK_OUT_INV */
-	{SIF_BITS1, OFFSET_ERROR_CLEAR},	/*BASE_ERROR_CLEAR */
-	{SIF_BITS1, OFFSET_DROP_FRAME},	/*BASE_DROP_FRAME */
-	{SIF_BITS1, OFFSET_SIF_EN},	/*BASE_SIF_ENABLE */
-	{SIF_BITS1, OFFSET_DVP2AP_EN},	/*BASE_DVP2AP_ENABLE */
-	{SIF_BITS1, OFFSET_BT2AP_EN},	/*BASE_BT2AP_ENABLE */
-	{SIF_BITS1, OFFSET_MIPI2AP_EN},	/*BASE_MIPI2AP_ENABLE */
-	{SIF_BITS1, OFFSET_RAW16_MODE},	/*BASE_RAW_16BIT_MODE */
-	{SIF_BITS1, OFFSET_RAW20_MODE},	/*BASE_RAW_20BIT_MODE */
-	{SIF_BITS1, OFFSET_YUV10_MODE},	/*BASE_YUV_10BIT_MODE */
-	{SIF_BITS1, OFFSET_DUALRX_MODE},	/*BASE_DUALRX_MODE */
-	{SIF_BITS1, OFFSET_MIPI2AP_SEL},	/*BASE_MIPI2AP_SEL */
-	{SIF_BITS13, OFFSET_INPUT_WIDTH},	/*SIZE_WIDTH */
-	{SIF_BITS13, OFFSET_INPUT_HEIGHT},	/*SIZE_HEIGHT */
-	{SIF_BITS2, OFFSET_BT_DETECT},	/*BT_DETECT_MODE */
-	{SIF_BITS1, OFFSET_BT_INEXCHANGE},	/*BT_DATA_IN_EXCHANGE */
-	{SIF_BITS1, OFFSET_BT_OUTEXCHANGE},	/*BT_DATA_OUT_EXCHANGE */
-	{SIF_BITS1, OFFSET_MOT_DET_EN},	/*MOT_DET_EN */
-	{SIF_BITS1, OFFSET_MOT_DET_REFRESH},	/*MOT_DET_REFRESH */
-	{SIF_BITS12, OFFSET_DET_L},	/*MOT_DET_ROI_L */
-	{SIF_BITS12, OFFSET_DET_T},	/*MOT_DET_ROI_T */
-	{SIF_BITS12, OFFSET_DET_W},	/*MOT_DET_ROI_W */
-	{SIF_BITS12, OFFSET_DET_H},	/*MOT_DET_ROI_H */
-	{SIF_BITS8, OFFSET_DET_STEP},	/*MOT_DET_STEP */
-	{SIF_BITS8, OFFSET_DET_THRESH},	/*MOT_DET_THRESH */
-	{SIF_BITS8, OFFSET_DET_DIFF_THRESH},	/*MOT_DET_DIFF_THRESH */
-	{SIF_BITS8, OFFSET_WGT_DECAY},	/*MOT_DET_DIFF_WGT_DECAY */
-	{SIF_BITS2, OFFSET_DEC_PREC},	/*MOT_DET_DIFF_DEC_PREC */
-	{SIF_BITS1, OFFSET_ID_EN},	/*FRAME_ID_EN */
-	{SIF_BITS16, OFFSET_ID_INIT},	/*FRAME_ID_INIT */
-	{SIF_BITS1, OFFSET_ID_SET_EN},	/*FRAME_ID_SET_EN */
+	{SIF_BITS4,  OFFSET_PIC_FORMAT}, /*BASE_FORMAT*/
+	{SIF_BITS3,  OFFSET_PIXEL_LEN}, /*BASE_PIX_LEN*/
+	{SIF_BITS2,  OFFSET_BUS_TYPE}, /*BASE_BUS_TYPE*/
+	{SIF_BITS1,  OFFSET_VSYNC_INV}, /*BASE_VSYNC_INV*/
+	{SIF_BITS1,  OFFSET_HSYNC_INV}, /*BASE_HSYNC_INV*/
+	{SIF_BITS1,  OFFSET_PCLK_INV}, /*BASE_PCLK_IN_INV*/
+	{SIF_BITS1,  OFFSET_PCLK_OUTINV}, /*BASE_PCLK_OUT_INV*/
+	{SIF_BITS1,  OFFSET_ERROR_CLEAR}, /*BASE_ERROR_CLEAR*/
+	{SIF_BITS1,  OFFSET_DROP_FRAME}, /*BASE_DROP_FRAME*/
+	{SIF_BITS1,  OFFSET_SIF_EN}, /*BASE_SIF_ENABLE*/
+	{SIF_BITS1,  OFFSET_DVP2AP_EN}, /*BASE_DVP2AP_ENABLE*/
+	{SIF_BITS1,  OFFSET_BT2AP_EN}, /*BASE_BT2AP_ENABLE*/
+	{SIF_BITS1,  OFFSET_MIPI2AP_EN}, /*BASE_MIPI2AP_ENABLE*/
+	{SIF_BITS1,  OFFSET_RAW16_MODE}, /*BASE_RAW_16BIT_MODE*/
+	{SIF_BITS1,  OFFSET_RAW20_MODE}, /*BASE_RAW_20BIT_MODE*/
+	{SIF_BITS1,  OFFSET_YUV10_MODE}, /*BASE_YUV_10BIT_MODE*/
+	{SIF_BITS1,  OFFSET_DUALRX_MODE}, /*BASE_DUALRX_MODE*/
+	{SIF_BITS1,  OFFSET_MIPI2AP_SEL}, /*BASE_MIPI2AP_SEL*/
+	{SIF_BITS13, OFFSET_INPUT_WIDTH}, /*SIZE_WIDTH*/
+	{SIF_BITS13, OFFSET_INPUT_HEIGHT}, /*SIZE_HEIGHT*/
+	{SIF_BITS2,  OFFSET_BT_DETECT}, /*BT_DETECT_MODE*/
+	{SIF_BITS1,  OFFSET_BT_INEXCHANGE}, /*BT_DATA_IN_EXCHANGE*/
+	{SIF_BITS1,  OFFSET_BT_OUTEXCHANGE}, /*BT_DATA_OUT_EXCHANGE*/
+	{SIF_BITS1,  OFFSET_MOT_DET_EN}, /*MOT_DET_EN*/
+	{SIF_BITS1,  OFFSET_MOT_DET_REFRESH}, /*MOT_DET_REFRESH*/
+	{SIF_BITS12, OFFSET_DET_L}, /*MOT_DET_ROI_L*/
+	{SIF_BITS12, OFFSET_DET_T}, /*MOT_DET_ROI_T*/
+	{SIF_BITS12, OFFSET_DET_W}, /*MOT_DET_ROI_W*/
+	{SIF_BITS12, OFFSET_DET_H}, /*MOT_DET_ROI_H*/
+	{SIF_BITS8,  OFFSET_DET_STEP}, /*MOT_DET_STEP*/
+	{SIF_BITS8,  OFFSET_DET_THRESH}, /*MOT_DET_THRESH*/
+	{SIF_BITS8,  OFFSET_DET_DIFF_THRESH}, /*MOT_DET_DIFF_THRESH*/
+	{SIF_BITS8,  OFFSET_WGT_DECAY}, /*MOT_DET_DIFF_WGT_DECAY*/
+	{SIF_BITS2,  OFFSET_DEC_PREC}, /*MOT_DET_DIFF_DEC_PREC*/
+	{SIF_BITS1,  OFFSET_ID_EN}, /*FRAME_ID_EN*/
+	{SIF_BITS16, OFFSET_ID_INIT}, /*FRAME_ID_INIT*/
+	{SIF_BITS1,  OFFSET_ID_SET_EN}, /*FRAME_ID_SET_EN*/
 };
 
 #define CONFIG_CLEAR(key)      VALUE_CLEAR(g_sif_cfg_table[key][TABLE_BITS], g_sif_cfg_table[key][TABLE_OFFSET])
@@ -227,11 +229,11 @@ const uint32_t g_sif_cfg_table[][TABLE_MAX] = {
 #define CONFIG_GET(key, value) VALUE_GET(value, g_sif_cfg_table[key][TABLE_BITS], g_sif_cfg_table[key][TABLE_OFFSET])
 
 typedef struct _sif_dev_s {
-	void __iomem *iomem;
-	int bustype;
+	void __iomem  *iomem;
+	int            bustype;
 } sif_dev_t;
 
-sif_dev_t *g_sif_dev = NULL;
+sif_dev_t  *g_sif_dev = NULL;
 
 #ifdef CONFIG_X2_FPGA
 #define sif_getreg(a)          readl(a)
@@ -246,10 +248,10 @@ extern int bifdev_set_cpchip_reg(unsigned int addr, int value);
 #define sif_putreg(a,v)        ({bifdev_set_cpchip_reg((uint32_t)a, v);\
                                  sifinfo("write 0x%x: 0x%x", (uint32_t)a, v);})
 #endif
-static void sif_dev_base_config(sif_init_t * cfg, uint8_t update)
+static void sif_dev_base_config(sif_init_t *cfg, uint8_t update)
 {
 	uint32_t base = 0;
-	void __iomem *iomem = NULL;
+	void __iomem  *iomem = NULL;
 	if (NULL == g_sif_dev) {
 		siferr("sif dev not inited!");
 		return;
@@ -259,66 +261,65 @@ static void sif_dev_base_config(sif_init_t * cfg, uint8_t update)
 	if (update) {
 		base = sif_getreg(iomem + REG_SIF_BASE_CTRL);
 	}
-	base |= CONFIG_SET(BASE_FORMAT, cfg->format);
-	base |= CONFIG_SET(BASE_PIX_LEN, cfg->pix_len);
-	base |= CONFIG_SET(BASE_BUS_TYPE, cfg->bus_type);
-	base |= CONFIG_SET(BASE_VSYNC_INV, cfg->vsync_inv);
-	base |= CONFIG_SET(BASE_HSYNC_INV, cfg->hsync_inv);
-	base |= CONFIG_SET(BASE_PCLK_IN_INV, cfg->pclk_in_inv);
-	base |= CONFIG_SET(BASE_PCLK_OUT_INV, cfg->pclk_out_inv);
-	base |= CONFIG_SET(BASE_DROP_FRAME, cfg->drop_frame);
+	base |= CONFIG_SET(BASE_FORMAT,         cfg->format);
+	base |= CONFIG_SET(BASE_PIX_LEN,        cfg->pix_len);
+	base |= CONFIG_SET(BASE_BUS_TYPE,       cfg->bus_type);
+	base |= CONFIG_SET(BASE_VSYNC_INV,      cfg->vsync_inv);
+	base |= CONFIG_SET(BASE_HSYNC_INV,      cfg->hsync_inv);
+	base |= CONFIG_SET(BASE_PCLK_IN_INV,    cfg->pclk_in_inv);
+	base |= CONFIG_SET(BASE_PCLK_OUT_INV,   cfg->pclk_out_inv);
+	base |= CONFIG_SET(BASE_DROP_FRAME,     cfg->drop_frame);
 	base |= CONFIG_SET(BASE_RAW_16BIT_MODE, cfg->raw_16bit_mode);
 	base |= CONFIG_SET(BASE_RAW_20BIT_MODE, cfg->raw_20bit_mode);
 	base |= CONFIG_SET(BASE_YUV_10BIT_MODE, cfg->yuv_10bit_mode);
-	base |= CONFIG_SET(BASE_DUALRX_MODE, cfg->dualrx_mode);
-	base |= CONFIG_SET(BASE_MIPI2AP_SEL, cfg->mipi2ap_sel);
+	base |= CONFIG_SET(BASE_DUALRX_MODE,    cfg->dualrx_mode);
+	base |= CONFIG_SET(BASE_MIPI2AP_SEL,    cfg->mipi2ap_sel);
 	if (BUS_TYPE_BT1120 == cfg->bus_type) {
 		base |= CONFIG_SET(BASE_BT2AP_ENABLE, cfg->bypass_en);
 	} else if (BUS_TYPE_DVP == cfg->bus_type) {
 		base |= CONFIG_SET(BASE_DVP2AP_ENABLE, cfg->bypass_en);
-	} else if (BUS_TYPE_MIPI == cfg->bus_type
-		   || BUS_TYPE_DUALRX == cfg->bus_type) {
+	} else if (BUS_TYPE_MIPI == cfg->bus_type || BUS_TYPE_DUALRX == cfg->bus_type) {
 		base |= CONFIG_SET(BASE_MIPI2AP_ENABLE, cfg->bypass_en);
 	}
 	sif_putreg(iomem + REG_SIF_BASE_CTRL, base);
 	return;
 }
 
-static void sif_dev_input_size(sif_init_t * cfg)
+static void sif_dev_input_size(sif_init_t *cfg)
 {
 	uint32_t size = 0;
-	void __iomem *iomem = NULL;
+	void __iomem  *iomem = NULL;
 	if (NULL == g_sif_dev) {
 		siferr("sif dev not inited!");
 		return;
 	}
 	iomem = g_sif_dev->iomem;
-	size |= CONFIG_SET(SIZE_WIDTH, cfg->width);
+	size |= CONFIG_SET(SIZE_WIDTH,  cfg->width);
 	size |= CONFIG_SET(SIZE_HEIGHT, cfg->height);
 	sif_putreg(iomem + REG_SIF_VIDEO_IN_SIZE, size);
 	return;
 }
 
-static void sif_dev_bt_mode(sif_init_t * cfg)
+static void sif_dev_bt_mode(sif_init_t *cfg)
 {
 	uint32_t bt_mode = 0;
-	void __iomem *iomem = NULL;
+	void __iomem  *iomem = NULL;
 	if (NULL == g_sif_dev) {
 		siferr("sif dev not inited!");
 		return;
 	}
 	iomem = g_sif_dev->iomem;
-	bt_mode |= CONFIG_SET(BT_DETECT_MODE, cfg->bt_detect_mode);
-	bt_mode |= CONFIG_SET(BT_IN_EXCHANGE, cfg->bt_in_exchange);
-	bt_mode |= CONFIG_SET(BT_OUT_EXCHANGE, cfg->bt_out_exchange);
+	bt_mode |= CONFIG_SET(BT_DETECT_MODE,   cfg->bt_detect_mode);
+	bt_mode |= CONFIG_SET(BT_IN_EXCHANGE,   cfg->bt_in_exchange);
+	bt_mode |= CONFIG_SET(BT_OUT_EXCHANGE,  cfg->bt_out_exchange);
 	sif_putreg(iomem + REG_SIF_BT_CFG, bt_mode);
 	return;
 }
 
-int32_t sif_dev_frame_id_cfg(frame_id_t * cfg)
+int32_t sif_dev_frame_id_cfg(frame_id_t *cfg)
 {
 	uint32_t frameid_cfg = 0;
-	void __iomem *iomem = NULL;
+	void __iomem  *iomem = NULL;
 	if (NULL == g_sif_dev) {
 		siferr("sif dev not inited!");
 		return -1;
@@ -331,9 +332,9 @@ int32_t sif_dev_frame_id_cfg(frame_id_t * cfg)
 	return 0;
 }
 
-int32_t sif_dev_frame_id_get(frame_id_info_t * frameid)
+int32_t sif_dev_frame_id_get(frame_id_info_t *frameid)
 {
-	void __iomem *iomem = NULL;
+	void __iomem  *iomem = NULL;
 	if (NULL == g_sif_dev) {
 		siferr("sif dev not inited!");
 		return -1;
@@ -350,14 +351,14 @@ int32_t sif_dev_frame_id_get(frame_id_info_t * frameid)
 	return 0;
 }
 
-int32_t sif_dev_mot_det_cfg(mot_det_t * cfg)
+int32_t sif_dev_mot_det_cfg(mot_det_t *cfg)
 {
 	uint32_t det_en = 0;
 	uint32_t det_lt = 0;
 	uint32_t det_wh = 0;
 	uint32_t det_para1 = 0;
 	uint32_t det_para2 = 0;
-	void __iomem *iomem = NULL;
+	void __iomem  *iomem = NULL;
 	if (NULL == g_sif_dev) {
 		siferr("sif dev not inited!");
 		return -1;
@@ -393,7 +394,7 @@ int32_t sif_dev_mot_det_cfg(mot_det_t * cfg)
 static void sif_dev_clear_err(void)
 {
 	uint32_t base = 0;
-	void __iomem *iomem = NULL;
+	void __iomem  *iomem = NULL;
 	if (NULL == g_sif_dev) {
 		siferr("sif dev not inited!");
 		return;
@@ -404,7 +405,6 @@ static void sif_dev_clear_err(void)
 	sif_putreg(iomem + REG_SIF_BASE_CTRL, base);
 	return;
 }
-
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
@@ -416,44 +416,44 @@ static void sif_dev_clear_err(void)
  *
  * @return void
  */
-void sif_dev_get_info(sif_info_t * info)
+void sif_dev_get_info(sif_info_t *info)
 {
 	uint32_t base = 0;
 	uint32_t size = 0;
 	uint32_t bt_mode = 0;
-	void __iomem *iomem = NULL;
+	void __iomem  *iomem = NULL;
 	if (NULL == g_sif_dev) {
 		siferr("sif dev not inited!");
 		return;
 	}
 	iomem = g_sif_dev->iomem;
 	base = sif_getreg(iomem + REG_SIF_BASE_CTRL);
-	info->format = CONFIG_GET(BASE_FORMAT, base);
-	info->pix_len = CONFIG_GET(BASE_PIX_LEN, base);
-	info->bus_type = CONFIG_GET(BASE_BUS_TYPE, base);
-	info->vsync_inv = CONFIG_GET(BASE_VSYNC_INV, base);
-	info->hsync_inv = CONFIG_GET(BASE_HSYNC_INV, base);
-	info->pclk_in_inv = CONFIG_GET(BASE_PCLK_IN_INV, base);
-	info->pclk_out_inv = CONFIG_GET(BASE_PCLK_OUT_INV, base);
-	info->sif_enable = CONFIG_GET(BASE_SIF_ENABLE, base);
-	info->drop_frame = CONFIG_GET(BASE_DROP_FRAME, base);
-	info->dvp2ap_enable = CONFIG_GET(BASE_DVP2AP_ENABLE, base);
-	info->bt2ap_enable = CONFIG_GET(BASE_BT2AP_ENABLE, base);
-	info->mipi2ap_enable = CONFIG_GET(BASE_MIPI2AP_ENABLE, base);
-	info->raw_16bit_mode = CONFIG_GET(BASE_RAW_16BIT_MODE, base);
-	info->raw_20bit_mode = CONFIG_GET(BASE_RAW_20BIT_MODE, base);
-	info->yuv_10bit_mode = CONFIG_GET(BASE_YUV_10BIT_MODE, base);
-	info->dualrx_mode = CONFIG_GET(BASE_DUALRX_MODE, base);
-	info->mipi2ap_sel = CONFIG_GET(BASE_MIPI2AP_SEL, base);
+	info->format          = CONFIG_GET(BASE_FORMAT,         base);
+	info->pix_len         = CONFIG_GET(BASE_PIX_LEN,        base);
+	info->bus_type        = CONFIG_GET(BASE_BUS_TYPE,       base);
+	info->vsync_inv       = CONFIG_GET(BASE_VSYNC_INV,      base);
+	info->hsync_inv       = CONFIG_GET(BASE_HSYNC_INV,      base);
+	info->pclk_in_inv     = CONFIG_GET(BASE_PCLK_IN_INV,    base);
+	info->pclk_out_inv    = CONFIG_GET(BASE_PCLK_OUT_INV,   base);
+	info->sif_enable      = CONFIG_GET(BASE_SIF_ENABLE,     base);
+	info->drop_frame      = CONFIG_GET(BASE_DROP_FRAME,     base);
+	info->dvp2ap_enable   = CONFIG_GET(BASE_DVP2AP_ENABLE,  base);
+	info->bt2ap_enable    = CONFIG_GET(BASE_BT2AP_ENABLE,   base);
+	info->mipi2ap_enable  = CONFIG_GET(BASE_MIPI2AP_ENABLE, base);
+	info->raw_16bit_mode  = CONFIG_GET(BASE_RAW_16BIT_MODE, base);
+	info->raw_20bit_mode  = CONFIG_GET(BASE_RAW_20BIT_MODE, base);
+	info->yuv_10bit_mode  = CONFIG_GET(BASE_YUV_10BIT_MODE, base);
+	info->dualrx_mode     = CONFIG_GET(BASE_DUALRX_MODE,    base);
+	info->mipi2ap_sel     = CONFIG_GET(BASE_MIPI2AP_SEL,    base);
 
 	size = sif_getreg(iomem + REG_SIF_VIDEO_IN_SIZE);
-	info->width = CONFIG_GET(SIZE_WIDTH, size);
-	info->height = CONFIG_GET(SIZE_HEIGHT, size);
+	info->width           = CONFIG_GET(SIZE_WIDTH,          size);
+	info->height          = CONFIG_GET(SIZE_HEIGHT,         size);
 
 	bt_mode = sif_getreg(iomem + REG_SIF_BT_CFG);
-	info->bt_detect_mode = CONFIG_GET(BT_DETECT_MODE, bt_mode);
-	info->bt_in_exchange = CONFIG_GET(BT_IN_EXCHANGE, bt_mode);
-	info->bt_out_exchange = CONFIG_GET(BT_OUT_EXCHANGE, bt_mode);
+	info->bt_detect_mode  = CONFIG_GET(BT_DETECT_MODE,      bt_mode);
+	info->bt_in_exchange  = CONFIG_GET(BT_IN_EXCHANGE,      bt_mode);
+	info->bt_out_exchange = CONFIG_GET(BT_OUT_EXCHANGE,     bt_mode);
 }
 
 /**
@@ -463,10 +463,10 @@ void sif_dev_get_info(sif_info_t * info)
  *
  * @return void
  */
-void sif_dev_get_status(sif_status_t * status)
+void sif_dev_get_status(sif_status_t *status)
 {
 	uint32_t size = 0;
-	void __iomem *iomem = NULL;
+	void __iomem  *iomem = NULL;
 	if (NULL == g_sif_dev) {
 		siferr("sif dev not inited!");
 		return;
@@ -497,7 +497,7 @@ void sif_dev_get_status(sif_status_t * status)
 int32_t sif_dev_start(void)
 {
 	uint32_t base = 0;
-	void __iomem *iomem = NULL;
+	void __iomem  *iomem = NULL;
 	if (NULL == g_sif_dev) {
 		siferr("sif dev not inited!");
 		return -1;
@@ -519,7 +519,7 @@ int32_t sif_dev_start(void)
 int32_t sif_dev_stop(void)
 {
 	uint32_t base = 0;
-	void __iomem *iomem = NULL;
+	void __iomem  *iomem = NULL;
 	if (NULL == g_sif_dev) {
 		siferr("sif dev not inited!");
 		return -1;
@@ -539,7 +539,7 @@ int32_t sif_dev_stop(void)
  *
  * @return int32_t : OK/ERROR
  */
-int32_t sif_dev_update(sif_init_t * sif_cfg)
+int32_t sif_dev_update(sif_init_t *sif_cfg)
 {
 	sif_dev_base_config(sif_cfg, true);
 	sif_dev_input_size(sif_cfg);
@@ -556,7 +556,7 @@ int32_t sif_dev_update(sif_init_t * sif_cfg)
  *
  * @return int32_t : OK/ERROR
  */
-int32_t sif_dev_init(sif_init_t * sif_cfg)
+int32_t sif_dev_init(sif_init_t *sif_cfg)
 {
 	sif_dev_base_config(sif_cfg, false);
 	sif_dev_input_size(sif_cfg);
@@ -570,7 +570,7 @@ int32_t sif_reg_dump(void)
 {
 	uint32_t regval = 0;
 	int i = 0;
-	void __iomem *iomem = NULL;
+	void __iomem  *iomem = NULL;
 	if (NULL == g_sif_dev) {
 		siferr("sif dev not inited!");
 		return -1;
@@ -578,34 +578,31 @@ int32_t sif_reg_dump(void)
 	iomem = g_sif_dev->iomem;
 	for (i = 0; i <= REG_FRAME_ID_BT3; i += 4) {
 		regval = sif_getreg(iomem + i);
-		printk("reg 0x%x, 0x%x", iomem + i, regval);
+		printk("reg 0x%llx, 0x%x", (uint64_t)(iomem + i), regval);
 	}
 	return 0;
 }
 
 struct kobject *x2_sif_kobj;
-static ssize_t x2_sif_show(struct kobject *kobj, struct kobj_attribute *attr,
-			   char *buf)
+static ssize_t x2_sif_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
 	char *s = buf;
 	sif_reg_dump();
 	return (s - buf);
 }
-
-static ssize_t x2_sif_store(struct kobject *kobj, struct kobj_attribute *attr,
-			    const char *buf, size_t n)
+static ssize_t x2_sif_store(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t n)
 {
 	int error = -EINVAL;
 	return error ? error : n;
 }
 
 static struct kobj_attribute sif_test_attr = {
-	.attr = {
-		 .name = __stringify(sif_test_attr),
-		 .mode = 0644,
-		 },
-	.show = x2_sif_show,
-	.store = x2_sif_store,
+	.attr   = {
+		.name = __stringify(sif_test_attr),
+		.mode = 0644,
+	},
+	.show   = x2_sif_show,
+	.store  = x2_sif_store,
 };
 
 static struct attribute *attributes[] = {
@@ -619,8 +616,8 @@ static struct attribute_group attr_group = {
 
 static int x2_sif_dev_probe(struct platform_device *pdev)
 {
-	int ret = 0;
-	sif_dev_t *pack_dev = NULL;
+	int              ret = 0;
+	sif_dev_t       *pack_dev = NULL;
 #ifdef CONFIG_X2_FPGA
 	struct resource *res;
 #endif
@@ -670,12 +667,12 @@ static const struct of_device_id x2_sif_dev_match[] = {
 MODULE_DEVICE_TABLE(of, x2_sif_dev_match);
 
 static struct platform_driver x2_sif_dev_driver = {
-	.probe = x2_sif_dev_probe,
+	.probe  = x2_sif_dev_probe,
 	.remove = x2_sif_dev_remove,
-	.driver = {
-		   .name = "x2_sif_dev",
-		   .of_match_table = x2_sif_dev_match,
-		   },
+	.driver	= {
+		.name = "x2_sif_dev",
+		.of_match_table = x2_sif_dev_match,
+	},
 };
 
 module_platform_driver(x2_sif_dev_driver);

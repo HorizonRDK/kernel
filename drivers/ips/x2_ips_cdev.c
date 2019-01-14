@@ -74,8 +74,7 @@ static long ips_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 		return 0;
 	case IPS_BUSCTL_SET:
 		copy_from_user(&setcmd, arg, sizeof(setcmd));
-		ips_busctl_set(setcmd.type, setcmd.index, setcmd.region,
-			       setcmd.value);
+		ips_busctl_set(setcmd.type, setcmd.index, setcmd.region, setcmd.value);
 		return 0;
 	default:
 		return -EPERM;
@@ -84,19 +83,20 @@ static long ips_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 	return 0;
 }
 
-static ssize_t ips_cdev_write(struct file *filp, const char __user * ubuf,
-			      size_t len, loff_t * ppos)
+static ssize_t ips_cdev_write(struct file *filp, const char __user *ubuf,
+							  size_t len, loff_t *ppos)
 {
 	return len;
 }
 
-static ssize_t ips_cdev_read(struct file *filp, char __user * ubuf,
-			     size_t len, loff_t * offp)
+static ssize_t ips_cdev_read(struct file *filp, char __user *ubuf,
+							 size_t len, loff_t *offp)
 {
 	unsigned int size;
 
 	return size;
 }
+
 
 int ips_cdev_release(struct inode *inode, struct file *filp)
 {
@@ -106,11 +106,11 @@ int ips_cdev_release(struct inode *inode, struct file *filp)
 }
 
 static const struct file_operations ips_cdev_ops = {
-	.owner = THIS_MODULE,
-	.open = ips_cdev_open,
-	.release = ips_cdev_release,
-	.write = ips_cdev_write,
-	.read = ips_cdev_read,
+	.owner		= THIS_MODULE,
+	.open		= ips_cdev_open,
+	.release	= ips_cdev_release,
+	.write		= ips_cdev_write,
+	.read		= ips_cdev_read,
 	.unlocked_ioctl = ips_cdev_ioctl,
 };
 
@@ -140,9 +140,7 @@ int __init ips_cdev_init(void)
 		return error;
 	}
 
-	ret =
-	    device_create(ipsdev->ips_classes, NULL, ipsdev->dev_num, NULL,
-			  ipsdev->name);
+	ret = device_create(ipsdev->ips_classes, NULL, ipsdev->dev_num, NULL, ipsdev->name);
 	if (ret)
 		return ret;
 
