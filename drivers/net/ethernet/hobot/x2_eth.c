@@ -1855,8 +1855,28 @@ static inline int dwceqos_probe_config_dt(struct platform_device *pdev)
 
 	/* Set the MAC address. */
 	mac_address = of_get_mac_address(pdev->dev.of_node);
-	if (mac_address)
+	if (mac_address) {
 		ether_addr_copy(ndev->dev_addr, mac_address);
+		dev_info(&lp->pdev->dev, "set mac address %02x:%02x:%02x:%02x:%02x:%02x (using dtb MAC address)\n"
+				, ndev->dev_addr[0]
+				, ndev->dev_addr[1]
+				, ndev->dev_addr[2]
+				, ndev->dev_addr[3]
+				, ndev->dev_addr[4]
+				, ndev->dev_addr[5]);
+	} else {
+		get_random_bytes(ndev->dev_addr, ndev->addr_len);
+		ndev->dev_addr[0] = 0x00;
+		ndev->dev_addr[1] = 0x11;
+		ndev->dev_addr[2] = 0x22;
+		dev_info(&lp->pdev->dev, "set mac address %02x:%02x:%02x:%02x:%02x:%02x (using random MAC address)\n"
+				, ndev->dev_addr[0]
+				, ndev->dev_addr[1]
+				, ndev->dev_addr[2]
+				, ndev->dev_addr[3]
+				, ndev->dev_addr[4]
+				, ndev->dev_addr[5]);
+	}
 
 	/* These are all optional parameters */
 	lp->en_tx_lpi_clockgating =  of_property_read_bool(np,

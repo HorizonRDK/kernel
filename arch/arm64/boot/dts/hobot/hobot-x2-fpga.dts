@@ -161,6 +161,8 @@
 
 &ethernet {
 	status = "okay";
+
+	/* local-mac-address = [ 00 11 22 33 44 55 ]; */
 	phy-handle = <&phy1>;
 	phy-mode = "rgmii-id";
 	mdio {
