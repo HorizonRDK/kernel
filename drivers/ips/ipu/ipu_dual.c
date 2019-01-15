@@ -27,6 +27,7 @@
 #include <asm-generic/io.h>
 #include <asm/string.h>
 #include <linux/uaccess.h>
+#include <asm/cacheflush.h>
 
 #define ENABLE 1
 #define DISABLE 0
@@ -172,6 +173,7 @@ void ipu_dual_mode_process(uint32_t status)
 		ipu_info("ipu start\n");
 		slot_h = recv_slot_free_to_busy();
 		if (slot_h) {
+			__inval_dcache_area(IPU_GET_DUAL_SLOT(slot_h->info_h.slot_id, ipu->vaddr), IPU_SLOT_DAUL_SIZE);
 			set_next_recv_frame(slot_h);
 			ipu_dbg("fram start slot-%d, 0x%llx\n", slot_h->info_h.slot_id,
 					(uint64_t)IPU_GET_DUAL_SLOT(slot_h->info_h.slot_id, ipu->paddr));
@@ -208,6 +210,7 @@ void ipu_dual_mode_process(uint32_t status)
 			slot_h = pym_slot_busy_to_done();
 			if (slot_h) {
 				ipu_info("pyramid done, slot-%d, cnt %d\n", slot_h->info_h.slot_id, slot_h->slot_cnt);
+				__inval_dcache_area(IPU_GET_DUAL_SLOT(slot_h->info_h.slot_id, ipu->vaddr), IPU_SLOT_DAUL_SIZE);
 				ipu->pymid_done = true;
 				ipu->done_idx = slot_h->info_h.slot_id;
 				ipu_get_frameid(ipu, slot_h);
@@ -305,7 +308,7 @@ static int8_t ipu_sinfo_init(ipu_cfg_t *ipu_cfg)
 
 static int8_t ipu_core_update(ipu_cfg_t *ipu_cfg)
 {
-	ips_module_reset(RST_IPU);
+	//ips_module_reset(RST_IPU);
 	ipu_cfg_ddrinfo_init(ipu_cfg);
 	ipu_set(IPUC_SET_BASE, ipu_cfg, 0);
 	ipu_set(IPUC_SET_CROP, ipu_cfg, 0);

@@ -702,15 +702,15 @@ void ctrl_ipu_to_ddr(uint32_t module, bool status)
 		writel(regval, g_regbase + IPU_CTRL);
 	}
 	if (module & PYM_TO_DDR) {
-		regval = readl(g_regbase + PYMID_DS_CTRL);
+		regval = readl(g_regbase + IPU_CTRL);
 		if (status) {
 			ipu_info("start pym\n");
-			regval |= BIT(5);
+			regval |= SET_DATA_TO_PYMID;
 		} else {
-			regval &= ~BIT(5);
+			regval &= ~SET_DATA_TO_PYMID;
 			ipu_info("stop pym\n");
 		}
-		writel(regval, g_regbase + PYMID_DS_CTRL);
+		writel(regval, g_regbase + IPU_CTRL);
 	}
 	return;
 }

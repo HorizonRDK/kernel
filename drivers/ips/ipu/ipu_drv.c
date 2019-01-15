@@ -74,7 +74,7 @@ int8_t ipu_cfg_ddrinfo_init(ipu_cfg_t *ipu)
 
 	/* step3. calculate pymid ds space */
 	if (ipu->pymid.pymid_en == 1) {
-		for (i = 0; i < ipu->pymid.ds_layer_en; i++) {
+		for (i = 0; i <= ipu->pymid.ds_layer_en; i++) {
 			if (i % 4 != 0 && ipu->pymid.ds_factor[i] == 0) {
 				/* if factor == 0, bypass layer */
 				ipu->ds_ddr[i].y_addr = 0;
@@ -156,7 +156,7 @@ static int8_t ipu_set_pym_ddr(ipu_cfg_t *ipu, uint64_t ddrbase)
 
 	/* step3. calculate pymid ds space */
 	if (ipu->pymid.pymid_en == 1) {
-		for (i = 0; i < ipu->pymid.ds_layer_en; i++) {
+		for (i = 0; i <= ipu->pymid.ds_layer_en; i++) {
 			if (i % 4 != 0 && ipu->pymid.ds_factor[i] == 0) {
 				/* if factor == 0, bypass layer */
 				ipu->ds_ddr[i].y_addr = 0;
@@ -217,7 +217,7 @@ static int8_t ipu_set_ddr(ipu_cfg_t *ipu, uint64_t ddrbase)
 	/* step3. set pymid addr */
 	if (ipu->pymid.pymid_en == 1) {
 		/* step3.1 set pymid ds addr */
-		for (i = 0; i < ipu->pymid.ds_layer_en; i++) {
+		for (i = 0; i <= ipu->pymid.ds_layer_en; i++) {
 			if (i == 0 || ipu->pymid.ds_factor[i] != 0)
 				ret |= set_ds_layer_addr(i, ipu->ds_ddr[i].y_addr + ddrbase, ipu->ds_ddr[i].c_addr + ddrbase);
 		}
@@ -299,6 +299,7 @@ int8_t ipu_drv_stop(void)
 	spin_lock(&g_ipu->elock);
 	g_ipu->stop = true;
 	ctrl_ipu_to_ddr(CROP_TO_DDR | SCALAR_TO_DDR | PYM_TO_DDR, DISABLE);
+	//ctrl_ipu_to_ddr(CROP_TO_DDR | SCALAR_TO_DDR, DISABLE);
 	ips_irq_disable(IPU_INT);
 	g_ipu->isr_data = 0;
 	spin_unlock(&g_ipu->elock);
@@ -524,7 +525,7 @@ static int x2_ipu_probe(struct platform_device *pdev)
 	}
 	ipu->paddr = r.start;
 	ipu->memsize = resource_size(&r);
-	ipu->vaddr = ipu_vmap(r.start, ipu->memsize);
+	ipu->vaddr = memremap(r.start, ipu->memsize, MEMREMAP_WB);//ipu_vmap(r.start, ipu->memsize);
 	dev_info(&pdev->dev, "Allocate reserved memory, paddr: 0x%0llx, vaddr: 0x%0llx, len=0x%x\n",
 			 ipu->paddr, (uint64_t)ipu->vaddr, ipu->memsize);
 

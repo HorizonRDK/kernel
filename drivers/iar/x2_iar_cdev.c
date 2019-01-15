@@ -22,6 +22,7 @@
 #include <linux/fs.h>
 #include <asm/io.h>
 #include <linux/mutex.h>
+#include <asm/cacheflush.h>
 #include "x2_iar.h"
 
 #define IAR_DMA_MODE
@@ -54,34 +55,6 @@ struct iar_cdev_s {
 	struct mutex iar_mutex;
 };
 struct iar_cdev_s *g_iar_cdev;
-
-//cache clean*inv tmp use, replace when has formal version
-extern void __dma_map_area(const void *, size_t, int);
-extern void __dma_unmap_area(const void *, size_t, int);
-void dma_cache_sync(const void *vir_addr, size_t size, int direction)
-{
-	switch (direction) {
-	case DMA_FROM_DEVICE:           /* invalidate only */
-		__dma_unmap_area(vir_addr, size, direction);
-		break;
-	case DMA_TO_DEVICE:             /* writeback only */
-		__dma_map_area(vir_addr, size, direction);
-		break;
-	default:
-		BUG();
-	}
-}
-void invalid_cache(unsigned char *data, int len)
-{
-	dma_cache_sync(data, len, DMA_FROM_DEVICE);
-}
-EXPORT_SYMBOL(invalid_cache);
-
-void clean_cache(unsigned char *data, int len)
-{
-	dma_cache_sync(data, len, DMA_TO_DEVICE);
-}
-EXPORT_SYMBOL(clean_cache);
 
 int32_t iar_write_framebuf_poll(uint32_t channel, void __user *srcaddr, uint32_t size)
 {
@@ -159,7 +132,7 @@ int32_t iar_display_update(update_cmd_t *update_cmd)
 		if (update_cmd->enable_flag[index] && update_cmd->frame_size[index] < MAX_FRAME_BUF_SIZE) {
 #ifdef IAR_DMA_MODE
 			if (g_iar_cdev->framebuf_user[index]) {
-				clean_cache(g_iar_cdev->framebuf_user[index]->vaddr, update_cmd->frame_size[index]);
+				__clean_dcache_area_poc(g_iar_cdev->framebuf_user[index]->vaddr, update_cmd->frame_size[index]);
 				ret = iar_write_framebuf_dma(index, g_iar_cdev->framebuf_user[index]->paddr, update_cmd->frame_size[index]);
 			}
 #else
