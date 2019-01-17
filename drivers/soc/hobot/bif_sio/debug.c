@@ -87,5 +87,4 @@ void _dbg_printhex(unsigned char *buf, int len)
 		addr_base += PACKET_ONCE;
 		printk(prinf_buf);
 	}
-
 }

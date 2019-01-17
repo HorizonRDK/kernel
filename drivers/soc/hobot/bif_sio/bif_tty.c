@@ -271,8 +271,8 @@ static unsigned int bif_ringbuf_other_used(struct bif_tty_node *bt_node)
 static ssize_t bif_tty_read(struct file *filp, char __user *buf,
 			    size_t size, loff_t *ppos)
 {
-	unsigned int count = size;
 	int rc = 0;
+	unsigned int count = 0;
 	struct bif_tty_node *bt_node = filp->private_data;
 	struct ringbuf_t *pself = bt_node->rb_self;
 
@@ -308,35 +308,47 @@ static ssize_t bif_tty_write(struct file *filp, const char __user *buf,
 			     size_t size, loff_t *ppos)
 {
 	int rc = 0;
-	unsigned int count = size;
+	size_t offset = 0;
+	unsigned int count = 0;
 	struct bif_tty_node *bt_node = filp->private_data;
 	struct ringbuf_t *pself = bt_node->rb_self;
 
 	tty_debug_log("%s(%d) enter\n", __func__, __LINE__);
 	ttyinfo_dbg(bt_node);
 
-	if (size > (ringbuf_capacity(pself))) {
-		rc = -EINVAL;
-		pr_err("%s(%d)...rc=%d\n", __func__, __LINE__, rc);
-		return rc;
-	}
-	count = bif_ringbuf_self_free(bt_node);
-	if (size > count) {
-		pr_err("%s(%d) full count=%d < size=%d\n",
-		       __func__, __LINE__, count, (int)size);
-		wait_event(tb_dev->wq, bif_ringbuf_self_free(bt_node) >= size);
-	}
+	if (size == 0)
+		return  0;
 
-	rc = ringbuf_write(pself, buf, size);
-	if (rc < 0)
-		goto fail;
+	/*
+	 * if write data longer that buffer size, need transfer more
+	 * than one time
+	 */
+	while (size > 0) {
+
+		count = bif_ringbuf_self_free(bt_node);
+		if (count == 0) {
+			pr_err("%s(%d) full count=%d < size=%d\n",
+			       __func__, __LINE__, count, (int)size);
+			wait_event(tb_dev->wq,
+				   bif_ringbuf_self_free(bt_node) > 0);
+			count = bif_ringbuf_self_free(bt_node);
+		}
+		if (count >= size)
+			count = size;
+		rc = ringbuf_write(pself, buf + offset, count);
+		if (rc < 0)
+			goto fail;
 
 #ifdef CONFIG_HOBOT_BIF_AP
-	bif_sync_apbuf((unsigned long)(bt_node->addr_phy_w),
-		       pself->size, pself->wbuf);
+		bif_sync_apbuf((unsigned long)(bt_node->addr_phy_w),
+			       pself->size, pself->wbuf);
 #endif
-	bif_tty_irq();
-	ttyinfo_dbg(bt_node);
+		bif_tty_irq();
+		size -= count;
+		offset += count;
+		ttyinfo_dbg(bt_node);
+	}
+
 fail:
 	tty_debug_log("%s(%d)...rc=%d leave\n", __func__, __LINE__, rc);
 	return rc;
