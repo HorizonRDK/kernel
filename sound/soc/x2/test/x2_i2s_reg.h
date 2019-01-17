@@ -1,7 +1,7 @@
 /***************************************************************************
- *                      COPYRIGHT NOTICE
- *             Copyright 2018 Horizon Robotics, Inc.
- *                     All rights reserved.
+ *						COPYRIGHT NOTICE
+ *			   Copyright 2018 Horizon Robotics, Inc.
+ *					   All rights reserved.
  ***************************************************************************/
 
 #ifndef __X2_I2S_REG_H
@@ -182,8 +182,8 @@ typedef enum _i2s_mode_ch_num {
 	X2_I2S_RX_16_CHANNEL = 3,
 	X2_I2S_RX_CH_NUM_MAX = 5,
 	X2_I2S_TX_1_CHANNEL = 1,
-    X2_I2S_TX_2_CHANNEL = 0,
-    X2_I2S_TX_CH_NUM_MAX = 2,
+	X2_I2S_TX_2_CHANNEL = 0,
+	X2_I2S_TX_CH_NUM_MAX = 2,
 } e_i2s_mode_ch_num;
 
 typedef enum _i2s_mode_word_len {
@@ -217,41 +217,38 @@ typedef enum _i2s_mode_clk_edge {
 } e_i2s_mode_clk_edge;
 
 typedef struct _x2_i2s_hw_cfg {
-        e_i2s_mode_ms_mode ms_mode;
-        e_i2s_mode_dsp_mode i2s_dsp_mode;
-        e_i2s_mode_ch_num ch_num;
-        e_i2s_mode_word_len word_len;
-        e_i2s_mode_first_edge first_edge;
-        e_i2s_mode_lr_ws lr_ws;
-        e_i2s_mode_copy_zero_sel copy_zero_sel;
-        e_i2s_mode_clk_edge clk_edge;
+		e_i2s_mode_ms_mode ms_mode;
+		e_i2s_mode_dsp_mode i2s_dsp_mode;
+		e_i2s_mode_ch_num ch_num;
+		e_i2s_mode_word_len word_len;
+		e_i2s_mode_first_edge first_edge;
+		e_i2s_mode_lr_ws lr_ws;
+		e_i2s_mode_copy_zero_sel copy_zero_sel;
+		e_i2s_mode_clk_edge clk_edge;
 } x2_i2s_hw_cfg;
 
 #define X2_I2S_FRAME_CACHE_SIZE 15
-#define X2_I2S_MASTER_BCLK_KHZ 3072
-#define X2_I2S_SLAVE_BCLK_KHZ 3072
-
 
 typedef struct _x2_i2s_buf {
 	struct list_head node;
 	void *vptr;
-    void *pptr;
+	void *pptr;
 } x2_i2s_buf;
 
 typedef struct _x2_i2s_buf_state {
-    struct list_head node;
-    int buf_no;
+	struct list_head node;
+	int buf_no;
 } x2_i2s_buf_state;
 
 typedef struct _x2_i2s_frame{
 	struct list_head free;
 	struct list_head ready;
-    struct list_head state;
+	struct list_head state;
 	x2_i2s_buf *buf0;
 	x2_i2s_buf *buf1;
-    x2_i2s_buf_state buf0_state;
-    x2_i2s_buf_state buf1_state;
-    struct semaphore sem;
+	x2_i2s_buf_state buf0_state;
+	x2_i2s_buf_state buf1_state;
+	struct semaphore sem;
 	void *vbuf;
 	void *pbuf;
 	int size;
@@ -259,21 +256,20 @@ typedef struct _x2_i2s_frame{
 } x2_i2s_frame;
 
 typedef struct _x2_i2s{
-    void __iomem *rx_regs;
-    void __iomem *tx_regs;
-    void __iomem *sys_regs;
-    void __iomem *apb_regs;
-    void __iomem *regs;
-    unsigned int irq;
-	unsigned int clk_reg;
-    unsigned int status;
-    unsigned int index;
-    int bclk;
-    struct device *dev;
+	void __iomem *rx_regs;
+	void __iomem *tx_regs;
+	void __iomem *regs;
+	unsigned int irq;
+	unsigned int status;
+	unsigned int index;
+	int clk;
+	struct device *dev;
 	e_i2s_mode_ms_mode state;
 	x2_i2s_hw_cfg hw_cfg;
 	x2_i2s_frame frame;
-    struct reset_control *rst;
+	struct reset_control *rst;
+	struct clk *mclk;
+	struct clk *bclk;
 } x2_i2s;
 
 #define X2_I2S_DEV_NUMBER 2
@@ -281,125 +277,125 @@ extern x2_i2s *g_x2_i2s[X2_I2S_DEV_NUMBER];
 
 static inline unsigned int x2_i2s_read_base_reg(x2_i2s *i2s, int offset)
 {
-    return readl(i2s->regs+offset);
+	return readl(i2s->regs+offset);
 }
 
 static inline void x2_i2s_iram_clear(x2_i2s *i2s, int val)
 {
-    unsigned int reg_val;
-    reg_val = readl(i2s->regs + I2S_CTL);
-    writel(UPDATE_VALUE_FIELD(reg_val, val, I2S_CTL_IMEM_CLEAR_BIT, I2S_CTL_IMEM_CLEAR_FIELD), i2s->regs + I2S_CTL);
+	unsigned int reg_val;
+	reg_val = readl(i2s->regs + I2S_CTL);
+	writel(UPDATE_VALUE_FIELD(reg_val, val, I2S_CTL_IMEM_CLEAR_BIT, I2S_CTL_IMEM_CLEAR_FIELD), i2s->regs + I2S_CTL);
 }
 
 static inline void x2_i2s_iram_enable(x2_i2s *i2s, int val)
 {
-    unsigned int reg_val;
-    reg_val = readl(i2s->regs + I2S_CTL);
-    writel(UPDATE_VALUE_FIELD(reg_val, val, I2S_CTL_IMEM_EN_BIT, I2S_CTL_IMEM_EN_FIELD), i2s->regs + I2S_CTL);
+	unsigned int reg_val;
+	reg_val = readl(i2s->regs + I2S_CTL);
+	writel(UPDATE_VALUE_FIELD(reg_val, val, I2S_CTL_IMEM_EN_BIT, I2S_CTL_IMEM_EN_FIELD), i2s->regs + I2S_CTL);
 }
 
 static inline void x2_i2s_transfer_enable(x2_i2s *i2s, int val)
 {
-    unsigned int reg_val;
-    reg_val = readl(i2s->regs + I2S_CTL);
-    writel(UPDATE_VALUE_FIELD(reg_val, val, I2S_CTL_ENABLE_BIT, I2S_CTL_ENABLE_FIELD), i2s->regs + I2S_CTL);
+	unsigned int reg_val;
+	reg_val = readl(i2s->regs + I2S_CTL);
+	writel(UPDATE_VALUE_FIELD(reg_val, val, I2S_CTL_ENABLE_BIT, I2S_CTL_ENABLE_FIELD), i2s->regs + I2S_CTL);
 }
 
 static inline void x2_i2s_disable(x2_i2s *i2s)
 {
-    writel(0x0, i2s->regs + I2S_CTL);
+	writel(0x0, i2s->regs + I2S_CTL);
 }
 
 static inline void x2_i2s_ms_mode_set(x2_i2s *i2s, int val)
 {
-    unsigned int reg_val;
-    reg_val = readl(i2s->regs + I2S_MODE);
+	unsigned int reg_val;
+	reg_val = readl(i2s->regs + I2S_MODE);
 	writel(UPDATE_VALUE_FIELD(reg_val, val, I2S_MODE_MS_MODE_BIT, I2S_MODE_MS_MODE_FIELD), i2s->regs + I2S_MODE);
 }
 
 static inline void x2_i2s_interface_set(x2_i2s *i2s, int val)
 {
-    unsigned int reg_val;
-    reg_val = readl(i2s->regs + I2S_MODE);
-    writel(UPDATE_VALUE_FIELD(reg_val, val, I2S_MODE_I2S_DSP_MODE_BIT, I2S_MODE_I2S_DSP_MODE_FIELD), i2s->regs + I2S_MODE);
+	unsigned int reg_val;
+	reg_val = readl(i2s->regs + I2S_MODE);
+	writel(UPDATE_VALUE_FIELD(reg_val, val, I2S_MODE_I2S_DSP_MODE_BIT, I2S_MODE_I2S_DSP_MODE_FIELD), i2s->regs + I2S_MODE);
 }
 
 static inline void x2_i2s_channel_num_set(x2_i2s *i2s, int val)
 {
-    unsigned int reg_val;
-    reg_val = readl(i2s->regs + I2S_MODE);
-    writel(UPDATE_VALUE_FIELD(reg_val, val, I2S_MODE_CH_NUM_BIT, I2S_MODE_CH_NUM_FIELD), i2s->regs + I2S_MODE);
+	unsigned int reg_val;
+	reg_val = readl(i2s->regs + I2S_MODE);
+	writel(UPDATE_VALUE_FIELD(reg_val, val, I2S_MODE_CH_NUM_BIT, I2S_MODE_CH_NUM_FIELD), i2s->regs + I2S_MODE);
 }
 
 static inline void x2_i2s_sample_depth_set(x2_i2s *i2s, int val)
 {
-    unsigned int reg_val;
-    reg_val = readl(i2s->regs + I2S_MODE);
-    writel(UPDATE_VALUE_FIELD(reg_val, val, I2S_MODE_WORD_LEN_BIT, I2S_MODE_WORD_LEN_FIELD), i2s->regs + I2S_MODE);
+	unsigned int reg_val;
+	reg_val = readl(i2s->regs + I2S_MODE);
+	writel(UPDATE_VALUE_FIELD(reg_val, val, I2S_MODE_WORD_LEN_BIT, I2S_MODE_WORD_LEN_FIELD), i2s->regs + I2S_MODE);
 }
 
 static inline void x2_i2s_first_edge_set(x2_i2s *i2s, int val)
 {
-    unsigned int reg_val;
-    reg_val = readl(i2s->regs + I2S_MODE);
-    writel(UPDATE_VALUE_FIELD(reg_val, val, I2S_MODE_FIRST_EDGE_BIT, I2S_MODE_FIRST_EDGE_FIELD), i2s->regs + I2S_MODE);
+	unsigned int reg_val;
+	reg_val = readl(i2s->regs + I2S_MODE);
+	writel(UPDATE_VALUE_FIELD(reg_val, val, I2S_MODE_FIRST_EDGE_BIT, I2S_MODE_FIRST_EDGE_FIELD), i2s->regs + I2S_MODE);
 }
 
 static inline void x2_i2s_ws_lr_set(x2_i2s *i2s, int val)
 {
-    unsigned int reg_val;
-    reg_val = readl(i2s->regs + I2S_MODE);
-    writel(UPDATE_VALUE_FIELD(reg_val, val, I2S_MODE_LR_WS_BIT, I2S_MODE_LR_WS_FIELD), i2s->regs + I2S_MODE);
+	unsigned int reg_val;
+	reg_val = readl(i2s->regs + I2S_MODE);
+	writel(UPDATE_VALUE_FIELD(reg_val, val, I2S_MODE_LR_WS_BIT, I2S_MODE_LR_WS_FIELD), i2s->regs + I2S_MODE);
 }
 
 static inline void x2_i2s_copy_zero_set(x2_i2s *i2s, int val)
 {
-    unsigned int reg_val;
-    reg_val = readl(i2s->regs + I2S_MODE);
-    writel(UPDATE_VALUE_FIELD(reg_val, val, I2S_MODE_COPY_ZERO_SEL_BIT, I2S_MODE_COPY_ZERO_SEL_FIELD), i2s->regs + I2S_MODE);
+	unsigned int reg_val;
+	reg_val = readl(i2s->regs + I2S_MODE);
+	writel(UPDATE_VALUE_FIELD(reg_val, val, I2S_MODE_COPY_ZERO_SEL_BIT, I2S_MODE_COPY_ZERO_SEL_FIELD), i2s->regs + I2S_MODE);
 }
 
 static inline void x2_i2s_clk_edge_set(x2_i2s *i2s, int val)
 {
-    unsigned int reg_val;
-    reg_val = readl(i2s->regs + I2S_MODE);
-    writel(UPDATE_VALUE_FIELD(reg_val, val, I2S_MODE_CLK_EDGE_BIT, I2S_MODE_CLK_EDGE_FIELD), i2s->regs + I2S_MODE);
+	unsigned int reg_val;
+	reg_val = readl(i2s->regs + I2S_MODE);
+	writel(UPDATE_VALUE_FIELD(reg_val, val, I2S_MODE_CLK_EDGE_BIT, I2S_MODE_CLK_EDGE_FIELD), i2s->regs + I2S_MODE);
 }
 
 static inline void x2_i2s_ws_lclk_set(x2_i2s *i2s, int val)
 {
-    unsigned int reg_val;
-    reg_val = readl(i2s->regs + I2S_DIV_WS);
-    writel(UPDATE_VALUE_FIELD(reg_val, val, I2S_DIV_WS_DIV_WS_L_BIT, I2S_DIV_WS_DIV_WS_L_FIELD), i2s->regs + I2S_DIV_WS);
+	unsigned int reg_val;
+	reg_val = readl(i2s->regs + I2S_DIV_WS);
+	writel(UPDATE_VALUE_FIELD(reg_val, val, I2S_DIV_WS_DIV_WS_L_BIT, I2S_DIV_WS_DIV_WS_L_FIELD), i2s->regs + I2S_DIV_WS);
 }
 
 static inline void x2_i2s_ws_hclk_set(x2_i2s *i2s, int val)
 {
-    unsigned int reg_val;
-    reg_val = readl(i2s->regs + I2S_DIV_WS);
-    writel(UPDATE_VALUE_FIELD(reg_val, val, I2S_DIV_WS_DIV_WS_H_BIT, I2S_DIV_WS_DIV_WS_H_FIELD), i2s->regs + I2S_DIV_WS);
+	unsigned int reg_val;
+	reg_val = readl(i2s->regs + I2S_DIV_WS);
+	writel(UPDATE_VALUE_FIELD(reg_val, val, I2S_DIV_WS_DIV_WS_H_BIT, I2S_DIV_WS_DIV_WS_H_FIELD), i2s->regs + I2S_DIV_WS);
 }
 
 static inline void x2_i2s_channel_en(x2_i2s *i2s, int val)
 {
-    writel(val, i2s->regs + I2S_CH_EN);
+	writel(val, i2s->regs + I2S_CH_EN);
 }
 
 static inline void x2_i2s_buf_size_set(x2_i2s *i2s, int val)
 {
-    writel(val, i2s->regs + I2S_BUF_SIZE);
+	writel(val, i2s->regs + I2S_BUF_SIZE);
 }
 
 static inline void x2_i2s_buf0_addr_set(x2_i2s *i2s, int val)
 {
-    writel(val, i2s->regs + I2S_BUF0_ADDR);
+	writel(val, i2s->regs + I2S_BUF0_ADDR);
 }
 
 static inline void x2_i2s_buf0_rdy_set(x2_i2s *i2s, int val)
 {
-    unsigned int reg_val;
+	unsigned int reg_val;
 	reg_val = readl(i2s->regs + I2S_BUF0_RDY);
-    writel(UPDATE_VALUE_FIELD(reg_val, val, I2S_BUF0_RDY_BIT, I2S_BUF0_RDY_FIELD), i2s->regs + I2S_BUF0_RDY);
+	writel(UPDATE_VALUE_FIELD(reg_val, val, I2S_BUF0_RDY_BIT, I2S_BUF0_RDY_FIELD), i2s->regs + I2S_BUF0_RDY);
 }
 
 static inline unsigned int x2_i2s_buf0_rdy_get(x2_i2s *i2s)
@@ -409,14 +405,14 @@ static inline unsigned int x2_i2s_buf0_rdy_get(x2_i2s *i2s)
 
 static inline void x2_i2s_buf1_addr_set(x2_i2s *i2s, int val)
 {
-    writel(val, i2s->regs + I2S_BUF1_ADDR);
+	writel(val, i2s->regs + I2S_BUF1_ADDR);
 }
 
 static inline void x2_i2s_buf1_rdy_set(x2_i2s *i2s, int val)
 {
-    unsigned int reg_val;
+	unsigned int reg_val;
 	reg_val = readl(i2s->regs + I2S_BUF1_RDY);
-    writel(UPDATE_VALUE_FIELD(reg_val, val, I2S_BUF1_RDY_BIT, I2S_BUF1_RDY_FIELD), i2s->regs + I2S_BUF1_RDY);
+	writel(UPDATE_VALUE_FIELD(reg_val, val, I2S_BUF1_RDY_BIT, I2S_BUF1_RDY_FIELD), i2s->regs + I2S_BUF1_RDY);
 }
 
 static inline unsigned int x2_i2s_buf1_rdy_get(x2_i2s *i2s)
@@ -426,37 +422,37 @@ static inline unsigned int x2_i2s_buf1_rdy_get(x2_i2s *i2s)
 
 static inline unsigned int x2_i2s_buf_addr_get(x2_i2s *i2s)
 {
-    return readl(i2s->regs + I2S_BUF_CUR_ADDR);
+	return readl(i2s->regs + I2S_BUF_CUR_ADDR);
 }
 
 static inline unsigned int x2_i2s_channel_error_get(x2_i2s *i2s)
 {
-    return readl(i2s->regs + I2S_CH_ERROR);
+	return readl(i2s->regs + I2S_CH_ERROR);
 }
 
 static inline unsigned int x2_i2s_int_status_get(x2_i2s *i2s)
 {
-    return readl(i2s->regs + I2S_SRCPND);
+	return readl(i2s->regs + I2S_SRCPND);
 }
 
 static inline void x2_i2s_int_buf1_trf_done_set(x2_i2s *i2s)
 {
-    writel(0x08, i2s->regs + I2S_SRCPND);
+	writel(0x08, i2s->regs + I2S_SRCPND);
 }
 
 static inline void x2_i2s_int_buf0_trf_done_set(x2_i2s *i2s)
 {
-    writel(0x04, i2s->regs + I2S_SRCPND);
+	writel(0x04, i2s->regs + I2S_SRCPND);
 }
 
 static inline void x2_i2s_int_buf_flow_set(x2_i2s *i2s)
 {
-    writel(0x02, i2s->regs + I2S_SRCPND);
+	writel(0x02, i2s->regs + I2S_SRCPND);
 }
 
 static inline void x2_i2s_int_buf_not_ready_set(x2_i2s *i2s)
 {
-    writel(0x01, i2s->regs + I2S_SRCPND);
+	writel(0x01, i2s->regs + I2S_SRCPND);
 }
 
 static inline void x2_i2s_int_state_clear(x2_i2s *i2s)
@@ -466,120 +462,68 @@ static inline void x2_i2s_int_state_clear(x2_i2s *i2s)
 
 static inline unsigned int x2_i2s_int_mask_get(x2_i2s *i2s)
 {
-    return readl(i2s->regs + I2S_INTMASK);
+	return readl(i2s->regs + I2S_INTMASK);
 }
 
 static inline void x2_i2s_int_buf1_trf_done_mask(x2_i2s *i2s)
 {
-    unsigned int reg_val;
+	unsigned int reg_val;
 	reg_val = readl(i2s->regs + I2S_SETMASK);
-    writel(UPDATE_VALUE_FIELD(reg_val, 0x1, I2S_INT_BUF1_TRF_DONE_BIT, I2S_INT_BUF1_TRF_DONE_FIELD), i2s->regs + I2S_SETMASK);
+	writel(UPDATE_VALUE_FIELD(reg_val, 0x1, I2S_INT_BUF1_TRF_DONE_BIT, I2S_INT_BUF1_TRF_DONE_FIELD), i2s->regs + I2S_SETMASK);
 }
 
 static inline void x2_i2s_int_buf0_trf_done_mask(x2_i2s *i2s)
 {
-    unsigned int reg_val;
+	unsigned int reg_val;
 	reg_val = readl(i2s->regs + I2S_SETMASK);
-    writel(UPDATE_VALUE_FIELD(reg_val, 0x1, I2S_INT_BUF0_TRF_DONE_BIT, I2S_INT_BUF0_TRF_DONE_FIELD), i2s->regs + I2S_SETMASK);
+	writel(UPDATE_VALUE_FIELD(reg_val, 0x1, I2S_INT_BUF0_TRF_DONE_BIT, I2S_INT_BUF0_TRF_DONE_FIELD), i2s->regs + I2S_SETMASK);
 }
 
 static inline void x2_i2s_int_buf_flow_mask(x2_i2s *i2s)
 {
-    unsigned int reg_val;
+	unsigned int reg_val;
 	reg_val = readl(i2s->regs + I2S_SETMASK);
-    writel(UPDATE_VALUE_FIELD(reg_val, 0x1, I2S_INT_BUF_FLOW_BIT, I2S_INT_BUF_FLOW_FIELD), i2s->regs + I2S_SETMASK);
+	writel(UPDATE_VALUE_FIELD(reg_val, 0x1, I2S_INT_BUF_FLOW_BIT, I2S_INT_BUF_FLOW_FIELD), i2s->regs + I2S_SETMASK);
 }
 
 static inline void x2_i2s_int_buf_not_ready_mask(x2_i2s *i2s)
 {
-    unsigned int reg_val;
+	unsigned int reg_val;
 	reg_val = readl(i2s->regs + I2S_SETMASK);
-    writel(UPDATE_VALUE_FIELD(reg_val, 0x1, I2S_INT_BUF_NOT_READY_BIT, I2S_INT_BUF_NOT_READY_FIELD), i2s->regs + I2S_SETMASK);
+	writel(UPDATE_VALUE_FIELD(reg_val, 0x1, I2S_INT_BUF_NOT_READY_BIT, I2S_INT_BUF_NOT_READY_FIELD), i2s->regs + I2S_SETMASK);
 }
 
 static inline void x2_i2s_int_buf1_trf_done_unmask(x2_i2s *i2s)
 {
-    unsigned int reg_val;
+	unsigned int reg_val;
 	reg_val = readl(i2s->regs + I2S_UNMASK);
-    writel(UPDATE_VALUE_FIELD(reg_val, 0x1, I2S_INT_BUF1_TRF_DONE_BIT, I2S_INT_BUF1_TRF_DONE_FIELD), i2s->regs + I2S_UNMASK);
+	writel(UPDATE_VALUE_FIELD(reg_val, 0x1, I2S_INT_BUF1_TRF_DONE_BIT, I2S_INT_BUF1_TRF_DONE_FIELD), i2s->regs + I2S_UNMASK);
 }
 
 static inline void x2_i2s_int_buf0_trf_done_unmask(x2_i2s *i2s)
 {
-    unsigned int reg_val;
+	unsigned int reg_val;
 	reg_val = readl(i2s->regs + I2S_UNMASK);
-    writel(UPDATE_VALUE_FIELD(reg_val, 0x1, I2S_INT_BUF0_TRF_DONE_BIT, I2S_INT_BUF0_TRF_DONE_FIELD), i2s->regs + I2S_UNMASK);
+	writel(UPDATE_VALUE_FIELD(reg_val, 0x1, I2S_INT_BUF0_TRF_DONE_BIT, I2S_INT_BUF0_TRF_DONE_FIELD), i2s->regs + I2S_UNMASK);
 }
 
 static inline void x2_i2s_int_buf_flow_unmask(x2_i2s *i2s)
 {
-    unsigned int reg_val;
+	unsigned int reg_val;
 	reg_val = readl(i2s->regs + I2S_UNMASK);
-    writel(UPDATE_VALUE_FIELD(reg_val, 0x1, I2S_INT_BUF_FLOW_BIT, I2S_INT_BUF_FLOW_FIELD), i2s->regs + I2S_UNMASK);
+	writel(UPDATE_VALUE_FIELD(reg_val, 0x1, I2S_INT_BUF_FLOW_BIT, I2S_INT_BUF_FLOW_FIELD), i2s->regs + I2S_UNMASK);
 }
 
 static inline void x2_i2s_int_buf_not_ready_unmask(x2_i2s *i2s)
 {
-    unsigned int reg_val;
+	unsigned int reg_val;
 	reg_val = readl(i2s->regs + I2S_UNMASK);
-    writel(UPDATE_VALUE_FIELD(reg_val, 0x1, I2S_INT_BUF_NOT_READY_BIT, I2S_INT_BUF_NOT_READY_FIELD), i2s->regs + I2S_UNMASK);
+	writel(UPDATE_VALUE_FIELD(reg_val, 0x1, I2S_INT_BUF_NOT_READY_BIT, I2S_INT_BUF_NOT_READY_FIELD), i2s->regs + I2S_UNMASK);
 }
 
 static inline void x2_i2s_int_unmask(x2_i2s *i2s)
 {
-    writel(0xF, i2s->regs + I2S_UNMASK);
-}
-
-#define I2S_CLK_CTRL_PRE_MCLK_DIV_SEL_BIT 0
-#define I2S_CLK_CTRL_MCLK_DIV_SEL_BIT 8
-#define I2S_CLK_CTRL_DIV_BCLK_DIV_SEL_BIT 16
-#define I2S_CLK_CTRL_MST_SLV_MODE_BIT 20
-#define I2S_CLK_CTRL_BCLK_PHASE_SEL_BIT 24
-
-#define I2S_CLK_CTRL_PRE_MCLK_DIV_FIELD 0x1F
-#define I2S_CLK_CTRL_MCLK_DIV_SEL_FIELD 0x1F
-#define I2S_CLK_CTRL_DIV_BCLK_DIV_SEL_FIELD 0x7
-#define I2S_CLK_CTRL_MST_SLV_MODE_FIELD 0x1
-#define I2S_CLK_CTRL_BCLK_PHASE_SEL_FIELD 0x1
-
-static inline void x2_i2s_clk_pre_mclk_div_config(x2_i2s *i2s, int val)
-{
-    unsigned int reg_val;
-	reg_val = readl(i2s->sys_regs + i2s->clk_reg);
-	writel(UPDATE_VALUE_FIELD(reg_val, val, I2S_CLK_CTRL_PRE_MCLK_DIV_SEL_BIT, I2S_CLK_CTRL_PRE_MCLK_DIV_FIELD), i2s->sys_regs + i2s->clk_reg);
-}
-
-static inline void x2_i2s_clk_mclk_div_config(x2_i2s *i2s, int val)
-{
-    unsigned int reg_val;
-	reg_val = readl(i2s->sys_regs + i2s->clk_reg);
-	writel(UPDATE_VALUE_FIELD(reg_val, val, I2S_CLK_CTRL_MCLK_DIV_SEL_BIT, I2S_CLK_CTRL_MCLK_DIV_SEL_FIELD), i2s->sys_regs + i2s->clk_reg);
-}
-
-static inline void x2_i2s_clk_bclk_div_config(x2_i2s *i2s, int val)
-{
-    unsigned int reg_val;
-	reg_val = readl(i2s->sys_regs + i2s->clk_reg);
-	writel(UPDATE_VALUE_FIELD(reg_val, val, I2S_CLK_CTRL_DIV_BCLK_DIV_SEL_BIT, I2S_CLK_CTRL_DIV_BCLK_DIV_SEL_FIELD), i2s->sys_regs + i2s->clk_reg);
-}
-
-static inline void x2_i2s_clk_ms_mode_config(x2_i2s *i2s, int val)
-{
-    unsigned int reg_val;
-	reg_val = readl(i2s->sys_regs + i2s->clk_reg);
-	writel(UPDATE_VALUE_FIELD(reg_val, val, I2S_CLK_CTRL_MST_SLV_MODE_BIT, I2S_CLK_CTRL_MST_SLV_MODE_FIELD), i2s->sys_regs + i2s->clk_reg);
-}
-
-static inline void x2_i2s_clk_bclk_phase_config(x2_i2s *i2s, int val)
-{
-    unsigned int reg_val;
-	reg_val = readl(i2s->sys_regs + i2s->clk_reg);
-	writel(UPDATE_VALUE_FIELD(reg_val, val, I2S_CLK_CTRL_BCLK_PHASE_SEL_BIT, I2S_CLK_CTRL_BCLK_PHASE_SEL_FIELD), i2s->sys_regs + i2s->clk_reg);
-}
-
-static inline void x2_i2s_apb_timeout_enable(x2_i2s *i2s)
-{
-    writel(0x1, i2s->apb_regs);
+	writel(0xF, i2s->regs + I2S_UNMASK);
 }
 
 int x2_i2s_pre_init(x2_i2s *i2s);

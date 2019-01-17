@@ -12,6 +12,7 @@
 
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 #include <dt-bindings/interrupt-controller/irq.h>
+#include "hobot-clk.dtsi"
 
  / {
 	compatible = "hobot,x2";
@@ -145,36 +146,34 @@
 			status = "disabled";
 		};
 
-        i2s0: i2s@0xA5007000 {
-            compatible = "hobot,x2-i2s";
-            reg = <0 0xA5007000 0 0x100>,
-                  <0 0xA5007500 0 0x100>,
-                  <0 0xA1000000 0 0x1000>,
-                  <0 0xA7000000 0 0x100>;
-            interrupt-parent = <&gic>;
-            interrupts = <0 30 4>;
-            resets = <&rst 0x50 18>;
-            reset-names = "i2s";
-            i2s-clk-reg = <0x350>;
-            pinctrl-names = "default";
-            pinctrl-0 = <&i2s0_func>;
-        };
+		i2s0: i2s@0xA5007000 {
+			compatible = "hobot,x2-i2s";
+			reg = <0 0xA5007000 0 0x100>,
+				  <0 0xA5007500 0 0x100>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 30 4>;
+			resets = <&rst 0x50 18>;
+			reset-names = "i2s";
+			clock-names = "i2s-mclk", "i2s-bclk";
+			clocks = <&i2s0_mclk>, <&i2s0_bclk>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&i2s0_func>;
+		};
 
-        i2s1: i2s@0xA5008000 {
-            compatible = "hobot,x2-i2s";
-            reg = <0 0xA5008000 0 0x100>,
-                  <0 0xA5008500 0 0x100>,
-                  <0 0xA1000000 0 0x1000>,
-                  <0 0xA7000000 0 0x10>;
-            interrupt-parent = <&gic>;
-            interrupts = <0 31 4>;
-            resets = <&rst 0x50 19>;
-            reset-names = "i2s";
-            i2s-clk-reg = <0x360>;
-            pinctrl-names = "default";
-            pinctrl-0 = <&i2s1_func>;
-            status = "disabled";
-        };
+		i2s1: i2s@0xA5008000 {
+			compatible = "hobot,x2-i2s";
+			reg = <0 0xA5008000 0 0x100>,
+				  <0 0xA5008500 0 0x100>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 31 4>;
+			resets = <&rst 0x50 19>;
+			reset-names = "i2s";
+			clock-names = "i2s-mclk", "i2s-bclk";
+			clocks = <&i2s1_mclk>, <&i2s1_bclk>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&i2s1_func>;
+			status = "disabled";
+		};
 
 		i2c0: i2c@0xA5009000 {
 			compatible = "hobot,x2-i2c";
@@ -276,7 +275,6 @@
 			reg = <0 0xA1005000 0 0x1000>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 18 4>;
-			status = "disabled";
 		};
 
 		x2dmatest: x2dmatest {
@@ -455,21 +453,21 @@
 			status = "disabled";
 		};
 
-	    bifsd: bifsd@A1007000 {
-		  	compatible = "hobot,bifsd";
-		    	reg = <0x0 0xA1007000 0x0 0x1000>,
-			      <0x0 0xA1000590 0x0 0x10>;
-            		interrupt-parent = <&gic>;
-          		interrupts = <0 17 4>;
-          		memory-region = <&bifsd_reserved>;
-		    	status = "disabled";
+		bifsd: bifsd@A1007000 {
+			compatible = "hobot,bifsd";
+				reg = <0x0 0xA1007000 0x0 0x1000>,
+				  <0x0 0xA1000590 0x0 0x10>;
+					interrupt-parent = <&gic>;
+				interrupts = <0 17 4>;
+				memory-region = <&bifsd_reserved>;
+				status = "disabled";
 			resets = <&rst 0x00 5>;
 			reset-names = "bifsd";
 			pinctrl-names = "default";
 			pinctrl-0 = <&bifsd_func>;
-	    };
+		};
 		sdio0: dwmmc@A5010000 {
-		    	compatible = "hobot,x2-dw-mshc";
+				compatible = "hobot,x2-dw-mshc";
 			reg = <0x0 0xA5010000 0x0 0x1000>;
 			clock-freq-min-max = <100000 50000000>;
 			clock-frequency = <50000000>;
@@ -491,7 +489,7 @@
 			pinctrl-0 = <&sdio0_func>;
 		};
 		sdio1: dwmmc@A5011000 {
-		    	compatible = "hobot,x2-dw-mshc";
+				compatible = "hobot,x2-dw-mshc";
 			reg = <0x0 0xA5011000 0x0 0x1000>;
 			clock-freq-min-max = <100000 50000000>;
 			clock-frequency = <10000000>;
