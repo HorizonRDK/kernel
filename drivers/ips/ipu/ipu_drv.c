@@ -525,7 +525,8 @@ static int x2_ipu_probe(struct platform_device *pdev)
 	}
 	ipu->paddr = r.start;
 	ipu->memsize = resource_size(&r);
-	ipu->vaddr = memremap(r.start, ipu->memsize, MEMREMAP_WB);//ipu_vmap(r.start, ipu->memsize);
+	ipu->vaddr = ipu_vmap(r.start, ipu->memsize);
+	//ipu->vaddr = memremap(r.start, ipu->memsize, MEMREMAP_WB);
 	dev_info(&pdev->dev, "Allocate reserved memory, paddr: 0x%0llx, vaddr: 0x%0llx, len=0x%x\n",
 			 ipu->paddr, (uint64_t)ipu->vaddr, ipu->memsize);
 

@@ -150,7 +150,7 @@ void ipu_single_mode_process(uint32_t status)
 		slot_h = slot_busy_to_done();
 		if (slot_h) {
 			ipu_info("pyramid done, slot-%d, cnt %d\n", slot_h->info_h.slot_id, slot_h->slot_cnt);
-			__inval_dcache_area(IPU_GET_SLOT(slot_h->info_h.slot_id, ipu->vaddr), IPU_SLOT_SIZE);
+			//__inval_dcache_area(IPU_GET_SLOT(slot_h->info_h.slot_id, ipu->vaddr), IPU_SLOT_SIZE);
 			ipu->pymid_done = true;
 			ipu->done_idx = slot_h->info_h.slot_id;
 			ipu_get_frameid(ipu, slot_h);
@@ -172,7 +172,7 @@ else if(is_slot_free_empty() && is_slot_busy_empty() && !test_and_set_bit(IPU_SL
 		if (slot_h) {
 			ipu_dbg("slot-%d, 0x%llx\n", slot_h->info_h.slot_id,
 					(uint64_t)IPU_GET_SLOT(slot_h->info_h.slot_id, ipu->paddr));
-			__inval_dcache_area(IPU_GET_SLOT(slot_h->info_h.slot_id, ipu->vaddr), IPU_SLOT_SIZE);
+			//__inval_dcache_area(IPU_GET_SLOT(slot_h->info_h.slot_id, ipu->vaddr), IPU_SLOT_SIZE);
 			ipu_set(IPUC_SET_DDR, ipu->cfg, IPU_GET_SLOT(slot_h->info_h.slot_id, ipu->paddr));
 #if 0	//may cause pym stop
 			if(test_and_clear_bit(IPU_SLOT_NOT_AVALIABLE, &g_ipu_s_cdev->ipuflags)){
