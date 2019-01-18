@@ -575,19 +575,19 @@ static int bif_tty_init_chrdev(struct bif_tty_cdev *cdev)
 	cdev->major = major = MAJOR(dev);
 	cdev->minor = minor = MINOR(dev);
 
-	cdev->drv_class = class_create(THIS_MODULE, cdev->name);
-	if (IS_ERR(cdev->drv_class)) {
-		rc = IS_ERR(cdev->drv_class);
-		pr_err("Failed to class_create. Aborting.\n");
-		goto dest_class;
-	}
-
 	cdev_init(&cdev->cdev, &bif_tty_fops);
 	cdev->cdev.owner = THIS_MODULE;
 	rc = cdev_add(&cdev->cdev, MKDEV(major, minor), cdev->num_nodes);
 	if (rc) {
 		pr_err("Failed to add cdev. Aborting.\n");
 		goto unregister_chrdev;
+	}
+
+	cdev->drv_class = class_create(THIS_MODULE, cdev->name);
+	if (IS_ERR(cdev->drv_class)) {
+		rc = IS_ERR(cdev->drv_class);
+		pr_err("Failed to class_create. Aborting.\n");
+		goto dest_class;
 	}
 
 	for (i = minor, devnum = 0; devnum < cdev->num_nodes; devnum++, i++) {
@@ -613,11 +613,9 @@ unroll_device_create:
 	for (; devnum >= 0; devnum--, i--)
 		device_destroy(cdev->drv_class, MKDEV(major, i));
 
-	cdev_del(&cdev->cdev);
-
-dest_class:
 	class_destroy(cdev->drv_class);
-
+dest_class:
+	cdev_del(&cdev->cdev);
 unregister_chrdev:
 	unregister_chrdev_region(MKDEV(major, minor), cdev->num_nodes);
 
