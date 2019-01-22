@@ -422,7 +422,7 @@ static int bif_tty_free(struct bif_tty_cdev *cdev)
 #ifdef CONFIG_HOBOT_BIF_AP
 	kfree(cdev->buff_rw);
 #endif
-#ifdef CONFIG_HOBOT_BIF_AP
+#ifdef CONFIG_HOBOT_BIF_CP
 	kfree(cdev->buff_addr_vir);
 #endif
 	kfree(cdev->tb_node);
