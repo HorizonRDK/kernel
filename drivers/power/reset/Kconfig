@@ -227,5 +227,10 @@ config SYSCON_REBOOT_MODE
 	  register, then the bootloader can read it to take different
 	  action according to the mode.
 
+config POWER_RESET_X2
+	bool "hobot x2 power-off driver"
+	help
+	  Reboot support for x2 boards.
+
 endif
 
