@@ -508,6 +508,14 @@ static int __init x2_ipu_init(void)
 		ipu_err("Unable to alloc IPU DEV\n");
 		return -ENOMEM;
 	}
+
+	if (!g_ipu) {
+		pr_err("g_ipu is not allocated yet\n");
+		kfree(g_ipu_s_cdev);
+		return -ENODEV;
+	}
+
+
 	init_waitqueue_head(&g_ipu_s_cdev->event_head);
 	spin_lock_init(&g_ipu_s_cdev->slock);
 	g_ipu_s_cdev->name = X2_IPU_NAME;
