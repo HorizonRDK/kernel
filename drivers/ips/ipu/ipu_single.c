@@ -538,6 +538,7 @@ static void __exit x2_ipu_exit(void)
 	device_destroy(g_ipu_s_cdev->class, g_ipu_s_cdev->dev_num);
 	unregister_chrdev_region(g_ipu_s_cdev->dev_num, 1);
 	class_destroy(g_ipu_s_cdev->class);
+	kfree(g_ipu_s_cdev);
 }
 
 module_init(x2_ipu_init);
