@@ -334,6 +334,7 @@ static int x2_cnn_hw_reset_reinit(struct x2_cnn_dev *cnn_dev, int cnn_id)
 	}
 
 	if (!ret) {
+                x2_cnn_int_num = 0;
 		x2_cnn_hw_init(cnn_dev);
 		x2_cnn_set_fc_base(cnn_dev);
 		x2_cnn_set_default_fc_depth(cnn_dev, 1023);
@@ -624,10 +625,10 @@ static long x2_cnn_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	case CNN_IOC_GET_INT_NUM:
 		mutex_lock(&dev->cnn_lock);
 		data.int_num_data.cnn_int_num = x2_cnn_get_int_num(dev);
-		x2_cnn_int_num = 0;
+#if 0
 		pr_info("%s:%d cnn_int_num from:%d --> cnn_int_num:%d\n",
 			__func__, __LINE__, data.int_num_data.cnn_int_num, x2_cnn_int_num);
-
+#endif
 		mutex_unlock(&dev->cnn_lock);
 		break;
 	default:
