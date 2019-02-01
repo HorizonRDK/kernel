@@ -113,6 +113,8 @@
 /**
  * Standard SPI NAND flash commands
  */
+#define SPINAND_CMD_PROG_LOAD			0x02
+#define SPINAND_CMD_PROG_LOAD_RDM_DATA		0x84
 #define SPINAND_CMD_PROG_LOAD_X4		0x32
 #define SPINAND_CMD_PROG_LOAD_RDM_DATA_X4	0x34
 

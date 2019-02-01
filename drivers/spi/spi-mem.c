@@ -199,7 +199,7 @@ int spi_mem_exec_op(struct spi_mem *mem, const struct spi_mem_op *op)
 	if (!spi_mem_supports_op(mem, op))
 		return -ENOTSUPP;
 
-	if (ctlr->mem_ops) {
+	if (ctlr->mem_ops && ctlr->mem_ops->exec_op) {
 		/*
 		 * Flush the message queue before executing our SPI memory
 		 * operation to prevent preemption of regular SPI transfers.

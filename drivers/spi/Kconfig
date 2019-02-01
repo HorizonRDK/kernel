@@ -772,6 +772,12 @@ config SPI_X2
 	help
 	  This selects the X2 SPI controller master driver
 
+config SPI_X2_QSPI
+	tristate "X2 QSPI SPI controller"
+	depends on SPI_MASTER
+	help
+	  This selects the X2 QSPI SPI controller master driver
+
 #
 # Add new SPI master controllers in alphabetical order above this line
 #
