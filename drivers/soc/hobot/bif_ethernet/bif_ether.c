@@ -39,6 +39,7 @@
 #include <linux/wait.h>
 #include "bif_ether.h"
 #include "../bif_base/bif_base.h"
+#include "../bif_base/bif_api.h"
 
 #define VER_CP	"BIFCP_ETH_V10"
 #define VER_AP	"BIFAP_ETH_V10"
