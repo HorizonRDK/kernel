@@ -9,21 +9,6 @@
 #define BIF_BASE_ADDR	0x7ff00000
 #endif
 
-#define IRQ_QUEUE_SIZE 16
-/*must be 512 padding for BIFSD access*/
-struct bif_base_info {
-	unsigned char magic[4];
-	char irq[IRQ_QUEUE_SIZE];
-	unsigned char send_irq_tail;
-	unsigned char read_irq_head;
-	unsigned char register_irqs;
-	unsigned char buffer_count;
-	void *address_list[BUFF_MAX];
-	irq_handler_t irq_func[BUFF_MAX];
-	unsigned char offset_list[BUFF_MAX];
-	unsigned char next_offset;
-};
-
 void pr_buff(unsigned char *buff, int len);
 void pr_buff_16(unsigned char *buff, int len_16);
 

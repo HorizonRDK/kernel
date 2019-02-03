@@ -7,7 +7,7 @@
 extern int bif_netlink_init(void);
 extern void bif_netlink_exit(void);
 /*extern int t_bif_register_address(BUFF_ID buffer_id, void *address);*/
-extern int t_bif_register_irq(BUFF_ID buffer_id, irq_handler_t irq_handler);
+extern int t_bif_register_irq(enum BUFF_ID buffer_id, irq_handler_t irq_handler);
 extern int t_bif_send_irq(int irq);
 /*extern void *t_bif_query_address(BUFF_ID buffer_id);*/
 /*extern void *t_bif_query_address_wait(BUFF_ID buffer_id);*/

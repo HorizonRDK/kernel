@@ -7,7 +7,7 @@ MODULES=cpbase
 #MODULES=apspieth
 
 ifeq ($(MODULES), cpbase)
-obj-m := bif_cpbase.o															#要生成的模块名
+obj-m := bif_cpbase.o
 bif_cpbase-objs :=bif_base.o bif_simulate.o
 #EXTRA_CFLAGS =-DCONFIG_HOBOT_BIF_TEST
 ccflags-y =-DCONFIG_HOBOT_BIF_TEST

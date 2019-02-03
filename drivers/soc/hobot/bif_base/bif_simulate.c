@@ -130,10 +130,10 @@ unsigned char *gptr;
 extern void *bif_vir_addr;
 #endif
 
-static void queue_init(qdata_t *queue)
+static void queue_init(struct queue_data *queue)
 {
 	int i = 0;
-	qdata_t *q = queue;
+	struct queue_data *q = queue;
 
 	q->tail = 0;
 	q->head = 0;
@@ -143,9 +143,11 @@ static void queue_init(qdata_t *queue)
 		memset(q->data[i], 0, BIF_NETLINK_MAXSIZE);
 }
 
-static int queue_push(qdata_t *queue, unsigned char *data, unsigned int len)
+static int queue_push(struct queue_data *queue,
+		      unsigned char *data,
+		      unsigned int len)
 {
-	qdata_t *q = queue;
+	struct queue_data *q = queue;
 	unsigned char *pbuf = NULL;
 	unsigned int packetlen = len;
 	unsigned long flags = 0;
@@ -170,9 +172,9 @@ static int queue_push(qdata_t *queue, unsigned char *data, unsigned int len)
 	return 0;
 }
 
-static void *queue_pop(qdata_t *queue)
+static void *queue_pop(struct queue_data *queue)
 {
-	qdata_t *q = queue;
+	struct queue_data *q = queue;
 	void *data = NULL;
 	unsigned long flags = 0;
 
