@@ -19,6 +19,13 @@ config X2_CNN_MM
         help
           Add x2 cnn memory heap management driver
 
+menuconfig HOBOT_BIF_CP
+        bool "Enable Horizon CP side BIF driver"
+        default y
+        help
+          Enable when BIF driver built in CP side
+
+if HOBOT_BIF_CP
 config HOBOT_BIF_BASE
         tristate "Enable HOBOT BIF Base Drivers"
         default y
@@ -32,10 +39,15 @@ config HOBOT_BIF_ETHERNET
 	depends on HOBOT_BIF_BASE
         default y
         help
-          Horizon Robotics chip support BIFSPI and BIFSD interface, this driver provide basic API
-          to other driver like virtual ethernet and virtual serial port
-          Say yes to enable bif base driver In doubt, say N
+          Say yes to enable bif virtual ethernet driver In doubt, say N
 
+config HOBOT_BIF_SIO
+        tristate "Enable HOBOT BIF SIO Drivers"
+	depends on HOBOT_BIF_BASE
+        default y
+        help
+          Say yes to enable bif virtual sieral port driver
+endif
 
 endif #SOC_X2_MP
 
@@ -47,13 +59,13 @@ menuconfig HOBOT_BIF_AP
 
 if HOBOT_BIF_AP
 config HOBOT_BIFSD
-        bool "Enable HOBOT BIF SD Drivers"
+        tristate "Enable HOBOT BIF SD Drivers"
         default y
         help
           Say yes to enable bifsd AP side driver
 
 config HOBOT_BIFSPI
-        bool "Enable HOBOT BIF SPI Drivers"
+        tristate "Enable HOBOT BIF SPI Drivers"
         default y
         help
           Say yes to enable bifspi AP side driver
