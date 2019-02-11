@@ -334,6 +334,8 @@ int cnn_heap_pages_zero(struct page *page, size_t size, pgprot_t pgprot);
  */
 struct cnn_client *cnn_client_create(struct cnn_device *dev,
 				     const char *name);
+int cnn_phys(struct cnn_client *client, struct cnn_handle *handle,
+	     cnn_phys_addr_t *paddr, size_t *len);
 
 /**
  * cnn_client_destroy() -  free's a client and all it's handles
@@ -508,5 +510,7 @@ int cnn_page_pool_shrink(struct cnn_page_pool *pool, gfp_t gfp_mask,
 			 int nr_to_scan);
 
 long cnn_ioctl(struct file *filp, unsigned int cmd, unsigned long arg);
+struct cnn_handle *cnn_import_dma_buf(struct cnn_client *client,
+				      struct dma_buf *dmabuf);
 
 #endif /* _CNN_MM_HEAP_H */

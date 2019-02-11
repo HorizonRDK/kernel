@@ -476,9 +476,8 @@ int cnn_phys(struct cnn_client *client, struct cnn_handle *handle,
 	}
 
 	buffer = handle->buffer;
-
 	mutex_unlock(&client->lock);
-        *paddr = buffer->paddr;
+	ret = buffer->heap->ops->phys(buffer->heap, buffer, paddr, len);
 	return ret;
 }
 EXPORT_SYMBOL(cnn_phys);
@@ -1295,7 +1294,6 @@ long cnn_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
                 if (IS_ERR(handle)) {
                         return PTR_ERR(handle);
                 }
-                cnn_phys(client, handle, &data.allocation.phys_addr, data.allocation.len);
                 data.allocation.handle = handle->id;
 
                 cleanup_handle = handle;

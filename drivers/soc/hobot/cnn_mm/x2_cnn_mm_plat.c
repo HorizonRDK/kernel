@@ -39,6 +39,7 @@
 #include <asm/cacheflush.h>
 #include <asm/tlbflush.h>
 #include <linux/delay.h>
+#include <linux/dma-buf.h>
 
 #include "cnn_mm_heap.h"
 
@@ -46,6 +47,7 @@ struct cnn_device *idev;
 EXPORT_SYMBOL(idev);
 static int num_heaps;
 static struct cnn_heap **heaps;
+static u32 phys_offset = 0;
 
 #define X2_CNN_RT_DRV_NAME "cnn-plat"
 
@@ -77,7 +79,7 @@ static struct cnn_plat_data *x2_cnn_parse_dt(struct platform_device *pdev)
 	if (!num_heaps)
 		return ERR_PTR(-EINVAL);
 
-	pr_info("%s: num_heaps=%d\n", __func__, num_heaps);
+	pr_debug("%s: num_heaps=%d\n", __func__, num_heaps);
 
 	pdata = kzalloc(sizeof(*pdata), GFP_KERNEL);
 	if (!pdata)
@@ -158,7 +160,101 @@ out:
 static long x2_cnn_ioctl(struct cnn_client *client, unsigned int cmd,
 			   unsigned long arg)
 {
-	return 0;
+        int ret = 0;
+        void __user *arg_user;
+        arg_user = (void __user *)arg;
+
+        switch (cmd) {
+        case CNN_X2_CUSTOM_PHYS:
+        {
+                struct cnn_phys_data data;
+                struct cnn_handle *handle;
+                struct dma_buf *dmabuf;
+
+                if (copy_from_user(&data, arg_user, sizeof(data))) {
+                        pr_err("%s, PHYS copy_from_user error!\n", __func__);
+                        return -EFAULT;
+                }
+
+                dmabuf = dma_buf_get((int)data.fd_buffer);
+                if (IS_ERR(dmabuf)) {
+                        pr_err("%s: dmabuf is error and dmabuf is %p, fd=%d\n",
+                                __func__, dmabuf, (int)data.fd_buffer);
+                        return PTR_ERR(dmabuf);
+                }
+
+                handle = cnn_import_dma_buf(client, dmabuf);
+                if (IS_ERR(handle)) {
+                        pr_err("%s, PHYS cnn_import_dma_buf error=%p, fd=%d\n",
+                                __func__, handle, data.fd_buffer);
+                        return PTR_ERR(handle);
+                }
+
+                ret = cnn_phys(client, handle, &data.phys, &data.size);
+                dma_buf_put(dmabuf);
+                cnn_free(client, handle);
+
+                if (ret) {
+                        pr_err("%s,  PHYS cnn_phys error=0x%x\n",
+                                __func__, ret);
+                        return ret;
+                } else {
+                        data.phys -= phys_offset;
+                }
+
+                if (copy_to_user(arg_user, &data, sizeof(data))) {
+                        pr_err("%s, PHYS copy_to_user error!\n", __func__);
+                        return -EFAULT;
+                }
+
+                pr_debug("%s, PHYS paddress=0x%lx size=0x%zx\n", __func__,
+                                data.phys, data.size);
+                break;
+        }
+        case CNN_X2_CUSTOM_MSYNC:
+        {
+                struct cnn_msync_data data;
+                if (copy_from_user(&data, arg_user, sizeof(data))) {
+                        pr_err("%s, MSYNC, copy_from_user error!\n", __func__);
+                        return -EFAULT;
+                }
+
+                if (data.vaddr & (PAGE_SIZE - 1)) {
+                        pr_err("%s, MSYNC, data.vaddr=0x%lx error!\n", __func__,\
+                                data.vaddr);
+                        return -EFAULT;
+                }
+
+                 __dma_flush_area((const void *)data.vaddr, data.size);
+                break;
+        }
+        case CNN_X2_CUSTOM_INVALIDATE:
+        {
+                struct dma_buf *dmabuf;
+                struct cnn_buffer *buffer;
+                unsigned long fd = (unsigned long)arg_user;
+
+                dmabuf = dma_buf_get((int)fd);
+                if (IS_ERR(dmabuf)) {
+                        pr_err("%s: dmabuf is error and dmabuf is %p, fd=%d\n",
+                                __func__, dmabuf, (int)fd);
+                        return PTR_ERR(dmabuf);
+                }
+
+                buffer = dmabuf->priv;
+
+                dma_sync_sg_for_cpu(NULL, buffer->sg_table->sgl,
+                        buffer->sg_table->nents,
+                        DMA_FROM_DEVICE);
+                dma_buf_put(dmabuf);
+                break;
+        }
+        default:
+                pr_err("x2 cnn mm do not support cmd: %d\n", cmd);
+                return -ENOTTY;
+        }
+        
+        return ret;
 }
 
 struct cnn_client *x2_cnn_client_create(const char *name)

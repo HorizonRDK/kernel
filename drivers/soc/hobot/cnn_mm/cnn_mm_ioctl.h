@@ -27,6 +27,12 @@ enum cnn_heap_type {
         CNN_NUM_HEAPS = 16,
 };
 
+enum CNN_X2_CUSTOM_CMD {
+	CNN_X2_CUSTOM_PHYS = 0,
+	CNN_X2_CUSTOM_MSYNC,
+	CNN_X2_CUSTOM_INVALIDATE,
+};
+
 #define CNN_NUM_HEAP_IDS		(sizeof(unsigned int) * 8)
 
 
@@ -131,7 +137,7 @@ struct cnn_handle_data {
  */
 struct cnn_custom_data {
 	unsigned int cmd;
-	unsigned long arg;
+	unsigned long *arg;
 };
 
 union cnn_ioctl_arg {
@@ -140,6 +146,20 @@ union cnn_ioctl_arg {
         struct cnn_handle_data handle;
 	struct cnn_custom_data custom;
 };
+
+struct cnn_phys_data {
+	int fd_buffer;
+	cnn_phys_addr_t phys;
+	size_t size;
+};
+
+struct cnn_msync_data {
+	int fd_buffer;
+	unsigned long vaddr;
+	cnn_phys_addr_t paddr;
+	size_t size;
+};
+
 
 #define CNN_IOC_MAGIC		'C'
 
@@ -205,5 +225,8 @@ union cnn_ioctl_arg {
  * this will make the buffer in memory coherent.
  */
 #define CNN_IOC_SYNC		_IOWR(CNN_IOC_MAGIC, 6, struct cnn_fd_data)
+
+#define CNN_IOC_PHYS            _IOWR(CNN_IOC_MAGIC, 7, struct cnn_phys_data)
+#define CNN_IOC_MSYNC           _IOWR(CNN_IOC_MAGIC, 8, struct cnn_msync_data)
 
 #endif /* _CNN_IOCTL_H */
