@@ -44,6 +44,9 @@
 
 #define X2_IPU_NAME		"x2-ipu"
 
+#define ENABLE 1
+#define DISABLE 0
+
 struct ipu_single_cdev {
 	const char *name;
 	struct x2_ipu_data *ipu;
@@ -156,13 +159,14 @@ void ipu_single_mode_process(uint32_t status)
 			ipu_get_frameid(ipu, slot_h);
 			wake_up_interruptible(&g_ipu_s_cdev->event_head);
 
-		}
+		} else {
 #if 0 //may cause pym stop
-else if(is_slot_free_empty() && is_slot_busy_empty() && !test_and_set_bit(IPU_SLOT_NOT_AVALIABLE, &g_ipu_s_cdev->ipuflags)) {
-			ctrl_ipu_to_ddr(PYM_TO_DDR,DISABLE);
-			//ipu_info("busy slot empty\n");
-		}
+			if (is_slot_free_empty() && is_slot_busy_empty() && !test_and_set_bit(IPU_SLOT_NOT_AVALIABLE, &g_ipu_s_cdev->ipuflags)) {
+				ctrl_ipu_to_ddr(PYM_TO_DDR, DISABLE);
+				//ipu_info("busy slot empty\n");
+			}
 #endif
+		}
 
 	}
 
@@ -339,6 +343,11 @@ long ipu_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 #else
 			insert_slot_to_free(slot_id);
 #endif
+#if 0	//may cause pym stop
+			if(test_and_clear_bit(IPU_SLOT_NOT_AVALIABLE, &g_ipu_s_cdev->ipuflags)){
+				ctrl_ipu_to_ddr(PYM_TO_DDR,ENABLE);
+			}
+#endif
 			spin_unlock(&g_ipu_s_cdev->slock);
 		}
 		break;
@@ -374,6 +383,7 @@ long ipu_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 			spin_lock(&g_ipu_s_cdev->slock);
 			ipu_clean_slot(&g_ipu_s_cdev->s_info);
 			spin_unlock(&g_ipu_s_cdev->slock);
+			ipu_cdev->err_status = 0;
 			wake_up_interruptible(&ipu_cdev->event_head);
 		}
 		break;
@@ -450,7 +460,7 @@ int ipu_mmap(struct file *filp, struct vm_area_struct *vma)
 	}
 	vma->vm_flags |= VM_IO;
 	vma->vm_flags |= VM_LOCKED;
-	if (remap_pfn_range(vma, vma->vm_start, offset >> PAGE_SHIFT, vma->vm_end - vma->vm_start, vma->vm_page_prot)) {
+	if (remap_pfn_range(vma, vma->vm_start, offset >> PAGE_SHIFT, vma->vm_end - vma->vm_start, pgprot_noncached(vma->vm_page_prot))) {
 		ipu_err("ipu mmap fail\n");
 		return -EAGAIN;
 	}

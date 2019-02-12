@@ -531,7 +531,7 @@ int ipu_dual_mmap(struct file *filp, struct vm_area_struct *vma)
 	}
 	vma->vm_flags |= VM_IO;
 	vma->vm_flags |= VM_LOCKED;
-	if (remap_pfn_range(vma, vma->vm_start, offset >> PAGE_SHIFT, vma->vm_end - vma->vm_start, vma->vm_page_prot)) {
+	if (remap_pfn_range(vma, vma->vm_start, offset >> PAGE_SHIFT, vma->vm_end - vma->vm_start, pgprot_noncached(vma->vm_page_prot))) {
 		ipu_err("ipu mmap fail\n");
 		return -EAGAIN;
 	}
