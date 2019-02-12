@@ -18,8 +18,8 @@
 
 int32_t sif_dev_init(sif_init_t *sif_cfg);
 int32_t sif_dev_update(sif_init_t *sif_cfg);
-int32_t sif_dev_start(void);
-int32_t sif_dev_stop(void);
+int32_t sif_dev_start(sif_init_t *sif_cfg);
+int32_t sif_dev_stop(sif_init_t *sif_cfg);
 void    sif_dev_get_status(sif_status_t *status);
 void    sif_dev_get_info(sif_info_t *info);
 int32_t sif_dev_frame_id_cfg(frame_id_t *cfg);

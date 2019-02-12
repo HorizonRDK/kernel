@@ -18,14 +18,13 @@
 #include <linux/kernel.h>
 #include <linux/io.h>
 
-#define CONFIG_SIF_DEBUG
-
-#ifdef CONFIG_SIF_DEBUG
-#define sifinfo(format, ...)   printk(KERN_INFO format "\n" , ##__VA_ARGS__)
-#define siferr(format, ...)    printk(KERN_ERR format "\n" , ##__VA_ARGS__)
-#else
-#define sifinfo(format, ...)
-#define siferr(format, ...)    printk(KERN_ERR format "\n" , ##__VA_ARGS__)
-#endif
+#define SIF_LOG_INFO (1)
+extern unsigned int sif_debug_level;
+#define sifinfo(format, ...) \
+	do {\
+		if((sif_debug_level >= SIF_LOG_INFO)) \
+			printk(KERN_INFO "[sif][info]: "format "\n", ##__VA_ARGS__); \
+	} while(0)
+#define siferr(format, ...) printk(KERN_ERR "[sif][error]: "format "\n", ##__VA_ARGS__)
 
 #endif //__X2_SIF_UTILS_H__

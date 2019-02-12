@@ -227,6 +227,7 @@ const uint32_t g_sif_cfg_table[][TABLE_MAX] = {
 #define CONFIG_CLEAR(key)      VALUE_CLEAR(g_sif_cfg_table[key][TABLE_BITS], g_sif_cfg_table[key][TABLE_OFFSET])
 #define CONFIG_SET(key, value) VALUE_SET(value, g_sif_cfg_table[key][TABLE_BITS], g_sif_cfg_table[key][TABLE_OFFSET])
 #define CONFIG_GET(key, value) VALUE_GET(value, g_sif_cfg_table[key][TABLE_BITS], g_sif_cfg_table[key][TABLE_OFFSET])
+#define CONFIG_CLEAR_SET(cfg, key, value) ((cfg & CONFIG_CLEAR(key)) | CONFIG_SET(key, value))
 
 typedef struct _sif_dev_s {
 	void __iomem  *iomem;
@@ -261,26 +262,19 @@ static void sif_dev_base_config(sif_init_t *cfg, uint8_t update)
 	if (update) {
 		base = sif_getreg(iomem + REG_SIF_BASE_CTRL);
 	}
-	base |= CONFIG_SET(BASE_FORMAT,         cfg->format);
-	base |= CONFIG_SET(BASE_PIX_LEN,        cfg->pix_len);
-	base |= CONFIG_SET(BASE_BUS_TYPE,       cfg->bus_type);
-	base |= CONFIG_SET(BASE_VSYNC_INV,      cfg->vsync_inv);
-	base |= CONFIG_SET(BASE_HSYNC_INV,      cfg->hsync_inv);
-	base |= CONFIG_SET(BASE_PCLK_IN_INV,    cfg->pclk_in_inv);
-	base |= CONFIG_SET(BASE_PCLK_OUT_INV,   cfg->pclk_out_inv);
-	base |= CONFIG_SET(BASE_DROP_FRAME,     cfg->drop_frame);
-	base |= CONFIG_SET(BASE_RAW_16BIT_MODE, cfg->raw_16bit_mode);
-	base |= CONFIG_SET(BASE_RAW_20BIT_MODE, cfg->raw_20bit_mode);
-	base |= CONFIG_SET(BASE_YUV_10BIT_MODE, cfg->yuv_10bit_mode);
-	base |= CONFIG_SET(BASE_DUALRX_MODE,    cfg->dualrx_mode);
-	base |= CONFIG_SET(BASE_MIPI2AP_SEL,    cfg->mipi2ap_sel);
-	if (BUS_TYPE_BT1120 == cfg->bus_type) {
-		base |= CONFIG_SET(BASE_BT2AP_ENABLE, cfg->bypass_en);
-	} else if (BUS_TYPE_DVP == cfg->bus_type) {
-		base |= CONFIG_SET(BASE_DVP2AP_ENABLE, cfg->bypass_en);
-	} else if (BUS_TYPE_MIPI == cfg->bus_type || BUS_TYPE_DUALRX == cfg->bus_type) {
-		base |= CONFIG_SET(BASE_MIPI2AP_ENABLE, cfg->bypass_en);
-	}
+	base = CONFIG_CLEAR_SET(base, BASE_FORMAT,         cfg->format);
+	base = CONFIG_CLEAR_SET(base, BASE_PIX_LEN,        cfg->pix_len);
+	base = CONFIG_CLEAR_SET(base, BASE_BUS_TYPE,       cfg->bus_type);
+	base = CONFIG_CLEAR_SET(base, BASE_VSYNC_INV,      cfg->vsync_inv);
+	base = CONFIG_CLEAR_SET(base, BASE_HSYNC_INV,      cfg->hsync_inv);
+	base = CONFIG_CLEAR_SET(base, BASE_PCLK_IN_INV,    cfg->pclk_in_inv);
+	base = CONFIG_CLEAR_SET(base, BASE_PCLK_OUT_INV,   cfg->pclk_out_inv);
+	base = CONFIG_CLEAR_SET(base, BASE_DROP_FRAME,     cfg->drop_frame);
+	base = CONFIG_CLEAR_SET(base, BASE_RAW_16BIT_MODE, cfg->raw_16bit_mode);
+	base = CONFIG_CLEAR_SET(base, BASE_RAW_20BIT_MODE, cfg->raw_20bit_mode);
+	base = CONFIG_CLEAR_SET(base, BASE_YUV_10BIT_MODE, cfg->yuv_10bit_mode);
+	base = CONFIG_CLEAR_SET(base, BASE_DUALRX_MODE,    cfg->dualrx_mode);
+	base = CONFIG_CLEAR_SET(base, BASE_MIPI2AP_SEL,    cfg->mipi2ap_sel);
 	sif_putreg(iomem + REG_SIF_BASE_CTRL, base);
 	return;
 }
@@ -365,10 +359,8 @@ int32_t sif_dev_mot_det_cfg(mot_det_t *cfg)
 	}
 	iomem = g_sif_dev->iomem;
 	det_en = sif_getreg(iomem + REG_SIF_BASE_CTRL);
-	det_en &= CONFIG_CLEAR(MOT_DET_EN);
-	det_en &= CONFIG_CLEAR(MOT_DET_REFRESH);
-	det_en |= CONFIG_SET(MOT_DET_EN, cfg->enable);
-	det_en |= CONFIG_SET(MOT_DET_REFRESH, cfg->refresh);
+	det_en = CONFIG_CLEAR_SET(det_en, MOT_DET_EN, cfg->enable);
+	det_en = CONFIG_CLEAR_SET(det_en, MOT_DET_REFRESH, cfg->refresh);
 	sif_putreg(iomem + REG_FRAME_ID_CFG, det_en);
 
 	det_lt |= CONFIG_SET(MOT_DET_ROI_L, cfg->left);
@@ -494,7 +486,7 @@ void sif_dev_get_status(sif_status_t *status)
  *
  * @return int32_t : OK/ERROR
  */
-int32_t sif_dev_start(void)
+int32_t sif_dev_start(sif_init_t *cfg)
 {
 	uint32_t base = 0;
 	void __iomem  *iomem = NULL;
@@ -505,6 +497,13 @@ int32_t sif_dev_start(void)
 	iomem = g_sif_dev->iomem;
 	base = sif_getreg(iomem + REG_SIF_BASE_CTRL);
 	base |= CONFIG_SET(BASE_SIF_ENABLE, SIF_ENABLE);
+	if (BUS_TYPE_BT1120 == cfg->bus_type) {
+		base = CONFIG_CLEAR_SET(base, BASE_BT2AP_ENABLE, cfg->bypass_en);
+	} else if (BUS_TYPE_DVP == cfg->bus_type) {
+		base = CONFIG_CLEAR_SET(base, BASE_DVP2AP_ENABLE, cfg->bypass_en);
+	} else if (BUS_TYPE_MIPI == cfg->bus_type || BUS_TYPE_DUALRX == cfg->bus_type) {
+		base = CONFIG_CLEAR_SET(base, BASE_MIPI2AP_ENABLE, cfg->bypass_en);
+	}
 	sif_putreg(iomem + REG_SIF_BASE_CTRL, base);
 	return 0;
 }
@@ -516,7 +515,7 @@ int32_t sif_dev_start(void)
  *
  * @return int32_t : OK/ERROR
  */
-int32_t sif_dev_stop(void)
+int32_t sif_dev_stop(sif_init_t *cfg)
 {
 	uint32_t base = 0;
 	void __iomem  *iomem = NULL;
@@ -527,6 +526,13 @@ int32_t sif_dev_stop(void)
 	iomem = g_sif_dev->iomem;
 	base = sif_getreg(iomem + REG_SIF_BASE_CTRL);
 	base &= CONFIG_CLEAR(BASE_SIF_ENABLE);
+	if (BUS_TYPE_BT1120 == cfg->bus_type) {
+		base &= CONFIG_CLEAR(BASE_BT2AP_ENABLE);
+	} else if (BUS_TYPE_DVP == cfg->bus_type) {
+		base &= CONFIG_CLEAR(BASE_DVP2AP_ENABLE);
+	} else if (BUS_TYPE_MIPI == cfg->bus_type || BUS_TYPE_DUALRX == cfg->bus_type) {
+		base &= CONFIG_CLEAR(BASE_MIPI2AP_ENABLE);
+	}
 	sif_putreg(iomem + REG_SIF_BASE_CTRL, base);
 	sif_putreg(iomem + REG_FRAME_ID_CFG, 0);
 	return 0;
