@@ -49,7 +49,10 @@
 #define BIF_ETH_VER		VER_AP
 #else
 #define BIF_ETH_VER		VER_CP
+/* use reserved memory*/
+#define BIF_USE_RESERVED_MEM
 #endif
+
 #define BIF_ETH_NAME	"bif_eth0"
 #define BIF_ETH_FRAME_LEN	ETH_FRAME_LEN	/* ether frame length */
 #define QUEUE_MAX		ETHER_QUERE_SIZE
@@ -60,9 +63,11 @@
 
 static struct net_device *bif_net;
 static struct bif_ether_info *bif_cp, *bif_ap, *self, *other;
-unsigned char *gptr;
 static unsigned long self_phy;
 static unsigned long other_phy;
+void *self_vir;
+void *other_vir;
+
 static unsigned char bif_start;
 static unsigned char eth_irq;	/* bif send irq */
 
@@ -101,11 +106,11 @@ static int bif_sync_cpbuf(unsigned long phy_addr, unsigned int blklen,
 		cur_blklen = 1024;
 	else
 		cur_blklen = 1536;
-	if (!bif_sd_read((void *)cur_phy, cur_blklen, buffer))
+	if (bif_sd_read((void *)cur_phy, cur_blklen, buffer))
 		return -1;
 #else
 #ifdef CONFIG_HOBOT_BIFSPI
-	if (!bif_spi_read((void *)cur_phy, blklen, buffer))
+	if (bif_spi_read((void *)cur_phy, blklen, buffer))
 		return -1;
 #endif
 #endif
@@ -129,11 +134,11 @@ static int bif_sync_apbuf(unsigned long phy_addr, unsigned int blklen,
 		cur_blklen = 1024;
 	else
 		cur_blklen = 1536;
-	if (!bif_sd_write((void *)cur_phy, cur_blklen, buffer))
+	if (bif_sd_write((void *)cur_phy, cur_blklen, buffer))
 		return -1;
 #else
 #ifdef CONFIG_HOBOT_BIFSPI
-	if (!bif_spi_write((void *)cur_phy, blklen, buffer))
+	if (bif_spi_write((void *)cur_phy, blklen, buffer))
 		return -1;
 #endif
 #endif
@@ -165,8 +170,7 @@ static void bif_eth_query_addr(int wait_flag)
 		else
 			vir_addr = bif_query_otherbase(buf_id);
 		if (vir_addr == (void *)-1) {
-			pr_warn("%s() Warn bif query other address\n",
-				__func__);
+			pr_warn("bif_eth: Warn bif query otherbase\n");
 			query_addr_flg = 0;
 		} else {
 			bif_cp = (struct bif_ether_info *)(vir_addr);
@@ -182,7 +186,7 @@ static void bif_eth_query_addr(int wait_flag)
 	else
 		vir_addr = bif_query_otherbase(buf_id);
 	if (vir_addr == (void *)-1) {
-		pr_warn("%s() Warn bif query other address\n", __func__);
+		pr_warn("bif_eth: Warn bif query otherbase\n");
 		query_addr_flg = 0;
 	} else {
 		bif_ap = (struct bif_ether_info *)(vir_addr);
@@ -193,9 +197,10 @@ static void bif_eth_query_addr(int wait_flag)
 #endif
 
 	if (query_addr_flg) {
-		pr_info("bif_eth0: self_phy=%lx,other_phy=%lx\n",
-			self_phy, other_phy);
-		pr_info("bif_eth0: bif_cp=%lx,bif_ap=%lx\n",
+		pr_info("self_phy=%lx,other_phy=%lx\n", self_phy, other_phy);
+		pr_info("self_vir=%lx,other_vir=%lx\n",
+			(unsigned long)self_vir, (unsigned long)other_vir);
+		pr_info("bif_cp=%lx,bif_ap=%lx\n",
 			(unsigned long)bif_cp, (unsigned long)bif_ap);
 		bif_start = 1;
 	}
@@ -205,72 +210,71 @@ static void bif_eth_irq(void)
 {
 	if (!bif_start)
 		return;
-	bif_send_irq(eth_irq);	/* send irq to bif_base */
+	/* send irq to bif_base */
+	bif_send_irq(eth_irq);
 }
 
 static void work_net_rx(struct work_struct *work)
 {
 	struct net_device *dev = bif_net;
 	struct sk_buff *skb = NULL;
-	unsigned char *ptr = NULL;
+	unsigned char *cur_ptr = NULL;
 	unsigned long cur_phy = 0;
 	unsigned short elen = 0;
 	unsigned long flags = 0;
-#ifdef CONFIG_HOBOT_BIF_AP
-	ptr = gptr;
-#endif
 
 	if (dev == NULL || self == NULL || other == NULL || other_phy == 0
-	    || !bif_start)
+	    || other_vir == NULL || !bif_start)
 		return;
+
 	if (self->queue_full) {
 		complete(&tx_cp);
 		spin_lock_irqsave(&lock_full, flags);
 		self->queue_full = 0;
 		spin_unlock_irqrestore(&lock_full, flags);
 	}
+
 	while (self->recv_head != other->send_tail) {
 		if (dev == NULL || !bif_start)
 			return;
-		cur_phy =
-		    other_phy + ((self->recv_head) % QUEUE_MAX) * BIF_ETH_SIZE;
-		elen =
-		    MIN(other->elen[(self->recv_head) % QUEUE_MAX],
+		cur_phy = other_phy +
+			(self->recv_head % QUEUE_MAX) * BIF_ETH_SIZE;
+		elen = MIN(other->elen[self->recv_head % QUEUE_MAX],
 			ETH_FRAME_LEN);
 
 		if (elen < ETH_HLEN) {
-			pr_warn("%s: %s() Warn packet empty.\n", dev->name,
-				__func__);
+			pr_warn("%s: %s() Warn packet empty\n",
+				dev->name, __func__);
 			dev->stats.rx_length_errors++;
 			self->recv_head = (self->recv_head + 1) % QUEUE_MAX;
 			continue;
 		}
 #ifdef CONFIG_HOBOT_BIF_AP
-		if (bif_sync_cpbuf(cur_phy, elen, ptr) != 0) {
-			pr_err("%s: %s() Err sync cpbuf.\n", dev->name,
-			       __func__);
+		cur_ptr = other_vir;
+		if (bif_sync_cpbuf(cur_phy, elen, cur_ptr) != 0) {
+			pr_err("%s: %s() Err bif sync cpbuf\n",
+				dev->name, __func__);
 			dev->stats.rx_frame_errors++;
 			goto next_step;
 		}
 #else
-		ptr = phys_to_virt(cur_phy);
-		if (ptr == NULL) {
-			pr_err("%s: %s() Err viraddr NULL.\n", dev->name,
-			       __func__);
-			continue;
-		}
+		cur_ptr = other_vir +
+			(self->recv_head % QUEUE_MAX) * BIF_ETH_SIZE;
 #endif
 		skb = netdev_alloc_skb(dev, elen);
 		if (skb == NULL) {
-			pr_err("%s: %s() Err Memory alloc skb.\n", dev->name,
-			       __func__);
+			pr_err("%s: %s() Err Memory alloc skb\n",
+				dev->name, __func__);
 			continue;
 		} else {
 			skb_put(skb, elen);
-			memcpy(skb->data, ptr, elen);
+			memcpy(skb->data, cur_ptr, elen);
 			skb->len = elen;
-
+			//pr_info("%s() received %d byte packet of type %x\n",
+			//__func__, elen, (skb->data[ETH_ALEN+ETH_ALEN] << 8) |
+			//skb->data[ETH_ALEN+ETH_ALEN+1]);
 #ifdef BIF_IFF_NOARP
+			/* mac */
 			if (memcmp(skb->data, dev->dev_addr, ETH_ALEN))
 				memcpy(skb->data, dev->dev_addr, ETH_ALEN);
 #endif
@@ -337,33 +341,27 @@ static int net_send_thread(void *arg)
 {
 	struct net_device *dev = bif_net;
 	struct sk_buff *skb = NULL;
-	unsigned char *ptr = NULL;
+	unsigned char *cur_ptr = NULL;
 	unsigned long cur_phy = 0;
 	unsigned short elen = 0;
 	unsigned long flags = 0;
-
-#ifdef CONFIG_HOBOT_BIF_AP
-	ptr = kmalloc(BIF_ETH_SIZE, GFP_ATOMIC | __GFP_ZERO);
-	if (ptr == NULL)
-		return -1;
-#endif
 
 	while (!kthread_should_stop()) {
 
 		if (query_addr_flg == 0)
 			bif_eth_query_addr(1);
-		if (dev == NULL || self == NULL || other == NULL
-		    || self_phy == 0 || !bif_start)
+		if (dev == NULL || self == NULL || other == NULL ||
+			self_phy == 0 || self_vir == NULL || !bif_start)
 			continue;
 		if (bif_start && dev)
-			if (wait_event_interruptible_timeout
-			    (tx_wq, skbs_tail != skbs_head, HZ * 10) == 0)
+			if (wait_event_interruptible_timeout(tx_wq,
+				skbs_tail != skbs_head, HZ * 10) == 0)
 				continue;
 
 		while (skbs_head != skbs_tail) {
 			if (!bif_start || dev == NULL)
 				break;
-			if (((skbs_tail + 1) % MAX_SKB_BUFFERS) != skbs_head)
+			if ((skbs_tail + 1) % MAX_SKB_BUFFERS != skbs_head)
 				netif_wake_queue(dev);
 			else
 				netif_stop_queue(dev);
@@ -375,26 +373,26 @@ static int net_send_thread(void *arg)
 			}
 
 			if (((self->send_tail + 1) % QUEUE_MAX) !=
-			    other->recv_head) {
-				cur_phy =
-				    self_phy +
-				    ((self->send_tail) % QUEUE_MAX) *
-				    BIF_ETH_SIZE;
+				other->recv_head) {
+				cur_phy = self_phy + (self->send_tail %
+					QUEUE_MAX) * BIF_ETH_SIZE;
 				elen = MIN(skb->len + 1, ETH_FRAME_LEN);
 
 				if (elen < ETH_HLEN) {
-					pr_warn("%s: %s() Warn packet empty.\n",
+					pr_warn("%s: %s() Warn empty\n",
 						dev->name, __func__);
-					skbs_head =
-					    (skbs_head + 1) % MAX_SKB_BUFFERS;
+					skbs_head = (skbs_head +
+						1) % MAX_SKB_BUFFERS;
 					if (skb)
 						dev_consume_skb_any(skb);
 					continue;
 				}
 #ifdef CONFIG_HOBOT_BIF_AP
-				memcpy(ptr, skb->data, elen);
-				if (bif_sync_apbuf(cur_phy, elen, ptr) != 0) {
-					pr_warn("%s: %s() Err sync apbuf.\n",
+				cur_ptr = self_vir;
+				memcpy(cur_ptr, skb->data, elen);
+				if (bif_sync_apbuf(cur_phy, elen,
+					cur_ptr) != 0) {
+					pr_err("%s: %s() Err bif sync apbuf\n",
 						dev->name, __func__);
 					dev->stats.tx_errors++;
 					goto next_step;
@@ -403,33 +401,31 @@ static int net_send_thread(void *arg)
 					dev->stats.tx_bytes += elen;
 				}
 #else
-				ptr = phys_to_virt(cur_phy);
-				if (ptr != NULL) {
-					memcpy(ptr, skb->data, elen);
-					dev->stats.tx_packets++;
-					dev->stats.tx_bytes += elen;
-				} else
-					goto next_step;
+				cur_ptr = self_vir + (self->send_tail %
+					QUEUE_MAX) * BIF_ETH_SIZE;
+				memcpy(cur_ptr, skb->data, elen);
+				dev->stats.tx_packets++;
+				dev->stats.tx_bytes += elen;
 #endif
 				if (skb)
 					dev_consume_skb_any(skb);
 				skbs_head = (skbs_head + 1) % MAX_SKB_BUFFERS;
-				self->elen[(self->send_tail) % QUEUE_MAX] =
-				    elen;
+				self->elen[self->send_tail % QUEUE_MAX] = elen;
 				self->send_tail =
-				    (self->send_tail + 1) % QUEUE_MAX;
+					(self->send_tail + 1) % QUEUE_MAX;
+#ifdef CONFIG_HOBOT_BIF_AP
 next_step:
+#endif
 				if (self->queue_full == 0) {
-					if (2 *
-					    ((QUEUE_MAX + self->send_tail -
-					      other->recv_head) % QUEUE_MAX) ==
-					    QUEUE_MAX)
+					if (2*((QUEUE_MAX + self->send_tail -
+						other->recv_head) % QUEUE_MAX)
+						== QUEUE_MAX)
 						bif_eth_irq();
 				}
 			}
 
 			if (((self->send_tail + 1) % QUEUE_MAX) ==
-			    other->recv_head) {
+				other->recv_head) {
 				spin_lock_irqsave(&lock_full, flags);
 				self->queue_full = 1;
 				spin_unlock_irqrestore(&lock_full, flags);
@@ -440,12 +436,8 @@ next_step:
 			}
 		}
 
-		bif_eth_irq();	/* send irq to bif_base */
+		bif_eth_irq();
 	}
-
-#ifdef CONFIG_HOBOT_BIF_AP
-	kfree(ptr);
-#endif
 
 	return 0;
 }
@@ -467,9 +459,10 @@ static int net_send_packet(struct sk_buff *skb, struct net_device *dev)
 		skbs_tail = (skbs_tail + 1) % MAX_SKB_BUFFERS;
 		ret = NETDEV_TX_OK;
 	}
-
+	/*
 	pr_info("%s: %s(),skbs_tail=%d skbs_head=%d\n", dev->name, __func__,
 		skbs_tail, skbs_head);
+	*/
 	wake_up_interruptible(&tx_wq);
 
 	return ret;
@@ -498,7 +491,7 @@ static int set_mac_address(struct net_device *dev, void *addr)
 	if (!is_valid_ether_addr(saddr->sa_data))
 		return -EADDRNOTAVAIL;
 	memcpy(dev->dev_addr, saddr->sa_data, ETH_ALEN);
-	pr_debug("%s: Setting MAC address to %pM\n", dev->name, dev->dev_addr);
+	pr_info("%s: Setting MAC address to %pM\n", dev->name, dev->dev_addr);
 
 	return 0;
 }
@@ -506,7 +499,7 @@ static int set_mac_address(struct net_device *dev, void *addr)
 static const struct net_device_ops bif_netdev_ops = {
 	.ndo_open = net_open,
 	.ndo_stop = net_close,
-	.ndo_tx_timeout = net_timeout,
+//	.ndo_tx_timeout = net_timeout,
 	.ndo_start_xmit = net_send_packet,
 	.ndo_get_stats = net_get_stats,
 	.ndo_set_rx_mode = set_multicast_list,
@@ -519,11 +512,10 @@ static int bif_net_init(void)
 {
 	struct net_device *dev;
 	struct net_local *lp;
-	unsigned long phy_addr = 0;
 	void *vir_addr;
 
-	pr_info("%s() init, begin...\n", __func__);
-	bif_start = 0;		//stop
+	pr_info("bif_eth: init begin...\n");
+	bif_start = 0;
 
 	dev = alloc_etherdev(sizeof(struct net_local));
 	if (!dev) {
@@ -531,7 +523,6 @@ static int bif_net_init(void)
 		return -ENOMEM;
 	}
 	sprintf(dev->name, "%s", BIF_ETH_NAME);
-	//MAC
 #if 0
 	dev->dev_addr[0] = 0x00;
 	dev->dev_addr[1] = 0x12;
@@ -569,8 +560,11 @@ static int bif_net_init(void)
 		return PTR_ERR(tx_task);
 	}
 #ifdef CONFIG_HOBOT_BIF_AP
-	gptr = kmalloc(BIF_ETH_SIZE, GFP_ATOMIC | __GFP_ZERO);
-	if (gptr == NULL)
+	self_vir = kmalloc(BIF_ETH_SIZE, GFP_ATOMIC | __GFP_ZERO);
+	if (self_vir == NULL)
+		return -ENOMEM;
+	other_vir = kmalloc(BIF_ETH_SIZE, GFP_ATOMIC | __GFP_ZERO);
+	if (other_vir == NULL)
 		return -ENOMEM;
 
 	/*ap side init */
@@ -580,48 +574,49 @@ static int bif_net_init(void)
 
 	bif_ap = (struct bif_ether_info *)(vir_addr);
 #else
-	vir_addr =
-	    kmalloc(2 * ETHER_QUERE_SIZE * BIF_ETH_SIZE,
-		    GFP_ATOMIC | __GFP_ZERO);
-	if (vir_addr == NULL)
-		return -ENOMEM;
+#ifdef BIF_USE_RESERVED_MEM
+	self_vir = bif_alloc_cp(buf_id, 2*ETHER_QUERE_SIZE*BIF_ETH_SIZE,
+		&self_phy);
+#else
+	self_vir = dma_alloc_coherent(NULL, 2*ETHER_QUERE_SIZE*BIF_ETH_SIZE,
+		&(dma_addr_t)self_phy, GFP_ATOMIC | __GFP_ZERO);
+#endif
+	bif_register_address(buf_id, (void *)(unsigned long)self_phy);
+	other_phy = self_phy + (ETHER_QUERE_SIZE*BIF_ETH_SIZE);
+	other_vir = self_vir + (ETHER_QUERE_SIZE*BIF_ETH_SIZE);
 
-	phy_addr = virt_to_phys(vir_addr);
-	bif_register_address(buf_id, (void *)phy_addr);
-	self_phy = phy_addr;
-	other_phy = phy_addr + (ETHER_QUERE_SIZE * BIF_ETH_SIZE);
 	/*cp side init */
 	vir_addr = bif_alloc_base(buf_id, sizeof(struct bif_ether_info));
 	if (vir_addr == NULL)
 		return -ENOMEM;
 
 	bif_cp = (struct bif_ether_info *)(vir_addr);
+
 #endif
+
+	pr_info("%s: ver=%s,id=%d\n", dev->name, lp->ver, buf_id);
 	bif_eth_query_addr(0);
 	bif_register_irq(buf_id, bit_eth_irq_handler);
 
 	INIT_WORK(&rx_work, work_net_rx);
 	wake_up_process(tx_task);
 
-	if (query_addr_flg) {
-		pr_info
-		    ("%s: ver=%s,id=%d,self=0x%lx,other=0x%lx,cp=%lx,ap=%lx\n",
-		     dev->name, lp->ver, buf_id, self_phy, other_phy,
-		     (unsigned long)bif_cp, (unsigned long)bif_ap);
+	if (query_addr_flg)
 		bif_start = 1;
-	} else {
+	else{
 #ifdef CONFIG_HOBOT_BIF_AP
-		pr_info("%s: ver=%s,id=%d,ap=%lx\n", dev->name, lp->ver,
-			buf_id, (unsigned long)bif_ap);
+		pr_info("self_vir=%lx,other_vir=%lx\n",
+			(unsigned long)self_vir, (unsigned long)other_vir);
+		pr_info("bif_ap=%lx\n", (unsigned long)bif_ap);
 #else
-		pr_info
-		    ("%s: ver=%s,id=%d,self=0x%lx,other=0x%lx,cp=%lx,\n",
-		     dev->name, lp->ver, buf_id, self_phy, other_phy,
-		     (unsigned long)bif_cp);
+		pr_info("self_phy=%lx,other_phy=%lx\n", self_phy, other_phy);
+		pr_info("self_vir=%lx,other_vir=%lx\n",
+			(unsigned long)self_vir, (unsigned long)other_vir);
+		pr_info("bif_cp=%lx\n", (unsigned long)bif_cp);
 #endif
 	}
+	pr_info("bif_eth: init end...\n");
 
-	pr_info("%s() init, end\n", __func__);
 	return 0;
 }
 
@@ -629,13 +624,12 @@ static void bif_net_exit(void)
 {
 	unsigned char ch = 0;
 
-	pr_info("%s() exit, begin...\n", __func__);
-	bif_start = 0;		// stop
+	pr_info("bif_eth: exit begin...\n");
+	bif_start = 0;
 
 	netif_stop_queue(bif_net);
 	complete_all(&tx_cp);
 
-	pr_info("%s() exit, tx_task\n", __func__);
 	if (tx_task) {
 		ch = skbs_tail;
 		skbs_tail = (skbs_head + 1) % MAX_SKB_BUFFERS;
@@ -647,7 +641,6 @@ static void bif_net_exit(void)
 		skbs_tail = ch;
 	}
 
-	pr_info("%s() exit, skbs\n", __func__);
 	while (skbs_tail != skbs_head) {
 		if (skbs[skbs_head % MAX_SKB_BUFFERS]) {
 			dev_kfree_skb(skbs[skbs_head]);
@@ -656,23 +649,26 @@ static void bif_net_exit(void)
 		skbs_head = (skbs_head + 1) % MAX_SKB_BUFFERS;
 	}
 
-	pr_info("%s() exit, unregister_netdev(bif_net)\n", __func__);
 	unregister_netdev(bif_net);
 
 #ifdef CONFIG_HOBOT_BIF_AP
-	pr_info("%s() exit, gptr\n", __func__);
-	kfree(gptr);
+	kfree(self_vir);
+	kfree(other_vir);
 #else
-	pr_info("%s() exit, phy_addr\n", __func__);
-	kfree(phys_to_virt(self_phy));
+#ifndef BIF_USE_RESERVED_MEM
+	if (self_vir)
+		dma_free_coherent(NULL, (2*ETHER_QUERE_SIZE*BIF_ETH_SIZE),
+			self_vir, self_phy);
 #endif
-	pr_info("%s() exit, free_netdev(bif_net)\n", __func__);
+#endif
+
 	free_netdev(bif_net);
 
-	pr_info("%s() exit, end\n", __func__);
+	pr_info("bif_eth: exit end...\n");
 }
 
-module_init(bif_net_init);
+//module_init(bif_net_init);
+late_initcall(bif_net_init);
 module_exit(bif_net_exit);
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("By:hobot, 2018 horizon robotics.");

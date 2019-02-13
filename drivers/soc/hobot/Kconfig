@@ -28,7 +28,7 @@ config HOBOT_BIF_BASE
           Say yes to enable bif base driver In doubt, say N
 
 config HOBOT_BIF_ETHERNET
-        tristate "Enable HOBOT BIF Base Drivers"
+        tristate "Enable HOBOT BIF Ethernet Drivers"
 	depends on HOBOT_BIF_BASE
         default y
         help
