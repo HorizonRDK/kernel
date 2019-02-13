@@ -40,28 +40,26 @@ void pr_buff(unsigned char *buf, int len)
 
 	for (i = 0; i < len; i++) {
 		if (i == 0)
-			pr_info("0x%08x:", i);
-		else
+			pr_info("0x%04x:", i);
+		else {
 			if (i % 16 == 0)
-				pr_info("\n0x%08x:", i);
+				pr_info("\n0x%04x:", i);
+		}
 		pr_info("%02X ", buf[i]);
 	}
+	return;
 }
 
-void pr_buff_16(unsigned char *buff, int len_16)
+void pr_buff_8(unsigned char *buff, int len_8)
 {
 	int i;
 
-	for (i = 0; i < len_16; i++) {
-		pr_info("%02x%02x%02x%02x%02x%02x%02x%02x ",
-		     buff[i * 16 + 0], buff[i * 16 + 1], buff[i * 16 + 2],
-		     buff[i * 16 + 3], buff[i * 16 + 4], buff[i * 16 + 5],
-		     buff[i * 16 + 6], buff[i * 16 + 7]);
-		pr_info
-		    ("%02x%02x%02x%02x%02x%02x%02x%02x\n",
-			buff[i * 16 + 8], buff[i * 16 + 9], buff[i * 16 + 10],
-			buff[i * 16 + 11], buff[i * 16 + 12], buff[i * 16 + 13],
-			buff[i * 16 + 14], buff[i * 16 + 15]);
+	for (i = 0; i < len_8; i++) {
+		pr_info("%02x%02x%02x%02x%02x%02x%02x%02x,\n",
+			buff[i*16 + 0], buff[i*16 + 1],
+			buff[i*16 + 2], buff[i*16 + 3],
+			buff[i*16 + 4], buff[i*16 + 5],
+			buff[i*16 + 6], buff[i*16 + 7]);
 	}
 }
 
@@ -129,6 +127,7 @@ unsigned char *gptr;
 #ifndef CONFIG_HOBOT_BIF_AP
 extern void *bif_vir_addr;
 #endif
+static irq_handler_t irq_func[BUFF_MAX];
 
 static void queue_init(struct queue_data *queue)
 {
@@ -143,9 +142,8 @@ static void queue_init(struct queue_data *queue)
 		memset(q->data[i], 0, BIF_NETLINK_MAXSIZE);
 }
 
-static int queue_push(struct queue_data *queue,
-		      unsigned char *data,
-		      unsigned int len)
+static int queue_push(struct queue_data *queue, unsigned char *data,
+	unsigned int len)
 {
 	struct queue_data *q = queue;
 	unsigned char *pbuf = NULL;
@@ -195,7 +193,7 @@ static void *queue_pop(struct queue_data *queue)
 static void packet_analyse(unsigned char *pbuf)
 {
 	unsigned char buffer_id = 0;
-	unsigned long phy_addr = 0;
+	unsigned int phy_addr = 0;
 	unsigned short packetlen = 0;
 	unsigned short datalen = 0;
 	unsigned short len = 0;
@@ -211,6 +209,8 @@ static void packet_analyse(unsigned char *pbuf)
 	struct list_head *list_node = NULL;
 	struct list_head *n = NULL;
 
+	//pr_info("<<<POP: packetlen=%d, datalen=0x%04x\n",packetlen,datalen);
+	//pr_buff_8(rbuf, 1);
 	if ((rbuf == NULL) || (sbuf == NULL)) {
 		pr_warn("<<<POP: Warn rbuf or sbuf is NULL\n");
 		return;
@@ -227,6 +227,7 @@ static void packet_analyse(unsigned char *pbuf)
 		buffer_id = rbuf[7] % BUFF_MAX;
 		phy_addr = (unsigned long)t_bif_query_address(buffer_id);
 
+		/*ack*/
 		sbuf[0] = OP_ACK_ADDR;
 		sbuf[1] = 0;
 		sbuf[2] = 9;
@@ -248,12 +249,13 @@ static void packet_analyse(unsigned char *pbuf)
 		pr_info("<(%08x) OP_ACK_ADDR\n", cur_pid);
 
 		buffer_id = rbuf[7] % BUFF_MAX;
-		phy_addr =
-		    rbuf[8] << 24 | rbuf[9] << 16 | rbuf[10] << 8 | rbuf[11] <<
-		    0;
-		local.bif_base.address_list[buffer_id] = (void *)phy_addr;
+		phy_addr = rbuf[8] << 24 |
+			rbuf[9] << 16 |
+			rbuf[10] << 8 |
+			rbuf[11] << 0;
+		local.bif_base.address_list[buffer_id] = phy_addr;
 
-		pr_info("buffer_id=%d, phy_addr=0x%lx\n", buffer_id, phy_addr);
+		pr_info("buffer_id=%d, phy_addr=0x%x\n", buffer_id, phy_addr);
 
 		spin_lock_irqsave(&local.lock_list, flags);
 		list_for_each_safe(list_node, n, &todo_list) {
@@ -275,23 +277,32 @@ static void packet_analyse(unsigned char *pbuf)
 			len = datalen - 8;
 		else
 			len = 0;
-		phy_addr =
-		    rbuf[7] << 24 | rbuf[8] << 16 | rbuf[9] << 8 | rbuf[10] <<
-		    0;
+		phy_addr = rbuf[7] << 24 |
+			rbuf[8] << 16 |
+			rbuf[9] << 8 |
+			rbuf[10] << 0;
+/*
 #ifndef CONFIG_HOBOT_BIF_AP
 		if (phy_addr == BIF_BASE_ADDR + 512)
 			vir_addr = bif_vir_addr + 512;
 		else
 #endif
 			vir_addr = phys_to_virt(phy_addr);
+*/
+#ifndef CONFIG_HOBOT_BIF_AP
+		vir_addr = bif_vir_addr +
+			(phy_addr - (unsigned int)BIF_BASE_ADDR);
+		//pr_info("req write phy_addr=%x,vir_addr=%lx offset=%04x\n",
+		//	phy_addr, (unsigned long)vir_addr,
+		//	(phy_addr - BIF_BASE_ADDR));
+#else
+		vir_addr = phys_to_virt(phy_addr);
+#endif
+
 		if (vir_addr != NULL) {
 			len = MIN(len, BIF_ETHER_MAXSIZE);
 			memcpy(vir_addr, rbuf + 11, len);
 		}
-
-		//pr_info("REQ write phy=%lx,vir=%p datalen=%04x,len=%d\n",
-		//	phy_addr,vir_addr, datalen, len);
-
 
 		sbuf[0] = OP_ACK_WRITE_DATA;
 		sbuf[1] = 0;
@@ -322,17 +333,29 @@ static void packet_analyse(unsigned char *pbuf)
 	case OP_REQ_READ_DATA:	/* CP process... */
 		pr_info("<(%08x) OP_REQ_READ_DATA\n", cur_pid);
 
-		phy_addr =
-		    rbuf[7] << 24 | rbuf[8] << 16 | rbuf[9] << 8 | rbuf[10] <<
-		    0;
+		phy_addr = rbuf[7] << 24 |
+			rbuf[8] << 16 |
+			rbuf[9] << 8 |
+			rbuf[10] << 0;
 		len = rbuf[11] << 8 | rbuf[12];
 
+/*
 #ifndef CONFIG_HOBOT_BIF_AP
 		if (phy_addr == BIF_BASE_ADDR)
 			vir_addr = bif_vir_addr;
 		else
 #endif
 			vir_addr = phys_to_virt(phy_addr);
+*/
+#ifndef CONFIG_HOBOT_BIF_AP
+		vir_addr = bif_vir_addr +
+			(phy_addr - (unsigned int)BIF_BASE_ADDR);
+		//pr_info("req write phy_addr=%x,vir_addr=%lx offset=%04x\n",
+		//	phy_addr, (unsigned long)vir_addr,
+		//	(phy_addr - BIF_BASE_ADDR));
+#else
+		vir_addr = phys_to_virt(phy_addr);
+#endif
 		if (vir_addr != NULL) {
 			len = MIN(len, BIF_ETHER_MAXSIZE);
 			memcpy(sbuf + 11, vir_addr, len);
@@ -343,9 +366,8 @@ static void packet_analyse(unsigned char *pbuf)
 		sbuf[1] = datalen >> 8 & 0xff;
 		sbuf[2] = datalen >> 0 & 0xff;
 		memcpy(sbuf + 3, rbuf + 3, 4);	/* cur_pid */
-		memcpy(sbuf + 7, rbuf + 7, 4);	/*phy_addr */
+		memcpy(sbuf + 7, rbuf + 7, 4);	/* phy_addr */
 		packetlen = datalen + 3;
-
 		queue_push(&local.txop, sbuf, packetlen);
 		wake_up_interruptible(&local.tx_wq);
 		break;
@@ -356,10 +378,12 @@ static void packet_analyse(unsigned char *pbuf)
 			len = datalen - 8;
 		else
 			len = 0;
-		phy_addr =
-		    rbuf[7] << 24 | rbuf[8] << 16 | rbuf[9] << 8 | rbuf[10] <<
-		    0;
-
+		phy_addr = rbuf[7] << 24 |
+			rbuf[8] << 16 |
+			rbuf[9] << 8 |
+			rbuf[10] << 0;
+		//pr_info("ack read phy_addr=%08x,datalen=%04x,len=%d\n",
+		//	phy_addr, datalen, len);
 		spin_lock_irqsave(&local.lock_list, flags);
 		list_for_each_safe(list_node, n, &todo_list) {
 			todo_node =
@@ -378,21 +402,20 @@ static void packet_analyse(unsigned char *pbuf)
 	case OP_SEND_AP_IRQ:	/* CP process... */
 		pr_info("<(%08x) OP_SEND_AP_IRQ\n", cur_pid);
 
-		local.bif_base.irq_func[local.buffer_id %
-					BUFF_MAX] (local.buffer_id % BUFF_MAX,
-						   NULL);
+		irq_func[local.buffer_id % BUFF_MAX](local.buffer_id % BUFF_MAX,
+			NULL);
 
 		sbuf[0] = OP_ACK_AP_IRQ;
 		sbuf[1] = 0;
 		sbuf[2] = 5;
-		memcpy(sbuf + 3, rbuf + 3, 4);	//cur_pid
-		sbuf[7] = rbuf[7];	//irq
+		memcpy(sbuf + 3, rbuf + 3, 4);	/*cur_pid*/
+		sbuf[7] = rbuf[7];	/*irq*/
 		packetlen = 8;
 
-		queue_push(&local.txop, sbuf, packetlen);	//push
-		wake_up_interruptible(&local.tx_wq);	//wakeup
+		queue_push(&local.txop, sbuf, packetlen);
+		wake_up_interruptible(&local.tx_wq);
 		break;
-	case OP_ACK_AP_IRQ:	//AP process...
+	case OP_ACK_AP_IRQ:	/*AP process...*/
 		pr_info("<(%08x) OP_ACK_AP_IRQ\n", cur_pid);
 
 		spin_lock_irqsave(&local.lock_list, flags);
@@ -408,24 +431,23 @@ static void packet_analyse(unsigned char *pbuf)
 		spin_unlock_irqrestore(&local.lock_list, flags);
 		break;
 
-	case OP_SEND_CP_IRQ:	//AP process...
+	case OP_SEND_CP_IRQ:	/*AP process...*/
 		pr_info("<[%08x] OP_SEND_CP_IRQ\n", cur_pid);
 
-		local.bif_base.irq_func[local.buffer_id %
-					BUFF_MAX] (local.buffer_id % BUFF_MAX,
-						   NULL);
+		irq_func[local.buffer_id % BUFF_MAX](local.buffer_id % BUFF_MAX,
+			NULL);
 
 		sbuf[0] = OP_ACK_CP_IRQ;
 		sbuf[1] = 0;
 		sbuf[2] = 5;
-		memcpy(sbuf + 3, rbuf + 3, 4);	//cur_pid
-		sbuf[7] = rbuf[7];	//irq
+		memcpy(sbuf + 3, rbuf + 3, 4);	/*cur_pid*/
+		sbuf[7] = rbuf[7];	/*irq*/
 		packetlen = 8;
 
-		queue_push(&local.txop, sbuf, packetlen);	//push
-		wake_up_interruptible(&local.tx_wq);	//wakeup
+		queue_push(&local.txop, sbuf, packetlen);
+		wake_up_interruptible(&local.tx_wq);
 		break;
-	case OP_ACK_CP_IRQ:	//CP process..
+	case OP_ACK_CP_IRQ:	/*CP process..*/
 		pr_info("<[%08x] OP_ACK_CP_IRQ\n", cur_pid);
 
 		spin_lock_irqsave(&local.lock_list, flags);
@@ -519,10 +541,8 @@ void bif_netlink_input(struct sk_buff *__skb)
 
 	nlh = nlmsg_hdr(skb);
 	rlen = nlh->nlmsg_len - NLMSG_SPACE(0);
-
-	//pr_info("%s() pid:%d, space:%d, size:%d, rlen:%d\n", __func__,
-	//	nlh->nlmsg_pid, NLMSG_SPACE(0), nlh->nlmsg_len, rlen);
-
+	//pr_info("%s() pid:%d, space:%d, size:%d, rlen:%d\n",
+	//	__func__, nlh->nlmsg_pid, NLMSG_SPACE(0), nlh->nlmsg_len, rlen);
 	pbuf = NLMSG_DATA(nlh);
 	rlen = MIN(rlen, BIF_NETLINK_MAXSIZE);
 	if (rlen > 0) {
@@ -542,9 +562,7 @@ int bif_tx_thread(void *data)
 	while (!kthread_should_stop()) {
 		if (local.netlink_start)
 			wait_event_interruptible_timeout(local.tx_wq,
-							 local.txop.tail !=
-							 local.txop.head,
-							 HZ * 60);
+				local.txop.tail != local.txop.head, HZ * 60);
 
 		while (local.txop.tail != local.txop.head) {
 			if (!local.netlink_start)
@@ -555,8 +573,8 @@ int bif_tx_thread(void *data)
 				packetlen = tbuf[1] << 8 | tbuf[2];
 				packetlen += 3;
 				packetlen = MIN(packetlen, BIF_NETLINK_MAXSIZE);
-				bif_netlink_send(BIF_NETLINK_PORTID, tbuf,
-						 packetlen);
+				bif_netlink_send(BIF_NETLINK_PORTID,
+					tbuf, packetlen);
 			}
 		}
 	}
@@ -588,9 +606,7 @@ int bif_rx_thread(void *data)
 	while (!kthread_should_stop()) {
 		if (local.netlink_start)
 			wait_event_interruptible_timeout(local.rx_wq,
-							 local.rxop.tail !=
-							 local.rxop.head,
-							 HZ * 60);
+				local.rxop.tail != local.rxop.head, HZ * 60);
 
 		while (local.rxop.tail != local.rxop.head) {
 			if (!local.netlink_start)
@@ -648,7 +664,6 @@ int bif_netlink_init(void)
 
 	nkc.groups = 0;
 	nkc.flags = 0;
-	//nkc.flags = NL_CFG_F_NONROOT_RECV | NL_CFG_F_NONROOT_SEND;
 	nkc.input = bif_netlink_input;
 	nkc.cb_mutex = NULL;
 	nkc.bind = NULL;
@@ -719,10 +734,12 @@ void bif_netlink_exit(void)
 
 int t_bif_register_address(enum BUFF_ID buffer_id, void *address)
 {
+	unsigned long addr = (unsigned long)address;
+
 	if (buffer_id >= BUFF_MAX)
 		return -1;
 
-	local.bif_base.address_list[buffer_id] = address;
+	local.bif_base.address_list[buffer_id] = addr;
 	local.bif_base.buffer_count++;
 
 	return 0;
@@ -733,7 +750,7 @@ int t_bif_register_irq(enum BUFF_ID buffer_id, irq_handler_t irq_handler)
 	if (buffer_id >= BUFF_MAX)
 		return -1;
 
-	local.bif_base.irq_func[buffer_id] = irq_handler;
+	irq_func[buffer_id] = irq_handler;
 	local.buffer_id = buffer_id;
 
 	return buffer_id;
@@ -752,7 +769,7 @@ int t_bif_send_irq(int irq)
 		return -1;
 	ptr = kmalloc(sizeof(struct todo_struct), GFP_ATOMIC | __GFP_ZERO);
 	if (ptr == NULL)
-		return 0;
+		return -2;
 	todo_node = (struct todo_struct *)ptr;
 
 	spin_lock_irqsave(&local.lock_pid, flags);
@@ -787,7 +804,7 @@ int t_bif_send_irq(int irq)
 	wake_up_interruptible(&local.tx_wq);	//wakeup
 
 	wait_for_completion_interruptible_timeout(&todo_node->cp,
-						  msecs_to_jiffies(1000));
+		msecs_to_jiffies(1000));
 
 	spin_lock_irqsave(&local.lock_list, flags);
 	if (todo_node) {
@@ -801,6 +818,7 @@ int t_bif_send_irq(int irq)
 
 void *t_bif_query_address(enum BUFF_ID buffer_id)
 {
+	unsigned long addr = 0;
 #ifdef CONFIG_HOBOT_BIF_AP
 	unsigned char sbuf[8] = { 0 };
 	unsigned int packetlen = 0;
@@ -814,7 +832,7 @@ void *t_bif_query_address(enum BUFF_ID buffer_id)
 
 	ptr = kmalloc(sizeof(struct todo_struct), GFP_ATOMIC | __GFP_ZERO);
 	if (ptr == NULL)
-		return (void *)-1;
+		return (void *)-2;
 	todo_node = (struct todo_struct *)ptr;
 
 	spin_lock_irqsave(&local.lock_pid, flags);
@@ -845,8 +863,9 @@ void *t_bif_query_address(enum BUFF_ID buffer_id)
 			ssleep(1);
 			pr_info("%s() waiting for Ack...\n", __func__);
 		} else {
-			wait_for_completion_interruptible_timeout
-			    (&todo_node->cp, msecs_to_jiffies(3000));
+			wait_for_completion_interruptible_timeout(
+				&todo_node->cp,
+				msecs_to_jiffies(3000));
 			break;
 		}
 	}
@@ -859,11 +878,13 @@ void *t_bif_query_address(enum BUFF_ID buffer_id)
 	spin_unlock_irqrestore(&local.lock_list, flags);
 #endif
 
-	return local.bif_base.address_list[buffer_id];
+	addr = local.bif_base.address_list[buffer_id];
+	return (void *)addr;
 }
 
 void *t_bif_query_address_wait(enum BUFF_ID buffer_id)
 {
+	unsigned long addr = 0;
 #ifdef CONFIG_HOBOT_BIF_AP
 	unsigned char sbuf[8] = { 0 };
 	unsigned int packetlen = 0;
@@ -877,7 +898,7 @@ void *t_bif_query_address_wait(enum BUFF_ID buffer_id)
 
 	ptr = kmalloc(sizeof(struct todo_struct), GFP_ATOMIC | __GFP_ZERO);
 	if (ptr == NULL)
-		return (void *)-1;
+		return (void *)-2;
 	todo_node = (struct todo_struct *)ptr;
 
 	spin_lock_irqsave(&local.lock_pid, flags);
@@ -921,10 +942,11 @@ void *t_bif_query_address_wait(enum BUFF_ID buffer_id)
 	spin_unlock_irqrestore(&local.lock_list, flags);
 #endif
 
-	return local.bif_base.address_list[buffer_id];
+	addr = local.bif_base.address_list[buffer_id];
+	return (void *)addr;
 }
 
-int t_bif_read(void *addr, unsigned int count, char *buf)
+int t_bif_read(void *addr, unsigned int count, unsigned char *buf)
 {
 	unsigned long phy_addr = (unsigned long)addr;
 	void *pbuf = buf;
@@ -941,11 +963,11 @@ int t_bif_read(void *addr, unsigned int count, char *buf)
 	void *ptr = NULL;
 
 	if (!local.netlink_start)
-		return 0;
+		return -1;
 
 	ptr = kmalloc(sizeof(struct todo_struct), GFP_ATOMIC | __GFP_ZERO);
 	if (ptr == NULL)
-		return 0;
+		return -2;
 	todo_node = (struct todo_struct *)ptr;
 
 	spin_lock_irqsave(&local.lock_pid, flags);
@@ -991,39 +1013,48 @@ int t_bif_read(void *addr, unsigned int count, char *buf)
 		pr_info("(%08x) Err, read timeout! phy_addr=0x%lx, len=%d\n",
 			cur_pid, phy_addr, len);
 		len = 0;
+		ret = -3;
 	}
 
 	if (todo_node->ptr == NULL) {
 		pr_info("<(%08x) Err todo_node->ptr NULL, phy_addr=0x%lx\n",
 			cur_pid, phy_addr);
 		len = 0;
+		ret = -4;
 	} else {
-		ack_len = todo_node->ptr[1] << 8 | todo_node->ptr[2];
+		ack_len =
+			todo_node->ptr[1] << 8 |
+			todo_node->ptr[2];
 		ack_pid =
-		    todo_node->ptr[3] << 24 |
-		    todo_node->ptr[4] << 16 |
-		    todo_node->ptr[5] << 8 | todo_node->ptr[6] << 0;
+			todo_node->ptr[3] << 24 |
+			todo_node->ptr[4] << 16 |
+			todo_node->ptr[5] << 8 |
+			todo_node->ptr[6] << 0;
 		ack_addr =
-		    todo_node->ptr[7] << 24 |
-		    todo_node->ptr[8] << 16 |
-		    todo_node->ptr[9] << 8 | todo_node->ptr[10] << 0;
+			todo_node->ptr[7] << 24 |
+			todo_node->ptr[8] << 16 |
+			todo_node->ptr[9] << 8 |
+			todo_node->ptr[10] << 0;
+		/*4Byte id, 4Byte phy_addr*/
 		ack_len = (ack_len > 7) ? (ack_len - 8) : 0;
-		/* 4Byte id, 4Byte phy_addr */
 
 		if (ack_addr != phy_addr) {
 			pr_info("(%08x) Err, phy_addr:0x%lx, ack_addr:0x%lx\n",
 				cur_pid, phy_addr, ack_addr);
 			len = 0;
+			ret = -5;
 		}
 		if (ack_len != len) {
-			pr_info
-			    ("(%08x) Err, phy_addr:0x%lx, len:%d, ack_len:%d\n",
+			pr_info("(%08x) Err, phy_addr:0x%lx, len:%d, ack_len:%d\n",
 			     cur_pid, phy_addr, len, ack_len);
 			len = 0;
+			ret = -6;
 		} else {
 			len = MIN(len, ack_len);
-			if (len)
+			if (len) {
 				memcpy(pbuf, todo_node->ptr + 11, len);
+				ret = 0;
+			}
 		}
 	}
 
@@ -1034,10 +1065,11 @@ int t_bif_read(void *addr, unsigned int count, char *buf)
 	}
 	spin_unlock_irqrestore(&local.lock_list, flags);
 
-	return len;
+	return ret;
+
 }
 
-int t_bif_write(void *addr, unsigned int count, char *buf)
+int t_bif_write(void *addr, unsigned int count, unsigned char *buf)
 {
 	unsigned long phy_addr = (unsigned long)addr;
 	void *pbuf = buf;
@@ -1054,12 +1086,12 @@ int t_bif_write(void *addr, unsigned int count, char *buf)
 
 	sbuf = kmalloc(len + 16, GFP_ATOMIC | __GFP_ZERO);
 	if (sbuf == NULL)
-		return 0;
+		return -2;
 
 	ptr = kmalloc(sizeof(struct todo_struct), GFP_ATOMIC | __GFP_ZERO);
 	if (ptr == NULL) {
 		kfree(sbuf);
-		return 0;
+		return -2;
 	}
 	todo_node = (struct todo_struct *)ptr;
 
@@ -1091,10 +1123,10 @@ int t_bif_write(void *addr, unsigned int count, char *buf)
 	spin_lock_irqsave(&local.lock_list, flags);
 	list_add_tail(&todo_node->list, &todo_list);
 	spin_unlock_irqrestore(&local.lock_list, flags);
+	//pr_info("req write phy_addr=0x%lx, len=%d, packetlen=0x%04x\n",
+	//	phy_addr, len, packetlen);
+	//pr_buff_8(sbuf, 1);
 
-   //pr_info("req write phy_addr=0x%lx, len=%d, packetlen=0x%04x\n",
-   //phy_addr, len, packetlen);
-   //pr_buff_16(sbuf, 1);
 	queue_push(&local.txop, sbuf, packetlen);
 	wake_up_interruptible(&local.tx_wq);
 	wait_for_completion_interruptible_timeout(&todo_node->cp,
@@ -1109,25 +1141,25 @@ int t_bif_write(void *addr, unsigned int count, char *buf)
 
 	kfree(sbuf);
 
-	return len;
+	return 0;
 }
 
-int t_bif_sd_read(void *addr, unsigned int count, char *buf)
+int t_bif_sd_read(void *addr, unsigned int count, unsigned char *buf)
 {
 	return t_bif_read(addr, count, buf);
 }
 
-int t_bif_sd_write(void *addr, unsigned int count, char *buf)
+int t_bif_sd_write(void *addr, unsigned int count, unsigned char *buf)
 {
 	return t_bif_write(addr, count, buf);
 }
 
-int t_bif_spi_read(void *addr, unsigned int count, char *buf)
+int t_bif_spi_read(void *addr, unsigned int count, unsigned char *buf)
 {
 	return t_bif_read(addr, count, buf);
 }
 
-int t_bif_spi_write(void *addr, unsigned int count, char *buf)
+int t_bif_spi_write(void *addr, unsigned int count, unsigned char *buf)
 {
 	return t_bif_write(addr, count, buf);
 }

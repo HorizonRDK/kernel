@@ -21,9 +21,9 @@ int t_bif_send_irq(int irq);
 void *t_bif_query_address(enum BUFF_ID buffer_id);
 void *t_bif_query_address_wait(enum BUFF_ID buffer_id);
 
-int t_bif_sd_read(void *addr, unsigned int count, char *buf);
-int t_bif_sd_write(void *addr, unsigned int count, char *buf);
-int t_bif_spi_read(void *addr, unsigned int count, char *buf);
-int t_bif_spi_write(void *addr, unsigned int count, char *buf);
+int t_bif_sd_read(void *addr, unsigned int count, unsigned char *buf);
+int t_bif_sd_write(void *addr, unsigned int count, unsigned char *buf);
+int t_bif_spi_read(void *addr, unsigned int count, unsigned char *buf);
+int t_bif_spi_write(void *addr, unsigned int count, unsigned char *buf);
 
 #endif
