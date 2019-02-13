@@ -32,8 +32,8 @@
 		pwm0	= &pwm_0;
 		pwm1	= &pwm_1;
 		pwm2	= &pwm_2;
-        	bifsd   = &bifsd;
-        	mmc0    = &sdio0;
+		bifsd   = &bifsd;
+		mmc0    = &sdio0;
 	};
 
 	chosen {
@@ -71,6 +71,17 @@
 		    /*no-map;*/
 		};
 
+		bif_base_reserved: bif_base_reserved@0x20000000 {
+			reg = <0x0 0x20000000 0x0 0x00100000>;
+			no-map;
+		};
+	};
+
+	bif_base {
+		compatible = "hobot,bif_base";
+		memory-region = <&bif_base_reserved>;
+		bif_base_irq_pin = <85>;
+		bif_base_tri_pin = <84>;
 	};
 
 	cnn_mm {

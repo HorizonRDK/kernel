@@ -16,21 +16,21 @@
  *AP side export symbol functions
  *@addr: phy addr
  *@count: bytes, 512 times, eg. 512,1024,1536...
- *@return: 0, Err; >0 ,count 512 times
- *int bifsd_read(void *addr, unsigned int count, char *buf);
- *int bifsd_write(void *addr, unsigned int count, char *buf);
+ *@return: 0, ok; other ,err
+ *int bifsd_read(void *addr, unsigned int count, unsigned char *buf);
+ *int bifsd_write(void *addr, unsigned int count, unsigned char *buf);
 
  *@addr: phy addr
  *@count: bytes
- *@return: 0, Err; >0 ,count
- *int bifspi_read(void *addr, unsigned int count, char *buf);
- *int bifspi_write(void *addr, unsigned int count, char *buf);
+ *@return: 0, ok; other ,err
+ *int bifspi_read(void *addr, unsigned int count, unsigned char *buf);
+ *int bifspi_write(void *addr, unsigned int count, unsigned char *buf);
  */
 
 #ifdef CONFIG_HOBOT_BIF_AP
 
 #ifdef CONFIG_HOBOT_BIFSD
-int bif_sd_read(void *addr, unsigned int count, char *buf)
+int bif_sd_read(void *addr, unsigned int count, unsigned char *buf)
 {
 #ifdef CONFIG_HOBOT_BIF_TEST
 	return t_bif_sd_read(addr, count, buf);
@@ -40,7 +40,7 @@ int bif_sd_read(void *addr, unsigned int count, char *buf)
 }
 EXPORT_SYMBOL(bif_sd_read);
 
-int bif_sd_write(void *addr, unsigned int count, char *buf)
+int bif_sd_write(void *addr, unsigned int count, unsigned char *buf)
 {
 #ifdef CONFIG_HOBOT_BIF_TEST
 	return t_bif_sd_write(addr, count, buf);
@@ -52,16 +52,28 @@ EXPORT_SYMBOL(bif_sd_write);
 
 #else
 #ifdef CONFIG_HOBOT_BIFSPI
-int bif_spi_read(void *addr, unsigned int count, char *buf)
+#if 1
+int bifspi_read(void *addr, unsigned int count, unsigned char *buf)
+{
+	return bifdev_get_cpchip_ddr((uint32_t)addr, (uint16_t)count,
+		(uint8_t *)buf);
+}
+int bifspi_write(void *addr, unsigned int count, unsigned char *buf)
+{
+	return bifdev_set_cpchip_ddr((uint32_t)addr, (uint16_t)count,
+		(uint8_t *)buf);
+}
+#endif
+int bif_spi_read(void *addr, unsigned int count, unsigned char *buf)
 {
 #ifdef CONFIG_HOBOT_BIF_TEST
 	return t_bif_spi_read(addr, count, buf);
 #else
-	return bifspi_read(addr, count, *buf);
+	return bifspi_read(addr, count, buf);
 #endif
 }
 EXPORT_SYMBOL(bif_spi_read);
-int bif_spi_write(void *addr, unsigned int count, char *buf)
+int bif_spi_write(void *addr, unsigned int count, unsigned char *buf)
 {
 #ifdef CONFIG_HOBOT_BIF_TEST
 	return t_bif_spi_write(addr, count, buf);

@@ -17,7 +17,8 @@
 			reg = <0 0xA6003000 0 0x100>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 45 4>;
-			gpioirq-bank-cfg = <12 0 0 0>;/*specific the gpio of each irq banck, 0 is invalid*/
+			/*specific the gpio of each irq banck, 0 is invalid*/
+			gpioirq-bank-cfg = <85 0 0 0>;
 			status = "disabled";
 			i2c0_func: i2c0_func {
 				pinctrl-x2,pins-muxs = <
@@ -166,4 +167,3 @@
 		};
 	};
 };
-
