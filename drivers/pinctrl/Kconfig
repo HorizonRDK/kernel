@@ -386,5 +386,6 @@ config PINCTRL_X2
 	depends on ARCH_HOBOT
 	select PINMUX
 	select GENERIC_PINCONF
+	select GPIOLIB_IRQCHIP
 
 endmenu
