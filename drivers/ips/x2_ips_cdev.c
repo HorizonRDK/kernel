@@ -51,7 +51,7 @@ struct ips_cdev_s g_ipscdev = {
 
 static int ips_cdev_open(struct inode *inode, struct file *filp)
 {
-	dev_t device = inode->i_rdev;
+	//dev_t device = inode->i_rdev;
 	struct ips_cdev_s *ipscdev_p;
 
 	ipscdev_p = container_of(inode->i_cdev, struct ips_cdev_s, cdev);
@@ -68,14 +68,14 @@ static long ips_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 	void __user *arg = (void __user *)p;
 	switch (cmd) {
 	case IPS_GETSTATUS:
-		copy_from_user(&region, arg, sizeof(region));
+		ret = copy_from_user(&region, arg, sizeof(region));
 		result = ips_get_status(region);
-		copy_to_user(arg, &result, sizeof(result));
-		return 0;
+		ret |= copy_to_user(arg, &result, sizeof(result));
+		return ret;
 	case IPS_BUSCTL_SET:
-		copy_from_user(&setcmd, arg, sizeof(setcmd));
+		ret = copy_from_user(&setcmd, arg, sizeof(setcmd));
 		ips_busctl_set(setcmd.type, setcmd.index, setcmd.region, setcmd.value);
-		return 0;
+		return ret;
 	default:
 		return -EPERM;
 	}
@@ -92,9 +92,7 @@ static ssize_t ips_cdev_write(struct file *filp, const char __user *ubuf,
 static ssize_t ips_cdev_read(struct file *filp, char __user *ubuf,
 							 size_t len, loff_t *offp)
 {
-	unsigned int size;
-
-	return size;
+	return 0;
 }
 
 
@@ -117,7 +115,7 @@ static const struct file_operations ips_cdev_ops = {
 int __init ips_cdev_init(void)
 {
 	int error;
-	int ret;
+	int ret = 0;
 	struct ips_cdev_s *ipsdev;
 
 	ipsdev = &g_ipscdev;
@@ -140,7 +138,7 @@ int __init ips_cdev_init(void)
 		return error;
 	}
 
-	ret = device_create(ipsdev->ips_classes, NULL, ipsdev->dev_num, NULL, ipsdev->name);
+	device_create(ipsdev->ips_classes, NULL, ipsdev->dev_num, NULL, ipsdev->name);
 	if (ret)
 		return ret;
 
