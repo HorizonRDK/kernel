@@ -90,12 +90,15 @@ static int x2_spi_en_ctrl(struct x2_spi *x2spi, int en_flag)
     return 0;
 }
 
+#if 0
+/* FIXME: disable int func temporary */
 static irqreturn_t x2_spi_int_handle(int irq, void *data)
 {
     struct x2_spi *x2spi = (struct x2_spi *)data;
     pr_err("enter %s_%d!\n", __func__, __LINE__);
     return IRQ_NONE;
 }
+#endif
 
 static void x2_spi_init_hw(struct x2_spi *x2spi)
 {
