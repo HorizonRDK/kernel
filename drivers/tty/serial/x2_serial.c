@@ -297,6 +297,7 @@ static void x2_uart_dma_rxdone(void *dev_id)
 
 #endif /* CONFIG_X2_TTY_DMA_MODE */
 
+#ifdef CONFIG_X2_TTY_IRQ_MODE
 /**
  * x2_uart_handle_rx - Handle the received bytes along with Rx errors.
  * @dev_id: Id of the UART port
@@ -309,7 +310,6 @@ static void x2_uart_handle_rx(void *dev_id, unsigned int irqstatus)
 	unsigned int data;
 	char status = TTY_NORMAL;
 
-	//while ((readl(port->membase + x2_UART_LSR) & UART_LSR_RXRDY)) {
 	while (irqstatus & UART_RXFUL) {
 		data = readl(port->membase + X2_UART_RDR);
 		port->icount.rx++;
@@ -347,6 +347,7 @@ static void x2_uart_handle_rx(void *dev_id, unsigned int irqstatus)
 	tty_flip_buffer_push(&port->state->port);
 	spin_lock(&port->lock);
 }
+#endif /* CONFIG_X2_TTY_IRQ_MODE */
 
 /**
  * x2_uart_stop_rx - Stop RX
@@ -362,6 +363,7 @@ static void x2_uart_stop_rx(struct uart_port *port)
 	writel(regval, port->membase + X2_UART_ENR);
 }
 
+#if defined(CONFIG_X2_TTY_IRQ_MODE) || defined(CONFIG_X2_TTY_POLL_MODE)
 /**
  * x2_uart_handle_tx - Handle the bytes to be Txed.
  * @dev_id: Id of the UART port
@@ -409,6 +411,7 @@ static void x2_uart_handle_tx(void *dev_id, unsigned char in_irq)
 
 	return;
 }
+#endif /* CONFIG_X2_TTY_IRQ_MODE || CONFIG_X2_TTY_POLL_MODE */
 
 /**
  * x2_uart_isr - Interrupt handler
