@@ -297,7 +297,7 @@ static const struct of_device_id x2_spi_of_match[] = {
 };
 MODULE_DEVICE_TABLE(of, x2_spi_of_match);
 
-static struct platform_driver xilinx_spi_driver = {
+static struct platform_driver x2_spi_driver = {
     .probe = x2_spi_probe,
     .remove = x2_spi_remove,
     .driver = {
@@ -305,7 +305,7 @@ static struct platform_driver xilinx_spi_driver = {
         .of_match_table = x2_spi_of_match,
     },
 };
-module_platform_driver(xilinx_spi_driver);
+module_platform_driver(x2_spi_driver);
 
 MODULE_AUTHOR("hobot, Inc.");
 MODULE_DESCRIPTION("X2 SPI driver");
