@@ -102,7 +102,8 @@ typedef struct _sensor_power_setting_t {
 typedef struct _sensor_chip_setting_t {
 	uint16_t                 i2c_bus;
 	uint16_t                 slave_addr;
-	sensor_i2c_data_type_t   data_type;
+	sensor_i2c_data_type_t   reg_size;
+	sensor_i2c_data_type_t   data_size;
 	sensor_reg_array_t       chip_id;
 } sensor_chip_setting_t;
 

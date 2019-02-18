@@ -119,6 +119,12 @@
 
 &i2c0 {
 	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	x2_camera@0x7f {
+	    compatible = "x2,camera";
+	    reg = <0x7f>;
+	};
 };
 
 &pinctrl {
