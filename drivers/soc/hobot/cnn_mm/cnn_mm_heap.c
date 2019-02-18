@@ -109,7 +109,9 @@ static int cnn_heap_clear_pages(struct page **pages, int num, pgprot_t pgprot)
 
 	if (!addr)
 		return -ENOMEM;
+#if 0
         memset_io(addr, 0, PAGE_SIZE * num);
+#endif
 	vm_unmap_ram(addr, num);
 
 	return 0;
