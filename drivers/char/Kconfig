@@ -7,6 +7,12 @@ menu "Character devices"
 
 source "drivers/tty/Kconfig"
 
+config X2_BIF
+	bool "X2 BIF CHRDEV"
+	default y
+	help
+		Say Y here if you want to support  read/write bif share register
+
 config DEVMEM
 	bool "/dev/mem virtual device support"
 	default y

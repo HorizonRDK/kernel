@@ -53,6 +53,8 @@ struct x2_i2c_dev_s {
 volatile struct x2_i2c_regs_s *g_i2c_regs;
 void dump_reg(void)
 {
+	if (!i2c_debug_ctl)
+		return;
 	printk("cfg:[%x] \n", g_i2c_regs->cfg.all);
 	printk("addr:[%x] \n", g_i2c_regs->addr.all);
 	printk("dcount:[%x] \n", g_i2c_regs->dcount.all);

@@ -32,8 +32,9 @@
 		pwm0	= &pwm_0;
 		pwm1	= &pwm_1;
 		pwm2	= &pwm_2;
-		bifsd   = &bifsd;
-		mmc0    = &sdio0;
+		bifspi	= &bifspi;
+        	bifsd   = &bifsd;
+        	mmc0    = &sdio0;
 	};
 
 	chosen {
@@ -201,6 +202,10 @@
 };
 
 &iar {
+	status = "okay";
+};
+
+&bifspi {
 	status = "okay";
 };
 

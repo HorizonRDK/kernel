@@ -1343,7 +1343,7 @@ CONFIG_I2C_RK3X=y
 #
 # Other I2C/SMBus bus drivers
 #
-# CONFIG_I2C_X2 is not set
+CONFIG_I2C_X2=y
 # CONFIG_I2C_STUB is not set
 CONFIG_I2C_SLAVE=y
 # CONFIG_I2C_SLAVE_EEPROM is not set
