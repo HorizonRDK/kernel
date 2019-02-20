@@ -1419,8 +1419,6 @@ CONFIG_GPIO_GENERIC=y
 #
 # Memory mapped GPIO drivers
 #
-# CONFIG_GPIO_X2 is not set
-# CONFIG_GPIO_X2_CDEV is not set
 # CONFIG_GPIO_74XX_MMIO is not set
 # CONFIG_GPIO_ALTERA is not set
 # CONFIG_GPIO_DWAPB is not set
@@ -2282,7 +2280,7 @@ CONFIG_X2_SIF=y
 CONFIG_X2_MIPI_HOST=y
 CONFIG_X2_MIPI_DEV=y
 CONFIG_X2_MIPI_PHY=y
-# CONFIG_X2_ISP is not set
+CONFIG_X2_ISP=y
 
 #
 # IAR Configuratio

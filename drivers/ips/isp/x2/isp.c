@@ -1,17 +1,17 @@
 /*
-    isp.c - driver, char device interface
+	isp.c - driver, char device interface
 
-    Copyright (C) 2018 Horizon Inc.
+	Copyright (C) 2018 Horizon Inc.
 
-    This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
-    (at your option) any later version.
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 2 of the License, or
+	(at your option) any later version.
 
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	GNU General Public License for more details.
 */
 
 #include <linux/cdev.h>
@@ -36,14 +36,19 @@
 #include "isp_dev.h"
 
 /* global variable define */
-static int isp_major = ISP_MAJOR;
-module_param(isp_major, int, S_IRUGO);
-
 struct isp_mod_s *pIspMod;
 
 struct cdev isp_cdev;
 
 static struct fasync_struct *pisp_async;
+
+typedef struct _reg_s {
+	uint32_t offset;
+	uint32_t value;
+} reg_t;
+
+#define ISP_READ	_IOWR('p', 0, reg_t)
+#define ISP_WRITE	_IOW('p', 1, reg_t)
 
 /* function */
 static irqreturn_t isp_interrupt(int irq, void *dev_id)
@@ -54,14 +59,8 @@ static irqreturn_t isp_interrupt(int irq, void *dev_id)
 
 static int isp_mod_open(struct inode *pinode, struct file *pfile)
 {
-	int                 ret;
-	struct isp_mod_s    *pdev;
-	isp_dev_t           *pispdev;
-
 	printk(KERN_INFO "isp_mod_open()!\n");
-
-	int num = MINOR(pinode->i_rdev);
-
+	#if 0
 	if (num >= ISP_NR_DEVS)
 		return -ENODEV;
 
@@ -77,22 +76,21 @@ static int isp_mod_open(struct inode *pinode, struct file *pfile)
 	ret = request_irq(pispdev->irq, isp_interrupt, 0, ISP_NAME, NULL);
 	if (ret)
 		return -ENODEV;
-
+	#endif
 	return 0;
 }
 
-static int isp_mod_release(struct indoe *pinode, struct file *pfile)
+static int isp_mod_release(struct inode *pinode, struct file *pfile)
 {
-	isp_dev_t           *pispdev;
-
 	printk(KERN_INFO "isp_mod_release()!\n");
-
+	#if 0
 	pispdev = isp_get_dev();
 	if (!pispdev) {
 		return -ENOMEM;
 	}
 
 	free_irq(pispdev->irq, NULL);
+	#endif
 	return 0;
 }
 
@@ -108,15 +106,53 @@ static ssize_t isp_mod_write(struct file *pfile, const char *puser_buf, size_t l
 	return 0;
 }
 
-static int isp_mod_ioctl(struct inode *pinode, struct file *pfile, unsigned int cmd, unsigned long arg)
+static long isp_mod_ioctl(struct file *pfile, unsigned int cmd, unsigned long arg)
 {
-	printk(KERN_INFO "isp_mod_ioctrl()!\n");
+	isp_dev_t *pIspDev = isp_get_dev();
+	void __iomem *iomem = pIspDev->regbase;
+	reg_t		   reg;
+
+	if ( NULL == iomem ) {
+		printk(KERN_ERR "x2 isp no iomem\n");
+		return -EINVAL;
+	}
+	switch (cmd) {
+	case ISP_READ:
+		if (!arg) {
+			printk(KERN_ERR "x2 isp reg read error, reg should not be NULL");
+			return -EINVAL;
+		}
+		if (copy_from_user((void *)&reg, (void __user *)arg, sizeof(reg))) {
+			printk(KERN_ERR "x2 isp reg read error, copy data from user failed\n");
+			return -EINVAL;
+		}
+		reg.value = readl(iomem + reg.offset);
+		if ( copy_to_user((void __user *)arg, (void *)&reg, sizeof(reg)) ) {
+			printk(KERN_ERR "x2 isp reg read error, copy data to user failed\n");
+			return -EINVAL;
+		}
+		break;
+	case ISP_WRITE:
+		if ( !arg ) {
+			printk(KERN_ERR "x2 isp reg write error, reg should not be NULL");
+			return -EINVAL;
+		}
+		if (copy_from_user((void *)&reg, (void __user *)arg, sizeof(reg))) {
+			printk(KERN_ERR "x2 isp reg write error, copy data from user failed\n");
+			return -EINVAL;
+		}
+		//printk("addr:0x%x, value:0x%x",iomem + reg.offset, reg.value);
+		writel(reg.value, iomem + reg.offset );
+		break;
+	default:
+
+		break;
+	}
 	return 0;
 }
 
 static int isp_mod_mmap(struct file *pfile, struct vm_area_struct *pvma)
 {
-	struct isp_mod_s *pmod = pfile->private_data;
 	isp_dev_t *pispdev = isp_get_dev();
 
 	printk(KERN_INFO "isp_mod_mmap()!\n");
@@ -141,49 +177,30 @@ static int isp_mod_fasync(int fd, struct file *pfile, int on)
 	return fasync_helper(fd, pfile, on, &pisp_async);
 }
 
-
 struct file_operations isp_mod_fops = {
-	.owner          = THIS_MODULE,
-	.open           = isp_mod_open,
-	.read           = isp_mod_read,
-	.write          = isp_mod_write,
-	.release        = isp_mod_release,
+	.owner			= THIS_MODULE,
+	.open			= isp_mod_open,
+	.read			= isp_mod_read,
+	.write			= isp_mod_write,
+	.release		= isp_mod_release,
 	.unlocked_ioctl = isp_mod_ioctl,
-	.compat_ioctl   = isp_mod_ioctl,
-	.mmap           = isp_mod_mmap,
-	.fasync         = isp_mod_fasync,
+	.mmap			= isp_mod_mmap,
+	.fasync 		= isp_mod_fasync,
 };
 
 static int __init isp_dev_init(void)
 {
-	int ret, i;
+	int ret = 0;
+	int error;
 
 	printk(KERN_INFO "isp_dev_init()\n");
-
-	dev_t devno = MKDEV(isp_major, 0);
-
-	if (isp_major) {
-		ret = register_chrdev_region(devno, 1, "x2_isp");
-	} else {
-		ret = alloc_chrdev_region(&devno, 0, 1, "x2_isp");
-		isp_major = MAJOR(devno);
-	}
-
-	if (ret < 0)
-		return ret;
-
-	cdev_init(&isp_cdev, &isp_mod_fops);
-	isp_cdev.owner  = THIS_MODULE;
-
-	cdev_add(&isp_cdev, devno, ISP_NR_DEVS);
-
 	pIspMod = kmalloc(ISP_NR_DEVS * sizeof(struct isp_mod_s), GFP_KERNEL);
 	if (!pIspMod) {
 		ret = -ENOMEM;
 		goto fail_malloc;
 	}
 	memset(pIspMod, 0, sizeof(struct isp_mod_s));
-
+#if 0
 	for (i = 0; i < ISP_NR_DEVS; i++) {
 		pIspMod[i].size    = ISP_DEV_SIZE;
 		pIspMod[i].pData   = kmalloc(ISP_DEV_SIZE, GFP_KERNEL);
@@ -194,30 +211,51 @@ static int __init isp_dev_init(void)
 		}
 		memset(pIspMod[i].pData, 0, sizeof(ISP_DEV_SIZE));
 	}
+#endif
+	pIspMod->isp_classes = class_create(THIS_MODULE, "x2_isp");
+	if (IS_ERR(pIspMod->isp_classes))
+		return PTR_ERR(pIspMod->isp_classes);
+
+	error = alloc_chrdev_region(&pIspMod->dev_num, 0, 1, "x2_isp");
+
+	if (!error) {
+		pIspMod->major = MAJOR(pIspMod->dev_num);
+		pIspMod->minor = MINOR(pIspMod->dev_num);
+	}
+
+	if (ret < 0)
+		return ret;
+
+	cdev_init(&isp_cdev, &isp_mod_fops);
+	isp_cdev.owner	= THIS_MODULE;
+
+	cdev_add(&isp_cdev, pIspMod->dev_num, ISP_NR_DEVS);
+
+	device_create(pIspMod->isp_classes, NULL, pIspMod->dev_num, NULL, "x2_isp");
+	if (ret)
+		return ret;
 
 	return 0;
 
 fail_malloc:
-	unregister_chrdev_region(devno, 1);
+	unregister_chrdev_region(pIspMod->dev_num, 1);
 	return ret;
 }
 
 static void __exit isp_dev_exit(void)
 {
-	int i;
-
 	printk(KERN_INFO "isp_dev_exit()\n");
 
 	cdev_del(&isp_cdev);
-
+#if 0
 	for (i = 0; i < ISP_NR_DEVS; i++) {
 		if (pIspMod[i].pData)
 			kfree(pIspMod[i].pData);
 	}
-
+#endif
 	kfree(pIspMod);
 
-	unregister_chrdev_region(MKDEV(isp_major, 0), 1);
+	unregister_chrdev_region(pIspMod->dev_num, 1);
 }
 
 module_init(isp_dev_init);

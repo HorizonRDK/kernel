@@ -32,6 +32,12 @@
 struct isp_mod_s {
 	int *pData;
 	unsigned long size;
+	const char *name;
+	int major;
+	int minor;
+	struct cdev cdev;
+	dev_t dev_num;
+	struct class *isp_classes;
 };
 
 #endif /* __X2_ISP_H__ */
