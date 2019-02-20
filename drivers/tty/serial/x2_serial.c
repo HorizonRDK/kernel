@@ -66,6 +66,7 @@ struct x2_uart {
 	struct uart_port	*port;
 	unsigned int	baud;
 	char name[16];
+	struct clk	*uartclk;
 
 #ifdef CONFIG_X2_TTY_POLL_MODE
 	struct timer_list	rx_timer;
@@ -1378,6 +1379,17 @@ static int x2_uart_probe(struct platform_device *pdev)
 		/* Nothing to do, maybe can be used in future */
 	}
 
+	x2_uart_data->uartclk = devm_clk_get(&pdev->dev, "uart_mclk");
+	if (IS_ERR(x2_uart_data->uartclk)) {
+		dev_err(&pdev->dev, "uart_clk clock not found.\n");
+		return PTR_ERR(x2_uart_data->uartclk);
+	}
+	rc = clk_prepare_enable(x2_uart_data->uartclk);
+	if (rc) {
+		dev_err(&pdev->dev, "Unable to enable device clock.\n");
+		goto err_out_clk_disable;
+	}
+
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!res) {
 		rc = -ENODEV;
@@ -1412,6 +1424,7 @@ static int x2_uart_probe(struct platform_device *pdev)
 	port->mapbase = res->start;
 	port->irq = irq;
 	port->dev = &pdev->dev;
+	port->uartclk = clk_get_rate(x2_uart_data->uartclk);
 	port->private_data = x2_uart_data;
 	x2_uart_data->port = port;
 	platform_set_drvdata(pdev, port);
@@ -1429,6 +1442,8 @@ static int x2_uart_probe(struct platform_device *pdev)
 
 	return 0;
 
+err_out_clk_disable:
+	clk_disable_unprepare(x2_uart_data->uartclk);
 err_out:
 	return rc;
 }
@@ -1441,11 +1456,13 @@ err_out:
  */
 static int x2_uart_remove(struct platform_device *pdev)
 {
-	struct uart_port *port = platform_get_drvdata(pdev);
 	int rc;
+	struct uart_port *port = platform_get_drvdata(pdev);
+	struct x2_uart *x2_uart_data = port->private_data;
 
 	rc = uart_remove_one_port(&x2_uart_driver, port);
 	port->mapbase = 0;
+	clk_disable_unprepare(x2_uart_data->uartclk);
 
 	return rc;
 }

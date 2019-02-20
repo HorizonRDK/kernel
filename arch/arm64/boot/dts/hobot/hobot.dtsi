@@ -12,7 +12,6 @@
 
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 #include <dt-bindings/interrupt-controller/irq.h>
-#include "hobot-clk.dtsi"
 
  / {
 	compatible = "hobot,x2";
@@ -160,8 +159,6 @@
 			interrupts = <0 30 4>;
 			resets = <&rst 0x50 18>;
 			reset-names = "i2s";
-			clock-names = "i2s-mclk", "i2s-bclk";
-			clocks = <&i2s0_mclk>, <&i2s0_bclk>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&i2s0_func>;
 		};
@@ -174,8 +171,6 @@
 			interrupts = <0 31 4>;
 			resets = <&rst 0x50 19>;
 			reset-names = "i2s";
-			clock-names = "i2s-mclk", "i2s-bclk";
-			clocks = <&i2s1_mclk>, <&i2s1_bclk>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&i2s1_func>;
 			status = "disabled";
