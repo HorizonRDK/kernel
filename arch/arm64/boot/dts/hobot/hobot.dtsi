@@ -464,7 +464,7 @@
 			interrupt-parent = <&gic>;
 			interrupts = <0 16 4>;
 			status = "disabled";
-			resets = <&rst 0x00 5>;
+			resets = <&rst 0x00 3>;
 			reset-names = "bifspi";
 			pinctrl-names = "default";
 			pinctrl-0 = <&bifspi_func>;
