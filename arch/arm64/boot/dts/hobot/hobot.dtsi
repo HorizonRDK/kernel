@@ -466,10 +466,8 @@
 			status = "disabled";
 			resets = <&rst 0x00 5>;
 			reset-names = "bifspi";
-			/*
 			pinctrl-names = "default";
 			pinctrl-0 = <&bifspi_func>;
-			*/
 		};
 		bifsd: bifsd@A1007000 {
 			compatible = "hobot,bifsd";

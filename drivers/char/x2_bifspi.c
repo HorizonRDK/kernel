@@ -59,6 +59,8 @@ struct bifspi_t {
 	spinlock_t lock;
 	void __iomem *regs_base;
 	struct reset_control *bif_rst;
+	struct pinctrl *pinctrl;
+	struct pinctrl_state *pins_bif;
 };
 struct bifspi_t *bif_info;
 
@@ -336,6 +338,16 @@ static int bifspi_probe(struct platform_device *pdev)
 		ret = PTR_ERR(bif_info->regs_base);
 		bif_info->regs_base = 0;
 		goto bif_free;
+	}
+
+	bif_info->pinctrl = devm_pinctrl_get(&pdev->dev);
+	if (IS_ERR(bif_info->pinctrl)) {
+		dev_err(&pdev->dev, "pinctrl get error\n");
+	}
+	bif_info->pins_bif =
+	    pinctrl_lookup_state(bif_info->pinctrl, "bifspi_func");
+	if (IS_ERR(bif_info->pins_bif)) {
+		dev_err(&pdev->dev, "pins_bif pinctrl state error\n");
 	}
 
 	bif_info->irq = platform_get_irq(pdev, 0);
