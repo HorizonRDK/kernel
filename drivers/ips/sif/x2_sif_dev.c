@@ -236,19 +236,16 @@ typedef struct _sif_dev_s {
 
 sif_dev_t  *g_sif_dev = NULL;
 
-#ifdef CONFIG_X2_FPGA
 #define sif_getreg(a)          readl(a)
 #define sif_putreg(a,v)        writel(v,a)
-#else
-extern int bifdev_get_cpchip_reg(unsigned int addr, int *value);
-extern int bifdev_set_cpchip_reg(unsigned int addr, int value);
-#define sif_getreg(a)          ({uint32_t value = 0;\
-                                 bifdev_get_cpchip_reg((uint32_t)a, &value);\
-                                 sifinfo("read 0x%x: 0x%x", (uint32_t)a, value);\
-                                 value;})
-#define sif_putreg(a,v)        ({bifdev_set_cpchip_reg((uint32_t)a, v);\
-                                 sifinfo("write 0x%x: 0x%x", (uint32_t)a, v);})
-#endif
+/*extern int bifdev_get_cpchip_reg(unsigned int addr, int *value);				   */
+/*extern int bifdev_set_cpchip_reg(unsigned int addr, int value);				   */
+/*#define sif_getreg(a)          ({uint32_t value = 0;\							   */
+/*                                 bifdev_get_cpchip_reg((uint32_t)a, &value);\	   */
+/*                                 sifinfo("read 0x%x: 0x%x", (uint32_t)a, value);\*/
+/*                                 value;})										   */
+/*#define sif_putreg(a,v)        ({bifdev_set_cpchip_reg((uint32_t)a, v);\		   */
+/*                                 sifinfo("write 0x%x: 0x%x", (uint32_t)a, v);})  */
 static void sif_dev_base_config(sif_init_t *cfg, uint8_t update)
 {
 	uint32_t base = 0;
@@ -624,24 +621,19 @@ static int x2_sif_dev_probe(struct platform_device *pdev)
 {
 	int              ret = 0;
 	sif_dev_t       *pack_dev = NULL;
-#ifdef CONFIG_X2_FPGA
 	struct resource *res;
-#endif
 	pack_dev = devm_kmalloc(&pdev->dev, sizeof(sif_dev_t), GFP_KERNEL);
 	if (!pack_dev) {
 		dev_err(&pdev->dev, "Unable to allloc sif pack dev.\n");
 		return -ENOMEM;
 	}
-#ifdef CONFIG_X2_FPGA
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	pack_dev->iomem = devm_ioremap_resource(&pdev->dev, res);
 	if (IS_ERR(pack_dev->iomem)) {
 		devm_kfree(&pdev->dev, pack_dev);
 		return PTR_ERR(pack_dev->iomem);
 	}
-#else
-	pack_dev->iomem = (void __iomem *)0xA4000100;
-#endif
+	//pack_dev->iomem = (void __iomem *)0xA4000100;
 	platform_set_drvdata(pdev, pack_dev);
 	g_sif_dev = pack_dev;
 
@@ -657,9 +649,8 @@ static int x2_sif_dev_probe(struct platform_device *pdev)
 static int x2_sif_dev_remove(struct platform_device *pdev)
 {
 	sif_dev_t *pack_dev = platform_get_drvdata(pdev);
-#ifdef CONFIG_X2_FPGA
-	devm_iounmap(&pdev->dev, pack_dev->iomem);
-#endif
+	if (pack_dev->iomem)
+		devm_iounmap(&pdev->dev, pack_dev->iomem);
 	devm_kfree(&pdev->dev, pack_dev);
 	g_sif_dev = NULL;
 	return 0;
