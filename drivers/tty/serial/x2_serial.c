@@ -28,6 +28,7 @@
 #include <linux/module.h>
 #include <linux/dma-mapping.h>
 #include <linux/pm_runtime.h>
+#include <linux/clk.h>
 
 #include "x2_serial.h"
 
@@ -1424,7 +1425,9 @@ static int x2_uart_probe(struct platform_device *pdev)
 	port->mapbase = res->start;
 	port->irq = irq;
 	port->dev = &pdev->dev;
-	port->uartclk = clk_get_rate(x2_uart_data->uartclk);
+	if (0 == IS_ENABLED(CONFIG_X2_FPGA)) {
+		port->uartclk = clk_get_rate(x2_uart_data->uartclk);
+	}
 	port->private_data = x2_uart_data;
 	x2_uart_data->port = port;
 	platform_set_drvdata(pdev, port);
