@@ -204,13 +204,13 @@ static int bif_sync_cpbuf(unsigned long phy_addr,
 
 	tty_debug_log("%s(%d) enter\n", __func__, __LINE__);
 #ifdef CONFIG_HOBOT_BIFSD
-	ret = bif_sd_read(phy_addr / 512, blklen / 512, buffer);
+	ret = bif_sd_read((void *)phy_addr, blklen, buffer);
 	if (!ret) {
 		pr_err("%s(%d) ret=%d\n", __func__, __LINE__, ret);
 		return -1;
 	}
 #elif defined CONFIG_HOBOT_BIFSPI
-	ret = bif_spi_read(&phy_addr, blklen, buffer);
+	ret = bif_spi_read((void *)phy_addr, blklen, buffer);
 	if (!ret) {
 		pr_err("%s(%d) ret=%d\n", __func__, __LINE__, ret);
 		return -1;
@@ -229,13 +229,13 @@ static int bif_sync_apbuf(unsigned long phy_addr,
 	tty_debug_log("%s(%d) enter\n", __func__, __LINE__);
 	tty_dump_log(buffer, blklen);
 #ifdef CONFIG_HOBOT_BIFSD
-	ret = bif_sd_write(phy_addr / 512, blklen / 512, buffer);
+	ret = bif_sd_write((void *)phy_addr, blklen, buffer);
 	if (!ret) {
 		pr_err("%s(%d) ret=%d\n", __func__, __LINE__, ret);
 		return -1;
 	}
 #elif defined CONFIG_HOBOT_BIFSPI
-	ret = bif_spi_write(&phy_addr, blklen, buffer);
+	ret = bif_spi_write((void *)phy_addr, blklen, buffer);
 	if (!ret) {
 		pr_err("%s(%d) ret=%d\n", __func__, __LINE__, ret);
 		return -1;
@@ -373,10 +373,10 @@ static const struct file_operations bif_tty_fops = {
 
 static int bif_tty_alloc(struct bif_tty_cdev *cdev)
 {
-#ifdef CONFIG_HOBOT_BIF_CP
-	void *addr = NULL;
+#ifndef CONFIG_HOBOT_BIF_AP
+	void *vir_addr;
+	unsigned long phy_addr;
 #endif
-
 	tty_debug_log("%s(%d)\n", __func__, __LINE__);
 	cdev->name = "ttyBIF";
 	cdev->num_nodes = NODE_NUM;
@@ -386,16 +386,16 @@ static int bif_tty_alloc(struct bif_tty_cdev *cdev)
 	cdev->buff_rw = kzalloc(2 * NODE_NUM * TTY_BUF_SIZE, GFP_KERNEL);
 	if (!cdev->buff_rw)
 		goto err_alloc_ap_buff;
-#endif
-
-#ifdef CONFIG_HOBOT_BIF_CP
-	addr = kzalloc((2 * NODE_NUM + 1) * TTY_BUF_SIZE, GFP_KERNEL);
-	if (addr == NULL)
+#else
+	vir_addr = bif_alloc_cp(BUFF_SMD, 2 * NODE_NUM * TTY_BUF_SIZE,
+				&phy_addr);
+	if (vir_addr == NULL)
 		goto err_alloc_cp_buff;
-	cdev->buff_addr_vir = (void *)(((unsigned long)addr / 512) * 512);
-	cdev->buff_addr_phy = (void *)virt_to_phys(cdev->buff_addr_vir);
+	cdev->buff_addr_vir = vir_addr;
+	cdev->buff_addr_phy = (void *)phy_addr;
+	tty_debug_log("%s(%d) buff_addr_phy = 0x%p\n", __func__, __LINE__,
+		      cdev->buff_addr_phy);
 #endif
-
 	cdev->tb_node = kzalloc(NODE_NUM * sizeof(struct bif_tty_node),
 				GFP_KERNEL);
 	if (!cdev->tb_node)
@@ -404,13 +404,11 @@ static int bif_tty_alloc(struct bif_tty_cdev *cdev)
 	return 0;
 
 err_alloc_node:
-#ifdef CONFIG_HOBOT_BIF_CP
-	kfree(cdev->buff_addr_vir);
-err_alloc_cp_buff:
-#endif
 #ifdef CONFIG_HOBOT_BIF_AP
 	kfree(cdev->buff_rw);
 err_alloc_ap_buff:
+#else
+err_alloc_cp_buff:
 #endif
 	kfree(cdev);
 	return -ENOMEM;
@@ -421,9 +419,6 @@ static int bif_tty_free(struct bif_tty_cdev *cdev)
 
 #ifdef CONFIG_HOBOT_BIF_AP
 	kfree(cdev->buff_rw);
-#endif
-#ifdef CONFIG_HOBOT_BIF_CP
-	kfree(cdev->buff_addr_vir);
 #endif
 	kfree(cdev->tb_node);
 	kfree(cdev);
@@ -468,15 +463,6 @@ static int bif_tty_query_otherbase(struct bif_tty_cdev *cdev)
 	return 0;
 }
 
-#ifdef CONFIG_HOBOT_BIF_CP
-static int bif_tty_reg_address(struct bif_tty_cdev *cdev)
-{
-	bif_register_address(BUFF_SMD, (void *)cdev->buff_addr_phy);
-	bif_tty_irq();
-	return 0;
-}
-#endif
-
 #ifdef CONFIG_HOBOT_BIF_AP
 static int bif_tty_query_address(struct bif_tty_cdev *cdev)
 {
@@ -492,6 +478,13 @@ static int bif_tty_query_address(struct bif_tty_cdev *cdev)
 	}
 	cdev->buff_addr_phy = addr;
 
+	return 0;
+}
+#else
+static int bif_tty_reg_address(struct bif_tty_cdev *cdev)
+{
+	bif_register_address(BUFF_SMD, (void *)cdev->buff_addr_phy);
+	bif_tty_irq();
 	return 0;
 }
 #endif
@@ -647,10 +640,10 @@ static int bif_tty_init_base(struct bif_tty_cdev *cdev)
 		goto fail;
 
 	bif_tty_query_otherbase(cdev);
-#ifdef CONFIG_HOBOT_BIF_CP
-	bif_tty_reg_address(cdev);
-#else
+#ifdef CONFIG_HOBOT_BIF_AP
 	bif_tty_query_address(cdev);
+#else
+	bif_tty_reg_address(cdev);
 #endif
 	bif_tty_init_node(cdev);
 	bif_tty_init_ringbuff(cdev);
@@ -669,6 +662,7 @@ static int __init bif_tty_init(void)
 	tb_dev = kzalloc(sizeof(struct bif_tty_cdev), GFP_KERNEL);
 	if (!tb_dev) {
 		tty_debug_log("%s(%d)\n", __func__, __LINE__);
+		rc = ENOMEM;
 		goto fail_alloc;
 	}
 

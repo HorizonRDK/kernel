@@ -53,8 +53,8 @@ static void _print2buf(unsigned char *bbuf, int blen, char *pbuf, int plen)
 		curlen = blen - i;
 		if (curlen > DBG_LOG_HEX_WIDTH)
 			curlen = DBG_LOG_HEX_WIDTH;
-		off += snprintf(pbuf + off, plen - off, "0x%08X  ",
-				i + addr_base);
+		off += snprintf(pbuf + off,
+				plen - off, "0x%08X  ", i + addr_base);
 		off += _print_hex(bbuf + i, curlen, pbuf + off, plen - off);
 		off += snprintf(pbuf + off, plen - off, "  ");
 		off += _print_ascii(bbuf + i, curlen, pbuf + off, plen - off);
