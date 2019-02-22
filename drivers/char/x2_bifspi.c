@@ -61,6 +61,10 @@ struct bifspi_t {
 	struct reset_control *bif_rst;
 	struct pinctrl *pinctrl;
 	struct pinctrl_state *pins_bif;
+
+	// ddr limited scope
+	unsigned int first;
+	unsigned int last;
 };
 struct bifspi_t *bif_info;
 
@@ -132,7 +136,7 @@ static int bif_reset(struct bifspi_t *pbif)
 		pr_err("%s: deassert failed\n", __func__);
 		return rc;
 	}
-
+	pr_info("bif reset success\n");
 	return 0;
 }
 
@@ -142,25 +146,41 @@ static void bif_set_access(struct bifspi_t *pbif, unsigned int first,
 	int value;
 	unsigned long flags;
 
+	spin_lock_irqsave(&pbif->lock, flags);
 	// set access, enable irq
 	writel(first, (void *)(pbif->regs_base + BIF_ACCESS_FIRST));
 	writel(last, (void *)(pbif->regs_base + BIF_ACCESS_LAST));
 
-	spin_lock_irqsave(&pbif->lock, flags);
 	value = readl((void *)(pbif->regs_base + BIF_EN_CLEAR));
 	value |= (1 << 0x04);
 	writel(value, (void *)(pbif->regs_base + BIF_EN_CLEAR));
-	spin_lock_irqsave(&pbif->lock, flags);
+
+	pbif->first = first;
+	pbif->last = last;
+	spin_unlock_irqrestore(&pbif->lock, flags);
+
+	pr_info
+	    ("bif set access limit ddr:start add:%p->%#x(%d)  end add:%p-%#x(%d)\n",
+	     (void *)(pbif->regs_base + BIF_ACCESS_FIRST), first, first,
+	     (void *)(pbif->regs_base + BIF_ACCESS_LAST), last, last);
 }
 
 static void bif_unset_access(struct bifspi_t *pbif)
 {
 	int en_val = 0;
+	unsigned long flags;
 
+	spin_lock_irqsave(&pbif->lock, flags);
 	writel(0, (void *)(pbif->regs_base + BIF_ACCESS_FIRST));
 	writel(MEM_MAX_ACCESS, (void *)(pbif->regs_base + BIF_ACCESS_LAST));
 	en_val &= (~(1 << 0x04));
 	writel(en_val, (void *)(pbif->regs_base + BIF_EN_CLEAR));
+
+	pbif->first = 0;
+	pbif->last = MEM_MAX_ACCESS;
+	spin_unlock_irqrestore(&pbif->lock, flags);
+
+	pr_info("bif unset access limit ddr\n");
 }
 
 static long bif_compat_ioctl(struct file *filp, unsigned int cmd,
@@ -295,8 +315,8 @@ static irqreturn_t bifspi_interrupt(int irq, void *dev_id)
 	unsigned int value;
 	struct bifspi_t *pbif = dev_id;
 	unsigned long flags;
+
 	// read interrupt
-	// reset bif,need sleep,workqueue
 	disable_irq_nosync(irq);
 	spin_lock_irqsave(&pbif->lock, flags);
 	pbif->intstatus = readl((void *)(pbif->regs_base + BIF_INT_STATE));
@@ -305,13 +325,14 @@ static irqreturn_t bifspi_interrupt(int irq, void *dev_id)
 
 	if (pbif->intstatus & BIT(4)) {
 		bif_reset(pbif);
+		bif_set_access(pbif, pbif->first, pbif->last);
 	}
 	// clear int
 	spin_lock_irqsave(&pbif->lock, flags);
 	value = readl((void *)(pbif->regs_base + BIF_EN_CLEAR));
 	value |= BIF_CLR_INT;
 	writel(value, (void *)(pbif->regs_base + BIF_EN_CLEAR));
-	spin_lock_irqsave(&pbif->lock, flags);
+	spin_unlock_irqrestore(&pbif->lock, flags);
 
 	enable_irq(irq);
 	pbif->intstatus = 0;
@@ -331,6 +352,8 @@ static int bifspi_probe(struct platform_device *pdev)
 	}
 	platform_set_drvdata(pdev, bif_info);
 	spin_lock_init(&bif_info->lock);
+	bif_info->first = 0;
+	bif_info->last = MEM_MAX_ACCESS;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	bif_info->regs_base = devm_ioremap_resource(&pdev->dev, res);
@@ -338,16 +361,6 @@ static int bifspi_probe(struct platform_device *pdev)
 		ret = PTR_ERR(bif_info->regs_base);
 		bif_info->regs_base = 0;
 		goto bif_free;
-	}
-
-	bif_info->pinctrl = devm_pinctrl_get(&pdev->dev);
-	if (IS_ERR(bif_info->pinctrl)) {
-		dev_err(&pdev->dev, "pinctrl get error\n");
-	}
-	bif_info->pins_bif =
-	    pinctrl_lookup_state(bif_info->pinctrl, "bifspi_func");
-	if (IS_ERR(bif_info->pins_bif)) {
-		dev_err(&pdev->dev, "pins_bif pinctrl state error\n");
 	}
 
 	bif_info->irq = platform_get_irq(pdev, 0);
@@ -410,7 +423,7 @@ static int bifspi_remove(struct platform_device *pdev)
 
 static const struct of_device_id bifspi_hobot_of_match[] = {
 	/* SoC-specific compatible strings w/ soc_ctl_map */
-	{.compatible = "hobot,bifspi",},
+	{.compatible = "hobot,x2-bifspi",},
 	{ /* end of table */ }
 };
 
