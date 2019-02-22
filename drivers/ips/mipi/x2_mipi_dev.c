@@ -24,13 +24,15 @@
 #include <linux/io.h>
 #include <linux/fs.h>
 #include <linux/seq_file.h>
+#include <linux/interrupt.h>
+#include <linux/irq.h>
 
 #include "x2/x2_mipi_dev.h"
 #include "x2_mipi_dev_regs.h"
 #include "x2_mipi_dphy.h"
 #include "x2_mipi_utils.h"
 
-#define MIPI_DEV_INT_DBG            (0)
+#define MIPI_DEV_INT_DBG            (1)
 
 #define MIPI_DEV_CSI2_RAISE         (0x01)
 #define MIPI_DEV_CSI2_RESETN        (0x00)
@@ -125,7 +127,7 @@ typedef struct _mipi_dev_s {
 	mipi_state_t  state;   /* mipi dev state */
 } mipi_dev_t;
 
-mipi_dev_t  *g_mipi_dev = NULL;
+static mipi_dev_t *g_mipi_dev = NULL;
 static int    mipi_dev_major = 0;
 struct cdev   mipi_dev_cdev;
 static struct class  *x2_mipi_dev_class;
@@ -293,7 +295,7 @@ static void mipi_dev_irq_enable(void)
 	void __iomem  *iomem = NULL;
 	if (NULL == g_mipi_dev) {
 		mipierr("mipi dev not inited!");
-		return -1;
+		return;
 	}
 	iomem = g_mipi_dev->iomem;
 	reg = REG_MIPI_DEV_INT_MASK_N_PHY;
@@ -308,14 +310,12 @@ static void mipi_dev_irq_enable(void)
 	temp &= ~(0xff);
 	temp |= mask;
 	mipi_putreg(iomem + (reg), temp);
-#ifdef CHIP_TEST
 	reg = REG_MIPI_DEV_INT_MASK_N_VPG;
 	mask = 0xff;
 	temp = mipi_getreg(iomem + reg);
 	temp &= ~(0xff);
 	temp |= mask;
 	mipi_putreg(iomem + (reg), temp);
-#endif
 	return;
 }
 
@@ -334,7 +334,7 @@ static void mipi_dev_irq_disable(void)
 	void __iomem  *iomem = NULL;
 	if (NULL == g_mipi_dev) {
 		mipierr("mipi dev not inited!");
-		return -1;
+		return;
 	}
 	iomem = g_mipi_dev->iomem;
 	reg = REG_MIPI_DEV_INT_MASK_N_PHY;
@@ -347,32 +347,33 @@ static void mipi_dev_irq_disable(void)
 	temp = mipi_getreg(iomem + reg);
 	temp &= ~(mask);
 	mipi_putreg(iomem + (reg), temp);
-#ifdef CHIP_TEST
 	reg = REG_MIPI_DEV_INT_MASK_N_VPG;
 	mask = 0xff;
 	temp = mipi_getreg(iomem + reg);
 	temp &= ~(mask);
 	mipi_putreg(iomem + (reg), temp);
-#endif
 	return;
 }
 
 /**
- * @brief mipi_dev_irq_func : mipi dev irq notify function
+ * @brief mipi_dev_irq_func : irq func
  *
- * @param []  :
+ * @param [in] this_irq : irq num
+ * @param [in] data : user data
  *
- * @return void
+ * @return irqreturn_t
  */
-static void mipi_dev_irq_func(void)
+static irqreturn_t mipi_dev_irq_func(int this_irq, void *data)
 {
 	uint32_t   irq = 0;
 	void __iomem  *iomem = NULL;
+	mipi_dev_t   *mipi_dev = (mipi_dev_t *)data;
 	if (NULL == g_mipi_dev) {
 		mipierr("mipi dev not inited!");
-		return -1;
+		return IRQ_NONE;
 	}
-	iomem = g_mipi_dev->iomem;
+	iomem = mipi_dev->iomem;
+	disable_irq_nosync(this_irq);
 	irq = mipi_getreg(iomem + REG_MIPI_DEV_INT_ST_MAIN);
 	mipiinfo("mipi dev irq status 0x%x\n", irq);
 	if (irq & MIPI_DEV_INT_VPG) {
@@ -391,7 +392,8 @@ static void mipi_dev_irq_func(void)
 		irq = mipi_getreg(iomem + REG_MIPI_DEV_INT_ST_PHY);
 		mipiinfo("mipi dev PHY ST: 0x%x", irq);
 	}
-	return;
+	enable_irq(this_irq);
+	return IRQ_HANDLED;
 }
 #endif
 
@@ -493,6 +495,7 @@ int32_t mipi_dev_init(mipi_dev_cfg_t *control)
 	}
 	iomem = g_mipi_dev->iomem;
 	mipiinfo("mipi device init begin");
+	mipiinfo("mipi device iomem %p", iomem);
 
 	/*Reset DWC_mipicsi2_device*/
 	mipi_putreg(iomem + REG_MIPI_DEV_CSI2_RESETN, MIPI_DEV_CSI2_RESETN);
@@ -548,12 +551,20 @@ int32_t mipi_dev_init(mipi_dev_cfg_t *control)
 		}
 	}
 #if MIPI_DEV_INT_DBG
-	register_irq(ISR_TYPE_IRQ, INTC_MIPI_DEVI_INT_NUM, mipi_dev_irq_func);
 	mipi_dev_irq_enable();
-	enable_irq(ISR_TYPE_IRQ, INTC_MIPI_DEVI_INT_NUM);
-	unmask_irq(ISR_TYPE_IRQ, INTC_MIPI_DEVI_INT_NUM);
 #endif
 	mipiinfo("mipi device init end");
+	return 0;
+}
+
+static int x2_mipi_dev_close(struct inode *inode, struct file *file)
+{
+	mipi_dev_t    *mipi_dev = (mipi_dev_t *)file->private_data;
+	if (mipi_dev->state != MIPI_STATE_DEFAULT) {
+		mipi_dev_stop();
+		mipi_dev_deinit();
+		mipi_dev->state = MIPI_STATE_DEFAULT;
+	}
 	return 0;
 }
 
@@ -566,7 +577,7 @@ static int x2_mipi_dev_open(struct inode *inode, struct file *file)
 
 static long x2_mipi_dev_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
-	mipi_dev_t    *mipi_dev = file->private_data;
+	mipi_dev_t    *mipi_dev = (mipi_dev_t *)file->private_data;
 	void __iomem  *iomem = mipi_dev->iomem;
 	reg_t          reg;
 	uint32_t       regv = 0;
@@ -575,6 +586,7 @@ static long x2_mipi_dev_ioctl(struct file *file, unsigned int cmd, unsigned long
 	if (_IOC_TYPE(cmd) != MIPIDEVIOC_MAGIC)
 		return -ENOTTY;
 
+	mipiinfo("mipi device %p, iomem %p, tmp %p, tmp iomem %p", g_mipi_dev, g_mipi_dev->iomem, mipi_dev, iomem);
 	switch (cmd) {
 	case MIPIDEVIOC_INIT:
 		{
@@ -691,25 +703,23 @@ static long x2_mipi_dev_ioctl(struct file *file, unsigned int cmd, unsigned long
 static const struct file_operations x2_mipi_dev_fops = {
 	.owner      = THIS_MODULE,
 	.open       = x2_mipi_dev_open,
-	.read       = seq_read,
-	.llseek     = seq_lseek,
-	.release    = single_release,
+	.release    = x2_mipi_dev_close,
 	.unlocked_ioctl = x2_mipi_dev_ioctl,
 	.compat_ioctl = x2_mipi_dev_ioctl,
 };
 
 static int x2_mipi_dev_probe(struct platform_device *pdev)
 {
-	mipi_dev_t      *pack_dev;
+	mipi_dev_t      *mipi_dev = NULL;
 	int              ret = 0;
 	dev_t            devno;
 	struct resource *res;
 	struct cdev     *p_cdev = &mipi_dev_cdev;
 
-	pack_dev = devm_kmalloc(&pdev->dev, sizeof(mipi_dev_t), GFP_KERNEL);
-	if (!pack_dev) {
-		dev_err(&pdev->dev, "Unable to allloc mipi_dev pack dev.\n");
-		return -ENOMEM;
+	mipi_dev = kzalloc(sizeof(mipi_dev_t), GFP_KERNEL);
+	if (mipi_dev == NULL) {
+		printk(KERN_ERR "mipi_dev malloc failed");
+		return -1;
 	}
 
 	ret = alloc_chrdev_region(&devno, 0, 1, "x2_mipi_dev");
@@ -731,7 +741,7 @@ static int x2_mipi_dev_probe(struct platform_device *pdev)
 		ret = PTR_ERR(x2_mipi_dev_class);
 		goto err;
 	}
-	g_mipi_dev_dev = device_create(x2_mipi_dev_class, NULL, MKDEV(mipi_dev_major, 0), (void *)pack_dev, "x2_mipi_dev");
+	g_mipi_dev_dev = device_create(x2_mipi_dev_class, NULL, MKDEV(mipi_dev_major, 0), (void *)mipi_dev, "x2_mipi_dev");
 	if (IS_ERR(g_mipi_dev_dev)) {
 		printk(KERN_ERR "[%s] deivce create error\n", __func__);
 		ret = PTR_ERR(g_mipi_dev_dev);
@@ -739,31 +749,52 @@ static int x2_mipi_dev_probe(struct platform_device *pdev)
 	}
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	pack_dev->iomem = devm_ioremap_resource(&pdev->dev, res);
-	if (IS_ERR(pack_dev->iomem))
-		return PTR_ERR(pack_dev->iomem);
+	mipi_dev->iomem = devm_ioremap_resource(&pdev->dev, res);
+	if (IS_ERR(mipi_dev->iomem)) {
+		printk(KERN_ERR "[%s] get mem res error\n", __func__);
+		ret = PTR_ERR(mipi_dev->iomem);
+		goto err;
+	}
 
-	platform_set_drvdata(pdev, pack_dev);
-	g_mipi_dev = pack_dev;
+#if MIPI_DEV_INT_DBG
+	res = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
+	if (!res) {
+		printk(KERN_ERR "[%s] get irq res error\n", __func__);
+		ret = -ENODEV;
+		goto err;
+	}
+	mipi_dev->irq = res->start;
+	ret = request_threaded_irq(mipi_dev->irq,
+							   mipi_dev_irq_func,
+							   NULL,
+							   IRQF_TRIGGER_HIGH,
+							   dev_name(&pdev->dev),
+							   mipi_dev);
+	if (ret) {
+		printk(KERN_ERR "[%s] request irq error %d\n", __func__, ret);
+		goto err;
+	}
+#endif
+
+	platform_set_drvdata(pdev, mipi_dev);
+	g_mipi_dev = mipi_dev;
 	dev_info(&pdev->dev, "X2 mipi dev prop OK\n");
 	return 0;
 err:
 	class_destroy(x2_mipi_dev_class);
 	cdev_del(&mipi_dev_cdev);
 	unregister_chrdev_region(MKDEV(mipi_dev_major, 0), 1);
-	if (pack_dev) {
-		devm_kfree(&pdev->dev, pack_dev);
-	}
+	kzfree(mipi_dev);
 	return ret;
 }
 
 static int x2_mipi_dev_remove(struct platform_device *pdev)
 {
-	mipi_dev_t *pack_dev = platform_get_drvdata(pdev);
+	mipi_dev_t *mipi_dev = platform_get_drvdata(pdev);
 	class_destroy(x2_mipi_dev_class);
 	cdev_del(&mipi_dev_cdev);
 	unregister_chrdev_region(MKDEV(mipi_dev_major, 0), 1);
-	devm_kfree(&pdev->dev, pack_dev);
+	kzfree(mipi_dev);
 	g_mipi_dev = NULL;
 	return 0;
 }

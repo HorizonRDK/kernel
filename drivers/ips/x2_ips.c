@@ -25,6 +25,95 @@
 #include <linux/pinctrl/consumer.h>
 
 #include "x2/x2_ips.h"
+
+#define IPSINTMASK          0x0
+#define IPSINTSTATE         0x4
+
+#define ISP_INT_BITS    (IPS_RSUM_FRAME_DONE|IPS_GRID_FRAME_DONE|IPS_TILE_FRAME_DONE|IPS_HIST_FRAME_DROP|IPS_RSUM_FRAME_DROP|IPS_GRID_FRAME_DROP|IPS_TILE_FRAME_DROP|IPS_RCCB_FRAME_FINISH)
+#define SIF_INT_BITS    (SIF_SIZE_ERR1|SIF_SIZE_ERR0|SIF_SOFT_DROP|SIF_FRAME_END_INTERRUPT|SIF_FRAME_START_INTERRUPT|MOT_DET)
+#define IPU_INT_BITS    (IPU_FRAME_DONE|IPU_FRAME_START|IPU_BUS23_TRANSMIT_ERRORS|IPU_BUS01_TRANSMIT_ERRORS|PYM_FRAME_START|PYM_FRAME_DONE|PYM_DS_FRAME_DROP|PYM_US_FRAME_DROP)
+
+#define IPBUSCFG            0x8
+
+#define IPSBUSCTL_WM0       0xc
+#define IPSBUSCTL_WM1       0x10
+#define IPSBUSCTL_WM2       0x14
+#define IPSBUSCTL_WM3       0x18
+#define IPSBUSCTL_WM4       0x1C
+#define IPSBUSCTL_WM5       0x20
+#define IPSBUSCTL_WM6       0x24
+#define IPSBUSCTL_WM7       0x28
+#define IPSBUSCTL_WM8       0x2C
+#define IPSBUSCTL_WM9       0x30
+#define IPSBUSCTL_WM10      0x34
+#define IPSBUSCTL_WM11      0x38
+#define IPSBUSCTL_WM12      0x3C
+#define IPSBUSCTL_WM13      0x40
+#define IPSBUSCTL_WM14      0x44
+#define IPSBUSCTL_WM15      0x48
+
+
+#define BUSCTL_MAXLEN_X     (0xff << 8)
+#define BUSCTL_ENDIAN_X     (0xf << 4)
+#define BUSCTL_PRI_X        (0xf << 0)
+
+#define BUSCTL_MAXLEN_SHIFT_X       8
+#define BUSCTL_ENDIAN_SHIFT_X       4
+#define BUSCTLD_PRI_SHIFT_X         0
+
+#define IPSBUSCTL_RM0       0x4C
+#define IPSBUSCTL_RM1       0x50
+#define IPSBUSCTL_RM2       0x54
+#define IPSBUSCTL_RM3       0x58
+#define IPSBUSCTL_RM4       0x5C
+#define IPSBUSCTL_RM5       0x60
+#define IPSBUSCTL_RM6       0x64
+#define IPSBUSCTL_RM7       0x68
+#define IPSBUSCTL_RM8       0x6C
+
+#define IPS_MIPI_DEV_PLL_CTRL1  0xE0
+#define IPS_MIPI_DEV_PLL_CTRL2  0xE4
+#define IPS_MIPI_HOST_PLL_CTRL1 0xE8
+#define IPS_MIPI_HOST_PLL_CTRL2 0xEC
+#define MIPI_PLL_SEL_CLR        ((0x3) << 20)
+#define MIPI_PLL_SEL(val)       ((val & 0x3) << 20)
+#define MIPI_IPI_FREQ_MIN       (6375) /*1632/32/8*/
+#define VIO_PLL_FREQ_DEFAULT    (1632000000)
+#define VIO_PLL_DIV_MIN         (1)
+#define VIO_PLL_DIV1_MAX        (32)
+#define VIO_PLL_DIV2_MAX        (8)
+
+#define IPS_MIPI_CTRL           0xF0
+#define MIPI_BPASS_GEN_DLY      (0x3f << 4)
+#define MIPI_BPASS_GEN_HSYNC    (1 << 1)
+#define MIPI_DEV_SHADOW_CLR     (1 << 0)
+
+#define IPS_MIPI_FREQRANGE      0xF4
+#define MIPI_DEV_CFGCLK_FRANGE  (0xff << 24)
+#define MIPI_DEV_HS_FRANGE      (0x7f << 16)
+#define MIPI_HOST_CFGCLK_FRANGE (0xff << 8)
+#define MIPI_HOST_HS_FRANGE     (0x3f << 0)
+
+#define IPS_STATUS      0xF8
+#define STATUS_PYM      (1 << 3)
+#define STATUS_IPU      (1 << 2)
+#define STATUS_IPS      (1 << 1)
+#define STATUS_SIF      (1 << 0)
+
+#define IPS_CTL     0xFC
+#define MIPI_DEV_CFG_CLK    (1 << 9)
+#define MIPI_HOST_CFG_CLK   (1 << 8)
+#define MIPI_DEV_IPI_CLK    (1 << 7)
+#define MIPI_HOST_IPI_CLK   (1 << 6)
+#define PDM_SRAM_CLK        (1 << 5)
+#define TILE_SRAM_CLK       (1 << 4)
+#define MOT_SRAM_CLK        (1 << 3)
+#define RCCB_SRAM_CLK       (1 << 2)
+#define IPU_SRAM_CLK        (1 << 1)
+#define IPS_SRAM_CLK        (1 << 0)
+
+#define VIOSYS_CLK_CTRL 0x310
+
 #define  RST_MAX (6)
 struct ips_dev_s {
 	struct platform_device *pdev;
@@ -41,6 +130,11 @@ struct ips_dev_s {
 	struct pinctrl *pinctrl;
 	struct pinctrl_state *pins_bt;
 	struct pinctrl_state *pins_dvp;
+	struct clk *vio_pll;
+	struct clk *vio_pllmux;
+	struct clk *ipi_div1;
+	struct clk *ipi_div2;
+	unsigned long clk_list[VIO_PLL_DIV1_MAX][VIO_PLL_DIV2_MAX];
 };
 struct ips_dev_s *g_ipsdev;
 
@@ -305,6 +399,12 @@ int ips_mipi_ctl_set(unsigned int region, unsigned int value)
 		break;
 	}
 	writel(val, g_ipsdev->regaddr + IPS_MIPI_CTRL);
+
+	val = readl(g_ipsdev->regaddr + IPS_MIPI_DEV_PLL_CTRL2);
+	val &= ~(MIPI_PLL_SEL_CLR);
+	val |= (MIPI_PLL_SEL(1));
+	writel(val, g_ipsdev->regaddr + IPS_MIPI_DEV_PLL_CTRL2);
+
 	spin_unlock_irqrestore(g_ipsdev->lock, flags);
 
 	return 0;
@@ -445,7 +545,7 @@ int ips_set_mipi_freqrange(unsigned int region, unsigned int value)
 
 	case MIPI_DEV_HSFREQRANGE:
 		val &= (~MIPI_DEV_HS_FRANGE);
-		val |= ((value << 24) & MIPI_DEV_HS_FRANGE);
+		val |= ((value << 16) & MIPI_DEV_HS_FRANGE);
 		break;
 
 	case MIPI_HOST_CFGCLKFREQRANGE:
@@ -463,6 +563,127 @@ int ips_set_mipi_freqrange(unsigned int region, unsigned int value)
 	return val;
 }
 EXPORT_SYMBOL_GPL(ips_set_mipi_freqrange);
+
+static void dump_clk_list(void)
+{
+	unsigned long  div1 = VIO_PLL_DIV_MIN;
+	unsigned long  div2 = VIO_PLL_DIV_MIN;
+	unsigned long  pll_out = 0;
+	for (div1 = VIO_PLL_DIV_MIN; div1 <= VIO_PLL_DIV1_MAX; div1++) {
+		for (div2 = VIO_PLL_DIV_MIN; div2 <= VIO_PLL_DIV2_MAX; div2++) {
+			pll_out = g_ipsdev->clk_list[div1 - 1][div2 - 1];
+			printk(KERN_INFO "div1 %lu, div2 %lu, ipi clk: %lu\n", div1, div2, pll_out);
+		}
+	}
+}
+
+static void get_clk_list(void)
+{
+	unsigned long  vio_pll = 0;
+	unsigned long  div1 = VIO_PLL_DIV_MIN;
+	unsigned long  div2 = VIO_PLL_DIV_MIN;
+	unsigned long  div1_pll = 0;
+	unsigned long  div2_pll = 0;
+	unsigned long  pll_out = 0;
+
+	if (!g_ipsdev->vio_pllmux || !g_ipsdev->ipi_div1 || !g_ipsdev->ipi_div2) {
+		printk(KERN_ERR "clk dev not inited\n");
+		return;
+	}
+
+	vio_pll = clk_get_rate(g_ipsdev->vio_pllmux);
+	printk(KERN_INFO "ipi ref clk %lu\n", vio_pll);
+	for (div1 = VIO_PLL_DIV_MIN; div1 <= VIO_PLL_DIV1_MAX; div1++) {
+		pll_out = (vio_pll + div1 - 1) / div1;
+		clk_set_rate(g_ipsdev->ipi_div1, pll_out);
+		div1_pll = clk_get_rate(g_ipsdev->ipi_div1);
+/*		printk(KERN_INFO "div1 set %lu, out %lu\n", pll_out, div1_pll);*/
+		for (div2 = VIO_PLL_DIV_MIN; div2 <= VIO_PLL_DIV2_MAX; div2++) {
+			pll_out = (div1_pll + div2 - 1) / div2;
+			clk_set_rate(g_ipsdev->ipi_div2, pll_out);
+			div2_pll = clk_get_rate(g_ipsdev->ipi_div2);
+/*			printk(KERN_INFO "div2 set %lu, out %lu\n", pll_out, div2_pll);*/
+			g_ipsdev->clk_list[div1 - 1][div2 - 1] = div2_pll;
+		}
+	}
+}
+
+unsigned long ips_set_mipi_ipi_clk(unsigned long clk)
+{
+	unsigned long  div1 = VIO_PLL_DIV_MIN;
+	unsigned long  div2 = VIO_PLL_DIV_MIN;
+	unsigned long  pll1 = 0;
+	unsigned long  pll2 = 0;
+	unsigned long  div1_pll = 0;
+	unsigned long  div2_pll = 0;
+	unsigned long  pll_max = g_ipsdev->clk_list[VIO_PLL_DIV_MIN - 1][VIO_PLL_DIV_MIN - 1];
+	unsigned long  pll_min = g_ipsdev->clk_list[VIO_PLL_DIV1_MAX - 1][VIO_PLL_DIV2_MAX - 1];
+	unsigned long  pll_out = pll_max;
+
+	if (!g_ipsdev->vio_pllmux || !g_ipsdev->ipi_div1 || !g_ipsdev->ipi_div2) {
+		printk(KERN_ERR "clk dev not inited\n");
+		return 0;
+	}
+	if ( ips_debug_ctl )
+		dump_clk_list();
+
+	if (clk > pll_max || clk < pll_min) {
+		printk(KERN_INFO "input freq %lu out of range: %lu-%lu\n", clk, pll_min, pll_max);
+		return 0;
+	}
+
+	for (div1 = VIO_PLL_DIV_MIN; div1 <= VIO_PLL_DIV1_MAX; div1++) {
+		pll1 = g_ipsdev->clk_list[div1 - 1][VIO_PLL_DIV_MIN - 1];
+		if (VIO_PLL_DIV_MIN == div2) {
+			pll2 = g_ipsdev->clk_list[div1 - 1][VIO_PLL_DIV2_MAX - 1];
+			if (pll2 > clk)
+				continue;
+		}
+		for (div2 = VIO_PLL_DIV_MIN; div2 <= VIO_PLL_DIV2_MAX; div2++) {
+			pll2 = g_ipsdev->clk_list[div1 - 1][div2 - 1];
+			if (pll2 == clk) {
+				div1_pll = pll1;
+				div2_pll = pll2;
+				goto finish;
+			}
+			if (pll2 < clk) {
+				if (div2 > VIO_PLL_DIV_MIN) {
+					pll2 = g_ipsdev->clk_list[div1 - 1][div2 - 2];
+					if (pll2 < pll_out) {
+						printk(KERN_INFO "last pll %lu, div1 %lu, div2 %lu\n", pll_out, pll1, pll2);
+						div1_pll = pll1;
+						div2_pll = pll2;
+						pll_out = div2_pll;
+					}
+					break;
+				}
+			}
+		}
+	}
+finish:
+	clk_set_rate(g_ipsdev->ipi_div1, div1_pll);
+	clk_set_rate(g_ipsdev->ipi_div2, div2_pll);
+
+	printk(KERN_INFO "div1 %lu, div2 %lu\n", div1_pll, div2_pll);
+	return div2_pll;
+}
+EXPORT_SYMBOL_GPL(ips_set_mipi_ipi_clk);
+
+unsigned long ips_get_mipi_ipi_clk(void)
+{
+	unsigned long div1_pll = 0;
+	unsigned long div2_pll = 0;
+
+	if (!g_ipsdev->ipi_div1 || !g_ipsdev->ipi_div2)
+		return 0;
+
+	div1_pll = clk_get_rate(g_ipsdev->ipi_div1);
+	div2_pll = clk_get_rate(g_ipsdev->ipi_div2);
+	printk(KERN_INFO "div1 clk %lu, div2 clk %lu\n", div1_pll, div2_pll);
+	return div2_pll;
+}
+EXPORT_SYMBOL_GPL(ips_get_mipi_ipi_clk);
+
 
 int ips_pinmux_bt(void)
 {
@@ -580,6 +801,57 @@ static int x2_ips_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "dvp in pinctrl state error\n");
 		return PTR_ERR(g_ipsdev->pins_dvp);
 	}
+
+	g_ipsdev->vio_pll = devm_clk_get(&pdev->dev, "vio_pll");
+	if (IS_ERR(g_ipsdev->vio_pll)) {
+		dev_err(&pdev->dev, "failed to get vio_pll\n");
+		return PTR_ERR(g_ipsdev->vio_pll);
+	}
+	ret = clk_prepare(g_ipsdev->vio_pll);
+	if (ret != 0) {
+		dev_err(&pdev->dev, "failed to prepare vio_pll\n");
+		return ret;
+	}
+
+	g_ipsdev->vio_pllmux = devm_clk_get(&pdev->dev, "vio_pllmux");
+	if (IS_ERR(g_ipsdev->vio_pllmux)) {
+		dev_err(&pdev->dev, "failed to get vio_pllmux\n");
+		return PTR_ERR(g_ipsdev->vio_pllmux);
+	}
+	ret = clk_set_parent(g_ipsdev->vio_pllmux, g_ipsdev->vio_pll);
+	if (ret != 0) {
+		dev_err(&pdev->dev, "failed to set parent of vio_pllmux\n");
+		return ret;
+	}
+	ret = clk_prepare(g_ipsdev->vio_pllmux);
+	if (ret != 0) {
+		dev_err(&pdev->dev, "failed to prepare vio_pllmux\n");
+		return ret;
+	}
+
+	g_ipsdev->ipi_div1 = devm_clk_get(&pdev->dev, "ipi_div1");
+	if (IS_ERR(g_ipsdev->ipi_div1)) {
+		dev_err(&pdev->dev, "failed to get ipi_div1\n");
+		return PTR_ERR(g_ipsdev->ipi_div1);
+	}
+	ret = clk_prepare(g_ipsdev->ipi_div1);
+	if (ret != 0) {
+		dev_err(&pdev->dev, "failed to prepare ipi_div1\n");
+		return ret;
+	}
+
+	g_ipsdev->ipi_div2 = devm_clk_get(&pdev->dev, "ipi_div2");
+	if (IS_ERR(g_ipsdev->ipi_div2)) {
+		dev_err(&pdev->dev, "failed to get ipi_div2\n");
+		return PTR_ERR(g_ipsdev->ipi_div2);
+	}
+	ret = clk_prepare(g_ipsdev->ipi_div2);
+	if (ret != 0) {
+		dev_err(&pdev->dev, "failed to prepare ipi_div2\n");
+		return ret;
+	}
+
+	get_clk_list();
 
 	g_ipsdev->irqnum = 3;
 	g_ipsdev->intstatus = 0;

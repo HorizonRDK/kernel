@@ -347,7 +347,7 @@ static void mipi_dev_dphy_testdata(uint16_t testcode, uint8_t testdata)
 	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL1, testdata);         /*set test data*/
 	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_CLK);    /*set testclk to high*/
 	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_RESETN); /*set testclk to low*/
-	mipiinfo("mipi host dphy test code:0x%x, data: 0x%x", testcode, testdata);
+	mipiinfo("mipi dev dphy test code:0x%x, data: 0x%x", testcode, testdata);
 }
 
 static const pll_range_table_t g_vco_range_table[] = {

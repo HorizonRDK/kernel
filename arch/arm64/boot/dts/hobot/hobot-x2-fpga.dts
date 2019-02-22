@@ -36,8 +36,8 @@
 		pwm1	= &pwm_1;
 		pwm2	= &pwm_2;
 		bifspi	= &bifspi;
-        bifsd   = &bifsd;
-        mmc0    = &sdio0;
+        	bifsd   = &bifsd;
+        	mmc0    = &sdio0;
 	};
 
 	chosen {
@@ -142,8 +142,11 @@
 };
 
 &ips {
+	clocks = <&viopll_clk>, <&vio_pllmux_clk>, <&mipi_ipi_1stdiv_clk>, <&mipi_ipi_2nddiv_clk>;
+	clock-names = "vio_pll", "vio_pllmux", "ipi_div1", "ipi_div2";
 	status = "okay";
 };
+
 &isp {
 	status = "okay";
 };

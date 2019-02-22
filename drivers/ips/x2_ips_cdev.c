@@ -115,7 +115,7 @@ static const struct file_operations ips_cdev_ops = {
 int __init ips_cdev_init(void)
 {
 	int error;
-	int ret = 0;
+	struct device *dev = NULL;
 	struct ips_cdev_s *ipsdev;
 
 	ipsdev = &g_ipscdev;
@@ -138,9 +138,9 @@ int __init ips_cdev_init(void)
 		return error;
 	}
 
-	device_create(ipsdev->ips_classes, NULL, ipsdev->dev_num, NULL, ipsdev->name);
-	if (ret)
-		return ret;
+	dev = device_create(ipsdev->ips_classes, NULL, ipsdev->dev_num, NULL, ipsdev->name);
+	if (IS_ERR(dev))
+		return PTR_ERR(dev);
 
 	return 0;
 }
