@@ -274,7 +274,10 @@ config ARCH_HOBOT
 	help
 	  Support for Hobot ARM based SoCs
 
-menu "Hobot X2 FPGA Family"
+if ARCH_HOBOT
+choice
+	prompt "X2 Family"
+	help
 
 config X2_FPGA
 	bool "X2 FPGA Support"
@@ -290,6 +293,7 @@ config X2_SOC
 	  This enables Hobot X2 SOC support.
 	  You only need to enable this, if you want to support x2 soc.
 
-endmenu
+endchoice
+endif #ARCH_HOBOT
 
 endmenu

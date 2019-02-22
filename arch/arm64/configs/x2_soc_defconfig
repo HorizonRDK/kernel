@@ -375,10 +375,7 @@ CONFIG_FREEZER=y
 # CONFIG_ARCH_ZX is not set
 # CONFIG_ARCH_ZYNQMP is not set
 CONFIG_ARCH_HOBOT=y
-
-#
-# Hobot X2 FPGA Family
-#
+# CONFIG_X2_FPGA is not set
 CONFIG_X2_SOC=y
 
 #
@@ -1228,6 +1225,7 @@ CONFIG_LEGACY_PTY_COUNT=16
 # CONFIG_SERIAL_NONSTANDARD is not set
 # CONFIG_N_GSM is not set
 # CONFIG_TRACE_SINK is not set
+CONFIG_X2_BIF=y
 CONFIG_DEVMEM=y
 
 #
@@ -1411,8 +1409,6 @@ CONFIG_GPIO_GENERIC=y
 #
 # Memory mapped GPIO drivers
 #
-# CONFIG_GPIO_X2 is not set
-# CONFIG_GPIO_X2_CDEV is not set
 # CONFIG_GPIO_74XX_MMIO is not set
 # CONFIG_GPIO_ALTERA is not set
 # CONFIG_GPIO_DWAPB is not set
