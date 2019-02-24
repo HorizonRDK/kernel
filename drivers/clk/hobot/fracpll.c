@@ -65,6 +65,7 @@ struct clk_fracpll {
 
 int fracpll_clk_enable(struct clk_hw *hw)
 {
+#if 0
 	struct clk_fracpll *clk;
 	unsigned int pd, foutpostdivpd;
 	unsigned int val;
@@ -88,12 +89,13 @@ int fracpll_clk_enable(struct clk_hw *hw)
 		writel(val, clk->reg.pd_reg);
 		spin_unlock_irqrestore(&clk->lock, flags);
 	}
-
+#endif
 	return 0;
 }
 
 static void fracpll_clk_disable(struct clk_hw *hw)
 {
+#if 0
 	struct clk_fracpll *clk;
 	unsigned int pd;
 	unsigned int val;
@@ -106,6 +108,7 @@ static void fracpll_clk_disable(struct clk_hw *hw)
 		val &= ~(1 << PLL_PD_CTRL_PD_BIT);
 		writel(val, clk->reg.pd_reg);
 	}
+#endif
 	return;
 }
 

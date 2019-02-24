@@ -34,7 +34,7 @@ int x2_gate_clk_enable(struct clk_hw *hw)
 	status = (val & (1 << clk->reg.state_bit)) >> clk->reg.state_bit;
 
 	if(!status){
-		writel( 1 << clk->reg.enable_bit, clk->reg.enable_reg);
+		writel( val | (1 << clk->reg.enable_bit), clk->reg.enable_reg);
 	}
 
 	__release(clk->lock);
@@ -46,7 +46,6 @@ void x2_gate_clk_disable(struct clk_hw *hw)
 
 	struct clk_gate_x2 *clk;
 	unsigned int val, status;
-
 	clk = to_clk_gate_x2(hw);
 
 	__acquire(clk->lock);
@@ -54,7 +53,7 @@ void x2_gate_clk_disable(struct clk_hw *hw)
 	status = (val & (1 << clk->reg.state_bit)) >> clk->reg.state_bit;
 
 	if(status){
-		writel( 1 << clk->reg.disable_bit, clk->reg.disable_reg);
+		writel( (~val) | (1 << clk->reg.disable_bit), clk->reg.disable_reg);
 	}
 
 	__release(clk->lock);

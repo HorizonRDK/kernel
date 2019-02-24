@@ -207,6 +207,7 @@ static int laintpll_set_rate(struct clk_hw *hw, unsigned long rate, unsigned lon
 
 int laintpll_clk_enable(struct clk_hw *hw)
 {
+#if 0
 	struct clk_laintpll *clk;
 	unsigned int pd, foutpostdivpd;
 	unsigned int val;
@@ -230,12 +231,13 @@ int laintpll_clk_enable(struct clk_hw *hw)
 		writel(val, clk->reg.pd_reg);
 		spin_unlock_irqrestore(&clk->lock, flags);
 	}
-
+#endif
 	return 0;
 }
 
 static void laintpll_clk_disable(struct clk_hw *hw)
 {
+#if 0
 	struct clk_laintpll *clk;
 	unsigned int pd;
 	unsigned int val;
@@ -248,6 +250,7 @@ static void laintpll_clk_disable(struct clk_hw *hw)
 		val &= ~(1 << PLL_PD_CTRL_PD_BIT);
 		writel(val, clk->reg.pd_reg);
 	}
+#endif
 	return;
 }
 
