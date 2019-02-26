@@ -40,6 +40,8 @@
 #define X2_UART_FIFO_SIZE	32	/* FIFO size */
 #define X2_UART_REGISTER_SPACE	0x1000
 
+unsigned int early_console_baud;
+
 /* Rx Trigger level */
 static int rx_trigger_level = 4;
 module_param(rx_trigger_level, uint, S_IRUGO);
@@ -521,13 +523,10 @@ static unsigned int x2_uart_set_baud_rate(struct uart_port *port,
 {
 	unsigned int calc_baud;
 	u32 bdiv_int = 0, bdiv_frac = 0;
-	u32 bcr_reg;
+	u32 bcr_reg = 0;
 	struct x2_uart *x2_uart = port->private_data;
 
 	calc_baud = x2_uart_calc_baud_divs(port->uartclk, baud, &bdiv_int, &bdiv_frac);
-
-	/* Write new divisors to hardware */
-	bcr_reg = readl(port->membase + X2_UART_BCR);
 
 #ifdef CONFIG_UART_LOW_SPEED_MODE
 	bcr_reg |= UART_BCR_BRDIV_MODE(0);
@@ -538,6 +537,7 @@ static unsigned int x2_uart_set_baud_rate(struct uart_port *port,
 #endif
 
 	bcr_reg |= (UART_BCR_BRDIV_INT(bdiv_int) | UART_BCR_BRDIV_FRAC(bdiv_frac));
+	/* Write new divisors to hardware */
 	writel(bcr_reg, port->membase + X2_UART_BCR);
 
 	x2_uart->baud = baud;
@@ -659,8 +659,17 @@ static void x2_uart_set_termios(struct uart_port *port,
 	ctrl_reg &= ~(UART_ENR_TX_EN | UART_ENR_RX_EN);
 	writel(ctrl_reg, port->membase + X2_UART_ENR);
 
-	minbaud = X2_UART_BCR_MINBAUD;
-	maxbaud = X2_UART_BCR_MAXBAUD;
+#ifdef CONFIG_UART_LOW_SPEED_MODE
+		minbaud = port->uartclk / (UART_BCR_BRDIV_INT_MASK * LOW_SPEED_MODE_DIV);
+		maxbaud = port->uartclk / LOW_SPEED_MODE_DIV;
+#elif CONFIG_UART_MID_SPEED_MODE
+		minbaud = port->uartclk / (UART_BCR_BRDIV_INT_MASK * MID_SPEED_MODE_DIV);
+		maxbaud = port->uartclk / MID_SPEED_MODE_DIV;
+#elif CONFIG_UART_HIGH_SPEED_MODE
+		minbaud = port->uartclk / (UART_BCR_BRDIV_INT_MASK * HIGH_SPEED_MODE_DIV);
+		maxbaud = port->uartclk / HIGH_SPEED_MODE_DIV;
+#endif
+
 	baud = uart_get_baud_rate(port, termios, old, minbaud, maxbaud);
 	baud = x2_uart_set_baud_rate(port, baud);
 	if (tty_termios_baud_rate(termios))
@@ -1177,6 +1186,7 @@ static int __init x2_early_console_setup(struct earlycon_device *device,
 		return -ENODEV;
 
 	device->con->write = x2_early_write;
+	early_console_baud = device->baud;
 
 	return 0;
 }
@@ -1244,7 +1254,7 @@ static void x2_uart_console_write(struct console *co, const char *s,
 static int __init x2_uart_console_setup(struct console *co, char *options)
 {
 	struct uart_port *port = &x2_uart_port[co->index];
-	int baud = 115200;
+	int baud = early_console_baud;
 	int bits = 8;
 	int parity = 'n';
 	int flow = 'n';

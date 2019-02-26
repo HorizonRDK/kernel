@@ -68,8 +68,6 @@
 #define LOW_SPEED_MODE_DIV 	16
 #define MID_SPEED_MODE_DIV 	8
 #define HIGH_SPEED_MODE_DIV	4
-#define X2_UART_BCR_MINBAUD 0
-#define X2_UART_BCR_MAXBAUD 115200
 
 /* Uart modem control register bits define */
 #define UART_MCR_DTRN			(1U << 0)
