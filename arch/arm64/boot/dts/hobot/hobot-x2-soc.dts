@@ -41,7 +41,7 @@
 
 	chosen {
 		bootargs = "earlycon loglevel=8 console=ttyS0 clk_ignore_unused";
-		stdout-path = "serial0:921600n8";
+		stdout-path = "serial0:115200n8";
 	};
 
 	memory@0 {
@@ -166,16 +166,21 @@
 
 &ethernet {
 	status = "okay";
-
-	/* local-mac-address = [ 00 11 22 33 44 55 ]; */
+    clocks = <&eth0_ephy_2nddiv_clk>, <&eth0_prediv_clk>, <&eth0_div_clk>;
+	clock-names = "phy_ref_clk", "mac_pre_div_clk", "mac_div_clk";
+    
+    pinctrl-names = "default";
+    pinctrl-0 = <&eth_func>; 
+    
+	/* local-mac-address = [ 00 11 22 33 44 55 ]; */   
 	phy-handle = <&phy1>;
 	phy-mode = "rgmii-id";
 	mdio {
 		#address-cells = <0x1>;
 		#size-cells = <0x0>;
-		phy1: phy@3 {
-			compatible = "marvell,88E1111","ethernet-phy-ieee802.3-c22";
-			reg = <0x3>;
+		phy1: phy@0 {
+			compatible = "marvell,88E1510","ethernet-phy-ieee802.3-c22";
+			reg = <0x0>;
 		};
 	};
 };

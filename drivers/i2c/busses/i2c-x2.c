@@ -462,6 +462,7 @@ static int x2_i2c_probe(struct platform_device *pdev)
 	i2c_dev->i2c_regs->cfg.bit.to_en = 1;
 	i2c_dev->i2c_regs->cfg.bit.dir_rd = 1;
 	i2c_dev->i2c_regs->tocnt.all = 0xffff;
+	i2c_dev->i2c_regs->cfg.bit.clkdiv = 0xef;
 	//i2c_dev->i2c_regs->SPRCPND.all= 0xffffffff;//clear int
 #else //non transcation mode
 	//i2c_dev->i2c_regs->CFG.bit.clkdiv = 1;
