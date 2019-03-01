@@ -716,9 +716,11 @@ int ips_set_btout_clksrc(unsigned int mode)
 		val &= ~BIT(16);
 	else
 		return -1;
+	val |= BIT(12); //set clk invert
 	spin_lock_irqsave(g_ipsdev->lock, flags);
 	writel(val, g_ipsdev->clkaddr + VIOSYS_CLK_CTRL);
 	spin_unlock_irqrestore(g_ipsdev->lock, flags);
+
 	return ret;
 }
 EXPORT_SYMBOL_GPL(ips_set_btout_clksrc);
@@ -801,7 +803,7 @@ static int x2_ips_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "dvp in pinctrl state error\n");
 		return PTR_ERR(g_ipsdev->pins_dvp);
 	}
-
+#if 0
 	g_ipsdev->vio_pll = devm_clk_get(&pdev->dev, "vio_pll");
 	if (IS_ERR(g_ipsdev->vio_pll)) {
 		dev_err(&pdev->dev, "failed to get vio_pll\n");
@@ -852,7 +854,7 @@ static int x2_ips_probe(struct platform_device *pdev)
 	}
 
 	get_clk_list();
-
+#endif
 	g_ipsdev->irqnum = 3;
 	g_ipsdev->intstatus = 0;
 
