@@ -26,11 +26,13 @@
 #include <linux/seq_file.h>
 #include <linux/interrupt.h>
 #include <linux/irq.h>
+#include <linux/delay.h>
 
 #include "x2/x2_mipi_dev.h"
 #include "x2_mipi_dev_regs.h"
 #include "x2_mipi_dphy.h"
 #include "x2_mipi_utils.h"
+#include "x2/x2_ips.h"
 
 #define MIPI_DEV_INT_DBG            (1)
 
@@ -74,6 +76,7 @@
 #define MIPI_DEV_VPG_STEP_LINE      (0x00)
 #define MIPI_DEV_CHECK_MAX          (500)
 
+#define MIPI_DEV_CFGCLK_DEFAULT     (0x1C)
 #define MIPI_DEV_VPG_DEF_MCLK       (24)
 #define MIPI_DEV_VPG_DEF_PCLK       (384)
 #define MIPI_DEV_VPG_DEF_SETTLE     (0x30)
@@ -253,6 +256,7 @@ static int32_t mipi_dev_initialize_vgp(mipi_dev_cfg_t *control)
 			mipierr("vga status of dev is error: 0x%x", status);
 			return -1;
 		}
+		mdelay(1);
 		ncount++;
 	} while (MIPI_DEV_VPG_DISABLE != status);
 
@@ -417,7 +421,8 @@ static int32_t mipi_dev_wait_phy_powerup(mipi_dev_cfg_t *control)
 				return 0;
 		}
 		ncount++;
-	} while (1); //ncount <= MIPI_DEV_PHY_CHECK_MAX );
+		mdelay(1);
+	} while ( ncount <= DEV_DPHY_CHECK_MAX );
 	mipierr("lane state of dev phy is error: 0x%x", state);
 	return -1;
 }
@@ -497,6 +502,7 @@ int32_t mipi_dev_init(mipi_dev_cfg_t *control)
 	mipiinfo("mipi device init begin");
 	mipiinfo("mipi device iomem %p", iomem);
 
+	ips_set_mipi_freqrange(MIPI_DEV_CFGCLKFREQRANGE, MIPI_DEV_CFGCLK_DEFAULT);
 	/*Reset DWC_mipicsi2_device*/
 	mipi_putreg(iomem + REG_MIPI_DEV_CSI2_RESETN, MIPI_DEV_CSI2_RESETN);
 #ifdef CONFIG_X2_MIPI_PHY

@@ -92,7 +92,9 @@
 #define MIPI_DEV_CFGCLK_FRANGE  (0xff << 24)
 #define MIPI_DEV_HS_FRANGE      (0x7f << 16)
 #define MIPI_HOST_CFGCLK_FRANGE (0xff << 8)
-#define MIPI_HOST_HS_FRANGE     (0x3f << 0)
+#define MIPI_HOST_HS_FRANGE     (0x7f << 0)
+#define RX_CFGCLK_DEFAULT       (0x1C)
+#define TX_CFGCLK_DEFAULT       (0x1C)
 
 #define IPS_STATUS      0xF8
 #define STATUS_PYM      (1 << 3)
@@ -399,12 +401,6 @@ int ips_mipi_ctl_set(unsigned int region, unsigned int value)
 		break;
 	}
 	writel(val, g_ipsdev->regaddr + IPS_MIPI_CTRL);
-
-	val = readl(g_ipsdev->regaddr + IPS_MIPI_DEV_PLL_CTRL2);
-	val &= ~(MIPI_PLL_SEL_CLR);
-	val |= (MIPI_PLL_SEL(1));
-	writel(val, g_ipsdev->regaddr + IPS_MIPI_DEV_PLL_CTRL2);
-
 	spin_unlock_irqrestore(g_ipsdev->lock, flags);
 
 	return 0;
@@ -535,6 +531,12 @@ int ips_set_mipi_freqrange(unsigned int region, unsigned int value)
 	if (!g_ipsdev)
 		return -1;
 	spin_lock_irqsave(g_ipsdev->lock, flags);
+
+	val = readl(g_ipsdev->regaddr + IPS_MIPI_DEV_PLL_CTRL2);
+	val &= ~(MIPI_PLL_SEL_CLR);
+	val |= (MIPI_PLL_SEL(1));
+	writel(val, g_ipsdev->regaddr + IPS_MIPI_DEV_PLL_CTRL2);
+
 	val = readl(g_ipsdev->regaddr + IPS_MIPI_FREQRANGE);
 	spin_unlock_irqrestore(g_ipsdev->lock, flags);
 	switch (region) {
@@ -560,6 +562,8 @@ int ips_set_mipi_freqrange(unsigned int region, unsigned int value)
 		val = -1;
 		break;
 	}
+	writel(val, g_ipsdev->regaddr + IPS_MIPI_FREQRANGE);
+	printk(KERN_INFO "set mipi region %d range %d, regv 0x%x\n", region, value, val);
 	return val;
 }
 EXPORT_SYMBOL_GPL(ips_set_mipi_freqrange);
@@ -624,7 +628,7 @@ unsigned long ips_set_mipi_ipi_clk(unsigned long clk)
 		printk(KERN_ERR "clk dev not inited\n");
 		return 0;
 	}
-	if ( ips_debug_ctl )
+	if (ips_debug_ctl)
 		dump_clk_list();
 
 	if (clk > pll_max || clk < pll_min) {
@@ -634,11 +638,9 @@ unsigned long ips_set_mipi_ipi_clk(unsigned long clk)
 
 	for (div1 = VIO_PLL_DIV_MIN; div1 <= VIO_PLL_DIV1_MAX; div1++) {
 		pll1 = g_ipsdev->clk_list[div1 - 1][VIO_PLL_DIV_MIN - 1];
-		if (VIO_PLL_DIV_MIN == div2) {
-			pll2 = g_ipsdev->clk_list[div1 - 1][VIO_PLL_DIV2_MAX - 1];
-			if (pll2 > clk)
-				continue;
-		}
+		pll2 = g_ipsdev->clk_list[div1 - 1][VIO_PLL_DIV_MIN - 1];
+		if (pll2 < clk)
+			break;
 		for (div2 = VIO_PLL_DIV_MIN; div2 <= VIO_PLL_DIV2_MAX; div2++) {
 			pll2 = g_ipsdev->clk_list[div1 - 1][div2 - 1];
 			if (pll2 == clk) {
@@ -647,16 +649,14 @@ unsigned long ips_set_mipi_ipi_clk(unsigned long clk)
 				goto finish;
 			}
 			if (pll2 < clk) {
-				if (div2 > VIO_PLL_DIV_MIN) {
-					pll2 = g_ipsdev->clk_list[div1 - 1][div2 - 2];
-					if (pll2 < pll_out) {
-						printk(KERN_INFO "last pll %lu, div1 %lu, div2 %lu\n", pll_out, pll1, pll2);
-						div1_pll = pll1;
-						div2_pll = pll2;
-						pll_out = div2_pll;
-					}
-					break;
+				pll2 = g_ipsdev->clk_list[div1 - 1][div2 - 2];
+				if (pll2 - clk <= pll_out - clk) {
+					printk(KERN_INFO "last pllclk %lu: diff %lu, curr pllclk %lu: diff %lu", pll_out, pll_out - clk, pll2, pll2 - clk);
+					div1_pll = pll1;
+					div2_pll = pll2;
+					pll_out = div2_pll;
 				}
+				break;
 			}
 		}
 	}
@@ -703,7 +703,7 @@ int ips_pinmux_dvp(void)
 }
 EXPORT_SYMBOL_GPL(ips_pinmux_dvp);
 
-int ips_set_btout_clksrc(unsigned int mode)
+int ips_set_btout_clksrc(unsigned int mode, uint8_t invert)
 {
 	int val, ret = 0;
 	unsigned long flags;
@@ -716,11 +716,10 @@ int ips_set_btout_clksrc(unsigned int mode)
 		val &= ~BIT(16);
 	else
 		return -1;
-	val |= BIT(12); //set clk invert
+	val |= (invert * BIT(12)); //set clk invert
 	spin_lock_irqsave(g_ipsdev->lock, flags);
 	writel(val, g_ipsdev->clkaddr + VIOSYS_CLK_CTRL);
 	spin_unlock_irqrestore(g_ipsdev->lock, flags);
-
 	return ret;
 }
 EXPORT_SYMBOL_GPL(ips_set_btout_clksrc);
@@ -803,28 +802,28 @@ static int x2_ips_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "dvp in pinctrl state error\n");
 		return PTR_ERR(g_ipsdev->pins_dvp);
 	}
-#if 0
-	g_ipsdev->vio_pll = devm_clk_get(&pdev->dev, "vio_pll");
-	if (IS_ERR(g_ipsdev->vio_pll)) {
-		dev_err(&pdev->dev, "failed to get vio_pll\n");
-		return PTR_ERR(g_ipsdev->vio_pll);
-	}
-	ret = clk_prepare(g_ipsdev->vio_pll);
-	if (ret != 0) {
-		dev_err(&pdev->dev, "failed to prepare vio_pll\n");
-		return ret;
-	}
+
+/*	g_ipsdev->vio_pll = devm_clk_get(&pdev->dev, "vio_pll");*/
+/*	if (IS_ERR(g_ipsdev->vio_pll)) {						*/
+/*		dev_err(&pdev->dev, "failed to get vio_pll\n");		*/
+/*		return PTR_ERR(g_ipsdev->vio_pll);					*/
+/*	}														*/
+/*	ret = clk_prepare(g_ipsdev->vio_pll);					*/
+/*	if (ret != 0) {											*/
+/*		dev_err(&pdev->dev, "failed to prepare vio_pll\n");	*/
+/*		return ret;											*/
+/*	}														*/
 
 	g_ipsdev->vio_pllmux = devm_clk_get(&pdev->dev, "vio_pllmux");
 	if (IS_ERR(g_ipsdev->vio_pllmux)) {
 		dev_err(&pdev->dev, "failed to get vio_pllmux\n");
 		return PTR_ERR(g_ipsdev->vio_pllmux);
 	}
-	ret = clk_set_parent(g_ipsdev->vio_pllmux, g_ipsdev->vio_pll);
-	if (ret != 0) {
-		dev_err(&pdev->dev, "failed to set parent of vio_pllmux\n");
-		return ret;
-	}
+/*	ret = clk_set_parent(g_ipsdev->vio_pllmux, g_ipsdev->vio_pll);	*/
+/*	if (ret != 0) {													*/
+/*		dev_err(&pdev->dev, "failed to set parent of vio_pllmux\n");*/
+/*		return ret;													*/
+/*	}																*/
 	ret = clk_prepare(g_ipsdev->vio_pllmux);
 	if (ret != 0) {
 		dev_err(&pdev->dev, "failed to prepare vio_pllmux\n");
@@ -854,7 +853,7 @@ static int x2_ips_probe(struct platform_device *pdev)
 	}
 
 	get_clk_list();
-#endif
+
 	g_ipsdev->irqnum = 3;
 	g_ipsdev->intstatus = 0;
 

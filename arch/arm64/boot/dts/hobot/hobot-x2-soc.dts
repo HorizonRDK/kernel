@@ -111,6 +111,12 @@
 
 &i2c0 {
 	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	x2_camera@0x7f {
+	    compatible = "x2,camera";
+	    reg = <0x7f>;
+	};
 };
 
 &pinctrl {
@@ -124,8 +130,11 @@
 };
 
 &ips {
+	clocks = <&vio_pllmux_clk>, <&mipi_ipi_1stdiv_clk>, <&mipi_ipi_2nddiv_clk>;
+	clock-names = "vio_pllmux", "ipi_div1", "ipi_div2";
 	status = "okay";
 };
+
 &isp {
 	status = "okay";
 };
@@ -140,6 +149,7 @@
 &mipi_host {
 	status = "okay";
 };
+
 &mipi_dev {
 	status = "okay";
 };
@@ -166,11 +176,11 @@
 
 &ethernet {
 	status = "okay";
-    clocks = <&eth0_ephy_2nddiv_clk>, <&eth0_prediv_clk>, <&eth0_div_clk>;
+	clocks = <&eth0_ephy_2nddiv_clk>, <&eth0_prediv_clk>, <&eth0_div_clk>;
 	clock-names = "phy_ref_clk", "mac_pre_div_clk", "mac_div_clk";
     
-    pinctrl-names = "default";
-    pinctrl-0 = <&eth_func>; 
+	pinctrl-names = "default";
+	pinctrl-0 = <&eth_func>; 
     
 	/* local-mac-address = [ 00 11 22 33 44 55 ]; */   
 	phy-handle = <&phy1>;

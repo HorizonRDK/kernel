@@ -26,6 +26,7 @@
 #include <linux/seq_file.h>
 #include <linux/interrupt.h>
 #include <linux/irq.h>
+#include <linux/delay.h>
 
 #include "x2/x2_mipi_host.h"
 #include "x2_mipi_host_regs.h"
@@ -54,6 +55,7 @@
 #define MIPI_HOST_HSATIME          (0x04)
 #define MIPI_HOST_HBPTIME          (0x04)
 #define MIPI_HOST_HSDTIME          (0x5f4)
+#define MIPI_HOST_CFGCLK_DEFAULT   (0x1C)
 
 #define HOST_DPHY_LANE_MAX         (4)
 #define HOST_DPHY_CHECK_MAX        (500)
@@ -87,7 +89,7 @@ typedef enum _mipi_state_t {
 	MIPI_STATE_MAX,
 } mipi_state_t;
 
-unsigned int mipi_host_nocheck = 1;
+unsigned int mipi_host_nocheck = 0;
 module_param(mipi_host_nocheck, uint, S_IRUGO | S_IWUSR);
 
 #define MIPIHOSTIOC_READ        _IOWR(MIPIHOSTIOC_MAGIC, 4, reg_t)
@@ -125,33 +127,22 @@ static unsigned long mipi_host_pixel_clk_select(mipi_host_cfg_t *control)
 {
 	unsigned long pixclk = control->linelenth * control->framelenth * control->fps;
 	unsigned long pixclk_act = pixclk;
-    
-	if (!control->linelenth || control->linelenth == control->width) {
-        control->mipiclk = control->mipiclk * 1000000;
-		switch (control->datatype) {
-		case MIPI_CSI2_DT_YUV420_8:
-			pixclk = control->mipiclk / (8 * 3 / 2);
-			break;
-		case MIPI_CSI2_DT_YUV420_10:
-			pixclk = control->mipiclk / (16 * 3 / 2);
-			break;
-		case MIPI_CSI2_DT_YUV422_8:
-			pixclk = control->mipiclk / (8 * 2);
-			break;
-		case MIPI_CSI2_DT_YUV422_10:
-			pixclk = control->mipiclk / (16 * 2);
-			break;
-		case MIPI_CSI2_DT_RAW_8:
-			pixclk = control->mipiclk / 8;
-			break;
-		case MIPI_CSI2_DT_RAW_10:
-			pixclk = control->mipiclk / 10;
-			break;
-		default:
-			pixclk = control->mipiclk / 16;
-			break;
-		}
+	unsigned long linelenth = control->linelenth;
+	unsigned long framelenth = control->framelenth;
+
+	if (!control->fps) {
+		mipiinfo("input FPS can't be zero!!!");
+		return 0;
 	}
+	if (!control->linelenth)
+		linelenth = control->width;
+	if (!control->framelenth)
+		framelenth = control->height;
+	pixclk = linelenth * framelenth * control->fps;
+	if (control->datatype < MIPI_CSI2_DT_RAW_8)
+		pixclk = pixclk;
+	else
+		pixclk = pixclk / 3;
 	pixclk_act = ips_set_mipi_ipi_clk(pixclk);
 	mipiinfo("host fifo clk pixclk: %lu, actual pixclk: %lu", pixclk, pixclk_act);
 	pixclk_act = ips_get_mipi_ipi_clk();
@@ -198,21 +189,35 @@ static uint16_t mipi_host_get_hsd(mipi_host_cfg_t *control, unsigned long pixclk
 	switch (control->datatype) {
 	case MIPI_CSI2_DT_YUV420_8:
 		bits_per_pixel = 8 * 3 / 2;
+		cycles_to_trans = control->width;
 		break;
 	case MIPI_CSI2_DT_YUV420_10:
 		bits_per_pixel = 16 * 3 / 2;
+		cycles_to_trans = control->width;
 		break;
 	case MIPI_CSI2_DT_YUV422_8:
 		bits_per_pixel = 8 * 2;
+		cycles_to_trans = control->width;
 		break;
 	case MIPI_CSI2_DT_YUV422_10:
 		bits_per_pixel = 16 * 2;
+		cycles_to_trans = control->width;
 		break;
 	case MIPI_CSI2_DT_RAW_8:
 		bits_per_pixel = 8;
+		cycles_to_trans = (control->width + 2) / 3;
 		break;
 	case MIPI_CSI2_DT_RAW_10:
 		bits_per_pixel = 10;
+		cycles_to_trans = (control->width + 2) / 3;
+		break;
+	case MIPI_CSI2_DT_RAW_12:
+		bits_per_pixel = 12;
+		cycles_to_trans = (control->width + 2) / 3;
+		break;
+	case MIPI_CSI2_DT_RAW_14:
+		bits_per_pixel = 14;
+		cycles_to_trans = (control->width + 2) / 3;
 		break;
 	default:
 		bits_per_pixel = 16;
@@ -222,7 +227,6 @@ static uint16_t mipi_host_get_hsd(mipi_host_cfg_t *control, unsigned long pixclk
 		rx_bit_clk = control->mipiclk * 1000000;
 	else
 		rx_bit_clk = control->linelenth * control->framelenth * control->fps * bits_per_pixel;
-	cycles_to_trans = control->width;
 	mipiinfo("linelenth: %d, framelenth: %d, fps: %d, bits_per_pixel: %lu, pixclk: %lu",
 			 control->linelenth, control->framelenth, control->fps, bits_per_pixel, pixclk);
 	time_ppi = (1000 * bits_per_pixel * line_size * 1000000 / rx_bit_clk);
@@ -467,11 +471,12 @@ static int32_t mipi_host_dphy_wait_stop(mipi_host_cfg_t *control)
 	mipiinfo("mipi host check phy stop state");
 	/*Check that data lanes are in Stop state*/
 	do {
-		ncount++;
 		stopstate = mipi_getreg(iomem + REG_MIPI_HOST_PHY_STOPSTATE);
 		if ((stopstate & 0xF) == HOST_DPHY_LANE_STOP(control->lane))
 			return 0;
-	} while (1); //ncount <= MIPI_HOST_PHY_CHECK_MAX );
+		mdelay(1);
+		ncount++;
+	} while ( ncount <= HOST_DPHY_CHECK_MAX );
 	mipierr("lane state of host phy is error: 0x%x", stopstate);
 	return -1;
 }
@@ -496,13 +501,14 @@ static int32_t mipi_host_dphy_start_hs_reception(void)
 	mipiinfo("mipi host check hs reception");
 	/*Check that clock lane is in HS mode*/
 	do {
-		ncount++;
 		state = mipi_getreg(iomem + REG_MIPI_HOST_PHY_RX);
 		if ((state & HOST_DPHY_RX_HS) == HOST_DPHY_RX_HS) {
 			mipiinfo("mipi host entry hs reception");
 			return 0;
 		}
-	} while (1); //ncount <= MIPI_HOST_PHY_CHECK_MAX );
+		ncount++;
+		mdelay(1);
+	} while ( ncount <= HOST_DPHY_CHECK_MAX );
 	mipiinfo("mipi host hs reception check error");
 	return -1;
 }
@@ -588,11 +594,14 @@ int32_t mipi_host_init(mipi_host_cfg_t *control)
 	}
 	iomem = g_mipi_host->iomem;
 	mipiinfo("mipi host init begin");
+	mipiinfo("%d lane %dx%d %dfps datatype 0x%x",
+			 control->lane, control->width, control->height, control->fps, control->datatype);
 	pixclk = mipi_host_pixel_clk_select(control);
 	if (0 == pixclk) {
 		mipierr("host pixel clk config error!");
 		return -1;
 	}
+	ips_set_mipi_freqrange(MIPI_HOST_CFGCLKFREQRANGE, MIPI_HOST_CFGCLK_DEFAULT);
 	/*Set DWC_mipi_csi2_host reset*/
 	mipi_putreg(iomem + REG_MIPI_HOST_CSI2_RESETN, MIPI_HOST_CSI2_RESETN);
 	/*Set Synopsys D-PHY Reset*/

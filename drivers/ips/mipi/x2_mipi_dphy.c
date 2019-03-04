@@ -40,8 +40,6 @@
 #define DPHY_TEST_ENABLE         (0x00010000)
 #define DPHY_TEST_DATA_MAX       (4)
 
-#define RX_CFGCLK_DEFAULT        (24)
-#define TX_CFGCLK_DEFAULT        (24)
 #define TX_REFSCLK_DEFAULT       (24)
 #define TX_PLL_INPUT_DIV_MIN     (1)
 #define TX_PLL_INPUT_DIV_MAX     (16)
@@ -74,6 +72,7 @@
 #define REGS_TX_PLL_2            (0x160)
 #define REGS_TX_PLL_3            (0x161)
 #define REGS_TX_PLL_4            (0x162)
+#define REGS_TX_PLL_17           (0x16E)
 #define REGS_TX_PLL_19           (0x170)
 #define REGS_TX_PLL_27           (0x178)
 #define REGS_TX_PLL_28           (0x179)
@@ -84,7 +83,7 @@
 
 /*test code: data*/
 #define RX_CLK_SETTLE_EN         (0x01)
-#define RX_CLK_SETTLE            (0x5 << 4)
+#define RX_CLK_SETTLE            (0x1 << 4)
 #define RX_HS_SETTLE(s)          (0x80 | ((s) & 0x7F))
 #define RX_SYSTEM_CONFIG         (0x38)
 #define RX_OSCFREQ_HIGH          (0x1)
@@ -100,6 +99,7 @@
 #define TX_PLL_VCO(v)            (0x80 | ((v) & 0x1F) << 1)
 #define TX_PLL_CPBIAS            (0x10)
 #define TX_PLL_INT_CTL           (0x4)
+#define TX_PLL_PROP_CNTRL        (0x0C)
 #define TX_PLL_RST_TIME_L        (0xFF)
 #define TX_PLL_GEAR_SHIFT_L      (0x6)
 #define TX_PLL_GEAR_SHIFT_H      (0x1)
@@ -228,10 +228,11 @@ static uint32_t mipi_dphy_clk_range(uint32_t mipiclk)
 {
 	uint8_t  index = 0;
 	for (index = 0; index < sizeof(g_pll_sel_table) / sizeof(pll_sel_table_t); index++) {
-		if (mipiclk <= g_pll_sel_table[index].freq)
+		if (mipiclk <= g_pll_sel_table[index].freq) {
 			mipiinfo("pll div mipiclk: %d, selected clk: %d, range value: %d",
 					 mipiclk, g_pll_sel_table[index].freq, g_pll_sel_table[index].value);
-		return g_pll_sel_table[index].value;
+			return g_pll_sel_table[index].value;
+		}
 	}
 	mipiinfo("mipi clock %d not supported", mipiclk);
 	return 0;
@@ -247,8 +248,8 @@ static uint32_t mipi_dphy_clk_range(uint32_t mipiclk)
  */
 static void mipi_host_dphy_testdata(uint16_t testcode, uint8_t testdata)
 {
+	uint32_t regv = 0;
 	/*write test code*/
-	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_RESETN); /*Ensure that testclk and testen is set to low*/
 	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL1, DPHY_TEST_ENABLE); /*set testen to high*/
 	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_CLK);    /*set testclk to high*/
 	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_RESETN); /*set testclk to low*/
@@ -256,9 +257,10 @@ static void mipi_host_dphy_testdata(uint16_t testcode, uint8_t testdata)
 	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_CLK);    /*set testclk to high*/
 
 	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_RESETN); /*set testclk to low*/
-	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL1, DPHY_TEST_ENABLE); /*set testen to high*/
+	regv = mipi_getreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL1);
+	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL1, DPHY_TEST_ENABLE | regv); /*set testen to high*/
 	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_CLK);    /*set testclk to high*/
-	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL1, testcode & 0xff);  /*set test code LSBS*/
+	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL1, DPHY_TEST_ENABLE | (testcode & 0xff));  /*set test code LSBS*/
 	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_RESETN); /*set testclk to low*/
 
 	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL1, testdata);         /*set test data*/
@@ -282,13 +284,14 @@ int32_t mipi_host_dphy_initialize(uint16_t mipiclk, uint16_t lane, uint16_t sett
 	/*Release Synopsys-PHY test codes from reset*/
 	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL1, DPHY_TEST_RESETN);
 	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_CLEAR);
-	/*Configure the D-PHY frequency range*/
-	ips_set_mipi_freqrange(MIPI_HOST_CFGCLKFREQRANGE, RX_CFGCLK_DEFAULT);
-	ips_set_mipi_freqrange(MIPI_HOST_HSFREQRANGE, mipi_dphy_clk_range(mipiclk / lane));
+	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_RESETN);
+	 /*Ensure that testclk and testen is set to low*/
 
 	mipi_host_dphy_testdata(REGS_RX_STARTUP_OVR_5, RX_CLK_SETTLE_EN);
 	mipi_host_dphy_testdata(REGS_RX_STARTUP_OVR_4, RX_CLK_SETTLE);
-	mipi_host_dphy_testdata(REGS_RX_STARTUP_OVR_17, RX_HS_SETTLE(settle));
+	//mipi_host_dphy_testdata(REGS_RX_STARTUP_OVR_17, RX_HS_SETTLE(settle));
+	/*Configure the D-PHY frequency range*/
+	ips_set_mipi_freqrange(MIPI_HOST_HSFREQRANGE, mipi_dphy_clk_range(mipiclk / lane));
 	mipi_host_dphy_testdata(REGS_RX_SYS_7, RX_SYSTEM_CONFIG);
 	mipi_host_dphy_testdata(REGS_RX_LANE0_DDL_4, RX_OSCFREQ_LOW);
 	mipi_host_dphy_testdata(REGS_RX_LANE0_DDL_5, RX_OSCFREQ_HIGH);
@@ -330,8 +333,8 @@ void mipi_host_dphy_reset(void)
  */
 static void mipi_dev_dphy_testdata(uint16_t testcode, uint8_t testdata)
 {
+	uint32_t regv = 0;
 	/*write test code*/
-	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_RESETN); /*Ensure that testclk and testen is set to low*/
 	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL1, DPHY_TEST_ENABLE); /*set testen to high*/
 	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_CLK);    /*set testclk to high*/
 	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_RESETN); /*set testclk to low*/
@@ -339,9 +342,10 @@ static void mipi_dev_dphy_testdata(uint16_t testcode, uint8_t testdata)
 	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_CLK);    /*set testclk to high*/
 
 	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_RESETN); /*set testclk to low*/
-	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL1, DPHY_TEST_ENABLE); /*set testen to high*/
+	regv = mipi_getreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL1);
+	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL1, DPHY_TEST_ENABLE | regv); /*set testen to high*/
 	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_CLK);    /*set testclk to high*/
-	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL1, testcode & 0xff);  /*set test code LSBS*/
+	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL1, DPHY_TEST_ENABLE | (testcode & 0xff));  /*set test code LSBS*/
 	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_RESETN); /*set testclk to low*/
 
 	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL1, testdata);         /*set test data*/
@@ -445,16 +449,16 @@ int32_t mipi_dev_dphy_initialize(uint16_t mipiclk, uint16_t lane, uint16_t settl
 
 	mipiinfo("mipi device initialize dphy begin");
 
-	/*Configure the D-PHY PLL*/
+	/*Configure the D-PHY PLL*/ 
 	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_CLEAR);
 	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_RESETN);
+	/*Ensure that testclk and testen is set to low*/
 	outclk = mipi_tx_pll_div(TX_REFSCLK_DEFAULT, (mipiclk / lane), &n, &m, &vco);
 	if (0 == outclk) {
 		mipierr("pll control error!");
 		return -1;
 	}
 	/*Configure the D-PHY frequency range*/
-	ips_set_mipi_freqrange(MIPI_DEV_CFGCLKFREQRANGE, TX_CFGCLK_DEFAULT);
 	ips_set_mipi_freqrange(MIPI_DEV_HSFREQRANGE, mipi_dphy_clk_range(mipiclk / lane));
 
 	mipi_dev_dphy_testdata(REGS_TX_SLEW_5, TX_SLEW_RATE_CAL);
@@ -466,7 +470,7 @@ int32_t mipi_dev_dphy_initialize(uint16_t mipiclk, uint16_t lane, uint16_t settl
 	mipi_dev_dphy_testdata(REGS_TX_SYSTIMERS_23, TX_HS_ZERO(settle));
 	mipi_dev_dphy_testdata(REGS_TX_PLL_1,  TX_PLL_CPBIAS);
 	mipi_dev_dphy_testdata(REGS_TX_PLL_4,  TX_PLL_INT_CTL);
-	mipi_dev_dphy_testdata(REGS_TX_PLL_19, TX_PLL_RST_TIME_L);
+	mipi_dev_dphy_testdata(REGS_TX_PLL_17, TX_PLL_PROP_CNTRL);
 	mipi_dev_dphy_testdata(REGS_TX_PLL_19, TX_PLL_RST_TIME_L);
 	mipi_dev_dphy_testdata(REGS_TX_PLL_2,  TX_PLL_GEAR_SHIFT_L);
 	mipi_dev_dphy_testdata(REGS_TX_PLL_3,  TX_PLL_GEAR_SHIFT_H);

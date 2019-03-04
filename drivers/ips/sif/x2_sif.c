@@ -151,7 +151,7 @@ static int sif_init(sif_t *dev, sif_cfg_t *cfg)
 	} else if (BUS_TYPE_BT1120 == cfg->sif_init.bus_type) {
 		ips_pinmux_bt();
 		if (cfg->sif_init.bypass_en)
-			ips_set_btout_clksrc(BYPASS_CLK);
+			ips_set_btout_clksrc(BYPASS_CLK, cfg->sif_init.pclk_out_inv);
 	} else {
 		if (cfg->sif_init.bypass_en) {
 			ips_mipi_ctl_set(MIPI_BYPASS_GEN_HSYNC_DLY_CNT, 4);

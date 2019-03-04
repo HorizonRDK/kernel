@@ -1335,7 +1335,7 @@ CONFIG_I2C_RK3X=y
 #
 # Other I2C/SMBus bus drivers
 #
-# CONFIG_I2C_X2 is not set
+CONFIG_I2C_X2=y
 # CONFIG_I2C_STUB is not set
 CONFIG_I2C_SLAVE=y
 # CONFIG_I2C_SLAVE_EEPROM is not set
@@ -1819,7 +1819,7 @@ CONFIG_V4L_PLATFORM_DRIVERS=y
 #
 # CONFIG_VIDEO_THS7303 is not set
 # CONFIG_VIDEO_M52790 is not set
-# CONFIG_VIDEO_X2_CAMERA is not set
+CONFIG_VIDEO_X2_CAMERA=y
 
 #
 # Sensors used on soc_camera driver
@@ -2268,7 +2268,7 @@ CONFIG_X2_SIF=y
 CONFIG_X2_MIPI_HOST=y
 CONFIG_X2_MIPI_DEV=y
 CONFIG_X2_MIPI_PHY=y
-# CONFIG_X2_ISP is not set
+CONFIG_X2_ISP=y
 
 #
 # IAR Configuratio
