@@ -2191,7 +2191,9 @@ CONFIG_X2_TIMER=y
 #
 # CONFIG_SUNXI_SRAM is not set
 # CONFIG_SOC_TI is not set
-# CONFIG_SOC_X2_MP is not set
+CONFIG_SOC_X2_MP=y
+CONFIG_X2_CNN_HOST=y
+CONFIG_X2_CNN_MM=y
 # CONFIG_PM_DEVFREQ is not set
 # CONFIG_EXTCON is not set
 # CONFIG_MEMORY is not set
@@ -2273,7 +2275,7 @@ CONFIG_X2_ISP=y
 #
 # IAR Configuratio
 #
-# CONFIG_X2_IAR is not set
+#CONFIG_X2_IAR=y
 CONFIG_X2_BIFSD_DEV=y
 
 #
