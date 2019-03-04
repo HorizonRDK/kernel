@@ -2275,7 +2275,7 @@ CONFIG_X2_ISP=y
 #
 # IAR Configuratio
 #
-#CONFIG_X2_IAR=y
+CONFIG_X2_IAR=y
 CONFIG_X2_BIFSD_DEV=y
 
 #

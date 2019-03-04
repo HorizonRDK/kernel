@@ -7,7 +7,7 @@
 #ifndef __X2_IPS_H
 #define __X2_IPS_H
 
-#define MOT_DET     (1 << 28)
+#define MOT_DET                 (1 << 28)
 #define IPS_HIST_FRAME_DONE     (1 << 27)
 #define IPS_RSUM_FRAME_DONE     (1 << 26)
 #define IPS_GRID_FRAME_DONE     (1 << 25)
@@ -17,8 +17,8 @@
 #define IPS_GRID_FRAME_DROP     (1 << 21)
 #define IPS_TILE_FRAME_DROP     (1 << 20)
 #define IPS_RCCB_FRAME_FINISH   (1 << 19)
-#define SIF_SIZE_ERR1       (1 << 18)
-#define SIF_SIZE_ERR0       (1 << 17)
+#define SIF_SIZE_ERR1           (1 << 18)
+#define SIF_SIZE_ERR0           (1 << 17)
 #define IPS_STF_FRAME_DROP      (1 << 16)
 #define IPS_HMP_FRAME_DROP      (1 << 15)
 #define IPS_STF_FRAME_FINISH    (1 << 14)
@@ -114,7 +114,7 @@ unsigned long ips_set_mipi_ipi_clk(unsigned long clk);
 unsigned long ips_get_mipi_ipi_clk(void);
 int ips_pinmux_bt(void);
 int ips_pinmux_dvp(void);
-int ips_set_btout_clksrc(unsigned int mode);
+int ips_set_btout_clksrc(unsigned int mode, uint8_t invert);
 void ips_module_reset(unsigned int module);
 
 #endif /* __X2_IPS_H */
