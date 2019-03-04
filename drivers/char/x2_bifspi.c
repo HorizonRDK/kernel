@@ -331,6 +331,7 @@ static irqreturn_t bifspi_interrupt(int irq, void *dev_id)
 	spin_lock_irqsave(&pbif->lock, flags);
 	value = readl((void *)(pbif->regs_base + BIF_EN_CLEAR));
 	value |= BIF_CLR_INT;
+	value |= ((pbif->intstatus & 0x3F) << 6);
 	writel(value, (void *)(pbif->regs_base + BIF_EN_CLEAR));
 	spin_unlock_irqrestore(&pbif->lock, flags);
 
