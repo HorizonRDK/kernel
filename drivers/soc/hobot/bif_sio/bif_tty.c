@@ -77,7 +77,7 @@ struct bif_tty_cdev {
 	struct bif_tty_node *tb_node;
 };
 
-static struct bif_tty_cdev *tb_dev;
+static struct bif_tty_cdev *g_tb_dev;
 
 static void ttyinfo_dbg(struct bif_tty_node *p)
 {
@@ -141,53 +141,15 @@ static irqreturn_t bif_tty_irq_handler(int irq, void *data)
 {
 
 #ifdef CONFIG_HOBOT_BIF_AP
-	if (tb_dev->buff_addr_phy == NULL)
-		bif_tty_reset_node_addr(tb_dev);
+	if (g_tb_dev->buff_addr_phy == NULL)
+		bif_tty_reset_node_addr(g_tb_dev);
 #endif
 
-	if (tb_dev->rb_base_other == NULL)
-		bif_tty_reset_otherbase(tb_dev);
+	if (g_tb_dev->rb_base_other == NULL)
+		bif_tty_reset_otherbase(g_tb_dev);
 
-	wake_up(&tb_dev->wq);
+	wake_up(&g_tb_dev->wq);
 	return IRQ_HANDLED;
-}
-
-static int bif_tty_open(struct inode *inode, struct file *filp)
-{
-	unsigned int minor;
-	struct bif_tty_node *node_tmp;
-
-	tty_debug_log("%s(%d)\n", __func__, __LINE__);
-	minor = iminor(inode);
-	node_tmp = &tb_dev->tb_node[minor];
-	node_tmp->index = minor;
-	filp->private_data = node_tmp;
-
-#ifdef CONFIG_HOBOT_BIF_AP
-	if (node_tmp->addr_phy_r == NULL) {
-		pr_err("%s(%d)ap node_tmp addr_phy_r=null\n",
-		       __func__, __LINE__);
-		return -1;
-	}
-#endif
-	if (node_tmp->rb_other == NULL) {
-		pr_err("%s(%d)other info = null\n", __func__, __LINE__);
-		return -2;
-	}
-	ttyinfo_dbg(node_tmp);
-	return 0;
-}
-
-static int bif_tty_release(struct inode *inode, struct file *filp)
-{
-	return 0;
-}
-
-static long bif_tty_ioctl(struct file *filp,
-			  unsigned int cmd, unsigned long arg)
-{
-	tty_debug_log("%s(%d) cmd=%d\n", __func__, __LINE__, cmd);
-	return 0;
 }
 
 static void bif_tty_irq(void)
@@ -268,6 +230,46 @@ static unsigned int bif_ringbuf_other_used(struct bif_tty_node *bt_node)
 		return ringbuf_capacity(self) - self->tail + other->head + 1;
 }
 
+
+static int bif_tty_open(struct inode *inode, struct file *filp)
+{
+	unsigned int minor;
+	struct bif_tty_node *node_tmp;
+
+	tty_debug_log("%s(%d)\n", __func__, __LINE__);
+	minor = iminor(inode);
+	node_tmp = &g_tb_dev->tb_node[minor];
+	node_tmp->index = minor;
+	filp->private_data = NULL;
+
+#ifdef CONFIG_HOBOT_BIF_AP
+	if (node_tmp->addr_phy_r == NULL) {
+		pr_err("%s(%d)ap node_tmp addr_phy_r=null\n",
+		       __func__, __LINE__);
+		return -1;
+	}
+#endif
+	if (node_tmp->rb_other == NULL) {
+		pr_err("%s(%d)other info = null\n", __func__, __LINE__);
+		return -2;
+	}
+	filp->private_data = node_tmp;
+	ttyinfo_dbg(node_tmp);
+	return 0;
+}
+
+static int bif_tty_release(struct inode *inode, struct file *filp)
+{
+	return 0;
+}
+
+static long bif_tty_ioctl(struct file *filp,
+			  unsigned int cmd, unsigned long arg)
+{
+	tty_debug_log("%s(%d) cmd=%d\n", __func__, __LINE__, cmd);
+	return 0;
+}
+
 static ssize_t bif_tty_read(struct file *filp, char __user *buf,
 			    size_t size, loff_t *ppos)
 {
@@ -278,6 +280,11 @@ static ssize_t bif_tty_read(struct file *filp, char __user *buf,
 
 	tty_debug_log("%s(%d) enter\n", __func__, __LINE__);
 	ttyinfo_dbg(bt_node);
+
+	if (bt_node == NULL) {
+		pr_err("%s(%d)...\n", __func__, __LINE__);
+		return -ENOENT;
+	}
 
 	if (bif_ringbuf_other_used(bt_node) == 0) {
 		pr_err("%s(%d)...rc=%d\n", __func__, __LINE__, rc);
@@ -316,8 +323,13 @@ static ssize_t bif_tty_write(struct file *filp, const char __user *buf,
 	tty_debug_log("%s(%d) enter\n", __func__, __LINE__);
 	ttyinfo_dbg(bt_node);
 
+	if (bt_node == NULL) {
+		pr_err("%s(%d)...\n", __func__, __LINE__);
+		return -ENOENT;
+	}
+
 	if (size == 0)
-		return  0;
+		return 0;
 
 	/*
 	 * if write data longer that buffer size, need transfer more
@@ -329,7 +341,7 @@ static ssize_t bif_tty_write(struct file *filp, const char __user *buf,
 		if (count == 0) {
 			pr_err("%s(%d) full count=%d < size=%d\n",
 			       __func__, __LINE__, count, (int)size);
-			wait_event(tb_dev->wq,
+			wait_event(g_tb_dev->wq,
 				   bif_ringbuf_self_free(bt_node) > 0);
 			count = bif_ringbuf_self_free(bt_node);
 		}
@@ -370,49 +382,6 @@ static const struct file_operations bif_tty_fops = {
 	.open = bif_tty_open,
 	.release = bif_tty_release,
 };
-
-static int bif_tty_alloc(struct bif_tty_cdev *cdev)
-{
-#ifndef CONFIG_HOBOT_BIF_AP
-	void *vir_addr;
-	unsigned long phy_addr;
-#endif
-	tty_debug_log("%s(%d)\n", __func__, __LINE__);
-	cdev->name = "ttyBIF";
-	cdev->num_nodes = NODE_NUM;
-	init_waitqueue_head(&cdev->wq);
-
-#ifdef CONFIG_HOBOT_BIF_AP
-	cdev->buff_rw = kzalloc(2 * NODE_NUM * TTY_BUF_SIZE, GFP_KERNEL);
-	if (!cdev->buff_rw)
-		goto err_alloc_ap_buff;
-#else
-	vir_addr = bif_alloc_cp(BUFF_SMD, 2 * NODE_NUM * TTY_BUF_SIZE,
-				&phy_addr);
-	if (vir_addr == NULL)
-		goto err_alloc_cp_buff;
-	cdev->buff_addr_vir = vir_addr;
-	cdev->buff_addr_phy = (void *)phy_addr;
-	tty_debug_log("%s(%d) buff_addr_phy = 0x%p\n", __func__, __LINE__,
-		      cdev->buff_addr_phy);
-#endif
-	cdev->tb_node = kzalloc(NODE_NUM * sizeof(struct bif_tty_node),
-				GFP_KERNEL);
-	if (!cdev->tb_node)
-		goto err_alloc_node;
-
-	return 0;
-
-err_alloc_node:
-#ifdef CONFIG_HOBOT_BIF_AP
-	kfree(cdev->buff_rw);
-err_alloc_ap_buff:
-#else
-err_alloc_cp_buff:
-#endif
-	kfree(cdev);
-	return -ENOMEM;
-}
 
 static int bif_tty_free(struct bif_tty_cdev *cdev)
 {
@@ -551,6 +520,73 @@ static int bif_tty_init_ringbuff(struct bif_tty_cdev *cdev)
 	return 0;
 }
 
+static struct bif_tty_cdev *bif_tty_init_dev(void)
+{
+	struct bif_tty_cdev *tb_cdev = NULL;
+
+	tb_cdev = kzalloc(sizeof(struct bif_tty_cdev), GFP_KERNEL);
+	if (!tb_cdev) {
+		tty_debug_log("%s(%d)\n", __func__, __LINE__);
+		return NULL;
+	}
+
+	tb_cdev->name = "ttyBIF";
+	tb_cdev->num_nodes = NODE_NUM;
+	init_waitqueue_head(&tb_cdev->wq);
+	g_tb_dev = tb_cdev;
+	return tb_cdev;
+}
+
+static int bif_tty_alloc(struct bif_tty_cdev *cdev)
+{
+#ifndef CONFIG_HOBOT_BIF_AP
+	void *vir_addr;
+	unsigned long phy_addr;
+#endif
+	tty_debug_log("%s(%d)\n", __func__, __LINE__);
+
+	if (bif_tty_alloc_base(cdev) != 0) {
+		tty_err_log("%s(%d) err\n", __func__, __LINE__);
+		return -ENOMEM;
+	}
+
+#ifdef CONFIG_HOBOT_BIF_AP
+	cdev->buff_rw = kzalloc(2 * NODE_NUM * TTY_BUF_SIZE, GFP_KERNEL);
+	if (!cdev->buff_rw)
+		goto err_alloc_ap_buff;
+#else
+	vir_addr = bif_alloc_cp(BUFF_SMD, 2 * NODE_NUM * TTY_BUF_SIZE,
+				&phy_addr);
+	if (vir_addr == (void *)-1
+		|| vir_addr == NULL
+		|| phy_addr == 0) {
+		tty_err_log("%s(%d) err vir_addr = 0x%p vir_addr = 0x%x\n",
+			__func__, __LINE__, vir_addr, phy_addr);
+		goto err_alloc_cp_buff;
+	}
+	cdev->buff_addr_vir = vir_addr;
+	cdev->buff_addr_phy = (void *)phy_addr;
+	tty_debug_log("%s(%d) buff_addr_phy = 0x%p\n", __func__, __LINE__,
+		      cdev->buff_addr_phy);
+#endif
+	cdev->tb_node = kzalloc(NODE_NUM * sizeof(struct bif_tty_node),
+				GFP_KERNEL);
+	if (!cdev->tb_node)
+		goto err_alloc_node;
+
+	return 0;
+
+err_alloc_node:
+#ifdef CONFIG_HOBOT_BIF_AP
+	kfree(cdev->buff_rw);
+err_alloc_ap_buff:
+#else
+err_alloc_cp_buff:
+#endif
+	kfree(cdev);
+	return -ENOMEM;
+}
+
 static int bif_tty_init_chrdev(struct bif_tty_cdev *cdev)
 {
 	int rc = 0;
@@ -598,7 +634,7 @@ static int bif_tty_init_chrdev(struct bif_tty_cdev *cdev)
 		}
 	}
 
-	return 0;		/* succeed */
+	return 0;
 
 unroll_device_create:
 	devnum--;
@@ -630,14 +666,7 @@ static int bif_tty_free_chrdev(struct bif_tty_cdev *cdev)
 
 static int bif_tty_init_base(struct bif_tty_cdev *cdev)
 {
-	int rc = 0;
-
 	tty_debug_log("%s(%d) enter\n", __func__, __LINE__);
-
-	bif_register_irq(BUFF_SMD, bif_tty_irq_handler);
-	rc = bif_tty_alloc_base(cdev);
-	if (rc)
-		goto fail;
 
 	bif_tty_query_otherbase(cdev);
 #ifdef CONFIG_HOBOT_BIF_AP
@@ -649,41 +678,35 @@ static int bif_tty_init_base(struct bif_tty_cdev *cdev)
 	bif_tty_init_ringbuff(cdev);
 	tty_debug_log("%s(%d)...leave\n", __func__, __LINE__);
 	return 0;
-fail:
-	pr_err("%s(%d)...rc=%d\n", __func__, __LINE__, rc);
-	return rc;
-
 }
 
 static int __init bif_tty_init(void)
 {
 	int rc;
+	struct bif_tty_cdev *tty_dev = NULL;
 
-	tb_dev = kzalloc(sizeof(struct bif_tty_cdev), GFP_KERNEL);
-	if (!tb_dev) {
-		tty_debug_log("%s(%d)\n", __func__, __LINE__);
-		rc = ENOMEM;
-		goto fail_alloc;
-	}
+	bif_register_irq(BUFF_SMD, bif_tty_irq_handler);
 
-	rc = bif_tty_alloc(tb_dev);
+	tty_dev = bif_tty_init_dev();
+	if (tty_dev == NULL)
+		return -ENOMEM;
+
+	rc = bif_tty_alloc(tty_dev);
 	if (rc)
 		goto fail_alloc;
 
-	rc = bif_tty_init_chrdev(tb_dev);
+	rc = bif_tty_init_chrdev(tty_dev);
 	if (rc)
 		goto fail;
 
-	rc = bif_tty_init_base(tb_dev);
-	if (rc)
-		goto fail;
+	bif_tty_init_base(tty_dev);
 
 	tty_debug_log("%s(%d)...leave\n", __func__, __LINE__);
 	return 0;
 
 fail:
-	tty_debug_log("%s(%d)...leave\n", __func__, __LINE__);
-	bif_tty_free(tb_dev);
+	tty_debug_log("%s(%d) rc=%d leave\n", __func__, __LINE__, rc);
+	bif_tty_free(tty_dev);
 fail_alloc:
 	return rc;
 }
@@ -692,8 +715,8 @@ module_init(bif_tty_init);
 
 static void __exit bif_tty_exit(void)
 {
-	bif_tty_free_chrdev(tb_dev);
-	bif_tty_free(tb_dev);
+	bif_tty_free_chrdev(g_tb_dev);
+	bif_tty_free(g_tb_dev);
 }
 
 module_exit(bif_tty_exit);

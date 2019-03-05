@@ -77,6 +77,7 @@ unsigned int ringbuf_capacity(const struct ringbuf_t *rb)
 {
 	return ringbuf_buffer_size(rb) - 1;
 }
+EXPORT_SYMBOL(ringbuf_capacity);
 
 const unsigned int ringbuf_tail(const struct ringbuf_t *rb)
 {
@@ -114,6 +115,7 @@ unsigned int ringbuf_write(struct ringbuf_t *rb,
 
 	return count;
 }
+EXPORT_SYMBOL(ringbuf_write);
 
 unsigned int ringbuf_read(struct ringbuf_t *rb, char *buff, unsigned int count)
 {
@@ -140,3 +142,4 @@ unsigned int ringbuf_read(struct ringbuf_t *rb, char *buff, unsigned int count)
 
 	return count;
 }
+EXPORT_SYMBOL(ringbuf_read);

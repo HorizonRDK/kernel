@@ -14,6 +14,8 @@
 #include<string.h>
 #include<time.h>
 
+//#define CP_SIDE
+
 int main(void)
 {
 
@@ -46,17 +48,17 @@ int main(void)
 		time(&timep);
 		p = asctime(gmtime(&timep));	/* Wed Jun 30 21:49:08 1993/n */
 		memset(buffer, 0, sizeof(buffer));
-#if 1
-		buffer[0] = 'A';
-		buffer[1] = 'P';
-		buffer[2] = ':';
-		buffer[3] = ' ';
-#else
+#ifdef CP_SIDE
 		buffer[0] = 'C';
 		buffer[1] = 'P';
 		buffer[2] = ':';
 		buffer[3] = ' ';
-#endif
+#else
+		buffer[0] = 'A';
+		buffer[1] = 'P';
+		buffer[2] = ':';
+		buffer[3] = ' ';
+
 		strncat(buffer + 4, file_name, 12);
 		strncat(buffer + 16, p, 25);
 		//len = write(gm_fd, buffer, strlen(buffer));
@@ -67,6 +69,7 @@ int main(void)
 			return -1;
 		}
 		printf("write %d data success ...\n", len);
+#endif
 		memset(buffer, 0, sizeof(buffer));
 		lseek(gm_fd, 0, 0);
 		len = read(gm_fd, buffer, 1024);
