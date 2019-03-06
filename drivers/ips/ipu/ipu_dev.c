@@ -492,7 +492,7 @@ int8_t set_ipu_addr(uint8_t id, uint32_t y_addr, uint32_t c_addr)
 {
 	if (g_regbase == NULL)
 		return -1;
-
+	ipu_info("set ipuaddr %d 0x%x 0x%x \n", id, y_addr, c_addr);
 	switch (id) {
 	case 0:
 		writel(y_addr, g_regbase + IPU_Y_BASE_ADDR_0);
@@ -696,9 +696,9 @@ void ctrl_ipu_to_ddr(uint32_t module, bool status)
 	if (module & SCALAR_TO_DDR) {
 		regval = readl(g_regbase + IPU_CTRL);
 		if (status)
-			regval |= BIT(3);
+			regval |= BIT(4);
 		else
-			regval &= ~BIT(3);
+			regval &= ~BIT(4);
 		writel(regval, g_regbase + IPU_CTRL);
 	}
 	if (module & PYM_TO_DDR) {
