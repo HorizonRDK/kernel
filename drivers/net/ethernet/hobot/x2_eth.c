@@ -902,7 +902,7 @@ static void dwceqos_set_speed(struct net_local *lp)
 	}
 
 	if(phydev->speed == 10) {
-		target = 2500000;
+		target = 12500000;
 		rate_L1 = clk_round_rate(lp->mac_pre_div_clk, target);
 		clk_set_rate(lp->mac_pre_div_clk, rate_L1);
 
@@ -911,7 +911,8 @@ static void dwceqos_set_speed(struct net_local *lp)
 		clk_set_rate(lp->mac_div_clk, rate_L2);
 
 	} else if (phydev->speed == SPEED_100) {
-		target = 50000000;
+
+		target = 125000000;
 		rate_L1 = clk_round_rate(lp->mac_pre_div_clk, target);
 		clk_set_rate(lp->mac_pre_div_clk, rate_L1);
 
@@ -919,11 +920,12 @@ static void dwceqos_set_speed(struct net_local *lp)
 		rate_L2 = clk_round_rate(lp->mac_div_clk, target);
 		clk_set_rate(lp->mac_div_clk, rate_L2);
 	} else if (phydev->speed == SPEED_1000) {
-		target = 128000000;
+
+		target = 125000000;
 		rate_L1 = clk_round_rate(lp->mac_pre_div_clk, target);
 		clk_set_rate(lp->mac_pre_div_clk, rate_L1);
 
-		target = 128000000;
+		target = 125000000;
 		rate_L2 = clk_round_rate(lp->mac_div_clk, target);
 		clk_set_rate(lp->mac_div_clk, rate_L2);
 	}
