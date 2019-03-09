@@ -53,14 +53,14 @@ void *bif_vir_addr;
 wait_queue_head_t bif_irq_wq;
 static int bif_irq_wq_flg;
 struct work_struct bif_irq_work;	/* irq work */
-static int irq_pin = 85;
-static int tri_pin = 84;
+static int irq_pin = -1;
+static int tri_pin = -1;
 static int irq_num = -1;
 static int tri_val;
 static int bif_base_start;
 static struct device *pbdev;
 static irq_handler_t irq_func[BUFF_MAX];
-
+static int irq_pin_absent;
 /*
  *fpga(x2)	hogu(AP)
  *84-->		54(960)	 GPIO_EMIO_0
@@ -306,7 +306,8 @@ int bif_register_address(enum BUFF_ID buffer_id, void *address)
 		return -1;
 	bif_base->address_list[buffer_id] = addr;
 	bif_base->buffer_count++;
-	bif_send_irq(BUFF_BASE);
+	if (!irq_pin_absent)
+		bif_send_irq(BUFF_BASE);
 	return 0;
 }
 EXPORT_SYMBOL(bif_register_address);
@@ -318,7 +319,6 @@ int bif_register_irq(enum BUFF_ID buffer_id, irq_handler_t irq_handler)
 	irq_func[buffer_id] = irq_handler;
 	return buffer_id;
 }
-
 EXPORT_SYMBOL(bif_register_irq);
 
 void *bif_query_address_wait(enum BUFF_ID buffer_id)
@@ -342,7 +342,6 @@ void *bif_query_address_wait(enum BUFF_ID buffer_id)
 
 	return (void *)addr;
 }
-
 EXPORT_SYMBOL(bif_query_address_wait);
 
 void *bif_query_address(enum BUFF_ID buffer_id)
@@ -475,12 +474,14 @@ int _bif_base_init(void)
 	bif_netlink_init();
 	ret = t_bif_register_irq(BUFF_BASE, bif_irq_handler);
 #else
-	gpio_init();
-	ret = devm_request_irq(pbdev, irq_num, bif_irq_handler,
-		IRQ_TYPE_EDGE_BOTH, "bif_base", NULL);
-	if (ret)
-		dev_err(pbdev, "Err request irq fail! irq_num=%d, ret=%d\n",
-			irq_num, ret);
+	if (!irq_pin_absent) {
+		gpio_init();
+		ret = devm_request_irq(pbdev, irq_num, bif_irq_handler,
+			IRQ_TYPE_EDGE_BOTH, "bif_base", NULL);
+		if (ret)
+			dev_err(pbdev, "Err request irq fail! irq_num=%d, ret=%d\n",
+				irq_num, ret);
+	}
 #endif
 
 #ifdef CONFIG_HOBOT_BIF_AP
@@ -523,12 +524,12 @@ int _bif_base_init(void)
 		base_phy_addr, (unsigned long)bif_vir_addr,
 		base_phy_addr_maxsize);
 #endif
-
-	bif_register_irq(BUFF_BASE, bif_base_irq_handler);
-	bif_self->next_offset = sizeof(struct bif_base_info);
-	init_waitqueue_head(&bif_irq_wq);
-	INIT_WORK(&bif_irq_work, work_bif_irq);
-
+	if (!irq_pin_absent) {
+		bif_register_irq(BUFF_BASE, bif_base_irq_handler);
+		bif_self->next_offset = sizeof(struct bif_base_info);
+		init_waitqueue_head(&bif_irq_wq);
+		INIT_WORK(&bif_irq_work, work_bif_irq);
+	}
 	bif_base_start = 1;
 	return ret;
 }
@@ -574,13 +575,16 @@ static int bif_base_probe(struct platform_device *pdev)
 	pbdev = &pdev->dev;
 	ret = of_property_read_u32(pdev->dev.of_node, "bif_base_irq_pin",
 		&irq_pin);
-	if (ret)
+	if (ret) {
 		dev_err(&pdev->dev, "Filed to get bif_base_irq_pin\n");
+		irq_pin_absent = 1;
+	}
 	ret = of_property_read_u32(pdev->dev.of_node, "bif_base_tri_pin",
 		&tri_pin);
-	if (ret)
+	if (ret) {
 		dev_err(&pdev->dev, "Filed to get bif_base_tri_pin\n");
-
+		irq_pin_absent = 1;
+	}
 #ifdef CONFIG_HOBOT_BIF_AP
 	ret = of_property_read_u32(pdev->dev.of_node, "bif_base_phy_add",
 		&bif_base_phy_r);

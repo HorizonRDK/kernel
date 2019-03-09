@@ -6,6 +6,7 @@ enum BUFF_ID {
 	BUFF_BASE,
 	BUFF_ETH,
 	BUFF_SMD,
+	BUFF_LITE,
 	BUFF_MAX,
 };
 
