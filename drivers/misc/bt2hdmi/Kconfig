@@ -1,0 +1,8 @@
+#
+# BT2HDMI device configuration
+#
+config X2_HDMI
+	tristate "X2 HDMI Drivers"
+	default y
+	---help---
+	Drivers for the X2 Sii9022A BT2HDMI chip

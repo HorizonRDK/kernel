@@ -17,6 +17,7 @@
 #include <linux/seq_file.h>
 #include <linux/string.h>
 #include <linux/reset.h>
+#include "drivers/hdmi/hdmi_i2c_nostop.h"
 #include "i2c-x2.h"
 //#define X2_I2C_CDIV_MIN   0x0
 //#define X2_I2C_CDIV_MAX   0xFF
@@ -242,7 +243,11 @@ static int x2_i2c_xfer_msg(struct x2_i2c_dev_s *i2c_dev, struct i2c_msg *msg)
 		i2c_dev->i2c_regs->addr.all = msg->addr << 1;
 	}
 	ctl_reg.bit.sta = 1;
-	ctl_reg.bit.sto = 1;
+	if (write_byte_nostop == 0)
+		ctl_reg.bit.sto = 1;
+	else
+		ctl_reg.bit.sto = 0;
+
 	x2_unmask_int(i2c_dev, msg->len > X2_I2C_FIFO_SIZE);
 	i2c_dev->i2c_regs->ctl.all = ctl_reg.all;
 
