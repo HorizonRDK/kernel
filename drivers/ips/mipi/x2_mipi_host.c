@@ -49,6 +49,7 @@
 #define MIPI_HOST_BITWIDTH_48      (0)
 #define MIPI_HOST_BITWIDTH_16      (1)
 #define MIPI_HOST_BITWIDTH_OFFSET  (8)
+#define MIPI_HOST_MEMFLUSN_ENABLE  (0x01 << 8)
 #define MIPI_HOST_EMB_DATA         (0x01 << 8)
 #define MIPI_HOST_IPI_ENABLE       (0x01 << 24)
 #define MIPI_HOST_LEGCYMODE_ENABLE (0x01 << 24)
@@ -234,9 +235,9 @@ static uint16_t mipi_host_get_hsd(mipi_host_cfg_t *control, unsigned long pixclk
 	hsdtime = (bits_per_pixel * line_size * pixclk / rx_bit_clk) - (control->hsaTime + control->hbpTime + cycles_to_trans);
 	mipiinfo("mipi host minium hsdtime: %d", hsdtime);
 	if (hsdtime < 0) {
-		hsdtime = 0;
+		hsdtime = 1;
 	}
-	hsdtime = (hsdtime + 16) & (~0xf);
+	//hsdtime = (hsdtime + 16) & (~0xf);
 	time_ipi = 1000 * (unsigned long)(control->hsaTime + control->hbpTime + hsdtime + cycles_to_trans) * 1000000 / pixclk;
 	mipiinfo("time to transmit last pixel in ipi: %lu", time_ipi);
 	return (uint16_t)hsdtime;
@@ -258,6 +259,7 @@ static int32_t mipi_host_configure_ipi(mipi_host_cfg_t *control)
 	}
 	iomem = g_mipi_host->iomem;
 	mipiinfo("mipi host config ipi");
+	mipi_putreg(iomem + REG_MIPI_HOST_IPI_MEM_FLUSH, MIPI_HOST_MEMFLUSN_ENABLE);
 	/*Select virtual channel and data type to be processed by IPI*/
 	mipi_putreg(iomem + REG_MIPI_HOST_IPI_VCID, control->channel_sel[MIPIHOST_IPI_PORT_0]);
 	mipi_putreg(iomem + REG_MIPI_HOST_IPI_DATA_TYPE, control->datatype);
@@ -532,6 +534,9 @@ int32_t mipi_host_start(void)
 			return -1;
 		}
 	}
+#if MIPI_HOST_INT_DBG
+	mipi_host_irq_enable();
+#endif
 	return 0;
 }
 
@@ -545,6 +550,9 @@ int32_t mipi_host_start(void)
 int32_t mipi_host_stop(void)
 {
 	/*stop mipi host here?*/
+#if MIPI_HOST_INT_DBG
+	mipi_host_irq_disable();
+#endif
 	return 0;
 }
 
@@ -563,9 +571,6 @@ void mipi_host_deinit(void)
 		return;
 	}
 	iomem = g_mipi_host->iomem;
-#if MIPI_HOST_INT_DBG
-	mipi_host_irq_disable();
-#endif
 #ifdef CONFIG_X2_MIPI_PHY
 	mipi_host_dphy_reset();
 #endif
@@ -620,6 +625,7 @@ int32_t mipi_host_init(mipi_host_cfg_t *control)
 	mipi_putreg(iomem + REG_MIPI_HOST_DPHY_RSTZ, MIPI_HOST_CSI2_RAISE);
 	/*Configure the number of active lanes*/
 	mipi_putreg(iomem + REG_MIPI_HOST_N_LANES, control->lane - 1);
+	udelay(1000);
 	/*Release DWC_mipi_csi2_host from reset*/
 	mipi_putreg(iomem + REG_MIPI_HOST_CSI2_RESETN, MIPI_HOST_CSI2_RAISE);
 
@@ -639,9 +645,6 @@ int32_t mipi_host_init(mipi_host_cfg_t *control)
 		mipi_host_deinit();
 		return -1;
 	}
-#if MIPI_HOST_INT_DBG
-	mipi_host_irq_enable();
-#endif
 	mipiinfo("mipi host init end");
 	return 0;
 }

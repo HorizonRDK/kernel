@@ -146,6 +146,7 @@ static int sif_init(sif_t *dev, sif_cfg_t *cfg)
 			cfg->sif_init.bus_type,
 			cfg->sif_init.width,
 			cfg->sif_init.height);
+	ips_module_reset(RST_SIF);
 	if (BUS_TYPE_DVP == cfg->sif_init.bus_type) {
 		ips_pinmux_dvp();
 	} else if (BUS_TYPE_BT1120 == cfg->sif_init.bus_type) {
@@ -154,11 +155,10 @@ static int sif_init(sif_t *dev, sif_cfg_t *cfg)
 			ips_set_btout_clksrc(BYPASS_CLK, cfg->sif_init.pclk_out_inv);
 	} else {
 		if (cfg->sif_init.bypass_en) {
-			ips_mipi_ctl_set(MIPI_BYPASS_GEN_HSYNC_DLY_CNT, 4);
 			ips_mipi_ctl_set(MIPI_BYPASS_GEN_HSYNC_EN, true);
+			ips_mipi_ctl_set(MIPI_BYPASS_GEN_HSYNC_DLY_CNT, 4);
 		}
 	}
-	ips_module_reset(RST_SIF);
 	if (0 != (ret = sif_dev_init(&dev->config.sif_init))) {
 		siferr("ERROR: sif dev init error: %d", ret);
 		ret = -1;

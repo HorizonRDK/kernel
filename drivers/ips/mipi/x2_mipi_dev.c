@@ -118,7 +118,7 @@ typedef enum _mipi_state_e {
 	MIPI_STATE_MAX,
 } mipi_state_t;
 
-unsigned int mipi_dev_nocheck = 1;
+unsigned int mipi_dev_nocheck = 0;
 module_param(mipi_dev_nocheck, uint, S_IRUGO | S_IWUSR);
 
 #define MIPIDEVIOC_READ        _IOWR(MIPIDEVIOC_MAGIC, 4, reg_t)
@@ -422,7 +422,7 @@ static int32_t mipi_dev_wait_phy_powerup(mipi_dev_cfg_t *control)
 		}
 		ncount++;
 		mdelay(1);
-	} while ( ncount <= DEV_DPHY_CHECK_MAX );
+	} while (ncount <= DEV_DPHY_CHECK_MAX);
 	mipierr("lane state of dev phy is error: 0x%x", state);
 	return -1;
 }
@@ -437,6 +437,9 @@ int32_t mipi_dev_start(void)
 	iomem = g_mipi_dev->iomem;
 	/*Configure the High-Speed clock*/
 	mipi_putreg(iomem + REG_MIPI_DEV_LPCLK_CTRL, MIPI_DEV_LPCLK_CONT);
+#if MIPI_DEV_INT_DBG
+	mipi_dev_irq_enable();
+#endif
 	return 0;
 }
 
@@ -448,6 +451,9 @@ int32_t mipi_dev_stop(void)
 		return -1;
 	}
 	iomem = g_mipi_dev->iomem;
+#if MIPI_DEV_INT_DBG
+	mipi_dev_irq_disable();
+#endif
 	/*stop mipi dev here*/
 	mipi_putreg(iomem + REG_MIPI_DEV_LPCLK_CTRL, MIPI_DEV_LPCLK_NCONT);
 	return 0;
@@ -468,16 +474,14 @@ int32_t mipi_dev_deinit(void)
 		return -1;
 	}
 	iomem = g_mipi_dev->iomem;
-#if MIPI_DEV_INT_DBG
-	mipi_dev_irq_disable();
-#endif
 	/*stop mipi dev here*/
 	mipi_putreg(iomem + REG_MIPI_DEV_LPCLK_CTRL, MIPI_DEV_LPCLK_NCONT);
 #ifdef CONFIG_X2_MIPI_PHY
-	mipi_dev_dphy_reset();
+	mipi_dev_dphy_reset(iomem);
 #endif
-	mipi_putreg(iomem + REG_MIPI_DEV_PHY_RSTZ, MIPI_DEV_CSI2_RESETN);
 	/*Set DWC_mipi_csi2_dev reset*/
+	mipi_putreg(iomem + REG_MIPI_DEV_PHY_IF_CFG, MIPI_DEV_CSI2_RESETN);
+	mipi_putreg(iomem + REG_MIPI_DEV_PHY_RSTZ, MIPI_DEV_CSI2_RESETN);
 	mipi_putreg(iomem + REG_MIPI_DEV_VPG_CTRL, MIPI_DEV_VPG_DISABLE);
 	mipi_putreg(iomem + REG_MIPI_DEV_CSI2_RESETN, MIPI_DEV_CSI2_RESETN);
 	return 0;
@@ -503,22 +507,24 @@ int32_t mipi_dev_init(mipi_dev_cfg_t *control)
 	mipiinfo("mipi device iomem %p", iomem);
 
 	ips_set_mipi_freqrange(MIPI_DEV_CFGCLKFREQRANGE, MIPI_DEV_CFGCLK_DEFAULT);
-	/*Reset DWC_mipicsi2_device*/
-	mipi_putreg(iomem + REG_MIPI_DEV_CSI2_RESETN, MIPI_DEV_CSI2_RESETN);
 #ifdef CONFIG_X2_MIPI_PHY
 	/*Shut down and reset SNPS D-PHY*/
-	mipi_putreg(iomem + REG_MIPI_DEV_PHY_RSTZ, MIPI_DEV_CSI2_RESETN);
+	mipi_dev_dphy_reset(iomem);
+#endif
+	/*Reset DWC_mipicsi2_device*/
 	mipi_putreg(iomem + REG_MIPI_DEV_CLKMGR_CFG, MIPI_DEV_CSI2_RESETN);
 	mipi_putreg(iomem + REG_MIPI_DEV_PHY_IF_CFG, MIPI_DEV_CSI2_RESETN);
-#endif
+	mipi_putreg(iomem + REG_MIPI_DEV_PHY_RSTZ, MIPI_DEV_CSI2_RESETN);
+	mipi_putreg(iomem + REG_MIPI_DEV_CSI2_RESETN, MIPI_DEV_CSI2_RESETN);
 	/*Configure the number of lanes*/
 	mipi_putreg(iomem + REG_MIPI_DEV_PHY_IF_CFG, control->lane - 1);
 	/*Configure the Escape mode transmit clock*/
 	mipi_putreg(iomem + REG_MIPI_DEV_CLKMGR_CFG, MIPI_DEV_CLKMGR_RAISE);
+	mipi_putreg(iomem + REG_MIPI_DEV_LPCLK_CTRL, MIPI_DEV_LPCLK_NCONT);
 
 #ifdef CONFIG_X2_MIPI_PHY
 	/*Initialize the PHY*/
-	if (0 != mipi_dev_dphy_initialize(control->mipiclk, control->lane, control->settle, iomem)) {
+	if (0 != mipi_dev_dphy_initialize(iomem, control->mipiclk, control->lane, control->settle)) {
 		mipierr("mipi dev initialize error!!!");
 		return -1;
 	}
@@ -526,22 +532,14 @@ int32_t mipi_dev_init(mipi_dev_cfg_t *control)
 	/*Power on PHY*/
 	power = DEV_DPHY_ENABLEZ;
 	mipi_putreg(iomem + REG_MIPI_DEV_PHY_RSTZ, power);
+	udelay(1);
 	power |= DEV_DPHY_SHUTDOWNZ;
 	mipi_putreg(iomem + REG_MIPI_DEV_PHY_RSTZ, power);
+	udelay(1);
 	power |= DEV_DPHY_RSTZ;
 	mipi_putreg(iomem + REG_MIPI_DEV_PHY_RSTZ, power);
 	power |= DEV_DPHY_FORCEPOLL;
 	mipi_putreg(iomem + REG_MIPI_DEV_PHY_RSTZ, power);
-	mipi_putreg(iomem + REG_MIPI_DEV_LPCLK_CTRL, MIPI_DEV_LPCLK_NCONT);
-	/*Wake up DWC_mipicsi2_device*/
-	mipi_putreg(iomem + REG_MIPI_DEV_CSI2_RESETN, MIPI_DEV_CSI2_RAISE);
-	if (!mipi_dev_nocheck) {
-		if (0 != mipi_dev_wait_phy_powerup(control)) {
-			mipi_dev_deinit();
-			mipierr("mipi dev phy stop state error!!!");
-			return -1;
-		}
-	}
 
 	if (!control->vpg) {
 		if (0 != mipi_dev_initialize_ipi(control)) {
@@ -556,9 +554,17 @@ int32_t mipi_dev_init(mipi_dev_cfg_t *control)
 			return -1;
 		}
 	}
-#if MIPI_DEV_INT_DBG
-	mipi_dev_irq_enable();
-#endif
+	/*Wake up DWC_mipicsi2_device*/
+	mipi_putreg(iomem + REG_MIPI_DEV_CSI2_RESETN, MIPI_DEV_CSI2_RAISE);
+
+	if (!mipi_dev_nocheck) {
+		if (0 != mipi_dev_wait_phy_powerup(control)) {
+			mipi_dev_deinit();
+			mipierr("mipi dev phy stop state error!!!");
+			return -1;
+		}
+	}
+
 	mipiinfo("mipi device init end");
 	return 0;
 }
@@ -592,7 +598,6 @@ static long x2_mipi_dev_ioctl(struct file *file, unsigned int cmd, unsigned long
 	if (_IOC_TYPE(cmd) != MIPIDEVIOC_MAGIC)
 		return -ENOTTY;
 
-	mipiinfo("mipi device %p, iomem %p, tmp %p, tmp iomem %p", g_mipi_dev, g_mipi_dev->iomem, mipi_dev, iomem);
 	switch (cmd) {
 	case MIPIDEVIOC_INIT:
 		{

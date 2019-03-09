@@ -29,6 +29,9 @@
 #endif
 
 #define mipi_getreg(a)          readl(a)
-#define mipi_putreg(a,v)        writel(v,a)
-
+#define mipi_putreg(a,v)\
+	do {\
+		writel(v,a); \
+		/*mipiinfo("[mipi reg]: write %p: 0x%x", a, v);*/ \
+	} while(0)
 #endif //__X2_SIF_UTILS_H__

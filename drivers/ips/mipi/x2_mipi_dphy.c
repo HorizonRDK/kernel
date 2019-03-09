@@ -91,12 +91,12 @@
 #define RX_OSCFREQ_EN            (0x1)
 
 #define TX_HS_ZERO(s)            (0x80 | ((s) & 0x7F))
-#define TX_SLEW_RATE_CAL         (0x55)
+#define TX_SLEW_RATE_CAL         (0x5E)
 #define TX_SLEW_RATE_CTL         (0x11)
-#define TX_PLL_DIV(n)            ((n) << 3 | 0x2)
+#define TX_PLL_DIV(n)            (((n) << 3) | 0x2)
 #define TX_PLL_MULTI_L(m)        ((m) & 0xFF)
 #define TX_PLL_MULTI_H(m)        (((m) & 0x300) >> 8)
-#define TX_PLL_VCO(v)            (0x80 | ((v) & 0x1F) << 1)
+#define TX_PLL_VCO(v)            (0x81 | (((v) & 0x1F) << 1))
 #define TX_PLL_CPBIAS            (0x10)
 #define TX_PLL_INT_CTL           (0x4)
 #define TX_PLL_PROP_CNTRL        (0x0C)
@@ -285,7 +285,7 @@ int32_t mipi_host_dphy_initialize(uint16_t mipiclk, uint16_t lane, uint16_t sett
 	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL1, DPHY_TEST_RESETN);
 	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_CLEAR);
 	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_RESETN);
-	 /*Ensure that testclk and testen is set to low*/
+	/*Ensure that testclk and testen is set to low*/
 
 	mipi_host_dphy_testdata(REGS_RX_STARTUP_OVR_5, RX_CLK_SETTLE_EN);
 	mipi_host_dphy_testdata(REGS_RX_STARTUP_OVR_4, RX_CLK_SETTLE);
@@ -372,10 +372,11 @@ static uint32_t mipi_tx_vco_range(uint32_t vcoclk)
 {
 	uint8_t  index = 0;
 	for (index = 0; index < sizeof(g_vco_range_table) / sizeof(pll_range_table_t); index++) {
-		if (vcoclk >= g_vco_range_table[index].low && vcoclk <= g_vco_range_table[index].high)
+		if (vcoclk >= g_vco_range_table[index].low && vcoclk <= g_vco_range_table[index].high) {
 			mipiinfo("vcoclk: %d, selected range: %d-%d, range value: %d",
 					 vcoclk, g_vco_range_table[index].low, g_vco_range_table[index].high, g_vco_range_table[index].value);
-		return g_vco_range_table[index].value;
+			return g_vco_range_table[index].value;
+		}
 	}
 	mipiinfo("vco clock %d not supported", vcoclk);
 	return 0;
@@ -412,18 +413,19 @@ static int32_t mipi_tx_pll_div(uint16_t refsclk, uint16_t laneclk, uint8_t *n, u
 		mipierr("pll parameter error!!! refsclk: %d, laneclk: %d", refsclk, laneclk);
 		return 0;
 	}
-	while (refsclk / n_tmp > TX_PLL_INPUT_FEQ_MIN) {
+	while (TX_PLL_INPUT_FEQ_MIN * n_tmp <= refsclk) {
 		n_tmp++;
 	}
 	n_tmp -= 1;
-	outclk = refsclk / n_tmp;
-	while ((outclk * m_tmp) <= fvco) {
+	//outclk = refsclk / n_tmp;
+	while ((refsclk * m_tmp) <= fvco * n_tmp) {
 		m_tmp++;
 	}
 	m_tmp -= 1;
-	*n = n_tmp - 1;
+	//*n = n_tmp - 1;
+	*n = n_tmp - 2; /*device's clk must be higher than host's clk*/
 	*m = m_tmp - 2;
-	fvco = (refsclk / (*n + 1)) * (*m + 2);
+	fvco = (refsclk * (*m + 2)) / (*n + 1);
 	fout = fvco >> vco_div;
 	*vco = mipi_tx_vco_range(fout);
 	outclk = fout << 1;
@@ -439,7 +441,7 @@ static int32_t mipi_tx_pll_div(uint16_t refsclk, uint16_t laneclk, uint8_t *n, u
  *
  * @return int32_t : 0/-1
  */
-int32_t mipi_dev_dphy_initialize(uint16_t mipiclk, uint16_t lane, uint16_t settle, void __iomem *iomem)
+int32_t mipi_dev_dphy_initialize(void __iomem *iomem, uint16_t mipiclk, uint16_t lane, uint16_t settle)
 {
 	uint8_t    n = 0;
 	uint16_t   m = 0;
@@ -449,8 +451,7 @@ int32_t mipi_dev_dphy_initialize(uint16_t mipiclk, uint16_t lane, uint16_t settl
 
 	mipiinfo("mipi device initialize dphy begin");
 
-	/*Configure the D-PHY PLL*/ 
-	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_CLEAR);
+	/*Configure the D-PHY PLL*/
 	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_RESETN);
 	/*Ensure that testclk and testen is set to low*/
 	outclk = mipi_tx_pll_div(TX_REFSCLK_DEFAULT, (mipiclk / lane), &n, &m, &vco);
@@ -485,8 +486,9 @@ int32_t mipi_dev_dphy_initialize(uint16_t mipiclk, uint16_t lane, uint16_t settl
  *
  * @return void
  */
-void mipi_dev_dphy_reset(void)
+void mipi_dev_dphy_reset(void __iomem *iomem)
 {
+	g_devmem = iomem;
 	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_CLEAR);
 }
 
