@@ -375,12 +375,12 @@ static int x2_i2c_probe(struct platform_device *pdev)
 	struct x2_i2c_dev_s *i2c_dev;
 	struct resource *mem, *irq;
 	//u32 bus_clk_rate, divider;
-	int ret;
+	int ret, i2c_id;
+	char i2c_name[20];
 	//union CFG_REG cfg_reg_e;
 	struct i2c_adapter *adap;
 	printk("x2_i2c_probe start\n");
-	i2c_dev =
-	    devm_kzalloc(&pdev->dev, sizeof(struct x2_i2c_dev_s), GFP_KERNEL);
+	i2c_dev = devm_kzalloc(&pdev->dev, sizeof(struct x2_i2c_dev_s), GFP_KERNEL);
 	if (!i2c_dev)
 		return -ENOMEM;
 	platform_set_drvdata(pdev, i2c_dev);
@@ -391,7 +391,9 @@ static int x2_i2c_probe(struct platform_device *pdev)
 	i2c_dev->i2c_regs = devm_ioremap_resource(&pdev->dev, mem);
 	mem = platform_get_resource(pdev, IORESOURCE_MEM, 1);
 
-	i2c_dev->rst = devm_reset_control_get(&pdev->dev, "i2c");
+	i2c_id = of_alias_get_id(pdev->dev.of_node, "i2c");
+	sprintf(i2c_name, "i2c%d", i2c_id);
+	i2c_dev->rst = devm_reset_control_get(&pdev->dev, i2c_name);
 	if (IS_ERR(i2c_dev->rst)) {
 		dev_err(&pdev->dev, "missing controller reset\n");
 		return PTR_ERR(i2c_dev->rst);
