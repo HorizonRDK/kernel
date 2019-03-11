@@ -25,6 +25,7 @@ extern unsigned int ipu_debug_level;
 #define IPU_SLOT_DAUL_SIZE			0x8000000
 
 #define ALIGN_16(d)         (((d) + 15) & ~0xf)
+#define ALIGN_64(d)         (((d) + 63) & ~0x3f)
 
 #define IPU_SLOT_NOT_AVALIABLE	0
 #define IPU_TRIGGER_ISR	1

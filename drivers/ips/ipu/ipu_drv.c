@@ -43,8 +43,7 @@ int8_t ipu_cfg_ddrinfo_init(ipu_cfg_t *ipu)
 	uint64_t ddrbase = 0; //(uint64_t)g_ipu->paddr;
 	uint32_t limit = ddrbase + IPU_SLOT_SIZE;
 
-	/* step0. calculate slot head info size */
-	ddrbase = ALIGN_16(ddrbase);
+	ddrbase = ALIGN_64(ddrbase);
 
 	/* step1. calculate crop space */
 	if (ipu->ctrl.crop_ddr_en == 1) {
@@ -52,9 +51,11 @@ int8_t ipu_cfg_ddrinfo_init(ipu_cfg_t *ipu)
 		h = ALIGN_16(ipu->crop.crop_ed.h - ipu->crop.crop_st.h);
 		size = w * h;
 		ipu->crop_ddr.y_addr = ddrbase;
-		ipu->crop_ddr.c_addr = ddrbase + size;
-		ddrbase += size * 3 >> 1;
-		ddrbase = ALIGN_16(ddrbase);
+		ddrbase = ddrbase + size;
+		ddrbase = ALIGN_64(ddrbase);
+		ipu->crop_ddr.c_addr = ddrbase;
+		ddrbase += size >> 1;
+		ddrbase = ALIGN_64(ddrbase);
 		if (ddrbase >= limit)
 			goto err_out;
 	}
@@ -65,9 +66,11 @@ int8_t ipu_cfg_ddrinfo_init(ipu_cfg_t *ipu)
 		h = ALIGN_16(ipu->scale.scale_tgt.h);
 		size = w * h;
 		ipu->scale_ddr.y_addr = ddrbase;
-		ipu->scale_ddr.c_addr = ddrbase + size;
-		ddrbase += size * 3 >> 1;
-		ddrbase = ALIGN_16(ddrbase);
+		ddrbase = ddrbase + size;
+		ddrbase = ALIGN_64(ddrbase);
+		ipu->scale_ddr.c_addr = ddrbase;
+		ddrbase += size >> 1;
+		ddrbase = ALIGN_64(ddrbase);
 		if (ddrbase >= limit)
 			goto err_out;
 	}
@@ -85,15 +88,18 @@ int8_t ipu_cfg_ddrinfo_init(ipu_cfg_t *ipu)
 			h = ALIGN_16(ipu->pymid.ds_roi[i].h);
 			size = w * h;
 			ipu->ds_ddr[i].y_addr = ddrbase;
+
+			ddrbase = ddrbase + size;
+			ddrbase = ALIGN_64(ddrbase);
+
 			if (ipu->pymid.ds_uv_bypass & (1 << i)) {
 				/* uv bypass layer won't write to ddr */
 				ipu->ds_ddr[i].c_addr = 0;
-				ddrbase += size;
 			} else {
-				ipu->ds_ddr[i].c_addr = ddrbase + size;
-				ddrbase += size * 3 >> 1;
+				ipu->ds_ddr[i].c_addr = ddrbase;
+				ddrbase += size >> 1;
 			}
-			ddrbase = ALIGN_16(ddrbase);
+			ddrbase = ALIGN_64(ddrbase);
 			ipu_info("pym%d %d %d %d %d 0x%llx 0x%llx", i, w, h, ipu->pymid.ds_roi[i].w, ipu->pymid.ds_roi[i].h, ipu->ds_ddr[i].y_addr, ipu->ds_ddr[i].c_addr);
 			if (ddrbase >= limit)
 				goto err_out;
@@ -112,15 +118,18 @@ int8_t ipu_cfg_ddrinfo_init(ipu_cfg_t *ipu)
 			h = ALIGN_16(ipu->pymid.us_roi[i].h);
 			size = w * h;
 			ipu->us_ddr[i].y_addr = ddrbase;
+
+			ddrbase = ddrbase + size;
+			ddrbase = ALIGN_64(ddrbase);
+
 			if (ipu->pymid.us_uv_bypass & 1 << i) {
-				ipu->us_ddr[i].c_addr = ddrbase + size;
-				ddrbase += size * 3 >> 1;
-			} else {
 				/* uv bypass layer won't write to ddr */
 				ipu->us_ddr[i].c_addr = 0;
-				ddrbase += size;
+			} else {
+				ipu->us_ddr[i].c_addr = ddrbase;
+				ddrbase += size >> 1;
 			}
-			ddrbase = ALIGN_16(ddrbase);
+			ddrbase = ALIGN_64(ddrbase);
 			if (ddrbase >= limit)
 				goto err_out;
 		}
@@ -133,9 +142,6 @@ err_out:
 
 static int8_t ipu_set_crop_ddr(ipu_cfg_t *ipu, uint64_t ddrbase)
 {
-	/* step0. calculate slot head info size */
-	ddrbase = ALIGN_16(ddrbase);
-
 	/* step1. calculate crop space */
 	if (ipu->ctrl.crop_ddr_en == 1) {
 		set_ipu_addr(0, ipu->crop_ddr.y_addr + ddrbase, ipu->crop_ddr.c_addr + ddrbase);
