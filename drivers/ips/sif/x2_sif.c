@@ -472,7 +472,7 @@ static int __init sif_module_init(void)
 	}
 	spin_lock_init(&sif->sif_file.event_lock);
 	init_waitqueue_head(&sif->sif_file.event_queue);
-
+	ips_mask_int(SIF_FRAME_START_INTERRUPT | SIF_FRAME_END_INTERRUPT);
 	sifinfo("sif driver init exit");
 	return 0;
 err:

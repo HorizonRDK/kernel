@@ -128,6 +128,7 @@ struct ips_dev_s {
 	spinlock_t *lock;
 	ips_irqhandler_t irq_handle[3];
 	void *irq_data[3];
+	unsigned int cur_mask;
 	struct reset_control *rst[RST_MAX];
 	struct pinctrl *pinctrl;
 	struct pinctrl_state *pins_bt;
@@ -174,6 +175,7 @@ int ips_irq_enable(int irq)
 	spin_lock_irqsave(g_ipsdev->lock, flags);
 	val = readl(g_ipsdev->regaddr + IPSINTMASK);
 	val &= irqmask;
+	val |= g_ipsdev->cur_mask;
 	writel(val, g_ipsdev->regaddr + IPSINTMASK);
 	spin_unlock_irqrestore(g_ipsdev->lock, flags);
 	printk(KERN_INFO "module %d's irq enabled\n", irq);
@@ -207,6 +209,7 @@ int ips_mask_int(unsigned int mask)
 	spin_lock_irqsave(g_ipsdev->lock, flags);
 	int_mask = readl(g_ipsdev->regaddr + IPSINTMASK);
 	int_mask |= mask;
+	g_ipsdev->cur_mask = int_mask;
 	writel(int_mask, g_ipsdev->regaddr + IPSINTMASK);
 	spin_unlock_irqrestore(g_ipsdev->lock, flags);
 	return 0;
@@ -222,6 +225,7 @@ int ips_unmask_int(unsigned int mask)
 	spin_lock_irqsave(g_ipsdev->lock, flags);
 	int_mask = readl(g_ipsdev->regaddr + IPSINTMASK);
 	int_mask &= ~mask;
+	g_ipsdev->cur_mask = int_mask;
 	writel(int_mask, g_ipsdev->regaddr + IPSINTMASK);
 	spin_unlock_irqrestore(g_ipsdev->lock, flags);
 	return 0;

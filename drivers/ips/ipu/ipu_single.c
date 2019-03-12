@@ -170,6 +170,18 @@ void ipu_single_mode_process(uint32_t status)
 
 	}
 
+	if ((status & IPU_FRAME_DONE) && !ipu->cfg->pymid.pymid_en) {
+		ipu_slot_h_t *slot_h = NULL;
+		slot_h = slot_busy_to_done();
+		if (slot_h) {
+			ipu_info("frame done, slot-%d, cnt %d\n", slot_h->info_h.slot_id, slot_h->slot_cnt);
+			//__inval_dcache_area(IPU_GET_SLOT(slot_h->info_h.slot_id, ipu->vaddr), IPU_SLOT_SIZE);
+			ipu->done_idx = slot_h->info_h.slot_id;
+			ipu_get_frameid(ipu, slot_h);
+			wake_up_interruptible(&g_ipu_s_cdev->event_head);
+		}
+	}
+
 	if (status & IPU_FRAME_START) {
 		ipu_slot_h_t *slot_h = NULL;
 		slot_h = slot_free_to_busy();
