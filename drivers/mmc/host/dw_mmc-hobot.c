@@ -26,9 +26,10 @@ struct dw_mci_hobot_priv_data {
 	struct clk		*sample_clk;
 	int			default_sample_phase;
 };
+
 static void dw_mci_x2_set_ios(struct dw_mci *host, struct mmc_ios *ios)
 {
-    return;
+	return;
 }
 
 #define NUM_PHASES			360
@@ -131,14 +132,14 @@ static int dw_mci_x2_execute_tuning(struct dw_mci_slot *slot, u32 opcode)
 			TUNING_ITERATION_TO_PHASE(ranges[i].start),
 			TUNING_ITERATION_TO_PHASE(ranges[i].end),
 			len
-		);
+		       );
 	}
 
 	dev_dbg(host->dev, "Best phase range %d-%d (%d len)\n",
 		TUNING_ITERATION_TO_PHASE(ranges[longest_range].start),
 		TUNING_ITERATION_TO_PHASE(ranges[longest_range].end),
 		longest_range_len
-	);
+	       );
 
 	middle_phase = ranges[longest_range].start + longest_range_len / 2;
 	middle_phase %= NUM_PHASES;
@@ -163,7 +164,7 @@ static int dw_mci_x2_parse_dt(struct dw_mci *host)
 		return -ENOMEM;
 
 	if (of_property_read_u32(np, "hobot,default-sample-phase",
-					&priv->default_sample_phase))
+				 &priv->default_sample_phase))
 		priv->default_sample_phase = 0;
 
 	priv->drv_clk = devm_clk_get(host->dev, "ciu-drive");
@@ -193,7 +194,7 @@ static int dw_mci_hobot_init(struct dw_mci *host)
 
 /* Common capabilities of X2 SoC */
 static unsigned long dw_mci_x2_dwmmc_caps[4] = {
-    MMC_CAP_8_BIT_DATA | MMC_CAP_CMD23,
+	MMC_CAP_8_BIT_DATA | MMC_CAP_CMD23,
 	MMC_CAP_CMD23,
 	MMC_CAP_CMD23,
 	MMC_CAP_CMD23,
@@ -209,8 +210,9 @@ static const struct dw_mci_drv_data x2_drv_data = {
 };
 
 static const struct of_device_id dw_mci_hobot_match[] = {
-	{ .compatible = "hobot,x2-dw-mshc",
-		.data = &x2_drv_data },
+	{	.compatible = "hobot,x2-dw-mshc",
+		.data = &x2_drv_data
+	},
 	{},
 };
 MODULE_DEVICE_TABLE(of, dw_mci_hobot_match);
@@ -220,8 +222,8 @@ static int dw_mci_hobot_probe(struct platform_device *pdev)
 	const struct dw_mci_drv_data *drv_data;
 	const struct of_device_id *match;
 
-   if (!pdev->dev.of_node)
-       return -ENODEV;
+	if (!pdev->dev.of_node)
+		return -ENODEV;
 
 	match = of_match_node(dw_mci_hobot_match, pdev->dev.of_node);
 	drv_data = match->data;
