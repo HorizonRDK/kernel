@@ -297,12 +297,12 @@
 					73	2
 				>;
 			};
-			pwm6:pwm6_func {
+			pwm7:pwm7_func {
 				pinctrl-x2,pins-muxs = <
 					74	2
 				>;
 			};
-			pwm6:pwm6_func {
+			pwm8:pwm8_func {
 				pinctrl-x2,pins-muxs = <
 					75	2
 				>;
