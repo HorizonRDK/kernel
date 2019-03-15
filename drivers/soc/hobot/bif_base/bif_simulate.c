@@ -56,10 +56,10 @@ void pr_buff_8(unsigned char *buff, int len_8)
 
 	for (i = 0; i < len_8; i++) {
 		pr_info("%02x%02x%02x%02x%02x%02x%02x%02x,\n",
-			buff[i*16 + 0], buff[i*16 + 1],
-			buff[i*16 + 2], buff[i*16 + 3],
-			buff[i*16 + 4], buff[i*16 + 5],
-			buff[i*16 + 6], buff[i*16 + 7]);
+			buff[i*8 + 0], buff[i*8 + 1],
+			buff[i*8 + 2], buff[i*8 + 3],
+			buff[i*8 + 4], buff[i*8 + 5],
+			buff[i*8 + 6], buff[i*8 + 7]);
 	}
 }
 

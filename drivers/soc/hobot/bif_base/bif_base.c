@@ -112,13 +112,11 @@ static void gpio_trigger_irq(int irq)
 #ifdef CONFIG_HOBOT_BIF_TEST
 	t_bif_send_irq(BUFF_BASE);
 #else
-	int ret = 0;
-
 	if (tri_val)
 		tri_val = 0;
 	else
 		tri_val = 1;
-	ret = gpio_direction_output(irq, tri_val);
+	gpio_direction_output(irq, tri_val);
 #endif
 }
 
@@ -129,7 +127,7 @@ static int gpio_init(void)
 	ret = gpio_request(tri_pin, "tri_pin");
 	if (ret < 0) {
 		pr_err("%s() Err get trigger pin ret= %d\n", __func__, ret);
-		return ret;
+		goto exit_1;
 	}
 	gpio_direction_output(tri_pin, tri_val);
 	gpio_trigger_irq(tri_pin);
@@ -138,7 +136,7 @@ static int gpio_init(void)
 	if (ret < 0) {
 		pr_err("%s() Err get irq pin ret= %d\n", __func__, ret);
 		gpio_free(tri_pin);
-		return ret;
+		goto exit_1;
 	}
 	irq_num = gpio_to_irq(irq_pin);
 	if (irq_num < 0) {
@@ -148,6 +146,7 @@ static int gpio_init(void)
 		ret = -ENODEV;
 	}
 
+exit_1:
 	return ret;
 }
 
@@ -263,7 +262,7 @@ static irqreturn_t bif_irq_handler(int irq, void *data)
 
 int bif_send_irq(int irq)
 {
-	if (!bif_base_start)
+	if (!bif_base_start || bif_self == NULL || bif_other == NULL)
 		return 0;
 
 	while ((bif_self->send_irq_tail + 1) % IRQ_QUEUE_SIZE ==
@@ -302,7 +301,7 @@ int bif_register_address(enum BUFF_ID buffer_id, void *address)
 {
 	unsigned long addr = (unsigned long)address;
 
-	if (buffer_id >= BUFF_MAX)
+	if (buffer_id >= BUFF_MAX || bif_base == NULL || !bif_base_start)
 		return -1;
 	bif_base->address_list[buffer_id] = addr;
 	bif_base->buffer_count++;
@@ -314,7 +313,7 @@ EXPORT_SYMBOL(bif_register_address);
 
 int bif_register_irq(enum BUFF_ID buffer_id, irq_handler_t irq_handler)
 {
-	if (buffer_id >= BUFF_MAX)
+	if (buffer_id >= BUFF_MAX || !bif_base_start)
 		return -1;
 	irq_func[buffer_id] = irq_handler;
 	return buffer_id;
@@ -325,7 +324,7 @@ void *bif_query_address_wait(enum BUFF_ID buffer_id)
 {
 	unsigned long addr = 0;
 
-	if (buffer_id >= BUFF_MAX)
+	if (buffer_id >= BUFF_MAX || bif_base == NULL || !bif_base_start)
 		return (void *)-1;
 
 #ifdef CONFIG_HOBOT_BIF_AP
@@ -348,7 +347,7 @@ void *bif_query_address(enum BUFF_ID buffer_id)
 {
 	unsigned long addr = 0;
 
-	if (buffer_id >= BUFF_MAX)
+	if (buffer_id >= BUFF_MAX || bif_base == NULL || !bif_base_start)
 		return (void *)-1;
 
 	addr = bif_base->address_list[buffer_id];
@@ -372,7 +371,7 @@ void *bif_alloc_cp(enum BUFF_ID buffer_id, int size, unsigned long *phyaddr)
 
 	*phyaddr = 0;
 
-	if (buffer_id >= BUFF_MAX)
+	if (buffer_id >= BUFF_MAX || bif_vir_addr == NULL || !bif_base_start)
 		return (void *)-1;
 
 	if (baseoffset < 2*BASE_PHY_SIZE)
@@ -400,7 +399,7 @@ void *bif_alloc_base(enum BUFF_ID buffer_id, int size)
 	int offset;
 	void *addr;
 
-	if (buffer_id >= BUFF_MAX)
+	if (buffer_id >= BUFF_MAX || bif_self == NULL || !bif_base_start)
 		return (void *)-1;
 
 	if ((bif_self->next_offset + size) > BASE_PHY_SIZE)
@@ -426,7 +425,7 @@ void *bif_query_otherbase_wait(enum BUFF_ID buffer_id)
 	unsigned int offset = 0;
 	void *addr;
 
-	if (buffer_id >= BUFF_MAX)
+	if (buffer_id >= BUFF_MAX || bif_other == NULL || !bif_base_start)
 		return (void *)-1;
 
 	while (bif_other->offset_list[buffer_id] == 0) {
@@ -453,7 +452,7 @@ void *bif_query_otherbase(enum BUFF_ID buffer_id)
 {
 	int offset = 0;
 
-	if (buffer_id >= BUFF_MAX)
+	if (buffer_id >= BUFF_MAX || bif_other == NULL || !bif_base_start)
 		return (void *)-1;
 
 	offset = bif_other->offset_list[buffer_id];
@@ -475,12 +474,16 @@ int _bif_base_init(void)
 	ret = t_bif_register_irq(BUFF_BASE, bif_irq_handler);
 #else
 	if (!irq_pin_absent) {
-		gpio_init();
+		ret = gpio_init();
+		if (ret)
+			goto exit_1;
 		ret = devm_request_irq(pbdev, irq_num, bif_irq_handler,
 			IRQ_TYPE_EDGE_BOTH, "bif_base", NULL);
-		if (ret)
+		if (ret) {
 			dev_err(pbdev, "Err request irq fail! irq_num=%d, ret=%d\n",
 				irq_num, ret);
+			goto exit_1;
+		}
 	}
 #endif
 
@@ -488,9 +491,10 @@ int _bif_base_init(void)
 	init_waitqueue_head(&bif_ap_wq);
 
 	bif_vir_addr = kmalloc(2*BASE_PHY_SIZE, GFP_ATOMIC | __GFP_ZERO);
-	if (bif_vir_addr == NULL)
-		return -ENOMEM;
-
+	if (bif_vir_addr == NULL) {
+		ret = -ENOMEM;
+		goto exit_1;
+	}
 	bif_base = (struct bif_base_info *)(bif_vir_addr + 0);
 	bif_ap = (struct bif_base_info *)(bif_vir_addr + BASE_PHY_SIZE);
 	bif_self = bif_ap;
@@ -531,6 +535,8 @@ int _bif_base_init(void)
 		INIT_WORK(&bif_irq_work, work_bif_irq);
 	}
 	bif_base_start = 1;
+
+exit_1:
 	return ret;
 }
 
@@ -667,9 +673,13 @@ static void __exit bif_base_exit(void)
 	platform_driver_unregister(&bif_base_driver);
 }
 
-//module_init(bif_base_init);
+#ifdef CONFIG_X2_FPGA
 late_initcall(bif_base_init);
+#else
+module_init(bif_base_init);
+#endif
 module_exit(bif_base_exit);
 
 MODULE_LICENSE("GPL");
-MODULE_AUTHOR("By:hobot, 2018 horizon robotics.");
+MODULE_AUTHOR("Horizon Inc.");
+MODULE_DESCRIPTION("bif base module");

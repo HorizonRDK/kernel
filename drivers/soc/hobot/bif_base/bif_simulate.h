@@ -4,7 +4,6 @@
 #include <linux/interrupt.h>
 #include "bif_base.h"
 
-#define FUNC_ENTER do {pr_info(">%s()[%d]\n", __func__, __line__); } while (0)
 #ifdef CONFIG_HOBOT_BIF_TEST
 #define BIF_BASE_ADDR	0x7ff00000
 #endif

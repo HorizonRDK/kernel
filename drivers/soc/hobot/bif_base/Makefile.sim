@@ -1,37 +1,10 @@
-#KERN_DIR = /work/opensource/linux-4.9.y
-KERN_DIR := /lib/modules/`uname -r`/build
-
-#cpbase apbase
-MODULES=cpbase
-#MODULES=apsdeth
-#MODULES=apspieth
-
-ifeq ($(MODULES), cpbase)
-obj-m := bif_cpbase.o
-bif_cpbase-objs :=bif_base.o bif_simulate.o
-#EXTRA_CFLAGS =-DCONFIG_HOBOT_BIF_TEST
-ccflags-y =-DCONFIG_HOBOT_BIF_TEST
-endif
-
-ifeq ($(MODULES), apsdeth)
-obj-m := bif_apbase.o
-bif_apbase-objs := bif_base.o bif_api.o bif_simulate.o
-#EXTRA_CFLAGS =-DCONFIG_HOBOT_BIF_AP -DCONFIG_HOBOT_BIFSD -DCONFIG_HOBOT_BIF_TEST
-ccflags-y =-DCONFIG_HOBOT_BIF_AP -DCONFIG_HOBOT_BIFSD -DCONFIG_HOBOT_BIF_TEST
-endif
-
-ifeq ($(MODULES), apspieth)
-obj-m := bif_apbase.o
-bif_apbase-objs := bif_base.o bif_api.o bif_simulate.o
-#EXTRA_CFLAGS =-DCONFIG_HOBOT_BIF_AP -DCONFIG_HOBOT_BIFSPI -DCONFIG_HOBOT_BIF_TEST
-ccflags-y =-DCONFIG_HOBOT_BIF_AP -DCONFIG_HOBOT_BIFSPI -DCONFIG_HOBOT_BIF_TEST
-endif
 
 all:
-	rm -fr *.o *.cmd *.bak
-	make -C $(KERN_DIR) M=`pwd` modules
-	rm -fr *.o *.cmd *.bak
-
+	cp Makefile.sim_cp Makefile
+	make
+	cp Makefile.sim_ap Makefile
+	make
+	cp Makefile.sim Makefile
 clean:
-	make -C $(KERN_DIR) M=`pwd` modules clean
+	rm -rf *.o *.ko *.cmd
 	rm -rf *.order
