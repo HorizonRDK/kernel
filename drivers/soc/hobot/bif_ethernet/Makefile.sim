@@ -1,35 +1,10 @@
-#KERN_DIR = /work/opensource/linux-4.9.y
-KERN_DIR := /lib/modules/`uname -r`/build
-
-#cpeth apsdeth apspieth
-MODULES=cpeth
-#MODULES=apsdeth
-#MODULES=apspieth
-
-ifeq ($(MODULES), cpeth)
-obj-m := bif_cpeth.o
-bif_cpeth-objs := bif_ether.o
-endif
-
-ifeq ($(MODULES), apsdeth)
-obj-m := bif_apeth.o
-bif_apeth-objs := bif_ether.o
-#EXTRA_CFLAGS =-DCONFIG_HOBOT_BIF_AP -DCONFIG_HOBOT_BIFSD
-ccflags-y =-DCONFIG_HOBOT_BIF_AP -DCONFIG_HOBOT_BIFSD
-endif
-
-ifeq ($(MODULES), apspieth)
-obj-m := bif_apeth.o
-bif_apeth-objs := bif_ether.o
-#EXTRA_CFLAGS =-DCONFIG_HOBOT_BIF_AP -DCONFIG_HOBOT_BIFSPI
-ccflags-y =-DCONFIG_HOBOT_BIF_AP -DCONFIG_HOBOT_BIFSPI
-endif
 
 all:
-	rm -fr *.o *.cmd *.bak
-	make -C $(KERN_DIR) M=`pwd` modules
-	rm -fr *.o *.cmd *.bak
-
+	cp Makefile.sim_cp Makefile
+	make
+	cp Makefile.sim_ap Makefile
+	make
+	cp Makefile.sim Makefile
 clean:
-	make -C $(KERN_DIR) M=`pwd` modules clean
+	rm -rf *.o *.ko *.cmd
 	rm -rf *.order

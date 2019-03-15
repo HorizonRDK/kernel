@@ -62,7 +62,7 @@
 #define MIN(a, b)		((a) < (b) ? (a) : (b))
 
 static struct net_device *bif_net;
-static struct bif_ether_info *bif_cp, *bif_ap, *self, *other;
+static struct bif_ether_info *cp, *ap, *self, *other;
 static unsigned long self_phy;
 static unsigned long other_phy;
 void *self_vir;
@@ -149,20 +149,23 @@ static int bif_sync_apbuf(unsigned long phy_addr, unsigned int blklen,
 static void bif_eth_query_addr(int wait_flag)
 {
 	void *vir_addr;
+#ifdef CONFIG_HOBOT_BIF_AP
+	void *phy_addr;
+#endif
 
-	pr_info("bif_eth query address(wait_flag=%d)...\n", wait_flag);
+	//pr_info("bif_eth：query address(wait_flag=%d)...\n", wait_flag);
 #ifdef CONFIG_HOBOT_BIF_AP
 	if (wait_flag)
-		vir_addr = bif_query_address_wait(buf_id);
+		phy_addr = bif_query_address_wait(buf_id);
 	else
-		vir_addr = bif_query_address(buf_id);
-	if (vir_addr == (void *)-1) {
-		pr_warn("%s() Warn bif query address\n", __func__);
+		phy_addr = bif_query_address(buf_id);
+	if (phy_addr == (void *)-1) {
+		//pr_warn("%s() Warn bif query address\n", __func__);
 		query_addr_flg = 0;
 	} else {
 		self_phy =
-		    (unsigned long)vir_addr + (ETHER_QUERE_SIZE * BIF_ETH_SIZE);
-		other_phy = (unsigned long)vir_addr;
+		    (unsigned long)phy_addr + (ETHER_QUERE_SIZE * BIF_ETH_SIZE);
+		other_phy = (unsigned long)phy_addr;
 
 		/*cp side init */
 		if (wait_flag)
@@ -170,15 +173,15 @@ static void bif_eth_query_addr(int wait_flag)
 		else
 			vir_addr = bif_query_otherbase(buf_id);
 		if (vir_addr == (void *)-1) {
-			pr_warn("bif_eth: Warn bif query otherbase\n");
+			//pr_warn("bif_eth: Warn bif query otherbase\n");
 			query_addr_flg = 0;
 		} else {
-			bif_cp = (struct bif_ether_info *)(vir_addr);
+			cp = (struct bif_ether_info *)(vir_addr);
 			query_addr_flg = 1;
 		}
 	}
-	self = bif_ap;
-	other = bif_cp;
+	self = ap;
+	other = cp;
 #else
 	/*ap side init */
 	if (wait_flag)
@@ -186,22 +189,22 @@ static void bif_eth_query_addr(int wait_flag)
 	else
 		vir_addr = bif_query_otherbase(buf_id);
 	if (vir_addr == (void *)-1) {
-		pr_warn("bif_eth: Warn bif query otherbase\n");
+		//pr_warn("bif_eth: Warn bif query otherbase\n");
 		query_addr_flg = 0;
 	} else {
-		bif_ap = (struct bif_ether_info *)(vir_addr);
+		ap = (struct bif_ether_info *)(vir_addr);
 		query_addr_flg = 1;
 	}
-	self = bif_cp;
-	other = bif_ap;
+	self = cp;
+	other = ap;
 #endif
 
 	if (query_addr_flg) {
 		pr_info("self_phy=%lx,other_phy=%lx\n", self_phy, other_phy);
 		pr_info("self_vir=%lx,other_vir=%lx\n",
 			(unsigned long)self_vir, (unsigned long)other_vir);
-		pr_info("bif_cp=%lx,bif_ap=%lx\n",
-			(unsigned long)bif_cp, (unsigned long)bif_ap);
+		pr_info("cp=%lx,ap=%lx\n",
+			(unsigned long)cp, (unsigned long)ap);
 		bif_start = 1;
 	}
 }
@@ -572,7 +575,7 @@ static int bif_net_init(void)
 	if (vir_addr == NULL)
 		return -ENOMEM;
 
-	bif_ap = (struct bif_ether_info *)(vir_addr);
+	ap = (struct bif_ether_info *)(vir_addr);
 #else
 #ifdef BIF_USE_RESERVED_MEM
 	self_vir = bif_alloc_cp(buf_id, 2*ETHER_QUERE_SIZE*BIF_ETH_SIZE,
@@ -590,7 +593,7 @@ static int bif_net_init(void)
 	if (vir_addr == NULL)
 		return -ENOMEM;
 
-	bif_cp = (struct bif_ether_info *)(vir_addr);
+	cp = (struct bif_ether_info *)(vir_addr);
 
 #endif
 
@@ -607,12 +610,12 @@ static int bif_net_init(void)
 #ifdef CONFIG_HOBOT_BIF_AP
 		pr_info("self_vir=%lx,other_vir=%lx\n",
 			(unsigned long)self_vir, (unsigned long)other_vir);
-		pr_info("bif_ap=%lx\n", (unsigned long)bif_ap);
+		pr_info("ap=%lx\n", (unsigned long)ap);
 #else
 		pr_info("self_phy=%lx,other_phy=%lx\n", self_phy, other_phy);
 		pr_info("self_vir=%lx,other_vir=%lx\n",
 			(unsigned long)self_vir, (unsigned long)other_vir);
-		pr_info("bif_cp=%lx\n", (unsigned long)bif_cp);
+		pr_info("cp=%lx\n", (unsigned long)cp);
 #endif
 	}
 	pr_info("bif_eth: init end...\n");
@@ -667,8 +670,12 @@ static void bif_net_exit(void)
 	pr_info("bif_eth: exit end...\n");
 }
 
-//module_init(bif_net_init);
+#ifdef CONFIG_X2_FPGA
 late_initcall(bif_net_init);
+#else
+module_init(bif_net_init);
+#endif
 module_exit(bif_net_exit);
 MODULE_LICENSE("GPL");
-MODULE_AUTHOR("By:hobot, 2018 horizon robotics.");
+MODULE_AUTHOR("Horizon Inc.");
+MODULE_DESCRIPTION("bif ethernet module");
