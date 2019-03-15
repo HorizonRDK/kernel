@@ -1276,7 +1276,7 @@ static void dw_mci_setup_bus(struct dw_mci_slot *slot, bool force_clkinit)
 			force_clkinit) {
 			/* Silent the verbose log if calling from PM context */
 			if (!force_clkinit)
-				dev_info(&slot->mmc->class_dev,
+				dev_dbg(&slot->mmc->class_dev,
 					 "Bus speed (slot %d) = %dHz (slot req %dHz, actual %dHZ div = %d)\n",
 					 slot->id, host->bus_hz, clock,
 					 div ? ((host->bus_hz / div) >> 1) :
@@ -2842,7 +2842,7 @@ static int dw_mci_init_slot(struct dw_mci *host)
 		mmc->f_min = DW_MCI_FREQ_MIN;
 		mmc->f_max = DW_MCI_FREQ_MAX;
 	} else {
-		dev_info(host->dev,
+		dev_dbg(host->dev,
 			"'clock-freq-min-max' property was deprecated.\n");
 		mmc->f_min = freq[0];
 		mmc->f_max = freq[1];
@@ -2950,7 +2950,7 @@ static void dw_mci_init_dma(struct dw_mci *host)
 		if (addr_config == 1) {
 			/* host supports IDMAC in 64-bit address mode */
 			host->dma_64bit_address = 1;
-			dev_info(host->dev,
+			dev_dbg(host->dev,
 				 "IDMAC supports 64-bit address mode.\n");
 			if (!dma_set_mask(host->dev, DMA_BIT_MASK(64)))
 				dma_set_coherent_mask(host->dev,
@@ -2958,7 +2958,7 @@ static void dw_mci_init_dma(struct dw_mci *host)
 		} else {
 			/* host supports IDMAC in 32-bit address mode */
 			host->dma_64bit_address = 0;
-			dev_info(host->dev,
+			dev_dbg(host->dev,
 				 "IDMAC supports 32-bit address mode.\n");
 		}
 
@@ -2974,7 +2974,7 @@ static void dw_mci_init_dma(struct dw_mci *host)
 		}
 
 		host->dma_ops = &dw_mci_idmac_ops;
-		dev_info(host->dev, "Using internal DMA controller.\n");
+		dev_dbg(host->dev, "Using internal DMA controller.\n");
 	} else {
 		/* TRANS_MODE_EDMAC: check dma bindings again */
 		if ((device_property_read_string_array(dev, "dma-names",
@@ -3201,8 +3201,7 @@ int dw_mci_probe(struct dw_mci *host)
 
 	host->ciu_clk = devm_clk_get(host->dev, "ciu");
 	if (IS_ERR(host->ciu_clk)) {
-		dev_dbg(host->dev, "ciu clock not available\n");
-		host->bus_hz = host->pdata->bus_hz;
+
 	} else {
 		ret = clk_prepare_enable(host->ciu_clk);
 		if (ret) {
@@ -3327,7 +3326,7 @@ int dw_mci_probe(struct dw_mci *host)
 	 * Need to check the version-id and set data-offset for DATA register.
 	 */
 	host->verid = SDMMC_GET_VERID(mci_readl(host, VERID));
-	dev_info(host->dev, "Version ID is %04x\n", host->verid);
+	dev_dbg(host->dev, "Version ID is %04x\n", host->verid);
 
 	if (host->data_addr_override)
 		host->fifo_reg = host->regs + host->data_addr_override;
@@ -3352,7 +3351,7 @@ int dw_mci_probe(struct dw_mci *host)
 	/* Enable mci interrupt */
 	mci_writel(host, CTRL, SDMMC_CTRL_INT_ENABLE);
 
-	dev_info(host->dev,
+	dev_dbg(host->dev,
 		 "DW MMC controller at irq %d,%d bit host data width,%u deep fifo\n",
 		 host->irq, width, fifo_size);
 

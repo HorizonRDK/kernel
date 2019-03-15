@@ -258,7 +258,7 @@
 };
 
 &sdio1 {
-	status = "disabled";
+	status = "okay";
 };
 
 &watchdog {

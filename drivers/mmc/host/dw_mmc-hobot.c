@@ -20,11 +20,15 @@
 #include "dw_mmc-pltfm.h"
 
 #define X2_CLKGEN_DIV       2
+#define SDIO0_EMMC_1ST_DIV_CLOCK_HZ 300000000
+#define SDIO0_EMMC_2ND_DIV_CLOCK_HZ 150000000
 
 struct dw_mci_hobot_priv_data {
 	struct clk		*drv_clk;
 	struct clk		*sample_clk;
-	int			default_sample_phase;
+        struct clk              *clk;
+        u32                     clock_frequency;
+        int			default_sample_phase;
 };
 
 static void dw_mci_x2_set_ios(struct dw_mci *host, struct mmc_ios *ios)
@@ -158,6 +162,7 @@ static int dw_mci_x2_parse_dt(struct dw_mci *host)
 {
 	struct device_node *np = host->dev->of_node;
 	struct dw_mci_hobot_priv_data *priv;
+	int ret;
 
 	priv = devm_kzalloc(host->dev, sizeof(*priv), GFP_KERNEL);
 	if (!priv)
@@ -167,14 +172,39 @@ static int dw_mci_x2_parse_dt(struct dw_mci *host)
 				 &priv->default_sample_phase))
 		priv->default_sample_phase = 0;
 
-	priv->drv_clk = devm_clk_get(host->dev, "ciu-drive");
+	priv->drv_clk = devm_clk_get(host->dev, "sd0_div_clk");
 	if (IS_ERR(priv->drv_clk))
-		dev_dbg(host->dev, "ciu_drv not available\n");
+		dev_err(host->dev, "sd0_div_clk not available\n");
 
-	priv->sample_clk = devm_clk_get(host->dev, "ciu-sample");
+	ret = clk_set_rate(priv->drv_clk, SDIO0_EMMC_1ST_DIV_CLOCK_HZ);
+	if(ret < 0){
+	        dev_err(host->dev, "failed to set 1st div rate.\n");
+		return ret;
+	}
+
+	priv->sample_clk = devm_clk_get(host->dev, "sd0_div_cclk");
 	if (IS_ERR(priv->sample_clk))
-		dev_dbg(host->dev, "ciu_sample not available\n");
+		dev_err(host->dev, "sd0_div_cclk not available\n");
 
+	ret = clk_set_rate(priv->sample_clk, SDIO0_EMMC_2ND_DIV_CLOCK_HZ);
+	if(ret < 0){
+	     dev_err(host->dev, "failed to set 2nd div rate.\n");
+		return ret;
+	}
+
+	priv->clock_frequency = clk_get_rate(priv->sample_clk);
+	if(!priv->clock_frequency)
+	        dev_err(host->dev, "failed to get clk rate.\n");
+
+	priv->clk = devm_clk_get(host->dev, "sd0_cclk");
+	if (IS_ERR(priv->clk))
+		dev_err(host->dev, "sd0_cclk not available\n");
+
+	ret = clk_prepare_enable(priv->clk);
+	if (ret)
+		dev_err(host->dev, "Unable to enable device clock.\n");
+
+	host->bus_hz = priv->clock_frequency;
 	host->priv = priv;
 
 	return 0;
@@ -182,13 +212,6 @@ static int dw_mci_x2_parse_dt(struct dw_mci *host)
 
 static int dw_mci_hobot_init(struct dw_mci *host)
 {
-	/* It is slot 8 on Hobot SoCs */
-	host->sdio_id0 = 0;
-
-	if (of_device_is_compatible(host->dev->of_node,
-				    "hobot,x2-dw-mshc"))
-		host->bus_hz /= X2_CLKGEN_DIV;
-
 	return 0;
 }
 
