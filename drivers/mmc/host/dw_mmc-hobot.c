@@ -15,28 +15,28 @@
 #include <linux/slab.h>
 #include <linux/reset.h>
 #include <linux/delay.h>
+#include <linux/regmap.h>
+#include <linux/of_gpio.h>
+#include <linux/mmc/slot-gpio.h>
+#include <linux/regulator/consumer.h>
 
 #include "dw_mmc.h"
 #include "dw_mmc-pltfm.h"
 
-#define X2_CLKGEN_DIV       2
-#define SDIO0_EMMC_1ST_DIV_CLOCK_HZ 300000000
-#define SDIO0_EMMC_2ND_DIV_CLOCK_HZ 150000000
+#define X2_CLKGEN_DIV (2)
+#define SDIO0_EMMC_1ST_DIV_CLOCK_HZ 400000000
+#define SDIO0_EMMC_2ND_DIV_CLOCK_HZ 200000000
 
 struct dw_mci_hobot_priv_data {
-	struct clk		*drv_clk;
-	struct clk		*sample_clk;
-        struct clk              *clk;
-        u32                     clock_frequency;
-        int			default_sample_phase;
+	struct clk *drv_clk;
+	struct clk *sample_clk;
+	struct clk *clk;
+	u32 clock_frequency;
+	int default_sample_phase;
+	u32 uhs_180v_gpio;
 };
 
-static void dw_mci_x2_set_ios(struct dw_mci *host, struct mmc_ios *ios)
-{
-	return;
-}
-
-#define NUM_PHASES			360
+#define NUM_PHASES			16
 #define TUNING_ITERATION_TO_PHASE(i)	(DIV_ROUND_UP((i) * 360, NUM_PHASES))
 
 static int dw_mci_x2_execute_tuning(struct dw_mci_slot *slot, u32 opcode)
@@ -49,7 +49,7 @@ static int dw_mci_x2_execute_tuning(struct dw_mci_slot *slot, u32 opcode)
 	bool v, prev_v = 0, first_v;
 	struct range_t {
 		int start;
-		int end; /* inclusive */
+		int end;	/* inclusive */
 	};
 	struct range_t *ranges;
 	unsigned int range_count = 0;
@@ -67,7 +67,7 @@ static int dw_mci_x2_execute_tuning(struct dw_mci_slot *slot, u32 opcode)
 		return -ENOMEM;
 
 	/* Try each phase and extract good ranges */
-	for (i = 0; i < NUM_PHASES; ) {
+	for (i = 0; i < NUM_PHASES;) {
 		clk_set_phase(priv->sample_clk, TUNING_ITERATION_TO_PHASE(i));
 
 		v = !mmc_send_tuning(mmc, opcode, NULL);
@@ -77,10 +77,10 @@ static int dw_mci_x2_execute_tuning(struct dw_mci_slot *slot, u32 opcode)
 
 		if ((!prev_v) && v) {
 			range_count++;
-			ranges[range_count-1].start = i;
+			ranges[range_count - 1].start = i;
 		}
 		if (v) {
-			ranges[range_count-1].end = i;
+			ranges[range_count - 1].end = i;
 			i++;
 		} else if (i == NUM_PHASES - 1) {
 			/* No extra skipping rules if we're at the end */
@@ -109,7 +109,7 @@ static int dw_mci_x2_execute_tuning(struct dw_mci_slot *slot, u32 opcode)
 
 	/* wrap around case, merge the end points */
 	if ((range_count > 1) && first_v && v) {
-		ranges[0].start = ranges[range_count-1].start;
+		ranges[0].start = ranges[range_count - 1].start;
 		range_count--;
 	}
 
@@ -134,16 +134,13 @@ static int dw_mci_x2_execute_tuning(struct dw_mci_slot *slot, u32 opcode)
 
 		dev_dbg(host->dev, "Good phase range %d-%d (%d len)\n",
 			TUNING_ITERATION_TO_PHASE(ranges[i].start),
-			TUNING_ITERATION_TO_PHASE(ranges[i].end),
-			len
-		       );
+			TUNING_ITERATION_TO_PHASE(ranges[i].end), len);
 	}
 
 	dev_dbg(host->dev, "Best phase range %d-%d (%d len)\n",
 		TUNING_ITERATION_TO_PHASE(ranges[longest_range].start),
 		TUNING_ITERATION_TO_PHASE(ranges[longest_range].end),
-		longest_range_len
-	       );
+		longest_range_len);
 
 	middle_phase = ranges[longest_range].start + longest_range_len / 2;
 	middle_phase %= NUM_PHASES;
@@ -158,10 +155,22 @@ free:
 	return ret;
 }
 
+static void dw_mci_x2_set_ios(struct dw_mci *host, struct mmc_ios *ios)
+{
+	return;
+}
+
+static int dw_mci_x2_prepare_hs400_tuning(struct dw_mci *host,
+					  struct mmc_ios *ios)
+{
+	return 0;
+}
+
 static int dw_mci_x2_parse_dt(struct dw_mci *host)
 {
 	struct device_node *np = host->dev->of_node;
 	struct dw_mci_hobot_priv_data *priv;
+	u32 powerup_gpio;
 	int ret;
 
 	priv = devm_kzalloc(host->dev, sizeof(*priv), GFP_KERNEL);
@@ -172,33 +181,43 @@ static int dw_mci_x2_parse_dt(struct dw_mci *host)
 				 &priv->default_sample_phase))
 		priv->default_sample_phase = 0;
 
-	priv->drv_clk = devm_clk_get(host->dev, "sd0_div_clk");
+	priv->uhs_180v_gpio = 0;
+	if (!device_property_read_u32(host->dev, "powerup-gpio", &powerup_gpio)) {
+		gpio_request(powerup_gpio, NULL);
+		gpio_direction_output(powerup_gpio, 1);
+	}
+
+	if (!device_property_read_u32
+	    (host->dev, "uhs-180v-gpio", &priv->uhs_180v_gpio))
+		gpio_request(priv->uhs_180v_gpio, NULL);
+
+	priv->drv_clk = devm_clk_get(host->dev, "sd_div_clk");
 	if (IS_ERR(priv->drv_clk))
-		dev_err(host->dev, "sd0_div_clk not available\n");
+		dev_err(host->dev, "sd_div_clk not available\n");
 
 	ret = clk_set_rate(priv->drv_clk, SDIO0_EMMC_1ST_DIV_CLOCK_HZ);
-	if(ret < 0){
-	        dev_err(host->dev, "failed to set 1st div rate.\n");
+	if (ret < 0) {
+		dev_err(host->dev, "failed to set 1st div rate.\n");
 		return ret;
 	}
 
-	priv->sample_clk = devm_clk_get(host->dev, "sd0_div_cclk");
+	priv->sample_clk = devm_clk_get(host->dev, "sd_div_cclk");
 	if (IS_ERR(priv->sample_clk))
-		dev_err(host->dev, "sd0_div_cclk not available\n");
+		dev_err(host->dev, "sd_div_cclk not available\n");
 
 	ret = clk_set_rate(priv->sample_clk, SDIO0_EMMC_2ND_DIV_CLOCK_HZ);
-	if(ret < 0){
-	     dev_err(host->dev, "failed to set 2nd div rate.\n");
+	if (ret < 0) {
+		dev_err(host->dev, "failed to set 2nd div rate.\n");
 		return ret;
 	}
 
 	priv->clock_frequency = clk_get_rate(priv->sample_clk);
-	if(!priv->clock_frequency)
-	        dev_err(host->dev, "failed to get clk rate.\n");
+	if (!priv->clock_frequency)
+		dev_err(host->dev, "failed to get clk rate.\n");
 
-	priv->clk = devm_clk_get(host->dev, "sd0_cclk");
+	priv->clk = devm_clk_get(host->dev, "sd_cclk");
 	if (IS_ERR(priv->clk))
-		dev_err(host->dev, "sd0_cclk not available\n");
+		dev_err(host->dev, "sd_cclk not available\n");
 
 	ret = clk_prepare_enable(priv->clk);
 	if (ret)
@@ -215,6 +234,32 @@ static int dw_mci_hobot_init(struct dw_mci *host)
 	return 0;
 }
 
+static int dw_mci_x2_switch_voltage(struct mmc_host *mmc, struct mmc_ios *ios)
+{
+	struct dw_mci_slot *slot = mmc_priv(mmc);
+	struct dw_mci_hobot_priv_data *priv;
+	struct dw_mci *host;
+
+	host = slot->host;
+	priv = host->priv;
+
+	if (!priv)
+		return 0;
+
+	if (ios->signal_voltage == MMC_SIGNAL_VOLTAGE_330) {
+		if (priv->uhs_180v_gpio)
+			gpio_direction_output(priv->uhs_180v_gpio, 0);
+	} else if (ios->signal_voltage == MMC_SIGNAL_VOLTAGE_180) {
+		if (priv->uhs_180v_gpio)
+			gpio_direction_output(priv->uhs_180v_gpio, 1);
+	} else {
+		dev_dbg(host->dev, "voltage not supported\n");
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 /* Common capabilities of X2 SoC */
 static unsigned long dw_mci_x2_dwmmc_caps[4] = {
 	MMC_CAP_8_BIT_DATA | MMC_CAP_CMD23,
@@ -224,20 +269,22 @@ static unsigned long dw_mci_x2_dwmmc_caps[4] = {
 };
 
 static const struct dw_mci_drv_data x2_drv_data = {
-	.caps			= dw_mci_x2_dwmmc_caps,
-	.num_caps		= ARRAY_SIZE(dw_mci_x2_dwmmc_caps),
-	.set_ios		= dw_mci_x2_set_ios,
-	.execute_tuning		= dw_mci_x2_execute_tuning,
-	.parse_dt		= dw_mci_x2_parse_dt,
-	.init			= dw_mci_hobot_init,
+	.caps = dw_mci_x2_dwmmc_caps,
+	.num_caps = ARRAY_SIZE(dw_mci_x2_dwmmc_caps),
+	.init = dw_mci_hobot_init,
+	.set_ios = dw_mci_x2_set_ios,
+	.parse_dt = dw_mci_x2_parse_dt,
+	.execute_tuning = dw_mci_x2_execute_tuning,
+	.prepare_hs400_tuning = dw_mci_x2_prepare_hs400_tuning,
+	.switch_voltage = dw_mci_x2_switch_voltage,
 };
 
 static const struct of_device_id dw_mci_hobot_match[] = {
-	{	.compatible = "hobot,x2-dw-mshc",
-		.data = &x2_drv_data
-	},
+	{.compatible = "hobot,x2-dw-mshc",
+	 .data = &x2_drv_data},
 	{},
 };
+
 MODULE_DEVICE_TABLE(of, dw_mci_hobot_match);
 
 static int dw_mci_hobot_probe(struct platform_device *pdev)
@@ -254,13 +301,13 @@ static int dw_mci_hobot_probe(struct platform_device *pdev)
 }
 
 static struct platform_driver dw_mci_hobot_pltfm_driver = {
-	.probe		= dw_mci_hobot_probe,
-	.remove		= dw_mci_pltfm_remove,
-	.driver		= {
-		.name		= "dwmmc_hobot",
-		.of_match_table	= dw_mci_hobot_match,
-		.pm		= &dw_mci_pltfm_pmops,
-	},
+	.probe = dw_mci_hobot_probe,
+	.remove = dw_mci_pltfm_remove,
+	.driver = {
+		   .name = "dwmmc_hobot",
+		   .of_match_table = dw_mci_hobot_match,
+		   .pm = &dw_mci_pltfm_pmops,
+		   },
 };
 
 module_platform_driver(dw_mci_hobot_pltfm_driver);

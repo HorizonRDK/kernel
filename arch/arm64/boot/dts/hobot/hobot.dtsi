@@ -484,15 +484,11 @@
 			reg = <0x0 0xA5010000 0x0 0x1000>;
 			clock-freq-min-max = <100000 200000000>;
 			clocks = <&sd0_div_clk>, <&sd0_div_cclk>,<&sd0_cclk>;
-			clock-names = "sd0_div_clk","sd0_div_cclk","sd0_cclk";
+			clock-names = "sd_div_clk","sd_div_cclk","sd_cclk";
 			fifo-depth = <0x100>;
 			fifo-mode = <0>;
-			bus-width = <4>;
-			cap-mmc-highspeed;
-			non-removable;
 			no-sd;
 			no-sdio;
-			disable-wp;
 			interrupt-parent = <&gic>;
 			interrupts = <0 39 4>;
 			status = "disabled";
@@ -506,7 +502,7 @@
 			reg = <0x0 0xA5011000 0x0 0x1000>;
 			clock-freq-min-max = <100000 200000000>;
 			clocks = <&sd1_div_clk>, <&sd1_div_cclk>,<&sd1_cclk>;
-			clock-names = "sd1_div_clk","sd1_div_cclk","sd1_cclk";
+			clock-names = "sd_div_clk","sd_div_cclk","sd_cclk";
 			fifo-depth = <0x100>;
 			fifo-mode = <0>;
 			interrupt-parent = <&gic>;
@@ -523,6 +519,14 @@
 			reg = <0 0xA1009000 0 0x1000>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 53 4>;
+			status = "disabled";
+		};
+
+		ddr_monitor: ddr_monitor@0xA2D10000 {
+			compatible = "hobot,x2-ddrmonitor";
+			reg = <0 0xA2D10000 0 0x1000>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 52 4>;
 			status = "disabled";
 		};
 	};

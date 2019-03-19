@@ -38,6 +38,7 @@
 		bifsd   = &bifsd;
 		bifspi  = &bifspi;
 		mmc0    = &sdio0;
+		mmc1    = &sdio1;
 	};
 
 	chosen {
@@ -253,12 +254,27 @@
 		};
 	};
 };
+
 &sdio0 {
 	status = "okay";
+	bus-width = <8>;
+	cap-mmc-highspeed;
+	non-removable;
+	disable-wp;
 };
 
 &sdio1 {
 	status = "okay";
+	bus-width = <4>;
+	no-mmc;
+	no-sdio;
+	cap-sd-highspeed;
+	sd-uhs-sdr12;
+	sd-uhs-sdr25;
+	powerup-gpio = <85>;
+	uhs-180v-gpio = <86>;
+	non-removable;
+	disable-wp;
 };
 
 &watchdog {
@@ -276,3 +292,7 @@
 	clocks = <&i2s1_mclk>, <&i2s1_bclk>;
 	clock-names = "i2s_mclk", "i2s_bclk";
 };
+&ddr_monitor {
+	status = "okay";
+};
+
