@@ -120,6 +120,7 @@ int32_t iar_write_framebuf_dma(uint32_t channel, phys_addr_t srcaddr, uint32_t s
 
 	return 0;
 }
+EXPORT_SYMBOL_GPL(iar_write_framebuf_dma);
 
 int32_t iar_display_update(update_cmd_t *update_cmd)
 {

@@ -21,6 +21,7 @@
 #include <asm/uaccess.h>
 #include <linux/types.h>
 #include <linux/reset.h>
+#include <linux/fb.h>
 #include "x2/x2_ips.h"
 #include "x2_iar.h"
 
@@ -434,6 +435,63 @@ int32_t iar_set_hvsync_timing(int outmode)
 
 	return 0;
 }
+
+int32_t iar_set_panel_timing(struct fb_info *fb)
+{
+	uint32_t value;
+
+	if (g_iar_dev == NULL) {
+		pr_err("IAR dev not inited!");
+		return -1;
+	}
+	//bt->rgb888, 5(7)inch pannel
+	value = readl(g_iar_dev->regaddr + REG_IAR_PARAMETER_HTIM_FIELD1);
+	value = IAR_REG_SET_FILED(IAR_DPI_HBP_FIELD,
+			fb->var.right_margin, value);
+	value = IAR_REG_SET_FILED(IAR_DPI_HFP_FIELD,
+			fb->var.left_margin, value);
+	value = IAR_REG_SET_FILED(IAR_DPI_HSW_FIELD,
+			fb->var.hsync_len, value);
+	writel(value, g_iar_dev->regaddr + REG_IAR_PARAMETER_HTIM_FIELD1);
+
+//	value = readl(g_iar_dev->regaddr + REG_IAR_PARAMETER_HTIM_FIELD2);
+//	value = IAR_REG_SET_FILED(IAR_DPI_HBP_FIELD2,
+//	fb->var.right_margin, value);
+//	value = IAR_REG_SET_FILED(IAR_DPI_HFP_FIELD2,
+//	fb->var.left_margin, value);
+//	value = IAR_REG_SET_FILED(IAR_DPI_HSW_FIELD2,
+//	fb->var.hsync_len, value);
+//	writel(value, g_iar_dev->regaddr + REG_IAR_PARAMETER_HTIM_FIELD2);
+
+
+	value = readl(g_iar_dev->regaddr + REG_IAR_PARAMETER_VTIM_FIELD1);
+	value = IAR_REG_SET_FILED(IAR_DPI_VBP_FIELD, fb->var.lower_margin,
+			value);
+//	if (outmode == OUTPUT_BT1120)
+		value = IAR_REG_SET_FILED(IAR_DPI_VFP_FIELD,
+				fb->var.upper_margin, value);
+//	else
+//		value = IAR_REG_SET_FILED(IAR_DPI_VFP_FIELD, 0x1, value);
+	value = IAR_REG_SET_FILED(IAR_DPI_VSW_FIELD, fb->var.vsync_len, value);
+	writel(value, g_iar_dev->regaddr + REG_IAR_PARAMETER_VTIM_FIELD1);
+
+	value = readl(g_iar_dev->regaddr + REG_IAR_PARAMETER_VTIM_FIELD2);
+	value = IAR_REG_SET_FILED(IAR_DPI_VBP_FIELD2,
+			fb->var.lower_margin, value);
+//	if (outmode == OUTPUT_BT1120)
+		value = IAR_REG_SET_FILED(IAR_DPI_VFP_FIELD2,
+				fb->var.upper_margin, value);
+//	else
+//		value = IAR_REG_SET_FILED(IAR_DPI_VFP_FIELD2, 0x1, value);
+	value = IAR_REG_SET_FILED(IAR_DPI_VSW_FIELD2, fb->var.vsync_len, value);
+	writel(value, g_iar_dev->regaddr + REG_IAR_PARAMETER_VTIM_FIELD2);
+
+	writel(0xa, g_iar_dev->regaddr + REG_IAR_PARAMETER_VFP_CNT_FIELD12);
+	//???????
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(iar_set_panel_timing);
 
 int32_t iar_channel_base_cfg(channel_base_cfg_t *cfg)
 {

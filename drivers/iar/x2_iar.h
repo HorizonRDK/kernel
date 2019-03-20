@@ -4,6 +4,7 @@
 #include <linux/dmaengine.h>
 #include <linux/dma-mapping.h>
 #include <linux/of_address.h>
+#include <linux/fb.h>
 #include <linux/slab.h>
 
 #define MAX_FRAME_BUF_SIZE	(1920*1080*4)
@@ -504,6 +505,7 @@ extern unsigned int iar_debug_level;
 			printk("IAR debug: " format, ## args);		\
 	} while(0)
 
+int32_t iar_set_panel_timing(struct fb_info *fb);
 frame_buf_t* iar_get_framebuf_addr(uint32_t channel);
 int32_t iar_set_bufaddr(uint32_t channel, buf_addr_t *addr);
 int32_t iar_update(void);
