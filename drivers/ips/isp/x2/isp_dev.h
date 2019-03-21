@@ -20,11 +20,14 @@
 
 #define ISP_NAME    "x2-isp"
 
-typedef struct isp_dev_s {
-	phys_addr_t     mapbase;
-	void __iomem    *regbase;
-	int             irq;
-} isp_dev_t;
+struct isp_dev_s {
+	phys_addr_t mapbase;
+	phys_addr_t mapbaseio;
+	uint32_t memsize;
+	void __iomem *regbase;
+	void *vaddr;
+	int irq;
+};
 
 /**
  * isp_get_dev
@@ -32,6 +35,6 @@ typedef struct isp_dev_s {
  *
  * Return: isp_dev_t type, ref isp_dev_s struction.
  */
-isp_dev_t *isp_get_dev(void);
+struct isp_dev_s *isp_get_dev(void);
 
 #endif /* __X2_ISP_DEV_H__ */

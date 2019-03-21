@@ -480,6 +480,10 @@ static void* ipu_vmap(phys_addr_t start, size_t size)
 		pages[i] = pfn_to_page(addr >> PAGE_SHIFT);
 	}
 	vaddr = vm_map_ram(pages, page_count, -1, prot);
+
+//	printk("x2_ipu_drv%d \n",page_count);
+//	memset(vaddr,0,PAGE_SIZE * page_count);
+
 	kfree(pages);
 
 	return vaddr;

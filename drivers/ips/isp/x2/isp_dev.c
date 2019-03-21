@@ -1,119 +1,170 @@
-/*	isp_dev.c - a device driver for the iic-bus interface
+/*  isp_dev.c - a device driver for the iic-bus interface
+ *
+ *   Copyright (C) 2018 Horizon Inc.
+ *
+ *    This program is free software; you can redistribute it and/or modify
+ *    it under the terms of the GNU General Public License as published by
+ *    the Free Software Foundation; either version 2 of the License, or
+ *    (at your option) any later version.
+ *
+ *    This program is distributed in the hope that it will be useful,
+ *    but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *    GNU General Public License for more details.
+ */
 
-	Copyright (C) 2018 Horizon Inc.
-
-	This program is free software; you can redistribute it and/or modify
-	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation; either version 2 of the License, or
-	(at your option) any later version.
-
-	This program is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY; without even the implied warranty of
-	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-	GNU General Public License for more details.
-*/
-
-#include <linux/init.h>
-#include <linux/module.h>
-#include <linux/uaccess.h>
-#include <linux/debugfs.h>
-#include <linux/device.h>
 #include <linux/platform_device.h>
+#include <linux/of.h>
+#include <linux/of_address.h>
 #include <linux/module.h>
-#include <linux/io.h>
 #include <linux/fs.h>
+#include <linux/cdev.h>
+#include <linux/errno.h>
+#include <linux/types.h>
+#include <linux/init.h>
+#include <linux/wait.h>
+#include <linux/kthread.h>
+#include <linux/dma-mapping.h>
+#include <linux/dmaengine.h>
+#include <linux/device.h>
+#include <linux/compiler.h>
+#include <linux/slab.h>
+#include <linux/proc_fs.h>
+#include <linux/delay.h>
+#include <linux/poll.h>
+#include <linux/eventpoll.h>
+#include <asm-generic/io.h>
+#include <linux/string.h>
+#include <linux/uaccess.h>
+#include <linux/mman.h>
 #include "isp_dev.h"
 #include "x2_isp.h"
+#include "isp_base.h"
+#include "x2/x2_ips.h"
 
 /* global variable define */
-static isp_dev_t *pIspDev = NULL;
+static struct isp_dev_s *isp_dev;
 
 /* function */
-isp_dev_t *isp_get_dev(void)
+struct isp_dev_s *isp_get_dev(void)
 {
-	return pIspDev;
+	return isp_dev;
 }
 
-static int dbg_isp_show(struct seq_file *s, void *unused)
+static void *isp_vmap(phys_addr_t start, size_t size)
 {
-	seq_printf(s, "The isp module status:\n");
-	return 0;
-}
+	struct page **pages;
+	phys_addr_t page_start;
+	unsigned int page_count;
+	pgprot_t prot;
+	unsigned int i;
+	void *vaddr;
 
-ssize_t isp_debug_write(struct file *file, const char __user *buf, size_t size, loff_t *p)
-{
-	int i;
-
-	char info[255];
-	memset(info, 0, 255);
-	if (copy_from_user(info, buf, size))
-		return size;
-	printk("isp:%s\n", info);
-	if (!memcmp(info, "regdump", 7)) {
-		for (i = X2_ISP_REG_ISP_CONFIG; i <= X2_ISP_REG_HMP_CDR_BYPASS_LINES; i += 0x4) {
-			printk("offset:0x%p, value:0x%x \n", (pIspDev->regbase + i - X2_ISP_REG_ISP_CONFIG), readl(pIspDev->regbase + i - X2_ISP_REG_ISP_CONFIG));
-		}
-		for (i = X2_ISP_REG_HMP_YCC2_W_00; i <= X2_ISP_REG_ISP_CONFIG_DONE; i += 0x4) {
-			printk("offset:0x%p, value:0x%x \n", (pIspDev->regbase + i - X2_ISP_REG_ISP_CONFIG), readl(pIspDev->regbase + i - X2_ISP_REG_ISP_CONFIG));
-		}
-		return size;
+	page_start = start - offset_in_page(start);
+	page_count = DIV_ROUND_UP(size + offset_in_page(start), PAGE_SIZE);
+	prot = pgprot_noncached(PAGE_KERNEL);
+	pages = kmalloc_array(page_count, sizeof(struct page *), GFP_KERNEL);
+	if (!pages) {
+		pr_err("%s: Failed to allocate array for %u pages\n", __func__,
+		       page_count);
+		return NULL;
 	}
 
-	return size;
-}
+	for (i = 0; i < page_count; i++) {
+		phys_addr_t addr = page_start + i * PAGE_SIZE;
 
-static int dbg_isp_open(struct inode *inode, struct file *file)
-{
-	return single_open(file, dbg_isp_show, &inode->i_private);
-}
+		pages[i] = pfn_to_page(addr >> PAGE_SHIFT);
+	}
+	vaddr = vm_map_ram(pages, page_count, -1, prot);
 
-static const struct file_operations debug_fops = {
-	.open = dbg_isp_open,
-	.read = seq_read,
-	.write = isp_debug_write,
-	.llseek = seq_lseek,
-	.release = single_release,
-};
+	kfree(pages);
 
-static int __init x2_isp_debuginit(void)
-{
-	(void)debugfs_create_file("x2_isp", S_IRUGO, NULL, NULL, &debug_fops);
-	return 0;
+	return vaddr;
 }
 
 static int isp_dev_probe(struct platform_device *pdev)
 {
-	int ret = 0;
+	int ret;
 	struct resource *pres;
+	struct resource mapaddr;
+	struct device_node *np = NULL;
 
-	printk(KERN_INFO "isp_dev_probe()!\n");
+	dev_info(&pdev->dev, "[%s] is start !\n", __func__);
 
-	pIspDev = devm_kmalloc(&pdev->dev, sizeof(isp_dev_t), GFP_KERNEL);
-	if (!pIspDev) {
+	isp_dev =
+		devm_kmalloc(&pdev->dev, sizeof(struct isp_dev_s), GFP_KERNEL);
+	if (!isp_dev)
 		return -ENOMEM;
-	}
-	memset(pIspDev, 0, sizeof(isp_dev_t));
+	memset(isp_dev, 0, sizeof(struct isp_dev_s));
 
 	pres = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!pres) {
-		devm_kfree(&pdev->dev, pIspDev);
+		devm_kfree(&pdev->dev, isp_dev);
 		return -ENOMEM;
 	}
 
-	pIspDev->mapbase = pres->start;
-	pIspDev->regbase = devm_ioremap_resource(&pdev->dev, pres);
-	pIspDev->irq = platform_get_irq(pdev, 0);
+	isp_dev->mapbaseio = pres->start;
 
-	platform_set_drvdata(pdev, pIspDev);
-	x2_isp_debuginit();
+	/*io map */
+/*
+ *	isp_dev->regbase = devm_ioremap_resource(&pdev->dev, pres);
+	if(isp_dev->regbase == NULL)
+	{
+		printk(KERN_INFO "unable to map register\n");
+	}
+*/
+
+	if (!request_mem_region(pres->start, resource_size(pres),
+			"X2_ISP_IO")) {
+		ret = -1;
+		goto err_out2;
+	}
+//      isp_dev->regbase = ioremap(pres->start, resource_size(pres));
+	isp_dev->regbase = ioremap_nocache(pres->start, resource_size(pres));
+	if (!isp_dev->regbase) {
+		dev_err(&pdev->dev, "[%s]unable to map register\n", __func__);
+		ret = -1;
+		goto err_out2;
+	}
+
+	/*get mmap address */
+	np = of_parse_phandle(pdev->dev.of_node, "memory-region", 0);
+	if (!np) {
+		dev_err(&pdev->dev, "No %s specified\n", "memory-region");
+		ret = -ENODEV;
+	}
+
+	ret = of_address_to_resource(np, 0, &mapaddr);
+	if (ret) {
+		dev_err(&pdev->dev,
+			"No memory address assigned to the region\n");
+		goto err_out2;
+	}
+	isp_dev->mapbase = mapaddr.start;
+	isp_dev->memsize = resource_size(&mapaddr);
+	isp_dev->vaddr = isp_vmap(isp_dev->mapbase, isp_dev->memsize);
+
+	/*set io addr */
+	set_isp_regbase(isp_dev->regbase);
+
+	platform_set_drvdata(pdev, isp_dev);
+
+	return 0;
+
+err_out2:
+	devm_kfree(&pdev->dev, isp_dev);
+	clr_isp_regbase();
+
 	return ret;
 }
 
 static int isp_dev_remove(struct platform_device *pdev)
 {
-	printk(KERN_INFO "isp_dev_remove()!\n");
-	devm_kfree(&pdev->dev, pIspDev);
-	pIspDev = NULL;
+	dev_info(&pdev->dev, "[%s] is remove!\n", __func__);
+	vm_unmap_ram(isp_dev->vaddr, isp_dev->memsize / PAGE_SIZE);
+	devm_kfree(&pdev->dev, isp_dev);
+	clr_isp_regbase();
+	isp_dev = NULL;
 	return 0;
 }
 
@@ -125,12 +176,12 @@ static const struct of_device_id isp_dev_match[] = {
 MODULE_DEVICE_TABLE(of, isp_dev_match);
 
 static struct platform_driver isp_dev_driver = {
-	.probe	= isp_dev_probe,
+	.probe = isp_dev_probe,
 	.remove = isp_dev_remove,
 	.driver = {
-		.name	= ISP_NAME,
-		.of_match_table = isp_dev_match,
-	},
+		   .name = ISP_NAME,
+		   .of_match_table = isp_dev_match,
+		   },
 };
 
 module_platform_driver(isp_dev_driver);
