@@ -147,5 +147,9 @@ config W1_SLAVE_DS28E04
 	  4kb EEPROM with PIO family device (DS28E04).
 
 	  If you are unsure, say N.
-
+config W1_SLAVE_DS28E1X
+	tristate "MAXIM DS28E15/11 DeepCover Secure Authenticator with SHA-256 and 512/256-Bit User EEPROM"
+	depends on W1
+	help
+	  If you enable this you will have the DS28E15/11 secure chip support.
 endmenu
