@@ -56,6 +56,10 @@
 		#size-cells = <2>;
 		ranges;
 
+		ddrmonitor_reserved: ddrmonitor_reserved@0x3D061000 {
+		    reg = <0x0 0x3D061000 0x0 0x28000>;
+		    no-map;
+		};
 		bifsd_reserved: bifsd_reserved@0x3D089000 {
 		    reg = <0x0 0x3D089000 0x0 0x1000>;
 		    no-map;

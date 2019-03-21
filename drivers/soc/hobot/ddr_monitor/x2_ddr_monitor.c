@@ -10,11 +10,18 @@
 #include <linux/ioctl.h>
 #include <linux/cdev.h>
 #include <linux/interrupt.h>
+#include <linux/mm.h>
+#include <linux/of.h>
+#include <linux/of_address.h>
+
 #include "x2_ddr_monitor.h"
 
 struct ddr_monitor_dev_s {
 	struct platform_device *pdev;
 	void __iomem *regaddr;
+	phys_addr_t res_paddr;
+	uint32_t res_memsize;
+	void *res_vaddr;
 	int irq;
 	int major;
 	int minor;
@@ -54,13 +61,15 @@ struct ddr_monitor_result_s {
 	unsigned int per_cmd_rdwr_num;
 };
 
-#define TOTAL_RECORD_NUM 200
+#define TOTAL_RECORD_NUM 400
+
+ktime_t g_ktime_start;
 
 struct ddr_monitor_result_s* ddr_info = NULL;
 char * result_buf = NULL;
 volatile unsigned int g_current_index = 0;
 volatile unsigned int g_record_num = 0;
-unsigned int g_monitor_poriod = 20;
+unsigned int g_monitor_poriod = 10000;
 
 module_param(g_current_index, uint, 0644);
 //module_param(g_record_num, uint, 0644);
@@ -155,13 +164,13 @@ static int get_monitor_data(char* buf, int size)
 	}
 	if (g_record_num > 0) {
 
-		spin_lock(&g_ddr_monitor_dev->lock);
+		spin_lock_irq(&g_ddr_monitor_dev->lock);
 		num = g_record_num;
 		if (num >= TOTAL_RECORD_NUM)
 			num = TOTAL_RECORD_NUM;
 		start = (g_current_index + TOTAL_RECORD_NUM - num) % TOTAL_RECORD_NUM;
 		g_record_num = 0;
-		spin_unlock(&g_ddr_monitor_dev->lock);
+		spin_unlock_irq(&g_ddr_monitor_dev->lock);
 		for (j = 0; j < num; j++) {
 			cur = (start + j) % TOTAL_RECORD_NUM;
 			length += sprintf(buf + length, "Time %llu ", ddr_info[cur].curtime);
@@ -170,27 +179,27 @@ static int get_monitor_data(char* buf, int size)
 			{
 				if (ddr_info[cur].portdata[i].raddr_num) {
 					length += sprintf(buf + length, "p[%d](bw:%u stall:%u delay:%u) ", i, \
-						(ddr_info[cur].portdata[i].rdata_num * 16 * (1000/g_monitor_poriod)) >> 20, \
+						(ddr_info[cur].portdata[i].rdata_num * 16 * (1000000/g_monitor_poriod)) >> 20, \
 						ddr_info[cur].portdata[i].raddr_cyc / ddr_info[cur].portdata[i].rdata_num, \
 						ddr_info[cur].portdata[i].raddr_latency / ddr_info[cur].portdata[i].rdata_num);
 				} else {
 					length += sprintf(buf + length, "p[%d](bw:%u stall:%u delay:%u) ", i, 0, 0, 0);
 				}
 			}
-			length += sprintf(buf + length, "ddrc:%u MB/s; ", (ddr_info[cur].rd_cmd_num * 64 * (1000/g_monitor_poriod)) >> 20);
+			length += sprintf(buf + length, "ddrc:%u MB/s; ", (ddr_info[cur].rd_cmd_num * 64 * (1000000/g_monitor_poriod)) >> 20);
 			length += sprintf(buf + length, "Write: ");
 			for (i = 0; i < 6; i++)
 			{
 				if (ddr_info[cur].portdata[i].waddr_num) {
 					length += sprintf(buf + length, "p[%d](bw:%u stall:%u delay:%u) ", i, \
-						(ddr_info[cur].portdata[i].wdata_num * 16 * (1000/g_monitor_poriod)) >> 20, \
+						(ddr_info[cur].portdata[i].wdata_num * 16 * (1000000/g_monitor_poriod)) >> 20, \
 						ddr_info[cur].portdata[i].waddr_cyc / ddr_info[cur].portdata[i].wdata_num, \
 						ddr_info[cur].portdata[i].waddr_latency / ddr_info[cur].portdata[i].wdata_num);
 				} else {
 					length += sprintf(buf + length, "p[%d](bw:%u stall:%u delay:%u) ", i, 0, 0, 0);
 				}
 			}
-			length += sprintf(buf + length, "ddrc %u MB/s, mask %u MB/s\n", (ddr_info[cur].wr_cmd_num * 64 * (1000/g_monitor_poriod)) >> 20, (ddr_info[cur].mwr_cmd_num * 64 * (1000/g_monitor_poriod)) >> 20);
+				length += sprintf(buf + length, "ddrc %u MB/s, mask %u MB/s\n", (ddr_info[cur].wr_cmd_num * 64 * (1000000/g_monitor_poriod)) >> 20, (ddr_info[cur].mwr_cmd_num * 64 * (1000000/g_monitor_poriod)) >> 20);
 		}
 	}
 	return length;
@@ -240,12 +249,12 @@ static int ddr_monitor_mod_release(struct inode *pinode, struct file *pfile)
 static ssize_t ddr_monitor_mod_read(struct file *pfile, char *puser_buf, size_t len, loff_t *poff)
 {
 	int result_len = 0;
-	wait_event_interruptible(g_ddr_monitor_dev->wq_head, g_record_num > 50);
+	wait_event_interruptible(g_ddr_monitor_dev->wq_head, g_record_num > 200);
 	result_len = get_monitor_data(result_buf, 80*1024);
-	if( result_len < len)
-		copy_to_user(puser_buf, result_buf, result_len);
-	else
-		printk("buf not enough");
+	//if( result_len < len)
+		//copy_to_user(puser_buf, result_buf, result_len);
+	//else
+	//	printk("buf not enough");
 	return result_len;
 }
 
@@ -298,8 +307,27 @@ static long ddr_monitor_mod_ioctl(struct file *pfile, unsigned int cmd, unsigned
 	return 0;
 }
 
+int ddr_monitor_mmap(struct file *filp, struct vm_area_struct *pvma)
+{
+
+	printk("ddr_monitor_mmap! \n");
+
+	//pvma->vm_flags |= VM_IO;
+	//pvma->vm_flags |= VM_LOCKED;
+	if (remap_pfn_range(pvma, pvma->vm_start,
+						g_ddr_monitor_dev->res_paddr >> PAGE_SHIFT,
+						pvma->vm_end - pvma->vm_start,
+						pvma->vm_page_prot)) {
+		printk(KERN_ERR "ddr_monitor_mmap fail\n");
+		return -EAGAIN;
+	}
+	printk("ddr_monitor_mmap end!:%llx \n", g_ddr_monitor_dev->res_paddr);
+	return 0;
+}
+
 struct file_operations ddr_monitor_mod_fops = {
 	.owner			= THIS_MODULE,
+	.mmap 			= ddr_monitor_mmap,
 	.open			= ddr_monitor_mod_open,
 	.read			= ddr_monitor_mod_read,
 	.write			= ddr_monitor_mod_write,
@@ -355,12 +383,14 @@ int ddr_monitor_start(void)
 		printk("ddr_monitor_start\n");
 		//enable_irq(g_ddr_monitor_dev->irq);
 		ddr_info = vmalloc(sizeof(struct ddr_monitor_result_s) * TOTAL_RECORD_NUM);
-		result_buf = vmalloc(1024*80);
+		result_buf = g_ddr_monitor_dev->res_vaddr;//vmalloc(1024*80);
 		g_current_index = 0;
 		g_record_num = 0;
-		writel(0x51616 * g_monitor_poriod, g_ddr_monitor_dev->regaddr + PERF_MONITOR_PERIOD);
+		//writel(0x51616 * g_monitor_poriod, g_ddr_monitor_dev->regaddr + PERF_MONITOR_PERIOD);
+		writel(g_monitor_poriod * 1000 /3, g_ddr_monitor_dev->regaddr + PERF_MONITOR_PERIOD);
 		writel(0x1, g_ddr_monitor_dev->regaddr + PERF_MONITOR_ENABLE_UNMASK);
 		writel(0xff, g_ddr_monitor_dev->regaddr + PERF_MONITOR_ENABLE);
+		g_ktime_start = ktime_get();
 	}
 	return 0;
 }
@@ -373,7 +403,8 @@ int ddr_monitor_stop(void)
 		writel(0, g_ddr_monitor_dev->regaddr + PERF_MONITOR_ENABLE);
 		writel(0x1, g_ddr_monitor_dev->regaddr + PERF_MONITOR_ENABLE_SETMASK);
 		vfree(ddr_info);
-		vfree(result_buf);
+		//vfree(result_buf);
+		result_buf = NULL;
 		ddr_info = NULL;
 	}
 	return 0;
@@ -382,6 +413,9 @@ int ddr_monitor_stop(void)
 int ddr_get_port_status(void)
 {
 	int i = 0;
+	ktime_t ktime;
+	ktime = ktime_sub(ktime_get(), g_ktime_start);
+	ddr_info[g_current_index].curtime = ktime_to_us(ktime);
 	for (i = 0; i < 6; i++)
 	{
 		ddr_info[g_current_index].portdata[i].raddr_num = readl(g_ddr_monitor_dev->regaddr + MP_BASE_RADDR_TX_NUM + i * MP_REG_OFFSET);
@@ -407,13 +441,11 @@ int ddr_get_port_status(void)
 	ddr_info[g_current_index].per_cmd_num = readl(g_ddr_monitor_dev->regaddr + PERCHARGE_CMD_TX_NUM);
 	ddr_info[g_current_index].per_cmd_rdwr_num = readl(g_ddr_monitor_dev->regaddr + PERCHARGE_CMD_FOR_RDWR_TX_NUM);
 
-	spin_lock(&g_ddr_monitor_dev->lock);
-	ddr_info[g_current_index].curtime = jiffies;
+	//ddr_info[g_current_index].curtime = jiffies;
 	g_current_index = (g_current_index + 1) % TOTAL_RECORD_NUM;
 	g_record_num ++;
-	spin_unlock(&g_ddr_monitor_dev->lock);
 
-	if (g_record_num >= 50)
+	if (g_record_num >= 200)
 		wake_up_interruptible(&g_ddr_monitor_dev->wq_head);
 	return 0;
 }
@@ -429,9 +461,10 @@ static irqreturn_t ddr_monitor_isr(int this_irq, void *data)
 static int ddr_monitor_probe(struct platform_device *pdev)
 {
 	int ret = 0;
+	struct device_node *np = NULL;
 	struct resource *pres;
-
-	printk(KERN_INFO "ddr_monitor_probe()!n");
+	struct resource mem_res;
+	printk(KERN_INFO "ddr_monitor_probe()!");
 
 	g_ddr_monitor_dev = devm_kmalloc(&pdev->dev, sizeof(struct ddr_monitor_dev_s), GFP_KERNEL);
 	if (!g_ddr_monitor_dev) {
@@ -455,6 +488,21 @@ static int ddr_monitor_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 
+	/* request memory address */
+	np = of_parse_phandle(pdev->dev.of_node, "memory-region", 0);
+	if (!np) {
+		dev_err(&pdev->dev, "No %s specified\n", "memory-region");
+		return ret;
+	}
+
+	ret = of_address_to_resource(np, 0, &mem_res);
+	if (ret) {
+		dev_err(&pdev->dev, "No memory address assigned to the region\n");
+		return -1;
+	}
+	g_ddr_monitor_dev->res_paddr = mem_res.start;
+	g_ddr_monitor_dev->res_memsize = resource_size(&mem_res);
+	g_ddr_monitor_dev->res_vaddr = memremap(mem_res.start, g_ddr_monitor_dev->res_memsize, MEMREMAP_WB);
 	platform_set_drvdata(pdev, g_ddr_monitor_dev);
 	x2_ddr_monitor_debuginit();
 	ddr_monitor_cdev_create();
