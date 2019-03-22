@@ -93,8 +93,42 @@ struct flash_info {
 };
 
 #define JEDEC_MFR(info)	((info)->id[0])
+#define JEDEC_ID(info)  (((info)->id[1]) << 8 | ((info)->id[2]))
 
 static const struct flash_info *spi_nor_match_id(const char *name);
+
+/* This function only for giga gd25lq256d to get status reg */
+static int read_esr(struct spi_nor *nor, u8 *rs)
+{
+	int ret;
+
+	ret = nor->read_reg(nor, SPINOR_OP_RDSR, &rs[0], 1);
+	if (ret < 0) {
+		pr_err("error %d reading SR0\n", (int) ret);
+		return ret;
+	}
+	ret = nor->read_reg(nor, SPINOR_OP_RDSR2_GIGA, &rs[1], 1);
+	if (ret < 0) {
+		pr_err("error %d reading SR1\n", (int) ret);
+		return ret;
+	}
+
+	return 0;
+}
+
+/* This function only for giga gd25lq256d to set status reg */
+static int write_esr(struct spi_nor *nor, u8 *ws)
+{
+	int ret;
+
+	ret = nor->write_reg(nor, SPINOR_OP_WRSR, ws, 2);
+	if (ret < 0) {
+		pr_err("SF: fail to write status register\n");
+		return ret;
+	}
+
+	return 0;
+}
 
 /*
  * Read the status register, returning its value in the location
@@ -275,7 +309,7 @@ static inline int set_4byte(struct spi_nor *nor, const struct flash_info *info,
 		need_wren = true;
 	case SNOR_MFR_MACRONIX:
 	case SNOR_MFR_WINBOND:
-        case SNOR_MFR_GIGADEVICE:
+    case SNOR_MFR_GIGADEVICE:
 		if (need_wren)
 			write_enable(nor);
 
@@ -402,6 +436,34 @@ static int giga_quad_enable(struct spi_nor *nor)
 
 	ret = read_sr(nor);
 	if (!(ret > 0 && (ret & SR_QUAD_EN_MX))) {
+		dev_err(nor->dev, "GigaDevice Quad bit not set\n");
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static int giga_foo_quad_enable(struct spi_nor *nor)
+{
+	u8 st[2];
+	int ret;
+	pr_info("%s_%d\n", __func__, __LINE__);
+	ret = read_esr(nor, st);
+	if (ret < 0)
+		return ret;
+	if (st[1] & SR_QUAD_EN_GD25LQ256D)
+		return 0;
+
+	st[1] |= SR_QUAD_EN_GD25LQ256D;	
+	write_enable(nor);
+	ret = write_esr(nor, st);
+	if (ret < 0)
+		return ret;
+	if (spi_nor_wait_till_ready(nor))
+		return 1;
+
+	ret = read_esr(nor, st);
+	if ((ret < 0) || (!(st[1] & SR_QUAD_EN_GD25LQ256D))) {
 		dev_err(nor->dev, "GigaDevice Quad bit not set\n");
 		return -EINVAL;
 	}
@@ -1029,7 +1091,11 @@ static const struct flash_info spi_nor_ids[] = {
 			SECT_4K | SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ | SPI_NOR_QUAD_WR |
 			SPI_NOR_HAS_LOCK | SPI_NOR_HAS_TB | SPI_NOR_SKIP_SFDP)
 	},
-
+	{
+		"gd25lq256d", INFO(0xc86019, 0, 64 * 1024, 512,
+			SECT_4K | SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ | SPI_NOR_QUAD_WR |
+			SPI_NOR_HAS_LOCK | SPI_NOR_HAS_TB | SPI_NOR_SKIP_SFDP)
+	},
 
 	/* Intel/Numonyx -- xxxs33b */
 	{ "160s33b",  INFO(0x898911, 0, 64 * 1024,  32, 0) },
@@ -2458,12 +2524,14 @@ static int spi_nor_init_params(struct spi_nor *nor,
 		case SNOR_MFR_MACRONIX:
 			params->quad_enable = macronix_quad_enable;
 			break;
-
 		case SNOR_MFR_MICRON:
 			break;
-                case SNOR_MFR_GIGADEVICE:
-		        params->quad_enable = giga_quad_enable;
-		        break;
+		case SNOR_MFR_GIGADEVICE:
+			if (SNOR_GIGA_GD25LQ256D == JEDEC_ID(info))
+				params->quad_enable = giga_foo_quad_enable;
+			else
+				params->quad_enable = giga_quad_enable;
+			break;
 		default:
 			/* Kept only for backward compatibility purpose. */
 			params->quad_enable = spansion_quad_enable;

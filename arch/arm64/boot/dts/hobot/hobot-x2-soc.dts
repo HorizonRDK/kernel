@@ -230,15 +230,17 @@
 	status = "okay";
 	#address-cells = <1>;
 	#size-cells = <0>;
+	clocks = <&sys_qspi_aclk>;
+	clock-names = "qspi_aclk";
 
 	flash@0 {
-		compatible = "gd256q256c";
+		compatible = "gd256lq256d";
 		#address-cells = <1>;
 		#size-cells = <1>;
 		reg = <0x0>;
-	        spi-tx-bus-width = <4>;
+		spi-tx-bus-width = <4>;
 		spi-rx-bus-width = <4>;
-		spi-max-frequency = <20000000>; /* For FPGA max clk is 20Mhz */
+		spi-max-frequency = <50000000>; /* For FPGA max clk is 20Mhz */
 
 		partition@qspi-uboot {
 			label = "qspi-uboot";

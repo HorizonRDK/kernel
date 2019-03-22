@@ -29,6 +29,9 @@
 #define SNOR_MFR_SST		CFI_MFR_SST
 #define SNOR_MFR_WINBOND	0xef /* Also used by some Spansion */
 
+/* CFI Device ID's */
+#define SNOR_GIGA_GD25LQ256D    0x6019
+
 /*
  * Note on opcode nomenclature: some opcodes have a format like
  * SPINOR_OP_FUNCTION{4,}_x_y_z. The numbers x, y, and z stand for the number
@@ -61,6 +64,7 @@
 #define SPINOR_OP_RDSFDP	0x5a	/* Read SFDP */
 #define SPINOR_OP_RDCR		0x35	/* Read configuration register */
 #define SPINOR_OP_RDFSR		0x70	/* Read flag status register */
+#define SPINOR_OP_RDSR2_GIGA	0x35	/* Read status register 2 for giga */
 
 /* 4-byte address opcodes - used on Spansion and some Macronix flashes. */
 #define SPINOR_OP_READ_4B	0x13	/* Read data bytes (low frequency) */
@@ -128,7 +132,7 @@
 
 #define SR_QUAD_EN_MX		BIT(6)	/* Macronix Quad I/O */
 #define SR_QUAD_EN_GD		BIT(6)	/* GigaDevice Quad I/O */
-
+#define SR_QUAD_EN_GD25LQ256D	BIT(1) /* For gd25lq256d */
 /* Enhanced Volatile Configuration Register bits */
 #define EVCR_QUAD_EN_MICRON	BIT(7)	/* Micron Quad I/O */
 

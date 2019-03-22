@@ -354,8 +354,10 @@
 		qspi: qspi@0xB0000000 {
 			compatible = "hobot,x2-qspi";
 			status = "disabled";
-			num-cs = <1>;
+			num-cs = <8>;
 			reg = <0x0 0xB0000000 0x0 0x1000>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 19 4>;
 		};
 
 		ethernet: ethernet@A5014000 {
