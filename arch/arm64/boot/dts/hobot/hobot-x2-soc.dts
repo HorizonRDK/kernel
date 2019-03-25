@@ -37,8 +37,8 @@
 		pwm2	= &pwm_2;
 		bifsd   = &bifsd;
 		bifspi  = &bifspi;
-		mmc0    = &sdio0;
-		mmc1    = &sdio1;
+		mmc1    = &sdio0;
+		mmc2    = &sdio1;
 	};
 
 	chosen {
@@ -265,6 +265,7 @@
 	status = "okay";
 	bus-width = <8>;
 	cap-mmc-highspeed;
+	mmc-hs200-1_8v;
 	non-removable;
 	disable-wp;
 };
@@ -277,6 +278,8 @@
 	cap-sd-highspeed;
 	sd-uhs-sdr12;
 	sd-uhs-sdr25;
+	sd-uhs-sdr50;
+	sd-uhs-sdr104;
 	powerup-gpio = <85>;
 	uhs-180v-gpio = <86>;
 	non-removable;

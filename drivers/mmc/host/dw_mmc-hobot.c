@@ -23,23 +23,63 @@
 #include "dw_mmc.h"
 #include "dw_mmc-pltfm.h"
 
-#define X2_CLKGEN_DIV (2)
-#define SDIO0_EMMC_1ST_DIV_CLOCK_HZ 400000000
-#define SDIO0_EMMC_2ND_DIV_CLOCK_HZ 200000000
+#define DWMMC_MMC_ID (1)
+#define HOBOT_CLKGEN_DIV (8)
+#define HOBOT_DW_MCI_FREQ_MAX (200000000)
+#define HOBOT_SD0_PHASE_REG (0xA1000320)
+#define HOBOT_SD1_PHASE_REG (0xA1000330)
+#define HOBOT_MMC_DEGREE_MASK (0xF)
+#define HOBOT_MMC_SAMPLE_DEGREE_SHIFT (12)
+#define HOBOT_MMC_DRV_DEGREE_SHIFT (8)
+#define SDCARD_RD_THRESHOLD (512)
+#define NUM_PHASES (16)
+#define TUNING_ITERATION_TO_PHASE(i) (i)
+#define PSECS_PER_SEC 1000000000000LL
 
 struct dw_mci_hobot_priv_data {
-	struct clk *drv_clk;
-	struct clk *sample_clk;
-	struct clk *clk;
+	void __iomem *clkctrl_reg;
+	struct clk *gate_clk;
 	u32 clock_frequency;
 	int default_sample_phase;
 	u32 uhs_180v_gpio;
+	u32 ctrl_id;
 };
 
-#define NUM_PHASES			16
-#define TUNING_ITERATION_TO_PHASE(i)	(DIV_ROUND_UP((i) * 360, NUM_PHASES))
+static int x2_mmc_set_sample_phase(struct dw_mci_hobot_priv_data *priv,
+				   int degrees)
+{
+	u32 reg_value;
 
-static int dw_mci_x2_execute_tuning(struct dw_mci_slot *slot, u32 opcode)
+	reg_value = readl(priv->clkctrl_reg);
+	reg_value &= 0xFFFF0FFF;
+	reg_value |= degrees << HOBOT_MMC_SAMPLE_DEGREE_SHIFT;
+
+	writel(reg_value, priv->clkctrl_reg);
+
+	/* We should delay 1ms wait for timing setting finished. */
+	usleep_range(1000, 2000);
+
+	return 0;
+}
+
+static int x2_mmc_set_drv_phase(struct dw_mci_hobot_priv_data *priv,
+				int degrees)
+{
+	u32 reg_value;
+
+	reg_value = readl(priv->clkctrl_reg);
+	reg_value &= 0xFFFFF0FF;
+	reg_value |= degrees << HOBOT_MMC_DRV_DEGREE_SHIFT;;
+
+	writel(reg_value, priv->clkctrl_reg);
+
+	/* We should delay 1ms wait for timing setting finished. */
+	usleep_range(1000, 2000);
+
+	return 0;
+}
+
+static int dw_mci_x2_sample_tuning(struct dw_mci_slot *slot, u32 opcode)
 {
 	struct dw_mci *host = slot->host;
 	struct dw_mci_hobot_priv_data *priv = host->priv;
@@ -57,18 +97,13 @@ static int dw_mci_x2_execute_tuning(struct dw_mci_slot *slot, u32 opcode)
 	int longest_range = -1;
 	int middle_phase;
 
-	if (IS_ERR(priv->sample_clk)) {
-		dev_err(host->dev, "Tuning clock (sample_clk) not defined.\n");
-		return -EIO;
-	}
-
 	ranges = kmalloc_array(NUM_PHASES / 2 + 1, sizeof(*ranges), GFP_KERNEL);
 	if (!ranges)
 		return -ENOMEM;
 
 	/* Try each phase and extract good ranges */
 	for (i = 0; i < NUM_PHASES;) {
-		clk_set_phase(priv->sample_clk, TUNING_ITERATION_TO_PHASE(i));
+		x2_mmc_set_sample_phase(priv, TUNING_ITERATION_TO_PHASE(i));
 
 		v = !mmc_send_tuning(mmc, opcode, NULL);
 
@@ -79,6 +114,7 @@ static int dw_mci_x2_execute_tuning(struct dw_mci_slot *slot, u32 opcode)
 			range_count++;
 			ranges[range_count - 1].start = i;
 		}
+
 		if (v) {
 			ranges[range_count - 1].end = i;
 			i++;
@@ -91,7 +127,7 @@ static int dw_mci_x2_execute_tuning(struct dw_mci_slot *slot, u32 opcode)
 			 * one since testing bad phases is slow.  Skip
 			 * 20 degrees.
 			 */
-			i += DIV_ROUND_UP(20 * NUM_PHASES, 360);
+			i += 1;
 
 			/* Always test the last one */
 			if (i >= NUM_PHASES)
@@ -102,7 +138,7 @@ static int dw_mci_x2_execute_tuning(struct dw_mci_slot *slot, u32 opcode)
 	}
 
 	if (range_count == 0) {
-		dev_warn(host->dev, "All phases bad!");
+		dev_warn(host->dev, "All sample phases bad!");
 		ret = -EIO;
 		goto free;
 	}
@@ -114,9 +150,10 @@ static int dw_mci_x2_execute_tuning(struct dw_mci_slot *slot, u32 opcode)
 	}
 
 	if (ranges[0].start == 0 && ranges[0].end == NUM_PHASES - 1) {
-		clk_set_phase(priv->sample_clk, priv->default_sample_phase);
-		dev_info(host->dev, "All phases work, using default phase %d.",
-			 priv->default_sample_phase);
+		x2_mmc_set_sample_phase(priv, priv->default_sample_phase);
+		dev_dbg(host->dev,
+			"All sample phases work, using default phase %d.",
+			priv->default_sample_phase);
 		goto free;
 	}
 
@@ -132,31 +169,145 @@ static int dw_mci_x2_execute_tuning(struct dw_mci_slot *slot, u32 opcode)
 			longest_range = i;
 		}
 
-		dev_dbg(host->dev, "Good phase range %d-%d (%d len)\n",
+		dev_dbg(host->dev, "Good sample phase range %d-%d (%d len)\n",
 			TUNING_ITERATION_TO_PHASE(ranges[i].start),
 			TUNING_ITERATION_TO_PHASE(ranges[i].end), len);
 	}
 
-	dev_dbg(host->dev, "Best phase range %d-%d (%d len)\n",
+	dev_dbg(host->dev, "Best sample phase range %d-%d (%d len)\n",
 		TUNING_ITERATION_TO_PHASE(ranges[longest_range].start),
 		TUNING_ITERATION_TO_PHASE(ranges[longest_range].end),
 		longest_range_len);
 
 	middle_phase = ranges[longest_range].start + longest_range_len / 2;
 	middle_phase %= NUM_PHASES;
-	dev_info(host->dev, "Successfully tuned phase to %d\n",
-		 TUNING_ITERATION_TO_PHASE(middle_phase));
+	dev_dbg(host->dev, "Successfully tuned sample phase to %d\n",
+		TUNING_ITERATION_TO_PHASE(middle_phase));
 
-	clk_set_phase(priv->sample_clk,
-		      TUNING_ITERATION_TO_PHASE(middle_phase));
+	x2_mmc_set_sample_phase(priv, TUNING_ITERATION_TO_PHASE(middle_phase));
 
 free:
 	kfree(ranges);
 	return ret;
 }
 
+static int dw_mci_x2_execute_tuning(struct dw_mci_slot *slot, u32 opcode)
+{
+	struct dw_mci *host = slot->host;
+	struct dw_mci_hobot_priv_data *priv = host->priv;
+	int i, ret = -EIO;
+
+	for (i = 0; i < NUM_PHASES; ++i) {
+		x2_mmc_set_drv_phase(priv, i);
+		ret = dw_mci_x2_sample_tuning(slot, opcode);
+		if (!ret)
+			return ret;
+	}
+	return -EIO;
+}
+
 static void dw_mci_x2_set_ios(struct dw_mci *host, struct mmc_ios *ios)
 {
+	struct dw_mci_hobot_priv_data *priv = host->priv;
+	int ret;
+	unsigned int cclkin;
+	u32 bus_hz;
+	int phase;
+
+	if (ios->clock == 0)
+		return;
+
+	/*
+	 * cclkin: source clock of mmc controller
+	 * bus_hz: card interface clock generated by CLKGEN
+	 * bus_hz = cclkin / HOBOT_CLKGEN_DIV
+	 * ios->clock = (div == 0) ? bus_hz : (bus_hz / (2 * div))
+	 *
+	 * Note: div can only be 0 or 1
+	 *       if DDR50 8bit mode(only emmc work in 8bit mode),
+	 *       div must be set 1
+	 */
+	if (ios->bus_width == MMC_BUS_WIDTH_8 &&
+	    ios->timing == MMC_TIMING_MMC_DDR52)
+		cclkin = 2 * ios->clock * HOBOT_CLKGEN_DIV;
+	else
+		cclkin = ios->clock * HOBOT_CLKGEN_DIV;
+
+	ret = clk_set_rate(host->biu_clk, cclkin);
+	if (ret)
+		dev_warn(host->dev, "failed to set rate %uHz\n", ios->clock);
+
+	bus_hz = clk_get_rate(host->biu_clk) / HOBOT_CLKGEN_DIV;
+	if (bus_hz != host->bus_hz) {
+		host->bus_hz = bus_hz;
+		/* force dw_mci_setup_bus() */
+		host->current_speed = 0;
+	}
+
+	/* Make sure we use phases which we can enumerate with */
+	x2_mmc_set_sample_phase(priv, priv->default_sample_phase);
+
+	/*
+	 * Set the drive phase offset based on speed mode to achieve hold times.
+	 *
+	 * NOTE: this is _not_ a value that is dynamically tuned and is also
+	 * _not_ a value that will vary from board to board.  It is a value
+	 * that could vary between different SoC models if they had massively
+	 * different output clock delays inside their dw_mmc IP block (delay_o),
+	 * but since it's OK to overshoot a little we don't need to do complex
+	 * calculations and can pick values that will just work for everyone.
+	 *
+	 * When picking values we'll stick with picking 0/90/180/270 since
+	 * those can be made very accurately on all known Rockchip SoCs.
+	 *
+	 * Note that these values match values from the DesignWare Databook
+	 * tables for the most part except for SDR12 and "ID mode".  For those
+	 * two modes the databook calculations assume a clock in of 50MHz.  As
+	 * seen above, we always use a clock in rate that is exactly the
+	 * card's input clock (times RK3288_CLKGEN_DIV, but that gets divided
+	 * back out before the controller sees it).
+	 *
+	 * From measurement of a single device, it appears that delay_o is
+	 * about .5 ns.  Since we try to leave a bit of margin, it's expected
+	 * that numbers here will be fine even with much larger delay_o
+	 * (the 1.4 ns assumed by the DesignWare Databook would result in the
+	 * same results, for instance).
+	 */
+
+	/*
+	 * In almost all cases a 90 degree phase offset will provide
+	 * sufficient hold times across all valid input clock rates
+	 * assuming delay_o is not absurd for a given SoC.  We'll use
+	 * that as a default.
+	 */
+	phase = 90;
+
+	switch (ios->timing) {
+	case MMC_TIMING_MMC_DDR52:
+		/*
+		 * Since clock in rate with MMC_DDR52 is doubled when
+		 * bus width is 8 we need to double the phase offset
+		 * to get the same timings.
+		 */
+		if (ios->bus_width == MMC_BUS_WIDTH_8)
+			phase = 180;
+		break;
+	case MMC_TIMING_UHS_SDR104:
+	case MMC_TIMING_MMC_HS200:
+		/*
+		 * In the case of 150 MHz clock (typical max for
+		 * Rockchip SoCs), 90 degree offset will add a delay
+		 * of 1.67 ns.  That will meet min hold time of .8 ns
+		 * as long as clock output delay is < .87 ns.  On
+		 * SoCs measured this seems to be OK, but it doesn't
+		 * hurt to give margin here, so we use 180.
+		 */
+		phase = 180;
+		break;
+	}
+
+	x2_mmc_set_drv_phase(priv, phase);
+
 	return;
 }
 
@@ -171,7 +322,6 @@ static int dw_mci_x2_parse_dt(struct dw_mci *host)
 	struct device_node *np = host->dev->of_node;
 	struct dw_mci_hobot_priv_data *priv;
 	u32 powerup_gpio;
-	int ret;
 
 	priv = devm_kzalloc(host->dev, sizeof(*priv), GFP_KERNEL);
 	if (!priv)
@@ -188,42 +338,21 @@ static int dw_mci_x2_parse_dt(struct dw_mci *host)
 	}
 
 	if (!device_property_read_u32
-	    (host->dev, "uhs-180v-gpio", &priv->uhs_180v_gpio))
+	    (host->dev, "uhs-180v-gpio", &priv->uhs_180v_gpio)) {
 		gpio_request(priv->uhs_180v_gpio, NULL);
-
-	priv->drv_clk = devm_clk_get(host->dev, "sd_div_clk");
-	if (IS_ERR(priv->drv_clk))
-		dev_err(host->dev, "sd_div_clk not available\n");
-
-	ret = clk_set_rate(priv->drv_clk, SDIO0_EMMC_1ST_DIV_CLOCK_HZ);
-	if (ret < 0) {
-		dev_err(host->dev, "failed to set 1st div rate.\n");
-		return ret;
+		priv->clkctrl_reg = ioremap(HOBOT_SD1_PHASE_REG, 0x10);
+		if (IS_ERR(priv->clkctrl_reg))
+			return PTR_ERR(priv->clkctrl_reg);
+	} else {
+		priv->clkctrl_reg = ioremap(HOBOT_SD0_PHASE_REG, 0x10);
+		if (IS_ERR(priv->clkctrl_reg))
+			return PTR_ERR(priv->clkctrl_reg);
 	}
 
-	priv->sample_clk = devm_clk_get(host->dev, "sd_div_cclk");
-	if (IS_ERR(priv->sample_clk))
-		dev_err(host->dev, "sd_div_cclk not available\n");
+	priv->ctrl_id = of_alias_get_id(host->dev->of_node, "mmc");
+	if (priv->ctrl_id < 0)
+		priv->ctrl_id = 0;
 
-	ret = clk_set_rate(priv->sample_clk, SDIO0_EMMC_2ND_DIV_CLOCK_HZ);
-	if (ret < 0) {
-		dev_err(host->dev, "failed to set 2nd div rate.\n");
-		return ret;
-	}
-
-	priv->clock_frequency = clk_get_rate(priv->sample_clk);
-	if (!priv->clock_frequency)
-		dev_err(host->dev, "failed to get clk rate.\n");
-
-	priv->clk = devm_clk_get(host->dev, "sd_cclk");
-	if (IS_ERR(priv->clk))
-		dev_err(host->dev, "sd_cclk not available\n");
-
-	ret = clk_prepare_enable(priv->clk);
-	if (ret)
-		dev_err(host->dev, "Unable to enable device clock.\n");
-
-	host->bus_hz = priv->clock_frequency;
 	host->priv = priv;
 
 	return 0;
@@ -231,6 +360,26 @@ static int dw_mci_x2_parse_dt(struct dw_mci *host)
 
 static int dw_mci_hobot_init(struct dw_mci *host)
 {
+	mci_writel(host, CDTHRCTL, SDMMC_SET_THLD(SDCARD_RD_THRESHOLD,
+						  SDMMC_CARD_RD_THR_EN));
+
+	return 0;
+}
+
+static int dw_mci_set_sel18(struct dw_mci *host, bool val)
+{
+	struct dw_mci_hobot_priv_data *priv;
+	int ret = 0;
+
+	priv = host->priv;
+	if (priv->uhs_180v_gpio)
+		ret = gpio_direction_output(priv->uhs_180v_gpio, val);
+
+	if (ret) {
+		dev_err(host->dev, "sel18 %u error\n", val);
+		return ret;
+	}
+
 	return 0;
 }
 
@@ -239,6 +388,7 @@ static int dw_mci_x2_switch_voltage(struct mmc_host *mmc, struct mmc_ios *ios)
 	struct dw_mci_slot *slot = mmc_priv(mmc);
 	struct dw_mci_hobot_priv_data *priv;
 	struct dw_mci *host;
+	int ret = 0;
 
 	host = slot->host;
 	priv = host->priv;
@@ -246,18 +396,19 @@ static int dw_mci_x2_switch_voltage(struct mmc_host *mmc, struct mmc_ios *ios)
 	if (!priv)
 		return 0;
 
+	if (priv->ctrl_id == DWMMC_MMC_ID)
+		return 0;
+
 	if (ios->signal_voltage == MMC_SIGNAL_VOLTAGE_330) {
-		if (priv->uhs_180v_gpio)
-			gpio_direction_output(priv->uhs_180v_gpio, 0);
+		ret = dw_mci_set_sel18(host, 0);
 	} else if (ios->signal_voltage == MMC_SIGNAL_VOLTAGE_180) {
-		if (priv->uhs_180v_gpio)
-			gpio_direction_output(priv->uhs_180v_gpio, 1);
+		ret = dw_mci_set_sel18(host, 1);
 	} else {
 		dev_dbg(host->dev, "voltage not supported\n");
 		return -EINVAL;
 	}
 
-	return 0;
+	return ret;
 }
 
 /* Common capabilities of X2 SoC */
