@@ -114,7 +114,7 @@ unsigned long ips_set_mipi_ipi_clk(unsigned long clk);
 unsigned long ips_get_mipi_ipi_clk(void);
 int ips_pinmux_bt(void);
 int ips_pinmux_dvp(void);
-int ips_set_btout_clksrc(unsigned int mode, uint8_t invert);
+int ips_set_btout_clksrc(unsigned int mode, uint8_t in_invert, uint8_t out_inv);
 void ips_module_reset(unsigned int module);
 
 #endif /* __X2_IPS_H */

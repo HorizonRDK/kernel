@@ -631,7 +631,7 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 	}
 	if (cfg->out_sel == OUTPUT_BT1120) {
 		ips_pinmux_bt();
-		ips_set_btout_clksrc(IAR_CLK, true);
+		ips_set_btout_clksrc(IAR_CLK, false, true);
 	}
 	iar_set_hvsync_timing(cfg->out_sel);
 

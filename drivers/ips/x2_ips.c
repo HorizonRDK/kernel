@@ -707,7 +707,7 @@ int ips_pinmux_dvp(void)
 }
 EXPORT_SYMBOL_GPL(ips_pinmux_dvp);
 
-int ips_set_btout_clksrc(unsigned int mode, uint8_t invert)
+int ips_set_btout_clksrc(unsigned int mode, uint8_t in_invert, uint8_t out_inv)
 {
 	int val, ret = 0;
 	unsigned long flags;
@@ -720,7 +720,10 @@ int ips_set_btout_clksrc(unsigned int mode, uint8_t invert)
 		val &= ~BIT(16);
 	else
 		return -1;
-	val |= (invert * BIT(12)); //set clk invert
+	val &= ~BIT(8);
+	val |= (in_invert * BIT(8)); //set input clk invert
+	val &= ~BIT(12);
+	val |= (out_inv * BIT(12)); //set out clk invert
 	spin_lock_irqsave(g_ipsdev->lock, flags);
 	writel(val, g_ipsdev->clkaddr + VIOSYS_CLK_CTRL);
 	spin_unlock_irqrestore(g_ipsdev->lock, flags);
