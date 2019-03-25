@@ -484,7 +484,7 @@
 		sdio0: dwmmc@A5010000 {
 			compatible = "hobot,x2-dw-mshc";
 			reg = <0x0 0xA5010000 0x0 0x1000>;
-			clock-freq-min-max = <100000 50000000>;
+			clock-freq-min-max = <100000 100000000>;
 			clocks = <&sd0_div_clk>, <&sd0_div_cclk>,<&sd0_cclk>;
 			clock-names = "biu","ciu","gate_cclk";
 			clock-frequency = <200000000>;
@@ -503,7 +503,7 @@
 		sdio1: dwmmc@A5011000 {
 			compatible = "hobot,x2-dw-mshc";
 			reg = <0x0 0xA5011000 0x0 0x1000>;
-			clock-freq-min-max = <100000 50000000>;
+			clock-freq-min-max = <100000 100000000>;
 			clocks = <&sd1_div_clk>, <&sd1_div_cclk>,<&sd1_cclk>;
 			clock-names = "biu","ciu","gate_cclk";
 			clock-frequency = <200000000>;

@@ -138,7 +138,7 @@ static int dw_mci_x2_sample_tuning(struct dw_mci_slot *slot, u32 opcode)
 	}
 
 	if (range_count == 0) {
-		dev_warn(host->dev, "All sample phases bad!");
+		dev_dbg(host->dev, "All sample phases bad!");
 		ret = -EIO;
 		goto free;
 	}
@@ -280,7 +280,7 @@ static void dw_mci_x2_set_ios(struct dw_mci *host, struct mmc_ios *ios)
 	 * assuming delay_o is not absurd for a given SoC.  We'll use
 	 * that as a default.
 	 */
-	phase = 90;
+	phase = 4;
 
 	switch (ios->timing) {
 	case MMC_TIMING_MMC_DDR52:
@@ -290,7 +290,7 @@ static void dw_mci_x2_set_ios(struct dw_mci *host, struct mmc_ios *ios)
 		 * to get the same timings.
 		 */
 		if (ios->bus_width == MMC_BUS_WIDTH_8)
-			phase = 180;
+			phase = 6;
 		break;
 	case MMC_TIMING_UHS_SDR104:
 	case MMC_TIMING_MMC_HS200:
@@ -302,7 +302,7 @@ static void dw_mci_x2_set_ios(struct dw_mci *host, struct mmc_ios *ios)
 		 * SoCs measured this seems to be OK, but it doesn't
 		 * hurt to give margin here, so we use 180.
 		 */
-		phase = 180;
+		phase = 6;
 		break;
 	}
 
