@@ -253,7 +253,7 @@
 					83	0
 				>;
 			};
-			ethmac_func:ethmac_func {
+			eth_func:eth_func {
 				pinctrl-x2,pins-muxs = <
 					31	0
 					32	0
