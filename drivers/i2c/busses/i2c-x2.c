@@ -17,7 +17,8 @@
 #include <linux/seq_file.h>
 #include <linux/string.h>
 #include <linux/reset.h>
-#include "drivers/hdmi/hdmi_i2c_nostop.h"
+//#include "drivers/hdmi/hdmi_i2c_nostop.h"
+#include "../../misc/bt2hdmi/hdmi_i2c_nostop.h"
 #include "i2c-x2.h"
 //#define X2_I2C_CDIV_MIN   0x0
 //#define X2_I2C_CDIV_MAX   0xFF
