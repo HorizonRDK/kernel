@@ -108,22 +108,6 @@ struct cdev   mipi_host_cdev;
 static struct class  *x2_mipi_host_class;
 static struct device *g_mipi_host_dev;
 
-#ifdef SYSC_VIDEO_DIV_REG
-static void mipi_host_pix_clk_div(uint32_t div)
-{
-	uint32_t reg_value;
-
-	reg_value = mipi_getreg(iomem + SYSC_VIDEO_DIV_REG);
-	mipiinfo("host read sysc video div reg: 0x%x", reg_value);
-
-	reg_value &= (~(0x7UL << 6));
-	reg_value |= ((div - 1) << 6);
-
-	mipi_putreg(iomem + SYSC_VIDEO_DIV_REG, reg_value);
-	mipiinfo("host write sysc video div reg: 0x%x", reg_value);
-}
-#endif
-
 static unsigned long mipi_host_pixel_clk_select(mipi_host_cfg_t *control)
 {
 	unsigned long pixclk = control->linelenth * control->framelenth * control->fps;
@@ -140,6 +124,7 @@ static unsigned long mipi_host_pixel_clk_select(mipi_host_cfg_t *control)
 	if (!control->framelenth)
 		framelenth = control->height;
 	pixclk = linelenth * framelenth * control->fps;
+	//pixclk = 1000000 * control->mipiclk / control->lane;
 	if (control->datatype < MIPI_CSI2_DT_RAW_8)
 		pixclk = pixclk;
 	else
@@ -181,7 +166,7 @@ static uint16_t mipi_host_get_hsd(mipi_host_cfg_t *control, unsigned long pixclk
 	 */
 	unsigned long rx_bit_clk = 0;
 	unsigned long bits_per_pixel = 0;
-	unsigned long line_size = control->width;
+	unsigned long line_size = 0;
 	unsigned long cycles_to_trans = 0;
 	unsigned long time_ppi = 0;
 	unsigned long time_ipi = 0;
@@ -224,10 +209,13 @@ static uint16_t mipi_host_get_hsd(mipi_host_cfg_t *control, unsigned long pixclk
 		bits_per_pixel = 16;
 		break;
 	}
-	if (!control->linelenth || control->linelenth == control->width)
+	if (!control->linelenth || control->linelenth == control->width) {
 		rx_bit_clk = control->mipiclk * 1000000;
-	else
+        line_size = control->width;
+	} else {
 		rx_bit_clk = control->linelenth * control->framelenth * control->fps * bits_per_pixel;
+		line_size = control->linelenth;
+	}
 	mipiinfo("linelenth: %d, framelenth: %d, fps: %d, bits_per_pixel: %lu, pixclk: %lu",
 			 control->linelenth, control->framelenth, control->fps, bits_per_pixel, pixclk);
 	time_ppi = (1000 * bits_per_pixel * line_size * 1000000 / rx_bit_clk);
@@ -269,7 +257,7 @@ static int32_t mipi_host_configure_ipi(mipi_host_cfg_t *control)
 	mipi_putreg(iomem + REG_MIPI_HOST_IPI_HSA_TIME, control->hsaTime);
 	mipi_putreg(iomem + REG_MIPI_HOST_IPI_HBP_TIME, control->hbpTime);
 	mipi_putreg(iomem + REG_MIPI_HOST_IPI_HSD_TIME, control->hsdTime);
-	mipi_putreg(iomem + REG_MIPI_HOST_IPI_ADV_FEATURES, MIPI_HOST_LEGCYMODE_ENABLE);
+	//mipi_putreg(iomem + REG_MIPI_HOST_IPI_ADV_FEATURES, MIPI_HOST_LEGCYMODE_ENABLE);
 
 	if (MIPIHOST_CHANNEL_NUM == control->channel_num) {
 		/*Select virtual channel and data type to be processed by IPI*/

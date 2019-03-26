@@ -222,7 +222,7 @@ static int32_t mipi_dev_initialize_ipi(mipi_dev_cfg_t *control)
 	/*Configure IPI horizontal resolution*/
 	mipi_putreg(iomem + REG_MIPI_DEV_IPI_PIXELS, control->width);
 	/*Configure IPI vertical resolution*/
-	mipi_putreg(iomem + REG_MIPI_DEV_IPI_LINES, control->ipi_lines ? control->ipi_lines : control->height + 2);
+	mipi_putreg(iomem + REG_MIPI_DEV_IPI_LINES, control->ipi_lines ? control->ipi_lines : control->height + 1);
 
 	return 0;
 }
