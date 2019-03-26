@@ -16,6 +16,8 @@
 #include <linux/signal.h>
 #include <linux/errno.h>
 #include <linux/slab.h>
+#include <linux/cdev.h>
+#include <linux/fs.h>
 #include <linux/version.h>
 #include <linux/platform_device.h>
 #include <linux/of.h>
@@ -25,14 +27,25 @@
 #include <linux/io.h>
 #include <linux/gpio/consumer.h>
 #include <linux/delay.h>
-#include "bif_base.h"
-#include "bif_api.h"
-
+#if (defined CONFIG_HOBOT_BIF_AP) && (defined CONFIG_HI3519V101)
+#include <mach/io.h>
+#else
 //#define X2_LINUX_VERSION_CODE		(((4) << 16) + ((9) << 8) + (0))
 #define X2_LINUX_VERSION_CODE		(((4) << 16) + ((14) << 8) + (74))
 #define KERNEL_VERSION(a, b, c)		(((a) << 16) + ((b) << 8) + (c))
 #if KERNEL_VERSION(4, 14, 14) <= X2_LINUX_VERSION_CODE
 #include <linux/sched/signal.h>
+#endif
+#endif
+#include "bif_base.h"
+#include "bif_api.h"
+
+//#define BIFBASE_GPIO_TEST
+//#define BIFBASE_DEBUG
+#ifdef BIFBASE_DEBUG
+#define pr_bif(fmt, args...)	pr_err(fmt, ## args)
+#else
+#define pr_bif(fmt, args...)
 #endif
 
 #define BASE_PHY_SIZE	512
@@ -47,8 +60,7 @@ static unsigned int base_phy_addr_maxsize;
 #endif
 
 static struct bif_base_info *bif_base, *bif_ap, *bif_self, *bif_other;
-/*0x7ff00000 vmware reversed address*/
-unsigned long base_phy_addr = 0x7ff00000;
+unsigned long base_phy_addr;
 void *bif_vir_addr;
 wait_queue_head_t bif_irq_wq;
 static int bif_irq_wq_flg;
@@ -58,9 +70,26 @@ static int tri_pin = -1;
 static int irq_num = -1;
 static int tri_val;
 static int bif_base_start;
+
+#if (defined CONFIG_HOBOT_BIF_TEST) || (defined CONFIG_HI3519V101)
+#define BIFBASE_MAJOR	123
+static struct class *pbclass;
+#endif
 static struct device *pbdev;
 static irq_handler_t irq_func[BUFF_MAX];
 static int irq_pin_absent;
+
+#if (defined CONFIG_HOBOT_BIF_AP) && (defined CONFIG_HI3519V101)
+#define GPIO_MUX_CTRL_BASE	0x12040000
+#define BIFBASE_IRQ_PIN		(2*8 + 5)	//GPIO2_5
+#define BIFBASE_TRI_PIN		(2*8 + 3)	//GPIO2_3
+#define BIFBASE_IRQ_OFFSET	(0x40)
+#define BIFBASE_TRI_OFFSET	(0x38)
+#define GPIO_WRITE_REG(Addr, Value) ((*(volatile unsigned int*)(Addr))=(Value))
+#define GPIO_READ_REG(Addr) (*(volatile unsigned int*)(Addr))
+void __iomem* reg_gpio_muxctrl_base_va = 0;
+#endif
+
 /*
  *fpga(x2)	hogu(AP)
  *84-->		54(960)	 GPIO_EMIO_0
@@ -109,6 +138,7 @@ static int irq_pin_absent;
 
 static void gpio_trigger_irq(int irq)
 {
+	pr_bif("bifbase: %s() irq: %d, tri_val:%d\n", __func__, irq, tri_val);
 #ifdef CONFIG_HOBOT_BIF_TEST
 	t_bif_send_irq(BUFF_BASE);
 #else
@@ -116,10 +146,65 @@ static void gpio_trigger_irq(int irq)
 		tri_val = 0;
 	else
 		tri_val = 1;
-	gpio_direction_output(irq, tri_val);
+	if (irq)
+		gpio_direction_output(irq, tri_val);
+	else
+		pr_err("%s() Err irq: %d, tri_val:%d\n", __func__, irq, tri_val);
 #endif
 }
 
+#ifdef BIFBASE_GPIO_TEST
+struct timer_list bifbase_timer;
+static void bibase_gpio_output_test(void)
+{
+	int ret;
+
+	ret = gpio_request(tri_pin, "tri_pin");
+	if (ret < 0) {
+		pr_err("%s() Err get trigger pin ret= %d\n", __func__, ret);
+	}
+	ret = gpio_request(irq_pin, "irq_pin");
+	if (ret < 0) {
+		pr_err("%s() Err get irq_pin pin ret= %d\n", __func__, ret);
+	}
+	while(1) {
+		gpio_trigger_irq(tri_pin);
+		mdelay(10);
+		gpio_trigger_irq(tri_pin);
+		mdelay(10);
+		gpio_trigger_irq(irq_pin);
+		mdelay(10);
+		gpio_trigger_irq(irq_pin);
+		mdelay(10);
+	}
+
+}
+
+static void bifbase_loop_int_func(unsigned long data)
+{
+	if (bif_base_start) {
+		gpio_trigger_irq(tri_pin);
+		mod_timer(&bifbase_timer, jiffies + HZ);
+	} else
+		del_timer(&bifbase_timer);
+	pr_bif("bifbase: %s() \n", __func__);
+}
+
+static void bifbase_loop_int_init(void)
+{
+	init_timer(&bifbase_timer);
+	bifbase_timer.function = bifbase_loop_int_func;
+	bifbase_timer.expires = jiffies + HZ;
+	//bifbase_timer.data = 0;
+	add_timer(&bifbase_timer);
+	pr_bif("bifbase: %s() \n", __func__);
+}
+
+static void bifbase_loop_int_deinit(void)
+{
+	del_timer(&bifbase_timer);
+}
+#endif
 static int gpio_init(void)
 {
 	int ret;
@@ -145,7 +230,7 @@ static int gpio_init(void)
 		gpio_free(irq_pin);
 		ret = -ENODEV;
 	}
-
+	pr_bif("bifbase: %s() irq_pin: %d, irq_num: %d", __func__, irq_pin, irq_num);
 exit_1:
 	return ret;
 }
@@ -171,7 +256,8 @@ static int bif_sync_ap(void)
 		return -1;
 #else
 #ifdef CONFIG_HOBOT_BIFSPI
-	if (bif_spi_write((void *)cur_phy, BASE_PHY_SIZE, tbuf))
+	//if (bif_spi_write((void *)cur_phy, BASE_PHY_SIZE, tbuf))
+	if (bif_spi_write((void *)cur_phy, MULTI(bif_self->next_offset, 16), tbuf))
 		return -1;
 #endif
 #endif
@@ -191,7 +277,8 @@ static int bif_sync_base(void)
 		return -1;
 #else
 #ifdef CONFIG_HOBOT_BIFSPI
-	if (bif_spi_read((void *)cur_phy, BASE_PHY_SIZE, tbuf))
+	//if (bif_spi_read((void *)cur_phy, BASE_PHY_SIZE, tbuf))
+	if (bif_spi_read((void *)cur_phy, MULTI(bif_self->next_offset, 16), tbuf))
 		return -1;
 #endif
 #endif
@@ -254,15 +341,19 @@ static void work_bif_irq(struct work_struct *work)
 
 static irqreturn_t bif_irq_handler(int irq, void *data)
 {
+#ifdef BIFBASE_GPIO_TEST
+	pr_bif("bifbase: %s() irq: %d\n", __func__, irq);
+#else
 	if (!bif_base_start)
 		return IRQ_NONE;
 	schedule_work(&bif_irq_work);
+#endif
 	return IRQ_HANDLED;
 }
 
 int bif_send_irq(int irq)
 {
-	if (!bif_base_start || bif_self == NULL || bif_other == NULL)
+	if (irq_pin_absent || !bif_base_start || bif_self == NULL || bif_other == NULL)
 		return 0;
 
 	while ((bif_self->send_irq_tail + 1) % IRQ_QUEUE_SIZE ==
@@ -413,8 +504,8 @@ void *bif_alloc_base(enum BUFF_ID buffer_id, int size)
 		offset = bif_self->offset_list[buffer_id];
 
 	addr = (void *)bif_self + offset;
-
-	bif_send_irq(BUFF_BASE);
+	if(!irq_pin_absent)
+		bif_send_irq(BUFF_BASE);
 
 	return addr;
 }
@@ -463,15 +554,31 @@ void *bif_query_otherbase(enum BUFF_ID buffer_id)
 }
 EXPORT_SYMBOL(bif_query_otherbase);
 
-int _bif_base_init(void)
+static int bif_base_plat_init(void)
 {
-	int ret;
-	unsigned char *ptr = NULL;
+	int ret = 0;
 
-	bif_base_start = 0;
+#ifdef CONFIG_HOBOT_BIF_TEST	// vmware
+	base_phy_addr = 0x7ff00000; // 0x7ff00000 vmware reversed address
+#endif
+
+#if (defined CONFIG_HOBOT_BIF_AP) && (defined CONFIG_HI3519V101)
+	reg_gpio_muxctrl_base_va = (void __iomem*)IO_ADDRESS(GPIO_MUX_CTRL_BASE);
+
+    //config GPIO muxctl
+    GPIO_WRITE_REG(reg_gpio_muxctrl_base_va + BIFBASE_IRQ_OFFSET, 0x0);
+    GPIO_WRITE_REG(reg_gpio_muxctrl_base_va + BIFBASE_TRI_OFFSET, 0x0);
+
+	irq_pin = BIFBASE_IRQ_PIN;
+	tri_pin = BIFBASE_TRI_PIN;
+	base_phy_addr = 0x20000000;	//same to x2 reserved memory
+	pr_info("irq_pin=%d,tri_pin=%d", irq_pin, tri_pin);
+#endif
+
 #ifdef CONFIG_HOBOT_BIF_TEST
-	bif_netlink_init();
-	ret = t_bif_register_irq(BUFF_BASE, bif_irq_handler);
+	ret = bif_netlink_init();
+	if (!ret)
+		ret = t_bif_register_irq(BUFF_BASE, bif_irq_handler);
 #else
 	if (!irq_pin_absent) {
 		ret = gpio_init();
@@ -485,7 +592,32 @@ int _bif_base_init(void)
 			goto exit_1;
 		}
 	}
+exit_1:
 #endif
+
+	return ret;
+}
+static void bif_base_plat_deinit(void)
+{
+#ifdef CONFIG_HOBOT_BIF_TEST
+	pr_info("bif_base: exit bif netlink...\n");
+	bif_netlink_exit();
+#else
+	devm_free_irq(pbdev, irq_num, NULL);
+	gpio_deinit();
+#endif
+
+}
+
+static int _bif_base_init(void)
+{
+	int ret;
+	unsigned char *ptr = NULL;
+
+	bif_base_start = 0;
+	ret = bif_base_plat_init();
+	if (ret)
+		goto exit_1;
 
 #ifdef CONFIG_HOBOT_BIF_AP
 	init_waitqueue_head(&bif_ap_wq);
@@ -500,7 +632,7 @@ int _bif_base_init(void)
 	bif_self = bif_ap;
 	bif_other = bif_base;
 #else
-#ifdef CONFIG_HOBOT_BIF_TEST
+#if (defined CONFIG_HOBOT_BIF_TEST) || (defined CONFIG_HI3519V101)
 	bif_vir_addr = (void *)ioremap(base_phy_addr, 0x00100000);
 	base_phy_addr_maxsize = 0x00100000;
 #endif
@@ -528,14 +660,16 @@ int _bif_base_init(void)
 		base_phy_addr, (unsigned long)bif_vir_addr,
 		base_phy_addr_maxsize);
 #endif
+	bif_self->next_offset = sizeof(struct bif_base_info);
 	if (!irq_pin_absent) {
 		bif_register_irq(BUFF_BASE, bif_base_irq_handler);
-		bif_self->next_offset = sizeof(struct bif_base_info);
 		init_waitqueue_head(&bif_irq_wq);
 		INIT_WORK(&bif_irq_work, work_bif_irq);
 	}
 	bif_base_start = 1;
-
+#ifdef BIFBASE_GPIO_TEST
+	bifbase_loop_int_init();
+#endif
 exit_1:
 	return ret;
 }
@@ -549,19 +683,17 @@ void _bif_base_exit(void)
 	kfree(bif_vir_addr);
 #else
 	if (bif_vir_addr)
-#ifdef CONFIG_HOBOT_BIF_TEST
+#if (defined CONFIG_HOBOT_BIF_TEST) || (defined CONFIG_HI3519V101)
 		iounmap(bif_vir_addr);
 #else
 		memunmap(bif_vir_addr);
 #endif
 #endif
 
-#ifdef CONFIG_HOBOT_BIF_TEST
-	pr_info("bif_base: exit bif netlink...\n");
-	bif_netlink_exit();
-#else
-	devm_free_irq(pbdev, irq_num, NULL);
-	gpio_deinit();
+	bif_base_plat_deinit();
+
+#ifdef BIFBASE_GPIO_TEST
+	bifbase_loop_int_deinit();
 #endif
 
 	pr_info("bif_base: exit end...\n");
@@ -631,6 +763,36 @@ out:
 	return ret;
 }
 
+#if (defined CONFIG_HOBOT_BIF_TEST) || (defined CONFIG_HI3519V101)
+static int bif_base_open(struct inode *inode, struct file *file)
+{
+    return 0;
+}
+
+static ssize_t bif_base_write(struct file *file, const char __user *buf, size_t count, loff_t * ppos)
+{
+    return 0;
+}
+
+static ssize_t bif_base_read(struct file *file, char __user *buf, size_t size, loff_t *ppos)
+{
+    return 0;
+}
+
+static int bif_base_close(struct inode *inode, struct file *file)
+{
+    return 0;
+}
+
+static struct file_operations bifsd_drv_fops = {
+	.owner = THIS_MODULE,
+	.open   = bif_base_open,
+	.write  = bif_base_write,
+	.read = bif_base_read,
+	.release  = bif_base_close,
+};
+
+#else
 static const struct of_device_id bif_base_of_match[] = {
 	{.compatible = "hobot,bif_base"},
 	{},
@@ -649,20 +811,45 @@ static struct platform_driver bif_base_driver = {
 	.probe = bif_base_probe,
 	.remove = bif_base_remove,
 };
+#endif
 
 static int __init bif_base_init(void)
 {
 	int ret;
 
+	pr_info("bif_base: init begin\n");
+
+#if (defined CONFIG_HOBOT_BIF_TEST) || (defined CONFIG_HI3519V101)
+    pbclass = class_create(THIS_MODULE, "bifbase");
+    if (IS_ERR(pbclass)) {
+		pr_err("bif_base: Err class_create error\n");
+        ret = PTR_ERR(pbclass);
+        goto exit_1;
+    }
+    ret = register_chrdev(BIFBASE_MAJOR, "bifbase", &bifsd_drv_fops);
+    if (ret < 0) {
+		pr_err("bif_base: register chrdev error\n");
+        class_destroy(pbclass);
+        goto exit_1;
+    }
+    pbdev = device_create(pbclass, NULL, MKDEV(BIFBASE_MAJOR, 0), NULL, "bifbase");
+    if (IS_ERR(pbdev)) {
+		pr_err("bif_base: device create error\n");
+        unregister_chrdev(BIFBASE_MAJOR, "bifbase");
+        class_destroy(pbclass);
+        ret = -1;
+		goto exit_1;
+    }
+	ret = _bif_base_init();
+exit_1:
+#else
 	ret = platform_driver_register(&bif_base_driver);
+#endif
 	if (ret)
 		pr_err("bif_base: Err bif base driver register failed.\n");
 	else
 		pr_info("bif_base: Suc bif base driver register success.\n");
 
-#ifdef CONFIG_HOBOT_BIF_TEST
-	_bif_base_init();
-#endif
 	return ret;
 }
 
@@ -670,14 +857,18 @@ static void __exit bif_base_exit(void)
 {
 	bif_base_start = 0;
 	_bif_base_exit();
+#if (defined CONFIG_HOBOT_BIF_TEST) || (defined CONFIG_HI3519V101)
+    device_destroy(pbclass, MKDEV(BIFBASE_MAJOR, 0));
+    class_destroy(pbclass);
+    unregister_chrdev(BIFBASE_MAJOR, "bifbase");
+#else
 	platform_driver_unregister(&bif_base_driver);
+#endif
 }
 
-#ifdef CONFIG_X2_FPGA
 late_initcall(bif_base_init);
-#else
-module_init(bif_base_init);
-#endif
+//module_init(bif_base_init);
+
 module_exit(bif_base_exit);
 
 MODULE_LICENSE("GPL");

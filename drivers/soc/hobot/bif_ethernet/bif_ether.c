@@ -110,7 +110,8 @@ static int bif_sync_cpbuf(unsigned long phy_addr, unsigned int blklen,
 		return -1;
 #else
 #ifdef CONFIG_HOBOT_BIFSPI
-	if (bif_spi_read((void *)cur_phy, blklen, buffer))
+	//if (bif_spi_read((void *)cur_phy, blklen, buffer))
+	if (bif_spi_read((void *)cur_phy, MULTI(blklen, 16), buffer))
 		return -1;
 #endif
 #endif
@@ -138,7 +139,8 @@ static int bif_sync_apbuf(unsigned long phy_addr, unsigned int blklen,
 		return -1;
 #else
 #ifdef CONFIG_HOBOT_BIFSPI
-	if (bif_spi_write((void *)cur_phy, blklen, buffer))
+	//if (bif_spi_write((void *)cur_phy, blklen, buffer))
+	if (bif_spi_write((void *)cur_phy, MULTI(blklen, 16), buffer))
 		return -1;
 #endif
 #endif
@@ -670,11 +672,9 @@ static void bif_net_exit(void)
 	pr_info("bif_eth: exit end...\n");
 }
 
-#ifdef CONFIG_X2_FPGA
 late_initcall(bif_net_init);
-#else
-module_init(bif_net_init);
-#endif
+//module_init(bif_net_init);
+
 module_exit(bif_net_exit);
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Horizon Inc.");

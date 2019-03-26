@@ -2,6 +2,8 @@
 #define _BIF_BASE_H_
 #include <linux/interrupt.h>
 
+#define MULTI(a, b)	(((a)%(b)) > 0 ? ((a)/(b)+1)*(b) : (a))
+
 enum BUFF_ID {
 	BUFF_BASE,
 	BUFF_ETH,
