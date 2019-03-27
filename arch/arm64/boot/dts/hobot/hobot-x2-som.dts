@@ -1,0 +1,350 @@
+/*
+ * dts file for Hobot X2 FPGA
+ *
+ * (C) Copyright 2018, Horizon, Inc.
+ *
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
+ */
+
+/dts-v1/;
+#include "hobot.dtsi"
+#include "hobot-pinctrl.dtsi"
+#include "hobot-clk.dtsi"
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/phy/phy.h>
+
+/ {
+	model = "Hobot X2 FPGA MP";
+	compatible = "hobot,x2-fpga";
+
+	aliases {
+		serial0 = &uart0;
+		serial1 = &uart1;
+		serial2 = &uart2;
+		serial3 = &uart3;
+		i2c0	= &i2c0;
+		i2c1	= &i2c1;
+		i2c2	= &i2c2;
+		i2c3	= &i2c3;
+		i2s0	= &i2s0;
+		i2s1	= &i2s1;
+		pwm0	= &pwm_0;
+		pwm1	= &pwm_1;
+		pwm2	= &pwm_2;
+		bifsd   = &bifsd;
+		bifspi  = &bifspi;
+		mmc0    = &sdio0;
+	};
+
+	chosen {
+		bootargs = "earlycon loglevel=8 console=ttyS0 clk_ignore_unused";
+		stdout-path = "serial0:115200n8";
+	};
+
+	memory@0 {
+		device_type = "memory";
+		reg = <0x0 0x0 0x0 0x80000000>;
+	};
+
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		bifsd_reserved: bifsd_reserved@0x3D089000 {
+		    reg = <0x0 0x3D089000 0x0 0x1000>;
+		    no-map;
+		};
+		iar_reserved: iar_reserved@0x3D08A000 {
+		    reg = <0x0 0x3D08A000 0x0 0x2F76000>;
+		    no-map;
+		};
+
+		/* Reserved 512MB memory for cnn subsystem */
+		cnn_reserved: cnn_reserved@0x40000000 {
+		    reg = <0x0 0x40000000 0x0 0x20000000>;
+		};
+
+		/* Reserved 512MB memory for ipu subsystem */
+		ipu_reserved: ipu_reserved@0x60000000 {
+		    reg = <0x0 0x60000000 0x0 0x20000000>;
+		    /*no-map;*/
+		};
+
+		/*Reserved 8M memory for isp_subsystem*/
+		isp_reserved: isp_reserved@0x80000000 {
+			reg = <0x0 0x10100000 0x0 0x00800000>;
+		};
+		
+		/*Reserved 1M memory for bifbase*/
+		bif_base_reserved: bif_base_reserved@0x20000000 {
+			reg = <0x0 0x20000000 0x0 0x00100000>;
+			no-map;
+		};
+	};
+
+	bif_base {
+		compatible = "hobot,bif_base";
+		memory-region = <&bif_base_reserved>;
+		/*x2 som: GPIO6[1]: 95, GPIO0[7]: 7*/
+		bif_base_irq_pin = <95>;
+		bif_base_tri_pin = <7>;
+	};
+
+	cnn_mm {
+		compatible = "hobot,cnn-mm";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		memory-region = <&cnn_reserved>;
+
+		cnn_heap@0 {
+			reg = <0>;
+			label = "cnn0_model_mm";
+			type = <1>;
+		};
+
+		cnn_heap@1 {
+			reg = <1>;
+			label = "cnn1_model_mm";
+			type = <1>;
+		};
+
+		cnn_heap@2 {
+			reg = <2>;
+			label = "cnn_rt_mm";
+			type = <1>;
+		};
+
+		cnn_heap@3 {
+			reg = <3>;
+			label = "cnn_result_mm";
+			type = <1>;
+		};
+	};
+};
+
+&i2c0 {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	x2_camera@0x7f {
+	    compatible = "x2,camera";
+	    reg = <0x7f>;
+	};
+	tmp75c@48 {
+                compatible = "ti,tmp75c";
+		reg = <0x48>;
+	};
+	mp5416@69 {
+		compatible = "mps,mp5416";
+		reg = <0x69>;
+		regulators {
+			vcc_cnn0_reg: DCDC1 {
+				regulator-name = "VCC_CNN0";
+				regulator-min-microvolt = <800000>;
+				regulator-max-microvolt = <1000000>;
+			};
+
+			vdd_core_pd_reg: DCDC2 {
+				regulator-name = "VDD_CORE_PD";
+				regulator-min-microvolt = <900000>;
+				regulator-max-microvolt = <900000>;
+				regulator-always-on;
+			};
+
+			vcc_cnn1_reg: DCDC3 {
+				regulator-name = "VCC_CNN1";
+				regulator-min-microvolt = <800000>;
+				regulator-max-microvolt = <1000000>;
+			};
+
+			vcc_cpu_reg: DCDC4 {
+				regulator-name = "VCC_CPU";
+				regulator-min-microvolt = <800000>;
+				regulator-max-microvolt = <1000000>;
+				regulator-always-on;
+			};
+
+			vdd_core_ao_reg: LDO3 {
+				regulator-name = "VDD_CORE_AO";
+				regulator-min-microvolt = <3300000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-always-on;
+			};
+
+			vdd_1v8_reg: LDO4 {
+				regulator-name = "VDD_1V8";
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <1800000>;
+				regulator-always-on;
+			};
+
+			vdd_0v9_reg: LDO5 {
+				regulator-name = "VDD_0V9";
+				regulator-min-microvolt = <900000>;
+				regulator-max-microvolt = <900000>;
+				regulator-always-on;
+			};
+		};
+	};
+};
+
+&i2c1 {
+	status = "okay";
+};
+
+&pinctrl {
+	status = "okay";
+};
+
+&uart0 {
+	status = "okay";
+	clocks = <&uart0_mclk>;
+	clock-names = "uart_mclk";
+};
+
+&ips {
+	clocks = <&vio_pllmux_clk>, <&mipi_ipi_1stdiv_clk>, <&mipi_ipi_2nddiv_clk>;
+	clock-names = "vio_pllmux", "ipi_div1", "ipi_div2";
+	status = "okay";
+};
+
+&isp {
+	status = "okay";
+};
+
+&ipu {
+	status = "okay";
+};
+
+&sif {
+	status = "okay";
+};
+&mipi_host {
+	status = "okay";
+};
+
+&mipi_dev {
+	status = "okay";
+};
+
+&dma {
+	status = "okay";
+};
+
+&x2dmatest {
+	status = "disabled";
+};
+
+&rtc {
+	status = "okay";
+};
+
+&pwm_0 {
+	status = "disabled";
+};
+
+&spi0 {
+	status = "okay";
+};
+
+&ethernet {
+	status = "okay";
+	clocks = <&eth0_ephy_2nddiv_clk>, <&eth0_prediv_clk>, <&eth0_div_clk>;
+	clock-names = "phy_ref_clk", "mac_pre_div_clk", "mac_div_clk";
+
+	pinctrl-names = "default";
+	pinctrl-0 = <&eth_func>;
+
+	/* local-mac-address = [ 00 11 22 33 44 55 ]; */
+	phy-handle = <&phy1>;
+	phy-mode = "rgmii-id";
+	mdio {
+		#address-cells = <0x1>;
+		#size-cells = <0x0>;
+		phy1: phy@0 {
+			compatible = "marvell,88E1510","ethernet-phy-ieee802.3-c22";
+			reg = <0x0>;
+		};
+	};
+};
+
+&cpu0 {
+	status = "okay";
+	cnn0-supply = <&vcc_cpu_reg>;
+};
+
+&cnn0 {
+	status = "okay";
+	cnn0-supply = <&vcc_cnn0_reg>;
+};
+
+&cnn1 {
+	status = "okay";
+	cnn1-supply = <&vcc_cnn1_reg>;
+};
+
+&iar {
+	status = "okay";
+};
+
+&bifspi {
+	status = "okay";
+};
+
+&bifsd {
+	status = "okay";
+	/*cd-gpio = <91>;*/
+};
+
+&qspi {
+	status = "okay";
+	qspi-mode = <1>;
+	#address-cells = <1>;
+	#size-cells = <0>;
+	clocks = <&sys_qspi_aclk>;
+	clock-names = "qspi_aclk";
+
+	flash@0 {
+		compatible = "gd25lq128d";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		reg = <0x0>;
+		spi-tx-bus-width = <4>;
+		spi-rx-bus-width = <4>;
+		spi-max-frequency = <50000000>;
+
+		partition@qspi-uboot {
+			label = "qspi-uboot";
+			reg = <0x200000 0x200000>;
+		};
+	};
+};
+&sdio0 {
+	status = "okay";
+};
+
+&sdio1 {
+	status = "okay";
+};
+
+&watchdog {
+	status = "okay";
+};
+
+&i2s0 {
+	status = "disabled";
+	clocks = <&i2s0_mclk>, <&i2s0_bclk>;
+	clock-names = "i2s_mclk", "i2s_bclk";
+};
+
+&i2s1 {
+	status = "disabled";
+	clocks = <&i2s1_mclk>, <&i2s1_bclk>;
+	clock-names = "i2s_mclk", "i2s_bclk";
+};
