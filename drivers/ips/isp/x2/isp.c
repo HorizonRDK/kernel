@@ -126,6 +126,7 @@ void x2_isp_isr(unsigned int status, void *data)
 		Set_Bit(15, isp_dev->irq_status);
 	else if (status & ISP_HMP_FRAME_FINISH)
 		Set_Bit(13, isp_dev->irq_status);
+	}
 
 //	spin_unlock_irqrestore(&isp_dev->slock, flags);
 }
@@ -254,10 +255,12 @@ long isp_mod_ioctl(struct file *pfile, unsigned int cmd, unsigned long arg)
 
 	switch (cmd) {
 	case ISPC_START:{
+			printk(KERN_ERR "x2 isp ioctl is start\n");
 		//	isp_start(isp_cdev);
 		}
 		break;
 	case ISPC_STOP:{
+			printk(KERN_ERR "x2 isp ioctl is end \n");
 		//	isp_stop(isp_cdev);
 		}
 		break;
@@ -633,7 +636,6 @@ static int __init isp_dev_init(void)
 //	init_completion(&isp_mod->isp_completion);
 	init_waitqueue_head(&isp_mod->isp_waitq);
 	isp_mod->isp_condition = 0;
-
 
 	isp_cdr_addr = pispdev->vaddr;
 	if (isp_cdr_addr == NULL)
