@@ -91,7 +91,9 @@ typedef enum _mipi_state_t {
 } mipi_state_t;
 
 unsigned int mipi_host_nocheck = 0;
+unsigned int mipi_host_notimeout = 0;
 module_param(mipi_host_nocheck, uint, S_IRUGO | S_IWUSR);
+module_param(mipi_host_notimeout, uint, S_IRUGO | S_IWUSR);
 
 #define MIPIHOSTIOC_READ        _IOWR(MIPIHOSTIOC_MAGIC, 4, reg_t)
 #define MIPIHOSTIOC_WRITE       _IOW(MIPIHOSTIOC_MAGIC, 5, reg_t)
@@ -466,7 +468,7 @@ static int32_t mipi_host_dphy_wait_stop(mipi_host_cfg_t *control)
 			return 0;
 		mdelay(1);
 		ncount++;
-	} while ( ncount <= HOST_DPHY_CHECK_MAX );
+	} while ( mipi_host_notimeout || ncount <= HOST_DPHY_CHECK_MAX );
 	mipierr("lane state of host phy is error: 0x%x", stopstate);
 	return -1;
 }
@@ -498,7 +500,7 @@ static int32_t mipi_host_dphy_start_hs_reception(void)
 		}
 		ncount++;
 		mdelay(1);
-	} while ( ncount <= HOST_DPHY_CHECK_MAX );
+	} while ( mipi_host_notimeout || ncount <= HOST_DPHY_CHECK_MAX );
 	mipiinfo("mipi host hs reception check error");
 	return -1;
 }

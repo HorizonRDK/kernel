@@ -34,6 +34,8 @@
 struct x2_ipu_data *g_ipu = NULL;
 unsigned int ipu_debug_level = 0;
 module_param(ipu_debug_level, uint, 0644);
+unsigned int ipu_irq_debug = 0;
+module_param(ipu_irq_debug, uint, 0644);
 
 int8_t ipu_cfg_ddrinfo_init(ipu_cfg_t *ipu)
 {
@@ -348,6 +350,9 @@ void x2_ipu_isr(unsigned int status, void *data)
 {
 	struct x2_ipu_data *ipu = (struct x2_ipu_data *)data;
 	//printk("x2_ipu_isr\n");
+	if (ipu_irq_debug) {
+		printk(KERN_INFO "[ipu][irq]: 0x%x\n", status & IPU_INT_BITS);
+	}
 	if (ipu->stop) {
 		ipu->isr_data = 0;
 		return;

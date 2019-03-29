@@ -119,7 +119,9 @@ typedef enum _mipi_state_e {
 } mipi_state_t;
 
 unsigned int mipi_dev_nocheck = 0;
+unsigned int mipi_dev_notimeout = 0;
 module_param(mipi_dev_nocheck, uint, S_IRUGO | S_IWUSR);
+module_param(mipi_dev_notimeout, uint, S_IRUGO | S_IWUSR);
 
 #define MIPIDEVIOC_READ        _IOWR(MIPIDEVIOC_MAGIC, 4, reg_t)
 #define MIPIDEVIOC_WRITE       _IOW(MIPIDEVIOC_MAGIC, 5, reg_t)
@@ -422,7 +424,7 @@ static int32_t mipi_dev_wait_phy_powerup(mipi_dev_cfg_t *control)
 		}
 		ncount++;
 		mdelay(1);
-	} while (ncount <= DEV_DPHY_CHECK_MAX);
+	} while (mipi_dev_notimeout || ncount <= DEV_DPHY_CHECK_MAX);
 	mipierr("lane state of dev phy is error: 0x%x", state);
 	return -1;
 }

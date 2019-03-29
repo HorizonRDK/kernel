@@ -49,6 +49,8 @@ static struct class  *g_sif_class;
 static struct device *g_sif_dev;
 unsigned int sif_debug_level = 0;
 module_param(sif_debug_level, uint, 0644);
+unsigned int sif_irq_debug = 0;
+module_param(sif_irq_debug, uint, 0644);
 
 #define sifdrv(f) (dev_get_drvdata((f)->private_data))
 
@@ -86,6 +88,9 @@ static void x2_sif_irq(unsigned int status, void *data)
 	}
 	sif = (sif_t *)data;
 	//TODO
+	if (sif_irq_debug) {
+		printk(KERN_INFO "[sif][irq]: 0x%x\n", status & SIF_INT_BITS);
+	}
 	spin_lock(&sif->sif_file.event_lock);
 	if (!sif->sif_file.receive_frame && (status & SIF_FRAME_START_INTERRUPT)) {
 		sif->sif_file.event |= SIF_START;
