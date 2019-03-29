@@ -35,151 +35,6 @@ struct bif_sd *get_sd_info(void)
 	return bifsd_info;
 }
 
-static struct bifsd_req *bifsd_deq(struct bif_sd *sd,
-				   struct list_head *q, int *counter,
-				   spinlock_t * qlock)
-{
-	struct bifsd_req *req;
-
-	spin_lock_bh(qlock);
-	if (list_empty(q)) {
-		spin_unlock_bh(qlock);
-		return NULL;
-	}
-	req = list_entry(q->next, struct bifsd_req, list);
-	list_del_init(q->next);
-	if (counter)
-		(*counter)--;
-	spin_unlock_bh(qlock);
-
-	return req;
-}
-
-static void bifsd_enq(struct bif_sd *sd,
-		      struct list_head *q, struct bifsd_req *req, int *counter,
-		      spinlock_t * qlock)
-{
-	spin_lock_bh(qlock);
-	list_add_tail(&req->list, q);
-	if (counter)
-		(*counter)++;
-	spin_unlock_bh(qlock);
-}
-
-static struct bifsd_req *bifsd_qinit(struct bif_sd *sd, struct list_head *q,
-				     int qsize)
-{
-	int i;
-	struct bifsd_req *req, *reqs;
-
-	reqs = kcalloc(qsize, sizeof(struct bifsd_req), GFP_ATOMIC);
-
-	if (reqs == NULL)
-		return NULL;
-
-	req = reqs;
-
-	for (i = 0; i < qsize; i++) {
-		req->buf = 0;
-		req->len = 0;
-		req->blk_cnt = 0;
-		INIT_LIST_HEAD(&req->list);
-		list_add_tail(&req->list, q);
-		req++;
-	}
-	return reqs;
-}
-
-static void bifsd_free_q(struct bif_sd *sd, struct list_head *q, bool pending,
-			 spinlock_t * qlock)
-{
-	struct bifsd_req *req, *next;
-	int i = 0;
-
-	spin_lock_bh(qlock);
-	list_for_each_entry_safe(req, next, q, list) {
-		spin_unlock_bh(qlock);
-		i++;
-		list_del_init(&req->list);
-		spin_lock_bh(qlock);
-	}
-	spin_unlock_bh(qlock);
-}
-
-static int bifsd_process_rx_data(struct bif_sd *sd)
-{
-	struct bifsd_req *req;
-	req = bifsd_deq(sd, &sd->bifsd_rx_postq,
-			&sd->bifsd_rx_postcount, &sd->bifsd_rx_postq_lock);
-	if (!req) {
-		dev_err(sd->dev, "no req to send\n");
-		dev_err(sd->dev, "free:%d, post:%d\n", sd->bifsd_rx_freecount,
-			sd->bifsd_rx_postcount);
-	}
-	atomic_dec(&sd->bifsd_rx_dpc_tskcnt);
-	/* wait transfer */
-	/*######################### */
-	sd->rd_buf = (u64) req->buf;
-	sd->block_cnt = req->blk_cnt;
-
-	req->buf = 0;
-	req->blk_cnt = 0;
-
-	bifsd_enq(sd, &sd->bifsd_rx_freeq, req,
-		  &sd->bifsd_rx_freecount, &sd->bifsd_rx_freeq_lock);
-	/* set gpio for triger interrupt to host */
-
-	/*############################ */
-	return 0;
-}
-
-static void bifsd_rx_dpc(struct bif_sd *sd)
-{
-	bifsd_process_rx_data(sd);
-}
-
-static void bifsd_RxWorker(struct work_struct *work)
-{
-	struct bif_sd *sd = container_of(work, struct bif_sd, BifsdRxWork);
-	if (atomic_read(&sd->bifsd_rx_dpc_tskcnt) > 0) {
-		bifsd_rx_dpc(sd);
-	}
-}
-
-static int sddev_notify(struct notifier_block *self,
-			unsigned long action, void *data)
-{
-	struct bif_sd *sd = get_sd_info();
-	struct bifsd_req *req;
-	switch (action) {
-	case BIFSD_DATA_RX_COMP:
-		req = bifsd_deq(sd, &sd->bifsd_rx_freeq,
-				&sd->bifsd_rx_freecount,
-				&sd->bifsd_rx_freeq_lock);
-		if (!req) {
-			dev_err(sd->dev, "no req to send\n");
-			dev_err(sd->dev, "free:%d, post:%d\n",
-				sd->bifsd_rx_freecount, sd->bifsd_rx_postcount);
-		}
-		/* TBD:analsis buf from bifsd */
-		req->buf = data;
-		/* TBD:analsis data len */
-		bifsd_enq(sd, &sd->bifsd_rx_postq, req,
-			  &sd->bifsd_rx_postcount, &sd->bifsd_rx_postq_lock);
-
-		atomic_inc(&sd->bifsd_rx_dpc_tskcnt);
-		WAKE_RX_WORK(sd);
-	default:
-		break;
-	}
-	return NOTIFY_OK;
-}
-
-static struct notifier_block sddev_nb = {
-	.notifier_call = sddev_notify,
-	.priority = INT_MAX	/* Need to be called first of all */
-};
-
 void update_cid_val(struct bif_sd *sd)
 {
 	unsigned char i;
@@ -617,33 +472,6 @@ static const struct of_device_id bifsd_hobot_of_match[] = {
 
 MODULE_DEVICE_TABLE(of, bifsd_hobot_of_match);
 
-static void bifsd_tasklet_func(unsigned long priv)
-{
-	struct bif_sd *sd = (struct bif_sd *)priv;
-	enum bifsd_state state;
-
-	spin_lock(&sd->lock);
-	state = sd->state;
-
-	switch (state) {
-	case STATE_IDLE:
-		break;
-
-	case STATE_RX_DATA_COMP:
-#ifdef BIFSD_TX_RX_TEST_MODE
-		bifsd_notify_rx_data((void *)(u64) sd->wr_buf);
-#endif
-		/* TBD:analsis the data that received from host */
-		break;
-	case STATE_TX_DATA_COMP:
-		/* TBD:release buffer and so on */
-
-		break;
-	}
-
-	spin_unlock(&sd->lock);
-}
-
 static irqreturn_t bifsd_interrupt(int irq, void *dev_id)
 {
 	struct bif_sd *sd = dev_id;
@@ -749,7 +577,6 @@ static irqreturn_t bifsd_interrupt(int irq, void *dev_id)
 
 		if (pending & MMC_READ_BLOCK_CNT) {
 			sd->state = STATE_TX_DATA_COMP;
-			tasklet_hi_schedule(&sd->tasklet);
 			sd_writel(sd, INT_STATUS_1, MMC_READ_BLOCK_CNT, 0);
 		}
 
@@ -787,7 +614,6 @@ static irqreturn_t bifsd_interrupt(int irq, void *dev_id)
 				sd_writel(sd, INT_STATUS_1, MMC_BLK_WRITE, 0);
 
 				sd->state = STATE_RX_DATA_COMP;
-				tasklet_hi_schedule(&sd->tasklet);
 			}
 		}
 
@@ -797,7 +623,6 @@ static irqreturn_t bifsd_interrupt(int irq, void *dev_id)
 				sd_writel(sd, MEM_MGMT, 0x21, 0);
 
 			sd->state = STATE_RX_DATA_COMP;
-			tasklet_hi_schedule(&sd->tasklet);
 			sd_writel(sd, INT_STATUS_1, MMC_WRITE_BLOCK_CNT, 0);
 		}
 
@@ -1032,33 +857,14 @@ int bifsd_pltfm_register(struct platform_device *pdev,
 			goto err;
 		}
 	}
-
-	tasklet_init(&sd->tasklet, bifsd_tasklet_func, (unsigned long)sd);
 	ret = devm_request_irq(sd->dev, sd->irq, bifsd_interrupt,
 			       sd->irq_flags, "bifsd", sd);
 	if (ret)
 		goto err;
 
-	INIT_LIST_HEAD(&sd->bifsd_rx_postq);
-	INIT_LIST_HEAD(&sd->bifsd_rx_freeq);
-
-	sd->bifsd_rx_reqs = bifsd_qinit(sd, &sd->bifsd_rx_freeq, 32);
-	if (!sd->bifsd_rx_reqs)
-		goto err;
-
-	INIT_WORK(&sd->BifsdRxWork, bifsd_RxWorker);
-
-	sd->bifsd_rxwq = create_singlethread_workqueue("bifsd_rxwq");
-	if (!sd->bifsd_rxwq) {
-		dev_err(sd->dev,
-			"insufficient memory to create rxworkqueue.\n");
-		goto err;
-	}
-	bifsd_register_notify(&sddev_nb);
-
 	if (cd_gpio) {
 		gpio_request(sd->cd_gpio, NULL);
-		gpio_direction_output(sd->cd_gpio, 0);
+		gpio_direction_output(sd->cd_gpio, 1);
 	}
 
 err:
@@ -1080,6 +886,10 @@ static int bifsd_probe(struct platform_device *pdev)
 static int bifsd_remove(struct platform_device *pdev)
 {
 	struct bif_sd *sd = platform_get_drvdata(pdev);
+	if(sd->cd_gpio){
+		gpio_direction_output(sd->cd_gpio, 0);
+		gpio_free(sd->cd_gpio);
+	}
 
 	/* Disable interrupt */
 	sd_writel(sd, INT_STATUS_1, 0xFFFFFFFF, 0);
@@ -1087,9 +897,6 @@ static int bifsd_remove(struct platform_device *pdev)
 	sd_writel(sd, INT_ENABLE_1, 0, 0);
 	sd_writel(sd, INT_ENABLE_2, 0, 0);
 
-	bifsd_free_q(sd, &sd->bifsd_rx_freeq, false, &sd->bifsd_rx_freeq_lock);
-
-	bifsd_unregister_notify(&sddev_nb);
 	devm_kfree(&pdev->dev, sd);
 	return 0;
 }

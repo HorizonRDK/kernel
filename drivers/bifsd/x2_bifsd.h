@@ -308,9 +308,6 @@ static inline void mmc_set_hard_reset_cnt(struct bif_sd *sd)
 {
 	u32 pwr_cnt_val = 0;
 
-	pwr_cnt_val = MMC_CPU_CLOCK / 1000000;
-	if (pwr_cnt_val == 0)
-		pwr_cnt_val = 1;
 	sd_writel(sd, HARD_RESET_CNT, pwr_cnt_val, 0);
 }
 
@@ -360,7 +357,13 @@ static inline void mmc_disable_acc_bypass(struct bif_sd *sd)
 {
 	u32 reg_val;
 	reg_val = readl(sd->sysctrl_reg);
+	reg_val |= 0x07;
 	reg_val &= 0xFFFFFFFE;
 	writel(reg_val, sd->sysctrl_reg);
+}
+
+static inline void mmc_enable_acc_bypass(struct bif_sd *sd)
+{
+	writel(0x01, sd->sysctrl_reg);
 }
 #endif /* X2_BIFSD_DEV_H */

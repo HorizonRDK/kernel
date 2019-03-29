@@ -223,7 +223,7 @@
 
 &bifsd {
 	status = "okay";
-	/*cd-gpio = <91>;*/
+	cd-gpio = <91>;
 };
 
 &qspi {

@@ -7,4 +7,3 @@
 
 # BIFSD DEV
 obj-$(CONFIG_X2_BIFSD_DEV)		+= x2_bifsd.o
-obj-$(CONFIG_X2_BIFSD_DEV)		+= notify.o
