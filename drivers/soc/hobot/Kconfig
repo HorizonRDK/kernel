@@ -2,22 +2,28 @@
 # Hobot MPSoC configuration
 #
 menuconfig SOC_X2_MP
-        bool "X2 MPSoC driver support"
-        depends on ARCH_HOBOT
+		bool "X2 MPSoC driver support"
+		depends on ARCH_HOBOT
 
 if SOC_X2_MP
 
 config X2_CNN_HOST
-        bool "Enable X2 CNN HOST Drivers"
-        default n
-        help
-          Say yes to enable x2 cnn driver In doubt, say N
+		bool "Enable X2 CNN HOST Drivers"
+		default n
+		help
+		  Say yes to enable x2 cnn driver In doubt, say N
 
 config X2_CNN_MM
-        bool "X2 CNN Memory Heap Drivers"
-        default y
-        help
-          Add x2 cnn memory heap management driver
+		bool "X2 CNN Memory Heap Drivers"
+		default y
+		help
+		  Add x2 cnn memory heap management driver
+		  
+config X2_DDR_MON
+		bool "X2 ddr ctrl Drivers"
+		default y
+		help
+		  Add x2 ddr ctrl driver
 
 menuconfig HOBOT_BIF_CP
         bool "Enable Horizon CP side BIF driver"

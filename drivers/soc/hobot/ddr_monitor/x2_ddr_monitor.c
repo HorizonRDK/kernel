@@ -13,6 +13,7 @@
 #include <linux/mm.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
+#include <linux/slab.h>
 
 #include "x2_ddr_monitor.h"
 
@@ -62,12 +63,12 @@ struct ddr_monitor_result_s {
 };
 
 #define TOTAL_RECORD_NUM 400
-
+#define TOTAL_RESULT_SIZE (160*1024)
 ktime_t g_ktime_start;
 
 struct ddr_monitor_result_s* ddr_info = NULL;
 char * result_buf = NULL;
-volatile unsigned int g_current_index = 0;
+unsigned int g_current_index = 0;
 volatile unsigned int g_record_num = 0;
 unsigned int g_monitor_poriod = 10000;
 
@@ -188,8 +189,7 @@ static int get_monitor_data(char* buf, int size)
 			}
 			length += sprintf(buf + length, "ddrc:%u MB/s; ", (ddr_info[cur].rd_cmd_num * 64 * (1000000/g_monitor_poriod)) >> 20);
 			length += sprintf(buf + length, "Write: ");
-			for (i = 0; i < 6; i++)
-			{
+			for (i = 0; i < 6; i++) {
 				if (ddr_info[cur].portdata[i].waddr_num) {
 					length += sprintf(buf + length, "p[%d](bw:%u stall:%u delay:%u) ", i, \
 						(ddr_info[cur].portdata[i].wdata_num * 16 * (1000000/g_monitor_poriod)) >> 20, \
@@ -312,16 +312,14 @@ int ddr_monitor_mmap(struct file *filp, struct vm_area_struct *pvma)
 
 	printk("ddr_monitor_mmap! \n");
 
-	//pvma->vm_flags |= VM_IO;
-	//pvma->vm_flags |= VM_LOCKED;
 	if (remap_pfn_range(pvma, pvma->vm_start,
-						g_ddr_monitor_dev->res_paddr >> PAGE_SHIFT,
+						virt_to_pfn(g_ddr_monitor_dev->res_vaddr),
 						pvma->vm_end - pvma->vm_start,
 						pvma->vm_page_prot)) {
 		printk(KERN_ERR "ddr_monitor_mmap fail\n");
 		return -EAGAIN;
 	}
-	printk("ddr_monitor_mmap end!:%llx \n", g_ddr_monitor_dev->res_paddr);
+	printk("ddr_monitor_mmap end!:%p \n", g_ddr_monitor_dev->res_vaddr);
 	return 0;
 }
 
@@ -416,8 +414,7 @@ int ddr_get_port_status(void)
 	ktime_t ktime;
 	ktime = ktime_sub(ktime_get(), g_ktime_start);
 	ddr_info[g_current_index].curtime = ktime_to_us(ktime);
-	for (i = 0; i < 6; i++)
-	{
+	for (i = 0; i < 6; i++) {
 		ddr_info[g_current_index].portdata[i].raddr_num = readl(g_ddr_monitor_dev->regaddr + MP_BASE_RADDR_TX_NUM + i * MP_REG_OFFSET);
 		ddr_info[g_current_index].portdata[i].rdata_num = readl(g_ddr_monitor_dev->regaddr + MP_BASE_RDATA_TX_NUM + i * MP_REG_OFFSET);
 		ddr_info[g_current_index].portdata[i].raddr_cyc = readl(g_ddr_monitor_dev->regaddr + MP_BASE_RADDR_ST_CYC + i * MP_REG_OFFSET);
@@ -461,9 +458,9 @@ static irqreturn_t ddr_monitor_isr(int this_irq, void *data)
 static int ddr_monitor_probe(struct platform_device *pdev)
 {
 	int ret = 0;
-	struct device_node *np = NULL;
+	//struct device_node *np = NULL;
 	struct resource *pres;
-	struct resource mem_res;
+	//struct resource mem_res;
 	printk(KERN_INFO "ddr_monitor_probe()!");
 
 	g_ddr_monitor_dev = devm_kmalloc(&pdev->dev, sizeof(struct ddr_monitor_dev_s), GFP_KERNEL);
@@ -487,7 +484,7 @@ static int ddr_monitor_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Could not request IRQ\n");
 		return -ENODEV;
 	}
-
+	#if 0
 	/* request memory address */
 	np = of_parse_phandle(pdev->dev.of_node, "memory-region", 0);
 	if (!np) {
@@ -503,11 +500,20 @@ static int ddr_monitor_probe(struct platform_device *pdev)
 	g_ddr_monitor_dev->res_paddr = mem_res.start;
 	g_ddr_monitor_dev->res_memsize = resource_size(&mem_res);
 	g_ddr_monitor_dev->res_vaddr = memremap(mem_res.start, g_ddr_monitor_dev->res_memsize, MEMREMAP_WB);
+	#endif
+	g_ddr_monitor_dev->res_vaddr = kmalloc(TOTAL_RESULT_SIZE, GFP_KERNEL);
+	if (g_ddr_monitor_dev->res_vaddr == NULL) {
+		dev_err(&pdev->dev, "memory alloc fail\n");
+		return -1;
+	}
 	platform_set_drvdata(pdev, g_ddr_monitor_dev);
 	x2_ddr_monitor_debuginit();
 	ddr_monitor_cdev_create();
 	init_waitqueue_head(&g_ddr_monitor_dev->wq_head);
 	spin_lock_init(&g_ddr_monitor_dev->lock);
+
+	writel(0x21100, g_ddr_monitor_dev->regaddr + DDR_PORT_READ_QOS_CTRL);
+	writel(0x21100, g_ddr_monitor_dev->regaddr + DDR_PORT_WRITE_QOS_CTRL);
 	return ret;
 }
 

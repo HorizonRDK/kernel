@@ -50,30 +50,58 @@ struct x2_i2c_dev_s {
 	u32 i2c_state;
 	size_t msg_buf_remaining;
 };
-volatile struct x2_i2c_regs_s *g_i2c_regs;
-void dump_reg(void)
+volatile struct x2_i2c_regs_s *g_i2c_regs[4];
+void dump_reg(struct x2_i2c_dev_s *i2c_dev)
 {
 	if (!i2c_debug_ctl)
 		return;
-	printk("cfg:[%x] \n", g_i2c_regs->cfg.all);
-	printk("addr:[%x] \n", g_i2c_regs->addr.all);
-	printk("dcount:[%x] \n", g_i2c_regs->dcount.all);
-	printk("ctl:[%x] \n", g_i2c_regs->ctl.all);
+	printk("cfg:[%x] \n", i2c_dev->i2c_regs->cfg.all);
+	printk("addr:[%x] \n", i2c_dev->i2c_regs->addr.all);
+	printk("dcount:[%x] \n", i2c_dev->i2c_regs->dcount.all);
+	printk("ctl:[%x] \n", i2c_dev->i2c_regs->ctl.all);
 	//printk( "tdata:[%x] \n", g_i2c_regs->tdata.all);
 	//printk( "rdata:[%x] \n", g_i2c_regs->rdata.all);
-	printk("status:[%x] \n", g_i2c_regs->status.all);
-	printk("tocnt:[%x] \n", g_i2c_regs->tocnt.all);
-	printk("srcpnd:[%x] \n", g_i2c_regs->srcpnd.all);
-	printk("intmask:[%x] \n", g_i2c_regs->intmask.all);
-	printk("intsetmask:[%x] \n", g_i2c_regs->intsetmask.all);
-	printk("intunmask:[%x] \n", g_i2c_regs->intunmask.all);
-	printk("pmu_delay:[%x] \n", g_i2c_regs->pmu_delay.all);
-	printk("fifo_ctl:[%x] \n", g_i2c_regs->fifo_ctl.all);
+	printk("status:[%x] \n", i2c_dev->i2c_regs->status.all);
+	printk("tocnt:[%x] \n", i2c_dev->i2c_regs->tocnt.all);
+	printk("srcpnd:[%x] \n", i2c_dev->i2c_regs->srcpnd.all);
+	printk("intmask:[%x] \n", i2c_dev->i2c_regs->intmask.all);
+	printk("intsetmask:[%x] \n", i2c_dev->i2c_regs->intsetmask.all);
+	printk("intunmask:[%x] \n", i2c_dev->i2c_regs->intunmask.all);
+	printk("pmu_delay:[%x] \n", i2c_dev->i2c_regs->pmu_delay.all);
+	printk("fifo_ctl:[%x] \n", i2c_dev->i2c_regs->fifo_ctl.all);
 }
 
+static int x2_i2c_cfg(struct x2_i2c_dev_s *i2c_dev, int dir_rd)
+{
+	if(!i2c_dev)
+		return 0;
+#if 1
+	//i2c_dev->i2c_regs->CFG.bit.clkdiv = 0x1d;
+	i2c_dev->i2c_regs->cfg.bit.tran_en = 1;
+	i2c_dev->i2c_regs->cfg.bit.en = 1;
+	i2c_dev->i2c_regs->cfg.bit.to_en = 1;
+	i2c_dev->i2c_regs->cfg.bit.dir_rd = dir_rd;//test
+	i2c_dev->i2c_regs->tocnt.all = 0xffff;
+	i2c_dev->i2c_regs->cfg.bit.clkdiv = 0x3b;//0xef;
+	//i2c_dev->i2c_regs->SPRCPND.all= 0xffffffff;//clear int
+#else //non transcation mode
+	//i2c_dev->i2c_regs->CFG.bit.clkdiv = 1;
+	//i2c_dev->i2c_regs->CFG.bit.tran_en = 0;
+	//i2c_dev->i2c_regs->CFG.bit.en = 1;
+#endif
+
+	return 0;
+}
+static int x2_i2c_reset(struct x2_i2c_dev_s *i2c_dev)
+{
+	reset_control_assert(i2c_dev->rst);
+	udelay(2);
+	reset_control_deassert(i2c_dev->rst);
+	return 0;
+}
 static void x2_wait_idle(struct x2_i2c_dev_s *i2c_dev)
 {
-	uint spins = 5000;
+	uint spins = 1000;
 	//printk("x2_wait_idle\n");
 	while (i2c_dev->i2c_regs->status.bit.busy && --spins) {
 		cpu_relax();
@@ -81,10 +109,11 @@ static void x2_wait_idle(struct x2_i2c_dev_s *i2c_dev)
 	i2c_dev->i2c_state = i2c_idle;
 	if (!spins) {
 		I2C_DEBUG_PRINT("i2c wait_idle timed out\n");
-		dump_reg();
+		dump_reg(i2c_dev);
+		x2_i2c_reset(i2c_dev);
+		x2_i2c_cfg(i2c_dev, 0);
 	}
 }
-
 static void x2_clear_int(struct x2_i2c_dev_s *i2c_dev)
 {
 	i2c_dev->i2c_regs->srcpnd.all = 0xffffffff;
@@ -94,7 +123,6 @@ static void x2_mask_int(struct x2_i2c_dev_s *i2c_dev)
 {
 	i2c_dev->i2c_regs->intsetmask.all = 0xffffffff;
 }
-
 static void x2_unmask_int(struct x2_i2c_dev_s *i2c_dev, int state)
 {
 	union intunmask_reg_e unmask_reg;
@@ -345,7 +373,8 @@ static int x2_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[], int num)
 	struct x2_i2c_dev_s *i2c_dev = i2c_get_adapdata(adap);
 	int i;
 	int ret = 0;
-	//i2c_dev->i2c_regs->CFG.bit.en = 1;
+	x2_i2c_reset(i2c_dev);
+	x2_i2c_cfg(i2c_dev, 1);
 	for (i = 0; i < num; i++) {
 #if 1
 		ret = x2_i2c_xfer_msg(i2c_dev, &msgs[i]);
@@ -356,9 +385,105 @@ static int x2_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[], int num)
 			break;
 		x2_wait_idle(i2c_dev);
 	}
-	//i2c_dev->i2c_regs->CFG.bit.en = 0;
 	return ret ? : i;
 }
+
+static int x2_i2c_doxfer_smbus(struct x2_i2c_dev_s *i2c_dev, u16 addr, bool write, u8 command, int size, u8 *data)
+
+{
+	unsigned long time_left;
+	union ctl_reg_e ctl_reg;
+	reinit_completion(&i2c_dev->completion);
+	i2c_dev->msg_err = 0;
+	x2_mask_int(i2c_dev);
+	x2_wait_idle(i2c_dev);
+	ctl_reg.all = 0;
+
+	i2c_dev->msg_buf = &command;
+	i2c_dev->msg_buf_remaining = 1;
+	if (write) {
+		i2c_dev->i2c_regs->dcount.bit.w_dcount = size + 1;
+		x2_fill_txfifo(i2c_dev);
+		if (data) {
+			i2c_dev->msg_buf_remaining = size;
+			i2c_dev->msg_buf = data;
+			x2_fill_txfifo(i2c_dev);
+		}
+		i2c_dev->i2c_state = i2c_write;
+		ctl_reg.bit.wr = 1;
+	} else {
+		i2c_dev->i2c_regs->dcount.bit.w_dcount = 1;
+		x2_fill_txfifo(i2c_dev);
+
+		i2c_dev->i2c_regs->dcount.bit.r_dcount = size;
+		i2c_dev->i2c_state = i2c_read;
+		i2c_dev->msg_buf = data;
+		i2c_dev->msg_buf_remaining = size;
+		ctl_reg.bit.rd = 1;
+
+	}
+	ctl_reg.bit.sta = 1;
+	ctl_reg.bit.sto = 1;
+
+	i2c_dev->i2c_regs->addr.all = addr << 1;
+
+	i2c_dev->i2c_regs->srcpnd.all = 0xffffffff;	//clear int
+	x2_unmask_int(i2c_dev, (size + 1) > X2_I2C_FIFO_SIZE);
+	i2c_dev->i2c_regs->ctl.all = ctl_reg.all;
+
+	time_left = wait_for_completion_timeout(&i2c_dev->completion,
+						X2_I2C_TIMEOUT);
+
+	i2c_dev->i2c_regs->ctl.all = ctl_reg.all;
+	i2c_dev->i2c_regs->fifo_ctl.all = 0;
+	if (!time_left) {
+		I2C_DEBUG_PRINT("i2c sbus transfer timed out\n");
+		return -ETIMEDOUT;
+	}
+	if (i2c_dev->msg_buf_remaining) {
+		I2C_DEBUG_PRINT("i2c sbus transfer not compelte\n");
+	}
+	if (likely(!i2c_dev->msg_err))
+		return 0;
+
+	x2_clear_int(i2c_dev);
+
+	I2C_DEBUG_PRINT("i2c sbus transfer failed: %x\n", i2c_dev->msg_err);
+
+	return -EIO;
+}
+
+static int x2_i2c_xfer_smbus(struct i2c_adapter *adap, u16 addr,
+			   unsigned short flags, char read_write,
+			   u8 command, int size, union i2c_smbus_data *data)
+{
+	int ret = 0;
+	struct x2_i2c_dev_s *i2c_dev = i2c_get_adapdata(adap);
+
+	x2_i2c_reset(i2c_dev);
+	x2_i2c_cfg(i2c_dev, 0);
+	I2C_DEBUG_PRINT("i2c sbus transfer start: cmd:%d rw:%d size:%d\n", command, read_write, size);
+
+	switch (size) {
+	case I2C_SMBUS_BYTE:
+		ret = x2_i2c_doxfer_smbus(i2c_dev, addr, read_write == I2C_SMBUS_WRITE, command, 0, &data->byte);
+		break;
+	case I2C_SMBUS_BYTE_DATA:
+		ret = x2_i2c_doxfer_smbus(i2c_dev, addr, read_write == I2C_SMBUS_WRITE, command, 1, &data->byte);
+		break;
+	case I2C_SMBUS_WORD_DATA:
+		ret = x2_i2c_doxfer_smbus(i2c_dev, addr, read_write == I2C_SMBUS_WRITE, command, 2, (u8*)&data->word);
+		break;
+	case I2C_SMBUS_BLOCK_DATA:
+		ret = x2_i2c_doxfer_smbus(i2c_dev, addr, read_write == I2C_SMBUS_WRITE, command, data->block[0], &data->block[1]);
+		break;
+	default:
+		dev_warn(&adap->dev, "Unsupported transaction %d\n", size);
+		return -EOPNOTSUPP;
+	}
+	return ret;
+}
+
 
 static u32 x2_i2c_func(struct i2c_adapter *adap)
 {
@@ -367,6 +492,7 @@ static u32 x2_i2c_func(struct i2c_adapter *adap)
 
 static const struct i2c_algorithm x2_i2c_algo = {
 	.master_xfer = x2_i2c_xfer,
+	.smbus_xfer = x2_i2c_xfer_smbus,
 	.functionality = x2_i2c_func,
 };
 
@@ -398,11 +524,9 @@ static int x2_i2c_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "missing controller reset\n");
 		return PTR_ERR(i2c_dev->rst);
 	}
-	reset_control_assert(i2c_dev->rst);
-	udelay(2);
-	reset_control_deassert(i2c_dev->rst);
+	x2_i2c_reset(i2c_dev);
 
-	g_i2c_regs = i2c_dev->i2c_regs;
+	g_i2c_regs[i2c_id] = i2c_dev->i2c_regs;
 	if (IS_ERR((const void *)i2c_dev->i2c_regs))
 		return PTR_ERR((const void *)i2c_dev->i2c_regs);
 #if 0
@@ -457,22 +581,9 @@ static int x2_i2c_probe(struct platform_device *pdev)
 	adap->dev.of_node = pdev->dev.of_node;
 
 	ret = i2c_add_adapter(adap);
-#if 1
-	//i2c_dev->i2c_regs->CFG.bit.clkdiv = 0x1d;
-	i2c_dev->i2c_regs->cfg.bit.tran_en = 1;
-	i2c_dev->i2c_regs->cfg.bit.en = 1;
-	i2c_dev->i2c_regs->cfg.bit.to_en = 1;
-	i2c_dev->i2c_regs->cfg.bit.dir_rd = 1;
-	i2c_dev->i2c_regs->tocnt.all = 0xffff;
-	i2c_dev->i2c_regs->cfg.bit.clkdiv = 0xef;
-	//i2c_dev->i2c_regs->SPRCPND.all= 0xffffffff;//clear int
-#else //non transcation mode
-	//i2c_dev->i2c_regs->CFG.bit.clkdiv = 1;
-	//i2c_dev->i2c_regs->CFG.bit.tran_en = 0;
-	//i2c_dev->i2c_regs->CFG.bit.en = 1;
-#endif
 	if (ret)
 		free_irq(i2c_dev->irq, i2c_dev);
+	x2_i2c_cfg(i2c_dev, 1);
 	printk("x2_i2c_probe done\n");
 	return ret;
 }
@@ -508,21 +619,32 @@ static ssize_t x2_i2c_show(struct kobject *kobj, struct kobj_attribute *attr,
 			   char *buf)
 {
 	char *s = buf;
+	int i2c_id = 0;
+	if (!strcmp(attr->attr.name, "i2c0_dbg"))
+		i2c_id = 0;
+	else if (!strcmp(attr->attr.name, "i2c1_dbg"))
+		i2c_id = 1;
+	else if (!strcmp(attr->attr.name, "i2c2_dbg"))
+		i2c_id = 2;
+	else
+		i2c_id = 3;
 	//struct x2_i2c_regs_s * i2c_regs;
-	s += sprintf(s, "cfg:[%x] \n", g_i2c_regs->cfg.all);
-	s += sprintf(s, "addr:[%x] \n", g_i2c_regs->addr.all);
-	s += sprintf(s, "dcount:[%x] \n", g_i2c_regs->dcount.all);
-	s += sprintf(s, "ctl:[%x] \n", g_i2c_regs->ctl.all);
-	s += sprintf(s, "tdata:[%x] \n", g_i2c_regs->tdata.all);
-	s += sprintf(s, "rdata:[%x] \n", g_i2c_regs->rdata.all);
-	s += sprintf(s, "status:[%x] \n", g_i2c_regs->status.all);
-	s += sprintf(s, "tocnt:[%x] \n", g_i2c_regs->tocnt.all);
-	s += sprintf(s, "srcpnd:[%x] \n", g_i2c_regs->srcpnd.all);
-	s += sprintf(s, "intmask:[%x] \n", g_i2c_regs->intmask.all);
-	s += sprintf(s, "intsetmask:[%x] \n", g_i2c_regs->intsetmask.all);
-	s += sprintf(s, "intunmask:[%x] \n", g_i2c_regs->intunmask.all);
-	s += sprintf(s, "pmu_delay:[%x] \n", g_i2c_regs->pmu_delay.all);
-	s += sprintf(s, "fifo_ctl:[%x] \n", g_i2c_regs->fifo_ctl.all);
+	if (g_i2c_regs[i2c_id]) {
+		s += sprintf(s, "cfg:[%x] \n", g_i2c_regs[i2c_id]->cfg.all);
+		s += sprintf(s, "addr:[%x] \n", g_i2c_regs[i2c_id]->addr.all);
+		s += sprintf(s, "dcount:[%x] \n", g_i2c_regs[i2c_id]->dcount.all);
+		s += sprintf(s, "ctl:[%x] \n", g_i2c_regs[i2c_id]->ctl.all);
+		s += sprintf(s, "tdata:[%x] \n", g_i2c_regs[i2c_id]->tdata.all);
+		s += sprintf(s, "rdata:[%x] \n", g_i2c_regs[i2c_id]->rdata.all);
+		s += sprintf(s, "status:[%x] \n", g_i2c_regs[i2c_id]->status.all);
+		s += sprintf(s, "tocnt:[%x] \n", g_i2c_regs[i2c_id]->tocnt.all);
+		s += sprintf(s, "srcpnd:[%x] \n", g_i2c_regs[i2c_id]->srcpnd.all);
+		s += sprintf(s, "intmask:[%x] \n", g_i2c_regs[i2c_id]->intmask.all);
+		s += sprintf(s, "intsetmask:[%x] \n", g_i2c_regs[i2c_id]->intsetmask.all);
+		s += sprintf(s, "intunmask:[%x] \n", g_i2c_regs[i2c_id]->intunmask.all);
+		s += sprintf(s, "pmu_delay:[%x] \n", g_i2c_regs[i2c_id]->pmu_delay.all);
+		s += sprintf(s, "fifo_ctl:[%x] \n", g_i2c_regs[i2c_id]->fifo_ctl.all);
+	}
 	if (s != buf)
 		/* convert the last space to a newline */
 		*(s - 1) = '\n';
@@ -556,8 +678,16 @@ static ssize_t x2_i2c_store(struct kobject *kobj, struct kobj_attribute *attr,
 	int len;
 	uint regvalue;
 	int error = -EINVAL;
-	//struct x2_i2c_regs_s * i2c_regs = 0xA5009000;
-	//p = memchr(buf, '\n', n);
+	int i2c_id = 0;
+	if (!strcmp(attr->attr.name, "i2c0_dbg"))
+		i2c_id = 0;
+	else if (!strcmp(attr->attr.name, "i2c1_dbg"))
+		i2c_id = 1;
+	else if (!strcmp(attr->attr.name, "i2c2_dbg"))
+		i2c_id = 2;
+	else
+		i2c_id = 3;
+
 	p = memchr(buf, ' ', n);
 
 	len = p ? p - buf : n;
@@ -572,21 +702,21 @@ static ssize_t x2_i2c_store(struct kobject *kobj, struct kobj_attribute *attr,
 			break;
 		}
 	//printk("level:%d,val:%\n",level,regvalue);
-	*((int *)g_i2c_regs + level) = regvalue;
+	if (g_i2c_regs[i2c_id])
+		*((int *)g_i2c_regs[i2c_id] + level) = regvalue;
 	return error ? error : n;
 }
 
-static struct kobj_attribute i2c_test_attr = {
-	.attr = {
-		 .name = __stringify(i2c_test_attr),
-		 .mode = 0644,
-		 },
-	.show = x2_i2c_show,
-	.store = x2_i2c_store,
-};
+static struct kobj_attribute i2c0_dbg_attr = __ATTR(i2c0_dbg, 0644, x2_i2c_show, x2_i2c_store);
+static struct kobj_attribute i2c1_dbg_attr = __ATTR(i2c1_dbg, 0644, x2_i2c_show, x2_i2c_store);
+static struct kobj_attribute i2c2_dbg_attr = __ATTR(i2c2_dbg, 0644, x2_i2c_show, x2_i2c_store);
+static struct kobj_attribute i2c3_dbg_attr = __ATTR(i2c3_dbg, 0644, x2_i2c_show, x2_i2c_store);
 
 static struct attribute *attributes[] = {
-	&i2c_test_attr.attr,
+	&i2c0_dbg_attr.attr,
+	&i2c1_dbg_attr.attr,
+	&i2c2_dbg_attr.attr,
+	&i2c3_dbg_attr.attr,
 	NULL,
 };
 
@@ -601,7 +731,6 @@ static int __init x2_i2c_init(void)
 	if (!x2_i2c_kobj)
 		return -ENOMEM;
 	return sysfs_create_group(x2_i2c_kobj, &attr_group);
-	//return 0;
 }
 
 static void __init x2_i2c_exit(void)

@@ -1,6 +1,6 @@
 #
-# Makefile for the Linux Kernel ISP of IPS specific device drivers
+# Makefile for the Linux Kernel DRR specific device drivers
 # on x2 chip.
 #
 
-obj-y += x2_ddr_monitor.o
+obj-$(CONFIG_X2_DDR_MON) += x2_ddr_monitor.o

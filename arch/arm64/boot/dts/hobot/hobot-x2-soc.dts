@@ -35,10 +35,10 @@
 		pwm0	= &pwm_0;
 		pwm1	= &pwm_1;
 		pwm2	= &pwm_2;
-		bifsd   = &bifsd;
-		bifspi  = &bifspi;
-		mmc1    = &sdio0;
-		mmc2    = &sdio1;
+		bifsd	= &bifsd;
+		bifspi	= &bifspi;
+		mmc1	= &sdio0;
+		mmc2	= &sdio1;
 	};
 
 	chosen {
@@ -56,28 +56,24 @@
 		#size-cells = <2>;
 		ranges;
 
-		ddrmonitor_reserved: ddrmonitor_reserved@0x3D061000 {
-		    reg = <0x0 0x3D061000 0x0 0x28000>;
-		    no-map;
-		};
 		bifsd_reserved: bifsd_reserved@0x3D089000 {
-		    reg = <0x0 0x3D089000 0x0 0x1000>;
-		    no-map;
+			reg = <0x0 0x3D089000 0x0 0x1000>;
+			no-map;
 		};
 		iar_reserved: iar_reserved@0x3D08A000 {
-		    reg = <0x0 0x3D08A000 0x0 0x2F76000>;
-		    no-map;
+			reg = <0x0 0x3D08A000 0x0 0x2F76000>;
+			no-map;
 		};
 
 		/* Reserved 512MB memory for cnn subsystem */
 		cnn_reserved: cnn_reserved@0x40000000 {
-		    reg = <0x0 0x40000000 0x0 0x20000000>;
+			reg = <0x0 0x40000000 0x0 0x20000000>;
 		};
 
 		/* Reserved 512MB memory for ipu subsystem */
 		ipu_reserved: ipu_reserved@0x60000000 {
-		    reg = <0x0 0x60000000 0x0 0x20000000>;
-		    /*no-map;*/
+			reg = <0x0 0x60000000 0x0 0x20000000>;
+			/*no-map;*/
 		};
 
 	};
@@ -120,8 +116,8 @@
 	#address-cells = <1>;
 	#size-cells = <0>;
 	x2_camera@0x7f {
-	    compatible = "x2,camera";
-	    reg = <0x7f>;
+		compatible = "x2,camera";
+		reg = <0x7f>;
 	};
 };
 
