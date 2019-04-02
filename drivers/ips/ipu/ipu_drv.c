@@ -292,6 +292,14 @@ int8_t ipu_drv_start(void)
 	if (g_ipu->cfg->ctrl.scale_ddr_en)
 		ctrl_ipu_to_ddr(SCALAR_TO_DDR, ENABLE);
 	ctrl_ipu_to_ddr(PYM_TO_DDR, ENABLE);
+
+	if (g_ipu->cfg->pymid.pymid_en) {
+		if (g_ipu->ipu_mode == IPU_ISP_SINGLE)
+			ips_mask_int(PYM_FRAME_START | IPU_FRAME_DONE);
+	}
+	else
+		ips_mask_int(PYM_FRAME_START | PYM_FRAME_DONE);
+
 	ips_irq_enable(IPU_INT);
 	g_ipu->stop = false;
 	spin_unlock(&g_ipu->elock);

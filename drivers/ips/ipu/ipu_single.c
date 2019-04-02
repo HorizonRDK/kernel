@@ -66,6 +66,28 @@ struct ipu_single_cdev {
 struct ipu_single_cdev *g_ipu_s_cdev;
 extern struct x2_ipu_data *g_ipu;
 
+
+#if 1
+unsigned int frequency_ipu = 0;
+unsigned int drop_ipu = 0;
+unsigned int ipu_fram_cnt_drop = 0;
+unsigned int ipu_fram_cnt = 0;
+module_param(frequency_ipu, uint, S_IRUGO | S_IWUSR);
+module_param(drop_ipu, uint, S_IRUGO | S_IWUSR);
+
+static void ipu_timer(unsigned long dontcare);
+
+static DEFINE_TIMER(iputimer, ipu_timer, 0, 0);
+static void ipu_timer(unsigned long dontcare)
+{
+	frequency_ipu = ipu_fram_cnt;
+	drop_ipu = ipu_fram_cnt_drop;
+	ipu_fram_cnt = 0;
+	ipu_fram_cnt_drop = 0;
+	mod_timer(&iputimer, jiffies + msecs_to_jiffies(MSEC_PER_SEC));
+}
+#endif
+
 static uint32_t decode_frame_id(uint16_t *addr)
 {
 	uint32_t d = 0;
@@ -184,6 +206,7 @@ void ipu_single_mode_process(uint32_t status)
 
 	if (status & IPU_FRAME_START) {
 		ipu_slot_h_t *slot_h = NULL;
+		ipu_fram_cnt ++;
 		slot_h = slot_free_to_busy();
 		if (slot_h) {
 			ipu_dbg("slot-%d, 0x%llx\n", slot_h->info_h.slot_id,
@@ -195,6 +218,8 @@ void ipu_single_mode_process(uint32_t status)
 				ctrl_ipu_to_ddr(PYM_TO_DDR,ENABLE);
 			}
 #endif
+		} else {
+			ipu_fram_cnt_drop++;
 		}
 	}
 	spin_unlock(&g_ipu_s_cdev->slock);
@@ -294,6 +319,7 @@ int ipu_open(struct inode *node, struct file *filp)
 	ipu_cdev = container_of(node->i_cdev, struct ipu_single_cdev, cdev);
 	filp->private_data = ipu_cdev;
 	ipu_cdev->ipu->ipu_mode = IPU_ISP_SINGLE;
+	//mod_timer(&iputimer,jiffies + msecs_to_jiffies( MSEC_PER_SEC));
 	return 0;
 }
 
@@ -509,6 +535,7 @@ int ipu_close(struct inode *inode, struct file *filp)
 	struct ipu_single_cdev *ipu_cdev = filp->private_data;
 	ipu_drv_stop();
 	ipu_cdev->ipu->ipu_mode = IPU_INVALID;
+	//del_timer(&iputimer);
 	return 0;
 }
 
