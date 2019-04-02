@@ -26,39 +26,124 @@
 #define DWMMC_MMC_ID (1)
 #define HOBOT_CLKGEN_DIV (8)
 #define HOBOT_DW_MCI_FREQ_MAX (200000000)
-#define HOBOT_SD0_PHASE_REG (0xA1000320)
-#define HOBOT_SD1_PHASE_REG (0xA1000330)
+#define HOBOT_SYSCTRL_REG (0xA1000000)
+#define HOBOT_SD0_PHASE_REG (0x320)
+#define HOBOT_SD1_PHASE_REG (0x330)
+#define HOBOT_CLKEN_CLR (0x158)
+#define HOBOT_SD0_CLKEN_CLR_SHIFT (15)
+#define HOBOT_SD1_CLKEN_CLR_SHIFT (16)
+#define HOBOT_CLKEN_SET (0x154)
+#define HOBOT_SD0_CLKEN_SET_SHIFT (15)
+#define HOBOT_SD1_CLKEN_SET_SHIFT (16)
+#define HOBOT_CLKOFF_STA (0x258)
+#define HOBOT_SD0_CLKOFF_STA_SHIFT (1<<1)
+#define HOBOT_SD1_CLKOFF_STA_SHIFT (1<<2)
+
 #define HOBOT_MMC_DEGREE_MASK (0xF)
 #define HOBOT_MMC_SAMPLE_DEGREE_SHIFT (12)
 #define HOBOT_MMC_DRV_DEGREE_SHIFT (8)
 #define SDCARD_RD_THRESHOLD (512)
 #define NUM_PHASES (16)
 #define TUNING_ITERATION_TO_PHASE(i) (i)
-#define PSECS_PER_SEC 1000000000000LL
+
+#define HOBOT_PDACCTRL_REG (0xA6003000)
+#define HOBOT_SD0_PDACCTRL0_SHIFT (0x80)
+#define HOBOT_SD0_PDACCTRL1_SHIFT (0x84)
+#define HOBOT_SD0_PDACCTRL2_SHIFT (0x88)
+
+#define SD0_PADC_VAL_CLR0 0xF8F8F8E8
+#define SD0_PADC_VAL_CLR1 0xF8F8F8F8
+#define SD0_PADC_VAL_CLR2 0xF8F8F8F8
+#define SD0_PADC_VAL 0x02020202
 
 struct dw_mci_hobot_priv_data {
-	void __iomem *clkctrl_reg;
+	void __iomem *sysctrl_reg;
+	void __iomem *padcctrl_reg;
 	struct clk *gate_clk;
 	u32 clock_frequency;
 	int default_sample_phase;
 	u32 uhs_180v_gpio;
 	u32 ctrl_id;
+	u8 current_drv_phase;
+	u8 current_sample_phase;
+	u8 current_phase_cnt;
 };
+
+static int x2_mmc_set_sd_padcctrl(struct dw_mci_hobot_priv_data *priv)
+{
+	u32 reg_value;
+
+	if (priv->ctrl_id == DWMMC_MMC_ID) {
+		reg_value =
+		    readl(priv->padcctrl_reg + HOBOT_SD0_PDACCTRL0_SHIFT);
+		reg_value &= SD0_PADC_VAL_CLR0;
+		reg_value |= SD0_PADC_VAL;
+		writel(reg_value,
+		       priv->padcctrl_reg + HOBOT_SD0_PDACCTRL0_SHIFT);
+
+		reg_value =
+		    readl(priv->padcctrl_reg + HOBOT_SD0_PDACCTRL1_SHIFT);
+		reg_value &= SD0_PADC_VAL_CLR1;
+		reg_value |= SD0_PADC_VAL;
+		writel(reg_value,
+		       priv->padcctrl_reg + HOBOT_SD0_PDACCTRL1_SHIFT);
+
+		reg_value =
+		    readl(priv->padcctrl_reg + HOBOT_SD0_PDACCTRL2_SHIFT);
+		reg_value &= SD0_PADC_VAL_CLR2;
+		reg_value |= SD0_PADC_VAL;
+		writel(reg_value,
+		       priv->padcctrl_reg + HOBOT_SD0_PDACCTRL2_SHIFT);
+	}
+	return 0;
+}
 
 static int x2_mmc_set_sample_phase(struct dw_mci_hobot_priv_data *priv,
 				   int degrees)
 {
 	u32 reg_value;
 
-	reg_value = readl(priv->clkctrl_reg);
-	reg_value &= 0xFFFF0FFF;
-	reg_value |= degrees << HOBOT_MMC_SAMPLE_DEGREE_SHIFT;
+	priv->current_sample_phase = degrees;
+	if (priv->ctrl_id == DWMMC_MMC_ID) {
+		reg_value = 1 << HOBOT_SD0_CLKEN_CLR_SHIFT;
+		writel(reg_value, priv->sysctrl_reg + HOBOT_CLKEN_CLR);
 
-	writel(reg_value, priv->clkctrl_reg);
+		while (1) {
+			reg_value = readl(priv->sysctrl_reg + HOBOT_CLKOFF_STA);
+			if (reg_value & HOBOT_SD0_CLKOFF_STA_SHIFT)
+				break;
+		}
 
-	/* We should delay 1ms wait for timing setting finished. */
-	usleep_range(1000, 2000);
+		reg_value = readl(priv->sysctrl_reg + HOBOT_SD0_PHASE_REG);
+		reg_value &= 0xFFFF0FFF;
+		reg_value |= degrees << HOBOT_MMC_SAMPLE_DEGREE_SHIFT;
+		writel(reg_value, priv->sysctrl_reg + HOBOT_SD0_PHASE_REG);
+	} else {
+		reg_value = 1 << HOBOT_SD1_CLKEN_CLR_SHIFT;
+		writel(reg_value, priv->sysctrl_reg + HOBOT_CLKEN_CLR);
 
+		while (1) {
+			reg_value = readl(priv->sysctrl_reg + HOBOT_CLKOFF_STA);
+			if (reg_value & HOBOT_SD1_CLKOFF_STA_SHIFT)
+				break;
+		}
+		reg_value = readl(priv->sysctrl_reg + HOBOT_SD1_PHASE_REG);
+		reg_value &= 0xFFFF0FFF;
+		reg_value |= degrees << HOBOT_MMC_SAMPLE_DEGREE_SHIFT;
+		writel(reg_value, priv->sysctrl_reg + HOBOT_SD1_PHASE_REG);
+	}
+
+	usleep_range(1, 2);
+
+	if (priv->ctrl_id == DWMMC_MMC_ID) {
+		reg_value = 1 << HOBOT_SD0_CLKEN_SET_SHIFT;
+		writel(reg_value, priv->sysctrl_reg + HOBOT_CLKEN_SET);
+	} else {
+		reg_value = 1 << HOBOT_SD1_CLKEN_SET_SHIFT;
+		writel(reg_value, priv->sysctrl_reg + HOBOT_CLKEN_SET);
+	}
+	/* We should delay 1us wait for timing setting finished. */
+	usleep_range(1, 2);
 	return 0;
 }
 
@@ -67,15 +152,46 @@ static int x2_mmc_set_drv_phase(struct dw_mci_hobot_priv_data *priv,
 {
 	u32 reg_value;
 
-	reg_value = readl(priv->clkctrl_reg);
-	reg_value &= 0xFFFFF0FF;
-	reg_value |= degrees << HOBOT_MMC_DRV_DEGREE_SHIFT;;
+	priv->current_drv_phase = degrees;
+	if (priv->ctrl_id == DWMMC_MMC_ID) {
+		reg_value = 1 << HOBOT_SD0_CLKEN_CLR_SHIFT;
+		writel(reg_value, priv->sysctrl_reg + HOBOT_CLKEN_CLR);
 
-	writel(reg_value, priv->clkctrl_reg);
+		while (1) {
+			reg_value = readl(priv->sysctrl_reg + HOBOT_CLKOFF_STA);
+			if (reg_value & HOBOT_SD0_CLKOFF_STA_SHIFT)
+				break;
+		}
+		reg_value = readl(priv->sysctrl_reg + HOBOT_SD0_PHASE_REG);
+		reg_value &= 0xFFFFF0FF;
+		reg_value |= degrees << HOBOT_MMC_DRV_DEGREE_SHIFT;;
+		writel(reg_value, priv->sysctrl_reg + HOBOT_SD0_PHASE_REG);
+	} else {
+		reg_value = 1 << HOBOT_SD1_CLKEN_CLR_SHIFT;
+		writel(reg_value, priv->sysctrl_reg + HOBOT_CLKEN_CLR);
 
-	/* We should delay 1ms wait for timing setting finished. */
-	usleep_range(1000, 2000);
+		while (1) {
+			reg_value = readl(priv->sysctrl_reg + HOBOT_CLKOFF_STA);
+			if (reg_value & HOBOT_SD1_CLKOFF_STA_SHIFT)
+				break;
+		}
+		reg_value = readl(priv->sysctrl_reg + HOBOT_SD1_PHASE_REG);
+		reg_value &= 0xFFFFF0FF;
+		reg_value |= degrees << HOBOT_MMC_DRV_DEGREE_SHIFT;;
+		writel(reg_value, priv->sysctrl_reg + HOBOT_SD1_PHASE_REG);
+	}
 
+	usleep_range(1, 2);
+
+	if (priv->ctrl_id == DWMMC_MMC_ID) {
+		reg_value = 1 << HOBOT_SD0_CLKEN_SET_SHIFT;
+		writel(reg_value, priv->sysctrl_reg + HOBOT_CLKEN_SET);
+	} else {
+		reg_value = 1 << HOBOT_SD1_CLKEN_SET_SHIFT;
+		writel(reg_value, priv->sysctrl_reg + HOBOT_CLKEN_SET);
+	}
+	/* We should delay 1us wait for timing setting finished. */
+	usleep_range(1, 2);
 	return 0;
 }
 
@@ -169,19 +285,25 @@ static int dw_mci_x2_sample_tuning(struct dw_mci_slot *slot, u32 opcode)
 			longest_range = i;
 		}
 
-		dev_dbg(host->dev, "Good sample phase range %d-%d (%d len)\n",
+		dev_dbg(host->dev,
+			"current_drv_phase=%d,Good sample phase range %d-%d (%d len)\n",
+			priv->current_drv_phase,
 			TUNING_ITERATION_TO_PHASE(ranges[i].start),
 			TUNING_ITERATION_TO_PHASE(ranges[i].end), len);
 	}
 
-	dev_dbg(host->dev, "Best sample phase range %d-%d (%d len)\n",
+	dev_dbg(host->dev,
+		"current_drv_phase=%d, Best sample phase range %d-%d (%d len)\n",
+		priv->current_drv_phase,
 		TUNING_ITERATION_TO_PHASE(ranges[longest_range].start),
 		TUNING_ITERATION_TO_PHASE(ranges[longest_range].end),
 		longest_range_len);
 
 	middle_phase = ranges[longest_range].start + longest_range_len / 2;
 	middle_phase %= NUM_PHASES;
-	dev_dbg(host->dev, "Successfully tuned sample phase to %d\n",
+	dev_dbg(host->dev,
+		"current_drv_phase=%d,Successfully tuned sample phase to %d\n",
+		priv->current_drv_phase,
 		TUNING_ITERATION_TO_PHASE(middle_phase));
 
 	x2_mmc_set_sample_phase(priv, TUNING_ITERATION_TO_PHASE(middle_phase));
@@ -193,17 +315,10 @@ free:
 
 static int dw_mci_x2_execute_tuning(struct dw_mci_slot *slot, u32 opcode)
 {
-	struct dw_mci *host = slot->host;
-	struct dw_mci_hobot_priv_data *priv = host->priv;
-	int i, ret = -EIO;
+	int ret = -EIO;
 
-	for (i = 0; i < NUM_PHASES; ++i) {
-		x2_mmc_set_drv_phase(priv, i);
-		ret = dw_mci_x2_sample_tuning(slot, opcode);
-		if (!ret)
-			return ret;
-	}
-	return -EIO;
+	ret = dw_mci_x2_sample_tuning(slot, opcode);
+	return ret;
 }
 
 static void dw_mci_x2_set_ios(struct dw_mci *host, struct mmc_ios *ios)
@@ -290,19 +405,19 @@ static void dw_mci_x2_set_ios(struct dw_mci *host, struct mmc_ios *ios)
 		 * to get the same timings.
 		 */
 		if (ios->bus_width == MMC_BUS_WIDTH_8)
-			phase = 6;
+			phase = 8;
 		break;
 	case MMC_TIMING_UHS_SDR104:
 	case MMC_TIMING_MMC_HS200:
 		/*
 		 * In the case of 150 MHz clock (typical max for
-		 * Rockchip SoCs), 90 degree offset will add a delay
+		 * HobotRobtics SoCs), 90 degree offset will add a delay
 		 * of 1.67 ns.  That will meet min hold time of .8 ns
 		 * as long as clock output delay is < .87 ns.  On
 		 * SoCs measured this seems to be OK, but it doesn't
 		 * hurt to give margin here, so we use 180.
 		 */
-		phase = 6;
+		phase = 4;
 		break;
 	}
 
@@ -337,16 +452,17 @@ static int dw_mci_x2_parse_dt(struct dw_mci *host)
 		gpio_direction_output(powerup_gpio, 1);
 	}
 
+	priv->sysctrl_reg = ioremap(HOBOT_SYSCTRL_REG, 0x400);
+	if (IS_ERR(priv->sysctrl_reg))
+		return PTR_ERR(priv->sysctrl_reg);
+
+	priv->padcctrl_reg = ioremap(HOBOT_PDACCTRL_REG, 0x200);
+	if (IS_ERR(priv->padcctrl_reg))
+		return PTR_ERR(priv->padcctrl_reg);
+
 	if (!device_property_read_u32
 	    (host->dev, "uhs-180v-gpio", &priv->uhs_180v_gpio)) {
 		gpio_request(priv->uhs_180v_gpio, NULL);
-		priv->clkctrl_reg = ioremap(HOBOT_SD1_PHASE_REG, 0x10);
-		if (IS_ERR(priv->clkctrl_reg))
-			return PTR_ERR(priv->clkctrl_reg);
-	} else {
-		priv->clkctrl_reg = ioremap(HOBOT_SD0_PHASE_REG, 0x10);
-		if (IS_ERR(priv->clkctrl_reg))
-			return PTR_ERR(priv->clkctrl_reg);
 	}
 
 	priv->ctrl_id = of_alias_get_id(host->dev->of_node, "mmc");
@@ -360,8 +476,11 @@ static int dw_mci_x2_parse_dt(struct dw_mci *host)
 
 static int dw_mci_hobot_init(struct dw_mci *host)
 {
+	struct dw_mci_hobot_priv_data *priv = host->priv;
+
 	mci_writel(host, CDTHRCTL, SDMMC_SET_THLD(SDCARD_RD_THRESHOLD,
 						  SDMMC_CARD_RD_THR_EN));
+	x2_mmc_set_sd_padcctrl(priv);
 
 	return 0;
 }
@@ -372,8 +491,10 @@ static int dw_mci_set_sel18(struct dw_mci *host, bool val)
 	int ret = 0;
 
 	priv = host->priv;
-	if (priv->uhs_180v_gpio)
+	if (priv->uhs_180v_gpio) {
 		ret = gpio_direction_output(priv->uhs_180v_gpio, val);
+		usleep_range(1000, 2000);
+	}
 
 	if (ret) {
 		dev_err(host->dev, "sel18 %u error\n", val);
@@ -386,27 +507,50 @@ static int dw_mci_set_sel18(struct dw_mci *host, bool val)
 static int dw_mci_x2_switch_voltage(struct mmc_host *mmc, struct mmc_ios *ios)
 {
 	struct dw_mci_slot *slot = mmc_priv(mmc);
-	struct dw_mci_hobot_priv_data *priv;
-	struct dw_mci *host;
+	struct dw_mci *host = slot->host;
+	struct dw_mci_hobot_priv_data *priv = host->priv;
+	u32 v18 = SDMMC_UHS_18V << slot->id;
 	int ret = 0;
-
-	host = slot->host;
-	priv = host->priv;
+	u32 uhs;
 
 	if (!priv)
 		return 0;
 
-	if (priv->ctrl_id == DWMMC_MMC_ID)
-		return 0;
-
-	if (ios->signal_voltage == MMC_SIGNAL_VOLTAGE_330) {
-		ret = dw_mci_set_sel18(host, 0);
-	} else if (ios->signal_voltage == MMC_SIGNAL_VOLTAGE_180) {
-		ret = dw_mci_set_sel18(host, 1);
-	} else {
-		dev_dbg(host->dev, "voltage not supported\n");
-		return -EINVAL;
+	if (priv->ctrl_id != DWMMC_MMC_ID) {
+		if (ios->signal_voltage == MMC_SIGNAL_VOLTAGE_330) {
+			ret = dw_mci_set_sel18(host, 0);
+		} else if (ios->signal_voltage == MMC_SIGNAL_VOLTAGE_180) {
+			ret = dw_mci_set_sel18(host, 1);
+		} else {
+			dev_dbg(host->dev, "voltage not supported\n");
+			return -EINVAL;
+		}
 	}
+
+	/*
+	 * Program the voltage.  Note that some instances of dw_mmc may use
+	 * the UHS_REG for this.  For other instances (like exynos) the UHS_REG
+	 * does no harm but you need to set the regulator directly.  Try both.
+	 */
+	uhs = mci_readl(host, UHS_REG);
+	if (ios->signal_voltage == MMC_SIGNAL_VOLTAGE_330)
+		uhs &= ~v18;
+	else
+		uhs |= v18;
+
+	if (!IS_ERR(mmc->supply.vqmmc)) {
+		ret = mmc_regulator_set_vqmmc(mmc, ios);
+
+		if (ret) {
+			dev_dbg(&mmc->class_dev,
+				"Regulator set error %d - %s V\n",
+				ret, uhs & v18 ? "1.8" : "3.3");
+			return ret;
+		}
+	}
+
+	mci_writel(host, UHS_REG, uhs);
+	mci_writel(host, UHS_REG_EXT, 0);
 
 	return ret;
 }
