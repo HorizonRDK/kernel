@@ -35,9 +35,10 @@
 		pwm0	= &pwm_0;
 		pwm1	= &pwm_1;
 		pwm2	= &pwm_2;
-		bifsd   = &bifsd;
-		bifspi  = &bifspi;
-		mmc0    = &sdio0;
+		bifsd	= &bifsd;
+		bifspi	= &bifspi;
+		mmc1	= &sdio0;
+		mmc2	= &sdio1;
 	};
 
 	chosen {
@@ -327,12 +328,30 @@
 		};
 	};
 };
+
 &sdio0 {
 	status = "okay";
+	bus-width = <8>;
+	cap-mmc-highspeed;
+	mmc-hs200-1_8v;
+	non-removable;
+	disable-wp;
 };
 
 &sdio1 {
 	status = "okay";
+	bus-width = <4>;
+	no-mmc;
+	no-sdio;
+	cap-sd-highspeed;
+	sd-uhs-sdr12;
+	sd-uhs-sdr25;
+	sd-uhs-sdr50;
+	sd-uhs-sdr104;
+	powerup-gpio = <85>;
+	uhs-180v-gpio = <86>;
+	non-removable;
+	disable-wp;
 };
 
 &watchdog {
@@ -349,4 +368,13 @@
 	status = "disabled";
 	clocks = <&i2s1_mclk>, <&i2s1_bclk>;
 	clock-names = "i2s_mclk", "i2s_bclk";
+};
+&ddr_monitor {
+	status = "okay";
+};
+
+&temp {
+	clocks = <&temp_sensor_div_clk>;
+	clock-names = "tsensor_clk";
+	status = "disabled";
 };
