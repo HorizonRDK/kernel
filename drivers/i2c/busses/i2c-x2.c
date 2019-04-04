@@ -581,10 +581,11 @@ static int x2_i2c_probe(struct platform_device *pdev)
 	adap->dev.parent = &pdev->dev;
 	adap->dev.of_node = pdev->dev.of_node;
 
+	x2_i2c_cfg(i2c_dev, 1);
+
 	ret = i2c_add_adapter(adap);
 	if (ret)
 		free_irq(i2c_dev->irq, i2c_dev);
-	x2_i2c_cfg(i2c_dev, 1);
 	printk("x2_i2c_probe done\n");
 	return ret;
 }
