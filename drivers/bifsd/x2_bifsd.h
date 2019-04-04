@@ -46,9 +46,9 @@
 /*****************************************************************************/
 /* Constants                                                                 */
 /*****************************************************************************/
-
-//#define HUGO_PLM
-
+#ifdef CONFIG_X2_FPGA
+#define HUGO_PLM
+#endif
 /* MMC AHB related Registers */
 #define EMMC_AHB_BASE    0xA1007000
 
