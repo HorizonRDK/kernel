@@ -75,17 +75,6 @@
 		    /*no-map;*/
 		};
 
-		bif_base_reserved: bif_base_reserved@0x20000000 {
-			reg = <0x0 0x20000000 0x0 0x00100000>;
-			no-map;
-		};
-	};
-
-	bif_base {
-		compatible = "hobot,bif_base";
-		memory-region = <&bif_base_reserved>;
-		bif_base_irq_pin = <85>;
-		bif_base_tri_pin = <84>;
 	};
 
 	cnn_mm {
@@ -224,18 +213,17 @@
 
 &qspi {
 	status = "okay";
-	qspi-mode = <1>;
 	#address-cells = <1>;
 	#size-cells = <0>;
 
 	flash@0 {
-		compatible = "spi-nand";
+		compatible = "gd256q256c";
 		#address-cells = <1>;
 		#size-cells = <1>;
 		reg = <0x0>;
-		spi-tx-bus-width = <1>;
-		spi-rx-bus-width = <1>;
-		spi-max-frequency = <20000000>; // For FPGA max clk is 20Mhz
+	        spi-tx-bus-width = <4>;
+		spi-rx-bus-width = <4>;
+		spi-max-frequency = <20000000>; /* For FPGA max clk is 20Mhz */
 
 		partition@qspi-uboot {
 			label = "qspi-uboot";
