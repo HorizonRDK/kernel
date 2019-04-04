@@ -126,7 +126,6 @@ void x2_isp_isr(unsigned int status, void *data)
 		Set_Bit(15, isp_dev->irq_status);
 	else if (status & ISP_HMP_FRAME_FINISH)
 		Set_Bit(13, isp_dev->irq_status);
-	}
 
 //	spin_unlock_irqrestore(&isp_dev->slock, flags);
 }
