@@ -82,12 +82,6 @@
 					65	2 /*uart3 RXD*/
 				>;
 			};
-			i2c1_func: i2c1_func {
-				pinctrl-x2,pins-muxs = <
-					11	1 /*i2c SCL*/
-					12	1 /*i2c SDA*/
-				>;
-			};
 			i2s0_func: i2s0_func {
 				pinctrl-x2,pins-muxs = <
 					88 0 /*i2s0 MCLK*/
