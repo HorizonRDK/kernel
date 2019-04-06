@@ -18,18 +18,9 @@ function all()
     }
 
     # put binaries to dest directory
-    echo "$SRC_KERNEL_DIR/arch/$ARCH_KERNEL/boot/$SRC_KERNEL_IMAGE_NAME"
-    echo "$prefix/$TARGET_KERNEL_IMAGE_NAME"
-    if [ -f $SRC_KERNEL_DIR/arch/$ARCH_KERNEL/boot/$SRC_KERNEL_IMAGE_NAME -a -n $prefix/$TARGET_KERNEL_IMAGE_NAME ];then
-        mkdir -p $prefix
-        echo "cp -f $SRC_KERNEL_DIR/arch/$ARCH_KERNEL/boot/$SRC_KERNEL_IMAGE_NAME $prefix/$TARGET_KERNEL_IMAGE_NAME"
-        cp -f $SRC_KERNEL_DIR/arch/$ARCH_KERNEL/boot/$SRC_KERNEL_IMAGE_NAME $prefix/$TARGET_KERNEL_IMAGE_NAME
-    fi
-    if [ -f $SRC_KERNEL_DIR/arch/$ARCH_KERNEL/boot/dts/hobot/$SRC_KERNEL_DTB_NAME -a -n $prefix/$TARGET_KERNEL_DTB_NAME ];then
-        mkdir -p $prefix
-        echo "cp -f $SRC_KERNEL_DIR/arch/$ARCH_KERNEL/boot/dts/hobot/$SRC_KERNEL_DTB_NAME $prefix/$TARGET_KERNEL_DTB_NAME"
-        cp -f $SRC_KERNEL_DIR/arch/$ARCH_KERNEL/boot/dts/hobot/$SRC_KERNEL_DTB_NAME $prefix/$TARGET_KERNEL_DTB_NAME
-    fi
+    cpfiles "$SRC_KERNEL_DIR/arch/$ARCH_KERNEL/boot/$KERNEL_IMAGE_NAME" "$prefix/"
+    cd $SRC_KERNEL_DIR/arch/$ARCH_KERNEL/boot/dts/hobot/
+    cpfiles "$KERNEL_DTB_NAME" "$prefix/"
 }
 
 function clean()
