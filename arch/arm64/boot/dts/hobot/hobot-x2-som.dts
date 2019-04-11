@@ -14,7 +14,7 @@
 #include "hobot.dtsi"
 #include "hobot-pinctrl.dtsi"
 #include "hobot-clk.dtsi"
-#include "memery-1g.dtsi"
+#include "memory-1g.dtsi"
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/phy/phy.h>
 
