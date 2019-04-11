@@ -36,6 +36,7 @@ static const struct of_device_id whitelist[] __initconst = {
 	{ .compatible = "arm,integrator-cp", },
 
 	{ .compatible = "hisilicon,hi3660", },
+	{ .compatible = "hobot,x2", },
 
 	{ .compatible = "fsl,imx27", },
 	{ .compatible = "fsl,imx51", },

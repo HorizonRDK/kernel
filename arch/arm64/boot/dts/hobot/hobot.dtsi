@@ -26,7 +26,12 @@
 			compatible = "arm,cortex-a53", "arm,armv8";
 			device_type = "cpu";
 			enable-method = "spin-table";
-			/*operating-points-v2 = <&cpu_opp_table>;*/
+			operating-points-v2 = <&cpu_opp_table>;
+			clocks = <&cpu_mux_clk>;
+			#cooling-cells = <2>;
+			cooling-min-level = <0>;
+			cooling-max-level = <2>;
+			dynamic-power-coefficient = <120>;
 			reg = <0x0>;
 			cpu-idle-states = <&CPU_SLEEP_0>;
 		};
@@ -36,8 +41,13 @@
 			device_type = "cpu";
 			enable-method = "spin-table";
 			cpu-release-addr = <0 0xA6000278>;
+			operating-points-v2 = <&cpu_opp_table>;
+			clocks = <&cpu_mux_clk>;
+			#cooling-cells = <2>;
+			cooling-min-level = <0>;
+			cooling-max-level = <2>;
+			dynamic-power-coefficient = <120>;
 			reg = <0x1>;
-			/*operating-points-v2 = <&cpu_opp_table>;*/
 			cpu-idle-states = <&CPU_SLEEP_0>;
 		};
 
@@ -61,13 +71,18 @@
 		compatible = "operating-points-v2";
 		opp-shared;
 		opp00 {
-			opp-hz = /bits/ 64 <1199999988>;
+			opp-hz = /bits/ 64 <1000000000>;
 			opp-microvolt = <1000000>;
 			clock-latency-ns = <500000>;
 		};
 		opp01 {
-			opp-hz = /bits/ 64 <599999994>;
-			opp-microvolt = <1000000>;
+			opp-hz = /bits/ 64 <600000000>;
+			opp-microvolt = <900000>;
+			clock-latency-ns = <500000>;
+		};
+		opp02 {
+			opp-hz = /bits/ 64 <24000000>;
+			opp-microvolt = <800000>;
 			clock-latency-ns = <500000>;
 		};
 	};

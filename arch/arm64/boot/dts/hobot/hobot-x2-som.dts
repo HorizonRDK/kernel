@@ -109,6 +109,7 @@
 				regulator-min-microvolt = <800000>;
 				regulator-max-microvolt = <1000000>;
 				regulator-always-on;
+				regulator-boot-on;
 			};
 
 			vdd_core_pd_reg: DCDC2 {
@@ -116,6 +117,7 @@
 				regulator-min-microvolt = <900000>;
 				regulator-max-microvolt = <900000>;
 				regulator-always-on;
+				regulator-boot-on;
 			};
 
 			vcc_cnn1_reg: DCDC3 {
@@ -123,6 +125,7 @@
 				regulator-min-microvolt = <800000>;
 				regulator-max-microvolt = <1000000>;
 				regulator-always-on;
+				regulator-boot-on;
 			};
 
 			vcc_cpu_reg: DCDC4 {
@@ -130,6 +133,7 @@
 				regulator-min-microvolt = <800000>;
 				regulator-max-microvolt = <1000000>;
 				regulator-always-on;
+				regulator-boot-on;
 			};
 
 			vdd_core_ao_reg: LDO3 {
@@ -137,6 +141,7 @@
 				regulator-min-microvolt = <3300000>;
 				regulator-max-microvolt = <3300000>;
 				regulator-always-on;
+				regulator-boot-on;
 			};
 
 			vdd_1v8_reg: LDO4 {
@@ -144,6 +149,7 @@
 				regulator-min-microvolt = <1800000>;
 				regulator-max-microvolt = <1800000>;
 				regulator-always-on;
+				regulator-boot-on;
 			};
 
 			vdd_0v9_reg: LDO5 {
@@ -151,6 +157,7 @@
 				regulator-min-microvolt = <900000>;
 				regulator-max-microvolt = <900000>;
 				regulator-always-on;
+				regulator-boot-on;
 			};
 		};
 	};
@@ -238,7 +245,11 @@
 
 &cpu0 {
 	status = "okay";
-	cnn0-supply = <&vcc_cpu_reg>;
+	cpu-supply = <&vcc_cpu_reg>;
+};
+&cpu1 {
+	status = "okay";
+	cpu-supply = <&vcc_cpu_reg>;
 };
 
 &cnn0 {
