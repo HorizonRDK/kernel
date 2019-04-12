@@ -254,12 +254,10 @@ long isp_mod_ioctl(struct file *pfile, unsigned int cmd, unsigned long arg)
 
 	switch (cmd) {
 	case ISPC_START:{
-			printk(KERN_ERR "x2 isp ioctl is start\n");
 		//	isp_start(isp_cdev);
 		}
 		break;
 	case ISPC_STOP:{
-			printk(KERN_ERR "x2 isp ioctl is end \n");
 		//	isp_stop(isp_cdev);
 		}
 		break;
