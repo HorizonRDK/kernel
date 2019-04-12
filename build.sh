@@ -1,5 +1,17 @@
 #!/bin/bash
 
+function choose()
+{
+    local hascpio=$KERNEL_WITH_CPIO
+    local conftmp=.config_tmp
+    cp .config $conftmp
+    if ! $hascpio ;then
+        sed -i "/CONFIG_BLK_DEV_INITRD/d" $conftmp
+        echo "CONFIG_BLK_DEV_INITRD=n" >> $conftmp
+    fi
+    cp $conftmp .config
+}
+
 function all()
 {
     prefix=$TARGET_KERNEL_DIR
@@ -12,6 +24,7 @@ function all()
         echo "make $config failed"
         exit 1
     }
+    choose
     make -j${N} || {
         echo "make failed"
         exit 1
