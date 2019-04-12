@@ -72,8 +72,18 @@
 
 		/* Reserved 512MB memory for ipu subsystem */
 		ipu_reserved: ipu_reserved@0x60000000 {
-			reg = <0x0 0x60000000 0x0 0x20000000>;
-			/*no-map;*/
+		    reg = <0x0 0x60000000 0x0 0x20000000>;
+		    /*no-map;*/
+		};
+
+		/*Reserved 8M memory for isp_subsystem*/
+		isp_reserved: isp_reserved@0x80000000 {
+			reg = <0x0 0x10100000 0x0 0x00800000>;
+		};
+
+		bif_base_reserved: bif_base_reserved@0x20000000 {
+			reg = <0x0 0x20000000 0x0 0x00100000>;
+			no-map;
 		};
 
 	};
@@ -115,9 +125,9 @@
 	status = "okay";
 	#address-cells = <1>;
 	#size-cells = <0>;
-	x2_camera@0x7f {
-		compatible = "x2,camera";
-		reg = <0x7f>;
+	x2_camera@0x20 {
+	    compatible = "x2,camera";
+	    reg = <0x20>;
 	};
 };
 

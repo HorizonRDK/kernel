@@ -270,6 +270,7 @@
 		isp: isp@0xA4000200 {
 			compatible = "hobot,x2-isp";
 			reg = <0 0xA4000200 0 0x654>;
+			memory-region = <&isp_reserved>;
 			status = "disabled";
 		};
 
