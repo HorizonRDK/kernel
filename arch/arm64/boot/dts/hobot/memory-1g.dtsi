@@ -19,11 +19,15 @@
 			no-map;
 		};
 
-		/* Reserved 300MB memory for cnn subsystem */
+		/* Reserved 290MB memory for cnn subsystem */
 		cnn_reserved: cnn_reserved@0x20300000 {
-			reg = <0x0 0x20300000 0x0 0x12C00000>;
+			reg = <0x0 0x20300000 0x0 0x12200000>;
 		};
 
+		/* Reserved 10MB memory for function call */
+		fc_reserved: fc_reserved@0x32500000 {
+			reg = <0x0 0x32500000 0x0 0x1000000>;
+		};
 		/* Reserved 200MB memory for ipu subsystem */
 		ipu_reserved: ipu_reserved@0x32f00000 {
 			reg = <0x0 0x32F00000 0x0 0xC800000>;
