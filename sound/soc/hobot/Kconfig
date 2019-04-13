@@ -1,0 +1,9 @@
+config X2_AUDIO
+	tristate "x2 audio"
+	depends on ARCH_HOBOT
+	default n
+	help
+	  X2
+	  audio
+	  interface
+	  info
