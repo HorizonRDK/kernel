@@ -624,8 +624,8 @@ void ion_free(struct ion_client *client, struct ion_handle *handle);
  * the returned value may not be valid if the caller is not
  * holding a reference.
  */
-int ion_phys(struct ion_client *client, struct ion_handle *handle,
-	     phys_addr_t *addr, size_t *len);
+//int ion_phys(struct ion_client *client, struct ion_handle *handle,
+int ion_phys(struct ion_client *client, int handle_id, phys_addr_t *addr, size_t *len);
 
 phys_addr_t ion_carveout_allocate(struct ion_heap *heap,
 				      unsigned long size,

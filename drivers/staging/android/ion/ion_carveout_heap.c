@@ -159,6 +159,7 @@ struct ion_heap *ion_carveout_heap_create(struct ion_platform_heap *heap_data)
 	size = heap_data->size;
 
 	ret = ion_heap_pages_zero(page, size, pgprot_writecombine(PAGE_KERNEL));
+	//ret = ion_heap_pages_zero(page, size, pgprot_noncached(PAGE_KERNEL));
 	if (ret)
 		return ERR_PTR(ret);
 

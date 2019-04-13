@@ -22,6 +22,7 @@
 #include <linux/memblock.h>
 #include <linux/sizes.h>
 #include <linux/io.h>
+#include <linux/uaccess.h>
 #include "ion.h"
 
 extern struct ion_device *ion_device_create(long (*custom_ioctl)
@@ -34,7 +35,6 @@ static struct ion_heap **heaps;
 
 static void *carveout_ptr;
 static void *chunk_ptr;
-
 
 static struct ion_platform_heap dummy_heaps[] = {
 		{
@@ -68,18 +68,58 @@ static struct ion_platform_data dummy_ion_pdata = {
 	.heaps = dummy_heaps,
 };
 
+#define ION_GET_PHY 0
+struct ion_phy_data {
+	struct ion_handle *handle;
+	phys_addr_t paddr;
+	size_t len;
+};
+
+static long ion_dummy_ioctl(struct ion_client *client,
+			    unsigned int cmd, unsigned long arg)
+{
+	int ret;
+
+	switch (cmd) {
+	case ION_GET_PHY:
+	{
+		struct ion_phy_data phy_data;
+
+		if (copy_from_user(&phy_data, (void __user *)arg,
+				   sizeof(struct ion_phy_data))) {
+			pr_err("%s:copy from user failed\n",
+			       __func__);
+			return -EFAULT;
+		}
+
+		ret = ion_phys(client, phy_data.handle,
+			       &phy_data.paddr, &phy_data.len);
+		if (copy_to_user((void __user *)arg, &phy_data,
+				 sizeof(struct ion_phy_data)))
+			return -EFAULT;
+
+		break;
+	}
+
+	default:
+		return -ENOTTY;
+	}
+
+	return ret;
+}
+
 static int __init ion_dummy_init(void)
 {
 	int i, err;
 
-	idev = ion_device_create(NULL);
+	idev = ion_device_create(ion_dummy_ioctl);
 	heaps = kcalloc(dummy_ion_pdata.nr, sizeof(struct ion_heap *),
 			GFP_KERNEL);
 	if (!heaps)
 		return -ENOMEM;
 
-
 	/* Allocate a dummy carveout heap */
+#if 0
 	carveout_ptr = alloc_pages_exact(
 				dummy_heaps[ION_HEAP_TYPE_CARVEOUT].size,
 				GFP_KERNEL);
@@ -88,6 +128,9 @@ static int __init ion_dummy_init(void)
 						virt_to_phys(carveout_ptr);
 	else
 		pr_err("ion_dummy: Could not allocate carveout\n");
+#endif
+	dummy_heaps[ION_HEAP_TYPE_CARVEOUT].base = 0x20000000;
+	dummy_heaps[ION_HEAP_TYPE_CARVEOUT].size = 0x20000000;
 
 	/* Allocate a dummy chunk heap */
 	chunk_ptr = alloc_pages_exact(
@@ -123,12 +166,12 @@ err:
 
 	if (carveout_ptr) {
 		free_pages_exact(carveout_ptr,
-				dummy_heaps[ION_HEAP_TYPE_CARVEOUT].size);
+				 dummy_heaps[ION_HEAP_TYPE_CARVEOUT].size);
 		carveout_ptr = NULL;
 	}
 	if (chunk_ptr) {
 		free_pages_exact(chunk_ptr,
-				dummy_heaps[ION_HEAP_TYPE_CHUNK].size);
+				 dummy_heaps[ION_HEAP_TYPE_CHUNK].size);
 		chunk_ptr = NULL;
 	}
 	return err;
@@ -147,12 +190,12 @@ static void __exit ion_dummy_exit(void)
 
 	if (carveout_ptr) {
 		free_pages_exact(carveout_ptr,
-				dummy_heaps[ION_HEAP_TYPE_CARVEOUT].size);
+				 dummy_heaps[ION_HEAP_TYPE_CARVEOUT].size);
 		carveout_ptr = NULL;
 	}
 	if (chunk_ptr) {
 		free_pages_exact(chunk_ptr,
-				dummy_heaps[ION_HEAP_TYPE_CHUNK].size);
+				 dummy_heaps[ION_HEAP_TYPE_CHUNK].size);
 		chunk_ptr = NULL;
 	}
 }

@@ -24,6 +24,8 @@
 #include <linux/scatterlist.h>
 #include <linux/vmalloc.h>
 #include "ion.h"
+#include <asm/pgtable.h>
+#include <linux/slab.h>
 
 void *ion_heap_map_kernel(struct ion_heap *heap,
 			  struct ion_buffer *buffer)
@@ -77,6 +79,7 @@ int ion_heap_map_user(struct ion_heap *heap, struct ion_buffer *buffer,
 	struct scatterlist *sg;
 	int i;
 	int ret;
+	pgprot_t prot;
 
 	for_each_sg(table->sgl, sg, table->nents, i) {
 		struct page *page = sg_page(sg);
@@ -92,8 +95,16 @@ int ion_heap_map_user(struct ion_heap *heap, struct ion_buffer *buffer,
 			offset = 0;
 		}
 		len = min(len, remainder);
+#if 0
+		prot = pgprot_noncached(PAGE_KERNEL);
+		vma->vm_page_prot.pgprot |= prot.pgprot;
 		ret = remap_pfn_range(vma, addr, page_to_pfn(page), len,
 				      vma->vm_page_prot);
+#endif
+
+		ret = remap_pfn_range(vma, addr, page_to_pfn(page), len,
+				      vma->vm_page_prot);
+
 		if (ret)
 			return ret;
 		addr += len;
@@ -109,7 +120,7 @@ static int ion_heap_clear_pages(struct page **pages, int num, pgprot_t pgprot)
 
 	if (!addr)
 		return -ENOMEM;
-	memset(addr, 0, PAGE_SIZE * num);
+//	memset(addr, 0, PAGE_SIZE * num);
 	vm_unmap_ram(addr, num);
 
 	return 0;
@@ -121,8 +132,35 @@ static int ion_heap_sglist_zero(struct scatterlist *sgl, unsigned int nents,
 	int p = 0;
 	int ret = 0;
 	struct sg_page_iter piter;
+#ifdef NO_CACHE
+	struct page **page_list;
+#else
 	struct page *pages[32];
+#endif
+#ifdef NO_CACHE
+	u32 nr_pages = 0;
+	size_t size;
 
+	size = sg_dma_len(sgl);
+	nr_pages = size / PAGE_SIZE;
+	page_list = kmalloc_array(nr_pages, sizeof(*page_list), GFP_KERNEL);
+	if (!page_list)
+		return -ENOMEM;
+
+	for_each_sg_page(sgl, &piter, nents, 0) {
+//		pages[p++] = sg_page_iter_page(&piter);
+		page_list[p++] = sg_page_iter_page(&piter);
+		//if (p == ARRAY_SIZE(pages)) {
+		if (p == nr_pages) {
+			//ret = ion_heap_clear_pages(pages, p, pgprot);
+			ret = ion_heap_clear_pages(page_list, p, pgprot);
+			if (ret)
+				return ret;
+			p = 0;
+		}
+	}
+
+#else
 	for_each_sg_page(sgl, &piter, nents, 0) {
 		pages[p++] = sg_page_iter_page(&piter);
 		if (p == ARRAY_SIZE(pages)) {
@@ -132,9 +170,16 @@ static int ion_heap_sglist_zero(struct scatterlist *sgl, unsigned int nents,
 			p = 0;
 		}
 	}
-	if (p)
-		ret = ion_heap_clear_pages(pages, p, pgprot);
+#endif
 
+	if (p)
+#ifdef NO_CACHE
+		ret = ion_heap_clear_pages(page_list, p, pgprot);
+#else
+		ret = ion_heap_clear_pages(pages, p, pgprot);
+#endif
+	//kfree(page_list);
+//	kfree(pages);
 	return ret;
 }
 
@@ -147,6 +192,7 @@ int ion_heap_buffer_zero(struct ion_buffer *buffer)
 		pgprot = PAGE_KERNEL;
 	else
 		pgprot = pgprot_writecombine(PAGE_KERNEL);
+		//pgprot = pgprot_noncached(PAGE_KERNEL);
 
 	return ion_heap_sglist_zero(table->sgl, table->nents, pgprot);
 }

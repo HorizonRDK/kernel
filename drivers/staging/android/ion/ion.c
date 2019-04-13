@@ -192,7 +192,6 @@ static struct ion_buffer *ion_buffer_create(struct ion_heap *heap,
 	buffer->heap = heap;
 	buffer->flags = flags;
 	kref_init(&buffer->ref);
-
 	ret = heap->ops->allocate(heap, buffer, len, align, flags);
 
 	if (ret) {
@@ -515,8 +514,6 @@ struct ion_handle *ion_alloc(struct ion_client *client, size_t len,
 	struct ion_heap *heap;
 	int ret;
 
-	pr_debug("%s: len %zu align %zu heap_id_mask %u flags %x\n", __func__,
-		 len, align, heap_id_mask, flags);
 	/*
 	 * traverse the list of heaps available in this system in priority
 	 * order.  If the heap type is supported by the client, and matches the
@@ -587,11 +584,15 @@ void ion_free(struct ion_client *client, struct ion_handle *handle)
 }
 EXPORT_SYMBOL(ion_free);
 
-int ion_phys(struct ion_client *client, struct ion_handle *handle,
+//int ion_phys(struct ion_client *client, struct ion_handle *handle,
+int ion_phys(struct ion_client *client, int handle_id,
 	     phys_addr_t *addr, size_t *len)
 {
 	struct ion_buffer *buffer;
 	int ret;
+	struct ion_handle *handle;
+
+	handle = ion_handle_get_by_id(client, handle_id);
 
 	mutex_lock(&client->lock);
 	if (!ion_handle_validate(client, handle)) {
@@ -607,6 +608,7 @@ int ion_phys(struct ion_client *client, struct ion_handle *handle,
 		mutex_unlock(&client->lock);
 		return -ENODEV;
 	}
+
 	mutex_unlock(&client->lock);
 	ret = buffer->heap->ops->phys(buffer->heap, buffer, addr, len);
 	return ret;
@@ -790,7 +792,8 @@ struct ion_client *ion_client_create(struct ion_device *dev,
 	task_lock(current->group_leader);
 	pid = task_pid_nr(current->group_leader);
 	/* don't bother to store task struct for kernel threads,
-	   they can't be killed anyway */
+	 * they can't be killed anyway
+	 */
 	if (current->group_leader->flags & PF_KTHREAD) {
 		put_task_struct(current->group_leader);
 		task = NULL;
@@ -980,10 +983,11 @@ static void ion_buffer_sync_for_device(struct ion_buffer *buffer,
 	mutex_unlock(&buffer->lock);
 }
 
-#if 0
-static int ion_vm_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
+#if 1
+//static int ion_vm_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
+static int ion_vm_fault(struct vm_fault *vmf)
 {
-	struct ion_buffer *buffer = vma->vm_private_data;
+	struct ion_buffer *buffer = vmf->vma->vm_private_data;
 	unsigned long pfn;
 	int ret;
 
@@ -992,7 +996,7 @@ static int ion_vm_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 	BUG_ON(!buffer->pages || !buffer->pages[vmf->pgoff]);
 
 	pfn = page_to_pfn(ion_buffer_page(buffer->pages[vmf->pgoff]));
-	ret = vm_insert_pfn(vma, (unsigned long)vmf->virtual_address, pfn);
+	ret = vm_insert_pfn(vmf->vma, (unsigned long)vmf->address, pfn);
 	mutex_unlock(&buffer->lock);
 	if (ret)
 		return VM_FAULT_ERROR;
@@ -1033,7 +1037,7 @@ static void ion_vm_close(struct vm_area_struct *vma)
 	mutex_unlock(&buffer->lock);
 }
 
-static struct vm_operations_struct ion_vma_ops = {
+static const struct vm_operations_struct ion_vma_ops = {
 	.open = ion_vm_open,
 	.close = ion_vm_close,
 	.fault = ion_vm_fault,
@@ -1051,7 +1055,7 @@ static int ion_mmap(struct dma_buf *dmabuf, struct vm_area_struct *vma)
 		return -EINVAL;
 	}
 
-#if 0
+#if 1
 	if (ion_buffer_fault_user_mappings(buffer)) {
 		vma->vm_flags |= VM_IO | VM_PFNMAP | VM_DONTEXPAND |
 							VM_DONTDUMP;
@@ -1064,6 +1068,8 @@ static int ion_mmap(struct dma_buf *dmabuf, struct vm_area_struct *vma)
 
 	if (!(buffer->flags & ION_FLAG_CACHED))
 		vma->vm_page_prot = pgprot_writecombine(vma->vm_page_prot);
+//		vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
+
 
 	mutex_lock(&buffer->lock);
 	/* now map it to userspace */
@@ -1314,6 +1320,9 @@ long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 
 		data.allocation.handle = handle->id;
 
+		if (copy_to_user((void __user *)arg, &data, _IOC_SIZE(cmd)))
+			pr_err("copy to user error\n");
+
 		cleanup_handle = handle;
 		break;
 	}
@@ -1369,12 +1378,13 @@ long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	}
 	default:
 		return -ENOTTY;
+
 	}
+
 	if (dir & _IOC_READ) {
 		if (copy_to_user((void __user *)arg, &data, _IOC_SIZE(cmd))) {
-			if (cleanup_handle) {
+			if (cleanup_handle)
 				ion_free(client, cleanup_handle);
-				}
 			return -EFAULT;
 		}
 	}
@@ -1458,7 +1468,7 @@ static int ion_debug_heap_show(struct seq_file *s, void *unused)
 
 			get_task_comm(task_comm, client->task);
 			seq_printf(s, "%16s %16u %16zu\n", task_comm,
-				   client->pid, size);
+					client->pid, size);
 		} else {
 			seq_printf(s, "%16s %16u %16zu\n", client->name,
 				   client->pid, size);
@@ -1474,10 +1484,10 @@ static int ion_debug_heap_show(struct seq_file *s, void *unused)
 			continue;
 		total_size += buffer->size;
 		if (!buffer->handle_count) {
-			seq_printf(s, "%16s %16u %16zu %d \n",
-				buffer->task_comm, buffer->pid,
-				buffer->size, buffer->kmap_cnt);
-				/* atomic_read(&buffer->ref.refcount)); */
+			seq_printf(s, "%16s %16u %16zu %d\n",
+				   buffer->task_comm, buffer->pid,
+				   buffer->size, buffer->kmap_cnt);
+				   /* atomic_read(&buffer->ref.refcount)); */
 			total_orphaned_size += buffer->size;
 		}
 	}
