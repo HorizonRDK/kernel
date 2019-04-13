@@ -109,20 +109,26 @@
 // The default number of character devices for CNN
 #define NUM_DEVICES		    1
 
-#define CNN_FC_GAP0_BASE  0x50000000
+
+#define CNN_FC_GAP0_BASE  0x32500000
 #define CNN_FC_GAP0_SIZE  0x1000
 
-#define CNN0_FC_PHYS_BASE 0x50001000
-#define CNN0_FC_SPACE_SIZE 0x10000
+#define CNN0_FC_PHYS_BASE 0x32501000
+//#define CNN0_FC_SPACE_SIZE (0x400*0x40)
+#define CNN0_FC_SPACE_SIZE 0x1000
 
-#define CNN_FC_GAP1_BASE  0x50011000
+#define CNN_FC_GAP1_BASE  0x32511000
 #define CNN_FC_GAP1_SIZE  0x1000
 
-#define CNN1_FC_PHYS_BASE 0x50012000
-#define CNN1_FC_SPACE_SIZE 0x10000
+#define CNN1_FC_PHYS_BASE 0x32512000
+//#define CNN1_FC_SPACE_SIZE (0x400*0x40)
+#define CNN1_FC_SPACE_SIZE 0x1000
 
-#define CNN_FC_GAP2_BASE  0x5002000
+#define CNN_FC_GAP2_BASE  0x32520000
 #define CNN_FC_GAP2_SIZE  0x1000
+
+
+
 
 struct x2_cnn_dev {
 	void __iomem	*cnn_base;
@@ -187,6 +193,40 @@ struct x2_cnn_rst_data {
 	u32 cnn_rst_id;
 };
 
+
+
+struct hbrt_x2_funccall_s {
+	uint32_t dyn_base_addr5;
+	uint32_t dyn_base_addr4;
+
+	uint16_t resizer_perf_flag;
+	uint8_t dest_height_m1;
+	uint8_t dest_width_m1;
+
+	uint16_t step_h;
+	uint16_t step_w;
+
+	uint16_t y_source_bottom;
+	uint16_t y_source_right;
+	uint16_t y_source_top;
+	uint16_t y_source_left;
+	uint16_t y_source_stride;
+	uint16_t y_source_height_m1;
+	uint16_t y_source_width_m1;
+
+	uint16_t interrupt_num;
+
+	uint32_t uv_source_address;
+	uint32_t y_source_address;
+	uint32_t instruction_length;
+
+	uint32_t dyn_base_addr3;
+	uint32_t dyn_base_addr2;
+	uint32_t dyn_base_addr1;
+	uint32_t dyn_base_addr0;
+	uint32_t instruction_address;
+};
+
 struct x2_cnn_int_num {
 	u32 cnn_int_num;
 };
@@ -205,8 +245,12 @@ union cnn_ioctl_arg {
 
 #define CNN_IOCTL_MAGIC 'C'
 #define CNN_NUM_IOCTLS	6
-#define CNN_IOC_GET_FC_STA	(_IOR(CNN_IOCTL_MAGIC, 0, struct x2_cnn_fc_status))
-#define CNN_IOC_FC_ENQUEUE	(_IOW(CNN_IOCTL_MAGIC, 1, struct x2_cnn_fc_info))
-#define CNN_IOC_RST		(_IOW(CNN_IOCTL_MAGIC, 2, struct x2_cnn_rst_data))
-#define CNN_IOC_GET_INT_NUM	(_IOR(CNN_IOCTL_MAGIC, 3, struct x2_cnn_int_num))
+#define CNN_IOC_GET_FC_STA	(_IOR(CNN_IOCTL_MAGIC, \
+					0, struct x2_cnn_fc_status))
+#define CNN_IOC_FC_ENQUEUE	(_IOW(CNN_IOCTL_MAGIC, \
+					1, struct x2_cnn_fc_info))
+#define CNN_IOC_RST		(_IOW(CNN_IOCTL_MAGIC, \
+					2, struct x2_cnn_rst_data))
+#define CNN_IOC_GET_INT_NUM	(_IOR(CNN_IOCTL_MAGIC, \
+					3, struct x2_cnn_int_num))
 #endif	/* __X2_CNN_H__ */

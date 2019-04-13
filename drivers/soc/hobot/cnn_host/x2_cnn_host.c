@@ -44,12 +44,11 @@
 
 static DEFINE_MUTEX(x2_cnn_mutex);
 static char *g_chrdev_name = "cnn";
-u32 x2_cnn_int_num = 0;
+u32 x2_cnn_int_num;
 static void *cnn0_fc_base;
 static void *cnn1_fc_base;
 static struct dentry *cnn0_debugfs_root;
 static struct dentry *cnn1_debugfs_root;
-
 static inline u32 x2_cnn_reg_read(struct x2_cnn_dev *dev, u32 off)
 {
 	return readl(dev->cnn_base + off);
@@ -63,7 +62,7 @@ static inline void x2_cnn_reg_write(struct x2_cnn_dev *dev,
 
 int fc_fifo_stat_info(struct seq_file *m, void *data)
 {
-	struct cnn_info_node *node = (struct cnn_info_node*)m->private;
+	struct cnn_info_node *node = (struct cnn_info_node *)m->private;
 	struct x2_cnn_dev *dev = node->cnn_dev;
 	u32 fc_head_idx, fc_tail_idx,
 	    fc_head_flag, fc_tail_flag,
@@ -74,7 +73,7 @@ int fc_fifo_stat_info(struct seq_file *m, void *data)
 	fc_head_idx &= X2_CNN_MAX_FC_LEN_MASK;
 
 	fc_tail_idx = x2_cnn_reg_read(dev, X2_CNN_FC_TAIL);
-	fc_tail_flag = fc_tail_idx & X2_CNN_FC_IDX_FLAG;
+	fc_tail_flag = fc_head_idx & X2_CNN_FC_IDX_FLAG;
 	fc_tail_idx &= X2_CNN_MAX_FC_LEN_MASK;
 
 	fc_depth = x2_cnn_reg_read(dev, X2_CNN_FC_LEN);
@@ -88,16 +87,19 @@ int fc_fifo_stat_info(struct seq_file *m, void *data)
 int fc_dump_info(struct seq_file *m, void *data)
 {
 	int i;
-	struct cnn_info_node *node = (struct cnn_info_node*)m->private;
+	struct cnn_info_node *node = (struct cnn_info_node *)m->private;
 	struct x2_cnn_dev *dev = node->cnn_dev;
-	unsigned char *fc_buf = (unsigned char*)kmalloc(CNN0_FC_SPACE_SIZE, GFP_KERNEL);
+	unsigned char *fc_buf = kmalloc(CNN0_FC_SPACE_SIZE, GFP_KERNEL);
+
+	memset(fc_buf, 0, CNN0_FC_SPACE_SIZE);
 
 	memcpy(fc_buf, dev->fc_base, CNN0_FC_SPACE_SIZE);
 	seq_printf(m, "0x%x ", fc_buf[0]);
-	for (i = 1; i <= CNN0_FC_SPACE_SIZE; i++) {
-	       seq_printf(m, "0x%x ", fc_buf[i]);
-	       if (i % 15 == 0)
-		       seq_printf(m, "\n");
+	//for (i = 1; i <= CNN0_FC_SPACE_SIZE; i++) {
+	for (i = 1; i < CNN0_FC_SPACE_SIZE; i++) {
+		seq_printf(m, "[%d] 0x%x ", i, fc_buf[i]);
+		if (i % 15 == 0)
+			seq_puts(m, "\n");
 	}
 	return 0;
 }
@@ -130,7 +132,8 @@ static void cnn_flush_dcache_range(void *addr, size_t len)
 }
 
 /*
- * x2_cnn_fc_gap_mem_init - init memory pattern for function call gap(only for debug)
+ * x2_cnn_fc_gap_mem_init - init memory pattern for
+ * function call gap(only for debug)
  *
  */
 void x2_cnn_fc_gap_mem_init(void)
@@ -158,6 +161,7 @@ void x2_cnn_fc_gap_mem_init(void)
 static int x2_cnn_reset_assert(struct reset_control *rstc)
 {
 	int rc = 0;
+
 	rc = reset_control_assert(rstc);
 	if (rc < 0) {
 		pr_err("%s: failed\n", __func__);
@@ -283,14 +287,16 @@ static int x2_cnn_get_resets(struct x2_cnn_dev *cnn_dev, int cnn_id)
 	struct reset_control *rst_temp;
 
 	if (cnn_id == 0) {
-		cnn_dev->cnn0_rst = devm_reset_control_get(cnn_dev->dev, "cnn0_rst");
+		cnn_dev->cnn0_rst =
+			devm_reset_control_get(cnn_dev->dev, "cnn0_rst");
 		if (IS_ERR(cnn_dev->cnn0_rst)) {
 			name = "cnn0_rst";
 			rst_temp = cnn_dev->cnn0_rst;
 			goto error;
 		}
 	} else if (cnn_id == 1) {
-		cnn_dev->cnn1_rst = devm_reset_control_get(cnn_dev->dev, "cnn1_rst");
+		cnn_dev->cnn1_rst =
+			devm_reset_control_get(cnn_dev->dev, "cnn1_rst");
 		if (IS_ERR(cnn_dev->cnn1_rst)) {
 			name = "cnn1_rst";
 			rst_temp = cnn_dev->cnn1_rst;
@@ -334,7 +340,6 @@ static int x2_cnn_hw_reset_reinit(struct x2_cnn_dev *cnn_dev, int cnn_id)
 	}
 
 	if (!ret) {
-                x2_cnn_int_num = 0;
 		x2_cnn_hw_init(cnn_dev);
 		x2_cnn_set_fc_base(cnn_dev);
 		x2_cnn_set_default_fc_depth(cnn_dev, 1023);
@@ -358,6 +363,7 @@ static irqreturn_t x2_cnn_interrupt_handler(int irq, void *dev_id)
 
 	spin_unlock_irqrestore(&dev->cnn_spin_lock, flags);
 
+	pr_info("!!!!!!xxxx x2 cnn interrupt\n");
 	tasklet_schedule(&dev->tasklet);
 	return IRQ_HANDLED;
 }
@@ -397,7 +403,7 @@ static void dump_fc_fifo_status(struct x2_cnn_dev *dev)
 	fc_head_idx &= X2_CNN_MAX_FC_LEN_MASK;
 
 	fc_tail_idx = x2_cnn_reg_read(dev, X2_CNN_FC_TAIL);
-	fc_tail_flag = fc_tail_idx & X2_CNN_FC_IDX_FLAG;
+	fc_tail_flag = fc_head_idx & X2_CNN_FC_IDX_FLAG;
 	fc_tail_idx &= X2_CNN_MAX_FC_LEN_MASK;
 
 	fc_depth = x2_cnn_reg_read(dev, X2_CNN_FC_LEN);
@@ -433,7 +439,7 @@ static u32 x2_cnn_get_fc_fifo_spaces(struct x2_cnn_dev *dev)
 	fc_head_idx &= X2_CNN_MAX_FC_LEN_MASK;
 
 	fc_tail_idx = x2_cnn_reg_read(dev, X2_CNN_FC_TAIL);
-	fc_tail_flag = fc_tail_idx & X2_CNN_FC_IDX_FLAG;
+	fc_tail_flag = fc_head_idx & X2_CNN_FC_IDX_FLAG;
 	fc_tail_idx &= X2_CNN_MAX_FC_LEN_MASK;
 
 	if (fc_head_flag != fc_tail_flag)
@@ -441,6 +447,8 @@ static u32 x2_cnn_get_fc_fifo_spaces(struct x2_cnn_dev *dev)
 	else
 		free_fc_fifo = fc_depth - fc_tail_idx + fc_head_idx + 1;
 
+	pr_info("fc_depth:0x%x,get fifo spaces return val:%d\n",
+			fc_depth, free_fc_fifo);
 	return free_fc_fifo;
 }
 
@@ -451,7 +459,8 @@ static u32 x2_cnn_get_fc_fifo_spaces(struct x2_cnn_dev *dev)
  *
  * Return: 0 success, others failed
  */
-static u32 x2_cnn_fc_fifo_enqueue(struct x2_cnn_dev *dev, struct x2_cnn_fc_info *fc_buf)
+static u32 x2_cnn_fc_fifo_enqueue(struct x2_cnn_dev *dev,
+		struct x2_cnn_fc_info *fc_buf)
 {
 	u32 rc = 0;
 	u32 free_fc_fifo = 0;
@@ -465,7 +474,7 @@ static u32 x2_cnn_fc_fifo_enqueue(struct x2_cnn_dev *dev, struct x2_cnn_fc_info 
 	fc_head_idx &= X2_CNN_MAX_FC_LEN_MASK;
 
 	fc_tail_idx = x2_cnn_reg_read(dev, X2_CNN_FC_TAIL);
-	fc_tail_flag = fc_tail_idx & X2_CNN_FC_IDX_FLAG;
+	fc_tail_flag = fc_head_idx & X2_CNN_FC_IDX_FLAG;
 	fc_tail_idx &= X2_CNN_MAX_FC_LEN_MASK;
 
 	if (fc_head_flag != fc_tail_flag)
@@ -491,14 +500,17 @@ static u32 x2_cnn_fc_fifo_enqueue(struct x2_cnn_dev *dev, struct x2_cnn_fc_info 
 
 		residue_fc_cnt = fc_buf->fc_cnt - insert_fc_cnt;
 		if (residue_fc_cnt > 0) {
-			memcpy(dev->fc_base, fc_buf->fc_info + (insert_fc_cnt * X2_CNN_FC_SIZE),
-				residue_fc_cnt * X2_CNN_FC_SIZE);
+			memcpy(dev->fc_base,
+			fc_buf->fc_info + (insert_fc_cnt * X2_CNN_FC_SIZE),
+			residue_fc_cnt * X2_CNN_FC_SIZE);
 		}
 		x2_cnn_set_fc_tail_idx(dev, residue_fc_cnt | fc_tail_flag);
 	} else {
 		memcpy(dev->fc_base + (fc_tail_idx * X2_CNN_FC_SIZE),
 			fc_buf->fc_info, fc_buf->fc_cnt * X2_CNN_FC_SIZE);
-		x2_cnn_set_fc_tail_idx(dev, fc_tail_flag | (fc_tail_idx + fc_buf->fc_cnt));
+
+		x2_cnn_set_fc_tail_idx(dev,
+				fc_tail_flag | (fc_tail_idx + fc_buf->fc_cnt));
 	}
 
 #ifdef CNN_DEBUG
@@ -524,6 +536,8 @@ static int x2_cnn_open(struct inode *inode, struct file *filp)
 
 	mutex_unlock(&x2_cnn_mutex);
 
+	x2_cnn_reg_read(devdata, X2_CNN_FC_LEN);
+
 	return rc;
 }
 
@@ -541,6 +555,7 @@ static unsigned int cnn_ioctl_dir(unsigned int cmd)
 {
 	switch (cmd) {
 	case CNN_IOC_GET_FC_STA:
+	case CNN_IOC_GET_INT_NUM:
 		return _IOC_READ;
 	case CNN_IOC_RST:
 	case CNN_IOC_FC_ENQUEUE:
@@ -557,6 +572,8 @@ static long x2_cnn_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	u32 dir;
 	union cnn_ioctl_arg data;
 	void *kernel_fc_data;
+
+	int count = 0;
 
 	dir = cnn_ioctl_dir(cmd);
 
@@ -586,38 +603,66 @@ static long x2_cnn_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	switch (cmd) {
 	case CNN_IOC_GET_FC_STA:
 		mutex_lock(&dev->cnn_lock);
-		data.fc_status.free_fc_fifo_cnt = x2_cnn_get_fc_fifo_spaces(dev);
+		data.fc_status.free_fc_fifo_cnt =
+			x2_cnn_get_fc_fifo_spaces(dev);
 		mutex_unlock(&dev->cnn_lock);
 		break;
 	case CNN_IOC_FC_ENQUEUE:
+		//size_t size_tmp = data.fc_data.fc_cnt * X2_CNN_FC_SIZE;
 
-		kernel_fc_data = kmalloc(data.fc_data.fc_cnt * X2_CNN_FC_SIZE, GFP_KERNEL);
+		kernel_fc_data = kmalloc(data.fc_data.fc_cnt * X2_CNN_FC_SIZE,
+					GFP_KERNEL);
 		if (!kernel_fc_data) {
 			pr_err("kmalloc kernel_fc_data failed\n");
 			return -ENOMEM;
 		}
-		if (copy_from_user(kernel_fc_data, (void __user *)data.fc_data.fc_info, data.fc_data.fc_cnt * X2_CNN_FC_SIZE)) {
-			pr_err("%s: copy fc data failed from userspace\n", __func__);
+		if (copy_from_user(kernel_fc_data,
+				(void __user *)data.fc_data.fc_info,
+				data.fc_data.fc_cnt * X2_CNN_FC_SIZE)) {
+			pr_err("%s: copy fc data failed from userspace\n",
+				__func__);
 			return -EFAULT;
 		}
 		data.fc_data.fc_info = kernel_fc_data;
 
+		struct hbrt_x2_funccall_s *tmp_ptr =
+			(struct hbrt_x2_funccall_s *)data.fc_data.fc_info;
+
+		pr_debug("!!!!func: %s, line: %d\n"
+				"tmp_ptr->dyn_base_addr5 is 0x%x,\n"
+				"tmp_ptr->dyn_base_addr4 is 0x%x,\n"
+				 "tmp_ptr->interrupt_num is %d,\n"
+				 "tmp_ptr->instruction_length is %d,\n"
+				 "tmp_ptr->instruction_address is 0x%x,\n"
+				 "tmp_ptr->dyn_base_addr0 is 0x%x,\n"
+				 "tmp_ptr->dyn_base_addr1 is 0x%x,\n"
+				 "tmp_ptr->dyn_base_addr3 is 0x%x.\n",
+				 __func__, __LINE__,
+				tmp_ptr->dyn_base_addr5,
+				tmp_ptr->dyn_base_addr4,
+				tmp_ptr->interrupt_num,
+				tmp_ptr->instruction_length,
+				tmp_ptr->instruction_address,
+				tmp_ptr->dyn_base_addr0,
+				tmp_ptr->dyn_base_addr1,
+				tmp_ptr->dyn_base_addr3);
 
 		mutex_lock(&dev->cnn_lock);
 		rc = x2_cnn_fc_fifo_enqueue(dev, &data.fc_data);
 		if (rc < 0) {
 			mutex_unlock(&dev->cnn_lock);
-			pr_err("%s: failed to fill function call fifo\n", __func__);
+			pr_err("%s: failed to fill fc fifo\n", __func__);
 			return rc;
 		}
 		mutex_unlock(&dev->cnn_lock);
 		break;
 	case CNN_IOC_RST:
 		mutex_lock(&dev->cnn_lock);
-		rc = x2_cnn_hw_reset_reinit(dev,data.rst_data.cnn_rst_id);
+		rc = x2_cnn_hw_reset_reinit(dev, data.rst_data.cnn_rst_id);
 		if (rc < 0) {
 			mutex_unlock(&dev->cnn_lock);
-			pr_err("%s: failed to reset cnn%d\n", __func__, data.rst_data.cnn_rst_id);
+			pr_err("%s: failed to reset cnn%d\n",
+				__func__, data.rst_data.cnn_rst_id);
 			return rc;
 		}
 		mutex_unlock(&dev->cnn_lock);
@@ -625,10 +670,7 @@ static long x2_cnn_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	case CNN_IOC_GET_INT_NUM:
 		mutex_lock(&dev->cnn_lock);
 		data.int_num_data.cnn_int_num = x2_cnn_get_int_num(dev);
-#if 0
-		pr_info("%s:%d cnn_int_num from:%d --> cnn_int_num:%d\n",
-			__func__, __LINE__, data.int_num_data.cnn_int_num, x2_cnn_int_num);
-#endif
+		x2_cnn_int_num = 0;
 		mutex_unlock(&dev->cnn_lock);
 		break;
 	default:
@@ -649,6 +691,7 @@ static long x2_cnn_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 static u32 x2_cnn_poll(struct file *filp, poll_table *wait)
 {
 	struct x2_cnn_dev *dev = filp->private_data;
+
 	poll_wait(filp, &dev->cnn_int_wait, wait);
 
 	return POLLIN | POLLRDNORM;
@@ -669,8 +712,8 @@ static int x2_cnn_init_chrdev(struct x2_cnn_dev *dev)
 	int rc;
 
 	// Allocate a major and minor number region for the character device
-	rc = alloc_chrdev_region(&dev->dev_num, dev->minor_num, dev->num_devices,
-		dev->chrdev_name);
+	rc = alloc_chrdev_region(&dev->dev_num, dev->minor_num,
+			dev->num_devices, dev->chrdev_name);
 	if (rc < 0) {
 		pr_err("Unable to allocate character device region.\n");
 		goto ret;
@@ -685,7 +728,8 @@ static int x2_cnn_init_chrdev(struct x2_cnn_dev *dev)
 	}
 
 	/* Create a device for our module. This will create a file on the
-	 * filesystem, under "/dev/dev->chrdev_name". */
+	 * filesystem, under "/dev/dev->chrdev_name".
+	 */
 	device_create(dev->dev_class, dev->dev, dev->dev_num, NULL,
 		dev->chrdev_name);
 
@@ -758,6 +802,7 @@ static void *cnn_ram_vmap(phys_addr_t start, size_t size,
 
 	for (i = 0; i < page_count; i++) {
 		phys_addr_t addr = page_start + i * PAGE_SIZE;
+
 		pages[i] = pfn_to_page(addr >> PAGE_SHIFT);
 	}
 	vaddr = vm_map_ram(pages, page_count, -1, prot);
@@ -898,7 +943,8 @@ int x2_cnn_probe(struct platform_device *pdev)
 	cnn_dev->cnn_base = devm_ioremap_resource(&pdev->dev, res);
 	if (IS_ERR(cnn_dev->cnn_base)) {
 		rc = PTR_ERR(cnn_dev->cnn_base);
-		pr_err("%s:%d err_out get cnn_base failed\n", __func__, __LINE__);
+		pr_err("%s:%d err_out get cnn_base failed\n",
+				__func__, __LINE__);
 		goto err_out;
 	}
 
@@ -908,6 +954,7 @@ int x2_cnn_probe(struct platform_device *pdev)
 		goto err_out;
 	}
 
+#if 1
 	if (cnn_id == 0) {
 		rc = x2_cnn_get_resets(cnn_dev, cnn_id);
 		if (rc < 0) {
@@ -921,8 +968,10 @@ int x2_cnn_probe(struct platform_device *pdev)
 			goto err_out;
 		}
 	}
+#endif
 
-	rc = request_irq(cnn_dev->irq, x2_cnn_interrupt_handler, 0, X2_CNN_DRV_NAME, cnn_dev);
+	rc = request_irq(cnn_dev->irq, x2_cnn_interrupt_handler, 0,
+			X2_CNN_DRV_NAME, cnn_dev);
 	if (rc) {
 		dev_err(cnn_dev->dev, "request_irq '%d' failed with %d\n",
 			cnn_dev->irq, rc);
@@ -934,15 +983,30 @@ int x2_cnn_probe(struct platform_device *pdev)
 	if (cnn_id == 0) {
 		cnn_dev->fc_phys_base = CNN0_FC_PHYS_BASE;
 		cnn_dev->fc_mem_size  = CNN0_FC_SPACE_SIZE;
-		cnn_dev->fc_base = cnn_ram_vmap(CNN0_FC_PHYS_BASE, CNN0_FC_SPACE_SIZE, CNN_MT_UC);
+		cnn_dev->fc_base = cnn_ram_vmap(CNN0_FC_PHYS_BASE,
+					CNN0_FC_SPACE_SIZE, CNN_MT_UC);
 		cnn0_fc_base = cnn_dev->fc_base;
+		x2_cnn_reg_write(cnn_dev, X2_CNN_FC_LEN, 0x3ff);
+
+		x2_cnn_reg_write(cnn_dev, X2_CNN_FC_BASE,
+				cnn_dev->fc_phys_base);
+
+
+
 	} else if (cnn_id == 1) {
 		cnn_dev->fc_phys_base = CNN1_FC_PHYS_BASE;
 		cnn_dev->fc_mem_size  = CNN1_FC_SPACE_SIZE;
-		cnn_dev->fc_base = cnn_ram_vmap(CNN1_FC_PHYS_BASE, CNN0_FC_SPACE_SIZE, CNN_MT_UC);
+		cnn_dev->fc_base = cnn_ram_vmap(CNN1_FC_PHYS_BASE,
+						CNN1_FC_SPACE_SIZE,
+						CNN_MT_UC);
+		x2_cnn_reg_write(cnn_dev, X2_CNN_FC_LEN, 0x3ff);
+		x2_cnn_reg_write(cnn_dev, X2_CNN_FC_BASE,
+				cnn_dev->fc_phys_base);
+
 		cnn1_fc_base = cnn_dev->fc_base;
+
 	} else {
-		pr_err("%s:%d Invalid cnn id, set fc base failed\n", __func__, __LINE__);
+		pr_err("Invalid cnn id, set fc base failed\n");
 		rc = -1;
 		goto err_out;
 	}
@@ -954,12 +1018,14 @@ int x2_cnn_probe(struct platform_device *pdev)
 
 	/* Create the chardev for cnn0 and cnn1 */
 	cnn_dev->chrdev_name = dev_name;
-	snprintf(cnn_dev->chrdev_name, sizeof(dev_name), "%s%d", g_chrdev_name, cnn_id);
+	snprintf(cnn_dev->chrdev_name, sizeof(dev_name),
+			"%s%d", g_chrdev_name, cnn_id);
 	cnn_dev->minor_num = MINOR_NUMBER;
 	cnn_dev->num_devices = NUM_DEVICES;
 	rc = x2_cnn_init_chrdev(cnn_dev);
 	if (rc < 0) {
-		dev_err(&pdev->dev, "Failed create char dev for cnn%d\n", cnn_id);
+		dev_err(&pdev->dev,
+			"Failed create char dev for cnn%d\n", cnn_id);
 		goto err_out;
 	}
 
@@ -968,18 +1034,18 @@ int x2_cnn_probe(struct platform_device *pdev)
 			(unsigned long)cnn_dev);
 	if (cnn_id == 0) {
 		rc = cnn_debugfs_init(cnn_dev, cnn_id, cnn0_debugfs_root);
-		if (rc) {
+		if (rc)
 			pr_err("init cnn%d debugfs failed\n", cnn_id);
-		}
 	} else if (cnn_id == 1) {
 		rc = cnn_debugfs_init(cnn_dev, cnn_id, cnn1_debugfs_root);
-		if (rc) {
+		if (rc)
 			pr_err("init cnn%d debugfs failed\n", cnn_id);
-		}
 	}
 
 	platform_set_drvdata(pdev, cnn_dev);
-	pr_info("x2 cnn%d probe OK! \n", cnn_id);
+
+	x2_cnn_reg_write(cnn_dev, X2_CNNINT_MASK, 0x0);
+	pr_info("x2 cnn%d probe OK!\n", cnn_id);
 	return rc;
 
 err_out:
@@ -1018,7 +1084,6 @@ static struct platform_driver x2_cnn_platform_driver = {
 		.of_match_table = x2_cnn_of_match,
 	},
 };
-
 static int __init x2_cnn_init(void)
 {
 	int retval = 0;
@@ -1027,7 +1092,6 @@ static int __init x2_cnn_init(void)
 	retval = platform_driver_register(&x2_cnn_platform_driver);
 	if (retval)
 		pr_err("x2 cnn driver register failed\n");
-
 	return retval;
 
 }
