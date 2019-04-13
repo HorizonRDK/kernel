@@ -459,8 +459,6 @@ static struct ion_handle *ion_handle_get_by_id(struct ion_client *client,
 
 	mutex_lock(&client->lock);
 	handle = idr_find(&client->idr, id);
-	if (handle)
-		ion_handle_get(handle);
 	mutex_unlock(&client->lock);
 
 	return handle ? handle : ERR_PTR(-EINVAL);
@@ -1335,7 +1333,6 @@ long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		if (IS_ERR(handle))
 			return PTR_ERR(handle);
 		ion_free(client, handle);
-		ion_handle_put(handle);
 		break;
 	}
 	case ION_IOC_SHARE:
@@ -1347,7 +1344,6 @@ long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		if (IS_ERR(handle))
 			return PTR_ERR(handle);
 		data.fd.fd = ion_share_dma_buf_fd(client, handle);
-		ion_handle_put(handle);
 		if (data.fd.fd < 0)
 			ret = data.fd.fd;
 		break;
