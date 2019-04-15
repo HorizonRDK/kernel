@@ -15,6 +15,7 @@
 #include <linux/of.h>
 #include <linux/platform_device.h>
 #include <linux/watchdog.h>
+#include <linux/delay.h>
 #include <x2/x2_timer.h>
 
 #define X2_WDT_NAME				"x2_wdt"
@@ -43,6 +44,7 @@ MODULE_PARM_DESC(nowayout,
 struct x2_wdt {
 	void __iomem *regs_base;
 	int irq;
+	struct clk *clock;
 	spinlock_t io_lock;
 	struct watchdog_device x2_wdd;
 };
@@ -72,9 +74,8 @@ static int x2_wdt_stop(struct watchdog_device *wdd)
 	x2_wdt_wr(x2wdt, X2_TIMER_TMRSTOP_REG, val);
 
 	/* disable wdt interrupt */
-	if (x2wdt->irq) {
+	if (x2wdt->irq)
 		x2_wdt_wr(x2wdt, X2_TIMER_TMR_SETMASK_REG, X2_TIMER_WDT_INTMASK);
-	}
 
 	spin_unlock(&x2wdt->io_lock);
 
@@ -96,11 +97,12 @@ static int x2_wdt_start(struct watchdog_device *wdd)
 {
 	u32 count, val;
 	struct x2_wdt *x2wdt = watchdog_get_drvdata(wdd);
+	unsigned long freq = clk_get_rate(x2wdt->clock);
 
 	spin_lock(&x2wdt->io_lock);
 
 	/* Fill the count reg */
-	count = wdd->timeout * X2_TIMER_REF_CLOCK;
+	count = wdd->timeout * freq;
 	x2_wdt_wr(x2wdt, X2_TIMER_WDTGT_REG, count);
 	x2_wdt_wr(x2wdt, X2_TIMER_WDWAIT_REG, count);
 
@@ -156,12 +158,48 @@ static const struct watchdog_info x2_wdt_info = {
 	.options  = WDIOF_SETTIMEOUT | WDIOF_KEEPALIVEPING | WDIOF_MAGICCLOSE,
 };
 
+static int x2_wdt_restart(struct watchdog_device *wdd, unsigned long action,
+						  void *data)
+{
+	u32 count, val;
+	struct x2_wdt *x2wdt = watchdog_get_drvdata(wdd);
+	unsigned long freq = clk_get_rate(x2wdt->clock);
+
+	spin_lock(&x2wdt->io_lock);
+
+	/* Fill the count reg: 100ms */
+	count = freq / 10;
+	x2_wdt_wr(x2wdt, X2_TIMER_WDTGT_REG, count);
+	x2_wdt_wr(x2wdt, X2_TIMER_WDWAIT_REG, count);
+
+	/* disable wdt interrupt */
+	if (x2wdt->irq)
+		x2_wdt_wr(x2wdt, X2_TIMER_TMR_SETMASK_REG,
+				  X2_TIMER_WDT_INTMASK);
+
+	/* Start wdt timer */
+	val = x2_wdt_rd(x2wdt, X2_TIMER_TMREN_REG);
+	val |= X2_TIMER_T2START;
+	x2_wdt_wr(x2wdt, X2_TIMER_TMRSTART_REG, val);
+
+	/* reset previos value */
+	x2_wdt_wr(x2wdt, X2_TIMER_WDCLR_REG, X2_TIMER_WDT_RESET);
+
+	spin_unlock(&x2wdt->io_lock);
+
+	/* wait for reset to assert... */
+	mdelay(500);
+
+	return NOTIFY_DONE;
+}
+
 static const struct watchdog_ops x2_wdt_ops = {
 	.owner = THIS_MODULE,
 	.start = x2_wdt_start,
 	.stop  = x2_wdt_stop,
 	.ping  = x2_wdt_reload,
 	.set_timeout = x2_wdt_settimeout,
+	.restart = x2_wdt_restart,
 };
 
 /**
@@ -195,8 +233,8 @@ static int x2_wdt_probe(struct platform_device *pdev)
 	if (IS_ERR(x2wdt->regs_base)) {
 
 		pr_info("enter %s_%d!\n", __func__, __LINE__);
-		return PTR_ERR(x2wdt->regs_base);
-
+		ret = PTR_ERR(x2wdt->regs_base);
+		goto err;
 	}
 
 	x2_wdt_init_hw(x2wdt);
@@ -208,8 +246,21 @@ static int x2_wdt_probe(struct platform_device *pdev)
 								pdev->name, x2wdt);
 		if (ret) {
 			dev_err(&pdev->dev, "can't register interrupt handler err=%d\n", ret);
-			return ret;
+			goto err;
 		}
+	}
+
+	x2wdt->clock = devm_clk_get(&pdev->dev, "watchdog_mclk");
+	if (IS_ERR(x2wdt->clock)) {
+		dev_err(&pdev->dev, "failed to find watchdog clock source\n");
+		ret = PTR_ERR(x2wdt->clock);
+		goto err;
+	}
+
+	ret = clk_prepare_enable(x2wdt->clock);
+	if (ret < 0) {
+		dev_err(&pdev->dev, "failed to enable clock\n");
+		goto err;
 	}
 
 	/* Initialize the members of x2_wdt structure */
@@ -218,10 +269,11 @@ static int x2_wdt_probe(struct platform_device *pdev)
 	ret = watchdog_init_timeout(x2_wdd, wdt_timeout, &pdev->dev);
 	if (ret) {
 		dev_err(&pdev->dev, "unable to set timeout value.\n");
-		return ret;
+		goto err_clk;
 	}
 
 	watchdog_set_nowayout(x2_wdd, nowayout);
+	watchdog_set_restart_priority(x2_wdd, 192);
 	watchdog_stop_on_reboot(x2_wdd);
 	watchdog_set_drvdata(x2_wdd, x2wdt);
 
@@ -230,7 +282,7 @@ static int x2_wdt_probe(struct platform_device *pdev)
 	ret = watchdog_register_device(x2_wdd);
 	if (ret) {
 		dev_err(&pdev->dev, "Failed to register wdt device.\n");
-		return ret;
+		goto err_clk;
 	}
 	platform_set_drvdata(pdev, x2wdt);
 
@@ -238,6 +290,12 @@ static int x2_wdt_probe(struct platform_device *pdev)
 			x2wdt->regs_base, x2_wdd->timeout, nowayout?",nowayout":"");
 
 	return 0;
+
+ err_clk:
+	clk_disable_unprepare(x2wdt->clock);
+
+ err:
+	return ret;
 }
 
 /**
@@ -254,6 +312,7 @@ static int x2_wdt_remove(struct platform_device *pdev)
 
 	x2_wdt_stop(&x2wdt->x2_wdd);
 	watchdog_unregister_device(&x2wdt->x2_wdd);
+	clk_disable_unprepare(x2wdt->clock);
 
 	return 0;
 }
