@@ -654,6 +654,7 @@ static long x2_cnn_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			return rc;
 		}
 		mutex_unlock(&dev->cnn_lock);
+		kfree(kernel_fc_data);
 		break;
 	case CNN_IOC_RST:
 		mutex_lock(&dev->cnn_lock);
