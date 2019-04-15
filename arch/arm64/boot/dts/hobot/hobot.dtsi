@@ -562,12 +562,19 @@
 			interrupts = <0 52 4>;
 			status = "disabled";
 		};
+
+		power: power_management@0xA6000000 {
+			compatible = "hobot,x2-power";
+			reg = <0x0 0xA6000000 0x0 0x1000>;
+			reboot-offset = <0x20>;
+		};
+
 		pmu {
 			compatible = "arm,cortex-a53-pmu", "arm,armv8-pmuv3";
 			interrupt-parent = <&gic>;
 			interrupts = <0 4 4>, <0 5 4>;
 			interrupt-affinity = <&cpu0>,<&cpu1>;
-			};
 		};
+	};
 };
 

@@ -20,7 +20,7 @@
 #include <linux/reboot.h>
 #include <asm/proc-fns.h>
 
-#define X2_REBOOT_OPT    0x00000011
+#define X2_REBOOT_OPT    0x00001001
 static void __iomem *base;
 static u32 reboot_offset;
 
@@ -29,9 +29,6 @@ static int x2_restart_handler(struct notifier_block *this,
 				unsigned long mode, void *cmd)
 {
 	writel_relaxed(X2_REBOOT_OPT, base + reboot_offset);
-
-	while (1)
-		cpu_do_idle();
 
 	return NOTIFY_DONE;
 }
@@ -69,7 +66,7 @@ static int x2_reboot_probe(struct platform_device *pdev)
 }
 
 static const struct of_device_id x2_reboot_of_match[] = {
-	{ .compatible = "hobot,sysctrl" },
+	{ .compatible = "hobot,x2-power" },
 	{}
 };
 
