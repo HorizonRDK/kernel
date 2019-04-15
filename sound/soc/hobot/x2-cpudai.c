@@ -37,49 +37,38 @@ static int current_samplerate;
 static void i2s_transfer_ctl(struct x2_i2s *i2s, bool on)
 {
 	unsigned long val;
+	void __iomem *addr;
 
-	if (i2s->streamflag == 0) {	/* capture */
-		val = readl(i2s->regaddr_rx + I2S_CTL);
-		if (on)
-			val |= CTL_ENABLE;
-		else
-			val &= ~CTL_ENABLE;
+	if (i2s->streamflag == 0) /* capture */
+		addr = i2s->regaddr_rx + I2S_CTL;
+	else
+		addr = i2s->regaddr_tx + I2S_CTL;
+	val = readl(addr);
+	if (on)
+		val |= CTL_ENABLE;
+	else
+		val &= ~CTL_ENABLE;
 
-		writel(val, i2s->regaddr_rx + I2S_CTL);
-	} else {
-		val = readl(i2s->regaddr_tx + I2S_CTL);
-		if (on)
-			val |= CTL_ENABLE;
-		else
-			val &= ~CTL_ENABLE;
-
-		writel(val, i2s->regaddr_tx + I2S_CTL);
-	}
+	writel(val, addr);
 
 }
 
 static void i2s_set_master(struct x2_i2s *i2s, bool on)
 {
 	unsigned long val;
+	void __iomem *addr;
 
-	if (i2s->id == 0) {
-		val = readl(i2s->sysctl_addr + I2S0_CLKCTL_BASE);
-		if (on)
-			val &= ~(0x1 << CLK_MODE);
-		else
-			val |= (0x1 << CLK_MODE);
+	if (i2s->id == 0)
+		addr = i2s->sysctl_addr + I2S0_CLKCTL_BASE;
+	else
+		addr = i2s->sysctl_addr + I2S1_CLKCTL_BASE;
+	val = readl(addr);
+	if (on)
+		val &= ~(0x1 << CLK_MODE);
+	else
+		val |= (0x1 << CLK_MODE);
 
-		writel(val, i2s->sysctl_addr + I2S0_CLKCTL_BASE);
-	} else {
-		val = readl(i2s->sysctl_addr + I2S1_CLKCTL_BASE);
-		if (on)
-			val &= ~(0x1 << CLK_MODE);
-		else
-			val |= (0x1 << CLK_MODE);
-
-		writel(val, i2s->sysctl_addr + I2S1_CLKCTL_BASE);
-	}
-
+	writel(val, addr);
 }
 
 static int i2s_set_sysclk(struct snd_soc_dai *dai,
@@ -103,11 +92,11 @@ static int i2s_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 
 	spin_lock_irqsave(&i2s->lock, flags);
 
-	if (i2s->streamflag == 0) {	/* capture */
+	if (i2s->streamflag == 0) 	/* capture */
 		val = readl(i2s->regaddr_rx + I2S_MODE);
-	} else {		/* play */
+	else 		/* play */
 		val = readl(i2s->regaddr_tx + I2S_MODE);
-	}
+
 
 	switch (fmt & SND_SOC_DAIFMT_FORMAT_MASK) {
 	case SND_SOC_DAIFMT_I2S:	/* i2s mode */
@@ -154,6 +143,7 @@ static void x2_i2s_sample_rate_set(struct snd_pcm_substream *substream,
 {
 
 	int ws_l, ws_h;
+	void __iomem *addr;
 
 	u32 val = 0;
 	u32 reg_val = 0;
@@ -163,119 +153,78 @@ static void x2_i2s_sample_rate_set(struct snd_pcm_substream *substream,
 	/* first get div_ws_l and div_ws_h, the value is equal */
 	/* bclk = Fws*(chan*word_len) = Fws*(div_ws_l+1 + div_ws_h+1) */
 	/* below fix mclk=4096khz, 4.096M = 1536/25/15 */
+
+	if (i2s->id == 0)
+		addr = i2s->sysctl_addr + I2S0_CLKCTL_BASE;
+	else
+		addr = i2s->sysctl_addr + I2S1_CLKCTL_BASE;
+
 	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
-		if (i2s->id == 0) {
-			val = readl(i2s->sysctl_addr + I2S0_CLKCTL_BASE);
-			val |= (24 << 0);
-			val |= (14 << 8);
+		val = readl(addr);
+		val |= (24 << 0);
+		val |= (14 << 8);
 
-			bclk =
-			    current_samplerate * current_channel_num *
-			    current_wordlength;
+		bclk =
+		    current_samplerate * current_channel_num *
+		    current_wordlength;
 
-			/* below code only is for debug, not cover all bclk */
-			div = 4096000 / bclk - 1;
-			val |= (div << 16);
+		/* below code only is for debug, not cover all bclk */
+		div = 4096000 / bclk - 1;
+		val |= (div << 16);
 
-			writel(val, i2s->sysctl_addr + I2S0_CLKCTL_BASE);
-		} else {
-			val = readl(i2s->sysctl_addr + I2S1_CLKCTL_BASE);
-			val |= (24 << 0);
-			val |= (14 << 8);
-
-			bclk =
-			    current_samplerate * current_channel_num *
-			    current_wordlength;
-
-			/* below code only is for debug, not cover all bclk */
-			div = 4096000 / bclk - 1;
-			val |= (div << 16);
-
-			writel(val, i2s->sysctl_addr + I2S1_CLKCTL_BASE);
-		}
+		writel(val, addr);
 
 
 		if (i2s->i2sdsp == 0) {	/* i2s mode */
 			ws_l = current_channel_num * current_wordlength / 2 - 1;
 			ws_h = ws_l;
-			reg_val = readl(i2s->regaddr_rx + I2S_DIV_WS);
-			writel(UPDATE_VALUE_FIELD
-			       (reg_val, ws_l, I2S_DIV_WS_DIV_WS_L_BIT,
-				I2S_DIV_WS_DIV_WS_L_FIELD),
-			       i2s->regaddr_rx + I2S_DIV_WS);
-			writel(UPDATE_VALUE_FIELD
-			       (reg_val, ws_h, I2S_DIV_WS_DIV_WS_H_BIT,
-				I2S_DIV_WS_DIV_WS_H_FIELD),
-			       i2s->regaddr_rx + I2S_DIV_WS);
-			/* setting bclk register */
 		} else {
 			ws_h = 0;
 			ws_l = current_channel_num * current_wordlength - 2;
-			reg_val = readl(i2s->regaddr_rx + I2S_DIV_WS);
-			writel(UPDATE_VALUE_FIELD
-			       (reg_val, ws_l, I2S_DIV_WS_DIV_WS_L_BIT,
-				I2S_DIV_WS_DIV_WS_L_FIELD),
-			       i2s->regaddr_rx + I2S_DIV_WS);
-			writel(UPDATE_VALUE_FIELD
-			       (reg_val, ws_h, I2S_DIV_WS_DIV_WS_H_BIT,
-				I2S_DIV_WS_DIV_WS_H_FIELD),
-			       i2s->regaddr_rx + I2S_DIV_WS);
-			/* setting bclk register */
 		}
+		reg_val = readl(i2s->regaddr_rx + I2S_DIV_WS);
+		writel(UPDATE_VALUE_FIELD
+		       (reg_val, ws_l, I2S_DIV_WS_DIV_WS_L_BIT,
+			I2S_DIV_WS_DIV_WS_L_FIELD),
+		       i2s->regaddr_rx + I2S_DIV_WS);
+		writel(UPDATE_VALUE_FIELD
+		       (reg_val, ws_h, I2S_DIV_WS_DIV_WS_H_BIT,
+			I2S_DIV_WS_DIV_WS_H_FIELD),
+		       i2s->regaddr_rx + I2S_DIV_WS);
+		/* setting bclk register */
+
 
 	} else {/* play */
-		if (i2s->id == 0) {
-			val = readl(i2s->sysctl_addr + I2S0_CLKCTL_BASE);
-			val |= (24 << 0);
-			val |= (14 << 8);
+		val = readl(addr);
+		val |= (24 << 0);
+		val |= (14 << 8);
 
-			bclk =
-			    current_samplerate * current_channel_num *
-			    current_wordlength;
-			div = 4096000 / bclk - 1;
-			val |= (div << 16);
+		bclk =
+		    current_samplerate * current_channel_num *
+		    current_wordlength;
+		div = 4096000 / bclk - 1;
+		val |= (div << 16);
 
-			writel(val, i2s->sysctl_addr + I2S0_CLKCTL_BASE);
-		} else {
-			val = readl(i2s->sysctl_addr + I2S1_CLKCTL_BASE);
-			val |= (24 << 0);
-			val |= (14 << 8);
-
-			bclk =
-			    current_samplerate * current_channel_num *
-			    current_wordlength;
-			div = 4096000 / bclk - 1;
-			val |= (div << 16);
-
-			writel(val, i2s->sysctl_addr + I2S1_CLKCTL_BASE);
-		}
+		writel(val, addr);
 
 
 		if (i2s->i2sdsp == 0) {	/* i2s mode */
 			ws_l = current_channel_num * current_wordlength / 2 - 1;
 			ws_h = ws_l;
-			reg_val = readl(i2s->regaddr_tx + I2S_DIV_WS);
-			writel(UPDATE_VALUE_FIELD
-			       (reg_val, ws_l, I2S_DIV_WS_DIV_WS_L_BIT,
-				I2S_DIV_WS_DIV_WS_L_FIELD),
-			       i2s->regaddr_tx + I2S_DIV_WS);
-			writel(UPDATE_VALUE_FIELD
-			       (reg_val, ws_h, I2S_DIV_WS_DIV_WS_H_BIT,
-				I2S_DIV_WS_DIV_WS_H_FIELD),
-			       i2s->regaddr_tx + I2S_DIV_WS);
 		} else {
 			ws_h = 0;
 			ws_l = current_channel_num * current_wordlength - 2;
-			reg_val = readl(i2s->regaddr_tx + I2S_DIV_WS);
-			writel(UPDATE_VALUE_FIELD
-			       (reg_val, ws_l, I2S_DIV_WS_DIV_WS_L_BIT,
-				I2S_DIV_WS_DIV_WS_L_FIELD),
-			       i2s->regaddr_tx + I2S_DIV_WS);
-			writel(UPDATE_VALUE_FIELD
-			       (reg_val, ws_h, I2S_DIV_WS_DIV_WS_H_BIT,
-				I2S_DIV_WS_DIV_WS_H_FIELD),
-			       i2s->regaddr_tx + I2S_DIV_WS);
 		}
+		reg_val = readl(i2s->regaddr_tx + I2S_DIV_WS);
+		writel(UPDATE_VALUE_FIELD
+		       (reg_val, ws_l, I2S_DIV_WS_DIV_WS_L_BIT,
+			I2S_DIV_WS_DIV_WS_L_FIELD),
+		       i2s->regaddr_tx + I2S_DIV_WS);
+		writel(UPDATE_VALUE_FIELD
+		       (reg_val, ws_h, I2S_DIV_WS_DIV_WS_H_BIT,
+			I2S_DIV_WS_DIV_WS_H_FIELD),
+		       i2s->regaddr_tx + I2S_DIV_WS);
+
 	}
 
 }
@@ -397,6 +346,7 @@ static int i2s_startup(struct snd_pcm_substream *substream,
 	struct x2_i2s *i2s = snd_soc_dai_get_drvdata(dai);
 	unsigned long flags, val;
 	int spins = 500;
+	int shift;
 
 	spin_lock_irqsave(&i2s->lock, flags);
 
@@ -405,25 +355,17 @@ static int i2s_startup(struct snd_pcm_substream *substream,
 	reset_control_deassert(i2s->rst);
 
 	/* reset i2s module by write sysctrl register */
-	if (i2s->id == 0) {
-		val = readl(i2s->sysctl_addr + I2S_SYS_RST);
-		val |= 0x1 << (SYSCTL_I2S0RST_SHIFT);
-		writel(val, i2s->sysctl_addr + I2S_SYS_RST);
-		while (--spins)
-			cpu_relax();
+	shift = i2s->id == 0 ? SYSCTL_I2S0RST_SHIFT :
+		SYSCTL_I2S1RST_SHIFT;
 
-		val &= ~(0x1 << (SYSCTL_I2S0RST_SHIFT));
-		writel(val, i2s->sysctl_addr + I2S_SYS_RST);
-	} else {
-		val = readl(i2s->sysctl_addr + I2S_SYS_RST);
-		val |= 0x1 << (SYSCTL_I2S1RST_SHIFT);
-		writel(val, i2s->sysctl_addr + I2S_SYS_RST);
-		while (--spins)
-			cpu_relax();
+	val = readl(i2s->sysctl_addr + I2S_SYS_RST);
+	val |= 0x1 << (shift);
+	writel(val, i2s->sysctl_addr + I2S_SYS_RST);
+	while (--spins)
+		cpu_relax();
 
-		val &= ~(0x1 << (SYSCTL_I2S1RST_SHIFT));
-		writel(val, i2s->sysctl_addr + I2S_SYS_RST);
-	}
+	val &= ~(0x1 << (shift));
+	writel(val, i2s->sysctl_addr + I2S_SYS_RST);
 
 
 	/* reset done, disable reset module */
