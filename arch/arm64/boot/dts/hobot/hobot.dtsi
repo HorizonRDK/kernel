@@ -129,6 +129,13 @@
 		reboot-offset = <0x530>;
 	};
 
+	pmu {
+		compatible = "arm,cortex-a53-pmu", "arm,armv8-pmuv3";
+		interrupt-parent = <&gic>;
+		interrupts = <0 4 4>, <0 5 4>;
+		interrupt-affinity = <&cpu0>,<&cpu1>;
+	};
+
 	soc {
 		compatible = "simple-bus";
 		#address-cells = <2>;
@@ -569,12 +576,6 @@
 			reboot-offset = <0x20>;
 		};
 
-		pmu {
-			compatible = "arm,cortex-a53-pmu", "arm,armv8-pmuv3";
-			interrupt-parent = <&gic>;
-			interrupts = <0 4 4>, <0 5 4>;
-			interrupt-affinity = <&cpu0>,<&cpu1>;
-		};
 	};
 };
 

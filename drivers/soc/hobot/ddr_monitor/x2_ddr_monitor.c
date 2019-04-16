@@ -48,7 +48,7 @@ struct ddr_portdata_s {
 
 struct ddr_monitor_result_s {
 	unsigned long long curtime;
-	struct ddr_portdata_s portdata[5];
+	struct ddr_portdata_s portdata[6];
 	unsigned int rd_cmd_num;
 	unsigned int wr_cmd_num;
 	unsigned int mwr_cmd_num;
@@ -70,7 +70,7 @@ struct ddr_monitor_result_s* ddr_info = NULL;
 char * result_buf = NULL;
 unsigned int g_current_index = 0;
 volatile unsigned int g_record_num = 0;
-unsigned int g_monitor_poriod = 10000;
+unsigned int g_monitor_poriod = 30000;
 
 module_param(g_current_index, uint, 0644);
 //module_param(g_record_num, uint, 0644);
@@ -231,6 +231,7 @@ typedef struct _reg_s {
 
 #define DDR_MONITOR_READ	_IOWR('m', 0, reg_t)
 #define DDR_MONITOR_WRITE	_IOW('m', 1, reg_t)
+#define DDR_MONITOR_CUR	_IOWR('m', 2, struct ddr_monitor_result_s)
 
 static int ddr_monitor_mod_open(struct inode *pinode, struct file *pfile)
 {
@@ -299,6 +300,20 @@ static long ddr_monitor_mod_ioctl(struct file *pfile, unsigned int cmd, unsigned
 		}
 		//printk("addr:0x%x, value:0x%x",iomem + reg.offset, reg.value);
 		writel(reg.value, iomem + reg.offset );
+		break;
+	case DDR_MONITOR_CUR:
+		{
+			int cur = 0;
+			if (!arg) {
+				printk(KERN_ERR "x2 ddr_monitor get cur error\n");
+				return -EINVAL;
+			}
+			cur  = (g_current_index - 1 + TOTAL_RECORD_NUM) % TOTAL_RECORD_NUM;
+			if ( copy_to_user((void __user *)arg, (void *)(ddr_info + cur), sizeof(struct ddr_monitor_result_s)) ) {
+				printk(KERN_ERR "x2 ddr_monitor get cur error, copy data to user failed\n");
+				return -EINVAL;
+			}
+		}
 		break;
 	default:
 
