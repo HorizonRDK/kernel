@@ -7,8 +7,8 @@
 /* 64M per slot
  * 1080p 28M for crop, scale, pym_ds, 36M for pym_us
  */
-#define IPU_MAX_SLOT_DUAL			4
-#define IPU_SLOT_DAUL_SIZE			0x8000000
+#define IPU_MAX_SLOT_DUAL			2 //4
+#define IPU_SLOT_DAUL_SIZE			0x4000000
 #define IPU_GET_DUAL_SLOT(id, base)		((base) + (id) * IPU_SLOT_DAUL_SIZE)
 #define IPU_GET_FST_PYM_OF_SLOT(id, base)	   ((base) + (id) * IPU_SLOT_DAUL_SIZE)
 #define IPU_GET_SEC_PYM_OF_SLOT(id, base)	   ((base) + (id) * IPU_SLOT_DAUL_SIZE + IPU_SLOT_DAUL_SIZE/2)
@@ -48,6 +48,8 @@ typedef struct {
 	uint8_t cnn_flag;           /// start, done
 	uint16_t cf_id;
 	uint16_t sf_id;
+	uint64_t cf_timestamp;
+	uint64_t sf_timestamp;
 	uint64_t base;
 	union {
 		slot_ddr_info_dual_t dual_ddr_info;

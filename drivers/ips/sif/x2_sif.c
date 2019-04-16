@@ -156,8 +156,10 @@ static int sif_init(sif_t *dev, sif_cfg_t *cfg)
 		ips_pinmux_dvp();
 	} else if (BUS_TYPE_BT1120 == cfg->sif_init.bus_type) {
 		ips_pinmux_bt();
+		ips_set_btin_clksrc(cfg->sif_init.pclk_in_inv);
 		if (cfg->sif_init.bypass_en)
-			ips_set_btout_clksrc(BYPASS_CLK, cfg->sif_init.pclk_in_inv, cfg->sif_init.pclk_out_inv);
+			ips_set_btout_clksrc(BYPASS_CLK,
+			cfg->sif_init.pclk_out_inv);
 	} else {
 		if (cfg->sif_init.bypass_en) {
 			ips_mipi_ctl_set(MIPI_BYPASS_GEN_HSYNC_EN, true);

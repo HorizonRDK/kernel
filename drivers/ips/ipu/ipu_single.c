@@ -103,6 +103,21 @@ static uint32_t decode_frame_id(uint16_t *addr)
 	}
 	return d;
 }
+/* for HISI bt timestamp */
+static int decode_timestamp(void *addr, uint64_t *timestamp)
+{
+	char *addrp = (char *)addr;
+	char *datap = (char *)timestamp;
+	int i = 0;
+
+	for (i = 15; i >= 0; i--) {
+		if (i % 2)
+			datap[(15 - i) / 2] |= (addrp[i] & 0x0f);
+		else
+			datap[(15 - i) / 2] |= ((addrp[i] & 0x0f) << 4);
+	}
+	return 0;
+}
 
 static int8_t ipu_get_frameid(struct x2_ipu_data *ipu, ipu_slot_h_t *slot)
 {
@@ -117,9 +132,14 @@ static int8_t ipu_get_frameid(struct x2_ipu_data *ipu, ipu_slot_h_t *slot)
 		/* get id from crop ddr address */
 		tmp = (uint8_t *)(slot->info_h.ddr_info.crop.y_offset + vaddr);
 		if (cfg->frame_id.bus_mode == 0) {
+			/* TBD */
+			slot->info_h.cf_timestamp = 0;
 			slot->info_h.cf_id = tmp[0] << 8 | tmp[1];
 			ipu_dbg("cframe_id=%d, %d, %d\n", tmp[0], tmp[1], slot->info_h.cf_id);
 		} else {
+			/* TBD */
+			decode_timestamp(tmp,
+			&(slot->info_h.cf_timestamp));
 			slot->info_h.cf_id = decode_frame_id((uint16_t *)tmp);
 			ipu_dbg("cframe_id=%d\n", slot->info_h.cf_id);
 		}
@@ -129,9 +149,13 @@ static int8_t ipu_get_frameid(struct x2_ipu_data *ipu, ipu_slot_h_t *slot)
 			/* get id from scale ddr address */
 			tmp = (uint8_t *)(slot->info_h.ddr_info.scale.y_offset + vaddr);
 			if (cfg->frame_id.bus_mode == 0) {
+				/* TBD */
+				slot->info_h.sf_timestamp = 0;
 				slot->info_h.sf_id = tmp[0] << 8 | tmp[1];
 				ipu_dbg("sframe_id=%d, %d, %d\n", tmp[0], tmp[1], slot->info_h.sf_id);
 			} else {
+				decode_timestamp(tmp,
+				&(slot->info_h.sf_timestamp));
 				slot->info_h.sf_id = decode_frame_id((uint16_t *)tmp);
 				ipu_dbg("sframe_id=%d\n", slot->info_h.sf_id);
 			}
@@ -139,9 +163,14 @@ static int8_t ipu_get_frameid(struct x2_ipu_data *ipu, ipu_slot_h_t *slot)
 			/* get id from pymid ddr address */
 			tmp = (uint8_t *)(slot->info_h.ddr_info.ds[0].y_offset + vaddr);
 			if (cfg->frame_id.bus_mode == 0) {
+				/* TBD */
+				slot->info_h.sf_timestamp = 0;
 				slot->info_h.sf_id = tmp[0] << 8 | tmp[1];
 				ipu_dbg("pframe_id=%d, %d, %d\n", tmp[0], tmp[1], slot->info_h.sf_id);
 			} else {
+				/* TBD */
+				decode_timestamp(tmp,
+				&(slot->info_h.sf_timestamp));
 				slot->info_h.sf_id = decode_frame_id((uint16_t *)tmp);
 				ipu_dbg("pframe_id=%d\n", slot->info_h.sf_id);
 			}
@@ -568,6 +597,7 @@ static int __init x2_ipu_init(void)
 	init_waitqueue_head(&g_ipu_s_cdev->event_head);
 	spin_lock_init(&g_ipu_s_cdev->slock);
 	g_ipu_s_cdev->name = X2_IPU_NAME;
+	g_ipu_s_cdev->err_status = 0;
 	g_ipu_s_cdev->ipu = g_ipu;
 	g_ipu_s_cdev->class = class_create(THIS_MODULE, X2_IPU_NAME);
 	alloc_chrdev_region(&g_ipu_s_cdev->dev_num, 0, 1, "ipu");

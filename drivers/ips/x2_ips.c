@@ -709,7 +709,24 @@ int ips_pinmux_dvp(void)
 }
 EXPORT_SYMBOL_GPL(ips_pinmux_dvp);
 
-int ips_set_btout_clksrc(unsigned int mode, uint8_t in_invert, uint8_t out_inv)
+int ips_set_btin_clksrc(uint8_t in_invert)
+{
+	int val, ret = 0;
+	unsigned long flags;
+
+	spin_lock_irqsave(g_ipsdev->lock, flags);
+	val = readl(g_ipsdev->clkaddr + VIOSYS_CLK_CTRL);
+	spin_unlock_irqrestore(g_ipsdev->lock, flags);
+	val &= ~BIT(8);
+	val |= (in_invert * BIT(8)); //set input clk invert
+	spin_lock_irqsave(g_ipsdev->lock, flags);
+	writel(val, g_ipsdev->clkaddr + VIOSYS_CLK_CTRL);
+	spin_unlock_irqrestore(g_ipsdev->lock, flags);
+	return ret;
+}
+EXPORT_SYMBOL_GPL(ips_set_btin_clksrc);
+
+int ips_set_btout_clksrc(unsigned int mode, uint8_t invert)
 {
 	int val, ret = 0;
 	unsigned long flags;
@@ -722,10 +739,7 @@ int ips_set_btout_clksrc(unsigned int mode, uint8_t in_invert, uint8_t out_inv)
 		val &= ~BIT(16);
 	else
 		return -1;
-	val &= ~BIT(8);
-	val |= (in_invert * BIT(8)); //set input clk invert
-	val &= ~BIT(12);
-	val |= (out_inv * BIT(12)); //set out clk invert
+	val |= (invert * BIT(12)); //set clk invert
 	spin_lock_irqsave(g_ipsdev->lock, flags);
 	writel(val, g_ipsdev->clkaddr + VIOSYS_CLK_CTRL);
 	spin_unlock_irqrestore(g_ipsdev->lock, flags);
