@@ -21,6 +21,7 @@
 			console-size = <0x8000>;
 			ftrace-size = <0x8000>;
 			record-size = <0x4000>;
+		};
 
 		bifsd_reserved: bifsd_reserved@0x3D089000 {
 			reg = <0x0 0x3D089000 0x0 0x1000>;
