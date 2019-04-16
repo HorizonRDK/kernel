@@ -637,7 +637,7 @@ int bif_rx_thread_init(void)
 	return 0;
 }
 
-int bif_netlink_init(void)
+int t_bif_netlink_init(void)
 {
 	struct netlink_kernel_cfg nkc;
 
@@ -687,8 +687,9 @@ int bif_netlink_init(void)
 	pr_info("%s() init, end\n", __func__);
 	return 0;
 }
+EXPORT_SYMBOL(t_bif_netlink_init);
 
-void bif_netlink_exit(void)
+void t_bif_netlink_exit(void)
 {
 	unsigned char ch = 0;
 
@@ -731,6 +732,7 @@ void bif_netlink_exit(void)
 
 	pr_info("%s() exit, end\n", __func__);
 }
+EXPORT_SYMBOL(t_bif_netlink_exit);
 
 int t_bif_register_address(enum BUFF_ID buffer_id, void *address)
 {
@@ -755,6 +757,7 @@ int t_bif_register_irq(enum BUFF_ID buffer_id, irq_handler_t irq_handler)
 
 	return buffer_id;
 }
+EXPORT_SYMBOL(t_bif_register_irq);
 
 int t_bif_send_irq(int irq)
 {
@@ -815,6 +818,7 @@ int t_bif_send_irq(int irq)
 
 	return 0;
 }
+EXPORT_SYMBOL(t_bif_send_irq);
 
 void *t_bif_query_address(enum BUFF_ID buffer_id)
 {
@@ -1148,18 +1152,22 @@ int t_bif_sd_read(void *addr, unsigned int count, unsigned char *buf)
 {
 	return t_bif_read(addr, count, buf);
 }
+EXPORT_SYMBOL(t_bif_sd_read);
 
 int t_bif_sd_write(void *addr, unsigned int count, unsigned char *buf)
 {
 	return t_bif_write(addr, count, buf);
 }
+EXPORT_SYMBOL(t_bif_sd_write);
 
 int t_bif_spi_read(void *addr, unsigned int count, unsigned char *buf)
 {
 	return t_bif_read(addr, count, buf);
 }
+EXPORT_SYMBOL(t_bif_spi_read);
 
 int t_bif_spi_write(void *addr, unsigned int count, unsigned char *buf)
 {
 	return t_bif_write(addr, count, buf);
 }
+EXPORT_SYMBOL(t_bif_spi_write);

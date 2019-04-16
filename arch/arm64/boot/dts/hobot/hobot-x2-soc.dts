@@ -56,6 +56,12 @@
 		#size-cells = <2>;
 		ranges;
 
+		/*Reserved 1M memory for bifbase*/
+		bifbase_reserved: bifbase_reserved@0x02000000 {
+			reg = <0x0 0x02000000 0x0 0x00100000>;
+			no-map;
+		};
+
 		bifsd_reserved: bifsd_reserved@0x3D089000 {
 			reg = <0x0 0x3D089000 0x0 0x1000>;
 			no-map;
@@ -72,20 +78,14 @@
 
 		/* Reserved 512MB memory for ipu subsystem */
 		ipu_reserved: ipu_reserved@0x60000000 {
-		    reg = <0x0 0x60000000 0x0 0x20000000>;
-		    /*no-map;*/
+			reg = <0x0 0x60000000 0x0 0x20000000>;
+			/*no-map;*/
 		};
 
 		/*Reserved 8M memory for isp_subsystem*/
 		isp_reserved: isp_reserved@0x80000000 {
 			reg = <0x0 0x10100000 0x0 0x00800000>;
 		};
-
-		bif_base_reserved: bif_base_reserved@0x20000000 {
-			reg = <0x0 0x20000000 0x0 0x00100000>;
-			no-map;
-		};
-
 	};
 
 	cnn_mm {
@@ -137,6 +137,7 @@
 
 &pinctrl {
 	status = "okay";
+	gpioirq-bank-cfg = <95 0 0 0>;	//som
 };
 
 &uart0 {
@@ -232,6 +233,14 @@
 	cd-gpio = <91>;
 };
 
+&bifbase {
+	/*x2 som: GPIO6[1]: 95, GPIO0[7]: 7*/
+	bifbase_irq_pin = <95>;
+	bifbase_tri_pin = <7>;
+};
+&biflite {
+	status = "okay";
+};
 &qspi {
 	status = "okay";
 	#address-cells = <1>;

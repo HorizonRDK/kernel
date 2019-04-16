@@ -36,8 +36,8 @@
 		pwm1	= &pwm_1;
 		pwm2	= &pwm_2;
 		bifspi	= &bifspi;
-        	bifsd   = &bifsd;
-        	mmc0    = &sdio0;
+		bifsd   = &bifsd;
+		mmc0    = &sdio0;
 	};
 
 	chosen {
@@ -54,6 +54,12 @@
 		#address-cells = <2>;
 		#size-cells = <2>;
 		ranges;
+
+		/*Reserved 1M memory for bifbase*/
+		bifbase_reserved: bifbase_reserved@0x02000000 {
+			reg = <0x0 0x02000000 0x0 0x00100000>;
+			no-map;
+		};
 
 		bifsd_reserved: bifsd_reserved@0x3D089000 {
 		    reg = <0x0 0x3D089000 0x0 0x1000>;
@@ -122,6 +128,7 @@
 
 &pinctrl {
 	status = "okay";
+	gpioirq-bank-cfg = <85 0 0 0>;	//fpga
 };
 
 &uart0 {
@@ -210,7 +217,10 @@
 	status = "okay";
 	/*cd-gpio = <77>;*/
 };
-
+&bifbase {
+	bifbase_irq_pin = <85>;
+	bifbase_tri_pin = <84>;
+};
 &qspi {
 	status = "okay";
 	#address-cells = <1>;

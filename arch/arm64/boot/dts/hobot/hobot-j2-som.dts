@@ -47,14 +47,6 @@
 		stdout-path = "serial0:115200n8";
 	};
 
-	bif_base {
-		compatible = "hobot,bif_base";
-		memory-region = <&bif_base_reserved>;
-		/*x2 som: GPIO6[1]: 95, GPIO0[7]: 7*/
-		bif_base_irq_pin = <95>;
-		bif_base_tri_pin = <7>;
-	};
-
 	cnn_mm {
 		compatible = "hobot,cnn-mm";
 		#address-cells = <1>;
@@ -162,6 +154,7 @@
 
 &pinctrl {
 	status = "okay";
+	gpioirq-bank-cfg = <95 0 0 0>;	//x2 som
 };
 
 &uart0 {
@@ -263,7 +256,11 @@
 	status = "okay";
 	/*cd-gpio = <91>;*/
 };
-
+&bifbase {
+	/*x2 som: GPIO6[1]: 95, GPIO0[7]: 7*/
+	bifbase_irq_pin = <95>;
+	bifbase_tri_pin = <7>;
+};
 &qspi {
 	status = "okay";
 	qspi-mode = <1>;

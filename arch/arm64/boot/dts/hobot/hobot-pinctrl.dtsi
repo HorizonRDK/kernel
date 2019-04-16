@@ -18,11 +18,13 @@
 			interrupt-parent = <&gic>;
 			interrupts = <0 45 4>;
 			/*specific the gpio of each irq banck, 0 is invalid*/
-#ifdef CONFIG_X2_FPGA			
+/*
+#ifdef CONFIG_X2_FPGA
 			gpioirq-bank-cfg = <85 0 0 0>;
 #else
 			gpioirq-bank-cfg = <95 0 0 0>;	//som
-#endif			
+#endif
+*/
 			status = "disabled";
 			interrupt-controller;
 			#interrupt-cells = <2>;
