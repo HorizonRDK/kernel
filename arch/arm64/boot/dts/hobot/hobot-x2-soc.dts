@@ -281,6 +281,9 @@
 
 &watchdog {
 	status = "okay";
+	clocks = <&timer0_mclk>;
+	clock-names = "wdt_clk";
+
 };
 
 &i2s0 {
@@ -294,6 +297,7 @@
 	clocks = <&i2s1_mclk>, <&i2s1_bclk>;
 	clock-names = "i2s_mclk", "i2s_bclk";
 };
+
 &ddr_monitor {
 	status = "okay";
 };
@@ -302,4 +306,8 @@
 	clocks = <&temp_sensor_div_clk>;
 	clock-names = "tsensor_clk";
 	status = "disabled";
+};
+
+&arch_timer {
+	clock-frequency = <24000000>;
 };
