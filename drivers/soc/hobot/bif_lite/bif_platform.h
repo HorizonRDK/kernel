@@ -19,7 +19,7 @@
 #include <linux/errno.h>
 #include <linux/types.h>
 #include <linux/init.h>
-#include <linux/wait.h>
+//#include <linux/wait.h>
 #include <linux/kthread.h>
 #include <linux/dma-mapping.h>
 #include <linux/dmaengine.h>
@@ -30,13 +30,14 @@
 #include <linux/delay.h>
 #include <linux/poll.h>
 #include <linux/eventpoll.h>
-#include <asm-generic/io.h>
+//#include <asm-generic/io.h>
 #include <linux/string.h>
 #include <linux/uaccess.h>
 #include <linux/delay.h>
 #include <linux/time.h>
 
-#define addr_t unsigned long long
+//#define addr_t unsigned long long
+#define addr_t unsigned long
 
 //#define DEBUG
 #ifdef DEBUG

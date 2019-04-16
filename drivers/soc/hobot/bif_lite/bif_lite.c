@@ -1,9 +1,7 @@
 #include "bif_lite.h"
-#ifndef CONFIG_HOBOT_BIF_AP
 #include "../bif_base/bif_base.h"
-#else
-#include "bif_base.h"
-#endif
+
+extern struct bifbase_local *pbl;
 
 static int bif_lite_start;
 static struct bif_tx_ring_info *tx_local_info;
@@ -35,40 +33,62 @@ static unsigned short crc16(unsigned char  *input, unsigned  int length)
 	return result;
 }
 
+#ifdef CONFIG_HOBOT_BIF_AP
+static int swap_bytes_order( unsigned char *value, uint16_t size )
+{
+    uint16_t i = 0;
+    unsigned char temp = 0;
+
+    for ( i = 0; i < size;) {
+        temp = value[i];
+        value[i] = value[i + 3];
+        value[i + 3] = temp;
+
+        temp = value[i + 1];
+        value[i + 1] = value[i + 2];
+        value[i + 2] = temp;
+        i += 4;
+    }
+
+    return 0;
+}
+#endif
+
+static char tx_remote_info_buf[ALIGN(sizeof(struct bif_rx_ring_info), BIFSPI_LEN_ALIGN)];
 static inline int  bif_tx_get_available_buffer(int *index,
 	int *count,
 	int expect_count)
 {
 	int ret = 0;
-	struct bif_rx_ring_info tx_remote_info_tmp;
+	struct bif_rx_ring_info *tx_remote_info_tmp = (struct bif_rx_ring_info *)tx_remote_info_buf;
 
 	*index = -1;
-	ret = bif_read_cp_ddr(&tx_remote_info_tmp,
+	ret = bif_read_cp_ddr(tx_remote_info_tmp,
 		TX_REMOTE_INFO_OFFSET,
-		sizeof(struct bif_rx_ring_info));
+		ALIGN(sizeof(struct bif_rx_ring_info), BIFSPI_LEN_ALIGN));
 	if (ret < 0) {
 		bif_err("bif_err: %s  %d\n", __func__, __LINE__);
 		return ret;
 	}
 #if 1
 	bif_debug("tx_l.s_t %d\n", tx_local_info->send_tail);
-	bif_debug("tx_r.r_h %d\n", tx_remote_info_tmp.recv_head);
+	bif_debug("tx_r.r_h %d\n", tx_remote_info_tmp->recv_head);
 #endif
 
-	if (tx_remote_info_tmp.recv_head == -1)
+	if (tx_remote_info_tmp->recv_head == -1)
 		if (tx_local_info->send_tail == BUFFER_NUM-1)
 			return  -1;
 
-	if (tx_local_info->send_tail == tx_remote_info_tmp.recv_head)
+	if (tx_local_info->send_tail == tx_remote_info_tmp->recv_head)
 		return  -1;
 
 	*index =   (tx_local_info->send_tail) % BUFFER_NUM;
 
-	if (tx_local_info->send_tail  > tx_remote_info_tmp.recv_head) {
-		*count = tx_remote_info_tmp.recv_head+
+	if (tx_local_info->send_tail > tx_remote_info_tmp->recv_head) {
+		*count = tx_remote_info_tmp->recv_head +
 			BUFFER_NUM-tx_local_info->send_tail;
-	} else  if (tx_local_info->send_tail  < tx_remote_info_tmp.recv_head) {
-		*count = tx_remote_info_tmp.recv_head-tx_local_info->send_tail;
+	} else if (tx_local_info->send_tail < tx_remote_info_tmp->recv_head) {
+		*count = tx_remote_info_tmp->recv_head - tx_local_info->send_tail;
 	} else
 		*count = 0;
 
@@ -81,7 +101,7 @@ static inline int  bif_tx_get_available_buffer(int *index,
 	bif_debug("*index %d\n", *index);
 #endif
 
-	*tx_remote_info = tx_remote_info_tmp;
+	*tx_remote_info = *tx_remote_info_tmp;
 
 	return ret;
 }
@@ -134,9 +154,12 @@ static inline int   bif_tx_update_to_cp_ddr(void)
 
 	ret = bif_write_cp_ddr(tx_local_info,
 		TX_LOCAL_INFO_OFFSET,
-		sizeof(struct bif_tx_ring_info));
+		ALIGN(sizeof(struct bif_tx_ring_info), BIFSPI_LEN_ALIGN));
 	if (ret < 0)
 		bif_err("bif_err: %s  %d\n", __func__,  __LINE__);
+#ifdef CONFIG_HOBOT_BIF_AP
+	swap_bytes_order((unsigned char *)tx_local_info, ALIGN(sizeof(struct bif_tx_ring_info), BIFSPI_LEN_ALIGN));
+#endif
 
 	return ret;
 }
@@ -147,6 +170,7 @@ static inline int bif_tx_put_data_to_buffer(int index,
 {
 	addr_t offset;
 	int ret = 0;
+	unsigned short fragment_len = 0;
 
 	if (fragment_info == NULL) {
 		ret =  -EPERM;
@@ -170,7 +194,9 @@ static inline int bif_tx_put_data_to_buffer(int index,
 	bif_debug("id %d start %d  end %d\n", fragment_info->id,
 		fragment_info->start,
 		fragment_info->end);
-	ret = bif_write_cp_ddr(data,  offset,   fragment_info->len);
+	fragment_len = fragment_info->len;
+	//printk("fragment_len = %d\n", fragment_len);
+	ret = bif_write_cp_ddr(data, offset, ALIGN(fragment_len, BIFSPI_LEN_ALIGN));
 	if (ret < 0) {
 		bif_err("bif_err: %s  %d\n", __func__,  __LINE__);
 		goto err;
@@ -247,7 +273,6 @@ static inline int  bif_tx_cut_fragment(unsigned char *data,  int len)
 			else
 				fragment_info.len = last_copy;
 		}
-
 		ret = bif_tx_put_data_to_buffer(index, frag_p,  &fragment_info);
 		if (ret < 0) {
 			bif_err("bif_err: %s  %d\n", __func__,  __LINE__);
@@ -267,7 +292,6 @@ err:
 
 int bif_tx_put_frame(void *data,  int len)
 {
-//for fragment cut case,  we need to handle more
 	int ret;
 
 	ret = bif_tx_cut_fragment(data,  len);
@@ -280,28 +304,22 @@ static inline int  bif_rx_get_available_buffer(int *index,
 	int ret = 0;
 	unsigned short  check_sum = 0;
 	unsigned short  check_sum_expect = 0;
-	struct bif_tx_ring_info *rx_remote_info_tmp;
+	struct bif_tx_ring_info *rx_remote_info_tmp = NULL;
 
-	rx_remote_info_tmp = bif_malloc(sizeof(struct bif_tx_ring_info));
+	rx_remote_info_tmp = bif_malloc(ALIGN(sizeof(struct bif_tx_ring_info), BIFSPI_LEN_ALIGN));
 	if (rx_remote_info_tmp == NULL)
 		goto err;
 
 	ret = bif_read_cp_ddr(rx_remote_info_tmp,
 		RX_REMOTE_INFO_OFFSET,
-		sizeof(struct bif_tx_ring_info));
+		ALIGN(sizeof(struct bif_tx_ring_info), BIFSPI_LEN_ALIGN));
 	if (ret < 0) {
 		bif_err("bif_err: %s  %d\n", __func__,  __LINE__);
 		goto err;
 	}
 #if 1
-	//int i;
 	bif_debug("rx_r.s_t %d\n", rx_remote_info_tmp->send_tail);
 	bif_debug("rx_l.r_h %d\n", rx_local_info->recv_head);
-	//for (i = 0;i < BUFFER_NUM;i++)
-	{
-	//	bif_debug("i%d, frag_len %d\n", i,
-	//rx_remote_info.fragment_info[i].len);
-	}
 #endif
 
 	 check_sum = rx_remote_info_tmp->check_sum;
@@ -358,11 +376,14 @@ static  inline int  bif_rx_update_after_read(int count)
 	rx_local_info->recv_head  =  (rx_local_info->recv_head) % BUFFER_NUM;
 	ret = bif_write_cp_ddr(rx_local_info,
 		RX_LOCAL_INFO_OFFSET,
-		sizeof(struct bif_rx_ring_info));
+		ALIGN(sizeof(struct bif_rx_ring_info), BIFSPI_LEN_ALIGN));
 	if (ret < 0) {
 		bif_err("bif_err: %s  %d\n", __func__,  __LINE__);
 		goto err;
 	}
+#ifdef CONFIG_HOBOT_BIF_AP
+	swap_bytes_order((unsigned char *)rx_local_info, ALIGN(sizeof(struct bif_rx_ring_info), BIFSPI_LEN_ALIGN));
+#endif
 	return 0;
 err:
 	return ret;
@@ -480,6 +501,7 @@ err:
 	return ret;
 }
 
+struct bif_rx_cache rx_fragment_cache;
 static inline int bif_rx_get_cache_from_buffer(void)
 {
 	int index = 0;
@@ -488,10 +510,11 @@ static inline int bif_rx_get_cache_from_buffer(void)
 	int count_tmp = 0;
 	int index_tmp = 0;
 	addr_t  offset = 0;
-	struct bif_rx_cache *cache_tmp = NULL;
+	struct bif_rx_cache *cache_tmp = &rx_fragment_cache;
 	struct bif_frame_cache *frame_p = NULL;
 	unsigned int malloc_len = 0;
 	unsigned int frame_used_frag_count = 0;
+	unsigned short cache_len = 0;
 
 	if (rx_frame_count > FRAME_CACHE_MAX) {
 		bif_debug("too much cache!");
@@ -501,6 +524,7 @@ static inline int bif_rx_get_cache_from_buffer(void)
 
 	ret = bif_rx_get_available_buffer(&index,  &count);
 	bif_debug("ret %d  index %d  count %d\n", ret,  index, count);
+	//printk("rx ret %d  index %d  count %d\n", ret, index, count);
 	if (ret < 0)
 		goto err;
 
@@ -518,7 +542,6 @@ static inline int bif_rx_get_cache_from_buffer(void)
 	index_tmp = index;
 	for (count_tmp = 0;   count_tmp < count; count_tmp++) {
 		ret = 0;
-		cache_tmp = NULL;
 #if 1
 		bif_debug("off %llx  ind %d  cou %d len %d\n",
 			offset,
@@ -539,16 +562,11 @@ static inline int bif_rx_get_cache_from_buffer(void)
 				break;
 			}
 		}
-		cache_tmp = bif_malloc(sizeof(struct bif_rx_cache)+
-			rx_remote_info->fragment_info[index_tmp].len);
-		if (cache_tmp == NULL) {
-			bif_err("bif_err: %s  %d\n", __func__,  __LINE__);
-			ret =  -2;
-			break;
-		}
+
 		offset = bif_rx_index_to_addr(index_tmp);
+		cache_len = rx_remote_info->fragment_info[index_tmp].len;
 		ret = bif_read_cp_ddr(cache_tmp->datacache, offset,
-			rx_remote_info->fragment_info[index_tmp].len);
+			ALIGN(cache_len, BIFSPI_LEN_ALIGN));
 		if (ret < 0) {
 			bif_err("bif_err: %s  %d\n", __func__,  __LINE__);
 			ret =  -3;
@@ -569,9 +587,6 @@ static inline int bif_rx_get_cache_from_buffer(void)
 		}
 		index_tmp =  (index_tmp +  1) % BUFFER_NUM;
 
-		bif_free(cache_tmp);
-		cache_tmp = NULL;
-
 		if (rx_frame_count > FRAME_CACHE_MAX) {
 			bif_debug("too much cache!");
 			ret = -5;
@@ -581,9 +596,6 @@ static inline int bif_rx_get_cache_from_buffer(void)
 	}
 
 	if ((ret == -1) || (ret == -2) || (ret == -3) || (ret == -4)) {
-		if (cache_tmp)
-			bif_free(cache_tmp);
-
 		if (frame_p)
 			bif_free(frame_p);
 
@@ -603,7 +615,7 @@ err:
 static inline int bif_clear_list(void)
 {
 	int ret = 0;
-	struct bif_frame_cache  *frame_cache_tmp;
+	struct bif_frame_cache *frame_cache_tmp = NULL;
 
 	bif_lock();
 	if (list_empty(&rx_frame_cache_p->frame_cache_list)) {
@@ -692,32 +704,36 @@ static inline int bif_sync_before_start(void)
 
 	ret = bif_read_cp_ddr(tx_remote_info,
 		TX_REMOTE_INFO_OFFSET,
-		sizeof(struct bif_rx_ring_info));
+		ALIGN(sizeof(struct bif_rx_ring_info), BIFSPI_LEN_ALIGN));
 	if (ret < 0) {
 		bif_err("bif_err: %s  %d\n", __func__,  __LINE__);
 		return ret;
 	}
+	printk("sync: tx_remote_info %d\n", tx_remote_info->recv_head);
 	ret = bif_read_cp_ddr(tx_local_info,
 		TX_LOCAL_INFO_OFFSET,
-		sizeof(struct bif_tx_ring_info));
+		ALIGN(sizeof(struct bif_tx_ring_info), BIFSPI_LEN_ALIGN));
 	if (ret < 0) {
 		bif_err("bif_err: %s  %d\n", __func__,  __LINE__);
 		return ret;
 	}
+	printk("sync: tx_local_info %d\n", tx_local_info->send_tail);
 	ret = bif_read_cp_ddr(rx_remote_info,
 		RX_REMOTE_INFO_OFFSET,
-		sizeof(struct bif_tx_ring_info));
+		ALIGN(sizeof(struct bif_tx_ring_info), BIFSPI_LEN_ALIGN));
 	if (ret < 0) {
 		bif_err("bif_err: %s  %d\n", __func__,  __LINE__);
 		return ret;
 	}
+	printk("sync: rx_remote_info %d\n", rx_remote_info->send_tail);
 	ret = bif_read_cp_ddr(rx_local_info,
 		RX_LOCAL_INFO_OFFSET,
-		sizeof(struct bif_rx_ring_info));
+		ALIGN(sizeof(struct bif_rx_ring_info), BIFSPI_LEN_ALIGN));
 	if (ret < 0) {
 		bif_err("bif_err: %s  %d\n", __func__,  __LINE__);
 		return ret;
 	}
+	printk("sync: rx_local_info %d\n", rx_local_info->recv_head);
 	return 0;
 }
 
@@ -729,56 +745,56 @@ static inline  int bif_init_cp_ddr(void)
 	struct bif_rx_ring_info *rx_local_info_tmp = NULL;
 	struct bif_tx_ring_info *rx_remote_info_tmp = NULL;
 
-	tx_remote_info_tmp = bif_malloc(sizeof(struct bif_rx_ring_info));
+	tx_remote_info_tmp = bif_malloc(ALIGN(sizeof(struct bif_rx_ring_info), BIFSPI_LEN_ALIGN));
 	if (tx_remote_info_tmp == NULL) {
 		bif_err("bif_err: %s  %d\n", __func__,  __LINE__);
 		goto err;
 	}
-	bif_memset(tx_remote_info_tmp, 0, sizeof(struct bif_rx_ring_info));
+	bif_memset(tx_remote_info_tmp, 0, ALIGN(sizeof(struct bif_rx_ring_info), BIFSPI_LEN_ALIGN));
 	tx_remote_info_tmp->recv_head = -1;
 	ret = bif_write_cp_ddr(tx_remote_info_tmp,
 		TX_REMOTE_INFO_OFFSET,
-		sizeof(struct bif_rx_ring_info));
+		ALIGN(sizeof(struct bif_rx_ring_info), BIFSPI_LEN_ALIGN));
 	if (ret < 0) {
 		bif_err("bif_err: %s  %d\n", __func__,  __LINE__);
 		goto err;
 	}
-	tx_local_info_tmp = bif_malloc(sizeof(struct bif_tx_ring_info));
+	tx_local_info_tmp = bif_malloc(ALIGN(sizeof(struct bif_tx_ring_info), BIFSPI_LEN_ALIGN));
 	if (tx_local_info_tmp == NULL) {
 		bif_err("%s  %d\n", __func__,  __LINE__);
 		goto err;
 	}
-	bif_memset(tx_local_info_tmp, 0, sizeof(struct bif_tx_ring_info));
+	bif_memset(tx_local_info_tmp, 0, ALIGN(sizeof(struct bif_tx_ring_info), BIFSPI_LEN_ALIGN));
 	ret = bif_write_cp_ddr(tx_local_info_tmp,
 		TX_LOCAL_INFO_OFFSET,
-		sizeof(struct bif_tx_ring_info));
+		ALIGN(sizeof(struct bif_tx_ring_info), BIFSPI_LEN_ALIGN));
 	if (ret < 0) {
 		bif_err("bif_err: %s  %d\n", __func__,  __LINE__);
 		goto err;
 	}
-	rx_local_info_tmp = bif_malloc(sizeof(struct bif_rx_ring_info));
+	rx_local_info_tmp = bif_malloc(ALIGN(sizeof(struct bif_rx_ring_info), BIFSPI_LEN_ALIGN));
 	if (rx_local_info_tmp == NULL) {
 		bif_err("bif_err: %s  %d\n", __func__,  __LINE__);
 		goto err;
 	}
-	bif_memset(rx_local_info_tmp, 0, sizeof(struct bif_rx_ring_info));
+	bif_memset(rx_local_info_tmp, 0, ALIGN(sizeof(struct bif_rx_ring_info), BIFSPI_LEN_ALIGN));
 	rx_local_info_tmp->recv_head = -1;
 	ret = bif_write_cp_ddr(rx_local_info_tmp,
 		RX_LOCAL_INFO_OFFSET,
-		sizeof(struct bif_rx_ring_info));
+		ALIGN(sizeof(struct bif_rx_ring_info), BIFSPI_LEN_ALIGN));
 	if (ret < 0) {
 		bif_err("bif_err: %s  %d\n", __func__,  __LINE__);
 		goto err;
 	}
-	rx_remote_info_tmp = bif_malloc(sizeof(struct bif_tx_ring_info));
+	rx_remote_info_tmp = bif_malloc(ALIGN(sizeof(struct bif_tx_ring_info), BIFSPI_LEN_ALIGN));
 	if (rx_remote_info_tmp == NULL) {
 		bif_err("bif_err: %s  %d\n", __func__,  __LINE__);
 		goto err;
 	}
-	bif_memset(rx_remote_info_tmp, 0, sizeof(struct bif_tx_ring_info));
+	bif_memset(rx_remote_info_tmp, 0, ALIGN(sizeof(struct bif_tx_ring_info), BIFSPI_LEN_ALIGN));
 	ret = bif_write_cp_ddr(rx_remote_info_tmp,
 		RX_REMOTE_INFO_OFFSET,
-		sizeof(struct bif_tx_ring_info));
+		ALIGN(sizeof(struct bif_tx_ring_info), BIFSPI_LEN_ALIGN));
 	if (ret < 0) {
 		bif_err("bif_err: %s  %d\n", __func__,  __LINE__);
 		goto err;
@@ -801,8 +817,6 @@ err:
 
 int bif_start(void)
 {
-	bif_init_cp_ddr();
-	bif_sync_before_start();
 	bif_clear_list();
 	return 0;
 }
@@ -816,7 +830,9 @@ int bif_stop(void)
 int bif_lite_init(void)
 {
 	int ret = 0;
+#ifndef CONFIG_HOBOT_BIF_AP
 	addr_t base_addr_tmp;
+#endif
 	addr_t base_addr_tmp_phy;
 	int bif_lite_start  =  0;
 
@@ -824,8 +840,9 @@ int bif_lite_init(void)
 	bif_debug("%s() init,  begin...\n", __func__);
 
 #ifndef CONFIG_HOBOT_BIF_AP
-	base_addr_tmp  =  bif_alloc_cp(BUFF_LITE,  TOTAL_MEM_SIZE,
+	base_addr_tmp = (addr_t)bif_alloc_cp(BUFF_LITE, TOTAL_MEM_SIZE,
 		(unsigned long *)&base_addr_tmp_phy);
+	printk("bif_alloc_cp: addr = %llx total = %ld\n", base_addr_tmp, TOTAL_MEM_SIZE);
 
 	if (base_addr_tmp <= 0) {
 		ret =  -EFAULT;
@@ -834,58 +851,77 @@ int bif_lite_init(void)
 	}
 
 	bif_set_base_addr(base_addr_tmp);
-	bif_register_address(BUFF_LITE,
+	ret = bif_register_address(BUFF_LITE,
 		(void *)(unsigned long)base_addr_tmp_phy);
-
-#else
-	bif_base_probe();
-	bif_sync_base();
-	base_addr_tmp_phy  =  bif_query_address(BUFF_LITE);
-	bif_debug("base_addr_tmp_phy %llx\n", base_addr_tmp_phy);
-	base_addr_tmp  =  bif_phys_to_vaddr(base_addr_tmp_phy,
-		TOTAL_MEM_SIZE);
-	if (base_addr_tmp == 0) {
-		ret =  -EFAULT;
+	if (ret < 0)
 		goto err;
-	}
-	bif_set_base_addr(base_addr_tmp_phy);
+#else
+	ret = bifbase_sync_cp(pbl);
+	if (ret < 0)
+		goto err;
+	base_addr_tmp_phy = (addr_t)bif_query_address(BUFF_LITE);
+	if (base_addr_tmp_phy == -1) {
+		ret = -1;
+		goto err;
 
+	}
+	printk("base_addr_tmp_phy %x\n", base_addr_tmp_phy);
+	bif_set_base_addr(base_addr_tmp_phy);
 #endif
-	bif_debug("base_addr %llx    %llx\n", base_addr_tmp, base_addr_tmp_phy);
-	tx_local_info = bif_malloc(sizeof(struct bif_tx_ring_info));
+	tx_local_info = bif_malloc(ALIGN(sizeof(struct bif_tx_ring_info), BIFSPI_LEN_ALIGN));
 	if (tx_local_info == NULL) {
 		bif_err("bif_err: %s  %d\n", __func__,  __LINE__);
-		return  -ENOMEM;
+		ret = -ENOMEM;
+		goto err;
 	}
-	tx_remote_info = bif_malloc(sizeof(struct bif_rx_ring_info));
+	tx_remote_info = bif_malloc(ALIGN(sizeof(struct bif_rx_ring_info), BIFSPI_LEN_ALIGN));
 	if (tx_remote_info == NULL) {
 		bif_err("bif_err: %s  %d\n", __func__,  __LINE__);
-		return  -ENOMEM;
+		ret = -ENOMEM;
+		goto err;
 	}
-	rx_remote_info = bif_malloc(sizeof(struct bif_tx_ring_info));
+	rx_remote_info = bif_malloc(ALIGN(sizeof(struct bif_tx_ring_info), BIFSPI_LEN_ALIGN));
 	if (rx_remote_info == NULL) {
 		bif_err("bif_err: %s  %d\n", __func__,  __LINE__);
-		return  -ENOMEM;
+		ret = -ENOMEM;
+		goto err;
 	}
-	rx_local_info = bif_malloc(sizeof(struct bif_rx_ring_info));
+	rx_local_info = bif_malloc(ALIGN(sizeof(struct bif_rx_ring_info), BIFSPI_LEN_ALIGN));
 	if (rx_local_info == NULL) {
 		bif_err("bif_err: %s  %d\n", __func__,  __LINE__);
-		return  -ENOMEM;
+		ret = -ENOMEM;
+		goto err;
 	}
-
-	bif_init_cp_ddr();
-	bif_sync_before_start();
+#ifndef CONFIG_HOBOT_BIF_AP
+	ret = bif_init_cp_ddr();
+	if (ret < 0)
+		goto err;
+#endif
+	ret = bif_sync_before_start();
+	if (ret < 0)
+		goto err;
 
 	rx_frame_cache_p = bif_malloc(sizeof(struct bif_frame_cache));
 	if (rx_frame_cache_p == NULL) {
 		bif_err("bif_err: %s  %d\n", __func__,  __LINE__);
-		return  -ENOMEM;
+		ret = -ENOMEM;
+		goto err;
 	}
 	INIT_LIST_HEAD(&rx_frame_cache_p->frame_cache_list);
 
 	bif_lite_start  =  1;
 	bif_debug("%s() init,  end\n", __func__);
+
+	return 0;
 err:
+	if (tx_local_info)
+		bif_free(tx_local_info);
+	if (tx_remote_info)
+		bif_free(tx_remote_info);
+	if (rx_remote_info)
+		bif_free(rx_remote_info);
+	if (rx_local_info)
+		bif_free(rx_local_info);
 	return ret;
 }
 
@@ -904,6 +940,9 @@ void bif_lite_exit(void)
 
 	if (rx_local_info)
 		bif_free(rx_local_info);
+
+	if (rx_frame_cache_p)
+		bif_free(rx_frame_cache_p);
 
 	bif_debug("%s() exit,  end\n", __func__);
 }

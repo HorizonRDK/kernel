@@ -1,4 +1,5 @@
 #include "bif_platform.h"
+#include "../bif_base/bif_api.h"
 
 static addr_t base_addr;
 
@@ -67,7 +68,14 @@ int  bif_read_cp_ddr(void *dst, addr_t offset, int len)
 		return  -1;
 	}
 	src = (void *)(offset+base_addr);
+#ifndef CONFIG_HOBOT_BIF_AP
 	bif_memcpy(dst, src, len);
+#else
+#ifdef CONFIG_HOBOT_BIFSPI
+	if (bif_spi_read(src, len, dst))
+		return -1;
+#endif
+#endif
 #if 0
 	int i;
 
@@ -86,7 +94,14 @@ int  bif_write_cp_ddr(void *src, addr_t offset, int len)
 		return  -1;
 	}
 	dst = (void *)(offset+base_addr);
+#ifndef CONFIG_HOBOT_BIF_AP
 	bif_memcpy(dst, src, len);
+#else
+#ifdef CONFIG_HOBOT_BIFSPI
+	if (bif_spi_write(dst, len, src))
+		return -1;
+#endif
+#endif
 #if 0
 	int i;
 

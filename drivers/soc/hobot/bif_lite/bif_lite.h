@@ -11,6 +11,7 @@
 #define AP_TO_CP_BUFFER_LEN   (BUFFER_NUM*BUFFER_LEN)
 #define BIF_CACHE_NUM BUFFER_NUM
 #define FRAME_CACHE_MAX 4
+#define BIFSPI_LEN_ALIGN (16)
 
 struct bif_frame_cache {
 	unsigned short  framelen;
@@ -38,7 +39,7 @@ struct bif_rx_ring_info {
 
 struct bif_rx_cache {
 	unsigned short  datalen;
-	unsigned char datacache[];
+	unsigned char datacache[BUFFER_LEN];
 };
 
 #define CP_TO_AP_RING_AP_INFO_LEN (ALIGN(sizeof(struct bif_rx_ring_info), \

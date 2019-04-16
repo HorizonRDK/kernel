@@ -423,7 +423,7 @@ error:
 
 int mang_frame_send2opposite(int type, struct send_mang_data *data)
 {
-	char mang_frame_send_buf[HBIPC_HEADER_LEN + MANAGE_MSG_LEN];
+	char mang_frame_send_buf[ALIGN((HBIPC_HEADER_LEN + MANAGE_MSG_LEN), BIFSPI_LEN_ALIGN)];
 	struct hbipc_header *header =
 	(struct hbipc_header *)mang_frame_send_buf;
 	struct manage_message *message =

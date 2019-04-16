@@ -28,4 +28,5 @@ obj-$(CONFIG_X2_CNN_MM)	+= hobot/cnn_mm/
 obj-$(CONFIG_HOBOT_BIF_BASE)	+= hobot/bif_base/
 obj-$(CONFIG_HOBOT_BIF_ETHERNET)	+= hobot/bif_ethernet/
 obj-$(CONFIG_HOBOT_BIF_SIO)	+= hobot/bif_sio/
+obj-$(CONFIG_HOBOT_BIF_LITE)	+= hobot/bif_lite/
 obj-y	+= hobot/ddr_monitor/
