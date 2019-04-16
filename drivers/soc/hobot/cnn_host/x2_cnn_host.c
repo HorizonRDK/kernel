@@ -690,11 +690,18 @@ static long x2_cnn_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 static u32 x2_cnn_poll(struct file *filp, poll_table *wait)
 {
+	unsigned int mask = 0;
 	struct x2_cnn_dev *dev = filp->private_data;
-
 	poll_wait(filp, &dev->cnn_int_wait, wait);
 
-	return POLLIN | POLLRDNORM;
+	mutex_lock(&dev->cnn_lock);
+	if (dev->irq_triggered) {
+		mask |= POLLIN | POLLRDNORM;
+		dev->irq_triggered = 0;
+	}
+	mutex_unlock(&dev->cnn_lock);
+
+	return mask;
 }
 
 static const struct file_operations cnn_fops = {
@@ -759,7 +766,10 @@ static void x2_cnn_do_tasklet(unsigned long data)
 {
 	struct x2_cnn_dev *dev = (struct x2_cnn_dev *)data;
 
+	mutex_lock(&dev->cnn_lock);
 	wake_up(&dev->cnn_int_wait);
+	dev->irq_triggered = 1;
+	mutex_unlock(&dev->cnn_lock);
 }
 
 static void *cnn_ram_vmap(phys_addr_t start, size_t size,
@@ -977,6 +987,7 @@ int x2_cnn_probe(struct platform_device *pdev)
 			cnn_dev->irq, rc);
 		goto err_out;
 	}
+	cnn_dev->irq_triggered = 0;
 
 	init_waitqueue_head(&cnn_dev->cnn_int_wait);
 

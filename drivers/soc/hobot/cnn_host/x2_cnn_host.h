@@ -145,6 +145,7 @@ struct x2_cnn_dev {
 
 	struct mutex cnn_lock;
 	spinlock_t cnn_spin_lock;
+	int irq_triggered;
 
 	struct reset_control *cnn0_rst;
 	struct reset_control *cnn1_rst;
