@@ -9,6 +9,14 @@
 		#size-cells = <2>;
 		ranges;
 
+		ramoops@0x3D049000 {
+			compatible = "ramoops";
+			reg = <0x0 0x3D049000 0x0 0x40000>;
+			console-size = <0x8000>;
+			ftrace-size = <0x8000>;
+			record-size = <0x4000>;
+		};
+
 		bifsd_reserved: bifsd_reserved@0x3D089000 {
 			reg = <0x0 0x3D089000 0x0 0x1000>;
 			no-map;
