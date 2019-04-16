@@ -435,11 +435,9 @@ static u32 x2_cnn_get_fc_fifo_spaces(struct x2_cnn_dev *dev)
 
 	fc_head_idx = x2_cnn_reg_read(dev, X2_CNN_FC_HEAD);
 	fc_head_flag = fc_head_idx & X2_CNN_FC_IDX_FLAG;
-	fc_head_idx &= X2_CNN_MAX_FC_LEN_MASK;
 
 	fc_tail_idx = x2_cnn_reg_read(dev, X2_CNN_FC_TAIL);
 	fc_tail_flag = fc_head_idx & X2_CNN_FC_IDX_FLAG;
-	fc_tail_idx &= X2_CNN_MAX_FC_LEN_MASK;
 
 	if (fc_head_flag != fc_tail_flag)
 		free_fc_fifo = fc_head_idx - fc_tail_idx;
@@ -470,11 +468,9 @@ static u32 x2_cnn_fc_fifo_enqueue(struct x2_cnn_dev *dev,
 	fc_depth = x2_cnn_reg_read(dev, X2_CNN_FC_LEN);
 	fc_head_idx = x2_cnn_reg_read(dev, X2_CNN_FC_HEAD);
 	fc_head_flag = fc_head_idx & X2_CNN_FC_IDX_FLAG;
-	fc_head_idx &= X2_CNN_MAX_FC_LEN_MASK;
 
 	fc_tail_idx = x2_cnn_reg_read(dev, X2_CNN_FC_TAIL);
 	fc_tail_flag = fc_head_idx & X2_CNN_FC_IDX_FLAG;
-	fc_tail_idx &= X2_CNN_MAX_FC_LEN_MASK;
 
 	if (fc_head_flag != fc_tail_flag)
 		free_fc_fifo = fc_head_idx - fc_tail_idx;
@@ -486,6 +482,7 @@ static u32 x2_cnn_fc_fifo_enqueue(struct x2_cnn_dev *dev,
 		pr_err("no available fc fifo spaces\n");
 		return rc;
 	}
+	fc_tail_idx &= X2_CNN_MAX_FC_LEN_MASK;
 
 	if ((fc_tail_idx + fc_buf->fc_cnt)  > fc_depth) {
 		insert_fc_cnt = fc_depth - fc_tail_idx + 1;
