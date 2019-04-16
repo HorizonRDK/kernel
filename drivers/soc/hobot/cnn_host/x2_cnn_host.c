@@ -44,7 +44,6 @@
 
 static DEFINE_MUTEX(x2_cnn_mutex);
 static char *g_chrdev_name = "cnn";
-u32 x2_cnn_int_num;
 static void *cnn0_fc_base;
 static void *cnn1_fc_base;
 static struct dentry *cnn0_debugfs_root;
@@ -357,7 +356,7 @@ static irqreturn_t x2_cnn_interrupt_handler(int irq, void *dev_id)
 
 	irq_status = x2_cnn_reg_read(dev, X2_CNNINT_STATUS);
 	x2_cnn_reg_write(dev, X2_CNNINT_MASK, 0x1);
-	x2_cnn_int_num = x2_cnn_reg_read(dev, X2_CNNINT_NUM);
+	dev->x2_cnn_int_num = x2_cnn_reg_read(dev, X2_CNNINT_NUM);
 
 	x2_cnn_reg_write(dev, X2_CNNINT_MASK, 0x0);
 
@@ -521,7 +520,7 @@ static u32 x2_cnn_fc_fifo_enqueue(struct x2_cnn_dev *dev,
 
 static u32 x2_cnn_get_int_num(struct x2_cnn_dev *dev)
 {
-	return x2_cnn_int_num;
+	return dev->x2_cnn_int_num;
 }
 
 static int x2_cnn_open(struct inode *inode, struct file *filp)
@@ -670,7 +669,7 @@ static long x2_cnn_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	case CNN_IOC_GET_INT_NUM:
 		mutex_lock(&dev->cnn_lock);
 		data.int_num_data.cnn_int_num = x2_cnn_get_int_num(dev);
-		x2_cnn_int_num = 0;
+		dev->x2_cnn_int_num = 0;
 		mutex_unlock(&dev->cnn_lock);
 		break;
 	default:
