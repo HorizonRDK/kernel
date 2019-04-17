@@ -15,42 +15,41 @@
 			no-map;
 		};
 
-		ramoops@0x1D349000 {
+		ramoops@0x0C819000{
 			compatible = "ramoops";
-			reg = <0x0 0x1D349000 0x0 0x40000>;
+			reg = <0x0 0x0C819000 0x0 0x40000>;
 			console-size = <0x8000>;
 			ftrace-size = <0x8000>;
 			record-size = <0x4000>;
 		};
 
-		bifsd_reserved: bifsd_reserved@0x1D389000 {
-			reg = <0x0 0x1D389000 0x0 0x1000>;
+		bifsd_reserved: bifsd_reserved@0x0C859000{
+			reg = <0x0 0x0C859000 0x0 0x1000>;
 			no-map;
 		};
 
-		iar_reserved: iar_reserved@0x1D38A000 {
-			reg = <0x0 0x1D38A000 0x0 0x2F76000>;
+		iar_reserved: iar_reserved@0x0C85A000{
+			reg = <0x0 0x0C85A000 0x0 0x2F76000>;
 			no-map;
-		};
-
-		/* Reserved 290MB memory for cnn subsystem */
-		cnn_reserved: cnn_reserved@0x20300000 {
-			reg = <0x0 0x20300000 0x0 0x12200000>;
-		};
-
-		/* Reserved 10MB memory for function call */
-		fc_reserved: fc_reserved@0x32500000 {
-			reg = <0x0 0x32500000 0x0 0x1000000>;
-		};
-		/* Reserved 200MB memory for ipu subsystem */
-		ipu_reserved: ipu_reserved@0x32f00000 {
-			reg = <0x0 0x32F00000 0x0 0xC800000>;
-			/*no-map;*/
 		};
 
 		/*Reserved 8M memory for isp_subsystem*/
-		isp_reserved: isp_reserved@0x3f700000 {
-			reg = <0x0 0x3F700000 0x0 0x00800000>;
+		isp_reserved: isp_reserved@0x0F7D0000{
+			reg = <0x0 0x0F7D0000 0x0 0x00800000>;
 		};
+		/* Reserved 256MB memory for ipu subsystem */
+		ipu_reserved: ipu_reserved@0x0FFD0000{
+			reg = <0x0 0x0FFD0000 0x0 0x10000000>;
+			/*no-map;*/
+		};
+		/* Reserved 192K memory for function call */
+		fc_reserved: fc_reserved@0x1FFD0000{
+			reg = <0x0 0x1FFD0000 0x0 0x00030000>;
+		};
+		/* Reserved 512MB memory for cnn subsystem */
+		cnn_reserved: cnn_reserved@0x20000000 {
+			reg = <0x0 0x20000000 0x0 0x20000000>;
+		};
+
 	};
 };
