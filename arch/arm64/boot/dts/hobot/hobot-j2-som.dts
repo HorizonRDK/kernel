@@ -47,37 +47,6 @@
 		stdout-path = "serial0:115200n8";
 	};
 
-	cnn_mm {
-		compatible = "hobot,cnn-mm";
-		#address-cells = <1>;
-		#size-cells = <0>;
-
-		memory-region = <&cnn_reserved>;
-
-		cnn_heap@0 {
-			reg = <0>;
-			label = "cnn0_model_mm";
-			type = <1>;
-		};
-
-		cnn_heap@1 {
-			reg = <1>;
-			label = "cnn1_model_mm";
-			type = <1>;
-		};
-
-		cnn_heap@2 {
-			reg = <2>;
-			label = "cnn_rt_mm";
-			type = <1>;
-		};
-
-		cnn_heap@3 {
-			reg = <3>;
-			label = "cnn_result_mm";
-			type = <1>;
-		};
-	};
 };
 
 &i2c0 {
