@@ -15,40 +15,43 @@
 			no-map;
 		};
 
-		ramoops@0x0C819000{
+		bifsd_reserved: bifsd_reserved@0x02100000 {
+			reg = <0x0 0x02100000 0x0 0x1000>;
+			no-map;
+		};
+
+		/*Reserved 8M memory for isp_subsystem*/
+		isp_reserved: isp_reserved@0x02101000 {
+			reg = <0x0 0x02101000 0x0 0x00800000>;
+		};
+
+		iar_reserved: iar_reserved@0x02901000 {
+			reg = <0x0 0x02901000 0x0 0x2F76000>;
+			no-map;
+		};
+
+		ramoops@0x05877000 {
 			compatible = "ramoops";
-			reg = <0x0 0x0C819000 0x0 0x40000>;
+			reg = <0x0 0x05877000 0x0 0x40000>;
 			console-size = <0x8000>;
 			ftrace-size = <0x8000>;
 			record-size = <0x4000>;
 		};
 
-		bifsd_reserved: bifsd_reserved@0x0C859000{
-			reg = <0x0 0x0C859000 0x0 0x1000>;
-			no-map;
-		};
-
-		iar_reserved: iar_reserved@0x0C85A000{
-			reg = <0x0 0x0C85A000 0x0 0x2F76000>;
-			no-map;
-		};
-
-		/*Reserved 8M memory for isp_subsystem*/
-		isp_reserved: isp_reserved@0x0F7D0000{
-			reg = <0x0 0x0F7D0000 0x0 0x00800000>;
-		};
 		/* Reserved 256MB memory for ipu subsystem */
-		ipu_reserved: ipu_reserved@0x0FFD0000{
-			reg = <0x0 0x0FFD0000 0x0 0x10000000>;
+		ipu_reserved: ipu_reserved@0x058B7000 {
+			reg = <0x0 0x058B7000 0x0 0x10000000>;
 			/*no-map;*/
 		};
+
 		/* Reserved 192K memory for function call */
-		fc_reserved: fc_reserved@0x1FFD0000{
-			reg = <0x0 0x1FFD0000 0x0 0x00030000>;
+		fc_reserved: fc_reserved@0x158B7000 {
+			reg = <0x0 0x158B7000 0x0 0x00030000>;
 		};
+
 		/* Reserved 512MB memory for cnn subsystem */
-		cnn_reserved: cnn_reserved@0x20000000 {
-			reg = <0x0 0x20000000 0x0 0x20000000>;
+		cnn_reserved: cnn_reserved@0x158E7000 {
+			reg = <0x0 0x158E7000 0x0 0x20000000>;
 		};
 
 	};
