@@ -46,7 +46,7 @@
 #define BIFETH_CPVER		"BIFETH_CPV20"
 #define BIFETH_APVER		"BIFETH_APV20"
 #define BIFETH_NAME			"bifeth0"
-#define BIFETH_RESERVED_MEM
+//#define BIFETH_RESERVED_MEM
 #define BIFNET_HALF_FULL_IRQ
 //#define BIFETH_IFF_NOARP	//forbid ARP
 #define BIFETH_VER_SIZE		(16)
@@ -559,7 +559,6 @@ static int bifnet_init(void)
 	struct bifnet_local *pl;
 	void *vir_addr;
 	int ret = 0;
-	dma_addr_t dma;
 
 	pr_info("bifnet: init begin...\n");
 	dev = alloc_etherdev(sizeof(struct bifnet_local));
@@ -636,14 +635,14 @@ static int bifnet_init(void)
 	} else {
 		sprintf(pl->ver, "%s", BIFETH_CPVER);
 #ifdef BIFETH_RESERVED_MEM
-		pr_info("bifnet: call bif_alloc_cp()");
+		pr_info("bifnet: call bif_alloc_cp()\n");
 		pl->self_vir = bif_alloc_cp(pl->bifnet_id,
 			2 * ETHER_QUERE_SIZE * BIFETH_SIZE, &pl->self_phy);
 #else
-		pr_info("bifnet: call dma_alloc_wc()");
-		pl->self_vir = dma_alloc_wc(&dev->dev, 2 * ETHER_QUERE_SIZE *
-			BIFETH_SIZE, &dma, GFP_KERNEL);
-		pl->self_phy = dma;
+		pr_info("bifnet: call bif_dma_alloc()\n");
+		pl->self_vir = bif_dma_alloc(2 * ETHER_QUERE_SIZE *
+			BIFETH_SIZE, (dma_addr_t *)&pl->self_phy,
+			GFP_KERNEL, DMA_ATTR_WRITE_COMBINE);
 #endif
 		bif_register_address(pl->bifnet_id,
 			(void *)(ulong)pl->self_phy);
@@ -689,15 +688,15 @@ exit_6:
 		if (pl->plat->plat_type == PLAT_AP)
 			kfree(pl->other_vir);
 		else {
-#ifdef BIFETH_RESERVED_MEM
-#else
-			dma_free_wc(&dev->dev, 2 * ETHER_QUERE_SIZE *
-				BIFETH_SIZE, pl->self_vir, pl->self_phy);
+#ifndef BIFETH_RESERVED_MEM
+			bif_dma_free(2 * ETHER_QUERE_SIZE * BIFETH_SIZE,
+				(dma_addr_t *)&pl->self_phy,
+				GFP_KERNEL, DMA_ATTR_WRITE_COMBINE);
 #endif
 		}
 exit_5:
-	if (pl->plat->plat_type == PLAT_AP)
-		kfree(pl->self_vir);
+		if (pl->plat->plat_type == PLAT_AP)
+			kfree(pl->self_vir);
 exit_4:
 		kthread_stop(pl->tx_task);
 exit_3:
@@ -752,9 +751,9 @@ static void bifnet_exit(void)
 		kfree(pl->other_vir);
 	} else {
 #ifndef BIFETH_RESERVED_MEM
-		if (pl->self_vir)
-			dma_free_wc(&dev->dev, 2 * ETHER_QUERE_SIZE *
-				BIFETH_SIZE, pl->self_vir, pl->self_phy);
+		bif_dma_free(2 * ETHER_QUERE_SIZE * BIFETH_SIZE,
+			(dma_addr_t *)&pl->self_phy,
+			GFP_KERNEL, DMA_ATTR_WRITE_COMBINE);
 #endif
 	}
 
