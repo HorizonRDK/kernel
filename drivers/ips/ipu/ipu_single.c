@@ -110,6 +110,7 @@ static int decode_timestamp(void *addr, uint64_t *timestamp)
 	char *datap = (char *)timestamp;
 	int i = 0;
 
+	memset(timestamp, 0, sizeof(uint64_t));
 	for (i = 15; i >= 0; i--) {
 		if (i % 2)
 			datap[(15 - i) / 2] |= (addrp[i] & 0x0f);
