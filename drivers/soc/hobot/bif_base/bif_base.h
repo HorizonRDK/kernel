@@ -46,6 +46,7 @@ void *bif_query_otherbase(enum BUFF_ID buffer_id);
 //cp alloc alloc buff id buff memory from base memory, return phyaddr
 void *bif_alloc_cp(enum BUFF_ID buffer_id, int size, ulong *phyaddr);
 // ap sync cp side info structure
-int bifbase_sync_cp(void *p);
+//int bifbase_sync_cp(void *p);
+int bif_sync_base(void);
 
 #endif

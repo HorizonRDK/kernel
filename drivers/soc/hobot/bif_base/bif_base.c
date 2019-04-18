@@ -155,7 +155,6 @@ struct bifbase_local {
 };
 
 struct bifbase_local *pbl;
-EXPORT_SYMBOL(pbl);
 struct bifplat_info bifplat;
 EXPORT_SYMBOL(bifplat);
 
@@ -444,7 +443,6 @@ int bifbase_sync_cp(void *p)
 
 	return 0;
 }
-EXPORT_SYMBOL(bifbase_sync_cp);
 
 static irqreturn_t bifbase_baseirq_handler(int irq, void *data)
 {
@@ -1164,6 +1162,14 @@ void *bif_query_otherbase(enum BUFF_ID buffer_id)
 	return (void *)-1;
 }
 EXPORT_SYMBOL(bif_query_otherbase);
+
+int bif_sync_base(void)
+{
+	struct bifbase_local *pl = get_bifbase_local();
+
+	return bifbase_sync_cp((void *)pl);
+}
+EXPORT_SYMBOL(bif_sync_base);
 
 late_initcall(bifbase_init);
 //module_init(bif_base_init);
