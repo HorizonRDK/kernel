@@ -48,5 +48,10 @@ void *bif_alloc_cp(enum BUFF_ID buffer_id, int size, ulong *phyaddr);
 // ap sync cp side info structure
 //int bifbase_sync_cp(void *p);
 int bif_sync_base(void);
+// cp dma alloc memory
+void *bif_dma_alloc(size_t size, dma_addr_t *dma_addr,
+	gfp_t gfp, unsigned long attrs);
+void bif_dma_free(size_t size, dma_addr_t *dma_addr,
+	gfp_t gfp, unsigned long attrs);
 
 #endif

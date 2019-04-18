@@ -139,6 +139,7 @@ struct bifbase_local {
 	enum BUFF_ID bifbase_id;
 	int bifbase_channel;
 
+	struct platform_device *pdev;
 	struct class *class;
 	struct device *dev;
 
@@ -722,6 +723,7 @@ static int bifbase_probe(struct platform_device *pdev)
 		goto exit_1;
 	}
 
+	pl->pdev = pdev;
 	pl->dev = &pdev->dev;
 	ret = of_property_read_u32(pdev->dev.of_node, "bifbase_irq_pin",
 		&pl->plat->irq_pin);
@@ -1170,6 +1172,36 @@ int bif_sync_base(void)
 	return bifbase_sync_cp((void *)pl);
 }
 EXPORT_SYMBOL(bif_sync_base);
+
+void *bif_dma_alloc(size_t size, dma_addr_t *dma_addr,
+	gfp_t gfp, unsigned long attrs)
+{
+	struct bifbase_local *pl = get_bifbase_local();
+
+	if (!pl || !pl->start || !pl->plat || !pl->pdev)
+		return (void *)-1;
+
+	if (pl->plat->plat_type == PLAT_AP)
+		return (void *)-1;
+
+	return dma_alloc_attrs(&pl->pdev->dev, size, dma_addr, gfp, attrs);
+}
+EXPORT_SYMBOL(bif_dma_alloc);
+
+void bif_dma_free(size_t size, dma_addr_t *dma_addr,
+	gfp_t gfp, unsigned long attrs)
+{
+	struct bifbase_local *pl = get_bifbase_local();
+
+	if (!pl || !pl->start || !pl->plat || !pl->pdev)
+		return;
+
+	if (pl->plat->plat_type == PLAT_AP)
+		return;
+
+	dma_free_attrs(&pl->pdev->dev, size, dma_addr, gfp, attrs);
+}
+EXPORT_SYMBOL(bif_dma_free);
 
 late_initcall(bifbase_init);
 //module_init(bif_base_init);
