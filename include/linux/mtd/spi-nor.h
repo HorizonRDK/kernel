@@ -31,6 +31,10 @@
 
 /* CFI Device ID's */
 #define SNOR_GIGA_GD25LQ256D    0x6019
+#define SNOR_GIGA_GD25LQ128D    0x6018
+
+#define	SPI_FLASH_CMD_LEN	5	/* opcode and 4 bytes address */
+#define SPI_FLASH_16MB_BOUN	0x1000000
 
 /*
  * Note on opcode nomenclature: some opcodes have a format like

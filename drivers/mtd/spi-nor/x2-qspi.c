@@ -566,13 +566,19 @@ static int x2_qspi_flash_rd_wr(struct spi_nor *nor, const u8 *cmd, size_t cmd_le
 	return ret;
 }
 
-static void x2_qspi_flash_addr(u32 addr, u8 *cmd)
+static void x2_qspi_flash_addr(struct spi_nor *nor, u32 addr, u8 *cmd)
 {
-	/* cmd[0] is actual command */
-	cmd[1] = addr >> 24;
-	cmd[2] = addr >> 16;
-	cmd[3] = addr >> 8;
-	cmd[4] = addr >> 0;
+        /* cmd[0] is actual command */
+        if (nor->mtd.size > SPI_FLASH_16MB_BOUN) {
+                cmd[1] = addr >> 24;
+                cmd[2] = addr >> 16;
+                cmd[3] = addr >> 8;
+                cmd[4] = addr >> 0;
+        } else {
+                cmd[1] = addr >> 16;
+                cmd[2] = addr >> 8;
+                cmd[3] = addr >> 0;
+        }
 }
 
 static int x2_qspi_flash_prep(struct spi_nor *nor, enum spi_nor_ops ops)
@@ -606,10 +612,15 @@ static int x2_qspi_flash_wr_reg(struct spi_nor *nor, u8 opcode, u8 *buf, int len
 static ssize_t x2_qspi_flash_read(struct spi_nor *nor, loff_t from,
 				size_t len, u_char *read_buf)
 {
-	u8 cmdsz = SPI_FLASH_CMD_LEN + nor->read_dummy/8;
+	u8 cmdsz;
+
+        if (nor->mtd.size > SPI_FLASH_16MB_BOUN)
+		cmdsz = SPI_FLASH_CMD_LEN + nor->read_dummy/8;
+	else
+		cmdsz = SPI_FLASH_CMD_LEN - 1 + nor->read_dummy/8;
 
 	nor->cmd_buf[0] = nor->read_opcode;
-	x2_qspi_flash_addr(from, nor->cmd_buf);
+	x2_qspi_flash_addr(nor, from, nor->cmd_buf);
 	
 	if (x2_qspi_flash_rd_wr(nor, nor->cmd_buf, cmdsz, NULL, read_buf, len))
 		return -EIO;
@@ -622,8 +633,13 @@ static ssize_t x2_qspi_flash_write(struct spi_nor *nor, loff_t to,
 {
 	u8 cmdsz = SPI_FLASH_CMD_LEN;
 
+        if (nor->mtd.size > SPI_FLASH_16MB_BOUN)
+		cmdsz = SPI_FLASH_CMD_LEN;
+	else
+		cmdsz = SPI_FLASH_CMD_LEN - 1;
+
 	nor->cmd_buf[0] = nor->program_opcode;
-	x2_qspi_flash_addr(to, nor->cmd_buf);
+	x2_qspi_flash_addr(nor, to, nor->cmd_buf);
 	
 	if (x2_qspi_flash_rd_wr(nor, nor->cmd_buf, cmdsz, write_buf, NULL, len))
 		return -EIO;
@@ -635,8 +651,13 @@ static int x2_qspi_flash_erase(struct spi_nor *nor, loff_t offs)
 {
 	u8 cmdsz = SPI_FLASH_CMD_LEN;
 
+        if (nor->mtd.size > SPI_FLASH_16MB_BOUN)
+		cmdsz = SPI_FLASH_CMD_LEN;
+	else
+		cmdsz = SPI_FLASH_CMD_LEN - 1;
+
 	nor->cmd_buf[0] = nor->erase_opcode;
-	x2_qspi_flash_addr(offs, nor->cmd_buf);
+	x2_qspi_flash_addr(nor, offs, nor->cmd_buf);
 	
 	return x2_qspi_flash_rd_wr(nor, nor->cmd_buf, cmdsz, NULL, NULL, 0);
 }
@@ -822,6 +843,8 @@ static int x2_qspi_probe(struct platform_device *pdev)
 	}
 
 	init_completion(&x2qspi->xfer_complete);
+
+	x2qspi->cur_cs = X2_QSPI_MAX_CS;
 
 	/* Obtain IRQ line */
 	x2qspi->irq = platform_get_irq(pdev, 0);

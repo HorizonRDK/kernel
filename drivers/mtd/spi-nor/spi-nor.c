@@ -2532,7 +2532,8 @@ static int spi_nor_init_params(struct spi_nor *nor,
 		case SNOR_MFR_MICRON:
 			break;
 		case SNOR_MFR_GIGADEVICE:
-			if (SNOR_GIGA_GD25LQ256D == JEDEC_ID(info))
+			if (SNOR_GIGA_GD25LQ256D == JEDEC_ID(info) ||
+				SNOR_GIGA_GD25LQ128D == JEDEC_ID(info))
 				params->quad_enable = giga_foo_quad_enable;
 			else
 				params->quad_enable = giga_quad_enable;
@@ -2914,7 +2915,7 @@ int spi_nor_scan(struct spi_nor *nor, const char *name,
 		/* already configured from SFDP */
 	} else if (info->addr_width) {
 		nor->addr_width = info->addr_width;
-	} else if (mtd->size > 0x1000000) {
+	} else if (mtd->size > SPI_FLASH_16MB_BOUN) {
 		/* enable 4-byte addressing if the device exceeds 16MiB */
 		nor->addr_width = 4;
 		if (JEDEC_MFR(info) == SNOR_MFR_SPANSION ||
