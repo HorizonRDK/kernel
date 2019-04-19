@@ -45,14 +45,15 @@
 
 #define BIFETH_CPVER		"BIFETH_CPV20"
 #define BIFETH_APVER		"BIFETH_APV20"
-#define BIFETH_NAME			"bifeth0"
+#define BIFETH_NAME		"bifeth0"
 //#define BIFETH_RESERVED_MEM
+#define BIFETH_MEMATTRS		0	//DMA_ATTR_WRITE_BARRIER
 #define BIFNET_HALF_FULL_IRQ
 //#define BIFETH_IFF_NOARP	//forbid ARP
 #define BIFETH_VER_SIZE		(16)
-#define BIFETH_SIZE			(512*3)
+#define BIFETH_SIZE		(512*3)
 #define BIFETH_FRAME_LEN	ETH_FRAME_LEN
-#define QUEUE_MAX			ETHER_QUERE_SIZE
+#define QUEUE_MAX		ETHER_QUERE_SIZE
 #define MAX_SKB_BUFFERS		(20)
 #define MAX(a, b)	((a) > (b) ? (a) : (b))
 #define MIN(a, b)	((a) < (b) ? (a) : (b))
@@ -85,9 +86,7 @@ struct bifnet_local {
 };
 
 static struct net_device *bifnet;
-extern struct bifplat_info bifplat;
 extern int bifget_bifbustype(char *str_bustype);
-extern char *bifeth;
 extern int bifdebug;
 #define pr_bif(fmt, args...) do {if (bifdebug) pr_err(fmt, ##args); } while (0)
 
@@ -589,8 +588,8 @@ static int bifnet_init(void)
 	memset(pl, 0, sizeof(*pl));
 	pl->start = 0;
 	pl->bifnet_id = BUFF_ETH;
-	pl->plat = &bifplat;
-	pl->bifnet = bifeth;
+	pl->plat = (struct bifplat_info *)bif_get_plat_info();
+	pl->bifnet = bif_get_str_bus(pl->bifnet_id);
 	if (!pl->plat) {
 		ret = -1;
 		goto exit_2;
@@ -639,10 +638,10 @@ static int bifnet_init(void)
 		pl->self_vir = bif_alloc_cp(pl->bifnet_id,
 			2 * ETHER_QUERE_SIZE * BIFETH_SIZE, &pl->self_phy);
 #else
-		pr_info("bifnet: call bif_dma_alloc()\n");
+		pr_info("bifnet: call bif_dma_alloc() %d\n", BIFETH_MEMATTRS);
 		pl->self_vir = bif_dma_alloc(2 * ETHER_QUERE_SIZE *
 			BIFETH_SIZE, (dma_addr_t *)&pl->self_phy,
-			GFP_KERNEL, DMA_ATTR_WRITE_COMBINE);
+			GFP_KERNEL, BIFETH_MEMATTRS);
 #endif
 		bif_register_address(pl->bifnet_id,
 			(void *)(ulong)pl->self_phy);
@@ -691,7 +690,7 @@ exit_6:
 #ifndef BIFETH_RESERVED_MEM
 			bif_dma_free(2 * ETHER_QUERE_SIZE * BIFETH_SIZE,
 				(dma_addr_t *)&pl->self_phy,
-				GFP_KERNEL, DMA_ATTR_WRITE_COMBINE);
+				GFP_KERNEL, BIFETH_MEMATTRS);
 #endif
 		}
 exit_5:
@@ -753,7 +752,7 @@ static void bifnet_exit(void)
 #ifndef BIFETH_RESERVED_MEM
 		bif_dma_free(2 * ETHER_QUERE_SIZE * BIFETH_SIZE,
 			(dma_addr_t *)&pl->self_phy,
-			GFP_KERNEL, DMA_ATTR_WRITE_COMBINE);
+			GFP_KERNEL, BIFETH_MEMATTRS);
 #endif
 	}
 
