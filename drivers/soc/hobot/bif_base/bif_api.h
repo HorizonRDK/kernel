@@ -57,6 +57,8 @@ struct bifplat_info {
 	int irq_num;
 	int tri_pin;
 	int tri_val;
+	int rev_pin1;
+	int rev_pin2;
 };
 
 /*

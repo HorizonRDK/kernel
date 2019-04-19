@@ -79,7 +79,7 @@
 
 #define BIFBASE_APMAGIC		"BIFA"
 #define BIFBASE_CPMAGIC		"BIFC"
-#define BIFBASE_VER			"BIFBASE_V20"
+#define BIFBASE_VER		"BIFBASE_V20"
 #define BIFBASE_MAJOR		(123)
 #define BIFBASE_BLOCK		(512)
 #define BIFBASE_VER_SIZE	(16)
@@ -91,15 +91,11 @@
 static ulong bifbase_phyaddr;
 static char *bifspi;
 static char *bifsd;
-static char *bifbase;
+char *bifbase;
 char *bifeth;
-EXPORT_SYMBOL(bifeth);
 char *bifsmd;
-EXPORT_SYMBOL(bifsmd);
 char *bifsio;
-EXPORT_SYMBOL(bifsio);
 char *biflite;
-EXPORT_SYMBOL(biflite);
 
 module_param(bifbase_phyaddr, ulong, 0444);
 module_param(bifspi, charp, 0644);
@@ -117,7 +113,6 @@ MODULE_PARM_DESC(bifeth, "bifbase: ap side, Which channel does bifeth support? b
 MODULE_PARM_DESC(bifsmd, "bifbase: ap side, Which channel does bifsmd support? bifno, bifspi or bifsd");
 MODULE_PARM_DESC(bifsio, "bifbase: ap side, Which channel does bifsio support? bifno, bifspi or bifsd");
 MODULE_PARM_DESC(biflite, "bifbase: ap side, Which channel does biflite support? bifno, bifspi or bifsd");
-
 
 struct bifbase_local {
 	char ver[BIFBASE_VER_SIZE];
@@ -157,7 +152,6 @@ struct bifbase_local {
 
 struct bifbase_local *pbl;
 struct bifplat_info bifplat;
-EXPORT_SYMBOL(bifplat);
 
 extern int bifget_supportbus(char *str_bus);
 extern int bifget_bifbustype(char *str_bustype);
@@ -484,7 +478,7 @@ static void bifbase_irq_work(struct work_struct *work)
 		if (birq < BUFF_MAX && pl->irq_func[birq % BUFF_MAX])
 			pl->irq_func[birq % BUFF_MAX] (birq, NULL);
 		else
-			pr_warn("bifbase: %s() Warn irq %d no register\n",
+			pr_bif("bifbase: %s() Warn irq %d no register\n",
 				__func__, birq);
 
 		pl->other->irq[(pl->self->read_irq_head) % IRQ_QUEUE_SIZE] = -1;
@@ -1202,6 +1196,40 @@ void bif_dma_free(size_t size, dma_addr_t *dma_addr,
 	dma_free_attrs(&pl->pdev->dev, size, dma_addr, gfp, attrs);
 }
 EXPORT_SYMBOL(bif_dma_free);
+
+void *bif_get_plat_info(void)
+{
+	return (void *)&bifplat;
+}
+EXPORT_SYMBOL(bif_get_plat_info);
+
+char *bif_get_str_bus(enum BUFF_ID buffer_id)
+{
+	char *p = NULL;
+
+	switch (buffer_id) {
+	case BUFF_BASE:
+		p = bifbase;
+		break;
+	case BUFF_ETH:
+		p = bifeth;
+		break;
+	case BUFF_SMD:
+		p = bifsmd;
+		break;
+	case BUFF_SIO:
+		p = bifsio;
+		break;
+	case BUFF_LITE:
+		p = biflite;
+		break;
+	case BUFF_MAX:
+		break;
+	}
+
+	return p;
+}
+EXPORT_SYMBOL(bif_get_str_bus);
 
 late_initcall(bifbase_init);
 //module_init(bif_base_init);

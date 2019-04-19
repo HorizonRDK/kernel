@@ -272,6 +272,8 @@ void bifplat_get_macro_config(void *p)
 	pl->irq_num = -1;
 	pl->tri_pin = -1;
 	pl->tri_val = 0;
+	pl->rev_pin1 = -1;
+	pl->rev_pin2 = -1;
 }
 
 void bifplat_print_info(void *p)
