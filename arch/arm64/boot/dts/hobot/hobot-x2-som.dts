@@ -1,5 +1,5 @@
 /*
- * dts file for Hobot X2 FPGA
+ * dts file for Hobot X2 SOM
  *
  * (C) Copyright 2018, Horizon, Inc.
  *
@@ -19,7 +19,7 @@
 #include <dt-bindings/phy/phy.h>
 #include <dt-bindings/input/input.h>
 / {
-	model = "Hobot X2 FPGA MP";
+	model = "Hobot X2 SOM";
 	compatible = "hobot,x2-fpga";
 
 	aliases {

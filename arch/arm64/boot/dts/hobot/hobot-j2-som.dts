@@ -19,7 +19,7 @@
 #include <dt-bindings/phy/phy.h>
 
 / {
-	model = "Hobot X2 FPGA MP";
+	model = "Hobot J2 SOM";
 	compatible = "hobot,x2-fpga";
 
 	aliases {
