@@ -455,6 +455,7 @@
 		cnn0: cnn@0xA3000000 {
 			compatible = "hobot,x2-cnn-host";
 			reg = <0x0 0xA3000000 0x0 0x1000>;
+			memory-region = <&fc_reserved>;
 			cnn-id = <0x0>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 46 4>;
@@ -466,6 +467,7 @@
 		cnn1: cnn@0xA3001000 {
 			compatible = "hobot,x2-cnn-host";
 			reg = <0x0 0xA3001000 0x0 0x1000>;
+			memory-region = <&fc_reserved>;
 			cnn-id = <0x1>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 47 4>;

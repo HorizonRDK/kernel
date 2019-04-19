@@ -31,6 +31,7 @@
 #include <linux/slab.h>
 #include <linux/errno.h>
 #include <linux/of_device.h>
+#include <linux/of_address.h>
 #include <linux/kernel.h>
 #include <linux/delay.h>
 #include <linux/dma-mapping.h>
@@ -44,8 +45,6 @@
 
 static DEFINE_MUTEX(x2_cnn_mutex);
 static char *g_chrdev_name = "cnn";
-static void *cnn0_fc_base;
-static void *cnn1_fc_base;
 static struct dentry *cnn0_debugfs_root;
 static struct dentry *cnn1_debugfs_root;
 static inline u32 x2_cnn_reg_read(struct x2_cnn_dev *dev, u32 off)
@@ -88,14 +87,14 @@ int fc_dump_info(struct seq_file *m, void *data)
 	int i;
 	struct cnn_info_node *node = (struct cnn_info_node *)m->private;
 	struct x2_cnn_dev *dev = node->cnn_dev;
-	unsigned char *fc_buf = kmalloc(CNN0_FC_SPACE_SIZE, GFP_KERNEL);
+	unsigned char *fc_buf = kmalloc(CNN_FC_SPACE_LEN, GFP_KERNEL);
 
-	memset(fc_buf, 0, CNN0_FC_SPACE_SIZE);
+	memset(fc_buf, 0, CNN_FC_SPACE_LEN);
 
-	memcpy(fc_buf, dev->fc_base, CNN0_FC_SPACE_SIZE);
+	memcpy(fc_buf, dev->fc_base, CNN_FC_SPACE_LEN);
 	seq_printf(m, "0x%x ", fc_buf[0]);
-	//for (i = 1; i <= CNN0_FC_SPACE_SIZE; i++) {
-	for (i = 1; i < CNN0_FC_SPACE_SIZE; i++) {
+	//for (i = 1; i <= CNN_FC_SPACE_LEN; i++) {
+	for (i = 1; i < CNN_FC_SPACE_LEN; i++) {
 		seq_printf(m, "[%d] 0x%x ", i, fc_buf[i]);
 		if (i % 15 == 0)
 			seq_puts(m, "\n");
@@ -135,19 +134,18 @@ static void cnn_flush_dcache_range(void *addr, size_t len)
  * function call gap(only for debug)
  *
  */
-void x2_cnn_fc_gap_mem_init(void)
+void x2_cnn_fc_gap_mem_init(struct x2_cnn_dev *dev)
 {
 	int mem_pattern = 0x5a;
-	void *cnn_fc_gap0_virt, *cnn_fc_gap1_virt, *cnn_fc_gap2_virt;
+	void *cnn_fc_start_gap_virt, *cnn_fc_end_gap_virt;
 
-	cnn_fc_gap0_virt = phys_to_virt(CNN_FC_GAP0_BASE);
-	memset(cnn_fc_gap0_virt, mem_pattern, CNN_FC_GAP0_SIZE);
+	cnn_fc_start_gap_virt =
+		phys_to_virt(dev->fc_phys_base - CNN_FC_GAP_LEN);
+	memset(cnn_fc_start_gap_virt, mem_pattern, CNN_FC_GAP_LEN);
 
-	cnn_fc_gap1_virt = phys_to_virt(CNN_FC_GAP1_BASE);
-	memset(cnn_fc_gap1_virt, mem_pattern, CNN_FC_GAP1_SIZE);
-
-	cnn_fc_gap2_virt = phys_to_virt(CNN_FC_GAP2_BASE);
-	memset(cnn_fc_gap2_virt, mem_pattern, CNN_FC_GAP2_SIZE);
+	cnn_fc_end_gap_virt =
+		phys_to_virt(dev->fc_phys_base + dev->fc_mem_size);
+	memset(cnn_fc_end_gap_virt, mem_pattern, CNN_FC_GAP_LEN);
 }
 
 
@@ -926,6 +924,8 @@ int x2_cnn_probe(struct platform_device *pdev)
 	struct x2_cnn_dev *cnn_dev;
 	struct device_node *np = pdev->dev.of_node;
 	struct resource *res;
+	struct device_node *mem_np = NULL;
+	struct resource mem_reserved;
 	int cnn_id;
 	char dev_name[8];
 
@@ -961,21 +961,17 @@ int x2_cnn_probe(struct platform_device *pdev)
 		goto err_out;
 	}
 
-#if 1
-	if (cnn_id == 0) {
-		rc = x2_cnn_get_resets(cnn_dev, cnn_id);
-		if (rc < 0) {
-			pr_err("failed get cnn%d resets\n", cnn_id);
-			goto err_out;
-		}
-	} else if (cnn_id == 1) {
-		rc = x2_cnn_get_resets(cnn_dev, cnn_id);
-		if (rc < 0) {
-			pr_err("failed get cnn%d resets\n", cnn_id);
-			goto err_out;
-		}
+	if ((cnn_id != 0) && (cnn_id != 1)) {
+		pr_err("Invalid cnn id\n");
+		rc = -1;
+		goto err_out;
 	}
-#endif
+
+	rc = x2_cnn_get_resets(cnn_dev, cnn_id);
+	if (rc < 0) {
+		pr_err("failed get cnn%d resets\n", cnn_id);
+		goto err_out;
+	}
 
 	rc = request_irq(cnn_dev->irq, x2_cnn_interrupt_handler, 0,
 			X2_CNN_DRV_NAME, cnn_dev);
@@ -988,38 +984,46 @@ int x2_cnn_probe(struct platform_device *pdev)
 
 	init_waitqueue_head(&cnn_dev->cnn_int_wait);
 
-	if (cnn_id == 0) {
-		cnn_dev->fc_phys_base = CNN0_FC_PHYS_BASE;
-		cnn_dev->fc_mem_size  = CNN0_FC_SPACE_SIZE;
-		cnn_dev->fc_base = cnn_ram_vmap(CNN0_FC_PHYS_BASE,
-					CNN0_FC_SPACE_SIZE, CNN_MT_UC);
-		cnn0_fc_base = cnn_dev->fc_base;
-		x2_cnn_reg_write(cnn_dev, X2_CNN_FC_LEN, 0x3ff);
+	/* request memory address */
+	mem_np = of_parse_phandle(np, "memory-region", 0);
+	if (!mem_np) {
+		/*FIXME: may can use ion to alloc this space */
+		dev_err(cnn_dev->dev,
+			"No %s specified\n", "memory-region");
+		goto err_out;
+	}
+	rc = of_address_to_resource(mem_np, 0, &mem_reserved);
+	if (rc) {
+		dev_err(cnn_dev->dev,
+			"No memory address assigned to the region\n");
+		goto err_out;
+	}
 
-		x2_cnn_reg_write(cnn_dev, X2_CNN_FC_BASE,
-				cnn_dev->fc_phys_base);
-
-
-
-	} else if (cnn_id == 1) {
-		cnn_dev->fc_phys_base = CNN1_FC_PHYS_BASE;
-		cnn_dev->fc_mem_size  = CNN1_FC_SPACE_SIZE;
-		cnn_dev->fc_base = cnn_ram_vmap(CNN1_FC_PHYS_BASE,
-						CNN1_FC_SPACE_SIZE,
-						CNN_MT_UC);
-		x2_cnn_reg_write(cnn_dev, X2_CNN_FC_LEN, 0x3ff);
-		x2_cnn_reg_write(cnn_dev, X2_CNN_FC_BASE,
-				cnn_dev->fc_phys_base);
-
-		cnn1_fc_base = cnn_dev->fc_base;
-
-	} else {
-		pr_err("Invalid cnn id, set fc base failed\n");
+	if (resource_size(&mem_reserved)
+			< (CNN_FC_GAP_LEN * 3 + CNN_FC_SPACE_LEN * 2)) {
+		dev_err(&pdev->dev,
+			"No enough memory for function call\n");
 		rc = -1;
 		goto err_out;
 	}
 
-	x2_cnn_fc_gap_mem_init();
+	cnn_dev->fc_phys_base = mem_reserved.start + CNN_FC_GAP_LEN
+		+ (CNN_FC_SPACE_LEN + CNN_FC_GAP_LEN) * cnn_id;
+	cnn_dev->fc_mem_size  = CNN_FC_SPACE_LEN;
+	cnn_dev->fc_base = cnn_ram_vmap(cnn_dev->fc_phys_base,
+				cnn_dev->fc_mem_size, CNN_MT_UC);
+
+	x2_cnn_reg_write(cnn_dev,
+			X2_CNN_FC_LEN, (cnn_dev->fc_mem_size / 64) - 1);
+	pr_info("Cnn fc phy base = 0x%x, len = 0x%x, default fc len = 0x%x\n",
+			cnn_dev->fc_phys_base,
+			cnn_dev->fc_mem_size,
+			(cnn_dev->fc_mem_size / 64) - 1);
+
+	x2_cnn_reg_write(cnn_dev, X2_CNN_FC_BASE,
+			cnn_dev->fc_phys_base);
+
+	x2_cnn_fc_gap_mem_init(cnn_dev);
 
 	mutex_init(&cnn_dev->cnn_lock);
 	spin_lock_init(&cnn_dev->cnn_spin_lock);
@@ -1072,8 +1076,7 @@ static int x2_cnn_remove(struct platform_device *pdev)
 
 
 	tasklet_kill(&dev->tasklet);
-	vm_unmap_ram(cnn0_fc_base, CNN0_FC_SPACE_SIZE / PAGE_SIZE);
-	vm_unmap_ram(cnn1_fc_base, CNN1_FC_SPACE_SIZE / PAGE_SIZE);
+	vm_unmap_ram(dev->fc_base, dev->fc_mem_size / PAGE_SIZE);
 	dev->cnn_base = 0;
 	cnn_debugfs_cleanup(dev);
 	return 0;

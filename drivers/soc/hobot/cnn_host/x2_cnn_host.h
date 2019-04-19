@@ -109,20 +109,8 @@
 // The default number of character devices for CNN
 #define NUM_DEVICES		    1
 
-#define CNN_FC_GAP0_BASE  0x1FFD0000
-#define CNN_FC_GAP0_SIZE  0x1000
-
-#define CNN0_FC_PHYS_BASE 0x1FFD1000
-#define CNN0_FC_SPACE_SIZE (0x400*0x40)
-
-#define CNN_FC_GAP1_BASE  0x1FFE1000
-#define CNN_FC_GAP1_SIZE  0x1000
-
-#define CNN1_FC_PHYS_BASE 0x1FFE2000
-#define CNN1_FC_SPACE_SIZE (0x400*0x40)
-
-#define CNN_FC_GAP2_BASE  0x1FFF2000
-#define CNN_FC_GAP2_SIZE  0x1000
+#define CNN_FC_GAP_LEN 0x1000
+#define CNN_FC_SPACE_LEN (0x400 * 0x40)
 
 struct x2_cnn_dev {
 	void __iomem	*cnn_base;
