@@ -87,6 +87,7 @@
 #define BIFBASE_UPDATE_TIME	(5)
 #define BIFBASE_CHECKPARAM	(0)
 #define BIFBASE_UPDATEPARAM	(1)
+#define BIFBASE_MEM_NC
 
 static ulong bifbase_phyaddr;
 static char *bifspi;
@@ -510,6 +511,15 @@ static irqreturn_t bifbase_irq_handler(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
+static void *bif_memset(void *s, int c, size_t count)
+{
+	char *xs = s;
+
+	while (count--)
+		*xs++ = c;
+	return s;
+}
+
 static int bifbase_pre_init(void *p)
 {
 	int ret;
@@ -574,12 +584,16 @@ static int bifbase_pre_init(void *p)
 		//	pl->bifbase_phyaddrsize, BIF_MT_WC);//no data update
 		//pl->bifbase_viraddr = (void *)memremap(pl->bifbase_phyaddr,
 		//	pl->bifbase_phyaddrsize, MEMREMAP_WC);//ok,hisi?
-
+#ifdef BIFBASE_MEM_NC
+		pr_info("bifbase: call ioremap_nocache()\n");
+		pl->bifbase_viraddr = (void *)ioremap_nocache(
+			pl->bifbase_phyaddr, pl->bifbase_phyaddrsize);
+#else
 		pr_info("bifbase: call ioremap_wc()\n");
-		pl->bifbase_viraddr = (void *)ioremap_wc(pl->bifbase_phyaddr,
-			pl->bifbase_phyaddrsize);
-
-		memset(pl->bifbase_viraddr, 0, pl->bifbase_phyaddrsize);
+		pl->bifbase_viraddr = (void *)ioremap_wc(
+			pl->bifbase_phyaddr, pl->bifbase_phyaddrsize);
+#endif
+		bif_memset(pl->bifbase_viraddr, 0, pl->bifbase_phyaddrsize);
 
 		pl->cp = (struct bif_base_info *)(pl->bifbase_viraddr + 0);
 		pl->ap = (struct bif_base_info *)(pl->bifbase_viraddr +
@@ -590,7 +604,7 @@ static int bifbase_pre_init(void *p)
 		memcpy(pl->self->magic, BIFBASE_CPMAGIC, 4);
 	}
 
-	memset(pl->self->irq, -1, IRQ_QUEUE_SIZE);
+	bif_memset(pl->self->irq, -1, IRQ_QUEUE_SIZE);
 	ptr = (unsigned char *)pl->self;
 	pr_info("bifbase: magic=%c%c%c%c,size=0x%x\n", ptr[0], ptr[1],
 		ptr[2], ptr[3], (unsigned int)sizeof(struct bif_base_info));
