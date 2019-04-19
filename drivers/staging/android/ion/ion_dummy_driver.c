@@ -23,6 +23,8 @@
 #include <linux/sizes.h>
 #include <linux/io.h>
 #include <linux/uaccess.h>
+#include <linux/of.h>
+#include <linux/of_address.h>
 #include "ion.h"
 
 extern struct ion_device *ion_device_create(long (*custom_ioctl)
@@ -110,6 +112,8 @@ static long ion_dummy_ioctl(struct ion_client *client,
 
 static int __init ion_dummy_init(void)
 {
+	struct device_node *node;
+	struct resource ion_pool_reserved;
 	int i, err;
 
 	idev = ion_device_create(ion_dummy_ioctl);
@@ -118,19 +122,28 @@ static int __init ion_dummy_init(void)
 	if (!heaps)
 		return -ENOMEM;
 
-	/* Allocate a dummy carveout heap */
-#if 0
-	carveout_ptr = alloc_pages_exact(
-				dummy_heaps[ION_HEAP_TYPE_CARVEOUT].size,
-				GFP_KERNEL);
-	if (carveout_ptr)
-		dummy_heaps[ION_HEAP_TYPE_CARVEOUT].base =
-						virt_to_phys(carveout_ptr);
-	else
-		pr_err("ion_dummy: Could not allocate carveout\n");
-#endif
-	dummy_heaps[ION_HEAP_TYPE_CARVEOUT].base = 0x20000000;
-	dummy_heaps[ION_HEAP_TYPE_CARVEOUT].size = 0x20000000;
+	/* phase the carveout heap */
+	node = of_find_node_by_path("/reserved-memory");
+	if (node) {
+		node = of_find_compatible_node(node, NULL, "ion-pool");
+		if (node) {
+			if (!of_address_to_resource(node, 0, &ion_pool_reserved)) {
+				dummy_heaps[ION_HEAP_TYPE_CARVEOUT].base
+					= ion_pool_reserved.start;
+				dummy_heaps[ION_HEAP_TYPE_CARVEOUT].size
+					= resource_size(&ion_pool_reserved);
+				pr_info("ION Carveout MEM start 0x%x, size 0x%x\n",
+					dummy_heaps[ION_HEAP_TYPE_CARVEOUT].base,
+					dummy_heaps[ION_HEAP_TYPE_CARVEOUT].size);
+			} else {
+				pr_err("ion_dummy: Could not allocate carveout\n");
+			}
+		} else {
+			pr_err("ion_dummy: not reserve carveout memory\n");
+		}
+	} else {
+		pr_err("ion_dummy: not reserve memory\n");
+	}
 
 	/* Allocate a dummy chunk heap */
 	chunk_ptr = alloc_pages_exact(
@@ -164,11 +177,6 @@ err:
 		ion_heap_destroy(heaps[i]);
 	kfree(heaps);
 
-	if (carveout_ptr) {
-		free_pages_exact(carveout_ptr,
-				 dummy_heaps[ION_HEAP_TYPE_CARVEOUT].size);
-		carveout_ptr = NULL;
-	}
 	if (chunk_ptr) {
 		free_pages_exact(chunk_ptr,
 				 dummy_heaps[ION_HEAP_TYPE_CHUNK].size);
@@ -188,11 +196,6 @@ static void __exit ion_dummy_exit(void)
 		ion_heap_destroy(heaps[i]);
 	kfree(heaps);
 
-	if (carveout_ptr) {
-		free_pages_exact(carveout_ptr,
-				 dummy_heaps[ION_HEAP_TYPE_CARVEOUT].size);
-		carveout_ptr = NULL;
-	}
 	if (chunk_ptr) {
 		free_pages_exact(chunk_ptr,
 				 dummy_heaps[ION_HEAP_TYPE_CHUNK].size);

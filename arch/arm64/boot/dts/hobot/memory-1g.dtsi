@@ -49,8 +49,9 @@
 			reg = <0x0 0x158B7000 0x0 0x00030000>;
 		};
 
-		/* Reserved 512MB memory for cnn subsystem */
-		cnn_reserved: cnn_reserved@0x158E7000 {
+		/* Reserved 512MB memory for ion*/
+		ion_reserved: ion_reserved@0x158E7000 {
+			compatible = "ion-pool";
 			reg = <0x0 0x158E7000 0x0 0x20000000>;
 		};
 
