@@ -17,7 +17,7 @@
 #include "memory-1g.dtsi"
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/phy/phy.h>
-
+#include <dt-bindings/input/input.h>
 / {
 	model = "Hobot X2 FPGA MP";
 	compatible = "hobot,x2-fpga";
@@ -46,6 +46,52 @@
 		bootargs = "earlycon loglevel=8 console=ttyS0 clk_ignore_unused";
 		stdout-path = "serial0:115200n8";
 	};
+	gpio-keys {
+                compatible = "gpio-keys";
+                interrupt-parent = <&tca9534>;
+
+                up {
+                        label = "key_up";
+                        linux,code = <KEY_UP>;
+                        gpios = <&tca9534 0 IRQ_TYPE_EDGE_FALLING>;
+                        debounce-interval = <30>;
+                };
+
+                down {
+                        label = "key_down";
+                        linux,code = <KEY_DOWN>;
+                        gpios = <&tca9534 1 IRQ_TYPE_EDGE_FALLING>;
+                        debounce-interval = <30>;
+                };
+
+                left {
+                        label = "key_left";
+                        linux,code = <KEY_LEFT>;
+                        gpios = <&tca9534 2 IRQ_TYPE_EDGE_FALLING>;
+                        debounce-interval = <30>;
+                };
+
+                right {
+                        label = "key_right";
+                        linux,code = <KEY_RIGHT>;
+                        gpios = <&tca9534 3 IRQ_TYPE_EDGE_FALLING>;
+                        debounce-interval = <30>;
+                };
+
+                center {
+                        label = "key_enter";
+                        linux,code = <KEY_ENTER>;
+                        gpios = <&tca9534 4 IRQ_TYPE_EDGE_FALLING>;
+                        debounce-interval = <30>;
+                };
+
+                backspace {
+                        label = "key_backspace";
+                        linux,code = <KEY_BACKSPACE>;
+                        gpios = <&tca9534 5 IRQ_TYPE_EDGE_FALLING>;
+                        debounce-interval = <30>;
+                };
+        };
 
 };
 
@@ -56,6 +102,15 @@
 	x2_camera@0x7f {
 	    compatible = "x2,camera";
 	    reg = <0x7f>;
+	};
+	tca9534: gpio@20 {
+		compatible = "ti,tca9534";
+		reg = <0x20>;
+		gpio-controller;
+		interrupt-controller;
+		interrupt-parent = <&pinctrl>;
+		interrupts = <75 IRQ_TYPE_EDGE_FALLING>;
+		#gpio-cells = <2>;
 	};
 	tmp75c@48 {
                 compatible = "ti,tmp75c";
@@ -130,7 +185,7 @@
 
 &pinctrl {
 	status = "okay";
-	gpioirq-bank-cfg = <95 0 0 0>;	//x2 som
+	gpioirq-bank-cfg = <76 0 0 0>;	//x2 som
 };
 
 &uart0 {

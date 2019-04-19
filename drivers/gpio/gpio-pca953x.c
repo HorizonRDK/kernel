@@ -639,14 +639,12 @@ static int pca953x_irq_setup(struct pca953x_chip *chip,
 		for (i = 0; i < NBANK(chip); i++)
 			chip->irq_stat[i] &= chip->reg_direction[i];
 		mutex_init(&chip->irq_lock);
-
 		ret = devm_request_threaded_irq(&client->dev,
 					client->irq,
-					   NULL,
-					   pca953x_irq_handler,
-					   IRQF_TRIGGER_LOW | IRQF_ONESHOT |
-						   IRQF_SHARED,
-					   dev_name(&client->dev), chip);
+					NULL,
+					pca953x_irq_handler,
+					IRQF_TRIGGER_FALLING | IRQF_ONESHOT,
+					dev_name(&client->dev), chip);
 		if (ret) {
 			dev_err(&client->dev, "failed to request irq %d\n",
 				client->irq);
@@ -946,6 +944,7 @@ static const struct of_device_id pca953x_dt_ids[] = {
 	{ .compatible = "ti,tca6408", .data = OF_953X( 8, PCA_INT), },
 	{ .compatible = "ti,tca6416", .data = OF_953X(16, PCA_INT), },
 	{ .compatible = "ti,tca6424", .data = OF_953X(24, PCA_INT), },
+	{ .compatible = "ti,tca9534", .data = OF_953X(8, PCA_INT), },
 
 	{ .compatible = "onsemi,pca9654", .data = OF_953X( 8, PCA_INT), },
 
