@@ -145,8 +145,9 @@ static irqreturn_t x2_wdt_irq_handler(int irq, void *data)
 
 	/* clear the irq */
 	val = x2_wdt_rd(x2wdt, X2_TIMER_TMR_SRCPND_REG);
-	val &= (~X2_TIMER_WDT_INTMASK);
+	val &= X2_TIMER_WDT_INTMASK;
 	x2_wdt_wr(x2wdt, X2_TIMER_TMR_SRCPND_REG, val);
+
 	/* Feed the dog */
 	x2_wdt_reload(&x2wdt->x2_wdd);
 
@@ -241,6 +242,7 @@ static int x2_wdt_probe(struct platform_device *pdev)
 
 	/* Register the interrupt */
 	x2wdt->irq = platform_get_irq(pdev, 0);
+
 	if (x2wdt->irq >= 0) {
 		ret = devm_request_irq(&pdev->dev, x2wdt->irq, x2_wdt_irq_handler, 0,
 								pdev->name, x2wdt);
