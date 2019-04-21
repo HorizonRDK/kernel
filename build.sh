@@ -15,7 +15,11 @@ function choose()
 function all()
 {
     prefix=$TARGET_KERNEL_DIR
-    config=$KERNEL_DEFCONFIG
+    if [ $TARGET_MODE == "debug" ];then
+        config=$KERNEL_DEFCONFIG
+    else
+        config=$KERNEL_PERF_DEFCONFIG
+    fi
     echo "kernel config: $config"
 
     # real build
