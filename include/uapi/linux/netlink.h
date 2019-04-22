@@ -29,6 +29,7 @@
 #define NETLINK_RDMA		20
 #define NETLINK_CRYPTO		21	/* Crypto layer */
 #define NETLINK_SMC		22	/* SMC monitoring */
+#define NETLINK_DIAG		23	/* diag info report to userspace */
 
 #define NETLINK_INET_DIAG	NETLINK_SOCK_DIAG
 

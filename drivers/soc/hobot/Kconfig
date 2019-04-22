@@ -19,6 +19,13 @@ config X2_CNN_MM
         help
           Add x2 cnn memory heap management driver
 
+config X2_DIAG
+        bool "x2 diag driver, based on netlink"
+        default y
+        help
+          Kernel modules(drivers) can send diag msgs to userspace
+          by calling the API of the diag module(driver)
+
 menuconfig HOBOT_BIF_CP
         bool "Enable Horizon CP side BIF driver"
         default y
