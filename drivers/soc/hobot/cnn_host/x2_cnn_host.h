@@ -137,7 +137,7 @@ struct x2_cnn_dev {
 	/* wait queue for wait cnn interrupt occur */
 	wait_queue_head_t cnn_int_wait;
 	u32 x2_cnn_int_num;
-
+	atomic_t wait_fc_cnt;
 	struct tasklet_struct tasklet;
 	struct dentry *debugfs_root;
 	struct list_head debugfs_list;

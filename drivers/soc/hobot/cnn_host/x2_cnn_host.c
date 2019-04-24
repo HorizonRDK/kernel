@@ -47,6 +47,15 @@ static DEFINE_MUTEX(x2_cnn_mutex);
 static char *g_chrdev_name = "cnn";
 static struct dentry *cnn0_debugfs_root;
 static struct dentry *cnn1_debugfs_root;
+static struct x2_cnn_dev *cnn0_dev;
+static struct x2_cnn_dev *cnn1_dev;
+static int profiler_frequency;
+static int profiler_enable;
+static int ratio0;
+static int ratio1;
+static int queue0;
+static int queue1;
+static struct timer_list check_timer;
 static inline u32 x2_cnn_reg_read(struct x2_cnn_dev *dev, u32 off)
 {
 	return readl(dev->cnn_base + off);
@@ -357,9 +366,8 @@ static irqreturn_t x2_cnn_interrupt_handler(int irq, void *dev_id)
 	dev->x2_cnn_int_num = x2_cnn_reg_read(dev, X2_CNNINT_NUM);
 
 	x2_cnn_reg_write(dev, X2_CNNINT_MASK, 0x0);
-
 	spin_unlock_irqrestore(&dev->cnn_spin_lock, flags);
-
+	atomic_dec(&dev->wait_fc_cnt);
 	pr_info("!!!!!!xxxx x2 cnn interrupt\n");
 	tasklet_schedule(&dev->tasklet);
 	return IRQ_HANDLED;
@@ -380,6 +388,7 @@ static ssize_t x2_cnn_write(struct file *filp,
 static void x2_cnn_set_fc_tail_idx(struct x2_cnn_dev *dev, u32 fc_tail_idx)
 {
 	u32 reg_val;
+	u32 flags;
 
 	reg_val = x2_cnn_reg_read(dev, X2_CNN_FC_TAIL);
 	reg_val &=  ~(X2_CNN_PE0_FC_TAIL_MASK);
@@ -442,8 +451,8 @@ static u32 x2_cnn_get_fc_fifo_spaces(struct x2_cnn_dev *dev)
 	else
 		free_fc_fifo = fc_depth - fc_tail_idx + fc_head_idx + 1;
 
-	pr_info("fc_depth:0x%x,get fifo spaces return val:%d\n",
-			fc_depth, free_fc_fifo);
+	pr_info("fc_depth:0x%x, get fifo spaces return val:%d, head:[%d], tail:[%d]\n",
+			fc_depth, free_fc_fifo, fc_head_idx, fc_tail_idx);
 	return free_fc_fifo;
 }
 
@@ -458,6 +467,7 @@ static u32 x2_cnn_fc_fifo_enqueue(struct x2_cnn_dev *dev,
 		struct x2_cnn_fc_info *fc_buf)
 {
 	u32 rc = 0;
+	u32 i;
 	u32 free_fc_fifo = 0;
 	u32 fc_head_idx, fc_tail_idx,
 	    fc_head_flag, fc_tail_flag;
@@ -469,6 +479,8 @@ static u32 x2_cnn_fc_fifo_enqueue(struct x2_cnn_dev *dev,
 
 	fc_tail_idx = x2_cnn_reg_read(dev, X2_CNN_FC_TAIL);
 	fc_tail_flag = fc_head_idx & X2_CNN_FC_IDX_FLAG;
+	struct hbrt_x2_funccall_s *tmp_ptr =
+		(struct hbrt_x2_funccall_s *)fc_buf->fc_info;
 
 	if (fc_head_flag != fc_tail_flag)
 		free_fc_fifo = fc_head_idx - fc_tail_idx;
@@ -498,11 +510,27 @@ static u32 x2_cnn_fc_fifo_enqueue(struct x2_cnn_dev *dev,
 			fc_buf->fc_info + (insert_fc_cnt * X2_CNN_FC_SIZE),
 			residue_fc_cnt * X2_CNN_FC_SIZE);
 		}
+		/*
+		 * Actually, according to libpu, fc_cnt is always 1
+		 */
+		for (i = 0; i < residue_fc_cnt; i++) {
+			if (tmp_ptr->interrupt_num != 0)
+				atomic_inc(&dev->wait_fc_cnt);
+			tmp_ptr++;
+		}
 		x2_cnn_set_fc_tail_idx(dev, residue_fc_cnt | fc_tail_flag);
 	} else {
 		memcpy(dev->fc_base + (fc_tail_idx * X2_CNN_FC_SIZE),
 			fc_buf->fc_info, fc_buf->fc_cnt * X2_CNN_FC_SIZE);
 
+		/*
+		 * Actually, according to libpu, fc_cnt is always 1
+		 */
+		for (i = 0; i < fc_buf->fc_cnt; i++) {
+			if (tmp_ptr->interrupt_num != 0)
+				atomic_inc(&dev->wait_fc_cnt);
+			tmp_ptr++;
+		}
 		x2_cnn_set_fc_tail_idx(dev,
 				fc_tail_flag | (fc_tail_idx + fc_buf->fc_cnt));
 	}
@@ -625,13 +653,13 @@ static long x2_cnn_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		pr_debug("!!!!func: %s, line: %d\n"
 				"tmp_ptr->dyn_base_addr5 is 0x%x,\n"
 				"tmp_ptr->dyn_base_addr4 is 0x%x,\n"
-				 "tmp_ptr->interrupt_num is %d,\n"
-				 "tmp_ptr->instruction_length is %d,\n"
-				 "tmp_ptr->instruction_address is 0x%x,\n"
-				 "tmp_ptr->dyn_base_addr0 is 0x%x,\n"
-				 "tmp_ptr->dyn_base_addr1 is 0x%x,\n"
-				 "tmp_ptr->dyn_base_addr3 is 0x%x.\n",
-				 __func__, __LINE__,
+				"tmp_ptr->interrupt_num is %d,\n"
+				"tmp_ptr->instruction_length is %d,\n"
+				"tmp_ptr->instruction_address is 0x%x,\n"
+				"tmp_ptr->dyn_base_addr0 is 0x%x,\n"
+				"tmp_ptr->dyn_base_addr1 is 0x%x,\n"
+				"tmp_ptr->dyn_base_addr3 is 0x%x.\n",
+				__func__, __LINE__,
 				tmp_ptr->dyn_base_addr5,
 				tmp_ptr->dyn_base_addr4,
 				tmp_ptr->interrupt_num,
@@ -687,8 +715,8 @@ static u32 x2_cnn_poll(struct file *filp, poll_table *wait)
 {
 	unsigned int mask = 0;
 	struct x2_cnn_dev *dev = filp->private_data;
-	poll_wait(filp, &dev->cnn_int_wait, wait);
 
+	poll_wait(filp, &dev->cnn_int_wait, wait);
 	mutex_lock(&dev->cnn_lock);
 	if (dev->irq_triggered) {
 		mask |= POLLIN | POLLRDNORM;
@@ -1012,7 +1040,7 @@ int x2_cnn_probe(struct platform_device *pdev)
 	cnn_dev->fc_mem_size  = CNN_FC_SPACE_LEN;
 	cnn_dev->fc_base = cnn_ram_vmap(cnn_dev->fc_phys_base,
 				cnn_dev->fc_mem_size, CNN_MT_UC);
-
+	atomic_set(&cnn_dev->wait_fc_cnt, 0);
 	x2_cnn_reg_write(cnn_dev,
 			X2_CNN_FC_LEN, (cnn_dev->fc_mem_size / 64) - 1);
 	pr_info("Cnn fc phy base = 0x%x, len = 0x%x, default fc len = 0x%x\n",
@@ -1048,10 +1076,16 @@ int x2_cnn_probe(struct platform_device *pdev)
 		rc = cnn_debugfs_init(cnn_dev, cnn_id, cnn0_debugfs_root);
 		if (rc)
 			pr_err("init cnn%d debugfs failed\n", cnn_id);
+		pr_info("before cnn dev\n");
+		cnn0_dev = cnn_dev;
+		pr_info("after cnn dev\n");
 	} else if (cnn_id == 1) {
 		rc = cnn_debugfs_init(cnn_dev, cnn_id, cnn1_debugfs_root);
 		if (rc)
 			pr_err("init cnn%d debugfs failed\n", cnn_id);
+		pr_info("before cnn dev1\n");
+		cnn1_dev = cnn_dev;
+		pr_info("before cnn dev1\n");
 	}
 
 	platform_set_drvdata(pdev, cnn_dev);
@@ -1095,6 +1129,184 @@ static struct platform_driver x2_cnn_platform_driver = {
 		.of_match_table = x2_cnn_of_match,
 	},
 };
+static void x2_cnn_check_func(unsigned long arg)
+{
+	static int time;
+	static int cnn0_busy;
+	static int cnn1_busy;
+	static int fre;
+	static int fre_tmp;
+	unsigned int flags;
+
+	int cnn0_head = x2_cnn_reg_read(cnn0_dev, X2_CNN_FC_HEAD);
+	int cnn0_tail = x2_cnn_reg_read(cnn0_dev, X2_CNN_FC_TAIL);
+
+	int cnn1_head = x2_cnn_reg_read(cnn1_dev, X2_CNN_FC_HEAD);
+	int cnn1_tail = x2_cnn_reg_read(cnn1_dev, X2_CNN_FC_TAIL);
+
+	fre_tmp = profiler_frequency;
+	if (fre != fre_tmp) {
+		/* frequency changed*/
+		fre = fre_tmp;
+		cnn0_busy = 0;
+		cnn1_busy = 0;
+		time = 0;
+
+	}
+	if (cnn0_head != cnn0_tail || atomic_read(&cnn0_dev->wait_fc_cnt))
+		cnn0_busy++;
+	if (cnn1_head != cnn1_tail || atomic_read(&cnn1_dev->wait_fc_cnt))
+		cnn1_busy++;
+
+	if (++time == fre) {
+		time = 0;
+		ratio0 = cnn0_busy * 100 / fre;
+		ratio1 = cnn1_busy * 100 / fre;
+		cnn0_busy = 0;
+		cnn1_busy = 0;
+	}
+	check_timer.expires = jiffies + HZ / fre;
+	add_timer(&check_timer);
+}
+static ssize_t fre_show(struct kobject *kobj, struct kobj_attribute *attr,
+			char *buf)
+{
+	return sprintf(buf, "%d\n", profiler_frequency);
+}
+
+
+static ssize_t fre_store(struct kobject *kobj, struct kobj_attribute *attr,
+			 const char *buf, size_t count)
+{
+	int ret;
+
+	ret = sscanf(buf, "%du", &profiler_frequency);
+	if (ret < 0) {
+		pr_info("%s sscanf error\n", __func__);
+		return 0;
+	}
+	pr_info("func:%s, FRE:%d\n", __func__, profiler_frequency);
+	if (profiler_frequency <= 0 || profiler_frequency > HZ) {
+		pr_warn("err!, profiler frequency range is 0~%d HZ\n", HZ);
+		return -1;
+	}
+	if (!profiler_enable)
+		check_timer.expires = jiffies + HZ / profiler_frequency;
+	else
+		mod_timer(&check_timer, jiffies + HZ / profiler_frequency);
+	return count;
+}
+
+static ssize_t enable_show(struct kobject *kobj, struct kobj_attribute *attr,
+						 char *buf)
+{
+	return sprintf(buf, "%d\n", profiler_enable);
+}
+
+
+static ssize_t enable_store(struct kobject *kobj, struct kobj_attribute *attr,
+						  const char *buf, size_t count)
+{
+	int ret;
+
+	ret = sscanf(buf, "%du", &profiler_enable);
+	if (ret < 0) {
+		pr_info("%s sscanf error\n", __func__);
+		return 0;
+	}
+	pr_info("set bpu profiler enable:%d\n", profiler_enable);
+	if (profiler_enable) {
+		if (!profiler_frequency) {
+			pr_warn("cnn profiler frequency is 0, please set frequency!\n");
+			profiler_enable = 0;
+			return -1;
+		}
+		add_timer(&check_timer);
+	} else
+		del_timer(&check_timer);
+	return count;
+}
+
+
+static ssize_t ratio0_show(struct kobject *kobj, struct kobj_attribute *attr,
+						 char *buf)
+{
+	return sprintf(buf, "%d\n", ratio0);
+}
+
+static ssize_t ratio1_show(struct kobject *kobj, struct kobj_attribute *attr,
+						 char *buf)
+{
+	return sprintf(buf, "%d\n", ratio1);
+}
+static ssize_t queue0_show(struct kobject *kobj, struct kobj_attribute *attr,
+						 char *buf)
+{
+	mutex_lock(&cnn0_dev->cnn_lock);
+	queue0 = x2_cnn_get_fc_fifo_spaces(cnn0_dev);
+	mutex_unlock(&cnn0_dev->cnn_lock);
+	return sprintf(buf, "%d\n", queue0);
+}
+static ssize_t queue1_show(struct kobject *kobj, struct kobj_attribute *attr,
+						 char *buf)
+{
+	mutex_lock(&cnn1_dev->cnn_lock);
+	queue1 = x2_cnn_get_fc_fifo_spaces(cnn0_dev);
+	mutex_unlock(&cnn1_dev->cnn_lock);
+	return sprintf(buf, "%d\n", queue1);
+}
+static struct kobj_attribute pro_frequency = __ATTR(profiler_frequency, 0664,
+						    fre_show, fre_store);
+static struct kobj_attribute pro_enable    = __ATTR(profiler_enable, 0664,
+						    enable_show, enable_store);
+static struct kobj_attribute pro_ratio0    = __ATTR(ratio0, 0444,
+						    ratio0_show, NULL);
+static struct kobj_attribute pro_ratio1    = __ATTR(ratio1, 0444,
+						    ratio1_show, NULL);
+static struct kobj_attribute pro_queue0    = __ATTR(queue0, 0444,
+						    queue0_show, NULL);
+static struct kobj_attribute pro_queue1    = __ATTR(queue1, 0444,
+						    queue1_show, NULL);
+
+static struct attribute *bpu_attrs[] = {
+	&pro_frequency.attr,
+	&pro_enable.attr,
+	NULL,
+};
+static struct attribute *bpu0_attrs[] = {
+
+	&pro_ratio0.attr,
+	&pro_queue0.attr,
+	NULL,
+};
+static struct attribute *bpu1_attrs[] = {
+	&pro_ratio1.attr,
+	&pro_queue1.attr,
+	NULL,
+};
+
+
+static struct attribute_group bpu_attr_group = {
+	.attrs = bpu_attrs,
+};
+static struct attribute_group bpu0_attr_group = {
+	.name = "bpu0",
+	.attrs = bpu0_attrs,
+};
+static struct attribute_group bpu1_attr_group = {
+	.name = "bpu1",
+	.attrs = bpu1_attrs,
+};
+
+static const struct attribute_group *bpu_attr_groups[] = {
+	&bpu_attr_group,
+	&bpu0_attr_group,
+	&bpu1_attr_group,
+	NULL,
+};
+struct bus_type bpu_subsys = {
+	.name = "bpu",
+};
 static int __init x2_cnn_init(void)
 {
 	int retval = 0;
@@ -1103,6 +1315,13 @@ static int __init x2_cnn_init(void)
 	retval = platform_driver_register(&x2_cnn_platform_driver);
 	if (retval)
 		pr_err("x2 cnn driver register failed\n");
+
+	/*register bpu sys node*/
+	if (subsys_system_register(&bpu_subsys, bpu_attr_groups))
+		pr_err("fialed to register bpu subsystem");
+	/*set bpu profiler timer*/
+	init_timer(&check_timer);
+	check_timer.function = &x2_cnn_check_func;
 	return retval;
 
 }
