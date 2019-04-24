@@ -58,7 +58,7 @@ config HOBOT_BIF_SIO
 config HOBOT_BIF_LITE
         tristate "Enable HOBOT BIF Lite Drivers"
 	depends on HOBOT_BIF_BASE
-        default n
+        default y
         help
           Say yes to enable bif_lite & hbipc_lite driver
 endif

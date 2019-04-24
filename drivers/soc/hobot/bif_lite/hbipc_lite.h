@@ -58,7 +58,7 @@ struct provider_desc {
 	struct session_info session;
 };
 
-#define PROVIDER_COUNT_MAX (5)
+#define PROVIDER_COUNT_MAX (1)
 struct provider_info {
 	struct provider_desc provider_array[PROVIDER_COUNT_MAX];
 	int count;
@@ -78,10 +78,23 @@ struct server_info {
 	int first_avail;
 };
 
+struct provider_start_desc {
+	int valid;
+	int client_id;
+};
+
+#define PROVIDER_START_COUNT_MAX (5)
+struct provider_start_info {
+	struct provider_start_desc start_array[PROVIDER_START_COUNT_MAX];
+	int count;
+	int first_avail;
+};
+
 struct provider_server {
 	int valid;
 	int provider_id;
 	unsigned char server_id[UUID_LEN];
+	struct provider_start_info start_list;
 };
 
 #define PROVIDER_SERVER_MAP_COUNT ((SERVER_COUNT_MAX) * (PROVIDER_COUNT_MAX))
@@ -184,10 +197,22 @@ int unregister_map(struct send_mang_data *data);
 int unregister_map_with_lock(struct send_mang_data *data);
 struct session_desc *is_valid_session(struct send_mang_data *data,
 struct server_desc **server_des, struct provider_desc **provider_des);
+void provider_start_desc_init(struct provider_start_desc *start_des);
+void provider_start_desc_deinit(struct provider_start_desc *start_des);
+void provider_start_info_init(struct provider_start_info *start_info);
+void provider_start_info_deinit(struct provider_start_info *start_info);
 void provider_server_init(struct provider_server *relation);
 void provider_server_deinit(struct provider_server *relation);
 void provider_server_map_init(struct provider_server_map *map);
 void provider_server_map_deinit(struct provider_server_map *map);
 int start_server(struct send_mang_data *data, int *provider_id);
+int get_start_list_first_avail_index(struct provider_start_info *start_inf);
+int get_start_index(struct provider_start_info *start_inf, int client_id);
+int get_map_index_from_server(struct provider_server_map *map,
+struct send_mang_data *data);
+int clear_connect(struct session_info *session_inf);
+int recv_handle_stock_frame(void);
+int unregister_server_provider_abnormal(struct send_mang_data *data);
+int disconnect_stopserver_abnormal(struct send_mang_data *data);
 
 #endif  /* _HBIPC_LITE_H_ */

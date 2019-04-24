@@ -17,8 +17,16 @@ void resource_queue_init(struct resource_queue *queue)
 void resource_queue_deinit(struct resource_queue *queue)
 {
 	// need remove frame
-	INIT_LIST_HEAD(&queue->list);
-	queue->frame_count = 0;
+	struct list_head *pos = NULL;
+	struct list_head *n = NULL;
+	struct bif_frame_cache *bif_frame = NULL;
+
+	list_for_each_safe(pos, n, &queue->list) {
+		bif_frame =
+		list_entry(pos, struct bif_frame_cache, frame_cache_list);
+		bif_del_frame_from_list(bif_frame);
+		--queue->frame_count;
+	}
 }
 
 void session_desc_init(struct session_desc *session_des)
@@ -129,11 +137,44 @@ void server_info_deinit(struct server_info *server_inf)
 	server_inf->first_avail = 0;
 }
 
+void provider_start_desc_init(struct provider_start_desc *start_des)
+{
+	start_des->valid = 0;
+	start_des->client_id = 0;
+}
+
+void provider_start_desc_deinit(struct provider_start_desc *start_des)
+{
+	start_des->valid = 0;
+	start_des->client_id = 0;
+}
+
+void provider_start_info_init(struct provider_start_info *start_info)
+{
+	int i = 0;
+
+	for (i = 0; i < PROVIDER_START_COUNT_MAX; ++i)
+		provider_start_desc_init(start_info->start_array + i);
+	start_info->count = PROVIDER_START_COUNT_MAX;
+	start_info->first_avail = 0;
+}
+
+void provider_start_info_deinit(struct provider_start_info *start_info)
+{
+	int i = 0;
+
+	for (i = 0; i < PROVIDER_START_COUNT_MAX; ++i)
+		provider_start_desc_init(start_info->start_array + i);
+	start_info->count = 0;
+	start_info->first_avail = 0;
+}
+
 void provider_server_init(struct provider_server *relation)
 {
 	relation->valid = 0;
 	relation->provider_id = -1;
 	memset(relation->server_id, 0, UUID_LEN);
+	provider_start_info_init(&relation->start_list);
 }
 
 void provider_server_deinit(struct provider_server *relation)
@@ -141,7 +182,7 @@ void provider_server_deinit(struct provider_server *relation)
 	relation->valid = 0;
 	relation->provider_id = -1;
 	memset(relation->server_id, 0, UUID_LEN);
-
+	provider_start_info_deinit(&relation->start_list);
 }
 
 void provider_server_map_init(struct provider_server_map *map)
@@ -326,6 +367,37 @@ int get_session_index(struct session_info *session_inf, struct session *connect)
 		return -1;
 }
 
+int get_start_list_first_avail_index(struct provider_start_info *start_inf)
+{
+	int i = 0;
+
+	for (i = 0; i < PROVIDER_START_COUNT_MAX; ++i) {
+		if (!(start_inf->start_array[i].valid))
+			break;
+	}
+
+	if (i < PROVIDER_START_COUNT_MAX)
+		return i;
+	else
+		return -1;
+}
+
+int get_start_index(struct provider_start_info *start_inf, int client_id)
+{
+	int i = 0;
+
+	for (i = 0; i < PROVIDER_START_COUNT_MAX; ++i) {
+		if ((start_inf->start_array[i].valid) &&
+			(start_inf->start_array[i].client_id == client_id))
+			break;
+	}
+
+	if (i < PROVIDER_START_COUNT_MAX)
+		return i;
+	else
+		return -1;
+}
+
 int get_map_first_avail_index(struct provider_server_map *map)
 {
 	int i = 0;
@@ -365,6 +437,22 @@ int get_map_index_with_lock(struct provider_server_map *map, int provider_id)
 	(map->map_array[i].provider_id == provider_id))
 			break;
 	mutex_unlock(&domain.connect_mutex);
+
+	if (i < PROVIDER_SERVER_MAP_COUNT)
+		return i;
+	else
+		return -1;
+}
+
+int get_map_index_from_server(struct provider_server_map *map,
+struct send_mang_data *data)
+{
+	int i = 0;
+
+	for (i = 0; i < PROVIDER_SERVER_MAP_COUNT; ++i)
+		if ((map->map_array[i].valid) &&
+	(!memcmp(map->map_array[i].server_id, data->server_id, UUID_LEN)))
+			break;
 
 	if (i < PROVIDER_SERVER_MAP_COUNT)
 		return i;
@@ -532,8 +620,8 @@ int regisger_server(struct send_mang_data *data)
 		}
 	}
 
-	//hbipc_debug("server_info: count = %d first_avail = %d\n",
-	//domain.server.count, domain.server.first_avail);
+	hbipc_debug("server_info: count = %d first_avail = %d\n",
+	domain.server.count, domain.server.first_avail);
 
 	return 0;
 error:
@@ -556,8 +644,8 @@ int unregister_server(struct send_mang_data *data)
 		get_server_first_avail_index(&domain.server);
 	}
 
-	//hbipc_debug("server_info: count = %d first_avail = %d\n",
-	//domain.server.count, domain.server.first_avail);
+	hbipc_debug("server_info: count = %d first_avail = %d\n",
+	domain.server.count, domain.server.first_avail);
 
 	return 0;
 }
@@ -593,12 +681,42 @@ int register_provider(struct send_mang_data *data)
 		goto error;
 	}
 
-	//hbipc_debug("provider_info: count = %d first_avail = %d\n",
-	//server->provider.count, server->provider.first_avail);
+	hbipc_debug("provider_info: count = %d first_avail = %d\n",
+	server->provider.count, server->provider.first_avail);
 
 	return 0;
 error:
 	return ret;
+}
+
+int clear_connect(struct session_info *session_inf)
+{
+	int i = 0;
+
+	for (i = 0; i < SESSION_COUNT_MAX; ++i) {
+		if (session_inf->session_array[i].valid) {
+			session_inf->session_array[i].valid = 0;
+#ifdef CONFIG_HOBOT_BIF_AP
+			session_inf->session_array[i].connected = 0;
+#else
+			if (!session_inf->session_array[i].connected)
+				--unaccept_session_count;
+			else
+				session_inf->session_array[i].connected = 0;
+#endif
+	resource_queue_deinit(&(session_inf->session_array[i].recv_list));
+			++session_inf->count;
+			session_inf->first_avail =
+			get_session_first_avail_index(session_inf);
+			--session_count;
+		}
+	}
+
+	hbipc_debug("session_info: count = %d first_avail = %d session_count = %d unaccept_session_count = %d\n",
+	session_inf->count, session_inf->first_avail,
+	session_count, unaccept_session_count);
+
+	return 0;
 }
 
 int unregister_provider(struct send_mang_data *data)
@@ -624,13 +742,14 @@ int unregister_provider(struct send_mang_data *data)
 	} else {
 		provider = server->provider.provider_array + index;
 		provider->valid = 0;
+		clear_connect(&provider->session);
 		++server->provider.count;
 		server->provider.first_avail =
 		get_provider_first_avail_index(&server->provider);
 	}
 
-	//hbipc_debug("provider_info: count = %d first_avail = %d\n",
-	//server->provider.count, server->provider.first_avail);
+	hbipc_debug("provider_info: count = %d first_avail = %d\n",
+	server->provider.count, server->provider.first_avail);
 
 	return 0;
 error:
@@ -645,11 +764,12 @@ int register_map(struct send_mang_data *data)
 	relation->valid = 1;
 	memcpy(relation->server_id, data->server_id, UUID_LEN);
 	relation->provider_id = data->provider_id;
+	provider_start_info_init(&relation->start_list);
 	--domain.map.count;
 	domain.map.first_avail = get_map_first_avail_index(&domain.map);
 
-	//hbipc_debug("provider_server_map: count = %d first_avail = %d\r\n",
-	//domain.map.count, domain.map.first_avail);
+	hbipc_debug("provider_server_map: count = %d first_avail = %d\r\n",
+	domain.map.count, domain.map.first_avail);
 
 	return 0;
 }
@@ -664,13 +784,14 @@ int register_map_with_lock(struct send_mang_data *data)
 	relation->valid = 1;
 	memcpy(relation->server_id, data->server_id, UUID_LEN);
 	relation->provider_id = data->provider_id;
+	provider_start_info_init(&relation->start_list);
 	--domain.map.count;
 	domain.map.first_avail = get_map_first_avail_index(&domain.map);
 
 	mutex_unlock(&domain.connect_mutex);
 
-	//hbipc_debug("provider_server_map: count = %d first_avail = %d\r\n",
-	//domain.map.count, domain.map.first_avail);
+	hbipc_debug("provider_server_map: count = %d first_avail = %d\r\n",
+	domain.map.count, domain.map.first_avail);
 
 	return 0;
 }
@@ -683,11 +804,12 @@ int unregister_map(struct send_mang_data *data)
 	index = get_map_index(&domain.map, data->provider_id);
 	relation = domain.map.map_array + index;
 	relation->valid = 0;
+	provider_start_info_deinit(&relation->start_list);
 	++domain.map.count;
 	domain.map.first_avail = get_map_first_avail_index(&domain.map);
 
-	//hbipc_debug("provider_server_map: count = %d first_avail = %d\r\n",
-	//domain.map.count, domain.map.first_avail);
+	hbipc_debug("provider_server_map: count = %d first_avail = %d\r\n",
+	domain.map.count, domain.map.first_avail);
 
 	return 0;
 }
@@ -702,13 +824,14 @@ int unregister_map_with_lock(struct send_mang_data *data)
 	index = get_map_index(&domain.map, data->provider_id);
 	relation = domain.map.map_array + index;
 	relation->valid = 0;
+	provider_start_info_deinit(&relation->start_list);
 	++domain.map.count;
 	domain.map.first_avail = get_map_first_avail_index(&domain.map);
 
 	mutex_unlock(&domain.connect_mutex);
 
-	//hbipc_debug("provider_server_map: count = %d first_avail = %d\r\n",
-	//domain.map.count, domain.map.first_avail);
+	hbipc_debug("provider_server_map: count = %d first_avail = %d\r\n",
+	domain.map.count, domain.map.first_avail);
 
 	return 0;
 }
@@ -721,19 +844,16 @@ int register_server_provider(struct send_mang_data *data)
 	ret = regisger_server(data);
 	if (ret < 0) {
 		hbipc_error("reisger_server error\n");
-		mutex_unlock(&domain.connect_mutex);
 		goto register_server_error;
 	}
 
 	ret = register_provider(data);
 	if (ret < 0) {
 		hbipc_error("register_provider error\n");
-		mutex_unlock(&domain.connect_mutex);
 		goto register_provider_error;
 	}
-#ifndef CONFIG_HOBOT_BIF_AP
+
 	register_map(data);
-#endif
 
 	mutex_unlock(&domain.connect_mutex);
 #ifndef CONFIG_HOBOT_BIF_AP
@@ -749,12 +869,14 @@ int register_server_provider(struct send_mang_data *data)
 	return 0;
 #ifndef CONFIG_HOBOT_BIF_AP
 send_cmd_error:
+	mutex_lock(&domain.connect_mutex);
 	unregister_map(data);
 	unregister_provider(data);
 #endif
 register_provider_error:
 	unregister_server(data);
 register_server_error:
+	mutex_unlock(&domain.connect_mutex);
 	return ret;
 }
 
@@ -771,9 +893,8 @@ int unregister_server_provider(struct send_mang_data *data)
 	}
 
 	unregister_server(data);
-#ifndef CONFIG_HOBOT_BIF_AP
 	unregister_map(data);
-#endif
+
 	mutex_unlock(&domain.connect_mutex);
 
 #ifndef CONFIG_HOBOT_BIF_AP
@@ -791,6 +912,127 @@ error:
 	return ret;
 }
 
+int unregister_server_provider_abnormal(struct send_mang_data *data)
+{
+	int ret = 0;
+	struct provider_server *relation = NULL;
+
+	mutex_lock(&domain.connect_mutex);
+	ret = get_map_index(&domain.map, data->provider_id);
+	if (ret >= 0) {
+		// abnormal shutdown
+		relation = domain.map.map_array + ret;
+		memcpy(data->server_id, relation->server_id, UUID_LEN);
+	} else {
+		mutex_unlock(&domain.connect_mutex);
+		return 0;
+	}
+
+	ret = unregister_provider(data);
+	if (ret < 0) {
+		hbipc_error("unregister_provider error\n");
+		mutex_unlock(&domain.connect_mutex);
+		goto error;
+	}
+
+	unregister_server(data);
+	unregister_map(data);
+
+	mutex_unlock(&domain.connect_mutex);
+
+	// send unregister provider datagram
+	ret = mang_frame_send2opposite(MANAGE_CMD_UNREGISTER_PROVIDER, data);
+	if (ret < 0) {
+		ret = HBIPC_ERROR_HW_TRANS_ERROR;
+		hbipc_error("send MANG_CMD_UNREGISTER_PROVIDER error\n");
+		goto error;
+	}
+
+	return 0;
+error:
+	return ret;
+}
+
+int disconnect_stopserver_abnormal(struct send_mang_data *data)
+{
+	int ret = 0;
+	int i = 0;
+	int j = 0;
+	int k = 0;
+	struct server_desc *server = NULL;
+	struct provider_desc *provider = NULL;
+	struct session_desc *connect = NULL;
+	struct provider_server *relation = NULL;
+	struct provider_start_desc *provider_start = NULL;
+
+	mutex_lock(&domain.connect_mutex);
+
+	// disconnect abnormal connect
+	for (i = 0; i < SERVER_COUNT_MAX; ++i) {
+		server = domain.server.server_array + i;
+		if (server->valid) {
+			for (j = 0; j < PROVIDER_COUNT_MAX; ++j) {
+				provider = server->provider.provider_array + j;
+				if (provider->valid) {
+					for (k = 0; k < SESSION_COUNT_MAX;
+					++k) {
+						connect =
+				provider->session.session_array + k;
+				if ((connect->valid) &&
+				(connect->client_id == data->client_id)) {
+					// abnormal shutdown, should disconnect
+					ret = get_map_index(&domain.map,
+					connect->provider_id);
+					if (ret < 0)
+						continue;
+					else {
+						relation =
+						domain.map.map_array + ret;
+						memcpy(data->server_id,
+						relation->server_id, UUID_LEN);
+					}
+					data->provider_id =
+					connect->provider_id;
+					connect->valid = 0;
+					connect->connected = 0;
+			resource_queue_deinit(&connect->recv_list);
+					++provider->session.count;
+					provider->session.first_avail =
+			get_session_first_avail_index(&provider->session);
+					--session_count;
+					mutex_unlock(&domain.connect_mutex);
+		mang_frame_send2opposite(MANAGE_CMD_DISCONNECT_REQ, data);
+					mutex_lock(&domain.connect_mutex);
+				}
+			}
+		}
+	}
+		}
+	}
+
+	// stop abnormal server
+	for (i = 0; i < PROVIDER_SERVER_MAP_COUNT; ++i) {
+		relation = domain.map.map_array + i;
+		if (relation->valid) {
+			for (j = 0; j < PROVIDER_START_COUNT_MAX; ++j) {
+				provider_start =
+				relation->start_list.start_array + j;
+				if ((provider_start->valid) &&
+		(provider_start->client_id == data->client_id)) {
+					provider_start->valid = 0;
+					++relation->start_list.count;
+					relation->start_list.first_avail =
+		get_start_list_first_avail_index(&relation->start_list);
+				}
+			}
+		}
+	}
+
+	mutex_unlock(&domain.connect_mutex);
+
+	return 0;
+}
+
 int register_connect(struct send_mang_data *data)
 {
 	int ret = 0;
@@ -798,13 +1040,32 @@ int register_connect(struct send_mang_data *data)
 	struct server_desc *server = NULL;
 	struct provider_desc *provider = NULL;
 	struct session_desc *connect = NULL;
+#ifdef CONFIG_HOBOT_BIF_AP
+	struct provider_server *relation = NULL;
+#endif
 
 	mutex_lock(&domain.connect_mutex);
+#ifdef CONFIG_HOBOT_BIF_AP
+	ret = get_map_index(&domain.map, data->provider_id);
+	if (ret < 0) {
+		hbipc_error("invalid provider\n");
+		ret = HBIPC_ERROR_INVALID_PROVIDERID;
+		goto error;
+	} else {
+		relation = domain.map.map_array + ret;
+		memcpy(data->server_id, relation->server_id, UUID_LEN);
+	}
+
+	ret = get_start_index(&relation->start_list, data->client_id);
+	if (ret < 0) {
+		ret = HBIPC_ERROR_INVALID_PROVIDERID;
+		goto error;
+	}
+#endif
 	index = get_server_index(&domain.server, data->server_id);
 	if (index < 0) {
 		hbipc_error("invalid server_id\n");
 		ret = HBIPC_ERROR_INVALID_SERVERID;
-		mutex_unlock(&domain.connect_mutex);
 		goto error;
 	}
 	server = domain.server.server_array + index;
@@ -813,7 +1074,6 @@ int register_connect(struct send_mang_data *data)
 	if (index < 0) {
 		hbipc_error("invalid provider_id\n");
 		ret = HBIPC_ERROR_INVALID_PROVIDERID;
-		mutex_unlock(&domain.connect_mutex);
 		goto error;
 	}
 	provider = server->provider.provider_array + index;
@@ -821,7 +1081,6 @@ int register_connect(struct send_mang_data *data)
 	if (provider->session.count <= 0) {
 		hbipc_error("connect resource insufficient\n");
 		ret = HBIPC_ERROR_RMT_RES_ALLOC_FAIL;
-		mutex_unlock(&domain.connect_mutex);
 		goto error;
 	}
 	connect = provider->session.session_array +
@@ -848,7 +1107,7 @@ int register_connect(struct send_mang_data *data)
 	if (ret < 0) {
 		ret = HBIPC_ERROR_HW_TRANS_ERROR;
 		hbipc_error("send MANAGE_CMD_CONNECT_REQ error\n");
-		goto error;
+		goto send_cmd_error;
 	}
 #endif
 
@@ -856,7 +1115,18 @@ int register_connect(struct send_mang_data *data)
 	provider->session.count, provider->session.first_avail);
 
 	return 0;
+#ifdef CONFIG_HOBOT_BIF_AP
+send_cmd_error:
+	mutex_lock(&domain.connect_mutex);
+	connect->valid = 0;
+	connect->connected = 0;
+	++provider->session.count;
+	provider->session.first_avail =
+	get_session_first_avail_index(&provider->session);
+	--session_count;
+#endif
 error:
+	mutex_unlock(&domain.connect_mutex);
 	return ret;
 }
 
@@ -868,13 +1138,26 @@ int unregister_connect(struct send_mang_data *data)
 	struct provider_desc *provider = NULL;
 	struct session_desc *connect_des = NULL;
 	struct session connect;
+#ifdef CONFIG_HOBOT_BIF_AP
+	struct provider_server *relation = NULL;
+#endif
 
 	mutex_lock(&domain.connect_mutex);
+#ifdef CONFIG_HOBOT_BIF_AP
+	ret = get_map_index(&domain.map, data->provider_id);
+	if (ret < 0) {
+		hbipc_error("invalid provider\n");
+		ret = HBIPC_ERROR_INVALID_PROVIDERID;
+		goto error;
+	} else {
+		relation = domain.map.map_array + ret;
+		memcpy(data->server_id, relation->server_id, UUID_LEN);
+	}
+#endif
 	index = get_server_index(&domain.server, data->server_id);
 	if (index < 0) {
 		hbipc_error("invalid server_id\n");
 		ret = HBIPC_ERROR_INVALID_SERVERID;
-		mutex_unlock(&domain.connect_mutex);
 		goto error;
 	}
 	server = domain.server.server_array + index;
@@ -883,7 +1166,6 @@ int unregister_connect(struct send_mang_data *data)
 	if (index < 0) {
 		hbipc_error("invalid provider_id\n");
 		ret = HBIPC_ERROR_INVALID_PROVIDERID;
-		mutex_unlock(&domain.connect_mutex);
 		goto error;
 	}
 	provider = server->provider.provider_array + index;
@@ -895,33 +1177,37 @@ int unregister_connect(struct send_mang_data *data)
 	if (index < 0) {
 		hbipc_error("invalid session\n");
 		ret = HBIPC_ERROR_INVALID_SESSION;
-		mutex_unlock(&domain.connect_mutex);
 		goto error;
 	}
 	connect_des = provider->session.session_array + index;
 
 	connect_des->valid = 0;
 	connect_des->connected = 0;
+	resource_queue_deinit(&connect_des->recv_list);
 	++provider->session.count;
 	provider->session.first_avail =
 	get_session_first_avail_index(&provider->session);
 	--session_count;
-
 	mutex_unlock(&domain.connect_mutex);
 #ifdef CONFIG_HOBOT_BIF_AP
 	ret = mang_frame_send2opposite(MANAGE_CMD_DISCONNECT_REQ, data);
 	if (ret < 0) {
 		ret = HBIPC_ERROR_HW_TRANS_ERROR;
 		hbipc_error("send MANAGE_CMD_DISCONNECT_REQ error\n");
-		goto error;
+		goto send_cmd_error;
 	}
 #endif
 
-	//hbipc_debug("session_info: count = %d first_avail = %d\n",
-	//provider->session.count, provider->session.first_avail);
+	hbipc_debug("session_info: count = %d first_avail = %d\n",
+	provider->session.count, provider->session.first_avail);
 
 	return 0;
+#ifdef CONFIG_HOBOT_BIF_AP
+send_cmd_error:
+	mutex_lock(&domain.connect_mutex);
+#endif
 error:
+	mutex_unlock(&domain.connect_mutex);
 	return ret;
 }
 
@@ -932,7 +1218,7 @@ int handle_manage_frame(struct bif_frame_cache *frame)
 	int *p = (int *)(message->msg_text);
 	struct send_mang_data data;
 
-	//hbipc_debug("manage frame type: %d\r\n", message->type);
+	hbipc_debug("manage frame type: %d\r\n", message->type);
 	switch (message->type) {
 	case MANAGE_CMD_CONNECT_REQ:
 		/*
@@ -988,7 +1274,7 @@ int handle_manage_frame(struct bif_frame_cache *frame)
 		 * get information:
 		 * domain_id
 		 * server_id
-		 * client_id
+		 * provider_id
 		 */
 		data.domain_id = *p++;
 		memcpy(data.server_id, p, UUID_LEN);
@@ -1038,7 +1324,9 @@ int recv_handle_manage_frame(void)
 		mutex_unlock(&domain.read_mutex);
 
 		ret = handle_manage_frame(frame);
+		mutex_lock(&domain.read_mutex);
 		bif_del_frame_from_list(frame);
+		mutex_unlock(&domain.read_mutex);
 		if (ret < 0)
 			return -1;
 		else
@@ -1050,7 +1338,9 @@ int recv_handle_manage_frame(void)
 		data.provider_id = header->provider_id;
 		data.client_id = header->client_id;
 
+		mutex_unlock(&domain.read_mutex);
 		session_des = is_valid_session(&data, NULL, NULL);
+		mutex_lock(&domain.read_mutex);
 		if (!session_des) {
 			hbipc_debug("mang recv invalid session\n");
 			bif_del_frame_from_list(frame);
@@ -1065,6 +1355,36 @@ int recv_handle_manage_frame(void)
 
 		return 1;
 	}
+}
+
+int recv_handle_stock_frame(void)
+{
+	struct bif_frame_cache *frame = NULL;
+	struct hbipc_header *header = NULL;
+
+	mutex_lock(&domain.read_mutex);
+	while (!bif_rx_get_stock_frame(&frame)) {
+		header = (struct hbipc_header *)frame->framecache;
+
+		if ((header->provider_id == 0) && (header->client_id == 0)) {
+			// manage frame
+			// just for handle frame link list relation
+			list_del(&frame->frame_cache_list);
+			list_add_tail(&frame->frame_cache_list,
+			&domain.manage_frame_list);
+
+			mutex_unlock(&domain.read_mutex);
+			handle_manage_frame(frame);
+			mutex_lock(&domain.read_mutex);
+			bif_del_frame_from_list(frame);
+		} else {
+			// data frame
+			bif_del_frame_from_list(frame);
+		}
+	}
+	mutex_unlock(&domain.read_mutex);
+
+	return 0;
 }
 
 /*
@@ -1122,7 +1442,9 @@ struct bif_frame_cache **frame)
 		mutex_unlock(&domain.read_mutex);
 
 		ret = handle_manage_frame(frame_tmp);
+		mutex_lock(&domain.read_mutex);
 		bif_del_frame_from_list(frame_tmp);
+		mutex_unlock(&domain.read_mutex);
 		if (ret < 0)
 			return -1;
 		else
@@ -1133,7 +1455,9 @@ struct bif_frame_cache **frame)
 		data.provider_id = header->provider_id;
 		data.client_id = header->client_id;
 
+		mutex_unlock(&domain.read_mutex);
 		session_des_tmp = is_valid_session(&data, NULL, NULL);
+		mutex_lock(&domain.read_mutex);
 		if (session_des_tmp) {
 			list_del(&frame_tmp->frame_cache_list);
 			list_add_tail(&frame_tmp->frame_cache_list,

@@ -1,8 +1,6 @@
 #include "bif_lite.h"
 #include "../bif_base/bif_base.h"
 
-extern struct bifbase_local *pbl;
-
 static int bif_lite_start;
 static struct bif_tx_ring_info *tx_local_info;
 static struct bif_rx_ring_info *tx_remote_info;
@@ -227,8 +225,8 @@ static inline int  bif_tx_cut_fragment(unsigned char *data,  int len)
 	int i = 0;
 	unsigned char *frag_p = data;
 	int ret = 0;
-	int count;
-	int index;
+	int count = 0;
+	int index = 0;
 
 	struct frag_info fragment_info;
 
@@ -698,6 +696,16 @@ err:
 
 	return ret;
 }
+
+int bif_rx_get_stock_frame(struct bif_frame_cache   **frame)
+{
+	int ret = 0;
+
+	ret = bif_detect_frame_from_list(frame);
+
+	return ret;
+}
+
 static inline int bif_sync_before_start(void)
 {
 	int ret = 0;
@@ -842,7 +850,8 @@ int bif_lite_init(void)
 #ifndef CONFIG_HOBOT_BIF_AP
 	base_addr_tmp = (addr_t)bif_alloc_cp(BUFF_LITE, TOTAL_MEM_SIZE,
 		(unsigned long *)&base_addr_tmp_phy);
-	printk("bif_alloc_cp: addr = %llx total = %ld\n", base_addr_tmp, TOTAL_MEM_SIZE);
+	pr_info("bif_alloc_cp: addr = %lx total = %ld\n",
+	base_addr_tmp, TOTAL_MEM_SIZE);
 
 	if (base_addr_tmp <= 0) {
 		ret =  -EFAULT;
@@ -856,7 +865,7 @@ int bif_lite_init(void)
 	if (ret < 0)
 		goto err;
 #else
-	ret = bifbase_sync_cp(pbl);
+	ret = bif_sync_base();
 	if (ret < 0)
 		goto err;
 	base_addr_tmp_phy = (addr_t)bif_query_address(BUFF_LITE);
@@ -865,7 +874,7 @@ int bif_lite_init(void)
 		goto err;
 
 	}
-	printk("base_addr_tmp_phy %x\n", base_addr_tmp_phy);
+	pr_info("base_addr_tmp_phy %lx\n", base_addr_tmp_phy);
 	bif_set_base_addr(base_addr_tmp_phy);
 #endif
 	tx_local_info = bif_malloc(ALIGN(sizeof(struct bif_tx_ring_info), BIFSPI_LEN_ALIGN));

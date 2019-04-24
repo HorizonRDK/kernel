@@ -75,7 +75,8 @@ static int x2_bif_open(struct inode *inode, struct file *file)
 				bif_lite_init_success = 1;
 		}
 #endif
-		bif_start();
+		//bif_start();
+		recv_handle_stock_frame();
 		++bif_data.users;
 	} else {
 		file->private_data = g_bif_dev;
@@ -142,8 +143,8 @@ error:
 }
 
 static DEFINE_MUTEX(read_mutex);
-static ssize_t x2_bif_read(struct file *file, char __user *buf,
-size_t size, loff_t *ppos)
+static ssize_t x2_bif_read(struct file *file, char __user *buf, size_t size,
+loff_t *ppos)
 {
 	int ret = 0;
 	struct send_mang_data data;
@@ -192,7 +193,9 @@ size_t size, loff_t *ppos)
 			ret = header->length;
 			// consume a data frame really
 			--session_des->recv_list.frame_count;
+			mutex_lock(&domain.read_mutex);
 			bif_del_frame_from_list(frame);
+			mutex_unlock(&domain.read_mutex);
 		}
 	} else {
 		// no specific data frame get
@@ -209,7 +212,20 @@ error:
 
 static int x2_bif_close(struct inode *inode, struct file *file)
 {
+	struct send_mang_data data;
+
 	mutex_lock(&open_mutex);
+
+	pr_info("pid = %d\n", current->pid);
+#ifndef CONFIG_HOBOT_BIF_AP
+	data.domain_id = domain.domain_id;
+	data.provider_id = current->pid;
+	unregister_server_provider_abnormal(&data);
+#else
+	data.domain_id = domain.domain_id;
+	data.client_id = current->pid;
+	disconnect_stopserver_abnormal(&data);
+#endif
 
 	--bif_data.users;
 
@@ -231,8 +247,10 @@ static long x2_bif_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	struct send_mang_data data;
 	int status = 0;
 	struct session_desc *connect = NULL;
-	int provider_id = 0;
+	//int provider_id = 0;
 	struct provider_server *relation = NULL;
+	struct session_desc *session_des = NULL;
+	struct provider_start_desc *provider_start_des = NULL;
 
 	mutex_lock(&ioctl_mutex);
 
@@ -309,12 +327,41 @@ static long x2_bif_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			break;
 		}
 
-		ret = start_server(&data, &provider_id);
-		if (ret > 0) {
-			data.provider_id = ret;
-			register_map_with_lock(&data);
+		// attempt to read manage frame
+		recv_handle_manage_frame();
+		// check whethrer map created
+		mutex_lock(&domain.connect_mutex);
+		ret = get_map_index_from_server(&domain.map, &data);
+		// map have been created
+		if (ret >= 0) {
+			relation = domain.map.map_array + ret;
+			ret = get_start_index(&relation->start_list,
+			data.client_id);
+			if (ret < 0) {
+				// current client didn't start this provider
+				if (relation->start_list.count <= 0)
+					data.result =
+				HBIPC_ERROR_RMT_RES_ALLOC_FAIL;
+				else {
+					provider_start_des =
+					relation->start_list.start_array +
+					relation->start_list.first_avail;
+					provider_start_des->valid = 1;
+					provider_start_des->client_id =
+					data.client_id;
+					--relation->start_list.count;
+					relation->start_list.first_avail =
+		get_start_list_first_avail_index(&relation->start_list);
+		data.provider_id = relation->provider_id;
 			ret = 0;
 		}
+			} else {
+		// current client has already started this provider
+				data.result = HBIPC_ERROR_REPEAT_STARTSERVER;
+				ret = 0;
+			}
+		}
+		mutex_unlock(&domain.connect_mutex);
 		status = copy_to_user((void __user *)arg, &data,
 		sizeof(data));
 		if (status)
@@ -328,14 +375,27 @@ static long x2_bif_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			break;
 		}
 
-		ret = get_map_index_with_lock(&domain.map, data.provider_id);
+		mutex_lock(&domain.connect_mutex);
+		ret = get_map_index(&domain.map, data.provider_id);
 		if (ret < 0) {
 			hbipc_error("invalid provider\n");
 			data.result = HBIPC_ERROR_INVALID_PROVIDERID;
 		} else {
-			unregister_map_with_lock(&data);
-			ret = 0;
+			relation = domain.map.map_array + ret;
+			ret =
+			get_start_index(&relation->start_list, data.client_id);
+			if (ret < 0)
+				data.result = HBIPC_ERROR_INVALID_PROVIDERID;
+			else {
+				provider_start_des =
+				relation->start_list.start_array + ret;
+				provider_start_des->valid = 0;
+				++relation->start_list.count;
+				relation->start_list.first_avail =
+		get_start_list_first_avail_index(&relation->start_list);
+			}
 		}
+		mutex_unlock(&domain.connect_mutex);
 		status = copy_to_user((void __user *)arg, &data,
 		sizeof(data));
 		if (status)
@@ -349,20 +409,19 @@ static long x2_bif_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			break;
 		}
 
-		ret = get_map_index_with_lock(&domain.map, data.provider_id);
-		if (ret < 0) {
-			hbipc_error("invalid provider\n");
-			data.result = HBIPC_ERROR_INVALID_PROVIDERID;
-		} else {
-			relation = domain.map.map_array + ret;
-			memcpy(data.server_id, relation->server_id, UUID_LEN);
+		session_des = is_valid_session(&data, NULL, NULL);
+		if (session_des) {
+			data.result = HBIPC_ERROR_REPEAT_CONNECT;
+			ret = -1;
+			goto connect_out;
+		}
 
 			ret = register_connect(&data);
 			if (ret < 0) {
 				hbipc_error("register connect error\n");
 				data.result = ret;
 			}
-		}
+connect_out:
 		status = copy_to_user((void __user *)arg, &data,
 		sizeof(data));
 		if (status)
@@ -376,20 +435,12 @@ static long x2_bif_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			break;
 		}
 
-		ret = get_map_index_with_lock(&domain.map, data.provider_id);
-		if (ret < 0) {
-			hbipc_error("invalid provider\n");
-			data.result = HBIPC_ERROR_INVALID_PROVIDERID;
-		} else {
-			relation = domain.map.map_array + ret;
-			memcpy(data.server_id, relation->server_id, UUID_LEN);
-
 			ret = unregister_connect(&data);
 			if (ret < 0) {
 				hbipc_error("unregister connect error\n");
 				data.result = ret;
 			}
-		}
+
 		status = copy_to_user((void __user *)arg, &data,
 		sizeof(data));
 		if (status)

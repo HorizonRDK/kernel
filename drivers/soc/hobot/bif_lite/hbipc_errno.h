@@ -19,5 +19,7 @@
 #define HBIPC_ERROR_STOP_SERVER_FAIL            (-16)
 #define HBIPC_ERROR_CONNECT_FAIL                (-17)
 #define HBIPC_ERROR_DISCONNECT_FAIL             (-18)
+#define HBIPC_ERROR_REPEAT_CONNECT              (-19)
+#define HBIPC_ERROR_REPEAT_STARTSERVER          (-20)
 
 #endif /* _HBIPC_ERRNO_H_ */
