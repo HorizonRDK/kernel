@@ -10,40 +10,40 @@
  * @date	2019/04/01
  */
 
-/************************************************************
- *fpga(x2)	hogu(AP)
- *84-->		54(960)	 GPIO_EMIO_0
- *85<--		55(961)	 GPIO_EMIO_1
- *cp side
- *hobot-pinctrl.dtsi
- *gpioirq-bank-cfg = <85 0 0 0>;
- *arch/arm64/boot/dts/hobot-x2-fpga.dts
- *bifbase_reserved: bifbase_reserved@0x04000000 {
- *	reg = <0x0 0x04000000 0x0 0x00100000>;
- *	no-map;
- *};
- *bifbase {
- *	compatible = "hobot,bifbase";
- *	memory-region = <&bifbase_reserved>;
- *	bifbase_irq_pin = <85>;
- *	bifbase_tri_pin = <84>;
- *};
+//============================================================
+//fpga(x2)	hogu(AP)
+//84-->		54(960)	 GPIO_EMIO_0
+//85<--		55(961)	 GPIO_EMIO_1
+//cp side
+//hobot-pinctrl.dtsi
+//gpioirq-bank-cfg = <85 0 0 0>;
+//arch/arm64/boot/dts/hobot-x2-fpga.dts
+//bifbase_reserved: bifbase_reserved@0x02000000 {
+//	reg = <0x0 0x02000000 0x0 0x00100000>;
+//	no-map;
+//};
+//bifbase {
+//	compatible = "hobot,bifbase";
+//	memory-region = <&bifbase_reserved>;
+//	bifbase_irq_pin = <85>;
+//	bifbase_tri_pin = <84>;
+//};
 
- *Ap side
- *bifbase {
- *	compatible = "hobot,bifbase";
- *	bifbase_phyaddr = <0x20000000>;
- *	bifbase_irq_pin = <960>;
- *	bifbase_tri_pin = <961>;
- *	bifspi = "yes";
- *	bifsd = "no";
- *	bifbase = "bifspi";
- *	bifeth = "bifsd";
- *	bifsmd = "bifspi";
- *	bifsio = "bifspi";
- *	biflite = "bifspi";
- *};
- ************************************************************/
+//Ap side
+//bifbase {
+//	compatible = "hobot,bifbase";
+//	bifbase_phyaddr = <0x02000000>;
+//	bifbase_irq_pin = <960>;
+//	bifbase_tri_pin = <961>;
+//	bifspi = "yes";
+//	bifsd = "no";
+//	bifbase = "bifspi";
+//	bifeth = "bifsd";
+//	bifsmd = "bifspi";
+//	bifsio = "bifspi";
+//	biflite = "bifspi";
+//};
+//============================================================
 
 #include <linux/kernel.h>
 #include <linux/version.h>
@@ -81,10 +81,9 @@
 #define BIFBASE_CPMAGIC		"BIFC"
 #define BIFBASE_VER		"BIFBASE_V20"
 #define BIFBASE_MAJOR		(123)
-#define BIFBASE_BLOCK		(512)
+#define BIFBASE_BLOCK		(1024)	//(512)
 #define BIFBASE_VER_SIZE	(16)
 #define BIFBASE_PHYDDR_SIZE	(0x00100000)
-#define BIFBASE_UPDATE_TIME	(5)
 #define BIFBASE_CHECKPARAM	(0)
 #define BIFBASE_UPDATEPARAM	(1)
 #define BIFBASE_MEM_NC
@@ -139,7 +138,7 @@ struct bifbase_local {
 	struct class *class;
 	struct device *dev;
 
-	struct timer_list bifbase_timer;
+//	struct timer_list bifbase_timer;
 //bifbase param
 	ulong bifbase_phyaddr;
 	char *bifspi;
@@ -153,6 +152,26 @@ struct bifbase_local {
 
 struct bifbase_local *pbl;
 struct bifplat_info bifplat;
+
+struct kobject *bifbase_kobj;
+static ssize_t bifbase_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf);
+static ssize_t bifbase_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t n);
+static struct kobj_attribute bifspi_attr =
+	__ATTR(bifspi, 0664, bifbase_show, bifbase_store);
+static struct kobj_attribute bifsd_attr =
+	__ATTR(bifsd, 0664, bifbase_show, bifbase_store);
+static struct kobj_attribute bifbase_attr =
+	__ATTR(bifbase, 0664, bifbase_show, bifbase_store);
+static struct kobj_attribute bifeth_attr =
+	__ATTR(bifeth, 0664, bifbase_show, bifbase_store);
+static struct kobj_attribute bifsmd_attr =
+	__ATTR(bifsmd, 0664, bifbase_show, bifbase_store);
+static struct kobj_attribute bifsio_attr =
+	__ATTR(bifsio, 0664, bifbase_show, bifbase_store);
+static struct kobj_attribute biflite_attr =
+	__ATTR(biflite, 0664, bifbase_show, bifbase_store);
 
 extern int bifget_supportbus(char *str_bus);
 extern int bifget_bifbustype(char *str_bustype);
@@ -349,9 +368,9 @@ static void bifbase_check_param(void *p)
 		&biflite, &pl->biflite);
 }
 
-static void bifbase_update_param_func(unsigned long data)
+static void bifbase_update_param_func(void)
 {
-	struct bifbase_local *pl = (struct bifbase_local *)data;
+	struct bifbase_local *pl = get_bifbase_local();
 
 	if (!pl || !pl->plat)
 		return;
@@ -368,8 +387,115 @@ static void bifbase_update_param_func(unsigned long data)
 	bifbase_check_type((void *)pl, BIFBASE_UPDATEPARAM,
 		&biflite, &pl->biflite);
 
-	mod_timer(&pl->bifbase_timer, jiffies + BIFBASE_UPDATE_TIME * HZ);
+	pr_info("bifbase: update param..\n");
 }
+
+static ssize_t bifbase_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	char *p;
+
+	if (!strcmp(attr->attr.name, "bifspi"))
+		p = bifspi;
+	else if (!strcmp(attr->attr.name, "bifsd"))
+		p = bifsd;
+	else if (!strcmp(attr->attr.name, "bifbase"))
+		p = bifbase;
+	else if (!strcmp(attr->attr.name, "bifeth"))
+		p = bifeth;
+	else if (!strcmp(attr->attr.name, "bifsmd"))
+		p = bifsmd;
+	else if (!strcmp(attr->attr.name, "bifsio"))
+		p = bifsio;
+	else if (!strcmp(attr->attr.name, "biflite"))
+		p = biflite;
+	else
+		p = NULL;
+
+	pr_info("bifbase: show %s\n", p);
+
+	return sprintf(buf, "%s\n", p);
+}
+
+static ssize_t bifbase_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t n)
+{
+	int error = 0;
+	int len;
+	char *p;
+	char **pp = NULL;
+
+	p = memchr(buf, '\n', n);
+	len = p ? p - buf : n;
+
+	pr_info("bifbase: store,n=%ld,len=%d,content=%s\n", n, len, buf);
+
+	if (!strcmp(attr->attr.name, "bifspi")) {
+		pp = (char **)&bifspi;
+		goto support_bus;
+	} else if (!strcmp(attr->attr.name, "bifsd")) {
+		pp = (char **)&bifsd;
+		goto support_bus;
+	} else if (!strcmp(attr->attr.name, "bifbase")) {
+		pp = (char **)&bifbase;
+		goto bus_type;
+	} else if (!strcmp(attr->attr.name, "bifeth")) {
+		pp = (char **)&bifeth;
+		goto bus_type;
+	} else if (!strcmp(attr->attr.name, "bifsmd")) {
+		pp = (char **)&bifsmd;
+		goto bus_type;
+	} else if (!strcmp(attr->attr.name, "bifsio")) {
+		pp = (char **)&bifsio;
+		goto bus_type;
+
+	} else if (!strcmp(attr->attr.name, "biflite")) {
+		pp = (char **)&biflite;
+		goto bus_type;
+	} else
+		error = -EINVAL;
+support_bus:
+	if (strncmp(buf, STR_SUPPORT_NO, len) == 0)
+		*pp = STR_SUPPORT_NO;
+	else if (strncmp(buf, STR_SUPPORT_YES, len) == 0)
+		*pp = STR_SUPPORT_YES;
+	else
+		error = -EINVAL;
+	goto exit_1;
+bus_type:
+	if (strncmp(buf, STR_BIFBUS_NO, len) == 0)
+		*pp = STR_BIFBUS_NO;
+	else if (strncmp(buf, STR_BIFBUS_SPI, len) == 0)
+		*pp = STR_BIFBUS_SPI;
+	else if (strncmp(buf, STR_BIFBUS_SD, len) == 0)
+		*pp = STR_BIFBUS_SD;
+	else
+		error = -EINVAL;
+
+exit_1:
+	bifbase_print_param();
+
+	if (!error)
+		bifbase_update_param_func();
+
+	return error ? error : n;
+}
+
+
+static struct attribute *bifbase_attributes[] = {
+	&bifspi_attr.attr,
+	&bifsd_attr.attr,
+	&bifbase_attr.attr,
+	&bifeth_attr.attr,
+	&bifsmd_attr.attr,
+	&bifsio_attr.attr,
+	&biflite_attr.attr,
+	NULL,
+};
+
+static struct attribute_group bifbase_group = {
+	.attrs = bifbase_attributes,
+};
 
 static void bifbase_tri_irq(void *p)
 {
@@ -396,7 +522,7 @@ static int bifbase_sync_ap(void *p)
 		if (pl->bifbase_channel == BIFBUS_SD)
 			cur_len = BIFBASE_BLOCK;
 		else if (pl->bifbase_channel == BIFBUS_SPI)
-			cur_len = MULTI(pl->self->next_offset, 16);
+			cur_len = MULTI(pl->self->next_offset, BIFSPI_BLOCK);
 		else
 			return -2;
 
@@ -425,7 +551,7 @@ int bifbase_sync_cp(void *p)
 		if (pl->bifbase_channel == BIFBUS_SD)
 			cur_len = BIFBASE_BLOCK;
 		else if (pl->bifbase_channel == BIFBUS_SPI)
-			cur_len = MULTI(pl->self->next_offset, 16);
+			cur_len = MULTI(pl->self->next_offset, BIFSPI_BLOCK);
 		else
 			return -2;
 
@@ -503,6 +629,7 @@ static irqreturn_t bifbase_irq_handler(int irq, void *data)
 	struct bifbase_local *pl = (struct bifbase_local *)data;
 	//struct bifbase_local *pl = get_bifbase_local();
 
+	pr_bif("bifbase: handler irq=%d...\n", irq);
 	if (!pl || !pl->start || !pl->plat || !pl->self || !pl->other)
 		return IRQ_NONE;
 
@@ -551,11 +678,16 @@ static int bifbase_pre_init(void *p)
 	}
 
 	if (pl->plat->plat_type == PLAT_AP) {
-		init_timer(&pl->bifbase_timer);
-		pl->bifbase_timer.function = bifbase_update_param_func;
-		pl->bifbase_timer.expires = jiffies + BIFBASE_UPDATE_TIME * HZ;
-		pl->bifbase_timer.data = (unsigned long)pl;
-		add_timer(&pl->bifbase_timer);
+		bifbase_kobj = kobject_create_and_add("bifbase", NULL);
+		if (bifbase_kobj) {
+			pr_info("bifbase: Suc bifbase kobj\n");
+			ret = sysfs_create_group(bifbase_kobj, &bifbase_group);
+			if (ret) {
+				kobject_put(bifbase_kobj);
+				pr_err("bifbase: Err bifbase sysfs\n");
+			}
+		} else
+			pr_err("bifbase: Err bifbase kobj\n");
 
 		init_waitqueue_head(&pl->base_ap_wq);
 		pl->bifbase_phyaddrsize = 2 * BIFBASE_BLOCK;
@@ -642,7 +774,8 @@ void bifbase_pre_exit(void *p)
 		wake_up_all(&pl->base_irq_wq);
 
 	if (pl->plat->plat_type == PLAT_AP) {
-		del_timer(&pl->bifbase_timer);
+		if (bifbase_kobj)
+			kobject_put(bifbase_kobj);
 		wake_up_all(&pl->base_ap_wq);
 		kfree(pl->bifbase_viraddr);
 	} else {
@@ -859,6 +992,8 @@ static int __init bifbase_init(void)
 	else
 		ret = platform_driver_register(&bifbase_driver);
 
+	bifplat_print_info((void *)pl->plat);
+
 	if (ret) {
 		bifplat_unconfig((void *)pl->plat);
 		kfree(pl);
@@ -955,17 +1090,17 @@ int bif_send_irq(int irq)
 
 	while ((pl->self->send_irq_tail + 1) % IRQ_QUEUE_SIZE ==
 	       pl->other->read_irq_head) {
-		if (pl->start) {
-			if (bifbase_sync_ap((void *)pl) != 0)
-				pr_err("bifbase: %s() Err sync ap\n", __func__);
-			bifbase_tri_irq((void *)pl);
-			if (wait_event_interruptible_timeout(pl->base_irq_wq,
-				(pl->self->send_irq_tail + 1) %	IRQ_QUEUE_SIZE
-				!= pl->other->read_irq_head,
-				msecs_to_jiffies(2000)) == 0)
-				goto try_send_irq;
-		} else
+		if (!pl->start)
 			return 0;
+
+		pr_info("bifbase: %s() base irq queue full\n", __func__);
+
+		if (wait_event_interruptible_timeout(pl->base_irq_wq,
+			(pl->self->send_irq_tail + 1) %	IRQ_QUEUE_SIZE
+			!= pl->other->read_irq_head,
+			usecs_to_jiffies(200)) == 0)
+			goto try_send_irq;
+
 	}
 
 	pl->self->irq[(pl->self->send_irq_tail) % IRQ_QUEUE_SIZE] = irq;
@@ -1108,6 +1243,7 @@ void *bif_alloc_base(enum BUFF_ID buffer_id, int size)
 		buffer_id >= BUFF_MAX)
 		return (void *)-1;
 
+	pr_info("bifbase:id %d, alloc base size=0x%x\n", buffer_id, size);
 	if ((pl->self->next_offset + size) > BIFBASE_BLOCK)
 		return (void *)-1;
 

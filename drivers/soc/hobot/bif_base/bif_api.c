@@ -29,9 +29,9 @@ EXPORT_SYMBOL(bifdebug);
 #define pr_bif(fmt, args...) do {if (bifdebug) pr_info(fmt, ##args); } while (0)
 module_param(bifdebug, int, 0644);
 
+#define CPSIDE_DDR_ADDRSIZE	(0x00100000)
 #ifdef CONFIG_HI3519V101
 #define CPSIDE_DDR_ADDR		(0x02000000)	//same to x2 reserved memory
-#define CPSIDE_DDR_ADDRSIZE	(0x00100000)
 #define GPIO_MUX_CTRL_BASE	(0x12040000)
 #define BIFIRQ_PIN		(2*8 + 5)	//GPIO2_5
 #define BIFTRI_PIN		(2*8 + 3)	//GPIO2_3
@@ -44,7 +44,6 @@ void __iomem *reg_gpio_muxctrl_base_va;
 
 #ifdef CONFIG_HOBOT_BIF_TEST
 #define CPSIDE_DDR_ADDR		(0x7ff00000) //vmware reversed address
-#define CPSIDE_DDR_ADDRSIZE	(0x00100000)
 extern int t_bif_netlink_init(void);
 extern void t_bif_netlink_exit(void);
 /*extern int t_bif_register_address(BUFF_ID buffer_id, void *address);*/
@@ -241,14 +240,13 @@ void bifplat_get_macro_config(void *p)
 	if (!pl)
 		return;
 
-	memset(pl->platform, 0, PLATFORM_SIZE);
-	sprintf(pl->platform, "%s", "x2j2");
-
 	pl->kernel_ver = LINUX_VERSION_CODE;
-
+	memset(pl->platform, 0, PLATFORM_SIZE);
 #ifdef CONFIG_HOBOT_BIF_AP
+	sprintf(pl->platform, "%s", "x2j2 AP");
 	pl->plat_type = PLAT_AP;
 #else
+	sprintf(pl->platform, "%s", "x2j2 CP");
 	pl->plat_type = PLAT_CP;
 #endif
 
@@ -267,6 +265,7 @@ void bifplat_get_macro_config(void *p)
 #endif
 
 	pl->bifbase_phyaddr = 0;
+	pl->bifbase_phyaddrsize = CPSIDE_DDR_ADDRSIZE;
 	pl->irq_pin_absent = 0;
 	pl->irq_pin = -1;
 	pl->irq_num = -1;
@@ -304,6 +303,8 @@ void bifplat_print_info(void *p)
 	pr_info("irq num: %d\n", pl->irq_num);
 	pr_info("tri pin: %d\n", pl->tri_pin);
 	pr_info("tri val: %d\n", pl->tri_val);
+	pr_info("rev pin1: %d\n", pl->rev_pin1);
+	pr_info("rev pin2: %d\n", pl->rev_pin2);
 }
 EXPORT_SYMBOL(bifplat_print_info);
 
@@ -344,7 +345,7 @@ int bifplat_gpio_init(void *p)
 		goto exit_1;
 	}
 
-	bifplat_print_info((void *)pl);
+	//bifplat_print_info((void *)pl);
 
 #ifdef CONFIG_HOBOT_BIF_TEST
 	ret = BIFOK;
