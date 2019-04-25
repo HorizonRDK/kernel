@@ -48,15 +48,19 @@
 #define BIFETH_NAME		"bifeth0"
 //#define BIFETH_RESERVED_MEM
 #define BIFETH_MEMATTRS		0	//DMA_ATTR_WRITE_BARRIER
-#define BIFNET_HALF_FULL_IRQ
+//#define BIFNET_HALF_FULL_IRQ
 //#define BIFETH_IFF_NOARP	//forbid ARP
 #define BIFETH_VER_SIZE		(16)
 #define BIFETH_SIZE		(512*3)
-#define BIFETH_FRAME_LEN	ETH_FRAME_LEN
-#define QUEUE_MAX		ETHER_QUERE_SIZE
+#define BIFETH_FRAME_LEN	(ETH_FRAME_LEN)
+#define QUEUE_MAX		(ETHER_QUERE_SIZE)
+#define ALLOC_SIZE		(BIFETH_SIZE * ETHER_QUERE_SIZE)
+
 #define MAX_SKB_BUFFERS		(20)
 #define MAX(a, b)	((a) > (b) ? (a) : (b))
 #define MIN(a, b)	((a) < (b) ? (a) : (b))
+#define TX_CP_TIMEOUT	(500) //us
+#define TX_WP_TIMEOUT	(1000*1000)	//ms
 
 struct bifnet_local {
 	int start;
@@ -330,6 +334,8 @@ irqreturn_t bitnet_irq_handler(int irq, void *data)
 	struct net_device *dev = get_bifnet();
 	struct bifnet_local *pl = netdev_priv(dev);
 
+	pr_bif("bifeth： handler irq=%d...\n", irq);
+
 	if (!dev || !pl || !pl->start)
 		return IRQ_NONE;
 
@@ -355,6 +361,7 @@ static int net_open(struct net_device *dev)
 	pr_info("%s: %s()\n", dev->name, __func__);
 	netif_start_queue(dev);
 	pl->start = 1;
+	bifnet_irq((void *)pl);
 
 	return 0;
 }
@@ -378,6 +385,8 @@ static int net_send_thread(void *arg)
 	unsigned long cur_phy = 0;
 	unsigned short elen = 0;
 	unsigned long flags = 0;
+	unsigned long tx_wp_timeout = TX_WP_TIMEOUT;
+	int have_netpacket = 0;
 	struct net_device *dev = (struct net_device *)arg;
 	//struct net_device *dev = get_bifnet();
 	struct bifnet_local *pl = netdev_priv(dev);
@@ -389,10 +398,20 @@ static int net_send_thread(void *arg)
 		if (!dev || !pl || !pl->start || !pl->self || !pl->other ||
 			!pl->self_phy || !pl->self_vir)
 			continue;
-		if (pl->start && dev)
+		if (pl->start && dev) {
 			if (wait_event_interruptible_timeout(pl->tx_wq,
-				pl->skbs_tail != pl->skbs_head, HZ * 10) == 0)
+				pl->skbs_tail != pl->skbs_head,
+				usecs_to_jiffies(tx_wp_timeout)) == 0) {
+				if (have_netpacket && !pl->self->queue_full) {
+					bifnet_irq((void *)pl);
+					have_netpacket = 0;
+					tx_wp_timeout = TX_WP_TIMEOUT;
+				}
 				continue;
+			}
+		}
+		have_netpacket = 1;
+		tx_wp_timeout = 100;	//us
 
 		while (pl->skbs_head != pl->skbs_tail) {
 			if (!pl->start || !dev)
@@ -469,17 +488,17 @@ next_step:
 
 			if (((pl->self->send_tail + 1) % QUEUE_MAX) ==
 				pl->other->recv_head) {
+				//pr_info("1 %d\n", pl->self->queue_full);
 				spin_lock_irqsave(&pl->lock_full, flags);
 				pl->self->queue_full = 1;
 				spin_unlock_irqrestore(&pl->lock_full, flags);
 				bifnet_irq((void *)pl);
-				if (pl->start)
-					wait_for_completion_timeout(&pl->tx_cp,
-						msecs_to_jiffies(500));
+				if (!wait_for_completion_timeout(&pl->tx_cp,
+					msecs_to_jiffies(TX_CP_TIMEOUT)))
+					pr_bif("bifnet: t\n");
 			}
 		}
-
-		bifnet_irq((void *)pl);
+		//bifnet_irq((void *)pl);
 	}
 
 	return 0;
@@ -635,18 +654,18 @@ static int bifnet_init(void)
 		sprintf(pl->ver, "%s", BIFETH_CPVER);
 #ifdef BIFETH_RESERVED_MEM
 		pr_info("bifnet: call bif_alloc_cp()\n");
-		pl->self_vir = bif_alloc_cp(pl->bifnet_id,
-			2 * ETHER_QUERE_SIZE * BIFETH_SIZE, &pl->self_phy);
+		pl->self_vir = bif_alloc_cp(pl->bifnet_id, 2 * ALLOC_SIZE,
+			&pl->self_phy);
 #else
 		pr_info("bifnet: call bif_dma_alloc() %d\n", BIFETH_MEMATTRS);
-		pl->self_vir = bif_dma_alloc(2 * ETHER_QUERE_SIZE *
-			BIFETH_SIZE, (dma_addr_t *)&pl->self_phy,
+		pl->self_vir = bif_dma_alloc(2 * ALLOC_SIZE,
+			(dma_addr_t *)&pl->self_phy,
 			GFP_KERNEL, BIFETH_MEMATTRS);
 #endif
 		bif_register_address(pl->bifnet_id,
 			(void *)(ulong)pl->self_phy);
-		pl->other_phy = pl->self_phy + (ETHER_QUERE_SIZE*BIFETH_SIZE);
-		pl->other_vir = pl->self_vir + (ETHER_QUERE_SIZE*BIFETH_SIZE);
+		pl->other_phy = pl->self_phy + ALLOC_SIZE;
+		pl->other_vir = pl->self_vir + ALLOC_SIZE;
 
 		/*cp side init */
 		vir_addr = bif_alloc_base(pl->bifnet_id,
@@ -750,8 +769,7 @@ static void bifnet_exit(void)
 		kfree(pl->other_vir);
 	} else {
 #ifndef BIFETH_RESERVED_MEM
-		bif_dma_free(2 * ETHER_QUERE_SIZE * BIFETH_SIZE,
-			(dma_addr_t *)&pl->self_phy,
+		bif_dma_free(2 * ALLOC_SIZE, (dma_addr_t *)&pl->self_phy,
 			GFP_KERNEL, BIFETH_MEMATTRS);
 #endif
 	}
