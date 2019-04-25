@@ -1292,6 +1292,12 @@ static int dwceqos_mii_init(struct net_local *lp)
 	if (of_mdiobus_register(lp->mii_bus, mdionode))
 		goto err_out_free_mdiobus;
 
+	if (of_phy_is_fixed_link(lp->pdev->dev.of_node)) {
+		/* this used for config the port2 MAC of switch */
+		/* should be removed after MCU handle or EEPROM added */
+		dwceqos_mdio_write(lp->mii_bus, 0x12, 0x01, 0xC03e);
+	}
+
 	return 0;
 
 err_out_free_mdiobus:
