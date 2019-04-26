@@ -407,6 +407,7 @@ static void mipi_host_irq_disable(void)
 static irqreturn_t mipi_host_irq_func(int this_irq, void *data)
 {
 	uint32_t      irq = 0;
+	uint32_t      subirq = 0;
 	void __iomem  *iomem = NULL;
 	mipi_host_t   *mipi_host = (mipi_host_t *)data;
 	if (NULL == g_mipi_host) {
@@ -418,32 +419,32 @@ static irqreturn_t mipi_host_irq_func(int this_irq, void *data)
 	irq = mipi_getreg(iomem + REG_MIPI_HOST_INT_ST_MAIN);
 	mipiinfo("mipi host irq status 0x%x\n", irq);
 	if (irq & MIPI_HOST_INT_PHY_FATAL) {
-		irq = mipi_getreg(iomem + REG_MIPI_HOST_INT_ST_PHY_FATAL);
-		mipiinfo("mipi host PHY FATAL: 0x%x", irq);
+		subirq = mipi_getreg(iomem + REG_MIPI_HOST_INT_ST_PHY_FATAL);
+		mipiinfo("mipi host PHY FATAL: 0x%x", subirq);
 	}
 	if (irq & MIPI_HOST_INT_PKT_FATAL) {
-		irq = mipi_getreg(iomem + REG_MIPI_HOST_INT_ST_PKT_FATAL);
-		mipiinfo("mipi host PKT FATAL: 0x%x", irq);
+		subirq = mipi_getreg(iomem + REG_MIPI_HOST_INT_ST_PKT_FATAL);
+		mipiinfo("mipi host PKT FATAL: 0x%x", subirq);
 	}
 	if (irq & MIPI_HOST_INT_FRM_FATAL) {
-		irq = mipi_getreg(iomem + REG_MIPI_HOST_INT_ST_FRAME_FATAL);
-		mipiinfo("mipi host FRAME FATAL: 0x%x", irq);
+		subirq = mipi_getreg(iomem + REG_MIPI_HOST_INT_ST_FRAME_FATAL);
+		mipiinfo("mipi host FRAME FATAL: 0x%x", subirq);
 	}
 	if (irq & MIPI_HOST_INT_PHY) {
-		irq = mipi_getreg(iomem + REG_MIPI_HOST_INT_ST_PHY);
-		mipiinfo("mipi host PHY ST: 0x%x", irq);
+		subirq = mipi_getreg(iomem + REG_MIPI_HOST_INT_ST_PHY);
+		mipiinfo("mipi host PHY ST: 0x%x", subirq);
 	}
 	if (irq & MIPI_HOST_INT_PKT) {
-		irq = mipi_getreg(iomem + REG_MIPI_HOST_INT_ST_PKT);
-		mipiinfo("mipi host PKT ST: 0x%x", irq);
+		subirq = mipi_getreg(iomem + REG_MIPI_HOST_INT_ST_PKT);
+		mipiinfo("mipi host PKT ST: 0x%x", subirq);
 	}
 	if (irq & MIPI_HOST_INT_LINE) {
-		irq = mipi_getreg(iomem + REG_MIPI_HOST_INT_ST_LINE);
-		mipiinfo("mipi host LINE ST: 0x%x", irq);
+		subirq = mipi_getreg(iomem + REG_MIPI_HOST_INT_ST_LINE);
+		mipiinfo("mipi host LINE ST: 0x%x", subirq);
 	}
 	if (irq & MIPI_HOST_INT_IPI) {
-		irq = mipi_getreg(iomem + REG_MIPI_HOST_INT_ST_IPI);
-		mipiinfo("mipi host IPI ST: 0x%x", irq);
+		subirq = mipi_getreg(iomem + REG_MIPI_HOST_INT_ST_IPI);
+		mipiinfo("mipi host IPI ST: 0x%x", subirq);
 	}
 	enable_irq(this_irq);
 	return IRQ_HANDLED;
@@ -501,7 +502,7 @@ static int32_t mipi_host_dphy_start_hs_reception(void)
 		ncount++;
 		mdelay(1);
 	} while ( mipi_host_notimeout || ncount <= HOST_DPHY_CHECK_MAX );
-	mipiinfo("mipi host hs reception check error");
+	mipiinfo("mipi host hs reception check error 0x%x", state);
 	return -1;
 }
 

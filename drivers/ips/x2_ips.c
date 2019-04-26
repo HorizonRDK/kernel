@@ -173,6 +173,7 @@ int ips_irq_enable(int irq)
 	u32 val, irqmask;
 	if (!g_ipsdev)
 		return -1;
+	readl(g_ipsdev->regaddr + IPSINTSTATE);
 	irqmask = ~(irq_to_regbit(irq));
 	spin_lock_irqsave(g_ipsdev->lock, flags);
 	val = readl(g_ipsdev->regaddr + IPSINTMASK);
@@ -197,6 +198,7 @@ int ips_irq_disable(int irq)
 	val |= irqmask;
 	writel(val, g_ipsdev->regaddr + IPSINTMASK);
 	spin_unlock_irqrestore(g_ipsdev->lock, flags);
+	readl(g_ipsdev->regaddr + IPSINTSTATE);
 	printk(KERN_INFO "module %d's irq disabled\n", irq);
 	return 0;
 }

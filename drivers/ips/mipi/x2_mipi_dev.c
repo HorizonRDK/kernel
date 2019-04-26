@@ -372,6 +372,7 @@ static void mipi_dev_irq_disable(void)
 static irqreturn_t mipi_dev_irq_func(int this_irq, void *data)
 {
 	uint32_t   irq = 0;
+	uint32_t   subirq = 0;
 	void __iomem  *iomem = NULL;
 	mipi_dev_t   *mipi_dev = (mipi_dev_t *)data;
 	if (NULL == g_mipi_dev) {
@@ -383,20 +384,20 @@ static irqreturn_t mipi_dev_irq_func(int this_irq, void *data)
 	irq = mipi_getreg(iomem + REG_MIPI_DEV_INT_ST_MAIN);
 	mipiinfo("mipi dev irq status 0x%x\n", irq);
 	if (irq & MIPI_DEV_INT_VPG) {
-		irq = mipi_getreg(iomem + REG_MIPI_DEV_INT_ST_VPG);
-		mipiinfo("mipi dev VPG ST: 0x%x", irq);
+		subirq = mipi_getreg(iomem + REG_MIPI_DEV_INT_ST_VPG);
+		mipiinfo("mipi dev VPG ST: 0x%x", subirq);
 	}
 	if (irq & MIPI_DEV_INT_IDI) {
-		irq = mipi_getreg(iomem + REG_MIPI_DEV_INT_ST_IDI);
-		mipiinfo("mipi dev IDI ST: 0x%x", irq);
+		subirq = mipi_getreg(iomem + REG_MIPI_DEV_INT_ST_IDI);
+		mipiinfo("mipi dev IDI ST: 0x%x", subirq);
 	}
 	if (irq & MIPI_DEV_INT_IPI) {
-		irq = mipi_getreg(iomem + REG_MIPI_DEV_INT_ST_IPI);
-		mipiinfo("mipi dev IPI ST: 0x%x", irq);
+		subirq = mipi_getreg(iomem + REG_MIPI_DEV_INT_ST_IPI);
+		mipiinfo("mipi dev IPI ST: 0x%x", subirq);
 	}
 	if (irq & MIPI_DEV_INT_PHY) {
-		irq = mipi_getreg(iomem + REG_MIPI_DEV_INT_ST_PHY);
-		mipiinfo("mipi dev PHY ST: 0x%x", irq);
+		subirq = mipi_getreg(iomem + REG_MIPI_DEV_INT_ST_PHY);
+		mipiinfo("mipi dev PHY ST: 0x%x", subirq);
 	}
 	enable_irq(this_irq);
 	return IRQ_HANDLED;

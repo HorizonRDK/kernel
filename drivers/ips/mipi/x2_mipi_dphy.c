@@ -413,17 +413,17 @@ static int32_t mipi_tx_pll_div(uint16_t refsclk, uint16_t laneclk, uint8_t *n, u
 		mipierr("pll parameter error!!! refsclk: %d, laneclk: %d", refsclk, laneclk);
 		return 0;
 	}
-	while (TX_PLL_INPUT_FEQ_MIN * n_tmp <= refsclk) {
+	while (TX_PLL_INPUT_FEQ_MIN * n_tmp < refsclk) {
 		n_tmp++;
 	}
 	n_tmp -= 1;
-	//outclk = refsclk / n_tmp;
-	while ((refsclk * m_tmp) <= fvco * n_tmp) {
+	outclk = refsclk / n_tmp;
+	while ((outclk * m_tmp) <= fvco) {
 		m_tmp++;
 	}
 	m_tmp -= 1;
-	//*n = n_tmp - 1;
-	*n = n_tmp - 2; /*device's clk must be higher than host's clk*/
+	*n = n_tmp - 1;
+	//*n = n_tmp - 2; /*device's clk must be higher than host's clk*/
 	*m = m_tmp - 2;
 	fvco = (refsclk * (*m + 2)) / (*n + 1);
 	fout = fvco >> vco_div;
@@ -468,7 +468,7 @@ int32_t mipi_dev_dphy_initialize(void __iomem *iomem, uint16_t mipiclk, uint16_t
 	mipi_dev_dphy_testdata(REGS_TX_PLL_28, TX_PLL_MULTI_L(m));
 	mipi_dev_dphy_testdata(REGS_TX_PLL_29, TX_PLL_MULTI_H(m));
 	mipi_dev_dphy_testdata(REGS_TX_PLL_30, TX_PLL_VCO(vco));
-	mipi_dev_dphy_testdata(REGS_TX_SYSTIMERS_23, TX_HS_ZERO(settle));
+	//mipi_dev_dphy_testdata(REGS_TX_SYSTIMERS_23, TX_HS_ZERO(settle));
 	mipi_dev_dphy_testdata(REGS_TX_PLL_1,  TX_PLL_CPBIAS);
 	mipi_dev_dphy_testdata(REGS_TX_PLL_4,  TX_PLL_INT_CTL);
 	mipi_dev_dphy_testdata(REGS_TX_PLL_17, TX_PLL_PROP_CNTRL);
