@@ -524,7 +524,7 @@
 			clock-freq-min-max = <100000 200000000>;
 			clocks = <&sd1_div_clk>, <&sd1_div_cclk>,<&sd1_cclk>;
 			clock-names = "biu","ciu","gate_cclk";
-			clock-frequency = <200000000>;
+			clock-frequency = <20000000>;
 			fifo-depth = <0x100>;
 			fifo-mode = <0>;
 			interrupt-parent = <&gic>;
