@@ -56,6 +56,7 @@ static int ratio1;
 static int queue0;
 static int queue1;
 static struct timer_list check_timer;
+static struct mutex enable_lock;
 static inline u32 x2_cnn_reg_read(struct x2_cnn_dev *dev, u32 off)
 {
 	return readl(dev->cnn_base + off);
@@ -368,7 +369,7 @@ static irqreturn_t x2_cnn_interrupt_handler(int irq, void *dev_id)
 	x2_cnn_reg_write(dev, X2_CNNINT_MASK, 0x0);
 	spin_unlock_irqrestore(&dev->cnn_spin_lock, flags);
 	atomic_dec(&dev->wait_fc_cnt);
-	pr_debug("!!!!!!xxxx x2 cnn interrupt\n");
+	pr_info("!!!!!!xxxx x2 cnn interrupt\n");
 	tasklet_schedule(&dev->tasklet);
 	return IRQ_HANDLED;
 }
@@ -451,7 +452,7 @@ static u32 x2_cnn_get_fc_fifo_spaces(struct x2_cnn_dev *dev)
 	else
 		free_fc_fifo = fc_depth - fc_tail_idx + fc_head_idx + 1;
 
-	pr_debug("fc_depth:0x%x, get fifo spaces return val:%d, head:[%d], tail:[%d]\n",
+	pr_info("fc_depth:0x%x, get fifo spaces return val:%d, head:[%d], tail:[%d]\n",
 			fc_depth, free_fc_fifo, fc_head_idx, fc_tail_idx);
 	return free_fc_fifo;
 }
@@ -513,7 +514,7 @@ static u32 x2_cnn_fc_fifo_enqueue(struct x2_cnn_dev *dev,
 		/*
 		 * Actually, according to libpu, fc_cnt is always 1
 		 */
-		for (i = 0; i < residue_fc_cnt; i++) {
+		for (i = 0; i < insert_fc_cnt; i++) {
 			if (tmp_ptr->interrupt_num != 0)
 				atomic_inc(&dev->wait_fc_cnt);
 			tmp_ptr++;
@@ -522,7 +523,6 @@ static u32 x2_cnn_fc_fifo_enqueue(struct x2_cnn_dev *dev,
 	} else {
 		memcpy(dev->fc_base + (fc_tail_idx * X2_CNN_FC_SIZE),
 			fc_buf->fc_info, fc_buf->fc_cnt * X2_CNN_FC_SIZE);
-
 		/*
 		 * Actually, according to libpu, fc_cnt is always 1
 		 */
@@ -1156,9 +1156,9 @@ static void x2_cnn_check_func(unsigned long arg)
 		time = 0;
 
 	}
-	if (cnn0_head != cnn0_tail || atomic_read(&cnn0_dev->wait_fc_cnt))
+	if (cnn0_head != cnn0_tail || (atomic_read(&cnn0_dev->wait_fc_cnt) > 0))
 		cnn0_busy++;
-	if (cnn1_head != cnn1_tail || atomic_read(&cnn1_dev->wait_fc_cnt))
+	if (cnn1_head != cnn1_tail || (atomic_read(&cnn1_dev->wait_fc_cnt) > 0))
 		cnn1_busy++;
 
 	if (++time == fre) {
@@ -1211,8 +1211,11 @@ static ssize_t enable_store(struct kobject *kobj, struct kobj_attribute *attr,
 						  const char *buf, size_t count)
 {
 	int ret;
+	static int enable_tmp;
 
+	mutex_lock(&enable_lock);
 	ret = sscanf(buf, "%du", &profiler_enable);
+	mutex_unlock(&enable_lock);
 	if (ret < 0) {
 		pr_info("%s sscanf error\n", __func__);
 		return 0;
@@ -1224,9 +1227,20 @@ static ssize_t enable_store(struct kobject *kobj, struct kobj_attribute *attr,
 			profiler_enable = 0;
 			return -1;
 		}
-		add_timer(&check_timer);
-	} else
-		del_timer(&check_timer);
+		mutex_lock(&enable_lock);
+		if (!enable_tmp) {
+			add_timer(&check_timer);
+			enable_tmp = profiler_enable;
+		}
+		mutex_unlock(&enable_lock);
+	} else {
+		mutex_lock(&enable_lock);
+		if (enable_tmp) {
+			del_timer(&check_timer);
+			enable_tmp = profiler_enable;
+		}
+		mutex_unlock(&enable_lock);
+	}
 	return count;
 }
 
@@ -1325,6 +1339,7 @@ static int __init x2_cnn_init(void)
 	/*set bpu profiler timer*/
 	init_timer(&check_timer);
 	check_timer.function = &x2_cnn_check_func;
+	mutex_init(&enable_lock);
 	return retval;
 
 }
