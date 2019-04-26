@@ -368,7 +368,7 @@ static irqreturn_t x2_cnn_interrupt_handler(int irq, void *dev_id)
 	x2_cnn_reg_write(dev, X2_CNNINT_MASK, 0x0);
 	spin_unlock_irqrestore(&dev->cnn_spin_lock, flags);
 	atomic_dec(&dev->wait_fc_cnt);
-	pr_info("!!!!!!xxxx x2 cnn interrupt\n");
+	pr_debug("!!!!!!xxxx x2 cnn interrupt\n");
 	tasklet_schedule(&dev->tasklet);
 	return IRQ_HANDLED;
 }
@@ -451,7 +451,7 @@ static u32 x2_cnn_get_fc_fifo_spaces(struct x2_cnn_dev *dev)
 	else
 		free_fc_fifo = fc_depth - fc_tail_idx + fc_head_idx + 1;
 
-	pr_info("fc_depth:0x%x, get fifo spaces return val:%d, head:[%d], tail:[%d]\n",
+	pr_debug("fc_depth:0x%x, get fifo spaces return val:%d, head:[%d], tail:[%d]\n",
 			fc_depth, free_fc_fifo, fc_head_idx, fc_tail_idx);
 	return free_fc_fifo;
 }
