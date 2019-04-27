@@ -40,6 +40,7 @@
 
 #define MAX_IDMA_PERIOD (80 * 1024)
 #define MAX_IDMA_BUFFER (160 * 1024)
+static unsigned char *dma_vm;
 
 /* play and capture have the same hardware param, so no neeed split two parts */
 static const struct snd_pcm_hardware i2sidma_hardware = {
@@ -52,19 +53,20 @@ static const struct snd_pcm_hardware i2sidma_hardware = {
 	.period_bytes_min = 128,
 	.period_bytes_max = MAX_IDMA_PERIOD,
 	.periods_min = 1,
-	.periods_max = 2,
+	.periods_max = 4,
 };
 
 struct idma_ctrl_s {
 	spinlock_t lock;
-	/* unsigned int dma_id;//not use */
 	int state;
 	dma_addr_t start;
 	dma_addr_t pos;
 	dma_addr_t end;
 	dma_addr_t lastset;
+	dma_addr_t current_addr;
 	dma_addr_t period;
 	dma_addr_t periodsz;
+	size_t bytesnum;
 	void *token;
 	void (*cb)(void *dt, int bytes_xfer);
 	int stream;		/* capture or play */
@@ -76,9 +78,7 @@ static struct idma_info_s {
 	spinlock_t lock;
 	void __iomem *regaddr_tx;
 	void __iomem *regaddr_rx;
-	void __iomem *sysctl_addr;
-	/* dma_addr_t  bufrxaddrphy; */
-	/* dma_addr_t  buftxaddrphy; */
+
 	int idma_irq;
 } x2_i2sidma[2];
 
@@ -92,24 +92,9 @@ static struct snd_dmaengine_dai_dma_data *x2_dai_get_dma_data(struct
 }
 
 static void idma_getpos(dma_addr_t *src, int stream,
-		struct snd_soc_card *snd_card)
+		struct snd_soc_card *snd_card, struct idma_ctrl_s *dma_ctrl)
 {
-	if (!strcmp(snd_card->name, "x2snd0")) {
-		if (stream == SNDRV_PCM_STREAM_CAPTURE)
-			*src = readl(x2_i2sidma[0].regaddr_rx +
-				I2S_BUF_CUR_ADDR);
-		else
-			*src = readl(x2_i2sidma[0].regaddr_tx +
-				I2S_BUF_CUR_ADDR);
-	}
-	if (!strcmp(snd_card->name, "x2snd1")) {
-		if (stream == SNDRV_PCM_STREAM_CAPTURE)
-			*src = readl(x2_i2sidma[1].regaddr_rx +
-				I2S_BUF_CUR_ADDR);
-		else
-			*src = readl(x2_i2sidma[1].regaddr_tx +
-				I2S_BUF_CUR_ADDR);
-	}
+	*src = dma_ctrl->lastset;
 
 }
 
@@ -117,8 +102,6 @@ static void idma_getpos(dma_addr_t *src, int stream,
 static int i2sidma_enqueue(struct snd_pcm_substream *substream)
 {
 	/* struct snd_pcm_runtime *runtime = substream->runtime; */
-	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_card *snd_card = rtd->card;
 	struct idma_ctrl_s *dma_ctrl = substream->runtime->private_data;
 	u32 val;
 
@@ -127,39 +110,32 @@ static int i2sidma_enqueue(struct snd_pcm_substream *substream)
 	spin_unlock(&dma_ctrl->lock);
 
 	/* set buf0 ready */
-	val = dma_ctrl->lastset;
+	val = dma_ctrl->start;
 	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
-		if (!strcmp(snd_card->name, "x2snd0")) {
-			writel(val, x2_i2sidma[0].regaddr_rx + I2S_BUF0_ADDR);
-			writel(0x1, x2_i2sidma[0].regaddr_rx + I2S_BUF0_RDY);
-			val = dma_ctrl->periodsz / dma_ctrl->ch_num;
-			writel(val, x2_i2sidma[0].regaddr_rx + I2S_BUF_SIZE);
-		}
-		if (!strcmp(snd_card->name, "x2snd1")) {
-			writel(val, x2_i2sidma[1].regaddr_rx + I2S_BUF0_ADDR);
-			writel(0x1, x2_i2sidma[1].regaddr_rx + I2S_BUF0_RDY);
-			val = dma_ctrl->periodsz / dma_ctrl->ch_num;
-			writel(val, x2_i2sidma[1].regaddr_rx + I2S_BUF_SIZE);
-		}
+		writel(val, x2_i2sidma[dma_ctrl->id].regaddr_rx +
+			I2S_BUF0_ADDR);
+		writel(val + dma_ctrl->periodsz,
+			x2_i2sidma[dma_ctrl->id].regaddr_rx +
+				I2S_BUF1_ADDR);
+
+		val = (dma_ctrl->periodsz) / (dma_ctrl->ch_num);
+		writel(val, x2_i2sidma[dma_ctrl->id].regaddr_rx +
+			I2S_BUF_SIZE);
+
 
 	} else {
-		if (!strcmp(snd_card->name, "x2snd0")) {
-			writel(val, x2_i2sidma[0].regaddr_tx + I2S_BUF0_ADDR);
-			writel(0x1, x2_i2sidma[0].regaddr_tx + I2S_BUF0_RDY);
-			val = dma_ctrl->periodsz / dma_ctrl->ch_num;
-			writel(val, x2_i2sidma[0].regaddr_tx + I2S_BUF_SIZE);
-		}
-		if (!strcmp(snd_card->name, "x2snd1")) {
-			writel(val, x2_i2sidma[1].regaddr_tx + I2S_BUF0_ADDR);
-			writel(0x1, x2_i2sidma[1].regaddr_tx + I2S_BUF0_RDY);
-			val = dma_ctrl->periodsz / dma_ctrl->ch_num;
-			writel(val, x2_i2sidma[1].regaddr_tx + I2S_BUF_SIZE);
-		}
 
+		writel(val, x2_i2sidma[dma_ctrl->id].regaddr_tx +
+			I2S_BUF0_ADDR);
+		writel(val + dma_ctrl->periodsz,
+			x2_i2sidma[dma_ctrl->id].regaddr_tx +
+				I2S_BUF1_ADDR);
+		val = (dma_ctrl->periodsz) / (dma_ctrl->ch_num);
+		writel(val, x2_i2sidma[dma_ctrl->id].regaddr_tx +
+			I2S_BUF_SIZE);
 
 	}
 
-	/* dma_ctrl->lastset = dma_ctrl->start + dma_ctrl->periodsz; */
 	return 0;
 }
 
@@ -173,17 +149,18 @@ static void i2sidma_setcallbk(struct snd_pcm_substream *substream,
 	spin_unlock(&dma_ctrl->lock);
 }
 
-static void i2sidma_control(int op, int stream, struct snd_soc_card *snd_card)
+static void i2sidma_control(int op, int stream, struct idma_ctrl_s *dma_ctrl)
 {
-	u32 val;
+	u32 val = 0;
 
-	if (!strcmp(snd_card->name, "x2snd0")) {
-		spin_lock(&x2_i2sidma[0].lock);
+
 
 		if (stream == SNDRV_PCM_STREAM_CAPTURE)
-			val = readl(x2_i2sidma[0].regaddr_rx + I2S_CTL);
+			val = readl(x2_i2sidma[dma_ctrl->id].regaddr_rx +
+				I2S_CTL);
 		else
-			val = readl(x2_i2sidma[0].regaddr_tx + I2S_CTL);
+			val = readl(x2_i2sidma[dma_ctrl->id].regaddr_tx +
+				I2S_CTL);
 
 		switch (op) {
 		case DMA_START:
@@ -194,45 +171,18 @@ static void i2sidma_control(int op, int stream, struct snd_soc_card *snd_card)
 			val &= ~CTL_IMEM_EN;
 			break;
 		default:
-			spin_unlock(&x2_i2sidma[0].lock);
 			return;
 		}
 
 		if (stream == SNDRV_PCM_STREAM_CAPTURE)
-			writel(val, x2_i2sidma[0].regaddr_rx + I2S_CTL);
+			writel(val, x2_i2sidma[dma_ctrl->id].regaddr_rx +
+				I2S_CTL);
 		else
-			writel(val, x2_i2sidma[0].regaddr_tx + I2S_CTL);
+			writel(val, x2_i2sidma[dma_ctrl->id].regaddr_tx +
+				I2S_CTL);
 
-		spin_unlock(&x2_i2sidma[0].lock);
-	}
-	if (!strcmp(snd_card->name, "x2snd1")) {
-		spin_lock(&x2_i2sidma[1].lock);
 
-		if (stream == SNDRV_PCM_STREAM_CAPTURE)
-			val = readl(x2_i2sidma[1].regaddr_rx + I2S_CTL);
-		else
-			val = readl(x2_i2sidma[1].regaddr_tx + I2S_CTL);
 
-		switch (op) {
-		case DMA_START:
-			val |= CTL_IMEM_EN;
-			val |= CTL_IMEM_CLR;
-			break;
-		case DMA_STOP:
-			val &= ~CTL_IMEM_EN;
-			break;
-		default:
-			spin_unlock(&x2_i2sidma[1].lock);
-			return;
-		}
-
-		if (stream == SNDRV_PCM_STREAM_CAPTURE)
-			writel(val, x2_i2sidma[1].regaddr_rx + I2S_CTL);
-		else
-			writel(val, x2_i2sidma[1].regaddr_tx + I2S_CTL);
-
-		spin_unlock(&x2_i2sidma[1].lock);
-	}
 }
 
 static void i2sidma_done(void *id, int bytes_xfer)
@@ -264,6 +214,7 @@ static int i2sidma_hw_params(struct snd_pcm_substream *substream,
 	dma_ctrl->end = runtime->dma_addr + runtime->dma_bytes;
 	dma_ctrl->lastset = dma_ctrl->start;
 	dma_ctrl->ch_num = params_channels(params);
+	dma_ctrl->bytesnum = runtime->dma_bytes;
 
 	/* set dma cb */
 	i2sidma_setcallbk(substream, i2sidma_done);
@@ -288,85 +239,51 @@ static int i2sidma_prepare(struct snd_pcm_substream *substream)
 	unsigned int reg_val;
 
 	struct idma_ctrl_s *dma_ctrl = substream->runtime->private_data;
-	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_card *snd_card = rtd->card;
 
 	dma_ctrl->pos = dma_ctrl->start;
-
 	/* disable iram */
-	i2sidma_control(DMA_STOP, substream->stream, snd_card);
+	i2sidma_control(DMA_STOP, substream->stream, dma_ctrl);
 	/* setting bufer base/size/reday register */
 	i2sidma_enqueue(substream);
 	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
-		if (!strcmp(snd_card->name, "x2snd0")) {
-			/* enable irq */
-			writel(0xf, x2_i2sidma[0].regaddr_rx + I2S_UNMASK);
-			reg_val = readl(x2_i2sidma[0].regaddr_rx + I2S_SETMASK);
-			writel(UPDATE_VALUE_FIELD
-			       (reg_val, 0x1, I2S_INT_BUF_FLOW_BIT,
-				I2S_INT_BUF_FLOW_FIELD),
-			       x2_i2sidma[0].regaddr_rx + I2S_SETMASK);
+		writel(0xf, x2_i2sidma[dma_ctrl->id].regaddr_rx + I2S_UNMASK);
+		reg_val = readl(x2_i2sidma[dma_ctrl->id].regaddr_rx +
+			I2S_SETMASK);
+		writel(UPDATE_VALUE_FIELD(reg_val, 0x1, I2S_INT_BUF_FLOW_BIT,
+			I2S_INT_BUF_FLOW_FIELD),
+			x2_i2sidma[dma_ctrl->id].regaddr_rx + I2S_SETMASK);
 
-			reg_val = readl(x2_i2sidma[0].regaddr_rx + I2S_SETMASK);
-			writel(UPDATE_VALUE_FIELD
-			       (reg_val, 0x1, I2S_INT_BUF_NOT_READY_BIT,
+
+		reg_val = readl(x2_i2sidma[dma_ctrl->id].regaddr_rx +
+			I2S_SETMASK);
+		writel(UPDATE_VALUE_FIELD
+			(reg_val, 0x1, I2S_INT_BUF_NOT_READY_BIT,
 				I2S_INT_BUF_NOT_READY_FIELD),
-			       x2_i2sidma[0].regaddr_rx + I2S_SETMASK);
+				x2_i2sidma[dma_ctrl->id].regaddr_rx +
+				I2S_SETMASK);
 
-			writel(0xF, x2_i2sidma[0].regaddr_rx + I2S_SRCPND);
-		}
-		if (!strcmp(snd_card->name, "x2snd1")) {
-						/* enable irq */
-			writel(0xf, x2_i2sidma[1].regaddr_rx + I2S_UNMASK);
-			reg_val = readl(x2_i2sidma[1].regaddr_rx + I2S_SETMASK);
-			writel(UPDATE_VALUE_FIELD
-			       (reg_val, 0x1, I2S_INT_BUF_FLOW_BIT,
-				I2S_INT_BUF_FLOW_FIELD),
-			       x2_i2sidma[0].regaddr_rx + I2S_SETMASK);
+		writel(0xF, x2_i2sidma[dma_ctrl->id].regaddr_rx + I2S_SRCPND);
 
-			reg_val = readl(x2_i2sidma[1].regaddr_rx + I2S_SETMASK);
-			writel(UPDATE_VALUE_FIELD
-			       (reg_val, 0x1, I2S_INT_BUF_NOT_READY_BIT,
-				I2S_INT_BUF_NOT_READY_FIELD),
-			       x2_i2sidma[1].regaddr_rx + I2S_SETMASK);
 
-			writel(0xF, x2_i2sidma[1].regaddr_rx + I2S_SRCPND);
-		}
 	} else {/* play */
-		if (!strcmp(snd_card->name, "x2snd0")) {
-			/* enable irq */
-			writel(0xf, x2_i2sidma[0].regaddr_tx + I2S_UNMASK);
-			reg_val = readl(x2_i2sidma[0].regaddr_tx + I2S_SETMASK);
-			writel(UPDATE_VALUE_FIELD
-			       (reg_val, 0x1, I2S_INT_BUF_FLOW_BIT,
-				I2S_INT_BUF_FLOW_FIELD),
-			       x2_i2sidma[0].regaddr_tx + I2S_SETMASK);
+		writel(0xf, x2_i2sidma[dma_ctrl->id].regaddr_tx + I2S_UNMASK);
+		reg_val = readl(x2_i2sidma[dma_ctrl->id].regaddr_tx +
+			I2S_SETMASK);
+		writel(UPDATE_VALUE_FIELD(reg_val, 0x1, I2S_INT_BUF_FLOW_BIT,
+			I2S_INT_BUF_FLOW_FIELD),
+			x2_i2sidma[dma_ctrl->id].regaddr_tx + I2S_SETMASK);
 
-			reg_val = readl(x2_i2sidma[0].regaddr_tx + I2S_SETMASK);
-			writel(UPDATE_VALUE_FIELD
-			       (reg_val, 0x1, I2S_INT_BUF_NOT_READY_BIT,
+
+		reg_val = readl(x2_i2sidma[dma_ctrl->id].regaddr_tx +
+			I2S_SETMASK);
+		writel(UPDATE_VALUE_FIELD
+				(reg_val, 0x1, I2S_INT_BUF_NOT_READY_BIT,
 				I2S_INT_BUF_NOT_READY_FIELD),
-			       x2_i2sidma[0].regaddr_tx + I2S_SETMASK);
+				x2_i2sidma[dma_ctrl->id].regaddr_tx +
+				I2S_SETMASK);
 
-			writel(0xF, x2_i2sidma[0].regaddr_tx + I2S_SRCPND);
-		}
-		if (!strcmp(snd_card->name, "x2snd1")) {
-			/* enable irq */
-			writel(0xf, x2_i2sidma[1].regaddr_tx + I2S_UNMASK);
-			reg_val = readl(x2_i2sidma[1].regaddr_tx + I2S_SETMASK);
-			writel(UPDATE_VALUE_FIELD
-			       (reg_val, 0x1, I2S_INT_BUF_FLOW_BIT,
-				I2S_INT_BUF_FLOW_FIELD),
-			       x2_i2sidma[1].regaddr_tx + I2S_SETMASK);
+		writel(0xF, x2_i2sidma[dma_ctrl->id].regaddr_tx + I2S_SRCPND);
 
-			reg_val = readl(x2_i2sidma[1].regaddr_tx + I2S_SETMASK);
-			writel(UPDATE_VALUE_FIELD
-			       (reg_val, 0x1, I2S_INT_BUF_NOT_READY_BIT,
-				I2S_INT_BUF_NOT_READY_FIELD),
-			       x2_i2sidma[1].regaddr_tx + I2S_SETMASK);
-
-			writel(0xF, x2_i2sidma[1].regaddr_tx + I2S_SRCPND);
-		}
 	}
 
 	return 0;
@@ -376,25 +293,24 @@ static int i2sidma_trigger(struct snd_pcm_substream *substream, int cmd)
 {
 	struct idma_ctrl_s *dma_ctr = substream->runtime->private_data;
 	int ret = 0;
-	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_card *snd_card = rtd->card;
 
 	spin_lock(&dma_ctr->lock);
-
+	/* pr_err("i2sidma_trigger cmd is %d\n", cmd); */
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_RESUME:
 	case SNDRV_PCM_TRIGGER_START:
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
 		dma_ctr->state |= ST_RUNNING;
 		/* enable iram, clear iram */
-		i2sidma_control(DMA_START, substream->stream, snd_card);
+		i2sidma_control(DMA_START, substream->stream, dma_ctr);
 		break;
 
 	case SNDRV_PCM_TRIGGER_SUSPEND:
 	case SNDRV_PCM_TRIGGER_STOP:
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
 		dma_ctr->state &= ~ST_RUNNING;
-		i2sidma_control(DMA_STOP, substream->stream, snd_card);
+		i2sidma_control(DMA_STOP, substream->stream, dma_ctr);
+		writel(0x0, x2_i2sidma[dma_ctr->id].regaddr_rx + I2S_UNMASK);
 		break;
 
 	default:
@@ -402,8 +318,8 @@ static int i2sidma_trigger(struct snd_pcm_substream *substream, int cmd)
 		break;
 	}
 
+	pr_info("start i2sidma trigger\n");
 	spin_unlock(&dma_ctr->lock);
-
 	return ret;
 }
 
@@ -418,13 +334,15 @@ static snd_pcm_uframes_t i2sidma_pointer(struct snd_pcm_substream *substream)
 
 	spin_lock(&dma_ctrl->lock);
 
-	idma_getpos(&src, substream->stream, snd_card);
+	idma_getpos(&src, substream->stream, snd_card, dma_ctrl);
+	/* pr_err("i2sidma_pointer, get pos is %llx\n", src); */
 	res = src - dma_ctrl->start;
 
 	spin_unlock(&dma_ctrl->lock);
 
 	return bytes_to_frames(substream->runtime, res);
 }
+
 
 static int i2sidma_mmap(struct snd_pcm_substream *substream,
 			 struct vm_area_struct *vma)
@@ -443,101 +361,87 @@ static int i2sidma_mmap(struct snd_pcm_substream *substream,
 	return ret;
 }
 
+
 static irqreturn_t iis_irq0(int irqno, void *dev_id)
 {
 	struct idma_ctrl_s *dma_ctrl = (struct idma_ctrl_s *)dev_id;
-	u32 intstatus, addr;
+	u32 intstatus;
+	u32	addr = 0;
+	dma_addr_t halfullsize;
 
+	halfullsize = (dma_ctrl->periodsz * dma_ctrl->period/2);
 	if (dma_ctrl->stream == SNDRV_PCM_STREAM_CAPTURE) {
+
 		intstatus = readl(x2_i2sidma[0].regaddr_rx + I2S_SRCPND);
+
 		if (intstatus & INT_BUF0_DONE) {
-			/* clear int */
-			writel(INT_BUF0_DONE, x2_i2sidma[0].regaddr_rx +
-			       I2S_SRCPND);
 
-			addr =
-			    dma_ctrl->lastset + dma_ctrl->periodsz -
-			    dma_ctrl->start;
-			addr %= (u32) (dma_ctrl->end - dma_ctrl->start);
-			addr += dma_ctrl->start;
-			dma_ctrl->lastset = addr;
+			writel(0x5, x2_i2sidma[dma_ctrl->id].regaddr_rx +
+				I2S_SRCPND);
 
-			writel(addr, x2_i2sidma[0].regaddr_rx + I2S_BUF0_ADDR);
-			writel(0x1, x2_i2sidma[0].regaddr_rx + I2S_BUF0_RDY);
+			if ((dma_ctrl->lastset + dma_ctrl->periodsz -
+					dma_ctrl->start)
+				/ dma_ctrl->periodsz == 1) {
+				addr += dma_ctrl->lastset + halfullsize;
+				dma_ctrl->lastset = dma_ctrl->start +
+					dma_ctrl->periodsz;
+
+			} else {
+				addr = dma_ctrl->start;
+				dma_ctrl->lastset = dma_ctrl->start +
+				halfullsize + dma_ctrl->periodsz;
+
+			}
 
 			if (dma_ctrl->cb)
 				dma_ctrl->cb(dma_ctrl->token, dma_ctrl->period);
+
+			writel(addr, x2_i2sidma[dma_ctrl->id].regaddr_rx +
+				I2S_BUF0_ADDR);
+			writel(0x1, x2_i2sidma[dma_ctrl->id].regaddr_rx +
+				I2S_BUF0_RDY);
+
+
 		}
-	} else {
-		intstatus = readl(x2_i2sidma[0].regaddr_tx + I2S_SRCPND);
-		if (intstatus & INT_BUF0_DONE) {
-			/* clear int */
-			writel(INT_BUF0_DONE, x2_i2sidma[0].regaddr_tx +
-			I2S_SRCPND);
+		if (intstatus & INT_BUF1_DONE) {
 
-			addr =
-			    dma_ctrl->lastset + dma_ctrl->periodsz -
-			    dma_ctrl->start;
-			addr %= (u32) (dma_ctrl->end - dma_ctrl->start);
-			addr += dma_ctrl->start;
-			dma_ctrl->lastset = addr;
+			writel(0x9, x2_i2sidma[dma_ctrl->id].regaddr_rx +
+				I2S_SRCPND);
 
-			writel(addr, x2_i2sidma[0].regaddr_tx + I2S_BUF0_ADDR);
-			writel(0x1, x2_i2sidma[0].regaddr_tx + I2S_BUF0_RDY);
+			if ((dma_ctrl->lastset + dma_ctrl->periodsz -
+				dma_ctrl->start)
+				/dma_ctrl->periodsz == 2) {
+				addr += dma_ctrl->lastset + halfullsize;
+				dma_ctrl->lastset = dma_ctrl->start +
+				halfullsize;
+
+			} else {
+				addr = dma_ctrl->start + dma_ctrl->periodsz;
+			     dma_ctrl->lastset = dma_ctrl->start;
+
+			}
+
 
 			if (dma_ctrl->cb)
 				dma_ctrl->cb(dma_ctrl->token, dma_ctrl->period);
-		}
+
+			writel(addr, x2_i2sidma[dma_ctrl->id].regaddr_rx +
+				I2S_BUF1_ADDR);
+			writel(0x1, x2_i2sidma[dma_ctrl->id].regaddr_rx +
+				I2S_BUF1_RDY);
+
+			}
+		//if (intstatus & INT_OVERFLOW) {
+		//	}
+		//if (intstatus & INT_NOTREADY) {
+		//	}
+
 	}
 
 	return IRQ_HANDLED;
 }
 static irqreturn_t iis_irq1(int irqno, void *dev_id)
 {
-	struct idma_ctrl_s *dma_ctrl = (struct idma_ctrl_s *)dev_id;
-	u32 intstatus, addr;
-
-	if (dma_ctrl->stream == SNDRV_PCM_STREAM_CAPTURE) {
-		intstatus = readl(x2_i2sidma[1].regaddr_rx + I2S_SRCPND);
-		if (intstatus & INT_BUF0_DONE) {
-			/* clear int */
-			writel(INT_BUF0_DONE, x2_i2sidma[1].regaddr_rx +
-			       I2S_SRCPND);
-
-			addr =
-			    dma_ctrl->lastset + dma_ctrl->periodsz -
-			    dma_ctrl->start;
-			addr %= (u32) (dma_ctrl->end - dma_ctrl->start);
-			addr += dma_ctrl->start;
-			dma_ctrl->lastset = addr;
-
-			writel(addr, x2_i2sidma[1].regaddr_rx + I2S_BUF0_ADDR);
-			writel(0x1, x2_i2sidma[1].regaddr_rx + I2S_BUF0_RDY);
-
-			if (dma_ctrl->cb)
-				dma_ctrl->cb(dma_ctrl->token, dma_ctrl->period);
-		}
-	} else {
-		intstatus = readl(x2_i2sidma[1].regaddr_tx + I2S_SRCPND);
-		if (intstatus & INT_BUF0_DONE) {
-			/* clear int */
-			writel(INT_BUF0_DONE, x2_i2sidma[1].regaddr_tx +
-			I2S_SRCPND);
-
-			addr =
-			    dma_ctrl->lastset + dma_ctrl->periodsz -
-			    dma_ctrl->start;
-			addr %= (u32) (dma_ctrl->end - dma_ctrl->start);
-			addr += dma_ctrl->start;
-			dma_ctrl->lastset = addr;
-
-			writel(addr, x2_i2sidma[1].regaddr_tx + I2S_BUF0_ADDR);
-			writel(0x1, x2_i2sidma[1].regaddr_tx + I2S_BUF0_RDY);
-
-			if (dma_ctrl->cb)
-				dma_ctrl->cb(dma_ctrl->token, dma_ctrl->period);
-		}
-	}
 
 	return IRQ_HANDLED;
 }
@@ -564,17 +468,18 @@ static int i2sidma_open(struct snd_pcm_substream *substream)
 
 	if (!strcmp(snd_card->name, "x2snd0")) {
 		dma_ctrl->id = 0;
-		ret = request_irq(x2_i2sidma[0].idma_irq, iis_irq0,
+		ret = request_irq(x2_i2sidma[dma_ctrl->id].idma_irq, iis_irq0,
 			0, "idma0", dma_ctrl);
 		if (ret < 0) {
 			pr_err("fail to claim i2s irq , ret = %d\n", ret);
 			kfree(dma_ctrl);
 			return ret;
 		}
+
 	}
 	if (!strcmp(snd_card->name, "x2snd1")) {
 		dma_ctrl->id = 1;
-		ret = request_irq(x2_i2sidma[1].idma_irq, iis_irq1,
+		ret = request_irq(x2_i2sidma[dma_ctrl->id].idma_irq, iis_irq1,
 			0, "idma1", dma_ctrl);
 		if (ret < 0) {
 			pr_err("fail to claim i2s irq , ret = %d\n", ret);
@@ -582,7 +487,9 @@ static int i2sidma_open(struct snd_pcm_substream *substream)
 			return ret;
 		}
 	}
+
 	dma_ctrl->stream = substream->stream;
+
 	spin_lock_init(&dma_ctrl->lock);
 
 	/* this critical action */
@@ -595,18 +502,8 @@ static int i2sidma_close(struct snd_pcm_substream *substream)
 {
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct idma_ctrl_s *dma_ctrl = runtime->private_data;
-	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_card *snd_card = rtd->card;
 
-	if (!strcmp(snd_card->name, "x2snd0"))
-		free_irq(x2_i2sidma[0].idma_irq, dma_ctrl);
-	if (!strcmp(snd_card->name, "x2snd1"))
-		free_irq(x2_i2sidma[1].idma_irq, dma_ctrl);
-
-
-	if (!dma_ctrl)
-		pr_err("idma_close called with prtd == NULL\n");
-
+	free_irq(x2_i2sidma[dma_ctrl->id].idma_irq, dma_ctrl);
 	kfree(dma_ctrl);
 
 	return 0;
@@ -640,7 +537,6 @@ static void i2sidma_free(struct snd_pcm *pcm)
 		if (!buf->area)
 			continue;
 
-		/* iounmap ((void __iomem*) buf->area);//old dma way */
 		dmam_free_coherent(pcm->card->dev, buf->bytes, buf->area,
 				   buf->addr);
 
@@ -667,25 +563,17 @@ static int preallocate_idma_buffer(struct snd_pcm *pcm, int stream)
 	/* Assign PCM buffer pointers */
 	buf->dev.type = SNDRV_DMA_TYPE_CONTINUOUS;
 
-	if (stream == SNDRV_PCM_STREAM_CAPTURE) {
-		/* get virtual address */
-		buf->area = dmam_alloc_coherent(pcm->card->dev,
-			i2sidma_hardware.buffer_bytes_max, &phy, GFP_KERNEL);
-		buf->addr = phy;
-		buf->bytes = i2sidma_hardware.buffer_bytes_max;	/* 160K */
-		/* buf->area = (unsigned char* __force) */
-		/* ioremap (buf->addr, buf->bytes);//old dma way */
-	} else {
-		buf->area =
-		    dmam_alloc_coherent(pcm->card->dev,
-					i2sidma_hardware.buffer_bytes_max,
-					&phy, GFP_KERNEL);
-		buf->addr = phy;
-		buf->bytes = i2sidma_hardware.buffer_bytes_max;	/* 160K */
-		/* buf->area = (unsigned char* __force) */
-		/* ioremap (buf->addr, buf->bytes); */
-	}
 
+
+	/* No matter play or capture */
+	buf->area = dmam_alloc_coherent(pcm->card->dev,
+			i2sidma_hardware.buffer_bytes_max, &phy, GFP_KERNEL);
+	dma_vm = buf->area;
+	buf->addr = phy;
+	buf->bytes = i2sidma_hardware.buffer_bytes_max;	/* 160K */
+
+	if (buf->area == NULL)
+		return -ENOMEM;
 	return 0;
 }
 
@@ -698,7 +586,6 @@ static int i2sidma_new(struct snd_soc_pcm_runtime *rtd)
 	ret = dma_coerce_mask_and_coherent(card->dev, DMA_BIT_MASK(32));
 	if (ret)
 		return ret;
-
 	if (pcm->streams[SNDRV_PCM_STREAM_PLAYBACK].substream)
 		ret = preallocate_idma_buffer(pcm, SNDRV_PCM_STREAM_PLAYBACK);
 
@@ -762,13 +649,6 @@ static int asoc_i2sidma_platform_probe(struct platform_device *pdev)
 		return -ENOENT;
 	}
 
-	x2_i2sidma[id].sysctl_addr =
-	    devm_ioremap(&pdev->dev, res->start, resource_size(res));
-	if (IS_ERR(x2_i2sidma[id].sysctl_addr)) {
-
-		dev_err(&pdev->dev, "Failed to ioremap sysctl_addr!\n");
-		return PTR_ERR(x2_i2sidma[id].sysctl_addr);
-	}
 
 	ret = platform_get_irq(pdev, 0);
 	if (ret <= 0) {
@@ -781,7 +661,7 @@ static int asoc_i2sidma_platform_probe(struct platform_device *pdev)
 
 	ret =  devm_snd_soc_register_platform(&pdev->dev,
 					      &asoc_i2sidma_platform[id]);
-	pr_err("success register platform %d,ret = %d\n", id, ret);
+	pr_err("success register platform %d, ret = %d\n", id, ret);
 	return ret;
 
 }

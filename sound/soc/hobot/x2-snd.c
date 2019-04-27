@@ -50,28 +50,35 @@ static struct s2_snd_config_s x2_snd_config[2] = {
 
 
 
-static int x2_snd0_hw_params(struct snd_pcm_substream *substream,
+static int x2_snd_hw_params(struct snd_pcm_substream *substream,
 			     struct snd_pcm_hw_params *params)
 {
-
+	/* need lock later */
 	int ret = 0;
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *codec_dai = rtd->codec_dai;
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+	struct snd_soc_card *snd_card = rtd->card;
+	int id = 0;
+
+	if (!strcmp(snd_card->name, "x2snd0"))
+		id == 0;
+	else
+		id = 1;
+
 	unsigned long sample_rate = params_rate(params);
 
-	/* config codec */
 	ret =
 	    snd_soc_dai_set_fmt(codec_dai,
 				SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF |
-				SND_SOC_DAIFMT_CBS_CFS);
+				SND_SOC_DAIFMT_CBM_CFM);/* codec as master */
 	if (ret < 0) {
 		pr_err("%s, line:%d\n", __func__, __LINE__);
 		return ret;
 	}
 
-	ret = snd_soc_dai_set_fmt(cpu_dai, (x2_snd_config[0].i2s_mode |
-		(x2_snd_config[0].master << 12)));
+	ret = snd_soc_dai_set_fmt(cpu_dai, (x2_snd_config[id].i2s_mode |
+		(x2_snd_config[id].master << 12)));
 	if (ret < 0) {
 		pr_err("%s, line:%d\n", __func__, __LINE__);
 		return ret;
@@ -94,83 +101,33 @@ static int x2_snd0_hw_params(struct snd_pcm_substream *substream,
 
 }
 
-static int x2_snd1_hw_params(struct snd_pcm_substream *substream,
-					struct snd_pcm_hw_params *params)
-
-{
-
-		int ret = 0;
-		struct snd_soc_pcm_runtime *rtd = substream->private_data;
-		struct snd_soc_dai *codec_dai = rtd->codec_dai;
-		struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
-		unsigned long sample_rate = params_rate(params);
-
-					 /* config codec */
-		ret =
-			snd_soc_dai_set_fmt(codec_dai,
-				SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF |
-				SND_SOC_DAIFMT_CBS_CFS);
-			if (ret < 0) {
-				pr_err("%s, line:%d\n", __func__, __LINE__);
-				return ret;
-			}
-
-		ret = snd_soc_dai_set_fmt(cpu_dai, (x2_snd_config[1].i2s_mode
-			|(x2_snd_config[1].master << 12)));
-		if (ret < 0) {
-			pr_err("%s, line:%d\n", __func__, __LINE__);
-			return ret;
-		}
-
-		ret = snd_soc_dai_set_clkdiv(codec_dai, 0, sample_rate);
-		if (ret < 0) {
-			pr_err("%s, line:%d\n", __func__, __LINE__);
-			return ret;
-
-		}
-			/* below div is getted by sample_rate */
-		ret = snd_soc_dai_set_clkdiv(cpu_dai, 0, sample_rate);
-		if (ret < 0) {
-			pr_err("%s, line:%d\n", __func__, __LINE__);
-				return ret;
-		}
-
-			 return 0;
-
-}
 
 
-
-static int x2_snd0_init(struct snd_soc_pcm_runtime *rtd)
-{
-	/* struct snd_soc_codec *codec = rtd->codec; */
-	/* struct snd_soc_card *card = rtd->card; */
-	return 0;
-}
-static int x2_snd1_init(struct snd_soc_pcm_runtime *rtd)
+static int x2_snd_init(struct snd_soc_pcm_runtime *rtd)
 {
 
 	return 0;
 }
 
-static struct snd_soc_ops x2_snd0_ops = {
-	.hw_params = x2_snd0_hw_params,
+
+static struct snd_soc_ops x2_snd_ops = {
+	.hw_params = x2_snd_hw_params,
 };
 
-static struct snd_soc_ops x2_snd1_ops = {
-	.hw_params = x2_snd1_hw_params,
-};
+
 
 static struct snd_soc_dai_link x2_snd0_dai_link = {
 	.name = "x2dailink0",
 	.stream_name = "x2-stream",
 	.cpu_dai_name = "x2-i2s0",
 
-	.codec_dai_name = "snd-soc-dummy-dai",
-	 .codec_name   = "snd-soc-dummy",
-	.init = x2_snd0_init,
+	.codec_dai_name = "ac108-pcm0",
+	 .codec_name   = "ac108.0-003b",
+	/* .codec_dai_name = "snd-soc-dummy-dai", */
+	 /* s.codec_name   = "snd-soc-dummy", */
+	.init = x2_snd_init,
 	.platform_name = "a5007000.idma",
-	.ops = &x2_snd0_ops,
+	.ops = &x2_snd_ops,
 };
 
 static struct snd_soc_dai_link x2_snd1_dai_link = {
@@ -180,9 +137,9 @@ static struct snd_soc_dai_link x2_snd1_dai_link = {
 
 	 .codec_dai_name = "snd-soc-dummy-dai",
 	 .codec_name   = "snd-soc-dummy",
-	.init = x2_snd1_init,
+	.init = x2_snd_init,
 	.platform_name = "a5008000.idma",
-	.ops = &x2_snd1_ops,
+	.ops = &x2_snd_ops,
 };
 
 static struct snd_soc_card x2_soc_snd[2] = {
@@ -200,7 +157,6 @@ static struct snd_soc_card x2_soc_snd[2] = {
 		.num_links = 1,
 	}
 };
-
 
 
 static int x2_snd_get_dt_data(struct platform_device *pdev, int id)
@@ -276,8 +232,8 @@ static int x2_snd_remove(struct platform_device *pdev)
 
 #ifdef CONFIG_OF
 static const struct of_device_id x2_snd_of_match[] = {
-	{.compatible = "hobot,x2-snd0",},
-	{.compatible = "hobot,x2-snd1",},
+	{.compatible = "hobot, x2-snd0",},
+	{.compatible = "hobot, x2-snd1",},
 	{}
 };
 

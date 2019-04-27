@@ -27,11 +27,18 @@
 #define X2_I2S_RATES    SNDRV_PCM_RATE_8000_96000
 
 #define X2_I2S_FMTS (SNDRV_PCM_FMTBIT_S8 | SNDRV_PCM_FMTBIT_S16_LE)
+#define X2DAI_DEBUG_EN			1
 
-/* static dma_addr_t i2s0_dma_addr = AUDMA_I2S0_RXBUFFER; */
-static int current_channel_num;
-static int current_wordlength;
-static int current_samplerate;
+
+
+static void show_all_register(struct x2_i2s *i2s);
+
+static unsigned int x2_i2s_read_base_reg(struct x2_i2s *i2s, int offset)
+{
+	return readl(i2s->regaddr_rx+offset);
+}
+
+
 
 /* enable/disable i2s controller */
 static void i2s_transfer_ctl(struct x2_i2s *i2s, bool on)
@@ -39,43 +46,26 @@ static void i2s_transfer_ctl(struct x2_i2s *i2s, bool on)
 	unsigned long val;
 	void __iomem *addr;
 
-	if (i2s->streamflag == 0) /* capture */
-		addr = i2s->regaddr_rx + I2S_CTL;
-	else
-		addr = i2s->regaddr_tx + I2S_CTL;
-	val = readl(addr);
-	if (on)
-		val |= CTL_ENABLE;
-	else
-		val &= ~CTL_ENABLE;
 
-	writel(val, addr);
+		if (i2s->streamflag == 0) /* capture */
+			addr = i2s->regaddr_rx + I2S_CTL;
+		else
+			addr = i2s->regaddr_tx + I2S_CTL;
+		val = readl(addr);
+		if (on)
+			val |= CTL_ENABLE;
+		else
+			val &= ~CTL_ENABLE;
+
+		writel(val, addr);
 
 }
 
-static void i2s_set_master(struct x2_i2s *i2s, bool on)
-{
-	unsigned long val;
-	void __iomem *addr;
-
-	if (i2s->id == 0)
-		addr = i2s->sysctl_addr + I2S0_CLKCTL_BASE;
-	else
-		addr = i2s->sysctl_addr + I2S1_CLKCTL_BASE;
-	val = readl(addr);
-	if (on)
-		val &= ~(0x1 << CLK_MODE);
-	else
-		val |= (0x1 << CLK_MODE);
-
-	writel(val, addr);
-}
 
 static int i2s_set_sysclk(struct snd_soc_dai *dai,
 			   int clk_id, unsigned int rfs, int dir)
 {
-	/* struct i2s_dai_s *i2s = snd_soc_dai_get_drvdata (dai); */
-	/* will do clock setting */
+
 	return 0;
 }
 
@@ -92,11 +82,11 @@ static int i2s_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 
 	spin_lock_irqsave(&i2s->lock, flags);
 
-	if (i2s->streamflag == 0) 	/* capture */
+	if (i2s->streamflag == 0) {	/* capture */
 		val = readl(i2s->regaddr_rx + I2S_MODE);
-	else 		/* play */
+	} else {		/* play */
 		val = readl(i2s->regaddr_tx + I2S_MODE);
-
+	}
 
 	switch (fmt & SND_SOC_DAIFMT_FORMAT_MASK) {
 	case SND_SOC_DAIFMT_I2S:	/* i2s mode */
@@ -116,12 +106,13 @@ static int i2s_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 	switch (fmt & SND_SOC_DAIFMT_MASTER_MASK) {
 	/* Codec is master, and controler is slave. */
 	case SND_SOC_DAIFMT_CBM_CFM:
-		val |= MOD_MS_MODE;
-		i2s_set_master(i2s, 0);
+
+		val &= ~MOD_MS_MODE;
+		dev_dbg(i2s->dev, "x2 config master mode\n");
 		break;
 	case SND_SOC_DAIFMT_CBS_CFS:
-		val &= ~MOD_MS_MODE;
-		i2s_set_master(i2s, 1);
+		val |= MOD_MS_MODE;
+		dev_dbg(i2s->dev, "x2 config slave mode\n");
 		break;
 	default:
 		dev_err(i2s->dev, "master/slave format not supported\n");
@@ -143,93 +134,59 @@ static void x2_i2s_sample_rate_set(struct snd_pcm_substream *substream,
 {
 
 	int ws_l, ws_h;
-	void __iomem *addr;
 
-	u32 val = 0;
 	u32 reg_val = 0;
-	uint64_t bclk;
-	int div;
 
 	/* first get div_ws_l and div_ws_h, the value is equal */
 	/* bclk = Fws*(chan*word_len) = Fws*(div_ws_l+1 + div_ws_h+1) */
 	/* below fix mclk=4096khz, 4.096M = 1536/25/15 */
-
-	if (i2s->id == 0)
-		addr = i2s->sysctl_addr + I2S0_CLKCTL_BASE;
-	else
-		addr = i2s->sysctl_addr + I2S1_CLKCTL_BASE;
-
 	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
-		val = readl(addr);
-		val |= (24 << 0);
-		val |= (14 << 8);
-
-		bclk =
-		    current_samplerate * current_channel_num *
-		    current_wordlength;
-
-		/* below code only is for debug, not cover all bclk */
-		div = 4096000 / bclk - 1;
-		val |= (div << 16);
-
-		writel(val, addr);
-
 
 		if (i2s->i2sdsp == 0) {	/* i2s mode */
-			ws_l = current_channel_num * current_wordlength / 2 - 1;
-			ws_h = ws_l;
-		} else {
+			pr_err("i2s->div_ws is 0x%x\n", i2s->div_ws);
+			writel(i2s->div_ws, i2s->regaddr_rx + I2S_DIV_WS);
+			/* setting bclk register */
+		} else {/* dsp mode */
 			ws_h = 0;
-			ws_l = current_channel_num * current_wordlength - 2;
+			ws_l = (i2s->channel_num) * (i2s->wordlength)  - 2;
+			reg_val = readl(i2s->regaddr_rx + I2S_DIV_WS);
+			writel(UPDATE_VALUE_FIELD
+			       (reg_val, ws_l, I2S_DIV_WS_DIV_WS_L_BIT,
+				I2S_DIV_WS_DIV_WS_L_FIELD),
+			       i2s->regaddr_rx + I2S_DIV_WS);
+			writel(UPDATE_VALUE_FIELD
+			       (reg_val, ws_h, I2S_DIV_WS_DIV_WS_H_BIT,
+				I2S_DIV_WS_DIV_WS_H_FIELD),
+			       i2s->regaddr_rx + I2S_DIV_WS);
+			/* setting bclk register */
 		}
-		reg_val = readl(i2s->regaddr_rx + I2S_DIV_WS);
-		writel(UPDATE_VALUE_FIELD
-		       (reg_val, ws_l, I2S_DIV_WS_DIV_WS_L_BIT,
-			I2S_DIV_WS_DIV_WS_L_FIELD),
-		       i2s->regaddr_rx + I2S_DIV_WS);
-		writel(UPDATE_VALUE_FIELD
-		       (reg_val, ws_h, I2S_DIV_WS_DIV_WS_H_BIT,
-			I2S_DIV_WS_DIV_WS_H_FIELD),
-		       i2s->regaddr_rx + I2S_DIV_WS);
-		/* setting bclk register */
-
 
 	} else {/* play */
-		val = readl(addr);
-		val |= (24 << 0);
-		val |= (14 << 8);
-
-		bclk =
-		    current_samplerate * current_channel_num *
-		    current_wordlength;
-		div = 4096000 / bclk - 1;
-		val |= (div << 16);
-
-		writel(val, addr);
-
 
 		if (i2s->i2sdsp == 0) {	/* i2s mode */
-			ws_l = current_channel_num * current_wordlength / 2 - 1;
-			ws_h = ws_l;
+			writel(i2s->div_ws, i2s->regaddr_tx + I2S_DIV_WS);
+
+
 		} else {
 			ws_h = 0;
-			ws_l = current_channel_num * current_wordlength - 2;
-		}
+			ws_l = (i2s->channel_num) * (i2s->wordlength) - 2;
+
+
 		reg_val = readl(i2s->regaddr_tx + I2S_DIV_WS);
 		writel(UPDATE_VALUE_FIELD
-		       (reg_val, ws_l, I2S_DIV_WS_DIV_WS_L_BIT,
-			I2S_DIV_WS_DIV_WS_L_FIELD),
-		       i2s->regaddr_tx + I2S_DIV_WS);
+			       (reg_val, ws_l, I2S_DIV_WS_DIV_WS_L_BIT,
+				I2S_DIV_WS_DIV_WS_L_FIELD),
+			       i2s->regaddr_tx + I2S_DIV_WS);
 		writel(UPDATE_VALUE_FIELD
-		       (reg_val, ws_h, I2S_DIV_WS_DIV_WS_H_BIT,
-			I2S_DIV_WS_DIV_WS_H_FIELD),
-		       i2s->regaddr_tx + I2S_DIV_WS);
-
+			       (reg_val, ws_h, I2S_DIV_WS_DIV_WS_H_BIT,
+				I2S_DIV_WS_DIV_WS_H_FIELD),
+			       i2s->regaddr_tx + I2S_DIV_WS);
+		}
 	}
 
 }
 
-/* this set/enable channel num and 8/16 bit and setting clock */
+
 static int i2s_hw_params(struct snd_pcm_substream *substream,
 			  struct snd_pcm_hw_params *params,
 			  struct snd_soc_dai *dai)
@@ -239,15 +196,16 @@ static int i2s_hw_params(struct snd_pcm_substream *substream,
 	unsigned long flags;
 
 	spin_lock_irqsave(&i2s->lock, flags);
-
-	current_channel_num = params_channels(params);
-	current_samplerate = params_rate(params);
+	i2s->channel_num = params_channels(params);
+	i2s->samplerate = params_rate(params);
+	dev_dbg(i2s->dev, "x2 config channel %d, samplerate is %d\n",
+		i2s->channel_num, i2s->samplerate);
 
 	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
 		mod = readl(i2s->regaddr_rx + I2S_MODE);
 		mod &= ~MOD_CH_NUM;
 		/* setting channel num and enable channel */
-		switch (params_channels(params)) {
+		switch (i2s->channel_num) {
 		case 16:
 			mod |= MOD_16_CH;
 			chan |= 0xffff;
@@ -276,11 +234,11 @@ static int i2s_hw_params(struct snd_pcm_substream *substream,
 		switch (params_format(params)) {	/* 16bit or 8bit. */
 		case SNDRV_PCM_FORMAT_S16_LE:
 			mod |= MOD_WORD_LEN;
-			current_wordlength = 16;
+			i2s->wordlength = 16;
 			break;
 		case SNDRV_PCM_FORMAT_S8:
 
-			current_wordlength = 8;
+			i2s->wordlength  = 8;
 			mod &= ~MOD_WORD_LEN;
 			break;
 		default:
@@ -289,7 +247,6 @@ static int i2s_hw_params(struct snd_pcm_substream *substream,
 			spin_unlock_irqrestore(&i2s->lock, flags);
 			return -EINVAL;
 		}
-
 		writel(mod, i2s->regaddr_rx + I2S_MODE);
 		writel(chan, i2s->regaddr_rx + I2S_CH_EN);
 
@@ -317,12 +274,12 @@ static int i2s_hw_params(struct snd_pcm_substream *substream,
 		case SNDRV_PCM_FORMAT_S16_LE:
 			mod |= MOD_WORD_LEN;
 
-			current_wordlength = 16;
+			i2s->wordlength  = 16;
 			break;
 		case SNDRV_PCM_FORMAT_S8:
 			mod &= ~MOD_WORD_LEN;
 
-			current_wordlength = 8;
+			i2s->wordlength  = 8;
 			break;
 		default:
 			dev_err(i2s->dev, "not supported data format %d\n",
@@ -333,39 +290,29 @@ static int i2s_hw_params(struct snd_pcm_substream *substream,
 		writel(mod, i2s->regaddr_tx + I2S_MODE);
 		writel(chan, i2s->regaddr_tx + I2S_CH_EN);
 	}
+	dev_dbg(i2s->dev, "x2 config wordlength is %d\n", i2s->wordlength);
 
 	x2_i2s_sample_rate_set(substream, i2s);
 	spin_unlock_irqrestore(&i2s->lock, flags);
 	return 0;
 }
 
-/* reset i2s by reset pin and sysctrl register */
+/* reset i2s by reset framework */
 static int i2s_startup(struct snd_pcm_substream *substream,
 			struct snd_soc_dai *dai)
 {
 	struct x2_i2s *i2s = snd_soc_dai_get_drvdata(dai);
-	unsigned long flags, val;
-	int spins = 500;
-	int shift;
+	unsigned long flags;
 
+	//dev_dbg(i2s->dev, "i2s_startup S, i2s->id is %d\n", i2s->id);
 	spin_lock_irqsave(&i2s->lock, flags);
+
+	/* enable mclk, first disable bclk, if master, enable it later */
+	clk_enable(i2s->mclk);
 
 	reset_control_assert(i2s->rst);
 	ndelay(100);
 	reset_control_deassert(i2s->rst);
-
-	/* reset i2s module by write sysctrl register */
-	shift = i2s->id == 0 ? SYSCTL_I2S0RST_SHIFT :
-		SYSCTL_I2S1RST_SHIFT;
-
-	val = readl(i2s->sysctl_addr + I2S_SYS_RST);
-	val |= 0x1 << (shift);
-	writel(val, i2s->sysctl_addr + I2S_SYS_RST);
-	while (--spins)
-		cpu_relax();
-
-	val &= ~(0x1 << (shift));
-	writel(val, i2s->sysctl_addr + I2S_SYS_RST);
 
 
 	/* reset done, disable reset module */
@@ -374,7 +321,12 @@ static int i2s_startup(struct snd_pcm_substream *substream,
 	else
 		i2s->streamflag = 1;
 
+	i2s_transfer_ctl(i2s, 0);
+
+
 	spin_unlock_irqrestore(&i2s->lock, flags);
+	//dev_dbg(i2s->dev, "i2s_startup E,
+	//reset i2s module by rst framework\n");
 
 	return 0;
 }
@@ -386,12 +338,15 @@ static int i2s_trigger(struct snd_pcm_substream *substream,
 	struct x2_i2s *i2s = snd_soc_dai_get_drvdata(rtd->cpu_dai);
 	unsigned long flags;
 
+	//dev_dbg(i2s->dev, "i2s_trigger cmd is %d\n", cmd);
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_START:
 	case SNDRV_PCM_TRIGGER_RESUME:
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
 		spin_lock_irqsave(&i2s->lock, flags);
 		i2s_transfer_ctl(i2s, 1);
+		writel(0x1, i2s->regaddr_rx + I2S_BUF0_RDY);
+		writel(0x1, i2s->regaddr_rx + I2S_BUF1_RDY);
 		spin_unlock_irqrestore(&i2s->lock, flags);
 		break;
 	case SNDRV_PCM_TRIGGER_STOP:
@@ -399,10 +354,15 @@ static int i2s_trigger(struct snd_pcm_substream *substream,
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
 		spin_lock_irqsave(&i2s->lock, flags);
 		i2s_transfer_ctl(i2s, 0);
+		writel(0x0, i2s->regaddr_rx + I2S_BUF0_RDY);
+		writel(0x0, i2s->regaddr_rx + I2S_BUF1_RDY);
 		spin_unlock_irqrestore(&i2s->lock, flags);
 		break;
 	}
 
+	#if X2DAI_DEBUG_EN
+		show_all_register(i2s);
+	#endif
 	return 0;
 }
 
@@ -413,48 +373,6 @@ static int i2s_set_clkdiv(struct snd_soc_dai *dai, int div_id, int div)
 {
 	/* no action, because samplerate setting is done by i2s0_hw_params */
 	return 0;
-#if 0
-	unsigned long flags;
-	u32 val;
-
-	/* struct i2s_dai_s *i2s = snd_soc_dai_get_drvdata(dai); */
-	struct x2_i2s *i2s = snd_soc_dai_get_drvdata(dai);
-
-	spin_lock_irqsave(i2s->lock, flags);
-	switch (div_id) {
-	case I2S_DIV_BCLK_DIV_SEL:
-		if (div > 0 && div <= 8) {
-			val = readl(i2s->sysctl_addr + I2S0_CLKCTL_BASE);
-			val &= ~(0x7 << BCLK_SHIFT);
-			val |= div << BCLK_SHIFT;
-			writel(val, i2s->sysctl_addr + I2S0_CLKCTL_BASE);
-		}
-		break;
-	case I2S_MCLK_DIV_SEL:
-		if (div > 0 && div <= 32) {
-			val = readl(i2s->sysctl_addr + I2S0_CLKCTL_BASE);
-			val &= ~(0x1f << MCLK_SHIFT);
-			val |= div << MCLK_SHIFT;
-			writel(val, i2s->sysctl_addr + I2S0_CLKCTL_BASE);
-		}
-		break;
-	case I2S_PRE_MCLK_DIV_SEL:
-		if (div > 0 && div <= 32) {
-			val = readl(i2s->sysctl_addr + I2S0_CLKCTL_BASE);
-			val &= ~(0x11 << PRE_MCLK_SHIFT);
-			val |= div << PRE_MCLK_SHIFT;
-			writel(val, i2s->sysctl_addr + I2S0_CLKCTL_BASE);
-		}
-		break;
-	default:
-		dev_err(i2s->dev, "We don't serve that!\n");
-		spin_unlock_irqrestore(i2s->lock, flags);
-		return -EINVAL;
-	}
-	spin_unlock_irqrestore(i2s->lock, flags);
-	return 0;
-
-#endif
 }
 
 static const struct snd_soc_dai_ops x2_i2s_dai_ops = {
@@ -478,6 +396,7 @@ static int x2_i2s_dai_probe(struct snd_soc_dai *dai)
 	return 0;
 }
 
+
 static int x2_i2s_dai_remove(struct snd_soc_dai *dai)
 {
 	return 0;
@@ -498,7 +417,7 @@ static struct snd_soc_dai_driver x2_i2s_dai_drv[2] = {
 		.capture = {
 			    .stream_name = "Capture",
 			    .channels_min = 1,
-			    .channels_max = 16,
+			    .channels_max = 2,
 			    .rates = X2_I2S_RATES,
 			    .formats = X2_I2S_FMTS,
 			    },
@@ -529,6 +448,89 @@ static struct snd_soc_dai_driver x2_i2s_dai_drv[2] = {
 	}
 };
 static const struct snd_soc_component_driver x2_i2s_component_drv[2];
+static ssize_t store_x2_i2s_reg(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct x2_i2s *i2s;
+
+	i2s = dev->driver_data;
+	return 0;
+}
+static void show_all_register(struct x2_i2s *i2s)
+{
+	unsigned int val;
+
+	val = x2_i2s_read_base_reg(i2s, I2S_CTL);
+	dev_err(i2s->dev, "I2S_CTL value is 0x%x\n", val);
+	val = x2_i2s_read_base_reg(i2s, I2S_MODE);
+	dev_err(i2s->dev, "I2S_MODE value is 0x%x\n", val);
+	val = x2_i2s_read_base_reg(i2s, I2S_DIV_WS);
+	dev_err(i2s->dev, "I2S_DIV_WS value is 0x%x\n", val);
+	val = x2_i2s_read_base_reg(i2s, I2S_CH_EN);
+	dev_err(i2s->dev, "I2S_CH_EN value is 0x%x\n", val);
+	val = x2_i2s_read_base_reg(i2s, I2S_BUF_SIZE);
+	dev_err(i2s->dev, "I2S_BUF_SIZE value is %d\n", val);
+	val = x2_i2s_read_base_reg(i2s, I2S_BUF0_ADDR);
+	dev_err(i2s->dev, "I2S_BUF0_ADDR value is 0x%x\n", val);
+	val = x2_i2s_read_base_reg(i2s, I2S_BUF0_RDY);
+	dev_err(i2s->dev, "I2S_BUF0_RDY value is 0x%x\n", val);
+	val = x2_i2s_read_base_reg(i2s, I2S_BUF1_ADDR);
+	dev_err(i2s->dev, "I2S_BUF1_ADDR value is 0x%x\n", val);
+	val = x2_i2s_read_base_reg(i2s, I2S_BUF1_RDY);
+	dev_err(i2s->dev, "I2S_BUF1_RDY value is 0x%x\n", val);
+	val = x2_i2s_read_base_reg(i2s, I2S_BUF_CUR_ADDR);
+	dev_err(i2s->dev, "I2S_BUF_CUR_ADDR value is 0x%x\n", val);
+	val = x2_i2s_read_base_reg(i2s, I2S_CH_ERROR);
+	dev_err(i2s->dev, "I2S_CH_ERROR value is 0x%x\n", val);
+	val = x2_i2s_read_base_reg(i2s, I2S_SRCPND);
+	dev_err(i2s->dev, "I2S_SRCPND value is 0x%x\n", val);
+	val = x2_i2s_read_base_reg(i2s, I2S_INTMASK);
+	dev_err(i2s->dev, "I2S_INTMASK value is 0x%x\n", val);
+
+
+}
+static ssize_t show_x2_i2s_reg(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct x2_i2s *i2s = (struct x2_i2s *)dev_get_drvdata(dev);
+	unsigned int val;
+
+	char *s = buf;
+
+
+		val = x2_i2s_read_base_reg(i2s, I2S_CTL);
+		s += sprintf(s, "ctl: 0x%08x\n", val);
+		val = x2_i2s_read_base_reg(i2s, I2S_MODE);
+		s += sprintf(s, "mode: 0x%08x\n", val);
+		val = x2_i2s_read_base_reg(i2s, I2S_DIV_WS);
+		s += sprintf(s, "div_ws: 0x%08x\n", val);
+		val = x2_i2s_read_base_reg(i2s, I2S_CH_EN);
+		s += sprintf(s, "ch_en: 0x%08x\n", val);
+		val = x2_i2s_read_base_reg(i2s, I2S_BUF_SIZE);
+		s += sprintf(s, "buf_size: 0x%08x\n", val);
+		val = x2_i2s_read_base_reg(i2s, I2S_BUF0_ADDR);
+		s += sprintf(s, "buf0_addr: 0x%08x\n", val);
+		val = x2_i2s_read_base_reg(i2s, I2S_BUF0_RDY);
+		s += sprintf(s, "buf0_rdy: 0x%08x\n", val);
+		val = x2_i2s_read_base_reg(i2s, I2S_BUF1_ADDR);
+		s += sprintf(s, "buf1_addr: 0x%08x\n", val);
+		val = x2_i2s_read_base_reg(i2s, I2S_BUF1_RDY);
+		s += sprintf(s, "buf1_rdy: 0x%08x\n", val);
+		val = x2_i2s_read_base_reg(i2s, I2S_BUF_CUR_ADDR);
+		s += sprintf(s, "buf_cur_addr: 0x%08x\n", val);
+		val = x2_i2s_read_base_reg(i2s, I2S_CH_ERROR);
+		s += sprintf(s, "ch_error: 0x%08x\n", val);
+		val = x2_i2s_read_base_reg(i2s, I2S_SRCPND);
+		s += sprintf(s, "srcpnd: 0x%08x\n", val);
+		val = x2_i2s_read_base_reg(i2s, I2S_INTMASK);
+		s += sprintf(s, "intmask: 0x%08x\n", val);
+		if (s != buf)
+			*(s-1) = '\n';
+		return s-buf;
+}
+
+
+static DEVICE_ATTR(reg_dump, 0644, show_x2_i2s_reg, store_x2_i2s_reg);
 
 static int x2_i2s_probe(struct platform_device *pdev)
 {
@@ -574,34 +576,39 @@ static int x2_i2s_probe(struct platform_device *pdev)
 		return PTR_ERR(i2s->regaddr_tx);
 	}
 
-	res = NULL;
-	res = platform_get_resource(pdev, IORESOURCE_MEM, 2);
-	if (!res) {
-		dev_err(&pdev->dev, "Failed to get mem resource2!\n");
-		return -ENOENT;
-	}
 
-	i2s->sysctl_addr =
-	    devm_ioremap(&pdev->dev, res->start, resource_size(res));
-	if (IS_ERR(i2s->sysctl_addr)) {
+	i2s->mclk = devm_clk_get(&pdev->dev, "i2s-mclk");
+		if (IS_ERR(i2s->mclk)) {
+			dev_err(&pdev->dev, "failed to get i2s-mclk\n");
+			return PTR_ERR(i2s->mclk);
+		}
+		ret = clk_prepare(i2s->mclk);
+		if (ret != 0) {
+			dev_err(&pdev->dev, "failed to prepare i2s-mclk\n");
+			return ret;
+		}
 
-		dev_err(&pdev->dev, "Failed to ioremap sysctl_addr!\n");
-		return PTR_ERR(i2s->sysctl_addr);
-	}
+		i2s->bclk = devm_clk_get(&pdev->dev, "i2s-bclk");
+		if (IS_ERR(i2s->bclk)) {
+			dev_err(&pdev->dev, "failed to get i2s-bclk\n");
+			return PTR_ERR(i2s->bclk);
+		}
+		ret = clk_prepare(i2s->bclk);
+		if (ret != 0) {
+			dev_err(&pdev->dev, "failed to prepare i2s-bclk\n");
+			return ret;
+		}
 
-	res = NULL;
-	res = platform_get_resource(pdev, IORESOURCE_MEM, 3);
-	if (!res) {
-		dev_err(&pdev->dev, "Failed to get mem resource3!\n");
-		return -ENOENT;
-	}
-	i2s->apb_regs = devm_ioremap(&pdev->dev,
-		res->start, resource_size(res));
-	if (IS_ERR(i2s->apb_regs)) {
 
-		dev_err(&pdev->dev, "Failed to ioremap apb_regs!\n");
-		return PTR_ERR(i2s->apb_regs);
-	}
+		clk_enable(i2s->bclk);
+		clk_disable(i2s->bclk);
+
+		ret = of_property_read_u32(pdev->dev.of_node,
+			"div_ws", &i2s->div_ws);
+		if (ret < 0) {
+			pr_err("failed:get  div_ws rc %d", ret);
+			return ret;
+		}
 
 	i2s->rst = devm_reset_control_get(&pdev->dev, "i2s");
 	if (IS_ERR(i2s->rst)) {
@@ -609,22 +616,9 @@ static int x2_i2s_probe(struct platform_device *pdev)
 		return PTR_ERR(i2s->rst);
 	}
 
-#if 0
-	/* capture and play share the same dam config, */
-	/* at the same time , only one action */
-	i2s->playback_dma_data.addr = i2s0_dma_addr;
-	/* i2s->playback_dma_data.addr_width = DMA_SLAVE_BUSWIDTH_4_BYTES; */
-	/* i2s->playback_dma_data.maxburst = 4; */
-	i2s->capture_dma_data.addr = i2s0_dma_addr;
-	/* i2s->capture_dma_data.addr_width = DMA_SLAVE_BUSWIDTH_4_BYTES; */
-	/* i2s->capture_dma_data.maxburst = 4; */
-	i2s->capture_dma_data.slave_id = 0;
-	i2s->playback_dma_data.slave_id = 0;	/* this value is fixed */
-#endif
 	/* x2_i2s is set to cpudai dev data */
 	dev_set_drvdata(&pdev->dev, i2s);
 
-	writel(0x1, i2s->apb_regs);	/* enable apb */
 	ret =
 		devm_snd_soc_register_component(&pdev->dev,
 			&x2_i2s_component_drv[id], &x2_i2s_dai_drv[id], 1);
@@ -632,6 +626,10 @@ static int x2_i2s_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Could not register DAI\n");
 		return ret;
 	}
+
+	ret = device_create_file(&pdev->dev, &dev_attr_reg_dump);
+	if (!ret)
+		return ret;
 	pr_err("success register cpu dai%d driver\n", id);
 	return 0;
 
@@ -648,8 +646,8 @@ static int x2_i2s_remove(struct platform_device *pdev)
 
 #ifdef CONFIG_OF
 static const struct of_device_id x2_i2s_of_match[] = {
-	{.compatible = "hobot,x2-i2s0",},
-	{.compatible = "hobot,x2-i2s1",},
+	{.compatible = "hobot, x2-i2s0",},
+	{.compatible = "hobot, x2-i2s1",},
 	{}
 };
 

@@ -174,12 +174,19 @@ struct x2_i2s {
 
 	void __iomem *regaddr_tx;	//tx base
 	void __iomem *regaddr_rx;	//rx base
-	void __iomem *sysctl_addr;	//sysctl base
-	void __iomem *apb_regs;	//apb base
+	//void __iomem *sysctl_addr;	//sysctl base
+	//void __iomem *apb_regs;	//apb base
 
 	struct reset_control *rst;
 	unsigned int i2sdsp;
 	int id;
+	struct clk *mclk;
+	struct clk *bclk;
+	u32 div_ws;
+
+	int channel_num;
+	int wordlength;
+	int samplerate;
 };
 
 #define INT_BUF1_DONE   (1 << 3)
