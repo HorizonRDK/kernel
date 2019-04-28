@@ -1295,7 +1295,14 @@ static int dwceqos_mii_init(struct net_local *lp)
 	if (of_phy_is_fixed_link(lp->pdev->dev.of_node)) {
 		/* this used for config the port2 MAC of switch */
 		/* should be removed after MCU handle or EEPROM added */
-		dwceqos_mdio_write(lp->mii_bus, 0x12, 0x01, 0xC03e);
+		if ((dwceqos_mdio_read(lp->mii_bus, 0x12, 3) >> 4) == 0x310) {
+			/* disbale port 0,1 */
+			dwceqos_mdio_write(lp->mii_bus, 0x10, 0x04, 0x0);
+			dwceqos_mdio_write(lp->mii_bus, 0x11, 0x04, 0x0);
+			/* set port 2,6 1000M full duplex */
+			dwceqos_mdio_write(lp->mii_bus, 0x12, 0x01, 0xC03e);
+			dwceqos_mdio_write(lp->mii_bus, 0x16, 0x01, 0xC03e);
+		}
 	}
 
 	return 0;
