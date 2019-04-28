@@ -63,14 +63,14 @@ struct ddr_monitor_result_s {
 };
 
 #define TOTAL_RECORD_NUM 400
-#define TOTAL_RESULT_SIZE (160*1024)
+#define TOTAL_RESULT_SIZE (400*1024)
 ktime_t g_ktime_start;
 
 struct ddr_monitor_result_s* ddr_info = NULL;
 char * result_buf = NULL;
 unsigned int g_current_index = 0;
 volatile unsigned int g_record_num = 0;
-unsigned int g_monitor_poriod = 30000;
+unsigned int g_monitor_poriod = 1000;
 
 module_param(g_current_index, uint, 0644);
 //module_param(g_record_num, uint, 0644);
@@ -152,7 +152,7 @@ ssize_t ddr_monitor_debug_write(struct file *file, const char __user *buf, size_
 	return size;
 }
 
-static int get_monitor_data(char* buf, int size)
+static int get_monitor_data(char* buf)
 {
 	int i,j;
 	int start = 0;
@@ -251,7 +251,7 @@ static ssize_t ddr_monitor_mod_read(struct file *pfile, char *puser_buf, size_t 
 {
 	int result_len = 0;
 	wait_event_interruptible(g_ddr_monitor_dev->wq_head, g_record_num > 200);
-	result_len = get_monitor_data(result_buf, 80*1024);
+	result_len = get_monitor_data(result_buf);
 	//if( result_len < len)
 		//copy_to_user(puser_buf, result_buf, result_len);
 	//else
