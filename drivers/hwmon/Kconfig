@@ -1875,6 +1875,12 @@ config SENSORS_X2TEMP
 	help
 	  If you say yes here you get support for the temperature sensor
 
+config SENSORS_X2POWER
+	tristate "Hobot X2 SOC power sensor driver"
+	depends on ARCH_HOBOT
+	help
+	  If you say yes here you get support for the temperature sensor
+
 if ACPI
 
 comment "ACPI drivers"
