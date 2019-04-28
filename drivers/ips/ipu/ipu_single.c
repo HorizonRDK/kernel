@@ -207,7 +207,7 @@ void ipu_single_mode_process(uint32_t status)
 			ipu_info("pyramid done, slot-%d, cnt %d\n", slot_h->info_h.slot_id, slot_h->slot_cnt);
 			//__inval_dcache_area(IPU_GET_SLOT(slot_h->info_h.slot_id, ipu->vaddr), IPU_SLOT_SIZE);
 			ipu->pymid_done = true;
-			ipu->done_idx = slot_h->info_h.slot_id;
+			//ipu->done_idx = slot_h->info_h.slot_id;
 			ipu_get_frameid(ipu, slot_h);
 			wake_up_interruptible(&g_ipu_s_cdev->event_head);
 
@@ -228,7 +228,7 @@ void ipu_single_mode_process(uint32_t status)
 		if (slot_h) {
 			ipu_info("frame done, slot-%d, cnt %d\n", slot_h->info_h.slot_id, slot_h->slot_cnt);
 			//__inval_dcache_area(IPU_GET_SLOT(slot_h->info_h.slot_id, ipu->vaddr), IPU_SLOT_SIZE);
-			ipu->done_idx = slot_h->info_h.slot_id;
+			//ipu->done_idx = slot_h->info_h.slot_id;
 			ipu_get_frameid(ipu, slot_h);
 			wake_up_interruptible(&g_ipu_s_cdev->event_head);
 		}
@@ -429,10 +429,10 @@ long ipu_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 				return -EFAULT;
 			}
 
-			if (ipu->done_idx != -1 &&
-				ipu->done_idx != slot_h->info_h.slot_id) {
-				ipu_err("cnn slot delay\n");
-			}
+//			if (ipu->done_idx != -1 &&
+//				ipu->done_idx != slot_h->info_h.slot_id) {
+//				ipu_err("cnn slot delay\n");
+//			}
 			info = &slot_h->info_h;
 			info->base = (uint64_t)IPU_GET_SLOT(slot_h->info_h.slot_id, ipu->paddr);
 			spin_unlock(&g_ipu_s_cdev->slock);

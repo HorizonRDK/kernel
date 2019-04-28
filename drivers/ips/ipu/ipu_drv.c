@@ -345,8 +345,8 @@ static int ipu_thread(void *data)
 		}
 		status = ipu->isr_data;
 		ipu->isr_data = 0;
-		ipu->pymid_done = false;
-		ipu->done_idx = -1;
+//		ipu->pymid_done = false;
+//		ipu->done_idx = -1;
 
 		if (ipu->ipu_mode && ipu->ipu_handle[ipu->ipu_mode])
 			ipu->ipu_handle[ipu->ipu_mode](status);
