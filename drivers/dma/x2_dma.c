@@ -266,9 +266,6 @@ static void x2_dma_free_chan_resources(struct dma_chan *dchan)
 
 	x2_dma_free_descriptors(chan);
 
-	dma_pool_destroy(chan->desc_pool);
-	chan->desc_pool = NULL;
-
 	return;
 }
 
@@ -321,20 +318,6 @@ static int x2_dma_alloc_chan_resources(struct dma_chan *dchan)
 {
 	unsigned int val = 0;
 	struct x2_dma_chan *chan = to_x2_chan(dchan);
-
-	/* Has this channel already been allocated? */
-	if (chan->desc_pool)
-		return 0;
-
-	chan->desc_pool = dma_pool_create("x2_dma_desc_pool",
-				   chan->dev,
-				   sizeof(struct x2_dma_tx_segment),
-				   __alignof__(struct x2_dma_tx_segment),
-				   0);
-	if (!chan->desc_pool) {
-		dev_err(chan->dev, "unable to allocate channel %d descriptor pool\n", chan->id);
-		return -ENOMEM;
-	}
 
 	dma_cookie_init(dchan);
 
@@ -702,6 +685,8 @@ static void x2_dma_chan_remove(struct x2_dma_chan *chan)
 	tasklet_kill(&chan->tasklet);
 
 	list_del(&chan->common.device_node);
+	dma_pool_destroy(chan->desc_pool);
+	chan->desc_pool = NULL;
 }
 
 /**
@@ -769,6 +754,21 @@ static int x2_dma_chan_probe(struct x2_dma_device *xdev, struct device_node *nod
 
 	list_add_tail(&chan->common.device_node, &xdev->common.channels);
 	xdev->chan[chan->id] = chan;
+
+	/* Has this channel already been allocated? */
+	if (chan->desc_pool) {
+		dev_err(xdev->dev, "x2_dma_desc_pool already existed\n");
+		return -1;
+	}
+	chan->desc_pool = dma_pool_create("x2_dma_desc_pool",
+				   chan->dev,
+				   sizeof(struct x2_dma_tx_segment),
+				   __alignof__(struct x2_dma_tx_segment),
+				   0);
+	if (!chan->desc_pool) {
+		dev_err(chan->dev, "unable to allocate channel %d descriptor pool\n", chan->id);
+		return -ENOMEM;
+	}
 
 	/* Reset the channel */
 	err = x2_dma_chan_reset(chan);
@@ -900,7 +900,6 @@ static int x2_dma_remove(struct platform_device *pdev)
 			x2_dma_chan_remove(xdev->chan[i]);
 		}
 	}
-
 	return 0;
 }
 
