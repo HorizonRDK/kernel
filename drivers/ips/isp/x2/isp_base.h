@@ -18,12 +18,12 @@
 #include <linux/types.h>
 #include <asm/compiler.h>
 
-#define SET_TILE_ADDR       0x10100000
-#define SET_GRID_ADDR       0x10200000
-#define SET_RSUM_ADDR       0x10300000
-#define SET_HIST_ADDR       0x10400000
-#define SET_CDR_ADDR0       0x10500000
-#define CDR_SAVING          0x10600000
+#define SET_TILE_ADDR       0x000000
+#define SET_GRID_ADDR       0x100000
+#define SET_RSUM_ADDR       0x200000
+#define SET_HIST_ADDR       0x300000
+#define SET_CDR_ADDR0       0x400000
+#define CDR_SAVING          0x500000
 
 #define CDR_SIZE            0x100000
 

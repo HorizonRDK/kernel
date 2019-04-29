@@ -99,6 +99,7 @@ struct isp_mod_s {
 	struct isp_stf_s isp_stf_memory;
 	struct isp_cfg_s config;
 	enum PING_PANG { ping = 1, pang } cdr_sw;
+	uint32_t reserved_mem;
 
 	uint32_t runflags;
 	uint32_t irq_status;
@@ -115,8 +116,8 @@ typedef struct _reg_s {
 
 #define ISP_IOC_MAGIC       'h'
 
-#define ISPC_START			_IO(ISP_IOC_MAGIC, 0)
-#define ISPC_STOP			_IO(ISP_IOC_MAGIC, 1)
+#define ISPC_START			_IO(ISP_IOC_MAGIC, 12)
+#define ISPC_STOP			_IO(ISP_IOC_MAGIC, 13)
 #define ISPC_GET_STATUS		_IOR(ISP_IOC_MAGIC, 2, uint32_t)
 #define ISPC_READ_REG		_IOWR(ISP_IOC_MAGIC, 3, struct con_reg_s)
 #define ISPC_WRITE_REG		_IOW(ISP_IOC_MAGIC, 4, struct con_reg_s)
@@ -126,6 +127,7 @@ typedef struct _reg_s {
 #define ISPC_READ_STRING    _IOWR(ISP_IOC_MAGIC, 8, struct isp_iodata_s)
 #define ISPC_READ_REGS      _IOWR(ISP_IOC_MAGIC, 9, struct isp_ioreg_s)
 #define ISPC_WRITE_REGS     _IOWR(ISP_IOC_MAGIC, 10, struct isp_ioreg_s)
+#define ISPC_WRITE_CDR      _IO(ISP_IOC_MAGIC, 11)
 
 #define ISP_READ        _IOWR('p', 0, reg_t)
 #define ISP_WRITE       _IOW('p', 1, reg_t)

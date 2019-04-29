@@ -44,8 +44,10 @@
 
 #define X2_ISP_NAME	"x2-isp"
 #define X2_ISP_TIMEOUT (msecs_to_jiffies(5000))
-#define X2_ISP_PING_STATION 0x10500000
-#define X2_ISP_PANG_STATION 0x10600000
+//#define X2_ISP_PING_STATION 0x10500000
+//#define X2_ISP_PANG_STATION 0x10600000
+#define X2_ISP_PING_STATION 0x400000
+#define X2_ISP_PANG_STATION 0x500000
 
 /* global variable define */
 static int isp_major = ISP_MAJOR;
@@ -67,26 +69,8 @@ void x2_isp_isr(unsigned int status, void *data)
 
 	isp_dev = data;
 //	spin_lock_irqsave(&isp_dev->slock, flags);
-	if (status & ISP_FRAME_START) {
+	if (status & ISP_FRAME_START)
 		isp_dev->irq_status = 0x00;
-		struct con_reg_s wreg_data;
-
-		wreg_data.isp_reg_addr = HMP_CDR_ADDR0;
-		switch (isp_dev->cdr_sw) {
-		case ping:
-			wreg_data.isp_reg_data = X2_ISP_PING_STATION;
-			set_isp_reg(&wreg_data);
-			isp_dev->cdr_sw = pang;
-			break;
-		case pang:
-			wreg_data.isp_reg_data = X2_ISP_PANG_STATION;
-			set_isp_reg(&wreg_data);
-			isp_dev->cdr_sw = ping;
-			break;
-		default:
-			break;
-		}
-	}
 /*
  *	if (status & ISP_HIST_FRAME_DONE){
  *		Set_Bit(27, isp_dev->irq_status);
@@ -130,18 +114,28 @@ void x2_isp_isr(unsigned int status, void *data)
 //	spin_unlock_irqrestore(&isp_dev->slock, flags);
 }
 
-static int isp_stf_addr_fill(struct isp_stf_s *info)
+static int isp_stf_addr_fill(struct isp_stf_s *info, uint32_t phy_addr)
 {
-	info->isp_crd_addr = SET_TILE_ADDR;
+	uint32_t write_data[5];
+
+	info->isp_tile_addr = phy_addr + SET_TILE_ADDR;
 	info->isp_tile_size = 0;
-	info->isp_grid_addr = SET_GRID_ADDR;
+	info->isp_grid_addr = phy_addr + SET_GRID_ADDR;
 	info->isp_grid_size = 0;
-	info->isp_rsum_addr = SET_RSUM_ADDR;
+	info->isp_rsum_addr = phy_addr + SET_RSUM_ADDR;
 	info->isp_rsum_size = 0;
-	info->isp_hist_addr = SET_HIST_ADDR;
+	info->isp_hist_addr = phy_addr + SET_HIST_ADDR;
 	info->isp_hist_size = 0;
-	info->isp_crd_addr = SET_CDR_ADDR0;
+	info->isp_crd_addr = phy_addr + SET_CDR_ADDR0;
 	info->isp_crd_size = 0;
+
+	write_data[0] = info->isp_tile_addr;
+	write_data[1] = info->isp_grid_addr;
+	write_data[2] = info->isp_rsum_addr;
+	write_data[3] = info->isp_hist_addr;
+	write_data[4] = info->isp_crd_addr;
+
+	isp_write_regs(STF_SFE_TILE_ADDR, 5, write_data);
 	return 0;
 }
 
@@ -254,11 +248,11 @@ long isp_mod_ioctl(struct file *pfile, unsigned int cmd, unsigned long arg)
 
 	switch (cmd) {
 	case ISPC_START:{
-		//	isp_start(isp_cdev);
+			isp_start(isp_cdev);
 		}
 		break;
 	case ISPC_STOP:{
-		//	isp_stop(isp_cdev);
+			isp_stop(isp_cdev);
 		}
 		break;
 	case ISP_READ:
@@ -510,6 +504,31 @@ err_flag_read:
 			}
 		}
 		break;
+	case ISPC_WRITE_CDR:{
+
+		struct con_reg_s wreg_cdr;
+
+		wreg_cdr.isp_reg_addr = HMP_CDR_ADDR0;
+		switch (isp_cdev->cdr_sw) {
+		case ping:{
+			wreg_cdr.isp_reg_data = (isp_cdev->reserved_mem +
+				 X2_ISP_PING_STATION);
+			set_isp_reg(&wreg_cdr);
+			isp_cdev->cdr_sw = pang;
+			break;
+		}
+		case pang:{
+			wreg_cdr.isp_reg_data = (isp_cdev->reserved_mem +
+				X2_ISP_PANG_STATION);
+			set_isp_reg(&wreg_cdr);
+			isp_cdev->cdr_sw = ping;
+			break;
+		}
+		default:
+			break;
+		}
+	}
+		break;
 	default:
 		break;
 	}
@@ -641,7 +660,9 @@ static int __init isp_dev_init(void)
 	dev_info(g_isp_dev, "[%s] isp cdr addr  is [%x]\n", __func__,
 		 isp_cdr_addr);
 
-	isp_stf_addr_fill(&isp_mod->isp_stf_memory);
+	isp_mod->reserved_mem = (uint32_t)(pispdev->mapbase);
+
+	isp_stf_addr_fill(&isp_mod->isp_stf_memory, isp_mod->reserved_mem);
 
 	isp_mod_data = isp_mod;
 
