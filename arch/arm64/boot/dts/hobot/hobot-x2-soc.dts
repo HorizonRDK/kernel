@@ -279,11 +279,16 @@
 	disable-wp;
 };
 
+&timer0 {
+	status = "disable";
+	clocks = <&timer0_mclk>;
+	clock-names = "timer_clk";
+};
+
 &watchdog {
 	status = "okay";
 	clocks = <&timer0_mclk>;
 	clock-names = "wdt_clk";
-
 };
 
 &i2s0 {
