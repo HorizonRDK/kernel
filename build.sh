@@ -5,10 +5,25 @@ function choose()
     local hascpio=$KERNEL_WITH_CPIO
     local conftmp=.config_tmp
     cp .config $conftmp
+
     if ! $hascpio ;then
         sed -i "/CONFIG_BLK_DEV_INITRD/d" $conftmp
         echo "CONFIG_BLK_DEV_INITRD=n" >> $conftmp
+    else
+        sed -i "s#CONFIG_INITRAMFS_SOURCE=\"./usr/rootfs.cpio\"#CONFIG_INITRAMFS_SOURCE=\"./usr/prerootfs/\"#g" $conftmp
+        rm -rf ${SRC_KERNEL_DIR}/usr/prerootfs/
+        mkdir -p ${SRC_KERNEL_DIR}/usr/prerootfs/
+        if [ "$BOOT_MODE" = "nor" ];then
+            export KERNEL_INITRAMFS_MANIFEST="$SRC_DEVICE_DIR/$TARGET_VENDOR/$TARGET_PROJECT/debug-kernel-rootfs.manifest"
+        fi
+        ${SRC_SCRIPTS_DIR}/build_root_manifest.sh ${KERNEL_INITRAMFS_MANIFEST} ${TARGET_PREROOTFS_DIR} ${SRC_KERNEL_DIR}/usr/prerootfs/
+        if [ ! -f "${SRC_KERNEL_DIR}/usr/prerootfs/init" ];then
+            echo "#!/bin/sh" > ${SRC_KERNEL_DIR}/usr/prerootfs/init
+            echo "exec /sbin/init \"\$@\"" >> ${SRC_KERNEL_DIR}/usr/prerootfs/init
+            chmod +x ${SRC_KERNEL_DIR}/usr/prerootfs/init
+        fi
     fi
+
     cp $conftmp .config
 }
 
