@@ -59,7 +59,7 @@
 #define MIPI_HOST_CFGCLK_DEFAULT   (0x1C)
 
 #define HOST_DPHY_LANE_MAX         (4)
-#define HOST_DPHY_CHECK_MAX        (500)
+#define HOST_DPHY_CHECK_MAX        (8000)
 #define HOST_DPHY_LANE_STOP(l)     (0xF>>(HOST_DPHY_LANE_MAX-(l)))
 #define HOST_DPHY_RX_HS            (0x030000)
 
