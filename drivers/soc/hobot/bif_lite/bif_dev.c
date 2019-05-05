@@ -89,7 +89,8 @@ static int x2_bif_open(struct inode *inode, struct file *file)
 }
 
 static DEFINE_MUTEX(write_mutex);
-#define PHY_LAYER_LEN_MAX (16 * 1024)
+//#define PHY_LAYER_LEN_MAX (16 * 1024)
+#define PHY_LAYER_LEN_MAX (128 * 1024)
 char send_frame[PHY_LAYER_LEN_MAX];
 static ssize_t x2_bif_write(struct file *file, const char __user *buf,
 size_t count, loff_t *ppos)

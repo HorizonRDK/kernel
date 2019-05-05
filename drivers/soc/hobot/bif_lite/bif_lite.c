@@ -125,7 +125,7 @@ static inline int   bif_tx_update_after_write(int index,
 {
 	tx_local_info->send_tail = (tx_local_info->send_tail  +  1) %
 	BUFFER_NUM;
-	tx_local_info->fragment_info[index] = *fragment_info;
+	//tx_local_info->fragment_info[index] = *fragment_info;
 #if 0
 	bif_debug("after_write tx_local_info.send_tail %d\n",
 	tx_local_info.send_tail);
@@ -144,11 +144,11 @@ static inline int   bif_tx_update_to_cp_ddr(void)
 {
 	int ret = 0;
 
-	tx_local_info->check_sum = 0;
-	tx_local_info->check_sum = crc16((unsigned char *)tx_local_info,
-		sizeof(struct bif_tx_ring_info));
+	//tx_local_info->check_sum = 0;
+	//tx_local_info->check_sum = crc16((unsigned char *)tx_local_info,
+		//sizeof(struct bif_tx_ring_info));
 
-	bif_debug("check_s %d\n", tx_local_info->check_sum);
+	//bif_debug("check_s %d\n", tx_local_info->check_sum);
 
 	ret = bif_write_cp_ddr(tx_local_info,
 		TX_LOCAL_INFO_OFFSET,
@@ -162,6 +162,7 @@ static inline int   bif_tx_update_to_cp_ddr(void)
 	return ret;
 }
 
+unsigned char send_fragment[BUFFER_LEN];
 static inline int bif_tx_put_data_to_buffer(int index,
 	void *data,
 	struct frag_info  *fragment_info)
@@ -174,7 +175,7 @@ static inline int bif_tx_put_data_to_buffer(int index,
 		ret =  -EPERM;
 		goto err;
 	}
-	if (fragment_info->len  >  BUFFER_LEN) {
+	if (fragment_info->len > VALID_BUFFER_LEN) {
 		ret =  -EPERM;
 		goto err;
 	}
@@ -192,9 +193,13 @@ static inline int bif_tx_put_data_to_buffer(int index,
 	bif_debug("id %d start %d  end %d\n", fragment_info->id,
 		fragment_info->start,
 		fragment_info->end);
-	fragment_len = fragment_info->len;
+	bif_memcpy(send_fragment, fragment_info, sizeof(struct frag_info));
+	bif_memcpy(send_fragment + sizeof(struct frag_info),
+data, fragment_info->len);
+	fragment_len = sizeof(struct frag_info) + fragment_info->len;
 	//printk("fragment_len = %d\n", fragment_len);
-	ret = bif_write_cp_ddr(data, offset, ALIGN(fragment_len, BIFSPI_LEN_ALIGN));
+	ret = bif_write_cp_ddr(send_fragment, offset,
+ALIGN(fragment_len, BIFSPI_LEN_ALIGN));
 	if (ret < 0) {
 		bif_err("bif_err: %s  %d\n", __func__,  __LINE__);
 		goto err;
@@ -231,12 +236,12 @@ static inline int  bif_tx_cut_fragment(unsigned char *data,  int len)
 	struct frag_info fragment_info;
 
 	// calculate fragment count & last copy byte
-	frag_count  =  len / BUFFER_LEN;
-	if (len % BUFFER_LEN)
+	frag_count = len / VALID_BUFFER_LEN;
+	if (len % VALID_BUFFER_LEN)
 		++frag_count;
-	last_copy = len % BUFFER_LEN;
+	last_copy = len % VALID_BUFFER_LEN;
 	if (last_copy == 0)
-		last_copy = BUFFER_LEN;
+		last_copy = VALID_BUFFER_LEN;
 
 	bif_debug("len %d l_c %d fr_c %d\n", len,  last_copy,   frag_count);
 
@@ -262,12 +267,12 @@ static inline int  bif_tx_cut_fragment(unsigned char *data,  int len)
 
 		if (fragment_info.start  == 1) {
 			if (fragment_info.end  ==  0)
-				fragment_info.len = BUFFER_LEN;
+				fragment_info.len = VALID_BUFFER_LEN;
 			else
 				fragment_info.len = len;
 		} else{
 			if (fragment_info.end  ==  0)
-				fragment_info.len = BUFFER_LEN;
+				fragment_info.len = VALID_BUFFER_LEN;
 			else
 				fragment_info.len = last_copy;
 		}
@@ -278,7 +283,7 @@ static inline int  bif_tx_cut_fragment(unsigned char *data,  int len)
 		}
 		index++;
 		index = index%BUFFER_NUM;
-		frag_p  +=  BUFFER_LEN;
+		frag_p += VALID_BUFFER_LEN;
 
 	}
 	bif_tx_update_to_cp_ddr();
@@ -296,17 +301,16 @@ int bif_tx_put_frame(void *data,  int len)
 	return ret;
 }
 
+static char rx_remote_info_buf[ALIGN(sizeof(struct bif_tx_ring_info),
+BIFSPI_LEN_ALIGN)];
 static inline int  bif_rx_get_available_buffer(int *index,
 	int *count)
 {
 	int ret = 0;
-	unsigned short  check_sum = 0;
-	unsigned short  check_sum_expect = 0;
-	struct bif_tx_ring_info *rx_remote_info_tmp = NULL;
-
-	rx_remote_info_tmp = bif_malloc(ALIGN(sizeof(struct bif_tx_ring_info), BIFSPI_LEN_ALIGN));
-	if (rx_remote_info_tmp == NULL)
-		goto err;
+	//unsigned short  check_sum = 0;
+	//unsigned short  check_sum_expect = 0;
+	struct bif_tx_ring_info *rx_remote_info_tmp =
+(struct bif_tx_ring_info *)rx_remote_info_buf;
 
 	ret = bif_read_cp_ddr(rx_remote_info_tmp,
 		RX_REMOTE_INFO_OFFSET,
@@ -319,7 +323,7 @@ static inline int  bif_rx_get_available_buffer(int *index,
 	bif_debug("rx_r.s_t %d\n", rx_remote_info_tmp->send_tail);
 	bif_debug("rx_l.r_h %d\n", rx_local_info->recv_head);
 #endif
-
+#if 0
 	 check_sum = rx_remote_info_tmp->check_sum;
 	 rx_remote_info_tmp->check_sum = 0;
 	 check_sum_expect =  crc16((unsigned char *)rx_remote_info_tmp,
@@ -331,7 +335,7 @@ static inline int  bif_rx_get_available_buffer(int *index,
 		bif_debug("check_s %d   %d\n", check_sum,   check_sum_expect);
 		goto err;
 	}
-
+#endif
 	if (rx_remote_info_tmp->send_tail  ==
 		rx_local_info->recv_head + 1) {
 		*count = 0;
@@ -352,9 +356,6 @@ static inline int  bif_rx_get_available_buffer(int *index,
 		*rx_remote_info = *rx_remote_info_tmp;
 
 err:
-	if (rx_remote_info_tmp)
-		bif_free(rx_remote_info_tmp);
-
 	return ret;
 }
 
@@ -434,7 +435,7 @@ static inline int  bif_rx_reassemble_fragment(
 
 	if (fragment_info->start == 1) {
 		received_len = 0;
-		malloc_len = fragment_info->id*BUFFER_LEN;
+		malloc_len = fragment_info->id * VALID_BUFFER_LEN;
 
 		if (fragment_info->len > malloc_len) {
 			ret =  -EPERM;
@@ -443,7 +444,7 @@ static inline int  bif_rx_reassemble_fragment(
 		}
 
 		bif_memcpy(frame_p->framecache,
-			cache_tmp->datacache,
+			cache_tmp->datacache + sizeof(struct frag_info),
 			fragment_info->len);
 		pos_p = frame_p->framecache + fragment_info->len;
 		received_len += fragment_info->len;
@@ -468,7 +469,8 @@ static inline int  bif_rx_reassemble_fragment(
 			bif_err("bif_err: %s  %d\n", __func__,  __LINE__);
 			goto err;
 		}
-		bif_memcpy(pos_p, cache_tmp->datacache, fragment_info->len);
+		bif_memcpy(pos_p,
+cache_tmp->datacache + sizeof(struct frag_info), fragment_info->len);
 		pos_p += fragment_info->len;
 		received_len += fragment_info->len;
 	}
@@ -512,7 +514,8 @@ static inline int bif_rx_get_cache_from_buffer(void)
 	struct bif_frame_cache *frame_p = NULL;
 	unsigned int malloc_len = 0;
 	unsigned int frame_used_frag_count = 0;
-	unsigned short cache_len = 0;
+	//unsigned short cache_len = 0;
+	struct frag_info *fragment_info = NULL;
 
 	if (rx_frame_count > FRAME_CACHE_MAX) {
 		bif_debug("too much cache!");
@@ -540,17 +543,27 @@ static inline int bif_rx_get_cache_from_buffer(void)
 	index_tmp = index;
 	for (count_tmp = 0;   count_tmp < count; count_tmp++) {
 		ret = 0;
-#if 1
+#if 0
 		bif_debug("off %llx  ind %d  cou %d len %d\n",
 			offset,
 			index_tmp,
 			count_tmp,
 			rx_remote_info->fragment_info[index_tmp].len);
 #endif
-		if (rx_remote_info->fragment_info[index_tmp].start == 1) {
+		offset = bif_rx_index_to_addr(index_tmp);
+		ret = bif_read_cp_ddr(cache_tmp->datacache, offset,
+			BUFFER_LEN);
+		if (ret < 0) {
+			bif_err("bif_err: %s  %d\n", __func__, __LINE__);
+			ret =  -3;
+			break;
+		}
+		fragment_info = (struct frag_info *)(cache_tmp->datacache);
+
+		if (fragment_info->start == 1) {
 			malloc_len =
-			rx_remote_info->fragment_info[index_tmp].id
-			*BUFFER_LEN;
+			fragment_info->id
+			*VALID_BUFFER_LEN;
 			frame_p =
 			bif_malloc(sizeof(struct bif_frame_cache) + malloc_len);
 			if (frame_p == NULL) {
@@ -561,19 +574,9 @@ static inline int bif_rx_get_cache_from_buffer(void)
 			}
 		}
 
-		offset = bif_rx_index_to_addr(index_tmp);
-		cache_len = rx_remote_info->fragment_info[index_tmp].len;
-		ret = bif_read_cp_ddr(cache_tmp->datacache, offset,
-			ALIGN(cache_len, BIFSPI_LEN_ALIGN));
-		if (ret < 0) {
-			bif_err("bif_err: %s  %d\n", __func__,  __LINE__);
-			ret =  -3;
-			break;
-		}
-		cache_tmp->datalen =
-		rx_remote_info->fragment_info[index_tmp].len;
+		cache_tmp->datalen = fragment_info->len;
 		ret = bif_rx_reassemble_fragment(frame_p, cache_tmp,
-			&rx_remote_info->fragment_info[index_tmp]);
+			fragment_info);
 		if (ret < 0) {
 			bif_err("bif_err: %s  %d\n", __func__,  __LINE__);
 			ret = -4;
