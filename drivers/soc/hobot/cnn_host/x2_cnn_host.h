@@ -133,6 +133,7 @@ struct x2_cnn_dev {
 	char *chrdev_name;
 	struct class *dev_class;
 	struct cdev i_cdev;
+	int core_index;
 
 	struct mutex cnn_lock;
 	spinlock_t cnn_spin_lock;
@@ -141,6 +142,7 @@ struct x2_cnn_dev {
 	struct reset_control *cnn0_rst;
 	struct reset_control *cnn1_rst;
 
+	struct sock *irq_sk;
 	/* wait queue for wait cnn interrupt occur */
 	wait_queue_head_t cnn_int_wait;
 	u32 x2_cnn_int_num;

@@ -43,6 +43,12 @@
 #include <linux/time.h>
 #include <linux/kfifo.h>
 #include "x2_cnn_host.h"
+
+#define NETLINK_BPU 24
+
+extern struct sock *cnn_netlink_init(int unit);
+extern int cnn_netlink_send(struct sock *sock, int group, void *msg, int len);
+
 #define FC_TIME_CNT 50
 #define FC_TIME_SAVE_CNT 50
 static DEFINE_MUTEX(x2_cnn_mutex);
@@ -821,6 +827,12 @@ static void x2_cnn_do_tasklet(unsigned long data)
 	dev->irq_triggered = 1;
 	spin_unlock_irqrestore(&dev->cnn_spin_lock, flags);
 
+	ret = cnn_netlink_send(dev->irq_sk, dev->core_index,
+			&dev->x2_cnn_int_num, sizeof(dev->x2_cnn_int_num));
+	if ((ret < 0) && (ret != -ESRCH)) {
+		pr_err("CNN trigger irq[%d] failed errno[%d]!\n", dev->x2_cnn_int_num, ret);
+	}
+
 	ret = kfifo_avail(&dev->fc_time_save_fifo);
 	if (ret < sizeof(struct x2_fc_time))
 		kfifo_out(&dev->fc_time_save_fifo, &tmp,
@@ -1072,6 +1084,7 @@ int x2_cnn_probe(struct platform_device *pdev)
 		goto err_out;
 	}
 
+	cnn_dev->core_index = cnn_id;
 	cnn_dev->fc_phys_base = mem_reserved.start + CNN_FC_GAP_LEN
 		+ (CNN_FC_SPACE_LEN + CNN_FC_GAP_LEN) * cnn_id;
 	cnn_dev->fc_mem_size  = CNN_FC_SPACE_LEN;
@@ -1114,6 +1127,12 @@ int x2_cnn_probe(struct platform_device *pdev)
 	if (rc < 0) {
 		dev_err(&pdev->dev,
 			"Failed create char dev for cnn%d\n", cnn_id);
+		goto err_out;
+	}
+
+	cnn_dev->irq_sk = cnn_netlink_init(NETLINK_BPU);
+	if (!cnn_dev->irq_sk) {
+		pr_err("Fail init cnn%d irq netlink notifiy failed\n", cnn_id);
 		goto err_out;
 	}
 
