@@ -289,7 +289,7 @@ int32_t mipi_host_dphy_initialize(uint16_t mipiclk, uint16_t lane, uint16_t sett
 
 	mipi_host_dphy_testdata(REGS_RX_STARTUP_OVR_5, RX_CLK_SETTLE_EN);
 	mipi_host_dphy_testdata(REGS_RX_STARTUP_OVR_4, RX_CLK_SETTLE);
-	//mipi_host_dphy_testdata(REGS_RX_STARTUP_OVR_17, RX_HS_SETTLE(settle));
+	mipi_host_dphy_testdata(REGS_RX_STARTUP_OVR_17, RX_HS_SETTLE(settle));
 	/*Configure the D-PHY frequency range*/
 	ips_set_mipi_freqrange(MIPI_HOST_HSFREQRANGE, mipi_dphy_clk_range(mipiclk / lane));
 	mipi_host_dphy_testdata(REGS_RX_SYS_7, RX_SYSTEM_CONFIG);
