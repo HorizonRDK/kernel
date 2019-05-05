@@ -2,6 +2,7 @@
 #define __X2_CNN_H__
 
 #include <asm/ioctl.h>
+#include <linux/kfifo.h>
 
 #define X2_CNN_DRV_NAME		"x2_cnn"
 
@@ -112,6 +113,12 @@
 #define CNN_FC_GAP_LEN 0x1000
 #define CNN_FC_SPACE_LEN (0x400 * 0x40)
 
+struct x2_fc_time {
+	unsigned int fc_count;
+	unsigned int int_num;
+	struct timeval start_time;
+	struct timeval end_time;
+};
 struct x2_cnn_dev {
 	void __iomem	*cnn_base;
 	u32		irq;
@@ -142,6 +149,8 @@ struct x2_cnn_dev {
 	struct dentry *debugfs_root;
 	struct list_head debugfs_list;
 	struct mutex debugfs_lock; /* Protects debugfs_list. */
+	struct kfifo fc_time_fifo;
+	struct kfifo fc_time_save_fifo;
 
 };
 

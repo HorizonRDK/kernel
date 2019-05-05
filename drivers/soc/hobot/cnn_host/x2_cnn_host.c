@@ -40,9 +40,11 @@
 #include <linux/printk.h>
 #include <linux/poll.h>
 #include <linux/debugfs.h>
-
+#include <linux/time.h>
+#include <linux/kfifo.h>
 #include "x2_cnn_host.h"
-
+#define FC_TIME_CNT 50
+#define FC_TIME_SAVE_CNT 50
 static DEFINE_MUTEX(x2_cnn_mutex);
 static char *g_chrdev_name = "cnn";
 static struct dentry *cnn0_debugfs_root;
@@ -369,7 +371,7 @@ static irqreturn_t x2_cnn_interrupt_handler(int irq, void *dev_id)
 	x2_cnn_reg_write(dev, X2_CNNINT_MASK, 0x0);
 	spin_unlock_irqrestore(&dev->cnn_spin_lock, flags);
 	atomic_dec(&dev->wait_fc_cnt);
-	pr_info("!!!!!!xxxx x2 cnn interrupt\n");
+	pr_debug("!!!!!!xxxx x2 cnn interrupt\n");
 	tasklet_schedule(&dev->tasklet);
 	return IRQ_HANDLED;
 }
@@ -452,7 +454,7 @@ static u32 x2_cnn_get_fc_fifo_spaces(struct x2_cnn_dev *dev)
 	else
 		free_fc_fifo = fc_depth - fc_tail_idx + fc_head_idx + 1;
 
-	pr_info("fc_depth:0x%x, get fifo spaces return val:%d, head:[%d], tail:[%d]\n",
+	pr_debug("fc_depth:0x%x, get fifo spaces return val:%d, head:[%d], tail:[%d]\n",
 			fc_depth, free_fc_fifo, fc_head_idx, fc_tail_idx);
 	return free_fc_fifo;
 }
@@ -473,6 +475,7 @@ static u32 x2_cnn_fc_fifo_enqueue(struct x2_cnn_dev *dev,
 	u32 fc_head_idx, fc_tail_idx,
 	    fc_head_flag, fc_tail_flag;
 	u32 fc_depth, insert_fc_cnt, residue_fc_cnt;
+	struct x2_fc_time fc_time;
 
 	fc_depth = x2_cnn_reg_read(dev, X2_CNN_FC_LEN);
 	fc_head_idx = x2_cnn_reg_read(dev, X2_CNN_FC_HEAD);
@@ -515,8 +518,19 @@ static u32 x2_cnn_fc_fifo_enqueue(struct x2_cnn_dev *dev,
 		 * Actually, according to libpu, fc_cnt is always 1
 		 */
 		for (i = 0; i < insert_fc_cnt; i++) {
-			if (tmp_ptr->interrupt_num != 0)
+			int tmp_tail = fc_tail_idx;
+
+			if (tmp_ptr->interrupt_num != 0) {
+				tmp_tail++;
+				tmp_tail &= X2_CNN_MAX_FC_LEN_MASK;
 				atomic_inc(&dev->wait_fc_cnt);
+				do_gettimeofday(&fc_time.start_time);
+				fc_time.int_num = tmp_ptr->interrupt_num;
+				fc_time.fc_count = tmp_tail;
+				kfifo_in(&dev->fc_time_fifo, &fc_time,
+					 sizeof(struct x2_fc_time));
+
+			}
 			tmp_ptr++;
 		}
 		x2_cnn_set_fc_tail_idx(dev, residue_fc_cnt | fc_tail_flag);
@@ -527,8 +541,18 @@ static u32 x2_cnn_fc_fifo_enqueue(struct x2_cnn_dev *dev,
 		 * Actually, according to libpu, fc_cnt is always 1
 		 */
 		for (i = 0; i < fc_buf->fc_cnt; i++) {
-			if (tmp_ptr->interrupt_num != 0)
+			int tmp_tail = fc_tail_idx;
+
+			if (tmp_ptr->interrupt_num != 0) {
+				tmp_tail++;
+				tmp_tail &= X2_CNN_MAX_FC_LEN_MASK;
 				atomic_inc(&dev->wait_fc_cnt);
+				do_gettimeofday(&fc_time.start_time);
+				fc_time.int_num = tmp_ptr->interrupt_num;
+				fc_time.fc_count = tmp_tail;
+				kfifo_in(&dev->fc_time_fifo, &fc_time,
+					 sizeof(struct x2_fc_time));
+			}
 			tmp_ptr++;
 		}
 		x2_cnn_set_fc_tail_idx(dev,
@@ -594,8 +618,6 @@ static long x2_cnn_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	u32 dir;
 	union cnn_ioctl_arg data;
 	void *kernel_fc_data;
-
-	int count = 0;
 
 	dir = cnn_ioctl_dir(cmd);
 
@@ -714,7 +736,7 @@ static long x2_cnn_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 static u32 x2_cnn_poll(struct file *filp, poll_table *wait)
 {
 	unsigned int mask = 0;
-	unsigned int flags;
+	unsigned long flags;
 
 	struct x2_cnn_dev *dev = filp->private_data;
 
@@ -790,12 +812,24 @@ ret:
 static void x2_cnn_do_tasklet(unsigned long data)
 {
 	struct x2_cnn_dev *dev = (struct x2_cnn_dev *)data;
-	unsigned int flags;
+	unsigned long flags;
+	struct x2_fc_time tmp;
+	int ret;
 
 	spin_lock_irqsave(&dev->cnn_spin_lock, flags);
 	wake_up(&dev->cnn_int_wait);
 	dev->irq_triggered = 1;
 	spin_unlock_irqrestore(&dev->cnn_spin_lock, flags);
+
+	ret = kfifo_avail(&dev->fc_time_save_fifo);
+	if (ret < sizeof(struct x2_fc_time))
+		kfifo_out(&dev->fc_time_save_fifo, &tmp,
+			  sizeof(struct x2_fc_time));
+	/*get fc time*/
+	ret = kfifo_out(&dev->fc_time_fifo, &tmp, sizeof(struct x2_fc_time));
+	do_gettimeofday(&tmp.end_time);
+	ret = kfifo_in(&dev->fc_time_save_fifo, &tmp,
+		       sizeof(struct x2_fc_time));
 }
 
 static void *cnn_ram_vmap(phys_addr_t start, size_t size,
@@ -1058,7 +1092,18 @@ int x2_cnn_probe(struct platform_device *pdev)
 
 	mutex_init(&cnn_dev->cnn_lock);
 	spin_lock_init(&cnn_dev->cnn_spin_lock);
-
+	rc = kfifo_alloc(&cnn_dev->fc_time_fifo,
+		    sizeof(struct x2_fc_time) * FC_TIME_CNT, GFP_KERNEL);
+	if (rc < 0) {
+		pr_err("kfifo alloc error\n");
+		goto err_out;
+	}
+	rc = kfifo_alloc(&cnn_dev->fc_time_save_fifo,
+		    sizeof(struct x2_fc_time) * FC_TIME_SAVE_CNT, GFP_KERNEL);
+	if (rc < 0) {
+		pr_err("kfifo alloc error\n");
+		goto err_out;
+	}
 	/* Create the chardev for cnn0 and cnn1 */
 	cnn_dev->chrdev_name = dev_name;
 	snprintf(cnn_dev->chrdev_name, sizeof(dev_name),
@@ -1079,16 +1124,12 @@ int x2_cnn_probe(struct platform_device *pdev)
 		rc = cnn_debugfs_init(cnn_dev, cnn_id, cnn0_debugfs_root);
 		if (rc)
 			pr_err("init cnn%d debugfs failed\n", cnn_id);
-		pr_info("before cnn dev\n");
 		cnn0_dev = cnn_dev;
-		pr_info("after cnn dev\n");
 	} else if (cnn_id == 1) {
 		rc = cnn_debugfs_init(cnn_dev, cnn_id, cnn1_debugfs_root);
 		if (rc)
 			pr_err("init cnn%d debugfs failed\n", cnn_id);
-		pr_info("before cnn dev1\n");
 		cnn1_dev = cnn_dev;
-		pr_info("before cnn dev1\n");
 	}
 
 	platform_set_drvdata(pdev, cnn_dev);
@@ -1100,6 +1141,11 @@ int x2_cnn_probe(struct platform_device *pdev)
 err_out:
 	devm_kfree(&pdev->dev, cnn_dev);
 	return rc;
+}
+void cnn_fc_time_kfifo_clean(struct x2_cnn_dev *dev)
+{
+	kfifo_free(&dev->fc_time_fifo);
+	kfifo_free(&dev->fc_time_save_fifo);
 }
 
 static int x2_cnn_remove(struct platform_device *pdev)
@@ -1116,6 +1162,7 @@ static int x2_cnn_remove(struct platform_device *pdev)
 	vm_unmap_ram(dev->fc_base, dev->fc_mem_size / PAGE_SIZE);
 	dev->cnn_base = 0;
 	cnn_debugfs_cleanup(dev);
+	cnn_fc_time_kfifo_clean(dev);
 	return 0;
 }
 
@@ -1139,7 +1186,6 @@ static void x2_cnn_check_func(unsigned long arg)
 	static int cnn1_busy;
 	static int fre;
 	static int fre_tmp;
-	unsigned int flags;
 
 	int cnn0_head = x2_cnn_reg_read(cnn0_dev, X2_CNN_FC_HEAD);
 	int cnn0_tail = x2_cnn_reg_read(cnn0_dev, X2_CNN_FC_TAIL);
@@ -1272,6 +1318,54 @@ static ssize_t queue1_show(struct kobject *kobj, struct kobj_attribute *attr,
 	mutex_unlock(&cnn1_dev->cnn_lock);
 	return sprintf(buf, "%d\n", queue1);
 }
+
+static ssize_t fc_time_show(struct kfifo *fc_fifo, char *buf)
+{
+	int i = 0;
+	int ret = 0;
+	int sum = 0;
+	struct x2_fc_time tmp[FC_TIME_SAVE_CNT];
+	int len = kfifo_len(fc_fifo);
+
+	if (len > sizeof(struct x2_fc_time) * FC_TIME_SAVE_CNT)
+		len = sizeof(struct x2_fc_time) * FC_TIME_SAVE_CNT;
+	ret = kfifo_out_peek(fc_fifo, tmp, len);
+	ret = sprintf(buf, "num  interrupt       start_time             end_time          exe_time\n");
+	sum += ret;
+	for (i = 0; i < len / (sizeof(struct x2_fc_time)); i++) {
+		unsigned int exe_time = tmp[i].end_time.tv_sec * 1000 +
+					tmp[i].end_time.tv_usec / 1000 -
+					tmp[i].start_time.tv_sec * 1000 -
+					tmp[i].start_time.tv_usec / 1000;
+
+		ret = sprintf(buf + sum, "%d     %-8d  %lds %ldus   %11lds %ldus    %4dms\n",
+				tmp[i].fc_count, tmp[i].int_num,
+				tmp[i].start_time.tv_sec,
+				tmp[i].start_time.tv_usec,
+				tmp[i].end_time.tv_sec,
+				tmp[i].end_time.tv_usec,
+				exe_time);
+		sum += ret;
+	}
+	return sum;
+}
+
+static ssize_t bpu0_fc_time_show(struct kobject *kobj,
+				 struct kobj_attribute *attr, char *buf)
+{
+	int ret;
+
+	ret = fc_time_show(&cnn0_dev->fc_time_save_fifo, buf);
+	return ret;
+}
+static ssize_t bpu1_fc_time_show(struct kobject *kobj,
+				 struct kobj_attribute *attr, char *buf)
+{
+	int ret;
+
+	ret = fc_time_show(&cnn1_dev->fc_time_save_fifo, buf);
+	return ret;
+}
 static struct kobj_attribute pro_frequency = __ATTR(profiler_frequency, 0664,
 						    fre_show, fre_store);
 static struct kobj_attribute pro_enable    = __ATTR(profiler_enable, 0664,
@@ -1284,6 +1378,10 @@ static struct kobj_attribute pro_queue0    = __ATTR(queue0, 0444,
 						    queue0_show, NULL);
 static struct kobj_attribute pro_queue1    = __ATTR(queue1, 0444,
 						    queue1_show, NULL);
+static struct kobj_attribute bpu0_fc_time  = __ATTR(fc_time, 0444,
+						    bpu0_fc_time_show, NULL);
+static struct kobj_attribute bpu1_fc_time  = __ATTR(fc_time, 0444,
+						    bpu1_fc_time_show, NULL);
 
 static struct attribute *bpu_attrs[] = {
 	&pro_frequency.attr,
@@ -1294,11 +1392,13 @@ static struct attribute *bpu0_attrs[] = {
 
 	&pro_ratio0.attr,
 	&pro_queue0.attr,
+	&bpu0_fc_time.attr,
 	NULL,
 };
 static struct attribute *bpu1_attrs[] = {
 	&pro_ratio1.attr,
 	&pro_queue1.attr,
+	&bpu1_fc_time.attr,
 	NULL,
 };
 
