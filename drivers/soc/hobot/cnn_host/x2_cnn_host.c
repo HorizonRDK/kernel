@@ -48,6 +48,7 @@
 
 extern struct sock *cnn_netlink_init(int unit);
 extern int cnn_netlink_send(struct sock *sock, int group, void *msg, int len);
+struct sock *cnn_nl_sk = NULL;
 
 #define FC_TIME_CNT 50
 #define FC_TIME_SAVE_CNT 50
@@ -1130,11 +1131,15 @@ int x2_cnn_probe(struct platform_device *pdev)
 		goto err_out;
 	}
 
-	cnn_dev->irq_sk = cnn_netlink_init(NETLINK_BPU);
-	if (!cnn_dev->irq_sk) {
-		pr_err("Fail init cnn%d irq netlink notifiy failed\n", cnn_id);
-		goto err_out;
+	if (!cnn_nl_sk) {
+		cnn_nl_sk = cnn_netlink_init(NETLINK_BPU);
+		if (!cnn_nl_sk) {
+			pr_err("Fail init cnn%d irq netlink notifiy failed\n", cnn_id);
+			goto err_out;
+		}
 	}
+
+	cnn_dev->irq_sk = cnn_nl_sk;
 
 	/* Initialize the tasklet */
 	tasklet_init(&cnn_dev->tasklet, x2_cnn_do_tasklet,
