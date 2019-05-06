@@ -115,6 +115,20 @@
 			};
 		};
 	};
+	siiEDID@0x50 {
+		compatible = "siiEDID";
+		reg = <0x50>;
+	};
+	siiSegEDID@0x30 {
+		compatible = "siiSegEDID";
+		reg = <0x30>;
+	};
+	sii902xA@0x3B {
+		compatible = "sii902xA";
+		reg = <0x3B>;
+		rst_pin = <61>;
+		irq_pin = <77>;
+	};
 };
 
 &i2c1 {
@@ -136,8 +150,8 @@
 	clocks = <&vio_pllmux_clk>, <&mipi_ipi_1stdiv_clk>, <&mipi_ipi_2nddiv_clk>;
 	clock-names = "vio_pllmux", "ipi_div1", "ipi_div2";
 	pinctrl-names = "bt_func", "dvp_func";
-	pinctrl-0 = <&btin_func &btout_func>;
-	pinctrl-1 = <&dvpin_func &dvpout_func>;
+	pinctrl-0 = <&btout_func>;
+	pinctrl-1 = <&dvpout_func>;
 	status = "okay";
 };
 
@@ -213,6 +227,10 @@
 };
 
 &iar {
+	status = "okay";
+};
+
+&fb {
 	status = "okay";
 };
 

@@ -399,6 +399,11 @@
 			status = "disabled";
 		};
 
+		fb: fb {
+			compatible = "hobot,x2-fb";
+			status = "disabled";
+		};
+
 		timer0: timer@0xA1002000 {
 			compatible = "Hobot,x2-timer";
 			status = "disabled";
