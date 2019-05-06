@@ -83,7 +83,7 @@ static int x2_i2c_cfg(struct x2_i2c_dev_s *i2c_dev, int dir_rd)
 	i2c_dev->i2c_regs->cfg.bit.to_en = 1;
 	i2c_dev->i2c_regs->cfg.bit.dir_rd = dir_rd;//test
 	i2c_dev->i2c_regs->tocnt.all = 0xffff;
-	i2c_dev->i2c_regs->cfg.bit.clkdiv = 0x3b;//0xef;
+	i2c_dev->i2c_regs->cfg.bit.clkdiv = 0x4f;//0xef;
 	//i2c_dev->i2c_regs->SPRCPND.all= 0xffffffff;//clear int
 #else //non transcation mode
 	//i2c_dev->i2c_regs->CFG.bit.clkdiv = 1;
@@ -176,10 +176,10 @@ static void x2_drain_rxfifo(struct x2_i2c_dev_s *i2c_dev)
 		i2c_dev->msg_buf++;
 		i2c_dev->msg_buf_remaining--;
 	}
-	if (i2c_dev->msg_buf_remaining
-	    && !i2c_dev->i2c_regs->fifo_ctl.bit.rx_full_hold) {
-		i2c_dev->i2c_regs->fifo_ctl.bit.rx_full_hold = 1;
-	}
+	//if (i2c_dev->msg_buf_remaining
+		//&& !i2c_dev->i2c_regs->fifo_ctl.bit.rx_full_hold) {
+		//i2c_dev->i2c_regs->fifo_ctl.bit.rx_full_hold = 1;
+	//}
 }
 
 #if 0
@@ -207,7 +207,7 @@ static void x2_drain_rxfifo_byte(struct x2_i2c_dev_s *i2c_dev)
 static irqreturn_t x2_i2c_isr(int this_irq, void *data)
 {
 	struct x2_i2c_dev_s *i2c_dev = data;
-	u32 err;
+	u32 err, comp = 1;
 	union sprcpnd_reg_e int_status;
 	//union status_reg_e i2c_status;
 	disable_irq_nosync(this_irq);
@@ -229,17 +229,28 @@ static irqreturn_t x2_i2c_isr(int this_irq, void *data)
 	} else if (int_status.bit.tr_done || int_status.bit.rrdy
 		   || int_status.bit.xrdy) {
 		if (i2c_dev->i2c_state == i2c_read) {
-			x2_drain_rxfifo(i2c_dev);
+			if (i2c_dev->msg_buf)
+				x2_drain_rxfifo(i2c_dev);
+			else
+				goto error;
+			comp = (i2c_dev->msg_buf_remaining) ? 0 : 1;
 		} else if (i2c_dev->i2c_state == i2c_write) {
+			comp = (i2c_dev->msg_buf_remaining) ? 0 : 1;
 			x2_fill_txfifo(i2c_dev);
 		} else {
 			I2C_DEBUG_PRINT("isr in idle state\n");
 		}
-		x2_unmask_int(i2c_dev,
-			      i2c_dev->msg_buf_remaining > X2_I2C_FIFO_SIZE);
+		if (!comp) {
+			x2_unmask_int(i2c_dev,
+				i2c_dev->msg_buf_remaining > X2_I2C_FIFO_SIZE);
+		}
 	}
+	if (comp) {
+		complete(&i2c_dev->completion);
+		i2c_dev->msg_buf = NULL;
+	}
+error:
 	enable_irq(this_irq);
-	complete(&i2c_dev->completion);
 	I2C_DEBUG_PRINT("x2 irq end\n");
 	return IRQ_HANDLED;
 }
@@ -467,16 +478,29 @@ static int x2_i2c_xfer_smbus(struct i2c_adapter *adap, u16 addr,
 
 	switch (size) {
 	case I2C_SMBUS_BYTE:
-		ret = x2_i2c_doxfer_smbus(i2c_dev, addr, read_write == I2C_SMBUS_WRITE, command, 0, &data->byte);
+		ret = x2_i2c_doxfer_smbus(i2c_dev, addr,
+				read_write == I2C_SMBUS_WRITE,
+				command, 0, &data->byte);
 		break;
 	case I2C_SMBUS_BYTE_DATA:
-		ret = x2_i2c_doxfer_smbus(i2c_dev, addr, read_write == I2C_SMBUS_WRITE, command, 1, &data->byte);
+		ret = x2_i2c_doxfer_smbus(i2c_dev, addr,
+				read_write == I2C_SMBUS_WRITE,
+				command, 1, &data->byte);
 		break;
 	case I2C_SMBUS_WORD_DATA:
-		ret = x2_i2c_doxfer_smbus(i2c_dev, addr, read_write == I2C_SMBUS_WRITE, command, 2, (u8*)&data->word);
+		ret = x2_i2c_doxfer_smbus(i2c_dev, addr,
+				read_write == I2C_SMBUS_WRITE,
+				command, 2, (u8 *)&data->word);
 		break;
 	case I2C_SMBUS_BLOCK_DATA:
-		ret = x2_i2c_doxfer_smbus(i2c_dev, addr, read_write == I2C_SMBUS_WRITE, command, data->block[0], &data->block[1]);
+		ret = x2_i2c_doxfer_smbus(i2c_dev, addr,
+				read_write == I2C_SMBUS_WRITE,
+				command, data->block[0], &data->block[1]);
+		break;
+	case I2C_SMBUS_I2C_BLOCK_DATA:
+		ret = x2_i2c_doxfer_smbus(i2c_dev, addr,
+				read_write == I2C_SMBUS_WRITE,
+				command, data->block[0], &data->block[1]);
 		break;
 	default:
 		dev_warn(&adap->dev, "Unsupported transaction %d\n", size);
