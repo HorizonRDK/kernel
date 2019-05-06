@@ -35,10 +35,10 @@ typedef unsigned int	dword;
 //#define DEV_SUPPORT_CEC
 //#define DEV_SUPPORT_3D
 
+#define HDMI_AUDIO_MUTE
 //#define CLOCK_EDGE_RISING
 #define CLOCK_EDGE_FALLING
 #define F_9022A_9334
-//#define HW_INT_ENABLE
 #define DRV_SUPPORT_SII9136
 #ifdef DRV_SUPPORT_SII9136
 #define DEEP_COLOR
@@ -55,6 +55,9 @@ extern struct i2c_client *sii902xA;
 extern struct i2c_client *siiEDID;
 extern struct i2c_client *siiSegEDID;
 extern struct i2c_client *siiHDCP;
+
+extern unsigned int Si9022A_rst_pin;
+extern unsigned int Si9022A_irq_pin;
 
 extern void siHdmiTx_PowerStateD0(void);
 extern void SetAudioMute(byte audioMute);
@@ -85,6 +88,7 @@ extern void SetAudioMute(byte audioMute);
 #define YCBCR422_16BITS	2
 #define YCBCR422_8BITS	3
 #define XVYCC444	4
+#define BLACK_MODE	5
 
 #define EXTERNAL_HSVSDE	0
 #define INTERNAL_DE	1
@@ -149,6 +153,12 @@ extern void SetAudioMute(byte audioMute);
 #define HDMI_1080P50_SIDE_BY_SIDE_FULL	33
 #define HDMI_1080P24_FRAME_PACKING	34
 
+/// HB
+#define HDMI_800_480_60	35
+
+/// VMODE
+#define HDMI_VMODE_SIZE 36
+
 //#define HDMI_720P50_L_DEPTH	29
 //#define HDMI_720P50_L_DEPTH_GFX_G_DEPTH	30
 //====================================================
@@ -187,6 +197,7 @@ extern void SetAudioMute(byte audioMute);
 typedef struct {
 	byte HDMIVideoFormat;// 0 = CEA-861 VIC; 1 = HDMI_VIC; 2 = 3D
 	byte VIC;	// VIC or the HDMI_VIC
+	byte HbVIC;	// VIC sub index for HB
 	byte AspectRatio;	// 4x3 or 16x9
 	byte ColorSpace;
 	// 0 = RGB; 1 = YCbCr4:4:4; 2 = YCbCr4:2:2_16bits;
@@ -302,10 +313,21 @@ enum EDID_ErrorCodes {
 // Debug Definitions
 //--------------------------------------------------------------------
 // Compile debug prints inline or not
-#define CONF__TPI_TRACE_PRINT	(ENABLE)
-#define CONF__TPI_DEBUG_PRINT	(ENABLE)
+#define CONF__TPI_INFO_PRINT	(ENABLE)
+#define CONF__TPI_TRACE_PRINT	(DISABLE)
+#define CONF__TPI_DEBUG_PRINT	(DISABLE)
 #define CONF__TPI_EDID_PRINT	(DISABLE)
 #define CONF__CPI_DEBUG_PRINT	(DISABLE)
+
+// Info Print Macro
+// Note: TPI_INFO_PRINT Requires double parenthesis
+// Example:  TPI_INFO_PRINT(("hello, world!\n"));
+#if (CONF__TPI_INFO_PRINT == ENABLE)
+#define TPI_INFO_PRINT(fmt, args...)	\
+	pr_info("hdmi: " fmt, ## args)
+#else
+#define TPI_TRACE_PRINT(fmt, args...)
+#endif
 
 // Trace Print Macro
 // Note: TPI_TRACE_PRINT Requires double parenthesis
@@ -333,7 +355,7 @@ enum EDID_ErrorCodes {
 // Note: TPI_EDID_PRINT Requires double parenthesis
 // Example:  TPI_EDID_PRINT(("hello, world!\n"));
 #if (CONF__TPI_EDID_PRINT == ENABLE)
-#define TPI_EDID_PRINT(fmt, args...)	TPI_DEBUG_PRINT(fmt, args...)
+#define TPI_EDID_PRINT(fmt, args...)	TPI_DEBUG_PRINT(fmt, ## args)
 #else
 #define TPI_EDID_PRINT(fmt, args...)
 #endif
@@ -344,7 +366,7 @@ enum EDID_ErrorCodes {
 // Note: CPI_DEBUG_PRINT Requires double parenthesis
 // Example:  CPI_DEBUG_PRINT(("hello, world!\n"));
 #if (CONF__CPI_DEBUG_PRINT == ENABLE)
-#define CPI_DEBUG_PRINT(fmt, args...)	TPI_DEBUG_PRINT(fmt, args...)
+#define CPI_DEBUG_PRINT(fmt, args...)	TPI_DEBUG_PRINT(fmt, ## args)
 #else
 #define CPI_DEBUG_PRINT(fmt, args...)
 #endif
@@ -452,6 +474,7 @@ enum AV_ConfigErrorCodes {
 #define BITS_IN_RGB		0x00
 #define BITS_IN_YCBCR444	0x01
 #define BITS_IN_YCBCR422	0x02
+#define BITS_IN_BLACKMODE	0x03
 
 #define BITS_IN_AUTO_RANGE	0x00
 #define BITS_IN_FULL_RANGE	0x04
@@ -659,6 +682,7 @@ enum AV_ConfigErrorCodes {
 #define VMD_HDMIFORMAT_HDMI_VIC	0x01
 #define VMD_HDMIFORMAT_3D	0x02
 #define VMD_HDMIFORMAT_PC	0x03
+#define VMD_HDMIFORMAT_HB	0x04
 
 // These values are from HDMI Spec 1.4 Table H-2
 #define VMD_3D_FRAMEPACKING	0
@@ -1129,6 +1153,10 @@ enum AV_ConfigErrorCodes {
 #define MISC_INFO_FRAMES_LEN	(0xC2)
 #define MISC_INFO_FRAMES_CHKSUM	(0xC3)
 //--------------------------------------------------------------------
+extern u8 g_EdidData[EDID_BLOCK_SIZE];
+extern u8 g_SEdidData[EDID_BLOCK_SIZE];
+extern byte tpivmode[3];
+
 void DelayMS(word MS);
 
 byte I2CReadBlock(struct i2c_client *client, byte RegAddr,
@@ -1140,6 +1168,8 @@ byte siiReadSegmentBlockEDID(struct i2c_client *client,
 
 void WriteByteTPI(byte RegOffset, byte Data);
 byte ReadByteTPI(byte RegOffset);
+void ReadBlockTPI(byte TPI_Offset, word NBytes, byte *pData);
+void WriteBlockTPI(byte TPI_Offset, word NBytes, byte *pData);
 
 void siHdmiTx_PowerStateD2(void);
 void siHdmiTx_PowerStateD0fromD2(void);
@@ -1153,4 +1183,5 @@ byte siHdmiTx_TPI_Init(void);
 void siHdmiTx_TPI_Poll(void);
 void siHdmiTx_VideoSel(byte vmode, byte VideoFormat);
 void siHdmiTx_AudioSel(byte Afs);
+void siHdmiTx_ReConfig(byte vmode, byte VideoFormat, byte Afs);
 #endif

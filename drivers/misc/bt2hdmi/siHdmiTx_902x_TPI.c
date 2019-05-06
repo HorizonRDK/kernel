@@ -46,9 +46,8 @@ struct i2c_client *siiEDID;
 struct i2c_client *siiSegEDID;
 struct i2c_client *siiHDCP;
 
-//static struct mxc_lcd_platform_data *Sii902xA_plat_data;
-
-int Si9022A_reset_pin = 20;
+unsigned int Si9022A_rst_pin = -1;
+unsigned int Si9022A_irq_pin = -1;
 int write_byte_nostop;
 
 //------------------------------------------------------------------------------
@@ -84,7 +83,7 @@ byte I2CReadBlock(struct i2c_client *client, byte RegAddr,
 		byte NBytes, byte *Data)
 {
 	int ret;
-	//unsigned long start;
+
 	struct i2c_msg request[] = {
 		{.addr = client->addr,
 		.len = sizeof(RegAddr),
@@ -96,7 +95,7 @@ byte I2CReadBlock(struct i2c_client *client, byte RegAddr,
 	};
 	ret = i2c_transfer(client->adapter, request, ARRAY_SIZE(request));
 	if (ret != ARRAY_SIZE(request)) {
-		TPI_TRACE_PRINT("unable to read EDID blocks\n");
+		TPI_TRACE_PRINT("unable to read EDID blocks %d\n", ret);
 		return -EIO;
 	}
 	return IIC_OK;
@@ -301,29 +300,12 @@ void TXHAL_InitPostReset(void)
 
 int TxHW_Reset(void)
 {
-	int ret = 0;
-
 	TPI_TRACE_PRINT("\n>>");
-	//Sii902xA_plat_data = sii902xA->dev.platform_data;
-	//	if (Sii902xA_plat_data->reset)
-	//		Sii902xA_plat_data->reset();
 
-	ret = gpio_request(Si9022A_reset_pin, "x2_Si9022A_reset_pin");
-	if (ret) {
-		pr_info("%s() Err get trigger pin ret= %d\n",
-				       __func__, ret);
-		return -ENODEV;
-	}
-	gpio_direction_output(Si9022A_reset_pin, 0);
-	//msleep(100);
+	gpio_set_value(Si9022A_rst_pin, 0);
 	DelayMS(TX_HW_RESET_PERIOD);
-	gpio_direction_output(Si9022A_reset_pin, 1);
-	//msleep(100);
-/*
- *	siHdmiTx_HwResetPin = LOW;
- *	DelayMS(TX_HW_RESET_PERIOD);
- *	siHdmiTx_HwResetPin = HIGH;
- */
+	gpio_set_value(Si9022A_rst_pin, 1);
+
 	TXHAL_InitPostReset();
 	return 0;
 }
@@ -408,7 +390,8 @@ byte DisableInterrupts(byte Interrupt_Pattern)
 //EDID
 //
 //
-static u8 g_CommData[EDID_BLOCK_SIZE];
+u8 g_EdidData[EDID_BLOCK_SIZE];
+u8 g_SEdidData[EDID_BLOCK_SIZE];
 
 #define ReadBlockEDID(a, b, c)		I2CReadBlock(siiEDID, a, b, c)
 #define ReadSegmentBlockEDID(a, b, c, d) siiReadSegmentBlockEDID(siiEDID, \
@@ -674,6 +657,7 @@ byte ParseDetailedTiming(byte *Data, byte DetailedTimingOffset, byte Block)
 	byte TmpByte;
 	byte i;
 	word TmpWord;
+	char buf[16];
 
 	TmpWord = Data[DetailedTimingOffset + PIX_CLK_OFFSET] +
 		256 * Data[DetailedTimingOffset + PIX_CLK_OFFSET + 1];
@@ -685,13 +669,13 @@ byte ParseDetailedTiming(byte *Data, byte DetailedTimingOffset, byte Block)
 		if (Block == EDID_BLOCK_0) {
 			// these 13 bytes ars ASCII coded monitor name
 			if (Data[DetailedTimingOffset + 3] == 0xFC) {
-				TPI_EDID_PRINT("Monitor Name: ");
 				for (i = 0; i < 13; i++) {
-					TPI_EDID_PRINT(("%c",
-					Data[DetailedTimingOffset + 5 + i]));
+					sprintf(buf+i, "%c",
+					Data[DetailedTimingOffset + 5 + i]);
 					// Display monitor name on SiIMon
 				}
-				TPI_EDID_PRINT(("\n"));
+				buf[i] = '\0';
+				TPI_EDID_PRINT("Monitor Name: %s\n", buf);
 			} else if (Data[DetailedTimingOffset + 3] == 0xFD) {
 			// these 13 bytes contain Monitor Range limis ,
 			// binary coded.
@@ -857,21 +841,24 @@ void ParseBlock_0_TimingDescriptors(byte *Data)
 byte ParseEDID(byte *pEdid, byte *numExt)
 {
 	byte i, j, k;
+	int s;
+	char buf[512];
 
 	TPI_EDID_PRINT("\n");
 	TPI_EDID_PRINT("EDID DATA (Segment = 0 Block = 0 Offset = %d):\n",
 				(int) EDID_BLOCK_0_OFFSET);
 
+	s = 0;
 	for (j = 0, i = 0; j < 128; j++) {
 		k = pEdid[j];
-		TPI_EDID_PRINT(("%2.2X ", (int) k));
+		s += sprintf(buf + s, "%2.2X ", (int) k);
 		i++;
 		if (i == 0x10) {
-			TPI_EDID_PRINT(("\n"));
+			s += sprintf(buf + s, "\n");
 			i = 0;
 		}
 	}
-	TPI_EDID_PRINT("\n");
+	TPI_EDID_PRINT("%s\n", buf);
 	// checks if EDIO header is correct per VESA E-EDIO standard(/byte 0
 	// must be 0, bytes[1..6] must be 0xFF, byte 7 must be 0)
 	if (!CheckEDID_Header(pEdid)) {
@@ -1129,7 +1116,8 @@ byte Parse861LongDescriptors(byte *Data)
 byte Parse861Extensions(byte NumOfExtensions)
 {
 	byte i, j, k;
-
+	int s;
+	char buf[512];
 	byte ErrCode;
 
 	//byte V_DescriptorIndex = 0;
@@ -1150,34 +1138,35 @@ byte Parse861Extensions(byte NumOfExtensions)
 
 		if (Block == 1) {
 			ReadBlockEDID(EDID_BLOCK_1_OFFSET, EDID_BLOCK_SIZE,
-					g_CommData);
+					g_SEdidData);
 			// read first 128 bytes of EDID ROM
 		} else {
 			ReadSegmentBlockEDID(Segment, Offset, EDID_BLOCK_SIZE,
-					g_CommData);
+					g_SEdidData);
 			// read next 128 bytes of EDID ROM
 		}
 		TPI_TRACE_PRINT("\n");
 		TPI_TRACE_PRINT("EDID DATA(Segment = %d Block = %d Offset = %d):\n",
 				(int) Segment, (int) Block, (int) Offset);
+		s = 0;
 		for (j = 0, i = 0; j < 128; j++) {
-			k = g_CommData[j];
-			TPI_EDID_PRINT(("%2.2X ", (int) k));
+			k = g_SEdidData[j];
+			s += sprintf(buf + s, "%2.2X ", (int) k);
 			i++;
 			if (i == 0x10) {
-				TPI_EDID_PRINT(("\n"));
+				s += sprintf(buf + s, "\n");
 				i = 0;
 			}
 		}
-		TPI_EDID_PRINT(("\n"));
+		TPI_EDID_PRINT("%s\n", buf);
 		if ((NumOfExtensions > 1) && (Block == 1))
 			continue;
 
-		ErrCode = Parse861ShortDescriptors(g_CommData);
+		ErrCode = Parse861ShortDescriptors(g_SEdidData);
 		if (ErrCode != EDID_SHORT_DESCRIPTORS_OK)
 			return ErrCode;
 
-		ErrCode = Parse861LongDescriptors(g_CommData);
+		ErrCode = Parse861LongDescriptors(g_SEdidData);
 		if (ErrCode != EDID_LONG_DESCRIPTORS_OK)
 			return ErrCode;
 
@@ -1205,9 +1194,9 @@ byte DoEdidRead(void)
 		// Request access to DDC bus from the receiver
 		if (GetDDC_Access(&SysCtrlReg)) {
 			ReadBlockEDID(EDID_BLOCK_0_OFFSET, EDID_BLOCK_SIZE,
-					g_CommData);
+					g_EdidData);
 			// read first 128 bytes of EDID ROM
-			Result = ParseEDID(g_CommData, &NumOfExtensions);
+			Result = ParseEDID(g_EdidData, &NumOfExtensions);
 			if (Result != EDID_OK) {
 				if (Result == EDID_NO_861_EXTENSIONS) {
 					TPI_DEBUG_PRINT("EDID->No 861 Extensions\n");
@@ -1799,6 +1788,14 @@ enum PcModeCode_t {
 	PC_SIZE	// Must be last
 };
 
+// WARNING!  The entries in this enum must remian in the samre
+// order as the HB Codes part of the VideoModeTable[].
+enum HbModeCode_t {
+	HB_800x480_60,
+	HB_1920x1080_60,
+	HB_SIZE	// Must be last
+};
+
 struct VModeInfoType {
 	struct ModeIdType	ModeId;
 	dword	PixClk;
@@ -1830,6 +1827,7 @@ struct VModeInfoType {
 #define HDMI_VIC_BASE	43
 #define VIC_3D_BASE	47
 #define PC_BASE		64
+#define HB_BASE		114
 
 // Aspect ratio
 #define R_4	0	// 4:3
@@ -2407,7 +2405,16 @@ static struct VModeInfoType VModesTable[] = {
 		{1716, 264 } }, {244, 18 }, {1440, 480 }, R_4or16, {3, 124, 3,
 		15, 114, 17, 5, 429 }, 0, {0, 0, 0, 0, 0 }, NO_3D_SUPPORT},
 	//113-1440x480i
-
+	{{HB_BASE, 0, NSM}, 3200, {ProgrVPosHPos, 5400, {1048, 557} },
+		{120, 43},
+		{800, 480}, R_4, {0, 48, 2, 0, 0, 120, 43, 524}, 0,
+		{0, 0, 0, 0, 0}, NO_3D_SUPPORT},
+	//114-800x480@54p
+	{{HB_BASE + 1, 0, NSM}, 16000, {ProgrVPosHPos, 6300, {2168, 1157} },
+		{120, 43},
+		{1920, 1080}, R_16, {0, 48, 2, 0, 0, 120, 43, 1084}, 0,
+		{0, 0, 0, 0, 0}, NO_3D_SUPPORT},
+	//115-1920x1080@60p
 };
 
 //------------------------------------------------------------------------------
@@ -2595,6 +2602,11 @@ byte ConvertVIC_To_VM_Index(void)
 			index = siHdmiTx.VIC + PC_BASE;
 		else
 			index = DEFAULT_VIDEO_MODE;
+	} else if (siHdmiTx.HDMIVideoFormat == VMD_HDMIFORMAT_HB) {
+		if (siHdmiTx.HbVIC <= HB_SIZE)
+			index = siHdmiTx.HbVIC + HB_BASE - 2;
+		else
+			index = DEFAULT_VIDEO_MODE;
 	} else {
 		// This should never happen!  If so,
 		// default to first table entry
@@ -2648,7 +2660,7 @@ byte SetEmbeddedSync(void)
 	B_Data[0] = H_Bit_2_H_Sync & LOW_BYTE;
 	// Setup HBIT_TO_HSYNC 8 LSBits (0x62)
 
-	B_Data[1] = (H_Bit_2_H_Sync >> 8) & TWO_LSBITS;
+	B_Data[1] = ((H_Bit_2_H_Sync >> 8) & TWO_LSBITS) | BIT_6;
 	// HBIT_TO_HSYNC 2 MSBits
 	//B_Data[1] |= BIT_EN_SYNC_EXTRACT;
 	//// and Enable Embedded Sync to 0x63
@@ -2747,7 +2759,8 @@ byte SetDE(void)
 
 	B_Data[0] = H_StartPos & LOW_BYTE;	// 8 LSB of DE DLY in 0x62
 
-	B_Data[1] = (H_StartPos >> 8) & TWO_LSBITS;// 2 MSBits of DE DLY to 0x63
+	B_Data[1] = ((H_StartPos >> 8) & TWO_LSBITS)
+			| BIT_6;// 2 MSBits of DE DLY to 0x63
 	B_Data[1] |= (Polarity << 4);	// V and H polarity
 	B_Data[1] |= BIT_EN_DE_GEN;	// enable DE generator
 
@@ -2881,6 +2894,7 @@ byte InitVideo(byte TclkSel)
 	printVideoMode();
 	TPI_TRACE_PRINT(" HF:%d", (int) siHdmiTx.HDMIVideoFormat);
 	TPI_TRACE_PRINT(" VIC:%d", (int) siHdmiTx.VIC);
+	TPI_TRACE_PRINT(" HbVIC:%d", (int) siHdmiTx.HbVIC);
 	TPI_TRACE_PRINT(" A:%x", (int) siHdmiTx.AspectRatio);
 	TPI_TRACE_PRINT(" CS:%x", (int) siHdmiTx.ColorSpace);
 	TPI_TRACE_PRINT(" CD:%x", (int) siHdmiTx.ColorDepth);
@@ -2899,8 +2913,9 @@ byte InitVideo(byte TclkSel)
 	//00-x0.5,01- x1 (default),10 -x2,11-x4
 
 	// Take values from VModesTable[]:
-	if ((siHdmiTx.VIC == 6) || (siHdmiTx.VIC == 7) ||
-	     (siHdmiTx.VIC == 21) || (siHdmiTx.VIC == 22)) {
+	if (siHdmiTx.HDMIVideoFormat != VMD_HDMIFORMAT_HB &&
+		((siHdmiTx.VIC == 6) || (siHdmiTx.VIC == 7) ||
+	     (siHdmiTx.VIC == 21) || (siHdmiTx.VIC == 22))) {
 		if (siHdmiTx.ColorSpace == YCBCR422_8BITS) {
 			B_Data[0] = VModesTable[ModeTblIndex].PixClk & 0x00FF;
 			B_Data[1] = (VModesTable[ModeTblIndex].PixClk >> 8)
@@ -2922,8 +2937,9 @@ byte InitVideo(byte TclkSel)
 	B_Data[3] = (VModesTable[ModeTblIndex].Tag.VFreq >> 8) & 0xFF;
 
 	//408i or 576i
-	if ((siHdmiTx.VIC == 6) || (siHdmiTx.VIC == 7) ||
-	     (siHdmiTx.VIC == 21) || (siHdmiTx.VIC == 22)) {
+	if (siHdmiTx.HDMIVideoFormat != VMD_HDMIFORMAT_HB &&
+		((siHdmiTx.VIC == 6) || (siHdmiTx.VIC == 7) ||
+	     (siHdmiTx.VIC == 21) || (siHdmiTx.VIC == 22))) {
 		B_Data[4] = (VModesTable[ModeTblIndex].Tag.Total.Pixels
 						/ 2) & 0x00FF;
 		// write total number of pixels to TPI registers 0x04, 0x05
@@ -2997,6 +3013,9 @@ byte InitVideo(byte TclkSel)
 		B_Data[0] = (((BITS_IN_YCBCR422 | BITS_IN_AUTO_RANGE) &
 				~BIT_EN_DITHER_10_8) & ~BIT_EXTENDED_MODE);
 		// 0x09
+	else if (siHdmiTx.ColorSpace == BLACK_MODE)
+		B_Data[0] = (((BITS_IN_BLACKMODE | BITS_IN_AUTO_RANGE) &
+				~BIT_EN_DITHER_10_8) & ~BIT_EXTENDED_MODE);
 
 #ifdef DEEP_COLOR
 	switch (siHdmiTx.ColorDepth) {
@@ -3030,11 +3049,7 @@ byte InitVideo(byte TclkSel)
 #endif
 
 	B_Data[1] = (BITS_OUT_RGB | BITS_OUT_AUTO_RANGE);  //Reg0x0A
-	//480i or 576i or 480p or 576p
-	if ((siHdmiTx.VIC == 6) || (siHdmiTx.VIC == 7) ||
-		(siHdmiTx.VIC == 21) || (siHdmiTx.VIC == 22) ||
-		(siHdmiTx.VIC == 2) || (siHdmiTx.VIC == 3) ||
-		(siHdmiTx.VIC == 17) || (siHdmiTx.VIC == 18)) {
+	if (siHdmiTx.Colorimetry == COLORIMETRY_601) {
 		B_Data[1] &= ~BIT_BT_709;
 	} else {
 		B_Data[1] |= BIT_BT_709;
@@ -3204,9 +3219,13 @@ void siHdmiTx_Init(void)
 	//Set InfoFrames only if HDMI output mode
 	if (IsHDMI_Sink()) {
 		SetAVI_InfoFrames();
+#ifdef HDMI_AUDIO_MUTE
+		SetAudioMute(AUDIO_MUTE_MUTED);
+#else
 		siHdmiTx_AudioSet();
 		// set audio interface to basic audio (an external
 		// command is needed to set to any other mode
+#endif
 	} else {
 		SetAudioMute(AUDIO_MUTE_MUTED);
 	}
@@ -3588,6 +3607,7 @@ void Set_VSIF(void)
 		}
 		break;
 	case VMD_HDMIFORMAT_CEA_VIC:
+	case VMD_HDMIFORMAT_HB:
 	default:
 		Data[8] = 0;
 		Data[9] = 0;
@@ -3750,7 +3770,7 @@ void OnDownstreamRxPoweredUp(void)
 //------------------------------------------------------------------------------
 void OnHdmiCableDisconnected(void)
 {
-	TPI_DEBUG_PRINT("HDMI Disconnected\n");
+	TPI_INFO_PRINT("HDMI Disconnected\n");
 
 	g_sys.hdmiCableConnected = FALSE;
 
@@ -3772,7 +3792,7 @@ void OnHdmiCableDisconnected(void)
 //------------------------------------------------------------------------------
 void OnHdmiCableConnected(void)
 {
-	TPI_DEBUG_PRINT("Cable Connected\n");
+	TPI_INFO_PRINT("Cable Connected\n");
 	// No need to call TPI_Init here unless TX has been
 	// powered down on cable removal.
 	//TPI_Init();
@@ -3804,11 +3824,11 @@ void OnHdmiCableConnected(void)
 #endif
 	//select output mode(HDMI/DVI) according to sink capability
 	if (IsHDMI_Sink()) {
-		TPI_DEBUG_PRINT("HDMI Sink Detected\n");
+		TPI_INFO_PRINT("HDMI Sink Detected\n");
 		ReadModifyWriteTPI(TPI_SYSTEM_CONTROL_DATA_REG,
 				OUTPUT_MODE_MASK, OUTPUT_MODE_HDMI);
 	} else {
-		TPI_DEBUG_PRINT("DVI Sink Detected\n");
+		TPI_INFO_PRINT("DVI Sink Detected\n");
 		ReadModifyWriteTPI(TPI_SYSTEM_CONTROL_DATA_REG,
 				OUTPUT_MODE_MASK, OUTPUT_MODE_DVI);
 	}
@@ -4107,6 +4127,36 @@ void siHdmiTx_VideoMode_CEA(byte vmode)
 	}
 }
 
+//------------------------------------------------------------------------------
+// Function Name: siHdmiTx_VideoMode_HB()
+// Function Description: Select output video mode for HB Format
+//
+// Accepts: Video mode
+// Returns: none
+// Globals: none
+//------------------------------------------------------------------------------
+void siHdmiTx_VideoMode_HB(byte vmode)
+{
+	switch (vmode) {
+	case HDMI_800_480_60:
+		siHdmiTx.HbVIC		= 1 + HB_800x480_60;
+		siHdmiTx.VIC		= 0;
+		siHdmiTx.AspectRatio	= VMD_ASPECT_RATIO_4x3;
+		siHdmiTx.Colorimetry	= COLORIMETRY_709;
+		siHdmiTx.TclkSel	= X1;
+		break;
+	case HDMI_1080P60:
+		siHdmiTx.HbVIC		= 1 + HB_1920x1080_60;
+		siHdmiTx.VIC		= 16;
+		siHdmiTx.AspectRatio	= VMD_ASPECT_RATIO_16x9;
+		siHdmiTx.Colorimetry	= COLORIMETRY_709;
+		siHdmiTx.TclkSel	= X1;
+		break;
+	default:
+		break;
+	}
+}
+
 #ifdef SUPPORT_HDMI_VIC
 //------------------------------------------------------------------------------
 // Function Name: siHdmiTx_VideoSel()
@@ -4303,12 +4353,15 @@ void siHdmiTx_VideoMode_3D(byte vmode)
 void siHdmiTx_VideoSel(byte vmode, byte VideoFormat)
 {
 	siHdmiTx.HDMIVideoFormat = VideoFormat;	//VMD_HDMIFORMAT_CEA_VIC;
-	siHdmiTx.ColorSpace = RGB;
+	siHdmiTx.ColorSpace = YCBCR422_16BITS;
 	siHdmiTx.ColorDepth = VMD_COLOR_DEPTH_8BIT;
-	siHdmiTx.SyncMode = EXTERNAL_HSVSDE;
+	siHdmiTx.SyncMode = EMBEDDED_SYNC;
+	siHdmiTx.HbVIC = 0;
 
 	if (siHdmiTx.HDMIVideoFormat == VMD_HDMIFORMAT_CEA_VIC)
 		siHdmiTx_VideoMode_CEA(vmode);
+	else if (siHdmiTx.HDMIVideoFormat == VMD_HDMIFORMAT_HB)
+		siHdmiTx_VideoMode_HB(vmode);
 
 #ifdef SUPPORT_HDMI_VIC
 	else if (siHdmiTx.HDMIVideoFormat == VMD_HDMIFORMAT_HDMI_VIC)
@@ -4339,4 +4392,24 @@ void siHdmiTx_AudioSel(byte Afs)
 	siHdmiTx.AudioI2SFormat = (MCLK256FS << 4) |
 		SCK_SAMPLE_RISING_EDGE | 0x00;
 	//last num 0x00-->0x02
+}
+
+//------------------------------------------------------------------------------
+// Function Name: siHdmiTx_ReConfig()
+// Function Description: Config video and audio mode and make it output
+//
+// Accepts: Video mode
+// Returns: none
+// Globals: none
+//------------------------------------------------------------------------------
+void siHdmiTx_ReConfig(byte vmode, byte VideoFormat, byte Afs)
+{
+	siHdmiTx_VideoSel(vmode, VideoFormat);
+
+#ifndef HDMI_AUDIO_MUTE
+	siHdmiTx_AudioSel(Afs);
+#endif
+
+	siHdmiTx_TPI_Init();
+	siHdmiTx_PowerStateD3();
 }
