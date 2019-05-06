@@ -93,7 +93,7 @@
 #define TX_HS_ZERO(s)            (0x80 | ((s) & 0x7F))
 #define TX_SLEW_RATE_CAL         (0x5E)
 #define TX_SLEW_RATE_CTL         (0x11)
-#define TX_PLL_DIV(n)            (((n) << 3) | 0x2)
+#define TX_PLL_DIV(n)            (0x80 | ((n) << 3) | 0x2)
 #define TX_PLL_MULTI_L(m)        ((m) & 0xFF)
 #define TX_PLL_MULTI_H(m)        (((m) & 0x300) >> 8)
 #define TX_PLL_VCO(v)            (0x81 | (((v) & 0x1F) << 1))

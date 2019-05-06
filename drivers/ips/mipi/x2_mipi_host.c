@@ -211,15 +211,15 @@ static uint16_t mipi_host_get_hsd(mipi_host_cfg_t *control, unsigned long pixclk
 		bits_per_pixel = 16;
 		break;
 	}
-	if (!control->linelenth || control->linelenth == control->width) {
-		rx_bit_clk = control->mipiclk * 1000000;
+	if (!control->linelenth) {
+		rx_bit_clk = (unsigned long)control->mipiclk * 1000000;
         line_size = control->width;
 	} else {
 		rx_bit_clk = control->linelenth * control->framelenth * control->fps * bits_per_pixel;
 		line_size = control->linelenth;
 	}
-	mipiinfo("linelenth: %d, framelenth: %d, fps: %d, bits_per_pixel: %lu, pixclk: %lu",
-			 control->linelenth, control->framelenth, control->fps, bits_per_pixel, pixclk);
+	mipiinfo("linelenth: %d, framelenth: %d, fps: %d, bits_per_pixel: %lu, pixclk: %lu, rx_bit_clk: %lu",
+			 control->linelenth, control->framelenth, control->fps, bits_per_pixel, pixclk, rx_bit_clk);
 	time_ppi = (1000 * bits_per_pixel * line_size * 1000000 / rx_bit_clk);
 	mipiinfo("time to transmit last pixel in ppi: %lu", time_ppi);
 	hsdtime = (bits_per_pixel * line_size * pixclk / rx_bit_clk) - (control->hsaTime + control->hbpTime + cycles_to_trans);
@@ -271,7 +271,7 @@ static int32_t mipi_host_configure_ipi(mipi_host_cfg_t *control)
 		mipi_putreg(iomem + REG_MIPI_HOST_IPI2_HSA_TIME, control->hsaTime);
 		mipi_putreg(iomem + REG_MIPI_HOST_IPI2_HBP_TIME, control->hbpTime);
 		mipi_putreg(iomem + REG_MIPI_HOST_IPI2_HSD_TIME, control->hsdTime);
-		mipi_putreg(iomem + REG_MIPI_HOST_IPI2_ADV_FEATURES, MIPI_HOST_LEGCYMODE_ENABLE);
+		//mipi_putreg(iomem + REG_MIPI_HOST_IPI2_ADV_FEATURES, MIPI_HOST_LEGCYMODE_ENABLE);
 	}
 	return 0;
 }
