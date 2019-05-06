@@ -152,6 +152,7 @@ struct x2_cnn_dev {
 	struct list_head debugfs_list;
 	struct mutex debugfs_lock; /* Protects debugfs_list. */
 	struct kfifo fc_time_fifo;
+	struct kfifo fc_time_wait_fifo;
 	struct kfifo fc_time_save_fifo;
 
 };

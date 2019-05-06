@@ -48,7 +48,7 @@
 
 extern struct sock *cnn_netlink_init(int unit);
 extern int cnn_netlink_send(struct sock *sock, int group, void *msg, int len);
-struct sock *cnn_nl_sk = NULL;
+struct sock *cnn_nl_sk;
 
 #define FC_TIME_CNT 50
 #define FC_TIME_SAVE_CNT 50
@@ -407,6 +407,27 @@ static void x2_cnn_set_fc_tail_idx(struct x2_cnn_dev *dev, u32 fc_tail_idx)
 	x2_cnn_reg_write(dev, X2_CNN_FC_TAIL, reg_val);
 }
 
+static void x2_cnn_set_fc_start_time(struct x2_cnn_dev *dev, int int_num,
+				     int fc_tail)
+{
+
+	struct x2_fc_time fc_time;
+
+	fc_tail++;
+	fc_tail &= X2_CNN_MAX_FC_LEN_MASK;
+	fc_time.int_num = int_num;
+	fc_time.fc_count = fc_tail;
+	if (atomic_read(&dev->wait_fc_cnt) > 0)
+		kfifo_in(&dev->fc_time_wait_fifo, &fc_time,
+			 sizeof(struct x2_fc_time));
+	else {
+		do_gettimeofday(&fc_time.start_time);
+		kfifo_in(&dev->fc_time_fifo, &fc_time,
+			 sizeof(struct x2_fc_time));
+	}
+	atomic_inc(&dev->wait_fc_cnt);
+}
+
 #ifdef CNN_DEBUG
 static void dump_fc_fifo_status(struct x2_cnn_dev *dev)
 {
@@ -525,19 +546,10 @@ static u32 x2_cnn_fc_fifo_enqueue(struct x2_cnn_dev *dev,
 		 * Actually, according to libpu, fc_cnt is always 1
 		 */
 		for (i = 0; i < insert_fc_cnt; i++) {
-			int tmp_tail = fc_tail_idx;
-
-			if (tmp_ptr->interrupt_num != 0) {
-				tmp_tail++;
-				tmp_tail &= X2_CNN_MAX_FC_LEN_MASK;
-				atomic_inc(&dev->wait_fc_cnt);
-				do_gettimeofday(&fc_time.start_time);
-				fc_time.int_num = tmp_ptr->interrupt_num;
-				fc_time.fc_count = tmp_tail;
-				kfifo_in(&dev->fc_time_fifo, &fc_time,
-					 sizeof(struct x2_fc_time));
-
-			}
+			if (tmp_ptr->interrupt_num != 0)
+				x2_cnn_set_fc_start_time(dev,
+							 tmp_ptr->interrupt_num,
+							 fc_tail_idx);
 			tmp_ptr++;
 		}
 		x2_cnn_set_fc_tail_idx(dev, residue_fc_cnt | fc_tail_flag);
@@ -548,18 +560,10 @@ static u32 x2_cnn_fc_fifo_enqueue(struct x2_cnn_dev *dev,
 		 * Actually, according to libpu, fc_cnt is always 1
 		 */
 		for (i = 0; i < fc_buf->fc_cnt; i++) {
-			int tmp_tail = fc_tail_idx;
-
-			if (tmp_ptr->interrupt_num != 0) {
-				tmp_tail++;
-				tmp_tail &= X2_CNN_MAX_FC_LEN_MASK;
-				atomic_inc(&dev->wait_fc_cnt);
-				do_gettimeofday(&fc_time.start_time);
-				fc_time.int_num = tmp_ptr->interrupt_num;
-				fc_time.fc_count = tmp_tail;
-				kfifo_in(&dev->fc_time_fifo, &fc_time,
-					 sizeof(struct x2_fc_time));
-			}
+			if (tmp_ptr->interrupt_num != 0)
+				x2_cnn_set_fc_start_time(dev,
+							 tmp_ptr->interrupt_num,
+							 fc_tail_idx);
 			tmp_ptr++;
 		}
 		x2_cnn_set_fc_tail_idx(dev,
@@ -827,13 +831,13 @@ static void x2_cnn_do_tasklet(unsigned long data)
 	wake_up(&dev->cnn_int_wait);
 	dev->irq_triggered = 1;
 	spin_unlock_irqrestore(&dev->cnn_spin_lock, flags);
-
+#if 0
 	ret = cnn_netlink_send(dev->irq_sk, dev->core_index,
 			&dev->x2_cnn_int_num, sizeof(dev->x2_cnn_int_num));
-	if ((ret < 0) && (ret != -ESRCH)) {
-		pr_err("CNN trigger irq[%d] failed errno[%d]!\n", dev->x2_cnn_int_num, ret);
-	}
-
+	if ((ret < 0) && (ret != -ESRCH))
+		pr_err("CNN trigger irq[%d] failed errno[%d]!\n",
+				dev->x2_cnn_int_num, ret);
+#endif
 	ret = kfifo_avail(&dev->fc_time_save_fifo);
 	if (ret < sizeof(struct x2_fc_time))
 		kfifo_out(&dev->fc_time_save_fifo, &tmp,
@@ -843,6 +847,13 @@ static void x2_cnn_do_tasklet(unsigned long data)
 	do_gettimeofday(&tmp.end_time);
 	ret = kfifo_in(&dev->fc_time_save_fifo, &tmp,
 		       sizeof(struct x2_fc_time));
+	if (kfifo_is_empty(&dev->fc_time_wait_fifo) == 0) {
+		ret = kfifo_out(&dev->fc_time_wait_fifo, &tmp,
+				sizeof(struct x2_fc_time));
+		do_gettimeofday(&tmp.start_time);
+		ret = kfifo_in(&dev->fc_time_fifo, &tmp,
+			       sizeof(struct x2_fc_time));
+	}
 }
 
 static void *cnn_ram_vmap(phys_addr_t start, size_t size,
@@ -1170,6 +1181,7 @@ void cnn_fc_time_kfifo_clean(struct x2_cnn_dev *dev)
 {
 	kfifo_free(&dev->fc_time_fifo);
 	kfifo_free(&dev->fc_time_save_fifo);
+	kfifo_free(&dev->fc_time_wait_fifo);
 }
 
 static int x2_cnn_remove(struct platform_device *pdev)
