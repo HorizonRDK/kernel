@@ -1,3 +1,5 @@
+#include <dt-bindings/clk/hobot-clk.h>
+
 /{
 	clocks@0xA1000000 {
 		compatible = "hobot,x2-clk";

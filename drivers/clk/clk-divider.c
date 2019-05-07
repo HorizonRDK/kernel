@@ -204,6 +204,20 @@ static int _round_down_table(const struct clk_div_table *table, int div)
 	return down;
 }
 
+static int _div_round_down(const struct clk_div_table *table,
+			 unsigned long parent_rate, unsigned long rate,
+			 unsigned long flags)
+{
+	int div = parent_rate / rate;
+
+	if (flags & CLK_DIVIDER_POWER_OF_TWO)
+		div = __rounddown_pow_of_two(div);
+	if (table)
+		div = _round_down_table(table, div);
+
+	return div;
+}
+
 static int _div_round_up(const struct clk_div_table *table,
 			 unsigned long parent_rate, unsigned long rate,
 			 unsigned long flags)
@@ -248,6 +262,8 @@ static int _div_round(const struct clk_div_table *table,
 {
 	if (flags & CLK_DIVIDER_ROUND_CLOSEST)
 		return _div_round_closest(table, parent_rate, rate, flags);
+	else if (flags & CLK_DIVIDER_ROUND_DOWN)
+		return _div_round_down(table, parent_rate, rate, flags);
 
 	return _div_round_up(table, parent_rate, rate, flags);
 }
@@ -257,6 +273,8 @@ static bool _is_best_div(unsigned long rate, unsigned long now,
 {
 	if (flags & CLK_DIVIDER_ROUND_CLOSEST)
 		return abs(rate - now) < abs(rate - best);
+	else if (flags & CLK_DIVIDER_ROUND_DOWN)
+		return  now >= rate && abs(rate - now) < abs(rate - best);
 
 	return now <= rate && now > best;
 }

@@ -1,3 +1,4 @@
+#define DEBUG
 #include <linux/clk-provider.h>
 #include <linux/err.h>
 #include <linux/of.h>
@@ -45,11 +46,19 @@ static void __init _of_x2_divider_clk_setup(struct device_node *node)
 	offset = val;
 
 	ret = of_property_read_u32(node, "field", &val);
-	if(ret){
+	if (ret) {
 		pr_err("%s: %s missing field property!\n", __func__, node->name);
 		return;
 	}
 	field = val;
+
+	ret = of_property_read_u32(node, "clk-flags", &val);
+	if (!ret)
+		flags |= val;
+
+	ret = of_property_read_u32(node, "clk-divider-flags", &val);
+	if (!ret)
+		clk_divider_flags |= val;
 
 	lock = kzalloc(sizeof(spinlock_t), GFP_KERNEL);
 	if(!lock){
