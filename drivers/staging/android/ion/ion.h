@@ -502,8 +502,7 @@ void ion_carveout_heap_destroy(struct ion_heap *heap);
 struct ion_heap *ion_chunk_heap_create(struct ion_platform_heap *heap_data);
 void ion_chunk_heap_destroy(struct ion_heap *heap);
 
-struct ion_heap *ion_cma_heap_create(struct ion_platform_heap *data);
-void ion_cma_heap_destroy(struct ion_heap *heap);
+int ion_add_cma_heaps(struct ion_device *idev);
 
 /* int ion_device_create(void); */
 #if 0

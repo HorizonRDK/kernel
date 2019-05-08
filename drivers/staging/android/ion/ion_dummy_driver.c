@@ -63,6 +63,11 @@ static struct ion_platform_heap dummy_heaps[] = {
 			.align	= SZ_16K,
 			.priv	= (void *)(SZ_16K),
 		},
+		{
+			.id	= ION_HEAP_TYPE_DMA,
+			.type	= ION_HEAP_TYPE_DMA,
+			.name	= "cma",
+		},
 };
 
 static struct ion_platform_data dummy_ion_pdata = {
@@ -163,6 +168,11 @@ static int __init ion_dummy_init(void)
 
 		if (heap_data->type == ION_HEAP_TYPE_CHUNK && !heap_data->base)
 			continue;
+
+		if (heap_data->type == ION_HEAP_TYPE_DMA) {
+			ion_add_cma_heaps(idev);
+			continue;
+		}
 
 		heaps[i] = ion_heap_create(heap_data);
 		if (IS_ERR_OR_NULL(heaps[i])) {
