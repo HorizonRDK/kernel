@@ -177,6 +177,21 @@
 			};
 		};
 	};
+	siiEDID@0x50 {
+		compatible = "siiEDID";
+		reg = <0x50>;
+	};
+	siiSegEDID@0x30 {
+		compatible = "siiSegEDID";
+		reg = <0x30>;
+	};
+	sii902xA@0x3B {
+		compatible = "sii902xA";
+		reg = <0x3B>;
+		rst_pin = <85>;
+		irq_pin = <2>;
+	};
+
 };
 
 &i2c1 {
@@ -285,6 +300,9 @@
 &iar {
 	status = "okay";
 };
+&fb {
+	status = "okay";
+};
 
 &bifspi {
 	status = "okay";
@@ -335,17 +353,17 @@
 	disable-wp;
 };
 
-&sdio1 {
-	status = "okay";
-	bus-width = <4>;
-	no-mmc;
-	no-sdio;
-	cap-sd-highspeed;
-	powerup-gpio = <85>;
-	uhs-180v-gpio = <86>;
-	non-removable;
-	disable-wp;
-};
+//&sdio1 {
+//	status = "okay";
+//	bus-width = <4>;
+//	no-mmc;
+//	no-sdio;
+//	cap-sd-highspeed;
+//	powerup-gpio = <85>;
+//	uhs-180v-gpio = <86>;
+//	non-removable;
+//	disable-wp;
+//};
 
 &watchdog {
 	status = "okay";

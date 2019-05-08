@@ -401,7 +401,7 @@
 
 		fb: fb {
 			compatible = "hobot,x2-fb";
-			status = "disabled";
+			status = "enabled";
 		};
 
 		timer0: timer@0xA1002000 {
