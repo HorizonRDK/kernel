@@ -82,7 +82,7 @@ enum {
 	OUTPUT_CFG,
 };
 
-static int lcd_type;
+static int lcd_type = RGB888_700;
 //static int outmode = OUTPUT_RGB888;
 static int outmode = OUTPUT_BT1120;
 static u32 x2fb_pseudo_palette[16];
@@ -105,6 +105,8 @@ static int x2fb_mmap(struct fb_info *info, struct vm_area_struct *pvma);
 static int iar_paser_config(int type, int config_arrray[]);
 static int x2fb_check_var(struct fb_var_screeninfo *var, struct fb_info *info);
 static int init_config(void);
+
+static int flag;
 
 
 int channelconfig[] = {
@@ -416,14 +418,29 @@ struct fb_var_screeninfo RGB700_var_default = {
 	.height = 85,
 	.width = 153,
 	.accel_flags = FB_ACCEL_NONE,
-	.pixclock = 19608,//44.9MHz,51.2MHz,63MHz
-	.left_margin = 160,//16~216
-	.right_margin = 160,//160~160
-	.upper_margin = 12,//1~127
-	.lower_margin = 23,//23~23
-	.hsync_len = 70,//1~140,no type value
-	.vsync_len = 10,//1~20,no type value
-	.sync = 0,//????????
+/*	.pixclock = 19608,//29.2MHz,spec:20,33.3,50
+ *	.left_margin = 160,//20~200
+ *	.right_margin = 160,//87~1
+ *	.upper_margin = 12,//5~200
+ *	.lower_margin = 23,//31~29
+ *	.hsync_len = 70,//1~87,no type value
+ *	.vsync_len = 10,//1~3,no type value
+*/
+
+//	.pixclock = 34247,//29.2MHz,spec:20,33.3,50
+	.pixclock = 30030,//33.3M,
+//	.left_margin = 40,//20~200
+//	.right_margin = 40,//87~1
+	.left_margin = 120,//100+20
+	.right_margin = 80,//52+28
+//	.upper_margin = 12,//5~200
+//	.lower_margin = 30,//31~29
+	.upper_margin = 43,//42+1
+	.lower_margin = 32,//31+1
+	.hsync_len = 48,//1~87,no type value
+	.vsync_len = 2,//1~3,no type value
+
+	.sync = 0,
 	.vmode = FB_VMODE_NONINTERLACED,
 	.rotate = 0,
 	.colorspace = 0,
@@ -465,7 +482,7 @@ static int x2fb_blank(int blank, struct fb_info *info)
 {
 	switch (blank) {
 	case FB_BLANK_UNBLANK:
-		set_lt9211_config(&x2_fbi->fb, 0);
+		// by lmg. set_lt9211_config(&x2_fbi->fb, 0);
 		break;
 	default:
 		//set timing_v_sync 0writel
@@ -475,45 +492,77 @@ static int x2fb_blank(int blank, struct fb_info *info)
 
 	return 0;
 }
-
+//------------------------------------------------------------------------------
 static int x2fb_mmap(struct fb_info *info, struct vm_area_struct *pvma)
 {
 	unsigned int frame_size = 0;
 	int ret = 0;
 	frame_buf_t *framebuf = x2_iar_get_framebuf_addr(2);
-
+	x2_fbi->channel3_en = 1;
 	iar_get_framesize();
 	frame_size = x2_fbi->update_cmd.frame_size[2];
 
 	pr_info("x2fb mmap begin!\n");
-
+	flag = 0;
 	if (!framebuf || (pvma->vm_end - pvma->vm_start) > MAX_FRAME_BUF_SIZE)
 		return -ENOMEM;
 
 	pvma->vm_flags |= VM_IO;
 	pvma->vm_flags |= VM_LOCKED;
-	if (remap_pfn_range(pvma, pvma->vm_start, framebuf->paddr >> PAGE_SHIFT,
+	//pvma->vm_page_prot = pgprot_noncached(pvma->vm_page_prot);
+	if (remap_pfn_range(pvma, pvma->vm_start,
+			(framebuf->paddr +  MAX_FRAME_BUF_SIZE*3) >> PAGE_SHIFT,
 			pvma->vm_end - pvma->vm_start, pvma->vm_page_prot)) {
 		pr_err("x2fb mmap fail\n");
 		return -EAGAIN;
 	}
 	pr_info("x2fb mmap end!:%llx\n", framebuf->paddr);
-	if (x2_fbi->channel3_en && frame_size <= MAX_FRAME_BUF_SIZE) {
-#ifdef IAR_DMA_MODE
-		if (framebuf) {
-			//clean_cache(framebuf->vaddr, frame_size);
-			__clean_dcache_area_poc(framebuf->vaddr, frame_size);
-			ret = iar_write_framebuf_dma(2,
-					framebuf->paddr, frame_size);
+	return ret;
+}
+/*
+static int x2fb_mmap(struct fb_info *info, struct vm_area_struct *pvma)
+{
+	unsigned int frame_size = 0;
+	int ret = 0;
+	frame_buf_t *framebuf = x2_iar_get_framebuf_addr(2);
+	x2_fbi->channel3_en = 1;
+	iar_get_framesize();
+	frame_size = x2_fbi->update_cmd.frame_size[2];
+	if(flag == 0){
+		pr_info("x2fb mmap begin!\n");
+		flag = 1;
+		if (!framebuf || (pvma->vm_end - pvma->vm_start) >
+						MAX_FRAME_BUF_SIZE)
+			return -ENOMEM;
+
+		pvma->vm_flags |= VM_IO;
+		pvma->vm_flags |= VM_LOCKED;
+		if (remap_pfn_range(pvma, pvma->vm_start,
+			framebuf->paddr >> PAGE_SHIFT,
+			pvma->vm_end - pvma->vm_start, pvma->vm_page_prot)) {
+			pr_err("x2fb mmap fail\n");
+			return -EAGAIN;
 		}
-#else
-		if (pvma->vm_start)
-			ret = iar_write_framebuf_poll(2,
-					pvma->vm_start, frame_size);
-#endif
+		pr_info("x2fb mmap end!:%llx\n", framebuf->paddr);
+	} else if (flag == 1) {
+		flag = 0;
+		printk("channel3_en is 0x%x, fram_size is 0x%x.",
+			x2_fbi->channel3_en, frame_size);
+		if (x2_fbi->channel3_en && frame_size <= MAX_FRAME_BUF_SIZE) {
+			printk(".......................................\n");
+			if (framebuf) {
+				printk("begin write framebuffer to pingpong buffer by dma.\n");
+				//clean_cache(framebuf->vaddr, frame_size);
+				__clean_dcache_area_poc(framebuf->vaddr, frame_size);
+				ret = iar_write_framebuf_dma(2,
+						framebuf->paddr, frame_size);
+				pr_info("write framebuffer to pinpong buffer by dma success!\n");
+			}
+		}
 	}
 	return ret;
 }
+*/
 
 static int x2fb_setcolreg(unsigned int regno, unsigned int red,
 		unsigned int green, unsigned int blue, unsigned int transp,
@@ -530,11 +579,55 @@ static int x2fb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 
 	return ret;
 }
-
+//static long x2fb_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
+//{
+//	int ret = 0;
+//	unsigned int frame_size = 0;
+//	int ret = 0;
+//	frame_buf_t *framebuf = x2_iar_get_framebuf_addr(2);
+//	x2_fbi->channel3_en = 1;
+//	iar_get_framesize();
+//	frame_size = x2_fbi->update_cmd.frame_size[2];
+//
+//	pr_info("x2fb display begin!\n");
+//
+////	if (!framebuf || (pvma->vm_end - pvma->vm_start) > MAX_FRAME_BUF_SIZE)
+////		return -ENOMEM;
+////
+////	pvma->vm_flags |= VM_IO;
+////	pvma->vm_flags |= VM_LOCKED;
+////	if (remap_pfn_range(pvma, pvma->vm_start, framebuf->paddr >> PAGE_SHIFT,
+////			pvma->vm_end - pvma->vm_start, pvma->vm_page_prot)) {
+////		pr_err("x2fb mmap fail\n");
+////		return -EAGAIN;
+////	}
+////	pr_info("x2fb mmap end!:%llx\n", framebuf->paddr);
+////	pr_info("channel3_en is 0x%x, fram_size is 0x%x.", x2_fbi->channel3_en, frame_size);
+//	if (x2_fbi->channel3_en && frame_size <= MAX_FRAME_BUF_SIZE) {
+////#ifdef IAR_DMA_MODE
+//		printk(".......................................\n");
+//		if (framebuf) {
+//			pr_info("begin write framebuffer to pingpong buffer by dma.\n");
+//			//clean_cache(framebuf->vaddr, frame_size);
+//			__clean_dcache_area_poc(framebuf->vaddr, frame_size);
+//			ret = iar_write_framebuf_dma(2,
+//					framebuf->paddr, frame_size);
+//			pr_info("write framebuffer to pinpong buffer by dma success!\n");
+//		}
+////#else
+////		if (pvma->vm_start)
+////			ret = iar_write_framebuf_poll(2,
+////					pvma->vm_start, frame_size);
+////#endif
+//	}
+////	return ret;
+//	return ret;
+//}
 static int x2fb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
 {
 	u_long line_length;
 
+	pr_info("%s begin.\n", __func__);
 	if (!var->xres)
 		var->xres = 1;
 	if (!var->yres)
@@ -671,7 +764,7 @@ static int x2fb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
 		if (var->vsync_len > 20)
 			var->vsync_len = 20;
 
-	} else if (outmode == OUTPUT_RGB888 && lcd_type == RGB888_500) {
+	} else if (outmode == OUTPUT_RGB888 && lcd_type == RGB888_700) {
 		if (var->pixclock < 15873)
 			var->pixclock = 15873;
 		if (var->pixclock > 22272)
@@ -697,7 +790,7 @@ static int x2fb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
 	} else if (outmode == OUTPUT_BT1120) {
 
 	}
-
+	pr_info("%s: end.\n", __func__);
 	return 0;
 }
 
@@ -836,6 +929,7 @@ static int iar_get_framesize(void)
 				 x2_fbi->channel_base_cfg[i].buf_width) * 2;
 				break;
 			case FORMAT_RGB888:
+				pr_info("IAR channel 2 config format as RGB888!\n");
 				x2_fbi->update_cmd.frame_size[i] =
 				(x2_fbi->channel_base_cfg[i].buf_height *
 				 x2_fbi->channel_base_cfg[i].buf_width) * 3;
@@ -855,197 +949,97 @@ static int x2fb_set_par(struct fb_info *fb)
 {
 
 	int ret = 0;
+	void __iomem *hitm1_reg_addr;
+	int hitm1_reg_value = 0;
 
+	pr_info("%s: begin.\n", __func__);
 	iar_stop();
 //	init_config();
 
 	X2FB_DEBUG_PRINT("## iar_parser_config.\n");
 
-	x2_fbi->memory_mode = 0;//????
+	x2_fbi->memory_mode = 0;
 
 	x2_fbi->channel_base_cfg[0].enable = 0;
 	x2_fbi->channel_base_cfg[1].enable = 0;
 	x2_fbi->channel_base_cfg[3].enable = 0;
 
-	x2_fbi->channel_base_cfg[2].channel = 2;
+	x2_fbi->channel_base_cfg[2].channel = IAR_CHANNEL_3;
 	x2_fbi->channel_base_cfg[2].enable = x2_fbi->channel3_en;
 	x2_fbi->update_cmd.enable_flag[2] = x2_fbi->channel3_en;
+	x2_fbi->channel_base_cfg[2].enable = 1;
+	x2_fbi->update_cmd.enable_flag[2] = 1;
+
 
 	x2_fbi->channel_base_cfg[2].pri = 1;
-	x2_fbi->channel_base_cfg[2].width = fb->var.xres;
-	x2_fbi->channel_base_cfg[2].height = fb->var.yres;
-	x2_fbi->channel_base_cfg[2].buf_width = fb->var.xres;
-	x2_fbi->channel_base_cfg[2].buf_height = fb->var.yres;
-	x2_fbi->channel_base_cfg[2].format = 4;//ARGB8888
-	x2_fbi->channel_base_cfg[2].xposition = fb->var.xoffset;
-	x2_fbi->channel_base_cfg[2].yposition = fb->var.xoffset;
+
+	x2_fbi->channel_base_cfg[2].width = 1920;
+	x2_fbi->channel_base_cfg[2].height = 1080;
+	x2_fbi->channel_base_cfg[2].buf_width = 1920;
+	x2_fbi->channel_base_cfg[2].buf_height = 1080;
+	// x2_fbi->channel_base_cfg[2].format = 4;//ARGB8888
+	// x2_fbi->channel_base_cfg[2].xposition = fb->var.xoffset;
+	// x2_fbi->channel_base_cfg[2].yposition = fb->var.xoffset;
 	x2_fbi->channel_base_cfg[2].alpha_sel = 0;
 	x2_fbi->channel_base_cfg[2].ov_mode = 0;
-	x2_fbi->channel_base_cfg[2].alpha_en = 0;
+	x2_fbi->channel_base_cfg[2].alpha_en = 1;
 	x2_fbi->channel_base_cfg[2].alpha = 255;
 
-	x2_fbi->output_cfg.out_sel = 1;
-	x2_fbi->output_cfg.width = 700;
-	x2_fbi->output_cfg.height = 480;
-	x2_fbi->output_cfg.bgcolor = 16744328;
+	x2_fbi->output_cfg.out_sel = 1;  // 1-BT.
+	x2_fbi->output_cfg.width = 1920;
+	x2_fbi->output_cfg.height = 1080;
+	x2_fbi->output_cfg.bgcolor = 16744328; // white.
 	X2FB_DEBUG_PRINT("iar_parser_configfile end\n");
 
-	iar_get_framesize();
+	// iar_get_framesize();
 	iar_channel_base_cfg(&x2_fbi->channel_base_cfg[2]);
 	iar_output_cfg(&x2_fbi->output_cfg);
 	iar_set_panel_timing(fb);
-//	x2_activate_par();
 
-	set_lt9211_config(&x2_fbi->fb, 0);
+	iar_switch_buf(2);
+	hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x204, 4);
+	writel(0x0, hitm1_reg_addr);
+	hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x00, 4);
+	writel(0x041bf00f, hitm1_reg_addr);
+//	hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x68, 4);//bg_color
+//	writel(0x00000000, hitm1_reg_addr);
+	hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x204, 4);//refresh
+	writel(0x00000008, hitm1_reg_addr);
+//	hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x318, 4);//refresh
+//	writel(0x00000001, hitm1_reg_addr);
 
+
+/*
+ *	hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x208, 4);
+ *	hitm1_reg_value = 0x0280a030;
+ *	writel(hitm1_reg_value, hitm1_reg_addr);
+ *	//printk();
+ *	vitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x20c, 4);
+ *	vitm1_reg_value = 0x01e03003;
+ *	writel(vitm1_reg_value, vitm1_reg_addr);
+ *
+ *	hitm2_reg_addr = ioremap_nocache(0xA4001000 + 0x210, 4);
+ *	hitm2_reg_value = 0x0280a030;
+ *	writel(hitm2_reg_value, hitm2_reg_addr);
+ *	//printk();
+ *	vitm2_reg_addr = ioremap_nocache(0xA4001000 + 0x214, 4);
+ *	vitm2_reg_value = 0x01e03003;
+ *	writel(vitm2_reg_value, vitm2_reg_addr);
+*/
 	iar_start(1);
+	iar_switch_buf(2);
+
+	msleep(500);
+	msleep(500);
+
+	//x2_activate_par();
+	//set_lt9211_config(&x2_fbi->fb, 0);
+	pr_info("%s: end.\n", __func__);
+
 	return ret;
 
 }
 
-//void x2_set_par(struct fb_info *fb)
-//{
-//	channel_base_cfg_t channel_cfg;
-//	ouput_cfg_t out_cfg;
-//    uint32_t value;
-//
-//    out_cfg.out_sel = outmode;
-//    out_cfg.width = fb.width;
-//    out_cfg.height = fb.height;
-//    out_cfg.ppcon1 = {
-//			.dithering_flag = 0,
-//			.dithering_en = 0,
-//			.gamma_en = 0,
-//			.hue_en = 0,
-//			.sat_en = 0,
-//			.con_en = 0,
-//			.bright_en = 0,
-//			.theta_sign = 0,
-//			.contrast = 0
-//    };
-//    out_cfg.ppcon2 = {
-//			.theta_abs = 0,
-//			.saturation = 0,
-//			.off_contrast = 0,
-//			.off_bright = 0,
-//    };
-//    out_cfg.refresh_cfg = {
-//			.dbi_refresh_mode = 0,
-//			.panel_corlor_type = 0x0,//RGB888
-//			.interlace_sel = 0,//non-interlace
-//			.odd_polarity = 0,//
-//			.pixel_rate = 0,//0+1 pixels per de_clock
-//			.ycbcr_out = 0,
-//			.uv_sequence = 0,
-//			.itu_r656_en = 0,
-//    };
-//
-//    channel_cfg.channel = 2;
-//    channel_cfg.enable = 1;
-//    channel_cfg.pri = 0;//
-//    channel_cfg.with = fb->xres;
-//    channel_cfg.height = fb->yres;
-//    channel_cfg.buf_width = fb->xres * 3;
-//    channel_cfg.buf_height = fb->yres * 3;
-//    channel_cfg.xposition = 0;
-//    channel_cfg.yposition = 0;
-//    channel_cfg.format = 0x3;//packed RGB888
-//    channel_cfg.alpha_en = 0;
-//
-//    iar_channel_base_cfg(&channel_cfg);
-//
-//    if(cfg->out_sel == OUTPUT_BT1120)
-//    {
-//        ips_pinmux_bt();
-//        ips_set_btout_clksrc(IAR_CLK);
-//    }
-//    //hvsync_timing
-////    iar_set_hvsync_timing(cfg->out_sel);
-//
-//    value = readl(x2_fbi->regaddr + REG_IAR_PARAMETER_HTIM_FIELD1);
-//    value = IAR_REG_SET_FILED(IAR_DPI_HBP_FIELD ,fb->right_margin, value);
-//    value = IAR_REG_SET_FILED(IAR_DPI_HFP_FIELD ,fb->left_margin, value);
-//    value = IAR_REG_SET_FILED(IAR_DPI_HSW_FIELD ,fb->hsync_len, value);
-//    writel(value, x2_fbi->regaddr + REG_IAR_PARAMETER_HTIM_FIELD1);
-//
-//    value = readl(x2_fbi->regaddr + REG_IAR_PARAMETER_HTIM_FIELD2);
-//    value = IAR_REG_SET_FILED(IAR_DPI_HBP_FIELD2 ,fb->right_margin, value);
-//    value = IAR_REG_SET_FILED(IAR_DPI_HFP_FIELD2 ,fb->left_margin, value);
-//    value = IAR_REG_SET_FILED(IAR_DPI_HSW_FIELD2 ,fb->hsync_len, value);
-//    writel(value, x2_fbi->regaddr + REG_IAR_PARAMETER_HTIM_FIELD2);
-//
-//    value = readl(x2_fbi->regaddr + REG_IAR_PARAMETER_VTIM_FIELD1);
-//    value = IAR_REG_SET_FILED(IAR_DPI_VBP_FIELD ,fb->lower_margin, value);
-//    if(outmode == OUTPUT_BT1120)
-//        value = IAR_REG_SET_FILED(IAR_DPI_VFP_FIELD ,0x6, value);
-//    else
-//        value = IAR_REG_SET_FILED(IAR_DPI_VFP_FIELD ,fb->upper_margin, value);
-//    value = IAR_REG_SET_FILED(IAR_DPI_VSW_FIELD ,fb->vsync_len, value);
-//    writel(value, x2_fbi->regaddr + REG_IAR_PARAMETER_VTIM_FIELD1);
-//
-//    value = readl(x2_fbi->regaddr + REG_IAR_PARAMETER_VTIM_FIELD2);
-//    value = IAR_REG_SET_FILED(IAR_DPI_VBP_FIELD2 ,fb->lower_margin, value);
-//    if(outmode == OUTPUT_BT1120)
-//        value = IAR_REG_SET_FILED(IAR_DPI_VFP_FIELD2 ,0x6, value);
-//    else
-//        value = IAR_REG_SET_FILED(IAR_DPI_VFP_FIELD2 ,fb->upper_margin,
-//        value);
-//    value = IAR_REG_SET_FILED(IAR_DPI_VSW_FIELD2 ,fb->vsync_len, value);
-//    writel(value, x2_fbi->regaddr + REG_IAR_PARAMETER_VTIM_FIELD1);
-//
-//    writel(0xa, g_iar_dev->regaddr + REG_IAR_PARAMETER_VFP_CNT_FIELD12);
-//
-//    //output config
-//    writel(out_cfg.bgcolor, g_iar_dev->regaddr + REG_IAR_BG_COLOR);
-//    writel((0x1 << out_cfg.out_sel), g_iar_dev->regaddr +
-//    REG_IAR_DE_OUTPUT_SEL);
-//    value = IAR_REG_SET_FILED(IAR_PANEL_WIDTH ,out_cfg.width,0);
-//    value = IAR_REG_SET_FILED(IAR_PANEL_HEIGHT ,out_cfg.height,value);
-//    writel(value, g_iar_dev->regaddr + REG_IAR_PANEL_SIZE);
-//
-//    value = IAR_REG_SET_FILED(IAR_CONTRAST ,out_cfg.ppcon1.contrast,0);
-//    value = IAR_REG_SET_FILED(IAR_THETA_SIGN,
-//    out_cfg.ppcon1.theta_sign,value);
-//    value = IAR_REG_SET_FILED(IAR_BRIGHT_EN,
-//    out_cfg.ppcon1.bright_en,value);
-//    value = IAR_REG_SET_FILED(IAR_CON_EN ,out_cfg.ppcon1.con_en,value);
-//    value = IAR_REG_SET_FILED(IAR_SAT_EN ,out_cfg.ppcon1.sat_en,value);
-//    value = IAR_REG_SET_FILED(IAR_HUE_EN ,out_cfg.ppcon1.hue_en,value);
-//    value = IAR_REG_SET_FILED(IAR_GAMMA_ENABLE ,
-//    out_cfg.ppcon1.gamma_en,value);
-//    value = IAR_REG_SET_FILED(IAR_DITHERING_EN,
-//    out_cfg.ppcon1.dithering_en,value);
-//    value = IAR_REG_SET_FILED(IAR_DITHERING_FLAG,
-//    out_cfg.ppcon1.dithering_flag,value);
-//    writel(value, g_iar_dev->regaddr + REG_IAR_PP_CON_1);
-//
-//    value = IAR_REG_SET_FILED(IAR_OFF_BRIGHT ,out_cfg.ppcon2.off_bright,0);
-//    value = IAR_REG_SET_FILED(IAR_OFF_CONTRAST,
-//    out_cfg.ppcon2.off_contrast,value);
-//    value = IAR_REG_SET_FILED(IAR_SATURATION ,
-//    out_cfg.ppcon2.saturation,value);
-//    value = IAR_REG_SET_FILED(IAR_THETA_ABS ,out_cfg.ppcon2.theta_abs,value);
-//    writel(value, g_iar_dev->regaddr + REG_IAR_PP_CON_2);
-//
-//    value = IAR_REG_SET_FILED(IAR_DBI_REFRESH_MODE,
-//    out_cfg.refresh_cfg.dbi_refresh_mode,0);
-//    value = IAR_REG_SET_FILED(IAR_PANEL_COLOR_TYPE,
-//    out_cfg.refresh_cfg.panel_corlor_type,value);
-//    value = IAR_REG_SET_FILED(IAR_INTERLACE_SEL ,
-//    out_cfg.refresh_cfg.interlace_sel, value);
-//    value = IAR_REG_SET_FILED(IAR_ODD_POLARITY ,
-//    out_cfg.refresh_cfg.odd_polarity, value);
-//    value = IAR_REG_SET_FILED(IAR_PIXEL_RATE ,out_cfg.refresh_cfg.pixel_rate,
-//    value);
-//    value = IAR_REG_SET_FILED(IAR_YCBCR_OUTPUT ,out_cfg.refresh_cfg.ycbcr_out,
-//    value);
-//    value = IAR_REG_SET_FILED(IAR_UV_SEQUENCE ,
-//    out_cfg.refresh_cfg.uv_sequence,value);
-//    value = IAR_REG_SET_FILED(IAR_ITU_R_656_EN ,
-//    out_cfg.refresh_cfg.itu_r656_en, value);
-//    value = IAR_REG_SET_FILED(IAR_PIXEL_RATE ,0,value);
-//    writel(value, g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
-//}
 
 static void x2fb_activate_par(void)
 {
@@ -1066,8 +1060,6 @@ static struct fb_ops x2fb_ops = {
 
 static int x2fb_probe(struct platform_device *pdev)
 {
-//	struct x2fb_info	*x2_fbi;
-	struct resource	*res;
 	int ret;
 	frame_buf_t framebuf_user;
 
@@ -1080,10 +1072,10 @@ static int x2fb_probe(struct platform_device *pdev)
 
 	strcpy(x2_fbi->fb.fix.id, DRIVER_NAME);
 
-	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	x2_fbi->regaddr = devm_ioremap_resource(&pdev->dev, res);
-	if (IS_ERR(x2_fbi->regaddr))
-		return PTR_ERR(x2_fbi->regaddr);
+	//res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	//x2_fbi->regaddr = devm_ioremap_resource(&pdev->dev, res);
+	//if (IS_ERR(x2_fbi->regaddr))
+	//return PTR_ERR(x2_fbi->regaddr);
 
 //	framebuf_user = x2_iar_get_framebuf_addr(2);
 	pr_info("x2 iar get framebuf addr begin here!\n");
@@ -1096,13 +1088,10 @@ static int x2fb_probe(struct platform_device *pdev)
 	RGB500_fix_default.line_length =
 		get_line_length(RGB500_var_default.xres_virtual,
 				RGB500_var_default.bits_per_pixel);
-	//(RGB500_var_default.xres_virtual *
-	//RGB500_var_default.bits_per_pixel) / 8;
+
 	RGB700_fix_default.line_length =
 		get_line_length(RGB700_var_default.xres_virtual,
 				RGB700_var_default.bits_per_pixel);
-	//(RGB700_var_default.xres_virtual *
-	//RGB700_var_default.bits_per_pixel) / 8;
 
 	if (outmode == OUTPUT_RGB888 && lcd_type == RGB888_500) {
 		x2_fbi->fb.fix = RGB500_fix_default;
@@ -1117,7 +1106,7 @@ static int x2fb_probe(struct platform_device *pdev)
 	} else if (outmode == OUTPUT_RGB888 && lcd_type == RGB888_700) {
 		x2_fbi->fb.fix = RGB700_fix_default;
 		x2_fbi->fb.var = RGB700_var_default;
-		x2_fbi->fb.flags = FBINFO_DEFAULT | FBINFO_HWACCEL_YPAN;//?
+		x2_fbi->fb.flags = FBINFO_DEFAULT | FBINFO_HWACCEL_YPAN;
 		x2_fbi->fb.fbops = &x2fb_ops;
 		x2_fbi->fb.screen_base = framebuf_user.vaddr;
 		x2_fbi->fb.screen_size = MAX_FRAME_BUF_SIZE;
@@ -1134,16 +1123,25 @@ static int x2fb_probe(struct platform_device *pdev)
 		if (fb_alloc_cmap(&x2_fbi->fb.cmap, 256, 0))
 			return -ENOMEM;
 	} else if (outmode == OUTPUT_BT1120 && lcd_type == RGB888_700) {
+		x2_fbi->fb.fix = RGB700_fix_default;
+		x2_fbi->fb.var = RGB700_var_default;
+		//x2_fbi->fb.flags = FBINFO_DEFAULT | FBINFO_HWACCEL_YPAN;
+		x2_fbi->fb.fbops = &x2fb_ops;
+		x2_fbi->fb.screen_base = framebuf_user.vaddr;
+		x2_fbi->fb.screen_size = MAX_FRAME_BUF_SIZE;
+		x2_fbi->fb.pseudo_palette = &x2fb_pseudo_palette;
+		if (fb_alloc_cmap(&x2_fbi->fb.cmap, 256, 0))
+			return -ENOMEM;
 
 	} else if (outmode == OUTPUT_BT1120 && lcd_type == DSI_PANEL) {
 
 	}
 	init_config();
-	x2fb_set_par(&x2_fbi->fb);
 
 	platform_set_drvdata(pdev, x2_fbi);
-
+	pr_info("*********begin register framebuffer********\n");
 	ret = register_framebuffer(&x2_fbi->fb);
+	pr_info("*********end register framebuffer**********\n");
 	if (ret < 0) {
 		dev_err(&pdev->dev,
 			"Failed to register framebuffer device: %d\n", ret);
@@ -1161,6 +1159,7 @@ static int x2fb_probe(struct platform_device *pdev)
 		x2_fbi->fb.fix.id, x2_fbi->fb.fix.smem_start,
 		x2_fbi->fb.fix.smem_start + x2_fbi->fb.fix.smem_len - 1);
 
+	pr_info("x2 fb probe ok!!!\n");
 	return 0;
 }
 
@@ -1205,7 +1204,7 @@ static void __exit x2fb_cleanup(void)
 	platform_driver_unregister(&x2fb_driver);
 }
 
-module_init(x2fb_init);
+late_initcall(x2fb_init);
 module_exit(x2fb_cleanup);
 
 //module_platform_driver(x2fb_driver);
