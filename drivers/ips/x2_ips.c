@@ -135,11 +135,7 @@ struct ips_dev_s {
 	struct pinctrl *pinctrl;
 	struct pinctrl_state *pins_bt;
 	struct pinctrl_state *pins_dvp;
-	struct clk *vio_pll;
-	struct clk *vio_pllmux;
-	struct clk *ipi_div1;
-	struct clk *ipi_div2;
-	unsigned long clk_list[VIO_PLL_DIV1_MAX][VIO_PLL_DIV2_MAX];
+	struct clk *ipi_clk;
 };
 struct ips_dev_s *g_ipsdev;
 
@@ -608,119 +604,28 @@ int ips_set_mipi_freqrange(unsigned int region, unsigned int value)
 }
 EXPORT_SYMBOL_GPL(ips_set_mipi_freqrange);
 
-static void dump_clk_list(void)
-{
-	unsigned long  div1 = VIO_PLL_DIV_MIN;
-	unsigned long  div2 = VIO_PLL_DIV_MIN;
-	unsigned long  pll_out = 0;
-	for (div1 = VIO_PLL_DIV_MIN; div1 <= VIO_PLL_DIV1_MAX; div1++) {
-		for (div2 = VIO_PLL_DIV_MIN; div2 <= VIO_PLL_DIV2_MAX; div2++) {
-			pll_out = g_ipsdev->clk_list[div1 - 1][div2 - 1];
-			printk(KERN_INFO "div1 %lu, div2 %lu, ipi clk: %lu\n", div1, div2, pll_out);
-		}
-	}
-}
-
-static void get_clk_list(void)
-{
-	unsigned long  vio_pll = 0;
-	unsigned long  div1 = VIO_PLL_DIV_MIN;
-	unsigned long  div2 = VIO_PLL_DIV_MIN;
-	unsigned long  div1_pll = 0;
-	unsigned long  div2_pll = 0;
-	unsigned long  pll_out = 0;
-
-	if (!g_ipsdev->vio_pllmux || !g_ipsdev->ipi_div1 || !g_ipsdev->ipi_div2) {
-		printk(KERN_ERR "clk dev not inited\n");
-		return;
-	}
-
-	vio_pll = clk_get_rate(g_ipsdev->vio_pllmux);
-	printk(KERN_INFO "ipi ref clk %lu\n", vio_pll);
-	for (div1 = VIO_PLL_DIV_MIN; div1 <= VIO_PLL_DIV1_MAX; div1++) {
-		pll_out = (vio_pll + div1 - 1) / div1;
-		clk_set_rate(g_ipsdev->ipi_div1, pll_out);
-		div1_pll = clk_get_rate(g_ipsdev->ipi_div1);
-/*		printk(KERN_INFO "div1 set %lu, out %lu\n", pll_out, div1_pll);*/
-		for (div2 = VIO_PLL_DIV_MIN; div2 <= VIO_PLL_DIV2_MAX; div2++) {
-			pll_out = (div1_pll + div2 - 1) / div2;
-			clk_set_rate(g_ipsdev->ipi_div2, pll_out);
-			div2_pll = clk_get_rate(g_ipsdev->ipi_div2);
-/*			printk(KERN_INFO "div2 set %lu, out %lu\n", pll_out, div2_pll);*/
-			g_ipsdev->clk_list[div1 - 1][div2 - 1] = div2_pll;
-		}
-	}
-}
 
 unsigned long ips_set_mipi_ipi_clk(unsigned long clk)
 {
-	unsigned long  div1 = VIO_PLL_DIV_MIN;
-	unsigned long  div2 = VIO_PLL_DIV_MIN;
-	unsigned long  pll1 = 0;
-	unsigned long  pll2 = 0;
-	unsigned long  div1_pll = 0;
-	unsigned long  div2_pll = 0;
-	unsigned long  pll_max = g_ipsdev->clk_list[VIO_PLL_DIV_MIN - 1][VIO_PLL_DIV_MIN - 1];
-	unsigned long  pll_min = g_ipsdev->clk_list[VIO_PLL_DIV1_MAX - 1][VIO_PLL_DIV2_MAX - 1];
-	unsigned long  pll_out = pll_max;
+	long round_rate;
 
-	if (!g_ipsdev->vio_pllmux || !g_ipsdev->ipi_div1 || !g_ipsdev->ipi_div2) {
-		printk(KERN_ERR "clk dev not inited\n");
-		return 0;
-	}
-	if (ips_debug_ctl)
-		dump_clk_list();
+	round_rate = clk_round_rate(g_ipsdev->ipi_clk, clk);
+	clk_set_rate(g_ipsdev->ipi_clk, (unsigned long)round_rate);
 
-	if (clk > pll_max || clk < pll_min) {
-		printk(KERN_INFO "input freq %lu out of range: %lu-%lu\n", clk, pll_min, pll_max);
-		return 0;
-	}
-
-	for (div1 = VIO_PLL_DIV_MIN; div1 <= VIO_PLL_DIV1_MAX; div1++) {
-		pll1 = g_ipsdev->clk_list[div1 - 1][VIO_PLL_DIV_MIN - 1];
-		pll2 = g_ipsdev->clk_list[div1 - 1][VIO_PLL_DIV_MIN - 1];
-		if (pll2 < clk)
-			break;
-		for (div2 = VIO_PLL_DIV_MIN; div2 <= VIO_PLL_DIV2_MAX; div2++) {
-			pll2 = g_ipsdev->clk_list[div1 - 1][div2 - 1];
-			if (pll2 == clk) {
-				div1_pll = pll1;
-				div2_pll = pll2;
-				goto finish;
-			}
-			if (pll2 < clk) {
-				pll2 = g_ipsdev->clk_list[div1 - 1][div2 - 2];
-				if (pll2 - clk <= pll_out - clk) {
-					printk(KERN_INFO "last pllclk %lu: diff %lu, curr pllclk %lu: diff %lu", pll_out, pll_out - clk, pll2, pll2 - clk);
-					div1_pll = pll1;
-					div2_pll = pll2;
-					pll_out = div2_pll;
-				}
-				break;
-			}
-		}
-	}
-finish:
-	clk_set_rate(g_ipsdev->ipi_div1, div1_pll);
-	clk_set_rate(g_ipsdev->ipi_div2, div2_pll);
-
-	printk(KERN_INFO "div1 %lu, div2 %lu\n", div1_pll, div2_pll);
-	return div2_pll;
+	return (unsigned long)round_rate;
 }
 EXPORT_SYMBOL_GPL(ips_set_mipi_ipi_clk);
 
 unsigned long ips_get_mipi_ipi_clk(void)
 {
-	unsigned long div1_pll = 0;
-	unsigned long div2_pll = 0;
+	unsigned long clk = 0;
 
-	if (!g_ipsdev->ipi_div1 || !g_ipsdev->ipi_div2)
+	if (!g_ipsdev->ipi_clk)
 		return 0;
 
-	div1_pll = clk_get_rate(g_ipsdev->ipi_div1);
-	div2_pll = clk_get_rate(g_ipsdev->ipi_div2);
-	printk(KERN_INFO "div1 clk %lu, div2 clk %lu\n", div1_pll, div2_pll);
-	return div2_pll;
+	clk = clk_get_rate(g_ipsdev->ipi_clk);
+
+	return clk;
 }
 EXPORT_SYMBOL_GPL(ips_get_mipi_ipi_clk);
 
@@ -942,56 +847,17 @@ static int x2_ips_probe(struct platform_device *pdev)
 		return PTR_ERR(g_ipsdev->pins_dvp);
 	}
 
-/*	g_ipsdev->vio_pll = devm_clk_get(&pdev->dev, "vio_pll");*/
-/*	if (IS_ERR(g_ipsdev->vio_pll)) {						*/
-/*		dev_err(&pdev->dev, "failed to get vio_pll\n");		*/
-/*		return PTR_ERR(g_ipsdev->vio_pll);					*/
-/*	}														*/
-/*	ret = clk_prepare(g_ipsdev->vio_pll);					*/
-/*	if (ret != 0) {											*/
-/*		dev_err(&pdev->dev, "failed to prepare vio_pll\n");	*/
-/*		return ret;											*/
-/*	}														*/
-
-	g_ipsdev->vio_pllmux = devm_clk_get(&pdev->dev, "vio_pllmux");
-	if (IS_ERR(g_ipsdev->vio_pllmux)) {
-		dev_err(&pdev->dev, "failed to get vio_pllmux\n");
-		return PTR_ERR(g_ipsdev->vio_pllmux);
+	g_ipsdev->ipi_clk = devm_clk_get(&pdev->dev, "ipi_clk");
+	if (IS_ERR(g_ipsdev->ipi_clk)) {
+		dev_err(&pdev->dev, "failed to get ipi_clk\n");
+		return PTR_ERR(g_ipsdev->ipi_clk);
 	}
-/*	ret = clk_set_parent(g_ipsdev->vio_pllmux, g_ipsdev->vio_pll);	*/
-/*	if (ret != 0) {													*/
-/*		dev_err(&pdev->dev, "failed to set parent of vio_pllmux\n");*/
-/*		return ret;													*/
-/*	}																*/
-	ret = clk_prepare(g_ipsdev->vio_pllmux);
+
+	ret = clk_prepare(g_ipsdev->ipi_clk);
 	if (ret != 0) {
-		dev_err(&pdev->dev, "failed to prepare vio_pllmux\n");
+		dev_err(&pdev->dev, "failed to prepare ipi_clk\n");
 		return ret;
 	}
-
-	g_ipsdev->ipi_div1 = devm_clk_get(&pdev->dev, "ipi_div1");
-	if (IS_ERR(g_ipsdev->ipi_div1)) {
-		dev_err(&pdev->dev, "failed to get ipi_div1\n");
-		return PTR_ERR(g_ipsdev->ipi_div1);
-	}
-	ret = clk_prepare(g_ipsdev->ipi_div1);
-	if (ret != 0) {
-		dev_err(&pdev->dev, "failed to prepare ipi_div1\n");
-		return ret;
-	}
-
-	g_ipsdev->ipi_div2 = devm_clk_get(&pdev->dev, "ipi_div2");
-	if (IS_ERR(g_ipsdev->ipi_div2)) {
-		dev_err(&pdev->dev, "failed to get ipi_div2\n");
-		return PTR_ERR(g_ipsdev->ipi_div2);
-	}
-	ret = clk_prepare(g_ipsdev->ipi_div2);
-	if (ret != 0) {
-		dev_err(&pdev->dev, "failed to prepare ipi_div2\n");
-		return ret;
-	}
-
-	get_clk_list();
 
 	g_ipsdev->irqnum = 3;
 	g_ipsdev->intstatus = 0;
