@@ -256,14 +256,16 @@
 			status = "disabled";
 			resets = <&rst 0x40 0>, <&rst 0x40 1>, <&rst 0x40 2>, <&rst 0x40 3>, <&rst 0x40 4>, <&rst 0x40 5>;
 			reset-names = "mipi_ipi", "mipi_cfg", "sif", "ipu", "dvp", "bt";
-			clocks = <&viopll_clk>, <&vio_div_aclk>,
-			       <&sif_div_mclk>, <&mipi_cfg_2nddiv_clk>,
-			       <&pym_div_mclk>, <&mipi_phy_ref_2nddiv_clk>,
-			       <&sensor_2nddiv_clk>, <&mipi_ipi_2nddiv_clk>,
-			       <&iar_pix_div_clk>;
-			clock-names = "vio_pll", "vio_aclk", "sif_mclk",
+			clocks = <&vio_pllmux_clk>, <&mipi_ipi_1stdiv_clk>,
+				<&viopll_clk>, <&vio_div_aclk>,<&sif_div_mclk>,
+				<&mipi_cfg_2nddiv_clk>,<&pym_div_mclk>,
+				<&mipi_phy_ref_2nddiv_clk>,
+				<&sensor_2nddiv_clk>,
+				<&mipi_ipi_2nddiv_clk>,<&iar_pix_div_clk>;
+			clock-names = "vio_pllmux", "ipi_div1",
+				"vio_pll", "vio_aclk", "sif_mclk",
 				"mipi_cfg", "pym_mclk", "mipi_phy_ref",
-				"sensor_mclk", "ipi_clk", "iar_pix";
+				"sensor_mclk", "ipi_div2", "iar_pix";
 		};
 
 		ipu: ipu@0xA4000900 {

@@ -139,8 +139,6 @@
 };
 
 &ips {
-	clocks = <&vio_pllmux_clk>, <&mipi_ipi_1stdiv_clk>, <&mipi_ipi_2nddiv_clk>;
-	clock-names = "vio_pllmux", "ipi_div1", "ipi_div2";
 	pinctrl-names = "bt_func", "dvp_func";
 	pinctrl-0 = <&btin_func &btout_func>;
 	pinctrl-1 = <&dvpin_func &dvpout_func>;

@@ -161,7 +161,7 @@ static struct init_clk vio_clk[VIO_CLK_SELECT_NUM][VIO_SYS_CLK_NUM] = {
 		{"pym_mclk",	816000000,},
 		{"mipi_phy_ref", 24000000,},
 		{"sensor_mclk",	24000000,},
-		{"ipi_clk",	408000000,},
+		{"ipi_div2",	408000000,},
 		{"iar_pix",	163200000,}
 	},
 	{
@@ -172,7 +172,7 @@ static struct init_clk vio_clk[VIO_CLK_SELECT_NUM][VIO_SYS_CLK_NUM] = {
 		{"pym_mclk",	480000000,},
 		{"mipi_phy_ref", 24000000,},
 		{"sensor_mclk",	24000000,},
-		{"ipi_clk",	240000000,},
+		{"ipi_div2",	240000000,},
 		{"iar_pix",	32000000,}
 	}
 };
