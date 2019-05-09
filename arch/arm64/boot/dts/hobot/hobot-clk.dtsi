@@ -492,6 +492,7 @@
 			offset = <0x240>;
 			bits = <4>;
 			field = <5>;
+			clk-divider-flags = <CLK_DIVIDER_ROUND_DOWN>;
 		};
 
 		mipi_ipi_2nddiv_clk: mipi_ipi_2nddiv_clk {
@@ -501,6 +502,8 @@
 			offset = <0x240>;
 			bits = <9>;
 			field = <3>;
+			clk-divider-flags = <CLK_DIVIDER_ROUND_DOWN>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		mipi_cfg_1stdiv_clk: mipi_cfg_1stdiv_clk {
@@ -519,6 +522,7 @@
 			offset = <0x240>;
 			bits = <29>;
 			field = <3>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		iar_pix_div_clk: iar_pix_div_clk {
@@ -581,6 +585,7 @@
 			offset = <0x244>;
 			bits = <8>;
 			field = <3>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		mipi_dev_ref_clk: mipi_dev_ref_clk {
@@ -608,6 +613,7 @@
 			offset = <0x244>;
 			bits = <20>;
 			field = <3>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		sensor_mclk: sensor_mclk {

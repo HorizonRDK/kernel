@@ -145,6 +145,38 @@ struct ips_dev_s *g_ipsdev;
 
 char *reset_name[RST_MAX] = {"mipi_ipi", "mipi_cfg", "sif", "ipu", "dvp", "bt"};
 
+#define VIO_CLK_SELECT_NUM 2
+#define VIO_SYS_CLK_NUM 9
+
+struct init_clk {
+	const char *name;
+	unsigned long rate;
+};
+static struct init_clk vio_clk[VIO_CLK_SELECT_NUM][VIO_SYS_CLK_NUM] = {
+	{
+		{"vio_pll",	1632000000,},
+		{"vio_aclk",	544000000,},
+		{"sif_mclk",	408000000,},
+		{"mipi_cfg",	24000000,},
+		{"pym_mclk",	816000000,},
+		{"mipi_phy_ref", 24000000,},
+		{"sensor_mclk",	24000000,},
+		{"ipi_clk",	408000000,},
+		{"iar_pix",	163200000,}
+	},
+	{
+		{"vio_pll",	480000000,},
+		{"vio_aclk",	480000000,},
+		{"sif_mclk",	240000000,},
+		{"mipi_cfg",	24000000,},
+		{"pym_mclk",	480000000,},
+		{"mipi_phy_ref", 24000000,},
+		{"sensor_mclk",	24000000,},
+		{"ipi_clk",	240000000,},
+		{"iar_pix",	32000000,}
+	}
+};
+
 unsigned int ips_debug_ctl = 0;
 module_param(ips_debug_ctl, uint, S_IRUGO | S_IWUSR);
 #define IPS_DEBUG_PRINT(format, args...)	\
@@ -763,6 +795,78 @@ void ips_module_reset(unsigned int module)
 }
 EXPORT_SYMBOL_GPL(ips_module_reset);
 
+static inline int change_clk(struct device *dev,
+		const char *clk_name, unsigned long rate)
+{
+	struct clk *clk;
+	long round_rate;
+	int ret = 0;
+
+	clk = devm_clk_get(dev, clk_name);
+	if (IS_ERR(clk)) {
+		dev_err(dev, "failed to get: %s\n", clk_name);
+		return PTR_ERR(clk);
+	}
+
+	round_rate = clk_round_rate(clk, rate);
+	ret = clk_set_rate(clk, (unsigned long)round_rate);
+	if (unlikely(ret < 0)) {
+		dev_err(dev, "failed to set clk: %s\n", clk_name);
+		return ret;
+	}
+
+	dev_info(dev, "%s: clk:%lu, round_rate:%ld",
+				clk_name, rate, round_rate);
+
+	return ret;
+}
+
+static int vio_sys_clk_trigger_init(struct device *dev, unsigned int select)
+{
+	struct init_clk *clk_list;
+	int clk_num;
+	int ret = 0;
+
+	if (select >=  VIO_CLK_SELECT_NUM) {
+		dev_err(dev, "invalid clk select num");
+		ret = -EINVAL;
+		goto out;
+	}
+
+	clk_list = &vio_clk[select][0];
+	clk_num = sizeof(vio_clk[select]) / sizeof(struct init_clk);
+
+	for (; clk_num--; clk_list++) {
+		ret = change_clk(dev, clk_list->name, clk_list->rate);
+		if (unlikely(ret < 0)) {
+			dev_err(dev, "set clk %s failed", clk_list->name);
+			ret = -EAGAIN;
+			goto out;
+		}
+	}
+out:
+	return ret;
+}
+
+static ssize_t vio_clk_select_store(struct device *dev,
+				  struct device_attribute *attr,
+				  const char *buf,
+				  size_t len)
+{
+	int ret;
+	unsigned int input;
+
+	ret = kstrtou32(buf, 10, &input);
+	if (ret)
+		return ret;
+	ret = vio_sys_clk_trigger_init(dev, input);
+	if (ret)
+		return ret;
+	return len;
+}
+
+static DEVICE_ATTR_WO(vio_clk_select);
+
 static int x2_ips_probe(struct platform_device *pdev)
 {
 	struct resource *res,*irq;
@@ -881,6 +985,8 @@ static int x2_ips_probe(struct platform_device *pdev)
 
 	g_ipsdev->irqnum = 3;
 	g_ipsdev->intstatus = 0;
+
+	device_create_file(&pdev->dev, &dev_attr_vio_clk_select);
 
 	printk(KERN_INFO "ips driver init end\n");
 	return ret;
