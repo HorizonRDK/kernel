@@ -91,8 +91,8 @@ static int8_t ipu_set_ddr(uint32_t ddrbase, ipu_cfg_t *ipu)
 
 	/* calculate pymid src space */
 	ddrbase = ALIGN(ddrbase, IPU_MEM_4k);
-	w = ALIGN_16(ipu->pymid.ds_roi[0].w);
-	h = ALIGN_16(ipu->pymid.ds_roi[0].h);
+	w = ipu->pymid.ds_roi[0].w;
+	h = ipu->pymid.ds_roi[0].h;
 	size = w * h;
 	ipu->crop_ddr.y_addr = ddrbase;
 	ddrbase = ddrbase + size;
