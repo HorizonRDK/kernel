@@ -682,6 +682,7 @@ static long x2_cnn_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				data.fc_data.fc_cnt * X2_CNN_FC_SIZE)) {
 			pr_err("%s: copy fc data failed from userspace\n",
 				__func__);
+			kfree(kernel_fc_data);
 			return -EFAULT;
 		}
 		data.fc_data.fc_info = kernel_fc_data;
