@@ -45,14 +45,16 @@
 #include "x2_cnn_host.h"
 
 #define NETLINK_BPU 24
-
+#define MOD_FRQ_DONE 0X0
+#define MOD_FRQ      0X01
 extern struct sock *cnn_netlink_init(int unit);
 extern int cnn_netlink_send(struct sock *sock, int group, void *msg, int len);
 struct sock *cnn_nl_sk;
-
 #define FC_TIME_CNT 50
 #define FC_TIME_SAVE_CNT 50
+
 static DEFINE_MUTEX(x2_cnn_mutex);
+static DEFINE_MUTEX(mod_frq_mutex);
 static char *g_chrdev_name = "cnn";
 static struct dentry *cnn0_debugfs_root;
 static struct dentry *cnn1_debugfs_root;
@@ -64,8 +66,12 @@ static int ratio0;
 static int ratio1;
 static int queue0;
 static int queue1;
+static int test_mod_frq;
 static struct timer_list check_timer;
 static struct mutex enable_lock;
+static struct completion bpu_completion;
+atomic_t mod_frq_flg;
+
 static inline u32 x2_cnn_reg_read(struct x2_cnn_dev *dev, u32 off)
 {
 	return readl(dev->cnn_base + off);
@@ -702,6 +708,7 @@ static long x2_cnn_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				tmp_ptr->dyn_base_addr1,
 				tmp_ptr->dyn_base_addr3);
 
+		mutex_lock(&mod_frq_mutex);
 		mutex_lock(&dev->cnn_lock);
 		rc = x2_cnn_fc_fifo_enqueue(dev, &data.fc_data);
 		if (rc < 0) {
@@ -710,6 +717,7 @@ static long x2_cnn_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			return rc;
 		}
 		mutex_unlock(&dev->cnn_lock);
+		mutex_unlock(&mod_frq_mutex);
 		kfree(kernel_fc_data);
 		break;
 	case CNN_IOC_RST:
@@ -852,7 +860,9 @@ static void x2_cnn_do_tasklet(unsigned long data)
 		ret = kfifo_in(&dev->fc_time_fifo, &tmp,
 			       sizeof(struct x2_fc_time));
 	}
-
+	if (atomic_read(&mod_frq_flg)) {
+		complete(&bpu_completion);
+	}
 }
 
 static void *cnn_ram_vmap(phys_addr_t start, size_t size,
@@ -1102,6 +1112,7 @@ int x2_cnn_probe(struct platform_device *pdev)
 	cnn_dev->fc_base = cnn_ram_vmap(cnn_dev->fc_phys_base,
 				cnn_dev->fc_mem_size, CNN_MT_UC);
 	atomic_set(&cnn_dev->wait_fc_cnt, 0);
+	atomic_set(&mod_frq_flg, 0);
 	x2_cnn_reg_write(cnn_dev,
 			X2_CNN_FC_LEN, (cnn_dev->fc_mem_size / 64) - 1);
 	pr_info("Cnn fc phy base = 0x%x, len = 0x%x, default fc len = 0x%x\n",
@@ -1407,7 +1418,28 @@ static ssize_t bpu1_fc_time_show(struct kobject *kobj,
 
 	ret = fc_time_show(&cnn1_dev->fc_time_save_fifo, buf);
 	return ret;
+
 }
+
+static void mod_bpu_frq(void)
+{
+	mutex_lock(&mod_frq_mutex);
+	atomic_set(&mod_frq_flg, MOD_FRQ);
+	int i = 0;
+
+	if ((atomic_read(&cnn0_dev->wait_fc_cnt) > 0) ||
+		(atomic_read(&cnn1_dev->wait_fc_cnt) > 0)) {
+		/*wait bpu idle*/
+		wait_for_completion(&bpu_completion);
+		i++;
+	}
+
+	/*modify bpu frequency*/
+	//modify_bpu_fre();
+	mutex_unlock(&mod_frq_mutex);
+	atomic_set(&mod_frq_flg, MOD_FRQ_DONE);
+}
+
 static struct kobj_attribute pro_frequency = __ATTR(profiler_frequency, 0664,
 						    fre_show, fre_store);
 static struct kobj_attribute pro_enable    = __ATTR(profiler_enable, 0664,
@@ -1424,6 +1456,7 @@ static struct kobj_attribute bpu0_fc_time  = __ATTR(fc_time, 0444,
 						    bpu0_fc_time_show, NULL);
 static struct kobj_attribute bpu1_fc_time  = __ATTR(fc_time, 0444,
 						    bpu1_fc_time_show, NULL);
+
 
 static struct attribute *bpu_attrs[] = {
 	&pro_frequency.attr,
@@ -1482,6 +1515,11 @@ static int __init x2_cnn_init(void)
 	init_timer(&check_timer);
 	check_timer.function = &x2_cnn_check_func;
 	mutex_init(&enable_lock);
+
+	/*init bpu completion*/
+	init_completion(&bpu_completion);
+	/*modify frquency flag*/
+	atomic_set(&mod_frq_flg, 0);
 	return retval;
 
 }
