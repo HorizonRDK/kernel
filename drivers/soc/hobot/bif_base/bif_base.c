@@ -428,7 +428,7 @@ static ssize_t bifbase_store(struct kobject *kobj,
 	p = memchr(buf, '\n', n);
 	len = p ? p - buf : n;
 
-	pr_info("bifbase: store,n=%ld,len=%d,content=%s\n", n, len, buf);
+	pr_info("bifbase: store,n=%d,len=%d,content=%s\n", (int)n, len, buf);
 
 	if (!strcmp(attr->attr.name, "bifspi")) {
 		pp = (char **)&bifspi;

@@ -17,8 +17,9 @@
 #include <linux/errno.h>
 #include <linux/interrupt.h>
 
-#ifdef CONFIG_HI3519V101
+#ifdef CONFIG_HISI
 #include <mach/io.h>
+#include "hisi_reg.h"
 #endif
 
 #include "bif_base.h"
@@ -28,18 +29,21 @@ int bifdebug;	//pr_bif
 EXPORT_SYMBOL(bifdebug);
 #define pr_bif(fmt, args...) do {if (bifdebug) pr_info(fmt, ##args); } while (0)
 module_param(bifdebug, int, 0644);
+int bifbase_irq_pin;
+module_param(bifbase_irq_pin, int, 0644);
+int bifbase_tri_pin;
+module_param(bifbase_tri_pin, int, 0644);
 
 #define CPSIDE_DDR_ADDRSIZE	(0x00100000)
-#ifdef CONFIG_HI3519V101
+#define WRITE_REG(Addr, Value) ((*(uint *)(Addr)) = (Value))
+#define READ_REG(Addr) (*(uint *)(Addr))
+#ifdef CONFIG_HISI
 #define CPSIDE_DDR_ADDR		(0x02000000)	//same to x2 reserved memory
-#define GPIO_MUX_CTRL_BASE	(0x12040000)
+#define MUX_CTL_BASE_ADDR	(0x12040000)
+#define GPIO_MAP_RANGE		(0x4000)
 #define BIFIRQ_PIN		(2*8 + 5)	//GPIO2_5
 #define BIFTRI_PIN		(2*8 + 3)	//GPIO2_3
-#define BIFIRQ_OFFSET	(0x40)
-#define BIFTRI_OFFSET	(0x38)
-#define GPIO_WRITE_REG(Addr, Value) ((*(volatile uint *)(Addr)) = (Value))
-#define GPIO_READ_REG(Addr) (*(volatile uint *)(Addr))
-void __iomem *reg_gpio_muxctrl_base_va;
+void __iomem *muxctrl_base_va;
 #endif
 
 #ifdef CONFIG_HOBOT_BIF_TEST
@@ -412,7 +416,79 @@ int bifplat_register_irq(enum BUFF_ID buffer_id,
 #endif
 }
 EXPORT_SYMBOL(bifplat_register_irq);
+#ifdef CONFIG_HISI
+static int  hisi_gpio_pin_mux(void __iomem *muxctrl_base, int gpiopin)
+{
+	unsigned int offset = 0;
+	void __iomem *reg = NULL;
+	unsigned char gpio_grp = 0;
+	unsigned char gpio_pin = 0;
+	int ret = 0;
 
+	gpio_grp = gpiopin / 8;
+	gpio_pin = gpiopin % 8;
+	reg = muxctrl_base;
+
+	if ((gpio_grp < 17) && (gpio_grp >= 0)
+		&& (gpio_pin < 8) && (gpio_pin >= 0)) {
+
+		if (!g_gpio_mux_ctl_addr[gpio_grp][gpio_pin]) {
+			ret = -1;
+			goto exit_1;
+		}
+		offset = g_gpio_mux_ctl_addr[gpio_grp][gpio_pin] & 0xFFFF;
+		reg = (void __iomem *)(muxctrl_base + offset);
+
+		switch (gpio_grp) {
+		case 0:
+			if (gpio_pin == 1)
+				WRITE_REG(reg, 0x1);
+			else
+				WRITE_REG(reg, 0x1);
+			break;
+		case 3:
+			if (gpio_pin < 6)
+				WRITE_REG(reg, 0);
+			else
+				WRITE_REG(reg, 0x1);
+			break;
+		case 4:
+			if (gpio_pin < 2)
+				WRITE_REG(reg, 0x1);
+			else
+				WRITE_REG(reg, 0);
+			break;
+		case 6:
+			if (gpio_pin == 5)
+				WRITE_REG(reg, 2);
+			else
+				WRITE_REG(reg, 0);
+			break;
+		case 12:
+			if (gpio_pin == 1)
+				WRITE_REG(reg, 0x1);
+			else
+				WRITE_REG(reg, 0);
+			break;
+		case 16:
+			if (gpio_pin >= 1 && gpio_pin <= 3)
+				WRITE_REG(reg, 0x1);
+
+			break;
+		default:
+			WRITE_REG(reg, 0);
+			break;
+		}
+	} else
+		ret = -1;
+exit_1:
+
+	pr_info("bifapi: reg=0x%x offset=0x%x grp=%d pin=%d\n",
+		(uint)reg, offset, gpio_grp, gpio_pin);
+
+	return ret;
+}
+#endif
 int bifplat_config(void *p)
 {
 	int ret = BIFOK;
@@ -426,21 +502,27 @@ int bifplat_config(void *p)
 	bifplat_get_macro_config((void *)pl);
 
 	if (pl->plat_type == PLAT_AP) {
-#ifdef CONFIG_HI3519V101
-		reg_gpio_muxctrl_base_va =
-			(void __iomem *)IO_ADDRESS(GPIO_MUX_CTRL_BASE);
-	    //config GPIO muxctl (pinmux -> gpio)
-	    GPIO_WRITE_REG(reg_gpio_muxctrl_base_va + BIFIRQ_OFFSET, 0x0);
-	    GPIO_WRITE_REG(reg_gpio_muxctrl_base_va + BIFTRI_OFFSET, 0x0);
-
+#ifdef CONFIG_HISI
 		memset(pl->platform, 0, PLATFORM_SIZE);
-		sprintf(pl->platform, "%s", "hi3519v101");
+		sprintf(pl->platform, "%s", "hisi");
 		pl->param = PARAM_MODULE;
 		pl->bifbase_phyaddr = CPSIDE_DDR_ADDR;
 		pl->bifbase_phyaddrsize = CPSIDE_DDR_ADDRSIZE;
 		pl->irq_pin_absent = 0;
-		pl->irq_pin = BIFIRQ_PIN;
-		pl->tri_pin = BIFTRI_PIN;
+		if (bifbase_irq_pin)
+			pl->irq_pin = bifbase_irq_pin;
+		else
+			pl->irq_pin = BIFIRQ_PIN;
+		if (bifbase_tri_pin)
+			pl->tri_pin = bifbase_tri_pin;
+		else
+			pl->tri_pin = BIFTRI_PIN;
+
+		muxctrl_base_va = (void __iomem *)IO_ADDRESS(MUX_CTL_BASE_ADDR);
+		//GPIO_WRITE_REG(muxctrl_base_va + BIFIRQ_OFFSET, 0x0);
+		//GPIO_WRITE_REG(muxctrl_base_va + BIFTRI_OFFSET, 0x0);
+		hisi_gpio_pin_mux(muxctrl_base_va, pl->irq_pin);
+		hisi_gpio_pin_mux(muxctrl_base_va, pl->tri_pin);
 #endif
 	}
 
