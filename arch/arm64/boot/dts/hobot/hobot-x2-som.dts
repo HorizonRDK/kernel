@@ -103,6 +103,11 @@
 	    compatible = "x2,camera";
 	    reg = <0x7f>;
 	};
+	x2_lt9211@0x2d {
+		compatible = "x2,lt9211";
+		reg = <0x2d>;
+		x2_lt9211_reset_pin = <85>;
+	};
 	tca9534: gpio@20 {
 		compatible = "ti,tca9534";
 		reg = <0x20>;
