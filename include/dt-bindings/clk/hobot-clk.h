@@ -38,4 +38,10 @@
 #define CLK_DIVIDER_MAX_AT_ZERO		BIT(6)
 #define CLK_DIVIDER_ROUND_DOWN		BIT(7)
 
+#define CLK_MUX_INDEX_ONE               BIT(0)
+#define CLK_MUX_INDEX_BIT               BIT(1)
+#define CLK_MUX_HIWORD_MASK             BIT(2)
+#define CLK_MUX_READ_ONLY               BIT(3)
+#define CLK_MUX_ROUND_CLOSEST           BIT(4)
+
 #endif

@@ -59,6 +59,14 @@ static void __init _of_x2_mux_clk_setup(struct device_node *node)
 	}
 	field = val;
 
+	ret = of_property_read_u32(node, "clk-flags", &val);
+	if (!ret)
+		flags |= val;
+
+	ret = of_property_read_u32(node, "clk-mux-flags", &val);
+	if (!ret)
+		clk_mux_flags |= val;
+
 	lock = kzalloc(sizeof(spinlock_t), GFP_KERNEL);
 	if(!lock){
 		pr_err("%s: %s failed to malloc spinlock!\n", __func__, node->name);

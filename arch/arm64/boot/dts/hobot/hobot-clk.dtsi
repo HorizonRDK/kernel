@@ -110,7 +110,8 @@
 			clocks = <&osc_clk>, <&cpu_divclk>;
 			offset = <0x300>;
 			bits = <4>;
-			field = <0x1>;	
+			field = <0x1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		ace_div_aclk: ace_div_aclk {
