@@ -821,7 +821,7 @@ static inline int change_clk(struct device *dev,
 	return ret;
 }
 
-static int vio_sys_clk_trigger_init(struct device *dev, unsigned int select)
+int vio_sys_clk_trigger_init(struct device *dev, unsigned int select)
 {
 	struct init_clk *clk_list;
 	int clk_num;
@@ -847,6 +847,16 @@ static int vio_sys_clk_trigger_init(struct device *dev, unsigned int select)
 out:
 	return ret;
 }
+
+int ips_set_iar_clk32(void)
+{
+	if (g_ipsdev == NULL) {
+		pr_err("%s, ips dev not init.\n", __func__);
+		return -ENODEV;
+	}
+	return vio_sys_clk_trigger_init(&(g_ipsdev->pdev->dev), 1);
+}
+EXPORT_SYMBOL_GPL(ips_set_iar_clk32);
 
 static ssize_t vio_clk_select_store(struct device *dev,
 				  struct device_attribute *attr,
