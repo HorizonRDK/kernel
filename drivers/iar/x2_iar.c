@@ -295,6 +295,8 @@ struct iar_dev_s {
 };
 struct iar_dev_s *g_iar_dev;
 
+//static int display_type = LCD_7_TYPE;
+
 void x2_iar_dump(void)
 {
 	void __iomem *regaddr = g_iar_dev->regaddr;
@@ -439,7 +441,7 @@ int32_t iar_set_hvsync_timing(int outmode)
 	return 0;
 }
 
-int32_t iar_set_panel_timing(struct fb_info *fb)
+int32_t iar_set_panel_timing(struct fb_info *fb, int display_type)
 {
 	uint32_t value;
 
@@ -447,50 +449,98 @@ int32_t iar_set_panel_timing(struct fb_info *fb)
 		pr_err("IAR dev not inited!");
 		return -1;
 	}
-	//bt->rgb888, 5(7)inch pannel
-	value = readl(g_iar_dev->regaddr + REG_IAR_PARAMETER_HTIM_FIELD1);
-	value = IAR_REG_SET_FILED(IAR_DPI_HBP_FIELD,
-			148, value);
-	value = IAR_REG_SET_FILED(IAR_DPI_HFP_FIELD,
-			88, value);
-	value = IAR_REG_SET_FILED(IAR_DPI_HSW_FIELD,
-			44, value);
-	writel(value, g_iar_dev->regaddr + REG_IAR_PARAMETER_HTIM_FIELD1);
 
-//	value = readl(g_iar_dev->regaddr + REG_IAR_PARAMETER_HTIM_FIELD2);
-//	value = IAR_REG_SET_FILED(IAR_DPI_HBP_FIELD2,
-//	fb->var.right_margin, value);
-//	value = IAR_REG_SET_FILED(IAR_DPI_HFP_FIELD2,
-//	fb->var.left_margin, value);
-//	value = IAR_REG_SET_FILED(IAR_DPI_HSW_FIELD2,
-//	fb->var.hsync_len, value);
-//	writel(value, g_iar_dev->regaddr + REG_IAR_PARAMETER_HTIM_FIELD2);
+	if (display_type == HDMI_TYPE) {
+		pr_info("iar set HDMI timing!!!\n");
+		value = readl(g_iar_dev->regaddr +
+					REG_IAR_PARAMETER_HTIM_FIELD1);
+		value = IAR_REG_SET_FILED(IAR_DPI_HBP_FIELD,
+					148, value);
+		value = IAR_REG_SET_FILED(IAR_DPI_HFP_FIELD,
+					88, value);
+		value = IAR_REG_SET_FILED(IAR_DPI_HSW_FIELD,
+					44, value);
+		writel(value, g_iar_dev->regaddr +
+					REG_IAR_PARAMETER_HTIM_FIELD1);
 
+//		value = readl(g_iar_dev->regaddr +
+//		REG_IAR_PARAMETER_HTIM_FIELD2);
+//		value = IAR_REG_SET_FILED(IAR_DPI_HBP_FIELD2,
+//		fb->var.right_margin, value);
+//		value = IAR_REG_SET_FILED(IAR_DPI_HFP_FIELD2,
+//		fb->var.left_margin, value);
+//		value = IAR_REG_SET_FILED(IAR_DPI_HSW_FIELD2,
+//		fb->var.hsync_len, value);
+//		writel(value, g_iar_dev->regaddr +
+//		REG_IAR_PARAMETER_HTIM_FIELD2);
 
-	value = readl(g_iar_dev->regaddr + REG_IAR_PARAMETER_VTIM_FIELD1);
-	value = IAR_REG_SET_FILED(IAR_DPI_VBP_FIELD, 36,
-			value);
-//	if (outmode == OUTPUT_BT1120)
+		value = readl(g_iar_dev->regaddr +
+					REG_IAR_PARAMETER_VTIM_FIELD1);
+		value = IAR_REG_SET_FILED(IAR_DPI_VBP_FIELD, 36,
+				value);
 		value = IAR_REG_SET_FILED(IAR_DPI_VFP_FIELD,
-				4, value);
-//	else
-//		value = IAR_REG_SET_FILED(IAR_DPI_VFP_FIELD, 0x1, value);
-	value = IAR_REG_SET_FILED(IAR_DPI_VSW_FIELD, 5, value);
-	writel(value, g_iar_dev->regaddr + REG_IAR_PARAMETER_VTIM_FIELD1);
+					4, value);
 
-	value = readl(g_iar_dev->regaddr + REG_IAR_PARAMETER_VTIM_FIELD2);
-	value = IAR_REG_SET_FILED(IAR_DPI_VBP_FIELD2,
-			36, value);
-//	if (outmode == OUTPUT_BT1120)
+		value = IAR_REG_SET_FILED(IAR_DPI_VSW_FIELD, 5, value);
+		writel(value, g_iar_dev->regaddr +
+					REG_IAR_PARAMETER_VTIM_FIELD1);
+
+		value = readl(g_iar_dev->regaddr +
+					REG_IAR_PARAMETER_VTIM_FIELD2);
+		value = IAR_REG_SET_FILED(IAR_DPI_VBP_FIELD2,
+				36, value);
+
 		value = IAR_REG_SET_FILED(IAR_DPI_VFP_FIELD2,
-				4, value);
-//	else
-//		value = IAR_REG_SET_FILED(IAR_DPI_VFP_FIELD2, 0x1, value);
-	value = IAR_REG_SET_FILED(IAR_DPI_VSW_FIELD2, 5, value);
-	writel(value, g_iar_dev->regaddr + REG_IAR_PARAMETER_VTIM_FIELD2);
+					4, value);
+		value = IAR_REG_SET_FILED(IAR_DPI_VSW_FIELD2, 5, value);
+		writel(value, g_iar_dev->regaddr +
+				REG_IAR_PARAMETER_VTIM_FIELD2);
 
-	writel(0xa, g_iar_dev->regaddr + REG_IAR_PARAMETER_VFP_CNT_FIELD12);
-	//???????
+		writel(0xa, g_iar_dev->regaddr +
+				REG_IAR_PARAMETER_VFP_CNT_FIELD12);
+
+	} else if (display_type == LCD_7_TYPE) {
+		pr_info("iar set 7inch lcd panel timing!!!!\n");
+		value = readl(g_iar_dev->regaddr +
+					REG_IAR_PARAMETER_HTIM_FIELD1);
+		value = IAR_REG_SET_FILED(IAR_DPI_HBP_FIELD,
+				fb->var.right_margin, value);
+		value = IAR_REG_SET_FILED(IAR_DPI_HFP_FIELD,
+			fb->var.left_margin, value);
+		value = IAR_REG_SET_FILED(IAR_DPI_HSW_FIELD,
+			fb->var.hsync_len, value);
+		writel(value, g_iar_dev->regaddr +
+					REG_IAR_PARAMETER_HTIM_FIELD1);
+
+		value = readl(g_iar_dev->regaddr +
+					REG_IAR_PARAMETER_VTIM_FIELD1);
+		value = IAR_REG_SET_FILED(IAR_DPI_VBP_FIELD,
+					fb->var.lower_margin, value);
+
+		value = IAR_REG_SET_FILED(IAR_DPI_VFP_FIELD,
+					fb->var.upper_margin, value);
+
+		value = IAR_REG_SET_FILED(IAR_DPI_VSW_FIELD,
+						fb->var.vsync_len, value);
+		writel(value, g_iar_dev->regaddr +
+					REG_IAR_PARAMETER_VTIM_FIELD1);
+
+		value = readl(g_iar_dev->regaddr +
+					REG_IAR_PARAMETER_VTIM_FIELD2);
+		value = IAR_REG_SET_FILED(IAR_DPI_VBP_FIELD2,
+				fb->var.lower_margin, value);
+
+		value = IAR_REG_SET_FILED(IAR_DPI_VFP_FIELD2,
+				fb->var.upper_margin, value);
+
+		value = IAR_REG_SET_FILED(IAR_DPI_VSW_FIELD2,
+					fb->var.vsync_len, value);
+		writel(value,
+			g_iar_dev->regaddr + REG_IAR_PARAMETER_VTIM_FIELD2);
+
+		writel(0xa,
+			g_iar_dev->regaddr + REG_IAR_PARAMETER_VFP_CNT_FIELD12);
+	}
 
 	return 0;
 }
@@ -982,15 +1032,15 @@ static void x2_iar_draw_rect(char *frame, int x0, int y0, int x1, int y1,
 static int x2_iar_probe(struct platform_device *pdev)
 {
 	struct resource *res, *irq;
-	int ret;
+	int ret = 0;
 	struct device_node *np;
 	struct resource r;
 	char *temp1;
 	int tempi = 0;
 	void *vaddr;
 	int deta = 0;
-	void *vio_refclk_regaddr, *iar_clk_regaddr;
-	int regvalue1, regvalue;
+	//void *vio_refclk_regaddr, *iar_clk_regaddr;
+	//int regvalue1, regvalue;
 
 	pr_info("x2 iar probe begin!!!\n");
 	g_iar_dev = devm_kzalloc(&pdev->dev, sizeof(struct iar_dev_s), GFP_KERNEL);
@@ -1100,182 +1150,125 @@ static int x2_iar_probe(struct platform_device *pdev)
 	pr_info("g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[1].vaddr = 0x%p\n",
 		g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[1].vaddr);
 
-#if 0
-	temp1 = g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].vaddr;
-	tempi = 0;
-	//for(tempi = 0; tempi < MAX_FRAME_BUF_SIZE; tempi++){
-	//	*temp1++ = 0x5a;
-	//}
+	if (display_type == LCD_7_TYPE) {
 
-	deta = 800*480*4/10;
-	for (tempi = 4; tempi <= deta + 4; tempi++) {
-		if (tempi % 4 == 0)
-			*temp1 = 0x00;
-		else if (tempi % 4 == 1)
-			*temp1 = 0x00;
-		else if (tempi % 4 == 2)
-			*temp1 = 0x00;
-		else if (tempi % 4 == 3)
-			*temp1 = 0xff;
+		pr_info("display type is lcd 7inch panel!!!!!!\n");
+		ret = ips_set_iar_clk32();
+		if (ret)
+			return ret;
+		temp1 =
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].vaddr;
+		tempi = 0;
 
-		temp1++;
-	}
-	for (tempi = 4; tempi < deta + 4; tempi++) {
-		if (tempi % 4 == 0)
-			*temp1 = 0x00;
-		else if (tempi % 4 == 1)
-			*temp1 = 0x00;
-		else if (tempi % 4 == 2)
-			*temp1 = 0xff;
-		else if (tempi % 4 == 3)
-			*temp1 = 0x00;
+		//for(tempi = 0; tempi < MAX_FRAME_BUF_SIZE; tempi++){
+		//	*temp1++ = 0x5a;
+		//}
+		deta = 800*480*4/10;
+		for (tempi = 0; tempi < 800*48*4; tempi++) {
+			if (((tempi + 4) % 4) == 0)
+				*temp1 = 0xff;//b
+			else if (((tempi + 4) % 4) == 1)
+				*temp1 = 0x00;//g
+			else if (((tempi + 4) % 4) == 2)
+				*temp1 = 0x00;//r
+			else if (((tempi + 4) % 4) == 3)
+				*temp1 = 0xff;//a
+			temp1++;
+		}
 
-		temp1++;
-	}
-	for (tempi = 4; tempi < deta + 4; tempi++) {
-		if (tempi % 4 == 0)
-			*temp1 = 0x00;
-		else if (tempi % 4 == 1)
-			*temp1 = 0xff;
-		else if (tempi % 4 == 2)
-			*temp1 = 0x00;
-		else if (tempi % 4 == 3)
-			*temp1 = 0x00;
-
-		temp1++;
-	}
-	for (tempi = deta*3; tempi < deta*4; tempi++) {
-		if (tempi % 4 == 0)
-			*temp1 = 0xff;
-		else if (tempi % 4 == 1)
-			*temp1 = 0x00;
-		else if (tempi % 4 == 2)
-			*temp1 = 0x00;
-		else if (tempi % 4 == 3)
-			*temp1 = 0x00;
-
-		temp1++;
-	}
-	for (tempi = deta*4; tempi < deta*5; tempi++) {
-		if (tempi % 4 == 0)
-			*temp1 = 0x00;
-		else if (tempi % 4 == 1)
-			*temp1 = 0xff;
-		else if (tempi % 4 == 2)
-			*temp1 = 0xff;
-		else if (tempi % 4 == 3)
-			*temp1 = 0xff;
-
-		temp1++;
-	}
-	for (tempi = deta*5; tempi < deta*6; tempi++) {
-		if (tempi % 4 == 0)
-			*temp1 = 0xff;
-		else if (tempi % 4 == 1)
-			*temp1 = 0x00;
-		else if (tempi % 4 == 2)
-			*temp1 = 0xff;
-		else if (tempi % 4 == 3)
-			*temp1 = 0xff;
-
-		temp1++;
-	}
-	for (tempi = deta*6; tempi < deta*7; tempi++) {
-		if (tempi % 4 == 0)
-			*temp1 = 0xff;
-		else if (tempi % 4 == 1)
-			*temp1 = 0xff;
-		else if (tempi % 4 == 2)
-			*temp1 = 0x00;
-		else if (tempi % 4 == 3)
-			*temp1 = 0xff;
-
-		temp1++;
-	}
-	for (tempi = deta*7; tempi < deta*8; tempi++) {
-		if (tempi % 4 == 0)
-			*temp1 = 0xff;
-		else if (tempi % 4 == 1)
-			*temp1 = 0xff;
-		else if (tempi % 4 == 2)
-			*temp1 = 0xff;
-		else if (tempi % 4 == 3)
-			*temp1 = 0x00;
-
-		temp1++;
-	}
-	for (tempi = deta*8; tempi < deta*9; tempi++)
-		*temp1++ = 0x00;
-
-	for (tempi = deta*9; tempi < deta*10; tempi++)
-		*temp1++ = 0xff;
-
-	temp1 = g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].vaddr;
-	tempi = 0;
-	for (tempi = 0; tempi < 120; tempi++) {
-		pr_info("0x%x  ", *temp1);
-		temp1++;
-	}
-//	printk("\n");
-//	for(tempi = 800*480*2; tempi <800*480*4; tempi++){
-//		*temp1++ = 0xff;
-//	}
-#else
-	temp1 = g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].vaddr;
-	#define IAR_DRAW_X(c, p)	(IAR_DRAW_WIDTH * c / p)
-	#define IAR_DRAW_XL(c, p)	((IAR_DRAW_WIDTH * c / p) - 1)
-	#define IAR_DRAW_Y(c, p)	(IAR_DRAW_HEIGHT * c / p)
-	#define IAR_DRAW_YL(c, p)	((IAR_DRAW_HEIGHT * c / p) - 1)
-	// color: [0:3]-BGRA -> 0x[A][R][G][B]
-	// white all.
-	deta = 0xFFFFFFFF;
-	x2_iar_draw_rect(temp1, IAR_DRAW_X(0, 1), IAR_DRAW_Y(0, 1),
+		temp1 =
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].vaddr
+		+ 800*48*4;
+		for (tempi = 0; tempi < 800*48*4; tempi++) {
+			if (((tempi + 4) % 4) == 0)
+				*temp1 = 0x00;//b
+			else if (((tempi + 4) % 4) == 1)
+				*temp1 = 0xff;//g
+			else if (((tempi + 4) % 4) == 2)
+				*temp1 = 0x00;//r
+			else if (((tempi + 4) % 4) == 3)
+				*temp1 = 0xff;//a
+			temp1++;
+		}
+		temp1 =
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].vaddr
+		+ 800*48*4*2;
+		for (tempi = 0; tempi < 800*48*4; tempi++) {
+			if (((tempi + 4) % 4) == 0)
+				*temp1 = 0x00;//b
+			else if (((tempi + 4) % 4) == 1)
+				*temp1 = 0x00;//g
+			else if (((tempi + 4) % 4) == 2)
+				*temp1 = 0xff;//r
+			else if (((tempi + 4) % 4) == 3)
+				*temp1 = 0xff;//a
+			temp1++;
+		}
+		temp1 =
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].vaddr
+		+ 800*48*4*3;
+		for (tempi = 0; tempi < 800*48*4; tempi++) {
+			if (((tempi + 4) % 4) == 0)
+				*temp1 = 0x00;//b
+			else if (((tempi + 4) % 4) == 1)
+				*temp1 = 0x00;//g
+			else if (((tempi + 4) % 4) == 2)
+				*temp1 = 0x00;//r
+			else if (((tempi + 4) % 4) == 3)
+				*temp1 = 0xff;//a
+			temp1++;
+		}
+		temp1 =
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].vaddr
+		+ 800*48*4*4;
+		for (tempi = 0; tempi < 800*48*4; tempi++) {
+			if (((tempi + 4) % 4) == 0)
+				*temp1 = 0xff;//b
+			else if (((tempi + 4) % 4) == 1)
+				*temp1 = 0xff;//g
+			else if (((tempi + 4) % 4) == 2)
+				*temp1 = 0xff;//r
+			else if (((tempi + 4) % 4) == 3)
+				*temp1 = 0xff;//a
+			temp1++;
+		}
+		//temp1 =
+		//g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].vaddr;
+		//tempi = 0;
+		//for (tempi = 0; tempi < 120; tempi++) {
+		//	pr_info("0x%x  ", *temp1);
+		//	temp1++;
+		//}
+	} else if (display_type == HDMI_TYPE) {
+		pr_info("display type is HDMI panel!!!!\n");
+		temp1 =
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].vaddr;
+		#define IAR_DRAW_X(c, p)	(IAR_DRAW_WIDTH * c / p)
+		#define IAR_DRAW_XL(c, p)	((IAR_DRAW_WIDTH * c / p) - 1)
+		#define IAR_DRAW_Y(c, p)	(IAR_DRAW_HEIGHT * c / p)
+		#define IAR_DRAW_YL(c, p)	((IAR_DRAW_HEIGHT * c / p) - 1)
+		// color: [0:3]-BGRA -> 0x[A][R][G][B]
+		// white all.
+		deta = 0xFFFFFFFF;
+		x2_iar_draw_rect(temp1, IAR_DRAW_X(0, 1), IAR_DRAW_Y(0, 1),
 			IAR_DRAW_XL(1, 1), IAR_DRAW_YL(1, 1), deta, 1);
-	// blue rect +1/10.
-	deta = 0xFF0000FF;
-	x2_iar_draw_rect(temp1, IAR_DRAW_X(1, 10), IAR_DRAW_Y(1, 10),
+		// blue rect +1/10.
+		deta = 0xFF0000FF;
+		x2_iar_draw_rect(temp1, IAR_DRAW_X(1, 10), IAR_DRAW_Y(1, 10),
 			IAR_DRAW_XL(9, 10), IAR_DRAW_YL(9, 10), deta, 1);
-	// green rect +1/10.
-	deta = 0xFF00FF00;
-	x2_iar_draw_rect(temp1, IAR_DRAW_X(2, 10), IAR_DRAW_Y(2, 10),
+		// green rect +1/10.
+		deta = 0xFF00FF00;
+		x2_iar_draw_rect(temp1, IAR_DRAW_X(2, 10), IAR_DRAW_Y(2, 10),
 			IAR_DRAW_XL(8, 10), IAR_DRAW_YL(8, 10), deta, 1);
-	// red rect +1/10.
-	deta = 0xFFFF0000;
-	x2_iar_draw_rect(temp1, IAR_DRAW_X(3, 10), IAR_DRAW_Y(3, 10),
+		// red rect +1/10.
+		deta = 0xFFFF0000;
+		x2_iar_draw_rect(temp1, IAR_DRAW_X(3, 10), IAR_DRAW_Y(3, 10),
 			IAR_DRAW_XL(7, 10), IAR_DRAW_YL(7, 10), deta, 1);
-	// black rect +1/10.
-	deta = 0xFF000000;
-	x2_iar_draw_rect(temp1, IAR_DRAW_X(4, 10), IAR_DRAW_Y(4, 10),
+		// black rect +1/10.
+		deta = 0xFF000000;
+		x2_iar_draw_rect(temp1, IAR_DRAW_X(4, 10), IAR_DRAW_Y(4, 10),
 			IAR_DRAW_XL(6, 10), IAR_DRAW_YL(6, 10), deta, 1);
-	#if 0
-	//-----------------------------------------------------------
-	vio_refclk_regaddr = ioremap_nocache(0xA1000000 + 0x40, 4);
-	//config vio refclk as 408MHz
-	regvalue1 = readl(vio_refclk_regaddr);
-	pr_info("vio_refclk_regaddr is 0x%p, value is 0x%x\n",
-			vio_refclk_regaddr, regvalue1);
-	regvalue1 = (regvalue1 & 0xf0ffffff) | 0x04000000;
-	writel(regvalue1, vio_refclk_regaddr);
-	pr_info("write vio_refclk_regaddr ok!\n");
-	regvalue1 = readl(vio_refclk_regaddr);
-	pr_info("vio_refclk_regaddr is 0x%p, value is 0x%x\n",
-			vio_refclk_regaddr, regvalue1);
-	//------------------------------------------------------------
-	iar_clk_regaddr = ioremap_nocache(0xA1000000 + 0x240, 4);
-	//config iar clk as vio_refclk/14 = 29.2MHz
-	regvalue = readl(iar_clk_regaddr);
-	pr_info("iar_clk_regaddr is 0x%p, value is 0x%x\n",
-			iar_clk_regaddr, regvalue);
-	//regvalue = (regvalue & 0xff0fffff) | 0x00d00000;//29.2M
-	//regvalue = (regvalue & 0xff0fffff) | 0x00b00000;//33.3M
-	regvalue = (regvalue & 0xff0fffff) | 0x00c00000; //32M
-	writel(regvalue, iar_clk_regaddr);
-	pr_info("write iar_clk_regaddr ok!\n");
-	regvalue = readl(iar_clk_regaddr);
-	pr_info("iar_clk_regaddr is 0x%p, value is 0x%x\n",
-			iar_clk_regaddr, regvalue);
-	#endif
-#endif
+	}
 
 	iar_pre_init();
 	iar_close();

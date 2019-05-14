@@ -497,15 +497,20 @@ enum {
 	OUTPUT_BT1120 = 1,
 	OUTPUT_RGB888 = 2,
 };
+enum DISPLAY_TYPE {
+	LCD_7_TYPE,
+	HDMI_TYPE,
+};
 
+extern int display_type;
 extern unsigned int iar_debug_level;
 #define IAR_DEBUG_PRINT(format, args...)	\
 	do {									\
 		if(iar_debug_level)					\
 			printk("IAR debug: " format, ## args);		\
 	} while(0)
-
-int32_t iar_set_panel_timing(struct fb_info *fb);
+int ips_set_iar_clk32(void);
+int32_t iar_set_panel_timing(struct fb_info *fb, int display_type);
 frame_buf_t* iar_get_framebuf_addr(uint32_t channel);
 int32_t iar_set_bufaddr(uint32_t channel, buf_addr_t *addr);
 int32_t iar_update(void);
