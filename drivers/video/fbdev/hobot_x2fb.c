@@ -477,22 +477,22 @@ struct fb_var_screeninfo RGB700_var_default = {
 	.bits_per_pixel = 32,
 	.grayscale = 0,
 	.red = {
-		.offset = 16,
+		.offset = 8,
 		.length = 8,
 		.msb_right = 0,//MSB left; !=0,MSB right
 	},
 	.green = {
-		.offset = 8,
+		.offset = 16,
 		.length = 8,
 		.msb_right = 0,
 	},
 	.blue = {
-		.offset = 0,
+		.offset = 24,
 		.length = 8,
 		.msb_right = 0,
 	},
 	.transp = {
-		.offset = 24,
+		.offset = 0,
 		.length = 8,
 		.msb_right = 0,
 	},
