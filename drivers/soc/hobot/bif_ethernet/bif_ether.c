@@ -662,6 +662,11 @@ static int bifnet_init(void)
 			(dma_addr_t *)&pl->self_phy,
 			GFP_KERNEL, BIFETH_MEMATTRS);
 #endif
+		if (pl->self_vir == (void *)-1 || pl->self_phy == 0) {
+			ret = -ENOMEM;
+			goto exit_5;
+		}
+
 		bif_register_address(pl->bifnet_id,
 			(void *)(ulong)pl->self_phy);
 		pl->other_phy = pl->self_phy + ALLOC_SIZE;
