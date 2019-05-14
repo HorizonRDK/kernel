@@ -26,6 +26,14 @@
 
 struct video_timing video_384x292_60Hz = {
 	6, 5, 5, 384, 400, 4, 2, 2, 292, 300, 3000};
+//struct video_timing video_800x480_60Hz = {
+//	40, 48, 40, 800, 928, 12, 3, 30, 480, 525, 29232};
+struct video_timing video_800x480_60Hz = {
+	100, 48, 52, 800, 1000, 42, 2, 31, 480, 555, 33300};
+//      hfp  hs  hbp hact vtotalvfp vs vbp vact vtotal clk
+//struct video_timing video_800x480_60Hz = {
+//	100, 46, 52, 800, 1000, 42, 4, 31, 480, 555, 33300};
+
 struct video_timing video_640x480_60Hz = {
 	8, 96, 40, 640, 800, 33, 2, 10, 480, 525, 25000};
 struct video_timing video_720x480_60Hz = {
@@ -54,7 +62,6 @@ struct video_timing video_1920x1080_25Hz = {
 
 struct video_timing TimingStr;
 enum VideoFormat Video_Format;
-
 //extern int lt9211_reset_pin;
 //extern int lcd_reset_pin;
 //extern int lcd_pwm_pin;
@@ -64,13 +71,35 @@ enum VideoFormat Video_Format;
 int set_lt9211_config(struct fb_info *fb, unsigned int convert_type)
 {
 	int ret = 0;
+	uint8_t value_4f = 0;
+	struct video_timing timing;
+	uint8_t sync_polarity = 0;
+	uint8_t vs = 0;
+	uint8_t hs_l, hs_h = 0;
+	uint8_t vbp = 0;
+	uint8_t vfp = 0;
+	uint8_t hbp_l, hbp_h = 0;
+	uint8_t hfp_l, hfp_h = 0;
+	uint8_t vtotal_l, vtotal_h = 0;
+	uint8_t htotal_l, htotal_h = 0;
+	uint8_t vact_l, vact_h = 0;
+	uint8_t hact_l, hact_h = 0;
+	uint16_t hs, hbp, hfp, vtotal, htotal, vact, hact;
 
-	ret = lt9211_reset();
-	if (ret) {
-		pr_err("Err reset lt9211!!\n");
-		return ret;
-	}
+	pr_info("Framebuffer begin set lt9211 config!!!\n");
+	//ret = lt9211_reset_first();
+	//if (ret) {
+	//	pr_err("Err reset lt9211!!\n");
+	//	return ret;
+	//}
+
 	if (convert_type == BT1120_TO_RGB888) {
+		ret = lt9211_chip_id();
+		if (ret) {
+			pr_info("%s() Err get lt9211 chip id ret= %d\n",
+						__func__, ret);
+			return ret;
+		}
 		ret = lt9211_system_int_to_RGB();
 		if (ret) {
 			pr_info("%s() Err init lt9211 system ret= %d\n",
@@ -80,70 +109,82 @@ int set_lt9211_config(struct fb_info *fb, unsigned int convert_type)
 		ret = lt9211_ttl_rx_phy_to_RGB();
 		if (ret) {
 			pr_info("%s() Err init lt9211 system ret= %d\n",
-					__func__, ret);
+						__func__, ret);
 			return ret;
 		}
-		ret = lt9211_BT_video_check_to_RGB();
-		if (ret) {
-			pr_info("%s() Err init lt9211 system ret= %d\n",
-					__func__, ret);
-			return ret;
-		}
-		//ret = lt9211_set_timing_para_to_RGB();
-		//if (ret) {
-			//pr_info("%s() Err init lt9211
-			//system ret= %d\n", __func__, ret);
-			//return ret;
-		//}
-		//Htotal
-		ret = x2_write_lt9211(0xff, 0x85);
-		if (ret < 0)
-			return ret;
-		ret = x2_write_lt9211(0x20, (uint8_t)(TimingStr.hact >> 8));
-		if (ret < 0)
-			return ret;
-		ret = x2_write_lt9211(0x21, (uint8_t)(TimingStr.hact));
-		if (ret < 0)
-			return ret;
-		//HFP
-		//ret = x2_write_lt9211(0x22, (uint8_t)(TimingStr.hfp >> 8));
-		ret = x2_write_lt9211(0x22,
-				(uint8_t)(fb->var.left_margin >> 8));
-		if (ret < 0)
-			return ret;
-		//ret = x2_write_lt9211(0x23, (uint8_t)(TimingStr.hfp));
-		ret = x2_write_lt9211(0x23, (uint8_t)(fb->var.left_margin));
-		if (ret < 0)
-			return ret;
-		//HSW
-		//ret = x2_write_lt9211(0x24, (uint8_t)(TimingStr.hs >> 8));
-		ret = x2_write_lt9211(0x24, (uint8_t)(fb->var.hsync_len >> 8));
-		if (ret < 0)
-			return ret;
-		//ret = x2_write_lt9211(0x25, (uint8_t)(TimingStr.hs));
-		ret = x2_write_lt9211(0x25, (uint8_t)(fb->var.hsync_len));
-		if (ret < 0)
-			return ret;
-		//VFP
-		//ret = x2_write_lt9211(0x38, (uint8_t)(TimingStr.vfp >> 8));
-		ret = x2_write_lt9211(0x38,
-				(uint8_t)(fb->var.upper_margin >> 8));
-		if (ret < 0)
-			return ret;
-		//ret = x2_write_lt9211(0x39, (uint8_t)(TimingStr.vfp);
-		ret = x2_write_lt9211(0x39, (uint8_t)(fb->var.upper_margin));
-		if (ret < 0)
-			return ret;
-		//VSW
-		//ret = x2_write_lt9211(0x3c, (uint8_t)(TimingStr.vs >> 8));
-		ret = x2_write_lt9211(0x3c, (uint8_t)(fb->var.vsync_len >> 8));
-		if (ret < 0)
-			return ret;
-		//ret = x2_write_lt9211(0x3d, (uint8_t)(TimingStr.vs);
-		ret = x2_write_lt9211(0x3d, (uint8_t)(fb->var.vsync_len));
-		if (ret < 0)
-			return ret;
+	//	ret = x2_write_lt9211(0xff, 0x85);
+	//	ret = x2_read_lt9211(0x4f, &value_4f);
+	//	pr_info("value 0x4f is 0x%x.\n", value_4f);
+	//	if(value_4f != 0x40){
+	//		while(1);
+	//	}
 
+		msleep(500);
+
+		TimingStr = video_800x480_60Hz;
+		lt9211_set_timing_para_to_RGB();
+
+		msleep(500);
+		msleep(500);
+		//msleep(500);
+		//800x480 timing parameter
+		//hfp:40 hs:48 hbp:40 hact:800 htotal:928 vfp:12 vs:3
+		//vbp:30 vact:480 vtotal:525 pclk:29232
+
+		//video check debug
+		x2_write_lt9211(0xff, 0x86);
+		x2_write_lt9211(0x20, 0x00);
+		msleep(500);
+		//msleep(500);
+		x2_read_lt9211(0x70, &sync_polarity);
+		pr_info("sync_polarity is %d.\n", sync_polarity);
+
+		x2_read_lt9211(0x71, &vs);
+		pr_info("vs is %d(2)", vs);
+
+		x2_read_lt9211(0x72, &hs_h);
+		x2_read_lt9211(0x73, &hs_l);
+		hs = (((uint16_t)hs_h) << 8) + (uint16_t)hs_l;
+		pr_info("hs is %d(48).\n", hs);
+
+		x2_read_lt9211(0x74, &vbp);
+		pr_info("vbp is %d(31)", vbp);
+
+		x2_read_lt9211(0x75, &vfp);
+		pr_info("vfp is %d(42)", vfp);
+
+		x2_read_lt9211(0x76, &hbp_h);
+		x2_read_lt9211(0x77, &hbp_l);
+		hbp = (((uint16_t)hbp_h) << 8) + (uint16_t)hbp_l;
+		pr_info("hbp is %d(52).\n", hbp);
+
+		x2_read_lt9211(0x78, &hfp_h);
+		x2_read_lt9211(0x79, &hfp_l);
+		hfp = (((uint16_t)hfp_h) << 8) + (uint16_t)hfp_l;
+		pr_info("hfp is %d(100).\n", hfp);
+
+		x2_read_lt9211(0x7a, &vtotal_h);
+		x2_read_lt9211(0x7b, &vtotal_l);
+		vtotal = (((uint16_t)vtotal_h) << 8) + (uint16_t)vtotal_l;
+		pr_info("vtotal is %d(555).\n", vtotal);
+
+		x2_read_lt9211(0x7c, &htotal_h);
+		x2_read_lt9211(0x7d, &htotal_l);
+		htotal = (((uint16_t)htotal_h) << 8) + (uint16_t)htotal_l;
+		pr_info("htotal is %d(1000).\n", htotal);
+
+		x2_read_lt9211(0x7e, &vact_h);
+		x2_read_lt9211(0x7f, &vact_l);
+		vact = (((uint16_t)vact_h) << 8) + (uint16_t)vact_l;
+		pr_info("vact is %d(480).\n", vact);
+
+		x2_read_lt9211(0x80, &hact_h);
+		x2_read_lt9211(0x81, &hact_l);
+		hact = (((uint16_t)hact_h) << 8) + (uint16_t)hact_l;
+		pr_info("hact is %d(800).\n", hact);
+
+
+	//	lt9211r_patten(&video_800x480_60Hz);
 		msleep(100);
 		ret = lt9211_tx_digital_RGB();
 		if (ret) {
@@ -165,6 +206,7 @@ int set_lt9211_config(struct fb_info *fb, unsigned int convert_type)
 					__func__, ret);
 			return ret;
 		}
+	//	while(1);
 		ret = lt9211_rx_csc();
 		if (ret) {
 			pr_info("%s() Err init lt9211 system ret= %d\n",
@@ -283,6 +325,7 @@ int set_lt9211_config(struct fb_info *fb, unsigned int convert_type)
 		}
 	}
 
+	pr_info("Framebuffer config lt9211 on line end!!!\n");
 	return ret;
 }
 EXPORT_SYMBOL_GPL(set_lt9211_config);
@@ -358,16 +401,37 @@ int lt9211_dsi_lcd_init(unsigned int convert_type)
 	//unsigned int type = convert_type;
 	int ret = 0;
 
-	ret = lt9211_reset();
+	ret = lt9211_reset_first();
 	if (ret) {
 		pr_err("Err reset lt9211!!\n");
 		return ret;
 	}
-	lt9211_config(convert_type);
+//	lt9211_config(convert_type);
 	return 0;
 }
 
 int lt9211_reset(void)
+{
+	int ret;
+
+//	ret = gpio_request(85, "x2_lt9211_reset_pin");
+//	if (ret) {
+//		pr_info("%s() Err get trigger pin ret= %d\n",
+//					__func__, ret);
+//		return -ENODEV;
+//	}
+	pr_info("gpio request 85 succeed!!!!");
+	gpio_direction_output(lt9211_reset_pin, 0);
+	pr_info("lt9211 reset pin output low!!!!!\n");
+	msleep(1000);
+	gpio_direction_output(lt9211_reset_pin, 1);
+	pr_info("lt9211 reset pin output high!!!!\n");
+	msleep(1000);
+	pr_info("lt9211 reset again success!\n");
+	return 0;
+}
+
+int lt9211_reset_first(void)
 {
 	int ret;
 
@@ -377,11 +441,15 @@ int lt9211_reset(void)
 					__func__, ret);
 		return -ENODEV;
 	}
+	pr_info("gpio request 85 succeed!!!!");
 	gpio_direction_output(lt9211_reset_pin, 0);
+	pr_info("lt9211 reset pin output low!!!!!\n");
 	msleep(100);
 	gpio_direction_output(lt9211_reset_pin, 1);
+	pr_info("lt9211 reset pin output high!!!!\n");
 	msleep(100);
 
+	pr_info("lt9211 reset first success!!!\n");
 	return 0;
 }
 
@@ -389,6 +457,7 @@ int lt9211_config(unsigned int convert_type)
 {
 	int ret = 0;
 
+	pr_info("lt9211 config begin!!!\n");
 	ret = lt9211_chip_id();
 	if (ret) {
 		pr_info("%s() Err get lt9211 chip id ret= %d\n",
@@ -457,6 +526,8 @@ int lt9211_config(unsigned int convert_type)
 			return ret;
 		}
 	} else if (convert_type == BT1120_TO_RGB888) {
+		pr_info("begin config lt9211, config bt1120 convert to RGB888!!!\n");
+		//TimingStr = video_720x480_60Hz;
 		ret = lt9211_system_int_to_RGB();
 		if (ret) {
 			pr_info("%s() Err init lt9211 system ret= %d\n",
@@ -534,8 +605,10 @@ int lt9211_chip_id(void)
 	if (ret < 0)
 		return ret;
 	pr_info("%x\n", chip_id[2]);
-	return 0;
-
+	if ((chip_id[0] == 0x18) && (chip_id[1] == 0x1) && (chip_id[2] == 0xe1))
+		return 0;
+	else
+		return -1;
 }
 
 int lt9211_system_int_to_mipi(void)
@@ -611,6 +684,7 @@ int lt9211_system_int_to_RGB(void)
 {
 	int ret = 0;
 
+	pr_info("step1:begin to config lt9211 system int to RGB!!!\n");
 	ret = x2_write_lt9211(0xff, 0x82);
 	if (ret < 0)
 		return ret;
@@ -626,6 +700,29 @@ int lt9211_system_int_to_RGB(void)
 	ret = x2_write_lt9211(0x07, 0xa8);
 	if (ret < 0)
 		return ret;
+
+	ret = x2_write_lt9211(0xff, 0x87);//init plltx
+	if (ret < 0)
+		return ret;
+	ret = x2_write_lt9211(0x14, 0x08);//default value
+	if (ret < 0)
+		return ret;
+	ret = x2_write_lt9211(0x15, 0x00);//default value
+	if (ret < 0)
+		return ret;
+	ret = x2_write_lt9211(0x18, 0x0f);
+	if (ret < 0)
+		return ret;
+	ret = x2_write_lt9211(0x22, 0x08);//default value
+	if (ret < 0)
+		return ret;
+	ret = x2_write_lt9211(0x23, 0x00);//default value
+	if (ret < 0)
+		return ret;
+	ret = x2_write_lt9211(0x26, 0x0f);
+	if (ret < 0)
+		return ret;
+	pr_info("step1:end to config lt9211 system int to RGB!!!\n");
 	return 0;
 }
 
@@ -674,6 +771,7 @@ int lt9211_ttl_rx_phy_to_RGB(void)
 {
 	int ret = 0;
 
+	pr_info("step2:begin to config lt9211 ttl rx phy to RGB!!!\n");
 	ret = x2_write_lt9211(0xff, 0x82);
 	if (ret < 0)
 		return ret;
@@ -681,6 +779,9 @@ int lt9211_ttl_rx_phy_to_RGB(void)
 	if (ret < 0)
 		return ret;
 	ret = x2_write_lt9211(0x61, 0x09);
+	if (ret < 0)
+		return ret;
+	ret = x2_write_lt9211(0x63, 0x00);
 	if (ret < 0)
 		return ret;
 
@@ -691,12 +792,17 @@ int lt9211_ttl_rx_phy_to_RGB(void)
 	ret = x2_write_lt9211(0x88, 0x90);
 	if (ret < 0)
 		return ret;
-	ret = x2_write_lt9211(0x45, 0x00);
+//	ret = x2_write_lt9211(0x45, 0x70);
+//	if (ret < 0)
+//		return ret;
+	ret = x2_write_lt9211(0x45, 0x60);
 	if (ret < 0)
 		return ret;
-	ret = x2_write_lt9211(0x48, 0x18);//8BIT
+
+	ret = x2_write_lt9211(0x48, 0x18);//16BIT
 	if (ret < 0)
 		return ret;
+	pr_info("step2:end to config lt9211 ttl rx phy to RGB!!!\n");
 	return 0;
 }
 
@@ -800,6 +906,7 @@ int lt9211_BT_video_check_to_RGB(void)
 		if (ret < 0)
 			return ret;
 		ret = x2_read_lt9211(0x4f, &bt_flag);
+		pr_info("lt9211 bt format flag is 0x%x\n", bt_flag);
 		if (ret < 0)
 			return ret;
 		if (bt_flag & 0x40) {
@@ -895,6 +1002,7 @@ int lt9211_set_timing_para_to_RGB(void)
 {
 	int ret = 0;
 
+	pr_info("step: begin lt9211 set timing para to RGB!!!\n");
 	//Htotal
 	ret = x2_write_lt9211(0xff, 0x85);
 	if (ret < 0)
@@ -933,6 +1041,7 @@ int lt9211_set_timing_para_to_RGB(void)
 	ret = x2_write_lt9211(0x3d, (uint8_t)(TimingStr.vs));
 	if (ret < 0)
 		return ret;
+	pr_info("step: end lt9211 set timing para to RGB!!!\n");
 	return 0;
 }
 
@@ -958,15 +1067,21 @@ int lt9211_RGB_tx_phy(void)
 {
 	int ret = 0;
 
+	pr_info("step: begin lt9211 RGB tx phy!!!\n");
 	ret = x2_write_lt9211(0xff, 0x82);
 	if (ret < 0)
 		return ret;
 	if ((LT9211_OutPutModde == OUTPUT_RGB888) ||
 			(LT9211_OutPutModde == OUTPUT_BT656_8BIT) ||
 			(LT9211_OutPutModde == OUTPUT_BT1120_16BIT)) {
+		pr_info("Output mode is RGB888\n");
 		ret = x2_write_lt9211(0x62, 0x01);//ttl output enable
 		if (ret < 0)
 			return ret;
+		ret = x2_write_lt9211(0x63, 0xff);
+		if (ret < 0)
+			return ret;
+
 		ret = x2_write_lt9211(0x6b, 0xff);
 		if (ret < 0)
 			return ret;
@@ -1036,6 +1151,7 @@ int lt9211_RGB_tx_phy(void)
 		if (ret < 0)
 			return ret;
 	}
+	pr_info("step: end lt9211 RGB tx phy!!!\n");
 	return 0;
 }
 
@@ -1143,6 +1259,7 @@ int lt9211_RGB_tx_pll(void)
 	uint8_t loopx;
 	uint8_t read_result_reg1f, read_result_reg20;
 
+	pr_info("setp: begin config lt9211 RGB tx pll!!!\n");
 	if (LT9211_OutPutModde == OUTPUT_BT656_8BIT) {
 		ret = x2_write_lt9211(0xff, 0x82);
 		if (ret < 0)
@@ -1160,6 +1277,7 @@ int lt9211_RGB_tx_pll(void)
 			(LT9211_OutPutModde == OUTPUT_LVDS_1_PORT) ||
 			(LT9211_OutPutModde == OUTPUT_RGB888) ||
 			(LT9211_OutPutModde == OUTPUT_BT1120_16BIT)) {
+		pr_info("Output mode is RGB888.\n");
 		ret = x2_write_lt9211(0xff, 0x82);
 		if (ret < 0)
 			return ret;
@@ -1216,11 +1334,13 @@ int lt9211_RGB_tx_pll(void)
 					pr_info("LT9211 tx pll unlocked!\n");
 				pr_info("LT9211 tx pll cal done!\n");
 				break;
+			} else {
+				pr_info("value of 0x1f & 0x80 = 0, lt9211 tx pll unlocked\n");
 			}
-			pr_info("LT9211 tx pll unlocked\n");
 		}
 	}
 	pr_info("system success.\n");
+	pr_info("step: end config lt9211 rgb tx pll!!!\n");
 	return 0;
 }
 
@@ -1573,24 +1693,33 @@ int lt9211_tx_digital_RGB(void)
 {
 	int ret = 0;
 
+	pr_info("step: begin config lt9211 tx digital RGB!!!\n");
 	pr_info("LT9211 outpud mode ");
 	if (LT9211_OutPutModde == OUTPUT_RGB888) {
 		pr_info("set to OUTPUT_RGB888\n");
 		ret = x2_write_lt9211(0xff, 0x85);
 		if (ret < 0)
 			return ret;
-		ret = x2_write_lt9211(0x88, 0x50);
+		//debug !!!!!!!!!!!!!!!!!!!!!!!!
+		ret = x2_write_lt9211(0x88, 0x90);
 		if (ret < 0)
 			return ret;
+//		ret = x2_write_lt9211(0x88, 0xc0);
+//		if (ret < 0)
+//			return ret;
 		ret = x2_write_lt9211(0x60, 0x00);
 		if (ret < 0)
 			return ret;
-		ret = x2_write_lt9211(0x6d, 0x03);
+		ret = x2_write_lt9211(0x6d, 0x00);//BGR sequence
 		if (ret < 0)
 			return ret;
-		ret = x2_write_lt9211(0x6e, 0x00);
+//		ret = x2_write_lt9211(0x6e, 0x00);//normal
+//		if (ret < 0)
+//			return ret;
+		ret = x2_write_lt9211(0x6e, 0x80);//swap b
 		if (ret < 0)
 			return ret;
+
 		ret = x2_write_lt9211(0xff, 0x81);
 		if (ret < 0)
 			return ret;
@@ -1732,6 +1861,7 @@ int lt9211_tx_digital_RGB(void)
 			return ret;
 #endif
 	}
+	pr_info("step: end config lt9211 tx digital RGB!!!\n");
 	return 0;
 }
 
@@ -1739,81 +1869,104 @@ int lt9211_rx_csc(void)
 {
 	int ret = 0;
 
+	pr_info("step: config lt9211 rx csc!!!\n");
 	ret = x2_write_lt9211(0xff, 0xf9);
 	if (ret < 0)
 		return ret;
-	if (LT9211_OutPutModde == OUTPUT_RGB888) {
-		if (Video_Input_Mode == Input_RGB888) {
-			ret = x2_write_lt9211(0x86, 0x00);
-			if (ret < 0)
-				return ret;
-			ret = x2_write_lt9211(0x87, 0x00);
-			if (ret < 0)
-				return ret;
-		} else if (Video_Input_Mode == Input_YCbCr444) {
-			ret = x2_write_lt9211(0x86, 0x0f);
-			if (ret < 0)
-				return ret;
-			ret = x2_write_lt9211(0x87, 0x00);
-			if (ret < 0)
-				return ret;
-		} else if (Video_Input_Mode == Input_YCbCr422_16BIT) {
-			ret = x2_write_lt9211(0x86, 0x00);
-			if (ret < 0)
-				return ret;
-			ret = x2_write_lt9211(0x87, 0x03);
-			if (ret < 0)
-				return ret;
-		}
-	} else if ((LT9211_OutPutModde == OUTPUT_BT656_8BIT) ||
-			(LT9211_OutPutModde == OUTPUT_BT1120_16BIT) ||
-			(LT9211_OutPutModde == OUTPUT_YCbCr422_16BIT)) {
-		if (Video_Input_Mode == Input_RGB888) {
-			ret = x2_write_lt9211(0x86, 0x0f);
-			if (ret < 0)
-				return ret;
-			ret = x2_write_lt9211(0x87, 0x30);
-			if (ret < 0)
-				return ret;
-		} else if (Video_Input_Mode == Input_YCbCr444) {
-			ret = x2_write_lt9211(0x86, 0x00);
-			if (ret < 0)
-				return ret;
-			ret = x2_write_lt9211(0x87, 0x30);
-			if (ret < 0)
-				return ret;
-		} else if (Video_Input_Mode == Input_YCbCr422_16BIT) {
-			ret = x2_write_lt9211(0x86, 0x00);
-			if (ret < 0)
-				return ret;
-			ret = x2_write_lt9211(0x87, 0x00);
-			if (ret < 0)
-				return ret;
-		}
-	} else if (LT9211_OutPutModde == OUTPUT_YCbCr444) {
-		if (Video_Input_Mode == Input_RGB888) {
-			ret = x2_write_lt9211(0x86, 0x0f);
-			if (ret < 0)
-				return ret;
-			ret = x2_write_lt9211(0x87, 0x00);
-			if (ret < 0)
-				return ret;
-		} else if (Video_Input_Mode == Input_YCbCr444) {
-			ret = x2_write_lt9211(0x86, 0x00);
-			if (ret < 0)
-				return ret;
-			ret = x2_write_lt9211(0x87, 0x00);
-			if (ret < 0)
-				return ret;
-		} else if (Video_Input_Mode == Input_YCbCr422_16BIT) {
-			ret = x2_write_lt9211(0x86, 0x00);
-			if (ret < 0)
-				return ret;
-			ret = x2_write_lt9211(0x87, 0x03);
-			if (ret < 0)
-				return ret;
-		}
-	}
+	ret = x2_write_lt9211(0x90, 0x03);
+	if (ret < 0)
+		return ret;
+	ret = x2_write_lt9211(0x91, 0x03);
+	if (ret < 0)
+		return ret;
+
+	pr_info("step: end config lt9211 rx csc!!!\n");
 	return 0;
 }
+void lt9211r_patten(struct video_timing *video_format)
+{
+	uint32_t pclk_khz;
+	uint8_t dessc_pll_post_div;
+	uint32_t pcr_m, pcr_k;
 
+	pclk_khz = video_format->pclk_khz;
+
+	x2_write_lt9211(0xff, 0xf9);
+	x2_write_lt9211(0x3e, 0x80);
+
+	x2_write_lt9211(0xff, 0x85);
+	x2_write_lt9211(0x88, 0xc0);
+
+	x2_write_lt9211(0xa1, 0x64);
+	x2_write_lt9211(0xa2, 0xff);
+
+	x2_write_lt9211(0xa3,
+		(uint8_t)((video_format->hs + video_format)));
+
+	x2_write_lt9211(0xa3,
+		(uint8_t)((video_format->hs + video_format->hbp) / 256));
+	x2_write_lt9211(0xa4,
+		(uint8_t)((video_format->hs + video_format->hbp) % 256));
+	//h_start
+
+	x2_write_lt9211(0xa5,
+		(uint8_t)((video_format->vs + video_format->vbp) % 256));
+	//v_start
+
+	x2_write_lt9211(0xa6, (uint8_t)(video_format->hact / 256));
+	x2_write_lt9211(0xa7, (uint8_t)(video_format->hact % 256));
+	//hactive
+
+	x2_write_lt9211(0xa8, (uint8_t)(video_format->vact / 256));
+	x2_write_lt9211(0xa9, (uint8_t)(video_format->vact % 256));
+	//vactive
+
+	x2_write_lt9211(0xaa, (uint8_t)(video_format->htotal / 256));
+	x2_write_lt9211(0xab, (uint8_t)(video_format->htotal % 256));
+	//htotal
+
+	x2_write_lt9211(0xac, (uint8_t)(video_format->vtotal / 256));
+	x2_write_lt9211(0xad, (uint8_t)(video_format->vtotal % 256));
+	//vtotal
+
+	x2_write_lt9211(0xae, (uint8_t)(video_format->hs / 256));
+	x2_write_lt9211(0xaf, (uint8_t)(video_format->hs % 256));
+	//hsa
+
+	x2_write_lt9211(0xb0, (uint8_t)(video_format->vs % 256));
+	//vsa
+	//dessc pll to generate pixel clk
+	x2_write_lt9211(0xff, 0x82);//dessc pll
+	x2_write_lt9211(0x2d, 0x48);//pll ref select xtal
+
+	if (pclk_khz < 44000) {
+		x2_write_lt9211(0x35, 0x83);
+		dessc_pll_post_div = 16;
+	} else if (pclk_khz < 88000) {
+		x2_write_lt9211(0x35, 0x82);
+		dessc_pll_post_div = 8;
+	} else if (pclk_khz < 176000) {
+		x2_write_lt9211(0x35, 0x81);
+		dessc_pll_post_div = 4;
+	} else if (pclk_khz < 352000) {
+		x2_write_lt9211(0x35, 0x80);
+		dessc_pll_post_div = 0;
+	}
+
+	pcr_m = (pclk_khz * dessc_pll_post_div) / 25;
+	pcr_k = pcr_m % 1000;
+	pcr_m = pcr_m / 1000;
+
+	pcr_k <<= 14;
+
+	//pixel clk
+	x2_write_lt9211(0xff, 0xd0);//pcr
+	x2_write_lt9211(0x2d, 0x7f);
+	x2_write_lt9211(0x31, 0x00);
+
+	x2_write_lt9211(0x26, 0x80 | ((uint8_t)pcr_m));
+	x2_write_lt9211(0x27, (uint8_t)((pcr_k >> 16) & 0xff));//K
+	x2_write_lt9211(0x28, (uint8_t)((pcr_k >> 8) & 0xff));//K
+	x2_write_lt9211(0x29, (uint8_t)(pcr_k & 0xff));//K
+
+}

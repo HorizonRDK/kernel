@@ -24,13 +24,16 @@
 
 #include "x2_lt9211.h"
 
+//int lt9211_reset_pin = 85;
 int lt9211_reset_pin;
 int lcd_reset_pin;
+int display_type = HDMI_TYPE;
 
 struct pwm_device *lcd_backlight_pwm;
 
 struct x2_lt9211_s *g_x2_lt9211;
-
+//int vio_sys_clk_trigger_init(struct device *dev, unsigned int select);
+//int ips_set_iar_clk(void);
 
 static int lt9211_open(struct inode *inode, struct file *filp)
 {
@@ -106,11 +109,13 @@ static int lcd_backlight_init(void)
 {
 	int ret = 0;
 
+	pr_info("initialize lcd backligbt!!!\n");
 	lcd_backlight_pwm = pwm_request(0, "lcd-pwm");
 	if (lcd_backlight_pwm == NULL) {
 		pr_err("\nNo pwm device 0!!!!\n");
 		return -ENODEV;
 	}
+	pr_info("pwm request 0 is okay!!!\n");
 	/**
 	 * pwm_config(struct pwm_device *pwm, int duty_ns,
 			     int period_ns) - change a PWM device configuration
@@ -120,21 +125,25 @@ static int lcd_backlight_init(void)
 	 *
 	 * Returns: 0 on success or a negative error code on failure.
 	 */
-	ret = pwm_config(lcd_backlight_pwm, 20000000, 20000000); // 0.5ms
+	ret = pwm_config(lcd_backlight_pwm, 10, 20);
+	// 50Mhz,20ns period, on = 20ns
 	if (ret) {
 		pr_err("\nError config pwm!!!!\n");
 		return ret;
 	}
-	ret = pwm_set_polarity(lcd_backlight_pwm, PWM_POLARITY_NORMAL);
-	if (ret) {
-		pr_err("\nError set pwm polarity!!!!\n");
-		return ret;
-	}
+	pr_info("pwm config is okay!!!\n");
+//	ret = pwm_set_polarity(lcd_backlight_pwm, PWM_POLARITY_NORMAL);
+//	if (ret) {
+//		pr_err("\nError set pwm polarity!!!!\n");
+//		return ret;
+//	}
+//	printk("pwm set polarity is okay!!!\n");
 	ret = pwm_enable(lcd_backlight_pwm);
 	if (ret) {
 		pr_err("\nError enable pwm!!!!\n");
 		return ret;
 	}
+	pr_info("pwm enable is okay!!!\n");
 	return 0;
 }
 
@@ -156,6 +165,12 @@ static int x2_lt9211_probe(struct i2c_client *client,
 	dev_t devno;
 	int ret = 0;
 	unsigned int convert_type = BT1120_TO_RGB888;
+	//void __iomem *iar_clk_regaddr;
+	//void __iomem *vio_refclk_regaddr;
+	//int regvalue = 0;
+	//int regvalue1 = 0;
+
+	pr_info("x2 lt9211 probe start.\n");
 
 	if (!i2c_check_functionality(adapter, I2C_FUNC_I2C))
 		return -ENODEV;
@@ -201,10 +216,48 @@ static int x2_lt9211_probe(struct i2c_client *client,
 		goto err;
 	}
 
-	ret = of_property_read_u32(x2_lt9211_dev->of_node,
-			"x2_lt9211_reset_pin", &lt9211_reset_pin);
-	if (ret)
-		dev_err(x2_lt9211_dev, "Filed to get x2_lt9211_reset_pin\n");
+	ret = lt9211_chip_id();
+	if (ret != 0) {
+		display_type = HDMI_TYPE;
+		pr_err("not found lt9211 device, exit probe!!!\n");
+		return ret;
+	}
+/*	//---------------------------------------------------------------
+ *	//config vio refclk as 408MHz
+ *	vio_refclk_regaddr = ioremap_nocache(0xA1000000 + 0x40, 4);
+ *	regvalue1 = readl(vio_refclk_regaddr);
+ *	printk("vio_refclk_regaddr is 0x%p, value is 0x%x\n",
+ *					vio_refclk_regaddr, regvalue1);
+ *	regvalue1 = (regvalue1 & 0xf0ffffff) | 0x04000000;
+ *	writel(regvalue1, vio_refclk_regaddr);
+ *	printk("write vio_refclk_regaddr ok!\n");
+ *	regvalue1 = readl(vio_refclk_regaddr);
+ *	printk("vio_refclk_regaddr is 0x%p, value is 0x%x\n",
+ *					vio_refclk_regaddr, regvalue1);
+ *	//----------------------------------------------------------------
+ *	//config iar clk as vio_refclk/14 = 29.2MHz
+ *	iar_clk_regaddr = ioremap_nocache(0xA1000000 + 0x240, 4);
+ *	regvalue = readl(iar_clk_regaddr);
+ *	printk("iar_clk_regaddr is 0x%p, value is 0x%x\n", iar_clk_regaddr,
+ *								regvalue);
+ *	//regvalue = (regvalue & 0xff0fffff) | 0x00d00000;//29.2M
+ *	//regvalue = (regvalue & 0xff0fffff) | 0x00b00000;//33.3M
+ *	regvalue = (regvalue & 0xff0fffff) | 0x00c00000;//32M
+ *	writel(regvalue, iar_clk_regaddr);
+ *	printk("write iar_clk_regaddr ok!\n");
+ *	regvalue = readl(iar_clk_regaddr);
+ *	printk("iar_clk_regaddr is 0x%p, value is 0x%x\n", iar_clk_regaddr,
+ *								regvalue);
+ *	//-----------------------------------------------------------------
+ */
+	display_type = LCD_7_TYPE;
+	ret = of_property_read_u32(client->dev.of_node, "x2_lt9211_reset_pin",
+					&lt9211_reset_pin);
+	if (ret) {
+		dev_err(&client->dev, "Filed to get rst_pin %d\n", ret);
+		return ret;
+	}
+
 	ret = of_property_read_u32(x2_lt9211_dev->of_node,
 			"x2_lcd_reset_pin", &lcd_reset_pin);
 	if (ret)
@@ -220,9 +273,9 @@ static int x2_lt9211_probe(struct i2c_client *client,
 	client->flags = I2C_CLIENT_SCCB;
 	pr_info("chip found @ 0x%02x (%s)\n",
 			client->addr << 1, client->adapter->name);
-	ret = lcd_backlight_init();
-	if (ret)
-		pr_info("\nlcd backlight init err!\n");
+//	ret = lcd_backlight_init();
+//	if (ret)
+//		pr_info("\nlcd backlight init err!\n");
 
 	ret = lt9211_dsi_lcd_init(convert_type);
 	if (ret)
@@ -251,33 +304,23 @@ static int x2_lt9211_remove(struct i2c_client *client)
 	return 0;
 }
 
-#ifdef CONFIG_OF
 static const struct of_device_id x2_lt9211_of_match[] = {
 	{ .compatible = "x2,lt9211", .data = NULL },
-	{ /* sentinel */ }
+	{}
 };
 MODULE_DEVICE_TABLE(of, x2_lt9211_of_match);
-#endif
 
-static const struct i2c_device_id x2_lt9211_id[] = {
-	{"x2_lt9211", 0},
-	{ }
-};
-MODULE_DEVICE_TABLE(i2c, x2_lt9211_id);
 
 static struct i2c_driver x2_lt9211_driver = {
 	.driver = {
 		.name = "x2_lt9211",
-#ifdef CONFIG_OF
-		.of_match_table = of_match_ptr(x2_lt9211_of_match),
-#endif
+		.of_match_table = x2_lt9211_of_match,
 	},
 	.probe = x2_lt9211_probe,
 	.remove = x2_lt9211_remove,
-	.id_table = x2_lt9211_id,
 };
 module_i2c_driver(x2_lt9211_driver);
 
 MODULE_DESCRIPTION("x2_lt9211_converter_driver");
 MODULE_AUTHOR("GuoRui <rui.guo@hobot.cc>");
-MODULE_LICENSE("GPL");
+MODULE_LICENSE("GPL v2");

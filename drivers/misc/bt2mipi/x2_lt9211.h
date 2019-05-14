@@ -7,7 +7,7 @@
 #include <linux/slab.h>
 #include <linux/fb.h>
 
-#define LT9211_SLAVE_ADDR 0x0
+#define LT9211_SLAVE_ADDR 0x2D
 
 #define MAX_FRAME_BUF_SIZE  (1920*1080*4)
 
@@ -18,6 +18,7 @@
 extern int lt9211_reset_pin;
 extern int lcd_reset_pin;
 extern struct x2_lt9211_s *g_x2_lt9211;
+//extern struct ips_dev_s *g_ipsdev;
 
 struct x2_lt9211_s {
 	struct i2c_client *client;
@@ -33,6 +34,10 @@ struct x2_lt9211_s {
 enum {
 	BT1120_TO_RGB888 = 0,
 	BT1120_TO_MIPI = 1,
+};
+enum DISPLAY_TYPE {
+	LCD_7_TYPE,
+	HDMI_TYPE,
 };
 
 struct video_timing {
@@ -95,9 +100,9 @@ enum VIDEO_INPUTMODE_ENUM {
 	Input_YCbCr444,
 	Input_YCbCr422_16BIT,
 };
-#define Video_Input_Mode  Input_RGB888
+#define Video_Input_Mode  Input_YCbCr422_16BIT
 
-
+//int ips_set_iar_clk(void);
 int set_lt9211_config(struct fb_info *fb, unsigned int convert_type);
 int lt9211_dsi_lcd_init(unsigned int convert_type);
 int x2_lt9211_write_byte(struct i2c_client *client, uint32_t addr,
@@ -107,6 +112,7 @@ int x2_lt9211_read_byte(struct i2c_client *client, uint32_t addr,
 int x2_write_lt9211(uint8_t reg_addr, uint8_t reg_val);
 int x2_read_lt9211(uint8_t reg_addr, uint8_t *reg_val);
 int lt9211_reset(void);
+int lt9211_reset_first(void);
 int lt9211_config(unsigned int convert_type);
 int lt9211_chip_id(void);
 int lt9211_system_int_to_mipi(void);
