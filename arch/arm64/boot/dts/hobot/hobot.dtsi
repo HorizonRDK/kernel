@@ -25,7 +25,7 @@
 		cpu0: cpu@0 {
 			compatible = "arm,cortex-a53", "arm,armv8";
 			device_type = "cpu";
-			enable-method = "spin-table";
+			enable-method = "psci";
 			operating-points-v2 = <&cpu_opp_table>;
 			clocks = <&cpu_mux_clk>;
 			#cooling-cells = <2>;
@@ -39,7 +39,7 @@
 		cpu1: cpu@1 {
 			compatible = "arm,cortex-a53", "arm,armv8";
 			device_type = "cpu";
-			enable-method = "spin-table";
+			enable-method = "psci";
 			cpu-release-addr = <0 0xA6000278>;
 			operating-points-v2 = <&cpu_opp_table>;
 			clocks = <&cpu_mux_clk>;
@@ -54,10 +54,11 @@
 		/*TODO: maybe need to change */
 		idle-states {
 			/*entry-method = "arm,psci";*/
+			entry-method = "arm,psci";
 
 			CPU_SLEEP_0: cpu-sleep-0 {
 				compatible = "arm,idle-state";
-				arm,psci-suspend-param = <0x40000000>;
+				arm,psci-suspend-param = <0x0010000>;
 				local-timer-stop;
 				entry-latency-us = <300>;
 				exit-latency-us = <600>;
@@ -93,6 +94,10 @@
 		method = "smc";
 	};
 */
+	psci {
+		compatible = "arm,psci-0.2";
+		method = "smc";
+	};
 
 	gic: interrupt-controller@90001000 {
 		compatible = "arm,gic-400", "arm,cortex-a53-gic";
