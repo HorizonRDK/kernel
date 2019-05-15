@@ -1,5 +1,6 @@
 #ifndef _BIF_LITE_H_
 #define _BIF_LITE_H_
+#include <linux/interrupt.h>
 #include "bif_platform.h"
 
 //#define FRAME_LEN_MAX (1024*16)
@@ -13,7 +14,8 @@
 #define AP_TO_CP_BUFFER_LEN   (BUFFER_NUM*BUFFER_LEN)
 #define BIF_CACHE_NUM BUFFER_NUM
 #define FRAME_CACHE_MAX 4
-#define BIFSPI_LEN_ALIGN (16)
+//#define BIFSPI_LEN_ALIGN (16)
+#define BIFSPI_LEN_ALIGN (512)
 
 struct bif_frame_cache {
 	unsigned short  framelen;

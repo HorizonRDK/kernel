@@ -4,6 +4,7 @@
 #include <linux/list.h>
 #include <linux/mutex.h>
 #include <linux/semaphore.h>
+#include <linux/spinlock.h>
 #include "bif_lite_utility.h"
 
 #define DEBUG
@@ -27,6 +28,7 @@ extern struct domain_info domain_config;
 
 struct resource_queue {
 	struct list_head list;
+	spinlock_t lock;
 	int frame_count;
 };
 
@@ -43,6 +45,7 @@ struct session_desc {
 	int provider_id;
 	int client_id;
 	struct resource_queue recv_list;
+	struct semaphore frame_count_sem;
 };
 
 #define SESSION_COUNT_MAX (5)
@@ -214,5 +217,6 @@ int clear_connect(struct session_info *session_inf);
 int recv_handle_stock_frame(void);
 int unregister_server_provider_abnormal(struct send_mang_data *data);
 int disconnect_stopserver_abnormal(struct send_mang_data *data);
+irqreturn_t hbipc_irq_handler(int irq, void *data);
 
 #endif  /* _HBIPC_LITE_H_ */

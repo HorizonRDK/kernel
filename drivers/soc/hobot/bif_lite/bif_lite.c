@@ -35,16 +35,10 @@ static unsigned short crc16(unsigned char  *input, unsigned  int length)
 static int swap_bytes_order( unsigned char *value, uint16_t size )
 {
     uint16_t i = 0;
-    unsigned char temp = 0;
-
+	uint32_t *p = (uint32_t *)value;
     for ( i = 0; i < size;) {
-        temp = value[i];
-        value[i] = value[i + 3];
-        value[i + 3] = temp;
-
-        temp = value[i + 1];
-        value[i + 1] = value[i + 2];
-        value[i + 2] = temp;
+	*p = __builtin_bswap32(*p);
+	++p;
         i += 4;
     }
 
@@ -156,8 +150,12 @@ static inline int   bif_tx_update_to_cp_ddr(void)
 	if (ret < 0)
 		bif_err("bif_err: %s  %d\n", __func__,  __LINE__);
 #ifdef CONFIG_HOBOT_BIF_AP
+#ifdef CONFIG_HOBOT_BIFSPI
 	swap_bytes_order((unsigned char *)tx_local_info, ALIGN(sizeof(struct bif_tx_ring_info), BIFSPI_LEN_ALIGN));
 #endif
+#endif
+
+	bif_send_irq(BUFF_LITE);
 
 	return ret;
 }
@@ -381,7 +379,9 @@ static  inline int  bif_rx_update_after_read(int count)
 		goto err;
 	}
 #ifdef CONFIG_HOBOT_BIF_AP
+#ifdef CONFIG_HOBOT_BIFSPI
 	swap_bytes_order((unsigned char *)rx_local_info, ALIGN(sizeof(struct bif_rx_ring_info), BIFSPI_LEN_ALIGN));
+#endif
 #endif
 	return 0;
 err:
@@ -851,10 +851,12 @@ int bif_lite_init(void)
 	bif_debug("%s() init,  begin...\n", __func__);
 
 #ifndef CONFIG_HOBOT_BIF_AP
-	base_addr_tmp = (addr_t)bif_alloc_cp(BUFF_LITE, TOTAL_MEM_SIZE,
-		(unsigned long *)&base_addr_tmp_phy);
-	pr_info("bif_alloc_cp: addr = %lx total = %ld\n",
-	base_addr_tmp, TOTAL_MEM_SIZE);
+	//base_addr_tmp = (addr_t)bif_alloc_cp(BUFF_LITE, TOTAL_MEM_SIZE,
+	//	(unsigned long *)&base_addr_tmp_phy);
+	base_addr_tmp = (addr_t)bif_dma_alloc(TOTAL_MEM_SIZE,
+	(dma_addr_t *)&base_addr_tmp_phy, GFP_KERNEL, 0);
+	pr_info("bif_alloc_cp: vir_addr = %lx phy_addr = %lx total = %ld\n",
+	base_addr_tmp, base_addr_tmp_phy, TOTAL_MEM_SIZE);
 
 	if (base_addr_tmp <= 0) {
 		ret =  -EFAULT;
@@ -957,4 +959,13 @@ void bif_lite_exit(void)
 		bif_free(rx_frame_cache_p);
 
 	bif_debug("%s() exit,  end\n", __func__);
+}
+
+int bif_lite_register_irq(irq_handler_t handler)
+{
+	int ret = 0;
+
+	ret = bif_register_irq(BUFF_LITE, handler);
+
+	return ret;
 }

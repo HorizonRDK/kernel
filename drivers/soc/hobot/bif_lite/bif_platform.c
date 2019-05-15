@@ -75,6 +75,10 @@ int  bif_read_cp_ddr(void *dst, addr_t offset, int len)
 	if (bif_spi_read(src, len, dst))
 		return -1;
 #endif
+#ifdef CONFIG_HOBOT_BIFSD
+	if (bif_sd_read(src, len, dst))
+		return -1;
+#endif
 #endif
 #if 0
 	int i;
@@ -99,6 +103,10 @@ int  bif_write_cp_ddr(void *src, addr_t offset, int len)
 #else
 #ifdef CONFIG_HOBOT_BIFSPI
 	if (bif_spi_write(dst, len, src))
+		return -1;
+#endif
+#ifdef CONFIG_HOBOT_BIFSD
+	if (bif_sd_write(dst, len, src))
 		return -1;
 #endif
 #endif

@@ -1,4 +1,6 @@
 #include <linux/list.h>
+#include <linux/interrupt.h>
+
 #include "hbipc_lite.h"
 #include "bif_lite_utility.h"
 #include "hbipc_errno.h"
@@ -12,6 +14,7 @@ void resource_queue_init(struct resource_queue *queue)
 {
 	INIT_LIST_HEAD(&queue->list);
 	queue->frame_count = 0;
+	spin_lock_init(&queue->lock);
 }
 
 void resource_queue_deinit(struct resource_queue *queue)
@@ -21,12 +24,14 @@ void resource_queue_deinit(struct resource_queue *queue)
 	struct list_head *n = NULL;
 	struct bif_frame_cache *bif_frame = NULL;
 
+	spin_lock(&queue->lock);
 	list_for_each_safe(pos, n, &queue->list) {
 		bif_frame =
 		list_entry(pos, struct bif_frame_cache, frame_cache_list);
 		bif_del_frame_from_list(bif_frame);
 		--queue->frame_count;
 	}
+	spin_unlock(&queue->lock);
 }
 
 void session_desc_init(struct session_desc *session_des)
@@ -37,6 +42,7 @@ void session_desc_init(struct session_desc *session_des)
 	session_des->provider_id = -1;
 	session_des->client_id = -1;
 	resource_queue_init(&session_des->recv_list);
+	sema_init(&session_des->frame_count_sem, 0);
 }
 
 void session_desc_deinit(struct session_desc *session_des)
@@ -705,10 +711,14 @@ int clear_connect(struct session_info *session_inf)
 				session_inf->session_array[i].connected = 0;
 #endif
 	resource_queue_deinit(&(session_inf->session_array[i].recv_list));
+
 			++session_inf->count;
 			session_inf->first_avail =
 			get_session_first_avail_index(session_inf);
 			--session_count;
+#ifdef CONFIG_HOBOT_BIF_AP
+			up(&(session_inf->session_array[i].frame_count_sem));
+#endif
 		}
 	}
 
@@ -1097,6 +1107,7 @@ int register_connect(struct send_mang_data *data)
 	--provider->session.count;
 	provider->session.first_avail =
 	get_session_first_avail_index(&provider->session);
+	sema_init(&connect->frame_count_sem, 0);
 	++session_count;
 #ifndef CONFIG_HOBOT_BIF_AP
 	++unaccept_session_count;
@@ -1188,6 +1199,9 @@ int unregister_connect(struct send_mang_data *data)
 	provider->session.first_avail =
 	get_session_first_avail_index(&provider->session);
 	--session_count;
+#ifndef CONFIG_HOBOT_BIF_AP
+	up(&connect_des->frame_count_sem);
+#endif
 	mutex_unlock(&domain.connect_mutex);
 #ifdef CONFIG_HOBOT_BIF_AP
 	ret = mang_frame_send2opposite(MANAGE_CMD_DISCONNECT_REQ, data);
@@ -1475,6 +1489,73 @@ struct bif_frame_cache **frame)
 
 /*
  * return value:
+ * -1: error & no frame get
+ * 0: manage frame get
+ * 1: othrer frame get
+ */
+int recv_frame_interrupt(void)
+{
+	int ret = 0;
+	struct bif_frame_cache *frame = NULL;
+	struct hbipc_header *header = NULL;
+	struct send_mang_data data;
+	struct session_desc *session_des = NULL;
+
+	mutex_lock(&domain.read_mutex);
+	if ((bif_rx_get_frame(&frame) < 0) || (!frame)) {
+		mutex_unlock(&domain.read_mutex);
+		return -1;
+	}
+
+	header = (struct hbipc_header *)frame->framecache;
+
+	if ((header->provider_id == 0) && (header->client_id == 0)) {
+		// manage frame
+		// just for handle frame link list relation
+		list_del(&frame->frame_cache_list);
+		list_add_tail(&frame->frame_cache_list,
+		&domain.manage_frame_list);
+		mutex_unlock(&domain.read_mutex);
+
+		ret = handle_manage_frame(frame);
+		mutex_lock(&domain.read_mutex);
+		bif_del_frame_from_list(frame);
+		mutex_unlock(&domain.read_mutex);
+		if (ret < 0)
+			return -1;
+		else
+			return 0;
+	} else {
+		// data frame
+		// check session validity and insert data frame
+		data.domain_id = header->domain_id;
+		data.provider_id = header->provider_id;
+		data.client_id = header->client_id;
+
+		mutex_unlock(&domain.read_mutex);
+		session_des = is_valid_session(&data, NULL, NULL);
+		mutex_lock(&domain.read_mutex);
+		if (!session_des) {
+			hbipc_debug("interrupt recv invalid session\n");
+			bif_del_frame_from_list(frame);
+		} else {
+			list_del(&frame->frame_cache_list);
+			spin_lock(&(session_des->recv_list.lock));
+			list_add_tail(&frame->frame_cache_list,
+			&session_des->recv_list.list);
+			++session_des->recv_list.frame_count;
+			spin_unlock(&(session_des->recv_list.lock));
+			up(&session_des->frame_count_sem);
+		}
+
+		mutex_unlock(&domain.read_mutex);
+
+		return 1;
+	}
+}
+
+/*
+ * return value:
  * < 0: error code
  * 0: valid session
  * 1: no error but no session
@@ -1487,7 +1568,7 @@ int accept_session(struct send_mang_data *data, struct session_desc **connect)
 	struct provider_desc *provider = NULL;
 	struct session_desc *connect_des = NULL;
 
-	recv_handle_manage_frame();
+	//recv_handle_manage_frame();
 
 	if (unaccept_session_count > 0) {
 		mutex_lock(&domain.connect_mutex);
@@ -1569,4 +1650,11 @@ int start_server(struct send_mang_data *data, int *provider_id)
 	return provider->provider_id;
 error:
 	return -1;
+}
+
+irqreturn_t hbipc_irq_handler(int irq, void *data)
+{
+	recv_frame_interrupt();
+
+	return IRQ_HANDLED;
 }

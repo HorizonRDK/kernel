@@ -73,6 +73,7 @@ static int x2_bif_open(struct inode *inode, struct file *file)
 				return -EPERM;
 			} else
 				bif_lite_init_success = 1;
+				bif_lite_register_irq(hbipc_irq_handler);
 		}
 #endif
 		//bif_start();
@@ -153,6 +154,7 @@ loff_t *ppos)
 	struct bif_frame_cache *frame = NULL;
 	struct session_desc *session_des = NULL;
 	struct hbipc_header *header = NULL;
+	struct list_head *pos = NULL;
 
 	mutex_lock(&read_mutex);
 
@@ -172,7 +174,7 @@ loff_t *ppos)
 			ret = -EFAULT;
 		goto error;
 	}
-
+#if 0
 	ret = recv_handle_data_frame(session_des, &frame);
 	if (ret == 0) {
 		if (frame->framelen - HBIPC_HEADER_LEN > data.len) {
@@ -201,6 +203,48 @@ loff_t *ppos)
 	} else {
 		// no specific data frame get
 		ret = 0;
+	}
+#endif
+	ret = down_interruptible(&session_des->frame_count_sem);
+	if (ret < 0)
+		goto error;
+
+	if (list_empty(&(session_des->recv_list.list))) {
+		ret = -1;
+		data.result = HBIPC_ERROR_INVALID_SESSION;
+		status = copy_to_user((void __user *)buf, &data, sizeof(data));
+		if (status)
+			ret = -EFAULT;
+		goto error;
+	}
+
+	pos = session_des->recv_list.list.next;
+	frame = list_entry(pos, struct bif_frame_cache, frame_cache_list);
+	if (frame->framelen - HBIPC_HEADER_LEN > data.len) {
+		hbipc_error("recv buf overflow\n");
+		up(&session_des->frame_count_sem);
+		ret = -1;
+		data.result = HBIPC_ERROR_RECV_OVERFLOW;
+		status = copy_to_user((void __user *)buf, &data,
+		sizeof(data));
+		if (status)
+			ret = -EFAULT;
+		goto error;
+	}
+	header = (struct hbipc_header *)frame->framecache;
+	status = copy_to_user((void __user *)data.buffer,
+	frame->framecache + HBIPC_HEADER_LEN, header->length);
+	if (status) {
+		ret = -EFAULT;
+	} else {
+		ret = header->length;
+		// consume a data frame really
+		--session_des->recv_list.frame_count;
+		mutex_lock(&domain.read_mutex);
+		spin_lock(&(session_des->recv_list.lock));
+		bif_del_frame_from_list(frame);
+		spin_unlock(&(session_des->recv_list.lock));
+		mutex_unlock(&domain.read_mutex);
 	}
 
 	mutex_unlock(&read_mutex);
@@ -564,6 +608,7 @@ static int bif_lite_probe(struct platform_device *pdev)
 		bif_err("bif_lite_init error\n");
 		goto bif_lite_init_error;
 	}
+	bif_lite_register_irq(hbipc_irq_handler);
 #endif
 	domain_init(&domain, &domain_config);
 
@@ -675,6 +720,7 @@ static int bif_lite_probe_param(void)
 		bif_err("bif_lite_init error\n");
 		goto bif_lite_init_error;
 	}
+	bif_lite_register_irq(hbipc_irq_handler);
 #endif
 	domain_init(&domain, &domain_config);
 

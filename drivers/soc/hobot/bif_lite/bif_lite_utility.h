@@ -10,5 +10,6 @@ int bif_tx_put_frame(void *data, int len);
 int bif_start(void);
 int bif_lite_init(void);
 void bif_lite_exit(void);
+int bif_lite_register_irq(irq_handler_t handler);
 
 #endif
