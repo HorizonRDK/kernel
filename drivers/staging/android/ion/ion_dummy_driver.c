@@ -25,6 +25,9 @@
 #include <linux/uaccess.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
+#include <linux/dmaengine.h>
+#include <linux/dma-mapping.h>
+#include <asm/cacheflush.h>
 #include "ion.h"
 
 extern struct ion_device *ion_device_create(long (*custom_ioctl)
@@ -34,6 +37,8 @@ extern struct ion_device *ion_device_create(long (*custom_ioctl)
 
 static struct ion_device *idev;
 static struct ion_heap **heaps;
+struct dma_chan *dma_ch;
+struct completion dma_completion;
 
 static void *carveout_ptr;
 static void *chunk_ptr;
@@ -75,11 +80,20 @@ static struct ion_platform_data dummy_ion_pdata = {
 	.heaps = dummy_heaps,
 };
 
+static void ion_dma_cb(void *data)
+{
+	complete(&dma_completion);
+}
+
 #define ION_GET_PHY 0
+#define ION_CACHE_INVAL 1
+#define ION_CACHE_FLUSH 2
+#define ION_MEMCPY 3
 struct ion_phy_data {
 	struct ion_handle *handle;
 	phys_addr_t paddr;
 	size_t len;
+	uint64_t reserved;
 };
 
 static long ion_dummy_ioctl(struct ion_client *client,
@@ -107,6 +121,91 @@ static long ion_dummy_ioctl(struct ion_client *client,
 
 		break;
 	}
+	case ION_CACHE_FLUSH:
+	{
+		struct ion_phy_data phy_data;
+		void *vaddr;
+		ret = 0;
+
+		if (copy_from_user(&phy_data, (void __user *)arg,
+				   sizeof(struct ion_phy_data))) {
+			pr_err("%s:copy from user failed\n",
+			       __func__);
+			return -EFAULT;
+		}
+		vaddr = phy_data.reserved;
+
+		dma_sync_single_for_device(NULL, phy_data.paddr, phy_data.len, DMA_TO_DEVICE);
+		__dma_flush_area((const void *)vaddr, phy_data.len);
+
+		break;
+	}
+	case ION_CACHE_INVAL:
+	{
+		struct ion_phy_data phy_data;
+		ret = 0;
+
+		if (copy_from_user(&phy_data, (void __user *)arg,
+				   sizeof(struct ion_phy_data))) {
+			pr_err("%s:copy from user failed\n",
+			       __func__);
+			return -EFAULT;
+		}
+
+		dma_sync_single_for_cpu(NULL, phy_data.paddr, phy_data.len, DMA_FROM_DEVICE);
+
+		break;
+	}
+
+	case ION_MEMCPY:
+	{
+		struct ion_phy_data phy_data;
+		struct dma_async_tx_descriptor *tx;
+		struct dma_device *dma_dev;
+		dma_cookie_t cookie;
+
+		ret = 0;
+
+		if (copy_from_user(&phy_data, (void __user *)arg,
+				   sizeof(struct ion_phy_data))) {
+			pr_err("%s:copy from user failed\n",
+			       __func__);
+			return -EFAULT;
+		}
+		if (!dma_ch) {
+			pr_err("no dma can use for memcpy failed\n");
+			return -ENODEV;
+		}
+
+		dma_dev = dma_ch->device;
+
+		reinit_completion(&dma_completion);
+
+		tx = dma_dev->device_prep_dma_memcpy(dma_ch, phy_data.paddr, phy_data.reserved, phy_data.len, 0);
+		if (!tx) {
+			pr_err("%s: ion memcpy device_prep_dma_memcpy failed\n", __func__);
+			ret = -EIO;
+			break;
+		}
+
+		tx->callback = ion_dma_cb;
+		tx->callback_result = NULL;
+		tx->callback_param = NULL;
+
+		cookie = dmaengine_submit(tx);
+		ret = dma_submit_error(cookie);
+		if (ret) {
+			pr_err("ion memcpy dma_submit_error %d\n", cookie);
+			ret = -EIO;
+			break;
+		}
+
+		dma_async_issue_pending(dma_ch);
+
+		wait_for_completion(&dma_completion);
+
+		break;
+	}
 
 	default:
 		return -ENOTTY;
@@ -119,6 +218,7 @@ static int __init ion_dummy_init(void)
 {
 	struct device_node *node;
 	struct resource ion_pool_reserved;
+	dma_cap_mask_t mask;
 	int i, err;
 
 	idev = ion_device_create(ion_dummy_ioctl);
@@ -181,6 +281,16 @@ static int __init ion_dummy_init(void)
 		}
 		ion_device_add_heap(idev, heaps[i]);
 	}
+
+	dma_cap_zero(mask);
+	dma_cap_set(DMA_MEMCPY, mask);
+	dma_ch = dma_request_channel(mask, NULL, NULL);
+	if (!dma_ch) {
+		pr_err("ion_dummy: dma_request_channel failed\n");
+		goto err;
+	}
+	init_completion(&dma_completion);
+
 	return 0;
 err:
 	for (i = 0; i < dummy_ion_pdata.nr; ++i)
@@ -201,6 +311,7 @@ static void __exit ion_dummy_exit(void)
 	int i;
 
 	ion_device_destroy(idev);
+	dma_release_channel(dma_ch);
 
 	for (i = 0; i < dummy_ion_pdata.nr; i++)
 		ion_heap_destroy(heaps[i]);
