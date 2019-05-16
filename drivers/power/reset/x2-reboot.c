@@ -19,6 +19,7 @@
 #include <linux/platform_device.h>
 #include <linux/reboot.h>
 #include <asm/proc-fns.h>
+#include <asm/system_misc.h>
 
 #define X2_REBOOT_OPT    0x00001001
 static void __iomem *base;
@@ -31,6 +32,12 @@ static int x2_restart_handler(struct notifier_block *this,
 	writel_relaxed(X2_REBOOT_OPT, base + reboot_offset);
 
 	return NOTIFY_DONE;
+}
+
+static void x2_pm_restart(enum reboot_mode mode, const char *cmd)
+{
+	writel_relaxed(X2_REBOOT_OPT, base + reboot_offset);
+
 }
 
 static struct notifier_block x2_restart_nb = {
@@ -61,6 +68,8 @@ static int x2_reboot_probe(struct platform_device *pdev)
 			err);
 		iounmap(base);
 	}
+
+	arm_pm_restart = x2_pm_restart;
 
 	return err;
 }
