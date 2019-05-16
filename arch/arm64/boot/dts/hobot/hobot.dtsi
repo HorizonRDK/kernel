@@ -118,7 +118,7 @@
 					 <GIC_PPI 10 (GIC_CPU_MASK_SIMPLE(2)
 					 | IRQ_TYPE_LEVEL_LOW)>;
 		interrupt-parent = <&gic>;
-		clock-frequency = <20000000>;
+		clock-frequency = <24000000>;
 	};
 
 	rst: reset-controller {
