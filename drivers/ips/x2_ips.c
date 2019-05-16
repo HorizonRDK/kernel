@@ -847,7 +847,7 @@ static int x2_ips_probe(struct platform_device *pdev)
 		return PTR_ERR(g_ipsdev->pins_dvp);
 	}
 
-	g_ipsdev->ipi_clk = devm_clk_get(&pdev->dev, "ipi_clk");
+	g_ipsdev->ipi_clk = devm_clk_get(&pdev->dev, "ipi_div2");
 	if (IS_ERR(g_ipsdev->ipi_clk)) {
 		dev_err(&pdev->dev, "failed to get ipi_clk\n");
 		return PTR_ERR(g_ipsdev->ipi_clk);
