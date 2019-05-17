@@ -38,6 +38,7 @@ extern struct ion_device *ion_device_create(long (*custom_ioctl)
 static struct ion_device *idev;
 static struct ion_heap **heaps;
 struct dma_chan *dma_ch;
+static struct mutex dma_lock;
 struct completion dma_completion;
 
 static void *carveout_ptr;
@@ -179,12 +180,14 @@ static long ion_dummy_ioctl(struct ion_client *client,
 
 		dma_dev = dma_ch->device;
 
+		mutex_lock(&dma_lock);
 		reinit_completion(&dma_completion);
 
 		tx = dma_dev->device_prep_dma_memcpy(dma_ch, phy_data.paddr, phy_data.reserved, phy_data.len, 0);
 		if (!tx) {
 			pr_err("%s: ion memcpy device_prep_dma_memcpy failed\n", __func__);
 			ret = -EIO;
+			mutex_unlock(&dma_lock);
 			break;
 		}
 
@@ -197,12 +200,14 @@ static long ion_dummy_ioctl(struct ion_client *client,
 		if (ret) {
 			pr_err("ion memcpy dma_submit_error %d\n", cookie);
 			ret = -EIO;
+			mutex_unlock(&dma_lock);
 			break;
 		}
 
 		dma_async_issue_pending(dma_ch);
 
 		wait_for_completion(&dma_completion);
+		mutex_unlock(&dma_lock);
 
 		break;
 	}
@@ -289,6 +294,7 @@ static int __init ion_dummy_init(void)
 		pr_err("ion_dummy: dma_request_channel failed\n");
 		goto err;
 	}
+	mutex_init(&dma_lock);
 	init_completion(&dma_completion);
 
 	return 0;
