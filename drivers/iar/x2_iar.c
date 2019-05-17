@@ -825,6 +825,32 @@ int32_t iar_switch_buf(uint32_t channel)
 }
 EXPORT_SYMBOL_GPL(iar_switch_buf);
 
+
+int32_t iar_set_video_buffer(uint32_t yaddr, uint32_t caddr)
+{
+	uint32_t index;
+	buf_addr_t display_addr;
+	unsigned int uoffset, voffset;
+
+//	pr_info("begin set iar display yaddr 0x%x, caddr 0x%x", yaddr, caddr);
+	if (g_iar_dev == NULL) {
+		pr_err("IAR dev not inited!");
+		return -1;
+	}
+	//uoffset = voffset =
+	//g_iar_dev->buf_w_h[0][0] * g_iar_dev->buf_w_h[0][1];
+	display_addr.Yaddr = yaddr;
+//	display_addr.Uaddr = addr + uoffset;
+	display_addr.Uaddr = caddr;
+	display_addr.Vaddr = 0;
+	iar_set_bufaddr(0, &display_addr);
+	iar_update();
+//	pr_info("end set iar display addr success!\n");
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(iar_set_video_buffer);
+
 int32_t iar_open(void)
 {
 	if (NULL == g_iar_dev) {

@@ -29,6 +29,8 @@
 #include <linux/uaccess.h>
 #include <asm/cacheflush.h>
 
+#include "../../iar/x2_iar.h"
+
 #define IPU_IOC_MAGIC       'm'
 
 #define IPUC_INIT			_IOW(IPU_IOC_MAGIC, 0, ipu_init_t)
@@ -184,6 +186,8 @@ void ipu_single_mode_process(uint32_t status)
 {
 	struct x2_ipu_data *ipu = g_ipu_s_cdev->ipu;
 	spin_lock(&g_ipu_s_cdev->slock);
+	uint32_t iar_display_yaddr;
+	uint32_t iar_display_caddr;
 
 	if (status & IPU_BUS01_TRANSMIT_ERRORS ||
 		status & IPU_BUS23_TRANSMIT_ERRORS ||
@@ -209,6 +213,31 @@ void ipu_single_mode_process(uint32_t status)
 			ipu->pymid_done = true;
 			//ipu->done_idx = slot_h->info_h.slot_id;
 			ipu_get_frameid(ipu, slot_h);
+
+			//iar_display_addr =
+			//IPU_GET_SLOT(slot_h->info_h.slot_id, ipu->paddr) +
+			//	slot_h->info_h.ddr_info.crop.y_offset;
+			iar_display_yaddr =
+			IPU_GET_SLOT(slot_h->info_h.slot_id, ipu->paddr) +
+				slot_h->info_h.ddr_info.ds[5].y_offset;
+			iar_display_caddr =
+			IPU_GET_SLOT(slot_h->info_h.slot_id, ipu->paddr) +
+				slot_h->info_h.ddr_info.ds[5].c_offset;
+			pr_info("@@ pddr = %lld\n", ipu->paddr);
+			pr_info("@@ slot_id = %d\n", slot_h->info_h.slot_id);
+			pr_info("@@ base = %llx\n", slot_h->info_h.base);
+			pr_info("@@ y_width = %d\n",
+					slot_h->info_h.ddr_info.crop.y_width);
+			pr_info("@@ y_height = %d\n",
+					slot_h->info_h.ddr_info.crop.y_height);
+			pr_info("@@ y_offset = %x\n",
+					slot_h->info_h.ddr_info.crop.y_offset);
+			pr_info("@@ c_offset = %x\n",
+					slot_h->info_h.ddr_info.crop.c_offset);
+
+			iar_set_video_buffer(iar_display_yaddr,
+							iar_display_caddr);
+
 			wake_up_interruptible(&g_ipu_s_cdev->event_head);
 
 		} else {
