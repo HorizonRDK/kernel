@@ -477,22 +477,22 @@ struct fb_var_screeninfo RGB700_var_default = {
 	.bits_per_pixel = 32,
 	.grayscale = 0,
 	.red = {
-		.offset = 8,
+		.offset = 16,
 		.length = 8,
 		.msb_right = 0,//MSB left; !=0,MSB right
 	},
 	.green = {
-		.offset = 16,
+		.offset = 8,
 		.length = 8,
 		.msb_right = 0,
 	},
 	.blue = {
-		.offset = 24,
+		.offset = 0,
 		.length = 8,
 		.msb_right = 0,
 	},
 	.transp = {
-		.offset = 0,
+		.offset = 24,
 		.length = 8,
 		.msb_right = 0,
 	},
@@ -1327,6 +1327,7 @@ static int x2fb_probe(struct platform_device *pdev)
 	frame_buf_t framebuf_user;
 
 	pr_info("x2fb probe!!!\n");
+
 	x2_fbi = devm_kzalloc(&pdev->dev, sizeof(struct x2fb_info), GFP_KERNEL);
 	if (!x2_fbi) {
 		dev_err(&pdev->dev, "Unable to alloc x2 framebuffer DEV\n");
