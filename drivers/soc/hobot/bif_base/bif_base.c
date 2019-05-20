@@ -66,11 +66,7 @@
 #include <linux/dmaengine.h>
 #include <linux/vmalloc.h>
 
-//#define CURR_LINUX_VERSION	(((3) << 16) + ((18) << 8) + (0))	//hi3519
-//#define CURR_LINUX_VERSION	(((4) << 16) + ((9) << 8) + (0))	//xilinx
-#define CURR_LINUX_VERSION	(((4) << 16) + ((14) << 8) + (74))	//x2
-#define KERNEL_VERSION(a, b, c)	(((a) << 16) + ((b) << 8) + (c))
-#if KERNEL_VERSION(4, 14, 14) <= CURR_LINUX_VERSION
+#ifndef CONFIG_OLD_KERNEL
 #include <linux/sched/signal.h>
 #endif
 
