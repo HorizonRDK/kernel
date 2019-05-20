@@ -213,8 +213,12 @@ static int hdmi_sii_probe(struct i2c_client *client,
 		// Initialize the registers as required. Setup firmware vars.
 		dev_info(&client->dev, "hdmi video vmode=%d vformat=%d, audio afs=%d\n",
 				 vmode, vformat, afs);
-		siHdmiTx_ReConfig(vmode, vformat, afs);
-
+		ret = siHdmiTx_ReConfig(vmode, vformat, afs);
+		if (ret < 0) {
+			pr_info("bt1120 to HDMI device:sii9022a is not exist!\n");
+			pr_info("exit hdmi probe!\n");
+			return ret;
+		}
 		// init hotplug service.
 		sii902xAwork = kmalloc(sizeof(*sii902xAwork),
 				GFP_ATOMIC);

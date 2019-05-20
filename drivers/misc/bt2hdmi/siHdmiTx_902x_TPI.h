@@ -314,7 +314,7 @@ enum EDID_ErrorCodes {
 //--------------------------------------------------------------------
 // Compile debug prints inline or not
 #define CONF__TPI_INFO_PRINT	(ENABLE)
-#define CONF__TPI_TRACE_PRINT	(DISABLE)
+#define CONF__TPI_TRACE_PRINT	(ENABLE)
 #define CONF__TPI_DEBUG_PRINT	(DISABLE)
 #define CONF__TPI_EDID_PRINT	(DISABLE)
 #define CONF__CPI_DEBUG_PRINT	(DISABLE)
@@ -1159,6 +1159,7 @@ extern byte tpivmode[3];
 
 void DelayMS(word MS);
 
+byte ReadIndexedRegister(byte PageNum, byte RegOffset);
 byte I2CReadBlock(struct i2c_client *client, byte RegAddr,
 		byte NBytes, byte *Data);
 byte I2CWriteBlock(struct i2c_client *client, byte RegAddr,
@@ -1179,9 +1180,9 @@ void siHdmiTx_Init(void);
 
 byte siHdmiTx_VideoSet(void);
 byte siHdmiTx_AudioSet(void);
-byte siHdmiTx_TPI_Init(void);
+int siHdmiTx_TPI_Init(void);
 void siHdmiTx_TPI_Poll(void);
 void siHdmiTx_VideoSel(byte vmode, byte VideoFormat);
 void siHdmiTx_AudioSel(byte Afs);
-void siHdmiTx_ReConfig(byte vmode, byte VideoFormat, byte Afs);
+int siHdmiTx_ReConfig(byte vmode, byte VideoFormat, byte Afs);
 #endif

@@ -3670,7 +3670,6 @@ byte StartTPI(void)
 	devID = ReadByteTPI(TPI_DEVICE_ID);
 
 	TPI_TRACE_PRINT("0x%04X\n", (int)wID);
-	//TPI_TRACE_PRINT(("%s:%d:devID=0x%04x\n", __func__, __LINE__, devID));
 
 	if (wID == 0x9022)
 		Sii9024A_HDCP_supported = false;
@@ -3689,7 +3688,7 @@ byte StartTPI(void)
 // Returns: TRUE or FLASE
 // Globals: none
 //------------------------------------------------------------------------------
-byte siHdmiTx_TPI_Init(void)
+int siHdmiTx_TPI_Init(void)
 {
 	TPI_TRACE_PRINT("\n>>");
 	TPI_TRACE_PRINT("\n%s\n", TPI_FW_VERSION);
@@ -4402,14 +4401,22 @@ void siHdmiTx_AudioSel(byte Afs)
 // Returns: none
 // Globals: none
 //------------------------------------------------------------------------------
-void siHdmiTx_ReConfig(byte vmode, byte VideoFormat, byte Afs)
+int siHdmiTx_ReConfig(byte vmode, byte VideoFormat, byte Afs)
 {
+	int ret = 0;
+
 	siHdmiTx_VideoSel(vmode, VideoFormat);
 
 #ifndef HDMI_AUDIO_MUTE
 	siHdmiTx_AudioSel(Afs);
 #endif
 
-	siHdmiTx_TPI_Init();
+	ret = siHdmiTx_TPI_Init();
+	TPI_DEBUG_PRINT("TPI INIT return value is %d\n", ret);
+	if (ret < 0) {
+		TPI_DEBUG_PRINT("error init TPI!!!\n");
+		return ret;
+	}
 	siHdmiTx_PowerStateD3();
+	return 0;
 }
