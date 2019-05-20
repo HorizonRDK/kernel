@@ -11,9 +11,17 @@
 
 #define MAX_FRAME_BUF_SIZE  (1920*1080*4)
 
+#define ENABLE 0x1
+#define DISABLE 0x0
 
-#define LT9211_DEBUG_PRINT(format, args...)	\
+#define CONFIG_LT9211_DEBUG (DISABLE)
+
+#if (CONFIG_LT9211_DEBUG == ENABLE)
+#define LT9211_DEBUG(format, args...)	\
 	pr_info("LT9211 debug: " format, ## args)
+#else
+#define LT9211_DEBUG(format, args...)
+#endif
 
 extern int lt9211_reset_pin;
 extern int lcd_reset_pin;

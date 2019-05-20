@@ -109,13 +109,13 @@ static int lcd_backlight_init(void)
 {
 	int ret = 0;
 
-	pr_info("initialize lcd backligbt!!!\n");
+	LT9211_DEBUG("initialize lcd backligbt!!!\n");
 	lcd_backlight_pwm = pwm_request(0, "lcd-pwm");
 	if (lcd_backlight_pwm == NULL) {
 		pr_err("\nNo pwm device 0!!!!\n");
 		return -ENODEV;
 	}
-	pr_info("pwm request 0 is okay!!!\n");
+	LT9211_DEBUG("pwm request 0 is okay!!!\n");
 	/**
 	 * pwm_config(struct pwm_device *pwm, int duty_ns,
 			     int period_ns) - change a PWM device configuration
@@ -131,7 +131,7 @@ static int lcd_backlight_init(void)
 		pr_err("\nError config pwm!!!!\n");
 		return ret;
 	}
-	pr_info("pwm config is okay!!!\n");
+	LT9211_DEBUG("pwm config is okay!!!\n");
 //	ret = pwm_set_polarity(lcd_backlight_pwm, PWM_POLARITY_NORMAL);
 //	if (ret) {
 //		pr_err("\nError set pwm polarity!!!!\n");
@@ -143,7 +143,7 @@ static int lcd_backlight_init(void)
 		pr_err("\nError enable pwm!!!!\n");
 		return ret;
 	}
-	pr_info("pwm enable is okay!!!\n");
+	LT9211_DEBUG("pwm enable is okay!!!\n");
 	return 0;
 }
 
@@ -219,7 +219,7 @@ static int x2_lt9211_probe(struct i2c_client *client,
 	ret = lt9211_chip_id();
 	if (ret != 0) {
 		display_type = HDMI_TYPE;
-		pr_err("not found lt9211 device, exit probe!!!\n");
+		pr_info("not found lt9211 device, exit probe!!!\n");
 		return ret;
 	}
 /*	//---------------------------------------------------------------
@@ -271,15 +271,15 @@ static int x2_lt9211_probe(struct i2c_client *client,
 	i2c_set_clientdata(client, g_x2_lt9211);
 
 	client->flags = I2C_CLIENT_SCCB;
-	pr_info("chip found @ 0x%02x (%s)\n",
+	LT9211_DEBUG("chip found @ 0x%02x (%s)\n",
 			client->addr << 1, client->adapter->name);
 //	ret = lcd_backlight_init();
 //	if (ret)
-//		pr_info("\nlcd backlight init err!\n");
+//		LT9211_DEBUG("\nlcd backlight init err!\n");
 
 	ret = lt9211_dsi_lcd_init(convert_type);
 	if (ret)
-		pr_info("\nlt9211 and dsi panel init err!\n");
+		LT9211_DEBUG("\nlt9211 and dsi panel init err!\n");
 
 	pr_info("x2_lt9211 probe OK!!!\n");
 	return 0;

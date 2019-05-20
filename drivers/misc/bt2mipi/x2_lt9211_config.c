@@ -96,25 +96,25 @@ int set_lt9211_config(struct fb_info *fb, unsigned int convert_type)
 	if (convert_type == BT1120_TO_RGB888) {
 		ret = lt9211_chip_id();
 		if (ret) {
-			pr_info("%s() Err get lt9211 chip id ret= %d\n",
+			pr_err("%s() Err get lt9211 chip id ret= %d\n",
 						__func__, ret);
 			return ret;
 		}
 		ret = lt9211_system_int_to_RGB();
 		if (ret) {
-			pr_info("%s() Err init lt9211 system ret= %d\n",
+			pr_err("%s() Err init lt9211 system ret= %d\n",
 					__func__, ret);
 			return ret;
 		}
 		ret = lt9211_ttl_rx_phy_to_RGB();
 		if (ret) {
-			pr_info("%s() Err init lt9211 system ret= %d\n",
+			pr_err("%s() Err init lt9211 system ret= %d\n",
 						__func__, ret);
 			return ret;
 		}
 	//	ret = x2_write_lt9211(0xff, 0x85);
 	//	ret = x2_read_lt9211(0x4f, &value_4f);
-	//	pr_info("value 0x4f is 0x%x.\n", value_4f);
+	//	LT9211_DEBUG("value 0x4f is 0x%x.\n", value_4f);
 	//	if(value_4f != 0x40){
 	//		while(1);
 	//	}
@@ -137,64 +137,64 @@ int set_lt9211_config(struct fb_info *fb, unsigned int convert_type)
 		msleep(500);
 		//msleep(500);
 		x2_read_lt9211(0x70, &sync_polarity);
-		pr_info("sync_polarity is %d.\n", sync_polarity);
+		LT9211_DEBUG("sync_polarity is %d.\n", sync_polarity);
 
 		x2_read_lt9211(0x71, &vs);
-		pr_info("vs is %d(2)", vs);
+		LT9211_DEBUG("vs is %d(2)", vs);
 
 		x2_read_lt9211(0x72, &hs_h);
 		x2_read_lt9211(0x73, &hs_l);
 		hs = (((uint16_t)hs_h) << 8) + (uint16_t)hs_l;
-		pr_info("hs is %d(48).\n", hs);
+		LT9211_DEBUG("hs is %d(48).\n", hs);
 
 		x2_read_lt9211(0x74, &vbp);
-		pr_info("vbp is %d(31)", vbp);
+		LT9211_DEBUG("vbp is %d(31)", vbp);
 
 		x2_read_lt9211(0x75, &vfp);
-		pr_info("vfp is %d(42)", vfp);
+		LT9211_DEBUG("vfp is %d(42)", vfp);
 
 		x2_read_lt9211(0x76, &hbp_h);
 		x2_read_lt9211(0x77, &hbp_l);
 		hbp = (((uint16_t)hbp_h) << 8) + (uint16_t)hbp_l;
-		pr_info("hbp is %d(52).\n", hbp);
+		LT9211_DEBUG("hbp is %d(52).\n", hbp);
 
 		x2_read_lt9211(0x78, &hfp_h);
 		x2_read_lt9211(0x79, &hfp_l);
 		hfp = (((uint16_t)hfp_h) << 8) + (uint16_t)hfp_l;
-		pr_info("hfp is %d(100).\n", hfp);
+		LT9211_DEBUG("hfp is %d(100).\n", hfp);
 
 		x2_read_lt9211(0x7a, &vtotal_h);
 		x2_read_lt9211(0x7b, &vtotal_l);
 		vtotal = (((uint16_t)vtotal_h) << 8) + (uint16_t)vtotal_l;
-		pr_info("vtotal is %d(555).\n", vtotal);
+		LT9211_DEBUG("vtotal is %d(555).\n", vtotal);
 
 		x2_read_lt9211(0x7c, &htotal_h);
 		x2_read_lt9211(0x7d, &htotal_l);
 		htotal = (((uint16_t)htotal_h) << 8) + (uint16_t)htotal_l;
-		pr_info("htotal is %d(1000).\n", htotal);
+		LT9211_DEBUG("htotal is %d(1000).\n", htotal);
 
 		x2_read_lt9211(0x7e, &vact_h);
 		x2_read_lt9211(0x7f, &vact_l);
 		vact = (((uint16_t)vact_h) << 8) + (uint16_t)vact_l;
-		pr_info("vact is %d(480).\n", vact);
+		LT9211_DEBUG("vact is %d(480).\n", vact);
 
 		x2_read_lt9211(0x80, &hact_h);
 		x2_read_lt9211(0x81, &hact_l);
 		hact = (((uint16_t)hact_h) << 8) + (uint16_t)hact_l;
-		pr_info("hact is %d(800).\n", hact);
+		LT9211_DEBUG("hact is %d(800).\n", hact);
 
 
 	//	lt9211r_patten(&video_800x480_60Hz);
 		msleep(100);
 		ret = lt9211_tx_digital_RGB();
 		if (ret) {
-			pr_info("%s() Err init lt9211 system ret= %d\n",
+			pr_err("%s() Err init lt9211 system ret= %d\n",
 					__func__, ret);
 			return ret;
 		}
 		ret = lt9211_RGB_tx_phy();
 		if (ret) {
-			pr_info("%s() Err init lt9211 system ret= %d\n",
+			pr_err("%s() Err init lt9211 system ret= %d\n",
 					__func__, ret);
 			return ret;
 		}
@@ -202,45 +202,45 @@ int set_lt9211_config(struct fb_info *fb, unsigned int convert_type)
 		usleep_range(10000, 11000);
 		ret = lt9211_RGB_tx_pll();
 		if (ret) {
-			pr_info("%s() Err init lt9211 system ret= %d\n",
+			pr_err("%s() Err init lt9211 system ret= %d\n",
 					__func__, ret);
 			return ret;
 		}
 	//	while(1);
 		ret = lt9211_rx_csc();
 		if (ret) {
-			pr_info("%s() Err init lt9211 system ret= %d\n",
+			pr_err("%s() Err init lt9211 system ret= %d\n",
 					__func__, ret);
 			return ret;
 		}
 	} else if (convert_type == BT1120_TO_MIPI) {
 		ret = lt9211_system_int_to_mipi();
 		if (ret) {
-			pr_info("%s() Err init lt9211 system ret= %d\n",
+			LT9211_DEBUG("%s() Err init lt9211 system ret= %d\n",
 					__func__, ret);
 			return ret;
 		}
 		ret = lt9211_ttl_rx_phy_to_mipi();
 		if (ret) {
-			pr_info("%s() Err config lt9211 ttl rx phy ret= %d\n",
+			LT9211_DEBUG("%s() Err config lt9211 ttl rx phy ret= %d\n",
 					__func__, ret);
 			return ret;
 		}
 		ret = lt9211_csc_to_mipi();
 		if (ret) {
-			pr_info("%s() Err config lt9211 csc ret= %d\n",
+			LT9211_DEBUG("%s() Err config lt9211 csc ret= %d\n",
 					__func__, ret);
 			return ret;
 		}
 		ret = lt9211_video_check_to_mipi();
 		if (ret) {
-			pr_info("%s() Err check lt9211 video ret= %d\n",
+			LT9211_DEBUG("%s() Err check lt9211 video ret= %d\n",
 					__func__, ret);
 			return ret;
 		}
 		//ret = lt9211_set_timing_para_to_mipi();
 		//if (ret) {
-			//pr_info("%s() Err set lt9211 timing
+			//LT9211_DEBUG("%s() Err set lt9211 timing
 			//parameter ret= %d\n", __FUNCTION__, ret);
 			//return ret;
 		//}
@@ -295,37 +295,37 @@ int set_lt9211_config(struct fb_info *fb, unsigned int convert_type)
 
 		ret = lt9211_mipi_tx_phy();
 		if (ret) {
-			pr_info("%s() Err config lt9211 mipi tx phy ret= %d\n",
+			LT9211_DEBUG("%s() Err config lt9211 mipi tx phy ret= %d\n",
 					__func__, ret);
 			return ret;
 		}
 		ret = lt9211_mipi_tx_pll();
 		if (ret) {
-			pr_info("%s() Err config lt9211 mipi tx pll ret= %d\n",
+			LT9211_DEBUG("%s() Err config lt9211 mipi tx pll ret= %d\n",
 					__func__, ret);
 			return ret;
 		}
 		ret = init_panel();
 		if (ret) {
-			pr_info("%s() Err init dsi panel ret= %d\n",
+			LT9211_DEBUG("%s() Err init dsi panel ret= %d\n",
 					__func__, ret);
 			return ret;
 		}
 		ret = lt9211_set_tx_timing();
 		if (ret) {
-			pr_info("%s() Err set lt9211 tx timing ret= %d\n",
+			LT9211_DEBUG("%s() Err set lt9211 tx timing ret= %d\n",
 					__func__, ret);
 			return ret;
 		}
 		ret = lt9211_mipi_tx_digital();
 		if (ret) {
-			pr_info("%s() Err config lt9211 mipi tx digital ret= %d\n",
+			LT9211_DEBUG("%s() Err config lt9211 mipi tx digital ret= %d\n",
 					__func__, ret);
 			return ret;
 		}
 	}
 
-	pr_info("Framebuffer config lt9211 on line end!!!\n");
+	LT9211_DEBUG("Framebuffer config lt9211 on line end!!!\n");
 	return ret;
 }
 EXPORT_SYMBOL_GPL(set_lt9211_config);
@@ -416,18 +416,18 @@ int lt9211_reset(void)
 
 //	ret = gpio_request(85, "x2_lt9211_reset_pin");
 //	if (ret) {
-//		pr_info("%s() Err get trigger pin ret= %d\n",
+//		LT9211_DEBUG("%s() Err get trigger pin ret= %d\n",
 //					__func__, ret);
 //		return -ENODEV;
 //	}
-	pr_info("gpio request 85 succeed!!!!");
+	LT9211_DEBUG("gpio request 85 succeed!!!!");
 	gpio_direction_output(lt9211_reset_pin, 0);
-	pr_info("lt9211 reset pin output low!!!!!\n");
+	LT9211_DEBUG("lt9211 reset pin output low!!!!!\n");
 	msleep(1000);
 	gpio_direction_output(lt9211_reset_pin, 1);
-	pr_info("lt9211 reset pin output high!!!!\n");
+	LT9211_DEBUG("lt9211 reset pin output high!!!!\n");
 	msleep(1000);
-	pr_info("lt9211 reset again success!\n");
+	LT9211_DEBUG("lt9211 reset again success!\n");
 	return 0;
 }
 
@@ -437,19 +437,19 @@ int lt9211_reset_first(void)
 
 	ret = gpio_request(lt9211_reset_pin, "x2_lt9211_reset_pin");
 	if (ret) {
-		pr_info("%s() Err get trigger pin ret= %d\n",
+		LT9211_DEBUG("%s() Err get trigger pin ret= %d\n",
 					__func__, ret);
 		return -ENODEV;
 	}
-	pr_info("gpio request 85 succeed!!!!");
+	LT9211_DEBUG("gpio request 85 succeed!!!!");
 	gpio_direction_output(lt9211_reset_pin, 0);
-	pr_info("lt9211 reset pin output low!!!!!\n");
+	LT9211_DEBUG("lt9211 reset pin output low!!!!!\n");
 	msleep(100);
 	gpio_direction_output(lt9211_reset_pin, 1);
-	pr_info("lt9211 reset pin output high!!!!\n");
+	LT9211_DEBUG("lt9211 reset pin output high!!!!\n");
 	msleep(100);
 
-	pr_info("lt9211 reset first success!!!\n");
+	LT9211_DEBUG("lt9211 reset first success!!!\n");
 	return 0;
 }
 
@@ -457,124 +457,124 @@ int lt9211_config(unsigned int convert_type)
 {
 	int ret = 0;
 
-	pr_info("lt9211 config begin!!!\n");
+	LT9211_DEBUG("lt9211 config begin!!!\n");
 	ret = lt9211_chip_id();
 	if (ret) {
-		pr_info("%s() Err get lt9211 chip id ret= %d\n",
+		LT9211_DEBUG("%s() Err get lt9211 chip id ret= %d\n",
 					__func__, ret);
 		return ret;
 	}
 	if (convert_type == BT1120_TO_MIPI) {
 		ret = lt9211_system_int_to_mipi();
 		if (ret) {
-			pr_info("%s() Err init lt9211 system ret= %d\n",
+			LT9211_DEBUG("%s() Err init lt9211 system ret= %d\n",
 					__func__, ret);
 			return ret;
 		}
 		ret = lt9211_ttl_rx_phy_to_mipi();
 		if (ret) {
-			pr_info("%s() Err config lt9211 ttl rx phy ret= %d\n",
+			LT9211_DEBUG("%s() Err config lt9211 ttl rx phy ret= %d\n",
 					__func__, ret);
 			return ret;
 		}
 		ret = lt9211_csc_to_mipi();
 		if (ret) {
-			pr_info("%s() Err config lt9211 csc ret= %d\n",
+			LT9211_DEBUG("%s() Err config lt9211 csc ret= %d\n",
 					__func__, ret);
 			return ret;
 		}
 		ret = lt9211_video_check_to_mipi();
 		if (ret) {
-			pr_info("%s() Err check lt9211 video ret= %d\n",
+			LT9211_DEBUG("%s() Err check lt9211 video ret= %d\n",
 					__func__, ret);
 			return ret;
 		}
 		ret = lt9211_set_timing_para_to_mipi();
 		if (ret) {
-			pr_info("%s() Err set lt9211 timing parameter ret= %d\n",
+			LT9211_DEBUG("%s() Err set lt9211 timing parameter ret= %d\n",
 					__func__, ret);
 			return ret;
 		}
 		ret = lt9211_mipi_tx_phy();
 		if (ret) {
-			pr_info("%s() Err config lt9211 mipi tx phy ret= %d\n",
+			LT9211_DEBUG("%s() Err config lt9211 mipi tx phy ret= %d\n",
 					__func__, ret);
 			return ret;
 		}
 		ret = lt9211_mipi_tx_pll();
 		if (ret) {
-			pr_info("%s() Err config lt9211 mipi tx pll ret= %d\n",
+			LT9211_DEBUG("%s() Err config lt9211 mipi tx pll ret= %d\n",
 					__func__, ret);
 			return ret;
 		}
 		ret = init_panel();
 		if (ret) {
-			pr_info("%s() Err init dsi panel ret= %d\n",
+			LT9211_DEBUG("%s() Err init dsi panel ret= %d\n",
 					__func__, ret);
 			return ret;
 		}
 		ret = lt9211_set_tx_timing();
 		if (ret) {
-			pr_info("%s() Err set lt9211 tx timing ret= %d\n",
+			LT9211_DEBUG("%s() Err set lt9211 tx timing ret= %d\n",
 					__func__, ret);
 			return ret;
 		}
 		ret = lt9211_mipi_tx_digital();
 		if (ret) {
-			pr_info("%s() Err config lt9211 mipi tx digital ret= %d\n",
+			LT9211_DEBUG("%s() Err config lt9211 mipi tx digital ret= %d\n",
 					__func__, ret);
 			return ret;
 		}
 	} else if (convert_type == BT1120_TO_RGB888) {
-		pr_info("begin config lt9211, config bt1120 convert to RGB888!!!\n");
+		LT9211_DEBUG("begin config lt9211, config bt1120 convert to RGB888!!!\n");
 		//TimingStr = video_720x480_60Hz;
 		ret = lt9211_system_int_to_RGB();
 		if (ret) {
-			pr_info("%s() Err init lt9211 system ret= %d\n",
+			LT9211_DEBUG("%s() Err init lt9211 system ret= %d\n",
 					__func__, ret);
 			return ret;
 		}
 		ret = lt9211_ttl_rx_phy_to_RGB();
 		if (ret) {
-			pr_info("%s() Err init lt9211 system ret= %d\n",
+			LT9211_DEBUG("%s() Err init lt9211 system ret= %d\n",
 					__func__, ret);
 			return ret;
 		}
 		ret = lt9211_BT_video_check_to_RGB();
 		if (ret) {
-			pr_info("%s() Err init lt9211 system ret= %d\n",
+			LT9211_DEBUG("%s() Err init lt9211 system ret= %d\n",
 					__func__, ret);
 			return ret;
 		}
 		ret = lt9211_set_timing_para_to_RGB();
 		if (ret) {
-			pr_info("%s() Err init lt9211 system ret= %d\n",
+			LT9211_DEBUG("%s() Err init lt9211 system ret= %d\n",
 					__func__, ret);
 			return ret;
 		}
 		msleep(100);
 		ret = lt9211_tx_digital_RGB();
 		if (ret) {
-			pr_info("%s() Err init lt9211 system ret= %d\n",
+			LT9211_DEBUG("%s() Err init lt9211 system ret= %d\n",
 					__func__, ret);
 			return ret;
 		}
 		ret = lt9211_RGB_tx_phy();
 		if (ret) {
-			pr_info("%s() Err init lt9211 system ret= %d\n",
+			LT9211_DEBUG("%s() Err init lt9211 system ret= %d\n",
 					__func__, ret);
 			return ret;
 		}
 		msleep(20);
 		ret = lt9211_RGB_tx_pll();
 		if (ret) {
-			pr_info("%s() Err init lt9211 system ret= %d\n",
+			LT9211_DEBUG("%s() Err init lt9211 system ret= %d\n",
 					__func__, ret);
 			return ret;
 		}
 		ret = lt9211_rx_csc();
 		if (ret) {
-			pr_info("%s() Err init lt9211 system ret= %d\n",
+			LT9211_DEBUG("%s() Err init lt9211 system ret= %d\n",
 					__func__, ret);
 			return ret;
 		}
@@ -596,15 +596,15 @@ int lt9211_chip_id(void)
 	ret = x2_read_lt9211(0x00, &(chip_id[0]));
 	if (ret < 0)
 		return ret;
-	pr_info("\nLT9211 Chip ID:%x,", chip_id[0]);
+	LT9211_DEBUG("\nLT9211 Chip ID:%x,", chip_id[0]);
 	ret = x2_read_lt9211(0x01, &chip_id[1]);
 	if (ret < 0)
 		return ret;
-	pr_info("%x,", chip_id[1]);
+	LT9211_DEBUG("%x,", chip_id[1]);
 	ret = x2_read_lt9211(0x02, &chip_id[2]);
 	if (ret < 0)
 		return ret;
-	pr_info("%x\n", chip_id[2]);
+	LT9211_DEBUG("%x\n", chip_id[2]);
 	if ((chip_id[0] == 0x18) && (chip_id[1] == 0x1) && (chip_id[2] == 0xe1))
 		return 0;
 	else
@@ -684,7 +684,7 @@ int lt9211_system_int_to_RGB(void)
 {
 	int ret = 0;
 
-	pr_info("step1:begin to config lt9211 system int to RGB!!!\n");
+	LT9211_DEBUG("step1:begin to config lt9211 system int to RGB!!!\n");
 	ret = x2_write_lt9211(0xff, 0x82);
 	if (ret < 0)
 		return ret;
@@ -722,7 +722,7 @@ int lt9211_system_int_to_RGB(void)
 	ret = x2_write_lt9211(0x26, 0x0f);
 	if (ret < 0)
 		return ret;
-	pr_info("step1:end to config lt9211 system int to RGB!!!\n");
+	LT9211_DEBUG("step1:end to config lt9211 system int to RGB!!!\n");
 	return 0;
 }
 
@@ -771,7 +771,7 @@ int lt9211_ttl_rx_phy_to_RGB(void)
 {
 	int ret = 0;
 
-	pr_info("step2:begin to config lt9211 ttl rx phy to RGB!!!\n");
+	LT9211_DEBUG("step2:begin to config lt9211 ttl rx phy to RGB!!!\n");
 	ret = x2_write_lt9211(0xff, 0x82);
 	if (ret < 0)
 		return ret;
@@ -802,7 +802,7 @@ int lt9211_ttl_rx_phy_to_RGB(void)
 	ret = x2_write_lt9211(0x48, 0x18);//16BIT
 	if (ret < 0)
 		return ret;
-	pr_info("step2:end to config lt9211 ttl rx phy to RGB!!!\n");
+	LT9211_DEBUG("step2:end to config lt9211 ttl rx phy to RGB!!!\n");
 	return 0;
 }
 
@@ -857,16 +857,16 @@ int lt9211_video_check_to_mipi(void)
 			return ret;
 		htotal = (((uint8_t)htotal_h) << 8) + (uint8_t)htotal_l;
 
-		pr_info("\nlt9211 video chech debug: hact = 0x%x",
+		LT9211_DEBUG("\nlt9211 video chech debug: hact = 0x%x",
 									hact);
-		pr_info("\nlt9211 video chech debug:vact = 0x%x", vact);
-		pr_info("\nlt9211 video chech debug:htotal = 0x%x",
+		LT9211_DEBUG("\nlt9211 video chech debug:vact = 0x%x", vact);
+		LT9211_DEBUG("\nlt9211 video chech debug:htotal = 0x%x",
 									htotal);
 
 		if ((hact == video_1920x1080_60Hz.hact) &&
 				(vact == video_1920x1080_60Hz.vact) &&
 				(htotal == video_1920x1080_60Hz.htotal)) {
-			pr_info("\nVideo_check = video_1920x1080_60Hz");
+			LT9211_DEBUG("\nVideo_check = video_1920x1080_60Hz");
 			Video_Format = video_1920x1080_60Hz_vic;
 			TimingStr = video_1920x1080_60Hz;
 			break;
@@ -874,12 +874,12 @@ int lt9211_video_check_to_mipi(void)
 		if ((hact == video_640x480_60Hz.hact) &&
 				(vact == video_640x480_60Hz.vact) &&
 				(htotal == video_640x480_60Hz.htotal)) {
-			pr_info("\nVideo_check = video_640x480_60Hz");
+			LT9211_DEBUG("\nVideo_check = video_640x480_60Hz");
 			Video_Format = video_640x480_60Hz_vic;
 			TimingStr = video_640x480_60Hz;
 			break;
 		}
-		pr_info("\nVideo_check None\n");
+		LT9211_DEBUG("\nVideo_check None\n");
 		Video_Format = video_none;
 		msleep(2000);
 	}
@@ -906,11 +906,11 @@ int lt9211_BT_video_check_to_RGB(void)
 		if (ret < 0)
 			return ret;
 		ret = x2_read_lt9211(0x4f, &bt_flag);
-		pr_info("lt9211 bt format flag is 0x%x\n", bt_flag);
+		LT9211_DEBUG("lt9211 bt format flag is 0x%x\n", bt_flag);
 		if (ret < 0)
 			return ret;
 		if (bt_flag & 0x40) {
-			pr_info("\nBT1120 flag is set\n");
+			LT9211_DEBUG("\nBT1120 flag is set\n");
 			ret = x2_write_lt9211(0xff, 0x86);
 			if (ret < 0)
 				return ret;
@@ -936,14 +936,14 @@ int lt9211_BT_video_check_to_RGB(void)
 			if (ret < 0)
 				return ret;
 			vact = (uint16_t)htotal_h << 8 | (uint16_t)htotal_l;
-			pr_info("hact = 0x%x.\n", hact);
-			pr_info("vact = 0x%x.\n", vact);
-			pr_info("htotal = 0x%x.\n", htotal);
+			LT9211_DEBUG("hact = 0x%x.\n", hact);
+			LT9211_DEBUG("vact = 0x%x.\n", vact);
+			LT9211_DEBUG("htotal = 0x%x.\n", htotal);
 
 			if ((vact == video_1920x1080_25Hz.vact)
 				&& (hact == video_1920x1080_25Hz.hact)
 				&& (htotal == video_1920x1080_25Hz.htotal)) {
-				pr_info("Video_check = video_1920x1080_25Hz.\n");
+				LT9211_DEBUG("Video_check = video_1920x1080_25Hz.\n");
 				Video_Format = video_1920x1080_25Hz_vic;
 				TimingStr = video_1920x1080_25Hz;
 				break;
@@ -1002,7 +1002,7 @@ int lt9211_set_timing_para_to_RGB(void)
 {
 	int ret = 0;
 
-	pr_info("step: begin lt9211 set timing para to RGB!!!\n");
+	LT9211_DEBUG("step: begin lt9211 set timing para to RGB!!!\n");
 	//Htotal
 	ret = x2_write_lt9211(0xff, 0x85);
 	if (ret < 0)
@@ -1041,7 +1041,7 @@ int lt9211_set_timing_para_to_RGB(void)
 	ret = x2_write_lt9211(0x3d, (uint8_t)(TimingStr.vs));
 	if (ret < 0)
 		return ret;
-	pr_info("step: end lt9211 set timing para to RGB!!!\n");
+	LT9211_DEBUG("step: end lt9211 set timing para to RGB!!!\n");
 	return 0;
 }
 
@@ -1067,14 +1067,14 @@ int lt9211_RGB_tx_phy(void)
 {
 	int ret = 0;
 
-	pr_info("step: begin lt9211 RGB tx phy!!!\n");
+	LT9211_DEBUG("step: begin lt9211 RGB tx phy!!!\n");
 	ret = x2_write_lt9211(0xff, 0x82);
 	if (ret < 0)
 		return ret;
 	if ((LT9211_OutPutModde == OUTPUT_RGB888) ||
 			(LT9211_OutPutModde == OUTPUT_BT656_8BIT) ||
 			(LT9211_OutPutModde == OUTPUT_BT1120_16BIT)) {
-		pr_info("Output mode is RGB888\n");
+		LT9211_DEBUG("Output mode is RGB888\n");
 		ret = x2_write_lt9211(0x62, 0x01);//ttl output enable
 		if (ret < 0)
 			return ret;
@@ -1151,7 +1151,7 @@ int lt9211_RGB_tx_phy(void)
 		if (ret < 0)
 			return ret;
 	}
-	pr_info("step: end lt9211 RGB tx phy!!!\n");
+	LT9211_DEBUG("step: end lt9211 RGB tx phy!!!\n");
 	return 0;
 }
 
@@ -1242,13 +1242,13 @@ int lt9211_mipi_tx_pll(void)
 			if (ret < 0)
 				return ret;
 			if (read_result_reg20 & 0x80)
-				pr_info("\nLT9211 tx pll lock");
+				LT9211_DEBUG("\nLT9211 tx pll lock");
 			else
-				pr_info("\nLT9211 tx pll unlocked");
-			pr_info("\nLT9211 tx pll cal done");
+				LT9211_DEBUG("\nLT9211 tx pll unlocked");
+			LT9211_DEBUG("\nLT9211 tx pll cal done");
 			break;
 		}
-		pr_info("\nLT9211 tx pll unlocked");
+		LT9211_DEBUG("\nLT9211 tx pll unlocked");
 	}
 	return 0;
 }
@@ -1259,7 +1259,7 @@ int lt9211_RGB_tx_pll(void)
 	uint8_t loopx;
 	uint8_t read_result_reg1f, read_result_reg20;
 
-	pr_info("setp: begin config lt9211 RGB tx pll!!!\n");
+	LT9211_DEBUG("setp: begin config lt9211 RGB tx pll!!!\n");
 	if (LT9211_OutPutModde == OUTPUT_BT656_8BIT) {
 		ret = x2_write_lt9211(0xff, 0x82);
 		if (ret < 0)
@@ -1277,7 +1277,7 @@ int lt9211_RGB_tx_pll(void)
 			(LT9211_OutPutModde == OUTPUT_LVDS_1_PORT) ||
 			(LT9211_OutPutModde == OUTPUT_RGB888) ||
 			(LT9211_OutPutModde == OUTPUT_BT1120_16BIT)) {
-		pr_info("Output mode is RGB888.\n");
+		LT9211_DEBUG("Output mode is RGB888.\n");
 		ret = x2_write_lt9211(0xff, 0x82);
 		if (ret < 0)
 			return ret;
@@ -1329,18 +1329,18 @@ int lt9211_RGB_tx_pll(void)
 				if (ret < 0)
 					return ret;
 				if (read_result_reg20 & 0x80)
-					pr_info("LT9211 tx pll lock!\n");
+					LT9211_DEBUG("LT9211 tx pll lock!\n");
 				else
-					pr_info("LT9211 tx pll unlocked!\n");
-				pr_info("LT9211 tx pll cal done!\n");
+					LT9211_DEBUG("LT9211 tx pll unlocked!\n");
+				LT9211_DEBUG("LT9211 tx pll cal done!\n");
 				break;
 			} else {
-				pr_info("value of 0x1f & 0x80 = 0, lt9211 tx pll unlocked\n");
+				LT9211_DEBUG("value of 0x1f & 0x80 = 0, lt9211 tx pll unlocked\n");
 			}
 		}
 	}
-	pr_info("system success.\n");
-	pr_info("step: end config lt9211 rgb tx pll!!!\n");
+	LT9211_DEBUG("system success.\n");
+	LT9211_DEBUG("step: end config lt9211 rgb tx pll!!!\n");
 	return 0;
 }
 
@@ -1585,10 +1585,10 @@ int lt9211_set_tx_timing(void)
 		return ret;
 	}
 
-	pr_info("\nsync_polarity = %x", sync_polarity);
-	pr_info("\nhfp, hs, hbp, hact, htotal = 0x%x, 0x%x, 0x%x, 0x%x, 0x%x",
+	LT9211_DEBUG("\nsync_polarity = %x", sync_polarity);
+	LT9211_DEBUG("\nhfp,hs,hbp,hact,htotal = 0x%x,0x%x,0x%x,0x%x,0x%x",
 		hfp, hs, hbp, hact, htotal);
-	pr_info("\nvfp, vs, vbp, vact, vtotal = 0x%x, 0x%x, 0x%x, 0x%x, 0x%x",
+	LT9211_DEBUG("\nvfp,vs,vbp,vact,vtotal = 0x%x,0x%x,0x%x,0x%x,0x%x",
 		vfp, vs, vbp, vact, vtotal);
 	return 0;
 }
@@ -1693,10 +1693,10 @@ int lt9211_tx_digital_RGB(void)
 {
 	int ret = 0;
 
-	pr_info("step: begin config lt9211 tx digital RGB!!!\n");
-	pr_info("LT9211 outpud mode ");
+	LT9211_DEBUG("step: begin config lt9211 tx digital RGB!!!\n");
+	LT9211_DEBUG("LT9211 outpud mode ");
 	if (LT9211_OutPutModde == OUTPUT_RGB888) {
-		pr_info("set to OUTPUT_RGB888\n");
+		LT9211_DEBUG("set to OUTPUT_RGB888\n");
 		ret = x2_write_lt9211(0xff, 0x85);
 		if (ret < 0)
 			return ret;
@@ -1728,7 +1728,7 @@ int lt9211_tx_digital_RGB(void)
 		if (ret < 0)
 			return ret;
 	} else if (LT9211_OutPutModde == OUTPUT_BT656_8BIT) {
-		pr_info("set to OUTPUT_BT656_8BIT\n");
+		LT9211_DEBUG("set to OUTPUT_BT656_8BIT\n");
 		ret = x2_write_lt9211(0xff, 0x85);
 		if (ret < 0)
 			return ret;
@@ -1764,7 +1764,7 @@ int lt9211_tx_digital_RGB(void)
 		if (ret < 0)
 			return ret;
 	} else if (LT9211_OutPutModde == OUTPUT_BT1120_16BIT) {
-		pr_info("set to OUTPUT_BT1120_16BIT\n");
+		LT9211_DEBUG("set to OUTPUT_BT1120_16BIT\n");
 		ret = x2_write_lt9211(0xff, 0x85);
 		if (ret < 0)
 			return ret;
@@ -1793,7 +1793,7 @@ int lt9211_tx_digital_RGB(void)
 			return ret;
 	} else if ((LT9211_OutPutModde == OUTPUT_LVDS_2_PORT) ||
 			(LT9211_OutPutModde == OUTPUT_LVDS_1_PORT)) {
-		pr_info("set to OUTPUT_LVDS\n");
+		LT9211_DEBUG("set to OUTPUT_LVDS\n");
 		//lvds tx controller
 		ret = x2_write_lt9211(0xff, 0x85);
 		if (ret < 0)
@@ -1861,7 +1861,7 @@ int lt9211_tx_digital_RGB(void)
 			return ret;
 #endif
 	}
-	pr_info("step: end config lt9211 tx digital RGB!!!\n");
+	LT9211_DEBUG("step: end config lt9211 tx digital RGB!!!\n");
 	return 0;
 }
 
@@ -1869,7 +1869,7 @@ int lt9211_rx_csc(void)
 {
 	int ret = 0;
 
-	pr_info("step: config lt9211 rx csc!!!\n");
+	LT9211_DEBUG("step: config lt9211 rx csc!!!\n");
 	ret = x2_write_lt9211(0xff, 0xf9);
 	if (ret < 0)
 		return ret;
@@ -1880,7 +1880,7 @@ int lt9211_rx_csc(void)
 	if (ret < 0)
 		return ret;
 
-	pr_info("step: end config lt9211 rx csc!!!\n");
+	LT9211_DEBUG("step: end config lt9211 rx csc!!!\n");
 	return 0;
 }
 void lt9211r_patten(struct video_timing *video_format)
