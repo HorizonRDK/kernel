@@ -364,7 +364,12 @@ static struct i2c_driver mpq7920_pmic_driver = {
 	.id_table	= mpq7920_ids,
 };
 
-module_i2c_driver(mpq7920_pmic_driver);
+static int __init mpq7920_init(void)
+{
+	return i2c_add_driver(&mpq7920_pmic_driver);
+}
+
+subsys_initcall(mpq7920_init);
 
 MODULE_DESCRIPTION("mps mpq7920 voltage regulator driver");
 MODULE_AUTHOR("Yuqian Wang <yunqian.wang@horizon.ai>");

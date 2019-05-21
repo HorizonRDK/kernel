@@ -764,7 +764,7 @@ static void __init x2_i2c_exit(void)
 	platform_driver_unregister(&x2_i2c_driver);
 }
 
-module_init(x2_i2c_init);
+subsys_initcall(x2_i2c_init);
 module_exit(x2_i2c_exit);
 
 MODULE_AUTHOR("Taochao");
