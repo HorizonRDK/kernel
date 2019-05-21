@@ -385,15 +385,13 @@ static int net_send_thread(void *arg)
 	unsigned long cur_phy = 0;
 	unsigned short elen = 0;
 	unsigned long flags = 0;
-	unsigned long tx_wp_timeout = TX_WP_TIMEOUT;
-	int have_netpacket = 0;
 	struct net_device *dev = (struct net_device *)arg;
 	//struct net_device *dev = get_bifnet();
 	struct bifnet_local *pl = netdev_priv(dev);
 
 	while (!kthread_should_stop()) {
 
-		if (!pl->query_ok)
+		if (!dev || !pl || !pl->query_ok)
 			bifnet_query_addr((void *)pl, 1);
 		if (!dev || !pl || !pl->start || !pl->self || !pl->other ||
 			!pl->self_phy || !pl->self_vir)
@@ -401,17 +399,10 @@ static int net_send_thread(void *arg)
 		if (pl->start && dev) {
 			if (wait_event_interruptible_timeout(pl->tx_wq,
 				pl->skbs_tail != pl->skbs_head,
-				usecs_to_jiffies(tx_wp_timeout)) == 0) {
-				if (have_netpacket && !pl->self->queue_full) {
-					bifnet_irq((void *)pl);
-					have_netpacket = 0;
-					tx_wp_timeout = TX_WP_TIMEOUT;
-				}
+				usecs_to_jiffies(TX_WP_TIMEOUT)) == 0) {
 				continue;
 			}
 		}
-		have_netpacket = 1;
-		tx_wp_timeout = 100;	//us
 
 		while (pl->skbs_head != pl->skbs_tail) {
 			if (!pl->start || !dev)
@@ -487,18 +478,20 @@ next_step:
 			}
 
 			if (((pl->self->send_tail + 1) % QUEUE_MAX) ==
-				pl->other->recv_head) {
+				pl->other->recv_head && !pl->self->queue_full) {
 				//pr_info("1 %d\n", pl->self->queue_full);
 				spin_lock_irqsave(&pl->lock_full, flags);
 				pl->self->queue_full = 1;
 				spin_unlock_irqrestore(&pl->lock_full, flags);
 				bifnet_irq((void *)pl);
-				if (!wait_for_completion_timeout(&pl->tx_cp,
-					msecs_to_jiffies(TX_CP_TIMEOUT)))
-					pr_bif("bifnet: t\n");
+				if (pl->plat->plat_type == PLAT_AP)
+					wait_for_completion_timeout(&pl->tx_cp,
+					usecs_to_jiffies(100*TX_CP_TIMEOUT));
 			}
 		}
-		//bifnet_irq((void *)pl);
+
+		if (!pl->self->queue_full)
+			bifnet_irq((void *)pl);
 	}
 
 	return 0;
