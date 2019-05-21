@@ -47,20 +47,17 @@ int8_t ipu_cfg_ddrinfo_init(ipu_cfg_t *ipu)
 	uint64_t ddrbase = 0; //(uint64_t)g_ipu->paddr;
 	uint32_t limit = ddrbase + IPU_SLOT_SIZE;
 
-	// ddrbase = ALIGN_64(ddrbase);
 	ddrbase = ALIGN(ddrbase, IPU_MEM_4k);
 	/* step1. calculate crop space */
 	if (ipu->ctrl.crop_ddr_en == 1) {
 		w = ALIGN_16(ipu->crop.crop_ed.w - ipu->crop.crop_st.w);
-		h = ALIGN_16(ipu->crop.crop_ed.h - ipu->crop.crop_st.h);
+		h = ALIGN_4(ipu->crop.crop_ed.h - ipu->crop.crop_st.h);
 		size = w * h;
 		ipu->crop_ddr.y_addr = ddrbase;
 		ddrbase = ddrbase + size;
-		ddrbase = ALIGN(ddrbase, IPU_MEM_4k);
 		ipu->crop_ddr.c_addr = ddrbase;
 		ddrbase += size >> 1;
 		ddrbase = ALIGN(ddrbase, IPU_MEM_4k);
-		// ddrbase = ALIGN_64(ddrbase);
 		if (ddrbase >= limit)
 			goto err_out;
 	}
@@ -68,11 +65,10 @@ int8_t ipu_cfg_ddrinfo_init(ipu_cfg_t *ipu)
 	/* step2. calculate scale space */
 	if (ipu->ctrl.scale_ddr_en == 1) {
 		w = ALIGN_16(ipu->scale.scale_tgt.w);
-		h = ALIGN_16(ipu->scale.scale_tgt.h);
+		h = ALIGN_4(ipu->scale.scale_tgt.h);
 		size = w * h;
 		ipu->scale_ddr.y_addr = ddrbase;
 		ddrbase = ddrbase + size;
-		ddrbase = ALIGN(ddrbase, IPU_MEM_4k);
 		ipu->scale_ddr.c_addr = ddrbase;
 		ddrbase += size >> 1;
 		ddrbase = ALIGN(ddrbase, IPU_MEM_4k);
@@ -89,14 +85,11 @@ int8_t ipu_cfg_ddrinfo_init(ipu_cfg_t *ipu)
 				ipu->ds_ddr[i].c_addr = 0;
 				continue;
 			}
-			w = ALIGN_16(ipu->pymid.ds_roi[i].w);
-			h = ALIGN_16(ipu->pymid.ds_roi[i].h);
+			w = ipu->pymid.ds_roi[i].w;
+			h = ipu->pymid.ds_roi[i].h;
 			size = w * h;
 			ipu->ds_ddr[i].y_addr = ddrbase;
-
 			ddrbase = ddrbase + size;
-			ddrbase = ALIGN(ddrbase, IPU_MEM_4k);
-
 			if (ipu->pymid.ds_uv_bypass & (1 << i)) {
 				/* uv bypass layer won't write to ddr */
 				ipu->ds_ddr[i].c_addr = 0;
@@ -119,14 +112,11 @@ int8_t ipu_cfg_ddrinfo_init(ipu_cfg_t *ipu)
 				ipu->us_ddr[i].c_addr = 0;
 				continue;
 			}
-			w = ALIGN_16(ipu->pymid.us_roi[i].w);
-			h = ALIGN_16(ipu->pymid.us_roi[i].h);
+			w = ipu->pymid.us_roi[i].w;
+			h = ipu->pymid.us_roi[i].h;
 			size = w * h;
 			ipu->us_ddr[i].y_addr = ddrbase;
-
 			ddrbase = ddrbase + size;
-			ddrbase = ALIGN(ddrbase, IPU_MEM_4k);
-
 			if (ipu->pymid.us_uv_bypass & 1 << i) {
 				/* uv bypass layer won't write to ddr */
 				ipu->us_ddr[i].c_addr = 0;

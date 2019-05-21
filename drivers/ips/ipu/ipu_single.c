@@ -105,6 +105,19 @@ static uint32_t decode_frame_id(uint16_t *addr)
 	}
 	return d;
 }
+
+/* for mipi/dvp timestamp */
+static uint64_t ipu_current_time(void)
+{
+	struct timeval tv;
+	uint64_t ipu_time;
+
+	do_gettimeofday(&tv);
+	ipu_time = tv.tv_sec * 1000000 + tv.tv_usec;
+	ipu_dbg("ipu_time = %lld\n", ipu_time);
+	return ipu_time;
+}
+
 /* for HISI bt timestamp */
 static int decode_timestamp(void *addr, uint64_t *timestamp)
 {
@@ -135,12 +148,10 @@ static int8_t ipu_get_frameid(struct x2_ipu_data *ipu, ipu_slot_h_t *slot)
 		/* get id from crop ddr address */
 		tmp = (uint8_t *)(slot->info_h.ddr_info.crop.y_offset + vaddr);
 		if (cfg->frame_id.bus_mode == 0) {
-			/* TBD */
-			slot->info_h.cf_timestamp = 0;
+			slot->info_h.cf_timestamp = ipu_current_time();
 			slot->info_h.cf_id = tmp[0] << 8 | tmp[1];
 			ipu_dbg("cframe_id=%d, %d, %d\n", tmp[0], tmp[1], slot->info_h.cf_id);
 		} else {
-			/* TBD */
 			decode_timestamp(tmp,
 			&(slot->info_h.cf_timestamp));
 			slot->info_h.cf_id = decode_frame_id((uint16_t *)tmp);
@@ -152,8 +163,7 @@ static int8_t ipu_get_frameid(struct x2_ipu_data *ipu, ipu_slot_h_t *slot)
 			/* get id from scale ddr address */
 			tmp = (uint8_t *)(slot->info_h.ddr_info.scale.y_offset + vaddr);
 			if (cfg->frame_id.bus_mode == 0) {
-				/* TBD */
-				slot->info_h.sf_timestamp = 0;
+				slot->info_h.sf_timestamp = ipu_current_time();
 				slot->info_h.sf_id = tmp[0] << 8 | tmp[1];
 				ipu_dbg("sframe_id=%d, %d, %d\n", tmp[0], tmp[1], slot->info_h.sf_id);
 			} else {
@@ -166,12 +176,10 @@ static int8_t ipu_get_frameid(struct x2_ipu_data *ipu, ipu_slot_h_t *slot)
 			/* get id from pymid ddr address */
 			tmp = (uint8_t *)(slot->info_h.ddr_info.ds[0].y_offset + vaddr);
 			if (cfg->frame_id.bus_mode == 0) {
-				/* TBD */
-				slot->info_h.sf_timestamp = 0;
+				slot->info_h.sf_timestamp = ipu_current_time();
 				slot->info_h.sf_id = tmp[0] << 8 | tmp[1];
 				ipu_dbg("pframe_id=%d, %d, %d\n", tmp[0], tmp[1], slot->info_h.sf_id);
 			} else {
-				/* TBD */
 				decode_timestamp(tmp,
 				&(slot->info_h.sf_timestamp));
 				slot->info_h.sf_id = decode_frame_id((uint16_t *)tmp);
@@ -296,7 +304,8 @@ static int8_t ipu_sinfo_init(ipu_cfg_t *ipu_cfg)
 		g_ipu_s_cdev->s_info.crop.y_stride = ALIGN_16(g_ipu_s_cdev->s_info.crop.y_width);
 		g_ipu_s_cdev->s_info.crop.c_width = (ipu_cfg->crop.crop_ed.w - ipu_cfg->crop.crop_st.w) >> 1;
 		g_ipu_s_cdev->s_info.crop.c_height = ipu_cfg->crop.crop_ed.h - ipu_cfg->crop.crop_st.h;
-		g_ipu_s_cdev->s_info.crop.c_stride = ALIGN_16(g_ipu_s_cdev->s_info.crop.c_width);
+		g_ipu_s_cdev->s_info.crop.c_stride =
+				ALIGN_4(g_ipu_s_cdev->s_info.crop.c_width);
 	}
 	if (ipu_cfg->ctrl.scale_ddr_en == 1) {
 		g_ipu_s_cdev->s_info.scale.y_offset = ipu_cfg->scale_ddr.y_addr;
@@ -306,7 +315,8 @@ static int8_t ipu_sinfo_init(ipu_cfg_t *ipu_cfg)
 		g_ipu_s_cdev->s_info.scale.y_stride = ALIGN_16(g_ipu_s_cdev->s_info.scale.y_width);
 		g_ipu_s_cdev->s_info.scale.c_width = ALIGN_16(ipu_cfg->scale.scale_tgt.w >> 1);
 		g_ipu_s_cdev->s_info.scale.c_height = ipu_cfg->scale.scale_tgt.h;
-		g_ipu_s_cdev->s_info.scale.c_stride = ALIGN_16(g_ipu_s_cdev->s_info.scale.c_width);
+		g_ipu_s_cdev->s_info.scale.c_stride =
+				ALIGN_4(g_ipu_s_cdev->s_info.scale.c_width);
 	}
 	if (ipu_cfg->pymid.pymid_en == 1) {
 		for (i = 0; i < ipu_cfg->pymid.ds_layer_en; i++) {
