@@ -219,7 +219,7 @@ static int x2_lt9211_probe(struct i2c_client *client,
 	ret = lt9211_chip_id();
 	if (ret != 0) {
 		display_type = HDMI_TYPE;
-		pr_info("not found lt9211 device, exit probe!!!\n");
+		pr_err("not found lt9211 device, exit probe!!!\n");
 		return ret;
 	}
 /*	//---------------------------------------------------------------
@@ -278,10 +278,12 @@ static int x2_lt9211_probe(struct i2c_client *client,
 //		LT9211_DEBUG("\nlcd backlight init err!\n");
 
 	ret = lt9211_dsi_lcd_init(convert_type);
-	if (ret)
-		LT9211_DEBUG("\nlt9211 and dsi panel init err!\n");
+	if (ret) {
+		pr_err("\nlt9211 and dsi panel init err!\n");
+		return ret;
+	}
 
-	pr_info("x2_lt9211 probe OK!!!\n");
+	pr_debug("x2_lt9211 probe OK!!!\n");
 	return 0;
 err:
 	class_destroy(g_x2_lt9211->x2_lt9211_classes);
