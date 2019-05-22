@@ -286,29 +286,29 @@ void bifplat_print_info(void *p)
 	if (!pl)
 		return;
 
-	pr_info("==BIF Application platform information\n");
-	pr_info("platform: %s\n", pl->platform);
-//	pr_info("kernel version: %02x.%02x.%02x\n", (pl->kernel_ver >> 16) &&
+	pr_debug("==BIF Application platform information\n");
+	pr_debug("platform: %s\n", pl->platform);
+//	pr_debug("kernel version: %02x.%02x.%02x\n", (pl->kernel_ver >> 16) &&
 //		0xff, (pl->kernel_ver >> 8) && 0xff, (pl->kernel_ver >> 0) &&
 //		0xff);
 
-	pr_info("kernel version: %x\n", pl->kernel_ver);
-	pr_info("plat type: %s\n", (pl->plat_type == PLAT_CP) ? "CP" : "AP");
-	pr_info("plat param: %s\n",
+	pr_debug("kernel version: %x\n", pl->kernel_ver);
+	pr_debug("plat type: %s\n", (pl->plat_type == PLAT_CP) ? "CP" : "AP");
+	pr_debug("plat param: %s\n",
 		(pl->param == PARAM_DTS) ? "dts" : "module param");
-	pr_info("support bifspi: %s\n",
+	pr_debug("support bifspi: %s\n",
 		(pl->bifspi == SUPPORT_NO) ? "no" : "yes");
-	pr_info("support bifsd: %s\n",
+	pr_debug("support bifsd: %s\n",
 		(pl->bifsd == SUPPORT_NO) ? "no" : "yes");
-	pr_info("cp side ddr phyaddr: 0x%lx\n", pl->bifbase_phyaddr);
-	pr_info("cp side ddr phyaddrsize: 0x%x\n", pl->bifbase_phyaddrsize);
-	pr_info("irq pin absent: %s\n", pl->irq_pin_absent > 0 ? "yes" : "no");
-	pr_info("irq pin: %d\n", pl->irq_pin);
-	pr_info("irq num: %d\n", pl->irq_num);
-	pr_info("tri pin: %d\n", pl->tri_pin);
-	pr_info("tri val: %d\n", pl->tri_val);
-	pr_info("rev pin1: %d\n", pl->rev_pin1);
-	pr_info("rev pin2: %d\n", pl->rev_pin2);
+	pr_debug("cp side ddr phyaddr: 0x%lx\n", pl->bifbase_phyaddr);
+	pr_debug("cp side ddr phyaddrsize: 0x%x\n", pl->bifbase_phyaddrsize);
+	pr_debug("irq pin absent: %s\n", pl->irq_pin_absent > 0 ? "yes" : "no");
+	pr_debug("irq pin: %d\n", pl->irq_pin);
+	pr_debug("irq num: %d\n", pl->irq_num);
+	pr_debug("tri pin: %d\n", pl->tri_pin);
+	pr_debug("tri val: %d\n", pl->tri_val);
+	pr_debug("rev pin1: %d\n", pl->rev_pin1);
+	pr_debug("rev pin2: %d\n", pl->rev_pin2);
 }
 EXPORT_SYMBOL(bifplat_print_info);
 

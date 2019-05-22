@@ -856,7 +856,7 @@ static int bifbase_probe(struct platform_device *pdev)
 
 	if (!pl || !pl->plat) {
 		ret = -1;
-		dev_info(&pdev->dev, "Err probe pl=NULL or pl->plat=NULL\n");
+		dev_err(&pdev->dev, "Err probe pl=NULL or pl->plat=NULL\n");
 		goto exit_1;
 	}
 
@@ -962,7 +962,7 @@ static int __init bifbase_init(void)
 	int ret;
 	struct bifbase_local *pl;
 
-	pr_info("bifbase: init begin\n");
+	pr_info("bifbase: init begin ver:%s\n", BIFBASE_VER);
 
 	pl = kzalloc(sizeof(struct bifbase_local), GFP_KERNEL);
 	if (pl == NULL) {
@@ -975,7 +975,6 @@ static int __init bifbase_init(void)
 	pl->plat = &bifplat;
 	pbl = pl;
 	sprintf(pl->ver, "%s", BIFBASE_VER);
-	pr_info("bifbase: %s\n", pl->ver);
 
 	ret = bifplat_config((void *)pl->plat);
 	if (ret)
@@ -996,7 +995,7 @@ static int __init bifbase_init(void)
 exit_1:
 		pr_err("bifbase: Err bifbase driver register failed.\n");
 	} else {
-		pr_info("bifbase: Suc bifbase driver register success.\n");
+		pr_debug("bifbase: Suc bifbase driver register success.\n");
 	}
 	return ret;
 }
