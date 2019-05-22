@@ -940,7 +940,7 @@ static int init_config(void)
 {
 	iar_paser_config(CHANNEL_CFG, channelconfig);
 	iar_paser_config(SCALE_CFG, scale_config);
-	iar_paser_config(GAMMA_CFG, gammma_config);
+	//iar_paser_config(GAMMA_CFG, gammma_config);
 	iar_paser_config(OUTPUT_CFG, output_cfg);
 
 	return 0;
