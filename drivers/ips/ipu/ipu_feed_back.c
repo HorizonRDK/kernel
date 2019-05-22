@@ -111,12 +111,11 @@ static int8_t ipu_set_ddr(uint32_t ddrbase, ipu_cfg_t *ipu)
 			ipu->ds_ddr[i].c_addr = 0;
 			continue;
 		}
-		w = ALIGN_16(ipu->pymid.ds_roi[i].w);
-		h = ALIGN_16(ipu->pymid.ds_roi[i].h);
+		w = ipu->pymid.ds_roi[i].w;
+		h = ipu->pymid.ds_roi[i].h;
 		size = w * h;
 		ipu->ds_ddr[i].y_addr = ddrbase;
 		ddrbase = ddrbase + size;
-		ddrbase = ALIGN(ddrbase, IPU_MEM_4k);
 		if (ipu->pymid.ds_uv_bypass & (1 << i)) {
 			/* uv bypass layer won't write to ddr */
 			ipu->ds_ddr[i].c_addr = 0;
@@ -141,12 +140,11 @@ static int8_t ipu_set_ddr(uint32_t ddrbase, ipu_cfg_t *ipu)
 			ipu->us_ddr[i].c_addr = 0;
 			continue;
 		}
-		w = ALIGN_16(ipu->pymid.us_roi[i].w);
-		h = ALIGN_16(ipu->pymid.us_roi[i].h);
+		w = ipu->pymid.us_roi[i].w;
+		h = ipu->pymid.us_roi[i].h;
 		size = w * h;
 		ipu->us_ddr[i].y_addr = ddrbase;
 		ddrbase = ddrbase + size;
-		ddrbase = ALIGN(ddrbase, IPU_MEM_4k);
 		if (ipu->pymid.us_uv_bypass & 1 << i) {
 			/* uv bypass layer won't write to ddr */
 			ipu->us_ddr[i].c_addr = 0;
@@ -390,6 +388,7 @@ int ipu_feed_back_close(struct inode *inode, struct file *filp)
 	struct ipu_f_cdev *ipu_cdev = filp->private_data;
 
 	ipu_cdev->ipu->ipu_mode = IPU_INVALID;
+	 ipu_drv_stop();
 	return 0;
 }
 
