@@ -139,14 +139,14 @@ struct x2_cnn_dev {
 	spinlock_t cnn_spin_lock;
 	int irq_triggered;
 
-	struct reset_control *cnn0_rst;
-	struct reset_control *cnn1_rst;
+	struct reset_control *cnn_rst;
 
 	struct sock *irq_sk;
 	/* wait queue for wait cnn interrupt occur */
 	wait_queue_head_t cnn_int_wait;
 	u32 x2_cnn_int_num;
 	atomic_t wait_fc_cnt;
+	atomic_t mod_frq_flg;
 	struct tasklet_struct tasklet;
 	struct dentry *debugfs_root;
 	struct list_head debugfs_list;
@@ -154,6 +154,7 @@ struct x2_cnn_dev {
 	struct kfifo fc_time_fifo;
 	struct kfifo fc_time_wait_fifo;
 	struct kfifo fc_time_save_fifo;
+	struct completion bpu_completion;
 
 };
 

@@ -54,7 +54,6 @@ struct sock *cnn_nl_sk;
 #define FC_TIME_SAVE_CNT 50
 
 static DEFINE_MUTEX(x2_cnn_mutex);
-static DEFINE_MUTEX(mod_frq_mutex);
 static char *g_chrdev_name = "cnn";
 static struct dentry *cnn0_debugfs_root;
 static struct dentry *cnn1_debugfs_root;
@@ -66,11 +65,11 @@ static int ratio0;
 static int ratio1;
 static int queue0;
 static int queue1;
-static int test_mod_frq;
+static int bpu0_frq;
+static int bpu1_frq;
 static struct timer_list check_timer;
 static struct mutex enable_lock;
 static struct completion bpu_completion;
-atomic_t mod_frq_flg;
 
 static inline u32 x2_cnn_reg_read(struct x2_cnn_dev *dev, u32 off)
 {
@@ -309,19 +308,19 @@ static int x2_cnn_get_resets(struct x2_cnn_dev *cnn_dev, int cnn_id)
 	struct reset_control *rst_temp;
 
 	if (cnn_id == 0) {
-		cnn_dev->cnn0_rst =
+		cnn_dev->cnn_rst =
 			devm_reset_control_get(cnn_dev->dev, "cnn0_rst");
-		if (IS_ERR(cnn_dev->cnn0_rst)) {
+		if (IS_ERR(cnn_dev->cnn_rst)) {
 			name = "cnn0_rst";
-			rst_temp = cnn_dev->cnn0_rst;
+			rst_temp = cnn_dev->cnn_rst;
 			goto error;
 		}
 	} else if (cnn_id == 1) {
-		cnn_dev->cnn1_rst =
+		cnn_dev->cnn_rst =
 			devm_reset_control_get(cnn_dev->dev, "cnn1_rst");
-		if (IS_ERR(cnn_dev->cnn1_rst)) {
+		if (IS_ERR(cnn_dev->cnn_rst)) {
 			name = "cnn1_rst";
-			rst_temp = cnn_dev->cnn1_rst;
+			rst_temp = cnn_dev->cnn_rst;
 			goto error;
 		}
 	}
@@ -342,30 +341,13 @@ error:
 static int x2_cnn_hw_reset_reinit(struct x2_cnn_dev *cnn_dev, int cnn_id)
 {
 	int ret = 0;
+	x2_cnn_reset_assert(cnn_dev->cnn_rst);
+	udelay(1);
+	x2_cnn_reset_release(cnn_dev->cnn_rst);
 
-	switch (cnn_id) {
-	case 0:
-		x2_cnn_reset_assert(cnn_dev->cnn0_rst);
-		udelay(1);
-		x2_cnn_reset_release(cnn_dev->cnn0_rst);
-		break;
-	case 1:
-		x2_cnn_reset_assert(cnn_dev->cnn1_rst);
-		udelay(1);
-		x2_cnn_reset_release(cnn_dev->cnn1_rst);
-		break;
-
-	default:
-		pr_err("%s: Invalid cnn_id\n", __func__);
-		ret = -EINVAL;
-		break;
-	}
-
-	if (!ret) {
-		x2_cnn_hw_init(cnn_dev);
-		x2_cnn_set_fc_base(cnn_dev);
-		x2_cnn_set_default_fc_depth(cnn_dev, 1023);
-	}
+	x2_cnn_hw_init(cnn_dev);
+	x2_cnn_set_fc_base(cnn_dev);
+	x2_cnn_set_default_fc_depth(cnn_dev, 1023);
 	return ret;
 }
 
@@ -490,6 +472,7 @@ static u32 x2_cnn_get_fc_fifo_spaces(struct x2_cnn_dev *dev)
 			fc_depth, free_fc_fifo, fc_head_idx, fc_tail_idx);
 	return free_fc_fifo;
 }
+
 
 /**
  * x2_cnn_fc_fifo_enqueue - fill the function call into the reserved memory
@@ -709,7 +692,6 @@ static long x2_cnn_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				tmp_ptr->dyn_base_addr1,
 				tmp_ptr->dyn_base_addr3);
 
-		mutex_lock(&mod_frq_mutex);
 		mutex_lock(&dev->cnn_lock);
 		rc = x2_cnn_fc_fifo_enqueue(dev, &data.fc_data);
 		if (rc < 0) {
@@ -718,7 +700,6 @@ static long x2_cnn_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			return rc;
 		}
 		mutex_unlock(&dev->cnn_lock);
-		mutex_unlock(&mod_frq_mutex);
 		kfree(kernel_fc_data);
 		break;
 	case CNN_IOC_RST:
@@ -861,9 +842,8 @@ static void x2_cnn_do_tasklet(unsigned long data)
 		ret = kfifo_in(&dev->fc_time_fifo, &tmp,
 			       sizeof(struct x2_fc_time));
 	}
-	if (atomic_read(&mod_frq_flg)) {
-		complete(&bpu_completion);
-	}
+	if (atomic_read(&dev->mod_frq_flg))
+		complete(&dev->bpu_completion);
 }
 
 static void *cnn_ram_vmap(phys_addr_t start, size_t size,
@@ -1016,7 +996,6 @@ int cnn_debugfs_init(struct x2_cnn_dev *dev, int cnn_id, struct dentry *root)
 	return 0;
 }
 
-
 int x2_cnn_probe(struct platform_device *pdev)
 {
 	int rc;
@@ -1033,27 +1012,6 @@ int x2_cnn_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	cnn_dev->dev = &pdev->dev;
 
-	cnn_dev->irq = irq_of_parse_and_map(np, 0);
-	if (cnn_dev->irq < 0) {
-		dev_err(&pdev->dev, "no cnn irq found\n");
-		rc = -1;
-		goto err_out;
-	}
-
-	/* get cnn controller base addr */
-	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	if (!res) {
-		rc = -ENODEV;
-		goto err_out;
-	}
-	cnn_dev->cnn_base = devm_ioremap_resource(&pdev->dev, res);
-	if (IS_ERR(cnn_dev->cnn_base)) {
-		rc = PTR_ERR(cnn_dev->cnn_base);
-		pr_err("%s:%d err_out get cnn_base failed\n",
-				__func__, __LINE__);
-		goto err_out;
-	}
-
 	rc = of_property_read_u32(np, "cnn-id", &cnn_id);
 	if (rc < 0) {
 		dev_err(cnn_dev->dev, "missing cnn-id property\n");
@@ -1063,6 +1021,40 @@ int x2_cnn_probe(struct platform_device *pdev)
 	if ((cnn_id != 0) && (cnn_id != 1)) {
 		pr_err("Invalid cnn id\n");
 		rc = -1;
+		goto err_out;
+	}
+
+	if (cnn_id == 0) {
+		rc = cnn_debugfs_init(cnn_dev, cnn_id, cnn0_debugfs_root);
+		if (rc)
+			pr_err("init cnn%d debugfs failed\n", cnn_id);
+		cnn0_dev = cnn_dev;
+
+	} else if (cnn_id == 1) {
+		rc = cnn_debugfs_init(cnn_dev, cnn_id, cnn1_debugfs_root);
+		if (rc)
+			pr_err("init cnn%d debugfs failed\n", cnn_id);
+		cnn1_dev = cnn_dev;
+	}
+
+	cnn_dev->irq = irq_of_parse_and_map(np, 0);
+	if (cnn_dev->irq < 0) {
+		dev_err(&pdev->dev, "no cnn irq found\n");
+		rc = -1;
+		goto err_out;
+	}
+	/* get cnn controller base addr */
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+
+	if (!res) {
+		rc = -ENODEV;
+		goto err_out;
+	}
+	cnn_dev->cnn_base = devm_ioremap_resource(&pdev->dev, res);
+	if (IS_ERR(cnn_dev->cnn_base)) {
+		rc = PTR_ERR(cnn_dev->cnn_base);
+		pr_err("%s:%d err_out get cnn_base failed\n",
+				__func__, __LINE__);
 		goto err_out;
 	}
 
@@ -1113,7 +1105,7 @@ int x2_cnn_probe(struct platform_device *pdev)
 	cnn_dev->fc_base = cnn_ram_vmap(cnn_dev->fc_phys_base,
 				cnn_dev->fc_mem_size, CNN_MT_UC);
 	atomic_set(&cnn_dev->wait_fc_cnt, 0);
-	atomic_set(&mod_frq_flg, 0);
+	atomic_set(&cnn_dev->mod_frq_flg, 0);
 	x2_cnn_reg_write(cnn_dev,
 			X2_CNN_FC_LEN, (cnn_dev->fc_mem_size / 64) - 1);
 	pr_info("Cnn fc phy base = 0x%x, len = 0x%x, default fc len = 0x%x\n",
@@ -1173,19 +1165,11 @@ int x2_cnn_probe(struct platform_device *pdev)
 	/* Initialize the tasklet */
 	tasklet_init(&cnn_dev->tasklet, x2_cnn_do_tasklet,
 			(unsigned long)cnn_dev);
-	if (cnn_id == 0) {
-		rc = cnn_debugfs_init(cnn_dev, cnn_id, cnn0_debugfs_root);
-		if (rc)
-			pr_err("init cnn%d debugfs failed\n", cnn_id);
-		cnn0_dev = cnn_dev;
-	} else if (cnn_id == 1) {
-		rc = cnn_debugfs_init(cnn_dev, cnn_id, cnn1_debugfs_root);
-		if (rc)
-			pr_err("init cnn%d debugfs failed\n", cnn_id);
-		cnn1_dev = cnn_dev;
-	}
 
 	platform_set_drvdata(pdev, cnn_dev);
+
+	/*init bpu completion*/
+	init_completion(&cnn_dev->bpu_completion);
 
 	x2_cnn_reg_write(cnn_dev, X2_CNNINT_MASK, 0x0);
 	pr_info("x2 cnn%d probe OK!\n", cnn_id);
@@ -1233,6 +1217,7 @@ static struct platform_driver x2_cnn_platform_driver = {
 		.of_match_table = x2_cnn_of_match,
 	},
 };
+
 static void x2_cnn_check_func(unsigned long arg)
 {
 	static int time;
@@ -1422,24 +1407,57 @@ static ssize_t bpu1_fc_time_show(struct kobject *kobj,
 
 }
 
-static void mod_bpu_frq(void)
+
+static void mod_bpu_frq(struct x2_cnn_dev *dev, int frq)
 {
-	mutex_lock(&mod_frq_mutex);
-	atomic_set(&mod_frq_flg, MOD_FRQ);
+	mutex_lock(&dev->cnn_lock);
+	atomic_set(&dev->mod_frq_flg, MOD_FRQ);
 	int i = 0;
 
-	if ((atomic_read(&cnn0_dev->wait_fc_cnt) > 0) ||
-		(atomic_read(&cnn1_dev->wait_fc_cnt) > 0)) {
+	if ((atomic_read(&dev->wait_fc_cnt) > 0)) {
 		/*wait bpu idle*/
-		wait_for_completion(&bpu_completion);
+		wait_for_completion(&dev->bpu_completion);
 		i++;
 	}
 
 	/*modify bpu frequency*/
-	//modify_bpu_fre();
-	mutex_unlock(&mod_frq_mutex);
-	atomic_set(&mod_frq_flg, MOD_FRQ_DONE);
+	//modify_bpu_fre(dev,frq);
+	mutex_unlock(&dev->cnn_lock);
+	atomic_set(&dev->mod_frq_flg, MOD_FRQ_DONE);
 }
+static ssize_t bpu0_frequency_show(struct kobject *kobj,
+				 struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", bpu0_frq);
+}
+static ssize_t bpu0_frequency_store(struct kobject *kobj,
+				    struct kobj_attribute *attr,
+				    const char *buf, size_t count)
+{
+	int ret;
+
+	ret = sscanf(buf, "%du", &bpu0_frq);
+	mod_bpu_frq(cnn0_dev, bpu0_frq);
+	return count;
+}
+static ssize_t bpu1_frequency_show(struct kobject *kobj,
+				 struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", bpu1_frq);
+
+}
+static ssize_t bpu1_frequency_store(struct kobject *kobj,
+				    struct kobj_attribute *attr,
+				    const char *buf, size_t count)
+{
+	int ret;
+
+	ret = sscanf(buf, "%du", &bpu1_frq);
+	mod_bpu_frq(cnn1_dev, bpu1_frq);
+
+	return count;
+}
+
 
 static struct kobj_attribute pro_frequency = __ATTR(profiler_frequency, 0664,
 						    fre_show, fre_store);
@@ -1457,6 +1475,13 @@ static struct kobj_attribute bpu0_fc_time  = __ATTR(fc_time, 0444,
 						    bpu0_fc_time_show, NULL);
 static struct kobj_attribute bpu1_fc_time  = __ATTR(fc_time, 0444,
 						    bpu1_fc_time_show, NULL);
+static struct kobj_attribute bpu0_frequency = __ATTR(frequency, 0644,
+						     bpu0_frequency_show,
+						     bpu0_frequency_store);
+static struct kobj_attribute bpu1_frequency = __ATTR(frequency, 0644,
+						    bpu1_frequency_show,
+						    bpu1_frequency_store);
+
 
 
 static struct attribute *bpu_attrs[] = {
@@ -1469,12 +1494,14 @@ static struct attribute *bpu0_attrs[] = {
 	&pro_ratio0.attr,
 	&pro_queue0.attr,
 	&bpu0_fc_time.attr,
+	&bpu0_frequency.attr,
 	NULL,
 };
 static struct attribute *bpu1_attrs[] = {
 	&pro_ratio1.attr,
 	&pro_queue1.attr,
 	&bpu1_fc_time.attr,
+	&bpu1_frequency.attr,
 	NULL,
 };
 
@@ -1517,10 +1544,6 @@ static int __init x2_cnn_init(void)
 	check_timer.function = &x2_cnn_check_func;
 	mutex_init(&enable_lock);
 
-	/*init bpu completion*/
-	init_completion(&bpu_completion);
-	/*modify frquency flag*/
-	atomic_set(&mod_frq_flg, 0);
 	return retval;
 
 }
