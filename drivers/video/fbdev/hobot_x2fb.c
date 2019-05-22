@@ -1335,18 +1335,13 @@ static int x2fb_probe(struct platform_device *pdev)
 	}
 
 	strcpy(x2_fbi->fb.fix.id, DRIVER_NAME);
+	
+	framebuf_user = *x2_iar_get_framebuf_addr(2);
+	framebuf_user.paddr = framebuf_user.paddr + 3*MAX_FRAME_BUF_SIZE;
+	framebuf_user.vaddr = framebuf_user.vaddr + 3*MAX_FRAME_BUF_SIZE;
+//	pr_info("framebuf_user.paddr = 0x%llx\n", framebuf_user.paddr);
+//	pr_info("framebuf_uset.vaddr = 0x%p\n", framebuf_user.vaddr);
 
-	//res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	//x2_fbi->regaddr = devm_ioremap_resource(&pdev->dev, res);
-	//if (IS_ERR(x2_fbi->regaddr))
-	//return PTR_ERR(x2_fbi->regaddr);
-
-//	framebuf_user = x2_iar_get_framebuf_addr(2);
-	pr_info("x2 iar get framebuf addr begin here!\n");
-	framebuf_user.paddr = 0x3D08A000 + MAX_FRAME_BUF_SIZE;
-	pr_info("x2 iar get framebuf addr vaddr begin here!\n");
-	framebuf_user.vaddr = memremap(0x3D08A000, MAX_FRAME_BUF_SIZE * 2,
-			MEMREMAP_WB) + MAX_FRAME_BUF_SIZE;
 	RGB500_fix_default.smem_start = framebuf_user.paddr;
 	RGB700_fix_default.smem_start = framebuf_user.paddr;
 	RGB500_fix_default.line_length =
