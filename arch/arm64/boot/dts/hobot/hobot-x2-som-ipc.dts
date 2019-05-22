@@ -242,7 +242,10 @@
 	bifbase_irq_pin = <7>;
 	bifbase_tri_pin = <95>;
 };
-&biflite {
+&biflite_spi {
+	status = "okay";
+};
+&biflite_sd {
 	status = "okay";
 };
 &qspi {

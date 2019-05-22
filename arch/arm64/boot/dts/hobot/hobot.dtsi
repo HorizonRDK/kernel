@@ -574,8 +574,11 @@
 			compatible = "hobot,bifbase";
 			memory-region = <&bifbase_reserved>;
 		};
-		biflite: biflite {
-			compatible = "hobot,bif_lite";
+		biflite_spi: biflite_spi {
+			compatible = "hobot,bif_lite_spi";
+		};
+		biflite_sd: biflite_sd {
+			compatible = "hobot,bif_lite_sd";
 		};
 		temp: temp@0xA1009000 {
 			compatible = "hobot,x2-temp";

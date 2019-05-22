@@ -5,7 +5,7 @@
 #include <linux/mutex.h>
 #include <linux/semaphore.h>
 #include <linux/spinlock.h>
-#include "bif_lite_utility.h"
+#include "bif_lite.h"
 
 #define DEBUG
 
@@ -21,8 +21,8 @@ struct domain_info {
 	char *domain_name;
 	int domain_id;
 	char *device_name;
+	struct channel_config channel_cfg;
 };
-extern struct domain_info domain_config;
 
 #define UUID_LEN (16)
 
@@ -117,8 +117,11 @@ struct comm_domain {
 	struct mutex connect_mutex;
 	struct list_head manage_frame_list;
 	struct provider_server_map map;
+	struct comm_channel channel;
+	int session_count;
+	int unaccept_session_count;
+	int block;
 };
-extern struct comm_domain domain;
 
 struct send_mang_data {
 	int result;
@@ -152,71 +155,41 @@ struct manage_message {
 #define MANAGE_CMD_CONNECT_REQ                       (102)
 #define MANAGE_CMD_DISCONNECT_REQ                    (103)
 
-void resource_queue_init(struct resource_queue *queue);
-void resource_queue_deinit(struct resource_queue *queue);
-void session_desc_init(struct session_desc *session_des);
-void session_desc_deinit(struct session_desc *session_des);
-void session_info_init(struct session_info *session_inf);
-void session_info_deinit(struct session_info *session_inf);
-void provider_desc_init(struct provider_desc *provider_des);
-void provider_desc_deinit(struct provider_desc *provider_des);
-void provider_info_init(struct provider_info *provider_inf);
-void provider_info_deinit(struct provider_info *provider_inf);
-void server_desc_init(struct server_desc *server_des);
-void server_desc_deinit(struct server_desc *server_des);
-void server_info_init(struct server_info *server_inf);
-void server_info_deinit(struct server_info *server_inf);
-int domain_init(struct comm_domain *domain, struct domain_info *domain_inf);
-void domain_deinit(struct comm_domain *domain);
-int get_session_first_avail_index(struct session_info *session_inf);
-int get_provider_first_avail_index(struct provider_info *provider_inf);
-int get_server_first_avail_index(struct server_info *server_inf);
-int get_server_index(struct server_info *server_inf, unsigned char *server_id);
-int get_provider_index(struct provider_info *provider_inf, int provider_id);
-int get_match_provider_index(struct provider_info *provider_inf,
-char *parameter);
-int get_session_index(struct session_info *session_inf,
-struct session *connect);
-int get_session_first_nonconnect_index(struct session_info *session_inf);
-int regisger_server(struct send_mang_data *data);
-int unregister_server(struct send_mang_data *data);
-int register_provider(struct send_mang_data *data);
-int unregister_provider(struct send_mang_data *data);
-int register_server_provider(struct send_mang_data *data);
-int unregister_server_provider(struct send_mang_data *data);
-int accept_session(struct send_mang_data *data, struct session_desc **connect);
-int recv_handle_manage_frame(void);
-int recv_handle_data_frame(struct session_desc *session_des,
-struct bif_frame_cache **frame);
-int handle_manage_frame(struct bif_frame_cache *frame);
-int register_connect(struct send_mang_data *data);
-int unregister_connect(struct send_mang_data *data);
-int get_map_first_avail_index(struct provider_server_map *map);
 int get_map_index(struct provider_server_map *map, int provider_id);
-int get_map_index_with_lock(struct provider_server_map *map, int provider_id);
-int register_map(struct send_mang_data *data);
-int register_map_with_lock(struct send_mang_data *data);
-int unregister_map(struct send_mang_data *data);
-int unregister_map_with_lock(struct send_mang_data *data);
-struct session_desc *is_valid_session(struct send_mang_data *data,
-struct server_desc **server_des, struct provider_desc **provider_des);
-void provider_start_desc_init(struct provider_start_desc *start_des);
-void provider_start_desc_deinit(struct provider_start_desc *start_des);
-void provider_start_info_init(struct provider_start_info *start_info);
-void provider_start_info_deinit(struct provider_start_info *start_info);
-void provider_server_init(struct provider_server *relation);
-void provider_server_deinit(struct provider_server *relation);
-void provider_server_map_init(struct provider_server_map *map);
-void provider_server_map_deinit(struct provider_server_map *map);
-int start_server(struct send_mang_data *data, int *provider_id);
 int get_start_list_first_avail_index(struct provider_start_info *start_inf);
 int get_start_index(struct provider_start_info *start_inf, int client_id);
 int get_map_index_from_server(struct provider_server_map *map,
 struct send_mang_data *data);
-int clear_connect(struct session_info *session_inf);
-int recv_handle_stock_frame(void);
-int unregister_server_provider_abnormal(struct send_mang_data *data);
-int disconnect_stopserver_abnormal(struct send_mang_data *data);
-irqreturn_t hbipc_irq_handler(int irq, void *data);
+int domain_init(struct comm_domain *domain, struct domain_info *domain_inf);
+void domain_deinit(struct comm_domain *domain);
+int bif_lite_init_domain(struct comm_domain *domain);
+void bif_lite_exit_domain(struct comm_domain *domain);
+int bif_lite_irq_register_domain(struct comm_domain *domain,
+irq_handler_t irq_handler);
+void bif_del_frame_domain(struct comm_domain *domain,
+struct bif_frame_cache *frame);
+int bif_tx_put_frame_domain(struct comm_domain *domain, void *data, int len);
+int recv_handle_stock_frame(struct comm_domain *domain);
+struct session_desc *is_valid_session(struct comm_domain *domain,
+struct send_mang_data *data, struct server_desc **server_des,
+struct provider_desc **provider_des);
+int register_server_provider(struct comm_domain *domain,
+struct send_mang_data *data);
+int unregister_server_provider(struct comm_domain *domain,
+struct send_mang_data *data);
+int unregister_server_provider_abnormal(struct comm_domain *domain,
+struct send_mang_data *data);
+int disconnect_stopserver_abnormal(
+struct comm_domain *domain, struct send_mang_data *data);
+int register_connect(struct comm_domain *domain,
+struct send_mang_data *data);
+int unregister_connect(struct comm_domain *domain,
+struct send_mang_data *data);
+int recv_handle_manage_frame(struct comm_domain *domain);
+int recv_handle_data_frame(struct comm_domain *domain,
+struct session_desc *session_des, struct bif_frame_cache **frame);
+int recv_frame_interrupt(struct comm_domain *domain);
+int accept_session(struct comm_domain *domain,
+struct send_mang_data *data, struct session_desc **connect);
 
 #endif  /* _HBIPC_LITE_H_ */

@@ -20,10 +20,10 @@
 #include <linux/gpio.h>
 #include <linux/spi/spi.h>
 #include <linux/spi/spidev.h>
-#include "bif_lite_utility.h"
-#include "bif_platform.h"
+#include <linux/workqueue.h>
 #include "hbipc_lite.h"
 #include "hbipc_errno.h"
+#include "bif_dev_sd.h"
 
 /* ioctl cmd */
 #define BIF_IOC_MAGIC  'c'
@@ -35,30 +35,94 @@
 #define BIF_IO_CONNECT           _IO(BIF_IOC_MAGIC, 5)
 #define BIF_IO_DISCONNECT        _IO(BIF_IOC_MAGIC, 6)
 
+#define WORK_COUNT (100)
 struct x2_bif_data {
 	int users;
 	int irq_pin;
 	int irq_num;
 	int tri_pin;
+	struct workqueue_struct *work_queue;
+	struct work_struct work[WORK_COUNT];
+	int work_index;
 };
-struct x2_bif_data bif_data;
+static struct x2_bif_data bif_data;
 
 static struct class  *g_bif_class;
-struct device *g_bif_dev;
+static struct device *g_bif_dev;
 
-int x2_bif_data_init(struct x2_bif_data *bif_data)
+static struct domain_info domain_config = {.domain_name = "X2SD001",
+	.domain_id = 0,
+	.device_name = "/dev/x2_sd",
+	{.channel = BIF_SD,
+	. frame_len_max = FRAME_LEN_MAX,
+	.frag_len_max = FRAG_LEN_MAX,
+	.frag_num = FRAG_NUM,
+	.frame_cache_max = FRAME_CACHE_MAX,
+	.rx_local_info_offset = RX_LOCAL_INFO_OFFSET,
+	.rx_remote_info_offset = RX_REMOTE_INFO_OFFSET,
+	.tx_local_info_offset = TX_LOCAL_INFO_OFFSET,
+	.tx_remote_info_offset = TX_REMOTE_INFO_OFFSET,
+	.rx_buffer_offset = RX_BUFFER_OFFSET,
+	.tx_buffer_offset = TX_BUFFER_OFFSET,
+	.total_mem_size = TOTAL_MEM_SIZE}
+};
+
+static struct comm_domain domain;
+
+static void rx_work_func(struct work_struct *work)
 {
+	recv_frame_interrupt(&domain);
+}
+
+static irqreturn_t hbipc_irq_handler(int irq, void *data)
+{
+	//printk("hbipc_irq_handler\n");
+	//recv_frame_interrupt_new(&domain);
+
+	if (queue_work(bif_data.work_queue,
+	&(bif_data.work[bif_data.work_index++])) == false)
+		pr_info("queue_work fail\n");
+	bif_data.work_index %= WORK_COUNT;
+
+	return IRQ_HANDLED;
+}
+
+static int x2_bif_data_init(struct x2_bif_data *bif_data)
+{
+	int i = 0;
+
 	bif_data->users = 0;
 	bif_data->irq_pin = -1;
 	bif_data->tri_pin = -1;
 	bif_data->irq_num = -1;
 
+	bif_data->work_queue =
+	create_singlethread_workqueue("bifspi_workqueue");
+	if (!bif_data->work_queue) {
+		pr_info("create_singlethread_workqueue error\n");
+		goto create_workqueue_error;
+	}
+
+	for (i = 0; i < WORK_COUNT; ++i)
+		INIT_WORK(&bif_data->work[i], rx_work_func);
+
 	return 0;
+create_workqueue_error:
+	return -1;
+}
+
+static void x2_bif_data_deinit(struct x2_bif_data *bif_data)
+{
+	bif_data->users = 0;
+	bif_data->irq_pin = -1;
+	bif_data->tri_pin = -1;
+	bif_data->irq_num = -1;
+	destroy_workqueue(bif_data->work_queue);
 }
 
 static DEFINE_MUTEX(open_mutex);
 #ifdef CONFIG_HOBOT_BIF_AP
-static int bif_lite_init_success = 0;
+static int bif_lite_init_success;
 #endif
 static int x2_bif_open(struct inode *inode, struct file *file)
 {
@@ -68,16 +132,17 @@ static int x2_bif_open(struct inode *inode, struct file *file)
 		file->private_data = g_bif_dev;
 #ifdef CONFIG_HOBOT_BIF_AP
 		if (!bif_lite_init_success) {
-			if (bif_lite_init() < 0) {
-				printk("bif_lite_init error\n");
+			if (bif_lite_init_domain(&domain) < 0) {
+				pr_info("bif_lite_init error\n");
 				return -EPERM;
-			} else
+			} else {
 				bif_lite_init_success = 1;
-				bif_lite_register_irq(hbipc_irq_handler);
+				bif_lite_irq_register_domain(&domain,
+				hbipc_irq_handler);
+			}
 		}
 #endif
-		//bif_start();
-		recv_handle_stock_frame();
+		recv_handle_stock_frame(&domain);
 		++bif_data.users;
 	} else {
 		file->private_data = g_bif_dev;
@@ -92,7 +157,7 @@ static int x2_bif_open(struct inode *inode, struct file *file)
 static DEFINE_MUTEX(write_mutex);
 //#define PHY_LAYER_LEN_MAX (16 * 1024)
 #define PHY_LAYER_LEN_MAX (128 * 1024)
-char send_frame[PHY_LAYER_LEN_MAX];
+static char send_frame[PHY_LAYER_LEN_MAX];
 static ssize_t x2_bif_write(struct file *file, const char __user *buf,
 size_t count, loff_t *ppos)
 {
@@ -108,7 +173,7 @@ size_t count, loff_t *ppos)
 		goto error;
 	}
 
-	if (!is_valid_session(&data, NULL, NULL)) {
+	if (!is_valid_session(&domain, &data, NULL, NULL)) {
 		hbipc_error("invalid session\n");
 		ret = -1;
 		data.result = HBIPC_ERROR_INVALID_SESSION;
@@ -126,7 +191,7 @@ size_t count, loff_t *ppos)
 	}
 
 	mutex_lock(&domain.write_mutex);
-	ret = bif_tx_put_frame(send_frame, data.len);
+	ret = bif_tx_put_frame_domain(&domain, send_frame, data.len);
 	if (ret < 0) {
 		data.result = HBIPC_ERROR_HW_TRANS_ERROR;
 		status = copy_to_user((void __user *)buf, &data, sizeof(data));
@@ -164,7 +229,7 @@ loff_t *ppos)
 		goto error;
 	}
 
-	session_des = is_valid_session(&data, NULL, NULL);
+	session_des = is_valid_session(&domain, &data, NULL, NULL);
 	if (!session_des) {
 		hbipc_error("invalid session\n");
 		ret = -1;
@@ -242,7 +307,7 @@ loff_t *ppos)
 		--session_des->recv_list.frame_count;
 		mutex_lock(&domain.read_mutex);
 		spin_lock(&(session_des->recv_list.lock));
-		bif_del_frame_from_list(frame);
+		bif_del_frame_domain(&domain, frame);
 		spin_unlock(&(session_des->recv_list.lock));
 		mutex_unlock(&domain.read_mutex);
 	}
@@ -265,11 +330,15 @@ static int x2_bif_close(struct inode *inode, struct file *file)
 #ifndef CONFIG_HOBOT_BIF_AP
 	data.domain_id = domain.domain_id;
 	data.provider_id = current->pid;
-	unregister_server_provider_abnormal(&data);
+	// chencheng reconstitution
+	//unregister_server_provider_abnormal(&data);
+	unregister_server_provider_abnormal(&domain, &data);
 #else
 	data.domain_id = domain.domain_id;
 	data.client_id = current->pid;
-	disconnect_stopserver_abnormal(&data);
+	// chencheng reconstitution
+	//disconnect_stopserver_abnormal(&data);
+	disconnect_stopserver_abnormal(&domain, &data);
 #endif
 
 	--bif_data.users;
@@ -308,7 +377,7 @@ static long x2_bif_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			break;
 		}
 
-		ret = register_server_provider(&data);
+		ret = register_server_provider(&domain, &data);
 		if (ret < 0) {
 			hbipc_error("register_provider error\n");
 			data.result = ret;
@@ -327,7 +396,7 @@ static long x2_bif_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			break;
 		}
 
-		ret = unregister_server_provider(&data);
+		ret = unregister_server_provider(&domain, &data);
 		if (ret < 0) {
 			hbipc_error("unregister_provider error\n");
 			data.result = ret;
@@ -346,8 +415,8 @@ static long x2_bif_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			break;
 		}
 
-		ret = accept_session(&data, &connect);
-		printk("accept\n");
+		ret = accept_session(&domain, &data, &connect);
+		pr_info("accept\n");
 		if (ret < 0) {
 			data.result = ret;
 		} else if (ret == 0) {
@@ -373,7 +442,7 @@ static long x2_bif_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		}
 
 		// attempt to read manage frame
-		recv_handle_manage_frame();
+		recv_handle_manage_frame(&domain);
 		// check whethrer map created
 		mutex_lock(&domain.connect_mutex);
 		ret = get_map_index_from_server(&domain.map, &data);
@@ -454,18 +523,18 @@ static long x2_bif_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			break;
 		}
 
-		session_des = is_valid_session(&data, NULL, NULL);
+		session_des = is_valid_session(&domain, &data, NULL, NULL);
 		if (session_des) {
 			data.result = HBIPC_ERROR_REPEAT_CONNECT;
 			ret = -1;
 			goto connect_out;
 		}
 
-			ret = register_connect(&data);
-			if (ret < 0) {
-				hbipc_error("register connect error\n");
-				data.result = ret;
-			}
+		ret = register_connect(&domain, &data);
+		if (ret < 0) {
+			hbipc_error("register connect error\n");
+			data.result = ret;
+		}
 connect_out:
 		status = copy_to_user((void __user *)arg, &data,
 		sizeof(data));
@@ -480,11 +549,11 @@ connect_out:
 			break;
 		}
 
-			ret = unregister_connect(&data);
-			if (ret < 0) {
-				hbipc_error("unregister connect error\n");
-				data.result = ret;
-			}
+		ret = unregister_connect(&domain, &data);
+		if (ret < 0) {
+			hbipc_error("unregister connect error\n");
+			data.result = ret;
+		}
 
 		status = copy_to_user((void __user *)arg, &data,
 		sizeof(data));
@@ -500,7 +569,7 @@ connect_out:
 	return ret;
 }
 
-static const  struct file_operations bif_fops = {
+static const struct file_operations bif_fops = {
 	.owner           = THIS_MODULE,
 	.open            = x2_bif_open,
 	.write           = x2_bif_write,
@@ -512,7 +581,7 @@ static const  struct file_operations bif_fops = {
 };
 
 static const struct of_device_id bif_lite_of_match[] = {
-	{.compatible = "hobot,bif_lite"},
+	{.compatible = "hobot,bif_lite_sd"},
 	{},
 };
 
@@ -523,8 +592,8 @@ static irqreturn_t bif_lite_irq_handler(int irq, void *data)
 }
 #endif
 
-static int    bif_major;
-struct cdev   bif_cdev;
+static int bif_major;
+static struct cdev bif_cdev;
 
 #ifndef CONFIG_HI3519V101
 static int bif_lite_probe(struct platform_device *pdev)
@@ -537,7 +606,7 @@ static int bif_lite_probe(struct platform_device *pdev)
 #endif
 
 	bif_major = 0;
-	ret = alloc_chrdev_region(&devno, 0, 1, "x2_bif");
+	ret = alloc_chrdev_region(&devno, 0, 1, "x2_sd");
 	if (ret < 0) {
 		bif_debug("Error %d while alloc chrdev bif", ret);
 		goto alloc_chrdev_error;
@@ -550,7 +619,7 @@ static int bif_lite_probe(struct platform_device *pdev)
 		bif_debug("Error %d while adding x2 bif cdev", ret);
 		goto cdev_add_error;
 	}
-	g_bif_class = class_create(THIS_MODULE, "x2_bif");
+	g_bif_class = class_create(THIS_MODULE, "x2_sd");
 	if (IS_ERR(g_bif_class)) {
 		bif_debug("[%s:%d] class_create error\n",
 			__func__, __LINE__);
@@ -558,16 +627,20 @@ static int bif_lite_probe(struct platform_device *pdev)
 		goto class_create_error;
 	}
 	g_bif_dev = device_create(g_bif_class, NULL,
-		MKDEV(bif_major, 0), NULL, "x2_bif");
+		MKDEV(bif_major, 0), NULL, "x2_sd");
 	if (IS_ERR(g_bif_dev)) {
 		bif_debug("[%s] device create error\n", __func__);
 		ret = PTR_ERR(g_bif_dev);
 		goto device_create_error;
 	}
 
-	x2_bif_data_init(&bif_data);
+	if (x2_bif_data_init(&bif_data) < 0) {
+		bif_debug("x2_bif_data_init error\n");
+		goto bif_data_init_error;
+	}
 #if 0
-	ret = of_property_read_u32(pdev->dev.of_node, "bif_lite_irq_pin", &bif_data.irq_pin);
+	ret = of_property_read_u32(pdev->dev.of_node,
+	"bif_lite_irq_pin", &bif_data.irq_pin);
 	if (ret) {
 		bif_err("get bif_lite_irq_pin error\n");
 		goto get_bif_lite_irq_pin_error;
@@ -581,14 +654,18 @@ static int bif_lite_probe(struct platform_device *pdev)
 
 	bif_data.irq_num = gpio_to_irq(bif_data.irq_pin);
 	irq_set_irq_type(bif_data.irq_num, IRQ_TYPE_EDGE_FALLING);
-	ret = request_threaded_irq(bif_data.irq_num, bif_lite_irq_handler, NULL, flags, "bif-lite-driver", (void *)&bif_data);
+	ret = request_threaded_irq(bif_data.irq_num,
+	bif_lite_irq_handler, NULL, flags,
+	"bif-lite-driver", (void *)&bif_data);
 	if (ret) {
 		bif_err("request irq error\n");
 		goto request_irq_error;
 	} else
-		bif_debug("irq_pin = %d irq_num = %d\n", bif_data.irq_pin, bif_data.irq_num);
+		bif_debug("irq_pin = %d irq_num = %d\n",
+	bif_data.irq_pin, bif_data.irq_num);
 
-	ret = of_property_read_u32(pdev->dev.of_node, "bif_lite_tri_pin", &bif_data.tri_pin);
+	ret = of_property_read_u32(pdev->dev.of_node,
+	"bif_lite_tri_pin", &bif_data.tri_pin);
 	if (ret) {
 		bif_err("get bif_lite_tri_pin error\n");
 		goto get_bif_lite_tri_pin_error;
@@ -601,17 +678,22 @@ static int bif_lite_probe(struct platform_device *pdev)
 		bif_debug("tri_pin = %d\n", bif_data.tri_pin);
 	gpio_direction_output(bif_data.tri_pin, 1);
 #endif
+	ret = domain_init(&domain, &domain_config);
+	if (ret < 0) {
+		pr_info("domain_init error\n");
+		goto domain_init_error;
+	}
 #ifndef CONFIG_HOBOT_BIF_AP
-	ret = bif_lite_init();
+	ret = bif_lite_init_domain(&domain);
+	//ret = bif_lite_init(); chencheng resonstitution
 
 	if (ret < 0) {
 		bif_err("bif_lite_init error\n");
 		goto bif_lite_init_error;
 	}
-	bif_lite_register_irq(hbipc_irq_handler);
+	//bif_lite_register_irq(hbipc_irq_handler); chencheng reconstitution
+	bif_lite_irq_register_domain(&domain, hbipc_irq_handler);
 #endif
-	domain_init(&domain, &domain_config);
-
 	bif_debug("bif driver init exit\n");
 	return 0;
 #if 0
@@ -625,8 +707,12 @@ get_bif_lite_irq_pin_error:
 #endif
 #ifndef CONFIG_HOBOT_BIF_AP
 bif_lite_init_error:
-	device_destroy(g_bif_class, MKDEV(bif_major, 0));
+	domain_deinit(&domain);
 #endif
+domain_init_error:
+	x2_bif_data_deinit(&bif_data);
+bif_data_init_error:
+	device_destroy(g_bif_class, MKDEV(bif_major, 0));
 device_create_error:
 	class_destroy(g_bif_class);
 class_create_error:
@@ -649,7 +735,7 @@ static int bif_lite_probe_param(void)
 #endif
 
 	bif_major = 0;
-	ret = alloc_chrdev_region(&devno, 0, 1, "x2_bif");
+	ret = alloc_chrdev_region(&devno, 0, 1, "x2_sd");
 	if (ret < 0) {
 		bif_debug("Error %d while alloc chrdev bif", ret);
 		goto alloc_chrdev_error;
@@ -662,7 +748,7 @@ static int bif_lite_probe_param(void)
 		bif_debug("Error %d while adding x2 bif cdev", ret);
 		goto cdev_add_error;
 	}
-	g_bif_class = class_create(THIS_MODULE, "x2_bif");
+	g_bif_class = class_create(THIS_MODULE, "x2_sd");
 	if (IS_ERR(g_bif_class)) {
 		bif_debug("[%s:%d] class_create error\n",
 			__func__, __LINE__);
@@ -670,16 +756,20 @@ static int bif_lite_probe_param(void)
 		goto class_create_error;
 	}
 	g_bif_dev = device_create(g_bif_class, NULL,
-		MKDEV(bif_major, 0), NULL, "x2_bif");
+		MKDEV(bif_major, 0), NULL, "x2_sd");
 	if (IS_ERR(g_bif_dev)) {
 		bif_debug("[%s] device create error\n", __func__);
 		ret = PTR_ERR(g_bif_dev);
 		goto device_create_error;
 	}
 
-	x2_bif_data_init(&bif_data);
+	if (x2_bif_data_init(&bif_data) < 0) {
+		bif_debug("x2_bif_data_init error\n");
+		goto bif_data_init_error;
+	}
 #if 0
-	ret = of_property_read_u32(pdev->dev.of_node, "bif_lite_irq_pin", &bif_data.irq_pin);
+	ret = of_property_read_u32(pdev->dev.of_node,
+	"bif_lite_irq_pin", &bif_data.irq_pin);
 	if (ret) {
 		bif_err("get bif_lite_irq_pin error\n");
 		goto get_bif_lite_irq_pin_error;
@@ -693,14 +783,18 @@ static int bif_lite_probe_param(void)
 
 	bif_data.irq_num = gpio_to_irq(bif_data.irq_pin);
 	irq_set_irq_type(bif_data.irq_num, IRQ_TYPE_EDGE_FALLING);
-	ret = request_threaded_irq(bif_data.irq_num, bif_lite_irq_handler, NULL, flags, "bif-lite-driver", (void *)&bif_data);
+	ret = request_threaded_irq(bif_data.irq_num,
+	bif_lite_irq_handler, NULL, flags,
+	"bif-lite-driver", (void *)&bif_data);
 	if (ret) {
 		bif_err("request irq error\n");
 		goto request_irq_error;
 	} else
-		bif_debug("irq_pin = %d irq_num = %d\n", bif_data.irq_pin, bif_data.irq_num);
+		bif_debug("irq_pin = %d irq_num = %d\n",
+	bif_data.irq_pin, bif_data.irq_num);
 
-	ret = of_property_read_u32(pdev->dev.of_node, "bif_lite_tri_pin", &bif_data.tri_pin);
+	ret = of_property_read_u32(pdev->dev.of_node,
+	"bif_lite_tri_pin", &bif_data.tri_pin);
 	if (ret) {
 		bif_err("get bif_lite_tri_pin error\n");
 		goto get_bif_lite_tri_pin_error;
@@ -713,16 +807,22 @@ static int bif_lite_probe_param(void)
 		bif_debug("tri_pin = %d\n", bif_data.tri_pin);
 	gpio_direction_output(bif_data.tri_pin, 1);
 #endif
+	ret = domain_init(&domain, &domain_config);
+	if (ret < 0) {
+		pr_info("domain_init error\n");
+		goto domain_init_error;
+	}
 #ifndef CONFIG_HOBOT_BIF_AP
-	ret = bif_lite_init();
+	ret = bif_lite_init_domain(&domain);
+	//ret = bif_lite_init(); chencheng resonstitution
 
 	if (ret < 0) {
-		bif_err("bif_lite_init error\n");
+		pr_info("bif_lite_init error\n");
 		goto bif_lite_init_error;
 	}
-	bif_lite_register_irq(hbipc_irq_handler);
+	//bif_lite_register_irq(hbipc_irq_handler); chencheng reconstitution
+	bif_lite_irq_register_domain(&domain, hbipc_irq_handler);
 #endif
-	domain_init(&domain, &domain_config);
 
 	bif_debug("bif driver init exit\n");
 	return 0;
@@ -737,8 +837,12 @@ get_bif_lite_irq_pin_error:
 #endif
 #ifndef CONFIG_HOBOT_BIF_AP
 bif_lite_init_error:
-	device_destroy(g_bif_class, MKDEV(bif_major, 0));
+	domain_deinit(&domain);
 #endif
+domain_init_error:
+	x2_bif_data_deinit(&bif_data);
+bif_data_init_error:
+	device_destroy(g_bif_class, MKDEV(bif_major, 0));
 device_create_error:
 	class_destroy(g_bif_class);
 class_create_error:
@@ -753,8 +857,10 @@ alloc_chrdev_error:
 #ifndef CONFIG_HI3519V101
 static int bif_lite_remove(struct platform_device *pdev)
 {
+	//bif_lite_exit(); chencheng resonstitution
+	bif_lite_exit_domain(&domain);
 	domain_deinit(&domain);
-	bif_lite_exit();
+	x2_bif_data_deinit(&bif_data);
 #if 0
 	free_irq(bif_data.irq_num, (void *)&bif_data);
 	gpio_free(bif_data.irq_pin);
@@ -772,8 +878,10 @@ static int bif_lite_remove(struct platform_device *pdev)
 #ifdef CONFIG_HI3519V101
 static int bif_lite_remove_param(void)
 {
+	//bif_lite_exit(); chencheng resonstitution
+	bif_lite_exit_domain(&domain);
 	domain_deinit(&domain);
-	bif_lite_exit();
+	x2_bif_data_deinit(&bif_data);
 #if 0
 	free_irq(bif_data.irq_num, (void *)&bif_data);
 	gpio_free(bif_data.irq_pin);
@@ -791,7 +899,7 @@ static int bif_lite_remove_param(void)
 #ifndef CONFIG_HI3519V101
 static struct platform_driver bif_lite_driver = {
 	.driver = {
-		.name = "bif_lite",
+		.name = "bif_lite_sd",
 		.of_match_table = bif_lite_of_match,
 	},
 	.probe = bif_lite_probe,

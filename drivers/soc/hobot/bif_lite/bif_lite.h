@@ -1,113 +1,127 @@
 #ifndef _BIF_LITE_H_
 #define _BIF_LITE_H_
 #include <linux/interrupt.h>
+#include "../bif_base/bif_base.h"
+#include "../bif_base/bif_api.h"
 #include "bif_platform.h"
 
-//#define FRAME_LEN_MAX (1024*16)
-#define FRAME_LEN_MAX (1024*128)
-
-// do not bigger than 1024
-#define BUFFER_LEN  512
-//#define BUFFER_NUM  ((FRAME_LEN_MAX/BUFFER_LEN)*4)
-#define BUFFER_NUM  ((FRAME_LEN_MAX/BUFFER_LEN)*2)
-#define CP_TO_AP_BUFFER_LEN   (BUFFER_NUM*BUFFER_LEN)
-#define AP_TO_CP_BUFFER_LEN   (BUFFER_NUM*BUFFER_LEN)
-#define BIF_CACHE_NUM BUFFER_NUM
-#define FRAME_CACHE_MAX 4
-//#define BIFSPI_LEN_ALIGN (16)
-#define BIFSPI_LEN_ALIGN (512)
-
 struct bif_frame_cache {
-	unsigned short  framelen;
+	int framelen;
 	struct list_head frame_cache_list;
 	unsigned char framecache[];
 };
 
+struct frag_flag {
+	unsigned char start : 1;
+	unsigned char end : 1;
+	unsigned char pack1 : 6;
+	unsigned char crc12_1 : 8;
+	unsigned char crc12_2 : 4;
+	unsigned char pack2 : 4;
+	unsigned char pack3 : 8;
+};
+
 struct frag_info {
-	unsigned int start : 1;
-	unsigned int end : 1;
-	unsigned int id : 12;
-	unsigned int len : 12;
-	unsigned int crc12 : 12;
+	struct frag_flag flag;
+	int id;
+	int len;
 };
 #define FRAG_INFO_LEN (sizeof(struct frag_info))
-#define VALID_BUFFER_LEN (BUFFER_LEN - FRAG_INFO_LEN)
 
 struct bif_tx_ring_info {
-	//struct frag_info  fragment_info[BUFFER_NUM];
-	int  send_tail;
-	//unsigned short  check_sum;
+	int send_tail;
 };
 
 struct bif_rx_ring_info {
-	 int  recv_head;
+	 int recv_head;
 };
 
 struct bif_rx_cache {
-	unsigned short  datalen;
-	unsigned char datacache[BUFFER_LEN];
+	unsigned short datalen;
+	unsigned char datacache[];
 };
 
-#define CP_TO_AP_RING_AP_INFO_LEN (ALIGN(sizeof(struct bif_rx_ring_info), \
-BUFFER_LEN))
-#define AP_TO_CP_RING_AP_INFO_LEN (ALIGN(sizeof(struct bif_tx_ring_info), \
-BUFFER_LEN))
-#define CP_TO_AP_RING_CP_INFO_LEN (ALIGN(sizeof(struct bif_tx_ring_info), \
-BUFFER_LEN))
-#define AP_TO_CP_RING_CP_INFO_LEN (ALIGN(sizeof(struct bif_rx_ring_info), \
-BUFFER_LEN))
+enum channel_id {
+	BIF_SPI,
+	BIF_SD,
+	NORM_SPI,
+};
 
-#define CP_TO_AP_RING_AP_INFO_OFFSET 0
+struct channel_config {
+	// hardware channel concerned
+	enum channel_id channel;
+	// memory limit concerned
+	int frame_len_max;
+	int frag_len_max;
+	int frag_num;
+	int frame_cache_max;
+	// memory layout concerned
+	addr_t rx_local_info_offset;
+	addr_t rx_remote_info_offset;
+	addr_t tx_local_info_offset;
+	addr_t tx_remote_info_offset;
+	addr_t rx_buffer_offset;
+	addr_t tx_buffer_offset;
+	int total_mem_size;
+	// transfer feature concerned
+	int block;
+};
 
-#define AP_TO_CP_RING_AP_INFO_OFFSET \
-	(CP_TO_AP_RING_AP_INFO_OFFSET \
-	+CP_TO_AP_RING_AP_INFO_LEN)
+struct current_frame_info {
+	int received_len;
+	int malloc_len;
+	unsigned char *pos_p;
+	int pre_id;
+};
 
-#define CP_TO_AP_RING_CP_INFO_OFFSET \
-	(AP_TO_CP_RING_AP_INFO_OFFSET \
-	+AP_TO_CP_RING_AP_INFO_LEN)
+struct comm_channel {
+	// hardware channel concerned
+	enum channel_id channel;
+	enum BUFF_ID buffer_id;
+	int transfer_align;
+	addr_t base_addr;
+	// memory limit concerned
+	int frame_len_max;
+	int frag_len_max;
+	int valid_frag_len_max;
+	int frag_num;
+	int frame_cache_max;
+	// memory layout concerned
+	addr_t rx_local_info_offset;
+	addr_t rx_remote_info_offset;
+	addr_t tx_local_info_offset;
+	addr_t tx_remote_info_offset;
+	addr_t rx_buffer_offset;
+	addr_t tx_buffer_offset;
+	int total_mem_size;
+	struct bif_tx_ring_info *tx_local_info;
+	struct bif_rx_ring_info *tx_remote_info;
+	struct bif_tx_ring_info *rx_remote_info;
+	struct bif_rx_ring_info *rx_local_info;
+	struct bif_frame_cache *rx_frame_cache_p;
+	int rx_frame_count;
+	// transfer buffer concerned
+	struct current_frame_info current_frame;
+	struct bif_rx_cache *recv_frag;
+	unsigned char *send_fragment;
+	// transfer feature concerned
+	int block;
+};
 
-#define AP_TO_CP_RING_CP_INFO_OFFSET \
-	(CP_TO_AP_RING_CP_INFO_OFFSET \
-	+CP_TO_AP_RING_CP_INFO_LEN)
-
-#define CP_TO_AP_BUFFER_OFFSET  \
-	(AP_TO_CP_RING_CP_INFO_OFFSET \
-	+AP_TO_CP_RING_CP_INFO_LEN)
-
-#define AP_TO_CP_BUFFER_OFFSET  \
-	(CP_TO_AP_BUFFER_OFFSET \
-	+CP_TO_AP_BUFFER_LEN)
-
-#define TOTAL_MEM_SIZE \
-	(CP_TO_AP_RING_AP_INFO_LEN \
-	+AP_TO_CP_RING_AP_INFO_LEN \
-	+CP_TO_AP_RING_CP_INFO_LEN \
-	+AP_TO_CP_RING_CP_INFO_LEN \
-	+CP_TO_AP_BUFFER_LEN \
-	+AP_TO_CP_BUFFER_LEN)
-
-/*
- * memory details:
- * ============================ CP_TO_AP_RING_AP_INFO_OFFSET
- * bif_rx_ring_info_t  for CP_TO_AP ,   the info is changed by AP
- * ( CP_TO_AP_RING_AP_INFO_LEN bytes)
- * ============================ AP_TO_CP_RING_AP_INFO_OFFSET
- * bif_tx_ring_info_t  for AP_TO_CP,    the info is changed by AP
- * ( AP_TO_CP_RING_AP_INFO_LEN bytes)
- * ============================ CP_TO_AP_RING_CP_INFO_OFFSET
- * bif_tx_ring_info_t for CP_TO_AP ,    the info is changed by CP
- * ( CP_TO_AP_RING_CP_INFO_LEN bytes)
- * ============================ AP_TO_CP_RING_CP_INFO_OFFSET
- * bif_rx_ring_info_t for AP_TO_CP ,    the info is changed by CP
- * ( AP_TO_CP_RING_CP_INFO_LEN bytes)
- * ============================ CP_TO_AP_BUFFER_OFFSET
- * data buffers for CP_TO_AP
- * (CP_TO_AP_BUFFER_LEN bytes )
- * ============================ AP_TO_CP_BUFFER_OFFSET
- * data buffers for AP_TO_CP
- * (AP_TO_CP_BUFFER_LEN bytes )
- * ============================
- */
+int channel_init(struct comm_channel *channel, struct channel_config *config);
+void channel_deinit(struct comm_channel *channel);
+int bif_lite_init(struct comm_channel *channel);
+void bif_lite_exit(struct comm_channel *channel);
+int bif_lite_register_irq(struct comm_channel *channel,
+irq_handler_t handler);
+void bif_del_frame_from_list(struct comm_channel *channel,
+struct bif_frame_cache *frame);
+int bif_rx_get_frame(struct comm_channel *channel,
+struct bif_frame_cache **frame);
+int bif_tx_put_frame(struct comm_channel *channel, void *data, int len);
+int bif_rx_get_stock_frame(struct comm_channel *channel,
+struct bif_frame_cache **frame);
+int bif_start(struct comm_channel *channel);
+int bif_stop(struct comm_channel *channel);
 
 #endif

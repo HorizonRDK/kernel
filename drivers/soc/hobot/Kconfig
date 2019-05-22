@@ -55,12 +55,26 @@ config HOBOT_BIF_SIO
         help
           Say yes to enable bif virtual sieral port driver
 
-config HOBOT_BIF_LITE
+config HOBOT_BIF_LITE_CORE
         tristate "Enable HOBOT BIF Lite Drivers"
 	depends on HOBOT_BIF_BASE
         default y
         help
-          Say yes to enable bif_lite & hbipc_lite driver
+          Say yes to enable bif_lite_core driver
+
+config HOBOT_BIF_LITE_SPI
+        tristate "Enable HOBOT BIF Lite SPI Drivers"
+	depends on HOBOT_BIF_LITE_CORE
+        default y
+        help
+          Say yes to enable bif_lite_spi driver
+
+config HOBOT_BIF_LITE_SD
+        tristate "Enable HOBOT BIF Lite SD Drivers"
+	depends on HOBOT_BIF_LITE_CORE
+        default y
+        help
+          Say yes to enable bif_lite_sd driver
 endif
 
 endif #SOC_X2_MP

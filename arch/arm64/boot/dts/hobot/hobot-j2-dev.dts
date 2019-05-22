@@ -245,6 +245,9 @@
 	bifbase_irq_pin = <95>;
 	bifbase_tri_pin = <7>;
 };
+&biflite_spi {
+	status = "okay";
+};
 &qspi {
 	status = "okay";
 	qspi-mode = <1>;
