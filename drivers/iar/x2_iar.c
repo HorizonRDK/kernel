@@ -683,10 +683,10 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 		return -1;
 	}
 	if (cfg->out_sel == OUTPUT_BT1120) {
-		pr_info("cfg[2].out_sel is OUTPUT_BT1120.\n");
-		pr_info("pinmux iar output as bt.\n");
+		pr_debug("cfg[2].out_sel is OUTPUT_BT1120.\n");
+		pr_debug("pinmux iar output as bt.\n");
 		ips_pinmux_bt();
-		pr_info("set btout clksrc.\n");
+		pr_debug("set btout clksrc.\n");
 		ips_set_btout_clksrc(IAR_CLK, true);
 	}
 	iar_set_hvsync_timing(cfg->out_sel);
@@ -796,7 +796,7 @@ int32_t iar_set_bufaddr(uint32_t channel, buf_addr_t *addr)
 	case IAR_CHANNEL_3:
 		{
 			writel(addr->addr, g_iar_dev->regaddr + REG_IAR_FBUF_ADDR_RD3);
-			pr_info("REG_IAR_FBUF_ADDR_RD3 = 0x%x\n", addr->addr);
+			pr_debug("REG_IAR_FBUF_ADDR_RD3 = 0x%x\n", addr->addr);
 		}
 		break;
 	case IAR_CHANNEL_4:
@@ -805,7 +805,7 @@ int32_t iar_set_bufaddr(uint32_t channel, buf_addr_t *addr)
 		}
 		break;
 	default:
-		pr_info("err channel set bufaddr\n");
+		pr_debug("err channel set bufaddr\n");
 	}
 	return 0;
 }
@@ -1150,30 +1150,30 @@ static int x2_iar_probe(struct platform_device *pdev)
 			= g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].vaddr + MAX_FRAME_BUF_SIZE;
 	IAR_DEBUG_PRINT("iar 0x%p  0x%p %lld\n", g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr, g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[1].vaddr, resource_size(&r) - MAX_FRAME_BUF_SIZE * 2);
 
-	pr_info("g_iar_dev->frambuf[IAR_CHANNEL_1].paddr = 0x%llx\n",
+	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_1].paddr = 0x%llx\n",
 				g_iar_dev->frambuf[IAR_CHANNEL_1].paddr);
-	pr_info("g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr = 0x%p\n",
+	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr = 0x%p\n",
 				g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr);
-	pr_info("g_iar_dev->frambuf[IAR_CHANNEL_3].paddr = 0x%llx\n",
+	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_3].paddr = 0x%llx\n",
 				g_iar_dev->frambuf[IAR_CHANNEL_3].paddr);
-	pr_info("g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr = 0x%p\n",
+	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr = 0x%p\n",
 				g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr);
 
-	pr_info("g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr = 0x%llx\n",
+	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr = 0x%llx\n",
 		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr);
-	pr_info("g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr = 0x%p\n",
+	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr = 0x%p\n",
 		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr);
-	pr_info("g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].paddr = 0x%llx\n",
+	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].paddr = 0x%llx\n",
 		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].paddr);
-	pr_info("g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].vaddr = 0x%p\n",
+	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].vaddr = 0x%p\n",
 		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].vaddr);
-	pr_info("g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].paddr = 0x%llx\n",
+	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].paddr = 0x%llx\n",
 		g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].paddr);
-	pr_info("g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].vaddr = 0x%p\n",
+	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].vaddr = 0x%p\n",
 		g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].vaddr);
-	pr_info("g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[1].paddr = 0x%llx\n",
+	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[1].paddr = 0x%llx\n",
 		g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[1].paddr);
-	pr_info("g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[1].vaddr = 0x%p\n",
+	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[1].vaddr = 0x%p\n",
 		g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[1].vaddr);
 
 	if (display_type == LCD_7_TYPE) {
