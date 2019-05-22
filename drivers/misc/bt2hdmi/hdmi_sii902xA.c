@@ -124,24 +124,24 @@ static int hdmi_sii_probe(struct i2c_client *client,
 
 	if (match_id(&hmdi_sii_id[1], client)) {
 		siiEDID = client;
-		dev_info(&client->dev, "hdmi EDID: 0x%02X attached\n",
+		dev_dbg(&client->dev, "hdmi EDID: 0x%02X attached\n",
 				 client->addr);
 	} else if (match_id(&hmdi_sii_id[2], client)) {
 		siiSegEDID = client;
-		dev_info(&client->dev, "hdmi SegEDID: 0x%02X attached\n",
+		dev_dbg(&client->dev, "hdmi SegEDID: 0x%02X attached\n",
 				 client->addr);
 	} else if (match_id(&hmdi_sii_id[3], client)) {
 		siiHDCP = client;
-		dev_info(&client->dev, "hdmi HDCP: 0x%02X attached\n",
+		dev_dbg(&client->dev, "hdmi HDCP: 0x%02X attached\n",
 				 client->addr);
 	} else if (match_id(&hmdi_sii_id[0], client)) {
 		sii902xA = client;
-		dev_info(&client->dev, "hdmi 902xA: 0x%02X attached\n",
+		dev_dbg(&client->dev, "hdmi 902xA: 0x%02X attached\n",
 				 client->addr);
 
-		pr_info("\n=========================\n");
-		pr_info("SiI-902xA Driver Version 1.4\n");
-		pr_info("===========================\n");
+		pr_debug("\n=========================\n");
+		pr_debug("SiI-902xA Driver Version 1.4\n");
+		pr_debug("===========================\n");
 
 		// dts: hotpoll - 0-irq mode, >0-poll mode ms
 		ret = of_property_read_u32(client->dev.of_node, "hotpoll",
@@ -172,7 +172,7 @@ static int hdmi_sii_probe(struct i2c_client *client,
 					Si9022A_rst_pin, ret);
 			return ret;
 		}
-		dev_info(&client->dev, "rst_pin=%d, init out 1\n",
+		dev_dbg(&client->dev, "rst_pin=%d, init out 1\n",
 				 Si9022A_rst_pin);
 		gpio_direction_output(Si9022A_rst_pin, 1);
 
@@ -211,12 +211,11 @@ static int hdmi_sii_probe(struct i2c_client *client,
 			afs = X2_HDMI_AFS_DEF;
 
 		// Initialize the registers as required. Setup firmware vars.
-		dev_info(&client->dev, "hdmi video vmode=%d vformat=%d, audio afs=%d\n",
+		dev_dbg(&client->dev, "hdmi video vmode=%d vformat=%d, audio afs=%d\n",
 				 vmode, vformat, afs);
 		ret = siHdmiTx_ReConfig(vmode, vformat, afs);
 		if (ret < 0) {
 			pr_info("bt1120 to HDMI device:sii9022a is not exist!\n");
-			pr_info("exit hdmi probe!\n");
 			return ret;
 		}
 		// init hotplug service.
@@ -233,7 +232,7 @@ static int hdmi_sii_probe(struct i2c_client *client,
 						IRQ_TYPE_LEVEL_LOW,
 						client->name, client);
 				if (ret == 0) {
-					dev_info(&client->dev,
+					dev_dbg(&client->dev,
 						"irq_pin=%d, irq=%d enable\n",
 						 Si9022A_irq_pin, client->irq);
 					enable_irq_wake(client->irq);
@@ -254,7 +253,7 @@ static int hdmi_sii_probe(struct i2c_client *client,
 			}
 		}
 		if (hotpoll_en) {
-			dev_info(&client->dev, "irq_pin=%d, init in for poll %dms\n",
+			dev_dbg(&client->dev, "irq_pin=%d, init in for poll %dms\n",
 					 Si9022A_irq_pin, hotpoll_ms);
 			gpio_direction_input(Si9022A_irq_pin);
 			mod_timer(&x2hdmitimer,

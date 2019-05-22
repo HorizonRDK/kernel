@@ -313,8 +313,8 @@ enum EDID_ErrorCodes {
 // Debug Definitions
 //--------------------------------------------------------------------
 // Compile debug prints inline or not
-#define CONF__TPI_INFO_PRINT	(ENABLE)
-#define CONF__TPI_TRACE_PRINT	(ENABLE)
+#define CONF__TPI_INFO_PRINT	(DISABLE)
+#define CONF__TPI_TRACE_PRINT	(DISABLE)
 #define CONF__TPI_DEBUG_PRINT	(DISABLE)
 #define CONF__TPI_EDID_PRINT	(DISABLE)
 #define CONF__CPI_DEBUG_PRINT	(DISABLE)
@@ -326,7 +326,7 @@ enum EDID_ErrorCodes {
 #define TPI_INFO_PRINT(fmt, args...)	\
 	pr_info("hdmi: " fmt, ## args)
 #else
-#define TPI_TRACE_PRINT(fmt, args...)
+#define TPI_INFO_PRINT(fmt, args...)
 #endif
 
 // Trace Print Macro
