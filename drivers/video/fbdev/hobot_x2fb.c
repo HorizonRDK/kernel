@@ -42,7 +42,7 @@
 #define IAR_DMA_MODE
 
 #define X2FB_DEBUG_PRINT(format, args...)    \
-	pr_info("IAR debug: " format, ## args)
+	pr_debug("IAR debug: " format, ## args)
 
 struct update_cmd_t {
 	unsigned int enable_flag[IAR_CHANNEL_MAX];
@@ -576,7 +576,7 @@ static int x2fb_mmap(struct fb_info *info, struct vm_area_struct *pvma)
 	iar_get_framesize();
 	frame_size = x2_fbi->update_cmd.frame_size[2];
 
-	pr_info("x2fb mmap begin!\n");
+	pr_debug("x2fb mmap begin!\n");
 	flag = 0;
 	if (!framebuf || (pvma->vm_end - pvma->vm_start) > MAX_FRAME_BUF_SIZE)
 		return -ENOMEM;
@@ -590,7 +590,7 @@ static int x2fb_mmap(struct fb_info *info, struct vm_area_struct *pvma)
 		pr_err("x2fb mmap fail\n");
 		return -EAGAIN;
 	}
-	pr_info("x2fb mmap end!:%llx\n", framebuf->paddr);
+	pr_debug("x2fb mmap end!:%llx\n", framebuf->paddr);
 	return ret;
 }
 /*
@@ -864,7 +864,7 @@ static int x2fb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
 	} else if (outmode == OUTPUT_BT1120) {
 
 	}
-	pr_info("%s: end.\n", __func__);
+	pr_debug("%s: end.\n", __func__);
 	return 0;
 }
 
@@ -1003,7 +1003,7 @@ static int iar_get_framesize(void)
 				 x2_fbi->channel_base_cfg[i].buf_width) * 2;
 				break;
 			case FORMAT_RGB888:
-				pr_info("IAR channel 2 config format as RGB888!\n");
+				pr_debug("IAR channel 2 config format as RGB888!\n");
 				x2_fbi->update_cmd.frame_size[i] =
 				(x2_fbi->channel_base_cfg[i].buf_height *
 				 x2_fbi->channel_base_cfg[i].buf_width) * 3;
@@ -1026,14 +1026,14 @@ static int x2fb_set_par(struct fb_info *fb)
 	void __iomem *hitm1_reg_addr;
 	//int hitm1_reg_value = 0;
 
-	pr_info("%s: begin.\n", __func__);
+	pr_debug("%s: begin.\n", __func__);
 	iar_stop();
 //	init_config();
 
 	X2FB_DEBUG_PRINT("## iar_parser_config.\n");
 
 	if (display_type == HDMI_TYPE) {
-		pr_info("fb set HDMI display!!!!\n");
+		pr_debug("fb set HDMI display!!!!\n");
 		x2_fbi->memory_mode = 0;
 
 		x2_fbi->channel_base_cfg[0].enable = 0;
@@ -1297,7 +1297,7 @@ static int x2fb_set_par(struct fb_info *fb)
 
 		set_lt9211_config(&x2_fbi->fb, 0);
 	}
-	pr_info("%s: end.\n", __func__);
+	pr_debug("%s: end.\n", __func__);
 
 	return ret;
 
@@ -1398,9 +1398,9 @@ static int x2fb_probe(struct platform_device *pdev)
 	init_config();
 
 	platform_set_drvdata(pdev, x2_fbi);
-	pr_info("*********begin register framebuffer********\n");
+	pr_debug("*********begin register framebuffer********\n");
 	ret = register_framebuffer(&x2_fbi->fb);
-	pr_info("*********end register framebuffer**********\n");
+	pr_debug("*********end register framebuffer**********\n");
 	if (ret < 0) {
 		dev_err(&pdev->dev,
 			"Failed to register framebuffer device: %d\n", ret);
@@ -1418,7 +1418,7 @@ static int x2fb_probe(struct platform_device *pdev)
 		x2_fbi->fb.fix.id, x2_fbi->fb.fix.smem_start,
 		x2_fbi->fb.fix.smem_start + x2_fbi->fb.fix.smem_len - 1);
 
-	pr_info("x2 fb probe ok!!!\n");
+	pr_debug("x2 fb probe ok!!!\n");
 	return 0;
 }
 
