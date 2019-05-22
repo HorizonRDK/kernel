@@ -81,7 +81,7 @@ enum {
 	GAMMA_CFG,
 	OUTPUT_CFG,
 };
-static int iar_config = CONFIG_CHANNEL3;
+static int iar_config = CONFIG_CHANNEL13;
 static int lcd_type = RGB888_700;
 //static int outmode = OUTPUT_RGB888;
 static int outmode = OUTPUT_BT1120;
