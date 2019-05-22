@@ -481,25 +481,33 @@
 
 		cnn0: cnn@0xA3000000 {
 			compatible = "hobot,x2-cnn-host";
-			reg = <0x0 0xA3000000 0x0 0x1000>;
+			reg = <0x0 0xA3000000 0x0 0x1000>,
+				<0x0 0xA6000010 0x0 0x04>;
 			memory-region = <&fc_reserved>;
 			cnn-id = <0x0>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 46 4>;
 			resets = <&rst 0x20 0 >;
 			reset-names = "cnn0_rst";
+			clocks = <&cnn0_aclk>,<&cnn0_mclk>;
+			clock-names = "cnn0_aclk","cnn0_mclk";
+			iso-bit = <1>;
 			status = "disabled";
 		};
 
 		cnn1: cnn@0xA3001000 {
 			compatible = "hobot,x2-cnn-host";
-			reg = <0x0 0xA3001000 0x0 0x1000>;
+			reg = <0x0 0xA3001000 0x0 0x1000>,
+				<0x0 0xA6000010 0x0 0x04>;
 			memory-region = <&fc_reserved>;
 			cnn-id = <0x1>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 47 4>;
 			resets = <&rst 0x20 1 >;
 			reset-names = "cnn1_rst";
+			clocks = <&cnn1_aclk>,<&cnn1_mclk>;
+			clock-names = "cnn1_aclk","cnn1_mclk";
+			iso-bit = <5>;
 			status = "disabled";
 		};
 		bifspi: bifspi@0xA1006000 {

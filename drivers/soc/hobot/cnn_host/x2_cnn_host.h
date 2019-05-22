@@ -146,6 +146,7 @@ struct x2_cnn_dev {
 	wait_queue_head_t cnn_int_wait;
 	u32 x2_cnn_int_num;
 	atomic_t wait_fc_cnt;
+	atomic_t power_down_flg;
 	atomic_t mod_frq_flg;
 	struct tasklet_struct tasklet;
 	struct dentry *debugfs_root;
@@ -154,6 +155,11 @@ struct x2_cnn_dev {
 	struct kfifo fc_time_fifo;
 	struct kfifo fc_time_wait_fifo;
 	struct kfifo fc_time_save_fifo;
+	struct regulator *cnn_regulator;
+	struct clk *cnn_aclk;
+	struct clk *cnn_mclk;
+	void __iomem *cnn_pmu;
+	u32 iso_bit;
 	struct completion bpu_completion;
 
 };
