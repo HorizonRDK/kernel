@@ -119,6 +119,10 @@ struct x2_fc_time {
 	struct timeval start_time;
 	struct timeval end_time;
 };
+struct x2_int_info {
+	unsigned int fc_total;
+	unsigned int int_num;
+};
 struct x2_cnn_dev {
 	void __iomem	*cnn_base;
 	u32		irq;
@@ -136,6 +140,7 @@ struct x2_cnn_dev {
 	int core_index;
 
 	struct mutex cnn_lock;
+	struct mutex set_time_lock;
 	spinlock_t cnn_spin_lock;
 	int irq_triggered;
 
@@ -155,12 +160,14 @@ struct x2_cnn_dev {
 	struct kfifo fc_time_fifo;
 	struct kfifo fc_time_wait_fifo;
 	struct kfifo fc_time_save_fifo;
+	struct kfifo int_info_fifo;
 	struct regulator *cnn_regulator;
 	struct clk *cnn_aclk;
 	struct clk *cnn_mclk;
 	void __iomem *cnn_pmu;
 	u32 iso_bit;
 	struct completion bpu_completion;
+	int zero_int_cnt;
 
 };
 

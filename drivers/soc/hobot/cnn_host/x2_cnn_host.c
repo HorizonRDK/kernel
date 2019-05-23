@@ -54,6 +54,7 @@ extern int cnn_netlink_send(struct sock *sock, int group, void *msg, int len);
 struct sock *cnn_nl_sk;
 #define FC_TIME_CNT 50
 #define FC_TIME_SAVE_CNT 50
+#define INT_INFO_CNT 20
 
 static DEFINE_MUTEX(x2_cnn_mutex);
 static char *g_chrdev_name = "cnn";
@@ -370,7 +371,15 @@ static irqreturn_t x2_cnn_interrupt_handler(int irq, void *dev_id)
 
 	x2_cnn_reg_write(dev, X2_CNNINT_MASK, 0x0);
 	spin_unlock_irqrestore(&dev->cnn_spin_lock, flags);
-	atomic_dec(&dev->wait_fc_cnt);
+	struct x2_int_info tmp;
+	int ret = kfifo_out(&dev->int_info_fifo, &tmp,
+					sizeof(struct x2_int_info));
+	if (ret) {
+		if (tmp.int_num != dev->x2_cnn_int_num)
+			pr_err("interrupt num is error\n");
+		atomic_sub(tmp.fc_total, &dev->wait_fc_cnt);
+	} else
+		pr_err("error\n");
 	pr_debug("!!!!!!xxxx x2 cnn interrupt\n");
 	tasklet_schedule(&dev->tasklet);
 	return IRQ_HANDLED;
@@ -402,18 +411,39 @@ static void x2_cnn_set_fc_tail_idx(struct x2_cnn_dev *dev, u32 fc_tail_idx)
 static void x2_cnn_set_fc_start_time(struct x2_cnn_dev *dev, int int_num,
 				     int count)
 {
+	int ret;
 	struct x2_fc_time fc_time;
-
+	struct x2_int_info x2_int;
 	count &= X2_CNN_MAX_FC_LEN_MASK;
 	fc_time.int_num = int_num;
 	fc_time.fc_count = count;
-	if (atomic_read(&dev->wait_fc_cnt) > 0)
-		kfifo_in(&dev->fc_time_wait_fifo, &fc_time,
-			 sizeof(struct x2_fc_time));
-	else {
+	if (atomic_read(&dev->wait_fc_cnt) > 0) {
+		/*bpu busy,check zero_int_cnt*/
+		if (dev->zero_int_cnt == 0) {
+			kfifo_in(&dev->fc_time_wait_fifo, &fc_time,
+				 sizeof(struct x2_fc_time));
+		}
+		/*bpu busy,check int_num*/
+		if (int_num) {
+			x2_int.fc_total = dev->zero_int_cnt + 1;
+			x2_int.int_num = int_num;
+			ret = kfifo_in(&dev->int_info_fifo, &x2_int,
+				       sizeof(struct x2_int_info));
+			dev->zero_int_cnt = 0;
+		} else
+			dev->zero_int_cnt++;
+	} else {
 		do_gettimeofday(&fc_time.start_time);
 		kfifo_in(&dev->fc_time_fifo, &fc_time,
 			 sizeof(struct x2_fc_time));
+		if (int_num) {
+			x2_int.fc_total = dev->zero_int_cnt + 1;
+			x2_int.int_num = int_num;
+			dev->zero_int_cnt = 0;
+			ret = kfifo_in(&dev->int_info_fifo, &x2_int,
+					sizeof(struct x2_int_info));
+		} else
+			dev->zero_int_cnt++;
 	}
 	atomic_inc(&dev->wait_fc_cnt);
 }
@@ -588,10 +618,11 @@ static u32 x2_cnn_fc_fifo_enqueue(struct x2_cnn_dev *dev,
 		 * Actually, according to libpu, fc_cnt is always 1
 		 */
 		for (i = 0; i < insert_fc_cnt; i++) {
-			if (tmp_ptr->interrupt_num != 0)
-				x2_cnn_set_fc_start_time(dev,
-							 tmp_ptr->interrupt_num,
-							 count);
+			mutex_lock(&dev->set_time_lock);
+			x2_cnn_set_fc_start_time(dev,
+						 tmp_ptr->interrupt_num,
+						 count);
+			mutex_unlock(&dev->set_time_lock);
 			tmp_ptr++;
 			count++;
 		}
@@ -603,7 +634,6 @@ static u32 x2_cnn_fc_fifo_enqueue(struct x2_cnn_dev *dev,
 		 * Actually, according to libpu, fc_cnt is always 1
 		 */
 		for (i = 0; i < fc_buf->fc_cnt; i++) {
-			if (tmp_ptr->interrupt_num != 0)
 				x2_cnn_set_fc_start_time(dev,
 							 tmp_ptr->interrupt_num,
 							 count);
@@ -881,6 +911,7 @@ static void x2_cnn_do_tasklet(unsigned long data)
 	if ((ret < 0) && (ret != -ESRCH))
 		pr_err("CNN trigger irq[%d] failed errno[%d]!\n",
 				dev->x2_cnn_int_num, ret);
+
 	ret = kfifo_avail(&dev->fc_time_save_fifo);
 	if (ret < sizeof(struct x2_fc_time))
 		kfifo_out(&dev->fc_time_save_fifo, &tmp,
@@ -1215,6 +1246,7 @@ int x2_cnn_probe(struct platform_device *pdev)
 	atomic_set(&cnn_dev->wait_fc_cnt, 0);
 	atomic_set(&cnn_dev->power_down_flg, 0);
 	atomic_set(&cnn_dev->mod_frq_flg, 0);
+	cnn_dev->zero_int_cnt = 0;
 	x2_cnn_reg_write(cnn_dev,
 			X2_CNN_FC_LEN, (cnn_dev->fc_mem_size / 64) - 1);
 	pr_info("Cnn fc phy base = 0x%x, len = 0x%x, default fc len = 0x%x\n",
@@ -1228,6 +1260,7 @@ int x2_cnn_probe(struct platform_device *pdev)
 	x2_cnn_fc_gap_mem_init(cnn_dev);
 
 	mutex_init(&cnn_dev->cnn_lock);
+	mutex_init(&cnn_dev->set_time_lock);
 	spin_lock_init(&cnn_dev->cnn_spin_lock);
 	rc = kfifo_alloc(&cnn_dev->fc_time_fifo,
 		    sizeof(struct x2_fc_time) * FC_TIME_CNT, GFP_KERNEL);
@@ -1248,6 +1281,12 @@ int x2_cnn_probe(struct platform_device *pdev)
 		goto err_out;
 	}
 
+	rc = kfifo_alloc(&cnn_dev->int_info_fifo,
+		    sizeof(struct x2_int_info) * INT_INFO_CNT, GFP_KERNEL);
+	if (rc < 0) {
+		pr_err("kfifo alloc error\n");
+		goto err_out;
+	}
 	/* Create the chardev for cnn0 and cnn1 */
 	cnn_dev->chrdev_name = dev_name;
 	snprintf(cnn_dev->chrdev_name, sizeof(dev_name),
