@@ -519,7 +519,7 @@ static void x2_cnn_power_up(struct x2_cnn_dev *dev)
 
 	tmp &= ~(1 << dev->iso_bit);
 	writel(tmp, dev->cnn_pmu);
-	udelay(600);
+	udelay(5);
 
 	x2_cnn_reset_release(dev->cnn_rst);
 	clk_enable(dev->cnn_aclk);
@@ -555,7 +555,6 @@ static void x2_cnn_power_down(struct x2_cnn_dev *dev)
 	udelay(5);
 
 	x2_cnn_reset_assert(dev->cnn_rst);
-	mdelay(10);
 	regulator_disable(dev->cnn_regulator);
 	mutex_unlock(&dev->cnn_lock);
 	atomic_set(&dev->power_down_flg, 0);
