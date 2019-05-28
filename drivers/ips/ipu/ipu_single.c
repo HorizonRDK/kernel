@@ -48,6 +48,7 @@
 
 #define ENABLE 1
 #define DISABLE 0
+#define DISPLAY_PP_BUFFER
 
 struct ipu_single_cdev {
 	const char *name;
@@ -74,6 +75,9 @@ unsigned int frequency_ipu = 0;
 unsigned int drop_ipu = 0;
 unsigned int ipu_fram_cnt_drop = 0;
 unsigned int ipu_fram_cnt = 0;
+
+unsigned int index;
+
 module_param(frequency_ipu, uint, S_IRUGO | S_IWUSR);
 module_param(drop_ipu, uint, S_IRUGO | S_IWUSR);
 
@@ -193,9 +197,10 @@ static int8_t ipu_get_frameid(struct x2_ipu_data *ipu, ipu_slot_h_t *slot)
 void ipu_single_mode_process(uint32_t status)
 {
 	struct x2_ipu_data *ipu = g_ipu_s_cdev->ipu;
-	spin_lock(&g_ipu_s_cdev->slock);
 	uint32_t iar_display_yaddr;
 	uint32_t iar_display_caddr;
+
+	spin_lock(&g_ipu_s_cdev->slock);
 
 	if (status & IPU_BUS01_TRANSMIT_ERRORS ||
 		status & IPU_BUS23_TRANSMIT_ERRORS ||
@@ -244,9 +249,36 @@ void ipu_single_mode_process(uint32_t status)
 			pr_info("@@ c_offset = %x\n",
 					slot_h->info_h.ddr_info.crop.c_offset);
 			*/
-			iar_set_video_buffer(iar_display_yaddr,
-							iar_display_caddr);
+#ifdef DISPLAY_PP_BUFFER
+			if (index == 0) {
+				memcpy(ipu_get_iar_framebuf_addr(0, index),
+					phys_to_virt(iar_display_yaddr),
+					800*480);
+				memcpy(ipu_get_iar_framebuf_addr(0, index) +
+					800*480,
+					phys_to_virt(iar_display_caddr),
+					800*480);
+				iar_set_video_buffer(iar_display_yaddr,
+						iar_display_caddr, index);
+				index = 1;
 
+			} else if (index == 1) {
+				memcpy(ipu_get_iar_framebuf_addr(0, index),
+					phys_to_virt(iar_display_yaddr),
+					800*480);
+				memcpy(ipu_get_iar_framebuf_addr(0, index) +
+					800*480,
+					phys_to_virt(iar_display_caddr),
+					800*480);
+				iar_set_video_buffer(iar_display_yaddr,
+						iar_display_caddr, index);
+				index = 0;
+
+			}
+#else
+			iar_set_video_buffer(iar_display_yaddr,
+					iar_display_caddr, -1);
+#endif
 			wake_up_interruptible(&g_ipu_s_cdev->event_head);
 
 		} else {

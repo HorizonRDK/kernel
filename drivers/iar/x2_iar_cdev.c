@@ -115,7 +115,7 @@ int32_t iar_write_framebuf_dma(uint32_t channel, phys_addr_t srcaddr, uint32_t s
 		printk(KERN_ERR"%s: timeout !!\n", __func__);
 		return -EIO;
 	}
-	iar_switch_buf(channel);
+//	iar_switch_buf(channel);
 	IAR_DEBUG_PRINT("DMA trans done\n");
 
 	return 0;

@@ -527,6 +527,9 @@ int32_t iar_close(void);
 int32_t iar_pre_init(void);
 void x2_iar_dump(void);
 frame_buf_t* x2_iar_get_framebuf_addr(int channel);
-int32_t iar_set_video_buffer(uint32_t yaddr, uint32_t caddr);
+int32_t iar_set_video_buffer(uint32_t yaddr, uint32_t caddr, int index);
+int32_t iar_write_framebuf_dma(uint32_t channel, phys_addr_t srcaddr,
+		uint32_t size);
+void *ipu_get_iar_framebuf_addr(uint32_t channel, unsigned int index);
 
 #endif //__X2_IAR_H__

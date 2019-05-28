@@ -771,6 +771,17 @@ frame_buf_t* iar_get_framebuf_addr(uint32_t channel)
 }
 EXPORT_SYMBOL_GPL(iar_get_framebuf_addr);
 
+void *ipu_get_iar_framebuf_addr(uint32_t channel, unsigned int index)
+{
+	if (g_iar_dev == NULL) {
+		pr_err("IAR dev not inited!");
+		return NULL;
+	}
+	return (void *)(g_iar_dev->pingpong_buf[channel].framebuf[index].vaddr);
+}
+EXPORT_SYMBOL_GPL(ipu_get_iar_framebuf_addr);
+
+
 int32_t iar_set_bufaddr(uint32_t channel, buf_addr_t *addr)
 {
 	if (NULL == g_iar_dev) {
@@ -821,31 +832,43 @@ int32_t iar_switch_buf(uint32_t channel)
 	index = g_iar_dev->cur_framebuf_id[channel];
 	iar_set_bufaddr(channel, &g_iar_dev->pingpong_buf[channel].pixel_addr[index]);
 //	g_iar_dev->cur_framebuf_id[channel] = !index;
+
 	return 0;
 }
 EXPORT_SYMBOL_GPL(iar_switch_buf);
 
 
-int32_t iar_set_video_buffer(uint32_t yaddr, uint32_t caddr)
+int32_t iar_set_video_buffer(uint32_t yaddr, uint32_t caddr, int index)
 {
-	uint32_t index;
+	//uint32_t index;
 	buf_addr_t display_addr;
 	unsigned int uoffset, voffset;
 
-//	pr_info("begin set iar display yaddr 0x%x, caddr 0x%x", yaddr, caddr);
+	pr_debug("begin set iar display yaddr 0x%x, caddr 0x%x", yaddr, caddr);
 	if (g_iar_dev == NULL) {
 		pr_err("IAR dev not inited!");
 		return -1;
 	}
 	//uoffset = voffset =
 	//g_iar_dev->buf_w_h[0][0] * g_iar_dev->buf_w_h[0][1];
-	display_addr.Yaddr = yaddr;
-//	display_addr.Uaddr = addr + uoffset;
-	display_addr.Uaddr = caddr;
-	display_addr.Vaddr = 0;
+	if (index < 0) {
+		display_addr.Yaddr = yaddr;
+		display_addr.Uaddr = caddr;
+		display_addr.Vaddr = 0;
+
+	} else {
+		pr_debug("index is %d.\n", index);
+		display_addr.Yaddr =
+			g_iar_dev->pingpong_buf[0].pixel_addr[index].Yaddr;
+		display_addr.Uaddr =
+			g_iar_dev->pingpong_buf[0].pixel_addr[index].Yaddr +
+			800*480;
+		display_addr.Vaddr = 0;
+	}
 	iar_set_bufaddr(0, &display_addr);
+
 	iar_update();
-//	pr_info("end set iar display addr success!\n");
+	pr_debug("end set iar display addr success!\n");
 
 	return 0;
 }
@@ -974,6 +997,8 @@ frame_buf_t* x2_iar_get_framebuf_addr(int channel)
 	}
 	return &g_iar_dev->frambuf[channel];
 }
+
+
 
 static irqreturn_t x2_iar_irq(int this_irq, void *data)
 {
