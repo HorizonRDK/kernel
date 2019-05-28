@@ -34,7 +34,7 @@
 
 #define W1_FAMILY_DEFAULT	0
 
-static int w1_timeout = 10;
+static int w1_timeout = 3;
 module_param_named(timeout, w1_timeout, int, 0);
 MODULE_PARM_DESC(timeout, "time in seconds between automatic slave searches");
 
@@ -51,19 +51,18 @@ MODULE_PARM_DESC(timeout_us,
  * device on the network and w1_max_slave_count is set to 1, the device id can
  * be read directly skipping the normal slower search process.
  */
-int w1_max_slave_count = 64;
+int w1_max_slave_count = 1;
 module_param_named(max_slave_count, w1_max_slave_count, int, 0);
 MODULE_PARM_DESC(max_slave_count,
 	"maximum number of slaves detected in a search");
 
-int w1_max_slave_ttl = 10;
+int w1_max_slave_ttl = 1;
 module_param_named(slave_ttl, w1_max_slave_ttl, int, 0);
 MODULE_PARM_DESC(slave_ttl,
 	"Number of searches not seeing a slave before it will be removed");
 
 DEFINE_MUTEX(w1_mlock);
 LIST_HEAD(w1_masters);
-
 static int w1_master_match(struct device *dev, struct device_driver *drv)
 {
 	return 1;
@@ -925,9 +924,7 @@ void w1_slave_found(struct w1_master *dev, u64 rn)
 	u64 rn_le = cpu_to_le64(rn);
 
 	atomic_inc(&dev->refcnt);
-
 	tmp = (struct w1_reg_num *) &rn;
-
 	sl = w1_slave_search_device(dev, tmp);
 	if (sl) {
 		set_bit(W1_SLAVE_ACTIVE, &sl->flags);
@@ -971,7 +968,6 @@ void w1_search(struct w1_master *dev, u8 search_type, w1_slave_found_callback cb
 	last_zero = -1;
 
 	desc_bit = 64;
-
 	while ( !last_device && (slave_count++ < dev->max_slave_count) ) {
 		last_rn = rn;
 		rn = 0;
@@ -988,17 +984,15 @@ void w1_search(struct w1_master *dev, u8 search_type, w1_slave_found_callback cb
 			dev_dbg(&dev->dev, "No devices present on the wire.\n");
 			break;
 		}
-
 		/* Do fast search on single slave bus */
 		if (dev->max_slave_count == 1) {
 			int rv;
 			w1_write_8(dev, W1_READ_ROM);
 			rv = w1_read_block(dev, (u8 *)&rn, 8);
 			mutex_unlock(&dev->bus_mutex);
-
 			if (rv == 8 && rn)
 				cb(dev, rn);
-
+			mutex_unlock(&dev->bus_mutex);
 			break;
 		}
 
@@ -1068,7 +1062,6 @@ void w1_search_process_cb(struct w1_master *dev, u8 search_type,
 	w1_slave_found_callback cb)
 {
 	struct w1_slave *sl, *sln;
-
 	mutex_lock(&dev->list_mutex);
 	list_for_each_entry(sl, &dev->slist, w1_slave_entry)
 		clear_bit(W1_SLAVE_ACTIVE, &sl->flags);
@@ -1125,8 +1118,32 @@ int w1_process_callbacks(struct w1_master *dev)
 	return ret;
 }
 
+/*search and match slave device;*/
+int w1_process_match(struct w1_master **data)
+{
+	struct w1_master *get = NULL;
+	struct w1_master *dev = NULL;
+
+	mutex_lock(&w1_mlock);
+	list_for_each_entry(get, &w1_masters, w1_master_entry)
+		dev = get;
+	mutex_unlock(&w1_mlock);
+	if (dev != NULL) {
+		mutex_lock(&dev->mutex);
+		w1_search_process(dev, W1_SEARCH);
+		mutex_unlock(&dev->mutex);
+	} else {
+		pr_err("search master struct failed, %s %s %d\n",
+		__FILE__, __func__, __LINE__);
+		return -1;
+	}
+	*data = dev;
+}
+EXPORT_SYMBOL(w1_process_match);
+
 int w1_process(void *data)
 {
+	int i = 0;
 	struct w1_master *dev = (struct w1_master *) data;
 	/* As long as w1_timeout is only set by a module parameter the sleep
 	 * time can be calculated in jiffies once.
@@ -1135,9 +1152,7 @@ int w1_process(void *data)
 	  usecs_to_jiffies(w1_timeout * 1000000 + w1_timeout_us);
 	/* remainder if it woke up early */
 	unsigned long jremain = 0;
-
-	for (;;) {
-
+	for (i = 0; i < 1; i++) {
 		if (!jremain && dev->search_count) {
 			mutex_lock(&dev->mutex);
 			w1_search_process(dev, W1_SEARCH);

@@ -27,7 +27,7 @@
 #include <linux/slab.h>
 #include <linux/input.h>
 #include <linux/uaccess.h>
-
+#include <linux/list.h>
 #include <linux/w1.h>
 
 #include "w1_ds28e1x_sha256.h"
@@ -126,11 +126,18 @@
 
 #define slave_cdev_m_pAGIC 'X'
 #define W1_IOCTL_MATCH  _IOWR(slave_cdev_m_pAGIC, 0x11, unsigned int)
-#define W1_IOCTL_USER   _IOWR(slave_cdev_m_pAGIC, 0x12, struct rbuf_s)
+#define W1_IOCTL_USER   _IOWR(slave_cdev_m_pAGIC, 0x12, struct buf_32)
 
-#define W1_IOCTL_AUTH   _IOWR(slave_cdev_m_pAGIC, 0x13, struct w1_notify_s)
+#define W1_IOCTL_AUTH   _IOWR(slave_cdev_m_pAGIC, 0x13, struct buf_32)
+#define W1_IOCTL_ROMUID   _IOWR(slave_cdev_m_pAGIC, 0x14, struct buf_8)
+
+#define W1_IOCTL_MNUID   _IOWR(slave_cdev_m_pAGIC, 0x15, struct buf_2)
+
 #define ENABLE_KEYDATA_LOCK 0
-static int retry_auth_max_cnt = 10;
+
+static struct w1_slave *sl;
+static struct mutex lock;
+static int retry_max_cnt = 10;
 struct slave_cdev_s {
 	const char *name;
 	int major;
@@ -138,18 +145,20 @@ struct slave_cdev_s {
 	struct cdev cdev;
 	dev_t dev_num;
 	struct class *slave_classes;
-	struct w1_slave *sl;
 };
-struct rbuf_s {
+struct buf_32 {
 	unsigned char rbuf[32];
 };
+struct buf_8 {
+	unsigned char rbuf[8];
+};
+
+struct buf_2 {
+	unsigned char rbuf[8];
+};
+
 static struct slave_cdev_s slave_cdev_m;
 static struct slave_cdev_s *slave_cdev_m_p;
-
-struct w1_notify_s {
-	u8 aes_result[64];
-	unsigned int value;
-};
 
 ///
 /// Following data is only for test purpose.
@@ -189,7 +198,7 @@ static u8 g_data_prd_secbase[32] = {
 
 static u8 g_data_prd_secreal[32];	//calculate from g_data_prd_secbase
 
-//!partial base&challenge data for development. 
+//!partial base&challenge data for development.
 //!for production g_data_partial_base should be different and keep confidental.
 //!partial_ch data can be dynamic by seed and RNG
 /*
@@ -269,42 +278,6 @@ static unsigned short docrc16(unsigned short data)
 	return slave_crc16;
 }
 
-unsigned int d_calculateCrossCheckValue(unsigned int cvalue)
-{
-	unsigned int x, y, z, w, t;
-
-	x = 326334 + cvalue;
-	y = 79 - cvalue;
-	z = 54978;
-	w = 99267659;
-	t = x ^ (x << 11);
-	x = y;
-	y = z;
-	z = w;
-	w = w ^ (w >> 19) ^ t ^ (t >> 8);
-	return w;
-}
-
-int returnCrossCheckresult(unsigned int wvalue)
-{
-	int i;
-	unsigned int x, w;
-	int odd_bit_sum = 0;
-
-	x = wvalue;
-	w = wvalue;
-	for (i = 0; i < 32; i = i + 2) {
-		odd_bit_sum += (x & 0x1);
-		x = x >> 2;
-	}
-	//±£Ö¤×î¸ßÎ»ÊÇ0£¬ÐèÒªÔÚÓ¦ÓÃ²ãµÄ
-	//ÀïÃæ½«×î¸ßÎ»ÉèÎªÐ¾Æ¬ÑéÖ¤½á¹û
-	//0ÎªÑéÖ¤Í¨¹ý£¬1ÎªÑéÖ¤Ê§°Ü
-	w = w >> 1;
-	w = w | odd_bit_sum;
-	return w;
-}
-
 //--------------------------------------------------------------------------
 //  Compute MAC to write a 4 byte memory block using an authenticated
 //  write.
@@ -351,10 +324,10 @@ int calculate_write_authMAC256(int page, int segment, char *new_data,
 /* Performs a Compute Next SHA-256 calculation given the provided 32-bytes
    of binding data and 8 byte partial secret. The first 8 bytes of the
    resulting MAC is set as the new secret.
-//  Input Parameter:  
+//  Input Parameter:
     1. unsigned char *binding: 32 byte buffer containing the binding data
     2. unsigned char *partial: 8 byte buffer with new partial secret
-    3. int page_nim: page number that the compute is calculated on 
+    3. int page_nim: page number that the compute is calculated on
     4. unsigned char *manid: manufacturer ID
    Globals used : SECRET used in calculation and set to new secret
    Returns: TRUE if compute successful
@@ -1076,7 +1049,7 @@ int w1_ds28e1x_load_secret(struct w1_slave *sl, int lock)
 	// now wait for the MAC computation.
 	// use 100ms for both E11&E15
 	//TBD !!from data sheet. E11 is 100ms, E15 200ms(re-
-    //ference code using 100ms, and it works)
+	//ference code using 100ms, and it works)
 	msleep(SECRET_EEPROM_DELAY);
 	//msleep(SECRET_EEPROM_DELAY+SECRET_EEPROM_DELAY);
 
@@ -1238,125 +1211,6 @@ int w1_ds28e1x_compute_read_pageMAC(struct w1_slave *sl, int pbyte, uchar *mac)
 //
 //  Parameters
 //     page_num - page number to read 0, 1
-//     challange - 32 byte buffer containing the challenge
-//     mac - 32 byte buffer for mac read
-//     page_data - 32 byte buffer to contain the data to read
-//     manid - 2 byte buffer containing the manufa-
-//     cturer ID (general device: 00h,00h)
-//     skipread - Skip the read page and use the prov-
-//     ided data in the 'page_data' buffer
-//     anon - Flag to indicate Annonymous mode if (anon != 0)
-//
-//  Returns: 0 - page read has correct MAC
-//               else - Failed to read page or incorrect MAC
-//
-int w1_ds28e1x_read_authverify_cal(struct w1_slave *sl, int page_num,
-				   uchar *challenge, uchar *page_data,
-				   uchar *manid, int skipread, int anon,
-				   unsigned int w)
-{
-	uchar mac[32];
-	uchar mt[128];
-	int pbyte;
-	int i = 0, rslt;
-
-	if (!sl)
-		return -ENODEV;
-
-	// check to see if we skip the read (use page_data)
-	if (!skipread) {
-		// read the page to get data
-		while (i < RETRY_LIMIT) {
-			rslt = w1_ds28e1x_read_page(sl, page_num, page_data);
-			if (rslt == 0)
-				break;
-
-			mdelay(RETRY_DELAY);	/* wait 10ms */
-			i++;
-		}
-		if (i >= RETRY_LIMIT) {
-			pr_err("%s error: -1F\n", __func__);
-			return -1;
-		}
-		i = 0;
-	} else {
-		//!TBD. for two page devices.
-		//memcpy(page_data, g_data_binding_page, 32);
-	}
-	// The Read/Write Scratch pad command must have been is-
-    //sued in write mode prior
-	// to Compute and Read Page MAC to define the challenge
-	while (i < RETRY_LIMIT) {
-		rslt = w1_ds28e1x_write_scratchpad(sl, challenge);
-		if (rslt == 0)
-			break;
-
-		mdelay(RETRY_DELAY);	/* wait 10ms */
-		i++;
-	}
-	if (i >= RETRY_LIMIT) {
-		pr_err("%s...error: -2F\n", __func__);
-		return -2;
-	}
-	i = 0;
-
-	// have device compute mac
-	pbyte = anon ? 0xE0 : 0x00;
-	pbyte = pbyte | page_num;
-	while (i < RETRY_LIMIT) {
-		rslt = w1_ds28e1x_compute_read_pageMAC(sl, pbyte, mac);
-		if (rslt == 0)
-			break;
-
-		mdelay(RETRY_DELAY);	/* wait 10ms */
-		i++;
-	}
-	if (i >= RETRY_LIMIT) {
-		pr_err("%s...error: -3F\n", __func__);
-		return -3;
-	}
-	// create buffer to compute and verify mac
-
-	// clear
-	memset(mt, 0, 128);
-
-	// insert page data
-	memcpy(&mt[0], page_data, 32);
-
-	// insert challenge
-	memcpy(&mt[32], challenge, 32);
-
-	// insert ROM number or FF
-	if (anon)
-		memset(&mt[96], 0xFF, 8);
-	else
-		memcpy(&mt[96], rom_no, 8);
-
-	mt[106] = page_num;
-
-	if (special_mode) {
-		mt[105] = special_values[0];
-		mt[104] = special_values[1];
-	} else {
-		mt[105] = manid[0];
-		mt[104] = manid[1];
-	}
-
-	if (verify_mac256(mt, 119, mac) == 0) {
-		pr_err("%s...error: -4F\n", __func__);
-
-		return -4;
-	} else
-		return returnCrossCheckresult(w);
-	//return 0;
-}
-
-//--------------------------------------------------------------------------
-//  Do Read Athenticated Page command and verify MAC. Optionally do
-//  annonymous mode (anon != 0).
-//
-//  Parameters
-//     page_num - page number to read 0, 1
 //     challenge - 32 byte buffer containing the challenge
 //     mac - 32 byte buffer for mac read
 //     page_data - 32 byte buffer to contain the data to read
@@ -1440,10 +1294,8 @@ int w1_ds28e1x_read_authverify(struct w1_slave *sl, int page_num,
 
 	// insert page data
 	memcpy(&mt[0], page_data, 32);
-
 	// insert challenge
 	memcpy(&mt[32], challenge, 32);
-
 	// insert ROM number or FF
 	if (anon)
 		memset(&mt[96], 0xFF, 8);
@@ -1452,13 +1304,8 @@ int w1_ds28e1x_read_authverify(struct w1_slave *sl, int page_num,
 
 	mt[106] = page_num;
 
-	if (special_mode) {
-		mt[105] = special_values[0];
-		mt[104] = special_values[1];
-	} else {
-		mt[105] = manid[0];
-		mt[104] = manid[1];
-	}
+	mt[105] = manid[0];
+	mt[104] = manid[1];
 
 	if (verify_mac256(mt, 119, mac) == 0) {
 		pr_err("%s error: -4F\n", __func__);
@@ -1775,7 +1622,7 @@ int w1_ds28e1x_write_authblockprotection(struct w1_slave *sl, uchar *data)
 
 	// send release and strong pull-up
 	// DATASHEET_CORRECTION - last bit in release is a re-
-    // ad-zero so don't check echo of write byte
+	// ad-zero so don't check echo of write byte
 	w1_write_8(sl->master, 0xAA);
 
 	// now wait for the MAC computation.
@@ -1977,20 +1824,18 @@ static int w1_ds28e1x_setup_device(struct w1_slave *sl)
 	if (rslt)
 		rt = -1;
 
-	pr_err("DS28E1X Setup Example: %s\n",
-	       (rt) ? "FAIL" : "SUCCESS");
+	pr_err("DS28E1X Setup Example: %s\n", (rt) ? "FAIL" : "SUCCESS");
 	pr_err("--------------------------------------------------\n");
 end:
 	return rt;
 
 }
 
-
 //--------------------------------------------------------------------------
 /*Read the 64-bit ROM ID of DS28E15
-// Input parameter: 
-   1.RomID  :64Bits RomID Receiving Buffer 
-                    
+// Input parameter:
+   1.RomID  :64Bits RomID Receiving Buffer
+
 // Returns: 0     = success ,RomID CRC check is right ,Rom-
 					ID Sotred in RomID Buffer
             other = failure ,maybe on_reset() Error ,or CRC check Error;
@@ -2024,23 +1869,23 @@ int w1_ds28e1x_read_romid(struct w1_slave *sl, unsigned char *RomID)
 }
 
 /*
- w1 slave device node attribute directory layout is as follows:
- -->/sys/bus/w1/devices/
-  devname_dir/          #device name. format: 17-xxxxxxxxxxxx (for E11 case)
-    ©À©¤©¤ mode         #dev|prd. development<->debug. prd:production<->release.
-    ©À©¤©¤ duid         #device unique id.(serial num of maxim chip).==devnam
-    ©À©¤©¤ seed         #seed for secure processing.
-    ©À©¤©¤ mnid         #read device manufacture id
-    ©À©¤©¤ dmac         #read computed double SHA-256 MAC Result Data
-    ©À©¤©¤ auth         #Authenticator MAC Verify result. in dev mode: 0:OK 1:NG
-    ©À©¤©¤ dbg_page     #page(0) data inject (mainly for debug in develoment)
-    ©¸©¤©¤ dbg_secret   #secert key data inject (mainly for debug in develoment)
+w1 slave device node attribute directory layout is as follows:
+-->/sys/bus/w1/devices/
+devname_dir/          #device name. format: 17-xxxxxxxxxxxx (for E11 case)
+ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ mode #dev|prd. development<->debug. prd:production<->release.
+ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ duid #device unique id.(serial num of maxim chip).==devnam
+ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ seed#seed for secure processing.
+ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ mnid#read device manufacture id
+ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ dmac#read computed double SHA-256 MAC Result Data
+ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ auth#Authenticator MAC Verify result. in dev mode: 0:OK 1:NG
+ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ dbg_page#page(0) data inject (mainly for debug in develoment)
+ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ dbg_secret#secert key data in-
+ject (mainly for debug in develoment)
+PS: following attribute can be added for support for 2-le-
+vel vendor lic case using E15
+ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ext_sid#vendor specific sid if exist, default:0x00000000
+{binary}{RW} suggest write-once.
 
-    PS: following attribute can be added for support for 2-le-
-	vel vendor lic case using E15
-    ©À©¤©¤ ext_sid      #vendor specific sid if exist, default:0x00000000
-	{binary}{RW} suggest write-once.
-    
  */
 
 static ssize_t w1_ds28e1x_if_mode_read(struct device *device,
@@ -2113,8 +1958,7 @@ static ssize_t w1_ds28e1x_if_seed_write(struct device *device,
 					const char *buf, size_t count)
 {
 	if (count < ATTR_SIZE_SEED) {
-		pr_err("%s: not enough seed data - %d\n", __func__,
-		       (int)count);
+		pr_err("%s: not enough seed data - %d\n", __func__, (int)count);
 		return -EFAULT;
 	}
 
@@ -2135,9 +1979,9 @@ static ssize_t w1_ds28e1x_if_dmac_read(struct device *device,
 	while (i < RETRY_LIMIT) {
 		ret |= w1_ds28e1x_write_scratchpad(sl, g_data_partial_ch);
 		if (ret) {
-			pr_err(
-			       "%s: scratchpad{NG)&compute_read_pageMAC retry %d/%d [ret=%d]\n",
-			       __func__, i + 1, RETRY_LIMIT, ret);
+			pr_err
+	("%s: scratchpad{NG)&compute_read_pageMAC retry %d/%d [ret=%d]\n",
+			     __func__, i + 1, RETRY_LIMIT, ret);
 			i++;
 			ret = 0;
 			mdelay(RETRY_DELAY);
@@ -2147,21 +1991,109 @@ static ssize_t w1_ds28e1x_if_dmac_read(struct device *device,
 		if (ret == 0)
 			break;
 
-		pr_err(
-		       "%s: scratchpad&compute_read_pageMAC(NG) retry %d/%d [ret=%d]\n",
-		       __func__, i + 1, RETRY_LIMIT, ret);
+		pr_err
+	("%s: scratchpad&compute_read_pageMAC(NG) retry %d/%d [ret=%d]\n",
+	__func__, i + 1, RETRY_LIMIT, ret);
 		mdelay(RETRY_DELAY);	/* wait 10ms */
 		ret = 0;
 		i++;
 	}
 
 	if (i >= RETRY_LIMIT) {
-		pr_err("%s Failed to Get Expected MAC\n",
-		       __func__);
+		pr_err("%s Failed to Get Expected MAC\n", __func__);
 		return 0;
 	}
 
 	return ATTR_SIZE_DMAC;
+}
+
+static ssize_t w1_ds28e1x_mac_read(struct w1_slave *sl,
+				   char *challenge, char *buf, int page_num,
+				   int anon)
+{
+	int i = 0;
+	int ret = 0;
+	int pbyte;
+	// The Read/Write Scratch pad command must have be-
+	//en issued in write mode prior
+	// to Compute and Read Page MAC to define the challenge
+	while (i < RETRY_LIMIT) {
+		ret = 0;
+		ret = w1_ds28e1x_write_scratchpad(sl, challenge);
+		if (ret) {
+			pr_err
+	("%s: scratchpad{NG)&compute_read_pageMAC retry %d/%d [ret=%d]\n",
+			     __func__, i + 1, RETRY_LIMIT, ret);
+			i++;
+			ret = 0;
+			mdelay(RETRY_DELAY);
+			continue;
+		}
+		// have device compute mac
+		pbyte = anon ? 0xE0 : 0x00;
+		pbyte = pbyte | page_num;
+		ret = w1_ds28e1x_compute_read_pageMAC(sl, pbyte, buf);
+		if (ret == 0)
+			break;
+
+		pr_err
+	("%s: scratchpad&compute_read_pageMAC(NG) retry %d/%d [ret=%d]\n",
+	__func__, i + 1, RETRY_LIMIT, ret);
+		mdelay(RETRY_DELAY);	/* wait 10ms */
+		i++;
+	}
+
+	if (i >= RETRY_LIMIT) {
+		pr_err("%s Failed to Get Expected MAC\n", __func__);
+		return ret;
+	}
+
+	return ret;
+}
+
+static int w1_ds28e1x_romid_read(struct w1_slave *sl, char *buf)
+{
+	int i = 0, ret = 0;
+
+	while (i < RETRY_LIMIT) {
+		ret = w1_ds28e1x_read_romid(sl, buf);
+		if (ret == 0)
+			break;
+		mdelay(RETRY_DELAY);
+		i++;
+	}
+
+	if (ret == 0)
+		return 0;
+
+	pr_err("%s : read romid error\n", __func__);
+	return -1;
+}
+
+static int w1_ds28e1x_mnid_read(struct w1_slave *sl, char *buf)
+{
+	int i = 0;
+	int ret;
+	uchar data[8];
+
+	while (i < RETRY_LIMIT) {
+		ret = w1_ds28e1x_read_status(sl, 0xE0, data);
+		if (ret == 0)
+			break;
+
+		mdelay(RETRY_DELAY);
+		i++;
+	}
+
+	if (ret == 0) {
+		buf[0] = data[3];
+		buf[1] = data[2];
+		return 0;
+	}
+
+	pr_err("%s : read manid error\n", __func__);
+	return -1;
+
 }
 
 static ssize_t w1_ds28e1x_if_auth_read(struct device *device,
@@ -2214,8 +2146,7 @@ static ssize_t w1_ds28e1x_if_page_write(struct device *device,
 			break;
 
 		if (ret == 0x33 || ret == 0x55 || ret == 0x53) {
-			pr_err(
-			       "WARNING-%s: page already LOCKED!! - %d\n",
+			pr_err("WARNING-%s: page already LOCKED!! - %d\n",
 			       __func__, ret);
 			memcpy(g_data_writing_page, buf, ATTR_SIZE_DBG_PAGE);
 			return ATTR_SIZE_DBG_PAGE;
@@ -2237,13 +2168,12 @@ static ssize_t w1_ds28e1x_if_page_write(struct device *device,
 		if (ret == 0) {
 			if (memcmp(buf, pageread, ATTR_SIZE_DBG_PAGE) == 0)
 				break;
-				pr_err(
-				       "%s: double checking binding data(readback) diff FAILED\n",
-				       __func__);
+			pr_err
+	("%s: double checking binding data(readback) diff FAILED\n",
+		__func__);
 		}
 
-		pr_err(
-		       "%s: double checking binding data retry %d/%d\n",
+		pr_err("%s: double checking binding data retry %d/%d\n",
 		       __func__, i + 1, RETRY_LIMIT);
 		mdelay(RETRY_DELAY);	/* wait 10ms */
 		i++;
@@ -2251,8 +2181,7 @@ static ssize_t w1_ds28e1x_if_page_write(struct device *device,
 
 	//page lock
 	if (ret == 0) {
-		pr_err("%s: page write verified, lock the page\n",
-		       __func__);
+		pr_err("%s: page write verified, lock the page\n", __func__);
 		ret =
 		    w1_ds28e1x_write_blockprotection(sl, 1,
 						     PROT_BIT_READ |
@@ -2298,7 +2227,7 @@ static ssize_t w1_ds28e1x_if_secret_write(struct device *device,
 
 	if (count < ATTR_SIZE_DBG_SECRET) {
 		pr_err("%s: not enough secret data - %d\n", __func__,
-		       (int)count);
+		(int)count);
 		return 0;
 	}
 	//for manid
@@ -2348,7 +2277,7 @@ static ssize_t w1_ds28e1x_if_secret_write(struct device *device,
 	get_random_bytes(challenge, 32);	// random challenge
 	ret =
 	    w1_ds28e1x_read_authverify(sl, 0, challenge, g_data_writing_page,
-				       manid, 1, 0);
+				manid, 1, 0);
 
 #if ENABLE_KEYDATA_LOCK
 	if (ret != 0)
@@ -2361,9 +2290,9 @@ static ssize_t w1_ds28e1x_if_secret_write(struct device *device,
 		ret |= w1_ds28e1x_read_scratchpad(sl, readback);
 		ret |= memcmp(buf, readback, ATTR_SIZE_DBG_SECRET);
 		if (ret != 0) {
-			pr_err(
-			       "[lock loop]%s: scratchpad write&readback checkfailed%d/%d\n",
-			       i + 1, RETRY_LIMIT);
+			pr_err
+	("[lock loop]%s: scratchpad write&readback checkfailed%d/%d\n",
+			 i + 1, RETRY_LIMIT);
 			continue;
 		}
 		ret |= w1_ds28e1x_load_secret(sl, 1);
@@ -2371,16 +2300,15 @@ static ssize_t w1_ds28e1x_if_secret_write(struct device *device,
 		if (ret == 0)
 			break;
 
-		pr_err(
-		       "[lock_loop]retry write scratchpad & load secret %d/%d\n",
-		       i + 1, RETRY_LIMIT);
+		pr_err
+		("[lock_loop]retry write scratchpad & load secret %d/%d\n",
+		i + 1, RETRY_LIMIT);
 		mdelay(RETRY_DELAY);
 		i++;
 		ret = 0;
 	}
 	if (i >= RETRY_LIMIT) {
-		pr_err("[lock loop]%s: load secret failed\n",
-		       __func__);
+		pr_err("[lock loop]%s: load secret failed\n", __func__);
 		ret = -2;
 		goto end;
 	}
@@ -2392,7 +2320,7 @@ static ssize_t w1_ds28e1x_if_secret_write(struct device *device,
 	get_random_bytes(challenge, 32);	// random challenge
 	ret =
 	    w1_ds28e1x_read_authverify(sl, 0, challenge, g_data_writing_page,
-				       manid, 1, 0);
+				       manid, 0, 0);
 	pr_err("[lock loop]%s: load secret with lock OK!\n", __func__);
 #endif
 
@@ -2401,9 +2329,8 @@ end:
 		pr_err("SUCCESS Do Secret Loading!!\n");
 		return ATTR_SIZE_DBG_SECRET;
 	}
-		pr_err("FAILED Do Secret Loading!!\n");
-		return 0;
-
+	pr_err("FAILED Do Secret Loading!!\n");
+	return 0;
 }
 
 static struct device_attribute w1_ds28e1x_if_lists[] = {
@@ -2424,14 +2351,11 @@ static int w1_ds28e1x_get_buffer(struct w1_slave *sl, uchar *rdbuf,
 {
 	int ret = -1, retry = 0;
 
-	while ((ret != 0) && (retry < retry_limit)) {
+	while ((ret != 0) && (retry++ < retry_limit)) {
 		ret = w1_ds28e1x_read_page(sl, 0, &rdbuf[0]);
 		if (ret != 0)
-			pr_info("%s : error %d\n", __func__, ret);
-
-		retry++;
+			pr_info("%s : retry time = %d\n", __func__, retry);
 	}
-
 	return ret;
 }
 
@@ -2499,120 +2423,41 @@ static int cdev_open(struct inode *inode, struct file *filp)
 	return 0;
 }
 
-//--------------------------------------------------------------------------
-//  w1_ds28e1x_verifymac
-//
-//  compare two mac data, Device mac and calculated mac and
-//  returned the result
-//  Returns: 0 - Success, have the same mac data in both of Device and AP.
-//  else - Failed, have the different mac data or verifying sequnce failed.
-//
-int w1_ds28e1x_verifymac_cal(struct w1_slave *sl, char *secret_buf,
-			     unsigned int cvalue)
-{
-	int rslt, rt;
-	uchar buf[256], challenge[32], manid[2];
-	int i = 0;
-	uchar master_secret[32];
-	uchar master_data[32];
-	//uchar check_data[32];
-	unsigned int w = 0;
-
-	rt = 0;
-	rslt = 0;
-
-	//write key and data to IC dynamic function only used in test version
-	//needs to be removel in release version by wilbur
-#ifdef DYNAMIC_KEY
-	if (secret_buf != NULL) {
-
-		memcpy(master_data, secret_buf, 32);
-		memcpy(master_secret, &secret_buf[32], 32);
-
-		// Store the master secret and romid.
-		//"Write scratchpad - master secret\n"
-		rslt = w1_ds28e1x_write_scratchpad(sl, master_secret);
-
-		if (rslt)
-			rt = -1;
-
-		/* Load the master secret */
-		rslt = w1_ds28e1x_load_secret(sl, 0);
-
-		if (rslt)
-			rt = -1;
-
-		set_secret(master_secret);
-		set_romid(rom_no);
-	}
-
-	/* load data here modify by wilbur */
-	w1_ds28e1x_write_page(sl, 0, master_data);
-
-#else
-	if (secret_buf != NULL) {
-
-		memcpy(master_data, secret_buf, 32);
-		memcpy(master_secret, &secret_buf[32], 32);
-		set_secret(master_secret);
-		set_romid(rom_no);
-	}
-#endif
-
-	// read personality bytes to get manufacturer ID
-	while (i < RETRY_LIMIT) {
-		rslt = w1_ds28e1x_read_status(sl, 0xE0, buf);
-		if (rslt == 0) {
-			//syslog(LOG_INFO,"ds28e1x_read_status ok\n");
-			break;
-		}
-		mdelay(RETRY_DELAY);
-		i++;
-	}
-
-	i = 0;
-
-	if (rslt == 0) {
-		manid[0] = buf[3];
-		manid[1] = buf[2];
-	} else {
-		rt = -1;
-		pr_info("w1_ds28e1x_read_status_error ->rt %d\n", rt);
-		goto success;
-	}
-
-	memcpy(challenge, g_data_partial_ch, 32);
-
-	w = d_calculateCrossCheckValue(cvalue);
-
-	rslt =
-	    w1_ds28e1x_read_authverify_cal(sl, 0, challenge, master_data, manid,
-					   1, 0, w);
-
-	mdelay(RETRY_DELAY);
-
-	if (rslt) {
-		rt = rslt;
-		pr_info("w1_ds28e1x_verifymac ->rslt %d\n", rslt);
-	}
-
-success:
-	return rt;
-}
 
 static long cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 {
-	int ret;
+	int ret = 0;
 	void __user *arg = (void __user *)p;
-	int retry_cnt = retry_auth_max_cnt;
+	int retry_cnt = retry_max_cnt;
+	int match_retry_count = 0;
+	struct w1_master *dev = NULL;
+	struct w1_slave *get = NULL;
 
 	switch (cmd) {
 	case W1_IOCTL_MATCH:
 		{
-			if (slave_cdev_m_p->sl->family->fid == 0X4B)
-				return 0;
-			else
-				return -1;
+			while (match_retry_count++ < retry_max_cnt) {
+				sl = NULL;
+				w1_process_match(&dev);
+				if (dev != NULL) {
+					mutex_lock(&dev->list_mutex);
+					list_for_each_entry(get, &dev->slist,
+							w1_slave_entry)
+						sl = get;
+					mutex_unlock(&dev->list_mutex);
+	if (sl == NULL || sl->reg_num.family != 0x4b) {
+		pr_err("%s: no slave device found,rery time = %d\n"
+		, __func__, match_retry_count);
+						ret = -1;
+						continue;
+					} else
+						return 0;
+				} else {
+					pr_err("%s: no master device found\n",
+					__func__);
+					return -1;
+				}
+			}
 		}
 		break;
 
@@ -2620,10 +2465,14 @@ static long cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 		{
 			unsigned char rdbuf[32];
 
-			ret = w1_ds28e1x_get_buffer(slave_cdev_m_p->sl,
-		rdbuf, 50);
-			if (ret != 0)
+			mutex_lock(&lock);
+			ret = w1_ds28e1x_get_buffer(sl, rdbuf, 50);
+			mutex_unlock(&lock);
+			if (ret != 0) {
+				pr_err("%s: w1_ds28e1x_get_buffer error\n",
+				       __func__);
 				break;
+			}
 			if (!arg || (copy_to_user
 				     (arg, (const void *)rdbuf, 32)))
 				return -1;
@@ -2632,24 +2481,61 @@ static long cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 
 	case W1_IOCTL_AUTH:
 		{
-			struct w1_notify_s notify;
+			unsigned char mac[32], challenge[32];
 
 			if (!arg
-			    || copy_from_user(&notify, (const char *)arg,
-					      sizeof(notify)))
+			    || copy_from_user(challenge, (const char *)arg, 32))
 				return -1;
 retry_jump:
-			ret = w1_ds28e1x_verifymac_cal(slave_cdev_m_p->sl,
-			(char *)(&(notify.aes_result[0])), notify.value);
+			mutex_lock(&lock);
+			ret = w1_ds28e1x_mac_read(sl, challenge, mac, 0, 0);
+			mutex_unlock(&lock);
 			if ((ret < 0) && (--retry_cnt > 0)) {
-				pr_info("w1_ioctl auth retry %d\n", retry_cnt);
+				pr_info("%s : w1_ds28e1x_mac_read retry %d\n",
+					__func__, retry_cnt);
 				goto retry_jump;
 			}
+			if (!arg || (copy_to_user(arg, mac, 32)))
+				return -1;
 		}
 		break;
 
+	case W1_IOCTL_MNUID:
+		{
+			unsigned char rdbuf[2];
+
+			mutex_lock(&lock);
+			ret = w1_ds28e1x_mnid_read(sl, rdbuf);
+			mutex_unlock(&lock);
+			if (ret != 0)
+				if (ret != 0) {
+					pr_err("%s : w1_ds28e1x_mnid_read error\n",
+					__func__);
+					break;
+				}
+			if (!arg || (copy_to_user(arg, (const void *)rdbuf, 2)))
+				return -1;
+		}
+		break;
+
+	case W1_IOCTL_ROMUID:
+		{
+			unsigned char rdbuf[8];
+
+			mutex_lock(&lock);
+			ret = w1_ds28e1x_romid_read(sl, rdbuf);
+			mutex_unlock(&lock);
+			if (ret != 0) {
+				pr_err("%s : w1_ds28e1x_romid_read error\n",
+				       __func__);
+				break;
+			}
+			if (!arg || (copy_to_user(arg, (const void *)rdbuf, 8)))
+				return -1;
+		}
+		break;
 	default:
-		pr_info("w1_ioctl unknown cmd %d\n", cmd);
+		pr_err("w1_ioctl unknown cmd %d\n", cmd);
 		ret = -1;
 		break;
 	}
@@ -2724,9 +2610,6 @@ static int w1_ds28e1x_add_slave(struct w1_slave *sl)
 {
 	int err = 0;
 	int ii;
-
-	pr_err("\nw1_ds28e1x_add_slave start\n");
-	slave_cdev_m_p = &slave_cdev_m;
 #ifdef CONFIG_OF_SUBCMDLINE_PARSE
 	err = get_array_value();
 	if (err) {
@@ -2738,8 +2621,7 @@ static int w1_ds28e1x_add_slave(struct w1_slave *sl)
 		err = device_create_file(&sl->dev, &w1_ds28e1x_if_lists[ii]);
 		if (err) {
 			device_remove_file(&sl->dev, &w1_ds28e1x_if_lists[ii]);
-			pr_err(
-			       "%s: create device attribute file error\n",
+			pr_err("%s: create device attribute file error\n",
 			       __func__);
 			//!TBD: previous successfully
 			//created file cleanup can be removed also.
@@ -2768,8 +2650,7 @@ static int w1_ds28e1x_add_slave(struct w1_slave *sl)
 #else
 			err = w1_ds28e1x_setup_device(sl);
 #endif
-			pr_err("w1_ds28e1x_setup_device result=%d\n",
-			       err);
+			pr_err("w1_ds28e1x_setup_device result=%d\n", err);
 			if (err == 0)
 				skip_setup = 1;
 			err = w1_ds28e1x_verifymac(sl);
@@ -2791,11 +2672,6 @@ static int w1_ds28e1x_add_slave(struct w1_slave *sl)
 
 	pr_err("w1_ds28e1x_add_slave end, skip_setup=%d, err=%d\n",
 	       skip_setup, err);
-
-/**add by guoying **/
-	err = slave_cdev_init();
-/**add by guoying **/
-
 	return err;
 }
 
@@ -2808,7 +2684,6 @@ static void w1_ds28e1x_remove_slave(struct w1_slave *sl)
 
 	verification = -1;
 	pr_err("\nw1_ds28e1x_remove_slave\n");
-	slave_cdev_exit();
 }
 
 static struct w1_family_ops w1_ds28e1x_fops = {
@@ -2816,10 +2691,12 @@ static struct w1_family_ops w1_ds28e1x_fops = {
 	.remove_slave = w1_ds28e1x_remove_slave,
 };
 
+#if 0
 static struct w1_family w1_ds28e15_family = {
 	.fid = W1_FAMILY_DS28E15,
 	.fops = &w1_ds28e1x_fops,
 };
+#endif
 
 static struct w1_family w1_ds28e11_family = {
 	.fid = W1_FAMILY_DS28E11,
@@ -2829,16 +2706,19 @@ static struct w1_family w1_ds28e11_family = {
 static int __init w1_ds28e1x_init(void)
 {
 	int ret = 0;
+	slave_cdev_m_p = &slave_cdev_m;
+	mutex_init(&lock);	//ï¿½ï¿½Ê¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 	//!E15 is only for debug in development stage.
-	ret |= w1_register_family(&w1_ds28e15_family);
 	ret |= w1_register_family(&w1_ds28e11_family);
+	slave_cdev_init();
 	return ret;
 }
 
 static void __exit w1_ds28e1x_exit(void)
 {
 	//!E15 is only for debug in development stage.
-	w1_unregister_family(&w1_ds28e15_family);
+	//w1_unregister_family(&w1_ds28e15_family);
+	slave_cdev_exit();
 	w1_unregister_family(&w1_ds28e11_family);
 }
 
@@ -2847,5 +2727,4 @@ module_exit(w1_ds28e1x_exit);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Clark Kim <clark.kim@maximintegrated.com>");
-MODULE_DESCRIPTION
-("1-wire Driver for Maxim/Dallas DS23EL15 DeepCover Secure Authenticator IC");
+MODULE_DESCRIPTION("1-wire Driver Authenticator IC");
