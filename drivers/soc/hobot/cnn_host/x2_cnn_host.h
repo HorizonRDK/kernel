@@ -123,6 +123,16 @@ struct x2_int_info {
 	unsigned int fc_total;
 	unsigned int int_num;
 };
+
+struct x2_cnnfreq {
+	struct devfreq *devfreq;
+	struct mutex lock;
+
+	unsigned long rate, target_rate;
+	unsigned long volt, target_volt;
+	unsigned long min, max;
+};
+
 struct x2_cnn_dev {
 	void __iomem	*cnn_base;
 	u32		irq;
@@ -168,7 +178,9 @@ struct x2_cnn_dev {
 	u32 iso_bit;
 	struct completion bpu_completion;
 	int zero_int_cnt;
-
+#ifdef CONFIG_HOBOT_CNN_DEVFREQ
+	struct x2_cnnfreq *cnnfreq;
+#endif
 };
 
 struct cnn_debugfs_info {

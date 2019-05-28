@@ -492,6 +492,7 @@
 			clocks = <&cnn0_aclk>,<&cnn0_mclk>;
 			clock-names = "cnn0_aclk","cnn0_mclk";
 			iso-bit = <1>;
+			operating-points-v2 = <&cnn_opp_table>;
 			status = "disabled";
 		};
 
@@ -508,6 +509,7 @@
 			clocks = <&cnn1_aclk>,<&cnn1_mclk>;
 			clock-names = "cnn1_aclk","cnn1_mclk";
 			iso-bit = <5>;
+			operating-points-v2 = <&cnn_opp_table>;
 			status = "disabled";
 		};
 		bifspi: bifspi@0xA1006000 {
@@ -602,6 +604,35 @@
 			reboot-offset = <0x20>;
 		};
 
+		cnn_opp_table: cnn_opp_table {
+			compatible = "operating-points-v2";
+			opp-shared;
+			opp00 {
+				opp-hz = /bits/ 64 <800000000>;
+				opp-microvolt = <1000000>;
+				clock-latency-ns = <500000>;
+			};
+			opp01 {
+				opp-hz = /bits/ 64 <533333333>;
+				opp-microvolt = <900000>;
+				clock-latency-ns = <500000>;
+			};
+			opp02 {
+				opp-hz = /bits/ 64 <400000000>;
+				opp-microvolt = <800000>;
+				clock-latency-ns = <500000>;
+			};
+			opp03 {
+				opp-hz = /bits/ 64 <320000000>;
+				opp-microvolt = <800000>;
+				clock-latency-ns = <500000>;
+			};
+			opp04 {
+				opp-hz = /bits/ 64 <200000000>;
+				opp-microvolt = <800000>;
+				clock-latency-ns = <500000>;
+			};
+		};
 	};
 };
 

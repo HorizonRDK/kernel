@@ -44,6 +44,10 @@
 #include <linux/kfifo.h>
 #include <linux/clk-provider.h>
 #include <linux/regulator/consumer.h>
+#ifdef CONFIG_HOBOT_CNN_DEVFREQ
+#include <linux/devfreq.h>
+#include <linux/pm_opp.h>
+#endif
 #include "x2_cnn_host.h"
 
 #define NETLINK_BPU 24
@@ -379,7 +383,7 @@ static irqreturn_t x2_cnn_interrupt_handler(int irq, void *dev_id)
 			pr_err("interrupt num is error\n");
 		atomic_sub(tmp.fc_total, &dev->wait_fc_cnt);
 	} else
-		pr_err("error\n");
+		pr_err("%s: error\n", __func__);
 	pr_debug("!!!!!!xxxx x2 cnn interrupt\n");
 	tasklet_schedule(&dev->tasklet);
 	return IRQ_HANDLED;
@@ -929,8 +933,24 @@ static void x2_cnn_do_tasklet(unsigned long data)
 	}
 	if (atomic_read(&dev->mod_frq_flg) ||
 		atomic_read(&dev->power_down_flg)) {
-		complete(&dev->bpu_completion);
+		if (atomic_read(&dev->wait_fc_cnt) == 0)
+			complete(&dev->bpu_completion);
 	}
+}
+
+int lock_bpu(struct x2_cnn_dev *dev)
+{
+	mutex_lock(&dev->cnn_lock);
+	atomic_set(&dev->mod_frq_flg, MOD_FRQ);
+	if ((atomic_read(&dev->wait_fc_cnt) > 0))
+		/*wait bpu idle*/
+		wait_for_completion(&dev->bpu_completion);
+}
+
+int unlock_bpu(struct x2_cnn_dev *dev)
+{
+	atomic_set(&dev->mod_frq_flg, MOD_FRQ_DONE);
+	mutex_unlock(&dev->cnn_lock);
 }
 
 static void *cnn_ram_vmap(phys_addr_t start, size_t size,
@@ -1083,6 +1103,194 @@ int cnn_debugfs_init(struct x2_cnn_dev *dev, int cnn_id, struct dentry *root)
 	return 0;
 }
 
+#ifdef CONFIG_HOBOT_CNN_DEVFREQ
+static int cnnfreq_target(struct device *dev, unsigned long *freq,
+				   u32 flags)
+{
+	struct x2_cnn_dev *cnn_dev = dev_get_drvdata(dev);
+	struct x2_cnnfreq *cnnfreq = cnn_dev->cnnfreq;
+	struct dev_pm_opp *opp;
+	unsigned long old_clk_rate = cnnfreq->rate;
+	unsigned long rate, target_volt, target_rate;
+	int err;
+
+	lock_bpu(cnn_dev);
+
+	rcu_read_lock();
+
+	opp = devfreq_recommended_opp(dev, freq, flags);
+	if (IS_ERR(opp)) {
+		rcu_read_unlock();
+		err = PTR_ERR(opp);
+		goto out;
+	}
+	rate = dev_pm_opp_get_freq(opp);
+	target_volt = dev_pm_opp_get_voltage(opp);
+
+	rcu_read_unlock();
+
+	target_rate = clk_round_rate(cnn_dev->cnn_mclk, rate);
+	if ((long)target_rate <= 0)
+		target_rate = rate;
+
+	if (cnnfreq->rate == target_rate) {
+		if (cnnfreq->volt == target_volt) {
+			err = 0;
+			goto out;
+		}
+		err = regulator_set_voltage(cnn_dev->cnn_regulator,
+					target_volt,INT_MAX);
+		if (err) {
+			dev_err(dev, "Cannot set voltage %lu uV\n",
+				target_volt);
+			goto out;
+		}
+	}
+
+	if (old_clk_rate < target_rate) {
+		err = regulator_set_voltage(cnn_dev->cnn_regulator,
+					target_volt, INT_MAX);
+		if (err) {
+			dev_err(dev, "Cannot set voltage %lu uV\n",
+				target_volt);
+			goto out;
+		}
+	}
+
+	err = clk_set_rate(cnn_dev->cnn_mclk, target_rate);
+	if (err) {
+		dev_err(dev, "Cannot set frequency %lu (%d)\n",
+			target_rate, err);
+		regulator_set_voltage(cnn_dev->cnn_regulator,
+				cnnfreq->volt, INT_MAX);
+		goto out;
+	}
+
+	cnnfreq->rate = clk_get_rate(cnn_dev->cnn_mclk);
+
+	if (cnnfreq->rate != target_rate) {
+		dev_err(dev, "Get wrong frequency, Request %lu, Current %lu\n",
+			target_rate, cnnfreq->rate);
+		regulator_set_voltage(cnn_dev->cnn_regulator,
+				cnnfreq->volt, INT_MAX);
+		goto out;
+	} else if (old_clk_rate > target_rate) {
+		err = regulator_set_voltage(cnn_dev->cnn_regulator,
+				target_volt,INT_MAX);
+		if (err) {
+			dev_err(dev, "Cannot set vol %lu uV\n", target_volt);
+			goto out;
+		}
+	}
+
+	cnnfreq->volt = target_volt;
+out:
+	unlock_bpu(cnn_dev);
+	return err;
+}
+
+static int cnnfreq_get_cur_freq(struct device *dev,
+					 unsigned long *freq)
+{
+	struct x2_cnn_dev *cnn_dev = dev_get_drvdata(dev);
+
+	*freq = cnn_dev->cnnfreq->rate;
+
+	return 0;
+}
+
+static struct devfreq_dev_profile hobot_cnnfreq_profile = {
+	.polling_ms	= 0,
+	.target		= cnnfreq_target,
+	.get_cur_freq	= cnnfreq_get_cur_freq,
+};
+
+static int cnnfreq_init_freq_table(struct device *dev,
+					    struct devfreq_dev_profile *devp)
+{
+	int count;
+	int i = 0;
+	unsigned long freq = 0;
+	struct dev_pm_opp *opp;
+
+	rcu_read_lock();
+	count = dev_pm_opp_get_opp_count(dev);
+	if (count < 0) {
+		rcu_read_unlock();
+		return count;
+	}
+	rcu_read_unlock();
+
+	devp->freq_table = kmalloc_array(count, sizeof(devp->freq_table[0]),
+				GFP_KERNEL);
+	if (!devp->freq_table)
+		return -ENOMEM;
+
+	rcu_read_lock();
+	for (i = 0; i < count; i++, freq++) {
+		opp = dev_pm_opp_find_freq_ceil(dev, &freq);
+		if (IS_ERR(opp))
+			break;
+
+		devp->freq_table[i] = freq;
+	}
+	rcu_read_unlock();
+
+	if (count != i)
+		dev_warn(dev, "Unable to enumerate all OPPs (%d!=%d)\n",
+			 count, i);
+
+	devp->max_state = i;
+	return 0;
+}
+
+static int x2_cnnfreq_register(struct x2_cnn_dev *cnn_dev)
+{
+	struct device *dev = cnn_dev->dev;
+	struct x2_cnnfreq *data;
+	struct devfreq_dev_profile *devp = &hobot_cnnfreq_profile;
+	const char *gov_name;
+
+	dev_err(dev, "%s probe\n", __func__);
+
+	data = devm_kzalloc(dev, sizeof(struct x2_cnnfreq), GFP_KERNEL);
+	if (!data)
+		return -ENOMEM;
+
+	if (dev_pm_opp_of_add_table(dev)) {
+		dev_err(dev, "Invalid operating-points in device tree.\n");
+		return -EINVAL;
+	}
+
+	if (cnnfreq_init_freq_table(dev, devp))
+		return -EFAULT;
+
+	data->rate = clk_get_rate(cnn_dev->cnn_mclk);
+	data->volt = regulator_get_voltage(cnn_dev->cnn_regulator);
+
+	devp->initial_freq = data->rate;
+	data->min = devp->freq_table[0];
+	data->max = devp->freq_table[devp->max_state ? devp->max_state - 1 : 0];
+
+	cnn_dev->cnnfreq = data;
+
+	if (of_property_read_string(dev->of_node, "governor", &gov_name))
+		gov_name = "performance";
+
+	data->devfreq = devm_devfreq_add_device(dev, devp,
+						gov_name, NULL);
+	if (IS_ERR(data->devfreq))
+		return PTR_ERR(data->devfreq);
+
+	data->devfreq->min_freq = data->min;
+	data->devfreq->max_freq = data->max;
+	devm_devfreq_register_opp_notifier(dev, data->devfreq);
+
+	dev_err(dev, "%s end\n", __func__);
+	return 0;
+}
+#endif
+
 int x2_cnn_probe(struct platform_device *pdev)
 {
 	int rc;
@@ -1150,6 +1358,7 @@ int x2_cnn_probe(struct platform_device *pdev)
 		if (IS_ERR(cnn_dev->cnn_mclk))
 			pr_info("get cnn1 mclock err\n");
 	}
+
 	regulator_enable(cnn_dev->cnn_regulator);
 	rc = clk_prepare_enable(cnn_dev->cnn_aclk);
 	if (rc)
@@ -1320,6 +1529,9 @@ int x2_cnn_probe(struct platform_device *pdev)
 
 	x2_cnn_reg_write(cnn_dev, X2_CNNINT_MASK, 0x0);
 	pr_info("x2 cnn%d probe OK!\n", cnn_id);
+#ifdef CONFIG_HOBOT_CNN_DEVFREQ
+	x2_cnnfreq_register(cnn_dev);
+#endif
 	return rc;
 
 err_out:
