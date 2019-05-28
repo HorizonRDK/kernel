@@ -231,6 +231,7 @@ void ipu_single_mode_process(uint32_t status)
 			iar_display_caddr =
 			IPU_GET_SLOT(slot_h->info_h.slot_id, ipu->paddr) +
 				slot_h->info_h.ddr_info.ds[5].c_offset;
+			/*
 			pr_info("@@ pddr = %lld\n", ipu->paddr);
 			pr_info("@@ slot_id = %d\n", slot_h->info_h.slot_id);
 			pr_info("@@ base = %llx\n", slot_h->info_h.base);
@@ -242,7 +243,7 @@ void ipu_single_mode_process(uint32_t status)
 					slot_h->info_h.ddr_info.crop.y_offset);
 			pr_info("@@ c_offset = %x\n",
 					slot_h->info_h.ddr_info.crop.c_offset);
-
+			*/
 			iar_set_video_buffer(iar_display_yaddr,
 							iar_display_caddr);
 
