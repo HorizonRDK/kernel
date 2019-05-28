@@ -344,6 +344,7 @@
 			offset = <0x120 0x124 0x128>;
 			bits = <0 0 0>;
 			field = <0x1 0x1 0x1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		cnn0_div_mclk: cnn0_div_mclk {
@@ -362,6 +363,7 @@
 			offset = <0x120 0x124 0x128>;
 			bits = <1 1 1>;
 			field = <0x1 0x1 0x1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 
@@ -381,6 +383,7 @@
 			offset = <0x120 0x124 0x128>;
 			bits = <4 4 4>;
 			field = <0x1 0x1 0x1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		cnn1_div_mclk: cnn1_div_mclk {
@@ -399,6 +402,7 @@
 			offset = <0x120 0x124 0x128>;
 			bits = <5 5 5>;
 			field = <0x1 0x1 0x1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		ddrpll_clk: ddrpll_clk {

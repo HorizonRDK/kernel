@@ -129,6 +129,7 @@ static void __init _of_x2_gate_clk_setup(struct device_node *node, const struct 
 	struct x2_clk_gate_reg reg;
 	const char *parent_name;
 	unsigned int flags = 0;
+	unsigned int val;
 	unsigned int clk_gate_flags = 0;
 	unsigned int data[3] = {0};
 	void __iomem *reg_base;
@@ -164,6 +165,10 @@ static void __init _of_x2_gate_clk_setup(struct device_node *node, const struct 
 	reg.state_bit = data[0];
 	reg.enable_bit = data[1];
 	reg.disable_bit = data[2];
+
+	ret = of_property_read_u32(node, "clk-flags", &val);
+	if (!ret)
+		flags |= val;
 
 	clk = x2_gate_clk_register(NULL, node->name, parent_name, flags, &reg, clk_gate_flags, ops);
 
