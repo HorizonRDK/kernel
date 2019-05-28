@@ -78,6 +78,7 @@
 #define REGS_TX_PLL_28           (0x179)
 #define REGS_TX_PLL_29           (0x17A)
 #define REGS_TX_PLL_30           (0x17B)
+#define REGS_TX_CB_2             (0x1AC)
 #define REGS_TX_SLEW_5           (0x270)
 #define REGS_TX_SLEW_7           (0x272)
 
@@ -103,6 +104,8 @@
 #define TX_PLL_RST_TIME_L        (0xFF)
 #define TX_PLL_GEAR_SHIFT_L      (0x6)
 #define TX_PLL_GEAR_SHIFT_H      (0x1)
+#define TX_PLL_CLKDIV_CLK_LMT    (450)
+#define TX_PLL_CLKDIV_CLK_EN     (0x10)
 
 typedef struct _reg_s {
 	uint32_t offset;
@@ -368,13 +371,14 @@ static const pll_range_table_t g_vco_range_table[] = {
 	{40,   55,   0x3F},
 };
 
-static uint32_t mipi_tx_vco_range(uint32_t vcoclk)
+static uint32_t mipi_tx_vco_range(uint16_t vcoclk, uint16_t *vcomax)
 {
 	uint8_t  index = 0;
 	for (index = 0; index < sizeof(g_vco_range_table) / sizeof(pll_range_table_t); index++) {
 		if (vcoclk >= g_vco_range_table[index].low && vcoclk <= g_vco_range_table[index].high) {
 			mipiinfo("vcoclk: %d, selected range: %d-%d, range value: %d",
 					 vcoclk, g_vco_range_table[index].low, g_vco_range_table[index].high, g_vco_range_table[index].value);
+			*vcomax = g_vco_range_table[index].high;
 			return g_vco_range_table[index].value;
 		}
 	}
@@ -388,6 +392,7 @@ static int32_t mipi_tx_pll_div(uint16_t refsclk, uint16_t laneclk, uint8_t *n, u
 	uint16_t m_tmp = TX_PLL_FB_MULTI_MIN;
 	uint16_t fout = 0;
 	uint16_t fvco = 0;
+	uint16_t fvco_max = 0;
 	uint16_t vco_div = 0;
 	uint16_t outclk = 0;
 	if (!refsclk || !laneclk || NULL == n || NULL == m) {
@@ -427,7 +432,8 @@ static int32_t mipi_tx_pll_div(uint16_t refsclk, uint16_t laneclk, uint8_t *n, u
 	*m = m_tmp - 2;
 	fvco = (refsclk * (*m + 2)) / (*n + 1);
 	fout = fvco >> vco_div;
-	*vco = mipi_tx_vco_range(fout);
+	*vco = mipi_tx_vco_range(fvco, &fvco_max);
+	*m = fvco_max * (*n + 1) / refsclk - 2;
 	outclk = fout << 1;
 	mipiinfo("pll div refsclk: %d, laneclk: %d, n: %d, m: %d, outclk: %d",
 			 refsclk, laneclk, *n, *m, outclk);
@@ -468,13 +474,15 @@ int32_t mipi_dev_dphy_initialize(void __iomem *iomem, uint16_t mipiclk, uint16_t
 	mipi_dev_dphy_testdata(REGS_TX_PLL_28, TX_PLL_MULTI_L(m));
 	mipi_dev_dphy_testdata(REGS_TX_PLL_29, TX_PLL_MULTI_H(m));
 	mipi_dev_dphy_testdata(REGS_TX_PLL_30, TX_PLL_VCO(vco));
-	//mipi_dev_dphy_testdata(REGS_TX_SYSTIMERS_23, TX_HS_ZERO(settle));
+	mipi_dev_dphy_testdata(REGS_TX_SYSTIMERS_23, TX_HS_ZERO(settle));
 	mipi_dev_dphy_testdata(REGS_TX_PLL_1,  TX_PLL_CPBIAS);
 	mipi_dev_dphy_testdata(REGS_TX_PLL_4,  TX_PLL_INT_CTL);
 	mipi_dev_dphy_testdata(REGS_TX_PLL_17, TX_PLL_PROP_CNTRL);
 	mipi_dev_dphy_testdata(REGS_TX_PLL_19, TX_PLL_RST_TIME_L);
 	mipi_dev_dphy_testdata(REGS_TX_PLL_2,  TX_PLL_GEAR_SHIFT_L);
 	mipi_dev_dphy_testdata(REGS_TX_PLL_3,  TX_PLL_GEAR_SHIFT_H);
+	if (outclk < TX_PLL_CLKDIV_CLK_LMT)
+		mipi_dev_dphy_testdata(REGS_TX_CB_2, TX_PLL_CLKDIV_CLK_EN);
 
 	return 0;
 }

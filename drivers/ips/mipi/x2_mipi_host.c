@@ -259,7 +259,7 @@ static int32_t mipi_host_configure_ipi(mipi_host_cfg_t *control)
 	mipi_putreg(iomem + REG_MIPI_HOST_IPI_HSA_TIME, control->hsaTime);
 	mipi_putreg(iomem + REG_MIPI_HOST_IPI_HBP_TIME, control->hbpTime);
 	mipi_putreg(iomem + REG_MIPI_HOST_IPI_HSD_TIME, control->hsdTime);
-	//mipi_putreg(iomem + REG_MIPI_HOST_IPI_ADV_FEATURES, MIPI_HOST_LEGCYMODE_ENABLE);
+	mipi_putreg(iomem + REG_MIPI_HOST_IPI_ADV_FEATURES, 0x03 << 16);
 
 	if (MIPIHOST_CHANNEL_NUM == control->channel_num) {
 		/*Select virtual channel and data type to be processed by IPI*/
