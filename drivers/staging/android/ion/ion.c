@@ -1554,7 +1554,7 @@ DEFINE_SIMPLE_ATTRIBUTE(debug_shrink_fops, debug_shrink_get,
 
 void ion_device_add_heap(struct ion_device *dev, struct ion_heap *heap)
 {
-	/* struct dentry *debug_file; */
+	struct dentry *debug_file;
 
 	if (!heap->ops->allocate || !heap->ops->free || !heap->ops->map_dma ||
 	    !heap->ops->unmap_dma)
@@ -1579,7 +1579,6 @@ void ion_device_add_heap(struct ion_device *dev, struct ion_heap *heap)
 	 */
 	plist_node_init(&heap->node, -heap->id);
 	plist_add(&heap->node, &dev->heaps);
-#if 0
 	debug_file = debugfs_create_file(heap->name, 0664,
 					dev->heaps_debug_root, heap,
 					&debug_heap_fops);
@@ -1591,7 +1590,6 @@ void ion_device_add_heap(struct ion_device *dev, struct ion_heap *heap)
 		pr_err("Failed to create heap debugfs at %s/%s\n",
 			path, heap->name);
 	}
-#endif
 
 #ifdef DEBUG_HEAP_SHRINKER
 	if (heap->shrinker.count_objects && heap->shrinker.scan_objects) {
