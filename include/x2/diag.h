@@ -3,14 +3,14 @@
  *   bo01.chen@horizon.ai                                                  *
  *                                                                         *
  *   Diag netlink header file.                                             *
- *	 version: v1.0                                                         *
+ *	 version: v1.0                                                     *
  *                                                                         *
  ***************************************************************************/
 #ifndef NETLINK_DIAG_H
 #define NETLINK_DIAG_H
 
-#define DIAG_MSG_HEAD 0xAA		// diag msg identifier.
-#define DIAG_MSG_VER 0x01		// What version of the dig msg
+#define DIAG_MSG_HEAD 0xAA	// diag msg identifier.
+#define DIAG_MSG_VER  0x01	// What version of the dig msg
 #define FRAGMENT_SIZE 0x4000	// netlink msg fragment max size.
 
 extern struct net init_net;
@@ -66,6 +66,7 @@ typedef struct {
  */
 typedef enum {
 	IMAGE_FRAME	= 0, // range belong to kernel modules.
+	DIAG_DEV_KERNEL_TO_USER_SELFTEST,
 	EVENT_MAX	= 11,
 
 	/* userspace app event below */
@@ -132,7 +133,6 @@ extern int diag_send_event_stat_and_env_data(diag_event_id event,
 			env_data_type env_typ,
 			uint8_t *env_data,
 			size_t env_len);
-
 
 #endif
 

@@ -13,8 +13,11 @@
 #include <linux/types.h>
 #include <net/sock.h>
 #include <linux/netlink.h>
+//#include <x2/diag.h>
 #include <x2/diag.h>
+#include "diag_dev.h"
 
+#define NETLINK_DIAG 30
 #define MSG_LEN     200
 #define USER_PORT   100
 
@@ -29,6 +32,7 @@
 #define diag_error printk
 
 struct sock *nlsk;
+struct completion diag_dev_completion;
 
 static uint32_t diag_checksum(uint8_t *pbuff, uint32_t len)
 {
@@ -285,23 +289,27 @@ static void netlink_rcv_msg(struct sk_buff *skb)
 	//char *kmsg = "kernel space: hello users!!!";
 	unsigned char *data;
 
-	data = vmalloc(0x500000);
-	memset(data, 0x01, 0x500000);
+	data = kmalloc(100, GFP_KERNEL);
+	memset(data, 0x01, 100);
 	if (!data) {
-		diag_error("vmalloc fail\n");
+		diag_error("kmalloc fail\n");
 		return;
 	}
 
 	if (skb->len >= nlmsg_total_size(0)) {
 		nlh = nlmsg_hdr(skb);
 		umsg = NLMSG_DATA(nlh);
+		diag_debug("diag:kernel rcv msg: %s\n", umsg);
 		if (umsg) {
-			diag_error("userspace: %s\n", umsg);
-			//send_diag_msg(data, 0x500000);
+			if (strncmp(umsg, "self test ok", 12) == 0)
+				complete(&diag_dev_completion);
+				diag_debug("diag: complete snd ok\n");
+		} else {
+			diag_error("diag: self test fail\n");
 		}
 	}
 
-	vfree(data);
+	kfree(data);
 }
 
 struct netlink_kernel_cfg cfg = {
@@ -310,6 +318,8 @@ struct netlink_kernel_cfg cfg = {
 
 int diag_netlink_init(void)
 {
+	int ret;
+
 	/* create netlink socket */
 	nlsk = (struct sock *)netlink_kernel_create(
 		&init_net,
@@ -319,8 +329,7 @@ int diag_netlink_init(void)
 		diag_error("netlink_kernel_create error !\n");
 		return -1;
 	}
-
-	diag_debug("diag netlink init\n");
+	diag_debug("diag netlink init exit\n");
 	return 0;
 }
 
@@ -332,11 +341,4 @@ void diag_netlink_exit(void)
 	}
 	diag_debug("diag netlink exit!\n");
 }
-
-module_init(diag_netlink_init);
-module_exit(diag_netlink_exit);
-
-MODULE_LICENSE("GPL");
-MODULE_AUTHOR("bo01.chen@horizon.ai");
-MODULE_DESCRIPTION("fusa netlink module");
 
