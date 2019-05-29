@@ -123,5 +123,6 @@ int bif_rx_get_stock_frame(struct comm_channel *channel,
 struct bif_frame_cache **frame);
 int bif_start(struct comm_channel *channel);
 int bif_stop(struct comm_channel *channel);
+void bif_frame_decrease_count(struct comm_channel *channel);
 
 #endif
