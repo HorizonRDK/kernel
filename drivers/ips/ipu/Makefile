@@ -8,3 +8,4 @@ obj-y += ipu_slot_dual.o
 obj-y += ipu_single.o
 obj-y += ipu_dual.o
 obj-y += ipu_feed_back.o
+obj-y += ipu_ddr.o

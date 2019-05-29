@@ -59,7 +59,7 @@
 #define MIPI_HOST_CFGCLK_DEFAULT   (0x1C)
 
 #define HOST_DPHY_LANE_MAX         (4)
-#define HOST_DPHY_CHECK_MAX        (8000)
+#define HOST_DPHY_CHECK_MAX        (1000)
 #define HOST_DPHY_LANE_STOP(l)     (0xF>>(HOST_DPHY_LANE_MAX-(l)))
 #define HOST_DPHY_RX_HS            (0x030000)
 
@@ -94,6 +94,24 @@ unsigned int mipi_host_nocheck = 0;
 unsigned int mipi_host_notimeout = 0;
 module_param(mipi_host_nocheck, uint, S_IRUGO | S_IWUSR);
 module_param(mipi_host_notimeout, uint, S_IRUGO | S_IWUSR);
+
+/* new add */
+uint32_t mipi_host_states;
+unsigned int need_phy_reset;
+unsigned int mipi_delay_time;
+unsigned int dbg_value;
+unsigned int need_stop_check;
+module_param(mipi_host_states, uint, 0644);
+module_param(need_phy_reset, uint, 0644);
+module_param(mipi_delay_time, uint, 0644);
+module_param(dbg_value, uint, 0644);
+module_param(need_stop_check, uint, 0644);
+#define mipidbg(format, ...)	\
+	do {						\
+		if ((dbg_value >= 1))	\
+			printk(KERN_INFO format "\n", ##__VA_ARGS__);	\
+	} while (0)
+/* new add */
 
 #define MIPIHOSTIOC_READ        _IOWR(MIPIHOSTIOC_MAGIC, 4, reg_t)
 #define MIPIHOSTIOC_WRITE       _IOW(MIPIHOSTIOC_MAGIC, 5, reg_t)
@@ -417,34 +435,37 @@ static irqreturn_t mipi_host_irq_func(int this_irq, void *data)
 	disable_irq_nosync(this_irq);
 	iomem = mipi_host->iomem;
 	irq = mipi_getreg(iomem + REG_MIPI_HOST_INT_ST_MAIN);
-	mipiinfo("mipi host irq status 0x%x\n", irq);
+	/* new add */
+	mipi_host_states = irq;
+	/* new add */
+	mipidbg("mipi host irq status 0x%x\n", irq);
 	if (irq & MIPI_HOST_INT_PHY_FATAL) {
 		subirq = mipi_getreg(iomem + REG_MIPI_HOST_INT_ST_PHY_FATAL);
-		mipiinfo("mipi host PHY FATAL: 0x%x", subirq);
+		mipidbg("mipi host PHY FATAL: 0x%x", subirq);
 	}
 	if (irq & MIPI_HOST_INT_PKT_FATAL) {
 		subirq = mipi_getreg(iomem + REG_MIPI_HOST_INT_ST_PKT_FATAL);
-		mipiinfo("mipi host PKT FATAL: 0x%x", subirq);
+		mipidbg("mipi host PKT FATAL: 0x%x", subirq);
 	}
 	if (irq & MIPI_HOST_INT_FRM_FATAL) {
 		subirq = mipi_getreg(iomem + REG_MIPI_HOST_INT_ST_FRAME_FATAL);
-		mipiinfo("mipi host FRAME FATAL: 0x%x", subirq);
+		mipidbg("mipi host FRAME FATAL: 0x%x", subirq);
 	}
 	if (irq & MIPI_HOST_INT_PHY) {
 		subirq = mipi_getreg(iomem + REG_MIPI_HOST_INT_ST_PHY);
-		mipiinfo("mipi host PHY ST: 0x%x", subirq);
+		mipidbg("mipi host PHY ST: 0x%x", subirq);
 	}
 	if (irq & MIPI_HOST_INT_PKT) {
 		subirq = mipi_getreg(iomem + REG_MIPI_HOST_INT_ST_PKT);
-		mipiinfo("mipi host PKT ST: 0x%x", subirq);
+		mipidbg("mipi host PKT ST: 0x%x", subirq);
 	}
 	if (irq & MIPI_HOST_INT_LINE) {
 		subirq = mipi_getreg(iomem + REG_MIPI_HOST_INT_ST_LINE);
-		mipiinfo("mipi host LINE ST: 0x%x", subirq);
+		mipidbg("mipi host LINE ST: 0x%x", subirq);
 	}
 	if (irq & MIPI_HOST_INT_IPI) {
 		subirq = mipi_getreg(iomem + REG_MIPI_HOST_INT_ST_IPI);
-		mipiinfo("mipi host IPI ST: 0x%x", subirq);
+		mipidbg("mipi host IPI ST: 0x%x", subirq);
 	}
 	enable_irq(this_irq);
 	return IRQ_HANDLED;
@@ -515,6 +536,10 @@ static int32_t mipi_host_dphy_start_hs_reception(void)
  */
 int32_t mipi_host_start(void)
 {
+	/* new add */
+	mipi_host_states = 0;
+	/* new add */
+
 	if (NULL == g_mipi_host) {
 		mipierr("mipi host not inited!");
 		return -1;
@@ -540,6 +565,9 @@ int32_t mipi_host_start(void)
  */
 int32_t mipi_host_stop(void)
 {
+	/* new add */
+	mipi_host_states = 0;
+	/* new add */
 	/*stop mipi host here?*/
 #if MIPI_HOST_INT_DBG
 	mipi_host_irq_disable();
@@ -565,6 +593,9 @@ void mipi_host_deinit(void)
 #ifdef CONFIG_X2_MIPI_PHY
 	mipi_host_dphy_reset();
 #endif
+	/* new add */
+	mipi_host_states = 0;
+	/* new add */
 	/*Set Synopsys D-PHY Reset*/
 	mipi_putreg(iomem + REG_MIPI_HOST_DPHY_RSTZ, MIPI_HOST_CSI2_RESETN);
 	mipi_putreg(iomem + REG_MIPI_HOST_PHY_SHUTDOWNZ, MIPI_HOST_CSI2_RESETN);
@@ -588,6 +619,13 @@ int32_t mipi_host_init(mipi_host_cfg_t *control)
 		mipierr("mipi host not inited!");
 		return -1;
 	}
+	/* new add */
+	mipi_host_states = 0;
+	need_phy_reset = 0;
+	mipi_delay_time = 0;
+	dbg_value = 0;
+	need_stop_check = 0;
+	/* new add */
 	iomem = g_mipi_host->iomem;
 	mipiinfo("mipi host init begin");
 	mipiinfo("%d lane %dx%d %dfps datatype 0x%x",
@@ -620,7 +658,7 @@ int32_t mipi_host_init(mipi_host_cfg_t *control)
 	/*Release DWC_mipi_csi2_host from reset*/
 	mipi_putreg(iomem + REG_MIPI_HOST_CSI2_RESETN, MIPI_HOST_CSI2_RAISE);
 
-	if (!mipi_host_nocheck) {
+	if (!need_stop_check) {
 		if (0 != mipi_host_dphy_wait_stop(control)) {
 			/*Release DWC_mipi_csi2_host from reset*/
 			mipierr("mipi host wait phy stop state error!!!");
