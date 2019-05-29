@@ -76,8 +76,6 @@ static int bpu0_clk;
 static int bpu1_clk;
 static int bpu0_power;
 static int bpu1_power;
-static int bpu0_frq;
-static int bpu1_frq;
 static struct timer_list check_timer;
 static struct mutex enable_lock;
 
@@ -157,11 +155,6 @@ static const struct file_operations cnn_debugfs_fops = {
 	.llseek = seq_lseek,
 	.release = single_release,
 };
-
-static void cnn_flush_dcache_range(void *addr, size_t len)
-{
-	__flush_dcache_area(addr, len);
-}
 
 /*
  * x2_cnn_fc_gap_mem_init - init memory pattern for
@@ -360,12 +353,29 @@ static int x2_cnn_hw_reset_reinit(struct x2_cnn_dev *cnn_dev, int cnn_id)
 	x2_cnn_set_default_fc_depth(cnn_dev, 1023);
 	return ret;
 }
+static void lock_bpu(struct x2_cnn_dev *dev)
+{
+	mutex_lock(&dev->cnn_lock);
+	if ((atomic_read(&dev->wait_fc_cnt) > 0)) {
+		atomic_set(&dev->hw_flg, MOD_FRQ);
+		/*wait bpu idle*/
+		wait_for_completion(&dev->bpu_completion);
+	}
+}
+
+static void unlock_bpu(struct x2_cnn_dev *dev)
+{
+	atomic_set(&dev->hw_flg, MOD_FRQ_DONE);
+	mutex_unlock(&dev->cnn_lock);
+}
 
 static irqreturn_t x2_cnn_interrupt_handler(int irq, void *dev_id)
 {
+	int ret;
 	struct x2_cnn_dev *dev = (struct x2_cnn_dev *)dev_id;
 	unsigned long flags;
 	u32 irq_status;
+	struct x2_int_info tmp;
 
 	spin_lock_irqsave(&dev->cnn_spin_lock, flags);
 
@@ -375,15 +385,15 @@ static irqreturn_t x2_cnn_interrupt_handler(int irq, void *dev_id)
 
 	x2_cnn_reg_write(dev, X2_CNNINT_MASK, 0x0);
 	spin_unlock_irqrestore(&dev->cnn_spin_lock, flags);
-	struct x2_int_info tmp;
-	int ret = kfifo_out(&dev->int_info_fifo, &tmp,
+	ret = kfifo_out(&dev->int_info_fifo, &tmp,
 					sizeof(struct x2_int_info));
 	if (ret) {
 		if (tmp.int_num != dev->x2_cnn_int_num)
 			pr_err("interrupt num is error\n");
 		atomic_sub(tmp.fc_total, &dev->wait_fc_cnt);
 	} else
-		pr_err("%s: error\n", __func__);
+		pr_err("%s[%d]:interrupt information is empty\n",
+			__func__, __LINE__);
 	pr_debug("!!!!!!xxxx x2 cnn interrupt\n");
 	tasklet_schedule(&dev->tasklet);
 	return IRQ_HANDLED;
@@ -424,8 +434,11 @@ static void x2_cnn_set_fc_start_time(struct x2_cnn_dev *dev, int int_num,
 	if (atomic_read(&dev->wait_fc_cnt) > 0) {
 		/*bpu busy,check zero_int_cnt*/
 		if (dev->zero_int_cnt == 0) {
-			kfifo_in(&dev->fc_time_wait_fifo, &fc_time,
+			ret = kfifo_in(&dev->fc_time_wait_fifo, &fc_time,
 				 sizeof(struct x2_fc_time));
+			if (ret < sizeof(struct x2_fc_time))
+				pr_err("%s[%d]:fc time fifo no space\n",
+					__func__, __LINE__);
 		}
 		/*bpu busy,check int_num*/
 		if (int_num) {
@@ -433,19 +446,30 @@ static void x2_cnn_set_fc_start_time(struct x2_cnn_dev *dev, int int_num,
 			x2_int.int_num = int_num;
 			ret = kfifo_in(&dev->int_info_fifo, &x2_int,
 				       sizeof(struct x2_int_info));
+			if (ret < sizeof(struct x2_int_info))
+				pr_err("%s[%d]:x2 interrupt info fifo no space\n",
+					__func__, __LINE__);
 			dev->zero_int_cnt = 0;
 		} else
 			dev->zero_int_cnt++;
 	} else {
 		do_gettimeofday(&fc_time.start_time);
-		kfifo_in(&dev->fc_time_fifo, &fc_time,
+		ret = kfifo_in(&dev->fc_time_fifo, &fc_time,
 			 sizeof(struct x2_fc_time));
+		if (ret < sizeof(struct x2_fc_time))
+			pr_err("%s[%d]:fc time fifo no space\n",
+				__func__, __LINE__);
+
 		if (int_num) {
 			x2_int.fc_total = dev->zero_int_cnt + 1;
 			x2_int.int_num = int_num;
 			dev->zero_int_cnt = 0;
 			ret = kfifo_in(&dev->int_info_fifo, &x2_int,
 					sizeof(struct x2_int_info));
+			if (ret < sizeof(struct x2_int_info))
+				pr_err("%s[%d]:x2 interrupt info fifo no space\n",
+					__func__, __LINE__);
+
 		} else
 			dev->zero_int_cnt++;
 	}
@@ -517,9 +541,14 @@ static u32 x2_cnn_get_fc_fifo_spaces(struct x2_cnn_dev *dev)
  */
 static void x2_cnn_power_up(struct x2_cnn_dev *dev)
 {
+	int ret;
+	unsigned int tmp;
+
 	pr_info("%s\n", __func__);
-	regulator_enable(dev->cnn_regulator);
-	unsigned int tmp = readl(dev->cnn_pmu);
+	ret = regulator_enable(dev->cnn_regulator);
+	if (ret != 0)
+		dev_err(dev->dev, "regulator enable error\n");
+	tmp = readl(dev->cnn_pmu);
 
 	tmp &= ~(1 << dev->iso_bit);
 	writel(tmp, dev->cnn_pmu);
@@ -538,21 +567,13 @@ static void x2_cnn_power_up(struct x2_cnn_dev *dev)
  */
 static void x2_cnn_power_down(struct x2_cnn_dev *dev)
 {
-	unsigned long flag;
-	int i;
-
+	unsigned int tmp;
 	pr_info("%s\n", __func__);
-	atomic_set(&dev->power_down_flg, 1);
-	mutex_lock(&dev->cnn_lock);
-	if ((atomic_read(&dev->wait_fc_cnt) > 0)) {
-		/*wait bpu idle*/
-		wait_for_completion(&dev->bpu_completion);
-		i++;
-	}
 
+	lock_bpu(dev);
 	clk_disable(dev->cnn_aclk);
 	clk_disable(dev->cnn_mclk);
-	unsigned int tmp = readl(dev->cnn_pmu);
+	tmp = readl(dev->cnn_pmu);
 
 	tmp |= (1 << dev->iso_bit);
 	writel(tmp, dev->cnn_pmu);
@@ -560,8 +581,7 @@ static void x2_cnn_power_down(struct x2_cnn_dev *dev)
 
 	x2_cnn_reset_assert(dev->cnn_rst);
 	regulator_disable(dev->cnn_regulator);
-	mutex_unlock(&dev->cnn_lock);
-	atomic_set(&dev->power_down_flg, 0);
+	unlock_bpu(dev);
 }
 /**
  * x2_cnn_fc_fifo_enqueue - fill the function call into the reserved memory
@@ -579,6 +599,8 @@ static u32 x2_cnn_fc_fifo_enqueue(struct x2_cnn_dev *dev,
 	u32 fc_head_idx, fc_tail_idx,
 	    fc_head_flag, fc_tail_flag;
 	u32 fc_depth, insert_fc_cnt, residue_fc_cnt;
+	u32 count;
+	struct hbrt_x2_funccall_s *tmp_ptr = NULL;
 
 	fc_depth = x2_cnn_reg_read(dev, X2_CNN_FC_LEN);
 	fc_head_idx = x2_cnn_reg_read(dev, X2_CNN_FC_HEAD);
@@ -586,8 +608,7 @@ static u32 x2_cnn_fc_fifo_enqueue(struct x2_cnn_dev *dev,
 
 	fc_tail_idx = x2_cnn_reg_read(dev, X2_CNN_FC_TAIL);
 	fc_tail_flag = fc_tail_idx & X2_CNN_FC_IDX_FLAG;
-	struct hbrt_x2_funccall_s *tmp_ptr =
-		(struct hbrt_x2_funccall_s *)fc_buf->fc_info;
+	tmp_ptr = (struct hbrt_x2_funccall_s *)fc_buf->fc_info;
 
 	if (fc_head_flag != fc_tail_flag)
 		free_fc_fifo = fc_head_idx - fc_tail_idx;
@@ -600,7 +621,7 @@ static u32 x2_cnn_fc_fifo_enqueue(struct x2_cnn_dev *dev,
 		return rc;
 	}
 	fc_tail_idx &= X2_CNN_MAX_FC_LEN_MASK;
-	int count = fc_tail_idx;
+	count = fc_tail_idx;
 	if ((fc_tail_idx + fc_buf->fc_cnt)  > fc_depth) {
 		insert_fc_cnt = fc_depth - fc_tail_idx + 1;
 		memcpy(dev->fc_base + fc_tail_idx * X2_CNN_FC_SIZE,
@@ -706,6 +727,7 @@ static long x2_cnn_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	u32 dir;
 	union cnn_ioctl_arg data;
 	void *kernel_fc_data;
+	struct hbrt_x2_funccall_s *tmp_ptr = NULL;
 
 	dir = cnn_ioctl_dir(cmd);
 
@@ -741,7 +763,6 @@ static long x2_cnn_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		break;
 	case CNN_IOC_FC_ENQUEUE:
 		//size_t size_tmp = data.fc_data.fc_cnt * X2_CNN_FC_SIZE;
-
 		kernel_fc_data = kmalloc(data.fc_data.fc_cnt * X2_CNN_FC_SIZE,
 					GFP_KERNEL);
 		if (!kernel_fc_data) {
@@ -758,8 +779,7 @@ static long x2_cnn_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		}
 		data.fc_data.fc_info = kernel_fc_data;
 
-		struct hbrt_x2_funccall_s *tmp_ptr =
-			(struct hbrt_x2_funccall_s *)data.fc_data.fc_info;
+		tmp_ptr = (struct hbrt_x2_funccall_s *)data.fc_data.fc_info;
 
 		pr_debug("!!!!func: %s, line: %d\n"
 				"tmp_ptr->dyn_base_addr5 is 0x%x,\n"
@@ -917,41 +937,40 @@ static void x2_cnn_do_tasklet(unsigned long data)
 
 	ret = kfifo_avail(&dev->fc_time_save_fifo);
 	if (ret < sizeof(struct x2_fc_time))
-		kfifo_out(&dev->fc_time_save_fifo, &tmp,
-			  sizeof(struct x2_fc_time));
+		ret = kfifo_out(&dev->fc_time_save_fifo, &tmp,
+				sizeof(struct x2_fc_time));
 	/*get fc time*/
 	ret = kfifo_out(&dev->fc_time_fifo, &tmp, sizeof(struct x2_fc_time));
+	if (ret < sizeof(struct x2_fc_time))
+		pr_err("%s[%d]:fc time fifo is empty\n",
+			__func__, __LINE__);
 	do_gettimeofday(&tmp.end_time);
 	ret = kfifo_in(&dev->fc_time_save_fifo, &tmp,
 		       sizeof(struct x2_fc_time));
+	if (ret < sizeof(struct x2_fc_time))
+		pr_debug("%s[%d]:fc time fifo is full\n",
+			__func__, __LINE__);
 	if (kfifo_is_empty(&dev->fc_time_wait_fifo) == 0) {
 		ret = kfifo_out(&dev->fc_time_wait_fifo, &tmp,
 				sizeof(struct x2_fc_time));
+		if (ret < sizeof(struct x2_fc_time))
+			pr_err("%s[%d]:fc time fifo is empty\n",
+				__func__, __LINE__);
+
 		do_gettimeofday(&tmp.start_time);
 		ret = kfifo_in(&dev->fc_time_fifo, &tmp,
 			       sizeof(struct x2_fc_time));
+		if (ret < sizeof(struct x2_fc_time))
+			pr_debug("%s[%d]:fc time fifo is full\n",
+				__func__, __LINE__);
 	}
-	if (atomic_read(&dev->mod_frq_flg) ||
-		atomic_read(&dev->power_down_flg)) {
+	if (atomic_read(&dev->hw_flg)) {
 		if (atomic_read(&dev->wait_fc_cnt) == 0)
 			complete(&dev->bpu_completion);
 	}
 }
 
-int lock_bpu(struct x2_cnn_dev *dev)
-{
-	mutex_lock(&dev->cnn_lock);
-	atomic_set(&dev->mod_frq_flg, MOD_FRQ);
-	if ((atomic_read(&dev->wait_fc_cnt) > 0))
-		/*wait bpu idle*/
-		wait_for_completion(&dev->bpu_completion);
-}
 
-int unlock_bpu(struct x2_cnn_dev *dev)
-{
-	atomic_set(&dev->mod_frq_flg, MOD_FRQ_DONE);
-	mutex_unlock(&dev->cnn_lock);
-}
 
 static void *cnn_ram_vmap(phys_addr_t start, size_t size,
 		unsigned int memtype)
@@ -1359,7 +1378,9 @@ int x2_cnn_probe(struct platform_device *pdev)
 			pr_info("get cnn1 mclock err\n");
 	}
 
-	regulator_enable(cnn_dev->cnn_regulator);
+	rc = regulator_enable(cnn_dev->cnn_regulator);
+	if (rc != 0)
+		dev_err(cnn_dev->dev, "regulator enalbe error\n");
 	rc = clk_prepare_enable(cnn_dev->cnn_aclk);
 	if (rc)
 		pr_info("cnn aclock prepare error\n");
@@ -1452,8 +1473,7 @@ int x2_cnn_probe(struct platform_device *pdev)
 	cnn_dev->fc_base = cnn_ram_vmap(cnn_dev->fc_phys_base,
 				cnn_dev->fc_mem_size, CNN_MT_UC);
 	atomic_set(&cnn_dev->wait_fc_cnt, 0);
-	atomic_set(&cnn_dev->power_down_flg, 0);
-	atomic_set(&cnn_dev->mod_frq_flg, 0);
+	atomic_set(&cnn_dev->hw_flg, 0);
 	cnn_dev->zero_int_cnt = 0;
 	x2_cnn_reg_write(cnn_dev,
 			X2_CNN_FC_LEN, (cnn_dev->fc_mem_size / 64) - 1);
@@ -1543,6 +1563,7 @@ void cnn_fc_time_kfifo_clean(struct x2_cnn_dev *dev)
 	kfifo_free(&dev->fc_time_fifo);
 	kfifo_free(&dev->fc_time_save_fifo);
 	kfifo_free(&dev->fc_time_wait_fifo);
+	kfifo_free(&dev->int_info_fifo);
 }
 
 static int x2_cnn_remove(struct platform_device *pdev)
@@ -1783,11 +1804,15 @@ static ssize_t bpu0_clock_store(struct kobject *kobj,
 
 	ret = sscanf(buf, "%du", &bpu0_clk);
 	if (bpu0_clk) {
-		clk_enable(cnn0_dev->cnn_aclk);
-		clk_enable(cnn0_dev->cnn_mclk);
+		if (!__clk_is_enabled(cnn0_dev->cnn_aclk))
+			clk_enable(cnn0_dev->cnn_aclk);
+		if (!__clk_is_enabled(cnn0_dev->cnn_mclk))
+			clk_enable(cnn0_dev->cnn_mclk);
 	} else {
+		lock_bpu(cnn0_dev);
 		clk_disable(cnn0_dev->cnn_aclk);
 		clk_disable(cnn0_dev->cnn_mclk);
+		unlock_bpu(cnn0_dev);
 	}
 	return count;
 }
@@ -1808,11 +1833,15 @@ static ssize_t bpu1_clock_store(struct kobject *kobj,
 
 	ret = sscanf(buf, "%du", &bpu1_clk);
 	if (bpu1_clk) {
-		clk_enable(cnn1_dev->cnn_aclk);
-		clk_enable(cnn1_dev->cnn_mclk);
+		if (!__clk_is_enabled(cnn1_dev->cnn_aclk))
+			clk_enable(cnn1_dev->cnn_aclk);
+		if (!__clk_is_enabled(cnn1_dev->cnn_mclk))
+			clk_enable(cnn1_dev->cnn_mclk);
 	} else {
+		lock_bpu(cnn1_dev);
 		clk_disable(cnn1_dev->cnn_aclk);
 		clk_disable(cnn1_dev->cnn_mclk);
+		unlock_bpu(cnn1_dev);
 	}
 	return count;
 }
@@ -1832,10 +1861,13 @@ static ssize_t bpu0_power_store(struct kobject *kobj,
 	int ret;
 
 	ret = sscanf(buf, "%du", &bpu0_power);
-	if (bpu0_power)
-		x2_cnn_power_up(cnn0_dev);
-	else
-		x2_cnn_power_down(cnn0_dev);
+	if (bpu0_power) {
+		if (!regulator_is_enabled(cnn0_dev->cnn_regulator))
+			x2_cnn_power_up(cnn0_dev);
+	} else {
+		if (regulator_is_enabled(cnn0_dev->cnn_regulator))
+			x2_cnn_power_down(cnn0_dev);
+	}
 	return count;
 }
 static ssize_t bpu1_power_show(struct kobject *kobj,
@@ -1853,61 +1885,16 @@ static ssize_t bpu1_power_store(struct kobject *kobj,
 	int ret;
 
 	ret = sscanf(buf, "%du", &bpu1_power);
-	if (bpu1_power)
-		x2_cnn_power_up(cnn1_dev);
-	else
-		x2_cnn_power_down(cnn1_dev);
-	return count;
-}
-static void mod_bpu_frq(struct x2_cnn_dev *dev, int frq)
-{
-	mutex_lock(&dev->cnn_lock);
-	atomic_set(&dev->mod_frq_flg, MOD_FRQ);
-	int i = 0;
-
-	if ((atomic_read(&dev->wait_fc_cnt) > 0)) {
-		/*wait bpu idle*/
-		wait_for_completion(&dev->bpu_completion);
-		i++;
+	if (bpu1_power) {
+		if (!regulator_is_enabled(cnn1_dev->cnn_regulator))
+			x2_cnn_power_up(cnn1_dev);
+	} else {
+		if (regulator_is_enabled(cnn1_dev->cnn_regulator))
+			x2_cnn_power_down(cnn1_dev);
 	}
-
-	/*modify bpu frequency*/
-	//modify_bpu_fre(dev,frq);
-	mutex_unlock(&dev->cnn_lock);
-	atomic_set(&dev->mod_frq_flg, MOD_FRQ_DONE);
-}
-static ssize_t bpu0_frequency_show(struct kobject *kobj,
-				 struct kobj_attribute *attr, char *buf)
-{
-	return sprintf(buf, "%d\n", bpu0_frq);
-}
-static ssize_t bpu0_frequency_store(struct kobject *kobj,
-				    struct kobj_attribute *attr,
-				    const char *buf, size_t count)
-{
-	int ret;
-
-	ret = sscanf(buf, "%du", &bpu0_frq);
-	mod_bpu_frq(cnn0_dev, bpu0_frq);
 	return count;
 }
-static ssize_t bpu1_frequency_show(struct kobject *kobj,
-				 struct kobj_attribute *attr, char *buf)
-{
-	return sprintf(buf, "%d\n", bpu1_frq);
 
-}
-static ssize_t bpu1_frequency_store(struct kobject *kobj,
-				    struct kobj_attribute *attr,
-				    const char *buf, size_t count)
-{
-	int ret;
-
-	ret = sscanf(buf, "%du", &bpu1_frq);
-	mod_bpu_frq(cnn1_dev, bpu1_frq);
-
-	return count;
-}
 
 static struct kobj_attribute pro_frequency = __ATTR(profiler_frequency, 0664,
 						    fre_show, fre_store);
@@ -1937,12 +1924,6 @@ static struct kobj_attribute bpu0_power_en = __ATTR(power_enable, 0644,
 static struct kobj_attribute bpu1_power_en  = __ATTR(power_enable, 0644,
 						     bpu1_power_show,
 						     bpu1_power_store);
-static struct kobj_attribute bpu0_frequency = __ATTR(frequency, 0644,
-						     bpu0_frequency_show,
-						     bpu0_frequency_store);
-static struct kobj_attribute bpu1_frequency = __ATTR(frequency, 0644,
-						     bpu1_frequency_show,
-						     bpu1_frequency_store);
 
 
 
@@ -1959,7 +1940,6 @@ static struct attribute *bpu0_attrs[] = {
 	&bpu0_fc_time.attr,
 	&bpu0_clk_en.attr,
 	&bpu0_power_en.attr,
-	&bpu0_frequency.attr,
 	NULL,
 };
 static struct attribute *bpu1_attrs[] = {
@@ -1968,7 +1948,6 @@ static struct attribute *bpu1_attrs[] = {
 	&bpu1_fc_time.attr,
 	&bpu1_clk_en.attr,
 	&bpu1_power_en.attr,
-	&bpu1_frequency.attr,
 	NULL,
 };
 

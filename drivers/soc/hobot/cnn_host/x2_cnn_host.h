@@ -161,8 +161,7 @@ struct x2_cnn_dev {
 	wait_queue_head_t cnn_int_wait;
 	u32 x2_cnn_int_num;
 	atomic_t wait_fc_cnt;
-	atomic_t power_down_flg;
-	atomic_t mod_frq_flg;
+	atomic_t hw_flg;
 	struct tasklet_struct tasklet;
 	struct dentry *debugfs_root;
 	struct list_head debugfs_list;
