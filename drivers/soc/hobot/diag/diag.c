@@ -300,10 +300,10 @@ static void netlink_rcv_msg(struct sk_buff *skb)
 		nlh = nlmsg_hdr(skb);
 		umsg = NLMSG_DATA(nlh);
 		diag_debug("diag:kernel rcv msg: %s\n", umsg);
-		if (umsg) {
-			if (strncmp(umsg, "self test ok", 12) == 0)
-				complete(&diag_dev_completion);
-				diag_debug("diag: complete snd ok\n");
+		if (umsg && (strncmp(umsg, "self test ok", 12)) == 0) {
+			mdelay(200);
+			complete(&diag_dev_completion);
+			diag_debug("diag: complete snd ok\n");
 		} else {
 			diag_error("diag: self test fail\n");
 		}
