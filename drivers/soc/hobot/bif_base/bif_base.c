@@ -92,6 +92,7 @@ char *bifeth;
 char *bifsmd;
 char *bifsio;
 char *biflite;
+static ulong bifbase_rmode = BUFF_BASE;
 
 module_param(bifbase_phyaddr, ulong, 0444);
 module_param(bifspi, charp, 0644);
@@ -101,6 +102,7 @@ module_param(bifeth, charp, 0644);
 module_param(bifsmd, charp, 0644);
 module_param(bifsio, charp, 0644);
 module_param(biflite, charp, 0644);
+module_param(bifbase_rmode, ulong, 0644);
 MODULE_PARM_DESC(bifbase_phyaddr, "bifbase: cp side reserved ddr memory for bifbase");
 MODULE_PARM_DESC(bifspi, "bifbase: ap side whether support bifspi driver? no or yes");
 MODULE_PARM_DESC(bifsd, "bifbase: ap side whether support bifsd driver? no or yes");
@@ -109,6 +111,7 @@ MODULE_PARM_DESC(bifeth, "bifbase: ap side, Which channel does bifeth support? b
 MODULE_PARM_DESC(bifsmd, "bifbase: ap side, Which channel does bifsmd support? bifno, bifspi or bifsd");
 MODULE_PARM_DESC(bifsio, "bifbase: ap side, Which channel does bifsio support? bifno, bifspi or bifsd");
 MODULE_PARM_DESC(biflite, "bifbase: ap side, Which channel does biflite support? bifno, bifspi or bifsd");
+MODULE_PARM_DESC(bifbase_rmode, "bifbase: its running mode share(0) or exclusive(1~N)");
 
 struct bifbase_local {
 	char ver[BIFBASE_VER_SIZE];
@@ -154,6 +157,10 @@ static ssize_t bifbase_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
 static ssize_t bifbase_store(struct kobject *kobj,
 	struct kobj_attribute *attr, const char *buf, size_t n);
+static ssize_t bifrmode_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf);
+static ssize_t bifrmode_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t n);
 static struct kobj_attribute bifspi_attr =
 	__ATTR(bifspi, 0664, bifbase_show, bifbase_store);
 static struct kobj_attribute bifsd_attr =
@@ -168,6 +175,8 @@ static struct kobj_attribute bifsio_attr =
 	__ATTR(bifsio, 0664, bifbase_show, bifbase_store);
 static struct kobj_attribute biflite_attr =
 	__ATTR(biflite, 0664, bifbase_show, bifbase_store);
+static struct kobj_attribute bifbase_rmode_attr =
+	__ATTR(bifbase_rmode, 0664, bifrmode_show, bifrmode_store);
 
 extern int bifget_supportbus(char *str_bus);
 extern int bifget_bifbustype(char *str_bustype);
@@ -208,6 +217,7 @@ static void bifbase_print_param(void)
 	pr_info("bifsmd: %s\n", bifsmd);
 	pr_info("bifsio: %s\n", bifsio);
 	pr_info("biflite: %s\n", biflite);
+	pr_info("bifbase_rmode %lu\n", bifbase_rmode);
 }
 
 static void bifbase_check_bus(void *p, int flag)
@@ -477,6 +487,36 @@ exit_1:
 	return error ? error : n;
 }
 
+static ssize_t bifrmode_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	pr_debug("bifbase: running mode = %lu\n", bifbase_rmode);
+	return sprintf(buf, "%lu\n", bifbase_rmode);
+}
+
+static ssize_t bifrmode_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t n)
+{
+	int ret;
+	long mode;
+
+	ret = kstrtol(buf, 0, &mode);
+	if (!ret && (mode >= BUFF_BASE) && (mode <= BUFF_MAX)) {
+		pr_debug("bifbase: change running mode to = %lu\n", mode);
+		bifbase_rmode = mode;
+
+		if (bifbase_rmode)
+			bif_excmode_request(bifbase_rmode);
+		else
+			bif_excmode_release();
+
+	} else {
+		pr_debug("bifbase: NOT Change running mode = %lu\n", mode);
+	}
+
+	return n;
+}
+
 
 static struct attribute *bifbase_attributes[] = {
 	&bifspi_attr.attr,
@@ -486,6 +526,7 @@ static struct attribute *bifbase_attributes[] = {
 	&bifsmd_attr.attr,
 	&bifsio_attr.attr,
 	&biflite_attr.attr,
+	&bifbase_rmode_attr.attr,
 	NULL,
 };
 
@@ -588,7 +629,7 @@ static void bifbase_irq_work(struct work_struct *work)
 	if (bifbase_sync_cp((void *)pl) != 0)
 		pr_err("bifbase: %s() Err sync base\n", __func__);
 
-	if ((pl->other->send_irq_tail + 1) % IRQ_QUEUE_SIZE ==
+	if ((pl->other->send_irq_tail + 1) % pl->other->irq_queue_size ==
 		pl->self->read_irq_head)
 		irq_full = 1;
 
@@ -597,16 +638,18 @@ static void bifbase_irq_work(struct work_struct *work)
 			return;
 
 		birq = pl->other->irq[(pl->self->read_irq_head) %
-			IRQ_QUEUE_SIZE];
+			pl->other->irq_queue_size];
 		if (birq < BUFF_MAX && pl->irq_func[birq % BUFF_MAX])
 			pl->irq_func[birq % BUFF_MAX] (birq, NULL);
 		else
 			pr_bif("bifbase: %s() Warn irq %d no register\n",
 				__func__, birq);
 
-		pl->other->irq[(pl->self->read_irq_head) % IRQ_QUEUE_SIZE] = -1;
+		pl->other->irq[(pl->self->read_irq_head)
+					% pl->other->irq_queue_size] = -1;
 		pl->self->read_irq_head =
-			(pl->self->read_irq_head + 1) % IRQ_QUEUE_SIZE;
+			(pl->self->read_irq_head + 1)
+					% pl->other->irq_queue_size;
 	}
 
 	if (pl->base_ap_wq_flg)
@@ -622,6 +665,7 @@ static void bifbase_irq_work(struct work_struct *work)
 
 static irqreturn_t bifbase_irq_handler(int irq, void *data)
 {
+	int rmode;
 	struct bifbase_local *pl = (struct bifbase_local *)data;
 	//struct bifbase_local *pl = get_bifbase_local();
 
@@ -629,7 +673,20 @@ static irqreturn_t bifbase_irq_handler(int irq, void *data)
 	if (!pl || !pl->start || !pl->plat || !pl->self || !pl->other)
 		return IRQ_NONE;
 
-	schedule_work(&pl->base_irq_work);
+	/*adjust X2J2 running mode (always uni-direction sync from Main SoC)*/
+	if ((pl->plat->plat_type == PLAT_CP) &&
+		(pl->self->running_mode != pl->other->running_mode) &&
+		(pl->other->running_mode < BUFF_MAX)) {
+		pl->self->running_mode = pl->other->running_mode;
+	}
+
+	rmode = pl->self->running_mode;
+	if (rmode == BUFF_BASE) {
+		schedule_work(&pl->base_irq_work);
+	} else{
+		if (rmode < BUFF_MAX && pl->irq_func[rmode])
+			pl->irq_func[rmode] (rmode, NULL);
+	}
 
 	return IRQ_HANDLED;
 }
@@ -732,7 +789,9 @@ static int bifbase_pre_init(void *p)
 		memcpy(pl->self->magic, BIFBASE_CPMAGIC, 4);
 	}
 
-	bif_memset(pl->self->irq, -1, IRQ_QUEUE_SIZE);
+	pl->self->running_mode   = bifbase_rmode;
+	pl->self->irq_queue_size = IRQ_QUEUE_SIZE;
+	bif_memset(pl->self->irq, -1, pl->self->irq_queue_size);
 	ptr = (unsigned char *)pl->self;
 	pr_info("bifbase: magic=%c%c%c%c,size=0x%x\n", ptr[0], ptr[1],
 		ptr[2], ptr[3], (unsigned int)sizeof(struct bif_base_info));
@@ -1083,28 +1142,34 @@ int bif_send_irq(int irq)
 	if (!pl || !pl->start || !pl->plat || !pl->self || !pl->other)
 		return 0;
 
-	while ((pl->self->send_irq_tail + 1) % IRQ_QUEUE_SIZE ==
-	       pl->other->read_irq_head) {
-		if (!pl->start)
-			return 0;
+	if (pl->self->running_mode == BUFF_BASE) {
 
-		pr_info("bifbase: %s() base irq queue full\n", __func__);
+		while ((pl->self->send_irq_tail + 1)
+			% pl->self->irq_queue_size
+			== pl->other->read_irq_head) {
+			if (!pl->start)
+				return 0;
 
-		if (wait_event_interruptible_timeout(pl->base_irq_wq,
-			(pl->self->send_irq_tail + 1) %	IRQ_QUEUE_SIZE
-			!= pl->other->read_irq_head,
-			usecs_to_jiffies(200)) == 0)
-			goto try_send_irq;
+			pr_info("%s() irq queue full\n", __func__);
+			if (wait_event_interruptible_timeout(pl->base_irq_wq,
+				(pl->self->send_irq_tail + 1)
+				% pl->self->irq_queue_size
+				!= pl->other->read_irq_head,
+				usecs_to_jiffies(200)) == 0)
+				goto try_send_irq;
 
-	}
+		}
 
-	pl->self->irq[(pl->self->send_irq_tail) % IRQ_QUEUE_SIZE] = irq;
-	pl->self->send_irq_tail =
-		(pl->self->send_irq_tail + 1) % IRQ_QUEUE_SIZE;
+		pl->self->irq[(pl->self->send_irq_tail)
+				% pl->self->irq_queue_size] = irq;
+		pl->self->send_irq_tail =
+			(pl->self->send_irq_tail + 1)
+				% pl->self->irq_queue_size;
 
 try_send_irq:
-	if (bifbase_sync_ap((void *)pl) != 0)
-		pr_err("bifbase: %s() Err sync ap\n", __func__);
+		if (bifbase_sync_ap((void *)pl) != 0)
+			pr_err("bifbase: %s() Err sync ap\n", __func__);
+	}
 
 	bifbase_tri_irq((void *)pl);
 
@@ -1369,12 +1434,70 @@ char *bif_get_str_bus(enum BUFF_ID buffer_id)
 		p = biflite;
 		break;
 	case BUFF_MAX:
+	case BUFF_POSTAKEN:
 		break;
 	}
 
 	return p;
 }
 EXPORT_SYMBOL(bif_get_str_bus);
+
+int bif_excmode_request(enum BUFF_ID buffer_id)
+{
+	struct bifbase_local *pl = get_bifbase_local();
+
+	if (!pl || !pl->start || !pl->plat
+		|| !pl->cp || buffer_id >= BUFF_MAX) {
+		pr_err("parameter error pl:%p buffer_id:%d\n", pl, buffer_id);
+		return -1;
+	}
+
+	if (pl->self->running_mode != BUFF_BASE) {
+		pr_err("Already Exclusive by %d\n", pl->self->running_mode);
+		return -3;
+	}
+
+	pl->self->running_mode = buffer_id;
+	if (bifbase_sync_ap((void *)pl) != 0) {
+		pr_err("bifbase: %s() Err sync base\n", __func__);
+		pl->self->running_mode = BUFF_BASE;
+		return -2;
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL(bif_excmode_request);
+
+int bif_excmode_release(void)
+{
+	int currmode;
+	struct bifbase_local *pl = get_bifbase_local();
+
+	if (!pl || !pl->start || !pl->plat || !pl->cp) {
+		pr_err("parameter error\n");
+		return -1;
+	}
+
+	if (pl->self->running_mode == BUFF_BASE)
+		pr_warn("Already in Share running mode\n");
+
+	/*do msg queue status cleanup*/
+	pl->self->read_irq_head = 0;
+	pl->self->send_irq_tail = 0;
+	pl->other->read_irq_head = 0;
+	pl->other->send_irq_tail = 0;
+
+
+	currmode = pl->self->running_mode;
+	pl->self->running_mode = BUFF_BASE;
+	if (bifbase_sync_ap((void *)pl) != 0) {
+		pr_err("bifbase: %s() Err sync base\n", __func__);
+		pl->self->running_mode = currmode;
+		return -2;
+	}
+	return 0;
+}
+EXPORT_SYMBOL(bif_excmode_release);
 
 late_initcall(bifbase_init);
 //module_init(bif_base_init);

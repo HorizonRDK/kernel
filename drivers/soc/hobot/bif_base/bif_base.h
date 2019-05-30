@@ -3,26 +3,36 @@
 #include <linux/interrupt.h>
 
 enum BUFF_ID {
-	BUFF_BASE,
+	BUFF_BASE = 0,
 	BUFF_ETH,	//bifeth0
 	BUFF_SMD,	//biftty0
 	BUFF_SIO,	//biftty1
 	BUFF_LITE,	//biflite0
 	BUFF_MAX,
+	BUFF_POSTAKEN = 8 //it seems enough in near future
 };
 
-#define IRQ_QUEUE_SIZE 16
+#define IRQ_QUEUE_SIZE 64 /*16->64*/
 /*must be 512 padding for BIFSD access*/
 struct bif_base_info {
 	unsigned char magic[4];
-	unsigned char irq[IRQ_QUEUE_SIZE];
+	/*exclusive(one node):1~BUFF_MAX ; share(multi nodes):0*/
+	unsigned char running_mode;
+	unsigned char irq_queue_size;/*typically==IRQ_QUEUE_SIZE*/
 	unsigned char send_irq_tail;
 	unsigned char read_irq_head;
 	unsigned char register_irqs;
 	unsigned char buffer_count;
-	unsigned int address_list[BUFF_MAX];
-	unsigned short offset_list[BUFF_MAX];
+	unsigned char reserved0[2];
+	unsigned int  address_list[BUFF_POSTAKEN];
+	unsigned short offset_list[BUFF_POSTAKEN];
+	unsigned short reserved1;
 	unsigned short next_offset;
+	/*64 Byte Taken To Here.*/
+	unsigned char  irq[0];
+	unsigned char  reserved2[128];/*max 128 interrupt msg*/
+	/*192 Byte Taken To Here. for next_offset be used like bif_eth*/
+	/*end*/
 };
 
 #define BIF_MT_WB 0x1
@@ -56,5 +66,10 @@ void bif_dma_free(size_t size, dma_addr_t *dma_addr,
 
 void *bif_get_plat_info(void);
 char *bif_get_str_bus(enum BUFF_ID buffer_id);
+
+/*request exclusive mode*/
+int bif_excmode_request(enum BUFF_ID buffer_id);
+/*leave excludesive mode into share mode*/
+int bif_excmode_release(void);
 
 #endif
