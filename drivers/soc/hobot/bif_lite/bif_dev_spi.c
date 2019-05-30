@@ -155,9 +155,7 @@ static int x2_bif_open(struct inode *inode, struct file *file)
 }
 
 static DEFINE_MUTEX(write_mutex);
-//#define PHY_LAYER_LEN_MAX (16 * 1024)
-#define PHY_LAYER_LEN_MAX (128 * 1024)
-static char send_frame[PHY_LAYER_LEN_MAX];
+static char send_frame[FRAME_LEN_MAX];
 static ssize_t x2_bif_write(struct file *file, const char __user *buf,
 size_t count, loff_t *ppos)
 {
@@ -286,7 +284,9 @@ loff_t *ppos)
 	pos = session_des->recv_list.list.next;
 	frame = list_entry(pos, struct bif_frame_cache, frame_cache_list);
 	if (frame->framelen - HBIPC_HEADER_LEN > data.len) {
-		hbipc_error("recv buf overflow\n");
+		hbipc_error("recv buf overflow:%ld_%d\n",
+			frame->framelen - HBIPC_HEADER_LEN,
+			data.len);
 		up(&session_des->frame_count_sem);
 		ret = -1;
 		data.result = HBIPC_ERROR_RECV_OVERFLOW;
@@ -301,6 +301,7 @@ loff_t *ppos)
 	frame->framecache + HBIPC_HEADER_LEN, header->length);
 	if (status) {
 		ret = -EFAULT;
+		up(&session_des->frame_count_sem);
 	} else {
 		ret = header->length;
 		// consume a data frame really
@@ -308,6 +309,8 @@ loff_t *ppos)
 		mutex_lock(&domain.read_mutex);
 		spin_lock(&(session_des->recv_list.lock));
 		bif_del_frame_domain(&domain, frame);
+		//list_del(pos);
+		//kfree(frame);
 		spin_unlock(&(session_des->recv_list.lock));
 		mutex_unlock(&domain.read_mutex);
 	}

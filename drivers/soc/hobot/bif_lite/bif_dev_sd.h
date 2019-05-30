@@ -2,8 +2,8 @@
 #define _BIF_DEV_H_
 
 #define RING_INFO_ALIGN            (512)
-#define FRAME_LEN_MAX              (128 * 1024)
-#define FRAG_LEN_MAX               (1024)
+#define FRAME_LEN_MAX              (256 * 1024)
+#define FRAG_LEN_MAX               (32 * 1024)
 #define FRAG_NUM                   ((FRAME_LEN_MAX / FRAG_LEN_MAX) * 4)
 #define CP2AP_RING_BUFFER_LEN      (FRAG_NUM * FRAG_LEN_MAX)
 #define AP2CP_RING_BUFFER_LEN      (FRAG_NUM * FRAG_LEN_MAX)

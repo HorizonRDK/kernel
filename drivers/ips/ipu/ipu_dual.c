@@ -66,6 +66,7 @@ struct ipu_dual_cdev {
 extern struct x2_ipu_data *g_ipu;
 
 static struct ipu_dual_cdev *g_ipu_d_cdev = NULL;
+static uint64_t g_ipu_time;
 
 static uint32_t decode_frame_id(uint16_t *addr)
 {
@@ -83,6 +84,16 @@ static uint32_t decode_frame_id(uint16_t *addr)
 	return d;
 }
 
+/* for mipi/dvp timestamp */
+static uint64_t ipu_current_time(void)
+{
+	struct timeval tv;
+	uint64_t ipu_time;
+
+	do_gettimeofday(&tv);
+	ipu_time = tv.tv_sec * 1000000 + tv.tv_usec;
+	return ipu_time;
+}
 static int8_t ipu_get_frameid(struct x2_ipu_data *ipu, ipu_slot_dual_h_t *slot)
 {
 	uint8_t *tmp = NULL;
@@ -95,18 +106,22 @@ static int8_t ipu_get_frameid(struct x2_ipu_data *ipu, ipu_slot_dual_h_t *slot)
 	tmp = (uint8_t *)(slot->info_h.dual_ddr_info.ds_1st[0].y_offset + vaddr);
 	if (cfg->frame_id.bus_mode == 0) {
 		slot->info_h.cf_id = tmp[0] << 8 | tmp[1];
+		slot->info_h.cf_timestamp = g_ipu_time;
 		ipu_dbg("pframe_id_fst=%d, %d, %d\n", tmp[0], tmp[1], slot->info_h.cf_id);
 	} else {
 		slot->info_h.cf_id = decode_frame_id((uint16_t *)tmp);
+		slot->info_h.cf_timestamp = g_ipu_time;
 		ipu_dbg("pframe_id_fst=%d\n", slot->info_h.cf_id);
 	}
 	/* get second id from pymid ddr address */
 	tmp = (uint8_t *)(slot->info_h.dual_ddr_info.ds_2nd[0].y_offset + vaddr);
 	if (cfg->frame_id.bus_mode == 0) {
 		slot->info_h.sf_id = tmp[0] << 8 | tmp[1];
+		slot->info_h.sf_timestamp = g_ipu_time;
 		ipu_dbg("pframe_id_sec=%d, %d, %d\n", tmp[0], tmp[1], slot->info_h.sf_id);
 	} else {
 		slot->info_h.sf_id = decode_frame_id((uint16_t *)tmp);
+		slot->info_h.sf_timestamp = g_ipu_time;
 		ipu_dbg("pframe_id_sec=%d\n", slot->info_h.sf_id);
 	}
 
@@ -171,6 +186,7 @@ void ipu_dual_mode_process(uint32_t status)
 	if (status & IPU_FRAME_START) {
 		ipu_slot_dual_h_t *slot_h = NULL;
 		ipu_info("ipu start\n");
+		g_ipu_time = ipu_current_time();
 		slot_h = recv_slot_free_to_busy();
 		if (slot_h) {
 			//__inval_dcache_area(IPU_GET_DUAL_SLOT(slot_h->info_h.slot_id, ipu->vaddr), IPU_SLOT_DAUL_SIZE);
@@ -374,6 +390,7 @@ long ipu_dual_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 				ipu_err("ioctl init fail\n");
 				return -EFAULT;
 			}
+			g_ipu_time = 0;
 			ret = 0;
 		}
 		break;

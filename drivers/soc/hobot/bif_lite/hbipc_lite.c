@@ -1482,6 +1482,8 @@ int recv_frame_interrupt(struct comm_domain *domain)
 	struct hbipc_header *header = NULL;
 	struct send_mang_data data;
 	struct session_desc *session_des = NULL;
+	struct list_head *pos = NULL;
+	struct bif_frame_cache *frame_tmp = NULL;
 
 	mutex_lock(&domain->read_mutex);
 	if ((bif_rx_get_frame(&domain->channel, &frame) < 0)
@@ -1490,6 +1492,65 @@ int recv_frame_interrupt(struct comm_domain *domain)
 		return -1;
 	}
 
+	// iterate frame cache list of channel
+	// handle every frame get this time
+	while (!list_empty(
+	&(domain->channel.rx_frame_cache_p->frame_cache_list))) {
+		// when enter while loop every time, read_mutex is locked
+		// get the first frame from frame cache list
+		pos = domain->channel.rx_frame_cache_p->frame_cache_list.next;
+		frame_tmp =
+		list_entry(pos, struct bif_frame_cache, frame_cache_list);
+		header = (struct hbipc_header *)frame_tmp->framecache;
+
+		if ((header->provider_id == 0) && (header->client_id == 0)) {
+			// manage frame
+			// just for handle frame link list relation
+			list_del(&frame_tmp->frame_cache_list);
+			//bif_frame_decrease_count(&domain->channel);
+			list_add_tail(&frame_tmp->frame_cache_list,
+				&domain->manage_frame_list);
+			mutex_unlock(&domain->read_mutex);
+
+			ret = handle_manage_frame(domain, frame_tmp);
+			mutex_lock(&domain->read_mutex);
+			bif_del_frame_from_list(&domain->channel, frame_tmp);
+			//list_del(pos);
+			//kfree(frame_tmp);
+		} else {
+			// data frame
+			// check session validity and insert data frame
+			data.domain_id = header->domain_id;
+			data.provider_id = header->provider_id;
+			data.client_id = header->client_id;
+
+			mutex_unlock(&domain->read_mutex);
+			session_des =
+			is_valid_session(domain, &data, NULL, NULL);
+			mutex_lock(&domain->read_mutex);
+			if (!session_des) {
+				hbipc_debug("interrupt recv invalid session\n");
+			    bif_del_frame_from_list(
+				&domain->channel, frame_tmp);
+			} else {
+			    // at extreme condition, session_des maybe
+				// invalid at here but do not make harm if
+				// register operation with init
+				list_del(&frame_tmp->frame_cache_list);
+				//bif_frame_decrease_count(&domain->channel);
+				spin_lock(&(session_des->recv_list.lock));
+				list_add_tail(&frame_tmp->frame_cache_list,
+				&session_des->recv_list.list);
+				++session_des->recv_list.frame_count;
+				spin_unlock(&(session_des->recv_list.lock));
+				up(&session_des->frame_count_sem);
+			}
+		}
+	}
+	mutex_unlock(&domain->read_mutex);
+
+	return 0;
+#if 0
 	header = (struct hbipc_header *)frame->framecache;
 
 	if ((header->provider_id == 0) && (header->client_id == 0)) {
@@ -1535,6 +1596,7 @@ int recv_frame_interrupt(struct comm_domain *domain)
 
 		return 1;
 	}
+#endif
 }
 EXPORT_SYMBOL(recv_frame_interrupt);
 

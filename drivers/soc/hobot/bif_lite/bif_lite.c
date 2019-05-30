@@ -274,6 +274,7 @@ unsigned char *data, int len)
 	int index = 0;
 	struct frag_info fragment_info;
 	unsigned long remainning_time = 0;
+	int retry_count = 0;
 
 	// calculate fragment count & last copy byte
 	frag_count = len / channel->valid_frag_len_max;
@@ -291,6 +292,9 @@ resend:
 	//if (ret < 0)
 		//goto err;
 	if (ret < 0) {
+		++retry_count;
+		if (!(retry_count % 20))
+			bif_send_irq(channel->buffer_id);
 		remainning_time = bif_sleep(2);
 		if (!remainning_time)
 			goto resend;
@@ -705,8 +709,10 @@ struct comm_channel *channel, struct bif_frame_cache **frame)
 
 	if (frame_cache_tmp)
 		*frame = frame_cache_tmp;
-	else
-		*frame = NULL;
+	else {
+		ret = -ENOMEM;
+		goto err;
+	}
 
 	bif_unlock();
 	return 0;
@@ -727,6 +733,12 @@ struct bif_frame_cache *frame)
 	bif_unlock();
 }
 EXPORT_SYMBOL(bif_del_frame_from_list);
+
+void bif_frame_decrease_count(struct comm_channel *channel)
+{
+	--channel->rx_frame_count;
+}
+EXPORT_SYMBOL(bif_frame_decrease_count);
 
 int bif_rx_get_frame(struct comm_channel *channel,
 struct bif_frame_cache **frame)
