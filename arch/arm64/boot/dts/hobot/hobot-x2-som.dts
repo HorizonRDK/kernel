@@ -83,10 +83,22 @@
 			debounce-interval = <30>;
 		};
 
-		backspace {
-			 label = "key_backspace";
-			linux,code = <KEY_BACKSPACE>;
+		key_A {
+			label = "key_a";
+			linux,code = <KEY_A>;
 			gpios = <&tca9534 5 GPIO_ACTIVE_LOW>;
+			debounce-interval = <30>;
+		};
+		key_S {
+			label = "key_s";
+			linux,code = <KEY_S>;
+			gpios = <&tca9534 6 GPIO_ACTIVE_LOW>;
+			debounce-interval = <30>;
+		};
+		key_D {
+			label = "key_d";
+			linux,code = <KEY_D>;
+			gpios = <&tca9534 7 GPIO_ACTIVE_LOW>;
 			debounce-interval = <30>;
 		};
 	};
