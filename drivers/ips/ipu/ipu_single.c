@@ -77,6 +77,7 @@ unsigned int ipu_fram_cnt_drop = 0;
 unsigned int ipu_fram_cnt = 0;
 
 unsigned int index;
+uint8_t g_iar_id;
 
 module_param(frequency_ipu, uint, S_IRUGO | S_IWUSR);
 module_param(drop_ipu, uint, S_IRUGO | S_IWUSR);
@@ -226,59 +227,6 @@ void ipu_single_mode_process(uint32_t status)
 			ipu->pymid_done = true;
 			//ipu->done_idx = slot_h->info_h.slot_id;
 			ipu_get_frameid(ipu, slot_h);
-
-			//iar_display_addr =
-			//IPU_GET_SLOT(slot_h->info_h.slot_id, ipu->paddr) +
-			//	slot_h->info_h.ddr_info.crop.y_offset;
-			iar_display_yaddr =
-			IPU_GET_SLOT(slot_h->info_h.slot_id, ipu->paddr) +
-				slot_h->info_h.ddr_info.ds[5].y_offset;
-			iar_display_caddr =
-			IPU_GET_SLOT(slot_h->info_h.slot_id, ipu->paddr) +
-				slot_h->info_h.ddr_info.ds[5].c_offset;
-			/*
-			pr_info("@@ pddr = %lld\n", ipu->paddr);
-			pr_info("@@ slot_id = %d\n", slot_h->info_h.slot_id);
-			pr_info("@@ base = %llx\n", slot_h->info_h.base);
-			pr_info("@@ y_width = %d\n",
-					slot_h->info_h.ddr_info.crop.y_width);
-			pr_info("@@ y_height = %d\n",
-					slot_h->info_h.ddr_info.crop.y_height);
-			pr_info("@@ y_offset = %x\n",
-					slot_h->info_h.ddr_info.crop.y_offset);
-			pr_info("@@ c_offset = %x\n",
-					slot_h->info_h.ddr_info.crop.c_offset);
-			*/
-#ifdef DISPLAY_PP_BUFFER
-			if (index == 0) {
-				memcpy(ipu_get_iar_framebuf_addr(0, index),
-					phys_to_virt(iar_display_yaddr),
-					800*480);
-				memcpy(ipu_get_iar_framebuf_addr(0, index) +
-					800*480,
-					phys_to_virt(iar_display_caddr),
-					800*480);
-				iar_set_video_buffer(iar_display_yaddr,
-						iar_display_caddr, index);
-				index = 1;
-
-			} else if (index == 1) {
-				memcpy(ipu_get_iar_framebuf_addr(0, index),
-					phys_to_virt(iar_display_yaddr),
-					800*480);
-				memcpy(ipu_get_iar_framebuf_addr(0, index) +
-					800*480,
-					phys_to_virt(iar_display_caddr),
-					800*480);
-				iar_set_video_buffer(iar_display_yaddr,
-						iar_display_caddr, index);
-				index = 0;
-
-			}
-#else
-			iar_set_video_buffer(iar_display_yaddr,
-					iar_display_caddr, -1);
-#endif
 			wake_up_interruptible(&g_ipu_s_cdev->event_head);
 
 		} else {
@@ -290,6 +238,39 @@ void ipu_single_mode_process(uint32_t status)
 #endif
 		}
 
+		iar_display_yaddr = IPU_GET_SLOT(g_iar_id, ipu->paddr) +
+			g_ipu_s_cdev->s_info.ds[5].y_offset;
+		iar_display_caddr = IPU_GET_SLOT(g_iar_id, ipu->paddr) +
+			g_ipu_s_cdev->s_info.ds[5].c_offset;
+#ifdef DISPLAY_PP_BUFFER
+		if (index == 0) {
+			memcpy(ipu_get_iar_framebuf_addr(0, index),
+				phys_to_virt(iar_display_yaddr),
+				800*480);
+			memcpy(ipu_get_iar_framebuf_addr(0, index) +
+				800*480,
+				phys_to_virt(iar_display_caddr),
+				800*480);
+			iar_set_video_buffer(iar_display_yaddr,
+					iar_display_caddr, index);
+			index = 1;
+
+		} else if (index == 1) {
+			memcpy(ipu_get_iar_framebuf_addr(0, index),
+				phys_to_virt(iar_display_yaddr),
+				800*480);
+			memcpy(ipu_get_iar_framebuf_addr(0, index) +
+				800*480,
+				phys_to_virt(iar_display_caddr),
+				800*480);
+			iar_set_video_buffer(iar_display_yaddr,
+					iar_display_caddr, index);
+			index = 0;
+
+		}
+#else
+		iar_set_video_buffer(iar_display_yaddr, iar_display_caddr, -1);
+#endif
 	}
 
 	if ((status & IPU_FRAME_DONE) && !ipu->cfg->pymid.pymid_en) {
@@ -313,6 +294,7 @@ void ipu_single_mode_process(uint32_t status)
 					(uint64_t)IPU_GET_SLOT(slot_h->info_h.slot_id, ipu->paddr));
 			//__inval_dcache_area(IPU_GET_SLOT(slot_h->info_h.slot_id, ipu->vaddr), IPU_SLOT_SIZE);
 			ipu_set(IPUC_SET_DDR, ipu->cfg, IPU_GET_SLOT(slot_h->info_h.slot_id, ipu->paddr));
+			g_iar_id = slot_h->info_h.slot_id;
 #if 0	//may cause pym stop
 			if(test_and_clear_bit(IPU_SLOT_NOT_AVALIABLE, &g_ipu_s_cdev->ipuflags)){
 				ctrl_ipu_to_ddr(PYM_TO_DDR,ENABLE);
@@ -324,6 +306,8 @@ void ipu_single_mode_process(uint32_t status)
 	}
 	spin_unlock(&g_ipu_s_cdev->slock);
 }
+
+
 
 static int8_t ipu_sinfo_init(ipu_cfg_t *ipu_cfg)
 {
@@ -539,6 +523,7 @@ long ipu_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 				break;
 			}
 			spin_unlock(&g_ipu_s_cdev->slock);
+			g_iar_id = slot_h->info_h.slot_id;
 			ipu_drv_start();
 		}
 		break;
