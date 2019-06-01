@@ -40,6 +40,9 @@
 		bifspi	= &bifspi;
 		mmc1	= &sdio0;
 		mmc2	= &sdio1;
+		sndcard0    = &snd0;
+		idma0     = &i2sidma0;
+
 	};
 
 	chosen {
@@ -298,16 +301,12 @@
 };
 
 &i2s0 {
-	status = "disabled";
-	clocks = <&i2s0_mclk>, <&i2s0_bclk>;
-	clock-names = "i2s_mclk", "i2s_bclk";
+	status = "okay";
+	clocks = <&i2s0_mclk>, <&i2s0_bclk>,<&i2s0_div_bclk>;
+	clock-names = "i2s-mclk", "i2s-bclk", "i2s0_div_bclk";
 };
 
-&i2s1 {
-	status = "disabled";
-	clocks = <&i2s1_mclk>, <&i2s1_bclk>;
-	clock-names = "i2s_mclk", "i2s_bclk";
-};
+
 &ddr_monitor {
 	status = "okay";
 };
