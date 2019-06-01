@@ -598,6 +598,11 @@
 			status = "disabled";
 		};
 
+		onewire {
+			compatible = "w1-gpio";
+			onewire_gpio = <84>;
+		};
+
 		power: power_management@0xA6000000 {
 			compatible = "hobot,x2-power";
 			reg = <0x0 0xA6000000 0x0 0x1000>;

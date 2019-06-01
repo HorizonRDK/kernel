@@ -102,10 +102,6 @@
 			debounce-interval = <30>;
 		};
 	};
-	onewire {
-		compatible = "w1-gpio";
-		onewire_gpio = <84>;
-	};
 
 };
 
