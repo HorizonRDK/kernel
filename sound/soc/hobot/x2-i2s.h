@@ -174,7 +174,7 @@ struct x2_i2s {
 
 	void __iomem *regaddr_tx;	//tx base
 	void __iomem *regaddr_rx;	//rx base
-	//void __iomem *sysctl_addr;	//sysctl base
+	void __iomem *sysctl_addr;	//sysctl base
 	//void __iomem *apb_regs;	//apb base
 
 	struct reset_control *rst;
@@ -182,7 +182,11 @@ struct x2_i2s {
 	int id;
 	struct clk *mclk;
 	struct clk *bclk;
+	struct clk *div_bclk;
 	u32 div_ws;
+	u32 ms;
+	u32 slot_width;
+	u32 blck;
 
 	int channel_num;
 	int wordlength;

@@ -27,7 +27,7 @@
 #define X2_I2S_RATES    SNDRV_PCM_RATE_8000_96000
 
 #define X2_I2S_FMTS (SNDRV_PCM_FMTBIT_S8 | SNDRV_PCM_FMTBIT_S16_LE)
-#define X2DAI_DEBUG_EN			1
+#define X2DAI_DEBUG_EN			0
 
 
 
@@ -143,22 +143,12 @@ static void x2_i2s_sample_rate_set(struct snd_pcm_substream *substream,
 	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
 
 		if (i2s->i2sdsp == 0) {	/* i2s mode */
-			pr_err("i2s->div_ws is 0x%x\n", i2s->div_ws);
 			writel(i2s->div_ws, i2s->regaddr_rx + I2S_DIV_WS);
-			/* setting bclk register */
 		} else {/* dsp mode */
 			ws_h = 0;
-			ws_l = (i2s->channel_num) * (i2s->wordlength)  - 2;
-			reg_val = readl(i2s->regaddr_rx + I2S_DIV_WS);
-			writel(UPDATE_VALUE_FIELD
-			       (reg_val, ws_l, I2S_DIV_WS_DIV_WS_L_BIT,
-				I2S_DIV_WS_DIV_WS_L_FIELD),
-			       i2s->regaddr_rx + I2S_DIV_WS);
-			writel(UPDATE_VALUE_FIELD
-			       (reg_val, ws_h, I2S_DIV_WS_DIV_WS_H_BIT,
-				I2S_DIV_WS_DIV_WS_H_FIELD),
-			       i2s->regaddr_rx + I2S_DIV_WS);
-			/* setting bclk register */
+			ws_l = i2s->slot_width - 2;
+			writel(ws_l | (ws_h << 8), i2s->regaddr_rx +
+				I2S_DIV_WS);
 		}
 
 	} else {/* play */
@@ -198,7 +188,7 @@ static int i2s_hw_params(struct snd_pcm_substream *substream,
 	spin_lock_irqsave(&i2s->lock, flags);
 	i2s->channel_num = params_channels(params);
 	i2s->samplerate = params_rate(params);
-	dev_dbg(i2s->dev, "x2 config channel %d, samplerate is %d\n",
+	dev_err(i2s->dev, "x2 config channel %d, samplerate is %d\n",
 		i2s->channel_num, i2s->samplerate);
 
 	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
@@ -327,7 +317,6 @@ static int i2s_startup(struct snd_pcm_substream *substream,
 	spin_unlock_irqrestore(&i2s->lock, flags);
 	//dev_dbg(i2s->dev, "i2s_startup E,
 	//reset i2s module by rst framework\n");
-
 	return 0;
 }
 
@@ -417,7 +406,7 @@ static struct snd_soc_dai_driver x2_i2s_dai_drv[2] = {
 		.capture = {
 			    .stream_name = "Capture",
 			    .channels_min = 1,
-			    .channels_max = 2,
+			    .channels_max = 4,
 			    .rates = X2_I2S_RATES,
 			    .formats = X2_I2S_FMTS,
 			    },
@@ -438,7 +427,7 @@ static struct snd_soc_dai_driver x2_i2s_dai_drv[2] = {
 		.capture = {
 			    .stream_name = "Capture",
 			    .channels_min = 1,
-			    .channels_max = 16,
+			    .channels_max = 4,
 			    .rates = X2_I2S_RATES,
 			    .formats = X2_I2S_FMTS,
 			    },
@@ -532,12 +521,39 @@ static ssize_t show_x2_i2s_reg(struct device *dev,
 
 static DEVICE_ATTR(reg_dump, 0644, show_x2_i2s_reg, store_x2_i2s_reg);
 
+static inline int change_clk(struct device *dev,
+	const char *clk_name, unsigned long rate)
+{
+		struct clk *clk;
+		long round_rate;
+		int ret = 0;
+
+		clk = devm_clk_get(dev, clk_name);
+		if (IS_ERR(clk)) {
+			dev_err(dev, "failed to get: %s\n", clk_name);
+			return PTR_ERR(clk);
+		}
+		round_rate = clk_round_rate(clk, rate);
+		ret = clk_set_rate(clk, (unsigned long)round_rate);
+		if (unlikely(ret < 0)) {
+			dev_err(dev, "failed to set clk: %s\n", clk_name);
+			return ret;
+		}
+		dev_info(dev, "%s: clk:%lu, round_rate:%ld",
+			clk_name, rate, round_rate);
+		return ret;
+}
+
+
+
+
 static int x2_i2s_probe(struct platform_device *pdev)
 {
 	struct x2_i2s *i2s;
 	int id;
 	int ret;
 	struct resource *res;
+	u32 value;
 	/* struct snd_soc_dai_driver *soc_dai_driver; */
 	id = of_alias_get_id(pdev->dev.of_node, "i2s");
 	if (id < 0)
@@ -576,6 +592,16 @@ static int x2_i2s_probe(struct platform_device *pdev)
 		return PTR_ERR(i2s->regaddr_tx);
 	}
 
+	res = NULL;
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 2);
+	if (!res) {
+		dev_err(&pdev->dev, "Failed to get mem resource2!\n");
+		return -ENOENT;
+	}
+	i2s->sysctl_addr =
+			devm_ioremap(&pdev->dev,
+				res->start, resource_size(res));
+
 
 	i2s->mclk = devm_clk_get(&pdev->dev, "i2s-mclk");
 		if (IS_ERR(i2s->mclk)) {
@@ -599,10 +625,57 @@ static int x2_i2s_probe(struct platform_device *pdev)
 			return ret;
 		}
 
-
+		i2s->div_bclk = devm_clk_get(&pdev->dev, "i2s0_div_bclk");
+		if (IS_ERR(i2s->div_bclk)) {
+			dev_err(&pdev->dev, "failed to get i2s0_div_bclk\n");
+			return PTR_ERR(i2s->div_bclk);
+		}
+		ret = clk_prepare(i2s->div_bclk);
+			if (ret != 0) {
+				dev_err(&pdev->dev, "failed to prepare i2s0_div_bclk\n");
+				return ret;
+		}
 		clk_enable(i2s->bclk);
-		clk_disable(i2s->bclk);
 
+		ret = of_property_read_u32(pdev->dev.of_node,
+			"blck", &i2s->blck);
+		if (ret < 0) {
+			pr_err("failed:get  blck rc %d", ret);
+			return ret;
+		}
+		ret = of_property_read_u32(pdev->dev.of_node,
+			"ms", &i2s->ms);
+		if (ret < 0) {
+			pr_err("failed:get  ms rc %d", ret);
+			return ret;
+		}
+		ret = of_property_read_u32(pdev->dev.of_node,
+					"slot_width", &i2s->slot_width);
+		if (ret < 0) {
+			pr_err("failed:get	slot_width rc %d", ret);
+			return ret;
+		}
+
+
+		if (i2s->ms == 1) {
+			clk_enable(i2s->div_bclk);
+			ret = change_clk(&pdev->dev,
+				"i2s0_div_bclk", i2s->blck);
+			pr_err("change_clk blck ret = %d\n", ret);
+		} else if (i2s->ms == 4) {
+
+			value = readl(i2s->sysctl_addr + 0x158);
+			if (i2s->id == 0)
+				value = (value | (0x1 << 18));
+			else
+				value = (value | (0x1 << 19));
+
+			writel(value, i2s->sysctl_addr + 0x158);
+			clk_disable(i2s->bclk);
+		} else {
+			pr_err("i2s->ms invalid\n");
+			return -1;
+		}
 		ret = of_property_read_u32(pdev->dev.of_node,
 			"div_ws", &i2s->div_ws);
 		if (ret < 0) {

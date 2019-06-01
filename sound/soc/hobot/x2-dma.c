@@ -95,7 +95,6 @@ static void idma_getpos(dma_addr_t *src, int stream,
 		struct snd_soc_card *snd_card, struct idma_ctrl_s *dma_ctrl)
 {
 	*src = dma_ctrl->lastset;
-
 }
 
 /* set dma buffer addr and size to register */
@@ -210,11 +209,13 @@ static int i2sidma_hw_params(struct snd_pcm_substream *substream,
 	/* init dma buffer addr */
 	dma_ctrl->start = dma_ctrl->pos = runtime->dma_addr;
 	dma_ctrl->period = params_periods(params);
-	dma_ctrl->periodsz = params_period_bytes(params);
+	dma_ctrl->periodsz = params_period_bytes(params);//per frame bytes
 	dma_ctrl->end = runtime->dma_addr + runtime->dma_bytes;
 	dma_ctrl->lastset = dma_ctrl->start;
 	dma_ctrl->ch_num = params_channels(params);
-	dma_ctrl->bytesnum = runtime->dma_bytes;
+	dma_ctrl->bytesnum = runtime->dma_bytes;//total bytes
+	pr_err("dma_ctrl->period is %d, dma_ctrl->periodsz is %d,dma_ctrl->bytesnum is %d\n", dma_ctrl->period, dma_ctrl->periodsz, dma_ctrl->bytesnum);
+	pr_err("dma_ctrl->start is 0x%x,dma_ctrl->end is 0x%x\n", dma_ctrl->start, dma_ctrl->end);
 
 	/* set dma cb */
 	i2sidma_setcallbk(substream, i2sidma_done);
@@ -373,29 +374,45 @@ static irqreturn_t iis_irq0(int irqno, void *dev_id)
 	if (dma_ctrl->stream == SNDRV_PCM_STREAM_CAPTURE) {
 
 		intstatus = readl(x2_i2sidma[0].regaddr_rx + I2S_SRCPND);
+		//printk("intstatus = 0x%x\n",intstatus);
+
 
 		if (intstatus & INT_BUF0_DONE) {
 
-			writel(0x5, x2_i2sidma[dma_ctrl->id].regaddr_rx +
+			writel(0x4, x2_i2sidma[dma_ctrl->id].regaddr_rx +
 				I2S_SRCPND);
 
 			if ((dma_ctrl->lastset + dma_ctrl->periodsz -
 					dma_ctrl->start)
 				/ dma_ctrl->periodsz == 1) {
+				//printk("index 0 irq,the head four bystes is
+				//0x%x,0x%x,0x%x,0x%x\n",*dma_vm,*(dma_vm+1),
+				// *(dma_vm+2),*(dma_vm+3));
 				addr += dma_ctrl->lastset + halfullsize;
 				dma_ctrl->lastset = dma_ctrl->start +
 					dma_ctrl->periodsz;
 
-			} else {
-				addr = dma_ctrl->start;
+			} else if ((dma_ctrl->lastset + dma_ctrl->periodsz -
+					dma_ctrl->start)
+				/ dma_ctrl->periodsz == 3){
+				//printk("index 2 irq,the head four bystes is
+				//0x%x,0x%x,0x%x,0x%x\n",*(dma_vm+8192),
+				// *(dma_vm+8192+1),*(dma_vm+8192+2),
+				// *(dma_vm+8192+3));
 				dma_ctrl->lastset = dma_ctrl->start +
 				halfullsize + dma_ctrl->periodsz;
 
+			} else {
+				//printk("ERROR IN BUFFER0!,
+				//buffer come order error!\n");
+				return IRQ_HANDLED;
 			}
-
 			if (dma_ctrl->cb)
 				dma_ctrl->cb(dma_ctrl->token, dma_ctrl->period);
 
+
+			//printk("after callback,the corrent pos is
+			//0x%x\n",dma_ctrl->lastset);
 			writel(addr, x2_i2sidma[dma_ctrl->id].regaddr_rx +
 				I2S_BUF0_ADDR);
 			writel(0x1, x2_i2sidma[dma_ctrl->id].regaddr_rx +
@@ -405,26 +422,44 @@ static irqreturn_t iis_irq0(int irqno, void *dev_id)
 		}
 		if (intstatus & INT_BUF1_DONE) {
 
-			writel(0x9, x2_i2sidma[dma_ctrl->id].regaddr_rx +
+			writel(0x8, x2_i2sidma[dma_ctrl->id].regaddr_rx +
 				I2S_SRCPND);
 
 			if ((dma_ctrl->lastset + dma_ctrl->periodsz -
 				dma_ctrl->start)
 				/dma_ctrl->periodsz == 2) {
+
+				//printk("index 1 irq,the head four bystes is
+				//0x%x,0x%x,0x%x,0x%x\n",*(dma_vm+4096),
+				// *(dma_vm+4096+1),
+				// *(dma_vm+4096+2),*(dma_vm+4096+3));
 				addr += dma_ctrl->lastset + halfullsize;
 				dma_ctrl->lastset = dma_ctrl->start +
 				halfullsize;
 
-			} else {
+			} else if ((dma_ctrl->lastset + dma_ctrl->periodsz -
+				dma_ctrl->start)
+				/dma_ctrl->periodsz == 4){
+				//printk("index 3 irq,the head four bystes is
+				//0x%x,0x%x,0x%x,0x%x\n",*(dma_vm+12288),
+				// *(dma_vm+12288+1),
+				// *(dma_vm+12288+2),*(dma_vm+12288+3));
 				addr = dma_ctrl->start + dma_ctrl->periodsz;
 			     dma_ctrl->lastset = dma_ctrl->start;
 
 			}
 
+			else {
+				//printk("ERROR IN BUFFER1!,
+				//buffer come order error!\n");
+				return IRQ_HANDLED;
+			}
 
 			if (dma_ctrl->cb)
 				dma_ctrl->cb(dma_ctrl->token, dma_ctrl->period);
 
+			//printk("after callback,the corrent
+			//pos is 0x%x\n",dma_ctrl->lastset);
 			writel(addr, x2_i2sidma[dma_ctrl->id].regaddr_rx +
 				I2S_BUF1_ADDR);
 			writel(0x1, x2_i2sidma[dma_ctrl->id].regaddr_rx +
@@ -436,6 +471,7 @@ static irqreturn_t iis_irq0(int irqno, void *dev_id)
 		//if (intstatus & INT_NOTREADY) {
 		//	}
 
+		//printk("dma_ctrl->lastset is 0x%x\n",dma_ctrl->lastset);
 	}
 
 	return IRQ_HANDLED;
