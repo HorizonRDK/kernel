@@ -938,10 +938,11 @@ static void x2_cnn_do_tasklet(unsigned long data)
 		pr_err("CNN trigger irq[%d] failed errno[%d]!\n",
 				dev->x2_cnn_int_num, ret);
 
-	ret = kfifo_avail(&dev->fc_time_save_fifo);
-	if (ret < sizeof(struct x2_fc_time))
+	ret = kfifo_len(&dev->fc_time_save_fifo);
+	if (ret >= sizeof(struct x2_fc_time) * FC_TIME_SAVE_CNT) {
 		ret = kfifo_out(&dev->fc_time_save_fifo, &tmp,
 				sizeof(struct x2_fc_time));
+	}
 	/*get fc time*/
 	ret = kfifo_out(&dev->fc_time_fifo, &tmp, sizeof(struct x2_fc_time));
 	if (ret < sizeof(struct x2_fc_time))
@@ -1749,7 +1750,6 @@ static ssize_t fc_time_show(struct kfifo *fc_fifo, char *buf)
 	int sum = 0;
 	struct x2_fc_time tmp[FC_TIME_SAVE_CNT];
 	int len = kfifo_len(fc_fifo);
-
 	if (len > sizeof(struct x2_fc_time) * FC_TIME_SAVE_CNT)
 		len = sizeof(struct x2_fc_time) * FC_TIME_SAVE_CNT;
 	ret = kfifo_out_peek(fc_fifo, tmp, len);
