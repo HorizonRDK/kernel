@@ -36,6 +36,7 @@
 		pwm0	= &pwm_0;
 		pwm1	= &pwm_1;
 		pwm2	= &pwm_2;
+		spi0	= &spi0;
 		bifsd	= &bifsd;
 		bifspi	= &bifspi;
 		mmc1	= &sdio0;
@@ -132,10 +133,6 @@
 		rst_pin = <61>;
 		irq_pin = <77>;
 	};
-};
-
-&i2c1 {
-	status = "okay";
 };
 
 &pinctrl {

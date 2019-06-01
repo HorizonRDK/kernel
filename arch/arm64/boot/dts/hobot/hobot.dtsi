@@ -379,7 +379,11 @@
 			reg = <0 0xA5004000 0 0x1000>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 27 4>;
+			resets = <&rst 0x50 5>;
+			reset-names = "spi0";
 			status = "disabled";
+			pinctrl-names = "default";
+			pinctrl-0 = <&spi0_func>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 			spidev@0x00 {
