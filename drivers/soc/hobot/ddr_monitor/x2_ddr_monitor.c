@@ -16,6 +16,7 @@
 #include <linux/slab.h>
 
 #include "x2_ddr_monitor.h"
+static DEFINE_MUTEX(ddr_mo_mutex);
 
 struct ddr_monitor_dev_s {
 	struct platform_device *pdev;
@@ -469,6 +470,547 @@ static irqreturn_t ddr_monitor_isr(int this_irq, void *data)
 	ddr_get_port_status();
 	return IRQ_HANDLED;
 }
+static unsigned int read_ctl_value;
+static unsigned int write_ctl_value;
+static ssize_t cpu_read_ctl_store(struct kobject *kobj,
+				  struct kobj_attribute *attr,
+				  const char *buf, size_t count)
+{
+	int ret;
+	unsigned int tmp;
+
+	mutex_lock(&ddr_mo_mutex);
+	ret = sscanf(buf, "%du", &read_ctl_value);
+	if (read_ctl_value > 15) {
+		pr_err("set value error,you should set 0~15\n");
+		return 0;
+	}
+	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_READ_QOS_CTRL);
+	tmp &= ~0x0f;
+	tmp |= read_ctl_value;
+	writel(tmp, g_ddr_monitor_dev->regaddr + DDR_PORT_READ_QOS_CTRL);
+	mutex_unlock(&ddr_mo_mutex);
+	return count;
+}
+
+static ssize_t cpu_read_ctl_show(struct kobject *kobj,
+				 struct kobj_attribute *attr,
+				 char *buf)
+{
+	unsigned int tmp;
+
+	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_READ_QOS_CTRL);
+	tmp &= 0x0f;
+	return sprintf(buf, "%x\n", tmp);
+}
+static ssize_t bifdma_read_ctl_store(struct kobject *kobj,
+				     struct kobj_attribute *attr,
+				     const char *buf, size_t count)
+{
+	int ret;
+	unsigned int tmp;
+
+	mutex_lock(&ddr_mo_mutex);
+	ret = sscanf(buf, "%du", &read_ctl_value);
+	if (read_ctl_value > 15) {
+		pr_err("set value error,you should set 0~15\n");
+		return 0;
+	}
+	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_READ_QOS_CTRL);
+	tmp &= ~(0x0f << 4);
+	tmp |= (read_ctl_value << 4);
+	writel(tmp, g_ddr_monitor_dev->regaddr + DDR_PORT_READ_QOS_CTRL);
+	mutex_unlock(&ddr_mo_mutex);
+	return count;
+}
+
+static ssize_t bifdma_read_ctl_show(struct kobject *kobj,
+				    struct kobj_attribute *attr,
+				    char *buf)
+{
+	unsigned int tmp;
+
+	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_READ_QOS_CTRL);
+	tmp >>= 4;
+	tmp &= 0x0f;
+	return sprintf(buf, "%x\n", tmp);
+}
+static ssize_t bpu0_read_ctl_store(struct kobject *kobj,
+				   struct kobj_attribute *attr,
+				   const char *buf, size_t count)
+{
+	int ret;
+	unsigned int tmp;
+
+	mutex_lock(&ddr_mo_mutex);
+	ret = sscanf(buf, "%du", &read_ctl_value);
+	if (read_ctl_value > 15) {
+		pr_err("set value error,you should set 0~15\n");
+		return 0;
+	}
+	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_READ_QOS_CTRL);
+	tmp &= ~(0x0f << 8);
+	tmp |= (read_ctl_value << 8);
+	writel(tmp, g_ddr_monitor_dev->regaddr + DDR_PORT_READ_QOS_CTRL);
+	mutex_unlock(&ddr_mo_mutex);
+	return count;
+}
+
+static ssize_t bpu0_read_ctl_show(struct kobject *kobj,
+				 struct kobj_attribute *attr,
+				 char *buf)
+{
+	unsigned int tmp;
+
+	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_READ_QOS_CTRL);
+	tmp >>= 8;
+	tmp &= 0x0f;
+	return sprintf(buf, "%x\n", tmp);
+}
+
+static ssize_t bpu1_read_ctl_store(struct kobject *kobj,
+				   struct kobj_attribute *attr,
+				   const char *buf, size_t count)
+{
+	int ret;
+	unsigned int tmp;
+
+	mutex_lock(&ddr_mo_mutex);
+	ret = sscanf(buf, "%du", &read_ctl_value);
+	if (read_ctl_value > 15) {
+		pr_err("set value error,you should set 0~15\n");
+		return 0;
+	}
+	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_READ_QOS_CTRL);
+	tmp &= ~(0x0f << 12);
+	tmp |= (read_ctl_value << 12);
+	writel(tmp, g_ddr_monitor_dev->regaddr + DDR_PORT_READ_QOS_CTRL);
+	mutex_unlock(&ddr_mo_mutex);
+	return count;
+}
+
+static ssize_t bpu1_read_ctl_show(struct kobject *kobj,
+				  struct kobj_attribute *attr,
+				  char *buf)
+{
+	unsigned int tmp;
+
+	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_READ_QOS_CTRL);
+	tmp >>= 12;
+	tmp &= 0x0f;
+	return sprintf(buf, "%x\n", tmp);
+}
+static ssize_t vio_read_ctl_store(struct kobject *kobj,
+				  struct kobj_attribute *attr,
+				  const char *buf, size_t count)
+{
+	int ret;
+	unsigned int tmp;
+
+	mutex_lock(&ddr_mo_mutex);
+	ret = sscanf(buf, "%du", &read_ctl_value);
+	if (read_ctl_value > 15) {
+		pr_err("set value error,you should set 0~15\n");
+		return 0;
+	}
+	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_READ_QOS_CTRL);
+	tmp &= ~(0x0f << 16);
+	tmp |= (read_ctl_value << 16);
+	writel(tmp, g_ddr_monitor_dev->regaddr + DDR_PORT_READ_QOS_CTRL);
+	mutex_unlock(&ddr_mo_mutex);
+	return count;
+
+}
+
+static ssize_t vio_read_ctl_show(struct kobject *kobj,
+				 struct kobj_attribute *attr,
+				 char *buf)
+{
+	unsigned int tmp;
+
+	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_READ_QOS_CTRL);
+	tmp >>= 16;
+	tmp &= 0x0f;
+	return sprintf(buf, "%x\n", tmp);
+}
+static ssize_t periph_read_ctl_store(struct kobject *kobj,
+				     struct kobj_attribute *attr,
+				     const char *buf, size_t count)
+{
+	int ret;
+	unsigned int tmp;
+
+	mutex_lock(&ddr_mo_mutex);
+	ret = sscanf(buf, "%du", &read_ctl_value);
+	if (read_ctl_value > 15) {
+		pr_err("set value error,you should set 0~15\n");
+		return 0;
+	}
+	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_READ_QOS_CTRL);
+	tmp &= ~(0x0f << 20);
+	tmp |= (read_ctl_value << 20);
+	writel(tmp, g_ddr_monitor_dev->regaddr + DDR_PORT_READ_QOS_CTRL);
+	mutex_unlock(&ddr_mo_mutex);
+	return count;
+}
+
+static ssize_t periph_read_ctl_show(struct kobject *kobj,
+				    struct kobj_attribute *attr,
+				    char *buf)
+{
+	unsigned int tmp;
+
+	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_READ_QOS_CTRL);
+	tmp >>= 20;
+	tmp &= 0x0f;
+	return sprintf(buf, "%x\n", tmp);
+}
+static ssize_t all_read_ctl_store(struct kobject *kobj,
+				  struct kobj_attribute *attr,
+				  const char *buf, size_t count)
+{
+	int ret;
+	unsigned int tmp;
+
+	mutex_lock(&ddr_mo_mutex);
+	ret = sscanf(buf, "%du", &read_ctl_value);
+	if (read_ctl_value > 15) {
+		pr_err("set value error,you should set 0~15\n");
+		return 0;
+	}
+	tmp = 0;
+	tmp = read_ctl_value | (read_ctl_value << 4) |
+		(read_ctl_value << 8) | (read_ctl_value << 12) |
+		(read_ctl_value << 16) | (read_ctl_value << 20);
+	writel(tmp, g_ddr_monitor_dev->regaddr + DDR_PORT_READ_QOS_CTRL);
+	mutex_unlock(&ddr_mo_mutex);
+	return count;
+
+}
+
+static ssize_t all_read_ctl_show(struct kobject *kobj,
+				 struct kobj_attribute *attr,
+				 char *buf)
+{
+	unsigned int tmp;
+
+	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_READ_QOS_CTRL);
+	return sprintf(buf, "%x\n", tmp);
+}
+
+
+static struct kobj_attribute cpu_read_ctl = __ATTR(cpu, 0664,
+						   cpu_read_ctl_show,
+						   cpu_read_ctl_store);
+static struct kobj_attribute bifdma_read_ctl = __ATTR(bifdma, 0664,
+						      bifdma_read_ctl_show,
+						      bifdma_read_ctl_store);
+static struct kobj_attribute bpu0_read_ctl = __ATTR(bpu0, 0664,
+						    bpu0_read_ctl_show,
+						    bpu0_read_ctl_store);
+static struct kobj_attribute bpu1_read_ctl = __ATTR(bpu1, 0664,
+						    bpu1_read_ctl_show,
+						    bpu1_read_ctl_store);
+static struct kobj_attribute vio_read_ctl    = __ATTR(vio, 0664,
+						      vio_read_ctl_show,
+						      vio_read_ctl_store);
+static struct kobj_attribute periph_read_ctl = __ATTR(peripheral, 0664,
+						      periph_read_ctl_show,
+						      periph_read_ctl_store);
+static struct kobj_attribute all_read_ctl    = __ATTR(all, 0664,
+						      all_read_ctl_show,
+						      all_read_ctl_store);
+
+static struct attribute *read_qctrl_attrs[] = {
+	&cpu_read_ctl.attr,
+	&bifdma_read_ctl.attr,
+	&bpu0_read_ctl.attr,
+	&bpu1_read_ctl.attr,
+	&vio_read_ctl.attr,
+	&periph_read_ctl.attr,
+	&all_read_ctl.attr,
+	NULL,
+};
+
+
+static ssize_t cpu_write_ctl_store(struct kobject *kobj,
+				   struct kobj_attribute *attr,
+				   const char *buf, size_t count)
+{
+	int ret;
+	unsigned int tmp;
+
+	mutex_lock(&ddr_mo_mutex);
+	ret = sscanf(buf, "%du", &write_ctl_value);
+	if (write_ctl_value > 15) {
+		pr_err("set value error,you should set 0~15\n");
+		return 0;
+	}
+	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_WRITE_QOS_CTRL);
+	tmp &= ~0x0f;
+	tmp |= write_ctl_value;
+	writel(tmp, g_ddr_monitor_dev->regaddr + DDR_PORT_WRITE_QOS_CTRL);
+	mutex_unlock(&ddr_mo_mutex);
+	return count;
+}
+
+static ssize_t cpu_write_ctl_show(struct kobject *kobj,
+				  struct kobj_attribute *attr,
+				  char *buf)
+{
+	unsigned int tmp;
+
+	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_WRITE_QOS_CTRL);
+	tmp &= 0x0f;
+	return sprintf(buf, "%x\n", tmp);
+}
+static ssize_t bifdma_write_ctl_store(struct kobject *kobj,
+				      struct kobj_attribute *attr,
+				      const char *buf, size_t count)
+{
+	int ret;
+	unsigned int itmp;
+
+	mutex_lock(&ddr_mo_mutex);
+	ret = sscanf(buf, "%du", &write_ctl_value);
+	if (write_ctl_value > 15) {
+		pr_err("set value error,you should set 0~15\n");
+		return 0;
+	}
+	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_WRITE_QOS_CTRL);
+	tmp &= ~(0x0f << 4);
+	tmp |= (write_ctl_value << 4);
+	writel(tmp, g_ddr_monitor_dev->regaddr + DDR_PORT_WRITE_QOS_CTRL);
+	mutex_unlock(&ddr_mo_mutex);
+	return count;
+}
+
+static ssize_t bifdma_write_ctl_show(struct kobject *kobj,
+				     struct kobj_attribute *attr,
+				     char *buf)
+{
+	unsigned int tmp;
+
+	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_WRITE_QOS_CTRL);
+	tmp >>= 4;
+	tmp &= 0x0f;
+	return sprintf(buf, "%x\n", tmp);
+}
+static ssize_t bpu0_write_ctl_store(struct kobject *kobj,
+				    struct kobj_attribute *attr,
+				    const char *buf, size_t count)
+{
+	int ret;
+	unsigned int tmp;
+
+	mutex_lock(&ddr_mo_mutex);
+	ret = sscanf(buf, "%du", &write_ctl_value);
+	if (write_ctl_value > 15) {
+		pr_err("set value error,you should set 0~15\n");
+		return 0;
+	}
+	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_WRITE_QOS_CTRL);
+	tmp &= ~(0x0f << 8);
+	tmp |= (write_ctl_value << 8);
+	writel(tmp, g_ddr_monitor_dev->regaddr + DDR_PORT_WRITE_QOS_CTRL);
+	mutex_unlock(&ddr_mo_mutex);
+	return count;
+}
+
+static ssize_t bpu0_write_ctl_show(struct kobject *kobj,
+				   struct kobj_attribute *attr,
+				   char *buf)
+{
+	unsigned int tmp;
+
+	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_WRITE_QOS_CTRL);
+	tmp >>= 8;
+	tmp &= 0x0f;
+	return sprintf(buf, "%x\n", tmp);
+}
+
+static ssize_t bpu1_write_ctl_store(struct kobject *kobj,
+				    struct kobj_attribute *attr,
+				    const char *buf, size_t count)
+{
+	int ret;
+	unsigned int tmp;
+
+	mutex_lock(&ddr_mo_mutex);
+	ret = sscanf(buf, "%du", &write_ctl_value);
+	if (write_ctl_value > 15) {
+		pr_err("set value error,you should set 0~15\n");
+		return 0;
+	}
+	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_WRITE_QOS_CTRL);
+	tmp &= ~(0x0f << 12);
+	tmp |= (write_ctl_value << 12);
+	writel(tmp, g_ddr_monitor_dev->regaddr + DDR_PORT_WRITE_QOS_CTRL);
+	mutex_unlock(&ddr_mo_mutex);
+	return count;
+}
+
+static ssize_t bpu1_write_ctl_show(struct kobject *kobj,
+				   struct kobj_attribute *attr,
+				   char *buf)
+{
+	unsigned int tmp;
+
+	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_WRITE_QOS_CTRL);
+	tmp >>= 12;
+	tmp &= 0x0f;
+	return sprintf(buf, "%x\n", tmp);
+}
+static ssize_t vio_write_ctl_store(struct kobject *kobj,
+				   struct kobj_attribute *attr,
+				   const char *buf, size_t count)
+{
+	int ret;
+	unsigned int tmp;
+
+	mutex_lock(&ddr_mo_mutex);
+	ret = sscanf(buf, "%du", &write_ctl_value);
+	if (write_ctl_value > 15) {
+		pr_err("set value error,you should set 0~15\n");
+		return 0;
+	}
+	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_WRITE_QOS_CTRL);
+	tmp &= ~(0x0f << 16);
+	tmp |= (write_ctl_value << 16);
+	writel(tmp, g_ddr_monitor_dev->regaddr + DDR_PORT_WRITE_QOS_CTRL);
+	mutex_unlock(&ddr_mo_mutex);
+	return count;
+
+}
+
+static ssize_t vio_write_ctl_show(struct kobject *kobj,
+				  struct kobj_attribute *attr,
+				  char *buf)
+{
+	unsigned int tmp;
+
+	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_WRITE_QOS_CTRL);
+	tmp >>= 16;
+	tmp &= 0x0f;
+	return sprintf(buf, "%x\n", tmp);
+}
+static ssize_t periph_write_ctl_store(struct kobject *kobj,
+				      struct kobj_attribute *attr,
+				      const char *buf, size_t count)
+{
+	int ret;
+	unsigned int tmp;
+
+	mutex_lock(&ddr_mo_mutex);
+	ret = sscanf(buf, "%du", &write_ctl_value);
+	if (write_ctl_value > 15) {
+		pr_err("set value error,you should set 0~15\n");
+		return 0;
+	}
+	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_WRITE_QOS_CTRL);
+	tmp &= ~(0x0f << 20);
+	tmp |= (write_ctl_value << 20);
+	writel(tmp, g_ddr_monitor_dev->regaddr + DDR_PORT_WRITE_QOS_CTRL);
+	mutex_unlock(&ddr_mo_mutex);
+	return count;
+}
+
+static ssize_t periph_write_ctl_show(struct kobject *kobj,
+				     struct kobj_attribute *attr,
+				     char *buf)
+{
+	unsigned int tmp;
+
+	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_WRITE_QOS_CTRL);
+	tmp >>= 20;
+	tmp &= 0x0f;
+	return sprintf(buf, "%x\n", tmp);
+}
+static ssize_t all_write_ctl_store(struct kobject *kobj,
+				   struct kobj_attribute *attr,
+				   const char *buf, size_t count)
+{
+	int ret;
+	unsigned int tmp;
+
+	mutex_lock(&ddr_mo_mutex);
+	ret = sscanf(buf, "%du", &write_ctl_value);
+	if (write_ctl_value > 15) {
+		pr_err("set value error,you should set 0~15\n");
+		return 0;
+	}
+	tmp = 0;
+	tmp = write_ctl_value | (write_ctl_value << 4) |
+		(write_ctl_value << 8) | (write_ctl_value << 12) |
+		(write_ctl_value << 16) | (write_ctl_value << 20);
+	writel(tmp, g_ddr_monitor_dev->regaddr + DDR_PORT_WRITE_QOS_CTRL);
+	mutex_unlock(&ddr_mo_mutex);
+	return count;
+
+}
+
+static ssize_t all_write_ctl_show(struct kobject *kobj,
+				  struct kobj_attribute *attr,
+				  char *buf)
+{
+	unsigned int tmp;
+
+	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_WRITE_QOS_CTRL);
+	return sprintf(buf, "%x\n", tmp);
+}
+
+
+static struct kobj_attribute cpu_write_ctl = __ATTR(cpu, 0664,
+						    cpu_write_ctl_show,
+						    cpu_write_ctl_store);
+static struct kobj_attribute bifdma_write_ctl = __ATTR(bifdma, 0664,
+						       bifdma_write_ctl_show,
+						       bifdma_write_ctl_store);
+static struct kobj_attribute bpu0_write_ctl = __ATTR(bpu0, 0664,
+						     bpu0_write_ctl_show,
+						     bpu0_write_ctl_store);
+static struct kobj_attribute bpu1_write_ctl = __ATTR(bpu1, 0664,
+						     bpu1_write_ctl_show,
+						     bpu1_write_ctl_store);
+static struct kobj_attribute vio_write_ctl    = __ATTR(vio, 0664,
+						       vio_write_ctl_show,
+						       vio_write_ctl_store);
+static struct kobj_attribute periph_write_ctl = __ATTR(peripheral, 0664,
+						       periph_write_ctl_show,
+						       periph_write_ctl_store);
+static struct kobj_attribute all_write_ctl    = __ATTR(all, 0664,
+						       all_write_ctl_show,
+						       all_write_ctl_store);
+
+static struct attribute *write_qctl_attrs[] = {
+	&cpu_write_ctl.attr,
+	&bifdma_write_ctl.attr,
+	&bpu0_write_ctl.attr,
+	&bpu1_write_ctl.attr,
+	&vio_write_ctl.attr,
+	&periph_write_ctl.attr,
+	&all_write_ctl.attr,
+	NULL,
+};
+
+
+static struct attribute_group read_attr_group = {
+	.name = "read_qos_ctrl",
+	.attrs = read_qctrl_attrs,
+};
+static struct attribute_group write_attr_group = {
+	.name = "write_qos_ctrl",
+	.attrs = write_qctl_attrs,
+};
+
+static const struct attribute_group *ddr_attr_groups[] = {
+	&read_attr_group,
+	&write_attr_group,
+	NULL,
+};
+struct bus_type ddr_monitor_subsys = {
+	.name = "ddr_monitor",
+};
 
 static int ddr_monitor_probe(struct platform_device *pdev)
 {
@@ -529,6 +1071,10 @@ static int ddr_monitor_probe(struct platform_device *pdev)
 
 	writel(0x21100, g_ddr_monitor_dev->regaddr + DDR_PORT_READ_QOS_CTRL);
 	writel(0x21100, g_ddr_monitor_dev->regaddr + DDR_PORT_WRITE_QOS_CTRL);
+
+	/*register bpu sys node*/
+	if (subsys_system_register(&ddr_monitor_subsys, ddr_attr_groups))
+		pr_err("fialed to register bpu subsystem");
 	return ret;
 }
 

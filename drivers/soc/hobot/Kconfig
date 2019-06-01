@@ -77,6 +77,11 @@ config HOBOT_BIF_LITE_SD
           Say yes to enable bif_lite_sd driver
 endif
 
+config X2_DDR_MON
+	bool "Enable X2 DDR Monitor"
+	default n
+	help
+	  say yes to enable x2 ddr monitor
 endif #SOC_X2_MP
 
 menuconfig HOBOT_BIF_AP
