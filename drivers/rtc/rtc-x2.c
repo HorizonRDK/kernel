@@ -7,6 +7,7 @@
 #include <linux/platform_device.h>
 #include <linux/bcd.h>
 #include <linux/rtc.h>
+#include <linux/delay.h>
 
 /* X2 RTC register offsets and bits */
 #define X2_RTC_CTRL_REG           0x04
@@ -81,7 +82,11 @@
 #define RTC_ALARM_GET_YEAR_H(n)   (((n) >>24) & 0xFF)
 
 #define x2_rtc_rd(dev, reg)       ioread32((dev)->rtc_base + (reg))
-#define x2_rtc_wr(dev, reg, val)  iowrite32((val), (dev)->rtc_base + (reg))
+#define x2_rtc_wr(dev, reg, val) \
+	do { \
+		iowrite32((val), (dev)->rtc_base + (reg)); \
+		mdelay(2); \
+	} while (0)
 
 struct x2_rtc {
 	struct rtc_device *rtc;
@@ -274,7 +279,8 @@ static int x2_rtc_probe(struct platform_device *pdev)
 	/* Clear any pending interrupts */
 	x2_rtc_wr(rtc, X2_RTC_INT_STA_REG, 0x3);
 	x2_rtc_wr(rtc, X2_RTC_CTRL_REG, 0x0000);
-	x2_rtc_wr(rtc, X2_RTC_DATE_CFG_REG, 0x20180101);
+	x2_rtc_wr(rtc, X2_RTC_DATE_CFG_REG, 0x19700101);
+	x2_rtc_wr(rtc, X2_RTC_TIME_CFG_REG, 0x00000000);
 	x2_rtc_wr(rtc, X2_RTC_CTRL_REG, 0x0200);
 
 	ret = devm_request_irq(&pdev->dev, rtc->irq, x2_rtc_int_handle, 0, pdev->name, rtc);
