@@ -769,7 +769,7 @@ static ssize_t bifdma_write_ctl_store(struct kobject *kobj,
 				      const char *buf, size_t count)
 {
 	int ret;
-	unsigned int itmp;
+	unsigned int tmp;
 
 	mutex_lock(&ddr_mo_mutex);
 	ret = sscanf(buf, "%du", &write_ctl_value);
