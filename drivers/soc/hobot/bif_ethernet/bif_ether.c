@@ -43,8 +43,8 @@
 #include "../bif_base/bif_base.h"
 #include "../bif_base/bif_api.h"
 
-#define BIFETH_CPVER		"BIFETH_CPV20"
-#define BIFETH_APVER		"BIFETH_APV20"
+#define BIFETH_CPVER		"BIFETH_CPV21"
+#define BIFETH_APVER		"BIFETH_APV21"
 #define BIFETH_NAME		"bifeth0"
 //#define BIFETH_RESERVED_MEM
 #define BIFETH_MEMATTRS		0	//DMA_ATTR_WRITE_BARRIER
@@ -108,6 +108,10 @@ static int get_bifnet_channel(void *p)
 
 	return bifget_bifbustype(pl->bifnet);
 }
+static int get_rmode(void)
+{
+	return bif_get_rmode();
+}
 
 static int bifnet_sync_cpbuf(void *p, ulong phy_addr, uint blklen,
 	unchar *buffer)
@@ -160,6 +164,35 @@ static int bifnet_sync_apbuf(void *p, ulong phy_addr, uint blklen,
 
 	return 0;
 
+}
+static int bifnet_sync_cp(void *p)
+{
+	struct bifnet_local *pl = (struct bifnet_local *)p;
+
+	if (!pl || !pl->start || !pl->plat)
+		return -3;
+
+	if (pl->plat->plat_type == PLAT_AP) {
+		if (get_rmode() == BUFF_ETH)
+			return bif_sync_base();
+	}
+
+	return 0;
+}
+
+static int bifnet_sync_ap(void *p)
+{
+	struct bifnet_local *pl = (struct bifnet_local *)p;
+
+	if (!pl || !pl->start || !pl->plat)
+		return -3;
+
+	if (pl->plat->plat_type == PLAT_AP) {
+		if (get_rmode() == BUFF_ETH)
+			return bif_sync_ap();
+	}
+
+	return 0;
 }
 
 static void bifnet_query_addr(void *p, int wait_flag)
@@ -236,6 +269,7 @@ static void bifnet_irq(void *p)
 	if (!pl || !pl->plat)
 		return;
 
+	bifnet_sync_ap((void *)pl);
 	/* send irq to bif_base */
 	bif_send_irq(pl->bifnet_id);
 }
@@ -256,6 +290,7 @@ static void bifnet_rx_work(struct work_struct *work)
 		!pl->other_phy || !pl->other_vir)
 		return;
 
+	bifnet_sync_cp((void *)pl);
 	if (pl->self->queue_full) {
 		complete(&pl->tx_cp);
 		spin_lock_irqsave(&pl->lock_full, flags);
@@ -334,7 +369,7 @@ irqreturn_t bitnet_irq_handler(int irq, void *data)
 	struct net_device *dev = get_bifnet();
 	struct bifnet_local *pl = netdev_priv(dev);
 
-	pr_bif("bifeth： handler irq=%d...\n", irq);
+	pr_bif("bifeth: handler irq=%d...\n", irq);
 
 	if (!dev || !pl || !pl->start)
 		return IRQ_NONE;
