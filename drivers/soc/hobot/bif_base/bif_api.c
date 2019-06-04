@@ -41,8 +41,8 @@ module_param(bifbase_tri_pin, int, 0644);
 #define CPSIDE_DDR_ADDR		(0x02000000)	//same to x2 reserved memory
 #define MUX_CTL_BASE_ADDR	(0x12040000)
 #define GPIO_MAP_RANGE		(0x4000)
-#define BIFIRQ_PIN		(2*8 + 5)	//GPIO2_5
-#define BIFTRI_PIN		(2*8 + 3)	//GPIO2_3
+#define BIFTRI_PIN		(2*8 + 5)	//GPIO2_5
+#define BIFIRQ_PIN		(2*8 + 3)	//GPIO2_3
 void __iomem *muxctrl_base_va;
 #endif
 
@@ -288,7 +288,7 @@ void bifplat_print_info(void *p)
 
 	pr_debug("==BIF Application platform information\n");
 	pr_debug("platform: %s\n", pl->platform);
-//	pr_debug("kernel version: %02x.%02x.%02x\n", (pl->kernel_ver >> 16) &&
+//	pr_info("kernel version: %02x.%02x.%02x\n", (pl->kernel_ver >> 16) &&
 //		0xff, (pl->kernel_ver >> 8) && 0xff, (pl->kernel_ver >> 0) &&
 //		0xff);
 
@@ -335,6 +335,7 @@ void bifplat_trigger_irq(void *p)
 	else
 		pr_err("bifapi: Err tri_pin: %d, tri_val: %d\n",
 			pl->tri_pin, pl->tri_val);
+
 #endif
 }
 EXPORT_SYMBOL(bifplat_trigger_irq);

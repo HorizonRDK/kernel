@@ -55,9 +55,10 @@ void *bif_query_otherbase_wait(enum BUFF_ID buffer_id);
 void *bif_query_otherbase(enum BUFF_ID buffer_id);
 //cp alloc alloc buff id buff memory from base memory, return phyaddr.!discard!
 void *bif_alloc_cp(enum BUFF_ID buffer_id, int size, ulong *phyaddr);
-// ap sync cp side info structure
-//int bifbase_sync_cp(void *p);
+// ap sync 'cp side side base info' to ap
 int bif_sync_base(void);
+// ap sync 'ap side base info' to cp
+int bif_sync_ap(void);
 // cp dma alloc memory
 void *bif_dma_alloc(size_t size, dma_addr_t *dma_addr,
 	gfp_t gfp, unsigned long attrs);
@@ -71,5 +72,6 @@ char *bif_get_str_bus(enum BUFF_ID buffer_id);
 int bif_excmode_request(enum BUFF_ID buffer_id);
 /*leave excludesive mode into share mode*/
 int bif_excmode_release(void);
+int bif_get_rmode(void);
 
 #endif
