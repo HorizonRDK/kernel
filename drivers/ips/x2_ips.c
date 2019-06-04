@@ -605,14 +605,14 @@ int ips_set_mipi_freqrange(unsigned int region, unsigned int value)
 EXPORT_SYMBOL_GPL(ips_set_mipi_freqrange);
 
 
-unsigned long ips_set_mipi_ipi_clk(unsigned long clk)
+int ips_set_mipi_ipi_clk(unsigned long clk)
 {
 	long round_rate;
+	int ret = 0;
 
-	round_rate = clk_round_rate(g_ipsdev->ipi_clk, clk);
-	clk_set_rate(g_ipsdev->ipi_clk, (unsigned long)round_rate);
-
-	return (unsigned long)round_rate;
+	//round_rate = clk_round_rate(g_ipsdev->ipi_clk, clk);
+	ret = clk_set_rate(g_ipsdev->ipi_clk, clk);
+	return ret;
 }
 EXPORT_SYMBOL_GPL(ips_set_mipi_ipi_clk);
 

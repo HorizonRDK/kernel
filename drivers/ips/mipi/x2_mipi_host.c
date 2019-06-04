@@ -134,6 +134,7 @@ static unsigned long mipi_host_pixel_clk_select(mipi_host_cfg_t *control)
 	unsigned long pixclk_act = pixclk;
 	unsigned long linelenth = control->linelenth;
 	unsigned long framelenth = control->framelenth;
+	int  ret = 0;
 
 	if (!control->fps) {
 		mipiinfo("input FPS can't be zero!!!");
@@ -149,9 +150,12 @@ static unsigned long mipi_host_pixel_clk_select(mipi_host_cfg_t *control)
 		pixclk = pixclk;
 	else
 		pixclk = pixclk / 3;
-	pixclk_act = ips_set_mipi_ipi_clk(pixclk);
-	mipiinfo("host fifo clk pixclk: %lu, actual pixclk: %lu", pixclk, pixclk_act);
+	ret = ips_set_mipi_ipi_clk(pixclk);
+	if (ret < 0)
+		mipiinfo("ips_set_mipi_ipi_clk error");
+	mipiinfo("host fifo clk pixclk: %lu", pixclk);
 	pixclk_act = ips_get_mipi_ipi_clk();
+	mipiinfo("host fifo clk pixclk: %lu\n", pixclk_act);
 	return pixclk_act;
 }
 

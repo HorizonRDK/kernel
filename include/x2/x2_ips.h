@@ -114,7 +114,7 @@ int ips_control_get(unsigned int region);
 int ips_get_status(unsigned int region);
 int ips_set_mipi_freqrange(unsigned int region, unsigned int value);
 int ips_get_mipi_freqrange(unsigned int region);
-unsigned long ips_set_mipi_ipi_clk(unsigned long clk);
+int ips_set_mipi_ipi_clk(unsigned long clk);
 unsigned long ips_get_mipi_ipi_clk(void);
 int ips_pinmux_bt(void);
 int ips_pinmux_dvp(void);
