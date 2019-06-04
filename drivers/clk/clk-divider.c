@@ -358,7 +358,10 @@ long divider_round_rate_parent(struct clk_hw *hw, struct clk_hw *parent,
 
 	div = clk_divider_bestdiv(hw, parent, rate, prate, table, width, flags);
 
-	return DIV_ROUND_UP_ULL((u64)*prate, div);
+	if (flags & CLK_DIVIDER_ROUND_DOWN)
+		return *prate / div;
+	else
+		return DIV_ROUND_UP_ULL((u64)*prate, div);
 }
 EXPORT_SYMBOL_GPL(divider_round_rate_parent);
 
