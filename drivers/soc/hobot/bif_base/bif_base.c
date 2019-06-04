@@ -1137,6 +1137,8 @@ void bif_ram_vunmap(const void *mem, size_t size)
 
 int bif_send_irq(int irq)
 {
+	int ret = 0;
+
 	struct bifbase_local *pl = get_bifbase_local();
 
 	if (!pl || !pl->start || !pl->plat || !pl->self || !pl->other)
@@ -1150,13 +1152,15 @@ int bif_send_irq(int irq)
 			if (!pl->start)
 				return 0;
 
-			pr_info("%s() irq queue full\n", __func__);
+			//pr_info("%s() irq queue full\n", __func__);
 			if (wait_event_interruptible_timeout(pl->base_irq_wq,
 				(pl->self->send_irq_tail + 1)
 				% pl->self->irq_queue_size
 				!= pl->other->read_irq_head,
-				usecs_to_jiffies(200)) == 0)
+				usecs_to_jiffies(200)) == 0) {
+					ret = -1;
 				goto try_send_irq;
+				}
 
 		}
 
@@ -1173,7 +1177,7 @@ try_send_irq:
 
 	bifbase_tri_irq((void *)pl);
 
-	return 0;
+	return ret;
 }
 EXPORT_SYMBOL(bif_send_irq);
 

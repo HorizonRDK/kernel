@@ -21,6 +21,7 @@
 #include <linux/spi/spi.h>
 #include <linux/spi/spidev.h>
 #include <linux/workqueue.h>
+#include <linux/completion.h>
 #include "hbipc_lite.h"
 #include "hbipc_errno.h"
 #include "bif_dev_sd.h"
@@ -35,15 +36,17 @@
 #define BIF_IO_CONNECT           _IO(BIF_IOC_MAGIC, 5)
 #define BIF_IO_DISCONNECT        _IO(BIF_IOC_MAGIC, 6)
 
-#define WORK_COUNT (100)
+//#define WORK_COUNT (100)
 struct x2_bif_data {
 	int users;
 	int irq_pin;
 	int irq_num;
 	int tri_pin;
 	struct workqueue_struct *work_queue;
-	struct work_struct work[WORK_COUNT];
-	int work_index;
+	//struct work_struct work[WORK_COUNT];
+	struct work_struct work;
+	//int work_index;
+	struct completion ready_to_recv;
 };
 static struct x2_bif_data bif_data;
 
@@ -69,44 +72,66 @@ static struct domain_info domain_config = {.domain_name = "X2SD001",
 
 static struct comm_domain domain;
 
+static int domain_deinit_stop;
 static void rx_work_func(struct work_struct *work)
 {
-	recv_frame_interrupt(&domain);
+	while (1) {
+		if (wait_for_completion_interruptible(&bif_data.ready_to_recv) < 0) {
+			pr_info("wait_for_completion_interruptible\n");
+			break;
+		}
+
+		if (domain_deinit_stop) {
+			pr_info("domain_deinit\n");
+			break;
+		}
+
+		reinit_completion(&bif_data.ready_to_recv);
+
+		// read to no frame
+		while (recv_frame_interrupt(&domain) >= 0)
+			;
+	}
 }
 
 static irqreturn_t hbipc_irq_handler(int irq, void *data)
 {
-	//printk("hbipc_irq_handler\n");
 	//recv_frame_interrupt_new(&domain);
 
-	if (queue_work(bif_data.work_queue,
-	&(bif_data.work[bif_data.work_index++])) == false)
-		pr_info("queue_work fail\n");
-	bif_data.work_index %= WORK_COUNT;
+	//if (queue_work(bif_data.work_queue, &(bif_data.work[bif_data.work_index++])) == false)
+	//	pr_info("queue_work fail\n");
+	//bif_data.work_index %= WORK_COUNT;
+
+	complete(&bif_data.ready_to_recv);
 
 	return IRQ_HANDLED;
 }
 
 static int x2_bif_data_init(struct x2_bif_data *bif_data)
 {
-	int i = 0;
-
 	bif_data->users = 0;
 	bif_data->irq_pin = -1;
 	bif_data->tri_pin = -1;
 	bif_data->irq_num = -1;
 
-	bif_data->work_queue =
-	create_singlethread_workqueue("bifspi_workqueue");
+	bif_data->work_queue = create_singlethread_workqueue("bifspi_workqueue");
 	if (!bif_data->work_queue) {
 		pr_info("create_singlethread_workqueue error\n");
 		goto create_workqueue_error;
 	}
 
-	for (i = 0; i < WORK_COUNT; ++i)
-		INIT_WORK(&bif_data->work[i], rx_work_func);
+	INIT_WORK(&bif_data->work, rx_work_func);
+
+	if (queue_work(bif_data->work_queue, &bif_data->work) == false) {
+		pr_info("queue_work fail\n");
+		goto queue_work_error;
+	}
+
+	init_completion(&bif_data->ready_to_recv);
 
 	return 0;
+queue_work_error:
+	destroy_workqueue(bif_data->work_queue);
 create_workqueue_error:
 	return -1;
 }
@@ -117,6 +142,8 @@ static void x2_bif_data_deinit(struct x2_bif_data *bif_data)
 	bif_data->irq_pin = -1;
 	bif_data->tri_pin = -1;
 	bif_data->irq_num = -1;
+	domain_deinit_stop = 1;
+	complete(&bif_data->ready_to_recv);
 	destroy_workqueue(bif_data->work_queue);
 }
 
@@ -218,6 +245,7 @@ loff_t *ppos)
 	struct session_desc *session_des = NULL;
 	struct hbipc_header *header = NULL;
 	struct list_head *pos = NULL;
+	int session_list_empty = 0;
 
 	mutex_lock(&read_mutex);
 
@@ -269,10 +297,16 @@ loff_t *ppos)
 	}
 #endif
 	ret = down_interruptible(&session_des->frame_count_sem);
-	if (ret < 0)
+	if (ret < 0) {
+		printk("down_interruptible\n");
 		goto error;
+	}
 
-	if (list_empty(&(session_des->recv_list.list))) {
+	spin_lock(&(session_des->recv_list.lock));
+	session_list_empty = list_empty(&(session_des->recv_list.list));
+	spin_unlock(&(session_des->recv_list.lock));
+
+	if (session_list_empty) {
 		ret = -1;
 		data.result = HBIPC_ERROR_INVALID_SESSION;
 		status = copy_to_user((void __user *)buf, &data, sizeof(data));
@@ -281,12 +315,19 @@ loff_t *ppos)
 		goto error;
 	}
 
+	spin_lock(&(session_des->recv_list.lock));
 	pos = session_des->recv_list.list.next;
+	list_del(pos);
+	spin_unlock(&(session_des->recv_list.lock));
+
 	frame = list_entry(pos, struct bif_frame_cache, frame_cache_list);
 	if (frame->framelen - HBIPC_HEADER_LEN > data.len) {
-		hbipc_error("recv buf overflow:%ld_%d\n",
+		hbipc_error("recv buf overflow:%d_%d\n",
 			frame->framelen - HBIPC_HEADER_LEN,
 			data.len);
+		spin_lock(&(session_des->recv_list.lock));
+		list_add(pos, &session_des->recv_list.list);
+		spin_unlock(&(session_des->recv_list.lock));
 		up(&session_des->frame_count_sem);
 		ret = -1;
 		data.result = HBIPC_ERROR_RECV_OVERFLOW;
@@ -301,14 +342,17 @@ loff_t *ppos)
 	frame->framecache + HBIPC_HEADER_LEN, header->length);
 	if (status) {
 		ret = -EFAULT;
+		spin_lock(&(session_des->recv_list.lock));
+		list_add(pos, &session_des->recv_list.list);
+		spin_unlock(&(session_des->recv_list.lock));
 		up(&session_des->frame_count_sem);
 	} else {
 		ret = header->length;
 		// consume a data frame really
-		--session_des->recv_list.frame_count;
 		mutex_lock(&domain.read_mutex);
 		spin_lock(&(session_des->recv_list.lock));
-		bif_del_frame_domain(&domain, frame);
+		--session_des->recv_list.frame_count;
+		bif_del_session_frame_domain(&domain, frame);
 		//list_del(pos);
 		//kfree(frame);
 		spin_unlock(&(session_des->recv_list.lock));
@@ -330,6 +374,7 @@ static int x2_bif_close(struct inode *inode, struct file *file)
 	mutex_lock(&open_mutex);
 
 	pr_info("pid = %d\n", current->pid);
+	pr_info("surplus frame: %d\n", domain.channel.rx_frame_count);
 #ifndef CONFIG_HOBOT_BIF_AP
 	data.domain_id = domain.domain_id;
 	data.provider_id = current->pid;
@@ -694,6 +739,7 @@ static int bif_lite_probe(struct platform_device *pdev)
 		bif_err("bif_lite_init error\n");
 		goto bif_lite_init_error;
 	}
+	
 	//bif_lite_register_irq(hbipc_irq_handler); chencheng reconstitution
 	bif_lite_irq_register_domain(&domain, hbipc_irq_handler);
 #endif

@@ -124,5 +124,7 @@ struct bif_frame_cache **frame);
 int bif_start(struct comm_channel *channel);
 int bif_stop(struct comm_channel *channel);
 void bif_frame_decrease_count(struct comm_channel *channel);
+void bif_del_frame_from_session_list(struct comm_channel *channel,
+struct bif_frame_cache *frame);
 
 #endif

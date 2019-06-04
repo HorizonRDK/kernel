@@ -187,6 +187,7 @@ struct frag_info *fragment_info)
 static inline int bif_tx_update_to_cp_ddr(struct comm_channel *channel)
 {
 	int ret = 0;
+	unsigned long remainning_time = 0;
 
 	ret = bif_write_cp_ddr_channel(channel, channel->tx_local_info,
 		channel->tx_local_info_offset,
@@ -200,8 +201,17 @@ static inline int bif_tx_update_to_cp_ddr(struct comm_channel *channel)
 		ALIGN(sizeof(struct bif_tx_ring_info),
 		channel->transfer_align));
 #endif
-
-	bif_send_irq(channel->buffer_id);
+re_trig:
+	if (bif_send_irq(channel->buffer_id) < 0) {
+		printk("re_trig\n");
+		remainning_time = bif_sleep(200);
+		if (!remainning_time)
+			goto re_trig;
+		else {
+			pr_info("re_trig sleep interrupt\n");
+			return ret;
+		}
+	}
 
 	return ret;
 }
@@ -274,7 +284,7 @@ unsigned char *data, int len)
 	int index = 0;
 	struct frag_info fragment_info;
 	unsigned long remainning_time = 0;
-	int retry_count = 0;
+	//int retry_count = 0;
 
 	// calculate fragment count & last copy byte
 	frag_count = len / channel->valid_frag_len_max;
@@ -292,10 +302,13 @@ resend:
 	//if (ret < 0)
 		//goto err;
 	if (ret < 0) {
-		++retry_count;
-		if (!(retry_count % 20))
-			bif_send_irq(channel->buffer_id);
-		remainning_time = bif_sleep(2);
+		// retry more, but trigger less
+		//++retry_count;
+		//if (!(retry_count % 40)) {
+		//	printk("re_send\n");
+		//	bif_send_irq(channel->buffer_id);
+		//}
+		remainning_time = bif_sleep(5);
 		if (!remainning_time)
 			goto resend;
 		else {
@@ -567,12 +580,13 @@ struct comm_channel *channel)
 	unsigned int malloc_len = 0;
 	unsigned int frame_used_frag_count = 0;
 	struct frag_info *fragment_info = NULL;
-
+#if 0
 	if (channel->rx_frame_count > channel->frame_cache_max) {
 		//too much cache, cost too much mem, need to wait a moment
 		bif_debug("too much cache\n");
 		return 1;
 	}
+#endif
 
 	ret = bif_rx_get_available_buffer(channel, &index, &count);
 	bif_debug("ret = %d  index = %d  count = %d\n", ret, index, count);
@@ -633,7 +647,7 @@ struct comm_channel *channel)
 			frame_used_frag_count = count_tmp + 1;
 		}
 		index_tmp = (index_tmp + 1) % channel->frag_num;
-
+#if 0
 		if (channel->rx_frame_count > channel->frame_cache_max) {
 			//too much cache, cost too much mem,
 			//need to wait a moment
@@ -641,6 +655,7 @@ struct comm_channel *channel)
 			ret = -5;
 			break;
 		}
+#endif
 	}
 
 	if ((ret == -1) || (ret == -2) || (ret == -3) || (ret == -4)) {
@@ -655,6 +670,7 @@ struct comm_channel *channel)
 			goto err;
 		}
 	}
+
 	return ret;
 err:
 	return ret;
@@ -739,6 +755,14 @@ void bif_frame_decrease_count(struct comm_channel *channel)
 	--channel->rx_frame_count;
 }
 EXPORT_SYMBOL(bif_frame_decrease_count);
+
+void bif_del_frame_from_session_list(struct comm_channel *channel,
+struct bif_frame_cache *frame)
+{
+	--channel->rx_frame_count;
+	bif_free(frame);
+}
+EXPORT_SYMBOL(bif_del_frame_from_session_list);
 
 int bif_rx_get_frame(struct comm_channel *channel,
 struct bif_frame_cache **frame)

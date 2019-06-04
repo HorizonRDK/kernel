@@ -191,5 +191,7 @@ struct session_desc *session_des, struct bif_frame_cache **frame);
 int recv_frame_interrupt(struct comm_domain *domain);
 int accept_session(struct comm_domain *domain,
 struct send_mang_data *data, struct session_desc **connect);
+void bif_del_session_frame_domain(struct comm_domain *domain,
+struct bif_frame_cache *frame);
 
 #endif  /* _HBIPC_LITE_H_ */

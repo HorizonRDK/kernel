@@ -18,6 +18,9 @@ struct resource_queue *queue)
 	struct list_head *n = NULL;
 	struct bif_frame_cache *bif_frame = NULL;
 
+	printk("resource_queue_deinit: %d\n", queue->frame_count);
+
+	mutex_lock(&domain->read_mutex);
 	spin_lock(&queue->lock);
 	list_for_each_safe(pos, n, &queue->list) {
 		bif_frame =
@@ -26,6 +29,7 @@ struct resource_queue *queue)
 		--queue->frame_count;
 	}
 	spin_unlock(&queue->lock);
+	mutex_unlock(&domain->read_mutex);
 }
 
 static void session_desc_init(struct session_desc *session_des)
@@ -242,9 +246,6 @@ EXPORT_SYMBOL(domain_init);
 
 void domain_deinit(struct comm_domain *domain)
 {
-	mutex_destroy(&domain->write_mutex);
-	mutex_destroy(&domain->read_mutex);
-	mutex_destroy(&domain->connect_mutex);
 	domain->domain_name = NULL;
 	domain->domain_id = -1;
 	domain->device_name = NULL;
@@ -255,6 +256,9 @@ void domain_deinit(struct comm_domain *domain)
 	domain->session_count = 0;
 	domain->unaccept_session_count = 0;
 	channel_deinit(&domain->channel);
+	mutex_destroy(&domain->write_mutex);
+	mutex_destroy(&domain->read_mutex);
+	mutex_destroy(&domain->connect_mutex);
 }
 EXPORT_SYMBOL(domain_deinit);
 
@@ -506,6 +510,8 @@ error:
 }
 EXPORT_SYMBOL(is_valid_session);
 
+char mang_frame_send_error_buf[HBIPC_HEADER_LEN + MANAGE_MSG_LEN];
+int mang_send_error;
 static int mang_frame_send2opposite(struct comm_domain *domain,
 int type, struct send_mang_data *data)
 {
@@ -582,8 +588,23 @@ int type, struct send_mang_data *data)
 
 	mutex_lock(&domain->write_mutex);
 
+	// resend last error manage frame
+	if (mang_send_error) {
+		if (bif_tx_put_frame(&domain->channel, mang_frame_send_error_buf,
+			HBIPC_HEADER_LEN + MANAGE_MSG_LEN) < 0) {
+			hbipc_error("repeat bif_tx_put_frame error\n");
+			mutex_unlock(&domain->write_mutex);
+			goto error;
+		}
+		mang_send_error = 0;
+	}
+
 	if (bif_tx_put_frame(&domain->channel, mang_frame_send_buf,
 		HBIPC_HEADER_LEN + MANAGE_MSG_LEN) < 0) {
+		// prepare to resent error manage frame
+		memcpy(mang_frame_send_error_buf, mang_frame_send_buf,
+			HBIPC_HEADER_LEN + MANAGE_MSG_LEN);
+		mang_send_error = 1;
 		hbipc_error("bif_tx_put_frame error\n");
 		mutex_unlock(&domain->write_mutex);
 		goto error;
@@ -1341,6 +1362,7 @@ int recv_handle_manage_frame(struct comm_domain *domain)
 			list_add_tail(&frame->frame_cache_list,
 			&session_des->recv_list.list);
 			++session_des->recv_list.frame_count;
+			up(&session_des->frame_count_sem);
 		}
 
 		mutex_unlock(&domain->read_mutex);
@@ -1494,13 +1516,11 @@ int recv_frame_interrupt(struct comm_domain *domain)
 
 	// iterate frame cache list of channel
 	// handle every frame get this time
-	while (!list_empty(
-	&(domain->channel.rx_frame_cache_p->frame_cache_list))) {
+	while (!list_empty(&(domain->channel.rx_frame_cache_p->frame_cache_list))) {
 		// when enter while loop every time, read_mutex is locked
 		// get the first frame from frame cache list
 		pos = domain->channel.rx_frame_cache_p->frame_cache_list.next;
-		frame_tmp =
-		list_entry(pos, struct bif_frame_cache, frame_cache_list);
+		frame_tmp = list_entry(pos, struct bif_frame_cache, frame_cache_list);
 		header = (struct hbipc_header *)frame_tmp->framecache;
 
 		if ((header->provider_id == 0) && (header->client_id == 0)) {
@@ -1525,17 +1545,14 @@ int recv_frame_interrupt(struct comm_domain *domain)
 			data.client_id = header->client_id;
 
 			mutex_unlock(&domain->read_mutex);
-			session_des =
-			is_valid_session(domain, &data, NULL, NULL);
+			session_des = is_valid_session(domain, &data, NULL, NULL);
 			mutex_lock(&domain->read_mutex);
 			if (!session_des) {
 				hbipc_debug("interrupt recv invalid session\n");
-			    bif_del_frame_from_list(
-				&domain->channel, frame_tmp);
+				bif_del_frame_from_list(&domain->channel, frame_tmp);
 			} else {
-			    // at extreme condition, session_des maybe
-				// invalid at here but do not make harm if
-				// register operation with init
+				// at extreme condition, session_des maybe invalid at here
+				// but do not make harm if register operation with init
 				list_del(&frame_tmp->frame_cache_list);
 				//bif_frame_decrease_count(&domain->channel);
 				spin_lock(&(session_des->recv_list.lock));
@@ -1697,6 +1714,14 @@ struct bif_frame_cache *frame)
 	bif_del_frame_from_list(&domain->channel, frame);
 }
 EXPORT_SYMBOL(bif_del_frame_domain);
+
+void bif_del_session_frame_domain(struct comm_domain *domain,
+struct bif_frame_cache *frame)
+{
+	bif_del_frame_from_session_list(&domain->channel, frame);
+}
+EXPORT_SYMBOL(bif_del_session_frame_domain);
+
 
 int bif_tx_put_frame_domain(struct comm_domain *domain, void *data, int len)
 {
