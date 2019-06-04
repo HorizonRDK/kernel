@@ -500,23 +500,25 @@ static ssize_t bifrmode_store(struct kobject *kobj,
 	struct kobj_attribute *attr, const char *buf, size_t n)
 {
 	int ret;
+	int error = 0;
 	long mode;
 
 	ret = kstrtol(buf, 0, &mode);
 	if (!ret && (mode >= BUFF_BASE) && (mode <= BUFF_MAX)) {
 		//pr_debug("bifbase: change running mode to = %lu\n", mode);
-		bifbase_rmode = mode;
-
-		if (bifbase_rmode)
-			bif_excmode_request(bifbase_rmode);
+		if (mode)
+			error = bif_excmode_request(mode);
 		else
-			bif_excmode_release();
+			error = bif_excmode_release();
 
+		if (!error)
+			bifbase_rmode = mode;
 	} else {
 		pr_debug("bifbase: NOT Change running mode = %lu\n", mode);
+		error = -EINVAL;
 	}
 
-	return n;
+	return error ? error : n;
 }
 
 
@@ -1236,7 +1238,10 @@ void *bif_query_address_wait(enum BUFF_ID buffer_id)
 		return (void *)-1;
 
 	if (pl->plat->plat_type == PLAT_AP) {
+		bifbase_sync_ap((void *)pl);
 		while (pl->cp->address_list[buffer_id] == 0) {
+			bifbase_sync_cp((void *)pl);
+			bifbase_sync_ap((void *)pl);
 			pl->base_irq_wq_flg = 1;
 			wait_event_interruptible_timeout(pl->base_ap_wq,
 				pl->cp->address_list[buffer_id] != 0,
@@ -1259,6 +1264,10 @@ void *bif_query_address(enum BUFF_ID buffer_id)
 
 	if (!pl || !pl->start || !pl->plat || !pl->cp || buffer_id >= BUFF_MAX)
 		return (void *)-1;
+
+	bifbase_sync_ap((void *)pl);
+	if (!pl->cp->address_list[buffer_id])
+		bifbase_sync_cp((void *)pl);
 
 	addr = pl->cp->address_list[buffer_id];
 	if (addr != 0)
@@ -1350,7 +1359,10 @@ void *bif_query_otherbase_wait(enum BUFF_ID buffer_id)
 		buffer_id >= BUFF_MAX)
 		return (void *)-1;
 
+	bifbase_sync_ap((void *)pl);
 	while (pl->other->offset_list[buffer_id] == 0) {
+		bifbase_sync_cp((void *)pl);
+		bifbase_sync_ap((void *)pl);
 		pl->base_irq_wq_flg = 1;
 		wait_event_interruptible_timeout(pl->base_irq_wq,
 			pl->other->offset_list[buffer_id] != 0,
@@ -1378,6 +1390,10 @@ void *bif_query_otherbase(enum BUFF_ID buffer_id)
 	if (!pl || !pl->start || !pl->plat || !pl->other ||
 		buffer_id >= BUFF_MAX)
 		return (void *)-1;
+
+	bifbase_sync_ap((void *)pl);
+	if (!pl->other->address_list[buffer_id])
+		bifbase_sync_cp((void *)pl);
 
 	offset = pl->other->offset_list[buffer_id];
 	if (offset != 0)
