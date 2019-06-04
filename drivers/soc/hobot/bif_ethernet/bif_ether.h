@@ -2,7 +2,7 @@
 #ifndef _BIF_ETHER_H_
 #define _BIF_ETHER_H_
 
-#define ETHER_QUERE_SIZE	(16)
+#define ETHER_QUERE_SIZE	(32)
 struct bif_ether_info {
 	unsigned char send_tail;
 	unsigned char recv_head;

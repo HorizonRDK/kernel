@@ -51,16 +51,22 @@
 //#define BIFNET_HALF_FULL_IRQ
 //#define BIFETH_IFF_NOARP	//forbid ARP
 #define BIFETH_VER_SIZE		(16)
-#define BIFETH_SIZE		(512*3)
+#define BIFETH_BLOCK_SIZE	(BIFSD_BLOCK)
+#define BIFETH_SIZE		(3*(BIFETH_BLOCK_SIZE))
 #define BIFETH_FRAME_LEN	(ETH_FRAME_LEN)
 #define QUEUE_MAX		(ETHER_QUERE_SIZE)
-#define ALLOC_SIZE		(BIFETH_SIZE * ETHER_QUERE_SIZE)
+#define ALLOC_ETH_SIZE		((BIFETH_SIZE) * (ETHER_QUERE_SIZE))
+#define ALLOC_SIZE		(ALLOC_ETH_SIZE)
 
 #define MAX_SKB_BUFFERS		(20)
-#define MAX(a, b)	((a) > (b) ? (a) : (b))
-#define MIN(a, b)	((a) < (b) ? (a) : (b))
-#define TX_CP_TIMEOUT	(500) //us
-#define TX_WP_TIMEOUT	(1000*1000)	//ms
+#define MAX(a, b)		((a) > (b) ? (a) : (b))
+#define MIN(a, b)		((a) < (b) ? (a) : (b))
+#define CP_TOUT			(100)
+#define WP_TOUT			(1000)
+#define ISVAL(t, h, q, v)	(((q)+(t)-(h))%(q) == (v))
+//wait_for_completion_timeout
+//wait_for_completion_interruptible_timeout
+#define bifnet_wc	wait_for_completion_interruptible_timeout
 
 struct bifnet_local {
 	int start;
@@ -71,6 +77,7 @@ struct bifnet_local {
 	void *self_vir;
 	void *other_vir;
 
+	struct workqueue_struct *rx_workqueue;
 	struct work_struct rx_work;
 	struct task_struct *tx_task;
 	struct completion tx_cp;
@@ -106,7 +113,10 @@ static int get_bifnet_channel(void *p)
 	if (!pl || !pl->start || !pl->plat)
 		return BIFBUS_NO;
 
-	return bifget_bifbustype(pl->bifnet);
+	if (pl->plat->plat_type == PLAT_AP)
+		return bifget_bifbustype(pl->bifnet);
+	else
+		return BIFBUS_NO;
 }
 static int get_rmode(void)
 {
@@ -215,8 +225,7 @@ static void bifnet_query_addr(void *p, int wait_flag)
 				__func__);
 			pl->query_ok = 0;
 		} else {
-			pl->self_phy = (ulong)phy_addr +
-				(ETHER_QUERE_SIZE * BIFETH_SIZE);
+			pl->self_phy = (ulong)phy_addr + ALLOC_SIZE;
 			pl->other_phy = (ulong)phy_addr;
 
 			/*cp side init */
@@ -273,13 +282,39 @@ static void bifnet_irq(void *p)
 	/* send irq to bif_base */
 	bif_send_irq(pl->bifnet_id);
 }
+static int rw(void *p, ulong phy, uint len, unchar *vir, int bus, int flg)
+{
+	unsigned int cur_bus = 0;
+	enum PLAT_TYPE cur_plat;
 
+	struct bifnet_local *pl = (struct bifnet_local *)p;
+
+	if (!pl || !pl->start || !pl->plat)
+		return -3;
+
+	cur_plat = pl->plat->plat_type;
+
+	if (cur_plat == PLAT_CP)
+		return 0;
+
+	cur_bus = get_bifnet_channel((void *)pl);
+	if (cur_bus == bus) {
+		if (flg)
+			return bifnet_sync_cpbuf((void *)pl, phy, len, vir);
+		else
+			return bifnet_sync_apbuf((void *)pl, phy, len, vir);
+	} else
+		return 0;
+}
 static void bifnet_rx_work(struct work_struct *work)
 {
 	struct sk_buff *skb = NULL;
-	unsigned char *cur_ptr = NULL;
+	unsigned char *cur_vir = NULL;
 	unsigned long cur_phy = 0;
-	unsigned short elen = 0;
+	unsigned short cur_elen = 0;
+	unsigned int cur_bus = 0;
+	unsigned char cur_tail = 0;
+	unsigned char cur_head = 0;
 	unsigned long flags = 0;
 	struct net_device *dev = get_bifnet();
 	//struct bifbase_local *pl =
@@ -291,77 +326,88 @@ static void bifnet_rx_work(struct work_struct *work)
 		return;
 
 	bifnet_sync_cp((void *)pl);
+
 	if (pl->self->queue_full) {
-		complete(&pl->tx_cp);
+		//pr_info("rf\n");
 		spin_lock_irqsave(&pl->lock_full, flags);
 		pl->self->queue_full = 0;
 		spin_unlock_irqrestore(&pl->lock_full, flags);
+		if (pl->plat->plat_type == PLAT_AP)
+			complete(&pl->tx_cp);
 	}
-
-	while (pl->self->recv_head != pl->other->send_tail) {
+	cur_bus = get_bifnet_channel((void *)pl);
+	cur_head = pl->self->recv_head;
+	cur_tail = pl->other->send_tail;
+	if (cur_head != cur_tail) {
+		if (rw((void *)pl, pl->other_phy, ALLOC_SIZE,
+			pl->other_vir, BIFBUS_SD, 1)) {
+			pr_err("%s: Err bif sync cpbuf\n", dev->name);
+			return;
+		}
+	}
+	while (cur_head != cur_tail) {
 		if (!dev || !pl->start)
 			return;
-		cur_phy = pl->other_phy +
-			(pl->self->recv_head % QUEUE_MAX) * BIFETH_SIZE;
-		elen = MIN(pl->other->elen[pl->self->recv_head % QUEUE_MAX],
-			ETH_FRAME_LEN);
 
-		if (elen < ETH_HLEN) {
+		cur_phy = pl->other_phy + (cur_head % QUEUE_MAX) * BIFETH_SIZE;
+		cur_vir = pl->other_vir + (cur_head % QUEUE_MAX) * BIFETH_SIZE;
+		cur_elen = pl->other->elen[cur_head % QUEUE_MAX];
+		cur_elen = MIN(cur_elen, ETH_FRAME_LEN);
+		if (cur_elen < ETH_HLEN) {
 			pr_warn("%s: Warn packet empty\n", dev->name);
 			dev->stats.rx_length_errors++;
-			pl->self->recv_head =
-				(pl->self->recv_head + 1) % QUEUE_MAX;
+			cur_head = (cur_head + 1) % QUEUE_MAX;
 			continue;
 		}
 
-		if (pl->plat->plat_type == PLAT_AP) {
-			cur_ptr = pl->other_vir;
-			if (bifnet_sync_cpbuf((void *)pl,
-				cur_phy, elen, cur_ptr) != 0) {
-				pr_err("%s: Err bif sync cpbuf\n", dev->name);
-				dev->stats.rx_frame_errors++;
-				goto next_step;
-			}
-		} else {
-			cur_ptr = pl->other_vir +
-				(pl->self->recv_head % QUEUE_MAX) * BIFETH_SIZE;
+		if (rw((void *)pl, cur_phy, cur_elen,
+			cur_vir, BIFBUS_SPI, 1)) {
+			pr_err("%s: Err bif sync cpbuf\n", dev->name);
+			dev->stats.rx_frame_errors++;
+			goto next_step;
 		}
 
-		skb = netdev_alloc_skb(dev, elen);
-		if (skb == NULL) {
+		skb = netdev_alloc_skb(dev, cur_elen);
+		if (!skb) {
 			pr_err("%s: Err Memory alloc skb\n", dev->name);
 			continue;
-		} else {
-			skb_put(skb, elen);
-			memcpy(skb->data, cur_ptr, elen);
-			skb->len = elen;
-			pr_bif("received %d byte packet of type %x\n", elen,
-				(skb->data[ETH_ALEN+ETH_ALEN] << 8) |
-				skb->data[ETH_ALEN+ETH_ALEN+1]);
-#ifdef BIFETH_IFF_NOARP
-			/* mac */
-			if (memcmp(skb->data, dev->dev_addr, ETH_ALEN))
-				memcpy(skb->data, dev->dev_addr, ETH_ALEN);
-#endif
-			skb->protocol = eth_type_trans(skb, dev);
-			netif_rx(skb);
-			dev->stats.rx_packets++;
-			dev->stats.rx_bytes += elen;
 		}
 
+		skb_put(skb, cur_elen);
+		memcpy(skb->data, cur_vir, cur_elen);
+		skb->len = cur_elen;
+		pr_bif("received %d byte packet of type %x\n", cur_elen,
+			(skb->data[ETH_ALEN+ETH_ALEN] << 8) |
+			skb->data[ETH_ALEN+ETH_ALEN+1]);
+#ifdef BIFETH_IFF_NOARP	/* mac */
+		if (memcmp(skb->data, dev->dev_addr, ETH_ALEN))
+			memcpy(skb->data, dev->dev_addr, ETH_ALEN);
+#endif
+		skb->protocol = eth_type_trans(skb, dev);
+		netif_rx(skb);
+		dev->stats.rx_packets++;
+		dev->stats.rx_bytes += cur_elen;
+
 next_step:
-		pl->self->recv_head = (pl->self->recv_head + 1) % QUEUE_MAX;
+		cur_head = (cur_head + 1) % QUEUE_MAX;
+		//if (cur_bus != BIFBUS_SD)
+			pl->self->recv_head = cur_head;
+
 #ifdef BIFNET_HALF_FULL_IRQ
-		if (pl->other->queue_full == 0) {
-			if (2 * ((QUEUE_MAX + pl->self->recv_head -
-				pl->other->send_tail) % QUEUE_MAX) == QUEUE_MAX)
-				bifnet_irq((void *)pl);
+		if (pl->other->queue_full && ISVAL(cur_tail, cur_head,
+			QUEUE_MAX, QUEUE_MAX/2)) {
+			//pr_info("rh\n");
+			pl->self->recv_head = cur_head;
+			bifnet_irq((void *)pl);
 		}
 #endif
 	}
 
-	if (pl->other->queue_full)
+	if (pl->other->queue_full) {
+		//pr_info("rf\n");
+		pl->self->recv_head = cur_head;
 		bifnet_irq((void *)pl);
+	}
 }
 
 irqreturn_t bitnet_irq_handler(int irq, void *data)
@@ -374,11 +420,10 @@ irqreturn_t bitnet_irq_handler(int irq, void *data)
 	if (!dev || !pl || !pl->start)
 		return IRQ_NONE;
 
-	if (((pl->skbs_tail + 1) % MAX_SKB_BUFFERS) != pl->skbs_head) {
-		if (dev)
 			netif_wake_queue(dev);	/* wakeup netif queue */
-	}
-	schedule_work(&pl->rx_work);
+
+	queue_work(pl->rx_workqueue, &pl->rx_work);
+	//schedule_work(&pl->rx_work);
 
 	return IRQ_HANDLED;
 }
@@ -416,10 +461,19 @@ static int net_close(struct net_device *dev)
 static int net_send_thread(void *arg)
 {
 	struct sk_buff *skb = NULL;
-	unsigned char *cur_ptr = NULL;
+	unsigned char *cur_vir = NULL;
 	unsigned long cur_phy = 0;
-	unsigned short elen = 0;
+	unsigned short cur_elen = 0;
 	unsigned long flags = 0;
+	unsigned int cur_bus = 0;
+	unsigned char cur_tail = 0;
+	unsigned char cur_head = 0;
+	enum PLAT_TYPE cur_plat;
+	unsigned short slen[ETHER_QUERE_SIZE];
+	unsigned char i = 0;
+	unsigned int qflag = 0;
+	unsigned int send_flag = 0;
+
 	struct net_device *dev = (struct net_device *)arg;
 	//struct net_device *dev = get_bifnet();
 	struct bifnet_local *pl = netdev_priv(dev);
@@ -432,101 +486,127 @@ static int net_send_thread(void *arg)
 			!pl->self_phy || !pl->self_vir)
 			continue;
 		if (pl->start && dev) {
-			if (wait_event_interruptible_timeout(pl->tx_wq,
+			if (!wait_event_interruptible_timeout(pl->tx_wq,
 				pl->skbs_tail != pl->skbs_head,
-				usecs_to_jiffies(TX_WP_TIMEOUT)) == 0) {
+				msecs_to_jiffies(5*WP_TOUT))) {
+				qflag = 0;
 				continue;
 			}
 		}
 
+		cur_bus = get_bifnet_channel((void *)pl);
+		cur_tail = pl->self->send_tail;
+		cur_plat = pl->plat->plat_type;
 		while (pl->skbs_head != pl->skbs_tail) {
 			if (!pl->start || !dev)
 				break;
-			if ((pl->skbs_tail + 1) % MAX_SKB_BUFFERS
-				!= pl->skbs_head)
-				netif_wake_queue(dev);
-			else
+			if (ISVAL((pl->skbs_tail + 1), pl->skbs_head,
+				MAX_SKB_BUFFERS, MAX_SKB_BUFFERS)) {
 				netif_stop_queue(dev);
-
-			skb = pl->skbs[(pl->skbs_head) % MAX_SKB_BUFFERS];
-			if (skb == NULL) {
+			//pr_info("s%d-%d\n", pl->skbs_tail, pl->skbs_head);
+			} else {
+				netif_wake_queue(dev);
+				//pr_info("w\n");
+			}
+			skb = pl->skbs[pl->skbs_head % MAX_SKB_BUFFERS];
+			if (!skb) {
 				pl->skbs_head =
 					(pl->skbs_head + 1) % MAX_SKB_BUFFERS;
 				continue;
 			}
 
-			if (((pl->self->send_tail + 1) % QUEUE_MAX) !=
-				pl->other->recv_head) {
-				cur_phy = pl->self_phy + (pl->self->send_tail
-					% QUEUE_MAX) * BIFETH_SIZE;
-				elen = MIN(skb->len + 1, ETH_FRAME_LEN);
+			cur_head = pl->other->recv_head;
+			if ((cur_tail + 1) % QUEUE_MAX == cur_head)
+				goto next_step;
 
-				if (elen < ETH_HLEN) {
-					pr_warn("%s: Warn empty\n", dev->name);
-					pl->skbs_head = (pl->skbs_head + 1) %
-						MAX_SKB_BUFFERS;
-					if (skb)
-						dev_consume_skb_any(skb);
-					continue;
-				}
+			cur_elen = MIN(skb->len + 1, ETH_FRAME_LEN);
+			if (cur_elen < ETH_HLEN) {
+				pr_warn("%s: Warn empty\n", dev->name);
+				pl->skbs_head = (pl->skbs_head + 1) %
+					MAX_SKB_BUFFERS;
+				if (skb)
+					dev_consume_skb_any(skb);
+				continue;
+			}
 
-				if (pl->plat->plat_type == PLAT_AP) {
-					cur_ptr = pl->self_vir;
-					memcpy(cur_ptr, skb->data, elen);
-					if (bifnet_sync_apbuf((void *)pl,
-						cur_phy, elen, cur_ptr) != 0) {
-						pr_err("%s: Err sync apbuf\n",
-							dev->name);
+			cur_phy = pl->self_phy +
+				(cur_tail % QUEUE_MAX) * BIFETH_SIZE;
+			cur_vir = pl->self_vir +
+				(cur_tail % QUEUE_MAX) * BIFETH_SIZE;
+			memset(cur_vir, 0, BIFETH_SIZE);
+			memcpy(cur_vir, skb->data, cur_elen);
+
+			if (rw((void *)pl, cur_phy, cur_elen,
+				cur_vir, BIFBUS_SPI, 0)) {
+				pr_err("%s: Err sync apbuf\n", dev->name);
 						dev->stats.tx_errors++;
 						goto next_step;
-					} else {
-						dev->stats.tx_packets++;
-						dev->stats.tx_bytes += elen;
-					}
-				} else {
-					cur_ptr = pl->self_vir +
-						(pl->self->send_tail %
-						QUEUE_MAX) * BIFETH_SIZE;
-					memcpy(cur_ptr, skb->data, elen);
-					dev->stats.tx_packets++;
-					dev->stats.tx_bytes += elen;
 				}
 
 				if (skb)
 					dev_consume_skb_any(skb);
-				pl->skbs_head =
-					(pl->skbs_head + 1) % MAX_SKB_BUFFERS;
-				pl->self->elen[pl->self->send_tail % QUEUE_MAX]
-					= elen;
-				pl->self->send_tail =
-					(pl->self->send_tail + 1) % QUEUE_MAX;
-next_step:
+			pl->skbs_head = (pl->skbs_head + 1) % MAX_SKB_BUFFERS;
+			dev->stats.tx_packets++;
+			dev->stats.tx_bytes += cur_elen;
+			slen[cur_tail % QUEUE_MAX] = cur_elen;
+			cur_tail = (cur_tail + 1) % QUEUE_MAX;
+			if (cur_bus != BIFBUS_SD) {
+				pl->self->send_tail = cur_tail;
+				pl->self->elen[cur_tail % QUEUE_MAX] = cur_elen;
+			}
 #ifdef BIFNET_HALF_FULL_IRQ
-				if (pl->self->queue_full == 0) {
-					if (2*((QUEUE_MAX + pl->self->send_tail
-						- pl->other->recv_head) %
-						QUEUE_MAX) == QUEUE_MAX)
+			if (!pl->self->queue_full && !qflag && ISVAL(cur_tail,
+				cur_head, QUEUE_MAX, QUEUE_MAX/2)) {
+				if (rw((void *)pl, cur_phy, cur_elen, cur_vir,
+					cur_bus, 0)) {
+					pr_err("%s: Err sync apbuf\n",
+						dev->name);
+				}
+				pl->self->send_tail = cur_tail;
+				for (i = 0; i < QUEUE_MAX; i++)
+					pl->self->elen[i] = slen[i];
 						bifnet_irq((void *)pl);
+					qflag = 1;
 				}
 #endif
-				;
-			}
-
-			if (((pl->self->send_tail + 1) % QUEUE_MAX) ==
-				pl->other->recv_head && !pl->self->queue_full) {
-				//pr_info("1 %d\n", pl->self->queue_full);
+next_step:
+			if ((cur_tail + 1) % QUEUE_MAX == cur_head &&
+				!pl->self->queue_full) {
+				//pr_info("f%d-%d\n", cur_tail, cur_head);
+				send_flag = 1;
+				if (rw((void *)pl, pl->self_phy, ALLOC_SIZE,
+					pl->self_vir, BIFBUS_SD, 0)) {
+					pr_err("%s: Err sync apbuf\n",
+						dev->name);
+					break;
+				}
+				pl->self->send_tail = cur_tail;
+				for (i = 0; i < QUEUE_MAX; i++)
+					pl->self->elen[i] = slen[i];
 				spin_lock_irqsave(&pl->lock_full, flags);
 				pl->self->queue_full = 1;
 				spin_unlock_irqrestore(&pl->lock_full, flags);
 				bifnet_irq((void *)pl);
-				if (pl->plat->plat_type == PLAT_AP)
-					wait_for_completion_timeout(&pl->tx_cp,
-					usecs_to_jiffies(100*TX_CP_TIMEOUT));
-			}
+				if (cur_plat == PLAT_AP)
+					if (!bifnet_wc(&pl->tx_cp,
+						msecs_to_jiffies(5*CP_TOUT)))
+						pr_info("t\n");
+			} else
+				send_flag = 0;
 		}
 
-		if (!pl->self->queue_full)
+		netif_wake_queue(dev);
+		if (!send_flag) {
+			//pr_info("l%d-%d\n", cur_tail, cur_head);
+			if (rw((void *)pl, pl->self_phy, ALLOC_SIZE,
+				pl->self_vir, BIFBUS_SD, 0)) {
+				pr_err("%s: Err sync apbuf\n", dev->name);
+			}
+			pl->self->send_tail = cur_tail;
+			for (i = 0; i < QUEUE_MAX; i++)
+				pl->self->elen[i] = slen[i];
 			bifnet_irq((void *)pl);
+		}
 	}
 
 	return 0;
@@ -660,16 +740,13 @@ static int bifnet_init(void)
 	}
 	if (pl->plat->plat_type == PLAT_AP) {
 		sprintf(pl->ver, "%s", BIFETH_APVER);
-		pl->self_vir = kmalloc(BIFETH_SIZE, GFP_ATOMIC | __GFP_ZERO);
+		pl->self_vir = kmalloc(2 * ALLOC_SIZE, GFP_ATOMIC | __GFP_ZERO);
 		if (pl->self_vir == NULL) {
 			ret = -ENOMEM;
 			goto exit_4;
 		}
-		pl->other_vir = kmalloc(BIFETH_SIZE, GFP_ATOMIC | __GFP_ZERO);
-		if (pl->other_vir == NULL) {
-			ret = -ENOMEM;
-			goto exit_5;
-		}
+		pl->other_vir = pl->self_vir + ALLOC_SIZE;
+
 		/*ap side init */
 		vir_addr = bif_alloc_base(pl->bifnet_id,
 			sizeof(struct bif_ether_info));
@@ -692,7 +769,7 @@ static int bifnet_init(void)
 #endif
 		if (pl->self_vir == (void *)-1 || pl->self_phy == 0) {
 			ret = -ENOMEM;
-			goto exit_5;
+			goto exit_4;
 		}
 
 		bif_register_address(pl->bifnet_id,
@@ -705,7 +782,7 @@ static int bifnet_init(void)
 			sizeof(struct bif_ether_info));
 		if (vir_addr == NULL) {
 			ret = -ENOMEM;
-			goto exit_6;
+			goto exit_5;
 		}
 		pl->cp = (struct bif_ether_info *)(vir_addr);
 	}
@@ -714,6 +791,8 @@ static int bifnet_init(void)
 	bifnet_query_addr((void *)pl, 0);
 	bif_register_irq(pl->bifnet_id, bitnet_irq_handler);
 
+	//pl->rx_workqueue = create_workqueue("bifnet_rx_wq");
+	pl->rx_workqueue = create_singlethread_workqueue("bifnet_rx_wq");
 	INIT_WORK(&pl->rx_work, bifnet_rx_work);
 	wake_up_process(pl->tx_task);
 
@@ -735,19 +814,16 @@ static int bifnet_init(void)
 	pr_info("bifeth: init end...\n");
 
 	if (ret) {
-exit_6:
+exit_5:
 		if (pl->plat->plat_type == PLAT_AP)
-			kfree(pl->other_vir);
+			kfree(pl->self_vir);
 		else {
 #ifndef BIFETH_RESERVED_MEM
-			bif_dma_free(2 * ETHER_QUERE_SIZE * BIFETH_SIZE,
+			bif_dma_free(2 * ALLOC_SIZE,
 				(dma_addr_t *)&pl->self_phy,
 				GFP_KERNEL, BIFETH_MEMATTRS);
 #endif
 		}
-exit_5:
-		if (pl->plat->plat_type == PLAT_AP)
-			kfree(pl->self_vir);
 exit_4:
 		kthread_stop(pl->tx_task);
 exit_3:
@@ -799,13 +875,15 @@ static void bifnet_exit(void)
 
 	if (pl->plat->plat_type == PLAT_AP) {
 		kfree(pl->self_vir);
-		kfree(pl->other_vir);
 	} else {
 #ifndef BIFETH_RESERVED_MEM
 		bif_dma_free(2 * ALLOC_SIZE, (dma_addr_t *)&pl->self_phy,
 			GFP_KERNEL, BIFETH_MEMATTRS);
 #endif
 	}
+
+	if (pl->rx_workqueue)
+		destroy_workqueue(pl->rx_workqueue);
 
 	free_netdev(dev);
 
