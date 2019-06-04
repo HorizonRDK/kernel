@@ -130,7 +130,7 @@
 
 &pinctrl {
 	status = "okay";
-	gpioirq-bank-cfg = <7 0 0 0>;	//x2 som
+	gpioirq-bank-cfg = <118 0 0 0>;
 };
 
 &uart0 {
@@ -238,9 +238,10 @@
 	/*cd-gpio = <91>;*/
 };
 &bifbase {
-	/*x2 som: GPIO6[1]: 95, GPIO0[7]: 7*/
-	bifbase_irq_pin = <7>;
-	bifbase_tri_pin = <95>;
+	/*x2j2 bifbase: GPIO7[8]: 118, GPIO0[7]: 7*/
+	status = "okay";
+	bifbase_irq_pin = <118>;
+	bifbase_tri_pin = <7>;
 };
 &biflite_spi {
 	status = "okay";

@@ -210,7 +210,8 @@
 };
 
 &bifbase {
-	/*x2 som: GPIO7[8]: 118, GPIO07[7]: 117*/
+	/*x2-soc: GPIO7[8]: 118, GPIO07[7]: 117*/
+	status = "okay";
 	bifbase_irq_pin = <118>;
 	bifbase_tri_pin = <117>;
 };
