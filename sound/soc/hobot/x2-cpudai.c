@@ -27,17 +27,12 @@
 #define X2_I2S_RATES    SNDRV_PCM_RATE_8000_96000
 
 #define X2_I2S_FMTS (SNDRV_PCM_FMTBIT_S8 | SNDRV_PCM_FMTBIT_S16_LE)
-#define X2DAI_DEBUG_EN			0
 
-
-
-static void show_all_register(struct x2_i2s *i2s);
 
 static unsigned int x2_i2s_read_base_reg(struct x2_i2s *i2s, int offset)
 {
 	return readl(i2s->regaddr_rx+offset);
 }
-
 
 
 /* enable/disable i2s controller */
@@ -349,9 +344,6 @@ static int i2s_trigger(struct snd_pcm_substream *substream,
 		break;
 	}
 
-	#if X2DAI_DEBUG_EN
-		show_all_register(i2s);
-	#endif
 	return 0;
 }
 
@@ -445,39 +437,7 @@ static ssize_t store_x2_i2s_reg(struct device *dev,
 	i2s = dev->driver_data;
 	return 0;
 }
-static void show_all_register(struct x2_i2s *i2s)
-{
-	unsigned int val;
 
-	val = x2_i2s_read_base_reg(i2s, I2S_CTL);
-	dev_err(i2s->dev, "I2S_CTL value is 0x%x\n", val);
-	val = x2_i2s_read_base_reg(i2s, I2S_MODE);
-	dev_err(i2s->dev, "I2S_MODE value is 0x%x\n", val);
-	val = x2_i2s_read_base_reg(i2s, I2S_DIV_WS);
-	dev_err(i2s->dev, "I2S_DIV_WS value is 0x%x\n", val);
-	val = x2_i2s_read_base_reg(i2s, I2S_CH_EN);
-	dev_err(i2s->dev, "I2S_CH_EN value is 0x%x\n", val);
-	val = x2_i2s_read_base_reg(i2s, I2S_BUF_SIZE);
-	dev_err(i2s->dev, "I2S_BUF_SIZE value is %d\n", val);
-	val = x2_i2s_read_base_reg(i2s, I2S_BUF0_ADDR);
-	dev_err(i2s->dev, "I2S_BUF0_ADDR value is 0x%x\n", val);
-	val = x2_i2s_read_base_reg(i2s, I2S_BUF0_RDY);
-	dev_err(i2s->dev, "I2S_BUF0_RDY value is 0x%x\n", val);
-	val = x2_i2s_read_base_reg(i2s, I2S_BUF1_ADDR);
-	dev_err(i2s->dev, "I2S_BUF1_ADDR value is 0x%x\n", val);
-	val = x2_i2s_read_base_reg(i2s, I2S_BUF1_RDY);
-	dev_err(i2s->dev, "I2S_BUF1_RDY value is 0x%x\n", val);
-	val = x2_i2s_read_base_reg(i2s, I2S_BUF_CUR_ADDR);
-	dev_err(i2s->dev, "I2S_BUF_CUR_ADDR value is 0x%x\n", val);
-	val = x2_i2s_read_base_reg(i2s, I2S_CH_ERROR);
-	dev_err(i2s->dev, "I2S_CH_ERROR value is 0x%x\n", val);
-	val = x2_i2s_read_base_reg(i2s, I2S_SRCPND);
-	dev_err(i2s->dev, "I2S_SRCPND value is 0x%x\n", val);
-	val = x2_i2s_read_base_reg(i2s, I2S_INTMASK);
-	dev_err(i2s->dev, "I2S_INTMASK value is 0x%x\n", val);
-
-
-}
 static ssize_t show_x2_i2s_reg(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
@@ -517,6 +477,7 @@ static ssize_t show_x2_i2s_reg(struct device *dev,
 			*(s-1) = '\n';
 		return s-buf;
 }
+
 
 
 static DEVICE_ATTR(reg_dump, 0644, show_x2_i2s_reg, store_x2_i2s_reg);
@@ -635,10 +596,22 @@ static int x2_i2s_probe(struct platform_device *pdev)
 				dev_err(&pdev->dev, "failed to prepare i2s0_div_bclk\n");
 				return ret;
 		}
-		clk_enable(i2s->bclk);
+		i2s->div_mclk = devm_clk_get(&pdev->dev, "i2s-mclk-div");
+			if (IS_ERR(i2s->div_mclk)) {
+					dev_err(&pdev->dev, "failed to get i2s-mclk-div\n");
+					return PTR_ERR(i2s->div_mclk);
+		}
+		ret = clk_prepare(i2s->div_mclk);
+			if (ret != 0) {
+				dev_err(&pdev->dev, "failed to prepare i2s-mclk-div\n");
+				return ret;
+		}
+
+		clk_enable(i2s->bclk);//must do this
+		clk_enable(i2s->mclk);
 
 		ret = of_property_read_u32(pdev->dev.of_node,
-			"blck", &i2s->blck);
+			"bclk_set", &i2s->bclk_set);
 		if (ret < 0) {
 			pr_err("failed:get  blck rc %d", ret);
 			return ret;
@@ -655,12 +628,23 @@ static int x2_i2s_probe(struct platform_device *pdev)
 			pr_err("failed:get	slot_width rc %d", ret);
 			return ret;
 		}
+		ret = of_property_read_u32(pdev->dev.of_node,
+					"mclk_set", &i2s->mclk_set);
+			if (ret < 0) {
+				pr_err("failed:get	blck rc %d", ret);
+				return ret;
+			}
 
 
 		if (i2s->ms == 1) {
-			clk_enable(i2s->div_bclk);
-			ret = change_clk(&pdev->dev,
-				"i2s0_div_bclk", i2s->blck);
+			clk_disable(i2s->bclk);
+
+			//ret = change_clk(&pdev->dev,"i2s-mclk-div",
+			//	i2s->mclk_set);
+			ret = change_clk(&pdev->dev, "i2s0_div_bclk",
+				i2s->bclk_set);
+
+			clk_enable(i2s->bclk);
 			pr_err("change_clk blck ret = %d\n", ret);
 		} else if (i2s->ms == 4) {
 
@@ -701,8 +685,7 @@ static int x2_i2s_probe(struct platform_device *pdev)
 	}
 
 	ret = device_create_file(&pdev->dev, &dev_attr_reg_dump);
-	if (!ret)
-		return ret;
+
 	pr_err("success register cpu dai%d driver\n", id);
 	return 0;
 

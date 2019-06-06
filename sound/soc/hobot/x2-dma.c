@@ -41,6 +41,7 @@
 #define MAX_IDMA_PERIOD (80 * 1024)
 #define MAX_IDMA_BUFFER (160 * 1024)
 static unsigned char *dma_vm;
+static unsigned long debug_flag;
 
 /* play and capture have the same hardware param, so no neeed split two parts */
 static const struct snd_pcm_hardware i2sidma_hardware = {
@@ -374,7 +375,8 @@ static irqreturn_t iis_irq0(int irqno, void *dev_id)
 	if (dma_ctrl->stream == SNDRV_PCM_STREAM_CAPTURE) {
 
 		intstatus = readl(x2_i2sidma[0].regaddr_rx + I2S_SRCPND);
-		//printk("intstatus = 0x%x\n",intstatus);
+		if (debug_flag == 1)
+			pr_err("intstatus = 0x%x\n", intstatus);
 
 
 		if (intstatus & INT_BUF0_DONE) {
@@ -385,9 +387,8 @@ static irqreturn_t iis_irq0(int irqno, void *dev_id)
 			if ((dma_ctrl->lastset + dma_ctrl->periodsz -
 					dma_ctrl->start)
 				/ dma_ctrl->periodsz == 1) {
-				//printk("index 0 irq,the head four bystes is
-				//0x%x,0x%x,0x%x,0x%x\n",*dma_vm,*(dma_vm+1),
-				// *(dma_vm+2),*(dma_vm+3));
+				if (debug_flag == 1)
+					pr_err("index 0 irq,the head four bystes is 0x%x,0x%x,0x%x,0x%x\n", *dma_vm, *(dma_vm+1), *(dma_vm+2), *(dma_vm+3));
 				addr += dma_ctrl->lastset + halfullsize;
 				dma_ctrl->lastset = dma_ctrl->start +
 					dma_ctrl->periodsz;
@@ -395,16 +396,14 @@ static irqreturn_t iis_irq0(int irqno, void *dev_id)
 			} else if ((dma_ctrl->lastset + dma_ctrl->periodsz -
 					dma_ctrl->start)
 				/ dma_ctrl->periodsz == 3){
-				//printk("index 2 irq,the head four bystes is
-				//0x%x,0x%x,0x%x,0x%x\n",*(dma_vm+8192),
-				// *(dma_vm+8192+1),*(dma_vm+8192+2),
-				// *(dma_vm+8192+3));
+				addr = dma_ctrl->start;
+				if (debug_flag == 1)
+					pr_err("index 2 irq,the head four bystes is 0x%x,0x%x,0x%x,0x%x\n", *(dma_vm+8192), *(dma_vm+8192+1), *(dma_vm+8192+2), *(dma_vm+8192+3));
 				dma_ctrl->lastset = dma_ctrl->start +
 				halfullsize + dma_ctrl->periodsz;
 
 			} else {
-				//printk("ERROR IN BUFFER0!,
-				//buffer come order error!\n");
+				pr_err("ERROR IN BUFFER0!,buffer come order error!\n");
 				return IRQ_HANDLED;
 			}
 			if (dma_ctrl->cb)
@@ -429,10 +428,8 @@ static irqreturn_t iis_irq0(int irqno, void *dev_id)
 				dma_ctrl->start)
 				/dma_ctrl->periodsz == 2) {
 
-				//printk("index 1 irq,the head four bystes is
-				//0x%x,0x%x,0x%x,0x%x\n",*(dma_vm+4096),
-				// *(dma_vm+4096+1),
-				// *(dma_vm+4096+2),*(dma_vm+4096+3));
+				if (debug_flag == 1)
+					pr_err("index 1 irq,the head four bystes is 0x%x,0x%x,0x%x,0x%x\n", *(dma_vm+4096), *(dma_vm+4096+1), *(dma_vm+4096+2), *(dma_vm+4096+3));
 				addr += dma_ctrl->lastset + halfullsize;
 				dma_ctrl->lastset = dma_ctrl->start +
 				halfullsize;
@@ -440,26 +437,22 @@ static irqreturn_t iis_irq0(int irqno, void *dev_id)
 			} else if ((dma_ctrl->lastset + dma_ctrl->periodsz -
 				dma_ctrl->start)
 				/dma_ctrl->periodsz == 4){
-				//printk("index 3 irq,the head four bystes is
-				//0x%x,0x%x,0x%x,0x%x\n",*(dma_vm+12288),
-				// *(dma_vm+12288+1),
-				// *(dma_vm+12288+2),*(dma_vm+12288+3));
+				if (debug_flag == 1)
+					pr_err("index 3 irq,the head four bystes is 0x%x,0x%x,0x%x,0x%x\n", *(dma_vm+12288), *(dma_vm+12288+1), *(dma_vm+12288+2), *(dma_vm+12288+3));
 				addr = dma_ctrl->start + dma_ctrl->periodsz;
 			     dma_ctrl->lastset = dma_ctrl->start;
 
 			}
 
 			else {
-				//printk("ERROR IN BUFFER1!,
-				//buffer come order error!\n");
+				pr_err("ERROR IN BUFFER1!,buffer come order error!\n");
 				return IRQ_HANDLED;
 			}
 
 			if (dma_ctrl->cb)
 				dma_ctrl->cb(dma_ctrl->token, dma_ctrl->period);
 
-			//printk("after callback,the corrent
-			//pos is 0x%x\n",dma_ctrl->lastset);
+			//printk("after callback,the corrent pos is 0x%x\n",dma_ctrl->lastset);
 			writel(addr, x2_i2sidma[dma_ctrl->id].regaddr_rx +
 				I2S_BUF1_ADDR);
 			writel(0x1, x2_i2sidma[dma_ctrl->id].regaddr_rx +
@@ -644,6 +637,30 @@ static struct snd_soc_platform_driver asoc_i2sidma_platform[2] = {
 		.pcm_free = i2sidma_free,
 	}
 };
+static ssize_t show_debug(struct device *dev,
+			struct device_attribute *attr, char *buf)
+{
+	char *s = buf;
+
+	s += sprintf(s, "debug flag is %ld\n", debug_flag);
+	if (s != buf)
+		*(s-1) = '\n';
+	return s-buf;
+}
+
+static ssize_t store_debug(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	int ret = 0;
+
+	ret = kstrtoul(buf, 10, &debug_flag);
+	if (ret)
+		return ret;
+
+	return count;
+
+}
+static DEVICE_ATTR(debug, 0644, show_debug, store_debug);
 
 static int asoc_i2sidma_platform_probe(struct platform_device *pdev)
 {
@@ -698,6 +715,9 @@ static int asoc_i2sidma_platform_probe(struct platform_device *pdev)
 	ret =  devm_snd_soc_register_platform(&pdev->dev,
 					      &asoc_i2sidma_platform[id]);
 	pr_err("success register platform %d, ret = %d\n", id, ret);
+
+	ret = device_create_file(&pdev->dev, &dev_attr_debug);
+
 	return ret;
 
 }

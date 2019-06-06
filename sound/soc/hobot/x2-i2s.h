@@ -183,10 +183,12 @@ struct x2_i2s {
 	struct clk *mclk;
 	struct clk *bclk;
 	struct clk *div_bclk;
+	struct clk *div_mclk;
 	u32 div_ws;
 	u32 ms;
 	u32 slot_width;
-	u32 blck;
+	u32 bclk_set;
+	u32 mclk_set;
 
 	int channel_num;
 	int wordlength;

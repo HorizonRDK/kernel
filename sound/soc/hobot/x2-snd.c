@@ -122,9 +122,9 @@ static struct snd_soc_dai_link x2_snd0_dai_link = {
 	.cpu_dai_name = "x2-i2s0",
 
 	.codec_dai_name = "ac108-pcm0",
-	 .codec_name   = "ac108.0-003b",
-	/* .codec_dai_name = "snd-soc-dummy-dai", */
-	 /* s.codec_name   = "snd-soc-dummy", */
+	 .codec_name   = "ac108.0-0035",
+	 //.codec_dai_name = "snd-soc-dummy-dai",
+	 //.codec_name   = "snd-soc-dummy",
 	.init = x2_snd_init,
 	.platform_name = "a5007000.idma",
 	.ops = &x2_snd_ops,

@@ -190,8 +190,9 @@
 			pinctrl-0 = <&i2s0_func>;
 			div_ws = <3855>;/*only for i2s mode*/
 			ms = <1>;
-			blck = <6144000>;/* only for master mode*/
-			slot_width= <128>;
+			bclk_set = <6144000>;/* only for master mode,tianpai is 6.144M*/
+			mclk_set = <12288000>;/* only for master mode,default is 12.288M*/
+			slot_width= <128>;/*128,64*/
 			status = "disabled";
 		};
 		i2s1: i2s@0xA5008000 {
@@ -205,6 +206,9 @@
 			pinctrl-0 = <&i2s1_func>;
 			div_ws = <3855>;
 			ms = <1>;
+			bclk_set = <6144000>;/* only for master mode,tianpai is 6.144M*/
+			mclk_set = <12288000>;/* only for master mode,default is 12.288M*/
+			slot_width= <128>;/*128,64*/
 			status = "disabled";
 		};
 
@@ -216,11 +220,9 @@
 			interrupt-parent = <&gic>;
 			interrupts = <0 30 4>;
 		};
-
-
 		snd0: sndcard@0{
 			compatible = "hobot, x2-snd0";
-			i2s_mode = <4>;/*1£ºi2s mode£» 4£ºdsp mode*/
+			i2s_mode = <4>;/*1:i2s mode; 4:dsp mode*/
 			master = <1>;/*1:master; 4:slave*/
 			channel_max = <8>;
 		};
