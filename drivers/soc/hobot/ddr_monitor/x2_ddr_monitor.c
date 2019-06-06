@@ -188,7 +188,7 @@ static int get_monitor_data(char* buf)
 					length += sprintf(buf + length, "p[%d](bw:%u stall:%u delay:%u) ", i, 0, 0, 0);
 				}
 			}
-			length += sprintf(buf + length, "ddrc:%u MB/s; ", (ddr_info[cur].rd_cmd_num * 64 * (1000000/g_monitor_poriod)) >> 20);
+			length += sprintf(buf + length, "ddrc:%u MB/s;\n", (ddr_info[cur].rd_cmd_num * 64 * (1000000/g_monitor_poriod)) >> 20);
 			length += sprintf(buf + length, "Write: ");
 			for (i = 0; i < 6; i++) {
 				if (ddr_info[cur].portdata[i].waddr_num) {
