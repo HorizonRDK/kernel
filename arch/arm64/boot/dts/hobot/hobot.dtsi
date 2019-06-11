@@ -12,6 +12,7 @@
 
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 #include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/thermal/thermal.h>
 
  / {
 	compatible = "hobot,x2";
@@ -43,10 +44,6 @@
 			cpu-release-addr = <0 0xA6000278>;
 			operating-points-v2 = <&cpu_opp_table>;
 			clocks = <&cpu_mux_clk>;
-			#cooling-cells = <2>;
-			cooling-min-level = <0>;
-			cooling-max-level = <2>;
-			dynamic-power-coefficient = <120>;
 			reg = <0x1>;
 			cpu-idle-states = <&CPU_SLEEP_0>;
 		};
@@ -139,6 +136,55 @@
 		interrupt-parent = <&gic>;
 		interrupts = <0 4 4>, <0 5 4>;
 		interrupt-affinity = <&cpu0>,<&cpu1>;
+	};
+
+	thermal_zones: thermal-zones {
+		soc_thermal: soc-thermal {
+			polling-delay-passive = <500>; /* milliseconds */
+			polling-delay = <1000>; /* milliseconds */
+			status = "disabled";
+
+			thermal-sensors = <&temp>;
+
+			trips {
+				threshold: trip-point@0 {
+					temperature = <60000>;
+					hysteresis = <0>;
+					type = "passive";
+				};
+				target: trip-point@1 {
+					temperature = <75000>;
+					hysteresis = <0>;
+					type = "passive";
+				};
+				soc_crit: soc-crit {
+					temperature = <110000>;
+					hysteresis = <0>; /* millicelsius */
+					type = "critical";
+				};
+			};
+			cooling-maps {
+				map0 {
+					trip = <&target>;
+					cooling-device =
+				<&cpu0 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+					contribution = <2048>;
+				};
+				map1 {
+					trip = <&target>;
+					cooling-device =
+				<&cnn0 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+					contribution = <1024>;
+				};
+				map2 {
+					trip = <&target>;
+					cooling-device =
+				<&cnn1 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+					contribution = <1024>;
+				};
+			};
+		};
+
 	};
 
 	soc {
@@ -520,6 +566,9 @@
 			clocks = <&cnn0_aclk>,<&cnn0_mclk>;
 			clock-names = "cnn0_aclk","cnn0_mclk";
 			iso-bit = <1>;
+			#cooling-cells = <2>;
+			cooling-min-level = <0>;
+			cooling-max-level = <4>;
 			operating-points-v2 = <&cnn_opp_table>;
 			status = "disabled";
 		};
@@ -537,6 +586,9 @@
 			clocks = <&cnn1_aclk>,<&cnn1_mclk>;
 			clock-names = "cnn1_aclk","cnn1_mclk";
 			iso-bit = <5>;
+			#cooling-cells = <2>;
+			cooling-min-level = <0>;
+			cooling-max-level = <4>;
 			operating-points-v2 = <&cnn_opp_table>;
 			status = "disabled";
 		};
@@ -615,6 +667,7 @@
 			reg = <0 0xA1009000 0 0x1000>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 53 4>;
+			#thermal-sensor-cells = <0>;
 			status = "disabled";
 		};
 

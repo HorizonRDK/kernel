@@ -46,6 +46,7 @@
 #include <linux/regulator/consumer.h>
 #ifdef CONFIG_HOBOT_CNN_DEVFREQ
 #include <linux/devfreq.h>
+#include <linux/devfreq_cooling.h>
 #include <linux/pm_opp.h>
 #endif
 #include "x2_cnn_host.h"
@@ -1309,6 +1310,7 @@ static int x2_cnnfreq_register(struct x2_cnn_dev *cnn_dev)
 	data->devfreq->max_freq = data->max;
 	devm_devfreq_register_opp_notifier(dev, data->devfreq);
 
+	of_devfreq_cooling_register(dev->of_node, data->devfreq);
 	dev_err(dev, "%s end\n", __func__);
 	return 0;
 }

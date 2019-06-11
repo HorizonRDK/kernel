@@ -45,23 +45,58 @@ typedef struct x2_temp {
 	void __iomem *regs_base;
 }x2_temp_s;
 
-static ssize_t x2_temp_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
+static int x2_temp_read(struct device *dev, enum hwmon_sensor_types type,
+		     u32 attr, int channel, long *val)
 {
 	x2_temp_s *x2temp = dev_get_drvdata(dev);
 
-	return sprintf(buf, "%d\n", x2temp->cur_temp/8);
+	*val = x2temp->cur_temp / 8 * 1000;
+	return 0;
 }
 
-static SENSOR_DEVICE_ATTR(temp1_input, S_IRUGO, x2_temp_show, NULL, 0);
+static umode_t x2_temp_is_visible(const void *data,
+		enum hwmon_sensor_types type,
+		u32 attr, int channel)
+{
+	return 0444;
+}
 
-static struct attribute *x2_temp_attrs[] = {
-	&sensor_dev_attr_temp1_input.dev_attr.attr,
-	NULL,
+static const u32 x2_chip_config[] = {
+	HWMON_C_REGISTER_TZ,
+	0
 };
 
-ATTRIBUTE_GROUPS(x2_temp);
+static const struct hwmon_channel_info x2_chip = {
+	.type = hwmon_chip,
+	.config = x2_chip_config,
+};
 
+static const u32 x2_temp_config[] = {
+	HWMON_T_INPUT,
+	0
+};
+
+static const struct hwmon_channel_info x2_temp = {
+	.type = hwmon_temp,
+	.config = x2_temp_config,
+};
+
+static const struct hwmon_channel_info *x2_info[] = {
+	&x2_chip,
+	&x2_temp,
+	NULL
+};
+
+static const struct hwmon_ops x2_hwmon_ops = {
+	.is_visible = x2_temp_is_visible,
+	.read = x2_temp_read,
+	.write = NULL,
+};
+
+static const struct hwmon_chip_info x2_chip_info = {
+	.ops = &x2_hwmon_ops,
+	.info = x2_info,
+};
 static irqreturn_t x2_temp_irq_handler(int irq, void *dev_id)
 {
 	struct x2_temp *x2temp = dev_id;
@@ -134,8 +169,9 @@ static int x2_temp_probe(struct platform_device *pdev)
 
 	x2_temp_init_hw(x2temp);
 
-	hwmon_dev = devm_hwmon_device_register_with_groups(&pdev->dev, X2_TEMP_NAME,
-				x2temp, x2_temp_groups);
+	hwmon_dev = devm_hwmon_device_register_with_info(&pdev->dev,
+					X2_TEMP_NAME, x2temp,
+					&x2_chip_info, NULL);
 
 	return PTR_ERR_OR_ZERO(hwmon_dev);
 

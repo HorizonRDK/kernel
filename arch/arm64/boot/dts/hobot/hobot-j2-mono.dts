@@ -312,3 +312,7 @@
 	clock-names = "tsensor_clk";
 	status = "okay";
 };
+
+&soc_thermal {
+	status = "okay";
+};
