@@ -376,25 +376,38 @@ static irqreturn_t x2_cnn_interrupt_handler(int irq, void *dev_id)
 	struct x2_cnn_dev *dev = (struct x2_cnn_dev *)dev_id;
 	unsigned long flags;
 	u32 irq_status;
+	u32 tmp_irq;
 	struct x2_int_info tmp;
 
 	spin_lock_irqsave(&dev->cnn_spin_lock, flags);
 
 	irq_status = x2_cnn_reg_read(dev, X2_CNNINT_STATUS);
 	x2_cnn_reg_write(dev, X2_CNNINT_MASK, 0x1);
-	dev->x2_cnn_int_num = x2_cnn_reg_read(dev, X2_CNNINT_NUM);
-
+	tmp_irq = x2_cnn_reg_read(dev, X2_CNNINT_NUM);
 	x2_cnn_reg_write(dev, X2_CNNINT_MASK, 0x0);
 	spin_unlock_irqrestore(&dev->cnn_spin_lock, flags);
-	ret = kfifo_out(&dev->int_info_fifo, &tmp,
-					sizeof(struct x2_int_info));
-	if (ret) {
-		if (tmp.int_num != dev->x2_cnn_int_num)
-			pr_err("interrupt num is error\n");
+
+	do {
+		ret = kfifo_out(&dev->int_info_fifo, &tmp,
+						sizeof(struct x2_int_info));
+		if (!ret) {
+			spin_lock_irqsave(&dev->cnn_spin_lock, flags);
+			dev->cnn_int_num.cnn_int_num[dev->cnn_int_num.cnn_int_count] = tmp_irq;
+			if (dev->cnn_int_num.cnn_int_count < CNN_INT_NUM)
+				dev->cnn_int_num.cnn_int_count++;
+			spin_unlock_irqrestore(&dev->cnn_spin_lock, flags);
+			break;
+		}
+
+		spin_lock_irqsave(&dev->cnn_spin_lock, flags);
+		dev->cnn_int_num.cnn_int_num[dev->cnn_int_num.cnn_int_count] = tmp.int_num;
+		if (dev->cnn_int_num.cnn_int_count < CNN_INT_NUM)
+			dev->cnn_int_num.cnn_int_count++;
+		spin_unlock_irqrestore(&dev->cnn_spin_lock, flags);
 		atomic_sub(tmp.fc_total, &dev->wait_fc_cnt);
-	} else
-		pr_err("%s[%d]:interrupt information is empty\n",
-			__func__, __LINE__);
+
+	} while (tmp.int_num != tmp_irq);
+
 	pr_debug("!!!!!!xxxx x2 cnn interrupt\n");
 	tasklet_schedule(&dev->tasklet);
 	return IRQ_HANDLED;
@@ -678,9 +691,9 @@ static u32 x2_cnn_fc_fifo_enqueue(struct x2_cnn_dev *dev,
 	return rc;
 }
 
-static u32 x2_cnn_get_int_num(struct x2_cnn_dev *dev)
+static struct x2_cnn_int_num x2_cnn_get_int_num(struct x2_cnn_dev *dev)
 {
-	return dev->x2_cnn_int_num;
+	return dev->cnn_int_num;
 }
 
 static int x2_cnn_open(struct inode *inode, struct file *filp)
@@ -706,6 +719,7 @@ static int x2_cnn_release(struct inode *inode, struct file *filp)
 
 	mutex_lock(&x2_cnn_mutex);
 	devdata = filp->private_data;
+	devdata->cnn_int_num.cnn_int_count = 0;
 	mutex_unlock(&x2_cnn_mutex);
 	return 0;
 }
@@ -732,6 +746,7 @@ static long x2_cnn_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	union cnn_ioctl_arg data;
 	void *kernel_fc_data;
 	struct hbrt_x2_funccall_s *tmp_ptr = NULL;
+	unsigned long flags;
 
 	dir = cnn_ioctl_dir(cmd);
 
@@ -827,8 +842,10 @@ static long x2_cnn_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		break;
 	case CNN_IOC_GET_INT_NUM:
 		mutex_lock(&dev->cnn_lock);
-		data.int_num_data.cnn_int_num = x2_cnn_get_int_num(dev);
-		dev->x2_cnn_int_num = 0;
+		spin_lock_irqsave(&dev->cnn_spin_lock, flags);
+		data.int_num_data = x2_cnn_get_int_num(dev);
+		dev->cnn_int_num.cnn_int_count = 0;
+		spin_unlock_irqrestore(&dev->cnn_spin_lock, flags);
 		mutex_unlock(&dev->cnn_lock);
 		break;
 	default:
@@ -934,10 +951,13 @@ static void x2_cnn_do_tasklet(unsigned long data)
 	dev->irq_triggered = 1;
 	spin_unlock_irqrestore(&dev->cnn_spin_lock, flags);
 	ret = cnn_netlink_send(dev->irq_sk, dev->core_index,
-			&dev->x2_cnn_int_num, sizeof(dev->x2_cnn_int_num));
-	if ((ret < 0) && (ret != -ESRCH))
+			&dev->cnn_int_num, sizeof(dev->cnn_int_num));
+	if ((ret < 0) && (ret != -ESRCH)) {
 		pr_err("CNN trigger irq[%d] failed errno[%d]!\n",
-				dev->x2_cnn_int_num, ret);
+				dev->cnn_int_num, ret);
+	} else if (ret == sizeof(dev->cnn_int_num)) {
+		dev->cnn_int_num.cnn_int_count = 0;
+	}
 
 	ret = kfifo_len(&dev->fc_time_save_fifo);
 	if (ret >= sizeof(struct x2_fc_time) * FC_TIME_SAVE_CNT) {

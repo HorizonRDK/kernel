@@ -5,6 +5,7 @@
 #include <linux/kfifo.h>
 
 #define X2_CNN_DRV_NAME		"x2_cnn"
+#define CNN_INT_NUM 16
 
 /*************************************************************
  * x2 cnn register offset list
@@ -133,6 +134,11 @@ struct x2_cnnfreq {
 	unsigned long min, max;
 };
 
+struct x2_cnn_int_num {
+	u32 cnn_int_num[CNN_INT_NUM];
+	u32 cnn_int_count;
+};
+
 struct x2_cnn_dev {
 	void __iomem	*cnn_base;
 	u32		irq;
@@ -159,7 +165,7 @@ struct x2_cnn_dev {
 	struct sock *irq_sk;
 	/* wait queue for wait cnn interrupt occur */
 	wait_queue_head_t cnn_int_wait;
-	u32 x2_cnn_int_num;
+	struct x2_cnn_int_num cnn_int_num;
 	atomic_t wait_fc_cnt;
 	atomic_t hw_flg;
 	struct tasklet_struct tasklet;
@@ -246,10 +252,6 @@ struct hbrt_x2_funccall_s {
 	uint32_t dyn_base_addr1;
 	uint32_t dyn_base_addr0;
 	uint32_t instruction_address;
-};
-
-struct x2_cnn_int_num {
-	u32 cnn_int_num;
 };
 
 union cnn_ioctl_arg {
