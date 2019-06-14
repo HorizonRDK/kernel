@@ -81,7 +81,6 @@ enum {
 	GAMMA_CFG,
 	OUTPUT_CFG,
 };
-static int iar_config = CONFIG_CHANNEL13;
 static int lcd_type = RGB888_700;
 //static int outmode = OUTPUT_RGB888;
 static int outmode = OUTPUT_BT1120;
@@ -102,221 +101,9 @@ static int x2fb_pan_display(struct fb_var_screeninfo *var,
 static int x2fb_blank(int blank, struct fb_info *info);
 static u_long get_line_length(int xres_virtual, int bpp);
 static int x2fb_mmap(struct fb_info *info, struct vm_area_struct *pvma);
-static int iar_paser_config(int type, int config_arrray[]);
 static int x2fb_check_var(struct fb_var_screeninfo *var, struct fb_info *info);
-static int init_config(void);
 
 static int flag;
-//int display_type = LCD_7_TYPE;
-
-
-int channelconfig[] = {
-	0, //channel 0
-	1, //enable
-	3, //pri
-	1920, //display width
-	1080, //displayheight
-	1920, //buf width
-	1080, //buf height
-	0, //xposition
-	0, //yposition
-	4, //format
-	255, //alpha
-	0, //keycolor
-	0, //alpha_sel
-	0, //ov_mode
-	1, //alpha_en
-	   //-----------------------
-	1, //channel 1
-	0, //enable
-	2, //pri
-	1920, //display width
-	1080, //displayheight
-	1920, //buf width
-	1080, //buf height
-	0, //xposition
-	0, //yposition
-	4, //format
-	255, //alpha
-	0, //keycolor
-	0, //alpha_sel
-	0, //ov_mode
-	1, //alpha_en
-	   //-----------------------
-	2, //channel 2
-	1, //enable
-	1, //pri
-	1920, //display width
-	1080, //displayheight
-	1920, //buf width
-	1080, //buf height
-	0, //xposition
-	0, //yposition
-	4, //format
-	255, //alpha
-	0, //keycolor
-	0, //alpha_sel
-	0, //ov_mode
-	1, //alpha_en
-	   //-----------------------
-	3, //channel 3
-	0, //enable
-	0, //pri
-	1920, //display width
-	1080, //displayheight
-	1920, //buf width
-	1080, //buf height
-	0, //xposition
-	0, //yposition
-	4, //format
-	255, //alpha
-	0, //keycolor
-	0, //alpha_sel
-	0, //ov_mode
-	1, //alpha_en
-};
-int output_cfg[] = {
-	0xff7f88, //bgcolor
-	0, //output
-	1920, //width
-	1080, //height
-	0, //dithering_flag
-	0, //dithering_en
-	0, //gamma_en
-	0, //hue_en
-	0, //sat_en
-	0, //con_en
-	0, //bright_en
-	0, //theta_sign
-	0, //contrast
-	0xdf, //theta_abs
-	0x6a, //saturation
-	0, //off_contrast
-	0x9a, //off_bright
-	0, //dbi_refresh_mode
-	2, //panel_corlor_type
-	0, //interlace_sel
-	0, //odd_polarity
-	0, //pixel_rate
-	0, //ycbcr_out
-	0, //uv_sequence
-	0, //itu_r656_en
-	0, //auto_dbi_refresh_cnt
-	0, //auto_dbi_refresh_en
-};
-int scale_config[] = {
-	0, //scale_en
-	1920, //src_width
-	1080, //src_height
-	1920, //tgt_width
-	1080, //tgt_height
-	0, //step_x
-	0, //step_y
-	0, //pos_x
-	0, //pos_y
-};
-int gammma_config[] = {
-	0, //gamma_x1_r
-	0, //gamma_x2_r
-	0, //gamma_x3_r
-	0, //gamma_x4_r
-	0, //gamma_x5_r
-	0, //gamma_x6_r
-	0, //gamma_x7_r
-	0, //gamma_x8_r
-	0, //gamma_x9_r
-	0, //gamma_x10_r
-	0, //gamma_x11_r
-	0, //gamma_x12_r
-	0, //gamma_x13_r
-	0, //gamma_x14_r
-	0, //gamma_x15_r
-	0, //reserve
-	0, //gamma_x1_g
-	0, //gamma_x2_g
-	0, //gamma_x3_g
-	0, //gamma_x4_g
-	0, //gamma_x5_g
-	0, //gamma_x6_g
-	0, //gamma_x7_g
-	0, //gamma_x8_g
-	0, //gamma_x9_g
-	0, //gamma_x10_g
-	0, //gamma_x11_g
-	0, //gamma_x12_g
-	0, //gamma_x13_g
-	0, //gamma_x14_g
-	0, //gamma_x15_g
-	0, //reserve
-	0, //gamma_x1_b
-	0, //gamma_x2_b
-	0, //gamma_x3_b
-	0, //gamma_x4_b
-	0, //gamma_x5_b
-	0, //gamma_x6_b
-	0, //gamma_x7_b
-	0, //gamma_x8_b
-	0, //gamma_x9_b
-	0, //gamma_x10_b
-	0, //gamma_x11_b
-	0, //gamma_x12_b
-	0, //gamma_x13_b
-	0, //gamma_x14_b
-	0, //gamma_x15_b
-	0, //reserve
-	0, //gamma_y1_start_r
-	0, //gamma_y1_r
-	0, //gamma_y2_r
-	0, //gamma_y3_r
-	0, //gamma_y4_r
-	0, //gamma_y5_r
-	0, //gamma_y6_r
-	0, //gamma_y7_r
-	0, //gamma_y8_r
-	0, //gamma_y9_r
-	0, //gamma_y10_r
-	0, //gamma_y11_r
-	0, //gamma_y12_r
-	0, //gamma_y13_r
-	0, //gamma_y14_r
-	0, //gamma_y15_r
-	0, //gamma_y1_start_g
-	0, //gamma_y1_g
-	0, //gamma_y2_g
-	0, //gamma_y3_g
-	0, //gamma_y4_g
-	0, //gamma_y5_g
-	0, //gamma_y6_g
-	0, //gamma_y7_g
-	0, //gamma_y8_g
-	0, //gamma_y9_g
-	0, //gamma_y10_g
-	0, //gamma_y11_g
-	0, //gamma_y12_g
-	0, //gamma_y13_g
-	0, //gamma_y14_g
-	0, //gamma_y15_g
-	0, //gamma_y1_start_b
-	0, //gamma_y1_b
-	0, //gamma_y2_b
-	0, //gamma_y3_b
-	0, //gamma_y4_b
-	0, //gamma_y5_b
-	0, //gamma_y6_b
-	0, //gamma_y7_b
-	0, //gamma_y8_b
-	0, //gamma_y9_b
-	0, //gamma_y10_b
-	0, //gamma_y11_b
-	0, //gamma_y12_b
-	0, //gamma_y13_b
-	0, //gamma_y14_b
-	0, //gamma_y15_b
-	0, //gamma_y16_r
-	0, //gamma_y16_b
-	0, //gamma_y16_g
-};
-
 
 struct fb_var_screeninfo RGB500_var_default = {
 	.xres = 800,
@@ -868,84 +655,6 @@ static int x2fb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
 	return 0;
 }
 
-
-static int iar_paser_config(int type, int config_arrray[])
-{
-	int i;
-
-	switch (type) {
-	case USER_CFG:
-//		{
-//			iar_mode_t iarmode;
-//			layer_config_t layercfg[IAR_CHANNEL_MAX];
-//			for (i = 0; i < sizeof(iar_mode_t) /
-//			sizeof(unsigned int); i++) {
-//				unsigned int *tmp = (unsigned int *)&iarmode;
-//				*(tmp + i) = config_arrray[i];
-//			}
-//			for (j = 0; j < (IAR_PRI_MAX)*sizeof(layer_config_t) /
-//			sizeof(unsigned int); j++) {
-//				unsigned int *tmp = (unsigned int *)&layercfg;
-//				*(tmp + j) = config_arrray[i + j];
-//			}
-//			iar_fill_userconfig(&iarmode, layercfg);
-//			iar_get_framesize();
-//		}
-		break;
-	case CHANNEL_CFG:
-	{
-		unsigned int *cfg = (unsigned int *)(&x2_fbi->channel_base_cfg);
-
-		for (i = 0; i < (IAR_CHANNEL_MAX)*sizeof(channel_base_cfg_t) /
-						sizeof(unsigned int); i++)
-			*(cfg + i) = config_arrray[i];
-	}
-	break;
-	case SCALE_CFG:
-	{
-		unsigned int *cfg = (unsigned int *)(&x2_fbi->scale_cfg);
-
-		for (i = 0; i < sizeof(upscaling_cfg_t) / sizeof(unsigned int);
-				i++)
-			*(cfg + i) = config_arrray[i];
-	}
-	break;
-	case GAMMA_CFG:
-	{
-		gamma_cfg_t *cfg = &x2_fbi->gamma_cfg;
-
-		for (i = 0; i < sizeof(gamma_cfg_t); i++) {
-			gama_para_t *gama_para = (gama_para_t *)cfg + (i / 4);
-
-			gama_para->bit.part_a = config_arrray[i++];
-			gama_para->bit.part_b = config_arrray[i++];
-			gama_para->bit.part_c = config_arrray[i++];
-			gama_para->bit.part_d = config_arrray[i];
-		}
-	}
-	break;
-	case OUTPUT_CFG:
-	{
-		unsigned int *cfg = (unsigned int *)(&x2_fbi->output_cfg);
-
-		for (i = 0; i < sizeof(output_cfg_t) /
-				sizeof(unsigned int); i++)
-			*(cfg + i) = config_arrray[i];
-	}
-	break;
-	}
-	return 0;
-}
-static int init_config(void)
-{
-	iar_paser_config(CHANNEL_CFG, channelconfig);
-	iar_paser_config(SCALE_CFG, scale_config);
-	//iar_paser_config(GAMMA_CFG, gammma_config);
-	iar_paser_config(OUTPUT_CFG, output_cfg);
-
-	return 0;
-}
-
 static int iar_get_framesize(void)
 {
 	int i = 0;
@@ -1021,216 +730,14 @@ static int iar_get_framesize(void)
 
 static int x2fb_set_par(struct fb_info *fb)
 {
-
 	int ret = 0;
 	void __iomem *hitm1_reg_addr;
-	//int hitm1_reg_value = 0;
+	uint32_t regval = 0;
 
-	pr_debug("%s: begin.\n", __func__);
 	iar_stop();
-//	init_config();
+	iar_set_panel_timing(fb, display_type);
 
-	X2FB_DEBUG_PRINT("## iar_parser_config.\n");
-
-	if (display_type == HDMI_TYPE) {
-		pr_debug("fb set HDMI display!!!!\n");
-		x2_fbi->memory_mode = 0;
-
-		x2_fbi->channel_base_cfg[0].enable = 0;
-		x2_fbi->channel_base_cfg[1].enable = 0;
-		x2_fbi->channel_base_cfg[3].enable = 0;
-		x2_fbi->channel_base_cfg[2].channel = IAR_CHANNEL_3;
-		x2_fbi->channel_base_cfg[2].enable = x2_fbi->channel3_en;
-		x2_fbi->update_cmd.enable_flag[2] = x2_fbi->channel3_en;
-		x2_fbi->channel_base_cfg[2].enable = 1;
-		x2_fbi->update_cmd.enable_flag[2] = 1;
-
-		x2_fbi->channel_base_cfg[2].pri = 1;
-
-		x2_fbi->channel_base_cfg[2].width = 1920;
-		x2_fbi->channel_base_cfg[2].height = 1080;
-		x2_fbi->channel_base_cfg[2].buf_width = 1920;
-		x2_fbi->channel_base_cfg[2].buf_height = 1080;
-		// x2_fbi->channel_base_cfg[2].format = 4;//ARGB8888
-		// x2_fbi->channel_base_cfg[2].xposition = fb->var.xoffset;
-		// x2_fbi->channel_base_cfg[2].yposition = fb->var.xoffset;
-		x2_fbi->channel_base_cfg[2].alpha_sel = 0;
-		x2_fbi->channel_base_cfg[2].ov_mode = 0;
-		x2_fbi->channel_base_cfg[2].alpha_en = 1;
-		x2_fbi->channel_base_cfg[2].alpha = 255;
-
-		x2_fbi->output_cfg.out_sel = 1;  // 1-BT.
-		x2_fbi->output_cfg.width = 1920;
-		x2_fbi->output_cfg.height = 1080;
-		x2_fbi->output_cfg.bgcolor = 16744328; // white.
-
-		// iar_get_framesize();
-		iar_channel_base_cfg(&x2_fbi->channel_base_cfg[2]);
-		iar_output_cfg(&x2_fbi->output_cfg);
-		iar_set_panel_timing(fb, display_type);
-
-		iar_switch_buf(2);
-		hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x204, 4);
-		writel(0x0, hitm1_reg_addr);
-		hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x00, 4);
-		writel(0x041bf00f, hitm1_reg_addr);
-//		hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x68, 4);
-//		writel(0x00000000, hitm1_reg_addr);//bg_color
-		hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x204, 4);
-		writel(0x00000008, hitm1_reg_addr);//refresh
-/*
- *		hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x208, 4);
- *		hitm1_reg_value = 0x0280a030;
- *		writel(hitm1_reg_value, hitm1_reg_addr);
- *		//printk();
- *		vitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x20c, 4);
- *		vitm1_reg_value = 0x01e03003;
- *		writel(vitm1_reg_value, vitm1_reg_addr);
- *
- *		hitm2_reg_addr = ioremap_nocache(0xA4001000 + 0x210, 4);
- *		hitm2_reg_value = 0x0280a030;
- *		writel(hitm2_reg_value, hitm2_reg_addr);
- *		//printk();
- *		vitm2_reg_addr = ioremap_nocache(0xA4001000 + 0x214, 4);
- *		vitm2_reg_value = 0x01e03003;
- *		writel(vitm2_reg_value, vitm2_reg_addr);
- */
-		iar_start(1);
-		iar_switch_buf(2);
-
-		msleep(500);
-		msleep(500);
-	} else if ((display_type == LCD_7_TYPE) &&
-			(iar_config == CONFIG_CHANNEL3)) {
-		//display rgb picture
-		printk("fb set 7inch lcd display!!!\n");
-		x2_fbi->memory_mode = 0;//????
-
-		x2_fbi->channel_base_cfg[0].enable = 0;
-		x2_fbi->channel_base_cfg[1].enable = 0;
-		x2_fbi->channel_base_cfg[3].enable = 0;
-		x2_fbi->channel_base_cfg[2].channel = IAR_CHANNEL_3;
-		x2_fbi->channel_base_cfg[2].enable = x2_fbi->channel3_en;
-		x2_fbi->update_cmd.enable_flag[2] = x2_fbi->channel3_en;
-		x2_fbi->channel_base_cfg[2].enable = 1;
-		x2_fbi->update_cmd.enable_flag[2] = 1;
-
-		x2_fbi->channel_base_cfg[2].pri = 1;
-		x2_fbi->channel_base_cfg[2].width = fb->var.xres;
-		x2_fbi->channel_base_cfg[2].height = fb->var.yres;
-		x2_fbi->channel_base_cfg[2].buf_width = fb->var.xres;
-		x2_fbi->channel_base_cfg[2].buf_height = fb->var.yres;
-		x2_fbi->channel_base_cfg[2].format = FORMAT_ARGB8888;//ARGB8888
-		x2_fbi->channel_base_cfg[2].xposition = fb->var.xoffset;
-		x2_fbi->channel_base_cfg[2].yposition = fb->var.xoffset;
-		x2_fbi->channel_base_cfg[2].alpha_sel = 0;
-		x2_fbi->channel_base_cfg[2].ov_mode = 0;
-		x2_fbi->channel_base_cfg[2].alpha_en = 0;
-		x2_fbi->channel_base_cfg[2].alpha = 255;
-
-		x2_fbi->output_cfg.out_sel = 1;
-		x2_fbi->output_cfg.width = 800;
-		x2_fbi->output_cfg.height = 480;
-		x2_fbi->output_cfg.bgcolor = 16744328;
-
-		iar_get_framesize();
-		iar_channel_base_cfg(&x2_fbi->channel_base_cfg[2]);
-		iar_output_cfg(&x2_fbi->output_cfg);
-		iar_set_panel_timing(fb, display_type);
-
-		iar_switch_buf(2);
-		hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x00, 4);
-		writel(0x041bf00f, hitm1_reg_addr);
-
-//		hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x68, 4);
-//		//bg_color
-//		writel(0x000000, hitm1_reg_addr);
-		hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x204, 4);
-		writel(0x00000008, hitm1_reg_addr);//refresh
-		hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x318, 4);
-		writel(0x00000000, hitm1_reg_addr);
-		hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x98, 4);
-		writel(0x00000001, hitm1_reg_addr);//updat
-		hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x218, 4);
-		writel(0x0000000a, hitm1_reg_addr);
-
-		//hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x208, 4);
-		//hitm1_reg_value = 0x0280a030;
-		//writel(hitm1_reg_value, hitm1_reg_addr);
-		//vitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x20c, 4);
-		//vitm1_reg_value = 0x01e03003;
-		//writel(vitm1_reg_value, vitm1_reg_addr);
-
-		//hitm2_reg_addr = ioremap_nocache(0xA4001000 + 0x210, 4);
-		//hitm2_reg_value = 0x0280a030;
-		//writel(hitm2_reg_value, hitm2_reg_addr);
-		//vitm2_reg_addr = ioremap_nocache(0xA4001000 + 0x214, 4);
-		//vitm2_reg_value = 0x01e03003;
-		//writel(vitm2_reg_value, vitm2_reg_addr);
-
-		iar_start(1);
-		iar_switch_buf(2);
-
-		msleep(500);
-		msleep(500);
-
-		set_lt9211_config(&x2_fbi->fb, 0);
-	} else if ((display_type == LCD_7_TYPE) &&
-			(iar_config == CONFIG_CHANNEL1)) {
-		//display video YUV420
-		x2_fbi->memory_mode = 0;
-
-		x2_fbi->channel_base_cfg[0].enable = 1;
-		x2_fbi->channel_base_cfg[1].enable = 0;
-		x2_fbi->channel_base_cfg[2].enable = 0;
-		x2_fbi->channel_base_cfg[3].enable = 0;
-		x2_fbi->channel_base_cfg[0].channel = IAR_CHANNEL_1;
-		x2_fbi->channel_base_cfg[0].enable = 1;
-		x2_fbi->update_cmd.enable_flag[0] = 1;
-		//x2_fbi->channel_base_cfg[0].pri = 3;
-		x2_fbi->channel_base_cfg[0].pri = 1;
-		x2_fbi->channel_base_cfg[0].width = 800;
-		x2_fbi->channel_base_cfg[0].height = 480;
-		x2_fbi->channel_base_cfg[0].buf_width = 800;
-		x2_fbi->channel_base_cfg[0].buf_height = 480;
-		x2_fbi->channel_base_cfg[0].format = FORMAT_YUV420SP_UV;
-		//x2_fbi->channel_base_cfg[2].xposition = fb->var.xoffset;
-		//x2_fbi->channel_base_cfg[2].yposition = fb->var.xoffset;
-		x2_fbi->channel_base_cfg[0].alpha_sel = 0;
-		x2_fbi->channel_base_cfg[0].ov_mode = 0;
-		x2_fbi->channel_base_cfg[0].alpha_en = 1;
-		x2_fbi->channel_base_cfg[0].alpha = 255;
-
-		x2_fbi->output_cfg.out_sel = 1;//1-BT.
-		x2_fbi->output_cfg.width = 800;
-		x2_fbi->output_cfg.height = 480;
-		//x2_fbi->output_cfg.bgcolor = 16744328;// white.
-		x2_fbi->output_cfg.bgcolor = 88888888;//green.
-
-		iar_channel_base_cfg(&x2_fbi->channel_base_cfg[0]);
-		iar_output_cfg(&x2_fbi->output_cfg);
-		iar_set_panel_timing(fb, display_type);
-
-		iar_switch_buf(0);
-
-		hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x00, 4);
-		writel(0x011bf00f, hitm1_reg_addr);
-
-		hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x204, 4);
-		writel(0x00000008, hitm1_reg_addr);
-
-		hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x48, 4);//format
-		writel(0x00000006, hitm1_reg_addr);
-
-		iar_start(1);
-		iar_switch_buf(0);
-
-		msleep(500);
-		set_lt9211_config(&x2_fbi->fb, 0);
-
-	} else if ((display_type == LCD_7_TYPE) &&
-			(iar_config == CONFIG_CHANNEL13)) {
-		//display video and picture
+	if (display_type == LCD_7_TYPE) {
 		x2_fbi->memory_mode = 0;
 
 		x2_fbi->channel_base_cfg[0].enable = 1;
@@ -1289,6 +796,20 @@ static int x2fb_set_par(struct fb_info *fb)
 		hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x48, 4);
 		writel(0x00001c36, hitm1_reg_addr);
 
+		hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x7c, 4);
+		regval = readl(hitm1_reg_addr);
+		//printk("ppcon1 regvalue is 0x%x\n",regval);
+		regval |= 0x50;
+		//printk("ppcon1 regvalue is 0x%x\n",regval);
+		writel(regval, hitm1_reg_addr);
+
+		hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x80, 4);
+		regval = readl(hitm1_reg_addr);
+		//printk("ppcon2 regvalue is 0x%x\n",regval);
+		regval = (regval & 0x000000ff) | 0x00008000;
+		//printk("ppcon2 regvalue is 0x%x\n",regval);
+		writel(regval, hitm1_reg_addr);
+
 		iar_start(1);
 		iar_switch_buf(0);
 		iar_switch_buf(2);
@@ -1297,12 +818,9 @@ static int x2fb_set_par(struct fb_info *fb)
 
 		set_lt9211_config(&x2_fbi->fb, 0);
 	}
-	pr_debug("%s: end.\n", __func__);
 
-	return ret;
-
+	return 0;
 }
-
 
 static void x2fb_activate_par(void)
 {
@@ -1395,7 +913,6 @@ static int x2fb_probe(struct platform_device *pdev)
 	} else if (outmode == OUTPUT_BT1120 && lcd_type == DSI_PANEL) {
 
 	}
-	init_config();
 
 	platform_set_drvdata(pdev, x2_fbi);
 	pr_debug("*********begin register framebuffer********\n");

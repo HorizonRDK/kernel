@@ -598,6 +598,8 @@ int32_t iar_channel_base_cfg(channel_base_cfg_t *cfg)
 	value = IAR_REG_SET_FILED(target_filed, cfg->alpha_en, value);
 	writel(value, g_iar_dev->regaddr + REG_IAR_OVERLAY_OPT);
 
+	writel(0x011bf00f, g_iar_dev->regaddr + REG_IAR_OVERLAY_OPT);
+
 	g_iar_dev->buf_w_h[channelid][0] = cfg->buf_width;
 	g_iar_dev->buf_w_h[channelid][1] = cfg->buf_height;
 	iar_config_pixeladdr();
@@ -689,7 +691,7 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 		pr_debug("set btout clksrc.\n");
 		ips_set_btout_clksrc(IAR_CLK, true);
 	}
-	iar_set_hvsync_timing(cfg->out_sel);
+//	iar_set_hvsync_timing(cfg->out_sel);
 
 	writel(cfg->bgcolor, g_iar_dev->regaddr + REG_IAR_BG_COLOR);
 	writel((0x1 << cfg->out_sel), g_iar_dev->regaddr + REG_IAR_DE_OUTPUT_SEL);
@@ -697,6 +699,8 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 	value = IAR_REG_SET_FILED(IAR_PANEL_HEIGHT, cfg->height, value);
 	writel(value, g_iar_dev->regaddr + REG_IAR_PANEL_SIZE);
 
+	writel(0x00000008, g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
+#if 0
 	value = IAR_REG_SET_FILED(IAR_CONTRAST, cfg->ppcon1.contrast, 0);
 	value = IAR_REG_SET_FILED(IAR_THETA_SIGN, cfg->ppcon1.theta_sign, value);
 	value = IAR_REG_SET_FILED(IAR_BRIGHT_EN, cfg->ppcon1.bright_en, value);
@@ -724,6 +728,7 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 	value = IAR_REG_SET_FILED(IAR_ITU_R_656_EN, cfg->refresh_cfg.itu_r656_en, value);
 	value = IAR_REG_SET_FILED(IAR_PIXEL_RATE, 0, value);
 	writel(value, g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
+#endif
 
 	return 0;
 }
