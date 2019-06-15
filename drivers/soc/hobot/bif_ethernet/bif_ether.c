@@ -207,15 +207,17 @@ static int bifnet_sync_ap(void *p)
 
 static void bifnet_query_addr(void *p, int wait_flag)
 {
-	void *vir_addr;
-	void *phy_addr;
+	void *vir_addr = NULL;
+	void *phy_addr = NULL;
 	struct bifnet_local *pl = (struct bifnet_local *)p;
 
-	if (!pl || !pl->plat)
+	if (!pl || !pl->plat || !pl->start)
 		return;
 
 	//pr_info("bifeth：query address(wait flag=%d)...\n", wait_flag);
 	if (pl->plat->plat_type == PLAT_AP) {
+		if (!pl->start)
+			return;
 		if (wait_flag)
 			phy_addr = bif_query_address_wait(pl->bifnet_id);
 		else
@@ -229,6 +231,8 @@ static void bifnet_query_addr(void *p, int wait_flag)
 			pl->other_phy = (ulong)phy_addr;
 
 			/*cp side init */
+			if (!pl->start)
+				return;
 			if (wait_flag)
 				vir_addr =
 					bif_query_otherbase_wait(pl->bifnet_id);
@@ -246,6 +250,8 @@ static void bifnet_query_addr(void *p, int wait_flag)
 		pl->other = pl->cp;
 	} else {
 		/*ap side init */
+		if (!pl->start)
+			return;
 		if (wait_flag)
 			vir_addr = bif_query_otherbase_wait(pl->bifnet_id);
 		else
@@ -480,7 +486,7 @@ static int net_send_thread(void *arg)
 
 	while (!kthread_should_stop()) {
 
-		if (!dev || !pl || !pl->query_ok)
+		if ((!dev || !pl || !pl->query_ok) && pl->start)
 			bifnet_query_addr((void *)pl, 1);
 		if (!dev || !pl || !pl->start || !pl->self || !pl->other ||
 			!pl->self_phy || !pl->self_vir)
@@ -833,8 +839,8 @@ exit_2:
 exit_1:
 		pr_err("bifnet: Err init failed.\n");
 	} else {
-		pr_info("bifnet: Suc init success.\n");
 		pl->start = 1;
+		pr_info("bifnet: Suc init success.\n");
 	}
 
 	return ret;
@@ -857,6 +863,8 @@ static void bifnet_exit(void)
 		pl->skbs_tail = (pl->skbs_head + 1) % MAX_SKB_BUFFERS;
 		wake_up_all(&pl->tx_wq);
 		if (pl->tx_task) {
+			bif_query_wait_exit(pl->bifnet_id, 0);
+			bif_query_wait_exit(pl->bifnet_id, 1);
 			kthread_stop(pl->tx_task);
 			pl->tx_task = NULL;
 		}
