@@ -236,7 +236,7 @@
 			pinctrl-0 = <&i2s0_func>;
 			div_ws = <3855>;/*only for i2s mode*/
 			ms = <1>;
-			bclk_set = <6144000>;/* only for master mode,tianpai is 6.144M*/
+			bclk_set = <2048000>;/* only for master mode,tianpai 48K is 6.144M*/
 			mclk_set = <12288000>;/* only for master mode,default is 12.288M*/
 			slot_width= <128>;/*128,64*/
 			status = "disabled";
