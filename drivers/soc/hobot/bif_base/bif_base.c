@@ -83,6 +83,7 @@
 #define BIFBASE_CHECKPARAM	(0)
 #define BIFBASE_UPDATEPARAM	(1)
 #define BIFBASE_MEM_NC
+#define WQ_TIMEOUT		(5)
 
 static ulong bifbase_phyaddr;
 static char *bifspi;
@@ -126,6 +127,8 @@ struct bifbase_local {
 	int base_ap_wq_flg;
 	int base_irq_wq_flg;
 	int base_sendirq_wq_flg;
+	int base_ap_wq_ing[BUFF_MAX];
+	int base_irq_wq_ing[BUFF_MAX];
 
 	void *bifbase_viraddr;
 	int bifbase_phyaddroffset;
@@ -1239,17 +1242,21 @@ void *bif_query_address_wait(enum BUFF_ID buffer_id)
 
 	if (pl->plat->plat_type == PLAT_AP) {
 		bifbase_sync_ap((void *)pl);
-		while (pl->cp->address_list[buffer_id] == 0) {
+		pl->base_ap_wq_ing[buffer_id] = 1;
+		while (pl->cp->address_list[buffer_id] == 0 &&
+			pl->base_ap_wq_ing[buffer_id] == 1) {
+			pr_bif("bifbase: query address\n");
 			bifbase_sync_cp((void *)pl);
 			bifbase_sync_ap((void *)pl);
 			pl->base_irq_wq_flg = 1;
 			wait_event_interruptible_timeout(pl->base_ap_wq,
 				pl->cp->address_list[buffer_id] != 0,
-				msecs_to_jiffies(2000));
+				WQ_TIMEOUT*HZ);
 			pl->base_irq_wq_flg = 0;
 			if (signal_pending(current))
 				return (void *)-ERESTARTSYS;
 		}
+		pl->base_ap_wq_ing[buffer_id] = 0;
 		addr = pl->cp->address_list[buffer_id];
 	}
 
@@ -1360,18 +1367,20 @@ void *bif_query_otherbase_wait(enum BUFF_ID buffer_id)
 		return (void *)-1;
 
 	bifbase_sync_ap((void *)pl);
-	while (pl->other->offset_list[buffer_id] == 0) {
+	pl->base_irq_wq_ing[buffer_id] = 1;
+	while (pl->other->offset_list[buffer_id] == 0 &&
+		pl->base_irq_wq_ing[buffer_id] == 1) {
+		pr_bif("bifbase: query otheraddress\n");
 		bifbase_sync_cp((void *)pl);
 		bifbase_sync_ap((void *)pl);
 		pl->base_irq_wq_flg = 1;
 		wait_event_interruptible_timeout(pl->base_irq_wq,
-			pl->other->offset_list[buffer_id] != 0,
-			msecs_to_jiffies(2000));
+			pl->other->offset_list[buffer_id] != 0, WQ_TIMEOUT*HZ);
 		pl->base_irq_wq_flg = 0;
 		if (signal_pending(current))
 			return (void *)-ERESTARTSYS;
 	}
-
+	pl->base_irq_wq_ing[buffer_id] = 0;
 	offset = pl->other->offset_list[buffer_id];
 	addr = (void *)pl->other + offset;
 
@@ -1559,6 +1568,28 @@ int bif_get_rmode(void)
 	return currmode;
 }
 EXPORT_SYMBOL(bif_get_rmode);
+//wait_type: 0, bif_query_address_wait; 1, bif_query_otherbase_wait
+int bif_query_wait_exit(enum BUFF_ID buffer_id, int wait_type)
+{
+	struct bifbase_local *pl = get_bifbase_local();
+
+
+	if (!pl || !pl->start || !pl->plat || buffer_id >= BUFF_MAX)
+		return -1;
+
+	if (wait_type == 0) {
+		pl->base_ap_wq_ing[buffer_id] = 0;
+		if (pl->base_ap_wq_flg && pl->plat->plat_type == PLAT_AP)
+			wake_up_interruptible(&pl->base_ap_wq);
+	} else if (wait_type == 1) {
+		pl->base_irq_wq_ing[buffer_id] = 0;
+		if (pl->base_irq_wq_flg)
+			wake_up_interruptible(&pl->base_irq_wq);
+	} else
+		return -2;
+	return 0;
+}
+EXPORT_SYMBOL(bif_query_wait_exit);
 
 late_initcall(bifbase_init);
 //module_init(bif_base_init);

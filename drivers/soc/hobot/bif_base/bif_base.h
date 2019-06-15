@@ -74,4 +74,7 @@ int bif_excmode_request(enum BUFF_ID buffer_id);
 int bif_excmode_release(void);
 int bif_get_rmode(void);
 
+//wait_type: 0, bif_query_address_wait; 1, bif_query_otherbase_wait
+int bif_query_wait_exit(enum BUFF_ID buffer_id, int wait_type);
+
 #endif
