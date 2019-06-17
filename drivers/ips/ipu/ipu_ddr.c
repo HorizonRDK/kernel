@@ -254,7 +254,7 @@ static int8_t ipu_sinfo_init(ipu_cfg_t *ipu_cfg)
 		g_ipu_ddr_cdev->s_info.scale.c_stride = ALIGN_16(g_ipu_ddr_cdev->s_info.scale.c_width);
 	}
 	if (ipu_cfg->pymid.pymid_en == 1) {
-		for (i = 0; i < ipu_cfg->pymid.ds_layer_en; i++) {
+		for (i = 0; i <= ipu_cfg->pymid.ds_layer_en; i++) {
 			if (i == 0 || ipu_cfg->pymid.ds_factor[i]) {
 				g_ipu_ddr_cdev->s_info.ds[i].y_offset = ipu_cfg->ds_ddr[i].y_addr;
 				g_ipu_ddr_cdev->s_info.ds[i].c_offset = ipu_cfg->ds_ddr[i].c_addr;

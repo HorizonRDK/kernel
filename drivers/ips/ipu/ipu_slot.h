@@ -7,7 +7,7 @@
 /* 64M per slot
  * 1080p 28M for crop, scale, pym_ds, 36M for pym_us
  */
-#define IPU_MAX_SLOT				4
+#define IPU_MAX_SLOT				8
 #define IPU_SLOT_SIZE				0x2000000
 #define IPU_GET_SLOT(id, base)		((base) + (id) * IPU_SLOT_SIZE)
 
