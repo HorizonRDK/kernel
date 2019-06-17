@@ -50,7 +50,12 @@ static int x2_temp_read(struct device *dev, enum hwmon_sensor_types type,
 {
 	x2_temp_s *x2temp = dev_get_drvdata(dev);
 
-	*val = x2temp->cur_temp / 8 * 1000;
+	*val = x2temp->cur_temp;
+
+	*val = (*val & 0x800) ? ~((*val & 0x7ff) - 1) & 0x7ff : *val & 0x7ff;
+	*val *= 1000 >> 3;
+	*val = (x2temp->cur_temp & 0x800) ? *val * -1 : *val;
+
 	return 0;
 }
 
