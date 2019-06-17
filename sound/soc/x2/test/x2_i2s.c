@@ -51,9 +51,6 @@ x2_i2s *g_x2_i2s[X2_I2S_DEV_NUMBER];
 static int x2_i2s_master_clk_enable(x2_i2s *i2s)
 {
 	clk_enable(i2s->bclk);
-	reset_control_assert(i2s->rst);
-	ndelay(100);
-	reset_control_deassert(i2s->rst);
 	return 0;
 }
 
@@ -72,28 +69,40 @@ int x2_i2s_pre_init(x2_i2s *i2s)
 		printk("%s: failed to cpnfig clk for i2s%d.\n", __func__, i2s->index);
 		return -EINVAL;
 	}
+	reset_control_assert(i2s->rst);
+	ndelay(100);
+	reset_control_deassert(i2s->rst);
 
 	x2_i2s_disable(i2s);
 	return 0;
+}
+
+int x2_i2s_rxtx_mode_config(x2_i2s *i2s, int mode)
+{
+	int ret;
+	if(mode < X2_I2S_RXTX_MODE_MAX){
+		if(X2_I2S_TX_MODE == mode){
+			i2s->regs = i2s->tx_regs;
+		}
+		else if(X2_I2S_RX_MODE == mode){
+			i2s->regs = i2s->rx_regs;
+		}
+		else
+			return -EINVAL;
+		i2s->rxtx_state = (e_i2s_mode_rxtx_mode)mode;
+		ret = x2_i2s_pre_init(i2s);
+		if(ret)
+			return -EINVAL;
+	}else
+		return -EINVAL;
 }
 
 int x2_i2s_ms_mode_config(x2_i2s *i2s, int mode)
 {
 	int ret;
 	if(mode < X2_I2S_MS_MODE_MAX){
-		if(X2_I2S_MASTER_MODE == mode){
-			i2s->regs = i2s->tx_regs;
-		}
-		else if(X2_I2S_SLAVE_MODE == mode){
-			i2s->regs = i2s->rx_regs;
-		}
-		else
-			return -EINVAL;
 		i2s->state = (e_i2s_mode_ms_mode)mode;
-		ret = x2_i2s_pre_init(i2s);
-		if(ret)
-			return -EINVAL;
-		x2_i2s_ms_mode_set(i2s, mode);
+		//x2_i2s_ms_mode_set(i2s, mode);
 		i2s->clk = clk_get_rate(i2s->bclk);
 		printk("%s: i2s%d clk val %ld.\n", __func__, i2s->index, i2s->clk);
 		i2s->hw_cfg.ms_mode = (e_i2s_mode_ms_mode)mode;
@@ -117,10 +126,10 @@ int x2_i2s_dsp_mode_config(x2_i2s *i2s, int mode)
 
 int x2_i2s_ch_num_config(x2_i2s *i2s, int mode)
 {
-	if(X2_I2S_MASTER_MODE == i2s->state){
+	if(X2_I2S_TX_MODE == i2s->rxtx_state){
 		if(mode >= X2_I2S_TX_CH_NUM_MAX)
 			return -EINVAL;
-	}else if(X2_I2S_SLAVE_MODE == i2s->state){
+	}else if(X2_I2S_RX_MODE == i2s->rxtx_state){
 		if(mode >= X2_I2S_RX_CH_NUM_MAX)
 			return -EINVAL;
 	}else
@@ -190,7 +199,7 @@ int x2_i2s_buf_swap(x2_i2s *i2s, int buf_no)
 	x2_i2s_buf *buf;
 	struct list_head *free_head = &i2s->frame.free;
 	struct list_head *ready_head = &i2s->frame.ready;
-	if(X2_I2S_MASTER_MODE == i2s->state){
+	if(X2_I2S_TX_MODE == i2s->rxtx_state){
 		if(!list_empty(ready_head)){
 			buf = container_of(ready_head->next, x2_i2s_buf, node);
 			list_del(&buf->node);
@@ -218,28 +227,32 @@ int x2_i2s_buf_swap(x2_i2s *i2s, int buf_no)
 			switch(buf_no){
 				case 0:
 					I2S_DEBUG("%s: no available entry for master i2s%d buf0, waiting.\n", __func__, i2s->index);
-					//x2_i2s_buf0_rdy_set(i2s, 0x1); /*repeat the last frame for test*/
+					x2_i2s_buf0_rdy_set(i2s, 0x1); /*repeat the last frame for test*/
+/*
 					if(i2s->frame.buf0 != NULL){
 						list_add_tail(&i2s->frame.buf0->node, free_head);
 					}
 					i2s->frame.buf0 = NULL;
 					list_add_tail(&i2s->frame.buf0_state.node, &i2s->frame.state);
+*/
 					break;
 				case 1:
 					I2S_DEBUG("%s: no available entry for slave i2s%d buf1, waiting.\n", __func__, i2s->index);
-					//ix2_i2s_buf1_rdy_set(i2s, 0x1);/*repeat send the last frame for test*/
+					x2_i2s_buf1_rdy_set(i2s, 0x1);/*repeat send the last frame for test*/
+/*
 					if(i2s->frame.buf1 != NULL){
 						list_add_tail(&i2s->frame.buf1->node, free_head);
 					}
 					i2s->frame.buf1 = NULL;
 					list_add_tail(&i2s->frame.buf1_state.node, &i2s->frame.state);
+*/
 					break;
 				default:
 					return -EINVAL;
 			}
 			return 1;
 		}
-	}else if(X2_I2S_SLAVE_MODE == i2s->state){
+	}else if(X2_I2S_RX_MODE == i2s->rxtx_state){
 		if(!list_empty(free_head)){
 			buf = container_of(free_head->next, x2_i2s_buf, node);
 			list_del(&buf->node);
@@ -289,7 +302,7 @@ int x2_i2s_buf_swap(x2_i2s *i2s, int buf_no)
 
 static int x2_i2s_get_channel_num(x2_i2s *i2s, e_i2s_mode_ch_num chan)
 {
-	if(X2_I2S_SLAVE_MODE == i2s->state){
+	if(X2_I2S_RX_MODE == i2s->rxtx_state){
 		switch(chan){
 			case X2_I2S_RX_1_CHANNEL:
 				return 1;
@@ -304,7 +317,7 @@ static int x2_i2s_get_channel_num(x2_i2s *i2s, e_i2s_mode_ch_num chan)
 			default:
 				return -EINVAL;
 		}
-	}else if(X2_I2S_MASTER_MODE == i2s->state){
+	}else if(X2_I2S_TX_MODE == i2s->rxtx_state){
 		switch(chan){
 			case X2_I2S_TX_1_CHANNEL:
 				return 1;
@@ -381,7 +394,7 @@ int x2_i2s_buf_alloc(x2_i2s *i2s, int size)
 
 	x2_i2s_buf_state *buf_state;
 	struct list_head *state_head = &i2s->frame.state;
-	if(X2_I2S_SLAVE_MODE == i2s->state){
+	if(X2_I2S_RX_MODE == i2s->rxtx_state){
 		while(!list_empty(state_head)){
 			buf_state = container_of(state_head->next, x2_i2s_buf_state, node);
 			list_del(&buf_state->node);
@@ -398,11 +411,11 @@ int x2_i2s_buf_update(x2_i2s *i2s)
 	struct list_head *free_head = &i2s->frame.free;
 	struct list_head *ready_head = &i2s->frame.ready;
 	struct list_head *state_head = &i2s->frame.state;
-	if(X2_I2S_MASTER_MODE == i2s->state){
+	if(X2_I2S_TX_MODE == i2s->rxtx_state){
 		if(!list_empty(free_head)){
 			buf = container_of(free_head->next, x2_i2s_buf, node);
 			list_del(&buf->node);
-			I2S_DEBUG("%s: update the transfer buffer for i2s%d from 0x%x to 0x%x\n", __func__, i2s->index, buf->vptr, i2s->frame.vbuf);
+			I2S_DEBUG("%s: update the transfer buffer for i2s%d from 0x%x to 0x%x\n", __func__, i2s->index, i2s->frame.vbuf, buf->vptr);
 			memcpy(buf->vptr, i2s->frame.vbuf, i2s->frame.size);
 			list_add_tail(&buf->node, ready_head);
 		}else{
@@ -414,11 +427,11 @@ int x2_i2s_buf_update(x2_i2s *i2s)
 			list_del(&buf_state->node);
 			x2_i2s_buf_swap(i2s, buf_state->buf_no);
 		}
-	}else if(X2_I2S_SLAVE_MODE == i2s->state){
+	}else if(X2_I2S_RX_MODE == i2s->rxtx_state){
 		if(!list_empty(ready_head)){
 			buf = container_of(ready_head->next, x2_i2s_buf, node);
 			list_del(&buf->node);
-			printk("i2s%d trying to update the receive buffer, from 0x%x to 0x5=0x%x\n", i2s->index, buf->vptr, i2s->frame.vbuf);
+			printk("i2s%d trying to update the receive buffer, from 0x%x to 0x%x\n", i2s->index, i2s->frame.vbuf, buf->vptr);
 			memcpy(i2s->frame.vbuf, buf->vptr, i2s->frame.size);
 			list_add_tail(&buf->node, free_head);
 		}else{
@@ -444,11 +457,11 @@ int x2_i2s_buf_num_get(x2_i2s *i2s)
 	struct list_head *free_head = &i2s->frame.free;
 	struct list_head *ready_head = &i2s->frame.ready;
 	int num = 0;
-	if(X2_I2S_MASTER_MODE == i2s->state){
+	if(X2_I2S_TX_MODE == i2s->rxtx_state){
 		list_for_each(list, free_head){
 			num++;
 		}
-	}else if(X2_I2S_SLAVE_MODE == i2s->state){
+	}else if(X2_I2S_RX_MODE == i2s->rxtx_state){
 		list_for_each(list, ready_head){
 			num++;
 		}
@@ -502,7 +515,7 @@ static int x2_i2s_channel_enable(x2_i2s *i2s)
 	int channel;
 	x2_i2s_channel_en(i2s, 0);
 
-	if(X2_I2S_SLAVE_MODE == i2s->state){
+	if(X2_I2S_RX_MODE == i2s->rxtx_state){
 		switch(i2s->hw_cfg.ch_num)
 		{
 			case X2_I2S_RX_1_CHANNEL:
@@ -525,7 +538,7 @@ static int x2_i2s_channel_enable(x2_i2s *i2s)
 				break;
 		}
 	}
-	else if(X2_I2S_MASTER_MODE == i2s->state){
+	else if(X2_I2S_TX_MODE == i2s->rxtx_state){
 		switch(i2s->hw_cfg.ch_num){
 			case X2_I2S_TX_1_CHANNEL:
 				channel = 0x1;
@@ -630,8 +643,9 @@ int x2_i2s_start(x2_i2s *i2s)
 	x2_i2s_transfer_enable(i2s, 1);
 	i2s->status = I2S_STATE_START;
 
+	x2_i2s_ms_mode_set(i2s, i2s->state);
 	if(X2_I2S_SLAVE_MODE == i2s->state){
-	  x2_i2s_slave_clk_enable(i2s); 
+	  x2_i2s_slave_clk_enable(i2s);
 	}
 	I2S_DEBUG("%s: i2s%d started!\n", __func__, i2s->index);
 	return 0;

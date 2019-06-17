@@ -161,6 +161,11 @@
 #define UPDATE_VALUE_FIELD(legacy_val, update_val, bit_pos, bitfield) ((legacy_val & ~(bitfield << bit_pos)) | ((update_val & bitfield) << bit_pos))
 
 #define I2S_DEBUG printk
+typedef enum _i2s_mode_rxtx_mode {
+	X2_I2S_RX_MODE = 0,
+	X2_I2S_TX_MODE = 1,
+	X2_I2S_RXTX_MODE_MAX = 2,
+} e_i2s_mode_rxtx_mode;
 
 typedef enum _i2s_mode_ms_mode {
 	X2_I2S_MASTER_MODE = 0,
@@ -264,6 +269,7 @@ typedef struct _x2_i2s{
 	unsigned int index;
 	int clk;
 	struct device *dev;
+	e_i2s_mode_rxtx_mode rxtx_state;
 	e_i2s_mode_ms_mode state;
 	x2_i2s_hw_cfg hw_cfg;
 	x2_i2s_frame frame;
@@ -527,6 +533,7 @@ static inline void x2_i2s_int_unmask(x2_i2s *i2s)
 }
 
 int x2_i2s_pre_init(x2_i2s *i2s);
+int x2_i2s_rxtx_mode_config(x2_i2s *i2s, int mode);
 int x2_i2s_ms_mode_config(x2_i2s *i2s, int mode);
 int x2_i2s_dsp_mode_config(x2_i2s *i2s, int mode);
 int x2_i2s_ch_num_config(x2_i2s *i2s, int mode);

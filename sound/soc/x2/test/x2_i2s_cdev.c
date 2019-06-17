@@ -42,6 +42,7 @@ static x2_i2s_cdev *g_x2_i2s_cdev;
 #define I2S_SAMPLE_RATE_SET		_IOW(I2S_CDEV_MAGIC, 0x109, int)
 #define I2S_BUFSIZE_GET			_IOR(I2S_CDEV_MAGIC, 0x110, int)
 #define I2S_BUFNUM_GET			_IOR(I2S_CDEV_MAGIC, 0x111, int)
+#define I2S_RXTX_MODE_SET		_IOW(I2S_CDEV_MAGIC, 0x112, int)
 #define I2S_UPDATE_BUF			_IO(I2S_CDEV_MAGIC, 0x120)
 #define I2S_DEALLOC_BUF			_IO(I2S_CDEV_MAGIC, 0x121)
 #define I2S_START				_IO(I2S_CDEV_MAGIC, 0x122)
@@ -56,6 +57,11 @@ int x2_i2s_open(struct inode *inode, struct file *filp)
 	x2_i2s *i2s;
 
 	minor = iminor(inode);
+	if (minor >= X2_I2S_DEV_NUMBER){
+		I2S_DEBUG("Trying open Invalid i2s%d.\n", minor);
+		return -1;
+	}
+
 	i2s = g_x2_i2s[minor];
 	i2s->index = minor;
 	filp->private_data = i2s;
@@ -71,6 +77,8 @@ static long x2_i2s_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 
 	switch(cmd)
 	{
+		case I2S_RXTX_MODE_SET:
+			return x2_i2s_rxtx_mode_config(i2s, p);
 		case I2S_MS_MODE_SET:
 			return x2_i2s_ms_mode_config(i2s, p);
 		case I2S_DSP_MODE_SET:
