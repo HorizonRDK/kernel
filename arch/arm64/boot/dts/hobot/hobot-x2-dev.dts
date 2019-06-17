@@ -11,7 +11,7 @@
  */
 
 /dts-v1/;
-#include "hobot-only-x2dev.dtsi"
+#include "hobot.dtsi"
 #include "hobot-pinctrl.dtsi"
 #include "hobot-clk.dtsi"
 #include "memory-1g.dtsi"

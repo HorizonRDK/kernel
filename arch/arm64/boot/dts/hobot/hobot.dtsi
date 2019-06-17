@@ -238,6 +238,7 @@
 			ms = <1>;
 			bclk_set = <2048000>;/* only for master mode,tianpai 48K is 6.144M*/
 			mclk_set = <12288000>;/* only for master mode,default is 12.288M*/
+			blck = <6144000>;/* only for master mode*/
 			slot_width= <128>;/*128,64*/
 			status = "disabled";
 		};
@@ -679,9 +680,10 @@
 			status = "disabled";
 		};
 
-		onewire {
+		onewire: onewire {
 			compatible = "w1-gpio";
 			onewire_gpio = <84>;
+			status = "disabled";
 		};
 
 		power: power_management@0xA6000000 {

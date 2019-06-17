@@ -313,6 +313,10 @@
 	status = "okay";
 };
 
+&onewire {
+	status = "okay";
+};
+
 &temp {
 	clocks = <&temp_sensor_div_clk>;
 	clock-names = "tsensor_clk";
