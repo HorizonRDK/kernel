@@ -95,7 +95,7 @@ unsigned int mipi_host_notimeout = 0;
 module_param(mipi_host_nocheck, uint, S_IRUGO | S_IWUSR);
 module_param(mipi_host_notimeout, uint, S_IRUGO | S_IWUSR);
 
-/* new add */
+/* for parameters */
 uint32_t mipi_host_states;
 unsigned int need_phy_reset;
 unsigned int mipi_delay_time;
@@ -111,7 +111,7 @@ module_param(need_stop_check, uint, 0644);
 		if ((dbg_value >= 1))	\
 			printk(KERN_INFO format "\n", ##__VA_ARGS__);	\
 	} while (0)
-/* new add */
+/* for parameters */
 
 #define MIPIHOSTIOC_READ        _IOWR(MIPIHOSTIOC_MAGIC, 4, reg_t)
 #define MIPIHOSTIOC_WRITE       _IOW(MIPIHOSTIOC_MAGIC, 5, reg_t)
@@ -623,13 +623,6 @@ int32_t mipi_host_init(mipi_host_cfg_t *control)
 		mipierr("mipi host not inited!");
 		return -1;
 	}
-	/* new add */
-	mipi_host_states = 0;
-	need_phy_reset = 0;
-	mipi_delay_time = 0;
-	dbg_value = 0;
-	need_stop_check = 0;
-	/* new add */
 	iomem = g_mipi_host->iomem;
 	mipiinfo("mipi host init begin");
 	mipiinfo("%d lane %dx%d %dfps datatype 0x%x",
@@ -850,6 +843,12 @@ static int x2_mipi_host_probe(struct platform_device *pdev)
 		printk(KERN_ERR "Error %d while alloc chrdev x2_mipi_host", ret);
 		goto err;
 	}
+	/* for parameters */
+	need_phy_reset = 0;
+	mipi_delay_time = 0;
+	dbg_value = 0;
+	need_stop_check = 0;
+	/* for parameters */
 	mipi_host_major = MAJOR(devno);
 	cdev_init(p_cdev, &x2_mipi_host_fops);
 	p_cdev->owner = THIS_MODULE;
