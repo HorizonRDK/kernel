@@ -277,7 +277,7 @@ static void bifbase_check_bus(void *p, int flag)
 		pl->bifsd = STR_SUPPORT_NO;
 	}
 
-	pr_bif("bifbase: %s()-%d bifspi=%s, bifsd=%s\n",
+	pr_debug("bifbase: %s()-%d bifspi=%s, bifsd=%s\n",
 		__func__, __LINE__, bifspi, bifsd);
 }
 
@@ -347,7 +347,7 @@ static void bifbase_check_type(
 		*str_type1 = STR_BIFBUS_NO;
 	}
 
-	pr_bif("bifbase: %s()-%d str_type1=%s, str_type2=%s\n",
+	pr_debug("bifbase: %s()-%d str_type1=%s, str_type2=%s\n",
 		__func__, __LINE__, *str_type1, *str_type2);
 }
 
@@ -398,7 +398,7 @@ static void bifbase_update_param_func(void)
 	bifbase_check_type((void *)pl, BIFBASE_UPDATEPARAM,
 		&biflite, &pl->biflite);
 
-	pr_info("bifbase: update param..\n");
+	pr_debug("bifbase: update param..\n");
 }
 
 static ssize_t bifbase_show(struct kobject *kobj,
@@ -495,7 +495,7 @@ exit_1:
 static ssize_t bifrmode_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
 {
-	pr_debug("bifbase: running mode = %lu\n", bifbase_rmode);
+	pr_info("bifbase: running mode = %lu\n", bifbase_rmode);
 	return sprintf(buf, "%lu\n", bifbase_rmode);
 }
 
@@ -649,7 +649,7 @@ static void bifbase_irq_work(struct work_struct *work)
 		if (birq < BUFF_MAX && pl->irq_func[birq % BUFF_MAX])
 			pl->irq_func[birq % BUFF_MAX] (birq, NULL);
 		else
-			pr_bif("bifbase: %s() Warn irq %d no register\n",
+			pr_debug("bifbase: %s() Warn irq %d no register\n",
 				__func__, birq);
 
 		pl->other->irq[(pl->self->read_irq_head)
@@ -727,7 +727,8 @@ static int bifbase_pre_init(void *p)
 		goto exit_1;
 
 	bifbase_check_param((void *)pl);
-	bifbase_print_param();
+	if (pl->plat->plat_type == PLAT_AP)
+		bifbase_print_param();
 
 	ret = bifplat_register_irq(pl->bifbase_id, bifbase_irq_handler);
 	if (ret == -BIFERR && !pl->plat->irq_pin_absent) {
@@ -744,7 +745,6 @@ static int bifbase_pre_init(void *p)
 	if (pl->plat->plat_type == PLAT_AP) {
 		bifbase_kobj = kobject_create_and_add("bifbase", NULL);
 		if (bifbase_kobj) {
-			pr_info("bifbase: Suc bifbase kobj\n");
 			ret = sysfs_create_group(bifbase_kobj, &bifbase_group);
 			if (ret) {
 				kobject_put(bifbase_kobj);
@@ -772,7 +772,7 @@ static int bifbase_pre_init(void *p)
 		if (!pl->bifbase_phyaddrsize)
 			pl->bifbase_phyaddrsize = BIFBASE_PHYDDR_SIZE;
 
-		pr_info("bifbase: phy=0x%lx,vir=0x%lx,size=0x%08x\n",
+		pr_debug("bifbase: phy=0x%lx,vir=0x%lx,size=0x%08x\n",
 			pl->bifbase_phyaddr, (ulong)pl->bifbase_viraddr,
 			pl->bifbase_phyaddrsize);
 
@@ -781,11 +781,11 @@ static int bifbase_pre_init(void *p)
 		//pl->bifbase_viraddr = (void *)memremap(pl->bifbase_phyaddr,
 		//	pl->bifbase_phyaddrsize, MEMREMAP_WC);//ok,hisi?
 #ifdef BIFBASE_MEM_NC
-		pr_info("bifbase: call ioremap_nocache()\n");
+		pr_debug("bifbase: call ioremap_nocache()\n");
 		pl->bifbase_viraddr = (void *)ioremap_nocache(
 			pl->bifbase_phyaddr, pl->bifbase_phyaddrsize);
 #else
-		pr_info("bifbase: call ioremap_wc()\n");
+		pr_debug("bifbase: call ioremap_wc()\n");
 		pl->bifbase_viraddr = (void *)ioremap_wc(
 			pl->bifbase_phyaddr, pl->bifbase_phyaddrsize);
 #endif
@@ -804,10 +804,9 @@ static int bifbase_pre_init(void *p)
 	pl->self->irq_queue_size = IRQ_QUEUE_SIZE;
 	bif_memset(pl->self->irq, -1, pl->self->irq_queue_size);
 	ptr = (unsigned char *)pl->self;
-	pr_info("bifbase: magic=%c%c%c%c,size=0x%x\n", ptr[0], ptr[1],
-		ptr[2], ptr[3], (unsigned int)sizeof(struct bif_base_info));
-
-	pr_info("bifbase: cp=0x%lx,ap=0x%0lx,phy=0x%lx,vir=0x%lx,sz=0x%08x\n",
+	pr_info("bifbase: ver=%s magic=%c%c%c%c size=0x%x cp=0x%lx ap=0x%0lx"
+		" phy=0x%08lx vir=0x%lx sz=0x%08x", BIFBASE_VER, ptr[0], ptr[1],
+		ptr[2], ptr[3], (unsigned int)sizeof(struct bif_base_info),
 		(ulong)pl->cp, (ulong)pl->ap, pl->bifbase_phyaddr,
 		(ulong)pl->bifbase_viraddr, pl->bifbase_phyaddrsize);
 
@@ -835,7 +834,7 @@ void bifbase_pre_exit(void *p)
 	if (!pl || !pl->plat)
 		return;
 
-	pr_info("bifbase: pre exit begin...\n");
+	pr_debug("bifbase: pre exit begin...\n");
 
 	if (!pl->plat->irq_pin_absent) {
 		wake_up_all(&pl->base_irq_wq);
@@ -910,7 +909,7 @@ static void bifbase_driver_unregister(void *p)
 	if (!pl || !pl->plat)
 		return;
 
-	pr_info("bifbase: driver unregister begin...\n");
+	pr_debug("bifbase: driver unregister begin...\n");
 
 	device_destroy(pl->class, MKDEV(BIFBASE_MAJOR, 0));
 	class_destroy(pl->class);
@@ -925,7 +924,7 @@ static int bifbase_probe(struct platform_device *pdev)
 	struct resource mem_reserved;
 	struct bifbase_local *pl = get_bifbase_local();
 
-	dev_info(&pdev->dev, "probe begin...\n");
+	dev_dbg(&pdev->dev, "probe begin...\n");
 
 	if (!pl || !pl->plat) {
 		ret = -1;
@@ -998,7 +997,7 @@ static int bifbase_probe(struct platform_device *pdev)
 		}
 	}
 
-	dev_info(&pdev->dev,
+	dev_dbg(&pdev->dev,
 		"paddr=0x%08x,size=0x%08x,irq_pin=%d,tri_pin=%d",
 		(uint)pl->plat->bifbase_phyaddr, pl->plat->bifbase_phyaddrsize,
 		pl->plat->irq_pin, pl->plat->tri_pin);
@@ -1011,7 +1010,7 @@ exit_1:
 
 static int bifbase_remove(struct platform_device *pdev)
 {
-	pr_info("bifbase: bifbase remove begin...\n");
+	pr_debug("bifbase: bifbase remove begin...\n");
 
 	return 0;
 }
@@ -1035,7 +1034,7 @@ static int __init bifbase_init(void)
 	int ret;
 	struct bifbase_local *pl;
 
-	pr_info("bifbase: init begin ver:%s\n", BIFBASE_VER);
+	//pr_info("bifbase: init begin ver:%s\n", BIFBASE_VER);
 
 	pl = kzalloc(sizeof(struct bifbase_local), GFP_KERNEL);
 	if (pl == NULL) {
@@ -1055,12 +1054,11 @@ static int __init bifbase_init(void)
 
 	//bifplat_print_info((void *)pl->plat);
 
-	if (pl->plat->param == PARAM_MODULE)
+	if (pl->plat->param == PARAM_MODULE) {
 		ret = bifbase_driver_register((void *)pl);
-	else
+		bifplat_print_info((void *)pl->plat);
+	} else
 		ret = platform_driver_register(&bifbase_driver);
-
-	bifplat_print_info((void *)pl->plat);
 
 	if (ret) {
 		bifplat_unconfig((void *)pl->plat);
@@ -1080,7 +1078,7 @@ static void __exit bifbase_exit(void)
 	if (!pl || !pl->start || !pl->plat || !pl->self || !pl->other)
 		return;
 
-	pr_info("bifbase: exit begin...\n");
+	pr_debug("bifbase: exit begin...\n");
 
 	pl->start = 0;
 	bifbase_pre_exit((void *)pl);
@@ -1094,7 +1092,7 @@ static void __exit bifbase_exit(void)
 
 	kfree(pl);
 
-	pr_info("bifbase: exit end...\n");
+	pr_debug("bifbase: exit end...\n");
 }
 
 void *bif_ram_vmap(phys_addr_t start, size_t size, unsigned int memtype)
@@ -1168,7 +1166,7 @@ int bif_send_irq(int irq)
 				ret = -3;
 				goto exit_1;
 			}
-			pr_info("bifbase: irq queue full\n");
+			pr_warn("bifbase: irq queue full\n");
 			pl->base_sendirq_wq_flg = 1;
 			if (wait_event_interruptible_timeout(pl->base_irq_wq,
 				(pl->self->send_irq_tail + 1)
@@ -1176,7 +1174,7 @@ int bif_send_irq(int irq)
 				!= pl->other->read_irq_head,
 				msecs_to_jiffies(500)) == 0) {
 				pl->base_sendirq_wq_flg = 0;
-				pr_info("bifbase: wait irq queue timeout\n");
+				pr_warn("bifbase: wait irq queue timeout\n");
 				ret = -4;
 				goto exit_1;
 			} else
@@ -1245,7 +1243,7 @@ void *bif_query_address_wait(enum BUFF_ID buffer_id)
 		pl->base_ap_wq_ing[buffer_id] = 1;
 		while (pl->cp->address_list[buffer_id] == 0 &&
 			pl->base_ap_wq_ing[buffer_id] == 1) {
-			pr_bif("bifbase: query address\n");
+			pr_debug("bifbase: query address\n");
 			bifbase_sync_cp((void *)pl);
 			bifbase_sync_ap((void *)pl);
 			pl->base_irq_wq_flg = 1;
@@ -1305,7 +1303,7 @@ void *bif_alloc_cp(enum BUFF_ID buffer_id, int size, ulong *phyaddr)
 	addr = pl->bifbase_viraddr;
 	*phyaddr = 0;
 
-	pr_info("bifbase: max=0x%x,offset=0x%x,phy=0x%x,vir=0x%lx,size=0x%x\n",
+	pr_debug("bifbase: max=0x%x,offset=0x%x,phy=0x%x,vir=0x%lx,size=0x%x\n",
 	    basemaxsize, baseoffset, basephy, (unsigned long)addr, size);
 
 	if (baseoffset < 2 * BIFBASE_BLOCK)
@@ -1337,7 +1335,7 @@ void *bif_alloc_base(enum BUFF_ID buffer_id, int size)
 		buffer_id >= BUFF_MAX)
 		return (void *)-1;
 
-	pr_info("bifbase:id %d, alloc base size=0x%x\n", buffer_id, size);
+	pr_debug("bifbase:id %d, alloc base size=0x%x\n", buffer_id, size);
 	if ((pl->self->next_offset + size) > BIFBASE_BLOCK)
 		return (void *)-1;
 
@@ -1370,7 +1368,7 @@ void *bif_query_otherbase_wait(enum BUFF_ID buffer_id)
 	pl->base_irq_wq_ing[buffer_id] = 1;
 	while (pl->other->offset_list[buffer_id] == 0 &&
 		pl->base_irq_wq_ing[buffer_id] == 1) {
-		pr_bif("bifbase: query otheraddress\n");
+		pr_debug("bifbase: query otheraddress\n");
 		bifbase_sync_cp((void *)pl);
 		bifbase_sync_ap((void *)pl);
 		pl->base_irq_wq_flg = 1;
