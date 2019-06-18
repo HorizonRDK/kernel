@@ -61,7 +61,15 @@
                 compatible = "ti,tmp75c";
 		reg = <0x48>;
 	};
-	mpq7920@69 {
+
+};
+
+&i2c2 {
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c2_func>;
+
+		mpq7920@69 {
 		compatible = "mps,mpq7920";
 		reg = <0x69>;
 		regulators {
@@ -70,6 +78,7 @@
 				regulator-min-microvolt = <800000>;
 				regulator-max-microvolt = <1000000>;
 				regulator-always-on;
+				regulator-boot-on;
 			};
 
 			vdd_core_pd_reg: DCDC2 {
@@ -77,6 +86,7 @@
 				regulator-min-microvolt = <900000>;
 				regulator-max-microvolt = <900000>;
 				regulator-always-on;
+				regulator-boot-on;
 			};
 
 			vcc_cnn1_reg: DCDC3 {
@@ -84,6 +94,7 @@
 				regulator-min-microvolt = <800000>;
 				regulator-max-microvolt = <1000000>;
 				regulator-always-on;
+				regulator-boot-on;
 			};
 
 			vcc_cpu_reg: DCDC4 {
@@ -91,6 +102,7 @@
 				regulator-min-microvolt = <800000>;
 				regulator-max-microvolt = <1000000>;
 				regulator-always-on;
+				regulator-boot-on;
 			};
 
 			vdd_core_ao_reg: LDO3 {
@@ -98,6 +110,7 @@
 				regulator-min-microvolt = <900000>;
 				regulator-max-microvolt = <900000>;
 				regulator-always-on;
+				regulator-boot-on;
 			};
 
 			vdd_1v8_reg: LDO4 {
@@ -115,12 +128,10 @@
 			};
 		};
 	};
-};
 
-&i2c2 {
-	status = "okay";
-	pinctrl-names = "default";
-	pinctrl-0 = <&i2c2_func>;
+
+
+
 };
 &i2c3{
 	status = "okay";
@@ -130,7 +141,7 @@
 
 &pinctrl {
 	status = "okay";
-	gpioirq-bank-cfg = <118 0 0 0>;
+	gpioirq-bank-cfg=<18 0 0 0>;
 };
 
 &uart0 {
@@ -208,7 +219,11 @@
 
 &cpu0 {
 	status = "okay";
-	cnn0-supply = <&vcc_cpu_reg>;
+	cpu-supply = <&vcc_cpu_reg>;
+};
+&cpu1 {
+	status = "okay";
+	cpu-supply = <&vcc_cpu_reg>;
 };
 
 &cnn0 {
@@ -232,12 +247,17 @@
 &bifsd {
 	status = "disabled";
 	/*cd-gpio = <91>;*/
+
+
 };
 &bifbase {
-	/*x2j2 bifbase: GPIO7[8]: 118, GPIO0[7]: 7*/
+	/*x2j2 bifbase: GPIO7[8]: 18, GPIO0[7]: 7*/
 	status = "disabled";
-	bifbase_irq_pin = <118>;
+	bifbase_irq_pin = <18>;
 	bifbase_tri_pin = <7>;
+};
+&biflite_spi {
+	status = "okay";
 };
 &qspi {
 	status = "okay";
@@ -275,16 +295,19 @@
 &sdio1 {
 	status = "okay";
 	bus-width = <4>;
-	no-mmc;
-	no-sdio;
+	//no-mmc;
+	//no-sdio;
+	cap-mmc-highspeed;
 	cap-sd-highspeed;
-	sd-uhs-sdr12;
-	sd-uhs-sdr25;
-	sd-uhs-sdr50;
-	sd-uhs-sdr104;
-	powerup-gpio = <85>;
-	uhs-180v-gpio = <86>;
-	non-removable;
+	//sd-uhs-sdr12;
+	//sd-uhs-sdr25;
+	//sd-uhs-sdr50;
+	//sd-uhs-sdr104;
+	//powerup-gpio = <85>;
+	//uhs-180v-gpio = <86>;
+	//non-removable;
+	mmc-hs200-1_8v;
+	broken-cd;
 	disable-wp;
 };
 
@@ -293,16 +316,12 @@
 };
 
 &i2s0 {
-	status = "disabled";
-	clocks = <&i2s0_mclk>, <&i2s0_bclk>;
-	clock-names = "i2s_mclk", "i2s_bclk";
+	status = "okay";
+	clocks = <&i2s0_mclk>, <&i2s0_bclk>,<&i2s0_div_bclk>;
+	clock-names = "i2s-mclk", "i2s-bclk", "i2s0_div_bclk";
 };
 
-&i2s1 {
-	status = "disabled";
-	clocks = <&i2s1_mclk>, <&i2s1_bclk>;
-	clock-names = "i2s_mclk", "i2s_bclk";
-};
+
 &ddr_monitor {
 	status = "okay";
 };
@@ -315,4 +334,8 @@
 
 &soc_thermal {
 	status = "okay";
+};
+
+&arch_timer {
+	clock-frequency = <24000000>;
 };
