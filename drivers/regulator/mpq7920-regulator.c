@@ -82,6 +82,7 @@
 
 struct mpq7920 {
 	struct regmap *regmap;
+	int off_reg;
 };
 
 static const struct regmap_config mpq7920_regmap_config = {
@@ -259,6 +260,18 @@ static struct mpq7920_regulator_data *mpq7920_get_regulator_data(
 	return NULL;
 }
 
+static struct i2c_client *mpq7920_i2c_client;
+static void mpq7920_power_off(void)
+{
+	struct mpq7920 *mpq7920;
+
+	mpq7920 = i2c_get_clientdata(mpq7920_i2c_client);
+	regmap_write(mpq7920->regmap, mpq7920->off_reg, 0x0);
+
+	while (1);
+}
+
+
 static int mpq7920_pmic_probe(struct i2c_client *client,
 			      const struct i2c_device_id *i2c_id)
 {
@@ -269,6 +282,7 @@ static int mpq7920_pmic_probe(struct i2c_client *client,
 	struct mpq7920 *mpq7920;
 	const struct regmap_config *regmap_config;
 	unsigned long type;
+	int off_reg;
 
 	dev_info(dev, "start probe\n");
 	pdata = dev_get_platdata(dev);
@@ -290,11 +304,13 @@ static int mpq7920_pmic_probe(struct i2c_client *client,
 		regulators = mp5416_regulators;
 		num_regulators = ARRAY_SIZE(mp5416_regulators);
 		regmap_config = &mpq7920_regmap_config;
+		off_reg = MP5416_DCDC4_VSET;
 		break;
 	case MPQ7920:
 		regulators = mpq7920_regulators;
 		num_regulators = ARRAY_SIZE(mpq7920_regulators);
 		regmap_config = &mpq7920_regmap_config;
+		off_reg = MPQ7920_SYS_CTRL;
 		break;
 	default:
 		dev_err(dev, "invalid device id %lu\n", type);
@@ -318,6 +334,12 @@ static int mpq7920_pmic_probe(struct i2c_client *client,
 		ret = PTR_ERR(mpq7920->regmap);
 		dev_err(dev, "Failed to allocate register map: %d\n", ret);
 		return ret;
+	}
+
+	if (of_device_is_system_power_controller(dev->of_node)) {
+		mpq7920_i2c_client = client;
+		mpq7920->off_reg = off_reg;
+		pm_power_off = mpq7920_power_off;
 	}
 
 	/* Finally register devices */

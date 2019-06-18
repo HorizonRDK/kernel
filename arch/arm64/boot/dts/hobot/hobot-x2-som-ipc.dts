@@ -64,6 +64,7 @@
 	mp5416@69 {
 		compatible = "mps,mp5416";
 		reg = <0x69>;
+		system-power-controller;
 		regulators {
 			vcc_cnn0_reg: DCDC1 {
 				regulator-name = "VCC_CNN0";
