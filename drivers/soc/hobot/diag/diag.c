@@ -222,7 +222,7 @@ int diag_send_event_stat_and_env_data(
 	if (actual_snd_data_rsv_len != 0)
 		frag_cnt++;
 
-	diag_debug("%d fragment will send\n", frag_cnt);
+	//diag_debug("%d fragment will send\n", frag_cnt);
 	/* send each fragment.*/
 	for (i = 0; i < frag_cnt; i++) {
 		if (i == 0)
@@ -299,11 +299,11 @@ static void netlink_rcv_msg(struct sk_buff *skb)
 	if (skb->len >= nlmsg_total_size(0)) {
 		nlh = nlmsg_hdr(skb);
 		umsg = NLMSG_DATA(nlh);
-		diag_debug("diag:kernel rcv msg: %s\n", umsg);
+		//diag_debug("diag:kernel rcv msg: %s\n", umsg);
 		if (umsg && (strncmp(umsg, "self test ok", 12)) == 0) {
 			mdelay(200);
 			complete(&diag_dev_completion);
-			diag_debug("diag: complete snd ok\n");
+			//diag_debug("diag: complete snd ok\n");
 		} else {
 			diag_error("diag: self test fail\n");
 		}
