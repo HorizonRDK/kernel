@@ -107,6 +107,24 @@ struct provider_server_map {
 	int first_avail;
 };
 
+struct comm_domain_statistic {
+	int irq_handler_count;
+	int rx_work_func_count;
+	int interrupt_recv_count;
+	int manage_recv_count;
+	int data_recv_count;
+	int manage_frame_count;
+	int data_frame_count;
+	int up_sem_count;
+	int send_manage_count;
+	int rx_flowcontrol_count;
+	int write_call_count;
+	int write_real_count;
+	int read_call_count;
+	int read_real_count;
+	int accept_count;
+};
+
 struct comm_domain {
 	char *domain_name;
 	int domain_id;
@@ -121,6 +139,7 @@ struct comm_domain {
 	int session_count;
 	int unaccept_session_count;
 	int block;
+	struct comm_domain_statistic domain_statistics;
 };
 
 struct send_mang_data {
@@ -186,12 +205,14 @@ struct send_mang_data *data);
 int unregister_connect(struct comm_domain *domain,
 struct send_mang_data *data);
 int recv_handle_manage_frame(struct comm_domain *domain);
-int recv_handle_data_frame(struct comm_domain *domain,
-struct session_desc *session_des, struct bif_frame_cache **frame);
+int recv_handle_data_frame(struct comm_domain *domain);
 int recv_frame_interrupt(struct comm_domain *domain);
 int accept_session(struct comm_domain *domain,
 struct send_mang_data *data, struct session_desc **connect);
 void bif_del_session_frame_domain(struct comm_domain *domain,
 struct bif_frame_cache *frame);
+int domain_stock_frame_num(struct comm_domain *domain);
+int start_server(struct comm_domain *domain, struct send_mang_data *data);
+int stop_server(struct comm_domain *domain, struct send_mang_data *data);
 
 #endif  /* _HBIPC_LITE_H_ */

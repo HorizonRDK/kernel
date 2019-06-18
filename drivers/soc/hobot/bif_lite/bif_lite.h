@@ -1,6 +1,8 @@
 #ifndef _BIF_LITE_H_
 #define _BIF_LITE_H_
 #include <linux/interrupt.h>
+#include <linux/mutex.h>
+#include <linux/spinlock.h>
 #include "../bif_base/bif_base.h"
 #include "../bif_base/bif_api.h"
 #include "bif_platform.h"
@@ -74,6 +76,13 @@ struct current_frame_info {
 	int pre_id;
 };
 
+struct comm_channel_statistics {
+	int resend_count;
+	int resend_over_count;
+	int trig_count;
+	int retrig_count;
+};
+
 struct comm_channel {
 	// hardware channel concerned
 	enum channel_id channel;
@@ -98,14 +107,17 @@ struct comm_channel {
 	struct bif_rx_ring_info *tx_remote_info;
 	struct bif_tx_ring_info *rx_remote_info;
 	struct bif_rx_ring_info *rx_local_info;
+	struct mutex ring_info_lock;
 	struct bif_frame_cache *rx_frame_cache_p;
 	int rx_frame_count;
+	spinlock_t rx_frame_count_lock;
 	// transfer buffer concerned
 	struct current_frame_info current_frame;
 	struct bif_rx_cache *recv_frag;
 	unsigned char *send_fragment;
 	// transfer feature concerned
 	int block;
+	struct comm_channel_statistics channel_statistics;
 };
 
 int channel_init(struct comm_channel *channel, struct channel_config *config);
@@ -126,5 +138,6 @@ int bif_stop(struct comm_channel *channel);
 void bif_frame_decrease_count(struct comm_channel *channel);
 void bif_del_frame_from_session_list(struct comm_channel *channel,
 struct bif_frame_cache *frame);
+int channel_stock_frame_num(struct comm_channel *channel);
 
 #endif

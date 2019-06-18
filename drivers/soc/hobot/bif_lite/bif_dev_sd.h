@@ -4,10 +4,10 @@
 #define RING_INFO_ALIGN            (512)
 #define FRAME_LEN_MAX              (256 * 1024)
 #define FRAG_LEN_MAX               (32 * 1024)
-#define FRAG_NUM                   ((FRAME_LEN_MAX / FRAG_LEN_MAX) * 4)
+#define FRAG_NUM                   ((FRAME_LEN_MAX / FRAG_LEN_MAX) * 12)
 #define CP2AP_RING_BUFFER_LEN      (FRAG_NUM * FRAG_LEN_MAX)
 #define AP2CP_RING_BUFFER_LEN      (FRAG_NUM * FRAG_LEN_MAX)
-#define FRAME_CACHE_MAX            (4)
+#define FRAME_CACHE_MAX            (50)
 
 #define CP2AP_RING_AP_INFO_LEN (ALIGN(sizeof(struct bif_rx_ring_info), \
 RING_INFO_ALIGN))
