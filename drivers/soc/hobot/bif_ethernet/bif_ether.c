@@ -268,11 +268,11 @@ static void bifnet_query_addr(void *p, int wait_flag)
 	}
 
 	if (pl->query_ok) {
-		pr_info("self_phy=0x%lx,other_phy=0x%lx\n",
-			pl->self_phy, pl->other_phy);
-		pr_info("self_vir=0x%lx,other_vir=0x%lx\n",
-			(ulong)pl->self_vir, (ulong)pl->other_vir);
-		pr_info("cp=0x%lx,ap=0x%lx\n", (ulong)pl->cp, (ulong)pl->ap);
+		pr_info("bifeth: self_phy=0x%lx other_phy=0x%lx"
+			" self_vir=0x%lx other_vir=0x%lx cp=0x%lx ap=0x%lx\n",
+			pl->self_phy, pl->other_phy,
+			(ulong)pl->self_vir, (ulong)pl->other_vir,
+			(ulong)pl->cp, (ulong)pl->ap);
 		pl->start = 1;
 	}
 }
@@ -692,7 +692,7 @@ static int bifnet_init(void)
 	void *vir_addr;
 	int ret = 0;
 
-	pr_info("bifnet: init begin...\n");
+	//pr_info("bifnet: init begin...\n");
 	dev = alloc_etherdev(sizeof(struct bifnet_local));
 	if (!dev) {
 		pr_err("bifnet: %s() Err alloc etherdev!\n", __func__);
@@ -764,11 +764,11 @@ static int bifnet_init(void)
 	} else {
 		sprintf(pl->ver, "%s", BIFETH_CPVER);
 #ifdef BIFETH_RESERVED_MEM
-		pr_info("bifnet: call bif_alloc_cp()\n");
+		pr_debug("bifnet: call bif_alloc_cp()\n");
 		pl->self_vir = bif_alloc_cp(pl->bifnet_id, 2 * ALLOC_SIZE,
 			&pl->self_phy);
 #else
-		pr_info("bifnet: call bif_dma_alloc() %d\n", BIFETH_MEMATTRS);
+		pr_debug("bifnet: call bif_dma_alloc() %d\n", BIFETH_MEMATTRS);
 		pl->self_vir = bif_dma_alloc(2 * ALLOC_SIZE,
 			(dma_addr_t *)&pl->self_phy,
 			GFP_KERNEL, BIFETH_MEMATTRS);
@@ -793,7 +793,7 @@ static int bifnet_init(void)
 		pl->cp = (struct bif_ether_info *)(vir_addr);
 	}
 
-	pr_info("%s: ver=%s,id=%d\n", dev->name, pl->ver, pl->bifnet_id);
+	//pr_info("%s: ver=%s,id=%d\n", dev->name, pl->ver, pl->bifnet_id);
 	bifnet_query_addr((void *)pl, 0);
 	bif_register_irq(pl->bifnet_id, bitnet_irq_handler);
 
@@ -806,18 +806,20 @@ static int bifnet_init(void)
 		pl->start = 1;
 	else {
 		if (pl->plat->plat_type == PLAT_AP) {
-			pr_info("self_vir=0x%lx,other_vir=0x%lx\n",
-				(ulong)pl->self_vir, (ulong)pl->other_vir);
-			pr_info("ap=0x%lx\n", (ulong)pl->ap);
+			pr_info("%s: ver=%s id=%d self_vir=0x%lx"
+				" other_vir=0x%lx ap=0x%lx\n", dev->name,
+				pl->ver, pl->bifnet_id, (ulong)pl->self_vir,
+				(ulong)pl->other_vir, (ulong)pl->ap);
 		} else {
-			pr_info("self_phy=0x%lx,other_phy=0x%lx\n",
-				pl->self_phy, pl->other_phy);
-			pr_info("self_vir=0x%lx,other_vir=0x%lx\n",
-				(ulong)pl->self_vir, (ulong)pl->other_vir);
-			pr_info("cp=0x%lx\n", (ulong)pl->cp);
+			pr_info("%s: ver=%s id=%d self_phy=0x%lx"
+				" other_phy=0x%lx self_vir=0x%lx"
+				" other_vir=0x%lx cp=0x%lx\n", dev->name,
+				pl->ver, pl->bifnet_id,	pl->self_phy,
+				pl->other_phy, (ulong)pl->self_vir,
+				(ulong)pl->other_vir, (ulong)pl->cp);
 		}
 	}
-	pr_info("bifeth: init end...\n");
+	pr_debug("bifeth: init end...\n");
 
 	if (ret) {
 exit_5:
@@ -840,7 +842,7 @@ exit_1:
 		pr_err("bifnet: Err init failed.\n");
 	} else {
 		pl->start = 1;
-		pr_info("bifnet: Suc init success.\n");
+		pr_debug("bifnet: Suc init success.\n");
 	}
 
 	return ret;
@@ -852,7 +854,7 @@ static void bifnet_exit(void)
 	struct net_device *dev = get_bifnet();
 	struct bifnet_local *pl = netdev_priv(dev);
 
-	pr_info("bifeth: exit begin...\n");
+	pr_debug("bifeth: exit begin...\n");
 	pl->start = 0;
 
 	netif_stop_queue(dev);
@@ -895,7 +897,7 @@ static void bifnet_exit(void)
 
 	free_netdev(dev);
 
-	pr_info("bifeth: exit end...\n");
+	pr_debug("bifeth: exit end...\n");
 }
 
 late_initcall(bifnet_init);
