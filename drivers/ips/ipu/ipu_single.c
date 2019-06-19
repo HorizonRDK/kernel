@@ -48,7 +48,6 @@
 
 #define ENABLE 1
 #define DISABLE 0
-#define DISPLAY_PP_BUFFER
 
 struct ipu_single_cdev {
 	const char *name;
@@ -220,7 +219,8 @@ void ipu_single_mode_process(uint32_t status)
 
 	if (status & PYM_FRAME_DONE) {
 		ipu_slot_h_t *slot_h = NULL;
-		slot_h = slot_busy_to_done();
+		slot_busy_to_done();
+		slot_h = ipu_read_done_slot();
 		if (slot_h) {
 			ipu_info("pyramid done, slot-%d, cnt %d\n", slot_h->info_h.slot_id, slot_h->slot_cnt);
 			//__inval_dcache_area(IPU_GET_SLOT(slot_h->info_h.slot_id, ipu->vaddr), IPU_SLOT_SIZE);
@@ -229,6 +229,14 @@ void ipu_single_mode_process(uint32_t status)
 			ipu_get_frameid(ipu, slot_h);
 			wake_up_interruptible(&g_ipu_s_cdev->event_head);
 
+			iar_display_yaddr =
+			IPU_GET_SLOT(slot_h->info_h.slot_id, ipu->paddr) +
+			slot_h->info_h.ddr_info.ds[5].y_offset;
+			iar_display_caddr =
+			IPU_GET_SLOT(slot_h->info_h.slot_id, ipu->paddr) +
+			slot_h->info_h.ddr_info.ds[5].c_offset;
+			iar_set_video_buffer(iar_display_yaddr,
+						iar_display_caddr, -1);
 		} else {
 #if 0 //may cause pym stop
 			if (is_slot_free_empty() && is_slot_busy_empty() && !test_and_set_bit(IPU_SLOT_NOT_AVALIABLE, &g_ipu_s_cdev->ipuflags)) {
@@ -236,41 +244,8 @@ void ipu_single_mode_process(uint32_t status)
 				//ipu_info("busy slot empty\n");
 			}
 #endif
+		ipu_info("no done slot to use\n");
 		}
-
-		iar_display_yaddr = IPU_GET_SLOT(g_iar_id, ipu->paddr) +
-			g_ipu_s_cdev->s_info.ds[5].y_offset;
-		iar_display_caddr = IPU_GET_SLOT(g_iar_id, ipu->paddr) +
-			g_ipu_s_cdev->s_info.ds[5].c_offset;
-#ifdef DISPLAY_PP_BUFFER
-		if (index == 0) {
-			memcpy(ipu_get_iar_framebuf_addr(0, index),
-				phys_to_virt(iar_display_yaddr),
-				800*480);
-			memcpy(ipu_get_iar_framebuf_addr(0, index) +
-				800*480,
-				phys_to_virt(iar_display_caddr),
-				800*480);
-			iar_set_video_buffer(iar_display_yaddr,
-					iar_display_caddr, index);
-			index = 1;
-
-		} else if (index == 1) {
-			memcpy(ipu_get_iar_framebuf_addr(0, index),
-				phys_to_virt(iar_display_yaddr),
-				800*480);
-			memcpy(ipu_get_iar_framebuf_addr(0, index) +
-				800*480,
-				phys_to_virt(iar_display_caddr),
-				800*480);
-			iar_set_video_buffer(iar_display_yaddr,
-					iar_display_caddr, index);
-			index = 0;
-
-		}
-#else
-		iar_set_video_buffer(iar_display_yaddr, iar_display_caddr, -1);
-#endif
 	}
 
 	if ((status & IPU_FRAME_DONE) && !ipu->cfg->pymid.pymid_en) {
@@ -285,7 +260,7 @@ void ipu_single_mode_process(uint32_t status)
 		}
 	}
 
-	if (status & IPU_FRAME_START) {
+	if (status & PYM_FRAME_START) {
 		ipu_slot_h_t *slot_h = NULL;
 		ipu_fram_cnt ++;
 		slot_h = slot_free_to_busy();

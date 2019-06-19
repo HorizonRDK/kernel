@@ -79,6 +79,7 @@ int8_t init_ipu_slot(uint64_t base, slot_ddr_info_t *data);
 int8_t ipu_clean_slot(slot_ddr_info_t *data);
 ipu_slot_h_t *ipu_get_done_slot(void);
 ipu_slot_h_t *slot_free_to_busy(void);
+ipu_slot_h_t *ipu_read_done_slot(void);
 ipu_slot_h_t *slot_busy_to_done(void);
 ipu_slot_h_t *slot_free_to_done(void);
 ipu_slot_h_t *slot_done_to_free(slot_ddr_info_t *data);

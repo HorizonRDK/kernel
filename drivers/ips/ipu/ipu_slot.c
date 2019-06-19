@@ -80,6 +80,23 @@ ipu_slot_h_t* ipu_get_done_slot()
 	return slot_h;
 }
 
+ipu_slot_h_t *ipu_read_done_slot(void)
+{
+	struct list_head *node = NULL;
+	struct list_head *head = NULL;
+	ipu_slot_h_t	 *slot_h = NULL;
+
+	if (list_empty(&g_ipu_slot_list[DONE_SLOT_LIST])) {
+		ipu_info("done slot empty\n");
+		return NULL;
+	}
+
+	head = &g_ipu_slot_list[DONE_SLOT_LIST];
+	node = head->next;
+	slot_h = (ipu_slot_h_t *)node;
+	return slot_h;
+}
+
 ipu_slot_h_t* slot_free_to_busy(void)
 {
 	struct list_head *node = NULL;
@@ -118,11 +135,18 @@ ipu_slot_h_t *slot_free_to_done(void)
 
 ipu_slot_h_t* slot_busy_to_done(void)
 {
+	int v = 0;
+	struct list_head *this, *next;
 	struct list_head *node = NULL;
 	ipu_slot_h_t	 *slot_h = NULL;
-	if (list_empty(&g_ipu_slot_list[BUSY_SLOT_LIST])) {
+
+	list_for_each_safe(this, next, &g_ipu_slot_list[BUSY_SLOT_LIST])
+		v++;
+	if (v < 2) {
+		ipu_err("busy slot < 2\n");
 		return NULL;
 	}
+
 	node = g_ipu_slot_list[BUSY_SLOT_LIST].next;
 	list_move_tail(node, &g_ipu_slot_list[DONE_SLOT_LIST]);
 	slot_h = (ipu_slot_h_t *)node;
