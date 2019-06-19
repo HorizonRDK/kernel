@@ -268,8 +268,20 @@ static ssize_t x2_iar_show(struct kobject *kobj, struct kobj_attribute *attr, ch
 }
 static ssize_t x2_iar_store(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t n)
 {
+	char *tmp;
 	int error = -EINVAL;
-	return error ? error : n;
+
+	tmp = (char *)buf;
+
+	if (*tmp == '1') {
+		pr_info("iar start......\n");
+		iar_start(1);
+	} else if (*tmp == '0') {
+		pr_info("iar stop......\n");
+		iar_stop();
+	}
+        //return error ? error : n;
+        return n;
 }
 
 static struct kobj_attribute iar_test_attr = {
