@@ -19,7 +19,7 @@ extern unsigned int ipu_debug_level;
 #define ipu_err(fmt, args...)       printk(KERN_ERR "[ipu][error]: "fmt, ##args)
 
 #define IPU_MAX_SLOT				8
-#define IPU_SLOT_SIZE				0x2000000
+#define IPU_SLOT_SIZE				0x1000000
 
 #define IPU_MAX_SLOT_DUAL			4
 #define IPU_SLOT_DAUL_SIZE			0x4000000

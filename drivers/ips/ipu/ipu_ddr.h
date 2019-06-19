@@ -2,6 +2,7 @@
 #define __IPU_DDR_H__
 
 extern struct x2_ipu_data *g_ipu;
+extern int ddr_mode;
 
 struct addr_info_t {
 	uint16_t width;
