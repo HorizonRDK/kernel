@@ -106,11 +106,6 @@ module_param(need_phy_reset, uint, 0644);
 module_param(mipi_delay_time, uint, 0644);
 module_param(dbg_value, uint, 0644);
 module_param(need_stop_check, uint, 0644);
-#define mipidbg(format, ...)	\
-	do {						\
-		if ((dbg_value >= 1))	\
-			printk(KERN_INFO format "\n", ##__VA_ARGS__);	\
-	} while (0)
 /* for parameters */
 
 #define MIPIHOSTIOC_READ        _IOWR(MIPIHOSTIOC_MAGIC, 4, reg_t)

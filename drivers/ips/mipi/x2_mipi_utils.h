@@ -28,6 +28,15 @@
 #define mipierr(format, ...)    printk(KERN_ERR format "\n" , ##__VA_ARGS__)
 #endif
 
+/* for mipi debug */
+extern unsigned int dbg_value;
+#define mipidbg(format, ...)	\
+	do {						\
+		if ((dbg_value >= 1))	\
+			printk(KERN_INFO format "\n", ##__VA_ARGS__);	\
+	} while (0)
+/* for mipi debug */
+
 #define mipi_getreg(a)          readl(a)
 #define mipi_putreg(a,v)\
 	do {\

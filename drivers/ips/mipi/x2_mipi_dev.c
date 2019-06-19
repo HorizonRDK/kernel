@@ -180,7 +180,7 @@ static uint16_t mipi_dev_vpg_get_hline(mipi_dev_cfg_t *control)
 	}
 	if (control->linelenth == 0 || control->linelenth == control->width)
 		hline = MIPI_DEV_VPG_HLINE_TIME;
-	mipiinfo("mipi dev vpg hline: %d", hline);
+	mipidbg("mipi dev vpg hline: %d", hline);
 	return hline;
 }
 
@@ -196,7 +196,7 @@ static uint16_t mipi_dev_vpg_get_vfp(mipi_dev_cfg_t *control)
 	uint16_t vfp = control->framelenth - MIPI_DEV_VPG_VSA_LINES - MIPI_DEV_VPG_VBP_LINES - control->height;
 	if (control->framelenth == 0 || control->framelenth == control->height)
 		vfp = MIPI_DEV_VPG_VFP_LINES;
-	mipiinfo("mipi dev vpg vfp: %d", vfp);
+	mipidbg("mipi dev vpg vfp: %d", vfp);
 	return vfp;
 }
 
@@ -382,22 +382,22 @@ static irqreturn_t mipi_dev_irq_func(int this_irq, void *data)
 	iomem = mipi_dev->iomem;
 	disable_irq_nosync(this_irq);
 	irq = mipi_getreg(iomem + REG_MIPI_DEV_INT_ST_MAIN);
-	mipiinfo("mipi dev irq status 0x%x\n", irq);
+	mipidbg("mipi dev irq status 0x%x\n", irq);
 	if (irq & MIPI_DEV_INT_VPG) {
 		subirq = mipi_getreg(iomem + REG_MIPI_DEV_INT_ST_VPG);
-		mipiinfo("mipi dev VPG ST: 0x%x", subirq);
+		mipidbg("mipi dev VPG ST: 0x%x", subirq);
 	}
 	if (irq & MIPI_DEV_INT_IDI) {
 		subirq = mipi_getreg(iomem + REG_MIPI_DEV_INT_ST_IDI);
-		mipiinfo("mipi dev IDI ST: 0x%x", subirq);
+		mipidbg("mipi dev IDI ST: 0x%x", subirq);
 	}
 	if (irq & MIPI_DEV_INT_IPI) {
 		subirq = mipi_getreg(iomem + REG_MIPI_DEV_INT_ST_IPI);
-		mipiinfo("mipi dev IPI ST: 0x%x", subirq);
+		mipidbg("mipi dev IPI ST: 0x%x", subirq);
 	}
 	if (irq & MIPI_DEV_INT_PHY) {
 		subirq = mipi_getreg(iomem + REG_MIPI_DEV_INT_ST_PHY);
-		mipiinfo("mipi dev PHY ST: 0x%x", subirq);
+		mipidbg("mipi dev PHY ST: 0x%x", subirq);
 	}
 	enable_irq(this_irq);
 	return IRQ_HANDLED;

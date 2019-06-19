@@ -232,12 +232,12 @@ static uint32_t mipi_dphy_clk_range(uint32_t mipiclk)
 	uint8_t  index = 0;
 	for (index = 0; index < sizeof(g_pll_sel_table) / sizeof(pll_sel_table_t); index++) {
 		if (mipiclk <= g_pll_sel_table[index].freq) {
-			mipiinfo("pll div mipiclk: %d, selected clk: %d, range value: %d",
+			mipidbg("pll div mipiclk: %d, selected clk: %d, range value: %d",
 					 mipiclk, g_pll_sel_table[index].freq, g_pll_sel_table[index].value);
 			return g_pll_sel_table[index].value;
 		}
 	}
-	mipiinfo("mipi clock %d not supported", mipiclk);
+	mipidbg("mipi clock %d not supported", mipiclk);
 	return 0;
 }
 
@@ -269,7 +269,7 @@ static void mipi_host_dphy_testdata(uint16_t testcode, uint8_t testdata)
 	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL1, testdata);         /*set test data*/
 	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_CLK);    /*set testclk to high*/
 	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_RESETN); /*set testclk to low*/
-	mipiinfo("mipi host dphy test code:0x%x, data: 0x%x", testcode, testdata);
+	mipidbg("mipi host dphy test code:0x%x, data: 0x%x", testcode, testdata);
 }
 
 /**
@@ -283,7 +283,7 @@ int32_t mipi_host_dphy_initialize(uint16_t mipiclk, uint16_t lane, uint16_t sett
 {
 	g_hostmem = iomem;
 
-	mipiinfo("mipi host initialize begin");
+	mipidbg("mipi host initialize begin");
 	/*Release Synopsys-PHY test codes from reset*/
 	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL1, DPHY_TEST_RESETN);
 	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_CLEAR);
@@ -354,7 +354,7 @@ static void mipi_dev_dphy_testdata(uint16_t testcode, uint8_t testdata)
 	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL1, testdata);         /*set test data*/
 	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_CLK);    /*set testclk to high*/
 	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_RESETN); /*set testclk to low*/
-	mipiinfo("mipi dev dphy test code:0x%x, data: 0x%x", testcode, testdata);
+	mipidbg("mipi dev dphy test code:0x%x, data: 0x%x", testcode, testdata);
 }
 
 static const pll_range_table_t g_vco_range_table[] = {
@@ -376,13 +376,13 @@ static uint32_t mipi_tx_vco_range(uint16_t vcoclk, uint16_t *vcomax)
 	uint8_t  index = 0;
 	for (index = 0; index < sizeof(g_vco_range_table) / sizeof(pll_range_table_t); index++) {
 		if (vcoclk >= g_vco_range_table[index].low && vcoclk <= g_vco_range_table[index].high) {
-			mipiinfo("vcoclk: %d, selected range: %d-%d, range value: %d",
+			mipidbg("vcoclk: %d, selected range: %d-%d, range value: %d",
 					 vcoclk, g_vco_range_table[index].low, g_vco_range_table[index].high, g_vco_range_table[index].value);
 			*vcomax = g_vco_range_table[index].high;
 			return g_vco_range_table[index].value;
 		}
 	}
-	mipiinfo("vco clock %d not supported", vcoclk);
+	mipidbg("vco clock %d not supported", vcoclk);
 	return 0;
 }
 
@@ -435,7 +435,7 @@ static int32_t mipi_tx_pll_div(uint16_t refsclk, uint16_t laneclk, uint8_t *n, u
 	*vco = mipi_tx_vco_range(fvco, &fvco_max);
 	*m = fvco_max * (*n + 1) / refsclk - 2;
 	outclk = fout << 1;
-	mipiinfo("pll div refsclk: %d, laneclk: %d, n: %d, m: %d, outclk: %d",
+	mipidbg("pll div refsclk: %d, laneclk: %d, n: %d, m: %d, outclk: %d",
 			 refsclk, laneclk, *n, *m, outclk);
 	return outclk;
 }
@@ -455,7 +455,7 @@ int32_t mipi_dev_dphy_initialize(void __iomem *iomem, uint16_t mipiclk, uint16_t
 	uint16_t   outclk = 0;
 	g_devmem = iomem;
 
-	mipiinfo("mipi device initialize dphy begin");
+	mipidbg("mipi device initialize dphy begin");
 
 	/*Configure the D-PHY PLL*/
 	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_RESETN);
