@@ -229,14 +229,22 @@ void ipu_single_mode_process(uint32_t status)
 			ipu_get_frameid(ipu, slot_h);
 			wake_up_interruptible(&g_ipu_s_cdev->event_head);
 
+			/*
 			iar_display_yaddr =
 			IPU_GET_SLOT(slot_h->info_h.slot_id, ipu->paddr) +
 			slot_h->info_h.ddr_info.ds[5].y_offset;
 			iar_display_caddr =
 			IPU_GET_SLOT(slot_h->info_h.slot_id, ipu->paddr) +
 			slot_h->info_h.ddr_info.ds[5].c_offset;
-			iar_set_video_buffer(iar_display_yaddr,
-						iar_display_caddr, -1);
+
+			pr_debug("@@slot id is %d\n", slot_h->info_h.slot_id);
+			pr_info("slot info ds[5] yaddr is 0x%x\n",
+			iar_display_yaddr);
+			pr_info("slot info ds[5] caddr is 0x%x\n",
+			iar_display_caddr);
+			*/
+			iar_set_video_buffer(slot_h->info_h.slot_id);
+
 		} else {
 #if 0 //may cause pym stop
 			if (is_slot_free_empty() && is_slot_busy_empty() && !test_and_set_bit(IPU_SLOT_NOT_AVALIABLE, &g_ipu_s_cdev->ipuflags)) {
@@ -338,6 +346,33 @@ static int8_t ipu_sinfo_init(ipu_cfg_t *ipu_cfg)
 			}
 		}
 	}
+	return 0;
+}
+
+int8_t iar_get_ipu_display_addr(uint32_t display_addr[][2])
+{
+	int i = 0;
+
+	if (g_ipu_s_cdev == NULL)
+		return -1;
+	display_addr[0][0] = g_ipu_s_cdev->ipu->paddr;
+	display_addr[0][1] = IPU_SLOT_SIZE;
+	display_addr[1][0] = g_ipu_s_cdev->s_info.crop.y_offset;
+	display_addr[1][1] = g_ipu_s_cdev->s_info.crop.c_offset;
+	display_addr[2][0] = g_ipu_s_cdev->s_info.scale.y_offset;
+	display_addr[2][1] = g_ipu_s_cdev->s_info.scale.c_offset;
+
+	for (i = 0; i < 24; i++) {
+		display_addr[i+3][0] = g_ipu_s_cdev->s_info.ds[i].y_offset;
+		display_addr[i+3][1] = g_ipu_s_cdev->s_info.ds[i].c_offset;
+	}
+
+	for (i = 0; i < 6; i++) {
+		display_addr[i+27][0] = g_ipu_s_cdev->s_info.ds[i].y_offset;
+		display_addr[i+27][1] = g_ipu_s_cdev->s_info.ds[i].c_offset;
+	}
+	pr_debug("g_ipu_s_cdev->ipu.paddr = 0x%x\n", display_addr[0][0]);
+
 	return 0;
 }
 

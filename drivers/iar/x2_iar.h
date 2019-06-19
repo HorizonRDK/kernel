@@ -453,6 +453,7 @@ typedef struct _output_cfg_t {
 	uint32_t out_sel;
 	uint32_t width;
 	uint32_t height;
+	uint32_t display_addr_type;
 	ppcon1_cfg_t ppcon1;
 	ppcon2_cfg_t ppcon2;
 	refresh_cfg_t refresh_cfg;
@@ -502,6 +503,42 @@ enum DISPLAY_TYPE {
 	HDMI_TYPE,
 };
 
+enum DISPLAY_ADDR_TYPE {
+	BASE, //0
+	CROP, //1
+	SCALE, //2
+	DS0, //3
+	DS1, //4
+	DS2, //5
+	DS3, //6
+	DS4, //7
+	DS5, //8
+	DS6, //9
+	DS7, //10
+	DS8, //11
+	DS9, //12
+	DS10, //13
+	DS11, //14
+	DS12, //15
+	DS13, //16
+	DS14, //17
+	DS15, //18
+	DS16, //19
+	DS17, //20
+	DS18, //21
+	DS19, //22
+	DS20, //23
+	DS21, //24
+	DS22, //25
+	DS23, //26
+	US0, //27
+	US1, //28
+	US2, //29
+	US3, //30
+	US4, //31
+	US5, //32
+};
+
 extern int display_type;
 extern unsigned int iar_debug_level;
 #define IAR_DEBUG_PRINT(format, args...)	\
@@ -527,9 +564,11 @@ int32_t iar_close(void);
 int32_t iar_pre_init(void);
 void x2_iar_dump(void);
 frame_buf_t* x2_iar_get_framebuf_addr(int channel);
-int32_t iar_set_video_buffer(uint32_t yaddr, uint32_t caddr, int index);
+//int32_t iar_set_video_buffer(uint32_t yaddr, uint32_t caddr, int index);
+int32_t iar_set_video_buffer(uint32_t slot_id);
 int32_t iar_write_framebuf_dma(uint32_t channel, phys_addr_t srcaddr,
 		uint32_t size);
 void *ipu_get_iar_framebuf_addr(uint32_t channel, unsigned int index);
+int8_t iar_get_ipu_display_addr(uint32_t display_addr[][2]);
 
 #endif //__X2_IAR_H__

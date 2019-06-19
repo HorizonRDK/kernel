@@ -31,6 +31,10 @@ module_param(iar_debug_level, uint, 0644);
 #define IAR_ENABLE 1
 #define IAR_DISABLE 0
 
+uint32_t iar_display_ipu_addr[33][2];
+uint32_t iar_display_yaddr_offset;
+uint32_t iar_display_caddr_offset;
+uint8_t iar_display_addr_type = DS5;
 
 const unsigned int g_iarReg_cfg_table[][3] = {
 	/*reg mask	reg offset*/
@@ -700,6 +704,17 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 	writel(value, g_iar_dev->regaddr + REG_IAR_PANEL_SIZE);
 
 	writel(0x00000008, g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
+	iar_get_ipu_display_addr(iar_display_ipu_addr);
+	pr_info("iar display ipu addr00 is 0x%x\n", iar_display_ipu_addr[0][0]);
+	pr_info("iar display ipu addr ds5 y is 0x%x\n",
+			iar_display_ipu_addr[8][0]);
+	pr_info("iar display ipu addr ds5 c is 0x%x\n",
+			iar_display_ipu_addr[8][1]);
+
+	iar_display_yaddr_offset = iar_display_ipu_addr[0][0] +
+		iar_display_ipu_addr[cfg->display_addr_type][0];
+	iar_display_caddr_offset = iar_display_ipu_addr[0][0] +
+		iar_display_ipu_addr[cfg->display_addr_type][1];
 #if 0
 	value = IAR_REG_SET_FILED(IAR_CONTRAST, cfg->ppcon1.contrast, 0);
 	value = IAR_REG_SET_FILED(IAR_THETA_SIGN, cfg->ppcon1.theta_sign, value);
@@ -842,7 +857,7 @@ int32_t iar_switch_buf(uint32_t channel)
 }
 EXPORT_SYMBOL_GPL(iar_switch_buf);
 
-
+/*
 int32_t iar_set_video_buffer(uint32_t yaddr, uint32_t caddr, int index)
 {
 	//uint32_t index;
@@ -870,6 +885,31 @@ int32_t iar_set_video_buffer(uint32_t yaddr, uint32_t caddr, int index)
 			800*480;
 		display_addr.Vaddr = 0;
 	}
+	iar_set_bufaddr(0, &display_addr);
+
+	iar_update();
+	pr_debug("end set iar display addr success!\n");
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(iar_set_video_buffer);
+*/
+int32_t iar_set_video_buffer(uint32_t slot_id)
+{
+	buf_addr_t display_addr;
+
+	display_addr.Yaddr = slot_id * iar_display_ipu_addr[0][1] +
+		iar_display_yaddr_offset;
+	display_addr.Uaddr = slot_id * iar_display_ipu_addr[0][1] +
+		iar_display_caddr_offset;
+	display_addr.Vaddr = 0;
+
+	pr_debug("iar_display_yaddr offset is 0x%x.\n",
+			iar_display_yaddr_offset);
+	pr_debug("iar_display_caddr offset is 0x%x.\n",
+			iar_display_caddr_offset);
+	pr_debug("iar_display_yaddr is 0x%x.\n", display_addr.Yaddr);
+	pr_debug("iar_display_caddr is 0x%x.\n", display_addr.Uaddr);
 	iar_set_bufaddr(0, &display_addr);
 
 	iar_update();
