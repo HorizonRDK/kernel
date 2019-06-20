@@ -997,8 +997,8 @@ static int x2_set_gpio_irq_to_bank(struct x2_pinctrl *pctrl)
 		if (gpio < X2_IO_MIN || gpio > X2_IO_MAX)
 			continue;
 		value = readl(pctrl->regbase + X2_IO_INT_SEL);
-		value &= ~(0x3f << index * 6);
-		value |= (gpio << index * 6);
+		value &= ~(0xff << index * 8);
+		value |= (gpio << index * 8);
 		writel(value, pctrl->regbase + X2_IO_INT_SEL);
 	}
 	return 0;
