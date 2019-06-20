@@ -75,8 +75,6 @@ unsigned int drop_ipu = 0;
 unsigned int ipu_fram_cnt_drop = 0;
 unsigned int ipu_fram_cnt = 0;
 
-unsigned int index;
-uint8_t g_iar_id;
 
 module_param(frequency_ipu, uint, S_IRUGO | S_IWUSR);
 module_param(drop_ipu, uint, S_IRUGO | S_IWUSR);
@@ -277,7 +275,6 @@ void ipu_single_mode_process(uint32_t status)
 					(uint64_t)IPU_GET_SLOT(slot_h->info_h.slot_id, ipu->paddr));
 			//__inval_dcache_area(IPU_GET_SLOT(slot_h->info_h.slot_id, ipu->vaddr), IPU_SLOT_SIZE);
 			ipu_set(IPUC_SET_DDR, ipu->cfg, IPU_GET_SLOT(slot_h->info_h.slot_id, ipu->paddr));
-			g_iar_id = slot_h->info_h.slot_id;
 #if 0	//may cause pym stop
 			if(test_and_clear_bit(IPU_SLOT_NOT_AVALIABLE, &g_ipu_s_cdev->ipuflags)){
 				ctrl_ipu_to_ddr(PYM_TO_DDR,ENABLE);
@@ -533,7 +530,6 @@ long ipu_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 				break;
 			}
 			spin_unlock(&g_ipu_s_cdev->slock);
-			g_iar_id = slot_h->info_h.slot_id;
 			ipu_drv_start();
 		}
 		break;
