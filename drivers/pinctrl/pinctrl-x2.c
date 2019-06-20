@@ -939,7 +939,7 @@ static void x2_gpio_irq_unmask(struct irq_data *data)
 	if (bank < GPIO_IRQ_BANK0 || bank > GPIO_IRQ_BANK3)
 		return;
 	value = readl(pctrl->regbase + X2_IO_INT_UNMASK);
-	value &= ~(0x1 << bank);
+	value |= 0x1 << bank;
 	writel(value, pctrl->regbase + X2_IO_INT_UNMASK);
 }
 
@@ -953,7 +953,7 @@ static void x2_gpio_irq_mask(struct irq_data *data)
 	if (bank < GPIO_IRQ_BANK0 || bank > GPIO_IRQ_BANK3)
 		return;
 	value = readl(pctrl->regbase + X2_IO_INT_SETMASK);
-	value &= ~(0x1 << bank);
+	value |= 0x1 << bank;
 	writel(value, pctrl->regbase + X2_IO_INT_SETMASK);
 }
 
