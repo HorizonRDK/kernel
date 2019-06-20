@@ -33,6 +33,7 @@
 		i2c3	= &i2c3;
 		i2s0	= &i2s0;
 		i2s1	= &i2s1;
+		spi0	= &spi0;
 		pwm0	= &pwm_0;
 		pwm1	= &pwm_1;
 		pwm2	= &pwm_2;
@@ -215,7 +216,7 @@
 };
 
 &i2c1 {
-	status = "okay";
+	status = "disabled";
 };
 
 &pinctrl {
