@@ -832,19 +832,25 @@ static int x2_ips_probe(struct platform_device *pdev)
 
 	g_ipsdev->pinctrl = devm_pinctrl_get(&pdev->dev);
 	if (IS_ERR(g_ipsdev->pinctrl)) {
-		dev_err(&pdev->dev, "pinctrl get error\n");
-		return PTR_ERR(g_ipsdev->pinctrl);
-	}
-	g_ipsdev->pins_bt = pinctrl_lookup_state(g_ipsdev->pinctrl, "bt_func");
-	if (IS_ERR(g_ipsdev->pins_bt)) {
-		dev_err(&pdev->dev, "bt in pinctrl state error\n");
-		return PTR_ERR(g_ipsdev->pins_bt);
-	}
-
-	g_ipsdev->pins_dvp = pinctrl_lookup_state(g_ipsdev->pinctrl, "dvp_func");
-	if (IS_ERR(g_ipsdev->pins_dvp)) {
-		dev_err(&pdev->dev, "dvp in pinctrl state error\n");
-		return PTR_ERR(g_ipsdev->pins_dvp);
+		dev_warn(&pdev->dev, "pinctrl get none\n");
+		g_ipsdev->pinctrl = NULL;
+		g_ipsdev->pins_bt = NULL;
+		g_ipsdev->pins_dvp = NULL;
+	} else {
+		g_ipsdev->pins_bt = pinctrl_lookup_state(g_ipsdev->pinctrl,
+												 "bt_func");
+		if (IS_ERR(g_ipsdev->pins_bt)) {
+			dev_warn(&pdev->dev, "bt_func get error %d\n",
+					PTR_ERR(g_ipsdev->pins_bt));
+			g_ipsdev->pins_bt = NULL;
+		}
+		g_ipsdev->pins_dvp = pinctrl_lookup_state(g_ipsdev->pinctrl,
+												  "dvp_func");
+		if (IS_ERR(g_ipsdev->pins_dvp)) {
+			dev_warn(&pdev->dev, "dvp_func get error %d\n",
+					PTR_ERR(g_ipsdev->pins_dvp));
+			g_ipsdev->pins_dvp = NULL;
+		}
 	}
 
 	g_ipsdev->ipi_clk = devm_clk_get(&pdev->dev, "ipi_div2");
