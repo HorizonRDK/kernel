@@ -100,11 +100,13 @@ uint32_t mipi_host_states;
 unsigned int need_phy_reset;
 unsigned int mipi_delay_time;
 unsigned int dbg_value;
+unsigned int adv_value = (0x3 << 16);
 unsigned int need_stop_check;
 module_param(mipi_host_states, uint, 0644);
 module_param(need_phy_reset, uint, 0644);
 module_param(mipi_delay_time, uint, 0644);
 module_param(dbg_value, uint, 0644);
+module_param(adv_value, uint, 0644);
 module_param(need_stop_check, uint, 0644);
 /* for parameters */
 
@@ -276,7 +278,7 @@ static int32_t mipi_host_configure_ipi(mipi_host_cfg_t *control)
 	mipi_putreg(iomem + REG_MIPI_HOST_IPI_HSA_TIME, control->hsaTime);
 	mipi_putreg(iomem + REG_MIPI_HOST_IPI_HBP_TIME, control->hbpTime);
 	mipi_putreg(iomem + REG_MIPI_HOST_IPI_HSD_TIME, control->hsdTime);
-	mipi_putreg(iomem + REG_MIPI_HOST_IPI_ADV_FEATURES, 0x03 << 16);
+	mipi_putreg(iomem + REG_MIPI_HOST_IPI_ADV_FEATURES, adv_value);
 
 	if (MIPIHOST_CHANNEL_NUM == control->channel_num) {
 		/*Select virtual channel and data type to be processed by IPI*/
