@@ -2514,7 +2514,9 @@ static long cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 		{
 			while (match_retry_count++ < retry_max_cnt) {
 				sl = NULL;
+				mutex_lock(&lock);
 				w1_process_match(&dev);
+				mutex_unlock(&lock);
 				if (dev != NULL) {
 					mutex_lock(&dev->list_mutex);
 					list_for_each_entry(get, &dev->slist,
