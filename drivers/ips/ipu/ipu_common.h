@@ -22,7 +22,7 @@ extern unsigned int ipu_debug_level;
 #define IPU_SLOT_SIZE				0x1000000
 
 #define IPU_MAX_SLOT_DUAL			4
-#define IPU_SLOT_DAUL_SIZE			0x4000000
+#define IPU_SLOT_DAUL_SIZE			0x2000000
 
 #define ALIGN_4(d)          (((d) + 3) & ~0x3)
 #define ALIGN_16(d)         (((d) + 15) & ~0xf)

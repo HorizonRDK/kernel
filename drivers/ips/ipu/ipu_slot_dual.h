@@ -3,12 +3,13 @@
 
 #include <linux/types.h>
 #include <linux/list.h>
+#include "ipu_common.h"
 
 /* 64M per slot
  * 1080p 28M for crop, scale, pym_ds, 36M for pym_us
  */
-#define IPU_MAX_SLOT_DUAL			4
-#define IPU_SLOT_DAUL_SIZE			0x4000000
+// #define IPU_MAX_SLOT_DUAL			4
+// #define IPU_SLOT_DAUL_SIZE			0x4000000
 #define IPU_GET_DUAL_SLOT(id, base)		((base) + (id) * IPU_SLOT_DAUL_SIZE)
 #define IPU_GET_FST_PYM_OF_SLOT(id, base)	   ((base) + (id) * IPU_SLOT_DAUL_SIZE)
 #define IPU_GET_SEC_PYM_OF_SLOT(id, base)	   ((base) + (id) * IPU_SLOT_DAUL_SIZE + IPU_SLOT_DAUL_SIZE/2)
