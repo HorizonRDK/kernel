@@ -51,8 +51,6 @@ int insert_dual_slot_to_free(int slot_id, slot_ddr_info_dual_t *data)
 		ipu_err("invalid slot id when free to done\n");
 		return -1;
 	}
-	if (test_and_clear_bit(slot_id, slot_init_mask))
-		memcpy(&g_ipu_slot_dual[slot_id].info_h.dual_ddr_info, data, sizeof(slot_ddr_info_dual_t));
 
 	ipu_info("insert slot-%d \n", slot_id);
 	slot_h = &g_ipu_slot_dual[slot_id];

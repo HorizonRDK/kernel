@@ -159,11 +159,13 @@ int8_t set_ipu_ctrl(ipu_ctrl_t *info)
 	if (info->uv_fmt == 1)
 		d |= SET_FMT_UV;
 
+	/*
 	if (info->crop_ddr_en == 1)
 		d |= SET_CROP_DDR_EN;
 
 	if (info->scale_ddr_en == 1)
 		d |= SET_SCALE_DDR_EN;
+	*/
 
 	if (info->crop_en == 1)
 		d |= SET_CROP_EN;
