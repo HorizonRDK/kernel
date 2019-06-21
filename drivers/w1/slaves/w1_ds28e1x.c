@@ -85,12 +85,12 @@
 //#define LOW_VOLTAGE
 #ifdef LOW_VOLTAGE
 #define SHA_COMPUTATION_DELAY    4
-#define EEPROM_WRITE_DELAY       15
+#define EEPROM_WRITE_DELAY       100
 #define SECRET_EEPROM_DELAY      200
 #else //use this in 8909
 #define SHA_COMPUTATION_DELAY    4
-#define EEPROM_WRITE_DELAY       10
-#define SECRET_EEPROM_DELAY      100	//<-90
+#define EEPROM_WRITE_DELAY       100
+#define SECRET_EEPROM_DELAY      200	//<-90
 #endif
 
 #define ID_MIN		0
@@ -100,7 +100,7 @@
 #define ID_DEFAULT	1
 #define CO_DEFAULT	1
 #define RETRY_LIMIT	10
-#define RETRY_DELAY 2		//unit:ms
+#define RETRY_DELAY 10		//unit:ms
 
 #define AUTH_PAGE_NO    0
 
@@ -132,6 +132,8 @@
 #define W1_IOCTL_ROMUID   _IOWR(slave_cdev_m_pAGIC, 0x14, struct buf_8)
 
 #define W1_IOCTL_MNUID   _IOWR(slave_cdev_m_pAGIC, 0x15, struct buf_2)
+#define W1_IOCTL_WRITE_KEY   _IOWR(slave_cdev_m_pAGIC, 0x16, struct buf_32)
+#define W1_IOCTL_WRITE_USRINFO   _IOWR(slave_cdev_m_pAGIC, 0x17, struct buf_32)
 
 #define ENABLE_KEYDATA_LOCK 0
 
@@ -2022,7 +2024,7 @@ static ssize_t w1_ds28e1x_mac_read(struct w1_slave *sl,
 		ret = w1_ds28e1x_write_scratchpad(sl, challenge);
 		if (ret) {
 			pr_err
-	("%s: scratchpad{NG)&compute_read_pageMAC retry %d/%d [ret=%d]\n",
+	("%s: scratchpad{NG) %d/%d [ret=%d]\n",
 			     __func__, i + 1, RETRY_LIMIT, ret);
 			i++;
 			ret = 0;
@@ -2037,7 +2039,7 @@ static ssize_t w1_ds28e1x_mac_read(struct w1_slave *sl,
 			break;
 
 		pr_err
-	("%s: scratchpad&compute_read_pageMAC(NG) retry %d/%d [ret=%d]\n",
+	("%s:compute_read_pageMAC(NG) retry %d/%d [ret=%d]\n",
 	__func__, i + 1, RETRY_LIMIT, ret);
 		mdelay(RETRY_DELAY);	/* wait 10ms */
 		i++;
@@ -2095,7 +2097,6 @@ static int w1_ds28e1x_mnid_read(struct w1_slave *sl, char *buf)
 	return -1;
 
 }
-
 static ssize_t w1_ds28e1x_if_auth_read(struct device *device,
 				       struct device_attribute *attr, char *buf)
 {
@@ -2123,6 +2124,41 @@ static ssize_t w1_ds28e1x_if_page_read(struct device *device,
 	return ATTR_SIZE_DBG_PAGE;
 
 }
+
+static int w1_ds28e1x_usrinfo_write(struct w1_slave *sl, char *buf, int  count)
+{
+	int ret;
+	int i = 0;
+
+	if (count < ATTR_SIZE_DBG_PAGE) {
+		pr_err("%s: not enough binding data for page - %d\n",
+		       __func__, (int)count);
+		return -EFAULT;
+	}
+
+	while (i < RETRY_LIMIT) {
+		ret = w1_ds28e1x_write_page(sl, 0, (uchar *) buf);
+		if (ret == 0)
+			break;
+
+		if (ret == 0x33 || ret == 0x55 || ret == 0x53) {
+			pr_err("WARNING-%s: page already LOCKED!! - %d\n",
+			       __func__, ret);
+			memcpy(g_data_writing_page, buf, ATTR_SIZE_DBG_PAGE);
+			return -1;
+		}
+		pr_err("%s: writing binding data failed, cs = 0x%x, retry %d/%d\n",
+		       __func__, ret, i + 1, RETRY_LIMIT);
+		mdelay(RETRY_DELAY);	/* wait 10ms */
+		i++;
+	}
+	if (ret != 0) {
+		pr_err("%s: writing binding data failed\n", __func__);
+		return -1;
+	}
+	return 0;
+}
+
 
 static ssize_t w1_ds28e1x_if_page_write(struct device *device,
 					struct device_attribute *attr,
@@ -2210,7 +2246,47 @@ static ssize_t w1_ds28e1x_if_secret_read(struct device *device,
 	/*read nothing */
 	memset(buf, 0, ATTR_SIZE_DBG_SECRET);
 	return ATTR_SIZE_DBG_SECRET;
+}
 
+static int w1_ds28e1x_key_write(struct w1_slave *sl, char *buf, int  count)
+{
+	int i = 0;
+	int ret = 0;
+
+	if (count < ATTR_SIZE_DBG_SECRET) {
+		pr_err("%s: not enough secret data - %d\n", __func__,
+		(int)count);
+		return 0;
+	}
+
+	//for writing scratchpad
+	i = 0;
+	while (i < RETRY_LIMIT) {
+		ret = w1_ds28e1x_write_scratchpad(sl, buf);
+		ret = w1_ds28e1x_load_secret(sl, 0);
+
+		if (ret == 0)
+			break;
+
+		pr_err("retry write scratchpad & load secret,CS = 0x%x,  %d/%d\n",
+		       ret, i + 1, RETRY_LIMIT);
+		mdelay(RETRY_DELAY);
+		i++;
+		ret = 0;
+	}
+	if (i >= RETRY_LIMIT) {
+		pr_err("%s: load secret failed\n", __func__);
+		ret = -2;
+		goto end;
+	}
+
+end:
+	if (ret == 0) {
+		pr_err("SUCCESS Do Secret Loading!!\n");
+		return 0;
+	}
+	pr_err("FAILED Do Secret Loading!!\n");
+	return -1;
 }
 
 static ssize_t w1_ds28e1x_if_secret_write(struct device *device,
@@ -2354,7 +2430,7 @@ static int w1_ds28e1x_get_buffer(struct w1_slave *sl, uchar *rdbuf,
 	while ((ret != 0) && (retry++ < retry_limit)) {
 		ret = w1_ds28e1x_read_page(sl, 0, &rdbuf[0]);
 		if (ret != 0)
-			pr_info("%s : retry time = %d\n", __func__, retry);
+			pr_err("%s : retry time = %d\n", __func__, retry);
 	}
 	return ret;
 }
@@ -2464,7 +2540,6 @@ static long cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 	case W1_IOCTL_USER:
 		{
 			unsigned char rdbuf[32];
-
 			mutex_lock(&lock);
 			ret = w1_ds28e1x_get_buffer(sl, rdbuf, 50);
 			mutex_unlock(&lock);
@@ -2532,6 +2607,41 @@ retry_jump:
 			}
 			if (!arg || (copy_to_user(arg, (const void *)rdbuf, 8)))
 				return -1;
+		}
+		break;
+
+	case W1_IOCTL_WRITE_KEY:
+		{
+			unsigned char key[32];
+
+			if (!arg
+			    || copy_from_user(key, (const char *)arg, 32))
+				return -1;
+			mutex_lock(&lock);
+			ret = w1_ds28e1x_key_write(sl, key, 32);
+			mutex_unlock(&lock);
+			if (ret != 0) {
+				pr_err("%s : w1_ds28e1x_key_write error\n",
+				       __func__);
+				break;
+			}
+		}
+		break;
+	case W1_IOCTL_WRITE_USRINFO:
+		{
+			unsigned char usrinfo[32];
+
+			if (!arg
+			    || copy_from_user(usrinfo, (const char *)arg, 32))
+				return -1;
+			mutex_lock(&lock);
+			ret = w1_ds28e1x_usrinfo_write(sl, usrinfo, 32);
+			mutex_unlock(&lock);
+			if (ret != 0) {
+				pr_err("%s : w1_ds28e1x_usrinfo_write error\n",
+				       __func__);
+				break;
+			}
 		}
 		break;
 	default:
