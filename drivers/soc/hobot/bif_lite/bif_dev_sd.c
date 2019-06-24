@@ -59,6 +59,8 @@ static struct device *g_bif_dev;
 static struct domain_info domain_config = {.domain_name = "X2SD001",
 	.domain_id = 0,
 	.device_name = "/dev/x2_sd",
+	.type = SOC_AP,
+	.mode = INTERRUPT_MODE,
 	{.channel = BIF_SD,
 	. frame_len_max = FRAME_LEN_MAX,
 	.frag_len_max = FRAG_LEN_MAX,
@@ -70,7 +72,9 @@ static struct domain_info domain_config = {.domain_name = "X2SD001",
 	.tx_remote_info_offset = TX_REMOTE_INFO_OFFSET,
 	.rx_buffer_offset = RX_BUFFER_OFFSET,
 	.tx_buffer_offset = TX_BUFFER_OFFSET,
-	.total_mem_size = TOTAL_MEM_SIZE}
+	.total_mem_size = TOTAL_MEM_SIZE,
+	.type = SOC_AP,
+	.mode = INTERRUPT_MODE}
 };
 
 static struct comm_domain domain;
@@ -235,7 +239,7 @@ static int x2_bif_data_init(struct x2_bif_data *bif_data)
 	bif_data->tri_pin = -1;
 	bif_data->irq_num = -1;
 
-	bif_data->work_queue = create_singlethread_workqueue("bifspi_workqueue");
+	bif_data->work_queue = create_singlethread_workqueue("bifsd_workqueue");
 	if (!bif_data->work_queue) {
 		pr_info("create_singlethread_workqueue error\n");
 		goto create_workqueue_error;

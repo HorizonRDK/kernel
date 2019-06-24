@@ -229,6 +229,8 @@ int domain_init(struct comm_domain *domain, struct domain_info *domain_inf)
 	domain->unaccept_session_count = 0;
 	domain->block = 1;
 	domain_inf->channel_cfg.block = 1;
+	domain->type = domain_inf->type;
+	domain->mode = domain_inf->mode;
 
 	if (channel_init(&domain->channel, &domain_inf->channel_cfg) < 0) {
 		pr_info("channel_init error\n");

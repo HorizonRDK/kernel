@@ -49,6 +49,16 @@ enum channel_id {
 	NORM_SPI,
 };
 
+enum ap_type {
+	SOC_AP,
+	MCU_AP,
+};
+
+enum working_mode {
+	INTERRUPT_MODE,
+	POLLING_MODE,
+};
+
 struct channel_config {
 	// hardware channel concerned
 	enum channel_id channel;
@@ -67,6 +77,8 @@ struct channel_config {
 	int total_mem_size;
 	// transfer feature concerned
 	int block;
+	enum ap_type type;
+	enum working_mode mode;
 };
 
 struct current_frame_info {
@@ -118,6 +130,8 @@ struct comm_channel {
 	// transfer feature concerned
 	int block;
 	struct comm_channel_statistics channel_statistics;
+	enum ap_type type;
+	enum working_mode mode;
 };
 
 int channel_init(struct comm_channel *channel, struct channel_config *config);

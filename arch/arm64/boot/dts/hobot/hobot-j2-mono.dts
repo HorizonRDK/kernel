@@ -255,6 +255,8 @@
 };
 &biflite_spi {
 	status = "okay";
+	mcu-ap;
+	polling-mode;
 };
 &qspi {
 	status = "okay";

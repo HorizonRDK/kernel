@@ -15,6 +15,7 @@
 #include <linux/delay.h>
 #include <linux/time.h>
 #include <linux/of.h>
+#include <linux/of_platform.h>
 #include <linux/platform_device.h>
 #include <linux/interrupt.h>
 #include <linux/gpio.h>
@@ -28,6 +29,14 @@
 #include "hbipc_lite.h"
 #include "hbipc_errno.h"
 #include "bif_dev_spi.h"
+
+#ifdef CONFIG_HI3519V101
+/* module parameters */
+static char *ap_type_str = "soc-ap";
+static char *working_mode_str = "interrupt-mode";
+module_param(ap_type_str, charp, 0644);
+module_param(working_mode_str, charp, 0644);
+#endif
 
 /* ioctl cmd */
 #define BIF_IOC_MAGIC  'c'
@@ -45,11 +54,13 @@ struct x2_bif_data {
 	int irq_pin;
 	int irq_num;
 	int tri_pin;
+	char *send_frame;
 	struct workqueue_struct *work_queue;
 	//struct work_struct work[WORK_COUNT];
 	struct work_struct work;
 	//int work_index;
 	struct completion ready_to_recv;
+	struct task_struct *recv_task;
 };
 static struct x2_bif_data bif_data;
 
@@ -59,18 +70,11 @@ static struct device *g_bif_dev;
 static struct domain_info domain_config = {.domain_name = "X2BIF001",
 	.domain_id = 0,
 	.device_name = "/dev/x2_bif",
+	.type = SOC_AP,
+	.mode = INTERRUPT_MODE,
 	{.channel = BIF_SPI,
-	. frame_len_max = FRAME_LEN_MAX,
-	.frag_len_max = FRAG_LEN_MAX,
-	.frag_num = FRAG_NUM,
-	.frame_cache_max = FRAME_CACHE_MAX,
-	.rx_local_info_offset = RX_LOCAL_INFO_OFFSET,
-	.rx_remote_info_offset = RX_REMOTE_INFO_OFFSET,
-	.tx_local_info_offset = TX_LOCAL_INFO_OFFSET,
-	.tx_remote_info_offset = TX_REMOTE_INFO_OFFSET,
-	.rx_buffer_offset = RX_BUFFER_OFFSET,
-	.tx_buffer_offset = TX_BUFFER_OFFSET,
-	.total_mem_size = TOTAL_MEM_SIZE}
+	.type = SOC_AP,
+	.mode = INTERRUPT_MODE}
 };
 
 static struct comm_domain domain;
@@ -228,6 +232,32 @@ static irqreturn_t hbipc_irq_handler(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
+static int recv_thread(void *data)
+{
+	pr_info("%s start.......\n", __func__);
+	while (1) {
+		recv_handle_data_frame(&domain);
+		usleep_range(1000, 2000);
+	}
+
+	return 0;
+}
+
+static void x2_mem_layout_set(struct domain_info *domain_inf)
+{
+	domain_inf->channel_cfg.frame_len_max = FRAME_LEN_MAX;
+	domain_inf->channel_cfg.frag_len_max = FRAG_LEN_MAX;
+	domain_inf->channel_cfg.frag_num = FRAG_NUM;
+	domain_inf->channel_cfg.frame_cache_max = FRAME_CACHE_MAX;
+	domain_inf->channel_cfg.rx_local_info_offset = RX_LOCAL_INFO_OFFSET;
+	domain_inf->channel_cfg.rx_remote_info_offset = RX_REMOTE_INFO_OFFSET;
+	domain_inf->channel_cfg.tx_local_info_offset = TX_LOCAL_INFO_OFFSET;
+	domain_inf->channel_cfg.tx_remote_info_offset = TX_REMOTE_INFO_OFFSET;
+	domain_inf->channel_cfg.rx_buffer_offset = RX_BUFFER_OFFSET;
+	domain_inf->channel_cfg.tx_buffer_offset = TX_BUFFER_OFFSET;
+	domain_inf->channel_cfg.total_mem_size = TOTAL_MEM_SIZE;
+}
+
 static int x2_bif_data_init(struct x2_bif_data *bif_data)
 {
 	bif_data->users = 0;
@@ -235,32 +265,48 @@ static int x2_bif_data_init(struct x2_bif_data *bif_data)
 	bif_data->tri_pin = -1;
 	bif_data->irq_num = -1;
 
-	bif_data->work_queue = create_singlethread_workqueue("bifsd_workqueue");
-	if (!bif_data->work_queue) {
-		pr_info("create_singlethread_workqueue error\n");
-		goto create_workqueue_error;
+	bif_data->send_frame = kmalloc(FRAME_LEN_MAX, GFP_KERNEL);
+	if (!(bif_data->send_frame)) {
+		pr_info("malloc_send_frame error\n");
+		goto malloc_send_frame_error;
 	}
-
-	INIT_WORK(&bif_data->work, rx_work_func);
 
 	if (init_bif_dev_spi_debug_port() < 0) {
 		pr_info("init_debug_port error\n");
 		goto init_debug_port_error;
 	}
 
+	if (domain_config.mode == INTERRUPT_MODE) {
+		// interrupt-mode
+		bif_data->work_queue =
+		create_singlethread_workqueue("bifspi_workqueue");
+		if (!bif_data->work_queue) {
+			pr_info("create_singlethread_workqueue error\n");
+			goto engine_error;
+		}
+		init_completion(&bif_data->ready_to_recv);
+		INIT_WORK(&bif_data->work, rx_work_func);
 	if (queue_work(bif_data->work_queue, &bif_data->work) == false) {
 		pr_info("queue_work fail\n");
-		goto queue_work_error;
+			destroy_workqueue(bif_data->work_queue);
+			goto engine_error;
+		}
+	} else {
+		// poling-mode
+		bif_data->recv_task =
+		kthread_create(recv_thread, NULL, "bifspi_recv_thread");
+		if (IS_ERR(bif_data->recv_task)) {
+			pr_info("kthread_create error\n");
+			goto engine_error;
+		}
 	}
 
-	init_completion(&bif_data->ready_to_recv);
-
 	return 0;
-queue_work_error:
+engine_error:
 	remove_bif_dev_spi_debug_port();
 init_debug_port_error:
-	destroy_workqueue(bif_data->work_queue);
-create_workqueue_error:
+	kfree(bif_data->send_frame);
+malloc_send_frame_error:
 	return -1;
 }
 
@@ -274,6 +320,7 @@ static void x2_bif_data_deinit(struct x2_bif_data *bif_data)
 	domain_deinit_stop = 1;
 	complete(&bif_data->ready_to_recv);
 	destroy_workqueue(bif_data->work_queue);
+	kfree(bif_data->send_frame);
 }
 
 static DEFINE_MUTEX(open_mutex);
@@ -298,8 +345,9 @@ static int x2_bif_open(struct inode *inode, struct file *file)
 				goto err;
 			} else {
 				bif_lite_init_success = 1;
-				bif_lite_irq_register_domain(&domain,
-				hbipc_irq_handler);
+				if (domain.mode == INTERRUPT_MODE)
+					bif_lite_irq_register_domain(&domain,
+					hbipc_irq_handler);
 			}
 		} else {
 			if (bif_lite_init_domain(&domain) < 0) {
@@ -310,6 +358,8 @@ static int x2_bif_open(struct inode *inode, struct file *file)
 		}
 #endif
 		recv_handle_stock_frame(&domain);
+		if (domain.mode == POLLING_MODE)
+			wake_up_process(bif_data.recv_task);
 		++bif_data.users;
 	} else {
 #ifdef CONFIG_HOBOT_BIF_AP
@@ -335,7 +385,6 @@ err:
 }
 
 static DEFINE_MUTEX(write_mutex);
-static char send_frame[FRAME_LEN_MAX];
 static ssize_t x2_bif_write(struct file *file, const char __user *buf,
 size_t count, loff_t *ppos)
 {
@@ -364,7 +413,8 @@ size_t count, loff_t *ppos)
 		goto error;
 	}
 
-	if (copy_from_user(send_frame, (const char __user *)data.buffer,
+	if (copy_from_user(bif_data.send_frame,
+	(const char __user *)data.buffer,
 	data.len)) {
 		hbipc_error("copy user frame error\n");
 		ret = -EFAULT;
@@ -372,7 +422,7 @@ size_t count, loff_t *ppos)
 	}
 
 	mutex_lock(&domain.write_mutex);
-	ret = bif_tx_put_frame_domain(&domain, send_frame, data.len);
+	ret = bif_tx_put_frame_domain(&domain, bif_data.send_frame, data.len);
 	if (ret < 0) {
 		data.result = HBIPC_ERROR_HW_TRANS_ERROR;
 		status = copy_to_user((void __user *)buf, &data, sizeof(data));
@@ -758,6 +808,29 @@ static int bif_lite_probe(struct platform_device *pdev)
 #if 0
 	unsigned long flags = IRQF_ONESHOT | IRQF_TRIGGER_FALLING;
 #endif
+	if (of_find_property(pdev->dev.of_node, "mcu-ap", NULL)) {
+		// mcu-ap
+		domain_config.type = MCU_AP;
+		domain_config.channel_cfg.type = MCU_AP;
+		frame_len_max_g = 4 * 1024;
+		frag_len_max_g = 128;
+	} else {
+		// soc-ap
+		domain_config.type = SOC_AP;
+		domain_config.channel_cfg.type = SOC_AP;
+	}
+
+	if (of_find_property(pdev->dev.of_node, "polling-mode", NULL)) {
+		// polling-mode
+		domain_config.mode = POLLING_MODE;
+		domain_config.channel_cfg.mode = POLLING_MODE;
+	} else {
+		// interrupt-mode
+		domain_config.mode = INTERRUPT_MODE;
+		domain_config.channel_cfg.mode = INTERRUPT_MODE;
+	}
+
+	x2_mem_layout_set(&domain_config);
 
 	bif_major = 0;
 	ret = alloc_chrdev_region(&devno, 0, 1, "x2_bif");
@@ -846,8 +919,8 @@ static int bif_lite_probe(struct platform_device *pdev)
 		goto bif_lite_init_error;
 	}
 	
-	//bif_lite_register_irq(hbipc_irq_handler); chencheng reconstitution
-	bif_lite_irq_register_domain(&domain, hbipc_irq_handler);
+	if (domain.mode == INTERRUPT_MODE)
+		bif_lite_irq_register_domain(&domain, hbipc_irq_handler);
 #endif
 	bif_debug("bif driver init exit\n");
 	return 0;
@@ -888,6 +961,31 @@ static int bif_lite_probe_param(void)
 #if 0
 	unsigned long flags = IRQF_ONESHOT | IRQF_TRIGGER_FALLING;
 #endif
+	if (!strcmp(ap_type_str, "soc-ap")) {
+		domain_config.type = SOC_AP;
+		domain_config.channel_cfg.type = SOC_AP;
+	} else if (!strcmp(ap_type_str, "mcu-ap")) {
+		domain_config.type = MCU_AP;
+		domain_config.channel_cfg.type = MCU_AP;
+		frame_len_max_g = 4 * 1024;
+		frag_len_max_g = 128;
+	} else {
+		pr_info("Error ap type\n");
+		return -1;
+	}
+
+	if (!strcmp(working_mode_str, "interrupt-mode")) {
+		domain_config.mode = INTERRUPT_MODE;
+		domain_config.channel_cfg.mode = INTERRUPT_MODE;
+	} else if (!strcmp(working_mode_str, "polling-mode")) {
+		domain_config.mode = POLLING_MODE;
+		domain_config.channel_cfg.mode = POLLING_MODE;
+	} else {
+		pr_info("Error working mode\n");
+		return -1;
+	}
+
+	x2_mem_layout_set(&domain_config);
 
 	bif_major = 0;
 	ret = alloc_chrdev_region(&devno, 0, 1, "x2_bif");
@@ -975,8 +1073,9 @@ static int bif_lite_probe_param(void)
 		pr_info("bif_lite_init error\n");
 		goto bif_lite_init_error;
 	}
-	//bif_lite_register_irq(hbipc_irq_handler); chencheng reconstitution
-	bif_lite_irq_register_domain(&domain, hbipc_irq_handler);
+
+	if (domain.mode == INTERRUPT_MODE)
+		bif_lite_irq_register_domain(&domain, hbipc_irq_handler);
 #endif
 
 	bif_debug("bif driver init exit\n");

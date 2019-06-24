@@ -26,7 +26,6 @@ static unsigned short crc16(unsigned char  *input, unsigned  int length)
 }
 #endif
 
-#ifdef CONFIG_HOBOT_BIF_AP
 static int swap_bytes_order(unsigned char *value, uint16_t size)
 {
 	uint16_t i = 0;
@@ -40,7 +39,6 @@ static int swap_bytes_order(unsigned char *value, uint16_t size)
 
 	return 0;
 }
-#endif
 
 static void bif_set_base_addr(struct comm_channel *channel,
 addr_t bif_base_addr)
@@ -60,6 +58,8 @@ void *src, addr_t offset, int len)
 	dst = (void *)(channel->base_addr + offset);
 
 #ifndef CONFIG_HOBOT_BIF_AP
+	if (channel->type == MCU_AP)
+		swap_bytes_order((unsigned char *)src, len);
 	bif_memcpy(dst, src, len);
 #else
 	if (channel->channel == BIF_SPI) {
@@ -87,6 +87,8 @@ void *dst, addr_t offset, int len)
 
 #ifndef CONFIG_HOBOT_BIF_AP
 	bif_memcpy(dst, src, len);
+	if (channel->type == MCU_AP)
+		swap_bytes_order((unsigned char *)dst, len);
 #else
 	if (channel->channel == BIF_SPI) {
 		if (bif_spi_read(src, len, dst))
@@ -198,24 +200,33 @@ static inline int bif_tx_update_to_cp_ddr(struct comm_channel *channel)
 	if (ret < 0)
 		bif_err("bif_err: %s %d\n", __func__, __LINE__);
 #ifdef CONFIG_HOBOT_BIF_AP
-	if (channel->channel == BIF_SPI)
+	if ((channel->type == SOC_AP) &&
+		(channel->channel == BIF_SPI))
+		swap_bytes_order((unsigned char *)(channel->tx_local_info),
+		ALIGN(sizeof(struct bif_tx_ring_info),
+		channel->transfer_align));
+#else
+	if ((channel->type == MCU_AP) &&
+		(channel->channel == BIF_SPI))
 		swap_bytes_order((unsigned char *)(channel->tx_local_info),
 		ALIGN(sizeof(struct bif_tx_ring_info),
 		channel->transfer_align));
 #endif
-	while (1) {
-		ret = bif_send_irq(channel->buffer_id);
-		++channel->channel_statistics.trig_count;
-		if (ret < 0) {
-			remainning_time = bif_sleep(200);
-			if (!remainning_time)
-				++channel->channel_statistics.retrig_count;
-			else {
-				pr_info("re_trig sleep interrupt\n");
+	if (channel->mode == INTERRUPT_MODE) {
+		while (1) {
+			ret = bif_send_irq(channel->buffer_id);
+			++channel->channel_statistics.trig_count;
+			if (ret < 0) {
+				remainning_time = bif_sleep(200);
+				if (!remainning_time)
+					++channel->channel_statistics.retrig_count;
+				else {
+					pr_info("re_trig sleep interrupt\n");
+					break;
+				}
+			} else
 				break;
-			}
-		} else
-			break;
+		}
 	}
 
 	return ret;
@@ -453,11 +464,19 @@ int count)
 	}
 
 #ifdef CONFIG_HOBOT_BIF_AP
-	if (channel->channel == BIF_SPI)
+	if ((channel->type == SOC_AP) &&
+		(channel->channel == BIF_SPI))
+		swap_bytes_order((unsigned char *)(channel->rx_local_info),
+		ALIGN(sizeof(struct bif_rx_ring_info),
+		channel->transfer_align));
+#else
+	if ((channel->type == MCU_AP) &&
+		(channel->channel == BIF_SPI))
 		swap_bytes_order((unsigned char *)(channel->rx_local_info),
 		ALIGN(sizeof(struct bif_rx_ring_info),
 		channel->transfer_align));
 #endif
+
 	return 0;
 err:
 	return ret;
@@ -1183,6 +1202,8 @@ static void dump_channel_info(struct comm_channel *channel)
 	channel->tx_buffer_offset);
 	pr_debug("total_mem_size = %d\n",
 	channel->total_mem_size);
+	pr_debug("ap_type = %d\n", channel->type);
+	pr_debug("working_mode = %d\n", channel->mode);
 }
 
 int channel_init(struct comm_channel *channel, struct channel_config *config)
@@ -1273,6 +1294,8 @@ int channel_init(struct comm_channel *channel, struct channel_config *config)
 	// transfer feature concerned
 	channel->block = config->block;
 	spin_lock_init(&channel->rx_frame_count_lock);
+	channel->type = config->type;
+	channel->mode = config->mode;
 
 	dump_channel_info(channel);
 
