@@ -61,7 +61,6 @@
                 compatible = "ti,tmp75c";
 		reg = <0x48>;
 	};
-
 };
 
 &i2c2 {

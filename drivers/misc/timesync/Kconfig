@@ -1,0 +1,5 @@
+config TIMESYNC
+	tristate "timesync module"
+	default y
+	help
+	This is the timesync test driver --by zhongzhen.
