@@ -459,7 +459,7 @@ wait:
 
 			spin_lock_irqsave(&g_ipu_ddr_cdev->slock, flags);
 
-			g_get_fb_slot_h = slot_free_to_done();
+			g_get_fb_slot_h = ipu_get_free_slot();
 			if (!g_get_fb_slot_h) {
 				//printk("fb none free\n");
 				spin_unlock_irqrestore(&g_ipu_ddr_cdev->slock, flags);

@@ -115,22 +115,21 @@ ipu_slot_h_t* slot_free_to_busy(void)
 }
 
 
-ipu_slot_h_t *slot_free_to_done(void)
+ipu_slot_h_t *ipu_get_free_slot(void)
 {
 	struct list_head *node = NULL;
+	struct list_head *head = NULL;
 	ipu_slot_h_t	 *slot_h = NULL;
-
 	if (list_empty(&g_ipu_slot_list[FREE_SLOT_LIST])) {
-		ipu_info("free slot empty\n");
 		return NULL;
 	}
-	node = g_ipu_slot_list[FREE_SLOT_LIST].next;
-	list_move_tail(node, &g_ipu_slot_list[DONE_SLOT_LIST]);
+	head = &g_ipu_slot_list[FREE_SLOT_LIST];
+	node = head->next;
 	slot_h = (ipu_slot_h_t *)node;
-	slot_h->info_h.slot_flag = SLOT_DONE;
-	slot_h->slot_cnt++;
+	list_del_init(node);
 	return slot_h;
 }
+
 
 int slot_left_num(int type)
 {
