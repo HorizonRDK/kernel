@@ -127,7 +127,7 @@
 
 &pinctrl {
 	status = "okay";
-	gpioirq-bank-cfg = <118 0 0 0>;
+	gpioirq-bank-cfg = <118 109 0 0>;
 };
 
 &uart0 {
@@ -242,6 +242,13 @@
 	bifbase_irq_pin = <118>;
 	bifbase_tri_pin = <7>;
 };
+
+&mcu_irq {
+	mcu_tri_pin = <107>;
+	mcu_irq_pin = <109>;
+	status = "okay";
+};
+
 &biflite_spi {
 	status = "okay";
 };
