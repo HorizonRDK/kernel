@@ -25,7 +25,7 @@
 #define PLL_LAINT_MODE 0x0
 
 #define PLL_LAINT_REFDIV_MIN 1
-#define PLL_LAINT_REFDIV_MAX 63
+#define PLL_LAINT_REFDIV_MAX 4
 #define PLL_LAINT_FBDIV_MIN 16
 #define PLL_LAINT_FBDIV_MAX 320
 #define PLL_LAINT_POSTDIV1_MIN 1
@@ -33,6 +33,7 @@
 #define PLL_LAINT_POSTDIV2_MIN 1
 #define PLL_LAINT_POSTDIV2_MAX 7
 
+#define PLL_LAINT_MIN_FREQ 625000000
 #define PLL_LAINT_MAX_FREQ 2500000000
 
 struct clk_laintpll_reg {
@@ -112,12 +113,21 @@ static long laintpll_round_rate(struct clk_hw *hw, unsigned long rate, unsigned 
 	 */
 	rate_post = PLL_LAINT_MAX_FREQ;
 	rate_pre = prate;
-	for(refdiv = PLL_LAINT_REFDIV_MIN; refdiv <= PLL_LAINT_REFDIV_MAX; refdiv++){
-		for(fbdiv = PLL_LAINT_FBDIV_MAX; fbdiv >= PLL_LAINT_FBDIV_MIN; fbdiv--){
-			for(postdiv1 = PLL_LAINT_POSTDIV1_MAX; postdiv1 >= PLL_LAINT_POSTDIV1_MIN; postdiv1--){
-				for(postdiv2 = PLL_LAINT_POSTDIV2_MIN; postdiv2 <= PLL_LAINT_POSTDIV2_MAX; postdiv2++){
-					rate_cur = (prate / refdiv) * fbdiv / postdiv1 / postdiv2;
-					if((rate_cur > rate) && (rate_cur < rate_post)){
+	for (refdiv = PLL_LAINT_REFDIV_MIN; refdiv <= PLL_LAINT_REFDIV_MAX;
+			refdiv++){
+		for (fbdiv = PLL_LAINT_FBDIV_MAX; (fbdiv >= PLL_LAINT_FBDIV_MIN)
+			&& (prate / refdiv * fbdiv <= rate_post)
+			&& (prate / refdiv * fbdiv
+			>= PLL_LAINT_MIN_FREQ); fbdiv--){
+			for (postdiv1 = PLL_LAINT_POSTDIV1_MAX;
+				postdiv1 >= PLL_LAINT_POSTDIV1_MIN;
+							postdiv1--) {
+				for (postdiv2 = PLL_LAINT_POSTDIV2_MIN;
+					(postdiv2 <= postdiv1); postdiv2++) {
+					rate_cur = (prate / refdiv) * fbdiv
+							/ postdiv1 / postdiv2;
+					if ((rate_cur > rate)
+						&& (rate_cur < rate_post)) {
 						rate_post = rate_cur;
 						refdiv_post = refdiv;
 						fbdiv_post = fbdiv;
@@ -125,10 +135,11 @@ static long laintpll_round_rate(struct clk_hw *hw, unsigned long rate, unsigned 
 						postdiv1_post = postdiv1;
 						continue;
 					}
-					if(rate_cur == rate){
+					if (rate_cur == rate) {
 						found = 1;
 						break;
-					}else if((rate_cur < rate) && (rate_cur > rate_pre)){
+					} else if ((rate_cur < rate)
+						&& (rate_cur > rate_pre)) {
 						rate_pre = rate_cur;
 						refdiv_pre = refdiv;
 						fbdiv_pre = fbdiv;
@@ -137,24 +148,24 @@ static long laintpll_round_rate(struct clk_hw *hw, unsigned long rate, unsigned 
 						break;
 					}
 				}
-				if(1 == found)
+				if (found == 1)
 					break;
 			}
-			if(1 == found)
+			if (found == 1)
 				break;
 		}
-		if(1 == found)
+		if (found == 1)
 			break;
 	}
 
-	if(found){
+	if (found) {
 		clk->refdiv = refdiv;
 		clk->fbdiv = fbdiv;
 		clk->postdiv1 = postdiv1;
 		clk->postdiv2 = postdiv2;
 		pr_debug("%s: found exact match %lu\n", __func__, rate);
 		return rate;
-	}else{
+	} else {
 		clk->refdiv = refdiv_pre;
 		clk->fbdiv = fbdiv_pre;
 		clk->postdiv1 = postdiv1_pre;
@@ -164,7 +175,8 @@ static long laintpll_round_rate(struct clk_hw *hw, unsigned long rate, unsigned 
 	}
 }
 
-static int laintpll_set_rate(struct clk_hw *hw, unsigned long rate, unsigned long parent_rate)
+static int laintpll_set_rate(struct clk_hw *hw,
+		unsigned long rate, unsigned long parent_rate)
 {
 	struct clk_laintpll *clk;
 	unsigned long new_rate;
