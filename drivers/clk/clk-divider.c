@@ -130,7 +130,10 @@ unsigned long divider_recalc_rate(struct clk_hw *hw, unsigned long parent_rate,
 		return parent_rate;
 	}
 
-	return DIV_ROUND_UP_ULL((u64)parent_rate, div);
+	if (flags & CLK_DIVIDER_ROUND_DOWN)
+		return parent_rate / div;
+	else
+		return DIV_ROUND_UP_ULL((u64)parent_rate, div);
 }
 EXPORT_SYMBOL_GPL(divider_recalc_rate);
 
@@ -390,7 +393,10 @@ int divider_get_val(unsigned long rate, unsigned long parent_rate,
 {
 	unsigned int div, value;
 
-	div = DIV_ROUND_UP_ULL((u64)parent_rate, rate);
+	if (flags & CLK_DIVIDER_ROUND_DOWN)
+		div = parent_rate / rate;
+	else
+		div = DIV_ROUND_UP_ULL((u64)parent_rate, rate);
 
 	if (!_is_valid_div(table, div, flags))
 		return -EINVAL;
