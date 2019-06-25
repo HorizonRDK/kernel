@@ -671,6 +671,7 @@ unsigned int ipu_ddr_poll(struct file *file,
 		mask = EPOLLERR;
 		ipu_dbg("POLLERR: err_status 0x%x\n",
 				g_ipu_ddr_cdev->err_status);
+		g_ipu_ddr_cdev->err_status = 0;
 	} else if (!is_slot_done_empty()) {
 		mask = EPOLLIN;
 		ipu_dbg("EPOLLIN\n");
