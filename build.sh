@@ -27,6 +27,51 @@ function choose()
     cp $conftmp .config
 }
 
+function make_recovery_img()
+{
+    prefix=$TARGET_KERNEL_DIR
+    if [ $TARGET_MODE == "debug" ];then
+        config=$KERNEL_DEFCONFIG
+    else
+        config=$KERNEL_PERF_DEFCONFIG
+    fi
+
+    # real build
+    ARCH=$ARCH_KERNEL
+    make $config || {
+        echo "make $config failed"
+        exit 1
+    }
+
+    local conftmp=.config_tmp
+    cp .config $conftmp
+
+    sed -i "s#CONFIG_INITRAMFS_SOURCE=\"./usr/rootfs.cpio\"#CONFIG_INITRAMFS_SOURCE=\"./usr/prerootfs/\"#g" $conftmp
+    rm -rf ${SRC_KERNEL_DIR}/usr/prerootfs/
+    mkdir -p ${SRC_KERNEL_DIR}/usr/prerootfs/
+
+    local kernel_initram="$SRC_DEVICE_DIR/$TARGET_VENDOR/$TARGET_PROJECT/debug-kernel-rootfs.manifest"
+    ${SRC_SCRIPTS_DIR}/build_root_manifest.sh ${kernel_initram} ${TARGET_PREROOTFS_DIR} ${SRC_KERNEL_DIR}/usr/prerootfs/
+    if [ ! -f "${SRC_KERNEL_DIR}/usr/prerootfs/init" ];then
+        echo "#!/bin/sh" > ${SRC_KERNEL_DIR}/usr/prerootfs/init
+        echo "/bin/mount -t devtmpfs devtmpfs /dev" >> ${SRC_KERNEL_DIR}/usr/prerootfs/init
+        echo "exec 0</dev/console" >> ${SRC_KERNEL_DIR}/usr/prerootfs/init
+        echo "exec 1>/dev/console" >> ${SRC_KERNEL_DIR}/usr/prerootfs/init
+        echo "exec 2>/dev/console" >> ${SRC_KERNEL_DIR}/usr/prerootfs/init
+        echo "exec /sbin/init \"\$@\"" >> ${SRC_KERNEL_DIR}/usr/prerootfs/init
+        chmod +x ${SRC_KERNEL_DIR}/usr/prerootfs/init
+    fi
+
+    cp $conftmp .config
+    make -j${N} || {
+        echo "make failed"
+        exit 1
+    }
+
+    # put binaries to dest directory
+    cp $SRC_KERNEL_DIR/arch/$ARCH_KERNEL/boot/Image.gz  $prefix/recovery.gz
+}
+
 function all()
 {
     prefix=$TARGET_KERNEL_DIR
@@ -54,6 +99,13 @@ function all()
     cd $SRC_KERNEL_DIR/arch/$ARCH_KERNEL/boot/dts/hobot/
     cpfiles "$KERNEL_DTB_NAME" "$prefix/"
     cpfiles "dtb-mapping.conf" "$prefix/"
+
+    if [ $KERNEL_WITH_RECOVERY = "true" ];then
+        cd $SRC_KERNEL_DIR
+
+        # get recovery.gz
+        make_recovery_img
+    fi
 }
 
 function clean()
