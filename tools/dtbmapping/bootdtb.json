@@ -1,0 +1,64 @@
+{
+    "100": {
+        "dtb_name"   :  "hobot-x2-soc.dtb",
+        "gpio_id"   :   "0",
+        "dtb_addr"  :   "1A4400",
+        "dtb_size"  :   "10000"
+    },
+
+    "200": {
+        "dtb_name"  :   "hobot-x2-soc.dtb",
+        "gpio_id"   :   "0",
+        "dtb_addr"  :   "1A4400",
+        "dtb_size"  :   "10000"
+    },
+
+    "201": {
+        "dtb_name"  :   "hobot-j2-som.dtb",
+        "gpio_id"   :   "30",
+        "dtb_addr"  :   "1B4400",
+        "dtb_size"  :   "10000"
+    },
+
+    "102": {
+        "dtb_name"  :   "hobot-x2-som-ipc.dtb",
+        "gpio_id"   :   "20",
+        "dtb_addr"  :   "1C4400",
+        "dtb_size"  :   "10000"
+    },
+
+    "103": {
+        "dtb_name"  :   "hobot-x2-som-ipc.dtb",
+        "gpio_id"   :   "10",
+        "dtb_addr"  :   "1C4400",
+        "dtb_size"  :   "10000"
+    },
+
+    "101": {
+        "dtb_name"  :   "hobot-x2-dev.dtb",
+        "gpio_id"   :   "0",
+        "dtb_addr"  :   "1D4400",
+        "dtb_size"  :   "10000"
+    },
+
+    "202": {
+        "dtb_name"  :   "hobot-j2-mono.dtb",
+        "gpio_id"   :   "3C",
+        "dtb_addr"  :   "1E4400",
+        "dtb_size"  :   "10000"
+    },
+
+    "203": {
+        "dtb_name"  :   "hobot-j2-dev.dtb",
+        "gpio_id"   :   "0",
+        "dtb_addr"  :   "1F4400",
+        "dtb_size"  :   "10000"
+    },
+
+    "300": {
+        "dtb_name"  :   "hobot-j2-quad.dtb",
+        "gpio_id"   :   "34",
+        "dtb_addr"  :   "204400",
+        "dtb_size"  :   "10000"
+    }
+}

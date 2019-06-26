@@ -1,0 +1,6 @@
+{
+    "imagefile" :   "Image",
+    "imageaddr" :   "2A4400",
+    "imagesize" :   "D5BC00",
+    "output0"   :   "dtb-mapping.conf"
+}

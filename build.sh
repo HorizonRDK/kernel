@@ -72,6 +72,24 @@ function make_recovery_img()
     cp $SRC_KERNEL_DIR/arch/$ARCH_KERNEL/boot/Image.gz  $prefix/recovery.gz
 }
 
+function build_dtbmapping()
+{
+    prefix=$TARGET_KERNEL_DIR
+    path=$SRC_KERNEL_DIR/tools/dtbmapping
+
+    cd $path
+
+    # real build
+    python makeimg.py || {
+        echo "make failed"
+        exit 1
+    }
+
+    # put binaries to dest directory
+    cpfiles "dtb-mapping.conf"  "$prefix/"
+    cd $SRC_KERNEL_DIR
+}
+
 function all()
 {
     prefix=$TARGET_KERNEL_DIR
@@ -98,9 +116,11 @@ function all()
     cpfiles "$SRC_KERNEL_DIR/arch/$ARCH_KERNEL/boot/$KERNEL_IMAGE_NAME" "$prefix/"
     cd $SRC_KERNEL_DIR/arch/$ARCH_KERNEL/boot/dts/hobot/
     cpfiles "$KERNEL_DTB_NAME" "$prefix/"
-    cpfiles "dtb-mapping.conf" "$prefix/"
 
-    if [ $KERNEL_WITH_RECOVERY = "true" ];then
+    # build dtb-mapping.conf
+    build_dtbmapping
+
+    if [ "x$KERNEL_WITH_RECOVERY" = "xtrue" ];then
         cd $SRC_KERNEL_DIR
 
         # get recovery.gz
