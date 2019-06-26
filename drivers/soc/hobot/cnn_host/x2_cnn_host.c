@@ -57,8 +57,7 @@
 extern struct sock *cnn_netlink_init(int unit);
 extern int cnn_netlink_send(struct sock *sock, int group, void *msg, int len);
 struct sock *cnn_nl_sk;
-#define FC_TIME_CNT 50
-#define FC_TIME_SAVE_CNT 50
+#define FC_TIME_CNT 53
 #define INT_INFO_CNT 20
 
 static DEFINE_MUTEX(x2_cnn_mutex);
@@ -69,6 +68,7 @@ static struct x2_cnn_dev *cnn0_dev;
 static struct x2_cnn_dev *cnn1_dev;
 static int profiler_frequency;
 static int profiler_enable;
+static int fc_time_enable;
 static int ratio0;
 static int ratio1;
 static int queue0;
@@ -366,6 +366,7 @@ static void lock_bpu(struct x2_cnn_dev *dev)
 
 static void unlock_bpu(struct x2_cnn_dev *dev)
 {
+
 	atomic_set(&dev->hw_flg, MOD_FRQ_DONE);
 	mutex_unlock(&dev->cnn_lock);
 }
@@ -378,15 +379,15 @@ static irqreturn_t x2_cnn_interrupt_handler(int irq, void *dev_id)
 	u32 irq_status;
 	u32 tmp_irq;
 	struct x2_int_info tmp;
-
+	struct x2_fc_time tmp_time;
 	spin_lock_irqsave(&dev->cnn_spin_lock, flags);
 
 	irq_status = x2_cnn_reg_read(dev, X2_CNNINT_STATUS);
 	x2_cnn_reg_write(dev, X2_CNNINT_MASK, 0x1);
 	tmp_irq = x2_cnn_reg_read(dev, X2_CNNINT_NUM);
+
 	x2_cnn_reg_write(dev, X2_CNNINT_MASK, 0x0);
 	spin_unlock_irqrestore(&dev->cnn_spin_lock, flags);
-
 	do {
 		ret = kfifo_out(&dev->int_info_fifo, &tmp,
 						sizeof(struct x2_int_info));
@@ -401,8 +402,11 @@ static irqreturn_t x2_cnn_interrupt_handler(int irq, void *dev_id)
 
 		spin_lock_irqsave(&dev->cnn_spin_lock, flags);
 		dev->cnn_int_num.cnn_int_num[dev->cnn_int_num.cnn_int_count] = tmp.int_num;
-		if (dev->cnn_int_num.cnn_int_count < CNN_INT_NUM)
+		if (dev->cnn_int_num.cnn_int_count < CNN_INT_NUM) {
 			dev->cnn_int_num.cnn_int_count++;
+			dev->real_int_cnt++;
+		}
+
 		spin_unlock_irqrestore(&dev->cnn_spin_lock, flags);
 		atomic_sub(tmp.fc_total, &dev->wait_fc_cnt);
 
@@ -442,20 +446,25 @@ static void x2_cnn_set_fc_start_time(struct x2_cnn_dev *dev, int int_num,
 	int ret;
 	struct x2_fc_time fc_time;
 	struct x2_int_info x2_int;
+	unsigned long flags;
+
 	count &= X2_CNN_MAX_FC_LEN_MASK;
-	fc_time.int_num = int_num;
-	fc_time.fc_count = count;
+	if (fc_time_enable) {
+		dev->fc_time[dev->time_tail].fc_count = count;
+		dev->fc_time[dev->time_tail].int_num = int_num;
+	}
 	if (atomic_read(&dev->wait_fc_cnt) > 0) {
-		/*bpu busy,check zero_int_cnt*/
-		if (dev->zero_int_cnt == 0) {
-			ret = kfifo_in(&dev->fc_time_wait_fifo, &fc_time,
-				 sizeof(struct x2_fc_time));
-			if (ret < sizeof(struct x2_fc_time))
-				pr_err("%s[%d]:fc time fifo no space\n",
-					__func__, __LINE__);
+		if (fc_time_enable) {
+			spin_lock_bh(&dev->set_time_lock);
+			dev->fc_time[dev->time_tail].time_flag = 1;
+			spin_unlock_bh(&dev->set_time_lock);
 		}
 		/*bpu busy,check int_num*/
 		if (int_num) {
+			if (fc_time_enable) {
+				dev->time_tail++;
+				dev->time_tail %= FC_TIME_CNT;
+			}
 			x2_int.fc_total = dev->zero_int_cnt + 1;
 			x2_int.int_num = int_num;
 			ret = kfifo_in(&dev->int_info_fifo, &x2_int,
@@ -467,14 +476,17 @@ static void x2_cnn_set_fc_start_time(struct x2_cnn_dev *dev, int int_num,
 		} else
 			dev->zero_int_cnt++;
 	} else {
-		do_gettimeofday(&fc_time.start_time);
-		ret = kfifo_in(&dev->fc_time_fifo, &fc_time,
-			 sizeof(struct x2_fc_time));
-		if (ret < sizeof(struct x2_fc_time))
-			pr_err("%s[%d]:fc time fifo no space\n",
-				__func__, __LINE__);
+		if (fc_time_enable) {
+			spin_lock_bh(&dev->set_time_lock);
+			do_gettimeofday(&dev->fc_time[dev->time_tail].start_time);
+			spin_unlock_bh(&dev->set_time_lock);
+		}
 
 		if (int_num) {
+			if (fc_time_enable) {
+				dev->time_tail++;
+				dev->time_tail %= FC_TIME_CNT;
+			}
 			x2_int.fc_total = dev->zero_int_cnt + 1;
 			x2_int.int_num = int_num;
 			dev->zero_int_cnt = 0;
@@ -655,15 +667,11 @@ static u32 x2_cnn_fc_fifo_enqueue(struct x2_cnn_dev *dev,
 			fc_buf->fc_info + (insert_fc_cnt * X2_CNN_FC_SIZE),
 			residue_fc_cnt * X2_CNN_FC_SIZE);
 		}
-		/*
-		 * Actually, according to libpu, fc_cnt is always 1
-		 */
+
 		for (i = 0; i < insert_fc_cnt; i++) {
-			mutex_lock(&dev->set_time_lock);
 			x2_cnn_set_fc_start_time(dev,
 						 tmp_ptr->interrupt_num,
 						 count);
-			mutex_unlock(&dev->set_time_lock);
 			tmp_ptr++;
 			count++;
 		}
@@ -671,13 +679,11 @@ static u32 x2_cnn_fc_fifo_enqueue(struct x2_cnn_dev *dev,
 	} else {
 		memcpy(dev->fc_base + (fc_tail_idx * X2_CNN_FC_SIZE),
 			fc_buf->fc_info, fc_buf->fc_cnt * X2_CNN_FC_SIZE);
-		/*
-		 * Actually, according to libpu, fc_cnt is always 1
-		 */
+
 		for (i = 0; i < fc_buf->fc_cnt; i++) {
-				x2_cnn_set_fc_start_time(dev,
-							 tmp_ptr->interrupt_num,
-							 count);
+			x2_cnn_set_fc_start_time(dev,
+						 tmp_ptr->interrupt_num,
+						 count);
 			tmp_ptr++;
 			count++;
 		}
@@ -720,6 +726,7 @@ static int x2_cnn_release(struct inode *inode, struct file *filp)
 	mutex_lock(&x2_cnn_mutex);
 	devdata = filp->private_data;
 	devdata->cnn_int_num.cnn_int_count = 0;
+	atomic_set(&devdata->wait_fc_cnt, 0);
 	mutex_unlock(&x2_cnn_mutex);
 	return 0;
 }
@@ -943,8 +950,13 @@ static void x2_cnn_do_tasklet(unsigned long data)
 {
 	struct x2_cnn_dev *dev = (struct x2_cnn_dev *)data;
 	unsigned long flags;
-	struct x2_fc_time tmp;
 	int ret;
+	int int_cnt;
+
+	spin_lock_irqsave(&dev->cnn_spin_lock, flags);
+	int_cnt = dev->real_int_cnt;
+	dev->real_int_cnt = 0;
+	spin_unlock_irqrestore(&dev->cnn_spin_lock, flags);
 
 	spin_lock_irqsave(&dev->cnn_spin_lock, flags);
 	wake_up(&dev->cnn_int_wait);
@@ -956,38 +968,32 @@ static void x2_cnn_do_tasklet(unsigned long data)
 		pr_err("CNN trigger irq[%d] failed errno[%d]!\n",
 				dev->cnn_int_num, ret);
 	} else if (ret == sizeof(dev->cnn_int_num)) {
+		spin_lock_irqsave(&dev->cnn_spin_lock, flags);
 		dev->cnn_int_num.cnn_int_count = 0;
+		spin_unlock_irqrestore(&dev->cnn_spin_lock, flags);
 	}
+	if (fc_time_enable) {
+		int head_tmp;
 
-	ret = kfifo_len(&dev->fc_time_save_fifo);
-	if (ret >= sizeof(struct x2_fc_time) * FC_TIME_SAVE_CNT) {
-		ret = kfifo_out(&dev->fc_time_save_fifo, &tmp,
-				sizeof(struct x2_fc_time));
-	}
-	/*get fc time*/
-	ret = kfifo_out(&dev->fc_time_fifo, &tmp, sizeof(struct x2_fc_time));
-	if (ret < sizeof(struct x2_fc_time))
-		pr_err("%s[%d]:fc time fifo is empty\n",
-			__func__, __LINE__);
-	do_gettimeofday(&tmp.end_time);
-	ret = kfifo_in(&dev->fc_time_save_fifo, &tmp,
-		       sizeof(struct x2_fc_time));
-	if (ret < sizeof(struct x2_fc_time))
-		pr_debug("%s[%d]:fc time fifo is full\n",
-			__func__, __LINE__);
-	if (kfifo_is_empty(&dev->fc_time_wait_fifo) == 0) {
-		ret = kfifo_out(&dev->fc_time_wait_fifo, &tmp,
-				sizeof(struct x2_fc_time));
-		if (ret < sizeof(struct x2_fc_time))
-			pr_err("%s[%d]:fc time fifo is empty\n",
-				__func__, __LINE__);
+		do {
+			spin_lock(&dev->set_time_lock);
+			do_gettimeofday(&dev->fc_time[dev->time_head].end_time);
+			head_tmp = dev->time_head + 1;
+			head_tmp %= FC_TIME_CNT;
 
-		do_gettimeofday(&tmp.start_time);
-		ret = kfifo_in(&dev->fc_time_fifo, &tmp,
-			       sizeof(struct x2_fc_time));
-		if (ret < sizeof(struct x2_fc_time))
-			pr_debug("%s[%d]:fc time fifo is full\n",
-				__func__, __LINE__);
+				if (dev->fc_time[head_tmp].time_flag == 1) {
+
+					dev->fc_time[head_tmp].start_time.tv_sec =
+						dev->fc_time[dev->time_head].end_time.tv_sec;
+					dev->fc_time[head_tmp].start_time.tv_usec =
+						dev->fc_time[dev->time_head].end_time.tv_usec;
+
+					dev->fc_time[head_tmp].time_flag = 0;
+				}
+			dev->time_head++;
+			dev->time_head %= FC_TIME_CNT;
+			spin_unlock(&dev->set_time_lock);
+		} while (--int_cnt);
 	}
 	if (atomic_read(&dev->hw_flg)) {
 		if (atomic_read(&dev->wait_fc_cnt) == 0)
@@ -1352,7 +1358,14 @@ int x2_cnn_probe(struct platform_device *pdev)
 	if (!cnn_dev)
 		return -ENOMEM;
 	cnn_dev->dev = &pdev->dev;
-
+	cnn_dev->fc_time = devm_kzalloc(&pdev->dev,
+					sizeof(struct x2_fc_time) * FC_TIME_CNT,
+					GFP_KERNEL);
+	if (!cnn_dev->fc_time)
+		return -ENOMEM;
+	cnn_dev->time_head = 0;
+	cnn_dev->time_tail = 0;
+	memset(cnn_dev->fc_time, 0, sizeof(struct x2_fc_time) * FC_TIME_CNT);
 	rc = of_property_read_u32(np, "cnn-id", &cnn_id);
 	if (rc < 0) {
 		dev_err(cnn_dev->dev, "missing cnn-id property\n");
@@ -1501,6 +1514,7 @@ int x2_cnn_probe(struct platform_device *pdev)
 	atomic_set(&cnn_dev->wait_fc_cnt, 0);
 	atomic_set(&cnn_dev->hw_flg, 0);
 	cnn_dev->zero_int_cnt = 0;
+	cnn_dev->real_int_cnt = 0;
 	x2_cnn_reg_write(cnn_dev,
 			X2_CNN_FC_LEN, (cnn_dev->fc_mem_size / 64) - 1);
 	pr_info("Cnn fc phy base = 0x%x, len = 0x%x, default fc len = 0x%x\n",
@@ -1514,26 +1528,8 @@ int x2_cnn_probe(struct platform_device *pdev)
 	x2_cnn_fc_gap_mem_init(cnn_dev);
 
 	mutex_init(&cnn_dev->cnn_lock);
-	mutex_init(&cnn_dev->set_time_lock);
+	spin_lock_init(&cnn_dev->set_time_lock);
 	spin_lock_init(&cnn_dev->cnn_spin_lock);
-	rc = kfifo_alloc(&cnn_dev->fc_time_fifo,
-		    sizeof(struct x2_fc_time) * FC_TIME_CNT, GFP_KERNEL);
-	if (rc < 0) {
-		pr_err("kfifo alloc error\n");
-		goto err_out;
-	}
-	rc = kfifo_alloc(&cnn_dev->fc_time_save_fifo,
-		    sizeof(struct x2_fc_time) * FC_TIME_SAVE_CNT, GFP_KERNEL);
-	if (rc < 0) {
-		pr_err("kfifo alloc error\n");
-		goto err_out;
-	}
-	rc = kfifo_alloc(&cnn_dev->fc_time_wait_fifo,
-		    sizeof(struct x2_fc_time) * FC_TIME_SAVE_CNT, GFP_KERNEL);
-	if (rc < 0) {
-		pr_err("kfifo alloc error\n");
-		goto err_out;
-	}
 
 	rc = kfifo_alloc(&cnn_dev->int_info_fifo,
 		    sizeof(struct x2_int_info) * INT_INFO_CNT, GFP_KERNEL);
@@ -1574,7 +1570,7 @@ int x2_cnn_probe(struct platform_device *pdev)
 	init_completion(&cnn_dev->bpu_completion);
 
 	x2_cnn_reg_write(cnn_dev, X2_CNNINT_MASK, 0x0);
-	pr_info("x2 cnn%d probe OK!\n", cnn_id);
+	pr_info("x2 cnn%d probe OK!!\n", cnn_id);
 #ifdef CONFIG_HOBOT_CNN_DEVFREQ
 	x2_cnnfreq_register(cnn_dev);
 #endif
@@ -1586,9 +1582,6 @@ err_out:
 }
 void cnn_fc_time_kfifo_clean(struct x2_cnn_dev *dev)
 {
-	kfifo_free(&dev->fc_time_fifo);
-	kfifo_free(&dev->fc_time_save_fifo);
-	kfifo_free(&dev->fc_time_wait_fifo);
 	kfifo_free(&dev->int_info_fifo);
 }
 
@@ -1698,6 +1691,32 @@ static ssize_t enable_show(struct kobject *kobj, struct kobj_attribute *attr,
 	return sprintf(buf, "%d\n", profiler_enable);
 }
 
+static ssize_t fc_time_enable_show(struct kobject *kobj,
+				   struct kobj_attribute *attr,
+				   char *buf)
+{
+	return sprintf(buf, "%d\n", fc_time_enable);
+}
+
+static ssize_t fc_time_enable_store(struct kobject *kobj,
+				    struct kobj_attribute *attr,
+				    const char *buf, size_t count)
+{
+	int ret;
+
+	lock_bpu(cnn0_dev);
+	lock_bpu(cnn1_dev);
+
+	memset(cnn0_dev->fc_time, 0,
+		   sizeof(struct x2_fc_time) * FC_TIME_CNT);
+	memset(cnn1_dev->fc_time, 0,
+		   sizeof(struct x2_fc_time) * FC_TIME_CNT);
+
+	ret = sscanf(buf, "%du", &fc_time_enable);
+	unlock_bpu(cnn0_dev);
+	unlock_bpu(cnn1_dev);
+	return count;
+}
 
 static ssize_t enable_store(struct kobject *kobj, struct kobj_attribute *attr,
 						  const char *buf, size_t count)
@@ -1765,33 +1784,46 @@ static ssize_t queue1_show(struct kobject *kobj, struct kobj_attribute *attr,
 	return sprintf(buf, "%d\n", queue1);
 }
 
-static ssize_t fc_time_show(struct kfifo *fc_fifo, char *buf)
+static ssize_t fc_time_show(struct x2_cnn_dev *dev, char *buf)
 {
-	int i = 0;
 	int ret = 0;
 	int sum = 0;
-	struct x2_fc_time tmp[FC_TIME_SAVE_CNT];
-	int len = kfifo_len(fc_fifo);
-	if (len > sizeof(struct x2_fc_time) * FC_TIME_SAVE_CNT)
-		len = sizeof(struct x2_fc_time) * FC_TIME_SAVE_CNT;
-	ret = kfifo_out_peek(fc_fifo, tmp, len);
+	int head, tail;
+	unsigned long flags;
+	struct x2_fc_time tmp[FC_TIME_CNT];
+	int elapse_time = 0;
+
+	spin_lock_irqsave(&dev->set_time_lock, flags);
+	memcpy(tmp, dev->fc_time, sizeof(struct x2_fc_time) * FC_TIME_CNT);
+	tail = dev->time_head;
+	spin_unlock_irqrestore(&dev->set_time_lock, flags);
+
+	if (tmp[tail].start_time.tv_sec == 0)
+		head = 0;
+	else {
+		head = tail + 3;
+		head %= FC_TIME_CNT;
+	}
+
 	ret = sprintf(buf, "num  interrupt       start_time             end_time          exe_time\n");
 	sum += ret;
-	for (i = 0; i < len / (sizeof(struct x2_fc_time)); i++) {
-		unsigned int exe_time = tmp[i].end_time.tv_sec * 1000 +
-					tmp[i].end_time.tv_usec / 1000 -
-					tmp[i].start_time.tv_sec * 1000 -
-					tmp[i].start_time.tv_usec / 1000;
 
+	do {
+		elapse_time = tmp[head].end_time.tv_sec * 1000 +
+			      tmp[head].end_time.tv_usec / 1000 -
+			      tmp[head].start_time.tv_sec * 1000 -
+			      tmp[head].start_time.tv_usec / 1000;
 		ret = sprintf(buf + sum, "%d     %-8d  %lds %ldus   %11lds %ldus    %4dms\n",
-				tmp[i].fc_count, tmp[i].int_num,
-				tmp[i].start_time.tv_sec,
-				tmp[i].start_time.tv_usec,
-				tmp[i].end_time.tv_sec,
-				tmp[i].end_time.tv_usec,
-				exe_time);
+				tmp[head].fc_count, tmp[head].int_num,
+				tmp[head].start_time.tv_sec,
+				tmp[head].start_time.tv_usec,
+				tmp[head].end_time.tv_sec,
+				tmp[head].end_time.tv_usec,
+				elapse_time);
 		sum += ret;
-	}
+		head++;
+		head %= FC_TIME_CNT;
+	} while (head != tail);
 	return sum;
 }
 
@@ -1800,7 +1832,7 @@ static ssize_t bpu0_fc_time_show(struct kobject *kobj,
 {
 	int ret;
 
-	ret = fc_time_show(&cnn0_dev->fc_time_save_fifo, buf);
+	ret = fc_time_show(cnn0_dev, buf);
 	return ret;
 }
 static ssize_t bpu1_fc_time_show(struct kobject *kobj,
@@ -1808,7 +1840,7 @@ static ssize_t bpu1_fc_time_show(struct kobject *kobj,
 {
 	int ret;
 
-	ret = fc_time_show(&cnn1_dev->fc_time_save_fifo, buf);
+	ret = fc_time_show(cnn1_dev, buf);
 	return ret;
 
 }
@@ -1925,6 +1957,9 @@ static struct kobj_attribute pro_frequency = __ATTR(profiler_frequency, 0664,
 						    fre_show, fre_store);
 static struct kobj_attribute pro_enable    = __ATTR(profiler_enable, 0664,
 						    enable_show, enable_store);
+static struct kobj_attribute fc_enable    = __ATTR(fc_time_enable, 0664,
+						    fc_time_enable_show,
+						    fc_time_enable_store);
 static struct kobj_attribute pro_ratio0    = __ATTR(ratio0, 0444,
 						    ratio0_show, NULL);
 static struct kobj_attribute pro_ratio1    = __ATTR(ratio1, 0444,
@@ -1956,6 +1991,7 @@ static struct kobj_attribute bpu1_power_en  = __ATTR(power_enable, 0644,
 static struct attribute *bpu_attrs[] = {
 	&pro_frequency.attr,
 	&pro_enable.attr,
+	&fc_enable.attr,
 	NULL,
 };
 static struct attribute *bpu0_attrs[] = {
@@ -2014,6 +2050,7 @@ static int __init x2_cnn_init(void)
 	init_timer(&check_timer);
 	check_timer.function = &x2_cnn_check_func;
 	mutex_init(&enable_lock);
+	fc_time_enable = 0;
 
 	return retval;
 

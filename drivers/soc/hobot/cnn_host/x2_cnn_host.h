@@ -117,6 +117,7 @@
 struct x2_fc_time {
 	unsigned int fc_count;
 	unsigned int int_num;
+	int time_flag;
 	struct timeval start_time;
 	struct timeval end_time;
 };
@@ -156,7 +157,7 @@ struct x2_cnn_dev {
 	int core_index;
 
 	struct mutex cnn_lock;
-	struct mutex set_time_lock;
+	spinlock_t set_time_lock;
 	spinlock_t cnn_spin_lock;
 	int irq_triggered;
 
@@ -172,9 +173,9 @@ struct x2_cnn_dev {
 	struct dentry *debugfs_root;
 	struct list_head debugfs_list;
 	struct mutex debugfs_lock; /* Protects debugfs_list. */
-	struct kfifo fc_time_fifo;
-	struct kfifo fc_time_wait_fifo;
-	struct kfifo fc_time_save_fifo;
+	struct x2_fc_time *fc_time;
+	unsigned int time_head;
+	unsigned int time_tail;
 	struct kfifo int_info_fifo;
 	struct regulator *cnn_regulator;
 	struct clk *cnn_aclk;
@@ -183,6 +184,7 @@ struct x2_cnn_dev {
 	u32 iso_bit;
 	struct completion bpu_completion;
 	int zero_int_cnt;
+	unsigned int real_int_cnt;
 #ifdef CONFIG_HOBOT_CNN_DEVFREQ
 	struct x2_cnnfreq *cnnfreq;
 #endif
