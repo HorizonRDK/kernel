@@ -332,3 +332,7 @@
 &soc_thermal {
 	status = "okay";
 };
+
+&efuse{
+	status = "okay";
+};

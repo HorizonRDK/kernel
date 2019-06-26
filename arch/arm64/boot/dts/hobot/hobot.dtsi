@@ -727,6 +727,12 @@
 				clock-latency-ns = <500000>;
 			};
 		};
+
+		efuse: efuse@0xA1001000{
+			compatible = "hobot,x2-efuse";
+			reg = <0x0 0xA1001000 0x0 0x1000>,
+				<0x0 0xA1000400 0x0 0x4>;
+		};
 	};
 };
 
