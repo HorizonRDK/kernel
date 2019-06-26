@@ -50,6 +50,7 @@ struct timesync_data {
 	int gpio_timestamp_irq;
 	int eint_timestamp_irq;
 };
+struct timesync_data timesyncdata;
 
 struct kfifo timestamp_kfifo;
 
@@ -57,7 +58,7 @@ static int timesync_major;
 static struct cdev timesync_cdev;
 static struct class  *timesync_class;
 static struct device *timesync_dev;
-struct timesync_data timesyncdev;
+
 
 struct hrtimer hrtimer_10ms_timer;
 
@@ -66,9 +67,9 @@ struct timeval tv_global;
 
 static enum hrtimer_restart  hrtimer_10ms_timer_poll(struct hrtimer *timer)
 {
-	struct timesync_data *timesyncdev_temp = &timesyncdev;
+	struct timesync_data *timesyndata_temp = &timesyncdata;
 
-	gpio_direction_output(timesyncdev_temp->gpio_timestamp, 1);
+	gpio_direction_output(timesyndata_temp->gpio_timestamp, 1);
 
 	return HRTIMER_NORESTART;
 }
@@ -78,12 +79,12 @@ static irqreturn_t x2_eint_timestamp_irq(int irq, void *dev_id)
 {
 	struct timeval *tv = &tv_global;
 
-	struct timesync_data *timesyncdev_temp = &timesyncdev;
+	struct timesync_data *timesyndata_temp = &timesyncdata;
+
 
 	spin_lock_irqsave(&timesync_spinlock, spinlock_flags);
 	do_gettimeofday(tv);
-
-	gpio_direction_output(timesyncdev_temp->gpio_timestamp, 0);
+	gpio_direction_output(timesyndata_temp->gpio_timestamp, 0);
 	kt = ms_to_ktime(10);
 
 	hrtimer_start(&hrtimer_10ms_timer, kt, HRTIMER_MODE_REL);
@@ -113,7 +114,7 @@ static long timesync_ioctrl(struct file *filp,
 	struct timeval tv_temp;
 	int	retval = 0;
 	int copied = 0;
-	struct timesync_data *timesyncdev_temp = &timesyncdev;
+	struct timesync_data *timesyndata_temp = &timesyncdata;
 
 	switch (cmd) {
 	case timesync_GET_TIMESTAMP:
@@ -126,9 +127,9 @@ static long timesync_ioctrl(struct file *filp,
 			retval = -1;
 	break;
 	case timesync_TIMESTAMP_TRIG:
-		gpio_direction_output(timesyncdev_temp->gpio_timestamp, 0);
+		gpio_direction_output(timesyndata_temp->gpio_timestamp, 0);
 		msleep(20);
-		gpio_direction_output(timesyncdev_temp->gpio_timestamp, 1);
+		gpio_direction_output(timesyndata_temp->gpio_timestamp, 1);
 	break;
 	default:
 	break;
@@ -146,18 +147,31 @@ static const struct file_operations timesync_fops = {
 	.open =		timesync_open,
 	.release =	timesync_release,
 };
-
-
-static int __init timesync_init(void)
+static int timesync_probe(struct platform_device *pdev)
 {
 	int	ret = 0;
 	dev_t	devno;
 	int	status = -ENXIO;
 	unsigned long flags =  IRQF_TRIGGER_FALLING;
 	struct cdev  *p_cdev = &timesync_cdev;
-	struct timesync_data *timesyncdev_temp = &timesyncdev;
+	struct timesync_data *timesyndata_temp = &timesyncdata;
 
 	timesync_major = 0;
+	pr_err("timesync probe begin!\n");
+	ret = of_property_read_u32(pdev->dev.of_node,
+	"timesync_MCU2J2_irq_pin", &timesyndata_temp->gpio_timestamp_irq);
+	if (ret) {
+		pr_err("get timesync_MCU2J2_irq_pin error\n");
+		goto get_timesync_MCU2J2_irq_pin_error;
+	}
+
+	ret = of_property_read_u32(pdev->dev.of_node,
+	"timesync_J22MCU_irq_pin", &timesyndata_temp->gpio_timestamp);
+	if (ret) {
+		pr_err("get timesync_J22MCU_irq_pin error\n");
+		goto get_timesync_J22MCU_irq_pin_error;
+	}
+
 	ret = alloc_chrdev_region(&devno, 0, 1, "x2_timesync");
 	if (ret < 0) {
 		pr_err("Error %d while alloc chrdev timesync\n", ret);
@@ -181,64 +195,65 @@ static int __init timesync_init(void)
 	timesync_dev = device_create(timesync_class, NULL,
 		MKDEV(timesync_major, 0), NULL, "x2_timesync");
 
-	timesyncdev_temp->gpio_timestamp =  j22mcu_j2_send_irq_gpio;
-
-	timesyncdev_temp->gpio_timestamp_irq = mcu2j2_j2_recv_irq_gpio;
 
 	status = gpio_request(
-				timesyncdev_temp->gpio_timestamp,
+				timesyndata_temp->gpio_timestamp,
 				"timesync-timestamp");
 
 	if (status) {
 		pr_err("request gpio_timestamp fail\n");
 		goto err_request_timestamp_irq_gpio;
 	}
-	gpio_direction_output(timesyncdev_temp->gpio_timestamp, 1);
+	gpio_direction_output(timesyndata_temp->gpio_timestamp, 1);
 
 	status = gpio_request(
-		timesyncdev_temp->gpio_timestamp_irq,
+		timesyndata_temp->gpio_timestamp_irq,
 		"timesync-timestamp-irq");
 
 	if (status) {
 		pr_err("request gpio_timestamp_irq fail\n");
 		goto err_request_timestamp_irq_gpio;
 	}
-	timesyncdev_temp->eint_timestamp_irq =
-			gpio_to_irq(timesyncdev_temp->gpio_timestamp_irq);
+	timesyndata_temp->eint_timestamp_irq =
+			gpio_to_irq(timesyndata_temp->gpio_timestamp_irq);
 
 	irq_set_irq_type(
-			timesyncdev_temp->eint_timestamp_irq,
+			timesyndata_temp->eint_timestamp_irq,
 			IRQ_TYPE_EDGE_FALLING);
 
 	status = request_threaded_irq(
-		timesyncdev_temp->eint_timestamp_irq, x2_eint_timestamp_irq,
+		timesyndata_temp->eint_timestamp_irq, x2_eint_timestamp_irq,
 		NULL, flags | IRQF_ONESHOT, "x2_timesync",
-		(void *)timesyncdev_temp);
+		(void *)timesyndata_temp);
 
 	if (status) {
 		pr_err("request timestamp interrupt fail %d\n", status);
 		goto err_request_timestamp_interrupt;
 	}
-
 	hrtimer_init(&hrtimer_10ms_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+	pr_err("timesync probe success!\n");
 	return 0;
 
 err_request_timestamp_irq_gpio:
-	gpio_free(timesyncdev_temp->gpio_timestamp);
+	gpio_free(timesyndata_temp->gpio_timestamp);
 err_request_timestamp_interrupt:
-	gpio_free(timesyncdev_temp->gpio_timestamp_irq);
+	gpio_free(timesyndata_temp->gpio_timestamp_irq);
 class_create_error:
 	cdev_del(&timesync_cdev);
 cdev_add_error:
 	unregister_chrdev_region(MKDEV(timesync_major, 0), 1);
 alloc_chrdev_error:
+
+get_timesync_J22MCU_irq_pin_error:
+
+get_timesync_MCU2J2_irq_pin_error:
+
 	pr_err("init failed!\n");
 	return -1;
 }
-
-static void __exit timesync_exit(void)
+static int timesync_remove(struct platform_device *pdev)
 {
-	struct timesync_data *timesyncdev_temp = &timesyncdev;
+	struct timesync_data *timesyncdev_temp = &timesyncdata;
 
 	gpio_free(timesyncdev_temp->gpio_timestamp);
 
@@ -247,6 +262,43 @@ static void __exit timesync_exit(void)
 
 	gpio_free(timesyncdev_temp->gpio_timestamp_irq);
 	kfifo_free(&timestamp_kfifo);
+	device_destroy(timesync_class, MKDEV(timesync_major, 0));
+	class_destroy(timesync_class);
+	cdev_del(&timesync_cdev);
+	unregister_chrdev_region(MKDEV(timesync_major, 0), 1);
+	return 0;
+
+}
+
+
+static const struct of_device_id timesync_of_match[] = {
+	{.compatible = "timesync",},
+	{},
+};
+	static struct platform_driver timesync_driver = {
+		.probe	  = timesync_probe,
+		.remove   = timesync_remove,
+		.driver   = {
+				.owner	= THIS_MODULE,
+				.name	= "timesync",
+				.of_match_table = timesync_of_match,
+		},
+	};
+
+
+static int __init timesync_init(void)
+{
+	int ret = 0;
+
+	ret = platform_driver_register(&timesync_driver);
+	if (ret)
+		pr_err("register timesync_driver error\n");
+	return ret;
+}
+
+static void __exit timesync_exit(void)
+{
+	platform_driver_unregister(&timesync_driver);
 }
 
 module_init(timesync_init);
