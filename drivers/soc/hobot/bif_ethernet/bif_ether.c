@@ -9,7 +9,7 @@
  * @author	haibo.guo(haibo.guo@horizon.ai)
  * @date	2019/04/04
  */
-
+#include <linux/platform_device.h>
 #include <linux/module.h>
 #include <linux/errno.h>
 #include <linux/netdevice.h>
@@ -43,14 +43,14 @@
 #include "../bif_base/bif_base.h"
 #include "../bif_base/bif_api.h"
 
-#define BIFETH_CPVER		"BIFETH_CPV21"
-#define BIFETH_APVER		"BIFETH_APV21"
+#define BIFETH_CPVER		"HOBOT-bifeth_CPV21.190627"
+#define BIFETH_APVER		"HOBOT-bifeth_APV21.190627"
 #define BIFETH_NAME		"bifeth0"
 //#define BIFETH_RESERVED_MEM
 #define BIFETH_MEMATTRS		0	//DMA_ATTR_WRITE_BARRIER
 //#define BIFNET_HALF_FULL_IRQ
 //#define BIFETH_IFF_NOARP	//forbid ARP
-#define BIFETH_VER_SIZE		(16)
+#define BIFETH_VER_SIZE		(32)
 #define BIFETH_BLOCK_SIZE	(BIFSD_BLOCK)
 #define BIFETH_SIZE		(3*(BIFETH_BLOCK_SIZE))
 #define BIFETH_FRAME_LEN	(ETH_FRAME_LEN)
@@ -391,6 +391,7 @@ static void bifnet_rx_work(struct work_struct *work)
 #endif
 		skb->protocol = eth_type_trans(skb, dev);
 		netif_rx(skb);
+		//netif_rx_ni(skb);	//preempt_disable
 		dev->stats.rx_packets++;
 		dev->stats.rx_bytes += cur_elen;
 
@@ -624,8 +625,11 @@ static int net_send_packet(struct sk_buff *skb, struct net_device *dev)
 	struct bifnet_local *pl = netdev_priv(dev);
 
 	if (!pl->start || !pl->query_ok) {
-		netif_stop_queue(dev);
-		return NETDEV_TX_BUSY;
+		pr_warn("%s: Waiting for address synchronization\n", dev->name);
+		dev->stats.tx_errors++;
+		//netif_stop_queue(dev);
+		//return NETDEV_TX_BUSY;
+		return NETDEV_TX_OK;
 	}
 
 	if ((pl->skbs_tail + 1) % MAX_SKB_BUFFERS == pl->skbs_head) {
@@ -685,7 +689,7 @@ static const struct net_device_ops bifnet_ops = {
 	.ndo_change_mtu = eth_change_mtu,
 };
 
-static int bifnet_init(void)
+static int bifnet_pre_init(void)
 {
 	struct net_device *dev;
 	struct bifnet_local *pl;
@@ -806,7 +810,7 @@ static int bifnet_init(void)
 		pl->start = 1;
 	else {
 		if (pl->plat->plat_type == PLAT_AP) {
-			pr_info("%s: ver=%s id=%d self_vir=0x%lx"
+			pr_info("%s: %s id=%d self_vir=0x%lx"
 				" other_vir=0x%lx ap=0x%lx\n", dev->name,
 				pl->ver, pl->bifnet_id, (ulong)pl->self_vir,
 				(ulong)pl->other_vir, (ulong)pl->ap);
@@ -848,7 +852,7 @@ exit_1:
 	return ret;
 }
 
-static void bifnet_exit(void)
+static void bifnet_pre_exit(void)
 {
 	unsigned char ch = 0;
 	struct net_device *dev = get_bifnet();
@@ -898,6 +902,54 @@ static void bifnet_exit(void)
 	free_netdev(dev);
 
 	pr_debug("bifeth: exit end...\n");
+}
+static int bifnet_probe(struct platform_device *pdev)
+{
+	return bifnet_pre_init();
+}
+
+static int bifnet_remove(struct platform_device *pdev)
+{
+	bifnet_pre_exit();
+
+	return 0;
+}
+
+static const struct of_device_id bifeth_of_match[] = {
+	{.compatible = "hobot,bifeth"},
+	{},
+};
+
+static struct platform_driver bifeth_driver = {
+	.driver = {
+		   .name = "bifeth",
+		   .of_match_table = bifeth_of_match,
+		   },
+	.probe = bifnet_probe,
+	.remove = bifnet_remove,
+};
+
+static int bifnet_init(void)
+{
+	int ret = 0;
+	struct bifplat_info *plat = (struct bifplat_info *)bif_get_plat_info();
+
+	if (plat->param == PARAM_MODULE)
+		ret = bifnet_pre_init();
+	else
+		ret = platform_driver_register(&bifeth_driver);
+
+	return ret;
+}
+
+static void bifnet_exit(void)
+{
+	struct bifplat_info *plat = (struct bifplat_info *)bif_get_plat_info();
+
+	if (plat->param == PARAM_MODULE)
+		bifnet_pre_exit();
+	else
+		platform_driver_unregister(&bifeth_driver);
 }
 
 late_initcall(bifnet_init);
