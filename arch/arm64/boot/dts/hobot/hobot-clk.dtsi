@@ -8,7 +8,7 @@
 		osc_clk: osc_clk {
 			#clock-cells = <0>;
 			compatible = "x2,fixed-clk";
-			clock-freq = <24000000>;	
+			clock-freq = <24000000>;
 		};
 
 		timer_div_mclk: timer_div_mclk {
@@ -75,14 +75,14 @@
 		armpll1_clk: armpll1_clk {
 			#clock-cells = <0>;
 			compatible = "x2,laintpll-clk";
-			clocks = <&osc_clk>;	
+			clocks = <&osc_clk>;
 			offset = <0x0 0x4>;
 		};
 
 		armpll2_clk: armpll2_clk {
 			#clock-cells = <0>;
 			compatible = "x2,laintpll-clk";
-			clocks = <&osc_clk>;	
+			clocks = <&osc_clk>;
 			offset = <0x10 0x14>;
 		};
 
@@ -92,7 +92,7 @@
 			clocks = <&armpll1_clk>, <&armpll2_clk>;
 			offset = <0x300>;
 			bits = <0>;
-			field = <0x1>;	
+			field = <0x1>;
 		};
 
 		cpu_divclk: cpu_divclk {
@@ -315,7 +315,7 @@
 		cnnpll_clk: cnnpll_clk {
 			#clock-cells = <0>;
 			compatible = "x2,laintpll-clk";
-			clocks = <&osc_clk>;	
+			clocks = <&osc_clk>;
 			offset = <0x20 0x24>;
 		};
 
@@ -325,8 +325,8 @@
 			clocks = <&osc_clk>, <&cnnpll_clk>;
 			offset = <0x300>;
 			bits = <8>;
-			field = <0x1>;	
-		};	
+			field = <0x1>;
+		};
 
 		cnn0_div_aclk: cnn0_div_aclk {
 			#clock-cells = <0>;
@@ -408,7 +408,7 @@
 		ddrpll_clk: ddrpll_clk {
 			#clock-cells = <0>;
 			compatible = "x2,fracpll-clk";
-			clocks = <&osc_clk>;	
+			clocks = <&osc_clk>;
 			offset = <0x30 0x34 0x3C>;
 		};
 
@@ -418,8 +418,8 @@
 			clocks = <&osc_clk>, <&ddrpll_clk>;
 			offset = <0x300>;
 			bits = <12>;
-			field = <0x1>;	
-		};	
+			field = <0x1>;
+		};
 
 		ddr_div_mclk: ddr_div_mclk {
 			#clock-cells = <0>;
@@ -441,7 +441,7 @@
 		viopll_clk: viopll_clk {
 			#clock-cells = <0>;
 			compatible = "x2,laintpll-clk";
-			clocks = <&osc_clk>;	
+			clocks = <&osc_clk>;
 			offset = <0x40 0x44>;
 		};
 
@@ -451,8 +451,8 @@
 			clocks = <&osc_clk>, <&viopll_clk>;
 			offset = <0x300>;
 			bits = <16>;
-			field = <0x1>;	
-		};	
+			field = <0x1>;
+		};
 
 		vio_div_aclk: vio_div_aclk {
 			#clock-cells = <0>;
@@ -633,7 +633,7 @@
 		peripll_clk: peripll_clk {
 			#clock-cells = <0>;
 			compatible = "x2,laintpll-clk";
-			clocks = <&osc_clk>;	
+			clocks = <&osc_clk>;
 			offset = <0x50 0x54>;
 		};
 
@@ -643,7 +643,7 @@
 			clocks = <&osc_clk>, <&peripll_clk>;
 			offset = <0x300>;
 			bits = <20>;
-			field = <0x1>;	
+			field = <0x1>;
 		};
 
 		peri_div_aclk: peri_div_aclk {
@@ -994,11 +994,11 @@
 			offset = <0x360>;
 			bits = <20>;
 		};
-	};	  
+	};
 	clk_test: clk_test {
-		compatible = "hobot, clk-test";    
+		compatible = "hobot, clk-test";
 		clock-names = "laintpll","fracpll","mux","divider","gate","osc";
-		clocks = <&peripll_clk>, 
+		clocks = <&peripll_clk>,
 				 <&ddrpll_clk>,
 				 <&peri_pllmux_clk>,
 				 <&i2c_div_mclk>,

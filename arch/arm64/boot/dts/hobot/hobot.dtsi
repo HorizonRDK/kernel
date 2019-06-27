@@ -653,9 +653,16 @@
 			pinctrl-names = "default";
 			pinctrl-0 = <&sdio1_func>;
 		};
+
 		bifbase: bifbase {
 			compatible = "hobot,bifbase";
 			memory-region = <&bifbase_reserved>;
+			status = "disabled";
+		};
+
+		bifeth: bifeth {
+			compatible = "hobot,bifeth";
+			status = "disabled";
 		};
 
 		mcu_irq: mcu_irq {
@@ -738,4 +745,3 @@
 		};
 	};
 };
-

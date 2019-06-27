@@ -173,6 +173,11 @@
 	bifbase_irq_pin = <118>;
 	bifbase_tri_pin = <117>;
 };
+
+&bifeth {
+	status = "okay";
+};
+
 &biflite_spi {
 	status = "okay";
 };

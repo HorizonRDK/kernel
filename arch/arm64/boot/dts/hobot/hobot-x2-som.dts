@@ -337,6 +337,11 @@
 	bifbase_irq_pin = <118>;
 	bifbase_tri_pin = <7>;
 };
+
+&bifeth {
+	status = "disabled";
+};
+
 &biflite_spi {
 	status = "okay";
 };

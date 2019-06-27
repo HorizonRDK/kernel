@@ -238,9 +238,18 @@
 	status = "disabled";
 	/*cd-gpio = <91>;*/
 };
+
 &bifbase {
-	/*x2 som: GPIO6[1]: 95, GPIO0[7]: 7*/
+	/*x2j2 bifbase: GPIO7[8]: 118, GPIO0[7]: 7*/
+	status = "disabled";
+	bifbase_irq_pin = <118>;
+	bifbase_tri_pin = <7>;
 };
+
+&bifeth {
+	status = "disabled";
+};
+
 &biflite_spi {
 	status = "disabled";
 };
@@ -321,5 +330,3 @@
 &arch_timer {
 	clock-frequency = <24000000>;
 };
-
-
