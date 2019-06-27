@@ -75,10 +75,10 @@
 
 #define BIFBASE_APMAGIC		"BIFA"
 #define BIFBASE_CPMAGIC		"BIFC"
-#define BIFBASE_VER		"BIFBASE_V21"
+#define BIFBASE_VER		"HOBOT-bifbase_V21.190627"
 #define BIFBASE_MAJOR		(123)
 #define BIFBASE_BLOCK		(1024)	//(512)
-#define BIFBASE_VER_SIZE	(16)
+#define BIFBASE_VER_SIZE	(32)
 #define BIFBASE_PHYDDR_SIZE	(0x00100000)
 #define BIFBASE_CHECKPARAM	(0)
 #define BIFBASE_UPDATEPARAM	(1)
@@ -804,11 +804,12 @@ static int bifbase_pre_init(void *p)
 	pl->self->irq_queue_size = IRQ_QUEUE_SIZE;
 	bif_memset(pl->self->irq, -1, pl->self->irq_queue_size);
 	ptr = (unsigned char *)pl->self;
-	pr_info("bifbase: ver=%s magic=%c%c%c%c size=0x%x cp=0x%lx ap=0x%0lx"
-		" phy=0x%08lx vir=0x%lx sz=0x%08x", BIFBASE_VER, ptr[0], ptr[1],
-		ptr[2], ptr[3], (unsigned int)sizeof(struct bif_base_info),
-		(ulong)pl->cp, (ulong)pl->ap, pl->bifbase_phyaddr,
-		(ulong)pl->bifbase_viraddr, pl->bifbase_phyaddrsize);
+	pr_info("bifbase: %s magic=%c%c%c%c size=0x%x cp=0x%lx ap=0x%0lx"
+		" phy=0x%08lx vir=0x%lx sz=0x%08x irq_pin=%d tri_pin=%d\n",
+		BIFBASE_VER, ptr[0], ptr[1], ptr[2], ptr[3],
+		(unsigned int)sizeof(struct bif_base_info), (ulong)pl->cp,
+		(ulong)pl->ap, pl->bifbase_phyaddr, (ulong)pl->bifbase_viraddr,
+		pl->bifbase_phyaddrsize, pl->plat->irq_pin, pl->plat->tri_pin);
 
 	pl->self->next_offset = sizeof(struct bif_base_info);
 	if (!pl->plat->irq_pin_absent) {

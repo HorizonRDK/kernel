@@ -176,8 +176,8 @@ EXPORT_SYMBOL(bif_spi_write);
 
 int bifread(int channel, void *addr, unsigned int count, unsigned char *buf)
 {
-	pr_bif("bifapi: %s()-%d %d,%p,%d\n",
-		__func__, __LINE__, channel, addr, count);
+//	pr_bif("bifapi: %s()-%d %d,%p,%d\n",
+//		__func__, __LINE__, channel, addr, count);
 	if (channel == BIFBUS_SPI)
 		return bif_spi_read(addr, count, buf);
 	else if (channel == BIFBUS_SD)
@@ -189,8 +189,8 @@ EXPORT_SYMBOL(bifread);
 
 int bifwrite(int channel, void *addr, uint count, unchar *buf)
 {
-	pr_bif("bifapi: %s()-%d %d,%p,%d\n",
-		__func__, __LINE__, channel, addr, count);
+//	pr_bif("bifapi: %s()-%d %d,%p,%d\n",
+//		__func__, __LINE__, channel, addr, count);
 	if (channel == BIFBUS_SPI)
 		return bif_spi_write(addr, count, buf);
 	else if (channel == BIFBUS_SD)
@@ -202,7 +202,7 @@ EXPORT_SYMBOL(bifwrite);
 
 int bifget_supportbus(char *str_bus)
 {
-	pr_bif("bifapi: %s()-%d %s\n", __func__, __LINE__, str_bus);
+//	pr_bif("bifapi: %s()-%d %s\n", __func__, __LINE__, str_bus);
 
 	if (!str_bus)
 		return SUPPORT_MAX;
@@ -219,7 +219,7 @@ EXPORT_SYMBOL(bifget_supportbus);
 
 int bifget_bifbustype(char *str_bustype)
 {
-	pr_bif("bifapi: %s()-%d %s\n", __func__, __LINE__, str_bustype);
+//	pr_bif("bifapi: %s()-%d %s\n", __func__, __LINE__, str_bustype);
 
 	if (!str_bustype)
 		return BIFBUS_MAX;
