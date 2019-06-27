@@ -183,8 +183,10 @@ struct x2_cnn_dev {
 	void __iomem *cnn_pmu;
 	u32 iso_bit;
 	struct completion bpu_completion;
+	struct completion nega_completion;
 	int zero_int_cnt;
 	unsigned int real_int_cnt;
+	unsigned int wait_nega_flag;
 #ifdef CONFIG_HOBOT_CNN_DEVFREQ
 	struct x2_cnnfreq *cnnfreq;
 #endif

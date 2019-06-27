@@ -356,6 +356,17 @@ static int x2_cnn_hw_reset_reinit(struct x2_cnn_dev *cnn_dev, int cnn_id)
 }
 static void lock_bpu(struct x2_cnn_dev *dev)
 {
+	int zero_flag = 0;
+
+	mutex_lock(&dev->cnn_lock);
+	if (dev->zero_int_cnt > 0) {
+		zero_flag = dev->zero_int_cnt;
+		dev->wait_nega_flag = 1;
+	}
+	mutex_unlock(&dev->cnn_lock);
+	if (zero_flag)
+		wait_for_completion(&dev->nega_completion);
+
 	mutex_lock(&dev->cnn_lock);
 	if ((atomic_read(&dev->wait_fc_cnt) > 0)) {
 		atomic_set(&dev->hw_flg, MOD_FRQ);
@@ -379,7 +390,7 @@ static irqreturn_t x2_cnn_interrupt_handler(int irq, void *dev_id)
 	u32 irq_status;
 	u32 tmp_irq;
 	struct x2_int_info tmp;
-	struct x2_fc_time tmp_time;
+
 	spin_lock_irqsave(&dev->cnn_spin_lock, flags);
 
 	irq_status = x2_cnn_reg_read(dev, X2_CNNINT_STATUS);
@@ -444,9 +455,7 @@ static void x2_cnn_set_fc_start_time(struct x2_cnn_dev *dev, int int_num,
 				     int count)
 {
 	int ret;
-	struct x2_fc_time fc_time;
 	struct x2_int_info x2_int;
-	unsigned long flags;
 
 	count &= X2_CNN_MAX_FC_LEN_MASK;
 	if (fc_time_enable) {
@@ -473,6 +482,11 @@ static void x2_cnn_set_fc_start_time(struct x2_cnn_dev *dev, int int_num,
 				pr_err("%s[%d]:x2 interrupt info fifo no space\n",
 					__func__, __LINE__);
 			dev->zero_int_cnt = 0;
+			if (dev->wait_nega_flag) {
+				complete(&dev->nega_completion);
+				dev->wait_nega_flag = 0;
+			}
+
 		} else
 			dev->zero_int_cnt++;
 	} else {
@@ -490,6 +504,10 @@ static void x2_cnn_set_fc_start_time(struct x2_cnn_dev *dev, int int_num,
 			x2_int.fc_total = dev->zero_int_cnt + 1;
 			x2_int.int_num = int_num;
 			dev->zero_int_cnt = 0;
+			if (dev->wait_nega_flag) {
+				complete(&dev->nega_completion);
+				dev->wait_nega_flag = 0;
+			}
 			ret = kfifo_in(&dev->int_info_fifo, &x2_int,
 					sizeof(struct x2_int_info));
 			if (ret < sizeof(struct x2_int_info))
@@ -1515,6 +1533,7 @@ int x2_cnn_probe(struct platform_device *pdev)
 	atomic_set(&cnn_dev->hw_flg, 0);
 	cnn_dev->zero_int_cnt = 0;
 	cnn_dev->real_int_cnt = 0;
+	cnn_dev->wait_nega_flag = 0;
 	x2_cnn_reg_write(cnn_dev,
 			X2_CNN_FC_LEN, (cnn_dev->fc_mem_size / 64) - 1);
 	pr_info("Cnn fc phy base = 0x%x, len = 0x%x, default fc len = 0x%x\n",
@@ -1566,8 +1585,12 @@ int x2_cnn_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, cnn_dev);
 
-	/*init bpu completion*/
+	/*
+	 * init bpu completion and negative completion
+	 * for lock_bpu
+	 */
 	init_completion(&cnn_dev->bpu_completion);
+	init_completion(&cnn_dev->nega_completion);
 
 	x2_cnn_reg_write(cnn_dev, X2_CNNINT_MASK, 0x0);
 	pr_info("x2 cnn%d probe OK!!\n", cnn_id);
