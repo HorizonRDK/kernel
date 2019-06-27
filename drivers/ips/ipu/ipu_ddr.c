@@ -461,11 +461,14 @@ wait:
 
 			g_get_fb_slot_h = ipu_get_free_slot();
 			if (!g_get_fb_slot_h) {
-				//printk("fb none free\n");
-				spin_unlock_irqrestore(&g_ipu_ddr_cdev->slock, flags);
-				return -EFAULT;
-			}
 
+				g_get_fb_slot_h = ipu_get_done_slot();
+				if (!g_get_fb_slot_h) {
+					spin_unlock_irqrestore(&g_ipu_ddr_cdev->slock, flags);
+					return -EFAULT;
+				}
+				//printk("fb none free\n");
+			}
 			//printk("@@ get src done sema !! %d\n",g_get_slot_h->info_h.slot_id);
 			info = &g_get_fb_slot_h->info_h;
 			info->base = (uint64_t)IPU_GET_SLOT(g_get_fb_slot_h->info_h.slot_id,
