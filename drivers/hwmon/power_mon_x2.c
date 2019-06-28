@@ -2,6 +2,9 @@
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/slab.h>
+#include <linux/of.h>
+#include <linux/of_device.h>
+#include <linux/of_gpio.h>
 #include <linux/jiffies.h>
 #include <linux/i2c.h>
 #include <linux/hwmon.h>
@@ -400,7 +403,7 @@ void power_dev_remove(void)
 }
 
 
-int __init power_mon_init(void)
+static int power_mon_probe(struct platform_device *pdev)
 {
 	x2_power = kmalloc(sizeof(struct power_data), GFP_KERNEL);
 	if (!x2_power) {
@@ -408,6 +411,10 @@ int __init power_mon_init(void)
 		return -ENOMEM;
 	}
 	x2_power->i2c_adapter = i2c_get_adapter(1);
+	if (!x2_power->i2c_adapter) {
+		printk(KERN_ERR"Unable to get i2c1 adapter\n");
+		return -EINVAL;
+	}
 	cfg_INA226(0x40, 0x2800);
 	cfg_INA226(0x41, 0x2800);
 	cfg_INA226(0x44, 0x2800);
@@ -420,15 +427,33 @@ int __init power_mon_init(void)
 	return 0;
 }
 
-void __exit power_mon_exit(void)
+static int power_mon_remove(struct platform_device *pdev)
 {
 	kfree(power_result_buf);
 	kfree(x2_power);
 	power_result_buf = NULL;
+	return 0;
 }
 
-module_init(power_mon_init);
-module_exit(power_mon_exit);
 
+#ifdef CONFIG_OF
+static const struct of_device_id power_mon_of_match[] = {
+	{.compatible = "hobot,x2-power"},
+	{},
+};
+MODULE_DEVICE_TABLE(of, power_mon_of_match);
+#endif
+
+static struct platform_driver power_mon_driver = {
+	.probe = power_mon_probe,
+	.remove = power_mon_remove,
+	.driver = {
+		.name = "x2-power",
+		.of_match_table = of_match_ptr(power_mon_of_match),
+	},
+};
+
+
+module_platform_driver(power_mon_driver);
 
 MODULE_LICENSE("GPL");

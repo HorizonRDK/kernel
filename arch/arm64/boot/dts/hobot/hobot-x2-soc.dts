@@ -52,6 +52,10 @@
 		reg = <0x0 0x0 0x0 0x80000000>;
 	};
 
+	x2_power {
+		compatible = "hobot,x2-power";
+	};
+
 };
 
 &i2c0 {
