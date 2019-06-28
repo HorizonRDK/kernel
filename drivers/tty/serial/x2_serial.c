@@ -1055,15 +1055,11 @@ static void x2_uart_poll_put_char(struct uart_port *port, unsigned char c)
 	spin_lock_irqsave(&port->lock, flags);
 
 	/* Wait until FIFO is empty */
-	while (!(readl(port->membase + X2_UART_LSR) & UART_LSR_TXRDY))
+	while (!(readl(port->membase + X2_UART_LSR) & UART_LSR_TX_EMPTY))
 		cpu_relax();
 
 	/* Write a character */
 	writel(c, port->membase + X2_UART_TDR);
-
-	/* Wait until FIFO is empty */
-	while (!(readl(port->membase + X2_UART_LSR) & UART_LSR_TX_EMPTY))
-		cpu_relax();
 
 	spin_unlock_irqrestore(&port->lock, flags);
 
