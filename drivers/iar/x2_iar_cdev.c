@@ -279,6 +279,12 @@ static ssize_t x2_iar_store(struct kobject *kobj, struct kobj_attribute *attr, c
 	} else if (*tmp == '0') {
 		pr_info("iar stop......\n");
 		iar_stop();
+	} else if (*tmp == '2') {
+		pr_info("checkout camera 0 display!!\n");
+		iar_checkout_display_camera(0);
+	} else if (*tmp == '3') {
+		pr_info("checkout camera 1 display!!\n");
+		iar_checkout_display_camera(1);
 	}
         //return error ? error : n;
         return n;

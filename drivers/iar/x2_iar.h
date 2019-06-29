@@ -454,6 +454,7 @@ typedef struct _output_cfg_t {
 	uint32_t width;
 	uint32_t height;
 	uint32_t display_addr_type;
+	uint32_t display_cam_no;
 	ppcon1_cfg_t ppcon1;
 	ppcon2_cfg_t ppcon2;
 	refresh_cfg_t refresh_cfg;
@@ -537,6 +538,37 @@ enum DISPLAY_ADDR_TYPE {
 	US3, //30
 	US4, //31
 	US5, //32
+	DS_2_0, //33
+	DS_2_1, //34
+	DS_2_2, //35
+	DS_2_3, //36
+	DS_2_4, //37
+	DS_2_5, //38
+	DS_2_6, //39
+	DS_2_7, //40
+	DS_2_8, //41
+	DS_2_9, //42
+	DS_2_10, //43
+	DS_2_11, //44
+	DS_2_12, //45
+	DS_2_13, //46
+	DS_2_14, //47
+	DS_2_15, //48
+	DS_2_16, //49
+	DS_2_17, //50
+	DS_2_18, //51
+	DS_2_19, //52
+	DS_2_20, //53
+	DS_2_21, //54
+	DS_2_22, //55
+	DS_2_23, //56
+	US_2_0, //57
+	US_2_1, //58
+	US_2_2, //59
+	US_2_3, //60
+	US_2_4, //61
+	US_2_5, //62
+
 };
 
 extern int display_type;
@@ -569,6 +601,8 @@ int32_t iar_set_video_buffer(uint32_t slot_id);
 int32_t iar_write_framebuf_dma(uint32_t channel, phys_addr_t srcaddr,
 		uint32_t size);
 void *ipu_get_iar_framebuf_addr(uint32_t channel, unsigned int index);
-int8_t iar_get_ipu_display_addr(uint32_t display_addr[][2]);
+int8_t iar_get_ipu_display_addr_single(uint32_t display_addr[][2]);
+int8_t iar_get_ipu_display_addr_dual(uint32_t display_addr[][2]);
+int8_t iar_checkout_display_camera(uint8_t camera_no);
 
 #endif //__X2_IAR_H__

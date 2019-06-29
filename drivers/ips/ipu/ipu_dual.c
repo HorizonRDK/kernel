@@ -29,6 +29,8 @@
 #include <linux/uaccess.h>
 #include <asm/cacheflush.h>
 
+#include "../../iar/x2_iar.h"
+
 #define ENABLE 1
 #define DISABLE 0
 
@@ -157,6 +159,9 @@ int set_next_pym_frame(ipu_slot_dual_h_t *slot_h, bool first)
 void ipu_dual_mode_process(uint32_t status)
 {
 	struct x2_ipu_data *ipu = g_ipu_d_cdev->ipu;
+	uint32_t iar_display_yaddr;
+	uint32_t iar_display_caddr;
+
 
 	spin_lock(&g_ipu_d_cdev->slock);
 	if (status & IPU_BUS01_TRANSMIT_ERRORS ||
@@ -223,6 +228,21 @@ void ipu_dual_mode_process(uint32_t status)
 					ipu->done_idx = slot_h->info_h.slot_id;
 					ipu_get_frameid(ipu, slot_h);
 					wake_up_interruptible(&g_ipu_d_cdev->event_head);
+
+					iar_display_yaddr =
+					IPU_GET_DUAL_SLOT(slot_h->info_h.slot_id, ipu->paddr) +
+					slot_h->info_h.dual_ddr_info.ds_2nd[5].y_offset;
+					iar_display_caddr =
+					IPU_GET_DUAL_SLOT(slot_h->info_h.slot_id, ipu->paddr) +
+					slot_h->info_h.dual_ddr_info.ds_2nd[5].c_offset;
+
+					pr_debug("@@slot id is %d\n", slot_h->info_h.slot_id);
+					pr_debug("ipu: slot info ds_2nd[5] yaddr is 0x%x\n",
+						iar_display_yaddr);
+					pr_debug("ipu: slot info ds_2nd[5] caddr is 0x%x\n",
+						iar_display_caddr);
+
+					iar_set_video_buffer(slot_h->info_h.slot_id);
 
 				} else {
 					ipu_err("no finished slot in queue\n");
@@ -314,6 +334,44 @@ static int8_t ipu_sinfo_init(ipu_cfg_t *ipu_cfg)
 
 	return 0;
 }
+
+int8_t iar_get_ipu_display_addr_dual(uint32_t display_addr[][2])
+{
+	int i = 0;
+
+	if (g_ipu_d_cdev == NULL)
+		return -1;
+	display_addr[0][0] = g_ipu_d_cdev->ipu->paddr;
+	display_addr[0][1] = IPU_SLOT_DAUL_SIZE;
+	display_addr[1][0] = g_ipu_d_cdev->s_info.crop.y_offset;
+	display_addr[1][1] = g_ipu_d_cdev->s_info.crop.c_offset;
+	display_addr[2][0] = g_ipu_d_cdev->s_info.scale.y_offset;
+	display_addr[2][1] = g_ipu_d_cdev->s_info.scale.c_offset;
+
+	for (i = 0; i < 24; i++) {
+		display_addr[i+3][0] = g_ipu_d_cdev->s_info.ds_1st[i].y_offset;
+		display_addr[i+3][1] = g_ipu_d_cdev->s_info.ds_1st[i].c_offset;
+	}
+
+	for (i = 0; i < 6; i++) {
+		display_addr[i+27][0] = g_ipu_d_cdev->s_info.us_1st[i].y_offset;
+		display_addr[i+27][1] = g_ipu_d_cdev->s_info.us_1st[i].c_offset;
+	}
+
+	for (i = 0; i < 24; i++) {
+		display_addr[i+33][0] = g_ipu_d_cdev->s_info.ds_2nd[i].y_offset;
+		display_addr[i+33][1] = g_ipu_d_cdev->s_info.ds_2nd[i].c_offset;
+	}
+
+	for (i = 0; i < 6; i++) {
+		display_addr[i+57][0] = g_ipu_d_cdev->s_info.us_2nd[i].y_offset;
+		display_addr[i+57][1] = g_ipu_d_cdev->s_info.us_2nd[i].c_offset;
+	}
+	pr_debug("g_ipu_s_cdev->ipu.paddr = 0x%x\n", display_addr[0][0]);
+
+	return 0;
+}
+
 
 static int8_t ipu_core_update(ipu_cfg_t *ipu_cfg)
 {
