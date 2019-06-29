@@ -346,7 +346,7 @@ static int8_t ipu_sinfo_init(ipu_cfg_t *ipu_cfg)
 	return 0;
 }
 
-int8_t iar_get_ipu_display_addr(uint32_t display_addr[][2])
+int8_t iar_get_ipu_display_addr_single(uint32_t display_addr[][2])
 {
 	int i = 0;
 
@@ -365,8 +365,8 @@ int8_t iar_get_ipu_display_addr(uint32_t display_addr[][2])
 	}
 
 	for (i = 0; i < 6; i++) {
-		display_addr[i+27][0] = g_ipu_s_cdev->s_info.ds[i].y_offset;
-		display_addr[i+27][1] = g_ipu_s_cdev->s_info.ds[i].c_offset;
+		display_addr[i+27][0] = g_ipu_s_cdev->s_info.us[i].y_offset;
+		display_addr[i+27][1] = g_ipu_s_cdev->s_info.us[i].c_offset;
 	}
 	pr_debug("g_ipu_s_cdev->ipu.paddr = 0x%x\n", display_addr[0][0]);
 
