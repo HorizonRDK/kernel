@@ -16,7 +16,8 @@
 #define WINBOND_CFG_BUF_READ		BIT(3)
 
 static SPINAND_OP_VARIANTS(read_cache_variants,
-		SPINAND_PAGE_READ_FROM_CACHE_QUADIO_OP(0, 2, NULL, 0),
+		// X2J2 platform not support Fast Read Quad I/O yet.
+		// SPINAND_PAGE_READ_FROM_CACHE_QUADIO_OP(0, 2, NULL, 0),
 		SPINAND_PAGE_READ_FROM_CACHE_X4_OP(0, 1, NULL, 0),
 		SPINAND_PAGE_READ_FROM_CACHE_DUALIO_OP(0, 1, NULL, 0),
 		SPINAND_PAGE_READ_FROM_CACHE_X2_OP(0, 1, NULL, 0),
@@ -76,14 +77,33 @@ static int w25m02gv_select_target(struct spinand_device *spinand,
 
 static const struct spinand_info winbond_spinand_table[] = {
 	SPINAND_INFO("W25M02GV", 0xAB,
-		     NAND_MEMORG(1, 2048, 64, 64, 1024, 1, 1, 2),
-		     NAND_ECCREQ(1, 512),
-		     SPINAND_INFO_OP_VARIANTS(&read_cache_variants,
-					      &write_cache_variants,
-					      &update_cache_variants),
-		     0,
-		     SPINAND_ECCINFO(&w25m02gv_ooblayout, NULL),
-		     SPINAND_SELECT_TARGET(w25m02gv_select_target)),
+		NAND_MEMORG(1, 2048, 64, 64, 1024, 1, 1, 2),
+		NAND_ECCREQ(1, 512),
+		SPINAND_INFO_OP_VARIANTS(&read_cache_variants,
+		&write_cache_variants,
+		&update_cache_variants),
+		0,
+		SPINAND_ECCINFO(&w25m02gv_ooblayout, NULL),
+		SPINAND_SELECT_TARGET(w25m02gv_select_target)),
+
+	SPINAND_INFO("W25N01GW", 0xBA,
+		NAND_MEMORG(1, 2048, 64, 64, 1024, 1, 1, 1),
+		NAND_ECCREQ(1, 512),
+		SPINAND_INFO_OP_VARIANTS(&read_cache_variants,
+		&write_cache_variants,
+		&update_cache_variants),
+		0,
+		SPINAND_ECCINFO(&w25m02gv_ooblayout, NULL)),
+
+	SPINAND_INFO("W25N02JW", 0xBF,
+		NAND_MEMORG(1, 2048, 64, 64, 1024, 1, 1, 2),
+		NAND_ECCREQ(1, 512),
+		SPINAND_INFO_OP_VARIANTS(&read_cache_variants,
+		&write_cache_variants,
+		&update_cache_variants),
+		0,
+		SPINAND_ECCINFO(&w25m02gv_ooblayout, NULL),
+		SPINAND_SELECT_TARGET(w25m02gv_select_target)),
 };
 
 /**
