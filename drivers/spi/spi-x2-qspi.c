@@ -215,6 +215,7 @@ int x2_qspi_poll_rx_empty(struct x2_qspi *xqspi,
 
 	while (timeout--) {
 		reg_val = x2_qspi_read(xqspi, offset);
+		udelay(10);
 		if (!(reg_val & mask)) {
 			ret = 0;
 			break;
@@ -231,6 +232,7 @@ static int qspi_check_status(struct x2_qspi *xqspi, u32 offset, uint32_t mask,
 
 	do {
 		val = x2_qspi_read(xqspi, offset);
+		udelay(10);
 		timeout = timeout - 1;
 		if (timeout == 0) {
 			ret = -1;
@@ -392,9 +394,8 @@ void qspi_dump_reg(struct x2_qspi *xqspi)
 {
 	uint32_t val = 0, i;
 
-	for (i = xqspi->regs + QSPI_TX_RX_REG; i <= xqspi->regs + QSPI_XIP_CFG;
-	     i = i + 4) {
-		val = x2_qspi_read(xqspi, i);
+	for (i = QSPI_TX_RX_REG; i <= QSPI_XIP_CFG; i = i + 4) {
+		val = x2_qsssspi_read(xqspi, i);
 		pr_info("reg[0x%08x] ==> [0x%08x]\n", xqspi->regs + i, val);
 	}
 }
