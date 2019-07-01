@@ -317,4 +317,12 @@
 
 &soc_thermal {
 	status = "okay";
+	trips {
+		target: trip-point@1 {
+			temperature = <105000>;
+		};
+		soc_crit: soc-crit {
+			temperature = <120000>;
+		};
+	};
 };
