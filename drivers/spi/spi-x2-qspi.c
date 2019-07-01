@@ -169,8 +169,8 @@ struct x2_qspi {
 	struct platform_device *pdev;
 	struct completion transfer_complete;
 
-#if 0
-	struct clk *refclk;
+#ifdef CONFIG_X2_SOC
+	u32 ref_clk;
 	struct clk *pclk;
 #else
 	int ref_clk;
@@ -180,8 +180,6 @@ struct x2_qspi {
 	struct device *dev;
 	const void *txbuf;
 	void *rxbuf;
-	u32 rx_bus_width;
-	u32 tx_bus_width;
 	u32 speed_hz;
 	u32 mode;
 	bool batch_mode;
@@ -408,8 +406,13 @@ static void x2_qspi_hw_init(struct x2_qspi *xqspi)
 	uint32_t reg_val;
 
 	/* set qspi clk div */
+#ifdef CONFIG_X2_SOC
+	qspi_div = caculate_qspi_divider(xqspi->ref_clk, xqspi->speed_hz);
+	x2_qspi_write(xqspi, QSPI_SCLK_CON, qspi_div);
+#else
 	qspi_div = caculate_qspi_divider(xqspi->ref_clk, xqspi->qspi_clk);
 	x2_qspi_write(xqspi, QSPI_SCLK_CON, qspi_div);
+#endif
 
 	/* set qspi work mode */
 	reg_val = x2_qspi_read(xqspi, QSPI_CTL1);
@@ -827,36 +830,43 @@ static int x2_qspi_start_transfer(struct spi_master *master,
 				SPI_TX_QUAD | SPI_RX_QUAD);
 		break;
 	}
-
 	if (xqspi->txbuf != NULL) {
-		if ((transfer->is_write_data) && (qspi->mode & SPI_TX_QUAD))
-			x2_qspi_cfg_line_mode(xqspi, SPI_TX_QUAD, true);
-
+		if (transfer->len) {
+			if (qspi->mode & SPI_TX_QUAD)
+				x2_qspi_cfg_line_mode(xqspi, SPI_TX_QUAD, true);
+			else if (qspi->mode & SPI_TX_DUAL)
+				x2_qspi_cfg_line_mode(xqspi, SPI_TX_DUAL, true);
+		}
 		transfer_len =
 		    x2_qspi_write_data(xqspi, xqspi->txbuf, transfer->len);
 
-		if ((transfer->is_write_data) && (qspi->mode & SPI_TX_QUAD))
-			x2_qspi_cfg_line_mode(xqspi, SPI_TX_QUAD, false);
+		if (transfer->len) {
+			if (qspi->mode & SPI_TX_QUAD)
+				x2_qspi_cfg_line_mode(xqspi, SPI_TX_QUAD, false);
+			else if (qspi->mode & SPI_TX_DUAL)
+				x2_qspi_cfg_line_mode(xqspi, SPI_TX_DUAL, false);
+		}
 	}
 
 	if (xqspi->rxbuf != NULL) {
-		if ((!transfer->is_write_data) && (qspi->mode & SPI_RX_QUAD))
+		if (qspi->mode & SPI_RX_QUAD)
 			x2_qspi_cfg_line_mode(xqspi, SPI_RX_QUAD, true);
-		if ((!transfer->is_write_data) && (qspi->mode & SPI_RX_DUAL))
+		if (qspi->mode & SPI_RX_DUAL)
 			x2_qspi_cfg_line_mode(xqspi, SPI_RX_DUAL, true);
 
 		transfer_len =
 		    x2_qspi_read_data(xqspi, xqspi->rxbuf, transfer->len);
 
-		if ((!transfer->is_write_data) && (qspi->mode & SPI_RX_QUAD))
+		if (qspi->mode & SPI_RX_QUAD)
 			x2_qspi_cfg_line_mode(xqspi, SPI_RX_QUAD, false);
-		if (!transfer->is_write_data && qspi->mode & SPI_RX_DUAL)
+		if (qspi->mode & SPI_RX_DUAL)
 			x2_qspi_cfg_line_mode(xqspi, SPI_RX_DUAL, false);
 
 	}
 
 	qspi->mode = mode;
 	transfer->len = transfer_len;
+
 	spi_finalize_current_transfer(master);
 	return transfer->len;
 }
@@ -968,8 +978,7 @@ static int x2_qspi_probe(struct platform_device *pdev)
 
 	xqspi->dev = dev;
 
-#if 0				// Current clock tree no supported
-	xqspi->pclk = devm_clk_get(&pdev->dev, "pclk");
+	xqspi->pclk = devm_clk_get(&pdev->dev, "qspi_aclk");
 	if (IS_ERR(xqspi->pclk)) {
 		dev_err(dev, "pclk clock not found.\n");
 		ret = PTR_ERR(xqspi->pclk);
@@ -979,59 +988,28 @@ static int x2_qspi_probe(struct platform_device *pdev)
 	ret = clk_prepare_enable(xqspi->pclk);
 	if (ret) {
 		dev_err(dev, "Unable to enable APB clock.\n");
-		goto remove_master;
-	}
-
-	xqspi->refclk = devm_clk_get(&pdev->dev, "ref_clk");
-	if (IS_ERR(xqspi->refclk)) {
-		dev_err(dev, "ref_clk clock not found.\n");
-		ret = PTR_ERR(xqspi->refclk);
 		goto clk_dis_pclk;
 	}
 
-	ret = clk_prepare_enable(xqspi->refclk);
-	if (ret) {
-		dev_err(dev, "Unable to enable device clock.\n");
-		goto clk_dis_pclk;
-	}
-#else
-	xqspi->ref_clk = CONFIG_X2_QSPI_REF_CLK;
-	xqspi->qspi_clk = CONFIG_X2_QSPI_CLK;
-#endif
+	xqspi->ref_clk = clk_get_rate(xqspi->pclk);
 
 	if (of_property_read_bool(pdev->dev.of_node, "is-batch-mode"))
 		xqspi->batch_mode = true;
-
-	/* QSPI controller initializations */
-	x2_qspi_hw_init(xqspi);
 
 	/* used for spi-mem select op and meet __spi_validate */
 	if (of_property_read_u32(pdev->dev.of_node, "qspi-mode", &xqspi->mode))
 		xqspi->mode = 0;
 
-	xqspi->rx_bus_width = QSPI_RX_BUS_WIDTH_SINGLE;
+	xqspi->speed_hz = -1;
 	for_each_available_child_of_node(pdev->dev.of_node, nc) {
-		ret = of_property_read_u32(nc, "spi-rx-bus-width",
-					   &rx_bus_width);
+		ret = of_property_read_u32(nc, "spi-max-frequency",
+				&max_speed_hz);
 		if (!ret) {
-			xqspi->rx_bus_width = rx_bus_width;
-			break;
-		}
-
-		ret = of_property_read_u32(nc, "spi-tx-bus-width",
-					   &tx_bus_width);
-		if (!ret) {
-			xqspi->tx_bus_width = tx_bus_width;
-			break;
-		}
-
-		ret =
-		    of_property_read_u32(nc, "spi-max-frequency",
-					 &max_speed_hz);
-		if (!ret)
-			break;
-		else
+			if (max_speed_hz < xqspi->speed_hz)
+				xqspi->speed_hz = max_speed_hz;
+		} else {
 			dev_err(dev, "spi-max-frequency not found\n");
+		}
 	}
 	if (ret)
 		dev_err(dev, "tx/rx bus width not found\n");
@@ -1041,21 +1019,19 @@ static int x2_qspi_probe(struct platform_device *pdev)
 		master->num_chipselect = QSPI_DEFAULT_NUM_CS;
 	else
 		master->num_chipselect = num_cs;
-#if 0
-	master->cfg_spi_lines = x2_qspi_cfg_line_mode;
-#endif
+
 	master->setup = x2_qspi_setup;
 	master->set_cs = x2_qspi_chipselect;
 	master->transfer_one = x2_qspi_start_transfer;
 	master->prepare_transfer_hardware = x2_prepare_transfer_hardware;
 	master->unprepare_transfer_hardware = x2_unprepare_transfer_hardware;
-	master->max_speed_hz = max_speed_hz;
+	master->max_speed_hz = xqspi->speed_hz;
 	master->bits_per_word_mask = SPI_BPW_MASK(8);
 	master->mode_bits = SPI_CPOL | SPI_CPHA | SPI_RX_DUAL | SPI_RX_QUAD |
 	    SPI_TX_DUAL | SPI_TX_QUAD;
-	xqspi->speed_hz = master->max_speed_hz;
 
-	master->mem_ops = &x2_mem_ops;
+	/* QSPI controller initializations */
+	x2_qspi_hw_init(xqspi);
 
 	if (master->dev.parent == NULL)
 		master->dev.parent = &master->dev;
@@ -1065,10 +1041,9 @@ static int x2_qspi_probe(struct platform_device *pdev)
 		goto remove_master;
 
 	return 0;
-#if 0
+
 clk_dis_pclk:
 	clk_disable_unprepare(xqspi->pclk);
-#endif
 
 remove_master:
 	spi_master_put(master);

@@ -801,7 +801,6 @@ struct spi_transfer {
 #define	SPI_NBITS_DUAL		0x02 /* 2bits transfer */
 #define	SPI_NBITS_QUAD		0x04 /* 4bits transfer */
 	u8		bits_per_word;
-	bool		is_write_data;	/* true is write data, false is read data */
 	u16		delay_usecs;
 	u32		speed_hz;
 
