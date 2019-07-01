@@ -471,6 +471,14 @@
 			interrupts = <0 19 4>;
 		};
 
+		nor_flash: nor@0xB0000000 {
+			compatible = "hobot,x2-qspi-nor";
+			status = "disabled";
+			reg = <0x0 0xB0000000 0x0 0x1000>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 19 4>;
+		};
+
 		ethernet: ethernet@A5014000 {
 			compatible = "snps,dwc-qos-ethernet-4.10";
 			reg = <0 0xA5014000 0 0x2000>;
