@@ -1,7 +1,7 @@
 #ifndef _X2_QSPI_H_
 #define _X2_QSPI_H_
 
-#define X2_QSPI_NAME                "x2_qspi"
+#define X2_QSPI_NAME                "x2_qspi_nor"
 #define X2_QSPI_MAX_CS              8
 #define X2_QSPI_DEF_CS              0
 #define X2_QSPI_DEF_BDR             50000000

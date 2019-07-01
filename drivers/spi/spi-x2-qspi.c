@@ -457,7 +457,7 @@ static int x2_qspi_setup(struct spi_device *qspi)
 		break;
 	default:
 		ret = -EINVAL;
-		pr_err("%s nothing mode matches %d.\n", __func__, qspi->mode);
+		pr_err("%s nothing mode matches 0x%08X.\n", __func__, qspi->mode);
 		break;
 	}
 
