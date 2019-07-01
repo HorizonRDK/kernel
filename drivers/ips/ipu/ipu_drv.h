@@ -57,4 +57,5 @@ int8_t ipu_drv_stop(void);
 int8_t ipu_cfg_ddrinfo_init(ipu_cfg_t *ipu);
 int8_t ipu_set(ipu_cmd_e cmd, ipu_cfg_t *ipu_cfg, uint64_t data);
 extern void ipu_handle_frame_done(void);
+extern void ipu_handle_pym_frame_done(void);
 #endif

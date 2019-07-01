@@ -52,8 +52,10 @@
 #define ENABLE 1
 #define DISABLE 0
 
-wait_queue_head_t wq_frame_done;
+static wait_queue_head_t wq_frame_done;
+static wait_queue_head_t wq_pym_done;
 static unsigned long  runflags;
+static unsigned long  pym_runflags;
 
 
 
@@ -215,6 +217,14 @@ void ipu_handle_frame_done(void)
 		spin_unlock_irqrestore(&g_ipu_ddr_cdev->slock, flags);
 }
 
+void ipu_handle_pym_frame_done(void)
+{
+	if (!test_and_set_bit(1, &pym_runflags)){
+		wake_up_interruptible(&wq_pym_done);
+	}
+
+
+}
 void ipu_ddr_mode_process(uint32_t status)
 {
 	struct x2_ipu_data *ipu = g_ipu_ddr_cdev->ipu;
@@ -236,10 +246,7 @@ void ipu_ddr_mode_process(uint32_t status)
 			wake_up_interruptible(&g_ipu_ddr_cdev->event_head);
 		}
 	}
-	if (status & PYM_FRAME_DONE) {
-		up(&sem_pym);
-		wake_up_interruptible(&g_ipu_ddr_cdev->event_head);
-	}
+
 	if (status & IPU_FRAME_START) {
 		g_ipu_time = ipu_current_time();
 	}
@@ -486,7 +493,7 @@ wait:
 	{
 			unsigned long flags;
 
-			down(&sem_pym);
+			wait_event_interruptible(wq_pym_done, test_and_clear_bit(1, &pym_runflags));
 			spin_lock_irqsave(&g_ipu_ddr_cdev->slock, flags);
 			pym_img_info = &pym_info;
 			pym_img_info->slot_id = g_process_info.slot_id;
@@ -718,6 +725,7 @@ static int __init x2_ipu_ddr_init(void)
 
 
 	init_waitqueue_head(&wq_frame_done);
+	init_waitqueue_head(&wq_pym_done);
 	/* new process */
 	init_waitqueue_head(&g_ipu_ddr_cdev->event_head);
 	g_ipu_time = 0;
