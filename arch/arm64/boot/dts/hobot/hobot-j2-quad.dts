@@ -272,7 +272,7 @@
 
 		partition@qspi-uboot {
 			label = "qspi-uboot";
-			reg = <0x200000 0x200000>;
+			reg = <0x0 0x1000000>;
 		};
 	};
 };
