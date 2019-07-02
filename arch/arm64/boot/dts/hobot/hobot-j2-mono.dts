@@ -78,7 +78,7 @@
 				regulator-name = "VCC_CNN0";
 				regulator-min-microvolt = <800000>;
 				regulator-max-microvolt = <1000000>;
-				regulator-always-on;
+				regulator-enable-ramp-delay = <450>;
 				regulator-boot-on;
 			};
 
@@ -94,7 +94,7 @@
 				regulator-name = "VCC_CNN1";
 				regulator-min-microvolt = <800000>;
 				regulator-max-microvolt = <1000000>;
-				regulator-always-on;
+				regulator-enable-ramp-delay = <450>;
 				regulator-boot-on;
 			};
 
