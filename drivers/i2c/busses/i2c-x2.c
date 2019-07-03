@@ -17,11 +17,10 @@
 #include <linux/seq_file.h>
 #include <linux/string.h>
 #include <linux/reset.h>
-//#include "drivers/hdmi/hdmi_i2c_nostop.h"
-#include "../../misc/bt2hdmi/hdmi_i2c_nostop.h"
+
 #include "i2c-x2.h"
-//#define X2_I2C_CDIV_MIN   0x0
-//#define X2_I2C_CDIV_MAX   0xFF
+
+#define X2_I2C_FIFO_SIZE 16
 
 unsigned int i2c_debug_ctl = 0;
 module_param(i2c_debug_ctl, uint, S_IRUGO | S_IWUSR);
@@ -31,13 +30,15 @@ module_param(i2c_debug_ctl, uint, S_IRUGO | S_IWUSR);
             printk(format, ## args);        \
     } while(0)
 
-#define X2_I2C_FIFO_SIZE 16
 #define X2_I2C_TIMEOUT (msecs_to_jiffies(1000))
+
 enum {
 	i2c_idle,
 	i2c_write,
 	i2c_read,
+	i2c_write_read,
 };
+
 struct x2_i2c_dev_s {
 	struct device *dev;
 	volatile struct x2_i2c_regs_s *i2c_regs;
@@ -47,10 +48,14 @@ struct x2_i2c_dev_s {
 	struct i2c_adapter adapter;
 	struct completion completion;
 	u32 msg_err;
-	u8 *msg_buf;
+	u8 *msg_write_buf;
+	u8 *msg_read_buf;
 	u32 i2c_state;
-	size_t msg_buf_remaining;
+	u16 msg_flags;
+	size_t msg_write_remaining;
+	size_t msg_read_remaining;
 };
+
 volatile struct x2_i2c_regs_s *g_i2c_regs[4];
 void dump_reg(struct x2_i2c_dev_s *i2c_dev)
 {
@@ -72,27 +77,27 @@ void dump_reg(struct x2_i2c_dev_s *i2c_dev)
 	printk("fifo_ctl:[%x] \n", i2c_dev->i2c_regs->fifo_ctl.all);
 }
 
-static int x2_i2c_cfg(struct x2_i2c_dev_s *i2c_dev, int dir_rd)
+static int x2_i2c_cfg(struct x2_i2c_dev_s *i2c_dev, int dir_rd, int timeout_enable)
 {
+	union cfg_reg_e cfg;
 	if(!i2c_dev)
-		return 0;
-#if 1
-	//i2c_dev->i2c_regs->CFG.bit.clkdiv = 0x1d;
-	i2c_dev->i2c_regs->cfg.bit.tran_en = 1;
-	i2c_dev->i2c_regs->cfg.bit.en = 1;
-	i2c_dev->i2c_regs->cfg.bit.to_en = 1;
-	i2c_dev->i2c_regs->cfg.bit.dir_rd = dir_rd;//test
-	i2c_dev->i2c_regs->tocnt.all = 0xffff;
-	i2c_dev->i2c_regs->cfg.bit.clkdiv = 0x4f;//0xef;
-	//i2c_dev->i2c_regs->SPRCPND.all= 0xffffffff;//clear int
-#else //non transcation mode
-	//i2c_dev->i2c_regs->CFG.bit.clkdiv = 1;
-	//i2c_dev->i2c_regs->CFG.bit.tran_en = 0;
-	//i2c_dev->i2c_regs->CFG.bit.en = 1;
-#endif
+		return -1;
 
+	cfg.all = 0;
+	cfg.bit.tran_en = 1;
+	cfg.bit.en = 1;
+	if (timeout_enable) {
+		cfg.bit.to_en = 1;
+	} else {
+		cfg.bit.to_en = 0;
+	}
+	cfg.bit.dir_rd = dir_rd;
+	cfg.bit.clkdiv = 0x4f; /* 300KHZ */
+	i2c_dev->i2c_regs->tocnt.all = 0xffff;
+	i2c_dev->i2c_regs->cfg.all = cfg.all;
 	return 0;
 }
+
 static int x2_i2c_reset(struct x2_i2c_dev_s *i2c_dev)
 {
 	reset_control_assert(i2c_dev->rst);
@@ -100,10 +105,10 @@ static int x2_i2c_reset(struct x2_i2c_dev_s *i2c_dev)
 	reset_control_deassert(i2c_dev->rst);
 	return 0;
 }
+
 static void x2_wait_idle(struct x2_i2c_dev_s *i2c_dev)
 {
-	uint spins = 1000;
-	//printk("x2_wait_idle\n");
+	uint spins = 100000;
 	while (i2c_dev->i2c_regs->status.bit.busy && --spins) {
 		cpu_relax();
 	}
@@ -112,9 +117,10 @@ static void x2_wait_idle(struct x2_i2c_dev_s *i2c_dev)
 		I2C_DEBUG_PRINT("i2c wait_idle timed out\n");
 		dump_reg(i2c_dev);
 		x2_i2c_reset(i2c_dev);
-		x2_i2c_cfg(i2c_dev, 0);
+		x2_i2c_cfg(i2c_dev, 0, 1);
 	}
 }
+
 static void x2_clear_int(struct x2_i2c_dev_s *i2c_dev)
 {
 	i2c_dev->i2c_regs->srcpnd.all = 0xffffffff;
@@ -124,7 +130,8 @@ static void x2_mask_int(struct x2_i2c_dev_s *i2c_dev)
 {
 	i2c_dev->i2c_regs->intsetmask.all = 0xffffffff;
 }
-static void x2_unmask_int(struct x2_i2c_dev_s *i2c_dev, int state)
+
+static void x2_unmask_int(struct x2_i2c_dev_s *i2c_dev)
 {
 	union intunmask_reg_e unmask_reg;
 	unmask_reg.all = 0;
@@ -134,75 +141,64 @@ static void x2_unmask_int(struct x2_i2c_dev_s *i2c_dev, int state)
 	unmask_reg.bit.sterr_mask = 1;
 	unmask_reg.bit.nack_mask = 1;
 	unmask_reg.bit.aerr_mask = 1;
-#if 1
+	//TODO: check
 	if (i2c_dev->i2c_state == i2c_read) {
 		unmask_reg.bit.rrdy_mask = 1;
 	} else if (i2c_dev->i2c_state == i2c_write) {
 		unmask_reg.bit.xrdy_mask = 1;
+	} else if (i2c_dev->i2c_state == i2c_write_read) {
+		unmask_reg.bit.rrdy_mask = 1;
 	}
-#endif
 	//printk("unmask:%x\n",unmask_reg.all);
 	i2c_dev->i2c_regs->intunmask.all = unmask_reg.all;
 }
 
-static void x2_fill_txfifo(struct x2_i2c_dev_s *i2c_dev)
+static void x2_fill_txfifo(struct x2_i2c_dev_s *i2c_dev, int hold)
 {
-	while (i2c_dev->msg_buf_remaining) {
-		//printk("x2_fill_txfifo\n");
-		//val = x2_i2c_readl(i2c_dev, X2_I2C_STATUS);
+	int n = X2_I2C_FIFO_SIZE;
+	if (hold) {
+		i2c_dev->i2c_regs->fifo_ctl.all = 0x1;
+	}
+	while (i2c_dev->msg_write_remaining && n) {
 		if (i2c_dev->i2c_regs->status.bit.tx_full) {
+			I2C_DEBUG_PRINT("tx_full\n");
 			break;
 		}
-		i2c_dev->i2c_regs->tdata.all = *i2c_dev->msg_buf;
-		i2c_dev->msg_buf++;
-		i2c_dev->msg_buf_remaining--;
+		i2c_dev->i2c_regs->tdata.all = *(i2c_dev->msg_write_buf);
+		i2c_dev->msg_write_buf++;
+		i2c_dev->msg_write_remaining--;
+		n--;
 	}
-	if (i2c_dev->msg_buf_remaining
-	    && !i2c_dev->i2c_regs->fifo_ctl.bit.tx_empty_hold) {
-		//printk("tx_empty_hold\n");
-		i2c_dev->i2c_regs->fifo_ctl.bit.tx_empty_hold = 1;
+	if (hold) {
+		i2c_dev->i2c_regs->fifo_ctl.all = 0;
 	}
 }
 
-static void x2_drain_rxfifo(struct x2_i2c_dev_s *i2c_dev)
+static void x2_drain_rxfifo(struct x2_i2c_dev_s *i2c_dev, int hold)
 {
 	u8 val;
-	while (i2c_dev->msg_buf_remaining) {
-		//val = x2_i2c_readl(i2c_dev, x2_i2c_status);
-		if (i2c_dev->i2c_regs->status.bit.rx_empty)
-			break;
-		val = i2c_dev->i2c_regs->rdata.all;
-		*(i2c_dev->msg_buf) = val;
-		i2c_dev->msg_buf++;
-		i2c_dev->msg_buf_remaining--;
+	int n = X2_I2C_FIFO_SIZE;
+
+	if (hold) {
+		i2c_dev->i2c_regs->fifo_ctl.all = 0x2;
 	}
-	//if (i2c_dev->msg_buf_remaining
-		//&& !i2c_dev->i2c_regs->fifo_ctl.bit.rx_full_hold) {
-		//i2c_dev->i2c_regs->fifo_ctl.bit.rx_full_hold = 1;
-	//}
+	
+	while (n && i2c_dev->msg_read_remaining) {
+		if (i2c_dev->i2c_regs->status.bit.rx_empty) {
+			I2C_DEBUG_PRINT("rx empty\n");
+			break;
+		}
+		val = i2c_dev->i2c_regs->rdata.all;
+		*(i2c_dev->msg_read_buf) = val;
+		i2c_dev->msg_read_buf++;
+		i2c_dev->msg_read_remaining--;
+		n--;
+	}
+
+	if (hold) {
+		i2c_dev->i2c_regs->fifo_ctl.all = 0;
+	}
 }
-
-#if 0
-static void x2_fill_txfifo_byte(struct x2_i2c_dev_s *i2c_dev)
-{
-	//u32 val;
-
-	i2c_dev->i2c_regs->tdata.all = *i2c_dev->msg_buf;
-	i2c_dev->msg_buf++;
-	i2c_dev->msg_buf_remaining--;
-}
-
-static void x2_drain_rxfifo_byte(struct x2_i2c_dev_s *i2c_dev)
-{
-	//u32 val;
-
-	if (i2c_dev->i2c_regs->status.bit.rx_empty)
-		return;
-	*i2c_dev->msg_buf = i2c_dev->i2c_regs->rdata.all;
-	i2c_dev->msg_buf++;
-	i2c_dev->msg_buf_remaining--;
-}
-#endif
 
 static irqreturn_t x2_i2c_isr(int this_irq, void *data)
 {
@@ -212,71 +208,106 @@ static irqreturn_t x2_i2c_isr(int this_irq, void *data)
 	//union status_reg_e i2c_status;
 	disable_irq_nosync(this_irq);
 
-	I2C_DEBUG_PRINT("x2_i2c_isr\n");	//test
+	I2C_DEBUG_PRINT("x2_i2c_isr %x %x\n", i2c_dev->i2c_regs->status.all, i2c_dev->i2c_regs->srcpnd.all);
 	x2_mask_int(i2c_dev);
 	int_status.all = i2c_dev->i2c_regs->srcpnd.all;
 	//i2c_status.all = i2c_dev->i2c_regs->status.all;
 	x2_clear_int(i2c_dev);
 
-	err =
-	    int_status.bit.nack | int_status.bit.sterr | int_status.bit.
-	    al | int_status.bit.to | int_status.bit.aerr;
+	err = int_status.bit.nack | int_status.bit.sterr | 
+			int_status.bit.al | int_status.bit.to | 
+			int_status.bit.aerr;
 	I2C_DEBUG_PRINT("status err  %x\n", err);
 
 	if (err) {
 		i2c_dev->msg_err = int_status.all;
-		I2C_DEBUG_PRINT("isr err:%x\n", i2c_dev->msg_err);
-	} else if (int_status.bit.tr_done || int_status.bit.rrdy
-		   || int_status.bit.xrdy) {
-		if (i2c_dev->i2c_state == i2c_read) {
-			if (i2c_dev->msg_buf)
-				x2_drain_rxfifo(i2c_dev);
-			else
-				goto error;
-			comp = (i2c_dev->msg_buf_remaining) ? 0 : 1;
-		} else if (i2c_dev->i2c_state == i2c_write) {
-			comp = (i2c_dev->msg_buf_remaining) ? 0 : 1;
-			x2_fill_txfifo(i2c_dev);
-		} else {
-			I2C_DEBUG_PRINT("isr in idle state\n");
-		}
-		if (!comp) {
-			x2_unmask_int(i2c_dev,
-				i2c_dev->msg_buf_remaining > X2_I2C_FIFO_SIZE);
+		I2C_DEBUG_PRINT("i2c isr err:%x\n", i2c_dev->msg_err);
+	} else {
+		if (int_status.bit.tr_done || int_status.bit.rrdy || int_status.bit.xrdy) {
+			if (i2c_dev->i2c_state == i2c_read) {
+				if (int_status.bit.tr_done)
+					x2_drain_rxfifo(i2c_dev, 0);
+				else 
+					x2_drain_rxfifo(i2c_dev, 1);
+				comp = (i2c_dev->msg_read_remaining) ? 0 : 1;
+			} else if (i2c_dev->i2c_state == i2c_write) {
+				comp = (i2c_dev->msg_write_remaining) ? 0 : 1;
+				if (int_status.bit.tr_done)
+					x2_fill_txfifo(i2c_dev, 0);
+				else
+					x2_fill_txfifo(i2c_dev, 1);
+			} else if (i2c_dev->i2c_state == i2c_write_read){
+				if (int_status.bit.xrdy) {
+					x2_fill_txfifo(i2c_dev, 1);
+				} else if (int_status.bit.tr_done){
+					x2_drain_rxfifo(i2c_dev, 0);
+				} else {
+					x2_drain_rxfifo(i2c_dev, 1);
+				}
+				comp = (i2c_dev->msg_read_remaining) ? 0 : 1;
+			} else {
+				;
+			}
+			if (!comp) {
+				x2_unmask_int(i2c_dev);
+			}
 		}
 	}
 	if (comp) {
 		complete(&i2c_dev->completion);
-		i2c_dev->msg_buf = NULL;
+		i2c_dev->msg_write_buf = NULL;
+		i2c_dev->msg_read_buf = NULL;
 	}
-error:
+
 	enable_irq(this_irq);
 	I2C_DEBUG_PRINT("x2 irq end\n");
 	return IRQ_HANDLED;
 }
 
-#if 1
 static int x2_i2c_xfer_msg(struct x2_i2c_dev_s *i2c_dev, struct i2c_msg *msg)
 {
 	unsigned long time_left;
 	union ctl_reg_e ctl_reg;
-	i2c_dev->msg_buf = msg->buf;
-	i2c_dev->msg_buf_remaining = msg->len;
+
+	i2c_dev->msg_write_buf = msg->buf;
+	i2c_dev->msg_read_buf = msg->buf;
+	i2c_dev->msg_flags = msg->flags;
+	
 	reinit_completion(&i2c_dev->completion);
 	i2c_dev->msg_err = 0;
+
+	I2C_DEBUG_PRINT("x2_i2c_xfer_msg %x %x\n", msg->flags, msg->len);
+	
 	x2_mask_int(i2c_dev);
 	i2c_dev->i2c_regs->srcpnd.all = 0xffffffff;	//clear int
+
 	x2_wait_idle(i2c_dev);
+
 	ctl_reg.all = 0;
-	if (msg->flags & I2C_M_RD) {
+
+	if (msg->flags & 0x20) {
+		i2c_dev->msg_write_remaining = msg->len >> 8;
+		i2c_dev->msg_read_remaining = msg->len & 0xff;
+		I2C_DEBUG_PRINT("r %lu w %lu\n", i2c_dev->msg_read_remaining, i2c_dev->msg_write_remaining);
 		ctl_reg.bit.rd = 1;
-		i2c_dev->i2c_regs->dcount.bit.r_dcount = msg->len;
-		i2c_dev->i2c_state = i2c_read;
+		i2c_dev->i2c_regs->dcount.all = i2c_dev->msg_read_remaining << 16 | i2c_dev->msg_write_remaining;
+		x2_fill_txfifo(i2c_dev, 0);
+		i2c_dev->i2c_state = i2c_write_read;
 	} else {
-		ctl_reg.bit.wr = 1;
-		i2c_dev->i2c_regs->dcount.bit.w_dcount = msg->len;
-		x2_fill_txfifo(i2c_dev);
-		i2c_dev->i2c_state = i2c_write;
+		if (msg->flags & I2C_M_RD) {
+			i2c_dev->msg_read_remaining = msg->len;
+			i2c_dev->msg_write_remaining = 0;
+			ctl_reg.bit.rd = 1;
+			i2c_dev->i2c_regs->dcount.bit.r_dcount = msg->len;
+			i2c_dev->i2c_state = i2c_read;
+		} else {
+			i2c_dev->msg_write_remaining = msg->len;
+			i2c_dev->msg_read_remaining = 0;
+			ctl_reg.bit.wr = 1;
+			i2c_dev->i2c_regs->dcount.bit.w_dcount = msg->len;
+			x2_fill_txfifo(i2c_dev, 0);
+			i2c_dev->i2c_state = i2c_write;
+		}
 	}
 
 	if (msg->flags & I2C_M_TEN) {
@@ -285,117 +316,63 @@ static int x2_i2c_xfer_msg(struct x2_i2c_dev_s *i2c_dev, struct i2c_msg *msg)
 		i2c_dev->i2c_regs->addr.all = msg->addr << 1;
 	}
 	ctl_reg.bit.sta = 1;
-	if (write_byte_nostop == 0)
-		ctl_reg.bit.sto = 1;
-	else
-		ctl_reg.bit.sto = 0;
+	ctl_reg.bit.sto = 1;
 
-	x2_unmask_int(i2c_dev, msg->len > X2_I2C_FIFO_SIZE);
+	if (msg->flags & 0x20) {
+		i2c_dev->i2c_regs->intunmask.all = 0xffffffff;
+	} else
+		x2_unmask_int(i2c_dev);
+
+	dump_reg(i2c_dev);
+	I2C_DEBUG_PRINT("ctl_reg.all %x\n", ctl_reg.all);
 	i2c_dev->i2c_regs->ctl.all = ctl_reg.all;
-
 	time_left = wait_for_completion_timeout(&i2c_dev->completion,
 						X2_I2C_TIMEOUT);
 	x2_wait_idle(i2c_dev);
-	// end clear all state
-	//printk( "status reg:[%x] \n", g_i2c_regs->status.all);
+
 	i2c_dev->i2c_regs->fifo_ctl.all = 0;
 	ctl_reg.all = 0;
 	ctl_reg.bit.rfifo_clr = 1;
 	ctl_reg.bit.tfifo_clr = 1;
-
 	i2c_dev->i2c_regs->ctl.all = ctl_reg.all;
 	i2c_dev->i2c_regs->fifo_ctl.all = 0;
+
 	if (!time_left) {
 		I2C_DEBUG_PRINT("i2c transfer timed out\n");
 		return -ETIMEDOUT;
 	}
-	if (i2c_dev->msg_buf_remaining) {
+
+	if (i2c_dev->msg_read_remaining || i2c_dev->msg_write_remaining) {
 		I2C_DEBUG_PRINT("i2c transfer not compelte\n");
 	}
+
 	if (likely(!i2c_dev->msg_err))
 		return 0;
-	ctl_reg.bit.sto = 1;
+
 	x2_clear_int(i2c_dev);
 
 	I2C_DEBUG_PRINT("i2c transfer failed: %x\n", i2c_dev->msg_err);
 
 	return -EIO;
 }
-#else //for non transcation mode
-static int x2_i2c_xfer_bytemode(struct x2_i2c_dev_s *i2c_dev,
-				struct i2c_msg *msg)
-{
-	unsigned long time_left;
-	union ctl_reg ctl_reg;
-
-	i2c_dev->msg_buf = msg->buf;
-	i2c_dev->msg_buf_remaining = msg->len;
-	reinit_completion(&i2c_dev->completion);
-	x2_mask_int(i2c_dev);
-	i2c_dev->i2c_regs->srcpnd.all = 0xffffffff;	//clear int
-	while (i2c_dev->msg_buf_remaining--) {
-		if (msg->flags & i2c_m_rd) {
-			ctl_reg.bit.rd = 1;
-		} else {
-			ctl_reg.bit.wr = 1;
-			x2_fill_txfifo_byte(i2c_dev);
-		}
-		ctl_reg.bit.sta = 1;
-		if (msg->flags & i2c_m_ten) {
-			i2c_dev->i2c_regs->addr.all = msg->addr | bit(11);
-		} else {
-			i2c_dev->i2c_regs->addr.all = msg->addr;
-		}
-		x2_unmask_int(i2c_dev, msg->flags & i2c_m_rd);
-		i2c_dev->i2c_regs->ctl.all = ctl_reg.all;
-
-		time_left = wait_for_completion_timeout(&i2c_dev->completion,
-							X2_I2C_TIMEOUT);
-		//x2_i2c_writel(i2c_dev, X2_I2C_CTL,  X2_I2C_C_RCLR|X2_I2C_C_WCLR|X2_I2C_C_PCLR);
-		// end clear all state
-		ctl_reg.all = 0;
-		ctl_reg.bit.rfifo_clr = 1;
-		ctl_reg.bit.tfifo_clr = 1;
-		ctl_reg.bit.pfifo_clr = 1;
-		ctl_reg.bit.sto = 1;
-		i2c_dev->i2c_regs->CTL.all = ctl_reg.all;
-
-		if (!time_left) {
-			dev_err(i2c_dev->dev, "i2c transfer timed out\n");
-			return -ETIMEDOUT;
-		}
-
-		if (likely(!i2c_dev->msg_err))
-			return 0;
-
-		dev_err(i2c_dev->dev, "i2c transfer failed: %x\n",
-			i2c_dev->msg_err);
-	}
-
-	if (likely(!i2c_dev->msg_err))
-		return 0;
-	dev_err(i2c_dev->dev, "i2c transfer failed: %x\n", i2c_dev->msg_err);
-
-	return -EIO;
-}
-#endif
 
 static int x2_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[], int num)
 {
 	struct x2_i2c_dev_s *i2c_dev = i2c_get_adapdata(adap);
 	int i;
 	int ret = 0;
+	
 	x2_i2c_reset(i2c_dev);
-	x2_i2c_cfg(i2c_dev, 1);
+	if (msgs[0].flags & 0x20) {
+		x2_i2c_cfg(i2c_dev, 0, 0);
+	} else {
+		x2_i2c_cfg(i2c_dev, 1, 1);
+	}
+
 	for (i = 0; i < num; i++) {
-#if 1
 		ret = x2_i2c_xfer_msg(i2c_dev, &msgs[i]);
-#else
-		x2_i2c_xfer_bytemode(i2c_dev, &msgs[i]);
-#endif
 		if (ret)
 			break;
-		x2_wait_idle(i2c_dev);
 	}
 	return ret ? : i;
 }
@@ -411,26 +388,27 @@ static int x2_i2c_doxfer_smbus(struct x2_i2c_dev_s *i2c_dev, u16 addr, bool writ
 	x2_wait_idle(i2c_dev);
 	ctl_reg.all = 0;
 
-	i2c_dev->msg_buf = &command;
-	i2c_dev->msg_buf_remaining = 1;
+	i2c_dev->msg_write_buf = &command;
 	if (write) {
+		i2c_dev->msg_write_remaining = 1;
 		i2c_dev->i2c_regs->dcount.bit.w_dcount = size + 1;
-		x2_fill_txfifo(i2c_dev);
+		x2_fill_txfifo(i2c_dev, 0);
 		if (data) {
-			i2c_dev->msg_buf_remaining = size;
-			i2c_dev->msg_buf = data;
-			x2_fill_txfifo(i2c_dev);
+			i2c_dev->msg_write_remaining = size;
+			i2c_dev->msg_write_buf = data;
+			x2_fill_txfifo(i2c_dev, 0);
 		}
 		i2c_dev->i2c_state = i2c_write;
 		ctl_reg.bit.wr = 1;
 	} else {
+		i2c_dev->msg_read_remaining = 1;
 		i2c_dev->i2c_regs->dcount.bit.w_dcount = 1;
-		x2_fill_txfifo(i2c_dev);
+		x2_fill_txfifo(i2c_dev, 0);
 
 		i2c_dev->i2c_regs->dcount.bit.r_dcount = size;
 		i2c_dev->i2c_state = i2c_read;
-		i2c_dev->msg_buf = data;
-		i2c_dev->msg_buf_remaining = size;
+		i2c_dev->msg_read_buf = data;
+		i2c_dev->msg_read_remaining = size;
 		ctl_reg.bit.rd = 1;
 
 	}
@@ -440,7 +418,7 @@ static int x2_i2c_doxfer_smbus(struct x2_i2c_dev_s *i2c_dev, u16 addr, bool writ
 	i2c_dev->i2c_regs->addr.all = addr << 1;
 
 	i2c_dev->i2c_regs->srcpnd.all = 0xffffffff;	//clear int
-	x2_unmask_int(i2c_dev, (size + 1) > X2_I2C_FIFO_SIZE);
+	x2_unmask_int(i2c_dev);
 	i2c_dev->i2c_regs->ctl.all = ctl_reg.all;
 
 	time_left = wait_for_completion_timeout(&i2c_dev->completion,
@@ -452,7 +430,7 @@ static int x2_i2c_doxfer_smbus(struct x2_i2c_dev_s *i2c_dev, u16 addr, bool writ
 		I2C_DEBUG_PRINT("i2c sbus transfer timed out\n");
 		return -ETIMEDOUT;
 	}
-	if (i2c_dev->msg_buf_remaining) {
+	if (i2c_dev->msg_read_remaining || i2c_dev->msg_write_remaining) {
 		I2C_DEBUG_PRINT("i2c sbus transfer not compelte\n");
 	}
 	if (likely(!i2c_dev->msg_err))
@@ -473,8 +451,8 @@ static int x2_i2c_xfer_smbus(struct i2c_adapter *adap, u16 addr,
 	struct x2_i2c_dev_s *i2c_dev = i2c_get_adapdata(adap);
 
 	x2_i2c_reset(i2c_dev);
-	x2_i2c_cfg(i2c_dev, 0);
-	I2C_DEBUG_PRINT("i2c sbus transfer start: cmd:%d rw:%d size:%d\n", command, read_write, size);
+	x2_i2c_cfg(i2c_dev, 0, 1);
+	I2C_DEBUG_PRINT("i2c sbus transfer start: addr:%x cmd:%d rw:%d size:%d\n", addr, command, read_write, size);
 
 	switch (size) {
 	case I2C_SMBUS_BYTE:
@@ -605,7 +583,7 @@ static int x2_i2c_probe(struct platform_device *pdev)
 	adap->dev.parent = &pdev->dev;
 	adap->dev.of_node = pdev->dev.of_node;
 
-	x2_i2c_cfg(i2c_dev, 1);
+	x2_i2c_cfg(i2c_dev, 1, 1);
 
 	ret = i2c_add_adapter(adap);
 	if (ret)
