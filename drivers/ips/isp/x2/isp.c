@@ -693,9 +693,19 @@ static void __exit isp_dev_exit(void)
 	kzfree(isp_mod);
 }
 
-late_initcall(isp_dev_init);
+int isp_model_init(void)
+{
+	return isp_dev_init();
+}
+
+int isp_model_exit(void)
+{
+	isp_dev_exit();
+}
+
+//late_initcall(isp_dev_init);
 //module_init(isp_dev_init);
-module_exit(isp_dev_exit);
+//module_exit(isp_dev_exit);
 
 MODULE_AUTHOR("Horizon Inc.");
 MODULE_DESCRIPTION("Image Signal Process for X2 of chip");

@@ -41,6 +41,7 @@
 #include "x2_isp.h"
 #include "isp_base.h"
 #include "x2/x2_ips.h"
+#include "isp.h"
 
 /* global variable define */
 static struct isp_dev_s *isp_dev;
@@ -148,6 +149,9 @@ static int isp_dev_probe(struct platform_device *pdev)
 	set_isp_regbase(isp_dev->regbase);
 
 	platform_set_drvdata(pdev, isp_dev);
+	ret = isp_model_init();
+	if (ret < 0)
+		goto err_out2; 
 
 	return 0;
 
@@ -161,6 +165,7 @@ err_out2:
 static int isp_dev_remove(struct platform_device *pdev)
 {
 	dev_info(&pdev->dev, "[%s] is remove!\n", __func__);
+	isp_model_exit();
 	vm_unmap_ram(isp_dev->vaddr, isp_dev->memsize / PAGE_SIZE);
 	devm_kfree(&pdev->dev, isp_dev);
 	clr_isp_regbase();

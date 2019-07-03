@@ -132,4 +132,8 @@ typedef struct _reg_s {
 #define ISP_READ        _IOWR('p', 0, reg_t)
 #define ISP_WRITE       _IOW('p', 1, reg_t)
 
+int isp_model_init(void);
+int isp_model_exit(void);
+
+
 #endif /* __X2_ISP_H__ */
