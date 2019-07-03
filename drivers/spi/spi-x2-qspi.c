@@ -27,6 +27,9 @@
 #include <linux/mtd/spi-nor.h>
 #include <linux/mtd/spinand.h>
 
+/* Uncomment the following macro definition to turn on debugging */
+// #define QSPI_DEBUG
+
 /* Generic QSPI register offsets */
 #define	QSPI_TX_RX_REG		0x00
 #define	QSPI_SCLK_CON		0x04
@@ -395,10 +398,79 @@ void qspi_dump_reg(struct x2_qspi *xqspi)
 	uint32_t val = 0, i;
 
 	for (i = QSPI_TX_RX_REG; i <= QSPI_XIP_CFG; i = i + 4) {
-		val = x2_qsssspi_read(xqspi, i);
-		pr_info("reg[0x%08x] ==> [0x%08x]\n", xqspi->regs + i, val);
+		val = x2_qspi_read(xqspi, i);
+		printk("reg[0x%08x] ==> [0x%08x]\n", xqspi->regs + i, val);
 	}
 }
+
+void trace_transfer(const struct spi_transfer *transfer)
+{
+#define __TRACE_BUF_SIZE__ 128
+	int i = 0;
+	const u8 *tmpbuf = NULL; // kzalloc(tmpbufsize, GFP_KERNEL);
+	char tmp_prbuf[32];
+	char *prbuf = kzalloc(__TRACE_BUF_SIZE__, GFP_KERNEL);
+	int nbits = 0;
+
+	memset(prbuf, '\0', __TRACE_BUF_SIZE__);
+	if( transfer->tx_buf ){
+		nbits = transfer->tx_nbits;
+		tmpbuf = (const u8 *)transfer->tx_buf;
+	}else if(transfer->rx_buf){
+		nbits = transfer->rx_nbits;
+		tmpbuf = (const u8 *)transfer->rx_buf;
+	}else{
+		printk("No data\n");
+		kfree(prbuf);
+
+		return ;
+	}
+
+	sprintf(prbuf, "%s-%s[B:%d][L:%d] ", transfer->rx_buf ? "<" : "", 
+		transfer->tx_buf ? ">" : "", nbits, transfer->len);
+
+	if(transfer->len) {
+		sprintf(tmp_prbuf, " ");
+		strcat(prbuf, tmp_prbuf);
+#define QSPI_DEBUG_DATA_LEN	16
+		for(i = 0; i < ((transfer->len < QSPI_DEBUG_DATA_LEN) ? 
+					transfer->len : QSPI_DEBUG_DATA_LEN); i++) {
+			sprintf(tmp_prbuf, "%02X ", tmpbuf[i]);
+			strcat(prbuf, tmp_prbuf);
+		}
+	}
+	printk("%s\n", prbuf);
+	kfree(prbuf);
+}
+
+extern const char *__clk_get_name(const struct clk *clk);
+void trace_xqspi(struct x2_qspi *xqspi)
+{
+	printk("struct x2_qspi *xqspi(0x%16X) = {\n", xqspi);
+	printk("\t\t.regs[Phy] = 0x%0p\n", xqspi->regs);
+	if(xqspi->pdev) {
+		printk(".pdev = %s\n", dev_name(&xqspi->pdev->dev));
+	}
+#ifdef CONFIG_X2_SOC
+	printk("\t\t.ref_clk = %u\n", xqspi->ref_clk);
+	if(xqspi->pclk) {
+		printk("\t\t.pclk = %s@%u\n", __clk_get_name(xqspi->pclk), 
+			clk_get_rate(xqspi->pclk));
+	}
+#else
+	printk("\t\t.ref_clk = %d\n", xqspi->ref_clk);
+	printk("\t\t.qspi_clk = %d\n", xqspi->qspi_clk);
+#endif
+	printk("\t\t.irq = %d\n", xqspi->irq);
+	printk("\t\t.dev = %s\n", dev_name(xqspi->dev));
+	// printk("\t\ttxbuf: 0x%p\n", xqspi->txbuf);
+	// printk("\t\trxbuf: 0x%p\n", xqspi->rxbuf);
+	printk("\t\t.speed_hz = %d\n", xqspi->speed_hz);
+	printk("\t\t.mode = 0x%08X\n", xqspi->mode);
+	printk("\t\t.batch_mode = %d\n", xqspi->batch_mode);
+	printk("}\n");
+}
+
 #endif
 
 static void x2_qspi_hw_init(struct x2_qspi *xqspi)
@@ -868,6 +940,11 @@ static int x2_qspi_start_transfer(struct spi_master *master,
 	qspi->mode = mode;
 	transfer->len = transfer_len;
 
+#ifdef QSPI_DEBUG
+		// trace transfer data when transfer done
+		trace_transfer(transfer);
+#endif
+
 	spi_finalize_current_transfer(master);
 	return transfer->len;
 }
@@ -958,8 +1035,6 @@ static int x2_qspi_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct device_node *nc;
 	u32 num_cs;
-	u32 rx_bus_width;
-	u32 tx_bus_width;
 	u32 max_speed_hz;
 
 	master = spi_alloc_master(&pdev->dev, sizeof(*xqspi));
@@ -1033,6 +1108,9 @@ static int x2_qspi_probe(struct platform_device *pdev)
 
 	/* QSPI controller initializations */
 	x2_qspi_hw_init(xqspi);
+#ifdef QSPI_DEBUG
+	trace_xqspi(xqspi);
+#endif
 
 	if (master->dev.parent == NULL)
 		master->dev.parent = &master->dev;
