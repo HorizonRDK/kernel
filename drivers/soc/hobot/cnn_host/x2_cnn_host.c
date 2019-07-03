@@ -58,7 +58,6 @@ extern struct sock *cnn_netlink_init(int unit);
 extern int cnn_netlink_send(struct sock *sock, int group, void *msg, int len);
 struct sock *cnn_nl_sk;
 #define FC_TIME_CNT 53
-#define INT_INFO_CNT 20
 
 static DEFINE_MUTEX(x2_cnn_mutex);
 static char *g_chrdev_name = "cnn";
@@ -405,6 +404,7 @@ static irqreturn_t x2_cnn_interrupt_handler(int irq, void *dev_id)
 		if (!ret) {
 			spin_lock_irqsave(&dev->cnn_spin_lock, flags);
 			dev->cnn_int_num.cnn_int_num[dev->cnn_int_num.cnn_int_count] = tmp_irq;
+			dev->cnn_int_num.cnn_int_interval[dev->cnn_int_num.cnn_int_count] = 0;
 			if (dev->cnn_int_num.cnn_int_count < CNN_INT_NUM)
 				dev->cnn_int_num.cnn_int_count++;
 			spin_unlock_irqrestore(&dev->cnn_spin_lock, flags);
@@ -413,9 +413,16 @@ static irqreturn_t x2_cnn_interrupt_handler(int irq, void *dev_id)
 
 		spin_lock_irqsave(&dev->cnn_spin_lock, flags);
 		dev->cnn_int_num.cnn_int_num[dev->cnn_int_num.cnn_int_count] = tmp.int_num;
-		if (dev->cnn_int_num.cnn_int_count < CNN_INT_NUM) {
+		do_gettimeofday(&tmp.end_time);
+		dev->cnn_int_num.cnn_int_interval[dev->cnn_int_num.cnn_int_count] =
+			(tmp.end_time.tv_sec * 1000000 + tmp.end_time.tv_usec)
+			- (tmp.start_time.tv_sec * 1000000 + tmp.start_time.tv_usec);
+		if (dev->cnn_int_num.cnn_int_count < CNN_INT_NUM - 1) {
 			dev->cnn_int_num.cnn_int_count++;
 			dev->real_int_cnt++;
+		} else {
+			spin_unlock_irqrestore(&dev->cnn_spin_lock, flags);
+			break;
 		}
 
 		spin_unlock_irqrestore(&dev->cnn_spin_lock, flags);
@@ -474,6 +481,14 @@ static void x2_cnn_set_fc_start_time(struct x2_cnn_dev *dev, int int_num,
 				dev->time_tail++;
 				dev->time_tail %= FC_TIME_CNT;
 			}
+			if ((dev->zero_int_start_time.tv_sec == 0)
+					&& (dev->zero_int_start_time.tv_usec == 0)) {
+				do_gettimeofday(&x2_int.start_time);
+			} else {
+				x2_int.start_time = dev->zero_int_start_time;
+				dev->zero_int_start_time.tv_sec = 0;
+				dev->zero_int_start_time.tv_usec = 0;
+			}
 			x2_int.fc_total = dev->zero_int_cnt + 1;
 			x2_int.int_num = int_num;
 			ret = kfifo_in(&dev->int_info_fifo, &x2_int,
@@ -487,8 +502,12 @@ static void x2_cnn_set_fc_start_time(struct x2_cnn_dev *dev, int int_num,
 				dev->wait_nega_flag = 0;
 			}
 
-		} else
+		} else {
+			if (!dev->zero_int_cnt) {
+				do_gettimeofday(&dev->zero_int_start_time);
+			}
 			dev->zero_int_cnt++;
+		}
 	} else {
 		if (fc_time_enable) {
 			spin_lock_bh(&dev->set_time_lock);
@@ -500,6 +519,14 @@ static void x2_cnn_set_fc_start_time(struct x2_cnn_dev *dev, int int_num,
 			if (fc_time_enable) {
 				dev->time_tail++;
 				dev->time_tail %= FC_TIME_CNT;
+			}
+			if ((dev->zero_int_start_time.tv_sec == 0)
+					&& (dev->zero_int_start_time.tv_usec == 0)) {
+				do_gettimeofday(&x2_int.start_time);
+			} else {
+				x2_int.start_time = dev->zero_int_start_time;
+				dev->zero_int_start_time.tv_sec = 0;
+				dev->zero_int_start_time.tv_usec = 0;
 			}
 			x2_int.fc_total = dev->zero_int_cnt + 1;
 			x2_int.int_num = int_num;
@@ -514,8 +541,12 @@ static void x2_cnn_set_fc_start_time(struct x2_cnn_dev *dev, int int_num,
 				pr_err("%s[%d]:x2 interrupt info fifo no space\n",
 					__func__, __LINE__);
 
-		} else
+		} else {
+			if (!dev->zero_int_cnt) {
+				do_gettimeofday(&dev->zero_int_start_time);
+			}
 			dev->zero_int_cnt++;
+		}
 	}
 	atomic_inc(&dev->wait_fc_cnt);
 }
@@ -984,7 +1015,7 @@ static void x2_cnn_do_tasklet(unsigned long data)
 			&dev->cnn_int_num, sizeof(dev->cnn_int_num));
 	if ((ret < 0) && (ret != -ESRCH)) {
 		pr_err("CNN trigger irq[%d] failed errno[%d]!\n",
-				dev->cnn_int_num, ret);
+				dev->cnn_int_num.cnn_int_num[0], ret);
 	} else if (ret == sizeof(dev->cnn_int_num)) {
 		spin_lock_irqsave(&dev->cnn_spin_lock, flags);
 		dev->cnn_int_num.cnn_int_count = 0;
@@ -1551,7 +1582,7 @@ int x2_cnn_probe(struct platform_device *pdev)
 	spin_lock_init(&cnn_dev->cnn_spin_lock);
 
 	rc = kfifo_alloc(&cnn_dev->int_info_fifo,
-		    sizeof(struct x2_int_info) * INT_INFO_CNT, GFP_KERNEL);
+		    sizeof(struct x2_int_info) * x2_cnn_reg_read(cnn_dev, X2_CNN_FC_LEN), GFP_KERNEL);
 	if (rc < 0) {
 		pr_err("kfifo alloc error\n");
 		goto err_out;

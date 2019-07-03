@@ -124,6 +124,8 @@ struct x2_fc_time {
 struct x2_int_info {
 	unsigned int fc_total;
 	unsigned int int_num;
+	struct timeval start_time;
+	struct timeval end_time;
 };
 
 struct x2_cnnfreq {
@@ -137,7 +139,9 @@ struct x2_cnnfreq {
 
 struct x2_cnn_int_num {
 	u32 cnn_int_num[CNN_INT_NUM];
+	u64 cnn_int_interval[CNN_INT_NUM];
 	u32 cnn_int_count;
+	u32 reserved[CNN_INT_NUM];
 };
 
 struct x2_cnn_dev {
@@ -185,6 +189,7 @@ struct x2_cnn_dev {
 	struct completion bpu_completion;
 	struct completion nega_completion;
 	int zero_int_cnt;
+	struct timeval zero_int_start_time;
 	unsigned int real_int_cnt;
 	unsigned int wait_nega_flag;
 #ifdef CONFIG_HOBOT_CNN_DEVFREQ
