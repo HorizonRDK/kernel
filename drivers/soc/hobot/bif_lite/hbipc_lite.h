@@ -125,6 +125,10 @@ struct comm_domain_statistic {
 	int read_call_count;
 	int read_real_count;
 	int accept_count;
+	int write_resend_count;
+	int write_resend_over_count;
+	int mang_resend_count;
+	int mang_resend_over_count;
 };
 
 struct comm_domain {

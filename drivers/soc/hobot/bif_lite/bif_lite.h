@@ -7,6 +7,9 @@
 #include "../bif_base/bif_api.h"
 #include "bif_platform.h"
 
+#define BIF_TX_ERROR_NO_MEM   (-1)
+#define BIF_TX_ERROR_TRANS    (-2)
+
 struct bif_frame_cache {
 	int framelen;
 	struct list_head frame_cache_list;
@@ -89,8 +92,6 @@ struct current_frame_info {
 };
 
 struct comm_channel_statistics {
-	int resend_count;
-	int resend_over_count;
 	int trig_count;
 	int retrig_count;
 };
@@ -101,6 +102,7 @@ struct comm_channel {
 	enum BUFF_ID buffer_id;
 	int transfer_align;
 	addr_t base_addr;
+	addr_t base_addr_phy;
 	// memory limit concerned
 	int frame_len_max;
 	int frag_len_max;

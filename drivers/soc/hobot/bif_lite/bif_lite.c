@@ -288,7 +288,6 @@ err:
 	return ret;
 }
 
-#define TX_RETRY_MAX (200)
 static inline int  bif_tx_cut_fragment(struct comm_channel *channel,
 unsigned char *data, int len)
 {
@@ -300,8 +299,6 @@ unsigned char *data, int len)
 	int count = 0;
 	int index = 0;
 	struct frag_info fragment_info;
-	unsigned long remainning_time = 0;
-	int retry_count = 0;
 
 	// calculate fragment count & last copy byte
 	frag_count = len / channel->valid_frag_len_max;
@@ -313,25 +310,13 @@ unsigned char *data, int len)
 
 	bif_debug("len = %d l_c = %d fr_c = %d\n",
 		len, last_copy, frag_count);
-resend:
+
 	ret = bif_tx_get_available_buffer(channel, &index,
 		&count, frag_count);
 	if (ret < 0) {
-		++retry_count;
-		++channel->channel_statistics.resend_count;
-		if (retry_count > TX_RETRY_MAX) {
-			++channel->channel_statistics.resend_over_count;
+		ret = BIF_TX_ERROR_NO_MEM;
 			goto err;
 		}
-
-		remainning_time = bif_sleep(5);
-		if (!remainning_time)
-			goto resend;
-		else {
-			pr_info("bif_sleep interruptible\n");
-			goto err;
-		}
-	}
 
 	bif_debug("count =  %d\n", count);
 	bif_debug("index =  %d\n", index);
@@ -366,6 +351,7 @@ resend:
 		ret = bif_tx_put_data_to_buffer(channel, index,
 			frag_p, &fragment_info);
 		if (ret < 0) {
+			ret = BIF_TX_ERROR_TRANS;
 			bif_err("bif_err: %s %d\n", __func__, __LINE__);
 			goto err;
 		}
@@ -1014,6 +1000,16 @@ static inline int bif_init_cp_ddr(struct comm_channel *channel)
 		goto err;
 	}
 
+	ret = bif_read_cp_ddr_channel(channel, tx_remote_info_tmp,
+		channel->tx_remote_info_offset,
+		ALIGN(sizeof(struct bif_rx_ring_info),
+		channel->transfer_align));
+	if (ret < 0) {
+		bif_err("bif_err: %s  %d\n", __func__, __LINE__);
+		goto err;
+	}
+	pr_info("init: tx_remote_info %d\n", tx_remote_info_tmp->recv_head);
+
 	tx_local_info_tmp = bif_malloc(
 	ALIGN(sizeof(struct bif_tx_ring_info), channel->transfer_align));
 	if (!tx_local_info_tmp) {
@@ -1030,6 +1026,16 @@ static inline int bif_init_cp_ddr(struct comm_channel *channel)
 		bif_err("bif_err: %s  %d\n", __func__, __LINE__);
 		goto err;
 	}
+
+	ret = bif_read_cp_ddr_channel(channel, tx_local_info_tmp,
+		channel->tx_local_info_offset,
+		ALIGN(sizeof(struct bif_tx_ring_info),
+		channel->transfer_align));
+	if (ret < 0) {
+		bif_err("bif_err: %s  %d\n", __func__, __LINE__);
+		goto err;
+	}
+	pr_info("init: tx_local_info %d\n", tx_local_info_tmp->send_tail);
 
 	rx_local_info_tmp = bif_malloc(
 	ALIGN(sizeof(struct bif_rx_ring_info), channel->transfer_align));
@@ -1049,6 +1055,16 @@ static inline int bif_init_cp_ddr(struct comm_channel *channel)
 		goto err;
 	}
 
+	ret = bif_read_cp_ddr_channel(channel, rx_local_info_tmp,
+		channel->rx_local_info_offset,
+		ALIGN(sizeof(struct bif_rx_ring_info),
+		channel->transfer_align));
+	if (ret < 0) {
+		bif_err("bif_err: %s  %d\n", __func__, __LINE__);
+		goto err;
+	}
+	pr_info("init: rx_local_info_tmp %d\n", rx_local_info_tmp->recv_head);
+
 	rx_remote_info_tmp = bif_malloc(
 	ALIGN(sizeof(struct bif_tx_ring_info), channel->transfer_align));
 	if (!rx_remote_info_tmp) {
@@ -1065,6 +1081,16 @@ static inline int bif_init_cp_ddr(struct comm_channel *channel)
 		bif_err("bif_err: %s  %d\n", __func__, __LINE__);
 		goto err;
 	}
+
+	ret = bif_read_cp_ddr_channel(channel, rx_remote_info_tmp,
+		channel->rx_remote_info_offset,
+		ALIGN(sizeof(struct bif_tx_ring_info),
+		channel->transfer_align));
+	if (ret < 0) {
+		bif_err("bif_err: %s  %d\n", __func__, __LINE__);
+		goto err;
+	}
+	pr_info("init: rx_remote_info_tmp %d\n", rx_remote_info_tmp->send_tail);
 err:
 	if (tx_remote_info_tmp)
 		bif_free(tx_remote_info_tmp);
@@ -1109,7 +1135,7 @@ int bif_lite_init(struct comm_channel *channel)
 	//	(unsigned long *)&base_addr_tmp_phy);
 	base_addr_tmp = (addr_t)bif_dma_alloc(channel->total_mem_size,
 	(dma_addr_t *)&base_addr_tmp_phy, GFP_KERNEL, 0);
-	pr_info("bif_alloc_cp: vir_addr = %lx phy_addr = %lx total = %d\n",
+	pr_info("bif_dma_alloc: vir_addr = %lx phy_addr = %lx total = %d\n",
 	base_addr_tmp, base_addr_tmp_phy, channel->total_mem_size);
 
 	if (base_addr_tmp <= 0) {
@@ -1117,6 +1143,7 @@ int bif_lite_init(struct comm_channel *channel)
 		bif_debug("bif_alloc_cp fail\n ");
 		goto err;
 	}
+	channel->base_addr_phy = base_addr_tmp_phy;
 
 	// CP set virtual address, register physical address
 	bif_set_base_addr(channel, base_addr_tmp);
@@ -1182,10 +1209,10 @@ static void dump_channel_info(struct comm_channel *channel)
 	pr_debug("transfer_align = %d\n", channel->transfer_align);
 	pr_debug("==== memory limit concerned ====\n");
 	pr_debug("base_addr = %lx\n", channel->base_addr);
-	pr_debug("frame_len_max = %d\n", channel->frame_len_max);
-	pr_debug("frag_len_max = %d\n", channel->frag_len_max);
+	pr_info("frame_len_max = %d\n", channel->frame_len_max);
+	pr_info("frag_len_max = %d\n", channel->frag_len_max);
 	pr_debug("valid_frag_len_max = %d\n", channel->valid_frag_len_max);
-	pr_debug("frag_num = %d\n", channel->frag_num);
+	pr_info("frag_num = %d\n", channel->frag_num);
 	pr_debug("frame_cache_max = %d\n", channel->frame_cache_max);
 	pr_debug("==== memory layout concerned ====\n");
 	pr_debug("rx_local_info_offset = %lx\n",

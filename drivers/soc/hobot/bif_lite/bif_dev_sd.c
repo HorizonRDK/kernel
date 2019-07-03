@@ -29,6 +29,8 @@
 #include "hbipc_errno.h"
 #include "bif_dev_sd.h"
 
+#define VERSION "2.0.0"
+
 /* ioctl cmd */
 #define BIF_IOC_MAGIC  'c'
 #define BIF_IO_PROVIDER_INIT     _IO(BIF_IOC_MAGIC, 0)
@@ -38,6 +40,7 @@
 #define BIF_IO_STOP_SERVER       _IO(BIF_IOC_MAGIC, 4)
 #define BIF_IO_CONNECT           _IO(BIF_IOC_MAGIC, 5)
 #define BIF_IO_DISCONNECT        _IO(BIF_IOC_MAGIC, 6)
+#define BIF_IO_SET_USR_TIMEOUT   _IO(BIF_IOC_MAGIC, 7)
 
 //#define WORK_COUNT (100)
 struct x2_bif_data {
@@ -52,6 +55,12 @@ struct x2_bif_data {
 	struct completion ready_to_recv;
 };
 static struct x2_bif_data bif_data;
+
+struct transfer_feature {
+	int block;
+	int sys_timeout;
+	int usr_timeout;
+};
 
 static struct class  *g_bif_class;
 static struct device *g_bif_dev;
@@ -92,13 +101,14 @@ irq_handler_count = %d\nrx_work_func_count = %d\n\
 rx_flowcontrol_count = %d\naccept_count = %d\n\
 write_call_count = %d\nwrite_real_count = %d\n\
 read_call_count = %d\nread_real_count = %d\n\
+write_resend_count = %d\nwrite_resend_over_count = %d\n\
 bif_dev_sd hbipc layer statistics:\n\
 interrupt_recv_count = %d\nmanage_recv_count = %d\n\
 data_recv_count = %d\nmanage_frame_count = %d\n\
 data_frame_count = %d\nup_sem_count = %d\n\
 send_manage_count = %d\n\
+mang_resend_count = %d\nmang_resend_over_count = %d\n\
 bif_dev_sd transfer layer statistics:\n\
-resend_count = %d\nresend_over_count = %d\n\
 trig_count = %d\nretrig_count = %d\n",
 	domain.domain_statistics.irq_handler_count,
 	domain.domain_statistics.rx_work_func_count,
@@ -108,6 +118,8 @@ trig_count = %d\nretrig_count = %d\n",
 	domain.domain_statistics.write_real_count,
 	domain.domain_statistics.read_call_count,
 	domain.domain_statistics.read_real_count,
+	domain.domain_statistics.write_resend_count,
+	domain.domain_statistics.write_resend_over_count,
 	domain.domain_statistics.interrupt_recv_count,
 	domain.domain_statistics.manage_recv_count,
 	domain.domain_statistics.data_recv_count,
@@ -115,8 +127,8 @@ trig_count = %d\nretrig_count = %d\n",
 	domain.domain_statistics.data_frame_count,
 	domain.domain_statistics.up_sem_count,
 	domain.domain_statistics.send_manage_count,
-	domain.channel.channel_statistics.resend_count,
-	domain.channel.channel_statistics.resend_over_count,
+	domain.domain_statistics.mang_resend_count,
+	domain.domain_statistics.mang_resend_over_count,
 	domain.channel.channel_statistics.trig_count,
 	domain.channel.channel_statistics.retrig_count);
 
@@ -286,14 +298,27 @@ static int bif_lite_init_success;
 #endif
 static int x2_bif_open(struct inode *inode, struct file *file)
 {
-#ifdef CONFIG_HOBOT_BIF_AP
 	int ret = 0;
-#endif
+	struct transfer_feature *feature = NULL;
 
 	mutex_lock(&open_mutex);
 
+	feature = kmalloc(sizeof(struct transfer_feature), GFP_KERNEL);
+	if (!feature) {
+		pr_info("malloc transfer feature error\n");
+		ret = -ENOMEM;
+		goto err;
+	}
+
+	memset(feature, 0, sizeof(struct transfer_feature));
+	feature->sys_timeout = 2000;
+	if (file->f_flags & O_NONBLOCK)
+		feature->block = 0;
+	else
+		feature->block = 1;
+
 	if (!bif_data.users) {
-		file->private_data = g_bif_dev;
+		file->private_data = feature;
 #ifdef CONFIG_HOBOT_BIF_AP
 		if (!bif_lite_init_success) {
 			if (bif_lite_init_domain(&domain) < 0) {
@@ -323,20 +348,20 @@ static int x2_bif_open(struct inode *inode, struct file *file)
 			goto err;
 		}
 #endif
-		file->private_data = g_bif_dev;
+		file->private_data = feature;
 		++bif_data.users;
 	}
 
 	mutex_unlock(&open_mutex);
 
 	return 0;
-#ifdef CONFIG_HOBOT_BIF_AP
 err:
 	mutex_unlock(&open_mutex);
 	return ret;
-#endif
 }
 
+#define SYS_TIMEOUT  (0)
+#define USR_TIMEOUT  (1)
 static DEFINE_MUTEX(write_mutex);
 static char send_frame[FRAME_LEN_MAX];
 static ssize_t x2_bif_write(struct file *file, const char __user *buf,
@@ -345,6 +370,12 @@ size_t count, loff_t *ppos)
 	int ret = 0;
 	struct send_mang_data data;
 	int status = 0;
+	struct transfer_feature *feature =
+		(struct transfer_feature *)file->private_data;
+	int timeout_type = 0;
+	int timeout_value = 0;
+	int timeout_accumulate = 0;
+	int remaining_time = 0;
 
 	++domain.domain_statistics.write_call_count;
 
@@ -375,15 +406,79 @@ size_t count, loff_t *ppos)
 	}
 
 	mutex_lock(&domain.write_mutex);
-	ret = bif_tx_put_frame_domain(&domain, send_frame, data.len);
-	if (ret < 0) {
+
+	if (feature->block) {
+		// block
+		if (!feature->usr_timeout) {
+			timeout_type = SYS_TIMEOUT;
+			timeout_value = feature->sys_timeout;
+		} else {
+			if (feature->usr_timeout < feature->sys_timeout) {
+				timeout_type = USR_TIMEOUT;
+				timeout_value = feature->usr_timeout;
+			} else {
+				timeout_type = SYS_TIMEOUT;
+				timeout_value = feature->sys_timeout;
+			}
+		}
+resend:
+		ret = bif_tx_put_frame_domain(&domain, send_frame, data.len);
+		if (ret < 0) {
+			if (ret == BIF_TX_ERROR_NO_MEM) {
+				if (timeout_accumulate > timeout_value) {
+					if (timeout_type == USR_TIMEOUT)
+						data.result = HBIPC_ERROR_SEND_USER_TIMEOUT;
+					else
+						data.result = HBIPC_ERROR_SEND_SYS_TIMEOUT;
+					++domain.domain_statistics.write_resend_over_count;
+					status = copy_to_user((void __user *)buf, &data, sizeof(data));
+					if (status)
+						ret = -EFAULT;
+					mutex_unlock(&domain.write_mutex);
+					goto error;
+				} else {
+					++domain.domain_statistics.write_resend_count;
+					remaining_time = msleep_interruptible(10);
+					if (!remaining_time) {
+						timeout_accumulate += 10;
+						goto resend;
+					} else {
+						pr_info("sleep interruptuble\n");
 		data.result = HBIPC_ERROR_HW_TRANS_ERROR;
+						ret = -1;
+						status = copy_to_user((void __user *)buf, &data, sizeof(data));
+						if (status)
+							ret = -EFAULT;
+						mutex_unlock(&domain.write_mutex);
+						goto error;
+					}
+				}
+			} else {
+				data.result = HBIPC_ERROR_HW_TRANS_ERROR;
+				ret = -1;
+				status = copy_to_user((void __user *)buf, &data, sizeof(data));
+				if (status)
+					ret = -EFAULT;
+				mutex_unlock(&domain.write_mutex);
+				goto error;
+			}
+		}
+	} else {
+		// nonblock
+		ret = bif_tx_put_frame_domain(&domain, send_frame, data.len);
+		if (ret < 0) {
+			if (ret == BIF_TX_ERROR_NO_MEM)
+				data.result = HBIPC_ERROR_SEND_NO_MEM;
+			else
+				data.result = HBIPC_ERROR_HW_TRANS_ERROR;
+		}
 		status = copy_to_user((void __user *)buf, &data, sizeof(data));
 		if (status)
 			ret = -EFAULT;
 		mutex_unlock(&domain.write_mutex);
 		goto error;
 	}
+
 	mutex_unlock(&domain.write_mutex);
 	mutex_unlock(&write_mutex);
 
@@ -407,6 +502,9 @@ loff_t *ppos)
 	struct hbipc_header *header = NULL;
 	struct list_head *pos = NULL;
 	int session_list_empty = 0;
+	struct transfer_feature *feature = NULL;
+	int timeout_type = 0;
+	int timeout_value = 0;
 
 	//mutex_lock(&read_mutex);
 	++domain.domain_statistics.read_call_count;
@@ -459,14 +557,40 @@ loff_t *ppos)
 		ret = 0;
 	}
 #endif
-	ret = down_interruptible(&session_des->frame_count_sem);
-	if (ret < 0) {
-		printk("down_interruptible\n");
-		goto error;
+	feature = (struct transfer_feature *)file->private_data;
+	if (feature->block) {
+		// block
+		if (!feature->usr_timeout) {
+			timeout_type = SYS_TIMEOUT;
+			timeout_value = feature->sys_timeout;
+		} else {
+			if (feature->usr_timeout < feature->sys_timeout) {
+				timeout_type = USR_TIMEOUT;
+				timeout_value = feature->usr_timeout;
+			} else {
+				timeout_type = SYS_TIMEOUT;
+				timeout_value = feature->sys_timeout;
+			}
 	}
 
-	spin_lock(&(session_des->recv_list.lock));
-	session_list_empty = list_empty(&(session_des->recv_list.list));
+		ret = down_timeout(&session_des->frame_count_sem,
+			msecs_to_jiffies(timeout_value));
+		if (ret < 0) {
+			if (timeout_type == USR_TIMEOUT)
+				data.result = HBIPC_ERROR_RECV_USER_TIMEOUT;
+			else
+				data.result = HBIPC_ERROR_RECV_SYS_TIMEOUT;
+			status = copy_to_user((void __user *)buf, &data, sizeof(data));
+			if (status)
+				ret = -EFAULT;
+			goto error;
+		} else {
+			spin_lock(&(session_des->recv_list.lock));
+			session_list_empty = list_empty(&(session_des->recv_list.list));
+			if (!session_list_empty) {
+				pos = session_des->recv_list.list.next;
+				list_del(pos);
+			}
 	spin_unlock(&(session_des->recv_list.lock));
 
 	if (session_list_empty) {
@@ -477,11 +601,22 @@ loff_t *ppos)
 			ret = -EFAULT;
 		goto error;
 	}
+		}
+	} else {
+		// nonblock
+		spin_lock(&(session_des->recv_list.lock));
+		session_list_empty = list_empty(&(session_des->recv_list.list));
+		if (!session_list_empty) {
+			pos = session_des->recv_list.list.next;
+			list_del(pos);
+		}
+		spin_unlock(&(session_des->recv_list.lock));
 
-	spin_lock(&(session_des->recv_list.lock));
-	pos = session_des->recv_list.list.next;
-	list_del(pos);
-	spin_unlock(&(session_des->recv_list.lock));
+		if (session_list_empty) {
+			ret = 0;
+			goto error;
+		}
+	}
 
 	frame = list_entry(pos, struct bif_frame_cache, frame_cache_list);
 	if (frame->framelen - HBIPC_HEADER_LEN > data.len) {
@@ -491,7 +626,8 @@ loff_t *ppos)
 		spin_lock(&(session_des->recv_list.lock));
 		list_add(pos, &session_des->recv_list.list);
 		spin_unlock(&(session_des->recv_list.lock));
-		up(&session_des->frame_count_sem);
+		if (feature->block)
+			up(&session_des->frame_count_sem);
 		ret = -1;
 		data.result = HBIPC_ERROR_RECV_OVERFLOW;
 		status = copy_to_user((void __user *)buf, &data,
@@ -508,7 +644,8 @@ loff_t *ppos)
 		spin_lock(&(session_des->recv_list.lock));
 		list_add(pos, &session_des->recv_list.list);
 		spin_unlock(&(session_des->recv_list.lock));
-		up(&session_des->frame_count_sem);
+		if (feature->block)
+			up(&session_des->frame_count_sem);
 	} else {
 		ret = header->length;
 		// consume a data frame really
@@ -538,6 +675,8 @@ static int x2_bif_close(struct inode *inode, struct file *file)
 	pr_info("pid = %d\n", current->pid);
 	pr_info("tgid = %d\n", current->tgid);
 	pr_info("surplus frame: %d\n", domain.channel.rx_frame_count);
+	kfree(file->private_data);
+	file->private_data = NULL;
 #ifndef CONFIG_HOBOT_BIF_AP
 	data.domain_id = domain.domain_id;
 	data.provider_id = current->tgid;
@@ -573,6 +712,7 @@ static long x2_bif_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	int status = 0;
 	struct session_desc *connect = NULL;
 	struct session_desc *session_des = NULL;
+	struct transfer_feature *feature = NULL;
 
 	mutex_lock(&ioctl_mutex);
 
@@ -633,13 +773,18 @@ static long x2_bif_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			data.provider_id = connect->provider_id;
 			data.client_id = connect->client_id;
 		} else {
-			data.result = 0;
+			data.result = HBIPC_ERROR_NO_VALID_SESSION;
 			ret = -1;
 		}
 		status = copy_to_user((void __user *)arg, &data,
 		sizeof(data));
-		if (status)
+		if (status) {
+			if (ret == 0) {
+				connect->connected = 0;
+				++domain.unaccept_session_count;
+			}
 			ret = -EFAULT;
+		}
 		break;
 	case BIF_IO_START_SERVER:
 		if (copy_from_user(&data, (const char __user *)arg,
@@ -717,6 +862,11 @@ connect_out:
 		if (status)
 			ret = -EFAULT;
 		break;
+	case BIF_IO_SET_USR_TIMEOUT:
+		feature = (struct transfer_feature *)file->private_data;
+		feature->usr_timeout = (int)arg;
+		pr_info("usr_timeout = %dms\n", feature->usr_timeout);
+		break;
 	default:
 		ret = -EINVAL;
 	}
@@ -758,6 +908,8 @@ static int bif_lite_probe(struct platform_device *pdev)
 	int           ret = 0;
 	dev_t         devno;
 	struct cdev  *p_cdev = &bif_cdev;
+
+	pr_info("biflite_sd version: %s\n", VERSION);
 #if 0
 	unsigned long flags = IRQF_ONESHOT | IRQF_TRIGGER_FALLING;
 #endif
@@ -888,6 +1040,8 @@ static int bif_lite_probe_param(void)
 	int           ret = 0;
 	dev_t         devno;
 	struct cdev  *p_cdev = &bif_cdev;
+
+	pr_info("biflite_sd version: %s\n", VERSION);
 #if 0
 	unsigned long flags = IRQF_ONESHOT | IRQF_TRIGGER_FALLING;
 #endif

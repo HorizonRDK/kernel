@@ -511,6 +511,7 @@ error:
 }
 EXPORT_SYMBOL(is_valid_session);
 
+#define TX_RETRY_MAX (100)
 char mang_frame_send_error_buf[HBIPC_HEADER_LEN + MANAGE_MSG_LEN];
 int mang_send_error;
 static int mang_frame_send2opposite(struct comm_domain *domain,
@@ -523,6 +524,9 @@ int type, struct send_mang_data *data)
 	(struct manage_message *)(mang_frame_send_buf +
 	HBIPC_HEADER_LEN);
 	int *p = (int *)(message->msg_text);
+	int ret = 0;
+	int remaining_time = 0;
+	int retry_count = 0;
 
 	++domain->domain_statistics.send_manage_count;
 
@@ -593,22 +597,57 @@ int type, struct send_mang_data *data)
 
 	// resend last error manage frame
 	if (mang_send_error) {
-		if (bif_tx_put_frame(&domain->channel, mang_frame_send_error_buf,
-			HBIPC_HEADER_LEN + MANAGE_MSG_LEN) < 0) {
-			hbipc_error("repeat bif_tx_put_frame error\n");
+repeat_resend:
+		ret = bif_tx_put_frame(&domain->channel, mang_frame_send_error_buf,
+			HBIPC_HEADER_LEN + MANAGE_MSG_LEN);
+		if (ret < 0) {
+			if (ret == BIF_TX_ERROR_NO_MEM) {
+				++retry_count;
+				++domain->domain_statistics.mang_resend_count;
+				if (retry_count > TX_RETRY_MAX) {
+					++domain->domain_statistics.mang_resend_over_count;
+					hbipc_error("repeat bif_tx_put_frame overtry\n");
+				} else {
+					remaining_time = msleep_interruptible(5);
+					if (!remaining_time)
+						goto repeat_resend;
+					else
+						hbipc_error("repeat send mang interruptible\n");
+				}
+			} else
+				hbipc_error("repeat bif_tx_put_frame error\n");
+
 			mutex_unlock(&domain->write_mutex);
 			goto error;
 		}
 		mang_send_error = 0;
 	}
+	retry_count = 0;
 
-	if (bif_tx_put_frame(&domain->channel, mang_frame_send_buf,
-		HBIPC_HEADER_LEN + MANAGE_MSG_LEN) < 0) {
+resend:
+	ret = bif_tx_put_frame(&domain->channel, mang_frame_send_buf,
+		HBIPC_HEADER_LEN + MANAGE_MSG_LEN);
+	if (ret < 0) {
+		if (ret == BIF_TX_ERROR_NO_MEM) {
+			++retry_count;
+			++domain->domain_statistics.mang_resend_count;
+			if (retry_count > TX_RETRY_MAX) {
+				++domain->domain_statistics.mang_resend_over_count;
+				hbipc_error("bif_tx_put_frame overtry\n");
+			} else {
+				remaining_time = msleep_interruptible(5);
+				if (!remaining_time)
+					goto resend;
+				else
+					hbipc_error("send mang interruptible\n");
+			}
+		} else
+			hbipc_error("bif_tx_put_frame error\n");
+
 		// prepare to resent error manage frame
 		memcpy(mang_frame_send_error_buf, mang_frame_send_buf,
 			HBIPC_HEADER_LEN + MANAGE_MSG_LEN);
 		mang_send_error = 1;
-		hbipc_error("bif_tx_put_frame error\n");
 		mutex_unlock(&domain->write_mutex);
 		goto error;
 	}
@@ -1098,6 +1137,7 @@ struct send_mang_data *data)
 	}
 	connect = provider->session.session_array +
 	provider->session.first_avail;
+	resource_queue_deinit(domain, &connect->recv_list);
 	connect->valid = 1;
 #ifdef CONFIG_HOBOT_BIF_AP
 	connect->connected = 1;
@@ -1845,8 +1885,10 @@ int start_server(struct comm_domain *domain, struct send_mang_data *data)
 		ret = get_start_index(&relation->start_list, data->client_id);
 		if (ret < 0) {
 			// current client didn't start this provider
-			if (relation->start_list.count <= 0)
+			if (relation->start_list.count <= 0) {
 				data->result = HBIPC_ERROR_RMT_RES_ALLOC_FAIL;
+				ret = 0;
+			}
 			else {
 				provider_start_des =
 				relation->start_list.start_array +
@@ -1865,7 +1907,8 @@ int start_server(struct comm_domain *domain, struct send_mang_data *data)
 			data->result = HBIPC_ERROR_REPEAT_STARTSERVER;
 			ret = 0;
 		}
-	}
+	} else
+		data->result = HBIPC_ERROR_INVALID_SERVERID;
 
 	mutex_unlock(&domain->connect_mutex);
 
