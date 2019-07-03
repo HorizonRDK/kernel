@@ -190,7 +190,7 @@
 };
 
 &nor_flash {
-	status = "disabled";
+	status = "okay";
 	#address-cells = <1>;
 	#size-cells = <0>;
 	qspi-mode = <4>;
@@ -226,7 +226,7 @@
 };
 
 &qspi {
-	status = "ok";
+	status = "disabled";
 	#address-cells = <1>;
 	#size-cells = <0>;
 	clocks = <&sys_qspi_aclk>;
