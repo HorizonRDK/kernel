@@ -525,7 +525,9 @@ static int dw_mci_x2_switch_voltage(struct mmc_host *mmc, struct mmc_ios *ios)
 			dev_dbg(host->dev, "voltage not supported\n");
 			return -EINVAL;
 		}
-	}
+	} else {
+        ios->signal_voltage = MMC_SIGNAL_VOLTAGE_180;
+    }
 
 	/*
 	 * Program the voltage.  Note that some instances of dw_mmc may use

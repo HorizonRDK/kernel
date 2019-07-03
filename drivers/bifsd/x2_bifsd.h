@@ -306,7 +306,7 @@ static inline void mmc_set_power_up(struct bif_sd *sd)
 
 static inline void mmc_set_hard_reset_cnt(struct bif_sd *sd)
 {
-	u32 pwr_cnt_val = 0;
+	u32 pwr_cnt_val = 0x1F4;
 
 	sd_writel(sd, HARD_RESET_CNT, pwr_cnt_val, 0);
 }
