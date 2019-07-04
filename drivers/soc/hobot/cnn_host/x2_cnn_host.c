@@ -622,6 +622,7 @@ static void x2_cnn_power_up(struct x2_cnn_dev *dev)
 	int ret;
 	unsigned int tmp;
 
+	lock_bpu(dev);
 	pr_info("%s\n", __func__);
 	ret = regulator_enable(dev->cnn_regulator);
 	if (ret != 0)
@@ -638,6 +639,7 @@ static void x2_cnn_power_up(struct x2_cnn_dev *dev)
 	x2_cnn_hw_init(dev);
 	x2_cnn_set_fc_base(dev);
 	x2_cnn_set_default_fc_depth(dev, 1023);
+	unlock_bpu(dev);
 }
 /**
  * x2_cnn_power_down - stop cnn
@@ -668,7 +670,7 @@ static void x2_cnn_power_down(struct x2_cnn_dev *dev)
  *
  * Return: 0 success, others failed
  */
-static u32 x2_cnn_fc_fifo_enqueue(struct x2_cnn_dev *dev,
+static int x2_cnn_fc_fifo_enqueue(struct x2_cnn_dev *dev,
 		struct x2_cnn_fc_info *fc_buf)
 {
 	u32 rc = 0;
@@ -680,6 +682,10 @@ static u32 x2_cnn_fc_fifo_enqueue(struct x2_cnn_dev *dev,
 	u32 count;
 	struct hbrt_x2_funccall_s *tmp_ptr = NULL;
 
+	if (!regulator_is_enabled(dev->cnn_regulator) ||
+	    !__clk_is_enabled(dev->cnn_aclk) ||
+	    !__clk_is_enabled(dev->cnn_mclk))
+		return -1;
 	fc_depth = x2_cnn_reg_read(dev, X2_CNN_FC_LEN);
 	fc_head_idx = x2_cnn_reg_read(dev, X2_CNN_FC_HEAD);
 	fc_head_flag = fc_head_idx & X2_CNN_FC_IDX_FLAG;
@@ -756,10 +762,18 @@ static int x2_cnn_open(struct inode *inode, struct file *filp)
 	int rc = 0;
 	struct x2_cnn_dev *devdata;
 
+
 	mutex_lock(&x2_cnn_mutex);
 
 	devdata = container_of(inode->i_cdev, struct x2_cnn_dev, i_cdev);
 	filp->private_data = devdata;
+	if (!regulator_is_enabled(devdata->cnn_regulator) ||
+	    !__clk_is_enabled(devdata->cnn_aclk) ||
+	    !__clk_is_enabled(devdata->cnn_mclk)) {
+		mutex_unlock(&x2_cnn_mutex);
+
+		return -1;
+	}
 
 	mutex_unlock(&x2_cnn_mutex);
 
@@ -2006,7 +2020,6 @@ static ssize_t bpu1_power_store(struct kobject *kobj,
 	return count;
 }
 
-
 static struct kobj_attribute pro_frequency = __ATTR(profiler_frequency, 0664,
 						    fre_show, fre_store);
 static struct kobj_attribute pro_enable    = __ATTR(profiler_enable, 0664,
@@ -2038,9 +2051,6 @@ static struct kobj_attribute bpu0_power_en = __ATTR(power_enable, 0644,
 static struct kobj_attribute bpu1_power_en  = __ATTR(power_enable, 0644,
 						     bpu1_power_show,
 						     bpu1_power_store);
-
-
-
 
 static struct attribute *bpu_attrs[] = {
 	&pro_frequency.attr,
