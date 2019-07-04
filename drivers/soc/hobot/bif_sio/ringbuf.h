@@ -29,11 +29,10 @@
 #include <linux/kernel.h>
 
 struct ringbuf_t {
-	char *rbuf;
-	char *wbuf;
 	unsigned int head;
 	unsigned int tail;
 	unsigned int size;
+	unsigned int reserve;
 };
 
 /*
@@ -96,7 +95,8 @@ const unsigned int ringbuf_head(const struct ringbuf_t *rb);
  * results in an overflow, the value of the ring buffer's tail pointer
  * may be different than it was before the function was called.
  */
-unsigned int ringbuf_read(struct ringbuf_t *rb, char *buff, unsigned int count);
+unsigned int ringbuf_read(struct ringbuf_t *rb, char *dst,
+			  char *src, unsigned int count);
 
 /*
  * This convenience function calls write(2) on the file descriptor fd,
@@ -118,7 +118,7 @@ unsigned int ringbuf_read(struct ringbuf_t *rb, char *buff, unsigned int count);
  * no bytes are written to the file descriptor, and the function will
  * return 0.
  */
-unsigned int ringbuf_write(struct ringbuf_t *rb,
-			   const char *buff, unsigned int count);
+unsigned int ringbuf_write(struct ringbuf_t *rb, char *dst,
+			   const char *src, unsigned int count);
 
 #endif /* INCLUDED_RINGBUF_H */

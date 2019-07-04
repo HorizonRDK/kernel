@@ -51,8 +51,7 @@ struct ringbuf_t *ringbuf_new(unsigned int capacity, char *rbuf, char *wbuf)
 	if (rb) {
 		/* One byte is used for detecting the full condition. */
 		rb->size = capacity + 1;
-		rb->rbuf = rbuf;
-		rb->wbuf = wbuf;
+
 	}
 	return rb;
 }
@@ -77,6 +76,7 @@ unsigned int ringbuf_capacity(const struct ringbuf_t *rb)
 {
 	return ringbuf_buffer_size(rb) - 1;
 }
+
 EXPORT_SYMBOL(ringbuf_capacity);
 
 const unsigned int ringbuf_tail(const struct ringbuf_t *rb)
@@ -89,8 +89,8 @@ const unsigned int ringbuf_head(const struct ringbuf_t *rb)
 	return rb->head;
 }
 
-unsigned int ringbuf_write(struct ringbuf_t *rb,
-			   const char *buff, unsigned int count)
+unsigned int ringbuf_write(struct ringbuf_t *rb, char *dst,
+			   const char *src, unsigned int count)
 {
 	const unsigned int size = rb->size;
 	unsigned int len;
@@ -100,12 +100,12 @@ unsigned int ringbuf_write(struct ringbuf_t *rb,
 		return -1;
 	}
 	len = MIN(size - rb->head, count);
-	if (copy_from_user(rb->wbuf + rb->head, buff, len)) {
+	if (copy_from_user((char *)dst + rb->head, src, len)) {
 		rb_dbg_log("%s(%d)...\n", __func__, __LINE__);
 		return -2;
 	}
 	if (len < count) {
-		if (copy_from_user(rb->wbuf, buff + len, count - len)) {
+		if (copy_from_user((char *)dst, src + len, count - len)) {
 			rb_dbg_log("%s(%d)...\n", __func__, __LINE__);
 			return -3;
 		}
@@ -115,9 +115,11 @@ unsigned int ringbuf_write(struct ringbuf_t *rb,
 
 	return count;
 }
+
 EXPORT_SYMBOL(ringbuf_write);
 
-unsigned int ringbuf_read(struct ringbuf_t *rb, char *buff, unsigned int count)
+unsigned int ringbuf_read(struct ringbuf_t *rb, char *dst,
+			  char *src, unsigned int count)
 {
 	unsigned int size = rb->size;
 	unsigned int len;
@@ -127,12 +129,12 @@ unsigned int ringbuf_read(struct ringbuf_t *rb, char *buff, unsigned int count)
 		return -1;
 	}
 	len = MIN(size - rb->tail, count);
-	if (copy_to_user(buff, rb->rbuf + rb->tail, len)) {
+	if (copy_to_user(dst, (char *)src + rb->tail, len)) {
 		rb_dbg_log("%s(%d)\n", __func__, __LINE__);
 		return -2;
 	}
 	if (len < count) {
-		if (copy_to_user(buff + len, rb->rbuf, count - len)) {
+		if (copy_to_user(dst + len, (char *)src, count - len)) {
 			rb_dbg_log("%s(%d)\n", __func__, __LINE__);
 			return -3;
 		}
@@ -142,4 +144,5 @@ unsigned int ringbuf_read(struct ringbuf_t *rb, char *buff, unsigned int count)
 
 	return count;
 }
+
 EXPORT_SYMBOL(ringbuf_read);
