@@ -612,6 +612,56 @@ static u32 x2_cnn_get_fc_fifo_spaces(struct x2_cnn_dev *dev)
 			fc_depth, free_fc_fifo, fc_head_idx, fc_tail_idx);
 	return free_fc_fifo;
 }
+/**
+ * x2_cnn_clock_up - start cnn
+ * @dev: pointer to struct x2_cnn_dev
+ */
+static void x2_cnn_clock_up(struct x2_cnn_dev *dev)
+{
+	int ret;
+	unsigned int tmp;
+
+	lock_bpu(dev);
+	pr_info("%s\n", __func__);
+	tmp = readl(dev->cnn_pmu);
+
+	tmp &= ~(1 << dev->iso_bit);
+	writel(tmp, dev->cnn_pmu);
+	udelay(5);
+
+	x2_cnn_reset_release(dev->cnn_rst);
+	if (!__clk_is_enabled(dev->cnn_aclk))
+		clk_enable(dev->cnn_aclk);
+	if (!__clk_is_enabled(dev->cnn_mclk))
+		clk_enable(dev->cnn_mclk);
+	x2_cnn_hw_init(dev);
+	x2_cnn_set_fc_base(dev);
+	x2_cnn_set_default_fc_depth(dev, 1023);
+	unlock_bpu(dev);
+}
+/**
+ * x2_cnn_clock_down - stop cnn
+ * @dev: pointer to struct x2_cnn_dev
+ */
+static void x2_cnn_clock_down(struct x2_cnn_dev *dev)
+{
+	unsigned int tmp;
+
+	lock_bpu(dev);
+	pr_info("%s\n", __func__);
+	if (__clk_is_enabled(dev->cnn_aclk))
+		clk_disable(dev->cnn_aclk);
+	if (__clk_is_enabled(dev->cnn_mclk))
+		clk_disable(dev->cnn_mclk);
+	tmp = readl(dev->cnn_pmu);
+
+	tmp |= (1 << dev->iso_bit);
+	writel(tmp, dev->cnn_pmu);
+	udelay(5);
+
+	x2_cnn_reset_assert(dev->cnn_rst);
+	unlock_bpu(dev);
+}
 
 /**
  * x2_cnn_power_up - start cnn
@@ -634,8 +684,10 @@ static void x2_cnn_power_up(struct x2_cnn_dev *dev)
 	udelay(5);
 
 	x2_cnn_reset_release(dev->cnn_rst);
-	clk_enable(dev->cnn_aclk);
-	clk_enable(dev->cnn_mclk);
+	if (!__clk_is_enabled(dev->cnn_aclk))
+		clk_enable(dev->cnn_aclk);
+	if (!__clk_is_enabled(dev->cnn_mclk))
+		clk_enable(dev->cnn_mclk);
 	x2_cnn_hw_init(dev);
 	x2_cnn_set_fc_base(dev);
 	x2_cnn_set_default_fc_depth(dev, 1023);
@@ -651,8 +703,10 @@ static void x2_cnn_power_down(struct x2_cnn_dev *dev)
 	pr_info("%s\n", __func__);
 
 	lock_bpu(dev);
-	clk_disable(dev->cnn_aclk);
-	clk_disable(dev->cnn_mclk);
+	if (__clk_is_enabled(dev->cnn_aclk))
+		clk_disable(dev->cnn_aclk);
+	if (__clk_is_enabled(dev->cnn_mclk))
+		clk_disable(dev->cnn_mclk);
 	tmp = readl(dev->cnn_pmu);
 
 	tmp |= (1 << dev->iso_bit);
@@ -1929,17 +1983,17 @@ static ssize_t bpu0_clock_store(struct kobject *kobj,
 
 	ret = sscanf(buf, "%du", &bpu0_clk);
 	if (bpu0_clk) {
-		if (!__clk_is_enabled(cnn0_dev->cnn_aclk))
-			clk_enable(cnn0_dev->cnn_aclk);
-		if (!__clk_is_enabled(cnn0_dev->cnn_mclk))
-			clk_enable(cnn0_dev->cnn_mclk);
+		if (!__clk_is_enabled(cnn0_dev->cnn_aclk) ||
+			!__clk_is_enabled(cnn0_dev->cnn_mclk))
+			x2_cnn_clock_up(cnn0_dev);
 	} else {
-		lock_bpu(cnn0_dev);
-		clk_disable(cnn0_dev->cnn_aclk);
-		clk_disable(cnn0_dev->cnn_mclk);
-		unlock_bpu(cnn0_dev);
+		if (__clk_is_enabled(cnn0_dev->cnn_aclk) ||
+			__clk_is_enabled(cnn0_dev->cnn_mclk))
+			x2_cnn_clock_down(cnn0_dev);
 	}
+
 	return count;
+
 }
 
 static ssize_t bpu1_clock_show(struct kobject *kobj,
@@ -1958,15 +2012,13 @@ static ssize_t bpu1_clock_store(struct kobject *kobj,
 
 	ret = sscanf(buf, "%du", &bpu1_clk);
 	if (bpu1_clk) {
-		if (!__clk_is_enabled(cnn1_dev->cnn_aclk))
-			clk_enable(cnn1_dev->cnn_aclk);
-		if (!__clk_is_enabled(cnn1_dev->cnn_mclk))
-			clk_enable(cnn1_dev->cnn_mclk);
+		if (!__clk_is_enabled(cnn1_dev->cnn_aclk) ||
+			!__clk_is_enabled(cnn1_dev->cnn_mclk))
+			x2_cnn_clock_up(cnn1_dev);
 	} else {
-		lock_bpu(cnn1_dev);
-		clk_disable(cnn1_dev->cnn_aclk);
-		clk_disable(cnn1_dev->cnn_mclk);
-		unlock_bpu(cnn1_dev);
+		if (__clk_is_enabled(cnn1_dev->cnn_aclk) ||
+			__clk_is_enabled(cnn1_dev->cnn_mclk))
+			x2_cnn_clock_down(cnn1_dev);
 	}
 	return count;
 }
