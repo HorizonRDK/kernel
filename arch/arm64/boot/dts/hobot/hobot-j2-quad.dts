@@ -206,6 +206,7 @@
 
 	/* local-mac-address = [ 00 11 22 33 44 55 ]; */
 	fixed-link = <0 1 1000 0 0>;
+	is-quad-board;
 	phy-mode = "rgmii-id";
 	mdio {
 		#address-cells = <0x1>;
