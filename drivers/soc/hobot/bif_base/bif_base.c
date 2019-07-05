@@ -75,7 +75,7 @@
 
 #define BIFBASE_APMAGIC		"BIFA"
 #define BIFBASE_CPMAGIC		"BIFC"
-#define BIFBASE_VER		"HOBOT-bifbase_V21.190627"
+#define BIFBASE_VER		"HOBOT-bifbase_V21.190704"
 #define BIFBASE_MAJOR		(123)
 #define BIFBASE_BLOCK		(1024)	//(512)
 #define BIFBASE_VER_SIZE	(32)
@@ -1442,8 +1442,8 @@ void *bif_dma_alloc(size_t size, dma_addr_t *dma_addr,
 }
 EXPORT_SYMBOL(bif_dma_alloc);
 
-void bif_dma_free(size_t size, dma_addr_t *dma_addr,
-	gfp_t gfp, unsigned long attrs)
+void bif_dma_free(size_t size, void *cpu_addr, dma_addr_t dma_handle,
+	unsigned long attrs)
 {
 	struct bifbase_local *pl = get_bifbase_local();
 
@@ -1453,7 +1453,7 @@ void bif_dma_free(size_t size, dma_addr_t *dma_addr,
 	if (pl->plat->plat_type == PLAT_AP)
 		return;
 
-	dma_free_attrs(&pl->pdev->dev, size, dma_addr, gfp, attrs);
+	dma_free_attrs(&pl->pdev->dev, size, cpu_addr, dma_handle, attrs);
 }
 EXPORT_SYMBOL(bif_dma_free);
 

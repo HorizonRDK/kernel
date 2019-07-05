@@ -62,9 +62,8 @@ int bif_sync_ap(void);
 // cp dma alloc memory
 void *bif_dma_alloc(size_t size, dma_addr_t *dma_addr,
 	gfp_t gfp, unsigned long attrs);
-void bif_dma_free(size_t size, dma_addr_t *dma_addr,
-	gfp_t gfp, unsigned long attrs);
-
+void bif_dma_free(size_t size, void *cpu_addr, dma_addr_t dma_handle,
+	unsigned long attrs);
 void *bif_get_plat_info(void);
 char *bif_get_str_bus(enum BUFF_ID buffer_id);
 
