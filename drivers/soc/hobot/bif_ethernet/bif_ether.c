@@ -43,8 +43,8 @@
 #include "../bif_base/bif_base.h"
 #include "../bif_base/bif_api.h"
 
-#define BIFETH_CPVER		"HOBOT-bifeth_CPV21.190627"
-#define BIFETH_APVER		"HOBOT-bifeth_APV21.190627"
+#define BIFETH_CPVER		"HOBOT-bifeth_CPV21.190705"
+#define BIFETH_APVER		"HOBOT-bifeth_APV21.190705"
 #define BIFETH_NAME		"bifeth0"
 //#define BIFETH_RESERVED_MEM
 #define BIFETH_MEMATTRS		0	//DMA_ATTR_WRITE_BARRIER
@@ -58,6 +58,8 @@
 #define ALLOC_ETH_SIZE		((BIFETH_SIZE) * (ETHER_QUERE_SIZE))
 #define ALLOC_SIZE		(ALLOC_ETH_SIZE)
 
+#define AVER_TIME		(4)	//s
+#define RATE_THRESHOLD		(3000)	//M
 #define MAX_SKB_BUFFERS		(20)
 #define MAX(a, b)		((a) > (b) ? (a) : (b))
 #define MIN(a, b)		((a) < (b) ? (a) : (b))
@@ -93,6 +95,11 @@ struct bifnet_local {
 	int bifnet_channel;
 	char *bifnet;
 	int query_ok;
+
+	ulong rx_conut, tx_conut;
+	uint rx_rate, tx_rate;	//KByte/s
+	uint cal_rate_time;
+	struct timespec ts;
 
 };
 
@@ -288,6 +295,42 @@ static void bifnet_irq(void *p)
 	/* send irq to bif_base */
 	bif_send_irq(pl->bifnet_id);
 }
+
+static void bifnet_rate(void)
+{
+	ulong cur_rx_conut, cur_tx_conut;
+	ulong used_s, used_ms;
+	struct timespec te;
+	struct net_device *dev = get_bifnet();
+	struct bifnet_local *pl = netdev_priv(dev);
+
+	ktime_get_ts(&te);
+
+	used_ms = te.tv_sec * 1000 + te.tv_nsec / 1000000;
+	used_ms -= pl->ts.tv_sec * 1000;
+	used_s = used_ms / 1000;
+
+	if (used_s > 2 * AVER_TIME) {
+		pl->rx_conut = dev->stats.rx_bytes;
+		pl->tx_conut = dev->stats.tx_bytes;
+		pl->ts.tv_sec = te.tv_sec;
+		pl->cal_rate_time = 1;
+	} else if (used_s > pl->cal_rate_time) {
+		cur_rx_conut = dev->stats.rx_bytes - pl->rx_conut;
+		cur_tx_conut = dev->stats.tx_bytes - pl->tx_conut;
+		pl->rx_rate = cur_rx_conut / used_ms;
+		pl->tx_rate = cur_tx_conut / used_ms;
+
+		pl->rx_conut += cur_rx_conut >> 1;
+		pl->tx_conut += cur_tx_conut >> 1;
+		pl->ts.tv_sec += used_s >> 1;
+		if (pl->cal_rate_time < AVER_TIME)
+			pl->cal_rate_time++;
+
+		//pr_info("rxRate %dKB/s txRate%dKB/s\n", pl->rx_rate, pl->tx_rate);
+	}
+}
+
 static int rw(void *p, ulong phy, uint len, unchar *vir, int bus, int flg)
 {
 	unsigned int cur_bus = 0;
@@ -390,8 +433,17 @@ static void bifnet_rx_work(struct work_struct *work)
 			memcpy(skb->data, dev->dev_addr, ETH_ALEN);
 #endif
 		skb->protocol = eth_type_trans(skb, dev);
-		netif_rx(skb);
-		//netif_rx_ni(skb);	//preempt_disable
+		if (pl->plat->plat_type == PLAT_AP) {
+			netif_rx_ni(skb);
+		} else {
+			if (pl->rx_rate > RATE_THRESHOLD)
+				netif_rx(skb);
+			else
+				netif_rx_ni(skb);
+		}
+		//netif_rx(skb);
+		//netif_rx_ni(skb);
+		//netif_receive_skb(skb);
 		dev->stats.rx_packets++;
 		dev->stats.rx_bytes += cur_elen;
 
@@ -427,7 +479,7 @@ irqreturn_t bitnet_irq_handler(int irq, void *data)
 	if (!dev || !pl || !pl->start)
 		return IRQ_NONE;
 
-			netif_wake_queue(dev);	/* wakeup netif queue */
+	netif_wake_queue(dev);	/* wakeup netif queue */
 
 	queue_work(pl->rx_workqueue, &pl->rx_work);
 	//schedule_work(&pl->rx_work);
@@ -614,6 +666,8 @@ next_step:
 				pl->self->elen[i] = slen[i];
 			bifnet_irq((void *)pl);
 		}
+
+		bifnet_rate();
 	}
 
 	return 0;
@@ -891,8 +945,8 @@ static void bifnet_pre_exit(void)
 		kfree(pl->self_vir);
 	} else {
 #ifndef BIFETH_RESERVED_MEM
-		bif_dma_free(2 * ALLOC_SIZE, (dma_addr_t *)&pl->self_phy,
-			GFP_KERNEL, BIFETH_MEMATTRS);
+		bif_dma_free(2 * ALLOC_SIZE, (dma_addr_t *)&pl->self_vir,
+			(dma_addr_t)pl->self_phy, BIFETH_MEMATTRS);
 #endif
 	}
 
