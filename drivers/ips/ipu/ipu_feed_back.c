@@ -111,7 +111,7 @@ static int8_t ipu_set_ddr(uint32_t ddrbase, ipu_cfg_t *ipu)
 			ipu->ds_ddr[i].c_addr = 0;
 			continue;
 		}
-		w = ipu->pymid.ds_roi[i].w;
+		w = ALIGN_16(ipu->pymid.ds_roi[i].w);
 		h = ipu->pymid.ds_roi[i].h;
 		size = w * h;
 		ipu->ds_ddr[i].y_addr = ddrbase;
@@ -140,7 +140,7 @@ static int8_t ipu_set_ddr(uint32_t ddrbase, ipu_cfg_t *ipu)
 			ipu->us_ddr[i].c_addr = 0;
 			continue;
 		}
-		w = ipu->pymid.us_roi[i].w;
+		w = ALIGN_16(ipu->pymid.us_roi[i].w);
 		h = ipu->pymid.us_roi[i].h;
 		size = w * h;
 		ipu->us_ddr[i].y_addr = ddrbase;
