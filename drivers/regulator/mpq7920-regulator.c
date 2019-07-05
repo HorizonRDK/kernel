@@ -11,7 +11,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
-#define DEBUG
+
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/i2c.h>
@@ -283,6 +283,7 @@ static int mpq7920_pmic_probe(struct i2c_client *client,
 	const struct regmap_config *regmap_config;
 	unsigned long type;
 	int off_reg;
+	int retry_cnt;
 
 	dev_info(dev, "start probe\n");
 	pdata = dev_get_platdata(dev);
@@ -348,6 +349,7 @@ static int mpq7920_pmic_probe(struct i2c_client *client,
 		struct regulator_config config = { };
 		struct mpq7920_regulator_data *rdata;
 		struct regulator_dev *rdev;
+		retry_cnt = 2;
 
 		config.dev = dev;
 		config.driver_data = mpq7920;
@@ -359,10 +361,18 @@ static int mpq7920_pmic_probe(struct i2c_client *client,
 			config.of_node = rdata->of_node;
 		}
 
-		rdev = devm_regulator_register(dev, desc, &config);
-		if (IS_ERR(rdev)) {
-			dev_err(dev, "failed to register %s\n", desc->name);
-			return PTR_ERR(rdev);
+		/*QUAD:mqp7920's fist read has no ack
+		after cold reset,so retry*/
+		while (retry_cnt--) {
+			rdev = devm_regulator_register(dev, desc, &config);
+			if (!IS_ERR(rdev)) {
+				dev_dbg(dev, "try to register %s,retry cnt(%d)\n",
+					desc->name, retry_cnt);
+				break;
+			} else if (retry_cnt == 0) {
+				dev_err(dev, "failed to register %s\n", desc->name);
+				return PTR_ERR(rdev);
+			}
 		}
 	}
 
