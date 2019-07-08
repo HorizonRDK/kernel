@@ -177,12 +177,16 @@ void ipu_dual_mode_process(uint32_t status)
 	if (status & IPU_FRAME_DONE) {
 		ipu_slot_dual_h_t *slot_h = NULL;
 		ipu_info("ipu done\n");
-		slot_h = recv_slot_busy_to_done();
-		if (slot_h && test_and_clear_bit(IPU_PYM_STARTUP, &g_ipu_d_cdev->ipuflags)) {
-			slot_h = pym_slot_free_to_busy();
-			if (slot_h) {
-				set_next_pym_frame(slot_h, true);
-				pym_manual_start();
+		if (slot_alive(RECVING_SLOT_QUEUE) < 2) {
+			ipu_dbg("[%d] ipu recving slot less than 2\n", __LINE__);
+		} else {
+			slot_h = recv_slot_busy_to_done();
+			if (slot_h && test_and_clear_bit(IPU_PYM_STARTUP, &g_ipu_d_cdev->ipuflags)) {
+				slot_h = pym_slot_free_to_busy();
+				if (slot_h) {
+					set_next_pym_frame(slot_h, true);
+					pym_manual_start();
+				}
 			}
 		}
 	}
@@ -208,9 +212,18 @@ void ipu_dual_mode_process(uint32_t status)
 			else {
 				if (slot_h->info_h.slot_flag == SLOT_PYM_2ND)
 					slot_h->info_h.slot_flag = SLOT_DONE;
-				slot_h = pym_slot_free_to_busy();
-				if (slot_h)
-					set_next_pym_frame(slot_h, true);
+				if (slot_alive(RECVING_SLOT_QUEUE) < 2) {
+					set_bit(IPU_PYM_STARTUP, &g_ipu_d_cdev->ipuflags);
+					ipu_dbg("[%d] ipu recving slot less than 2\n", __LINE__);
+				} else {
+					slot_h = pym_slot_free_to_busy();
+					if (slot_h)
+						set_next_pym_frame(slot_h, true);
+					else {
+						set_bit(IPU_PYM_STARTUP, &g_ipu_d_cdev->ipuflags);
+						ipu_dbg("[%d] need set start bit\n", __LINE__);
+					}
+				}
 			}
 		}
 	}

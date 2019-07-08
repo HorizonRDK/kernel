@@ -3,19 +3,19 @@
 #include "ipu_slot_dual.h"
 #include "ipu_common.h"
 
-enum {
-	FREE_SLOT_QUEUE = 0,
-	RECVING_SLOT_QUEUE,
-	RECVDONE_SLOT_QUEUE,
-	PYMING_SLOT_QUEUE,
-	PYMDONE_SLOT_QUEUE,
-	SLOT_QUEUE_MAX,
-};
 
 ipu_slot_dual_h_t	g_ipu_slot_dual[IPU_MAX_SLOT_DUAL];
 slot_queue_t g_dual_slot_queue[SLOT_QUEUE_MAX];
 static DECLARE_BITMAP(slot_init_mask, IPU_MAX_SLOT_DUAL);
 
+int slot_alive(int type)
+{
+	int q_cnt = 0;
+
+	q_cnt = g_dual_slot_queue[type].qlen;
+	ipu_dbg("q_cnt = %d\n", q_cnt);
+	return q_cnt;
+}
 void enqueue_slot(slot_queue_t *slot_queue, ipu_slot_dual_h_t *slot_h)
 {
 	struct list_head *phead;

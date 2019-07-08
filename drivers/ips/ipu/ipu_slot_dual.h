@@ -14,6 +14,14 @@
 #define IPU_GET_FST_PYM_OF_SLOT(id, base)	   ((base) + (id) * IPU_SLOT_DAUL_SIZE)
 #define IPU_GET_SEC_PYM_OF_SLOT(id, base)	   ((base) + (id) * IPU_SLOT_DAUL_SIZE + IPU_SLOT_DAUL_SIZE/2)
 
+enum {
+	FREE_SLOT_QUEUE = 0,
+	RECVING_SLOT_QUEUE,
+	RECVDONE_SLOT_QUEUE,
+	PYMING_SLOT_QUEUE,
+	PYMDONE_SLOT_QUEUE,
+	SLOT_QUEUE_MAX,
+};
 
 typedef struct {
 	uint32_t y_offset;
@@ -105,5 +113,6 @@ int8_t ipu_clean_slot_queue(slot_ddr_info_dual_t *data);
 bool ipu_is_pym_busy_empty(void);
 ipu_slot_dual_h_t* pym_slot_busy_to_free(void);
 int8_t ipu_slot_dual_recfg(slot_ddr_info_dual_t *data);
+int slot_alive(int type);
 
 #endif
