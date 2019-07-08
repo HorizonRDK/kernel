@@ -3,12 +3,6 @@
 #include "ipu_slot.h"
 #include "ipu_common.h"
 
-enum {
-	FREE_SLOT_LIST,
-	BUSY_SLOT_LIST,
-	DONE_SLOT_LIST,
-	SLOT_LIST_NUM,
-};
 
 static ipu_slot_h_t 	g_ipu_slot_[IPU_MAX_SLOT];
 static struct list_head g_ipu_slot_list[SLOT_LIST_NUM];

@@ -56,7 +56,7 @@ static wait_queue_head_t wq_frame_done;
 static wait_queue_head_t wq_pym_done;
 static unsigned long  runflags;
 static unsigned long  pym_runflags;
-
+static int started;
 
 
 struct ipu_ddr_cdev {
@@ -189,32 +189,23 @@ static int8_t ipu_get_frameid(struct x2_ipu_data *ipu, ipu_slot_h_t *slot)
 
 void ipu_handle_frame_done(void)
 {
-			ipu_slot_h_t *g_slot_h;
-			unsigned long flags;
-			struct x2_ipu_data *ipu = g_ipu_ddr_cdev->ipu;
-			ipu_slot_h_t *slot_h = NULL;
+	ipu_slot_h_t *g_slot_h;
+	unsigned long flags;
+	struct x2_ipu_data *ipu = g_ipu_ddr_cdev->ipu;
+	ipu_slot_h_t *slot_h = NULL;
+	int count;
 
-			spin_lock_irqsave(&g_ipu_ddr_cdev->slock, flags);
-			slot_h = slot_free_to_busy();
-
-			if (slot_h) {
-
-				ipu_set(IPUC_SET_DDR, ipu->cfg,
-				IPU_GET_SLOT(slot_h->info_h.slot_id, ipu->paddr));
-				g_slot_h = slot_busy_to_done();
-				if (g_slot_h) {
-				//printk("%d  %d\n",slot_h->info_h.slot_id,
-				//g_slot_h->info_h.slot_id);
-					ipu_get_frameid(ipu, g_slot_h);
-					if (!test_and_set_bit(1, &runflags))
-						wake_up_interruptible(&wq_frame_done);
-
-				} else {
-				//	printk("aaa\n");
-				}
-			} else {
-			}
-		spin_unlock_irqrestore(&g_ipu_ddr_cdev->slock, flags);
+	spin_lock_irqsave(&g_ipu_ddr_cdev->slock, flags);
+	count = slot_left_num(BUSY_SLOT_LIST);
+	if (count > 1)	{
+		g_slot_h = slot_busy_to_done();
+		if (g_slot_h) {
+			ipu_get_frameid(ipu, g_slot_h);
+			runflags = 1;
+			wake_up_interruptible(&wq_frame_done);
+		}
+	}
+	spin_unlock_irqrestore(&g_ipu_ddr_cdev->slock, flags);
 }
 
 void ipu_handle_pym_frame_done(void)
@@ -223,7 +214,23 @@ void ipu_handle_pym_frame_done(void)
 		wake_up_interruptible(&wq_pym_done);
 	}
 
+}
 
+void ipu_handle_frame_start(void)
+{
+	ipu_slot_h_t *slot_h = NULL;
+	struct x2_ipu_data *ipu = g_ipu_ddr_cdev->ipu;
+
+	g_ipu_time = ipu_current_time();
+
+	if (started == 0)
+		return;
+
+	slot_h = slot_free_to_busy();
+	if (slot_h) {
+		ipu_set(IPUC_SET_DDR, ipu->cfg,
+		IPU_GET_SLOT(slot_h->info_h.slot_id, ipu->paddr));
+	}
 }
 void ipu_ddr_mode_process(uint32_t status)
 {
@@ -247,9 +254,7 @@ void ipu_ddr_mode_process(uint32_t status)
 		}
 	}
 
-	if (status & IPU_FRAME_START) {
-		g_ipu_time = ipu_current_time();
-	}
+
 	spin_unlock_irqrestore(&g_ipu_ddr_cdev->slock, flags);
 
 }
@@ -346,6 +351,7 @@ static int8_t ipu_core_init(ipu_cfg_t *ipu_cfg)
 int ipu_ddr_open(struct inode *node, struct file *filp)
 {
 	struct ipu_ddr_cdev *ipu_cdev = NULL;
+	started = 0;
 
 	ipu_dbg("ipu ddr open\n");
 	ipu_cdev = container_of(node->i_cdev, struct ipu_ddr_cdev, cdev);
@@ -385,6 +391,7 @@ long ipu_ddr_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 				ipu_err("ioctl init fail\n");
 				return -EFAULT;
 			}
+			started = 0;
 			/* new process */
 			sema_init(&sem_src, 0);
 			sema_init(&sem_pym, 0);
@@ -416,9 +423,11 @@ long ipu_ddr_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 		break;
 	case IPUC_SRC_DONE:
 	{
+		started = 1;
 wait:
-		wait_event_interruptible(wq_frame_done,
-		test_and_clear_bit(1, &runflags));
+		runflags = 0;
+		wait_event_interruptible(wq_frame_done, runflags);
+
 		unsigned long flags;
 		ipu_slot_h_t *g_get_slot_h;
 
@@ -692,6 +701,7 @@ unsigned int ipu_ddr_poll(struct file *file,
 int ipu_ddr_close(struct inode *inode, struct file *filp)
 {
 	struct ipu_ddr_cdev *ipu_cdev = filp->private_data;
+	started = 0;
 
 	ipu_drv_stop();
 	ipu_cdev->ipu->ipu_mode = IPU_INVALID;
@@ -722,7 +732,7 @@ static int __init x2_ipu_ddr_init(void)
 		kfree(g_ipu_ddr_cdev);
 		return -ENODEV;
 	}
-
+	started = 0;
 
 	init_waitqueue_head(&wq_frame_done);
 	init_waitqueue_head(&wq_pym_done);

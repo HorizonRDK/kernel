@@ -5,6 +5,13 @@
 #include <linux/list.h>
 #include "ipu_common.h"
 
+enum {
+	FREE_SLOT_LIST,
+	BUSY_SLOT_LIST,
+	DONE_SLOT_LIST,
+	SLOT_LIST_NUM,
+};
+
 /* 64M per slot
  * 1080p 28M for crop, scale, pym_ds, 36M for pym_us
  */
@@ -76,6 +83,7 @@ typedef enum {
 	reserved = 1,
 } slot_cnn_flag_e;
 
+int slot_left_num(int type);
 int8_t init_ipu_slot(uint64_t base, slot_ddr_info_t *data);
 int8_t ipu_clean_slot(slot_ddr_info_t *data);
 ipu_slot_h_t *ipu_get_free_slot(void);

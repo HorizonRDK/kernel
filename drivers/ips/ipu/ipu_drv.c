@@ -361,13 +361,13 @@ void x2_ipu_isr(unsigned int status, void *data)
 	} else {
 		ipu->isr_data |= status;
 	}
-	if ((status & (IPU_FRAME_DONE|PYM_FRAME_DONE)) && (ddr_mode == 1)) {
-		if (status & IPU_FRAME_DONE) {
+	if ((status & (IPU_FRAME_DONE|PYM_FRAME_DONE|IPU_FRAME_START)) && (ddr_mode == 1)) {
+		if (status & IPU_FRAME_START)
+			ipu_handle_frame_start();
+		if (status & IPU_FRAME_DONE)
 			ipu_handle_frame_done();
-		}
-		if (status & PYM_FRAME_DONE) {
+		if (status & PYM_FRAME_DONE)
 			ipu_handle_pym_frame_done();
-		}
 	} else {
 		if (!test_and_set_bit(IPU_TRIGGER_ISR, &ipu->runflags))
 			wake_up_interruptible(&ipu->wq_head);
