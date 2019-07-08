@@ -571,6 +571,8 @@ static int bifbase_sync_ap(void *p)
 			return -2;
 
 		cur_phy = pl->bifbase_phyaddr + BIFBASE_BLOCK;
+		if (!pl->ap->irq_queue_size)
+			pl->ap->irq_queue_size = IRQ_QUEUE_SIZE;
 		memcpy(tbuf, (unsigned char *)pl->ap, cur_len);
 		if (bifwrite(pl->bifbase_channel,
 			(void *)cur_phy, cur_len, tbuf))
@@ -605,6 +607,8 @@ int bifbase_sync_cp(void *p)
 			return -1;
 
 		memcpy((unsigned char *)pl->cp, tbuf, cur_len);
+		if (!pl->cp->irq_queue_size)
+			pl->cp->irq_queue_size = IRQ_QUEUE_SIZE;
 	}
 
 	return 0;
