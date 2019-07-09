@@ -134,6 +134,15 @@ struct comm_channel {
 	struct comm_channel_statistics channel_statistics;
 	enum ap_type type;
 	enum working_mode mode;
+	// buffer index info
+	int init_tx_remote_info;
+	int init_tx_local_info;
+	int init_rx_local_info;
+	int init_rx_remote_info;
+	int sync_tx_remote_info;
+	int sync_tx_local_info;
+	int sync_rx_local_info;
+	int sync_rx_remote_info;
 };
 
 int channel_init(struct comm_channel *channel, struct channel_config *config);

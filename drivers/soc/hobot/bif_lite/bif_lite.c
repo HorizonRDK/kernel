@@ -853,8 +853,9 @@ static inline int bif_sync_before_start(struct comm_channel *channel)
 			pr_info("\n");
 	}
 	pr_info("\n");
-#endif
 	pr_info("sync: tx_remote_info %d\n", tx_remote_info_tmp->recv_head);
+#endif
+	channel->sync_tx_remote_info = tx_remote_info_tmp->recv_head;
 
 	tx_local_info_tmp = bif_malloc(
 	ALIGN(sizeof(struct bif_tx_ring_info),
@@ -881,8 +882,9 @@ static inline int bif_sync_before_start(struct comm_channel *channel)
 			pr_info("\n");
 	}
 	pr_info("\n");
-#endif
 	pr_info("sync: tx_local_info %d\n", tx_local_info_tmp->send_tail);
+#endif
+	channel->sync_tx_local_info = tx_local_info_tmp->send_tail;
 
 	rx_local_info_tmp = bif_malloc(
 	ALIGN(sizeof(struct bif_rx_ring_info),
@@ -909,8 +911,9 @@ static inline int bif_sync_before_start(struct comm_channel *channel)
 			pr_info("\n");
 	}
 	pr_info("\n");
-#endif
 	pr_info("sync: rx_local_info %d\n", rx_local_info_tmp->recv_head);
+#endif
+	channel->sync_rx_local_info = rx_local_info_tmp->recv_head;
 
 	rx_remote_info_tmp = bif_malloc(
 	ALIGN(sizeof(struct bif_tx_ring_info),
@@ -937,8 +940,9 @@ static inline int bif_sync_before_start(struct comm_channel *channel)
 			pr_info("\n");
 }
 	pr_info("\n");
+	pr_info("sync: rx_remote_info %d\n", rx_remote_info_tmp->send_tail);
 #endif
-	pr_info("sync: tx_remote_info %d\n", rx_remote_info_tmp->send_tail);
+	channel->sync_rx_remote_info = rx_remote_info_tmp->send_tail;
 
 	// check whether CP sync
 	if ((tx_remote_info_tmp->recv_head == -1) &&
@@ -1008,7 +1012,8 @@ static inline int bif_init_cp_ddr(struct comm_channel *channel)
 		bif_err("bif_err: %s  %d\n", __func__, __LINE__);
 		goto err;
 	}
-	pr_info("init: tx_remote_info %d\n", tx_remote_info_tmp->recv_head);
+	//pr_info("init: tx_remote_info %d\n", tx_remote_info_tmp->recv_head);
+	channel->init_tx_remote_info = tx_remote_info_tmp->recv_head;
 
 	tx_local_info_tmp = bif_malloc(
 	ALIGN(sizeof(struct bif_tx_ring_info), channel->transfer_align));
@@ -1035,7 +1040,8 @@ static inline int bif_init_cp_ddr(struct comm_channel *channel)
 		bif_err("bif_err: %s  %d\n", __func__, __LINE__);
 		goto err;
 	}
-	pr_info("init: tx_local_info %d\n", tx_local_info_tmp->send_tail);
+	//pr_info("init: tx_local_info %d\n", tx_local_info_tmp->send_tail);
+	channel->init_tx_local_info = tx_local_info_tmp->send_tail;
 
 	rx_local_info_tmp = bif_malloc(
 	ALIGN(sizeof(struct bif_rx_ring_info), channel->transfer_align));
@@ -1063,7 +1069,8 @@ static inline int bif_init_cp_ddr(struct comm_channel *channel)
 		bif_err("bif_err: %s  %d\n", __func__, __LINE__);
 		goto err;
 	}
-	pr_info("init: rx_local_info_tmp %d\n", rx_local_info_tmp->recv_head);
+	//pr_info("init: rx_local_info_tmp %d\n", rx_local_info_tmp->recv_head);
+	channel->init_rx_local_info = rx_local_info_tmp->recv_head;
 
 	rx_remote_info_tmp = bif_malloc(
 	ALIGN(sizeof(struct bif_tx_ring_info), channel->transfer_align));
@@ -1090,7 +1097,8 @@ static inline int bif_init_cp_ddr(struct comm_channel *channel)
 		bif_err("bif_err: %s  %d\n", __func__, __LINE__);
 		goto err;
 	}
-	pr_info("init: rx_remote_info_tmp %d\n", rx_remote_info_tmp->send_tail);
+	//pr_info("init: rx_remote_info_tmp %d\n", rx_remote_info_tmp->send_tail);
+	channel->init_rx_remote_info = rx_remote_info_tmp->send_tail;
 err:
 	if (tx_remote_info_tmp)
 		bif_free(tx_remote_info_tmp);
@@ -1209,10 +1217,10 @@ static void dump_channel_info(struct comm_channel *channel)
 	pr_debug("transfer_align = %d\n", channel->transfer_align);
 	pr_debug("==== memory limit concerned ====\n");
 	pr_debug("base_addr = %lx\n", channel->base_addr);
-	pr_info("frame_len_max = %d\n", channel->frame_len_max);
-	pr_info("frag_len_max = %d\n", channel->frag_len_max);
+	pr_debug("frame_len_max = %d\n", channel->frame_len_max);
+	pr_debug("frag_len_max = %d\n", channel->frag_len_max);
 	pr_debug("valid_frag_len_max = %d\n", channel->valid_frag_len_max);
-	pr_info("frag_num = %d\n", channel->frag_num);
+	pr_debug("frag_num = %d\n", channel->frag_num);
 	pr_debug("frame_cache_max = %d\n", channel->frame_cache_max);
 	pr_debug("==== memory layout concerned ====\n");
 	pr_debug("rx_local_info_offset = %lx\n",

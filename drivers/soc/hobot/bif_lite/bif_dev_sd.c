@@ -29,7 +29,7 @@
 #include "hbipc_errno.h"
 #include "bif_dev_sd.h"
 
-#define VERSION "2.0.0"
+#define VERSION "2.1.0"
 
 /* ioctl cmd */
 #define BIF_IOC_MAGIC  'c'
@@ -91,8 +91,10 @@ static struct comm_domain domain;
 /* proc debug fs */
 #define BIF_DEV_SD_DIR "bif_dev_sd"
 #define BIF_DEV_SD_STATTISTICS "statistics"
+#define BIF_DEV_SD_INFO "info"
 static struct proc_dir_entry *bif_dev_sd_entry;
 static struct proc_dir_entry *bif_dev_sd_statistics_entry;
+static struct proc_dir_entry *bif_dev_sd_info_entry;
 
 static int bif_dev_sd_statistics_proc_show(struct seq_file *m, void *v)
 {
@@ -135,6 +137,55 @@ trig_count = %d\nretrig_count = %d\n",
 	return 0;
 }
 
+static int bif_dev_sd_info_proc_show(struct seq_file *m, void *v)
+{
+	seq_printf(m, "buffer index:\n\
+init_tx_remote_info = %d\ninit_tx_local_info = %d\n\
+init_rx_local_info = %d\ninit_rx_remote_info = %d\n\
+sync_tx_remote_info = %d\nsync_tx_local_info = %d\n\
+sync_rx_local_info = %d\nsync_rx_remote_info = %d\n\
+hardware channel concerned\n\
+channel = %d\nbuffer_id = %d\ntransfer_align = %d\n\
+memory limit concerned:\n\
+base_addr = %lx\nframe_len_max = %d\nfrag_len_max = %d\n\
+valid_frag_len_max = %d\nrag_num = %d\nframe_cache_max = %d\n\
+memory layout concerned:\n\
+rx_local_info_offset = %lx\nrx_remote_info_offset = %lx\n\
+tx_local_info_offset = %lx\ntx_remote_info_offset = %lx\n\
+rx_buffer_offset = %lx\ntx_buffer_offset = %lx\n\
+total_mem_size = %d\n\
+transfer feature:\n\
+ap_type = %d\nworking_mode = %d\n",
+	domain.channel.init_tx_remote_info,
+	domain.channel.init_tx_local_info,
+	domain.channel.init_rx_local_info,
+	domain.channel.init_rx_remote_info,
+	domain.channel.sync_tx_remote_info,
+	domain.channel.sync_tx_local_info,
+	domain.channel.sync_rx_local_info,
+	domain.channel.sync_rx_remote_info,
+	domain.channel.channel,
+	domain.channel.buffer_id,
+	domain.channel.transfer_align,
+	domain.channel.base_addr,
+	domain.channel.frame_len_max,
+	domain.channel.frag_len_max,
+	domain.channel.valid_frag_len_max,
+	domain.channel.frag_num,
+	domain.channel.frame_cache_max,
+	domain.channel.rx_local_info_offset,
+	domain.channel.rx_remote_info_offset,
+	domain.channel.tx_local_info_offset,
+	domain.channel.tx_remote_info_offset,
+	domain.channel.rx_buffer_offset,
+	domain.channel.tx_buffer_offset,
+	domain.channel.total_mem_size,
+	domain.channel.type,
+	domain.channel.mode);
+
+	return 0;
+}
+
 static ssize_t bif_dev_sd_statistics_proc_write(struct file *file,
 const char __user *buffer, size_t count, loff_t *ppos)
 {
@@ -146,10 +197,22 @@ const char __user *buffer, size_t count, loff_t *ppos)
 	return count;
 }
 
+static ssize_t bif_dev_sd_info_proc_write(struct file *file,
+const char __user *buffer, size_t count, loff_t *ppos)
+{
+	return count;
+}
+
 static int bif_dev_sd_statistics_proc_open(struct inode *inode,
 struct file *file)
 {
 	return single_open(file, bif_dev_sd_statistics_proc_show, NULL);
+}
+
+static int bif_dev_sd_info_proc_open(struct inode *inode,
+struct file *file)
+{
+	return single_open(file, bif_dev_sd_info_proc_show, NULL);
 }
 
 static const struct file_operations bif_dev_sd_statistics_proc_ops = {
@@ -157,6 +220,15 @@ static const struct file_operations bif_dev_sd_statistics_proc_ops = {
 	.open     = bif_dev_sd_statistics_proc_open,
 	.read     = seq_read,
 	.write    = bif_dev_sd_statistics_proc_write,
+	.llseek   = seq_lseek,
+	.release  = single_release,
+};
+
+static const struct file_operations bif_dev_sd_info_proc_ops = {
+	.owner    = THIS_MODULE,
+	.open     = bif_dev_sd_info_proc_open,
+	.read     = seq_read,
+	.write    = bif_dev_sd_info_proc_write,
 	.llseek   = seq_lseek,
 	.release  = single_release,
 };
@@ -177,7 +249,17 @@ static int init_bif_dev_sd_debug_port(void)
 		goto create_statistics_file_error;
 	}
 
+	bif_dev_sd_info_entry = proc_create(BIF_DEV_SD_INFO,
+	0777, bif_dev_sd_entry, &bif_dev_sd_info_proc_ops);
+	if (!bif_dev_sd_info_entry) {
+		pr_info("create /proc/%s/%s fail\n", BIF_DEV_SD_DIR,
+			BIF_DEV_SD_INFO);
+		goto create_info_file_error;
+	}
+
 	return 0;
+create_info_file_error:
+	remove_proc_entry(BIF_DEV_SD_STATTISTICS, bif_dev_sd_entry);
 create_statistics_file_error:
 	remove_proc_entry(BIF_DEV_SD_DIR, NULL);
 create_top_dir_error:
@@ -186,6 +268,7 @@ create_top_dir_error:
 
 static void remove_bif_dev_sd_debug_port(void)
 {
+	remove_proc_entry(BIF_DEV_SD_INFO, bif_dev_sd_entry);
 	remove_proc_entry(BIF_DEV_SD_STATTISTICS, bif_dev_sd_entry);
 	remove_proc_entry(BIF_DEV_SD_DIR, NULL);
 }
