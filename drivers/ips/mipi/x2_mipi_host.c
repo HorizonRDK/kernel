@@ -143,10 +143,17 @@ static unsigned long mipi_host_pixel_clk_select(mipi_host_cfg_t *control)
 		framelenth = control->height;
 	pixclk = linelenth * framelenth * control->fps;
 	//pixclk = 1000000 * control->mipiclk / control->lane;
+#ifdef ADJUST_CLK_RECALCULATION
+	pixclk = (control->width + 16) * (control->height + 8) * control->fps;
+#endif
 	if (control->datatype < MIPI_CSI2_DT_RAW_8)
 		pixclk = pixclk;
 	else
+#ifndef ADJUST_CLK_RECALCULATION
 		pixclk = pixclk / 3;
+#else
+		pixclk = (pixclk + 2) / 3;
+#endif
 	ret = ips_set_mipi_ipi_clk(pixclk);
 	if (ret < 0)
 		mipiinfo("ips_set_mipi_ipi_clk error");
@@ -243,9 +250,16 @@ static uint16_t mipi_host_get_hsd(mipi_host_cfg_t *control, unsigned long pixclk
 	mipiinfo("time to transmit last pixel in ppi: %lu", time_ppi);
 	hsdtime = (bits_per_pixel * line_size * pixclk / rx_bit_clk) - (control->hsaTime + control->hbpTime + cycles_to_trans);
 	mipiinfo("mipi host minium hsdtime: %d", hsdtime);
+#ifndef ADJUST_CLK_RECALCULATION
 	if (hsdtime < 0) {
 		hsdtime = 1;
 	}
+#else
+	if (hsdtime < 0)
+		hsdtime = 4;
+	else
+		hsdtime += 4;
+#endif
 	//hsdtime = (hsdtime + 16) & (~0xf);
 	time_ipi = 1000 * (unsigned long)(control->hsaTime + control->hbpTime + hsdtime + cycles_to_trans) * 1000000 / pixclk;
 	mipiinfo("time to transmit last pixel in ipi: %lu", time_ipi);
@@ -278,7 +292,9 @@ static int32_t mipi_host_configure_ipi(mipi_host_cfg_t *control)
 	mipi_putreg(iomem + REG_MIPI_HOST_IPI_HSA_TIME, control->hsaTime);
 	mipi_putreg(iomem + REG_MIPI_HOST_IPI_HBP_TIME, control->hbpTime);
 	mipi_putreg(iomem + REG_MIPI_HOST_IPI_HSD_TIME, control->hsdTime);
+#ifndef ADJUST_CLK_RECALCULATION
 	mipi_putreg(iomem + REG_MIPI_HOST_IPI_ADV_FEATURES, adv_value);
+#endif
 
 	if (MIPIHOST_CHANNEL_NUM == control->channel_num) {
 		/*Select virtual channel and data type to be processed by IPI*/

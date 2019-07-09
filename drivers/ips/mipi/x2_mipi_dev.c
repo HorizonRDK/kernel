@@ -48,7 +48,11 @@
 #define MIPI_DEV_INT_IPI            (0x1<<2)
 #define MIPI_DEV_INT_PHY            (0x1<<3)
 
+#ifdef ADJUST_CLK_RECALCULATION
+#define MIPI_DEV_IPI_PKT_CFG        (0xb00)
+#else
 #define MIPI_DEV_IPI_PKT_CFG        (0xa00)
+#endif
 #define MIPI_DEV_IPI_MAX_FRAME      (0xffffffff)
 
 #define MIPI_DEV_VPG_DISABLE        (0x00)
@@ -130,6 +134,9 @@ typedef struct _mipi_dev_s {
 	void __iomem *iomem;
 	int           irq;
 	mipi_state_t  state;   /* mipi dev state */
+#ifdef ADJUST_CLK_RECALCULATION
+	mipi_dev_cfg_t cfg;
+#endif
 } mipi_dev_t;
 
 static mipi_dev_t *g_mipi_dev = NULL;
@@ -438,6 +445,18 @@ int32_t mipi_dev_start(void)
 		return -1;
 	}
 	iomem = g_mipi_dev->iomem;
+#ifdef ADJUST_CLK_RECALCULATION
+	/*Wake up DWC_mipicsi2_device*/
+	mipi_putreg(iomem + REG_MIPI_DEV_CSI2_RESETN, MIPI_DEV_CSI2_RAISE);
+
+	if (!mipi_dev_nocheck) {
+		if (0 != mipi_dev_wait_phy_powerup(&g_mipi_dev->cfg)) {
+			mipierr("mipi dev phy stop state error!!!");
+			mipi_putreg(iomem + REG_MIPI_DEV_CSI2_RESETN, MIPI_DEV_CSI2_RESETN);
+			return -1;
+		}
+	}
+#endif
 	/*Configure the High-Speed clock*/
 	mipi_putreg(iomem + REG_MIPI_DEV_LPCLK_CTRL, MIPI_DEV_LPCLK_CONT);
 #if MIPI_DEV_INT_DBG
@@ -557,6 +576,7 @@ int32_t mipi_dev_init(mipi_dev_cfg_t *control)
 			return -1;
 		}
 	}
+#ifndef ADJUST_CLK_RECALCULATION
 	/*Wake up DWC_mipicsi2_device*/
 	mipi_putreg(iomem + REG_MIPI_DEV_CSI2_RESETN, MIPI_DEV_CSI2_RAISE);
 
@@ -567,6 +587,9 @@ int32_t mipi_dev_init(mipi_dev_cfg_t *control)
 			return -1;
 		}
 	}
+#else
+	memcpy(&g_mipi_dev->cfg, control, sizeof(mipi_dev_cfg_t));
+#endif
 
 	mipiinfo("mipi device init end");
 	return 0;

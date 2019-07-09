@@ -43,6 +43,9 @@
 #define TX_REFSCLK_DEFAULT       (24)
 #define TX_PLL_INPUT_DIV_MIN     (1)
 #define TX_PLL_INPUT_DIV_MAX     (16)
+#ifdef ADJUST_CLK_RECALCULATION
+#define TX_PLL_INPUT_DIV_DEF     (12)
+#endif
 #define TX_PLL_FB_MULTI_MIN      (64)
 #define TX_PLL_FB_MULTI_MAX      (625)
 #define TX_PLL_INPUT_FEQ_MIN     (2)
@@ -158,9 +161,13 @@ static const pll_range_table_t g_pll_range_table[] = {
 
 typedef struct _pll_sel_table_s {
 	uint16_t     freq;
+#ifdef ADJUST_CLK_RECALCULATION
+	uint16_t     freqmax;
+#endif
 	uint32_t     value;
 } pll_sel_table_t;
 
+#ifndef ADJUST_CLK_RECALCULATION
 static const pll_sel_table_t g_pll_sel_table[] = {
 	{80, 0x00},
 	{90, 0x10},
@@ -226,14 +233,87 @@ static const pll_sel_table_t g_pll_sel_table[] = {
 	{2450, 0x48},
 	{2500, 0x49},
 };
+#else
+static const pll_sel_table_t g_pll_sel_table[] = {
+	{80, 97, 0x00},
+	{90, 107, 0x10},
+	{100, 118, 0x20},
+	{110, 128, 0x30},
+	{120, 139, 0x01},
+	{130, 149, 0x11},
+	{140, 160, 0x21},
+	{150, 170, 0x31},
+	{160, 181, 0x02},
+	{170, 191, 0x12},
+	{180, 202, 0x22},
+	{190, 212, 0x32},
+	{205, 228, 0x03},
+	{220, 244, 0x13},
+	{235, 260, 0x23},
+	{250, 275, 0x33},
+	{275, 301, 0x04},
+	{300, 328, 0x14},
+	{325, 354, 0x25},
+	{350, 380, 0x35},
+	{400, 433, 0x05},
+	{450, 485, 0x16},
+	{500, 538, 0x26},
+	{550, 590, 0x37},
+	{600, 643, 0x07},
+	{650, 695, 0x18},
+	{700, 748, 0x28},
+	{750, 800, 0x39},
+	{800, 853, 0x09},
+	{850, 905, 0x19},
+	{900, 958, 0x29},
+	{950, 1010, 0x3A},
+	{1000, 1063, 0x0A},
+	{1050, 1115, 0x1A},
+	{1100, 1168, 0x2A},
+	{1150, 1220, 0x3B},
+	{1200, 1273, 0x0B},
+	{1250, 1325, 0x1B},
+	{1300, 1378, 0x2B},
+	{1350, 1430, 0x3C},
+	{1400, 1483, 0x0C},
+	{1450, 1535, 0x1C},
+	{1500, 1588, 0x2C},
+	{1550, 1640, 0x3D},
+	{1600, 1693, 0x0D},
+	{1650, 1745, 0x1D},
+	{1700, 1798, 0x2D},
+	{1750, 1850, 0x3E},
+	{1800, 1903, 0x0E},
+	{1850, 1955, 0x1E},
+	{1900, 2008, 0x2F},
+	{1950, 2060, 0x3F},
+	{2000, 2113, 0x0F},
+	{2050, 2165, 0x40},
+	{2100, 2218, 0x41},
+	{2150, 2270, 0x42},
+	{2200, 2323, 0x43},
+	{2250, 2375, 0x44},
+	{2300, 2428, 0x45},
+	{2350, 2480, 0x46},
+	{2400, 2500, 0x47},
+	{2450, 2500, 0x48},
+	{2500, 2500, 0x49},
+};
+#endif
 
 static uint32_t mipi_dphy_clk_range(uint32_t mipiclk)
 {
 	uint8_t  index = 0;
 	for (index = 0; index < sizeof(g_pll_sel_table) / sizeof(pll_sel_table_t); index++) {
+#ifndef ADJUST_CLK_RECALCULATION
 		if (mipiclk <= g_pll_sel_table[index].freq) {
 			mipidbg("pll div mipiclk: %d, selected clk: %d, range value: %d",
 					 mipiclk, g_pll_sel_table[index].freq, g_pll_sel_table[index].value);
+#else
+		if (mipiclk >= g_pll_sel_table[index].freq && mipiclk <= g_pll_sel_table[index].freqmax) {
+			mipiinfo("pll div mipiclk: %d, selected clk: %d - %d, range value: %d",
+					mipiclk, g_pll_sel_table[index].freq, g_pll_sel_table[index].freqmax, g_pll_sel_table[index].value);
+#endif
 			return g_pll_sel_table[index].value;
 		}
 	}
@@ -418,6 +498,7 @@ static int32_t mipi_tx_pll_div(uint16_t refsclk, uint16_t laneclk, uint8_t *n, u
 		mipierr("pll parameter error!!! refsclk: %d, laneclk: %d", refsclk, laneclk);
 		return 0;
 	}
+#ifndef ADJUST_CLK_RECALCULATION
 	while (TX_PLL_INPUT_FEQ_MIN * n_tmp < refsclk) {
 		n_tmp++;
 	}
@@ -426,6 +507,13 @@ static int32_t mipi_tx_pll_div(uint16_t refsclk, uint16_t laneclk, uint8_t *n, u
 	while ((outclk * m_tmp) <= fvco) {
 		m_tmp++;
 	}
+#else
+	n_tmp = TX_PLL_INPUT_DIV_DEF;
+	outclk = refsclk / n_tmp;
+	while ((outclk * m_tmp) <= fvco) {
+		m_tmp++;
+	}
+#endif
 	m_tmp -= 1;
 	*n = n_tmp - 1;
 	//*n = n_tmp - 2; /*device's clk must be higher than host's clk*/
@@ -433,7 +521,11 @@ static int32_t mipi_tx_pll_div(uint16_t refsclk, uint16_t laneclk, uint8_t *n, u
 	fvco = (refsclk * (*m + 2)) / (*n + 1);
 	fout = fvco >> vco_div;
 	*vco = mipi_tx_vco_range(fvco, &fvco_max);
+#ifndef ADJUST_CLK_RECALCULATION
 	*m = fvco_max * (*n + 1) / refsclk - 2;
+#else
+	*m = (fvco_max << vco_div) * (*n + 1) / refsclk - 2;
+#endif
 	outclk = fout << 1;
 	mipidbg("pll div refsclk: %d, laneclk: %d, n: %d, m: %d, outclk: %d",
 			 refsclk, laneclk, *n, *m, outclk);

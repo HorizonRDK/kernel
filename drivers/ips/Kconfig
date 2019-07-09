@@ -32,6 +32,11 @@ config X2_MIPI_PHY
 	tristate "X2 MIPI DPHY Driver"
 	---help---
 	   Driver for the X2 MIPI DPHY
+config X2_MIPI_CLK_RECALCULATION
+	bool "ENABLE CLK ACCURACY IMPROVE?"
+	default n
+	---help---
+	   code for clk accuracy improve
 endif
 
 config X2_ISP
