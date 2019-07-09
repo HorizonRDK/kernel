@@ -1,62 +1,28 @@
+#include "memory.dtsi"
 / {
-	memory@0 {
-		device_type = "memory";
-		reg = <0x0 0x0 0x0 0x20000000>;
-	};
-
 	reserved-memory {
-		#address-cells = <2>;
-		#size-cells = <2>;
-		ranges;
-
 		/*Reserved 0 memory for isp_subsystem*/
-		isp_reserved: isp_reserved@0x02000000 {
-			reg = <0x0 0x02000000 0x0 0x00000000>;
-		};
-
-		/*Reserved 1M memory for bifbase*/
-		bifbase_reserved: bifbase_reserved@0x02000000 {
-			reg = <0x0 0x02000000 0x0 0x00100000>;
-			no-map;
-		};
-
-		/*4K*/
-		bifsd_reserved: bifsd_reserved@0x02100000 {
-			reg = <0x0 0x02100000 0x0 0x1000>;
-			no-map;
+		isp_reserved: isp_reserved@0x02100000 {
+			reg = <0x0 0x02100000 0x0 0x00000000>;
 		};
 
 		/*23M*/
-		iar_reserved: iar_reserved@0x02101000 {
-			reg = <0x0 0x02101000 0x0 0x17BB000>;
+		iar_reserved: iar_reserved@0x02100000 {
+			reg = <0x0 0x02100000 0x0 0x1700000>;
 			no-map;
 		};
 
-		/*256K*/
-		ramoops@0x038BC000 {
-			compatible = "ramoops";
-			reg = <0x0 0x038BC000 0x0 0x40000>;
-			console-size = <0x8000>;
-			pmsg-size = <0x8000>;
-			ftrace-size = <0x8000>;
-			record-size = <0x4000>;
-		};
-
 		/* Reserved 128MB memory for ipu subsystem */
-		ipu_reserved: ipu_reserved@0x038FC000 {
-			reg = <0x0 0x038FC000 0x0 0x8000000>;
+		ipu_reserved: ipu_reserved@0x03800000 {
+			reg = <0x0 0x03800000 0x0 0x8000000>;
 			/*no-map;*/
 		};
 
-		/* Reserved 192K memory for function call */
-		fc_reserved: fc_reserved@0xB8FC000 {
-			reg = <0x0 0xB8FC000 0x0 0x00030000>;
-		};
 
 		/* Reserved 80MB memory for ion*/
-		ion_reserved: ion_reserved@0xB92C000 {
+		ion_reserved: ion_reserved@0xB000000 {
 			compatible = "ion-pool";
-			reg = <0x0 0xB92C000 0x0 0x5000000>;
+			reg = <0x0 0xB000000 0x0 0x5000000>;
 		};
 
 	};

@@ -1,0 +1,34 @@
+/ {
+
+	/* real total memory is set in uboot, not here*/
+	memory@0 {
+		device_type = "memory";
+		reg = <0x0 0x0 0x0 0x80000000>;
+	};
+
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		/*Reserved 512K-4K memory for bifbase*/
+		bifbase_reserved: bifbase_reserved@0x02000000 {
+			reg = <0x0 0x02000000 0x0 0x00080000>;
+			no-map;
+		};
+
+		/*Reserved 256K memory for iar subsystem*/
+		ramoops@0x02800000 {
+			compatible = "ramoops";
+			reg = <0x0 0x0280000 0x0 0x40000>;
+			console-size = <0x8000>;
+			pmsg-size = <0x8000>;
+			ftrace-size = <0x8000>;
+			record-size = <0x4000>;
+		};
+		/* Reserved 192K memory for function call */
+		fc_reserved: fc_reserved@0x20c0000 {
+			reg = <0x0 0x20c0000 0x0 0x00040000>;
+		};
+	};
+};
