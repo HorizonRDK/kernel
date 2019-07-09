@@ -30,11 +30,7 @@ function choose()
 function make_recovery_img()
 {
     prefix=$TARGET_KERNEL_DIR
-    if [ $TARGET_MODE == "debug" ];then
-        config=$KERNEL_DEFCONFIG
-    else
-        config=$KERNEL_PERF_DEFCONFIG
-    fi
+    config=$KERNEL_DEFCONFIG
 
     # real build
     ARCH=$ARCH_KERNEL
@@ -93,11 +89,7 @@ function build_dtbmapping()
 function all()
 {
     prefix=$TARGET_KERNEL_DIR
-    if [ $TARGET_MODE == "debug" ];then
-        config=$KERNEL_DEFCONFIG
-    else
-        config=$KERNEL_PERF_DEFCONFIG
-    fi
+    config=$KERNEL_DEFCONFIG
     echo "kernel config: $config"
 
     # real build
