@@ -15,6 +15,8 @@ enum hobot_board {
 	J2_QuadJ2C,
 	J2_QuadJ2D,
 	J2_Quad = 300,
+	J2_mm = 400,
+	Unknown = 1000,
 };
 
 struct hobot_board_info {
