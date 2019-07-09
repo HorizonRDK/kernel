@@ -37,8 +37,12 @@
 /* module parameters */
 static char *ap_type_str = "soc-ap";
 static char *working_mode_str = "interrupt-mode";
+static int frame_len_max_ap = 262144;
+static int frag_len_max_ap = 1024;
 module_param(ap_type_str, charp, 0644);
 module_param(working_mode_str, charp, 0644);
+module_param(frame_len_max_ap, int, 0644);
+module_param(frag_len_max_ap, int, 0644);
 #endif
 
 /* ioctl cmd */
@@ -1038,17 +1042,33 @@ static int bif_lite_probe(struct platform_device *pdev)
 	int           ret = 0;
 	dev_t         devno;
 	struct cdev  *p_cdev = &bif_cdev;
+	int frame_len_max = 0;
+	int frag_len_max = 0;
 
 	pr_info("biflite_spi version: %s\n", VERSION);
 #if 0
 	unsigned long flags = IRQF_ONESHOT | IRQF_TRIGGER_FALLING;
 #endif
+	ret = of_property_read_u32(pdev->dev.of_node,
+	"frame_len_max", &frame_len_max);
+	if (ret) {
+		bif_err("get frame_len_max error\n");
+		goto error;
+	} else
+		frame_len_max_g = frame_len_max;
+
+	ret = of_property_read_u32(pdev->dev.of_node,
+	"frag_len_max", &frag_len_max);
+	if (ret) {
+		bif_err("get frag_len_max error\n");
+		goto error;
+	} else
+		frag_len_max_g = frag_len_max;
+
 	if (of_find_property(pdev->dev.of_node, "mcu-ap", NULL)) {
 		// mcu-ap
 		domain_config.type = MCU_AP;
 		domain_config.channel_cfg.type = MCU_AP;
-		frame_len_max_g = 4 * 1024;
-		frag_len_max_g = 128;
 	} else {
 		// soc-ap
 		domain_config.type = SOC_AP;
@@ -1183,6 +1203,7 @@ class_create_error:
 cdev_add_error:
 	unregister_chrdev_region(MKDEV(bif_major, 0), 1);
 alloc_chrdev_error:
+error:
 	return ret;
 }
 #endif
@@ -1198,14 +1219,15 @@ static int bif_lite_probe_param(void)
 #if 0
 	unsigned long flags = IRQF_ONESHOT | IRQF_TRIGGER_FALLING;
 #endif
+	frame_len_max_g = frame_len_max_ap;
+	frag_len_max_g = frag_len_max_ap;
+
 	if (!strcmp(ap_type_str, "soc-ap")) {
 		domain_config.type = SOC_AP;
 		domain_config.channel_cfg.type = SOC_AP;
 	} else if (!strcmp(ap_type_str, "mcu-ap")) {
 		domain_config.type = MCU_AP;
 		domain_config.channel_cfg.type = MCU_AP;
-		frame_len_max_g = 4 * 1024;
-		frag_len_max_g = 128;
 	} else {
 		pr_info("Error ap type\n");
 		return -1;

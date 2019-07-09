@@ -31,6 +31,18 @@
 
 #define VERSION "2.1.0"
 
+#ifdef CONFIG_HI3519V101
+/* module parameters */
+static char *ap_type_str = "soc-ap";
+static char *working_mode_str = "interrupt-mode";
+static int frame_len_max_ap = 262144;
+static int frag_len_max_ap = 32768;
+module_param(ap_type_str, charp, 0644);
+module_param(working_mode_str, charp, 0644);
+module_param(frame_len_max_ap, int, 0644);
+module_param(frag_len_max_ap, int, 0644);
+#endif
+
 /* ioctl cmd */
 #define BIF_IOC_MAGIC  'c'
 #define BIF_IO_PROVIDER_INIT     _IO(BIF_IOC_MAGIC, 0)
@@ -48,6 +60,7 @@ struct x2_bif_data {
 	int irq_pin;
 	int irq_num;
 	int tri_pin;
+	char *send_frame;
 	struct workqueue_struct *work_queue;
 	//struct work_struct work[WORK_COUNT];
 	struct work_struct work;
@@ -71,17 +84,6 @@ static struct domain_info domain_config = {.domain_name = "X2SD001",
 	.type = SOC_AP,
 	.mode = INTERRUPT_MODE,
 	{.channel = BIF_SD,
-	. frame_len_max = FRAME_LEN_MAX,
-	.frag_len_max = FRAG_LEN_MAX,
-	.frag_num = FRAG_NUM,
-	.frame_cache_max = FRAME_CACHE_MAX,
-	.rx_local_info_offset = RX_LOCAL_INFO_OFFSET,
-	.rx_remote_info_offset = RX_REMOTE_INFO_OFFSET,
-	.tx_local_info_offset = TX_LOCAL_INFO_OFFSET,
-	.tx_remote_info_offset = TX_REMOTE_INFO_OFFSET,
-	.rx_buffer_offset = RX_BUFFER_OFFSET,
-	.tx_buffer_offset = TX_BUFFER_OFFSET,
-	.total_mem_size = TOTAL_MEM_SIZE,
 	.type = SOC_AP,
 	.mode = INTERRUPT_MODE}
 };
@@ -327,6 +329,21 @@ static irqreturn_t hbipc_irq_handler(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
+static void x2_mem_layout_set(struct domain_info *domain_inf)
+{
+	domain_inf->channel_cfg.frame_len_max = FRAME_LEN_MAX;
+	domain_inf->channel_cfg.frag_len_max = FRAG_LEN_MAX;
+	domain_inf->channel_cfg.frag_num = FRAG_NUM;
+	domain_inf->channel_cfg.frame_cache_max = FRAME_CACHE_MAX;
+	domain_inf->channel_cfg.rx_local_info_offset = RX_LOCAL_INFO_OFFSET;
+	domain_inf->channel_cfg.rx_remote_info_offset = RX_REMOTE_INFO_OFFSET;
+	domain_inf->channel_cfg.tx_local_info_offset = TX_LOCAL_INFO_OFFSET;
+	domain_inf->channel_cfg.tx_remote_info_offset = TX_REMOTE_INFO_OFFSET;
+	domain_inf->channel_cfg.rx_buffer_offset = RX_BUFFER_OFFSET;
+	domain_inf->channel_cfg.tx_buffer_offset = TX_BUFFER_OFFSET;
+	domain_inf->channel_cfg.total_mem_size = TOTAL_MEM_SIZE;
+}
+
 static int x2_bif_data_init(struct x2_bif_data *bif_data)
 {
 	bif_data->users = 0;
@@ -334,32 +351,37 @@ static int x2_bif_data_init(struct x2_bif_data *bif_data)
 	bif_data->tri_pin = -1;
 	bif_data->irq_num = -1;
 
-	bif_data->work_queue = create_singlethread_workqueue("bifsd_workqueue");
-	if (!bif_data->work_queue) {
-		pr_info("create_singlethread_workqueue error\n");
-		goto create_workqueue_error;
+	bif_data->send_frame = kmalloc(FRAME_LEN_MAX, GFP_KERNEL);
+	if (!(bif_data->send_frame)) {
+		pr_info("malloc_send_frame error\n");
+		goto malloc_send_frame_error;
 	}
-
-	INIT_WORK(&bif_data->work, rx_work_func);
 
 	if (init_bif_dev_sd_debug_port() < 0) {
 		pr_info("init_debug_port error\n");
 		goto init_debug_port_error;
 	}
 
+	bif_data->work_queue = create_singlethread_workqueue("bifsd_workqueue");
+	if (!bif_data->work_queue) {
+		pr_info("create_singlethread_workqueue error\n");
+		goto engine_error;
+	}
+	init_completion(&bif_data->ready_to_recv);
+	INIT_WORK(&bif_data->work, rx_work_func);
+
 	if (queue_work(bif_data->work_queue, &bif_data->work) == false) {
 		pr_info("queue_work fail\n");
-		goto queue_work_error;
+		destroy_workqueue(bif_data->work_queue);
+		goto engine_error;
 	}
 
-	init_completion(&bif_data->ready_to_recv);
-
 	return 0;
-queue_work_error:
+engine_error:
 	remove_bif_dev_sd_debug_port();
 init_debug_port_error:
-	destroy_workqueue(bif_data->work_queue);
-create_workqueue_error:
+	kfree(bif_data->send_frame);
+malloc_send_frame_error:
 	return -1;
 }
 
@@ -373,6 +395,7 @@ static void x2_bif_data_deinit(struct x2_bif_data *bif_data)
 	domain_deinit_stop = 1;
 	complete(&bif_data->ready_to_recv);
 	destroy_workqueue(bif_data->work_queue);
+	kfree(bif_data->send_frame);
 }
 
 static DEFINE_MUTEX(open_mutex);
@@ -446,7 +469,6 @@ err:
 #define SYS_TIMEOUT  (0)
 #define USR_TIMEOUT  (1)
 static DEFINE_MUTEX(write_mutex);
-static char send_frame[FRAME_LEN_MAX];
 static ssize_t x2_bif_write(struct file *file, const char __user *buf,
 size_t count, loff_t *ppos)
 {
@@ -481,7 +503,7 @@ size_t count, loff_t *ppos)
 		goto error;
 	}
 
-	if (copy_from_user(send_frame, (const char __user *)data.buffer,
+	if (copy_from_user(bif_data.send_frame, (const char __user *)data.buffer,
 	data.len)) {
 		hbipc_error("copy user frame error\n");
 		ret = -EFAULT;
@@ -505,7 +527,7 @@ size_t count, loff_t *ppos)
 			}
 		}
 resend:
-		ret = bif_tx_put_frame_domain(&domain, send_frame, data.len);
+		ret = bif_tx_put_frame_domain(&domain, bif_data.send_frame, data.len);
 		if (ret < 0) {
 			if (ret == BIF_TX_ERROR_NO_MEM) {
 				if (timeout_accumulate > timeout_value) {
@@ -548,7 +570,7 @@ resend:
 		}
 	} else {
 		// nonblock
-		ret = bif_tx_put_frame_domain(&domain, send_frame, data.len);
+		ret = bif_tx_put_frame_domain(&domain, bif_data.send_frame, data.len);
 		if (ret < 0) {
 			if (ret == BIF_TX_ERROR_NO_MEM)
 				data.result = HBIPC_ERROR_SEND_NO_MEM;
@@ -991,11 +1013,30 @@ static int bif_lite_probe(struct platform_device *pdev)
 	int           ret = 0;
 	dev_t         devno;
 	struct cdev  *p_cdev = &bif_cdev;
+	int frame_len_max = 0;
+	int frag_len_max = 0;
 
 	pr_info("biflite_sd version: %s\n", VERSION);
 #if 0
 	unsigned long flags = IRQF_ONESHOT | IRQF_TRIGGER_FALLING;
 #endif
+	ret = of_property_read_u32(pdev->dev.of_node,
+	"frame_len_max", &frame_len_max);
+	if (ret) {
+		bif_err("get frame_len_max error\n");
+		goto error;
+	} else
+		frame_len_max_g = frame_len_max;
+
+	ret = of_property_read_u32(pdev->dev.of_node,
+	"frag_len_max", &frag_len_max);
+	if (ret) {
+		bif_err("get frag_len_max error\n");
+		goto error;
+	} else
+		frag_len_max_g = frag_len_max;
+
+	x2_mem_layout_set(&domain_config);
 
 	bif_major = 0;
 	ret = alloc_chrdev_region(&devno, 0, 1, "x2_sd");
@@ -1113,6 +1154,7 @@ class_create_error:
 cdev_add_error:
 	unregister_chrdev_region(MKDEV(bif_major, 0), 1);
 alloc_chrdev_error:
+error:
 	return ret;
 }
 #endif
@@ -1128,6 +1170,10 @@ static int bif_lite_probe_param(void)
 #if 0
 	unsigned long flags = IRQF_ONESHOT | IRQF_TRIGGER_FALLING;
 #endif
+	frame_len_max_g = frame_len_max_ap;
+	frag_len_max_g = frag_len_max_ap;
+
+	x2_mem_layout_set(&domain_config);
 
 	bif_major = 0;
 	ret = alloc_chrdev_region(&devno, 0, 1, "x2_sd");
