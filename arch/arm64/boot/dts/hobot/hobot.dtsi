@@ -748,8 +748,14 @@
 			reg = <0x0 0xA1001000 0x0 0x1000>,
 				<0x0 0xA1000400 0x0 0x4>;
 		};
+
 		timesync: timesync {
 			compatible = "timesync";
+		};
+
+		socinfo: socinfo{
+			compatible = "hobot,x2-socinfo";
+			board_id = "0";
 		};
 	};
 };

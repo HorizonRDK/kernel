@@ -5,6 +5,12 @@ menuconfig SOC_X2_MP
         bool "X2 MPSoC driver support"
         depends on ARCH_HOBOT
 
+config HOBOT_SOCINFO
+        tristate "Enable x2 socinfo driver "
+        default y
+        help
+          Say yes to enable x2 socinfo driver In doubt, say N
+
 if SOC_X2_MP
 
 config X2_CNN_HOST
