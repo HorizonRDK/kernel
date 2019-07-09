@@ -1914,6 +1914,8 @@ static ssize_t fc_time_show(struct x2_cnn_dev *dev, char *buf)
 	unsigned long flags;
 	struct x2_fc_time tmp[FC_TIME_CNT];
 	int elapse_time = 0;
+	char buf_start[24] = {0};
+	char buf_end[24] = {0};
 
 	spin_lock_irqsave(&dev->set_time_lock, flags);
 	memcpy(tmp, dev->fc_time, sizeof(struct x2_fc_time) * FC_TIME_CNT);
@@ -1927,20 +1929,32 @@ static ssize_t fc_time_show(struct x2_cnn_dev *dev, char *buf)
 		head %= FC_TIME_CNT;
 	}
 
-	ret = sprintf(buf, "num  interrupt       start_time             end_time          exe_time\n");
+	ret = sprintf(buf, "%-6s%-17s\t%-17s\t%-17s\t%s\n",
+					"num",
+					"intterupt",
+					"start time",
+					"end_time",
+					"exe_time");
 	sum += ret;
 
 	do {
+		memset(buf_start, 0, 24);
+		memset(buf_end, 0, 24);
+		sprintf(buf_start, "%lds %ldus",
+			tmp[head].start_time.tv_sec,
+			tmp[head].start_time.tv_usec);
+		sprintf(buf_end, "%lds %ldus",
+			tmp[head].end_time.tv_sec,
+			tmp[head].end_time.tv_usec);
+
 		elapse_time = tmp[head].end_time.tv_sec * 1000 +
 			      tmp[head].end_time.tv_usec / 1000 -
 			      tmp[head].start_time.tv_sec * 1000 -
 			      tmp[head].start_time.tv_usec / 1000;
-		ret = sprintf(buf + sum, "%d     %-8d  %lds %ldus   %11lds %ldus    %4dms\n",
+		ret = sprintf(buf + sum, "%-6d%-17d\t%-17s\t%-17s\t%4dms\n",
 				tmp[head].fc_count, tmp[head].int_num,
-				tmp[head].start_time.tv_sec,
-				tmp[head].start_time.tv_usec,
-				tmp[head].end_time.tv_sec,
-				tmp[head].end_time.tv_usec,
+				buf_start,
+				buf_end,
 				elapse_time);
 		sum += ret;
 		head++;
