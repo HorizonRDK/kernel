@@ -266,6 +266,8 @@
 	status = "okay";
 	mcu-ap;
 	polling-mode;
+	frame_len_max = <4096>;
+	frag_len_max = <128>;
 };
 &qspi {
 	status = "okay";

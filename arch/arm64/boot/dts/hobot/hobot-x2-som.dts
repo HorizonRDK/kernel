@@ -343,10 +343,10 @@
 };
 
 &biflite_spi {
-	status = "okay";
+	status = "disabled";
 };
 &biflite_sd {
-	status = "okay";
+	status = "disabled";
 };
 &qspi {
 	status = "okay";

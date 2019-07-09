@@ -258,7 +258,7 @@
 };
 
 &biflite_spi {
-	status = "okay";
+	status = "disabled";
 };
 &qspi {
 	status = "okay";

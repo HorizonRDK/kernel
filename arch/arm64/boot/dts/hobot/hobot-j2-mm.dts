@@ -259,6 +259,13 @@
 
 &biflite_spi {
 	status = "okay";
+	frame_len_max = <262144>;
+	frag_len_max = <1024>;
+};
+&biflite_sd {
+	status = "okay";
+	frame_len_max = <2097152>;
+	frag_len_max = <32768>;
 };
 &qspi {
 	status = "okay";
