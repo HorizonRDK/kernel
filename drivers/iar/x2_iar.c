@@ -991,7 +991,7 @@ int32_t iar_close(void)
 		printk(KERN_ERR "IAR dev not inited!");
 		return -1;
 	}
-	iar_stop();
+	//iar_stop();
 	//value = readl(g_iar_dev->sysctrl + 0x148);
 	//value |= (0x1<<2);
 	//writel(value, g_iar_dev->sysctrl + 0x148);
