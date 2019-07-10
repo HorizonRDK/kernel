@@ -389,8 +389,8 @@ static int x2_i2c_doxfer_smbus(struct x2_i2c_dev_s *i2c_dev, u16 addr, bool writ
 	ctl_reg.all = 0;
 
 	i2c_dev->msg_write_buf = &command;
+	i2c_dev->msg_write_remaining = 1;
 	if (write) {
-		i2c_dev->msg_write_remaining = 1;
 		i2c_dev->i2c_regs->dcount.bit.w_dcount = size + 1;
 		x2_fill_txfifo(i2c_dev, 0);
 		if (data) {
