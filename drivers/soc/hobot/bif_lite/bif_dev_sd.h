@@ -3,11 +3,12 @@
 
 static int frame_len_max_g = 256 * 1024;
 static int frag_len_max_g = 32 * 1024;
+static int frame_count_g = 12;
 
 #define RING_INFO_ALIGN            (512)
 #define FRAME_LEN_MAX              (frame_len_max_g)
 #define FRAG_LEN_MAX               (frag_len_max_g)
-#define FRAG_NUM                   ((FRAME_LEN_MAX / FRAG_LEN_MAX) * 12)
+#define FRAG_NUM                   ((FRAME_LEN_MAX / FRAG_LEN_MAX) * frame_count_g)
 #define CP2AP_RING_BUFFER_LEN      (FRAG_NUM * FRAG_LEN_MAX)
 #define AP2CP_RING_BUFFER_LEN      (FRAG_NUM * FRAG_LEN_MAX)
 #define FRAME_CACHE_MAX            (50)

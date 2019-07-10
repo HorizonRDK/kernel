@@ -1148,7 +1148,7 @@ int bif_lite_init(struct comm_channel *channel)
 
 	if (base_addr_tmp <= 0) {
 		ret = -EFAULT;
-		bif_debug("bif_alloc_cp fail\n ");
+		pr_info("bif_alloc_cp fail\n ");
 		goto err;
 	}
 	channel->base_addr_phy = base_addr_tmp_phy;

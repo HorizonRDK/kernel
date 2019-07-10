@@ -39,10 +39,12 @@ static char *ap_type_str = "soc-ap";
 static char *working_mode_str = "interrupt-mode";
 static int frame_len_max_ap = 262144;
 static int frag_len_max_ap = 1024;
+static int frame_count_ap = 4;
 module_param(ap_type_str, charp, 0644);
 module_param(working_mode_str, charp, 0644);
 module_param(frame_len_max_ap, int, 0644);
 module_param(frag_len_max_ap, int, 0644);
+module_param(frame_count_ap, int, 0644);
 #endif
 
 /* ioctl cmd */
@@ -1044,6 +1046,7 @@ static int bif_lite_probe(struct platform_device *pdev)
 	struct cdev  *p_cdev = &bif_cdev;
 	int frame_len_max = 0;
 	int frag_len_max = 0;
+	int frame_count = 0;
 
 	pr_info("biflite_spi version: %s\n", VERSION);
 #if 0
@@ -1064,6 +1067,14 @@ static int bif_lite_probe(struct platform_device *pdev)
 		goto error;
 	} else
 		frag_len_max_g = frag_len_max;
+
+	ret = of_property_read_u32(pdev->dev.of_node,
+	"frame_count", &frame_count);
+	if (ret) {
+		bif_err("get frame_count error\n");
+		goto error;
+	} else
+		frame_count_g = frame_count;
 
 	if (of_find_property(pdev->dev.of_node, "mcu-ap", NULL)) {
 		// mcu-ap
@@ -1221,6 +1232,7 @@ static int bif_lite_probe_param(void)
 #endif
 	frame_len_max_g = frame_len_max_ap;
 	frag_len_max_g = frag_len_max_ap;
+	frame_count_g = frame_count_ap;
 
 	if (!strcmp(ap_type_str, "soc-ap")) {
 		domain_config.type = SOC_AP;
