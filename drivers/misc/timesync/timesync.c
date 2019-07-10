@@ -118,9 +118,9 @@ static long timesync_ioctrl(struct file *filp,
 
 	switch (cmd) {
 	case timesync_GET_TIMESTAMP:
-		spin_lock(&timesync_spinlock);
+		spin_lock_irqsave(&timesync_spinlock, spinlock_flags);
 		tv_temp = tv_global;
-		spin_unlock(&timesync_spinlock);
+		spin_unlock_irqrestore(&timesync_spinlock, spinlock_flags);
 		copied = copy_to_user((void __user *)arg,
 			&tv_temp, sizeof(struct timeval));
 		if (copied)
