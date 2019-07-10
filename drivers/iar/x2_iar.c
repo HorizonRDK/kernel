@@ -38,6 +38,7 @@ uint32_t iar_display_caddr_offset;
 uint8_t iar_display_addr_type = DS5;
 uint8_t iar_display_cam_no;
 uint32_t iar_display_ipu_slot_size = 0x1000000;
+uint8_t ch1_en;
 
 const unsigned int g_iarReg_cfg_table[][3] = {
 	/*reg mask	reg offset*/
@@ -556,12 +557,32 @@ EXPORT_SYMBOL_GPL(iar_set_panel_timing);
 int32_t iar_channel_base_cfg(channel_base_cfg_t *cfg)
 {
 	uint32_t value, channelid, pri, target_filed;
+	uint32_t reg_overlay_opt_value = 0;
+
 	if (NULL == g_iar_dev) {
 		printk(KERN_ERR "IAR dev not inited!");
 		return -1;
 	}
 	channelid = cfg->channel;
 	pri = cfg->pri;
+
+	if (channelid == 0) {
+		ch1_en = 1;
+		writel(0x011bf00f, g_iar_dev->regaddr + REG_IAR_OVERLAY_OPT);
+		reg_overlay_opt_value =
+			readl(g_iar_dev->regaddr + REG_IAR_OVERLAY_OPT);
+		pr_debug("channelid 0 value is 0x%x\n", reg_overlay_opt_value);
+	}
+
+	if (channelid == 2) {
+		if (ch1_en == 1)
+			writel(0x051bf00f,
+				g_iar_dev->regaddr + REG_IAR_OVERLAY_OPT);
+		else
+			writel(0x041bf00f,
+				g_iar_dev->regaddr + REG_IAR_OVERLAY_OPT);
+		ch1_en = 0;
+	}
 
 	value = IAR_REG_SET_FILED(IAR_WINDOW_WIDTH, cfg->width, 0); //set width
 	value = IAR_REG_SET_FILED(IAR_WINDOW_HEIGTH, cfg->height, value);
@@ -603,9 +624,7 @@ int32_t iar_channel_base_cfg(channel_base_cfg_t *cfg)
 	value = IAR_REG_SET_FILED(target_filed, cfg->ov_mode, value);
 	target_filed = IAR_EN_ALPHA_PRI1 - pri; //set alpha en
 	value = IAR_REG_SET_FILED(target_filed, cfg->alpha_en, value);
-	writel(value, g_iar_dev->regaddr + REG_IAR_OVERLAY_OPT);
-
-	writel(0x011bf00f, g_iar_dev->regaddr + REG_IAR_OVERLAY_OPT);
+//	writel(value, g_iar_dev->regaddr + REG_IAR_OVERLAY_OPT);
 
 	g_iar_dev->buf_w_h[channelid][0] = cfg->buf_width;
 	g_iar_dev->buf_w_h[channelid][1] = cfg->buf_height;
