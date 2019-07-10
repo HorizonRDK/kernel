@@ -618,7 +618,6 @@
 				  <0x0 0xA1000590 0x0 0x10>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 17 4>;
-			memory-region = <&bifsd_reserved>;
 			status = "disabled";
 			resets = <&rst 0x00 5>;
 			reset-names = "bifsd";
