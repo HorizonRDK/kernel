@@ -381,17 +381,6 @@
 	disable-wp;
 };
 
-&sdio1 {
-	status = "okay";
-	bus-width = <4>;
-	no-mmc;
-	no-sdio;
-	cap-sd-highspeed;
-	/*powerup-gpio = <85>;*/
-	uhs-180v-gpio = <116>;
-	broken-cd;
-	disable-wp;
-};
 
 &watchdog {
 	status = "okay";
