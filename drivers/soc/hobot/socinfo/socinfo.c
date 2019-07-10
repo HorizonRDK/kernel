@@ -35,7 +35,7 @@ static struct kobject *k_obj;
 const char *soc_id;
 
 unsigned int x2_board_id[] = {
-	0x100, 0x101, 0x102, 0x103, 0x200, 0x201, 0x202, 0x203,
+	0x100, 0x101, 0x102, 0x103, 0x200, 0x201, 0x202, 0x203, 0x204,
 	0x300, 0x301, 0x302, 0x303, 0x304, 0x400
 };
 
@@ -48,13 +48,14 @@ struct hobot_board_info board_of_id[] = {
 	[5] = {J2SOM, "J2SOM"},
 	[6] = {J2_Mono, "J2-Mono"},
 	[7] = {J2_DEV, "J2-DEV"},
-	[8] = {J2_Quad, "J2-Quad*"},
-	[9] = {J2_QuadJ2A, "J2-QuadJ2A"},
-	[10] = {J2_QuadJ2B, "J2-QuadJ2B"},
-	[11] = {J2_QuadJ2C, "J2-QuadJ2C"},
-	[12] = {J2_QuadJ2D, "J2-QuadJ2D"},
-	[13] = {J2_mm, "J2-mm"},
-	[14] = {Unknown, "Unknown"},
+	[8] = {J2_SK, "J2-SK"},
+	[9] = {J2_Quad, "J2-Quad*"},
+	[10] = {J2_QuadJ2A, "J2-QuadJ2A"},
+	[11] = {J2_QuadJ2B, "J2-QuadJ2B"},
+	[12] = {J2_QuadJ2C, "J2-QuadJ2C"},
+	[13] = {J2_QuadJ2D, "J2-QuadJ2D"},
+	[14] = {J2_mm, "J2-mm"},
+	[15] = {Unknown, "Unknown"},
 };
 
 static int parse_boardid(uint32_t board_id)

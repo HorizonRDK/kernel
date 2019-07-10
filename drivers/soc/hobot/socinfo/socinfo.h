@@ -10,6 +10,7 @@ enum hobot_board {
 	X2_DEV = 101,
 	J2_Mono = 202,
 	J2_DEV = 203,
+	J2_SK = 204,
 	J2_QuadJ2A = 301,
 	J2_QuadJ2B,
 	J2_QuadJ2C,
