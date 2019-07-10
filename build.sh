@@ -10,7 +10,12 @@ function choose()
         sed -i "/CONFIG_BLK_DEV_INITRD/d" $conftmp
         echo "CONFIG_BLK_DEV_INITRD=n" >> $conftmp
     else
-        sed -i "s#CONFIG_INITRAMFS_SOURCE=\"./usr/rootfs.cpio\"#CONFIG_INITRAMFS_SOURCE=\"./usr/prerootfs/\"#g" $conftmp
+        if [ "x$NOR_FLASH_WITH_UBIFS" = "xtrue" ];then
+            sed -i "/CONFIG_BLK_DEV_INITRD/d" $conftmp
+            echo "CONFIG_BLK_DEV_INITRD=n" >> $conftmp
+        else
+            sed -i "s#CONFIG_INITRAMFS_SOURCE=\"./usr/rootfs.cpio\"#CONFIG_INITRAMFS_SOURCE=\"./usr/prerootfs/\"#g" $conftmp
+        fi
         rm -rf ${SRC_KERNEL_DIR}/usr/prerootfs/
         mkdir -p ${SRC_KERNEL_DIR}/usr/prerootfs/
         if [ "$BOOT_MODE" = "nor" ];then
@@ -118,6 +123,12 @@ function all()
         # get recovery.gz
         make_recovery_img
     fi
+
+    if [ "x$NOR_FLASH_WITH_UBIFS" = "xtrue" ];then
+        cd $SRC_KERNEL_DIR/tools/ubifs
+        ./make_ubifs.sh
+    fi
+
 }
 
 function clean()

@@ -98,7 +98,7 @@
 #define X2_QSPI_BUS_DUAL            0x02   /* Dual I/O data transfer */
 #define X2_QSPI_BUS_QUAD            0x04   /* Quad I/O data transfer */
 
-#define TRYS_TOTAL_NUM              1000
+#define TRYS_TOTAL_NUM              0x8000000
 #define BATCH_MAX_CNT               0x8000
 #define MIN(a, b)   ((a < b) ? (a) : (b))
 #define MAX(a, b)   ((a > b) ? (a) : (b))

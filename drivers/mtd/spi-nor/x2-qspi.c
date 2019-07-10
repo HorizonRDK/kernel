@@ -145,7 +145,7 @@ static int x2_qspi_tx_ae(struct x2qspi_pdata *x2qspi)
 	u32 val, trys=0;
 
 	do {
-		udelay(100);
+		ndelay(10);
 		val = x2qspi_rd(x2qspi, X2_QSPI_ST1_REG);
 		trys ++;
 	} while ((!(val&X2_QSPI_TX_AE)) && (trys<TRYS_TOTAL_NUM));
@@ -161,7 +161,7 @@ static int x2_qspi_rx_af(struct x2qspi_pdata *x2qspi)
 	u32 val, trys=0;
 
 	do {
-		udelay(100);
+		ndelay(10);
 		val = x2qspi_rd(x2qspi, X2_QSPI_ST1_REG);
 		trys ++;
 	} while ((!(val&X2_QSPI_RX_AF)) && (trys<TRYS_TOTAL_NUM));
@@ -176,7 +176,7 @@ static int __maybe_unused x2_qspi_tb_done(struct x2qspi_pdata *x2qspi)
 	u32 val, trys=0;
 
 	do {
-		udelay(100);
+		ndelay(10);
 		val = x2qspi_rd(x2qspi, X2_QSPI_ST1_REG);
 		trys ++;
 	} while ((!(val&X2_QSPI_TBD)) && (trys<TRYS_TOTAL_NUM));
@@ -193,7 +193,7 @@ static int __maybe_unused x2_qspi_rb_done(struct x2qspi_pdata *x2qspi)
 	u32 val, trys=0;
 
 	do {
-		udelay(100);
+		ndelay(10);
 		val = x2qspi_rd(x2qspi, X2_QSPI_ST1_REG);
 		trys ++;
 	} while ((!(val&X2_QSPI_RBD)) && (trys<TRYS_TOTAL_NUM));
@@ -210,7 +210,7 @@ static int x2_qspi_tx_full(struct x2qspi_pdata *x2qspi)
 	u32 val, trys=0;
 
 	do {
-		udelay(100);
+		ndelay(10);
 		val = x2qspi_rd(x2qspi, X2_QSPI_ST2_REG);
 		trys ++;
 	} while ((val&X2_QSPI_TX_FULL) && (trys<TRYS_TOTAL_NUM));
@@ -226,7 +226,7 @@ static int x2_qspi_tx_empty(struct x2qspi_pdata *x2qspi)
 	u32 val, trys=0;
 
 	do {
-		udelay(10);
+		ndelay(10);
 		val = x2qspi_rd(x2qspi, X2_QSPI_ST2_REG);
 		trys ++;
 	} while ((!(val&X2_QSPI_TX_EP)) && (trys<TRYS_TOTAL_NUM));
@@ -242,7 +242,7 @@ static int x2_qspi_rx_empty(struct x2qspi_pdata *x2qspi)
 	u32 val, trys=0;
 
 	do {
-		udelay(10);
+		ndelay(10);
 		val = x2qspi_rd(x2qspi, X2_QSPI_ST2_REG);
 		trys ++;
 	} while ((val&X2_QSPI_RX_EP) && (trys<TRYS_TOTAL_NUM));
