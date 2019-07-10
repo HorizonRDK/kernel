@@ -74,5 +74,13 @@
 	"gpio_id"   :   "0",
 	"dtb_addr"  :   "224400",
 	"dtb_size"  :   "10000"
+    },
+
+	"204": {
+        "dtb_name"  :   "hobot-j2-sk.dtb",
+        "gpio_id"   :   "0",
+        "dtb_addr"  :   "234400",
+        "dtb_size"  :   "10000"
     }
+
 }
