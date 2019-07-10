@@ -1323,6 +1323,15 @@ static int x2_iar_probe(struct platform_device *pdev)
 		ret = ips_set_iar_clk32();
 		if (ret)
 			return ret;
+
+		temp1 =
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr;
+		tempi = 0;
+		for (tempi = 0; tempi < MAX_FRAME_BUF_SIZE; tempi++) {
+			temp1 = 0x0;
+			temp1++;
+		}
+
 		temp1 =
 		g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].vaddr;
 		tempi = 0;
