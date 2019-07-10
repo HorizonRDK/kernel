@@ -520,10 +520,11 @@ static int32_t mipi_tx_pll_div(uint16_t refsclk, uint16_t laneclk, uint8_t *n, u
 	*m = m_tmp - 2;
 	fvco = (refsclk * (*m + 2)) / (*n + 1);
 	fout = fvco >> vco_div;
-	*vco = mipi_tx_vco_range(fvco, &fvco_max);
 #ifndef ADJUST_CLK_RECALCULATION
+	*vco = mipi_tx_vco_range(fvco, &fvco_max);
 	*m = fvco_max * (*n + 1) / refsclk - 2;
 #else
+	*vco = mipi_tx_vco_range(fout, &fvco_max);
 	*m = (fvco_max << vco_div) * (*n + 1) / refsclk - 2;
 #endif
 	outclk = fout << 1;
