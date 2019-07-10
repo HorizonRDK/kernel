@@ -373,7 +373,7 @@ static int x2fb_mmap(struct fb_info *info, struct vm_area_struct *pvma)
 	pvma->vm_flags |= VM_LOCKED;
 	//pvma->vm_page_prot = pgprot_noncached(pvma->vm_page_prot);
 	if (remap_pfn_range(pvma, pvma->vm_start,
-			(framebuf->paddr +  MAX_FRAME_BUF_SIZE*3) >> PAGE_SHIFT,
+			framebuf->paddr >> PAGE_SHIFT,
 			pvma->vm_end - pvma->vm_start, pvma->vm_page_prot)) {
 		pr_err("x2fb mmap fail\n");
 		return -EAGAIN;
@@ -860,10 +860,10 @@ static int x2fb_probe(struct platform_device *pdev)
 	strcpy(x2_fbi->fb.fix.id, DRIVER_NAME);
 	
 	framebuf_user = *x2_iar_get_framebuf_addr(2);
-	framebuf_user.paddr = framebuf_user.paddr + 3*MAX_FRAME_BUF_SIZE;
-	framebuf_user.vaddr = framebuf_user.vaddr + 3*MAX_FRAME_BUF_SIZE;
-//	pr_info("framebuf_user.paddr = 0x%llx\n", framebuf_user.paddr);
-//	pr_info("framebuf_uset.vaddr = 0x%p\n", framebuf_user.vaddr);
+//	framebuf_user.paddr = framebuf_user.paddr + 3*MAX_FRAME_BUF_SIZE;
+//	framebuf_user.vaddr = framebuf_user.vaddr + 3*MAX_FRAME_BUF_SIZE;
+	pr_debug("framebuf_user.paddr = 0x%llx\n", framebuf_user.paddr);
+	pr_debug("framebuf_uset.vaddr = 0x%p\n", framebuf_user.vaddr);
 
 	RGB500_fix_default.smem_start = framebuf_user.paddr;
 	RGB700_fix_default.smem_start = framebuf_user.paddr;

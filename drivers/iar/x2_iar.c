@@ -628,7 +628,7 @@ int32_t iar_channel_base_cfg(channel_base_cfg_t *cfg)
 
 	g_iar_dev->buf_w_h[channelid][0] = cfg->buf_width;
 	g_iar_dev->buf_w_h[channelid][1] = cfg->buf_height;
-	iar_config_pixeladdr();
+//	iar_config_pixeladdr();
 
 	return 0;
 }
@@ -1256,7 +1256,16 @@ static int x2_iar_probe(struct platform_device *pdev)
 		return -1;
 	}
 
-	//channel 2&4 disabled
+	pr_debug("iar reserved memory size is %lld\n", resource_size(&r));
+
+	if (resource_size(&r) < MAX_FRAME_BUF_SIZE*3) {
+		pr_info("iar memory size is not large enough!(<3buffer)\n");
+	return -1;
+	}
+
+	//for reserved 48M memory
+
+/*	//channel 2&4 disabled
 	vaddr = ioremap_nocache(r.start, MAX_FRAME_BUF_SIZE * 6);
 	g_iar_dev->frambuf[IAR_CHANNEL_1].paddr = r.start;
 	g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr = vaddr;
@@ -1267,10 +1276,6 @@ static int x2_iar_probe(struct platform_device *pdev)
 				r.start + MAX_FRAME_BUF_SIZE * 2;
 	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr =
 				vaddr + MAX_FRAME_BUF_SIZE * 2;
-
-	//g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr =
-	//memremap(r.start + MAX_FRAME_BUF_SIZE*2, resource_size(&r) -
-	//MAX_FRAME_BUF_SIZE*2, MEMREMAP_WT);
 
 	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].paddr
 			= g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr + MAX_FRAME_BUF_SIZE;
@@ -1289,7 +1294,6 @@ static int x2_iar_probe(struct platform_device *pdev)
 
 	g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[1].vaddr
 			= g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].vaddr + MAX_FRAME_BUF_SIZE;
-	IAR_DEBUG_PRINT("iar 0x%p  0x%p %lld\n", g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr, g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[1].vaddr, resource_size(&r) - MAX_FRAME_BUF_SIZE * 2);
 
 	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_1].paddr = 0x%llx\n",
 				g_iar_dev->frambuf[IAR_CHANNEL_1].paddr);
@@ -1299,6 +1303,59 @@ static int x2_iar_probe(struct platform_device *pdev)
 				g_iar_dev->frambuf[IAR_CHANNEL_3].paddr);
 	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr = 0x%p\n",
 				g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr);
+
+	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr = 0x%llx\n",
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr);
+	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr = 0x%p\n",
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr);
+	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].paddr = 0x%llx\n",
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].paddr);
+	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].vaddr = 0x%p\n",
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].vaddr);
+	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].paddr = 0x%llx\n",
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].paddr);
+	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].vaddr = 0x%p\n",
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].vaddr);
+	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[1].paddr = 0x%llx\n",
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[1].paddr);
+	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[1].vaddr = 0x%p\n",
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[1].vaddr);
+*/
+	//for reserver 24M memory (1920*1080*4*3)
+	//channel 2&4 disabled
+	vaddr = ioremap_nocache(r.start, MAX_FRAME_BUF_SIZE * 3);
+	g_iar_dev->frambuf[IAR_CHANNEL_1].paddr = r.start;
+	g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr = vaddr;
+	g_iar_dev->frambuf[IAR_CHANNEL_3].paddr = r.start;
+	g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr = vaddr;
+
+	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr =
+		r.start + MAX_FRAME_BUF_SIZE*2;
+	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr =
+		vaddr + MAX_FRAME_BUF_SIZE*2;
+
+	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].paddr =
+		r.start + MAX_FRAME_BUF_SIZE;
+
+	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].vaddr =
+		vaddr + MAX_FRAME_BUF_SIZE;
+
+	g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].paddr = r.start;
+
+	g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].vaddr = vaddr;
+
+	g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[1].paddr = r.start;
+
+	g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[1].vaddr = vaddr;
+
+	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_1].paddr = 0x%llx\n",
+			g_iar_dev->frambuf[IAR_CHANNEL_1].paddr);
+	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr = 0x%p\n",
+			g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr);
+	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_3].paddr = 0x%llx\n",
+			g_iar_dev->frambuf[IAR_CHANNEL_3].paddr);
+	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr = 0x%p\n",
+			g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr);
 
 	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr = 0x%llx\n",
 		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr);
