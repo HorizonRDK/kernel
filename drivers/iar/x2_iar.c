@@ -957,8 +957,8 @@ int32_t iar_set_video_buffer(uint32_t slot_id)
 			iar_display_yaddr_offset);
 	pr_debug("iar_display_caddr offset is 0x%x.\n",
 			iar_display_caddr_offset);
-	pr_info("iar: iar_display_yaddr is 0x%x.\n", display_addr.Yaddr);
-	pr_info("iar: iar_display_caddr is 0x%x.\n", display_addr.Uaddr);
+	pr_debug("iar: iar_display_yaddr is 0x%x.\n", display_addr.Yaddr);
+	pr_debug("iar: iar_display_caddr is 0x%x.\n", display_addr.Uaddr);
 	iar_set_bufaddr(0, &display_addr);
 
 	iar_update();

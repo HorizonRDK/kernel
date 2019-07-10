@@ -242,19 +242,21 @@ void ipu_dual_mode_process(uint32_t status)
 					ipu_get_frameid(ipu, slot_h);
 					wake_up_interruptible(&g_ipu_d_cdev->event_head);
 
+					/*
 					iar_display_yaddr =
 					IPU_GET_DUAL_SLOT(slot_h->info_h.slot_id, ipu->paddr) +
 					slot_h->info_h.dual_ddr_info.ds_2nd[5].y_offset;
 					iar_display_caddr =
 					IPU_GET_DUAL_SLOT(slot_h->info_h.slot_id, ipu->paddr) +
 					slot_h->info_h.dual_ddr_info.ds_2nd[5].c_offset;
-
+					*/
 					pr_debug("@@slot id is %d\n", slot_h->info_h.slot_id);
+					/*
 					pr_debug("ipu: slot info ds_2nd[5] yaddr is 0x%x\n",
 						iar_display_yaddr);
 					pr_debug("ipu: slot info ds_2nd[5] caddr is 0x%x\n",
 						iar_display_caddr);
-
+					*/
 					iar_set_video_buffer(slot_h->info_h.slot_id);
 
 				} else {
