@@ -389,22 +389,22 @@ static irqreturn_t mipi_dev_irq_func(int this_irq, void *data)
 	iomem = mipi_dev->iomem;
 	disable_irq_nosync(this_irq);
 	irq = mipi_getreg(iomem + REG_MIPI_DEV_INT_ST_MAIN);
-	mipidbg("mipi dev irq status 0x%x\n", irq);
+	printk_ratelimited(KERN_ERR "mipi dev irq status 0x%x\n", irq);
 	if (irq & MIPI_DEV_INT_VPG) {
 		subirq = mipi_getreg(iomem + REG_MIPI_DEV_INT_ST_VPG);
-		mipidbg("mipi dev VPG ST: 0x%x", subirq);
+		printk_ratelimited(KERN_ERR "mipi dev VPG ST: 0x%x", subirq);
 	}
 	if (irq & MIPI_DEV_INT_IDI) {
 		subirq = mipi_getreg(iomem + REG_MIPI_DEV_INT_ST_IDI);
-		mipidbg("mipi dev IDI ST: 0x%x", subirq);
+		printk_ratelimited(KERN_ERR "mipi dev IDI ST: 0x%x", subirq);
 	}
 	if (irq & MIPI_DEV_INT_IPI) {
 		subirq = mipi_getreg(iomem + REG_MIPI_DEV_INT_ST_IPI);
-		mipidbg("mipi dev IPI ST: 0x%x", subirq);
+		printk_ratelimited(KERN_ERR "mipi dev IPI ST: 0x%x", subirq);
 	}
 	if (irq & MIPI_DEV_INT_PHY) {
 		subirq = mipi_getreg(iomem + REG_MIPI_DEV_INT_ST_PHY);
-		mipidbg("mipi dev PHY ST: 0x%x", subirq);
+		printk_ratelimited(KERN_ERR "mipi dev PHY ST: 0x%x", subirq);
 	}
 	enable_irq(this_irq);
 	return IRQ_HANDLED;

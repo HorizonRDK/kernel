@@ -455,34 +455,42 @@ static irqreturn_t mipi_host_irq_func(int this_irq, void *data)
 	/* new add */
 	mipi_host_states = irq;
 	/* new add */
-	mipidbg("mipi host irq status 0x%x\n", irq);
+	// mipidbg("mipi host irq status 0x%x\n", irq);
+	printk_ratelimited(KERN_ERR "mipi host irq status 0x%x\n", irq);
 	if (irq & MIPI_HOST_INT_PHY_FATAL) {
 		subirq = mipi_getreg(iomem + REG_MIPI_HOST_INT_ST_PHY_FATAL);
-		mipidbg("mipi host PHY FATAL: 0x%x", subirq);
+		// mipidbg("mipi host PHY FATAL: 0x%x", subirq);
+		printk_ratelimited(KERN_ERR "mipi host PHY FATAL: 0x%x", subirq);
 	}
 	if (irq & MIPI_HOST_INT_PKT_FATAL) {
 		subirq = mipi_getreg(iomem + REG_MIPI_HOST_INT_ST_PKT_FATAL);
-		mipidbg("mipi host PKT FATAL: 0x%x", subirq);
+		// mipidbg("mipi host PKT FATAL: 0x%x", subirq);
+		printk_ratelimited(KERN_ERR "mipi host PKT FATAL: 0x%x", subirq);
 	}
 	if (irq & MIPI_HOST_INT_FRM_FATAL) {
 		subirq = mipi_getreg(iomem + REG_MIPI_HOST_INT_ST_FRAME_FATAL);
-		mipidbg("mipi host FRAME FATAL: 0x%x", subirq);
+		// mipidbg("mipi host FRAME FATAL: 0x%x", subirq);
+		printk_ratelimited(KERN_ERR "mipi host FRAME FATAL: 0x%x", subirq);
 	}
 	if (irq & MIPI_HOST_INT_PHY) {
 		subirq = mipi_getreg(iomem + REG_MIPI_HOST_INT_ST_PHY);
-		mipidbg("mipi host PHY ST: 0x%x", subirq);
+		// mipidbg("mipi host PHY ST: 0x%x", subirq);
+		printk_ratelimited(KERN_ERR "mipi host PHY ST: 0x%x", subirq);
 	}
 	if (irq & MIPI_HOST_INT_PKT) {
 		subirq = mipi_getreg(iomem + REG_MIPI_HOST_INT_ST_PKT);
-		mipidbg("mipi host PKT ST: 0x%x", subirq);
+		// mipidbg("mipi host PKT ST: 0x%x", subirq);
+		printk_ratelimited(KERN_ERR "mipi host PKT ST: 0x%x", subirq);
 	}
 	if (irq & MIPI_HOST_INT_LINE) {
 		subirq = mipi_getreg(iomem + REG_MIPI_HOST_INT_ST_LINE);
-		mipidbg("mipi host LINE ST: 0x%x", subirq);
+		// mipidbg("mipi host LINE ST: 0x%x", subirq);
+		printk_ratelimited(KERN_ERR "mipi host LINE ST: 0x%x", subirq);
 	}
 	if (irq & MIPI_HOST_INT_IPI) {
 		subirq = mipi_getreg(iomem + REG_MIPI_HOST_INT_ST_IPI);
-		mipidbg("mipi host IPI ST: 0x%x", subirq);
+		// mipidbg("mipi host IPI ST: 0x%x", subirq);
+		printk_ratelimited(KERN_ERR "mipi host IPI ST: 0x%x", subirq);
 	}
 	enable_irq(this_irq);
 	return IRQ_HANDLED;
