@@ -54,6 +54,9 @@ static int ion_cma_allocate(struct ion_heap *heap, struct ion_buffer *buffer,
 	if (!pages)
 		return -ENOMEM;
 
+	/* the page may used for instruction or data which still cached */
+	flush_icache_range(page_address(pages), page_address(pages) + size);
+	__inval_dcache_area(page_address(pages), size);
 	if (PageHighMem(pages)) {
 		unsigned long nr_clear_pages = nr_pages;
 		struct page *page = pages;
@@ -69,6 +72,7 @@ static int ion_cma_allocate(struct ion_heap *heap, struct ion_buffer *buffer,
 	} else {
 		memset(page_address(pages), 0, size);
 	}
+	__flush_dcache_area(page_address(pages), size);
 
 	table = kmalloc(sizeof(*table), GFP_KERNEL);
 	if (!table)
@@ -82,6 +86,7 @@ static int ion_cma_allocate(struct ion_heap *heap, struct ion_buffer *buffer,
 
 	buffer->priv_virt = pages;
 	buffer->sg_table = table;
+
 	return 0;
 
 free_mem:
@@ -168,6 +173,9 @@ static int __ion_add_cma_heaps(struct cma *cma, void *data)
 		return PTR_ERR(heap);
 
 	heap->name = cma_get_name(cma);
+
+	if (strcmp(heap->name, "ion_cma"))
+		return 0;
 
 	if (cma_ion_dev)
 		ion_device_add_heap(cma_ion_dev, heap);
