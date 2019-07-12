@@ -36,7 +36,7 @@ const char *soc_id;
 
 unsigned int x2_board_id[] = {
 	0x100, 0x101, 0x102, 0x103, 0x200, 0x201, 0x202, 0x203, 0x204,
-	0x300, 0x301, 0x302, 0x303, 0x304, 0x400
+	0x300, 0x301, 0x302, 0x303, 0x304, 0x400, 0x104
 };
 
 struct hobot_board_info board_of_id[] = {
@@ -55,7 +55,8 @@ struct hobot_board_info board_of_id[] = {
 	[12] = {J2_QuadJ2C, "J2-QuadJ2C"},
 	[13] = {J2_QuadJ2D, "J2-QuadJ2D"},
 	[14] = {J2_mm, "J2-mm"},
-	[15] = {Unknown, "Unknown"},
+	[15] = {X2_SOMFULL, "X2-SOMFULL"},
+	[16] = {Unknown, "Unknown"},
 };
 
 static int parse_boardid(uint32_t board_id)
