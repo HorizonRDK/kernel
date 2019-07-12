@@ -8,7 +8,7 @@
  * @author	guozheng.li(guozheng.li@horizon.ai)
  * @date	2018/12/20
  */
-
+#include <linux/platform_device.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/interrupt.h>
@@ -30,7 +30,7 @@
 #define _DEBUG_PRINTF_
 #include "debug.h"
 
-#define BIF_SIO_VER	"1.02"
+#define BIF_SIO_VER	"HOBOT-bifsio_V20.190712"
 
 /* define how many bif serial port */
 //#define BIF_SIO_NR_PORTS      CONFIG_BIF_SIO_NR
@@ -627,12 +627,12 @@ static int bif_tty_free_chrdev(struct bif_tty_cdev *cdev)
 	return 0;
 }
 
-static int __init bif_tty_init(void)
+static int __init bif_tty_pre_init(void)
 {
 	int rc;
 	struct bif_tty_cdev *tty_dev = NULL;
 
-	tty_err_log("VER:%s\n", BIF_SIO_VER);
+	pr_info("bifsio: %s\n", BIF_SIO_VER);
 	tty_dev = bif_tty_create_dev();
 	if (tty_dev == NULL)
 		return -ENOMEM;
@@ -670,15 +670,61 @@ fail_1:
 	return rc;
 }
 
-late_initcall(bif_tty_init);
-
-static void __exit bif_tty_exit(void)
+static void __exit bif_tty_pre_exit(void)
 {
 	bif_register_irq(BUFF_SMD, NULL);
 	bif_tty_free_chrdev(g_tb_dev);
 	bif_tty_free(g_tb_dev);
 }
 
+static int bif_tty_probe(struct platform_device *pdev)
+{
+	return bif_tty_pre_init();
+}
+
+static int bif_tty_remove(struct platform_device *pdev)
+{
+	bif_tty_pre_exit();
+
+	return 0;
+}
+
+static const struct of_device_id bifsio_of_match[] = {
+	{.compatible = "hobot,bifsio"},
+	{},
+};
+
+static struct platform_driver bifsio_driver = {
+	.driver = {
+		   .name = "bifsio",
+		   .of_match_table = bifsio_of_match,
+		   },
+	.probe = bif_tty_probe,
+	.remove = bif_tty_remove,
+};
+
+static int bif_tty_init(void)
+{
+	int ret = 0;
+
+#ifdef CONFIG_HOBOT_BIF_AP
+	ret = bif_tty_pre_init();
+#else
+	ret = platform_driver_register(&bifsio_driver);
+#endif
+	return ret;
+}
+
+static void __exit bif_tty_exit(void)
+{
+#ifdef CONFIG_HOBOT_BIF_AP
+	bif_tty_pre_exit();
+#else
+	platform_driver_unregister(&bifsio_driver);
+#endif
+}
+
+late_initcall(bif_tty_init);
 module_exit(bif_tty_exit);
 
 MODULE_DESCRIPTION("Driver for Bif tty");
