@@ -30,7 +30,7 @@
 #define _DEBUG_PRINTF_
 #include "debug.h"
 
-#define BIF_SIO_VER	"1.01"
+#define BIF_SIO_VER	"1.02"
 
 /* define how many bif serial port */
 //#define BIF_SIO_NR_PORTS      CONFIG_BIF_SIO_NR
@@ -136,7 +136,7 @@ static int bif_tty_check_other(struct ringbuf_t *rb)
 	int rc = 0;
 
 	if (rb->head >= rb->size || rb->tail >= rb->size) {
-#if CONFIG_HOBOT_BIF_AP
+#ifdef CONFIG_HOBOT_BIF_AP
 		rc = bif_sync_base();
 #else
 		rc = bif_sync_ap();
@@ -405,7 +405,7 @@ static int bif_tty_free(struct bif_tty_cdev *cdev)
 	bif_dma_free(2 * cdev->num_nodes * TTY_BUF_SIZE,
 		     cdev->vir_addr_rw, cdev->phy_addr_rw, 0);
 #endif
-	kfree(cdev->tb_node);
+	kfree(cdev->tb_node[0]);
 	kfree(cdev);
 	return 0;
 }
@@ -548,7 +548,7 @@ static int bif_tty_set_rwbuf(struct bif_tty_cdev *cdev)
 	tty_debug_log("buff_addr_phy = 0x%p\n", phy_addr);
 	return 0;
 fail:
-	kfree(cdev);
+//	kfree(cdev);//hobot 20190711
 	return -ENOMEM;
 }
 
@@ -639,15 +639,15 @@ static int __init bif_tty_init(void)
 
 	rc = bif_tty_set_base(tty_dev);
 	if (rc)
-		goto fail;
+		goto fail_1;
 
 	rc = bif_tty_set_rwbuf(tty_dev);
 	if (rc)
-		goto fail;
+		goto fail_1;
 
 	rc = bif_tty_create_chrdev(tty_dev);
 	if (rc)
-		goto fail;
+		goto fail_2;
 
 	bif_register_irq(BUFF_SMD, bif_tty_irq_handler);
 	bif_tty_irq();
@@ -655,9 +655,18 @@ static int __init bif_tty_init(void)
 	tty_debug_log("leave\n");
 	return 0;
 
-fail:
+fail_2:
+#ifdef CONFIG_HOBOT_BIF_AP
+	kfree(tty_dev->rw_addr);
+#else
+	bif_dma_free(2 * tty_dev->num_nodes * TTY_BUF_SIZE,
+		     tty_dev->vir_addr_rw, tty_dev->phy_addr_rw, 0);
+#endif
+fail_1:
+	kfree(tty_dev->tb_node[0]);
+	kfree(tty_dev);
 	tty_debug_log("rc=%d leave\n", rc);
-	bif_tty_free(tty_dev);
+//	bif_tty_free(tty_dev);//hobot 20190711
 	return rc;
 }
 
