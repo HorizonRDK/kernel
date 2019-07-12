@@ -672,6 +672,11 @@
 			status = "disabled";
 		};
 
+		bifsio: bifsio {
+			compatible = "hobot,bifsio";
+			status = "disabled";
+		};
+
 		mcu_irq: mcu_irq {
 			compatible = "hobot,mcu_irq";
 			status = "disabled";
