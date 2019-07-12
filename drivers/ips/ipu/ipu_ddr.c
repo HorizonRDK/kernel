@@ -76,7 +76,7 @@ struct ipu_ddr_cdev {
 };
 
 struct ipu_ddr_cdev *g_ipu_ddr_cdev;
-static uint64_t g_ipu_time;
+static int64_t g_ipu_time;
 
 /* new process */
 static struct semaphore sem_src;
@@ -102,10 +102,10 @@ static uint32_t decode_frame_id(uint16_t *addr)
 }
 
 /* for mipi/dvp timestamp */
-static uint64_t ipu_current_time(void)
+static int64_t ipu_current_time(void)
 {
 	struct timeval tv;
-	uint64_t ipu_time;
+	int64_t ipu_time;
 
 	do_gettimeofday(&tv);
 	ipu_time = tv.tv_sec * 1000000 + tv.tv_usec;
@@ -113,13 +113,13 @@ static uint64_t ipu_current_time(void)
 }
 
 /* for HISI bt timestamp */
-static int decode_timestamp(void *addr, uint64_t *timestamp)
+static int decode_timestamp(void *addr, int64_t *timestamp)
 {
 	char *addrp = (char *)addr;
 	char *datap = (char *)timestamp;
 	int i = 0;
 
-	memset(timestamp, 0, sizeof(uint64_t));
+	memset(timestamp, 0, sizeof(int64_t));
 	for (i = 15; i >= 0; i--) {
 		if (i % 2)
 			datap[(15 - i) / 2] |= (addrp[i] & 0x0f);
@@ -312,8 +312,8 @@ static int8_t ipu_sinfo_init(ipu_cfg_t *ipu_cfg)
 		}
 	}
 
-	g_ipu_ddr_cdev->s_info.ds[0].y_offset = ipu_cfg->scale_ddr.y_addr;
-	g_ipu_ddr_cdev->s_info.ds[0].c_offset = ipu_cfg->scale_ddr.c_addr;
+	g_ipu_ddr_cdev->s_info.ds[0].y_offset = ipu_cfg->crop_ddr.y_addr;
+	g_ipu_ddr_cdev->s_info.ds[0].c_offset = ipu_cfg->crop_ddr.c_addr;
 
 	return 0;
 }

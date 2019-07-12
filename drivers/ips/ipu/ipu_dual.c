@@ -68,7 +68,7 @@ struct ipu_dual_cdev {
 extern struct x2_ipu_data *g_ipu;
 
 static struct ipu_dual_cdev *g_ipu_d_cdev = NULL;
-static uint64_t g_ipu_time;
+static int64_t g_ipu_time;
 
 static uint32_t decode_frame_id(uint16_t *addr)
 {
@@ -87,10 +87,10 @@ static uint32_t decode_frame_id(uint16_t *addr)
 }
 
 /* for mipi/dvp timestamp */
-static uint64_t ipu_current_time(void)
+static int64_t ipu_current_time(void)
 {
 	struct timeval tv;
-	uint64_t ipu_time;
+	int64_t ipu_time;
 
 	do_gettimeofday(&tv);
 	ipu_time = tv.tv_sec * 1000000 + tv.tv_usec;

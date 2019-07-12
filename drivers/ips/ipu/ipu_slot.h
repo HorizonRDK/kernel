@@ -53,8 +53,8 @@ typedef struct {
 	uint8_t cnn_flag;           /// start, done
 	uint16_t cf_id;
 	uint16_t sf_id;
-	uint64_t cf_timestamp;
-	uint64_t sf_timestamp;
+	int64_t cf_timestamp;
+	int64_t sf_timestamp;
 	uint64_t base;
 	union {
 		slot_ddr_info_dual_t dual_ddr_info;
