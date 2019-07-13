@@ -79,7 +79,7 @@ static u8 w1_gpio_touch_bit(void *data, u8 bit, u8 type)
 		if (type == 0x0) {
 			//output
 			w1_gpio_write_bit_val(data, 0);
-			w1_delay(1);
+			w1_delay(0.3);
 			ret = w1_gpio_read_bit_val(data);
 			w1_delay(13);
 			return ret;
@@ -89,7 +89,7 @@ static u8 w1_gpio_touch_bit(void *data, u8 bit, u8 type)
 			if (bit) {  /* write one */
 				//output
 				w1_gpio_write_bit_val(data, 0);
-				w1_delay(1);
+				w1_delay(0.3);
 				//释放信号线，写1到slave
 				w1_gpio_write_bit_val(data, 1);
 				w1_delay(13); //slave读取1的时间
