@@ -44,6 +44,7 @@ struct x2_i2c_dev_s {
 	volatile struct x2_i2c_regs_s *i2c_regs;
 	struct reset_control *rst;
 	struct clk *clk;
+	struct mutex lock;
 	int irq;
 	struct i2c_adapter adapter;
 	struct completion completion;
@@ -361,6 +362,8 @@ static int x2_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[], int num)
 	struct x2_i2c_dev_s *i2c_dev = i2c_get_adapdata(adap);
 	int i;
 	int ret = 0;
+
+	mutex_lock(&i2c_dev->lock);
 	
 	x2_i2c_reset(i2c_dev);
 	if (msgs[0].flags & 0x20) {
@@ -374,6 +377,7 @@ static int x2_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[], int num)
 		if (ret)
 			break;
 	}
+	mutex_unlock(&i2c_dev->lock);
 	return ret ? : i;
 }
 
@@ -450,6 +454,8 @@ static int x2_i2c_xfer_smbus(struct i2c_adapter *adap, u16 addr,
 	int ret = 0;
 	struct x2_i2c_dev_s *i2c_dev = i2c_get_adapdata(adap);
 
+	mutex_lock(&i2c_dev->lock);
+
 	x2_i2c_reset(i2c_dev);
 	x2_i2c_cfg(i2c_dev, 0, 1);
 	I2C_DEBUG_PRINT("i2c sbus transfer start: addr:%x cmd:%d rw:%d size:%d\n", addr, command, read_write, size);
@@ -482,8 +488,9 @@ static int x2_i2c_xfer_smbus(struct i2c_adapter *adap, u16 addr,
 		break;
 	default:
 		dev_warn(&adap->dev, "Unsupported transaction %d\n", size);
-		return -EOPNOTSUPP;
+		ret = -EOPNOTSUPP;
 	}
+	mutex_unlock(&i2c_dev->lock);
 	return ret;
 }
 
@@ -514,6 +521,7 @@ static int x2_i2c_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	platform_set_drvdata(pdev, i2c_dev);
 	i2c_dev->dev = &pdev->dev;
+	mutex_init(&i2c_dev->lock);
 	init_completion(&i2c_dev->completion);
 	i2c_dev->i2c_state = 0;
 	mem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
