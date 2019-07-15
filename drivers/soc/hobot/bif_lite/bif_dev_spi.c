@@ -31,7 +31,7 @@
 #include "hbipc_errno.h"
 #include "bif_dev_spi.h"
 
-#define VERSION "2.1.0"
+#define VERSION "2.2.0"
 
 #ifdef CONFIG_HI3519V101
 /* module parameters */
@@ -99,9 +99,11 @@ static struct comm_domain domain;
 #define BIF_DEV_SPI_DIR "bif_dev_spi"
 #define BIF_DEV_SPI_STATTISTICS "statistics"
 #define BIF_DEV_SPI_INFO "info"
+#define BIF_DEV_SPI_SERVER_INFO "server_info"
 static struct proc_dir_entry *bif_dev_spi_entry;
 static struct proc_dir_entry *bif_dev_spi_statistics_entry;
 static struct proc_dir_entry *bif_dev_spi_info_entry;
+static struct proc_dir_entry *bif_dev_spi_server_info_entry;
 
 static int bif_dev_spi_statistics_proc_show(struct seq_file *m, void *v)
 {
@@ -193,6 +195,32 @@ ap_type = %d\nworking_mode = %d\n",
 	return 0;
 }
 
+static int bif_dev_spi_server_info_proc_show(struct seq_file *m, void *v)
+{
+	struct provider_server_map *map = &domain.map;
+	struct provider_server *relation = NULL;
+	int i = 0;
+	int j = 0;
+
+	mutex_lock(&domain.connect_mutex);
+
+	for (i = 0; i < PROVIDER_SERVER_MAP_COUNT; ++i) {
+		if (map->map_array[i].valid) {
+			relation = map->map_array + i;
+			seq_printf(m, "server_id:\n");
+			for (j = 0; j < 16; ++j)
+				seq_printf(m, "%x ", relation->server_id[j]);
+			seq_printf(m, "\n");
+			seq_printf(m, "provider_id:\n");
+			seq_printf(m, "%d\n", relation->provider_id);
+		}
+	}
+
+	mutex_unlock(&domain.connect_mutex);
+
+	return 0;
+}
+
 static ssize_t bif_dev_spi_statistics_proc_write(struct file *file,
 const char __user *buffer, size_t count, loff_t *ppos)
 {
@@ -210,6 +238,12 @@ const char __user *buffer, size_t count, loff_t *ppos)
 	return count;
 }
 
+static ssize_t bif_dev_spi_server_info_proc_write(struct file *file,
+const char __user *buffer, size_t count, loff_t *ppos)
+{
+	return count;
+}
+
 static int bif_dev_spi_statistics_proc_open(struct inode *inode,
 struct file *file)
 {
@@ -220,6 +254,12 @@ static int bif_dev_spi_info_proc_open(struct inode *inode,
 struct file *file)
 {
 	return single_open(file, bif_dev_spi_info_proc_show, NULL);
+}
+
+static int bif_dev_spi_server_info_proc_open(struct inode *inode,
+struct file *file)
+{
+	return single_open(file, bif_dev_spi_server_info_proc_show, NULL);
 }
 
 static const struct file_operations bif_dev_spi_statistics_proc_ops = {
@@ -236,6 +276,15 @@ static const struct file_operations bif_dev_spi_info_proc_ops = {
 	.open     = bif_dev_spi_info_proc_open,
 	.read     = seq_read,
 	.write    = bif_dev_spi_info_proc_write,
+	.llseek   = seq_lseek,
+	.release  = single_release,
+};
+
+static const struct file_operations bif_dev_spi_server_info_proc_ops = {
+	.owner    = THIS_MODULE,
+	.open     = bif_dev_spi_server_info_proc_open,
+	.read     = seq_read,
+	.write    = bif_dev_spi_server_info_proc_write,
 	.llseek   = seq_lseek,
 	.release  = single_release,
 };
@@ -264,7 +313,16 @@ static int init_bif_dev_spi_debug_port(void)
 		goto create_info_file_error;
 	}
 
+	bif_dev_spi_server_info_entry = proc_create(BIF_DEV_SPI_SERVER_INFO,
+	0777, bif_dev_spi_entry, &bif_dev_spi_server_info_proc_ops);
+	if (!bif_dev_spi_server_info_entry) {
+		pr_info("create /proc/%s/%s fail\n", BIF_DEV_SPI_DIR,
+			BIF_DEV_SPI_SERVER_INFO);
+		goto create_server_info_file_error;
+	}
 	return 0;
+create_server_info_file_error:
+	remove_proc_entry(BIF_DEV_SPI_INFO, bif_dev_spi_entry);
 create_info_file_error:
 	remove_proc_entry(BIF_DEV_SPI_STATTISTICS, bif_dev_spi_entry);
 create_statistics_file_error:
@@ -275,6 +333,7 @@ create_top_dir_error:
 
 static void remove_bif_dev_spi_debug_port(void)
 {
+	remove_proc_entry(BIF_DEV_SPI_SERVER_INFO, bif_dev_spi_entry);
 	remove_proc_entry(BIF_DEV_SPI_INFO, bif_dev_spi_entry);
 	remove_proc_entry(BIF_DEV_SPI_STATTISTICS, bif_dev_spi_entry);
 	remove_proc_entry(BIF_DEV_SPI_DIR, NULL);
@@ -860,7 +919,6 @@ static long x2_bif_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			ret = -1;
 			break;
 		}
-
 		ret = register_server_provider(&domain, &data);
 		if (ret < 0) {
 			hbipc_error("register_provider error\n");

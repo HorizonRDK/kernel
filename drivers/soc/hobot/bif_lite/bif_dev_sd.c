@@ -29,7 +29,7 @@
 #include "hbipc_errno.h"
 #include "bif_dev_sd.h"
 
-#define VERSION "2.1.0"
+#define VERSION "2.2.0"
 
 #ifdef CONFIG_HI3519V101
 /* module parameters */
@@ -96,9 +96,11 @@ static struct comm_domain domain;
 #define BIF_DEV_SD_DIR "bif_dev_sd"
 #define BIF_DEV_SD_STATTISTICS "statistics"
 #define BIF_DEV_SD_INFO "info"
+#define BIF_DEV_SD_SERVER_INFO "server_info"
 static struct proc_dir_entry *bif_dev_sd_entry;
 static struct proc_dir_entry *bif_dev_sd_statistics_entry;
 static struct proc_dir_entry *bif_dev_sd_info_entry;
+static struct proc_dir_entry *bif_dev_sd_server_info_entry;
 
 static int bif_dev_sd_statistics_proc_show(struct seq_file *m, void *v)
 {
@@ -190,6 +192,32 @@ ap_type = %d\nworking_mode = %d\n",
 	return 0;
 }
 
+static int bif_dev_sd_server_info_proc_show(struct seq_file *m, void *v)
+{
+	struct provider_server_map *map = &domain.map;
+	struct provider_server *relation = NULL;
+	int i = 0;
+	int j = 0;
+
+	mutex_lock(&domain.connect_mutex);
+
+	for (i = 0; i < PROVIDER_SERVER_MAP_COUNT; ++i) {
+		if (map->map_array[i].valid) {
+			relation = map->map_array + i;
+			seq_printf(m, "server_id:\n");
+			for (j = 0; j < 16; ++j)
+				seq_printf(m, "%x ", relation->server_id[j]);
+			seq_printf(m, "\n");
+			seq_printf(m, "provider_id:\n");
+			seq_printf(m, "%d\n", relation->provider_id);
+		}
+	}
+
+	mutex_unlock(&domain.connect_mutex);
+
+	return 0;
+}
+
 static ssize_t bif_dev_sd_statistics_proc_write(struct file *file,
 const char __user *buffer, size_t count, loff_t *ppos)
 {
@@ -207,6 +235,12 @@ const char __user *buffer, size_t count, loff_t *ppos)
 	return count;
 }
 
+static ssize_t bif_dev_sd_server_info_proc_write(struct file *file,
+const char __user *buffer, size_t count, loff_t *ppos)
+{
+	return count;
+}
+
 static int bif_dev_sd_statistics_proc_open(struct inode *inode,
 struct file *file)
 {
@@ -217,6 +251,12 @@ static int bif_dev_sd_info_proc_open(struct inode *inode,
 struct file *file)
 {
 	return single_open(file, bif_dev_sd_info_proc_show, NULL);
+}
+
+static int bif_dev_sd_server_info_proc_open(struct inode *inode,
+struct file *file)
+{
+	return single_open(file, bif_dev_sd_server_info_proc_show, NULL);
 }
 
 static const struct file_operations bif_dev_sd_statistics_proc_ops = {
@@ -233,6 +273,15 @@ static const struct file_operations bif_dev_sd_info_proc_ops = {
 	.open     = bif_dev_sd_info_proc_open,
 	.read     = seq_read,
 	.write    = bif_dev_sd_info_proc_write,
+	.llseek   = seq_lseek,
+	.release  = single_release,
+};
+
+static const struct file_operations bif_dev_sd_server_info_proc_ops = {
+	.owner    = THIS_MODULE,
+	.open     = bif_dev_sd_server_info_proc_open,
+	.read     = seq_read,
+	.write    = bif_dev_sd_server_info_proc_write,
 	.llseek   = seq_lseek,
 	.release  = single_release,
 };
@@ -261,7 +310,16 @@ static int init_bif_dev_sd_debug_port(void)
 		goto create_info_file_error;
 	}
 
+	bif_dev_sd_server_info_entry = proc_create(BIF_DEV_SD_SERVER_INFO,
+	0777, bif_dev_sd_entry, &bif_dev_sd_server_info_proc_ops);
+	if (!bif_dev_sd_server_info_entry) {
+		pr_info("create /proc/%s/%s fail\n", BIF_DEV_SD_DIR,
+			BIF_DEV_SD_SERVER_INFO);
+		goto create_server_info_file_error;
+	}
 	return 0;
+create_server_info_file_error:
+	remove_proc_entry(BIF_DEV_SD_INFO, bif_dev_sd_entry);
 create_info_file_error:
 	remove_proc_entry(BIF_DEV_SD_STATTISTICS, bif_dev_sd_entry);
 create_statistics_file_error:
@@ -272,6 +330,7 @@ create_top_dir_error:
 
 static void remove_bif_dev_sd_debug_port(void)
 {
+	remove_proc_entry(BIF_DEV_SD_SERVER_INFO, bif_dev_sd_entry);
 	remove_proc_entry(BIF_DEV_SD_INFO, bif_dev_sd_entry);
 	remove_proc_entry(BIF_DEV_SD_STATTISTICS, bif_dev_sd_entry);
 	remove_proc_entry(BIF_DEV_SD_DIR, NULL);
