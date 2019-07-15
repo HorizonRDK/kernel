@@ -31,7 +31,7 @@
 
 #define VERSION "2.2.0"
 
-#ifdef CONFIG_HI3519V101
+#ifdef CONFIG_NO_DTS_AP
 /* module parameters */
 static char *ap_type_str = "soc-ap";
 static char *working_mode_str = "interrupt-mode";
@@ -1068,7 +1068,7 @@ static irqreturn_t bif_lite_irq_handler(int irq, void *data)
 static int bif_major;
 static struct cdev bif_cdev;
 
-#ifndef CONFIG_HI3519V101
+#ifndef CONFIG_NO_DTS_AP
 static int bif_lite_probe(struct platform_device *pdev)
 {
 	int           ret = 0;
@@ -1229,7 +1229,7 @@ error:
 }
 #endif
 
-#ifdef CONFIG_HI3519V101
+#ifdef CONFIG_NO_DTS_AP
 static int bif_lite_probe_param(void)
 {
 	int           ret = 0;
@@ -1366,7 +1366,7 @@ alloc_chrdev_error:
 }
 #endif
 
-#ifndef CONFIG_HI3519V101
+#ifndef CONFIG_NO_DTS_AP
 static int bif_lite_remove(struct platform_device *pdev)
 {
 	//bif_lite_exit(); chencheng resonstitution
@@ -1387,7 +1387,7 @@ static int bif_lite_remove(struct platform_device *pdev)
 }
 #endif
 
-#ifdef CONFIG_HI3519V101
+#ifdef CONFIG_NO_DTS_AP
 static int bif_lite_remove_param(void)
 {
 	//bif_lite_exit(); chencheng resonstitution
@@ -1408,7 +1408,7 @@ static int bif_lite_remove_param(void)
 }
 #endif
 
-#ifndef CONFIG_HI3519V101
+#ifndef CONFIG_NO_DTS_AP
 static struct platform_driver bif_lite_driver = {
 	.driver = {
 		.name = "bif_lite_sd",
@@ -1423,7 +1423,7 @@ static int __init bif_module_init(void)
 {
 	int           ret = 0;
 
-#ifdef CONFIG_HI3519V101
+#ifdef CONFIG_NO_DTS_AP
 	ret = bif_lite_probe_param();
 	if (ret)
 		bif_err("register bif_lite_probe_param error\n");
@@ -1438,7 +1438,7 @@ static int __init bif_module_init(void)
 
 static void __exit bif_module_exit(void)
 {
-#ifdef CONFIG_HI3519V101
+#ifdef CONFIG_NO_DTS_AP
 	bif_lite_remove_param();
 #else
 	platform_driver_unregister(&bif_lite_driver);
