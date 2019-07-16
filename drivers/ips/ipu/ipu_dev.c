@@ -122,7 +122,7 @@ int8_t ipu_dump_regs(void)
 		ipu_dbg("0x%llx=0x%x\n", (uint64_t)addr, d);
 	}
 
-	for (i = 0; i < 16; i++) {
+	for (i = 0; i < 80; i++) {
 		addr = g_regbase + i * 4 + 0x200;
 		d = readl(addr);
 		ipu_dbg("0x%llx=0x%x\n", (uint64_t)addr, d);
@@ -445,11 +445,11 @@ int8_t set_ipu_pymid(pymid_t *info)
 		writel(d, g_regbase + PYMID_US_FACTOR2);
 	}
 	/* step 2.3. write us src width reg */
-	d = SET_SRC_WIDTH(info->ds_src_width[1], info->ds_src_width[0]);
+	d = SET_SRC_WIDTH(info->us_src_width[1], info->us_src_width[0]);
 	writel(d, g_regbase + PYMID_SRC_WIDTH_U1);
-	d |= SET_SRC_WIDTH(info->ds_src_width[3], info->ds_src_width[2]);
+	d |= SET_SRC_WIDTH(info->us_src_width[3], info->us_src_width[2]);
 	writel(d, g_regbase + PYMID_SRC_WIDTH_U2);
-	d |= SET_SRC_WIDTH(info->ds_src_width[5], info->ds_src_width[4]);
+	d |= SET_SRC_WIDTH(info->us_src_width[5], info->us_src_width[4]);
 	writel(d, g_regbase + PYMID_SRC_WIDTH_U3);
 
 	/* step 2.4. write us roi reg */
