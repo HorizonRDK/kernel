@@ -25,7 +25,7 @@
 
 #define X2_PWM_INT_EN         (1U<<3)
 #define X2_PWM_NPWM           3         /* number of channels per pwm chip(controller) */
-#define X2_PWM_CLK            24000000
+#define X2_PWM_CLK            192000000
 #define X2_PWM_NAME           "x2-pwm"
 
 struct x2_pwm_chip {
@@ -59,7 +59,7 @@ static irqreturn_t x2_pwm_irq_handler(int irq, void *data)
 
 	status = x2_pwm_rd(x2, X2_PWM_SRCPND);
 	x2_pwm_wr(x2, X2_PWM_SRCPND, status);
-	dev_info(x2->chip.dev, "pwm_irq_handler\n");
+	//dev_info(x2->chip.dev, "pwm_irq_handler\n");
 
 	return IRQ_HANDLED;
 }
@@ -71,11 +71,12 @@ static int x2_pwm_config(struct pwm_chip *chip, struct pwm_device *pwm, int duty
 	struct x2_pwm_chip *x2 = to_x2_pwm_chip(chip);
 
 	/* config pwm freq */
-	pwm_freq = div64_u64(X2_PWM_CLK*period_ns, (unsigned long long)NSEC_PER_SEC);
+	pwm_freq = div64_u64((uint64_t)X2_PWM_CLK * (uint64_t)period_ns,
+			(unsigned long long)NSEC_PER_SEC);
 	if(0xFFF < pwm_freq) {
 		return -ERANGE;
 	}
-	reg = pwm->hwpwm > 2 ? X2_PWM_FREQ1 : X2_PWM_FREQ;
+	reg = pwm->hwpwm == 2 ? X2_PWM_FREQ1 : X2_PWM_FREQ;
 	offset = (pwm->hwpwm % 2) * 16;
 	val = x2_pwm_rd(x2, reg);
 	val &= ~(0xFFF<<offset);
