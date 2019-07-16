@@ -99,7 +99,7 @@
 #define CO_MAX		10
 #define ID_DEFAULT	1
 #define CO_DEFAULT	1
-#define RETRY_LIMIT	10
+#define RETRY_LIMIT	20
 #define RETRY_DELAY 10		//unit:ms
 
 #define AUTH_PAGE_NO    0
@@ -2263,12 +2263,21 @@ static int w1_ds28e1x_key_write(struct w1_slave *sl, char *buf, int  count)
 	i = 0;
 	while (i < RETRY_LIMIT) {
 		ret = w1_ds28e1x_write_scratchpad(sl, buf);
+		if (ret) {
+			pr_err
+	("%s: retry write scratchpad  %d/%d [ret=%d]\n",
+			     __func__, i + 1, RETRY_LIMIT, ret);
+			i++;
+			ret = 0;
+			mdelay(RETRY_DELAY);
+			continue;
+		}
 		ret = w1_ds28e1x_load_secret(sl, 0);
 
 		if (ret == 0)
 			break;
 
-		pr_err("retry write scratchpad & load secret,CS = 0x%x,  %d/%d\n",
+		pr_err("retry load secret,CS = 0x%x,  %d/%d\n",
 		       ret, i + 1, RETRY_LIMIT);
 		mdelay(RETRY_DELAY);
 		i++;
