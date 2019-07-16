@@ -16,10 +16,8 @@
 #define HBIPC_ERROR_KERUSR_TRANS_FAIL           (-13)
 #define HBIPC_ERROR_NO_VALID_SESSION            (-14)
 #define HBIPC_ERROR_START_SERVER_FAIL           (-15)
-#define HBIPC_ERROR_RECV_SYS_TIMEOUT            (-16)
-#define HBIPC_ERROR_RECV_USER_TIMEOUT           (-17)
-#define HBIPC_ERROR_SEND_SYS_TIMEOUT            (-18)
-#define HBIPC_ERROR_SEND_USER_TIMEOUT           (-19)
-#define HBIPC_ERROR_SEND_NO_MEM                 (-20)
+#define HBIPC_ERROR_RECV_USER_TIMEOUT           (-16)
+#define HBIPC_ERROR_SEND_USER_TIMEOUT           (-17)
+#define HBIPC_ERROR_SEND_NO_MEM                 (-18)
 
 #endif /* _HBIPC_ERRNO_H_ */

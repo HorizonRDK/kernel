@@ -957,8 +957,16 @@ struct send_mang_data *data)
 {
 	int ret = 0;
 	struct provider_server *relation = NULL;
+	int i = 0;
+	struct provider_server_map *map = &domain->map;
 
 	mutex_lock(&domain->connect_mutex);
+	pr_info("valid provider:\n");
+	for (i = 0; i < PROVIDER_SERVER_MAP_COUNT; ++i) {
+		if (map->map_array[i].valid)
+			pr_info("provider_id = %d\n", map->map_array[i].provider_id);
+	}
+
 	ret = get_map_index(&domain->map, data->provider_id);
 	if (ret >= 0) {
 		// abnormal shutdown

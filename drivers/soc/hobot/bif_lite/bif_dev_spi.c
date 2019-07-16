@@ -76,7 +76,6 @@ static struct x2_bif_data bif_data;
 
 struct transfer_feature {
 	int block;
-	int sys_timeout;
 	int usr_timeout;
 };
 
@@ -503,7 +502,6 @@ static int x2_bif_open(struct inode *inode, struct file *file)
 	}
 
 	memset(feature, 0, sizeof(struct transfer_feature));
-	feature->sys_timeout = 2000;
 	if (file->f_flags & O_NONBLOCK)
 		feature->block = 0;
 	else
@@ -555,8 +553,7 @@ err:
 	return ret;
 }
 
-#define SYS_TIMEOUT  (0)
-#define USR_TIMEOUT  (1)
+#define TX_RETRY_MAX (100)
 static DEFINE_MUTEX(write_mutex);
 static ssize_t x2_bif_write(struct file *file, const char __user *buf,
 size_t count, loff_t *ppos)
@@ -566,8 +563,7 @@ size_t count, loff_t *ppos)
 	int status = 0;
 	struct transfer_feature *feature =
 		(struct transfer_feature *)file->private_data;
-	int timeout_type = 0;
-	int timeout_value = 0;
+	int retry_count = 0;
 	int timeout_accumulate = 0;
 	int remaining_time = 0;
 
@@ -603,28 +599,56 @@ size_t count, loff_t *ppos)
 	mutex_lock(&domain.write_mutex);
 
 	if (feature->block) {
-		// block
 		if (!feature->usr_timeout) {
-			timeout_type = SYS_TIMEOUT;
-			timeout_value = feature->sys_timeout;
+			// block without timeout
+resend_without_timeout:
+			ret = bif_tx_put_frame_domain(&domain, bif_data.send_frame, data.len);
+			if (ret < 0) {
+				if (ret == BIF_TX_ERROR_NO_MEM) {
+					++retry_count;
+					if (retry_count > TX_RETRY_MAX) {
+						data.result = HBIPC_ERROR_HW_TRANS_ERROR;
+						pr_info("data resend over try\n");
+						++domain.domain_statistics.write_resend_over_count;
+						status = copy_to_user((void __user *)buf, &data, sizeof(data));
+						if (status)
+							ret = -EFAULT;
+						mutex_unlock(&domain.write_mutex);
+						goto error;
 		} else {
-			if (feature->usr_timeout < feature->sys_timeout) {
-				timeout_type = USR_TIMEOUT;
-				timeout_value = feature->usr_timeout;
+						++domain.domain_statistics.write_resend_count;
+						remaining_time = msleep_interruptible(10);
+						if (!remaining_time)
+							goto resend_without_timeout;
+						else {
+							pr_info("sleep interruptuble\n");
+							data.result = HBIPC_ERROR_HW_TRANS_ERROR;
+							ret = -1;
+							status = copy_to_user((void __user *)buf, &data, sizeof(data));
+							if (status)
+								ret = -EFAULT;
+							mutex_unlock(&domain.write_mutex);
+							goto error;
+						}
+					}
 			} else {
-				timeout_type = SYS_TIMEOUT;
-				timeout_value = feature->sys_timeout;
+					data.result = HBIPC_ERROR_HW_TRANS_ERROR;
+					ret = -1;
+					status = copy_to_user((void __user *)buf, &data, sizeof(data));
+					if (status)
+						ret = -EFAULT;
+					mutex_unlock(&domain.write_mutex);
+					goto error;
 			}
 		}
-resend:
+		} else {
+			// block with timeout
+resend_with_timeout:
 		ret = bif_tx_put_frame_domain(&domain, bif_data.send_frame, data.len);
 		if (ret < 0) {
 			if (ret == BIF_TX_ERROR_NO_MEM) {
-				if (timeout_accumulate > timeout_value) {
-					if (timeout_type == USR_TIMEOUT)
+					if (timeout_accumulate > feature->usr_timeout) {
 						data.result = HBIPC_ERROR_SEND_USER_TIMEOUT;
-					else
-						data.result = HBIPC_ERROR_SEND_SYS_TIMEOUT;
 					++domain.domain_statistics.write_resend_over_count;
 					status = copy_to_user((void __user *)buf, &data, sizeof(data));
 					if (status)
@@ -636,7 +660,7 @@ resend:
 					remaining_time = msleep_interruptible(10);
 					if (!remaining_time) {
 						timeout_accumulate += 10;
-						goto resend;
+							goto resend_with_timeout;
 					} else {
 						pr_info("sleep interruptuble\n");
 						data.result = HBIPC_ERROR_HW_TRANS_ERROR;
@@ -657,6 +681,7 @@ resend:
 				mutex_unlock(&domain.write_mutex);
 				goto error;
 			}
+		}
 		}
 	} else {
 		// nonblock
@@ -698,8 +723,6 @@ loff_t *ppos)
 	struct list_head *pos = NULL;
 	int session_list_empty = 0;
 	struct transfer_feature *feature = NULL;
-	int timeout_type = 0;
-	int timeout_value = 0;
 
 	//mutex_lock(&read_mutex);
 	++domain.domain_statistics.read_call_count;
@@ -756,25 +779,35 @@ loff_t *ppos)
 	if (feature->block) {
 		// block
 		if (!feature->usr_timeout) {
-			timeout_type = SYS_TIMEOUT;
-			timeout_value = feature->sys_timeout;
-		} else {
-			if (feature->usr_timeout < feature->sys_timeout) {
-				timeout_type = USR_TIMEOUT;
-				timeout_value = feature->usr_timeout;
+			// block without timeout
+			ret = down_interruptible(&session_des->frame_count_sem);
+			if (ret < 0) {
+				pr_info("down_interruptible\n");
+				goto error;
 			} else {
-				timeout_type = SYS_TIMEOUT;
-				timeout_value = feature->sys_timeout;
-			}
+				spin_lock(&(session_des->recv_list.lock));
+				session_list_empty = list_empty(&(session_des->recv_list.list));
+				if (!session_list_empty) {
+					pos = session_des->recv_list.list.next;
+					list_del(pos);
 		}
+				spin_unlock(&(session_des->recv_list.lock));
 
+				if (session_list_empty) {
+					ret = -1;
+					data.result = HBIPC_ERROR_INVALID_SESSION;
+					status = copy_to_user((void __user *)buf, &data, sizeof(data));
+					if (status)
+						ret = -EFAULT;
+					goto error;
+				}
+			}
+		} else {
+			// block with timeout
 		ret = down_timeout(&session_des->frame_count_sem,
-			msecs_to_jiffies(timeout_value));
+				msecs_to_jiffies(feature->usr_timeout));
 		if (ret < 0) {
-			if (timeout_type == USR_TIMEOUT)
 				data.result = HBIPC_ERROR_RECV_USER_TIMEOUT;
-			else
-				data.result = HBIPC_ERROR_RECV_SYS_TIMEOUT;
 			status = copy_to_user((void __user *)buf, &data, sizeof(data));
 			if (status)
 				ret = -EFAULT;
@@ -796,6 +829,7 @@ loff_t *ppos)
 					ret = -EFAULT;
 				goto error;
 			}
+		}
 		}
 	} else {
 		// nonblock
