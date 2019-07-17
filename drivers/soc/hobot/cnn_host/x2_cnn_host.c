@@ -1283,18 +1283,13 @@ static int cnnfreq_target(struct device *dev, unsigned long *freq,
 
 	lock_bpu(cnn_dev);
 
-	rcu_read_lock();
-
 	opp = devfreq_recommended_opp(dev, freq, flags);
 	if (IS_ERR(opp)) {
-		rcu_read_unlock();
 		err = PTR_ERR(opp);
 		goto out;
 	}
 	rate = dev_pm_opp_get_freq(opp);
 	target_volt = dev_pm_opp_get_voltage(opp);
-
-	rcu_read_unlock();
 
 	target_rate = clk_round_rate(cnn_dev->cnn_mclk, rate);
 	if ((long)target_rate <= 0)
@@ -1380,20 +1375,16 @@ static int cnnfreq_init_freq_table(struct device *dev,
 	unsigned long freq = 0;
 	struct dev_pm_opp *opp;
 
-	rcu_read_lock();
 	count = dev_pm_opp_get_opp_count(dev);
 	if (count < 0) {
-		rcu_read_unlock();
 		return count;
 	}
-	rcu_read_unlock();
 
 	devp->freq_table = kmalloc_array(count, sizeof(devp->freq_table[0]),
 				GFP_KERNEL);
 	if (!devp->freq_table)
 		return -ENOMEM;
 
-	rcu_read_lock();
 	for (i = 0; i < count; i++, freq++) {
 		opp = dev_pm_opp_find_freq_ceil(dev, &freq);
 		if (IS_ERR(opp))
@@ -1401,7 +1392,6 @@ static int cnnfreq_init_freq_table(struct device *dev,
 
 		devp->freq_table[i] = freq;
 	}
-	rcu_read_unlock();
 
 	if (count != i)
 		dev_warn(dev, "Unable to enumerate all OPPs (%d!=%d)\n",
