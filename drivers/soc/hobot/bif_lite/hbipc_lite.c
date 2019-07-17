@@ -957,16 +957,8 @@ struct send_mang_data *data)
 {
 	int ret = 0;
 	struct provider_server *relation = NULL;
-	int i = 0;
-	struct provider_server_map *map = &domain->map;
 
 	mutex_lock(&domain->connect_mutex);
-	pr_info("valid provider:\n");
-	for (i = 0; i < PROVIDER_SERVER_MAP_COUNT; ++i) {
-		if (map->map_array[i].valid)
-			pr_info("provider_id = %d\n", map->map_array[i].provider_id);
-	}
-
 	ret = get_map_index(&domain->map, data->provider_id);
 	if (ret >= 0) {
 		// abnormal shutdown
@@ -1594,7 +1586,7 @@ int recv_handle_data_frame(struct comm_domain *domain)
 			is_valid_session(domain, &data, NULL, NULL);
 			mutex_lock(&domain->read_mutex);
 			if (!session_des) {
-				hbipc_debug("data recv invalid session\n");
+				printk_ratelimited(KERN_INFO "data recv invalid session\n");
 				bif_del_frame_from_list(&domain->channel,
 				frame_tmp);
 			} else {
@@ -1681,7 +1673,7 @@ int recv_frame_interrupt(struct comm_domain *domain)
 			session_des = is_valid_session(domain, &data, NULL, NULL);
 			mutex_lock(&domain->read_mutex);
 			if (!session_des) {
-				hbipc_debug("interrupt recv invalid session\n");
+				printk_ratelimited(KERN_INFO "interrupt recv invalid session\n");
 				bif_del_frame_from_list(&domain->channel, frame_tmp);
 			} else {
 				// at extreme condition, session_des maybe invalid at here

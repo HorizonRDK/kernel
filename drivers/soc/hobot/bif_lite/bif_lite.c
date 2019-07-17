@@ -117,7 +117,7 @@ struct comm_channel *channel, int *index, int *count, int expect_count)
 		ALIGN(sizeof(struct bif_rx_ring_info),
 		channel->transfer_align));
 	if (ret < 0) {
-		bif_err("bif_err: %s %d\n", __func__, __LINE__);
+		printk_ratelimited(KERN_INFO "bif_err: %s %d\n", __func__, __LINE__);
 		return ret;
 	}
 #if 1
@@ -198,7 +198,7 @@ static inline int bif_tx_update_to_cp_ddr(struct comm_channel *channel)
 		ALIGN(sizeof(struct bif_tx_ring_info),
 		channel->transfer_align));
 	if (ret < 0)
-		bif_err("bif_err: %s %d\n", __func__, __LINE__);
+		printk_ratelimited(KERN_INFO "bif_err: %s %d\n", __func__, __LINE__);
 #ifdef CONFIG_HOBOT_BIF_AP
 	if ((channel->type == SOC_AP) &&
 		(channel->channel == BIF_SPI))
@@ -274,14 +274,14 @@ struct frag_info *fragment_info)
 	offset,
 	ALIGN(fragment_len, channel->transfer_align));
 	if (ret < 0) {
-		bif_err("bif_err: %s %d\n", __func__, __LINE__);
+		printk_ratelimited(KERN_INFO "bif_err: %s %d\n", __func__, __LINE__);
 		goto err;
 	}
 
 	ret = bif_tx_update_after_write(channel, index,
 		fragment_info);
 	if (ret < 0) {
-		bif_err("bif_err: %s %d\n", __func__, __LINE__);
+		printk_ratelimited(KERN_INFO "bif_err: %s %d\n", __func__, __LINE__);
 		goto err;
 	}
 err:
@@ -352,7 +352,7 @@ unsigned char *data, int len)
 			frag_p, &fragment_info);
 		if (ret < 0) {
 			ret = BIF_TX_ERROR_TRANS;
-			bif_err("bif_err: %s %d\n", __func__, __LINE__);
+			printk_ratelimited(KERN_INFO "bif_err: %s %d\n", __func__, __LINE__);
 			goto err;
 		}
 		index++;
@@ -389,7 +389,7 @@ RING_INFO_ALIGN)];
 		ALIGN(sizeof(struct bif_tx_ring_info),
 		channel->transfer_align));
 	if (ret < 0) {
-		bif_err("bif_err: %s %d\n", __func__, __LINE__);
+		printk_ratelimited(KERN_INFO "bif_err: %s %d\n", __func__, __LINE__);
 		goto err;
 	}
 #if 0
@@ -445,7 +445,7 @@ int count)
 		ALIGN(sizeof(struct bif_rx_ring_info),
 		channel->transfer_align));
 	if (ret < 0) {
-		bif_err("bif_err: %s  %d\n", __func__, __LINE__);
+		printk_ratelimited(KERN_INFO "bif_err: %s  %d\n", __func__, __LINE__);
 		goto err;
 	}
 
@@ -610,7 +610,8 @@ struct comm_channel *channel)
 	}
 	if (count > channel->frag_num) {
 		ret = -EFAULT;
-		bif_err("bif_err: %s %d\n", __func__, __LINE__);
+		printk_ratelimited(KERN_INFO "bif_err: %s %d\n", __func__, __LINE__);
+		printk_ratelimited(KERN_INFO "%d_%d\n", count, channel->frag_num);
 		goto err;
 	}
 
@@ -623,7 +624,7 @@ struct comm_channel *channel)
 		ret = bif_read_cp_ddr_channel(channel, cache_tmp->datacache,
 			offset, channel->frag_len_max);
 		if (ret < 0) {
-			bif_err("bif_err: %s %d\n", __func__, __LINE__);
+			printk_ratelimited(KERN_INFO "bif_err: %s %d\n", __func__, __LINE__);
 			ret = -3;
 			break;
 		}
@@ -637,9 +638,9 @@ struct comm_channel *channel)
 			frame_p =
 			bif_malloc(sizeof(struct bif_frame_cache) + malloc_len);
 			if (!frame_p) {
-				bif_err("bif_err: %s %d\n",
+				printk_ratelimited(KERN_INFO "bif_err: %s %d\n",
 					__func__, __LINE__);
-				bif_err("surplus frame: %d\n",
+				printk_ratelimited(KERN_INFO "surplus frame: %d\n",
 				channel->rx_frame_count);
 				ret = -1;
 				break;
@@ -650,7 +651,7 @@ struct comm_channel *channel)
 		ret = bif_rx_reassemble_fragment(channel, frame_p,
 			cache_tmp, fragment_info);
 		if (ret < 0) {
-			bif_err("bif_err: %s %d\n", __func__, __LINE__);
+			printk_ratelimited(KERN_INFO "bif_err: %s %d\n", __func__, __LINE__);
 			ret = -4;
 			break;
 		}
@@ -680,7 +681,7 @@ struct comm_channel *channel)
 		ret = bif_rx_update_after_read(channel,
 			frame_used_frag_count);
 		if (ret < 0) {
-			bif_err("bif_err: %s %d\n", __func__, __LINE__);
+			printk_ratelimited(KERN_INFO "bif_err: %s %d\n", __func__, __LINE__);
 			goto err;
 		}
 	}
