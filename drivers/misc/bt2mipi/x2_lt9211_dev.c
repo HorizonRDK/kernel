@@ -24,6 +24,8 @@
 
 #include "x2_lt9211.h"
 
+#define PWM_PERIOD_DEFAULT 1000
+#define PWM_DUTY_DEFAULT 10
 //int lt9211_reset_pin = 85;
 int lt9211_reset_pin;
 int lcd_reset_pin;
@@ -110,6 +112,7 @@ static int lcd_backlight_init(void)
 	int ret = 0;
 
 	LT9211_DEBUG("initialize lcd backligbt!!!\n");
+
 	lcd_backlight_pwm = pwm_request(0, "lcd-pwm");
 	if (lcd_backlight_pwm == NULL) {
 		pr_err("\nNo pwm device 0!!!!\n");
@@ -125,25 +128,30 @@ static int lcd_backlight_init(void)
 	 *
 	 * Returns: 0 on success or a negative error code on failure.
 	 */
-	ret = pwm_config(lcd_backlight_pwm, 10, 20);
+	ret = pwm_config(lcd_backlight_pwm, PWM_DUTY_DEFAULT,
+			PWM_PERIOD_DEFAULT);
 	// 50Mhz,20ns period, on = 20ns
 	if (ret) {
 		pr_err("\nError config pwm!!!!\n");
 		return ret;
 	}
 	LT9211_DEBUG("pwm config is okay!!!\n");
-//	ret = pwm_set_polarity(lcd_backlight_pwm, PWM_POLARITY_NORMAL);
-//	if (ret) {
-//		pr_err("\nError set pwm polarity!!!!\n");
-//		return ret;
-//	}
-//	printk("pwm set polarity is okay!!!\n");
+/*
+ *	ret = pwm_set_polarity(lcd_backlight_pwm,
+ *			PWM_POLARITY_NORMAL);
+ *	if (ret) {
+ *		pr_err("\nError set pwm polarity!!!!\n");
+ *		return ret;
+ *	}
+ *	pr_debug("pwm set polarity is okay!!!\n");
+ */
 	ret = pwm_enable(lcd_backlight_pwm);
 	if (ret) {
 		pr_err("\nError enable pwm!!!!\n");
 		return ret;
 	}
 	LT9211_DEBUG("pwm enable is okay!!!\n");
+
 	return 0;
 }
 
@@ -273,9 +281,9 @@ static int x2_lt9211_probe(struct i2c_client *client,
 	client->flags = I2C_CLIENT_SCCB;
 	LT9211_DEBUG("chip found @ 0x%02x (%s)\n",
 			client->addr << 1, client->adapter->name);
-//	ret = lcd_backlight_init();
-//	if (ret)
-//		LT9211_DEBUG("\nlcd backlight init err!\n");
+	ret = lcd_backlight_init();
+	if (ret)
+		LT9211_DEBUG("\nlcd backlight init err!\n");
 
 	ret = lt9211_dsi_lcd_init(convert_type);
 	if (ret) {

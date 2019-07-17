@@ -404,6 +404,8 @@
 			reg = <0 0xA500D000 0 0x1000>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 36 4>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pwm0>;
 			status = "disabled";
 		};
 

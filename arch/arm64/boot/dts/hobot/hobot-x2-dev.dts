@@ -269,7 +269,7 @@
 };
 
 &pwm_0 {
-	status = "disabled";
+	status = "okay";
 };
 
 &spi0 {
