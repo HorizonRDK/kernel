@@ -2,7 +2,7 @@
 #define _DEBUG_H_
 
 #if defined _DEBUG_PRINTF_
-#define tty_debug_log(format, ...) pr_err("bif sio: %s, %d "format, \
+#define tty_debug_log(format, ...) pr_debug("bif sio: %s, %d "format, \
 	__func__, __LINE__, ##__VA_ARGS__)
 
 #define tty_err_log(format, ...) pr_err("bif sio: %s, %d "format, \

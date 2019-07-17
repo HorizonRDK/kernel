@@ -61,6 +61,7 @@ struct bif_tty_cdev {
 	int minor;
 	int num_nodes;
 	dev_t dev_num;
+	int channel;
 	struct class *drv_class;
 	wait_queue_head_t wq;
 
@@ -77,6 +78,11 @@ struct bif_tty_cdev {
 };
 
 static struct bif_tty_cdev *g_tb_dev;
+
+static struct bif_tty_cdev *bif_tty_get(void)
+{
+	return g_tb_dev;
+}
 
 static void tty_buf_info(struct bif_tty_node *p)
 {
@@ -147,15 +153,17 @@ static int bif_tty_check_other(struct ringbuf_t *rb)
 
 static irqreturn_t bif_tty_irq_handler(int irq, void *data)
 {
+	struct bif_tty_cdev *cdev = bif_tty_get();
+
 	tty_debug_log("enter\n");
 #ifdef CONFIG_HOBOT_BIF_AP
-	if (g_tb_dev->tb_node[0]->rbuf_phy_addr == NULL)
-		bif_tty_reset_rwbuf(g_tb_dev);
+	if (cdev->tb_node[0]->rbuf_phy_addr == NULL)
+		bif_tty_reset_rwbuf(cdev);
 #endif
-	if (g_tb_dev->tb_node[0]->rb_other == NULL)
-		bif_tty_reset_otherbase(g_tb_dev);
+	if (cdev->tb_node[0]->rb_other == NULL)
+		bif_tty_reset_otherbase(cdev);
 
-	wake_up(&g_tb_dev->wq);
+	wake_up(&cdev->wq);
 	return IRQ_HANDLED;
 }
 
@@ -166,25 +174,36 @@ static void bif_tty_irq(void)
 }
 
 #ifdef CONFIG_HOBOT_BIF_AP
+/**
+ * bif_tty_get_phychannel
+ * @brief: get phy channel, spi or sd
+ */
+static int bif_tty_get_phychannel(struct bif_tty_cdev *cdev)
+{
+	char *channel = bif_get_str_bus(BUFF_SMD);
+
+	tty_debug_log("enter\n");
+	if (channel == NULL) {
+		tty_err_log("bif_get_str_bus err");
+		return -1;
+	}
+	cdev->channel = bifget_bifbustype(channel);
+	tty_debug_log("channel = %d\n", cdev->channel);
+	return 0;
+}
+
 static int bif_sync_cpbuf(unsigned long phy_addr,
 			  unsigned int blklen, unsigned char *buffer)
 {
 	int ret;
+	struct bif_tty_cdev *cdev = bif_tty_get();
 
 	tty_debug_log("enter\n");
-#ifdef CONFIG_HOBOT_BIFSD
-	ret = bif_sd_read((void *)phy_addr, blklen, buffer);
+	ret = bifread(cdev->channel, (void *)phy_addr, blklen, buffer);
 	if (!ret) {
 		tty_err_log("ret=%d\n", ret);
 		return -1;
 	}
-#elif defined CONFIG_HOBOT_BIFSPI
-	ret = bif_spi_read((void *)phy_addr, blklen, buffer);
-	if (!ret) {
-		tty_err_log("ret=%d\n", ret);
-		return -1;
-	}
-#endif
 	tty_dump_log(buffer, blklen);
 	tty_debug_log("read cp succ leave\n");
 	return 0;
@@ -194,22 +213,15 @@ static int bif_sync_apbuf(unsigned long phy_addr,
 			  unsigned int blklen, unsigned char *buffer)
 {
 	int ret;
+	struct bif_tty_cdev *cdev = bif_tty_get();
 
 	tty_debug_log("enter\n");
 	tty_dump_log(buffer, blklen);
-#ifdef CONFIG_HOBOT_BIFSD
-	ret = bif_sd_write((void *)phy_addr, blklen, buffer);
+	ret = bifwrite(cdev->channel, (void *)phy_addr, blklen, buffer);
 	if (!ret) {
 		tty_err_log("ret=%d\n", ret);
 		return -1;
 	}
-#elif defined CONFIG_HOBOT_BIFSPI
-	ret = bif_spi_write((void *)phy_addr, blklen, buffer);
-	if (!ret) {
-		tty_err_log("ret=%d\n", ret);
-		return -1;
-	}
-#endif
 	tty_debug_log("ap write succ leave\n");
 	return 0;
 }
@@ -241,10 +253,11 @@ static int bif_tty_open(struct inode *inode, struct file *filp)
 {
 	unsigned int minor;
 	struct bif_tty_node *node_tmp;
+	struct bif_tty_cdev *cdev = bif_tty_get();
 
 	tty_debug_log("enter\n");
 	minor = iminor(inode);
-	node_tmp = g_tb_dev->tb_node[minor];
+	node_tmp = cdev->tb_node[minor];
 	node_tmp->index = minor;
 	filp->private_data = NULL;
 
@@ -293,7 +306,7 @@ static ssize_t bif_tty_read(struct file *filp, char __user *buf,
 	}
 
 	if (bif_ringbuf_other_used(bt_node) == 0) {
-		tty_err_log("rc=%d\n", rc);
+		tty_debug_log("rc=%d\n", rc);
 		return 0;
 	}
 #ifdef CONFIG_HOBOT_BIF_AP
@@ -326,6 +339,7 @@ static ssize_t bif_tty_write(struct file *filp, const char __user *buf,
 	unsigned int count = 0;
 	struct bif_tty_node *bt_node = filp->private_data;
 	struct ringbuf_t *pself = bt_node->rb_self;
+	struct bif_tty_cdev *cdev = bif_tty_get();
 
 	tty_debug_log("enter\n");
 	tty_buf_info(bt_node);
@@ -347,7 +361,7 @@ static ssize_t bif_tty_write(struct file *filp, const char __user *buf,
 		count = bif_ringbuf_self_free(bt_node);
 		if (count == 0) {
 			tty_err_log("rest=%d < size=%d\n", count, (int)size);
-			rc = wait_event_interruptible(g_tb_dev->wq,
+			rc = wait_event_interruptible(cdev->wq,
 						      bif_ringbuf_self_free
 						      (bt_node) > 0);
 			if (rc < 0) {
@@ -447,7 +461,6 @@ fail:
 /**
  * bif_tty_alloc_base
  * @brief: alloc bifbase share zone, store head and tail info
- *  need qu
  */
 static int bif_tty_set_base(struct bif_tty_cdev *cdev)
 {
@@ -548,7 +561,7 @@ static int bif_tty_set_rwbuf(struct bif_tty_cdev *cdev)
 	tty_debug_log("buff_addr_phy = 0x%p\n", phy_addr);
 	return 0;
 fail:
-//	kfree(cdev);//hobot 20190711
+//      kfree(cdev);//hobot 20190711
 	return -ENOMEM;
 }
 
@@ -619,6 +632,7 @@ unregister_chrdev:
 static int bif_tty_free_chrdev(struct bif_tty_cdev *cdev)
 {
 	int i;
+
 	for (i = 0; i < cdev->num_nodes; i++)
 		device_destroy(cdev->drv_class, MKDEV(cdev->major, i));
 	cdev_del(&cdev->cdev);
@@ -645,6 +659,11 @@ static int __init bif_tty_pre_init(void)
 	if (rc)
 		goto fail_1;
 
+#ifdef CONFIG_HOBOT_BIF_AP
+	rc = bif_tty_get_phychannel(tty_dev);
+	if (rc)
+		goto fail_1;
+#endif
 	rc = bif_tty_create_chrdev(tty_dev);
 	if (rc)
 		goto fail_2;
@@ -666,15 +685,17 @@ fail_1:
 	kfree(tty_dev->tb_node[0]);
 	kfree(tty_dev);
 	tty_debug_log("rc=%d leave\n", rc);
-//	bif_tty_free(tty_dev);//hobot 20190711
+//      bif_tty_free(tty_dev);//hobot 20190711
 	return rc;
 }
 
 static void __exit bif_tty_pre_exit(void)
 {
+	struct bif_tty_cdev *cdev = bif_tty_get();
+
 	bif_register_irq(BUFF_SMD, NULL);
-	bif_tty_free_chrdev(g_tb_dev);
-	bif_tty_free(g_tb_dev);
+	bif_tty_free_chrdev(cdev);
+	bif_tty_free(cdev);
 }
 
 static int bif_tty_probe(struct platform_device *pdev)

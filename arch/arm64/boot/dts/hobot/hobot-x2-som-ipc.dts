@@ -262,6 +262,11 @@
 	frag_len_max = <32768>;
 	frame_count = <12>;
 };
+
+&bifsio {
+	status = "okay";
+};
+
 &qspi {
 	status = "okay";
 	qspi-mode = <1>;
