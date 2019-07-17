@@ -34,11 +34,12 @@ module_param(bifbase_irq_pin, int, 0644);
 int bifbase_tri_pin;
 module_param(bifbase_tri_pin, int, 0644);
 
+#define CPSIDE_DDR_ADDR		(0x02000000)	//same to x2 reserved memory
 #define CPSIDE_DDR_ADDRSIZE	(0x00100000)
+
 #define WRITE_REG(Addr, Value) ((*(uint *)(Addr)) = (Value))
 #define READ_REG(Addr) (*(uint *)(Addr))
 #ifdef CONFIG_HISI
-#define CPSIDE_DDR_ADDR		(0x02000000)	//same to x2 reserved memory
 #define MUX_CTL_BASE_ADDR	(0x12040000)
 #define GPIO_MAP_RANGE		(0x4000)
 #define BIFTRI_PIN		(2*8 + 5)	//GPIO2_5
@@ -47,7 +48,10 @@ void __iomem *muxctrl_base_va;
 #endif
 
 #ifdef CONFIG_HOBOT_BIF_TEST
+#ifdef CPSIDE_DDR_ADDR
+#undef CPSIDE_DDR_ADDR
 #define CPSIDE_DDR_ADDR		(0x7ff00000) //vmware reversed address
+#endif
 extern int t_bif_netlink_init(void);
 extern void t_bif_netlink_exit(void);
 /*extern int t_bif_register_address(BUFF_ID buffer_id, void *address);*/
@@ -62,13 +66,15 @@ extern int t_bif_spi_read(void *addr, unsigned int count, char *buf);
 extern int t_bif_spi_write(void *addr, unsigned int count, char *buf);
 #endif
 
-#ifdef CONFIG_HOBOT_BIFSD
+#if defined(CONFIG_HOBOT_BIFSD) || \
+	defined(CONFIG_HOBOT_BIFSD_MODULE)
 extern int bifsd_read(void *addr, unsigned int count, char *buf);
 extern int bifsd_write(void *addr, unsigned int count, char *buf);
 #else
 static int bifsd_read(void *addr, unsigned int count, char *buf)
 {
-#ifdef CONFIG_HOBOT_BIF_AP
+#if defined(CONFIG_HOBOT_BIF_AP) || \
+	defined(CONFIG_HOBOT_BIF_AP_MODULE)
 	return -BIFNOSD;
 #else
 	return BIFOK;
@@ -76,7 +82,8 @@ static int bifsd_read(void *addr, unsigned int count, char *buf)
 }
 static int bifsd_write(void *addr, unsigned int count, char *buf)
 {
-#ifdef CONFIG_HOBOT_BIF_AP
+#if defined(CONFIG_HOBOT_BIF_AP) || \
+	defined(CONFIG_HOBOT_BIF_AP_MODULE)
 	return -BIFNOSD;
 #else
 	return BIFOK;
@@ -84,7 +91,8 @@ static int bifsd_write(void *addr, unsigned int count, char *buf)
 }
 #endif
 
-#ifdef CONFIG_HOBOT_BIFSPI
+#if defined(CONFIG_HOBOT_BIFSPI) || \
+	defined(CONFIG_HOBOT_BIFSPI_MODULE)
 extern int
 bifdev_get_cpchip_ddr(uint32_t addr, uint16_t size, uint8_t *value);
 extern int
@@ -93,7 +101,8 @@ bifdev_set_cpchip_ddr(uint32_t addr, uint16_t size, uint8_t *value);
 static int
 bifdev_get_cpchip_ddr(uint32_t addr, uint16_t size, uint8_t *value)
 {
-#ifdef CONFIG_HOBOT_BIF_AP
+#if defined(CONFIG_HOBOT_BIF_AP) || \
+	defined(CONFIG_HOBOT_BIF_AP_MODULE)
 	return -BIFNOSPI;
 #else
 	return BIFOK;
@@ -102,7 +111,8 @@ bifdev_get_cpchip_ddr(uint32_t addr, uint16_t size, uint8_t *value)
 static int
 bifdev_set_cpchip_ddr(uint32_t addr, uint16_t size, uint8_t *value)
 {
-#ifdef CONFIG_HOBOT_BIF_AP
+#if defined(CONFIG_HOBOT_BIF_AP) || \
+	defined(CONFIG_HOBOT_BIF_AP_MODULE)
 	return -BIFNOSPI;
 #else
 	return BIFOK;
@@ -246,34 +256,45 @@ void bifplat_get_macro_config(void *p)
 
 	pl->kernel_ver = LINUX_VERSION_CODE;
 	memset(pl->platform, 0, PLATFORM_SIZE);
-#ifdef CONFIG_HOBOT_BIF_AP
+#if defined(CONFIG_HOBOT_BIF_AP) || \
+	defined(CONFIG_HOBOT_BIF_AP_MODULE)
+	//pr_info("bifapi: CONFIG_HOBOT_BIF_AP\n");
 	sprintf(pl->platform, "%s", "x2j2 AP");
 	pl->plat_type = PLAT_AP;
+	pl->param = PARAM_MODULE;
 #else
 	sprintf(pl->platform, "%s", "x2j2 CP");
 	pl->plat_type = PLAT_CP;
+	pl->param = PARAM_DTS;
 #endif
 
-	pl->param = PARAM_DTS;
-
-#ifdef CONFIG_HOBOT_BIFSPI
+#if defined(CONFIG_HOBOT_BIFSPI) || \
+	defined(CONFIG_HOBOT_BIFSPI_MODULE)
+	//pr_info("bifapi: CONFIG_HOBOT_BIFSPI\n");
 	pl->bifspi = SUPPORT_YES;
 #else
 	pl->bifspi = SUPPORT_NO;
 #endif
 
-#ifdef CONFIG_HOBOT_BIFSD
+#if defined(CONFIG_HOBOT_BIFSD) || \
+	defined(CONFIG_HOBOT_BIFSD_MODULE)
+	//pr_info("bifapi: CONFIG_HOBOT_BIFSD\n");
 	pl->bifsd = SUPPORT_YES;
 #else
 	pl->bifsd = SUPPORT_NO;
 #endif
 
-	pl->bifbase_phyaddr = 0;
+	pl->bifbase_phyaddr = CPSIDE_DDR_ADDR;
 	pl->bifbase_phyaddrsize = CPSIDE_DDR_ADDRSIZE;
 	pl->irq_pin_absent = 0;
-	pl->irq_pin = -1;
-	pl->irq_num = -1;
-	pl->tri_pin = -1;
+	if (bifbase_irq_pin)
+		pl->irq_pin = bifbase_irq_pin;
+	else
+		pl->irq_pin = -1;
+	if (bifbase_tri_pin)
+		pl->tri_pin = bifbase_tri_pin;
+	else
+		pl->tri_pin = -1;
 	pl->tri_val = 0;
 	pl->rev_pin1 = -1;
 	pl->rev_pin2 = -1;
@@ -354,6 +375,11 @@ int bifplat_gpio_init(void *p)
 	if (pl->irq_pin_absent)
 		ret = BIFOK;
 	else {
+		if (pl->tri_pin < 0) {
+			ret = -EIO;
+			pr_err("bifapi: Err trigger pin %d\n", pl->tri_pin);
+			goto exit_1;
+		}
 		ret = gpio_request(pl->tri_pin, "tri_pin");
 		if (ret < 0) {
 			pr_err("bifapi: Err get trigger pin ret = %d\n", ret);
@@ -362,6 +388,11 @@ int bifplat_gpio_init(void *p)
 		gpio_direction_output(pl->tri_pin, pl->tri_val);
 		bifplat_trigger_irq((void *)pl);
 
+		if (pl->irq_pin < 0) {
+			ret = -EIO;
+			pr_err("bifapi: Err irq pin %d\n", pl->irq_pin);
+			goto exit_1;
+		}
 		ret = gpio_request(pl->irq_pin, "irq_pin");
 		if (ret < 0) {
 			pr_err("bifapi: Err get irq pin ret = %d\n", ret);

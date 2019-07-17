@@ -75,11 +75,11 @@
 
 #define BIFBASE_APMAGIC		"BIFA"
 #define BIFBASE_CPMAGIC		"BIFC"
-#define BIFBASE_VER		"HOBOT-bifbase_V21.190704"
+#define BIFBASE_VER		"HOBOT-bifbase_V21.190717"
 #define BIFBASE_MAJOR		(123)
 #define BIFBASE_BLOCK		(1024)	//(512)
 #define BIFBASE_VER_SIZE	(32)
-#define BIFBASE_PHYDDR_SIZE	(0x00100000)
+#define BIFBASE_PHYDDR_SIZE	(2*BIFBASE_BLOCK)
 #define BIFBASE_CHECKPARAM	(0)
 #define BIFBASE_UPDATEPARAM	(1)
 #define BIFBASE_MEM_NC
@@ -736,6 +736,10 @@ static int bifbase_pre_init(void *p)
 
 	ret = bifplat_register_irq(pl->bifbase_id, bifbase_irq_handler);
 	if (ret == -BIFERR && !pl->plat->irq_pin_absent) {
+		if (pl->plat->irq_num < 0) {
+			ret = -ENODEV;
+			goto exit_2;
+		}
 		ret = devm_request_irq(pl->dev, pl->plat->irq_num,
 			bifbase_irq_handler, IRQ_TYPE_EDGE_BOTH, "bifbase",
 			(void *)pl);
@@ -999,6 +1003,12 @@ static int bifbase_probe(struct platform_device *pdev)
 			pl->plat->bifbase_phyaddr = mem_reserved.start;
 			pl->plat->bifbase_phyaddrsize =
 				resource_size(&mem_reserved);
+			pl->bifbase_phyaddrsize = pl->plat->bifbase_phyaddrsize;
+			if (pl->bifbase_phyaddrsize <  2 * BIFBASE_BLOCK) {
+				dev_err(&pdev->dev, "mem reserved small");
+				ret = -ENOMEM;
+				goto exit_1;
+			}
 		}
 	}
 
