@@ -41,7 +41,6 @@
 #define MAX_IDMA_PERIOD (80 * 1024)
 #define MAX_IDMA_BUFFER (160 * 1024)
 static unsigned char *dma_vm;
-static unsigned long debug_flag;
 
 /* play and capture have the same hardware param, so no neeed split two parts */
 static const struct snd_pcm_hardware i2sidma_hardware = {
@@ -73,6 +72,9 @@ struct idma_ctrl_s {
 	int stream;		/* capture or play */
 	int ch_num;		/* paly or capture channel */
 	int id;
+	int buffer_num;
+	int buffer_int_index;
+	int buffer_set_index;
 };
 
 static struct idma_info_s {
@@ -117,7 +119,8 @@ static int i2sidma_enqueue(struct snd_pcm_substream *substream)
 		writel(val + dma_ctrl->periodsz,
 			x2_i2sidma[dma_ctrl->id].regaddr_rx +
 				I2S_BUF1_ADDR);
-
+		dma_ctrl->buffer_int_index = 0;
+		dma_ctrl->buffer_set_index = 2;
 		val = (dma_ctrl->periodsz) / (dma_ctrl->ch_num);
 		writel(val, x2_i2sidma[dma_ctrl->id].regaddr_rx +
 			I2S_BUF_SIZE);
@@ -215,8 +218,13 @@ static int i2sidma_hw_params(struct snd_pcm_substream *substream,
 	dma_ctrl->lastset = dma_ctrl->start;
 	dma_ctrl->ch_num = params_channels(params);
 	dma_ctrl->bytesnum = runtime->dma_bytes;//total bytes
-	pr_err("dma_ctrl->period is %d, dma_ctrl->periodsz is %d,dma_ctrl->bytesnum is %d\n", dma_ctrl->period, dma_ctrl->periodsz, dma_ctrl->bytesnum);
-	pr_err("dma_ctrl->start is 0x%x,dma_ctrl->end is 0x%x\n", dma_ctrl->start, dma_ctrl->end);
+	dma_ctrl->buffer_num = dma_ctrl->bytesnum / dma_ctrl->periodsz;
+
+	pr_debug("dma_ctrl->period is %llu, dma_ctrl->periodsz bytes is %llu,dma_ctrl->bytesnum is %lu\n", dma_ctrl->period,
+		dma_ctrl->periodsz, dma_ctrl->bytesnum);
+	pr_debug("dma_ctrl->start is 0x%x,dma_ctrl->end is 0x%x\n",
+		dma_ctrl->start, dma_ctrl->end);
+	pr_debug("dma_ctrl->buffer_num is %d\n", dma_ctrl->buffer_num);
 
 	/* set dma cb */
 	i2sidma_setcallbk(substream, i2sidma_done);
@@ -297,7 +305,6 @@ static int i2sidma_trigger(struct snd_pcm_substream *substream, int cmd)
 	int ret = 0;
 
 	spin_lock(&dma_ctr->lock);
-	/* pr_err("i2sidma_trigger cmd is %d\n", cmd); */
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_RESUME:
 	case SNDRV_PCM_TRIGGER_START:
@@ -319,9 +326,9 @@ static int i2sidma_trigger(struct snd_pcm_substream *substream, int cmd)
 		ret = -EINVAL;
 		break;
 	}
-
-	pr_info("start i2sidma trigger\n");
 	spin_unlock(&dma_ctr->lock);
+
+	pr_err("i2sidma_trigger\n");
 	return ret;
 }
 
@@ -369,103 +376,70 @@ static irqreturn_t iis_irq0(int irqno, void *dev_id)
 	struct idma_ctrl_s *dma_ctrl = (struct idma_ctrl_s *)dev_id;
 	u32 intstatus;
 	u32	addr = 0;
-	dma_addr_t halfullsize;
-
-	halfullsize = (dma_ctrl->periodsz * dma_ctrl->period/2);
-	if (dma_ctrl->stream == SNDRV_PCM_STREAM_CAPTURE) {
-
-		intstatus = readl(x2_i2sidma[0].regaddr_rx + I2S_SRCPND);
-		if (debug_flag == 1)
-			pr_err("intstatus = 0x%x\n", intstatus);
 
 
-		if (intstatus & INT_BUF0_DONE) {
+	intstatus = readl(x2_i2sidma[0].regaddr_rx + I2S_SRCPND);
 
-			writel(0x4, x2_i2sidma[dma_ctrl->id].regaddr_rx +
-				I2S_SRCPND);
+	if (intstatus == 0x4) {
 
-			if ((dma_ctrl->lastset + dma_ctrl->periodsz -
-					dma_ctrl->start)
-				/ dma_ctrl->periodsz == 1) {
-				if (debug_flag == 1)
-					pr_err("index 0 irq,the head four bystes is 0x%x,0x%x,0x%x,0x%x\n", *dma_vm, *(dma_vm+1), *(dma_vm+2), *(dma_vm+3));
-				addr += dma_ctrl->lastset + halfullsize;
-				dma_ctrl->lastset = dma_ctrl->start +
-					dma_ctrl->periodsz;
+		writel(0x4, x2_i2sidma[dma_ctrl->id].regaddr_rx + I2S_SRCPND);
+		pr_debug("intstatus = 0x4,dma_ctrl->lastset is 0x%x,buffer_int_index is %d,buffer_set_index is %d\n",
+			dma_ctrl->lastset, dma_ctrl->buffer_int_index,
+			dma_ctrl->buffer_set_index);
 
-			} else if ((dma_ctrl->lastset + dma_ctrl->periodsz -
-					dma_ctrl->start)
-				/ dma_ctrl->periodsz == 3){
-				addr = dma_ctrl->start;
-				if (debug_flag == 1)
-					pr_err("index 2 irq,the head four bystes is 0x%x,0x%x,0x%x,0x%x\n", *(dma_vm+8192), *(dma_vm+8192+1), *(dma_vm+8192+2), *(dma_vm+8192+3));
-				dma_ctrl->lastset = dma_ctrl->start +
-				halfullsize + dma_ctrl->periodsz;
-
-			} else {
-				pr_err("ERROR IN BUFFER0!,buffer come order error!\n");
-				return IRQ_HANDLED;
-			}
-			if (dma_ctrl->cb)
-				dma_ctrl->cb(dma_ctrl->token, dma_ctrl->period);
+		addr = dma_ctrl->start +
+			(dma_ctrl->buffer_set_index * dma_ctrl->periodsz);
+		dma_ctrl->buffer_set_index += 1;
+		if (dma_ctrl->buffer_set_index == dma_ctrl->buffer_num)
+			dma_ctrl->buffer_set_index = 0;
 
 
-			//printk("after callback,the corrent pos is
-			//0x%x\n",dma_ctrl->lastset);
-			writel(addr, x2_i2sidma[dma_ctrl->id].regaddr_rx +
-				I2S_BUF0_ADDR);
-			writel(0x1, x2_i2sidma[dma_ctrl->id].regaddr_rx +
-				I2S_BUF0_RDY);
+		dma_ctrl->buffer_int_index += 1;
+		if (dma_ctrl->buffer_int_index == dma_ctrl->buffer_num)
+			dma_ctrl->buffer_int_index = 0;
 
 
-		}
-		if (intstatus & INT_BUF1_DONE) {
+		dma_ctrl->lastset = dma_ctrl->start +
+		(dma_ctrl->buffer_int_index * dma_ctrl->periodsz);
+		writel(addr, x2_i2sidma[dma_ctrl->id].regaddr_rx +
+			I2S_BUF0_ADDR);
+		writel(0x1, x2_i2sidma[dma_ctrl->id].regaddr_rx +
+			I2S_BUF0_RDY);
 
-			writel(0x8, x2_i2sidma[dma_ctrl->id].regaddr_rx +
-				I2S_SRCPND);
 
-			if ((dma_ctrl->lastset + dma_ctrl->periodsz -
-				dma_ctrl->start)
-				/dma_ctrl->periodsz == 2) {
+	} else if (intstatus == 0x8) {
 
-				if (debug_flag == 1)
-					pr_err("index 1 irq,the head four bystes is 0x%x,0x%x,0x%x,0x%x\n", *(dma_vm+4096), *(dma_vm+4096+1), *(dma_vm+4096+2), *(dma_vm+4096+3));
-				addr += dma_ctrl->lastset + halfullsize;
-				dma_ctrl->lastset = dma_ctrl->start +
-				halfullsize;
+		writel(0x8, x2_i2sidma[dma_ctrl->id].regaddr_rx + I2S_SRCPND);
+		pr_debug("intstatus = 0x8,dma_ctrl->lastset is 0x%x,buffer_int_index is %d,buffer_set_index is %d\n",
+			dma_ctrl->lastset, dma_ctrl->buffer_int_index,
+			dma_ctrl->buffer_set_index);
 
-			} else if ((dma_ctrl->lastset + dma_ctrl->periodsz -
-				dma_ctrl->start)
-				/dma_ctrl->periodsz == 4){
-				if (debug_flag == 1)
-					pr_err("index 3 irq,the head four bystes is 0x%x,0x%x,0x%x,0x%x\n", *(dma_vm+12288), *(dma_vm+12288+1), *(dma_vm+12288+2), *(dma_vm+12288+3));
-				addr = dma_ctrl->start + dma_ctrl->periodsz;
-			     dma_ctrl->lastset = dma_ctrl->start;
+		addr = dma_ctrl->start +
+			(dma_ctrl->buffer_set_index * dma_ctrl->periodsz);
+		dma_ctrl->buffer_set_index += 1;
+		if (dma_ctrl->buffer_set_index == dma_ctrl->buffer_num)
+			dma_ctrl->buffer_set_index = 0;
 
-			}
 
-			else {
-				pr_err("ERROR IN BUFFER1!,buffer come order error!\n");
-				return IRQ_HANDLED;
-			}
+		dma_ctrl->buffer_int_index += 1;
+		if (dma_ctrl->buffer_int_index == dma_ctrl->buffer_num)
+			dma_ctrl->buffer_int_index = 0;
 
-			if (dma_ctrl->cb)
-				dma_ctrl->cb(dma_ctrl->token, dma_ctrl->period);
 
-			//printk("after callback,the corrent pos is 0x%x\n",dma_ctrl->lastset);
-			writel(addr, x2_i2sidma[dma_ctrl->id].regaddr_rx +
-				I2S_BUF1_ADDR);
-			writel(0x1, x2_i2sidma[dma_ctrl->id].regaddr_rx +
-				I2S_BUF1_RDY);
+		dma_ctrl->lastset = dma_ctrl->start +
+		(dma_ctrl->buffer_int_index * dma_ctrl->periodsz);
+		writel(addr, x2_i2sidma[dma_ctrl->id].regaddr_rx +
+			I2S_BUF1_ADDR);
+		writel(0x1, x2_i2sidma[dma_ctrl->id].regaddr_rx + I2S_BUF1_RDY);
 
-			}
-		//if (intstatus & INT_OVERFLOW) {
-		//	}
-		//if (intstatus & INT_NOTREADY) {
-		//	}
-
-		//printk("dma_ctrl->lastset is 0x%x\n",dma_ctrl->lastset);
+	} else {
+		pr_err("intstatus = 0x%x,INT status exception!\n", intstatus);
+		return IRQ_HANDLED;
 	}
+
+
+	if (dma_ctrl->cb)
+			dma_ctrl->cb(dma_ctrl->token, dma_ctrl->period);
 
 	return IRQ_HANDLED;
 }
@@ -637,30 +611,7 @@ static struct snd_soc_platform_driver asoc_i2sidma_platform[2] = {
 		.pcm_free = i2sidma_free,
 	}
 };
-static ssize_t show_debug(struct device *dev,
-			struct device_attribute *attr, char *buf)
-{
-	char *s = buf;
 
-	s += sprintf(s, "debug flag is %ld\n", debug_flag);
-	if (s != buf)
-		*(s-1) = '\n';
-	return s-buf;
-}
-
-static ssize_t store_debug(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t count)
-{
-	int ret = 0;
-
-	ret = kstrtoul(buf, 10, &debug_flag);
-	if (ret)
-		return ret;
-
-	return count;
-
-}
-static DEVICE_ATTR(debug, 0644, show_debug, store_debug);
 
 static int asoc_i2sidma_platform_probe(struct platform_device *pdev)
 {
@@ -715,8 +666,6 @@ static int asoc_i2sidma_platform_probe(struct platform_device *pdev)
 	ret =  devm_snd_soc_register_platform(&pdev->dev,
 					      &asoc_i2sidma_platform[id]);
 	pr_err("success register platform %d, ret = %d\n", id, ret);
-
-	ret = device_create_file(&pdev->dev, &dev_attr_debug);
 
 	return ret;
 
