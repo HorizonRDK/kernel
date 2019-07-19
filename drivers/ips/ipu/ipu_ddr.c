@@ -46,6 +46,7 @@
 #define IPUC_SRC_DONE			_IO(IPU_IOC_MAGIC, 11)
 #define IPUC_PYM_DONE			_IO(IPU_IOC_MAGIC, 12)
 #define IPUC_FB_SRC_DONE			_IO(IPU_IOC_MAGIC, 13)
+#define IPUC_FB_FLUSH			_IO(IPU_IOC_MAGIC, 14)
 
 #define X2_IPU_DDR_NAME		"x2-ipu-ddr"
 
@@ -195,17 +196,16 @@ void ipu_handle_frame_done(void)
 	ipu_slot_h_t *slot_h = NULL;
 	int count;
 
-	spin_lock_irqsave(&g_ipu_ddr_cdev->slock, flags);
+	//spin_lock_irqsave(&g_ipu_ddr_cdev->slock, flags);
 	count = slot_left_num(BUSY_SLOT_LIST);
 	if (count > 1)	{
 		g_slot_h = slot_busy_to_done();
 		if (g_slot_h) {
-			ipu_get_frameid(ipu, g_slot_h);
 			runflags = 1;
 			wake_up_interruptible(&wq_frame_done);
 		}
 	}
-	spin_unlock_irqrestore(&g_ipu_ddr_cdev->slock, flags);
+//	spin_unlock_irqrestore(&g_ipu_ddr_cdev->slock, flags);
 }
 
 void ipu_handle_pym_frame_done(void)
@@ -423,6 +423,7 @@ long ipu_ddr_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 		break;
 	case IPUC_SRC_DONE:
 	{
+		int data_end;
 		started = 1;
 wait:
 		runflags = 0;
@@ -460,6 +461,11 @@ wait:
 		info->base = (uint64_t)IPU_GET_SLOT(g_get_slot_h->info_h.slot_id,
 		g_ipu->paddr);
 		spin_unlock_irqrestore(&g_ipu_ddr_cdev->slock, flags);
+		data_end = info->ddr_info.scale.c_offset+
+		    info->ddr_info.scale.c_stride * info->ddr_info.scale.c_height;
+		dma_sync_single_for_cpu(NULL,
+		    info->base, data_end, DMA_FROM_DEVICE);
+		ipu_get_frameid(ipu, g_get_slot_h);
 		ret = copy_to_user((void __user *)data, (const void *)info,
 		sizeof(info_h_t));
 		if (ret)
@@ -645,6 +651,20 @@ wait:
 				ipu_err("copy to user fail\n");
 		}
 		break;
+	case IPUC_FB_FLUSH:
+	{
+		int data_end;
+		src_img_info = &src_info;
+		ret = copy_from_user((void *)src_img_info,
+		(const void __user *)data,
+		sizeof(struct src_img_info_t));
+		dma_sync_single_for_device(NULL,
+		src_img_info->src_img.y_paddr,
+		src_img_info->src_img.width*src_img_info->src_img.height+
+		src_img_info->src_img.width*src_img_info->src_img.height/2,
+			DMA_TO_DEVICE);
+	}
+	break;
 	default:
 		ipu_err("ipu cmd: %d not supported\n", _IOC_NR(cmd));
 		ret = -EINVAL;
@@ -664,11 +684,11 @@ int ipu_ddr_mmap(struct file *filp, struct vm_area_struct *vma)
 			offset, vma->vm_end - vma->vm_start);
 	if ((vma->vm_end - vma->vm_start) > g_ipu->memsize)
 		return -ENOMEM;
-	vma->vm_flags |= VM_IO;
+
 	vma->vm_flags |= VM_LOCKED;
 	if (remap_pfn_range(vma, vma->vm_start, offset >> PAGE_SHIFT,
 		vma->vm_end - vma->vm_start,
-		pgprot_noncached(vma->vm_page_prot))) {
+		vma->vm_page_prot)) {
 		ipu_err("ipu mmap fail\n");
 		return -EAGAIN;
 	}
