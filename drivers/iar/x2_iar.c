@@ -1093,11 +1093,16 @@ int32_t iar_pre_init(void)
 
 	iar_idma_init();
 	bufaddr_channe1 = &g_iar_dev->pingpong_buf[IAR_CHANNEL_1].pixel_addr[0];
-	bufaddr_channe1->Yaddr = g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr;
+	bufaddr_channe1->Yaddr =
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr;
+	bufaddr_channe1->Uaddr =
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr +
+		800*480;
 	iar_set_bufaddr(IAR_CHANNEL_1, bufaddr_channe1);
 
 	bufaddr_channe3 = &g_iar_dev->pingpong_buf[IAR_CHANNEL_3].pixel_addr[0];
-	bufaddr_channe3->addr = g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].paddr;
+	bufaddr_channe3->addr =
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].paddr;
 	iar_set_bufaddr(IAR_CHANNEL_3, bufaddr_channe3);
 
 	writel(0x7ffffff, g_iar_dev->regaddr + REG_IAR_DE_SETMASK);
@@ -1384,9 +1389,12 @@ static int x2_iar_probe(struct platform_device *pdev)
 		temp1 =
 		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr;
 		tempi = 0;
-		for (tempi = 0; tempi < MAX_FRAME_BUF_SIZE; tempi++) {
-			temp1 = 0x0;
+		for (tempi = 0; tempi < VIDEO_FRAME_BUF_SIZE; tempi++) {
+			*temp1 = 0x1d;
 			temp1++;
+			*temp1 = 0x81;
+			temp1++;
+			*temp1 = 0xd8;
 		}
 
 		temp1 =
@@ -1540,4 +1548,3 @@ static struct platform_driver x2_iar_driver = {
 
 module_platform_driver(x2_iar_driver);
 MODULE_LICENSE("GPL");
-

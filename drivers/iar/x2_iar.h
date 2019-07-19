@@ -8,6 +8,7 @@
 #include <linux/slab.h>
 
 #define MAX_FRAME_BUF_SIZE	(1920*1080*4)
+#define VIDEO_FRAME_BUF_SIZE    (800*480*2)
 
 #define REG_IAR_OVERLAY_OPT 0x0
 #define REG_IAR_ALPHA_VALUE 0x4
