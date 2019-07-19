@@ -881,6 +881,7 @@ static int x2_qspi_probe(struct platform_device *pdev)
 
 	xqspi->dev = dev;
 
+#ifdef CONFIG_X2_SOC
 	xqspi->pclk = devm_clk_get(&pdev->dev, "qspi_aclk");
 	if (IS_ERR(xqspi->pclk)) {
 		dev_err(dev, "pclk clock not found.\n");
@@ -895,6 +896,7 @@ static int x2_qspi_probe(struct platform_device *pdev)
 	}
 
 	xqspi->ref_clk = clk_get_rate(xqspi->pclk);
+#endif
 
 	if (of_property_read_bool(pdev->dev.of_node, "is-batch-mode"))
 		xqspi->batch_mode = true;
@@ -949,7 +951,9 @@ static int x2_qspi_probe(struct platform_device *pdev)
 	return 0;
 
 clk_dis_pclk:
+#ifdef CONFIG_X2_SOC
 	clk_disable_unprepare(xqspi->pclk);
+#endif
 
 remove_master:
 	spi_master_put(master);
