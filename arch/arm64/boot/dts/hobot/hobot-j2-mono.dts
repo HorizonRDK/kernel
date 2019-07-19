@@ -189,7 +189,7 @@
 };
 
 &spi0 {
-	status = "okay";
+	status = "disabled";
 };
 
 &ethernet {
@@ -336,7 +336,7 @@
 };
 
 &sdio1 {
-	status = "okay";
+	status = "disabled";
 	bus-width = <4>;
 	//no-mmc;
 	//no-sdio;
@@ -359,7 +359,7 @@
 };
 
 &i2s0 {
-	status = "okay";
+	status = "disabled";
 	clocks = <&i2s0_mclk>, <&i2s0_bclk>,<&i2s0_div_bclk>;
 	clock-names = "i2s-mclk", "i2s-bclk", "i2s0_div_bclk";
 };
