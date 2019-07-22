@@ -844,6 +844,7 @@ static int x2_cnn_release(struct inode *inode, struct file *filp)
 	devdata = filp->private_data;
 	devdata->cnn_int_num.cnn_int_count = 0;
 	atomic_set(&devdata->wait_fc_cnt, 0);
+	kfifo_reset(&devdata->int_info_fifo);
 	mutex_unlock(&x2_cnn_mutex);
 	return 0;
 }
