@@ -30,8 +30,6 @@
 
 #define SOCINFO_NAME		"x2-socinfo"
 
-static struct kobject *k_obj;
-
 const char *soc_id;
 
 unsigned int x2_board_id[] = {
@@ -73,24 +71,23 @@ static int parse_boardid(uint32_t board_id)
 	return i;
 }
 
-ssize_t id_show(struct kobject *kobj,
-			struct kobj_attribute *attr, char *buf)
+ssize_t id_show(struct class *class,
+			struct class_attribute *attr, char *buf)
 {
-	strcpy(buf, "board_id:");
-	strcat(buf, soc_id);
+	strcpy(buf, soc_id);
 	strcat(buf, "\n");
 
 	return strlen(buf);
 }
 
-ssize_t id_store(struct kobject *kobj, struct kobj_attribute *attr,
+ssize_t id_store(struct class *class, struct class_attribute *attr,
 				const char *buf, size_t count)
 {
 	return count;
 }
 
-ssize_t name_show(struct kobject *kobj,
-			struct kobj_attribute *attr, char *buf)
+ssize_t name_show(struct class *class,
+			struct class_attribute *attr, char *buf)
 {
 	int index;
 	uint32_t board_id;
@@ -98,23 +95,22 @@ ssize_t name_show(struct kobject *kobj,
 	board_id = simple_strtoul(soc_id, NULL, 16);
 	index = parse_boardid(board_id);
 
-	strcat(buf, "board_name:");
-	strcat(buf, board_of_id[index].board_id_string);
+	strcpy(buf, board_of_id[index].board_id_string);
 	strcat(buf, "\n");
 
 	return strlen(buf);
 }
 
-ssize_t name_store(struct kobject *kobj,
-		struct kobj_attribute *attr, const char *buf, size_t count)
+ssize_t name_store(struct class *class,
+		struct class_attribute *attr, const char *buf, size_t count)
 {
 	return count;
 }
 
-static struct kobj_attribute id_attribute =
+static struct class_attribute id_attribute =
 	__ATTR(board_id, 0644, id_show, id_store);
 
-static struct kobj_attribute name_attribute =
+static struct class_attribute name_attribute =
 	__ATTR(board_name, 0644, name_show, name_store);
 
 static struct attribute *socinfo_attributes[] = {
@@ -123,8 +119,18 @@ static struct attribute *socinfo_attributes[] = {
 	NULL
 };
 
-static const struct attribute_group socinfo_attr_group = {
+static const struct attribute_group socinfo_group = {
 	.attrs = socinfo_attributes,
+};
+
+static const struct attribute_group *socinfo_attr_group[] = {
+	&socinfo_group,
+	NULL,
+};
+
+static struct class socinfo_class = {
+	.name = "socinfo",
+	.class_groups = socinfo_attr_group,
 };
 
 /* Match table for of_platform binding */
@@ -163,18 +169,15 @@ static struct platform_driver socinfo_platform_driver = {
 static int __init socinfo_init(void)
 {
 	int retval = 0;
-
 	/* Register the platform driver */
 	retval = platform_driver_register(&socinfo_platform_driver);
 	if (retval)
 		pr_err("Unable to register platform driver\n");
 
-	k_obj = kobject_create_and_add("socinfo", NULL);
-	if (k_obj == NULL)
-		pr_err("socinfo sys node create error\n");
+	retval = class_register(&socinfo_class);
+	if (retval < 0)
+		return retval;
 
-	if (sysfs_create_group(k_obj, &socinfo_attr_group))
-		pr_err("hw sys node create error\n");
 	return retval;
 }
 
@@ -182,10 +185,8 @@ static void __exit socinfo_exit(void)
 {
 	/* Unregister the platform driver */
 	platform_driver_unregister(&socinfo_platform_driver);
-	if (k_obj) {
-		sysfs_remove_group(k_obj, &socinfo_attr_group);
-		kobject_put(k_obj);
-	}
+	class_unregister(&socinfo_class);
+
 }
 
 module_init(socinfo_init);
