@@ -225,3 +225,12 @@ source "drivers/media/tuners/Kconfig"
 source "drivers/media/dvb-frontends/Kconfig"
 
 endif # MEDIA_SUPPORT
+
+config MEDIA_AVB_ALSA
+       tristate "ALSA part of AVB over TSN"
+       depends on TSN && SND
+       help
+
+         Enable the ALSA device that hoooks into TSN and allows the
+         computer to send ethernet frames over the network carrying
+         audio-data to selected hosts.

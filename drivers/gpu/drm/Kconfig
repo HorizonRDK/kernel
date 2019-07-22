@@ -277,6 +277,7 @@ source "drivers/gpu/drm/meson/Kconfig"
 source "drivers/gpu/drm/tinydrm/Kconfig"
 
 source "drivers/gpu/drm/pl111/Kconfig"
+source "drivers/gpu/drm/avb/Kconfig"
 
 # Keep legacy drivers last
 

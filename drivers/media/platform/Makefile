@@ -4,6 +4,7 @@
 #
 
 obj-$(CONFIG_VIDEO_M32R_AR_M64278) += arv.o
+obj-y				  += avb/
 
 obj-$(CONFIG_VIDEO_VIA_CAMERA) += via-camera.o
 obj-$(CONFIG_VIDEO_CAFE_CCIC) += marvell-ccic/
