@@ -57,10 +57,27 @@
 	status = "okay";
 	#address-cells = <1>;
 	#size-cells = <0>;
-	x2_codec@0x35 {
-		compatible = "ac108_0";
+	ac108_0: ac108_0@0x3b {
+		compatible = "ac108_ic_0";
+		reg = <0x3b>;
+		#sound-dai-cells = <1>;
+	};
+
+	ac108_1@0x35 {
+		compatible = "ac108_ic_1";
 		reg = <0x35>;
 	};
+
+	ac101@0x1a {
+		compatible = "ac101";
+		// pinctrl-names = "default";
+		// pinctrl-0 = <&spk_amp_pins &gpclk0_pins>;
+		spk-amp-switch = <71>;
+		switch-irq = <72>;
+		reg = <0x1a>;
+		#sound-dai-cells = <0>;
+	};
+
 	
 	x2_camera@0x7f {
 	    compatible = "x2,camera";
@@ -339,8 +356,9 @@
 
 &i2s0 {
 	status = "okay";
-	clocks = <&i2s0_mclk>, <&i2s0_bclk>,<&i2s0_div_bclk>;
-	clock-names = "i2s-mclk", "i2s-bclk", "i2s0_div_bclk";
+	#sound-dai-cells = <0>;
+	clocks = <&i2s0_mclk>, <&i2s0_div_mclk>, <&i2s0_bclk>, <&i2s0_div_bclk>;
+	clock-names = "i2s-mclk", "i2s-mclk-div", "i2s-bclk", "i2s0_div_bclk";
 };
 
 
@@ -366,6 +384,26 @@
 		};
 		soc_crit: soc-crit {
 			temperature = <120000>;
+		};
+	};
+};
+
+&snd0 {
+	model = "x2snd0";
+	dai-link@0 {
+		dai-format = "dsp_a";
+		bitclock-master;
+		frame-master;
+		frame-inversion;
+		link-name = "x2dailink0";
+		cpu {
+			sound-dai = <&i2s0>;
+		};
+		codec {
+			sound-dai = <&ac108_0 0>;
+		};
+		platform {
+			sound-dai = <&i2sidma0>;
 		};
 	};
 };

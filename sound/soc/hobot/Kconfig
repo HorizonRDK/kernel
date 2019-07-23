@@ -7,3 +7,8 @@ config X2_AUDIO
 	  audio
 	  interface
 	  info
+
+config HOBOT_AUDIO
+	tristate "hobot audio use dts"
+	depends on ARCH_HOBOT
+	default n
