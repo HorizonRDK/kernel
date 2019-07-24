@@ -62,7 +62,7 @@ static int x2_snd_hw_params(struct snd_pcm_substream *substream,
 	int id = 0;
 
 	if (!strcmp(snd_card->name, "x2snd0"))
-		id == 0;
+		id = 0;
 	else
 		id = 1;
 
