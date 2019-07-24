@@ -122,7 +122,7 @@ typedef struct _reg_s {
 #define ISPC_READ_REG		_IOWR(ISP_IOC_MAGIC, 3, struct con_reg_s)
 #define ISPC_WRITE_REG		_IOW(ISP_IOC_MAGIC, 4, struct con_reg_s)
 #define ISPC_SET_WBG		_IOW(ISP_IOC_MAGIC, 5, struct ae_input_s)
-#define ISPC_GET_ADDR		_IOWR(ISP_IOC_MAGIC, 6, struct isp_stf_s)
+#define ISPC_GET_ADDR		_IOR(ISP_IOC_MAGIC, 6, struct isp_stf_s)
 #define ISPC_WRITE_STRING   _IOW(ISP_IOC_MAGIC, 7, struct isp_iodata_s)
 #define ISPC_READ_STRING    _IOWR(ISP_IOC_MAGIC, 8, struct isp_iodata_s)
 #define ISPC_READ_REGS      _IOWR(ISP_IOC_MAGIC, 9, struct isp_ioreg_s)

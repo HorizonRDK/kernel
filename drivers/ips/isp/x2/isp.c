@@ -245,7 +245,7 @@ long isp_mod_ioctl(struct file *pfile, unsigned int cmd, unsigned long arg)
 	int ret = 0;
 	struct con_reg_s reg;
 	struct isp_mod_s *isp_cdev = pfile->private_data;
-
+	
 	switch (cmd) {
 	case ISPC_START:{
 			isp_start(isp_cdev);
@@ -356,8 +356,8 @@ long isp_mod_ioctl(struct file *pfile, unsigned int cmd, unsigned long arg)
 			struct isp_stf_s stf_addr_data;
 
 			if (copy_to_user
-			    ((void __user *)arg, (void *)&stf_addr_data,
-			     sizeof(stf_addr_data))) {
+			    ((void __user *)arg, (void *)&isp_cdev->isp_stf_memory,
+			     sizeof(struct isp_stf_s))) {
 				dev_err(g_isp_dev,
 					"[%s: %d] isp copy data to user failed!\n",
 					__func__, __LINE__);
