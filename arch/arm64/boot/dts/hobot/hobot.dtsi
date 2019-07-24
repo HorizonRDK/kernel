@@ -717,6 +717,13 @@
 			compatible = "hobot,x2-power";
 			reg = <0x0 0xA6000000 0x0 0x1000>;
 			reboot-offset = <0x20>;
+			swreg-offset = <0x200>;
+			memory-region = <&sw_reserved>;
+			swinfo-size = <0x80>;
+			swinfo-ro = <0x1>;
+			swinfo-sel = <0x2>;
+			swi-boot = <1 0 3>;
+			swi-dump = <2 0 31>;
 		};
 
 		cnn_opp_table: cnn_opp_table {

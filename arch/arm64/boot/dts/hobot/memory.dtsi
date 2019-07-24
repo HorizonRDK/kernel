@@ -32,9 +32,16 @@
 			ftrace-size = <0x8000>;
 			record-size = <0x4000>;
 		};
+
 		/* Reserved 192K memory for function call */
 		fc_reserved: fc_reserved@0x020c0000 {
-			reg = <0x0 0x020c0000 0x0 0x00040000>;
+			reg = <0x0 0x020c0000 0x0 0x0003f000>;
+		};
+
+		/* Reserved 4K memory for swinfo */
+		sw_reserved: sw_reserved@0x020ff000 {
+			reg = <0x0 0x020ff000 0x0 0x1000>;
+			no-map;
 		};
 	};
 };
