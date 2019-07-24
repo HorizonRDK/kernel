@@ -285,7 +285,12 @@ static ssize_t x2_iar_store(struct kobject *kobj, struct kobj_attribute *attr, c
 	} else if (*tmp == '3') {
 		pr_info("checkout camera 1 display!!\n");
 		iar_checkout_display_camera(1);
+	} else if (*tmp == '4') {
+		pr_info("iar output config......\n");
+		user_set_fb();
+
 	}
+
         //return error ? error : n;
         return n;
 }

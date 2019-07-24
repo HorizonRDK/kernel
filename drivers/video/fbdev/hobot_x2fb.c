@@ -734,7 +734,6 @@ static int iar_get_framesize(void)
 
 static int x2fb_set_par(struct fb_info *fb)
 {
-	void __iomem *hitm1_reg_addr;
 	uint32_t regval = 0;
 
 	if (start_flag == 0) {
@@ -743,89 +742,91 @@ static int x2fb_set_par(struct fb_info *fb)
 		iar_stop();
 		iar_set_panel_timing(fb, display_type);
 
-		if (display_type == LCD_7_TYPE) {
-
-			x2_fbi->memory_mode = 0;
-
-			x2_fbi->channel_base_cfg[0].enable = 1;
-			x2_fbi->channel_base_cfg[1].enable = 0;
-			x2_fbi->channel_base_cfg[2].enable = 1;
-			x2_fbi->channel_base_cfg[3].enable = 0;
-			x2_fbi->channel_base_cfg[0].channel = IAR_CHANNEL_1;
-			x2_fbi->channel_base_cfg[0].enable = 1;
-			x2_fbi->update_cmd.enable_flag[0] = 1;
-			x2_fbi->update_cmd.enable_flag[2] = 1;
-			x2_fbi->channel_base_cfg[0].pri = 3;
-			x2_fbi->channel_base_cfg[0].width = 800;
-			x2_fbi->channel_base_cfg[0].height = 480;
-			x2_fbi->channel_base_cfg[0].buf_width = 800;
-			x2_fbi->channel_base_cfg[0].buf_height = 480;
-			x2_fbi->channel_base_cfg[0].format = FORMAT_YUV420SP_UV;
-			x2_fbi->channel_base_cfg[0].alpha_sel = 0;
-			x2_fbi->channel_base_cfg[0].ov_mode = 0;
-			x2_fbi->channel_base_cfg[0].alpha_en = 1;
-			x2_fbi->channel_base_cfg[0].alpha = 255;
-			x2_fbi->channel_base_cfg[2].channel = IAR_CHANNEL_3;
-			x2_fbi->channel_base_cfg[2].enable = 1;
-			x2_fbi->update_cmd.enable_flag[2] = 1;
-			x2_fbi->channel_base_cfg[2].pri = 1;
-			x2_fbi->channel_base_cfg[2].width = 800;
-			x2_fbi->channel_base_cfg[2].height = 480;
-			x2_fbi->channel_base_cfg[2].buf_width = 800;
-			x2_fbi->channel_base_cfg[2].buf_height = 480;
-			x2_fbi->channel_base_cfg[2].format = 4;//ARGB8888
-			x2_fbi->channel_base_cfg[2].alpha_sel = 0;
-			x2_fbi->channel_base_cfg[2].ov_mode = 0;
-			x2_fbi->channel_base_cfg[2].alpha_en = 1;
-			x2_fbi->channel_base_cfg[2].alpha = 128;
-
-			x2_fbi->output_cfg.out_sel = 1;
-			x2_fbi->output_cfg.width = 800;
-			x2_fbi->output_cfg.height = 480;
-			x2_fbi->output_cfg.bgcolor = 16744328;//white.
-			//x2_fbi->output_cfg.bgcolor = 88888888;//green
-
-			iar_channel_base_cfg(&x2_fbi->channel_base_cfg[0]);
-			iar_channel_base_cfg(&x2_fbi->channel_base_cfg[2]);
-			iar_output_cfg(&x2_fbi->output_cfg);
-
-			iar_switch_buf(0);
-			iar_switch_buf(2);
-
-			hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x00, 4);
-			writel(0x041bf00f, hitm1_reg_addr);
-
-			hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x204, 4);
-			writel(0x00000008, hitm1_reg_addr);
-
-			hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x48, 4);
-			writel(0x00001c36, hitm1_reg_addr);
-
-			iar_start(1);
-			//iar_switch_buf(0);
-			iar_switch_buf(2);
-			hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x00, 4);
-			writel(0x051bf00f, hitm1_reg_addr);
-
-			hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x204, 4);
-			writel(0x00000008, hitm1_reg_addr);
-
-			hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x48, 4);
-			writel(0x00001c36, hitm1_reg_addr);
-
-			iar_start(1);
-			iar_switch_buf(0);
-			iar_switch_buf(2);
-
-			msleep(500);
-
-			set_lt9211_config(&x2_fbi->fb, 0);
-		}
 	}
-	return 0;
+
+	return regval;
 
 }
 
+int user_set_fb(void)
+{
+	void __iomem *hitm1_reg_addr;
+	uint32_t regval = 0;
+
+	if (x2_fbi == NULL) {
+		pr_info("x2_fb is not initialize, exit!\n");
+		return -1;
+	}
+	iar_stop();
+	iar_set_panel_timing(&x2_fbi->fb, display_type);
+
+	if (display_type == LCD_7_TYPE) {
+
+		x2_fbi->memory_mode = 0;
+
+		x2_fbi->channel_base_cfg[0].enable = 1;
+		x2_fbi->channel_base_cfg[1].enable = 0;
+		x2_fbi->channel_base_cfg[2].enable = 1;
+		x2_fbi->channel_base_cfg[3].enable = 0;
+		x2_fbi->channel_base_cfg[0].channel = IAR_CHANNEL_1;
+		x2_fbi->channel_base_cfg[0].enable = 1;
+		x2_fbi->update_cmd.enable_flag[0] = 1;
+		x2_fbi->update_cmd.enable_flag[2] = 1;
+		x2_fbi->channel_base_cfg[0].pri = 3;
+		x2_fbi->channel_base_cfg[0].width = 800;
+		x2_fbi->channel_base_cfg[0].height = 480;
+		x2_fbi->channel_base_cfg[0].buf_width = 800;
+		x2_fbi->channel_base_cfg[0].buf_height = 480;
+		x2_fbi->channel_base_cfg[0].format = FORMAT_YUV420SP_UV;
+		x2_fbi->channel_base_cfg[0].alpha_sel = 0;
+		x2_fbi->channel_base_cfg[0].ov_mode = 0;
+		x2_fbi->channel_base_cfg[0].alpha_en = 1;
+		x2_fbi->channel_base_cfg[0].alpha = 255;
+		x2_fbi->channel_base_cfg[2].channel = IAR_CHANNEL_3;
+		x2_fbi->channel_base_cfg[2].enable = 1;
+		x2_fbi->update_cmd.enable_flag[2] = 1;
+		x2_fbi->channel_base_cfg[2].pri = 1;
+		x2_fbi->channel_base_cfg[2].width = 800;
+		x2_fbi->channel_base_cfg[2].height = 480;
+		x2_fbi->channel_base_cfg[2].buf_width = 800;
+		x2_fbi->channel_base_cfg[2].buf_height = 480;
+		x2_fbi->channel_base_cfg[2].format = 4;//ARGB8888
+		x2_fbi->channel_base_cfg[2].alpha_sel = 0;
+		x2_fbi->channel_base_cfg[2].ov_mode = 0;
+		x2_fbi->channel_base_cfg[2].alpha_en = 1;
+		x2_fbi->channel_base_cfg[2].alpha = 128;
+
+		x2_fbi->output_cfg.out_sel = 1;
+		x2_fbi->output_cfg.width = 800;
+		x2_fbi->output_cfg.height = 480;
+		x2_fbi->output_cfg.bgcolor = 16744328;//white.
+		//x2_fbi->output_cfg.bgcolor = 88888888;//green
+
+		iar_channel_base_cfg(&x2_fbi->channel_base_cfg[0]);
+		iar_channel_base_cfg(&x2_fbi->channel_base_cfg[2]);
+		iar_output_cfg(&x2_fbi->output_cfg);
+
+		hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x00, 4);
+		writel(0x051bf00f, hitm1_reg_addr);
+
+		hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x204, 4);
+		writel(0x00000008, hitm1_reg_addr);
+
+		hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x48, 4);
+		writel(0x00001c36, hitm1_reg_addr);
+
+		iar_switch_buf(0);
+		iar_switch_buf(2);
+		iar_start(1);
+
+		msleep(500);
+
+		set_lt9211_config(&x2_fbi->fb, 0);
+	}
+	return regval;
+
+}
+EXPORT_SYMBOL(user_set_fb);
 
 static void x2fb_activate_par(void)
 {
