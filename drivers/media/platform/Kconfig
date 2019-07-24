@@ -2,6 +2,18 @@
 # Platform drivers
 #	Most drivers here are currently for webcam support
 
+menuconfig VIDEO_HOBOTC_JPEG
+	bool "HOBOT C-series JPEG encoder & decoder driver"
+	default n
+	---help---
+	  Say Y here to enable support for HOBOT C-series JPEG driver.
+
+menuconfig VIDEO_HOBOTC_VPU
+	bool "HOBOT C-series VPU encoder & decoder driver"
+	default n
+	---help---
+	  Say Y here to enable support for HOBOT C-series VSP driver.
+
 menuconfig V4L_PLATFORM_DRIVERS
 	bool "V4L platform devices"
 	depends on MEDIA_CAMERA_SUPPORT

@@ -90,4 +90,8 @@ obj-$(CONFIG_VIDEO_QCOM_CAMSS)		+= qcom/camss-8x16/
 
 obj-$(CONFIG_VIDEO_QCOM_VENUS)		+= qcom/venus/
 
+obj-$(CONFIG_VIDEO_HOBOTC_JPEG)     += hobotc-jpg/
+
+obj-$(CONFIG_VIDEO_HOBOTC_VPU)      += hobotc-vpu/
+
 obj-y					+= meson/
