@@ -399,13 +399,23 @@ static irqreturn_t x2_cnn_interrupt_handler(int irq, void *dev_id)
 	x2_cnn_reg_write(dev, X2_CNNINT_MASK, 0x0);
 	spin_unlock_irqrestore(&dev->cnn_spin_lock, flags);
 	do {
+		if (tmp_irq & 0xf000) {
+			spin_lock_irqsave(&dev->cnn_spin_lock, flags);
+			dev->cnn_int_num.cnn_int_num[dev->cnn_int_num.cnn_int_count] = tmp_irq;
+			dev->cnn_int_num.cnn_int_interval[dev->cnn_int_num.cnn_int_count] = 0;
+			if (dev->cnn_int_num.cnn_int_count < CNN_INT_NUM - 1)
+				dev->cnn_int_num.cnn_int_count++;
+			spin_unlock_irqrestore(&dev->cnn_spin_lock, flags);
+			break;
+		}
+
 		ret = kfifo_out(&dev->int_info_fifo, &tmp,
 						sizeof(struct x2_int_info));
 		if (!ret) {
 			spin_lock_irqsave(&dev->cnn_spin_lock, flags);
 			dev->cnn_int_num.cnn_int_num[dev->cnn_int_num.cnn_int_count] = tmp_irq;
 			dev->cnn_int_num.cnn_int_interval[dev->cnn_int_num.cnn_int_count] = 0;
-			if (dev->cnn_int_num.cnn_int_count < CNN_INT_NUM)
+			if (dev->cnn_int_num.cnn_int_count < CNN_INT_NUM - 1)
 				dev->cnn_int_num.cnn_int_count++;
 			spin_unlock_irqrestore(&dev->cnn_spin_lock, flags);
 			break;
@@ -949,6 +959,7 @@ static long x2_cnn_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		if (rc < 0) {
 			mutex_unlock(&dev->cnn_lock);
 			pr_err("%s: failed to fill fc fifo\n", __func__);
+			kfree(kernel_fc_data);
 			return rc;
 		}
 		mutex_unlock(&dev->cnn_lock);
