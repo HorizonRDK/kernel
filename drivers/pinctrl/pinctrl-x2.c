@@ -649,20 +649,29 @@ static inline void x2_pinctrl_fsel_set(struct x2_pinctrl *pctrl,
 {
 	int index, value;
 	void __iomem *regaddr;
-	index = find_io_group_index(pin);
-	if (index < 0)
-		return;
-	regaddr = pctrl->regbase + io_groups[index].regoffset;
-	value = readl(regaddr + X2_IO_CFG);
-	value &= ~(0x3 << (pin - io_groups[index].start) * 2);
-	value |= (fsel << (pin - io_groups[index].start) * 2);
-	writel(value, regaddr + X2_IO_CFG);
-	pr_debug("pin:%d fsel:%d add:0x%p value:0x%x\n", pin, fsel, regaddr + X2_IO_CFG, value);
+
+	if (IS_ENABLED(CONFIG_PINCTRL_X2A)) {
+		regaddr = pctrl->regbase + (pin << 2);
+		value = readl(regaddr);
+		value &= ~(0x3);
+		value |= fsel;
+		writel(value, regaddr);
+		printk("pin:%d fsel:%d add:0x%p value:0x%x\n", pin, fsel, regaddr + X2_IO_CFG, value);
+	} else {
+		index = find_io_group_index(pin);
+		if (index < 0)
+			return;
+		regaddr = pctrl->regbase + io_groups[index].regoffset;
+		value = readl(regaddr + X2_IO_CFG);
+		value &= ~(0x3 << (pin - io_groups[index].start) * 2);
+		value |= (fsel << (pin - io_groups[index].start) * 2);
+		writel(value, regaddr + X2_IO_CFG);
+		pr_debug("pin:%d fsel:%d add:0x%p value:0x%x\n", pin, fsel, regaddr + X2_IO_CFG, value);
+	}
 }
 
 static int x2_pinmux_set_mux(struct pinctrl_dev *pctldev,
-							 unsigned int function,
-							 unsigned int group)
+			     unsigned int function, unsigned int group)
 {
 	int i;
 	struct x2_pinctrl *pctrl = pinctrl_dev_get_drvdata(pctldev);

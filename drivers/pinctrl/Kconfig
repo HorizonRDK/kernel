@@ -388,4 +388,11 @@ config PINCTRL_X2
 	select GENERIC_PINCONF
 	select GPIOLIB_IRQCHIP
 
+config PINCTRL_X2A
+	bool
+	depends on ARCH_HOBOT
+	select PINMUX
+	select GENERIC_PINCONF
+	select GPIOLIB_IRQCHIP
+
 endmenu

@@ -61,6 +61,8 @@
 #include <linux/timer.h>
 #include <linux/tcp.h>
 #include <x2/diag.h>
+#include <linux/of_gpio.h>
+#include <linux/pinctrl/consumer.h>
 
 #define DRIVER_NAME			"dwceqos"
 #define DRIVER_DESCRIPTION		"Synopsys DWC Ethernet QoS driver"
@@ -655,7 +657,7 @@ struct net_local {
 	 */
 	bool phy_defer;
 
-    struct net_device_stats stats;
+	struct net_device_stats stats;
 };
 
 static void dwceqos_read_mmc_counters(struct net_local *lp, u32 rx_mask,
@@ -2331,13 +2333,13 @@ static int dwceqos_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 		((trans.initial_descriptor + trans.nr_descriptors) %
 		 DWCEQOS_TX_DCNT));
 
-    spin_lock_irqsave(&lp->tx_lock, flags);
+	spin_lock_irqsave(&lp->tx_lock, flags);
 	lp->tx_free -= trans.nr_descriptors;
 
 	dwceqos_tx_finalize(skb, lp, &trans);
 
 	netdev_sent_queue(ndev, skb->len);
-    spin_unlock_irqrestore(&lp->tx_lock, flags);
+	spin_unlock_irqrestore(&lp->tx_lock, flags);
 
 	netif_trans_update(ndev);
 
@@ -2349,7 +2351,7 @@ static int dwceqos_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 tx_error:
 	dwceqos_tx_rollback(lp, &trans);
 	dev_kfree_skb(skb);
-    lp->stats.tx_errors += 1;
+	lp->stats.tx_errors += 1;
 	return 0;
 }
 
@@ -2883,7 +2885,7 @@ static const struct net_device_ops netdev_ops = {
 #endif
 	.ndo_do_ioctl		= dwceqos_ioctl,
 	.ndo_tx_timeout		= dwceqos_tx_timeout,
-    .ndo_get_stats	= dwceqos_get_stats,
+	.ndo_get_stats	= dwceqos_get_stats,
 };
 
 static const struct of_device_id dwceq_of_match[] = {
@@ -2988,6 +2990,25 @@ static int dwceqos_probe(struct platform_device *pdev)
 	}
 
 	lp->phy_interface = ret;
+
+	if (IS_ENABLED(CONFIG_X2A_ETH)) {
+		struct pinctrl *pinctrl = NULL;
+		struct pinctrl_state *pins_eth_mux = NULL;
+
+		pinctrl = devm_pinctrl_get(&pdev->dev);
+		if (IS_ERR(pinctrl)) {
+			dev_err(&pdev->dev, "pinctrl get error\n");
+			return PTR_ERR(pinctrl);
+		}
+
+		pins_eth_mux = pinctrl_lookup_state(pinctrl, "eth_state");
+		if (IS_ERR(pins_eth_mux)) {
+			dev_err(&pdev->dev, "pins_eth_mux in pinctrl state error\n");
+			return PTR_ERR(pins_eth_mux);
+		}
+
+		pinctrl_select_state(pinctrl, pins_eth_mux);
+	}
 
 	ret = dwceqos_mii_init(lp);
 	if (ret) {

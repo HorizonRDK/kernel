@@ -1682,7 +1682,7 @@ static int x2_uart_probe(struct platform_device *pdev)
 	port->mapbase = res->start;
 	port->irq = irq;
 	port->dev = &pdev->dev;
-	if (0 == IS_ENABLED(CONFIG_X2_FPGA)) {
+	if (0 == IS_ENABLED(CONFIG_X2_FPGA) && 0 == IS_ENABLED(CONFIG_X2A_FPGA)) {
 		port->uartclk = clk_get_rate(x2_uart_data->uartclk);
 	}
 	port->private_data = x2_uart_data;

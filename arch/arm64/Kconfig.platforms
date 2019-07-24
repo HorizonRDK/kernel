@@ -269,7 +269,6 @@ config ARCH_ZYNQMP
 config ARCH_HOBOT
 	bool "Hobot SoC families"
 	select PINCTRL
-	select PINCTRL_X2
 	select ARCH_HAS_RESET_CONTROLLER
 	help
 	  Support for Hobot ARM based SoCs
@@ -282,13 +281,24 @@ choice
 config X2_FPGA
 	bool "X2 FPGA Support"
 	depends on ARCH_HOBOT
+	select PINCTRL_X2
 	help
 	  This enables Hobot X2 FPGA support.
 	  You only need to enable this, if you want to support x2 fpga.
 
+config X2A_FPGA
+	bool "X2A FPGA Support"
+	depends on ARCH_HOBOT
+	select PINCTRL_X2A
+	help
+	  This enables Hobot X2 FPGA support.
+	  You only need to enable this, if you want to support x2 fpga.
+
+
 config X2_SOC
 	bool "X2 SOC Support"
 	depends on ARCH_HOBOT
+	select PINCTRL_X2
 	help
 	  This enables Hobot X2 SOC support.
 	  You only need to enable this, if you want to support x2 soc.

@@ -3,3 +3,4 @@
 #
 
 obj-$(CONFIG_X2_ETH) += hobot_eth.o
+obj-$(CONFIG_X2A_ETH) += hobot_eth.o

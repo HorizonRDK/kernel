@@ -1,5 +1,5 @@
 /*
- * dts file for Hobot X2 FPGA
+ * dts file for Hobot X2A FPGA
  *
  * (C) Copyright 2018, Horizon, Inc.
  *
@@ -11,15 +11,15 @@
  */
 
 /dts-v1/;
-#include "hobot.dtsi"
-#include "hobot-pinctrl.dtsi"
+#include "hobot-x2aj2a.dtsi"
+#include "hobot-pinctrl-x2aj2a.dtsi"
 #include "hobot-clk.dtsi"
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/phy/phy.h>
 
 / {
-	model = "Hobot X2 FPGA MP";
-	compatible = "hobot,x2-fpga";
+	model = "Hobot X2AJ2A FPGA MP";
+	compatible = "hobot,x2a-fpga";
 
 	aliases {
 		serial0 = &uart0;
@@ -37,7 +37,7 @@
 		pwm2	= &pwm_2;
 		bifspi	= &bifspi;
 		bifsd   = &bifsd;
-		mmc0    = &sdio0;
+		mmc0	= &sdio0;
 	};
 
 	chosen {
@@ -62,23 +62,28 @@
 		};
 
 		bifsd_reserved: bifsd_reserved@0x3D089000 {
-		    reg = <0x0 0x3D089000 0x0 0x1000>;
-		    no-map;
+			reg = <0x0 0x3D089000 0x0 0x1000>;
+			no-map;
 		};
 		iar_reserved: iar_reserved@0x3D08A000 {
-		    reg = <0x0 0x3D08A000 0x0 0x2F76000>;
-		    no-map;
+			reg = <0x0 0x3D08A000 0x0 0x2F46000>;
+			no-map;
+		};
+
+		/* Reserved 192K memory for function call */
+		fc_reserved: fc_reserved@0x3FFD0000 {
+			reg = <0x0 0x3FFD0000 0x0 0x00030000>;
 		};
 
 		/* Reserved 512MB memory for cnn subsystem */
 		cnn_reserved: cnn_reserved@0x40000000 {
-		    reg = <0x0 0x40000000 0x0 0x20000000>;
+			reg = <0x0 0x40000000 0x0 0x20000000>;
 		};
 
 		/* Reserved 512MB memory for ipu subsystem */
 		ipu_reserved: ipu_reserved@0x60000000 {
-		    reg = <0x0 0x60000000 0x0 0x20000000>;
-		    /*no-map;*/
+			reg = <0x0 0x60000000 0x0 0x20000000>;
+			/*no-map;*/
 		};
 
 	};
@@ -118,32 +123,20 @@
 
 &i2c0 {
 	status = "okay";
-	#address-cells = <1>;
-	#size-cells = <0>;
-	x2_camera@0x7f {
-	    compatible = "x2,camera";
-	    reg = <0x7f>;
-	};
 };
 
 &pinctrl {
 	status = "okay";
-	gpioirq-bank-cfg = <85 0 0 0>;	//fpga
+	gpioirq-bank-cfg = <85 0 0 0>;
 };
 
 &uart0 {
 	status = "okay";
-	interrupts = <0 29 4>;
 	clocks = <&uart0_mclk>;
 	clock-names = "uart_mclk";
 };
 
 &ips {
-	clocks = <&viopll_clk>, <&vio_pllmux_clk>, <&mipi_ipi_1stdiv_clk>, <&mipi_ipi_2nddiv_clk>;
-	clock-names = "vio_pll", "vio_pllmux", "ipi_div1", "ipi_div2";
-	pinctrl-names = "bt_func", "dvp_func";
-	pinctrl-0 = <&btin_func &btout_func>;
-	pinctrl-1 = <&dvpin_func &dvpout_func>;
 	status = "okay";
 };
 
@@ -153,16 +146,16 @@
 
 &ipu {
 	status = "okay";
-	slot_num = /bits/ 8 <8>;
-	slot_size = <0x1000000>;
 };
 
 &sif {
 	status = "okay";
 };
+
 &mipi_host {
 	status = "okay";
 };
+
 &mipi_dev {
 	status = "okay";
 };
@@ -223,11 +216,13 @@
 	status = "okay";
 	/*cd-gpio = <77>;*/
 };
+
 &bifbase {
 	bifbase_irq_pin = <85>;
 	bifbase_tri_pin = <84>;
 };
-&nor_flash {
+
+&qspi {
 	status = "okay";
 	#address-cells = <1>;
 	#size-cells = <0>;
@@ -237,7 +232,7 @@
 		#address-cells = <1>;
 		#size-cells = <1>;
 		reg = <0x0>;
-	        spi-tx-bus-width = <4>;
+			spi-tx-bus-width = <4>;
 		spi-rx-bus-width = <4>;
 		spi-max-frequency = <20000000>; /* For FPGA max clk is 20Mhz */
 
@@ -259,6 +254,7 @@
 		};
 	};
 };
+
 &sdio0 {
 	status = "okay";
 };
@@ -273,8 +269,20 @@
 
 &i2s0 {
 	status = "disabled";
+	clocks = <&i2s0_mclk>, <&i2s0_bclk>;
+	clock-names = "i2s_mclk", "i2s_bclk";
 };
 
 &i2s1 {
 	status = "disabled";
+	clocks = <&i2s1_mclk>, <&i2s1_bclk>;
+	clock-names = "i2s_mclk", "i2s_bclk";
+};
+
+&jpu {
+	status = "okay";
+};
+
+&vpu {
+	status = "okay";
 };
