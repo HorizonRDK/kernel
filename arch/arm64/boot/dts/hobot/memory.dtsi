@@ -11,6 +11,12 @@
 		#size-cells = <2>;
 		ranges;
 
+		/*Reserved 3M memory for uboot*/
+		uboot_reserved: uboot_reserved@0x01d00000 {
+			reg = <0x0 0x01d00000 0x0 0x300000>;
+			no-map;
+		};
+
 		/*Reserved 512K memory for bifbase*/
 		bifbase_reserved: bifbase_reserved@0x02000000 {
 			reg = <0x0 0x02000000 0x0 0x00080000>;
@@ -18,7 +24,7 @@
 		};
 
 		/*Reserved 256K memory pstore */
-		ramoops@0x02800000 {
+		ramoops@0x02080000 {
 			compatible = "ramoops";
 			reg = <0x0 0x02080000 0x0 0x40000>;
 			console-size = <0x8000>;
