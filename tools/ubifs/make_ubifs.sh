@@ -11,5 +11,5 @@ ubinize -o rootfs_ubifs.img -m 1 -p 65536 -s 1 rootfs_ubinize.cfg
 
 rm -rf ubifs.img
 # create app ubifs
-mkfs.ubifs -r $path/ -m 1 -e 65408 -c 512 -o ubifs.img
+mkfs.ubifs  -m 1 -e 65408 -c 512 -o ubifs.img
 ubinize -o app_ubifs.img -m 1 -p 65536 -s 1 app_ubinize.cfg

@@ -1,6 +1,8 @@
 {
     "Image_addr" : "0x002A4400",
     "Image_size" : "0x00000000",
+    "recovery_addr" : "0x00700000",
+    "recovery_size" : "0x00900000",
     "dtb_number" : "0x00000000",
     "board_id0" : "0x00000000",
     "gpio_id0" : "0x00000000",
@@ -252,7 +254,5 @@
     "Reserved152" : "0x00000000",
     "Reserved153" : "0x00000000",
     "Reserved154" : "0x00000000",
-    "Reserved155" : "0x00000000",
-    "Reserved156" : "0x00000000",
-    "Reserved157" : "0x00000000"
+    "Reserved155" : "0x00000000"
 }

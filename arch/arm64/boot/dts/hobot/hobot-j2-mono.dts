@@ -322,6 +322,11 @@
 			label = "qspi-app";
 			reg = <0x2000000 0x2000000>;
 		};
+
+		partition@qspi-boot {
+			label = "qspi-boot";
+			reg = <0x0 0x1000000>;
+		};
 	};
 };
 */

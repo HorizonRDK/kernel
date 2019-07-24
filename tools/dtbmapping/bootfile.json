@@ -1,6 +1,8 @@
 {
     "imagefile" :   "Image",
-    "imageaddr" :   "2A4400",
-    "imagesize" :   "D5BC00",
+    "imageaddr" :   "200000",
+    "imagesize" :   "900000",
+    "recoveryaddr" :    "700000",
+    "recoverysize" :    "900000",
     "output0"   :   "dtb-mapping.conf"
 }

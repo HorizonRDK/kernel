@@ -108,13 +108,15 @@ if __name__ == '__main__':
 
     bootInfoContent[0] = np.asarray(str2hex(fjson['imageaddr']), dtype=np.int32) 
     bootInfoContent[1] = np.asarray(str2hex(fjson['imagesize']), dtype=np.int32)
+    bootInfoContent[2] = np.asarray(str2hex(fjson['recoveryaddr']), dtype=np.int32)
+    bootInfoContent[3] = np.asarray(str2hex(fjson['recoverysize']), dtype=np.int32)
 
     file = open(bootDtb, "rb")
     hjson = json.load(file, object_pairs_hook=OrderedDict)
 
-    j=3
+    j=5
     board_id = resolveJsonKey(bootDtb)
-    bootInfoContent[2] = np.asarray(len(board_id), dtype=np.int32)
+    bootInfoContent[4] = np.asarray(len(board_id), dtype=np.int32)
     for key in board_id:
         bootInfoContent[j] = np.asarray(str2hex(key), dtype=np.int32)
         bootInfoContent[j+1] = np.asarray(str2hex(hjson[key]['gpio_id']), dtype=np.int32)
@@ -126,7 +128,7 @@ if __name__ == '__main__':
     dtbname = resolveJson(bootLoaderPath)
     listname = list(dtbname[0])
 
-    file_produced0  = open(filePath[3], 'wb')
+    file_produced0  = open(filePath[5], 'wb')
     file_produced0.write(bootInfoContent)
 
     file_produced0.close()
