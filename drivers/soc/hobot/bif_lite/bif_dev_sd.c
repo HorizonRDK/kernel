@@ -197,6 +197,8 @@ static int bif_dev_sd_server_info_proc_show(struct seq_file *m, void *v)
 	struct provider_server *relation = NULL;
 	int i = 0;
 	int j = 0;
+	short int *provider_id_factor = NULL;
+	int pid = 0;
 
 	mutex_lock(&domain.connect_mutex);
 
@@ -209,6 +211,10 @@ static int bif_dev_sd_server_info_proc_show(struct seq_file *m, void *v)
 			seq_printf(m, "\n");
 			seq_printf(m, "provider_id:\n");
 			seq_printf(m, "%d\n", relation->provider_id);
+			provider_id_factor = (short int *)(relation->server_id);
+			pid = relation->provider_id - *provider_id_factor;
+			seq_printf(m, "pid:\n");
+			seq_printf(m, "%d\n", pid);
 		}
 	}
 

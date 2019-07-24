@@ -957,42 +957,54 @@ struct send_mang_data *data)
 {
 	int ret = 0;
 	struct provider_server *relation = NULL;
+	int pid = data->provider_id;
+	int i = 0;
+	struct server_desc *server = NULL;
+	short int *provider_id_factor = NULL;
 
 	mutex_lock(&domain->connect_mutex);
+
+	for (i = 0; i < SERVER_COUNT_MAX; ++i) {
+		server = domain->server.server_array + i;
+		if (!server->valid)
+			continue;
+		provider_id_factor = (short int *)(server->server_id);
+		data->provider_id = pid + *provider_id_factor;
+
 	ret = get_map_index(&domain->map, data->provider_id);
 	if (ret >= 0) {
 		// abnormal shutdown
 		relation = domain->map.map_array + ret;
 		memcpy(data->server_id, relation->server_id, UUID_LEN);
 	} else {
-		mutex_unlock(&domain->connect_mutex);
-		return 0;
+		// this provider_id is unregistered normally
+		continue;
 	}
 
 	ret = unregister_provider(domain, data);
 	if (ret < 0) {
 		hbipc_error("unregister_provider error\n");
-		mutex_unlock(&domain->connect_mutex);
-		goto error;
+			continue;
 	}
 
 	unregister_server(domain, data);
 	unregister_map(domain, data);
 
 	mutex_unlock(&domain->connect_mutex);
-
 	// send unregister provider datagram
 	ret = mang_frame_send2opposite(domain,
 		MANAGE_CMD_UNREGISTER_PROVIDER, data);
+		mutex_lock(&domain->connect_mutex);
 	if (ret < 0) {
 		ret = HBIPC_ERROR_HW_TRANS_ERROR;
 		hbipc_error("send MANG_CMD_UNREGISTER_PROVIDER error\n");
-		goto error;
+			continue;
+		}
 	}
 
+	mutex_unlock(&domain->connect_mutex);
+
 	return 0;
-error:
-	return ret;
 }
 EXPORT_SYMBOL(unregister_server_provider_abnormal);
 

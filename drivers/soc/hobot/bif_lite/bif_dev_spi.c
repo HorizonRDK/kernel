@@ -106,19 +106,19 @@ static struct proc_dir_entry *bif_dev_spi_server_info_entry;
 
 static int bif_dev_spi_statistics_proc_show(struct seq_file *m, void *v)
 {
-	seq_printf(m, "bif_dev_sd dev layer statistics:\n\
+	seq_printf(m, "bif_dev_spi dev layer statistics:\n\
 irq_handler_count = %d\nrx_work_func_count = %d\n\
 rx_flowcontrol_count = %d\naccept_count = %d\n\
 write_call_count = %d\nwrite_real_count = %d\n\
 read_call_count = %d\nread_real_count = %d\n\
 write_resend_count = %d\nwrite_resend_over_count = %d\n\
-bif_dev_sd hbipc layer statistics:\n\
+bif_dev_spi hbipc layer statistics:\n\
 interrupt_recv_count = %d\nmanage_recv_count = %d\n\
 data_recv_count = %d\nmanage_frame_count = %d\n\
 data_frame_count = %d\nup_sem_count = %d\n\
 send_manage_count = %d\n\
 mang_resend_count = %d\nmang_resend_over_count = %d\n\
-bif_dev_sd transfer layer statistics:\n\
+bif_dev_spi transfer layer statistics:\n\
 trig_count = %d\nretrig_count = %d\n",
 	domain.domain_statistics.irq_handler_count,
 	domain.domain_statistics.rx_work_func_count,
@@ -200,6 +200,8 @@ static int bif_dev_spi_server_info_proc_show(struct seq_file *m, void *v)
 	struct provider_server *relation = NULL;
 	int i = 0;
 	int j = 0;
+	short int *provider_id_factor = NULL;
+	int pid = 0;
 
 	mutex_lock(&domain.connect_mutex);
 
@@ -212,6 +214,10 @@ static int bif_dev_spi_server_info_proc_show(struct seq_file *m, void *v)
 			seq_printf(m, "\n");
 			seq_printf(m, "provider_id:\n");
 			seq_printf(m, "%d\n", relation->provider_id);
+			provider_id_factor = (short int *)(relation->server_id);
+			pid = relation->provider_id - *provider_id_factor;
+			seq_printf(m, "pid:\n");
+			seq_printf(m, "%d\n", pid);
 		}
 	}
 
