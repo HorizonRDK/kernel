@@ -1,3 +1,4 @@
+
 /***************************************************************************
  *
  * SIMG PART NUMBER - HDMI Transmitter Driver
@@ -28,6 +29,7 @@
 #include <linux/gpio/consumer.h>
 
 #include "siHdmiTx_902x_TPI.h"
+#include "x2/x2_ips.h"
 
 
 SIHDMITX_CONFIG	siHdmiTx;
@@ -3797,6 +3799,8 @@ void OnHdmiCableConnected(void)
 	//TPI_Init();
 
 	g_sys.hdmiCableConnected = TRUE;
+	TPI_INFO_PRINT("pinmux bt1120 output!\n");
+	ips_pinmux_bt();
 
 	if ((Sii9024A_HDCP_supported)
 		&& (g_hdcp.HDCP_TxSupports == TRUE)
