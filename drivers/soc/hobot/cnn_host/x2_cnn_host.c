@@ -415,8 +415,10 @@ static irqreturn_t x2_cnn_interrupt_handler(int irq, void *dev_id)
 			spin_lock_irqsave(&dev->cnn_spin_lock, flags);
 			dev->cnn_int_num.cnn_int_num[dev->cnn_int_num.cnn_int_count] = tmp_irq;
 			dev->cnn_int_num.cnn_int_interval[dev->cnn_int_num.cnn_int_count] = 0;
-			if (dev->cnn_int_num.cnn_int_count < CNN_INT_NUM - 1)
+			if (dev->cnn_int_num.cnn_int_count < CNN_INT_NUM - 1) {
 				dev->cnn_int_num.cnn_int_count++;
+				dev->real_int_cnt++;
+			}
 			spin_unlock_irqrestore(&dev->cnn_spin_lock, flags);
 			break;
 		}
