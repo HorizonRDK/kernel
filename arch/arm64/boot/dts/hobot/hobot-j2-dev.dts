@@ -301,7 +301,7 @@
 	cap-sd-highspeed;
 	powerup-gpio = <85>;
 	uhs-180v-gpio = <86>;
-	non-removable;
+	broken-cd;
 	disable-wp;
 };
 
