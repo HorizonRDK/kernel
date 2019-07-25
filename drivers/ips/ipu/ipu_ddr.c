@@ -196,7 +196,7 @@ void ipu_handle_frame_done(void)
 	ipu_slot_h_t *slot_h = NULL;
 	int count;
 
-	//spin_lock_irqsave(&g_ipu_ddr_cdev->slock, flags);
+	spin_lock_irqsave(&g_ipu_ddr_cdev->slock, flags);
 	count = slot_left_num(BUSY_SLOT_LIST);
 	if (count > 1)	{
 		g_slot_h = slot_busy_to_done();
@@ -205,7 +205,7 @@ void ipu_handle_frame_done(void)
 			wake_up_interruptible(&wq_frame_done);
 		}
 	}
-//	spin_unlock_irqrestore(&g_ipu_ddr_cdev->slock, flags);
+	spin_unlock_irqrestore(&g_ipu_ddr_cdev->slock, flags);
 }
 
 void ipu_handle_pym_frame_done(void)
@@ -220,17 +220,21 @@ void ipu_handle_frame_start(void)
 {
 	ipu_slot_h_t *slot_h = NULL;
 	struct x2_ipu_data *ipu = g_ipu_ddr_cdev->ipu;
+	unsigned long flags;
 
 	g_ipu_time = ipu_current_time();
 
 	if (started == 0)
 		return;
 
+	spin_lock_irqsave(&g_ipu_ddr_cdev->slock, flags);
 	slot_h = slot_free_to_busy();
 	if (slot_h) {
 		ipu_set(IPUC_SET_DDR, ipu->cfg,
 		IPU_GET_SLOT(slot_h->info_h.slot_id, ipu->paddr));
 	}
+	spin_unlock_irqrestore(&g_ipu_ddr_cdev->slock, flags);
+
 }
 void ipu_ddr_mode_process(uint32_t status)
 {
