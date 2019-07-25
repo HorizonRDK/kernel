@@ -54,8 +54,14 @@
 #define NETLINK_BPU 24
 #define MOD_FRQ_DONE 0X0
 #define MOD_FRQ      0X01
+#define CHECK_IRQ_LOST
 extern struct sock *cnn_netlink_init(int unit);
 extern int cnn_netlink_send(struct sock *sock, int group, void *msg, int len);
+
+#ifdef CHECK_IRQ_LOST
+static void x2_check_cnn(unsigned long arg);
+#endif
+
 struct sock *cnn_nl_sk;
 #define FC_TIME_CNT 53
 
@@ -79,6 +85,11 @@ static int bpu1_power;
 static struct timer_list check_timer;
 static struct mutex enable_lock;
 
+#ifdef CHECK_IRQ_LOST
+static int checkirq0_enable = 1;
+static int checkirq1_enable = 1;
+#endif
+
 static inline u32 x2_cnn_reg_read(struct x2_cnn_dev *dev, u32 off)
 {
 	return readl(dev->cnn_base + off);
@@ -96,7 +107,7 @@ int fc_fifo_stat_info(struct seq_file *m, void *data)
 	struct x2_cnn_dev *dev = node->cnn_dev;
 	u32 fc_head_idx, fc_tail_idx,
 	    fc_head_flag, fc_tail_flag,
-	    fc_depth;
+	    fc_depth, inst_num;
 
 	fc_head_idx = x2_cnn_reg_read(dev, X2_CNN_FC_HEAD);
 	fc_head_flag = fc_head_idx & X2_CNN_FC_IDX_FLAG;
@@ -107,9 +118,22 @@ int fc_fifo_stat_info(struct seq_file *m, void *data)
 	fc_tail_idx &= X2_CNN_MAX_FC_LEN_MASK;
 
 	fc_depth = x2_cnn_reg_read(dev, X2_CNN_FC_LEN);
-	seq_printf(m, "fc_len	 fc_head    fc_head_flag    fc_tail    fc_tail_flag\n");
-	seq_printf(m, "%d	 %d	    %d		    %d	       %d\n",
-		fc_depth, fc_head_idx, fc_head_flag, fc_tail_idx, fc_tail_flag);
+	inst_num = x2_cnn_reg_read(dev, X2_CNNINT_INST_NUM);
+	seq_printf(m, "%s\t%s\t%s\t%s\t%s\t%s\t\n",
+			"fc_len",
+			"fc_head",
+			"fc_head_flag",
+			"fc_tail",
+			"fc_tail_flag",
+			"inst_num");
+	seq_printf(m, "%d\t%d\t%-9d\t%d\t%-9d\t%d\n",
+		   fc_depth,
+		   fc_head_idx,
+		   fc_head_flag,
+		   fc_tail_idx,
+		   fc_tail_flag,
+		   inst_num);
+
 
 	return 0;
 }
@@ -398,6 +422,7 @@ static irqreturn_t x2_cnn_interrupt_handler(int irq, void *dev_id)
 
 	x2_cnn_reg_write(dev, X2_CNNINT_MASK, 0x0);
 	spin_unlock_irqrestore(&dev->cnn_spin_lock, flags);
+
 	do {
 		if (tmp_irq & 0xf000) {
 			spin_lock_irqsave(&dev->cnn_spin_lock, flags);
@@ -409,8 +434,10 @@ static irqreturn_t x2_cnn_interrupt_handler(int irq, void *dev_id)
 			break;
 		}
 
-		ret = kfifo_out(&dev->int_info_fifo, &tmp,
-						sizeof(struct x2_int_info));
+		ret = kfifo_out_spinlocked(&dev->int_info_fifo, &tmp,
+						sizeof(struct x2_int_info),
+						&dev->kfifo_lock);
+
 		if (!ret) {
 			spin_lock_irqsave(&dev->cnn_spin_lock, flags);
 			dev->cnn_int_num.cnn_int_num[dev->cnn_int_num.cnn_int_count] = tmp_irq;
@@ -630,7 +657,6 @@ static u32 x2_cnn_get_fc_fifo_spaces(struct x2_cnn_dev *dev)
  */
 static void x2_cnn_clock_up(struct x2_cnn_dev *dev)
 {
-	int ret;
 	unsigned int tmp;
 
 	lock_bpu(dev);
@@ -840,7 +866,18 @@ static int x2_cnn_open(struct inode *inode, struct file *filp)
 
 		return -1;
 	}
-
+	if (!(devdata->ref_cnt++)) {
+		devdata->cnn_int_num.cnn_int_count = 0;
+		devdata->irq_triggered = 0;
+		devdata->zero_int_cnt = 0;
+#ifdef CHECK_IRQ_LOST
+		if ((devdata->core_index && checkirq1_enable) ||
+			(devdata->core_index == 0 && checkirq0_enable)) {
+			devdata->cnn_timer.expires = jiffies + HZ / 2;
+			add_timer(&devdata->cnn_timer);
+		}
+#endif
+	}
 	mutex_unlock(&x2_cnn_mutex);
 
 	x2_cnn_reg_read(devdata, X2_CNN_FC_LEN);
@@ -854,9 +891,18 @@ static int x2_cnn_release(struct inode *inode, struct file *filp)
 
 	mutex_lock(&x2_cnn_mutex);
 	devdata = filp->private_data;
-	devdata->cnn_int_num.cnn_int_count = 0;
-	atomic_set(&devdata->wait_fc_cnt, 0);
-	kfifo_reset(&devdata->int_info_fifo);
+	if (!(--devdata->ref_cnt)) {
+		devdata->cnn_int_num.cnn_int_count = 0;
+		atomic_set(&devdata->wait_fc_cnt, 0);
+		kfifo_reset(&devdata->int_info_fifo);
+#ifdef CHECK_IRQ_LOST
+		if ((devdata->core_index && checkirq1_enable) ||
+			(devdata->core_index == 0 && checkirq0_enable))
+			del_timer(&devdata->cnn_timer);
+#endif
+		devdata->inst_num = 0;
+		devdata->head_value = 0;
+	}
 	mutex_unlock(&x2_cnn_mutex);
 	return 0;
 }
@@ -1462,6 +1508,68 @@ static int x2_cnnfreq_register(struct x2_cnn_dev *cnn_dev)
 	return 0;
 }
 #endif
+#ifdef CHECK_IRQ_LOST
+static void x2_simu_irq(struct x2_cnn_dev *dev)
+{
+	int ret = 0;
+	struct x2_int_info tmp;
+	unsigned long flags;
+
+	ret = kfifo_out_spinlocked(&dev->int_info_fifo, &tmp,
+					sizeof(struct x2_int_info),
+					&dev->kfifo_lock);
+	if (ret == sizeof(struct x2_int_info)) {
+		spin_lock_irqsave(&dev->cnn_spin_lock, flags);
+		dev->cnn_int_num.cnn_int_num[dev->cnn_int_num.cnn_int_count] = tmp.int_num;
+		do_gettimeofday(&tmp.end_time);
+		dev->cnn_int_num.cnn_int_interval[dev->cnn_int_num.cnn_int_count] =
+			(tmp.end_time.tv_sec * 1000000 + tmp.end_time.tv_usec)
+			- (tmp.start_time.tv_sec * 1000000 + tmp.start_time.tv_usec);
+		if (dev->cnn_int_num.cnn_int_count < CNN_INT_NUM - 1) {
+			dev->cnn_int_num.cnn_int_count++;
+			dev->real_int_cnt++;
+		}
+
+		spin_unlock_irqrestore(&dev->cnn_spin_lock, flags);
+		atomic_sub(tmp.fc_total, &dev->wait_fc_cnt);
+		tasklet_schedule(&dev->tasklet);
+	} else
+		pr_err("%s:interrupt info fifo is empty\n", __func__);
+}
+static void x2_check_cnn(unsigned long arg)
+{
+	struct x2_cnn_dev *dev = (struct x2_cnn_dev *)arg;
+	int head_tmp = 0;
+	int inst_num_tmp = 0;
+	int ret = 0;
+
+	pr_debug("%s:[%d]\n", __func__, __LINE__);
+	head_tmp = x2_cnn_reg_read(dev, X2_CNN_FC_HEAD);
+	inst_num_tmp = x2_cnn_reg_read(dev, X2_CNNINT_INST_NUM);
+
+	ret = kfifo_len(&dev->int_info_fifo);
+	if (ret) {
+		if (dev->head_value == head_tmp &&
+			dev->inst_num == inst_num_tmp &&
+			dev->inst_num != 0) {
+			pr_err("bpu lost irq!!!\n");
+			pr_err("head:%d,inst_num:%d,head_tmp:%d,inst_tmp:%d,id:%d,ret:%d\n",
+				dev->head_value,
+				dev->inst_num,
+				head_tmp,
+				inst_num_tmp,
+				dev->core_index,
+				ret);
+			x2_simu_irq(dev);
+		}
+	}
+	dev->head_value = head_tmp;
+	dev->inst_num = inst_num_tmp;
+	dev->cnn_timer.expires = jiffies + HZ / 2;
+	add_timer(&dev->cnn_timer);
+
+}
+#endif
 
 int x2_cnn_probe(struct platform_device *pdev)
 {
@@ -1652,6 +1760,7 @@ int x2_cnn_probe(struct platform_device *pdev)
 	mutex_init(&cnn_dev->cnn_lock);
 	spin_lock_init(&cnn_dev->set_time_lock);
 	spin_lock_init(&cnn_dev->cnn_spin_lock);
+	spin_lock_init(&cnn_dev->kfifo_lock);
 
 	rc = kfifo_alloc(&cnn_dev->int_info_fifo,
 		    sizeof(struct x2_int_info) * x2_cnn_reg_read(cnn_dev, X2_CNN_FC_LEN), GFP_KERNEL);
@@ -1699,6 +1808,12 @@ int x2_cnn_probe(struct platform_device *pdev)
 	pr_info("x2 cnn%d probe OK!!\n", cnn_id);
 #ifdef CONFIG_HOBOT_CNN_DEVFREQ
 	x2_cnnfreq_register(cnn_dev);
+#endif
+
+#ifdef CHECK_IRQ_LOST
+	init_timer(&cnn_dev->cnn_timer);
+	cnn_dev->cnn_timer.function = &x2_check_cnn;
+	cnn_dev->cnn_timer.data = (unsigned long)cnn_dev;
 #endif
 	return rc;
 
@@ -2089,7 +2204,68 @@ static ssize_t bpu1_power_store(struct kobject *kobj,
 	}
 	return count;
 }
+#ifdef CHECK_IRQ_LOST
+static ssize_t bpu0_checkirq_show(struct kobject *kobj,
+				struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", checkirq0_enable);
+}
+static ssize_t bpu0_checkirq_store(struct kobject *kobj,
+			   struct kobj_attribute *attr,
+			   const char *buf, size_t count)
+{
+	int ret;
+	static int irq0_enable_tmp = 1;
 
+	ret = sscanf(buf, "%du", &checkirq0_enable);
+	if (checkirq0_enable != 0 && checkirq0_enable != 1) {
+		pr_info("set 0 or 1!\n");
+		checkirq0_enable = irq0_enable_tmp;
+	}
+	if (irq0_enable_tmp != checkirq0_enable) {
+		irq0_enable_tmp = checkirq0_enable;
+		if (cnn0_dev->ref_cnt) {
+			if (checkirq0_enable) {
+				cnn0_dev->cnn_timer.expires = jiffies + HZ / 2;
+				add_timer(&cnn0_dev->cnn_timer);
+			} else
+				del_timer(&cnn0_dev->cnn_timer);
+		}
+	}
+	return count;
+}
+
+static ssize_t bpu1_checkirq_show(struct kobject *kobj,
+				  struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", checkirq1_enable);
+}
+static ssize_t bpu1_checkirq_store(struct kobject *kobj,
+			   struct kobj_attribute *attr,
+			   const char *buf, size_t count)
+{
+	int ret;
+	static int irq1_enable_tmp = 1;
+
+	ret = sscanf(buf, "%du", &checkirq1_enable);
+	if (checkirq1_enable != 0 && checkirq1_enable != 1) {
+		pr_info("set 0 or 1!\n");
+		checkirq1_enable = irq1_enable_tmp;
+	}
+	if (irq1_enable_tmp != checkirq1_enable) {
+		irq1_enable_tmp = checkirq1_enable;
+		if (cnn1_dev->ref_cnt) {
+			if (checkirq1_enable) {
+				cnn1_dev->cnn_timer.expires = jiffies + HZ / 2;
+				add_timer(&cnn1_dev->cnn_timer);
+			} else
+				del_timer(&cnn1_dev->cnn_timer);
+		}
+	}
+	return count;
+
+}
+#endif
 static struct kobj_attribute pro_frequency = __ATTR(profiler_frequency, 0664,
 						    fre_show, fre_store);
 static struct kobj_attribute pro_enable    = __ATTR(profiler_enable, 0664,
@@ -2121,6 +2297,14 @@ static struct kobj_attribute bpu0_power_en = __ATTR(power_enable, 0644,
 static struct kobj_attribute bpu1_power_en  = __ATTR(power_enable, 0644,
 						     bpu1_power_show,
 						     bpu1_power_store);
+#ifdef CHECK_IRQ_LOST
+static struct kobj_attribute bpu0_check_irq = __ATTR(check_irq, 0644,
+						    bpu0_checkirq_show,
+						    bpu0_checkirq_store);
+static struct kobj_attribute bpu1_check_irq  = __ATTR(check_irq, 0644,
+						     bpu1_checkirq_show,
+						     bpu1_checkirq_store);
+#endif
 
 static struct attribute *bpu_attrs[] = {
 	&pro_frequency.attr,
@@ -2135,6 +2319,9 @@ static struct attribute *bpu0_attrs[] = {
 	&bpu0_fc_time.attr,
 	&bpu0_clk_en.attr,
 	&bpu0_power_en.attr,
+#ifdef CHECK_IRQ_LOST
+	&bpu0_check_irq.attr,
+#endif
 	NULL,
 };
 static struct attribute *bpu1_attrs[] = {
@@ -2143,6 +2330,9 @@ static struct attribute *bpu1_attrs[] = {
 	&bpu1_fc_time.attr,
 	&bpu1_clk_en.attr,
 	&bpu1_power_en.attr,
+#ifdef CHECK_IRQ_LOST
+	&bpu1_check_irq.attr,
+#endif
 	NULL,
 };
 

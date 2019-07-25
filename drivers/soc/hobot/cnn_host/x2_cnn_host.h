@@ -163,6 +163,7 @@ struct x2_cnn_dev {
 	struct mutex cnn_lock;
 	spinlock_t set_time_lock;
 	spinlock_t cnn_spin_lock;
+	spinlock_t kfifo_lock;
 	int irq_triggered;
 
 	struct reset_control *cnn_rst;
@@ -195,6 +196,11 @@ struct x2_cnn_dev {
 #ifdef CONFIG_HOBOT_CNN_DEVFREQ
 	struct x2_cnnfreq *cnnfreq;
 #endif
+	struct timer_list cnn_timer;
+	unsigned int head_value;
+	unsigned int inst_num;
+	unsigned int ref_cnt;
+
 };
 
 struct cnn_debugfs_info {
