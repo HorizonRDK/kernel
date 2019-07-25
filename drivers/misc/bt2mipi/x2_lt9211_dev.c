@@ -155,6 +155,35 @@ static int lcd_backlight_init(void)
 	return 0;
 }
 
+int lcd_backlight_change(unsigned int duty)
+{
+	int ret = 0;
+
+	if (lcd_backlight_pwm == NULL) {
+		pr_err("pwm is not init!!\n");
+		return -1;
+	}
+
+	pwm_disable(lcd_backlight_pwm);
+
+	ret = pwm_config(lcd_backlight_pwm, duty, PWM_PERIOD_DEFAULT);
+
+	if (ret) {
+		pr_err("\nError config pwm!!!!\n");
+		return ret;
+	}
+
+	ret = pwm_enable(lcd_backlight_pwm);
+	if (ret) {
+		pr_err("\nError enable pwm!!!!\n");
+		return ret;
+	}
+
+	return 0;
+
+}
+EXPORT_SYMBOL(lcd_backlight_change);
+
 static const struct file_operations x2_lt9211_fops = {
 	.owner	= THIS_MODULE,
 	.open	= lt9211_open,
@@ -164,6 +193,64 @@ static const struct file_operations x2_lt9211_fops = {
 	.unlocked_ioctl	= lt9211_ioctl,
 };
 
+struct kobject *lt9211_kobj;
+static ssize_t lt9211_show(struct kobject *kobj,
+		struct kobj_attribute *attr, char *buf)
+{
+	char *s = buf;
+
+	return (s - buf);
+}
+
+static ssize_t lt9211_store(struct kobject *kobj,
+		struct kobj_attribute *attr, const char *buf, size_t n)
+{
+	char *tmp;
+	int error = -EINVAL;
+	int ret = 0;
+	unsigned long value = 0;
+	unsigned int duty = 0;
+
+	tmp = (char *)buf;
+	ret = kstrtoul(tmp, 0, &value);
+	if (ret == 0) {
+		if (value == 0) {
+			duty = PWM_PERIOD_DEFAULT - 1;
+		} else if (value <= 10 && value > 0) {
+			duty = PWM_PERIOD_DEFAULT -
+				PWM_PERIOD_DEFAULT / 10 * value;
+		} else {
+			pr_info("error backlight value, exit!!\n");
+			return error;
+		}
+	} else {
+		pr_info("error input, exit!!\n");
+		return error;
+	}
+
+	ret = lcd_backlight_change(duty);
+
+	return ret ? error : n;
+
+}
+
+static struct kobj_attribute lt9211_test_attr = {
+	.attr	= {
+		.name = __stringify(lt9211_test_attr),
+		.mode = 0644,
+	},
+	.show	= lt9211_show,
+	.store	= lt9211_store,
+};
+
+static struct attribute *attributes[] = {
+	&lt9211_test_attr.attr,
+	NULL,
+};
+
+static struct attribute_group attr_group = {
+	.attrs = attributes,
+};
 
 static int x2_lt9211_probe(struct i2c_client *client,
 		const struct i2c_device_id *id)
@@ -281,6 +368,13 @@ static int x2_lt9211_probe(struct i2c_client *client,
 	client->flags = I2C_CLIENT_SCCB;
 	LT9211_DEBUG("chip found @ 0x%02x (%s)\n",
 			client->addr << 1, client->adapter->name);
+
+	lt9211_kobj = kobject_create_and_add("x2_lt9211", NULL);
+	if (!lt9211_kobj)
+		return -ENOMEM;
+	sysfs_create_group(lt9211_kobj, &attr_group);
+
+
 	ret = lcd_backlight_init();
 	if (ret)
 		LT9211_DEBUG("\nlcd backlight init err!\n");
