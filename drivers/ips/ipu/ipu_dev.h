@@ -82,6 +82,7 @@ typedef struct {
 	scale_t scale;
 	pymid_t pymid;
 	frame_id_t frame_id;
+	int timeout;
 	ddr_t crop_ddr;
 	ddr_t scale_ddr;
 	ddr_t ds_ddr[24];
@@ -95,6 +96,7 @@ typedef struct {
 	scale_t scale;
 	pymid_t pymid;
 	frame_id_t frame_id;
+	int timeout;
 } ipu_init_t;
 
 enum {

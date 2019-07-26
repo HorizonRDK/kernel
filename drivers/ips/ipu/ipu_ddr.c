@@ -58,7 +58,7 @@ static wait_queue_head_t wq_pym_done;
 static unsigned long  runflags;
 static unsigned long  pym_runflags;
 static int started;
-
+static int timeout;
 
 struct ipu_ddr_cdev {
 	const char *name;
@@ -390,6 +390,9 @@ long ipu_ddr_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 				ipu_err("ioctl init fail\n");
 				return -EFAULT;
 			}
+			timeout = ipu_cfg->timeout;
+			if (timeout <= 0)
+				timeout = 500;
 			ret = ipu_core_init(ipu_cfg);
 			if (ret < 0) {
 				ipu_err("ioctl init fail\n");
@@ -431,8 +434,16 @@ long ipu_ddr_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 		started = 1;
 wait:
 		runflags = 0;
-		wait_event_interruptible(wq_frame_done, runflags);
+		ret = wait_event_interruptible_timeout(wq_frame_done, runflags, msecs_to_jiffies(timeout));
+		if (ret < 0) {
 
+			pr_err("wait src err %d %d\n", __LINE__, ret);
+			return -EFAULT;
+		} else if (ret == 0) {
+
+			pr_debug("wait src timeout %d %d\n", __LINE__, ret);
+			return -EFAULT;
+		}
 		unsigned long flags;
 		ipu_slot_h_t *g_get_slot_h;
 
@@ -512,7 +523,16 @@ wait:
 	{
 			unsigned long flags;
 
-			wait_event_interruptible(wq_pym_done, test_and_clear_bit(1, &pym_runflags));
+			ret = wait_event_interruptible_timeout(wq_pym_done, test_and_clear_bit(1, &pym_runflags), msecs_to_jiffies(timeout));
+			if (ret < 0) {
+
+				pr_err("wait pym err %d ret %d\n", __LINE__, ret);
+				return -EFAULT;
+			} else if (ret == 0) {
+
+				pr_debug("wait pym timeout %d ret %d\n", __LINE__, ret);
+				return -EFAULT;
+			}
 			spin_lock_irqsave(&g_ipu_ddr_cdev->slock, flags);
 			pym_img_info = &pym_info;
 			pym_img_info->slot_id = g_process_info.slot_id;
