@@ -472,7 +472,8 @@ static int x2_i2c_xfer_smbus(struct i2c_adapter *adap, u16 addr,
 
 static u32 x2_i2c_func(struct i2c_adapter *adap)
 {
-	return I2C_FUNC_10BIT_ADDR | I2C_FUNC_I2C | I2C_FUNC_SMBUS_EMUL;
+	return I2C_FUNC_10BIT_ADDR | I2C_FUNC_I2C |
+		(I2C_FUNC_SMBUS_EMUL & ~I2C_FUNC_SMBUS_QUICK);
 }
 
 static const struct i2c_algorithm x2_i2c_algo = {
