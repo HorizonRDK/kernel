@@ -98,42 +98,45 @@ static int x2_mmc_set_sd_padcctrl(struct dw_mci_hobot_priv_data *priv)
 	return 0;
 }
 
-static int x2_mmc_set_sample_phase(struct dw_mci_hobot_priv_data *priv,
-				   int degrees)
+int x2_mmc_disable_clk(struct dw_mci_hobot_priv_data *priv)
 {
+	u64 timeout = jiffies + msecs_to_jiffies(10);
+	u32 clken_clr_shift, clkoff_sta_shift;
 	u32 reg_value;
+	int retry = 0;
 
-	priv->current_sample_phase = degrees;
 	if (priv->ctrl_id == DWMMC_MMC_ID) {
-		reg_value = 1 << HOBOT_SD0_CLKEN_CLR_SHIFT;
-		writel(reg_value, priv->sysctrl_reg + HOBOT_CLKEN_CLR);
-
-		while (1) {
-			reg_value = readl(priv->sysctrl_reg + HOBOT_CLKOFF_STA);
-			if (reg_value & HOBOT_SD0_CLKOFF_STA_SHIFT)
-				break;
-		}
-
-		reg_value = readl(priv->sysctrl_reg + HOBOT_SD0_PHASE_REG);
-		reg_value &= 0xFFFF0FFF;
-		reg_value |= degrees << HOBOT_MMC_SAMPLE_DEGREE_SHIFT;
-		writel(reg_value, priv->sysctrl_reg + HOBOT_SD0_PHASE_REG);
+		clken_clr_shift = HOBOT_SD0_CLKEN_CLR_SHIFT;
+		clkoff_sta_shift = HOBOT_SD0_CLKOFF_STA_SHIFT;
 	} else {
-		reg_value = 1 << HOBOT_SD1_CLKEN_CLR_SHIFT;
-		writel(reg_value, priv->sysctrl_reg + HOBOT_CLKEN_CLR);
-
-		while (1) {
-			reg_value = readl(priv->sysctrl_reg + HOBOT_CLKOFF_STA);
-			if (reg_value & HOBOT_SD1_CLKOFF_STA_SHIFT)
-				break;
-		}
-		reg_value = readl(priv->sysctrl_reg + HOBOT_SD1_PHASE_REG);
-		reg_value &= 0xFFFF0FFF;
-		reg_value |= degrees << HOBOT_MMC_SAMPLE_DEGREE_SHIFT;
-		writel(reg_value, priv->sysctrl_reg + HOBOT_SD1_PHASE_REG);
+		clken_clr_shift = HOBOT_SD1_CLKEN_CLR_SHIFT;
+		clkoff_sta_shift = HOBOT_SD1_CLKOFF_STA_SHIFT;
 	}
 
-	usleep_range(1, 2);
+	while (retry++ < 5) {
+		reg_value = 1 << clken_clr_shift;
+		writel(reg_value, priv->sysctrl_reg + HOBOT_CLKEN_CLR);
+
+		while (time_before(jiffies, timeout)) {
+			reg_value = readl(priv->sysctrl_reg + HOBOT_CLKOFF_STA);
+			if (reg_value & clkoff_sta_shift)
+				return 0;
+
+			usleep_range(1, 2);
+		}
+
+		timeout = jiffies + msecs_to_jiffies(10);
+		pr_err("disable mmc clk failed retry:%d.\n", retry);
+	}
+
+	pr_err("disable mmc clk failed, ctrl_id:%d!\n", priv->ctrl_id);
+
+	return -1;
+}
+
+int x2_mmc_enable_clk(struct dw_mci_hobot_priv_data *priv)
+{
+	u32 reg_value;
 
 	if (priv->ctrl_id == DWMMC_MMC_ID) {
 		reg_value = 1 << HOBOT_SD0_CLKEN_SET_SHIFT;
@@ -142,6 +145,33 @@ static int x2_mmc_set_sample_phase(struct dw_mci_hobot_priv_data *priv,
 		reg_value = 1 << HOBOT_SD1_CLKEN_SET_SHIFT;
 		writel(reg_value, priv->sysctrl_reg + HOBOT_CLKEN_SET);
 	}
+
+	return 0;
+}
+
+static int x2_mmc_set_sample_phase(struct dw_mci_hobot_priv_data *priv,
+				   int degrees)
+{
+	u32 reg_value;
+
+	priv->current_sample_phase = degrees;
+
+	x2_mmc_disable_clk(priv);
+	if (priv->ctrl_id == DWMMC_MMC_ID) {
+		reg_value = readl(priv->sysctrl_reg + HOBOT_SD0_PHASE_REG);
+		reg_value &= 0xFFFF0FFF;
+		reg_value |= degrees << HOBOT_MMC_SAMPLE_DEGREE_SHIFT;
+		writel(reg_value, priv->sysctrl_reg + HOBOT_SD0_PHASE_REG);
+	} else {
+		reg_value = readl(priv->sysctrl_reg + HOBOT_SD1_PHASE_REG);
+		reg_value &= 0xFFFF0FFF;
+		reg_value |= degrees << HOBOT_MMC_SAMPLE_DEGREE_SHIFT;
+		writel(reg_value, priv->sysctrl_reg + HOBOT_SD1_PHASE_REG);
+	}
+
+	usleep_range(1, 2);
+	x2_mmc_enable_clk(priv);
+
 	/* We should delay 1us wait for timing setting finished. */
 	usleep_range(1, 2);
 	return 0;
@@ -153,28 +183,14 @@ static int x2_mmc_set_drv_phase(struct dw_mci_hobot_priv_data *priv,
 	u32 reg_value;
 
 	priv->current_drv_phase = degrees;
-	if (priv->ctrl_id == DWMMC_MMC_ID) {
-		reg_value = 1 << HOBOT_SD0_CLKEN_CLR_SHIFT;
-		writel(reg_value, priv->sysctrl_reg + HOBOT_CLKEN_CLR);
 
-		while (1) {
-			reg_value = readl(priv->sysctrl_reg + HOBOT_CLKOFF_STA);
-			if (reg_value & HOBOT_SD0_CLKOFF_STA_SHIFT)
-				break;
-		}
+	x2_mmc_disable_clk(priv);
+	if (priv->ctrl_id == DWMMC_MMC_ID) {
 		reg_value = readl(priv->sysctrl_reg + HOBOT_SD0_PHASE_REG);
 		reg_value &= 0xFFFFF0FF;
 		reg_value |= degrees << HOBOT_MMC_DRV_DEGREE_SHIFT;;
 		writel(reg_value, priv->sysctrl_reg + HOBOT_SD0_PHASE_REG);
 	} else {
-		reg_value = 1 << HOBOT_SD1_CLKEN_CLR_SHIFT;
-		writel(reg_value, priv->sysctrl_reg + HOBOT_CLKEN_CLR);
-
-		while (1) {
-			reg_value = readl(priv->sysctrl_reg + HOBOT_CLKOFF_STA);
-			if (reg_value & HOBOT_SD1_CLKOFF_STA_SHIFT)
-				break;
-		}
 		reg_value = readl(priv->sysctrl_reg + HOBOT_SD1_PHASE_REG);
 		reg_value &= 0xFFFFF0FF;
 		reg_value |= degrees << HOBOT_MMC_DRV_DEGREE_SHIFT;;
@@ -182,14 +198,8 @@ static int x2_mmc_set_drv_phase(struct dw_mci_hobot_priv_data *priv,
 	}
 
 	usleep_range(1, 2);
+	x2_mmc_enable_clk(priv);
 
-	if (priv->ctrl_id == DWMMC_MMC_ID) {
-		reg_value = 1 << HOBOT_SD0_CLKEN_SET_SHIFT;
-		writel(reg_value, priv->sysctrl_reg + HOBOT_CLKEN_SET);
-	} else {
-		reg_value = 1 << HOBOT_SD1_CLKEN_SET_SHIFT;
-		writel(reg_value, priv->sysctrl_reg + HOBOT_CLKEN_SET);
-	}
 	/* We should delay 1us wait for timing setting finished. */
 	usleep_range(1, 2);
 	return 0;
@@ -348,9 +358,11 @@ static void dw_mci_x2_set_ios(struct dw_mci *host, struct mmc_ios *ios)
 	else
 		cclkin = ios->clock * HOBOT_CLKGEN_DIV;
 
+	x2_mmc_disable_clk(priv);
 	ret = clk_set_rate(host->biu_clk, cclkin);
 	if (ret)
 		dev_warn(host->dev, "failed to set rate %uHz\n", ios->clock);
+	x2_mmc_enable_clk(priv);
 
 	bus_hz = clk_get_rate(host->biu_clk) / HOBOT_CLKGEN_DIV;
 	if (bus_hz != host->bus_hz) {

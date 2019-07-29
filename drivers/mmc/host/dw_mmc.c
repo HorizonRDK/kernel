@@ -41,6 +41,7 @@
 #include <linux/mmc/slot-gpio.h>
 
 #include "dw_mmc.h"
+#include "dw_mmc-hobot.h"
 
 /* Common flag combinations */
 #define DW_MCI_DATA_ERROR_FLAGS	(SDMMC_INT_DRTO | SDMMC_INT_DCRC | \
@@ -3211,13 +3212,17 @@ int dw_mci_probe(struct dw_mci *host)
 		}
 
 		if (host->pdata->bus_hz) {
+			pr_debug("set ciu clk to %lu\n", host->pdata->bus_hz);
+			x2_mmc_disable_clk(host->priv);
 			ret = clk_set_rate(host->ciu_clk, host->pdata->bus_hz);
 			if (ret)
 				dev_warn(host->dev,
 					 "Unable to set bus rate to %uHz\n",
 					 host->pdata->bus_hz);
+			x2_mmc_enable_clk(host->priv);
 		}
 		host->bus_hz = clk_get_rate(host->ciu_clk);
+		pr_debug("get ciu clk is %lu\n", host->pdata->bus_hz);
 	}
 
 	if (!host->bus_hz) {
