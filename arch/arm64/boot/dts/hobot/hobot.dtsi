@@ -523,6 +523,7 @@
 			interrupt-parent = <&gic>;
 			reg = <0x0 0xA1002000 0x0 0x1000>;
 			timer-freq = <20000000>;
+			clocks = <&timer0_mclk>;
 		};
 
 		timer1: timer@0xA1003000 {
@@ -537,6 +538,7 @@
 			interrupt-parent = <&gic>;
 			reg = <0x0 0xA1003000 0x0 0x1000>;
 			timer-freq = <20000000>;
+			clocks = <&timer1_mclk>;
 		};
 
 		timer2: timer@0xA1004000 {
@@ -551,6 +553,7 @@
 			interrupt-parent = <&gic>;
 			reg = <0x0 0xA1004000 0x0 0x1000>;
 			timer-freq = <20000000>;
+			clocks = <&timer2_mclk>;
 		};
 
 		watchdog: watchdog@0xA1002000 {
