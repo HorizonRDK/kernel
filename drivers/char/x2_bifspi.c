@@ -13,7 +13,7 @@
 #include <linux/uaccess.h>
 #include <linux/ioctl.h>
 #include <linux/reset.h>
-
+#include <linux/proc_fs.h>
 #include <linux/kernel.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
@@ -34,6 +34,15 @@
 #define MEM_MAX_ACCESS	  (0xfffffffc)
 #define BIF_CLR_INT	  (0x0FC0)
 #define BIF_RST_NAME	  "bifspi"
+
+static int ap_access_first;
+module_param(ap_access_first, uint, 0644);
+MODULE_PARM_DESC(ap_access_first, "ap_access_first");
+
+static int ap_access_last = MEM_MAX_ACCESS;
+module_param(ap_access_last, uint, 0644);
+MODULE_PARM_DESC(ap_access_last, "ap_access_last");
+
 
 static int bif_open(struct inode *inode, struct file *filp);
 static int bif_release(struct inode *inode, struct file *filp);
@@ -92,6 +101,84 @@ struct bif_acc_space {
 #define BIF_SET_ACCESS		_IO(MAGIC_NUM, 3)
 #define BIF_UNSET_ACCESS	_IO(MAGIC_NUM, 4)
 #define BIF_RESET		_IO(MAGIC_NUM, 5)
+
+static void bif_set_access(struct bifspi_t *pbif, unsigned int first,
+			   unsigned int last);
+
+ssize_t bifspi_show_ap_first(struct kobject *driver,
+			     struct kobj_attribute *attr, char *buf)
+{
+	if (bif_info == NULL) {
+		pr_err("%s bif_info == null\n", __func__);
+		return 0;
+	}
+	return snprintf(buf, PAGE_SIZE, "0x%08x\n", bif_info->first);
+}
+
+ssize_t bifspi_store_ap_first(struct kobject *driver,
+		struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	if (bif_info == NULL) {
+		pr_err("%s bif_info == null\n", __func__);
+		return 0;
+	}
+	ap_access_first = (kstrtol(buf, NULL, 0) & 0xFFFFFFFF);
+	bif_info->first = ap_access_first;
+	bif_set_access(bif_info, bif_info->first, bif_info->last);
+	return count;
+}
+
+ssize_t bifspi_show_ap_last(struct kobject *driver,
+			     struct kobj_attribute *attr, char *buf)
+{
+	if (bif_info == NULL) {
+		pr_err("%s bif_info == null\n", __func__);
+		return 0;
+	}
+	return snprintf(buf, PAGE_SIZE, "0x%08x\n", bif_info->last);
+}
+
+ssize_t bifspi_store_ap_last(struct kobject *driver,
+		struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	if (bif_info == NULL) {
+		pr_err("%s bif_info == null\n", __func__);
+		return 0;
+	}
+	ap_access_last = (kstrtol(buf, NULL, 0) & 0xFFFFFFFF);
+	bif_info->last = ap_access_last;
+	bif_set_access(bif_info, bif_info->first, bif_info->last);
+	return count;
+}
+
+static struct kobj_attribute ap_access_first_attr = {
+	.attr   = {
+		.name = __stringify(ap_access_first_attr),
+		.mode = 0644,
+	},
+	.show   = bifspi_show_ap_first,
+	.store  = bifspi_store_ap_first,
+};
+
+static struct kobj_attribute ap_access_last_attr = {
+	.attr   = {
+		.name = __stringify(ap_access_last_attr),
+		.mode = 0644,
+	},
+	.show   = bifspi_show_ap_last,
+	.store  = bifspi_store_ap_last,
+};
+
+
+static struct attribute *bifspi_attributes[] = {
+	&ap_access_first_attr.attr,
+	&ap_access_last_attr.attr,
+	NULL,
+};
+
+static struct attribute_group bifspi_group = {
+	.attrs = bifspi_attributes,
+};
 
 static int bif_open(struct inode *inode, struct file *filp)
 {
@@ -346,6 +433,7 @@ static int bifspi_probe(struct platform_device *pdev)
 {
 	int ret = 0;
 	struct resource *res;
+	unsigned int value32;
 
 	bif_info = kzalloc(sizeof(struct bifspi_t), GFP_KERNEL);
 	if (bif_info == NULL) {
@@ -354,8 +442,8 @@ static int bifspi_probe(struct platform_device *pdev)
 	}
 	platform_set_drvdata(pdev, bif_info);
 	spin_lock_init(&bif_info->lock);
-	bif_info->first = 0;
-	bif_info->last = MEM_MAX_ACCESS;
+	bif_info->first = ap_access_first;
+	bif_info->last = ap_access_last;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	bif_info->regs_base = devm_ioremap_resource(&pdev->dev, res);
@@ -385,12 +473,30 @@ static int bifspi_probe(struct platform_device *pdev)
 	if (IS_ERR(bif_info->bif_rst))
 		goto failed_chardev;
 
-	ret = bif_alloc_chardev(bif_info, "bifspi");
+	ret = of_property_read_u32(pdev->dev.of_node,
+				   "ap_access_first", &value32);
+	if (ret)
+		dev_err(&pdev->dev, "get ap_access_first failed\n");
+	else
+		bif_info->first = value32;
+
+	ret = of_property_read_u32(pdev->dev.of_node,
+				   "ap_access_last", &value32);
+	if (ret)
+		dev_err(&pdev->dev, "get ap_access_last failed\n");
+	else
+		bif_info->last = value32;
+
+	ret = bif_alloc_chardev(bif_info, "x2-bifspi");
 	if (ret != 0) {
 		ret = -EINVAL;
 		dev_err(&pdev->dev, "alloc char device failed\n");
 		goto failed_chardev;
 	}
+
+	ret = sysfs_create_group(&pdev->dev.kobj, &bifspi_group);
+	if (ret != 0)
+		dev_err(&pdev->dev, "sysfs_create_group failed\n");
 
 	pr_info("BIF_INIT FINISHED\n");
 	return 0;
@@ -410,6 +516,7 @@ static int bifspi_remove(struct platform_device *pdev)
 {
 	struct bifspi_t *pbif;
 
+	sysfs_remove_group(&pdev->dev.kobj, &bifspi_group);
 	pbif = platform_get_drvdata(pdev);
 	bif_free_chardev(pbif);
 	if (pbif->irq > 0)
@@ -428,7 +535,7 @@ static const struct of_device_id bifspi_hobot_of_match[] = {
 
 static struct platform_driver bifspi_hobot_driver = {
 	.driver = {
-		   .name = "bifspi",
+		   .name = "x2-bifspi",
 		   .of_match_table = bifspi_hobot_of_match,
 		   },
 	.probe = bifspi_probe,

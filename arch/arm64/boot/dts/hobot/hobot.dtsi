@@ -616,6 +616,8 @@
 			reset-names = "bifspi";
 			pinctrl-names = "default";
 			pinctrl-0 = <&bifspi_func>;
+			ap_access_first = <0x0>;
+			ap_access_last = <0xfffffffc>;
 		};
 		bifsd: bifsd@A1007000 {
 			compatible = "hobot,bifsd";
