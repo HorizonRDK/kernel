@@ -28,7 +28,7 @@
 			device_type = "cpu";
 			enable-method = "spin-table";
 			operating-points-v2 = <&cpu_opp_table>;
-			clocks = <&cpu_mux_clk>;
+			clocks = <&cpu_clk>;
 			#cooling-cells = <2>;
 			cooling-min-level = <0>;
 			cooling-max-level = <2>;
@@ -43,7 +43,7 @@
 			enable-method = "spin-table";
 			cpu-release-addr = <0 0xA6000278>;
 			operating-points-v2 = <&cpu_opp_table>;
-			clocks = <&cpu_mux_clk>;
+			clocks = <&cpu_clk>;
 			reg = <0x1>;
 			cpu-idle-states = <&CPU_SLEEP_0>;
 		};
@@ -70,7 +70,7 @@
 		opp-shared;
 		opp00 {
 			opp-hz = /bits/ 64 <1000000000>;
-			opp-microvolt = <1000000>;
+			opp-microvolt = <900000>;
 			clock-latency-ns = <500000>;
 		};
 		opp01 {
@@ -80,7 +80,12 @@
 		};
 		opp02 {
 			opp-hz = /bits/ 64 <250000000>;
-			opp-microvolt = <800000>;
+			opp-microvolt = <900000>;
+			clock-latency-ns = <500000>;
+		};
+		opp03 {
+			opp-hz = /bits/ 64 <800000000>;
+			opp-microvolt = <900000>;
 			clock-latency-ns = <500000>;
 		};
 	};

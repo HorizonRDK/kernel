@@ -2,24 +2,27 @@
 #include <linux/clk.h>
 #include <linux/clk-provider.h>
 #include <linux/spinlock.h>
+#include <linux/delay.h>
 
 #include "common.h"
 
-#define PLL_FREQ_CTRL_FBDIV_BIT 0
-#define PLL_FREQ_CTRL_REFDIV_BIT 12
-#define PLL_FREQ_CTRL_POSTDIV1_BIT 20
-#define PLL_FREQ_CTRL_POSTDIV2_BIT 24
+#define PLL_CTRL_FBDIV_BIT 0
+#define PLL_CTRL_REFDIV_BIT 12
+#define PLL_CTRL_POSTDIV1_BIT 20
+#define PLL_CTRL_POSTDIV2_BIT 24
 
-#define PLL_FREQ_CTRL_FBDIV_FIELD 0xFFF
-#define PLL_FREQ_CTRL_REFDIV_FIELD 0x3F
-#define PLL_FREQ_CTRL_POSTDIV1_FIELD 0x7
-#define PLL_FREQ_CTRL_POSTDIV2_FIELD 0x7
+#define PLL_CTRL_FBDIV_FIELD 0xFFF
+#define PLL_CTRL_REFDIV_FIELD 0x3F
+#define PLL_CTRL_POSTDIV1_FIELD 0x7
+#define PLL_CTRL_POSTDIV2_FIELD 0x7
 
 #define PLL_PD_CTRL_PD_BIT 0
 #define PLL_PD_CTRL_DSMPD_BIT 4
 #define PLL_PD_CTRL_FOUTPOSTDIVPD_BIT 8
 #define PLL_PD_CTRL_FOUTVCOPD_BIT 12
 #define PLL_PD_CTRL_BYPASS_BIT 16
+
+#define PLL_STATUS_LOCK_BIT 0
 
 #define PLL_BYPASS_MODE 0x1
 #define PLL_LAINT_MODE 0x0
@@ -39,6 +42,26 @@
 struct clk_laintpll_reg {
 	void __iomem *freq_reg;
 	void __iomem *pd_reg;
+	void __iomem *status;
+};
+
+struct laintpll_bestdiv {
+	unsigned long freq;
+	unsigned int refdiv;
+	unsigned int fbdiv;
+	unsigned int postdiv1;
+	unsigned int postdiv2;
+};
+
+/*
+ * Only support 1.6GHz, 2GHz and 2.4G for ARMPLL,
+ * add more if there are new pll freq use case for other plls
+ */
+#define PLL_BESTDIV_TABLE_LEN 3
+static struct laintpll_bestdiv pll_bestdiv_table[PLL_BESTDIV_TABLE_LEN] = {
+	{1600000000, 3, 200, 1, 1},
+	{2000000000, 3, 250, 1, 1},
+	{2400000000, 3, 300, 1, 1}
 };
 
 #define to_clk_laintpll(_hw) container_of(_hw, struct clk_laintpll, hw)
@@ -56,7 +79,30 @@ struct clk_laintpll {
 	spinlock_t lock;
 };
 
-static unsigned long laintpll_recalc_rate(struct clk_hw *hw, unsigned long parent_rate)
+static int clk_lainpll_wait_lock(struct clk_laintpll *pll)
+{
+	int count = 500;
+	u32 val = readl_relaxed(pll->reg.pd_reg) & BIT(PLL_PD_CTRL_PD_BIT);
+
+	/* No need to wait for lock when pll is not powered up */
+	if (val)
+		return 0;
+
+	/* Wait for PLL to lock */
+	do {
+		if (readl_relaxed(pll->reg.status) & BIT(PLL_STATUS_LOCK_BIT))
+			break;
+		udelay(10);
+	} while (--count > 0);
+
+	val = readl_relaxed(pll->reg.status) & BIT(PLL_STATUS_LOCK_BIT);
+
+	return  val ? 0 : -ETIMEDOUT;
+}
+
+
+static unsigned long laintpll_recalc_rate(struct clk_hw *hw,
+			unsigned long parent_rate)
 {
 	struct clk_laintpll *clk;
 	unsigned int fbdiv, refdiv, postdiv1, postdiv2;
@@ -74,16 +120,46 @@ static unsigned long laintpll_recalc_rate(struct clk_hw *hw, unsigned long paren
 	}
 
 	val = readl(clk->reg.freq_reg);
-	fbdiv = (val & (PLL_FREQ_CTRL_FBDIV_FIELD << PLL_FREQ_CTRL_FBDIV_BIT)) >> PLL_FREQ_CTRL_FBDIV_BIT;
-	refdiv = (val & (PLL_FREQ_CTRL_REFDIV_FIELD << PLL_FREQ_CTRL_REFDIV_BIT)) >> PLL_FREQ_CTRL_REFDIV_BIT;
-	postdiv1 = (val & (PLL_FREQ_CTRL_POSTDIV1_FIELD << PLL_FREQ_CTRL_POSTDIV1_BIT)) >> PLL_FREQ_CTRL_POSTDIV1_BIT;
-	postdiv2 = (val & (PLL_FREQ_CTRL_POSTDIV2_FIELD << PLL_FREQ_CTRL_POSTDIV2_BIT)) >> PLL_FREQ_CTRL_POSTDIV2_BIT;
+	fbdiv = (val & (PLL_CTRL_FBDIV_FIELD << PLL_CTRL_FBDIV_BIT))
+			>> PLL_CTRL_FBDIV_BIT;
+	refdiv = (val & (PLL_CTRL_REFDIV_FIELD << PLL_CTRL_REFDIV_BIT))
+			>> PLL_CTRL_REFDIV_BIT;
+	postdiv1 = (val & (PLL_CTRL_POSTDIV1_FIELD << PLL_CTRL_POSTDIV1_BIT))
+			>> PLL_CTRL_POSTDIV1_BIT;
+	postdiv2 = (val & (PLL_CTRL_POSTDIV2_FIELD << PLL_CTRL_POSTDIV2_BIT))
+			>> PLL_CTRL_POSTDIV2_BIT;
 
 	rate = (parent_rate / refdiv) * fbdiv / postdiv1 /postdiv2;
 	return rate;
 }
 
-static long laintpll_round_rate(struct clk_hw *hw, unsigned long rate, unsigned long *parent_rate)
+/*
+ * lookup table for the preset pll frequency division
+ * return 0 if found, return -1 if not found
+ */
+static int laintpll_lookup_table(struct clk_laintpll *clk,
+			unsigned long rate)
+{
+	struct laintpll_bestdiv *bestdiv;
+	int i;
+
+	for (i = 0; i < PLL_BESTDIV_TABLE_LEN; i++) {
+		if (rate == pll_bestdiv_table[i].freq) {
+			bestdiv = &pll_bestdiv_table[i];
+			clk->refdiv = bestdiv->refdiv;
+			clk->fbdiv  = bestdiv->fbdiv;
+			clk->postdiv1 = bestdiv->postdiv1;
+			clk->postdiv2 = bestdiv->postdiv2;
+
+			return 0;
+		}
+	}
+
+	return -EINVAL;
+}
+
+static long laintpll_round_rate(struct clk_hw *hw, unsigned long rate,
+			unsigned long *parent_rate)
 {
 	struct clk_laintpll *clk;
 	unsigned int refdiv, fbdiv, postdiv1, postdiv2;
@@ -107,9 +183,17 @@ static long laintpll_round_rate(struct clk_hw *hw, unsigned long rate, unsigned 
 		return prate;
 	}
 
+	if (!laintpll_lookup_table(clk, rate)) {
+		pr_debug("%s: find rate:%lu in quick table!\n", __func__, rate);
+		return rate;
+	}
+	pr_info("new rate:%lu, add it into pll freq table!\n", rate);
+
 	clk->mode = PLL_LAINT_MODE;
-	/* loop here for general rounding the freq combination value here, for more efficient and power
-	 * saving, lookup table can be used with limited combination, but usecase need to be confirmed
+	/*
+	 * loop here for general rounding the freq combination value here,
+	 * for more efficient and power saving, lookup table can be used with
+	 * limited combination, but usecase need to be confirmed.
 	 */
 	rate_post = PLL_LAINT_MAX_FREQ;
 	rate_pre = prate;
@@ -181,13 +265,16 @@ static int laintpll_set_rate(struct clk_hw *hw,
 	struct clk_laintpll *clk;
 	unsigned long new_rate;
 	unsigned int val;
+	int ret;
 
 	clk = to_clk_laintpll(hw);
+
 	switch (clk->mode){
 		case PLL_BYPASS_MODE:
 			new_rate = parent_rate;
 			if(new_rate != rate){
-				pr_warn("%s: failed with invalid round rate %lu, expecting %lu\n", __func__, rate, new_rate);
+				pr_warn("%s: failed with invalid round rate %lu, expecting %lu\n",
+						__func__, rate, new_rate);
 				return -EINVAL;
 			}
 			val = readl(clk->reg.pd_reg);
@@ -195,74 +282,82 @@ static int laintpll_set_rate(struct clk_hw *hw,
 			writel(val, clk->reg.pd_reg);
 			break;
 		case PLL_LAINT_MODE:
-			new_rate = (parent_rate / clk->refdiv) * clk->fbdiv / clk->postdiv1 / clk->postdiv2;
+			new_rate = (parent_rate / clk->refdiv) * clk->fbdiv
+						/ clk->postdiv1 / clk->postdiv2;
 			if(new_rate != rate){
-				pr_warn("%s: failed with invalid round rate %lu, expecting %lu\n", __func__, rate, new_rate);
+				pr_warn("%s: failed with invalid round rate %lu, expecting %lu\n",
+						__func__, rate, new_rate);
 				return -EINVAL;
 			}
 			val = readl(clk->reg.pd_reg);
 			val &= ~(1 << PLL_PD_CTRL_BYPASS_BIT);
 			writel(val, clk->reg.pd_reg);
 
-			val = (clk->refdiv & PLL_FREQ_CTRL_REFDIV_FIELD) << PLL_FREQ_CTRL_REFDIV_BIT;
-			val |= ((clk->fbdiv & PLL_FREQ_CTRL_FBDIV_FIELD) << PLL_FREQ_CTRL_FBDIV_BIT);
-			val |= ((clk->postdiv1 & PLL_FREQ_CTRL_POSTDIV1_FIELD) << PLL_FREQ_CTRL_POSTDIV1_BIT);
-			val |= ((clk->postdiv2 & PLL_FREQ_CTRL_POSTDIV2_FIELD) << PLL_FREQ_CTRL_POSTDIV2_BIT);
+			val = (clk->refdiv & PLL_CTRL_REFDIV_FIELD)
+					<< PLL_CTRL_REFDIV_BIT;
+			val |= ((clk->fbdiv & PLL_CTRL_FBDIV_FIELD)
+					<< PLL_CTRL_FBDIV_BIT);
+			val |= ((clk->postdiv1 & PLL_CTRL_POSTDIV1_FIELD)
+					<< PLL_CTRL_POSTDIV1_BIT);
+			val |= ((clk->postdiv2 & PLL_CTRL_POSTDIV2_FIELD)
+					<< PLL_CTRL_POSTDIV2_BIT);
 			writel(val, clk->reg.freq_reg);
 			break;
 		default:
 			pr_warn("%s: invalid clk mode\n", __func__);
 			return -EINVAL;
 	}
-	return 0;
+
+	ret = clk_lainpll_wait_lock(clk);
+
+	return ret;
 }
 
 int laintpll_clk_enable(struct clk_hw *hw)
 {
-#if 0
 	struct clk_laintpll *clk;
 	unsigned int pd, foutpostdivpd;
-	unsigned int val;
 	unsigned long flags;
+	unsigned int val;
 
 	clk = to_clk_laintpll(hw);
 
-	val = readl(clk->reg.pd_reg);
+	spin_lock_irqsave(&clk->lock, flags);
 
-	foutpostdivpd = (val & (1 << PLL_PD_CTRL_FOUTPOSTDIVPD_BIT)) >> PLL_PD_CTRL_FOUTPOSTDIVPD_BIT;
+	val = readl(clk->reg.pd_reg);
 	pd = (val & (1 << PLL_PD_CTRL_PD_BIT)) >> PLL_PD_CTRL_PD_BIT;
-	if ((pd == 0) | (foutpostdivpd == 0)){
-		spin_lock_irqsave(&clk->lock, flags);
-		val &= ~(1 << PLL_PD_CTRL_PD_BIT);
+	if (pd) {
+		val &= (~(1 << PLL_PD_CTRL_PD_BIT)) &
+				(~(1 << PLL_PD_CTRL_FOUTPOSTDIVPD_BIT));
 		writel(val, clk->reg.pd_reg);
-		val = readl(clk->reg.pd_reg);
-		val |= (1 << PLL_PD_CTRL_FOUTPOSTDIVPD_BIT);
-		writel(val, clk->reg.pd_reg);
-		val = readl(clk->reg.pd_reg);
-		val |= (1 << PLL_PD_CTRL_PD_BIT);
-		writel(val, clk->reg.pd_reg);
-		spin_unlock_irqrestore(&clk->lock, flags);
+		clk_lainpll_wait_lock(clk);
 	}
-#endif
+
+	spin_unlock_irqrestore(&clk->lock, flags);
+
 	return 0;
 }
 
 static void laintpll_clk_disable(struct clk_hw *hw)
 {
-#if 0
 	struct clk_laintpll *clk;
+	unsigned long flags;
 	unsigned int pd;
 	unsigned int val;
 
 	clk = to_clk_laintpll(hw);
 
+	spin_lock_irqsave(&clk->lock, flags);
 	val = readl(clk->reg.pd_reg);
+	val |= 1 << PLL_PD_CTRL_PD_BIT | 1 << PLL_PD_CTRL_FOUTPOSTDIVPD_BIT;
 	pd = (val & (1 << PLL_PD_CTRL_PD_BIT)) >> PLL_PD_CTRL_PD_BIT;
-	if(pd){
-		val &= ~(1 << PLL_PD_CTRL_PD_BIT);
+	if (!pd) {
+		val |= 1 << PLL_PD_CTRL_PD_BIT;
+		val |= 1 << PLL_PD_CTRL_FOUTPOSTDIVPD_BIT;
 		writel(val, clk->reg.pd_reg);
 	}
-#endif
+	spin_unlock_irqrestore(&clk->lock, flags);
+
 	return;
 }
 
@@ -275,8 +370,9 @@ const struct clk_ops laintpll_clk_ops = {
 };
 
 static struct clk *laintpll_clk_register(struct device *dev, const char *name,
-		const char *parent_name, unsigned long flags, struct clk_laintpll_reg *reg,
-		unsigned int clk_pll_flags, const struct clk_ops *ops)
+		const char *parent_name, unsigned long flags,
+		struct clk_laintpll_reg *reg, unsigned int clk_pll_flags,
+		const struct clk_ops *ops)
 {
 	struct clk_init_data init = {NULL};
 	struct clk_laintpll *clk_hw;
@@ -318,7 +414,8 @@ static struct clk *laintpll_clk_register(struct device *dev, const char *name,
 	return clk;
 }
 
-static void __init _of_x2_laintpll_clk_setup(struct device_node *node, const struct clk_ops *ops)
+static void __init _of_x2_laintpll_clk_setup(struct device_node *node,
+			const struct clk_ops *ops)
 {
 	struct clk *clk;
 	struct clk_laintpll_reg reg;
@@ -342,15 +439,17 @@ static void __init _of_x2_laintpll_clk_setup(struct device_node *node, const str
 		return;
 	}
 
-	ret = of_property_read_u32_array(node, "offset", data, 2);
+	ret = of_property_read_u32_array(node, "offset", data, 3);
 	if(ret){
 		pr_err("%s: %s missing offset property", __func__, node->name);
 		return;
 	}
 	reg.freq_reg = reg_base + data[0];
 	reg.pd_reg = reg_base + data[1];
+	reg.status = reg_base + data[2];
 
-	clk = laintpll_clk_register(NULL, node->name, parent_name, flags, &reg, clk_laintpll_flags, ops);
+	clk = laintpll_clk_register(NULL, node->name, parent_name, flags, &reg,
+			clk_laintpll_flags, ops);
 
 	if(!IS_ERR(clk)){
 		of_clk_add_provider(node, of_clk_src_simple_get, clk);

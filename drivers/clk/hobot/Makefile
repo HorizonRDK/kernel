@@ -7,4 +7,5 @@ obj-$(CONFIG_X2_COMMON_CLK)		+= divider.o
 obj-$(CONFIG_X2_COMMON_CLK)		+= gate.o
 obj-$(CONFIG_X2_COMMON_CLK)		+= fixed-factor.o
 obj-$(CONFIG_X2_COMMON_CLK)		+= gpio.o
+obj-$(CONFIG_X2_COMMON_CLK)		+= cpu-clk.o
 obj-$(CONFIG_X2_COMMON_CLK_TEST)		+= clk-test.o

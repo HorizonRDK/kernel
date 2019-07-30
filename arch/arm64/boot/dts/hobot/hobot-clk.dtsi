@@ -76,14 +76,14 @@
 			#clock-cells = <0>;
 			compatible = "x2,laintpll-clk";
 			clocks = <&osc_clk>;
-			offset = <0x0 0x4>;
+			offset = <0x0 0x4 0x8>;
 		};
 
 		armpll2_clk: armpll2_clk {
 			#clock-cells = <0>;
 			compatible = "x2,laintpll-clk";
 			clocks = <&osc_clk>;
-			offset = <0x10 0x14>;
+			offset = <0x10 0x14 0x18>;
 		};
 
 		arm_pllmux_clk: arm_pllmux_clk {
@@ -111,6 +111,14 @@
 			offset = <0x300>;
 			bits = <4>;
 			field = <0x1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
+		};
+
+
+		cpu_clk: cpu_clk {
+			#clock-cells = <0>;
+			compatible = "x2,cpu-clk";
+			clocks = <&cpu_mux_clk>;
 			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
@@ -316,7 +324,7 @@
 			#clock-cells = <0>;
 			compatible = "x2,laintpll-clk";
 			clocks = <&osc_clk>;
-			offset = <0x20 0x24>;
+			offset = <0x20 0x24 0x28>;
 		};
 
 		cnn_pllmux_clk: cnn_pllmux_clk {
@@ -442,7 +450,7 @@
 			#clock-cells = <0>;
 			compatible = "x2,laintpll-clk";
 			clocks = <&osc_clk>;
-			offset = <0x40 0x44>;
+			offset = <0x40 0x44 0x48>;
 		};
 
 		vio_pllmux_clk: vio_pllmux_clk {
@@ -634,7 +642,7 @@
 			#clock-cells = <0>;
 			compatible = "x2,laintpll-clk";
 			clocks = <&osc_clk>;
-			offset = <0x50 0x54>;
+			offset = <0x50 0x54 0x58>;
 		};
 
 		peri_pllmux_clk: peri_pllmux_clk {
