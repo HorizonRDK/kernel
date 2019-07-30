@@ -1,9 +1,9 @@
 /*************************************************************************
-	> File Name: bif.c
-	> Author: baiy
-	> Mail: yang01.bai@hobot.cc
-	> Created Time: 2018-07-27-16:56:21
-	> Func: x2 bif spi driver: r/w register
+ *	> File Name: x2-bifspi.c
+ *	> Author: baiy
+ *	> Mail: yang01.bai@hobot.cc
+ *	> Created Time: 2018-07-27-16:56:21
+ *	> Func: x2 bif spi driver: r/w register
  ************************************************************************/
 #include <linux/init.h>
 #include <linux/module.h>
@@ -23,7 +23,7 @@
 #include <linux/mm.h>
 #include <linux/slab.h>
 #include <asm/pgtable.h>
-#include <asm/io.h>
+#include <linux/io.h>
 #include <linux/interrupt.h>
 
 #define BIF_BASE_ADDRESS  (0x00000000)
@@ -32,21 +32,21 @@
 #define BIF_EN_CLEAR	  (0x00000104)
 #define BIF_INT_STATE     (0x00000108)
 #define MEM_MAX_ACCESS	  (0xfffffffc)
-#define BIF_CLR_INT 	  (0x0FC0)
+#define BIF_CLR_INT	  (0x0FC0)
 #define BIF_RST_NAME	  "bifspi"
 
 static int bif_open(struct inode *inode, struct file *filp);
 static int bif_release(struct inode *inode, struct file *filp);
-static ssize_t bif_read(struct file *filp, char __user * buf, size_t count,
-			loff_t * offset);
-static ssize_t bif_write(struct file *filp, const char __user * buf,
-			 size_t count, loff_t * offset);
+static ssize_t bif_read(struct file *filp, char __user *buf, size_t count,
+			loff_t *offset);
+static ssize_t bif_write(struct file *filp, const char __user *buf,
+			 size_t count, loff_t *offset);
 static long bif_unlocked_ioctl(struct file *filp, unsigned int cmd,
 			       unsigned long args);
 static long bif_compat_ioctl(struct file *filp, unsigned int cmd,
 			     unsigned long args);
 
-static int major = 0;
+static int major;
 module_param(major, int, 0644);
 MODULE_PARM_DESC(major, "major num");
 
@@ -68,7 +68,7 @@ struct bifspi_t {
 };
 struct bifspi_t *bif_info;
 
-struct file_operations fops = {
+const struct file_operations fops = {
 	.owner = THIS_MODULE,
 	.open = bif_open,
 	.release = bif_release,
@@ -87,11 +87,11 @@ struct bif_acc_space {
 	unsigned int last;
 };
 #define MAGIC_NUM 'k'
-#define BIF_GET_SHREG 		_IO(MAGIC_NUM,1)
-#define BIF_SET_SHREG		_IO(MAGIC_NUM,2)
-#define BIF_SET_ACCESS	    _IO(MAGIC_NUM,3)
-#define BIF_UNSET_ACCESS    _IO(MAGIC_NUM,4)
-#define BIF_RESET           _IO(MAGIC_NUM,5)
+#define BIF_GET_SHREG		_IO(MAGIC_NUM, 1)
+#define BIF_SET_SHREG		_IO(MAGIC_NUM, 2)
+#define BIF_SET_ACCESS		_IO(MAGIC_NUM, 3)
+#define BIF_UNSET_ACCESS	_IO(MAGIC_NUM, 4)
+#define BIF_RESET		_IO(MAGIC_NUM, 5)
 
 static int bif_open(struct inode *inode, struct file *filp)
 {
@@ -107,16 +107,16 @@ static int bif_release(struct inode *inode, struct file *filp)
 	return 0;
 }
 
-static ssize_t bif_read(struct file *filp, char __user * buf, size_t count,
-			loff_t * offset)
+static ssize_t bif_read(struct file *filp, char __user *buf, size_t count,
+			loff_t *offset)
 {
 	// struct bifspi_t * pbif  = filp->private_data;
 
 	return count;
 }
 
-static ssize_t bif_write(struct file *filp, const char __user * buf,
-			 size_t count, loff_t * offset)
+static ssize_t bif_write(struct file *filp, const char __user *buf,
+			 size_t count, loff_t *offset)
 {
 	// struct bifspi_t  * pbif = filp->private_data;
 
@@ -126,6 +126,7 @@ static ssize_t bif_write(struct file *filp, const char __user * buf,
 static int bif_reset(struct bifspi_t *pbif)
 {
 	int rc = 0;
+
 	rc = reset_control_assert(pbif->bif_rst);
 	if (rc < 0) {
 		pr_err("%s assert: failed\n", __func__);
@@ -159,8 +160,8 @@ static void bif_set_access(struct bifspi_t *pbif, unsigned int first,
 	pbif->last = last;
 	spin_unlock_irqrestore(&pbif->lock, flags);
 
-	pr_info
-	    ("bif set access limit ddr:start add:%p->%#x(%d)  end add:%p-%#x(%d)\n",
+	pr_inf
+	     ("bif set access limit:start add:%p->%#x(%d) end add:%p-%#x(%d)\n",
 	     (void *)(pbif->regs_base + BIF_ACCESS_FIRST), first, first,
 	     (void *)(pbif->regs_base + BIF_ACCESS_LAST), last, last);
 }
@@ -348,7 +349,7 @@ static int bifspi_probe(struct platform_device *pdev)
 
 	bif_info = kzalloc(sizeof(struct bifspi_t), GFP_KERNEL);
 	if (bif_info == NULL) {
-		pr_err("bif_info malloc failed");
+		//pr_err("bif_info malloc failed");
 		return -ENOMEM;
 	}
 	platform_set_drvdata(pdev, bif_info);
@@ -381,9 +382,8 @@ static int bifspi_probe(struct platform_device *pdev)
 	}
 
 	bif_info->bif_rst = devm_reset_control_get(&pdev->dev, BIF_RST_NAME);
-	if (IS_ERR(bif_info->bif_rst)) {
+	if (IS_ERR(bif_info->bif_rst))
 		goto failed_chardev;
-	}
 
 	ret = bif_alloc_chardev(bif_info, "bifspi");
 	if (ret != 0) {
@@ -402,8 +402,7 @@ bif_iounmap:
 	if (bif_info->regs_base > 0)
 		devm_iounmap(&pdev->dev, bif_info->regs_base);
 bif_free:
-	if (bif_info)
-		kfree(bif_info);
+	kfree(bif_info);
 	return -EINVAL;
 }
 
@@ -417,8 +416,7 @@ static int bifspi_remove(struct platform_device *pdev)
 		devm_free_irq(&pdev->dev, pbif->irq, pbif);
 	if (pbif->regs_base > 0)
 		devm_iounmap(&pdev->dev, bif_info->regs_base);
-	if (pbif)
-		kfree(pbif);
+	kfree(pbif);
 	return 0;
 }
 
