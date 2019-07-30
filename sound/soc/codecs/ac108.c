@@ -342,6 +342,7 @@ static const struct of_device_id ac108_dt_ids[] = {
 #if AC108_CHANNELS_MAX > 0
 	{ .compatible = "ac108_0", .data = NULL},//ac108_0
 #endif
+{}
 };
 MODULE_DEVICE_TABLE(of, ac108_dt_ids);
 

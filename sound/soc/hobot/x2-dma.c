@@ -106,10 +106,11 @@ static int i2sidma_enqueue(struct snd_pcm_substream *substream)
 	/* struct snd_pcm_runtime *runtime = substream->runtime; */
 	struct idma_ctrl_s *dma_ctrl = substream->runtime->private_data;
 	u32 val;
+	unsigned long flags;
 
-	spin_lock(&dma_ctrl->lock);
+	spin_lock_irqsave(&dma_ctrl->lock, flags);
 	dma_ctrl->token = (void *)substream;
-	spin_unlock(&dma_ctrl->lock);
+	spin_unlock_irqrestore(&dma_ctrl->lock, flags);
 
 	/* set buf0 ready */
 	val = dma_ctrl->start;
@@ -146,10 +147,11 @@ static void i2sidma_setcallbk(struct snd_pcm_substream *substream,
 			       void (*cb)(void *, int))
 {
 	struct idma_ctrl_s *dma_ctrl = substream->runtime->private_data;
+	unsigned long flags;
 
-	spin_lock(&dma_ctrl->lock);
+	spin_lock_irqsave(&dma_ctrl->lock, flags);
 	dma_ctrl->cb = cb;
-	spin_unlock(&dma_ctrl->lock);
+	spin_unlock_irqrestore(&dma_ctrl->lock, flags);
 }
 
 static void i2sidma_control(int op, int stream, struct idma_ctrl_s *dma_ctrl)
@@ -303,8 +305,9 @@ static int i2sidma_trigger(struct snd_pcm_substream *substream, int cmd)
 {
 	struct idma_ctrl_s *dma_ctr = substream->runtime->private_data;
 	int ret = 0;
+	unsigned long flags;
 
-	spin_lock(&dma_ctr->lock);
+	spin_lock_irqsave(&dma_ctr->lock, flags);
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_RESUME:
 	case SNDRV_PCM_TRIGGER_START:
@@ -326,7 +329,7 @@ static int i2sidma_trigger(struct snd_pcm_substream *substream, int cmd)
 		ret = -EINVAL;
 		break;
 	}
-	spin_unlock(&dma_ctr->lock);
+	spin_unlock_irqrestore(&dma_ctr->lock, flags);
 
 	pr_err("i2sidma_trigger\n");
 	return ret;
@@ -340,14 +343,15 @@ static snd_pcm_uframes_t i2sidma_pointer(struct snd_pcm_substream *substream)
 	unsigned long res;
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_card *snd_card = rtd->card;
+	unsigned long flags;
 
-	spin_lock(&dma_ctrl->lock);
+	spin_lock_irqsave(&dma_ctrl->lock, flags);
 
 	idma_getpos(&src, substream->stream, snd_card, dma_ctrl);
 	/* pr_err("i2sidma_pointer, get pos is %llx\n", src); */
 	res = src - dma_ctrl->start;
 
-	spin_unlock(&dma_ctrl->lock);
+	spin_unlock_irqrestore(&dma_ctrl->lock, flags);
 
 	return bytes_to_frames(substream->runtime, res);
 }
