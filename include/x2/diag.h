@@ -3,55 +3,151 @@
  *   bo01.chen@horizon.ai                                                  *
  *                                                                         *
  *   Diag netlink header file.                                             *
- *	 version: v1.0                                                     *
+ *	 version: v1.0                                                         *
  *                                                                         *
  ***************************************************************************/
 #ifndef NETLINK_DIAG_H
 #define NETLINK_DIAG_H
+#include <linux/list.h>
+#include <linux/spinlock.h>
 
 #define DIAG_MSG_HEAD 0xAA	// diag msg identifier.
 #define DIAG_MSG_VER  0x01	// What version of the dig msg
-#define FRAGMENT_SIZE 0x4000	// netlink msg fragment max size.
+#define FRAGMENT_SIZE 0x4000// netlink msg fragment max size, 0x4000 = 16kb, so we can use kmalloc(...)
 
-extern struct net init_net;
+/* Interval between consecutive transmissions of same id */
+#define DIAG_ID_SEND_INTERVAL_MS 200
 
 /* frame type */
-typedef enum {
-	/*kernel module or app send event id
-	 * and it's status to diag app.
-	 */
-	REPORT_EVENT_STAT = 1,
+#define DIAG_MSG_TYPE_REPORT_EVENT_STAT	1
+#define DIAG_MSG_TYPE_SEND_ENV_DATA	2
+#define DIAG_MSG_TYPE_READ_ENV_DATA	3
 
-	/* kernel module or app send event
-	 * corresponding env data to diag app.
-	 */
-	SEND_ENV_DATA = 2,
+/*
+ * module id
+ */
+enum diag_module_id {
+	ModuleDiagDriver = 1,
+	ModuleDiag_i2c,
+	ModuleDiag_VIO,
+	ModuleDiag_bpu,
+	ModuleDiag_sound,
+	ModuleDiag_bif,
+	ModuleIdMax = 1000,
+};
 
-	/* diag app send this cmd to kernel or
-	 * other app request to get env data.
-	 */
-	READ_ENV_DATA = 3,
+/*
+ * event priority
+ */
+enum diag_msg_prio {
+	DiagMsgPrioHigh = 1,
+	DiagMsgPrioMid,
+	DiagMsgPrioLow,
+	DiagMsgPrioMax,
+};
 
-} diag_msg_type;
+/*
+ * event status.
+ */
+enum diag_event_sta {
+	DiagEventStaUnknown = 1,
+	DiagEventStaSuccess,
+	DiagEventStaFail,
+	DiagEventStaMax,
+};
+
+/*
+ * env data generation timing.
+ */
+enum diag_gen_envdata_timing {
+	DiagGenEnvdataWhenErr = 1,
+	DiagGenEnvdataLastErr,
+	DiagGenEnvdataWhenSuccess,
+	DiagGenEnvdataMax,
+};
+
+/*
+ * Define the event id for your own module below,
+ * note:each item can not greater than EVENT_ID_MAX
+ * and start form 1, end with EVENT_ID_MAX - 1
+ */
+#define EVENT_ID_MAX 100
+/* diag driver module event id */
+enum diag_driver_module_eventid {
+	EventIdKernelToUserSelfTest = 1,
+};
+
+/* i2c module event id */
+enum diag_i2c_driver_module_eventid {
+	EventIdI2cController0Err = 1,
+	EventIdI2cController1Err,
+	EventIdI2cController2Err,
+	EventIdI2cController3Err,
+};
+
+/* VIO module event id */
+enum diag_vio_module_eventid {
+	EventIdVioMipiHostErr = 1,
+	EventIdVioMipiDevErr,
+	EventIdVioSifErr,
+	EventIdVioIpuSingleErr,
+	EventIdVioIpuDualErr,
+	EventIdVioIpuDDRErr,
+};
+
+/* bpu module event id */
+enum diag_bpu_module_eventid {
+	EventIdBpu0Err = 1,
+	EventIdBpu1Err = 2,
+};
+
+/* sound module event id */
+enum diag_sound_module_eventid {
+	EventIdSoundI2s0Err = 1,
+	EventIdSoundI2s1Err,
+};
+
+/* bif module event id */
+enum diag_bif_module_eventid {
+	EventIdBifSpiErr = 1,
+	EventIdBifSdErr,
+	//EventIdBifEthernetErr,
+	//EventIdBifSioErr,
+};
+
+#define DIAG_UNMASK_ID_MAX_NUM 100
+struct diag_msg_id_unmask_struct {
+	uint16_t module_id;
+	uint16_t event_id;
+	struct list_head mask_lst;
+};
+
+/* msg id: It consists of three parts.*/
+struct diag_msg_id {
+	uint16_t module_id;	// module id.
+	uint16_t event_id;	// event id.
+	uint8_t  msg_pri;	// msg priroty.
+
+};
 
 /*
  * diag msg packt header format
  */
-typedef struct {
+struct diag_msg_hdr {
 	uint8_t		packt_ident;
 	uint8_t		version;	// diag msg format version.
-	diag_msg_type	type;
+	uint8_t		frame_type; // status pack or env pack.
 	uint8_t		start;		// Is diag msg start fragment.
 	uint8_t		end;		// Is diag msg end fragment.
 	uint32_t	seq;		// diag msg fragment sequence.
 	uint32_t	len;		// payload data len.
-} __packed diag_msg_hdr;
+} __packed;
 
 /*
  * diag msg packt format
  */
-typedef struct {
-	diag_msg_hdr head;
+struct diag_msg {
+	struct diag_msg_hdr head;
 	uint8_t *data;		// payload
 
 	/* From the beginning of the packet
@@ -59,81 +155,129 @@ typedef struct {
 	 */
 	uint32_t checksum;
 
-} __packed diag_msg;
-
-/*
- * summary of all kernel and userspace event id.
- */
-typedef enum {
-	IMAGE_FRAME	= 0, // range belong to kernel modules.
-	DIAG_DEV_KERNEL_TO_USER_SELFTEST,
-	EVENT_MAX	= 11,
-
-	/* userspace app event below */
-
-} diag_event_id;
-
-/*
- * event status.
- */
-typedef enum {
-	DIAG_EVENT_UNKNOWN = 0,
-	DIAG_EVENT_SUCCESS = 1,
-	DIAG_EVENT_FAIL = 2,
-
-} diag_event_stat;
+} __packed;
 
 /*
  * event id and it's sta package,put
  * this package in the payload of diag msg.
  */
-typedef struct {
-	diag_event_id event_id;
-	diag_event_stat sta;
-} __packed report_event_sta_pack;
-
-/*
- * when is the environmental data generated.
- */
-typedef enum {
-	GEN_ENV_DATA_WHEN_ERROR = 1,
-	GEN_ENV_DATA_WHEN_RESUME_SUCCESS = 2,
-	GEN_ENV_DATA_WHEN_SUCCESS = 3,
-} env_data_type;
+struct report_event_sta_pack {
+	struct diag_msg_id id;
+	uint8_t event_sta;
+} __packed;
 
 /*
  * env data head
  */
-typedef struct {
-	report_event_sta_pack pack_info;
-	env_data_type type;
+struct env_data_head {
+	struct report_event_sta_pack pack_info;
+	uint8_t env_data_gen_timing;
 
-} __packed env_data_head;
+} __packed;
 
 /*
  * env data structure
  */
-typedef struct {
-	env_data_head head;
+struct env_data_pack {
+	struct env_data_head head;
 	uint8_t *data;
 
-} __packed env_data_pack;
+} __packed;
+
+#define DIAG_LIST_MAX_DEFAULT 20
+
+struct id_info {
+	struct diag_msg_id id;
+	uint8_t event_sta;
+	uint8_t env_data_gen_timing;
+	size_t envlen;
+	struct list_head idlst;
+	unsigned long record_jiffies;
+	uint8_t *pdata;
+};
+
+#define ENVDATA_BUFFER_NUM 3
+#define ENVDATA_MAX_SIZE 0x500000
+struct envdata_buffer_manage {
+	spinlock_t env_data_buffer_lock;
+	uint8_t flags;
+	uint8_t *pdata;
+};
+
+struct id_register_struct {
+	struct diag_msg_id id;
+	size_t envdata_max_size;
+	uint32_t min_snd_ms;
+	uint8_t register_had_env_flag;
+	uint8_t last_sta;
+	uint8_t current_sta;
+	unsigned long last_snd_time_ms;
+	unsigned long max_time_out_snd_ms;
+	void (*msg_rcvcallback)(void *p, size_t len);
+	struct envdata_buffer_manage envdata_buff[ENVDATA_BUFFER_NUM];
+	struct list_head id_register_lst;
+};
+
+extern struct net init_net;
+extern struct list_head diag_id_unmask_list;
+extern uint32_t diag_id_unmask_list_num;
+//extern spinlock_t diag_id_unmask_list_spinlock;
 
 /*
  * send event sta and it's env data to the diag app.
- * @event event id
- * @sta event sta
- * @env_data_type When is the environmental data generated.
- * @env_data env data
+ * @id module id, event id, msg priority
+ * @event_sta event sta
+ * @env_data_gen_timing When is the environmental data generated.
+ * @env_data env data ptr
  * @env_len env data len.
  * @return -1:error, >=0:OK
  */
-extern int diag_send_event_stat_and_env_data(diag_event_id event,
-			diag_event_stat sta,
-			env_data_type env_typ,
+extern int diag_send_event_stat_and_env_data(
+			uint8_t msg_prio,
+			uint16_t module_id,
+			uint16_t event_id,
+			uint8_t event_sta,
+			uint8_t env_data_gen_timing,
 			uint8_t *env_data,
 			size_t env_len);
 
+extern int diag_send_event_stat(
+		uint8_t msg_prio,
+		uint16_t module_id,
+		uint16_t event_id,
+		uint8_t event_sta);
+
+/*
+ * diag register func, you must register you module diag before call send diag msg API.
+ * @module_id  module id, you will send msg.
+ * @event_id event id
+ * @envdata_max_size how many env data, you will send[max size].
+ * @min_snd_ms minimum interval between messages sent.
+ * @max_time_out_snd maximum timeout
+ * @rcvcallback this module--event maybe rcv a msg form diag app[call back]
+ */
+extern int diag_register(uint16_t module_id, uint16_t event_id, size_t envdata_max_size,
+		uint32_t min_snd_ms, uint32_t max_time_out_snd,
+		void (*rcvcallback)(void *p, size_t len));
+
+#if 0
+/*
+ * check: can update env data buffer? before call diag_send_event_stat_and_env_data(...)
+ * If the environment data you send is too large at last,the env buffer maybe
+ * not been released(due to env data had not send finished). this
+ * time you want to send data agin(change value in the old buffer), as a result,
+ * you can't change any value that the pointer points to. Otherwise,the data
+ * will be messed up in the old env buffer.
+ * @return 1: can send again, you can change the global env buffer again.
+ *		   0: last send had not finished, you can not change the global buffer.
+ */
+extern int diag_can_update_envdata_buffer(uint16_t module_id, uint16_t event_id);
+
+/*
+ * diag driver or diag app is ready?
+ * 1:ready, 0:not
+ */
+extern int diag_is_ready(void);
 #endif
 
-
+#endif

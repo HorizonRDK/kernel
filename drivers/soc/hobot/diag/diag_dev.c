@@ -19,15 +19,7 @@
 #include <x2/diag.h>
 #include "diag_dev.h"
 
-#define DEBUG
-
-#ifdef DEBUG
-#define diag_dev_debug printk
-#else
-#define diag_dev_debug(format, ...) do {} while (0)
-#endif
-
-#define diag_dev_error printk
+//#define DEBUG
 
 static struct class  *g_diag_dev_class;
 struct device *g_diag_dev;
@@ -61,57 +53,88 @@ static long diag_dev_ioctl(struct file *file, unsigned int cmd,
 							unsigned long arg)
 {
 	int ret = 0;
+	int retval;
 	unsigned char *envdata;
 	size_t count;
+	unsigned long flags;
+	uint16_t buf[2];
+	struct diag_msg_id_unmask_struct *p;
 
 	mutex_lock(&diag_dev_ioctl_mutex);
-
 	switch (cmd) {
-	case IOC_IOC_DIAG_DEV_SELF_TEST:
+	case IOCS_DIAG_DEV_SELF_TEST:
 		count = 2*FRAGMENT_SIZE;
 		envdata = vmalloc(count);
 		if (envdata == NULL) {
 			ret = -EFAULT;
-			diag_dev_error("diag dev ioctrl vmalloc error\n");
-			goto error;
+			pr_err("diag dev ioctrl vmalloc error\n");
+			goto self;
 		}
-
 		get_random_bytes(envdata, count);
 
-		/*
-		 * send image frame error and it's env data.
-		 */
-		if (diag_send_event_stat_and_env_data(
-					DIAG_DEV_KERNEL_TO_USER_SELFTEST,
-					DIAG_EVENT_FAIL,
-					GEN_ENV_DATA_WHEN_ERROR, envdata, count
+		/* send image frame error and it's env data.*/
+		if (diag_send_event_stat_and_env_data(DiagMsgPrioMid,
+					ModuleDiagDriver, EventIdKernelToUserSelfTest,
+					DiagEventStaFail, DiagGenEnvdataWhenErr,
+					envdata, count
 					) < 0) {
 			ret = -EFAULT;
-			diag_dev_error("diag dev snd env data error\n");
-			goto error;
+			pr_err("diag dev snd env data error\n");
+			goto self;
 		}
-
-		ret = wait_for_completion_timeout(
-			&diag_dev_completion,
+		retval = wait_for_completion_timeout(&diag_dev_completion,
 			5*HZ);
-		if (!ret) {
+		if (!retval) {
 			ret = -EFAULT;
-			diag_dev_error("diag dev:completion timeout\n");
-			goto error;
+			pr_err("diag dev:completion timeout\n");
+			goto self;
 		}
+self:
+		if (envdata)
+			vfree(envdata);
+		break;
 
+	case IOCS_DIAG_DEV_UNMASK_ID:
+		//spin_lock_irqsave(&diag_id_unmask_list_spinlock, flags);
+		memset((uint8_t *)buf, 0x00, sizeof(buf));
+		if (copy_from_user(buf, (uint8_t __user *)arg, 4)) {
+			pr_err("diag dev: IOCS_DIAG_DEV_MASK_ID copy from user error\n");
+			ret = -EINVAL;
+			goto mask_id;
+		}
+		if ((buf[0] > ModuleIdMax) || (buf[1] > EVENT_ID_MAX)) {
+			pr_err("diag dev: IOCS_DIAG_DEV_MASK_ID moudle id or event id invalid!!!\n");
+			ret = -EINVAL;
+			goto mask_id;
+		}
+		if (diag_id_unmask_list_num > DIAG_UNMASK_ID_MAX_NUM) {
+			pr_err("diag dev: diag unmask id num over range\n");
+			ret = -EINVAL;
+			goto mask_id;
+		}
+		pr_debug("unmask, module id: %x  event id: %x \n", buf[0], buf[1]);
+		p = (struct diag_msg_id_unmask_struct *)kmalloc(
+			sizeof(struct diag_msg_id_unmask_struct), GFP_ATOMIC);
+		if (!p) {
+			pr_err("diag dev: IOCS_DIAG_DEV_MASK_ID kmalloc fail\n");
+			ret = -EINVAL;
+			goto mask_id;
+		}
+		p->module_id = buf[0];
+		p->event_id = buf[1];
+		list_add_tail(&(p->mask_lst), &diag_id_unmask_list);
+		diag_id_unmask_list_num++;
+mask_id:
+		//spin_unlock_irqrestore(&diag_id_unmask_list_spinlock, flags);
+		break;
+
+	case IOCS_DIAG_APP_READY_NOW:
+		diag_app_ready = 1;
 		break;
 
 	default:
 		ret = -EINVAL;
 	}
-
-	mutex_unlock(&diag_dev_ioctl_mutex);
-	return 0;
-
-error:
-	if (envdata)
-		vfree(envdata);
 
 	mutex_unlock(&diag_dev_ioctl_mutex);
 	return ret;
@@ -141,10 +164,10 @@ int  diag_dev_init(void)
 	struct cdev  *p_cdev = &diag_dev_cdev;
 
 	diag_dev_major = 0;
-	diag_dev_debug("diag dev init enter\n");
+	pr_debug("diag dev init enter\n");
 	ret = alloc_chrdev_region(&devno, 0, 1, "diag dev");
 	if (ret < 0) {
-		diag_dev_error("Error %d while alloc chrdev diag dev", ret);
+		pr_err("Error %d while alloc chrdev diag dev", ret);
 		goto alloc_chrdev_error;
 	}
 	diag_dev_major = MAJOR(devno);
@@ -152,12 +175,12 @@ int  diag_dev_init(void)
 	p_cdev->owner = THIS_MODULE;
 	ret = cdev_add(p_cdev, devno, 1);
 	if (ret) {
-		diag_dev_error("Error %d while adding example diag cdev", ret);
+		pr_err("Error %d while adding example diag cdev", ret);
 		goto cdev_add_error;
 	}
 	g_diag_dev_class = class_create(THIS_MODULE, "diag_dev");
 	if (IS_ERR(g_diag_dev_class)) {
-		diag_dev_error("[%s:%d] class_create error\n",
+		pr_err("[%s:%d] class_create error\n",
 			__func__, __LINE__);
 		ret = PTR_ERR(g_diag_dev_class);
 		goto class_create_error;
@@ -165,14 +188,19 @@ int  diag_dev_init(void)
 	g_diag_dev = device_create(g_diag_dev_class, NULL,
 		MKDEV(diag_dev_major, 0), NULL, "diag_dev");
 	if (IS_ERR(g_diag_dev)) {
-		diag_dev_error("[%s] device create error\n", __func__);
+		pr_err("[%s] device create error\n", __func__);
 		ret = PTR_ERR(g_diag_dev);
 		goto device_create_error;
 	}
 
 	init_completion(&diag_dev_completion);
+	ret = diag_register(ModuleDiagDriver, EventIdKernelToUserSelfTest, 2*FRAGMENT_SIZE,
+		20, 2000, NULL);
+	if (ret < 0)
+		pr_err("[%s] diag driver register fail\n", __func__);
+
 	diag_netlink_init();
-	diag_dev_debug("diag dev init exit\n");
+	pr_info("diag dev init exit\n");
 
 	return 0;
 
@@ -188,7 +216,7 @@ alloc_chrdev_error:
 
 void diag_dev_release(void)
 {
-	diag_dev_debug("diag dev exit\n");
+	pr_info("diag dev exit\n");
 	device_destroy(g_diag_dev_class, MKDEV(diag_dev_major, 0));
 	class_destroy(g_diag_dev_class);
 	cdev_del(&diag_dev_cdev);
