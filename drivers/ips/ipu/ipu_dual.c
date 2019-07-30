@@ -257,7 +257,8 @@ void ipu_dual_mode_process(uint32_t status)
 					pr_debug("ipu: slot info ds_2nd[5] caddr is 0x%x\n",
 						iar_display_caddr);
 					*/
-					iar_set_video_buffer(slot_h->info_h.slot_id);
+					if (iar_is_enabled())
+						iar_set_video_buffer(slot_h->info_h.slot_id);
 
 				} else {
 					ipu_err("no finished slot in queue\n");

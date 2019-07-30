@@ -1527,6 +1527,20 @@ static int x2_iar_remove(struct platform_device *pdev)
 	return 0;
 }
 
+int iar_is_enabled(void)
+{
+	/* IAR NOT enabled cases as follow:
+	 * 1.disabled in dts not probe
+	 */
+	if (g_iar_dev == NULL)
+		return 0;
+	/* 2.disabled dynamic */
+
+	/*enabled case*/
+	return 1;
+}
+EXPORT_SYMBOL_GPL(iar_is_enabled);
+
 #ifdef CONFIG_OF
 static const struct of_device_id x2_iar_of_match[] = {
 	{.compatible = "hobot,x2-iar"},

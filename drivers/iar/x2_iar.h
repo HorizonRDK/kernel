@@ -607,4 +607,6 @@ int8_t iar_get_ipu_display_addr_dual(uint32_t display_addr[][2]);
 int8_t iar_checkout_display_camera(uint8_t camera_no);
 int user_set_fb(void);
 
+int iar_is_enabled(void);
+
 #endif //__X2_IAR_H__

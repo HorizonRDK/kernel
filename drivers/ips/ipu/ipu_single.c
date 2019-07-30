@@ -242,7 +242,8 @@ void ipu_single_mode_process(uint32_t status)
 			pr_info("slot info ds[5] caddr is 0x%x\n",
 			iar_display_caddr);
 			*/
-			iar_set_video_buffer(slot_h->info_h.slot_id);
+			if (iar_is_enabled())
+				iar_set_video_buffer(slot_h->info_h.slot_id);
 
 		} else {
 #if 0 //may cause pym stop
