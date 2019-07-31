@@ -29,7 +29,7 @@
 #include "hbipc_errno.h"
 #include "bif_dev_sd.h"
 
-#define VERSION "2.2.0"
+#define VERSION "2.3.0"
 
 #ifdef CONFIG_NO_DTS_AP
 /* module parameters */
@@ -38,11 +38,13 @@ static char *working_mode_str = "interrupt-mode";
 static int frame_len_max_ap = 262144;
 static int frag_len_max_ap = 32768;
 static int frame_count_ap = 12;
+static int crc_enable;
 module_param(ap_type_str, charp, 0644);
 module_param(working_mode_str, charp, 0644);
 module_param(frame_len_max_ap, int, 0644);
 module_param(frag_len_max_ap, int, 0644);
 module_param(frame_count_ap, int, 0644);
+module_param(crc_enable, int, 0644);
 #endif
 
 /* ioctl cmd */
@@ -84,6 +86,7 @@ static struct domain_info domain_config = {.domain_name = "X2SD001",
 	.device_name = "/dev/x2_sd",
 	.type = SOC_AP,
 	.mode = INTERRUPT_MODE,
+	.crc_enable = 1,
 	{.channel = BIF_SD,
 	.type = SOC_AP,
 	.mode = INTERRUPT_MODE}
@@ -96,10 +99,12 @@ static struct comm_domain domain;
 #define BIF_DEV_SD_STATTISTICS "statistics"
 #define BIF_DEV_SD_INFO "info"
 #define BIF_DEV_SD_SERVER_INFO "server_info"
+#define BIF_DEV_SD_ERROR "error_statistics"
 static struct proc_dir_entry *bif_dev_sd_entry;
 static struct proc_dir_entry *bif_dev_sd_statistics_entry;
 static struct proc_dir_entry *bif_dev_sd_info_entry;
 static struct proc_dir_entry *bif_dev_sd_server_info_entry;
+static struct proc_dir_entry *bif_dev_sd_error_statistics_entry;
 
 static int bif_dev_sd_statistics_proc_show(struct seq_file *m, void *v)
 {
@@ -160,7 +165,8 @@ tx_local_info_offset = %lx\ntx_remote_info_offset = %lx\n\
 rx_buffer_offset = %lx\ntx_buffer_offset = %lx\n\
 total_mem_size = %d\n\
 transfer feature:\n\
-ap_type = %d\nworking_mode = %d\n",
+ap_type = %d\nworking_mode = %d\n\
+crc_enable = %d\n",
 	domain.channel.init_tx_remote_info,
 	domain.channel.init_tx_local_info,
 	domain.channel.init_rx_local_info,
@@ -186,7 +192,8 @@ ap_type = %d\nworking_mode = %d\n",
 	domain.channel.tx_buffer_offset,
 	domain.channel.total_mem_size,
 	domain.channel.type,
-	domain.channel.mode);
+	domain.channel.mode,
+	domain.channel.crc_enable);
 
 	return 0;
 }
@@ -223,6 +230,24 @@ static int bif_dev_sd_server_info_proc_show(struct seq_file *m, void *v)
 	return 0;
 }
 
+static int bif_dev_sd_error_statistics_proc_show(struct seq_file *m, void *v)
+{
+	seq_printf(m, "rx_error_assemble_frag = %d\n\
+rx_error_crc_check = %d\nrx_error_malloc_frame = %d\n\
+rx_error_no_frag = %d\nrx_error_read_frag = %d\n\
+rx_error_sync_index = %d\nrx_error_update_index = %d\n",
+	domain.channel.error_statistics.rx_error_assemble_frag,
+	domain.channel.error_statistics.rx_error_crc_check,
+	domain.channel.error_statistics.rx_error_malloc_frame,
+	domain.channel.error_statistics.rx_error_no_frag,
+	domain.channel.error_statistics.rx_error_read_frag,
+	domain.channel.error_statistics.rx_error_sync_index,
+	domain.channel.error_statistics.rx_error_update_index
+	);
+
+	return 0;
+}
+
 static ssize_t bif_dev_sd_statistics_proc_write(struct file *file,
 const char __user *buffer, size_t count, loff_t *ppos)
 {
@@ -246,6 +271,15 @@ const char __user *buffer, size_t count, loff_t *ppos)
 	return count;
 }
 
+static ssize_t bif_dev_sd_error_statistics_proc_write(struct file *file,
+const char __user *buffer, size_t count, loff_t *ppos)
+{
+	memset(&(domain.channel.error_statistics), 0,
+		sizeof(domain.channel.error_statistics));
+
+	return count;
+}
+
 static int bif_dev_sd_statistics_proc_open(struct inode *inode,
 struct file *file)
 {
@@ -262,6 +296,12 @@ static int bif_dev_sd_server_info_proc_open(struct inode *inode,
 struct file *file)
 {
 	return single_open(file, bif_dev_sd_server_info_proc_show, NULL);
+}
+
+static int bif_dev_sd_error_statistics_proc_open(struct inode *inode,
+struct file *file)
+{
+	return single_open(file, bif_dev_sd_error_statistics_proc_show, NULL);
 }
 
 static const struct file_operations bif_dev_sd_statistics_proc_ops = {
@@ -287,6 +327,15 @@ static const struct file_operations bif_dev_sd_server_info_proc_ops = {
 	.open     = bif_dev_sd_server_info_proc_open,
 	.read     = seq_read,
 	.write    = bif_dev_sd_server_info_proc_write,
+	.llseek   = seq_lseek,
+	.release  = single_release,
+};
+
+static const struct file_operations bif_dev_sd_error_statistics_proc_ops = {
+	.owner    = THIS_MODULE,
+	.open     = bif_dev_sd_error_statistics_proc_open,
+	.read     = seq_read,
+	.write    = bif_dev_sd_error_statistics_proc_write,
 	.llseek   = seq_lseek,
 	.release  = single_release,
 };
@@ -322,7 +371,18 @@ static int init_bif_dev_sd_debug_port(void)
 			BIF_DEV_SD_SERVER_INFO);
 		goto create_server_info_file_error;
 	}
+
+	bif_dev_sd_error_statistics_entry = proc_create(BIF_DEV_SD_ERROR,
+	0777, bif_dev_sd_entry, &bif_dev_sd_error_statistics_proc_ops);
+	if (!bif_dev_sd_error_statistics_entry) {
+		pr_info("create /proc/%s/%s fail\n", BIF_DEV_SD_DIR,
+			BIF_DEV_SD_ERROR);
+		goto create_error_statistics_file_error;
+	}
+
 	return 0;
+create_error_statistics_file_error:
+	remove_proc_entry(BIF_DEV_SD_SERVER_INFO, bif_dev_sd_entry);
 create_server_info_file_error:
 	remove_proc_entry(BIF_DEV_SD_INFO, bif_dev_sd_entry);
 create_info_file_error:
@@ -335,6 +395,7 @@ create_top_dir_error:
 
 static void remove_bif_dev_sd_debug_port(void)
 {
+	remove_proc_entry(BIF_DEV_SD_ERROR, bif_dev_sd_entry);
 	remove_proc_entry(BIF_DEV_SD_SERVER_INFO, bif_dev_sd_entry);
 	remove_proc_entry(BIF_DEV_SD_INFO, bif_dev_sd_entry);
 	remove_proc_entry(BIF_DEV_SD_STATTISTICS, bif_dev_sd_entry);
@@ -1147,6 +1208,15 @@ static int bif_lite_probe(struct platform_device *pdev)
 	} else
 		frame_count_g = frame_count;
 
+	if (of_find_property(pdev->dev.of_node, "crc_enable", NULL)) {
+		// crc_enable
+		domain_config.crc_enable = 1;
+		domain_config.channel_cfg.crc_enable = 1;
+	} else {
+		domain_config.crc_enable = 0;
+		domain_config.channel_cfg.crc_enable = 0;
+	}
+
 	x2_mem_layout_set(&domain_config);
 
 	bif_major = 0;
@@ -1284,6 +1354,14 @@ static int bif_lite_probe_param(void)
 	frame_len_max_g = frame_len_max_ap;
 	frag_len_max_g = frag_len_max_ap;
 	frame_count_g = frame_count_ap;
+
+	if (crc_enable) {
+		domain_config.crc_enable = 1;
+		domain_config.channel_cfg.crc_enable = 1;
+	} else {
+		domain_config.crc_enable = 0;
+		domain_config.channel_cfg.crc_enable = 0;
+	}
 
 	x2_mem_layout_set(&domain_config);
 

@@ -2,29 +2,54 @@
 
 #define RING_INFO_ALIGN (512)
 
-#if 0
-static unsigned short crc16(unsigned char  *input, unsigned  int length)
+static short const CRC16Table[256] = {
+0x0000, 0xC0C1, 0xC181, 0x0140, 0xC301, 0x03C0, 0x0280, 0xC241,
+0xC601, 0x06C0, 0x0780, 0xC741, 0x0500, 0xC5C1, 0xC481, 0x0440,
+0xCC01, 0x0CC0, 0x0D80, 0xCD41, 0x0F00, 0xCFC1, 0xCE81, 0x0E40,
+0x0A00, 0xCAC1, 0xCB81, 0x0B40, 0xC901, 0x09C0, 0x0880, 0xC841,
+0xD801, 0x18C0, 0x1980, 0xD941, 0x1B00, 0xDBC1, 0xDA81, 0x1A40,
+0x1E00, 0xDEC1, 0xDF81, 0x1F40, 0xDD01, 0x1DC0, 0x1C80, 0xDC41,
+0x1400, 0xD4C1, 0xD581, 0x1540, 0xD701, 0x17C0, 0x1680, 0xD641,
+0xD201, 0x12C0, 0x1380, 0xD341, 0x1100, 0xD1C1, 0xD081, 0x1040,
+0xF001, 0x30C0, 0x3180, 0xF141, 0x3300, 0xF3C1, 0xF281, 0x3240,
+0x3600, 0xF6C1, 0xF781, 0x3740, 0xF501, 0x35C0, 0x3480, 0xF441,
+0x3C00, 0xFCC1, 0xFD81, 0x3D40, 0xFF01, 0x3FC0, 0x3E80, 0xFE41,
+0xFA01, 0x3AC0, 0x3B80, 0xFB41, 0x3900, 0xF9C1, 0xF881, 0x3840,
+0x2800, 0xE8C1, 0xE981, 0x2940, 0xEB01, 0x2BC0, 0x2A80, 0xEA41,
+0xEE01, 0x2EC0, 0x2F80, 0xEF41, 0x2D00, 0xEDC1, 0xEC81, 0x2C40,
+0xE401, 0x24C0, 0x2580, 0xE541, 0x2700, 0xE7C1, 0xE681, 0x2640,
+0x2200, 0xE2C1, 0xE381, 0x2340, 0xE101, 0x21C0, 0x2080, 0xE041,
+0xA001, 0x60C0, 0x6180, 0xA141, 0x6300, 0xA3C1, 0xA281, 0x6240,
+0x6600, 0xA6C1, 0xA781, 0x6740, 0xA501, 0x65C0, 0x6480, 0xA441,
+0x6C00, 0xACC1, 0xAD81, 0x6D40, 0xAF01, 0x6FC0, 0x6E80, 0xAE41,
+0xAA01, 0x6AC0, 0x6B80, 0xAB41, 0x6900, 0xA9C1, 0xA881, 0x6840,
+0x7800, 0xB8C1, 0xB981, 0x7940, 0xBB01, 0x7BC0, 0x7A80, 0xBA41,
+0xBE01, 0x7EC0, 0x7F80, 0xBF41, 0x7D00, 0xBDC1, 0xBC81, 0x7C40,
+0xB401, 0x74C0, 0x7580, 0xB541, 0x7700, 0xB7C1, 0xB681, 0x7640,
+0x7200, 0xB2C1, 0xB381, 0x7340, 0xB101, 0x71C0, 0x7080, 0xB041,
+0x5000, 0x90C1, 0x9181, 0x5140, 0x9301, 0x53C0, 0x5280, 0x9241,
+0x9601, 0x56C0, 0x5780, 0x9741, 0x5500, 0x95C1, 0x9481, 0x5440,
+0x9C01, 0x5CC0, 0x5D80, 0x9D41, 0x5F00, 0x9FC1, 0x9E81, 0x5E40,
+0x5A00, 0x9AC1, 0x9B81, 0x5B40, 0x9901, 0x59C0, 0x5880, 0x9841,
+0x8801, 0x48C0, 0x4980, 0x8941, 0x4B00, 0x8BC1, 0x8A81, 0x4A40,
+0x4E00, 0x8EC1, 0x8F81, 0x4F40, 0x8D01, 0x4DC0, 0x4C80, 0x8C41,
+0x4400, 0x84C1, 0x8581, 0x4540, 0x8701, 0x47C0, 0x4680, 0x8641,
+0x8201, 0x42C0, 0x4380, 0x8341, 0x4100, 0x81C1, 0x8081, 0x4040
+};
+
+static unsigned short crc16(unsigned char *dataIn, int length)
 {
-	unsigned  int i;
-	unsigned short poly = 0x1021;
-	unsigned short result = 0xFFFF;
-	unsigned char value;
+	unsigned short result = 0;
+	unsigned short tableNo = 0;
+	int i = 0;
 
-	while (length--) {
-		value = *(input++);
-		result ^= (value << 8);
-
-		for (i = 0; i < 8; i++) {
-			if (result & 0x8000)
-				result = (result << 1) ^ poly;
-			else
-				result = result << 1;
-		}
+	for (i = 0; i < length; i++) {
+		tableNo = ((result & 0xff) ^ (dataIn[i] & 0xff));
+		result = ((result >> 8) & 0xff) ^ CRC16Table[tableNo];
 	}
 
 	return result;
 }
-#endif
 
 static int swap_bytes_order(unsigned char *value, uint16_t size)
 {
@@ -238,7 +263,9 @@ struct frag_info *fragment_info)
 {
 	addr_t offset = 0;
 	int ret = 0;
-	unsigned short fragment_len = 0;
+	int fragment_len = 0;
+	unsigned short crc16_value = 0;
+	struct frag_info *fragment_info_p = NULL;
 
 	if (!fragment_info) {
 		ret = -EPERM;
@@ -266,16 +293,32 @@ struct frag_info *fragment_info)
 		sizeof(struct frag_info));
 	bif_memcpy(channel->send_fragment + sizeof(struct frag_info),
 		data, fragment_info->len);
-	fragment_len = sizeof(struct frag_info) + fragment_info->len;
-	//printk("fragment_len = %d\n", fragment_len);
 
-	// just write valid part of fragment
-	ret = bif_write_cp_ddr_channel(channel, channel->send_fragment,
-	offset,
-	ALIGN(fragment_len, channel->transfer_align));
-	if (ret < 0) {
-		printk_ratelimited(KERN_INFO "bif_err: %s %d\n", __func__, __LINE__);
-		goto err;
+	if (channel->crc_enable) {
+		crc16_value = crc16(channel->send_fragment, channel->frag_len_max);
+		fragment_info_p = (struct frag_info *)channel->send_fragment;
+		fragment_info_p->flag.crc16_1 = crc16_value & 0xff;
+		fragment_info_p->flag.crc16_2 = (crc16_value >> 8) & 0xff;
+		//pr_info("crc16_1 = %d\ncrc16_2 = %d\n", fragment_info_p->flag.crc16_1, fragment_info_p->flag.crc16_2);
+
+		// write whole fragment
+		ret = bif_write_cp_ddr_channel(channel, channel->send_fragment,
+		offset, channel->frag_len_max);
+		if (ret < 0) {
+			printk_ratelimited(KERN_INFO "bif_err: %s %d\n", __func__, __LINE__);
+			goto err;
+		}
+	} else {
+		fragment_len = sizeof(struct frag_info) + fragment_info->len;
+
+		// just write valid part of fragment
+		ret = bif_write_cp_ddr_channel(channel, channel->send_fragment,
+		offset,
+		ALIGN(fragment_len, channel->transfer_align));
+		if (ret < 0) {
+			printk_ratelimited(KERN_INFO "bif_err: %s %d\n", __func__, __LINE__);
+			goto err;
+		}
 	}
 
 	ret = bif_tx_update_after_write(channel, index,
@@ -321,6 +364,7 @@ unsigned char *data, int len)
 	bif_debug("count =  %d\n", count);
 	bif_debug("index =  %d\n", index);
 
+	memset(&fragment_info, 0, sizeof(fragment_info));
 	for (i = 0; i < frag_count; ++i) {
 		if (i == 0)
 			fragment_info.flag.start = 1;
@@ -592,6 +636,8 @@ struct comm_channel *channel)
 	unsigned int malloc_len = 0;
 	unsigned int frame_used_frag_count = 0;
 	struct frag_info *fragment_info = NULL;
+	unsigned short crc16_value_get = 0;
+	unsigned short crc16_value_want = 0;
 #if 0
 	if (channel->rx_frame_count > channel->frame_cache_max) {
 		//too much cache, cost too much mem, need to wait a moment
@@ -602,9 +648,13 @@ struct comm_channel *channel)
 
 	ret = bif_rx_get_available_buffer(channel, &index, &count);
 	bif_debug("ret = %d  index = %d  count = %d\n", ret, index, count);
-	if (ret < 0)
+	if (ret < 0) {
+		++channel->error_statistics.rx_error_sync_index;
 		goto err;
+	}
 	if (count == 0) {
+		// in definitely, it's not an error, just add it
+		++channel->error_statistics.rx_error_no_frag;
 		ret = -EAGAIN;
 		goto err;
 	}
@@ -624,12 +674,36 @@ struct comm_channel *channel)
 		ret = bif_read_cp_ddr_channel(channel, cache_tmp->datacache,
 			offset, channel->frag_len_max);
 		if (ret < 0) {
+			++channel->error_statistics.rx_error_read_frag;
+			// do not update any rx index if read fragment occurred
+			frame_used_frag_count = 0;
 			printk_ratelimited(KERN_INFO "bif_err: %s %d\n", __func__, __LINE__);
-			ret = -3;
 			break;
 		}
+
 		// get fragment_info from fragment header
 		fragment_info = (struct frag_info *)(cache_tmp->datacache);
+
+		// handle crc checksum
+		if (channel->crc_enable) {
+			//pr_info("crc16_1 = %d\ncrc16_2 = %d\n", fragment_info->flag.crc16_1, fragment_info->flag.crc16_2);
+			crc16_value_get = fragment_info->flag.crc16_2 << 8 | fragment_info->flag.crc16_1;
+			fragment_info->flag.crc16_1 = 0;
+			fragment_info->flag.crc16_2 = 0;
+			crc16_value_want = crc16(cache_tmp->datacache, channel->frag_len_max);
+			if (crc16_value_want != crc16_value_get) {
+				++channel->error_statistics.rx_error_crc_check;
+				printk_ratelimited(KERN_INFO "bif_err: %s %d\n", __func__, __LINE__);
+				if (channel->frame_start) {
+					if (frame_p) {
+						bif_free(frame_p);
+						frame_p = NULL;
+					}
+					channel->frame_start = 0;
+				}
+				goto next_frag;
+			}
+		}
 
 		// at start fragment, malloc frame buffer
 		if (fragment_info->flag.start == 1) {
@@ -638,29 +712,44 @@ struct comm_channel *channel)
 			frame_p =
 			bif_malloc(sizeof(struct bif_frame_cache) + malloc_len);
 			if (!frame_p) {
+				++channel->error_statistics.rx_error_malloc_frame;
 				printk_ratelimited(KERN_INFO "bif_err: %s %d\n",
 					__func__, __LINE__);
 				printk_ratelimited(KERN_INFO "surplus frame: %d\n",
 				channel->rx_frame_count);
-				ret = -1;
 				break;
-			}
+			} else
+				channel->frame_start = 1;
+		} else {
+			// not start flag, if frame_start is false
+			// continue to next fragment
+			if (!channel->frame_start)
+				goto next_frag;
 		}
 
 		cache_tmp->datalen = fragment_info->len;
 		ret = bif_rx_reassemble_fragment(channel, frame_p,
 			cache_tmp, fragment_info);
 		if (ret < 0) {
+			++channel->error_statistics.rx_error_assemble_frag;
 			printk_ratelimited(KERN_INFO "bif_err: %s %d\n", __func__, __LINE__);
-			ret = -4;
-			break;
+			if (channel->frame_start) {
+				if (frame_p) {
+					bif_free(frame_p);
+					frame_p = NULL;
+				}
+				channel->frame_start = 0;
+			}
+			goto next_frag;
 		}
 		// reassemble fragment function return 1,
 		// when received a whole frame
 		if (ret == 1) {
 			frame_p = NULL;
-			frame_used_frag_count = count_tmp + 1;
+			channel->frame_start = 0;
 		}
+next_frag:
+		frame_used_frag_count = count_tmp + 1;
 		index_tmp = (index_tmp + 1) % channel->frag_num;
 #if 0
 		if (channel->rx_frame_count > channel->frame_cache_max) {
@@ -673,14 +762,22 @@ struct comm_channel *channel)
 #endif
 	}
 
-	if ((ret == -1) || (ret == -2) || (ret == -3) || (ret == -4)) {
-		if (frame_p)
-			bif_free(frame_p);
+	if (count_tmp < count) {
+		// error break
+		if (channel->frame_start) {
+			if (frame_p) {
+				bif_free(frame_p);
+				frame_p = NULL;
+			}
+			channel->frame_start = 0;
+		}
 	}
+
 	if (frame_used_frag_count) {
 		ret = bif_rx_update_after_read(channel,
 			frame_used_frag_count);
 		if (ret < 0) {
+			++channel->error_statistics.rx_error_update_index;
 			printk_ratelimited(KERN_INFO "bif_err: %s %d\n", __func__, __LINE__);
 			goto err;
 		}
@@ -1332,6 +1429,7 @@ int channel_init(struct comm_channel *channel, struct channel_config *config)
 	spin_lock_init(&channel->rx_frame_count_lock);
 	channel->type = config->type;
 	channel->mode = config->mode;
+	channel->crc_enable = config->crc_enable;
 
 	dump_channel_info(channel);
 

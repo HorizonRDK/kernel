@@ -20,10 +20,9 @@ struct frag_flag {
 	unsigned char start : 1;
 	unsigned char end : 1;
 	unsigned char pack1 : 6;
-	unsigned char crc12_1 : 8;
-	unsigned char crc12_2 : 4;
-	unsigned char pack2 : 4;
-	unsigned char pack3 : 8;
+	unsigned char crc16_1 : 8;
+	unsigned char crc16_2 : 8;
+	unsigned char pack2 : 8;
 };
 
 struct frag_info {
@@ -82,6 +81,7 @@ struct channel_config {
 	int block;
 	enum ap_type type;
 	enum working_mode mode;
+	int crc_enable;
 };
 
 struct current_frame_info {
@@ -94,6 +94,16 @@ struct current_frame_info {
 struct comm_channel_statistics {
 	int trig_count;
 	int retrig_count;
+};
+
+struct comm_channel_error_statistics {
+	int rx_error_sync_index;
+	int rx_error_no_frag;
+	int rx_error_read_frag;
+	int rx_error_crc_check;
+	int rx_error_malloc_frame;
+	int rx_error_assemble_frag;
+	int rx_error_update_index;
 };
 
 struct comm_channel {
@@ -132,8 +142,11 @@ struct comm_channel {
 	// transfer feature concerned
 	int block;
 	struct comm_channel_statistics channel_statistics;
+	struct comm_channel_error_statistics error_statistics;
 	enum ap_type type;
 	enum working_mode mode;
+	int crc_enable;
+	int frame_start;
 	// buffer index info
 	int init_tx_remote_info;
 	int init_tx_local_info;

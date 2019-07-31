@@ -23,6 +23,7 @@ struct domain_info {
 	char *device_name;
 	enum ap_type type;
 	enum working_mode mode;
+	int crc_enable;
 	struct channel_config channel_cfg;
 };
 
@@ -148,6 +149,7 @@ struct comm_domain {
 	struct comm_domain_statistic domain_statistics;
 	enum ap_type type;
 	enum working_mode mode;
+	int crc_enable;
 };
 
 struct send_mang_data {

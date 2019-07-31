@@ -231,6 +231,7 @@ int domain_init(struct comm_domain *domain, struct domain_info *domain_inf)
 	domain_inf->channel_cfg.block = 1;
 	domain->type = domain_inf->type;
 	domain->mode = domain_inf->mode;
+	domain->crc_enable = domain_inf->crc_enable;
 
 	if (channel_init(&domain->channel, &domain_inf->channel_cfg) < 0) {
 		pr_info("channel_init error\n");
