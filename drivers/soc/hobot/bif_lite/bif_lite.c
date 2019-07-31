@@ -1043,8 +1043,8 @@ static inline int bif_sync_before_start(struct comm_channel *channel)
 	channel->sync_rx_remote_info = rx_remote_info_tmp->send_tail;
 
 	// check whether CP sync
-	if ((tx_remote_info_tmp->recv_head == -1) &&
-		(rx_local_info_tmp->recv_head == -1)) {
+	if ((!channel->channel_ready) || ((tx_remote_info_tmp->recv_head == -1) &&
+		(rx_local_info_tmp->recv_head == -1))) {
 		pr_info("sync info\n");
 		bif_memcpy(channel->tx_remote_info, tx_remote_info_tmp,
 			ALIGN(sizeof(struct bif_rx_ring_info),
@@ -1059,6 +1059,7 @@ static inline int bif_sync_before_start(struct comm_channel *channel)
 			ALIGN(sizeof(struct bif_tx_ring_info),
 			channel->transfer_align));
 	}
+	channel->channel_ready = 1;
 err:
 	if (tx_remote_info_tmp)
 		bif_free(tx_remote_info_tmp);

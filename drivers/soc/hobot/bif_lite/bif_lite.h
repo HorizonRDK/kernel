@@ -147,6 +147,7 @@ struct comm_channel {
 	enum working_mode mode;
 	int crc_enable;
 	int frame_start;
+	int channel_ready;
 	// buffer index info
 	int init_tx_remote_info;
 	int init_tx_local_info;
