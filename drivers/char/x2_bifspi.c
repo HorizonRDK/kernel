@@ -25,6 +25,7 @@
 #include <asm/pgtable.h>
 #include <linux/io.h>
 #include <linux/interrupt.h>
+#include <x2/x2_bifspi.h>
 
 #define BIF_BASE_ADDRESS  (0x00000000)
 #define BIF_ACCESS_FIRST  (0x00000110)
@@ -353,6 +354,28 @@ static long bif_unlocked_ioctl(struct file *filp, unsigned int cmd,
 	return bif_compat_ioctl(filp, cmd, args);
 }
 
+int bifspi_read_share_reg(unsigned int num, unsigned int *value)
+{
+	if (bif_info == NULL) {
+		pr_err("%s bif_info == null\n", __func__);
+		return -1;
+	}
+	*value = readl((void *)(bif_info->regs_base + num * 4));
+	return 0;
+}
+EXPORT_SYMBOL(bifspi_read_share_reg);
+
+int bifspi_write_share_reg(unsigned int num, unsigned int value)
+{
+	if (bif_info == NULL) {
+		pr_err("%s bif_info == null\n", __func__);
+		return -1;
+	}
+	writel(value, (void *)(bif_info->regs_base + num * 4));
+	return 0;
+}
+EXPORT_SYMBOL(bifspi_write_share_reg);
+
 static int bif_alloc_chardev(struct bifspi_t *pbif, const char *name)
 {
 	int ret = 0;
@@ -504,6 +527,8 @@ static int bifspi_probe(struct platform_device *pdev)
 				       bif_info->first, bif_info->last);
 		}
 	}
+	writel(STAGE_KERNEL,
+	      (void *)(bif_info->regs_base + 4 * SYS_STATUS_REG));
 
 	ret = bif_alloc_chardev(bif_info, "x2-bifspi");
 	if (ret != 0) {
@@ -560,7 +585,27 @@ static struct platform_driver bifspi_hobot_driver = {
 	.remove = bifspi_remove,
 };
 
-module_platform_driver(bifspi_hobot_driver);
+static int __init x2_bifspi_init(void)
+{
+	int retval = 0;
+
+	/* Register the platform driver */
+	retval = platform_driver_register(&bifspi_hobot_driver);
+	if (retval)
+		pr_err("x2 bifspi driver register failed\n");
+
+	return retval;
+}
+
+static void __exit x2_bifspi_exit(void)
+{
+	/* Unregister the platform driver */
+	platform_driver_unregister(&bifspi_hobot_driver);
+}
+
+module_init(x2_bifspi_init);
+module_exit(x2_bifspi_exit);
+
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("baiy <yang01.bai@horizon,ai>");

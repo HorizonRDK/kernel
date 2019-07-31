@@ -25,6 +25,7 @@
 #include <linux/completion.h>
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
+#include <x2/x2_bifspi.h>
 #include "hbipc_lite.h"
 #include "hbipc_errno.h"
 #include "bif_dev_sd.h"
@@ -1179,6 +1180,7 @@ static int bif_lite_probe(struct platform_device *pdev)
 	int frame_len_max = 0;
 	int frag_len_max = 0;
 	int frame_count = 0;
+	int value;
 
 	pr_info("biflite_sd version: %s\n", VERSION);
 #if 0
@@ -1305,9 +1307,12 @@ static int bif_lite_probe(struct platform_device *pdev)
 		bif_err("bif_lite_init error\n");
 		goto bif_lite_init_error;
 	}
-	
 	//bif_lite_register_irq(hbipc_irq_handler); chencheng reconstitution
 	bif_lite_irq_register_domain(&domain, hbipc_irq_handler);
+
+	ret = bifspi_read_share_reg(SYS_STATUS_REG, &value);
+	if (ret == 0)
+		bifspi_write_share_reg(SYS_STATUS_REG, value | BIF_SD_BIT);
 #endif
 	bif_debug("bif driver init exit\n");
 	return 0;
