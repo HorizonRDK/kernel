@@ -27,6 +27,10 @@
 #define PWM_PERIOD_DEFAULT 1000
 #define PWM_DUTY_DEFAULT 10
 //int lt9211_reset_pin = 85;
+
+#define LT9211_CDEV_MAGIC 'i'
+#define LCD_BACKLIGHT_SET	_IOW(LT9211_CDEV_MAGIC, 0x11, unsigned int)
+
 int lt9211_reset_pin;
 int lcd_reset_pin;
 int display_type = HDMI_TYPE;
@@ -46,43 +50,6 @@ static int lt9211_open(struct inode *inode, struct file *filp)
 	return 0;
 }
 
-static long lt9211_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
-{
-	int ret = 0;
-	unsigned long on_time = 0;
-
-	ret = copy_from_user((void *)&on_time, (void __user *)p,
-			sizeof(unsigned long));
-	if (ret) {
-		pr_err("%s copy data from user failed %d\n",
-				__func__, ret);
-		return -EINVAL;
-	}
-	if (on_time > 20000000 || on_time == 0) {
-		pr_err("LCD back light debug: duty time exceed the max value!!\n");
-		return -EINVAL;
-	}
-
-	pwm_disable(lcd_backlight_pwm);
-
-	ret = pwm_config(lcd_backlight_pwm, on_time, 20000000); // 0.5ms
-	if (ret) {
-		pr_err("\nError config pwm!!!!\n");
-		return ret;
-	}
-	ret = pwm_set_polarity(lcd_backlight_pwm, PWM_POLARITY_NORMAL);
-	if (ret) {
-		pr_err("\nError set pwm polarity!!!!\n");
-		return ret;
-	}
-	ret = pwm_enable(lcd_backlight_pwm);
-	if (ret) {
-		pr_err("\nError enable pwm!!!!\n");
-		return ret;
-	}
-	return 0;
-}
-
 static ssize_t lt9211_write(struct file *filp, const char __user *ubuf,
 		size_t len, loff_t *ppos)
 {
@@ -97,6 +64,33 @@ static ssize_t lt9211_read(struct file *filp, char __user *ubuf,
 
 	size = 0;
 	return size;
+}
+
+static long lt9211_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
+{
+	int ret;
+	void __user *arg = (void __user *)p;
+
+	mutex_lock(&g_x2_lt9211->lt9211_mutex);
+	switch (cmd) {
+	case LCD_BACKLIGHT_SET:
+		{
+			unsigned int duty_level;
+
+			LT9211_DEBUG("%s: begin set lcd backlight\n", __func__);
+			if (copy_from_user(&duty_level, arg,
+						sizeof(unsigned int)))
+				return -EFAULT;
+			pr_info("%s: level is %d!!\n", __func__, duty_level);
+			ret = set_lcd_backlight(duty_level);
+		}
+		break;
+	default:
+		ret = -EPERM;
+		break;
+		}
+	mutex_unlock(&g_x2_lt9211->lt9211_mutex);
+	return ret;
 }
 
 
@@ -182,7 +176,31 @@ int lcd_backlight_change(unsigned int duty)
 	return 0;
 
 }
-EXPORT_SYMBOL(lcd_backlight_change);
+
+int set_lcd_backlight(unsigned int backlight_level)
+{
+	int retval = 0;
+	unsigned int duty = 0;
+
+	if (display_type == LCD_7_TYPE) {
+		if (backlight_level == 0) {
+			duty = PWM_PERIOD_DEFAULT - 1;
+		} else if (backlight_level <= 10 && backlight_level > 0) {
+			duty = PWM_PERIOD_DEFAULT -
+				PWM_PERIOD_DEFAULT / 10 * backlight_level;
+		} else {
+			pr_info("error backlight value, exit!!\n");
+			return -1;
+		}
+
+		retval = lcd_backlight_change(duty);
+		if (retval) {
+			pr_info("error set lcd backlight!!\n");
+			return retval;
+		}
+	}
+	return 0;
+}
 
 static const struct file_operations x2_lt9211_fops = {
 	.owner	= THIS_MODULE,
@@ -276,6 +294,7 @@ static int x2_lt9211_probe(struct i2c_client *client,
 		return -ENOMEM;
 	g_x2_lt9211->client = client;
 
+	mutex_init(&g_x2_lt9211->lt9211_mutex);
 	ret = alloc_chrdev_region(&devno, 0, 1, "x2_lt9211");
 	if (ret < 0) {
 		pr_err("Error %d while alloc chrdev x2_fpgactrl", ret);

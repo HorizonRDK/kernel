@@ -36,6 +36,9 @@
 #define IAR_GAMMA_CFG		_IOW(IAR_CDEV_MAGIC,0x17, gamma_cfg_t)
 #define IAR_SCALE_CFG		_IOW(IAR_CDEV_MAGIC,0x18, upscaling_cfg_t)
 #define IAR_OUTPUT_CFG		_IOW(IAR_CDEV_MAGIC,0x19, output_cfg_t)
+#define IAR_BACKLIGHT_CFG	_IOW(IAR_CDEV_MAGIC, 0x20, unsigned int)
+#define IAR_SET_VIDEO_CHANNEL	_IOW(IAR_CDEV_MAGIC, 0x21, unsigned int)
+#define IAR_SET_VIDEO_DDR_LAYER _IOW(IAR_CDEV_MAGIC, 0x22, unsigned int)
 
 typedef struct _update_cmd_t {
 	unsigned int enable_flag[IAR_CHANNEL_MAX];
@@ -220,6 +223,32 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 			ret = iar_output_cfg(&output_cfg);
 		}
 		break;
+	case IAR_SET_VIDEO_CHANNEL:
+		{
+			unsigned int channel_number;
+
+			IAR_DEBUG_PRINT("IAR_SET_VIDEO_CHANNEL");
+			if (copy_from_user(&channel_number, arg,
+						sizeof(unsigned int)))
+				return -EFAULT;
+			//pr_info("\niar_cdev_driver: camera channel
+			//number is %d!!\n", channel_number);
+			ret = set_video_display_channel(channel_number);
+		}
+		break;
+	case IAR_SET_VIDEO_DDR_LAYER:
+		{
+			unsigned int ddr_layer_number;
+
+			IAR_DEBUG_PRINT("IAR_SET_VIDEO_DDR_LAYER_NUMBER");
+			if (copy_from_user(&ddr_layer_number, arg,
+						sizeof(unsigned int)))
+				return -EFAULT;
+			//pr_info("\niar_cdev_driver: display ddr layer
+			//number is %d!!\n", ddr_layer_number);
+			ret = set_video_display_ddr_layer(ddr_layer_number);
+		}
+		break;
 	default:
 		ret = -EPERM;
 		break;
@@ -270,25 +299,71 @@ static ssize_t x2_iar_store(struct kobject *kobj, struct kobj_attribute *attr, c
 {
 	char *tmp;
 	int error = -EINVAL;
+	int ret = 0;
+	unsigned long tmp_value = 0;
+	void __iomem *enable_reg_addr;
+	uint32_t reg_overlay_opt_value = 0;
 
 	tmp = (char *)buf;
 
-	if (*tmp == '1') {
+	if (strncmp(tmp, "start", 5) == 0) {
 		pr_info("iar start......\n");
 		iar_start(1);
-	} else if (*tmp == '0') {
+	} else if (strncmp(tmp, "stop", 4) == 0) {
 		pr_info("iar stop......\n");
 		iar_stop();
-	} else if (*tmp == '2') {
-		pr_info("checkout camera 0 display!!\n");
-		iar_checkout_display_camera(0);
-	} else if (*tmp == '3') {
-		pr_info("checkout camera 1 display!!\n");
-		iar_checkout_display_camera(1);
-	} else if (*tmp == '4') {
-		pr_info("iar output config......\n");
+	} else if (strncmp(tmp, "cam", 3) == 0) {
+		tmp = tmp + 3;
+		ret = kstrtoul(tmp, 0, &tmp_value);
+		if (ret == 0) {
+			pr_info("checkout camera %d display!!\n", tmp_value);
+			if (tmp_value > 1) {
+				pr_info("wrong camera channel, exit!!\n");
+				return error;
+			}
+			set_video_display_channel(tmp_value);
+		} else {
+			pr_info("error input, exit!!\n");
+			return error;
+		}
+	} else if (strncmp(tmp, "lcd", 3) == 0) {
+		pr_info("iar output lcd config......\n");
 		user_set_fb();
+	} else if (strncmp(buf, "enable", 6) == 0) {
+		tmp = buf + 6;
+		ret = kstrtoul(tmp, 0, &tmp_value);
+		enable_reg_addr = ioremap_nocache(0xA4001000 + 0x00, 4);
+		if (ret == 0) {
+			pr_info("enable channel %d\n", tmp_value);
+			reg_overlay_opt_value = readl(enable_reg_addr);
+			reg_overlay_opt_value = reg_overlay_opt_value &
+				(0xffffffff & ~(1 << (tmp_value + 24)));
+			reg_overlay_opt_value =
+				reg_overlay_opt_value | (1 << (tmp_value + 24));
+			writel(reg_overlay_opt_value, enable_reg_addr);
+			iar_start(1);
+		} else {
+			pr_info("error input, exit!!\n");
+			return error;
+		}
 
+	} else if (strncmp(buf, "disable", 7) == 0) {
+		tmp = buf + 7;
+		ret = kstrtoul(tmp, 0, &tmp_value);
+		enable_reg_addr = ioremap_nocache(0xA4001000 + 0x00, 4);
+		if (ret == 0) {
+			pr_info("disable channel %d\n", tmp_value);
+			reg_overlay_opt_value = readl(enable_reg_addr);
+			reg_overlay_opt_value = reg_overlay_opt_value &
+				(0xffffffff & ~(1 << (tmp_value + 24)));
+			reg_overlay_opt_value =
+				reg_overlay_opt_value | (0 << (tmp_value + 24));
+			writel(reg_overlay_opt_value, enable_reg_addr);
+			iar_start(1);
+		} else {
+			pr_info("error input, exit!!\n");
+			return error;
+		}
 	}
 
         //return error ? error : n;

@@ -36,7 +36,7 @@ struct x2_lt9211_s {
 	struct cdev cdev;
 	dev_t dev_num;
 	struct class *x2_lt9211_classes;
-
+	struct mutex lt9211_mutex;
 };
 
 enum {
@@ -145,6 +145,7 @@ int init_panel(void);
 int LCD_reset(void);
 int generic_short_write_1P(uint8_t data0, uint8_t data1);
 int dcs_pkt_write(uint8_t dcs_di, uint8_t len, uint8_t *ptr);
+int set_lcd_backlight(unsigned int backlight_level);
 
 
 #endif

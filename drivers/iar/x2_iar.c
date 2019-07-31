@@ -31,8 +31,11 @@ module_param(iar_debug_level, uint, 0644);
 #define IAR_ENABLE 1
 #define IAR_DISABLE 0
 
-uint32_t iar_display_ipu_addr_single[33][2];
-uint32_t iar_display_ipu_addr_dual[63][2];
+#define DISPLAY_TYPE_TOTAL_SINGLE 33
+#define DISPLAY_TYPE_TOTAL_MULTI 63
+
+uint32_t iar_display_ipu_addr_single[DISPLAY_TYPE_TOTAL_SINGLE][2];
+uint32_t iar_display_ipu_addr_dual[DISPLAY_TYPE_TOTAL_MULTI][2];
 uint32_t iar_display_yaddr_offset;
 uint32_t iar_display_caddr_offset;
 uint8_t iar_display_addr_type = DS5;
@@ -565,24 +568,15 @@ int32_t iar_channel_base_cfg(channel_base_cfg_t *cfg)
 	}
 	channelid = cfg->channel;
 	pri = cfg->pri;
+	reg_overlay_opt_value = readl(g_iar_dev->regaddr + REG_IAR_OVERLAY_OPT);
+	reg_overlay_opt_value =
+		reg_overlay_opt_value & (0xffffffff & ~(1 << (channelid + 24)));
+	reg_overlay_opt_value =
+		reg_overlay_opt_value | (cfg->enable << (channelid + 24));
+	pr_info("channel id is %d, enable is %d, reg value is 0x%x.\n",
+			channelid, cfg->enable, reg_overlay_opt_value);
 
-	if (channelid == 0) {
-		ch1_en = 1;
-		writel(0x011bf00f, g_iar_dev->regaddr + REG_IAR_OVERLAY_OPT);
-		reg_overlay_opt_value =
-			readl(g_iar_dev->regaddr + REG_IAR_OVERLAY_OPT);
-		pr_debug("channelid 0 value is 0x%x\n", reg_overlay_opt_value);
-	}
-
-	if (channelid == 2) {
-		if (ch1_en == 1)
-			writel(0x051bf00f,
-				g_iar_dev->regaddr + REG_IAR_OVERLAY_OPT);
-		else
-			writel(0x041bf00f,
-				g_iar_dev->regaddr + REG_IAR_OVERLAY_OPT);
-		ch1_en = 0;
-	}
+	writel(reg_overlay_opt_value, g_iar_dev->regaddr + REG_IAR_OVERLAY_OPT);
 
 	value = IAR_REG_SET_FILED(IAR_WINDOW_WIDTH, cfg->width, 0); //set width
 	value = IAR_REG_SET_FILED(IAR_WINDOW_HEIGTH, cfg->height, value);
@@ -975,20 +969,65 @@ int8_t iar_checkout_display_camera(uint8_t camera_no)
 	if (camera_no == 0) {
 		pr_debug("iar: checkout camera 0!\n");
 		iar_display_yaddr_offset = iar_display_ipu_addr_dual[0][0] +
-			iar_display_ipu_addr_dual[8][0];
+			iar_display_ipu_addr_dual[iar_display_addr_type][0];
 		iar_display_caddr_offset = iar_display_ipu_addr_dual[0][0] +
-			iar_display_ipu_addr_dual[8][1];
+			iar_display_ipu_addr_dual[iar_display_addr_type][1];
 	} else if (camera_no == 1) {
 		pr_debug("iar: checkout camera 1!\n");
 		iar_display_yaddr_offset = iar_display_ipu_addr_dual[0][0] +
-			iar_display_ipu_addr_dual[38][0];
+			iar_display_ipu_addr_dual[30+iar_display_addr_type][0];
 		iar_display_caddr_offset = iar_display_ipu_addr_dual[0][0] +
-			iar_display_ipu_addr_dual[38][1];
+			iar_display_ipu_addr_dual[30+iar_display_addr_type][1];
 		}
 		return 0;
 
 }
 EXPORT_SYMBOL_GPL(iar_checkout_display_camera);
+
+int set_video_display_channel(uint8_t channel_no)
+{
+	int ret = 0;
+
+	if (iar_display_cam_no == 0) {
+		pr_err("current configuration is single camera, can't set channel!!!\n");
+		return -1;
+	} else if (channel_no > 1) {
+		pr_err("wrong camera channel number, exit!!\n");
+		return -1;
+	}
+
+	ret = iar_checkout_display_camera(channel_no);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(set_video_display_channel);
+
+int set_video_display_ddr_layer(uint8_t ddr_layer_no)
+{
+	int ret = 0;
+
+	if (ddr_layer_no >= DISPLAY_TYPE_TOTAL_SINGLE) {
+		pr_err("wrong display ddr layer number, exit!!!\n");
+		return -1;
+	}
+
+	if (iar_display_cam_no == 0) {
+		iar_display_yaddr_offset = iar_display_ipu_addr_dual[0][0] +
+			iar_display_ipu_addr_dual[ddr_layer_no][0];
+		iar_display_caddr_offset = iar_display_ipu_addr_dual[0][0] +
+			iar_display_ipu_addr_dual[ddr_layer_no][1];
+
+	} else {
+		iar_display_yaddr_offset = iar_display_ipu_addr_dual[0][0] +
+			iar_display_ipu_addr_dual[ddr_layer_no][0];
+		iar_display_caddr_offset = iar_display_ipu_addr_dual[0][0] +
+			iar_display_ipu_addr_dual[ddr_layer_no][1];
+
+	}
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(set_video_display_ddr_layer);
 
 int32_t iar_open(void)
 {
