@@ -774,6 +774,7 @@
 		socinfo: socinfo{
 			compatible = "hobot,x2-socinfo";
 			board_id = "0";
+			boot_mode = "0";
 		};
 	};
 };
