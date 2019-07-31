@@ -247,7 +247,7 @@ static void bif_set_access(struct bifspi_t *pbif, unsigned int first,
 	pbif->last = last;
 	spin_unlock_irqrestore(&pbif->lock, flags);
 
-	pr_inf
+	pr_info
 	     ("bif set access limit:start add:%p->%#x(%d) end add:%p-%#x(%d)\n",
 	     (void *)(pbif->regs_base + BIF_ACCESS_FIRST), first, first,
 	     (void *)(pbif->regs_base + BIF_ACCESS_LAST), last, last);
