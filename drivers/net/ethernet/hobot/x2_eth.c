@@ -1764,7 +1764,9 @@ static int dwceqos_rx(struct net_local *lp, int budget)
 		if (!dwceqos_packet_avail(lp))
 			break;
 
-		new_skb = netdev_alloc_skb(lp->ndev, DWCEQOS_RX_BUF_SIZE);
+		new_skb = __netdev_alloc_skb(lp->ndev,
+					     DWCEQOS_RX_BUF_SIZE,
+					     GFP_ATOMIC | ___GFP_NOWARN);
 		if (!new_skb) {
 			netdev_err(lp->ndev, "no memory for new sk_buff\n");
 			break;
