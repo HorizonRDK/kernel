@@ -118,12 +118,19 @@ ssize_t bifspi_show_ap_first(struct kobject *driver,
 ssize_t bifspi_store_ap_first(struct kobject *driver,
 		struct kobj_attribute *attr, const char *buf, size_t count)
 {
+	int ret;
+	long out;
+
 	if (bif_info == NULL) {
 		pr_err("%s bif_info == null\n", __func__);
 		return 0;
 	}
-	ap_access_first = (kstrtol(buf, NULL, 0) & 0xFFFFFFFF);
-	bif_info->first = ap_access_first;
+	ret = (kstrtol(buf, 0, &out));
+	if (ret != 0) {
+		pr_err("%s input data err\n", __func__);
+		return 0;
+	}
+	bif_info->first = (out & 0xFFFFFFFF);
 	bif_set_access(bif_info, bif_info->first, bif_info->last);
 	return count;
 }
@@ -141,11 +148,19 @@ ssize_t bifspi_show_ap_last(struct kobject *driver,
 ssize_t bifspi_store_ap_last(struct kobject *driver,
 		struct kobj_attribute *attr, const char *buf, size_t count)
 {
+	int ret;
+	long out;
+
 	if (bif_info == NULL) {
 		pr_err("%s bif_info == null\n", __func__);
 		return 0;
 	}
-	ap_access_last = (kstrtol(buf, NULL, 0) & 0xFFFFFFFF);
+	ret = (kstrtol(buf, 0, &out));
+	if (ret != 0) {
+		pr_err("%s input data err\n", __func__);
+		return 0;
+	}
+	ap_access_last = (out & 0xFFFFFFFF);
 	bif_info->last = ap_access_last;
 	bif_set_access(bif_info, bif_info->first, bif_info->last);
 	return count;
@@ -477,15 +492,18 @@ static int bifspi_probe(struct platform_device *pdev)
 				   "ap_access_first", &value32);
 	if (ret)
 		dev_err(&pdev->dev, "get ap_access_first failed\n");
-	else
+	else {
 		bif_info->first = value32;
-
-	ret = of_property_read_u32(pdev->dev.of_node,
+		ret = of_property_read_u32(pdev->dev.of_node,
 				   "ap_access_last", &value32);
-	if (ret)
-		dev_err(&pdev->dev, "get ap_access_last failed\n");
-	else
-		bif_info->last = value32;
+		if (ret)
+			dev_err(&pdev->dev, "get ap_access_last failed\n");
+		else {
+			bif_info->last = value32;
+			bif_set_access(bif_info,
+				       bif_info->first, bif_info->last);
+		}
+	}
 
 	ret = bif_alloc_chardev(bif_info, "x2-bifspi");
 	if (ret != 0) {
