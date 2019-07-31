@@ -14,9 +14,47 @@
 #include "hobot.dtsi"
 #include "hobot-pinctrl.dtsi"
 #include "hobot-clk.dtsi"
-#include "memory-1g.dtsi"
+#include "memory.dtsi"
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/phy/phy.h>
+
+/ {
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		/*Reserved 4M memory for ipu problem*/
+		ipu_nouse_reserved: ipu_nouse_reserved@0x00000000 {
+			reg = <0x0 0x00000000 0x0 0x00400000>;
+			no-map;
+		};
+		/*Reserved 8M memory for isp_subsystem*/
+		isp_reserved: isp_reserved@0x02100000 {
+			reg = <0x0 0x02100000 0x0 0x00800000>;
+		};
+
+		/*Reserved 32M memory for iar subsystem*/
+		iar_reserved: iar_reserved@0x02900000 {
+			reg = <0x0 0x02900000 0x0 0x2000000>;
+			no-map;
+		};
+
+		/* Reserved 256MB memory for ipu subsystem */
+		ipu_reserved: ipu_reserved@0x04900000 {
+			reg = <0x0 0x04900000 0x0 0x08000000>;
+			/*no-map;*/
+		};
+
+		/* Reserved 256MB memory for ion*/
+		ion_reserved: ion_reserved@0xc900000 {
+			compatible = "ion-pool";
+			reg = <0x0 0xc900000 0x0 0x10000000>;
+		};
+
+	};
+};
+
 
 / {
 	model = "Hobot J2 DEV board";
