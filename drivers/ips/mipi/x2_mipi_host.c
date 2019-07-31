@@ -144,7 +144,8 @@ static unsigned long mipi_host_pixel_clk_select(mipi_host_cfg_t *control)
 	pixclk = linelenth * framelenth * control->fps;
 	//pixclk = 1000000 * control->mipiclk / control->lane;
 #ifdef ADJUST_CLK_RECALCULATION
-	pixclk = (control->width + 16) * (control->height + 8) * control->fps;
+	//no need, otherwise 10635 frame will be partially error
+	//pixclk = (control->width + 16) * (control->height + 8) * control->fps;
 #endif
 	if (control->datatype < MIPI_CSI2_DT_RAW_8)
 		pixclk = pixclk;
@@ -292,9 +293,9 @@ static int32_t mipi_host_configure_ipi(mipi_host_cfg_t *control)
 	mipi_putreg(iomem + REG_MIPI_HOST_IPI_HSA_TIME, control->hsaTime);
 	mipi_putreg(iomem + REG_MIPI_HOST_IPI_HBP_TIME, control->hbpTime);
 	mipi_putreg(iomem + REG_MIPI_HOST_IPI_HSD_TIME, control->hsdTime);
-#ifndef ADJUST_CLK_RECALCULATION
+//#ifndef ADJUST_CLK_RECALCULATION //!both ddr&online need this feature ON
 	mipi_putreg(iomem + REG_MIPI_HOST_IPI_ADV_FEATURES, adv_value);
-#endif
+//#endif
 
 	if (MIPIHOST_CHANNEL_NUM == control->channel_num) {
 		/*Select virtual channel and data type to be processed by IPI*/
