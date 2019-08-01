@@ -610,15 +610,15 @@ int32_t iar_channel_base_cfg(channel_base_cfg_t *cfg)
 	value = IAR_REG_SET_FILED(IAR_EN_OVERLAY_PRI3, 0x1, value);
 	value = IAR_REG_SET_FILED(IAR_EN_OVERLAY_PRI4, 0x1, value);
 
-	target_filed = IAR_EN_RD_CHANNEL1 - channelid; //enable this channel
-	value = IAR_REG_SET_FILED(target_filed, cfg->enable, value);
+//	target_filed = IAR_EN_RD_CHANNEL1 - channelid; //enable this channel
+//	value = IAR_REG_SET_FILED(target_filed, cfg->enable, value);
 	target_filed = IAR_ALPHA_SELECT_PRI1 - pri; //set alpha sel
 	value = IAR_REG_SET_FILED(target_filed, cfg->alpha_sel, value);
 	target_filed = IAR_OV_MODE_PRI1 - pri; //set overlay mode
 	value = IAR_REG_SET_FILED(target_filed, cfg->ov_mode, value);
 	target_filed = IAR_EN_ALPHA_PRI1 - pri; //set alpha en
 	value = IAR_REG_SET_FILED(target_filed, cfg->alpha_en, value);
-//	writel(value, g_iar_dev->regaddr + REG_IAR_OVERLAY_OPT);
+	writel(value, g_iar_dev->regaddr + REG_IAR_OVERLAY_OPT);
 
 	g_iar_dev->buf_w_h[channelid][0] = cfg->buf_width;
 	g_iar_dev->buf_w_h[channelid][1] = cfg->buf_height;
