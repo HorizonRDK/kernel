@@ -280,6 +280,7 @@ int8_t ipu_set(ipu_cmd_e cmd, ipu_cfg_t *ipu_cfg, uint64_t data)
 int8_t ipu_drv_start(void)
 {
 	ipu_info("ipu start\n");
+	ddr_mode = 0;
 	spin_lock(&g_ipu->elock);
 	if (g_ipu->cfg->ctrl.crop_ddr_en)
 		ctrl_ipu_to_ddr(CROP_TO_DDR, ENABLE);
