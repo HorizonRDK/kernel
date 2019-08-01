@@ -40,8 +40,10 @@ phys_addr_t ion_carveout_allocate(struct ion_heap *heap,
 		container_of(heap, struct ion_carveout_heap, heap);
 	unsigned long offset = gen_pool_alloc(carveout_heap->pool, size);
 
-	if (!offset)
+	if (!offset) {
+		pr_err("%s: alloc buffer from pool failed\n", __func__);
 		return ION_CARVEOUT_ALLOCATE_FAIL;
+	}
 
 	return offset;
 }
@@ -79,15 +81,20 @@ static int ion_carveout_heap_allocate(struct ion_heap *heap,
 	phys_addr_t paddr;
 	int ret;
 
-	if (align > PAGE_SIZE)
+	if (align > PAGE_SIZE) {
+		pr_err("%s: align should <= page size\n", __func__);
 		return -EINVAL;
+	}
 
 	table = kmalloc(sizeof(struct sg_table), GFP_KERNEL);
 	if (!table)
 		return -ENOMEM;
+
 	ret = sg_alloc_table(table, 1, GFP_KERNEL);
-	if (ret)
+	if (ret) {
+		pr_err("%s: sg alloc table failed\n", __func__);
 		goto err_free;
+	}
 
 	paddr = ion_carveout_allocate(heap, size, align);
 	if (paddr == ION_CARVEOUT_ALLOCATE_FAIL) {

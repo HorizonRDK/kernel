@@ -79,7 +79,6 @@ int ion_heap_map_user(struct ion_heap *heap, struct ion_buffer *buffer,
 	struct scatterlist *sg;
 	int i;
 	int ret;
-	pgprot_t prot;
 
 	for_each_sg(table->sgl, sg, table->nents, i) {
 		struct page *page = sg_page(sg);
@@ -95,18 +94,14 @@ int ion_heap_map_user(struct ion_heap *heap, struct ion_buffer *buffer,
 			offset = 0;
 		}
 		len = min(len, remainder);
-#if 0
-		prot = pgprot_noncached(PAGE_KERNEL);
-		vma->vm_page_prot.pgprot |= prot.pgprot;
-		ret = remap_pfn_range(vma, addr, page_to_pfn(page), len,
-				      vma->vm_page_prot);
-#endif
 
 		ret = remap_pfn_range(vma, addr, page_to_pfn(page), len,
 				      vma->vm_page_prot);
 
-		if (ret)
+		if (ret) {
+			pr_err("%s: remap pfn range failed[%d]\n", __func__, ret);
 			return ret;
+		}
 		addr += len;
 		if (addr >= vma->vm_end)
 			return 0;

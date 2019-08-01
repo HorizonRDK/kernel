@@ -201,8 +201,10 @@ static struct ion_buffer *ion_buffer_create(struct ion_heap *heap,
 		ion_heap_freelist_drain(heap, 0);
 		ret = heap->ops->allocate(heap, buffer, len, align,
 					  flags);
-		if (ret)
+		if (ret) {
+			pr_err("%s: ion heap alloc failed[%d]\n", __func__, ret);
 			goto err2;
+		}
 	}
 
 	buffer->dev = dev;
@@ -213,6 +215,7 @@ static struct ion_buffer *ion_buffer_create(struct ion_heap *heap,
 			"heap->ops->map_dma should return ERR_PTR on error"))
 		table = ERR_PTR(-EINVAL);
 	if (IS_ERR(table)) {
+		pr_err("%s: ion map dma error\n", __func__);
 		heap->ops->free(buffer);
 		kfree(buffer);
 		return ERR_CAST(table);
@@ -225,6 +228,7 @@ static struct ion_buffer *ion_buffer_create(struct ion_heap *heap,
 
 		buffer->pages = vmalloc(sizeof(struct page *) * num_pages);
 		if (!buffer->pages) {
+			pr_err("%s: ion create bufffer pages error\n", __func__);
 			ret = -ENOMEM;
 			goto err1;
 		}
@@ -479,8 +483,10 @@ static int ion_handle_add(struct ion_client *client, struct ion_handle *handle)
 	struct ion_handle *entry;
 
 	id = idr_alloc(&client->idr, handle, 1, 0, GFP_KERNEL);
-	if (id < 0)
+	if (id < 0) {
+		pr_err("%s: failed alloc idr [%d]\n", __func__, id);
 		return id;
+	}
 
 	handle->id = id;
 
@@ -520,8 +526,10 @@ struct ion_handle *ion_alloc(struct ion_client *client, size_t len,
 	 */
 	len = PAGE_ALIGN(len);
 
-	if (!len)
+	if (!len) {
+		pr_err("%s: len invalid\n", __func__);
 		return ERR_PTR(-EINVAL);
+	}
 
 	down_read(&dev->lock);
 	plist_for_each_entry(heap, &dev->heaps, node) {
@@ -534,11 +542,16 @@ struct ion_handle *ion_alloc(struct ion_client *client, size_t len,
 	}
 	up_read(&dev->lock);
 
-	if (buffer == NULL)
+	if (buffer == NULL) {
+		pr_err("%s: buffer create failed\n", __func__);
 		return ERR_PTR(-ENODEV);
+	}
 
-	if (IS_ERR(buffer))
+	if (IS_ERR(buffer)) {
+		pr_err("%s: buffer create error[%d]\n",
+				__func__, PTR_ERR(buffer));
 		return ERR_CAST(buffer);
+	}
 
 	handle = ion_handle_create(client, buffer);
 
@@ -548,13 +561,17 @@ struct ion_handle *ion_alloc(struct ion_client *client, size_t len,
 	 */
 	ion_buffer_put(buffer);
 
-	if (IS_ERR(handle))
+	if (IS_ERR(handle)) {
+		pr_err("%s: handle create error[%d]\n",
+				__func__, PTR_ERR(handle));
 		return handle;
+	}
 
 	mutex_lock(&client->lock);
 	ret = ion_handle_add(client, handle);
 	mutex_unlock(&client->lock);
 	if (ret) {
+		pr_err("%s: handle add failed[%d]\n", __func__, ret);
 		ion_handle_put(handle);
 		handle = ERR_PTR(ret);
 	}
@@ -1184,12 +1201,16 @@ int ion_share_dma_buf_fd(struct ion_client *client, struct ion_handle *handle)
 	int fd;
 
 	dmabuf = ion_share_dma_buf(client, handle);
-	if (IS_ERR(dmabuf))
+	if (IS_ERR(dmabuf)) {
+		pr_err("%s: Got buf error[%d].", __func__, PTR_ERR(dmabuf));
 		return PTR_ERR(dmabuf);
+	}
 
 	fd = dma_buf_fd(dmabuf, O_CLOEXEC);
-	if (fd < 0)
+	if (fd < 0) {
+		pr_err("%s: Got buf fd error[%d].", __func__, fd);
 		dma_buf_put(dmabuf);
+	}
 
 	return fd;
 }
@@ -1341,8 +1362,11 @@ long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		struct ion_handle *handle;
 
 		handle = ion_handle_get_by_id(client, data.handle.handle);
-		if (IS_ERR(handle))
+		if (IS_ERR(handle)) {
+			pr_err("%s: find ion handle failed [%d].",
+					__func__, PTR_ERR(handle));
 			return PTR_ERR(handle);
+		}
 		data.fd.fd = ion_share_dma_buf_fd(client, handle);
 		if (data.fd.fd < 0)
 			ret = data.fd.fd;
