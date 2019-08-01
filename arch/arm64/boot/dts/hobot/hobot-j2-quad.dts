@@ -142,6 +142,7 @@
 
 &pinctrl {
 	status = "okay";
+	gpioirq-bank-cfg=<18 0 0 0>;
 };
 
 &uart0 {
@@ -234,7 +235,7 @@
 };
 
 &bifspi {
-	status = "disabled";
+	status = "okay";
 };
 
 &bifsd {
@@ -242,19 +243,34 @@
 	/*cd-gpio = <91>;*/
 };
 
+&timesync {
+	status = "okay";
+	timesync_MCU2J2_irq_pin = <18>;
+	timesync_J22MCU_irq_pin = <118>;
+};
+
 &bifbase {
-	/*x2j2 bifbase: GPIO7[8]: 118, GPIO0[7]: 7*/
-	status = "disabled";
-	bifbase_irq_pin = <118>;
-	bifbase_tri_pin = <7>;
+	/*x2j2 bifbase: GPIO7[8]: 18, GPIO0[7]: 7*/
+	status = "okay";
+//	bifbase_irq_pin = <18>;
+//	bifbase_tri_pin = <7>;
 };
 
 &bifeth {
 	status = "disabled";
 };
 
-&biflite_spi {
+&bifsio {
 	status = "disabled";
+};
+
+&biflite_spi {
+	status = "okay";
+	mcu-ap;
+	polling-mode;
+	frame_len_max = <4096>;
+	frag_len_max = <128>;
+	frame_count = <4>;
 };
 &qspi {
 	status = "okay";
