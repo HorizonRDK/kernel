@@ -671,6 +671,10 @@ void __init mem_init(void)
 		 */
 		sysctl_overcommit_memory = OVERCOMMIT_ALWAYS;
 	}
+
+	/* disable overcommit to avoid OOM-killer */
+	sysctl_overcommit_memory = OVERCOMMIT_NEVER;
+	sysctl_overcommit_ratio = 100;
 }
 
 void free_initmem(void)
