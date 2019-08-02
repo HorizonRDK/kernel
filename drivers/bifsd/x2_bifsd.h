@@ -247,11 +247,12 @@ struct bif_sd {
 	enum bifsd_state state;
 	u32 block_len;
 	u32 block_cnt;
-	u32 read_blk_num;	/* the number of block data that send to master */
+	u32 read_blk_num;   /* the number of block data that send to master */
 	u32 rx_blk_num;
 	u32 rd_buf;
 	u32 wr_buf;
 	u32 cmd_argu;
+	u32 range_addr_max; /* access max addr */
 
 	struct bifsd_req *bifsd_rx_reqs;
 	struct list_head bifsd_rx_freeq;
@@ -350,7 +351,7 @@ static inline void bifsd_config_timing(struct bif_sd *sd)
 
 static inline void mmc_set_out_range_addr(struct bif_sd *sd)
 {
-	sd_writel(sd, OUT_RANGE_ADDR, OUT_RANGE_ADDR, 0);
+	sd_writel(sd, OUT_RANGE_ADDR, sd->range_addr_max, 0);
 }
 
 static inline void mmc_disable_acc_bypass(struct bif_sd *sd)

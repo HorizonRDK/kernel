@@ -641,6 +641,7 @@
 			reset-names = "bifsd";
 			pinctrl-names = "default";
 			pinctrl-0 = <&bifsd_func>;
+			range_addr_max = <0xffffffff>;
 		};
 		sdio0: dwmmc@A5010000 {
 			compatible = "hobot,x2-dw-mshc";

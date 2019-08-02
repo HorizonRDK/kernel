@@ -15,6 +15,7 @@
 #include <linux/gpio.h>
 #include "x2_bifsd.h"
 #include <linux/slab.h>
+#include <linux/fs.h>
 
 #define BIFSD_DETECT_GPIO 77
 /*****************************************************************************/
@@ -24,6 +25,55 @@ struct bif_sd *bifsd_info;
 /*****************************************************************************/
 /* Global Variables                                                          */
 /*****************************************************************************/
+
+ssize_t bifsd_show_range_addr_max(struct kobject *driver,
+			     struct kobj_attribute *attr, char *buf)
+{
+	if (bifsd_info == NULL) {
+		pr_err("%s bifsd_info == null\n", __func__);
+		return 0;
+	}
+	return snprintf(buf, PAGE_SIZE, "0x%08x\n", bifsd_info->range_addr_max);
+}
+
+ssize_t bifsd_store_range_addr_max(struct kobject *driver,
+		struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int ret;
+	long out;
+
+	if (bifsd_info == NULL) {
+		pr_err("%s bifsd_info == null\n", __func__);
+		return 0;
+	}
+	ret = (kstrtol(buf, 0, &out));
+	if (ret != 0) {
+		pr_err("%s input data err\n", __func__);
+		return 0;
+	}
+	bifsd_info->range_addr_max = (out & 0xFFFFFFFF);
+	mmc_set_out_range_addr(bifsd_info);
+	return count;
+}
+
+static struct kobj_attribute range_addr_max_attr = {
+	.attr   = {
+		.name = __stringify(range_addr_max),
+		.mode = 0644,
+	},
+	.show   = bifsd_show_range_addr_max,
+	.store  = bifsd_store_range_addr_max,
+};
+
+
+static struct attribute *bifsd_attributes[] = {
+	&range_addr_max_attr.attr,
+	NULL,
+};
+
+static struct attribute_group bifsd_group = {
+	.attrs = bifsd_attributes,
+};
 
 void set_sd_info(struct bif_sd *sd)
 {
@@ -787,6 +837,7 @@ int bifsd_pltfm_register(struct platform_device *pdev,
 	struct bif_sd *sd;
 	int ret;
 	int cd_gpio = 0;
+	unsigned int value32;
 
 	sd = devm_kzalloc(&pdev->dev, sizeof(struct bif_sd), GFP_KERNEL);
 	if (!sd)
@@ -799,7 +850,7 @@ int bifsd_pltfm_register(struct platform_device *pdev,
 	sd->drv_data = drv_data;
 	sd->dev = &pdev->dev;
 	sd->irq_flags = 0;
-
+	sd->range_addr_max = OUT_RANGE_ADDR;
 	regs = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	sd->regs = devm_ioremap_resource(&pdev->dev, regs);
 	if (IS_ERR(sd->regs))
@@ -811,7 +862,10 @@ int bifsd_pltfm_register(struct platform_device *pdev,
 		return PTR_ERR(sd->sysctrl_reg);
 	/* Get registers' physical base address */
 	sd->phy_regs = regs->start;
-
+	ret = of_property_read_u32(pdev->dev.of_node,
+				   "range_addr_max", &value32);
+	if (ret == 0)
+		sd->range_addr_max = value32;
 	/* request memory address */
 	np = of_parse_phandle(pdev->dev.of_node, "memory-region", 0);
 	if (!np) {
@@ -866,6 +920,10 @@ int bifsd_pltfm_register(struct platform_device *pdev,
 		gpio_request(sd->cd_gpio, NULL);
 		gpio_direction_output(sd->cd_gpio, 1);
 	}
+
+	ret = sysfs_create_group(&pdev->dev.kobj, &bifsd_group);
+	if (ret != 0)
+		dev_err(&pdev->dev, "sysfs_create_group failed\n");
 
 err:
 	return ret;
