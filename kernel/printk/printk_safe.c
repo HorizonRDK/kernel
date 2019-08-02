@@ -22,6 +22,7 @@
 #include <linux/cpumask.h>
 #include <linux/irq_work.h>
 #include <linux/printk.h>
+#include <asm/cacheflush.h>
 
 #include "internal.h"
 
@@ -292,6 +293,11 @@ void printk_safe_flush_on_panic(void)
 		raw_spin_lock_init(&logbuf_lock);
 	}
 
+#ifdef CONFIG_ARM64
+	__flush_dcache_all();
+#else
+	flush_cache_all();
+#endif
 	printk_safe_flush();
 }
 
