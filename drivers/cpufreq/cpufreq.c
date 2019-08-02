@@ -876,7 +876,7 @@ static ssize_t store_scaling_disable_freq(struct cpufreq_policy *policy,
 
 	if (freq) {
 		if (disabled_freq != 0 && freq != disabled_freq) {
-			pr_err("Only allow disable one freq opp.\n")
+			pr_err("Only allow disable one freq opp.\n");
 			pr_err("Current disabled freq is %dMhz.\n",
 					disabled_freq / 1000);
 			return -EINVAL;
