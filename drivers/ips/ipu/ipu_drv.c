@@ -26,12 +26,17 @@
 #include <asm-generic/io.h>
 #include <asm/string.h>
 #include <linux/uaccess.h>
+#include <linux/ion.h>
 
 #define X2_IPU_NAME		"x2-ipu"
+
+//#define USE_ION_MEM
 
 #define ENABLE 1
 #define DISABLE 0
 #define IPU_MEM_4k 4096
+
+extern struct ion_device *hb_ion_dev;
 
 struct x2_ipu_data *g_ipu = NULL;
 int ddr_mode;
@@ -39,6 +44,86 @@ unsigned int ipu_debug_level = 0;
 module_param(ipu_debug_level, uint, 0644);
 unsigned int ipu_irq_debug = 0;
 module_param(ipu_irq_debug, uint, 0644);
+
+/*
+ * sys nodes for set slot number use the slot
+ * number to calculate ipu need memory size
+ */
+static ssize_t ipu_slot_num_store(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf, size_t count)
+{
+	int ret, tmp_slot_num;
+
+	if (!g_ipu) {
+		pr_err("IPU not init!!\n");
+		return count;
+	}
+
+	if (g_ipu->slot_num != 0) {
+		pr_err("ipu slot num already set %d!!\n", g_ipu->slot_num);
+		return count;
+	}
+
+	ret = sscanf(buf, "%du", &tmp_slot_num);
+	if (tmp_slot_num <= 0) {
+		pr_err("invalide range, range[3, %d]!!\n", IPU_MAX_SLOT);
+		return count;
+	}
+
+	if (tmp_slot_num < 3) {
+		pr_err("Too small slot_num, set to MIN 3]!!\n");
+		tmp_slot_num = 3;
+	}
+
+	if (tmp_slot_num > 8) {
+		pr_err("Too large slot_num, set to MAX %d]!!\n", IPU_MAX_SLOT);
+		tmp_slot_num = IPU_MAX_SLOT;
+	}
+
+	g_ipu->ipu_ihandle = ion_alloc(g_ipu->ipu_iclient,
+			tmp_slot_num * IPU_SLOT_SIZE, 0x10,
+			ION_HEAP_CARVEOUT_MASK, 0);
+	if (!g_ipu->ipu_ihandle || IS_ERR(g_ipu->ipu_ihandle)) {
+		pr_err("Alloc ION buffer failed!!\n");
+		return count;
+	}
+	ret = ion_phys(g_ipu->ipu_iclient, g_ipu->ipu_ihandle->id,
+			&g_ipu->paddr, (size_t *)&g_ipu->memsize);
+	if (ret) {
+		pr_err("Get buffer paddr failed!!\n");
+		ion_free(g_ipu->ipu_iclient, g_ipu->ipu_ihandle);
+		g_ipu->paddr = 0;
+		g_ipu->memsize = 0;
+		return count;
+	}
+
+	g_ipu->vaddr = ion_map_kernel(g_ipu->ipu_iclient, g_ipu->ipu_ihandle);
+	if (IS_ERR(g_ipu->vaddr)) {
+		pr_err("buffer kernel map failed!!\n");
+		ion_free(g_ipu->ipu_iclient, g_ipu->ipu_ihandle);
+		g_ipu->paddr = 0;
+		g_ipu->memsize = 0;
+		g_ipu->vaddr = NULL;
+		return count;
+	}
+
+	g_ipu->slot_num = tmp_slot_num;
+
+	return count;
+}
+
+static ssize_t ipu_slot_num_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	if (!g_ipu) {
+		pr_err("IPU not init!!\n");
+		return 0;
+	}
+
+	return sprintf(buf, "%d\n", g_ipu->slot_num);
+}
+static DEVICE_ATTR(slot_num, 0644, ipu_slot_num_show, ipu_slot_num_store);
 
 int8_t ipu_cfg_ddrinfo_init(ipu_cfg_t *ipu)
 {
@@ -537,18 +622,37 @@ static int x2_ipu_probe(struct platform_device *pdev)
 	set_ipu_regbase(ipu->regbase);
 	ipu->io_r = res;
 
+	if (!hb_ion_dev) {
+		dev_err(&pdev->dev, "NO ION device found!!");
+		goto err_out2;
+	}
+
+	rc = sysfs_create_file(&pdev->dev.kobj, &dev_attr_slot_num.attr);
+	if(rc < 0) {
+		dev_err(&pdev->dev, "Create IPU sys failed!!");
+		goto err_out2;
+	}
+
+#ifdef USE_ION_MEM
+	ipu->ipu_iclient = ion_client_create(hb_ion_dev, "ipu");
+	if (!ipu->ipu_iclient) {
+		dev_err(&pdev->dev, "Create IPU ion client failed!!");
+		rc = -ENOMEM;
+		goto err_out3;
+	}
+#else
 	/* request memory address */
 	np = of_parse_phandle(pdev->dev.of_node, "memory-region", 0);
 	if (!np) {
 		dev_err(&pdev->dev, "No %s specified\n", "memory-region");
 		rc = -ENODEV;
-		goto err_out2;
+		goto err_out3;
 	}
 
 	rc = of_address_to_resource(np, 0, &r);
 	if (rc) {
 		dev_err(&pdev->dev, "No memory address assigned to the region\n");
-		goto err_out2;
+		goto err_out3;
 	}
 	ipu->paddr = r.start;
 	ipu->memsize = resource_size(&r);
@@ -556,6 +660,9 @@ static int x2_ipu_probe(struct platform_device *pdev)
 	//ipu->vaddr = memremap(r.start, ipu->memsize, MEMREMAP_WB);
 	dev_info(&pdev->dev, "Allocate reserved memory, paddr: 0x%0llx, vaddr: 0x%0llx, len=0x%x\n",
 			 ipu->paddr, (uint64_t)ipu->vaddr, ipu->memsize);
+
+	ipu->slot_num = IPU_MAX_SLOT;
+#endif
 
 	platform_set_drvdata(pdev, ipu);
 	g_ipu = ipu;
@@ -570,18 +677,30 @@ static int x2_ipu_probe(struct platform_device *pdev)
 		if (IS_ERR(ipu->ipu_task)) {
 			ipu->ipu_task = NULL;
 			ipu_err("thread create fail\n");
-			return -1;
+			rc = PTR_ERR(ipu->ipu_task);
+			goto err_out4;
 		}
 	}
 	dev_info(&pdev->dev, "x2 ipu probe success\n");
 	return 0;
+
+err_out4:
+#ifdef USE_ION_MEM
+	ion_client_destroy(ipu->ipu_iclient);
+#endif
+
+err_out3:
+	sysfs_remove_file(&pdev->dev.kobj, &dev_attr_slot_num.attr);
+
 err_out2:
 	clr_ipu_regbase();
 	iounmap(ipu->regbase);
 	ipu->io_r = NULL;
 
 err_out1:
+#ifndef USE_ION_MEM
 	release_mem_region(res->start, resource_size(res));
+#endif
 
 err_out:
 	kfree(ipu);
@@ -593,8 +712,22 @@ static int x2_ipu_remove(struct platform_device *pdev)
 	struct x2_ipu_data *ipu = platform_get_drvdata(pdev);
 
 	ipu_stop_thread(ipu);
+
+	sysfs_remove_file(&pdev->dev.kobj, &dev_attr_slot_num.attr);
+
+#ifdef USE_ION_MEM
+	if (ipu->ipu_iclient) {
+		if (ipu->ipu_ihandle) {
+			ion_unmap_kernel(ipu->ipu_iclient, ipu->ipu_ihandle);
+			ion_free(ipu->ipu_iclient, ipu->ipu_ihandle);
+		}
+
+		ion_client_destroy(ipu->ipu_iclient);
+	}
+#else
 	vm_unmap_ram(ipu->vaddr, ipu->memsize / PAGE_SIZE);
 	release_mem_region(ipu->io_r->start, resource_size(ipu->io_r));
+#endif
 	clr_ipu_regbase();
 	iounmap(ipu->regbase);
 	ipu->regbase = NULL;

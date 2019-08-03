@@ -1,5 +1,6 @@
 #include <linux/spinlock.h>
 #include <asm-generic/io.h>
+#include "ipu_drv.h"
 #include "ipu_slot.h"
 #include "ipu_common.h"
 
@@ -7,6 +8,7 @@
 static ipu_slot_h_t 	g_ipu_slot_[IPU_MAX_SLOT];
 static struct list_head g_ipu_slot_list[SLOT_LIST_NUM];
 static DECLARE_BITMAP(slot_init_mask, IPU_MAX_SLOT);
+extern struct x2_ipu_data *g_ipu;
 
 /********************************************************************
  * @brief init_ipu_slot
@@ -19,11 +21,11 @@ static DECLARE_BITMAP(slot_init_mask, IPU_MAX_SLOT);
 int8_t init_ipu_slot(uint64_t base, slot_ddr_info_t *data)
 {
 	int8_t i = 0;
-	bitmap_zero(slot_init_mask, IPU_MAX_SLOT);
+	bitmap_zero(slot_init_mask, g_ipu->slot_num);
 	INIT_LIST_HEAD(&g_ipu_slot_list[FREE_SLOT_LIST]);
 	INIT_LIST_HEAD(&g_ipu_slot_list[BUSY_SLOT_LIST]);
 	INIT_LIST_HEAD(&g_ipu_slot_list[DONE_SLOT_LIST]);
-	for (i = 0; i < IPU_MAX_SLOT; i++) {
+	for (i = 0; i < g_ipu->slot_num; i++) {
 		uint64_t  slot_vaddr = IPU_GET_SLOT(i, base);
 		INIT_LIST_HEAD(&g_ipu_slot_[i].list);
 		ipu_dbg("slot-%d, vaddr=%llx\n", i, slot_vaddr);
@@ -41,7 +43,7 @@ int8_t init_ipu_slot(uint64_t base, slot_ddr_info_t *data)
 
 int8_t ipu_slot_recfg(slot_ddr_info_t *data)
 {
-	bitmap_fill(slot_init_mask, IPU_MAX_SLOT);
+	bitmap_fill(slot_init_mask, g_ipu->slot_num);
 	ipu_clean_slot(data);
 	return 0;
 }
@@ -197,7 +199,7 @@ ipu_slot_h_t* slot_done_to_free(slot_ddr_info_t *data)
 int insert_slot_to_free(int slot_id)
 {
 	ipu_slot_h_t *slot_h = NULL;
-	if (slot_id < 0 || slot_id >= IPU_MAX_SLOT) {
+	if (slot_id < 0 || slot_id >= g_ipu->slot_num) {
 		ipu_err("invalid slot id when free to done\n");
 		return -1;
 	}

@@ -253,6 +253,12 @@ int ipu_feed_back_open(struct inode *node, struct file *filp)
 {
 	struct ipu_f_cdev *ipu_cdev = NULL;
 
+	/* The memory alloc trigger by sys node */
+	if (!g_ipu->paddr || !g_ipu->vaddr || !g_ipu->memsize) {
+		ipu_err("No Memory Can Use, Makesure init the slot!!\n");
+		return -ENOMEM;
+	}
+
 	ipu_dbg("%s\n", __func__);
 	ipu_cdev = container_of(node->i_cdev, struct ipu_f_cdev, cdev);
 	filp->private_data = ipu_cdev;

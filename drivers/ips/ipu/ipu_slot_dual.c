@@ -1,5 +1,6 @@
 #include <linux/spinlock.h>
 #include <asm-generic/io.h>
+#include "ipu_drv.h"
 #include "ipu_slot_dual.h"
 #include "ipu_common.h"
 
@@ -7,6 +8,7 @@
 ipu_slot_dual_h_t	g_ipu_slot_dual[IPU_MAX_SLOT_DUAL];
 slot_queue_t g_dual_slot_queue[SLOT_QUEUE_MAX];
 static DECLARE_BITMAP(slot_init_mask, IPU_MAX_SLOT_DUAL);
+extern struct x2_ipu_data *g_ipu;
 
 int slot_alive(int type)
 {
@@ -47,7 +49,7 @@ ipu_slot_dual_h_t* dequeue_slot(slot_queue_t *slot_queue)
 int insert_dual_slot_to_free(int slot_id, slot_ddr_info_dual_t *data)
 {
 	ipu_slot_dual_h_t *slot_h = NULL;
-	if (slot_id < 0 || slot_id >= IPU_MAX_SLOT_DUAL) {
+	if (slot_id < 0 || slot_id >= g_ipu->slot_num / 2) {
 		ipu_err("invalid slot id when free to done\n");
 		return -1;
 	}
@@ -170,14 +172,14 @@ ipu_slot_dual_h_t* pym_slot_busy_to_free(void)
 int8_t init_ipu_slot_dual(uint64_t base, slot_ddr_info_dual_t *data)
 {
 	int8_t i = 0;
-	bitmap_zero(slot_init_mask, IPU_MAX_SLOT_DUAL);
+	bitmap_zero(slot_init_mask, g_ipu->slot_num / 2);
 	for (i = 0; i < SLOT_QUEUE_MAX; i++) {
 		INIT_LIST_HEAD(&g_dual_slot_queue[i].queue);
 		spin_lock_init(&g_dual_slot_queue[i].lock);
 		g_dual_slot_queue[i].qlen = 0;
 	}
 
-	for (i = 0; i < IPU_MAX_SLOT_DUAL; i++) {
+	for (i = 0; i < g_ipu->slot_num / 2; i++) {
 		uint64_t  slot_vaddr = IPU_GET_DUAL_SLOT(i, base);
 		memset(&g_ipu_slot_dual[i], 0, sizeof(ipu_slot_dual_h_t));
 		INIT_LIST_HEAD(&g_ipu_slot_dual[i].list);
@@ -197,7 +199,7 @@ int8_t init_ipu_slot_dual(uint64_t base, slot_ddr_info_dual_t *data)
 
 int8_t ipu_slot_dual_recfg(slot_ddr_info_dual_t *data)
 {
-	bitmap_fill(slot_init_mask, IPU_MAX_SLOT_DUAL);
+	bitmap_fill(slot_init_mask, g_ipu->slot_num / 2);
 	ipu_clean_slot_queue(data);
 	return 0;
 }

@@ -1,6 +1,7 @@
 #ifndef __IPU_DRV_H__
 #define __IPU_DRV_H__
 
+#include <linux/ion.h>
 #include "ipu_dev.h"
 
 typedef enum {
@@ -28,10 +29,19 @@ enum {
 typedef void (*ipu_handle_t)(uint32_t status);
 
 struct x2_ipu_data {
+	/* if ipu mem from ion */
+	struct ion_client *ipu_iclient;
+	struct ion_handle *ipu_ihandle;
+	/* if ipu mem from reserve mem */
 	void __iomem *regbase;  /* read/write[bwl] */
+
 	phys_addr_t paddr;
 	void *vaddr;
 	uint32_t memsize;
+
+	/* the slot num will use to caculate use memory size */
+	uint8_t slot_num;
+
 	struct task_struct *ipu_task;
 	wait_queue_head_t wq_head;
 	spinlock_t elock;
