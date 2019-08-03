@@ -125,6 +125,23 @@ static ssize_t ipu_slot_num_show(struct device *dev,
 }
 static DEVICE_ATTR(slot_num, 0644, ipu_slot_num_show, ipu_slot_num_store);
 
+static ssize_t ipu_slot_size_store(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf, size_t count)
+{
+	pr_err("IPU not support set slot size, default size[0x%x]!\n",
+			IPU_SLOT_SIZE);
+
+	return count;
+}
+
+static ssize_t ipu_slot_size_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "0x%x\n", IPU_SLOT_SIZE);
+}
+static DEVICE_ATTR(slot_size, 0644, ipu_slot_size_show, ipu_slot_size_store);
+
 int8_t ipu_cfg_ddrinfo_init(ipu_cfg_t *ipu)
 {
 	uint32_t w = 0, h = 0;
@@ -633,6 +650,13 @@ static int x2_ipu_probe(struct platform_device *pdev)
 		goto err_out2;
 	}
 
+	rc = sysfs_create_file(&pdev->dev.kobj, &dev_attr_slot_size.attr);
+	if(rc < 0) {
+		sysfs_remove_file(&pdev->dev.kobj, &dev_attr_slot_num.attr);
+		dev_err(&pdev->dev, "Create IPU sys failed!!");
+		goto err_out2;
+	}
+
 #ifdef USE_ION_MEM
 	ipu->ipu_iclient = ion_client_create(hb_ion_dev, "ipu");
 	if (!ipu->ipu_iclient) {
@@ -691,6 +715,7 @@ err_out4:
 
 err_out3:
 	sysfs_remove_file(&pdev->dev.kobj, &dev_attr_slot_num.attr);
+	sysfs_remove_file(&pdev->dev.kobj, &dev_attr_slot_size.attr);
 
 err_out2:
 	clr_ipu_regbase();
@@ -714,6 +739,7 @@ static int x2_ipu_remove(struct platform_device *pdev)
 	ipu_stop_thread(ipu);
 
 	sysfs_remove_file(&pdev->dev.kobj, &dev_attr_slot_num.attr);
+	sysfs_remove_file(&pdev->dev.kobj, &dev_attr_slot_size.attr);
 
 #ifdef USE_ION_MEM
 	if (ipu->ipu_iclient) {
