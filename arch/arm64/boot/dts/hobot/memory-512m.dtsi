@@ -8,21 +8,21 @@
 
 		/*23M*/
 		iar_reserved: iar_reserved@0x02100000 {
-			reg = <0x0 0x02100000 0x0 0x1700000>;
+			reg = <0x0 0x02100000 0x0 0x1800000>;
 			no-map;
 		};
 
-		/* Reserved 128MB memory for ipu subsystem */
-		ipu_reserved: ipu_reserved@0x03800000 {
-			reg = <0x0 0x03800000 0x0 0x8000000>;
+		/* Reserved 64MB memory for ipu subsystem */
+		ipu_reserved: ipu_reserved@0x03900000 {
+			reg = <0x0 0x03900000 0x0 0x4000000>;
 			/*no-map;*/
 		};
 
 
-		/* Reserved 80MB memory for ion*/
-		ion_reserved: ion_reserved@0xB000000 {
+		/* Reserved 128MB memory for ion*/
+		ion_reserved: ion_reserved@0x7900000 {
 			compatible = "ion-pool";
-			reg = <0x0 0xB000000 0x0 0x5000000>;
+			reg = <0x0 0x7900000 0x0 0x8000000>;
 		};
 
 	};
