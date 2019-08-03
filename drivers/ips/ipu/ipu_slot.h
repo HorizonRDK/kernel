@@ -3,6 +3,7 @@
 
 #include <linux/types.h>
 #include <linux/list.h>
+#include <linux/time.h>
 #include "ipu_common.h"
 
 enum {
@@ -67,6 +68,7 @@ typedef struct {
 	uint8_t  slot_get;
 	uint8_t  slot_cnt;
 	info_h_t info_h;
+	struct timeval tv;
 } ipu_slot_h_t;
 
 typedef enum {
@@ -83,11 +85,21 @@ typedef enum {
 	reserved = 1,
 } slot_cnn_flag_e;
 
+typedef struct {
+        info_h_t info;
+        int status;
+        int time;
+}vio_ipu_info_t;
+
+
+
+
 int slot_left_num(int type);
 int8_t init_ipu_slot(uint64_t base, slot_ddr_info_t *data);
 int8_t ipu_clean_slot(slot_ddr_info_t *data);
 ipu_slot_h_t *ipu_get_free_slot(void);
 ipu_slot_h_t *ipu_get_done_slot(void);
+ipu_slot_h_t* ipu_get_done_slot_from_tail(void);
 ipu_slot_h_t *slot_free_to_busy(void);
 ipu_slot_h_t *ipu_read_done_slot(void);
 ipu_slot_h_t *slot_busy_to_done(void);
@@ -99,5 +111,4 @@ bool is_slot_free_empty(void);
 bool is_slot_done_empty(void);
 void dump_slot_state(void);
 int8_t ipu_slot_recfg(slot_ddr_info_t *data);
-
 #endif

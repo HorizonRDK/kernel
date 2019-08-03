@@ -3,8 +3,7 @@
 #include "ipu_drv.h"
 #include "ipu_slot.h"
 #include "ipu_common.h"
-
-
+#include <linux/ktime.h>
 static ipu_slot_h_t 	g_ipu_slot_[IPU_MAX_SLOT];
 static struct list_head g_ipu_slot_list[SLOT_LIST_NUM];
 static DECLARE_BITMAP(slot_init_mask, IPU_MAX_SLOT);
@@ -48,6 +47,8 @@ int8_t ipu_slot_recfg(slot_ddr_info_t *data)
 	return 0;
 }
 
+
+
 int8_t ipu_clean_slot(slot_ddr_info_t *data)
 {
 	while (!list_empty(&g_ipu_slot_list[DONE_SLOT_LIST])) {
@@ -75,6 +76,8 @@ ipu_slot_h_t* ipu_get_done_slot()
 	list_del_init(node);
 	return slot_h;
 }
+
+
 
 ipu_slot_h_t *ipu_read_done_slot(void)
 {
@@ -169,7 +172,9 @@ ipu_slot_h_t* slot_busy_to_done(void)
 
 	node = g_ipu_slot_list[BUSY_SLOT_LIST].next;
 	list_move_tail(node, &g_ipu_slot_list[DONE_SLOT_LIST]);
+
 	slot_h = (ipu_slot_h_t *)node;
+	do_gettimeofday(&slot_h->tv);
 	slot_h->info_h.slot_flag = SLOT_DONE;
 	slot_h->slot_get = 0;
 	return slot_h;

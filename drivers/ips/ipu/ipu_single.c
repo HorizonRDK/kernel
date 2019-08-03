@@ -43,6 +43,9 @@
 #define IPUC_STOP			_IO(IPU_IOC_MAGIC, 7)
 #define IPUC_UPDATE_CFG		_IOW(IPU_IOC_MAGIC, 8, ipu_init_t)
 #define IPUC_GET_MEM_INFO	_IOR(IPU_IOC_MAGIC, 9, ipu_meminfo_t)
+#define IPUC_GET_DONE_INFO_TIME  _IOR(IPU_IOC_MAGIC, 15, vio_ipu_info_t)
+
+
 
 #define X2_IPU_NAME		"x2-ipu"
 
@@ -63,6 +66,7 @@ struct ipu_single_cdev {
 	uint32_t err_status;
 	unsigned long ipuflags;
 	slot_ddr_info_t s_info;
+	atomic_t ipu_time_flags;
 };
 
 struct ipu_single_cdev *g_ipu_s_cdev;
@@ -221,11 +225,16 @@ void ipu_single_mode_process(uint32_t status)
 		slot_busy_to_done();
 		slot_h = ipu_read_done_slot();
 		if (slot_h) {
-			ipu_info("pyramid done, slot-%d, cnt %d\n", slot_h->info_h.slot_id, slot_h->slot_cnt);
+			///ipu_info("pyramid done, slot-%d, cnt %d\n", slot_h->info_h.slot_id, slot_h->slot_cnt);
 			//__inval_dcache_area(IPU_GET_SLOT(slot_h->info_h.slot_id, ipu->vaddr), IPU_SLOT_SIZE);
 			ipu->pymid_done = true;
 			//ipu->done_idx = slot_h->info_h.slot_id;
 			ipu_get_frameid(ipu, slot_h);
+
+			//spin_lock(&g_ipu_s_cdev->slock);
+			atomic_set(&g_ipu_s_cdev->ipu_time_flags,1);// = IPU_GET_INFO_TIME_DONE;
+			//spin_unlock(&g_ipu_s_cdev->slock);
+
 			wake_up_interruptible(&g_ipu_s_cdev->event_head);
 
 			/*
@@ -264,6 +273,8 @@ void ipu_single_mode_process(uint32_t status)
 			//__inval_dcache_area(IPU_GET_SLOT(slot_h->info_h.slot_id, ipu->vaddr), IPU_SLOT_SIZE);
 			//ipu->done_idx = slot_h->info_h.slot_id;
 			ipu_get_frameid(ipu, slot_h);
+	//		g_ipu_s_cdev->ipu_time_flags = IPU_GET_INFO_TIME_DONE;
+
 			wake_up_interruptible(&g_ipu_s_cdev->event_head);
 		}
 	}
@@ -295,6 +306,7 @@ static int8_t ipu_sinfo_init(ipu_cfg_t *ipu_cfg)
 {
 	uint8_t i = 0;
 	memset(&g_ipu_s_cdev->s_info, 0, sizeof(slot_ddr_info_t));
+	atomic_set(&g_ipu_s_cdev->ipu_time_flags, 0);// = ATOMIC_INIT(0);
 	if (ipu_cfg->ctrl.crop_ddr_en == 1) {
 		g_ipu_s_cdev->s_info.crop.y_offset = ipu_cfg->crop_ddr.y_addr;
 		g_ipu_s_cdev->s_info.crop.c_offset = ipu_cfg->crop_ddr.c_addr;
@@ -426,6 +438,69 @@ int ipu_open(struct inode *node, struct file *filp)
 }
 
 
+ipu_slot_h_t *ipu_get_done_slot_wait_event(void)
+{
+
+	ipu_slot_h_t *slot_h = NULL;
+
+	while(!atomic_read(&g_ipu_s_cdev->ipu_time_flags))
+		wait_event_interruptible(g_ipu_s_cdev->event_head, !!atomic_read(&g_ipu_s_cdev->ipu_time_flags));
+
+	atomic_set(&g_ipu_s_cdev->ipu_time_flags, 0);
+
+	/*step3. get the frame info to user space*/
+	spin_lock(&g_ipu_s_cdev->slock);
+
+
+	slot_h = ipu_get_done_slot();
+	if (!slot_h) {
+		spin_unlock(&g_ipu_s_cdev->slock);
+		return NULL;
+	}
+	spin_unlock(&g_ipu_s_cdev->slock);
+
+	return slot_h;
+
+
+}
+
+
+
+int8_t ipu_try_to_copy_done_slot(int time, ipu_slot_h_t *slot_h, unsigned long data, phys_addr_t paddr)
+{
+	        vio_ipu_info_t vio_ipu_info;
+		info_h_t         *info = NULL;
+		int8_t ret = 0;
+
+
+		info = &slot_h->info_h;
+		info->base = (uint64_t)IPU_GET_SLOT(slot_h->info_h.slot_id, paddr);
+		if ((time ) <= (slot_h->tv.tv_sec * 1000  + slot_h->tv.tv_usec / 1000)){
+
+			ret = copy_to_user(((void __user*)&((vio_ipu_info_t *)data)->info),(const void *)info, sizeof(info_h_t));
+			if (ret) {
+				ipu_err("copy to user fail\n");
+			}
+
+		} else  {
+			insert_slot_to_free(slot_h->info_h.slot_id);
+			ret = -1;
+		}
+
+		return ret;
+}
+
+void  ipu_clean_done_slot(void)
+{
+	spin_lock(&g_ipu_s_cdev->slock);
+	while (!(is_slot_done_empty())) {
+		if (NULL == slot_done_to_free(&g_ipu_s_cdev->s_info))
+			break;
+	}
+	atomic_set(&g_ipu_s_cdev->ipu_time_flags, 0);
+	spin_unlock(&g_ipu_s_cdev->slock);
+}
+
 long ipu_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 {
 	struct ipu_single_cdev *ipu_cdev = filp->private_data;
@@ -434,8 +509,12 @@ long ipu_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 	ipu_slot_h_t *slot_h = NULL;
 	info_h_t	 *info = NULL;
 	int ret = 0;
-	ipu_dbg("ipu cmd: %d\n", _IOC_NR(cmd));
+	vio_ipu_info_t vio_ipu_info;
+	int time;
+	struct timeval tv;
+	int time_ms = 0;
 
+	ipu_dbg("ipu cmd: %d\n", _IOC_NR(cmd));
 	switch (cmd) {
 	case IPUC_INIT:
 		{
@@ -496,6 +575,7 @@ long ipu_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 			spin_lock(&g_ipu_s_cdev->slock);
 			slot_h = ipu_get_done_slot();
 			if (!slot_h) {
+
 				spin_unlock(&g_ipu_s_cdev->slock);
 				ipu_info("done list empty\n");
 				return -EFAULT;
@@ -513,6 +593,64 @@ long ipu_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 				ipu_err("copy to user fail\n");
 			}
 		}
+		break;
+
+	case IPUC_GET_DONE_INFO_TIME:
+			ret = copy_from_user( &vio_ipu_info, (const void __user *)data, sizeof(vio_ipu_info_t));
+			if (ret) {
+				ipu_err("ioctl init fail\n");
+				return -EFAULT;
+			}
+			time = vio_ipu_info.time;
+			do_gettimeofday(&tv);
+			time_ms = tv.tv_sec * 1000 + tv.tv_usec /1000;
+			time_ms -= time;
+
+			if (time == 0) {
+				/*step 1. clear done slot list*/
+				ipu_clean_done_slot();
+				/*step2. wait the next frame is done*/
+				slot_h = ipu_get_done_slot_wait_event();
+
+				if (!slot_h){
+					return -EFAULT;
+				}
+				info = &slot_h->info_h;
+				info->base = (uint64_t)IPU_GET_SLOT(slot_h->info_h.slot_id, ipu->paddr);
+				ret = copy_to_user(((void __user*)&((vio_ipu_info_t *)data)->info),(const void *)info, sizeof(info_h_t));
+				if (ret) {
+					ipu_err("copy to user fail\n");
+				}
+
+			} else if (time < 0) {
+				ipu_clean_done_slot();
+
+wait_1:
+				slot_h = ipu_get_done_slot_wait_event();
+
+				if (!(slot_h)) {
+					return -EFAULT;
+				}
+
+				ret = ipu_try_to_copy_done_slot(time_ms, slot_h, data,ipu->paddr);
+				if (ret < 0)
+					goto wait_1;
+
+
+			} else if (time > 0) {
+
+slot_next:
+				slot_h = ipu_get_done_slot_wait_event();
+
+				if (!(slot_h)) {
+					return -EFAULT;
+				}
+
+				ret = ipu_try_to_copy_done_slot(time_ms, slot_h, data,ipu->paddr);
+				if (ret < 0)
+					goto slot_next;
+			}
+
 		break;
 	case IPUC_DUMP_REG:
 		ipu_dump_regs();
