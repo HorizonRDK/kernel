@@ -28,14 +28,14 @@
 #include <linux/dmaengine.h>
 #include <linux/dma-mapping.h>
 #include <asm/cacheflush.h>
-#include "ion.h"
+#include <linux/ion.h>
 
 extern struct ion_device *ion_device_create(long (*custom_ioctl)
 				     (struct ion_client *client,
 				      unsigned int cmd,
 				      unsigned long arg));
 
-static struct ion_device *idev;
+struct ion_device *hb_ion_dev;
 static struct ion_heap **heaps;
 struct dma_chan *dma_ch;
 static struct mutex dma_lock;
@@ -227,7 +227,7 @@ static int __init ion_dummy_init(void)
 	dma_cap_mask_t mask;
 	int i, err;
 
-	idev = ion_device_create(ion_dummy_ioctl);
+	hb_ion_dev = ion_device_create(ion_dummy_ioctl);
 	heaps = kcalloc(dummy_ion_pdata.nr, sizeof(struct ion_heap *),
 			GFP_KERNEL);
 	if (!heaps)
@@ -276,7 +276,7 @@ static int __init ion_dummy_init(void)
 			continue;
 
 		if (heap_data->type == ION_HEAP_TYPE_DMA) {
-			ion_add_cma_heaps(idev);
+			ion_add_cma_heaps(hb_ion_dev);
 			continue;
 		}
 
@@ -285,7 +285,7 @@ static int __init ion_dummy_init(void)
 			err = PTR_ERR(heaps[i]);
 			goto err;
 		}
-		ion_device_add_heap(idev, heaps[i]);
+		ion_device_add_heap(hb_ion_dev, heaps[i]);
 	}
 
 	dma_cap_zero(mask);
@@ -317,7 +317,7 @@ static void __exit ion_dummy_exit(void)
 {
 	int i;
 
-	ion_device_destroy(idev);
+	ion_device_destroy(hb_ion_dev);
 	dma_release_channel(dma_ch);
 
 	for (i = 0; i < dummy_ion_pdata.nr; i++)

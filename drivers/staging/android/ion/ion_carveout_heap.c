@@ -22,7 +22,7 @@
 #include <linux/scatterlist.h>
 #include <linux/slab.h>
 #include <linux/vmalloc.h>
-#include "ion.h"
+#include <linux/ion.h>
 
 #define ION_CARVEOUT_ALLOCATE_FAIL	-1
 

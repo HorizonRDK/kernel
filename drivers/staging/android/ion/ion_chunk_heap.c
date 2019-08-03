@@ -21,7 +21,7 @@
 #include <linux/scatterlist.h>
 #include <linux/slab.h>
 #include <linux/vmalloc.h>
-#include "ion.h"
+#include <linux/ion.h>
 
 struct ion_chunk_heap {
 	struct ion_heap heap;

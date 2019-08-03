@@ -65,41 +65,60 @@ struct ion_platform_data {
 	struct ion_platform_heap *heaps;
 };
 
-#if 0
+struct ion_client;
+
 /**
- * struct ion_buffer - metadata for a particular buffer
- * @ref:		reference count
- * @node:		node in the ion_device buffers tree
- * @dev:		back pointer to the ion_device
- * @heap:		back pointer to the heap the buffer came from
- * @flags:		buffer specific flags
- * @private_flags:	internal buffer specific flags
- * @size:		size of the buffer
- * @priv_virt:		private data to the buffer representable as
- *			a void *
- * @lock:		protects the buffers cnt fields
- * @kmap_cnt:		number of times the buffer is mapped to the kernel
- * @vaddr:		the kernel mapping if kmap_cnt is not zero
- * @sg_table:		the sg table for the buffer if dmap_cnt is not zero
+ * struct ion_device - the metadata of the ion device node
+ * @dev:		the actual misc device
+ * @buffers:		an rb tree of all the existing buffers
+ * @buffer_lock:	lock protecting the tree of buffers
+ * @lock:		rwsem protecting the tree of heaps and clients
+ * @heaps:		list of all the heaps in the system
+ * @user_clients:	list of all the clients created from userspace
  */
-struct ion_buffer {
-	union {
-		struct rb_node node;
-		struct list_head list;
-	};
-	struct ion_device *dev;
-	struct ion_heap *heap;
-	unsigned long flags;
-	unsigned long private_flags;
-	size_t size;
-	void *priv_virt;
-	struct mutex lock;
-	int kmap_cnt;
-	void *vaddr;
-	struct sg_table *sg_table;
-	struct list_head attachments;
+struct ion_device {
+	struct miscdevice dev;
+	struct rb_root buffers;
+	struct mutex buffer_lock;
+	struct rw_semaphore lock;
+	struct plist_head heaps;
+	long (*custom_ioctl)(struct ion_client *client, unsigned int cmd,
+			     unsigned long arg);
+	struct rb_root clients;
+	struct dentry *debug_root;
+	struct dentry *heaps_debug_root;
+	struct dentry *clients_debug_root;
 };
-#endif
+
+/**
+ * struct ion_client - a process/hw block local address space
+ * @node:		node in the tree of all clients
+ * @dev:		backpointer to ion device
+ * @handles:		an rb tree of all the handles in this client
+ * @idr:		an idr space for allocating handle ids
+ * @lock:		lock protecting the tree of handles
+ * @name:		used for debugging
+ * @display_name:	used for debugging (unique version of @name)
+ * @display_serial:	used for debugging (to make display_name unique)
+ * @task:		used for debugging
+ *
+ * A client represents a list of buffers this client may access.
+ * The mutex stored here is used to protect both handles tree
+ * as well as the handles themselves, and should be held while modifying either.
+ */
+struct ion_client {
+	struct rb_node node;
+	struct ion_device *dev;
+	struct rb_root handles;
+	struct idr idr;
+	struct mutex lock;
+	const char *name;
+	char *display_name;
+	int display_serial;
+	struct task_struct *task;
+	pid_t pid;
+	struct dentry *debug_root;
+};
 
 /**
  * struct ion_buffer - metadata for a particular buffer
@@ -156,56 +175,28 @@ struct ion_buffer {
 	pid_t pid;
 };
 
-void ion_buffer_destroy(struct ion_buffer *buffer);
-
-
-#if 0
 /**
- * struct ion_device - the metadata of the ion device node
- * @dev:		the actual misc device
- * @buffers:		an rb tree of all the existing buffers
- * @buffer_lock:	lock protecting the tree of buffers
- * @lock:		rwsem protecting the tree of heaps and clients
- */
-struct ion_device {
-	struct miscdevice dev;
-	struct rb_root buffers;
-	struct mutex buffer_lock;
-	struct rw_semaphore lock;
-	struct plist_head heaps;
-	struct dentry *debug_root;
-	int heap_cnt;
-};
-#endif
-
-#if 0
-/**
- * struct ion_heap_ops - ops to operate on a given heap
- * @allocate:		allocate memory
- * @free:		free memory
- * @map_kernel		map memory to the kernel
- * @unmap_kernel	unmap memory to the kernel
- * @map_user		map memory to userspace
+ * ion_handle - a client local reference to a buffer
+ * @ref:		reference count
+ * @client:		back pointer to the client the buffer resides in
+ * @buffer:		pointer to the buffer
+ * @node:		node in the client's handle rbtree
+ * @kmap_cnt:		count of times this client has mapped to kernel
+ * @id:			client-unique id allocated by client->idr
  *
- * allocate, phys, and map_user return 0 on success, -errno on error.
- * map_dma and map_kernel return pointer on success, ERR_PTR on
- * error. @free will be called with ION_PRIV_FLAG_SHRINKER_FREE set in
- * the buffer's private_flags when called from a shrinker. In that
- * case, the pages being free'd must be truly free'd back to the
- * system, not put in a page pool or otherwise cached.
+ * Modifications to node, map_cnt or mapping should be protected by the
+ * lock in the client.  Other fields are never changed after initialization.
  */
-struct ion_heap_ops {
-	int (*allocate)(struct ion_heap *heap,
-			struct ion_buffer *buffer, unsigned long len,
-			unsigned long flags);
-	void (*free)(struct ion_buffer *buffer);
-	void * (*map_kernel)(struct ion_heap *heap, struct ion_buffer *buffer);
-	void (*unmap_kernel)(struct ion_heap *heap, struct ion_buffer *buffer);
-	int (*map_user)(struct ion_heap *mapper, struct ion_buffer *buffer,
-			struct vm_area_struct *vma);
-	int (*shrink)(struct ion_heap *heap, gfp_t gfp_mask, int nr_to_scan);
+struct ion_handle {
+	struct kref ref;
+	struct ion_client *client;
+	struct ion_buffer *buffer;
+	struct rb_node node;
+	unsigned int kmap_cnt;
+	int id;
 };
-#endif
+
+void ion_buffer_destroy(struct ion_buffer *buffer);
 
 /**
  * struct ion_heap_ops - ops to operate on a given heap
@@ -557,27 +548,6 @@ void ion_client_destroy(struct ion_client *client);
 
 /* struct ion_buffer *ion_handle_buffer(struct ion_handle *handle); */
 
-#if 0
-/**
- * ion_alloc - allocate ion memory
- * @client:		the client
- * @len:		size of the allocation
- * @align:		requested allocation alignment, lots of hardware blocks
- *			have alignment requirements of some kind
- * @heap_id_mask:	mask of heaps to allocate from, if multiple bits are set
- *			heaps will be tried in order from highest to lowest
- *			id
- * @flags:		heap flags, the low 16 bits are consumed by ion, the
- *			high 16 bits are passed on to the respective heap and
- *			can be heap custom
- *
- * Allocate memory in one of the heaps provided in heap mask and return
- * an opaque handle to it.
- */
-struct ion_handle *ion_alloc(struct ion_client *client, size_t len,
-			     size_t align, unsigned int heap_id_mask,
-			     unsigned int flags);
-#endif
 /**
  * ion_alloc - allocate ion memory
  * @client:		the client
@@ -625,6 +595,9 @@ void ion_free(struct ion_client *client, struct ion_handle *handle);
  */
 //int ion_phys(struct ion_client *client, struct ion_handle *handle,
 int ion_phys(struct ion_client *client, int handle_id, phys_addr_t *addr, size_t *len);
+
+void *ion_map_kernel(struct ion_client *client, struct ion_handle *handle);
+void ion_unmap_kernel(struct ion_client *client, struct ion_handle *handle);
 
 phys_addr_t ion_carveout_allocate(struct ion_heap *heap,
 				      unsigned long size,

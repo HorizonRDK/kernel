@@ -23,7 +23,7 @@
 #include <linux/scatterlist.h>
 #include <linux/highmem.h>
 
-#include "ion.h"
+#include <linux/ion.h>
 
 static struct ion_device *cma_ion_dev = NULL;
 
