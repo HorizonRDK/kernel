@@ -15,6 +15,7 @@
 #include <linux/clk.h>
 #include <linux/irq.h>
 #include <linux/io.h>
+#include <linux/types.h>
 #include <linux/of.h>
 #include <linux/of_irq.h>
 #include <linux/module.h>
@@ -84,6 +85,9 @@ static int bpu0_power;
 static int bpu1_power;
 static struct timer_list check_timer;
 static struct mutex enable_lock;
+
+#define MAX_PID_NUM 0x8
+static pid_t pid_fc_id_mask[MAX_PID_NUM];
 
 #ifdef CHECK_IRQ_LOST
 static int checkirq0_enable = 1;
@@ -853,6 +857,7 @@ static int x2_cnn_open(struct inode *inode, struct file *filp)
 {
 	int rc = 0;
 	struct x2_cnn_dev *devdata;
+	int i;
 
 
 	mutex_lock(&x2_cnn_mutex);
@@ -866,6 +871,21 @@ static int x2_cnn_open(struct inode *inode, struct file *filp)
 
 		return -1;
 	}
+
+	for (i = 0; i < MAX_PID_NUM; i++) {
+		if (pid_fc_id_mask[i] == 0
+				|| pid_fc_id_mask[i] == task_pid_nr(current->group_leader))
+			break;
+	}
+
+	if (i == MAX_PID_NUM) {
+		pr_err("Too many processes, BPU now support max %d processes\n");
+		return -EINVAL;
+	}
+
+	if (pid_fc_id_mask[i] != task_pid_nr(current->group_leader))
+		pid_fc_id_mask[i] = task_pid_nr(current->group_leader);
+
 	if (!(devdata->ref_cnt++)) {
 		devdata->cnn_int_num.cnn_int_count = 0;
 		devdata->irq_triggered = 0;
@@ -879,7 +899,6 @@ static int x2_cnn_open(struct inode *inode, struct file *filp)
 #endif
 	}
 	mutex_unlock(&x2_cnn_mutex);
-
 	x2_cnn_reg_read(devdata, X2_CNN_FC_LEN);
 
 	return rc;
@@ -888,6 +907,7 @@ static int x2_cnn_open(struct inode *inode, struct file *filp)
 static int x2_cnn_release(struct inode *inode, struct file *filp)
 {
 	struct x2_cnn_dev *devdata;
+	int i;
 
 	mutex_lock(&x2_cnn_mutex);
 	devdata = filp->private_data;
@@ -904,6 +924,13 @@ static int x2_cnn_release(struct inode *inode, struct file *filp)
 		devdata->head_value = 0;
 	}
 	mutex_unlock(&x2_cnn_mutex);
+
+	for (i = 0; i < MAX_PID_NUM; i++) {
+		if (pid_fc_id_mask[i] == task_pid_nr(current->group_leader)) {
+			pid_fc_id_mask[i] = 0;
+			break;
+		}
+	}
 	return 0;
 }
 
@@ -912,6 +939,7 @@ static unsigned int cnn_ioctl_dir(unsigned int cmd)
 	switch (cmd) {
 	case CNN_IOC_GET_FC_STA:
 	case CNN_IOC_GET_INT_NUM:
+	case CNN_IOC_GET_ID_MASK:
 		return _IOC_READ;
 	case CNN_IOC_RST:
 	case CNN_IOC_FC_ENQUEUE:
@@ -930,6 +958,7 @@ static long x2_cnn_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	void *kernel_fc_data;
 	struct hbrt_x2_funccall_s *tmp_ptr = NULL;
 	unsigned long flags;
+	int i;
 
 	dir = cnn_ioctl_dir(cmd);
 
@@ -961,6 +990,18 @@ static long x2_cnn_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		mutex_lock(&dev->cnn_lock);
 		data.fc_status.free_fc_fifo_cnt =
 			x2_cnn_get_fc_fifo_spaces(dev);
+		mutex_unlock(&dev->cnn_lock);
+		break;
+	case CNN_IOC_GET_ID_MASK:
+		mutex_lock(&dev->cnn_lock);
+		for (i = 0; i < MAX_PID_NUM; i++) {
+			if (pid_fc_id_mask[i] == task_pid_nr(current->group_leader))
+				break;
+		}
+		if (i == MAX_PID_NUM)
+			data.pid_fc_mask = -1;
+		else
+			data.pid_fc_mask = i;
 		mutex_unlock(&dev->cnn_lock);
 		break;
 	case CNN_IOC_FC_ENQUEUE:

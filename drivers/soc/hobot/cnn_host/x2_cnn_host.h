@@ -274,6 +274,7 @@ union cnn_ioctl_arg {
 	struct x2_cnn_fc_status fc_status;
 	struct x2_cnn_rst_data rst_data;
 	struct x2_cnn_int_num int_num_data;
+	int pid_fc_mask;
 };
 
 #define CNN_MT_WB 0x1
@@ -291,4 +292,5 @@ union cnn_ioctl_arg {
 					2, struct x2_cnn_rst_data))
 #define CNN_IOC_GET_INT_NUM	(_IOR(CNN_IOCTL_MAGIC, \
 					3, struct x2_cnn_int_num))
+#define CNN_IOC_GET_ID_MASK	(_IOR(CNN_IOCTL_MAGIC, 4, int))
 #endif	/* __X2_CNN_H__ */
