@@ -25,12 +25,14 @@
 #include <linux/completion.h>
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
+#ifndef CONFIG_NO_DTS_AP
 #include <x2/x2_bifspi.h>
+#endif
 #include "hbipc_lite.h"
 #include "hbipc_errno.h"
 #include "bif_dev_sd.h"
 
-#define VERSION "2.3.0"
+#define VERSION "2.4.0"
 
 #ifdef CONFIG_NO_DTS_AP
 /* module parameters */
@@ -58,6 +60,7 @@ module_param(crc_enable, int, 0644);
 #define BIF_IO_CONNECT           _IO(BIF_IOC_MAGIC, 5)
 #define BIF_IO_DISCONNECT        _IO(BIF_IOC_MAGIC, 6)
 #define BIF_IO_SET_USR_TIMEOUT   _IO(BIF_IOC_MAGIC, 7)
+#define BIF_IO_GET_FRAME_LIMIT   _IO(BIF_IOC_MAGIC, 8)
 
 //#define WORK_COUNT (100)
 struct x2_bif_data {
@@ -1136,6 +1139,12 @@ connect_out:
 		feature->usr_timeout = (int)arg;
 		pr_info("usr_timeout = %dms\n", feature->usr_timeout);
 		break;
+	case BIF_IO_GET_FRAME_LIMIT:
+		status = copy_to_user((void __user *)arg, &frame_len_max_g,
+		sizeof(frame_len_max_g));
+		if (status)
+			ret = -EFAULT;
+		break;
 	default:
 		ret = -EINVAL;
 	}
@@ -1307,6 +1316,7 @@ static int bif_lite_probe(struct platform_device *pdev)
 		bif_err("bif_lite_init error\n");
 		goto bif_lite_init_error;
 	}
+
 	//bif_lite_register_irq(hbipc_irq_handler); chencheng reconstitution
 	bif_lite_irq_register_domain(&domain, hbipc_irq_handler);
 
