@@ -221,6 +221,7 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 			if (copy_from_user(&output_cfg, arg, sizeof(output_cfg_t)))
 				return -EFAULT;
 			ret = iar_output_cfg(&output_cfg);
+			disp_user_config_done = 1;
 		}
 		break;
 	case IAR_SET_VIDEO_CHANNEL:

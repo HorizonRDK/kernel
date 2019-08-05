@@ -42,6 +42,7 @@ uint8_t iar_display_addr_type = DS5;
 uint8_t iar_display_cam_no;
 uint32_t iar_display_ipu_slot_size = 0x1000000;
 uint8_t ch1_en;
+uint8_t disp_user_config_done;
 
 const unsigned int g_iarReg_cfg_table[][3] = {
 	/*reg mask	reg offset*/
@@ -940,24 +941,27 @@ int32_t iar_set_video_buffer(uint32_t slot_id)
 	display_addr.Uaddr = slot_id * iar_display_ipu_addr[0][1] +
 		iar_display_caddr_offset;
 */
-	display_addr.Yaddr = slot_id * iar_display_ipu_slot_size +
-		iar_display_yaddr_offset;
-	display_addr.Uaddr = slot_id * iar_display_ipu_slot_size +
-		iar_display_caddr_offset;
+	if (disp_user_config_done == 1) {
+		display_addr.Yaddr = slot_id * iar_display_ipu_slot_size +
+			iar_display_yaddr_offset;
+		display_addr.Uaddr = slot_id * iar_display_ipu_slot_size +
+			iar_display_caddr_offset;
 
-	display_addr.Vaddr = 0;
+		display_addr.Vaddr = 0;
 
-	pr_debug("iar_display_yaddr offset is 0x%x.\n",
-			iar_display_yaddr_offset);
-	pr_debug("iar_display_caddr offset is 0x%x.\n",
-			iar_display_caddr_offset);
-	pr_debug("iar: iar_display_yaddr is 0x%x.\n", display_addr.Yaddr);
-	pr_debug("iar: iar_display_caddr is 0x%x.\n", display_addr.Uaddr);
-	iar_set_bufaddr(0, &display_addr);
+		pr_debug("iar_display_yaddr offset is 0x%x.\n",
+				iar_display_yaddr_offset);
+		pr_debug("iar_display_caddr offset is 0x%x.\n",
+				iar_display_caddr_offset);
+		pr_debug("iar: iar_display_yaddr is 0x%x.\n",
+				display_addr.Yaddr);
+		pr_debug("iar: iar_display_caddr is 0x%x.\n",
+				display_addr.Uaddr);
+		iar_set_bufaddr(0, &display_addr);
 
-	iar_update();
-	pr_debug("end set iar display addr success!\n");
-
+		iar_update();
+		pr_debug("end set iar display addr success!\n");
+	}
 	return 0;
 }
 EXPORT_SYMBOL_GPL(iar_set_video_buffer);
@@ -1049,6 +1053,10 @@ int32_t iar_close(void)
 		printk(KERN_ERR "IAR dev not inited!");
 		return -1;
 	}
+	disp_user_config_done = 0;
+	iar_switch_buf(0);
+	iar_switch_buf(2);
+	iar_update();
 	//iar_stop();
 	//value = readl(g_iar_dev->sysctrl + 0x148);
 	//value |= (0x1<<2);
@@ -1566,19 +1574,20 @@ static int x2_iar_remove(struct platform_device *pdev)
 	return 0;
 }
 
-int iar_is_enabled(void)
-{
-	/* IAR NOT enabled cases as follow:
-	 * 1.disabled in dts not probe
-	 */
-	if (g_iar_dev == NULL)
-		return 0;
-	/* 2.disabled dynamic */
-
-	/*enabled case*/
-	return 1;
-}
-EXPORT_SYMBOL_GPL(iar_is_enabled);
+/*int iar_is_enabled(void)
+ *{
+ *	//IAR NOT enabled cases as follow:
+ *	// 1.disabled in dts not probe
+ *
+ *	if (g_iar_dev == NULL)
+ *		return 0;
+ *	// 2.disabled dynamic
+ *
+ *	//enabled case
+ *	return 1;
+ *}
+ *EXPORT_SYMBOL_GPL(iar_is_enabled);
+ */
 
 #ifdef CONFIG_OF
 static const struct of_device_id x2_iar_of_match[] = {

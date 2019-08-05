@@ -574,6 +574,7 @@ enum DISPLAY_ADDR_TYPE {
 
 extern int display_type;
 extern unsigned int iar_debug_level;
+extern uint8_t disp_user_config_done;
 #define IAR_DEBUG_PRINT(format, args...)	\
 	do {									\
 		if(iar_debug_level)					\
@@ -609,6 +610,6 @@ int user_set_fb(void);
 int set_video_display_channel(uint8_t channel_no);
 int set_video_display_ddr_layer(uint8_t ddr_layer_no);
 
-int iar_is_enabled(void);
+//int iar_is_enabled(void);
 
 #endif //__X2_IAR_H__
