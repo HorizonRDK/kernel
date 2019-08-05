@@ -14,6 +14,7 @@
 #include <linux/slab.h>
 #include <linux/string.h>
 #include <linux/reset.h>
+#include <x2/diag.h>
 
 #include "i2c-x2.h"
 
@@ -43,6 +44,7 @@ struct x2_i2c_dev {
 	u8 *rx_buf;
 	size_t tx_remaining;
 	size_t rx_remaining;
+	uint8_t i2c_id;
 };
 
 static int x2_i2c_cfg(struct x2_i2c_dev *dev, int dir_rd, int timeout_enable)
@@ -173,6 +175,34 @@ static void x2_drain_rxfifo(struct x2_i2c_dev *dev, int hold)
 	}
 }
 
+/*
+ * i2c diag msg send
+ */
+static void x2_i2c_diag_process(u32 errsta, struct x2_i2c_dev *i2c_contro)
+{
+	u8 sta;
+	u8 envgen_timing;
+	u32 int_status;
+	u8 envdata[5]; // channel num + srcpnd reg value.
+	u8 i2c_event;
+
+	i2c_event = EventIdI2cController0Err + i2c_contro->i2c_id;
+	if (errsta) {
+		sta = DiagEventStaFail;
+		envgen_timing = DiagGenEnvdataWhenErr;
+		int_status = i2c_contro->msg_err;
+		envdata[0] = i2c_contro->i2c_id;
+		memcpy(envdata + 1, (uint8_t *)&int_status, sizeof(u32));
+		diag_send_event_stat_and_env_data(DiagMsgPrioHigh,
+						ModuleDiag_i2c, i2c_event, sta,
+						envgen_timing, envdata, 5);
+	} else {
+		sta = DiagEventStaSuccess;
+		diag_send_event_stat(DiagMsgPrioHigh, ModuleDiag_i2c,
+								i2c_event, sta);
+	}
+}
+
 static irqreturn_t x2_i2c_isr(int this_irq, void *data)
 {
 	struct x2_i2c_dev *dev = data;
@@ -225,6 +255,9 @@ static irqreturn_t x2_i2c_isr(int this_irq, void *data)
 		}
 
 	}
+
+	x2_i2c_diag_process(err, dev);
+
 	if (comp)
 		complete(&dev->completion);
 	enable_irq(this_irq);
@@ -556,7 +589,21 @@ static int x2_i2c_probe(struct platform_device *pdev)
 	if (ret)
 		free_irq(dev->irq, dev);
 
-	printk("x2_i2c_probe[%d] done\n", i2c_id);
+	/* 
+	 * diag ref init 
+	 */
+	dev->i2c_id = i2c_id;
+	if ((EventIdI2cController0Err + i2c_id) <= EventIdI2cController3Err) {
+		if (diag_register(ModuleDiag_i2c, EventIdI2cController0Err + i2c_id,
+				5, 300, 4000, NULL) < 0) {
+			dev_err(&pdev->dev, "i2c%d diag register fail\n",
+					EventIdI2cController0Err + i2c_id);
+		}
+	} else {
+			dev_err(&pdev->dev, "i2c event id overun:max 4,but now:%d\n",
+					EventIdI2cController0Err + i2c_id);
+	}
+	printk("x2_i2c_probe done\n");
 	return ret;
 }
 
