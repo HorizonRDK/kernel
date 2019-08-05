@@ -292,7 +292,7 @@
 };
 
 &bifeth {
-	status = "disabled";
+	status = "okay";
 };
 
 &biflite_spi {
@@ -303,9 +303,9 @@
 };
 &biflite_sd {
 	status = "okay";
-	frame_len_max = <2097152>;
+	frame_len_max = <262144>;
 	frag_len_max = <32768>;
-	frame_count = <2>;
+	frame_count = <12>;
 };
 &qspi {
 	status = "okay";
