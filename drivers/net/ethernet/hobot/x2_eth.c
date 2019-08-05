@@ -59,6 +59,7 @@
 #include <linux/of_mdio.h>
 #include <linux/timer.h>
 #include <linux/tcp.h>
+#include <x2/diag.h>
 
 #define DRIVER_NAME			"dwceqos"
 #define DRIVER_DESCRIPTION		"Synopsys DWC Ethernet QoS driver"
@@ -699,6 +700,32 @@ static void print_descriptor(struct net_local *lp, int index, int tx)
 		index, dd);
 	pr_info("0x%08x 0x%08x 0x%08x 0x%08x\n", dd->des0, dd->des1, dd->des2,
 		dd->des3);
+}
+
+static void dwceqos_diag_process(u32 errsta, uint32_t regval)
+{
+	u8 sta;
+	u8 envgen_timing;
+	u32 int_status;
+
+	int_status = regval;
+	if (errsta) {
+		sta = DiagEventStaFail;
+		envgen_timing = DiagGenEnvdataWhenErr;
+		if (diag_send_event_stat_and_env_data(DiagMsgPrioHigh,
+						ModuleDiag_eth, EventIdEthDmaBusErr, sta,
+						envgen_timing, (uint8_t *)&int_status, 4) < 0) {
+			//pr_err("eth: event %d snd diag msg with env data error\n",
+							//EventIdEthDmaBusErr);
+		}
+	} else {
+		sta = DiagEventStaSuccess;
+		if (diag_send_event_stat(DiagMsgPrioHigh, ModuleDiag_eth,
+								EventIdEthDmaBusErr, sta) < 0) {
+			//pr_err("eth: event %d snd diag msg error\n",
+							//EventIdEthDmaBusErr);
+		}
+	}
 }
 
 static void print_status(struct net_local *lp)
@@ -1401,6 +1428,7 @@ static irqreturn_t dwceqos_interrupt(int irq, void *dev_id)
 	u32 cause;
 	u32 dma_status;
 	irqreturn_t ret = IRQ_NONE;
+	int err = 0;
 
 	cause = dwceqos_read(lp, REG_DWCEQOS_DMA_IS);
 	/* DMA Channel 0 Interrupt */
@@ -1426,6 +1454,7 @@ static irqreturn_t dwceqos_interrupt(int irq, void *dev_id)
 			/* errata 9000831707 */
 			dma_status |= DWCEQOS_DMA_CH0_IS_TEB |
 				      DWCEQOS_DMA_CH0_IS_REB;
+			err = 1;
 		}
 
 		/* Ack all DMA Channel 0 IRQs */
@@ -1444,6 +1473,9 @@ static irqreturn_t dwceqos_interrupt(int irq, void *dev_id)
 		dwceqos_mac_interrupt(lp);
 		ret = IRQ_HANDLED;
 	}
+
+	dwceqos_diag_process(err, dma_status);
+
 	return ret;
 }
 
@@ -3016,6 +3048,11 @@ static int dwceqos_probe(struct platform_device *pdev)
 		goto err_out_deregister_fixed_link;
 	}
 
+	if (diag_register(ModuleDiag_eth, EventIdEthDmaBusErr,
+				4, 300, 6000, NULL) < 0)
+			pr_err("eth diag register fail\n");
+
+	pr_info("eth probe done\n");
 	return 0;
 
 err_out_deregister_fixed_link:
