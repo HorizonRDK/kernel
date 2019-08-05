@@ -16,7 +16,6 @@
 #include <linux/time.h>
 #include <linux/param.h>
 #include <linux/random.h>
-#include <x2/diag.h>
 #include "diag_dev.h"
 
 //#define DEBUG
@@ -56,9 +55,12 @@ static long diag_dev_ioctl(struct file *file, unsigned int cmd,
 	int retval;
 	unsigned char *envdata;
 	size_t count;
-	unsigned long flags;
+	//unsigned long flags;
 	uint16_t buf[2];
+	uint8_t op;
 	struct diag_msg_id_unmask_struct *p;
+	struct diag_msg_id unmaskid;
+	//uint8_t ready_flag;
 
 	mutex_lock(&diag_dev_ioctl_mutex);
 	switch (cmd) {
@@ -107,12 +109,18 @@ self:
 			ret = -EINVAL;
 			goto mask_id;
 		}
+		unmaskid.module_id = buf[0];
+		unmaskid.event_id = buf[1];
+		if (diag_unmask_id_in_list(&unmaskid)) {
+			pr_debug("moduleid:%d, eventid:%d had exsit in unmask list\n",
+					buf[0], buf[1]);
+			goto mask_id;
+		}
 		if (diag_id_unmask_list_num > DIAG_UNMASK_ID_MAX_NUM) {
 			pr_err("diag dev: diag unmask id num over range\n");
 			ret = -EINVAL;
 			goto mask_id;
 		}
-		pr_debug("unmask, module id: %x  event id: %x \n", buf[0], buf[1]);
 		p = (struct diag_msg_id_unmask_struct *)kmalloc(
 			sizeof(struct diag_msg_id_unmask_struct), GFP_ATOMIC);
 		if (!p) {
@@ -124,12 +132,25 @@ self:
 		p->event_id = buf[1];
 		list_add_tail(&(p->mask_lst), &diag_id_unmask_list);
 		diag_id_unmask_list_num++;
+		pr_debug("module id:%x event id:%x had add to unmaskid list\n",
+				 buf[0], buf[1]);
 mask_id:
 		//spin_unlock_irqrestore(&diag_id_unmask_list_spinlock, flags);
 		break;
 
-	case IOCS_DIAG_APP_READY_NOW:
-		diag_app_ready = 1;
+	case IOCS_DIAGDRIVER_STA:
+		if (copy_from_user((uint8_t *)&op, (uint8_t __user *)arg, 1)) {
+			pr_err("diag dev: IOCS_DIAG_STATUS copy from user error\n");
+			ret = -EINVAL;
+			goto diag_sta;
+		}
+		if (op == (uint8_t)DIAGDRIVER_STOPWORK) {
+			diag_app_ready = 0;
+			INIT_LIST_HEAD(&diag_id_unmask_list);
+		} else if (op == (uint8_t)DIAGDRIVER_STARTWORK)
+			diag_app_ready = 1;
+
+diag_sta:
 		break;
 
 	default:

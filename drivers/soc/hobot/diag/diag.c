@@ -207,7 +207,7 @@ static int diag_send_msg(char *pbuf, uint32_t len)
 	ret = netlink_unicast(nlsk, nl_skb, USER_PORT, MSG_DONTWAIT);
 	mutex_unlock(&diag_netlink_send_mutex);
 	if (ret < 0) {
-		pr_err("netlink unicast snd fail\n", len);
+		pr_err("netlink unicast snd fail\n");
 		return -1;
 	}
 
@@ -404,9 +404,9 @@ error:
  * @return 1:unmask id in list 0:unmask id not in list,
  * so can not send this msg id to userspace.
  */
-static int diag_unmask_id_in_list(struct diag_msg_id *id)
+int diag_unmask_id_in_list(struct diag_msg_id *id)
 {
-	unsigned long flags;
+	//unsigned long flags;
 	int ret = 0;
 	struct diag_msg_id_unmask_struct *id_unmask;
 
@@ -424,7 +424,7 @@ static int diag_unmask_id_in_list(struct diag_msg_id *id)
 
 static struct id_register_struct *diag_id_in_register_list(struct diag_msg_id *id)
 {
-	unsigned long flags;
+	//unsigned long flags;
 	struct id_register_struct *idreg;
 	struct id_register_struct *result = NULL;
 
@@ -1093,7 +1093,7 @@ static int diag_item_in_register_list_envdatabuffer_index(struct id_info *pidinf
 
 	pid_reg_delet = diag_id_in_register_list(&(pidinfo->id));
 	if (!pid_reg_delet) {
-		pr_debug("%s: ptr is NULL\n");
+		pr_debug("%s: ptr is NULL\n", __func__);
 		return -1;
 	}
 

@@ -33,6 +33,7 @@ enum diag_module_id {
 	ModuleDiag_bpu,
 	ModuleDiag_sound,
 	ModuleDiag_bif,
+	ModuleDiag_eth,
 	ModuleIdMax = 1000,
 };
 
@@ -113,6 +114,11 @@ enum diag_bif_module_eventid {
 	EventIdBifSdErr,
 	//EventIdBifEthernetErr,
 	//EventIdBifSioErr,
+};
+
+/* eth module event id */
+enum diag_eth_module_eventid {
+	EventIdEthDmaBusErr = 1,
 };
 
 #define DIAG_UNMASK_ID_MAX_NUM 100
@@ -259,25 +265,5 @@ extern int diag_send_event_stat(
 extern int diag_register(uint16_t module_id, uint16_t event_id, size_t envdata_max_size,
 		uint32_t min_snd_ms, uint32_t max_time_out_snd,
 		void (*rcvcallback)(void *p, size_t len));
-
-#if 0
-/*
- * check: can update env data buffer? before call diag_send_event_stat_and_env_data(...)
- * If the environment data you send is too large at last,the env buffer maybe
- * not been released(due to env data had not send finished). this
- * time you want to send data agin(change value in the old buffer), as a result,
- * you can't change any value that the pointer points to. Otherwise,the data
- * will be messed up in the old env buffer.
- * @return 1: can send again, you can change the global env buffer again.
- *		   0: last send had not finished, you can not change the global buffer.
- */
-extern int diag_can_update_envdata_buffer(uint16_t module_id, uint16_t event_id);
-
-/*
- * diag driver or diag app is ready?
- * 1:ready, 0:not
- */
-extern int diag_is_ready(void);
-#endif
 
 #endif
