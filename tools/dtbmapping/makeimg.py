@@ -7,6 +7,8 @@ import binascii
 import numpy as np 
 import sys
 import math
+import gzip
+import shutil
 
 from array import array
 from collections import OrderedDict  
@@ -88,7 +90,6 @@ bootInfoPath   = r"bootinfo.json"
 bootLoaderPath = r"bootfile.json"
 bootDtb     = r"bootdtb.json"
 
-
 if __name__ == '__main__':
 
     if len(sys.argv) == 3:
@@ -103,6 +104,14 @@ if __name__ == '__main__':
     bootInfoContent = bootInfoOutput()
     filePath = bootloaderInfoOutput()
 
+    dtbPath = os.getenv('TARGET_KERNEL_DIR') + '/'
+    imageType = os.getenv('IMAGE_TYPE')
+
+    if (imageType == "nor"):
+        filePath[6] = dtbPath + filePath[6]
+        filePath[7] = dtbPath + filePath[7]
+        file_produced1 = open(filePath[6], "wb")
+
     file = open(bootLoaderPath, "rb")
     fjson = json.load(file, object_pairs_hook=OrderedDict)
 
@@ -113,17 +122,37 @@ if __name__ == '__main__':
 
     file = open(bootDtb, "rb")
     hjson = json.load(file, object_pairs_hook=OrderedDict)
+    dict = {}
 
     j=5
+    addr=0
     board_id = resolveJsonKey(bootDtb)
     bootInfoContent[4] = np.asarray(len(board_id), dtype=np.int32)
     for key in board_id:
         bootInfoContent[j] = np.asarray(str2hex(key), dtype=np.int32)
         bootInfoContent[j+1] = np.asarray(str2hex(hjson[key]['gpio_id']), dtype=np.int32)
-        bootInfoContent[j+2] = np.asarray(str2hex(hjson[key]['dtb_addr']), dtype=np.int32)
-        bootInfoContent[j+3] = np.asarray(str2hex(hjson[key]['dtb_size']), dtype=np.int32)
+        bootInfoContent[j+3] = 64*1024
         dtbNameTranfer(bootInfoContent, hjson[key]['dtb_name'], j+4)
-        j = j+12
+
+        dict_key = hjson[key]['dtb_name']
+        if (dict.has_key(dict_key)):
+            value = dict[dict_key]
+            bootInfoContent[j+2] = value
+        else :
+            bootInfoContent[j+2] = addr
+            dict[dict_key] = addr
+            addr = addr + 64*1024
+
+            if (imageType == "nor"):
+                dtb_file = dtbPath + dict_key
+                file_object = open(dtb_file, 'rb')
+                file_content = file_object.read()
+                file_produced1.write(file_content)
+
+                file_size = getFileSize(dtb_file)
+                zero0 = 64*1024 - file_size
+                file_produced1.write('\x00' * zero0)
+        j = j + 12
     
     dtbname = resolveJson(bootLoaderPath)
     listname = list(dtbname[0])
@@ -132,3 +161,8 @@ if __name__ == '__main__':
     file_produced0.write(bootInfoContent)
 
     file_produced0.close()
+    if (imageType == "nor"):
+        file_produced1.close()
+
+        with open(filePath[6], 'rb') as f_in, gzip.open(filePath[7], 'wb') as f_out:
+                shutil.copyfileobj(f_in, f_out)
