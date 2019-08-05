@@ -2051,7 +2051,7 @@ static ssize_t fc_time_show(struct x2_cnn_dev *dev, char *buf)
 	ret = sprintf(buf, "%-6s%-17s\t%-17s\t%-17s\t%s\n",
 					"num",
 					"intterupt",
-					"start time",
+					"start_time",
 					"end_time",
 					"exe_time");
 	sum += ret;
