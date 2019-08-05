@@ -358,7 +358,7 @@
 		ipu: ipu@0xA4000900 {
 			compatible = "hobot,x2-ipu";
 			reg = <0 0xA4000900 0 0x400>;
-			memory-region = <&ipu_reserved>;
+			/*memory-region = <&ipu_reserved>;*/
 			status = "disabled";
 		};
 

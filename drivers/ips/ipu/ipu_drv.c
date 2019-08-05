@@ -30,7 +30,7 @@
 
 #define X2_IPU_NAME		"x2-ipu"
 
-//#define USE_ION_MEM
+#define USE_ION_MEM
 
 #define ENABLE 1
 #define DISABLE 0

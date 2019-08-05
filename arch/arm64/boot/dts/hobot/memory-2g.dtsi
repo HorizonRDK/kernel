@@ -11,16 +11,10 @@
 			no-map;
 		};
 
-		/* Reserved 512MB memory for ipu subsystem */
-		ipu_reserved: ipu_reserved@0x04900000 {
-			reg = <0x0 0x04900000 0x0 0x20000000>;
-			/*no-map;*/
-		};
-
-		/* Reserved 512MB memory for ion*/
-		ion_reserved: ion_reserved@0x24900000{
+		/* Reserved 1G memory for ion*/
+		ion_reserved: ion_reserved@0x04900000{
 			compatible = "ion-pool";
-			reg = <0x0 0x24900000 0x0 0x20000000>;
+			reg = <0x0 0x04900000 0x0 0x40000000>;
 		};
 	};
 };
