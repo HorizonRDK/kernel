@@ -5,7 +5,7 @@
 #include <linux/kfifo.h>
 
 #define X2_CNN_DRV_NAME		"x2_cnn"
-#define CNN_INT_NUM 16
+#define CNN_INT_NUM 6
 
 /*************************************************************
  * x2 cnn register offset list
@@ -141,7 +141,6 @@ struct x2_cnn_int_num {
 	u32 cnn_int_num[CNN_INT_NUM];
 	u64 cnn_int_interval[CNN_INT_NUM];
 	u32 cnn_int_count;
-	u32 reserved[CNN_INT_NUM];
 };
 
 struct x2_cnn_dev {
