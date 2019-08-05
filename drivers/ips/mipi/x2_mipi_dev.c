@@ -27,7 +27,7 @@
 #include <linux/interrupt.h>
 #include <linux/irq.h>
 #include <linux/delay.h>
-
+#include <x2/diag.h>
 #include "x2/x2_mipi_dev.h"
 #include "x2_mipi_dev_regs.h"
 #include "x2_mipi_dphy.h"
@@ -368,6 +368,20 @@ static void mipi_dev_irq_disable(void)
 	return;
 }
 
+static void mipi_dev_diag_report(uint8_t errsta, uint32_t total_irq,
+				uint32_t *sub_irq_data, uint32_t elem_cnt)
+{
+		diag_send_event_stat_and_env_data(
+				DiagMsgPrioMid,
+				ModuleDiag_VIO,
+				EventIdVioMipiDevErr,
+				DiagEventStaFail,
+				DiagGenEnvdataWhenErr,
+				NULL,
+				20);
+
+}
+
 /**
  * @brief mipi_dev_irq_func : irq func
  *
@@ -380,6 +394,8 @@ static irqreturn_t mipi_dev_irq_func(int this_irq, void *data)
 {
 	uint32_t   irq = 0;
 	uint32_t   subirq = 0;
+	uint8_t  err_occureed = 0;
+	uint32_t env_subirq[4];
 	void __iomem  *iomem = NULL;
 	mipi_dev_t   *mipi_dev = (mipi_dev_t *)data;
 	if (NULL == g_mipi_dev) {
@@ -393,19 +409,28 @@ static irqreturn_t mipi_dev_irq_func(int this_irq, void *data)
 	if (irq & MIPI_DEV_INT_VPG) {
 		subirq = mipi_getreg(iomem + REG_MIPI_DEV_INT_ST_VPG);
 		printk_ratelimited(KERN_ERR "mipi dev VPG ST: 0x%x", subirq);
+		err_occureed = 1;
+		env_subirq[0] = subirq;
 	}
 	if (irq & MIPI_DEV_INT_IDI) {
 		subirq = mipi_getreg(iomem + REG_MIPI_DEV_INT_ST_IDI);
 		printk_ratelimited(KERN_ERR "mipi dev IDI ST: 0x%x", subirq);
+		err_occureed = 1;
+		env_subirq[1] = subirq;
 	}
 	if (irq & MIPI_DEV_INT_IPI) {
 		subirq = mipi_getreg(iomem + REG_MIPI_DEV_INT_ST_IPI);
 		printk_ratelimited(KERN_ERR "mipi dev IPI ST: 0x%x", subirq);
+		err_occureed = 1;
+		env_subirq[2] = subirq;
 	}
 	if (irq & MIPI_DEV_INT_PHY) {
 		subirq = mipi_getreg(iomem + REG_MIPI_DEV_INT_ST_PHY);
 		printk_ratelimited(KERN_ERR "mipi dev PHY ST: 0x%x", subirq);
+		err_occureed = 1;
+		env_subirq[3] = subirq;
 	}
+	mipi_dev_diag_report(err_occureed, irq, env_subirq, 4);
 	enable_irq(this_irq);
 	return IRQ_HANDLED;
 }
@@ -815,7 +840,13 @@ static int x2_mipi_dev_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, mipi_dev);
 	g_mipi_dev = mipi_dev;
-	dev_info(&pdev->dev, "X2 mipi dev prop OK\n");
+
+	/* diag */
+	if (diag_register(ModuleDiag_VIO, EventIdVioMipiDevErr, 20, 300, 5000,
+			  NULL) < 0) {
+		pr_err("mipi dev diag register fail\n");
+	}
+	dev_info(&pdev->dev, "X2 mipi dev prop done\n");
 	return 0;
 err:
 	class_destroy(x2_mipi_dev_class);

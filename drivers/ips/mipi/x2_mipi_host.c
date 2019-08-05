@@ -28,6 +28,7 @@
 #include <linux/irq.h>
 #include <linux/delay.h>
 
+#include <x2/diag.h>
 #include "x2/x2_mipi_host.h"
 #include "x2_mipi_host_regs.h"
 #include "x2_mipi_dphy.h"
@@ -174,24 +175,24 @@ static unsigned long mipi_host_pixel_clk_select(mipi_host_cfg_t *control)
 static uint16_t mipi_host_get_hsd(mipi_host_cfg_t *control, unsigned long pixclk)
 {
 	/**
-	 * Rxbyteclk = (Rxbitclk / Number_of_lanes) / 8 
-	 * Rxbyteclk_per = 1 / Rxbyteclk 
-	 * Bytes_to_transmi = BitsPerPixel * Line_size / 8 
-	 * time to transmit last pixel in PPI 
-	 * = (Bytes_to_transmit / Number_of_lanes) *  Rxbyteclk_per 
-	 * = ((BitsPerPixel * Line_size / 8) / Number_of_lanes) /((Rxbitclk /  Number_of_lanes) / 8) 
-	 * = (BitsPerPixel * Line_size) / Rxbitclk 
-	 *  
-	 * pixel_clk_per = 1 / pixel_clk 
-	 * time to transmit last pixel in IPI 
-	 * = (hsa + hbp + hsd + cycles_to_transmit_data) * pixel_clk_per 
+	 * Rxbyteclk = (Rxbitclk / Number_of_lanes) / 8
+	 * Rxbyteclk_per = 1 / Rxbyteclk
+	 * Bytes_to_transmi = BitsPerPixel * Line_size / 8
+	 * time to transmit last pixel in PPI
+	 * = (Bytes_to_transmit / Number_of_lanes) *  Rxbyteclk_per
+	 * = ((BitsPerPixel * Line_size / 8) / Number_of_lanes) /((Rxbitclk /  Number_of_lanes) / 8)
+	 * = (BitsPerPixel * Line_size) / Rxbitclk
+	 *
+	 * pixel_clk_per = 1 / pixel_clk
+	 * time to transmit last pixel in IPI
+	 * = (hsa + hbp + hsd + cycles_to_transmit_data) * pixel_clk_per
 	 * = (hsa + hbp + hsd + cycles_to_transmit_data) / pixel_clk
-	 *  
-	 * T(ppi) < T(ipi) ==> 
-	 * BitsPerPixel * Line_size * pixel_clk / Rxbitclk < (hsa + hbp + hsd + cycles_to_trans) ==> 
+	 *
+	 * T(ppi) < T(ipi) ==>
+	 * BitsPerPixel * Line_size * pixel_clk / Rxbitclk < (hsa + hbp + hsd + cycles_to_trans) ==>
 	 *  hsd > BitsPerPixel * Line_size * pixel_clk / Rxbitclk - (cycles_to_trans+hsa+ hbp)
 	 *  cycles_to_trans = Line_size in 48 bits IPI
-	 *  
+	 *
 	 */
 	unsigned long rx_bit_clk = 0;
 	unsigned long bits_per_pixel = 0;
@@ -432,6 +433,20 @@ static void mipi_host_irq_disable(void)
 	return;
 }
 
+static void mipi_host_diag_report(uint8_t errsta, uint32_t total_irq,
+				uint32_t *sub_irq_data, uint32_t elem_cnt)
+{
+		diag_send_event_stat_and_env_data(
+				DiagMsgPrioLow,
+				ModuleDiag_VIO,
+				EventIdVioMipiHostErr,
+				DiagEventStaFail,
+				DiagGenEnvdataWhenErr,
+				NULL,
+				32);
+
+}
+
 /**
  * @brief mipi_host_irq_func : irq func
  *
@@ -444,6 +459,8 @@ static irqreturn_t mipi_host_irq_func(int this_irq, void *data)
 {
 	uint32_t      irq = 0;
 	uint32_t      subirq = 0;
+	uint8_t err_occureed = 0;
+	uint32_t env_subirq[7];
 	void __iomem  *iomem = NULL;
 	mipi_host_t   *mipi_host = (mipi_host_t *)data;
 	if (NULL == g_mipi_host) {
@@ -462,37 +479,52 @@ static irqreturn_t mipi_host_irq_func(int this_irq, void *data)
 		subirq = mipi_getreg(iomem + REG_MIPI_HOST_INT_ST_PHY_FATAL);
 		// mipidbg("mipi host PHY FATAL: 0x%x", subirq);
 		printk_ratelimited(KERN_ERR "mipi host PHY FATAL: 0x%x", subirq);
+		err_occureed = 1;
+		env_subirq[0] = subirq;
 	}
 	if (irq & MIPI_HOST_INT_PKT_FATAL) {
 		subirq = mipi_getreg(iomem + REG_MIPI_HOST_INT_ST_PKT_FATAL);
 		// mipidbg("mipi host PKT FATAL: 0x%x", subirq);
 		printk_ratelimited(KERN_ERR "mipi host PKT FATAL: 0x%x", subirq);
+		err_occureed = 1;
+		env_subirq[1] = subirq;
 	}
 	if (irq & MIPI_HOST_INT_FRM_FATAL) {
 		subirq = mipi_getreg(iomem + REG_MIPI_HOST_INT_ST_FRAME_FATAL);
 		// mipidbg("mipi host FRAME FATAL: 0x%x", subirq);
 		printk_ratelimited(KERN_ERR "mipi host FRAME FATAL: 0x%x", subirq);
+		err_occureed = 1;
+		env_subirq[2] = subirq;
 	}
 	if (irq & MIPI_HOST_INT_PHY) {
 		subirq = mipi_getreg(iomem + REG_MIPI_HOST_INT_ST_PHY);
 		// mipidbg("mipi host PHY ST: 0x%x", subirq);
 		printk_ratelimited(KERN_ERR "mipi host PHY ST: 0x%x", subirq);
+		err_occureed = 1;
+		env_subirq[3] = subirq;
 	}
 	if (irq & MIPI_HOST_INT_PKT) {
 		subirq = mipi_getreg(iomem + REG_MIPI_HOST_INT_ST_PKT);
 		// mipidbg("mipi host PKT ST: 0x%x", subirq);
 		printk_ratelimited(KERN_ERR "mipi host PKT ST: 0x%x", subirq);
+		err_occureed = 1;
+		env_subirq[4] = subirq;
 	}
 	if (irq & MIPI_HOST_INT_LINE) {
 		subirq = mipi_getreg(iomem + REG_MIPI_HOST_INT_ST_LINE);
 		// mipidbg("mipi host LINE ST: 0x%x", subirq);
 		printk_ratelimited(KERN_ERR "mipi host LINE ST: 0x%x", subirq);
+		err_occureed = 1;
+		env_subirq[5] = subirq;
 	}
 	if (irq & MIPI_HOST_INT_IPI) {
 		subirq = mipi_getreg(iomem + REG_MIPI_HOST_INT_ST_IPI);
 		// mipidbg("mipi host IPI ST: 0x%x", subirq);
 		printk_ratelimited(KERN_ERR "mipi host IPI ST: 0x%x", subirq);
+		err_occureed = 1;
+		env_subirq[6] = subirq;
 	}
+	mipi_host_diag_report(err_occureed, irq, env_subirq, 7);
 	enable_irq(this_irq);
 	return IRQ_HANDLED;
 }
@@ -922,7 +954,14 @@ static int x2_mipi_host_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, mipi_host);
 	g_mipi_host = mipi_host;
-	dev_info(&pdev->dev, "X2 mipi host prop OK\n");
+
+	/* diag */
+	if (diag_register(ModuleDiag_VIO, EventIdVioMipiHostErr, 32, 300, 5000,
+			  NULL) < 0) {
+		pr_err("mipi host diag register fail\n");
+	}
+
+	dev_info(&pdev->dev, "X2 mipi host prop done\n");
 	return 0;
 err:
 	class_destroy(x2_mipi_host_class);
