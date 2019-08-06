@@ -209,7 +209,7 @@ int ips_irq_enable(int irq)
 	val |= g_ipsdev->cur_mask;
 	writel(val, g_ipsdev->regaddr + IPSINTMASK);
 	spin_unlock_irqrestore(g_ipsdev->lock, flags);
-	printk(KERN_INFO "module %d's irq enabled\n", irq);
+	pr_debug("module %d's irq enabled\n", irq);
 	return 0;
 }
 EXPORT_SYMBOL_GPL(ips_irq_enable);
@@ -227,7 +227,7 @@ int ips_irq_disable(int irq)
 	writel(val, g_ipsdev->regaddr + IPSINTMASK);
 	spin_unlock_irqrestore(g_ipsdev->lock, flags);
 	readl(g_ipsdev->regaddr + IPSINTSTATE);
-	printk(KERN_INFO "module %d's irq disabled\n", irq);
+	pr_debug("module %d's irq disabled\n", irq);
 	return 0;
 }
 EXPORT_SYMBOL_GPL(ips_irq_disable);

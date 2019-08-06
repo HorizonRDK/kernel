@@ -397,9 +397,9 @@ int8_t ipu_drv_start(void)
 	else
 		ips_mask_int(PYM_FRAME_START | PYM_FRAME_DONE);
 
-	ips_irq_enable(IPU_INT);
 	g_ipu->stop = false;
 	spin_unlock(&g_ipu->elock);
+	ips_irq_enable(IPU_INT);
 	return 0;
 }
 
