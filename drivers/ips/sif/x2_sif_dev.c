@@ -232,6 +232,7 @@ const uint32_t g_sif_cfg_table[][TABLE_MAX] = {
 typedef struct _sif_dev_s {
 	void __iomem  *iomem;
 	int            bustype;
+	int            bypass_state;
 } sif_dev_t;
 
 sif_dev_t  *g_sif_dev = NULL;
@@ -246,6 +247,44 @@ sif_dev_t  *g_sif_dev = NULL;
 /*                                 value;})										   */
 /*#define sif_putreg(a,v)        ({bifdev_set_cpchip_reg((uint32_t)a, v);\		   */
 /*                                 sifinfo("write 0x%x: 0x%x", (uint32_t)a, v);})  */
+int32_t sif_dev_bypass_ctrl(uint32_t port, uint32_t enable)
+{
+	uint32_t base = 0, sif_enable;
+	void __iomem  *iomem = NULL;
+	if (NULL == g_sif_dev) {
+		siferr("sif dev not inited!");
+		return -1;
+	}
+	iomem = g_sif_dev->iomem;
+	base = sif_getreg(iomem + REG_SIF_BASE_CTRL);
+	sif_enable = CONFIG_GET(BASE_SIF_ENABLE, base);
+	if (sif_enable == SIF_DISABLE)
+		return -1;
+	if (BUS_TYPE_BT1120 == g_sif_dev->bustype) {
+		base = CONFIG_CLEAR_SET(base, BASE_BT2AP_ENABLE, enable);
+		base = CONFIG_CLEAR_SET(base, BASE_DVP2AP_ENABLE, 0);
+		base = CONFIG_CLEAR_SET(base, BASE_MIPI2AP_ENABLE, 0);
+	} else if (BUS_TYPE_DVP == g_sif_dev->bustype) {
+		base = CONFIG_CLEAR_SET(base, BASE_BT2AP_ENABLE, 0);
+		base = CONFIG_CLEAR_SET(base, BASE_DVP2AP_ENABLE, enable);
+		base = CONFIG_CLEAR_SET(base, BASE_MIPI2AP_ENABLE, 0);
+	} else if (BUS_TYPE_MIPI == g_sif_dev->bustype ||
+			   BUS_TYPE_DUALRX == g_sif_dev->bustype) {
+		if (port != (uint32_t)(-1)) {
+			if (port > 1)
+				return -1;
+			base = CONFIG_CLEAR_SET(base, BASE_MIPI2AP_SEL, port);
+		}
+		base = CONFIG_CLEAR_SET(base, BASE_BT2AP_ENABLE, 0);
+		base = CONFIG_CLEAR_SET(base, BASE_DVP2AP_ENABLE, 0);
+		base = CONFIG_CLEAR_SET(base, BASE_MIPI2AP_ENABLE, enable);
+	}
+	sif_putreg(iomem + REG_SIF_BASE_CTRL, base);
+	g_sif_dev->bypass_state = enable;
+
+	return 0;
+}
+
 static void sif_dev_base_config(sif_init_t *cfg, uint8_t update)
 {
 	uint32_t base = 0;
@@ -255,9 +294,16 @@ static void sif_dev_base_config(sif_init_t *cfg, uint8_t update)
 		return;
 	}
 	iomem = g_sif_dev->iomem;
-	g_sif_dev->bustype = cfg->bus_type;
 	if (update) {
+		if (g_sif_dev->bustype != cfg->bus_type) {
+			g_sif_dev->bustype = cfg->bus_type;
+			if (g_sif_dev->bypass_state)
+				sif_dev_bypass_ctrl((uint32_t)(-1),
+					g_sif_dev->bypass_state);
+		}
 		base = sif_getreg(iomem + REG_SIF_BASE_CTRL);
+	} else {
+		g_sif_dev->bustype = cfg->bus_type;
 	}
 	base = CONFIG_CLEAR_SET(base, BASE_FORMAT,         cfg->format);
 	base = CONFIG_CLEAR_SET(base, BASE_PIX_LEN,        cfg->pix_len);
@@ -494,14 +540,9 @@ int32_t sif_dev_start(sif_init_t *cfg)
 	iomem = g_sif_dev->iomem;
 	base = sif_getreg(iomem + REG_SIF_BASE_CTRL);
 	base |= CONFIG_SET(BASE_SIF_ENABLE, SIF_ENABLE);
-	if (BUS_TYPE_BT1120 == cfg->bus_type) {
-		base = CONFIG_CLEAR_SET(base, BASE_BT2AP_ENABLE, cfg->bypass_en);
-	} else if (BUS_TYPE_DVP == cfg->bus_type) {
-		base = CONFIG_CLEAR_SET(base, BASE_DVP2AP_ENABLE, cfg->bypass_en);
-	} else if (BUS_TYPE_MIPI == cfg->bus_type || BUS_TYPE_DUALRX == cfg->bus_type) {
-		base = CONFIG_CLEAR_SET(base, BASE_MIPI2AP_ENABLE, cfg->bypass_en);
-	}
 	sif_putreg(iomem + REG_SIF_BASE_CTRL, base);
+	if (cfg->bypass_en)
+		sif_dev_bypass_ctrl((uint32_t)(-1), 1);
 	return 0;
 }
 
@@ -520,16 +561,10 @@ int32_t sif_dev_stop(sif_init_t *cfg)
 		siferr("sif dev not inited!");
 		return -1;
 	}
+	sif_dev_bypass_ctrl((uint32_t)(-1), 0);
 	iomem = g_sif_dev->iomem;
 	base = sif_getreg(iomem + REG_SIF_BASE_CTRL);
 	base &= CONFIG_CLEAR(BASE_SIF_ENABLE);
-	if (BUS_TYPE_BT1120 == cfg->bus_type) {
-		base &= CONFIG_CLEAR(BASE_BT2AP_ENABLE);
-	} else if (BUS_TYPE_DVP == cfg->bus_type) {
-		base &= CONFIG_CLEAR(BASE_DVP2AP_ENABLE);
-	} else if (BUS_TYPE_MIPI == cfg->bus_type || BUS_TYPE_DUALRX == cfg->bus_type) {
-		base &= CONFIG_CLEAR(BASE_MIPI2AP_ENABLE);
-	}
 	sif_putreg(iomem + REG_SIF_BASE_CTRL, base);
 	sif_putreg(iomem + REG_FRAME_ID_CFG, 0);
 	return 0;
@@ -599,6 +634,63 @@ static ssize_t x2_sif_store(struct kobject *kobj, struct kobj_attribute *attr, c
 	return error ? error : n;
 }
 
+static ssize_t x2_sif_bypass_show(struct kobject *kobj,
+		struct kobj_attribute *attr, char *buf)
+{
+	char *s = buf;
+	const char *type;
+	int sif_enable, bustype, bypass, port = 0;
+	uint32_t base = 0;
+	void __iomem  *iomem = NULL;
+	if (NULL == g_sif_dev) {
+		siferr("sif dev not inited!");
+		return -1;
+	}
+	iomem = g_sif_dev->iomem;
+	base = sif_getreg(iomem + REG_SIF_BASE_CTRL);
+	sif_enable = CONFIG_GET(BASE_SIF_ENABLE, base);
+	if (sif_enable) {
+		bustype = CONFIG_GET(BASE_BUS_TYPE, base);
+		if (BUS_TYPE_BT1120 == bustype) {
+			type = "bt";
+			bypass = CONFIG_GET(BASE_BT2AP_ENABLE, base);
+		} else if (BUS_TYPE_DVP == bustype) {
+			type = "dvp";
+			bypass = CONFIG_GET(BASE_BT2AP_ENABLE, base);
+		} else {
+			type = (BUS_TYPE_DUALRX == bustype) ? "dual" : "mipi";
+			bypass = CONFIG_GET(BASE_MIPI2AP_ENABLE, base);
+			port = CONFIG_GET(BASE_MIPI2AP_SEL, base);
+		}
+		s += sprintf(s, "%s: %s bypass port %d\n",
+				(bypass) ? "on" : "off", type, port);
+	} else {
+		s += sprintf(s, "off: sif not start\n");
+	}
+
+	return (s - buf);
+}
+static ssize_t x2_sif_bypass_store(struct kobject *kobj,
+		struct kobj_attribute *attr, const char *buf, size_t n)
+{
+	int ret = 0, error = -EINVAL;
+	uint32_t enable = 2, port = (uint32_t)(-1);
+
+	if (strncmp(buf, "on", 2) == 0) {
+		enable = 1;
+		if (strlen(buf) > 3)
+			ret = kstrtouint(buf + 2, 0, &port);
+	} else if (strncmp(buf, "off", 3) == 0) {
+		enable = 0;
+		if (strlen(buf) > 4)
+			ret = kstrtouint(buf + 3, 0, &port);
+	}
+	if (ret == 0 && enable < 2 && sif_dev_bypass_ctrl(port, enable) == 0)
+		error = 0;
+
+	return error ? error : n;
+}
+
 static struct kobj_attribute sif_test_attr = {
 	.attr   = {
 		.name = __stringify(sif_test_attr),
@@ -608,8 +700,17 @@ static struct kobj_attribute sif_test_attr = {
 	.store  = x2_sif_store,
 };
 
+static struct kobj_attribute sif_bypass_attr = {
+	.attr   = {
+		.name = __stringify(bypass),
+		.mode = 0644,
+	},
+	.show   = x2_sif_bypass_show,
+	.store  = x2_sif_bypass_store,
+};
 static struct attribute *attributes[] = {
 	&sif_test_attr.attr,
+	&sif_bypass_attr.attr,
 	NULL,
 };
 

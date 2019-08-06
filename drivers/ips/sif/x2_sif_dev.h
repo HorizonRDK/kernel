@@ -16,6 +16,7 @@
 
 #include "x2/x2_sif.h"
 
+int32_t sif_dev_bypass_ctrl(uint32_t port, uint32_t enable);
 int32_t sif_dev_init(sif_init_t *sif_cfg);
 int32_t sif_dev_update(sif_init_t *sif_cfg);
 int32_t sif_dev_start(sif_init_t *sif_cfg);

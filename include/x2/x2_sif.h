@@ -130,6 +130,11 @@ typedef struct _frame_id_info_t {
 	uint32_t   frame_id[FRAME_ID_NUM_MAX];
 }frame_id_info_t;
 
+typedef struct _bypass_ctrl_info_t {
+	uint32_t    port;
+	uint32_t    enable;
+} bypass_ctrl_info_t;
+
 #define SIFIOC_INIT             _IOW(SIF_IOC_MAGIC, 0, sif_cfg_t)
 #define SIFIOC_DEINIT           _IO(SIF_IOC_MAGIC,  1)
 #define SIFIOC_START            _IO(SIF_IOC_MAGIC,  2)
@@ -138,5 +143,6 @@ typedef struct _frame_id_info_t {
 #define SIFIOC_GET_INFO         _IOR(SIF_IOC_MAGIC, 5, sif_info_t)
 #define SIFIOC_GET_FRAME_ID     _IOR(SIF_IOC_MAGIC, 6, frame_id_info_t)
 #define SIFIOC_UPDATE           _IOW(SIF_IOC_MAGIC, 7, sif_cfg_t)
+#define SIFIOC_BYPASS_CTRL      _IOW(SIF_IOC_MAGIC, 8, bypass_ctrl_info_t)
 
 #endif //__X2_SIF_H__

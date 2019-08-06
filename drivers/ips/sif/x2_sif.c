@@ -43,6 +43,7 @@ typedef struct sif_s {
 	struct sock    *nl_sk;
 	uint32_t        usr_pid;
 	sif_file_t      sif_file;
+	uint32_t        bypass_inited;
 } sif_t;
 
 static struct class  *g_sif_class;
@@ -140,6 +141,29 @@ static int sif_update(sif_t *dev, sif_cfg_t *cfg)
 	return 0;
 }
 
+static int sif_bypass_init(sif_t *dev)
+{
+	sif_cfg_t *cfg = &dev->config;
+
+	if (BUS_TYPE_BT1120 == cfg->sif_init.bus_type) {
+		ips_set_btout_clksrc(BYPASS_CLK, cfg->sif_init.pclk_out_inv);
+	} else if (BUS_TYPE_DVP != cfg->sif_init.bus_type) {
+		ips_mipi_ctl_set(MIPI_BYPASS_GEN_HSYNC_EN, true);
+		ips_mipi_ctl_set(MIPI_BYPASS_GEN_HSYNC_DLY_CNT, 4);
+	}
+	dev->bypass_inited = true;
+
+	return 0;
+}
+
+static int sif_bypass_ctrl(sif_t *dev, bypass_ctrl_info_t *bypass_ctrl)
+{
+	if (!dev->bypass_inited)
+		sif_bypass_init(dev);
+
+	return sif_dev_bypass_ctrl(bypass_ctrl->port, bypass_ctrl->enable);
+}
+
 static int sif_init(sif_t *dev, sif_cfg_t *cfg)
 {
 	int           ret = 0;
@@ -157,15 +181,9 @@ static int sif_init(sif_t *dev, sif_cfg_t *cfg)
 	} else if (BUS_TYPE_BT1120 == cfg->sif_init.bus_type) {
 		ips_pinmux_bt();
 		ips_set_btin_clksrc(cfg->sif_init.pclk_in_inv);
-		if (cfg->sif_init.bypass_en)
-			ips_set_btout_clksrc(BYPASS_CLK,
-			cfg->sif_init.pclk_out_inv);
-	} else {
-		if (cfg->sif_init.bypass_en) {
-			ips_mipi_ctl_set(MIPI_BYPASS_GEN_HSYNC_EN, true);
-			ips_mipi_ctl_set(MIPI_BYPASS_GEN_HSYNC_DLY_CNT, 4);
-		}
 	}
+	if (!dev->bypass_inited && cfg->sif_init.bypass_en)
+		sif_bypass_init(dev);
 	if (0 != (ret = sif_dev_init(&dev->config.sif_init))) {
 		siferr("ERROR: sif dev init error: %d", ret);
 		ret = -1;
@@ -195,6 +213,7 @@ static void sif_deinit(sif_t *dev)
 {
 	sif_dev_stop(&dev->config.sif_init);
 	dev->sif_file.receive_frame = false;
+	dev->bypass_inited = false;
 }
 
 static int x2_sif_open(struct inode *inode, struct file *file)
@@ -419,6 +438,34 @@ static long x2_sif_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			}
 		}
 		break;
+	case SIFIOC_BYPASS_CTRL:
+		{
+			bypass_ctrl_info_t bypass_ctrl;
+			if (!arg) {
+				siferr("ERROR: ctrl info should not be NULL");
+				ret = -EINVAL;
+				break;
+			}
+			if (SIF_STATE_DEFAULT == dev->state) {
+				sifinfo("sif has not been init");
+				ret = -EINVAL;
+				break;
+			}
+			if (copy_from_user((void *)&bypass_ctrl,
+						(void __user *)arg,
+						sizeof(bypass_ctrl_info_t))) {
+				siferr("ERROR: sif copy data from user failed\n");
+				return -EINVAL;
+			}
+			ret = sif_bypass_ctrl(dev, &bypass_ctrl);
+			if (ret != 0) {
+				siferr("ERROR: sif bypass ctrl error: %d", ret);
+				ret = -1;
+				return ret;
+			}
+		}
+		break;
+
 	default:
 		siferr("sif cmd 0x%x not support\n", cmd);
 		break;
