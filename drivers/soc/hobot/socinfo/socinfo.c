@@ -34,7 +34,7 @@ const char *soc_id;
 const char *bootmode;
 
 unsigned int x2_board_id[] = {
-	0x100, 0x101, 0x102, 0x103, 0x200, 0x201, 0x202, 0x203, 0x204,
+	0x100, 0x101, 0x102, 0x103, 0x200, 0x201, 0x202, 0x203, 0x204, 0x205,
 	0x300, 0x301, 0x302, 0x303, 0x304, 0x400, 0x104, 0x105
 };
 
@@ -48,15 +48,16 @@ struct hobot_board_info board_of_id[] = {
 	[6] = {J2_Mono, "J2-Mono"},
 	[7] = {J2_DEV, "J2-DEV"},
 	[8] = {J2_SK, "J2-SK"},
-	[9] = {J2_Quad, "J2-Quad*"},
-	[10] = {J2_QuadJ2A, "J2-QuadJ2A"},
-	[11] = {J2_QuadJ2B, "J2-QuadJ2B"},
-	[12] = {J2_QuadJ2C, "J2-QuadJ2C"},
-	[13] = {J2_QuadJ2D, "J2-QuadJ2D"},
-	[14] = {J2_mm, "J2-mm"},
-	[15] = {X2_SOMFULL, "X2-SOMFULL"},
-	[16] = {X2_96BOARD, "X2_96BOARD"},
-	[17] = {Unknown, "Unknown"},
+	[9] = {J2_SAM, "J2-SAM"},
+	[10] = {J2_Quad, "J2-Quad*"},
+	[11] = {J2_QuadJ2A, "J2-QuadJ2A"},
+	[12] = {J2_QuadJ2B, "J2-QuadJ2B"},
+	[13] = {J2_QuadJ2C, "J2-QuadJ2C"},
+	[14] = {J2_QuadJ2D, "J2-QuadJ2D"},
+	[15] = {J2_mm, "J2-mm"},
+	[16] = {X2_SOMFULL, "X2-SOMFULL"},
+	[17] = {X2_96BOARD, "X2_96BOARD"},
+	[18] = {Unknown, "Unknown"},
 };
 
 static int parse_boardid(uint32_t board_id)
