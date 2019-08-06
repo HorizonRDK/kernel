@@ -22,7 +22,7 @@
 
 static struct class  *g_diag_dev_class;
 struct device *g_diag_dev;
-
+static int diag_dev_ver[2] __initdata = {1, 0};
 static DEFINE_MUTEX(diag_dev_open_mutex);
 static int diag_dev_open(struct inode *inode, struct file *file)
 {
@@ -75,13 +75,14 @@ static long diag_dev_ioctl(struct file *file, unsigned int cmd,
 		get_random_bytes(envdata, count);
 
 		/* send image frame error and it's env data.*/
-		if (diag_send_event_stat_and_env_data(DiagMsgPrioMid,
+		ret = diag_send_event_stat_and_env_data(DiagMsgPrioMid,
 					ModuleDiagDriver, EventIdKernelToUserSelfTest,
 					DiagEventStaFail, DiagGenEnvdataWhenErr,
 					envdata, count
-					) < 0) {
+					);
+		if (ret < 0){
+			pr_err("diag dev snd env data error,due to:%d\n", ret);
 			ret = -EFAULT;
-			pr_err("diag dev snd env data error\n");
 			goto self;
 		}
 		retval = wait_for_completion_timeout(&diag_dev_completion,
@@ -221,7 +222,8 @@ int  diag_dev_init(void)
 		pr_err("[%s] diag driver register fail\n", __func__);
 
 	diag_netlink_init();
-	pr_info("diag dev init exit\n");
+	pr_info("diag dev [ver:%d.%d] init done\n",
+			diag_dev_ver[0], diag_dev_ver[1]);
 
 	return 0;
 

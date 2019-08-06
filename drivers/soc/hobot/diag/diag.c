@@ -30,7 +30,7 @@
 #define USE_VMALLOC 2
 
 //#define DEBUG
-
+static int diag_ver[2] __initdata = {1, 0};
 struct sock *nlsk;
 struct completion diag_dev_completion;
 
@@ -613,7 +613,7 @@ static int diag_is_ready(void)
  * @env_data_gen_timing When is the environmental data generated.
  * @env_data env data ptr
  * @env_len env data len.
- * @return -1:error, >=0:OK,
+ * @return -1:error, -2:not ready, >=0:OK,
  */
 //static DEFINE_SPINLOCK(diag_msg_snd_spinlock);
 static int diag_do_send_event_stat_and_env_data(
@@ -651,14 +651,14 @@ static int diag_do_send_event_stat_and_env_data(
 
 	if (!diag_is_ready()) {
 		pr_debug("diag not ready\n");
-		goto error;
+		goto not_ready;
 	}
 
 	/* unmask id check. */
 	if (!diag_unmask_id_in_list(id)) {
 		//pr_err("id had masked\n");
 		//goto error;
-		pr_debug("id had masked\n");
+		pr_warning("id had masked\n");
 		goto ok; // goto ok is correct ???
 	}
 
@@ -788,6 +788,9 @@ error:
 
 	//spin_unlock(&diag_msg_snd_spinlock);
 	return -1;
+
+not_ready:
+	return -2;
 }
 
 /*
@@ -1398,7 +1401,8 @@ int diag_netlink_init(void)
 	INIT_LIST_HEAD(&diag_id_unmask_list);
 	diag_id_unmask_list_num = 0;
 	diag_had_init = 1;
-	pr_info("diag netlink init exit\n");
+	pr_info("diag netlink [ver:%d.%d] init exit\n",
+			diag_ver[0], diag_ver[1]);
 	return 0;
 }
 

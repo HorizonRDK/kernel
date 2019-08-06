@@ -236,7 +236,7 @@ extern uint32_t diag_id_unmask_list_num;
  * @env_data_gen_timing When is the environmental data generated.
  * @env_data env data ptr
  * @env_len env data len.
- * @return -1:error, >=0:OK
+ * @return -1:error, -2: diag not ready, >=0:OK
  */
 extern int diag_send_event_stat_and_env_data(
 			uint8_t msg_prio,
