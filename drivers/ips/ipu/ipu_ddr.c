@@ -30,6 +30,8 @@
 #include <linux/time.h>
 #include <asm/cacheflush.h>
 #include <linux/semaphore.h>
+#include "../../iar/x2_iar.h"
+
 #define IPU_IOC_MAGIC       'm'
 
 #define IPUC_INIT		_IOW(IPU_IOC_MAGIC, 0, ipu_init_t)
@@ -210,9 +212,30 @@ void ipu_handle_frame_done(void)
 
 void ipu_handle_pym_frame_done(void)
 {
-	if (!test_and_set_bit(1, &pym_runflags)){
+
+	ipu_slot_h_t *done_slot;
+
+	pr_debug("ipu: ipu_handle_pym_frame_done\n");
+
+	done_slot = ipu_read_done_slot();//TODO
+
+	pr_debug("free slot num is %d\n", slot_left_num(FREE_SLOT_LIST));
+	pr_debug("busy slot num is %d\n", slot_left_num(BUSY_SLOT_LIST));
+	pr_debug("done slot num is %d\n", slot_left_num(DONE_SLOT_LIST));
+
+	if (!test_and_set_bit(1, &pym_runflags))
 		wake_up_interruptible(&wq_pym_done);
-	}
+
+/*
+ *	done_slot = ipu_read_done_slot();
+ *	if (done_slot != NULL) {
+ *		pr_info("ipu: done slot id is %d.\n",
+ *		done_slot->info_h.slot_id);
+ *		iar_set_video_buffer(g_process_info.slot_id);
+ *	}
+ */
+	pr_debug("ipu: done slot id is %d.\n", g_process_info.slot_id);
+	iar_set_video_buffer(g_process_info.slot_id);
 
 }
 
@@ -318,6 +341,33 @@ static int8_t ipu_sinfo_init(ipu_cfg_t *ipu_cfg)
 
 	g_ipu_ddr_cdev->s_info.ds[0].y_offset = ipu_cfg->crop_ddr.y_addr;
 	g_ipu_ddr_cdev->s_info.ds[0].c_offset = ipu_cfg->crop_ddr.c_addr;
+
+	return 0;
+}
+
+int8_t iar_get_ipu_display_addr_ddrmode(uint32_t display_addr[][2])
+{
+	int i = 0;
+
+	if (g_ipu_ddr_cdev == NULL)
+		return -1;
+	display_addr[0][0] = g_ipu_ddr_cdev->ipu->paddr;
+	display_addr[0][1] = IPU_SLOT_SIZE;
+	display_addr[1][0] = g_ipu_ddr_cdev->s_info.crop.y_offset;
+	display_addr[1][1] = g_ipu_ddr_cdev->s_info.crop.c_offset;
+	display_addr[2][0] = g_ipu_ddr_cdev->s_info.scale.y_offset;
+	display_addr[2][1] = g_ipu_ddr_cdev->s_info.scale.c_offset;
+
+	for (i = 0; i < 24; i++) {
+		display_addr[i+3][0] = g_ipu_ddr_cdev->s_info.ds[i].y_offset;
+		display_addr[i+3][1] = g_ipu_ddr_cdev->s_info.ds[i].c_offset;
+	}
+
+	for (i = 0; i < 6; i++) {
+		display_addr[i+27][0] = g_ipu_ddr_cdev->s_info.us[i].y_offset;
+		display_addr[i+27][1] = g_ipu_ddr_cdev->s_info.us[i].c_offset;
+	}
+	pr_debug("g_ipu_s_cdev->ipu.paddr = 0x%x\n", display_addr[0][0]);
 
 	return 0;
 }

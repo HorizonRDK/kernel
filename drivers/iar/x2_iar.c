@@ -36,6 +36,7 @@ module_param(iar_debug_level, uint, 0644);
 
 uint32_t iar_display_ipu_addr_single[DISPLAY_TYPE_TOTAL_SINGLE][2];
 uint32_t iar_display_ipu_addr_dual[DISPLAY_TYPE_TOTAL_MULTI][2];
+uint32_t iar_display_ipu_addr_ddrmode[33][2];
 uint32_t iar_display_yaddr_offset;
 uint32_t iar_display_caddr_offset;
 uint8_t iar_display_addr_type = DS5;
@@ -724,7 +725,7 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 
 	iar_display_cam_no = cfg->display_cam_no;
 	iar_display_addr_type = cfg->display_addr_type;
-
+/*
 	if (iar_display_cam_no == 0) {
 		iar_get_ipu_display_addr_single(iar_display_ipu_addr_single);
 		iar_display_yaddr_offset = iar_display_ipu_addr_single[0][0] +
@@ -741,6 +742,32 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 		iar_display_ipu_slot_size = iar_display_ipu_addr_dual[0][1];
 
 	}
+*/
+	if (iar_display_cam_no == 0) {
+		iar_get_ipu_display_addr_single(iar_display_ipu_addr_single);
+		iar_display_yaddr_offset = iar_display_ipu_addr_single[0][0] +
+			iar_display_ipu_addr_single[cfg->display_addr_type][0];
+		iar_display_caddr_offset = iar_display_ipu_addr_single[0][0] +
+			iar_display_ipu_addr_single[cfg->display_addr_type][1];
+		iar_display_ipu_slot_size = iar_display_ipu_addr_single[0][1];
+	} else if (iar_display_cam_no == 1) {
+		iar_get_ipu_display_addr_dual(iar_display_ipu_addr_dual);
+		iar_display_yaddr_offset = iar_display_ipu_addr_dual[0][0] +
+			iar_display_ipu_addr_dual[cfg->display_addr_type][0];
+		iar_display_caddr_offset = iar_display_ipu_addr_dual[0][0] +
+			iar_display_ipu_addr_dual[cfg->display_addr_type][1];
+		iar_display_ipu_slot_size = iar_display_ipu_addr_dual[0][1];
+
+	} else if (iar_display_cam_no == 2) {
+		iar_get_ipu_display_addr_ddrmode(iar_display_ipu_addr_ddrmode);
+		iar_display_yaddr_offset = iar_display_ipu_addr_ddrmode[0][0] +
+			iar_display_ipu_addr_ddrmode[cfg->display_addr_type][0];
+		iar_display_caddr_offset = iar_display_ipu_addr_ddrmode[0][0] +
+			iar_display_ipu_addr_ddrmode[cfg->display_addr_type][1];
+		iar_display_ipu_slot_size = iar_display_ipu_addr_ddrmode[0][1];
+
+	}
+
 /*	iar_get_ipu_display_addr(iar_display_ipu_addr);
 	pr_info("iar display ipu addr00 is 0x%x\n", iar_display_ipu_addr[0][0]);
 	pr_info("iar display ipu addr ds5 y is 0x%x\n",

@@ -605,6 +605,7 @@ int32_t iar_write_framebuf_dma(uint32_t channel, phys_addr_t srcaddr,
 void *ipu_get_iar_framebuf_addr(uint32_t channel, unsigned int index);
 int8_t iar_get_ipu_display_addr_single(uint32_t display_addr[][2]);
 int8_t iar_get_ipu_display_addr_dual(uint32_t display_addr[][2]);
+int8_t iar_get_ipu_display_addr_ddrmode(uint32_t display_addr[][2]);
 int8_t iar_checkout_display_camera(uint8_t camera_no);
 int user_set_fb(void);
 int set_video_display_channel(uint8_t channel_no);
