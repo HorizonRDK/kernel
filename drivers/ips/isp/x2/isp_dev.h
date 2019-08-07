@@ -21,6 +21,10 @@
 #define ISP_NAME    "x2-isp"
 
 struct isp_dev_s {
+	/* if ipu mem from ion */
+	struct ion_client *isp_iclient;
+	struct ion_handle *isp_ihandle;
+	/* if ipu mem from reserve mem */
 	phys_addr_t mapbase;
 	phys_addr_t mapbaseio;
 	uint32_t memsize;

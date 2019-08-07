@@ -42,9 +42,15 @@
 #include "isp_base.h"
 #include "x2/x2_ips.h"
 #include "isp.h"
+#include "linux/ion.h"
+
+#define USE_ION_MEM
+#define ISP_MEM_SIZE 0x800000
 
 /* global variable define */
 static struct isp_dev_s *isp_dev;
+extern struct ion_device *hb_ion_dev;
+
 
 /* function */
 struct isp_dev_s *isp_get_dev(void)
@@ -116,18 +122,59 @@ static int isp_dev_probe(struct platform_device *pdev)
 */
 
 	if (!request_mem_region(pres->start, resource_size(pres),
-			"X2_ISP_IO")) {
-		ret = -1;
-		goto err_out2;
+		"X2_ISP_IO")) {
+		ret = -ENOMEM;
+		goto err_out1;
 	}
 //      isp_dev->regbase = ioremap(pres->start, resource_size(pres));
 	isp_dev->regbase = ioremap_nocache(pres->start, resource_size(pres));
 	if (!isp_dev->regbase) {
 		dev_err(&pdev->dev, "[%s]unable to map register\n", __func__);
-		ret = -1;
+		ret = -ENOMEM;
+		goto err_out1;
+	}
+
+#ifdef USE_ION_MEM
+
+	if (!hb_ion_dev) {
+		dev_err(&pdev->dev, "NO ION device found!!");
+		goto err_out1;
+	}
+
+	isp_dev->isp_iclient = ion_client_create(hb_ion_dev, "isp");
+	if (!isp_dev->isp_iclient) {
+		dev_err(&pdev->dev, "Create ISP ion client failed!!");
+		ret = -ENOMEM;
+		goto err_out1;
+	}
+
+	isp_dev->isp_ihandle = ion_alloc(isp_dev->isp_iclient,
+		ISP_MEM_SIZE, 0x20, ION_HEAP_CARVEOUT_MASK, 0);
+	if (!isp_dev->isp_ihandle || IS_ERR(isp_dev->isp_ihandle)) {
+		dev_err(&pdev->dev, "Create ISP ion client failed!!");
+		goto err_out2;
+	}
+	ret = ion_phys(isp_dev->isp_iclient, isp_dev->isp_ihandle->id,
+		&isp_dev->mapbase, (size_t *)&isp_dev->memsize);
+	if (ret) {
+		dev_err(&pdev->dev, "Get buffer paddr failed!!");
+		ion_free(isp_dev->isp_iclient, isp_dev->isp_ihandle);
+		isp_dev->mapbase = 0;
+		isp_dev->memsize = 0;
+		goto err_out2;
+	}
+	isp_dev->vaddr = ion_map_kernel(isp_dev->isp_iclient,
+				isp_dev->isp_ihandle);
+	if (IS_ERR(isp_dev->vaddr)) {
+		dev_err(&pdev->dev, "Get buffer paddr failed!!");
+		ion_free(isp_dev->isp_iclient, isp_dev->isp_ihandle);
+		isp_dev->mapbase = 0;
+		isp_dev->memsize = 0;
+		isp_dev->vaddr = NULL;
 		goto err_out2;
 	}
 
+#else
 	/*get mmap address */
 	np = of_parse_phandle(pdev->dev.of_node, "memory-region", 0);
 	if (!np) {
@@ -139,23 +186,32 @@ static int isp_dev_probe(struct platform_device *pdev)
 	if (ret) {
 		dev_err(&pdev->dev,
 			"No memory address assigned to the region\n");
-		goto err_out2;
+		goto err_out1;
 	}
 	isp_dev->mapbase = mapaddr.start;
 	isp_dev->memsize = resource_size(&mapaddr);
 	isp_dev->vaddr = isp_vmap(isp_dev->mapbase, isp_dev->memsize);
-
+#endif
 	/*set io addr */
 	set_isp_regbase(isp_dev->regbase);
 
 	platform_set_drvdata(pdev, isp_dev);
 	ret = isp_model_init();
 	if (ret < 0)
-		goto err_out2; 
+		goto err_out3;
 
 	return 0;
-
+err_out3:
+#ifdef USE_ION_MEM
+	ion_unmap_kernel(isp_dev->isp_iclient, isp_dev->isp_ihandle);
+#else
+	vm_unmap_ram(isp_dev->vaddr, isp_dev->memsize / PAGE_SIZE);
+#endif
 err_out2:
+#ifdef USE_ION_MEM
+	ion_client_destroy(isp_dev->isp_iclient);
+#endif
+err_out1:
 	devm_kfree(&pdev->dev, isp_dev);
 	clr_isp_regbase();
 
@@ -166,7 +222,19 @@ static int isp_dev_remove(struct platform_device *pdev)
 {
 	dev_info(&pdev->dev, "[%s] is remove!\n", __func__);
 	isp_model_exit();
+#ifdef USE_ION_MEM
+	if (isp_dev->isp_iclient) {
+		if (isp_dev->isp_ihandle) {
+			ion_unmap_kernel(isp_dev->isp_iclient,
+				isp_dev->isp_ihandle);
+			ion_free(isp_dev->isp_iclient, isp_dev->isp_ihandle);
+		}
+
+		ion_client_destroy(isp_dev->isp_iclient);
+	}
+#else
 	vm_unmap_ram(isp_dev->vaddr, isp_dev->memsize / PAGE_SIZE);
+#endif
 	devm_kfree(&pdev->dev, isp_dev);
 	clr_isp_regbase();
 	isp_dev = NULL;
