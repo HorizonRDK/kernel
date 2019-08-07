@@ -574,7 +574,10 @@
 			clock-names = "watchdog_mclk";
 			interrupt-parent = <&gic>;
 			interrupts = <0 9 4>;
-			timeout-sec = <10>;
+			pet-time = <10>;
+			bark-time = <11>;
+			bite-time = <15>;
+			panic-wait-time = <20>;
 			status = "disabled";
 		};
 
