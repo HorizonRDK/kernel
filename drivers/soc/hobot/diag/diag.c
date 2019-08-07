@@ -30,7 +30,7 @@
 #define USE_VMALLOC 2
 
 //#define DEBUG
-static int diag_ver[2] __initdata = {1, 0};
+static int diag_ver[2] __initdata = {1, 1};
 struct sock *nlsk;
 struct completion diag_dev_completion;
 
@@ -449,14 +449,16 @@ static int diag_id_snd_condition_is_ok(struct id_register_struct *p, uint8_t cur
 
 	diff = jiffies_to_msecs(get_jiffies_64()) - p->last_snd_time_ms;
 	//pr_debug("%s:time diff: 0x%x\n", __func__, diff);
-	spin_lock_irqsave(&diag_register_list_spinlock, flags);
+	//spin_lock_irqsave(&diag_register_list_spinlock, flags);
+	spin_lock_irqsave(&p->stat_change_lock, flags);
 	if ((diff > p->max_time_out_snd_ms) ||
 		((diff > p->min_snd_ms) && (current_sta != p->last_sta))) {
 		p->last_snd_time_ms = jiffies_to_msecs(get_jiffies_64());
 		p->last_sta = current_sta;
 		ret = 1;
 	}
-	spin_unlock_irqrestore(&diag_register_list_spinlock, flags);
+	spin_unlock_irqrestore(&p->stat_change_lock, flags);
+	//spin_unlock_irqrestore(&diag_register_list_spinlock, flags);
 
 	return ret;
 }
@@ -632,7 +634,7 @@ static int diag_do_send_event_stat_and_env_data(
 	struct diag_msg_id tmpid;
 	struct id_register_struct *pid_reg;
 	size_t envdatalength;
-	int i;
+	int i; 
 
 	tmpid.module_id = module_id;
 	tmpid.event_id = event_id;
@@ -658,7 +660,7 @@ static int diag_do_send_event_stat_and_env_data(
 	if (!diag_unmask_id_in_list(id)) {
 		//pr_err("id had masked\n");
 		//goto error;
-		pr_warning("id had masked\n");
+		pr_debug("id had masked\n");
 		goto ok; // goto ok is correct ???
 	}
 
@@ -1297,6 +1299,7 @@ int diag_register(uint16_t module_id, uint16_t event_id, size_t envdata_max_size
 	pregister->current_sta = DiagEventStaUnknown;
 	pregister->last_snd_time_ms = 0;
 	pregister->max_time_out_snd_ms = max_time_out_snd_ms;
+	spin_lock_init(&pregister->stat_change_lock);
 	for (i = 0; i < ENVDATA_BUFFER_NUM; i++) {
 		pregister->envdata_buff[i].pdata = NULL;
 		pregister->envdata_buff[i].flags = 0;

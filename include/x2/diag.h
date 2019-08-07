@@ -219,6 +219,7 @@ struct id_register_struct {
 	uint8_t current_sta;
 	unsigned long last_snd_time_ms;
 	unsigned long max_time_out_snd_ms;
+	spinlock_t stat_change_lock;
 	void (*msg_rcvcallback)(void *p, size_t len);
 	struct envdata_buffer_manage envdata_buff[ENVDATA_BUFFER_NUM];
 	struct list_head id_register_lst;
