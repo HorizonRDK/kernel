@@ -19,6 +19,7 @@
 #include <linux/semaphore.h>
 #include <linux/reset.h>
 #include <linux/delay.h>
+#include <x2/diag.h>
 
 #include <linux/interrupt.h>
 #include <linux/platform_device.h>
@@ -374,13 +375,48 @@ static int i2sidma_mmap(struct snd_pcm_substream *substream,
 	return ret;
 }
 
+static void iis_diag_report(uint8_t errsta, uint32_t status, uint8_t channel)
+{
+	uint32_t sta;
+	unsigned char eventid;
+	u8 envdata[5]; // channel num + srcpnd reg value.
+
+	if (channel > 1)
+		return;
+
+	if (channel)
+		eventid = EventIdSoundI2s1Err;
+	else
+		eventid = EventIdSoundI2s0Err;
+
+	sta = status;
+
+	if (errsta) {
+		envdata[0] = channel;
+		memcpy(envdata + 1, (uint8_t *)&sta, sizeof(uint32_t));
+		diag_send_event_stat_and_env_data(
+				DiagMsgPrioHigh,
+				ModuleDiag_sound,
+				eventid,
+				DiagEventStaFail,
+				DiagGenEnvdataWhenErr,
+				envdata,
+				sizeof(uint32_t) + 1);
+	} else {
+		diag_send_event_stat(
+				DiagMsgPrioHigh,
+				ModuleDiag_sound,
+				eventid,
+				DiagEventStaSuccess);
+	}
+}
 
 static irqreturn_t iis_irq0(int irqno, void *dev_id)
 {
 	struct idma_ctrl_s *dma_ctrl = (struct idma_ctrl_s *)dev_id;
 	u32 intstatus;
 	u32	addr = 0;
-
+	uint8_t errsta = 0;
 
 	intstatus = readl(x2_i2sidma[0].regaddr_rx + I2S_SRCPND);
 
@@ -438,13 +474,15 @@ static irqreturn_t iis_irq0(int irqno, void *dev_id)
 
 	} else {
 		pr_err("intstatus = 0x%x,INT status exception!\n", intstatus);
-		return IRQ_HANDLED;
+		errsta = 1;
+		goto err;
 	}
 
 
 	if (dma_ctrl->cb)
 			dma_ctrl->cb(dma_ctrl->token, dma_ctrl->period);
-
+err:
+	iis_diag_report(errsta, intstatus, 0);
 	return IRQ_HANDLED;
 }
 static irqreturn_t iis_irq1(int irqno, void *dev_id)
@@ -616,7 +654,6 @@ static struct snd_soc_platform_driver asoc_i2sidma_platform[2] = {
 	}
 };
 
-
 static int asoc_i2sidma_platform_probe(struct platform_device *pdev)
 {
 	int ret = 0;
@@ -669,7 +706,11 @@ static int asoc_i2sidma_platform_probe(struct platform_device *pdev)
 
 	ret =  devm_snd_soc_register_platform(&pdev->dev,
 					      &asoc_i2sidma_platform[id]);
-	pr_err("success register platform %d, ret = %d\n", id, ret);
+	if (diag_register(ModuleDiag_sound, EventIdSoundI2s0Err + id,
+				5, 200, 5000, NULL) < 0)
+		dev_err(&pdev->dev, "i2s%d diag register fail\n", EventIdSoundI2s0Err + id);
+
+	pr_info("success register platform %d, ret = %d\n", id, ret);
 
 	return ret;
 
