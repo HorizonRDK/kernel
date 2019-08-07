@@ -67,22 +67,27 @@ static ssize_t ipu_slot_num_store(struct device *dev,
 
 	ret = sscanf(buf, "%du", &tmp_slot_num);
 	if (tmp_slot_num <= 0) {
-		pr_err("invalide range, range[3, %d]!!\n", IPU_MAX_SLOT);
+		pr_err("invalide range, range[%d, %d]!!\n", IPU_MIN_SLOT, IPU_MAX_SLOT);
 		return count;
 	}
 
-	if (tmp_slot_num < 3) {
-		pr_err("Too small slot_num, set to MIN 3]!!\n");
-		tmp_slot_num = 3;
+	if (tmp_slot_num < IPU_MIN_SLOT) {
+		pr_err("Too small slot_num, set to MIN %d]!!\n", IPU_MIN_SLOT);
+		tmp_slot_num = IPU_MIN_SLOT;
 	}
 
-	if (tmp_slot_num > 8) {
+	if (tmp_slot_num > IPU_MAX_SLOT) {
 		pr_err("Too large slot_num, set to MAX %d]!!\n", IPU_MAX_SLOT);
 		tmp_slot_num = IPU_MAX_SLOT;
 	}
 
+	if (!g_ipu->slot_size) {
+		pr_err("IPU slot size not set use default\n");
+		g_ipu->slot_size = IPU_SLOT_MAX_SIZE;
+	}
+
 	g_ipu->ipu_ihandle = ion_alloc(g_ipu->ipu_iclient,
-			tmp_slot_num * IPU_SLOT_SIZE, 0x10,
+			tmp_slot_num * g_ipu->slot_size, 0x10,
 			ION_HEAP_CARVEOUT_MASK, 0);
 	if (!g_ipu->ipu_ihandle || IS_ERR(g_ipu->ipu_ihandle)) {
 		pr_err("Alloc ION buffer failed!!\n");
@@ -129,8 +134,37 @@ static ssize_t ipu_slot_size_store(struct device *dev,
 		struct device_attribute *attr,
 		const char *buf, size_t count)
 {
-	pr_err("IPU not support set slot size, default size[0x%x]!\n",
-			IPU_SLOT_SIZE);
+	int ret, tmp_slot_size;
+
+	if (!g_ipu) {
+		pr_err("IPU not init!!\n");
+		return count;
+	}
+
+	if (g_ipu->slot_size != 0) {
+		pr_err("IPU slot size already set 0x%x!!\n", g_ipu->slot_size);
+		return count;
+	}
+
+	ret = sscanf(buf, "%xu", &tmp_slot_size);
+	if (tmp_slot_size <= 0) {
+		pr_err("invalide size, range[0x%x, 0x%x]!!\n",
+				IPU_SLOT_MIN_SIZE, IPU_SLOT_MAX_SIZE);
+		return count;
+	}
+
+	if (tmp_slot_size < IPU_SLOT_MIN_SIZE) {
+		pr_err("Too small slot_size, set to MIN[0x%x]]!!\n",
+				IPU_SLOT_MIN_SIZE);
+		tmp_slot_size = IPU_SLOT_MIN_SIZE;
+	}
+
+	if (tmp_slot_size > IPU_SLOT_MAX_SIZE) {
+		pr_err("Too large slot_size, set to MAX[0x%x]!!\n", IPU_SLOT_MAX_SIZE);
+		tmp_slot_size = IPU_SLOT_MAX_SIZE;
+	}
+
+	g_ipu->slot_size = PAGE_ALIGN(tmp_slot_size);
 
 	return count;
 }
@@ -138,7 +172,11 @@ static ssize_t ipu_slot_size_store(struct device *dev,
 static ssize_t ipu_slot_size_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
-	return sprintf(buf, "0x%x\n", IPU_SLOT_SIZE);
+	if (!g_ipu) {
+		pr_err("IPU not init!!\n");
+	}
+
+	return sprintf(buf, "0x%x\n", g_ipu->slot_size);
 }
 static DEVICE_ATTR(slot_size, 0644, ipu_slot_size_show, ipu_slot_size_store);
 
@@ -686,6 +724,7 @@ static int x2_ipu_probe(struct platform_device *pdev)
 			 ipu->paddr, (uint64_t)ipu->vaddr, ipu->memsize);
 
 	ipu->slot_num = IPU_MAX_SLOT;
+	ipu->slot_size = IPU_SLOT_MAX_SIZE;
 #endif
 
 	platform_set_drvdata(pdev, ipu);

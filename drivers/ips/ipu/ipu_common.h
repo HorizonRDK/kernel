@@ -18,8 +18,14 @@ extern unsigned int ipu_debug_level;
 
 #define ipu_err(fmt, args...)       printk(KERN_ERR "[ipu][error]: "fmt, ##args)
 
+#define IPU_SLOT_MAX_SIZE			0x1000000
+#define IPU_SLOT_MIN_SIZE			0x600000
+
 #define IPU_MAX_SLOT				8
-#define IPU_SLOT_SIZE				0x1000000
+#define IPU_MIN_SLOT				3
+#define IPU_SLOT_SIZE				(g_ipu->slot_size ? \
+									 g_ipu->slot_size : \
+									 IPU_SLOT_MAX_SIZE)
 
 #define IPU_MAX_SLOT_DUAL			(IPU_MAX_SLOT / 2)
 #define IPU_SLOT_DAUL_SIZE			(IPU_SLOT_SIZE *2)

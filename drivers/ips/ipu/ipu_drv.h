@@ -41,6 +41,7 @@ struct x2_ipu_data {
 
 	/* the slot num will use to caculate use memory size */
 	uint8_t slot_num;
+	uint32_t slot_size;
 
 	struct task_struct *ipu_task;
 	wait_queue_head_t wq_head;
