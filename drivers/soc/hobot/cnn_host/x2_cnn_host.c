@@ -2061,7 +2061,7 @@ static ssize_t queue1_show(struct kobject *kobj, struct kobj_attribute *attr,
 						 char *buf)
 {
 	mutex_lock(&cnn1_dev->cnn_lock);
-	queue1 = x2_cnn_get_fc_fifo_spaces(cnn0_dev);
+	queue1 = x2_cnn_get_fc_fifo_spaces(cnn1_dev);
 	mutex_unlock(&cnn1_dev->cnn_lock);
 	return sprintf(buf, "%d\n", queue1);
 }
