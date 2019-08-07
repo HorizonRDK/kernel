@@ -27,6 +27,8 @@ function choose()
             echo "exec /sbin/init \"\$@\"" >> ${SRC_KERNEL_DIR}/usr/prerootfs/init
             chmod +x ${SRC_KERNEL_DIR}/usr/prerootfs/init
         fi
+
+        sed -i "/AMA0/d" ${SRC_KERNEL_DIR}/usr/prerootfs/etc/inittab
     fi
 
     cp $conftmp .config
@@ -62,6 +64,8 @@ function make_recovery_img()
         echo "exec /sbin/init \"\$@\"" >> ${SRC_KERNEL_DIR}/usr/prerootfs/init
         chmod +x ${SRC_KERNEL_DIR}/usr/prerootfs/init
     fi
+
+    sed -i "/AMA0/d" ${SRC_KERNEL_DIR}/usr/prerootfs/etc/inittab
 
     cp $conftmp .config
     make -j${N} || {
