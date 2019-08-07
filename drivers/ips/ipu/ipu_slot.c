@@ -102,30 +102,33 @@ ipu_slot_h_t* slot_free_to_busy(void)
 	struct list_head *node = NULL;
 	ipu_slot_h_t	 *slot_h = NULL;
 
-	if (list_empty(&g_ipu_slot_list[FREE_SLOT_LIST])) {
-		ipu_info("free slot empty\n");
+	busy_cnt = slot_left_num(BUSY_SLOT_LIST);
+	if (busy_cnt >= 2) {
+		ipu_info("busy list already have 2 nodes\n");
+		goto out;
+	}
 
-		busy_cnt = slot_left_num(BUSY_SLOT_LIST);
+	/* get node from done list */
+	if (list_empty(&g_ipu_slot_list[FREE_SLOT_LIST])) {
 		done_cnt = slot_left_num(DONE_SLOT_LIST);
-		/* move last node from done list to busy list */
-		if (busy_cnt < 2 && done_cnt > 1) {
+		if (done_cnt > 1) {
 			slot_h =
 			list_last_entry(&g_ipu_slot_list[DONE_SLOT_LIST],
 				ipu_slot_h_t, list);
-			slot_h->info_h.slot_flag = SLOT_BUSY;
-			slot_h->slot_cnt++;
-			list_move_tail(&slot_h->list,
-				&g_ipu_slot_list[BUSY_SLOT_LIST]);
-			return slot_h;
-		} else {
-			return NULL;
 		}
+	/* get node from free list */
+	} else {
+		node = g_ipu_slot_list[FREE_SLOT_LIST].next;
+		slot_h = (ipu_slot_h_t *)node;
 	}
-	node = g_ipu_slot_list[FREE_SLOT_LIST].next;
-	list_move_tail(node, &g_ipu_slot_list[BUSY_SLOT_LIST]);
-	slot_h = (ipu_slot_h_t *)node;
-	slot_h->info_h.slot_flag = SLOT_BUSY;
-	slot_h->slot_cnt++;
+
+	if (slot_h) {
+		slot_h->info_h.slot_flag = SLOT_BUSY;
+		slot_h->slot_cnt++;
+		list_move_tail(&slot_h->list, &g_ipu_slot_list[BUSY_SLOT_LIST]);
+	}
+
+out:
 	return slot_h;
 }
 
@@ -166,7 +169,7 @@ ipu_slot_h_t* slot_busy_to_done(void)
 
 	cnt = slot_left_num(BUSY_SLOT_LIST);
 	if (cnt < 2) {
-		ipu_info("busy slot < 2\n");
+		ipu_info("busy list nodes < 2\n");
 		return NULL;
 	}
 
