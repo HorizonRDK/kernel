@@ -45,6 +45,7 @@
 #include <linux/kfifo.h>
 #include <linux/clk-provider.h>
 #include <linux/regulator/consumer.h>
+#include <x2/diag.h>
 #ifdef CONFIG_HOBOT_CNN_DEVFREQ
 #include <linux/devfreq.h>
 #include <linux/devfreq_cooling.h>
@@ -362,6 +363,30 @@ error:
 	return PTR_ERR(rst_temp);
 }
 
+static void report_bpu_diagnose_msg(u32 err, int core_index)
+{
+	u32 ret;
+	u8 bpu_event;
+	u8 bpu_diag_envdata[5]; // bpu diag env data: core_id(1ybte) +  error_code(4 bytes)
+
+	ret = err & 0xf000;
+	bpu_event = EventIdBpu0Err + core_index;
+
+	if (ret == 0x1000 || ret == 0x2000 || ret == 0x3000 ||
+		ret == 0x4000 || ret == 0x5000 || ret == 0x6000 ||
+		ret == 0x7000 || ret == 0x8000 || ret == 0x9000 ) {
+
+		bpu_diag_envdata[0] = (u8)core_index;
+		memcpy(bpu_diag_envdata + 1, (uint8_t *)&ret, sizeof(u32));
+		diag_send_event_stat_and_env_data(
+									DiagMsgPrioHigh, ModuleDiag_bpu,
+									bpu_event, DiagEventStaFail,
+									DiagGenEnvdataWhenErr, bpu_diag_envdata, 5);
+	} else
+		diag_send_event_stat(DiagMsgPrioMid, ModuleDiag_bpu,
+							bpu_event, DiagEventStaSuccess);
+}
+
 /**
  * x2_cnn_hw_reset_reinit - sw reset cnn controller
  * @cnn_dev: pointer cnn dev struct
@@ -416,6 +441,7 @@ static irqreturn_t x2_cnn_interrupt_handler(int irq, void *dev_id)
 	unsigned long flags;
 	u32 irq_status;
 	u32 tmp_irq;
+	u32 irq_err;
 	struct x2_int_info tmp;
 
 	spin_lock_irqsave(&dev->cnn_spin_lock, flags);
@@ -425,6 +451,8 @@ static irqreturn_t x2_cnn_interrupt_handler(int irq, void *dev_id)
 	tmp_irq = x2_cnn_reg_read(dev, X2_CNNINT_NUM);
 
 	x2_cnn_reg_write(dev, X2_CNNINT_MASK, 0x0);
+	irq_err = tmp_irq & 0xf000;
+	report_bpu_diagnose_msg(irq_err, dev->core_index);
 	spin_unlock_irqrestore(&dev->cnn_spin_lock, flags);
 
 	do {
@@ -1846,6 +1874,15 @@ int x2_cnn_probe(struct platform_device *pdev)
 	init_completion(&cnn_dev->nega_completion);
 
 	x2_cnn_reg_write(cnn_dev, X2_CNNINT_MASK, 0x0);
+
+	/* diag ref init */
+	if ((EventIdBpu0Err + cnn_id) <= EventIdBpu1Err) {
+		if (diag_register(ModuleDiag_bpu, EventIdBpu0Err + cnn_id, 5, 300, 7000, NULL) < 0)
+			dev_err(&pdev->dev, "bpu%d diag register fail\n", cnn_id);
+	} else
+			dev_err(&pdev->dev, "bpu event id overun: max = 2,but now is:%d\n",
+					EventIdBpu0Err + cnn_id);
+
 	pr_info("x2 cnn%d probe OK!!\n", cnn_id);
 #ifdef CONFIG_HOBOT_CNN_DEVFREQ
 	x2_cnnfreq_register(cnn_dev);
