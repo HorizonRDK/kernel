@@ -74,7 +74,8 @@ function make_recovery_img()
     }
 
     # put binaries to dest directory
-    cp $SRC_KERNEL_DIR/arch/$ARCH_KERNEL/boot/Image.gz  $prefix/recovery.gz
+    cpfiles "$SRC_KERNEL_DIR/arch/$ARCH_KERNEL/boot/Image.gz"  "$prefix/"
+    mv $prefix/Image.gz $prefix/recovery.gz
 }
 
 function build_dtbmapping()
@@ -97,6 +98,13 @@ function build_dtbmapping()
 
 function all()
 {
+    if [ "x$KERNEL_WITH_RECOVERY" = "xtrue" ];then
+        cd $SRC_KERNEL_DIR
+
+        # get recovery.gz
+        make_recovery_img
+    fi
+
     prefix=$TARGET_KERNEL_DIR
     config=$KERNEL_DEFCONFIG
     echo "kernel config: $config"
@@ -120,13 +128,6 @@ function all()
 
     # build dtb-mapping.conf
     build_dtbmapping
-
-    if [ "x$KERNEL_WITH_RECOVERY" = "xtrue" ];then
-        cd $SRC_KERNEL_DIR
-
-        # get recovery.gz
-        make_recovery_img
-    fi
 
     if [ "x$NOR_FLASH_WITH_UBIFS" = "xtrue" ];then
         cd $SRC_KERNEL_DIR/tools/ubifs
