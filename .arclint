@@ -1,0 +1,9 @@
+{
+    "linters": {
+        "c": {
+            "type": "cpplint",
+            "flags": ["--extensions=h,c"],
+            "include": ["(\\.h$)", "(\\.c$)"]
+        }
+    }
+}
