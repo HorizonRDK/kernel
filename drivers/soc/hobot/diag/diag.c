@@ -39,8 +39,8 @@ static struct id_register_struct *diag_id_in_register_list(struct diag_msg_id *i
 static void
 diag_clear_registered_envbuffer_flag_and_release_idinfo_struct(struct id_info *pidinfo);
 
-int diag_had_init = -1;
-int diag_app_ready = -1;
+int diag_had_init;
+int diag_app_ready;
 
 //DEFINE_SPINLOCK(diag_id_unmask_list_spinlock); // no need??? yes
 LIST_HEAD(diag_id_unmask_list);
@@ -180,6 +180,49 @@ exit:
  * @return -1:error, >=0:OK
  */
 static DEFINE_MUTEX(diag_netlink_send_mutex);
+#ifdef DIAG_USE_NETLINK_BROADCAST
+static int diag_send_msg(char *pbuf, uint32_t len)
+{
+        struct sk_buff *nl_skb;
+        struct nlmsghdr *nlh;
+        int ret = 0;
+        sk_buff_data_t tmp;
+
+        if (!netlink_has_listeners(nlsk, USER_GROUP))
+                return -1;
+
+        /* create netlink skbuffer. */
+        nl_skb = nlmsg_new(len, GFP_ATOMIC);
+        if (!nl_skb) {
+                pr_err("netlink alloc failure\n");
+                return -1;
+        }
+
+        /* set netlink header */
+        nlh = nlmsg_put(nl_skb, 0, 0, NETLINK_DIAG, len, 0);
+        if (nlh == NULL) {
+                pr_err("nlmsg_put failaure\n");
+                nlmsg_free(nl_skb);
+                return -1;
+        }
+        tmp = nl_skb->tail;
+
+        /* send data*/
+        memcpy(nlmsg_data(nlh), pbuf, len);
+        nlh->nlmsg_len = nl_skb->tail - tmp;
+        NETLINK_CB(nl_skb).portid = 0;
+        NETLINK_CB(nl_skb).dst_group = USER_GROUP;
+        //mutex_lock(&diag_netlink_send_mutex);
+        ret = netlink_broadcast(nlsk, nl_skb, 0, USER_GROUP, GFP_KERNEL);
+        //mutex_unlock(&diag_netlink_send_mutex);
+        if (ret < 0) {
+                pr_err("netlink broadcast snd fail\n");
+                return -1;
+        }
+
+        return len;
+}
+#else
 static int diag_send_msg(char *pbuf, uint32_t len)
 {
 	struct sk_buff *nl_skb;
@@ -213,6 +256,8 @@ static int diag_send_msg(char *pbuf, uint32_t len)
 
 	return len;
 }
+#endif
+
 #if 0
 /*
  * check diag_msg_id exist in one list
@@ -599,8 +644,8 @@ EXPORT_SYMBOL(diag_can_update_envdata_buffer);
  */
 static int diag_is_ready(void)
 {
-	if ((diag_had_init == -1) ||
-		(diag_app_ready == -1))
+	if ((diag_had_init == 0) ||
+		(diag_app_ready == 0))
 		return 0; // diag core had not init or diag app not ready.
 
 	return 1;
@@ -640,6 +685,10 @@ static int diag_do_send_event_stat_and_env_data(
 	tmpid.event_id = event_id;
 	tmpid.msg_pri = msg_prio;
 	id = &tmpid;
+	if (in_irq() && env_len > DIAG_SEND_LEN_MAX_IN_IRQ) {
+		pr_err("so large envdata cannot be sent in the irq context");
+		goto error;
+	}
 
 	/* assert */
 	if (id->module_id == 0 || id->module_id >= ModuleIdMax ||
@@ -652,7 +701,7 @@ static int diag_do_send_event_stat_and_env_data(
 	}
 
 	if (!diag_is_ready()) {
-		pr_debug("diag not ready\n");
+		//pr_debug("diag not ready\n");
 		goto not_ready;
 	}
 
@@ -660,7 +709,7 @@ static int diag_do_send_event_stat_and_env_data(
 	if (!diag_unmask_id_in_list(id)) {
 		//pr_err("id had masked\n");
 		//goto error;
-		pr_debug("id had masked\n");
+		//pr_debug("id had masked\n");
 		goto ok; // goto ok is correct ???
 	}
 
@@ -690,8 +739,8 @@ static int diag_do_send_event_stat_and_env_data(
 	}
 
 	if (!diag_id_snd_condition_is_ok(pid_reg, event_sta)) {
-		pr_debug("moduleid:%d, eventid:%d,snd condition not satisfiled\n",
-				pid_reg->id.module_id, pid_reg->id.event_id);
+		//pr_debug("moduleid:%d, eventid:%d,snd condition not satisfiled\n",
+				//pid_reg->id.module_id, pid_reg->id.event_id);
 		goto error;
 	}
 
@@ -718,11 +767,11 @@ static int diag_do_send_event_stat_and_env_data(
 		for (i = 0; i < ENVDATA_BUFFER_NUM; i++) {
 			spin_lock_irqsave(&(pid_reg->envdata_buff[i].env_data_buffer_lock), flags);
 			if (pid_reg->envdata_buff[i].flags == 0) {
-				memcpy(pid_reg->envdata_buff[i].pdata, env_data, envdatalength);
 				pid_reg->envdata_buff[i].flags = 1;
+				spin_unlock_irqrestore(&(pid_reg->envdata_buff[i].env_data_buffer_lock), flags);
+				memcpy(pid_reg->envdata_buff[i].pdata, env_data, envdatalength);
 				pidinfo->pdata = pid_reg->envdata_buff[i].pdata;
 				pidinfo->envlen = envdatalength;
-				spin_unlock_irqrestore(&(pid_reg->envdata_buff[i].env_data_buffer_lock), flags);
 				break;
 			}
 			spin_unlock_irqrestore(&(pid_reg->envdata_buff[i].env_data_buffer_lock), flags);
@@ -1238,20 +1287,23 @@ static void diag_work_handler(struct work_struct *work)
 	if (!list_empty(&tmp_list)) {
 		list_for_each_entry_safe(pidinfo, next, &tmp_list, idlst) {
 			list_del(&(pidinfo->idlst));
-			index = diag_item_in_register_list_envdatabuffer_index(pidinfo, &result_tmp);
-			if (index >= 0)
-				spin_lock_irqsave(&(result_tmp->envdata_buff[index].env_data_buffer_lock), flags);
+			//if (pidinfo->envlen != 0) {
+			//	index = diag_item_in_register_list_envdatabuffer_index(pidinfo, &result_tmp);
+			//	if (index < 0)
+			//		pr_err("env data buffer index error");
+			//}
+			
+			//spin_lock_irqsave(&(result_tmp->envdata_buff[index].env_data_buffer_lock), flags);
 			ret = _diag_send_event_stat_and_env_data(
-					&(pidinfo->id),
-					pidinfo->event_sta,
-					pidinfo->env_data_gen_timing,
-					pidinfo->pdata,
-					pidinfo->envlen);
+						&(pidinfo->id),
+						pidinfo->event_sta,
+						pidinfo->env_data_gen_timing,
+						pidinfo->pdata,
+						pidinfo->envlen);
 			if (ret < 0) {
 				pr_err("send tmplist to userspace fail\n");
 			}
-			if (index >= 0)
-				spin_unlock_irqrestore(&(result_tmp->envdata_buff[index].env_data_buffer_lock), flags);
+
 			diag_clear_registered_envbuffer_flag_and_release_idinfo_struct(pidinfo);
 		}
 	} else {
@@ -1404,6 +1456,7 @@ int diag_netlink_init(void)
 	INIT_LIST_HEAD(&diag_id_unmask_list);
 	diag_id_unmask_list_num = 0;
 	diag_had_init = 1;
+	diag_app_ready = 0;
 	pr_info("diag netlink [ver:%d.%d] init exit\n",
 			diag_ver[0], diag_ver[1]);
 	return 0;

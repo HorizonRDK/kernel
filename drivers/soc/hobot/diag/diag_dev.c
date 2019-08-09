@@ -146,10 +146,15 @@ mask_id:
 			goto diag_sta;
 		}
 		if (op == (uint8_t)DIAGDRIVER_STOPWORK) {
-			diag_app_ready = 0;
-			INIT_LIST_HEAD(&diag_id_unmask_list);
+			diag_app_ready -= 1;
+			if (diag_app_ready < 0)
+				diag_app_ready = 0;
+			if (diag_app_ready == 0) {
+				INIT_LIST_HEAD(&diag_id_unmask_list);
+				diag_id_unmask_list_num = 0;
+			}
 		} else if (op == (uint8_t)DIAGDRIVER_STARTWORK)
-			diag_app_ready = 1;
+			diag_app_ready += 1;
 
 diag_sta:
 		break;

@@ -14,6 +14,15 @@
 #define DIAG_MSG_HEAD 0xAA	// diag msg identifier.
 #define DIAG_MSG_VER  0x01	// What version of the dig msg
 #define FRAGMENT_SIZE 0x4000// netlink msg fragment max size, 0x4000 = 16kb, so we can use kmalloc(...)
+#define DIAG_USE_NETLINK_BROADCAST
+#define USER_GROUP 1
+
+/*
+ *  You can't exceed this number(bytes),if you want
+ *  to send more, please send in other context,
+ *   not irq contex.
+ */
+#define DIAG_SEND_LEN_MAX_IN_IRQ 50
 
 /* Interval between consecutive transmissions of same id */
 #define DIAG_ID_SEND_INTERVAL_MS 200
