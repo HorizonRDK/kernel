@@ -788,7 +788,7 @@ unsigned int ipu_ddr_poll(struct file *file,
 		ipu_dbg("EPOLLHUP: ipu exit request\n");
 	} else if (g_ipu_ddr_cdev->err_status) {
 		mask = EPOLLERR;
-		ipu_dbg("POLLERR: err_status 0x%x\n",
+		ipu_err("POLLERR: err_status 0x%x\n",
 				g_ipu_ddr_cdev->err_status);
 		g_ipu_ddr_cdev->err_status = 0;
 	} else if (!is_slot_done_empty()) {
@@ -822,7 +822,7 @@ static int __init x2_ipu_ddr_init(void)
 	int ret = 0;
 	struct device *dev = NULL;
 
-	g_ipu_ddr_cdev = kmalloc(sizeof(struct ipu_ddr_cdev), GFP_KERNEL);
+	g_ipu_ddr_cdev = kzalloc(sizeof(struct ipu_ddr_cdev), GFP_KERNEL);
 	if (!g_ipu_ddr_cdev) {
 		ipu_err("Unable to alloc IPU DEV\n");
 		return -ENOMEM;

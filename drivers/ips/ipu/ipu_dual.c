@@ -639,7 +639,7 @@ unsigned int ipu_dual_poll(struct file *file, struct poll_table_struct *wait)
 		mask = EPOLLHUP;
 		ipu_info("ipu exit request\n");
 	} else if (g_ipu_d_cdev->err_status) {
-		ipu_info("POLLERR: err_status 0x%x\n", g_ipu_d_cdev->err_status);
+		ipu_err("POLLERR: err_status 0x%x\n", g_ipu_d_cdev->err_status);
 		mask = EPOLLERR;
 		g_ipu_d_cdev->err_status = 0;
 	} else if (!ipu_is_pym_done_empty()) {
@@ -669,7 +669,7 @@ static int __init x2_ipu_dual_init(void)
 {
 	int ret = 0;
 	struct device *dev = NULL;
-	g_ipu_d_cdev = kmalloc(sizeof(struct ipu_dual_cdev), GFP_KERNEL);
+	g_ipu_d_cdev = kzalloc(sizeof(struct ipu_dual_cdev), GFP_KERNEL);
 	if (!g_ipu_d_cdev) {
 		ipu_err("Unable to alloc IPU DUAL DEV\n");
 		return -ENOMEM;

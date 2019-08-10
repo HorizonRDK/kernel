@@ -762,7 +762,7 @@ unsigned int ipu_poll(struct file *file, struct poll_table_struct *wait)
 		mask = EPOLLHUP;
 		ipu_info("ipu exit request\n");
 	} else if (g_ipu_s_cdev->err_status) {
-		ipu_info("POLLERR: err_status 0x%x\n", g_ipu_s_cdev->err_status);
+		ipu_err("POLLERR: err_status 0x%x\n", g_ipu_s_cdev->err_status);
 		mask = EPOLLERR;
 		g_ipu_s_cdev->err_status = 0;
 	} else if (!is_slot_done_empty()) {
@@ -793,7 +793,7 @@ static int __init x2_ipu_init(void)
 {
 	int ret = 0;
 	struct device *dev = NULL;
-	g_ipu_s_cdev = kmalloc(sizeof(struct ipu_single_cdev), GFP_KERNEL);
+	g_ipu_s_cdev = kzalloc(sizeof(struct ipu_single_cdev), GFP_KERNEL);
 	if (!g_ipu_s_cdev) {
 		ipu_err("Unable to alloc IPU DEV\n");
 		return -ENOMEM;
