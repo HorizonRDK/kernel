@@ -11,12 +11,6 @@
 		#size-cells = <2>;
 		ranges;
 
-		/*Reserved 3M memory for uboot*/
-		uboot_reserved: uboot_reserved@0x01d00000 {
-			reg = <0x0 0x01d00000 0x0 0x300000>;
-			no-map;
-		};
-
 		/*Reserved 512K memory for bifbase*/
 		bifbase_reserved: bifbase_reserved@0x02000000 {
 			reg = <0x0 0x02000000 0x0 0x00080000>;
@@ -43,5 +37,8 @@
 			reg = <0x0 0x020ff000 0x0 0x1000>;
 			no-map;
 		};
+
+		/*Note: Reserved 16M shared memory for uboot: 0x02100000*/
+
 	};
 };
