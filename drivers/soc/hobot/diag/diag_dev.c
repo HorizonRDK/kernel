@@ -22,7 +22,7 @@
 
 static struct class  *g_diag_dev_class;
 struct device *g_diag_dev;
-static int diag_dev_ver[2] __initdata = {1, 0};
+static int diag_dev_ver[2] __initdata = {1, 1};
 static DEFINE_MUTEX(diag_dev_open_mutex);
 static int diag_dev_open(struct inode *inode, struct file *file)
 {
@@ -172,6 +172,11 @@ static int diag_dev_close(struct inode *inode, struct file *file)
 	return 0;
 }
 
+static void daig_dev_driver_selftest_event_callback(void *p, size_t len)
+{
+	pr_info("enter diag driver selftest callback\n");
+}
+
 static const  struct file_operations diag_dev_fops = {
 	.owner		=	THIS_MODULE,
 	.open		=	diag_dev_open,
@@ -222,7 +227,7 @@ int  diag_dev_init(void)
 
 	init_completion(&diag_dev_completion);
 	ret = diag_register(ModuleDiagDriver, EventIdKernelToUserSelfTest, 2*FRAGMENT_SIZE,
-		20, 2000, NULL);
+		20, 2000, daig_dev_driver_selftest_event_callback);
 	if (ret < 0)
 		pr_err("[%s] diag driver register fail\n", __func__);
 

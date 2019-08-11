@@ -1389,6 +1389,38 @@ err:
 }
 EXPORT_SYMBOL(diag_register);
 
+static void netlink_rcv_diagmsg_process(char *pstr)
+{
+	struct diag_msg_id reg_id;
+	struct id_register_struct *regisid = NULL;
+	uint8_t *paylod = NULL;
+	uint32_t paylodlen = 0;
+
+	/*
+	 * getsta:0005:0002   get the stat of modueid=5, eventid=2
+	 */
+	if (pstr && (strncmp(pstr, "getsta:", 7)) == 0) {
+		reg_id.module_id = *((uint32_t *)(pstr + 7));
+		reg_id.event_id = *((uint32_t *)(pstr + 12));
+		pr_notice("get sta rcved, module id: %d, event id: %d",
+					reg_id.module_id,
+					reg_id.event_id);
+		regisid = diag_id_in_register_list(&reg_id);
+		if (!regisid) {
+			pr_err("get module id:%d,event id:%d fail, not registered\n",
+					reg_id.module_id, reg_id.event_id);
+			goto exit;
+		}
+		if (regisid->msg_rcvcallback)
+			regisid->msg_rcvcallback(paylod, paylodlen);
+		else
+			pr_err("module id:%d,event id:%d rcv callback func is NULL\n",
+					reg_id.module_id, reg_id.event_id);
+	}
+exit:
+	return;
+}
+
 /*
  * diag rcv msg from userspace.
  */
@@ -1398,6 +1430,9 @@ static void netlink_rcv_msg(struct sk_buff *skb)
 	char *umsg = NULL;
 	//char *kmsg = "kernel space: hello users!!!";
 	unsigned char *data;
+
+	if (!diag_is_ready())
+		return; // not ready
 
 	data = kmalloc(100, GFP_ATOMIC);
 	if (!data) {
@@ -1415,7 +1450,8 @@ static void netlink_rcv_msg(struct sk_buff *skb)
 			complete(&diag_dev_completion);
 			//pr_debug("diag: complete snd ok\n");
 		} else {
-			pr_err("diag: self test fail\n");
+			//pr_err("diag: self test fail\n");
+			netlink_rcv_diagmsg_process(umsg);
 		}
 	}
 
