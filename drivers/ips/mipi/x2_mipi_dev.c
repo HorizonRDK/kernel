@@ -28,6 +28,7 @@
 #include <linux/irq.h>
 #include <linux/delay.h>
 #include <x2/diag.h>
+#include <linux/timer.h>
 #include "x2/x2_mipi_dev.h"
 #include "x2_mipi_dev_regs.h"
 #include "x2_mipi_dphy.h"
@@ -113,6 +114,9 @@ typedef struct _reg_s {
 	uint32_t offset;
 	uint32_t value;
 } reg_t;
+
+struct timer_list mipi_dev_diag_timer;
+static uint32_t dev_last_err_tm_ms;
 
 typedef enum _mipi_state_e {
 	MIPI_STATE_DEFAULT = 0,
@@ -371,15 +375,41 @@ static void mipi_dev_irq_disable(void)
 static void mipi_dev_diag_report(uint8_t errsta, uint32_t total_irq,
 				uint32_t *sub_irq_data, uint32_t elem_cnt)
 {
+	uint32_t buff[5];
+	int i;
+
+	dev_last_err_tm_ms = msecs_to_jiffies(get_jiffies_64());
+	if (errsta) {
+		buff[0] = total_irq;
+		for (i = 0; i < elem_cnt; i++)
+			buff[1 + i] = sub_irq_data[i];
+
 		diag_send_event_stat_and_env_data(
-				DiagMsgPrioMid,
+				DiagMsgPrioHigh,
 				ModuleDiag_VIO,
 				EventIdVioMipiDevErr,
 				DiagEventStaFail,
 				DiagGenEnvdataWhenErr,
-				NULL,
+				(uint8_t *)buff,
 				20);
+	}
+}
 
+static void mipi_dev_diag_timer_func(unsigned long data)
+{
+	uint32_t now_tm_ms;
+	unsigned long jiffi;
+
+	now_tm_ms = msecs_to_jiffies(get_jiffies_64());
+	if (now_tm_ms - dev_last_err_tm_ms > 6000) {
+		diag_send_event_stat(
+				DiagMsgPrioMid,
+				ModuleDiag_VIO,
+				EventIdVioMipiDevErr,
+				DiagEventStaSuccess);
+	}
+	jiffi = get_jiffies_64() + msecs_to_jiffies(2000);
+	mod_timer(&mipi_dev_diag_timer, jiffi); // trriger again.
 }
 
 /**
@@ -395,7 +425,7 @@ static irqreturn_t mipi_dev_irq_func(int this_irq, void *data)
 	uint32_t   irq = 0;
 	uint32_t   subirq = 0;
 	uint8_t  err_occureed = 0;
-	uint32_t env_subirq[4];
+	uint32_t env_subirq[4] = {0};
 	void __iomem  *iomem = NULL;
 	mipi_dev_t   *mipi_dev = (mipi_dev_t *)data;
 	if (NULL == g_mipi_dev) {
@@ -430,8 +460,8 @@ static irqreturn_t mipi_dev_irq_func(int this_irq, void *data)
 		err_occureed = 1;
 		env_subirq[3] = subirq;
 	}
-	mipi_dev_diag_report(err_occureed, irq, env_subirq, 4);
 	enable_irq(this_irq);
+	mipi_dev_diag_report(err_occureed, irq, env_subirq, 4);
 	return IRQ_HANDLED;
 }
 #endif
@@ -842,9 +872,17 @@ static int x2_mipi_dev_probe(struct platform_device *pdev)
 	g_mipi_dev = mipi_dev;
 
 	/* diag */
-	if (diag_register(ModuleDiag_VIO, EventIdVioMipiDevErr, 20, 300, 5000,
-			  NULL) < 0) {
+	if (diag_register(ModuleDiag_VIO, EventIdVioMipiDevErr,
+						20, 300, 5000, NULL) < 0)
 		pr_err("mipi dev diag register fail\n");
+	else {
+		dev_last_err_tm_ms = 0;
+		init_timer(&mipi_dev_diag_timer);
+		mipi_dev_diag_timer.expires =
+			get_jiffies_64() + msecs_to_jiffies(1000);
+		mipi_dev_diag_timer.data = 0;
+		mipi_dev_diag_timer.function = mipi_dev_diag_timer_func;
+		add_timer(&mipi_dev_diag_timer);
 	}
 	dev_info(&pdev->dev, "X2 mipi dev prop done\n");
 	return 0;
@@ -864,6 +902,7 @@ static int x2_mipi_dev_remove(struct platform_device *pdev)
 	unregister_chrdev_region(MKDEV(mipi_dev_major, 0), 1);
 	kzfree(mipi_dev);
 	g_mipi_dev = NULL;
+	del_timer_sync(&mipi_dev_diag_timer);
 	return 0;
 }
 

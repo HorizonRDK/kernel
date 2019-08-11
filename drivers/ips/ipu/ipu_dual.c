@@ -15,6 +15,7 @@
 #include <linux/compiler.h>
 #include <linux/slab.h>
 #include <x2/x2_ips.h>
+#include <x2/diag.h>
 #include <linux/proc_fs.h>
 #include <linux/delay.h>
 #include <linux/poll.h>
@@ -156,12 +157,35 @@ int set_next_pym_frame(ipu_slot_dual_h_t *slot_h, bool first)
 	return 0;
 }
 
+static void ipu_dual_diag_report(uint8_t errsta, unsigned int status)
+{
+	unsigned int sta;
+
+	sta = status;
+	if (errsta) {
+		diag_send_event_stat_and_env_data(
+				DiagMsgPrioHigh,
+				ModuleDiag_VIO,
+				EventIdVioIpuDualErr,
+				DiagEventStaFail,
+				DiagGenEnvdataWhenErr,
+				(uint8_t *)&sta,
+				sizeof(unsigned int));
+	} else {
+		diag_send_event_stat(
+				DiagMsgPrioMid,
+				ModuleDiag_VIO,
+				EventIdVioIpuDualErr,
+				DiagEventStaSuccess);
+	}
+}
+
 void ipu_dual_mode_process(uint32_t status)
 {
 	struct x2_ipu_data *ipu = g_ipu_d_cdev->ipu;
 	uint32_t iar_display_yaddr;
 	uint32_t iar_display_caddr;
-
+	uint8_t errsta = 0;
 
 	spin_lock(&g_ipu_d_cdev->slock);
 	if (status & IPU_BUS01_TRANSMIT_ERRORS ||
@@ -172,6 +196,7 @@ void ipu_dual_mode_process(uint32_t status)
 		//should we set it back to 0 in ioctl?
 		ipu_err("ipu error 0x%x\n", g_ipu_d_cdev->err_status);
 		pym_slot_busy_to_free();
+		errsta = 1;
 	}
 
 	if (status & IPU_FRAME_DONE) {
@@ -274,7 +299,7 @@ void ipu_dual_mode_process(uint32_t status)
 	}
 
 	spin_unlock(&g_ipu_d_cdev->slock);
-
+	ipu_dual_diag_report(errsta, status);
 }
 
 static int8_t ipu_sinfo_init(ipu_cfg_t *ipu_cfg)
@@ -688,6 +713,10 @@ static int __init x2_ipu_dual_init(void)
 	init_waitqueue_head(&g_ipu_d_cdev->event_head);
 	spin_lock_init(&g_ipu_d_cdev->slock);
 	g_ipu->ipu_handle[IPU_DDR_DUAL] = ipu_dual_mode_process;
+	if (diag_register(ModuleDiag_VIO, EventIdVioIpuDualErr,
+					8, 380, 7200, NULL) < 0)
+		pr_err("ipu dual diag register fail\n");
+
 	return ret;
 }
 

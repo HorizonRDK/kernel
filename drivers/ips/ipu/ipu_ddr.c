@@ -15,6 +15,7 @@
 #include <linux/compiler.h>
 #include <linux/slab.h>
 #include <x2/x2_ips.h>
+#include <x2/diag.h>
 #include <linux/proc_fs.h>
 #include <linux/delay.h>
 #include <linux/poll.h>
@@ -259,10 +260,35 @@ void ipu_handle_frame_start(void)
 	spin_unlock_irqrestore(&g_ipu_ddr_cdev->slock, flags);
 
 }
+
+static void ipu_ddr_diag_report(uint8_t errsta, unsigned int status)
+{
+	unsigned int sta;
+
+	sta = status;
+	if (errsta) {
+		diag_send_event_stat_and_env_data(
+				DiagMsgPrioHigh,
+				ModuleDiag_VIO,
+				EventIdVioIpuDDRErr,
+				DiagEventStaFail,
+				DiagGenEnvdataWhenErr,
+				(uint8_t *)&sta,
+				sizeof(unsigned int));
+	} else {
+		diag_send_event_stat(
+				DiagMsgPrioMid,
+				ModuleDiag_VIO,
+				EventIdVioIpuDDRErr,
+				DiagEventStaSuccess);
+	}
+}
+
 void ipu_ddr_mode_process(uint32_t status)
 {
 	struct x2_ipu_data *ipu = g_ipu_ddr_cdev->ipu;
 	unsigned long flags;
+	uint8_t errsta = 0;
 
 	spin_lock_irqsave(&g_ipu_ddr_cdev->slock, flags);
 	if (status & IPU_BUS01_TRANSMIT_ERRORS ||
@@ -279,10 +305,11 @@ void ipu_ddr_mode_process(uint32_t status)
 					slot_h->info_h.slot_id, status);
 			wake_up_interruptible(&g_ipu_ddr_cdev->event_head);
 		}
+		errsta = 1;
 	}
 
-
 	spin_unlock_irqrestore(&g_ipu_ddr_cdev->slock, flags);
+	ipu_ddr_diag_report(errsta, status);
 
 }
 
@@ -854,6 +881,10 @@ static int __init x2_ipu_ddr_init(void)
 		ipu_err("ipu device create fail\n");
 	}
 	g_ipu->ipu_handle[IPU_DDR_SIGNLE] = ipu_ddr_mode_process;
+	if (diag_register(ModuleDiag_VIO, EventIdVioIpuDDRErr,
+					8, 350, 7000, NULL) < 0)
+		pr_err("ipu ddr diag register fail\n");
+
 	return ret;
 }
 

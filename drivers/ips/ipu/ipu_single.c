@@ -28,6 +28,7 @@
 #include <asm/string.h>
 #include <linux/uaccess.h>
 #include <asm/cacheflush.h>
+#include <x2/diag.h>
 
 #include "../../iar/x2_iar.h"
 
@@ -197,11 +198,35 @@ static int8_t ipu_get_frameid(struct x2_ipu_data *ipu, ipu_slot_h_t *slot)
 	return 0;
 }
 
+static void ipu_single_diag_report(uint8_t errsta, unsigned int status)
+{
+	unsigned int sta;
+
+	sta = status;
+	if (errsta) {
+		diag_send_event_stat_and_env_data(
+				DiagMsgPrioHigh,
+				ModuleDiag_VIO,
+				EventIdVioIpuSingleErr,
+				DiagEventStaFail,
+				DiagGenEnvdataWhenErr,
+				(uint8_t *)&sta,
+				sizeof(unsigned int));
+	} else {
+		diag_send_event_stat(
+				DiagMsgPrioMid,
+				ModuleDiag_VIO,
+				EventIdVioIpuSingleErr,
+				DiagEventStaSuccess);
+	}
+}
+
 void ipu_single_mode_process(uint32_t status)
 {
 	struct x2_ipu_data *ipu = g_ipu_s_cdev->ipu;
 	uint32_t iar_display_yaddr;
 	uint32_t iar_display_caddr;
+	uint8_t errsta = 0;
 
 	spin_lock(&g_ipu_s_cdev->slock);
 
@@ -218,6 +243,7 @@ void ipu_single_mode_process(uint32_t status)
 					slot_h->info_h.slot_id, status);
 			wake_up_interruptible(&g_ipu_s_cdev->event_head);
 		}
+		errsta = 1;
 	}
 
 	if (status & PYM_FRAME_DONE) {
@@ -298,6 +324,7 @@ void ipu_single_mode_process(uint32_t status)
 		}
 	}
 	spin_unlock(&g_ipu_s_cdev->slock);
+	ipu_single_diag_report(errsta, status);
 }
 
 
@@ -821,6 +848,10 @@ static int __init x2_ipu_init(void)
 		ipu_err("ipu device create fail\n");
 	}
 	g_ipu->ipu_handle[IPU_ISP_SINGLE] = ipu_single_mode_process;
+	if (diag_register(ModuleDiag_VIO, EventIdVioIpuSingleErr,
+					8, 380, 7100, NULL) < 0)
+		pr_err("ipu single diag register fail\n");
+
 	return ret;
 }
 

@@ -11,6 +11,7 @@
 #include <linux/fs.h>
 #include <linux/poll.h>
 #include <linux/eventpoll.h>
+#include <x2/diag.h>
 
 #include "x2/x2_ips.h"
 #include "x2/x2_sif.h"
@@ -80,9 +81,34 @@ static int sif_stop(sif_t *dev)
 	return ret;
 }
 
+static void sif_diag_report(uint8_t errsta, unsigned int status)
+{
+	unsigned int sta;
+
+	sta = status;
+	if (errsta) {
+		diag_send_event_stat_and_env_data(
+				DiagMsgPrioHigh,
+				ModuleDiag_VIO,
+				EventIdVioSifErr,
+				DiagEventStaFail,
+				DiagGenEnvdataWhenErr,
+				(uint8_t *)&sta,
+				sizeof(unsigned int));
+	} else {
+		diag_send_event_stat(
+				DiagMsgPrioMid,
+				ModuleDiag_VIO,
+				EventIdVioSifErr,
+				DiagEventStaSuccess);
+	}
+}
+
 static void x2_sif_irq(unsigned int status, void *data)
 {
 	sif_t          *sif = NULL;
+	uint8_t err_occurred = 0;
+
 	if (NULL == data) {
 		siferr("sif irq input data error!");
 		return;
@@ -100,12 +126,15 @@ static void x2_sif_irq(unsigned int status, void *data)
 	if (status & (SIF_SIZE_ERR0 | SIF_SIZE_ERR1)) {
 		sif->sif_file.event |= SIF_ERROR;
 		sif->sif_file.status = status & (SIF_SIZE_ERR0 | SIF_SIZE_ERR1);
+		err_occurred = 1;
 	}
 	if (status & MOT_DET)
 		sif->sif_file.event |= SIF_MOTDET;
 	spin_unlock(&sif->sif_file.event_lock);
 	if (sif->sif_file.event)
 		wake_up_interruptible(&sif->sif_file.event_queue);
+
+	sif_diag_report(err_occurred, status);
 }
 
 static int sif_update(sif_t *dev, sif_cfg_t *cfg)
@@ -527,7 +556,11 @@ static int __init sif_module_init(void)
 	spin_lock_init(&sif->sif_file.event_lock);
 	init_waitqueue_head(&sif->sif_file.event_queue);
 	ips_mask_int(SIF_FRAME_START_INTERRUPT | SIF_FRAME_END_INTERRUPT);
-	sifinfo("sif driver init exit");
+	if (diag_register(ModuleDiag_VIO, EventIdVioSifErr,
+					8, 400, 7000, NULL) < 0)
+		pr_err("sif diag register fail\n");
+
+	sifinfo("sif driver init done");
 	return 0;
 err:
 	class_destroy(g_sif_class);
