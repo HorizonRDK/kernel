@@ -325,7 +325,7 @@
 
 		partition@qspi-boot {
 			label = "qspi-boot";
-			reg = <0x0 0x1000000>;
+			reg = <0x0 0x4000000>;
 		};
 	};
 };
