@@ -85,7 +85,8 @@ void *src, addr_t offset, int len)
 #ifndef CONFIG_HOBOT_BIF_AP
 	if (channel->type == MCU_AP)
 		swap_bytes_order((unsigned char *)src, len);
-	bif_memcpy(dst, src, len);
+	//bif_memcpy(dst, src, len);
+	memcpy(dst, src, len);
 #else
 	if (channel->channel == BIF_SPI) {
 		if (bif_spi_write(dst, len, src))
@@ -111,7 +112,8 @@ void *dst, addr_t offset, int len)
 	src = (void *)(channel->base_addr + offset);
 
 #ifndef CONFIG_HOBOT_BIF_AP
-	bif_memcpy(dst, src, len);
+	//bif_memcpy(dst, src, len);
+	memcpy(dst, src, len);
 	if (channel->type == MCU_AP)
 		swap_bytes_order((unsigned char *)dst, len);
 #else
@@ -289,9 +291,13 @@ struct frag_info *fragment_info)
 	bif_debug("id = %d start = %d  end = %d\n", fragment_info->id,
 		fragment_info->flag.start, fragment_info->flag.end);
 
-	bif_memcpy(channel->send_fragment, fragment_info,
+	//bif_memcpy(channel->send_fragment, fragment_info,
+	//	sizeof(struct frag_info));
+	memcpy(channel->send_fragment, fragment_info,
 		sizeof(struct frag_info));
-	bif_memcpy(channel->send_fragment + sizeof(struct frag_info),
+	//bif_memcpy(channel->send_fragment + sizeof(struct frag_info),
+	//	data, fragment_info->len);
+	memcpy(channel->send_fragment + sizeof(struct frag_info),
 		data, fragment_info->len);
 
 	if (channel->crc_enable) {
@@ -340,7 +346,6 @@ unsigned char *data, int len)
 	unsigned char *frag_p = data;
 	int ret = 0;
 	int count = 0;
-	int index = 0;
 	struct frag_info fragment_info;
 
 	// calculate fragment count & last copy byte
@@ -354,15 +359,19 @@ unsigned char *data, int len)
 	bif_debug("len = %d l_c = %d fr_c = %d\n",
 		len, last_copy, frag_count);
 
-	ret = bif_tx_get_available_buffer(channel, &index,
+	if (channel->tx_frag_avail < frag_count) {
+		ret = bif_tx_get_available_buffer(channel,
+		&channel->tx_frag_index,
 		&count, frag_count);
 	if (ret < 0) {
 		ret = BIF_TX_ERROR_NO_MEM;
 			goto err;
+		} else
+			channel->tx_frag_avail = count;
 		}
 
 	bif_debug("count =  %d\n", count);
-	bif_debug("index =  %d\n", index);
+	bif_debug("index =  %d\n", channel->tx_frag_index);
 
 	memset(&fragment_info, 0, sizeof(fragment_info));
 	for (i = 0; i < frag_count; ++i) {
@@ -392,18 +401,20 @@ unsigned char *data, int len)
 				fragment_info.len = last_copy;
 		}
 
-		ret = bif_tx_put_data_to_buffer(channel, index,
+		ret = bif_tx_put_data_to_buffer(channel, channel->tx_frag_index,
 			frag_p, &fragment_info);
 		if (ret < 0) {
 			ret = BIF_TX_ERROR_TRANS;
 			printk_ratelimited(KERN_INFO "bif_err: %s %d\n", __func__, __LINE__);
 			goto err;
 		}
-		index++;
-		index = index % channel->frag_num;
+		channel->tx_frag_index++;
+		channel->tx_frag_index =
+		channel->tx_frag_index % channel->frag_num;
 		frag_p += channel->valid_frag_len_max;
 	}
 	bif_tx_update_to_cp_ddr(channel);
+	channel->tx_frag_avail -= frag_count;
 err:
 	return ret;
 }
@@ -564,7 +575,10 @@ struct bif_rx_cache *cache_tmp, struct frag_info *fragment_info)
 			goto err;
 		}
 
-		bif_memcpy(frame_p->framecache,
+		//bif_memcpy(frame_p->framecache,
+		//	cache_tmp->datacache + sizeof(struct frag_info),
+		//	fragment_info->len);
+		memcpy(frame_p->framecache,
 			cache_tmp->datacache + sizeof(struct frag_info),
 			fragment_info->len);
 		channel->current_frame.pos_p =
@@ -592,7 +606,10 @@ struct bif_rx_cache *cache_tmp, struct frag_info *fragment_info)
 			bif_err("bif_err: %s %d\n", __func__, __LINE__);
 			goto err;
 		}
-		bif_memcpy(channel->current_frame.pos_p,
+		//bif_memcpy(channel->current_frame.pos_p,
+		//cache_tmp->datacache +
+		//sizeof(struct frag_info), fragment_info->len);
+		memcpy(channel->current_frame.pos_p,
 cache_tmp->datacache + sizeof(struct frag_info), fragment_info->len);
 		channel->current_frame.pos_p += fragment_info->len;
 		channel->current_frame.received_len += fragment_info->len;
@@ -1046,6 +1063,7 @@ static inline int bif_sync_before_start(struct comm_channel *channel)
 	if ((!channel->channel_ready) || ((tx_remote_info_tmp->recv_head == -1) &&
 		(rx_local_info_tmp->recv_head == -1))) {
 		pr_info("sync info\n");
+		#if 0
 		bif_memcpy(channel->tx_remote_info, tx_remote_info_tmp,
 			ALIGN(sizeof(struct bif_rx_ring_info),
 			channel->transfer_align));
@@ -1056,6 +1074,19 @@ static inline int bif_sync_before_start(struct comm_channel *channel)
 			ALIGN(sizeof(struct bif_rx_ring_info),
 			channel->transfer_align));
 		bif_memcpy(channel->rx_remote_info, rx_remote_info_tmp,
+			ALIGN(sizeof(struct bif_tx_ring_info),
+			channel->transfer_align));
+		#endif
+		memcpy(channel->tx_remote_info, tx_remote_info_tmp,
+			ALIGN(sizeof(struct bif_rx_ring_info),
+			channel->transfer_align));
+		memcpy(channel->tx_local_info, tx_local_info_tmp,
+			ALIGN(sizeof(struct bif_tx_ring_info),
+			channel->transfer_align));
+		memcpy(channel->rx_local_info, rx_local_info_tmp,
+			ALIGN(sizeof(struct bif_rx_ring_info),
+			channel->transfer_align));
+		memcpy(channel->rx_remote_info, rx_remote_info_tmp,
 			ALIGN(sizeof(struct bif_tx_ring_info),
 			channel->transfer_align));
 	}

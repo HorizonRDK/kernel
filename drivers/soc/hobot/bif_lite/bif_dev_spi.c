@@ -30,11 +30,11 @@
 #include "hbipc_lite.h"
 #include "hbipc_errno.h"
 #include "bif_dev_spi.h"
-#ifndef CONFIG_NO_DTS_AP
+#ifndef CONFIG_HOBOT_BIF_AP
 #include <x2/x2_bifspi.h>
 #endif
 
-#define VERSION "2.4.0"
+#define VERSION "2.5.0"
 
 #ifdef CONFIG_NO_DTS_AP
 /* module parameters */
@@ -156,24 +156,26 @@ trig_count = %d\nretrig_count = %d\n",
 
 static int bif_dev_spi_info_proc_show(struct seq_file *m, void *v)
 {
-	seq_printf(m, "buffer index:\n\
-init_tx_remote_info = %d\ninit_tx_local_info = %d\n\
-init_rx_local_info = %d\ninit_rx_remote_info = %d\n\
-sync_tx_remote_info = %d\nsync_tx_local_info = %d\n\
-sync_rx_local_info = %d\nsync_rx_remote_info = %d\n\
-hardware channel concerned\n\
-channel = %d\nbuffer_id = %d\ntransfer_align = %d\n\
-memory limit concerned:\n\
-base_addr = %lx\nframe_len_max = %d\nfrag_len_max = %d\n\
-valid_frag_len_max = %d\nrag_num = %d\nframe_cache_max = %d\n\
-memory layout concerned:\n\
-rx_local_info_offset = %lx\nrx_remote_info_offset = %lx\n\
-tx_local_info_offset = %lx\ntx_remote_info_offset = %lx\n\
-rx_buffer_offset = %lx\ntx_buffer_offset = %lx\n\
-total_mem_size = %d\n\
-transfer feature:\n\
-ap_type = %d\nworking_mode = %d\n\
-crc_enable = %d\n",
+	seq_printf(m, "version = %s\n"
+"buffer index:\n"
+"init_tx_remote_info = %d\ninit_tx_local_info = %d\n"
+"init_rx_local_info = %d\ninit_rx_remote_info = %d\n"
+"sync_tx_remote_info = %d\nsync_tx_local_info = %d\n"
+"sync_rx_local_info = %d\nsync_rx_remote_info = %d\n"
+"hardware channel concerned\n"
+"channel = %d\nbuffer_id = %d\ntransfer_align = %d\n"
+"memory limit concerned:\n"
+"base_addr = %lx\nframe_len_max = %d\nfrag_len_max = %d\n"
+"valid_frag_len_max = %d\nrag_num = %d\nframe_cache_max = %d\n"
+"memory layout concerned:\n"
+"rx_local_info_offset = %lx\nrx_remote_info_offset = %lx\n"
+"tx_local_info_offset = %lx\ntx_remote_info_offset = %lx\n"
+"rx_buffer_offset = %lx\ntx_buffer_offset = %lx\n"
+"total_mem_size = %d\n"
+"transfer feature:\n"
+"ap_type = %d\nworking_mode = %d\n"
+"crc_enable = %d\n",
+	VERSION,
 	domain.channel.init_tx_remote_info,
 	domain.channel.init_tx_local_info,
 	domain.channel.init_rx_local_info,
@@ -624,6 +626,7 @@ err:
 	return ret;
 }
 
+#define TX_RETRY_TIME (10)
 #define TX_RETRY_MAX (100)
 static DEFINE_MUTEX(write_mutex);
 static ssize_t x2_bif_write(struct file *file, const char __user *buf,
@@ -688,7 +691,8 @@ resend_without_timeout:
 						goto error;
 		} else {
 						++domain.domain_statistics.write_resend_count;
-						remaining_time = msleep_interruptible(10);
+						remaining_time =
+				msleep_interruptible(TX_RETRY_TIME);
 						if (!remaining_time)
 							goto resend_without_timeout;
 						else {
@@ -728,9 +732,11 @@ resend_with_timeout:
 					goto error;
 				} else {
 					++domain.domain_statistics.write_resend_count;
-					remaining_time = msleep_interruptible(10);
+					remaining_time =
+					msleep_interruptible(TX_RETRY_TIME);
 					if (!remaining_time) {
-						timeout_accumulate += 10;
+						timeout_accumulate +=
+						TX_RETRY_TIME;
 							goto resend_with_timeout;
 					} else {
 						pr_info("sleep interruptuble\n");

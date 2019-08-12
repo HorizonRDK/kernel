@@ -148,6 +148,8 @@ struct comm_channel {
 	int crc_enable;
 	int frame_start;
 	int channel_ready;
+	int tx_frag_avail;
+	int tx_frag_index;
 	// buffer index info
 	int init_tx_remote_info;
 	int init_tx_local_info;
