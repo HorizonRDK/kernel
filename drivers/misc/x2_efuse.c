@@ -1,18 +1,8 @@
-/*
- * X2 EFUSE driver (For X2 Platform)
- *
- * 2017 - 2018 (C) Horizon Inc.
- *
- * This program is free software; you can redistribute it
- * and/or modify it under the terms of the GNU General Public
- * License as published by the Free Software Foundation;
- * either version 2 of the License, or (at your option) any
- * later version.
- *
- * This driver has originally been pushed by Horizon using a X2-branding. This
- * still shows in the naming of this file, the kconfig symbols and some symbols
- * in the code.
- */
+/***************************************************************************
+ *			COPYRIGHT NOTICE
+ *		Copyright 2018 Horizon Robotics, Inc.
+ *			All rights reserved.
+ ***************************************************************************/
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/io.h>
@@ -26,9 +16,6 @@
 #include <linux/delay.h>
 
 #define X2_EFUSE_NAME		"x2-efuse"
-
-#define efuse_major 50
-#define efuse_minor 8
 
 /* define reg offset */
 #define X2_EFUSE_APB_DATA_BASE   0x00
@@ -132,37 +119,93 @@ X2_EFUSE_WRAP_DATA_LEN, X2_EFUSE_WRAP_DATA_LEN-1);
 	return 0;
 }
 
-static ssize_t efuse_show(struct device *dev,
-			struct device_attribute *attr, char *buf)
+static ssize_t apb_show(struct class *class,
+			struct class_attribute *attr, char *buf)
 {
 	unsigned int i, ret, val, word = 0;
 	char temp[50];
 
 	for (i = 0; i < 64; i++, word++) {
 		if (!(i % 4)) {
-			sprintf(temp, "\nWord 0x%.8x:", word);
+			sprintf(temp, "\nApb_Word 0x%.8x:", word);
 			strcat(buf, temp);
 		}
 
 		ret = fuse_read(0, word, &val);
-		if (ret)
-			;
+		if (ret != 0)
+			pr_err("fuse read error");
 
 		sprintf(temp, " %.8x", val);
 		strcat(buf, temp);
 	}
 
+	strcat(buf, "\n");
+
 	return strlen(buf);
 }
 
-static ssize_t efuse_store(struct device *dev, struct device_attribute *attr,
+static ssize_t apb_store(struct class *class, struct class_attribute *attr,
 				const char *buf, size_t count)
 {
 	return count;
 }
 
-static DEVICE_ATTR(efuse_device_attr, 0644,
-			efuse_show, efuse_store);
+static ssize_t wrap_show(struct class *class,
+			struct class_attribute *attr, char *buf)
+{
+	unsigned int i, ret, val, word = 0;
+	char temp[50];
+
+	for (i = 0; i < 32; i++, word++) {
+		if (!(i % 4)) {
+			sprintf(temp, "\nWrap_Word 0x%.8x:", word);
+			strcat(buf, temp);
+		}
+
+		ret = fuse_read(1, word, &val);
+		if (ret != 0)
+			pr_err("fuse read error");
+
+		sprintf(temp, " %.8x", val);
+		strcat(buf, temp);
+	}
+
+	strcat(buf, "\n");
+
+	return strlen(buf);
+}
+
+static ssize_t wrap_store(struct class *class, struct class_attribute *attr,
+				const char *buf, size_t count)
+{
+	return count;
+}
+
+static struct class_attribute apb_attribute =
+	__ATTR(apb_efuse, 0644, apb_show, apb_store);
+
+static struct class_attribute wrap_attribute =
+	__ATTR(wrap_efuse, 0644, wrap_show, wrap_store);
+
+static struct attribute *efuse_attributes[] = {
+	&apb_attribute.attr,
+	&wrap_attribute.attr,
+	NULL
+};
+
+static const struct attribute_group efuse_group = {
+	.attrs = efuse_attributes,
+};
+
+static const struct attribute_group *efuse_attr_group[] = {
+	&efuse_group,
+	NULL,
+};
+
+static struct class efuse_class = {
+	.name = "x2_efuse",
+	.class_groups = efuse_attr_group,
+};
 
 /* Match table for of_platform binding */
 static const struct of_device_id x2_efuse_of_match[] = {
@@ -179,13 +222,7 @@ MODULE_DEVICE_TABLE(of, x2_efuse_of_match);
  */
 static int x2_efuse_probe(struct platform_device *pdev)
 {
-	struct property *prop;
-	char *board_id;
 	int rc;
-
-	prop = of_find_property(pdev->dev.of_node, "board_id", NULL);
-
-	board_id = (char *)(prop->value);
 
 	reg = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!reg) {
@@ -242,21 +279,15 @@ static struct platform_driver x2_efuse_platform_driver = {
 static int __init x2_efuse_init(void)
 {
 	int retval = 0;
-	struct device *efuse_dev;
-	struct class *efuse_class;
-	dev_t efuse_devt = MKDEV(efuse_major, efuse_minor);
 
 	/* Register the platform driver */
 	retval = platform_driver_register(&x2_efuse_platform_driver);
 	if (retval)
 		pr_err("Unable to register platform driver\n");
 
-	efuse_class = class_create(THIS_MODULE, "efuse_class");
-
-	efuse_dev = device_create(efuse_class, NULL, efuse_devt,
-					"efuse_drvdata", "efuse");
-
-	device_create_file(efuse_dev, &dev_attr_efuse_device_attr);
+	retval = class_register(&efuse_class);
+	if (retval < 0)
+		return retval;
 
 	return retval;
 }
@@ -265,6 +296,7 @@ static void __exit x2_efuse_exit(void)
 {
 	/* Unregister the platform driver */
 	platform_driver_unregister(&x2_efuse_platform_driver);
+	class_unregister(&efuse_class);
 }
 
 module_init(x2_efuse_init);
