@@ -134,6 +134,11 @@ typedef struct _pll_range_table_s {
 	uint32_t     value;
 } pll_range_table_t;
 
+/* module params */
+unsigned int txout_freq_autolarge_enbale;
+
+module_param(txout_freq_autolarge_enbale, uint, 0644);
+
 static const pll_range_table_t g_pll_range_table[] = {
 	{80,   97,  0x00},
 	{80,   107, 0x10},
@@ -525,7 +530,13 @@ static int32_t mipi_tx_pll_div(uint16_t refsclk, uint16_t laneclk, uint8_t *n, u
 	*m = fvco_max * (*n + 1) / refsclk - 2;
 #else
 	*vco = mipi_tx_vco_range(fout, &fvco_max);
-	*m = (fvco_max << vco_div) * (*n + 1) / refsclk - 2;
+	//!1 for case rx&tx freq same, and rx already taken >95% bandwidth
+	//!0 for other case. tx>=rx>> 80%bandwidth, e.g.
+	//make tx freq fixed 400M for TI ser.
+	if (txout_freq_autolarge_enbale) {
+		mipidbg("txout freq autolarge enbaled\n");
+		*m = (fvco_max << vco_div) * (*n + 1) / refsclk - 2;
+	}
 #endif
 	outclk = fout << 1;
 	mipidbg("pll div refsclk: %d, laneclk: %d, n: %d, m: %d, outclk: %d",
