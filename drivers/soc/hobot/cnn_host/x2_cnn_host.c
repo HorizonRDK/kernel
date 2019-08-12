@@ -493,6 +493,7 @@ static irqreturn_t x2_cnn_interrupt_handler(int irq, void *dev_id)
 			dev->real_int_cnt++;
 		} else {
 			spin_unlock_irqrestore(&dev->cnn_spin_lock, flags);
+			atomic_sub(tmp.fc_total, &dev->wait_fc_cnt);
 			break;
 		}
 
@@ -818,6 +819,8 @@ static int x2_cnn_fc_fifo_enqueue(struct x2_cnn_dev *dev,
 	fc_tail_flag = fc_tail_idx & X2_CNN_FC_IDX_FLAG;
 	tmp_ptr = (struct hbrt_x2_funccall_s *)fc_buf->fc_info;
 
+	fc_head_idx &= X2_CNN_MAX_FC_LEN_MASK;
+	fc_tail_idx &= X2_CNN_MAX_FC_LEN_MASK;
 	if (fc_head_flag != fc_tail_flag)
 		free_fc_fifo = fc_head_idx - fc_tail_idx;
 	else
@@ -828,7 +831,6 @@ static int x2_cnn_fc_fifo_enqueue(struct x2_cnn_dev *dev,
 		pr_err("no available fc fifo spaces\n");
 		return rc;
 	}
-	fc_tail_idx &= X2_CNN_MAX_FC_LEN_MASK;
 	count = fc_tail_idx;
 	if ((fc_tail_idx + fc_buf->fc_cnt)  > fc_depth) {
 		insert_fc_cnt = fc_depth - fc_tail_idx + 1;
