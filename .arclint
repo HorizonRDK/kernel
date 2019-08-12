@@ -3,7 +3,8 @@
         "c": {
             "type": "cpplint",
 	    "severity":{
-		"whitespace/tab": "disabled"
+		"whitespace/tab": "disabled",
+		"whitespace/comments": "disabled"
 	    },
             "flags": ["--extensions=h,c"],
             "include": ["(\\.h$)", "(\\.c$)"]
