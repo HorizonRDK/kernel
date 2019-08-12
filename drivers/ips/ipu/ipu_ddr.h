@@ -19,7 +19,8 @@ struct src_img_info_t {
 	int slot_id;
 	int img_format;
 	int frame_id;
-	uint64_t timestamp;
+	int64_t timestamp;
 	struct addr_info_t src_img;
+	struct addr_info_t scaler_img;
 };
 #endif

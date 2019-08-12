@@ -55,6 +55,9 @@
 
 #define ENABLE 1
 #define DISABLE 0
+#define PYM_SRC_FROM_ERR     -1
+#define PYM_SRC_FROM_CROP    0
+#define PYM_SRC_FROM_SCALE   1
 
 static wait_queue_head_t wq_frame_done;
 static wait_queue_head_t wq_pym_done;
@@ -81,6 +84,7 @@ struct ipu_ddr_cdev {
 
 struct ipu_ddr_cdev *g_ipu_ddr_cdev;
 static int64_t g_ipu_time;
+static int g_pym_from;
 
 /* new process */
 static struct semaphore sem_src;
@@ -365,9 +369,31 @@ static int8_t ipu_sinfo_init(ipu_cfg_t *ipu_cfg)
 			}
 		}
 	}
+	if (g_ipu_ddr_cdev->s_info.ds[0].y_width == g_ipu_ddr_cdev->s_info.crop.y_width &&
+		g_ipu_ddr_cdev->s_info.ds[0].y_height == g_ipu_ddr_cdev->s_info.crop.y_height) {
 
-	g_ipu_ddr_cdev->s_info.ds[0].y_offset = ipu_cfg->crop_ddr.y_addr;
-	g_ipu_ddr_cdev->s_info.ds[0].c_offset = ipu_cfg->crop_ddr.c_addr;
+		g_pym_from = PYM_SRC_FROM_CROP;
+		pr_debug("%d pym src from crop %d\n", __LINE__, g_pym_from);
+	} else if (g_ipu_ddr_cdev->s_info.ds[0].y_width == g_ipu_ddr_cdev->s_info.scale.y_width &&
+		g_ipu_ddr_cdev->s_info.ds[0].y_height == g_ipu_ddr_cdev->s_info.scale.y_height) {
+
+		g_pym_from = PYM_SRC_FROM_SCALE;
+		pr_debug("%d pym src from scale %d\n", __LINE__, g_pym_from);
+	} else {
+
+		g_pym_from = PYM_SRC_FROM_ERR;
+		pr_err("%d pym src %d err\n", __LINE__, g_pym_from);
+	}
+	if (g_pym_from == PYM_SRC_FROM_CROP) {
+		g_ipu_ddr_cdev->s_info.ds[0].y_offset = ipu_cfg->crop_ddr.y_addr;
+		g_ipu_ddr_cdev->s_info.ds[0].c_offset = ipu_cfg->crop_ddr.c_addr;
+	} else if (g_pym_from == PYM_SRC_FROM_SCALE) {
+		g_ipu_ddr_cdev->s_info.ds[0].y_offset = ipu_cfg->scale_ddr.y_addr;
+		g_ipu_ddr_cdev->s_info.ds[0].c_offset = ipu_cfg->scale_ddr.c_addr;
+	} else {
+		pr_err("%d pym src %d err\n", __LINE__, g_pym_from);
+		return -1;
+	}
 
 	return 0;
 }
@@ -502,9 +528,17 @@ long ipu_ddr_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 				return -EFAULT;
 			}
 			spin_lock_irqsave(&g_ipu_ddr_cdev->slock, flags);
-			set_ds_src_addr(src_img_info->src_img.y_paddr, src_img_info->src_img.c_paddr);
-			ipu_set(IPUC_SET_PYM_DDR, g_ipu->cfg, IPU_GET_SLOT(src_img_info->slot_id,
-			g_ipu->paddr));
+			if (g_pym_from == PYM_SRC_FROM_CROP) {
+				set_ds_src_addr(src_img_info->src_img.y_paddr, src_img_info->src_img.c_paddr);
+				ipu_set(IPUC_SET_PYM_DDR, g_ipu->cfg, IPU_GET_SLOT(src_img_info->slot_id, g_ipu->paddr));
+			} else if (g_pym_from == PYM_SRC_FROM_SCALE) {
+				set_ds_src_addr(src_img_info->scaler_img.y_paddr, src_img_info->scaler_img.c_paddr);
+				ipu_set(IPUC_SET_PYM_DDR, g_ipu->cfg, IPU_GET_SLOT(src_img_info->slot_id, g_ipu->paddr));
+			} else {
+				pr_err("%d pym src err %d\n", __LINE__, g_pym_from);
+				spin_unlock_irqrestore(&g_ipu_ddr_cdev->slock, flags);
+				return -EFAULT;
+			}
 			memcpy(&g_process_info, src_img_info, sizeof(struct src_img_info_t));
 			pym_manual_start();
 			spin_unlock_irqrestore(&g_ipu_ddr_cdev->slock, flags);
@@ -860,7 +894,7 @@ static int __init x2_ipu_ddr_init(void)
 		return -ENODEV;
 	}
 	started = 0;
-
+	g_pym_from = 0;
 	init_waitqueue_head(&wq_frame_done);
 	init_waitqueue_head(&wq_pym_done);
 	/* new process */
