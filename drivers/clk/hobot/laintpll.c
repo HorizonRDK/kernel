@@ -422,7 +422,7 @@ static void __init _of_x2_laintpll_clk_setup(struct device_node *node,
 	const char *parent_name;
 	unsigned int flags = 0;
 	unsigned int clk_laintpll_flags = 0;
-	unsigned int data[2];
+	unsigned int data[3];
 	void __iomem *reg_base;
 	int ret;
 
