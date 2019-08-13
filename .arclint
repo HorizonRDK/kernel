@@ -4,7 +4,8 @@
             "type": "cpplint",
 	    "severity":{
 		"whitespace/tab": "disabled",
-		"whitespace/comments": "disabled"
+		"whitespace/comments": "disabled",
+		"whitespace/empty_conditional_body": "disabled"
 	    },
             "flags": ["--extensions=h,c"],
             "include": ["(\\.h$)", "(\\.c$)"]
