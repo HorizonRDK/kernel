@@ -25,6 +25,8 @@
 #include <asm/pgtable.h>
 #include <linux/io.h>
 #include <linux/interrupt.h>
+#include <linux/timer.h>
+#include <x2/diag.h>
 #include <x2/x2_bifspi.h>
 
 #define BIF_BASE_ADDRESS  (0x00000000)
@@ -59,6 +61,9 @@ static long bif_compat_ioctl(struct file *filp, unsigned int cmd,
 static int major;
 module_param(major, int, 0644);
 MODULE_PARM_DESC(major, "major num");
+
+static uint32_t bifspi_last_err_tm_ms;
+struct timer_list bifspi_diag_timer;
 
 struct bifspi_t {
 	int irq;
@@ -436,6 +441,41 @@ static void bif_free_chardev(struct bifspi_t *pbif)
 	unregister_chrdev_region(devno, 1);
 }
 
+static void bifspi_diag_report(uint8_t errsta, uint32_t irqsta)
+{
+	uint32_t irqstatmp;
+
+	irqstatmp = irqsta;
+	bifspi_last_err_tm_ms = msecs_to_jiffies(get_jiffies_64());
+	if (errsta) {
+		diag_send_event_stat_and_env_data(
+				DiagMsgPrioHigh,
+				ModuleDiag_bif,
+				EventIdBifSpiErr,
+				DiagEventStaFail,
+				DiagGenEnvdataWhenErr,
+				(uint8_t *)&irqstatmp,
+				4);
+	}
+}
+
+static void bifspi_diag_timer_func(unsigned long data)
+{
+	uint32_t now_tm_ms;
+	unsigned long jiffi;
+
+	now_tm_ms = msecs_to_jiffies(get_jiffies_64());
+	if (now_tm_ms - bifspi_last_err_tm_ms > 6000) {
+		diag_send_event_stat(
+				DiagMsgPrioMid,
+				ModuleDiag_bif,
+				EventIdBifSpiErr,
+				DiagEventStaSuccess);
+	}
+	jiffi = get_jiffies_64() + msecs_to_jiffies(2000);
+	mod_timer(&bifspi_diag_timer, jiffi); // trriger again.
+}
+
 static irqreturn_t bifspi_interrupt(int irq, void *dev_id)
 {
 	unsigned int value;
@@ -449,7 +489,10 @@ static irqreturn_t bifspi_interrupt(int irq, void *dev_id)
 	spin_unlock_irqrestore(&pbif->lock, flags);
 	pr_info("BIFSPI: Catch interrupt value %#x\n", pbif->intstatus);
 
-	if (pbif->intstatus & BIT(4)) {
+	if (pbif->intstatus & BIT(1) ||
+		pbif->intstatus & BIT(4) ||
+		pbif->intstatus & BIT(5)) {
+		bifspi_diag_report(1, pbif->intstatus);
 		bif_reset(pbif);
 		bif_set_access(pbif, pbif->first, pbif->last);
 	}
@@ -472,6 +515,8 @@ static int bifspi_probe(struct platform_device *pdev)
 	int ret = 0;
 	struct resource *res;
 	unsigned int value32;
+	unsigned long flags;
+	int value;
 
 	bif_info = kzalloc(sizeof(struct bifspi_t), GFP_KERNEL);
 	if (bif_info == NULL) {
@@ -537,6 +582,27 @@ static int bifspi_probe(struct platform_device *pdev)
 		goto failed_chardev;
 	}
 
+	/* diag init£¬enalbe error interrupt
+	 * and creator timer for report OK
+	 */
+	spin_lock_irqsave(&bif_info->lock, flags);
+	value = readl((void *)(bif_info->regs_base + BIF_EN_CLEAR));
+	value |= (1 << 0x01); // enalbe check_cmd_err int
+	value |= (1 << 0x05); // enalbe wr_same_sharereg int
+	writel(value, (void *)(bif_info->regs_base + BIF_EN_CLEAR));
+	spin_unlock_irqrestore(&bif_info->lock, flags);
+	bifspi_last_err_tm_ms = 0;
+	if (diag_register(ModuleDiag_bif, EventIdBifSpiErr,
+						8, 300, 5000, NULL) < 0) {
+		dev_err(&pdev->dev, "bifspi char dev diag register fail\n");
+	} else {
+		init_timer(&bifspi_diag_timer);
+		bifspi_diag_timer.expires = get_jiffies_64()
+					+ msecs_to_jiffies(1000);
+		bifspi_diag_timer.data = 0;
+		bifspi_diag_timer.function = bifspi_diag_timer_func;
+		add_timer(&bifspi_diag_timer);
+	}
 	ret = sysfs_create_group(&pdev->dev.kobj, &bifspi_group);
 	if (ret != 0)
 		dev_err(&pdev->dev, "sysfs_create_group failed\n");
@@ -567,6 +633,7 @@ static int bifspi_remove(struct platform_device *pdev)
 	if (pbif->regs_base > 0)
 		devm_iounmap(&pdev->dev, bif_info->regs_base);
 	kfree(pbif);
+	del_timer_sync(&bifspi_diag_timer);
 	return 0;
 }
 

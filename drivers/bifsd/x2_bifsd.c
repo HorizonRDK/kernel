@@ -16,12 +16,17 @@
 #include "x2_bifsd.h"
 #include <linux/slab.h>
 #include <linux/fs.h>
+#include <linux/timer.h>
+#include <x2/diag.h>
 
 #define BIFSD_DETECT_GPIO 77
 /*****************************************************************************/
 /* static Global Variables                                                   */
 /*****************************************************************************/
 struct bif_sd *bifsd_info;
+struct timer_list bifsd_diag_timer;
+static uint32_t bifsd_last_err_tm_ms;
+
 /*****************************************************************************/
 /* Global Variables                                                          */
 /*****************************************************************************/
@@ -522,6 +527,41 @@ static const struct of_device_id bifsd_hobot_of_match[] = {
 
 MODULE_DEVICE_TABLE(of, bifsd_hobot_of_match);
 
+static void bifsd_diag_report(uint8_t errsta, uint32_t irqstareg)
+{
+	uint32_t sta;
+
+	sta = irqstareg;
+	bifsd_last_err_tm_ms = msecs_to_jiffies(get_jiffies_64());
+	if (errsta) {
+		diag_send_event_stat_and_env_data(
+				DiagMsgPrioHigh,
+				ModuleDiag_bif,
+				EventIdBifSdErr,
+				DiagEventStaFail,
+				DiagGenEnvdataWhenErr,
+				(uint8_t *)&sta,
+				4);
+	}
+}
+
+static void bifsd_diag_timer_func(unsigned long data)
+{
+	uint32_t now_tm_ms;
+	unsigned long jiffi;
+
+	now_tm_ms = msecs_to_jiffies(get_jiffies_64());
+	if (now_tm_ms - bifsd_last_err_tm_ms > 6000) {
+		diag_send_event_stat(
+				DiagMsgPrioMid,
+				ModuleDiag_bif,
+				EventIdBifSdErr,
+				DiagEventStaSuccess);
+	}
+	jiffi = get_jiffies_64() + msecs_to_jiffies(3000);
+	mod_timer(&bifsd_diag_timer, jiffi); // trriger again.
+}
+
 static irqreturn_t bifsd_interrupt(int irq, void *dev_id)
 {
 	struct bif_sd *sd = dev_id;
@@ -533,6 +573,13 @@ static irqreturn_t bifsd_interrupt(int irq, void *dev_id)
 
 	pending_1 = sd_readl(sd, INT_STATUS_1, 0);
 	pending_2 = sd_readl(sd, INT_STATUS_2, 0);
+
+	if ((pending_2 & MMC_DATA_CRC_ERR) ||
+		(pending_2 & MMC_CMD_CRC_ERR) ||
+		(pending_2 & MMC_PACKED_FAILURE) ||
+		(pending_2 & MMC_PWD_CMD_FAIL)) {
+		bifsd_diag_report(1, pending_2);
+	}
 
 	/* Protocol read without count */
 	if ((pending_1 & MMC_MULTI_BLOCK_READ_WRITE)
@@ -933,12 +980,31 @@ EXPORT_SYMBOL_GPL(bifsd_pltfm_register);
 
 static int bifsd_probe(struct platform_device *pdev)
 {
+	int ret;
+
 	const struct bifsd_drv_data *drv_data;
 	const struct of_device_id *match;
 	pr_err("%s\n", __func__);
 	match = of_match_node(bifsd_hobot_of_match, pdev->dev.of_node);
 	drv_data = match->data;
-	return bifsd_pltfm_register(pdev, drv_data);
+	ret = bifsd_pltfm_register(pdev, drv_data);
+	if (ret) {
+		pr_err("bifsd probe error\n");
+	} else {
+		/* diag */
+		diag_register(ModuleDiag_bif, EventIdBifSdErr,
+					8, 300, 5000, NULL);
+		bifsd_last_err_tm_ms = 0;
+		init_timer(&bifsd_diag_timer);
+		bifsd_diag_timer.expires = get_jiffies_64()
+						+ msecs_to_jiffies(1000);
+		bifsd_diag_timer.data = 0;
+		bifsd_diag_timer.function = bifsd_diag_timer_func;
+		add_timer(&bifsd_diag_timer);
+		pr_debug("bifsd probe ok\n");
+	}
+
+	return ret;
 }
 
 static int bifsd_remove(struct platform_device *pdev)
@@ -956,6 +1022,7 @@ static int bifsd_remove(struct platform_device *pdev)
 	sd_writel(sd, INT_ENABLE_2, 0, 0);
 
 	devm_kfree(&pdev->dev, sd);
+	del_timer_sync(&bifsd_diag_timer);
 	return 0;
 }
 
