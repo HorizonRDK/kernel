@@ -454,7 +454,7 @@ int32_t iar_set_hvsync_timing(int outmode)
 	return 0;
 }
 
-int32_t iar_set_panel_timing(struct fb_info *fb, int display_type)
+int32_t disp_set_timing(unsigned int resolution)
 {
 	uint32_t value;
 
@@ -463,8 +463,8 @@ int32_t iar_set_panel_timing(struct fb_info *fb, int display_type)
 		return -1;
 	}
 
-	if (display_type == HDMI_TYPE) {
-		pr_info("iar set HDMI timing!!!\n");
+	if (resolution == 0) {
+		pr_info("x2_iar:set disp resolution timing type is 0\n");
 		value = readl(g_iar_dev->regaddr +
 					REG_IAR_PARAMETER_HTIM_FIELD1);
 		value = IAR_REG_SET_FILED(IAR_DPI_HBP_FIELD,
@@ -475,17 +475,6 @@ int32_t iar_set_panel_timing(struct fb_info *fb, int display_type)
 					44, value);
 		writel(value, g_iar_dev->regaddr +
 					REG_IAR_PARAMETER_HTIM_FIELD1);
-
-//		value = readl(g_iar_dev->regaddr +
-//		REG_IAR_PARAMETER_HTIM_FIELD2);
-//		value = IAR_REG_SET_FILED(IAR_DPI_HBP_FIELD2,
-//		fb->var.right_margin, value);
-//		value = IAR_REG_SET_FILED(IAR_DPI_HFP_FIELD2,
-//		fb->var.left_margin, value);
-//		value = IAR_REG_SET_FILED(IAR_DPI_HSW_FIELD2,
-//		fb->var.hsync_len, value);
-//		writel(value, g_iar_dev->regaddr +
-//		REG_IAR_PARAMETER_HTIM_FIELD2);
 
 		value = readl(g_iar_dev->regaddr +
 					REG_IAR_PARAMETER_VTIM_FIELD1);
@@ -511,6 +500,65 @@ int32_t iar_set_panel_timing(struct fb_info *fb, int display_type)
 
 		writel(0xa, g_iar_dev->regaddr +
 				REG_IAR_PARAMETER_VFP_CNT_FIELD12);
+
+	} else if (resolution == 1) {//800*480
+		pr_info("x2_iar:set disp resolution timing type is 1\n");
+		value = readl(g_iar_dev->regaddr +
+					REG_IAR_PARAMETER_HTIM_FIELD1);
+		value = IAR_REG_SET_FILED(IAR_DPI_HBP_FIELD,
+				80, value);//right_margin
+		value = IAR_REG_SET_FILED(IAR_DPI_HFP_FIELD,
+			120, value);//left_margin
+		value = IAR_REG_SET_FILED(IAR_DPI_HSW_FIELD,
+			48, value);//hsync_len
+		writel(value, g_iar_dev->regaddr +
+					REG_IAR_PARAMETER_HTIM_FIELD1);
+
+		value = readl(g_iar_dev->regaddr +
+					REG_IAR_PARAMETER_VTIM_FIELD1);
+		value = IAR_REG_SET_FILED(IAR_DPI_VBP_FIELD,
+					32, value);//lower_margin
+
+		value = IAR_REG_SET_FILED(IAR_DPI_VFP_FIELD,
+					43, value);//upper_margin
+
+		value = IAR_REG_SET_FILED(IAR_DPI_VSW_FIELD,
+						2, value);//vsync_len
+		writel(value, g_iar_dev->regaddr +
+					REG_IAR_PARAMETER_VTIM_FIELD1);
+
+		value = readl(g_iar_dev->regaddr +
+					REG_IAR_PARAMETER_VTIM_FIELD2);
+		value = IAR_REG_SET_FILED(IAR_DPI_VBP_FIELD2,
+				32, value);//lower_margin
+
+		value = IAR_REG_SET_FILED(IAR_DPI_VFP_FIELD2,
+				43, value);//upper_margin
+
+		value = IAR_REG_SET_FILED(IAR_DPI_VSW_FIELD2,
+					2, value);//vsync_len
+		writel(value,
+			g_iar_dev->regaddr + REG_IAR_PARAMETER_VTIM_FIELD2);
+
+		writel(0xa,
+			g_iar_dev->regaddr + REG_IAR_PARAMETER_VFP_CNT_FIELD12);
+	}
+	return 0;
+}
+EXPORT_SYMBOL_GPL(disp_set_timing);
+
+
+int32_t iar_set_panel_timing(struct fb_info *fb, int display_type)
+{
+	uint32_t value;
+
+	if (g_iar_dev == NULL) {
+		pr_err("IAR dev not inited!");
+		return -1;
+	}
+
+	if (display_type == HDMI_TYPE) {
+		disp_set_timing(0);
 
 	} else if (display_type == LCD_7_TYPE) {
 		pr_info("iar set 7inch lcd panel timing!!!!\n");
@@ -1456,7 +1504,7 @@ static int x2_iar_probe(struct platform_device *pdev)
 	if (display_type == LCD_7_TYPE) {
 
 		pr_info("display type is lcd 7inch panel!!!!!!\n");
-		ret = ips_set_iar_clk32();
+		ret = ips_set_iar_clk32(1);
 		if (ret)
 			return ret;
 

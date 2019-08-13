@@ -753,13 +753,16 @@ out:
 	return ret;
 }
 
-int ips_set_iar_clk32(void)
+int ips_set_iar_clk32(unsigned int clk_index)
 {
 	if (g_ipsdev == NULL) {
 		pr_err("%s, ips dev not init.\n", __func__);
 		return -ENODEV;
 	}
-	return vio_sys_clk_trigger_init(&(g_ipsdev->pdev->dev), 1);
+
+	if (clk_index > 1)
+		return -1;
+	return vio_sys_clk_trigger_init(&(g_ipsdev->pdev->dev), clk_index);
 }
 EXPORT_SYMBOL_GPL(ips_set_iar_clk32);
 

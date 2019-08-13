@@ -34,6 +34,8 @@
 #include <linux/regulator/consumer.h>
 
 #include "siHdmiTx_902x_TPI.h"
+#include "../../iar/x2_iar.h"
+#include "x2/x2_ips.h"
 
 
 #define DEVICE_NAME	"sii902xA"
@@ -330,6 +332,29 @@ static ssize_t sii902x_hdmi_store(struct kobject *kobj,
 		} while (0)
 
 	tmpx = (char *)buf;
+	if (strncmp(tmpx, "resolution800*480", 17) == 0) {
+		vmode = HDMI_800_480_60;
+		pr_info("ReConfig HDMI resolution 800*480");
+		iar_stop();
+		ips_set_iar_clk32(1);
+		disp_set_timing(1);
+		iar_start(1);
+
+		siHdmiTx_ReConfig(vmode, vformat, afs);
+
+		return n;
+	} else if (strncmp(tmpx, "resolution1080p", 15) == 0) {
+		vmode = HDMI_1080P60;
+		pr_info("ReConfig HDMI resolution 1920*1080");
+		iar_stop();
+		ips_set_iar_clk32(0);
+		disp_set_timing(0);
+		iar_start(1);
+
+		siHdmiTx_ReConfig(vmode, vformat, afs);
+
+		return n;
+	}
 	do {
 		tmpv = memchr(tmpx, '=', n);
 		if (tmpv) {

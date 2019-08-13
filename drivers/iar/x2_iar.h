@@ -1,3 +1,7 @@
+/*Copyright:
+ *Year:
+ *
+ */
 #ifndef __X2_IAR_H__
 #define __X2_IAR_H__
 
@@ -580,7 +584,7 @@ extern uint8_t disp_user_config_done;
 		if(iar_debug_level)					\
 			printk("IAR debug: " format, ## args);		\
 	} while(0)
-int ips_set_iar_clk32(void);
+int ips_set_iar_clk32(unsigned int clk_index);
 int32_t iar_set_panel_timing(struct fb_info *fb, int display_type);
 frame_buf_t* iar_get_framebuf_addr(uint32_t channel);
 int32_t iar_set_bufaddr(uint32_t channel, buf_addr_t *addr);
@@ -610,6 +614,7 @@ int8_t iar_checkout_display_camera(uint8_t camera_no);
 int user_set_fb(void);
 int set_video_display_channel(uint8_t channel_no);
 int set_video_display_ddr_layer(uint8_t ddr_layer_no);
+int32_t disp_set_timing(unsigned int resolution);
 
 //int iar_is_enabled(void);
 
