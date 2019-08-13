@@ -23,12 +23,15 @@
 #include "ipu_slot_dual.h"
 #include "ipu_dev.h"
 #include "ipu_dual.h"
+#include "ipu_ddr.h"
 #include "ipu_drv.h"
 #include "ipu_common.h"
 #include <asm-generic/io.h>
 #include <asm/string.h>
 #include <linux/uaccess.h>
 #include <asm/cacheflush.h>
+
+#include "ipu_pym.h"
 
 #include "../../iar/x2_iar.h"
 
@@ -47,6 +50,12 @@
 #define IPUC_STOP			_IO(IPU_IOC_MAGIC, 7)
 #define IPUC_UPDATE_CFG		_IOW(IPU_IOC_MAGIC, 8, ipu_init_t)
 #define IPUC_GET_MEM_INFO	_IOR(IPU_IOC_MAGIC, 9, ipu_meminfo_t)
+
+#define IPUC_PYM_MANUAL_PROCESS	_IO(IPU_IOC_MAGIC, 10)
+#define IPUC_SRC_DONE			_IO(IPU_IOC_MAGIC, 11)
+#define IPUC_PYM_DONE			_IO(IPU_IOC_MAGIC, 12)
+#define IPUC_FB_SRC_DONE			_IO(IPU_IOC_MAGIC, 13)
+#define IPUC_FB_FLUSH			_IO(IPU_IOC_MAGIC, 14)
 
 #define X2_IPU_DUAL_NAME	"x2-ipu-dual"
 
@@ -67,6 +76,7 @@ struct ipu_dual_cdev {
 	slot_ddr_info_dual_t s_info;
 };
 extern struct x2_ipu_data *g_ipu;
+static int timeout;
 
 static struct ipu_dual_cdev *g_ipu_d_cdev = NULL;
 static int64_t g_ipu_time;
@@ -200,17 +210,47 @@ void ipu_dual_mode_process(uint32_t status)
 	}
 
 	if (status & IPU_FRAME_DONE) {
+		struct mult_img_info_t tmp_mult_img_info;
 		ipu_slot_dual_h_t *slot_h = NULL;
 		ipu_info("ipu done\n");
 		if (slot_alive(RECVING_SLOT_QUEUE) < 2) {
 			ipu_dbg("[%d] ipu recving slot less than 2\n", __LINE__);
 		} else {
 			slot_h = recv_slot_busy_to_done();
-			if (slot_h && test_and_clear_bit(IPU_PYM_STARTUP, &g_ipu_d_cdev->ipuflags)) {
+			//if (slot_h && test_and_clear_bit(IPU_PYM_STARTUP, &g_ipu_d_cdev->ipuflags)) {
+			if (slot_h) {
+				test_and_clear_bit(IPU_PYM_STARTUP, &g_ipu_d_cdev->ipuflags);
 				slot_h = pym_slot_free_to_busy();
 				if (slot_h) {
-					set_next_pym_frame(slot_h, true);
+					ipu_get_frameid(ipu, slot_h);
+				/*	set_next_pym_frame(slot_h, true);
 					pym_manual_start();
+				}*/
+					tmp_mult_img_info.src_num = 2;
+					tmp_mult_img_info.src_img_info[0].slot_id = slot_h->info_h.slot_id;
+					tmp_mult_img_info.src_img_info[1].slot_id = slot_h->info_h.slot_id;
+					tmp_mult_img_info.src_img_info[0].frame_id = slot_h->info_h.cf_id;
+					tmp_mult_img_info.src_img_info[1].frame_id = slot_h->info_h.sf_id;
+					tmp_mult_img_info.src_img_info[0].timestamp = slot_h->info_h.cf_timestamp;
+					tmp_mult_img_info.src_img_info[1].timestamp = slot_h->info_h.sf_timestamp;
+					tmp_mult_img_info.src_img_info[0].src_img.y_paddr =
+						slot_h->info_h.base + slot_h->info_h.dual_ddr_info.crop.y_offset;
+					tmp_mult_img_info.src_img_info[1].src_img.y_paddr =
+						slot_h->info_h.base + slot_h->info_h.dual_ddr_info.scale.y_offset;
+					tmp_mult_img_info.src_img_info[0].src_img.c_paddr =
+						slot_h->info_h.base + slot_h->info_h.dual_ddr_info.crop.c_offset;
+					tmp_mult_img_info.src_img_info[1].src_img.c_paddr =
+						slot_h->info_h.base + slot_h->info_h.dual_ddr_info.scale.c_offset;
+
+					/* in dual acaler are the same with src  */
+					tmp_mult_img_info.src_img_info[0].scaler_img
+						= tmp_mult_img_info.src_img_info[0].src_img;
+					tmp_mult_img_info.src_img_info[1].scaler_img
+						= tmp_mult_img_info.src_img_info[1].src_img;
+
+					/* add to pym process fifo */
+					ipu_pym_to_process(&tmp_mult_img_info, g_ipu->cfg,
+							PYM_SLOT_MULT, PYM_INLINE);
 				}
 			}
 		}
@@ -254,6 +294,24 @@ void ipu_dual_mode_process(uint32_t status)
 	}
 
 	if (status & PYM_FRAME_DONE) {
+		int pyming_slot_id = -1;
+		ipu_info("pym done\n");
+
+		if (!g_ipu_pym) {
+			if(g_ipu_pym->pyming_slot_info);
+				pyming_slot_id =
+					g_ipu_pym->pyming_slot_info->img_info.mult_img_info.src_img_info[0].slot_id;
+		}
+
+		if(ipu_pym_process_done() > 0) {
+			if (pyming_slot_id >= 0) {
+				pr_debug("ipu: done slot id is %d.\n", pyming_slot_id);
+				iar_set_video_buffer(pyming_slot_id);
+			}
+			wake_up_interruptible(&g_ipu_d_cdev->event_head);
+		}
+
+#if 0
 		ipu_slot_dual_h_t *slot_h = NULL;
 		ipu_info("pym done\n");
 		slot_h = get_cur_pym_slot();
@@ -290,12 +348,15 @@ void ipu_dual_mode_process(uint32_t status)
 				}
 			}
 		}
-		if (!ipu_is_pym_busy_empty())
+#endif
+		/*if (!ipu_is_pym_busy_empty())
 			pym_manual_start();
+			*/
 		else {
 			set_bit(IPU_PYM_STARTUP, &g_ipu_d_cdev->ipuflags);
 			ipu_info("pym pause\n");
 		}
+
 	}
 
 	spin_unlock(&g_ipu_d_cdev->slock);
@@ -472,6 +533,9 @@ long ipu_dual_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 	ipu_cfg_t *ipu_cfg = (ipu_cfg_t *)ipu->cfg;
 	ipu_slot_dual_h_t *slot_h = NULL;
 	info_dual_h_t *info = NULL;
+	struct mult_img_info_t src_info;
+	struct mult_img_info_t *mult_img_info = NULL;
+	info_dual_h_t pym_info;
 	int ret = 0;
 	ipu_dbg("ipu cmd: %d\n", _IOC_NR(cmd));
 
@@ -484,6 +548,9 @@ long ipu_dual_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 				ipu_err("ioctl init fail\n");
 				return -EFAULT;
 			}
+			timeout = ipu_cfg->timeout;
+			if (timeout <= 0)
+				timeout = 500;
 			ret = ipu_core_init(ipu_cfg);
 			if (ret < 0) {
 				ipu_err("ioctl init fail\n");
@@ -491,6 +558,60 @@ long ipu_dual_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 			}
 			g_ipu_time = 0;
 			ret = 0;
+		}
+		break;
+
+	case IPUC_PYM_MANUAL_PROCESS:
+		{
+			mult_img_info = &src_info;
+			ret = copy_from_user((void *)mult_img_info,
+			(const void __user *)data,
+			sizeof(struct mult_img_info_t));
+			if (ret) {
+				ipu_err("ioctl process fail\n");
+				return -EFAULT;
+			}
+
+			ret = ipu_pym_to_process(mult_img_info, g_ipu->cfg,
+					PYM_SLOT_MULT, PYM_OFFLINE);
+			if (ret) {
+				ipu_err("pym to process fail\n");
+				return ret;
+			}
+		}
+
+		break;
+
+	case IPUC_PYM_DONE:
+		{
+			struct mult_img_info_t tmp_mult_img_info;
+			info_dual_h_t *pym_img_info = NULL;
+			ret = ipu_pym_wait_process_done(&tmp_mult_img_info,
+					sizeof(struct mult_img_info_t), PYM_OFFLINE, timeout);
+			if (ret < 0) {
+				ipu_err("copy to user fail\n");
+				return -EFAULT;
+			}
+
+			spin_lock(&g_ipu_d_cdev->slock);
+			pym_img_info = &pym_info;
+			pym_img_info->slot_id = tmp_mult_img_info.src_img_info[0].slot_id;
+			pym_img_info->slot_flag = 0;
+			pym_img_info->ipu_flag = 0;
+			pym_img_info->cnn_flag = 0;
+			pym_img_info->cf_id = tmp_mult_img_info.src_img_info[0].frame_id;
+			pym_img_info->sf_id = tmp_mult_img_info.src_img_info[1].frame_id;
+			pym_img_info->cf_timestamp = tmp_mult_img_info.src_img_info[0].timestamp;
+			pym_img_info->sf_timestamp = tmp_mult_img_info.src_img_info[1].timestamp;
+			pym_img_info->base =
+				(uint64_t)IPU_GET_DUAL_SLOT(pym_img_info->slot_id, ipu->paddr);
+
+			pym_img_info->dual_ddr_info = g_ipu_d_cdev->s_info;
+			spin_unlock(&g_ipu_d_cdev->slock);
+			ret = copy_to_user((void __user *)data, (const void *)pym_img_info,
+			sizeof(info_dual_h_t));
+			if (ret)
+				ipu_err("copy to user fail\n");
 		}
 		break;
 	case IPUC_GET_IMG:
@@ -525,21 +646,38 @@ long ipu_dual_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 		break;
 	case IPUC_GET_DONE_INFO:
 		{
-			spin_lock(&g_ipu_d_cdev->slock);
-			slot_h = ipu_get_pym_done_slot();
-			if (!slot_h) {
-				spin_unlock(&g_ipu_d_cdev->slock);
-				ipu_dbg("get_done failed\n");
-				return -EFAULT;
+			struct mult_img_info_t tmp_mult_img_info;
+			info_dual_h_t *pym_img_info = NULL;
+			ret = ipu_pym_wait_process_done(&tmp_mult_img_info,
+					sizeof(struct mult_img_info_t), PYM_INLINE, 0);
+			if (ret < 0) {
+				ret = ipu_pym_wait_process_done(&tmp_mult_img_info,
+						sizeof(struct mult_img_info_t), PYM_OFFLINE, 0);
+				if (ret < 0) {
+					ipu_err("copy to user fail\n");
+					return -EFAULT;
+				}
 			}
 
-			info = &slot_h->info_h;
-			info->base = (uint64_t)IPU_GET_DUAL_SLOT(slot_h->info_h.slot_id, ipu->paddr);
+			spin_lock(&g_ipu_d_cdev->slock);
+			pym_img_info = &pym_info;
+			pym_img_info->slot_id = tmp_mult_img_info.src_img_info[0].slot_id;
+			pym_img_info->slot_flag = 0;
+			pym_img_info->ipu_flag = 0;
+			pym_img_info->cnn_flag = 0;
+			pym_img_info->cf_id = tmp_mult_img_info.src_img_info[0].frame_id;
+			pym_img_info->sf_id = tmp_mult_img_info.src_img_info[1].frame_id;
+			pym_img_info->cf_timestamp = tmp_mult_img_info.src_img_info[0].timestamp;
+			pym_img_info->sf_timestamp = tmp_mult_img_info.src_img_info[1].timestamp;
+			pym_img_info->base =
+				(uint64_t)IPU_GET_DUAL_SLOT(pym_img_info->slot_id, ipu->paddr);
+
+			pym_img_info->dual_ddr_info = g_ipu_d_cdev->s_info;
 			spin_unlock(&g_ipu_d_cdev->slock);
-			ret = copy_to_user((void __user *)data, (const void *)info, sizeof(info_dual_h_t));
-			if (ret) {
+			ret = copy_to_user((void __user *)data, (const void *)pym_img_info,
+			sizeof(info_dual_h_t));
+			if (ret)
 				ipu_err("copy to user fail\n");
-			}
 		}
 		break;
 	case IPUC_DUMP_REG:
@@ -623,6 +761,61 @@ long ipu_dual_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 			}
 		}
 		break;
+
+	case IPUC_FB_SRC_DONE:
+		{
+			unsigned long flags;
+			ipu_slot_dual_h_t *g_get_fb_slot_h;
+
+			spin_lock_irqsave(&g_ipu_d_cdev->slock, flags);
+
+			g_get_fb_slot_h = ipu_get_pym_free_slot();
+			if (!g_get_fb_slot_h) {
+
+				g_get_fb_slot_h = ipu_get_pym_done_slot();
+				if (!g_get_fb_slot_h) {
+					spin_unlock_irqrestore(&g_ipu_d_cdev->slock, flags);
+					return -EFAULT;
+				}
+				//printk("fb none free\n");
+			}
+			//printk("@@ get src done sema !! %d\n",g_get_slot_h->info_h.slot_id);
+			info = &g_get_fb_slot_h->info_h;
+			info->base = (uint64_t)IPU_GET_DUAL_SLOT(g_get_fb_slot_h->info_h.slot_id,
+			g_ipu->paddr);
+			//printk(" ipu->paddr %x\n", g_ipu->paddr);
+			spin_unlock_irqrestore(&g_ipu_d_cdev->slock, flags);
+			ret = copy_to_user((void __user *)data, (const void *)info,
+			sizeof(info_dual_h_t));
+			if (ret)
+				ipu_err("copy to user fail\n");
+		}
+		break;
+
+	case IPUC_FB_FLUSH:
+	{
+		int data_end;
+		mult_img_info = &src_info;
+		struct src_img_info_t *src_img_info;
+		ret = copy_from_user((void *)mult_img_info,
+			(const void __user *)data,
+		sizeof(struct mult_img_info_t));
+
+		src_img_info = &mult_img_info->src_img_info[0];
+		dma_sync_single_for_device(NULL,
+		src_img_info->src_img.y_paddr,
+		src_img_info->src_img.width*src_img_info->src_img.height+
+		src_img_info->src_img.width*src_img_info->src_img.height/2,
+			DMA_TO_DEVICE);
+
+		src_img_info = &mult_img_info->src_img_info[1];
+		dma_sync_single_for_device(NULL,
+		src_img_info->src_img.y_paddr,
+		src_img_info->src_img.width*src_img_info->src_img.height+
+		src_img_info->src_img.width*src_img_info->src_img.height/2,
+			DMA_TO_DEVICE);
+	}
+	break;
 	default:
 		ipu_err("ipu cmd: %d not supported\n", _IOC_NR(cmd));
 		ret = -EINVAL;
@@ -655,7 +848,8 @@ int ipu_dual_mmap(struct file *filp, struct vm_area_struct *vma)
 unsigned int ipu_dual_poll(struct file *file, struct poll_table_struct *wait)
 {
 	unsigned int mask = 0;
-	if (!ipu_is_pym_done_empty()) {
+	if (kfifo_len(&g_ipu_pym->done_inline_pym_slots)
+			|| kfifo_len(&g_ipu_pym->done_offline_pym_slots)) {
 		mask = EPOLLIN | EPOLLET;
 		return mask;
 	} else
@@ -667,7 +861,8 @@ unsigned int ipu_dual_poll(struct file *file, struct poll_table_struct *wait)
 		ipu_err("POLLERR: err_status 0x%x\n", g_ipu_d_cdev->err_status);
 		mask = EPOLLERR;
 		g_ipu_d_cdev->err_status = 0;
-	} else if (!ipu_is_pym_done_empty()) {
+	} else if (kfifo_len(&g_ipu_pym->done_inline_pym_slots)
+			|| kfifo_len(&g_ipu_pym->done_offline_pym_slots)) {
 		mask = EPOLLIN | EPOLLET;
 		return mask;
 	}
@@ -678,6 +873,7 @@ int ipu_dual_close(struct inode *inode, struct file *filp)
 {
 	struct ipu_dual_cdev *ipu_cdev = filp->private_data;
 	ipu_cdev->ipu->ipu_mode = IPU_INVALID;
+	ipu_pym_clear();
 	return 0;
 }
 
@@ -717,11 +913,13 @@ static int __init x2_ipu_dual_init(void)
 					8, 380, 7200, NULL) < 0)
 		pr_err("ipu dual diag register fail\n");
 
+	ipu_pym_init();
 	return ret;
 }
 
 static void __exit x2_ipu_dual_exit(void)
 {
+	ipu_pym_exit();
 	device_destroy(g_ipu_d_cdev->class, g_ipu_d_cdev->dev_num);
 	unregister_chrdev_region(g_ipu_d_cdev->dev_num, 1);
 	class_destroy(g_ipu_d_cdev->class);

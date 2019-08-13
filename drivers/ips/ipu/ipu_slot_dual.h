@@ -100,6 +100,7 @@ typedef struct {
 ipu_slot_dual_h_t* dequeue_slot(slot_queue_t *slot_queue);
 void enqueue_slot(slot_queue_t *slot_queue, ipu_slot_dual_h_t *slot_h);
 int insert_dual_slot_to_free(int slot_id, slot_ddr_info_dual_t *data);
+ipu_slot_dual_h_t* ipu_get_pym_free_slot(void);
 ipu_slot_dual_h_t* ipu_get_pym_done_slot(void);
 bool ipu_is_pym_done_empty(void);
 ipu_slot_dual_h_t* get_cur_pym_slot(void);

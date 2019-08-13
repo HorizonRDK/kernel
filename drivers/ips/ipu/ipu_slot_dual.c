@@ -97,6 +97,11 @@ ipu_slot_dual_h_t* get_last_pym_slot(void)
 	return slot_h;
 }
 
+ipu_slot_dual_h_t* ipu_get_pym_free_slot(void)
+{
+	return dequeue_slot(&g_dual_slot_queue[FREE_SLOT_QUEUE]);
+}
+
 ipu_slot_dual_h_t* ipu_get_pym_done_slot(void)
 {
 	return dequeue_slot(&g_dual_slot_queue[PYMDONE_SLOT_QUEUE]);

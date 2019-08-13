@@ -1,6 +1,10 @@
 #ifndef __IPU_DDR_H__
 #define __IPU_DDR_H__
 
+#define PYM_SRC_FROM_ERR     -1
+#define PYM_SRC_FROM_CROP    0
+#define PYM_SRC_FROM_SCALE   1
+
 extern struct x2_ipu_data *g_ipu;
 extern int ddr_mode;
 
@@ -22,5 +26,11 @@ struct src_img_info_t {
 	int64_t timestamp;
 	struct addr_info_t src_img;
 	struct addr_info_t scaler_img;
+};
+
+#define SRC_MAX 4
+struct mult_img_info_t {
+	int src_num;
+	struct src_img_info_t src_img_info[SRC_MAX];
 };
 #endif
