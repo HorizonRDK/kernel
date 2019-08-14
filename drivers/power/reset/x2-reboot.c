@@ -39,6 +39,7 @@ static u32 swinfo_ro;
 //static u32 swfifo_size;
 static u32 swi_boot[3];
 static u32 swi_dump[3];
+static u32 swinfo_ptype, swinfo_preg;
 
 int x2_swinfo_set(u32 sel, u32 index, u32 mask, u32 value)
 {
@@ -128,6 +129,19 @@ int x2_swinfo_dump(u32 ip)
 	return x2_swinfo_set(0, swi_dump[0], swi_dump[1], ip << swi_dump[2]);
 }
 EXPORT_SYMBOL(x2_swinfo_dump);
+
+int x2_swinfo_panic(void)
+{
+	if (swinfo_ptype == 1) {
+		pr_info("swinfo panic boot %d\n", swinfo_preg);
+		return x2_swinfo_boot(swinfo_preg);
+	} else if (swinfo_ptype == 2) {
+		pr_info("swinfo panic dump %x\n", swinfo_preg);
+		return x2_swinfo_dump(swinfo_preg);
+	}
+	return 0;
+}
+EXPORT_SYMBOL(x2_swinfo_panic);
 
 static ssize_t x2_swinfo_sel_show(struct kobject *kobj,
 		struct kobj_attribute *attr, char *buf)
@@ -240,7 +254,8 @@ static ssize_t x2_swinfo_store(struct kobject *kobj,
 
 static const char * const x2_swi_boot_desp[] = {
 	"normal", "splonce", "ubootonce",
-	"splwait", "ubootwait", "udumptf", "unknown"
+	"splwait", "ubootwait", "udumptf", "udumpemmc",
+	"unknown"
 };
 static ssize_t x2_swinfo_boot_show(struct kobject *kobj,
 		struct kobj_attribute *attr, char *buf)
@@ -326,6 +341,87 @@ static ssize_t x2_swinfo_dump_store(struct kobject *kobj,
 	return error ? error : count;
 }
 
+static ssize_t x2_swinfo_panic_show(struct kobject *kobj,
+		struct kobj_attribute *attr, char *buf)
+{
+	char *s = buf;
+	u32 regv;
+	const char **srd = x2_swi_boot_desp;
+	int srd_n = ARRAY_SIZE(x2_swi_boot_desp);
+
+	regv = swinfo_preg;
+	if (swinfo_ptype) {
+		if (swinfo_ptype == 1) {
+			srd_n = (regv < srd_n) ? regv : (srd_n - 1);
+			s += sprintf(s, "%s: boot=%d %s\n",
+					 attr->attr.name, regv, srd[srd_n]);
+		} else if (swinfo_ptype == 2) {
+			s += sprintf(s, "%s: dump=0x%08X %d.%d.%d.%d\n",
+				attr->attr.name, regv,
+				(regv >> 24) & 0xff, (regv >> 16) & 0xff,
+				(regv >> 8) & 0xff, regv & 0xff);
+		}
+	} else {
+		s += sprintf(s, "%s: none\n", attr->attr.name);
+	}
+
+	return (s - buf);
+}
+
+static ssize_t x2_swinfo_panic_store(struct kobject *kobj,
+		struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int i, ret, error = -EINVAL;
+	u32 *swi;
+	const char **srd = x2_swi_boot_desp;
+	char *s;
+	int srd_n = ARRAY_SIZE(x2_swi_boot_desp);
+	int ipx[4];
+	int type = -1;
+	u32 reg = -1;
+
+	if (strncmp(buf, "0", 1) == 0) {
+		swinfo_ptype = 0;
+		swinfo_preg = 0;
+		return count;
+	}
+
+	s = strchr(buf, '=');
+	if (s == NULL)
+		return error;
+	if (strncmp(buf, "boot", 4) == 0) {
+		type = 1;
+		swi = swi_boot;
+	} else if (strncmp(buf, "dump", 4) == 0) {
+		type = 2;
+		swi = swi_dump;
+	} else {
+		return error;
+	}
+
+	s++;
+	if (type == 1) {
+		for (i = 0; i < (srd_n - 1); i++) {
+			if (strncmp(s, srd[i], 6) == 0)
+				reg = i;
+		}
+	} else if (strchr(s, '.') &&
+		sscanf(s, "%d.%d.%d.%d", &ipx[0], &ipx[1],
+			&ipx[2], &ipx[3]) == 4) {
+		reg = (ipx[0] << 24) | (ipx[1] << 16) | (ipx[2] << 8) | ipx[3];
+	}
+	if (reg == -1)
+		ret = kstrtouint(s, 0, &reg);
+
+	if (reg != -1 && reg <= (swi[1] >> swi[2])) {
+		swinfo_ptype = type;
+		swinfo_preg = reg;
+		error = 0;
+	}
+
+	return error ? error : count;
+}
+
 static struct kobj_attribute x2_swinfo_sel_attribute =
 	__ATTR(sel, 0644, x2_swinfo_sel_show, x2_swinfo_sel_store);
 static struct kobj_attribute x2_swinfo_info_attribute =
@@ -338,6 +434,8 @@ static struct kobj_attribute x2_swinfo_boot_attribute =
 	__ATTR(boot, 0644, x2_swinfo_boot_show, x2_swinfo_boot_store);
 static struct kobj_attribute x2_swinfo_dump_attribute =
 	__ATTR(dump, 0644, x2_swinfo_dump_show, x2_swinfo_dump_store);
+static struct kobj_attribute x2_swinfo_panic_attribute =
+	__ATTR(panic, 0644, x2_swinfo_panic_show, x2_swinfo_panic_store);
 
 static struct attribute *x2_swinfo_attributes[] = {
 	&x2_swinfo_sel_attribute.attr,
@@ -346,6 +444,7 @@ static struct attribute *x2_swinfo_attributes[] = {
 	&x2_swinfo_mem_attribute.attr,
 	&x2_swinfo_boot_attribute.attr,
 	&x2_swinfo_dump_attribute.attr,
+	&x2_swinfo_panic_attribute.attr,
 	NULL
 };
 
