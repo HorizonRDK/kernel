@@ -43,6 +43,7 @@ enum diag_module_id {
 	ModuleDiag_sound,
 	ModuleDiag_bif,
 	ModuleDiag_eth,
+	ModuleDiag_norflash,
 	ModuleIdMax = 1000,
 };
 
@@ -128,6 +129,11 @@ enum diag_bif_module_eventid {
 /* eth module event id */
 enum diag_eth_module_eventid {
 	EventIdEthDmaBusErr = 1,
+};
+
+/* norflash module event id */
+enum diag_norflash_module_eventid {
+	EventIdNorflashErr = 1,
 };
 
 #define DIAG_UNMASK_ID_MAX_NUM 100

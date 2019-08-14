@@ -30,8 +30,13 @@
 #include <linux/mtd/partitions.h>
 #include <linux/slab.h>
 #include "x2-qspi.h"
+#include <x2/diag.h>
+#include <linux/timer.h>
 
 /* #define X2_QSPI_WORK_POLL    1 */
+
+struct timer_list qspinorflash_diag_timer;
+static uint32_t qspinorflash_last_err_tm_ms;
 
 struct x2qspi_pdata;
 struct x2qspi_flash_pdata {
@@ -662,17 +667,71 @@ static int x2_qspi_flash_erase(struct spi_nor *nor, loff_t offs)
 	return x2_qspi_flash_rd_wr(nor, nor->cmd_buf, cmdsz, NULL, NULL, 0);
 }
 
+static void qspinorflash_diag_report(uint8_t errsta, uint32_t sta1_reg,
+				uint32_t sta2_reg)
+{
+	uint32_t buff[2];
+
+	qspinorflash_last_err_tm_ms = msecs_to_jiffies(get_jiffies_64());
+	if (errsta) {
+		buff[0] = sta1_reg;
+		buff[1] = sta2_reg;
+
+		diag_send_event_stat_and_env_data(
+				DiagMsgPrioHigh,
+				ModuleDiag_norflash,
+				EventIdNorflashErr,
+				DiagEventStaFail,
+				DiagGenEnvdataWhenErr,
+				(uint8_t *)buff,
+				8);
+	}
+}
+
+static void qspinorflash_diag_timer_func(unsigned long data)
+{
+	uint32_t now_tm_ms;
+	unsigned long jiffi;
+
+	now_tm_ms = msecs_to_jiffies(get_jiffies_64());
+	if (now_tm_ms - qspinorflash_last_err_tm_ms > 9000) {
+		diag_send_event_stat(
+				DiagMsgPrioMid,
+				ModuleDiag_norflash,
+				EventIdNorflashErr,
+				DiagEventStaSuccess);
+	}
+	jiffi = get_jiffies_64() + msecs_to_jiffies(2000);
+	mod_timer(&qspinorflash_diag_timer, jiffi); // trriger again.
+}
+
 static irqreturn_t x2_qspi_irq_handler(int irq, void *dev_id)
 {
 	unsigned int irq_status;
+	unsigned int irq_status2;
+	unsigned char flag = 0;
 	struct x2qspi_pdata *x2qspi = dev_id;
 
 	/* Read interrupt status */
 	irq_status = x2qspi_rd(x2qspi, X2_QSPI_ST1_REG);
-	x2qspi_wr(x2qspi, X2_QSPI_ST1_REG, X2_QSPI_TBD | X2_QSPI_RBD);
+	x2qspi_wr(x2qspi, X2_QSPI_ST1_REG,
+								X2_QSPI_TBD |
+								X2_QSPI_RBD |
+								X2_QSPI_MODF);
+	irq_status2 = x2qspi_rd(x2qspi, X2_QSPI_ST2_REG);
+	x2qspi_wr(x2qspi, X2_QSPI_ST2_REG,
+			X2_QSPI_RXWR_FULL | X2_QSPI_TXRD_EMPTY);
 
 	if (irq_status | (X2_QSPI_TBD | X2_QSPI_RBD))
 		complete(&x2qspi->xfer_complete);
+
+	if (irq_status | X2_QSPI_MODF)
+		flag = 1;
+	if (irq_status2 | (X2_QSPI_RXWR_FULL | X2_QSPI_TXRD_EMPTY))
+		flag = 1;
+	if (flag)
+		qspinorflash_diag_report(1, irq_status,
+				irq_status2);
 
 	return IRQ_HANDLED;
 }
@@ -701,7 +760,8 @@ static void x2_qspi_hw_init(struct x2qspi_pdata *x2qspi)
 	x2qspi_wr(x2qspi, X2_QSPI_CTL1_REG, val);
 
 	/* init interrupt */
-	val = X2_QSPI_RBC_INT | X2_QSPI_TBC_INT;
+	val = X2_QSPI_RBC_INT | X2_QSPI_TBC_INT |
+		X2_QSPI_ERR_INT | X2_QSPI_MODF_INT;
 	x2qspi_wr(x2qspi, X2_QSPI_CTL2_REG, val);
 
 	/* unselect chip */
@@ -720,7 +780,6 @@ static void x2_qspi_hw_init(struct x2qspi_pdata *x2qspi)
 	/* Set Rx/Tx fifo trig level  */
 	x2qspi_wr(x2qspi, X2_QSPI_RTL_REG, X2_QSPI_TRIG_LEVEL);
 	x2qspi_wr(x2qspi, X2_QSPI_TTL_REG, X2_QSPI_TRIG_LEVEL);
-
 	return;
 }
 
@@ -867,6 +926,20 @@ static int x2_qspi_probe(struct platform_device *pdev)
 		goto probe_setup_failed;
 	}
 
+	/* diag */
+	if (diag_register(ModuleDiag_norflash, EventIdNorflashErr,
+						8, 300, 5000, NULL) < 0)
+		pr_err("qspi norflash diag register fail\n");
+	else {
+		qspinorflash_last_err_tm_ms = 0;
+		init_timer(&qspinorflash_diag_timer);
+		qspinorflash_diag_timer.expires =
+			get_jiffies_64() + msecs_to_jiffies(1000);
+		qspinorflash_diag_timer.data = 0;
+		qspinorflash_diag_timer.function = qspinorflash_diag_timer_func;
+		add_timer(&qspinorflash_diag_timer);
+		pr_info("X2 QuadSPI probe done\n");
+	}
 	return ret;
 probe_setup_failed:
 	mutex_destroy(&x2qspi->lock);
@@ -887,7 +960,7 @@ static int x2_qspi_remove(struct platform_device *pdev)
 			mtd_device_unregister(&x2qspi->f_pdata[i].nor.mtd);
 
 	clk_disable_unprepare(x2qspi->clk);
-
+	del_timer_sync(&qspinorflash_diag_timer);
 	return 0;
 }
 
