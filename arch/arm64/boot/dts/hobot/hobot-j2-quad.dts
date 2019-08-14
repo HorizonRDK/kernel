@@ -85,7 +85,6 @@
 				regulator-min-microvolt = <800000>;
 				regulator-max-microvolt = <1000000>;
 				regulator-enable-ramp-delay = <450>;
-				regulator-boot-on;
 			};
 
 			vdd_core_pd_reg: DCDC2 {
@@ -100,7 +99,6 @@
 				regulator-min-microvolt = <800000>;
 				regulator-max-microvolt = <1000000>;
 				regulator-enable-ramp-delay = <450>;
-				regulator-boot-on;
 			};
 
 			vcc_cpu_reg: DCDC4 {

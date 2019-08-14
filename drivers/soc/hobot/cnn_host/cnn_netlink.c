@@ -84,6 +84,10 @@ struct sock *cnn_netlink_init(int unit)
 	return sock;
 }
 
+void cnn_netlink_exit(struct sock *sock)
+{
+	netlink_kernel_release(sock);
+}
 int cnn_netlink_send(struct sock *sock, int group, void *msg, int len)
 {
 	static u32 seq;

@@ -135,6 +135,7 @@ struct x2_cnnfreq {
 	unsigned long rate, target_rate;
 	unsigned long volt, target_volt;
 	unsigned long min, max;
+	struct thermal_cooling_device *cooling;
 };
 
 struct x2_cnn_int_num {

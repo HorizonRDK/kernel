@@ -14,7 +14,7 @@ config HOBOT_SOCINFO
 if SOC_X2_MP
 
 config X2_CNN_HOST
-        bool "Enable X2 CNN HOST Drivers"
+        tristate "Enable X2 CNN HOST Drivers"
         default n
         help
           Say yes to enable x2 cnn driver In doubt, say N

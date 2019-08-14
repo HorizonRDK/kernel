@@ -61,6 +61,7 @@
 #define CHECK_IRQ_LOST
 extern struct sock *cnn_netlink_init(int unit);
 extern int cnn_netlink_send(struct sock *sock, int group, void *msg, int len);
+extern void cnn_netlink_exit(struct sock *sock);
 
 #ifdef CHECK_IRQ_LOST
 static void x2_check_cnn(unsigned long arg);
@@ -411,7 +412,6 @@ static int x2_cnn_hw_reset_reinit(struct x2_cnn_dev *cnn_dev, int cnn_id)
 static void lock_bpu(struct x2_cnn_dev *dev)
 {
 	int zero_flag = 0;
-
 	mutex_lock(&dev->cnn_lock);
 	if (dev->zero_int_cnt > 0) {
 		zero_flag = dev->zero_int_cnt;
@@ -1477,7 +1477,6 @@ static int cnnfreq_target(struct device *dev, unsigned long *freq,
 			goto out;
 		}
 	}
-
 	/* Send the bpu freq change notify to listener */
 	diag_send_event_stat_and_env_data(DiagMsgPrioLow,
 			ModuleDiag_bpu, CNN_FREQ_CHANGE(cnn_dev->core_index),
@@ -1519,9 +1518,10 @@ static int cnnfreq_init_freq_table(struct device *dev,
 	if (count < 0) {
 		return count;
 	}
-
-	devp->freq_table = kmalloc_array(count, sizeof(devp->freq_table[0]),
-				GFP_KERNEL);
+	if (!hobot_cnnfreq_profile.freq_table)
+		devp->freq_table = kmalloc_array(count,
+						 sizeof(devp->freq_table[0]),
+						 GFP_KERNEL);
 	if (!devp->freq_table)
 		return -ENOMEM;
 
@@ -1582,8 +1582,8 @@ static int x2_cnnfreq_register(struct x2_cnn_dev *cnn_dev)
 	data->devfreq->min_freq = data->min;
 	data->devfreq->max_freq = data->max;
 	devm_devfreq_register_opp_notifier(dev, data->devfreq);
-
-	of_devfreq_cooling_register(dev->of_node, data->devfreq);
+	data->cooling =
+		of_devfreq_cooling_register(dev->of_node, data->devfreq);
 	dev_err(dev, "%s end\n", __func__);
 	return 0;
 }
@@ -1653,6 +1653,7 @@ static void x2_check_cnn(unsigned long arg)
 
 int x2_cnn_probe(struct platform_device *pdev)
 {
+
 	int rc;
 	struct x2_cnn_dev *cnn_dev;
 	struct device_node *np = pdev->dev.of_node;
@@ -1662,6 +1663,7 @@ int x2_cnn_probe(struct platform_device *pdev)
 	struct resource mem_reserved;
 	int cnn_id;
 	char dev_name[8];
+	unsigned int tmp;
 
 	cnn_dev = devm_kzalloc(&pdev->dev, sizeof(*cnn_dev), GFP_KERNEL);
 	if (!cnn_dev)
@@ -1686,6 +1688,7 @@ int x2_cnn_probe(struct platform_device *pdev)
 		rc = -1;
 		goto err_out;
 	}
+
 
 	if (cnn_id == 0) {
 		rc = cnn_debugfs_init(cnn_dev, cnn_id, cnn0_debugfs_root);
@@ -1725,10 +1728,37 @@ int x2_cnn_probe(struct platform_device *pdev)
 		if (IS_ERR(cnn_dev->cnn_mclk))
 			pr_info("get cnn1 mclock err\n");
 	}
-
+	pmu = platform_get_resource(pdev, IORESOURCE_MEM, 1);
+	if (!pmu) {
+		rc = -ENODEV;
+		goto err_out;
+	}
+	cnn_dev->cnn_pmu = devm_ioremap(&pdev->dev, pmu->start, 4);
+	if (IS_ERR(cnn_dev->cnn_pmu)) {
+		rc = PTR_ERR(cnn_dev->cnn_pmu);
+		pr_err("%s:%d err_out get cnn_pmu failed\n",
+				__func__, __LINE__);
+		goto err_out;
+	}
+	rc = of_property_read_u32(np, "iso-bit", &cnn_dev->iso_bit);
+	if (rc < 0) {
+		dev_err(cnn_dev->dev, "missing iso-bit property\n");
+		goto err_out;
+	}
+	rc = x2_cnn_get_resets(cnn_dev, cnn_id);
+	if (rc < 0) {
+		pr_err("failed get cnn%d resets\n", cnn_id);
+		goto err_out;
+	}
+	/*cnn power up*/
 	rc = regulator_enable(cnn_dev->cnn_regulator);
 	if (rc != 0)
 		dev_err(cnn_dev->dev, "regulator enalbe error\n");
+	tmp = readl(cnn_dev->cnn_pmu);
+	tmp &= ~(1 << cnn_dev->iso_bit);
+	writel(tmp, cnn_dev->cnn_pmu);
+	udelay(5);
+	x2_cnn_reset_release(cnn_dev->cnn_rst);
 	rc = clk_prepare_enable(cnn_dev->cnn_aclk);
 	if (rc)
 		pr_info("cnn aclock prepare error\n");
@@ -1742,6 +1772,7 @@ int x2_cnn_probe(struct platform_device *pdev)
 		rc = -1;
 		goto err_out;
 	}
+
 	/* get cnn controller base addr */
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 
@@ -1754,29 +1785,6 @@ int x2_cnn_probe(struct platform_device *pdev)
 		rc = PTR_ERR(cnn_dev->cnn_base);
 		pr_err("%s:%d err_out get cnn_base failed\n",
 				__func__, __LINE__);
-		goto err_out;
-	}
-	pmu = platform_get_resource(pdev, IORESOURCE_MEM, 1);
-	if (!pmu) {
-		rc = -ENODEV;
-		goto err_out;
-	}
-	cnn_dev->cnn_pmu = ioremap(pmu->start, 4);
-	if (IS_ERR(cnn_dev->cnn_pmu)) {
-		rc = PTR_ERR(cnn_dev->cnn_pmu);
-		pr_err("%s:%d err_out get cnn_pmu failed\n",
-				__func__, __LINE__);
-		goto err_out;
-	}
-	rc = of_property_read_u32(np, "iso-bit", &cnn_dev->iso_bit);
-	if (rc < 0) {
-		dev_err(cnn_dev->dev, "missing iso-bit property\n");
-		goto err_out;
-	}
-
-	rc = x2_cnn_get_resets(cnn_dev, cnn_id);
-	if (rc < 0) {
-		pr_err("failed get cnn%d resets\n", cnn_id);
 		goto err_out;
 	}
 
@@ -1841,7 +1849,6 @@ int x2_cnn_probe(struct platform_device *pdev)
 	spin_lock_init(&cnn_dev->set_time_lock);
 	spin_lock_init(&cnn_dev->cnn_spin_lock);
 	spin_lock_init(&cnn_dev->kfifo_lock);
-
 	rc = kfifo_alloc(&cnn_dev->int_info_fifo,
 		    sizeof(struct x2_int_info) * x2_cnn_reg_read(cnn_dev, X2_CNN_FC_LEN), GFP_KERNEL);
 	if (rc < 0) {
@@ -1855,12 +1862,12 @@ int x2_cnn_probe(struct platform_device *pdev)
 	cnn_dev->minor_num = MINOR_NUMBER;
 	cnn_dev->num_devices = NUM_DEVICES;
 	rc = x2_cnn_init_chrdev(cnn_dev);
+
 	if (rc < 0) {
 		dev_err(&pdev->dev,
 			"Failed create char dev for cnn%d\n", cnn_id);
 		goto err_out;
 	}
-
 	if (!cnn_nl_sk) {
 		cnn_nl_sk = cnn_netlink_init(NETLINK_BPU);
 		if (!cnn_nl_sk) {
@@ -1870,7 +1877,6 @@ int x2_cnn_probe(struct platform_device *pdev)
 	}
 
 	cnn_dev->irq_sk = cnn_nl_sk;
-
 	/* Initialize the tasklet */
 	tasklet_init(&cnn_dev->tasklet, x2_cnn_do_tasklet,
 			(unsigned long)cnn_dev);
@@ -1885,7 +1891,6 @@ int x2_cnn_probe(struct platform_device *pdev)
 	init_completion(&cnn_dev->nega_completion);
 
 	x2_cnn_reg_write(cnn_dev, X2_CNNINT_MASK, 0x0);
-
 	/* diag ref init */
 	if ((EventIdBpu0Err + cnn_id) <= EventIdBpu1Err) {
 		if (diag_register(ModuleDiag_bpu, EventIdBpu0Err + cnn_id, 5, 300, 7000, NULL) < 0)
@@ -1895,9 +1900,8 @@ int x2_cnn_probe(struct platform_device *pdev)
 					EventIdBpu0Err + cnn_id);
 
 	if (diag_register(ModuleDiag_bpu,
-				CNN_FREQ_CHANGE(cnn_id), 16, 300, 5000, NULL) < 0)
+			  CNN_FREQ_CHANGE(cnn_id), 16, 300, 5000, NULL) < 0)
 		dev_err(&pdev->dev, "bpu%d freq notify register fail\n", cnn_id);
-
 	pr_info("x2 cnn%d probe OK!!\n", cnn_id);
 #ifdef CONFIG_HOBOT_CNN_DEVFREQ
 	x2_cnnfreq_register(cnn_dev);
@@ -1913,17 +1917,45 @@ int x2_cnn_probe(struct platform_device *pdev)
 err_out:
 	devm_kfree(&pdev->dev, cnn_dev);
 	return rc;
+return 0;
 }
 void cnn_fc_time_kfifo_clean(struct x2_cnn_dev *dev)
 {
 	kfifo_free(&dev->int_info_fifo);
 }
+static void cnn_regulator_remove(struct x2_cnn_dev *dev)
+{
+	if (regulator_is_enabled(dev->cnn_regulator))
+		x2_cnn_power_down(dev);
+	clk_unprepare(dev->cnn_mclk);
+	clk_unprepare(dev->cnn_aclk);
+	regulator_put(dev->cnn_regulator);
+
+}
+static void cnn_devfreq_remove(struct x2_cnn_dev *dev)
+{
+	devfreq_cooling_unregister(dev->cnnfreq->cooling);
+	devm_devfreq_unregister_opp_notifier(dev->dev, dev->cnnfreq->devfreq);
+	//devm_devfreq_dev_release(dev->dev, dev->cnnfreq->devfreq);
+	if (hobot_cnnfreq_profile.freq_table) {
+		kfree(hobot_cnnfreq_profile.freq_table);
+		hobot_cnnfreq_profile.freq_table = NULL;
+	}
+	dev_pm_opp_of_remove_table(dev->dev);
+}
+static void cnn_dev_remove(struct x2_cnn_dev *dev)
+{
+	cdev_del(&dev->i_cdev);
+	device_destroy(dev->dev_class, dev->dev_num);
+	class_destroy(dev->dev_class);
+	unregister_chrdev_region(dev->dev_num, dev->num_devices);
+}
 
 static int x2_cnn_remove(struct platform_device *pdev)
 {
+
 	u32 cnn_int_mask;
 	struct x2_cnn_dev *dev = platform_get_drvdata(pdev);
-
 	cnn_int_mask = x2_cnn_reg_read(dev, X2_CNNINT_MASK);
 	cnn_int_mask |= X2_CNN_PE0_INT_MASK(1);
 	x2_cnn_reg_write(dev, X2_CNNINT_MASK, cnn_int_mask);
@@ -1933,8 +1965,19 @@ static int x2_cnn_remove(struct platform_device *pdev)
 	vm_unmap_ram(dev->fc_base, dev->fc_mem_size / PAGE_SIZE);
 	dev->cnn_base = 0;
 	cnn_debugfs_cleanup(dev);
-	regulator_put(dev->cnn_regulator);
 	cnn_fc_time_kfifo_clean(dev);
+
+	if (cnn_nl_sk)
+		cnn_netlink_exit(cnn_nl_sk);
+#ifdef CONFIG_HOBOT_CNN_DEVFREQ
+	cnn_devfreq_remove(dev);
+#endif
+	cnn_regulator_remove(dev);
+	free_irq(dev->irq, dev);
+	devm_kfree(dev->dev, dev->fc_time);
+	cnn_dev_remove(dev);
+	devm_kfree(dev->dev, dev);
+
 	return 0;
 }
 
@@ -1951,7 +1994,6 @@ static struct platform_driver x2_cnn_platform_driver = {
 		.of_match_table = x2_cnn_of_match,
 	},
 };
-
 static void x2_cnn_check_func(unsigned long arg)
 {
 	static int time;
@@ -2454,27 +2496,28 @@ struct bus_type bpu_subsys = {
 static int __init x2_cnn_init(void)
 {
 	int retval = 0;
+	pr_info("%s\n", __func__);
 
 	/* Register the platform driver */
 	retval = platform_driver_register(&x2_cnn_platform_driver);
 	if (retval)
 		pr_err("x2 cnn driver register failed\n");
-
 	/*register bpu sys node*/
 	if (subsys_system_register(&bpu_subsys, bpu_attr_groups))
 		pr_err("fialed to register bpu subsystem");
+
 	/*set bpu profiler timer*/
 	init_timer(&check_timer);
 	check_timer.function = &x2_cnn_check_func;
 	mutex_init(&enable_lock);
 	fc_time_enable = 0;
-
 	return retval;
 
 }
 
 static void __exit x2_cnn_exit(void)
 {
+	bus_unregister(&bpu_subsys);
 	/* Unregister the platform driver */
 	platform_driver_unregister(&x2_cnn_platform_driver);
 }
