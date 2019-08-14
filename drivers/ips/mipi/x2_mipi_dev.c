@@ -149,6 +149,13 @@ struct cdev   mipi_dev_cdev;
 static struct class  *x2_mipi_dev_class;
 static struct device *g_mipi_dev_dev;
 
+#if MIPI_DEV_INT_DBG
+#define MIPI_DEV_IRQ_CNT 2
+static int irq_count;
+unsigned int dev_irq_cnt;
+module_param(dev_irq_cnt, uint, 0644);
+#endif
+
 /**
  * @brief mipi_dev_vpg_get_hline : get hline time in vpg mode
  *
@@ -460,6 +467,10 @@ static irqreturn_t mipi_dev_irq_func(int this_irq, void *data)
 		err_occureed = 1;
 		env_subirq[3] = subirq;
 	}
+	irq_count++;
+	if (irq_count > dev_irq_cnt)
+		mipi_dev_irq_disable();
+
 	enable_irq(this_irq);
 	mipi_dev_diag_report(err_occureed, irq, env_subirq, 4);
 	return IRQ_HANDLED;
@@ -579,6 +590,9 @@ int32_t mipi_dev_init(mipi_dev_cfg_t *control)
 		mipierr("mipi dev not inited!");
 		return -1;
 	}
+	#if MIPI_DEV_INT_DBG
+	irq_count = 0;
+	#endif
 	iomem = g_mipi_dev->iomem;
 	mipiinfo("mipi device init begin");
 	mipiinfo("mipi device iomem %p", iomem);
@@ -866,6 +880,7 @@ static int x2_mipi_dev_probe(struct platform_device *pdev)
 		printk(KERN_ERR "[%s] request irq error %d\n", __func__, ret);
 		goto err;
 	}
+	dev_irq_cnt = MIPI_DEV_IRQ_CNT;
 #endif
 
 	platform_set_drvdata(pdev, mipi_dev);

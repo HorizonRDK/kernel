@@ -130,6 +130,13 @@ struct cdev   mipi_host_cdev;
 static struct class  *x2_mipi_host_class;
 static struct device *g_mipi_host_dev;
 
+#if MIPI_HOST_INT_DBG
+#define MIPI_HOST_IRQ_CNT 2
+static int irq_count;
+unsigned int host_irq_cnt;
+module_param(host_irq_cnt, uint, 0644);
+#endif
+
 static unsigned long mipi_host_pixel_clk_select(mipi_host_cfg_t *control)
 {
 	unsigned long pixclk = control->linelenth * control->framelenth * control->fps;
@@ -555,6 +562,10 @@ static irqreturn_t mipi_host_irq_func(int this_irq, void *data)
 		env_subirq[6] = subirq;
 	}
 
+	irq_count++;
+	if (irq_count > host_irq_cnt)
+		mipi_host_irq_disable();
+
 	enable_irq(this_irq);
 	mipi_host_diag_report(err_occurred, irq, env_subirq, 7);
 	return IRQ_HANDLED;
@@ -708,6 +719,9 @@ int32_t mipi_host_init(mipi_host_cfg_t *control)
 		mipierr("mipi host not inited!");
 		return -1;
 	}
+	#if MIPI_HOST_INT_DBG
+	irq_count = 0;
+	#endif
 	iomem = g_mipi_host->iomem;
 	mipiinfo("mipi host init begin");
 	mipiinfo("%d lane %dx%d %dfps datatype 0x%x",
@@ -981,6 +995,7 @@ static int x2_mipi_host_probe(struct platform_device *pdev)
 		printk(KERN_ERR "[%s] request irq error %d\n", __func__, ret);
 		goto err;
 	}
+	host_irq_cnt = MIPI_HOST_IRQ_CNT;
 #endif
 
 	platform_set_drvdata(pdev, mipi_host);
