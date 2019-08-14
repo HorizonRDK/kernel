@@ -1,8 +1,15 @@
+/*
+ *			 COPYRIGHT NOTICE
+ *		 Copyright 2019 Horizon Robotics, Inc.
+ *			 All rights reserved.
+ */
+
 #ifndef _BIF_LITE_H_
 #define _BIF_LITE_H_
 #include <linux/interrupt.h>
 #include <linux/mutex.h>
 #include <linux/spinlock.h>
+#include <linux/time.h>
 #include "../bif_base/bif_base.h"
 #include "../bif_base/bif_api.h"
 #include "bif_platform.h"

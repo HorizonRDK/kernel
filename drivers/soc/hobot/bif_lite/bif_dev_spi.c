@@ -1,3 +1,9 @@
+/*
+ *			 COPYRIGHT NOTICE
+ *		 Copyright 2019 Horizon Robotics, Inc.
+ *			 All rights reserved.
+ */
+
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/device.h>
@@ -35,6 +41,8 @@
 #endif
 
 #define VERSION "2.5.0"
+#define VERSION_LEN (16)
+static char version_str[VERSION_LEN];
 
 #ifdef CONFIG_NO_DTS_AP
 /* module parameters */
@@ -63,6 +71,7 @@ module_param(crc_enable, int, 0644);
 #define BIF_IO_DISCONNECT        _IO(BIF_IOC_MAGIC, 6)
 #define BIF_IO_SET_USR_TIMEOUT   _IO(BIF_IOC_MAGIC, 7)
 #define BIF_IO_GET_FRAME_LIMIT   _IO(BIF_IOC_MAGIC, 8)
+#define BIF_IO_SET_LIB_VERSION   _IO(BIF_IOC_MAGIC, 9)
 
 //#define WORK_COUNT (100)
 struct x2_bif_data {
@@ -156,7 +165,8 @@ trig_count = %d\nretrig_count = %d\n",
 
 static int bif_dev_spi_info_proc_show(struct seq_file *m, void *v)
 {
-	seq_printf(m, "version = %s\n"
+	seq_printf(m, "kernel version = %s\n"
+"user lib version = %s\n"
 "buffer index:\n"
 "init_tx_remote_info = %d\ninit_tx_local_info = %d\n"
 "init_rx_local_info = %d\ninit_rx_remote_info = %d\n"
@@ -176,6 +186,7 @@ static int bif_dev_spi_info_proc_show(struct seq_file *m, void *v)
 "ap_type = %d\nworking_mode = %d\n"
 "crc_enable = %d\n",
 	VERSION,
+	version_str,
 	domain.channel.init_tx_remote_info,
 	domain.channel.init_tx_local_info,
 	domain.channel.init_rx_local_info,
@@ -1178,6 +1189,13 @@ connect_out:
 		sizeof(frame_len_max_g));
 		if (status)
 			ret = -EFAULT;
+		break;
+	case BIF_IO_SET_LIB_VERSION:
+		if (copy_from_user(version_str, (const char __user *)arg,
+			VERSION_LEN)) {
+			hbipc_error("set lib version error\n");
+			ret = -EFAULT;
+		}
 		break;
 	default:
 		ret = -EINVAL;
