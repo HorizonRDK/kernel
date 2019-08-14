@@ -373,7 +373,7 @@ struct plat_config_data *x2_probe_config_dt(struct platform_device *pdev, const 
 	struct device_node *np = pdev->dev.of_node;
 	struct plat_config_data *plat;
 	struct x2_dma_cfg *dma_cfg;
-	int ret;
+	//int ret;
 
 	plat = devm_kzalloc(&pdev->dev, sizeof(*plat), GFP_KERNEL);
 	if (!plat)
@@ -496,7 +496,7 @@ struct plat_config_data *x2_probe_config_dt(struct platform_device *pdev, const 
 	ret = clk_prepare_enable(plat->x2_phy_ref_clk);
 
 #endif
-	plat->clk_ptp_rate = 62500000;//58125000;//500000000;
+	plat->clk_ptp_rate = 50000000;// 125000000;//50000000 ;//62500000;//58125000;//500000000;
 	plat->cdc_delay = 2 * ((1000000000ULL) /plat->clk_ptp_rate);
 	return plat;
 
@@ -506,7 +506,7 @@ err_mac_div_clk:
 
 	clk_disable_unprepare(plat->x2_mac_pre_div_clk);
 
-err_out:
+//err_out:
 	return ERR_PTR(-EPROBE_DEFER);
 
 }
@@ -526,7 +526,7 @@ static int x2_get_hw_features(void __iomem *ioaddr, struct dma_features *dma_cap
 	dma_cap->pmt_magic_frame = (hw_cap & GMAC_HW_FEAT_MGKSEL) >> 7;
 	/* MMC */
 	dma_cap->rmon = (hw_cap & GMAC_HW_FEAT_MMCSEL) >> 8;
-	printk("%s, rmod:%d\n",__func__,dma_cap->rmon);
+	//printk("%s, rmod:%d\n",__func__,dma_cap->rmon);
 	/* IEEE 1588-2008 */
 	dma_cap->atime_stamp = (hw_cap & GMAC_HW_FEAT_TSSEL) >> 12;
 	/* 802.3az - Energy-Efficient Ethernet (EEE) */
@@ -534,7 +534,7 @@ static int x2_get_hw_features(void __iomem *ioaddr, struct dma_features *dma_cap
 	/* TX and RX csum */
 	dma_cap->tx_coe = (hw_cap & GMAC_HW_FEAT_TXCOSEL) >> 14;
 	dma_cap->rx_coe =  (hw_cap & GMAC_HW_FEAT_RXCOESEL) >> 16;
-	printk("%s, tx_coe:%d, rx_coe:%d\n",__func__,dma_cap->tx_coe, dma_cap->rx_coe);
+	//printk("%s, tx_coe:%d, rx_coe:%d\n",__func__,dma_cap->tx_coe, dma_cap->rx_coe);
 	/* MAC HW feature1 */
 	hw_cap = readl(ioaddr + GMAC_HW_FEATURE1);
 	dma_cap->av = (hw_cap & GMAC_HW_FEAT_AVSEL) >> 20;
@@ -542,14 +542,14 @@ static int x2_get_hw_features(void __iomem *ioaddr, struct dma_features *dma_cap
 	/* RX and TX FIFO sizes are encoded as log2(n / 128). Undo that by
 	 * shifting and store the sizes in bytes.
 	 */
-	printk("%s, av:%d\n",__func__,dma_cap->av);
-	printk("%s, tsoen:%d\n",__func__,dma_cap->tsoen);
+//	printk("%s, av:%d\n",__func__,dma_cap->av);
+//	printk("%s, tsoen:%d\n",__func__,dma_cap->tsoen);
 
 	dma_cap->tx_fifo_size = 128 << ((hw_cap & GMAC_HW_TXFIFOSIZE) >> 6);
 	dma_cap->rx_fifo_size = 128 << ((hw_cap & GMAC_HW_RXFIFOSIZE) >> 0);
 
-	printk("%s, tx_fifo_size:%d\n",__func__,dma_cap->tx_fifo_size);
-	printk("%s, rx_fifo_size:%d\n",__func__,dma_cap->rx_fifo_size);
+//	printk("%s, tx_fifo_size:%d\n",__func__,dma_cap->tx_fifo_size);
+//	printk("%s, rx_fifo_size:%d\n",__func__,dma_cap->rx_fifo_size);
 	/* MAC HW feature2 */
 	hw_cap = readl(ioaddr + GMAC_HW_FEATURE2);
 	/* TX and RX number of channels */
@@ -565,8 +565,8 @@ static int x2_get_hw_features(void __iomem *ioaddr, struct dma_features *dma_cap
 
 	dma_cap->pps_out_num = (hw_cap & GMAC_HW_FEAT_PPSOUTNUM) >> 24;
 
-	printk("%s: number tx queues: %d\n",__func__,dma_cap->number_tx_queues);
-	printk("%s: number rx queues: %d\n",__func__,dma_cap->number_rx_queues);
+//	printk("%s: number tx queues: %d\n",__func__,dma_cap->number_tx_queues);
+//	printk("%s: number rx queues: %d\n",__func__,dma_cap->number_rx_queues);
 
 	/*get HW feature3 */
 	hw_cap = readl(ioaddr + GMAC_HW_FEATURE3);
@@ -580,12 +580,13 @@ static int x2_get_hw_features(void __iomem *ioaddr, struct dma_features *dma_cap
 	dma_cap->tbssel = (hw_cap & GMAC_HW_FEAT_TBSSEL) >> 27;
 	dma_cap->fpesel = (hw_cap & GMAC_HW_FEAT_FPESEL) >> 26;
 	dma_cap->estwid	= (hw_cap & GMAC_HW_FEAT_ESTWID) >> 20;
+//	printk("%s, and estwid:%d\n", __func__, dma_cap->estwid);
 	dma_cap->estdep = (hw_cap & GMAC_HW_FEAT_ESTDEP) >> 17;
 	//dma_cap->tsn_enh_sched_traffic = (hw_cap & GMAC_HW_FEAT_ESTSEL) >> 16;
 	dma_cap->estsel = (hw_cap & GMAC_HW_FEAT_ESTSEL) >> 16;
 	//dma_cap->tsn = dma_cap->tsn_frame_preemption | dma_cap->tsn_enh_sched_traffic;
 	dma_cap->tsn = dma_cap->fpesel | dma_cap->estsel;
-	printk("%s,and frame preemption:%d, enh:%d, tsn:%d\n",__func__,dma_cap->fpesel, dma_cap->estsel, dma_cap->tsn);
+//	printk("%s,and frame preemption:%d, enh:%d, tsn:%d\n",__func__,dma_cap->fpesel, dma_cap->estsel, dma_cap->tsn);
 	/* IEEE 1588-2002 */
 	dma_cap->time_stamp = 0;
 
@@ -786,19 +787,34 @@ static int x2_tsn_est_write(struct x2_priv *priv, u32 reg, u32 val, bool is_gcla
 static int x2_est_write(struct x2_priv *priv, u32 reg, u32 val, bool is_gcla)
 {
 	u32 control = 0x0;
-	int timeout = 5;
+	int timeout = 15;
 
+	//printk("%s, before write and reg:0x%x, value:0x%x\n", __func__, reg, val );
 	writel(val, priv->ioaddr + MTL_EST_GCL_DATA);
 	control |= reg;
 	control |= is_gcla ? 0x0 : MTL_EST_GCRR;
-	control |= 0x0;
 
 	writel(control, priv->ioaddr + MTL_EST_GCL_CONTROL);
 
 	control |= MTL_EST_SRWO;
 	writel(control, priv->ioaddr + MTL_EST_GCL_CONTROL);
 
-	printk("%s, GCL_DATA_REG(0xc84)  val:0x%x, GCL_CONTROL_REG(0xc80): 0x%x\n", __func__, val, readl(priv->ioaddr + MTL_EST_GCL_CONTROL));
+//	printk("%s, after and read reg:0x%x, value:0x%x\n", __func__, reg, readl(priv->ioaddr + MTL_EST_GCL_DATA) );
+//	printk("%s, GCL_DATA_REG(0xc84)  val:0x%x, GCL_CONTROL_REG(0xc80): 0x%x\n", __func__, val, readl(priv->ioaddr + MTL_EST_GCL_CONTROL));
+	while(--timeout) {
+		udelay(1000);
+		if (readl(priv->ioaddr + MTL_EST_GCL_CONTROL) & MTL_EST_SRWO)
+			continue;
+		break;
+	}
+
+	control |= reg;
+	control |= is_gcla ? 0x0 : MTL_EST_GCRR;
+	control |= (1 << 1);
+
+	writel(control, priv->ioaddr + MTL_EST_GCL_CONTROL);
+
+	timeout = 15;
 	while(--timeout) {
 		udelay(1000);
 		if (readl(priv->ioaddr + MTL_EST_GCL_CONTROL) & MTL_EST_SRWO)
@@ -807,6 +823,8 @@ static int x2_est_write(struct x2_priv *priv, u32 reg, u32 val, bool is_gcla)
 	}
 
 
+
+	//printk("%s, after and read reg:0x%x, value:0x%x\n", __func__, reg, readl(priv->ioaddr + MTL_EST_GCL_DATA) );
 	if (!timeout) {
 
 		printk("failed to write EST reg control 0x%x\n",control);
@@ -852,7 +870,7 @@ static u32 x2_get_ptp_subperiod(struct x2_priv *priv, u32 ptp_clock)
 }
 
 
-static u32 x2_config_sub_second_increment(struct x2_priv *priv, u32 ptp_clock, int gmac4, u32 *ssinc)
+static u32 x2_config_sub_second_increment(struct x2_priv *priv, u32 ptp_clock, int gmac4)
 {
 
 	void __iomem *ioaddr = priv->ioaddr;
@@ -880,11 +898,10 @@ static u32 x2_config_sub_second_increment(struct x2_priv *priv, u32 ptp_clock, i
 	value |= subns << GMAC4_PTP_SSIR_SNSINC_SHIFT;
 
 	writel(value, ioaddr + PTP_SSIR);
-	if (ssinc)
-		*ssinc = value;
 
-	printk("%s, PTP_SSIR(0xb04): 0x%x\n", __func__, readl(ioaddr + PTP_SSIR));
-	return value;
+//	printk("%s, PTP_SSIR(0xb04): 0x%x\n", __func__, readl(ioaddr + PTP_SSIR));
+	//return value;
+	return ns;
 }
 
 static int x2_config_addend(struct x2_priv *priv, u32 addend)
@@ -898,7 +915,7 @@ static int x2_config_addend(struct x2_priv *priv, u32 addend)
 	value |= PTP_TCR_TSADDREG;
 	writel(value, ioaddr + PTP_TCR);
 
-	printk("%s, PTP_TAR(0xb18):0x%x, and PTP_TCR(0xb00):0x%x\n", __func__, readl(ioaddr + PTP_TAR), readl(ioaddr+PTP_TCR));
+//	printk("%s, PTP_TAR(0xb18):0x%x, and PTP_TCR(0xb00):0x%x\n", __func__, readl(ioaddr + PTP_TAR), readl(ioaddr+PTP_TCR));
 	limit = 10;
 	while (limit--) {
 		if (!(readl(ioaddr + PTP_TCR) & PTP_TCR_TSADDREG))
@@ -930,9 +947,11 @@ static int x2_init_systime(struct x2_priv *priv, u32 sec, u32 nsec)
 
 	value = readl(ioaddr + PTP_TCR);
 	value |= PTP_TCR_TSINIT;
+	value |= PTP_TCR_TSUPDT;
 	writel(value, ioaddr + PTP_TCR);
 
-	printk("%s, PTP_STNSUR(0xb10):0x%x, and  PTP_TCR(0xb00):0x%x\n", __func__, readl(ioaddr + PTP_STNSUR), readl(ioaddr + PTP_TCR));
+//	printk("%s,and sec:0x%x, and nsec:0x%x\n", __func__, sec, nsec);
+//	printk("%s, PTP_STNSUR(0xb14):0x%x, and  PTP_TCR(0xb00):0x%x\n", __func__, readl(ioaddr + PTP_STNSUR), readl(ioaddr + PTP_TCR));
 	limit = 10;
 	while (limit--) {
 		if (!(readl(ioaddr + PTP_TCR) & PTP_TCR_TSINIT))
@@ -954,7 +973,7 @@ static int x2_init_systime(struct x2_priv *priv, u32 sec, u32 nsec)
 static void x2_config_hw_tstamping(struct x2_priv *priv, u32 data)
 {
 	writel(data, priv->ioaddr + PTP_TCR);
-	printk("PTP_TCR(0xb00):0x%x\n",readl(priv->ioaddr + PTP_TCR));
+	//printk("PTP_TCR(0xb00):0x%x\n",readl(priv->ioaddr + PTP_TCR));
 }
 
 #if 0
@@ -1003,7 +1022,7 @@ static void x2_tsn_est_configure(struct x2_priv *priv)
 	priv->hwts_tx_en = 1;
 	priv->hwts_rx_en = 1;
 
-	sec_inc = x2_config_sub_second_increment(priv, priv->plat->clk_ptp_rate, 0,NULL);
+	sec_inc = x2_config_sub_second_increment(priv, priv->plat->clk_ptp_rate, 0);
 	temp = div_u64(1000000000ULL, sec_inc);
 
 	temp = (u64)(temp << 32);
@@ -1019,12 +1038,13 @@ static void x2_tsn_est_configure(struct x2_priv *priv)
 #endif
 
 
-static int  x2_est_init(struct net_device *ndev, struct x2_priv *priv, struct x2_est_cfg *cfg, unsigned int estsel, unsigned int estdep, unsigned int estwid, bool enable)
+static int  x2_est_init(struct net_device *ndev, struct x2_priv *priv, struct x2_est_cfg *cfg, unsigned int estsel, unsigned int estdep, unsigned int estwid, bool enable, struct timespec64 *now)
 {
 	void __iomem *ioaddr = priv->ioaddr;
 	u32 control, real_btr[2];
+	u8 ptov = 0;
 
-	struct timespec64 now;
+	//struct timespec64 now;
 	int i;
 
 	if (!estsel || !estdep || !estwid || !cfg)
@@ -1038,15 +1058,17 @@ static int  x2_est_init(struct net_device *ndev, struct x2_priv *priv, struct x2
 
 	control = readl(ioaddr + MTL_EST_CONTROL);
 	control &= ~MTL_EST_EEST;
+
 	writel(control, ioaddr + MTL_EST_CONTROL);
 
 	if (!enable)
 		return -EINVAL;
 
 
-	ktime_get_real_ts64(&now);
-	real_btr[0] = cfg->btr_offset[0] + (u32)now.tv_nsec;
-	real_btr[1] = cfg->btr_offset[1] + (u32)now.tv_sec;
+//	ktime_get_real_ts64(&now);
+	real_btr[0] = cfg->btr_offset[0] + (u32)now->tv_nsec;
+	real_btr[1] = cfg->btr_offset[1] + (u32)now->tv_sec;
+
 
 #define EST_WRITE(__a, __b, __c) do { \
 	if (x2_est_write(priv, __a, __b,__c)) \
@@ -1061,19 +1083,27 @@ static int  x2_est_init(struct net_device *ndev, struct x2_priv *priv, struct x2
 	EST_WRITE(MTL_EST_TER, cfg->ter, false);
 	EST_WRITE(MTL_EST_LLR, cfg->gcl_size, false);
 
+//	printk("%s, and before for ...\n", __func__);
 	for (i = 0; i < cfg->gcl_size; i++) {
 		u32 reg = (i << MTL_EST_ADDR_OFFSET) & MTL_EST_ADDR;
-		//printk("%s, %d gcl:0x%x\n",__func__,i, cfg->gcl[i]);
+	//	printk("%s, %d gcl:0x%x\n",__func__,i, cfg->gcl[i]);
 		EST_WRITE(reg, cfg->gcl[i], true);
 	}
 
-	control = MTL_EST_EEST;
+//	printk("%s, and after for ...\n", __func__);
+	if (priv->plat->clk_ptp_rate) {
+		ptov = (1000000000ULL)/ priv->plat->clk_ptp_rate;
+		ptov *= 6;
+	}
+
+	control = MTL_EST_EEST | (ptov << 24);
 	writel(control, ioaddr + MTL_EST_CONTROL);
 
 	control |= MTL_EST_SSWL;
 	writel(control, ioaddr + MTL_EST_CONTROL);
 
-	printk("%s,and est control reg(0xc50):0x%x\n", __func__, readl(ioaddr + MTL_EST_CONTROL));
+
+//	printk("%s,and est control reg(0xc50):0x%x\n", __func__, readl(ioaddr + MTL_EST_CONTROL));
 	return 0;
 write_fail:
 	printk("%s:Failed to write EST config\n",__func__);
@@ -1099,8 +1129,8 @@ static int x2_est_configuration(struct x2_priv *priv)
 
 
 	x2_est_intr_config(priv);
-
-	ret = x2_est_init(priv->dev, priv, &priv->plat->est_cfg, priv->dma_cap.estsel, priv->dma_cap.estdep,priv->dma_cap.estwid,priv->plat->est_en);
+#if 0
+	ret = x2_est_init(priv->dev, priv, &priv->plat->est_cfg, priv->dma_cap.estsel, priv->dma_cap.estdep,priv->dma_cap.estwid,priv->plat->est_en, &now);
 
 	if (ret) {
 		priv->est_enabled = false;
@@ -1108,7 +1138,7 @@ static int x2_est_configuration(struct x2_priv *priv)
 	 } else
 		 priv->est_enabled = true;
 
-
+#endif
 
 	if (!(priv->dma_cap.time_stamp || priv->adv_ts)) {
 		printk("%s, No HW time stamping: Disabling EST\n", __func__);
@@ -1120,28 +1150,115 @@ static int x2_est_configuration(struct x2_priv *priv)
 		return -EINVAL;
 	}
 
+	control = 0;
+	x2_config_hw_tstamping(priv, control);
 
 	priv->hwts_tx_en = 1;
 	priv->hwts_rx_en = 1;
 
-
-	sec_inc = x2_config_sub_second_increment(priv, priv->plat->clk_ptp_rate, 0,NULL);
-	temp = div_u64(1000000000ULL, sec_inc);
-
-	temp = (u64)(temp << 32);
-	priv->default_addend = div_u64(temp, priv->plat->clk_ptp_rate);
-	x2_config_addend(priv, priv->default_addend);
-	x2_init_systime(priv, (u32)now.tv_sec, now.tv_nsec);
-
-	control = PTP_TCR_TSENA | PTP_TCR_TSINIT|PTP_TCR_TSENALL|PTP_TCR_TSCTRLSSR;
+	//control = PTP_TCR_TSCFUPDT |PTP_TCR_TSCTRLSSR;
+	control = PTP_TCR_TSCTRLSSR;
 	x2_config_hw_tstamping(priv, control);
 
 
 
+	sec_inc = x2_config_sub_second_increment(priv, priv->plat->clk_ptp_rate, 0);
+	temp = div_u64(1000000000ULL, sec_inc);
 
+	temp = (u64)(temp << 32);
+	priv->default_addend = div_u64(temp, priv->plat->clk_ptp_rate);
+	priv->default_addend = 0;
+	x2_config_addend(priv, priv->default_addend);
+	x2_init_systime(priv, (u32)now.tv_sec, now.tv_nsec);
+
+	//control = PTP_TCR_TSENA|PTP_TCR_TSCFUPDT | PTP_TCR_TSINIT|PTP_TCR_TSENALL|PTP_TCR_TSCTRLSSR;
+	control = PTP_TCR_TSENA | PTP_TCR_TSINIT|PTP_TCR_TSENALL|PTP_TCR_TSCTRLSSR;
+	x2_config_hw_tstamping(priv, control);
+
+	ret = x2_est_init(priv->dev, priv, &priv->plat->est_cfg, priv->dma_cap.estsel, priv->dma_cap.estdep,priv->dma_cap.estwid,priv->plat->est_en, &now);
+
+	if (ret) {
+		priv->est_enabled = false;
+
+	 } else
+		 priv->est_enabled = true;
+
+#if 0
+	printk("%s, reg-0xb00:0x%x\n",__func__,readl(priv->ioaddr + 0xb00));
+	printk("%s, reg-0xb04:0x%x\n",__func__,readl(priv->ioaddr + 0xb04));
+	printk("%s, reg-0xb08:%d\n",__func__,readl(priv->ioaddr + 0xb08));
+	printk("%s, reg-0xb0c:%d\n",__func__,readl(priv->ioaddr + 0xb0c));
+	printk("%s, reg-0xb10:0x%x\n",__func__,readl(priv->ioaddr + 0xb10));
+	printk("%s, reg-0xb14:0x%x\n",__func__,readl(priv->ioaddr + 0xb14));
+	printk("%s, reg-0xb18:0x%x\n",__func__,readl(priv->ioaddr + 0xb18));
+	printk("%s, reg-0xb1c:0x%x\n",__func__,readl(priv->ioaddr + 0xb1c));
+	printk("%s, reg-0xb20:0x%x\n",__func__,readl(priv->ioaddr + 0xb20));
+	printk("%s, reg-0xb30:0x%x\n",__func__,readl(priv->ioaddr + 0xb30));
+	printk("%s, reg-0xb34:0x%x\n",__func__,readl(priv->ioaddr + 0xb34));
+
+
+#endif
 	return ret;
 
 }
+
+static int x2_pps_init(struct net_device *ndev, struct x2_priv *priv, int index, struct stmmac_pps_cfg *cfg)
+{
+	void __iomem *ioaddr = priv->ioaddr;
+	u32 value;
+
+	if ((cfg->ctrl_cmd & ~PPSCTRL_PPSCMD) != 0)
+		return -EINVAL;
+
+	if ((cfg->trgtmodsel & ~(TRGTMODSEL0 >> 5)) != 0)
+		return -EINVAL;
+
+	if ((cfg->target_time[0] & ~(TTSL0)) != 0)
+		return -EINVAL;
+
+	if (!cfg->enable && index)
+		return -EINVAL;
+
+	value = readl(ioaddr + MAC_PPS_CONTROL);
+	value &= ~GENMASK(((index + 1) * 8) - 1, index * 8);
+	value |= cfg->trgtmodsel << ((index * 8) + 5);
+	if (index == 0)
+		value |= cfg->enable << 4;
+
+	writel(value, ioaddr + MAC_PPS_CONTROL);
+	writel(cfg->target_time[1], ioaddr + MAC_PPSx_TARGET_TIME_SEC(index));
+	if (readl(ioaddr + MAC_PPSx_TARGET_TIME_NSEC(index)) & TRGTBUSY0)
+		return -EBUSY;
+
+	writel(cfg->target_time[0], ioaddr + MAC_PPSx_TARGET_TIME_NSEC(index));
+	writel(cfg->interval, ioaddr + MAC_PPSx_INTERVAL(index));
+	writel(cfg->width, ioaddr + MAC_PPSx_WIDTH(index));
+
+	value |= cfg->ctrl_cmd << (index * 8);
+	writel(value, ioaddr + MAC_PPS_CONTROL);
+
+//	printk("Enableing %s PPS for output %d\n", cfg->enable ? "Flexible": "Fixed", index);
+	return 0;
+}
+
+
+
+
+static int x2_pps_configuration(struct x2_priv *priv, int index)
+{
+	struct stmmac_pps_cfg *cfg;
+	int ret = -EINVAL;
+
+	if (index >= priv->dma_cap.pps_out_num)
+		return -EINVAL;
+
+	cfg = &priv->plat->pps_cfg[index];
+	ret = x2_pps_init(priv->dev, priv, index, cfg);
+	return ret;
+}
+
+
+
 
 
 static void x2_tsn_fp_configure(struct x2_priv *priv)
@@ -1157,10 +1274,10 @@ static void x2_tsn_fp_configure(struct x2_priv *priv)
 	value |= (1 << GMAC_INT_FPEIE_EN);
 	writel(value, priv->ioaddr + GMAC_INT_EN);
 
-
 	control = readl(priv->ioaddr + GMAC_Ext_CONFIG);
 	control &= ~( 1<<16);
 	writel(control, priv->ioaddr + GMAC_Ext_CONFIG);
+
 
 	value = 1;
 	value |= (3 << 8);
@@ -1172,11 +1289,11 @@ static void x2_tsn_fp_configure(struct x2_priv *priv)
 	writel(value, priv->ioaddr + 0xa4);
 
 
-
 	control = readl(priv->ioaddr + GMAC_FPE_CTRL_STS);
 	control |= GMAC_FPE_EFPE;
+//	control |= 0xffffffff;
 	writel(control, priv->ioaddr + GMAC_FPE_CTRL_STS);
-
+//	printk("%s, and FPE CTRL STS:0x%x\n", __func__, readl(priv->ioaddr + GMAC_FPE_CTRL_STS));
 
 
 }
@@ -1198,7 +1315,7 @@ int x2_tsn_link_configure(struct net_device *ndev, enum sr_class class, u16 fram
 	int err;
 	s32 bw;
 
-	printk("%s,and into here\n", __func__);
+//	printk("%s,and into here\n", __func__);
 
 	if (!x2_tsn_capable(ndev)) {
 		printk("%s: NIC not capable\n",__func__);
@@ -1298,18 +1415,6 @@ u16 x2_tsn_select_queue(struct net_device *ndev, struct sk_buff *skb, void *acce
 
 
 
-#if 0
-static void x2_set_umac_addr(struct x2_priv *priv, unsigned char *addr, unsigned int reg_n)
-{
-	unsigned long data;
-
-	data = (addr[5] << 8) | addr[4];
-
-	x2_reg_write(priv, DWCEQOS_ADDR_HIGH(reg_n), data | DWCEQOS_MAC_MAC_ADDR_HI_EN);
-	data = (addr[3] << 24) | (addr[2] << 16) | (addr[1] << 8) | addr[0];
-	x2_reg_write(priv, DWCEQOS_ADDR_LOW(reg_n), data);
-}
-#endif
 
 static void x2_set_speed(struct x2_priv *priv)
 {
@@ -1402,7 +1507,7 @@ static void x2_link_up(struct x2_priv *priv)
 {
 	//struct net_device *ndev = priv->dev;
 	u32 regval;
-	int phy_value = 0;
+	//int phy_value = 0;
 
 	regval = x2_reg_read(priv, REG_DWCEQOS_MAC_LPI_CTRL_STATUS);
 	regval |= DWCEQOS_MAC_LPI_CTRL_STATUS_PLS;
@@ -1440,8 +1545,8 @@ static void x2_adjust_link(struct net_device *ndev)
 	int status_change = 0;
 
 //	printk("%s\n",__func__);
-	printk("%s,and phy reg0:0x%x\n", __func__, x2_mdio_read(priv->mii,3,0));
-	printk("%s,and phy reg1:0x%x\n", __func__, x2_mdio_read(priv->mii,3,1));
+	//printk("%s,and phy reg0:0x%x\n", __func__, x2_mdio_read(priv->mii,3,0));
+	//printk("%s,and phy reg1:0x%x\n", __func__, x2_mdio_read(priv->mii,3,1));
 
 
 	if (phydev->link) {
@@ -1528,9 +1633,12 @@ static int x2_init_phy(struct net_device *ndev)
 
 	phydev->supported &= PHY_GBIT_FEATURES | SUPPORTED_Pause | SUPPORTED_Asym_Pause;
 
-	if (tx_cnt > 1)
+	if (tx_cnt > 1) {
 		phydev->supported &= ~(SUPPORTED_1000baseT_Half | SUPPORTED_100baseT_Half|SUPPORTED_10baseT_Half);
-
+		if (priv->dma_cap.tsn) {
+			phydev->advertising &= ~(ADVERTISED_Pause | ADVERTISED_Asym_Pause);
+		}
+	}
 	priv->pause = AUTONEG_ENABLE;
 
 
@@ -1983,7 +2091,7 @@ static void x2_init_tx_chan(void __iomem *ioaddr, struct x2_dma_cfg *dma_cfg, u3
 	writel(value, ioaddr + DMA_CHAN_TX_CONTROL(chan));
 	writel(dma_tx_phy, ioaddr + DMA_CHAN_TX_BASE_ADDR(chan));
 
-	printk("%s, chan:%d, txpbl:0x%x, regvalue:0x%x\n", __func__,chan, txpbl, readl(ioaddr + DMA_CHAN_TX_CONTROL(chan)));
+	//printk("%s, chan:%d, txpbl:0x%x, regvalue:0x%x\n", __func__,chan, txpbl, readl(ioaddr + DMA_CHAN_TX_CONTROL(chan)));
 }
 
 static void x2_set_dma_axi(void __iomem *ioaddr, struct x2_axi *axi)
@@ -2182,6 +2290,10 @@ static void x2_dma_config_cbs(struct x2_priv *priv, int send_slope, u32 idle_slo
 {
 	void __iomem *ioaddr = priv->ioaddr;
 	u32 value;
+	struct timespec64 now;
+	u32 control, sec_inc;
+	u64 temp;
+
 
 	value = readl(ioaddr + MTL_ETSX_CTRL_BASE_ADDR(queue));
 	value |= MTL_ETS_CTRL_AVALG;
@@ -2208,6 +2320,30 @@ static void x2_dma_config_cbs(struct x2_priv *priv, int send_slope, u32 idle_slo
 	value &= ~MTL_HIGH_CRED_LC_MASK;
 	value |= low_credit & MTL_HIGH_CRED_LC_MASK;
 	writel(value, ioaddr + MTL_LOW_CREDX_BASE_ADDR(queue));
+
+/*must be open, so can read the average bit per slot*/
+#if 1
+	priv->hwts_tx_en = 1;
+	priv->hwts_rx_en = 1;
+
+
+	ktime_get_real_ts64(&now);
+	sec_inc = x2_config_sub_second_increment(priv, priv->plat->clk_ptp_rate, 0);
+	temp = div_u64(1000000000ULL, sec_inc);
+
+	temp = (u64)(temp << 32);
+	priv->default_addend = div_u64(temp, priv->plat->clk_ptp_rate);
+	x2_config_addend(priv, priv->default_addend);
+	x2_init_systime(priv, (u32)now.tv_sec, now.tv_nsec);
+
+	control = PTP_TCR_TSENA | PTP_TCR_TSINIT|PTP_TCR_TSENALL|PTP_TCR_TSCTRLSSR;
+	x2_config_hw_tstamping(priv, control);
+/*for average bit */
+#endif
+	value = readl(ioaddr + MTL_ETSX_CTRL_BASE_ADDR(queue));
+	value |= (1 << 4);
+	writel(value, ioaddr + MTL_ETSX_CTRL_BASE_ADDR(queue));
+
 
 }
 
@@ -2284,10 +2420,10 @@ static void x2_mac_enable_rx_queues(struct x2_priv *priv)
 			value |= GMAC_RX_AV_QUEUE_ENABLE(queue);
 		else if (mode == MTL_QUEUE_DCB)//0
 			value |= GMAC_RX_DCB_QUEUE_ENABLE(queue);
-		printk("%s, and queue:%d, value:0x%x, mode:0x%x\n",__func__, queue, value, mode);
+//		printk("%s, and queue:%d, value:0x%x, mode:0x%x\n",__func__, queue, value, mode);
 
 		writel(value, ioaddr + GMAC_RXQ_CTRL0);
-		printk("%s, queue:%d, value:0x%x\n", __func__, queue, readl(ioaddr+GMAC_RXQ_CTRL0));
+	//	printk("%s, queue:%d, value:0x%x\n", __func__, queue, readl(ioaddr+GMAC_RXQ_CTRL0));
 	}
 }
 
@@ -2374,7 +2510,7 @@ static void x2_mac_config_rx_queues_routing(struct x2_priv *priv)
 			value &= ~GMAC_RXQCTRL_MCBCQEN;
 			value |= 0x1 << GMAC_RXQCTRL_MCBCQEN_SHIFT;
 		}
-
+		value |= 1 << 24;
 		writel(value, ioaddr + GMAC_RXQ_CTRL1);
 	}
 }
@@ -2556,7 +2692,7 @@ static void x2_dma_rx_chan_op_mode(void __iomem *ioaddr, int mode, u32 chan, int
 		mtl_rx_op |= rfa << MTL_OP_MODE_RFA_SHIFT;
 	}
 
-	printk("%s, adn mtl_rx_op:0x%x\n",__func__, mtl_rx_op);
+//	printk("%s, adn mtl_rx_op:0x%x\n",__func__, mtl_rx_op);
 	writel(mtl_rx_op, ioaddr + MTL_CHAN_RX_OP_MODE(chan));
 	mtl_rx_int = readl(ioaddr + MTL_CHAN_INT_CTRL(chan));
 	writel(mtl_rx_int | MTL_RX_OVERFLOW_INT_EN, ioaddr + MTL_CHAN_INT_CTRL(chan));
@@ -2857,16 +2993,14 @@ static int x2_flex_pps_config(struct x2_priv *priv, int index, struct x2_pps_cfg
 	return 0;
 }
 
-
 static int x2_ptp_enable(struct ptp_clock_info *ptp, struct ptp_clock_request *rq, int on)
 {
 	struct x2_priv *priv = container_of(ptp, struct x2_priv, ptp_clock_ops);
 	struct x2_pps_cfg *cfg;
 	int ret = -EOPNOTSUPP;
-
 	unsigned long flags;
 
-#if 0
+#if 1
 	switch(rq->type) {
 	case PTP_CLK_REQ_PEROUT:
 		cfg = &priv->pps[rq->perout.index];
@@ -3037,6 +3171,7 @@ static int x2_hw_setup(struct net_device *ndev, bool init_ptp)
 		for (chan = 0; chan < tx_cnt; chan++) {
 			value = readl(priv->ioaddr + DMA_CHAN_TX_CONTROL(chan));
 			writel(value | DMA_CONTROL_TSE, priv->ioaddr + DMA_CHAN_TX_CONTROL(chan));
+
 		}
 	}
 
@@ -3053,13 +3188,14 @@ static void free_dma_desc_resources(struct x2_priv *priv)
 
 }
 
-
+#if 0
 static void x2_hw_teardown(struct net_device *ndev)
 {
 //	struct x2_priv *priv = netdev_priv(ndev);
 
 
 }
+#endif
 
 static void x2_enable_all_queues(struct x2_priv *priv)
 {
@@ -3178,7 +3314,7 @@ static void x2_tx_err(struct x2_priv *priv, u32 chan)
 	x2_stop_tx_dma(priv, chan);
 	dma_free_tx_skbufs(priv, chan);
 
-	printk("%s,by dhw\n",__func__);
+	//printk("%s,by dhw\n",__func__);
 	for (i = 0; i < DMA_TX_SIZE; i++)
 		if (priv->extend_desc) {
 			x2_init_tx_desc(&tx_q->dma_etx[i].basic, (i == DMA_TX_SIZE -1 ));
@@ -3246,8 +3382,8 @@ static void x2_phystatus(void __iomem *ioaddr, struct x2_extra_stats *x)
 		x->pcs_link = 0;
 		printk("Link is Down \n");
 	}
-	printk("%s, and mac_phy_status_reg-0xf8: 0x%x\n",__func__, readl(ioaddr + 0xf8));
-	printk("%s, and mac_AN_stauts_reg-0xe4: 0x%x\n",__func__, readl(ioaddr + 0xe4));
+//	printk("%s, and mac_phy_status_reg-0xf8: 0x%x\n",__func__, readl(ioaddr + 0xf8));
+//	printk("%s, and mac_AN_stauts_reg-0xe4: 0x%x\n",__func__, readl(ioaddr + 0xe4));
 
 }
 static int x2_host_irq_status(struct x2_priv *priv, struct x2_extra_stats *x)
@@ -3263,18 +3399,18 @@ static int x2_host_irq_status(struct x2_priv *priv, struct x2_extra_stats *x)
 //	printk("%s, intr status:0x%x\n",__func__,intr_status);
 	if (intr_status & mmc_tx_irq) {
 		x->mmc_tx_irq_n++;
-		printk("%s, mmc_tx_irq_n: %d\n",__func__,x->mmc_tx_irq_n);
+	//	printk("%s, mmc_tx_irq_n: %d\n",__func__,x->mmc_tx_irq_n);
 
 	}
 	if (intr_status & mmc_rx_csum_offload_irq) {
 		x->mmc_rx_csum_offload_irq_n++;
-		printk("%s, mmc_rx_csum_offload_irq_n: %d\n",__func__,x->mmc_rx_csum_offload_irq_n);
+	//	printk("%s, mmc_rx_csum_offload_irq_n: %d\n",__func__,x->mmc_rx_csum_offload_irq_n);
 	}
 	if (intr_status & pmt_irq) {
 		readl(ioaddr + GMAC_PMT);
 		x->irq_receive_pmt_irq_n++;
 
-		printk("%s, irq receive pmt irq%d\n",__func__);
+	//	printk("%s, irq receive pmt irq%d\n",__func__);
 	}
 
 	if (intr_status & mac_fpeis) {
@@ -3287,7 +3423,7 @@ static int x2_host_irq_status(struct x2_priv *priv, struct x2_extra_stats *x)
 
 //	printk("%s, and intr-status:0x%x, pcs_rgsmiiis_irq:0x%x\n",__func__, intr_status, PCS_RGSMIIIS_IRQ);
 	if (intr_status & PCS_RGSMIIIS_IRQ) {
-		printk("%s, and phy status\n", __func__);
+	//	printk("%s, and phy status\n", __func__);
 
 		x2_phystatus(ioaddr, x);
 
@@ -3311,22 +3447,30 @@ static int x2_host_mtl_irq_status(struct x2_priv *priv, u32 chan)
 			writel(status | MTL_RX_OVERFLOW_INT, ioaddr + MTL_CHAN_INT_CTRL(chan));
 			ret = CORE_IRQ_MTL_RX_OVERFLOW;
 		}
+
+		if (status & MTL_ABPSIS_INT) {
+			if (readl(ioaddr + MTL_ETSX_STATUS_BASE_ADDR(chan)))
+			;	//printk("queue:%d, averege bit/ %d slot number: 0x%x\n",chan,(readl(ioaddr + MTL_ETSX_CTRL_BASE_ADDR(chan)) >> 4 & 0x7),readl(ioaddr + MTL_ETSX_STATUS_BASE_ADDR(chan)));
+			writel(status, ioaddr + MTL_CHAN_INT_CTRL(chan));
+		}
 	}
 
 
 	if (mtl_irq_status & MTL_ESTIS) {
 		u32 status = readl(ioaddr + 0xc58);
-		printk("%s, MTL EST intterupt here, status:0x%x\n",__func__,status);
+	//	printk("%s, MTL EST intterupt here, status:0x%x\n",__func__,status);
 		if (status & MTL_STATUS_CGSN) {
-			printk("est current gcl slot num:%d\n",((status & MTL_STATUS_CGSN) >> 16) & 0xf);
+	//		printk("est current gcl slot num:%d\n",((status & MTL_STATUS_CGSN) >> 16) & 0xf);
+			;
 		}
 
 		if (status & MTL_STATUS_BTRL) {
-			printk("btr error loop count:%d\n", ((status & MTL_STATUS_BTRL) >> 8) & 0xf);
+		//	printk("btr error loop count:%d\n", ((status & MTL_STATUS_BTRL) >> 8) & 0xf);
+			;
 		}
 
 		if (status & MTL_STATUS_SWOL)
-			printk("gate control list %d own by sofware\n", (status & MTL_STATUS_SWOL >> 7)& 0x1);
+			printk("gate control list %ld own by sofware\n", (status & MTL_STATUS_SWOL >> 7)& 0x1);
 		else
 			printk("gcl 0 own by software\n");
 
@@ -3339,9 +3483,9 @@ static int x2_host_mtl_irq_status(struct x2_priv *priv, u32 chan)
 		if (status & MTL_STATUS_HLBF) {
 
 			u32 queue = readl(ioaddr + MTL_EST_Frm_Size_Error);
-			u32 frame = readl(ioaddr + MTL_EST_Frm_Size_Capture);
-			printk("head of line bocking due to frame size, and queue:%d\n",queue);
-			printk("HOF block frame size:%d, and the queue:%d\n",frame & 0x3fff, (frame >> 16));
+			//u32 frame = readl(ioaddr + MTL_EST_Frm_Size_Capture);
+	//		printk("head of line bocking due to frame size, and queue:%d\n",queue);
+	//		printk("HOF block frame size:%d, and the queue:%d\n",frame & 0x3fff, (frame >> 16));
 			writel(queue, ioaddr + MTL_EST_Frm_Size_Error);
 		}
 		if (status & MTL_STATUS_BTRE)
@@ -3367,11 +3511,12 @@ static irqreturn_t x2_interrupt(int irq, void *dev_id)
 	u32 tx_cnt = priv->plat->tx_queues_to_use;
 	u32 queues_count;
 	u32 queue;
-	int mtl_status;
+	int mtl_status = 0;
 	int status;
 	u32 chan;
 
-	int i;
+//	int i;
+
 
 #if 0
 	/*read dma tx enable*/
@@ -3525,9 +3670,9 @@ static int x2_set_est(struct x2_priv *priv, void __user *data)
 	if (!est->enabled)
 		ret = 0;
 	else {
-		printk("%s, dma_cap.fpesel:%d, plat->fp_en:%d\n", __func__, priv->dma_cap.fpesel, priv->plat->fp_en);
+//		printk("%s, dma_cap.fpesel:%d, plat->fp_en:%d\n", __func__, priv->dma_cap.fpesel, priv->plat->fp_en);
 //		if (priv->dma_cap.fpesel && priv->plat->fp_en)
-			x2_tsn_fp_configure(priv);
+		x2_tsn_fp_configure(priv);
 	}
 
 
@@ -3536,18 +3681,46 @@ out_free:
 	return ret;
 
 }
+static void x2_est_read(struct x2_priv *priv, u32 reg, bool is_gcla)
+{
+	u32 control = 0x0;
+	int timeout = 15;
+
+
+	control = readl(priv->ioaddr + MTL_EST_GCL_CONTROL);
+	control |= reg;
+	control |= is_gcla ? 0x0 : MTL_EST_GCRR;
+	control |= (1 << 1);
+	control |= MTL_EST_SRWO;
+
+	writel(control, priv->ioaddr + MTL_EST_GCL_CONTROL);
+
+	while(--timeout) {
+		udelay(1000);
+		if (readl(priv->ioaddr + MTL_EST_GCL_CONTROL) & MTL_EST_SRWO)
+			continue;
+		break;
+	}
+
+
+
+//	printk("%s, reg:0x%x, value:0x%x\n", __func__, reg, readl(priv->ioaddr + MTL_EST_GCL_DATA) );
+
+}
 
 
 static int x2_get_est(struct x2_priv *priv, void __user *data)
 {
 	struct x2_est_cfg *est;
 	int ret = 0;
+	int i;
+
 	est = kzalloc(sizeof(*est), GFP_KERNEL);
 	if (!est)
 		return -ENOMEM;
 
 
-	printk("%s,and est_enabled:%d\n", __func__,priv->est_enabled);
+//	printk("%s,and est_enabled:%d\n", __func__,priv->est_enabled);
 	est->enabled = priv->est_enabled;
 	est->estwid = priv->dma_cap.estwid;
 	est->estdep = priv->dma_cap.estdep;
@@ -3559,15 +3732,104 @@ static int x2_get_est(struct x2_priv *priv, void __user *data)
 	est->gcl_size = priv->plat->est_cfg.gcl_size;
 	memcpy(est->gcl, priv->plat->est_cfg.gcl, est->gcl_size * sizeof(*est->gcl));
 
+	x2_est_read(priv, MTL_EST_BTR_LOW, false);
+	x2_est_read(priv, MTL_EST_BTR_HIGH, false);
+
+	x2_est_read(priv, MTL_EST_CTR_LOW, false);
+	x2_est_read(priv, MTL_EST_CTR_HIGH, false);
+	x2_est_read(priv, MTL_EST_TER,  false);
+	x2_est_read(priv, MTL_EST_LLR, false);
+
+	//printk("%s, before\n",__func__);
+
+	for (i = 0; i < 5; i++) {
+		u32 reg = (i << MTL_EST_ADDR_OFFSET) & MTL_EST_ADDR;
+		x2_est_read(priv, reg, true);
+	}
+
+
+
 	if (copy_to_user(data, est, sizeof(*est))) {
 		ret = -EFAULT;
 		goto out_free;
 	}
-
+	//printk("%s, reg-0x8ac:%d\n\n",__func__,readl(priv->ioaddr + 0x8ac));
+	//printk("%s, reg-0x8d0:%d\n",__func__,readl(priv->ioaddr + 0x8d0));
 out_free:
 	kfree(est);
 	return ret;
 }
+
+
+static int x2_ioctl_get_pps(struct x2_priv *priv, void __user *data)
+{
+	u32 ptp_period = x2_get_ptp_period(priv, priv->plat->clk_ptp_rate);
+	struct x2_ioctl_pps_cfg pps;
+	struct stmmac_pps_cfg *cfg;
+	bool dig;
+
+	memset(&pps, 0, sizeof(pps));
+
+	if (copy_from_user(&pps, data, sizeof(pps)))
+		return -EFAULT;
+
+	if (pps.index >= X2_PPS_MAX)
+		return -EINVAL;
+
+	if (pps.index >= priv->dma_cap.pps_out_num)
+		return -EINVAL;
+
+	cfg = &priv->plat->pps_cfg[pps.index];
+	dig = x2_get_hw_tstamping(priv) & PTP_TCR_TSCTRLSSR;
+	pps.enabled = cfg->enable;
+	pps.ctrl_cmd = cfg->ctrl_cmd;
+
+	if (pps.enabled) {
+		pps.trgtmodsel = cfg->trgtmodsel;
+		pps.target_time[0] = cfg->target_time[0];
+		pps.target_time[1] = cfg->target_time[1];
+		pps.interval = cfg->interval * ptp_period;
+		pps.width = cfg->width * ptp_period;
+	} else {
+		pps.freq = 0x1 << pps.ctrl_cmd;
+		if (dig)
+			pps.freq /= 2;
+	}
+
+	if (copy_from_user(data, &pps, sizeof(pps)))
+		return -EFAULT;
+
+	return 0;
+}
+
+static int x2_ioctl_set_pps(struct x2_priv *priv, void __user *data)
+{
+       u32 ptp_period = x2_get_ptp_period(priv, priv->plat->clk_ptp_rate);
+       struct x2_ioctl_pps_cfg pps;
+       struct stmmac_pps_cfg *cfg;
+
+       memset(&pps, 0, sizeof(pps));
+
+       if (copy_from_user(&pps, data, sizeof(pps)))
+               return -EFAULT;
+       if (pps.index >= X2_PPS_MAX)
+               return -EINVAL;
+       if (pps.index >= priv->dma_cap.pps_out_num)
+               return -EINVAL;
+
+       cfg = &priv->plat->pps_cfg[pps.index];
+
+       cfg->enable = pps.enabled;
+       cfg->ctrl_cmd = pps.ctrl_cmd;
+       cfg->trgtmodsel = pps.trgtmodsel;
+       cfg->target_time[0] = pps.target_time[0];
+       cfg->target_time[1] = pps.target_time[1];
+       cfg->interval = pps.interval / ptp_period;
+       cfg->width = pps.width / ptp_period;
+
+	return x2_pps_configuration(priv, pps.index);
+}
+
 
 static int x2_extension_ioctl(struct x2_priv *priv, void __user *data)
 {
@@ -3578,6 +3840,7 @@ static int x2_extension_ioctl(struct x2_priv *priv, void __user *data)
 	u32 txmode = 0;
 	u8 qmode;
 	u32 cmd;
+	//u32 value = 0;
 
 //	printk("%s,and here\n",__func__);
 	if (!capable(CAP_NET_ADMIN))
@@ -3621,6 +3884,7 @@ static int x2_extension_ioctl(struct x2_priv *priv, void __user *data)
 		break;
 
 	case STMMAC_SET_CBS:
+
 		if (copy_from_user(&cbs, data, sizeof(cbs)))
 			return -EFAULT;
 		if (cbs.queue_idx >= tx_cnt)
@@ -3630,14 +3894,20 @@ static int x2_extension_ioctl(struct x2_priv *priv, void __user *data)
 		if (qmode != MTL_QUEUE_AVB)
 			return -EINVAL;
 
-		printk("%s,and set cbs\n",__func__);
+//		printk("%s,and set cbs\n",__func__);
 		priv->plat->tx_queues_cfg[cbs.queue_idx].send_slope = cbs.send_slope;
 		priv->plat->tx_queues_cfg[cbs.queue_idx].idle_slope = cbs.idle_slope;
 		priv->plat->tx_queues_cfg[cbs.queue_idx].high_credit = cbs.high_credit;
 		priv->plat->tx_queues_cfg[cbs.queue_idx].low_credit = cbs.low_credit;
 		priv->plat->tx_queues_cfg[cbs.queue_idx].percentage = cbs.percentage;
-
 		x2_dma_config_cbs(priv, cbs.send_slope, cbs.idle_slope, cbs.high_credit, cbs.low_credit, cbs.queue_idx);
+
+#if 0
+		printk("%s, queue_idx:%d\n",__func__, cbs.queue_idx);
+		value = readl(priv->ioaddr + MTL_CHAN_INT_CTRL(cbs.queue_idx));
+		value |= (1 << 9);
+		writel(value, priv->ioaddr + MTL_CHAN_INT_CTRL(cbs.queue_idx));
+#endif
 		break;
 	case STMMAC_GET_CBS:
 		if (copy_from_user(&cbs, data, sizeof(cbs)))
@@ -3660,6 +3930,11 @@ static int x2_extension_ioctl(struct x2_priv *priv, void __user *data)
 
 	case STMMAC_SET_EST:
 		return x2_set_est(priv, data);
+
+	case STMMAC_GET_PPS:
+		return x2_ioctl_get_pps(priv, data);
+	case STMMAC_SET_PPS:
+		return x2_ioctl_set_pps(priv, data);
 	default:
 		return -EINVAL;
 	}
@@ -3673,7 +3948,7 @@ static int x2_open(struct net_device *ndev)
 	struct x2_priv *priv = netdev_priv(ndev);
 	int ret;
 
-	u32 value;
+//	u32 value;
 
 
 	ret = x2_init_phy(ndev);
@@ -3808,7 +4083,7 @@ static int x2_release(struct net_device *ndev)
 	x2_disable_all_queues(priv);
 
 //	free_irq(ndev->irq, ndev);
-	printk("%s, and free irq by dhw\n",__func__);
+//	printk("%s, and free irq by dhw\n",__func__);
 	x2_stop_all_dma(priv);
 	free_dma_desc_resources(priv);
 
@@ -3938,7 +4213,7 @@ static void x2_tso_allocator(struct x2_priv *priv, unsigned int des, int total_l
 //	printk("%s,return from tso allocator\n", __func__);
 }
 
-static int flags = 0;
+//static int flags = 0;
 
 static netdev_tx_t x2_tso_xmit(struct sk_buff *skb, struct net_device *ndev)
 {
@@ -3956,8 +4231,8 @@ static netdev_tx_t x2_tso_xmit(struct sk_buff *skb, struct net_device *ndev)
 	tx_q = &priv->tx_queue[queue];
 
 //	printk("%s: here\n",__func__);
-//	proto_hdr_len = skb_transport_offset(skb) + tcp_hdrlen(skb);
-	printk("%s, and transport offset:%d, tcphdrlen:%d\n", __func__, skb_transport_offset(skb), tcp_hdrlen(skb));
+	proto_hdr_len = skb_transport_offset(skb) + tcp_hdrlen(skb);
+//	printk("%s, and transport offset:%d, tcphdrlen:%d\n", __func__, skb_transport_offset(skb), tcp_hdrlen(skb));
 	if (unlikely(x2_tx_avail(priv, queue) < (((skb->len - proto_hdr_len) / TSO_MAX_BUFF_SIZE + 1)))) {
 		if (!netif_tx_queue_stopped(netdev_get_tx_queue(ndev, queue))) {
 			netif_tx_stop_queue(netdev_get_tx_queue(priv->dev, queue));
@@ -4065,7 +4340,7 @@ dma_map_err:
 
 
 
-static int cnt = 0;
+//static int cnt = 0;
 
 static netdev_tx_t x2_xmit(struct sk_buff *skb, struct net_device *ndev)
 {
@@ -4086,6 +4361,23 @@ static netdev_tx_t x2_xmit(struct sk_buff *skb, struct net_device *ndev)
 	tx_q = &priv->tx_queue[queue];
 
 
+//	printk("%s, reg-0x718:%d\n",__func__,readl(priv->ioaddr + 0x718));
+//	printk("%s, reg-0x71c:%d\n",__func__,readl(priv->ioaddr + 0x71c));
+//	printk("%s, reg-0x8ac:%d\n\n",__func__,readl(priv->ioaddr + 0x8ac));
+//	printk("%s, reg-0x8d0:%d\n",__func__,readl(priv->ioaddr + 0x8d0));
+//	printk("%s, reg-0x8a8:%d\n",__func__,readl(priv->ioaddr + 0x8a8));
+
+#if 0
+	x2_est_read(priv, MTL_EST_BTR_LOW, false);
+	x2_est_read(priv, MTL_EST_BTR_HIGH, false);
+
+	x2_est_read(priv, MTL_EST_CTR_LOW, false);
+	x2_est_read(priv, MTL_EST_CTR_HIGH, false);
+	x2_est_read(priv, MTL_EST_TER,  false);
+	x2_est_read(priv, MTL_EST_LLR, false);
+
+	printk("%s, current slot number:%d\n", __func__, readl(priv->ioaddr + 0xc58) >> 16 & 0xf);
+#endif
 #if 0
 	cnt++;
 
@@ -4098,10 +4390,12 @@ static netdev_tx_t x2_xmit(struct sk_buff *skb, struct net_device *ndev)
 
 	}
 
-#endif
-//	printk("skb len:%d, skb is gso:%d, priv->tso:%d, skb_shinfo->gso_type:0x%x\n",skb->len,skb_is_gso(skb),priv->tso,skb_shinfo(skb)->gso_type);
 
-//	printk("%s, reg0xa4:0x%x\n",__func__,readl(priv->ioaddr + 0xa4));
+//	printk("skb len:%d, skb is gso:%d, priv->tso:%d, skb_shinfo->gso_type:0x%x\n",skb->len,skb_is_gso(skb),priv->tso,skb_shinfo(skb)->gso_type);
+	if (readl(priv->ioaddr + MTL_ETSX_STATUS_BASE_ADDR(queue)))
+		printk("%s, queue:%d, averege bit/ %d slot number: 0x%x\n",__func__,queue,(readl(priv->ioaddr + MTL_ETSX_CTRL_BASE_ADDR(queue)) >> 4 & 0x7),readl(priv->ioaddr + MTL_ETSX_STATUS_BASE_ADDR(queue)));
+#endif
+
 #if 0
 	printk("%s, regb00:0x%x\n",__func__,readl(priv->ioaddr + 0xb00));
 	printk("%s, regb04:0x%x\n",__func__,readl(priv->ioaddr + 0xb04));
@@ -4136,6 +4430,10 @@ static netdev_tx_t x2_xmit(struct sk_buff *skb, struct net_device *ndev)
 
 
 
+	//printk("%s, sec: %d, nsec:%d\n", __func__,readl(priv->ioaddr + PTP_STSR),readl(priv->ioaddr + PTP_STNSR));
+
+
+
 
 	if (skb_is_gso(skb) && priv->tso) {
 		if (skb_shinfo(skb)->gso_type & (SKB_GSO_TCPV4 | SKB_GSO_TCPV6)) {
@@ -4145,7 +4443,7 @@ static netdev_tx_t x2_xmit(struct sk_buff *skb, struct net_device *ndev)
 		}
 	}
 
-///	printk("%s,and queue:%d\n",__func__,queue);
+//	printk("%s,and queue:%d\n",__func__,queue);
 //	printk("%s, and avali:%d, nfrags:%d, queue:%d\n",__func__, x2_tx_avail(priv, queue), nfrags,queue);
 	if ((x2_tx_avail(priv, queue) < nfrags + 1)) {
 		if (!netif_tx_queue_stopped(netdev_get_tx_queue(ndev, queue))) {
@@ -4326,7 +4624,7 @@ static int x2_ptp_set_ts_config(struct net_device *ndev, struct ifreq *ifr)
 		return -EFAULT;
 
 
-	printk("%s, config flags: 0x%x, tx_type:0x%x, rx_filter:0x%x\n",__func__,config.flags, config.tx_type, config.rx_filter);
+//	printk("%s, config flags: 0x%x, tx_type:0x%x, rx_filter:0x%x\n",__func__,config.flags, config.tx_type, config.rx_filter);
 
 	if (config.flags)
 		return -EINVAL;
@@ -4435,23 +4733,29 @@ static int x2_ptp_set_ts_config(struct net_device *ndev, struct ifreq *ifr)
 
 	}
 
+
+
+
 	priv->hwts_rx_en = ((config.rx_filter == HWTSTAMP_FILTER_NONE) ? 0 : 1);
 	priv->hwts_tx_en = config.tx_type == HWTSTAMP_TX_ON;
 
 	if (!priv->hwts_tx_en && !priv->hwts_rx_en)
 		x2_config_hw_tstamping(priv, 0);
 	else {
+
+		x2_config_hw_tstamping(priv, 0);
+
 	//	value = (PTP_TCR_TSENA|PTP_TCR_TSCFUPDT|PTP_TCR_TSCTRLSSR|tstamp_all|ptp_v2|ptp_over_ethernet|ptp_over_ipv6_udp|ptp_over_ipv4_udp|ts_event_en|ts_master_en|snap_type_sel);
 		value = (PTP_TCR_TSENA|PTP_TCR_TSCTRLSSR|tstamp_all|ptp_v2|ptp_over_ethernet|ptp_over_ipv6_udp|ptp_over_ipv4_udp|ts_event_en|ts_master_en|snap_type_sel);
 		value |= (1<<19) | (1<<14);
 		value &= ~(1 << 17);
 		value |= 1<<1;
 
-		printk("%s,and set value is 0x%x\n",__func__,value);
+//		printk("%s,and set value is 0x%x\n",__func__,value);
 		x2_config_hw_tstamping(priv, value);
 
 
-		x2_config_sub_second_increment(priv,priv->plat->clk_ptp_rate, xmac, &sec_inc);
+		sec_inc = x2_config_sub_second_increment(priv,priv->plat->clk_ptp_rate, xmac);
 		temp = div_u64(1000000000ULL, sec_inc);
 		priv->sub_second_inc = sec_inc;
 		priv->systime_flags = value;
@@ -4459,23 +4763,22 @@ static int x2_ptp_set_ts_config(struct net_device *ndev, struct ifreq *ifr)
 		priv->default_addend = div_u64(temp, priv->plat->clk_ptp_rate);
 		priv->default_addend = 0xCCCCB8CD;//div_u64(temp, priv->plat->clk_ptp_rate);
 
-
 		x2_config_addend(priv,  priv->default_addend);
 
 		ktime_get_real_ts64(&now);
-		printk("%s,and now secod: %d, and nsec:%d\n", __func__, now.tv_sec, now.tv_nsec);
+	//	printk("%s,and now secod: %d, and nsec:%d\n", __func__, now.tv_sec, now.tv_nsec);
 		x2_init_systime(priv,  (u32)now.tv_sec, now.tv_nsec);
 
 
 	}
 
 
-	printk("%s, regb00:0x%x\n",__func__,readl(priv->ioaddr + 0xb00));
-	printk("%s, regb04:0x%x\n",__func__,readl(priv->ioaddr + 0xb04));
+//	printk("%s, regb00:0x%x\n",__func__,readl(priv->ioaddr + 0xb00));
+//	printk("%s, regb04:0x%x\n",__func__,readl(priv->ioaddr + 0xb04));
 
 
 
-#if 1
+#if 0
 	printk("%s, reg-0xb08:%d\n",__func__,readl(priv->ioaddr + 0xb08));
 	printk("%s, reg-0xb0c:%d\n",__func__,readl(priv->ioaddr + 0xb0c));
 	printk("%s, reg-0xb10:0x%x\n",__func__,readl(priv->ioaddr + 0xb10));
@@ -4670,7 +4973,7 @@ static void __x2_dump_dma_regs(void __iomem *ioaddr, u32 channel, u32 *reg_space
 	reg_space[DMA_CHAN_STATUS(channel) / 4] = readl(ioaddr + DMA_CHAN_STATUS(channel));
 }
 
-static x2_dump_dma_regs(void __iomem *ioaddr, u32 *reg_space)
+static void  x2_dump_dma_regs(void __iomem *ioaddr, u32 *reg_space)
 {
 	int i;
 
@@ -4854,7 +5157,7 @@ static void x2_get_tx_hwstamp(struct x2_priv *priv, struct dma_desc *p, struct s
 	return;
 }
 
-static int cnt_tx = 0;
+//static int cnt_tx = 0;
 
 static void x2_tx_clean(struct x2_priv *priv, u32 queue)
 {
@@ -4897,14 +5200,16 @@ static void x2_tx_clean(struct x2_priv *priv, u32 queue)
 			break;
 		}
 
+#if 0
 		cnt_tx++;
 
 		if (cnt_tx > 50) {
-		//	printk("%s, mtl fpe ctrl sts:0x%x\n", __func__, readl(priv->ioaddr + 0xc90));
-		//	printk("%s, frg cntr:%d, hlod:%d\n", __func__, readl(priv->ioaddr + MMC_TX_FPE_Frg_Cntr),readl(priv->ioaddr + MMC_TX_HOLD_Req_Cntr));
+			printk("%s, mtl fpe ctrl sts:0x%x\n", __func__, readl(priv->ioaddr + 0xc90));
+			printk("%s, frg cntr:%d, hlod:%d\n", __func__, readl(priv->ioaddr + MMC_TX_FPE_Frg_Cntr),readl(priv->ioaddr + MMC_TX_HOLD_Req_Cntr));
 			cnt_tx = 0;
 		}
 
+#endif
 		dma_rmb();
 
 		if (!(status & tx_not_ls)) {
@@ -4958,7 +5263,7 @@ static void x2_tx_clean(struct x2_priv *priv, u32 queue)
 static int x2_get_rx_status(void *data, struct x2_extra_stats *x, struct dma_desc *p)
 {
 	struct net_device_stats *stats = (struct net_device_stats *)data;
-	unsigned int rdes0 = le32_to_cpu(p->des0);
+	//unsigned int rdes0 = le32_to_cpu(p->des0);
 	unsigned int rdes1 = le32_to_cpu(p->des1);
 	unsigned int rdes2 = le32_to_cpu(p->des2);
 	unsigned int rdes3 = le32_to_cpu(p->des3);
@@ -5299,13 +5604,13 @@ static int x2_rx_packet(struct x2_priv *priv, int limit, u32 queue)
 	int coe = priv->rx_csum;
 	unsigned int next_entry;
 	unsigned int count = 0;
-	const struct ethhdr *eth;
-	struct iphdr *iph;
+//	const struct ethhdr *eth;
+//	struct iphdr *iph;
 	struct net_device *ndev = priv->dev;
-	int flag = 0;
+//	int flag = 0;
 
-	struct arphdr *arph;
-	unsigned char *arp_ptr;
+	//struct arphdr *arph;
+	//unsigned char *arp_ptr;
 
 	while (count < limit) {
 		int status;
@@ -5384,7 +5689,7 @@ static int x2_rx_packet(struct x2_priv *priv, int limit, u32 queue)
 			x2_get_rx_hwtstamp(priv, p, np, skb);
 			x2_rx_vlan(priv->dev, skb);
 
-			eth = (struct ethhdr*)skb->data;
+//			eth = (struct ethhdr*)skb->data;
 			//printk("%s,and h_proto:0x%x\n",__func__,eth->h_proto);
 
 
