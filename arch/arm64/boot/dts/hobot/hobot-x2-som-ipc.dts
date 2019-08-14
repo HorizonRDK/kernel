@@ -187,27 +187,6 @@
 	status = "okay";
 };
 
-&ethernet {
-	status = "okay";
-	clocks = <&eth0_ephy_2nddiv_clk>, <&eth0_prediv_clk>, <&eth0_div_clk>;
-	clock-names = "phy_ref_clk", "mac_pre_div_clk", "mac_div_clk";
-
-	pinctrl-names = "default";
-	pinctrl-0 = <&eth_func>;
-
-	/* local-mac-address = [ 00 11 22 33 44 55 ]; */
-	phy-handle = <&phy1>;
-	phy-mode = "rgmii-id";
-	mdio {
-		#address-cells = <0x1>;
-		#size-cells = <0x0>;
-		phy1: phy@0 {
-			compatible = "marvell,88E1510","ethernet-phy-ieee802.3-c22";
-			reg = <0x0>;
-		};
-	};
-};
-
 &cpu0 {
 	status = "okay";
 	cpu-supply = <&vcc_cpu_reg>;
@@ -296,22 +275,6 @@
 	bus-width = <8>;
 	cap-mmc-highspeed;
 	mmc-hs200-1_8v;
-	non-removable;
-	disable-wp;
-};
-
-&sdio1 {
-	status = "okay";
-	bus-width = <4>;
-	no-mmc;
-	no-sdio;
-	cap-sd-highspeed;
-	sd-uhs-sdr12;
-	sd-uhs-sdr25;
-	sd-uhs-sdr50;
-	sd-uhs-sdr104;
-	powerup-gpio = <85>;
-	uhs-180v-gpio = <86>;
 	non-removable;
 	disable-wp;
 };
