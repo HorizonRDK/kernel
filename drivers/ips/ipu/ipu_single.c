@@ -248,8 +248,8 @@ void ipu_single_mode_process(uint32_t status)
 
 	if (status & PYM_FRAME_DONE) {
 		ipu_slot_h_t *slot_h = NULL;
-		slot_busy_to_done();
-		slot_h = ipu_read_done_slot();
+		slot_h = slot_busy_to_done();
+		//slot_h = ipu_read_done_slot();
 		if (slot_h) {
 			///ipu_info("pyramid done, slot-%d, cnt %d\n", slot_h->info_h.slot_id, slot_h->slot_cnt);
 			//__inval_dcache_area(IPU_GET_SLOT(slot_h->info_h.slot_id, ipu->vaddr), IPU_SLOT_SIZE);
