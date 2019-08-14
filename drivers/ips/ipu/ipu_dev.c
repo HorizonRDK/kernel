@@ -329,21 +329,21 @@ int8_t set_ipu_pymid(pymid_t *info)
 	/* step 1.3. write ds src width reg */
 	d = SET_SRC_WIDTH(info->ds_src_width[2], info->ds_src_width[1]);
 	writel(d, g_regbase + PYMID_SRC_WIDTH_P1);
-	d |= SET_SRC_WIDTH(info->ds_src_width[5], info->ds_src_width[3]);
+	d = SET_SRC_WIDTH(info->ds_src_width[5], info->ds_src_width[3]);
 	writel(d, g_regbase + PYMID_SRC_WIDTH_P2);
-	d |= SET_SRC_WIDTH(info->ds_src_width[7], info->ds_src_width[6]);
+	d = SET_SRC_WIDTH(info->ds_src_width[7], info->ds_src_width[6]);
 	writel(d, g_regbase + PYMID_SRC_WIDTH_P3);
-	d |= SET_SRC_WIDTH(info->ds_src_width[10], info->ds_src_width[9]);
+	d = SET_SRC_WIDTH(info->ds_src_width[10], info->ds_src_width[9]);
 	writel(d, g_regbase + PYMID_SRC_WIDTH_P4);
-	d |= SET_SRC_WIDTH(info->ds_src_width[13], info->ds_src_width[11]);
+	d = SET_SRC_WIDTH(info->ds_src_width[13], info->ds_src_width[11]);
 	writel(d, g_regbase + PYMID_SRC_WIDTH_P5);
-	d |= SET_SRC_WIDTH(info->ds_src_width[15], info->ds_src_width[14]);
+	d = SET_SRC_WIDTH(info->ds_src_width[15], info->ds_src_width[14]);
 	writel(d, g_regbase + PYMID_SRC_WIDTH_P6);
-	d |= SET_SRC_WIDTH(info->ds_src_width[18], info->ds_src_width[17]);
+	d = SET_SRC_WIDTH(info->ds_src_width[18], info->ds_src_width[17]);
 	writel(d, g_regbase + PYMID_SRC_WIDTH_P7);
-	d |= SET_SRC_WIDTH(info->ds_src_width[21], info->ds_src_width[19]);
+	d = SET_SRC_WIDTH(info->ds_src_width[21], info->ds_src_width[19]);
 	writel(d, g_regbase + PYMID_SRC_WIDTH_P8);
-	d |= SET_SRC_WIDTH(info->ds_src_width[23], info->ds_src_width[22]);
+	d = SET_SRC_WIDTH(info->ds_src_width[23], info->ds_src_width[22]);
 	writel(d, g_regbase + PYMID_SRC_WIDTH_P9);
 
 	/* step 1.4. write ds roi reg */
@@ -447,9 +447,9 @@ int8_t set_ipu_pymid(pymid_t *info)
 	/* step 2.3. write us src width reg */
 	d = SET_SRC_WIDTH(info->us_src_width[1], info->us_src_width[0]);
 	writel(d, g_regbase + PYMID_SRC_WIDTH_U1);
-	d |= SET_SRC_WIDTH(info->us_src_width[3], info->us_src_width[2]);
+	d = SET_SRC_WIDTH(info->us_src_width[3], info->us_src_width[2]);
 	writel(d, g_regbase + PYMID_SRC_WIDTH_U2);
-	d |= SET_SRC_WIDTH(info->us_src_width[5], info->us_src_width[4]);
+	d = SET_SRC_WIDTH(info->us_src_width[5], info->us_src_width[4]);
 	writel(d, g_regbase + PYMID_SRC_WIDTH_U3);
 
 	/* step 2.4. write us roi reg */
