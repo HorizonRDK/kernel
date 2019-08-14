@@ -22,6 +22,7 @@
 #include <linux/eventpoll.h>
 #include "ipu_dev.h"
 #include "ipu_drv.h"
+#include "ipu_slot.h"
 #include "ipu_common.h"
 #include <asm-generic/io.h>
 #include <asm/string.h>
@@ -41,6 +42,15 @@ extern struct ion_device *hb_ion_dev;
 struct x2_ipu_data *g_ipu = NULL;
 int ddr_mode;
 unsigned int ipu_debug_level = 0;
+/*sysfs debug information*/
+static int pym_done_cnt;
+static int ipu_done_cnt;
+static int ipu_start_cnt;
+static int drop_cnt;
+unsigned int queue_free_cnt;
+unsigned int queue_busy_cnt;
+unsigned int queue_done_cnt;
+
 module_param(ipu_debug_level, uint, 0644);
 unsigned int ipu_irq_debug = 0;
 module_param(ipu_irq_debug, uint, 0644);
@@ -489,6 +499,7 @@ static int ipu_thread(void *data)
 	return 0;
 }
 
+
 void x2_ipu_isr(unsigned int status, void *data)
 {
 	struct x2_ipu_data *ipu = (struct x2_ipu_data *)data;
@@ -497,18 +508,25 @@ void x2_ipu_isr(unsigned int status, void *data)
 		printk(KERN_INFO "[ipu][irq]: 0x%x\n", status & IPU_INT_BITS);
 	}
 	if (ipu->stop) {
+		drop_cnt++;
 		ipu->isr_data = 0;
 		return;
 	} else {
 		ipu->isr_data |= status;
 	}
 	if ((status & (IPU_FRAME_DONE|PYM_FRAME_DONE|IPU_FRAME_START)) && (ddr_mode == 1)) {
-		if (status & IPU_FRAME_START)
+		if (status & IPU_FRAME_START) {
+			ipu_start_cnt++;
 			ipu_handle_frame_start();
-		if (status & IPU_FRAME_DONE)
+		}
+		if (status & IPU_FRAME_DONE) {
+			ipu_done_cnt++;
 			ipu_handle_frame_done();
-		if (status & PYM_FRAME_DONE)
+		}
+		if (status & PYM_FRAME_DONE) {
+			pym_done_cnt++;
 			ipu_handle_pym_frame_done();
+		}
 	} else {
 		if (!test_and_set_bit(IPU_TRIGGER_ISR, &ipu->runflags))
 			wake_up_interruptible(&ipu->wq_head);
@@ -839,6 +857,63 @@ static ssize_t x2_ipu_store(struct kobject *kobj, struct kobj_attribute *attr, c
 	int error = -EINVAL;
 	return error ? error : n;
 }
+static ssize_t ipu_star_show(struct kobject *kobj,
+				  struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", ipu_start_cnt);
+}
+
+static ssize_t pym_done_show(struct kobject *kobj,
+				struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", pym_done_cnt);
+}
+
+static ssize_t ipu_done_show(struct kobject *kobj,
+				  struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", ipu_done_cnt);
+}
+
+static ssize_t alldrop_cnt_show(struct kobject *kobj,
+				struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", drop_cnt);
+}
+static ssize_t queue_free_cnt_show(struct kobject *kobj,
+				struct kobj_attribute *attr, char *buf)
+{
+	dump_slot_state();
+	return sprintf(buf, "%d\n", queue_free_cnt);
+}
+static ssize_t queue_busy_cnt_show(struct kobject *kobj,
+				struct kobj_attribute *attr, char *buf)
+{
+	dump_slot_state();
+	return sprintf(buf, "%d\n", queue_busy_cnt);
+}
+
+static ssize_t queue_done_cnt_show(struct kobject *kobj,
+				struct kobj_attribute *attr, char *buf)
+{
+	dump_slot_state();
+	return sprintf(buf, "%d\n", queue_done_cnt);
+}
+
+static struct kobj_attribute ipu_star = __ATTR(ipu_start_cnt, 0444,
+						ipu_star_show, NULL);
+static struct kobj_attribute pym_done = __ATTR(pym_done_cnt, 0444,
+						pym_done_show, NULL);
+static struct kobj_attribute ipu_done = __ATTR(ipu_done_cnt, 0444,
+						ipu_done_show, NULL);
+static struct kobj_attribute alldrop_cnt = __ATTR(drop_cnt, 0444,
+						alldrop_cnt_show, NULL);
+static struct kobj_attribute queue_free = __ATTR(free_cnt, 0444,
+						queue_free_cnt_show, NULL);
+static struct kobj_attribute queue_busy = __ATTR(busy_cnt, 0444,
+						queue_busy_cnt_show, NULL);
+static struct kobj_attribute queue_done = __ATTR(done_cnt, 0444,
+						queue_done_cnt_show, NULL);
 
 static struct kobj_attribute ipu_test_attr = {
 	.attr   = {
@@ -853,9 +928,36 @@ static struct attribute *attributes[] = {
 	&ipu_test_attr.attr,
 	NULL,
 };
+static struct attribute *irq_attributes[] = {
+	&ipu_star.attr,
+	&ipu_done.attr,
+	&pym_done.attr,
+	&alldrop_cnt.attr,
+	NULL,
+};
+static struct attribute *queue_attributes[] = {
+	&queue_free.attr,
+	&queue_busy.attr,
+	&queue_done.attr,
+	NULL,
+};
 
 static struct attribute_group attr_group = {
 	.attrs = attributes,
+};
+static struct attribute_group irq_attr_group = {
+	.name = "irq_info",
+	.attrs = irq_attributes,
+};
+static struct attribute_group queue_attr_group = {
+	.name = "queue_info",
+	.attrs = queue_attributes,
+};
+static const struct attribute_group *ipu_attr_groups[] = {
+	&attr_group,
+	&irq_attr_group,
+	&queue_attr_group,
+	NULL,
 };
 
 static int __init x2_ipu_init(void)
@@ -867,7 +969,8 @@ static int __init x2_ipu_init(void)
 	x2_ipu_kobj = kobject_create_and_add("x2_ipu", NULL);
 	if (!x2_ipu_kobj)
 		return -ENOMEM;
-	return sysfs_create_group(x2_ipu_kobj, &attr_group);
+	sysfs_create_groups(x2_ipu_kobj, ipu_attr_groups);
+	//sysfs_create_group(x2_ipu_kobj, &attr_group);
 	return ret;
 }
 

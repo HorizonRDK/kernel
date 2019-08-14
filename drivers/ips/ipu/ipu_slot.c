@@ -8,6 +8,9 @@ static ipu_slot_h_t 	g_ipu_slot_[IPU_MAX_SLOT];
 static struct list_head g_ipu_slot_list[SLOT_LIST_NUM];
 static DECLARE_BITMAP(slot_init_mask, IPU_MAX_SLOT);
 extern struct x2_ipu_data *g_ipu;
+extern unsigned int queue_free_cnt;
+extern unsigned int queue_busy_cnt;
+extern unsigned int queue_done_cnt;
 
 /********************************************************************
  * @brief init_ipu_slot
@@ -259,6 +262,9 @@ bool is_slot_done_empty(void)
 }
 void dump_slot_state(void)
 {
+	queue_free_cnt = 0;
+	queue_busy_cnt = 0;
+	queue_done_cnt = 0;
 	struct list_head *head = NULL;
 	struct list_head *node = NULL;
 	int count = 0;
@@ -267,6 +273,7 @@ void dump_slot_state(void)
 	if (!list_empty(head)) {
 		while (node != head) {
 			count++;
+			queue_free_cnt++;
 			node = node->next;
 		}
 	}
@@ -278,6 +285,7 @@ void dump_slot_state(void)
 	if (!list_empty(head)) {
 		while (node != head) {
 			count++;
+			queue_busy_cnt++;
 			node = node->next;
 		}
 	}
@@ -289,6 +297,7 @@ void dump_slot_state(void)
 	if (!list_empty(head)) {
 		while (node != head) {
 			count++;
+			queue_done_cnt++;
 			node = node->next;
 		}
 	}
