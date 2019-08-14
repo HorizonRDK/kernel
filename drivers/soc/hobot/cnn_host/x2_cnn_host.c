@@ -53,6 +53,8 @@
 #endif
 #include "x2_cnn_host.h"
 
+#define CNN_FREQ_CHANGE(id) (50 + id)
+
 #define NETLINK_BPU 24
 #define MOD_FRQ_DONE 0X0
 #define MOD_FRQ      0X01
@@ -1476,6 +1478,13 @@ static int cnnfreq_target(struct device *dev, unsigned long *freq,
 		}
 	}
 
+	/* Send the bpu freq change notify to listener */
+	diag_send_event_stat_and_env_data(DiagMsgPrioLow,
+			ModuleDiag_bpu, CNN_FREQ_CHANGE(cnn_dev->core_index),
+			DiagEventStaUnknown,
+			DiagGenEnvdataWhenSuccess,
+			(uint8_t *)&target_rate, sizeof(target_rate));
+
 	cnnfreq->volt = target_volt;
 out:
 	unlock_bpu(cnn_dev);
@@ -1884,6 +1893,10 @@ int x2_cnn_probe(struct platform_device *pdev)
 	} else
 			dev_err(&pdev->dev, "bpu event id overun: max = 2,but now is:%d\n",
 					EventIdBpu0Err + cnn_id);
+
+	if (diag_register(ModuleDiag_bpu,
+				CNN_FREQ_CHANGE(cnn_id), 16, 300, 5000, NULL) < 0)
+		dev_err(&pdev->dev, "bpu%d freq notify register fail\n", cnn_id);
 
 	pr_info("x2 cnn%d probe OK!!\n", cnn_id);
 #ifdef CONFIG_HOBOT_CNN_DEVFREQ
