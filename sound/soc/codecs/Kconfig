@@ -1182,4 +1182,7 @@ config SND_SOC_AC108
 config SND_SOC_AC108_DRIVER
 	tristate "AC108 Audio Codec"
 	depends on I2C
+config SND_SOC_TI1864
+	tristate "TI1864 AudioCodec"
+	depends on I2C
 endmenu

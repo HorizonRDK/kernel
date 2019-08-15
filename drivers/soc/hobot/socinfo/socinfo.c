@@ -1,4 +1,10 @@
 /*
+ *    COPYRIGHT NOTICE
+ *   Copyright 2019 Horizon Robotics, Inc.
+ *    All rights reserved.
+ */
+
+/*
  * X2 EFUSE driver (For X2 Platform)
  *
  * 2017 - 2018 (C) Horizon Inc.
@@ -35,7 +41,7 @@ const char *bootmode;
 
 unsigned int x2_board_id[] = {
 	0x100, 0x101, 0x102, 0x103, 0x200, 0x201, 0x202, 0x203, 0x204, 0x205,
-	0x300, 0x301, 0x302, 0x303, 0x304, 0x400, 0x104, 0x105
+	0x300, 0x301, 0x302, 0x303, 0x304, 0x400, 0x401, 0x104, 0x105
 };
 
 struct hobot_board_info board_of_id[] = {
@@ -55,9 +61,10 @@ struct hobot_board_info board_of_id[] = {
 	[13] = {J2_QuadJ2C, "J2-QuadJ2C"},
 	[14] = {J2_QuadJ2D, "J2-QuadJ2D"},
 	[15] = {J2_mm, "J2-mm"},
-	[16] = {X2_SOMFULL, "X2-SOMFULL"},
-	[17] = {X2_96BOARD, "X2_96BOARD"},
-	[18] = {Unknown, "Unknown"},
+        [16] = {J2_mm_s202, "J2-mm-s202"},
+	[17] = {X2_SOMFULL, "X2-SOMFULL"},
+	[18] = {X2_96BOARD, "X2_96BOARD"},
+	[19] = {Unknown, "Unknown"},
 };
 
 static int parse_boardid(uint32_t board_id)

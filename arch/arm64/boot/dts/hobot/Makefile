@@ -8,6 +8,7 @@ dtb-$(CONFIG_X2_SOC)  += hobot-j2-mono.dtb
 dtb-$(CONFIG_X2_SOC)  += hobot-j2-dev.dtb
 dtb-$(CONFIG_X2_SOC)  += hobot-j2-quad.dtb
 dtb-$(CONFIG_X2_SOC)  += hobot-j2-mm.dtb
+dtb-$(CONFIG_X2_SOC)  += hobot-j2-mm-s202.dtb
 dtb-$(CONFIG_X2_SOC)  += hobot-j2-sk.dtb
 dtb-$(CONFIG_X2_SOC)  += hobot-j2-sam.dtb
 dtb-$(CONFIG_X2_SOC)  += hobot-x2-96board.dtb

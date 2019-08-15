@@ -1,3 +1,9 @@
+/*
+ *    COPYRIGHT NOTICE
+ *   Copyright 2019 Horizon Robotics, Inc.
+ *    All rights reserved.
+ */
+
 #ifndef SOCINFO_H
 #define SOCINFO_H
 
@@ -20,6 +26,7 @@ enum hobot_board {
 	J2_QuadJ2D,
 	J2_Quad = 300,
 	J2_mm = 400,
+        J2_mm_s202 = 401,
 	Unknown = 1000,
 };
 

@@ -49,6 +49,11 @@
         "gpio_id"   :   "0"
     },
 
+    "401": {
+        "dtb_name"  :   "hobot-j2-mm-s202.dtb",
+        "gpio_id"   :   "0"
+    },
+
     "104": {
         "dtb_name"  :   "hobot-x2-som.dtb",
         "gpio_id"   :   "0"
