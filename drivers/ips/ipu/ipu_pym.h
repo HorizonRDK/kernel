@@ -39,6 +39,7 @@ struct ipu_pym {
 	DECLARE_KFIFO_PTR(done_offline_pym_slots, struct pym_slot_info);
 	/* now pym can only processing one frame a time */
 	struct pym_slot_info *pyming_slot_info;
+	int new_slot_id;
 	spinlock_t slock;
 	int processing;
 	int inited;

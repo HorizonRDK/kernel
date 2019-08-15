@@ -218,7 +218,7 @@ void ipu_handle_pym_frame_done(void)
 {
 	int pyming_slot_id = -1;
 
-	if (!g_ipu_pym) {
+	if (g_ipu_pym) {
 		if(g_ipu_pym->pyming_slot_info) {
 			pyming_slot_id =
 				g_ipu_pym->pyming_slot_info->img_info.src_img_info.slot_id;

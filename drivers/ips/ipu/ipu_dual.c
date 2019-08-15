@@ -234,13 +234,17 @@ void ipu_dual_mode_process(uint32_t status)
 					tmp_mult_img_info.src_img_info[0].timestamp = slot_h->info_h.cf_timestamp;
 					tmp_mult_img_info.src_img_info[1].timestamp = slot_h->info_h.sf_timestamp;
 					tmp_mult_img_info.src_img_info[0].src_img.y_paddr =
-						slot_h->info_h.base + slot_h->info_h.dual_ddr_info.crop.y_offset;
+						IPU_GET_DUAL_SLOT(slot_h->info_h.slot_id, g_ipu->paddr)
+						+ slot_h->info_h.dual_ddr_info.crop.y_offset;
 					tmp_mult_img_info.src_img_info[1].src_img.y_paddr =
-						slot_h->info_h.base + slot_h->info_h.dual_ddr_info.scale.y_offset;
+						IPU_GET_DUAL_SLOT(slot_h->info_h.slot_id, g_ipu->paddr)
+						+ slot_h->info_h.dual_ddr_info.scale.y_offset;
 					tmp_mult_img_info.src_img_info[0].src_img.c_paddr =
-						slot_h->info_h.base + slot_h->info_h.dual_ddr_info.crop.c_offset;
+						IPU_GET_DUAL_SLOT(slot_h->info_h.slot_id, g_ipu->paddr)
+						+ slot_h->info_h.dual_ddr_info.crop.c_offset;
 					tmp_mult_img_info.src_img_info[1].src_img.c_paddr =
-						slot_h->info_h.base + slot_h->info_h.dual_ddr_info.scale.c_offset;
+						IPU_GET_DUAL_SLOT(slot_h->info_h.slot_id, g_ipu->paddr)
+						+ slot_h->info_h.dual_ddr_info.scale.c_offset;
 
 					/* in dual acaler are the same with src  */
 					tmp_mult_img_info.src_img_info[0].scaler_img
@@ -297,7 +301,7 @@ void ipu_dual_mode_process(uint32_t status)
 		int pyming_slot_id = -1;
 		ipu_info("pym done\n");
 
-		if (!g_ipu_pym) {
+		if (g_ipu_pym) {
 			if(g_ipu_pym->pyming_slot_info);
 				pyming_slot_id =
 					g_ipu_pym->pyming_slot_info->img_info.mult_img_info.src_img_info[0].slot_id;

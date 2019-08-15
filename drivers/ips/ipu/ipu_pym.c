@@ -33,6 +33,7 @@ int ipu_pym_to_process(void *img_info,
 	struct pym_slot_info tmp_pym_slot;
 	struct src_img_info_t *single_img_info;
 	struct mult_img_info_t *mult_img_info;
+	int all_fifo_len;
 	unsigned long flags;
 	int i, ret;
 
@@ -56,10 +57,12 @@ int ipu_pym_to_process(void *img_info,
 		spin_unlock_irqrestore(&g_ipu_pym->slock, flags);
 		return -EINVAL;
 	}
-	if (kfifo_len(&g_ipu_pym->pym_slots)
+
+	all_fifo_len = kfifo_len(&g_ipu_pym->pym_slots)
 			+ kfifo_len(&g_ipu_pym->done_inline_pym_slots)
-			+ kfifo_len(&g_ipu_pym->done_offline_pym_slots)
-			>= IPU_PYM_BUF_LEN) {
+			+ kfifo_len(&g_ipu_pym->done_offline_pym_slots);
+
+	if (all_fifo_len >= IPU_PYM_BUF_LEN) {
 		spin_unlock_irqrestore(&g_ipu_pym->slock, flags);
 		pr_err("IPU pym busy\n");
 		return -EBUSY;
@@ -67,6 +70,13 @@ int ipu_pym_to_process(void *img_info,
 
 	if (type == PYM_SLOT_SINGLE) {
 		single_img_info = (struct src_img_info_t *)img_info;
+		if ((all_fifo_len > 0)
+				&& (g_ipu_pym->new_slot_id == single_img_info->slot_id)) {
+			spin_unlock_irqrestore(&g_ipu_pym->slock, flags);
+			pr_err("IPU pym to process the processing slot\n");
+			return -EBUSY;
+		}
+		g_ipu_pym->new_slot_id = single_img_info->slot_id;
 
 		memcpy(&tmp_pym_slot.img_info.src_img_info,
 				single_img_info, sizeof(struct src_img_info_t));
@@ -83,6 +93,14 @@ int ipu_pym_to_process(void *img_info,
 		}
 	} else if (type == PYM_SLOT_MULT) {
 		mult_img_info = (struct mult_img_info_t *)img_info;
+		if ((all_fifo_len > 0)
+				&& (g_ipu_pym->new_slot_id
+					== mult_img_info->src_img_info[0].slot_id)) {
+			spin_unlock_irqrestore(&g_ipu_pym->slock, flags);
+			pr_err("IPU pym to process the processing slot\n");
+			return -EBUSY;
+		}
+		g_ipu_pym->new_slot_id = mult_img_info->src_img_info[0].slot_id;
 
 		for (i = 0; i < mult_img_info->src_num; i++) {
 			memcpy(&tmp_pym_slot.img_info.mult_img_info,
@@ -140,6 +158,7 @@ static int ipu_pym_do_process(struct pym_slot_info *pym_slot_info)
 		/* here should use num to get mult offset */
 		if (pym_slot_info->pym_left_num || (pym_slot_info->img_info.mult_img_info.src_num == 1)) {
 			process_img_info = &pym_slot_info->img_info.mult_img_info.src_img_info[0];
+
 			set_ds_src_addr(process_img_info->src_img.y_paddr,
 					process_img_info->src_img.c_paddr);
 			ipu_set(IPUC_SET_PYM_DDR, pym_slot_info->cfg,
@@ -424,6 +443,7 @@ int ipu_pym_init(void)
 		return PTR_ERR_OR_ZERO(pym->process_task);
 	}
 	pym->processing = 0;
+	pym->new_slot_id = -1;
 
 	g_ipu_pym = pym;
 
