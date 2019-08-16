@@ -156,6 +156,7 @@ unsigned int dev_irq_cnt;
 module_param(dev_irq_cnt, uint, 0644);
 #endif
 
+#define EventIdVioMipiDevError 81
 /**
  * @brief mipi_dev_vpg_get_hline : get hline time in vpg mode
  *
@@ -379,6 +380,19 @@ static void mipi_dev_irq_disable(void)
 	return;
 }
 
+static void mipi_dev_error_report(uint8_t errsta, uint32_t total_irq,
+				uint32_t *sub_irq_data, uint32_t elem_cnt)
+{
+		diag_send_event_stat_and_env_data(
+				DiagMsgPrioLow,
+				ModuleDiag_VIO,
+				EventIdVioMipiDevError,
+				DiagEventStaFail,
+				DiagGenEnvdataWhenErr,
+				NULL,
+				20);
+}
+
 static void mipi_dev_diag_report(uint8_t errsta, uint32_t total_irq,
 				uint32_t *sub_irq_data, uint32_t elem_cnt)
 {
@@ -473,6 +487,7 @@ static irqreturn_t mipi_dev_irq_func(int this_irq, void *data)
 
 	enable_irq(this_irq);
 	mipi_dev_diag_report(err_occureed, irq, env_subirq, 4);
+	mipi_dev_error_report(err_occureed, irq, env_subirq, 4);
 	return IRQ_HANDLED;
 }
 #endif
@@ -899,6 +914,9 @@ static int x2_mipi_dev_probe(struct platform_device *pdev)
 		mipi_dev_diag_timer.function = mipi_dev_diag_timer_func;
 		add_timer(&mipi_dev_diag_timer);
 	}
+	if (diag_register(ModuleDiag_VIO, EventIdVioMipiDevError,
+						20, 300, 5000, NULL) < 0)
+		pr_err("mipi dev diag register fail\n");
 	dev_info(&pdev->dev, "X2 mipi dev prop done\n");
 	return 0;
 err:

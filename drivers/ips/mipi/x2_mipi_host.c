@@ -137,6 +137,8 @@ unsigned int host_irq_cnt;
 module_param(host_irq_cnt, uint, 0644);
 #endif
 
+#define EventIdVioMipiHostError 80
+
 static unsigned long mipi_host_pixel_clk_select(mipi_host_cfg_t *control)
 {
 	unsigned long pixclk = control->linelenth * control->framelenth * control->fps;
@@ -467,6 +469,19 @@ static void mipi_host_diag_report(uint8_t errsta, uint32_t total_irq,
 	}
 }
 
+static void mipi_host_error_report(uint8_t errsta, uint32_t total_irq,
+				uint32_t *sub_irq_data, uint32_t elem_cnt)
+{
+		diag_send_event_stat_and_env_data(
+				DiagMsgPrioLow,
+				ModuleDiag_VIO,
+				EventIdVioMipiHostError,
+				DiagEventStaFail,
+				DiagGenEnvdataWhenErr,
+				NULL,
+				32);
+}
+
 static void mipi_host_diag_timer_func(unsigned long data)
 {
 	uint32_t now_tm_ms;
@@ -568,6 +583,7 @@ static irqreturn_t mipi_host_irq_func(int this_irq, void *data)
 
 	enable_irq(this_irq);
 	mipi_host_diag_report(err_occurred, irq, env_subirq, 7);
+	mipi_host_error_report(err_occurred, irq, env_subirq, 7);
 	return IRQ_HANDLED;
 }
 #endif
@@ -701,6 +717,7 @@ void mipi_host_deinit(void)
 	mipi_putreg(iomem + REG_MIPI_HOST_PHY_SHUTDOWNZ, MIPI_HOST_CSI2_RESETN);
 	/*Release DWC_mipi_csi2_host from reset*/
 	mipi_putreg(iomem + REG_MIPI_HOST_CSI2_RESETN, MIPI_HOST_CSI2_RESETN);
+
 	return;
 }
 
@@ -1014,6 +1031,9 @@ static int x2_mipi_host_probe(struct platform_device *pdev)
 		mipi_host_diag_timer.function = mipi_host_diag_timer_func;
 		add_timer(&mipi_host_diag_timer);
 	}
+	if (diag_register(ModuleDiag_VIO, EventIdVioMipiHostError,
+						32, 300, 5000, NULL) < 0)
+		pr_err("mipi host diag register fail\n");
 
 	dev_info(&pdev->dev, "X2 mipi host prop done\n");
 	return 0;
