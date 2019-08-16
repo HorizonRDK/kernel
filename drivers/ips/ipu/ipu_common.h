@@ -21,7 +21,8 @@ extern unsigned int ipu_debug_level;
 #define IPU_SLOT_MAX_SIZE			0x1000000
 #define IPU_SLOT_MIN_SIZE			0x600000
 
-#define IPU_MAX_SLOT				8
+#define IPU_MAX_SLOT				64
+#define IPU_DEF_SLOT				8
 #define IPU_MIN_SLOT				3
 #define IPU_SLOT_SIZE				(g_ipu->slot_size ? \
 									 g_ipu->slot_size : \

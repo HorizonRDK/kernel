@@ -741,7 +741,7 @@ static int x2_ipu_probe(struct platform_device *pdev)
 	dev_info(&pdev->dev, "Allocate reserved memory, paddr: 0x%0llx, vaddr: 0x%0llx, len=0x%x\n",
 			 ipu->paddr, (uint64_t)ipu->vaddr, ipu->memsize);
 
-	ipu->slot_num = IPU_MAX_SLOT;
+	ipu->slot_num = IPU_DEF_SLOT;
 	ipu->slot_size = IPU_SLOT_MAX_SIZE;
 #endif
 
