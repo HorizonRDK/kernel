@@ -196,6 +196,8 @@ void ipu_dual_mode_process(uint32_t status)
 	uint32_t iar_display_yaddr;
 	uint32_t iar_display_caddr;
 	uint8_t errsta = 0;
+	uint32_t len;
+	uint64_t base;
 
 	spin_lock(&g_ipu_d_cdev->slock);
 	if (status & IPU_BUS01_TRANSMIT_ERRORS ||
@@ -311,6 +313,9 @@ void ipu_dual_mode_process(uint32_t status)
 			if (pyming_slot_id >= 0) {
 				pr_debug("ipu: done slot id is %d.\n", pyming_slot_id);
 				iar_set_video_buffer(pyming_slot_id);
+				base = (uint64_t)IPU_GET_DUAL_SLOT(pyming_slot_id, ipu->paddr);
+				len = IPU_SLOT_DAUL_SIZE;
+				dma_sync_single_for_cpu(NULL, base, len, DMA_FROM_DEVICE);
 			}
 			wake_up_interruptible(&g_ipu_d_cdev->event_head);
 		}
@@ -840,7 +845,7 @@ int ipu_dual_mmap(struct file *filp, struct vm_area_struct *vma)
 	}
 	vma->vm_flags |= VM_IO;
 	vma->vm_flags |= VM_LOCKED;
-	if (remap_pfn_range(vma, vma->vm_start, offset >> PAGE_SHIFT, vma->vm_end - vma->vm_start, pgprot_noncached(vma->vm_page_prot))) {
+	if (remap_pfn_range(vma, vma->vm_start, offset >> PAGE_SHIFT, vma->vm_end - vma->vm_start, vma->vm_page_prot)) {
 		ipu_err("ipu mmap fail\n");
 		return -EAGAIN;
 	}

@@ -227,7 +227,8 @@ void ipu_single_mode_process(uint32_t status)
 	uint32_t iar_display_yaddr;
 	uint32_t iar_display_caddr;
 	uint8_t errsta = 0;
-
+	uint32_t len;
+	uint64_t base;
 	spin_lock(&g_ipu_s_cdev->slock);
 
 	if (status & IPU_BUS01_TRANSMIT_ERRORS ||
@@ -260,7 +261,9 @@ void ipu_single_mode_process(uint32_t status)
 			//spin_lock(&g_ipu_s_cdev->slock);
 			atomic_set(&g_ipu_s_cdev->ipu_time_flags,1);// = IPU_GET_INFO_TIME_DONE;
 			//spin_unlock(&g_ipu_s_cdev->slock);
-
+			base = (uint64_t)IPU_GET_SLOT(slot_h->info_h.slot_id, ipu->paddr);
+			len = IPU_SLOT_SIZE;
+			dma_sync_single_for_cpu(NULL, base, len, DMA_FROM_DEVICE);
 			wake_up_interruptible(&g_ipu_s_cdev->event_head);
 
 			/*
@@ -765,7 +768,8 @@ int ipu_mmap(struct file *filp, struct vm_area_struct *vma)
 	}
 	vma->vm_flags |= VM_IO;
 	vma->vm_flags |= VM_LOCKED;
-	if (remap_pfn_range(vma, vma->vm_start, offset >> PAGE_SHIFT, vma->vm_end - vma->vm_start, pgprot_noncached(vma->vm_page_prot))) {
+	if (remap_pfn_range(vma, vma->vm_start, offset >> PAGE_SHIFT,
+		vma->vm_end - vma->vm_start, vma->vm_page_prot)) {
 		ipu_err("ipu mmap fail\n");
 		return -EAGAIN;
 	}
