@@ -134,7 +134,12 @@ function all()
         cd $SRC_KERNEL_DIR/tools/ubifs
         ./make_ubifs.sh
     fi
+}
 
+function all_32()
+{
+    CROSS_COMPILE=$CROSS_COMPILE_64
+    all
 }
 
 function clean()
