@@ -475,6 +475,19 @@ static irqreturn_t iis_irq0(int irqno, void *dev_id)
 	} else {
 		pr_err("intstatus = 0x%x,INT status exception!\n", intstatus);
 		errsta = 1;
+		writel(intstatus,
+			x2_i2sidma[dma_ctrl->id].regaddr_rx +I2S_SRCPND);
+		writel(dma_ctrl->start,
+			x2_i2sidma[dma_ctrl->id].regaddr_rx +I2S_BUF0_ADDR);
+		writel(dma_ctrl->start + dma_ctrl->periodsz,
+			x2_i2sidma[dma_ctrl->id].regaddr_rx +I2S_BUF1_ADDR);
+		dma_ctrl->buffer_int_index = 0;
+		dma_ctrl->buffer_set_index = 2;
+
+		writel(0x1, x2_i2sidma[dma_ctrl->id].regaddr_rx +I2S_BUF0_RDY);
+		writel(0x1, x2_i2sidma[dma_ctrl->id].regaddr_rx + I2S_BUF1_RDY);
+		if (dma_ctrl->cb)
+			dma_ctrl->cb(dma_ctrl->token, dma_ctrl->period);
 		goto err;
 	}
 
