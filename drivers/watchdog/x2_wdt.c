@@ -35,6 +35,9 @@ static int nowayout = WATCHDOG_NOWAYOUT;
 static u64 timer_rate;
 static int trigger_bark;
 static int disabled;
+static int panic_on_bark;
+static int on_panic;
+static spinlock_t on_panic_lock;
 
 module_param(wdt_timeout, int, 0644);
 MODULE_PARM_DESC(wdt_timeout,
@@ -55,6 +58,11 @@ module_param(disabled, int, 0644);
 MODULE_PARM_DESC(disabled,
 		 "disable watchdog for debugging purpose (default="
 		 __MODULE_STRING(WATCHDOG_DISABLE) ")");
+
+module_param(panic_on_bark, int, 0644);
+MODULE_PARM_DESC(panic_on_bark,
+		 "trigger panic in IPI on other CPU (default="
+		 __MODULE_STRING(WATCHDOG_PANIC) ")");
 
 #define x2_wdt_rd(dev, reg) 	  ioread32((dev)->regs_base + (reg))
 #define x2_wdt_wr(dev, reg, val)  iowrite32((val), (dev)->regs_base + (reg))
@@ -191,19 +199,56 @@ static int x2_wdt_settimeout(struct watchdog_device *wdd, unsigned int new_time)
 	return x2_wdt_start(wdd);
 }
 
+void dump_cpu_state(void *data)
+{
+	pr_err("dump stack on on cpu:%d\n", get_cpu());
+	dump_stack();
+
+	spin_lock(&on_panic_lock);
+	if (panic_on_bark && on_panic == 0) {
+		on_panic = 1;
+		spin_unlock(&on_panic_lock);
+		panic("Panic on watchdog bark ...");
+	}
+}
+
+void check_other_cpus(void)
+{
+	int cpu;
+	struct cpumask  mask;
+
+	cpu = get_cpu();
+	memcpy(&mask, cpu_online_mask, sizeof(struct cpumask));
+	cpumask_clear_cpu(cpu, &mask);
+	for_each_cpu(cpu, &mask) {
+		smp_call_function_single(cpu, dump_cpu_state,
+			NULL, 1);
+	}
+}
+
 static irqreturn_t x2_wdt_bark_irq_handler(int irq, void *data)
 {
 	u32 val;
 	struct x2_wdt *x2wdt = (struct x2_wdt *)data;
 
 	x2wdt->barking = true;
-	pr_err("x2_wdt: bark at %lld\n", sched_clock());
-	dump_stack();
 
 	/* clear the irq */
 	val = x2_wdt_rd(x2wdt, X2_TIMER_TMR_SRCPND_REG);
 	val &= X2_TIMER_WDT_INTMASK;
 	x2_wdt_wr(x2wdt, X2_TIMER_TMR_SRCPND_REG, val);
+
+	pr_err("x2_wdt: bark at %lld on cpu:%d\n", sched_clock(), get_cpu());
+	dump_stack();
+	pr_err("x2_wdt: check other cpus\n");
+
+	/* flush cache for dump */
+	printk_safe_flush_on_panic();
+
+	/* may stuck here if other cpu can't response IPI */
+	check_other_cpus();
+
+	pr_err("x2_wdt: waiting for panic on other CPU or watchdog bite ...\n");
 
 	return IRQ_HANDLED;
 }
@@ -481,8 +526,9 @@ static int x2_wdt_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, x2wdt);
 
-	x2wdt->watchdog_thread = kthread_create(watchdog_kthread, x2wdt,
-			"x2_watchdog");
+	/* attach x2_watchdog on CPU0 */
+	x2wdt->watchdog_thread = kthread_create_on_cpu(watchdog_kthread,
+		x2wdt, 0, "x2_watchdog");
 	if (IS_ERR(x2wdt->watchdog_thread)) {
 		ret = PTR_ERR(x2wdt->watchdog_thread);
 		goto err;
