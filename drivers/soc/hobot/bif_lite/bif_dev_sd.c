@@ -38,7 +38,7 @@
 #include "hbipc_errno.h"
 #include "bif_dev_sd.h"
 
-#define VERSION "2.5.0"
+#define VERSION "2.6.0"
 #define VERSION_LEN (16)
 static char version_str[VERSION_LEN];
 
@@ -550,6 +550,9 @@ static int x2_bif_open(struct inode *inode, struct file *file)
 {
 	int ret = 0;
 	struct transfer_feature *feature = NULL;
+#ifdef CONFIG_HOBOT_BIF_AP
+	struct send_mang_data data;
+#endif
 
 	mutex_lock(&open_mutex);
 
@@ -575,9 +578,19 @@ static int x2_bif_open(struct inode *inode, struct file *file)
 				ret = -EPERM;
 				goto err;
 			} else {
-				bif_lite_init_success = 1;
-				bif_lite_irq_register_domain(&domain,
-				hbipc_irq_handler);
+				data.domain_id = domain.domain_id;
+				ret = mang_frame_send2opposite(&domain,
+				MANAGE_CMD_QUERY_SERVER,
+				&data);
+				if (ret < 0) {
+					// prompt error message
+					pr_info("send query server message error\n");
+					goto err;
+				} else {
+					bif_lite_init_success = 1;
+					bif_lite_irq_register_domain(
+					&domain, hbipc_irq_handler);
+				}
 			}
 		} else {
 			if (bif_lite_init_domain(&domain) < 0) {
@@ -652,6 +665,10 @@ size_t count, loff_t *ppos)
 		ret = -EFAULT;
 		goto error;
 	}
+
+	// concede manage frame
+	if (domain.manage_send)
+		msleep_interruptible(5);
 
 	mutex_lock(&domain.write_mutex);
 

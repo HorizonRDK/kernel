@@ -1,3 +1,9 @@
+/*
+ *			 COPYRIGHT NOTICE
+ *		 Copyright 2019 Horizon Robotics, Inc.
+ *			 All rights reserved.
+ */
+
 #include <linux/list.h>
 #include <linux/interrupt.h>
 #include "hbipc_lite.h"
@@ -214,6 +220,175 @@ static void provider_server_map_deinit(struct provider_server_map *map)
 	map->first_avail = 0;
 }
 
+#define TX_RETRY_MAX (100)
+int mang_frame_send2opposite(struct comm_domain *domain,
+int type, struct send_mang_data *data)
+{
+	char mang_frame_send_buf[HBIPC_HEADER_LEN + MANAGE_MSG_LEN];
+	struct hbipc_header *header =
+	(struct hbipc_header *)mang_frame_send_buf;
+	struct manage_message *message =
+	(struct manage_message *)(mang_frame_send_buf +
+	HBIPC_HEADER_LEN);
+	int *p = (int *)(message->msg_text);
+	int ret = 0;
+	int remaining_time = 0;
+	int retry_count = 0;
+
+	++domain->domain_statistics.send_manage_count;
+
+	header->length = MANAGE_MSG_LEN;
+	header->domain_id = data->domain_id;
+	header->provider_id = 0;
+	header->client_id = 0;
+	message->type = type;
+
+	switch (type) {
+	case MANAGE_CMD_REGISTER_PROVIDER:
+		/*
+		 * pass information:
+		 * domain_id
+		 * server_id
+		 * provider_id
+		 */
+		*p++ = data->domain_id;
+		memcpy(p, data->server_id, UUID_LEN);
+		p += 4;
+		*p = data->provider_id;
+		break;
+	case MANAGE_CMD_UNREGISTER_PROVIDER:
+		/*
+		 * pass information:
+		 * domain_id
+		 * server_id
+		 * provider_id
+		 */
+		*p++ = data->domain_id;
+		memcpy(p, data->server_id, UUID_LEN);
+		p += 4;
+		*p = data->provider_id;
+		break;
+	case MANAGE_CMD_CONNECT_REQ:
+		/*
+		 * pass information:
+		 * domain_id
+		 * server_id
+		 * provider_id
+		 * client_id
+		 */
+		*p++ = data->domain_id;
+		memcpy(p, data->server_id, UUID_LEN);
+		p += 4;
+		*p++ = data->provider_id;
+		*p = data->client_id;
+		break;
+	case MANAGE_CMD_DISCONNECT_REQ:
+		/*
+		 * pass information:
+		 * domain_id
+		 * server_id
+		 * provider_id
+		 * client_id
+		 */
+		*p++ = data->domain_id;
+		memcpy(p, data->server_id, UUID_LEN);
+		p += 4;
+		*p++ = data->provider_id;
+		*p = data->client_id;
+		break;
+	case MANAGE_CMD_QUERY_SERVER:
+		/* no message body */
+		break;
+	default:
+		goto error;
+	}
+
+	domain->manage_send = 1;
+	mutex_lock(&domain->write_mutex);
+
+	// resend last error manage frame
+	if (domain->mang_send_error) {
+repeat_resend:
+		ret = bif_tx_put_frame(&domain->channel,
+		domain->mang_frame_send_error_buf,
+			HBIPC_HEADER_LEN + MANAGE_MSG_LEN);
+		if (ret < 0) {
+			if (ret == BIF_TX_ERROR_NO_MEM) {
+				++retry_count;
+				++domain->domain_statistics.mang_resend_count;
+				if (retry_count > TX_RETRY_MAX) {
+					++domain->domain_statistics.mang_resend_over_count;
+					hbipc_error("repeat put_frame overtry\n");
+				} else {
+					remaining_time =
+					msleep_interruptible(5);
+					if (!remaining_time) {
+						// lint warning
+						goto repeat_resend;
+					} else {
+						// prompt message
+						hbipc_error("repeat send mang interruptible\n");
+					}
+				}
+			} else {
+				// lint warning
+				hbipc_error("repeat bif_tx_put_frame error\n");
+			}
+
+			mutex_unlock(&domain->write_mutex);
+			domain->manage_send = 0;
+			goto error;
+		} else {
+			// manage frame resend successfully
+			domain->mang_send_error = 0;
+		}
+	}
+	retry_count = 0;
+
+resend:
+	ret = bif_tx_put_frame(&domain->channel, mang_frame_send_buf,
+		HBIPC_HEADER_LEN + MANAGE_MSG_LEN);
+	if (ret < 0) {
+		if (ret == BIF_TX_ERROR_NO_MEM) {
+			++retry_count;
+	++domain->domain_statistics.mang_resend_count;
+			if (retry_count > TX_RETRY_MAX) {
+				++domain->domain_statistics.mang_resend_over_count;
+				hbipc_error("bif_tx_put_frame overtry\n");
+			} else {
+				remaining_time = msleep_interruptible(5);
+				if (!remaining_time) {
+					// lint warning
+					goto resend;
+				} else {
+					// prompt message
+					hbipc_error("send mang interruptible\n");
+				}
+			}
+		} else {
+			// lint warning
+			hbipc_error("bif_tx_put_frame error\n");
+		}
+
+		// prepare to resent error manage frame
+		memcpy(domain->mang_frame_send_error_buf,
+		mang_frame_send_buf,
+		HBIPC_HEADER_LEN + MANAGE_MSG_LEN);
+		domain->mang_send_error = 1;
+		mutex_unlock(&domain->write_mutex);
+		domain->manage_send = 0;
+		goto error;
+	}
+
+	mutex_unlock(&domain->write_mutex);
+	domain->manage_send = 0;
+
+	return 0;
+error:
+	return -1;
+}
+EXPORT_SYMBOL(mang_frame_send2opposite);
+
 int domain_init(struct comm_domain *domain, struct domain_info *domain_inf)
 {
 	mutex_init(&domain->write_mutex);
@@ -233,6 +408,18 @@ int domain_init(struct comm_domain *domain, struct domain_info *domain_inf)
 	domain->mode = domain_inf->mode;
 	domain->crc_enable = domain_inf->crc_enable;
 
+	domain->mang_frame_send_error_buf = bif_malloc(HBIPC_HEADER_LEN +
+		MANAGE_MSG_LEN);
+	if (!domain->mang_frame_send_error_buf) {
+		pr_info("mang_frame_send_error_buf malloc fail\n");
+		provider_server_map_deinit(&domain->map);
+		server_info_deinit(domain, &domain->server);
+		mutex_destroy(&domain->connect_mutex);
+		mutex_destroy(&domain->read_mutex);
+		mutex_destroy(&domain->write_mutex);
+		return -1;
+	}
+
 	if (channel_init(&domain->channel, &domain_inf->channel_cfg) < 0) {
 		pr_info("channel_init error\n");
 		provider_server_map_deinit(&domain->map);
@@ -240,6 +427,7 @@ int domain_init(struct comm_domain *domain, struct domain_info *domain_inf)
 		mutex_destroy(&domain->connect_mutex);
 		mutex_destroy(&domain->read_mutex);
 		mutex_destroy(&domain->write_mutex);
+		return -1;
 	}
 
 	return 0;
@@ -261,6 +449,7 @@ void domain_deinit(struct comm_domain *domain)
 	mutex_destroy(&domain->write_mutex);
 	mutex_destroy(&domain->read_mutex);
 	mutex_destroy(&domain->connect_mutex);
+	bif_free(domain->mang_frame_send_error_buf);
 }
 EXPORT_SYMBOL(domain_deinit);
 
@@ -511,154 +700,6 @@ error:
 	return NULL;
 }
 EXPORT_SYMBOL(is_valid_session);
-
-#define TX_RETRY_MAX (100)
-char mang_frame_send_error_buf[HBIPC_HEADER_LEN + MANAGE_MSG_LEN];
-int mang_send_error;
-static int mang_frame_send2opposite(struct comm_domain *domain,
-int type, struct send_mang_data *data)
-{
-	char mang_frame_send_buf[HBIPC_HEADER_LEN + MANAGE_MSG_LEN];
-	struct hbipc_header *header =
-	(struct hbipc_header *)mang_frame_send_buf;
-	struct manage_message *message =
-	(struct manage_message *)(mang_frame_send_buf +
-	HBIPC_HEADER_LEN);
-	int *p = (int *)(message->msg_text);
-	int ret = 0;
-	int remaining_time = 0;
-	int retry_count = 0;
-
-	++domain->domain_statistics.send_manage_count;
-
-	header->length = MANAGE_MSG_LEN;
-	header->domain_id = data->domain_id;
-	header->provider_id = 0;
-	header->client_id = 0;
-	message->type = type;
-
-	switch (type) {
-	case MANAGE_CMD_REGISTER_PROVIDER:
-		/*
-		 * pass information:
-		 * domain_id
-		 * server_id
-		 * provider_id
-		 */
-		*p++ = data->domain_id;
-		memcpy(p, data->server_id, UUID_LEN);
-		p += 4;
-		*p = data->provider_id;
-		break;
-	case MANAGE_CMD_UNREGISTER_PROVIDER:
-		/*
-		 * pass information:
-		 * domain_id
-		 * server_id
-		 * provider_id
-		 */
-		*p++ = data->domain_id;
-		memcpy(p, data->server_id, UUID_LEN);
-		p += 4;
-		*p = data->provider_id;
-		break;
-	case MANAGE_CMD_CONNECT_REQ:
-		/*
-		 * pass information:
-		 * domain_id
-		 * server_id
-		 * provider_id
-		 * client_id
-		 */
-		*p++ = data->domain_id;
-		memcpy(p, data->server_id, UUID_LEN);
-		p += 4;
-		*p++ = data->provider_id;
-		*p = data->client_id;
-		break;
-	case MANAGE_CMD_DISCONNECT_REQ:
-		/*
-		 * pass information:
-		 * domain_id
-		 * server_id
-		 * provider_id
-		 * client_id
-		 */
-		*p++ = data->domain_id;
-		memcpy(p, data->server_id, UUID_LEN);
-		p += 4;
-		*p++ = data->provider_id;
-		*p = data->client_id;
-		break;
-	default:
-		goto error;
-	}
-
-	mutex_lock(&domain->write_mutex);
-
-	// resend last error manage frame
-	if (mang_send_error) {
-repeat_resend:
-		ret = bif_tx_put_frame(&domain->channel, mang_frame_send_error_buf,
-			HBIPC_HEADER_LEN + MANAGE_MSG_LEN);
-		if (ret < 0) {
-			if (ret == BIF_TX_ERROR_NO_MEM) {
-				++retry_count;
-				++domain->domain_statistics.mang_resend_count;
-				if (retry_count > TX_RETRY_MAX) {
-					++domain->domain_statistics.mang_resend_over_count;
-					hbipc_error("repeat bif_tx_put_frame overtry\n");
-				} else {
-					remaining_time = msleep_interruptible(5);
-					if (!remaining_time)
-						goto repeat_resend;
-					else
-						hbipc_error("repeat send mang interruptible\n");
-				}
-			} else
-				hbipc_error("repeat bif_tx_put_frame error\n");
-
-			mutex_unlock(&domain->write_mutex);
-			goto error;
-		}
-		mang_send_error = 0;
-	}
-	retry_count = 0;
-
-resend:
-	ret = bif_tx_put_frame(&domain->channel, mang_frame_send_buf,
-		HBIPC_HEADER_LEN + MANAGE_MSG_LEN);
-	if (ret < 0) {
-		if (ret == BIF_TX_ERROR_NO_MEM) {
-			++retry_count;
-			++domain->domain_statistics.mang_resend_count;
-			if (retry_count > TX_RETRY_MAX) {
-				++domain->domain_statistics.mang_resend_over_count;
-				hbipc_error("bif_tx_put_frame overtry\n");
-			} else {
-				remaining_time = msleep_interruptible(5);
-				if (!remaining_time)
-					goto resend;
-				else
-					hbipc_error("send mang interruptible\n");
-			}
-		} else
-			hbipc_error("bif_tx_put_frame error\n");
-
-		// prepare to resent error manage frame
-		memcpy(mang_frame_send_error_buf, mang_frame_send_buf,
-			HBIPC_HEADER_LEN + MANAGE_MSG_LEN);
-		mang_send_error = 1;
-		mutex_unlock(&domain->write_mutex);
-		goto error;
-	}
-
-	mutex_unlock(&domain->write_mutex);
-
-	return 0;
-error:
-	return -1;
-}
 
 static int regisger_server(struct comm_domain *domain,
 struct send_mang_data *data)
@@ -917,6 +958,44 @@ register_server_error:
 	return ret;
 }
 EXPORT_SYMBOL(register_server_provider);
+
+static int register_server_provider_query(struct comm_domain *domain)
+{
+	int i = 0;
+	int j = 0;
+	struct server_desc *server = NULL;
+	struct provider_desc *provider = NULL;
+	int ret = 0;
+	struct send_mang_data data;
+
+	mutex_lock(&domain->connect_mutex);
+
+	for (i = 0; i < SERVER_COUNT_MAX; ++i) {
+		server = domain->server.server_array + i;
+		if (server->valid) {
+			for (j = 0; j < PROVIDER_COUNT_MAX; ++j) {
+				provider = server->provider.provider_array + j;
+				if (provider->valid) {
+					data.domain_id = domain->domain_id;
+					memcpy(data.server_id,
+					server->server_id, UUID_LEN);
+					data.provider_id =
+					provider->provider_id;
+					ret = mang_frame_send2opposite(domain,
+					MANAGE_CMD_REGISTER_PROVIDER, &data);
+					if (ret < 0) {
+						// prompt message
+						hbipc_error("query send MANG_CMD_REGISTER_PROVIDER error\n");
+					}
+				}
+			}
+		}
+	}
+
+	mutex_unlock(&domain->connect_mutex);
+
+	return ret;
+}
 
 int unregister_server_provider(struct comm_domain *domain,
 struct send_mang_data *data)
@@ -1366,6 +1445,9 @@ struct bif_frame_cache *frame)
 		if (unregister_server_provider(domain, &data) < 0)
 			goto error;
 		break;
+	case MANAGE_CMD_QUERY_SERVER:
+		register_server_provider_query(domain);
+		break;
 	default:
 		goto error;
 	}
@@ -1641,6 +1723,10 @@ int recv_frame_interrupt(struct comm_domain *domain)
 	struct list_head *pos = NULL;
 	struct bif_frame_cache *frame_tmp = NULL;
 
+	// concede manage frame
+	if (domain->manage_send)
+		msleep_interruptible(5);
+
 	mutex_lock(&domain->read_mutex);
 	++domain->domain_statistics.interrupt_recv_count;
 	if ((bif_rx_get_frame(&domain->channel, &frame) < 0)
@@ -1817,9 +1903,35 @@ struct send_mang_data *data, struct session_desc **connect)
 		mutex_unlock(&domain->connect_mutex);
 
 		return 0;
+	} else {
+		mutex_lock(&domain->connect_mutex);
+
+		index = get_server_index(&domain->server, data->server_id);
+		if (index < 0) {
+			hbipc_error("invalid server_id:\n");
+			for (i = 0; i < UUID_LEN; ++i)
+				hbipc_error("%d	", data->server_id[i]);
+			hbipc_error("\n");
+			ret = HBIPC_ERROR_INVALID_SERVERID;
+			mutex_unlock(&domain->connect_mutex);
+			goto error;
+		}
+		server = domain->server.server_array + index;
+
+		index = get_provider_index(&server->provider,
+		data->provider_id);
+		if (index < 0) {
+			hbipc_error("invalid provider_id: %d\n",
+			data->provider_id);
+			ret = HBIPC_ERROR_INVALID_PROVIDERID;
+			mutex_unlock(&domain->connect_mutex);
+			goto error;
 	}
 
+		mutex_unlock(&domain->connect_mutex);
+
 	return 1;
+	}
 error:
 	return ret;
 }

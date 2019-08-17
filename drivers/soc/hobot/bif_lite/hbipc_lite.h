@@ -1,3 +1,9 @@
+/*
+ *			 COPYRIGHT NOTICE
+ *		 Copyright 2019 Horizon Robotics, Inc.
+ *			 All rights reserved.
+ */
+
 #ifndef _HBIPC_LITE_H_
 #define _HBIPC_LITE_H_
 
@@ -5,6 +11,8 @@
 #include <linux/mutex.h>
 #include <linux/semaphore.h>
 #include <linux/spinlock.h>
+#include <linux/timer.h>
+#include <linux/workqueue.h>
 #include "bif_lite.h"
 
 #define DEBUG
@@ -150,6 +158,9 @@ struct comm_domain {
 	enum ap_type type;
 	enum working_mode mode;
 	int crc_enable;
+	int manage_send;
+	int mang_send_error;
+	char *mang_frame_send_error_buf;
 };
 
 struct send_mang_data {
@@ -183,6 +194,8 @@ struct manage_message {
 #define MANAGE_CMD_UNREGISTER_PROVIDER               (101)
 #define MANAGE_CMD_CONNECT_REQ                       (102)
 #define MANAGE_CMD_DISCONNECT_REQ                    (103)
+#define MANAGE_CMD_KEEPALIVE                         (104)
+#define MANAGE_CMD_QUERY_SERVER                      (105)
 
 int get_map_index(struct provider_server_map *map, int provider_id);
 int get_start_list_first_avail_index(struct provider_start_info *start_inf);
@@ -224,5 +237,7 @@ struct bif_frame_cache *frame);
 int domain_stock_frame_num(struct comm_domain *domain);
 int start_server(struct comm_domain *domain, struct send_mang_data *data);
 int stop_server(struct comm_domain *domain, struct send_mang_data *data);
+int mang_frame_send2opposite(struct comm_domain *domain,
+int type, struct send_mang_data *data);
 
 #endif  /* _HBIPC_LITE_H_ */
