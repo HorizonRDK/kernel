@@ -50,8 +50,8 @@
 #define X2_ISP_PANG_STATION 0x500000
 
 /* global variable define */
-static int isp_major = ISP_MAJOR;
-//module_param(isp_major, int, S_IRUGO);
+// static int isp_major = ISP_MAJOR;
+// module_param(isp_major, int, S_IRUGO);
 #define Set_Bit(bit, val) (val = (uint32_t)(val | (0x1 << bit)))
 
 struct isp_mod_s *isp_mod_data;
@@ -61,7 +61,7 @@ static struct device *g_isp_dev;
 
 void x2_isp_isr(unsigned int status, void *data)
 {
-	unsigned long flags;
+//	unsigned long flags;
 	struct isp_mod_s *isp_dev = NULL;
 
 	if (data == NULL)
@@ -146,12 +146,11 @@ static int isp_init(void)
 
 	pispdev = isp_get_dev();
 	if (pispdev == NULL) {
-		dev_info(g_isp_dev, "[%s] get isp_dev is failed!\n", __func__,
-			 __LINE__);
+		dev_info(g_isp_dev, "[%s] get isp_dev is failed!\n", __func__);
 		return -1;
 	}
 	isp_mod_data->cdr_sw = ping;
-	dev_info(g_isp_dev, "[%s] is success !\n", __func__, __LINE__);
+	dev_info(g_isp_dev, "[%s] is success !\n", __func__);
 //	isp_cfg_init();
 	return ret;
 }
@@ -241,7 +240,6 @@ static ssize_t isp_mod_write(struct file *pfile, const char *puser_buf,
 
 long isp_mod_ioctl(struct file *pfile, unsigned int cmd, unsigned long arg)
 {
-	uint32_t d;
 	int ret = 0;
 	struct con_reg_s reg;
 	struct isp_mod_s *isp_cdev = pfile->private_data;
@@ -353,7 +351,6 @@ long isp_mod_ioctl(struct file *pfile, unsigned int cmd, unsigned long arg)
 		}
 		break;
 	case ISPC_GET_ADDR:{
-			struct isp_stf_s stf_addr_data;
 
 			if (copy_to_user
 			    ((void __user *)arg, (void *)&isp_cdev->isp_stf_memory,
@@ -606,8 +603,6 @@ const struct file_operations isp_mod_fops = {
 static int __init isp_dev_init(void)
 {
 	int ret;
-	dev_t devno;
-
 	struct isp_mod_s *isp_mod = NULL;
 	struct isp_dev_s *pispdev = isp_get_dev();
 
@@ -657,7 +652,7 @@ static int __init isp_dev_init(void)
 	if (isp_cdr_addr == NULL)
 		dev_err(g_isp_dev, "[%s] reserved cdr is failed!\n", __func__);
 
-	dev_info(g_isp_dev, "[%s] isp cdr addr  is [%x]\n", __func__,
+	dev_info(g_isp_dev, "[%s] isp cdr addr  is %p!\n", __func__,
 		 isp_cdr_addr);
 
 	isp_mod->reserved_mem = (uint32_t)(pispdev->mapbase);
@@ -698,7 +693,7 @@ int isp_model_init(void)
 	return isp_dev_init();
 }
 
-int isp_model_exit(void)
+void isp_model_exit(void)
 {
 	isp_dev_exit();
 }

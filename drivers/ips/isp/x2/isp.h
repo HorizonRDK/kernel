@@ -133,7 +133,7 @@ typedef struct _reg_s {
 #define ISP_WRITE       _IOW('p', 1, reg_t)
 
 int isp_model_init(void);
-int isp_model_exit(void);
+void isp_model_exit(void);
 
 
 #endif /* __X2_ISP_H__ */

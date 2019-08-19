@@ -79,7 +79,6 @@ static void *isp_vmap(phys_addr_t start, size_t size)
 
 	for (i = 0; i < page_count; i++) {
 		phys_addr_t addr = page_start + i * PAGE_SIZE;
-
 		pages[i] = pfn_to_page(addr >> PAGE_SHIFT);
 	}
 	vaddr = vm_map_ram(pages, page_count, -1, prot);
@@ -91,7 +90,7 @@ static void *isp_vmap(phys_addr_t start, size_t size)
 
 static int isp_dev_probe(struct platform_device *pdev)
 {
-	int ret;
+	int ret = 0;
 	struct resource *pres;
 	struct resource mapaddr;
 	struct device_node *np = NULL;
