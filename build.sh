@@ -10,12 +10,8 @@ function choose()
         sed -i "/CONFIG_BLK_DEV_INITRD/d" $conftmp
         echo "CONFIG_BLK_DEV_INITRD=n" >> $conftmp
     else
-        if [ "x$NOR_FLASH_WITH_UBIFS" = "xtrue" ];then
-            sed -i "/CONFIG_BLK_DEV_INITRD/d" $conftmp
-            echo "CONFIG_BLK_DEV_INITRD=n" >> $conftmp
-        else
-            sed -i "s#CONFIG_INITRAMFS_SOURCE=\"./usr/rootfs.cpio\"#CONFIG_INITRAMFS_SOURCE=\"./usr/prerootfs/\"#g" $conftmp
-        fi
+        sed -i "s#CONFIG_INITRAMFS_SOURCE=\"./usr/rootfs.cpio\"\
+            #CONFIG_INITRAMFS_SOURCE=\"./usr/prerootfs/\"#g" $conftmp
         rm -rf ${SRC_KERNEL_DIR}/usr/prerootfs/
         mkdir -p ${SRC_KERNEL_DIR}/usr/prerootfs/
         if [ "$BOOT_MODE" = "nor" ];then
@@ -129,11 +125,6 @@ function all()
     cpfiles "$SRC_KERNEL_DIR/drivers/misc/x2_efuse.ko " "$TARGET_TMPROOTFS_DIR/lib/modules/"
     # build dtb-mapping.conf
     build_dtbmapping
-
-    if [ "x$NOR_FLASH_WITH_UBIFS" = "xtrue" ];then
-        cd $SRC_KERNEL_DIR/tools/ubifs
-        ./make_ubifs.sh
-    fi
 }
 
 function all_32()
