@@ -28,6 +28,7 @@ struct pym_slot_info {
 		struct mult_img_info_t mult_img_info;
 	} img_info;
 	ipu_cfg_t *cfg;
+	int errno;
 };
 
 struct ipu_pym {
@@ -53,7 +54,7 @@ void ipu_pym_exit(void);
 void ipu_pym_clear(void);
 int ipu_pym_wait_process_done(void *data, int len,
 		ipu_pym_process_type process_type, int timeout);
-int ipu_pym_process_done(void);
+int ipu_pym_process_done(int errno);
 int ipu_pym_to_process(void *img_info, ipu_cfg_t *ipu_cfg,
 		ipu_pym_slot_type type, ipu_pym_process_type process_type);
 

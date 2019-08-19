@@ -186,7 +186,7 @@ static int ipu_pym_do_process(struct pym_slot_info *pym_slot_info)
 }
 
 /* irq to trigger ipu pym frame process done */
-int ipu_pym_process_done(void)
+int ipu_pym_process_done(int errno)
 {
 	unsigned long flags;
 	int ret;
@@ -220,6 +220,7 @@ int ipu_pym_process_done(void)
 		}
 	}
 
+	g_ipu_pym->pyming_slot_info->errno = errno;
 	process_type = g_ipu_pym->pyming_slot_info->process_type;
 	if (process_type == PYM_INLINE)
 		ret = kfifo_in(&g_ipu_pym->done_inline_pym_slots,
@@ -313,7 +314,14 @@ slot_pop:
 	if (ret != 1) {
 		pr_err("Get ipu slot from fifo error!\n");
 		spin_unlock_irqrestore(&g_ipu_pym->slock, flags);
-		return ERR_PTR(-EFAULT);
+		return -EFAULT;
+	}
+
+	if (tmp_pym_slot.errno) {
+		spin_unlock_irqrestore(&g_ipu_pym->slock, flags);
+		memcpy(data, &tmp_pym_slot.img_info, len);
+		pr_err("IPU process this slot error!\n");
+		return -EAGAIN;
 	}
 	spin_unlock_irqrestore(&g_ipu_pym->slock, flags);
 

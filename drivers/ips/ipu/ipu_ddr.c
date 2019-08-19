@@ -225,7 +225,7 @@ void ipu_handle_pym_frame_done(void)
 		}
 	}
 
-	if(ipu_pym_process_done() > 0) {
+	if(ipu_pym_process_done(0) > 0) {
 		if (pyming_slot_id >= 0) {
 			pr_debug("ipu: done slot id is %d.\n", pyming_slot_id);
 			iar_set_video_buffer(pyming_slot_id);

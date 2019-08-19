@@ -208,6 +208,7 @@ void ipu_dual_mode_process(uint32_t status)
 		//should we set it back to 0 in ioctl?
 		ipu_err("ipu error 0x%x\n", g_ipu_d_cdev->err_status);
 		pym_slot_busy_to_free();
+		ipu_pym_process_done(status);
 		errsta = 1;
 	}
 
@@ -221,8 +222,8 @@ void ipu_dual_mode_process(uint32_t status)
 			slot_h = recv_slot_busy_to_done();
 			//if (slot_h && test_and_clear_bit(IPU_PYM_STARTUP, &g_ipu_d_cdev->ipuflags)) {
 			if (slot_h) {
-				test_and_clear_bit(IPU_PYM_STARTUP, &g_ipu_d_cdev->ipuflags);
-				slot_h = pym_slot_free_to_busy();
+				//test_and_clear_bit(IPU_PYM_STARTUP, &g_ipu_d_cdev->ipuflags);
+				slot_h = ipu_get_recv_done_slot();
 				if (slot_h) {
 					ipu_get_frameid(ipu, slot_h);
 				/*	set_next_pym_frame(slot_h, true);
@@ -255,8 +256,11 @@ void ipu_dual_mode_process(uint32_t status)
 						= tmp_mult_img_info.src_img_info[1].src_img;
 
 					/* add to pym process fifo */
-					ipu_pym_to_process(&tmp_mult_img_info, g_ipu->cfg,
-							PYM_SLOT_MULT, PYM_INLINE);
+					if (ipu_pym_to_process(&tmp_mult_img_info, g_ipu->cfg,
+							PYM_SLOT_MULT, PYM_INLINE) < 0) {
+						insert_dual_slot_to_free(slot_h->info_h.slot_id,
+								&g_ipu_d_cdev->s_info);
+					}
 				}
 			}
 		}
@@ -274,6 +278,7 @@ void ipu_dual_mode_process(uint32_t status)
 		}
 	}
 	if (status & PYM_FRAME_START) {
+#if 0
 		ipu_slot_dual_h_t *slot_h = NULL;
 		ipu_info("pym start\n");
 		slot_h = get_last_pym_slot();
@@ -297,6 +302,7 @@ void ipu_dual_mode_process(uint32_t status)
 				}
 			}
 		}
+#endif
 	}
 
 	if (status & PYM_FRAME_DONE) {
@@ -309,7 +315,7 @@ void ipu_dual_mode_process(uint32_t status)
 					g_ipu_pym->pyming_slot_info->img_info.mult_img_info.src_img_info[0].slot_id;
 		}
 
-		if(ipu_pym_process_done() > 0) {
+		if(ipu_pym_process_done(0) > 0) {
 			if (pyming_slot_id >= 0) {
 				pr_debug("ipu: done slot id is %d.\n", pyming_slot_id);
 				iar_set_video_buffer(pyming_slot_id);
@@ -545,6 +551,7 @@ long ipu_dual_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 	struct mult_img_info_t src_info;
 	struct mult_img_info_t *mult_img_info = NULL;
 	info_dual_h_t pym_info;
+	unsigned long flags;
 	int ret = 0;
 	ipu_dbg("ipu cmd: %d\n", _IOC_NR(cmd));
 
@@ -602,7 +609,7 @@ long ipu_dual_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 				return -EFAULT;
 			}
 
-			spin_lock(&g_ipu_d_cdev->slock);
+			spin_lock_irqsave(&g_ipu_d_cdev->slock, flags);
 			pym_img_info = &pym_info;
 			pym_img_info->slot_id = tmp_mult_img_info.src_img_info[0].slot_id;
 			pym_img_info->slot_flag = 0;
@@ -616,7 +623,7 @@ long ipu_dual_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 				(uint64_t)IPU_GET_DUAL_SLOT(pym_img_info->slot_id, ipu->paddr);
 
 			pym_img_info->dual_ddr_info = g_ipu_d_cdev->s_info;
-			spin_unlock(&g_ipu_d_cdev->slock);
+			spin_unlock_irqrestore(&g_ipu_d_cdev->slock, flags);
 			ret = copy_to_user((void __user *)data, (const void *)pym_img_info,
 			sizeof(info_dual_h_t));
 			if (ret)
@@ -648,18 +655,27 @@ long ipu_dual_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 				ipu_err("ioctl cnn done msg fail\n");
 				return -EFAULT;
 			}
-			spin_lock(&g_ipu_d_cdev->slock);
+			spin_lock_irqsave(&g_ipu_d_cdev->slock, flags);
 			insert_dual_slot_to_free(slot_id, &g_ipu_d_cdev->s_info);
-			spin_unlock(&g_ipu_d_cdev->slock);
+			spin_unlock_irqrestore(&g_ipu_d_cdev->slock, flags);
 		}
 		break;
 	case IPUC_GET_DONE_INFO:
 		{
 			struct mult_img_info_t tmp_mult_img_info;
 			info_dual_h_t *pym_img_info = NULL;
+again:
 			ret = ipu_pym_wait_process_done(&tmp_mult_img_info,
 					sizeof(struct mult_img_info_t), PYM_INLINE, 0);
 			if (ret < 0) {
+				if (ret == -EAGAIN) {
+					/* processed error */
+					insert_dual_slot_to_free(
+							tmp_mult_img_info.src_img_info[0].slot_id,
+							&g_ipu_d_cdev->s_info);
+					goto again;
+				}
+				/* offline slot free by user */
 				ret = ipu_pym_wait_process_done(&tmp_mult_img_info,
 						sizeof(struct mult_img_info_t), PYM_OFFLINE, 0);
 				if (ret < 0) {
@@ -668,7 +684,7 @@ long ipu_dual_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 				}
 			}
 
-			spin_lock(&g_ipu_d_cdev->slock);
+			spin_lock_irqsave(&g_ipu_d_cdev->slock, flags);
 			pym_img_info = &pym_info;
 			pym_img_info->slot_id = tmp_mult_img_info.src_img_info[0].slot_id;
 			pym_img_info->slot_flag = 0;
@@ -682,7 +698,7 @@ long ipu_dual_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 				(uint64_t)IPU_GET_DUAL_SLOT(pym_img_info->slot_id, ipu->paddr);
 
 			pym_img_info->dual_ddr_info = g_ipu_d_cdev->s_info;
-			spin_unlock(&g_ipu_d_cdev->slock);
+			spin_unlock_irqrestore(&g_ipu_d_cdev->slock, flags);
 			ret = copy_to_user((void __user *)data, (const void *)pym_img_info,
 			sizeof(info_dual_h_t));
 			if (ret)
@@ -696,26 +712,26 @@ long ipu_dual_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 		{
 			ipu_drv_stop();
 			clear_bit(IPU_PYM_STARTUP, &g_ipu_d_cdev->ipuflags);
-			spin_lock(&g_ipu_d_cdev->slock);
+			spin_lock_irqsave(&g_ipu_d_cdev->slock, flags);
 			ipu_clean_slot_queue(&g_ipu_d_cdev->s_info);
-			spin_unlock(&g_ipu_d_cdev->slock);
+			spin_unlock_irqrestore(&g_ipu_d_cdev->slock, flags);
 			wake_up_interruptible(&ipu_cdev->event_head);
 		}
 		break;
 	case IPUC_START:
 		{
 #if 1
-			spin_lock(&g_ipu_d_cdev->slock);
+			spin_lock_irqsave(&g_ipu_d_cdev->slock, flags);
 			slot_h = recv_slot_free_to_busy();
 			if (slot_h) {
 				set_next_recv_frame(slot_h);
 				set_bit(IPU_PYM_STARTUP, &g_ipu_d_cdev->ipuflags);
 			} else {
-				spin_unlock(&g_ipu_d_cdev->slock);
+				spin_unlock_irqrestore(&g_ipu_d_cdev->slock, flags);
 				ret = EFAULT;
 				break;
 			}
-			spin_unlock(&g_ipu_d_cdev->slock);
+			spin_unlock_irqrestore(&g_ipu_d_cdev->slock, flags);
 			ipu_drv_start();
 #else
 			printk("g_ipu->stop %d\n",g_ipu->stop);
@@ -738,7 +754,7 @@ long ipu_dual_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 				ipu_err("ioctl update fail\n");
 				return -EFAULT;
 			}
-			spin_lock(&g_ipu_d_cdev->slock);
+			spin_lock_irqsave(&g_ipu_d_cdev->slock, flags);
 			//stop
 			ipu_drv_stop();
 			wake_up_interruptible(&ipu_cdev->event_head);
@@ -751,11 +767,11 @@ long ipu_dual_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 				set_next_recv_frame(slot_h);
 				set_bit(IPU_PYM_STARTUP, &g_ipu_d_cdev->ipuflags);
 			} else {
-				spin_unlock(&g_ipu_d_cdev->slock);
+				spin_unlock_irqrestore(&g_ipu_d_cdev->slock, flags);
 				ret = EFAULT;
 				break;
 			}
-			spin_unlock(&g_ipu_d_cdev->slock);
+			spin_unlock_irqrestore(&g_ipu_d_cdev->slock, flags);
 			ipu_drv_start();
 		}
 		break;
@@ -773,7 +789,6 @@ long ipu_dual_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 
 	case IPUC_FB_SRC_DONE:
 		{
-			unsigned long flags;
 			ipu_slot_dual_h_t *g_get_fb_slot_h;
 
 			spin_lock_irqsave(&g_ipu_d_cdev->slock, flags);
