@@ -374,6 +374,10 @@ static int x2_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[], int num)
 
 	mutex_unlock(&dev->lock);
 
+	if (ret == -ETIMEDOUT)
+		ret = -EAGAIN;
+
+
 	return ret ? : i;
 }
 
