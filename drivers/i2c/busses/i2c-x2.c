@@ -374,9 +374,10 @@ static int x2_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[], int num)
 
 	mutex_unlock(&dev->lock);
 
-	if (ret == -ETIMEDOUT)
+	if (ret == -ETIMEDOUT) {
+		udelay(10);
 		ret = -EAGAIN;
-
+	}
 
 	return ret ? : i;
 }
@@ -503,9 +504,10 @@ static int x2_i2c_xfer_smbus(struct i2c_adapter *adap, u16 addr,
 
 	mutex_unlock(&dev->lock);
 
-	if (ret == -ETIMEDOUT)
+	if (ret == -ETIMEDOUT) {
+		udelay(10);
 		ret = -EAGAIN;
-
+	}
 	return ret;
 }
 
@@ -591,7 +593,7 @@ static int x2_i2c_probe(struct platform_device *pdev)
 	adap->algo = &x2_i2c_algo;
 	adap->dev.parent = &pdev->dev;
 	adap->dev.of_node = pdev->dev.of_node;
-	adap->timeout = 400;
+	adap->timeout = 4000;
 	adap->retries = 3;
 
 	ret = i2c_add_adapter(adap);
