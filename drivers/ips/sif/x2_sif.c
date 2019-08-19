@@ -104,6 +104,7 @@ static void sif_diag_report(uint8_t errsta, unsigned int status)
 	}
 }
 
+extern int32_t actual_enable_bypass(void);
 static void x2_sif_irq(unsigned int status, void *data)
 {
 	sif_t          *sif = NULL;
@@ -122,6 +123,10 @@ static void x2_sif_irq(unsigned int status, void *data)
 	if (!sif->sif_file.receive_frame && (status & SIF_FRAME_START_INTERRUPT)) {
 		sif->sif_file.event |= SIF_START;
 		sif->sif_file.receive_frame = true;
+	}
+	if (status & SIF_FRAME_END_INTERRUPT) {
+		ips_mask_int(SIF_FRAME_END_INTERRUPT);
+		actual_enable_bypass();
 	}
 	if (status & (SIF_SIZE_ERR0 | SIF_SIZE_ERR1)) {
 		sif->sif_file.event |= SIF_ERROR;

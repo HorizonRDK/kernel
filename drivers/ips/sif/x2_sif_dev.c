@@ -20,6 +20,9 @@
 #include "x2_sif_dev.h"
 #include "x2_sif_regs.h"
 #include "x2_sif_utils.h"
+#include "x2/x2_ips.h"
+
+
 
 /*SIF BASE REGISTER OFFSET*/
 #define OFFSET_PIC_FORMAT      (0)
@@ -247,6 +250,10 @@ sif_dev_t  *g_sif_dev = NULL;
 /*                                 value;})										   */
 /*#define sif_putreg(a,v)        ({bifdev_set_cpchip_reg((uint32_t)a, v);\		   */
 /*                                 sifinfo("write 0x%x: 0x%x", (uint32_t)a, v);})  */
+
+static uint32_t global_port;
+static uint32_t global_enable;
+
 int32_t sif_dev_bypass_ctrl(uint32_t port, uint32_t enable)
 {
 	uint32_t base = 0, sif_enable;
@@ -255,7 +262,13 @@ int32_t sif_dev_bypass_ctrl(uint32_t port, uint32_t enable)
 		siferr("sif dev not inited!");
 		return -1;
 	}
-	iomem = g_sif_dev->iomem;
+	global_port = port;
+	global_enable = enable;
+	ips_unmask_int(SIF_FRAME_END_INTERRUPT);
+	return 0;
+
+	//set a value and return
+	/*iomem = g_sif_dev->iomem;
 	base = sif_getreg(iomem + REG_SIF_BASE_CTRL);
 	sif_enable = CONFIG_GET(BASE_SIF_ENABLE, base);
 	if (sif_enable == SIF_DISABLE)
@@ -283,7 +296,53 @@ int32_t sif_dev_bypass_ctrl(uint32_t port, uint32_t enable)
 	g_sif_dev->bypass_state = enable;
 
 	return 0;
+	*/
 }
+
+int32_t actual_enable_bypass(void)
+{
+	uint32_t base = 0, sif_enable;
+	void __iomem  *iomem = NULL;
+
+	if (g_sif_dev == NULL) {
+		siferr("sif dev not inited!");
+		return -1;
+	}
+
+	//set a value and return
+	iomem = g_sif_dev->iomem;
+	base = sif_getreg(iomem + REG_SIF_BASE_CTRL);
+	sif_enable = CONFIG_GET(BASE_SIF_ENABLE, base);
+	if (sif_enable == SIF_DISABLE)
+		return -1;
+	if (g_sif_dev->bustype == BUS_TYPE_BT1120) {
+		base = CONFIG_CLEAR_SET(base, BASE_BT2AP_ENABLE, global_enable);
+		base = CONFIG_CLEAR_SET(base, BASE_DVP2AP_ENABLE, 0);
+		base = CONFIG_CLEAR_SET(base, BASE_MIPI2AP_ENABLE, 0);
+	} else if (g_sif_dev->bustype == BUS_TYPE_DVP) {
+		base = CONFIG_CLEAR_SET(base, BASE_BT2AP_ENABLE, 0);
+		base = CONFIG_CLEAR_SET(base,
+					BASE_DVP2AP_ENABLE, global_enable);
+		base = CONFIG_CLEAR_SET(base, BASE_MIPI2AP_ENABLE, 0);
+	} else if (g_sif_dev->bustype == BUS_TYPE_MIPI ||
+			    g_sif_dev->bustype == BUS_TYPE_DUALRX) {
+		if (global_port != (uint32_t)(-1)) {
+			if (global_port > 1)
+				return -1;
+			base = CONFIG_CLEAR_SET(base,
+						BASE_MIPI2AP_SEL, global_port);
+		}
+		base = CONFIG_CLEAR_SET(base, BASE_BT2AP_ENABLE, 0);
+		base = CONFIG_CLEAR_SET(base, BASE_DVP2AP_ENABLE, 0);
+		base = CONFIG_CLEAR_SET(base,
+					BASE_MIPI2AP_ENABLE, global_enable);
+	}
+	sif_putreg(iomem + REG_SIF_BASE_CTRL, base);
+	g_sif_dev->bypass_state = global_enable;
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(actual_enable_bypass);
 
 static void sif_dev_base_config(sif_init_t *cfg, uint8_t update)
 {
@@ -561,7 +620,10 @@ int32_t sif_dev_stop(sif_init_t *cfg)
 		siferr("sif dev not inited!");
 		return -1;
 	}
-	sif_dev_bypass_ctrl((uint32_t)(-1), 0);
+	global_enable = 0;
+	global_port = -1;
+	//sif_dev_bypass_ctrl((uint32_t)(-1), 0);
+	actual_enable_bypass();
 	iomem = g_sif_dev->iomem;
 	base = sif_getreg(iomem + REG_SIF_BASE_CTRL);
 	base &= CONFIG_CLEAR(BASE_SIF_ENABLE);
