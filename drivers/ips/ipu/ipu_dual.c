@@ -816,13 +816,18 @@ long ipu_dual_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 		src_img_info->src_img.width*src_img_info->src_img.height+
 		src_img_info->src_img.width*src_img_info->src_img.height/2,
 			DMA_TO_DEVICE);
-
+		__flush_dcache_area(page_address(pfn_to_page(PHYS_PFN((phys_addr_t)src_img_info->src_img.y_paddr))),
+							src_img_info->src_img.width*src_img_info->src_img.height+
+							src_img_info->src_img.width*src_img_info->src_img.height/2);
 		src_img_info = &mult_img_info->src_img_info[1];
 		dma_sync_single_for_device(NULL,
 		src_img_info->src_img.y_paddr,
 		src_img_info->src_img.width*src_img_info->src_img.height+
 		src_img_info->src_img.width*src_img_info->src_img.height/2,
 			DMA_TO_DEVICE);
+		__flush_dcache_area(page_address(pfn_to_page(PHYS_PFN((phys_addr_t)src_img_info->src_img.y_paddr))),
+							src_img_info->src_img.width*src_img_info->src_img.height+
+							src_img_info->src_img.width*src_img_info->src_img.height/2);
 	}
 	break;
 	default:

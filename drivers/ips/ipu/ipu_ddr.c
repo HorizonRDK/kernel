@@ -827,6 +827,9 @@ wait:
 		src_img_info->src_img.width*src_img_info->src_img.height+
 		src_img_info->src_img.width*src_img_info->src_img.height/2,
 			DMA_TO_DEVICE);
+		__flush_dcache_area(page_address(pfn_to_page(PHYS_PFN((phys_addr_t)src_img_info->src_img.y_paddr))),
+							src_img_info->src_img.width*src_img_info->src_img.height+
+							src_img_info->src_img.width*src_img_info->src_img.height/2);
 	}
 	break;
 	default:
