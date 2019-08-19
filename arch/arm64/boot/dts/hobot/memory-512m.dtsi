@@ -1,12 +1,7 @@
 #include "memory.dtsi"
 / {
 	reserved-memory {
-		/*Reserved 0 memory for isp_subsystem*/
-		isp_reserved: isp_reserved@0x02100000 {
-			reg = <0x0 0x02100000 0x0 0x00000000>;
-		};
-
-		/*23M*/
+		/*Reserved 24M memory for iar subsystem*/
 		iar_reserved: iar_reserved@0x02100000 {
 			reg = <0x0 0x02100000 0x0 0x1800000>;
 			no-map;

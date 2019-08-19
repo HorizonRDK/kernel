@@ -1,21 +1,16 @@
 #include "memory.dtsi"
 / {
 	reserved-memory {
-		/*Reserved 8M memory for isp_subsystem*/
-		isp_reserved: isp_reserved@0x02100000 {
-			reg = <0x0 0x02100000 0x0 0x00800000>;
-		};
-
 		/*Reserved 32M memory for iar subsystem*/
-		iar_reserved: iar_reserved@0x02900000 {
-			reg = <0x0 0x02900000 0x0 0x2000000>;
+		iar_reserved: iar_reserved@0x02100000 {
+			reg = <0x0 0x02100000 0x0 0x2000000>;
 			no-map;
 		};
 
-		/* Reserved 768MB memory for ion*/
-		ion_reserved: ion_reserved@0x04900000 {
+		/* Reserved 776MB(ipu & isp) memory for ion*/
+		ion_reserved: ion_reserved@0x04100000 {
 			compatible = "ion-pool";
-			reg = <0x0 0x04900000 0x0 0x30000000>;
+			reg = <0x0 0x04100000 0x0 0x30800000>;
 		};
 
 	};
