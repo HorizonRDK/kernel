@@ -845,11 +845,10 @@
 
 		sd0_div_cclk: sd0_div_cclk {
 			#clock-cells = <0>;
-			compatible = "x2,div-clk";
+			compatible = "x2,fixed-factor-clk";
 			clocks = <&sd0_div_clk>;
-			offset = <0x320>;
-			bits = <4>;
-			field = <3>;
+			clk-div = <8>;
+			clk-mult = <1>;
 			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
@@ -874,11 +873,10 @@
 
 		sd1_div_cclk: sd1_div_cclk {
 			#clock-cells = <0>;
-			compatible = "x2,div-clk";
+			compatible = "x2,fixed-factor-clk";
 			clocks = <&sd1_div_clk>;
-			offset = <0x330>;
-			bits = <4>;
-			field = <3>;
+			clk-div = <8>;
+			clk-mult = <1>;
 			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 

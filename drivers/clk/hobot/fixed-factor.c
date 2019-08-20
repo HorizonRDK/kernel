@@ -10,6 +10,7 @@ static void __init _of_x2_fixed_factor_clk_setup(struct device_node *node)
 	const char* parent_name;
 	unsigned int div, mult;
 	unsigned int flags = 0;
+	unsigned int val;
 	int ret;
 
 	if(of_clk_get_parent_count(node) != 1){
@@ -30,6 +31,10 @@ static void __init _of_x2_fixed_factor_clk_setup(struct device_node *node)
 		pr_err("%s: %s missing clk-mult property!\n", __func__, node->name);
 		return;
 	}
+
+	ret = of_property_read_u32(node, "clk-flags", &val);
+	if (!ret)
+		flags |= val;
 
 	clk_hw = clk_hw_register_fixed_factor(NULL, node->name, parent_name, flags, mult, div);
 	if(IS_ERR(clk_hw)){
