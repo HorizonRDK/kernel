@@ -1,3 +1,9 @@
+/*
+ *			 COPYRIGHT NOTICE
+ *		 Copyright 2019 Horizon Robotics, Inc.
+ *			 All rights reserved.
+ */
+
 #ifndef _BIF_PLAT_H_
 #define _BIF_PLAT_H_
 #include <linux/kernel.h>
@@ -36,8 +42,11 @@
 #include <linux/delay.h>
 #include <linux/time.h>
 
-//#define addr_t unsigned long long
+#if __SIZEOF_POINTER__ == 4
+#define addr_t unsigned int
+#else
 #define addr_t unsigned long
+#endif
 
 //#define DEBUG
 #ifdef DEBUG

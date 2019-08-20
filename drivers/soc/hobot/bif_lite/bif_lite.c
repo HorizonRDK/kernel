@@ -1,3 +1,9 @@
+/*
+ *			 COPYRIGHT NOTICE
+ *		 Copyright 2019 Horizon Robotics, Inc.
+ *			 All rights reserved.
+ */
+
 #include "bif_lite.h"
 
 #define RING_INFO_ALIGN (512)
@@ -1273,8 +1279,13 @@ int bif_lite_init(struct comm_channel *channel)
 	//	(unsigned long *)&base_addr_tmp_phy);
 	base_addr_tmp = (addr_t)bif_dma_alloc(channel->total_mem_size,
 	(dma_addr_t *)&base_addr_tmp_phy, GFP_KERNEL, 0);
+	#if __SIZEOF_POINTER__ == 4
+	pr_info("bif_dma_alloc: vir_addr = %x phy_addr = %x total = %d\n",
+	base_addr_tmp, base_addr_tmp_phy, channel->total_mem_size);
+	#else
 	pr_info("bif_dma_alloc: vir_addr = %lx phy_addr = %lx total = %d\n",
 	base_addr_tmp, base_addr_tmp_phy, channel->total_mem_size);
+	#endif
 
 	if (base_addr_tmp <= 0) {
 		ret = -EFAULT;
@@ -1300,7 +1311,11 @@ int bif_lite_init(struct comm_channel *channel)
 		goto err;
 
 	}
+	#if __SIZEOF_POINTER__ == 4
+	pr_info("base_addr_tmp_phy %x\n", base_addr_tmp_phy);
+	#else
 	pr_info("base_addr_tmp_phy %lx\n", base_addr_tmp_phy);
+	#endif
 	bif_set_base_addr(channel, base_addr_tmp_phy);
 #endif
 #ifndef CONFIG_HOBOT_BIF_AP
@@ -1346,13 +1361,31 @@ static void dump_channel_info(struct comm_channel *channel)
 	pr_debug("buffer_id = %d\n", channel->buffer_id);
 	pr_debug("transfer_align = %d\n", channel->transfer_align);
 	pr_debug("==== memory limit concerned ====\n");
+	#if __SIZEOF_POINTER__ == 4
+	pr_debug("base_addr = %x\n", channel->base_addr);
+	#else
 	pr_debug("base_addr = %lx\n", channel->base_addr);
+	#endif
 	pr_debug("frame_len_max = %d\n", channel->frame_len_max);
 	pr_debug("frag_len_max = %d\n", channel->frag_len_max);
 	pr_debug("valid_frag_len_max = %d\n", channel->valid_frag_len_max);
 	pr_debug("frag_num = %d\n", channel->frag_num);
 	pr_debug("frame_cache_max = %d\n", channel->frame_cache_max);
 	pr_debug("==== memory layout concerned ====\n");
+	#if __SIZEOF_POINTER__ == 4
+	pr_debug("rx_local_info_offset = %x\n",
+	channel->rx_local_info_offset);
+	pr_debug("rx_remote_info_offset = %x\n",
+	channel->rx_remote_info_offset);
+	pr_debug("tx_local_info_offset = %x\n",
+	channel->tx_local_info_offset);
+	pr_debug("tx_remote_info_offset = %x\n",
+	channel->tx_remote_info_offset);
+	pr_debug("rx_buffer_offset = %x\n",
+	channel->rx_buffer_offset);
+	pr_debug("tx_buffer_offset = %x\n",
+	channel->tx_buffer_offset);
+	#else
 	pr_debug("rx_local_info_offset = %lx\n",
 	channel->rx_local_info_offset);
 	pr_debug("rx_remote_info_offset = %lx\n",
@@ -1365,6 +1398,7 @@ static void dump_channel_info(struct comm_channel *channel)
 	channel->rx_buffer_offset);
 	pr_debug("tx_buffer_offset = %lx\n",
 	channel->tx_buffer_offset);
+	#endif
 	pr_debug("total_mem_size = %d\n",
 	channel->total_mem_size);
 	pr_debug("ap_type = %d\n", channel->type);

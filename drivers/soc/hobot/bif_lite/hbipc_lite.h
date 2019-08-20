@@ -169,7 +169,7 @@ struct send_mang_data {
 	unsigned char server_id[UUID_LEN];
 	int provider_id;
 	int client_id;
-	char *buffer;
+	unsigned long long buffer;
 	int len;
 };
 

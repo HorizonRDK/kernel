@@ -172,12 +172,22 @@ static int bif_dev_sd_info_proc_show(struct seq_file *m, void *v)
 "hardware channel concerned\n"
 "channel = %d\nbuffer_id = %d\ntransfer_align = %d\n"
 "memory limit concerned:\n"
+#if __SIZEOF_POINTER__ == 4
+"base_addr = %x\nframe_len_max = %d\nfrag_len_max = %d\n"
+#else
 "base_addr = %lx\nframe_len_max = %d\nfrag_len_max = %d\n"
+#endif
 "valid_frag_len_max = %d\nrag_num = %d\nframe_cache_max = %d\n"
 "memory layout concerned:\n"
+#if __SIZEOF_POINTER__ == 4
+"rx_local_info_offset = %x\nrx_remote_info_offset = %x\n"
+"tx_local_info_offset = %x\ntx_remote_info_offset = %x\n"
+"rx_buffer_offset = %x\ntx_buffer_offset = %x\n"
+#else
 "rx_local_info_offset = %lx\nrx_remote_info_offset = %lx\n"
 "tx_local_info_offset = %lx\ntx_remote_info_offset = %lx\n"
 "rx_buffer_offset = %lx\ntx_buffer_offset = %lx\n"
+#endif
 "total_mem_size = %d\n"
 "transfer feature:\n"
 "ap_type = %d\nworking_mode = %d\n"
@@ -636,6 +646,9 @@ size_t count, loff_t *ppos)
 	int retry_count = 0;
 	int timeout_accumulate = 0;
 	int remaining_time = 0;
+	#if __SIZEOF_POINTER__ == 4
+	unsigned int addr_low = 0;
+	#endif
 
 	++domain.domain_statistics.write_call_count;
 
@@ -658,9 +671,18 @@ size_t count, loff_t *ppos)
 		goto error;
 	}
 
-	if (copy_from_user(bif_data.send_frame,
+	#if __SIZEOF_POINTER__ == 4
+	addr_low = (unsigned int)data.buffer;
+	status = copy_from_user(bif_data.send_frame,
+	(const char __user *)addr_low,
+	data.len);
+	#else
+	status = copy_from_user(bif_data.send_frame,
 	(const char __user *)data.buffer,
-	data.len)) {
+	data.len);
+	#endif
+
+	if (status) {
 		hbipc_error("copy user frame error\n");
 		ret = -EFAULT;
 		goto error;
@@ -800,6 +822,9 @@ loff_t *ppos)
 	struct list_head *pos = NULL;
 	int session_list_empty = 0;
 	struct transfer_feature *feature = NULL;
+	#if __SIZEOF_POINTER__ == 4
+	unsigned int addr_low = 0;
+	#endif
 
 	//mutex_lock(&read_mutex);
 	++domain.domain_statistics.read_call_count;
@@ -926,9 +951,15 @@ loff_t *ppos)
 
 	frame = list_entry(pos, struct bif_frame_cache, frame_cache_list);
 	if (frame->framelen - HBIPC_HEADER_LEN > data.len) {
+		#if __SIZEOF_POINTER__ == 4
+		hbipc_error("recv buf overflow:%d_%d\n",
+			frame->framelen - HBIPC_HEADER_LEN,
+			data.len);
+		#else
 		hbipc_error("recv buf overflow:%ld_%d\n",
 			frame->framelen - HBIPC_HEADER_LEN,
 			data.len);
+		#endif
 		spin_lock(&(session_des->recv_list.lock));
 		list_add(pos, &session_des->recv_list.list);
 		spin_unlock(&(session_des->recv_list.lock));
@@ -943,8 +974,15 @@ loff_t *ppos)
 		goto error;
 	}
 	header = (struct hbipc_header *)frame->framecache;
+	#if __SIZEOF_POINTER__ == 4
+	addr_low = (unsigned int)data.buffer;
+	status = copy_to_user((void __user *)addr_low,
+	frame->framecache + HBIPC_HEADER_LEN, header->length);
+	#else
 	status = copy_to_user((void __user *)data.buffer,
 	frame->framecache + HBIPC_HEADER_LEN, header->length);
+	#endif
+
 	if (status) {
 		spin_lock(&(session_des->recv_list.lock));
 		list_add(pos, &session_des->recv_list.list);
