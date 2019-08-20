@@ -24,7 +24,6 @@
 #include "dw_mmc-pltfm.h"
 
 #define DWMMC_MMC_ID (1)
-#define HOBOT_CLKGEN_DIV (8)
 #define HOBOT_DW_MCI_FREQ_MAX (200000000)
 #define HOBOT_SYSCTRL_REG (0xA1000000)
 #define HOBOT_SD0_PHASE_REG (0x320)
@@ -59,7 +58,6 @@
 struct dw_mci_hobot_priv_data {
 	void __iomem *sysctrl_reg;
 	void __iomem *padcctrl_reg;
-	struct clk *gate_clk;
 	u32 clock_frequency;
 	int default_sample_phase;
 	u32 uhs_180v_gpio;
@@ -336,7 +334,7 @@ static void dw_mci_x2_set_ios(struct dw_mci *host, struct mmc_ios *ios)
 	struct dw_mci_hobot_priv_data *priv = host->priv;
 	int ret;
 	unsigned int cclkin;
-	u32 bus_hz;
+	unsigned long bus_hz;
 	int phase;
 
 	if (ios->clock == 0)
@@ -354,17 +352,19 @@ static void dw_mci_x2_set_ios(struct dw_mci *host, struct mmc_ios *ios)
 	 */
 	if (ios->bus_width == MMC_BUS_WIDTH_8 &&
 	    ios->timing == MMC_TIMING_MMC_DDR52)
-		cclkin = 2 * ios->clock * HOBOT_CLKGEN_DIV;
+		cclkin = 2 * ios->clock;
 	else
-		cclkin = ios->clock * HOBOT_CLKGEN_DIV;
+		cclkin = ios->clock;
 
 	x2_mmc_disable_clk(priv);
-	ret = clk_set_rate(host->biu_clk, cclkin);
+
+	ret = clk_set_rate(host->ciu_clk, cclkin);
 	if (ret)
 		dev_warn(host->dev, "failed to set rate %uHz\n", ios->clock);
+
 	x2_mmc_enable_clk(priv);
 
-	bus_hz = clk_get_rate(host->biu_clk) / HOBOT_CLKGEN_DIV;
+	bus_hz = clk_get_rate(host->ciu_clk);
 	if (bus_hz != host->bus_hz) {
 		host->bus_hz = bus_hz;
 		/* force dw_mci_setup_bus() */

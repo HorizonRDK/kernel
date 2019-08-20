@@ -850,6 +850,7 @@
 			offset = <0x320>;
 			bits = <4>;
 			field = <3>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		sd0_cclk: sd0_cclk {
@@ -859,6 +860,7 @@
 			offset = <0x150 0x154 0x158>;
 			bits = <15 15 15>;
 			field = <0x1 0x1 0x1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		sd1_div_clk: sd1_div_clk {
@@ -877,6 +879,7 @@
 			offset = <0x330>;
 			bits = <4>;
 			field = <3>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		sd1_cclk: sd1_cclk {
@@ -886,6 +889,7 @@
 			offset = <0x150 0x154 0x158>;
 			bits = <16 16 16>;
 			field = <0x1 0x1 0x1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		eth0_prediv_clk: eth0_prediv_clk {

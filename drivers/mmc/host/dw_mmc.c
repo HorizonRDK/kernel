@@ -3189,31 +3189,22 @@ int dw_mci_probe(struct dw_mci *host)
 		}
 	}
 
-	host->biu_clk = devm_clk_get(host->dev, "biu");
-	if (IS_ERR(host->biu_clk)) {
-		dev_dbg(host->dev, "biu clock not available\n");
-	} else {
-		ret = clk_prepare_enable(host->biu_clk);
-		if (ret) {
-			dev_err(host->dev, "failed to enable biu clock\n");
-			return ret;
-		}
-	}
-
-	host->ciu_clk = devm_clk_get(host->dev, "ciu");
+	host->ciu_clk = devm_clk_get(host->dev, "sdio_mclk");
 	if (IS_ERR(host->ciu_clk)) {
 		dev_err(host->dev, "ciu clock not available\n");
 		host->bus_hz = host->pdata->bus_hz;
 	} else {
 		ret = clk_prepare_enable(host->ciu_clk);
 		if (ret) {
-			dev_err(host->dev, "failed to enable ciu clock\n");
-			goto err_clk_biu;
+			dev_err(host->dev, "failed to prepare ciu clock\n");
+			goto err_clk;
 		}
 
 		if (host->pdata->bus_hz) {
 			pr_debug("set ciu clk to %lu\n", host->pdata->bus_hz);
+
 			x2_mmc_disable_clk(host->priv);
+
 			ret = clk_set_rate(host->ciu_clk, host->pdata->bus_hz);
 			if (ret)
 				dev_warn(host->dev,
@@ -3221,8 +3212,9 @@ int dw_mci_probe(struct dw_mci *host)
 					 host->pdata->bus_hz);
 			x2_mmc_enable_clk(host->priv);
 		}
+
 		host->bus_hz = clk_get_rate(host->ciu_clk);
-		pr_debug("get ciu clk is %lu\n", host->pdata->bus_hz);
+		pr_debug("get ciu clk is %lu\n", host->bus_hz);
 	}
 
 	if (!host->bus_hz) {
@@ -3383,9 +3375,7 @@ err_dmaunmap:
 err_clk_ciu:
 	clk_disable_unprepare(host->ciu_clk);
 
-err_clk_biu:
-	clk_disable_unprepare(host->biu_clk);
-
+err_clk:
 	return ret;
 }
 EXPORT_SYMBOL(dw_mci_probe);
@@ -3410,7 +3400,6 @@ void dw_mci_remove(struct dw_mci *host)
 		reset_control_assert(host->pdata->rstc);
 
 	clk_disable_unprepare(host->ciu_clk);
-	clk_disable_unprepare(host->biu_clk);
 }
 EXPORT_SYMBOL(dw_mci_remove);
 
@@ -3426,11 +3415,6 @@ int dw_mci_runtime_suspend(struct device *dev)
 
 	clk_disable_unprepare(host->ciu_clk);
 
-	if (host->slot &&
-	    (mmc_can_gpio_cd(host->slot->mmc) ||
-	     !mmc_card_is_removable(host->slot->mmc)))
-		clk_disable_unprepare(host->biu_clk);
-
 	return 0;
 }
 EXPORT_SYMBOL(dw_mci_runtime_suspend);
@@ -3439,14 +3423,6 @@ int dw_mci_runtime_resume(struct device *dev)
 {
 	int ret = 0;
 	struct dw_mci *host = dev_get_drvdata(dev);
-
-	if (host->slot &&
-	    (mmc_can_gpio_cd(host->slot->mmc) ||
-	     !mmc_card_is_removable(host->slot->mmc))) {
-		ret = clk_prepare_enable(host->biu_clk);
-		if (ret)
-			return ret;
-	}
 
 	ret = clk_prepare_enable(host->ciu_clk);
 	if (ret)
@@ -3487,14 +3463,7 @@ int dw_mci_runtime_resume(struct device *dev)
 	/* Now that slots are all setup, we can enable card detect */
 	dw_mci_enable_cd(host);
 
-	return 0;
-
 err:
-	if (host->slot &&
-	    (mmc_can_gpio_cd(host->slot->mmc) ||
-	     !mmc_card_is_removable(host->slot->mmc)))
-		clk_disable_unprepare(host->biu_clk);
-
 	return ret;
 }
 EXPORT_SYMBOL(dw_mci_runtime_resume);
