@@ -32,6 +32,12 @@ config X2_DIAG
           Kernel modules(drivers) can send diag msgs to userspace
           by calling the API of the diag module(driver)
 
+config HOBOT_MCU_IRQ
+        tristate "Skt change gpio state and return timestamp"
+        default m
+        help
+	  skt change gpio state and return timestamp
+
 menuconfig HOBOT_BIF_CP
         bool "Enable Horizon CP side BIF driver"
         default y

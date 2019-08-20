@@ -251,7 +251,7 @@
 &mcu_irq {
 	mcu_tri_pin = <107>;
 	mcu_irq_pin = <109>;
-	status = "okay";
+	status = "disabled";
 };
 
 &biflite_spi {

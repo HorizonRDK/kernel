@@ -26,6 +26,7 @@ obj-$(CONFIG_ARCH_ZX)		+= zte/
 obj-$(CONFIG_X2_CNN_HOST)	+= hobot/cnn_host/
 obj-$(CONFIG_X2_CNN_MM)	+= hobot/cnn_mm/
 obj-$(CONFIG_X2_DIAG)	+= hobot/diag/
+obj-$(CONFIG_HOBOT_MCU_IRQ)	+= hobot/mcu_irq/
 obj-$(CONFIG_HOBOT_BIF_BASE)	+= hobot/bif_base/
 obj-$(CONFIG_HOBOT_BIF_ETHERNET)	+= hobot/bif_ethernet/
 obj-$(CONFIG_HOBOT_BIF_SIO)	+= hobot/bif_sio/
