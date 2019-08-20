@@ -50,6 +50,11 @@ static int drop_cnt;
 unsigned int queue_free_cnt;
 unsigned int queue_busy_cnt;
 unsigned int queue_done_cnt;
+static int ipu_tsin_valid;
+static int64_t ipu_tsin_val;
+static int64_t ipu_tsadj_val;
+static int ipu_tsadj_calv;
+static int64_t ipu_tsadj_cal;
 
 module_param(ipu_debug_level, uint, 0644);
 unsigned int ipu_irq_debug = 0;
@@ -189,6 +194,32 @@ static ssize_t ipu_slot_size_show(struct device *dev,
 	return sprintf(buf, "0x%x\n", g_ipu->slot_size);
 }
 static DEVICE_ATTR(slot_size, 0644, ipu_slot_size_show, ipu_slot_size_store);
+
+void ipu_tsin_reset(void)
+{
+	ipu_tsin_valid = 0;
+}
+int64_t ipu_tsin_get(int64_t sys_ts)
+{
+	if (ipu_tsin_valid) {
+		if (ipu_tsadj_calv) {
+			if (ipu_tsadj_cal)
+				ipu_tsadj_cal = ((ipu_tsadj_cal * 3) +
+					(ipu_tsin_val - sys_ts)) / 4;
+			else
+				ipu_tsadj_cal = ipu_tsin_val - sys_ts;
+		}
+		return ipu_tsin_val;
+	}
+
+	if (ipu_tsadj_calv)
+		ipu_tsadj_cal = 0;
+
+	if (ipu_tsadj_val)
+		return (sys_ts + ipu_tsadj_val);
+	else
+		return sys_ts;
+}
 
 int8_t ipu_cfg_ddrinfo_init(ipu_cfg_t *ipu)
 {
@@ -899,6 +930,74 @@ static ssize_t queue_done_cnt_show(struct kobject *kobj,
 	dump_slot_state();
 	return sprintf(buf, "%d\n", queue_done_cnt);
 }
+static ssize_t ipu_tsin_show(struct kobject *kobj,
+				struct kobj_attribute *attr, char *buf)
+{
+	char *s = buf;
+
+	s += sprintf(s, "%lld%s\n", ipu_tsin_val,
+			(ipu_tsin_valid) ? " *" : "");
+	return (s - buf);
+}
+static ssize_t ipu_tsin_store(struct kobject *kobj,
+			struct kobj_attribute *attr, const char *buf, size_t n)
+{
+	int error = -EINVAL;
+	int64_t ts = 0;
+
+	if (kstrtoll(buf, 0, &ts) == 0) {
+		if (ts == 0) {
+			ipu_tsin_val = 0;
+			ipu_tsin_valid = 0;
+		} else {
+			ipu_tsin_val = ts;
+			ipu_tsin_valid = 1;
+		}
+		error = 0;
+	}
+	return error ? error : n;
+}
+static ssize_t ipu_tsadj_show(struct kobject *kobj,
+				struct kobj_attribute *attr, char *buf)
+{
+	char *s = buf;
+
+	s += sprintf(s, "%lld\n", ipu_tsadj_val);
+	return (s - buf);
+}
+static ssize_t ipu_tsadj_store(struct kobject *kobj,
+			struct kobj_attribute *attr, const char *buf, size_t n)
+{
+	int error = -EINVAL;
+	int64_t ts = 0;
+
+	if (kstrtoll(buf, 0, &ts) == 0) {
+		ipu_tsadj_val = ts;
+		error = 0;
+	}
+	return error ? error : n;
+}
+static ssize_t ipu_tsadjcal_show(struct kobject *kobj,
+				struct kobj_attribute *attr, char *buf)
+{
+	char *s = buf;
+
+	s += sprintf(s, "%lld%s\n", ipu_tsadj_cal,
+			(ipu_tsadj_calv) ? " *" : "");
+	return (s - buf);
+}
+static ssize_t ipu_tsadjcal_store(struct kobject *kobj,
+			struct kobj_attribute *attr, const char *buf, size_t n)
+{
+	int error = -EINVAL;
+	int calv;
+
+	if (kstrtoint(buf, 0, &calv) == 0) {
+		ipu_tsadj_calv = calv;
+		error = 0;
+	}
+	return error ? error : n;
+}
 
 static struct kobj_attribute ipu_star = __ATTR(ipu_start_cnt, 0444,
 						ipu_star_show, NULL);
@@ -914,6 +1013,12 @@ static struct kobj_attribute queue_busy = __ATTR(busy_cnt, 0444,
 						queue_busy_cnt_show, NULL);
 static struct kobj_attribute queue_done = __ATTR(done_cnt, 0444,
 						queue_done_cnt_show, NULL);
+static struct kobj_attribute tsin = __ATTR(tsin, 0644,
+						ipu_tsin_show, ipu_tsin_store);
+static struct kobj_attribute tsadj = __ATTR(tsadj, 0644,
+				ipu_tsadj_show, ipu_tsadj_store);
+static struct kobj_attribute tsadjcal = __ATTR(tsadjcal, 0644,
+				ipu_tsadjcal_show, ipu_tsadjcal_store);
 
 static struct kobj_attribute ipu_test_attr = {
 	.attr   = {
@@ -941,6 +1046,12 @@ static struct attribute *queue_attributes[] = {
 	&queue_done.attr,
 	NULL,
 };
+static struct attribute *ts_attributes[] = {
+	&tsin.attr,
+	&tsadj.attr,
+	&tsadjcal.attr,
+	NULL,
+};
 
 static struct attribute_group attr_group = {
 	.attrs = attributes,
@@ -953,10 +1064,15 @@ static struct attribute_group queue_attr_group = {
 	.name = "queue_info",
 	.attrs = queue_attributes,
 };
+static struct attribute_group ts_attr_group = {
+	.name = "ts",
+	.attrs = ts_attributes,
+};
 static const struct attribute_group *ipu_attr_groups[] = {
 	&attr_group,
 	&irq_attr_group,
 	&queue_attr_group,
+	&ts_attr_group,
 	NULL,
 };
 

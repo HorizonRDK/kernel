@@ -147,8 +147,9 @@ static int8_t ipu_get_frameid(struct x2_ipu_data *ipu, ipu_slot_h_t *slot)
 	uint8_t *tmp = NULL;
 	uint64_t vaddr = (uint64_t)IPU_GET_SLOT(slot->info_h.slot_id, ipu->vaddr);
 	ipu_cfg_t *cfg = (ipu_cfg_t *)ipu->cfg;
-	int64_t cur_time = 0;
+	int64_t cur_time = ipu_tsin_get(ipu_current_time());
 
+	ipu_tsin_reset();
 	if (!cfg->frame_id.id_en)
 		return 0;
 	cur_time = ipu_current_time();

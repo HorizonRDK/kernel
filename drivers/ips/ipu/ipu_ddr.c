@@ -141,6 +141,7 @@ static int8_t ipu_get_frameid(struct x2_ipu_data *ipu, ipu_slot_h_t *slot)
 	uint8_t *tmp = NULL;
 	uint64_t vaddr = (uint64_t)IPU_GET_SLOT(slot->info_h.slot_id, ipu->vaddr);
 	ipu_cfg_t *cfg = (ipu_cfg_t *)ipu->cfg;
+	int64_t ts = ipu_tsin_get(g_ipu_time);
 
 	if (!cfg->frame_id.id_en)
 		return 0;
@@ -148,7 +149,7 @@ static int8_t ipu_get_frameid(struct x2_ipu_data *ipu, ipu_slot_h_t *slot)
 		/* get id from crop ddr address */
 		tmp = (uint8_t *)(slot->info_h.ddr_info.crop.y_offset + vaddr);
 		if (cfg->frame_id.bus_mode == 0) {
-			slot->info_h.cf_timestamp = g_ipu_time;
+			slot->info_h.cf_timestamp = ts;
 			slot->info_h.cf_id = tmp[0] << 8 | tmp[1];
 			ipu_dbg("cframe_id=%d, %d, %d\n",
 			tmp[0], tmp[1], slot->info_h.cf_id);
@@ -164,7 +165,7 @@ static int8_t ipu_get_frameid(struct x2_ipu_data *ipu, ipu_slot_h_t *slot)
 			/* get id from scale ddr address */
 			tmp = (uint8_t *)(slot->info_h.ddr_info.scale.y_offset + vaddr);
 			if (cfg->frame_id.bus_mode == 0) {
-				slot->info_h.sf_timestamp = g_ipu_time;
+				slot->info_h.sf_timestamp = ts;
 				slot->info_h.sf_id = tmp[0] << 8 | tmp[1];
 				ipu_dbg("sframe_id=%d, %d, %d\n",
 				tmp[0], tmp[1], slot->info_h.sf_id);
@@ -178,7 +179,7 @@ static int8_t ipu_get_frameid(struct x2_ipu_data *ipu, ipu_slot_h_t *slot)
 			/* get id from pymid ddr address */
 			tmp = (uint8_t *)(slot->info_h.ddr_info.ds[0].y_offset + vaddr);
 			if (cfg->frame_id.bus_mode == 0) {
-				slot->info_h.sf_timestamp = g_ipu_time;
+				slot->info_h.sf_timestamp = ts;
 				slot->info_h.sf_id = tmp[0] << 8 | tmp[1];
 				ipu_dbg("pframe_id=%d, %d, %d\n",
 				tmp[0], tmp[1], slot->info_h.sf_id);
@@ -268,6 +269,7 @@ void ipu_handle_frame_start(void)
 	unsigned long flags;
 
 	g_ipu_time = ipu_current_time();
+	ipu_tsin_reset();
 
 	if (started == 0)
 		return;

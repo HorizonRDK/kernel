@@ -63,6 +63,8 @@ typedef struct {
 	uint32_t memsize;
 } ipu_meminfo_t;
 
+void ipu_tsin_reset(void);
+int64_t ipu_tsin_get(int64_t sys_ts);
 int8_t ipu_drv_start(void);
 int8_t ipu_drv_stop(void);
 int8_t ipu_cfg_ddrinfo_init(ipu_cfg_t *ipu);
