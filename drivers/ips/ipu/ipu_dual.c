@@ -913,6 +913,7 @@ static const struct file_operations ipu_dual_fops = {
 	.poll = ipu_dual_poll,
 	.release = ipu_dual_close,
 	.unlocked_ioctl = ipu_dual_ioctl,
+	.compat_ioctl = ipu_dual_ioctl,
 };
 
 static int __init x2_ipu_dual_init(void)

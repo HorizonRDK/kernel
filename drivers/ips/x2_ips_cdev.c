@@ -110,6 +110,7 @@ static const struct file_operations ips_cdev_ops = {
 	.write		= ips_cdev_write,
 	.read		= ips_cdev_read,
 	.unlocked_ioctl = ips_cdev_ioctl,
+	.compat_ioctl = ips_cdev_ioctl,
 };
 
 int __init ips_cdev_init(void)

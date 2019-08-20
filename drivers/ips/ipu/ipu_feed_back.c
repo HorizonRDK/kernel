@@ -405,6 +405,7 @@ static const struct file_operations ipu_feed_back_fops = {
 	.poll = ipu_feed_back_poll,
 	.release = ipu_feed_back_close,
 	.unlocked_ioctl = ipu_feed_back_ioctl,
+	.compat_ioctl = ipu_feed_back_ioctl,
 };
 
 static int __init x2_ipu_feed_back_init(void)

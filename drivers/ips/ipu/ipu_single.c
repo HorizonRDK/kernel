@@ -818,6 +818,7 @@ static const struct file_operations ipu_single_fops = {
 	.poll = ipu_poll,
 	.release = ipu_close,
 	.unlocked_ioctl = ipu_ioctl,
+	.compat_ioctl = ipu_ioctl
 };
 
 static int __init x2_ipu_init(void)

@@ -903,6 +903,7 @@ static const struct file_operations ipu_ddr_fops = {
 	.poll = ipu_ddr_poll,
 	.release = ipu_ddr_close,
 	.unlocked_ioctl = ipu_ddr_ioctl,
+	.compat_ioctl = ipu_ddr_ioctl,
 };
 
 static int __init x2_ipu_ddr_init(void)
