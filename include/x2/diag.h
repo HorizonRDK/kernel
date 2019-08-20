@@ -44,6 +44,7 @@ enum diag_module_id {
 	ModuleDiag_bif,
 	ModuleDiag_eth,
 	ModuleDiag_norflash,
+	ModuleDiag_spi,
 	ModuleIdMax = 1000,
 };
 
@@ -134,6 +135,12 @@ enum diag_eth_module_eventid {
 /* norflash module event id */
 enum diag_norflash_module_eventid {
 	EventIdNorflashErr = 1,
+};
+
+/* spi module event id */
+enum diag_spi_module_eventid {
+	EventIdSpiErr = 1,
+	EventIdQspiErr,
 };
 
 #define DIAG_UNMASK_ID_MAX_NUM 100

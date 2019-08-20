@@ -17,6 +17,8 @@
 #include <linux/spinlock_types.h>
 #include <linux/pm_runtime.h>
 #include <linux/dma-mapping.h>
+#include <x2/diag.h>
+#include <linux/timer.h>
 
 #define X2_SPI_MAX_CS          3
 #define X2_SPI_NAME            "x2_spi"
@@ -137,6 +139,9 @@
 
 #define x2_spi_rd(dev, reg)       ioread32((dev)->regs_base + (reg))
 #define x2_spi_wr(dev, reg, val)  iowrite32((val), (dev)->regs_base + (reg))
+
+struct timer_list spi_diag_timer;
+static uint32_t spi_last_err_tm_ms;
 
 struct x2_spi {
 	struct device *dev;	/* parent device */
@@ -329,10 +334,43 @@ static int x2_spi_drain_rxdma(struct x2_spi *x2spi)
 }
 #endif
 
+static void spi_diag_report(uint8_t errsta, uint32_t srcpndreg)
+{
+	spi_last_err_tm_ms = msecs_to_jiffies(get_jiffies_64());
+	if (errsta) {
+		diag_send_event_stat_and_env_data(
+				DiagMsgPrioHigh,
+				ModuleDiag_spi,
+				EventIdSpiErr,
+				DiagEventStaFail,
+				DiagGenEnvdataWhenErr,
+				(uint8_t *)srcpndreg,
+				4);
+	}
+}
+
+static void spi_diag_timer_func(unsigned long data)
+{
+	uint32_t now_tm_ms;
+	unsigned long jiffi;
+
+	now_tm_ms = msecs_to_jiffies(get_jiffies_64());
+	if (now_tm_ms - spi_last_err_tm_ms > 5500) {
+		diag_send_event_stat(
+				DiagMsgPrioMid,
+				ModuleDiag_spi,
+				EventIdSpiErr,
+				DiagEventStaSuccess);
+	}
+	jiffi = get_jiffies_64() + msecs_to_jiffies(2100);
+	mod_timer(&spi_diag_timer, jiffi); // trrigr again.
+}
+
 /* spi interrupt handle */
 static irqreturn_t x2_spi_int_handle(int irq, void *data)
 {
 	u32 pnd;
+	u8 errflg = 0;
 	struct x2_spi *x2spi = (struct x2_spi *)data;
 
 	pnd = x2_spi_rd(x2spi, X2_SPI_SRCPND_REG);
@@ -349,11 +387,15 @@ static irqreturn_t x2_spi_int_handle(int irq, void *data)
 		x2_spi_fill_txfifo(x2spi);
 #endif
 	}
-	if (pnd & X2_SPI_INT_RX_DMAERR)
+	if (pnd & X2_SPI_INT_RX_DMAERR) {
 		pr_err("rx dma err\n");
+		errflg = 1;
+	}
 
-	if (pnd & X2_SPI_INT_OE)
+	if (pnd & X2_SPI_INT_OE) {
 		pr_err("oe\n");
+		errflg = 1;
+	}
 
 	if (pnd)
 		x2_spi_wr(x2spi, X2_SPI_SRCPND_REG, pnd);
@@ -366,6 +408,9 @@ static irqreturn_t x2_spi_int_handle(int irq, void *data)
 		x2_spi_tx_dma(x2spi);
 #endif
 	}
+	if (errflg)
+		spi_diag_report(1, pnd);
+
 	return IRQ_HANDLED;
 }
 
@@ -778,6 +823,19 @@ static int x2_spi_probe(struct platform_device *pdev)
 		return err;
 	}
 #endif
+	/* diag */
+	if (diag_register(ModuleDiag_spi, EventIdSpiErr,
+						4, 300, 6000, NULL) < 0)
+		pr_err("spi diag register fail\n");
+	else {
+		spi_last_err_tm_ms = 0;
+		init_timer(&spi_diag_timer);
+		spi_diag_timer.expires =
+			get_jiffies_64() + msecs_to_jiffies(1000);
+		spi_diag_timer.data = 0;
+		spi_diag_timer.function = spi_diag_timer_func;
+		add_timer(&spi_diag_timer);
+	}
 	return 0;
 }
 
