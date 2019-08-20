@@ -1,7 +1,8 @@
 #include "memory.dtsi"
 / {
 	reserved-memory {
-		/*Reserved 24M memory for iar subsystem*/
+
+		/*23M*/
 		iar_reserved: iar_reserved@0x02100000 {
 			reg = <0x0 0x02100000 0x0 0x1800000>;
 			no-map;
