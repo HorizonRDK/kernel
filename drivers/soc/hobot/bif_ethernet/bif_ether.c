@@ -679,7 +679,7 @@ static int net_send_packet(struct sk_buff *skb, struct net_device *dev)
 	struct bifnet_local *pl = netdev_priv(dev);
 
 	if (!pl->start || !pl->query_ok) {
-		pr_warn("%s: Waiting for address synchronization\n", dev->name);
+		pr_info("%s: Waiting for address synchronization\n", dev->name);
 		dev->stats.tx_errors++;
 		//netif_stop_queue(dev);
 		//return NETDEV_TX_BUSY;
