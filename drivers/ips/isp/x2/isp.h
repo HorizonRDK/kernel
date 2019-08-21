@@ -51,6 +51,10 @@
 #define ISP_RUNNING         0x01
 #define ISP_STOPPING        0x00
 
+#define CDR_BIN_NUM	 128
+#define CDR_V_NUM	 4
+#define CDR_H_NUM	 4
+
 #include <linux/types.h>
 #include <linux/wait.h>
 #include "isp_base.h"
@@ -84,6 +88,34 @@ struct isp_stf_s {
 	uint32_t isp_crd_size;
 };
 
+struct cdr_t {
+	u16 cdr[CDR_V_NUM][CDR_H_NUM][CDR_BIN_NUM];
+};
+
+struct gmalut_t {
+	unsigned int gmalut[3][31];
+};
+
+struct ccm_t {
+	int ccm_data[12];
+};
+
+struct isp_3a_data {
+	u64 count;
+	struct timeval tv;
+	struct cdr_t cdr;
+	struct gmalut_t gma;
+	struct ccm_t ccm;
+};
+
+struct isp_3adata_fifo {
+	int fifo_r;
+	int fifo_w;
+	int len;		/* elem num */
+	int size;		/* buf num */
+	struct isp_3a_data *data;
+};
+
 struct isp_mod_s {
 	const char *name;
 	int *pData;
@@ -107,6 +139,10 @@ struct isp_mod_s {
 	struct class *class;
 	struct cdev mcdev;
 	dev_t dev_num;
+	struct isp_3adata_fifo isp_3adata_fifo;
+	struct work_struct isp_3adata_work;
+	wait_queue_head_t isp_3adata_waitq;
+	int isp_3adata_condition;
 };
 
 typedef struct _reg_s {
@@ -114,23 +150,31 @@ typedef struct _reg_s {
 	uint32_t value;
 } reg_t;
 
-#define ISP_IOC_MAGIC       'h'
+#define ISP_3ADATA_FIFO_SIZE	64
+#define  ISP_MAP_CDR		(0x400000)
+#define  ISP_MAP_SAVE		(0x500000)
 
-#define ISPC_START			_IO(ISP_IOC_MAGIC, 12)
-#define ISPC_STOP			_IO(ISP_IOC_MAGIC, 13)
+#define ISP_IOC_MAGIC		'h'
+
+#define ISPC_START		_IO(ISP_IOC_MAGIC, 12)
+#define ISPC_STOP		_IO(ISP_IOC_MAGIC, 13)
 #define ISPC_GET_STATUS		_IOR(ISP_IOC_MAGIC, 2, uint32_t)
 #define ISPC_READ_REG		_IOWR(ISP_IOC_MAGIC, 3, struct con_reg_s)
 #define ISPC_WRITE_REG		_IOW(ISP_IOC_MAGIC, 4, struct con_reg_s)
 #define ISPC_SET_WBG		_IOW(ISP_IOC_MAGIC, 5, struct ae_input_s)
 #define ISPC_GET_ADDR		_IOR(ISP_IOC_MAGIC, 6, struct isp_stf_s)
-#define ISPC_WRITE_STRING   _IOW(ISP_IOC_MAGIC, 7, struct isp_iodata_s)
-#define ISPC_READ_STRING    _IOWR(ISP_IOC_MAGIC, 8, struct isp_iodata_s)
-#define ISPC_READ_REGS      _IOWR(ISP_IOC_MAGIC, 9, struct isp_ioreg_s)
-#define ISPC_WRITE_REGS     _IOWR(ISP_IOC_MAGIC, 10, struct isp_ioreg_s)
-#define ISPC_WRITE_CDR      _IO(ISP_IOC_MAGIC, 11)
+#define ISPC_WRITE_STRING	_IOW(ISP_IOC_MAGIC, 7, struct isp_iodata_s)
+#define ISPC_READ_STRING	_IOWR(ISP_IOC_MAGIC, 8, struct isp_iodata_s)
+#define ISPC_READ_REGS		_IOWR(ISP_IOC_MAGIC, 9, struct isp_ioreg_s)
+#define ISPC_WRITE_REGS		_IOWR(ISP_IOC_MAGIC, 10, struct isp_ioreg_s)
+#define ISPC_WRITE_CDR		_IO(ISP_IOC_MAGIC, 11)
+#define ISPC_GET_FIFO_ADDR	_IOR(ISP_IOC_MAGIC, 14, uint32_t)
+						/* get read idx */
+#define ISPC_UPDATE_FIFO_INFO	_IO(ISP_IOC_MAGIC, 15)
+						/* update read idx */
 
-#define ISP_READ        _IOWR('p', 0, reg_t)
-#define ISP_WRITE       _IOW('p', 1, reg_t)
+#define ISP_READ		_IOWR('p', 0, reg_t)
+#define ISP_WRITE		_IOW('p', 1, reg_t)
 
 int isp_model_init(void);
 void isp_model_exit(void);

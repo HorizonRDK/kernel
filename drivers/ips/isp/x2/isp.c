@@ -58,10 +58,11 @@ struct isp_mod_s *isp_mod_data;
 unsigned char *isp_cdr_addr;
 static struct device *g_isp_dev;
 //static struct fasync_struct *pisp_async;
+static u64 frame_count;
+static struct timeval tv;
 
 void x2_isp_isr(unsigned int status, void *data)
 {
-//	unsigned long flags;
 	struct isp_mod_s *isp_dev = NULL;
 
 	if (data == NULL)
@@ -69,8 +70,13 @@ void x2_isp_isr(unsigned int status, void *data)
 
 	isp_dev = data;
 //	spin_lock_irqsave(&isp_dev->slock, flags);
-	if (status & ISP_FRAME_START)
+	if (status & ISP_FRAME_START) {
 		isp_dev->irq_status = 0x00;
+
+		frame_count++;
+		do_gettimeofday(&tv);
+		schedule_work(&isp_dev->isp_3adata_work);
+	}
 /*
  *	if (status & ISP_HIST_FRAME_DONE){
  *		Set_Bit(27, isp_dev->irq_status);
@@ -112,6 +118,150 @@ void x2_isp_isr(unsigned int status, void *data)
 		Set_Bit(13, isp_dev->irq_status);
 
 //	spin_unlock_irqrestore(&isp_dev->slock, flags);
+}
+
+static int isp_3adata_fifo_alloc(struct isp_3adata_fifo *fifo, int size)
+{
+	if (fifo == NULL || size <= 0) {
+		dev_info(g_isp_dev, "[%s]\n", __func__);
+		return -1;
+	}
+
+	fifo->fifo_r = 0;
+	fifo->fifo_w = 0;
+	fifo->len = 0;
+	fifo->size = size;
+
+	fifo->data = kcalloc(size, sizeof(struct isp_3a_data), GFP_KERNEL);
+
+	return 0;
+}
+
+static int isp_3adata_fifo_free(struct isp_3adata_fifo *fifo)
+{
+	if (fifo == NULL) {
+		dev_info(g_isp_dev, "[%s]\n", __func__);
+		return -1;
+	}
+
+	if (!fifo->data)
+		kzfree(fifo->data);
+
+	return 0;
+}
+
+static int isp_get_write_index(struct isp_3adata_fifo *fifo)
+{
+	if (fifo == NULL || fifo->data == NULL) {
+		dev_info(g_isp_dev, "[%s]\n", __func__);
+		return -1;
+	}
+
+	return fifo->fifo_w;
+}
+
+static int isp_get_read_index(struct isp_3adata_fifo *fifo)
+{
+	if (fifo == NULL || fifo->data == NULL) {
+		dev_info(g_isp_dev, "[%s]\n", __func__);
+		return -1;
+	}
+
+	if (fifo->len == 0)
+		return -1;
+
+	return fifo->fifo_r;
+}
+
+static int isp_update_read_index(struct isp_3adata_fifo *fifo)
+{
+	if (fifo == NULL || fifo->data == NULL) {
+		dev_info(g_isp_dev, "[%s]\n", __func__);
+		return -1;
+	}
+
+	fifo->fifo_r = (fifo->fifo_r + 1) % fifo->size;
+	fifo->len--;
+
+	return 0;
+}
+
+static int isp_update_write_index(struct isp_3adata_fifo *fifo)
+{
+	if (fifo == NULL || fifo->data == NULL) {
+		dev_info(g_isp_dev, "[%s]\n", __func__);
+		return -1;
+	}
+
+	fifo->fifo_w = (fifo->fifo_w + 1) % fifo->size;
+	/* writing covered */
+	if (fifo->len == fifo->size - 1)
+		fifo->fifo_r = (fifo->fifo_r + 1) % fifo->size;
+	else
+		fifo->len++;
+
+	return 0;
+}
+
+static int isp_fill_3a_data(struct isp_3a_data *p, struct isp_mod_s *isp_mod)
+{
+	struct isp_ioreg_s rioregs;
+	struct isp_dev_s *pispdev = isp_get_dev();
+
+	if (p == NULL || isp_mod == NULL
+		|| pispdev == NULL || pispdev->vaddr == NULL) {
+		dev_info(g_isp_dev, "[%s]\n", __func__);
+		return -1;
+	}
+
+	p->count = frame_count;
+	p->tv = tv;
+
+	/* cdr */
+	if (isp_mod->cdr_sw == ping)
+		memcpy(&p->cdr, pispdev->vaddr + ISP_MAP_CDR, sizeof(p->cdr));
+	else if (isp_mod->cdr_sw == pang)
+		memcpy(&p->cdr, pispdev->vaddr + ISP_MAP_SAVE, sizeof(p->cdr));
+
+	/* gma */
+	rioregs.udatalen = sizeof(p->gma);
+	rioregs.udataaddr = 0x2c8;
+	rioregs.p_databuffer = (uint32_t *)&p->gma;
+	spin_lock(&isp_mod->slock);
+	isp_read_regs(rioregs.udataaddr, rioregs.udatalen,
+					rioregs.p_databuffer);
+	spin_unlock(&isp_mod->slock);
+
+	/* ccm */
+	rioregs.udatalen = sizeof(p->ccm);
+	rioregs.udataaddr = 0x25c;
+	rioregs.p_databuffer = (uint32_t *)&p->ccm;
+	spin_lock(&isp_mod->slock);
+	isp_read_regs(rioregs.udataaddr, rioregs.udatalen,
+					rioregs.p_databuffer);
+	spin_unlock(&isp_mod->slock);
+
+	return 0;
+}
+
+static void isp_get_3adata_work(struct work_struct *work)
+{
+	struct isp_mod_s *isp_mod = container_of(work, struct isp_mod_s,
+							isp_3adata_work);
+	struct isp_3adata_fifo *fifo_p = &isp_mod->isp_3adata_fifo;
+	struct isp_3a_data *tmp = isp_get_write_index(fifo_p) + fifo_p->data;
+
+	if (tmp == NULL) {
+		dev_info(g_isp_dev, "[%s]\n", __func__);
+		return;
+	}
+
+	isp_fill_3a_data(tmp, isp_mod);
+
+	isp_update_write_index(fifo_p);
+
+	isp_mod->isp_3adata_condition = 1;
+	wake_up_interruptible(&isp_mod->isp_3adata_waitq);
 }
 
 static int isp_stf_addr_fill(struct isp_stf_s *info, uint32_t phy_addr)
@@ -351,7 +501,6 @@ long isp_mod_ioctl(struct file *pfile, unsigned int cmd, unsigned long arg)
 		}
 		break;
 	case ISPC_GET_ADDR:{
-
 			if (copy_to_user
 			    ((void __user *)arg, (void *)&isp_cdev->isp_stf_memory,
 			     sizeof(struct isp_stf_s))) {
@@ -502,29 +651,54 @@ err_flag_read:
 		}
 		break;
 	case ISPC_WRITE_CDR:{
+			struct con_reg_s wreg_cdr;
 
-		struct con_reg_s wreg_cdr;
+			wreg_cdr.isp_reg_addr = HMP_CDR_ADDR0;
+			switch (isp_cdev->cdr_sw) {
+			case ping: {
+				wreg_cdr.isp_reg_data =
+					(isp_cdev->reserved_mem +
+						X2_ISP_PING_STATION);
+				set_isp_reg(&wreg_cdr);
+				isp_cdev->cdr_sw = pang;
+				break;
+			}
+			case pang: {
+				wreg_cdr.isp_reg_data =
+					(isp_cdev->reserved_mem +
+						X2_ISP_PANG_STATION);
+				set_isp_reg(&wreg_cdr);
+				isp_cdev->cdr_sw = ping;
+				break;
+			}
+			default:
+				break;
+			}
+		}
+		break;
+	case ISPC_GET_FIFO_ADDR: {
+			int ret = wait_event_interruptible_timeout
+				(isp_cdev->isp_3adata_waitq,
+				isp_cdev->isp_3adata_condition,
+				X2_ISP_TIMEOUT);
+			isp_cdev->isp_3adata_condition = 0;
 
-		wreg_cdr.isp_reg_addr = HMP_CDR_ADDR0;
-		switch (isp_cdev->cdr_sw) {
-		case ping:{
-			wreg_cdr.isp_reg_data = (isp_cdev->reserved_mem +
-				 X2_ISP_PING_STATION);
-			set_isp_reg(&wreg_cdr);
-			isp_cdev->cdr_sw = pang;
-			break;
+			if (ret == 0)
+				return -EINVAL;
+
+			int index =
+				isp_get_read_index(&isp_cdev->isp_3adata_fifo);
+			if (copy_to_user((void __user *)arg, (void *)&index,
+				sizeof(index))) {
+				dev_err(g_isp_dev,
+					"[%s: %d] isp copy data to user failed!\n",
+					__func__, __LINE__);
+				return -EINVAL;
+			}
 		}
-		case pang:{
-			wreg_cdr.isp_reg_data = (isp_cdev->reserved_mem +
-				X2_ISP_PANG_STATION);
-			set_isp_reg(&wreg_cdr);
-			isp_cdev->cdr_sw = ping;
-			break;
-		}
-		default:
-			break;
-		}
-	}
+		break;
+	case ISPC_UPDATE_FIFO_INFO:
+		isp_update_read_index(&isp_cdev->isp_3adata_fifo);
 		break;
 	default:
 		break;
@@ -571,8 +745,25 @@ static int isp_mod_mmap(struct file *pfile, struct vm_area_struct *pvma)
 		if (remap_pfn_range
 		    (pvma, pvma->vm_start, pispdev->mapbase >> PAGE_SHIFT,
 		     pvma->vm_end - pvma->vm_start, pvma->vm_page_prot)) {
-			dev_err(g_isp_dev, "[%s] map cdr is failed!\n",
-				__func__);
+			dev_err(g_isp_dev,
+				"[%s] map cdr is failed!\n", __func__);
+			return -EAGAIN;
+		}
+	} else if ((pvma->vm_end - pvma->vm_start) >= 0x1000) {
+		/* 通过mmap内存的大小来判断是映射那种内存 */
+		if (isp_mod_data == NULL ||
+			isp_mod_data->isp_3adata_fifo.data == NULL) {
+			dev_err(g_isp_dev,
+				"[%s] isp_mod_data is NULL!\n", __func__);
+			return -EAGAIN;
+		}
+
+		pvma->vm_page_prot = pgprot_noncached(pvma->vm_page_prot);
+		if (remap_pfn_range(pvma, pvma->vm_start,
+		virt_to_phys(isp_mod_data->isp_3adata_fifo.data) >> PAGE_SHIFT,
+		pvma->vm_end - pvma->vm_start, pvma->vm_page_prot)) {
+			dev_err(g_isp_dev,
+				"[%s] map io is failed!\n", __func__);
 			return -EAGAIN;
 		}
 	} else {
@@ -659,6 +850,21 @@ static int __init isp_dev_init(void)
 
 	isp_stf_addr_fill(&isp_mod->isp_stf_memory, isp_mod->reserved_mem);
 
+	/* init kfifo */
+	if (isp_3adata_fifo_alloc(&isp_mod->isp_3adata_fifo,
+					ISP_3ADATA_FIFO_SIZE) != 0) {
+		dev_err(g_isp_dev,
+			"[%s] isp_3adata_fifo_alloc failed!\n", __func__);
+		goto fail_malloc;
+	}
+
+	/* init workqueue */
+	INIT_WORK(&isp_mod->isp_3adata_work, isp_get_3adata_work);
+
+	/* wait queue */
+	init_waitqueue_head(&isp_mod->isp_3adata_waitq);
+	isp_mod->isp_3adata_condition = 0;
+
 	isp_mod_data = isp_mod;
 
 	isp_init();
@@ -669,6 +875,7 @@ static int __init isp_dev_init(void)
 	return 0;
 
 fail_malloc:
+	isp_3adata_fifo_free(&isp_mod->isp_3adata_fifo);
 	class_destroy(isp_mod->class);
 	cdev_del(&isp_mod->mcdev);
 	unregister_chrdev_region(isp_mod->dev_num, 1);
@@ -682,6 +889,7 @@ static void __exit isp_dev_exit(void)
 	struct isp_mod_s *isp_mod = dev_get_drvdata(g_isp_dev);
 
 	dev_info(g_isp_dev, "[%s] is success!\n", __func__);
+	isp_3adata_fifo_free(&isp_mod->isp_3adata_fifo);
 	device_destroy(isp_mod->class, isp_mod->dev_num);
 	class_destroy(isp_mod->class);
 	unregister_chrdev_region(isp_mod->dev_num, 1);
