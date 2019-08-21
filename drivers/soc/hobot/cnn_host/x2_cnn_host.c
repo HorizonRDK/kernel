@@ -1146,6 +1146,9 @@ static const struct file_operations cnn_fops = {
 	.open		= x2_cnn_open,
 	.release	= x2_cnn_release,
 	.unlocked_ioctl = x2_cnn_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl	= x2_cnn_ioctl,
+#endif
 };
 
 static int x2_cnn_init_chrdev(struct x2_cnn_dev *dev)
