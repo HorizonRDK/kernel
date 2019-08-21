@@ -152,7 +152,6 @@ static int8_t ipu_get_frameid(struct x2_ipu_data *ipu, ipu_slot_h_t *slot)
 	ipu_tsin_reset();
 	if (!cfg->frame_id.id_en)
 		return 0;
-	cur_time = ipu_current_time();
 	if (cfg->frame_id.crop_en && cfg->ctrl.crop_ddr_en) {
 		/* get id from crop ddr address */
 		tmp = (uint8_t *)(slot->info_h.ddr_info.crop.y_offset + vaddr);
