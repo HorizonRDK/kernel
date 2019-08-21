@@ -272,7 +272,7 @@ int ipu_pym_wait_process_done(void *data, int len, ipu_pym_process_type process_
 			goto slot_pop;
 		} else {
 			spin_unlock_irqrestore(&g_ipu_pym->slock, flags);
-			return -EAGAIN;
+			return -EBUSY;
 		}
 	} else if (timeout < 0) {
 		if (process_type == PYM_INLINE)
