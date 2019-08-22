@@ -38,6 +38,9 @@
 #define BIF_CLR_INT	  (0x0FC0)
 #define BIF_RST_NAME	  "bifspi"
 
+#define PIN_MUX_BASE    0xA6003000
+#define GPIO1_CFG (PIN_MUX_BASE + 0x10)
+
 static int ap_access_first;
 module_param(ap_access_first, uint, 0644);
 MODULE_PARM_DESC(ap_access_first, "ap_access_first");
@@ -80,6 +83,7 @@ struct bifspi_t {
 	// ddr limited scope
 	unsigned int first;
 	unsigned int last;
+	void __iomem *pinmux;
 };
 struct bifspi_t *bif_info;
 
@@ -254,6 +258,14 @@ static void bif_set_access(struct bifspi_t *pbif, unsigned int first,
 {
 	int value;
 	unsigned long flags;
+	unsigned int reg_val;
+
+	// set gpip func
+	if (bif_info->pinmux) {
+		reg_val = readl((void *)bif_info->pinmux);
+		reg_val |= 0xc0000000;
+		writel(reg_val, (void *)bif_info->pinmux);
+	}
 
 	spin_lock_irqsave(&pbif->lock, flags);
 	// set access, enable irq
@@ -268,6 +280,12 @@ static void bif_set_access(struct bifspi_t *pbif, unsigned int first,
 	pbif->last = last;
 	spin_unlock_irqrestore(&pbif->lock, flags);
 
+	// set default func
+	if (bif_info->pinmux) {
+		reg_val = readl((void *)bif_info->pinmux);
+		reg_val &= ~(0xc0000000);
+		writel(reg_val, (void *)bif_info->pinmux);
+	}
 	pr_info
 	     ("bif set access limit:start add:%p->%#x(%d) end add:%p-%#x(%d)\n",
 	     (void *)(pbif->regs_base + BIF_ACCESS_FIRST), first, first,
@@ -365,7 +383,7 @@ int bifspi_read_share_reg(unsigned int num, unsigned int *value)
 		pr_err("%s bif_info == null\n", __func__);
 		return -1;
 	}
-	*value = readl((void *)(bif_info->regs_base + num * 4));
+//	*value = readl((void *)(bif_info->regs_base + num * 4));
 	return 0;
 }
 EXPORT_SYMBOL(bifspi_read_share_reg);
@@ -376,7 +394,7 @@ int bifspi_write_share_reg(unsigned int num, unsigned int value)
 		pr_err("%s bif_info == null\n", __func__);
 		return -1;
 	}
-	writel(value, (void *)(bif_info->regs_base + num * 4));
+//	writel(value, (void *)(bif_info->regs_base + num * 4));
 	return 0;
 }
 EXPORT_SYMBOL(bifspi_write_share_reg);
@@ -517,6 +535,7 @@ static int bifspi_probe(struct platform_device *pdev)
 	unsigned int value32;
 	unsigned long flags;
 	int value;
+	unsigned int reg_val;
 
 	bif_info = kzalloc(sizeof(struct bifspi_t), GFP_KERNEL);
 	if (bif_info == NULL) {
@@ -607,6 +626,12 @@ static int bifspi_probe(struct platform_device *pdev)
 	if (ret != 0)
 		dev_err(&pdev->dev, "sysfs_create_group failed\n");
 
+	/*set gpio1[15] default function*/
+	bif_info->pinmux = ioremap(GPIO1_CFG, 4);
+	reg_val = readl((void *)bif_info->pinmux);
+	reg_val &= ~(0xc0000000);
+	writel(reg_val, (void *)bif_info->pinmux);
+
 	pr_info("BIF_INIT FINISHED\n");
 	return 0;
 
@@ -632,6 +657,9 @@ static int bifspi_remove(struct platform_device *pdev)
 		devm_free_irq(&pdev->dev, pbif->irq, pbif);
 	if (pbif->regs_base > 0)
 		devm_iounmap(&pdev->dev, bif_info->regs_base);
+	if (bif_info->pinmux)
+		iounmap(bif_info->pinmux);
+
 	kfree(pbif);
 	del_timer_sync(&bifspi_diag_timer);
 	return 0;
