@@ -2674,6 +2674,7 @@ static const struct file_operations slave_cdev_ops = {
 	.open = cdev_open,
 	.release = cdev_release,
 	.unlocked_ioctl = cdev_ioctl,
+	.compat_ioctl = cdev_ioctl,
 };
 
 static int slave_cdev_init(void)
