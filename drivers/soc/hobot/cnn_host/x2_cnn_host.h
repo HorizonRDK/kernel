@@ -132,10 +132,10 @@ struct x2_cnnfreq {
 	struct devfreq *devfreq;
 	struct mutex lock;
 
-	unsigned long rate, target_rate;
-	unsigned long volt, target_volt;
-	unsigned long min, max;
+	u64 rate;
+	u64 volt;
 	struct thermal_cooling_device *cooling;
+	struct devfreq_dev_profile devp;
 };
 
 struct x2_cnn_int_num {

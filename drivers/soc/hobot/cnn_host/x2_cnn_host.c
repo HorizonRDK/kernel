@@ -1422,7 +1422,7 @@ static int cnnfreq_target(struct device *dev, unsigned long *freq,
 	opp = devfreq_recommended_opp(dev, freq, flags);
 	if (IS_ERR(opp)) {
 		err = PTR_ERR(opp);
-		goto out;
+		goto opp_err;
 	}
 	rate = dev_pm_opp_get_freq(opp);
 	target_volt = dev_pm_opp_get_voltage(opp);
@@ -1489,6 +1489,8 @@ static int cnnfreq_target(struct device *dev, unsigned long *freq,
 
 	cnnfreq->volt = target_volt;
 out:
+	dev_pm_opp_put(opp);
+opp_err:
 	unlock_bpu(cnn_dev);
 	return err;
 }
@@ -1503,52 +1505,11 @@ static int cnnfreq_get_cur_freq(struct device *dev,
 	return 0;
 }
 
-static struct devfreq_dev_profile hobot_cnnfreq_profile = {
-	.polling_ms	= 0,
-	.target		= cnnfreq_target,
-	.get_cur_freq	= cnnfreq_get_cur_freq,
-};
-
-static int cnnfreq_init_freq_table(struct device *dev,
-					    struct devfreq_dev_profile *devp)
-{
-	int count;
-	int i = 0;
-	unsigned long freq = 0;
-	struct dev_pm_opp *opp;
-
-	count = dev_pm_opp_get_opp_count(dev);
-	if (count < 0) {
-		return count;
-	}
-	if (!hobot_cnnfreq_profile.freq_table)
-		devp->freq_table = kmalloc_array(count,
-						 sizeof(devp->freq_table[0]),
-						 GFP_KERNEL);
-	if (!devp->freq_table)
-		return -ENOMEM;
-
-	for (i = 0; i < count; i++, freq++) {
-		opp = dev_pm_opp_find_freq_ceil(dev, &freq);
-		if (IS_ERR(opp))
-			break;
-
-		devp->freq_table[i] = freq;
-	}
-
-	if (count != i)
-		dev_warn(dev, "Unable to enumerate all OPPs (%d!=%d)\n",
-			 count, i);
-
-	devp->max_state = i;
-	return 0;
-}
-
 static int x2_cnnfreq_register(struct x2_cnn_dev *cnn_dev)
 {
 	struct device *dev = cnn_dev->dev;
 	struct x2_cnnfreq *data;
-	struct devfreq_dev_profile *devp = &hobot_cnnfreq_profile;
+	struct devfreq_dev_profile *devp;
 	const char *gov_name;
 
 	dev_err(dev, "%s probe\n", __func__);
@@ -1562,31 +1523,31 @@ static int x2_cnnfreq_register(struct x2_cnn_dev *cnn_dev)
 		return -EINVAL;
 	}
 
-	if (cnnfreq_init_freq_table(dev, devp))
-		return -EFAULT;
-
-	data->rate = clk_get_rate(cnn_dev->cnn_mclk);
-	data->volt = regulator_get_voltage(cnn_dev->cnn_regulator);
-
-	devp->initial_freq = data->rate;
-	data->min = devp->freq_table[0];
-	data->max = devp->freq_table[devp->max_state ? devp->max_state - 1 : 0];
-
 	cnn_dev->cnnfreq = data;
+	devp = &data->devp;
+	devp->polling_ms	= 0;
+	devp->target		= cnnfreq_target;
+	devp->get_cur_freq	= cnnfreq_get_cur_freq;
+	devp->initial_freq = clk_get_rate(cnn_dev->cnn_mclk);
+
+	data->rate = devp->initial_freq;
+	data->volt = regulator_get_voltage(cnn_dev->cnn_regulator);
 
 	if (of_property_read_string(dev->of_node, "governor", &gov_name))
 		gov_name = "performance";
 
-	data->devfreq = devm_devfreq_add_device(dev, devp,
-						gov_name, NULL);
+	data->devfreq = devm_devfreq_add_device(dev, devp, gov_name, NULL);
 	if (IS_ERR(data->devfreq))
 		return PTR_ERR(data->devfreq);
 
-	data->devfreq->min_freq = data->min;
-	data->devfreq->max_freq = data->max;
+	data->devfreq->min_freq = devp->freq_table[0];
+	data->devfreq->max_freq = devp->freq_table[devp->max_state ?
+						devp->max_state - 1 : 0];
+
 	devm_devfreq_register_opp_notifier(dev, data->devfreq);
-	data->cooling =
-		of_devfreq_cooling_register(dev->of_node, data->devfreq);
+
+	data->cooling = of_devfreq_cooling_register(dev->of_node,
+							data->devfreq);
 	dev_err(dev, "%s end\n", __func__);
 	return 0;
 }
@@ -1935,17 +1896,15 @@ static void cnn_regulator_remove(struct x2_cnn_dev *dev)
 	regulator_put(dev->cnn_regulator);
 
 }
+#ifdef CONFIG_HOBOT_CNN_DEVFREQ
 static void cnn_devfreq_remove(struct x2_cnn_dev *dev)
 {
 	devfreq_cooling_unregister(dev->cnnfreq->cooling);
-	devm_devfreq_unregister_opp_notifier(dev->dev, dev->cnnfreq->devfreq);
 	//devm_devfreq_dev_release(dev->dev, dev->cnnfreq->devfreq);
-	if (hobot_cnnfreq_profile.freq_table) {
-		kfree(hobot_cnnfreq_profile.freq_table);
-		hobot_cnnfreq_profile.freq_table = NULL;
-	}
+	devm_devfreq_unregister_opp_notifier(dev->dev, dev->cnnfreq->devfreq);
 	dev_pm_opp_of_remove_table(dev->dev);
 }
+#endif
 static void cnn_dev_remove(struct x2_cnn_dev *dev)
 {
 	cdev_del(&dev->i_cdev);
