@@ -332,7 +332,7 @@
 };
 
 &sdio1 {
-	status = "okay";
+	status = "disabled";
 	bus-width = <4>;
 	no-mmc;
 	no-sdio;
