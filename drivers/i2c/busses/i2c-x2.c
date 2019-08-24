@@ -375,7 +375,7 @@ static int x2_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[], int num)
 	mutex_unlock(&dev->lock);
 
 	if (ret == -ETIMEDOUT) {
-		udelay(10);
+		usleep_range(500, 1000);
 		ret = -EAGAIN;
 	}
 
@@ -505,7 +505,7 @@ static int x2_i2c_xfer_smbus(struct i2c_adapter *adap, u16 addr,
 	mutex_unlock(&dev->lock);
 
 	if (ret == -ETIMEDOUT) {
-		udelay(10);
+		usleep_range(500, 1000);
 		ret = -EAGAIN;
 	}
 	return ret;
