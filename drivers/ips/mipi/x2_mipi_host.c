@@ -452,7 +452,7 @@ static void mipi_host_diag_report(uint8_t errsta, uint32_t total_irq,
 	uint32_t buff[8];
 	int i;
 
-	host_last_err_tm_ms = msecs_to_jiffies(get_jiffies_64());
+	host_last_err_tm_ms = jiffies_to_msecs(get_jiffies_64());
 	if (errsta) {
 		buff[0] = total_irq;
 		for (i = 0; i < elem_cnt; i++)
@@ -487,7 +487,7 @@ static void mipi_host_diag_timer_func(unsigned long data)
 	uint32_t now_tm_ms;
 	unsigned long jiffi;
 
-	now_tm_ms = msecs_to_jiffies(get_jiffies_64());
+	now_tm_ms = jiffies_to_msecs(get_jiffies_64());
 	if (now_tm_ms - host_last_err_tm_ms > 6500) {
 		diag_send_event_stat(
 				DiagMsgPrioMid,

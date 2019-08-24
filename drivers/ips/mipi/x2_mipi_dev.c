@@ -399,7 +399,7 @@ static void mipi_dev_diag_report(uint8_t errsta, uint32_t total_irq,
 	uint32_t buff[5];
 	int i;
 
-	dev_last_err_tm_ms = msecs_to_jiffies(get_jiffies_64());
+	dev_last_err_tm_ms = jiffies_to_msecs(get_jiffies_64());
 	if (errsta) {
 		buff[0] = total_irq;
 		for (i = 0; i < elem_cnt; i++)
@@ -421,7 +421,7 @@ static void mipi_dev_diag_timer_func(unsigned long data)
 	uint32_t now_tm_ms;
 	unsigned long jiffi;
 
-	now_tm_ms = msecs_to_jiffies(get_jiffies_64());
+	now_tm_ms = jiffies_to_msecs(get_jiffies_64());
 	if (now_tm_ms - dev_last_err_tm_ms > 6000) {
 		diag_send_event_stat(
 				DiagMsgPrioMid,
