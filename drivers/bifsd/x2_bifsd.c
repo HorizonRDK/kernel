@@ -532,7 +532,7 @@ static void bifsd_diag_report(uint8_t errsta, uint32_t irqstareg)
 	uint32_t sta;
 
 	sta = irqstareg;
-	bifsd_last_err_tm_ms = msecs_to_jiffies(get_jiffies_64());
+	bifsd_last_err_tm_ms = jiffies_to_msecs(get_jiffies_64());
 	if (errsta) {
 		diag_send_event_stat_and_env_data(
 				DiagMsgPrioHigh,
@@ -550,7 +550,7 @@ static void bifsd_diag_timer_func(unsigned long data)
 	uint32_t now_tm_ms;
 	unsigned long jiffi;
 
-	now_tm_ms = msecs_to_jiffies(get_jiffies_64());
+	now_tm_ms = jiffies_to_msecs(get_jiffies_64());
 	if (now_tm_ms - bifsd_last_err_tm_ms > 6000) {
 		diag_send_event_stat(
 				DiagMsgPrioMid,
