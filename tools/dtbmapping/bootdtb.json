@@ -34,6 +34,11 @@
         "gpio_id"   :   "3C"
     },
 
+    "000": {
+        "dtb_name"  :   "hobot-j2-mono-lite.dtb",
+        "gpio_id"   :   "3C"
+    },
+
     "203": {
         "dtb_name"  :   "hobot-j2-dev.dtb",
         "gpio_id"   :   "0"
