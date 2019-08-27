@@ -30,6 +30,9 @@ static uint32_t bifsd_last_err_tm_ms;
 /*****************************************************************************/
 /* Global Variables                                                          */
 /*****************************************************************************/
+static int debug;
+module_param(debug, int, 0644);
+MODULE_PARM_DESC(debug, "bifsd: 0 close debug, 1 open debug");
 
 ssize_t bifsd_show_range_addr_max(struct kobject *driver,
 			     struct kobj_attribute *attr, char *buf)
@@ -493,6 +496,7 @@ void sd_card_init(struct bif_sd *sd)
 /* Initialize Bifsd device */
 int bifsd_hobot_priv_init(struct bif_sd *sd)
 {
+	pr_info("bifsd: %d\n", __func__);
 	sd_writel(sd, INT_ENABLE_1, 0xFFFFCFFF, 0);
 	sd_writel(sd, INT_ENABLE_2, 0x007FFFFF, 0);
 	mmc_set_power_up(sd);
@@ -574,6 +578,9 @@ static irqreturn_t bifsd_interrupt(int irq, void *dev_id)
 	pending_1 = sd_readl(sd, INT_STATUS_1, 0);
 	pending_2 = sd_readl(sd, INT_STATUS_2, 0);
 
+	if (debug)
+		pr_err("bifsd: %08x %08x\n", pending_1, pending_2);
+
 	if ((pending_2 & MMC_DATA_CRC_ERR) ||
 		(pending_2 & MMC_CMD_CRC_ERR) ||
 		(pending_2 & MMC_PACKED_FAILURE) ||
@@ -595,6 +602,8 @@ static irqreturn_t bifsd_interrupt(int irq, void *dev_id)
 		sd_writel(sd, BLOCK_CNT, sd->block_cnt, 0);
 		sd_writel(sd, INT_STATUS_2, MMC_SECURITY_PROTOCOL_READ, 0);
 		sd_writel(sd, INT_STATUS_1, MMC_MULTI_BLOCK_READ_WRITE, 0);
+		pending_1 &= ~MMC_MULTI_BLOCK_READ_WRITE;
+		pending_2 &= ~MMC_SECURITY_PROTOCOL_READ;
 	}
 	/* Protocol write without count */
 	if ((pending_1 & MMC_MULTI_BLOCK_READ_WRITE)
@@ -609,6 +618,8 @@ static irqreturn_t bifsd_interrupt(int irq, void *dev_id)
 		sd_writel(sd, BLOCK_CNT, sd->block_cnt, 0);
 		sd_writel(sd, INT_STATUS_1, MMC_MULTI_BLOCK_READ_WRITE, 0);
 		sd_writel(sd, INT_STATUS_2, MMC_SECURITY_PROTOCOL_WRITE, 0);
+		pending_1 &= ~MMC_MULTI_BLOCK_READ_WRITE;
+		pending_2 &= ~MMC_SECURITY_PROTOCOL_WRITE;
 	}
 
 	if (pending_1 != 0) {
@@ -623,11 +634,13 @@ static irqreturn_t bifsd_interrupt(int irq, void *dev_id)
 				}
 			}
 			sd_writel(sd, INT_STATUS_1, MMC_IDLE_CMD, 0);
+			pending &= ~MMC_IDLE_CMD;
 		}
 
 		if (pending & MMC_SET_BLOCK_LEN) {
 			sd->block_len = sd_readl(sd, BLOCK_LEN, 0);
 			sd_writel(sd, INT_STATUS_1, MMC_SET_BLOCK_LEN, 0);
+			pending &= ~MMC_SET_BLOCK_LEN;
 		}
 
 		if (pending & MMC_SET_BLOCK_CNT) {
@@ -635,15 +648,24 @@ static irqreturn_t bifsd_interrupt(int irq, void *dev_id)
 			if (reg_val)
 				sd->block_cnt = reg_val & 0x0000ffff;
 			sd_writel(sd, INT_STATUS_1, MMC_SET_BLOCK_CNT, 0);
+			pending &= ~MMC_SET_BLOCK_CNT;
 		}
 
 		if (pending & MMC_INACTIVE_CMD) {
 			sd_writel(sd, INT_STATUS_1, MMC_INACTIVE_CMD, 0);
+			pending &= ~MMC_INACTIVE_CMD;
 		}
 
 		if (pending & MMC_BLK_READ) {
 			if (pending & MMC_MULTI_BLOCK_READ_WRITE) {
 				if (pending & MMC_STOP_CMD) {
+					pr_info("bifsd: clear %d", MMC_STOP_CMD);
+					sd_writel(sd, INT_STATUS_1,
+						  MMC_STOP_CMD |
+						  MMC_MULTI_BLOCK_READ_WRITE,
+						  0);
+					pending &= ~(MMC_STOP_CMD |
+						MMC_MULTI_BLOCK_READ_WRITE);
 					/* TBD */
 				} else {
 					reg_val = sd_readl(sd, ARGUMENT_REG, 0);
@@ -659,6 +681,8 @@ static irqreturn_t bifsd_interrupt(int irq, void *dev_id)
 						  MMC_BLK_READ |
 						  MMC_MULTI_BLOCK_READ_WRITE,
 						  0);
+					pending &= ~(MMC_BLK_READ |
+						MMC_MULTI_BLOCK_READ_WRITE);
 				}
 			} else {
 				reg_val = sd_readl(sd, ARGUMENT_REG, 0);
@@ -669,12 +693,14 @@ static irqreturn_t bifsd_interrupt(int irq, void *dev_id)
 				sd_writel(sd, MEM_MGMT, 0x01, 0);
 				sd_writel(sd, BLOCK_CNT, 0x01, 0);
 				sd_writel(sd, INT_STATUS_1, MMC_BLK_READ, 0);
+				pending &= ~MMC_BLK_READ;
 			}
 		}
 
 		if (pending & MMC_READ_BLOCK_CNT) {
 			sd->state = STATE_TX_DATA_COMP;
 			sd_writel(sd, INT_STATUS_1, MMC_READ_BLOCK_CNT, 0);
+			pending &= ~MMC_READ_BLOCK_CNT;
 		}
 
 		if (pending & MMC_STOP_CMD) {
@@ -685,6 +711,7 @@ static irqreturn_t bifsd_interrupt(int irq, void *dev_id)
 				sd_writel(sd, MEM_MGMT, 0x21, 0);
 
 			sd_writel(sd, INT_STATUS_1, MMC_STOP_CMD, 0);
+			pending &= ~MMC_STOP_CMD;
 		}
 
 		if (pending & MMC_BLK_WRITE) {
@@ -700,6 +727,8 @@ static irqreturn_t bifsd_interrupt(int irq, void *dev_id)
 				sd_writel(sd, INT_STATUS_1,
 					  MMC_BLK_WRITE |
 					  MMC_MULTI_BLOCK_READ_WRITE, 0);
+				pending &= ~(MMC_BLK_WRITE |
+					  MMC_MULTI_BLOCK_READ_WRITE);
 			} else {
 				reg_val = sd_readl(sd, ARGUMENT_REG, 0);
 				if (reg_val)
@@ -709,7 +738,7 @@ static irqreturn_t bifsd_interrupt(int irq, void *dev_id)
 				sd_writel(sd, MEM_MGMT, 0x01, 0);
 				sd_writel(sd, BLOCK_CNT, 0x01, 0);
 				sd_writel(sd, INT_STATUS_1, MMC_BLK_WRITE, 0);
-
+				pending &= ~MMC_BLK_WRITE;
 				sd->state = STATE_RX_DATA_COMP;
 			}
 		}
@@ -721,17 +750,20 @@ static irqreturn_t bifsd_interrupt(int irq, void *dev_id)
 
 			sd->state = STATE_RX_DATA_COMP;
 			sd_writel(sd, INT_STATUS_1, MMC_WRITE_BLOCK_CNT, 0);
+			pending &= ~MMC_WRITE_BLOCK_CNT;
 		}
 
 		if (pending & MMC_CID_UPDATE) {
 			update_cid_val(sd);
 
 			sd_writel(sd, INT_STATUS_1, MMC_CID_UPDATE, 0);
+			pending &= ~MMC_CID_UPDATE;
 		}
 
 		if (pending & MMC_CSD_UPDATE) {
 			sd_writel(sd, MEM_MGMT, 0x21, 0);
 			sd_writel(sd, INT_STATUS_1, MMC_CSD_UPDATE, 0);
+			pending &= ~MMC_CSD_UPDATE;
 		}
 
 		if (pending & MMC_NUM_WELL_WRITE_BLOCK) {
@@ -739,6 +771,7 @@ static irqreturn_t bifsd_interrupt(int irq, void *dev_id)
 			sd_writel(sd, MEM_MGMT, 0x01, 0);
 			sd_writel(sd, INT_STATUS_1, MMC_NUM_WELL_WRITE_BLOCK,
 				  0);
+			pending &= ~MMC_NUM_WELL_WRITE_BLOCK;
 		}
 
 		if (pending & MMC_GENERAL_READ_WRITE) {
@@ -752,14 +785,17 @@ static irqreturn_t bifsd_interrupt(int irq, void *dev_id)
 			}
 
 			sd_writel(sd, INT_STATUS_1, MMC_GENERAL_READ_WRITE, 0);
+			pending &= ~MMC_GENERAL_READ_WRITE;
 		}
 
 		if (pending & MMC_BLOCK_COUNT_CLEAR) {
 			sd_writel(sd, INT_STATUS_1, MMC_BLOCK_COUNT_CLEAR, 0);
+			pending &= ~MMC_BLOCK_COUNT_CLEAR;
 		}
 
 		if (pending & MMC_VOLTAGE_SWITCH) {
 			sd_writel(sd, INT_STATUS_1, MMC_VOLTAGE_SWITCH, 0);
+			pending &= ~MMC_VOLTAGE_SWITCH;
 		}
 
 		if (pending & MMC_GO_PRE_IDLE) {
@@ -773,6 +809,7 @@ static irqreturn_t bifsd_interrupt(int irq, void *dev_id)
 			}
 
 			sd_writel(sd, INT_STATUS_1, MMC_GO_PRE_IDLE, 0);
+			pending &= ~MMC_GO_PRE_IDLE;
 		}
 
 		if (pending & MMC_CMD_61) {
@@ -784,6 +821,7 @@ static irqreturn_t bifsd_interrupt(int irq, void *dev_id)
 			/* the block count must be send from master */
 			sd_writel(sd, BLOCK_CNT, sd->read_blk_num, 0);
 			sd_writel(sd, INT_STATUS_1, MMC_CMD_61, 0);
+			pending &= ~MMC_CMD_61;
 		}
 
 		if (pending & MMC_CMD6_ALWAYS) {
@@ -791,11 +829,18 @@ static irqreturn_t bifsd_interrupt(int irq, void *dev_id)
 
 			sd_writel(sd, MEM_MGMT, 0x21, 0);
 			sd_writel(sd, INT_STATUS_1, MMC_CMD6_ALWAYS, 0);
+			pending &= ~MMC_CMD6_ALWAYS;
 		}
 
 		if (pending & MMC_CMD55) {
 			sd->cmd_argu = sd_readl(sd, ARGUMENT_REG, 0);
 			sd_writel(sd, INT_STATUS_1, MMC_CMD55, 0);
+			pending &= ~MMC_CMD55;
+		}
+
+		if (pending) {
+			pr_err("bifsd: pending_1=0x%x not process\n", pending);
+			sd_writel(sd, INT_STATUS_1, pending, 0);
 		}
 	}
 
@@ -804,18 +849,36 @@ static irqreturn_t bifsd_interrupt(int irq, void *dev_id)
 		if (pending & MMC_CMD12) {
 			/* Clear Int state */
 			sd_writel(sd, INT_STATUS_2, MMC_CMD12, 0);
+			pending &= ~MMC_CMD12;
+		}
+
+		if (pending & MMC_DATA_CRC_ERR) {
+			if (!debug)
+				pr_err("bifsd: %08x\n", pending_2);
+			/* Clear Int state */
+			sd_writel(sd, INT_STATUS_2, MMC_DATA_CRC_ERR, 0);
+			pending &= ~MMC_DATA_CRC_ERR;
+		}
+		if (pending & MMC_CMD_CRC_ERR) {
+			if (!debug)
+				pr_err("bifsd: %08x\n", pending_2);
+			/* Clear Int state */
+			sd_writel(sd, INT_STATUS_2, MMC_CMD_CRC_ERR, 0);
+			pending &= ~MMC_CMD_CRC_ERR;
 		}
 
 		if (pending & MMC_SLEEP_CMD) {
 			/* Enter sleep state */
 			sd_writel(sd, MEM_MGMT, 0x21, 0);
 			sd_writel(sd, INT_STATUS_2, MMC_SLEEP_CMD, 0);
+			pending &= ~MMC_SLEEP_CMD;
 		}
 
 		if (pending & MMC_AWAKE_CMD) {
 			/* Enter Standby state */
 			sd_writel(sd, MEM_MGMT, 0x21, 0);
 			sd_writel(sd, INT_STATUS_2, MMC_AWAKE_CMD, 0);
+			pending &= ~MMC_AWAKE_CMD;
 		}
 
 		if (pending & MMC_UPDATE_EXT_CSD) {
@@ -854,20 +917,29 @@ static irqreturn_t bifsd_interrupt(int irq, void *dev_id)
 
 			sd_writel(sd, MEM_MGMT, 0x21, 0);
 			sd_writel(sd, INT_STATUS_2, MMC_UPDATE_EXT_CSD, 0);
+			pending &= ~MMC_UPDATE_EXT_CSD;
 		}
 
 		if (pending & MMC_HARDWARE_RESET) {
 			sd_writel(sd, INT_STATUS_2, MMC_HARDWARE_RESET, 0);
+			pending &= ~MMC_HARDWARE_RESET;
 		}
 
 		if (pending & MMC_CARD_SELECT) {
 			/* The core moves from stand by state to transfer state */
 			sd_writel(sd, INT_STATUS_2, MMC_CARD_SELECT, 0);
+			pending &= ~MMC_CARD_SELECT;
 		}
 
 		if (pending & MMC_CARD_STATUS_CHANGE) {
 			/* The core moves from stand by state to transfer state */
 			sd_writel(sd, INT_STATUS_2, MMC_CARD_STATUS_CHANGE, 0);
+			pending &= ~MMC_CARD_STATUS_CHANGE;
+		}
+
+		if (pending) {
+			pr_err("bifsd: pending_2=0x%x not process\n", pending);
+			sd_writel(sd, INT_STATUS_2, pending, 0);
 		}
 	}
 
@@ -1010,6 +1082,7 @@ static int bifsd_probe(struct platform_device *pdev)
 static int bifsd_remove(struct platform_device *pdev)
 {
 	struct bif_sd *sd = platform_get_drvdata(pdev);
+	pr_info("bifsd: %d\n", __func__);
 	if(sd->cd_gpio){
 		gpio_direction_output(sd->cd_gpio, 0);
 		gpio_free(sd->cd_gpio);
