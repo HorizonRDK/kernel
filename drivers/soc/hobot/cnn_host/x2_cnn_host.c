@@ -1416,6 +1416,12 @@ static int cnnfreq_target(struct device *dev, unsigned long *freq,
 	unsigned long old_clk_rate = cnnfreq->rate;
 	unsigned long rate, target_volt, target_rate;
 	int err;
+	if (!regulator_is_enabled(cnn_dev->cnn_regulator) ||
+	    !__clk_is_enabled(cnn_dev->cnn_aclk) ||
+	    !__clk_is_enabled(cnn_dev->cnn_mclk)) {
+		err = 1;
+		return err;
+	}
 
 	lock_bpu(cnn_dev);
 
