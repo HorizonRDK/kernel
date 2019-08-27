@@ -925,7 +925,7 @@ static int x2_cnn_open(struct inode *inode, struct file *filp)
 #ifdef CHECK_IRQ_LOST
 		if ((devdata->core_index && checkirq1_enable) ||
 			(devdata->core_index == 0 && checkirq0_enable)) {
-			devdata->cnn_timer.expires = jiffies + HZ / 2;
+			devdata->cnn_timer.expires = jiffies + HZ * 5;
 			add_timer(&devdata->cnn_timer);
 		}
 #endif
@@ -1603,19 +1603,20 @@ static void x2_check_cnn(unsigned long arg)
 			dev->inst_num == inst_num_tmp &&
 			dev->inst_num != 0) {
 			pr_err("bpu lost irq!!!\n");
-			pr_err("head:%d,inst_num:%d,head_tmp:%d,inst_tmp:%d,id:%d,ret:%d\n",
+			pr_err("head:%d,inst_num:%d,head_tmp:%d,inst_tmp:%d,id:%d,tail:%d,ret:%d\n",
 				dev->head_value,
 				dev->inst_num,
 				head_tmp,
 				inst_num_tmp,
 				dev->core_index,
+				x2_cnn_reg_read(dev, X2_CNN_FC_TAIL),
 				ret);
 			x2_simu_irq(dev);
 		}
 	}
 	dev->head_value = head_tmp;
 	dev->inst_num = inst_num_tmp;
-	dev->cnn_timer.expires = jiffies + HZ / 2;
+	dev->cnn_timer.expires = jiffies + HZ * 5;
 	add_timer(&dev->cnn_timer);
 
 }
@@ -2329,7 +2330,7 @@ static ssize_t bpu0_checkirq_store(struct kobject *kobj,
 		irq0_enable_tmp = checkirq0_enable;
 		if (cnn0_dev->ref_cnt) {
 			if (checkirq0_enable) {
-				cnn0_dev->cnn_timer.expires = jiffies + HZ / 2;
+				cnn0_dev->cnn_timer.expires = jiffies + HZ * 5;
 				add_timer(&cnn0_dev->cnn_timer);
 			} else
 				del_timer(&cnn0_dev->cnn_timer);
@@ -2359,7 +2360,7 @@ static ssize_t bpu1_checkirq_store(struct kobject *kobj,
 		irq1_enable_tmp = checkirq1_enable;
 		if (cnn1_dev->ref_cnt) {
 			if (checkirq1_enable) {
-				cnn1_dev->cnn_timer.expires = jiffies + HZ / 2;
+				cnn1_dev->cnn_timer.expires = jiffies + HZ * 5;
 				add_timer(&cnn1_dev->cnn_timer);
 			} else
 				del_timer(&cnn1_dev->cnn_timer);
