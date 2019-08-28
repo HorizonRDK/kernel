@@ -483,6 +483,7 @@ static ssize_t cpu_read_ctl_store(struct kobject *kobj,
 	ret = sscanf(buf, "%du", &read_ctl_value);
 	if (read_ctl_value > 15) {
 		pr_err("set value error,you should set 0~15\n");
+		mutex_unlock(&ddr_mo_mutex);
 		return 0;
 	}
 	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_READ_QOS_CTRL);
@@ -514,6 +515,7 @@ static ssize_t bifdma_read_ctl_store(struct kobject *kobj,
 	ret = sscanf(buf, "%du", &read_ctl_value);
 	if (read_ctl_value > 15) {
 		pr_err("set value error,you should set 0~15\n");
+		mutex_unlock(&ddr_mo_mutex);
 		return 0;
 	}
 	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_READ_QOS_CTRL);
@@ -546,6 +548,7 @@ static ssize_t bpu0_read_ctl_store(struct kobject *kobj,
 	ret = sscanf(buf, "%du", &read_ctl_value);
 	if (read_ctl_value > 15) {
 		pr_err("set value error,you should set 0~15\n");
+		mutex_unlock(&ddr_mo_mutex);
 		return 0;
 	}
 	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_READ_QOS_CTRL);
@@ -579,6 +582,7 @@ static ssize_t bpu1_read_ctl_store(struct kobject *kobj,
 	ret = sscanf(buf, "%du", &read_ctl_value);
 	if (read_ctl_value > 15) {
 		pr_err("set value error,you should set 0~15\n");
+		mutex_unlock(&ddr_mo_mutex);
 		return 0;
 	}
 	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_READ_QOS_CTRL);
@@ -611,6 +615,7 @@ static ssize_t vio_read_ctl_store(struct kobject *kobj,
 	ret = sscanf(buf, "%du", &read_ctl_value);
 	if (read_ctl_value > 15) {
 		pr_err("set value error,you should set 0~15\n");
+		mutex_unlock(&ddr_mo_mutex);
 		return 0;
 	}
 	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_READ_QOS_CTRL);
@@ -644,6 +649,7 @@ static ssize_t periph_read_ctl_store(struct kobject *kobj,
 	ret = sscanf(buf, "%du", &read_ctl_value);
 	if (read_ctl_value > 15) {
 		pr_err("set value error,you should set 0~15\n");
+		mutex_unlock(&ddr_mo_mutex);
 		return 0;
 	}
 	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_READ_QOS_CTRL);
@@ -676,6 +682,7 @@ static ssize_t all_read_ctl_store(struct kobject *kobj,
 	ret = sscanf(buf, "%du", &read_ctl_value);
 	if (read_ctl_value > 15) {
 		pr_err("set value error,you should set 0~15\n");
+		mutex_unlock(&ddr_mo_mutex);
 		return 0;
 	}
 	tmp = 0;
