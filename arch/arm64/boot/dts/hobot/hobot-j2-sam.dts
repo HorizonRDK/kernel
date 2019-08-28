@@ -127,7 +127,7 @@
 
 &pinctrl {
 	status = "okay";
-	gpioirq-bank-cfg = <117 109 0 0>;
+	gpioirq-bank-cfg = <105 109 0 0>;
 };
 
 &uart0 {
@@ -238,10 +238,10 @@
 };
 
 &bifbase {
-	/*x2j2 bifbase: GPIO7[8]: 117, GPIO5[14]: 92*/
+	/*x2j2 bifbase: GPIO6[11]: 105, GPIO5[7]: 118*/
 	status = "okay";
-	bifbase_irq_pin = <117>;
-	bifbase_tri_pin = <92>;
+	bifbase_irq_pin = <105>;
+	bifbase_tri_pin = <118>;
 };
 
 &bifeth {
