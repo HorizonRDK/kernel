@@ -911,6 +911,7 @@ static int x2_cnn_open(struct inode *inode, struct file *filp)
 	}
 
 	if (i == MAX_PID_NUM) {
+		mutex_unlock(&x2_cnn_mutex);
 		pr_err("Too many processes, BPU now support max %d processes\n");
 		return -EINVAL;
 	}
