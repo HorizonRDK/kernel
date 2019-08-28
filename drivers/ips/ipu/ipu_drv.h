@@ -61,6 +61,8 @@ struct x2_ipu_data {
 typedef struct {
 	uint32_t paddr;
 	uint32_t memsize;
+	uint8_t slot_num;
+	uint32_t slot_size;
 } ipu_meminfo_t;
 
 void ipu_tsin_reset(void);

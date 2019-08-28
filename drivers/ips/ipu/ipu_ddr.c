@@ -811,6 +811,8 @@ wait:
 
 			meminfo.paddr = g_ipu->paddr;
 			meminfo.memsize = g_ipu->memsize;
+			meminfo.slot_num = g_ipu->slot_num;
+			meminfo.slot_size = g_ipu->slot_size;
 			ret = copy_to_user((void __user *)data,
 				(const void *)&meminfo, sizeof(ipu_meminfo_t));
 			if (ret)
