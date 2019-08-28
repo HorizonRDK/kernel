@@ -77,7 +77,7 @@
 				regulator-name = "VCC_CNN0";
 				regulator-min-microvolt = <800000>;
 				regulator-max-microvolt = <1000000>;
-				regulator-enable-ramp-delay = <1500>;
+				regulator-enable-ramp-delay = <3000>;
 			};
 
 			vdd_core_pd_reg: DCDC2 {
@@ -91,7 +91,7 @@
 				regulator-name = "VCC_CNN1";
 				regulator-min-microvolt = <800000>;
 				regulator-max-microvolt = <1000000>;
-				regulator-enable-ramp-delay = <1500>;
+				regulator-enable-ramp-delay = <3000>;
 			};
 
 			vcc_cpu_reg: DCDC4 {
