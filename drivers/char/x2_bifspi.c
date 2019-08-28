@@ -464,7 +464,7 @@ static void bifspi_diag_report(uint8_t errsta, uint32_t irqsta)
 	uint32_t irqstatmp;
 
 	irqstatmp = irqsta;
-	bifspi_last_err_tm_ms = msecs_to_jiffies(get_jiffies_64());
+	bifspi_last_err_tm_ms = jiffies_to_msecs(get_jiffies_64());
 	if (errsta) {
 		diag_send_event_stat_and_env_data(
 				DiagMsgPrioHigh,
@@ -482,7 +482,7 @@ static void bifspi_diag_timer_func(unsigned long data)
 	uint32_t now_tm_ms;
 	unsigned long jiffi;
 
-	now_tm_ms = msecs_to_jiffies(get_jiffies_64());
+	now_tm_ms = jiffies_to_msecs(get_jiffies_64());
 	if (now_tm_ms - bifspi_last_err_tm_ms > 6000) {
 		diag_send_event_stat(
 				DiagMsgPrioMid,
@@ -601,7 +601,7 @@ static int bifspi_probe(struct platform_device *pdev)
 		goto failed_chardev;
 	}
 
-	/* diag init£¬enalbe error interrupt
+	/* diag init, enalbe error interrupt
 	 * and creator timer for report OK
 	 */
 	spin_lock_irqsave(&bif_info->lock, flags);
