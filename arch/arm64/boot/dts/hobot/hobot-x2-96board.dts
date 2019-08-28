@@ -78,12 +78,12 @@
 		#sound-dai-cells = <0>;
 	};
 
-	
+
 	x2_camera@0x7f {
 	    compatible = "x2,camera";
 	    reg = <0x7f>;
 	};
-	
+
 	x2_lt9211@0x2d {
 		compatible = "x2,lt9211";
 		reg = <0x2d>;
@@ -341,11 +341,17 @@
 &sdio1 {
 	status = "okay";
 	bus-width = <4>;
-	cap-mmc-highspeed;
+	no-mmc;
+	no-sdio;
 	cap-sd-highspeed;
-	mmc-hs200-1_8v;
+	sd-uhs-sdr12;
+	sd-uhs-sdr25;
+	sd-uhs-sdr50;
+	sd-uhs-sdr104;
+	/*powerup-gpio = <70>;*/
+	uhs-180v-gpio = <70>;
 	broken-cd;
-	disable-wp;	
+	disable-wp;
 };
 
 &watchdog {

@@ -55,6 +55,10 @@
 #define SD0_PADC_VAL_CLR2 0xF8F8F8F8
 #define SD0_PADC_VAL 0x02020202
 
+static int debug;
+module_param(debug, int, 0644);
+MODULE_PARM_DESC(debug, "mmc: 0 close debug, 1 open debug");
+
 struct dw_mci_hobot_priv_data {
 	void __iomem *sysctrl_reg;
 	void __iomem *padcctrl_reg;
@@ -117,9 +121,10 @@ int x2_mmc_disable_clk(struct dw_mci_hobot_priv_data *priv)
 
 		while (time_before(jiffies, timeout)) {
 			reg_value = readl(priv->sysctrl_reg + HOBOT_CLKOFF_STA);
-			if (reg_value & clkoff_sta_shift)
+			if (reg_value & clkoff_sta_shift) {
+				usleep_range(1, 2);
 				return 0;
-
+			}
 			usleep_range(1, 2);
 		}
 
@@ -134,17 +139,39 @@ int x2_mmc_disable_clk(struct dw_mci_hobot_priv_data *priv)
 
 int x2_mmc_enable_clk(struct dw_mci_hobot_priv_data *priv)
 {
+	u64 timeout = jiffies + msecs_to_jiffies(10);
+	u32 clken_set_shift, clkoff_sta_shift;
 	u32 reg_value;
+	int retry = 0;
 
 	if (priv->ctrl_id == DWMMC_MMC_ID) {
-		reg_value = 1 << HOBOT_SD0_CLKEN_SET_SHIFT;
-		writel(reg_value, priv->sysctrl_reg + HOBOT_CLKEN_SET);
+		clken_set_shift = HOBOT_SD0_CLKEN_SET_SHIFT;
+		clkoff_sta_shift = HOBOT_SD0_CLKOFF_STA_SHIFT;
 	} else {
-		reg_value = 1 << HOBOT_SD1_CLKEN_SET_SHIFT;
-		writel(reg_value, priv->sysctrl_reg + HOBOT_CLKEN_SET);
+		clken_set_shift = HOBOT_SD1_CLKEN_SET_SHIFT;
+		clkoff_sta_shift = HOBOT_SD1_CLKOFF_STA_SHIFT;
 	}
 
-	return 0;
+	while (retry++ < 5) {
+		reg_value = 1 << clken_set_shift;
+		writel(reg_value, priv->sysctrl_reg + HOBOT_CLKEN_SET);
+
+		while (time_before(jiffies, timeout)) {
+			reg_value = readl(priv->sysctrl_reg + HOBOT_CLKOFF_STA);
+			if (!(reg_value & clkoff_sta_shift)) {
+				usleep_range(10000, 20000);//least 5ms
+				return 0;
+			}
+			usleep_range(1, 2);
+		}
+
+		timeout = jiffies + msecs_to_jiffies(10);
+		pr_err("dwmmc_hobot: enable mmc clk failed retry:%d.\n", retry);
+	}
+	pr_err("dwmmc_hobot: enable mmc clk failed, ctrl_id:%d!\n",
+		priv->ctrl_id);
+
+	return -1;
 }
 
 static int x2_mmc_set_sample_phase(struct dw_mci_hobot_priv_data *priv,
@@ -363,7 +390,7 @@ static void dw_mci_x2_set_ios(struct dw_mci *host, struct mmc_ios *ios)
 		dev_warn(host->dev, "failed to set rate %uHz\n", ios->clock);
 
 	x2_mmc_enable_clk(priv);
-
+	usleep_range(1, 2);
 	bus_hz = clk_get_rate(host->ciu_clk);
 	if (bus_hz != host->bus_hz) {
 		host->bus_hz = bus_hz;
@@ -434,7 +461,14 @@ static void dw_mci_x2_set_ios(struct dw_mci *host, struct mmc_ios *ios)
 	}
 
 	x2_mmc_set_drv_phase(priv, phase);
-
+	if (debug) {
+		pr_err("dwmmc_hobot: %s ctrl_id=%d default_sample_phase=%d",
+			__func__, priv->ctrl_id, priv->default_sample_phase,
+			phase);
+		pr_err(" ios->timing=%d ios->clock=%d ios->signal_voltage=%d",
+			ios->timing, ios->clock, ios->signal_voltage);
+		pr_err(" bus_hz=%d host->bus_hz=%d\n", bus_hz, host->bus_hz);
+	}
 	return;
 }
 
@@ -462,6 +496,7 @@ static int dw_mci_x2_parse_dt(struct dw_mci *host)
 	if (!device_property_read_u32(host->dev, "powerup-gpio", &powerup_gpio)) {
 		gpio_request(powerup_gpio, NULL);
 		gpio_direction_output(powerup_gpio, 1);
+		usleep_range(1000, 2000);
 	}
 
 	priv->sysctrl_reg = ioremap(HOBOT_SYSCTRL_REG, 0x400);
@@ -503,9 +538,12 @@ static int dw_mci_set_sel18(struct dw_mci *host, bool val)
 	int ret = 0;
 
 	priv = host->priv;
+	if (debug)
+		pr_err("mmc: %s ctrl_id=%d uhs_180v_gpio=%d val=%d\n",
+		__func__, priv->ctrl_id, priv->uhs_180v_gpio, val);
 	if (priv->uhs_180v_gpio) {
 		ret = gpio_direction_output(priv->uhs_180v_gpio, val);
-		usleep_range(1000, 2000);
+		usleep_range(5000, 10000);
 	}
 
 	if (ret) {
@@ -538,8 +576,8 @@ static int dw_mci_x2_switch_voltage(struct mmc_host *mmc, struct mmc_ios *ios)
 			return -EINVAL;
 		}
 	} else {
-        ios->signal_voltage = MMC_SIGNAL_VOLTAGE_180;
-    }
+		ios->signal_voltage = MMC_SIGNAL_VOLTAGE_180;
+	}
 
 	/*
 	 * Program the voltage.  Note that some instances of dw_mmc may use
