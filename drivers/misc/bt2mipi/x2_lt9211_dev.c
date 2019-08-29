@@ -209,6 +209,7 @@ static const struct file_operations x2_lt9211_fops = {
 	.write	= lt9211_write,
 	.release	= lt9211_release,
 	.unlocked_ioctl	= lt9211_ioctl,
+	.compat_ioctl = lt9211_ioctl
 };
 
 struct kobject *lt9211_kobj;

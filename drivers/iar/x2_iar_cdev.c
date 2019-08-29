@@ -285,6 +285,7 @@ static const struct file_operations iar_cdev_ops = {
 	.write		= iar_cdev_write,
 	.read		= iar_cdev_read,
 	.unlocked_ioctl = iar_cdev_ioctl,
+	.compat_ioctl = iar_cdev_ioctl
 };
 
 struct kobject *x2_iar_kobj;
