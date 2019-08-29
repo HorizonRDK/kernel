@@ -378,6 +378,7 @@ void ipu_pym_clear(void)
 	kfifo_reset(&g_ipu_pym->pym_slots);
 	kfifo_reset(&g_ipu_pym->done_inline_pym_slots);
 	kfifo_reset(&g_ipu_pym->done_offline_pym_slots);
+	g_ipu_pym->new_slot_id = -1;
 	spin_unlock_irqrestore(&g_ipu_pym->slock, flags);
 }
 

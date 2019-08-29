@@ -589,6 +589,14 @@ long ipu_dual_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 				ipu_err("ioctl process fail\n");
 				return -EFAULT;
 			}
+			__flush_dcache_area(page_address(pfn_to_page(PHYS_PFN((phys_addr_t)mult_img_info->src_img_info[0].src_img.y_paddr))),
+								mult_img_info->src_img_info[0].src_img.width * mult_img_info->src_img_info[0].src_img.height +
+								mult_img_info->src_img_info[0].src_img.width * mult_img_info->src_img_info[0].src_img.height/2);
+			if (mult_img_info->src_num != 1) {
+				__flush_dcache_area(page_address(pfn_to_page(PHYS_PFN((phys_addr_t)mult_img_info->src_img_info[1].src_img.y_paddr))),
+									mult_img_info->src_img_info[1].src_img.width * mult_img_info->src_img_info[1].src_img.height +
+									mult_img_info->src_img_info[1].src_img.width * mult_img_info->src_img_info[1].src_img.height/2);
+			}
 
 			ret = ipu_pym_to_process(mult_img_info, g_ipu->cfg,
 					PYM_SLOT_MULT, PYM_OFFLINE);
@@ -623,6 +631,8 @@ long ipu_dual_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 			pym_img_info->sf_timestamp = tmp_mult_img_info.src_img_info[1].timestamp;
 			pym_img_info->base =
 				(uint64_t)IPU_GET_DUAL_SLOT(pym_img_info->slot_id, ipu->paddr);
+			if (pym_img_info->slot_id == g_ipu_pym->new_slot_id)
+				g_ipu_pym->new_slot_id = -1;
 
 			pym_img_info->dual_ddr_info = g_ipu_d_cdev->s_info;
 			spin_unlock_irqrestore(&g_ipu_d_cdev->slock, flags);
@@ -700,6 +710,9 @@ again:
 				(uint64_t)IPU_GET_DUAL_SLOT(pym_img_info->slot_id, ipu->paddr);
 
 			pym_img_info->dual_ddr_info = g_ipu_d_cdev->s_info;
+			if (pym_img_info->slot_id == g_ipu_pym->new_slot_id)
+				g_ipu_pym->new_slot_id = -1;
+
 			spin_unlock_irqrestore(&g_ipu_d_cdev->slock, flags);
 			ret = copy_to_user((void __user *)data, (const void *)pym_img_info,
 			sizeof(info_dual_h_t));
