@@ -336,7 +336,7 @@ static int x2_spi_drain_rxdma(struct x2_spi *x2spi)
 
 static void spi_diag_report(uint8_t errsta, uint32_t srcpndreg)
 {
-	spi_last_err_tm_ms = msecs_to_jiffies(get_jiffies_64());
+	spi_last_err_tm_ms = jiffies_to_msecs(get_jiffies_64());
 	if (errsta) {
 		diag_send_event_stat_and_env_data(
 				DiagMsgPrioHigh,
@@ -354,7 +354,7 @@ static void spi_diag_timer_func(unsigned long data)
 	uint32_t now_tm_ms;
 	unsigned long jiffi;
 
-	now_tm_ms = msecs_to_jiffies(get_jiffies_64());
+	now_tm_ms = jiffies_to_msecs(get_jiffies_64());
 	if (now_tm_ms - spi_last_err_tm_ms > 5500) {
 		diag_send_event_stat(
 				DiagMsgPrioMid,
