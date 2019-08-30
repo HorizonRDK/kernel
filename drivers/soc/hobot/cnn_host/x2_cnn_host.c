@@ -1958,6 +1958,61 @@ static const struct of_device_id x2_cnn_of_match[] = {
 	{ .compatible = "hobot,x2-cnn-host",},
 	{}
 };
+static int x2_cnn_drvsuspend(struct device *dev)
+{
+	struct x2_cnn_dev *cnn_dev = dev_get_drvdata(dev);
+	unsigned int tmp;
+
+	pr_info("%s!!\n", __func__);
+	if (regulator_is_enabled(cnn_dev->cnn_regulator)) {
+		tmp = readl(cnn_dev->cnn_pmu);
+
+		tmp |= (1 << cnn_dev->iso_bit);
+		writel(tmp, cnn_dev->cnn_pmu);
+		udelay(5);
+
+		x2_cnn_reset_assert(cnn_dev->cnn_rst);
+		regulator_disable(cnn_dev->cnn_regulator);
+	}
+	return 0;
+}
+
+static int x2_cnn_drvresume(struct device *dev)
+{
+	struct x2_cnn_dev *cnn_dev = dev_get_drvdata(dev);
+	int ret;
+	unsigned int tmp;
+
+	pr_info("%s!!\n", __func__);
+
+	tmp = readl(cnn_dev->cnn_pmu);
+
+	tmp |= (1 << cnn_dev->iso_bit);
+	writel(tmp, cnn_dev->cnn_pmu);
+	udelay(5);
+
+	x2_cnn_reset_assert(cnn_dev->cnn_rst);
+	ret = regulator_enable(cnn_dev->cnn_regulator);
+	if (ret != 0)
+		dev_err(cnn_dev->dev, "regulator enable error\n");
+	tmp = readl(cnn_dev->cnn_pmu);
+
+	tmp &= ~(1 << cnn_dev->iso_bit);
+	writel(tmp, cnn_dev->cnn_pmu);
+	udelay(5);
+
+	x2_cnn_reset_release(cnn_dev->cnn_rst);
+	x2_cnn_hw_init(cnn_dev);
+	x2_cnn_set_fc_base(cnn_dev);
+	x2_cnn_set_default_fc_depth(cnn_dev, 1023);
+	return 0;
+}
+
+static const struct dev_pm_ops x2_cnn_pmops = {
+	.suspend        = x2_cnn_drvsuspend,
+	.resume         = x2_cnn_drvresume,
+};
+#define X2_CNN_PMOPS (&x2_cnn_pmops)
 
 static struct platform_driver x2_cnn_platform_driver = {
 	.probe	 = x2_cnn_probe,
@@ -1965,6 +2020,7 @@ static struct platform_driver x2_cnn_platform_driver = {
 	.driver  = {
 		.name = X2_CNN_DRV_NAME,
 		.of_match_table = x2_cnn_of_match,
+		.pm     = X2_CNN_PMOPS,
 	},
 };
 static void x2_cnn_check_func(unsigned long arg)
