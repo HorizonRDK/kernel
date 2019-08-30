@@ -113,6 +113,9 @@ static int x2_wdt_stop(struct watchdog_device *wdd)
 
 	spin_lock(&x2wdt->io_lock);
 
+	/* reset previos value */
+	x2_wdt_wr(x2wdt, X2_TIMER_WDCLR_REG, X2_TIMER_WDT_RESET);
+
 	val = x2_wdt_rd(x2wdt, X2_TIMER_TMREN_REG);
 	val |= X2_TIMER_T2STOP;
 	x2_wdt_wr(x2wdt, X2_TIMER_TMRSTOP_REG, val);
@@ -151,6 +154,9 @@ static int x2_wdt_start(struct watchdog_device *wdd)
 
 	spin_lock(&x2wdt->io_lock);
 
+	/* reset previos value */
+	x2_wdt_wr(x2wdt, X2_TIMER_WDCLR_REG, X2_TIMER_WDT_RESET);
+
 	/* Fill the count reg */
 	bark_count = x2wdt->bark_time * timer_rate;
 	bite_count = x2wdt->bite_time * timer_rate;
@@ -173,9 +179,6 @@ static int x2_wdt_start(struct watchdog_device *wdd)
 	val = ~(x2_wdt_rd(x2wdt, X2_TIMER_TMR_INTMASK_REG));
 	val |= X2_TIMER_WDT_INTMASK;
 	x2_wdt_wr(x2wdt, X2_TIMER_TMR_UNMASK_REG, val);
-
-	/* reset previos value */
-	x2_wdt_wr(x2wdt, X2_TIMER_WDCLR_REG, X2_TIMER_WDT_RESET);
 
 	spin_unlock(&x2wdt->io_lock);
 
@@ -598,6 +601,35 @@ static void x2_wdt_shutdown(struct platform_device *pdev)
 	x2_wdt_stop(&x2wdt->x2_wdd);
 }
 
+#ifdef CONFIG_PM
+int x2_wdt_suspend(struct device *dev)
+{
+	struct x2_wdt *x2wdt = dev_get_drvdata(dev);
+
+	if (x2wdt->enabled)
+		x2_wdt_stop(&x2wdt->x2_wdd);
+
+	x2wdt->enabled = false;
+	return 0;
+}
+
+int x2_wdt_resume(struct device *dev)
+{
+	struct x2_wdt *x2wdt = dev_get_drvdata(dev);
+
+	if (!x2wdt->enabled)
+		x2_wdt_start(&x2wdt->x2_wdd);
+
+	x2wdt->enabled = true;
+	return 0;
+}
+#endif
+
+static const struct dev_pm_ops x2_wdt_dev_pm_ops = {
+	SET_SYSTEM_SLEEP_PM_OPS(x2_wdt_suspend,
+			x2_wdt_resume)
+};
+
 static const struct of_device_id x2_wdt_of_match[] = {
 	{ .compatible = "hobot,x2-wdt", },
 	{ /* end of table */ }
@@ -612,6 +644,7 @@ static struct platform_driver x2_wdt_driver = {
 	.driver 	= {
 		.name	= X2_WDT_NAME,
 		.of_match_table = x2_wdt_of_match,
+		.pm = &x2_wdt_dev_pm_ops,
 	},
 };
 
