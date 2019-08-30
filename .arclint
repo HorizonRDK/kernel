@@ -5,7 +5,8 @@
 	    "severity":{
 		"whitespace/tab": "disabled",
 		"whitespace/comments": "disabled",
-		"whitespace/empty_conditional_body": "disabled"
+		"whitespace/empty_conditional_body": "disabled",
+		"readability/casting": "disabled"
 	    },
             "flags": ["--extensions=h,c"],
             "include": ["(\\.h$)", "(\\.c$)"]
