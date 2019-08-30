@@ -86,6 +86,27 @@
 #define MTL_EST_Frm_Size_Capture 0x00000C68
 
 
+
+#define PPSCTRL_PPSCMD 	GENMASK(3, 0)
+#define TTSL0		GENMASK(30, 0)
+#define MAC_PPS_CONTROL	0x00000b70
+
+#define MCGREN3		BIT(31)
+#define TRGTMODSEL3	BIT(30,29)
+#define PPSCMD3		GENMASK(27, 24)
+#define MCGREN2		BIT(23)
+#define TRGTMODSEL2	GENMASK(22, 21)
+#define	PPSCMD2		GENMASK(19, 16)
+#define MCGREN1		BIT(15)
+#define TRGTMODSEL1	GENMASK(14, 13)
+#define PPSCMD1		GENMASK(11, 8)
+#define MCRGEN0		BIT(7)
+#define TRGTMODSEL0	GENMASK(6, 5)
+#define	PPSEN0		BIT(4)
+
+#define TRGTBUSY0	BIT(31)
+
+
 void x2_init_tsn(struct net_device *ndev);
 int x2_tsn_capable(struct net_device *ndev);
 int x2_tsn_link_configure(struct net_device *ndev, enum sr_class class, u16 framesize, u16 vid, u8 add_link, u8 pcp_hi, u8 pcp_lo);

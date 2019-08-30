@@ -243,7 +243,7 @@ struct dma_ext_desc {
 struct x2_rx_queue {
 	u32 queue_index;
 	struct x2_priv *priv_data;
-
+	
 	struct dma_ext_desc *dma_erx ____cacheline_aligned_in_smp;
 	struct dma_desc *dma_rx;
 	struct sk_buff **rx_skbuff;
@@ -293,7 +293,7 @@ struct x2_rxq_cfg {
 struct x2_txq_cfg {
 	u32 weight;
 	u8 mode_to_use;
-
+	
 	u32 send_slope;
 	u32 idle_slope;
 	u32 high_credit;
@@ -367,6 +367,27 @@ struct x2_axi {
 	bool axi_mb;
 	bool axi_rb;
 };
+
+#define X2_PPS_MAX 4
+struct x2_pps_cfg {
+	bool available;
+	struct timespec64 start;
+	struct timespec64 period;
+
+};
+
+
+#define STMMAC_PPS_MAX_NUM 4
+struct stmmac_pps_cfg {
+	bool enable;
+	u32 ctrl_cmd;
+	u32 trgtmodsel;
+	u32 target_time[2];
+	int interval;
+	u32 width;
+
+};
+
 struct plat_config_data {
 	struct device_node *phy_node;
 	struct device_node *mdio_node;
@@ -382,7 +403,7 @@ struct plat_config_data {
 	struct x2_axi *axi;
 
 
-
+	
 	struct x2_mdio_bus_data *mdio_bus_data;
 
 	struct x2_rxq_cfg rx_queues_cfg[X2_MAX_RX_QUEUES];
@@ -393,7 +414,7 @@ struct plat_config_data {
 	struct clk *x2_mac_div_clk;
 	struct clk *x2_phy_ref_clk;
 
-
+	
 	u32 rx_queues_to_use;
 	u32 tx_queues_to_use;
 	u8 rx_sched_algorithm;
@@ -433,23 +454,16 @@ struct plat_config_data {
 	int mac_port_sel_speed;
 	struct clk *x2_clk;
 
+	
+	struct stmmac_pps_cfg pps_cfg[STMMAC_PPS_MAX_NUM];
 
 };
 
-
-
-#define X2_PPS_MAX 4
-struct x2_pps_cfg {
-	bool available;
-	struct timespec64 start;
-	struct timespec64 period;
-
-};
 
 
 struct x2_priv {
-
-
+	
+	
 	void __iomem *ioaddr;
 
 	struct net_device *dev;
@@ -488,7 +502,7 @@ struct x2_priv {
 	void __iomem *mmcaddr;
 	void __iomem *ptpaddr;
 
-	u32 mss;
+	u32 mss;	
 	bool tso;
 
 
@@ -593,6 +607,29 @@ enum {
 #define STMMAC_QMODE_DCB 0x0
 #define STMMAC_QMODE_AVB 0x1
 
+#define STMMAC_IOCTL_PPS_TRGTMODSEL_ONLY_INT	0x0
+#define STMMAC_IOCTL_PPS_TRGTMODSEL_INT_ST	0x2
+#define STMMAC_IOCTL_PPS_TRGTMODSEL_ONLY_ST	0x3
+
+#define STMMAC_IOCTL_PPS_CMD_START_SINGLE_PULSE	0x1
+#define STMMAC_IOCTL_PPS_CMD_START_PULSE_TRAIN	0x2
+#define STMMAC_IOCTL_PPS_CMD_CANCEL_START	0x3
+#define STMMAC_IOCTL_PPS_CMD_STOP_PULSE_TRAIN_TIME 0x4
+#define STMMAC_IOCTL_PPS_CMD_STOP_PULSE_TARIN	0x5
+#define STMMAC_IOCTL_PPS_CMD_CANCEL_STOP_PULSE_TRAIN 	0X6
+
+
+struct x2_ioctl_pps_cfg {
+	__u32 cmd;
+	__u32 index;
+	__u32 enabled;
+	__u32 ctrl_cmd;
+	__u32 trgtmodsel;
+	__u32 target_time[2];
+	__u32 interval;
+	__u32 width;
+	__u32 freq;
+};
 
 struct x2_qmode_cfg {
 	__u32 cmd;

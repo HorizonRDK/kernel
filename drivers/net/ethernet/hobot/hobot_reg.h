@@ -145,7 +145,7 @@ enum packets_types {
 #define DEFAULT_DMA_PBL			8
 
 
-#define SF_DMA_MODE 1
+#define SF_DMA_MODE 1	
 
 
 #define GMAC_PCS_BASE			0x000000e0
@@ -172,7 +172,7 @@ enum packets_types {
 #define DWCEQOS_ADDR_HIGH(reg)           (0x00000300 + (reg * 8))
 #define DWCEQOS_ADDR_LOW(reg)            (0x00000304 + (reg * 8))
 
-#define DWCEQOS_TX_TIMEOUT 5
+#define DWCEQOS_TX_TIMEOUT 5 
 
 #define DMA_TX_SIZE 512
 #define DMA_RX_SIZE 512
@@ -290,6 +290,8 @@ enum packets_types {
 #define DMA_CHAN_CUR_TX_BUF_ADDR(x)	(DMA_CHANX_BASE_ADDR(x) + 0x54)
 #define DMA_CHAN_CUR_RX_BUF_ADDR(x)	(DMA_CHANX_BASE_ADDR(x) + 0x5c)
 
+#define DMA_CHANX_SLOT_STATUS_BASE_ADDR	0x0000113C
+#define DMA_CHX_SLOT_FUN_CONTRL_STATUS(x)	(DMA_CHANX_SLOT_STATUS_BASE_ADDR + 0x80 * x)
 
 /* DMA Rx Channel X Control register defines */
 #define DMA_CONTROL_SR			BIT(0)
@@ -447,6 +449,7 @@ enum packets_types {
 /*  MTL interrupt */
 #define MTL_RX_OVERFLOW_INT_EN		BIT(24)
 #define MTL_RX_OVERFLOW_INT		BIT(16)
+#define	MTL_ABPSIS_INT			BIT(1)
 
 
 #define MTL_OP_MODE_RSF			BIT(5)
@@ -494,7 +497,11 @@ enum packets_types {
 #define MTL_ETS_CTRL_CC			BIT(3)
 #define MTL_ETS_CTRL_AVALG		BIT(2)
 
+#define MTL_EST_STATUS_CTOV_MASK		GENMASK(23, 12)
 
+#define MTL_ETS_STATUS_BASE_ADDR	0x00000d14
+#define MTL_ETS_STATUS_BASE_OFFSET	0x40
+#define MTL_ETSX_STATUS_BASE_ADDR(x)	(MTL_ETS_STATUS_BASE_ADDR + ((x) * MTL_ETS_STATUS_BASE_OFFSET))
 
 /* MTL sendSlopeCredit register */
 #define MTL_SEND_SLP_CRED_BASE_ADDR	0x00000d1c
@@ -523,6 +530,11 @@ enum packets_types {
 					((x) * MTL_LOW_CRED_OFFSET))
 
 #define MTL_HIGH_CRED_LC_MASK		GENMASK(28, 0)
+
+
+#define MTL_QX_INTR_CONTROL_STATUS_BASE_ADDR	0x00000d2c
+#define MTL_QX_INTR_BASE_OFFSET			0x0040
+#define MTL_QX_INTR_CONTROL_STATUS_ADDR(x)	(MTL_QX_INTR_CONTROL_STATUS_BASE_ADDR + ((x) * MTL_QX_INTR_BASE_OFFSET))
 
 
 
@@ -870,7 +882,7 @@ enum packets_types {
 /*ethtool*/
 
 #define	MAC_Egress_Timestamp_Latency	0x0000066C
-#define	MAC_Igress_Timestamp_Latency	0x000006b8
+#define	MAC_Igress_Timestamp_Latency	0x000006b8	
 #define MAC_Timestamp_Ingress_Corr_Nanosecond 0xb58
 #define MAC_Timestamp_Egress_Corr_Nanosecond 0xb5c
 #define MAC_Timestamp_Ingress_Corr_Subnanosecond 0xb60
