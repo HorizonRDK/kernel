@@ -28,9 +28,13 @@
  * MPQ7920 Global Register Map.
  */
 #define MPQ7920_DCDC1_VSET	0x03
+#define MPQ7920_DCDC1_SLOT_MODE	0x06
 #define MPQ7920_DCDC2_VSET	0x07
+#define MPQ7920_DCDC2_SLOT_MODE	0x0a
 #define MPQ7920_DCDC3_VSET	0x0b
+#define MPQ7920_DCDC3_SLOT_MODE	0x0e
 #define MPQ7920_DCDC4_VSET	0x0f
+#define MPQ7920_DCDC4_SLOT_MODE	0x12
 #define MPQ7920_LDO2_VSET	0x14
 #define MPQ7920_LDO3_VSET	0x17
 #define MPQ7920_LDO4_VSET	0x1a
@@ -271,6 +275,16 @@ static void mpq7920_power_off(void)
 	while (1);
 }
 
+static void mpq7920_slot_init(void)
+{
+	struct mpq7920 *mpq7920;
+
+	mpq7920 = i2c_get_clientdata(mpq7920_i2c_client);
+	regmap_write(mpq7920->regmap, MPQ7920_DCDC1_SLOT_MODE, 0x0);
+	regmap_write(mpq7920->regmap, MPQ7920_DCDC2_SLOT_MODE, 0x0);
+	regmap_write(mpq7920->regmap, MPQ7920_DCDC3_SLOT_MODE, 0x0);
+	regmap_write(mpq7920->regmap, MPQ7920_DCDC4_SLOT_MODE, 0x0);
+}
 
 static int mpq7920_pmic_probe(struct i2c_client *client,
 			      const struct i2c_device_id *i2c_id)
@@ -338,10 +352,10 @@ static int mpq7920_pmic_probe(struct i2c_client *client,
 	}
 
 	if (of_device_is_system_power_controller(dev->of_node)) {
-		mpq7920_i2c_client = client;
 		mpq7920->off_reg = off_reg;
 		pm_power_off = mpq7920_power_off;
 	}
+
 
 	/* Finally register devices */
 	for (i = 0; i < num_regulators; i++) {
@@ -376,7 +390,11 @@ static int mpq7920_pmic_probe(struct i2c_client *client,
 		}
 	}
 
+	mpq7920_i2c_client = client;
 	i2c_set_clientdata(client, mpq7920);
+
+	if (type == MPQ7920)
+		mpq7920_slot_init();
 
 	return 0;
 }
