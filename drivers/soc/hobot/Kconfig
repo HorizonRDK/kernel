@@ -94,6 +94,12 @@ config X2_DDR_MON
 	default n
 	help
 	  say yes to enable x2 ddr monitor
+
+config HOBOT_PM
+	bool "Enable X2 suspend"
+	default y
+	help
+	  say yes to enable x2 suspend
 endif #SOC_X2_MP
 
 menuconfig HOBOT_BIF_AP

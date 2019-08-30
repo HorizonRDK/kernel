@@ -15,7 +15,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 #include <linux/delay.h>
 #include <linux/init.h>
 #include <linux/of.h>
@@ -34,6 +33,46 @@ volatile unsigned long __section(".mmuoff.data.read")
 secondary_holding_pen_release = INVALID_HWID;
 
 static phys_addr_t cpu_release_addr[NR_CPUS];
+
+
+int x2_cpu_prepare(void)
+{
+	__le64 __iomem *release_addr;
+
+	if (!cpu_release_addr[1])
+		return -ENODEV;
+
+	/*
+	 * The cpu-release-addr may or may not be inside the linear mapping.
+	 * As ioremap_cache will either give us a new mapping or reuse the
+	 * existing linear mapping, we can use it to cover both cases. In
+	 * either case the memory will be MT_NORMAL.
+	 */
+	release_addr = ioremap_cache(cpu_release_addr[1],
+				     sizeof(*release_addr));
+	if (!release_addr)
+		return -ENOMEM;
+
+	/*
+	 * We write the release address as LE regardless of the native
+	 * endianness of the kernel. Therefore, any boot-loaders that
+	 * read this address need to convert this address to the
+	 * boot-loader's endianness before jumping. This is mandated by
+	 * the boot protocol.
+	 */
+	writeq_relaxed(__pa_symbol(secondary_holding_pen), release_addr);
+	__flush_dcache_area((__force void *)release_addr,
+			    sizeof(*release_addr));
+
+	/*
+	 * Send an event to wake up the secondary CPU.
+	 */
+	sev();
+
+	iounmap(release_addr);
+
+	return 0;
+}
 
 /*
  * Write secondary_holding_pen_release in a way that is guaranteed to be
@@ -127,10 +166,56 @@ static int smp_spin_table_cpu_boot(unsigned int cpu)
 
 	return 0;
 }
-
+#ifdef CONFIG_HOTPLUG_CPU
+#if 0
+static int smp_cpu_disable(unsigned int cpu)
+{
+	return 0;
+}
+#endif
+#if 1
+extern void __asm_flush_dcache_all(void);
+static void smp_cpu_die(unsigned int cpu)
+{
+	write_pen_release(INVALID_HWID);
+	__asm_flush_dcache_all();
+	cpu_do_idle();
+}
+static int smp_cpu_kill(unsigned int cpu)
+{
+	return 0;
+}
+#endif
+#endif
+#ifdef CONFIG_CPU_IDLE
+#if 0
+static int smp_cpu_init_idle(unsigned int a)
+{
+	return 0;
+}
+extern void __asm_flush_dcache_all(void);
+static int smp_cpu_suspend(unsigned long  a)
+{
+	__asm_flush_dcache_all();
+	cpu_do_idle();
+	pr_info("Failed to suspend the system\n");
+	return 1;
+}
+#endif
+#endif
 const struct cpu_operations smp_spin_table_ops = {
 	.name		= "spin-table",
 	.cpu_init	= smp_spin_table_cpu_init,
 	.cpu_prepare	= smp_spin_table_cpu_prepare,
 	.cpu_boot	= smp_spin_table_cpu_boot,
+#if 1
+	.cpu_die	= smp_cpu_die,
+	.cpu_kill	= smp_cpu_kill,
+#endif
+#ifdef CONFIG_CPU_IDLE
+#if 0
+	.cpu_suspend	= smp_cpu_suspend,
+	.cpu_init_idle  = smp_cpu_init_idle,
+#endif
+#endif
 };

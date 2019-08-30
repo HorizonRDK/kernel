@@ -22,6 +22,8 @@ int arm_cpuidle_init(unsigned int cpu)
 {
 	int ret = -EOPNOTSUPP;
 
+	return 0;
+
 	if (cpu_ops[cpu] && cpu_ops[cpu]->cpu_suspend &&
 			cpu_ops[cpu]->cpu_init_idle)
 		ret = cpu_ops[cpu]->cpu_init_idle(cpu);
@@ -39,6 +41,9 @@ int arm_cpuidle_init(unsigned int cpu)
 int arm_cpuidle_suspend(int index)
 {
 	int cpu = smp_processor_id();
+
+	cpu_do_idle();
+	return 0;
 
 	return cpu_ops[cpu]->cpu_suspend(index);
 }
