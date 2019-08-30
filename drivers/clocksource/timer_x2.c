@@ -49,7 +49,6 @@ struct x2timer_ce {
 #define to_x2timer_ce(x) \
 	container_of(x, struct x2timer_ce, ce)
 
-
 static void __iomem *x2timer_iobase;
 
 #define x2timer_rd(dev, reg)       ioread32((dev)->iobase + (reg))
@@ -96,17 +95,6 @@ static int x2_timer_shutdown (struct clock_event_device *evt)
 
 	x2timer_wr(x2timer, X2_TIMER_TMR_SETMASK_REG, X2_TIMER_T1_INTMASK);
 	x2timer_wr(x2timer, X2_TIMER_TMRSTOP_REG, X2_TIMER_T1STOP);
-
-	return 0;
-}
-
-static int x2_timer_resume (struct clock_event_device *evt)
-{
-	struct x2timer_ce *x2_tce = to_x2timer_ce(evt);
-	struct x2timer_pdata *x2timer = x2_tce->x2timer;
-
-	x2timer_wr(x2timer, X2_TIMER_TMR_UNMASK_REG, X2_TIMER_T1_INTMASK);
-	x2timer_wr(x2timer, X2_TIMER_TMRSTART_REG, X2_TIMER_T1START);
 
 	return 0;
 }
@@ -180,10 +168,10 @@ static int __init x2_timer_ce_setup(struct x2timer_pdata *x2timer)
 	x2_tce->ce.set_state_shutdown = x2_timer_shutdown;
 	x2_tce->ce.set_state_periodic = x2_timer_set_periodic;
 	x2_tce->ce.set_state_oneshot  = x2_timer_set_oneshot;
-	x2_tce->ce.tick_resume        = x2_timer_resume;
+	x2_tce->ce.tick_resume        = x2_timer_shutdown;
 	x2_tce->ce.rating  = 500;
 	x2_tce->ce.irq     = x2timer->ce_irq;
-	x2_tce->ce.cpumask = cpumask_of(0);
+	x2_tce->ce.cpumask = cpu_possible_mask;
 
 	/* Default timer work mode is one-time mode */
 	val = x2timer_rd(x2timer, X2_TIMER_TMRMODE_REG);
@@ -240,6 +228,26 @@ static u64 notrace x2_timer_sc_rd(void)
 	return count;
 }
 
+static void x2_timer_cs_resume(struct clocksource *cs)
+{
+	u32 val;
+	struct x2timer_cs *x2_cs = to_x2timer_cs(cs);
+	struct x2timer_pdata *x2timer = x2_cs->x2timer;
+	/*
+	 * set timer0 no interrupt, continuous mode and start it
+	 */
+	x2timer_wr(x2timer, X2_TIMER_TMR_SETMASK_REG, X2_TIMER_T0_INTMASK);
+
+	val = x2timer_rd(x2timer, X2_TIMER_TMRMODE_REG);
+	val &= 0xFFFFFFF0;
+	val |= (X2_TIMER_CON_MODE << X2_TIMER_T0MODE_OFFSET);
+	x2timer_wr(x2timer, X2_TIMER_TMRMODE_REG, val);
+
+	x2timer_wr(x2timer, X2_TIMER_TMR0TGTL_REG, 0xFFFFFFFFU);
+	x2timer_wr(x2timer, X2_TIMER_TMR0TGTH_REG, 0xFFFFFFFFU);
+	x2timer_wr(x2timer, X2_TIMER_TMRSTART_REG, X2_TIMER_T0START);
+}
+
 static int __init x2_timer_cs_setup(struct x2timer_pdata *x2timer)
 {
 	int err;
@@ -252,10 +260,11 @@ static int __init x2_timer_cs_setup(struct x2timer_pdata *x2timer)
 
 	x2_tcs->x2timer   = x2timer;
 	x2_tcs->cs.name   = "x2_clocksource";
-	x2_tcs->cs.rating = 500;
+	x2_tcs->cs.rating = 200;
 	x2_tcs->cs.read   = x2_timer_cs_rd;
 	x2_tcs->cs.mask   = CLOCKSOURCE_MASK (X2_TIMER_T0_WIDTH);
 	x2_tcs->cs.flags  = CLOCK_SOURCE_IS_CONTINUOUS;
+	x2_tcs->cs.resume = x2_timer_cs_resume;
 
 	/*
 	 * set timer0 no interrupt, continuous mode and start it
@@ -277,7 +286,11 @@ static int __init x2_timer_cs_setup(struct x2timer_pdata *x2timer)
 		return err;
 	}
 
-	sched_clock_register(x2_timer_sc_rd, X2_TIMER_T0_WIDTH, x2timer->ref_clk);
+	if (x2timer_iobase == NULL) {
+		x2timer_iobase = x2timer->iobase;
+		sched_clock_register(x2_timer_sc_rd,
+				X2_TIMER_T0_WIDTH, x2timer->ref_clk);
+	}
 
 	return 0;
 }
@@ -296,7 +309,6 @@ static int __init x2_timer_init (struct device_node *np)
 		pr_err ("ERROR: invalid timer base address\n");
 		return -ENXIO;
 	}
-	x2timer_iobase = x2timer->iobase;
 
 	/* select timer1 for clock envent  */
 	x2timer->ce_irq = irq_of_parse_and_map (np, 1);
@@ -316,6 +328,8 @@ static int __init x2_timer_init (struct device_node *np)
 		pr_err("Unable to enable device clock.\n");
 		goto probe_clk_failed;
 	}
+
+
 	x2timer->ref_clk = clk_get_rate(x2timer->clk);
 
 	ret = x2_timer_cs_setup(x2timer);
