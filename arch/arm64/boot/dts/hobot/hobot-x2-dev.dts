@@ -406,6 +406,10 @@
 	clock-names = "i2s-mclk", "i2s-bclk", "i2s0_div_bclk";
 };
 
+&onewire {
+	status = "okay";
+};
+
 
 &ddr_monitor {
 	status = "okay";

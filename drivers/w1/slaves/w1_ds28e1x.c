@@ -2505,6 +2505,13 @@ static void w1_ds28e1x_slave_sn(const uchar *rdbuf)
 /**add by guoying, ioctl**/
 static int cdev_open(struct inode *inode, struct file *filp)
 {
+	int ret;
+
+	ret = w1_gpio_request();
+	if (ret != 0) {
+		pr_err("%s: failed\n", __func__);
+		return -1;
+	}
 	return 0;
 }
 
@@ -2666,6 +2673,7 @@ retry_jump:
 
 static int cdev_release(struct inode *inode, struct file *filp)
 {
+	w1_gpio_free();
 	return 0;
 }
 

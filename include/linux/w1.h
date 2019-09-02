@@ -246,7 +246,8 @@ struct w1_master {
 int w1_process_match(struct w1_master **dev);
 int w1_add_master_device(struct w1_bus_master *master);
 void w1_remove_master_device(struct w1_bus_master *master);
-
+int w1_gpio_request(void);
+int w1_gpio_free(void);
 /**
  * struct w1_family_ops - operations for a family type
  * @add_slave: add_slave
