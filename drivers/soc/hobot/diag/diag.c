@@ -181,7 +181,8 @@ exit:
  */
 static DEFINE_MUTEX(diag_netlink_send_mutex);
 #ifdef DIAG_USE_NETLINK_BROADCAST
-static int diag_send_msg(char *pbuf, uint32_t len)
+static int diag_send_msg(uint16_t module_id, uint16_t event_id,
+			char *pbuf, uint32_t len)
 {
         struct sk_buff *nl_skb;
         struct nlmsghdr *nlh;
@@ -216,14 +217,16 @@ static int diag_send_msg(char *pbuf, uint32_t len)
         ret = netlink_broadcast(nlsk, nl_skb, 0, USER_GROUP, GFP_KERNEL);
         //mutex_unlock(&diag_netlink_send_mutex);
         if (ret < 0) {
-                pr_err("netlink broadcast snd fail\n");
+		pr_err("netlink broadcast send fail, module_id: 0x%04x, event_id: 0x%04x, ret: %d\n",
+			module_id, event_id, ret);
                 return -1;
         }
 
         return len;
 }
 #else
-static int diag_send_msg(char *pbuf, uint32_t len)
+static int diag_send_msg(uint16_t module_id, uint16_t event_id,
+			char *pbuf, uint32_t len)
 {
 	struct sk_buff *nl_skb;
 	struct nlmsghdr *nlh;
@@ -250,7 +253,8 @@ static int diag_send_msg(char *pbuf, uint32_t len)
 	ret = netlink_unicast(nlsk, nl_skb, USER_PORT, MSG_DONTWAIT);
 	mutex_unlock(&diag_netlink_send_mutex);
 	if (ret < 0) {
-		pr_err("netlink unicast snd fail\n");
+		pr_err("netlink unitcast send fail, module_id: 0x%04x, event_id: 0x%04x, ret: %d\n",
+			module_id, event_id, ret);
 		return -1;
 	}
 
@@ -962,7 +966,7 @@ static int _diag_send_event_stat_and_env_data(
 	length = sizeof(struct diag_msg_hdr) + msg.head.len;
 	msg.checksum = diag_checksum(p, length);
 	memcpy(p + length, &(msg.checksum), 4);
-	diag_send_msg(p, length + 4);
+	diag_send_msg(id->module_id, id->event_id, p, length + 4);
 	if (malloc_type == USE_VMALLOC)
 		vfree(p);
 	else
@@ -1047,7 +1051,7 @@ static int _diag_send_event_stat_and_env_data(
 		length = sizeof(struct diag_msg_hdr) + msg.head.len;
 		msg.checksum = diag_checksum(p, length);
 		memcpy(p + length, &(msg.checksum), 4);
-		diag_send_msg(p, length + 4);
+		diag_send_msg(id->module_id, id->event_id, p, length + 4);
 		if (malloc_type == USE_VMALLOC)
 			vfree(p);
 		else
