@@ -3098,11 +3098,81 @@ static int dwceqos_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#ifdef CONFIG_PM_SLEEP
+static int hobot_eth_suspend(struct device *dev)
+{
+       struct net_device *ndev = dev_get_drvdata(dev);
+       struct net_local *lp = netdev_priv(ndev);
+       int ret = 0;
+       unsigned int flags;
+
+       if (!ndev) {
+               printk("%s, and ndev is NULL\n", __func__);
+               return 0;
+       }
+
+       if (!netif_running(ndev)) {
+               printk("%s, and not runing\n", __func__);
+               return 0;
+       }
+
+       napi_synchronize(&lp->napi);
+       napi_disable(&lp->napi);
+
+       dwceqos_dma_enable_rxirq(lp);
+       dwceqos_dma_enable_txirq(lp);
+       netif_device_detach(ndev);
+       netif_carrier_off(ndev);
+
+       netif_tx_lock_bh(lp->ndev);
+       netif_stop_queue(ndev);
+       netif_tx_unlock_bh(lp->ndev);
+       tasklet_disable(&lp->tx_bdreclaim_tasklet);
+       dwceqos_reset_hw(lp);
+       dwceqos_link_down(lp);
+       phy_stop(ndev->phydev);
+
+       dwceqos_descriptor_free(lp);
+       clk_disable_unprepare(lp->phy_ref_clk);
+       clk_disable_unprepare(lp->mac_div_clk);
+       clk_disable_unprepare(lp->mac_pre_div_clk);
+       lp->link = 0;
+       lp->speed = 0;
+       lp->duplex = DUPLEX_UNKNOWN;
+
+       printk("%s, successfully\n", __func__);
+       return 0;
+}
+
+static int hobot_eth_resume(struct device *dev)
+{
+       struct net_device *ndev = dev_get_drvdata(dev);
+       struct net_local *lp = netdev_priv(ndev);
+
+       if (!netif_running(ndev))
+               return 0;
+
+       clk_prepare_enable(lp->phy_ref_clk);
+       clk_prepare_enable(lp->mac_div_clk);
+       clk_prepare_enable(lp->mac_pre_div_clk);
+       netif_device_attach(ndev);
+
+       dwceqos_open(ndev);
+
+       return 0;
+}
+static SIMPLE_DEV_PM_OPS(hobot_pm_ops, hobot_eth_suspend, hobot_eth_resume);
+#endif
+
+
 static struct platform_driver dwceqos_driver = {
 	.probe   = dwceqos_probe,
 	.remove  = dwceqos_remove,
 	.driver  = {
 		.name  = DRIVER_NAME,
+#ifdef CONFIG_PM_SLEEP
+		.pm = &hobot_pm_ops,
+#endif
 		.of_match_table = dwceq_of_match,
 	},
 };
