@@ -496,7 +496,7 @@ void sd_card_init(struct bif_sd *sd)
 /* Initialize Bifsd device */
 int bifsd_hobot_priv_init(struct bif_sd *sd)
 {
-	pr_info("bifsd: %d\n", __func__);
+	pr_debug("bifsd: %s\n", __func__);
 	sd_writel(sd, INT_ENABLE_1, 0xFFFFCFFF, 0);
 	sd_writel(sd, INT_ENABLE_2, 0x007FFFFF, 0);
 	mmc_set_power_up(sd);
@@ -1056,12 +1056,13 @@ static int bifsd_probe(struct platform_device *pdev)
 
 	const struct bifsd_drv_data *drv_data;
 	const struct of_device_id *match;
-	pr_err("%s\n", __func__);
+
+	pr_info("bifsd: %s\n", __func__);
 	match = of_match_node(bifsd_hobot_of_match, pdev->dev.of_node);
 	drv_data = match->data;
 	ret = bifsd_pltfm_register(pdev, drv_data);
 	if (ret) {
-		pr_err("bifsd probe error\n");
+		pr_err("bifsd: probe error\n");
 	} else {
 		/* diag */
 		diag_register(ModuleDiag_bif, EventIdBifSdErr,
@@ -1073,7 +1074,7 @@ static int bifsd_probe(struct platform_device *pdev)
 		bifsd_diag_timer.data = 0;
 		bifsd_diag_timer.function = bifsd_diag_timer_func;
 		add_timer(&bifsd_diag_timer);
-		pr_debug("bifsd probe ok\n");
+		pr_debug("bifsd: probe ok\n");
 	}
 
 	return ret;
@@ -1082,7 +1083,8 @@ static int bifsd_probe(struct platform_device *pdev)
 static int bifsd_remove(struct platform_device *pdev)
 {
 	struct bif_sd *sd = platform_get_drvdata(pdev);
-	pr_info("bifsd: %d\n", __func__);
+
+	pr_info("bifsd: %s\n", __func__);
 	if(sd->cd_gpio){
 		gpio_direction_output(sd->cd_gpio, 0);
 		gpio_free(sd->cd_gpio);

@@ -159,7 +159,10 @@ int x2_mmc_enable_clk(struct dw_mci_hobot_priv_data *priv)
 		while (time_before(jiffies, timeout)) {
 			reg_value = readl(priv->sysctrl_reg + HOBOT_CLKOFF_STA);
 			if (!(reg_value & clkoff_sta_shift)) {
-				usleep_range(10000, 20000);//least 5ms
+				if (priv->ctrl_id == DWMMC_MMC_ID)
+					usleep_range(1, 2);
+				else
+					usleep_range(7500, 12000);//least 5ms
 				return 0;
 			}
 			usleep_range(1, 2);
@@ -462,12 +465,12 @@ static void dw_mci_x2_set_ios(struct dw_mci *host, struct mmc_ios *ios)
 
 	x2_mmc_set_drv_phase(priv, phase);
 	if (debug) {
-		pr_err("dwmmc_hobot: %s ctrl_id=%d default_sample_phase=%d",
+		pr_err("dwmmc_hobot: %s ctrl_id=%d default_sample_phase=%d"
+			" phase=%d ios->timing=%d ios->clock=%d"
+			" ios->signal_voltage=%d bus_hz=%d host->bus_hz=%d\n",
 			__func__, priv->ctrl_id, priv->default_sample_phase,
-			phase);
-		pr_err(" ios->timing=%d ios->clock=%d ios->signal_voltage=%d",
-			ios->timing, ios->clock, ios->signal_voltage);
-		pr_err(" bus_hz=%d host->bus_hz=%d\n", bus_hz, host->bus_hz);
+			phase, ios->timing, ios->clock, ios->signal_voltage,
+			bus_hz, host->bus_hz);
 	}
 	return;
 }
