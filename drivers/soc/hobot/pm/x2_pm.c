@@ -43,6 +43,8 @@ struct x2_suspend_data {
 
 struct x2_suspend {
 	struct device *dev;
+	unsigned int wakeup_src_mask;
+	unsigned int sleep_period;
 	struct x2_suspend_data data;
 };
 
@@ -53,6 +55,29 @@ static void (*x2_suspend_sram_fn)(struct x2_suspend_data *);
 extern void x2_resume(void);
 extern void x2_suspend_in_sram(struct x2_suspend_data *suspend_data);
 extern u32 x2_suspend_in_sram_sz;
+
+static ssize_t sleep_period_store(struct device *dev,
+				  struct device_attribute *attr,
+				  const char *buf,
+				  size_t len)
+{
+	int ret;
+	unsigned int input;
+
+	ret = kstrtou32(buf, 10, &input);
+	if (ret)
+		return ret;
+
+	if (input != 0) {
+		x2_suspend->wakeup_src_mask =
+			~(WAKEUP_SRC_PADC_EXT | WAKEUP_SRC_RTC) & 0xff;
+		x2_suspend->sleep_period = input * CLK_HZ;
+	}
+
+	return len;
+}
+
+static DEVICE_ATTR_WO(sleep_period);
 
 static int x2_suspend_valid_state(suspend_state_t state)
 {
@@ -82,20 +107,22 @@ static int x2_suspend_finish(unsigned long val)
 
 static int x2_suspend_enter(suspend_state_t state)
 {
-	void *padc = x2_suspend->data.padc;
-	void *pmu = x2_suspend->data.pmu;
+	void *padc, *pmu;
 	unsigned int val;
 
-	val = readl(padc + 0x70);
-	val &= ~0xC000;
-	writel(val, padc + 0x70);
-	writel(WAKEUP_SOURCE_MASK, pmu + X2_PMU_W_SRC_MASK);
+	padc = x2_suspend->data.padc;
+	pmu = x2_suspend->data.pmu;
+
+	writel(x2_suspend->wakeup_src_mask, pmu + X2_PMU_W_SRC_MASK);
+	writel(x2_suspend->sleep_period, pmu + X2_PMU_SLEEP_PERIOD);
+
+	val = virt_to_phys((void *)cpu_resume);
+	writel(val, pmu + X2_PMU_SW_REG_03);
 
 	memcpy(x2_suspend_sram_fn, x2_suspend_in_sram, x2_suspend_in_sram_sz);
 	flush_icache_range((unsigned long)x2_suspend_sram_fn,
 		(unsigned long)x2_suspend_sram_fn + x2_suspend_in_sram_sz);
 	//smp_mb();
-
 	return cpu_suspend(0, x2_suspend_finish);
 }
 
@@ -111,17 +138,24 @@ static const struct platform_suspend_ops x2_suspend_ops = {
 	.end    = x2_suspend_end,
 };
 
-static void *sram_init(void)
+static void *sram_init(struct platform_device *pdev)
 {
+	struct resource *res;
+	size_t size;
 	struct page **pages;
-	phys_addr_t page_start;
-	unsigned int page_count;
+	phys_addr_t start, page_start;
+	unsigned int page_count, i;
 	pgprot_t prot;
-	unsigned int i;
 	void *vaddr;
 
-	phys_addr_t start = 0x80000000;
-	size_t size = 0x10000;
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (!res) {
+		dev_err(&pdev->dev, "found no memory resource\n");
+		return NULL;
+	}
+
+	size = resource_size(res);
+	start = res->start;
 
 	page_start = start - offset_in_page(start);
 	page_count = DIV_ROUND_UP(size + offset_in_page(start), PAGE_SIZE);
@@ -135,7 +169,6 @@ static void *sram_init(void)
 
 	for (i = 0; i < page_count; i++) {
 		phys_addr_t addr = page_start + i * PAGE_SIZE;
-
 		pages[i] = pfn_to_page(addr >> PAGE_SHIFT);
 	}
 
@@ -152,7 +185,6 @@ static void *sram_init(void)
 static int x2_suspend_probe(struct platform_device *pdev)
 {
 	int ret = -ENOMEM;
-	unsigned int val;
 	struct x2_suspend_data *data = NULL;
 
 	dev_info(&pdev->dev, "[%s] is start !\n", __func__);
@@ -200,17 +232,19 @@ static int x2_suspend_probe(struct platform_device *pdev)
 		goto err_out1;
 	}
 
-	val = virt_to_phys((void *)cpu_resume);
-	writel(val, data->pmu + X2_PMU_SW_REG_03);
-
-	sram_init();
+	sram_init(pdev);
 
 	if (x2_suspend_sram_fn)
 		suspend_set_ops(&x2_suspend_ops);
 	else
 		pr_info("PM not supported, due to no SRAM allocated\n");
 
+	x2_suspend->wakeup_src_mask = ~WAKEUP_SRC_PADC_EXT & 0xff;
+	x2_suspend->sleep_period = SLEEP_PERIOD;
+
 	platform_set_drvdata(pdev, x2_suspend);
+
+	device_create_file(&pdev->dev, &dev_attr_sleep_period);
 
 	dev_info(&pdev->dev, "[%s] is end !\n", __func__);
 	return 0;

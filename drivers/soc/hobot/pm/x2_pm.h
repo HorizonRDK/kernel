@@ -12,6 +12,8 @@
 #define X2_PADC_BASE_PA        (0xA6003000)
 #define X2_PADC_ADDR_LEN       (0x204)
 
+#define WAKEUP_SRC_PADC_EXT	1
+#define WAKEUP_SRC_RTC		2
 
 #define X2_PMU_SLEEP_PERIOD             (0x0000)
 #define X2_PMU_SLEEP_CMD                (0x0004)
@@ -38,8 +40,9 @@
 
 
 #define	SLEEP_PERIOD		0x80000000
-#define WAKEUP_SOURCE_MASK		0xfe
+#define WAKEUP_SOURCE_MASK	0xfc
 #define SLEEP_TRIG		0x1
+#define CLK_HZ		32768
 
 
 #define X2_DDRSYS_CLKEN_CLR             (0x138)

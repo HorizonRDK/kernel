@@ -331,19 +331,21 @@ ENTRY(x2_suspend_in_sram)
 	dsb     st
 	and     w3, w3, #0xffff3fff
 	str     w3, [x0]
-
+/*
+*	dsb	st
+*	dsb 	ld
+*	mov	w1, #0x80000000            	// #-2147483648
+*	str	w1, [x4]
+*	dsb	st
+*	dsb 	ld
+*	mov	w1, #0xfe                  	// #254
+*	add	x2, x4, #0x40
+*	str	w1, [x2]
+*	dsb	st
+*	dsb 	ld
+*/
 	dsb	st
 	dsb 	ld
-	mov	w1, #0x80000000            	// #-2147483648
-	str	w1, [x4]
-	dsb	st
-	dsb 	ld
-	mov	w1, #0xfe                  	// #254
-	add	x2, x4, #0x40
-	str	w1, [x2]
-	dsb	st
-	dsb 	ld
-
 	add	x2, x4, #0xc
 	str	wzr, [x2]
 
