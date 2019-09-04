@@ -1144,6 +1144,46 @@ static int x2_qspi_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#ifdef CONFIG_PM_SLEEP
+int x2_qspi_suspend(struct device *dev)
+{
+	struct spi_master *master = dev_get_drvdata(dev);
+	struct x2_qspi *x2qspi = spi_master_get_devdata(master);
+
+	pr_info("%s:%s, enter suspend...\n", __FILE__, __func__);
+
+	/* wait to be done */
+	qspi_check_status(x2qspi, QSPI_STATUS2, TXFIFO_EMPTY, 0x1000);
+	x2_qspi_poll_rx_empty(x2qspi, QSPI_STATUS2, RXFIFO_EMPTY, 0x1000);
+
+	qspi_disable_tx(x2qspi);
+	qspi_disable_rx(x2qspi);
+
+	clk_disable_unprepare(x2qspi->pclk);
+
+	return 0;
+}
+
+int x2_qspi_resume(struct device *dev)
+{
+	struct spi_master *master = dev_get_drvdata(dev);
+	struct x2_qspi *x2qspi = spi_master_get_devdata(master);
+
+	pr_info("%s:%s, enter resume...\n", __FILE__, __func__);
+
+	clk_prepare_enable(x2qspi->pclk);
+
+	x2_qspi_hw_init(x2qspi);
+
+	return 0;
+}
+#endif
+
+static const struct dev_pm_ops x2_qspi_dev_pm_ops = {
+	SET_SYSTEM_SLEEP_PM_OPS(x2_qspi_suspend,
+			x2_qspi_resume)
+};
+
 static const struct of_device_id x2_qspi_of_match[] = {
 	{.compatible = "hobot,x2-qspi",},
 	{ /* End of table */ }
@@ -1157,6 +1197,7 @@ static struct platform_driver x2_qspi_driver = {
 	.driver = {
 		   .name = "x2_qspi",
 		   .of_match_table = x2_qspi_of_match,
+		   .pm = &x2_qspi_dev_pm_ops,
 		   },
 };
 

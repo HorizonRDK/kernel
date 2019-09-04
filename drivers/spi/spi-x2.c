@@ -853,6 +853,42 @@ static int x2_spi_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#ifdef CONFIG_PM_SLEEP
+int x2_spi_suspend(struct device *dev)
+{
+	struct spi_master *master = dev_get_drvdata(dev);
+	struct x2_spi *x2spi = spi_master_get_devdata(master);
+
+	pr_info("%s:%s, enter suspend...\n", __FILE__, __func__);
+
+	/* Transfer in process flag, wait SPI to be idle */
+	x2_spi_wait_for_tpi(x2spi, 1);
+
+	/* disable spi */
+	x2_spi_en_ctrl(x2spi, X2_SPI_OP_CORE_DIS, X2_SPI_OP_NONE,
+			X2_SPI_OP_NONE);
+
+	return 0;
+}
+
+int x2_spi_resume(struct device *dev)
+{
+	struct spi_master *master = dev_get_drvdata(dev);
+	struct x2_spi *x2spi = spi_master_get_devdata(master);
+
+	pr_info("%s:%s, enter resume...\n", __FILE__, __func__);
+
+	x2_spi_init_hw(x2spi);
+
+	return 0;
+}
+#endif
+
+static const struct dev_pm_ops x2_spi_dev_pm_ops = {
+	SET_SYSTEM_SLEEP_PM_OPS(x2_spi_suspend,
+			x2_spi_resume)
+};
+
 static const struct of_device_id x2_spi_of_match[] = {
 	{.compatible = "hobot,x2-spi"},
 	{ /* end of table */ }
@@ -861,12 +897,13 @@ static const struct of_device_id x2_spi_of_match[] = {
 MODULE_DEVICE_TABLE(of, x2_spi_of_match);
 
 static struct platform_driver x2_spi_driver = {
-	.probe = x2_spi_probe,
-	.remove = x2_spi_remove,
-	.driver = {
-		   .name = X2_SPI_NAME,
-		   .of_match_table = x2_spi_of_match,
-		   },
+    .probe = x2_spi_probe,
+    .remove = x2_spi_remove,
+    .driver = {
+        .name = X2_SPI_NAME,
+        .of_match_table = x2_spi_of_match,
+		.pm = &x2_spi_dev_pm_ops,
+    },
 };
 
 module_platform_driver(x2_spi_driver);
