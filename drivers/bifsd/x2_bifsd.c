@@ -1103,10 +1103,53 @@ static int bifsd_remove(struct platform_device *pdev)
 
 EXPORT_SYMBOL(bifsd_remove);
 
+#ifdef CONFIG_PM_SLEEP
+int x2_bif_sd_suspend(struct device *dev)
+{
+	struct bif_sd *sd = dev_get_drvdata(dev);
+
+	pr_info("%s:%s, enter suspend...\n", __FILE__, __func__);
+
+	/* Disable interrupt */
+	sd_writel(sd, INT_STATUS_1, 0xFFFFFFFF, 0);
+	sd_writel(sd, INT_STATUS_2, 0xFFFFFFFF, 0);
+	sd_writel(sd, INT_ENABLE_1, 0, 0);
+	sd_writel(sd, INT_ENABLE_2, 0, 0);
+
+	return 0;
+}
+
+int x2_bif_sd_resume(struct device *dev)
+{
+	struct bif_sd *sd = dev_get_drvdata(dev);
+
+	pr_info("%s:%s, enter resume...\n", __FILE__, __func__);
+
+	reset_control_assert(sd->rst);
+	udelay(2);
+	reset_control_deassert(sd->rst);
+
+	bifsd_hobot_priv_init(sd);
+
+	if (sd->cd_gpio) {
+		gpio_request(sd->cd_gpio, NULL);
+		gpio_direction_output(sd->cd_gpio, 1);
+	}
+
+	return 0;
+}
+#endif
+
+static struct dev_pm_ops x2_bif_sd_dev_pm_ops = {
+	SET_SYSTEM_SLEEP_PM_OPS(x2_bif_sd_suspend,
+			x2_bif_sd_resume)
+};
+
 static struct platform_driver bifsd_hobot_driver = {
 	.driver = {
 		   .name = "bifsd",
 		   .of_match_table = bifsd_hobot_of_match,
+		   .pm = &x2_bif_sd_dev_pm_ops,
 		   },
 	.probe = bifsd_probe,
 	.remove = bifsd_remove,
