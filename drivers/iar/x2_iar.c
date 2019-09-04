@@ -45,6 +45,10 @@ uint32_t iar_display_ipu_slot_size = 0x1000000;
 uint8_t ch1_en;
 uint8_t disp_user_config_done;
 
+#ifdef CONFIG_PM
+uint32_t g_iar_regs[90];
+#endif
+
 const unsigned int g_iarReg_cfg_table[][3] = {
 	/*reg mask	reg offset*/
 	{0x1, 0x1f},    /*ALPHA_SELECT_PRI4*/
@@ -309,6 +313,105 @@ struct iar_dev_s {
 struct iar_dev_s *g_iar_dev;
 
 //static int display_type = LCD_7_TYPE;
+
+#ifdef CONFIG_PM
+
+uint32_t g_out_sel = 0;
+
+static void iar_regs_store(void)
+{
+	void __iomem *regaddr;
+	int i;
+
+	if (g_iar_dev == NULL) {
+		pr_info("%s:%s, g_iar_dev=NULL\n", __FILE__, __func__);
+		return;
+	}
+
+	/* offset: 0x0 ~ 0x94, 0x98 writeonly. */
+	for (i = 0; i < 37; i++) {
+		regaddr = g_iar_dev->regaddr + 0x4 * i;
+		g_iar_regs[i] = readl(regaddr);
+	}
+
+	/* offset: 0x100 ~ 0x144 */
+	for (i = 38; i < 56; i++) {
+		regaddr = g_iar_dev->regaddr + 0x100 + (i - 38) * 0x4;
+		g_iar_regs[i] = readl(regaddr);
+	}
+
+	/* offset: 0x200 ~ 0x280 */
+	for (i = 56; i < 88; i++) {
+		regaddr = g_iar_dev->regaddr + 0x200 + (i - 56) * 0x4;
+		g_iar_regs[i] = readl(regaddr);
+	}
+
+	/* offset: 0x318 */
+	regaddr = g_iar_dev->regaddr + 0x318;
+	g_iar_regs[88] = readl(regaddr);
+
+	/* offset: 0x334 */
+	regaddr = g_iar_dev->regaddr + 0x334;
+	g_iar_regs[89] = readl(regaddr);
+
+	/* offset: 0x338 */
+	regaddr = g_iar_dev->regaddr + 0x338;
+	g_iar_regs[90] = readl(regaddr);
+}
+
+static void iar_regs_restore(void)
+{
+	void __iomem *regaddr;
+	int i;
+
+	if (g_iar_dev == NULL) {
+		pr_info("%s:%s, g_iar_dev=NULL\n", __FILE__, __func__);
+		return;
+	}
+
+	/* offset: 0x0 ~ 0x94, 0x98 writeonly. */
+	for (i = 0; i < 37; i++) {
+		regaddr = g_iar_dev->regaddr + 0x4 * i;
+		writel(g_iar_regs[i], regaddr);
+	}
+
+	/* offset: 0x100 ~ 0x144 */
+	for (i = 38; i < 56; i++) {
+		regaddr = g_iar_dev->regaddr + 0x100 + (i - 38) * 0x4;
+		writel(g_iar_regs[i], regaddr);
+	}
+
+	/* offset: 0x200 ~ 0x280 */
+	for (i = 56; i < 88; i++) {
+		regaddr = g_iar_dev->regaddr + 0x200 + (i - 56) * 0x4;
+		writel(g_iar_regs[i], regaddr);
+	}
+
+	/* offset: 0x310 */
+	regaddr = g_iar_dev->regaddr + 0x310;
+	writel(0x7ffffff, regaddr);
+
+	/* offset: 0x334 */
+	regaddr = g_iar_dev->regaddr + 0x334;
+	writel(g_iar_regs[89], regaddr);
+
+	/* offset: 0x338 */
+	regaddr = g_iar_dev->regaddr + 0x338;
+	writel(g_iar_regs[90], regaddr);
+
+	/* offset: 0x340 */
+	regaddr = g_iar_dev->regaddr + 0x340;
+	writel((0x1 << g_out_sel), regaddr);
+
+	/* offset: 0x318 */
+	regaddr = g_iar_dev->regaddr + 0x318;
+	writel(g_iar_regs[88], regaddr);
+
+	/* offset: 0x98*/
+	regaddr = g_iar_dev->regaddr + 0x98;
+	writel(0x1, regaddr);
+}
+#endif
 
 void x2_iar_dump(void)
 {
@@ -763,6 +866,9 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 	}
 //	iar_set_hvsync_timing(cfg->out_sel);
 
+#ifdef CONFIG_PM
+	g_out_sel = cfg->out_sel;
+#endif
 	writel(cfg->bgcolor, g_iar_dev->regaddr + REG_IAR_BG_COLOR);
 	writel((0x1 << cfg->out_sel), g_iar_dev->regaddr + REG_IAR_DE_OUTPUT_SEL);
 	value = IAR_REG_SET_FILED(IAR_PANEL_WIDTH, cfg->width, 0);
@@ -1672,6 +1778,30 @@ static const struct of_device_id x2_iar_of_match[] = {
 MODULE_DEVICE_TABLE(of, x2_iar_of_match);
 #endif
 
+#ifdef CONFIG_PM
+int x2_iar_suspend(struct device *dev)
+{
+	pr_info("%s:%s, enter suspend...\n", __FILE__, __func__);
+
+	iar_regs_store();
+
+	return 0;
+}
+
+int x2_iar_resume(struct device *dev)
+{
+	pr_info("%s:%s, enter resume...\n", __FILE__, __func__);
+
+	iar_regs_restore();
+
+	return 0;
+}
+#endif
+
+static const struct dev_pm_ops x2_iar_pm = {
+	SET_SYSTEM_SLEEP_PM_OPS(x2_iar_suspend,
+			x2_iar_resume)
+};
 
 static struct platform_driver x2_iar_driver = {
 	.probe = x2_iar_probe,
