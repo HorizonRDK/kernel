@@ -2,7 +2,7 @@
 #include <linux/printk.h>
 #include <linux/of_address.h>
 
-static void __iomem *clk_reg_base = NULL;
+void __iomem *clk_reg_base = NULL;
 
 void __iomem * clk_get_register_base(struct device_node *np)
 {
