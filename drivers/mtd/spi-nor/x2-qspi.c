@@ -891,6 +891,44 @@ static int x2_qspi_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#ifdef CONFIG_PM_SLEEP
+int x2_qspi_nor_suspend(struct device *dev)
+{
+	struct x2qspi_pdata *x2qspi = dev_get_drvdata(dev);
+
+	pr_info("%s:%s, enter suspend...\n", __FILE__, __func__);
+
+	/* wait for idle */
+	//x2_qspi_tx_empty(x2qspi);
+	//x2_qspi_rx_empty(x2qspi);
+
+	x2_qspi_set_xfer(x2qspi, X2_QSPI_OP_TX_DIS);
+	x2_qspi_set_xfer(x2qspi, X2_QSPI_OP_RX_DIS);
+
+	clk_disable_unprepare(x2qspi->clk);
+
+	return 0;
+}
+
+int x2_qspi_nor_resume(struct device *dev)
+{
+	struct x2qspi_pdata *x2qspi = dev_get_drvdata(dev);
+
+	pr_info("%s:%s, enter resume...\n", __FILE__, __func__);
+
+	clk_prepare_enable(x2qspi->clk);
+
+	x2_qspi_hw_init(x2qspi);
+
+	return 0;
+}
+#endif
+
+static const struct dev_pm_ops x2_qspi_nor_dev_pm_ops = {
+	SET_SYSTEM_SLEEP_PM_OPS(x2_qspi_nor_suspend,
+			x2_qspi_nor_resume)
+};
+
 static const struct of_device_id x2_qspi_of_match[] = {
     { .compatible = "hobot,x2-qspi" },
     { /* end of table */ }
@@ -904,6 +942,7 @@ static struct platform_driver x2_qspi_driver = {
     .driver = {
         .name = X2_QSPI_NAME,
         .of_match_table = x2_qspi_of_match,
+		.pm = &x2_qspi_nor_dev_pm_ops,
     },
 };
 module_platform_driver(x2_qspi_driver);
