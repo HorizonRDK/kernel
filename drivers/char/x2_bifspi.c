@@ -68,6 +68,10 @@ MODULE_PARM_DESC(major, "major num");
 static uint32_t bifspi_last_err_tm_ms;
 struct timer_list bifspi_diag_timer;
 
+#ifdef CONFIG_PM_SLEEP
+uint32_t g_bif_spi_regs[3];
+#endif
+
 struct bifspi_t {
 	int irq;
 	struct class *class;
@@ -665,6 +669,43 @@ static int bifspi_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#ifdef CONFIG_PM_SLEEP
+int x2_bif_spi_suspend(struct device *dev)
+{
+	struct bifspi_t *bifspi = dev_get_drvdata(dev);
+
+	pr_info("%s:%s, enter suspend...\n", __FILE__, __func__);
+
+	g_bif_spi_regs[0] = readl(bifspi->regs_base + BIF_ACCESS_FIRST);
+	g_bif_spi_regs[1] = readl(bifspi->regs_base + BIF_ACCESS_LAST);
+	g_bif_spi_regs[2] = readl(bifspi->regs_base + BIF_EN_CLEAR);
+
+	//bif_unset_access(bifspi);
+
+	return 0;
+}
+
+int x2_bif_spi_resume(struct device *dev)
+{
+	struct bifspi_t *bifspi = dev_get_drvdata(dev);
+
+	pr_info("%s:%s, enter resume...\n", __FILE__, __func__);
+
+	bif_reset(bifspi);
+
+	writel(g_bif_spi_regs[0], bifspi->regs_base + BIF_ACCESS_FIRST);
+	writel(g_bif_spi_regs[1], bifspi->regs_base + BIF_ACCESS_LAST);
+	writel(g_bif_spi_regs[2], bifspi->regs_base + BIF_EN_CLEAR);
+
+	return 0;
+}
+#endif
+
+static const struct dev_pm_ops x2_bif_spi_dev_pm_ops = {
+	SET_SYSTEM_SLEEP_PM_OPS(x2_bif_spi_suspend,
+			x2_bif_spi_resume)
+};
+
 static const struct of_device_id bifspi_hobot_of_match[] = {
 	/* SoC-specific compatible strings w/ soc_ctl_map */
 	{.compatible = "hobot,x2-bifspi",},
@@ -675,6 +716,7 @@ static struct platform_driver bifspi_hobot_driver = {
 	.driver = {
 		   .name = "x2-bifspi",
 		   .of_match_table = bifspi_hobot_of_match,
+		   .pm = &x2_bif_spi_dev_pm_ops,
 		   },
 	.probe = bifspi_probe,
 	.remove = bifspi_remove,
