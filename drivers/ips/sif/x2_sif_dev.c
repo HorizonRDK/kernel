@@ -4,12 +4,12 @@
 * All rights reserved.
 ***************************************************************************/
 /**
- * @file     sif_dev.c
- * @brief    SIF Device function file
- * @author   tarryzhang (tianyu.zhang@hobot.cc)
- * @date     2017/7/6
+ * @file	 sif_dev.c
+ * @brief	 SIF Device function file
+ * @author	 tarryzhang (tianyu.zhang@hobot.cc)
+ * @date	 2017/7/6
  * @version  V1.0
- * @par      Horizon Robotics
+ * @par		 Horizon Robotics
  */
 #include <linux/device.h>
 #include <linux/platform_device.h>
@@ -25,107 +25,107 @@
 
 
 /*SIF BASE REGISTER OFFSET*/
-#define OFFSET_PIC_FORMAT      (0)
-#define OFFSET_PIXEL_LEN       (4)
-#define OFFSET_BUS_TYPE        (8)
-#define OFFSET_VSYNC_INV       (12)
-#define OFFSET_HSYNC_INV       (13)
-#define OFFSET_PCLK_INV        (14)
-#define OFFSET_PCLK_OUTINV     (15)
-#define OFFSET_ERROR_CLEAR     (16)
-#define OFFSET_DROP_FRAME      (19)
-#define OFFSET_SIF_EN          (20)
-#define OFFSET_DVP2AP_EN       (21)
-#define OFFSET_BT2AP_EN        (22)
-#define OFFSET_MIPI2AP_EN      (23)
-#define OFFSET_RAW16_MODE      (24)
-#define OFFSET_RAW20_MODE      (25)
-#define OFFSET_YUV10_MODE      (26)
-#define OFFSET_DUALRX_MODE     (27)
-#define OFFSET_MIPI2AP_SEL     (28)
-#define OFFSET_MOT_DET_EN      (29)
+#define OFFSET_PIC_FORMAT	   (0)
+#define OFFSET_PIXEL_LEN	   (4)
+#define OFFSET_BUS_TYPE		   (8)
+#define OFFSET_VSYNC_INV	   (12)
+#define OFFSET_HSYNC_INV	   (13)
+#define OFFSET_PCLK_INV		   (14)
+#define OFFSET_PCLK_OUTINV	   (15)
+#define OFFSET_ERROR_CLEAR	   (16)
+#define OFFSET_DROP_FRAME	   (19)
+#define OFFSET_SIF_EN		   (20)
+#define OFFSET_DVP2AP_EN	   (21)
+#define OFFSET_BT2AP_EN		   (22)
+#define OFFSET_MIPI2AP_EN	   (23)
+#define OFFSET_RAW16_MODE	   (24)
+#define OFFSET_RAW20_MODE	   (25)
+#define OFFSET_YUV10_MODE	   (26)
+#define OFFSET_DUALRX_MODE	   (27)
+#define OFFSET_MIPI2AP_SEL	   (28)
+#define OFFSET_MOT_DET_EN	   (29)
 #define OFFSET_MOT_DET_REFRESH (30)
 
 
 /*SIF VIDEO SIZE REGISTER OFFSET*/
-#define OFFSET_INPUT_WIDTH     (16)
+#define OFFSET_INPUT_WIDTH	   (16)
 #define OFFSET_INPUT_HEIGHT    (0)
 /*SIF BT MODE REGISTER OFFSET*/
-#define OFFSET_BT_DETECT       (0)
+#define OFFSET_BT_DETECT	   (0)
 #define OFFSET_BT_INEXCHANGE   (2)
 #define OFFSET_BT_OUTEXCHANGE  (3)
 /*SIF VIDEO IN SIZE ERR REGISTER OFFSET*/
-#define OFFSET_WIDTH_ERROR     (0)
+#define OFFSET_WIDTH_ERROR	   (0)
 #define OFFSET_HEIGHT_ERROR    (16)
 
 /*SIF DET LT REGISTER OFFSET*/
-#define OFFSET_DET_L           (0)
-#define OFFSET_DET_T           (16)
+#define OFFSET_DET_L		   (0)
+#define OFFSET_DET_T		   (16)
 
 /*SIF DET WH REGISTER OFFSET*/
-#define OFFSET_DET_W           (0)
-#define OFFSET_DET_H           (16)
+#define OFFSET_DET_W		   (0)
+#define OFFSET_DET_H		   (16)
 
 /*SIF DET PARA1 REGISTER OFFSET*/
-#define OFFSET_DET_STEP        (0)
-#define OFFSET_DET_THRESH      (8)
+#define OFFSET_DET_STEP		   (0)
+#define OFFSET_DET_THRESH	   (8)
 #define OFFSET_DET_DIFF_THRESH (16)
 
 /*SIF DET PARA2 REGISTER OFFSET*/
-#define OFFSET_WGT_DECAY       (0)
-#define OFFSET_DEC_PREC        (8)
+#define OFFSET_WGT_DECAY	   (0)
+#define OFFSET_DEC_PREC		   (8)
 
 /*SIF FRAME ID CFG REGISTER OFFSET*/
-#define OFFSET_ID_EN           (0)
-#define OFFSET_ID_INIT         (8)
-#define OFFSET_ID_SET_EN       (16)
+#define OFFSET_ID_EN		   (0)
+#define OFFSET_ID_INIT		   (8)
+#define OFFSET_ID_SET_EN	   (16)
 
-#define SIF_ENABLE             (1)
-#define SIF_DISABLE            (0)
-#define DVP_RAW16_4_8          (0)
-#define DVP_RAW16_8_4          (1)
-#define DVP_RAW20_8_4          (0)
-#define DVP_RAW20_10_2         (1)
+#define SIF_ENABLE			   (1)
+#define SIF_DISABLE			   (0)
+#define DVP_RAW16_4_8		   (0)
+#define DVP_RAW16_8_4		   (1)
+#define DVP_RAW20_8_4		   (0)
+#define DVP_RAW20_10_2		   (1)
 #define DUALRX_SIDE_BY_SIDE    (0)
 #define DUALRX_VIRTUAL_CHANNEL (1)
-#define MIPI2AP_SEL_IPI0       (0)
-#define MIPI2AP_SEL_IPI1       (1)
-#define YUV42210_UV            (0)
-#define YUV42210_VU            (1)
+#define MIPI2AP_SEL_IPI0	   (0)
+#define MIPI2AP_SEL_IPI1	   (1)
+#define YUV42210_UV			   (0)
+#define YUV42210_VU			   (1)
 #define BT_SYNC_HEAD_16BITS    (0)
 #define BT_SYNC_HEAD_H8BITS    (1)
 #define BT_SYNC_HEAD_L8BITS    (2)
-#define BT_IN_D_NOEXCHG        (0)
-#define BT_OUT_D_NOEXCHG       (0)
-#define BT_IN_D_EXCHG          (1)
-#define BT_OUT_D_EXCHG         (1)
+#define BT_IN_D_NOEXCHG		   (0)
+#define BT_OUT_D_NOEXCHG	   (0)
+#define BT_IN_D_EXCHG		   (1)
+#define BT_OUT_D_EXCHG		   (1)
 
 
-#define SIF_BITS1              (0x00000001)
-#define SIF_BITS2              (0x00000003)
-#define SIF_BITS3              (0x00000007)
-#define SIF_BITS4              (0x0000000f)
-#define SIF_BITS5              (0x0000001f)
-#define SIF_BITS6              (0x0000003f)
-#define SIF_BITS7              (0x0000007f)
-#define SIF_BITS8              (0x000000ff)
-#define SIF_BITS9              (0x000001ff)
-#define SIF_BITS10             (0x000003ff)
-#define SIF_BITS11             (0x000007ff)
-#define SIF_BITS12             (0x00000fff)
-#define SIF_BITS13             (0x00001fff)
-#define SIF_BITS14             (0x00003fff)
-#define SIF_BITS15             (0x00007fff)
-#define SIF_BITS16             (0x0000ffff)
-#define SIF_BITS17             (0x0001ffff)
-#define SIF_BITS18             (0x0003ffff)
-#define SIF_BITS19             (0x0007ffff)
-#define SIF_BITS20             (0x000fffff)
-#define SIF_BITS32             (0xffffffff)
+#define SIF_BITS1			   (0x00000001)
+#define SIF_BITS2			   (0x00000003)
+#define SIF_BITS3			   (0x00000007)
+#define SIF_BITS4			   (0x0000000f)
+#define SIF_BITS5			   (0x0000001f)
+#define SIF_BITS6			   (0x0000003f)
+#define SIF_BITS7			   (0x0000007f)
+#define SIF_BITS8			   (0x000000ff)
+#define SIF_BITS9			   (0x000001ff)
+#define SIF_BITS10			   (0x000003ff)
+#define SIF_BITS11			   (0x000007ff)
+#define SIF_BITS12			   (0x00000fff)
+#define SIF_BITS13			   (0x00001fff)
+#define SIF_BITS14			   (0x00003fff)
+#define SIF_BITS15			   (0x00007fff)
+#define SIF_BITS16			   (0x0000ffff)
+#define SIF_BITS17			   (0x0001ffff)
+#define SIF_BITS18			   (0x0003ffff)
+#define SIF_BITS19			   (0x0007ffff)
+#define SIF_BITS20			   (0x000fffff)
+#define SIF_BITS32			   (0xffffffff)
 
-#define VALUE_CLEAR(b,o)        (~((b) << (o)))
-#define VALUE_SET(v,b,o)        (((v)&(b)) << (o))
-#define VALUE_GET(v,b,o)        (((v)>>(o)) & (b))
+#define VALUE_CLEAR(b,o)		(~((b) << (o)))
+#define VALUE_SET(v,b,o)		(((v)&(b)) << (o))
+#define VALUE_GET(v,b,o)		(((v)>>(o)) & (b))
 
 typedef enum _sif_status_key_e {
 	STATUS_BUS_WIDTH = 0,
@@ -227,7 +227,7 @@ const uint32_t g_sif_cfg_table[][TABLE_MAX] = {
 	{SIF_BITS1,  OFFSET_ID_SET_EN}, /*FRAME_ID_SET_EN*/
 };
 
-#define CONFIG_CLEAR(key)      VALUE_CLEAR(g_sif_cfg_table[key][TABLE_BITS], g_sif_cfg_table[key][TABLE_OFFSET])
+#define CONFIG_CLEAR(key)	   VALUE_CLEAR(g_sif_cfg_table[key][TABLE_BITS], g_sif_cfg_table[key][TABLE_OFFSET])
 #define CONFIG_SET(key, value) VALUE_SET(value, g_sif_cfg_table[key][TABLE_BITS], g_sif_cfg_table[key][TABLE_OFFSET])
 #define CONFIG_GET(key, value) VALUE_GET(value, g_sif_cfg_table[key][TABLE_BITS], g_sif_cfg_table[key][TABLE_OFFSET])
 #define CONFIG_CLEAR_SET(cfg, key, value) ((cfg & CONFIG_CLEAR(key)) | CONFIG_SET(key, value))
@@ -240,8 +240,8 @@ typedef struct _sif_dev_s {
 
 sif_dev_t  *g_sif_dev = NULL;
 
-#define sif_getreg(a)          readl(a)
-#define sif_putreg(a,v)        writel(v,a)
+#define sif_getreg(a)		   readl(a)
+#define sif_putreg(a,v)		   writel(v,a)
 /*extern int bifdev_get_cpchip_reg(unsigned int addr, int *value);				   */
 /*extern int bifdev_set_cpchip_reg(unsigned int addr, int value);				   */
 /*#define sif_getreg(a)          ({uint32_t value = 0;\							   */
@@ -364,14 +364,14 @@ static void sif_dev_base_config(sif_init_t *cfg, uint8_t update)
 	} else {
 		g_sif_dev->bustype = cfg->bus_type;
 	}
-	base = CONFIG_CLEAR_SET(base, BASE_FORMAT,         cfg->format);
-	base = CONFIG_CLEAR_SET(base, BASE_PIX_LEN,        cfg->pix_len);
-	base = CONFIG_CLEAR_SET(base, BASE_BUS_TYPE,       cfg->bus_type);
-	base = CONFIG_CLEAR_SET(base, BASE_VSYNC_INV,      cfg->vsync_inv);
-	base = CONFIG_CLEAR_SET(base, BASE_HSYNC_INV,      cfg->hsync_inv);
+	base = CONFIG_CLEAR_SET(base, BASE_FORMAT,		   cfg->format);
+	base = CONFIG_CLEAR_SET(base, BASE_PIX_LEN,		   cfg->pix_len);
+	base = CONFIG_CLEAR_SET(base, BASE_BUS_TYPE,	   cfg->bus_type);
+	base = CONFIG_CLEAR_SET(base, BASE_VSYNC_INV,	   cfg->vsync_inv);
+	base = CONFIG_CLEAR_SET(base, BASE_HSYNC_INV,	   cfg->hsync_inv);
 	base = CONFIG_CLEAR_SET(base, BASE_PCLK_IN_INV,    cfg->pclk_in_inv);
 	base = CONFIG_CLEAR_SET(base, BASE_PCLK_OUT_INV,   cfg->pclk_out_inv);
-	base = CONFIG_CLEAR_SET(base, BASE_DROP_FRAME,     cfg->drop_frame);
+	base = CONFIG_CLEAR_SET(base, BASE_DROP_FRAME,	   cfg->drop_frame);
 	base = CONFIG_CLEAR_SET(base, BASE_RAW_16BIT_MODE, cfg->raw_16bit_mode);
 	base = CONFIG_CLEAR_SET(base, BASE_RAW_20BIT_MODE, cfg->raw_20bit_mode);
 	base = CONFIG_CLEAR_SET(base, BASE_YUV_10BIT_MODE, cfg->yuv_10bit_mode);
@@ -390,7 +390,7 @@ static void sif_dev_input_size(sif_init_t *cfg)
 		return;
 	}
 	iomem = g_sif_dev->iomem;
-	size |= CONFIG_SET(SIZE_WIDTH,  cfg->width);
+	size |= CONFIG_SET(SIZE_WIDTH,	cfg->width);
 	size |= CONFIG_SET(SIZE_HEIGHT, cfg->height);
 	sif_putreg(iomem + REG_SIF_VIDEO_IN_SIZE, size);
 	return;
@@ -405,9 +405,9 @@ static void sif_dev_bt_mode(sif_init_t *cfg)
 		return;
 	}
 	iomem = g_sif_dev->iomem;
-	bt_mode |= CONFIG_SET(BT_DETECT_MODE,   cfg->bt_detect_mode);
-	bt_mode |= CONFIG_SET(BT_IN_EXCHANGE,   cfg->bt_in_exchange);
-	bt_mode |= CONFIG_SET(BT_OUT_EXCHANGE,  cfg->bt_out_exchange);
+	bt_mode |= CONFIG_SET(BT_DETECT_MODE,	cfg->bt_detect_mode);
+	bt_mode |= CONFIG_SET(BT_IN_EXCHANGE,	cfg->bt_in_exchange);
+	bt_mode |= CONFIG_SET(BT_OUT_EXCHANGE,	cfg->bt_out_exchange);
 	sif_putreg(iomem + REG_SIF_BT_CFG, bt_mode);
 	return;
 }
@@ -463,7 +463,7 @@ int32_t sif_dev_mot_det_cfg(mot_det_t *cfg)
 	det_en = sif_getreg(iomem + REG_SIF_BASE_CTRL);
 	det_en = CONFIG_CLEAR_SET(det_en, MOT_DET_EN, cfg->enable);
 	det_en = CONFIG_CLEAR_SET(det_en, MOT_DET_REFRESH, cfg->refresh);
-	sif_putreg(iomem + REG_FRAME_ID_CFG, det_en);
+	sif_putreg(iomem + REG_SIF_BASE_CTRL, det_en);
 
 	det_lt |= CONFIG_SET(MOT_DET_ROI_L, cfg->left);
 	det_lt |= CONFIG_SET(MOT_DET_ROI_T, cfg->top);
@@ -522,32 +522,32 @@ void sif_dev_get_info(sif_info_t *info)
 	}
 	iomem = g_sif_dev->iomem;
 	base = sif_getreg(iomem + REG_SIF_BASE_CTRL);
-	info->format          = CONFIG_GET(BASE_FORMAT,         base);
-	info->pix_len         = CONFIG_GET(BASE_PIX_LEN,        base);
-	info->bus_type        = CONFIG_GET(BASE_BUS_TYPE,       base);
-	info->vsync_inv       = CONFIG_GET(BASE_VSYNC_INV,      base);
-	info->hsync_inv       = CONFIG_GET(BASE_HSYNC_INV,      base);
-	info->pclk_in_inv     = CONFIG_GET(BASE_PCLK_IN_INV,    base);
-	info->pclk_out_inv    = CONFIG_GET(BASE_PCLK_OUT_INV,   base);
-	info->sif_enable      = CONFIG_GET(BASE_SIF_ENABLE,     base);
-	info->drop_frame      = CONFIG_GET(BASE_DROP_FRAME,     base);
-	info->dvp2ap_enable   = CONFIG_GET(BASE_DVP2AP_ENABLE,  base);
-	info->bt2ap_enable    = CONFIG_GET(BASE_BT2AP_ENABLE,   base);
+	info->format		  = CONFIG_GET(BASE_FORMAT,			base);
+	info->pix_len		  = CONFIG_GET(BASE_PIX_LEN,		base);
+	info->bus_type		  = CONFIG_GET(BASE_BUS_TYPE,		base);
+	info->vsync_inv		  = CONFIG_GET(BASE_VSYNC_INV,		base);
+	info->hsync_inv		  = CONFIG_GET(BASE_HSYNC_INV,		base);
+	info->pclk_in_inv	  = CONFIG_GET(BASE_PCLK_IN_INV,	base);
+	info->pclk_out_inv	  = CONFIG_GET(BASE_PCLK_OUT_INV,	base);
+	info->sif_enable	  = CONFIG_GET(BASE_SIF_ENABLE,		base);
+	info->drop_frame	  = CONFIG_GET(BASE_DROP_FRAME,		base);
+	info->dvp2ap_enable   = CONFIG_GET(BASE_DVP2AP_ENABLE,	base);
+	info->bt2ap_enable	  = CONFIG_GET(BASE_BT2AP_ENABLE,	base);
 	info->mipi2ap_enable  = CONFIG_GET(BASE_MIPI2AP_ENABLE, base);
 	info->raw_16bit_mode  = CONFIG_GET(BASE_RAW_16BIT_MODE, base);
 	info->raw_20bit_mode  = CONFIG_GET(BASE_RAW_20BIT_MODE, base);
 	info->yuv_10bit_mode  = CONFIG_GET(BASE_YUV_10BIT_MODE, base);
-	info->dualrx_mode     = CONFIG_GET(BASE_DUALRX_MODE,    base);
-	info->mipi2ap_sel     = CONFIG_GET(BASE_MIPI2AP_SEL,    base);
+	info->dualrx_mode	  = CONFIG_GET(BASE_DUALRX_MODE,	base);
+	info->mipi2ap_sel	  = CONFIG_GET(BASE_MIPI2AP_SEL,	base);
 
 	size = sif_getreg(iomem + REG_SIF_VIDEO_IN_SIZE);
-	info->width           = CONFIG_GET(SIZE_WIDTH,          size);
-	info->height          = CONFIG_GET(SIZE_HEIGHT,         size);
+	info->width			  = CONFIG_GET(SIZE_WIDTH,			size);
+	info->height		  = CONFIG_GET(SIZE_HEIGHT,			size);
 
 	bt_mode = sif_getreg(iomem + REG_SIF_BT_CFG);
-	info->bt_detect_mode  = CONFIG_GET(BT_DETECT_MODE,      bt_mode);
-	info->bt_in_exchange  = CONFIG_GET(BT_IN_EXCHANGE,      bt_mode);
-	info->bt_out_exchange = CONFIG_GET(BT_OUT_EXCHANGE,     bt_mode);
+	info->bt_detect_mode  = CONFIG_GET(BT_DETECT_MODE,		bt_mode);
+	info->bt_in_exchange  = CONFIG_GET(BT_IN_EXCHANGE,		bt_mode);
+	info->bt_out_exchange = CONFIG_GET(BT_OUT_EXCHANGE,		bt_mode);
 }
 
 /**
@@ -754,12 +754,12 @@ static ssize_t x2_sif_bypass_store(struct kobject *kobj,
 }
 
 static struct kobj_attribute sif_test_attr = {
-	.attr   = {
+	.attr	= {
 		.name = __stringify(sif_test_attr),
 		.mode = 0644,
 	},
-	.show   = x2_sif_show,
-	.store  = x2_sif_store,
+	.show	= x2_sif_show,
+	.store	= x2_sif_store,
 };
 
 static struct kobj_attribute sif_bypass_attr = {
@@ -780,10 +780,31 @@ static struct attribute_group attr_group = {
 	.attrs = attributes,
 };
 
+#ifdef CONFIG_PM_SLEEP
+int x2_sif_dev_suspend(struct device *dev)
+{
+	int ret;
+	ret = x2_sif_suspend();
+	return ret;
+}
+
+int x2_sif_dev_resume(struct device *dev)
+{
+	int ret;
+	ret = x2_sif_resume();
+	return ret;
+}
+#endif
+
+static const struct dev_pm_ops x2_sif_dev_pm_ops = {
+	SET_SYSTEM_SLEEP_PM_OPS(x2_sif_dev_suspend,
+			x2_sif_dev_resume)
+};
+
 static int x2_sif_dev_probe(struct platform_device *pdev)
 {
-	int              ret = 0;
-	sif_dev_t       *pack_dev = NULL;
+	int				 ret = 0;
+	sif_dev_t		*pack_dev = NULL;
 	struct resource *res;
 	pack_dev = devm_kmalloc(&pdev->dev, sizeof(sif_dev_t), GFP_KERNEL);
 	if (!pack_dev) {
@@ -827,11 +848,12 @@ static const struct of_device_id x2_sif_dev_match[] = {
 MODULE_DEVICE_TABLE(of, x2_sif_dev_match);
 
 static struct platform_driver x2_sif_dev_driver = {
-	.probe  = x2_sif_dev_probe,
+	.probe	= x2_sif_dev_probe,
 	.remove = x2_sif_dev_remove,
 	.driver	= {
 		.name = "x2_sif_dev",
 		.of_match_table = x2_sif_dev_match,
+		.pm = &x2_sif_dev_pm_ops,
 	},
 };
 

@@ -104,6 +104,61 @@
 
 unsigned char __iomem *g_regbase = NULL;
 
+#ifdef CONFIG_PM_SLEEP
+#define IPU_REGS_LEN	17
+#define REGS_LEN	148
+
+uint32_t g_regs_context[REGS_LEN];
+
+void ipu_regs_store(void)
+{
+	int i;
+	void __iomem *addr = NULL;
+
+	if (g_regbase == NULL) {
+		pr_info("%s:%s, g_regbase NULL\n", __FILE__, __func__);
+		return;
+	}
+
+	for (i = 0; i < IPU_REGS_LEN; i++) {
+		addr = g_regbase + i * 0x4;
+		g_regs_context[i] = readl(addr);
+	}
+
+	for (i = IPU_REGS_LEN; i < REGS_LEN; i++) {
+		addr = g_regbase + 0x100 + (i - IPU_REGS_LEN) * 0x4;
+		g_regs_context[i] = readl(addr);
+	}
+}
+
+void ipu_regs_restore(void)
+{
+	int i;
+	void __iomem *addr = NULL;
+
+	if (g_regbase == NULL) {
+		pr_info("%s:%s, g_regbase NULL\n", __FILE__, __func__);
+		return;
+	}
+
+	/* skip IPU_CTRL register */
+	for (i = 1; i < IPU_REGS_LEN; i++) {
+		addr = g_regbase + i * 0x4;
+		writel(g_regs_context[i], addr);
+	}
+
+	for (i = IPU_REGS_LEN; i < REGS_LEN; i++) {
+		addr = g_regbase + 0x100 + (i - IPU_REGS_LEN) * 0x4;
+		writel(g_regs_context[i], addr);
+	}
+
+	/* restore IPU_CTRL register */
+	addr = g_regbase;
+	writel(g_regs_context[0], addr);
+}
+#endif
+
+
 int8_t ipu_dump_regs(void)
 {
 	uint8_t 	   i = 0;

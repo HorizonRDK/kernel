@@ -62,5 +62,9 @@ int8_t set_isp_regs(uint32_t *info, uint32_t datalen);
 int8_t isp_write_regs(uint32_t addr, uint32_t datalen, uint32_t *info);
 int8_t isp_read_regs(uint32_t addr, uint32_t datalen, uint32_t *info);
 uint32_t write_isp_reg(struct con_reg_s *info);
+#ifdef CONFIG_PM
+void x2_isp_regs_store(void);
+void x2_isp_regs_restore(void);
+#endif
 
 #endif /* __X2_ISP_DEV_H__ */

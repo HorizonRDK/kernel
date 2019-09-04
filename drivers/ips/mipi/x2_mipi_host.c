@@ -4,12 +4,12 @@
 * All rights reserved.
 ***************************************************************************/
 /**
- * @file     mipi_host.c
- * @brief    MIPI HOST control function, includeing controller and D-PHY control
- * @author   tarryzhang (tianyu.zhang@hobot.cc)
- * @date     2017/7/6
+ * @file	 mipi_host.c
+ * @brief	 MIPI HOST control function, includeing controller and D-PHY control
+ * @author	 tarryzhang (tianyu.zhang@hobot.cc)
+ * @date	 2017/7/6
  * @version  V1.0
- * @par      Horizon Robotics
+ * @par		 Horizon Robotics
  */
 #include <linux/init.h>
 #include <linux/module.h>
@@ -27,6 +27,7 @@
 #include <linux/interrupt.h>
 #include <linux/irq.h>
 #include <linux/delay.h>
+#include <linux/suspend.h>
 
 #include <x2/diag.h>
 #include <linux/timer.h>
@@ -36,28 +37,28 @@
 #include "x2_mipi_utils.h"
 #include "x2/x2_ips.h"
 
-#define MIPI_HOST_INT_DBG          (1)
+#define MIPI_HOST_INT_DBG		   (1)
 
 #define MIPI_HOST_INT_PHY_FATAL    (0x1)
 #define MIPI_HOST_INT_PKT_FATAL    (0x1<<1)
 #define MIPI_HOST_INT_FRM_FATAL    (0x1<<2)
-#define MIPI_HOST_INT_PHY          (0x1<<16)
-#define MIPI_HOST_INT_PKT          (0x1<<17)
-#define MIPI_HOST_INT_LINE         (0x1<<18)
-#define MIPI_HOST_INT_IPI          (0x1<<19)
+#define MIPI_HOST_INT_PHY		   (0x1<<16)
+#define MIPI_HOST_INT_PKT		   (0x1<<17)
+#define MIPI_HOST_INT_LINE		   (0x1<<18)
+#define MIPI_HOST_INT_IPI		   (0x1<<19)
 
-#define MIPI_HOST_CSI2_RAISE       (0x01)
-#define MIPI_HOST_CSI2_RESETN      (0x00)
-#define MIPI_HOST_BITWIDTH_48      (0)
-#define MIPI_HOST_BITWIDTH_16      (1)
+#define MIPI_HOST_CSI2_RAISE	   (0x01)
+#define MIPI_HOST_CSI2_RESETN	   (0x00)
+#define MIPI_HOST_BITWIDTH_48	   (0)
+#define MIPI_HOST_BITWIDTH_16	   (1)
 #define MIPI_HOST_BITWIDTH_OFFSET  (8)
 #define MIPI_HOST_MEMFLUSN_ENABLE  (0x01 << 8)
-#define MIPI_HOST_EMB_DATA         (0x01 << 8)
-#define MIPI_HOST_IPI_ENABLE       (0x01 << 24)
+#define MIPI_HOST_EMB_DATA		   (0x01 << 8)
+#define MIPI_HOST_IPI_ENABLE	   (0x01 << 24)
 #define MIPI_HOST_LEGCYMODE_ENABLE (0x01 << 24)
-#define MIPI_HOST_HSATIME          (0x04)
-#define MIPI_HOST_HBPTIME          (0x04)
-#define MIPI_HOST_HSDTIME          (0x5f4)
+#define MIPI_HOST_HSATIME		   (0x04)
+#define MIPI_HOST_HBPTIME		   (0x04)
+#define MIPI_HOST_HSDTIME		   (0x5f4)
 #define MIPI_HOST_CFGCLK_DEFAULT   (0x1C)
 
 #define HOST_DPHY_LANE_MAX         (4)
@@ -112,20 +113,20 @@ module_param(adv_value, uint, 0644);
 module_param(need_stop_check, uint, 0644);
 /* for parameters */
 
-#define MIPIHOSTIOC_READ        _IOWR(MIPIHOSTIOC_MAGIC, 4, reg_t)
-#define MIPIHOSTIOC_WRITE       _IOW(MIPIHOSTIOC_MAGIC, 5, reg_t)
+#define MIPIHOSTIOC_READ		_IOWR(MIPIHOSTIOC_MAGIC, 4, reg_t)
+#define MIPIHOSTIOC_WRITE		_IOW(MIPIHOSTIOC_MAGIC, 5, reg_t)
 
 struct timer_list mipi_host_diag_timer;
 static uint32_t host_last_err_tm_ms;
 
 typedef struct _mipi_host_s {
 	void __iomem  *iomem;
-	int            irq;
-	mipi_state_t   state;   /* mipi host state */
+	int			   irq;
+	mipi_state_t   state;	/* mipi host state */
 } mipi_host_t;
 
 mipi_host_t  *g_mipi_host = NULL;
-static int    mipi_host_major = 0;
+static int	  mipi_host_major = 0;
 struct cdev   mipi_host_cdev;
 static struct class  *x2_mipi_host_class;
 static struct device *g_mipi_host_dev;
@@ -138,6 +139,10 @@ module_param(host_irq_cnt, uint, 0644);
 #endif
 
 #define EventIdVioMipiHostError 80
+
+#ifdef CONFIG_PM_SLEEP
+static mipi_host_cfg_t g_mipi_host_cfg;
+#endif
 
 static unsigned long mipi_host_pixel_clk_select(mipi_host_cfg_t *control)
 {
@@ -254,7 +259,7 @@ static uint16_t mipi_host_get_hsd(mipi_host_cfg_t *control, unsigned long pixclk
 	}
 	if (!control->linelenth) {
 		rx_bit_clk = (unsigned long)control->mipiclk * 1000000;
-        line_size = control->width;
+		line_size = control->width;
 	} else {
 		rx_bit_clk = control->linelenth * control->framelenth * control->fps * bits_per_pixel;
 		line_size = control->linelenth;
@@ -590,8 +595,8 @@ static irqreturn_t mipi_host_irq_func(int this_irq, void *data)
 
 static int32_t mipi_host_dphy_wait_stop(mipi_host_cfg_t *control)
 {
-	uint16_t       ncount = 0;
-	uint32_t       stopstate = 0;
+	uint16_t	   ncount = 0;
+	uint32_t	   stopstate = 0;
 	void __iomem  *iomem = NULL;
 	if (NULL == g_mipi_host) {
 		mipierr("mipi host not inited!");
@@ -620,8 +625,8 @@ static int32_t mipi_host_dphy_wait_stop(mipi_host_cfg_t *control)
  */
 static int32_t mipi_host_dphy_start_hs_reception(void)
 {
-	uint16_t       ncount = 0;
-	uint32_t       state = 0;
+	uint16_t	   ncount = 0;
+	uint32_t	   state = 0;
 	void __iomem  *iomem = NULL;
 	if (NULL == g_mipi_host) {
 		mipierr("mipi host not inited!");
@@ -707,7 +712,7 @@ void mipi_host_deinit(void)
 	}
 	iomem = g_mipi_host->iomem;
 #ifdef CONFIG_X2_MIPI_PHY
-	mipi_host_dphy_reset();
+	mipi_host_dphy_reset(iomem);
 #endif
 	/* new add */
 	mipi_host_states = 0;
@@ -812,9 +817,9 @@ static long x2_mipi_host_ioctl(struct file *file, unsigned int cmd, unsigned lon
 {
 	mipi_host_t   *mipi_host = (mipi_host_t *)file->private_data;
 	void __iomem  *iomem = mipi_host->iomem;
-	reg_t          reg;
-	uint32_t       regv = 0;
-	int            ret = 0;
+	reg_t		   reg;
+	uint32_t	   regv = 0;
+	int			   ret = 0;
 	/* Check type and command number */
 	if (_IOC_TYPE(cmd) != MIPIHOSTIOC_MAGIC)
 		return -ENOTTY;
@@ -822,7 +827,7 @@ static long x2_mipi_host_ioctl(struct file *file, unsigned int cmd, unsigned lon
 	switch (cmd) {
 	case MIPIHOSTIOC_INIT:
 		{
-			mipi_host_cfg_t     mipi_host_cfg;
+			mipi_host_cfg_t		mipi_host_cfg;
 			printk(KERN_INFO "mipi host init cmd\n");
 			if (!arg) {
 				mipierr("ERROR: mipi host init error, config should not be NULL");
@@ -836,6 +841,12 @@ static long x2_mipi_host_ioctl(struct file *file, unsigned int cmd, unsigned lon
 				mipierr("ERROR: mipi host copy data from user failed\n");
 				return -EINVAL;
 			}
+#ifdef CONFIG_PM_SLEEP
+			if (copy_from_user((void *)&g_mipi_host_cfg, (void __user *)arg, sizeof(mipi_host_cfg_t))) {
+				mipierr("ERROR: mipi host copy data from user to g_mipi_host_cfg failed\n");
+				return -EINVAL;
+			}
+#endif
 			if (0 != (ret = mipi_host_init(&mipi_host_cfg))) {
 				mipierr("ERROR: mipi host init error: %d", ret);
 				ret = -1;
@@ -932,6 +943,70 @@ static long x2_mipi_host_ioctl(struct file *file, unsigned int cmd, unsigned lon
 	}
 	return 0;
 }
+
+#ifdef CONFIG_PM_SLEEP
+int x2_mipi_host_suspend(struct device *dev)
+{
+	if (pm_suspend_target_state == PM_SUSPEND_TO_IDLE)
+		return 0;
+
+	mipiinfo("%s:%s enter suspend...", __FILE__, __func__);
+
+	mipi_host_stop();
+	mipi_host_deinit();
+
+	return 0;
+}
+
+int x2_mipi_host_resume(struct device *dev)
+{
+	mipi_host_t *mipi_host = dev_get_drvdata(dev);
+	int ret = 0;
+
+	if (pm_suspend_target_state == PM_SUSPEND_TO_IDLE)
+		return 0;
+
+	mipiinfo("%s:%s enter resume...", __FILE__, __func__);
+
+	if (mipi_host->state == MIPI_STATE_DEFAULT) {
+		mipi_host_stop();
+		mipi_host_deinit();
+	} else if (mipi_host->state == MIPI_STATE_START) {
+		/* if state == MIPI_STATE_START, it has been initialized. */
+		if (0 != (ret = mipi_host_init(&g_mipi_host_cfg))) {
+			mipierr("ERROR:mipi host init error:%d in %s", ret, __func__);
+			return ret;
+		}
+
+		/* start again */
+		if (0 != (ret = mipi_host_start())) {
+			mipierr("ERROR: mipi host start error:%d in %s", ret, __func__);
+			return ret;
+		}
+	} else if (mipi_host->state == MIPI_STATE_STOP) {
+		/* if state == MIPI_STATE_STOP, it has been initialized. */
+		if (0 != (ret = mipi_host_init(&g_mipi_host_cfg))) {
+			mipierr("ERROR:mipi host init error:%d in %s", ret, __func__);
+			return ret;
+		}
+
+		mipi_host_stop();
+	} else if (mipi_host->state == MIPI_STATE_INIT) {
+		if (0 != (ret = mipi_host_init(&g_mipi_host_cfg))) {
+			mipierr("ERROR:mipi host init error:%d in %s", ret, __func__);
+			return ret;
+		}
+	}
+
+	return ret;
+}
+#endif
+
+static const struct dev_pm_ops x2_mipi_host_dev_pm_ops = {
+	SET_SYSTEM_SLEEP_PM_OPS(x2_mipi_host_suspend,
+			x2_mipi_host_resume)
+};
+
 static const struct file_operations x2_mipi_host_fops = {
 	.owner		= THIS_MODULE,
 	.open		= x2_mipi_host_open,
@@ -942,11 +1017,11 @@ static const struct file_operations x2_mipi_host_fops = {
 
 static int x2_mipi_host_probe(struct platform_device *pdev)
 {
-	mipi_host_t     *mipi_host = NULL;
-	int              ret = 0;
-	dev_t            devno;
+	mipi_host_t		*mipi_host = NULL;
+	int				 ret = 0;
+	dev_t			 devno;
 	struct resource *res;
-	struct cdev     *p_cdev = &mipi_host_cdev;
+	struct cdev		*p_cdev = &mipi_host_cdev;
 
 	mipi_host = kzalloc(sizeof(mipi_host_t), GFP_KERNEL);
 	if (mipi_host == NULL) {
@@ -1065,11 +1140,12 @@ static const struct of_device_id x2_mipi_host_match[] = {
 MODULE_DEVICE_TABLE(of, x2_mipi_host_match);
 
 static struct platform_driver x2_mipi_host_driver = {
-	.probe  = x2_mipi_host_probe,
+	.probe	= x2_mipi_host_probe,
 	.remove = x2_mipi_host_remove,
-	.driver	= {
+	.driver = {
 		.name = "x2_mipi_host",
 		.of_match_table = x2_mipi_host_match,
+		.pm = &x2_mipi_host_dev_pm_ops,
 	},
 };
 

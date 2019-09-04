@@ -16,7 +16,7 @@
 #ifdef CONFIG_X2_MIPI_PHY
 
 int32_t mipi_host_dphy_initialize(uint16_t mipiclk, uint16_t lane, uint16_t settle, void __iomem *iomem);
-void    mipi_host_dphy_reset(void);
+void    mipi_host_dphy_reset(void __iomem *iomem);
 
 int32_t mipi_dev_dphy_initialize(void __iomem *iomem, uint16_t mipiclk, uint16_t lane, uint16_t settle);
 void    mipi_dev_dphy_reset(void __iomem *iomem);

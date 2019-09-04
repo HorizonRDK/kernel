@@ -120,5 +120,9 @@ int8_t set_ds_src_addr(uint32_t y_addr, uint32_t c_addr);
 int8_t set_us_layer_addr(uint8_t id, uint32_t y_addr, uint32_t c_addr);
 void ctrl_ipu_to_ddr(uint32_t module, bool status);
 int8_t pym_manual_start(void);
+#ifdef CONFIG_PM
+void ipu_regs_store(void);
+void ipu_regs_restore(void);
+#endif
 
 #endif

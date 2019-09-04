@@ -858,6 +858,47 @@ static int x2_ipu_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#ifdef CONFIG_PM_SLEEP
+int ipu_suspend(struct device *dev)
+{
+	pr_info("%s:%s, enter suspend...\n", __FILE__, __func__);
+
+	ipu_regs_store();
+
+	/* stop ipu */
+	ctrl_ipu_to_ddr(CROP_TO_DDR | SCALAR_TO_DDR | PYM_TO_DDR, DISABLE);
+	//ips_irq_disable(IPU_INT);
+
+	return 0;
+}
+
+int ipu_resume(struct device *dev)
+{
+	pr_info("%s:%s, enter resume...\n", __FILE__, __func__);
+
+	ips_module_reset(RST_IPU);
+
+	ipu_regs_restore();
+
+	if (g_ipu->cfg->pymid.pymid_en) {
+		if (g_ipu->ipu_mode == IPU_ISP_SINGLE)
+			ips_mask_int(PYM_FRAME_START | IPU_FRAME_DONE);
+	}
+	else
+		ips_mask_int(PYM_FRAME_START | PYM_FRAME_DONE);
+
+	if (g_ipu->stop == false)
+		ips_irq_enable(IPU_INT);
+
+	return 0;
+}
+#endif
+
+static const struct dev_pm_ops ipu_dev_pm_ops = {
+	SET_SYSTEM_SLEEP_PM_OPS(ipu_suspend,
+			ipu_resume)
+};
+
 /* Match table for of_platform binding */
 static const struct of_device_id x2_ipu_of_match[] = {
 	{.compatible = "hobot,x2-ipu", },
@@ -872,6 +913,7 @@ static struct platform_driver x2_ipu_platform_driver = {
 	.driver  = {
 		.name = X2_IPU_NAME,
 		.of_match_table = x2_ipu_of_match,
+		.pm = &ipu_dev_pm_ops,
 	},
 };
 
@@ -1021,12 +1063,12 @@ static struct kobj_attribute tsadjcal = __ATTR(tsadjcal, 0644,
 				ipu_tsadjcal_show, ipu_tsadjcal_store);
 
 static struct kobj_attribute ipu_test_attr = {
-	.attr   = {
+	.attr	= {
 		.name = __stringify(ipu_test_attr),
 		.mode = 0644,
 	},
-	.show   = x2_ipu_show,
-	.store  = x2_ipu_store,
+	.show	= x2_ipu_show,
+	.store	= x2_ipu_store,
 };
 
 static struct attribute *attributes[] = {

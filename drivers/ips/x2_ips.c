@@ -23,6 +23,7 @@
 #include <linux/uaccess.h>
 #include <linux/reset.h>
 #include <linux/pinctrl/consumer.h>
+#include <linux/suspend.h>
 
 #include "x2/x2_ips.h"
 
@@ -569,11 +570,13 @@ int ips_set_mipi_freqrange(unsigned int region, unsigned int value)
 	spin_lock_irqsave(g_ipsdev->lock, flags);
 
 	val = readl(g_ipsdev->regaddr + IPS_MIPI_DEV_PLL_CTRL2);
+	pr_info("%s, %s, IPS_MIPI_DEV_PLL_CTRL2 = %x\n", __FILE__, __func__, val);
 	val &= ~(MIPI_PLL_SEL_CLR);
 	val |= (MIPI_PLL_SEL(1));
 	writel(val, g_ipsdev->regaddr + IPS_MIPI_DEV_PLL_CTRL2);
 
 	val = readl(g_ipsdev->regaddr + IPS_MIPI_FREQRANGE);
+	pr_info("%s, %s, IPS_MIPI_FREQRANGE = %x\n", __FILE__, __func__, val);
 	spin_unlock_irqrestore(g_ipsdev->lock, flags);
 	switch (region) {
 	case MIPI_DEV_CFGCLKFREQRANGE:
@@ -830,7 +833,7 @@ static int x2_ips_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 	g_ipsdev->irq = irq->start;
-	ret = request_threaded_irq(g_ipsdev->irq, x2_ips_irq, NULL, IRQF_TRIGGER_HIGH,
+	ret = request_threaded_irq(g_ipsdev->irq, x2_ips_irq, NULL, IRQF_TRIGGER_HIGH | IRQF_NO_SUSPEND,
 							   dev_name(&pdev->dev), g_ipsdev);
 
 	g_ipsdev->pinctrl = devm_pinctrl_get(&pdev->dev);
@@ -893,13 +896,52 @@ static const struct of_device_id x2_ips_of_match[] = {
 MODULE_DEVICE_TABLE(of, x2_ips_of_match);
 #endif
 
+#ifdef CONFIG_PM
+static int x2_ips_suspend(struct device *dev)
+{
+	if (pm_suspend_target_state == PM_SUSPEND_TO_IDLE)
+		return 0;
+
+	pr_info("%s, %s, enter suspend ...\n", __FILE__, __func__);
+
+	return 0;
+}
+
+static int x2_ips_resume(struct device *dev)
+{
+	int ret;
+	struct ips_dev_s *ips_dev = dev_get_drvdata(dev);
+
+	if (pm_suspend_target_state == PM_SUSPEND_TO_IDLE)
+		return 0;
+
+	pr_info("%s, %s, enter resume ...\n", __FILE__, __func__);
+
+	//ips_module_reset(RST_MIPI_IPI | RST_MIPI_CFG | RST_SIF | RST_IPU | RST_DVP | RST_BT);
+
+	//ips_set_iar_clk32();
+
+	ret = clk_prepare(ips_dev->ipi_clk);
+	if (ret != 0) {
+		dev_err(dev, "failed to prepare ipi_clk\n");
+		return ret;
+	}
+
+	return 0;
+}
+#endif
+
+static const struct dev_pm_ops x2_ips_pm = {
+	SET_SYSTEM_SLEEP_PM_OPS(x2_ips_suspend, x2_ips_resume)
+};
+
 static struct platform_driver x2_ips_driver = {
 	.probe = x2_ips_probe,
 	.remove = x2_ips_remove,
 	.driver = {
 		.name = "x2-ips",
 		.of_match_table = of_match_ptr(x2_ips_of_match),
-		//.pm = &x2_ips_pm,
+		.pm = &x2_ips_pm,
 	},
 };
 static int dbg_ips_show(struct seq_file *s, void *unused)

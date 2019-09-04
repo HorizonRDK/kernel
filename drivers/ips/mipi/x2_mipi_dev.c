@@ -4,12 +4,12 @@
 * All rights reserved.
 ***************************************************************************/
 /**
- * @file     mipi_dev_control.c
- * @brief    MIPI DEV controller control function
- * @author   tarryzhang (tianyu.zhang@hobot.cc)
- * @date     2017/7/6
+ * @file	 mipi_dev_control.c
+ * @brief	 MIPI DEV controller control function
+ * @author	 tarryzhang (tianyu.zhang@hobot.cc)
+ * @date	 2017/7/6
  * @version  V1.0
- * @par      Horizon Robotics
+ * @par		 Horizon Robotics
  */
 #include <linux/init.h>
 #include <linux/module.h>
@@ -27,6 +27,7 @@
 #include <linux/interrupt.h>
 #include <linux/irq.h>
 #include <linux/delay.h>
+#include <linux/suspend.h>
 #include <x2/diag.h>
 #include <linux/timer.h>
 #include "x2/x2_mipi_dev.h"
@@ -35,80 +36,80 @@
 #include "x2_mipi_utils.h"
 #include "x2/x2_ips.h"
 
-#define MIPI_DEV_INT_DBG            (1)
+#define MIPI_DEV_INT_DBG			(1)
 
-#define MIPI_DEV_CSI2_RAISE         (0x01)
-#define MIPI_DEV_CSI2_RESETN        (0x00)
-#define MIPI_DEV_CLKMGR_RAISE       (0x09)
-#define MIPI_DEV_LPCLK_CONT         (0x01)
-#define MIPI_DEV_LPCLK_NCONT        (0x00)
-#define MIPI_DEV_LPCLK_CTRL         (MIPI_DEV_LPCLK_CONT)
+#define MIPI_DEV_CSI2_RAISE			(0x01)
+#define MIPI_DEV_CSI2_RESETN		(0x00)
+#define MIPI_DEV_CLKMGR_RAISE		(0x09)
+#define MIPI_DEV_LPCLK_CONT			(0x01)
+#define MIPI_DEV_LPCLK_NCONT		(0x00)
+#define MIPI_DEV_LPCLK_CTRL			(MIPI_DEV_LPCLK_CONT)
 
-#define MIPI_DEV_INT_VPG            (0x1)
-#define MIPI_DEV_INT_IDI            (0x1<<1)
-#define MIPI_DEV_INT_IPI            (0x1<<2)
-#define MIPI_DEV_INT_PHY            (0x1<<3)
+#define MIPI_DEV_INT_VPG			(0x1)
+#define MIPI_DEV_INT_IDI			(0x1<<1)
+#define MIPI_DEV_INT_IPI			(0x1<<2)
+#define MIPI_DEV_INT_PHY			(0x1<<3)
 
 #ifdef ADJUST_CLK_RECALCULATION
-#define MIPI_DEV_IPI_PKT_CFG        (0xb00)
+#define MIPI_DEV_IPI_PKT_CFG		(0xb00)
 #else
-#define MIPI_DEV_IPI_PKT_CFG        (0xa00)
+#define MIPI_DEV_IPI_PKT_CFG		(0xa00)
 #endif
-#define MIPI_DEV_IPI_MAX_FRAME      (0xffffffff)
+#define MIPI_DEV_IPI_MAX_FRAME		(0xffffffff)
 
-#define MIPI_DEV_VPG_DISABLE        (0x00)
-#define MIPI_DEV_VPG_ENABLE         (0x01)
-#define MIPI_DEV_VPG_ORI_VERT       (0)
-#define MIPI_DEV_VPG_ORI_HOR        (1)
-#define MIPI_DEV_VPG_ORI            (MIPI_DEV_VPG_ORI_VERT << 16)
-#define MIPI_DEV_VPG_MODE_BER       (0x01)
-#define MIPI_DEV_VPG_MODE_BAR       (0x00)
-#define MIPI_DEV_VPG_MODE           (MIPI_DEV_VPG_MODE_BAR << 0)
-#define MIPI_DEV_VPG_LINENUM        (0x00 << 9)
-#define MIPI_DEV_VPG_HSYNC_DIS      (0x00)
-#define MIPI_DEV_VPG_HSYNC_EN       (0x01)
-#define MIPI_DEV_VPG_HSYNC          (MIPI_DEV_VPG_HSYNC_DIS << 8)
-#define MIPI_DEV_VPG_VC             (0x00 << 6)
-#define MIPI_DEV_VPG_HSA_TIME       (0x4e)
-#define MIPI_DEV_VPG_HBP_TIME       (0x04)
-#define MIPI_DEV_VPG_HFP_TIME       (0x5f4)
-#define MIPI_DEV_VPG_HLINE_TIME     (0x1000)
-#define MIPI_DEV_VPG_VSA_LINES      (0x02)
-#define MIPI_DEV_VPG_VBP_LINES      (0x01)
-#define MIPI_DEV_VPG_VFP_LINES      (0x01)
-#define MIPI_DEV_VPG_VLINE_TIME(h)  (MIPI_DEV_VPG_VSA_LINES+MIPI_DEV_VPG_VBP_LINES+MIPI_DEV_VPG_VFP_LINES+(h))
-#define MIPI_DEV_VPG_START_LINE     (0x00)
-#define MIPI_DEV_VPG_STEP_LINE      (0x00)
-#define MIPI_DEV_CHECK_MAX          (500)
+#define MIPI_DEV_VPG_DISABLE		(0x00)
+#define MIPI_DEV_VPG_ENABLE			(0x01)
+#define MIPI_DEV_VPG_ORI_VERT		(0)
+#define MIPI_DEV_VPG_ORI_HOR		(1)
+#define MIPI_DEV_VPG_ORI			(MIPI_DEV_VPG_ORI_VERT << 16)
+#define MIPI_DEV_VPG_MODE_BER		(0x01)
+#define MIPI_DEV_VPG_MODE_BAR		(0x00)
+#define MIPI_DEV_VPG_MODE			(MIPI_DEV_VPG_MODE_BAR << 0)
+#define MIPI_DEV_VPG_LINENUM		(0x00 << 9)
+#define MIPI_DEV_VPG_HSYNC_DIS		(0x00)
+#define MIPI_DEV_VPG_HSYNC_EN		(0x01)
+#define MIPI_DEV_VPG_HSYNC			(MIPI_DEV_VPG_HSYNC_DIS << 8)
+#define MIPI_DEV_VPG_VC				(0x00 << 6)
+#define MIPI_DEV_VPG_HSA_TIME		(0x4e)
+#define MIPI_DEV_VPG_HBP_TIME		(0x04)
+#define MIPI_DEV_VPG_HFP_TIME		(0x5f4)
+#define MIPI_DEV_VPG_HLINE_TIME		(0x1000)
+#define MIPI_DEV_VPG_VSA_LINES		(0x02)
+#define MIPI_DEV_VPG_VBP_LINES		(0x01)
+#define MIPI_DEV_VPG_VFP_LINES		(0x01)
+#define MIPI_DEV_VPG_VLINE_TIME(h)	(MIPI_DEV_VPG_VSA_LINES+MIPI_DEV_VPG_VBP_LINES+MIPI_DEV_VPG_VFP_LINES+(h))
+#define MIPI_DEV_VPG_START_LINE		(0x00)
+#define MIPI_DEV_VPG_STEP_LINE		(0x00)
+#define MIPI_DEV_CHECK_MAX			(500)
 
-#define MIPI_DEV_CFGCLK_DEFAULT     (0x1C)
-#define MIPI_DEV_VPG_DEF_MCLK       (24)
-#define MIPI_DEV_VPG_DEF_PCLK       (384)
-#define MIPI_DEV_VPG_DEF_SETTLE     (0x30)
-#define MIPI_DEV_VPG_DEF_FPS        (30)
-#define MIPI_DEV_VPG_DEF_BLANK      (0x5f4)
+#define MIPI_DEV_CFGCLK_DEFAULT		(0x1C)
+#define MIPI_DEV_VPG_DEF_MCLK		(24)
+#define MIPI_DEV_VPG_DEF_PCLK		(384)
+#define MIPI_DEV_VPG_DEF_SETTLE		(0x30)
+#define MIPI_DEV_VPG_DEF_FPS		(30)
+#define MIPI_DEV_VPG_DEF_BLANK		(0x5f4)
 
-#define DEV_DPHY_LANE_MAX           (4)
-#define DEV_DPHY_CHECK_MAX          (500)
-#define DEV_DPHY_STATE_BASIC        (0x3F)
-#define DEV_DPHY_STATE_NLANE        (0x38|(3)) /*b'(01 01 01 01) 00 1xxx*/ /*max lane num is 4 now*/
-#define DEV_DPHY_STATE(s)           ((s>>6)) /*b'00 1xxx*/
-#define DEV_DPHY_STATE_STOP(l)      (0xFF>>((DEV_DPHY_LANE_MAX-l)<<1)) /*b'11 11 11 11 (00 1xxx)*/
-#define DEV_DPHY_SHUTDOWNZ          (0x01)
-#define DEV_DPHY_RSTZ               (0x02)
-#define DEV_DPHY_ENABLEZ            (0x04)
-#define DEV_DPHY_FORCEPOLL          (0x08)
+#define DEV_DPHY_LANE_MAX			(4)
+#define DEV_DPHY_CHECK_MAX			(500)
+#define DEV_DPHY_STATE_BASIC		(0x3F)
+#define DEV_DPHY_STATE_NLANE		(0x38|(3)) /*b'(01 01 01 01) 00 1xxx*/ /*max lane num is 4 now*/
+#define DEV_DPHY_STATE(s)			((s>>6)) /*b'00 1xxx*/
+#define DEV_DPHY_STATE_STOP(l)		(0xFF>>((DEV_DPHY_LANE_MAX-l)<<1)) /*b'11 11 11 11 (00 1xxx)*/
+#define DEV_DPHY_SHUTDOWNZ			(0x01)
+#define DEV_DPHY_RSTZ				(0x02)
+#define DEV_DPHY_ENABLEZ			(0x04)
+#define DEV_DPHY_FORCEPOLL			(0x08)
 
-#define MIPI_CSI2_DT_YUV420_8   (0x18)
-#define MIPI_CSI2_DT_YUV420_10  (0x19)
-#define MIPI_CSI2_DT_YUV422_8   (0x1E)
-#define MIPI_CSI2_DT_YUV422_10  (0x1F)
-#define MIPI_CSI2_DT_RGB565     (0x22)
-#define MIPI_CSI2_DT_RGB888     (0x24)
-#define MIPI_CSI2_DT_RAW_8      (0x2A)
-#define MIPI_CSI2_DT_RAW_10     (0x2B)
-#define MIPI_CSI2_DT_RAW_12     (0x2C)
-#define MIPI_CSI2_DT_RAW_14     (0x2D)
+#define MIPI_CSI2_DT_YUV420_8	(0x18)
+#define MIPI_CSI2_DT_YUV420_10	(0x19)
+#define MIPI_CSI2_DT_YUV422_8	(0x1E)
+#define MIPI_CSI2_DT_YUV422_10	(0x1F)
+#define MIPI_CSI2_DT_RGB565		(0x22)
+#define MIPI_CSI2_DT_RGB888		(0x24)
+#define MIPI_CSI2_DT_RAW_8		(0x2A)
+#define MIPI_CSI2_DT_RAW_10		(0x2B)
+#define MIPI_CSI2_DT_RAW_12		(0x2C)
+#define MIPI_CSI2_DT_RAW_14		(0x2D)
 
 typedef struct _reg_s {
 	uint32_t offset;
@@ -131,12 +132,12 @@ unsigned int mipi_dev_notimeout = 0;
 module_param(mipi_dev_nocheck, uint, S_IRUGO | S_IWUSR);
 module_param(mipi_dev_notimeout, uint, S_IRUGO | S_IWUSR);
 
-#define MIPIDEVIOC_READ        _IOWR(MIPIDEVIOC_MAGIC, 4, reg_t)
-#define MIPIDEVIOC_WRITE       _IOW(MIPIDEVIOC_MAGIC, 5, reg_t)
+#define MIPIDEVIOC_READ		   _IOWR(MIPIDEVIOC_MAGIC, 4, reg_t)
+#define MIPIDEVIOC_WRITE	   _IOW(MIPIDEVIOC_MAGIC, 5, reg_t)
 
 typedef struct _mipi_dev_s {
 	void __iomem *iomem;
-	int           irq;
+	int			  irq;
 	mipi_state_t  state;   /* mipi dev state */
 #ifdef ADJUST_CLK_RECALCULATION
 	mipi_dev_cfg_t cfg;
@@ -144,7 +145,7 @@ typedef struct _mipi_dev_s {
 } mipi_dev_t;
 
 static mipi_dev_t *g_mipi_dev = NULL;
-static int    mipi_dev_major = 0;
+static int	  mipi_dev_major = 0;
 struct cdev   mipi_dev_cdev;
 static struct class  *x2_mipi_dev_class;
 static struct device *g_mipi_dev_dev;
@@ -157,6 +158,11 @@ module_param(dev_irq_cnt, uint, 0644);
 #endif
 
 #define EventIdVioMipiDevError 81
+
+#ifdef CONFIG_PM_SLEEP
+static mipi_dev_cfg_t g_mipi_dev_cfg;
+#endif
+
 /**
  * @brief mipi_dev_vpg_get_hline : get hline time in vpg mode
  *
@@ -448,7 +454,7 @@ static irqreturn_t mipi_dev_irq_func(int this_irq, void *data)
 	uint8_t  err_occureed = 0;
 	uint32_t env_subirq[4] = {0};
 	void __iomem  *iomem = NULL;
-	mipi_dev_t   *mipi_dev = (mipi_dev_t *)data;
+	mipi_dev_t	 *mipi_dev = (mipi_dev_t *)data;
 	if (NULL == g_mipi_dev) {
 		mipierr("mipi dev not inited!");
 		return IRQ_NONE;
@@ -494,8 +500,8 @@ static irqreturn_t mipi_dev_irq_func(int this_irq, void *data)
 
 static int32_t mipi_dev_wait_phy_powerup(mipi_dev_cfg_t *control)
 {
-	uint16_t       ncount = 0;
-	uint32_t       state = 0;
+	uint16_t	   ncount = 0;
+	uint32_t	   state = 0;
 	void __iomem  *iomem = NULL;
 	if (NULL == g_mipi_dev) {
 		mipierr("mipi dev not inited!");
@@ -599,7 +605,7 @@ int32_t mipi_dev_deinit(void)
  */
 int32_t mipi_dev_init(mipi_dev_cfg_t *control)
 {
-	uint32_t       power = 0;
+	uint32_t	   power = 0;
 	void __iomem  *iomem = NULL;
 	if (NULL == g_mipi_dev) {
 		mipierr("mipi dev not inited!");
@@ -681,7 +687,7 @@ int32_t mipi_dev_init(mipi_dev_cfg_t *control)
 
 static int x2_mipi_dev_close(struct inode *inode, struct file *file)
 {
-	mipi_dev_t    *mipi_dev = (mipi_dev_t *)file->private_data;
+	mipi_dev_t	  *mipi_dev = (mipi_dev_t *)file->private_data;
 	if (mipi_dev->state != MIPI_STATE_DEFAULT) {
 		mipi_dev_stop();
 		mipi_dev_deinit();
@@ -699,11 +705,11 @@ static int x2_mipi_dev_open(struct inode *inode, struct file *file)
 
 static long x2_mipi_dev_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
-	mipi_dev_t    *mipi_dev = (mipi_dev_t *)file->private_data;
+	mipi_dev_t	  *mipi_dev = (mipi_dev_t *)file->private_data;
 	void __iomem  *iomem = mipi_dev->iomem;
-	reg_t          reg;
-	uint32_t       regv = 0;
-	int            ret = 0;
+	reg_t		   reg;
+	uint32_t	   regv = 0;
+	int			   ret = 0;
 	/* Check type and command number */
 	if (_IOC_TYPE(cmd) != MIPIDEVIOC_MAGIC)
 		return -ENOTTY;
@@ -711,7 +717,7 @@ static long x2_mipi_dev_ioctl(struct file *file, unsigned int cmd, unsigned long
 	switch (cmd) {
 	case MIPIDEVIOC_INIT:
 		{
-			mipi_dev_cfg_t     mipi_dev_cfg;
+			mipi_dev_cfg_t	   mipi_dev_cfg;
 			printk(KERN_INFO "mipi dev init cmd\n");
 			if (!arg) {
 				mipierr("ERROR: mipi dev init error, config should not be NULL");
@@ -725,6 +731,12 @@ static long x2_mipi_dev_ioctl(struct file *file, unsigned int cmd, unsigned long
 				mipierr("ERROR: mipi dev copy data from user failed\n");
 				return -EINVAL;
 			}
+#ifdef CONFIG_PM_SLEEP
+			if (copy_from_user((void *)&g_mipi_dev_cfg, (void __user *)arg, sizeof(mipi_dev_cfg_t))) {
+				mipierr("ERROR: mipi dev copy data from user to g_mipi_dev_cfg failed\n");
+				return -EINVAL;
+			}
+#endif
 			if (0 != (ret = mipi_dev_init(&mipi_dev_cfg))) {
 				mipierr("ERROR: mipi dev init error: %d", ret);
 				ret = -1;
@@ -821,21 +833,85 @@ static long x2_mipi_dev_ioctl(struct file *file, unsigned int cmd, unsigned long
 	}
 	return 0;
 }
+
+#ifdef CONFIG_PM_SLEEP
+int x2_mipi_dev_suspend(struct device *dev)
+{
+	if (pm_suspend_target_state == PM_SUSPEND_TO_IDLE)
+		return 0;
+
+	mipiinfo("%s:%s enter suspend...", __FILE__, __func__);
+
+	mipi_dev_stop();
+	mipi_dev_deinit();
+
+	return 0;
+}
+
+int x2_mipi_dev_resume(struct device *dev)
+{
+	mipi_dev_t *mipi_dev = dev_get_drvdata(dev);
+	int ret = 0;
+
+	if (pm_suspend_target_state == PM_SUSPEND_TO_IDLE)
+		return 0;
+
+	mipiinfo("%s:%s enter resume...", __FILE__, __func__);
+
+	if (mipi_dev->state == MIPI_STATE_DEFAULT) {
+		mipi_dev_stop();
+		mipi_dev_deinit();
+	} else if (mipi_dev->state == MIPI_STATE_START) {
+		/* if state == MIPI_STATE_START, it has been initialized. */
+		if (0 != (ret = mipi_dev_init(&g_mipi_dev_cfg))) {
+			mipierr("ERROR:mipi device init error:%d in %s", ret, __func__);
+			return ret;
+		}
+
+		/* start again */
+		if (0 != (ret = mipi_dev_start())) {
+			mipierr("ERROR: mipi device start error:%d in %s", ret, __func__);
+			return ret;
+		}
+	} else if (mipi_dev->state == MIPI_STATE_STOP) {
+		/* if state == MIPI_STATE_STOP, it has been initialized. */
+		if (0 != (ret = mipi_dev_init(&g_mipi_dev_cfg))) {
+			mipierr("ERROR:mipi device init error:%d in %s", ret, __func__);
+			return ret;
+		}
+
+		mipi_dev_stop();
+	} else if (mipi_dev->state == MIPI_STATE_INIT) {
+		if (0 != (ret = mipi_dev_init(&g_mipi_dev_cfg))) {
+			mipierr("ERROR:mipi device init error:%d in %s", ret, __func__);
+			return ret;
+		}
+	}
+
+	return ret;
+}
+#endif
+
+static const struct dev_pm_ops x2_mipi_dev_dev_pm_ops = {
+	SET_SYSTEM_SLEEP_PM_OPS(x2_mipi_dev_suspend,
+			x2_mipi_dev_resume)
+};
+
 static const struct file_operations x2_mipi_dev_fops = {
-	.owner      = THIS_MODULE,
-	.open       = x2_mipi_dev_open,
-	.release    = x2_mipi_dev_close,
+	.owner		= THIS_MODULE,
+	.open		= x2_mipi_dev_open,
+	.release	= x2_mipi_dev_close,
 	.unlocked_ioctl = x2_mipi_dev_ioctl,
 	.compat_ioctl = x2_mipi_dev_ioctl,
 };
 
 static int x2_mipi_dev_probe(struct platform_device *pdev)
 {
-	mipi_dev_t      *mipi_dev = NULL;
-	int              ret = 0;
-	dev_t            devno;
+	mipi_dev_t		*mipi_dev = NULL;
+	int				 ret = 0;
+	dev_t			 devno;
 	struct resource *res;
-	struct cdev     *p_cdev = &mipi_dev_cdev;
+	struct cdev		*p_cdev = &mipi_dev_cdev;
 
 	mipi_dev = kzalloc(sizeof(mipi_dev_t), GFP_KERNEL);
 	if (mipi_dev == NULL) {
@@ -947,11 +1023,12 @@ static const struct of_device_id x2_mipi_dev_match[] = {
 MODULE_DEVICE_TABLE(of, x2_mipi_dev_match);
 
 static struct platform_driver x2_mipi_dev_driver = {
-	.probe  = x2_mipi_dev_probe,
+	.probe	= x2_mipi_dev_probe,
 	.remove = x2_mipi_dev_remove,
 	.driver = {
 		.name = "x2_mipi_dev",
 		.of_match_table = x2_mipi_dev_match,
+		.pm = &x2_mipi_dev_dev_pm_ops,
 	},
 };
 

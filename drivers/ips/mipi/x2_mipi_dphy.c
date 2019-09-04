@@ -400,15 +400,15 @@ int32_t mipi_host_dphy_initialize(uint16_t mipiclk, uint16_t lane, uint16_t sett
 /**
  * @brief mipi_host_dphy_reset : reset host dphy
  *
- * @param [] void :
+ * @param [in] iomem : IO memory
  *
  * @return void
  */
-void mipi_host_dphy_reset(void)
+void mipi_host_dphy_reset(void __iomem *iomem)
 {
 	/*Release Synopsys-PHY test codes from reset*/
-	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL1, DPHY_TEST_RESETN);
-	mipi_putreg(g_hostmem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_CLEAR);
+	mipi_putreg(iomem + REG_MIPI_HOST_PHY_TEST_CTRL1, DPHY_TEST_RESETN);
+	mipi_putreg(iomem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_CLEAR);
 }
 
 /**

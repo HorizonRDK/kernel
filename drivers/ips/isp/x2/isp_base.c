@@ -27,6 +27,45 @@
 struct isp_init_s CAMERA_13855;
 unsigned char __iomem *isp_regbase;
 
+#ifdef CONFIG_PM_SLEEP
+#define ISP_REGS_LEN	406
+uint32_t g_isp_regs[ISP_REGS_LEN];
+
+void x2_isp_regs_store(void)
+{
+	int i;
+
+	if (isp_regbase == NULL) {
+		pr_info("%s:%s, isp_regbase == NULL\n", __FILE__, __func__);
+		return;
+	}
+
+	for (i = 0; i < ISP_REGS_LEN; i++)
+		g_isp_regs[i] = get_isp_reg(0x4 * i);
+}
+
+void x2_isp_regs_restore(void)
+{
+	int i;
+	uint32_t data;
+
+	if (isp_regbase == NULL) {
+		pr_info("%s:%s, isp_regbase == NULL\n", __FILE__, __func__);
+		return;
+	}
+
+	data = readl(isp_regbase + ISP_CONFIG_DONE);
+	ResetBit(BIT_ISP_CONFIG_DONE, (data));
+	writel(data, isp_regbase + ISP_CONFIG_DONE);
+
+	for (i = 1; i < ISP_REGS_LEN - 1; i++)
+		writel(g_isp_regs[i], isp_regbase + 0x4 * i);
+
+	SetBit(BIT_ISP_CONFIG_DONE, (data));
+	writel(data, isp_regbase + ISP_CONFIG_DONE);
+}
+#endif
+
 int8_t clr_isp_regbase(void)
 {
 	isp_regbase = NULL;

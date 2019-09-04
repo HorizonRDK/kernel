@@ -240,6 +240,35 @@ static int isp_dev_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#ifdef CONFIG_PM_SLEEP
+int x2_isp_suspend(struct device *dev)
+{
+	pr_info("%s:%s, enter suspend...\n", __FILE__, __func__);
+
+	x2_isp_regs_store();
+
+	set_isp_stop();
+
+	return 0;
+}
+
+int x2_isp_resume(struct device *dev)
+{
+	pr_info("%s:%s, enter resume...\n", __FILE__, __func__);
+
+	x2_isp_regs_restore();
+
+	set_isp_start();
+
+	return 0;
+}
+#endif
+
+static const struct dev_pm_ops x2_isp_dev_pm_ops = {
+	SET_SYSTEM_SLEEP_PM_OPS(x2_isp_suspend,
+			x2_isp_resume)
+};
+
 static const struct of_device_id isp_dev_match[] = {
 	{.compatible = "hobot,x2-isp"},
 	{}
@@ -253,6 +282,7 @@ static struct platform_driver isp_dev_driver = {
 	.driver = {
 		   .name = ISP_NAME,
 		   .of_match_table = isp_dev_match,
+		   .pm = &x2_isp_dev_pm_ops,
 		   },
 };
 

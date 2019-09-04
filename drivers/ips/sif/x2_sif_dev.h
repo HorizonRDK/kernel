@@ -28,4 +28,7 @@ int32_t sif_dev_frame_id_cfg(frame_id_t *cfg);
 int32_t sif_dev_frame_id_get(frame_id_info_t *frameid);
 int32_t sif_dev_mot_det_cfg(mot_det_t *cfg);
 
+extern int x2_sif_suspend(void);
+extern int x2_sif_resume(void);
+
 #endif //__X2_SIF_DEV_H__
