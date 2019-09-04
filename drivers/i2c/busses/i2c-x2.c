@@ -45,6 +45,7 @@ struct x2_i2c_dev {
 	size_t tx_remaining;
 	size_t rx_remaining;
 	uint8_t i2c_id;
+	bool is_suspended;
 };
 
 static int x2_i2c_cfg(struct x2_i2c_dev *dev, int dir_rd, int timeout_enable)
@@ -357,6 +358,9 @@ static int x2_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[], int num)
 	int i;
 	int ret = 0;
 
+	if (dev->is_suspended)
+		return -EBUSY;
+
 	mutex_lock(&dev->lock);
 
 	x2_i2c_reset(dev);
@@ -463,6 +467,9 @@ static int x2_i2c_xfer_smbus(struct i2c_adapter *adap, u16 addr,
 {
 	int ret = 0;
 	struct x2_i2c_dev *dev = i2c_get_adapdata(adap);
+
+	if (dev->is_suspended)
+		return -EBUSY;
 
 	mutex_lock(&dev->lock);
 	dev_dbg(dev->dev, "x2_i2c_xfer_smbus addr:%x cmd:%d rw:%d size:%d\n",
@@ -628,6 +635,44 @@ static int x2_i2c_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#ifdef CONFIG_PM_SLEEP
+static int x2_i2c_suspend(struct device *dev)
+{
+	struct x2_i2c_dev *i2c_dev = dev_get_drvdata(dev);
+
+	i2c_lock_adapter(&i2c_dev->adapter);
+	i2c_dev->is_suspended = true;
+	i2c_unlock_adapter(&i2c_dev->adapter);
+
+	/* wait I2C bus to be idle */
+	//x2_wait_idle(i2c_dev);
+	i2c_lock_adapter(&i2c_dev->adapter);
+	i2c_dev->is_suspended = true;
+	i2c_unlock_adapter(&i2c_dev->adapter);
+	
+	//disable_irq(i2c_dev->irq);
+
+	return 0;
+}
+
+static int x2_i2c_resume(struct device *dev)
+{
+	struct x2_i2c_dev *i2c_dev = dev_get_drvdata(dev);
+
+	i2c_lock_adapter(&i2c_dev->adapter);
+	i2c_dev->is_suspended = false;
+	i2c_unlock_adapter(&i2c_dev->adapter);
+
+	//enable_irq(i2c_dev->irq);
+
+	return 0;
+}
+#endif
+
+static const struct dev_pm_ops x2_i2c_pm = {
+	SET_SYSTEM_SLEEP_PM_OPS(x2_i2c_suspend, x2_i2c_resume)
+};
+
 static const struct of_device_id x2_i2c_of_match[] = {
 	{.compatible = "hobot,x2-i2c"},
 	{},
@@ -641,6 +686,7 @@ static struct platform_driver x2_i2c_driver = {
 	.driver = {
 		   .name = "i2c-x2",
 		   .of_match_table = x2_i2c_of_match,
+		   //.pm = &x2_i2c_pm,
 		   },
 };
 
