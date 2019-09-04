@@ -903,12 +903,55 @@ static int x2_dma_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#ifdef CONFIG_PM
+int x2_dma_suspend(struct device *dev)
+{
+	struct x2_dma_device *xdev = dev_get_drvdata(dev);
+	int i;
+
+	pr_info("%s:%s, enter suspend...\n", __FILE__, __func__);
+
+	for (i = 0; i < X2_DMA_MAX_CHANS_PER_DEVICE; i++) {
+		if (xdev->chan[i]->idle == false) {
+			pr_info("%s:%s, dma channel[%d] is busy now\n", __FILE__, __func__, i);
+			return 0;
+		}
+
+		/* disable all interrupts */
+		x2_dma_wr(xdev->chan[i], X2_DMA_INT_SETMASK, X2_DMA_ALL_IRQ_MASK);
+		x2_dma_wr(xdev->chan[i], X2_DMA_INT_UNMASK, 0x0);
+	}
+
+	return 0;
+}
+
+int x2_dma_resume(struct device *dev)
+{
+	struct x2_dma_device *xdev = dev_get_drvdata(dev);
+	int i;
+
+	pr_info("%s:%s, enter resume...\n", __FILE__, __func__);
+
+	for (i = 0; i < X2_DMA_MAX_CHANS_PER_DEVICE; i++) {
+		x2_dma_chan_reset(xdev->chan[i]);
+	}
+
+	return 0;
+}
+#endif
+
+static const struct dev_pm_ops x2_dma_dev_pm_ops = {
+	SET_SYSTEM_SLEEP_PM_OPS(x2_dma_suspend,
+			x2_dma_resume)
+};
+
 static struct platform_driver x2_dma_driver = {
 	.probe = x2_dma_probe,
 	.remove = x2_dma_remove,
 	.driver = {
 		.name = "x2_dma",
 		.of_match_table = x2_dma_of_ids,
+		//.pm = &x2_dma_dev_pm_ops,
 	},
 };
 
