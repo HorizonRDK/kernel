@@ -118,6 +118,7 @@ static int8_t ipu_get_frameid(struct x2_ipu_data *ipu, ipu_slot_dual_h_t *slot)
 		return 0;
 	/* get first id from pymid ddr address */
 	tmp = (uint8_t *)(slot->info_h.dual_ddr_info.crop.y_offset + vaddr);
+	__inval_dcache_area((void *)tmp, L1_CACHE_BYTES);
 	if (cfg->frame_id.bus_mode == 0) {
 		slot->info_h.cf_id = tmp[0] << 8 | tmp[1];
 		slot->info_h.cf_timestamp = ts;
@@ -129,6 +130,7 @@ static int8_t ipu_get_frameid(struct x2_ipu_data *ipu, ipu_slot_dual_h_t *slot)
 	}
 	/* get second id from pymid ddr address */
 	tmp = (uint8_t *)(slot->info_h.dual_ddr_info.scale.y_offset + vaddr);
+	__inval_dcache_area((void *)tmp, L1_CACHE_BYTES);
 	if (cfg->frame_id.bus_mode == 0) {
 		slot->info_h.sf_id = tmp[0] << 8 | tmp[1];
 		slot->info_h.sf_timestamp = ts;

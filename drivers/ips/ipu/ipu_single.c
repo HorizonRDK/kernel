@@ -155,6 +155,7 @@ static int8_t ipu_get_frameid(struct x2_ipu_data *ipu, ipu_slot_h_t *slot)
 	if (cfg->frame_id.crop_en && cfg->ctrl.crop_ddr_en) {
 		/* get id from crop ddr address */
 		tmp = (uint8_t *)(slot->info_h.ddr_info.crop.y_offset + vaddr);
+		__inval_dcache_area((void *)tmp, L1_CACHE_BYTES);
 		if (cfg->frame_id.bus_mode == 0) {
 			slot->info_h.cf_timestamp = cur_time;
 			slot->info_h.cf_id = tmp[0] << 8 | tmp[1];
@@ -170,6 +171,7 @@ static int8_t ipu_get_frameid(struct x2_ipu_data *ipu, ipu_slot_h_t *slot)
 		if (cfg->ctrl.scale_ddr_en) {
 			/* get id from scale ddr address */
 			tmp = (uint8_t *)(slot->info_h.ddr_info.scale.y_offset + vaddr);
+			__inval_dcache_area((void *)tmp, L1_CACHE_BYTES);
 			if (cfg->frame_id.bus_mode == 0) {
 				slot->info_h.sf_timestamp = cur_time;
 				slot->info_h.sf_id = tmp[0] << 8 | tmp[1];
@@ -183,6 +185,7 @@ static int8_t ipu_get_frameid(struct x2_ipu_data *ipu, ipu_slot_h_t *slot)
 		} else {
 			/* get id from pymid ddr address */
 			tmp = (uint8_t *)(slot->info_h.ddr_info.ds[0].y_offset + vaddr);
+			__inval_dcache_area((void *)tmp, L1_CACHE_BYTES);
 			if (cfg->frame_id.bus_mode == 0) {
 				slot->info_h.sf_timestamp = cur_time;
 				slot->info_h.sf_id = tmp[0] << 8 | tmp[1];
@@ -256,7 +259,6 @@ void ipu_single_mode_process(uint32_t status)
 			//__inval_dcache_area(IPU_GET_SLOT(slot_h->info_h.slot_id, ipu->vaddr), IPU_SLOT_SIZE);
 			ipu->pymid_done = true;
 			//ipu->done_idx = slot_h->info_h.slot_id;
-			ipu_get_frameid(ipu, slot_h);
 
 			//spin_lock(&g_ipu_s_cdev->slock);
 			atomic_set(&g_ipu_s_cdev->ipu_time_flags,1);// = IPU_GET_INFO_TIME_DONE;
@@ -264,6 +266,7 @@ void ipu_single_mode_process(uint32_t status)
 			base = (uint64_t)IPU_GET_SLOT(slot_h->info_h.slot_id, ipu->paddr);
 			len = IPU_SLOT_SIZE;
 			dma_sync_single_for_cpu(NULL, base, len, DMA_FROM_DEVICE);
+			ipu_get_frameid(ipu, slot_h);
 			wake_up_interruptible(&g_ipu_s_cdev->event_head);
 
 			/*
