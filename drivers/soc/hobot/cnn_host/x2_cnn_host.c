@@ -127,20 +127,22 @@ int fc_fifo_stat_info(struct seq_file *m, void *data)
 
 	fc_depth = x2_cnn_reg_read(dev, X2_CNN_FC_LEN);
 	inst_num = x2_cnn_reg_read(dev, X2_CNNINT_INST_NUM);
-	seq_printf(m, "%s\t%s\t%s\t%s\t%s\t%s\t\n",
+	seq_printf(m, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t\n",
 			"fc_len",
 			"fc_head",
 			"fc_head_flag",
 			"fc_tail",
 			"fc_tail_flag",
-			"inst_num");
-	seq_printf(m, "%d\t%d\t%-9d\t%d\t%-9d\t%d\n",
+			"inst_num",
+			"wait_cnt");
+	seq_printf(m, "%d\t%d\t%-9d\t%d\t%-9d\t%-9d\t%-9d\t\n",
 		   fc_depth,
 		   fc_head_idx,
 		   fc_head_flag,
 		   fc_tail_idx,
 		   fc_tail_flag,
-		   inst_num);
+		   inst_num,
+		   atomic_read(&dev->wait_fc_cnt));
 
 
 	return 0;
@@ -411,21 +413,23 @@ static int x2_cnn_hw_reset_reinit(struct x2_cnn_dev *cnn_dev, int cnn_id)
 }
 static void lock_bpu(struct x2_cnn_dev *dev)
 {
-	int zero_flag = 0;
 	mutex_lock(&dev->cnn_lock);
-	if (dev->zero_int_cnt > 0) {
-		zero_flag = dev->zero_int_cnt;
+	while (dev->zero_int_cnt > 0) {
 		dev->wait_nega_flag = 1;
-	}
-	mutex_unlock(&dev->cnn_lock);
-	if (zero_flag)
+		mutex_unlock(&dev->cnn_lock);
+		/*wait for positive int num*/
 		wait_for_completion(&dev->nega_completion);
+		mutex_lock(&dev->cnn_lock);
+	}
 
-	mutex_lock(&dev->cnn_lock);
 	if ((atomic_read(&dev->wait_fc_cnt) > 0)) {
 		atomic_set(&dev->hw_flg, MOD_FRQ);
-		/*wait bpu idle*/
-		wait_for_completion(&dev->bpu_completion);
+		wait_for_completion_timeout(&dev->bpu_completion,
+					    HZ / 50);
+		while ((atomic_read(&dev->wait_fc_cnt) > 0)) {
+			wait_for_completion_timeout(&dev->bpu_completion,
+						    HZ / 50);
+		}
 	}
 }
 
@@ -1249,10 +1253,9 @@ static void x2_cnn_do_tasklet(unsigned long data)
 			spin_unlock(&dev->set_time_lock);
 		} while (--int_cnt);
 	}
-	if (atomic_read(&dev->hw_flg)) {
-		if (atomic_read(&dev->wait_fc_cnt) == 0)
-			complete(&dev->bpu_completion);
-	}
+	if (atomic_read(&dev->wait_fc_cnt) == 0 &&
+	    atomic_read(&dev->hw_flg))
+		complete(&dev->bpu_completion);
 }
 
 
