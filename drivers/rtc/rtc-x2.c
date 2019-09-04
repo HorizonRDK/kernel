@@ -92,6 +92,9 @@ struct x2_rtc {
 	struct rtc_device *rtc;
 	int irq;
 	void __iomem *rtc_base;
+#ifdef CONFIG_PM
+	u32 rtc_regs[4];
+#endif
 };
 
 static int x2_rtc_set_time(struct device *dev, struct rtc_time *tm)
@@ -312,6 +315,53 @@ static int x2_rtc_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#ifdef CONFIG_PM
+int x2_rtc_suspend(struct device *dev)
+{
+	struct x2_rtc *rtc = dev_get_drvdata(dev);
+
+	pr_info("%s:%s, enter suspend...\n", __FILE__, __func__);
+
+	rtc->rtc_regs[0] = x2_rtc_rd(rtc, X2_RTC_CTRL_REG);
+	rtc->rtc_regs[1] = x2_rtc_rd(rtc, X2_RTC_ALARM_TIME_REG);
+	rtc->rtc_regs[2] = x2_rtc_rd(rtc, X2_RTC_DATE_CFG_REG);
+	rtc->rtc_regs[3] = x2_rtc_rd(rtc, X2_RTC_TIME_CFG_REG);
+
+	/* Ensure all interrupt sources are masked */
+	x2_rtc_wr(rtc, X2_RTC_CTRL_REG, 0x0);
+	x2_rtc_wr(rtc, X2_RTC_INT_SETMASK_REG, 0x3);
+	x2_rtc_wr(rtc, X2_RTC_INT_UNMASK_REG, 0X0);
+
+	return 0;
+}
+
+int x2_rtc_resume(struct device *dev)
+{
+	struct x2_rtc *rtc = dev_get_drvdata(dev);
+
+	pr_info("%s:%s, enter resume...\n", __FILE__, __func__);
+
+	/* Clear any pending interrupts */
+	x2_rtc_wr(rtc, X2_RTC_INT_STA_REG, 0x3);
+	x2_rtc_wr(rtc, X2_RTC_CTRL_REG, 0x0000);
+	x2_rtc_wr(rtc, X2_RTC_DATE_CFG_REG, 0x19700101);
+	x2_rtc_wr(rtc, X2_RTC_TIME_CFG_REG, 0x00000000);
+	x2_rtc_wr(rtc, X2_RTC_CTRL_REG, 0x0200);
+
+	x2_rtc_wr(rtc, X2_RTC_ALARM_TIME_REG, rtc->rtc_regs[1]);
+	x2_rtc_wr(rtc, X2_RTC_DATE_CFG_REG, rtc->rtc_regs[2]);
+	x2_rtc_wr(rtc, X2_RTC_TIME_CFG_REG, rtc->rtc_regs[3]);
+	x2_rtc_wr(rtc, X2_RTC_CTRL_REG, rtc->rtc_regs[0]);
+
+	return 0;
+}
+#endif
+
+static const struct dev_pm_ops x2_rtc_dev_pm_ops = {
+	SET_SYSTEM_SLEEP_PM_OPS(x2_rtc_suspend,
+			x2_rtc_resume)
+};
+
 static const struct of_device_id x2_rtc_match[] = {
 	{ .compatible = "hobot,x2-rtc" },
 	{ }
@@ -324,6 +374,7 @@ static struct platform_driver x2_rtc_driver = {
 	.driver	= {
 		.name = "x2-rtc",
 		.of_match_table	= x2_rtc_match,
+		//.pm = &x2_rtc_dev_pm_ops,
 	},
 };
 module_platform_driver(x2_rtc_driver);

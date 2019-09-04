@@ -57,7 +57,7 @@ MODULE_PARM_DESC(tx_trigger_level, "Tx trigger level, 0-15 (uint: 4 bytes)");
 #define CONFIG_X2_TTY_DMA_MODE
 
 #ifdef CONFIG_X2_TTY_POLL_MODE
-#define X2_UART_RX_POLL_TIME	50		/* Unit is ms */
+#define X2_UART_RX_POLL_TIME	50	/* Unit is ms */
 #endif /* CONFIG_X2_TTY_POLL_MODE */
 
 /**
@@ -66,22 +66,22 @@ MODULE_PARM_DESC(tx_trigger_level, "Tx trigger level, 0-15 (uint: 4 bytes)");
  * @baud:		Current baud rate
  */
 struct x2_uart {
-	struct uart_port	*port;
-	unsigned int	baud;
+	struct uart_port *port;
+	unsigned int baud;
 	char name[16];
-	struct clk	*uartclk;
+	struct clk *uartclk;
 
 #ifdef CONFIG_X2_TTY_POLL_MODE
-	struct timer_list	rx_timer;
-#endif /* CONFIG_X2_TTY_POLL_MODE */
+	struct timer_list rx_timer;
+#endif				/* CONFIG_X2_TTY_POLL_MODE */
 
 #ifdef CONFIG_X2_TTY_DMA_MODE
-	dma_addr_t tx_dma_buf;   /* dma tx buffer bus address */
+	dma_addr_t tx_dma_buf;	/* dma tx buffer bus address */
 	unsigned int tx_bytes_requested;
 
-	dma_addr_t rx_dma_buf;   /* dma rx buffer bus address */
-	unsigned char *rx_buf;   /* dma rx buffer cpu address */
-	unsigned int rx_off;     /* valid data head position */
+	dma_addr_t rx_dma_buf;	/* dma rx buffer bus address */
+	unsigned char *rx_buf;	/* dma rx buffer cpu address */
+	unsigned int rx_off;	/* valid data head position */
 
 	bool rx_enabled;
 #endif
@@ -107,7 +107,8 @@ static int x2_uart_dma_alloc(struct uart_port *port)
 	struct x2_uart *x2_port = port->private_data;
 
 	x2_port->rx_buf = dma_alloc_coherent(port->dev,
-		X2_UART_DMA_SIZE, &x2_port->rx_dma_buf, GFP_KERNEL);
+						 X2_UART_DMA_SIZE,
+						 &x2_port->rx_dma_buf, GFP_KERNEL);
 	if (!x2_port->rx_buf) {
 		ret = -ENOMEM;
 		goto alloc_err;
@@ -116,8 +117,8 @@ static int x2_uart_dma_alloc(struct uart_port *port)
 	x2_port->rx_off = 0;
 
 	x2_port->tx_dma_buf = dma_map_single(port->dev,
-			port->state->xmit.buf, UART_XMIT_SIZE,
-			DMA_TO_DEVICE);
+						 port->state->xmit.buf,
+						 UART_XMIT_SIZE, DMA_TO_DEVICE);
 	if (dma_mapping_error(port->dev, x2_port->tx_dma_buf)) {
 		dev_err(port->dev, "dma_map_single tx failed\n");
 		ret = -ENOMEM;
@@ -131,7 +132,8 @@ static int x2_uart_dma_alloc(struct uart_port *port)
 alloc_err:
 	if (x2_port->rx_buf) {
 		dma_free_coherent(port->dev,
-			X2_UART_DMA_SIZE, x2_port->rx_buf, x2_port->rx_dma_buf);
+				  X2_UART_DMA_SIZE, x2_port->rx_buf,
+				  x2_port->rx_dma_buf);
 	}
 
 	return ret;
@@ -154,7 +156,6 @@ static void x2_uart_dma_tx_start(struct uart_port *port)
 	if (!count) {
 		return;
 	}
-
 #ifdef X2_UART_DBG
 	dbg_tx_cnt[dbg_tx_index] = count;
 	dbg_tx_index = (dbg_tx_index + 1) & (1024 - 1);
@@ -165,7 +166,7 @@ static void x2_uart_dma_tx_start(struct uart_port *port)
 #endif /* X2_UART_DBG */
 
 	dma_sync_single_for_device(port->dev, x2_port->tx_dma_buf,
-		UART_XMIT_SIZE, DMA_TO_DEVICE);
+				   UART_XMIT_SIZE, DMA_TO_DEVICE);
 	tx_phys_addr = x2_port->tx_dma_buf + xmit->tail;
 
 	x2_port->tx_bytes_requested = count;
@@ -174,7 +175,7 @@ static void x2_uart_dma_tx_start(struct uart_port *port)
 	val |= UART_FCR_TDMA_EN;
 	writel(val, port->membase + X2_UART_FCR);
 
-	/*Set Transmit DMA size and Start DMA TX*/
+	/*Set Transmit DMA size and Start DMA TX */
 	writel(tx_phys_addr, port->membase + X2_UART_TXADDR);
 	writel(count, port->membase + X2_UART_TXSIZE);
 	val = readl(port->membase + X2_UART_TXDMA);
@@ -191,9 +192,9 @@ static void x2_uart_dma_rx_start(struct uart_port *port)
 	struct x2_uart *x2_port = port->private_data;
 
 	dma_sync_single_for_device(port->dev, x2_port->rx_dma_buf,
-		X2_UART_DMA_SIZE, DMA_TO_DEVICE);
+				   X2_UART_DMA_SIZE, DMA_TO_DEVICE);
 
-	/*Set recvice DMA size and Start DMA RX*/
+	/*Set recvice DMA size and Start DMA RX */
 	writel(x2_port->rx_dma_buf, port->membase + X2_UART_RXADDR);
 	writel(X2_UART_DMA_SIZE, port->membase + X2_UART_RXSIZE);
 	val = readl(port->membase + X2_UART_RXDMA);
@@ -246,7 +247,7 @@ static void x2_uart_dma_rxdone(void *dev_id)
 
 	rx_bytes = readl(port->membase + X2_UART_RXSIZE);
 	dma_sync_single_for_cpu(port->dev, x2_port->rx_dma_buf,
-		X2_UART_DMA_SIZE, DMA_FROM_DEVICE);
+				X2_UART_DMA_SIZE, DMA_FROM_DEVICE);
 
 	if (rx_bytes > x2_port->rx_off) {
 		count1 = rx_bytes - x2_port->rx_off;
@@ -257,7 +258,9 @@ static void x2_uart_dma_rxdone(void *dev_id)
 	}
 
 	copied = tty_insert_flip_string(tty_port,
-		((unsigned char *)(x2_port->rx_buf + x2_port->rx_off)), count1);
+					((unsigned char *)(x2_port->rx_buf +
+							   x2_port->rx_off)),
+					count1);
 	if (copied != count1) {
 		WARN_ON(1);
 		dev_err(port->dev, "first, rxdata copy to tty layer failed\n");
@@ -266,26 +269,30 @@ static void x2_uart_dma_rxdone(void *dev_id)
 		port->icount.rx += count1;
 
 		x2_port->rx_off = (x2_port->rx_off + count1) &
-			(X2_UART_DMA_SIZE -1);
+			(X2_UART_DMA_SIZE - 1);
 
 		if (count2 > 0) {
 			copied = tty_insert_flip_string(tty_port,
-				((unsigned char *)(x2_port->rx_buf + x2_port->rx_off)), count2);
+							((unsigned char
+							  *)(x2_port->rx_buf +
+								 x2_port->rx_off)),
+							count2);
 			if (copied != count2) {
 				WARN_ON(1);
-				dev_err(port->dev, "second, rxdata copy to tty layer failed\n");
+				dev_err(port->dev,
+					"second, rxdata copy to tty layer failed\n");
 				port->icount.rx += copied;
 			} else {
 				port->icount.rx += count2;
 
 				x2_port->rx_off = (x2_port->rx_off + count2) &
-					(X2_UART_DMA_SIZE -1);
+					(X2_UART_DMA_SIZE - 1);
 			}
 		}
 	}
 
 	dma_sync_single_for_device(port->dev, x2_port->rx_dma_buf,
-		X2_UART_DMA_SIZE, DMA_TO_DEVICE);
+				   X2_UART_DMA_SIZE, DMA_TO_DEVICE);
 
 	spin_unlock(&port->lock);
 	tty_flip_buffer_push(&port->state->port);
@@ -342,7 +349,7 @@ static void x2_uart_handle_rx(void *dev_id, unsigned int irqstatus)
 		if (irqstatus & UART_RXOE) {
 			port->icount.overrun++;
 			tty_insert_flip_char(&port->state->port, 0,
-				TTY_OVERRUN);
+						 TTY_OVERRUN);
 		}
 		tty_insert_flip_char(&port->state->port, data, status);
 		irqstatus = 0;
@@ -382,14 +389,16 @@ static void x2_uart_handle_tx(void *dev_id, unsigned char in_irq)
 	}
 
 	do {
-		while (!(readl(port->membase + X2_UART_LSR) & UART_LSR_TX_EMPTY));
+		while (!
+			   (readl(port->membase + X2_UART_LSR) &
+			UART_LSR_TX_EMPTY)) ;
 		/*
 		 * Get the data from the UART circular buffer
 		 * and write it to the cdns_uart's TX_FIFO
 		 * register.
 		 */
 		writel(port->state->xmit.buf[port->state->xmit.tail],
-				port->membase + X2_UART_TDR);
+			   port->membase + X2_UART_TDR);
 
 		port->icount.tx++;
 
@@ -476,7 +485,6 @@ static irqreturn_t x2_uart_isr(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
-
 /**
  * x2_uart_calc_baud_divs - Calculate baud rate divisors
  * @clk: UART module input clock
@@ -488,7 +496,8 @@ static irqreturn_t x2_uart_isr(int irq, void *dev_id)
  *	was too much error, zero if no valid divisors are found.
  */
 static unsigned int x2_uart_calc_baud_divs(unsigned int clk,
-		unsigned int baud, u32 *br_int, u32 *br_frac)
+					   unsigned int baud, u32 * br_int,
+					   u32 * br_frac)
 {
 	int err = ~0;
 
@@ -500,13 +509,19 @@ static unsigned int x2_uart_calc_baud_divs(unsigned int clk,
 
 #ifdef CONFIG_UART_LOW_SPEED_MODE
 	*br_int = (clk / (baud * LOW_SPEED_MODE_DIV));
-	*br_frac = (clk % (baud * LOW_SPEED_MODE_DIV)) * 1024 / (baud * LOW_SPEED_MODE_DIV);
+	*br_frac =
+		(clk % (baud * LOW_SPEED_MODE_DIV)) * 1024 / (baud *
+							  LOW_SPEED_MODE_DIV);
 #elif CONFIG_UART_MID_SPEED_MODE
 	*br_int = (clk / (baud * MID_SPEED_MODE_DIV));
-	*br_frac = (clk % (baud * MID_SPEED_MODE_DIV)) * 1024 / (baud * MID_SPEED_MODE_DIV);
+	*br_frac =
+		(clk % (baud * MID_SPEED_MODE_DIV)) * 1024 / (baud *
+							  MID_SPEED_MODE_DIV);
 #elif CONFIG_UART_HIGH_SPEED_MODE
 	*br_int = (clk / (baud * HIGH_SPEED_MODE_DIV));
-	*br_frac = (clk % (baud * HIGH_SPEED_MODE_DIV)) * 1024 / (baud * HIGH_SPEED_MODE_DIV);
+	*br_frac =
+		(clk % (baud * HIGH_SPEED_MODE_DIV)) * 1024 / (baud *
+							   HIGH_SPEED_MODE_DIV);
 #endif
 	return baud;
 }
@@ -519,14 +534,15 @@ static unsigned int x2_uart_calc_baud_divs(unsigned int clk,
  *	   was too much error, zero if no valid divisors are found.
  */
 static unsigned int x2_uart_set_baud_rate(struct uart_port *port,
-		unsigned int baud)
+					  unsigned int baud)
 {
 	unsigned int calc_baud;
 	u32 bdiv_int = 0, bdiv_frac = 0;
 	u32 bcr_reg = 0;
 	struct x2_uart *x2_uart = port->private_data;
 
-	calc_baud = x2_uart_calc_baud_divs(port->uartclk, baud, &bdiv_int, &bdiv_frac);
+	calc_baud =
+		x2_uart_calc_baud_divs(port->uartclk, baud, &bdiv_int, &bdiv_frac);
 
 #ifdef CONFIG_UART_LOW_SPEED_MODE
 	bcr_reg |= UART_BCR_BRDIV_MODE(0);
@@ -536,7 +552,8 @@ static unsigned int x2_uart_set_baud_rate(struct uart_port *port,
 	bcr_reg |= UART_BCR_BRDIV_MODE(2);
 #endif
 
-	bcr_reg |= (UART_BCR_BRDIV_INT(bdiv_int) | UART_BCR_BRDIV_FRAC(bdiv_frac));
+	bcr_reg |=
+		(UART_BCR_BRDIV_INT(bdiv_int) | UART_BCR_BRDIV_FRAC(bdiv_frac));
 	/* Write new divisors to hardware */
 	writel(bcr_reg, port->membase + X2_UART_BCR);
 
@@ -554,11 +571,9 @@ static void x2_uart_start_tx(struct uart_port *port)
 	unsigned int val;
 	unsigned int mask = 0;
 
-	if (uart_tx_stopped(port) ||
-		uart_circ_empty(&port->state->xmit)) {
+	if (uart_tx_stopped(port) || uart_circ_empty(&port->state->xmit)) {
 		return;
 	}
-
 #ifdef CONFIG_X2_TTY_DMA_MODE
 	val = readl(port->membase + X2_UART_TXDMA);
 	if (val & UART_TXSTA) {
@@ -594,7 +609,7 @@ static void x2_uart_stop_tx(struct uart_port *port)
 
 #if defined(CONFIG_X2_TTY_IRQ_MODE) || defined(CONFIG_X2_TTY_DMA_MODE)
 	writel(UART_TXEPT | UART_TXTHD | UART_TXDON,
-		port->membase + X2_UART_INT_SETMASK);
+		   port->membase + X2_UART_INT_SETMASK);
 #endif /* CONFIG_X2_TTY_IRQ_MODE */
 
 	/* Disable the transmitter */
@@ -649,7 +664,7 @@ static void x2_uart_set_termios(struct uart_port *port,
 	/* Wait for the transmit FIFO to empty before making changes */
 	if ((readl(port->membase + X2_UART_ENR) & UART_ENR_TX_EN)) {
 		while (!(readl(port->membase + X2_UART_LSR) &
-				UART_LSR_TX_EMPTY)) {
+			 UART_LSR_TX_EMPTY)) {
 			cpu_relax();
 		}
 	}
@@ -660,14 +675,17 @@ static void x2_uart_set_termios(struct uart_port *port,
 	writel(ctrl_reg, port->membase + X2_UART_ENR);
 
 #ifdef CONFIG_UART_LOW_SPEED_MODE
-		minbaud = port->uartclk / (UART_BCR_BRDIV_INT_MASK * LOW_SPEED_MODE_DIV);
-		maxbaud = port->uartclk / LOW_SPEED_MODE_DIV;
+	minbaud =
+		port->uartclk / (UART_BCR_BRDIV_INT_MASK * LOW_SPEED_MODE_DIV);
+	maxbaud = port->uartclk / LOW_SPEED_MODE_DIV;
 #elif CONFIG_UART_MID_SPEED_MODE
-		minbaud = port->uartclk / (UART_BCR_BRDIV_INT_MASK * MID_SPEED_MODE_DIV);
-		maxbaud = port->uartclk / MID_SPEED_MODE_DIV;
+	minbaud =
+		port->uartclk / (UART_BCR_BRDIV_INT_MASK * MID_SPEED_MODE_DIV);
+	maxbaud = port->uartclk / MID_SPEED_MODE_DIV;
 #elif CONFIG_UART_HIGH_SPEED_MODE
-		minbaud = port->uartclk / (UART_BCR_BRDIV_INT_MASK * HIGH_SPEED_MODE_DIV);
-		maxbaud = port->uartclk / HIGH_SPEED_MODE_DIV;
+	minbaud =
+		port->uartclk / (UART_BCR_BRDIV_INT_MASK * HIGH_SPEED_MODE_DIV);
+	maxbaud = port->uartclk / HIGH_SPEED_MODE_DIV;
 #endif
 
 	baud = uart_get_baud_rate(port, termios, old, minbaud, maxbaud);
@@ -681,13 +699,13 @@ static void x2_uart_set_termios(struct uart_port *port,
 	writel(ctrl_reg, port->membase + X2_UART_FCR);
 
 	while (readl(port->membase + X2_UART_FCR) &
-		(UART_FCR_RFRST | UART_FCR_TFRST))
+		   (UART_FCR_RFRST | UART_FCR_TFRST))
 		cpu_relax();
 
 	/*
 	 * Set the TX enable bit and RX enable bit
 	 * to enable the transmitter and receiver.
-	*/
+	 */
 	ctrl_reg = readl(port->membase + X2_UART_ENR);
 	ctrl_reg |= UART_ENR_TX_EN | UART_ENR_RX_EN;
 	writel(ctrl_reg, port->membase + X2_UART_ENR);
@@ -699,8 +717,7 @@ static void x2_uart_set_termios(struct uart_port *port,
 		port->read_status_mask |= UART_PE | UART_FE;
 
 	if (termios->c_iflag & IGNPAR)
-		port->ignore_status_mask |= UART_PE |
-			UART_FE | UART_RXOE;
+		port->ignore_status_mask |= UART_PE | UART_FE | UART_RXOE;
 
 	/* ignore all characters if CREAD is not set */
 	if ((termios->c_cflag & CREAD) == 0)
@@ -731,17 +748,17 @@ static void x2_uart_set_termios(struct uart_port *port,
 
 	/* Handling Parity and Stop Bits length */
 	if (termios->c_cflag & CSTOPB)
-		lcr_reg |= UART_LCR_2_STOP; /* 2 STOP bits */
+		lcr_reg |= UART_LCR_2_STOP;	/* 2 STOP bits */
 	else
-		lcr_reg &= (~UART_LCR_2_STOP); /* 1 STOP bit */
+		lcr_reg &= (~UART_LCR_2_STOP);	/* 1 STOP bit */
 
 	/*
 	 * stick  even_parity  parity_en  parity
-	 *   -        -           -         no
-	 *   0        0           1         odd
-	 *   0        1           1         even
-	 *   1        0           1         mark
-	 *   1        1           1         space
+	 *	 -		  -			  -			no
+	 *	 0		  0			  1			odd
+	 *	 0		  1			  1			even
+	 *	 1		  0			  1			mark
+	 *	 1		  1			  1			space
 	 */
 	if (termios->c_cflag & PARENB) {
 		lcr_reg |= UART_LCR_PEN;
@@ -782,7 +799,8 @@ static void x2_uart_rx_polling_func(unsigned long data)
 	char status = TTY_NORMAL;
 
 	if (!(readl(port->membase + X2_UART_LSR) & UART_LSR_RXRDY)) {
-		mod_timer(&x2_uart->rx_timer, jiffies + msecs_to_jiffies(X2_UART_RX_POLL_TIME));
+		mod_timer(&x2_uart->rx_timer,
+			  jiffies + msecs_to_jiffies(X2_UART_RX_POLL_TIME));
 		return;
 	}
 
@@ -794,7 +812,8 @@ static void x2_uart_rx_polling_func(unsigned long data)
 
 	tty_flip_buffer_push(&port->state->port);
 
-	mod_timer(&x2_uart->rx_timer, jiffies + msecs_to_jiffies(X2_UART_RX_POLL_TIME));
+	mod_timer(&x2_uart->rx_timer,
+		  jiffies + msecs_to_jiffies(X2_UART_RX_POLL_TIME));
 
 	return;
 }
@@ -827,7 +846,7 @@ static int x2_uart_startup(struct uart_port *port)
 
 	/* Wait hardware auto clear */
 	while (readl(port->membase + X2_UART_FCR) &
-		(UART_FCR_RFRST | UART_FCR_TFRST))
+		   (UART_FCR_RFRST | UART_FCR_TFRST))
 		cpu_relax();
 
 	/* Set TX/RX FIFO Trigger level and disable dma tx/rx */
@@ -838,7 +857,8 @@ static int x2_uart_startup(struct uart_port *port)
 #else
 	val &= ~(UART_FCR_RDMA_EN | UART_FCR_TDMA_EN);
 #endif /* CONFIG_X2_TTY_DMA_MODE */
-	val |= UART_FCR_RFTRL(rx_trigger_level) | UART_FCR_TFTRL(tx_trigger_level);
+	val |=
+		UART_FCR_RFTRL(rx_trigger_level) | UART_FCR_TFTRL(tx_trigger_level);
 	writel(val, port->membase + X2_UART_FCR);
 
 	val = readl(port->membase + X2_UART_LCR);
@@ -877,16 +897,19 @@ static int x2_uart_startup(struct uart_port *port)
 	x2_uart_dma_rx_start(port);
 #endif /* CONFIG_X2_TTY_DMA_MODE */
 
-	ret = request_irq(port->irq, x2_uart_isr, IRQF_TRIGGER_HIGH, x2_uart->name, port);
+	ret =
+		request_irq(port->irq, x2_uart_isr, IRQF_TRIGGER_HIGH,
+			x2_uart->name, port);
 	if (ret) {
 		dev_err(port->dev, "request_irq '%d' failed with %d\n",
 			port->irq, ret);
 		return ret;
 	}
-
 #ifdef CONFIG_X2_TTY_POLL_MODE
-	setup_timer(&x2_uart->rx_timer, x2_uart_rx_polling_func, (unsigned long)port);
-	mod_timer(&x2_uart->rx_timer, jiffies + msecs_to_jiffies(X2_UART_RX_POLL_TIME));
+	setup_timer(&x2_uart->rx_timer, x2_uart_rx_polling_func,
+			(unsigned long)port);
+	mod_timer(&x2_uart->rx_timer,
+		  jiffies + msecs_to_jiffies(X2_UART_RX_POLL_TIME));
 #endif
 
 	return 0;
@@ -948,7 +971,7 @@ static const char *x2_uart_type(struct uart_port *port)
  * Return: 0 on success, negative errno otherwise.
  */
 static int x2_uart_verify_port(struct uart_port *port,
-					struct serial_struct *ser)
+				   struct serial_struct *ser)
 {
 	if (ser->type != PORT_UNKNOWN && ser->type != PORT_X2_UART)
 		return -EINVAL;
@@ -974,7 +997,7 @@ static int x2_uart_verify_port(struct uart_port *port,
 static int x2_uart_request_port(struct uart_port *port)
 {
 	if (!request_mem_region(port->mapbase, X2_UART_REGISTER_SPACE,
-					 X2_UART_NAME)) {
+				X2_UART_NAME)) {
 		return -ENOMEM;
 	}
 
@@ -1023,7 +1046,6 @@ static unsigned int x2_uart_get_mctrl(struct uart_port *port)
 	return TIOCM_CTS | TIOCM_DSR | TIOCM_CAR;
 }
 
-
 static void x2_uart_set_mctrl(struct uart_port *port, unsigned int mctrl)
 {
 
@@ -1040,8 +1062,8 @@ static int x2_uart_poll_get_char(struct uart_port *port)
 	/* Check if FIFO is empty */
 	if (!(readl(port->membase + X2_UART_LSR) & UART_LSR_RXRDY))
 		c = NO_POLL_CHAR;
-	else /* Read a character */
-		c = (unsigned char) readl(port->membase + X2_UART_RDR);
+	else			/* Read a character */
+		c = (unsigned char)readl(port->membase + X2_UART_RDR);
 
 	spin_unlock_irqrestore(&port->lock, flags);
 
@@ -1068,7 +1090,7 @@ static void x2_uart_poll_put_char(struct uart_port *port, unsigned char c)
 #endif
 
 static void x2_uart_pm(struct uart_port *port, unsigned int state,
-		   unsigned int oldstate)
+			   unsigned int oldstate)
 {
 	switch (state) {
 	case UART_PM_STATE_OFF:
@@ -1081,27 +1103,26 @@ static void x2_uart_pm(struct uart_port *port, unsigned int state,
 	}
 }
 
-
 static const struct uart_ops x2_uart_ops = {
-	.set_mctrl	= x2_uart_set_mctrl,
-	.get_mctrl	= x2_uart_get_mctrl,
-	.start_tx	= x2_uart_start_tx,
-	.stop_tx	= x2_uart_stop_tx,
-	.stop_rx	= x2_uart_stop_rx,
-	.tx_empty	= x2_uart_tx_empty,
-	.break_ctl	= x2_uart_break_ctl,
-	.set_termios	= x2_uart_set_termios,
-	.startup	= x2_uart_startup,
-	.shutdown	= x2_uart_shutdown,
-	.pm		= x2_uart_pm,
-	.type		= x2_uart_type,
-	.verify_port	= x2_uart_verify_port,
-	.request_port	= x2_uart_request_port,
-	.release_port	= x2_uart_release_port,
-	.config_port	= x2_uart_config_port,
+	.set_mctrl = x2_uart_set_mctrl,
+	.get_mctrl = x2_uart_get_mctrl,
+	.start_tx = x2_uart_start_tx,
+	.stop_tx = x2_uart_stop_tx,
+	.stop_rx = x2_uart_stop_rx,
+	.tx_empty = x2_uart_tx_empty,
+	.break_ctl = x2_uart_break_ctl,
+	.set_termios = x2_uart_set_termios,
+	.startup = x2_uart_startup,
+	.shutdown = x2_uart_shutdown,
+	.pm = x2_uart_pm,
+	.type = x2_uart_type,
+	.verify_port = x2_uart_verify_port,
+	.request_port = x2_uart_request_port,
+	.release_port = x2_uart_release_port,
+	.config_port = x2_uart_config_port,
 #ifdef CONFIG_CONSOLE_POLL
-	.poll_get_char	= x2_uart_poll_get_char,
-	.poll_put_char	= x2_uart_poll_put_char,
+	.poll_get_char = x2_uart_poll_get_char,
+	.poll_put_char = x2_uart_poll_put_char,
 #endif
 };
 
@@ -1132,15 +1153,15 @@ static struct uart_port *x2_uart_get_port(int id)
 
 	/* At this point, we've got an empty uart_port struct, initialize it */
 	spin_lock_init(&port->lock);
-	port->membase	= NULL;
-	port->irq	= 0;
-	port->type	= PORT_UNKNOWN;
-	port->iotype	= UPIO_MEM32;
-	port->flags	= UPF_BOOT_AUTOCONF;
-	port->ops	= &x2_uart_ops;
-	port->fifosize	= X2_UART_FIFO_SIZE;
-	port->line	= id;
-	port->dev	= NULL;
+	port->membase = NULL;
+	port->irq = 0;
+	port->type = PORT_UNKNOWN;
+	port->iotype = UPIO_MEM32;
+	port->flags = UPF_BOOT_AUTOCONF;
+	port->ops = &x2_uart_ops;
+	port->fifosize = X2_UART_FIFO_SIZE;
+	port->line = id;
+	port->dev = NULL;
 	port->uartclk = 20000000;
 	return port;
 }
@@ -1168,7 +1189,7 @@ static void x2_uart_console_putchar(struct uart_port *port, int ch)
 }
 
 static void __init x2_early_write(struct console *con, const char *s,
-				    unsigned n)
+				  unsigned n)
 {
 	struct earlycon_device *dev = con->data;
 
@@ -1176,7 +1197,7 @@ static void __init x2_early_write(struct console *con, const char *s,
 }
 
 static int __init x2_early_console_setup(struct earlycon_device *device,
-					   const char *opt)
+					 const char *opt)
 {
 	if (!device->port.membase)
 		return -ENODEV;
@@ -1186,6 +1207,7 @@ static int __init x2_early_console_setup(struct earlycon_device *device,
 
 	return 0;
 }
+
 OF_EARLYCON_DECLARE(x2, "hobot,x2-uart", x2_early_console_setup);
 
 /**
@@ -1195,7 +1217,7 @@ OF_EARLYCON_DECLARE(x2, "hobot,x2-uart", x2_early_console_setup);
  * @count: No of characters
  */
 static void x2_uart_console_write(struct console *co, const char *s,
-				unsigned int count)
+				  unsigned int count)
 {
 	struct uart_port *port = &x2_uart_port[co->index];
 	unsigned long flags;
@@ -1203,8 +1225,7 @@ static void x2_uart_console_write(struct console *co, const char *s,
 	int locked = 1;
 
 	/* Check if tx dma is enabled. */
-	while ((ctrl = readl(port->membase + X2_UART_TXDMA)) &
-		UART_TXSTA) {
+	while ((ctrl = readl(port->membase + X2_UART_TXDMA)) & UART_TXSTA) {
 		cpu_relax();
 	}
 
@@ -1217,7 +1238,7 @@ static void x2_uart_console_write(struct console *co, const char *s,
 
 	/* save and disable dma model */
 	dma = readl(port->membase + X2_UART_FCR);
-	writel(dma&(~UART_FCR_TDMA_EN), port->membase + X2_UART_FCR);
+	writel(dma & (~UART_FCR_TDMA_EN), port->membase + X2_UART_FCR);
 
 	/*
 	 * Make sure that the tx part is enabled. Set the TX enable bit and
@@ -1273,13 +1294,13 @@ static int __init x2_uart_console_setup(struct console *co, char *options)
 static struct uart_driver x2_uart_driver;
 
 static struct console x2_uart_console = {
-	.name	= X2_UART_TTY_NAME,
-	.write	= x2_uart_console_write,
-	.device	= uart_console_device,
-	.setup	= x2_uart_console_setup,
-	.flags	= CON_PRINTBUFFER,
-	.index	= -1, /* Specified on the cmdline (e.g. console=tty* ) */
-	.data	= &x2_uart_driver,
+	.name = X2_UART_TTY_NAME,
+	.write = x2_uart_console_write,
+	.device = uart_console_device,
+	.setup = x2_uart_console_setup,
+	.flags = CON_PRINTBUFFER,
+	.index = -1,		/* Specified on the cmdline (e.g. console=tty* ) */
+	.data = &x2_uart_driver,
 };
 
 /**
@@ -1299,18 +1320,18 @@ console_initcall(x2_uart_console_init);
 #endif /* CONFIG_SERIAL_X2_UART_CONSOLE */
 
 static struct uart_driver x2_uart_driver = {
-	.owner		= THIS_MODULE,
-	.driver_name	= X2_UART_NAME,
-	.dev_name	= X2_UART_TTY_NAME,
-	.major		= X2_UART_MAJOR,
-	.minor		= X2_UART_MINOR,
-	.nr		= X2_UART_NR_PORTS,
+	.owner = THIS_MODULE,
+	.driver_name = X2_UART_NAME,
+	.dev_name = X2_UART_TTY_NAME,
+	.major = X2_UART_MAJOR,
+	.minor = X2_UART_MINOR,
+	.nr = X2_UART_NR_PORTS,
 #ifdef CONFIG_SERIAL_X2_UART_CONSOLE
-	.cons		= &x2_uart_console,
+	.cons = &x2_uart_console,
 #endif
 };
 
-#ifdef CONFIG_PM_SLEEP
+#ifdef CONFIG_PM
 /**
  * x2_uart_suspend - suspend event
  * @device: Pointer to the device structure
@@ -1320,6 +1341,12 @@ static struct uart_driver x2_uart_driver = {
 static int x2_uart_suspend(struct device *device)
 {
 	/* Nothing to do, no implement */
+	struct uart_port *port = dev_get_drvdata(device);
+
+	pr_info("%s:%s, enter suspend...\n", __FILE__, __func__);
+
+	uart_suspend_port(&x2_uart_driver, port);
+
 	return 0;
 }
 
@@ -1332,6 +1359,11 @@ static int x2_uart_suspend(struct device *device)
 static int x2_uart_resume(struct device *device)
 {
 	/* Nothing to do, no implement */
+	struct uart_port *port = dev_get_drvdata(device);
+
+	uart_resume_port(&x2_uart_driver, port);
+
+	pr_info("%s:%s, enter resume...\n", __FILE__, __func__);
 	return 0;
 }
 #endif /* ! CONFIG_PM_SLEEP */
@@ -1351,16 +1383,17 @@ static int __maybe_unused x2_runtime_resume(struct device *dev)
 /*TODO: Maybe no need */
 static const struct dev_pm_ops x2_uart_dev_pm_ops = {
 	SET_SYSTEM_SLEEP_PM_OPS(x2_uart_suspend, x2_uart_resume)
-	SET_RUNTIME_PM_OPS(x2_runtime_suspend,
-			   x2_runtime_resume, NULL)
+		SET_RUNTIME_PM_OPS(x2_runtime_suspend,
+				   x2_runtime_resume, NULL)
 };
 
 /* Match table for of_platform binding */
 static const struct of_device_id x2_uart_of_match[] = {
-	{ .compatible = "hobot,x2-uart", },
+	{.compatible = "hobot,x2-uart",},
 	{}
 };
-MODULE_DEVICE_TABLE(of,x2_uart_of_match);
+
+MODULE_DEVICE_TABLE(of, x2_uart_of_match);
 
 /**
  * x2_uart_probe - Platform driver probe
@@ -1377,7 +1410,7 @@ static int x2_uart_probe(struct platform_device *pdev)
 	const struct of_device_id *match;
 
 	x2_uart_data = devm_kzalloc(&pdev->dev, sizeof(*x2_uart_data),
-		GFP_KERNEL);
+					GFP_KERNEL);
 	if (!x2_uart_data)
 		return -ENOMEM;
 
@@ -1440,11 +1473,9 @@ static int x2_uart_probe(struct platform_device *pdev)
 
 	rc = uart_add_one_port(&x2_uart_driver, port);
 	if (rc < 0) {
-		dev_err(&pdev->dev,
-			"uart_add_one_port() failed; err=%i\n", rc);
+		dev_err(&pdev->dev, "uart_add_one_port() failed; err=%i\n", rc);
 		goto err_out;
 	}
-
 #ifdef X2_UART_DBG
 	pr_info("====> address of dbg_tx_cnt : 0x%16lx\n", &dbg_tx_cnt);
 #endif /* X2_UART_DBG */
@@ -1477,13 +1508,13 @@ static int x2_uart_remove(struct platform_device *pdev)
 }
 
 static struct platform_driver x2_uart_platform_driver = {
-	.probe   = x2_uart_probe,
-	.remove  = x2_uart_remove,
-	.driver  = {
-		.name = X2_UART_NAME,
-		.of_match_table = x2_uart_of_match,
-		.pm = &x2_uart_dev_pm_ops,
-		},
+	.probe = x2_uart_probe,
+	.remove = x2_uart_remove,
+	.driver = {
+		   .name = X2_UART_NAME,
+		   .of_match_table = x2_uart_of_match,
+		   .pm = &x2_uart_dev_pm_ops,
+		   },
 };
 
 static int __init x2_uart_init(void)
