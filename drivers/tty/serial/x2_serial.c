@@ -924,9 +924,9 @@ static void x2_uart_shutdown(struct uart_port *port)
 	int status;
 	unsigned long flags;
 
-#ifdef CONFIG_X2_TTY_POLL_MODE
 	struct x2_uart *x2_uart = port->private_data;
 
+#ifdef CONFIG_X2_TTY_POLL_MODE
 	del_timer(&x2_uart->rx_timer);
 #endif /* CONFIG_X2_TTY_POLL_MODE */
 
@@ -949,6 +949,10 @@ static void x2_uart_shutdown(struct uart_port *port)
 
 	spin_unlock_irqrestore(&port->lock, flags);
 
+#ifdef CONFIG_X2_TTY_DMA_MODE
+	dma_free_coherent(port->dev, X2_UART_DMA_SIZE,
+			(void *)x2_uart->rx_buf, x2_uart->rx_dma_buf);
+#endif
 	free_irq(port->irq, port);
 }
 
