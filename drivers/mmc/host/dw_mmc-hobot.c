@@ -160,7 +160,7 @@ int x2_mmc_enable_clk(struct dw_mci_hobot_priv_data *priv)
 			reg_value = readl(priv->sysctrl_reg + HOBOT_CLKOFF_STA);
 			if (!(reg_value & clkoff_sta_shift)) {
 				if (priv->ctrl_id == DWMMC_MMC_ID)
-					usleep_range(1, 2);
+					usleep_range(10, 20);
 				else
 					usleep_range(7500, 12000);//least 5ms
 				return 0;
