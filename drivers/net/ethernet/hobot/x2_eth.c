@@ -428,6 +428,8 @@ static int debug = -1;
 module_param(debug, int, 0);
 MODULE_PARM_DESC(debug, "DWC_eth_qos debug level (0=none,...,16=all)");
 
+static int last_err;
+static int first_time;
 /* DMA ring descriptor. These are used as support descriptors for the HW DMA */
 struct ring_desc {
 	struct sk_buff *skb;
@@ -1480,7 +1482,14 @@ static irqreturn_t dwceqos_interrupt(int irq, void *dev_id)
 		ret = IRQ_HANDLED;
 	}
 
-	dwceqos_diag_process(err, dma_status);
+	if (first_time == 0) {
+		first_time = 1;
+		last_err = err;
+		dwceqos_diag_process(err, dma_status);
+	} else if (last_err != err) {
+		last_err = err;
+		dwceqos_diag_process(err, dma_status);
+	}
 
 	return ret;
 }
