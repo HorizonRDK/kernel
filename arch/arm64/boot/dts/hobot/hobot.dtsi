@@ -34,7 +34,6 @@
 			cooling-max-level = <2>;
 			dynamic-power-coefficient = <120>;
 			reg = <0x0>;
-			cpu-idle-states = <&CPU_SLEEP_0>;
 		};
 
 		cpu1: cpu@1 {
@@ -45,22 +44,6 @@
 			operating-points-v2 = <&cpu_opp_table>;
 			clocks = <&cpu_clk>;
 			reg = <0x1>;
-			cpu-idle-states = <&CPU_SLEEP_0>;
-		};
-
-		/*TODO: maybe need to change */
-		idle-states {
-			/*entry-method = "arm,psci";*/
-			entry-method = "arm,psci";
-
-			CPU_SLEEP_0: cpu-sleep-0 {
-				compatible = "arm,idle-state";
-				arm,psci-suspend-param = <0x0010000>;
-				local-timer-stop;
-				entry-latency-us = <300>;
-				exit-latency-us = <600>;
-				min-residency-us = <100000>;
-			};
 		};
 	};
 
