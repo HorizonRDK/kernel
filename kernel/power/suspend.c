@@ -34,7 +34,6 @@
 
 #include "power.h"
 
-extern int x2_cpu_prepare(void);
 const char * const pm_labels[] = {
 	[PM_SUSPEND_TO_IDLE] = "freeze",
 	[PM_SUSPEND_STANDBY] = "standby",
@@ -443,9 +442,6 @@ static int suspend_enter(suspend_state_t state, bool *wakeup)
 		}
 		syscore_resume();
 	}
-
-	x2_cpu_prepare();
-	smp_mb();
 
 	arch_suspend_enable_irqs();
 	BUG_ON(irqs_disabled());

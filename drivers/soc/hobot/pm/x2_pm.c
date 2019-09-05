@@ -28,8 +28,10 @@
 #include <linux/slab.h>
 #include <linux/io.h>
 #include <linux/suspend.h>
+#include <linux/syscore_ops.h>
 #include <asm-generic/cacheflush.h>
 #include <asm/suspend.h>
+#include <asm/cpu_ops.h>
 #include <linux/delay.h>
 #include "x2_pm.h"
 
@@ -55,6 +57,15 @@ static void (*x2_suspend_sram_fn)(struct x2_suspend_data *);
 extern void x2_resume(void);
 extern void x2_suspend_in_sram(struct x2_suspend_data *suspend_data);
 extern u32 x2_suspend_in_sram_sz;
+
+static void x2_core1_resume(void)
+{
+	cpu_ops[1]->cpu_prepare(1);
+}
+
+struct syscore_ops x2_core1_syscore_ops = {
+	.resume         = x2_core1_resume,
+};
 
 static ssize_t sleep_period_store(struct device *dev,
 				  struct device_attribute *attr,
@@ -248,6 +259,8 @@ static int x2_suspend_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, x2_suspend);
 
 	device_create_file(&pdev->dev, &dev_attr_sleep_period);
+
+	register_syscore_ops(&x2_core1_syscore_ops);
 
 	dev_info(&pdev->dev, "[%s] is end !\n", __func__);
 	return 0;
