@@ -71,7 +71,10 @@ static ssize_t sleep_period_store(struct device *dev,
 	if (input != 0) {
 		x2_suspend->wakeup_src_mask =
 			~(WAKEUP_SRC_PADC_EXT | WAKEUP_SRC_RTC) & 0xff;
-		x2_suspend->sleep_period = input * CLK_HZ;
+		x2_suspend->sleep_period = input * CLK_HZ & ~SLEEP_PERIOD;
+	} else {
+		x2_suspend->wakeup_src_mask = ~WAKEUP_SRC_PADC_EXT & 0xff;
+		x2_suspend->sleep_period = SLEEP_PERIOD;
 	}
 
 	return len;
