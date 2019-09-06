@@ -805,7 +805,8 @@ static int dwceqos_mdio_read(struct mii_bus *bus, int mii_id, int phyreg)
 
 	data = dwceqos_read(lp, REG_DWCEQOS_MAC_MDIO_DATA);
 	if (i == 5) {
-		netdev_warn(lp->ndev, "MDIO read timed out\n");
+		if (printk_ratelimit())
+			netdev_warn(lp->ndev, "MDIO read timed out\n");
 		data = 0xffff;
 	}
 
@@ -1063,7 +1064,8 @@ static void dwceqos_alloc_rxring_desc(struct net_local *lp, int index)
 
 	new_skb = netdev_alloc_skb(lp->ndev, DWCEQOS_RX_BUF_SIZE);
 	if (!new_skb) {
-		netdev_err(lp->ndev, "alloc_skb error for desc %d\n", index);
+		if (printk_ratelimit())
+			netdev_err(lp->ndev, "alloc_skb error for desc %d\n", index);
 		goto err_out;
 	}
 
@@ -1071,7 +1073,8 @@ static void dwceqos_alloc_rxring_desc(struct net_local *lp, int index)
 				       new_skb->data, DWCEQOS_RX_BUF_SIZE,
 				       DMA_FROM_DEVICE);
 	if (dma_mapping_error(lp->ndev->dev.parent, new_skb_baddr)) {
-		netdev_err(lp->ndev, "DMA map error\n");
+		if (printk_ratelimit())
+			netdev_err(lp->ndev, "DMA map error\n");
 		dev_kfree_skb(new_skb);
 		new_skb = NULL;
 		goto err_out;
@@ -1373,24 +1376,27 @@ static void dwceqos_reset_hw(struct net_local *lp)
 static void dwceqos_fatal_bus_error(struct net_local *lp, u32 dma_status)
 {
 	if (dma_status & DWCEQOS_DMA_CH0_IS_TEB) {
-		netdev_err(lp->ndev, "txdma bus error %s %s (status=%08x)\n",
-			   dma_status & DWCEQOS_DMA_CH0_IS_TX_ERR_READ ?
-				"read" : "write",
-			   dma_status & DWCEQOS_DMA_CH0_IS_TX_ERR_DESCR ?
-				"descr" : "data",
-			   dma_status);
-
-		print_status(lp);
+		if (printk_ratelimit())
+			netdev_err(lp->ndev, "txdma bus error %s %s (status=%08x)\n",
+				   dma_status & DWCEQOS_DMA_CH0_IS_TX_ERR_READ ?
+					"read" : "write",
+				   dma_status & DWCEQOS_DMA_CH0_IS_TX_ERR_DESCR ?
+					"descr" : "data",
+					dma_status);
+		if (printk_ratelimit())
+			print_status(lp);
 	}
 	if (dma_status & DWCEQOS_DMA_CH0_IS_REB) {
-		netdev_err(lp->ndev, "rxdma bus error %s %s (status=%08x)\n",
-			   dma_status & DWCEQOS_DMA_CH0_IS_RX_ERR_READ ?
-				"read" : "write",
-			   dma_status & DWCEQOS_DMA_CH0_IS_RX_ERR_DESCR ?
-				"descr" : "data",
-			   dma_status);
+		if (printk_ratelimit())
+			netdev_err(lp->ndev, "rxdma bus error %s %s (status=%08x)\n",
+				   dma_status & DWCEQOS_DMA_CH0_IS_RX_ERR_READ ?
+					"read" : "write",
+				   dma_status & DWCEQOS_DMA_CH0_IS_RX_ERR_DESCR ?
+					"descr" : "data",
+				   dma_status);
 
-		print_status(lp);
+		if (printk_ratelimit())
+			print_status(lp);
 	}
 }
 
@@ -1766,10 +1772,12 @@ static void dwceqos_tx_reclaim(unsigned long data)
 		if ((dd->des3 & DWCEQOS_DMA_TDES3_LD) &&
 		    (dd->des3 & DWCEQOS_DMA_RDES3_ES)) {
 			if (netif_msg_tx_err(lp))
-				netdev_err(ndev, "TX Error, TDES3 = 0x%x\n",
-					   dd->des3);
+				if (printk_ratelimit())
+					netdev_err(ndev, "TX Error, TDES3 = 0x%x\n",
+						   dd->des3);
 			if (netif_msg_hw(lp))
-				print_status(lp);
+				if (printk_ratelimit())
+					print_status(lp);
 		}
 	}
 	spin_unlock(&lp->tx_lock);
@@ -1800,7 +1808,8 @@ static int dwceqos_rx(struct net_local *lp, int budget)
 					     DWCEQOS_RX_BUF_SIZE,
 					     GFP_ATOMIC | ___GFP_NOWARN);
 		if (!new_skb) {
-			netdev_err(lp->ndev, "no memory for new sk_buff\n");
+			if (printk_ratelimit())
+				netdev_err(lp->ndev, "no memory for new sk_buff\n");
 			break;
 		}
 
@@ -1810,7 +1819,8 @@ static int dwceqos_rx(struct net_local *lp, int budget)
 					DWCEQOS_RX_BUF_SIZE,
 					DMA_FROM_DEVICE);
 		if (dma_mapping_error(lp->ndev->dev.parent, new_skb_baddr)) {
-			netdev_err(lp->ndev, "DMA map error\n");
+			if (printk_ratelimit())
+				netdev_err(lp->ndev, "DMA map error\n");
 			dev_kfree_skb(new_skb);
 			break;
 		}
@@ -1849,8 +1859,9 @@ static int dwceqos_rx(struct net_local *lp, int budget)
 
 		if (unlikely(!skb)) {
 			if (netif_msg_rx_err(lp))
-				netdev_dbg(lp->ndev, "rx error: des3=%X\n",
-					   lp->rx_descs[lp->rx_cur].des3);
+				if (printk_ratelimit())
+					netdev_dbg(lp->ndev, "rx error: des3=%X\n",
+						   lp->rx_descs[lp->rx_cur].des3);
 		} else {
 			tot_size += skb->len;
 			n_packets++;
@@ -1898,7 +1909,8 @@ static int dwceqos_rx_poll(struct napi_struct *napi, int budget)
 
 	work_done = dwceqos_rx(lp, budget - work_done);
 
-	if (!dwceqos_packet_avail(lp) && work_done < budget) {
+	//if (!dwceqos_packet_avail(lp) && work_done < budget) {
+	if (work_done < budget) {
 		napi_complete(napi);
 		dwceqos_dma_enable_rxirq(lp);
 	} else {
@@ -1914,11 +1926,13 @@ static void dwceqos_reinit_for_txtimeout(struct work_struct *data)
 	struct net_local *lp = container_of(data, struct net_local,
 		txtimeout_reinit);
 
-	netdev_err(lp->ndev, "transmit timeout %d s, resetting...\n",
-		   DWCEQOS_TX_TIMEOUT);
+	if (printk_ratelimit())
+		netdev_err(lp->ndev, "transmit timeout %d s, resetting...\n",
+			   DWCEQOS_TX_TIMEOUT);
 
 	if (netif_msg_hw(lp))
-		print_status(lp);
+		if (printk_ratelimit())
+			print_status(lp);
 
 	rtnl_lock();
 	dwceqos_stop(lp->ndev);
