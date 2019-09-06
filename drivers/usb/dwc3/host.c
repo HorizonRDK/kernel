@@ -24,7 +24,7 @@ static int dwc3_host_get_irq(struct dwc3 *dwc)
 	struct platform_device	*dwc3_pdev = to_platform_device(dwc->dev);
 	int irq;
 
-	irq = platform_get_irq_byname(dwc3_pdev, "host");
+	irq = platform_get_irq_byname(dwc3_pdev, "usb");
 	if (irq > 0)
 		goto out;
 

@@ -49,6 +49,8 @@
 
 #define DWC3_DEFAULT_AUTOSUSPEND_DELAY	5000 /* ms */
 
+#define HOBOT_TEST_REGISTER_RW
+#define HOBOT_FPGA_TEST_TIMING_FINETUNE
 /**
  * dwc3_get_dr_mode - Validates and sets dr_mode
  * @dwc: pointer to our context structure
@@ -94,7 +96,13 @@ static int dwc3_get_dr_mode(struct dwc3 *dwc)
 			 "Configuration mismatch. dr_mode forced to %s\n",
 			 mode == USB_DR_MODE_HOST ? "host" : "gadget");
 
-		dwc->dr_mode = mode;
+		if (IS_ENABLED(CONFIG_USB_DWC3_GADGET)) {
+			dwc->dr_mode = USB_DR_MODE_PERIPHERAL;
+			printk(">>> dwc3_get_dr_mode: force to PERIPHERAL \n");
+		} else if (IS_ENABLED(CONFIG_USB_DWC3_GADGET)) {
+			dwc->dr_mode = USB_DR_MODE_HOST;
+			printk(">>> dwc3_get_dr_mode: force to HOST Mode\n");
+		}
 	}
 
 	return 0;
@@ -1186,11 +1194,19 @@ static int dwc3_probe(struct platform_device *pdev)
 {
 	struct device		*dev = &pdev->dev;
 	struct resource		*res;
+	struct resource		*res_2;
 	struct dwc3		*dwc;
 
 	int			ret;
 
 	void __iomem		*regs;
+	void __iomem		*regs_2;
+
+	volatile unsigned int	*reg_ptr;
+	unsigned int		i;
+#ifdef HOBOT_FPGA_TEST_TIMING_FINETUNE
+	u32					field_value;
+#endif
 
 	dwc = devm_kzalloc(dev, sizeof(*dwc), GFP_KERNEL);
 	if (!dwc)
@@ -1200,6 +1216,11 @@ static int dwc3_probe(struct platform_device *pdev)
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!res) {
+		dev_err(dev, "missing memory resource\n");
+		return -ENODEV;
+	}
+	res_2 = platform_get_resource(pdev, IORESOURCE_MEM, 1);
+	if (!res_2) {
 		dev_err(dev, "missing memory resource\n");
 		return -ENODEV;
 	}
@@ -1221,6 +1242,82 @@ static int dwc3_probe(struct platform_device *pdev)
 		ret = PTR_ERR(regs);
 		goto err0;
 	}
+
+	regs_2 = devm_ioremap(dev, res_2->start, resource_size(res_2));
+	if (IS_ERR(regs_2)) {
+		ret = PTR_ERR(regs_2);
+		goto err0;
+	}
+
+#ifdef HOBOT_TEST_REGISTER_RW
+	reg_ptr = regs;
+	printk(">>> dwc3_probe: dwc->regs = 0x%lx\n", (long) reg_ptr);
+	for (i = 0; i < (4 * 20); i += 4) {
+		printk(">>> Register (0x%04x): 0x%x, 0x%x, 0x%x, 0x%x\n",
+				0xC100 + i * 4,
+				*(reg_ptr + i),
+				*(reg_ptr + 1 + i),
+				*(reg_ptr + 2 + i),
+				*(reg_ptr + 3 + i));
+	}
+
+	// Register R/W test
+	reg_ptr = regs + DWC3_GUID - DWC3_GLOBALS_REGS_START;
+	printk(">>> dwc3_probe: Register DWC3_GUID = 0x%x, write register to 0x5555AAAA\n", *reg_ptr);
+	*reg_ptr = 0x5555AAAA;
+	printk(">>> dwc3_probe: Read Register 0xC128 = 0x%x\n", *reg_ptr);
+
+	// Register2 R/W test
+	reg_ptr = regs_2 + USB3_CTRL_REG0;
+	printk(">>> Address, reg_ptr = 0x%lx / regs_2 = 0x%lx\n", (long) reg_ptr, (long) regs_2);
+	printk(">>> Register USB of SYSCTRL\n");
+	for (i = 0; i < (4 * 3); i += 4) {
+		printk(">>> Register: 0x%x, 0x%x, 0x%x, 0x%x\n",
+				*(reg_ptr + i),
+				*(reg_ptr + 1 + i),
+				*(reg_ptr + 2 + i),
+				*(reg_ptr + 3 + i));
+	}
+#endif
+
+#ifdef HOBOT_FPGA_TEST_TIMING_FINETUNE
+
+#define FPGA_TIMING_FINETUNE_SHIFT			  29
+#define FPGA_TIMING_FINETUNE_MASK			  ((0x7) << FPGA_TIMING_FINETUNE_SHIFT)
+#define FPGA_TIMING_FINETUNE_SHIFT_DEGREE(n)  (n / 45)
+
+	reg_ptr = regs_2 + USB3_CTRL_REG0;
+
+	// For Host/Device Clock Shift: Non/45/90/135/180/225/270/315
+	if (IS_ENABLED(CONFIG_USB_DWC3_HOST))
+		field_value = FPGA_TIMING_FINETUNE_SHIFT_DEGREE(270);
+	else if (IS_ENABLED(CONFIG_USB_DWC3_GADGET))
+		field_value = FPGA_TIMING_FINETUNE_SHIFT_DEGREE(0);
+
+	printk(">>> [FPGA] Clock Shift: %d", field_value * 45);
+	*reg_ptr = (*reg_ptr & ~FPGA_TIMING_FINETUNE_MASK) | (field_value << FPGA_TIMING_FINETUNE_SHIFT);
+
+#endif
+
+	//Setting for USB Host/Device
+	reg_ptr = regs_2 + USB3_CTRL_REG0;
+	if (IS_ENABLED(CONFIG_USB_DWC3_HOST))
+		*reg_ptr = (*reg_ptr & ~BUS_FILTER_BYPASS_MASK) | BUS_FILTER_BYPASS_HOST;
+	else if (IS_ENABLED(CONFIG_USB_DWC3_GADGET))
+		*reg_ptr = (*reg_ptr & ~BUS_FILTER_BYPASS_MASK) | BUS_FILTER_BYPASS_DEVICE;
+	printk(">>> Register USB3_CTRL_REG0: 0x%x\n", *reg_ptr);
+
+#if 1 // For Phy Reset
+	reg_ptr = regs_2 + USB3_PHY_REG2;
+	// TODO: [ASIC] need to modify the RESET code
+	*reg_ptr = 0x80000000;
+	*reg_ptr = (*reg_ptr & ~PHY_RESET_MASK) | PHY_RESET;
+	printk(">>> Register PHY_REG2: 0x%x\n", *reg_ptr);
+	// Wait for 1 us? Need to confirm.
+	printk(">>> Register PHY_REG2: Write to 0\n");
+	*reg_ptr = (*reg_ptr & ~PHY_RESET_MASK) | ~PHY_RESET;
+	printk(">>> Register PHY_REG2: 0x%x\n", *reg_ptr);
+#endif
 
 	dwc->regs	= regs;
 	dwc->regs_size	= resource_size(res);
@@ -1506,10 +1603,7 @@ static const struct dev_pm_ops dwc3_dev_pm_ops = {
 #ifdef CONFIG_OF
 static const struct of_device_id of_dwc3_match[] = {
 	{
-		.compatible = "snps,dwc3"
-	},
-	{
-		.compatible = "synopsys,dwc3"
+		.compatible = "hobot,usb"
 	},
 	{ },
 };
@@ -1531,7 +1625,7 @@ static struct platform_driver dwc3_driver = {
 	.probe		= dwc3_probe,
 	.remove		= dwc3_remove,
 	.driver		= {
-		.name	= "dwc3",
+		.name	= "usb",
 		.of_match_table	= of_match_ptr(of_dwc3_match),
 		.acpi_match_table = ACPI_PTR(dwc3_acpi_match),
 		.pm	= &dwc3_dev_pm_ops,

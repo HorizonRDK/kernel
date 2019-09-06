@@ -1932,7 +1932,7 @@ static int dwc3_gadget_start(struct usb_gadget *g,
 
 	irq = dwc->irq_gadget;
 	ret = request_threaded_irq(irq, dwc3_interrupt, dwc3_thread_interrupt,
-			IRQF_SHARED, "dwc3", dwc->ev_buf);
+			IRQF_SHARED, "usb", dwc->ev_buf);
 	if (ret) {
 		dev_err(dwc->dev, "failed to request irq #%d --> %d\n",
 				irq, ret);
@@ -3177,7 +3177,7 @@ static int dwc3_gadget_get_irq(struct dwc3 *dwc)
 	if (irq == -EPROBE_DEFER)
 		goto out;
 
-	irq = platform_get_irq_byname(dwc3_pdev, "dwc_usb3");
+	irq = platform_get_irq_byname(dwc3_pdev, "usb");
 	if (irq > 0)
 		goto out;
 

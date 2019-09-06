@@ -159,6 +159,15 @@
 #define DWC3_OEVTEN		0xcc0C
 #define DWC3_OSTS		0xcc10
 
+/* Hobot Registers 2 */
+#define USB3_CTRL_REG0				0x5B0
+#define BUS_FILTER_BYPASS_MASK		0xF
+#define BUS_FILTER_BYPASS_DEVICE	0x8
+#define BUS_FILTER_BYPASS_HOST		0xF
+
+#define USB3_PHY_REG2		0x5BC
+#define PHY_RESET			BIT(31)
+#define PHY_RESET_MASK		BIT(31)
 /* Bit fields */
 
 /* Global Debug Queue/FIFO Space Available Register */
@@ -911,6 +920,7 @@ struct dwc3 {
 	bool			ulpi_ready;
 
 	void __iomem		*regs;
+	void __iomem		*regs_2;
 	size_t			regs_size;
 
 	enum usb_dr_mode	dr_mode;
