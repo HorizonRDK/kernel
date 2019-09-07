@@ -135,7 +135,7 @@ typedef struct _pll_range_table_s {
 } pll_range_table_t;
 
 /* module params */
-unsigned int txout_freq_autolarge_enbale;
+unsigned int txout_freq_autolarge_enbale = 1;
 
 module_param(txout_freq_autolarge_enbale, uint, 0644);
 
@@ -504,9 +504,9 @@ static int32_t mipi_tx_pll_div(uint16_t refsclk, uint16_t laneclk, uint8_t *n, u
 		return 0;
 	}
 #ifndef ADJUST_CLK_RECALCULATION
-	while (TX_PLL_INPUT_FEQ_MIN * n_tmp < refsclk) {
+	while (TX_PLL_INPUT_FEQ_MIN * n_tmp <= refsclk)
 		n_tmp++;
-	}
+
 	n_tmp -= 1;
 	outclk = refsclk / n_tmp;
 	while ((outclk * m_tmp) <= fvco) {
@@ -527,7 +527,9 @@ static int32_t mipi_tx_pll_div(uint16_t refsclk, uint16_t laneclk, uint8_t *n, u
 	fout = fvco >> vco_div;
 #ifndef ADJUST_CLK_RECALCULATION
 	*vco = mipi_tx_vco_range(fvco, &fvco_max);
-	*m = fvco_max * (*n + 1) / refsclk - 2;
+	if (txout_freq_autolarge_enbale)
+		*m = fvco_max * (*n + 1) / refsclk - 2;
+
 #else
 	*vco = mipi_tx_vco_range(fout, &fvco_max);
 	//!1 for case rx&tx freq same, and rx already taken >95% bandwidth
