@@ -59,6 +59,8 @@ MODULE_PARM_DESC(tx_trigger_level, "Tx trigger level, 0-15 (uint: 4 bytes)");
 #ifdef CONFIG_X2_TTY_POLL_MODE
 #define X2_UART_RX_POLL_TIME	50	/* Unit is ms */
 #endif /* CONFIG_X2_TTY_POLL_MODE */
+#define TX_IN_PROGRESS_DMA     1
+#define TX_IN_PROGRESS_INT     2
 
 /**
  * struct x2_uart - device data
@@ -85,7 +87,7 @@ struct x2_uart {
 
 	bool rx_enabled;
 #endif
-
+	int tx_in_progress;
 };
 
 #define to_x2_uart(_nb) container_of(_nb, struct x2_uart, \
@@ -182,6 +184,7 @@ static void x2_uart_dma_tx_start(struct uart_port *port)
 	val &= 0xFFFFFF00;
 	val |= (UART_TXLEN(3) | UART_TXSTA);
 	writel(val, port->membase + X2_UART_TXDMA);
+	x2_port->tx_in_progress = TX_IN_PROGRESS_DMA;
 
 	return;
 }
@@ -218,6 +221,7 @@ static void x2_uart_dma_txdone(void *dev_id)
 	x2_port->tx_bytes_requested = 0;
 	xmit->tail = (xmit->tail + count) & (UART_XMIT_SIZE - 1);
 	port->icount.tx += count;
+	x2_port->tx_in_progress = 0;
 #ifdef X2_UART_DBG
 	dbg_tx_cnt[dbg_tx_index] = xmit->tail;
 	dbg_tx_index = (dbg_tx_index + 1) & (1024 - 1);
@@ -570,6 +574,7 @@ static void x2_uart_start_tx(struct uart_port *port)
 	unsigned int ctrl;
 	unsigned int val;
 	unsigned int mask = 0;
+	struct x2_uart *x2_port = port->private_data;
 
 	if (uart_tx_stopped(port) || uart_circ_empty(&port->state->xmit)) {
 		return;
@@ -593,7 +598,8 @@ static void x2_uart_start_tx(struct uart_port *port)
 	writel(ctrl, port->membase + X2_UART_ENR);
 
 #ifdef CONFIG_X2_TTY_DMA_MODE
-	x2_uart_dma_tx_start(port);
+	if (!x2_port->tx_in_progress)
+		x2_uart_dma_tx_start(port);
 #else
 	x2_uart_handle_tx(port, 0);
 #endif /* CONFIG_X2_TTY_DMA_MODE */
@@ -606,6 +612,7 @@ static void x2_uart_start_tx(struct uart_port *port)
 static void x2_uart_stop_tx(struct uart_port *port)
 {
 	unsigned int ctrl;
+	struct x2_uart *x2_port = port->private_data;
 
 #if defined(CONFIG_X2_TTY_IRQ_MODE) || defined(CONFIG_X2_TTY_DMA_MODE)
 	writel(UART_TXEPT | UART_TXTHD | UART_TXDON,
@@ -616,6 +623,7 @@ static void x2_uart_stop_tx(struct uart_port *port)
 	ctrl = readl(port->membase + X2_UART_ENR);
 	ctrl &= ~UART_ENR_TX_EN;
 	writel(ctrl, port->membase + X2_UART_ENR);
+	x2_port->tx_in_progress = 0;
 }
 
 /**
@@ -954,6 +962,7 @@ static void x2_uart_shutdown(struct uart_port *port)
 			(void *)x2_uart->rx_buf, x2_uart->rx_dma_buf);
 #endif
 	free_irq(port->irq, port);
+	x2_uart->tx_in_progress = 0;
 }
 
 /**
