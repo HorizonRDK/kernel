@@ -123,6 +123,7 @@ ENTRY(x2_suspend_in_sram)
 	ldr	x15, [x1]
 	ldr	x15, [x4]
 	ldr	x15, [x6]
+	ldr	x15, [x2]
 	ldr	x15, [x10]
 	dsb	ld
 	dsb	st
@@ -137,15 +138,12 @@ ENTRY(x2_suspend_in_sram)
 	add	x5, x5, #0x200
 	ldr	x15, [x5]
 	dsb	ld
-	str	x15, [x5]
-	dsb	st
 
 	add	x5, x2, #0x240, lsl #12
 	add	x5, x5, #0xa0
 	ldr	x15, [x5]
 	dsb	ld
-	str	x15, [x5]
-	dsb	st
+	isb
 
 	//writel(0x0, ddrc + DDRC_PCTRL_0);
 	add	x0, x1, #0x490

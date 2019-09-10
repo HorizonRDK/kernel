@@ -112,8 +112,8 @@ extern void *__asm_flush_dcache_all(void);
 
 static int x2_suspend_finish(unsigned long val)
 {
+	pr_info("x2 suspend finish");
 	__asm_flush_dcache_all();
-	isb();
 	x2_suspend_sram_fn(&x2_suspend->data);
 
 	return 0;
@@ -127,6 +127,10 @@ static int x2_suspend_enter(suspend_state_t state)
 	padc = x2_suspend->data.padc;
 	pmu = x2_suspend->data.pmu;
 
+	val = readl(padc + WAKEUP_PIN_REG);
+	val &= ~WAKEUP_PIN_CFG;
+	writel(val, padc + WAKEUP_PIN_REG);
+
 	writel(x2_suspend->wakeup_src_mask, pmu + X2_PMU_W_SRC_MASK);
 	writel(x2_suspend->sleep_period, pmu + X2_PMU_SLEEP_PERIOD);
 
@@ -136,7 +140,7 @@ static int x2_suspend_enter(suspend_state_t state)
 	memcpy(x2_suspend_sram_fn, x2_suspend_in_sram, x2_suspend_in_sram_sz);
 	flush_icache_range((unsigned long)x2_suspend_sram_fn,
 		(unsigned long)x2_suspend_sram_fn + x2_suspend_in_sram_sz);
-	//smp_mb();
+	isb();
 	return cpu_suspend(0, x2_suspend_finish);
 }
 

@@ -44,6 +44,9 @@
 #define SLEEP_TRIG		0x1
 #define CLK_HZ		32768
 
+#define WAKEUP_PIN_REG		0x70
+#define WAKEUP_PIN_CFG		0xC000
+
 
 #define X2_DDRSYS_CLKEN_CLR             (0x138)
 
