@@ -76,7 +76,7 @@
  * MP5416 Field Definitions.
  */
 
-#define	MP5416_VSEL_MASK		0x4F	/* VSET - [6:0] */
+#define	MP5416_VSEL_MASK		0x3F	/* VSET - [6:0] */
 #define	MP5416_VSET_ENA			0x80	/* ON - [7] */
 
 /*
@@ -148,6 +148,22 @@ static struct regulator_ops mpq7920_ops = {
 		.owner			= THIS_MODULE,			\
 	}
 
+#define MP5416_REG_1_3(_name, _id)		\
+	[ID_##_id] = {					\
+		.name			= _name,			\
+		.id			= ID_##_id,		\
+		.type			= REGULATOR_VOLTAGE,		\
+		.ops			= &mpq7920_ops,			\
+		.n_voltages		= MP5416_VOLTAGE_NUM,		\
+		.linear_ranges		= mp5416_buck1_3_voltage_ranges,\
+		.n_linear_ranges	= ARRAY_SIZE(mp5416_voltage_ranges), \
+		.vsel_reg		= MP5416##_##_id##_VSET, \
+		.vsel_mask		= MP5416_VSEL_MASK,		\
+		.enable_reg		= MP5416##_##_id##_VSET,	\
+		.enable_mask		= MP5416_VSET_ENA,		\
+		.owner			= THIS_MODULE,			\
+	}
+
 static const struct regulator_desc mpq7920_regulators[] = {
 	MPQ7920_REG("DCDC1", DCDC1),
 	MPQ7920_REG("DCDC2", DCDC2),
@@ -160,9 +176,9 @@ static const struct regulator_desc mpq7920_regulators[] = {
 };
 
 static const struct regulator_desc mp5416_regulators[] = {
-	MP5416_REG("DCDC1", DCDC1),
+	MP5416_REG_1_3("DCDC1", DCDC1),
 	MP5416_REG("DCDC2", DCDC2),
-	MP5416_REG("DCDC3", DCDC3),
+	MP5416_REG_1_3("DCDC3", DCDC3),
 	MP5416_REG("DCDC4", DCDC4),
 	MP5416_REG("LDO2", LDO2),
 	MP5416_REG("LDO3", LDO3),
