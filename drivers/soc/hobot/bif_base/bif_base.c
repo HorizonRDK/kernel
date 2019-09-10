@@ -697,7 +697,7 @@ static irqreturn_t bifbase_irq_handler(int irq, void *data)
 
 	rmode = pl->self->running_mode;
 	if (rmode == BUFF_BASE) {
-		if (schedule_work(&pl->base_irq_work))
+		if (!schedule_work(&pl->base_irq_work))
 			pr_err("schedule_work fail\n");
 	} else{
 		if (rmode < BUFF_MAX && pl->irq_func[rmode])
