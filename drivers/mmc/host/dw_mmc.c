@@ -39,9 +39,13 @@
 #include <linux/of.h>
 #include <linux/of_gpio.h>
 #include <linux/mmc/slot-gpio.h>
+#include <x2/diag.h>
 
 #include "dw_mmc.h"
 #include "dw_mmc-hobot.h"
+
+static int last_err;
+static int first_time;
 
 /* Common flag combinations */
 #define DW_MCI_DATA_ERROR_FLAGS	(SDMMC_INT_DRTO | SDMMC_INT_DCRC | \
@@ -2648,12 +2652,31 @@ static void dw_mci_handle_cd(struct dw_mci *host)
 		msecs_to_jiffies(host->pdata->detect_delay_ms));
 }
 
+static void x2_emmc_diag_process(u32 errsta, u32 envdata)
+{
+	u8 sta;
+	u8 envgen_timing;
+
+	if (errsta > 0) {
+		sta = DiagEventStaFail;
+		envgen_timing = DiagGenEnvdataWhenErr;
+		diag_send_event_stat_and_env_data(DiagMsgPrioHigh,
+					ModuleDiag_emmc, EventIdEmmcErr, sta,
+					envgen_timing, (uint8_t *)&envdata, 4);
+	} else {
+		sta = DiagEventStaSuccess;
+		diag_send_event_stat(DiagMsgPrioMid, ModuleDiag_emmc,
+							EventIdEmmcErr, sta);
+	}
+}
+
 static irqreturn_t dw_mci_interrupt(int irq, void *dev_id)
 {
 	struct dw_mci *host = dev_id;
 	u32 pending;
 	struct dw_mci_slot *slot = host->slot;
 	unsigned long irqflags;
+	int err = 0;
 
 	pending = mci_readl(host, MINTSTS); /* read-only mask reg */
 
@@ -2673,6 +2696,7 @@ static irqreturn_t dw_mci_interrupt(int irq, void *dev_id)
 			spin_unlock_irqrestore(&host->irq_lock, irqflags);
 
 			del_timer(&host->cmd11_timer);
+			err = 1;
 		}
 
 		if (pending & DW_MCI_CMD_ERROR_FLAGS) {
@@ -2685,6 +2709,7 @@ static irqreturn_t dw_mci_interrupt(int irq, void *dev_id)
 			set_bit(EVENT_CMD_COMPLETE, &host->pending_events);
 
 			spin_unlock_irqrestore(&host->irq_lock, irqflags);
+			err = 2;
 		}
 
 		if (pending & DW_MCI_DATA_ERROR_FLAGS) {
@@ -2694,6 +2719,7 @@ static irqreturn_t dw_mci_interrupt(int irq, void *dev_id)
 			smp_wmb(); /* drain writebuffer */
 			set_bit(EVENT_DATA_ERROR, &host->pending_events);
 			tasklet_schedule(&host->tasklet);
+			err = 3;
 		}
 
 		if (pending & SDMMC_INT_DATA_OVER) {
@@ -2743,8 +2769,17 @@ static irqreturn_t dw_mci_interrupt(int irq, void *dev_id)
 			__dw_mci_enable_sdio_irq(slot, 0);
 			sdio_signal_irq(slot->mmc);
 		}
-
 	}
+
+	if ((first_time == 0) && (host->irq == 26)) {
+		first_time = 1;
+		last_err = err;
+		x2_emmc_diag_process(err, pending);
+	} else if ((last_err != err) && (host->irq == 26)) {
+		last_err = err;
+		x2_emmc_diag_process(err, pending);
+	}
+
 
 	if (host->use_dma != TRANS_MODE_IDMAC)
 		return IRQ_HANDLED;
@@ -3362,6 +3397,10 @@ int dw_mci_probe(struct dw_mci *host)
 
 	/* Now that slots are all setup, we can enable card detect */
 	dw_mci_enable_cd(host);
+
+	if (diag_register(ModuleDiag_emmc, EventIdEmmcErr,
+						4, 1800, 4000, NULL) < 0)
+		pr_err("emmc diag register fail\n");
 
 	return 0;
 
