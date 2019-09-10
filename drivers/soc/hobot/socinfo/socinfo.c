@@ -41,7 +41,7 @@ const char *bootmode;
 
 unsigned int x2_board_id[] = {
 	0x100, 0x101, 0x102, 0x103, 0x200, 0x201, 0x202, 0x203, 0x204, 0x205,
-	0x300, 0x301, 0x302, 0x303, 0x304, 0x400, 0x401, 0x104, 0x105
+	0x300, 0x301, 0x302, 0x303, 0x304, 0x400, 0x401, 0x104, 0x105, 0x106,
 };
 
 struct hobot_board_info board_of_id[] = {
@@ -64,7 +64,8 @@ struct hobot_board_info board_of_id[] = {
         [16] = {J2_mm_s202, "J2-mm-s202"},
 	[17] = {X2_SOMFULL, "X2-SOMFULL"},
 	[18] = {X2_96BOARD, "X2_96BOARD"},
-	[19] = {Unknown, "Unknown"},
+	[19] = {X2_DEV512M, "X2-DEV512M"},
+	[20] = {Unknown, "Unknown"},
 };
 
 static int parse_boardid(uint32_t board_id)

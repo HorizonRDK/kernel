@@ -77,5 +77,10 @@
     "105": {
         "dtb_name"  :   "hobot-x2-96board.dtb",
         "gpio_id"   :   "0"
+    },
+
+    "106": {
+        "dtb_name"  :   "hobot-x2-dev-512m.dtb",
+        "gpio_id"   :   "0"
     }
 }
