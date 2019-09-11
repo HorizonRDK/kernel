@@ -32,12 +32,13 @@ struct x2_ipu_data {
 	/* if ipu mem from ion */
 	struct ion_client *ipu_iclient;
 	struct ion_handle *ipu_ihandle;
+	int ion_cnt;
 	/* if ipu mem from reserve mem */
 	void __iomem *regbase;  /* read/write[bwl] */
 
 	phys_addr_t paddr;
 	void *vaddr;
-	uint32_t memsize;
+	size_t memsize;
 
 	/* the slot num will use to caculate use memory size */
 	uint8_t slot_num;
@@ -74,5 +75,7 @@ int8_t ipu_set(ipu_cmd_e cmd, ipu_cfg_t *ipu_cfg, uint64_t data);
 extern void ipu_handle_frame_done(void);
 extern void ipu_handle_pym_frame_done(void);
 extern void ipu_handle_frame_start(void);
+int ipu_ion_alloc(void);
+int ipu_ion_free(void);
 
 #endif

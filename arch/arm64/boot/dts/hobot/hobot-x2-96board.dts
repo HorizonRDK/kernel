@@ -192,6 +192,8 @@
 
 &ipu {
 	status = "okay";
+	slot_num = /bits/ 8 <8>;
+	slot_size = <0x1000000>;
 };
 
 &sif {

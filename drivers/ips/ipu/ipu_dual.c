@@ -530,13 +530,18 @@ static int8_t ipu_core_init(ipu_cfg_t *ipu_cfg)
 int ipu_dual_open(struct inode *node, struct file *filp)
 {
 	struct ipu_dual_cdev *ipu_cdev = NULL;
+	int ret = 0;
 
-	/* The memory alloc trigger by sys node */
-	if (!g_ipu->paddr || !g_ipu->vaddr || !g_ipu->memsize) {
-		ipu_err("No Memory Can Use, Makesure init the slot!!\n");
-		return -ENOMEM;
+	if (!g_ipu->ion_cnt) {
+		ret = ipu_ion_alloc();
+		if (ret < 0) {
+			pr_err("[%s] %d:ipu ion alloc fail\n", __func__, __LINE__);
+			return -EFAULT;
+		}
+		g_ipu->ion_cnt = 1;
+	} else {
+		pr_err("[%s] %d: ion have been alloc\n", __func__, __LINE__);
 	}
-
 	ipu_dbg("ipu_dual_open\n");
 	ipu_cdev = container_of(node->i_cdev, struct ipu_dual_cdev, cdev);
 	filp->private_data = ipu_cdev;

@@ -55,6 +55,8 @@ static int64_t ipu_tsin_val;
 static int64_t ipu_tsadj_val;
 static int ipu_tsadj_calv;
 static int64_t ipu_tsadj_cal;
+static uint8_t g_slot_num;
+static uint32_t g_slot_size;
 
 module_param(ipu_debug_level, uint, 0644);
 unsigned int ipu_irq_debug = 0;
@@ -94,38 +96,6 @@ static ssize_t ipu_slot_num_store(struct device *dev,
 	if (tmp_slot_num > IPU_MAX_SLOT) {
 		pr_err("Too large slot_num, set to MAX %d]!!\n", IPU_MAX_SLOT);
 		tmp_slot_num = IPU_MAX_SLOT;
-	}
-
-	if (!g_ipu->slot_size) {
-		pr_err("IPU slot size not set use default\n");
-		g_ipu->slot_size = IPU_SLOT_MAX_SIZE;
-	}
-
-	g_ipu->ipu_ihandle = ion_alloc(g_ipu->ipu_iclient,
-			tmp_slot_num * g_ipu->slot_size, 0x10,
-			ION_HEAP_CARVEOUT_MASK, 0);
-	if (!g_ipu->ipu_ihandle || IS_ERR(g_ipu->ipu_ihandle)) {
-		pr_err("Alloc ION buffer failed!!\n");
-		return count;
-	}
-	ret = ion_phys(g_ipu->ipu_iclient, g_ipu->ipu_ihandle->id,
-			&g_ipu->paddr, (size_t *)&g_ipu->memsize);
-	if (ret) {
-		pr_err("Get buffer paddr failed!!\n");
-		ion_free(g_ipu->ipu_iclient, g_ipu->ipu_ihandle);
-		g_ipu->paddr = 0;
-		g_ipu->memsize = 0;
-		return count;
-	}
-
-	g_ipu->vaddr = ion_map_kernel(g_ipu->ipu_iclient, g_ipu->ipu_ihandle);
-	if (IS_ERR(g_ipu->vaddr)) {
-		pr_err("buffer kernel map failed!!\n");
-		ion_free(g_ipu->ipu_iclient, g_ipu->ipu_ihandle);
-		g_ipu->paddr = 0;
-		g_ipu->memsize = 0;
-		g_ipu->vaddr = NULL;
-		return count;
 	}
 
 	g_ipu->slot_num = tmp_slot_num;
@@ -194,6 +164,77 @@ static ssize_t ipu_slot_size_show(struct device *dev,
 	return sprintf(buf, "0x%x\n", g_ipu->slot_size);
 }
 static DEVICE_ATTR(slot_size, 0644, ipu_slot_size_show, ipu_slot_size_store);
+
+int ipu_ion_alloc(void)
+{
+	int ret = 0;
+
+	if (!g_ipu) {
+		pr_err("[%s]%d: IPU not init!!\n", __func__, __LINE__);
+		return -EFAULT;
+	}
+	if (!g_ipu->slot_size) {
+		pr_err("IPU slot size not set use default\n");
+		g_ipu->slot_size = g_slot_size;
+	}
+	if (!g_ipu->slot_num) {
+		pr_err("IPU slot num not set use default\n");
+		g_ipu->slot_num = g_slot_num;
+	}
+
+	g_ipu->ipu_ihandle = ion_alloc(g_ipu->ipu_iclient,
+			g_ipu->slot_num * g_ipu->slot_size, 0x10,
+			ION_HEAP_CARVEOUT_MASK, 0);
+
+	if (!g_ipu->ipu_ihandle || IS_ERR(g_ipu->ipu_ihandle)) {
+		pr_err("alloc ION buffer failed!!\n");
+		return -ENOMEM;
+	}
+
+	ret = ion_phys(g_ipu->ipu_iclient, g_ipu->ipu_ihandle->id,
+			&g_ipu->paddr, (size_t *)&g_ipu->memsize);
+	if (ret) {
+		pr_err("Get buffer paddr failed!!\n");
+		ion_free(g_ipu->ipu_iclient, g_ipu->ipu_ihandle);
+		g_ipu->paddr = 0;
+		g_ipu->memsize = 0;
+		return -ENOMEM;
+	}
+
+	g_ipu->vaddr = ion_map_kernel(g_ipu->ipu_iclient, g_ipu->ipu_ihandle);
+	if (IS_ERR(g_ipu->vaddr)) {
+		pr_err("buffer kernel map failed!!\n");
+		ion_free(g_ipu->ipu_iclient, g_ipu->ipu_ihandle);
+		g_ipu->paddr = 0;
+		g_ipu->memsize = 0;
+		g_ipu->vaddr = NULL;
+		return -ENOMEM;
+	}
+	/* The memory alloc trigger by sys node */
+	if (!g_ipu->paddr || !g_ipu->vaddr || !g_ipu->memsize) {
+		ipu_err("No Memory Can Use, Makesure init the slot!!\n");
+		return -ENOMEM;
+	}
+
+	return 0;
+}
+
+int ipu_ion_free(void)
+{
+	if (!g_ipu) {
+		pr_err("[%s]%d: IPU not init!!\n", __func__, __LINE__);
+		return -EFAULT;
+	}
+	if (g_ipu->ipu_iclient) {
+		if (g_ipu->ipu_ihandle) {
+			ion_unmap_kernel(g_ipu->ipu_iclient, g_ipu->ipu_ihandle);
+			ion_free(g_ipu->ipu_iclient, g_ipu->ipu_ihandle);
+		}
+		ion_client_destroy(g_ipu->ipu_iclient);
+	}
+
+	return 0;
+}
 
 void ipu_tsin_reset(void)
 {
@@ -690,6 +731,7 @@ static int x2_ipu_probe(struct platform_device *pdev)
 	struct x2_ipu_data *ipu = NULL;
 	struct device_node *np = NULL;
 	ipu_cfg_t *ipu_cfg = NULL;
+	int ret = 0;
 
 	ipu = devm_kzalloc(&pdev->dev, sizeof(*ipu), GFP_KERNEL);
 	if (!ipu) {
@@ -745,6 +787,16 @@ static int x2_ipu_probe(struct platform_device *pdev)
 	}
 
 #ifdef USE_ION_MEM
+	ret = of_property_read_u8(pdev->dev.of_node, "slot_num", &g_slot_num);
+	if (ret < 0 || g_slot_num <= 0) {
+		g_slot_num = IPU_DEF_SLOT;
+		ipu_err("%d %d get slot num fail use default num %d\n", __LINE__, ret, g_slot_num);
+	}
+	ret = of_property_read_u32(pdev->dev.of_node, "slot_size", &g_slot_size);
+	if (ret < 0 || g_slot_size <= 0) {
+		g_slot_size = IPU_SLOT_MAX_SIZE;
+		ipu_err("%d %d get slot size fail use default size 0x%x\n", __LINE__, ret, g_slot_size);
+	}
 	ipu->ipu_iclient = ion_client_create(hb_ion_dev, "ipu");
 	if (!ipu->ipu_iclient) {
 		dev_err(&pdev->dev, "Create IPU ion client failed!!");
