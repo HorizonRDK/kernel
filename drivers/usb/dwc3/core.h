@@ -920,8 +920,9 @@ struct dwc3 {
 	bool			ulpi_ready;
 
 	void __iomem		*regs;
-	void __iomem		*regs_2;
+	void __iomem		*regs_sys;
 	size_t			regs_size;
+	size_t			regs_sys_size;
 
 	enum usb_dr_mode	dr_mode;
 	u32			current_dr_role;

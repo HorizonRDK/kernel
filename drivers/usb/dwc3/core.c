@@ -1190,23 +1190,107 @@ static void dwc3_check_params(struct dwc3 *dwc)
 	}
 }
 
+#ifdef HOBOT_TEST_REGISTER_RW
+static void hobot_usb_register_test(struct dwc3 *dwc)
+{
+	u32 reg;
+	unsigned int			i;
+	volatile unsigned int	*reg_ptr;
+
+	// Register R/W test
+	reg = dwc3_readl(dwc->regs, DWC3_GUID);
+	printk(">>> usb_test: read register[DWC3_GUID] = 0x%x, and write to 0x5555AAAA\n", reg);
+	reg = 0x5555AAAA;
+	dwc3_writel(dwc->regs, DWC3_GUID, reg);
+	reg = dwc3_readl(dwc->regs, DWC3_GUID);
+	printk(">>> usb_test: read register[DWC3_GUID] = 0x%x\n", reg);
+
+	printk(">>> usb_test: regs = 0x%lx\n", (long) dwc->regs);
+	reg_ptr = dwc->regs;
+	for (i = 0; i < (4 * 20); i += 4) {
+		printk(">>> register (0x%04x): 0x%08x 0x%08x 0x%08x 0x%08x\n",
+				0xC100 + i * 4,
+				*(reg_ptr + i),
+				*(reg_ptr + i + 1),
+				*(reg_ptr + i + 2),
+				*(reg_ptr + i + 3));
+	}
+
+	printk(">>> usb_test: regs_sys = 0x%lx\n", (long) dwc->regs_sys);
+	reg_ptr = dwc->regs_sys + USB3_CTRL_REG0;
+	for (i = 0; i < (4 * 3); i += 4) {
+		printk(">>> register: 0x%08x 0x%08x 0x%08x 0x%08x\n",
+				*(reg_ptr + i),
+				*(reg_ptr + i + 1),
+				*(reg_ptr + i + 2),
+				*(reg_ptr + i + 3));
+	}
+}
+#endif
+
+#ifdef HOBOT_FPGA_TEST_TIMING_FINETUNE
+#define FPGA_TIMING_FINETUNE_SHIFT			  29
+#define FPGA_TIMING_FINETUNE_MASK			  ((0x7) << FPGA_TIMING_FINETUNE_SHIFT)
+#define FPGA_TIMING_FINETUNE_SHIFT_DEGREE(n)  (n / 45)
+
+static void hobot_phy_finetune_timing(struct dwc3 *dwc)
+{
+	unsigned int			field_value;
+	volatile unsigned int	*reg_ptr;
+
+	reg_ptr = dwc->regs_sys + USB3_CTRL_REG0;
+
+	// For Host/Device Clock Shift: Non/45/90/135/180/225/270/315
+	if (IS_ENABLED(CONFIG_USB_DWC3_HOST))
+		field_value = FPGA_TIMING_FINETUNE_SHIFT_DEGREE(270);
+	else if (IS_ENABLED(CONFIG_USB_DWC3_GADGET))
+		field_value = FPGA_TIMING_FINETUNE_SHIFT_DEGREE(0);
+
+	printk(">>> [FPGA] Clock Shift: %d", field_value * 45);
+	*reg_ptr = (*reg_ptr & ~FPGA_TIMING_FINETUNE_MASK) | (field_value << FPGA_TIMING_FINETUNE_SHIFT);
+}
+#endif
+
+static void hobot_usb_set_mode(struct dwc3 *dwc)
+{
+	volatile unsigned int	*reg_ptr;
+
+	//Setting for USB Host/Device
+	reg_ptr = dwc->regs_sys + USB3_CTRL_REG0;
+	if (IS_ENABLED(CONFIG_USB_DWC3_HOST))
+		*reg_ptr = (*reg_ptr & ~BUS_FILTER_BYPASS_MASK) | BUS_FILTER_BYPASS_HOST;
+	else if (IS_ENABLED(CONFIG_USB_DWC3_GADGET))
+		*reg_ptr = (*reg_ptr & ~BUS_FILTER_BYPASS_MASK) | BUS_FILTER_BYPASS_DEVICE;
+}
+
+static void hobot_phy_reset(struct dwc3 *dwc)
+{
+#if 1 // For Phy Reset
+	volatile unsigned int	*reg_ptr;
+
+	reg_ptr = dwc->regs_sys + USB3_PHY_REG2;
+	// TODO: [ASIC] need to modify the RESET code
+	*reg_ptr = 0x80000000;
+	*reg_ptr = (*reg_ptr & ~PHY_RESET_MASK) | PHY_RESET;
+	printk(">>> Register PHY_REG2: 0x%x\n", *reg_ptr);
+	// Wait for 1 us? Need to confirm.
+	printk(">>> Register PHY_REG2: Write to 0\n");
+	*reg_ptr = (*reg_ptr & ~PHY_RESET_MASK) | ~PHY_RESET;
+	printk(">>> Register PHY_REG2: 0x%x\n", *reg_ptr);
+#endif
+}
+
 static int dwc3_probe(struct platform_device *pdev)
 {
 	struct device		*dev = &pdev->dev;
 	struct resource		*res;
-	struct resource		*res_2;
+	struct resource		*res_sys;
 	struct dwc3		*dwc;
 
 	int			ret;
 
 	void __iomem		*regs;
-	void __iomem		*regs_2;
-
-	volatile unsigned int	*reg_ptr;
-	unsigned int		i;
-#ifdef HOBOT_FPGA_TEST_TIMING_FINETUNE
-	u32					field_value;
-#endif
+	void __iomem		*regs_sys;
 
 	dwc = devm_kzalloc(dev, sizeof(*dwc), GFP_KERNEL);
 	if (!dwc)
@@ -1219,8 +1303,8 @@ static int dwc3_probe(struct platform_device *pdev)
 		dev_err(dev, "missing memory resource\n");
 		return -ENODEV;
 	}
-	res_2 = platform_get_resource(pdev, IORESOURCE_MEM, 1);
-	if (!res_2) {
+	res_sys = platform_get_resource(pdev, IORESOURCE_MEM, 1);
+	if (!res_sys) {
 		dev_err(dev, "missing memory resource\n");
 		return -ENODEV;
 	}
@@ -1243,84 +1327,29 @@ static int dwc3_probe(struct platform_device *pdev)
 		goto err0;
 	}
 
-	regs_2 = devm_ioremap(dev, res_2->start, resource_size(res_2));
-	if (IS_ERR(regs_2)) {
-		ret = PTR_ERR(regs_2);
+	regs_sys = devm_ioremap(dev, res_sys->start, resource_size(res_sys));
+	if (IS_ERR(regs_sys)) {
+		ret = PTR_ERR(regs_sys);
 		goto err0;
 	}
 
+	dwc->regs	= regs;
+	dwc->regs_size	= resource_size(res);
+
+	dwc->regs_sys	= regs;
+	dwc->regs_sys_size	= resource_size(res);
+
 #ifdef HOBOT_TEST_REGISTER_RW
-	reg_ptr = regs;
-	printk(">>> dwc3_probe: dwc->regs = 0x%lx\n", (long) reg_ptr);
-	for (i = 0; i < (4 * 20); i += 4) {
-		printk(">>> Register (0x%04x): 0x%x, 0x%x, 0x%x, 0x%x\n",
-				0xC100 + i * 4,
-				*(reg_ptr + i),
-				*(reg_ptr + 1 + i),
-				*(reg_ptr + 2 + i),
-				*(reg_ptr + 3 + i));
-	}
-
-	// Register R/W test
-	reg_ptr = regs + DWC3_GUID - DWC3_GLOBALS_REGS_START;
-	printk(">>> dwc3_probe: Register DWC3_GUID = 0x%x, write register to 0x5555AAAA\n", *reg_ptr);
-	*reg_ptr = 0x5555AAAA;
-	printk(">>> dwc3_probe: Read Register 0xC128 = 0x%x\n", *reg_ptr);
-
-	// Register2 R/W test
-	reg_ptr = regs_2 + USB3_CTRL_REG0;
-	printk(">>> Address, reg_ptr = 0x%lx / regs_2 = 0x%lx\n", (long) reg_ptr, (long) regs_2);
-	printk(">>> Register USB of SYSCTRL\n");
-	for (i = 0; i < (4 * 3); i += 4) {
-		printk(">>> Register: 0x%x, 0x%x, 0x%x, 0x%x\n",
-				*(reg_ptr + i),
-				*(reg_ptr + 1 + i),
-				*(reg_ptr + 2 + i),
-				*(reg_ptr + 3 + i));
-	}
+	hobot_usb_register_test(dwc);
 #endif
 
 #ifdef HOBOT_FPGA_TEST_TIMING_FINETUNE
-
-#define FPGA_TIMING_FINETUNE_SHIFT			  29
-#define FPGA_TIMING_FINETUNE_MASK			  ((0x7) << FPGA_TIMING_FINETUNE_SHIFT)
-#define FPGA_TIMING_FINETUNE_SHIFT_DEGREE(n)  (n / 45)
-
-	reg_ptr = regs_2 + USB3_CTRL_REG0;
-
-	// For Host/Device Clock Shift: Non/45/90/135/180/225/270/315
-	if (IS_ENABLED(CONFIG_USB_DWC3_HOST))
-		field_value = FPGA_TIMING_FINETUNE_SHIFT_DEGREE(270);
-	else if (IS_ENABLED(CONFIG_USB_DWC3_GADGET))
-		field_value = FPGA_TIMING_FINETUNE_SHIFT_DEGREE(0);
-
-	printk(">>> [FPGA] Clock Shift: %d", field_value * 45);
-	*reg_ptr = (*reg_ptr & ~FPGA_TIMING_FINETUNE_MASK) | (field_value << FPGA_TIMING_FINETUNE_SHIFT);
-
+	hobot_phy_finetune_timing(dwc);
 #endif
 
-	//Setting for USB Host/Device
-	reg_ptr = regs_2 + USB3_CTRL_REG0;
-	if (IS_ENABLED(CONFIG_USB_DWC3_HOST))
-		*reg_ptr = (*reg_ptr & ~BUS_FILTER_BYPASS_MASK) | BUS_FILTER_BYPASS_HOST;
-	else if (IS_ENABLED(CONFIG_USB_DWC3_GADGET))
-		*reg_ptr = (*reg_ptr & ~BUS_FILTER_BYPASS_MASK) | BUS_FILTER_BYPASS_DEVICE;
-	printk(">>> Register USB3_CTRL_REG0: 0x%x\n", *reg_ptr);
+	hobot_usb_set_mode(dwc);
 
-#if 1 // For Phy Reset
-	reg_ptr = regs_2 + USB3_PHY_REG2;
-	// TODO: [ASIC] need to modify the RESET code
-	*reg_ptr = 0x80000000;
-	*reg_ptr = (*reg_ptr & ~PHY_RESET_MASK) | PHY_RESET;
-	printk(">>> Register PHY_REG2: 0x%x\n", *reg_ptr);
-	// Wait for 1 us? Need to confirm.
-	printk(">>> Register PHY_REG2: Write to 0\n");
-	*reg_ptr = (*reg_ptr & ~PHY_RESET_MASK) | ~PHY_RESET;
-	printk(">>> Register PHY_REG2: 0x%x\n", *reg_ptr);
-#endif
-
-	dwc->regs	= regs;
-	dwc->regs_size	= resource_size(res);
+	hobot_phy_reset(dwc);
 
 	dwc3_get_properties(dwc);
 

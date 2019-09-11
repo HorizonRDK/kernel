@@ -8,7 +8,7 @@ cfg=x2aj2a_fpga_defconfig
 fs_tmp="rootfs"
 
 ####################################
-# function define 
+# function define
 ####################################
 mk_cfg()
 {
@@ -26,7 +26,7 @@ mk_all()
     #echo make all with $j
     make CROSS_COMPILE=$cross ARCH=$arch Image $j
     make CROSS_COMPILE=$cross ARCH=$arch dtbs
-    make CROSS_COMPILE=$cross ARCH=$arch modules 
+    make CROSS_COMPILE=$cross ARCH=$arch modules
 }
 
 mk_dtbs()
@@ -60,7 +60,7 @@ mk_initramfs()
         echo no existing $fs_tmp, please make sure you already execute ./mk_kernel.sh -e
         exit
     fi
- 
+
     cd $fs_tmp
     sudo find . | sudo cpio -H newc -o> ../usr/rootfs.cpio
     cd -
@@ -68,7 +68,7 @@ mk_initramfs()
 
 helper()
 {
-    echo	
+    echo
     echo ---------------------------------------------------------------------
     echo "Usage:  "
     echo "  sh mk_kernel.sh [option]"
@@ -91,12 +91,12 @@ helper()
 while getopts "mjcherod" opt; do
   case $opt in
        m)
-	   mk_cfg    
-	   exit    
+	   mk_cfg
+	   exit
 	   ;;
        o)
-	   mk_old_cfg    
-	   exit    
+	   mk_old_cfg
+	   exit
 	   ;;
        j)
            j="-j64"
@@ -109,15 +109,15 @@ while getopts "mjcherod" opt; do
        e)
            extract_initramfs
            exit
-           ;;	   
-       r)  
+           ;;
+       r)
 	   mk_initramfs
            exit
-           ;;	   
+           ;;
        d)
 	   mk_dtbs
 	   exit
-	   ;;   
+	   ;;
        h)
            helper
 	   exit
