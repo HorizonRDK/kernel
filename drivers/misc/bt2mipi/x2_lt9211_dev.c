@@ -289,12 +289,6 @@ static int x2_lt9211_probe(struct i2c_client *client,
 	if (!i2c_check_functionality(adapter, I2C_FUNC_I2C))
 		return -ENODEV;
 
-	ret = lt9211_chip_id();
-	if (ret != 0) {
-		display_type = HDMI_TYPE;
-		pr_err("not found lt9211 device, exit probe!!!\n");
-		return ret;
-	}
 	g_x2_lt9211 = devm_kzalloc(&client->dev, sizeof(struct x2_lt9211_s),
 			GFP_KERNEL);
 	if (!g_x2_lt9211)
@@ -337,6 +331,12 @@ static int x2_lt9211_probe(struct i2c_client *client,
 		goto err;
 	}
 
+	ret = lt9211_chip_id();
+	if (ret != 0) {
+		display_type = HDMI_TYPE;
+		pr_err("not found lt9211 device, exit probe!!!\n");
+		return ret;
+	}
 /*	//---------------------------------------------------------------
  *	//config vio refclk as 408MHz
  *	vio_refclk_regaddr = ioremap_nocache(0xA1000000 + 0x40, 4);
