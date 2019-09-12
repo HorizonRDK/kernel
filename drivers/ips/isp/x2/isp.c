@@ -36,6 +36,7 @@
 #include <asm-generic/io.h>
 #include <linux/string.h>
 #include <linux/wait.h>
+#include <x2/diag.h>
 #include "isp.h"
 #include "isp_dev.h"
 #include "isp_dev_regs.h"
@@ -61,9 +62,28 @@ static struct device *g_isp_dev;
 static u64 frame_count;
 static struct timeval tv;
 
+static void x2_isp_diag_process(u32 errsta, u32 envdata)
+{
+	u8 sta;
+	u8 envgen_timing;
+
+	if (errsta) {
+		sta = DiagEventStaFail;
+		envgen_timing = DiagGenEnvdataWhenErr;
+		diag_send_event_stat_and_env_data(DiagMsgPrioHigh,
+				ModuleDiag_VIO, EventIdVioIspDropErr, sta,
+				envgen_timing, (uint8_t *)&envdata, 4);
+	} else {
+		sta = DiagEventStaSuccess;
+		diag_send_event_stat(DiagMsgPrioMid, ModuleDiag_VIO,
+						EventIdVioIspDropErr, sta);
+	}
+}
+
 void x2_isp_isr(unsigned int status, void *data)
 {
 	struct isp_mod_s *isp_dev = NULL;
+	int err = 0;
 
 	if (data == NULL)
 		return;
@@ -110,12 +130,17 @@ void x2_isp_isr(unsigned int status, void *data)
 		Set_Bit(15, isp_dev->irq_status);
 	} else if (status & ISP_STF_FRAME_DROP) {
 		Set_Bit(16, isp_dev->irq_status);
+		err = 1;
 	}
 
-	if (status & ISP_HMP_FRAME_DROP)
+	if (status & ISP_HMP_FRAME_DROP) {
 		Set_Bit(15, isp_dev->irq_status);
+		err = 1;
+	}
 	else if (status & ISP_HMP_FRAME_FINISH)
 		Set_Bit(13, isp_dev->irq_status);
+
+	x2_isp_diag_process(err, status);
 
 //	spin_unlock_irqrestore(&isp_dev->slock, flags);
 }
@@ -871,6 +896,11 @@ static int __init isp_dev_init(void)
 	/*register isr */
 	ips_irq_disable(ISP_INT);
 	ips_register_irqhandle(ISP_INT, x2_isp_isr, isp_mod_data);
+
+	if (diag_register(ModuleDiag_VIO, EventIdVioIspDropErr,
+						4, 2000, 4000, NULL) < 0)
+		pr_err("vio-isp diag register fail\n");
+
 
 	return 0;
 
