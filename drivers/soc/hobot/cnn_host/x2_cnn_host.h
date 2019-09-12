@@ -200,6 +200,7 @@ struct x2_cnn_dev {
 	unsigned int head_value;
 	unsigned int inst_num;
 	unsigned int ref_cnt;
+	unsigned int disable_bpu;
 
 };
 

@@ -714,6 +714,7 @@ static void x2_cnn_clock_up(struct x2_cnn_dev *dev)
 	x2_cnn_hw_init(dev);
 	x2_cnn_set_fc_base(dev);
 	x2_cnn_set_default_fc_depth(dev, 1023);
+	dev->disable_bpu = 0;
 	unlock_bpu(dev);
 }
 /**
@@ -737,6 +738,7 @@ static void x2_cnn_clock_down(struct x2_cnn_dev *dev)
 	udelay(5);
 
 	x2_cnn_reset_assert(dev->cnn_rst);
+	dev->disable_bpu = 1;
 	unlock_bpu(dev);
 }
 
@@ -768,6 +770,7 @@ static void x2_cnn_power_up(struct x2_cnn_dev *dev)
 	x2_cnn_hw_init(dev);
 	x2_cnn_set_fc_base(dev);
 	x2_cnn_set_default_fc_depth(dev, 1023);
+	dev->disable_bpu = 0;
 	unlock_bpu(dev);
 }
 /**
@@ -792,6 +795,7 @@ static void x2_cnn_power_down(struct x2_cnn_dev *dev)
 
 	x2_cnn_reset_assert(dev->cnn_rst);
 	regulator_disable(dev->cnn_regulator);
+	dev->disable_bpu = 1;
 	unlock_bpu(dev);
 }
 /**
@@ -813,9 +817,7 @@ static int x2_cnn_fc_fifo_enqueue(struct x2_cnn_dev *dev,
 	u32 count;
 	struct hbrt_x2_funccall_s *tmp_ptr = NULL;
 
-	if (!regulator_is_enabled(dev->cnn_regulator) ||
-	    !__clk_is_enabled(dev->cnn_aclk) ||
-	    !__clk_is_enabled(dev->cnn_mclk))
+	if (dev->disable_bpu)
 		return -1;
 	fc_depth = x2_cnn_reg_read(dev, X2_CNN_FC_LEN);
 	fc_head_idx = x2_cnn_reg_read(dev, X2_CNN_FC_HEAD);
@@ -1420,9 +1422,7 @@ static int cnnfreq_target(struct device *dev, unsigned long *freq,
 	unsigned long old_clk_rate = cnnfreq->rate;
 	unsigned long rate, target_volt, target_rate;
 	int err;
-	if (!regulator_is_enabled(cnn_dev->cnn_regulator) ||
-	    !__clk_is_enabled(cnn_dev->cnn_aclk) ||
-	    !__clk_is_enabled(cnn_dev->cnn_mclk)) {
+	if (cnn_dev->disable_bpu) {
 		err = 1;
 		return err;
 	}
