@@ -137,6 +137,8 @@ struct x2_dma_device {
 #define x2_dma_poll_timeout(chan, reg, val, cond, delay_us, timeout_us) \
 	readl_poll_timeout(chan->xdev->regs + reg, val, cond, delay_us, timeout_us)
 
+static int x2_dma_chan_reset(struct x2_dma_chan *chan);
+
 /* IO accessors */
 static inline u32 x2_dma_rd(struct x2_dma_chan *chan, u32 reg)
 {
@@ -378,6 +380,9 @@ static void x2_dma_start_transfer(struct x2_dma_chan *chan)
 	tail_desc = list_last_entry(&chan->pending_list, struct x2_dma_tx_descriptor, node);
 	tail_segment = list_last_entry(&tail_desc->segments, struct x2_dma_tx_segment, node);
 
+	if (x2_dma_chan_reset(chan) < 0)
+		return;
+
 	if (chan->has_sg) {
 		x2_dma_wr(chan, X2_DMA_LLI_ADDR, head_desc->async_tx.phys);
 
@@ -397,6 +402,7 @@ static void x2_dma_start_transfer(struct x2_dma_chan *chan)
 		x2_dma_wr(chan, X2_DMA_SRC_ADDR,  hw->src_addr);
 		x2_dma_wr(chan, X2_DMA_DEST_ADDR, hw->dest_addr);
 		val = x2_dma_rd(chan, X2_DMA_CTRL_ADDR);
+		val |= X2_DMA_EN_CH;
 		val &= 0xFF000000;
 		val |= hw->tx_len;
 		x2_dma_wr(chan, X2_DMA_CTRL_ADDR, val);
@@ -903,55 +909,12 @@ static int x2_dma_remove(struct platform_device *pdev)
 	return 0;
 }
 
-#ifdef CONFIG_PM
-int x2_dma_suspend(struct device *dev)
-{
-	struct x2_dma_device *xdev = dev_get_drvdata(dev);
-	int i;
-
-	pr_info("%s:%s, enter suspend...\n", __FILE__, __func__);
-
-	for (i = 0; i < X2_DMA_MAX_CHANS_PER_DEVICE; i++) {
-		if (xdev->chan[i]->idle == false) {
-			pr_info("%s:%s, dma channel[%d] is busy now\n", __FILE__, __func__, i);
-			return 0;
-		}
-
-		/* disable all interrupts */
-		x2_dma_wr(xdev->chan[i], X2_DMA_INT_SETMASK, X2_DMA_ALL_IRQ_MASK);
-		x2_dma_wr(xdev->chan[i], X2_DMA_INT_UNMASK, 0x0);
-	}
-
-	return 0;
-}
-
-int x2_dma_resume(struct device *dev)
-{
-	struct x2_dma_device *xdev = dev_get_drvdata(dev);
-	int i;
-
-	pr_info("%s:%s, enter resume...\n", __FILE__, __func__);
-
-	for (i = 0; i < X2_DMA_MAX_CHANS_PER_DEVICE; i++) {
-		x2_dma_chan_reset(xdev->chan[i]);
-	}
-
-	return 0;
-}
-#endif
-
-static const struct dev_pm_ops x2_dma_dev_pm_ops = {
-	SET_SYSTEM_SLEEP_PM_OPS(x2_dma_suspend,
-			x2_dma_resume)
-};
-
 static struct platform_driver x2_dma_driver = {
 	.probe = x2_dma_probe,
 	.remove = x2_dma_remove,
 	.driver = {
 		.name = "x2_dma",
 		.of_match_table = x2_dma_of_ids,
-		//.pm = &x2_dma_dev_pm_ops,
 	},
 };
 
