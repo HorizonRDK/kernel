@@ -2771,15 +2771,14 @@ static irqreturn_t dw_mci_interrupt(int irq, void *dev_id)
 		}
 	}
 
-	if ((first_time == 0) && (host->irq == 26)) {
+	if ((first_time == 0) && (host->phy_regs == 0xa5010000)) {
 		first_time = 1;
 		last_err = err;
 		x2_emmc_diag_process(err, pending);
-	} else if ((last_err != err) && (host->irq == 26)) {
+	} else if ((last_err != err) && (host->phy_regs == 0xa5010000)) {
 		last_err = err;
 		x2_emmc_diag_process(err, pending);
 	}
-
 
 	if (host->use_dma != TRANS_MODE_IDMAC)
 		return IRQ_HANDLED;
@@ -3399,7 +3398,7 @@ int dw_mci_probe(struct dw_mci *host)
 	dw_mci_enable_cd(host);
 
 	if (diag_register(ModuleDiag_emmc, EventIdEmmcErr,
-						4, 1800, 4000, NULL) < 0)
+						4, 50, 4000, NULL) < 0)
 		pr_err("emmc diag register fail\n");
 
 	return 0;
