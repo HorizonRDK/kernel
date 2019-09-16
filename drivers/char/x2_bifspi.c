@@ -257,11 +257,8 @@ static int bif_reset(struct bifspi_t *pbif)
 	return 0;
 }
 
-static void bif_set_access(struct bifspi_t *pbif, unsigned int first,
-			   unsigned int last)
+static int bif_change_reset2gpio(void)
 {
-	int value;
-	unsigned long flags;
 	unsigned int reg_val;
 
 	// set gpip func
@@ -270,7 +267,29 @@ static void bif_set_access(struct bifspi_t *pbif, unsigned int first,
 		reg_val |= 0xc0000000;
 		writel(reg_val, (void *)bif_info->pinmux);
 	}
+	return 0;
+}
 
+static int bif_recover_reset_func(void)
+{
+	unsigned int reg_val;
+
+	// set default func
+	if (bif_info->pinmux) {
+		reg_val = readl((void *)bif_info->pinmux);
+		reg_val &= ~(0xc0000000);
+		writel(reg_val, (void *)bif_info->pinmux);
+	}
+	return 0;
+}
+
+static void bif_set_access(struct bifspi_t *pbif, unsigned int first,
+			   unsigned int last)
+{
+	int value;
+	unsigned long flags;
+
+	bif_change_reset2gpio();
 	spin_lock_irqsave(&pbif->lock, flags);
 	// set access, enable irq
 	writel(first, (void *)(pbif->regs_base + BIF_ACCESS_FIRST));
@@ -284,12 +303,7 @@ static void bif_set_access(struct bifspi_t *pbif, unsigned int first,
 	pbif->last = last;
 	spin_unlock_irqrestore(&pbif->lock, flags);
 
-	// set default func
-	if (bif_info->pinmux) {
-		reg_val = readl((void *)bif_info->pinmux);
-		reg_val &= ~(0xc0000000);
-		writel(reg_val, (void *)bif_info->pinmux);
-	}
+	bif_recover_reset_func();
 	pr_info
 	     ("bif set access limit:start add:%p->%#x(%d) end add:%p-%#x(%d)\n",
 	     (void *)(pbif->regs_base + BIF_ACCESS_FIRST), first, first,
@@ -301,6 +315,7 @@ static void bif_unset_access(struct bifspi_t *pbif)
 	int en_val = 0;
 	unsigned long flags;
 
+	bif_change_reset2gpio();
 	spin_lock_irqsave(&pbif->lock, flags);
 	writel(0, (void *)(pbif->regs_base + BIF_ACCESS_FIRST));
 	writel(MEM_MAX_ACCESS, (void *)(pbif->regs_base + BIF_ACCESS_LAST));
@@ -311,6 +326,7 @@ static void bif_unset_access(struct bifspi_t *pbif)
 	pbif->last = MEM_MAX_ACCESS;
 	spin_unlock_irqrestore(&pbif->lock, flags);
 
+	bif_recover_reset_func();
 	pr_info("bif unset access limit ddr\n");
 }
 
@@ -326,6 +342,7 @@ static long bif_compat_ioctl(struct file *filp, unsigned int cmd,
 		pr_err("Invaild MAGIC_NUM\n");
 		return -EINVAL;
 	}
+	bif_change_reset2gpio();
 
 	switch (cmd) {
 	case BIF_GET_SHREG:
@@ -368,6 +385,7 @@ static long bif_compat_ioctl(struct file *filp, unsigned int cmd,
 		break;
 	}
 
+	bif_recover_reset_func();
 	return 0;
 }
 
@@ -387,7 +405,9 @@ int bifspi_read_share_reg(unsigned int num, unsigned int *value)
 		pr_err("%s bif_info == null\n", __func__);
 		return -1;
 	}
-//	*value = readl((void *)(bif_info->regs_base + num * 4));
+	bif_change_reset2gpio();
+	*value = readl((void *)(bif_info->regs_base + num * 4));
+	bif_recover_reset_func();
 	return 0;
 }
 EXPORT_SYMBOL(bifspi_read_share_reg);
@@ -398,7 +418,9 @@ int bifspi_write_share_reg(unsigned int num, unsigned int value)
 		pr_err("%s bif_info == null\n", __func__);
 		return -1;
 	}
-//	writel(value, (void *)(bif_info->regs_base + num * 4));
+	bif_change_reset2gpio();
+	writel(value, (void *)(bif_info->regs_base + num * 4));
+	bif_recover_reset_func();
 	return 0;
 }
 EXPORT_SYMBOL(bifspi_write_share_reg);
@@ -504,6 +526,7 @@ static irqreturn_t bifspi_interrupt(int irq, void *dev_id)
 	struct bifspi_t *pbif = dev_id;
 	unsigned long flags;
 
+	bif_change_reset2gpio();
 	// read interrupt
 	disable_irq_nosync(irq);
 	spin_lock_irqsave(&pbif->lock, flags);
@@ -528,6 +551,7 @@ static irqreturn_t bifspi_interrupt(int irq, void *dev_id)
 
 	enable_irq(irq);
 	pbif->intstatus = 0;
+	bif_recover_reset_func();
 
 	return 0;
 }
@@ -591,8 +615,15 @@ static int bifspi_probe(struct platform_device *pdev)
 			dev_err(&pdev->dev, "get ap_access_last failed\n");
 		else {
 			bif_info->last = value32;
-			bif_set_access(bif_info,
-				       bif_info->first, bif_info->last);
+			writel(bif_info->first, (void *)(bif_info->regs_base
+							+ BIF_ACCESS_FIRST));
+			writel(bif_info->last, (void *)(bif_info->regs_base
+							+ BIF_ACCESS_LAST));
+			value = readl((void *)(bif_info->regs_base
+							+ BIF_EN_CLEAR));
+			value |= (1 << 0x04);
+			writel(value, (void *)(bif_info->regs_base
+							+ BIF_EN_CLEAR));
 		}
 	}
 	writel(STAGE_KERNEL,
@@ -675,13 +706,13 @@ int x2_bif_spi_suspend(struct device *dev)
 	struct bifspi_t *bifspi = dev_get_drvdata(dev);
 
 	pr_info("%s:%s, enter suspend...\n", __FILE__, __func__);
-
+	bif_change_reset2gpio();
 	g_bif_spi_regs[0] = readl(bifspi->regs_base + BIF_ACCESS_FIRST);
 	g_bif_spi_regs[1] = readl(bifspi->regs_base + BIF_ACCESS_LAST);
 	g_bif_spi_regs[2] = readl(bifspi->regs_base + BIF_EN_CLEAR);
 
 	//bif_unset_access(bifspi);
-
+	bif_recover_reset_func();
 	return 0;
 }
 
@@ -692,11 +723,11 @@ int x2_bif_spi_resume(struct device *dev)
 	pr_info("%s:%s, enter resume...\n", __FILE__, __func__);
 
 	bif_reset(bifspi);
-
+	bif_change_reset2gpio();
 	writel(g_bif_spi_regs[0], bifspi->regs_base + BIF_ACCESS_FIRST);
 	writel(g_bif_spi_regs[1], bifspi->regs_base + BIF_ACCESS_LAST);
 	writel(g_bif_spi_regs[2], bifspi->regs_base + BIF_EN_CLEAR);
-
+	bif_recover_reset_func();
 	return 0;
 }
 #endif
