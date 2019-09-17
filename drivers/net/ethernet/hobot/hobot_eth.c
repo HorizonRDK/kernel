@@ -2661,7 +2661,7 @@ static void x2_dma_rx_chan_op_mode(void __iomem *ioaddr, int mode, u32 chan, int
 	mtl_rx_op = readl(ioaddr + MTL_CHAN_RX_OP_MODE(chan));
 	mtl_rx_op |= MTL_OP_MODE_RSF;
 	mtl_rx_op &= ~MTL_OP_MODE_RQS_MASK;
-	printk("%s, and rqs:0x%x\n",__func__, rqs);
+//	printk("%s, and rqs:0x%x\n",__func__, rqs);
 	mtl_rx_op |= rqs << MTL_OP_MODE_RQS_SHIFT;
 
 	if (rxfifosz >= 4096 && qmode != MTL_QUEUE_AVB ) {
