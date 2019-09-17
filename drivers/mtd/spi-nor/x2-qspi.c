@@ -29,7 +29,11 @@
 #include <linux/spi/flash.h>
 #include <linux/mtd/partitions.h>
 #include <linux/slab.h>
+#include <x2/diag.h>
 #include "x2-qspi.h"
+
+static int first_time;
+static int last_err;
 
 /* #define X2_QSPI_WORK_POLL    1 */
 
@@ -662,18 +666,55 @@ static int x2_qspi_flash_erase(struct spi_nor *nor, loff_t offs)
 	return x2_qspi_flash_rd_wr(nor, nor->cmd_buf, cmdsz, NULL, NULL, 0);
 }
 
+static void qspinorflash_diag_report(uint8_t errsta, uint32_t sta_reg)
+{
+	if (errsta) {
+		diag_send_event_stat_and_env_data(
+				DiagMsgPrioHigh,
+				ModuleDiag_norflash,
+				EventIdNorflashErr,
+				DiagEventStaFail,
+				DiagGenEnvdataWhenErr,
+				(uint8_t *)&sta_reg,
+				4);
+	} else {
+		diag_send_event_stat(
+				DiagMsgPrioMid,
+				ModuleDiag_norflash,
+				EventIdNorflashErr,
+				DiagEventStaSuccess);
+	}
+}
+
 static irqreturn_t x2_qspi_irq_handler(int irq, void *dev_id)
 {
 	unsigned int irq_status;
+	unsigned int err_status;
+	int err = 0;
 	struct x2qspi_pdata *x2qspi = dev_id;
 
 	/* Read interrupt status */
 	irq_status = x2qspi_rd(x2qspi, X2_QSPI_ST1_REG);
 	x2qspi_wr(x2qspi, X2_QSPI_ST1_REG, X2_QSPI_TBD | X2_QSPI_RBD);
 
+	err_status = x2qspi_rd(x2qspi, X2_QSPI_ST2_REG);
+	x2qspi_wr(x2qspi, X2_QSPI_ST2_REG,
+			X2_QSPI_RXWR_FULL | X2_QSPI_TXRD_EMPTY);
+
 	if (irq_status | (X2_QSPI_TBD | X2_QSPI_RBD))
 		complete(&x2qspi->xfer_complete);
 
+	if (err_status & (X2_QSPI_RXWR_FULL | X2_QSPI_TXRD_EMPTY))
+		err = 1;
+
+	if (first_time == 0) {
+		first_time = 1;
+		last_err = err;
+		qspinorflash_diag_report(err, err_status);
+	} else if (last_err != err) {
+		last_err = err;
+		qspinorflash_diag_report(err, err_status);
+	}
 	return IRQ_HANDLED;
 }
 
@@ -701,7 +742,8 @@ static void x2_qspi_hw_init(struct x2qspi_pdata *x2qspi)
 	x2qspi_wr(x2qspi, X2_QSPI_CTL1_REG, val);
 
 	/* init interrupt */
-	val = X2_QSPI_RBC_INT | X2_QSPI_TBC_INT;
+	val = X2_QSPI_RBC_INT | X2_QSPI_TBC_INT |
+		X2_QSPI_ERR_INT;
 	x2qspi_wr(x2qspi, X2_QSPI_CTL2_REG, val);
 
 	/* unselect chip */
@@ -866,6 +908,9 @@ static int x2_qspi_probe(struct platform_device *pdev)
 		dev_err(dev, "X2 QSPI NOR probe failed %d\n", ret);
 		goto probe_setup_failed;
 	}
+	if (diag_register(ModuleDiag_norflash, EventIdNorflashErr,
+						4, 10, 5000, NULL) < 0)
+		pr_err("qspi norflash diag register fail\n");
 
 	return ret;
 probe_setup_failed:
