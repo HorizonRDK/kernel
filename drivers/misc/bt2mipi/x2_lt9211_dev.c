@@ -309,6 +309,12 @@ static int x2_lt9211_probe(struct i2c_client *client,
 
 	cdev_init(&(g_x2_lt9211->cdev), &x2_lt9211_fops);
 	g_x2_lt9211->cdev.owner = THIS_MODULE;
+	ret = lt9211_chip_id();
+	if (ret != 0) {
+		display_type = HDMI_TYPE;
+		pr_err("not found lt9211 device, exit probe!!!\n");
+		return ret;
+	}
 	ret = cdev_add(&(g_x2_lt9211->cdev), devno, 1);
 	if (ret) {
 		pr_err("Error %d while adding x2 fpgactrl cdev", ret);
@@ -331,12 +337,6 @@ static int x2_lt9211_probe(struct i2c_client *client,
 		goto err;
 	}
 
-	ret = lt9211_chip_id();
-	if (ret != 0) {
-		display_type = HDMI_TYPE;
-		pr_err("not found lt9211 device, exit probe!!!\n");
-		return ret;
-	}
 /*	//---------------------------------------------------------------
  *	//config vio refclk as 408MHz
  *	vio_refclk_regaddr = ioremap_nocache(0xA1000000 + 0x40, 4);
