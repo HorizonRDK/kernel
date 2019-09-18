@@ -98,6 +98,7 @@ static int checkirq0_enable = 1;
 static int checkirq1_enable = 1;
 #endif
 
+
 static inline u32 x2_cnn_reg_read(struct x2_cnn_dev *dev, u32 off)
 {
 	return readl(dev->cnn_base + off);
@@ -1411,6 +1412,9 @@ int cnn_debugfs_init(struct x2_cnn_dev *dev, int cnn_id, struct dentry *root)
 
 	return 0;
 }
+struct bus_type bpu_subsys = {
+	.name = "bpu",
+};
 
 #ifdef CONFIG_HOBOT_CNN_DEVFREQ
 static int cnnfreq_target(struct device *dev, unsigned long *freq,
@@ -1521,6 +1525,8 @@ static int x2_cnnfreq_register(struct x2_cnn_dev *cnn_dev)
 	struct x2_cnnfreq *data;
 	struct devfreq_dev_profile *devp;
 	const char *gov_name;
+	char bpu_name[10];
+	int ret;
 
 	dev_err(dev, "%s probe\n", __func__);
 
@@ -1558,6 +1564,14 @@ static int x2_cnnfreq_register(struct x2_cnn_dev *cnn_dev)
 
 	data->cooling = of_devfreq_cooling_register(dev->of_node,
 							data->devfreq);
+
+	sprintf(bpu_name, "bpu%d", cnn_dev->core_index);
+	ret = sysfs_add_link_to_group(&bpu_subsys.dev_root->kobj,
+				      bpu_name,
+				      &data->devfreq->dev.kobj,
+				      "bpufreq");
+	if (ret)
+		pr_err("add bpu freq link error\n");
 	dev_err(dev, "%s end\n", __func__);
 	return 0;
 }
@@ -1932,7 +1946,8 @@ static int x2_cnn_remove(struct platform_device *pdev)
 	cnn_int_mask = x2_cnn_reg_read(dev, X2_CNNINT_MASK);
 	cnn_int_mask |= X2_CNN_PE0_INT_MASK(1);
 	x2_cnn_reg_write(dev, X2_CNNINT_MASK, cnn_int_mask);
-
+	if (profiler_enable)
+		del_timer(&check_timer);
 
 	tasklet_kill(&dev->tasklet);
 	vm_unmap_ram(dev->fc_base, dev->fc_mem_size / PAGE_SIZE);
@@ -2437,13 +2452,13 @@ static struct kobj_attribute pro_enable    = __ATTR(profiler_enable, 0664,
 static struct kobj_attribute fc_enable    = __ATTR(fc_time_enable, 0664,
 						    fc_time_enable_show,
 						    fc_time_enable_store);
-static struct kobj_attribute pro_ratio0    = __ATTR(ratio0, 0444,
+static struct kobj_attribute pro_ratio0    = __ATTR(ratio, 0444,
 						    ratio0_show, NULL);
-static struct kobj_attribute pro_ratio1    = __ATTR(ratio1, 0444,
+static struct kobj_attribute pro_ratio1    = __ATTR(ratio, 0444,
 						    ratio1_show, NULL);
-static struct kobj_attribute pro_queue0    = __ATTR(queue0, 0444,
+static struct kobj_attribute pro_queue0    = __ATTR(queue, 0444,
 						    queue0_show, NULL);
-static struct kobj_attribute pro_queue1    = __ATTR(queue1, 0444,
+static struct kobj_attribute pro_queue1    = __ATTR(queue, 0444,
 						    queue1_show, NULL);
 static struct kobj_attribute bpu0_fc_time  = __ATTR(fc_time, 0444,
 						    bpu0_fc_time_show, NULL);
@@ -2519,21 +2534,18 @@ static const struct attribute_group *bpu_attr_groups[] = {
 	&bpu1_attr_group,
 	NULL,
 };
-struct bus_type bpu_subsys = {
-	.name = "bpu",
-};
 static int __init x2_cnn_init(void)
 {
 	int retval = 0;
 	pr_info("%s\n", __func__);
 
+	/*register bpu sys node*/
+	if (subsys_system_register(&bpu_subsys, bpu_attr_groups))
+		pr_err("fialed to register bpu subsystem");
 	/* Register the platform driver */
 	retval = platform_driver_register(&x2_cnn_platform_driver);
 	if (retval)
 		pr_err("x2 cnn driver register failed\n");
-	/*register bpu sys node*/
-	if (subsys_system_register(&bpu_subsys, bpu_attr_groups))
-		pr_err("fialed to register bpu subsystem");
 
 	/*set bpu profiler timer*/
 	init_timer(&check_timer);
