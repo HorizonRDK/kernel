@@ -4,14 +4,15 @@ function choose()
 {
     local hascpio=$KERNEL_WITH_CPIO
     local conftmp=.config_tmp
+    local rootfscpio="CONFIG_INITRAMFS_SOURCE=\"./usr/rootfs.cpio\""
+    local rootfspre="CONFIG_INITRAMFS_SOURCE=\"./usr/prerootfs/\""
     cp .config $conftmp
 
     if ! $hascpio ;then
         sed -i "/CONFIG_BLK_DEV_INITRD/d" $conftmp
         echo "CONFIG_BLK_DEV_INITRD=n" >> $conftmp
     else
-        sed -i "s#CONFIG_INITRAMFS_SOURCE=\"./usr/rootfs.cpio\"\
-            #CONFIG_INITRAMFS_SOURCE=\"./usr/prerootfs/\"#g" $conftmp
+        sed -i "s#${rootfscpio}#${rootfspre}#g" $conftmp
         rm -rf ${SRC_KERNEL_DIR}/usr/prerootfs/
         mkdir -p ${SRC_KERNEL_DIR}/usr/prerootfs/
         if [ "$BOOT_MODE" = "nor" ];then
