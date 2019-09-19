@@ -532,7 +532,7 @@ int bifplat_config(void *p)
 	if (pl->plat_type == PLAT_AP) {
 #ifdef CONFIG_HISI
 		memset(pl->platform, 0, PLATFORM_SIZE);
-		snprintf(pl->platform, strlen("hisi"), "%s", "hisi");
+		memcpy(pl->platform, "hisi", strlen("hisi"));
 		pl->param = PARAM_MODULE;
 		pl->bifbase_phyaddr = CPSIDE_DDR_ADDR;
 		pl->bifbase_phyaddrsize = CPSIDE_DDR_ADDRSIZE;
@@ -555,7 +555,7 @@ int bifplat_config(void *p)
 
 #ifdef CONFIG_NXP
 		memset(pl->platform, 0, PLATFORM_SIZE);
-		snprintf(pl->platform, strlen("imx6qd"), "%s", "imx6qd");
+		memcpy(pl->platform, "imx6qd", strlen("imx6qd"));
 		pl->param = PARAM_MODULE;
 		pl->bifbase_phyaddr = CPSIDE_DDR_ADDR;
 		pl->bifbase_phyaddrsize = CPSIDE_DDR_ADDRSIZE;
@@ -572,7 +572,7 @@ int bifplat_config(void *p)
 
 #ifdef CONFIG_YUANTE
 		memset(pl->platform, 0, PLATFORM_SIZE);
-		snprintf(pl->platform, strlen("imx8qxp"), "%s", "imx8qxp");
+		memcpy(pl->platform, "imx8qxp", strlen("imx8qxp"));
 		pl->param = PARAM_MODULE;
 		pl->bifbase_phyaddr = CPSIDE_DDR_ADDR;
 		pl->bifbase_phyaddrsize = CPSIDE_DDR_ADDRSIZE;
@@ -590,7 +590,7 @@ int bifplat_config(void *p)
 
 #ifdef CONFIG_HOBOT_BIF_TEST
 	memset(pl->platform, 0, PLATFORM_SIZE);
-	snprintf(pl->platform, strlen("vmware"), "%s", "vmware");
+	memcpy(pl->platform, "vmware", strlen("vmware"));
 	pl->param = PARAM_MODULE;
 	pl->bifbase_phyaddr = CPSIDE_DDR_ADDR;
 	pl->bifbase_phyaddrsize = CPSIDE_DDR_ADDRSIZE;

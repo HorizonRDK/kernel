@@ -75,7 +75,7 @@
 
 #define BIFBASE_APMAGIC		"BIFA"
 #define BIFBASE_CPMAGIC		"BIFC"
-#define BIFBASE_VER		"HOBOT-bifbase_V21.190918"
+#define BIFBASE_VER		"HOBOT-bifbase_V21.190919"
 #define BIFBASE_MAJOR		(123)
 #define BIFBASE_BLOCK		(1024)	//(512)
 #define BIFBASE_VER_SIZE	(32)
@@ -639,6 +639,8 @@ static void bifbase_irq_work(struct work_struct *work)
 
 	if (bifbase_sync_cp((void *)pl))
 		pr_err("bifbase: %s() Err sync base\n", __func__);
+	if (!pl->other->irq_queue_size)
+		pl->other->irq_queue_size = IRQ_QUEUE_SIZE;
 
 	if ((pl->other->send_irq_tail + 1) % pl->other->irq_queue_size ==
 		pl->self->read_irq_head)
@@ -1178,6 +1180,8 @@ int bif_send_irq(int irq)
 	}
 
 	if (pl->self->running_mode == BUFF_BASE) {
+		if (!pl->self->irq_queue_size)
+			pl->self->irq_queue_size = IRQ_QUEUE_SIZE;
 
 		while ((pl->self->send_irq_tail + 1)
 			% pl->self->irq_queue_size
