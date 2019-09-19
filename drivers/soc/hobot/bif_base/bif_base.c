@@ -75,7 +75,7 @@
 
 #define BIFBASE_APMAGIC		"BIFA"
 #define BIFBASE_CPMAGIC		"BIFC"
-#define BIFBASE_VER		"HOBOT-bifbase_V21.190717"
+#define BIFBASE_VER		"HOBOT-bifbase_V21.190918"
 #define BIFBASE_MAJOR		(123)
 #define BIFBASE_BLOCK		(1024)	//(512)
 #define BIFBASE_VER_SIZE	(32)
@@ -813,7 +813,7 @@ static int bifbase_pre_init(void *p)
 	pl->self->irq_queue_size = IRQ_QUEUE_SIZE;
 	bif_memset(pl->self->irq, -1, pl->self->irq_queue_size);
 	ptr = (unsigned char *)pl->self;
-	pr_info("bifbase: %s magic=%c%c%c%c size=0x%x cp=0x%lx ap=0x%0lx"
+	pr_info("bifbase: %s %c%c%c%c size=0x%x cp=0x%lx ap=0x%0lx"
 		" phy=0x%08lx vir=0x%lx sz=0x%08x irq_pin=%d tri_pin=%d\n",
 		BIFBASE_VER, ptr[0], ptr[1], ptr[2], ptr[3],
 		(unsigned int)sizeof(struct bif_base_info), (ulong)pl->cp,
@@ -1026,7 +1026,11 @@ exit_1:
 
 static int bifbase_remove(struct platform_device *pdev)
 {
+	struct bifbase_local *pl = get_bifbase_local();
 	pr_debug("bifbase: bifbase remove begin...\n");
+
+	if (pl->plat->param != PARAM_MODULE)
+		bifbase_pre_exit((void *)pl);
 
 	return 0;
 }
@@ -1073,9 +1077,9 @@ static int __init bifbase_init(void)
 	if (pl->plat->param == PARAM_MODULE) {
 		ret = bifbase_driver_register((void *)pl);
 		bifplat_print_info((void *)pl->plat);
-	} else
+	} else {
 		ret = platform_driver_register(&bifbase_driver);
-
+	}
 	if (ret) {
 		bifplat_unconfig((void *)pl->plat);
 		kfree(pl);
@@ -1097,13 +1101,13 @@ static void __exit bifbase_exit(void)
 	pr_debug("bifbase: exit begin...\n");
 
 	pl->start = 0;
-	bifbase_pre_exit((void *)pl);
 
-	if (pl->plat->param == PARAM_MODULE)
+	if (pl->plat->param == PARAM_MODULE) {
+		bifbase_pre_exit((void *)pl);
 		bifbase_driver_unregister((void *)pl);
-	else
+	} else {
 		platform_driver_unregister(&bifbase_driver);
-
+	}
 	bifplat_unconfig((void *)pl->plat);
 
 	kfree(pl);
@@ -1182,7 +1186,7 @@ int bif_send_irq(int irq)
 				ret = -3;
 				goto exit_1;
 			}
-			pr_warn("bifbase: irq queue full\n");
+			pr_bif("bifbase: irq queue full\n");
 			pl->base_sendirq_wq_flg = 1;
 			if (wait_event_interruptible_timeout(pl->base_irq_wq,
 				(pl->self->send_irq_tail + 1)
@@ -1190,7 +1194,7 @@ int bif_send_irq(int irq)
 				!= pl->other->read_irq_head,
 				msecs_to_jiffies(500)) == 0) {
 				pl->base_sendirq_wq_flg = 0;
-				pr_warn("bifbase: wait irq queue timeout\n");
+				pr_bif("bifbase: wait irq queue timeout\n");
 				ret = -4;
 				goto exit_1;
 			} else

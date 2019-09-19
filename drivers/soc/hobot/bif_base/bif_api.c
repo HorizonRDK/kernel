@@ -532,7 +532,7 @@ int bifplat_config(void *p)
 	if (pl->plat_type == PLAT_AP) {
 #ifdef CONFIG_HISI
 		memset(pl->platform, 0, PLATFORM_SIZE);
-		sprintf(pl->platform, "%s", "hisi");
+		snprintf(pl->platform, strlen("hisi"), "%s", "hisi");
 		pl->param = PARAM_MODULE;
 		pl->bifbase_phyaddr = CPSIDE_DDR_ADDR;
 		pl->bifbase_phyaddrsize = CPSIDE_DDR_ADDRSIZE;
@@ -552,11 +552,45 @@ int bifplat_config(void *p)
 		hisi_gpio_pin_mux(muxctrl_base_va, pl->irq_pin);
 		hisi_gpio_pin_mux(muxctrl_base_va, pl->tri_pin);
 #endif
+
+#ifdef CONFIG_NXP
+		memset(pl->platform, 0, PLATFORM_SIZE);
+		snprintf(pl->platform, strlen("imx6qd"), "%s", "imx6qd");
+		pl->param = PARAM_MODULE;
+		pl->bifbase_phyaddr = CPSIDE_DDR_ADDR;
+		pl->bifbase_phyaddrsize = CPSIDE_DDR_ADDRSIZE;
+		pl->irq_pin_absent = 0;
+		if (bifbase_irq_pin)
+			pl->irq_pin = bifbase_irq_pin;
+		else
+			pl->irq_pin = 4;
+		if (bifbase_tri_pin)
+			pl->tri_pin = bifbase_tri_pin;
+		else
+			pl->tri_pin = 107;
+#endif
+
+#ifdef CONFIG_YUANTE
+		memset(pl->platform, 0, PLATFORM_SIZE);
+		snprintf(pl->platform, strlen("imx8qxp"), "%s", "imx8qxp");
+		pl->param = PARAM_MODULE;
+		pl->bifbase_phyaddr = CPSIDE_DDR_ADDR;
+		pl->bifbase_phyaddrsize = CPSIDE_DDR_ADDRSIZE;
+		pl->irq_pin_absent = 0;
+		if (bifbase_irq_pin)
+			pl->irq_pin = bifbase_irq_pin;
+		else
+			pl->irq_pin = 490;
+		if (bifbase_tri_pin)
+			pl->tri_pin = bifbase_tri_pin;
+		else
+			pl->tri_pin = 487;
+#endif
 	}
 
 #ifdef CONFIG_HOBOT_BIF_TEST
 	memset(pl->platform, 0, PLATFORM_SIZE);
-	sprintf(pl->platform, "%s", "vmware");
+	snprintf(pl->platform, strlen("vmware"), "%s", "vmware");
 	pl->param = PARAM_MODULE;
 	pl->bifbase_phyaddr = CPSIDE_DDR_ADDR;
 	pl->bifbase_phyaddrsize = CPSIDE_DDR_ADDRSIZE;
