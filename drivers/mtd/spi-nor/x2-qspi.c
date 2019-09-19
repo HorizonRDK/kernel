@@ -625,7 +625,7 @@ static ssize_t x2_qspi_flash_read(struct spi_nor *nor, loff_t from,
 
 	nor->cmd_buf[0] = nor->read_opcode;
 	x2_qspi_flash_addr(nor, from, nor->cmd_buf);
-	
+
 	if (x2_qspi_flash_rd_wr(nor, nor->cmd_buf, cmdsz, NULL, read_buf, len))
 		return -EIO;
 
@@ -644,7 +644,7 @@ static ssize_t x2_qspi_flash_write(struct spi_nor *nor, loff_t to,
 
 	nor->cmd_buf[0] = nor->program_opcode;
 	x2_qspi_flash_addr(nor, to, nor->cmd_buf);
-	
+
 	if (x2_qspi_flash_rd_wr(nor, nor->cmd_buf, cmdsz, write_buf, NULL, len))
 		return -EIO;
 
@@ -662,7 +662,7 @@ static int x2_qspi_flash_erase(struct spi_nor *nor, loff_t offs)
 
 	nor->cmd_buf[0] = nor->erase_opcode;
 	x2_qspi_flash_addr(nor, offs, nor->cmd_buf);
-	
+
 	return x2_qspi_flash_rd_wr(nor, nor->cmd_buf, cmdsz, NULL, NULL, 0);
 }
 
@@ -701,7 +701,7 @@ static irqreturn_t x2_qspi_irq_handler(int irq, void *dev_id)
 	x2qspi_wr(x2qspi, X2_QSPI_ST2_REG,
 			X2_QSPI_RXWR_FULL | X2_QSPI_TXRD_EMPTY);
 
-	if (irq_status | (X2_QSPI_TBD | X2_QSPI_RBD))
+	if (irq_status & (X2_QSPI_TBD | X2_QSPI_RBD))
 		complete(&x2qspi->xfer_complete);
 
 	if (err_status & (X2_QSPI_RXWR_FULL | X2_QSPI_TXRD_EMPTY))
