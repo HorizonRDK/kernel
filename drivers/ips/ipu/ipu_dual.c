@@ -814,24 +814,40 @@ again:
 	case IPUC_FB_SRC_DONE:
 		{
 			ipu_slot_dual_h_t *g_get_fb_slot_h;
+			info_dual_h_t *pym_img_info = NULL;
 
 			spin_lock_irqsave(&g_ipu_d_cdev->slock, flags);
 
 			g_get_fb_slot_h = ipu_get_pym_free_slot();
 			if (!g_get_fb_slot_h) {
+				struct mult_img_info_t tmp_mult_img_info;
 
-				g_get_fb_slot_h = ipu_get_pym_done_slot();
-				if (!g_get_fb_slot_h) {
+				ret = ipu_pym_wait_process_done(&tmp_mult_img_info,
+						sizeof(struct mult_img_info_t), PYM_INLINE, 0);
+				if (ret < 0) {
 					spin_unlock_irqrestore(&g_ipu_d_cdev->slock, flags);
 					return -EFAULT;
 				}
-				//printk("fb none free\n");
+				pym_img_info = &pym_info;
+				pym_img_info->slot_id = tmp_mult_img_info.src_img_info[0].slot_id;
+				pym_img_info->slot_flag = 0;
+				pym_img_info->ipu_flag = 0;
+				pym_img_info->cnn_flag = 0;
+				pym_img_info->cf_id = tmp_mult_img_info.src_img_info[0].frame_id;
+				pym_img_info->sf_id = tmp_mult_img_info.src_img_info[1].frame_id;
+				pym_img_info->cf_timestamp = tmp_mult_img_info.src_img_info[0].timestamp;
+				pym_img_info->sf_timestamp = tmp_mult_img_info.src_img_info[1].timestamp;
+				pym_img_info->base =
+					(uint64_t)IPU_GET_DUAL_SLOT(pym_img_info->slot_id, ipu->paddr);
+				if (pym_img_info->slot_id == g_ipu_pym->new_slot_id)
+					g_ipu_pym->new_slot_id = -1;
+
+				pym_img_info->dual_ddr_info = g_ipu_d_cdev->s_info;
+				info = pym_img_info;
+			} else {
+				info = &g_get_fb_slot_h->info_h;
+				info->base = (uint64_t)IPU_GET_DUAL_SLOT(g_get_fb_slot_h->info_h.slot_id, g_ipu->paddr);
 			}
-			//printk("@@ get src done sema !! %d\n",g_get_slot_h->info_h.slot_id);
-			info = &g_get_fb_slot_h->info_h;
-			info->base = (uint64_t)IPU_GET_DUAL_SLOT(g_get_fb_slot_h->info_h.slot_id,
-			g_ipu->paddr);
-			//printk(" ipu->paddr %x\n", g_ipu->paddr);
 			spin_unlock_irqrestore(&g_ipu_d_cdev->slock, flags);
 			ret = copy_to_user((void __user *)data, (const void *)info,
 			sizeof(info_dual_h_t));

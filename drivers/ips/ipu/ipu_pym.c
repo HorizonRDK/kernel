@@ -84,6 +84,7 @@ int ipu_pym_to_process(void *img_info,
 		tmp_pym_slot.process_type = process_type;
 		tmp_pym_slot.pym_left_num = 0;
 		tmp_pym_slot.cfg = ipu_cfg;
+		tmp_pym_slot.errno = 0;
 
 		ret = kfifo_in(&g_ipu_pym->pym_slots, &tmp_pym_slot, 1);
 		if (ret < 1) {
@@ -109,6 +110,7 @@ int ipu_pym_to_process(void *img_info,
 			tmp_pym_slot.process_type = process_type;
 			tmp_pym_slot.pym_left_num = mult_img_info->src_num - i - 1;
 			tmp_pym_slot.cfg = ipu_cfg;
+			tmp_pym_slot.errno = 0;
 
 			ret = kfifo_in(&g_ipu_pym->pym_slots, &tmp_pym_slot, 1);
 			if (ret < 1) {
@@ -202,6 +204,12 @@ int ipu_pym_process_done(int errno)
 		spin_unlock_irqrestore(&g_ipu_pym->slock, flags);
 		pr_err("IPU pym not inited\n");
 		return -ENODEV;
+	}
+
+	if (g_ipu_pym->pyming_slot_info->errno < 0) {
+		spin_unlock_irqrestore(&g_ipu_pym->slock, flags);
+		pr_err("IPU pym invalid slot\n");
+		return g_ipu_pym->pyming_slot_info->errno;
 	}
 
 	if (g_ipu_pym->pyming_slot_info->slot_type >= PYM_SLOT_TYPE_END) {
@@ -375,10 +383,11 @@ void ipu_pym_clear(void)
 
 	spin_lock_irqsave(&g_ipu_pym->slock, flags);
 	g_ipu_pym->processing = 0;
+	g_ipu_pym->new_slot_id = -1;
+	g_ipu_pym->pyming_slot_info->errno = -ECANCELED;
 	kfifo_reset(&g_ipu_pym->pym_slots);
 	kfifo_reset(&g_ipu_pym->done_inline_pym_slots);
 	kfifo_reset(&g_ipu_pym->done_offline_pym_slots);
-	g_ipu_pym->new_slot_id = -1;
 	spin_unlock_irqrestore(&g_ipu_pym->slock, flags);
 }
 
