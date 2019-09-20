@@ -182,8 +182,8 @@ static int get_monitor_data(char* buf)
 				if (ddr_info[cur].portdata[i].raddr_num) {
 					length += sprintf(buf + length, "p[%d](bw:%u stall:%u delay:%u) ", i, \
 						(ddr_info[cur].portdata[i].rdata_num * 16 * (1000000/g_monitor_poriod)) >> 20, \
-						ddr_info[cur].portdata[i].raddr_cyc / ddr_info[cur].portdata[i].rdata_num, \
-						ddr_info[cur].portdata[i].raddr_latency / ddr_info[cur].portdata[i].rdata_num);
+						ddr_info[cur].portdata[i].raddr_cyc / ddr_info[cur].portdata[i].raddr_num, \
+						ddr_info[cur].portdata[i].raddr_latency / ddr_info[cur].portdata[i].raddr_num);
 				} else {
 					length += sprintf(buf + length, "p[%d](bw:%u stall:%u delay:%u) ", i, 0, 0, 0);
 				}
@@ -194,8 +194,8 @@ static int get_monitor_data(char* buf)
 				if (ddr_info[cur].portdata[i].waddr_num) {
 					length += sprintf(buf + length, "p[%d](bw:%u stall:%u delay:%u) ", i, \
 						(ddr_info[cur].portdata[i].wdata_num * 16 * (1000000/g_monitor_poriod)) >> 20, \
-						ddr_info[cur].portdata[i].waddr_cyc / ddr_info[cur].portdata[i].wdata_num, \
-						ddr_info[cur].portdata[i].waddr_latency / ddr_info[cur].portdata[i].wdata_num);
+						ddr_info[cur].portdata[i].waddr_cyc / ddr_info[cur].portdata[i].waddr_num, \
+						ddr_info[cur].portdata[i].waddr_latency / ddr_info[cur].portdata[i].waddr_num);
 				} else {
 					length += sprintf(buf + length, "p[%d](bw:%u stall:%u delay:%u) ", i, 0, 0, 0);
 				}
