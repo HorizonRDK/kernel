@@ -392,7 +392,7 @@
 	sd-uhs-sdr25;
 	sd-uhs-sdr50;
 	sd-uhs-sdr104;
-	/*powerup-gpio = <85>;*/
+	powerup-gpio = <8>;
 	uhs-180v-gpio = <116>;
 	broken-cd;
 	disable-wp;
