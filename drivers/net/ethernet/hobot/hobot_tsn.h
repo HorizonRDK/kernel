@@ -106,6 +106,7 @@
 
 #define TRGTBUSY0	BIT(31)
 
+#define PTOV                            GENMASK(31, 24)
 
 void x2_init_tsn(struct net_device *ndev);
 int x2_tsn_capable(struct net_device *ndev);
