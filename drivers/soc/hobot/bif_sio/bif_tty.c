@@ -22,6 +22,7 @@
 #include <linux/uaccess.h>
 #include <linux/types.h>
 #include <linux/device.h>
+#include <linux/crc16.h>
 #include "../bif_base/bif_base.h"
 #include "../bif_base/bif_api.h"
 #include "bif_tty.h"
@@ -50,6 +51,7 @@ struct bif_tty_node {
 	struct ringbuf_t *rb_other;
 	struct mutex r_lock;
 	struct mutex w_lock;
+	struct mutex rb_lock;
 };
 
 /* cdev info */
@@ -249,6 +251,27 @@ static unsigned int bif_ringbuf_other_used(struct bif_tty_node *bt_node)
 		return ringbuf_capacity(self) - self->tail + other->head + 1;
 }
 
+static unsigned int bif_ringbuf_cal_crc(struct bif_tty_node *bt_node)
+{
+	struct ringbuf_t *self = bt_node->rb_self;
+
+	mutex_lock(&bt_node->rb_lock);
+	self->crc = crc16(0xFFFF, (unsigned char *)&self->head, 12);
+	mutex_unlock(&bt_node->rb_lock);
+	return 0;
+}
+
+static unsigned int bif_ringbuf_cmp_crc(struct ringbuf_t *rb)
+{
+	unsigned int crc;
+
+	crc = crc16(0xFFFF, (unsigned char *)&rb->head, 12);
+	if (crc == rb->crc)
+		return 0;
+	else
+		return 1;
+}
+
 static int bif_tty_open(struct inode *inode, struct file *filp)
 {
 	unsigned int minor;
@@ -322,7 +345,7 @@ static ssize_t bif_tty_read(struct file *filp, char __user *buf,
 	rc = ringbuf_read(pself, buf, bt_node->rbuf, size);
 	if (rc < 0)
 		goto fail;
-
+	bif_ringbuf_cal_crc(bt_node);
 	bif_tty_irq();
 	tty_buf_info(bt_node);
 fail:
@@ -375,7 +398,7 @@ static ssize_t bif_tty_write(struct file *filp, const char __user *buf,
 		rc = ringbuf_write(pself, bt_node->wbuf, buf + offset, count);
 		if (rc < 0)
 			goto fail;
-
+		bif_ringbuf_cal_crc(bt_node);
 #ifdef CONFIG_HOBOT_BIF_AP
 		bif_sync_apbuf((unsigned long)(bt_node->wbuf_phy_addr),
 			       pself->size, bt_node->wbuf);
@@ -413,12 +436,21 @@ static const struct file_operations bif_tty_fops = {
 
 static int bif_tty_free(struct bif_tty_cdev *cdev)
 {
+	int i;
+	struct bif_tty_node *node_tmp;
+
 #ifdef CONFIG_HOBOT_BIF_AP
 	kfree(cdev->rw_addr);
 #else
 	bif_dma_free(2 * cdev->num_nodes * TTY_BUF_SIZE,
 		     cdev->vir_addr_rw, cdev->phy_addr_rw, 0);
 #endif
+	for (i = 0; i < cdev->num_nodes; i++) {
+		node_tmp = cdev->tb_node[i];
+		mutex_destroy(&node_tmp->w_lock);
+		mutex_destroy(&node_tmp->r_lock);
+		mutex_destroy(&node_tmp->rb_lock);
+	}
 	kfree(cdev->tb_node[0]);
 	kfree(cdev);
 	return 0;
@@ -450,6 +482,7 @@ static struct bif_tty_cdev *bif_tty_create_dev(void)
 		cdev->tb_node[i] = &node_tmp[i];
 		mutex_init(&cdev->tb_node[i]->w_lock);
 		mutex_init(&cdev->tb_node[i]->r_lock);
+		mutex_init(&cdev->tb_node[i]->rb_lock);
 	}
 	return cdev;
 
@@ -478,9 +511,15 @@ static int bif_tty_set_base(struct bif_tty_cdev *cdev)
 	}
 	for (i = 0; i < cdev->num_nodes; i++) {
 		cdev->tb_node[i]->rb_self = &rb_tmp[i];
-		cdev->tb_node[i]->rb_self->head = 0;
-		cdev->tb_node[i]->rb_self->tail = 0;
-		cdev->tb_node[i]->rb_self->size = TTY_BUF_SIZE;
+
+		if (bif_ringbuf_cmp_crc(&rb_tmp[i]) != 0
+			|| rb_tmp[i].head >= TTY_BUF_SIZE
+			|| rb_tmp[i].tail >= TTY_BUF_SIZE
+			|| rb_tmp[i].size != TTY_BUF_SIZE) {
+			cdev->tb_node[i]->rb_self->head = 0;
+			cdev->tb_node[i]->rb_self->tail = 0;
+			cdev->tb_node[i]->rb_self->size = TTY_BUF_SIZE;
+		}
 	}
 	/* rb_base_other can be null */
 	rb_tmp = bif_query_otherbase(BUFF_SMD);

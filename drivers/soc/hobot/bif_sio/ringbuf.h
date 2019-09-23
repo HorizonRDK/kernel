@@ -28,12 +28,14 @@
 
 #include <linux/kernel.h>
 
+#pragma pack(4)
 struct ringbuf_t {
 	unsigned int head;
 	unsigned int tail;
 	unsigned int size;
-	unsigned int reserve;
+	unsigned int crc;
 };
+#pragma pack()
 
 /*
  * Create a new ring buffer with the given capacity (usable
