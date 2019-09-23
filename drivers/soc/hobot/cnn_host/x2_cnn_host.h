@@ -122,9 +122,25 @@ struct x2_fc_time {
 	struct timeval start_time;
 	struct timeval end_time;
 };
+
+struct x2_cnn_int_num {
+	u32 cnn_int_num[CNN_INT_NUM];
+	u64 cnn_int_interval[CNN_INT_NUM];
+	u32 cnn_int_count;
+};
+
+struct cnn_user_info {
+	struct x2_cnn_dev *cnn_dev;
+	wait_queue_head_t cnn_int_wait;
+	int irq_triggered;
+	struct x2_cnn_int_num cnn_int_num;
+};
+
 struct x2_int_info {
+	struct cnn_user_info **p_user_info;
 	unsigned int fc_total;
 	unsigned int int_num;
+	unsigned int hw_id;
 	struct timeval start_time;
 	struct timeval end_time;
 };
@@ -140,11 +156,6 @@ struct x2_cnnfreq {
 	struct devfreq_dev_profile devp;
 };
 #endif
-struct x2_cnn_int_num {
-	u32 cnn_int_num[CNN_INT_NUM];
-	u64 cnn_int_interval[CNN_INT_NUM];
-	u32 cnn_int_count;
-};
 
 struct x2_cnn_dev {
 	void __iomem	*cnn_base;
@@ -162,18 +173,19 @@ struct x2_cnn_dev {
 	struct cdev i_cdev;
 	int core_index;
 
+	/* core running time statistics */
+	atomic_t hw_id_counter;
+	uint64_t run_time;
+	struct timeval int_point;
+
 	struct mutex cnn_lock;
 	spinlock_t set_time_lock;
 	spinlock_t cnn_spin_lock;
 	spinlock_t kfifo_lock;
-	int irq_triggered;
 
 	struct reset_control *cnn_rst;
 
-	struct sock *irq_sk;
 	/* wait queue for wait cnn interrupt occur */
-	wait_queue_head_t cnn_int_wait;
-	struct x2_cnn_int_num cnn_int_num;
 	atomic_t wait_fc_cnt;
 	atomic_t hw_flg;
 	struct tasklet_struct tasklet;
@@ -277,6 +289,7 @@ union cnn_ioctl_arg {
 	struct x2_cnn_rst_data rst_data;
 	struct x2_cnn_int_num int_num_data;
 	int pid_fc_mask;
+	uint64_t core_run_time;
 };
 
 #define CNN_MT_WB 0x1
@@ -295,4 +308,5 @@ union cnn_ioctl_arg {
 #define CNN_IOC_GET_INT_NUM	(_IOR(CNN_IOCTL_MAGIC, \
 					3, struct x2_cnn_int_num))
 #define CNN_IOC_GET_ID_MASK	(_IOR(CNN_IOCTL_MAGIC, 4, int))
+#define CNN_IOC_GET_CORE_RUNTIME	(_IOR(CNN_IOCTL_MAGIC, 5, uint64_t))
 #endif	/* __X2_CNN_H__ */
