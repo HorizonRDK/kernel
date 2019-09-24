@@ -38,7 +38,7 @@
 #include "hbipc_errno.h"
 #include "bif_dev_sd.h"
 
-#define VERSION "2.6.0"
+#define VERSION "2.7.0"
 #define VERSION_LEN (16)
 static char version_str[VERSION_LEN];
 

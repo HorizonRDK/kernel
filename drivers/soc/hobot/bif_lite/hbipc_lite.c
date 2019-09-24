@@ -1498,10 +1498,10 @@ int recv_handle_manage_frame(struct comm_domain *domain)
 			//bif_frame_decrease_count(&domain->channel);
 			list_add_tail(&frame_tmp->frame_cache_list,
 				&domain->manage_frame_list);
-			mutex_unlock(&domain->read_mutex);
+			//mutex_unlock(&domain->read_mutex);
 
 			ret = handle_manage_frame(domain, frame_tmp);
-			mutex_lock(&domain->read_mutex);
+			//mutex_lock(&domain->read_mutex);
 			bif_del_frame_from_list(&domain->channel, frame_tmp);
 			//list_del(pos);
 			//kfree(frame_tmp);
@@ -1513,10 +1513,10 @@ int recv_handle_manage_frame(struct comm_domain *domain)
 			data.provider_id = header->provider_id;
 			data.client_id = header->client_id;
 
-			mutex_unlock(&domain->read_mutex);
+			//mutex_unlock(&domain->read_mutex);
 			session_des =
 			is_valid_session(domain, &data, NULL, NULL);
-			mutex_lock(&domain->read_mutex);
+			//mutex_lock(&domain->read_mutex);
 			if (!session_des) {
 				hbipc_debug("interrupt recv invalid session\n");
 				bif_del_frame_from_list(&domain->channel,
@@ -1604,9 +1604,9 @@ int recv_handle_stock_frame(struct comm_domain *domain)
 			list_add_tail(&frame->frame_cache_list,
 			&domain->manage_frame_list);
 
-			mutex_unlock(&domain->read_mutex);
+			//mutex_unlock(&domain->read_mutex);
 			handle_manage_frame(domain, frame);
-			mutex_lock(&domain->read_mutex);
+			//mutex_lock(&domain->read_mutex);
 			bif_del_frame_from_list(&domain->channel, frame);
 		} else {
 			// data frame
@@ -1661,10 +1661,10 @@ int recv_handle_data_frame(struct comm_domain *domain)
 			//bif_frame_decrease_count(&domain->channel);
 			list_add_tail(&frame_tmp->frame_cache_list,
 			&domain->manage_frame_list);
-			mutex_unlock(&domain->read_mutex);
+			//mutex_unlock(&domain->read_mutex);
 
 			ret = handle_manage_frame(domain, frame_tmp);
-			mutex_lock(&domain->read_mutex);
+			//mutex_lock(&domain->read_mutex);
 			bif_del_frame_from_list(&domain->channel, frame_tmp);
 			//list_del(pos);
 			//kfree(frame_tmp);
@@ -1676,10 +1676,10 @@ int recv_handle_data_frame(struct comm_domain *domain)
 			data.provider_id = header->provider_id;
 			data.client_id = header->client_id;
 
-			mutex_unlock(&domain->read_mutex);
+			//mutex_unlock(&domain->read_mutex);
 			session_des =
 			is_valid_session(domain, &data, NULL, NULL);
-			mutex_lock(&domain->read_mutex);
+			//mutex_lock(&domain->read_mutex);
 			if (!session_des) {
 				printk_ratelimited(KERN_INFO "data recv invalid session\n");
 				bif_del_frame_from_list(&domain->channel,
@@ -1753,10 +1753,10 @@ int recv_frame_interrupt(struct comm_domain *domain)
 			//bif_frame_decrease_count(&domain->channel);
 			list_add_tail(&frame_tmp->frame_cache_list,
 				&domain->manage_frame_list);
-			mutex_unlock(&domain->read_mutex);
+			//mutex_unlock(&domain->read_mutex);
 
 			ret = handle_manage_frame(domain, frame_tmp);
-			mutex_lock(&domain->read_mutex);
+			//mutex_lock(&domain->read_mutex);
 			bif_del_frame_from_list(&domain->channel, frame_tmp);
 			//list_del(pos);
 			//kfree(frame_tmp);
@@ -1768,9 +1768,9 @@ int recv_frame_interrupt(struct comm_domain *domain)
 			data.provider_id = header->provider_id;
 			data.client_id = header->client_id;
 
-			mutex_unlock(&domain->read_mutex);
+			//mutex_unlock(&domain->read_mutex);
 			session_des = is_valid_session(domain, &data, NULL, NULL);
-			mutex_lock(&domain->read_mutex);
+			//mutex_lock(&domain->read_mutex);
 			if (!session_des) {
 				printk_ratelimited(KERN_INFO "interrupt recv invalid session\n");
 				bif_del_frame_from_list(&domain->channel, frame_tmp);

@@ -40,7 +40,7 @@
 #include <x2/x2_bifspi.h>
 #endif
 
-#define VERSION "2.6.0"
+#define VERSION "2.7.0"
 #define VERSION_LEN (16)
 static char version_str[VERSION_LEN];
 
