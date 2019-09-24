@@ -112,7 +112,6 @@ extern void *__asm_flush_dcache_all(void);
 
 static int x2_suspend_finish(unsigned long val)
 {
-	pr_info("x2 suspend finish");
 	__asm_flush_dcache_all();
 	x2_suspend_sram_fn(&x2_suspend->data);
 
@@ -133,6 +132,8 @@ static int x2_suspend_enter(suspend_state_t state)
 
 	writel(x2_suspend->wakeup_src_mask, pmu + X2_PMU_W_SRC_MASK);
 	writel(x2_suspend->sleep_period, pmu + X2_PMU_SLEEP_PERIOD);
+	writel(0, pmu + X2_PMU_OUTPUT_CTRL);
+	writel(SLEEP_TRIG, pmu + X2_PMU_SLEEP_CMD);
 
 	val = virt_to_phys((void *)cpu_resume);
 	writel(val, pmu + X2_PMU_SW_REG_03);

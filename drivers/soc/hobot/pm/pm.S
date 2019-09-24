@@ -94,16 +94,6 @@ ENTRY(__asm_flush_dcache_all)
 	mov	x0, #0
 	b	__asm_dcache_all
 ENDPROC(__asm_flush_dcache_all)
-/*
- * Put the processor to enter the idle state
- */
-	.macro x2_cpu_idle
-
-	wfi
-	nop
-	ret
-
-	.endm
 	.text
 /*
  * void x2_suspend_sram_fn(struct x2_suspend_data*)
@@ -117,32 +107,23 @@ ENTRY(x2_suspend_in_sram)
 	ldr	x10, [x0, #32]
 	ldp	x4, x1, [x0]
 	ldp	x2, x6, [x0, #16]
-	dsb	ld
-	dsb	st
 
 	ldr	x15, [x1]
 	ldr	x15, [x4]
 	ldr	x15, [x6]
 	ldr	x15, [x2]
 	ldr	x15, [x10]
-	dsb	ld
-	dsb	st
 
 	add	x3, x2, #0x340, lsl #12
 	ldr	x15, [x3]
-	dsb	ld
-	str	x15, [x3]
-	dsb	st
 
 	add	x5, x2, #0x300, lsl #12
 	add	x5, x5, #0x200
 	ldr	x15, [x5]
-	dsb	ld
 
 	add	x5, x2, #0x240, lsl #12
 	add	x5, x5, #0xa0
 	ldr	x15, [x5]
-	dsb	ld
 	isb
 
 	//writel(0x0, ddrc + DDRC_PCTRL_0);
@@ -169,7 +150,6 @@ ENTRY(x2_suspend_in_sram)
 	add	x0, x1, #0x800
 	str	wzr, [x0]
 	dsb	st
-	dsb	ld
 	add	x3, x1, #0x3fc
 	b	2f
 	nop
@@ -179,15 +159,12 @@ ENTRY(x2_suspend_in_sram)
 	cbnz	w0, 1b
 	add	x3, x1, #0x20
 	ldr	w0, [x3]
-	dsb	ld
-	dsb	st
 	and	w0, w0, #0xfffffffe
 	str	w0, [x3]
 	dsb	st
 	mov	w0, #0x2                   	// #2
 	add	x3, x1, #0x304
 	str	w0, [x3]
-	dsb	ld
 	dsb	st
 	add	x3, x1, #0x308
 	b	4f
@@ -198,21 +175,15 @@ ENTRY(x2_suspend_in_sram)
 	b.eq	3b   // b.none
 	add	x3, x1, #0x198
 	ldr	w0, [x3]
-	dsb	ld
-	dsb	st
 	mov	w5, #0xfefe                	// #65278
 	movk	w5, #0xfffe, lsl #16
 	and	w0, w0, w5
 	str	w0, [x3]
-	dsb	ld
 	dsb	st
 	add	x3, x1, #0x19c
 	ldr	w0, [x3]
-	dsb	ld
-	dsb	st
 	and	w0, w0, #0xfffffffe
 	str	w0, [x3]
-	dsb	ld
 	dsb	st
 	add	x3, x1, #0x1bc
 	b	6f
@@ -223,19 +194,13 @@ ENTRY(x2_suspend_in_sram)
 	tbnz	w0, #1, 5b
 	add	x3, x1, #0x1c4
 	ldr	w0, [x3]
-	dsb	ld
-	dsb	st
 	and	w0, w0, #0xfffffffe
 	str	w0, [x3]
-	dsb	ld
 	dsb	st
 	add	x3, x1, #0x30
 	ldr	w0, [x3]
-	dsb	ld
-	dsb	st
 	orr	w0, w0, #0x20
 	str	w0, [x3]
-	dsb	ld
 	dsb	st
 	add	x3, x1, #0x4
 	b	8f
@@ -245,21 +210,16 @@ ENTRY(x2_suspend_in_sram)
 	and	w0, w0, #0x7
 	cmp	w0, #0x3
 	b.ne	7b
-	dsb	st
 	add	x3, x1, #0x320
 	str	wzr, [x3]
-	dsb	ld
 	dsb	st
 	add	x5, x1, #0x1b0
 	ldr	w0, [x5]
-	dsb	ld
-	dsb	st
 	and	w0, w0, #0xfffffffe
 	str	w0, [x5]
 	dsb	st
 	mov	w0, #0x1                   	// #1
 	str	w0, [x3]
-	dsb	ld
 	dsb	st
 	add	x0, x1, #0x324
 	b	10f
@@ -269,26 +229,22 @@ ENTRY(x2_suspend_in_sram)
 	dsb	ld
 	tbz	w1, #0, 9b
 
-	dsb	st
 	str	wzr, [x3]
-	ldr	w1, [x5]
-	dsb	ld
 	dsb	st
+	ldr	w1, [x5]
 	mov	w7, #0x1f20                	// #7968
 	orr	w1, w1, w7
 	str	w1, [x5]
 	dsb	st
 	mov	w1, #0x1                   	// #1
 	str	w1, [x3]
-	dsb	ld
 	dsb	st
 	b	12f
 11:	yield
 12:	ldr	w1, [x0]
-
 	dsb	ld
 	tbz	w1, #0, 11b
-	dsb	st
+
 	add	x3, x2, #0x340, lsl #12
 	str	wzr, [x3]
 	dsb	st
@@ -298,7 +254,6 @@ ENTRY(x2_suspend_in_sram)
 	add	x5, x5, #0x200
 	str	w0, [x5]
 	dsb	st
-	dsb	ld
 
 	add	x1, x2, #0x240, lsl #12
 	add	x1, x1, #0xa0
@@ -306,16 +261,15 @@ ENTRY(x2_suspend_in_sram)
 	nop
 13:	yield
 14:	ldr	w0, [x1]
-
 	dsb	ld
 	tbz	w0, #0, 13b
-	dsb	st
 	mov	w0, #0x2                   	// #2
 	str	w0, [x5]
 	dsb	st
 	mov	w0, #0x1                   	// #1
 	str	w0, [x3]
 	dsb	st
+
         add	x1, x4, #0x14
 	str	wzr, [x1]
 	dsb	st
@@ -325,36 +279,23 @@ ENTRY(x2_suspend_in_sram)
 
 	add     x0, x10, #0x70
 	ldr     w3, [x0]
-	dsb     ld
-	dsb     st
 	and     w3, w3, #0xffff3fff
 	str     w3, [x0]
-/*
-*	dsb	st
-*	dsb 	ld
-*	mov	w1, #0x80000000            	// #-2147483648
-*	str	w1, [x4]
-*	dsb	st
-*	dsb 	ld
-*	mov	w1, #0xfe                  	// #254
-*	add	x2, x4, #0x40
-*	str	w1, [x2]
-*	dsb	st
-*	dsb 	ld
-*/
 	dsb	st
-	dsb 	ld
-	add	x2, x4, #0xc
-	str	wzr, [x2]
 
-	dsb	st
-	dsb 	ld
-	mov	w0, #0x1
-	add	x4, x4, #0x4
-	str	w0, [x4]
-	dsb 	ld
-	dsb     sy
-	x2_cpu_idle
+/*
+*	add	x2, x4, #0xc
+*	str	wzr, [x2]
+*	dsb	st
+*	mov	w0, #0x1
+*	add	x4, x4, #0x4
+*	str	w0, [x4]
+*	dsb	st
+*/
+
+pen:	wfi
+	b	pen
+	nop
 ENDPROC(x2_suspend_in_sram)
 
 ENTRY(x2_suspend_in_sram_sz)
