@@ -54,6 +54,14 @@
 #define SD0_PADC_VAL_CLR1 0xF8F8F8F8
 #define SD0_PADC_VAL_CLR2 0xF8F8F8F8
 #define SD0_PADC_VAL 0x02020202
+//hobot
+#define HOBOT_SD1_PDACCTRL0_SHIFT (0x90)
+#define HOBOT_SD1_PDACCTRL1_SHIFT (0x94)
+#define SD1_PADC_VAL_CLR0 0xF8F8F8E8
+#define SD1_PADC_VAL_CLR1 0xF8F8F8F8
+#define SD1_PADC_VAL 0x04040404
+
+#define VER		"HOBOT-mmc_V10.190924"
 
 static int debug;
 module_param(debug, int, 0644);
@@ -96,6 +104,20 @@ static int x2_mmc_set_sd_padcctrl(struct dw_mci_hobot_priv_data *priv)
 		reg_value |= SD0_PADC_VAL;
 		writel(reg_value,
 		       priv->padcctrl_reg + HOBOT_SD0_PDACCTRL2_SHIFT);
+	} else {
+		reg_value =
+		    readl(priv->padcctrl_reg + HOBOT_SD1_PDACCTRL0_SHIFT);
+		reg_value &= SD1_PADC_VAL_CLR0;
+		reg_value |= SD1_PADC_VAL;
+		writel(reg_value,
+		       priv->padcctrl_reg + HOBOT_SD1_PDACCTRL0_SHIFT);
+
+		reg_value =
+		    readl(priv->padcctrl_reg + HOBOT_SD1_PDACCTRL1_SHIFT);
+		reg_value &= SD1_PADC_VAL_CLR1;
+		reg_value |= SD1_PADC_VAL;
+		writel(reg_value,
+		       priv->padcctrl_reg + HOBOT_SD1_PDACCTRL1_SHIFT);
 	}
 	return 0;
 }
@@ -465,12 +487,12 @@ static void dw_mci_x2_set_ios(struct dw_mci *host, struct mmc_ios *ios)
 
 	x2_mmc_set_drv_phase(priv, phase);
 	if (debug) {
-		pr_err("dwmmc_hobot: %s ctrl_id=%d default_sample_phase=%d"
-			" phase=%d ios->timing=%d ios->clock=%d"
-			" ios->signal_voltage=%d bus_hz=%d host->bus_hz=%d\n",
+		pr_err("dwmmc_hobot: %s ctrl_id=%d sample_phase=%d phase=%d"
+			" ios->timing=%d ios->signal_voltage=%d ios->clock=%d"
+			" cclkin=%d bus_hz=%d host->bus_hz=%d\n",
 			__func__, priv->ctrl_id, priv->default_sample_phase,
-			phase, ios->timing, ios->clock, ios->signal_voltage,
-			bus_hz, host->bus_hz);
+			phase, ios->timing, ios->signal_voltage, ios->clock,
+			cclkin, bus_hz, host->bus_hz);
 	}
 	return;
 }
@@ -645,14 +667,23 @@ static int dw_mci_hobot_probe(struct platform_device *pdev)
 	if (!pdev->dev.of_node)
 		return -ENODEV;
 
+	dev_err(&pdev->dev, "ver: %s\n", VER);
+
 	match = of_match_node(dw_mci_hobot_match, pdev->dev.of_node);
 	drv_data = match->data;
 	return dw_mci_pltfm_register(pdev, drv_data);
 }
 
+static int dw_mci_hobot_remove(struct platform_device *pdev)
+{
+	dev_err(&pdev->dev, "remove\n");
+
+	return dw_mci_pltfm_remove(pdev);
+}
+
 static struct platform_driver dw_mci_hobot_pltfm_driver = {
 	.probe = dw_mci_hobot_probe,
-	.remove = dw_mci_pltfm_remove,
+	.remove = dw_mci_hobot_remove,
 	.driver = {
 		   .name = "dwmmc_hobot",
 		   .of_match_table = dw_mci_hobot_match,

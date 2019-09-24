@@ -112,6 +112,11 @@ struct idmac_desc {
 /* Each descriptor can transfer up to 4KB of data in chained mode */
 #define DW_MCI_DESC_DATA_LENGTH	0x1000
 
+// hobot
+static int dw_mci_card_busy(struct mmc_host *mmc);
+static bool dw_mci_reset(struct dw_mci *host);
+static bool dw_mci_ctrl_reset(struct dw_mci *host, u32 reset);
+
 #if defined(CONFIG_DEBUG_FS)
 static int dw_mci_req_show(struct seq_file *s, void *v)
 {
@@ -280,6 +285,26 @@ static void dw_mci_wait_while_busy(struct dw_mci *host, u32 cmd_flags)
 						  10, 500 * USEC_PER_MSEC))
 			dev_err(host->dev, "Busy; trying anyway\n");
 	}
+}
+// hobot
+static void dw_mci_wait_busy(struct dw_mci_slot *slot)
+{
+	struct dw_mci *host = slot->host;
+	u64 timeout = jiffies + msecs_to_jiffies(500);
+
+	while (time_before(jiffies, timeout)) {
+		if (!dw_mci_card_busy(slot->mmc))
+		return;
+	}
+	dev_err(host->dev, "Data busy (status %#x)\n",
+		mci_readl(slot->host, STATUS));
+
+	/*
+	* Data busy, this should not happend when mmc controller send command
+	* to update card clocks in non-volt-switch state. If it happends, we
+	* should reset controller to avoid getting "Timeout sending command".
+	*/
+	dw_mci_ctrl_reset(host, SDMMC_CTRL_ALL_RESET_FLAGS);
 }
 
 static void mci_send_cmd(struct dw_mci_slot *slot, u32 cmd, u32 arg)
@@ -450,8 +475,8 @@ static void dw_mci_start_command(struct dw_mci *host,
 {
 	host->cmd = cmd;
 	dev_vdbg(host->dev,
-		 "start command: ARGR=0x%08x CMDR=0x%08x\n",
-		 cmd->arg, cmd_flags);
+		 "start command: ARGR=0x%08x CMDR=0x%08x opcode=%d\n",
+		 cmd->arg, cmd_flags, cmd->opcode);
 
 	mci_writel(host, CMDARG, cmd->arg);
 	wmb(); /* drain writebuffer */
@@ -830,7 +855,7 @@ static int dw_mci_edmac_start_dma(struct dw_mci *host,
 	struct dma_slave_config cfg;
 	struct dma_async_tx_descriptor *desc = NULL;
 	struct scatterlist *sgl = host->data->sg;
-	const u32 mszs[] = {1, 4, 8, 16, 32, 64, 128, 256};
+	static const u32 mszs[] = {1, 4, 8, 16, 32, 64, 128, 256};
 	u32 sg_elems = host->data->sg_len;
 	u32 fifoth_val;
 	u32 fifo_offset = host->fifo_reg - host->regs;
@@ -1037,7 +1062,7 @@ static int dw_mci_get_cd(struct mmc_host *mmc)
 static void dw_mci_adjust_fifoth(struct dw_mci *host, struct mmc_data *data)
 {
 	unsigned int blksz = data->blksz;
-	const u32 mszs[] = {1, 4, 8, 16, 32, 64, 128, 256};
+	static const u32 mszs[] = {1, 4, 8, 16, 32, 64, 128, 256};
 	u32 fifo_width = 1 << host->data_shift;
 	u32 blksz_depth = blksz / fifo_width, fifoth_val;
 	u32 msize = 0, rx_wmark = 1, tx_wmark, tx_wmark_invers;
@@ -1259,6 +1284,8 @@ static void dw_mci_setup_bus(struct dw_mci_slot *slot, bool force_clkinit)
 	/* We must continue to set bit 28 in CMD until the change is complete */
 	if (host->state == STATE_WAITING_CMD11_DONE)
 		sdmmc_cmd_bits |= SDMMC_CMD_VOLT_SWITCH;
+	else
+		dw_mci_wait_busy(slot);	// hobot
 
 	slot->mmc->actual_clock = 0;
 
@@ -1956,6 +1983,7 @@ static void dw_mci_set_drto(struct dw_mci *host)
 	unsigned int drto_clks;
 	unsigned int drto_div;
 	unsigned int drto_ms;
+	u64 irqflags;
 
 	drto_clks = mci_readl(host, TMOUT) >> 8;
 	drto_div = (mci_readl(host, CLKDIV) & 0xff) * 2;
@@ -1968,7 +1996,11 @@ static void dw_mci_set_drto(struct dw_mci *host)
 	/* add a bit spare time */
 	drto_ms += 10;
 
-	mod_timer(&host->dto_timer, jiffies + msecs_to_jiffies(drto_ms));
+	spin_lock_irqsave(&host->irq_lock, irqflags);
+	if (!test_bit(EVENT_DATA_COMPLETE, &host->pending_events))
+		mod_timer(&host->dto_timer,
+			  jiffies + msecs_to_jiffies(drto_ms));
+	spin_unlock_irqrestore(&host->irq_lock, irqflags);
 }
 
 static bool dw_mci_clear_pending_cmd_complete(struct dw_mci *host)
@@ -1985,6 +2017,18 @@ static bool dw_mci_clear_pending_cmd_complete(struct dw_mci *host)
 	 */
 	WARN_ON(del_timer_sync(&host->cto_timer));
 	clear_bit(EVENT_CMD_COMPLETE, &host->pending_events);
+
+	return true;
+}
+
+static bool dw_mci_clear_pending_data_complete(struct dw_mci *host)
+{
+	if (!test_bit(EVENT_DATA_COMPLETE, &host->pending_events))
+		return false;
+
+	/* Extra paranoia just like dw_mci_clear_pending_cmd_complete() */
+	WARN_ON(del_timer_sync(&host->dto_timer));
+	clear_bit(EVENT_DATA_COMPLETE, &host->pending_events);
 
 	return true;
 }
@@ -2023,7 +2067,6 @@ static void dw_mci_tasklet_func(unsigned long priv)
 			set_bit(EVENT_CMD_COMPLETE, &host->completed_events);
 			err = dw_mci_command_complete(host, cmd);
 			if (cmd == mrq->sbc && !err) {
-				prev_state = state = STATE_SENDING_CMD;
 				__dw_mci_start_request(host, host->slot,
 							   mrq->cmd);
 				goto unlock;
@@ -2051,8 +2094,7 @@ static void dw_mci_tasklet_func(unsigned long priv)
 				 * delayed. Allowing the transfer to take place
 				 * avoids races and keeps things simple.
 				 */
-				if ((err != -ETIMEDOUT) &&
-					(cmd->opcode == MMC_SEND_TUNING_BLOCK)) {
+				if (err != -ETIMEDOUT) {
 					state = STATE_SENDING_DATA;
 					continue;
 				}
@@ -2130,8 +2172,7 @@ static void dw_mci_tasklet_func(unsigned long priv)
 			/* fall through */
 
 		case STATE_DATA_BUSY:
-			if (!test_and_clear_bit(EVENT_DATA_COMPLETE,
-						&host->pending_events)) {
+			if (!dw_mci_clear_pending_data_complete(host)) {
 				/*
 				 * If data error interrupt comes but data over
 				 * interrupt doesn't come within the given time.
@@ -2723,6 +2764,8 @@ static irqreturn_t dw_mci_interrupt(int irq, void *dev_id)
 		}
 
 		if (pending & SDMMC_INT_DATA_OVER) {
+			spin_lock_irqsave(&host->irq_lock, irqflags);	//hobot
+
 			del_timer(&host->dto_timer);
 
 			mci_writel(host, RINTSTS, SDMMC_INT_DATA_OVER);
@@ -2735,6 +2778,8 @@ static irqreturn_t dw_mci_interrupt(int irq, void *dev_id)
 			}
 			set_bit(EVENT_DATA_COMPLETE, &host->pending_events);
 			tasklet_schedule(&host->tasklet);
+
+			spin_unlock_irqrestore(&host->irq_lock, irqflags); //hobot
 		}
 
 		if (pending & SDMMC_INT_RXDR) {
@@ -2885,7 +2930,7 @@ static int dw_mci_init_slot(struct dw_mci *host)
 
 	/*if there are external regulators, get them*/
 	ret = mmc_regulator_get_supply(mmc);
-	if (ret == -EPROBE_DEFER)
+	if (ret)
 		goto err_host_allocated;
 
 	if (!mmc->ocr_avail)
@@ -3112,7 +3157,31 @@ exit:
 static void dw_mci_dto_timer(unsigned long arg)
 {
 	struct dw_mci *host = (struct dw_mci *)arg;
+	u64 irqflags;
+	u32 pending;
 
+	spin_lock_irqsave(&host->irq_lock, irqflags);
+
+	/*
+	 * The DTO timer is much longer than the CTO timer, so it's even less
+	 * likely that we'll these cases, but it pays to be paranoid.
+	 */
+	pending = mci_readl(host, MINTSTS); /* read-only mask reg */
+	if (pending & SDMMC_INT_DATA_OVER) {
+		/* The interrupt should fire; no need to act but we can warn */
+		dev_warn(host->dev, "Unexpected data interrupt latency\n");
+		goto exit;
+	}
+	if (test_bit(EVENT_DATA_COMPLETE, &host->pending_events)) {
+		/* Presumably interrupt handler couldn't delete the timer */
+		dev_warn(host->dev, "DTO timeout when already completed\n");
+		goto exit;
+	}
+
+	/*
+	 * Continued paranoia to make sure we're in the state we expect.
+	 * This paranoia isn't really justified but it seems good to be safe.
+	 */
 	switch (host->state) {
 	case STATE_SENDING_DATA:
 	case STATE_DATA_BUSY:
@@ -3127,8 +3196,13 @@ static void dw_mci_dto_timer(unsigned long arg)
 		tasklet_schedule(&host->tasklet);
 		break;
 	default:
+		dev_warn(host->dev, "Unexpected data timeout, state %d status 0x%x\\n",
+			 host->state, pending);
 		break;
 	}
+
+exit:
+	spin_unlock_irqrestore(&host->irq_lock, irqflags);
 }
 
 #ifdef CONFIG_OF

@@ -1037,6 +1037,7 @@ free_card:
  */
 static void mmc_sd_remove(struct mmc_host *host)
 {
+	pr_err("mmc: %s\n", __func__);
 	mmc_remove_card(host->card);
 	host->card = NULL;
 }
