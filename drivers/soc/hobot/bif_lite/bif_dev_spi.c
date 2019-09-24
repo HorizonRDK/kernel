@@ -136,6 +136,8 @@ data_recv_count = %d\nmanage_frame_count = %d\n\
 data_frame_count = %d\nup_sem_count = %d\n\
 send_manage_count = %d\n\
 mang_resend_count = %d\nmang_resend_over_count = %d\n\
+concede_manage_send_count = %d\nconcede_data_send_count = %d\n\
+concede_manage_data_recv_count = %d\n\
 bif_dev_spi transfer layer statistics:\n\
 trig_count = %d\nretrig_count = %d\n",
 	domain.domain_statistics.irq_handler_count,
@@ -157,6 +159,9 @@ trig_count = %d\nretrig_count = %d\n",
 	domain.domain_statistics.send_manage_count,
 	domain.domain_statistics.mang_resend_count,
 	domain.domain_statistics.mang_resend_over_count,
+	domain.domain_statistics.concede_manage_send_count,
+	domain.domain_statistics.concede_data_send_count,
+	domain.domain_statistics.concede_data_recv_count,
 	domain.channel.channel_statistics.trig_count,
 	domain.channel.channel_statistics.retrig_count);
 
@@ -693,6 +698,9 @@ size_t count, loff_t *ppos)
 	++domain.domain_statistics.write_call_count;
 
 	mutex_lock(&write_mutex);
+#ifdef CONFIG_HOBOT_BIF_AP
+		domain.data_send = 1;
+#endif
 
 	if (copy_from_user(&data, (const char __user *)buf, sizeof(data))) {
 		hbipc_error("copy_from_user_fail\n");
@@ -729,8 +737,18 @@ size_t count, loff_t *ppos)
 	}
 
 	// concede manage frame
-	if (domain.manage_send)
+	if (domain.manage_send) {
+		++domain.domain_statistics.concede_manage_send_count;
 		msleep_interruptible(5);
+	}
+
+#ifndef CONFIG_HOBOT_BIF_AP
+	// cocede data recv
+	if (domain.data_recv) {
+		++domain.domain_statistics.concede_data_recv_count;
+		msleep_interruptible(5);
+	}
+#endif
 
 	mutex_lock(&domain.write_mutex);
 
@@ -839,12 +857,18 @@ resend_with_timeout:
 	}
 
 	mutex_unlock(&domain.write_mutex);
+#ifdef CONFIG_HOBOT_BIF_AP
+	domain.data_send = 0;
+#endif
 	mutex_unlock(&write_mutex);
 
 	++domain.domain_statistics.write_real_count;
 
 	return ret;
 error:
+#ifdef CONFIG_HOBOT_BIF_AP
+	domain.data_send = 0;
+#endif
 	mutex_unlock(&write_mutex);
 	return ret;
 }

@@ -1724,14 +1724,30 @@ int recv_frame_interrupt(struct comm_domain *domain)
 	struct bif_frame_cache *frame_tmp = NULL;
 
 	// concede manage frame
-	if (domain->manage_send)
+	if (domain->manage_send) {
+		++domain->domain_statistics.concede_manage_send_count;
 		msleep_interruptible(5);
+	}
+#ifdef CONFIG_HOBOT_BIF_AP
+	// concede data send frame
+	if (domain->data_send) {
+		++domain->domain_statistics.concede_data_send_count;
+		msleep_interruptible(5);
+	}
+#endif
+
+#ifndef CONFIG_HOBOT_BIF_AP
+	domain->data_recv = 1;
+#endif
 
 	mutex_lock(&domain->read_mutex);
 	++domain->domain_statistics.interrupt_recv_count;
 	if ((bif_rx_get_frame(&domain->channel, &frame) < 0)
 		|| (!frame)) {
 		mutex_unlock(&domain->read_mutex);
+#ifndef CONFIG_HOBOT_BIF_AP
+	domain->data_recv = 0;
+#endif
 		return -1;
 	}
 
@@ -1790,6 +1806,9 @@ int recv_frame_interrupt(struct comm_domain *domain)
 		}
 	}
 	mutex_unlock(&domain->read_mutex);
+#ifndef CONFIG_HOBOT_BIF_AP
+	domain->data_recv = 0;
+#endif
 
 	return 0;
 #if 0

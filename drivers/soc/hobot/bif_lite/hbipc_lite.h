@@ -138,6 +138,9 @@ struct comm_domain_statistic {
 	int write_resend_over_count;
 	int mang_resend_count;
 	int mang_resend_over_count;
+	int concede_manage_send_count;
+	int concede_data_send_count;
+	int concede_data_recv_count;
 };
 
 struct comm_domain {
@@ -161,6 +164,8 @@ struct comm_domain {
 	int manage_send;
 	int mang_send_error;
 	char *mang_frame_send_error_buf;
+	int data_send;
+	int data_recv;
 };
 
 struct send_mang_data {
