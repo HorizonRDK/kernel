@@ -451,6 +451,11 @@ static int8_t ipu_sinfo_init(ipu_cfg_t *ipu_cfg)
 				}
 			}
 		}
+		/* for layer-0 in dual mode */
+		g_ipu_d_cdev->s_info.ds_1st[0].y_offset = ipu_cfg->crop_ddr.y_addr;
+		g_ipu_d_cdev->s_info.ds_1st[0].c_offset = ipu_cfg->crop_ddr.c_addr;
+		g_ipu_d_cdev->s_info.ds_2nd[0].y_offset = ipu_cfg->scale_ddr.y_addr;
+		g_ipu_d_cdev->s_info.ds_2nd[0].c_offset = ipu_cfg->scale_ddr.c_addr;
 	}
 
 	return 0;
@@ -816,18 +821,19 @@ again:
 			ipu_slot_dual_h_t *g_get_fb_slot_h;
 			info_dual_h_t *pym_img_info = NULL;
 
-			spin_lock_irqsave(&g_ipu_d_cdev->slock, flags);
+			// spin_lock_irqsave(&g_ipu_d_cdev->slock, flags);
 
 			g_get_fb_slot_h = ipu_get_pym_free_slot();
 			if (!g_get_fb_slot_h) {
 				struct mult_img_info_t tmp_mult_img_info;
 
 				ret = ipu_pym_wait_process_done(&tmp_mult_img_info,
-						sizeof(struct mult_img_info_t), PYM_INLINE, 0);
+						sizeof(struct mult_img_info_t), PYM_INLINE, timeout);
 				if (ret < 0) {
-					spin_unlock_irqrestore(&g_ipu_d_cdev->slock, flags);
+					// spin_unlock_irqrestore(&g_ipu_d_cdev->slock, flags);
 					return -EFAULT;
 				}
+				spin_lock_irqsave(&g_ipu_d_cdev->slock, flags);
 				pym_img_info = &pym_info;
 				pym_img_info->slot_id = tmp_mult_img_info.src_img_info[0].slot_id;
 				pym_img_info->slot_flag = 0;
@@ -844,11 +850,13 @@ again:
 
 				pym_img_info->dual_ddr_info = g_ipu_d_cdev->s_info;
 				info = pym_img_info;
+				spin_unlock_irqrestore(&g_ipu_d_cdev->slock, flags);
 			} else {
+				spin_lock_irqsave(&g_ipu_d_cdev->slock, flags);
 				info = &g_get_fb_slot_h->info_h;
 				info->base = (uint64_t)IPU_GET_DUAL_SLOT(g_get_fb_slot_h->info_h.slot_id, g_ipu->paddr);
+				spin_unlock_irqrestore(&g_ipu_d_cdev->slock, flags);
 			}
-			spin_unlock_irqrestore(&g_ipu_d_cdev->slock, flags);
 			ret = copy_to_user((void __user *)data, (const void *)info,
 			sizeof(info_dual_h_t));
 			if (ret)
