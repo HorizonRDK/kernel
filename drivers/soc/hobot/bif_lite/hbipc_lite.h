@@ -201,6 +201,7 @@ struct manage_message {
 #define MANAGE_CMD_DISCONNECT_REQ                    (103)
 #define MANAGE_CMD_KEEPALIVE                         (104)
 #define MANAGE_CMD_QUERY_SERVER                      (105)
+#define MANAGE_CMD_QUERY_REGISTER                    (106)
 
 int get_map_index(struct provider_server_map *map, int provider_id);
 int get_start_list_first_avail_index(struct provider_start_info *start_inf);

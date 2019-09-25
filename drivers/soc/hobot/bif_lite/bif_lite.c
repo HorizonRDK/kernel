@@ -153,10 +153,19 @@ struct comm_channel *channel, int *index, int *count, int expect_count)
 		printk_ratelimited(KERN_INFO "bif_err: %s %d\n", __func__, __LINE__);
 		return ret;
 	}
-#if 1
-	bif_debug("tx_local_info->send_tail = %d\n",
+#ifdef CONFIG_HOBOT_BIF_AP
+	if (tx_remote_info_tmp->recv_head == -1) {
+		if (!channel->ap_abnormal_sync) {
+			channel->tx_local_info->send_tail = 0;
+			channel->ap_abnormal_sync = 1;
+		}
+	} else
+		channel->ap_abnormal_sync = 0;
+#endif
+#if 0
+	pr_info("tx_local_info->send_tail = %d\n",
 		channel->tx_local_info->send_tail);
-	bif_debug("tx_remote_info_tmp->recv_head = %d\n",
+	pr_info("tx_remote_info_tmp->recv_head = %d\n",
 		tx_remote_info_tmp->recv_head);
 #endif
 	if (tx_remote_info_tmp->recv_head == -1)
@@ -364,7 +373,7 @@ unsigned char *data, int len)
 
 	bif_debug("len = %d l_c = %d fr_c = %d\n",
 		len, last_copy, frag_count);
-
+#if 0
 	if (channel->tx_frag_avail < frag_count) {
 		ret = bif_tx_get_available_buffer(channel,
 		&channel->tx_frag_index,
@@ -375,6 +384,14 @@ unsigned char *data, int len)
 		} else
 			channel->tx_frag_avail = count;
 		}
+#endif
+	ret = bif_tx_get_available_buffer(channel,
+		&channel->tx_frag_index,
+		&count, frag_count);
+	if (ret < 0) {
+		ret = BIF_TX_ERROR_NO_MEM;
+		goto err;
+	}
 
 	bif_debug("count =  %d\n", count);
 	bif_debug("index =  %d\n", channel->tx_frag_index);
@@ -420,7 +437,7 @@ unsigned char *data, int len)
 		frag_p += channel->valid_frag_len_max;
 	}
 	bif_tx_update_to_cp_ddr(channel);
-	channel->tx_frag_avail -= frag_count;
+	//channel->tx_frag_avail -= frag_count;
 err:
 	return ret;
 }
@@ -444,7 +461,10 @@ RING_INFO_ALIGN)];
 
 	struct bif_tx_ring_info *rx_remote_info_tmp =
 (struct bif_tx_ring_info *)rx_remote_info_buf;
-
+#ifdef CONFIG_HOBOT_BIF_AP
+	struct bif_rx_ring_info *rx_local_info_tmp =
+(struct bif_rx_ring_info *)channel->rx_local_info_tmp_buf;
+#endif
 	ret = bif_read_cp_ddr_channel(channel, rx_remote_info_tmp,
 		channel->rx_remote_info_offset,
 		ALIGN(sizeof(struct bif_tx_ring_info),
@@ -453,9 +473,22 @@ RING_INFO_ALIGN)];
 		printk_ratelimited(KERN_INFO "bif_err: %s %d\n", __func__, __LINE__);
 		goto err;
 	}
+#ifdef CONFIG_HOBOT_BIF_AP
+	ret = bif_read_cp_ddr_channel(channel,
+		channel->rx_local_info_tmp_buf,
+		channel->rx_local_info_offset,
+		ALIGN(sizeof(struct bif_tx_ring_info),
+		channel->transfer_align));
+	if (ret < 0) {
+		printk_ratelimited(KERN_INFO "bif_err: %s %d\n", __func__, __LINE__);
+		goto err;
+	}
+	if (rx_local_info_tmp->recv_head == -1)
+		channel->rx_local_info->recv_head = -1;
+#endif
 #if 0
 	pr_info("rx_r.s_t %d\n", rx_remote_info_tmp->send_tail);
-	pr_info("rx_l.r_h %d\n", rx_local_info->recv_head);
+	pr_info("rx_l.r_h %d\n", channel->rx_local_info->recv_head);
 #endif
 	if (rx_remote_info_tmp->send_tail ==
 		channel->rx_local_info->recv_head + 1) {
@@ -1463,7 +1496,15 @@ int channel_init(struct comm_channel *channel, struct channel_config *config)
 		bif_err("bif_err: %s %d\n", __func__, __LINE__);
 		goto malloc_rx_local_fail;
 	}
-
+#ifdef CONFIG_HOBOT_BIF_AP
+	channel->rx_local_info_tmp_buf =
+	bif_malloc(ALIGN(sizeof(struct bif_rx_ring_info),
+	RING_INFO_ALIGN));
+	if (!channel->rx_local_info_tmp_buf) {
+		bif_err("bif_err: %s %d\n", __func__, __LINE__);
+		goto malloc_rx_local_tmp_buf_fail;
+	}
+#endif
 	channel->rx_frame_cache_p = bif_malloc(sizeof(struct bif_frame_cache));
 	if (!channel->rx_frame_cache_p) {
 		bif_err("bif_err: %s %d\n", __func__, __LINE__);
@@ -1505,7 +1546,15 @@ malloc_send_frag_fail:
 malloc_recv_frag_fail:
 	bif_free(channel->rx_frame_cache_p);
 malloc_frame_cache_fail:
+#ifdef CONFIG_HOBOT_BIF_AP
+	bif_free(channel->rx_local_info_tmp_buf);
+#else
 	bif_free(channel->rx_local_info);
+#endif
+#ifdef CONFIG_HOBOT_BIF_AP
+malloc_rx_local_tmp_buf_fail:
+	bif_free(channel->rx_local_info);
+#endif
 malloc_rx_local_fail:
 	bif_free(channel->rx_remote_info);
 malloc_rx_remote_fail:
@@ -1526,6 +1575,9 @@ void channel_deinit(struct comm_channel *channel)
 	bif_free(channel->rx_remote_info);
 	bif_free(channel->tx_remote_info);
 	bif_free(channel->tx_local_info);
+#ifdef CONFIG_HOBOT_BIF_AP
+	bif_free(channel->rx_local_info_tmp_buf);
+#endif
 }
 EXPORT_SYMBOL(channel_deinit);
 

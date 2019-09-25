@@ -138,6 +138,9 @@ struct comm_channel {
 	struct bif_rx_ring_info *tx_remote_info;
 	struct bif_tx_ring_info *rx_remote_info;
 	struct bif_rx_ring_info *rx_local_info;
+#ifdef CONFIG_HOBOT_BIF_AP
+	char *rx_local_info_tmp_buf;
+#endif
 	struct mutex ring_info_lock;
 	struct bif_frame_cache *rx_frame_cache_p;
 	int rx_frame_count;
@@ -157,6 +160,7 @@ struct comm_channel {
 	int channel_ready;
 	int tx_frag_avail;
 	int tx_frag_index;
+	int ap_abnormal_sync;
 	// buffer index info
 	int init_tx_remote_info;
 	int init_tx_local_info;

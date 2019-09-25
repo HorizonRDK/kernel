@@ -299,6 +299,19 @@ int type, struct send_mang_data *data)
 	case MANAGE_CMD_QUERY_SERVER:
 		/* no message body */
 		break;
+	case MANAGE_CMD_QUERY_REGISTER:
+		/* just like register provider */
+		/*
+		 * pass information:
+		 * domain_id
+		 * server_id
+		 * provider_id
+		 */
+		*p++ = data->domain_id;
+		memcpy(p, data->server_id, UUID_LEN);
+		p += 4;
+		*p = data->provider_id;
+		break;
 	default:
 		goto error;
 	}
@@ -755,7 +768,71 @@ struct send_mang_data *data)
 	return 0;
 }
 
+static int unregister_provider(struct comm_domain *domain,
+struct send_mang_data *data);
+static int unregister_map(struct comm_domain *domain,
+struct send_mang_data *data);
 static int register_provider(struct comm_domain *domain,
+struct send_mang_data *data)
+{
+	int index = 0;
+	struct server_desc *server = NULL;
+	struct provider_desc *provider = NULL;
+	int ret = 0;
+#ifdef CONFIG_HOBOT_BIF_AP
+	int provider_id_tmp = 0;
+#endif
+
+	index = get_server_index(&domain->server, data->server_id);
+	server = domain->server.server_array + index;
+
+	// register provider_id just first time
+	if (get_provider_index(&server->provider, data->provider_id) < 0) {
+		if (server->provider.count <= 0) {
+#ifndef CONFIG_HOBOT_BIF_AP
+			ret = HBIPC_ERROR_RMT_RES_ALLOC_FAIL;
+			hbipc_error("provider resource insufficient\n");
+			goto error;
+#else
+			// register new provider
+			provider_id_tmp = data->provider_id;
+			data->provider_id = server->provider.provider_array[0].provider_id;
+			unregister_provider(domain, data);
+			unregister_map(domain, data);
+			data->provider_id = provider_id_tmp;
+			provider = server->provider.provider_array +
+			server->provider.first_avail;
+			provider->valid = 1;
+			provider->provider_id = data->provider_id;
+			--server->provider.count;
+			server->provider.first_avail =
+			get_provider_first_avail_index(&server->provider);
+			hbipc_debug("switch new provider\n");
+#endif
+	} else {
+		provider = server->provider.provider_array +
+		server->provider.first_avail;
+		provider->valid = 1;
+		provider->provider_id = data->provider_id;
+		--server->provider.count;
+		server->provider.first_avail =
+		get_provider_first_avail_index(&server->provider);
+		}
+	} else {
+		hbipc_error("provider duplicate register\n");
+		ret = HBIPC_ERROR_REPEAT_REGISTER;
+		goto error;
+	}
+
+	hbipc_debug("provider_info: count = %d first_avail = %d\n",
+	server->provider.count, server->provider.first_avail);
+
+	return 0;
+error:
+	return ret;
+}
+
+static int register_provider_no_dup(struct comm_domain *domain,
 struct send_mang_data *data)
 {
 	int index = 0;
@@ -959,6 +1036,36 @@ register_server_error:
 }
 EXPORT_SYMBOL(register_server_provider);
 
+static int register_server_provider_no_dup(struct comm_domain *domain,
+struct send_mang_data *data)
+{
+	int ret = 0;
+
+	mutex_lock(&domain->connect_mutex);
+	ret = regisger_server(domain, data);
+	if (ret < 0) {
+		hbipc_error("reisger_server error\n");
+		goto register_server_error;
+	}
+
+	ret = register_provider_no_dup(domain, data);
+	if (ret < 0) {
+		hbipc_error("register_provider_no_dup error\n");
+		goto register_provider_error;
+	}
+
+	register_map(domain, data);
+
+	mutex_unlock(&domain->connect_mutex);
+
+	return 0;
+register_provider_error:
+	unregister_server(domain, data);
+register_server_error:
+	mutex_unlock(&domain->connect_mutex);
+	return ret;
+}
+
 static int register_server_provider_query(struct comm_domain *domain)
 {
 	int i = 0;
@@ -982,7 +1089,7 @@ static int register_server_provider_query(struct comm_domain *domain)
 					data.provider_id =
 					provider->provider_id;
 					ret = mang_frame_send2opposite(domain,
-					MANAGE_CMD_REGISTER_PROVIDER, &data);
+					MANAGE_CMD_QUERY_REGISTER, &data);
 					if (ret < 0) {
 						// prompt message
 						hbipc_error("query send MANG_CMD_REGISTER_PROVIDER error\n");
@@ -1447,6 +1554,22 @@ struct bif_frame_cache *frame)
 		break;
 	case MANAGE_CMD_QUERY_SERVER:
 		register_server_provider_query(domain);
+		break;
+	case MANAGE_CMD_QUERY_REGISTER:
+		/* just like register provider */
+		/*
+		 * get information:
+		 * domain_id
+		 * server_id
+		 * provider_id
+		 */
+		data.domain_id = *p++;
+		memcpy(data.server_id, p, UUID_LEN);
+		p += 4;
+		data.provider_id = *p;
+
+		if (register_server_provider_no_dup(domain, &data) < 0)
+			goto error;
 		break;
 	default:
 		goto error;
