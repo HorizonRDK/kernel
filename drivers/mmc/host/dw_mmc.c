@@ -46,6 +46,8 @@
 
 static int last_err;
 static int first_time;
+#define INDEX_ID_EMMC	(0)
+#define INDEX_ID_SD	(1)
 
 /* Common flag combinations */
 #define DW_MCI_DATA_ERROR_FLAGS	(SDMMC_INT_DRTO | SDMMC_INT_DCRC | \
@@ -2816,15 +2818,14 @@ static irqreturn_t dw_mci_interrupt(int irq, void *dev_id)
 		}
 	}
 
-	if ((first_time == 0) && (host->phy_regs == 0xa5010000)) {
+	if ((first_time == 0) && (slot->mmc->index == INDEX_ID_EMMC)) {
 		first_time = 1;
 		last_err = err;
 		x2_emmc_diag_process(err, pending);
-	} else if ((last_err != err) && (host->phy_regs == 0xa5010000)) {
+	} else if ((last_err != err) && (slot->mmc->index == INDEX_ID_EMMC)) {
 		last_err = err;
 		x2_emmc_diag_process(err, pending);
 	}
-
 	if (host->use_dma != TRANS_MODE_IDMAC)
 		return IRQ_HANDLED;
 
@@ -3471,9 +3472,11 @@ int dw_mci_probe(struct dw_mci *host)
 	/* Now that slots are all setup, we can enable card detect */
 	dw_mci_enable_cd(host);
 
-	if (diag_register(ModuleDiag_emmc, EventIdEmmcErr,
-						4, 50, 4000, NULL) < 0)
-		pr_err("emmc diag register fail\n");
+	if (host->slot->mmc->index == INDEX_ID_EMMC) {
+		if (diag_register(ModuleDiag_emmc, EventIdEmmcErr,
+							4, 50, 4000, NULL) < 0)
+			pr_err("emmc diag register fail\n");
+	}
 
 	return 0;
 
