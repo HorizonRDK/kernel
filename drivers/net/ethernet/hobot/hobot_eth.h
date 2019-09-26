@@ -12,6 +12,14 @@
 #define X2_MAX_RX_QUEUES 8
 #define X2_MAX_TX_QUEUES 8
 
+#define X2_RX_FRAMES 4
+#define MAX_DMA_RIWT 0x7ff
+#define MIN_DMA_RIWT 0x1
+
+#define X2_COAL_TX_TIMER 1000
+#define X2_MAX_COAL_TX_TICK 100000
+#define X2_TX_MAX_FRAMES 250
+#define X2_TX_FRAMES 1
 
 #define X2_GET_ENTRY(x, size) ((x + 1) & (size - 1))
 #define DRIVER_VERSION			"0.9"
@@ -222,6 +230,8 @@ struct x2_resource {
 	void __iomem *addr;
 	const char *mac;
 	int irq;
+	int tx_irq;
+	int rx_irq;
 };
 struct dma_desc {
 	__le32 des0;
@@ -241,6 +251,7 @@ struct dma_ext_desc {
 
 
 struct x2_rx_queue {
+	u32 rx_count_frames;
 	u32 queue_index;
 	struct x2_priv *priv_data;
 	
@@ -279,6 +290,9 @@ struct x2_tx_queue {
 	dma_addr_t dma_tx_phy;
 	u32 tx_tail_addr;
 
+	u32 tx_count_frames;
+	struct timer_list txtimer;
+	struct napi_struct tx_napi;
 };
 
 
@@ -343,6 +357,7 @@ struct x2_dma_cfg {
 	u32 write_requests;
 	u32 burst_map;
 	bool en_lpi;
+	u32 interrupt_mode;
 
 };
 
@@ -459,10 +474,17 @@ struct plat_config_data {
 
 };
 
-
+#define X2_MAX_DMA_CH 4
 
 struct x2_priv {
 	
+	u32 tx_count_frames;
+	u32 rx_coal_frames;
+	u32 tx_coal_frames;
+
+	u32 tx_coal_timer;
+	int use_riwt;
+	u32 rx_riwt;
 	
 	void __iomem *ioaddr;
 
@@ -507,9 +529,6 @@ struct x2_priv {
 
 
 
-	u32 tx_count_frames;
-	u32 tx_coal_frames;
-	u32 tx_coal_timer;
 
 	struct x2_extra_stats xstats ____cacheline_aligned_in_smp;
 
@@ -542,7 +561,10 @@ struct x2_priv {
 	unsigned long state;
 	struct workqueue_struct *wq;
 	struct work_struct service_task;
+	int tx_irq;
+	int rx_irq;
 
+	u32 dma_ch_int_en[X2_MAX_DMA_CH];
 };
 
 

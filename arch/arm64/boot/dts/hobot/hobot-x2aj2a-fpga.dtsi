@@ -614,7 +614,10 @@
 			compatible = "snps,dwc-qos-ethernet-4.10a";
 			reg = <0 0xA5014000 0 0x2000>;
 			interrupt-parent = <&gic>;
-			interrupts = <0 52 4>;
+			interrupts = <0 50 4>,<0 51 4>, <0 52 4>;
+			interrupt-names = "rx-irq", "tx-irq", "mac-irq"; 
+
+			interrupt_mode = <1>;
 
 			snps,write-requests = <8>;
 			snps,read-requests = <8>;

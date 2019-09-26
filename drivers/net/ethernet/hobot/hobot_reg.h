@@ -174,8 +174,8 @@ enum packets_types {
 
 #define DWCEQOS_TX_TIMEOUT 5 
 
-#define DMA_TX_SIZE 512
-#define DMA_RX_SIZE 512
+#define DMA_TX_SIZE 64
+#define DMA_RX_SIZE 16
 
 
 #define BUF_SIZE_16KiB 16384
@@ -216,6 +216,7 @@ enum packets_types {
 #define DMA_BUS_MODE_PBL_SHIFT		16
 #define DMA_BUS_MODE_RPBL_SHIFT		16
 #define DMA_BUS_MODE_PBL		BIT(16)
+#define DMA_BUS_INTM			GENMASK(17,16)
 
 #define DMA_SYS_BUS_FB			BIT(0)
 #define DMA_SYS_BUS_MB			BIT(14)
@@ -326,6 +327,7 @@ enum packets_types {
 					 DMA_CHAN_INTR_ENA_FBE | \
 					 DMA_CHAN_INTR_ENA_CDE | \
 					 DMA_CHAN_INTR_ENA_RBUE |\
+					 DMA_CHAN_INTR_ENA_RWE |\
 					 DMA_CHAN_INTR_ENA_TBUE)
 
 #define DMA_CHAN_INTR_DEFAULT_MASK	(DMA_CHAN_INTR_NORMAL | \
@@ -343,7 +345,7 @@ enum packets_types {
 #define DMA_CHAN_STATUS_RPS		BIT(8)
 #define DMA_CHAN_STATUS_RBU		BIT(7)
 #define DMA_CHAN_STATUS_AIS		BIT(14)
-
+#define DMA_CHAN_STATUS_TBU		BIT(2)
 
 
 #define STMMAC_CHAN0	0
@@ -919,5 +921,16 @@ enum packets_types {
 /* To dump the core regs excluding  the Address Registers */
 #define	GMAC_REG_NUM	 132
 #define DMA_CHANNEL_NB_MAX 1
+
+
+#define DMA_RWT	GENMASK(7, 0)
+#define DMA_RWT_MAX	0xff
+#define	DMA_RWTU	GENMASK(17, 16)
+#define	DMA_RWTU_SHIFT	16
+#define DMA_RWTU_256	(0x0 << DMA_RWTU_SHIFT)
+#define	DMA_RWTU_512	(0x1 << DMA_RWTU_SHIFT)
+#define	DMA_RWTU_1024	(0x2 << DMA_RWTU_SHIFT)
+#define	DMA_RWTU_2048	(0x3 << DMA_RWTU_SHIFT)
+
 
 #endif
