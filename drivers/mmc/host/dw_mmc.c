@@ -3601,6 +3601,9 @@ int dw_mci_system_suspend(struct device *dev)
 		 !mmc_card_is_removable(host->slot->mmc)))
 		clk_disable_unprepare(host->biu_clk);
 
+	x2_mmc_disable_clk(host->priv);
+	x2_mmc_set_power(host->priv, 0);
+
 	return 0;
 }
 EXPORT_SYMBOL(dw_mci_system_suspend);
@@ -3610,6 +3613,20 @@ int dw_mci_system_resume(struct device *dev)
 	struct dw_mci *host = dev_get_drvdata(dev);
 	int ret;
 	pr_info("%s:%s, enter resume...\n", __FILE__, __func__);
+
+	x2_mmc_set_power(host->priv, 1);
+	if (host->slot &&
+	    (mmc_can_gpio_cd(host->slot->mmc) ||
+	     !mmc_card_is_removable(host->slot->mmc))) {
+		ret = clk_prepare_enable(host->biu_clk);
+		if (ret)
+			return ret;
+	}
+	ret = clk_prepare_enable(host->ciu_clk);
+	if (ret)
+		goto err;
+
+	x2_mmc_enable_clk(host->priv);
 
 	/* reset control */
 	if (!IS_ERR(host->pdata->rstc)) {
@@ -3630,21 +3647,9 @@ int dw_mci_system_resume(struct device *dev)
 	//    pr_info("%s:%s specific reset failed\n", __FILE__, __func__);
 	//    return 0;
 	//}
-
-	if (host->slot &&
-		(mmc_can_gpio_cd(host->slot->mmc) ||
-		 !mmc_card_is_removable(host->slot->mmc))) {
-		ret = clk_prepare_enable(host->biu_clk);
-		if (ret)
-			return ret;
-	}
-
-	ret = clk_prepare_enable(host->ciu_clk);
-	if (ret)
-		goto err;
-
 	if (!dw_mci_ctrl_reset(host, SDMMC_CTRL_ALL_RESET_FLAGS)) {
 		clk_disable_unprepare(host->ciu_clk);
+		x2_mmc_disable_clk(host->priv);
 		ret = -ENODEV;
 		goto err;
 	}
@@ -3653,11 +3658,11 @@ int dw_mci_system_resume(struct device *dev)
 		host->dma_ops->init(host);
 
 	/*
-	 * Restore the initial value at FIFOTH register
-	 * And Invalidate the prev_blksz with zero
-	 */
-	 mci_writel(host, FIFOTH, host->fifoth_val);
-	 host->prev_blksz = 0;
+	* Restore the initial value at FIFOTH register
+	* And Invalidate the prev_blksz with zero
+	*/
+	mci_writel(host, FIFOTH, host->fifoth_val);
+	host->prev_blksz = 0;
 
 	/* Put in max timeout */
 	mci_writel(host, TMOUT, 0xFFFFFFFF);

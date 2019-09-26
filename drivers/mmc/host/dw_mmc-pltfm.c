@@ -59,10 +59,8 @@ int dw_mci_pltfm_register(struct platform_device *pdev,
 EXPORT_SYMBOL_GPL(dw_mci_pltfm_register);
 
 const struct dev_pm_ops dw_mci_pltfm_pmops = {
-//	SET_SYSTEM_SLEEP_PM_OPS(pm_runtime_force_suspend,
-//				pm_runtime_force_resume)
-	SET_SYSTEM_SLEEP_PM_OPS(dw_mci_system_suspend,
-				dw_mci_system_resume)
+	SET_SYSTEM_SLEEP_PM_OPS(pm_runtime_force_suspend,
+				pm_runtime_force_resume)
 	SET_RUNTIME_PM_OPS(dw_mci_runtime_suspend,
 			   dw_mci_runtime_resume,
 			   NULL)

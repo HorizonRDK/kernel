@@ -22,6 +22,7 @@
 
 #include "dw_mmc.h"
 #include "dw_mmc-pltfm.h"
+#include "dw_mmc-hobot.h"
 
 #define DWMMC_MMC_ID (1)
 #define HOBOT_DW_MCI_FREQ_MAX (200000000)
@@ -61,23 +62,11 @@
 #define SD1_PADC_VAL_CLR1 0xF8F8F8F8
 #define SD1_PADC_VAL 0x04040404
 
-#define VER		"HOBOT-mmc_V10.190924"
+#define VER		"HOBOT-mmc_V10.190926"
 
 static int debug;
 module_param(debug, int, 0644);
 MODULE_PARM_DESC(debug, "mmc: 0 close debug, 1 open debug");
-
-struct dw_mci_hobot_priv_data {
-	void __iomem *sysctrl_reg;
-	void __iomem *padcctrl_reg;
-	u32 clock_frequency;
-	int default_sample_phase;
-	u32 uhs_180v_gpio;
-	u32 ctrl_id;
-	u8 current_drv_phase;
-	u8 current_sample_phase;
-	u8 current_phase_cnt;
-};
 
 static int x2_mmc_set_sd_padcctrl(struct dw_mci_hobot_priv_data *priv)
 {
@@ -197,6 +186,16 @@ int x2_mmc_enable_clk(struct dw_mci_hobot_priv_data *priv)
 		priv->ctrl_id);
 
 	return -1;
+}
+
+void x2_mmc_set_power(struct dw_mci_hobot_priv_data *priv, bool val)
+{
+	if (priv->ctrl_id != DWMMC_MMC_ID) {
+		if (priv->powerup_gpio) {
+			gpio_direction_output(priv->powerup_gpio, val);
+			usleep_range(1000, 2000);
+		}
+	}
 }
 
 static int x2_mmc_set_sample_phase(struct dw_mci_hobot_priv_data *priv,
@@ -507,22 +506,18 @@ static int dw_mci_x2_parse_dt(struct dw_mci *host)
 {
 	struct device_node *np = host->dev->of_node;
 	struct dw_mci_hobot_priv_data *priv;
-	u32 powerup_gpio;
 
 	priv = devm_kzalloc(host->dev, sizeof(*priv), GFP_KERNEL);
 	if (!priv)
 		return -ENOMEM;
 
+	priv->ctrl_id = of_alias_get_id(host->dev->of_node, "mmc");
+	if (priv->ctrl_id < 0)
+		priv->ctrl_id = 0;
+
 	if (of_property_read_u32(np, "hobot,default-sample-phase",
 				 &priv->default_sample_phase))
 		priv->default_sample_phase = 0;
-
-	priv->uhs_180v_gpio = 0;
-	if (!device_property_read_u32(host->dev, "powerup-gpio", &powerup_gpio)) {
-		gpio_request(powerup_gpio, NULL);
-		gpio_direction_output(powerup_gpio, 1);
-		usleep_range(1000, 2000);
-	}
 
 	priv->sysctrl_reg = ioremap(HOBOT_SYSCTRL_REG, 0x400);
 	if (IS_ERR(priv->sysctrl_reg))
@@ -532,14 +527,19 @@ static int dw_mci_x2_parse_dt(struct dw_mci *host)
 	if (IS_ERR(priv->padcctrl_reg))
 		return PTR_ERR(priv->padcctrl_reg);
 
+	priv->uhs_180v_gpio = 0;
+	priv->powerup_gpio = 0;
+	if (!device_property_read_u32(host->dev, "powerup-gpio",
+		&priv->powerup_gpio)) {
+		gpio_request(priv->powerup_gpio, NULL);
+		x2_mmc_set_power(priv, 0);
+		x2_mmc_set_power(priv, 1);
+	}
+
 	if (!device_property_read_u32
 	    (host->dev, "uhs-180v-gpio", &priv->uhs_180v_gpio)) {
 		gpio_request(priv->uhs_180v_gpio, NULL);
 	}
-
-	priv->ctrl_id = of_alias_get_id(host->dev->of_node, "mmc");
-	if (priv->ctrl_id < 0)
-		priv->ctrl_id = 0;
 
 	host->priv = priv;
 
@@ -676,10 +676,33 @@ static int dw_mci_hobot_probe(struct platform_device *pdev)
 
 static int dw_mci_hobot_remove(struct platform_device *pdev)
 {
+	struct dw_mci *host;
+	struct dw_mci_hobot_priv_data *priv;
+
 	dev_err(&pdev->dev, "remove\n");
 
-	return dw_mci_pltfm_remove(pdev);
+	host = platform_get_drvdata(pdev);
+	priv = host->priv;
+	dw_mci_pltfm_remove(pdev);
+	if (priv->padcctrl_reg)
+		iounmap(priv->padcctrl_reg);
+	if (priv->sysctrl_reg)
+		iounmap(priv->sysctrl_reg);
+	if (priv->uhs_180v_gpio)
+		gpio_free(priv->uhs_180v_gpio);
+	if (priv->powerup_gpio)
+		gpio_free(priv->powerup_gpio);
+
+	return 0;
 }
+
+static const struct dev_pm_ops dw_mci_hobot_pmops = {
+	SET_SYSTEM_SLEEP_PM_OPS(dw_mci_system_suspend,
+				dw_mci_system_resume)
+	SET_RUNTIME_PM_OPS(dw_mci_runtime_suspend,
+			   dw_mci_runtime_resume,
+			   NULL)
+};
 
 static struct platform_driver dw_mci_hobot_pltfm_driver = {
 	.probe = dw_mci_hobot_probe,
@@ -687,7 +710,7 @@ static struct platform_driver dw_mci_hobot_pltfm_driver = {
 	.driver = {
 		   .name = "dwmmc_hobot",
 		   .of_match_table = dw_mci_hobot_match,
-		   .pm = &dw_mci_pltfm_pmops,
+		   .pm = &dw_mci_hobot_pmops,
 		   },
 };
 
