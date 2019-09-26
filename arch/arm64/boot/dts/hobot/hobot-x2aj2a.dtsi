@@ -309,7 +309,7 @@
 			reset-names = "i2c3";
 			status = "disabled";
 		};
-		usedrv: usrdrv@0xA700C000 {
+		usrdrv: usrdrv@0xA700C000 {
 			compatible = "hobot,usrdrv";
 			reg = <0 0xA500C000 0 0x100>;
 			interrupt-parent = <&gic>;
