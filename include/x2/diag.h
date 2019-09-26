@@ -219,7 +219,7 @@ struct env_data_pack {
 
 } __packed;
 
-#define DIAG_LIST_MAX_DEFAULT 20
+#define DIAG_LIST_MAX_DEFAULT 128
 
 struct id_info {
 	struct diag_msg_id id;

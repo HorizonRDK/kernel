@@ -37,7 +37,7 @@ struct completion diag_dev_completion;
 static int diag_is_ready(void);
 static struct id_register_struct *diag_id_in_register_list(struct diag_msg_id *id);
 static void
-diag_clear_registered_envbuffer_flag_and_release_idinfo_struct(struct id_info *pidinfo);
+clear_envflag_and_release_idinfo(struct id_info *pidinfo);
 
 int diag_had_init;
 int diag_app_ready;
@@ -835,7 +835,7 @@ ok:
 	return 0;
 
 env_err:
-	diag_clear_registered_envbuffer_flag_and_release_idinfo_struct(pidinfo);
+	clear_envflag_and_release_idinfo(pidinfo);
 
 error:
 	if (pidinfo)
@@ -1070,7 +1070,7 @@ error:
 /*
  * down id_info struct form main list, and free it`s memery, then inser it to tmplist.
  */
-static int diag_down_entry_form_main_list_insert_to_tmplist(
+static int insert_group_entry_to_tmplist(
 			struct id_info *pidinfo,
 			struct list_head *tmplist)
 {
@@ -1113,8 +1113,11 @@ static int diag_down_entry_form_main_list_insert_to_tmplist(
 	//return -1;
 }
 
+/*
+ * clear registered envbuffer flag and release idinfo struct.
+ */
 static void
-diag_clear_registered_envbuffer_flag_and_release_idinfo_struct(struct id_info *pidinfo)
+clear_envflag_and_release_idinfo(struct id_info *pidinfo)
 {
 	struct id_register_struct *pid_reg_delet;
 	unsigned long flags;
@@ -1183,24 +1186,19 @@ static void diag_work_handler(struct work_struct *work)
 	//struct diag_msg_id id;
 	//int i;
 	int index;
-	struct id_register_struct *result_tmp;
-
 	INIT_LIST_HEAD(&tmp_list);
 
 	/* process group1 list */
 	spin_lock_irqsave(&diag_group1_list_state_spinlock, flags);
 	if (diag_group1_list_state == LIST_WAITE_FOR_PROCESS) {
 		diag_group1_list_state = LIST_PROCESSING;
-		group_process = 1;
-	}
-	spin_unlock_irqrestore(&diag_group1_list_state_spinlock, flags);
-
-	if (group_process) {
+		group_process++;
 		spin_lock_irqsave(&diag_group1_high_list_spinlock, irqsta);
 		list_for_each_entry_safe(pidinfo, next, &diag_group1_high_list, idlst) {
 			list_del(&(pidinfo->idlst));
-			if (diag_down_entry_form_main_list_insert_to_tmplist(pidinfo, &tmp_list) < 0) {
-				diag_clear_registered_envbuffer_flag_and_release_idinfo_struct(pidinfo);
+			if (insert_group_entry_to_tmplist(pidinfo,
+							&tmp_list) < 0) {
+				clear_envflag_and_release_idinfo(pidinfo);
 				pr_err("diag down entry form group1 high list insert to tmplist fail\n");
 			} else
 				pr_debug("diag down entry form group1 high list\n");
@@ -1211,8 +1209,9 @@ static void diag_work_handler(struct work_struct *work)
 		spin_lock_irqsave(&diag_group1_mid_list_spinlock, irqsta);
 		list_for_each_entry_safe(pidinfo, next, &diag_group1_mid_list, idlst) {
 			list_del(&(pidinfo->idlst));
-			if (diag_down_entry_form_main_list_insert_to_tmplist(pidinfo, &tmp_list) < 0) {
-				diag_clear_registered_envbuffer_flag_and_release_idinfo_struct(pidinfo);
+			if (insert_group_entry_to_tmplist(pidinfo,
+							&tmp_list) < 0) {
+				clear_envflag_and_release_idinfo(pidinfo);
 				pr_err("diag down entry form group1 mid list insert to tmplist fail\n");
 			}
 			else
@@ -1224,8 +1223,9 @@ static void diag_work_handler(struct work_struct *work)
 		spin_lock_irqsave(&diag_group1_low_list_spinlock, irqsta);
 		list_for_each_entry_safe(pidinfo, next, &diag_group1_low_list, idlst) {
 			list_del(&(pidinfo->idlst));
-			if (diag_down_entry_form_main_list_insert_to_tmplist(pidinfo, &tmp_list) < 0) {
-				diag_clear_registered_envbuffer_flag_and_release_idinfo_struct(pidinfo);
+			if (insert_group_entry_to_tmplist(pidinfo,
+							&tmp_list) < 0) {
+				clear_envflag_and_release_idinfo(pidinfo);
 				pr_err("diag down entry form group1 low list insert to tmplist fail\n");
 			} else
 				pr_debug("diag down entry form group1 low list\n");
@@ -1233,57 +1233,75 @@ static void diag_work_handler(struct work_struct *work)
 		diag_group1_low_list_num = 0;
 		diag_group1_list_state = LIST_IDLE;
 		spin_unlock_irqrestore(&diag_group1_low_list_spinlock, irqsta);
+		spin_unlock_irqrestore(&diag_group1_list_state_spinlock,
+					irqsta);
 	} else {
-		group_process = 0;
-		/* process group2 list */
-		spin_lock_irqsave(&diag_group2_list_state_spinlock, flags);
-		if (diag_group2_list_state == LIST_WAITE_FOR_PROCESS) {
-			diag_group2_list_state = LIST_PROCESSING;
-			group_process = 1;
-		}
-		spin_unlock_irqrestore(&diag_group2_list_state_spinlock, flags);
-
-		if (group_process) {
-			spin_lock_irqsave(&diag_group2_high_list_spinlock, irqsta);
-			list_for_each_entry_safe(pidinfo, next, &diag_group2_high_list, idlst) {
-				list_del(&(pidinfo->idlst));
-				if (diag_down_entry_form_main_list_insert_to_tmplist(pidinfo, &tmp_list) < 0) {
-					diag_clear_registered_envbuffer_flag_and_release_idinfo_struct(pidinfo);
-					pr_err("diag down entry form group2 high list insert to tmplist fail\n");
-				} else
-					pr_debug("diag down entry form group2 high list\n");
-			}
-			diag_group1_high_list_num = 0;
-			spin_unlock_irqrestore(&diag_group2_high_list_spinlock, irqsta);
-
-			spin_lock_irqsave(&diag_group2_mid_list_spinlock, irqsta);
-			list_for_each_entry_safe(pidinfo, next, &diag_group2_mid_list, idlst) {
-				list_del(&(pidinfo->idlst));
-				if (diag_down_entry_form_main_list_insert_to_tmplist(pidinfo, &tmp_list) < 0) {
-					diag_clear_registered_envbuffer_flag_and_release_idinfo_struct(pidinfo);
-					pr_err("diag down entry form group2 mid list insert to tmplist fail\n");
-				} else
-					pr_debug("diag down entry form group2 mid list\n");
-			}
-			diag_group1_mid_list_num = 0;
-			spin_unlock_irqrestore(&diag_group2_mid_list_spinlock, irqsta);
-
-			spin_lock_irqsave(&diag_group2_low_list_spinlock, irqsta);
-			list_for_each_entry_safe(pidinfo, next, &diag_group2_low_list, idlst) {
-				list_del(&(pidinfo->idlst));
-				if (diag_down_entry_form_main_list_insert_to_tmplist(pidinfo, &tmp_list) < 0) {
-					diag_clear_registered_envbuffer_flag_and_release_idinfo_struct(pidinfo);
-					pr_err("diag down entry form group2 low list insert to tmplist fail\n");
-				} else
-					pr_debug("diag down entry form group2 low list\n");
-			}
-			diag_group1_low_list_num = 0;
-			diag_group2_list_state = LIST_IDLE;
-			spin_unlock_irqrestore(&diag_group2_low_list_spinlock, irqsta);
-		} else {
-			pr_err("work handler: have no group to process\n");
-		}
+		spin_unlock_irqrestore(&diag_group1_list_state_spinlock, flags);
 	}
+
+	spin_lock_irqsave(&diag_group2_list_state_spinlock, flags);
+	if (diag_group2_list_state == LIST_WAITE_FOR_PROCESS) {
+		diag_group2_list_state = LIST_PROCESSING;
+		group_process++;
+		spin_lock_irqsave(&diag_group2_high_list_spinlock, irqsta);
+		list_for_each_entry_safe(pidinfo,
+					next,
+					&diag_group2_high_list,
+					idlst) {
+			list_del(&(pidinfo->idlst));
+			if (insert_group_entry_to_tmplist(pidinfo,
+							&tmp_list) < 0) {
+				clear_envflag_and_release_idinfo(pidinfo);
+				pr_err("diag down entry form group2 high list insert to tmplist fail\n");
+			} else {
+				pr_debug("diag down entry form group2 high list\n");
+			}
+		}
+		diag_group1_high_list_num = 0;
+		spin_unlock_irqrestore(&diag_group2_high_list_spinlock, irqsta);
+
+		spin_lock_irqsave(&diag_group2_mid_list_spinlock, irqsta);
+		list_for_each_entry_safe(pidinfo,
+					next,
+					&diag_group2_mid_list,
+					idlst) {
+			list_del(&(pidinfo->idlst));
+			if (insert_group_entry_to_tmplist(pidinfo,
+							&tmp_list) < 0) {
+				clear_envflag_and_release_idinfo(pidinfo);
+				pr_err("diag down entry form group2 mid list insert to tmplist fail\n");
+			} else {
+				pr_debug("diag down entry form group2 mid list\n");
+			}
+		}
+		diag_group1_mid_list_num = 0;
+		spin_unlock_irqrestore(&diag_group2_mid_list_spinlock, irqsta);
+
+		spin_lock_irqsave(&diag_group2_low_list_spinlock, irqsta);
+		list_for_each_entry_safe(pidinfo,
+					next,
+					&diag_group2_low_list,
+					idlst) {
+			list_del(&(pidinfo->idlst));
+			if (insert_group_entry_to_tmplist(pidinfo,
+							&tmp_list) < 0) {
+				clear_envflag_and_release_idinfo(pidinfo);
+				pr_err("diag down entry form group2 low list insert to tmplist fail\n");
+			} else {
+				pr_debug("diag down entry form group2 low list\n");
+			}
+		}
+		diag_group1_low_list_num = 0;
+		diag_group2_list_state = LIST_IDLE;
+		spin_unlock_irqrestore(&diag_group2_low_list_spinlock, irqsta);
+		spin_unlock_irqrestore(&diag_group2_list_state_spinlock,
+								irqsta);
+	} else {
+		spin_unlock_irqrestore(&diag_group2_list_state_spinlock, flags);
+	}
+
+	if (!group_process)
+		pr_err("work handler: have no group to process\n");
 
 	/* now, all group entry had insert to tmplist, and main group list memery had free,
 	 * then send all entry to userspace.
@@ -1308,7 +1326,7 @@ static void diag_work_handler(struct work_struct *work)
 				pr_err("send tmplist to userspace fail\n");
 			}
 
-			diag_clear_registered_envbuffer_flag_and_release_idinfo_struct(pidinfo);
+			clear_envflag_and_release_idinfo(pidinfo);
 		}
 	} else {
 		pr_err("tmplist is empty, no data send to userspace\n");
