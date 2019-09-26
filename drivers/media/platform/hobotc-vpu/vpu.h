@@ -19,7 +19,7 @@
 
 #include <linux/fs.h>
 #include <linux/types.h>
-#include "../../../../../test_code/vsp/vpuapi/vpuconfig.h"
+#include "vpuconfig.h"
 
 #define USE_VMALLOC_FOR_INSTANCE_POOL_MEMORY
 

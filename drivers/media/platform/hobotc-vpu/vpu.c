@@ -32,11 +32,11 @@
 #include <linux/version.h>
 #include <linux/kfifo.h>
 #include <linux/kthread.h>
-#include "../../../../../test_code/vsp/vpuapi/vpuconfig.h"
+#include "vpuconfig.h"
 
 #include "vpu.h"
 
-#define ENABLE_DEBUG_MSG
+//#define ENABLE_DEBUG_MSG
 #ifdef ENABLE_DEBUG_MSG
 #define DPRINTK(args...)		printk(KERN_INFO args);
 #else
@@ -114,8 +114,8 @@ typedef struct vpudrv_instance_pool_t {
 } vpudrv_instance_pool_t;
 
 #ifdef VPU_SUPPORT_RESERVED_VIDEO_MEMORY
-#define VPU_INIT_VIDEO_MEMORY_SIZE_IN_BYTE (62*1024*1024)
-#define VPU_DRAM_PHYSICAL_BASE 0x60000000// 0x86C00000
+#define VPU_INIT_VIDEO_MEMORY_SIZE_IN_BYTE 0x30000000 // (62*1024*1024)
+#define VPU_DRAM_PHYSICAL_BASE 0x50000000// 0x86C00000
 #include "vmm.h"
 static video_mm_t s_vmem;
 static vpudrv_buffer_t s_video_memory = {0};
@@ -1260,10 +1260,10 @@ static int vpu_probe(struct platform_device *pdev)
 
 
 #ifdef VPU_SUPPORT_RESERVED_VIDEO_MEMORY
-	s_video_memory.size = VPU_INIT_VIDEO_MEMORY_SIZE_IN_BYTE*6;  /// *6 For test FHD and UHD stream,
+	s_video_memory.size = VPU_INIT_VIDEO_MEMORY_SIZE_IN_BYTE;
 	s_video_memory.phys_addr = VPU_DRAM_PHYSICAL_BASE;
 	//s_video_memory.base = (unsigned long)ioremap_nocache(s_video_memory.phys_addr, PAGE_ALIGN(s_video_memory.size));
-	s_video_memory.base = __va(s_video_memory.phys_addr);
+	s_video_memory.base = (unsigned long)__va(s_video_memory.phys_addr);
 	if (!s_video_memory.base) {
 		printk(KERN_ERR "[VPUDRV] :  fail to remap video memory physical phys_addr==0x%lx, base==0x%lx, size=%d\n", s_video_memory.phys_addr, s_video_memory.base, (int)s_video_memory.size);
 		goto ERROR_PROVE_DEVICE;

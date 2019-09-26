@@ -31,10 +31,10 @@
 #include <linux/sched.h>
 #include <linux/version.h>
 
-#include "../../../../../test_code/jpg/jpuapi/jpuconfig.h"
+#include "jpuconfig.h"
 #include "jpu.h"
 
-#define ENABLE_DEBUG_MSG
+//#define ENABLE_DEBUG_MSG
 #ifdef ENABLE_DEBUG_MSG
 #define DPRINTK(args...)            printk(KERN_INFO args);
 #else
@@ -99,7 +99,7 @@ typedef struct jpudrv_instance_pool_t {
 } jpudrv_instance_pool_t;
 
 #ifdef JPU_SUPPORT_RESERVED_VIDEO_MEMORY
-#define JPU_INIT_VIDEO_MEMORY_SIZE_IN_BYTE  (16*1024*1024)
+#define JPU_INIT_VIDEO_MEMORY_SIZE_IN_BYTE  (0x20000000) //(16*1024*1024)
 #define JPU_DRAM_PHYSICAL_BASE              (0x60000000) //(0x8AA00000)
 #include "jmm.h"
 static jpu_mm_t         s_jmem;
@@ -783,7 +783,7 @@ static int jpu_probe(struct platform_device *pdev)
 	s_video_memory.size      = JPU_INIT_VIDEO_MEMORY_SIZE_IN_BYTE;
 	s_video_memory.phys_addr = JPU_DRAM_PHYSICAL_BASE;
 	//s_video_memory.base = (unsigned long)ioremap_nocache(s_video_memory.phys_addr, PAGE_ALIGN(s_video_memory.size));
-	s_video_memory.base = __va(s_video_memory.phys_addr); // pfn_to_kaddr(pfn) //__VA(s_video_memory.phys_addr);
+	s_video_memory.base = (unsigned long)__va(s_video_memory.phys_addr); // pfn_to_kaddr(pfn) //__VA(s_video_memory.phys_addr);
 	//s_video_memory.base = phys_to_virt(s_video_memory.phys_addr);
 
 	if (!s_video_memory.base) {
