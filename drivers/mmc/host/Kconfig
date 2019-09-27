@@ -748,6 +748,19 @@ config MMC_DW_HOBOT
 	  This selects support for Hobot SoC specific extensions to the
 	  Synopsys DesignWare Memory Card Interface driver. Select this option
 	  for platforms based on X2 SoC's.
+
+config MMC_DW_HOBOT_X2A
+	tristate "Hobot X2A SOC specific extensions for Synopsys DW Memory Card Interface"
+	depends on MMC_DW
+	select MMC_DW_PLTFM
+	help
+	  This selects support for Hobot SoC specific extensions to the
+	  Synopsys DesignWare Memory Card Interface driver. Select this option
+	  for platforms based on X2A SoC's.
+
+
+
+
 config MMC_SH_MMCIF
 	tristate "SuperH Internal MMCIF support"
 	depends on HAS_DMA

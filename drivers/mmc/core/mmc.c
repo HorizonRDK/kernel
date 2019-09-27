@@ -970,6 +970,10 @@ static void mmc_set_bus_speed(struct mmc_card *card)
 		max_dtr = card->ext_csd.hs_max_dtr;
 	else if (max_dtr > card->csd.max_dtr)
 		max_dtr = card->csd.max_dtr;
+
+#ifdef	CONFIG_X2A_FPGA
+	max_dtr = 5000000;
+#endif
 	mmc_set_clock(card->host, max_dtr);
 }
 
