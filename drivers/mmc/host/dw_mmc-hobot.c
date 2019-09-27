@@ -388,6 +388,12 @@ static void dw_mci_x2_set_ios(struct dw_mci *host, struct mmc_ios *ios)
 	unsigned long bus_hz;
 	int phase;
 
+
+
+#ifdef CONFIG_X2A_FPGA
+	return;
+#endif
+
 	if (ios->clock == 0)
 		return;
 
