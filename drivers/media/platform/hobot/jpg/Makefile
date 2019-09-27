@@ -28,7 +28,7 @@ obj-$(CONFIG_VIDEO_HOBOTC_JPEG)	:= jpu.o
 
 else
 
-KERNELDIR := ../../../../../kernel
+KERNELDIR := ../../../../../../kernel
 PWD	  := $(shell pwd)
 
 default:

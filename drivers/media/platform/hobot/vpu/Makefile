@@ -30,7 +30,7 @@ obj-$(CONFIG_VIDEO_HOBOTC_VPU)	:= vpu.o
 
 else
 
-KERNELDIR := ../../../../../kernel
+KERNELDIR := ../../../../../../kernel
 #KERNELDIR ?= /lib/modules/$(shell uname -r)/build
 
 PWD	  := $(shell pwd)
