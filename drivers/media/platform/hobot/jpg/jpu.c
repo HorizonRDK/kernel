@@ -41,6 +41,7 @@
 #define DPRINTK(args...)
 #endif
 
+#define JPU_DRINK_NODE
 /* definitions to be changed as customer  configuration */
 /* if you want to have clock gating scheme frame by frame */
 //#define JPU_SUPPORT_CLOCK_CONTROL
@@ -123,6 +124,11 @@ static int s_jpu_open_ref_count;
 #ifdef JPU_SUPPORT_ISR
 static int s_jpu_irq = JPU_IRQ_NUM;
 #endif
+#ifdef JPU_DRINK_NODE
+static struct class *s_jpu_class;
+static struct device *s_jpu_dev;
+#endif
+
 
 static jpudrv_buffer_t s_jpu_register = {0};
 
@@ -740,6 +746,21 @@ static int jpu_probe(struct platform_device *pdev)
 		goto ERROR_PROVE_DEVICE;
 	}
 
+#ifdef JPU_DRINK_NODE
+	s_jpu_class = class_create(THIS_MODULE, JPU_DEV_NAME);
+	if ( IS_ERR(s_jpu_class) ) {
+		printk(KERN_INFO "[%s:%d] class_create error\n", __func__, __LINE__);
+        err = -EBUSY;
+		goto ERROR_PROVE_DEVICE;
+	}
+	s_jpu_dev = device_create(s_jpu_class, NULL, MKDEV(MAJOR(s_jpu_major), 0), NULL, JPU_DEV_NAME);
+	if ( IS_ERR(s_jpu_dev) ) {
+		printk(KERN_ERR "[%s] deivce create error\n", __func__);
+		err = -EBUSY;
+		goto ERROR_PROVE_DEVICE;
+	}
+#endif
+
 	if (pdev)
 		s_jpu_clk = jpu_clk_get(&pdev->dev);
 	else
@@ -811,6 +832,11 @@ ERROR_PROVE_DEVICE:
 	if (s_jpu_register.virt_addr)
 		iounmap((void *)s_jpu_register.virt_addr);
 
+#ifdef VPU_DRINK_NODE
+    device_destroy(s_jpu_class, MKDEV(s_jpu_major, 0));
+    class_destroy(s_jpu_class);
+#endif
+
 	return err;
 }
 
@@ -834,6 +860,11 @@ static int jpu_remove(struct platform_device *pdev)
 	if (s_jpu_major > 0) {
 		cdev_del(&s_jpu_cdev);
 		unregister_chrdev_region(s_jpu_major, 1);
+#ifdef JPU_DRINK_NODE
+        device_destroy(s_jpu_class, MKDEV(s_jpu_major, 0));
+        class_destroy(s_jpu_class);
+        kzfree(dev_get_drvdata(s_jpu_dev));
+#endif
 		s_jpu_major = 0;
 	}
 
@@ -935,6 +966,11 @@ static void __exit jpu_exit(void)
 	if (s_jpu_major > 0) {
 		cdev_del(&s_jpu_cdev);
 		unregister_chrdev_region(s_jpu_major, 1);
+#ifdef JPU_DRINK_NODE
+        device_destroy(s_jpu_class, MKDEV(s_jpu_major, 0));
+        class_destroy(s_jpu_class);
+        kzfree(dev_get_drvdata(s_jpu_dev));
+#endif
 		s_jpu_major = 0;
 	}
 

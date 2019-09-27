@@ -43,6 +43,8 @@
 #define DPRINTK(args...)
 #endif
 
+#define VPU_DRINK_NODE
+
 /* definitions to be changed as customer  configuration */
 /* if you want to have clock gating scheme frame by frame */
 /* #define VPU_SUPPORT_CLOCK_CONTROL */
@@ -133,6 +135,11 @@ static vpudrv_buffer_t s_common_memory = {0};
 static vpu_drv_context_t s_vpu_drv_context;
 static int s_vpu_major;
 static struct cdev s_vpu_cdev;
+
+#ifdef VPU_DRINK_NODE
+static struct class *s_vpu_class;
+static struct device *s_vpu_dev;
+#endif
 
 static struct clk *s_vpu_clk;
 static int s_vpu_open_ref_count;
@@ -1222,6 +1229,23 @@ static int vpu_probe(struct platform_device *pdev)
 		goto ERROR_PROVE_DEVICE;
 	}
 
+#ifdef VPU_DRINK_NODE
+	s_vpu_class = class_create(THIS_MODULE, VPU_DEV_NAME);
+	if ( IS_ERR(s_vpu_class) ) {
+		printk(KERN_INFO "[%s:%d] class_create error\n", __func__, __LINE__);
+		//ret = PTR_ERR(s_vpu_class);
+		err = -EBUSY;
+		goto ERROR_PROVE_DEVICE;
+	}
+	s_vpu_dev = device_create(s_vpu_class, NULL, MKDEV(MAJOR(s_vpu_major), 0), NULL, VPU_DEV_NAME);
+	if ( IS_ERR(s_vpu_dev) ) {
+		printk(KERN_ERR "[%s] deivce create error\n", __func__);
+		//ret = PTR_ERR(s_vpu_dev);
+		err = -EBUSY;
+		goto ERROR_PROVE_DEVICE;
+	}
+#endif
+
 	if (pdev)
 		s_vpu_clk = vpu_clk_get(&pdev->dev);
 	else
@@ -1288,6 +1312,11 @@ ERROR_PROVE_DEVICE:
 	if (s_vpu_register.virt_addr)
 		iounmap((void *)s_vpu_register.virt_addr);
 
+#ifdef VPU_DRINK_NODE
+    device_destroy(s_vpu_class, MKDEV(s_vpu_major, 0));
+    class_destroy(s_vpu_class);
+#endif
+
 	return err;
 }
 #ifdef VPU_SUPPORT_PLATFORM_DRIVER_REGISTER
@@ -1320,6 +1349,11 @@ static int vpu_remove(struct platform_device *pdev)
 	if (s_vpu_major > 0) {
 		cdev_del(&s_vpu_cdev);
 		unregister_chrdev_region(s_vpu_major, 1);
+#ifdef VPU_DRINK_NODE
+        device_destroy(s_vpu_class, MKDEV(s_vpu_major, 0));
+        class_destroy(s_vpu_class);
+        kzfree(dev_get_drvdata(s_vpu_dev));
+#endif
 		s_vpu_major = 0;
 	}
 
@@ -1644,6 +1678,11 @@ static void __exit vpu_exit(void)
 	if (s_vpu_major > 0) {
 		cdev_del(&s_vpu_cdev);
 		unregister_chrdev_region(s_vpu_major, 1);
+#ifdef VPU_DRINK_NODE
+        device_destroy(s_vpu_class, MKDEV(s_vpu_major, 0));
+        class_destroy(s_vpu_class);
+        kzfree(dev_get_drvdata(s_vpu_dev));
+#endif
 		s_vpu_major = 0;
 	}
 
