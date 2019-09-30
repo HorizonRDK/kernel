@@ -3,6 +3,7 @@
 
 #include <linux/ion.h>
 #include "ipu_dev.h"
+#include "ipu_common.h"
 
 typedef enum {
 	IPUC_SET_DDR = 1,

@@ -227,7 +227,7 @@ int insert_slot_to_free(int slot_id)
 {
 	ipu_slot_h_t *slot_h = NULL;
 	if (slot_id < 0 || slot_id >= g_ipu->slot_num) {
-		ipu_err("invalid slot id when free to done\n");
+		ipu_err("invalid slot id when free to done, %d\n", slot_id);
 		return -1;
 	}
 	slot_h = &g_ipu_slot_[slot_id];

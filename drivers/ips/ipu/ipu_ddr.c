@@ -14,6 +14,7 @@
 #include <linux/device.h>
 #include <linux/compiler.h>
 #include <linux/slab.h>
+#include <linux/mutex.h>
 #include <x2/x2_ips.h>
 #include <x2/diag.h>
 #include <linux/proc_fs.h>
@@ -63,7 +64,6 @@ static wait_queue_head_t wq_pym_done;
 static unsigned long  runflags;
 static unsigned long  pym_runflags;
 static int started;
-static int timeout;
 
 struct ipu_ddr_cdev {
 	const char *name;
@@ -73,12 +73,14 @@ struct ipu_ddr_cdev {
 	dev_t dev_num;
 	wait_queue_head_t event_head;
 	spinlock_t slock;
+	struct mutex mutex_lock;
 	bool pymid_done;
 	bool stop;
 	int8_t done_idx;
 	uint32_t err_status;
 	unsigned long ipuflags;
 	slot_ddr_info_t s_info;
+	int open_counter;
 };
 
 struct ipu_ddr_cdev *g_ipu_ddr_cdev;
@@ -86,8 +88,6 @@ static int64_t g_ipu_time;
 int g_pym_from;
 
 /* new process */
-static struct semaphore sem_src;
-static struct semaphore sem_pym;
 static struct src_img_info_t g_process_info;
 /* new process */
 
@@ -107,6 +107,7 @@ static uint32_t decode_frame_id(uint16_t *addr)
 	}
 	return d;
 }
+
 
 /* for mipi/dvp timestamp */
 static int64_t ipu_current_time(void)
@@ -345,65 +346,69 @@ void ipu_ddr_mode_process(uint32_t status)
 
 }
 
-static int8_t ipu_sinfo_init(ipu_cfg_t *ipu_cfg)
+static int8_t ipu_sinfo_init(slot_ddr_info_t *s_info, ipu_cfg_t *ipu_cfg)
 {
 	uint8_t i = 0;
-	memset(&g_ipu_ddr_cdev->s_info, 0, sizeof(slot_ddr_info_t));
+
+	if (!s_info)
+		return -ENOMEM;
+
+	memset(s_info, 0, sizeof(slot_ddr_info_t));
 	if (ipu_cfg->ctrl.crop_ddr_en == 1) {
-		g_ipu_ddr_cdev->s_info.crop.y_offset = ipu_cfg->crop_ddr.y_addr;
-		g_ipu_ddr_cdev->s_info.crop.c_offset = ipu_cfg->crop_ddr.c_addr;
-		g_ipu_ddr_cdev->s_info.crop.y_width = ipu_cfg->crop.crop_ed.w - ipu_cfg->crop.crop_st.w;
-		g_ipu_ddr_cdev->s_info.crop.y_height = ipu_cfg->crop.crop_ed.h - ipu_cfg->crop.crop_st.h;
-		g_ipu_ddr_cdev->s_info.crop.y_stride = ALIGN_16(g_ipu_ddr_cdev->s_info.crop.y_width);
-		g_ipu_ddr_cdev->s_info.crop.c_width = (ipu_cfg->crop.crop_ed.w - ipu_cfg->crop.crop_st.w) >> 1;
-		g_ipu_ddr_cdev->s_info.crop.c_height = ipu_cfg->crop.crop_ed.h - ipu_cfg->crop.crop_st.h;
-		g_ipu_ddr_cdev->s_info.crop.c_stride = ALIGN_16(g_ipu_ddr_cdev->s_info.crop.c_width);
+		s_info->crop.y_offset = ipu_cfg->crop_ddr.y_addr;
+		s_info->crop.c_offset = ipu_cfg->crop_ddr.c_addr;
+		s_info->crop.y_width = ipu_cfg->crop.crop_ed.w - ipu_cfg->crop.crop_st.w;
+		s_info->crop.y_height = ipu_cfg->crop.crop_ed.h - ipu_cfg->crop.crop_st.h;
+		s_info->crop.y_stride = ALIGN_16(s_info->crop.y_width);
+		s_info->crop.c_width = (ipu_cfg->crop.crop_ed.w - ipu_cfg->crop.crop_st.w) >> 1;
+		s_info->crop.c_height = ipu_cfg->crop.crop_ed.h - ipu_cfg->crop.crop_st.h;
+		s_info->crop.c_stride = ALIGN_16(s_info->crop.c_width);
 	}
 	if (ipu_cfg->ctrl.scale_ddr_en == 1) {
-		g_ipu_ddr_cdev->s_info.scale.y_offset = ipu_cfg->scale_ddr.y_addr;
-		g_ipu_ddr_cdev->s_info.scale.c_offset = ipu_cfg->scale_ddr.c_addr;
-		g_ipu_ddr_cdev->s_info.scale.y_width = ipu_cfg->scale.scale_tgt.w;
-		g_ipu_ddr_cdev->s_info.scale.y_height = ipu_cfg->scale.scale_tgt.h;
-		g_ipu_ddr_cdev->s_info.scale.y_stride = ALIGN_16(g_ipu_ddr_cdev->s_info.scale.y_width);
-		g_ipu_ddr_cdev->s_info.scale.c_width = ALIGN_16(ipu_cfg->scale.scale_tgt.w >> 1);
-		g_ipu_ddr_cdev->s_info.scale.c_height = ipu_cfg->scale.scale_tgt.h;
-		g_ipu_ddr_cdev->s_info.scale.c_stride = ALIGN_16(g_ipu_ddr_cdev->s_info.scale.c_width);
+		s_info->scale.y_offset = ipu_cfg->scale_ddr.y_addr;
+		s_info->scale.c_offset = ipu_cfg->scale_ddr.c_addr;
+		s_info->scale.y_width = ipu_cfg->scale.scale_tgt.w;
+		s_info->scale.y_height = ipu_cfg->scale.scale_tgt.h;
+		s_info->scale.y_stride = ALIGN_16(s_info->scale.y_width);
+		s_info->scale.c_width = ALIGN_16(ipu_cfg->scale.scale_tgt.w >> 1);
+		s_info->scale.c_height = ipu_cfg->scale.scale_tgt.h;
+		s_info->scale.c_stride = ALIGN_16(s_info->scale.c_width);
 	}
 	if (ipu_cfg->pymid.pymid_en == 1) {
 		for (i = 0; i <= ipu_cfg->pymid.ds_layer_en; i++) {
 			if (i == 0 || ipu_cfg->pymid.ds_factor[i]) {
-				g_ipu_ddr_cdev->s_info.ds[i].y_offset = ipu_cfg->ds_ddr[i].y_addr;
-				g_ipu_ddr_cdev->s_info.ds[i].c_offset = ipu_cfg->ds_ddr[i].c_addr;
-				g_ipu_ddr_cdev->s_info.ds[i].y_width = ipu_cfg->pymid.ds_roi[i].w;
-				g_ipu_ddr_cdev->s_info.ds[i].y_height = ipu_cfg->pymid.ds_roi[i].h;
-				g_ipu_ddr_cdev->s_info.ds[i].y_stride = ALIGN_16(g_ipu_ddr_cdev->s_info.ds[i].y_width);
-				g_ipu_ddr_cdev->s_info.ds[i].c_width = ipu_cfg->pymid.ds_roi[i].w >> 1;
-				g_ipu_ddr_cdev->s_info.ds[i].c_height = ipu_cfg->pymid.ds_roi[i].h;
-				g_ipu_ddr_cdev->s_info.ds[i].c_stride = ALIGN_16(g_ipu_ddr_cdev->s_info.ds[i].c_width);
+				s_info->ds[i].y_offset = ipu_cfg->ds_ddr[i].y_addr;
+				s_info->ds[i].c_offset = ipu_cfg->ds_ddr[i].c_addr;
+				s_info->ds[i].y_width = ipu_cfg->pymid.ds_roi[i].w;
+				s_info->ds[i].y_height = ipu_cfg->pymid.ds_roi[i].h;
+				s_info->ds[i].y_stride = ALIGN_16(s_info->ds[i].y_width);
+				s_info->ds[i].c_width = ipu_cfg->pymid.ds_roi[i].w >> 1;
+				s_info->ds[i].c_height = ipu_cfg->pymid.ds_roi[i].h;
+				s_info->ds[i].c_stride = ALIGN_16(s_info->ds[i].c_width);
 			}
 		}
 		for (i = 0; i < 6; i++) {
 			if (ipu_cfg->pymid.us_layer_en & 1 << i) {
 				if (ipu_cfg->pymid.us_factor[i]) {
-					g_ipu_ddr_cdev->s_info.us[i].y_offset = ipu_cfg->us_ddr[i].y_addr;
-					g_ipu_ddr_cdev->s_info.us[i].c_offset = ipu_cfg->us_ddr[i].c_addr;
-					g_ipu_ddr_cdev->s_info.us[i].y_width = ipu_cfg->pymid.us_roi[i].w;
-					g_ipu_ddr_cdev->s_info.us[i].y_height = ipu_cfg->pymid.us_roi[i].h;
-					g_ipu_ddr_cdev->s_info.us[i].y_stride = ALIGN_16(g_ipu_ddr_cdev->s_info.us[i].y_width);
-					g_ipu_ddr_cdev->s_info.us[i].c_width = ipu_cfg->pymid.us_roi[i].w >> 1;
-					g_ipu_ddr_cdev->s_info.us[i].c_height = ipu_cfg->pymid.us_roi[i].h;
-					g_ipu_ddr_cdev->s_info.us[i].c_stride = ALIGN_16(g_ipu_ddr_cdev->s_info.us[i].c_width);
+					s_info->us[i].y_offset = ipu_cfg->us_ddr[i].y_addr;
+					s_info->us[i].c_offset = ipu_cfg->us_ddr[i].c_addr;
+					s_info->us[i].y_width = ipu_cfg->pymid.us_roi[i].w;
+					s_info->us[i].y_height = ipu_cfg->pymid.us_roi[i].h;
+					s_info->us[i].y_stride = ALIGN_16(s_info->us[i].y_width);
+					s_info->us[i].c_width = ipu_cfg->pymid.us_roi[i].w >> 1;
+					s_info->us[i].c_height = ipu_cfg->pymid.us_roi[i].h;
+					s_info->us[i].c_stride = ALIGN_16(s_info->us[i].c_width);
 				}
 			}
 		}
 	}
-	if (g_ipu_ddr_cdev->s_info.ds[0].y_width == g_ipu_ddr_cdev->s_info.crop.y_width &&
-		g_ipu_ddr_cdev->s_info.ds[0].y_height == g_ipu_ddr_cdev->s_info.crop.y_height) {
+	if (s_info->ds[0].y_width == s_info->crop.y_width &&
+		s_info->ds[0].y_height == s_info->crop.y_height) {
 
 		g_pym_from = PYM_SRC_FROM_CROP;
 		pr_debug("%d pym src from crop %d\n", __LINE__, g_pym_from);
-	} else if (g_ipu_ddr_cdev->s_info.ds[0].y_width == g_ipu_ddr_cdev->s_info.scale.y_width &&
-		g_ipu_ddr_cdev->s_info.ds[0].y_height == g_ipu_ddr_cdev->s_info.scale.y_height) {
+	} else if (s_info->ds[0].y_width == s_info->scale.y_width &&
+		s_info->ds[0].y_height == s_info->scale.y_height) {
 
 		g_pym_from = PYM_SRC_FROM_SCALE;
 		pr_debug("%d pym src from scale %d\n", __LINE__, g_pym_from);
@@ -413,11 +418,11 @@ static int8_t ipu_sinfo_init(ipu_cfg_t *ipu_cfg)
 		pr_err("%d pym src %d err\n", __LINE__, g_pym_from);
 	}
 	if (g_pym_from == PYM_SRC_FROM_CROP) {
-		g_ipu_ddr_cdev->s_info.ds[0].y_offset = ipu_cfg->crop_ddr.y_addr;
-		g_ipu_ddr_cdev->s_info.ds[0].c_offset = ipu_cfg->crop_ddr.c_addr;
+		s_info->ds[0].y_offset = ipu_cfg->crop_ddr.y_addr;
+		s_info->ds[0].c_offset = ipu_cfg->crop_ddr.c_addr;
 	} else if (g_pym_from == PYM_SRC_FROM_SCALE) {
-		g_ipu_ddr_cdev->s_info.ds[0].y_offset = ipu_cfg->scale_ddr.y_addr;
-		g_ipu_ddr_cdev->s_info.ds[0].c_offset = ipu_cfg->scale_ddr.c_addr;
+		s_info->ds[0].y_offset = ipu_cfg->scale_ddr.y_addr;
+		s_info->ds[0].c_offset = ipu_cfg->scale_ddr.c_addr;
 	} else {
 		pr_err("%d pym src %d err\n", __LINE__, g_pym_from);
 		return -1;
@@ -462,7 +467,7 @@ static int8_t ipu_core_update(ipu_cfg_t *ipu_cfg)
 	ipu_set(IPUC_SET_SCALE, ipu_cfg, 0);
 	ipu_set(IPUC_SET_PYMID, ipu_cfg, 0);
 	ipu_set(IPUC_SET_FRAME_ID, ipu_cfg, 0);
-	ipu_sinfo_init(ipu_cfg);
+	ipu_sinfo_init(&g_ipu_ddr_cdev->s_info, ipu_cfg);
 	ipu_slot_recfg(&g_ipu_ddr_cdev->s_info);
 	ipu_clean_slot(&g_ipu_ddr_cdev->s_info);
 
@@ -478,7 +483,7 @@ static int8_t ipu_core_init(ipu_cfg_t *ipu_cfg)
 	ipu_set(IPUC_SET_SCALE, ipu_cfg, 0);
 	ipu_set(IPUC_SET_PYMID, ipu_cfg, 0);
 	ipu_set(IPUC_SET_FRAME_ID, ipu_cfg, 0);
-	ipu_sinfo_init(ipu_cfg);
+	ipu_sinfo_init(&g_ipu_ddr_cdev->s_info, ipu_cfg);
 	init_ipu_slot((uint64_t)g_ipu->vaddr, &g_ipu_ddr_cdev->s_info);
 	return 0;
 }
@@ -486,6 +491,8 @@ static int8_t ipu_core_init(ipu_cfg_t *ipu_cfg)
 int ipu_ddr_open(struct inode *node, struct file *filp)
 {
 	struct ipu_ddr_cdev *ipu_cdev = NULL;
+	struct ipu_user *tmp_ipu_user;
+	int slot_id;
 	started = 0;
 	int ret = 0;
 
@@ -501,18 +508,44 @@ int ipu_ddr_open(struct inode *node, struct file *filp)
 	}
 	ipu_dbg("ipu ddr open\n");
 	ipu_cdev = container_of(node->i_cdev, struct ipu_ddr_cdev, cdev);
-	filp->private_data = ipu_cdev;
 	ipu_cdev->ipu->ipu_mode = IPU_DDR_SIGNLE;
+
+	/* init the file user */
+	tmp_ipu_user = (struct ipu_user *)kzalloc(sizeof(*tmp_ipu_user), GFP_KERNEL);
+	if (!tmp_ipu_user) {
+		pr_err("[%s] %d:ipu init user fail\n", __func__, __LINE__);
+		return -ENOMEM;
+	}
+
+	for (slot_id = 0; slot_id < IPU_MAX_SLOT; slot_id++) {
+		tmp_ipu_user->used_slot[slot_id] = 0;
+	}
+
+	ret = ipu_pym_user_init(&tmp_ipu_user->pym_user);
+	if (ret < 0) {
+		kfree(tmp_ipu_user);
+		pr_err("[%s] %d:ipu init pym user fail\n", __func__, __LINE__);
+		return ret;
+	}
+
+	tmp_ipu_user->host = ipu_cdev;
+	tmp_ipu_user->pym_user.host = tmp_ipu_user;
+	ipu_cdev->open_counter++;
+
+	filp->private_data = tmp_ipu_user;
+
 	return 0;
 }
 
 long ipu_ddr_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 {
-	struct ipu_ddr_cdev *ipu_cdev = filp->private_data;
+	struct ipu_user *tmp_ipu_user = filp->private_data;
+	struct ipu_ddr_cdev *ipu_cdev = tmp_ipu_user->host;
 	struct x2_ipu_data *ipu = ipu_cdev->ipu;
-	ipu_cfg_t *ipu_cfg = (ipu_cfg_t *)ipu->cfg;
+	ipu_cfg_t *ipu_cfg = &tmp_ipu_user->cfg;
 	ipu_slot_h_t *slot_h = NULL;
 	info_h_t *info = NULL;
+	info_h_t tmp_info;
 	ipu_slot_h_t *g_get_slot_h_1st = NULL;
 	info_h_t *pym_img_info = NULL;
 	struct src_img_info_t *src_img_info = NULL;
@@ -526,37 +559,48 @@ long ipu_ddr_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 	switch (cmd) {
 	case IPUC_INIT:
 		{
+			mutex_lock(&ipu_cdev->mutex_lock);
 			ret = copy_from_user((void *)ipu_cfg,
 			(const void __user *)data, sizeof(ipu_init_t));
 			if (ret) {
+				mutex_unlock(&ipu_cdev->mutex_lock);
 				ipu_err("ioctl init fail\n");
 				return -EFAULT;
 			}
-			timeout = ipu_cfg->timeout;
-			if (timeout <= 0)
-				timeout = 500;
-			ret = ipu_core_init(ipu_cfg);
-			if (ret < 0) {
-				ipu_err("ioctl init fail\n");
-				return -EFAULT;
+			if (ipu_cfg->timeout <= 0)
+				ipu_cfg->timeout = 500;
+
+			if (!g_ipu->cfg->video_in.w || !g_ipu->cfg->video_in.h) {
+				ret = ipu_core_init(ipu_cfg);
+				if (ret < 0) {
+					mutex_unlock(&ipu_cdev->mutex_lock);
+					ipu_err("ioctl init fail\n");
+					return -EFAULT;
+				}
+				memcpy(g_ipu->cfg, ipu_cfg, sizeof(ipu_cfg_t));
+				memcpy(&tmp_ipu_user->ddr_info,
+						&g_ipu_ddr_cdev->s_info, sizeof(slot_ddr_info_t));
+			} else {
+				ipu_cfg_ddrinfo_init(ipu_cfg);
+				ipu_sinfo_init(&tmp_ipu_user->ddr_info, ipu_cfg);
 			}
+
 			started = 0;
-			/* new process */
-			sema_init(&sem_src, 0);
-			sema_init(&sem_pym, 0);
-			/* new process */
 			ret = 0;
+			mutex_unlock(&ipu_cdev->mutex_lock);
 		}
 		break;
 	case IPUC_PYM_MANUAL_PROCESS:
 		{
 			unsigned long flags;
 
+			mutex_lock(&ipu_cdev->mutex_lock);
 			src_img_info = &src_info;
 			ret = copy_from_user((void *)src_img_info,
 			(const void __user *)data,
 			sizeof(struct src_img_info_t));
 			if (ret) {
+				mutex_unlock(&ipu_cdev->mutex_lock);
 				ipu_err("ioctl process fail\n");
 				return -EFAULT;
 			}
@@ -577,31 +621,36 @@ long ipu_ddr_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 			pym_manual_start();
 			spin_unlock_irqrestore(&g_ipu_ddr_cdev->slock, flags);
 			*/
-			ret = ipu_pym_to_process(src_img_info, g_ipu->cfg,
+			ret = ipu_pym_to_process(&tmp_ipu_user->pym_user,
+					src_img_info, &tmp_ipu_user->cfg,
 					PYM_SLOT_SINGLE, PYM_OFFLINE);
 			if (ret) {
+				mutex_unlock(&ipu_cdev->mutex_lock);
 				ipu_err("pym to process fail\n");
 				return ret;
 			}
+			mutex_unlock(&ipu_cdev->mutex_lock);
 		}
 
 		break;
 	case IPUC_SRC_DONE:
 	{
 		int data_end;
+		mutex_lock(&ipu_cdev->mutex_lock);
 		started = 1;
 wait:
-		runflags = 0;
-		ret = wait_event_interruptible_timeout(wq_frame_done, runflags, msecs_to_jiffies(timeout));
+		ret = wait_event_interruptible_timeout(wq_frame_done,
+				runflags, msecs_to_jiffies(ipu_cfg->timeout));
 		if (ret < 0) {
-
+			mutex_unlock(&ipu_cdev->mutex_lock);
 			pr_err("wait src err %d %d\n", __LINE__, ret);
 			return -EFAULT;
 		} else if (ret == 0) {
-
+			mutex_unlock(&ipu_cdev->mutex_lock);
 			pr_debug("wait src timeout %d %d\n", __LINE__, ret);
 			return -EFAULT;
 		}
+		runflags = 0;
 		unsigned long flags;
 		ipu_slot_h_t *g_get_slot_h;
 
@@ -612,6 +661,7 @@ wait:
 				empty = is_slot_done_empty();
 				if (!empty) {
 					insert_slot_to_free(g_get_slot_h_1st->info_h.slot_id);
+					tmp_ipu_user->used_slot[g_get_slot_h_1st->info_h.slot_id] = 0;
 					continue;
 				} else
 					break;
@@ -626,18 +676,20 @@ wait:
 			if (retry--)
 				goto wait;
 
+			mutex_unlock(&ipu_cdev->mutex_lock);
 			return -EFAULT;
 		}
 
 		//printk("get src done !! %d\n", g_get_slot_h->info_h.slot_id);
-		info = &g_get_slot_h->info_h;
-		info->base = (uint64_t)IPU_GET_SLOT(g_get_slot_h->info_h.slot_id,
+		tmp_info = g_get_slot_h->info_h;
+		tmp_info.ddr_info = tmp_ipu_user->ddr_info;
+		tmp_info.base = (uint64_t)IPU_GET_SLOT(g_get_slot_h->info_h.slot_id,
 		g_ipu->paddr);
 		spin_unlock_irqrestore(&g_ipu_ddr_cdev->slock, flags);
-		data_end = info->ddr_info.scale.c_offset+
-		    info->ddr_info.scale.c_stride * info->ddr_info.scale.c_height;
+		data_end = tmp_info.ddr_info.scale.c_offset+
+		    tmp_info.ddr_info.scale.c_stride * tmp_info.ddr_info.scale.c_height;
 		dma_sync_single_for_cpu(NULL,
-		    info->base, data_end, DMA_FROM_DEVICE);
+		    tmp_info.base, data_end, DMA_FROM_DEVICE);
 		spin_lock_irqsave(&g_ipu_ddr_cdev->slock, flags);
 		if (ipu_fs_flag == 1)
 			g_ipu_ts = g_ipu_time_p;
@@ -645,10 +697,13 @@ wait:
 			g_ipu_ts = g_ipu_time;
 		spin_unlock_irqrestore(&g_ipu_ddr_cdev->slock, flags);
 		ipu_get_frameid(ipu, g_get_slot_h);
-		ret = copy_to_user((void __user *)data, (const void *)info,
+		tmp_ipu_user->used_slot[tmp_info.slot_id] = 1;
+		ret = copy_to_user((void __user *)data, (const void *)&tmp_info,
 		sizeof(info_h_t));
 		if (ret)
 			ipu_err("copy to user fail\n");
+
+		mutex_unlock(&ipu_cdev->mutex_lock);
 
 	}
 		break;
@@ -658,6 +713,7 @@ wait:
 			unsigned long flags;
 			ipu_slot_h_t *g_get_fb_slot_h;
 
+			mutex_lock(&ipu_cdev->mutex_lock);
 			spin_lock_irqsave(&g_ipu_ddr_cdev->slock, flags);
 
 			g_get_fb_slot_h = ipu_get_free_slot();
@@ -666,20 +722,25 @@ wait:
 				g_get_fb_slot_h = ipu_get_done_slot();
 				if (!g_get_fb_slot_h) {
 					spin_unlock_irqrestore(&g_ipu_ddr_cdev->slock, flags);
+					mutex_unlock(&ipu_cdev->mutex_lock);
 					return -EFAULT;
 				}
 				//printk("fb none free\n");
 			}
 			//printk("@@ get src done sema !! %d\n",g_get_slot_h->info_h.slot_id);
-			info = &g_get_fb_slot_h->info_h;
-			info->base = (uint64_t)IPU_GET_SLOT(g_get_fb_slot_h->info_h.slot_id,
+			tmp_info = g_get_fb_slot_h->info_h;
+			tmp_info.ddr_info = tmp_ipu_user->ddr_info;
+			tmp_info.base = (uint64_t)IPU_GET_SLOT(g_get_fb_slot_h->info_h.slot_id,
 			g_ipu->paddr);
 			//printk(" ipu->paddr %x\n", g_ipu->paddr);
 			spin_unlock_irqrestore(&g_ipu_ddr_cdev->slock, flags);
-			ret = copy_to_user((void __user *)data, (const void *)info,
+			tmp_ipu_user->used_slot[tmp_info.slot_id] = 1;
+			ret = copy_to_user((void __user *)data, (const void *)&tmp_info,
 			sizeof(info_h_t));
 			if (ret)
 				ipu_err("copy to user fail\n");
+
+			mutex_unlock(&ipu_cdev->mutex_lock);
 
 	}
 		break;
@@ -688,9 +749,13 @@ wait:
 			unsigned long flags;
 
 			struct src_img_info_t tmp_src_img_info;
-			ret = ipu_pym_wait_process_done(&tmp_src_img_info,
-					sizeof(struct src_img_info_t), PYM_OFFLINE, timeout);
+			mutex_lock(&ipu_cdev->mutex_lock);
+			ret = ipu_pym_wait_process_done(&tmp_ipu_user->pym_user,
+					&tmp_src_img_info,
+					sizeof(struct src_img_info_t),
+					PYM_OFFLINE, ipu_cfg->timeout);
 			if (ret < 0) {
+				mutex_unlock(&ipu_cdev->mutex_lock);
 				ipu_err("copy to user fail\n");
 				return ret;
 			}
@@ -707,12 +772,14 @@ wait:
 			pym_img_info->sf_timestamp = tmp_src_img_info.timestamp;
 			pym_img_info->base = (uint64_t)IPU_GET_SLOT(tmp_src_img_info.slot_id,
 			g_ipu->paddr);
-			pym_img_info->ddr_info = g_ipu_ddr_cdev->s_info;
+			pym_img_info->ddr_info = tmp_ipu_user->ddr_info;
 			spin_unlock_irqrestore(&g_ipu_ddr_cdev->slock, flags);
 			ret = copy_to_user((void __user *)data, (const void *)pym_img_info,
 			sizeof(info_h_t));
 			if (ret)
 				ipu_err("copy to user fail\n");
+
+			mutex_unlock(&ipu_cdev->mutex_lock);
 	}
 		break;
 	case IPUC_GET_IMG:
@@ -732,25 +799,31 @@ wait:
 			unsigned long flags;
 			int slot_id = 0;
 
+			mutex_lock(&ipu_cdev->mutex_lock);
 			ret = copy_from_user((void *)&slot_id,
 							(const void __user *)data, sizeof(int));
 			if (ret) {
+				mutex_unlock(&ipu_cdev->mutex_lock);
 				ipu_err("ioctl cnn done msg fail\n");
 				return -EFAULT;
 			}
 			spin_lock_irqsave(&g_ipu_ddr_cdev->slock, flags);
 			insert_slot_to_free(slot_id);
+			tmp_ipu_user->used_slot[slot_id] = 0;
 			spin_unlock_irqrestore(&g_ipu_ddr_cdev->slock, flags);
+			mutex_unlock(&ipu_cdev->mutex_lock);
 		}
 		break;
 	case IPUC_GET_DONE_INFO:
 		{
 			unsigned long flags;
 
+			mutex_lock(&ipu_cdev->mutex_lock);
 			spin_lock_irqsave(&g_ipu_ddr_cdev->slock, flags);
 			slot_h = ipu_get_done_slot();
 			if (!slot_h) {
 				spin_unlock_irqrestore(&g_ipu_ddr_cdev->slock, flags);
+				mutex_unlock(&ipu_cdev->mutex_lock);
 				ipu_info("done list empty\n");
 				return -EFAULT;
 			}
@@ -760,6 +833,8 @@ wait:
 			ret = copy_to_user((void __user *)data, (const void *)info, sizeof(info_h_t));
 			if (ret)
 				ipu_err("copy to user fail\n");
+
+			mutex_unlock(&ipu_cdev->mutex_lock);
 		}
 		break;
 	case IPUC_DUMP_REG:
@@ -769,6 +844,10 @@ wait:
 		{
 			unsigned long flags;
 
+			if (ipu_cdev->open_counter > 1)
+				break;
+
+			mutex_lock(&ipu_cdev->mutex_lock);
 			ipu_drv_stop();
 			spin_lock_irqsave(&g_ipu_ddr_cdev->slock, flags);
 			ipu_clean_slot(&g_ipu_ddr_cdev->s_info);
@@ -776,33 +855,41 @@ wait:
 			ipu_cdev->err_status = 0;
 			wake_up_interruptible(&ipu_cdev->event_head);
 			ddr_mode = 0;
+			mutex_unlock(&ipu_cdev->mutex_lock);
 		}
 		break;
 	case IPUC_START:
 		{
 			unsigned long flags;
 
-			spin_lock_irqsave(&g_ipu_ddr_cdev->slock, flags);
-			slot_h = slot_free_to_busy();
-			if (slot_h)
-				ipu_set(IPUC_SET_DDR, ipu_cfg, IPU_GET_SLOT(slot_h->info_h.slot_id, ipu->paddr));
-			else {
-				ret = EFAULT;
+			mutex_lock(&ipu_cdev->mutex_lock);
+			if (slot_left_num(BUSY_SLOT_LIST) < 1) {
+				spin_lock_irqsave(&g_ipu_ddr_cdev->slock, flags);
+				slot_h = slot_free_to_busy();
+				if (slot_h)
+					ipu_set(IPUC_SET_DDR, ipu_cfg, IPU_GET_SLOT(slot_h->info_h.slot_id, ipu->paddr));
+				else {
+					ret = EFAULT;
+					spin_unlock_irqrestore(&g_ipu_ddr_cdev->slock, flags);
+					mutex_unlock(&ipu_cdev->mutex_lock);
+					break;
+				}
 				spin_unlock_irqrestore(&g_ipu_ddr_cdev->slock, flags);
-				break;
 			}
-			spin_unlock_irqrestore(&g_ipu_ddr_cdev->slock, flags);
 			ipu_drv_start();
 			ddr_mode = 1;
+			mutex_unlock(&ipu_cdev->mutex_lock);
 		}
 		break;
 	case IPUC_UPDATE_CFG:
 		{
 			unsigned long flags;
 
+			mutex_lock(&ipu_cdev->mutex_lock);
 			ret = copy_from_user((void *)ipu_cfg,
 								 (const void __user *)data, sizeof(ipu_init_t));
 			if (ret) {
+				mutex_unlock(&ipu_cdev->mutex_lock);
 				ipu_err("ioctl update fail\n");
 				return -EFAULT;
 			}
@@ -819,10 +906,12 @@ wait:
 			} else {
 				ret = EFAULT;
 				spin_unlock_irqrestore(&g_ipu_ddr_cdev->slock, flags);
+				mutex_unlock(&ipu_cdev->mutex_lock);
 				break;
 			}
 			spin_unlock_irqrestore(&g_ipu_ddr_cdev->slock, flags);
 			ipu_drv_start();
+			mutex_unlock(&ipu_cdev->mutex_lock);
 		}
 		break;
 	case IPUC_GET_MEM_INFO:
@@ -842,6 +931,7 @@ wait:
 	case IPUC_FB_FLUSH:
 	{
 		int data_end;
+		mutex_lock(&ipu_cdev->mutex_lock);
 		src_img_info = &src_info;
 		ret = copy_from_user((void *)src_img_info,
 		(const void __user *)data,
@@ -854,6 +944,7 @@ wait:
 		__flush_dcache_area(page_address(pfn_to_page(PHYS_PFN((phys_addr_t)src_img_info->src_img.y_paddr))),
 							src_img_info->src_img.width*src_img_info->src_img.height+
 							src_img_info->src_img.width*src_img_info->src_img.height/2);
+		mutex_unlock(&ipu_cdev->mutex_lock);
 	}
 	break;
 	default:
@@ -911,12 +1002,34 @@ unsigned int ipu_ddr_poll(struct file *file,
 
 int ipu_ddr_close(struct inode *inode, struct file *filp)
 {
-	struct ipu_ddr_cdev *ipu_cdev = filp->private_data;
+	struct ipu_user *tmp_ipu_user = filp->private_data;
+	struct ipu_ddr_cdev *ipu_cdev = tmp_ipu_user->host;
+	int slot_id;
+
+	ipu_pym_user_exit(&tmp_ipu_user->pym_user);
+
+	mutex_lock(&ipu_cdev->mutex_lock);
+	for (slot_id = 0; slot_id < IPU_MAX_SLOT; slot_id++) {
+		if (tmp_ipu_user->used_slot[slot_id]) {
+			insert_slot_to_free(slot_id);
+			tmp_ipu_user->used_slot[slot_id] = 0;
+		}
+	}
+	mutex_unlock(&ipu_cdev->mutex_lock);
+
+	kfree(tmp_ipu_user);
+	filp->private_data = NULL;
+	ipu_cdev->open_counter--;
+	if (ipu_cdev->open_counter)
+		return 0;
+
 	started = 0;
 
 	ipu_drv_stop();
 	ipu_cdev->ipu->ipu_mode = IPU_INVALID;
 	ipu_pym_clear();
+	g_ipu->cfg->video_in.w = 0;
+	g_ipu->cfg->video_in.h = 0;
 	return 0;
 }
 
@@ -953,6 +1066,7 @@ static int __init x2_ipu_ddr_init(void)
 	init_waitqueue_head(&g_ipu_ddr_cdev->event_head);
 	g_ipu_time = 0;
 	spin_lock_init(&g_ipu_ddr_cdev->slock);
+	mutex_init(&g_ipu_ddr_cdev->mutex_lock);
 	g_ipu_ddr_cdev->name = X2_IPU_DDR_NAME;
 	g_ipu_ddr_cdev->err_status = 0;
 	g_ipu_ddr_cdev->ipu = g_ipu;

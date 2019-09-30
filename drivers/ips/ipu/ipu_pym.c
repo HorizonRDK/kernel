@@ -9,8 +9,8 @@
 #include <linux/types.h>
 #include <linux/init.h>
 #include <linux/wait.h>
-#include <linux/kfifo.h>
 #include <linux/kthread.h>
+#include <linux/delay.h>
 #include "ipu_slot_dual.h"
 #include "ipu_dev.h"
 #include "ipu_dual.h"
@@ -26,7 +26,9 @@ extern struct x2_ipu_data *g_ipu;
 extern int g_pym_from;
 struct ipu_pym *g_ipu_pym;
 
-int ipu_pym_to_process(void *img_info,
+extern int insert_slot_to_free(int slot_id);
+
+int ipu_pym_to_process(struct ipu_pym_user *user, void *img_info,
 		ipu_cfg_t *ipu_cfg, ipu_pym_slot_type type,
 		ipu_pym_process_type process_type)
 {
@@ -47,20 +49,28 @@ int ipu_pym_to_process(void *img_info,
 		return -EINVAL;
 	}
 
+	if (!user)
+		user = &g_ipu_pym->g_user;
+
+	if (!user->inited) {
+		pr_err("IPU pym user not inited!\n");
+		return -EINVAL;
+	}
+
 	spin_lock_irqsave(&g_ipu_pym->slock, flags);
 
 	if ((g_ipu->ipu_mode != IPU_DDR_SIGNLE)
 			&& (g_ipu->ipu_mode != IPU_DDR_DUAL)
 			&& (g_ipu->ipu_mode != IPU_FEED_BACK)) {
 
-		pr_err("IPU unmatched working mode\n");
+		pr_err("IPU unmatched working mode[%d]\n", g_ipu->ipu_mode);
 		spin_unlock_irqrestore(&g_ipu_pym->slock, flags);
 		return -EINVAL;
 	}
 
 	all_fifo_len = kfifo_len(&g_ipu_pym->pym_slots)
 			+ kfifo_len(&g_ipu_pym->done_inline_pym_slots)
-			+ kfifo_len(&g_ipu_pym->done_offline_pym_slots);
+			+ kfifo_len(&user->done_offline_pym_slots);
 
 	if (all_fifo_len >= IPU_PYM_BUF_LEN) {
 		spin_unlock_irqrestore(&g_ipu_pym->slock, flags);
@@ -84,6 +94,7 @@ int ipu_pym_to_process(void *img_info,
 		tmp_pym_slot.process_type = process_type;
 		tmp_pym_slot.pym_left_num = 0;
 		tmp_pym_slot.cfg = ipu_cfg;
+		tmp_pym_slot.p_user = user;
 		tmp_pym_slot.errno = 0;
 
 		ret = kfifo_in(&g_ipu_pym->pym_slots, &tmp_pym_slot, 1);
@@ -92,6 +103,7 @@ int ipu_pym_to_process(void *img_info,
 			pr_err("IPU slot to pym error!\n");
 			return ret;
 		}
+		user->left_slot++;
 	} else if (type == PYM_SLOT_MULT) {
 		mult_img_info = (struct mult_img_info_t *)img_info;
 		if ((all_fifo_len > 0)
@@ -110,6 +122,7 @@ int ipu_pym_to_process(void *img_info,
 			tmp_pym_slot.process_type = process_type;
 			tmp_pym_slot.pym_left_num = mult_img_info->src_num - i - 1;
 			tmp_pym_slot.cfg = ipu_cfg;
+			tmp_pym_slot.p_user = user;
 			tmp_pym_slot.errno = 0;
 
 			ret = kfifo_in(&g_ipu_pym->pym_slots, &tmp_pym_slot, 1);
@@ -118,6 +131,7 @@ int ipu_pym_to_process(void *img_info,
 				pr_err("IPU slot to pym error!\n");
 				return ret;
 			}
+			user->left_slot++;
 		}
 	} else {
 		pr_err("IPU pym invalid slot type\n");
@@ -146,6 +160,7 @@ static int ipu_pym_do_process(struct pym_slot_info *pym_slot_info)
 
 	if (pym_slot_info->slot_type == PYM_SLOT_SINGLE) {
 		process_img_info = &pym_slot_info->img_info.src_img_info;
+		ipu_set(IPUC_SET_PYMID, pym_slot_info->cfg, 0);
 		if (g_pym_from == PYM_SRC_FROM_CROP) {
 			set_ds_src_addr(process_img_info->src_img.y_paddr,
 					process_img_info->src_img.c_paddr);
@@ -161,6 +176,7 @@ static int ipu_pym_do_process(struct pym_slot_info *pym_slot_info)
 		if (pym_slot_info->pym_left_num || (pym_slot_info->img_info.mult_img_info.src_num == 1)) {
 			process_img_info = &pym_slot_info->img_info.mult_img_info.src_img_info[0];
 
+			ipu_set(IPUC_SET_PYMID, pym_slot_info->cfg, 0);
 			set_ds_src_addr(process_img_info->src_img.y_paddr,
 					process_img_info->src_img.c_paddr);
 			ipu_set(IPUC_SET_PYM_DDR, pym_slot_info->cfg,
@@ -168,6 +184,7 @@ static int ipu_pym_do_process(struct pym_slot_info *pym_slot_info)
 					g_ipu->paddr));
 		} else {
 			process_img_info = &pym_slot_info->img_info.mult_img_info.src_img_info[1];
+			ipu_set(IPUC_SET_PYMID, pym_slot_info->cfg, 0);
 			set_ds_src_addr(process_img_info->src_img.y_paddr,
 					process_img_info->src_img.c_paddr);
 			ipu_set(IPUC_SET_PYM_DDR, pym_slot_info->cfg,
@@ -190,7 +207,8 @@ static int ipu_pym_do_process(struct pym_slot_info *pym_slot_info)
 /* irq to trigger ipu pym frame process done */
 int ipu_pym_process_done(int errno)
 {
-	unsigned long flags;
+	struct ipu_pym_user *tmp_p_user;
+	unsigned long flags, user_flags;
 	int ret;
 	int process_type;
 
@@ -218,41 +236,56 @@ int ipu_pym_process_done(int errno)
 		return -EINVAL;
 	}
 
+	g_ipu_pym->pyming_slot_info->errno = errno;
+	tmp_p_user = g_ipu_pym->pyming_slot_info->p_user;
+
+	if (!tmp_p_user) {
+		g_ipu_pym->processing = 0;
+		spin_unlock_irqrestore(&g_ipu_pym->slock, flags);
+		pr_err("IPU slot user removed!\n");
+		return ret;
+	}
+
 	if (g_ipu_pym->pyming_slot_info->slot_type == PYM_SLOT_MULT) {
 		if (g_ipu_pym->pyming_slot_info->pym_left_num) {
 			/* not the end of the mult slot, not need report */
 			g_ipu_pym->processing = 0;
+			tmp_p_user->left_slot--;
 			spin_unlock_irqrestore(&g_ipu_pym->slock, flags);
 			wake_up_interruptible(&g_ipu_pym->process_wait);
 			return 0;
 		}
 	}
 
-	g_ipu_pym->pyming_slot_info->errno = errno;
 	process_type = g_ipu_pym->pyming_slot_info->process_type;
+	spin_lock_irqsave(&tmp_p_user->slock, user_flags);
 	if (process_type == PYM_INLINE)
 		ret = kfifo_in(&g_ipu_pym->done_inline_pym_slots,
 				g_ipu_pym->pyming_slot_info, 1);
 	else 
-		ret = kfifo_in(&g_ipu_pym->done_offline_pym_slots,
+		ret = kfifo_in(&tmp_p_user->done_offline_pym_slots,
 				g_ipu_pym->pyming_slot_info, 1);
 	if (ret < 1) {
+		spin_unlock_irqrestore(&tmp_p_user->slock, user_flags);
 		g_ipu_pym->processing = 0;
 		spin_unlock_irqrestore(&g_ipu_pym->slock, flags);
 		pr_err("IPU slot to pym error!\n");
 		return ret;
 	}
+	spin_unlock_irqrestore(&tmp_p_user->slock, user_flags);
+	tmp_p_user->left_slot--;
 	g_ipu_pym->processing = 0;
 	spin_unlock_irqrestore(&g_ipu_pym->slock, flags);
 
 	wake_up_interruptible(&g_ipu_pym->process_wait);
 	wake_up_interruptible(
-			&g_ipu_pym->done_wait[process_type]);
+			&tmp_p_user->done_wait[process_type]);
 
 	return 1;
 }
 
-int ipu_pym_wait_process_done(void *data, int len, ipu_pym_process_type process_type, int timeout)
+int ipu_pym_wait_process_done(struct ipu_pym_user *user, void *data, int len,
+		ipu_pym_process_type process_type, int timeout)
 {
 	struct pym_slot_info tmp_pym_slot;
 	unsigned long flags;
@@ -267,41 +300,45 @@ int ipu_pym_wait_process_done(void *data, int len, ipu_pym_process_type process_
 		pr_err("IPU pym not init!\n");
 		return -EINVAL;
 	}
+
+	if (!user)
+		user = &g_ipu_pym->g_user;
+
 	if (len > sizeof(struct mult_img_info_t))
 		len = sizeof(struct mult_img_info_t);
 
 	if (timeout == 0) {
-		spin_lock_irqsave(&g_ipu_pym->slock, flags);
+		spin_lock_irqsave(&user->slock, flags);
 		if (process_type == PYM_INLINE)
 			ret = kfifo_len(&g_ipu_pym->done_inline_pym_slots);
 		else
-			ret = kfifo_len(&g_ipu_pym->done_offline_pym_slots);
+			ret = kfifo_len(&user->done_offline_pym_slots);
 		if (ret) {
 			goto slot_pop;
 		} else {
-			spin_unlock_irqrestore(&g_ipu_pym->slock, flags);
+			spin_unlock_irqrestore(&user->slock, flags);
 			return -EBUSY;
 		}
 	} else if (timeout < 0) {
 		if (process_type == PYM_INLINE)
 			ret = wait_event_interruptible(
-					g_ipu_pym->done_wait[process_type],
+					user->done_wait[process_type],
 					kfifo_len(&g_ipu_pym->done_inline_pym_slots));
 		else
 			ret = wait_event_interruptible(
-					g_ipu_pym->done_wait[process_type],
-					kfifo_len(&g_ipu_pym->done_offline_pym_slots));
+					user->done_wait[process_type],
+					kfifo_len(&user->done_offline_pym_slots));
 
 	} else if (timeout > 0) {
 		if (process_type == PYM_INLINE)
 			ret = wait_event_interruptible_timeout(
-					g_ipu_pym->done_wait[process_type],
+					user->done_wait[process_type],
 					kfifo_len(&g_ipu_pym->done_inline_pym_slots),
 					msecs_to_jiffies(timeout));
 		else
 			ret = wait_event_interruptible_timeout(
-					g_ipu_pym->done_wait[process_type],
-					kfifo_len(&g_ipu_pym->done_offline_pym_slots),
+					user->done_wait[process_type],
+					kfifo_len(&user->done_offline_pym_slots),
 					msecs_to_jiffies(timeout));
 	}
 
@@ -313,25 +350,25 @@ int ipu_pym_wait_process_done(void *data, int len, ipu_pym_process_type process_
 		return -EFAULT;
 	}
 
-	spin_lock_irqsave(&g_ipu_pym->slock, flags);
+	spin_lock_irqsave(&user->slock, flags);
 slot_pop:
 	if (process_type == PYM_INLINE)
 		ret = kfifo_out(&g_ipu_pym->done_inline_pym_slots, &tmp_pym_slot, 1);
 	else
-		ret = kfifo_out(&g_ipu_pym->done_offline_pym_slots, &tmp_pym_slot, 1);
+		ret = kfifo_out(&user->done_offline_pym_slots, &tmp_pym_slot, 1);
 	if (ret != 1) {
 		pr_err("Get ipu slot from fifo error!\n");
-		spin_unlock_irqrestore(&g_ipu_pym->slock, flags);
+		spin_unlock_irqrestore(&user->slock, flags);
 		return -EFAULT;
 	}
 
 	if (tmp_pym_slot.errno) {
-		spin_unlock_irqrestore(&g_ipu_pym->slock, flags);
+		spin_unlock_irqrestore(&user->slock, flags);
 		memcpy(data, &tmp_pym_slot.img_info, len);
 		pr_err("IPU process this slot error!\n");
 		return -EAGAIN;
 	}
-	spin_unlock_irqrestore(&g_ipu_pym->slock, flags);
+	spin_unlock_irqrestore(&user->slock, flags);
 
 	memcpy(data, &tmp_pym_slot.img_info, len);
 
@@ -389,15 +426,72 @@ void ipu_pym_clear(void)
 	g_ipu_pym->pyming_slot_info->errno = -ECANCELED;
 	kfifo_reset(&g_ipu_pym->pym_slots);
 	kfifo_reset(&g_ipu_pym->done_inline_pym_slots);
-	kfifo_reset(&g_ipu_pym->done_offline_pym_slots);
 	spin_unlock_irqrestore(&g_ipu_pym->slock, flags);
+}
+
+static void ipu_pym_slot_free(struct pym_slot_info *pym_slot)
+{
+	if (!pym_slot)
+		return;
+
+	if (pym_slot->slot_type == PYM_SLOT_SINGLE) {
+		insert_slot_to_free(
+			pym_slot->img_info.src_img_info.slot_id);
+	} else {
+		insert_dual_slot_to_free(
+			pym_slot->img_info.mult_img_info.src_img_info[0].slot_id,
+			&((struct ipu_dual_cdev *)(pym_slot->p_user->host->host))->s_info);
+	}
+}
+
+int ipu_pym_user_init(struct ipu_pym_user *user)
+{
+	int i, ret;
+
+	ret = kfifo_alloc(&user->done_offline_pym_slots,
+			IPU_PYM_BUF_LEN, GFP_KERNEL);
+	if (ret) {
+		pr_err("Can't alloc pym done fifo buffer\n");
+		return ret;
+	}
+
+	for (i = 0; i < PYM_PROCESS_TYPE_END; i++)
+		init_waitqueue_head(&user->done_wait[i]);
+
+	user->left_slot = 0;
+	spin_lock_init(&user->slock);
+	user->inited = 1;
+
+	return 0;
+}
+
+void ipu_pym_user_exit(struct ipu_pym_user *user)
+{
+	struct pym_slot_info tmp_pym_slot;
+	int ret;
+
+	user->inited = 0;
+	do {
+		if (user->left_slot) {
+			msleep(10);
+			printk("pym left slot = %d\n", user->left_slot);
+			continue;
+		}
+
+		ret = kfifo_out(&user->done_offline_pym_slots, &tmp_pym_slot, 1);
+		if (ret > 0) {
+			ipu_pym_slot_free(&tmp_pym_slot);
+		}
+	} while (ret);
+
+	kfifo_free(&user->done_offline_pym_slots);
 }
 
 int ipu_pym_init(void)
 {
 	struct ipu_pym *pym;
 	struct pym_slot_info tmp_pym_slot;
-	int i, ret;
+	int ret;
 	if (g_ipu_pym)
 		return 0;
 
@@ -414,7 +508,6 @@ int ipu_pym_init(void)
 		return -ENOMEM;
 	}
 
-	pym->pym_slots.type= &tmp_pym_slot;
 	ret = kfifo_alloc(&pym->pym_slots, IPU_PYM_BUF_LEN, GFP_KERNEL);
 	if (ret) {
 		kfree(pym->pyming_slot_info);
@@ -432,7 +525,7 @@ int ipu_pym_init(void)
 		return ret;
 	}
 
-	ret = kfifo_alloc(&pym->done_offline_pym_slots, IPU_PYM_BUF_LEN, GFP_KERNEL);
+	ret = ipu_pym_user_init(&pym->g_user);
 	if (ret) {
 		kfifo_free(&pym->done_inline_pym_slots);
 		kfifo_free(&pym->pym_slots);
@@ -442,19 +535,15 @@ int ipu_pym_init(void)
 		return ret;
 	}
 
+	spin_lock_init(&pym->slock);
 	init_waitqueue_head(&pym->process_wait);
 
-	for (i = 0; i < PYM_PROCESS_TYPE_END; i++)
-		init_waitqueue_head(&pym->done_wait[i]);
-
-	spin_lock_init(&pym->slock);
 	pym->inited = 1;
 
 	pym->process_task = kthread_run(ipu_pym_process_thread, pym,
 				 "%s", "ipu_pym");
 	if (IS_ERR(pym->process_task)) {
 		pym->inited = 0;
-		kfifo_free(&pym->done_offline_pym_slots);
 		kfifo_free(&pym->done_inline_pym_slots);
 		kfifo_free(&pym->pym_slots);
 		kfree(pym->pyming_slot_info);
@@ -480,7 +569,7 @@ void ipu_pym_exit(void)
 	wake_up_interruptible(&g_ipu_pym->process_wait);
 	kthread_stop(g_ipu_pym->process_task);
 
-	kfifo_free(&g_ipu_pym->done_offline_pym_slots);
+	ipu_pym_user_exit(&g_ipu_pym->g_user);
 	kfifo_free(&g_ipu_pym->done_inline_pym_slots);
 	kfifo_free(&g_ipu_pym->pym_slots);
 

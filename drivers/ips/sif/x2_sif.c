@@ -47,6 +47,7 @@ typedef struct sif_s {
 	sif_file_t      sif_file;
 	uint32_t        bypass_inited;
 	bool			suspended;
+	int users;
 } sif_t;
 
 static struct class  *g_sif_class;
@@ -263,6 +264,7 @@ static int x2_sif_open(struct inode *inode, struct file *file)
 {
 	sif_t *sif = dev_get_drvdata(g_sif_dev);
 	sif->sif_file.event = 0;
+	sif->users++;
 	file->private_data = g_sif_dev;
 	return 0;
 }
@@ -291,6 +293,9 @@ static ssize_t x2_sif_read(struct file *file, char __user *buf, size_t size, lof
 static int x2_sif_close(struct inode *inode, struct file *file)
 {
 	sif_t *dev = sifdrv(file);
+	dev->users--;
+	if (dev->users)
+		return 0;
 	if (dev->state != SIF_STATE_DEFAULT) {
 		sif_stop(dev);
 		sif_deinit(dev);
@@ -367,6 +372,8 @@ static long x2_sif_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	case SIFIOC_DEINIT:
 		{
 			sifinfo("sif deinit cmd\n");
+			if (dev->users > 1)
+				break;
 			if (SIF_STATE_DEFAULT == dev->state) {
 				sifinfo("sif has not been init");
 				break;
@@ -400,6 +407,8 @@ static long x2_sif_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		break;
 	case SIFIOC_STOP:
 		{
+			if (dev->users > 1)
+				break;
 			sifinfo("sif stop cmd\n");
 			if (SIF_STATE_STOP == dev->state) {
 				sifinfo("sif already in stop state");
