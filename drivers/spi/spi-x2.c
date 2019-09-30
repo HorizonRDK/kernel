@@ -344,7 +344,7 @@ static void spi_diag_report(uint8_t errsta, uint32_t srcpndreg)
 				EventIdSpiErr,
 				DiagEventStaFail,
 				DiagGenEnvdataWhenErr,
-				(uint8_t *)srcpndreg,
+				(uint8_t *)&srcpndreg,
 				4);
 	}
 }
