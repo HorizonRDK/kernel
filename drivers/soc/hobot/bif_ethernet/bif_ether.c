@@ -43,9 +43,10 @@
 #include "../bif_base/bif_base.h"
 #include "../bif_base/bif_api.h"
 
-#define BIFETH_CPVER		"HOBOT-bifeth_CPV21.190705"
-#define BIFETH_APVER		"HOBOT-bifeth_APV21.190705"
+#define BIFETH_CPVER		"HOBOT-bifeth_CPV21.190930"
+#define BIFETH_APVER		"HOBOT-bifeth_APV21.190930"
 #define BIFETH_NAME		"bifeth0"
+#define BIFETH_FIX_MAC
 //#define BIFETH_RESERVED_MEM
 #define BIFETH_MEMATTRS		0	//DMA_ATTR_WRITE_BARRIER
 //#define BIFNET_HALF_FULL_IRQ
@@ -69,6 +70,24 @@
 //wait_for_completion_timeout
 //wait_for_completion_interruptible_timeout
 #define bifnet_wc	wait_for_completion_interruptible_timeout
+
+static uint64_t g_ts = 0;
+static int debug_time = 0;
+module_param(debug_time, int, 0644);
+MODULE_PARM_DESC(debug_time, "bifeth: debug_time, 0 close, 1 open");
+#define time_start() do { if (debug_time) {\
+	struct timespec ts;\
+	ktime_get_ts(&ts);\
+	g_ts = ts.tv_sec * 1000000 + ts.tv_nsec / 1000; }\
+} while (0);
+
+#define time_end(fmt, ...) do { if (debug_time) {\
+	struct timespec te;\
+	ktime_get_ts(&te);\
+	g_ts = te.tv_sec * 1000000 + te.tv_nsec / 1000 - g_ts;\
+	pr_info(fmt " %llu us\n", ##__VA_ARGS__,  g_ts);\
+	g_ts = te.tv_sec * 1000000 + te.tv_nsec / 1000; }\
+} while (0);
 
 struct bifnet_local {
 	int start;
@@ -139,7 +158,7 @@ static int bifnet_sync_cpbuf(void *p, ulong phy_addr, uint blklen,
 
 	if (!pl || !pl->start || !pl->plat)
 		return -3;
-
+	time_start();
 	if (pl->plat->plat_type == PLAT_AP) {
 		pl->bifnet_channel = get_bifnet_channel((void *)pl);
 		if (pl->bifnet_channel == BIFBUS_SD)
@@ -152,6 +171,7 @@ static int bifnet_sync_cpbuf(void *p, ulong phy_addr, uint blklen,
 			(void *)cur_phy, cur_len, buffer))
 			return -1;
 	}
+	time_end("r %06d", blklen);
 
 	return 0;
 }
@@ -165,7 +185,7 @@ static int bifnet_sync_apbuf(void *p, ulong phy_addr, uint blklen,
 
 	if (!pl || !pl->start || !pl->plat)
 		return -3;
-
+	time_start();
 	if (pl->plat->plat_type == PLAT_AP) {
 		pl->bifnet_channel = get_bifnet_channel((void *)pl);
 		if (pl->bifnet_channel == BIFBUS_SD)
@@ -178,7 +198,7 @@ static int bifnet_sync_apbuf(void *p, ulong phy_addr, uint blklen,
 			(void *)cur_phy, cur_len, buffer))
 			return -1;
 	}
-
+	time_end("w %06d", blklen);
 	return 0;
 
 }
@@ -403,7 +423,7 @@ static void bifnet_rx_work(struct work_struct *work)
 		cur_elen = pl->other->elen[cur_head % QUEUE_MAX];
 		cur_elen = MIN(cur_elen, ETH_FRAME_LEN);
 		if (cur_elen < ETH_HLEN) {
-			pr_warn("%s: Warn packet empty\n", dev->name);
+			pr_debug("%s: Warn packet empty\n", dev->name);
 			dev->stats.rx_length_errors++;
 			cur_head = (cur_head + 1) % QUEUE_MAX;
 			continue;
@@ -580,7 +600,7 @@ static int net_send_thread(void *arg)
 
 			cur_elen = MIN(skb->len + 1, ETH_FRAME_LEN);
 			if (cur_elen < ETH_HLEN) {
-				pr_warn("%s: Warn empty\n", dev->name);
+				pr_debug("%s: Warn packet empty\n", dev->name);
 				pl->skbs_head = (pl->skbs_head + 1) %
 					MAX_SKB_BUFFERS;
 				if (skb)
@@ -760,20 +780,7 @@ static int bifnet_pre_init(void)
 
 	sprintf(dev->name, "%s", BIFETH_NAME);
 	dev->netdev_ops = &bifnet_ops;
-#ifdef BIFETH_IFF_NOARP
-	dev->flags |= IFF_NOARP;	//ARP
-#endif
-#if 0
-	dev->dev_addr[0] = 0x00;
-	dev->dev_addr[1] = 0x12;
-	dev->dev_addr[2] = 0x34;
-	dev->dev_addr[3] = 0x56;
-	dev->dev_addr[4] = 0x78;
-	dev->dev_addr[5] = 0x88;
-	get_random_bytes((void *)&dev->dev_addr[3], 3);
-#else
-	random_ether_addr(dev->dev_addr);
-#endif
+
 	//Initialize the net local structure.
 	pl = netdev_priv(dev);
 	memset(pl, 0, sizeof(*pl));
@@ -785,7 +792,25 @@ static int bifnet_pre_init(void)
 		ret = -1;
 		goto exit_2;
 	}
-
+#ifdef BIFETH_IFF_NOARP
+	dev->flags |= IFF_NOARP;	//ARP
+#endif
+#ifdef BIFETH_FIX_MAC
+	dev->dev_addr[0] = 0x00;
+	dev->dev_addr[1] = 0x12;
+	dev->dev_addr[2] = 0x34;
+	dev->dev_addr[3] = 0x56;
+	dev->dev_addr[4] = 0x78;
+	if (pl->plat->plat_type == PLAT_AP)
+		dev->dev_addr[5] = 0x99;
+	else
+		dev->dev_addr[5] = 0x88;
+	dev->dev_addr[0] &= 0xfe;	/* clear multicast bit */
+	dev->dev_addr[0] |= 0x02;	/* set local assignment bit (IEEE802) */
+//	get_random_bytes((void *)&dev->dev_addr[3], 3);
+#else
+	random_ether_addr(dev->dev_addr);
+#endif
 	//register netdev
 	register_netdev(dev);
 	bifnet = dev;
