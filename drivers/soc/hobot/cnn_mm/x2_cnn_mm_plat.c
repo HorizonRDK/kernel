@@ -50,7 +50,7 @@ static struct cnn_heap **heaps;
 static u32 phys_offset = 0;
 
 #define X2_CNN_RT_DRV_NAME "cnn-plat"
-#if 0
+
 #define CNN0_MODEL_MM_OFFSET	0x40000000
 #define CNN0_MODEL_MM_SIZE	0x08000000
 
@@ -62,7 +62,7 @@ static u32 phys_offset = 0;
 
 #define CNN_RESULT_MM_OFFSET	0x58000000
 #define CNN_RESULT_MM_SIZE	0x08000000
-#endif
+
 #define CNN_MM_RSV_START        0x40023000
 #define CNN_MM_RSV_SZ           0x1FFDD000
 
@@ -130,7 +130,7 @@ static struct cnn_plat_data *x2_cnn_parse_dt(struct platform_device *pdev)
 			goto out;
 		}
 		pdata->heaps[i].type = type;
-#if 0
+
 		if (!strcmp(pdata->heaps[i].heap_name, "cnn0_model_mm")) {
 			pdata->heaps[i].base = CNN0_MODEL_MM_OFFSET;
 			pdata->heaps[i].size = CNN0_MODEL_MM_SIZE;
@@ -144,7 +144,7 @@ static struct cnn_plat_data *x2_cnn_parse_dt(struct platform_device *pdev)
 			pdata->heaps[i].base = CNN_RESULT_MM_OFFSET;
 			pdata->heaps[i].size = CNN_RESULT_MM_SIZE;
 		}
-#endif
+
         if (!strcmp(pdata->heaps[i].heap_name, "cnn_mm")) {
 			pdata->heaps[i].base = CNN_MM_RSV_START;
 			pdata->heaps[i].size = CNN_MM_RSV_SZ;
