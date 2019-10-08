@@ -705,7 +705,7 @@ err_flag_read:
 			int ret = wait_event_interruptible_timeout
 				(isp_cdev->isp_3adata_waitq,
 				isp_cdev->isp_3adata_condition,
-				X2_ISP_TIMEOUT);
+			msecs_to_jiffies(isp_cdev->isp_3adata_timeout));
 			isp_cdev->isp_3adata_condition = 0;
 
 			if (ret == 0)
@@ -724,6 +724,14 @@ err_flag_read:
 		break;
 	case ISPC_UPDATE_FIFO_INFO:
 		isp_update_read_index(&isp_cdev->isp_3adata_fifo);
+		break;
+	case ISPC_SET_TIMEOUT:
+		if (copy_from_user((void *)&isp_cdev->isp_3adata_timeout,
+			(void __user *)arg, sizeof(struct isp_ioreg_s))) {
+			dev_err(g_isp_dev,
+				"[%s: %d] isp copy data from user failed!\n",
+				__func__, __LINE__);
+		}
 		break;
 	default:
 		break;
@@ -889,6 +897,7 @@ static int __init isp_dev_init(void)
 	/* wait queue */
 	init_waitqueue_head(&isp_mod->isp_3adata_waitq);
 	isp_mod->isp_3adata_condition = 0;
+	isp_mod->isp_3adata_timeout = X2_ISP_TIMEOUT;
 
 	isp_mod_data = isp_mod;
 

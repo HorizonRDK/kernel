@@ -143,6 +143,7 @@ struct isp_mod_s {
 	struct work_struct isp_3adata_work;
 	wait_queue_head_t isp_3adata_waitq;
 	int isp_3adata_condition;
+	uint32_t isp_3adata_timeout;
 };
 
 typedef struct _reg_s {
@@ -172,6 +173,8 @@ typedef struct _reg_s {
 						/* get read idx */
 #define ISPC_UPDATE_FIFO_INFO	_IO(ISP_IOC_MAGIC, 15)
 						/* update read idx */
+#define ISPC_SET_TIMEOUT	_IOW(ISP_IOC_MAGIC, 16, uint32_t)
+						/* set timeout */
 
 #define ISP_READ		_IOWR('p', 0, reg_t)
 #define ISP_WRITE		_IOW('p', 1, reg_t)
