@@ -1977,7 +1977,7 @@ static int x2_cnn_drvsuspend(struct device *dev)
 {
 	struct x2_cnn_dev *cnn_dev = dev_get_drvdata(dev);
 	unsigned int tmp;
-
+	lock_bpu(cnn_dev);
 	pr_info("%s!!\n", __func__);
 	if (regulator_is_enabled(cnn_dev->cnn_regulator)) {
 		tmp = readl(cnn_dev->cnn_pmu);
@@ -2020,6 +2020,7 @@ static int x2_cnn_drvresume(struct device *dev)
 	x2_cnn_hw_init(cnn_dev);
 	x2_cnn_set_fc_base(cnn_dev);
 	x2_cnn_set_default_fc_depth(cnn_dev, 1023);
+	unlock_bpu(cnn_dev);
 	return 0;
 }
 
