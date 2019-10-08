@@ -21,9 +21,13 @@
 #define PLLCLK_SEL			0x300
 #define VIOPLL_PD_CTRL		0x44
 #define CNNPLL_PD_CTRL		0x24
+#define VIOSYS_CLK_DIV_SEL1	0x240
+#define VIOSYS_CLK_DIV_SEL2	0x244
 
 static u32 pllclk_sel = 0x111110;
 static u32 viopll_pd_ctrl;
+static u32 viosys_clk_div_sel1;
+static u32 viosys_clk_div_sel2;
 static u32 cnnpll_pd_ctrl;
 
 extern void __iomem *clk_reg_base;
@@ -111,11 +115,13 @@ static int x2_clk_suspend(void)
 		return 0;
 	}
 
-	//dump_sysctrl_regs();
+//	dump_sysctrl_regs();
 
-	//pllclk_sel = readl(clk_reg_base + PLLCLK_SEL);
+	pllclk_sel = readl(clk_reg_base + PLLCLK_SEL);
 	viopll_pd_ctrl = readl(clk_reg_base + VIOPLL_PD_CTRL);
 	cnnpll_pd_ctrl = readl(clk_reg_base + CNNPLL_PD_CTRL);
+	viosys_clk_div_sel1 = readl(clk_reg_base + VIOSYS_CLK_DIV_SEL1);
+	viosys_clk_div_sel2 = readl(clk_reg_base + VIOSYS_CLK_DIV_SEL2);
 
 	return 0;
 }
@@ -132,8 +138,10 @@ static void x2_clk_resume(void)
 	writel(pllclk_sel, clk_reg_base + PLLCLK_SEL);
 	writel(viopll_pd_ctrl, clk_reg_base + VIOPLL_PD_CTRL);
 	writel(cnnpll_pd_ctrl, clk_reg_base + CNNPLL_PD_CTRL);
+	writel(viosys_clk_div_sel1, clk_reg_base + VIOSYS_CLK_DIV_SEL1);
+	writel(viosys_clk_div_sel2, clk_reg_base + VIOSYS_CLK_DIV_SEL2);
 
-	//dump_sysctrl_regs();
+//	dump_sysctrl_regs();
 }
 
 static struct syscore_ops x2_clk_syscore_ops = {
