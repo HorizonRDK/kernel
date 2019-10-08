@@ -972,7 +972,7 @@ static void mmc_set_bus_speed(struct mmc_card *card)
 		max_dtr = card->csd.max_dtr;
 
 #ifdef	CONFIG_X2A_FPGA
-	max_dtr = 5000000;
+	max_dtr = 24000000;
 #endif
 	mmc_set_clock(card->host, max_dtr);
 }
