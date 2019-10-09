@@ -209,7 +209,16 @@
 					27	0
 					28	0
 					29	0
-					30	3
+					30	3 /*pinmux -> gpio func*/
+				>;
+			};
+			bifspi_func_reset:bifspi_func_reset {
+				pinctrl-x2,pins-muxs = <
+					26	0
+					27	0
+					28	0
+					29	0
+					30	0 /*pinmux -> reset func*/
 				>;
 			};
 			spi0_func:spi0_func {

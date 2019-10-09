@@ -87,7 +87,8 @@ struct bifspi_t {
 	// ddr limited scope
 	unsigned int first;
 	unsigned int last;
-	void __iomem *pinmux;
+	struct pinctrl_state *pins_gpio;
+	struct pinctrl_state *pins_reset;
 };
 struct bifspi_t *bif_info;
 
@@ -259,28 +260,16 @@ static int bif_reset(struct bifspi_t *pbif)
 
 static int bif_change_reset2gpio(void)
 {
-	unsigned int reg_val;
-
-	// set gpip func
-	if (bif_info->pinmux) {
-		reg_val = readl((void *)bif_info->pinmux);
-		reg_val |= 0xc0000000;
-		writel(reg_val, (void *)bif_info->pinmux);
-	}
-	return 0;
+	if (!bif_info->pins_gpio)
+		return -ENODEV;
+	return pinctrl_select_state(bif_info->pinctrl, bif_info->pins_gpio);
 }
 
 static int bif_recover_reset_func(void)
 {
-	unsigned int reg_val;
-
-	// set default func
-	if (bif_info->pinmux) {
-		reg_val = readl((void *)bif_info->pinmux);
-		reg_val &= ~(0xc0000000);
-		writel(reg_val, (void *)bif_info->pinmux);
-	}
-	return 0;
+	if (!bif_info->pins_reset)
+		return -ENODEV;
+	return pinctrl_select_state(bif_info->pinctrl, bif_info->pins_reset);
 }
 
 static void bif_set_access(struct bifspi_t *pbif, unsigned int first,
@@ -563,13 +552,36 @@ static int bifspi_probe(struct platform_device *pdev)
 	unsigned int value32;
 	unsigned long flags;
 	int value;
-	unsigned int reg_val;
 
 	bif_info = kzalloc(sizeof(struct bifspi_t), GFP_KERNEL);
 	if (bif_info == NULL) {
 		//pr_err("bif_info malloc failed");
 		return -ENOMEM;
 	}
+
+	bif_info->pinctrl = devm_pinctrl_get(&pdev->dev);
+	if (IS_ERR(bif_info->pinctrl)) {
+		dev_warn(&pdev->dev, "pinctrl get none\n");
+		bif_info->pinctrl = NULL;
+		bif_info->pins_gpio = NULL;
+		bif_info->pins_reset = NULL;
+	} else {
+		bif_info->pins_gpio = pinctrl_lookup_state(bif_info->pinctrl,
+							   "default");
+		if (IS_ERR(bif_info->pins_gpio)) {
+			dev_warn(&pdev->dev, "bifspi default get error %ld\n",
+					PTR_ERR(bif_info->pins_gpio));
+			bif_info->pins_gpio = NULL;
+		}
+		bif_info->pins_reset = pinctrl_lookup_state(bif_info->pinctrl,
+							    "reset");
+		if (IS_ERR(bif_info->pins_reset)) {
+			dev_warn(&pdev->dev, "bifspi reset get error %ld\n",
+					PTR_ERR(bif_info->pins_reset));
+			bif_info->pins_reset = NULL;
+		}
+	}
+
 	platform_set_drvdata(pdev, bif_info);
 	spin_lock_init(&bif_info->lock);
 	bif_info->first = ap_access_first;
@@ -661,12 +673,7 @@ static int bifspi_probe(struct platform_device *pdev)
 	if (ret != 0)
 		dev_err(&pdev->dev, "sysfs_create_group failed\n");
 
-	/*set gpio1[15] default function*/
-	bif_info->pinmux = ioremap(GPIO1_CFG, 4);
-	reg_val = readl((void *)bif_info->pinmux);
-	reg_val &= ~(0xc0000000);
-	writel(reg_val, (void *)bif_info->pinmux);
-
+	bif_recover_reset_func();
 	pr_info("BIF_INIT FINISHED\n");
 	return 0;
 
@@ -692,8 +699,6 @@ static int bifspi_remove(struct platform_device *pdev)
 		devm_free_irq(&pdev->dev, pbif->irq, pbif);
 	if (pbif->regs_base > 0)
 		devm_iounmap(&pdev->dev, bif_info->regs_base);
-	if (bif_info->pinmux)
-		iounmap(bif_info->pinmux);
 
 	kfree(pbif);
 	del_timer_sync(&bifspi_diag_timer);

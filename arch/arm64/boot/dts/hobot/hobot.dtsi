@@ -620,8 +620,9 @@
 			status = "disabled";
 			resets = <&rst 0x00 3>;
 			reset-names = "bifspi";
-			pinctrl-names = "default";
+			pinctrl-names = "default","reset";
 			pinctrl-0 = <&bifspi_func>;
+			pinctrl-1 = <&bifspi_func_reset>;
 			ap_access_first = <0x0>;
 			ap_access_last = <0xfffffffc>;
 		};
