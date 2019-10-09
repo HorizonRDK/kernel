@@ -351,11 +351,13 @@ static int ipu_pym_process_thread(void *data)
 	}
 
 	while (ipu_pym->inited) {
-		ret = wait_event_interruptible(ipu_pym->process_wait,
-				kfifo_len(&ipu_pym->pym_slots) && (!ipu_pym->processing));
-		if (ret < 0)
-			continue;
-
+		while (ipu_pym->processing || (kfifo_len(&ipu_pym->pym_slots) == 0)) {
+			ret = wait_event_interruptible_timeout(ipu_pym->process_wait,
+						kfifo_len(&ipu_pym->pym_slots) && (!ipu_pym->processing),
+						msecs_to_jiffies(200));
+			if (ret <= 0)
+				continue;
+		}
 		spin_lock_irqsave(&ipu_pym->slock, flags);
 		ret = kfifo_out(&ipu_pym->pym_slots, &tmp_pym_slot, 1);
 		if (ret != 1) {

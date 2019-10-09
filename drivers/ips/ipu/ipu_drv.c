@@ -541,7 +541,7 @@ int8_t ipu_drv_stop(void)
 
 static int ipu_thread(void *data)
 {
-	//unsigned long flag;
+	unsigned long flag;
 	uint32_t status = 0;
 	struct x2_ipu_data *ipu = (struct x2_ipu_data *)data;
 	ipu_info("ipu thread run\n");
@@ -551,20 +551,19 @@ static int ipu_thread(void *data)
 		if (kthread_should_stop())
 			break;
 
-		spin_lock(&ipu->elock);
+		spin_lock_irqsave(&ipu->elock, flag);
 		if (ipu->stop) {
 			ipu->isr_data = 0;
-			spin_unlock(&ipu->elock);
+			spin_unlock_irqrestore(&ipu->elock, flag);
 			continue;
 		}
 		status = ipu->isr_data;
 		ipu->isr_data = 0;
 //		ipu->pymid_done = false;
 //		ipu->done_idx = -1;
-
+		spin_unlock_irqrestore(&ipu->elock, flag);
 		if (ipu->ipu_mode && ipu->ipu_handle[ipu->ipu_mode])
 			ipu->ipu_handle[ipu->ipu_mode](status);
-		spin_unlock(&ipu->elock);
 
 	} while (!kthread_should_stop());
 	ipu_info("ipu thread exit\n");
