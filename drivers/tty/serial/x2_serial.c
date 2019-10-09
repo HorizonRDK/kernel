@@ -711,6 +711,11 @@ static void x2_uart_set_termios(struct uart_port *port,
 		cpu_relax();
 
 	/*
+	 * Update the per-port timeout.
+	 */
+	uart_update_timeout(port, termios->c_cflag, baud);
+
+	/*
 	 * Set the TX enable bit and RX enable bit
 	 * to enable the transmitter and receiver.
 	 */
@@ -882,7 +887,7 @@ static int x2_uart_startup(struct uart_port *port)
 	writel(mask, port->membase + X2_UART_INT_SETMASK);
 
 	mask = UART_RXTO | UART_RXOE | UART_BI |
-		UART_FE | UART_PE | UART_CTSC | UART_RXDON;
+		UART_FE | UART_PE | UART_CTSC | UART_RXDON | UART_RXFUL;
 	writel(mask, port->membase + X2_UART_INT_UNMASK);
 #else
 	writel(UART_IRQ_SRC_MASK, port->membase + X2_UART_INT_SETMASK);
