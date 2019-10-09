@@ -29,6 +29,7 @@
 #include <linux/dma-mapping.h>
 #include <linux/pm_runtime.h>
 #include <linux/clk.h>
+#include <linux/debugfs.h>
 
 #include "x2_serial.h"
 
@@ -55,12 +56,27 @@ MODULE_PARM_DESC(tx_trigger_level, "Tx trigger level, 0-15 (uint: 4 bytes)");
 //#define CONFIG_X2_TTY_POLL_MODE
 //#define CONFIG_X2_TTY_IRQ_MODE
 #define CONFIG_X2_TTY_DMA_MODE
+#define CONFIG_X2_SERIAL_DEBUGFS
 
 #ifdef CONFIG_X2_TTY_POLL_MODE
 #define X2_UART_RX_POLL_TIME	50	/* Unit is ms */
 #endif /* CONFIG_X2_TTY_POLL_MODE */
 #define TX_IN_PROGRESS_DMA     1
 #define TX_IN_PROGRESS_INT     2
+
+#ifdef CONFIG_X2_SERIAL_DEBUGFS
+/* for debugfs */
+struct dentry *dentry_root;
+struct dentry *dentry_data;
+struct dentry *dentry_addr;
+struct dentry *dentry_status;
+static unsigned int dgb_tx_count;
+static unsigned int dgb_tx_tail;
+static unsigned int dgb_tx_head;
+static unsigned int dgb_rx_count;
+static unsigned int dgb_addr;
+static unsigned char __iomem *dgb_membase;
+#endif /* CONFIG_X2_SERIAL_DEBUGFS */
 
 /**
  * struct x2_uart - device data
@@ -158,6 +174,13 @@ static void x2_uart_dma_tx_start(struct uart_port *port)
 	if (!count) {
 		return;
 	}
+
+#ifdef CONFIG_X2_SERIAL_DEBUGFS
+		dgb_tx_count = port->icount.tx;
+		dgb_tx_head = port->state->xmit.head;
+		dgb_tx_tail = port->state->xmit.tail;
+#endif /* CONFIG_X2_SERIAL_DEBUGFS */
+
 #ifdef X2_UART_DBG
 	dbg_tx_cnt[dbg_tx_index] = count;
 	dbg_tx_index = (dbg_tx_index + 1) & (1024 - 1);
@@ -261,6 +284,10 @@ static void x2_uart_dma_rxdone(void *dev_id)
 		count2 = rx_bytes;
 	}
 
+#ifdef CONFIG_X2_SERIAL_DEBUGFS
+	dgb_rx_count = rx_bytes;
+#endif /* CONFIG_X2_SERIAL_DEBUGFS */
+
 	copied = tty_insert_flip_string(tty_port,
 					((unsigned char *)(x2_port->rx_buf +
 							   x2_port->rx_off)),
@@ -328,6 +355,10 @@ static void x2_uart_handle_rx(void *dev_id, unsigned int irqstatus)
 	while (irqstatus & UART_RXFUL) {
 		data = readl(port->membase + X2_UART_RDR);
 		port->icount.rx++;
+
+#ifdef CONFIG_X2_SERIAL_DEBUGFS
+	dgb_rx_count = port->icount.rx;
+#endif /* CONFIG_X2_SERIAL_DEBUGFS */
 
 		if (irqstatus & UART_BI) {
 			port->icount.brk++;
@@ -412,6 +443,12 @@ static void x2_uart_handle_tx(void *dev_id, unsigned char in_irq)
 		 */
 		port->state->xmit.tail =
 			(port->state->xmit.tail + 1) & (UART_XMIT_SIZE - 1);
+
+#ifdef CONFIG_X2_SERIAL_DEBUGFS
+		dgb_tx_count = port->icount.tx;
+		dgb_tx_head = port->state->xmit.head;
+		dgb_tx_tail = port->state->xmit.tail;
+#endif /* CONFIG_X2_SERIAL_DEBUGFS */
 
 		/*
 		 * Hardware needs to transmit a char to make the interrupt of tx.
@@ -845,6 +882,10 @@ static int x2_uart_startup(struct uart_port *port)
 	unsigned int val = 0;
 	unsigned int mask;
 	struct x2_uart *x2_uart = port->private_data;
+
+#ifdef CONFIG_X2_SERIAL_DEBUGFS
+	dgb_membase = port->membase;
+#endif /* CONFIG_X2_SERIAL_DEBUGFS */
 
 	spin_lock_irqsave(&port->lock, flags);
 
@@ -1413,6 +1454,121 @@ static const struct of_device_id x2_uart_of_match[] = {
 
 MODULE_DEVICE_TABLE(of, x2_uart_of_match);
 
+#ifdef CONFIG_X2_SERIAL_DEBUGFS
+static int x2_regaddr_get(void *data, u64 *val)
+{
+	*val = dgb_addr;
+	return 0;
+}
+
+static int x2_regaddr_set(void *data, u64 val)
+{
+	dgb_addr = val;
+	return 0;
+}
+
+DEFINE_SIMPLE_ATTRIBUTE(x2_addr_fops, x2_regaddr_get, x2_regaddr_set, "%llx\n");
+
+static int x2_regdata_get(void *data, u64 *val)
+{
+	*val = readl(dgb_membase + dgb_addr);
+	return 0;
+}
+
+static int x2_regdata_set(void *data, u64 val)
+{
+	writel(val, dgb_membase + dgb_addr);
+	return 0;
+}
+
+DEFINE_SIMPLE_ATTRIBUTE(x2_data_fops, x2_regdata_get, x2_regdata_set, "%llx\n");
+
+static int x2_serial_statis_show(struct seq_file *s, void *unused)
+{
+	seq_printf(s, "%s\t%s\t%s\t%s\n",
+		"tx_cnt", "tx_head", "tx_tail", "rx_cnt");
+	seq_printf(s, "%d\t%d\t%d\t%d\n",
+		dgb_tx_count, dgb_tx_tail, dgb_tx_head, dgb_rx_count);
+
+	seq_printf(s, "%s\n", "=====================================");
+	seq_printf(s, "%s\t", "UART_RDR");
+	seq_printf(s, "%x\n", readl(dgb_membase + X2_UART_RDR));
+	seq_printf(s, "%s\t", "UART_LCR");
+	seq_printf(s, "%x\n", readl(dgb_membase + X2_UART_LCR));
+	seq_printf(s, "%s\t", "UART_ENR");
+	seq_printf(s, "%x\n", readl(dgb_membase + X2_UART_ENR));
+	seq_printf(s, "%s\t", "UART_BCR");
+	seq_printf(s, "%x\n", readl(dgb_membase + X2_UART_BCR));
+	seq_printf(s, "%s\t", "UART_MCR");
+	seq_printf(s, "%x\n", readl(dgb_membase + X2_UART_MCR));
+	seq_printf(s, "%s\t", "UART_TCR");
+	seq_printf(s, "%x\n", readl(dgb_membase + X2_UART_TCR));
+	seq_printf(s, "%s\t", "UART_FCR");
+	seq_printf(s, "%x\n", readl(dgb_membase + X2_UART_FCR));
+	seq_printf(s, "%s\t", "UART_LSR");
+	seq_printf(s, "%x\n", readl(dgb_membase + X2_UART_LSR));
+	seq_printf(s, "%s\t", "UART_MSR");
+	seq_printf(s, "%x\n", readl(dgb_membase + X2_UART_MSR));
+	seq_printf(s, "%s\t", "UART_RXADDR");
+	seq_printf(s, "%x\n", readl(dgb_membase + X2_UART_RXADDR));
+	seq_printf(s, "%s\t", "UART_RXSIZE");
+	seq_printf(s, "%x\n", readl(dgb_membase + X2_UART_RXSIZE));
+	seq_printf(s, "%s\t", "UART_RXDMA");
+	seq_printf(s, "%x\n", readl(dgb_membase + X2_UART_RXDMA));
+	seq_printf(s, "%s\t", "UART_TXADDR");
+	seq_printf(s, "%x\n", readl(dgb_membase + X2_UART_TXADDR));
+	seq_printf(s, "%s\t", "UART_TXSIZE");
+	seq_printf(s, "%x\n", readl(dgb_membase + X2_UART_TXSIZE));
+	seq_printf(s, "%s\t", "UART_TXDMA");
+	seq_printf(s, "%x\n", readl(dgb_membase + X2_UART_TXDMA));
+	seq_printf(s, "%s\t", "UART_INTMASK");
+	seq_printf(s, "%x\n", readl(dgb_membase + X2_UART_INT_MASK));
+	return 0;
+}
+
+static int x2_serial_status_open_seq(struct inode *inode, struct file *file)
+{
+	return single_open(file, x2_serial_statis_show, inode->i_private);
+}
+
+static const struct file_operations x2_serial_status_fops = {
+	.open = x2_serial_status_open_seq,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+
+static void x2_uart_debugfs_init(struct platform_device *pdev)
+{
+	dentry_root = debugfs_create_dir("x2_serial", NULL);
+	if (!dentry_root) {
+		dev_warn(&pdev->dev, "Failed to create debugfs root directory\n");
+		return;
+	}
+
+	dentry_data = debugfs_create_file("regdata", 0644,
+			dentry_root, NULL, &x2_data_fops);
+	if (!dentry_data) {
+		dev_warn(&pdev->dev, "Failed to create debugfs regdata file\n");
+		return;
+	}
+
+	dentry_addr = debugfs_create_file("regaddr", 0644,
+			dentry_root, NULL, &x2_addr_fops);
+	if (!dentry_addr) {
+		dev_warn(&pdev->dev, "Failed to create debugfs regaddr file\n");
+		return;
+	}
+
+	dentry_status = debugfs_create_file("statis", 0644,
+			dentry_root, NULL, &x2_serial_status_fops);
+	if (!dentry_status) {
+		dev_warn(&pdev->dev, "Failed to create debugfs status file\n");
+		return;
+	}
+}
+#endif /* CONFIG_X2_SERIAL_DEBUGFS */
+
 /**
  * x2_uart_probe - Platform driver probe
  * @pdev: Pointer to the platform device structure
@@ -1426,6 +1582,10 @@ static int x2_uart_probe(struct platform_device *pdev)
 	struct resource *res;
 	struct x2_uart *x2_uart_data;
 	const struct of_device_id *match;
+
+#ifdef CONFIG_X2_SERIAL_DEBUGFS
+	x2_uart_debugfs_init(pdev);
+#endif /* CONFIG_X2_SERIAL_DEBUGFS */
 
 	x2_uart_data = devm_kzalloc(&pdev->dev, sizeof(*x2_uart_data),
 					GFP_KERNEL);
