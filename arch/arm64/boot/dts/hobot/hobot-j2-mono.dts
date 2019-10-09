@@ -133,6 +133,12 @@
 
 };
 
+&i2c3 {
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c3_func>;
+};
+
 &pinctrl {
 	status = "okay";
 	gpioirq-bank-cfg=<18 0 0 0>;
