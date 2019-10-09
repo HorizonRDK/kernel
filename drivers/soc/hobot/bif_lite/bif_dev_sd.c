@@ -38,7 +38,7 @@
 #include "hbipc_errno.h"
 #include "bif_dev_sd.h"
 
-#define VERSION "2.7.0"
+#define VERSION "2.7.1"
 #define VERSION_LEN (16)
 static char version_str[VERSION_LEN];
 
@@ -560,6 +560,9 @@ static void x2_bif_data_deinit(struct x2_bif_data *bif_data)
 static DEFINE_MUTEX(open_mutex);
 #ifdef CONFIG_HOBOT_BIF_AP
 static int bif_lite_init_success;
+#define RETRY_COUNT_MAX   (5)
+#define RETRY_INTERVAL    (1000)
+static int retry_init_count;
 #endif
 static int x2_bif_open(struct inode *inode, struct file *file)
 {
@@ -588,11 +591,20 @@ static int x2_bif_open(struct inode *inode, struct file *file)
 		file->private_data = feature;
 #ifdef CONFIG_HOBOT_BIF_AP
 		if (!bif_lite_init_success) {
+retry_1:
 			if (bif_lite_init_domain(&domain) < 0) {
-				pr_info("1: bif_lite_init error\n");
-				ret = -EPERM;
-				goto err;
+				++retry_init_count;
+				if (retry_init_count < RETRY_COUNT_MAX) {
+					msleep(RETRY_INTERVAL);
+					goto retry_1;
+				} else {
+					pr_info("1: bif_lite_init error\n");
+					ret = -EPERM;
+					retry_init_count = 0;
+					goto err;
+				}
 			} else {
+				retry_init_count = 0;
 				data.domain_id = domain.domain_id;
 				ret = mang_frame_send2opposite(&domain,
 				MANAGE_CMD_QUERY_SERVER,
@@ -608,22 +620,40 @@ static int x2_bif_open(struct inode *inode, struct file *file)
 				}
 			}
 		} else {
+retry_2:
 			if (bif_lite_init_domain(&domain) < 0) {
-				pr_info("2: bif_lite_init error\n");
-				ret = -EPERM;
-				goto err;
-			}
+				++retry_init_count;
+				if (retry_init_count < RETRY_COUNT_MAX) {
+					msleep(RETRY_INTERVAL);
+					goto retry_2;
+				} else {
+					pr_info("2: bif_lite_init error\n");
+					ret = -EPERM;
+					retry_init_count = 0;
+					goto err;
+				}
+			} else
+				retry_init_count = 0;
 		}
 #endif
 		recv_handle_stock_frame(&domain);
 		++bif_data.users;
 	} else {
 #ifdef CONFIG_HOBOT_BIF_AP
+retry_3:
 		if (bif_lite_init_domain(&domain) < 0) {
-			pr_info("3: bif_lite_init error\n");
-			ret = -EPERM;
-			goto err;
-		}
+			++retry_init_count;
+			if (retry_init_count < RETRY_COUNT_MAX) {
+				msleep(RETRY_INTERVAL);
+				goto retry_3;
+			} else {
+				pr_info("3: bif_lite_init error\n");
+				ret = -EPERM;
+				retry_init_count = 0;
+				goto err;
+			}
+		} else
+			retry_init_count = 0;
 #endif
 		file->private_data = feature;
 		++bif_data.users;
