@@ -741,7 +741,6 @@
 
 		cnn_opp_table: cnn_opp_table {
 			compatible = "operating-points-v2";
-			opp-shared;
 			opp00 {
 				opp-hz = /bits/ 64 <800000000>;
 				opp-microvolt = <1000000>;
