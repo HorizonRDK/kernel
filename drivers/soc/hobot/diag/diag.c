@@ -1192,6 +1192,7 @@ static void diag_work_handler(struct work_struct *work)
 	spin_lock_irqsave(&diag_group1_list_state_spinlock, flags);
 	if (diag_group1_list_state == LIST_WAITE_FOR_PROCESS) {
 		diag_group1_list_state = LIST_PROCESSING;
+		spin_unlock_irqrestore(&diag_group1_list_state_spinlock, flags);
 		group_process++;
 		spin_lock_irqsave(&diag_group1_high_list_spinlock, irqsta);
 		list_for_each_entry_safe(pidinfo, next, &diag_group1_high_list, idlst) {
@@ -1231,8 +1232,9 @@ static void diag_work_handler(struct work_struct *work)
 				pr_debug("diag down entry form group1 low list\n");
 		}
 		diag_group1_low_list_num = 0;
-		diag_group1_list_state = LIST_IDLE;
 		spin_unlock_irqrestore(&diag_group1_low_list_spinlock, irqsta);
+		spin_lock_irqsave(&diag_group1_list_state_spinlock, flags);
+		diag_group1_list_state = LIST_IDLE;
 		spin_unlock_irqrestore(&diag_group1_list_state_spinlock,
 					irqsta);
 	} else {
@@ -1242,6 +1244,7 @@ static void diag_work_handler(struct work_struct *work)
 	spin_lock_irqsave(&diag_group2_list_state_spinlock, flags);
 	if (diag_group2_list_state == LIST_WAITE_FOR_PROCESS) {
 		diag_group2_list_state = LIST_PROCESSING;
+		spin_unlock_irqrestore(&diag_group2_list_state_spinlock, flags);
 		group_process++;
 		spin_lock_irqsave(&diag_group2_high_list_spinlock, irqsta);
 		list_for_each_entry_safe(pidinfo,
@@ -1292,8 +1295,9 @@ static void diag_work_handler(struct work_struct *work)
 			}
 		}
 		diag_group1_low_list_num = 0;
-		diag_group2_list_state = LIST_IDLE;
 		spin_unlock_irqrestore(&diag_group2_low_list_spinlock, irqsta);
+		spin_lock_irqsave(&diag_group2_list_state_spinlock, flags);
+		diag_group2_list_state = LIST_IDLE;
 		spin_unlock_irqrestore(&diag_group2_list_state_spinlock,
 								irqsta);
 	} else {
