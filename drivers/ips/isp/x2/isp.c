@@ -198,6 +198,51 @@ static int isp_get_read_index(struct isp_3adata_fifo *fifo)
 	return fifo->fifo_r;
 }
 
+static int isp_get_read_index_conditional
+	(struct isp_3adata_fifo *fifo, struct timeval *tv)
+{
+	struct isp_3a_data *p;
+	int fifo_r, fifo_w, size, len, index;
+
+	if (fifo == NULL || fifo->data == NULL || tv == NULL) {
+		dev_info(g_isp_dev, "[%s]\n", __func__);
+		return -1;
+	}
+
+	if (fifo->len == 0) {
+		dev_info(g_isp_dev, "[%s] fifo is empty.\n", __func__);
+		return -1;
+	}
+
+	fifo_r = fifo->fifo_r;
+	fifo_w = fifo->fifo_w;
+	size = fifo->size;
+	len = fifo->len;
+
+	/* search the max time which less than tv. */
+	/* 1. */
+	index = fifo_r;
+	p = fifo->data + index;
+	if (timeval_compare(&p->tv, tv) > 0)
+		return -1;
+	fifo_r = (fifo_r + 1) % size;
+	len--;
+
+	/* 2. */
+	while (len != 0) {
+		index = fifo_r;
+		p = fifo->data + index;
+		if (timeval_compare(&p->tv, tv) > 0) {
+			index = (index - 1 + size) % size;
+			break;
+		}
+		fifo_r = (fifo_r + 1) % size;
+		len--;
+	}
+
+	return index;
+}
+
 static int isp_update_read_index(struct isp_3adata_fifo *fifo)
 {
 	if (fifo == NULL || fifo->data == NULL) {
@@ -207,6 +252,20 @@ static int isp_update_read_index(struct isp_3adata_fifo *fifo)
 
 	fifo->fifo_r = (fifo->fifo_r + 1) % fifo->size;
 	fifo->len--;
+
+	return 0;
+}
+
+static int isp_update_read_index_conditional
+			(struct isp_3adata_fifo *fifo, int index)
+{
+	if (fifo == NULL || fifo->data == NULL || index < 0) {
+		dev_info(g_isp_dev, "[%s]\n", __func__);
+		return -1;
+	}
+
+	fifo->len -= ((index - fifo->fifo_r + fifo->size) % fifo->size + 1);
+	fifo->fifo_r = (index + 1) % fifo->size;
 
 	return 0;
 }
@@ -722,8 +781,46 @@ err_flag_read:
 			}
 		}
 		break;
+	case ISPC_GET_FIFO_ADDR_COND: {
+			struct isp_get_fifo_addr_cond info;
+
+			if (copy_from_user
+			    ((void *)&info, (void __user *)arg,
+			     sizeof(struct isp_get_fifo_addr_cond))) {
+				dev_err(g_isp_dev,
+				"[%s: %d] isp copy data from user failed!\n",
+					__func__, __LINE__);
+				return -EINVAL;
+			}
+
+			info.index = isp_get_read_index_conditional
+				(&isp_cdev->isp_3adata_fifo, &info.tv);
+			if (copy_to_user((void __user *)arg, (void *)&info,
+				sizeof(struct isp_get_fifo_addr_cond))) {
+				dev_err(g_isp_dev,
+					"[%s: %d] isp copy data to user failed!\n",
+					__func__, __LINE__);
+				return -EINVAL;
+			}
+		}
+		break;
 	case ISPC_UPDATE_FIFO_INFO:
-		isp_update_read_index(&isp_cdev->isp_3adata_fifo);
+		ret = isp_update_read_index(&isp_cdev->isp_3adata_fifo);
+		break;
+	case ISPC_UPDATE_FIFO_INFO_COND: {
+			int index;
+
+			if (copy_from_user
+			    ((void *)&index, (void __user *)arg,
+			     sizeof(int))) {
+				dev_err(g_isp_dev,
+				"[%s: %d] isp copy data from user failed!\n",
+					__func__, __LINE__);
+				return -EINVAL;
+			}
+			ret = isp_update_read_index_conditional
+				(&isp_cdev->isp_3adata_fifo, index);
+		}
 		break;
 	case ISPC_SET_TIMEOUT:
 		if (copy_from_user((void *)&isp_cdev->isp_3adata_timeout,
@@ -897,7 +994,7 @@ static int __init isp_dev_init(void)
 	/* wait queue */
 	init_waitqueue_head(&isp_mod->isp_3adata_waitq);
 	isp_mod->isp_3adata_condition = 0;
-	isp_mod->isp_3adata_timeout = X2_ISP_TIMEOUT;
+	isp_mod->isp_3adata_timeout = 5000;
 
 	isp_mod_data = isp_mod;
 

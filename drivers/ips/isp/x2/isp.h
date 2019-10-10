@@ -116,6 +116,11 @@ struct isp_3adata_fifo {
 	struct isp_3a_data *data;
 };
 
+struct isp_get_fifo_addr_cond {
+	int index;
+	struct timeval tv;
+};
+
 struct isp_mod_s {
 	const char *name;
 	int *pData;
@@ -169,12 +174,14 @@ typedef struct _reg_s {
 #define ISPC_READ_REGS		_IOWR(ISP_IOC_MAGIC, 9, struct isp_ioreg_s)
 #define ISPC_WRITE_REGS		_IOWR(ISP_IOC_MAGIC, 10, struct isp_ioreg_s)
 #define ISPC_WRITE_CDR		_IO(ISP_IOC_MAGIC, 11)
-#define ISPC_GET_FIFO_ADDR	_IOR(ISP_IOC_MAGIC, 14, uint32_t)
+#define ISPC_GET_FIFO_ADDR	_IOR(ISP_IOC_MAGIC, 14, int)
 						/* get read idx */
 #define ISPC_UPDATE_FIFO_INFO	_IO(ISP_IOC_MAGIC, 15)
 						/* update read idx */
 #define ISPC_SET_TIMEOUT	_IOW(ISP_IOC_MAGIC, 16, uint32_t)
 						/* set timeout */
+#define ISPC_GET_FIFO_ADDR_COND	_IOR(ISP_IOC_MAGIC, 17, int)
+#define ISPC_UPDATE_FIFO_INFO_COND _IOW(ISP_IOC_MAGIC, 18, int)
 
 #define ISP_READ		_IOWR('p', 0, reg_t)
 #define ISP_WRITE		_IOW('p', 1, reg_t)
