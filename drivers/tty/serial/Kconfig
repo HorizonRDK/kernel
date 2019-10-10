@@ -1476,26 +1476,54 @@ config SERIAL_X2_UART_CONSOLE
 	help
 	  Enable a X2 UART port to be the system console.
 
+config X2_TTY_DMA_MODE
+	bool "X2 uart DMA MODE Support"
+	depends on SERIAL_X2_UART
+	default y
+	help
+	  x2 uart dma mode support
+
+config X2_TTY_IRQ_MODE
+	bool "X2 uart non-DMA MODE Support"
+	depends on SERIAL_X2_UART
+	default n
+	help
+	  x2 uart non-dma mode support
+
+config X2_TTY_POLL_MODE
+	bool "X2 uart poll MODE Support"
+	depends on SERIAL_X2_UART
+	default n
+	help
+	  x2 uart poll mode support
+
+config X2_SERIAL_DEBUGFS
+	bool "X2 uart debugfs Support"
+	depends on SERIAL_X2_UART
+	default y
+	help
+	  x2 uart debugfs support
+
 config UART_LOW_SPEED_MODE
 	bool "X2 UART LOW SPEED MODE Support"
 	depends on SERIAL_X2_UART
 	default y
 	help
-		x2 uart low speed mode support
+	  x2 uart low speed mode support
 
 config UART_MID_SPEED_MODE
 	bool "X2 UART MID SPEED MODE Support"
 	depends on SERIAL_X2_UART
 	default n
 	help
-		x2 uart middle speed mode support
+	  x2 uart middle speed mode support
 
 config UART_HIGH_SPEED_MODE
 	bool "X2 UART HIGH SPEED MODE Support"
 	depends on SERIAL_X2_UART
 	default n
 	help
-		x2 uart high speed mode support
+	  x2 uart high speed mode support
 
 
 config SERIAL_XILINX_PS_UART_CONSOLE

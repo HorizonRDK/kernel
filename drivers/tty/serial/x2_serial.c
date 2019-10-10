@@ -53,11 +53,6 @@ static int tx_trigger_level = 0;
 module_param(tx_trigger_level, uint, S_IRUGO);
 MODULE_PARM_DESC(tx_trigger_level, "Tx trigger level, 0-15 (uint: 4 bytes)");
 
-//#define CONFIG_X2_TTY_POLL_MODE
-//#define CONFIG_X2_TTY_IRQ_MODE
-#define CONFIG_X2_TTY_DMA_MODE
-#define CONFIG_X2_SERIAL_DEBUGFS
-
 #ifdef CONFIG_X2_TTY_POLL_MODE
 #define X2_UART_RX_POLL_TIME	50	/* Unit is ms */
 #endif /* CONFIG_X2_TTY_POLL_MODE */
