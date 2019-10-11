@@ -21,16 +21,16 @@
 
 #if ACAMERA_LOG_HAS_FIXED_MASK == 0
 
-#if defined( ACAMERA_LOG_LEVEL )
-uint8_t _acamera_output_level = ACAMERA_LOG_LEVEL;
+#ifdef ACAMERA_LOG_LEVEL
+	uint8_t _acamera_output_level = ACAMERA_LOG_LEVEL;
 #else
-uint8_t _acamera_output_level = 0;
+	uint8_t _acamera_output_level = 6;
 #endif
 
-#if defined( ACAMERA_LOG_MASK )
-uint32_t _acamera_output_mask = ACAMERA_LOG_MASK;
+#ifdef ACAMERA_LOG_MASK
+	uint32_t _acamera_output_mask = ACAMERA_LOG_MASK;
 #else
-uint8_t _acamera_output_level = 0;
+	uint32_t _acamera_output_mask = 0;
 #endif
 
 void acamera_logger_set_level( uint8_t level )
@@ -44,14 +44,43 @@ void acamera_logger_set_mask( uint32_t mask )
 
 #endif
 
-uint8_t acamera_logger_get_level()
+uint8_t acamera_logger_get_level(void)
 {
     return _ACAMERA_LOG_OUTPUT_LEVEL;
 }
-uint32_t acamera_logger_get_mask()
+EXPORT_SYMBOL(acamera_logger_get_level);
+
+uint32_t acamera_logger_get_mask(void)
 {
     return _ACAMERA_LOG_OUTPUT_MASK;
 }
+EXPORT_SYMBOL(acamera_logger_get_mask);
+
+
+void LOG_INTER(const char *const func, const char *const file, const unsigned line, const uint32_t level, const uint32_t log_module, const char *const fmt, ... )
+{
+        va_list arg;
+
+        va_start (arg, fmt);
+        LOGLIST(func, file, line, level, log_module, fmt, arg);
+        va_end (arg);
+}
+EXPORT_SYMBOL(LOG_INTER);
+
+void ACAMERA_LOGGER_SET_LEVEL( uint8_t level )
+{
+        ACAMERA_LOGLIST_SET_LEVEL( level );
+}
+EXPORT_SYMBOL(ACAMERA_LOGGER_SET_LEVEL);
+
+void ACAMERA_LOGGER_SET_MASK(uint32_t mask )
+{
+        ACAMERA_LOGLIST_SET_MASK( mask );
+}
+EXPORT_SYMBOL(ACAMERA_LOGGER_SET_MASK);
+
+
+
 
 static acamera_logger_buf_t _acamera_logger_buf = {.start = 0, .end = 0};
 
@@ -106,6 +135,7 @@ void acamera_logger_empty( void )
         _logger_buf_move_start( &_acamera_logger_buf, size + 1 );
     }
 }
+EXPORT_SYMBOL(acamera_logger_empty);
 
 #if ACAMERA_LOG_HAS_SRC
 
@@ -121,7 +151,8 @@ static const char *filename_short( const char *filename )
 }
 
 void _acamera_log_write_ext( const char *const func, const char *const file, const unsigned line,
-                             const uint32_t log_level, const uint32_t log_module, const uint8_t flags, const char *const fmt, va_list vaa )
+                             const uint32_t log_level, const uint32_t log_module, const uint8_t flags, 
+			     const char *const fmt, va_list vaa )
 
 {
 
@@ -147,7 +178,8 @@ void _acamera_log_write_ext( const uint32_t log_level, const uint32_t log_module
 #endif
     if ( _logger_buf_remaining( &_acamera_logger_buf ) < size )
         return;
-    system_memcpy( _logger_buf_end( &_acamera_logger_buf ), _logger_buf_temp( &_acamera_logger_buf ), size );
+    //system_memcpy( _logger_buf_end( &_acamera_logger_buf ), _logger_buf_temp( &_acamera_logger_buf ), size );
+    memcpy( _logger_buf_end( &_acamera_logger_buf ), _logger_buf_temp( &_acamera_logger_buf ), size );
     *( _logger_buf_end( &_acamera_logger_buf ) + size ) = 0;
     _logger_buf_move_end( &_acamera_logger_buf, size + 1 );
 
@@ -182,6 +214,7 @@ void _acamera_log_write_ext( const uint32_t log_level, const uint32_t log_module
         }
 
         SYSTEM_VPRINTF( fmt, vaa );
+        SYSTEM_PRINTF( "\n" );
 
         _logger_buf_reset( &_acamera_logger_buf );
     }
@@ -190,37 +223,56 @@ void _acamera_log_write_ext( const uint32_t log_level, const uint32_t log_module
 #if ACAMERA_LOG_HAS_SRC
 
 void _acamera_log_write( const char *const func, const char *const file, const unsigned line,
-                         const uint32_t log_level, const uint32_t log_module, const char *const fmt, ... )
+                         const uint32_t log_level, const uint32_t log_module, const char *const fmt, va_list arg )
 {
-    va_list va;
-    va_start( va, fmt );
-    _acamera_log_write_ext( func, file, line, log_level, log_module, 0, fmt, va );
-    va_end( va );
+    //va_list va;
+    //va_start( va, fmt );
+    _acamera_log_write_ext( func, file, line, log_level, log_module, 0, fmt, arg );
+    //va_end( va );
 }
 void _acamera_log_write_isr( const char *const func, const char *const file, const unsigned line,
-                             const uint32_t log_level, const uint32_t log_module, const char *const fmt, ... )
+                             const uint32_t log_level, const uint32_t log_module, const char *const fmt, va_list arg )
 {
-    va_list va;
-    va_start( va, fmt );
-    _acamera_log_write_ext( func, file, line, log_level, log_module, 1, fmt, va );
-    va_end( va );
+    //va_list va;
+    //va_start( va, fmt );
+    _acamera_log_write_ext( func, file, line, log_level, log_module, 1, fmt, arg );
+    //va_end( va );
 }
 
 
 #else
-void _acamera_log_write( const uint32_t log_level, const uint32_t log_module, const char *const fmt, ... )
+void _acamera_log_write( const uint32_t log_level, const uint32_t log_module, const char *const fmt, va_list arg )
 {
-    va_list va;
-    va_start( va, fmt );
-    _acamera_log_write_ext( log_level, log_module, 0, fmt, va );
-    va_end( va );
+    //va_list va;
+    //va_start( va, fmt );
+    _acamera_log_write_ext( log_level, log_module, 0, fmt, arg );
+    //va_end( va );
 }
 
-void _acamera_log_write_isr( const uint32_t log_level, const uint32_t log_module, const char *const fmt, ... )
+void _acamera_log_write_isr( const uint32_t log_level, const uint32_t log_module, const char *const fmt, va_list arg )
 {
-    va_list va;
-    va_start( va, fmt );
-    _acamera_log_write_ext( log_level, log_module, 1, fmt, va );
-    va_end( va );
+    //va_list va;
+    //va_start( va, fmt );
+    _acamera_log_write_ext( log_level, log_module, 1, fmt, arg );
+    //va_end( va );
 }
 #endif
+
+int __init acamera_loglist_init( void )
+{
+	int rc = 0;
+	printk( "%s ", __func__ );
+
+	return rc;
+}
+
+void __exit acamera_loglist_exit( void )
+{
+	printk( "%s ", __func__ );
+}
+
+
+module_init( acamera_loglist_init );
+module_exit( acamera_loglist_exit );
+MODULE_LICENSE( "GPL v2" );
+MODULE_AUTHOR( "ARM IVG AC" );

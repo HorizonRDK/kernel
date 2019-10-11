@@ -17,8 +17,8 @@
 *
 */
 
+#include "string.h"
 #include "acamera_types.h"
-
 #include "acamera_fw.h"
 #include "acamera_metering_stats_mem_config.h"
 #include "acamera_math.h"
@@ -37,10 +37,14 @@
 #error "The AF metering offset is not defined in acamera_metering_mem_config.h"
 #endif
 
-#ifdef LOG_MODULE
-#undef LOG_MODULE
-#define LOG_MODULE LOG_MODULE_AF_MANUAL
+
+#if defined( CUR_MOD_NAME)
+#undef CUR_MOD_NAME 
+#define CUR_MOD_NAME LOG_MODULE_AF_MANUAL
+#else
+#define CUR_MOD_NAME LOG_MODULE_AF_MANUAL
 #endif
+
 
 static void af_update_lens_position( AF_fsm_ptr_t p_fsm )
 {
@@ -51,6 +55,7 @@ static void af_update_lens_position( AF_fsm_ptr_t p_fsm )
     if ( p_fsm->last_position != p_fsm->new_pos ) {
         int fw_id = p_fsm->cmn.ctx_id;
 
+        //LOG( LOG_CRIT, "IE&E [%s].pso_min %d, pos_max %d, new_pos %d", __func__, p_fsm->pos_min, p_fsm->pos_max, p_fsm->new_pos );
         p_fsm->lens_ctrl.move( p_fsm->lens_ctx, p_fsm->new_pos );
         p_fsm->frame_skip_start = 1;
         LOG( LOG_INFO, "ctx: %d, new af applied, position: %u, last_position: %u.", fw_id, p_fsm->new_pos, p_fsm->last_position );

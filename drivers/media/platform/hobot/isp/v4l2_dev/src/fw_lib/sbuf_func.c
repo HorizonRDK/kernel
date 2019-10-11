@@ -30,12 +30,17 @@
 #include "acamera.h"
 #include "sbuf_fsm.h"
 #include "acamera_firmware_settings.h"
+#include "acamera_firmware_config.h"
+#include "system_timer.h"
 
 
-#ifdef LOG_MODULE
-#undef LOG_MODULE
-#define LOG_MODULE LOG_MODULE_SBUF
+#if defined( CUR_MOD_NAME)
+#undef CUR_MOD_NAME 
+#define CUR_MOD_NAME LOG_MODULE_SBUF
+#else
+#define CUR_MOD_NAME LOG_MODULE_SBUF
 #endif
+
 
 static const char *sbuf_status_str[] = {
     "DATA_EMPTY",
@@ -1689,7 +1694,15 @@ static int sbuf_fops_mmap( struct file *file, struct vm_area_struct *vma )
     LOG( LOG_INFO, "p_ctx: %p, name: %s, fw_id: %d, minor_id: %d.", p_ctx, p_ctx->dev_name, p_ctx->fw_id, p_ctx->dev_minor_id );
 
     LOG( LOG_INFO, "User app want to get %ld bytes.", user_buf_len );
-
+    LOG( LOG_INFO, "kernel sbuf size  is %ld bytes.", sizeof(struct fw_sbuf) );
+//--------debug
+	LOG( LOG_INFO, "kf_info       size: %lu.", sizeof( struct kf_info));
+LOG( LOG_INFO, "sbuf_ae_t     size: %lu.", sizeof( struct sbuf_ae)*4);
+LOG( LOG_INFO, "sbuf_awb_t    size: %lu.", sizeof( struct sbuf_awb)*4);
+LOG( LOG_INFO, "sbuf_af_t     size: %lu.", sizeof( struct sbuf_af)*4);
+LOG( LOG_INFO, "sbuf_gamma_t  size: %lu.", sizeof( struct sbuf_gamma)*4);
+LOG( LOG_INFO, "sbuf_iridix_t size: %lu.", sizeof( struct sbuf_iridix)*4);
+//--------
     /*
      * the user_buf_len will be page aligned even struct fw_sbuf is not
      * page aligned, in this case, the size maybe unmatched, but the

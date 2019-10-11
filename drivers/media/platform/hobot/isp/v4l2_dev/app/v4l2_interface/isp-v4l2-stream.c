@@ -258,6 +258,7 @@ static int isp_v4l2_stream_get_plane( struct vb2_buffer *vb,
     addr = vb2_dma_contig_plane_dma_addr( vb, plane_no );
     addr -= ISP_SOC_DMA_BUS_OFFSET;
 
+    aframe->virt_addr = vb2_plane_vaddr( vb, plane_no );
     aframe->address = (uint32_t)addr;
     aframe->status = dma_buf_empty;
 

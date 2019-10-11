@@ -32,6 +32,7 @@
 #include <media/v4l2-async.h>
 #include <linux/slab.h>
 
+
 extern void *acamera_camera_v4l2_get_subdev_by_name( const char *name );
 
 #define __GET_LUT_SIZE( lut ) ( lut.rows * lut.cols * lut.width )
@@ -69,7 +70,7 @@ extern void *acamera_camera_v4l2_get_subdev_by_name( const char *name );
 static void *g_lut_data_ptr_arr[FIRMWARE_CONTEXT_NUMBER] = {0};
 static int32_t g_lut_data_size_arr[FIRMWARE_CONTEXT_NUMBER] = {0};
 
-static uint32_t get_calibration_total_size( void *iq_ctx, int32_t ctx_id, void *sensor_arg )
+static uint32_t get_calibration_total_size( void *iq_ctx, int32_t ctx_id, void *sensor_arg, uint32_t sensor_type )
 {
     uint32_t result = 0;
     int32_t idx = 0;
@@ -80,6 +81,7 @@ static uint32_t get_calibration_total_size( void *iq_ctx, int32_t ctx_id, void *
         args.ioctl.request_info.context = ctx_id;
         args.ioctl.request_info.sensor_arg = sensor_arg;
         args.ioctl.request_info.id = idx;
+	args.ioctl.request_info.sensor_type = sensor_type;
         int32_t ret = __IOCTL_CALL( iq_ctx, V4L2_SOC_IQ_IOCTL_REQUEST_INFO, args );
         if ( ret == 0 ) {
             result += __GET_LUT_SIZE( args.ioctl.request_info.lut );
@@ -96,7 +98,7 @@ static uint32_t get_calibration_total_size( void *iq_ctx, int32_t ctx_id, void *
 }
 
 
-uint32_t soc_iq_get_calibrations( int32_t ctx_id, void *sensor_arg, ACameraCalibrations *c )
+uint32_t soc_iq_get_calibrations( int32_t ctx_id, void *sensor_arg, ACameraCalibrations *c, uint32_t sensor_type )
 {
     uint32_t result = 0;
     int32_t ret = 0;
@@ -122,7 +124,7 @@ uint32_t soc_iq_get_calibrations( int32_t ctx_id, void *sensor_arg, ACameraCalib
     }
 #endif
 
-    int32_t total_size = get_calibration_total_size( iq_ctx, ctx_id, sensor_arg );
+    int32_t total_size = get_calibration_total_size( iq_ctx, ctx_id, sensor_arg, sensor_type );
 
 
     LOG( LOG_INFO, "ctx_id:%d sensor_arg:0x%x Total size for all Luts is %d bytes", ctx_id, sensor_arg, total_size );
@@ -180,6 +182,7 @@ uint32_t soc_iq_get_calibrations( int32_t ctx_id, void *sensor_arg, ACameraCalib
                         args.ioctl.request_data.ptr = (void *)c->calibrations[idx]->ptr;
                         args.ioctl.request_data.data_size = lut_size;
                         args.ioctl.request_data.kernel = KERNEL_MODULE;
+                        args.ioctl.request_data.sensor_type = sensor_type;
                         result = __IOCTL_CALL( iq_ctx, V4L2_SOC_IQ_IOCTL_REQUEST_DATA, args );
 
                         if ( result == 0 ) {

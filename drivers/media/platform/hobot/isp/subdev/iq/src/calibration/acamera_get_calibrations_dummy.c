@@ -19,18 +19,32 @@
 
 #include "acamera_command_api.h"
 #include "acamera_sensor_api.h"
-#include "acamera_firmware_settings.h"
 #include "acamera_logger.h"
+#include "acamera_firmware_settings.h"
+#include "acamera_calibration.h"
+#include "linux/kernel.h"
+
+#if defined( CUR_MOD_NAME)
+#undef CUR_MOD_NAME 
+#define CUR_MOD_NAME LOG_MODULE_SOC_IQ
+#else
+#define CUR_MOD_NAME LOG_MODULE_SOC_IQ
+#endif
+
 
 extern uint32_t get_calibrations_static_linear_dummy( ACameraCalibrations *c );
 extern uint32_t get_calibrations_static_fs_lin_dummy( ACameraCalibrations *c );
 extern uint32_t get_calibrations_dynamic_linear_dummy( ACameraCalibrations *c );
 extern uint32_t get_calibrations_dynamic_fs_lin_dummy( ACameraCalibrations *c );
 
-uint32_t get_calibrations_dummy( uint32_t ctx_id, void *sensor_arg, ACameraCalibrations *c )
+extern int register_calib( ACameraCalibrations *c, uint8_t port );
+extern int unregister_calib( ACameraCalibrations *c, uint8_t port );
+
+uint32_t get_calibrations_dummy( uint32_t ctx_id, void *sensor_arg, ACameraCalibrations *c, uint32_t sensor_type )
 {
 
     uint8_t ret = 0;
+    int iret = 0;
 
     if ( !sensor_arg ) {
         LOG( LOG_ERR, "calibration sensor_arg is NULL" );
@@ -39,23 +53,50 @@ uint32_t get_calibrations_dummy( uint32_t ctx_id, void *sensor_arg, ACameraCalib
 
     int32_t preset = ( (sensor_mode_t *)sensor_arg )->wdr_mode;
 
+    LOG( LOG_CRIT, "calibration switching to WDR_MODE_LINEAR %d, sensor_type %d ", (int)preset, sensor_type );
+
     //logic which calibration to apply
     switch ( preset ) {
     case WDR_MODE_LINEAR:
         LOG( LOG_DEBUG, "calibration switching to WDR_MODE_LINEAR %d ", (int)preset );
-        ret += ( get_calibrations_dynamic_linear_dummy( c ) + get_calibrations_static_linear_dummy( c ) );
-        break;
+	
+	iret = unregister_calib( c, (uint8_t)(ctx_id & 0xff) );	
+	iret = register_calib( c, (uint8_t)(ctx_id & 0xff) );
+	if (iret < 0) {
+        	printk("IE&E register_calib is failed!\n");
+		LOG( LOG_ERR, "register_calib of port %d if failed ", ctx_id );
+        	ret += ( get_calibrations_dynamic_linear_dummy( c ) + get_calibrations_static_linear_dummy( c ) );
+	}
+	break;
     case WDR_MODE_NATIVE:
         LOG( LOG_DEBUG, "calibration switching to WDR_MODE_NATIVE %d ", (int)preset );
-        //ret += (get_calibrations_dynamic_wdr_dummy(c)+get_calibrations_static_wdr_dummy(c));
+	iret = unregister_calib( c, (uint8_t)(ctx_id & 0xff) );	
+	iret = register_calib( c, (uint8_t)(ctx_id & 0xff) );
+	if (iret < 0) {
+        	printk("IE&E register_calib is failed!\n");
+        	LOG( LOG_ERR, "register_calib of port %d if failed ", ctx_id );
+        	ret += ( get_calibrations_dynamic_linear_dummy( c ) + get_calibrations_static_linear_dummy( c ) );
+	}
         break;
     case WDR_MODE_FS_LIN:
         LOG( LOG_DEBUG, "calibration switching to WDR mode on mode %d ", (int)preset );
-        ret += ( get_calibrations_dynamic_fs_lin_dummy( c ) + get_calibrations_static_fs_lin_dummy( c ) );
+	iret = unregister_calib( c, (uint8_t)(ctx_id & 0xff) );	
+	iret = register_calib( c, (uint8_t)(ctx_id & 0xff) );
+	if (iret < 0) {
+        	printk("IE&E register_calib is failed!\n");
+        	LOG( LOG_ERR, "register_calib of port %d if failed ", ctx_id );
+        	ret += ( get_calibrations_dynamic_fs_lin_dummy( c ) + get_calibrations_static_fs_lin_dummy( c ) );
+	}
         break;
     default:
         LOG( LOG_DEBUG, "calibration defaults to WDR_MODE_LINEAR %d ", (int)preset );
-        ret += ( get_calibrations_dynamic_linear_dummy( c ) + get_calibrations_static_linear_dummy( c ) );
+	iret = unregister_calib( c, (uint8_t)(ctx_id & 0xff) );	
+	iret = register_calib( c, (uint8_t)(ctx_id & 0xff) );
+	if (iret < 0) {
+        	printk("IE&E register_calib is failed!\n");
+        	LOG( LOG_ERR, "register_calib of port %d if failed ", ctx_id );
+        	ret += ( get_calibrations_dynamic_linear_dummy( c ) + get_calibrations_static_linear_dummy( c ) );
+	}
         break;
     }
 

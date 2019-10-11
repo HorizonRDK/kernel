@@ -21,10 +21,13 @@
 #include "dma_writer_fsm.h"
 
 
-#ifdef LOG_MODULE
-#undef LOG_MODULE
-#define LOG_MODULE LOG_MODULE_DMA_WRITER
+#if defined( CUR_MOD_NAME)
+#undef CUR_MOD_NAME 
+#define CUR_MOD_NAME LOG_MODULE_DMA_WRITER
+#else
+#define CUR_MOD_NAME LOG_MODULE_DMA_WRITER
 #endif
+
 
 /* Use static memory here to make it cross-platform */
 static dma_writer_fsm_t dma_writer_fsm_ctxs[FIRMWARE_CONTEXT_NUMBER];

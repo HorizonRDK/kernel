@@ -28,6 +28,15 @@
 #define JUNO_DDR_REG_OFFSET 0x00100CC0
 #define JUNO_DDR_REG_MSB_VALUE 0x19
 
+
+#if defined( CUR_MOD_NAME)
+#undef CUR_MOD_NAME 
+#define CUR_MOD_NAME LOG_MODULE_SOC_LENS
+#else
+#define CUR_MOD_NAME LOG_MODULE_SOC_LENS
+#endif
+
+
 static void *p_hw_base = NULL;
 static sys_spinlock reg_lock;
 

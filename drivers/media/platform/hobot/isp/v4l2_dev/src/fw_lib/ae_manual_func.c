@@ -17,6 +17,7 @@
 *
 */
 
+#include "string.h"
 #include "acamera_firmware_api.h"
 #include "acamera_fw.h"
 #include "acamera_math.h"
@@ -33,10 +34,14 @@
 
 #define DEFAULT_AE_EXPOSURE_LOG2 3390000
 
-#ifdef LOG_MODULE
-#undef LOG_MODULE
-#define LOG_MODULE LOG_MODULE_AE_MANUAL
+
+#if defined( CUR_MOD_NAME)
+#undef CUR_MOD_NAME 
+#define CUR_MOD_NAME LOG_MODULE_AE_MANUAL
+#else
+#define CUR_MOD_NAME LOG_MODULE_AE_MANUAL
 #endif
+
 
 void ae_roi_update( AE_fsm_ptr_t p_fsm )
 {

@@ -20,9 +20,12 @@
 #include "acamera_fw.h"
 #include "crop_fsm.h"
 
-#ifdef LOG_MODULE
-#undef LOG_MODULE
-#define LOG_MODULE LOG_MODULE_CROP
+
+#if defined( CUR_MOD_NAME)
+#undef CUR_MOD_NAME 
+#define CUR_MOD_NAME LOG_MODULE_CROP
+#else
+#define CUR_MOD_NAME LOG_MODULE_CROP
 #endif
 
 /* Use static memory here to make it cross-platform */

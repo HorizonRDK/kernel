@@ -20,9 +20,12 @@
 #include "acamera_fw.h"
 #include "noise_reduction_fsm.h"
 
-#ifdef LOG_MODULE
-#undef LOG_MODULE
-#define LOG_MODULE LOG_MODULE_NOISE_REDUCTION
+
+#if defined( CUR_MOD_NAME)
+#undef CUR_MOD_NAME 
+#define CUR_MOD_NAME LOG_MODULE_NOISE_REDUCTION
+#else
+#define CUR_MOD_NAME LOG_MODULE_NOISE_REDUCTION
 #endif
 
 

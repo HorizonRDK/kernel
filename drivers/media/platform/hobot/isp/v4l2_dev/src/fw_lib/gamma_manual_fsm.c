@@ -20,10 +20,14 @@
 #include "acamera_fw.h"
 #include "gamma_manual_fsm.h"
 
-#ifdef LOG_MODULE
-#undef LOG_MODULE
-#define LOG_MODULE LOG_MODULE_GAMMA_MANUAL
+
+#if defined( CUR_MOD_NAME)
+#undef CUR_MOD_NAME 
+#define CUR_MOD_NAME LOG_MODULE_GAMMA_MANUAL
+#else
+#define CUR_MOD_NAME LOG_MODULE_GAMMA_MANUAL
 #endif
+
 
 void gamma_manual_fsm_clear( gamma_manual_fsm_t *p_fsm )
 {

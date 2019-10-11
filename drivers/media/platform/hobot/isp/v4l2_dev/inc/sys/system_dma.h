@@ -21,6 +21,7 @@
 #define __SYSTEM_DMA_H__
 
 #include "acamera_types.h"
+#include "system_stdlib.h"
 
 #define SYSTEM_DMA_TOGGLE_COUNT 2
 #define SYSTEM_DMA_MAX_CHANNEL 2

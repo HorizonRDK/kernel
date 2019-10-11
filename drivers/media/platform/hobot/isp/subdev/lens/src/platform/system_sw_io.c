@@ -21,6 +21,8 @@
 #include "acamera_logger.h"
 #include <linux/gfp.h>
 
+#define CUR_MOD_NAME LOG_MODULE_SOC_LENS
+
 int32_t init_sw_io( void )
 {
     int32_t result = 0;

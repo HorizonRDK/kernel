@@ -26,6 +26,7 @@
 #include "acamera_lens_api.h"
 #include "soc_lens.h"
 
+
 #define ARGS_TO_PTR( arg ) ( (struct soc_lens_ioctl_args *)arg )
 
 extern void lens_init( void **ctx, lens_control_t *ctrl );

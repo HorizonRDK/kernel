@@ -24,7 +24,7 @@
 // V4L2 Lens subdevice to match the subdevice in the
 // V4L2 async subdevice list.
 #define V4L2_SOC_LENS_NAME "SocLens"
-
+#define NOT_ISP_FW 1
 // This is used as the main communication structure between
 // V4L2 ISP Device and V4L2 Lens Subdevice
 // Parameters are used differently depending on the actual API command ID.

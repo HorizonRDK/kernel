@@ -20,10 +20,14 @@
 #include "acamera_fw.h"
 #include "fpga_dma_fe_fsm.h"
 
-#ifdef LOG_MODULE
-#undef LOG_MODULE
-#define LOG_MODULE LOG_MODULE_FPGA_DMA_FE
+
+#if defined( CUR_MOD_NAME)
+#undef CUR_MOD_NAME 
+#define CUR_MOD_NAME LOG_MODULE_FPGA_DMA_FE
+#else
+#define CUR_MOD_NAME LOG_MODULE_FPGA_DMA_FE
 #endif
+
 
 /* Use static memory here to make it cross-platform */
 static fpga_dma_fe_fsm_t dma_fe_fsm_ctxs[FIRMWARE_CONTEXT_NUMBER];

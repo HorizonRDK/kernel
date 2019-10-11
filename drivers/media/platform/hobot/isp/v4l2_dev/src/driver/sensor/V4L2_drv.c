@@ -28,6 +28,7 @@
 
 #include "soc_sensor.h"
 
+
 extern void *acamera_camera_v4l2_get_subdev_by_name( const char *name );
 
 
@@ -141,7 +142,10 @@ static void sensor_update_parameters( void *ctx )
             rc = v4l2_subdev_call( sd, core, ioctl, SOC_SENSOR_GET_PRESET_CUR, &settings );
             p_ctx->param.mode = settings.args.general.val_out;
 
-            if ( p_ctx->param.modes_num > ISP_MAX_SENSOR_MODES ) {
+            rc = v4l2_subdev_call( sd, core, ioctl, SOC_SENSOR_GET_PRESET_TYPE, &settings );
+            p_ctx->param.sensor_type = settings.args.general.val_out;
+
+	    if ( p_ctx->param.modes_num > ISP_MAX_SENSOR_MODES ) {
                 p_ctx->param.modes_num = ISP_MAX_SENSOR_MODES;
                 LOG( LOG_WARNING, "Exceed maximum supported presets. Sensor driver returned %d but maximum is %d", p_ctx->param.modes_num, ISP_MAX_SENSOR_MODES );
             }
@@ -176,7 +180,8 @@ static void sensor_update_parameters( void *ctx )
         } else {
             LOG( LOG_ERR, "SOC sensor subdev pointer is NULL" );
         }
-        if(SYSTEM_LOG_LEVEL==LOG_DEBUG) sensor_print_params( p_ctx );
+        //if(SYSTEM_LOG_LEVEL==LOG_DEBUG) sensor_print_params( p_ctx );
+        if(acamera_logger_get_level()==LOG_DEBUG) sensor_print_params( p_ctx );
     } else {
         LOG( LOG_ERR, "Sensor context pointer is NULL" );
     }
@@ -322,6 +327,36 @@ static void sensor_set_mode( void *ctx, uint8_t mode )
     }
 
     LOG( LOG_NOTICE, "[KeyMsg] set sensor to mode: '%d' done.", mode );
+}
+
+
+static void sensor_set_type( void *ctx, uint8_t sensor_type, uint8_t sensor_i2c_channel )
+{
+    LOG( LOG_NOTICE, "[KeyMsg] start set sensor to type: '%d', i2c channel is %d .", sensor_type, sensor_i2c_channel );
+
+    sensor_context_t *p_ctx = ctx;
+    if ( p_ctx != NULL ) {
+        struct soc_sensor_ioctl_args settings;
+        struct v4l2_subdev *sd = p_ctx->soc_sensor;
+        uint32_t ctx_num = get_ctx_num( ctx );
+        if ( sd != NULL && ctx_num < FIRMWARE_CONTEXT_NUMBER ) {
+            settings.ctx_num = ctx_num;
+            settings.args.general.val_in = sensor_type;
+            settings.args.general.val_in2 = sensor_i2c_channel;
+            int rc = v4l2_subdev_call( sd, core, ioctl, SOC_SENSOR_SET_TYPE, &settings );
+            if ( rc == 0 ) {
+                sensor_update_parameters( p_ctx );
+            } else {
+                LOG( LOG_ERR, "Failed to set sensor type. rc = %d", rc );
+            }
+        } else {
+            LOG( LOG_ERR, "SOC sensor subdev pointer is NULL" );
+        }
+    } else {
+        LOG( LOG_ERR, "Sensor context pointer is NULL" );
+    }
+
+    LOG( LOG_NOTICE, "[KeyMsg] start set sensor to type: '%d', i2c channel is %d .", sensor_type, sensor_i2c_channel );
 }
 
 
@@ -471,6 +506,7 @@ void sensor_init_v4l2( void **ctx, sensor_control_t *ctrl )
         ctrl->alloc_integration_time = sensor_alloc_integration_time;
         ctrl->sensor_update = sensor_update;
         ctrl->set_mode = sensor_set_mode;
+	ctrl->set_sensor_type = sensor_set_type;
         ctrl->get_id = sensor_get_id;
         ctrl->get_parameters = sensor_get_parameters;
         ctrl->disable_sensor_isp = sensor_disable_isp;

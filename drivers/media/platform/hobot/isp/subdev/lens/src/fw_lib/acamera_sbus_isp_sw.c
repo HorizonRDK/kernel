@@ -21,6 +21,15 @@
 #include "acamera_logger.h"
 #include "system_sw_io.h"
 
+
+#if defined( CUR_MOD_NAME)
+#undef CUR_MOD_NAME 
+#define CUR_MOD_NAME LOG_MODULE_SOC_LENS
+#else
+#define CUR_MOD_NAME LOG_MODULE_SOC_LENS
+#endif
+
+
 static uint32_t isp_io_read_sample( acamera_sbus_t *p_bus, uintptr_t addr, uint8_t sample_size )
 {
     if ( ( sample_size == 2 && ( addr & 1 ) ) || ( sample_size == 4 && ( addr & 3 ) ) ) {

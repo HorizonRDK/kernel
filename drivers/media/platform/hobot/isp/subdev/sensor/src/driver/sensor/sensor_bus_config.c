@@ -23,11 +23,32 @@
 #include "acamera_types.h"
 
 
+#if defined( CUR_MOD_NAME)
+#undef CUR_MOD_NAME 
+#define CUR_MOD_NAME LOG_MODULE_SOC_SENSOR
+#else
+#define CUR_MOD_NAME LOG_MODULE_SOC_SENSOR
+#endif
+
+
+
 uint32_t bus_addr[] = { 
 0x0, 
 #if FIRMWARE_CONTEXT_NUMBER == 2
-0x0
+0x0,
 #endif // FIRMWARE_CONTEXT_NUMBER == 2 
+#if FIRMWARE_CONTEXT_NUMBER == 3
+0x0,
+#endif // FIRMWARE_CONTEXT_NUMBER == 3
+#if FIRMWARE_CONTEXT_NUMBER == 4
+0x0,
+#endif // FIRMWARE_CONTEXT_NUMBER == 4 
+#if FIRMWARE_CONTEXT_NUMBER == 5
+0x0,
+#endif // FIRMWARE_CONTEXT_NUMBER == 4 
+#if FIRMWARE_CONTEXT_NUMBER == 6
+0x0,
+#endif // FIRMWARE_CONTEXT_NUMBER == 4 
 } ;
 static uint32_t sensor_counter = 0 ;
 static uint32_t lens_counter = 0 ;
@@ -40,7 +61,7 @@ int32_t get_next_sensor_bus_address(void) {
         sensor_counter ++ ;
     } else {
         result = -1 ;
-        LOG( LOG_ERR, "Attempt to initialize more sensor instances than was configured.") ; 
+        LOG( LOG_ERR, "Attempt to initialize more sensor instances than was configured.") ;
     }
     return result ; 
 }
@@ -53,7 +74,7 @@ int32_t get_next_lens_bus_address(void) {
         lens_counter ++ ;
     } else {
         result = -1 ;
-        LOG( LOG_ERR, "Attempt to initialize more sensor instances than was configured.") ; 
+        LOG( LOG_ERR, "Attempt to initialize more sensor instances than was configured.") ;
     }
     return result ; 
 }

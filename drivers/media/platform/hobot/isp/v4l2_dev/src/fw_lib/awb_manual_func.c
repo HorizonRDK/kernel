@@ -17,6 +17,7 @@
 *
 */
 
+#include "string.h"
 #include "acamera_fw.h"
 #include "acamera_math.h"
 #include "acamera_metering_stats_mem_config.h"
@@ -24,9 +25,12 @@
 #include "awb_manual_fsm.h"
 #include "sbuf.h"
 
-#ifdef LOG_MODULE
-#undef LOG_MODULE
-#define LOG_MODULE LOG_MODULE_AWB_MANUAL
+
+#if defined( CUR_MOD_NAME)
+#undef CUR_MOD_NAME 
+#define CUR_MOD_NAME LOG_MODULE_AWB_MANUAL
+#else
+#define CUR_MOD_NAME LOG_MODULE_AWB_MANUAL
 #endif
 
 static __inline uint32_t acamera_awb_statistics_data_read( AWB_fsm_t *p_fsm, uint32_t index_inp )

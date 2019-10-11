@@ -22,19 +22,51 @@
 
 
 
-extern void sensor_init_dummy( void** ctx, sensor_control_t*) ;
-extern void sensor_deinit_dummy( void *ctx ) ;
-extern uint32_t get_calibrations_dummy( uint32_t ctx_num,void * sensor_arg,ACameraCalibrations *) ;
-
-#if FIRMWARE_CONTEXT_NUMBER == 2
+extern void sensor_init_dummy(uint32_t ctx_id, void** ctx, sensor_control_t*) ;
+extern void sensor_deinit_dummy(uint32_t ctx_id, void *ctx ) ;
+extern uint32_t get_calibrations_dummy( uint32_t ctx_id, void * sensor_arg,ACameraCalibrations *, uint32_t sensor_type) ;
 
 
-extern void sensor_init_dummy( void** ctx, sensor_control_t*) ;
-extern void sensor_deinit_dummy( void *ctx ) ;
-extern uint32_t get_calibrations_dummy( uint32_t ctx_num,void * sensor_arg,ACameraCalibrations *) ;
-
-#endif // FIRMWARE_CONTEXT_NUMBER == 2
-
-#define SENSOR_INIT_SUBDEV_FUNCTIONS {sensor_init_dummy,}
-#define SENSOR_DEINIT_SUBDEV_FUNCTIONS {sensor_deinit_dummy,}
-#define CALIBRATION_SUBDEV_FUNCTIONS {get_calibrations_dummy,}
+#if FIRMWARE_CONTEXT_NUMBER == 1
+        #define SENSOR_INIT_SUBDEV_FUNCTIONS {sensor_init_dummy,}
+        #define SENSOR_DEINIT_SUBDEV_FUNCTIONS {sensor_deinit_dummy,}
+        #define CALIBRATION_SUBDEV_FUNCTIONS {get_calibrations_dummy,}
+#elif FIRMWARE_CONTEXT_NUMBER == 2
+        #define SENSOR_INIT_SUBDEV_FUNCTIONS {sensor_init_dummy, sensor_init_dummy,}
+        #define SENSOR_DEINIT_SUBDEV_FUNCTIONS {sensor_deinit_dummy, sensor_deinit_dummy,}
+        #define CALIBRATION_SUBDEV_FUNCTIONS {get_calibrations_dummy, get_calibrations_dummy,}
+#elif FIRMWARE_CONTEXT_NUMBER == 3
+        #define SENSOR_INIT_SUBDEV_FUNCTIONS {sensor_init_dummy, sensor_init_dummy,\
+                                                 sensor_init_dummy, }
+        #define SENSOR_DEINIT_SUBDEV_FUNCTIONS {sensor_deinit_dummy, sensor_deinit_dummy, \
+                                                 sensor_deinit_dummy, }
+        #define CALIBRATION_SUBDEV_FUNCTIONS {get_calibrations_dummy, get_calibrations_dummy, \
+                                                get_calibrations_dummy,}
+#elif FIRMWARE_CONTEXT_NUMBER == 4
+        #define SENSOR_INIT_SUBDEV_FUNCTIONS {sensor_init_dummy, sensor_init_dummy,\
+                                                 sensor_init_dummy, sensor_init_dummy,}
+        #define SENSOR_DEINIT_SUBDEV_FUNCTIONS {sensor_deinit_dummy, sensor_deinit_dummy, \
+                                                 sensor_deinit_dummy, sensor_deinit_dummy,}
+        #define CALIBRATION_SUBDEV_FUNCTIONS {get_calibrations_dummy, get_calibrations_dummy, \
+                                                get_calibrations_dummy, get_calibrations_dummy,}
+#elif FIRMWARE_CONTEXT_NUMBER == 5
+        #define SENSOR_INIT_SUBDEV_FUNCTIONS {sensor_init_dummy, sensor_init_dummy,\
+                                                 sensor_init_dummy, sensor_init_dummy,\
+                                                 sensor_init_dummy, }
+        #define SENSOR_DEINIT_SUBDEV_FUNCTIONS {sensor_deinit_dummy, sensor_deinit_dummy, \
+                                                 sensor_deinit_dummy, sensor_deinit_dummy,\
+                                                 sensor_deinit_dummy, }
+        #define CALIBRATION_SUBDEV_FUNCTIONS {get_calibrations_dummy, get_calibrations_dummy, \
+                                                get_calibrations_dummy, get_calibrations_dummy,\
+                                                get_calibrations_dummy, }
+#elif FIRMWARE_CONTEXT_NUMBER == 6
+        #define SENSOR_INIT_SUBDEV_FUNCTIONS {sensor_init_dummy, sensor_init_dummy,\
+                                                 sensor_init_dummy, sensor_init_dummy,\
+                                                 sensor_init_dummy, sensor_init_dummy,}
+        #define SENSOR_DEINIT_SUBDEV_FUNCTIONS {sensor_deinit_dummy, sensor_deinit_dummy, \
+                                                 sensor_deinit_dummy, sensor_deinit_dummy,\
+                                                 sensor_deinit_dummy, sensor_deinit_dummy,}
+        #define CALIBRATION_SUBDEV_FUNCTIONS {get_calibrations_dummy, get_calibrations_dummy, \
+                                                get_calibrations_dummy, get_calibrations_dummy,\
+                                                get_calibrations_dummy, get_calibrations_dummy,}
+#endif

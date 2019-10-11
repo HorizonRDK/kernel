@@ -54,9 +54,12 @@
 #include "acamera_radial_shading_mem_config.h"
 #endif
 
-#ifdef LOG_MODULE
-#undef LOG_MODULE
-#define LOG_MODULE LOG_MODULE_GENERAL
+
+#if defined( CUR_MOD_NAME)
+#undef CUR_MOD_NAME 
+#define CUR_MOD_NAME LOG_MODULE_GENERAL
+#else
+#define CUR_MOD_NAME LOG_MODULE_GENERAL
 #endif
 
 #define CAC_MEM_LUT_LEN 4096
@@ -457,7 +460,7 @@ void general_set_wdr_mode( general_fsm_ptr_t p_fsm )
     case WDR_MODE_LINEAR:
 #ifdef SENSOR_ISP_SEQUENCE_DEFAULT_LINEAR
         LOG( LOG_INFO, "Setting Linear Binary Sequence\n" );
-        acamera_load_sw_sequence( p_fsm->cmn.isp_base, ACAMERA_FSM2CTX_PTR( p_fsm )->isp_sequence, SENSOR_ISP_SEQUENCE_DEFAULT_LINEAR );
+       // acamera_load_sw_sequence( p_fsm->cmn.isp_base, ACAMERA_FSM2CTX_PTR( p_fsm )->isp_sequence, SENSOR_ISP_SEQUENCE_DEFAULT_LINEAR );
 #endif
 
 #if defined( SENSOR_ISP_SEQUENCE_DEFAULT_FPGA_LINEAR ) && ISP_HAS_FPGA_WRAPPER
@@ -612,7 +615,7 @@ void general_frame_start( general_fsm_ptr_t p_fsm )
     }
 #endif
 
-#if 1   // GENERAL_TEMPER_ENABLED   // disable temper (need to fixed)
+#if GENERAL_TEMPER_ENABLED   // disable temper (need to fixed)
     /* Enable temper after second frame to avoid broken frame */
     if ( p_fsm->cnt_for_temper++ == 2 ) {
         acamera_isp_temper_enable_write( p_fsm->cmn.isp_base, 1 );
@@ -760,12 +763,12 @@ static int general_temper_configure( general_fsm_ptr_t p_fsm )
     if ( TEMPER_FRAMES_NO >= 2 )
         msb_frame = &p_fsm->temper_frames[1];
 
-    if ( !lsb_frame ) {
+    if ( !lsb_frame || !lsb_frame->address) {    
         LOG( LOG_ERR, "unable to configure TEMPER" );
         return -1;
     }
 
-    if ( p_fsm->temper_mode == TEMPER3_MODE && !msb_frame ) {
+    if ( p_fsm->temper_mode == TEMPER3_MODE && (!msb_frame || !msb_frame->address)) {
         LOG( LOG_ERR, "unable to configure TEMPER3_MODE" );
         return -1;
     }

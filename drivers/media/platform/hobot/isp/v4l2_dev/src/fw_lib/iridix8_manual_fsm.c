@@ -20,10 +20,14 @@
 #include "acamera_fw.h"
 #include "iridix8_manual_fsm.h"
 
-#ifdef LOG_MODULE
-#undef LOG_MODULE
-#define LOG_MODULE LOG_MODULE_IRIDIX8_MANUAL
+
+#if defined( CUR_MOD_NAME)
+#undef CUR_MOD_NAME 
+#define CUR_MOD_NAME LOG_MODULE_IRIDIX8_MANUAL
+#else
+#define CUR_MOD_NAME LOG_MODULE_IRIDIX8_MANUAL
 #endif
+
 
 void iridix_fsm_clear( iridix_fsm_t *p_fsm )
 {

@@ -47,10 +47,13 @@ typedef struct {
 } dvi_sync_param_t;
 
 
-#ifdef LOG_MODULE
-#undef LOG_MODULE
-#define LOG_MODULE LOG_MODULE_SENSOR
+#if defined( CUR_MOD_NAME)
+#undef CUR_MOD_NAME 
+#define CUR_MOD_NAME LOG_MODULE_SENSOR
+#else
+#define CUR_MOD_NAME LOG_MODULE_SENSOR
 #endif
+
 
 void sensor_init_output( sensor_fsm_ptr_t p_fsm, int mode )
 {

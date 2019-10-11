@@ -27,6 +27,15 @@
 #include "acamera_logger.h"
 #include "system_timer.h"
 
+
+#if defined( CUR_MOD_NAME)
+#undef CUR_MOD_NAME 
+#define CUR_MOD_NAME LOG_MODULE_SOC_LENS
+#else
+#define CUR_MOD_NAME LOG_MODULE_SOC_LENS
+#endif
+
+
 #define PCIE_SPI_BAR_SIZE ( 1 << 19 )
 #define PCIE_SPI_BAR ( 2 )
 #define SPI_BASE 0x200
@@ -146,7 +155,7 @@ uint32_t system_spi_rw48( uint32_t sel_mask, uint32_t control_inp, uint32_t addr
     uint32_t size = ( CHAR_LEN_MSK & control_inp ) >> 3;
     a = address;
 
-    //LOG(LOG_DEBUG, "WRITE32 0x%x, size 0x%x, data 0x%x", control, size, data );
+    //LOG( LOG_DEBUG, "WRITE32 0x%x, size 0x%x, data 0x%x", control, size, data );
 
     // Select slave
     SPI_WRITE32( FPGA_SPI_SPISSR, ~sel_mask );
@@ -207,7 +216,7 @@ uint32_t system_spi_rw32( uint32_t sel_mask, uint32_t control, uint32_t data, ui
     uint32_t ctrl;
     uint32_t size = ( CHAR_LEN_MSK & control ) >> 3;
 
-    //LOG(LOG_DEBUG, "WRITE32 0x%x, size 0x%x, data 0x%x", control, size, data );
+    //LOG( LOG_DEBUG, "WRITE32 0x%x, size 0x%x, data 0x%x", control, size, data );
 
     // Select slave
     SPI_WRITE32( FPGA_SPI_SPISSR, ~sel_mask );

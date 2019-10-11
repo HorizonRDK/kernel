@@ -30,10 +30,14 @@
 
 #include "crop_fsm.h"
 
-#ifdef LOG_MODULE
-#undef LOG_MODULE
-#define LOG_MODULE LOG_MODULE_CROP
+
+#if defined( CUR_MOD_NAME)
+#undef CUR_MOD_NAME 
+#define CUR_MOD_NAME LOG_MODULE_CROP
+#else
+#define CUR_MOD_NAME LOG_MODULE_CROP
 #endif
+
 
 int crop_validate_size( crop_fsm_t *p_fsm, uint16_t type, uint16_t sizeto, int isWidth )
 {

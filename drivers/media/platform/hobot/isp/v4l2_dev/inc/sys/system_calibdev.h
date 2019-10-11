@@ -17,10 +17,14 @@
 *
 */
 
-#include "acamera_firmware_config.h"
-#include "system_log.h"
+#ifndef __SYSTEM_CALIBDEV_H__
+#define __SYSTEM_CALIBEV_H__
 
-//debug log names for level
-const char *const log_level_name[SYSTEM_LOG_LEVEL_MAX] = {"DEBUG", "INFO", "NOTICE", "WARNING", "ERR", "CRIT"};
-//debug log names for modules
-const char *const log_module_name[SYSTEM_LOG_MODULE_MAX] = FW_LOG_NAMES;
+//int system_calib_init( void );
+//int system_calib_destroy( void );
+
+int register_calib( ACameraCalibrations *c, uint8_t port );
+int unregister_calib( ACameraCalibrations *c, uint8_t port );
+
+
+#endif /* __SYSTEM_CHARDEV_H__ */

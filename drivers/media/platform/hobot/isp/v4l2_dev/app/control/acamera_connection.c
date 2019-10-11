@@ -23,6 +23,7 @@
 #include "acamera_firmware_config.h"
 #include "acamera_control_config.h"
 
+
 #if ISP_HAS_CONNECTION_BUFFER
 #define ALIGNMENT_MASK 3
 #include "acamera_buffer_manager.h"
@@ -65,6 +66,7 @@ extern struct acamera_socket_strategy acamera_socket_init_strategy();
  * on the limited subset of the supported architectures
  * bypassing project loglevel settings.
  */
+#define TRACE_LEVEL LOG_INFO
 #define ACAMERA_CONNECTION_TRACE printf
 #else
 #define ACAMERA_CONNECTION_TRACE( ... )
@@ -263,7 +265,8 @@ static void process_request( void )
     uint32_t *rx_buf = (uint32_t *)&con.buffer[8];
     uint32_t *tx_buf = (uint32_t *)con.buffer;
     uint16_t type = ( *rx_buf++ ) & 0xFFFF;
-    ACAMERA_CONNECTION_TRACE( "Processing packet size %ld, id %ld, type %d\n", con.rx_buffer_size, tx_buf[1], type );
+    //ACAMERA_CONNECTION_TRACE( "Processing packet size %ld, id %ld, type %d\n", con.rx_buffer_size, tx_buf[1], type );
+    //LOG( LOG_WARNING, "IE&E Processing packet size %ld, id %ld, type %d\n", con.rx_buffer_size, tx_buf[1], type );
     switch ( type ) {
     case TransactionTypeRegRead:
         if ( con.rx_buffer_size == HEADER_SIZE + 8 ) {
@@ -381,6 +384,7 @@ static void process_request( void )
             uint8_t c = ( rx_buf[0] >> 8 ) & 0xFF;
             con.tx_buffer_size = HEADER_SIZE + 8;
             tx_buf[3] = application_command( t, c, rx_buf[1], COMMAND_GET, &tx_buf[4] );
+            //LOG( LOG_WARNING, "IE&E read rx_buf[0] %d, rx_buf[1] %d, tx_buf[3] %d, tx_buf[4] %d ", rx_buf[0], rx_buf[1], tx_buf[3], tx_buf[4]);
         } else {
             con.tx_buffer_size = HEADER_SIZE;
             LOG( LOG_WARNING, "Wrong packet size %u for type %u", (unsigned int)con.rx_buffer_size, (unsigned int)type );
@@ -392,6 +396,8 @@ static void process_request( void )
             uint8_t c = ( rx_buf[0] >> 8 ) & 0xFF;
             con.tx_buffer_size = HEADER_SIZE + 8;
             tx_buf[3] = application_command( t, c, rx_buf[1], COMMAND_SET, &tx_buf[4] );
+            //LOG( LOG_WARNING, "IE&E write rx_buf[0] %d, rx_buf[1] %d, tx_buf[3] %d, tx_buf[4] %d ", rx_buf[0], rx_buf[1], tx_buf[3], tx_buf[4]);
+
         } else {
             con.tx_buffer_size = HEADER_SIZE;
             LOG( LOG_WARNING, "Wrong packet size %u for type %u", (unsigned int)con.rx_buffer_size, (unsigned int)type );

@@ -16,14 +16,22 @@
 * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 *
 */
-
+#include "acamera_types.h"
 #include "acamera_firmware_config.h"
 #include "acamera_lens_api.h"
-#include "acamera_types.h"
 
 #include "sensor_bus_config.h"
 /*    - Test the driver in this file                            */
 /*                                                              */
+
+
+#if defined( CUR_MOD_NAME)
+#undef CUR_MOD_NAME 
+#define CUR_MOD_NAME LOG_MODULE_SOC_LENS
+#else
+#define CUR_MOD_NAME LOG_MODULE_SOC_LENS
+#endif
+
 
 #if ISP_SENSOR_DRIVER_DONGWOON
 #include "dongwoon_vcm.h"

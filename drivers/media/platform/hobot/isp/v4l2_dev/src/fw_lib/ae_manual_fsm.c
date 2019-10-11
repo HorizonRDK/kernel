@@ -21,10 +21,14 @@
 #include "ae_manual_fsm.h"
 #include "sbuf.h"
 
-#ifdef LOG_MODULE
-#undef LOG_MODULE
-#define LOG_MODULE LOG_MODULE_AE_MANUAL
+
+#if defined( CUR_MOD_NAME)
+#undef CUR_MOD_NAME 
+#define CUR_MOD_NAME LOG_MODULE_AE_MANUAL
+#else
+#define CUR_MOD_NAME LOG_MODULE_AE_MANUAL
 #endif
+
 
 void AE_fsm_clear( AE_fsm_t *p_fsm )
 {

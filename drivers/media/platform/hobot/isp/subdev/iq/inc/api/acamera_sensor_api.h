@@ -67,6 +67,8 @@ typedef struct _sensor_param_t {
     uint32_t modes_num;                      // The number of predefined modes
     uint8_t mode;                            // Current mode. This value is from the range [ 0 : modes_num - 1 ]
     void *sensor_ctx;                        // Conext to a sensor structure. This structure is not available to firmware
+    uint8_t sensor_type; //  senor type;
+    uint8_t sensor_i2c_channel;
 } sensor_param_t;
 
 
@@ -167,6 +169,19 @@ typedef struct _sensor_control_t {
      *
      */
     void ( *set_mode )( void *ctx, uint8_t mode );
+
+
+    /**
+     *   Set the sensor type
+     *
+     *   Sensor can support several modes. This function
+     *   is used to switch among them.
+     *
+     *   @param mode - the new sensor type to set
+     *          ctx - pointer to the sensor context
+     *
+     */
+    void ( *set_sensor_type )( void *ctx, uint8_t sensor_type, uint8_t sensor_i2c_channel );
 
 
     /**

@@ -24,11 +24,16 @@
 #include "acamera_calibrations.h"
 #include "acamera_command_api.h"
 #include "matrix_yuv_fsm.h"
+#include "string.h"
 
-#ifdef LOG_MODULE
-#undef LOG_MODULE
-#define LOG_MODULE LOG_MODULE_MATRIX_YUV
+
+#if defined( CUR_MOD_NAME)
+#undef CUR_MOD_NAME 
+#define CUR_MOD_NAME LOG_MODULE_MATRIX_YUV
+#else
+#define CUR_MOD_NAME LOG_MODULE_MATRIX_YUV
 #endif
+
 
 static void vector_vector_add( int16_t *v1, int16_t *v2, int dim1 )
 {

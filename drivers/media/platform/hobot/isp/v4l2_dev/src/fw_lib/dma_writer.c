@@ -27,10 +27,15 @@
 #include "acamera.h"
 #include "acamera_fw.h"
 
-#ifdef LOG_MODULE
-#undef LOG_MODULE
-#define LOG_MODULE LOG_MODULE_DMA_WRITER
+
+#if defined( CUR_MOD_NAME)
+#undef CUR_MOD_NAME 
+#define CUR_MOD_NAME LOG_MODULE_DMA_WRITER
+#else
+#define CUR_MOD_NAME LOG_MODULE_DMA_WRITER
 #endif
+
+
 
 extern uint32_t acamera_get_api_context( void );
 
@@ -219,7 +224,7 @@ static int dma_writer_configure_frame_writer( dma_pipe *pipe,
         aframe->height = reg_ops->active_height_read( pipe->settings.isp_base );
 
         aframe->line_offset = acamera_line_offset( aframe->width, _get_pixel_width( aframe->type ) );
-        aframe->size = aframe->line_offset * aframe->height;
+        aframe->size = aframe->line_offset * aframe->height * 3 / 2;
 
         addr = aframe->address;
         line_offset = aframe->line_offset;

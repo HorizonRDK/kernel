@@ -17,6 +17,7 @@
 *
 */
 
+#include "string.h"
 #include "acamera_fw.h"
 #include "acamera_math.h"
 #include "acamera_logger.h"
@@ -26,10 +27,15 @@
 #include "gamma_manual_fsm.h"
 #include "sbuf.h"
 
-#ifdef LOG_MODULE
-#undef LOG_MODULE
-#define LOG_MODULE LOG_MODULE_GAMMA_MANUAL
+
+#if defined( CUR_MOD_NAME)
+#undef CUR_MOD_NAME 
+#define CUR_MOD_NAME LOG_MODULE_GAMMA_MANUAL
+#else
+#define CUR_MOD_NAME LOG_MODULE_GAMMA_MANUAL
 #endif
+
+
 
 #ifndef ARR_SIZE
 #define ARR_SIZE( x ) ( sizeof( x ) / sizeof( x[0] ) )

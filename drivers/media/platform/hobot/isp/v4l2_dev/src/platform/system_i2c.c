@@ -18,10 +18,11 @@
 */
 
 #include <asm/io.h>
-#include "system_log.h"
+//#include "system_log.h"
 #include "system_i2c.h"
 #include "acamera_logger.h"
 #include <linux/jiffies.h>
+
 
 #define FPGA_IIC_MEM_SIZE 0x1000
 #define FPGA_IIC_TX_FIFO 0x108

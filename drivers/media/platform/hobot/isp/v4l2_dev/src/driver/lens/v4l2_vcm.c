@@ -72,7 +72,7 @@ static void lens_update_parameters( void *ctx )
         struct v4l2_subdev *sd = p_ctx->soc_lens;
         uint32_t ctx_num = get_ctx_num( ctx );
         if ( sd != NULL && ctx_num < FIRMWARE_CONTEXT_NUMBER ) {
-            //LOG(LOG_INFO,"Found context num:%d",ctx_num);
+            //LOG( LOG_INFO, "Found context num:%d",ctx_num);
             settings.ctx_num = ctx_num;
             // Initial local parameters
             rc = v4l2_subdev_call( sd, core, ioctl, SOC_LENS_GET_LENS_TYPE, &settings );

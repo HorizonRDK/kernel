@@ -20,6 +20,7 @@
 #if !defined( __ACAMERA_FW_H__ )
 #define __ACAMERA_FW_H__
 
+#include "string.h"
 #include "acamera_types.h"
 #include "acamera_logger.h"
 #include "acamera_calibrations.h"

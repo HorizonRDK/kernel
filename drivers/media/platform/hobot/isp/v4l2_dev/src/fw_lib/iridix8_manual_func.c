@@ -17,6 +17,7 @@
 *
 */
 
+#include "string.h"
 #include "acamera_fw.h"
 #include "acamera_math.h"
 #include "acamera_math.h"
@@ -30,10 +31,14 @@
 #include "sbuf.h"
 #include "iridix8_manual_fsm.h"
 
-#ifdef LOG_MODULE
-#undef LOG_MODULE
-#define LOG_MODULE LOG_MODULE_IRIDIX8_MANUAL
+
+#if defined( CUR_MOD_NAME)
+#undef CUR_MOD_NAME 
+#define CUR_MOD_NAME LOG_MODULE_IRIDIX8_MANUAL
+#else
+#define CUR_MOD_NAME LOG_MODULE_IRIDIX8_MANUAL
 #endif
+
 
 /* this function just get a empty sbuf and set its status to done
  * so that it keeps the sbuf status loop correctly.
@@ -112,17 +117,17 @@ void iridix_fsm_process_interrupt( iridix_fsm_const_ptr_t p_fsm, uint8_t irq_eve
         acamera_fsm_mgr_get_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_GET_FRAME_EXPOSURE_SET, &frame_prev, sizeof( frame_prev ), &exp_set_fr_prev, sizeof( exp_set_fr_prev ) );
 
         diff = acamera_math_exp2( exp_set_fr_prev.info.exposure_log2 - exp_set_fr_next.info.exposure_log2, LOG2_GAIN_SHIFT, 8 );
-        // LOG(LOG_DEBUG,"diff1 %d %d ", (int)diff,(int)diff_iridix_DG);
+        // LOG( LOG_ERR, "diff1 %d %d ", (int)diff,(int)diff_iridix_DG);
 
         diff = ( diff * diff_iridix_DG ) >> 8;
 
-        // LOG(LOG_DEBUG,"diff2 %d\n", (int)diff);
+        // LOG( LOG_ERR, "diff2 %d\n", (int)diff);
         if ( diff < 0 )
             diff = 256;
         if ( diff >= ( 1 << ACAMERA_ISP_IRIDIX_COLLECTION_CORRECTION_DATASIZE ) )
             diff = ( 1 << ACAMERA_ISP_IRIDIX_COLLECTION_CORRECTION_DATASIZE );
-        //LOG(LOG_DEBUG,"%u %ld prev %ld\n", (unsigned int)diff, exp_set_fr1.info.exposure_log2, exp_set_fr0.info.exposure_log2);
-        // LOG(LOG_DEBUG,"diff3 %d\n", (int)diff);
+        //LOG( LOG_ERR, "%u %ld prev %ld\n", (unsigned int)diff, exp_set_fr1.info.exposure_log2, exp_set_fr0.info.exposure_log2);
+        // LOG( LOG_ERR, "diff3 %d\n", (int)diff);
 
         acamera_isp_iridix_collection_correction_write( p_fsm->cmn.isp_base, diff );
 

@@ -26,6 +26,15 @@
 
 #include "acamera_logger.h"
 
+
+#if defined( CUR_MOD_NAME)
+#undef CUR_MOD_NAME 
+#define CUR_MOD_NAME LOG_MODULE_SOC_SENSOR
+#else
+#define CUR_MOD_NAME LOG_MODULE_SOC_SENSOR
+#endif
+
+
 static uint32_t fill_address( uint8_t *buf, uint32_t mask, uintptr_t addr )
 {
     uint32_t i, size;

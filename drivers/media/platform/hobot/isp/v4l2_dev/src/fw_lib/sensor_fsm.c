@@ -20,14 +20,20 @@
 #include "acamera_fw.h"
 #include "sensor_fsm.h"
 
-#ifdef LOG_MODULE
-#undef LOG_MODULE
-#define LOG_MODULE LOG_MODULE_SENSOR
+
+#if defined( CUR_MOD_NAME)
+#undef CUR_MOD_NAME 
+#define CUR_MOD_NAME LOG_MODULE_SENSOR
+#else
+#define CUR_MOD_NAME LOG_MODULE_SENSOR
 #endif
+
 
 void sensor_fsm_clear( sensor_fsm_t *p_fsm )
 {
     p_fsm->mode = ( 0 );
+    p_fsm->sensor_type = ( 0 );
+    p_fsm->sensor_i2c_channel = ( 0 );
     p_fsm->preset_mode = SENSOR_DEFAULT_PRESET_MODE;
     p_fsm->isp_output_mode = ( ISP_DISPLAY_MODE );
     p_fsm->is_streaming = ( 0 );
@@ -237,6 +243,26 @@ int sensor_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_t in
         }
 
         p_fsm->preset_mode = *(uint32_t *)input;
+        break;
+
+    case FSM_PARAM_SET_SENSOR_I2C_CHANNEL://IE&E ADD
+        if ( !input || input_size != sizeof( uint32_t ) ) {
+            LOG( LOG_ERR, "Invalid param, param_id: %d.", param_id );
+            rc = -1;
+            break;
+        }
+
+        p_fsm->sensor_i2c_channel = *(uint32_t *)input;
+        break;
+
+    case FSM_PARAM_SET_SENROR_TYPE://IE&E ADD
+        if ( !input || input_size != sizeof( uint32_t ) ) {
+            LOG( LOG_ERR, "Invalid param, param_id: %d.", param_id );
+            rc = -1;
+            break;
+        }
+
+        p_fsm->sensor_type = *(uint32_t *)input;
         break;
 
     case FSM_PARAM_SET_SENSOR_INFO_PRESET_NUM:

@@ -20,10 +20,14 @@
 #include "acamera_fw.h"
 #include "metadata_fsm.h"
 
-#ifdef LOG_MODULE
-#undef LOG_MODULE
-#define LOG_MODULE LOG_MODULE_METADATA
+
+#if defined( CUR_MOD_NAME)
+#undef CUR_MOD_NAME 
+#define CUR_MOD_NAME LOG_MODULE_METADATA
+#else
+#define CUR_MOD_NAME LOG_MODULE_METADATA
 #endif
+
 
 void metadata_fsm_clear( metadata_fsm_t *p_fsm )
 {

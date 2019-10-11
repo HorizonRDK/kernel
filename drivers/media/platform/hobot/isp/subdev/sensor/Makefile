@@ -26,6 +26,10 @@ else
     _ARCH=${ARCH}
 endif
 
+KBUILD_EXTRA_SYMBOLS += $(PWD)/../../log_list/Module.symvers
+export KBUILD_EXTRA_SYMBOLS
+
+
 
 #redefine CROSS_COMPILE
 ifeq ($(CROSS_COMPILE),)    
@@ -48,7 +52,7 @@ endif
 obj-m += iv009_isp_sensor.o
 
 ifeq ($(FW_SRC_OBJ),)
-	FW_SRC := $(wildcard src/*.c src/*/*.c src/*/*/*.c app/*.c app/*/*.c)
+	FW_SRC := $(wildcard src/*.c src/*/*.c src/*/*/*.c src/*/*/*/*.c app/*.c app/*/*.c)
 	export FW_SRC_OBJ := $(FW_SRC:.c=.o)
 
 	ifneq ($(wildcard src/fw_lib/libacamera_isp.a),) 
@@ -62,7 +66,10 @@ iv009_isp_sensor-objs += $(FW_SRC_OBJ)
 
 INCLUDE_DIRS := $(addprefix -I,$(shell find ../ -type d ))
 
-ccflags-y:=-I$(PWD)/app -I$(PWD)/inc -I$(PWD)/app/control -I$(PWD)/inc/api -I$(PWD)/inc/isp -I$(PWD)/inc/sys -I$(PWD)/src/platform -I$(PWD)/src/fw  -I$(PWD)/src/fw_lib -I$(PWD)/src/calibration -I$(PWD)/src/driver/sensor -I$(PWD)/src/driver/lens -I$(_KDIR)/include/linux/
+ccflags-y:=-I$(PWD)/app -I$(PWD)/inc -I$(PWD)/app/control -I$(PWD)/inc/api -I$(PWD)/inc/isp \
+		-I$(PWD)/inc/sys -I$(PWD)/src/platform -I$(PWD)/src/fw  -I$(PWD)/src/fw_lib \
+		-I$(PWD)/src/calibration -I$(PWD)/src/driver/sensor -I$(PWD)/src/driver/sensor/user_sensor \
+		-I$(PWD)/src/driver/lens -I$(_KDIR)/include/linux/
 
 ccflags-y += -Wno-declaration-after-statement
 

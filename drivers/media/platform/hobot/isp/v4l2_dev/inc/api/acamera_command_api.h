@@ -40,6 +40,13 @@
 
 
 // ------------------------------------------------------------------------------ //
+//              SENSOR_TYPE
+// ------------------------------------------------------------------------------ //
+#define SENSOR_IMX290                                     0x00000001
+#define SENSOR_IMX385                                     0x00000002
+
+
+// ------------------------------------------------------------------------------ //
 //		STATIC CALIBRATION VALUES
 // ------------------------------------------------------------------------------ //
 #define CALIBRATION_LIGHT_SRC                             0x00000000
@@ -184,7 +191,8 @@
 #define TALGORITHMS                                       0x00000007
 #define TSCENE_MODES                                      0x00000008
 #define TREGISTERS                                        0x00000009
-
+#define MSENSOR                                           0x0000000a //IE&E add
+#define LOG_LIST                                          0x0000000b //add API by myself
 
 // ------------------------------------------------------------------------------ //
 //		BUFFER TYPES
@@ -302,6 +310,33 @@
 #define REGISTERS_SIZE_ID                                 0x00000065
 #define REGISTERS_SOURCE_ID                               0x00000066
 #define REGISTERS_VALUE_ID                                0x00000067
+#define SENSOR_TYPE                                       0x00000068 //add 
+#define SENSOR_I2C_CHANNEL                                0x00000069 //add
+
+#define LOG_LIST_LEVEL                                    0x00000094 // add API by myself
+#define LOG_LIST_MASK                                     0x00000095 // add API by myself
+#define LOGLIST_FW_GENERIC                                0x00000096 // add API by myself
+#define LOGLIST_SENSOR                                    0x00000097 // add API by myself
+#define LOGLIST_CMOS                                      0x00000098 // add API by myself
+#define LOGLIST_CROP                                      0x00000099 // add API by myself
+#define LOGLIST_GENERAL                                   0x0000009a // add API by myself
+#define LOGLIST_AE_MANUAL                                 0x0000009b // add API by myself
+#define LOGLIST_AWB_MANUAL                                0x0000009c // add API by myself
+#define LOGLIST_COLOR_MATRIX                              0x0000009d // add API by myself
+#define LOGLIST_IRIDIX8_MANUAL                            0x0000009e // add API by myself
+#define LOGLIST_NOISE_REDUCTION                           0x0000009f // add API by myself
+#define LOGLIST_SHARPENING                                0x000000a0 // add API by myself
+#define LOGLIST_MATRIX_YUV                                0x000000a1 // add API by myself
+#define LOGLIST_GAMMA_MANUAL                              0x000000a2 // add API by myself
+#define LOGLIST_MONITOR                                   0x000000a3 // add API by myself
+#define LOGLIST_SBUF                                      0x000000a4 // add API by myself
+#define LOGLIST_DMA_WRITER                                0x000000a5 // add API by myself
+#define LOGLIST_METADATA                                  0x000000a6 // add API by myself
+#define LOGLIST_AF_MANUAL                                 0x000000a7 // add API by myself
+#define LOGLIST_FPGA_DMA_FE                               0x000000a8 // add API by myself
+#define LOGLIST_SOC_IQ                                    0x000000a9 // add API by myself
+#define LOGLIST_SOC_SENSOR                                0x000000aa // add API by myself
+#define LOGLIST_SOC_LENS                                  0x000000ab // add API by myself
 
 
 // ------------------------------------------------------------------------------ //

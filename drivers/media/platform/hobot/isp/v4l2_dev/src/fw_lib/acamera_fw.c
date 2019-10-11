@@ -31,6 +31,7 @@
 #include "acamera_sbus_api.h"
 #include "sensor_init.h"
 #include "isp_config_seq.h"
+#include "system_stdlib.h"
 
 #if ISP_HAS_FPGA_WRAPPER
 #include "acamera_fpga_config.h"
@@ -194,6 +195,7 @@ int32_t acamera_update_calibration_set( acamera_context_ptr_t p_ctx )
 {
     int32_t result = 0;
     void *sensor_arg = 0;
+	uint32_t sensor_type = 0;
     if ( p_ctx->settings.get_calibrations != NULL ) {
         {
             const sensor_param_t *param = NULL;
@@ -203,8 +205,9 @@ int32_t acamera_update_calibration_set( acamera_context_ptr_t p_ctx )
             if ( cur_mode < param->modes_num ) {
                 sensor_arg = &( param->modes_table[cur_mode] );
             }
+		sensor_type = param->sensor_type;
         }
-        if ( p_ctx->settings.get_calibrations( p_ctx->context_id, sensor_arg, &p_ctx->acameraCalibrations ) != 0 ) {
+        if ( p_ctx->settings.get_calibrations( p_ctx->context_id, sensor_arg, &p_ctx->acameraCalibrations, sensor_type ) != 0 ) {
             LOG( LOG_ERR, "Failed to get calibration set for. Fatal error" );
         }
 
@@ -241,6 +244,7 @@ int32_t acamera_init_calibrations( acamera_context_ptr_t p_ctx )
 {
     int32_t result = 0;
     void *sensor_arg = 0;
+    uint32_t sensor_type = 0;
 #ifdef SENSOR_ISP_SEQUENCE_DEFAULT_FULL
     acamera_load_isp_sequence( p_ctx->settings.isp_base, p_ctx->isp_sequence, SENSOR_ISP_SEQUENCE_DEFAULT_FULL );
 #endif
@@ -259,8 +263,8 @@ int32_t acamera_init_calibrations( acamera_context_ptr_t p_ctx )
             if ( cur_mode < param->modes_num ) {
                 sensor_arg = &( param->modes_table[cur_mode] );
             }
-
-            if ( p_ctx->settings.get_calibrations( p_ctx->context_id, sensor_arg, &p_ctx->acameraCalibrations ) != 0 ) {
+		sensor_type = param->sensor_type;
+            if ( p_ctx->settings.get_calibrations( p_ctx->context_id, sensor_arg, &p_ctx->acameraCalibrations, sensor_type ) != 0 ) {
                 LOG( LOG_ERR, "Failed to get calibration set for. Fatal error" );
             }
         } else {

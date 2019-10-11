@@ -78,6 +78,16 @@ enum SocCamera_ioctl {
     // output: none
     SOC_SENSOR_SET_PRESET,
 
+    // set a new sensor type
+    // Each sensor driver can support any number of different presets. A preset is a combination
+    // of a resolution, fps and wdr mode. V4L2 ISP driver should know in advance about the presets
+    // used and will use them by number from 0 till PR_NUM-1.
+    //
+    // input: val_in: change sensor type
+    // input: val_in2: change sensor i2c channel
+    // output: none
+    SOC_SENSOR_SET_TYPE,
+
     // allocate new analog gain.
     // The V4L2 ISP device will try to set a new analog gain on every frame
     // V4L2 sensor subdevice should save the closest possible value which is less
@@ -154,6 +164,11 @@ enum SocCamera_ioctl {
     // output: val_out - preset number
     SOC_SENSOR_GET_PRESET_CUR,
 
+    // return current preset
+    // input: none
+    // output: val_out - preset sensor type
+    SOC_SENSOR_GET_PRESET_TYPE,
+    
     // Get a sensor image widht for a given preset
     // input: val_in - preset number
     // output: val_out - image width for a given preset

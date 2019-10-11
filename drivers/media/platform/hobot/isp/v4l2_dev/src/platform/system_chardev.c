@@ -28,6 +28,7 @@
 #include "system_chardev.h"
 #include "acamera_logger.h"
 
+
 #define SYSTEM_CHARDEV_FIFO_SIZE 4096
 #define SYSTEM_CHARDEV_NAME "ac_isp"
 

@@ -48,7 +48,7 @@ const void *_GET_LUT_PTR( void *p_ctx, uint32_t idx )
     if ( lut != NULL ) {
         result = lut->ptr;
     } else {
-        while ( 1 ) {
+      //  while ( 1 ) {
             fsm_param_mon_err_head_t mon_err_head;
             mon_err_head.err_type = MON_TYPE_ERR_CALIBRATION_LUT_NULL;
             mon_err_head.err_param = idx;
@@ -57,7 +57,7 @@ const void *_GET_LUT_PTR( void *p_ctx, uint32_t idx )
 
             // sleep 3 second to avoid affect system performance badly.
             system_timer_usleep( 3 * 1000 * 1000 );
-        };
+      //  };
     }
     return result;
 }

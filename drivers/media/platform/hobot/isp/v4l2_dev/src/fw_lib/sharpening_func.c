@@ -23,10 +23,15 @@
 #include "acamera_command_api.h"
 #include "sharpening_fsm.h"
 
-#ifdef LOG_MODULE
-#undef LOG_MODULE
-#define LOG_MODULE LOG_MODULE_SHARPENING
+
+#if defined( CUR_MOD_NAME)
+#undef CUR_MOD_NAME 
+#define CUR_MOD_NAME LOG_MODULE_SHARPENING
+#else
+#define CUR_MOD_NAME LOG_MODULE_SHARPENING
 #endif
+
+
 
 #define VIDEO_OUT_WIDTH 10
 void sharpening_initialize( sharpening_fsm_t *p_fsm )

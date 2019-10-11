@@ -55,6 +55,7 @@
 
 #include "acamera_logger.h"
 
+
 #define D1E6 1000000
 
 
@@ -1155,7 +1156,7 @@ uint8_t system_max_integration_time( acamera_fsm_mgr_t *instance, uint32_t value
 
 #ifdef SYSTEM_SENSOR_ANALOG_GAIN
 uint8_t system_sensor_analog_gain( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
-{
+{ 
     *ret_value = 0;
     cmos_control_param_t *param = (cmos_control_param_t *)_GET_UINT_PTR( ACAMERA_MGR2CTX_PTR( instance ), CALIBRATION_CMOS_CONTROL );
     if ( direction == COMMAND_GET ) {
@@ -1171,6 +1172,8 @@ uint8_t system_sensor_analog_gain( acamera_fsm_mgr_t *instance, uint32_t value, 
     } else {
         return NOT_SUPPORTED;
     }
+
+
     return NOT_SUPPORTED;
 }
 #endif
@@ -1393,7 +1396,7 @@ uint8_t system_anti_flicker_frequency( acamera_fsm_mgr_t *instance, uint32_t val
 }
 #endif
 
-#ifdef SYSTEM_LOGGER_LEVEL
+#if defined( SYSTEM_LOGGER_LEVEL) || defined (LOG_LIST_LEVEL)
 uint8_t system_logger_level( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
 {
     *ret_value = 0;
@@ -1410,7 +1413,7 @@ uint8_t system_logger_level( acamera_fsm_mgr_t *instance, uint32_t value, uint8_
 }
 #endif
 
-#ifdef SYSTEM_LOGGER_MASK
+#if defined (SYSTEM_LOGGER_MASK) || defined (LOG_LIST_MASK)
 uint8_t system_logger_mask( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
 {
     *ret_value = 0;
@@ -1427,6 +1430,32 @@ uint8_t system_logger_mask( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t
 }
 #endif
 
+#ifdef  LOG_LIST_MASK
+uint8_t system_loglist_mask( acamera_fsm_mgr_t *instance, uint32_t model, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    uint32_t tmp_model = 0;
+    *ret_value = 0;
+
+    tmp_model = acamera_logger_get_mask();
+
+    switch ( direction ) {
+    case COMMAND_SET:
+	if (value == 0)
+		tmp_model &=  ~(1 << model);	
+	else
+		tmp_model |=  (1 << model);
+	
+        ACAMERA_LOGGER_SET_MASK( tmp_model );
+        return SUCCESS;
+    case COMMAND_GET:
+
+        *ret_value = ((tmp_model >> model) & 0x1);
+        return SUCCESS;
+    default:
+        return NOT_IMPLEMENTED;
+    }
+}
+#endif
 
 // ------------------------------------------------------------------------------ //
 
@@ -3034,7 +3063,90 @@ uint8_t register_value( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t dir
 }
 #endif
 
+//TODO
+//--------------------------------------------------------------------------------//
+//        MSESOR
+//--------------------------------------------------------------------------------//
 
+
+// ------------------------------------------------------------------------------ //
+//  sensor type of different chn :
+//
+//   Control the exact sharpening value.
+//
+//   Values:
+//    [0-255]
+//   IMX290 : IMX327 : IMX390
+// ------------------------------------------------------------------------------ //
+#ifdef SENSOR_TYPE  //TODO
+#define SENSOR_NUM 5
+uint8_t sensor_type( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    uint32_t result = SUCCESS;
+    *ret_value = 0;
+
+    const sensor_param_t *param = NULL;
+    acamera_fsm_mgr_get_param( instance, FSM_PARAM_GET_SENSOR_PARAM, NULL, 0, &param, sizeof( param ) );
+
+    if ( direction == COMMAND_GET ) {
+        *ret_value = param->sensor_type;
+        result = SUCCESS;
+    } else {
+        if ( value < SENSOR_NUM ) {
+            acamera_fsm_mgr_set_param( instance, FSM_PARAM_SET_SENROR_TYPE, &value, sizeof( value ) );
+
+            isp_safe_stop( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base );
+            acamera_fsm_mgr_raise_event( instance, event_id_acamera_reset_sensor_hw );
+
+            result = SUCCESS;
+        } else {
+            result = FAIL;
+        }
+    }
+    return result;
+}
+#endif 
+
+
+// ------------------------------------------------------------------------------ //
+//  sensor type of different chn :
+//
+//   Control the exact sharpening value.
+//
+//   Values:
+//    [0-255]
+//   IMX290 : IMX327 : IMX390
+// ------------------------------------------------------------------------------ //
+#ifdef SENSOR_I2C_CHANNEL  //TODO
+#define X2A_I2C_NUM 5
+uint8_t sensor_i2c_chnnel( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    uint32_t result = SUCCESS;
+    *ret_value = 0;
+
+    const sensor_param_t *param = NULL;
+    acamera_fsm_mgr_get_param( instance, FSM_PARAM_GET_SENSOR_PARAM, NULL, 0, &param, sizeof( param ) );
+
+    if ( direction == COMMAND_GET ) {
+        *ret_value = param->sensor_i2c_channel;
+        result = SUCCESS;
+    } else {
+        if ( value < X2A_I2C_NUM ) {
+            acamera_fsm_mgr_set_param( instance, FSM_PARAM_SET_SENSOR_I2C_CHANNEL, &value, sizeof( value ) );
+
+            isp_safe_stop( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base );
+            acamera_fsm_mgr_raise_event( instance, event_id_acamera_reset_sensor_hw );
+
+            result = SUCCESS;
+        } else {
+            result = FAIL;
+        }
+    }
+    return result;
+}
+#endif
+
+ 
 // ------------------------------------------------------------------------------ //
 //        TSCENE_MODES
 // ------------------------------------------------------------------------------ //

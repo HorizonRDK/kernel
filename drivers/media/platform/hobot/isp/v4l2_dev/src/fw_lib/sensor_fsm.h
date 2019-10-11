@@ -53,6 +53,8 @@ struct _sensor_fsm_t {
     uint8_t is_streaming;
     uint8_t info_preset_num;
     uint32_t boot_status;
+    uint8_t sensor_type;//IE&E ADD
+    uint8_t sensor_i2c_channel;//IE&E ADD
 };
 
 

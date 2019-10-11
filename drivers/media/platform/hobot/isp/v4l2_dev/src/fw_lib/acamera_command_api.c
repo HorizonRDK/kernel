@@ -29,6 +29,7 @@
 #include "acamera_ctrl_channel.h"
 #endif
 
+
 extern void * acamera_get_ctx_ptr( uint32_t ctx_id );
 
 uint8_t acamera_command( uint32_t ctx_id, uint8_t command_type, uint8_t command, uint32_t value, uint8_t direction, uint32_t *ret_value){
@@ -386,6 +387,52 @@ case  TREGISTERS:
 			ret = register_value(instance, value, direction, ret_value);
 			break;
 	}//switch (command)
+	break;
+case  MSENSOR:
+	switch (command){
+		case  SENSOR_TYPE:
+			ret = sensor_type(instance, value, direction, ret_value);
+			break;
+		case  SENSOR_I2C_CHANNEL:
+			ret = sensor_i2c_chnnel(instance, value, direction, ret_value);
+			break;
+	}//switch (command)
+	break;
+case  LOG_LIST:
+	switch (command){
+		case  LOG_LIST_LEVEL:
+			ret = system_logger_level(instance, value, direction, ret_value);
+			break;
+		case  LOG_LIST_MASK:
+			ret = system_logger_mask(instance, value, direction, ret_value);
+			break;
+		case  LOGLIST_FW_GENERIC:
+		case  LOGLIST_SENSOR:
+		case  LOGLIST_CMOS:
+		case  LOGLIST_CROP:
+		case  LOGLIST_GENERAL:
+		case  LOGLIST_AE_MANUAL:
+		case  LOGLIST_AWB_MANUAL:
+		case  LOGLIST_COLOR_MATRIX:
+		case  LOGLIST_IRIDIX8_MANUAL:
+		case  LOGLIST_NOISE_REDUCTION:
+		case  LOGLIST_SHARPENING:
+		case  LOGLIST_MATRIX_YUV:
+		case  LOGLIST_GAMMA_MANUAL:
+		case  LOGLIST_MONITOR:
+		case  LOGLIST_SBUF:
+		case  LOGLIST_DMA_WRITER:
+		case  LOGLIST_METADATA:
+		case  LOGLIST_AF_MANUAL:
+		case  LOGLIST_FPGA_DMA_FE:
+		case  LOGLIST_SOC_IQ:
+		case  LOGLIST_SOC_SENSOR:
+		case  LOGLIST_SOC_LENS:
+			//ret = sensor_i2c_chnnel(instance, value, direction, ret_value);
+			ret = system_loglist_mask(instance, (command - LOGLIST_FW_GENERIC), value, direction, ret_value );
+			break;
+	}//switch (command)
+	break;
 }//switch (command_type)
 
 #if FW_HAS_CONTROL_CHANNEL
@@ -394,11 +441,11 @@ case  TREGISTERS:
 
 if(ret!=SUCCESS)
 {
-	LOG(LOG_WARNING,"API COMMAND FAILED: type %d, cmd %d, value %lu, direction %d, ret_value %lu, result %d",command_type, command, (unsigned long)value, direction, (unsigned long)*ret_value, ret);
+	LOG( LOG_WARNING, "API COMMAND FAILED: type %d, cmd %d, value %lu, direction %d, ret_value %lu, result %d",command_type, command, (unsigned long)value, direction, (unsigned long)*ret_value, ret);
 }
 else
 {
-	LOG(LOG_DEBUG,"API type %d, cmd %d, value %lu, direction %d, ret_value %lu, result %d",command_type, command, (unsigned long)value, direction, (unsigned long)*ret_value, ret);
+	LOG( LOG_DEBUG, "API type %d, cmd %d, value %lu, direction %d, ret_value %lu, result %d",command_type, command, (unsigned long)value, direction, (unsigned long)*ret_value, ret); //TODO
 }
 	return ret;
 }

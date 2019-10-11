@@ -30,11 +30,20 @@
 #include "acamera_firmware_settings.h"
 #include "runtime_initialization_settings.h"
 
+
+#if defined( CUR_MOD_NAME)
+#undef CUR_MOD_NAME 
+#define CUR_MOD_NAME LOG_MODULE_SOC_SENSOR
+#else
+#define CUR_MOD_NAME LOG_MODULE_SOC_SENSOR
+#endif
+
+
 #define ARGS_TO_PTR( arg ) ( (struct soc_sensor_ioctl_args *)arg )
 
 
-void ( *SOC_SENSOR_SENSOR_ENTRY_ARR[FIRMWARE_CONTEXT_NUMBER] )( void **ctx, sensor_control_t *ctrl ) = SENSOR_INIT_SUBDEV_FUNCTIONS;
-void ( *SOC_SENSOR_SENSOR_RESET_ARR[FIRMWARE_CONTEXT_NUMBER] )( void *ctx ) = SENSOR_DEINIT_SUBDEV_FUNCTIONS;
+void ( *SOC_SENSOR_SENSOR_ENTRY_ARR[FIRMWARE_CONTEXT_NUMBER] )(uint32_t ctx_id, void **ctx, sensor_control_t *ctrl ) = SENSOR_INIT_SUBDEV_FUNCTIONS;
+void ( *SOC_SENSOR_SENSOR_RESET_ARR[FIRMWARE_CONTEXT_NUMBER] )(uint32_t ctx_id,  void *ctx ) = SENSOR_DEINIT_SUBDEV_FUNCTIONS;
 
 static struct v4l2_subdev soc_sensor;
 
@@ -61,7 +70,7 @@ static int camera_init( struct v4l2_subdev *sd, u32 val )
 
         s_ctx[val].camera_context = NULL;
 
-        ( SOC_SENSOR_SENSOR_ENTRY_ARR[val] )( &( s_ctx[val].camera_context ), &( s_ctx[val].camera_control ) );
+        ( SOC_SENSOR_SENSOR_ENTRY_ARR[val] )(val, &( s_ctx[val].camera_context ), &( s_ctx[val].camera_control ) );
 
         if ( s_ctx[val].camera_context == NULL ) {
             LOG( LOG_ERR, "Failed to process camera_init for ctx:%d. Sensor is not initialized yet. camera_init must be called before", val );
@@ -81,7 +90,7 @@ static int camera_reset( struct v4l2_subdev *sd, u32 val )
 {
     int rc = 0;
     if ( val < FIRMWARE_CONTEXT_NUMBER && SOC_SENSOR_SENSOR_RESET_ARR[val] ) {
-        ( SOC_SENSOR_SENSOR_RESET_ARR[val] )( s_ctx[val].camera_context );
+        ( SOC_SENSOR_SENSOR_RESET_ARR[val] )(val, s_ctx[val].camera_context );
     } else {
         rc = -1;
         LOG( LOG_ERR, "Failed to process camera reset for ctx:%d", val );
@@ -122,6 +131,10 @@ static long camera_ioctl( struct v4l2_subdev *sd, unsigned int cmd, void *arg )
     case SOC_SENSOR_SET_PRESET:
         ctx->camera_control.set_mode( ctx->camera_context, ARGS_TO_PTR( arg )->args.general.val_in );
         break;
+    case SOC_SENSOR_SET_TYPE:
+        ctx->camera_control.set_sensor_type( ctx->camera_context, ARGS_TO_PTR( arg )->args.general.val_in,
+						ARGS_TO_PTR( arg )->args.general.val_in2 );
+        break;
     case SOC_SENSOR_ALLOC_AGAIN:
         ARGS_TO_PTR( arg )
             ->args.general.val_out = ctx->camera_control.alloc_analog_gain( ctx->camera_context, ARGS_TO_PTR( arg )->args.general.val_in );
@@ -150,6 +163,10 @@ static long camera_ioctl( struct v4l2_subdev *sd, unsigned int cmd, void *arg )
     case SOC_SENSOR_GET_PRESET_CUR:
         ARGS_TO_PTR( arg )
             ->args.general.val_out = params->mode;
+        break;
+    case SOC_SENSOR_GET_PRESET_TYPE:
+        ARGS_TO_PTR( arg )
+            ->args.general.val_out = params->sensor_type;
         break;
     case SOC_SENSOR_GET_PRESET_WIDTH: {
         int preset = ARGS_TO_PTR( arg )->args.general.val_in;

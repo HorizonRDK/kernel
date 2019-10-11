@@ -1,0 +1,428 @@
+/*  ldc_dev.c - a device driver for the ldc-bus interface
+ *
+ *   Copyright (C) 2018 Horizon Inc.
+ *
+ *    This program is free software; you can redistribute it and/or modify
+ *    it under the terms of the GNU General Public License as published by
+ *    the Free Software Foundation; either version 2 of the License, or
+ *    (at your option) any later version.
+ *
+ *    This program is distributed in the hope that it will be useful,
+ *    but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *    GNU General Public License for more details.
+ */
+
+#include <linux/platform_device.h>
+#include <linux/of.h>
+#include <linux/of_address.h>
+#include <linux/fs.h>
+#include <linux/errno.h>
+#include <linux/types.h>
+#include <linux/init.h>
+#include <linux/kthread.h>
+#include <linux/interrupt.h>
+#include <linux/irq.h>
+#include <linux/dmaengine.h>
+#include <linux/compiler.h>
+#include <linux/string.h>
+#include <linux/uaccess.h>
+#include <linux/mman.h>
+#include <linux/device.h>
+#include <linux/module.h>
+#include <media/v4l2-subdev.h>
+#include <media/v4l2-async.h>
+#include "acamera_logger.h"
+
+#include "system_dwe_api.h"
+#include "dwe_dev.h"
+#include "dwe_subdev.h"
+
+ 
+/* global variable define */
+typedef struct _subdev_dwe_ctx {
+    struct v4l2_subdev soc_dwe;
+    dwe_param_t *ptr_param;
+    //void *ptr_mem;
+    struct dwe_dev_s *dev_ctx;
+    spinlock_t ldclock;
+    spinlock_t dislock;
+    dwe_context_t ctx;
+    uint32_t ldc_irqstatus;
+    uint32_t dis_irqstatus;
+} subdev_dwe_ctx;
+ 
+static subdev_dwe_ctx *dwe_ctx;
+
+/* dis model irq
+ * pg_done:
+ * error : 
+ * frame_done: change setting & buffer
+ * note:
+ *   if  FIRMWARE_CONTEXT_NUMBER < 4
+ *       using setting[0-4]
+ *   else
+ *       using setting[0-1] 
+ *
+ */
+
+static irqreturn_t x2a_dis_irq(int this_irq, void *data)
+{
+        unsigned long flags;
+	dis_irqstatus_u tmp_irq;
+
+        disable_irq_nosync(this_irq);
+
+        spin_lock_irqsave(&dwe_ctx->dislock, flags);
+        //dis irq
+	get_dwe_int_status(dwe_ctx->dev_ctx->dis_dev->io_vaddr, &dwe_ctx->dis_irqstatus);
+	tmp_irq.status_g = dwe_ctx->dis_irqstatus;
+
+	spin_unlock_irqrestore(&dwe_ctx->dislock, flags);
+
+        enable_irq(this_irq);
+        return IRQ_HANDLED;
+}
+
+/* ldc model irq
+ * frame start: clear ldc_update
+ * overflow:  debug ldc param info
+ * output_frame_done: change setting
+ * input_fram_done: 
+ * 
+ * if ldc == bypass
+ *    set bypass_ldc == 1
+ * else
+ *    set bypass_ldc == 0
+ *    set setting 
+ * note:
+ *   if  FIRMWARE_CONTEXT_NUMBER < 4
+ *       using setting[0-4]
+ *   else
+ *       using setting[0-1] 
+ */
+
+static irqreturn_t x2a_ldc_irq(int this_irq, void *data)
+{
+        unsigned long flags;
+	ldc_irqstatus_u tmp_irq;
+
+        disable_irq_nosync(this_irq);
+
+        spin_lock_irqsave(&dwe_ctx->ldclock, flags);
+       	//
+	get_ldc_int_status(dwe_ctx->dev_ctx->dis_dev->io_vaddr, &dwe_ctx->ldc_irqstatus);
+	tmp_irq.status_g = dwe_ctx->ldc_irqstatus;
+	
+	if (tmp_irq.status_b.frame_start == 1) {
+		dwe_ctx->ctx.ctx_sitchwin =  1;
+		dwe_ctx->ctx.ldc_update = 0;
+		dwe_ctx->ctx.dis_update = 0;
+	} 
+
+	if (tmp_irq.status_b.output_frame_done == 1)
+		dwe_ctx->ctx.ctx_sitchwin =  0;	 
+	
+	spin_unlock_irqrestore(&dwe_ctx->ldclock, flags);
+
+        enable_irq(this_irq);
+        return IRQ_HANDLED;
+}
+
+
+int check_dev(struct dwe_dev_s *check)
+{
+	int ret = 0;
+
+	if (check == NULL) {
+		ret = -1;
+	} else {
+		if ((check->ldc_dev == NULL) || (check->dis_dev == NULL))
+			ret = -1;
+	}
+
+	return ret;
+}
+
+int dwe_hw_init(void)
+{
+	int ret = 0;
+        void *tmp = NULL;
+	unsigned int irq = 0;
+
+	printk(KERN_INFO "%s --%d !\n", __func__, __LINE__);
+	
+	ret = check_dev(dwe_ctx->dev_ctx);
+	if (ret < 0) {
+    		printk(KERN_INFO "dwe_ctx->dev_ctx is error! \n");
+	} else {
+		irq = dwe_ctx->dev_ctx->ldc_dev->irq_num;
+		ret = request_irq(irq, x2a_ldc_irq, IRQF_TRIGGER_HIGH, "X2A_LDC", NULL );
+		if (ret < 0) {
+    			printk(KERN_INFO "ldc irq %d register failed!\n", irq);
+			goto irqldc_err;
+		}
+		
+		printk(KERN_INFO "%s --%d !\n", __func__, __LINE__);
+	
+		irq = dwe_ctx->dev_ctx->dis_dev->irq_num;
+		ret = request_irq(irq, x2a_dis_irq, IRQF_TRIGGER_HIGH, "X2A_DIS", NULL );
+		if (ret < 0) {
+    			printk(KERN_INFO "dis irq %d register failed!\n", irq);
+			goto irqdis_err;
+		}
+	}
+	
+	printk(KERN_INFO "%s --%d !\n", __func__, __LINE__);
+	ret = dwe_init_api( &dwe_ctx->ctx, dwe_ctx->dev_ctx, &dwe_ctx->ptr_param);
+	if (ret < 0) {
+    		printk(KERN_INFO "dwe_init_api is failed!\n");
+		goto irq_err;
+	} else {
+    		printk(KERN_INFO "dwe_ctx->ptr_param is %p\n", dwe_ctx->ptr_param);
+	}
+
+	return ret;
+
+irq_err:
+	free_irq(dwe_ctx->dev_ctx->dis_dev->irq_num, x2a_ldc_irq);
+irqdis_err:
+	free_irq(dwe_ctx->dev_ctx->ldc_dev->irq_num, x2a_ldc_irq);
+irqldc_err:
+	return ret;
+}
+
+void dwe_hw_deinit(void)
+{
+	int ret = 0;
+	unsigned int irq = 0;
+
+	ret = check_dev(dwe_ctx->dev_ctx);
+	if (ret < 0) {
+    		printk(KERN_INFO "dwe_ctx->dev_ctx is error! \n");
+	} else {
+		irq = dwe_ctx->dev_ctx->ldc_dev->irq_num;
+		free_irq(irq, x2a_ldc_irq);
+		
+		irq = dwe_ctx->dev_ctx->dis_dev->irq_num;
+		free_irq(irq, x2a_dis_irq);
+	}
+
+	dwe_deinit_api(&dwe_ctx->ctx);
+	dwe_ctx->ptr_param = NULL;
+}
+
+static int soc_dwe_log_status( struct v4l2_subdev *sd )
+{
+    LOG( LOG_INFO, "log status called" );
+    return 0;
+}
+
+static int soc_dwe_init( struct v4l2_subdev *sd, u32 val )
+{
+    int rc = 0;
+
+    if ( val < FIRMWARE_CONTEXT_NUMBER ) {
+            return rc;
+    } else {
+        rc = -1;
+    }
+
+    return rc;
+}
+
+static int soc_dwe_reset( struct v4l2_subdev *sd, u32 val )
+{
+    int rc = 0;
+    if ( val < FIRMWARE_CONTEXT_NUMBER ) {
+    } else {
+        rc = -1;
+    }
+
+    return rc;
+}
+
+static long soc_dwe_ioctl( struct v4l2_subdev *sd, unsigned int cmd, void *arg )
+{
+    long rc = 0;
+
+#if 0
+    if ( ARGS_TO_PTR( arg )->ctx_num >= FIRMWARE_CONTEXT_NUMBER ) {
+        LOG( LOG_ERR, "Failed to process lens_ioctl for ctx:%d\n", ARGS_TO_PTR( arg )->ctx_num );
+        return -1;
+    }
+
+    subdev_lens_ctx *ctx = &l_ctx[ARGS_TO_PTR( arg )->ctx_num];
+
+    if ( ctx->lens_context == NULL ) {
+        LOG( LOG_ERR, "Failed to process lens_ioctl. Lens is not initialized yet. lens_init must be called before" );
+        rc = -1;
+        return rc;
+    }
+#endif
+
+
+    switch ( cmd ) {
+    case SOC_DWE_SET_LDC:
+        break;
+    case SOC_DWE_GET_LDC:
+        break;
+    case SOC_DWE_SET_DIS:
+        break;
+    case SOC_DWE_GET_DIS:
+        break;
+    default:
+        LOG( LOG_WARNING, "Unknown lens ioctl cmd %d", cmd );
+        rc = -1;
+        break;
+    };
+
+    return rc;
+}
+
+
+static const struct v4l2_subdev_core_ops core_ops = {
+    .log_status = soc_dwe_log_status,
+    .init = soc_dwe_init,
+    .reset = soc_dwe_reset,
+    .ioctl = soc_dwe_ioctl,
+};
+
+
+static const struct v4l2_subdev_ops dwe_ops = {
+    .core = &core_ops,
+};
+
+
+static int32_t soc_dwe_probe( struct platform_device *pdev )
+{
+    int32_t rc = 0;
+
+    printk(KERN_INFO "subdev -- soc_dwe_probe!!!\n");
+
+    dwe_ctx = kzalloc(sizeof(subdev_dwe_ctx), GFP_KERNEL);
+    if (dwe_ctx == NULL) {
+	return -1;
+    }
+
+    v4l2_subdev_init( &dwe_ctx->soc_dwe, &dwe_ops );
+
+    dwe_ctx->soc_dwe.flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
+
+    snprintf( dwe_ctx->soc_dwe.name, V4L2_SUBDEV_NAME_SIZE, "%s", V4L2_SOC_DWE_NAME );
+
+    dwe_ctx->soc_dwe.dev = &pdev->dev;
+    rc = v4l2_async_register_subdev( &dwe_ctx->soc_dwe );
+
+    LOG( LOG_INFO, "register v4l2 lens device. result %d", rc );
+
+    return rc;
+}
+
+static int soc_dwe_remove( struct platform_device *pdev )
+{
+    v4l2_async_unregister_subdev( &dwe_ctx->soc_dwe );
+    kfree(dwe_ctx);
+    dwe_ctx = NULL;
+
+    return 0;
+}
+
+static struct platform_device *soc_dwe_dev;
+
+static struct platform_driver soc_dwe_driver = {
+    .probe = soc_dwe_probe,
+    .remove = soc_dwe_remove,
+    .driver = {
+        .name = "soc_dwe_v4l2",
+        .owner = THIS_MODULE,
+    },
+};
+
+extern int __init system_dwe_init( struct dwe_dev_s **ptr );
+extern void __exit system_dwe_exit( void );
+
+extern int __init dwe_dev_init(uint32_t port);
+extern void __exit dwe_dev_exit(int port);
+
+static void chardevs_exit(void)
+{
+	uint32_t tmp = 0;
+	
+	for (tmp = 0; tmp < FIRMWARE_CONTEXT_NUMBER; tmp++) {
+		dwe_dev_exit(tmp);
+	}
+}
+
+static int chardevs_init(void)
+{
+	int ret = 0;
+	uint32_t tmp = 0;
+	
+	for (tmp = 0; tmp < FIRMWARE_CONTEXT_NUMBER; tmp++) {
+		ret = dwe_dev_init(tmp);
+		if (ret < 0) {
+			printk(KERN_INFO "dwe_dev_init %d is failed\n", tmp);
+			goto devinit_err;
+		}
+	}
+
+	return ret;
+devinit_err:
+	chardevs_exit();
+	return ret;	
+} 
+
+int __init acamera_soc_dwe_init( void )
+{
+    int rc = 0;
+   
+    LOG( LOG_INFO, "[KeyMsg] dwe subdevice init" );
+
+    soc_dwe_dev = platform_device_register_simple(
+        "soc_dwe_v4l2", -1, NULL, 0 );
+    rc = platform_driver_register( &soc_dwe_driver );
+    if (rc == 0) {
+	//get dev info
+	rc = system_dwe_init( &dwe_ctx->dev_ctx );
+	if (rc == 0) {
+		//dwe hardward init
+		printk(KERN_INFO "%s --%d  system_dwe_init is success!\n", __func__, __LINE__);
+		rc = dwe_hw_init();
+		if (rc < 0) {
+			printk(KERN_INFO "dwe_hw_init is failed\n");
+			goto init_err;
+		}
+	
+		rc = chardevs_init();
+		if (rc < 0) {
+			printk(KERN_INFO "dwe_dev_init is failed\n");
+			goto devinit_err;
+		}
+	}
+    }
+    LOG( LOG_INFO, "[KeyMsg] dwe subdevice init done: %d", rc );
+
+    return rc;
+devinit_err:
+    dwe_hw_deinit();	
+init_err:
+    return rc;
+}
+
+void __exit acamera_soc_dwe_exit( void )
+{
+    LOG( LOG_INFO, "[KeyMsg] Lens subdevice exit" );
+   
+    dwe_hw_deinit();
+    chardevs_exit();
+    platform_driver_unregister( &soc_dwe_driver );
+    platform_device_unregister( soc_dwe_dev );
+    system_dwe_exit();
+    LOG( LOG_INFO, "[KeyMsg] Lens subdevice exit done" );
+}
+
+module_init( acamera_soc_dwe_init );
+module_exit( acamera_soc_dwe_exit );
+MODULE_LICENSE( "GPL v2" );
+MODULE_AUTHOR( "IE&E" );

@@ -17,6 +17,7 @@
 *
 */
 
+#include "string.h"
 #include "acamera_fw.h"
 #include "acamera_command_api.h"
 #include "acamera_logger.h"
@@ -27,10 +28,14 @@
 #include "cmos_fsm.h"
 #endif
 
-#ifdef LOG_MODULE
-#undef LOG_MODULE
-#define LOG_MODULE LOG_MODULE_METADATA
+
+#if defined( CUR_MOD_NAME)
+#undef CUR_MOD_NAME 
+#define CUR_MOD_NAME LOG_MODULE_METADATA
+#else
+#define CUR_MOD_NAME LOG_MODULE_METADATA
 #endif
+
 
 //#define DEBUG_METADATA_FSM
 

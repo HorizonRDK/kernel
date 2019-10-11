@@ -20,11 +20,16 @@
 #include "acamera_fw.h"
 #include "awb_manual_fsm.h"
 #include "sbuf.h"
+#include "system_stdlib.h"
 
-#ifdef LOG_MODULE
-#undef LOG_MODULE
-#define LOG_MODULE LOG_MODULE_AWB_MANUAL
+
+#if defined( CUR_MOD_NAME)
+#undef CUR_MOD_NAME 
+#define CUR_MOD_NAME LOG_MODULE_AWB_MANUAL
+#else
+#define CUR_MOD_NAME LOG_MODULE_AWB_MANUAL
 #endif
+
 
 extern void awb_set_new_param( AWB_fsm_ptr_t p_fsm, sbuf_awb_t *p_sbuf_awb );
 

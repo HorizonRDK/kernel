@@ -41,6 +41,7 @@ struct soc_iq_ioctl_args {
             void *sensor_arg; //sensor args instead of preset.
             uint32_t id;      // LUT ID value from acamera_command_api.h
             LookupTable lut;  // lut will be filled on return but ptr must be NULL
+	    uint32_t sensor_type;
         } request_info;
         // This struct is used to request the actual LUT dat
         // The memory must be preallocated in advance and provided
@@ -53,6 +54,7 @@ struct soc_iq_ioctl_args {
             void *ptr;          // preallocated memory for the requested LUT data
             uint32_t data_size; // data size in bytes for ptr buffer
             uint32_t kernel;    // must be always 1
+	    uint32_t sensor_type;
         } request_data;
     } ioctl;
 };

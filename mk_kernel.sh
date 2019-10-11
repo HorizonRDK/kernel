@@ -1,7 +1,7 @@
 ####################################
 # Set you own environment here
 ####################################
-export PATH=$HOME/toolchain/gcc-linaro-6.4.1-2017.08-x86_64_aarch64-linux-gnu/bin/:$PATH:$HOME/bin/
+export PATH=/home/gs/workspace/tools/compiler/gcc-linaro-7.2.1-2017.11-x86_64_aarch64-linux-gnu/bin/:$PATH
 cross=aarch64-linux-gnu-
 arch=arm64
 cfg=x2aj2a_fpga_defconfig

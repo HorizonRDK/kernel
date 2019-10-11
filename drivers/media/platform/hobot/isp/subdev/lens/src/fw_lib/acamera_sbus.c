@@ -29,6 +29,15 @@
 
 #include "acamera_logger.h"
 
+#if defined( CUR_MOD_NAME)
+#undef CUR_MOD_NAME 
+#define CUR_MOD_NAME LOG_MODULE_SOC_LENS
+#else
+#define CUR_MOD_NAME LOG_MODULE_SOC_LENS
+#endif
+
+
+
 #define SBUS_CAN_ADDRESS_8BITS( p_bus ) \
     ( ( ( p_bus )->mask & ( SBUS_MASK_ADDR_STEP_16BITS | SBUS_MASK_ADDR_STEP_32BITS ) ) == 0 )
 

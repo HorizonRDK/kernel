@@ -19,9 +19,10 @@
 
 #include "acamera_types.h"
 #include "acamera_logger.h"
-#include "system_log.h"
+//#include "system_log.h"
 #include "system_timer.h"
 #include "acamera_sbus_api.h"
+
 
 //#define JUNO_HDMI_TX_IIC_MASTER 0x68004000
 #define JUNO_HDMI_TX_IIC_MASTER 0x64204000

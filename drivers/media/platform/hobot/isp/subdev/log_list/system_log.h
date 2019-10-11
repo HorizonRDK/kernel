@@ -22,24 +22,15 @@
 
 #include <linux/sched.h>
 #include <linux/kernel.h>
-#include "acamera_types.h"
-#include "acamera_firmware_config.h"
-#include "system_timer.h"  //system_timer_timestamp
-#include "system_stdlib.h" //system_memcpy
-//#include "asm/string.h"
-//#include <stdio.h>
+#include "acamera_logger_config.h"
+//#include "system_timer.h"  //system_timer_timestamp
+//#include "system_stdlib.h" //system_memcpy
 #include <stdarg.h>
+#include <linux/init.h>
 #include <linux/string.h>
+#include <linux/module.h>
 
 //int printk(const char*, ...);
-//defines for log level and system maximum value number for levels
-#define LOG_DEBUG 0
-#define LOG_INFO 1
-#define LOG_NOTICE 2
-#define LOG_WARNING 3
-#define LOG_ERR 4
-#define LOG_CRIT 5
-#define LOG_NOTHING 6
 #define SYSTEM_LOG_LEVEL_MAX LOG_NOTHING
 
 //system maximum value number of modules

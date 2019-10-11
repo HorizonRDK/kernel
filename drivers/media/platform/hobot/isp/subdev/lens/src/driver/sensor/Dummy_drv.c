@@ -40,8 +40,17 @@
 #include "acamera_firmware_config.h"
 
 
+#if defined( CUR_MOD_NAME)
+#undef CUR_MOD_NAME 
+#define CUR_MOD_NAME LOG_MODULE_SOC_LENS
+#else
+#define CUR_MOD_NAME LOG_MODULE_SOC_LENS
+#endif
+
+
 typedef struct _sensor_context_t {
     uint8_t address; // Sensor address for direct write (not used currently)
+    uint8_t channel;
     acamera_sbus_t sbus;
     sensor_param_t param;
     sensor_mode_t supported_modes[ISP_MAX_SENSOR_MODES];
@@ -99,6 +108,16 @@ static void sensor_set_mode( void *ctx, uint8_t mode )
     param->sensor_exp_number = param->modes_table[mode].exposures;
 }
 
+static void sensor_set_type( void *ctx, uint8_t sensor_type, uint8_t sensor_i2c_channel )
+{
+    sensor_context_t *p_ctx = ctx;
+    sensor_param_t *param = &p_ctx->param;
+
+    param->active.width = 1920;
+    param->active.height = 1080;
+    param->total.height = 1125;
+}
+
 static uint16_t sensor_get_id( void *ctx )
 {
     return 0xFFFF;
@@ -131,11 +150,11 @@ static void start_streaming( void *ctx )
 {
 }
 
-void sensor_deinit_dummy( void *ctx )
+void sensor_deinit_dummy(uint32_t ctx_id, void *ctx )
 {
 }
 //--------------------Initialization------------------------------------------------------------
-void sensor_init_dummy( void **ctx, sensor_control_t *ctrl )
+void sensor_init_dummy(uint32_t ctx_id, void **ctx, sensor_control_t *ctrl )
 {
 
     if ( ctx_counter < FIRMWARE_CONTEXT_NUMBER ) {
@@ -166,6 +185,7 @@ void sensor_init_dummy( void **ctx, sensor_control_t *ctrl )
         ctrl->alloc_integration_time = sensor_alloc_integration_time;
         ctrl->sensor_update = sensor_update;
         ctrl->set_mode = sensor_set_mode;
+	ctrl->set_sensor_type = sensor_set_type;
         ctrl->get_id = sensor_get_id;
         ctrl->get_parameters = sensor_get_parameters;
         ctrl->disable_sensor_isp = sensor_disable_isp;

@@ -17,14 +17,19 @@
 *
 */
 
+#include "string.h"
 #include "acamera_fw.h"
 #include "af_manual_fsm.h"
 #include "sbuf.h"
 
-#ifdef LOG_MODULE
-#undef LOG_MODULE
-#define LOG_MODULE LOG_MODULE_AF_MANUAL
+
+#if defined( CUR_MOD_NAME)
+#undef CUR_MOD_NAME 
+#define CUR_MOD_NAME LOG_MODULE_AF_MANUAL
+#else
+#define CUR_MOD_NAME LOG_MODULE_AF_MANUAL
 #endif
+
 
 extern void af_set_new_param( AF_fsm_ptr_t p_fsm, sbuf_af_t *p_sbuf_af );
 
@@ -154,6 +159,7 @@ int AF_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_t input_
         }
 
         uint32_t pos_manual = *(uint32_t *)input;
+        //LOG( LOG_CRIT, "IE&E %s, pos_manual %d.", __func__, pos_manual );
 
         if ( pos_manual <= 256 ) {
             p_fsm->pos_manual = pos_manual;

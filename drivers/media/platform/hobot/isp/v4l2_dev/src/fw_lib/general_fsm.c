@@ -20,10 +20,14 @@
 #include "acamera_fw.h"
 #include "general_fsm.h"
 
-#ifdef LOG_MODULE
-#undef LOG_MODULE
-#define LOG_MODULE LOG_MODULE_GENERAL
+
+#if defined( CUR_MOD_NAME)
+#undef CUR_MOD_NAME 
+#define CUR_MOD_NAME LOG_MODULE_GENERAL
+#else
+#define CUR_MOD_NAME LOG_MODULE_GENERAL
 #endif
+
 
 void general_fsm_clear( general_fsm_t *p_fsm )
 {
@@ -375,7 +379,7 @@ uint8_t general_fsm_process_event( general_fsm_t *p_fsm, event_id_t event_id )
 
         //need to be almost sync as the new address available from FR or DS
         acamera_general_interrupt_hanlder( ACAMERA_FSM2CTX_PTR( p_fsm ), ACAMERA_IRQ_FRAME_WRITER_FR ); //enabled for DMA_WRITER_FSM
-        acamera_general_interrupt_hanlder( ACAMERA_FSM2CTX_PTR( p_fsm ), ACAMERA_IRQ_FRAME_WRITER_DS );
+        //acamera_general_interrupt_hanlder( ACAMERA_FSM2CTX_PTR( p_fsm ), ACAMERA_IRQ_FRAME_WRITER_DS );
 
         b_event_processed = 1;
         break;

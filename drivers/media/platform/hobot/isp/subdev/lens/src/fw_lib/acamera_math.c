@@ -20,6 +20,15 @@
 #include "acamera_logger.h"
 #include "acamera_math.h"
 
+#if defined( CUR_MOD_NAME)
+#undef CUR_MOD_NAME 
+#define CUR_MOD_NAME LOG_MODULE_SOC_LENS
+#else
+#define CUR_MOD_NAME LOG_MODULE_SOC_LENS
+#endif
+
+
+
 static uint8_t leading_one_position( const uint32_t in )
 {
     uint8_t pos = 0;

@@ -126,4 +126,8 @@ uint8_t register_address(acamera_fsm_mgr_t *instance, uint32_t value, uint8_t di
 uint8_t register_size(acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value);
 uint8_t register_source(acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value);
 uint8_t register_value(acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value);
+//IE&E
+uint8_t sensor_type( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value );
+uint8_t sensor_i2c_chnnel( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value );
+uint8_t system_loglist_mask( acamera_fsm_mgr_t *instance, uint32_t model, uint32_t value, uint8_t direction, uint32_t *ret_value );
 #endif//_ACAMERA_COMMAND_API_IMPL_H_

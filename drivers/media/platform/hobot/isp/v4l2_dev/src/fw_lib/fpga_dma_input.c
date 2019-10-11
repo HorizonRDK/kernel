@@ -20,7 +20,7 @@
 #include "acamera_types.h"
 #include "acamera_fw.h"
 #include "acamera.h"
-#include "system_log.h"
+#include "acamera_logger.h"
 #include "acamera_isp_config.h"
 
 #if ISP_HAS_FPGA_WRAPPER

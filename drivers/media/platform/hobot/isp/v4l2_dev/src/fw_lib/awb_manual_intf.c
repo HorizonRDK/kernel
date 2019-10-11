@@ -20,10 +20,14 @@
 #include "acamera_fw.h"
 #include "awb_manual_fsm.h"
 
-#ifdef LOG_MODULE
-#undef LOG_MODULE
-#define LOG_MODULE LOG_MODULE_AWB_MANUAL
+
+#if defined( CUR_MOD_NAME)
+#undef CUR_MOD_NAME 
+#define CUR_MOD_NAME LOG_MODULE_AWB_MANUAL
+#else
+#define CUR_MOD_NAME LOG_MODULE_AWB_MANUAL
 #endif
+
 
 /* Use static memory here to make it cross-platform */
 static AWB_fsm_t awb_fsm_ctxs[FIRMWARE_CONTEXT_NUMBER];

@@ -21,6 +21,15 @@
 #include "system_spinlock.h"
 #include <asm/io.h>
 
+
+#if defined( CUR_MOD_NAME)
+#undef CUR_MOD_NAME 
+#define CUR_MOD_NAME LOG_MODULE_SOC_SENSOR
+#else
+#define CUR_MOD_NAME LOG_MODULE_SOC_SENSOR
+#endif
+
+
 #define ISP_ADDRESS 0x64000000
 #define ISP_ADDR_SIZE ( 4194304 ) // 4 MB
 #define VERSION_OFFSET 0x08

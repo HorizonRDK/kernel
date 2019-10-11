@@ -31,10 +31,13 @@
 #include "acamera_fpga_fe_isp4_config.h"
 #endif
 
-#ifdef LOG_MODULE
-#undef LOG_MODULE
-#define LOG_MODULE LOG_MODULE_FPGA_DMA_FE
+#if !defined (CUR_MOD_NAME)
+#define CUR_MOD_NAME LOG_MODULE_FPGA_DMA_FE
+#else 
+#undef CUR_MOD_NAME
+#define CUR_MOD_NAME LOG_MODULE_FPGA_DMA_FE
 #endif
+
 
 void fpga_dma_fe_stop( fpga_dma_fe_fsm_const_ptr_t p_fsm )
 {

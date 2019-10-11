@@ -61,6 +61,10 @@ static __inline void acamera_isp_top_active_width_write(uintptr_t base, uint16_t
 static __inline uint16_t acamera_isp_top_active_width_read(uintptr_t base) {
     return (uint16_t)((system_sw_read_32(base + 0x18e88L) & 0xffff) >> 0);
 }
+
+static __inline uint16_t acamera_isp_pong_top_active_width_read(uintptr_t base) {
+    return (uint16_t)((system_sw_read_32(base + 0x30e48L) & 0xffff) >> 0);
+}
 // ------------------------------------------------------------------------------ //
 // Register: Active Height
 // ------------------------------------------------------------------------------ //
@@ -81,6 +85,14 @@ static __inline void acamera_isp_top_active_height_write(uintptr_t base, uint16_
 }
 static __inline uint16_t acamera_isp_top_active_height_read(uintptr_t base) {
     return (uint16_t)((system_sw_read_32(base + 0x18e88L) & 0xffff0000) >> 16);
+}
+
+static __inline void acamera_isp_pong_top_active_height_write(uintptr_t base, uint16_t data) {
+    uint32_t curr = system_sw_read_32(base + 0x30e48L);
+    system_sw_write_32(base + 0x30e48L, (((uint32_t) (data & 0xffff)) << 16) | (curr & 0xffff));
+}
+static __inline uint16_t acamera_isp_pong_top_active_height_read(uintptr_t base) {
+    return (uint16_t)((system_sw_read_32(base + 0x30e48L) & 0xffff0000) >> 16);
 }
 // ------------------------------------------------------------------------------ //
 // Register: RGGB start pre mirror
@@ -22834,6 +22846,11 @@ static __inline void acamera_isp_multi_ctx_config_done_write(uintptr_t base, uin
 }
 static __inline uint8_t acamera_isp_multi_ctx_config_done_read(uintptr_t base) {
     return (uint8_t)((system_sw_read_32(base + 0x1c310L) & 0x1) >> 0);
+}
+
+static __inline void acamera_isp_pong_multi_ctx_config_done_write(uintptr_t base, uint8_t data) {
+    uint32_t curr = system_sw_read_32(base + 0x342d0L);
+    system_sw_write_32(base + 0x342d0L, (((uint32_t) (data & 0x1)) << 0) | (curr & 0xfffffffe));
 }
 // ------------------------------------------------------------------------------ //
 #endif //__ACAMERA_ISP1_CONFIG_H__

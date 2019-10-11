@@ -17,10 +17,13 @@
 *
 */
 
-#include "acamera_firmware_config.h"
-#include "system_log.h"
+#ifndef __ACAMERA_DWE_CONFIG_H__
+#define __ACAMERA_DWE_CONFIG_H__
 
-//debug log names for level
-const char *const log_level_name[SYSTEM_LOG_LEVEL_MAX] = {"DEBUG", "INFO", "NOTICE", "WARNING", "ERR", "CRIT"};
-//debug log names for modules
-const char *const log_module_name[SYSTEM_LOG_MODULE_MAX] = FSM_NAMES;
+
+#define FIRMWARE_CONTEXT_NUMBER 6
+#define HADRWARE_CONTEXT_MAX    4
+#define DIS_STAT_SIZE 12000 // (1920 + 1080)*1080 byte
+
+
+#endif

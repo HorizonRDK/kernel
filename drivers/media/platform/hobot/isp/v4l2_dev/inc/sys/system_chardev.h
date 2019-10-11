@@ -54,4 +54,5 @@ int system_chardev_write( const char *data, int size );
  */
 int system_chardev_destroy( void );
 
+
 #endif /* __SYSTEM_CHARDEV_H__ */

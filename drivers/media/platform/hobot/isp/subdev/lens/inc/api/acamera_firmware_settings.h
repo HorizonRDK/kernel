@@ -126,7 +126,7 @@ typedef struct _acamera_settings {
     void (*sensor_deinit)( void *ctx ) ;         // must be initialized to provide sensor initialization entry. Must be provided.
     int32_t (*lens_init)( void** ctx, lens_control_t* ctrl) ;          // initialize lens driver for AF. May be NULL. Must return 0 on success and -1 on fail.
     void (*lens_deinit)( void *ctx ) ;         // initialize lens driver for AF. May be NULL. Must return 0 on success and -1 on fail.
-    uint32_t (*get_calibrations)( uint32_t ctx_num,void * sensor_arg,ACameraCalibrations * ) ;  // must be initialized to provide calibrations. Must be provided.
+    uint32_t (*get_calibrations)( uint32_t ctx_num,void * sensor_arg,ACameraCalibrations *,uint32_t sensor_type ) ;  // must be initialized to provide calibrations. Must be provided.
     uintptr_t isp_base ;                                                 // isp base offset (not absolute memory address ). Should be started from start of isp memory. All ISP r/w accesses inside the firmware will use this value as the start_offset.
     uint32_t hw_isp_addr ;                                               // hardware isp register configuration address.
     void *(*callback_dma_alloc_coherent)( uint32_t ctx_id, uint64_t size, uint64_t *dma_addr );

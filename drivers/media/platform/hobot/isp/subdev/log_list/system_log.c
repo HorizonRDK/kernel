@@ -17,10 +17,9 @@
 *
 */
 
-#include "acamera_firmware_config.h"
 #include "system_log.h"
 
 //debug log names for level
-const char *const log_level_name[SYSTEM_LOG_LEVEL_MAX] = {"DEBUG", "INFO", "NOTICE", "WARNING", "ERR", "CRIT"};
+const char *const log_level_name[SYSTEM_LOG_LEVEL_MAX] = FSM_LEVEL;
 //debug log names for modules
 const char *const log_module_name[SYSTEM_LOG_MODULE_MAX] = FSM_NAMES;

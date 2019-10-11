@@ -18,10 +18,11 @@
 */
 
 #include <asm/io.h>
-#include "system_log.h"
+//#include "system_log.h"
 #include "system_i2c.h"
 #include "acamera_logger.h"
 #include <linux/jiffies.h>
+
 
 #define FPGA_IIC_MEM_SIZE 0x1000
 #define FPGA_IIC_TX_FIFO 0x108
@@ -193,12 +194,12 @@ uint8_t system_i2c_write( uint32_t bus, uint32_t phy_addr, uint8_t *data, uint32
 
         uint32_t idx = 0;
         // start sequence
-        //LOG(LOG_DEBUG, "I2C write phy_addr = 0x%x, size = %d", phy_addr, size ) ;
+        //LOG( LOG_DEBUG, "I2C write phy_addr = 0x%x, size = %d", phy_addr, size ) ;
         uint32_t start_seq = 0x00000100 + addr;
         // wait until iic is ready
         result = iic_bus_is_ready( virt_addr );
         if ( result == 0 ) {
-            //LOG(LOG_DEBUG, "Writing 0x%x", start_seq ) ;
+            //LOG( LOG_DEBUG, "Writing 0x%x", start_seq ) ;
             iowrite32( start_seq, virt_addr + FPGA_IIC_TX_FIFO );
             for ( idx = 0; idx < size; idx++ ) {
                 uint32_t val = data[idx];
@@ -208,7 +209,7 @@ uint8_t system_i2c_write( uint32_t bus, uint32_t phy_addr, uint8_t *data, uint32
                     val = 0x00000200 + val;
                     //}
                 }
-                //LOG(LOG_DEBUG, "Writing 0x%x", val ) ;
+                //LOG( LOG_DEBUG, "Writing 0x%x", val ) ;
                 iowrite32( val, virt_addr + FPGA_IIC_TX_FIFO );
             }
             LOG( LOG_DEBUG, "I2C write finished. " );
@@ -285,7 +286,7 @@ uint8_t system_i2c_read( uint32_t bus, uint32_t phy_addr, uint8_t *data, uint32_
 
         uint32_t idx = 0;
         // start sequence
-        //LOG(LOG_DEBUG, "I2C write phy_addr = 0x%x, size = %d", phy_addr, size ) ;
+        //LOG( LOG_DEBUG, "I2C write phy_addr = 0x%x, size = %d", phy_addr, size ) ;
         uint32_t start_seq = 0x00000100 + addr;
 
         result = iic_bus_is_ready( virt_addr );

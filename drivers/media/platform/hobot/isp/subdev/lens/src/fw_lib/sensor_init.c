@@ -24,6 +24,14 @@
 #include "system_stdlib.h"
 #include "acamera_firmware_config.h"
 
+#if defined( CUR_MOD_NAME)
+#undef CUR_MOD_NAME 
+#define CUR_MOD_NAME LOG_MODULE_SOC_LENS
+#else
+#define CUR_MOD_NAME LOG_MODULE_SOC_LENS
+#endif
+
+
 /*
 0x01 -> set address
 addr16

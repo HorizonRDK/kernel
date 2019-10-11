@@ -20,10 +20,14 @@
 #include "acamera_fw.h"
 #include "color_matrix_fsm.h"
 
-#ifdef LOG_MODULE
-#undef LOG_MODULE
-#define LOG_MODULE LOG_MODULE_COLOR_MATRIX
+
+#if defined( CUR_MOD_NAME)
+#undef CUR_MOD_NAME 
+#define CUR_MOD_NAME LOG_MODULE_COLOR_MATRIX
+#else
+#define CUR_MOD_NAME LOG_MODULE_COLOR_MATRIX
 #endif
+
 
 /* Use static memory here to make it cross-platform */
 static color_matrix_fsm_t color_matrix_fsm_ctxs[FIRMWARE_CONTEXT_NUMBER];

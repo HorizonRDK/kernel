@@ -20,9 +20,11 @@
 #include "acamera_fw.h"
 #include "sbuf_fsm.h"
 
-#ifdef LOG_MODULE
-#undef LOG_MODULE
-#define LOG_MODULE LOG_MODULE_SBUF
+#if defined( CUR_MOD_NAME)
+#undef CUR_MOD_NAME 
+#define CUR_MOD_NAME LOG_MODULE_SBUF
+#else
+#define CUR_MOD_NAME LOG_MODULE_SBUF
 #endif
 
 

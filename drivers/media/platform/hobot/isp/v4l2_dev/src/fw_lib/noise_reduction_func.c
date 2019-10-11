@@ -23,10 +23,15 @@
 #include "noise_reduction_fsm.h"
 #include "cmos_fsm.h"
 
-#ifdef LOG_MODULE
-#undef LOG_MODULE
-#define LOG_MODULE LOG_MODULE_NOISE_REDUCTION
+
+#if defined( CUR_MOD_NAME)
+#undef CUR_MOD_NAME 
+#define CUR_MOD_NAME LOG_MODULE_NOISE_REDUCTION
+#else
+#define CUR_MOD_NAME LOG_MODULE_NOISE_REDUCTION
 #endif
+
+
 
 #if ISP_HAS_SINTER_RADIAL_LUT
 
@@ -90,7 +95,7 @@ void stitching_error_calculate( noise_reduction_fsm_t *p_fsm )
     }
     /*
 -------------------------------------------------------
-        Modulation for frame stitching 
+        Modulation for frame stitching
 -------------------------------------------------------
 */
     int32_t total_gain = 0;
@@ -376,7 +381,7 @@ void temper_strength_calculate( noise_reduction_fsm_t *p_fsm )
                 }
                 FS_thresh = ( FS_thresh * mult ) << 3;
                 FS_thresh_sqrt_ms = acamera_sqrt32( FS_thresh ) + acamera_isp_sqrt_black_level_out_read( p_fsm->cmn.isp_base );
-                // LOG(LOG_INFO, " 1 FS_thresh %d FS_thresh_sqrt_ms %d mult %d \n", (int)FS_thresh, (int)FS_thresh_sqrt_ms, (int)mult );
+                // LOG( LOG_INFO, " 1 FS_thresh %d FS_thresh_sqrt_ms %d mult %d \n", (int)FS_thresh, (int)FS_thresh_sqrt_ms, (int)mult );
 
                 mult = ( 2 << 17 ) / ( ( LM_exp_ratio * MS_exp_ratio ) >> 6 ); //u1.11
                 if ( mult > 2048 ) {
@@ -386,7 +391,7 @@ void temper_strength_calculate( noise_reduction_fsm_t *p_fsm )
                 FS_thresh = ( FS_thresh * mult ) << 3;
                 FS_thresh_sqrt_lm = acamera_sqrt32( FS_thresh ) + acamera_isp_sqrt_black_level_out_read( p_fsm->cmn.isp_base );
 
-                // LOG(LOG_INFO, " 2 FS_thresh %d FS_thresh_sqrt_lm %d mult %d", (int)FS_thresh, (int)FS_thresh_sqrt_lm, (int)mult );
+                // LOG( LOG_INFO, " 2 FS_thresh %d FS_thresh_sqrt_lm %d mult %d", (int)FS_thresh, (int)FS_thresh_sqrt_lm, (int)mult );
 
                 acamera_isp_temper_noise_profile_thresh3_write( p_fsm->cmn.isp_base, FS_thresh_sqrt_ms );
                 acamera_isp_temper_noise_profile_thresh2_write( p_fsm->cmn.isp_base, FS_thresh_sqrt_lm );

@@ -54,10 +54,13 @@
 #define AWB_DLS_LIGHT_SOURCE_A_D40_BORDER_high ( ( AWB_LIGHT_SOURCE_D40_TEMPERATURE + AWB_LIGHT_SOURCE_A_TEMPERATURE ) >> 1 ) + 200
 //==============Math Functions========================================================
 
-#ifdef LOG_MODULE
-#undef LOG_MODULE
-#define LOG_MODULE LOG_MODULE_COLOR_MATRIX
+#if defined( CUR_MOD_NAME)
+#undef CUR_MOD_NAME 
+#define CUR_MOD_NAME LOG_MODULE_COLOR_MATRIX
+#else
+#define CUR_MOD_NAME LOG_MODULE_COLOR_MATRIX
 #endif
+
 
 static void matrix_matrix_multiply( int16_t *a1, int16_t *a2, int16_t *result, int dim1, int dim2, int dim3 )
 {

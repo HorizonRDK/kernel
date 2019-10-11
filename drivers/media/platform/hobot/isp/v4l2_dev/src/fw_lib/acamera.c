@@ -17,6 +17,7 @@
 *
 */
 
+#include <linux/module.h>
 #include "acamera_fw.h"
 #include "acamera_firmware_api.h"
 #include "acamera_firmware_config.h"
@@ -142,7 +143,8 @@ static int32_t validate_settings( acamera_settings *settings, uint32_t ctx_num )
 }
 
 
-#define ACAMERA_CONTEXT_SIZE ACAMERA_ISP1_BASE_ADDR + ACAMERA_ISP1_SIZE
+//#define ACAMERA_CONTEXT_SIZE ACAMERA_ISP1_BASE_ADDR + ACAMERA_ISP1_SIZE
+#define ACAMERA_CONTEXT_SIZE ((128 * 1024))
 
 static int32_t dma_channel_addresses_setup( void *isp_chan, void *metering_chan, void *sw_context_map,
                                                          uint32_t idx, uint32_t hw_isp_addr, uint32_t sw_isp_phy_addr )
@@ -485,6 +487,13 @@ int32_t acamera_interrupt_handler()
 }
 #else
 
+static int current_context_id;
+module_param(current_context_id, int, 0644);
+static int last_context_id;
+module_param(last_context_id, int, 0644);
+static int next_context_id;
+module_param(next_context_id, int, 0644);
+
 static void start_processing_frame( void )
 {
 #if ISP_HAS_DMA_INPUT
@@ -492,7 +501,8 @@ static void start_processing_frame( void )
     acamera_context_ptr_t p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[cur_ctx];
     LOG( LOG_INFO, "new frame for ctx_num#%d.", cur_ctx );
 #else
-    acamera_context_ptr_t p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[0];
+    acamera_context_ptr_t p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[current_context_id];
+    //acamera_context_ptr_t p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[0];
 #endif
 
     // new_frame event to start reading metering memory and run 3A
@@ -745,6 +755,7 @@ static void set_dma_cmd_queue(dma_cmd *cmd, uint32_t ping_pong_sel)
     cmd[1].fw_ctx_id = 0;
 }
 #endif /* FW_USE_HOBOT_DMA*/
+
 // single context handler
 int32_t acamera_interrupt_handler()
 {
@@ -752,13 +763,13 @@ int32_t acamera_interrupt_handler()
     int32_t irq_bit = ISP_INTERRUPT_EVENT_NONES_COUNT - 1;
     LOG( LOG_DEBUG, "Interrupt handler called" );
 
-    acamera_context_ptr_t p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[0];
-
+//    acamera_context_ptr_t p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[0];
+    acamera_context_ptr_t p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[current_context_id];
 
     // read the irq vector from isp
     uint32_t irq_mask = acamera_isp_isp_global_interrupt_status_vector_read( 0 );
 
-    LOG( LOG_INFO, "IRQ MASK is 0x%x", irq_mask );
+    LOG( LOG_INFO, "IRQ MASK is 0x%x, context id is %d", irq_mask, current_context_id );
     if(irq_mask&0x8) {
         printk("broken frame status = 0x%x", acamera_isp_isp_global_monitor_broken_frame_status_read(0));
         printk("active width min/max/sum/num = %d/%d/%d/%d", system_hw_read_32(0xb4),system_hw_read_32(0xb8),system_hw_read_32(0xbc),system_hw_read_32(0xc0));
@@ -835,13 +846,18 @@ int32_t acamera_interrupt_handler()
                             LOG( LOG_INFO, "DMA metering from pong to DDR of size %d, config from pong to DDR of size %d",
                                 ACAMERA_METERING_STATS_MEM_SIZE, ACAMERA_ISP1_SIZE);
                             set_dma_cmd_queue(cmd, ISP_CONFIG_PING);
+    			    cmd[0].fw_ctx_id = last_context_id;
+    			    cmd[1].fw_ctx_id = next_context_id;
                             system_dma_copy_multi_sg(cmd,2);
+
+			    acamera_isp_pong_multi_ctx_config_done_write(p_ctx->fsm_mgr.fsm_arr[0]->isp_base, 1);
 #else
                             LOG( LOG_INFO, "DMA metering from pong to DDR of size %d", ACAMERA_METERING_STATS_MEM_SIZE );
                             // dma all stat memory only to the software context
-                            system_dma_copy_sg( g_firmware.dma_chan_isp_metering, ISP_CONFIG_PING, SYS_DMA_FROM_DEVICE, dma_complete_metering_func, 0 );
+                            system_dma_copy_sg( g_firmware.dma_chan_isp_metering, ISP_CONFIG_PING, SYS_DMA_FROM_DEVICE, dma_complete_metering_func, last_context_id );
                             LOG( LOG_INFO, "DMA config from pong to DDR of size %d", ACAMERA_ISP1_SIZE );
-                            system_dma_copy_sg( g_firmware.dma_chan_isp_config, ISP_CONFIG_PING, SYS_DMA_TO_DEVICE, dma_complete_context_func, 0 );
+                            system_dma_copy_sg( g_firmware.dma_chan_isp_config, ISP_CONFIG_PING, SYS_DMA_TO_DEVICE, dma_complete_context_func, next_context_id );
+			    acamera_isp_pong_multi_ctx_config_done_write(p_ctx->fsm_mgr.fsm_arr[0]->isp_base, 1);
 #endif
                         } else {
                             LOG( LOG_INFO, "Current config is ping" );
@@ -860,13 +876,17 @@ int32_t acamera_interrupt_handler()
                             LOG( LOG_INFO, "DMA metering from ping to DDR of size %d, config from ping to DDR of size %d",
                                 ACAMERA_METERING_STATS_MEM_SIZE, ACAMERA_ISP1_SIZE);
                             set_dma_cmd_queue(cmd, ISP_CONFIG_PONG);
+    			    cmd[0].fw_ctx_id = last_context_id;
+			    cmd[1].fw_ctx_id = next_context_id;
                             system_dma_copy_multi_sg(cmd,2);
+			    acamera_isp_multi_ctx_config_done_write(p_ctx->fsm_mgr.fsm_arr[0]->isp_base, 1);
 #else
                             LOG( LOG_INFO, "DMA metering from ping to DDR of size %d", ACAMERA_METERING_STATS_MEM_SIZE );
                             // dma all stat memory only to the software context
-                            system_dma_copy_sg( g_firmware.dma_chan_isp_metering, ISP_CONFIG_PONG, SYS_DMA_FROM_DEVICE, dma_complete_metering_func, 0 );
+                            system_dma_copy_sg( g_firmware.dma_chan_isp_metering, ISP_CONFIG_PONG, SYS_DMA_FROM_DEVICE, dma_complete_metering_func, last_context_id );
                             LOG( LOG_INFO, "DMA config from DDR to ping of size %d", ACAMERA_ISP1_SIZE );
-                            system_dma_copy_sg( g_firmware.dma_chan_isp_config, ISP_CONFIG_PONG, SYS_DMA_TO_DEVICE, dma_complete_context_func, 0 );
+                            system_dma_copy_sg( g_firmware.dma_chan_isp_config, ISP_CONFIG_PONG, SYS_DMA_TO_DEVICE, dma_complete_context_func, next_context_id );
+			    acamera_isp_multi_ctx_config_done_write(p_ctx->fsm_mgr.fsm_arr[0]->isp_base, 1);
 #endif
                         }
                     } else {

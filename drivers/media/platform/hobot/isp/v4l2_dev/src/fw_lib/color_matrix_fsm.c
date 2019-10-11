@@ -19,11 +19,16 @@
 
 #include "acamera_fw.h"
 #include "color_matrix_fsm.h"
+#include "system_stdlib.h"
 
-#ifdef LOG_MODULE
-#undef LOG_MODULE
-#define LOG_MODULE LOG_MODULE_COLOR_MATRIX
+
+#if defined( CUR_MOD_NAME)
+#undef CUR_MOD_NAME 
+#define CUR_MOD_NAME LOG_MODULE_COLOR_MATRIX
+#else
+#define CUR_MOD_NAME LOG_MODULE_COLOR_MATRIX
 #endif
+
 
 void color_matrix_fsm_clear( color_matrix_fsm_t *p_fsm )
 {
