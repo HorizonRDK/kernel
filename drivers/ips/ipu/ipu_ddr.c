@@ -136,12 +136,15 @@ static int decode_timestamp(void *addr, int64_t *timestamp)
 	return 0;
 }
 
+static int64_t g_ipu_time_p = 0, g_ipu_ts = 0;
+static char ipu_fs_flag = 0, ipu_fd_flag = 0;
+
 static int8_t ipu_get_frameid(struct x2_ipu_data *ipu, ipu_slot_h_t *slot)
 {
 	uint8_t *tmp = NULL;
 	uint64_t vaddr = (uint64_t)IPU_GET_SLOT(slot->info_h.slot_id, ipu->vaddr);
 	ipu_cfg_t *cfg = (ipu_cfg_t *)ipu->cfg;
-	int64_t ts = ipu_tsin_get(g_ipu_time);
+	int64_t ts = ipu_tsin_get(g_ipu_ts);
 
 	if (!cfg->frame_id.id_en)
 		return 0;
@@ -206,6 +209,7 @@ void ipu_handle_frame_done(void)
 	ipu_slot_h_t *slot_h = NULL;
 	int count;
 
+	ipu_fs_flag = 0;
 	spin_lock_irqsave(&g_ipu_ddr_cdev->slock, flags);
 	count = slot_left_num(BUSY_SLOT_LIST);
 	if (count > 1)	{
@@ -271,9 +275,11 @@ void ipu_handle_frame_start(void)
 	struct x2_ipu_data *ipu = g_ipu_ddr_cdev->ipu;
 	unsigned long flags;
 
+	g_ipu_time_p = g_ipu_time;
 	g_ipu_time = ipu_current_time();
 	ipu_tsin_reset();
 
+	ipu_fs_flag = 1;
 	if (started == 0)
 		return;
 
@@ -632,6 +638,12 @@ wait:
 		    info->ddr_info.scale.c_stride * info->ddr_info.scale.c_height;
 		dma_sync_single_for_cpu(NULL,
 		    info->base, data_end, DMA_FROM_DEVICE);
+		spin_lock_irqsave(&g_ipu_ddr_cdev->slock, flags);
+		if (ipu_fs_flag == 1)
+			g_ipu_ts = g_ipu_time_p;
+		else if (ipu_fs_flag == 0)
+			g_ipu_ts = g_ipu_time;
+		spin_unlock_irqrestore(&g_ipu_ddr_cdev->slock, flags);
 		ipu_get_frameid(ipu, g_get_slot_h);
 		ret = copy_to_user((void __user *)data, (const void *)info,
 		sizeof(info_h_t));

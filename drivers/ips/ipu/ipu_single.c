@@ -250,10 +250,6 @@ void ipu_single_mode_process(uint32_t status)
 		errsta = 1;
 	}
 
-	if (status & IPU_FRAME_START) {
-		g_ipu_time = ipu_current_time();
-		ipu_tsin_reset();
-	}
 
 	if (status & PYM_FRAME_DONE) {
 		ipu_slot_h_t *slot_h = NULL;
@@ -300,6 +296,11 @@ void ipu_single_mode_process(uint32_t status)
 #endif
 		ipu_info("no done slot to use\n");
 		}
+	}
+
+	if (status & IPU_FRAME_START) {
+		g_ipu_time = ipu_current_time();
+		ipu_tsin_reset();
 	}
 
 	if ((status & IPU_FRAME_DONE) && !ipu->cfg->pymid.pymid_en) {
