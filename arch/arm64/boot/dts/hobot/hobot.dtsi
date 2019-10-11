@@ -490,6 +490,8 @@
 			interrupt-parent = <&gic>;
 			interrupts = <0 43 4>;
 
+			clocks = <&eth0_clk>;
+			clock-names = "eth0_clk";
 			snps,write-requests = <16>;
 			snps,read-requests = <32>;
 			snps,txpbl = <32>;

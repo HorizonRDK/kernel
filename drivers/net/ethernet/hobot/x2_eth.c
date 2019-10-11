@@ -584,9 +584,7 @@ struct dwceqos_flowcontrol {
 
 struct net_local {
 	void __iomem *baseaddr;
-	struct clk *phy_ref_clk;
-	struct clk *mac_pre_div_clk;
-	struct clk *mac_div_clk;
+	struct clk *eth0_clk;
 
 	struct device_node *phy_node;
 	struct net_device *ndev;
@@ -767,8 +765,7 @@ static void print_status(struct net_local *lp)
 
 static void dwceqos_mdio_set_csr(struct net_local *lp)
 {
-	int rate = clk_get_rate(lp->mac_div_clk);
-
+	int rate = clk_get_rate(lp->eth0_clk);
 	if (rate <= 20000000)
 		lp->csr_val = DWCEQOS_MAC_MDIO_ADDR_CR_20;
 	else if (rate <= 35000000)
@@ -910,8 +907,7 @@ static void dwceqos_set_speed(struct net_local *lp)
 	struct phy_device *phydev = ndev->phydev;
 	u32 regval;
 	int target = 0;
-	int rate_L1 = 0;
-	int rate_L2 = 0;
+	int rate_L = 0;
 
 	regval = dwceqos_read(lp, REG_DWCEQOS_MAC_CFG);
 	regval &= ~(DWCEQOS_MAC_CFG_PS | DWCEQOS_MAC_CFG_FES |
@@ -932,35 +928,22 @@ static void dwceqos_set_speed(struct net_local *lp)
 	}
 
 	if(phydev->speed == 10) {
-		target = 12500000;
-		rate_L1 = clk_round_rate(lp->mac_pre_div_clk, target);
-		clk_set_rate(lp->mac_pre_div_clk, rate_L1);
-
 		target = 2500000;
-		rate_L2 = clk_round_rate(lp->mac_div_clk, target);
-		clk_set_rate(lp->mac_div_clk, rate_L2);
-
+		rate_L = clk_round_rate(lp->eth0_clk, target);
+		clk_set_rate(lp->eth0_clk, rate_L);
 	} else if (phydev->speed == SPEED_100) {
 
-		target = 125000000;
-		rate_L1 = clk_round_rate(lp->mac_pre_div_clk, target);
-		clk_set_rate(lp->mac_pre_div_clk, rate_L1);
-
 		target = 25000000;
-		rate_L2 = clk_round_rate(lp->mac_div_clk, target);
-		clk_set_rate(lp->mac_div_clk, rate_L2);
+		rate_L = clk_round_rate(lp->eth0_clk, target);
+		clk_set_rate(lp->eth0_clk, rate_L);
 	} else if (phydev->speed == SPEED_1000) {
 
 		target = 125000000;
-		rate_L1 = clk_round_rate(lp->mac_pre_div_clk, target);
-		clk_set_rate(lp->mac_pre_div_clk, rate_L1);
-
-		target = 125000000;
-		rate_L2 = clk_round_rate(lp->mac_div_clk, target);
-		clk_set_rate(lp->mac_div_clk, rate_L2);
+		rate_L = clk_round_rate(lp->eth0_clk, target);
+		clk_set_rate(lp->eth0_clk, rate_L);
 	}
 
-	dev_info(&lp->pdev->dev, "set speed to %dM L1_rate:%d L2_rate:%d\n", phydev->speed, rate_L1, rate_L2);
+	dev_info(&lp->pdev->dev, "speed%d rate%d\n", phydev->speed, rate_L);
 	dwceqos_write(lp, REG_DWCEQOS_MAC_CFG, regval);
 }
 
@@ -1579,7 +1562,7 @@ static void dwceqos_configure_flow_control(struct net_local *lp)
 
 static void dwceqos_configure_clock(struct net_local *lp)
 {
-    unsigned long rate_mhz = clk_get_rate(lp->mac_div_clk) / 1000000;
+	unsigned long rate_mhz = clk_get_rate(lp->eth0_clk) / 1000000;
 
 	BUG_ON(!rate_mhz);
 
@@ -2926,42 +2909,27 @@ static int dwceqos_probe(struct platform_device *pdev)
 	spin_lock_init(&lp->hw_lock);
 	spin_lock_init(&lp->stats_lock);
 
-	lp->mac_pre_div_clk = devm_clk_get(&pdev->dev, "mac_pre_div_clk");
-	if (IS_ERR(lp->mac_pre_div_clk)) {
-		dev_err(&pdev->dev, "mac_pre_div_clk clock not found.\n");
-		ret = PTR_ERR(lp->mac_pre_div_clk);
-		goto err_out_free_netdev;
+	lp->eth0_clk = devm_clk_get(&pdev->dev, "eth0_clk");
+	if (IS_ERR(lp->eth0_clk)) {
+		dev_err(&pdev->dev, "eth0_clk clock not found.\n");
+		ret = PTR_ERR(lp->eth0_clk);
+		goto err_out_clk_dis_L;
 	}
 
-	ret = clk_prepare_enable(lp->mac_pre_div_clk);
+	ret = clk_prepare_enable(lp->eth0_clk);
 	if (ret) {
-		dev_err(&pdev->dev, "Unable to enable pre div clock.\n");
-		goto err_out_free_netdev;
+		dev_err(&pdev->dev, "Unable to enable gate clock.\n");
+		goto err_out_clk_dis_L;
 	}
 
-	lp->mac_div_clk = devm_clk_get(&pdev->dev, "mac_div_clk");
-	if (IS_ERR(lp->mac_div_clk)) {
-		dev_err(&pdev->dev, "mac_div_clk clock not found.\n");
-		ret = PTR_ERR(lp->mac_div_clk);
-		goto err_out_clk_dis_L1;
-	}
-
-	ret = clk_prepare_enable(lp->mac_div_clk);
-	if (ret) {
-		dev_err(&pdev->dev, "Unable to enable div clock.\n");
-		goto err_out_clk_dis_L1;
-	}
-
-	rate = clk_get_rate(lp->mac_pre_div_clk );
-	dev_info(&lp->pdev->dev, "mac L1 default div clock %d\n", rate);
-	rate = clk_get_rate(lp->mac_div_clk);
-	dev_info(&lp->pdev->dev, "mac L2 default div clock %d\n", rate);
+	rate = clk_get_rate(lp->eth0_clk);
+	dev_info(&lp->pdev->dev, "mac L default gate clock %d\n", rate);
 
 	lp->baseaddr = devm_ioremap_resource(&pdev->dev, r_mem);
 	if (IS_ERR(lp->baseaddr)) {
 		dev_err(&pdev->dev, "failed to map baseaddress.\n");
 		ret = PTR_ERR(lp->baseaddr);
-		goto err_out_clk_dis_L2;
+		goto err_out_clk_dis_L;
 	}
 
 	ndev->irq = platform_get_irq(pdev, 0);
@@ -2986,26 +2954,13 @@ static int dwceqos_probe(struct platform_device *pdev)
 
 	ndev->features = ndev->hw_features;
 
-	lp->phy_ref_clk = devm_clk_get(&pdev->dev, "phy_ref_clk");
-	if (IS_ERR(lp->phy_ref_clk)) {
-		dev_err(&pdev->dev, "phy_ref_clk clock not found.\n");
-		ret = PTR_ERR(lp->phy_ref_clk);
-		goto err_out_clk_dis_L2;
-	}
-
-	ret = clk_prepare_enable(lp->phy_ref_clk);
-	if (ret) {
-		dev_err(&pdev->dev, "Unable to enable device clock.\n");
-		goto err_out_clk_dis_L2;
-	}
-
 	lp->phy_node = of_parse_phandle(lp->pdev->dev.of_node,
 						"phy-handle", 0);
 	if (!lp->phy_node && of_phy_is_fixed_link(lp->pdev->dev.of_node)) {
 		ret = of_phy_register_fixed_link(lp->pdev->dev.of_node);
 		if (ret < 0) {
 			dev_err(&pdev->dev, "invalid fixed-link");
-			goto err_out_clk_dis_phy;
+			goto err_out_clk_dis_L;
 		}
 
 		lp->phy_node = of_node_get(lp->pdev->dev.of_node);
@@ -3081,16 +3036,8 @@ static int dwceqos_probe(struct platform_device *pdev)
 err_out_deregister_fixed_link:
 	if (of_phy_is_fixed_link(pdev->dev.of_node))
 		of_phy_deregister_fixed_link(pdev->dev.of_node);
-err_out_clk_dis_phy:
-	clk_disable_unprepare(lp->phy_ref_clk);
-err_out_clk_dis_L2:
-	clk_disable_unprepare(lp->mac_div_clk);
-err_out_clk_dis_L1:
-	clk_disable_unprepare(lp->mac_pre_div_clk);
-err_out_free_netdev:
-	of_node_put(lp->phy_node);
-	free_netdev(ndev);
-	platform_set_drvdata(pdev, NULL);
+err_out_clk_dis_L:
+	clk_disable_unprepare(lp->eth0_clk);
 	return ret;
 }
 
@@ -3112,9 +3059,7 @@ static int dwceqos_remove(struct platform_device *pdev)
 
 		unregister_netdev(ndev);
 
-		clk_disable_unprepare(lp->phy_ref_clk);
-		clk_disable_unprepare(lp->mac_div_clk);
-		clk_disable_unprepare(lp->mac_pre_div_clk);
+		clk_disable_unprepare(lp->eth0_clk);
 		free_netdev(ndev);
 	}
 
@@ -3126,8 +3071,8 @@ static int hobot_eth_suspend(struct device *dev)
 {
        struct net_device *ndev = dev_get_drvdata(dev);
        struct net_local *lp = netdev_priv(ndev);
-       int ret = 0;
-       unsigned int flags;
+
+	   pr_info("%s:%s, enter suspend...\n", __FILE__, __func__);
 
        if (!ndev) {
                printk("%s, and ndev is NULL\n", __func__);
@@ -3156,9 +3101,10 @@ static int hobot_eth_suspend(struct device *dev)
        phy_stop(ndev->phydev);
 
        dwceqos_descriptor_free(lp);
-       clk_disable_unprepare(lp->phy_ref_clk);
-       clk_disable_unprepare(lp->mac_div_clk);
-       clk_disable_unprepare(lp->mac_pre_div_clk);
+
+		/*disable clock to reduce power*/
+		clk_disable_unprepare(lp->eth0_clk);
+
        lp->link = 0;
        lp->speed = 0;
        lp->duplex = DUPLEX_UNKNOWN;
@@ -3172,17 +3118,19 @@ static int hobot_eth_resume(struct device *dev)
        struct net_device *ndev = dev_get_drvdata(dev);
        struct net_local *lp = netdev_priv(ndev);
 
+		pr_info("%s:%s, enter resume...\n", __FILE__, __func__);
+
        if (!netif_running(ndev))
                return 0;
 
-       clk_prepare_enable(lp->phy_ref_clk);
-       clk_prepare_enable(lp->mac_div_clk);
-       clk_prepare_enable(lp->mac_pre_div_clk);
+		/*enable clk to work*/
+		clk_prepare_enable(lp->eth0_clk);
+
        netif_device_attach(ndev);
 
        dwceqos_open(ndev);
 
-       return 0;
+		return 0;
 }
 static SIMPLE_DEV_PM_OPS(hobot_pm_ops, hobot_eth_suspend, hobot_eth_resume);
 #endif

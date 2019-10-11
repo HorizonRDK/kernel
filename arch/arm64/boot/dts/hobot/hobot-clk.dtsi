@@ -912,6 +912,7 @@
 			offset = <0x340>;
 			bits = <8>;
 			field = <3>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		eth0_clk: eth0_clk {
@@ -920,7 +921,8 @@
 			clocks = <&eth0_div_clk>;
 			offset = <0x150 0x154 0x158>;
 			bits = <17 17 17>;
-			field = <0x1 0x1 0x1>;
+			field = <1 1 1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		i2s0_prediv_mclk: i2s0_prediv_mclk {
