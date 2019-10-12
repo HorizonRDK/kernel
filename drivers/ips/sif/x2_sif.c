@@ -1,3 +1,9 @@
+/***************************************************************************
+ *                      COPYRIGHT NOTICE
+ *             Copyright 2018 Horizon Robotics, Inc.
+ *                     All rights reserved.
+ ***************************************************************************/
+
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/device.h>
@@ -526,6 +532,47 @@ static long x2_sif_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				siferr("ERROR: sif bypass ctrl error: %d", ret);
 				ret = -1;
 				return ret;
+			}
+		}
+		break;
+	case SIFIOC_MOT_DET_CFG: {
+			mot_det_t mot_det_cfg;
+
+			sifinfo("sif mot_det_cfg cmd\n");
+			if (!arg) {
+				siferr("ERROR: config should not be NULL");
+				ret = -EINVAL;
+				break;
+			}
+
+			if (copy_from_user((void *)&mot_det_cfg,
+			    (void __user *)arg, sizeof(mot_det_cfg))) {
+				siferr("ERROR: sif copy from user failed\n");
+				return -EINVAL;
+			}
+			if (sif_dev_mot_det_cfg(&mot_det_cfg) < 0) {
+				siferr("ERROR: sif mot_det config failed!\n");
+				return -1;
+			}
+		}
+		break;
+	case SIFIOC_MOT_DET_CTRL: {
+			mot_det_t mot_det_ctrl;
+
+			sifinfo("sif mot_det_ctrl cmd\n");
+			if (!arg) {
+				siferr("ERROR: config should not be NULL");
+				ret = -EINVAL;
+				break;
+			}
+			if (copy_from_user((void *)&mot_det_ctrl,
+			   (void __user *)arg, sizeof(mot_det_ctrl))) {
+				siferr("ERROR: sif copy from user failed\n");
+				return -EINVAL;
+			}
+			if (sif_dev_mot_det_ctrl(&mot_det_ctrl) < 0) {
+				siferr("ERROR: sif mot_det control failed!\n");
+				return -1;
 			}
 		}
 		break;

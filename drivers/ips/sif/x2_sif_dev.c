@@ -455,7 +455,7 @@ int32_t sif_dev_mot_det_cfg(mot_det_t *cfg)
 	uint32_t det_para1 = 0;
 	uint32_t det_para2 = 0;
 	void __iomem  *iomem = NULL;
-	if (NULL == g_sif_dev) {
+	if (g_sif_dev == NULL) {
 		siferr("sif dev not inited!");
 		return -1;
 	}
@@ -481,6 +481,24 @@ int32_t sif_dev_mot_det_cfg(mot_det_t *cfg)
 	det_para2 |= CONFIG_SET(MOT_DET_DIFF_WGT_DECAY, cfg->wgt_decay);
 	det_para2 |= CONFIG_SET(MOT_DET_DIFF_DEC_PREC, cfg->dec_prec);
 	sif_putreg(iomem + REG_MOT_PARA2, det_para2);
+
+	return 0;
+}
+
+int32_t sif_dev_mot_det_ctrl(mot_det_t *cfg)
+{
+	uint32_t det_en = 0;
+	void __iomem  *iomem = NULL;
+
+	if (g_sif_dev == NULL) {
+		siferr("sif dev not inited!");
+		return -1;
+	}
+	iomem = g_sif_dev->iomem;
+	det_en = sif_getreg(iomem + REG_SIF_BASE_CTRL);
+	det_en = CONFIG_CLEAR_SET(det_en, MOT_DET_EN, cfg->enable);
+	det_en = CONFIG_CLEAR_SET(det_en, MOT_DET_REFRESH, cfg->refresh);
+	sif_putreg(iomem + REG_SIF_BASE_CTRL, det_en);
 
 	return 0;
 }

@@ -1,3 +1,9 @@
+/***************************************************************************
+ *                      COPYRIGHT NOTICE
+ *             Copyright 2018 Horizon Robotics, Inc.
+ *                     All rights reserved.
+ ***************************************************************************/
+
 #ifndef __X2_SIF_H__
 #define __X2_SIF_H__
 
@@ -144,5 +150,7 @@ typedef struct _bypass_ctrl_info_t {
 #define SIFIOC_GET_FRAME_ID     _IOR(SIF_IOC_MAGIC, 6, frame_id_info_t)
 #define SIFIOC_UPDATE           _IOW(SIF_IOC_MAGIC, 7, sif_cfg_t)
 #define SIFIOC_BYPASS_CTRL      _IOW(SIF_IOC_MAGIC, 8, bypass_ctrl_info_t)
+#define SIFIOC_MOT_DET_CFG	_IOW(SIF_IOC_MAGIC, 9, mot_det_t)
+#define SIFIOC_MOT_DET_CTRL	_IOW(SIF_IOC_MAGIC, 10, mot_det_t)
 
 #endif //__X2_SIF_H__
