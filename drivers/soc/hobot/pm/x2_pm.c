@@ -47,6 +47,7 @@ struct x2_suspend {
 	struct device *dev;
 	unsigned int wakeup_src_mask;
 	unsigned int sleep_period;
+	int wakeup_count;
 	struct x2_suspend_data data;
 };
 
@@ -61,11 +62,20 @@ extern u32 x2_suspend_in_sram_sz;
 static void x2_core1_resume(void)
 {
 	cpu_ops[1]->cpu_prepare(1);
+	x2_suspend->wakeup_count++;
 }
 
 struct syscore_ops x2_core1_syscore_ops = {
 	.resume         = x2_core1_resume,
 };
+
+static ssize_t wakeup_cnt_show(struct device *dev,
+				  struct device_attribute *attr,
+				  char *buf)
+{
+	return snprintf(buf, sizeof(x2_suspend->wakeup_count),
+			"%d\n", x2_suspend->wakeup_count);
+}
 
 static ssize_t sleep_period_store(struct device *dev,
 				  struct device_attribute *attr,
@@ -92,6 +102,7 @@ static ssize_t sleep_period_store(struct device *dev,
 }
 
 static DEVICE_ATTR_WO(sleep_period);
+static DEVICE_ATTR_RO(wakeup_cnt);
 
 static int x2_suspend_valid_state(suspend_state_t state)
 {
@@ -264,6 +275,7 @@ static int x2_suspend_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, x2_suspend);
 
 	device_create_file(&pdev->dev, &dev_attr_sleep_period);
+	device_create_file(&pdev->dev, &dev_attr_wakeup_cnt);
 
 	register_syscore_ops(&x2_core1_syscore_ops);
 
