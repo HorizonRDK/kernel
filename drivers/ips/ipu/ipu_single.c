@@ -482,14 +482,20 @@ int ipu_open(struct inode *node, struct file *filp)
 }
 
 
-ipu_slot_h_t *ipu_get_done_slot_wait_event(void)
+ipu_slot_h_t *ipu_get_done_slot_wait_event(ipu_cfg_t *ipu_cfg)
 {
 
 	ipu_slot_h_t *slot_h = NULL;
+	int ret;
 
-	while(!atomic_read(&g_ipu_s_cdev->ipu_time_flags))
-		wait_event_interruptible(g_ipu_s_cdev->event_head, !!atomic_read(&g_ipu_s_cdev->ipu_time_flags));
-
+	while(!atomic_read(&g_ipu_s_cdev->ipu_time_flags)) {
+		ret = wait_event_interruptible_timeout(g_ipu_s_cdev->event_head,
+		!!atomic_read(&g_ipu_s_cdev->ipu_time_flags),
+		msecs_to_jiffies(ipu_cfg->timeout));
+		if (ret == 0) {
+			atomic_set(&g_ipu_s_cdev->ipu_time_flags, 1);
+		}
+	}
 	atomic_set(&g_ipu_s_cdev->ipu_time_flags, 0);
 
 	/*step3. get the frame info to user space*/
@@ -654,7 +660,7 @@ long ipu_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 				/*step 1. clear done slot list*/
 				ipu_clean_done_slot();
 				/*step2. wait the next frame is done*/
-				slot_h = ipu_get_done_slot_wait_event();
+				slot_h = ipu_get_done_slot_wait_event(ipu_cfg);
 
 				if (!slot_h){
 					return -EFAULT;
@@ -670,7 +676,7 @@ long ipu_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 				ipu_clean_done_slot();
 
 wait_1:
-				slot_h = ipu_get_done_slot_wait_event();
+				slot_h = ipu_get_done_slot_wait_event(ipu_cfg);
 
 				if (!(slot_h)) {
 					return -EFAULT;
@@ -684,7 +690,7 @@ wait_1:
 			} else if (time > 0) {
 
 slot_next:
-				slot_h = ipu_get_done_slot_wait_event();
+				slot_h = ipu_get_done_slot_wait_event(ipu_cfg);
 
 				if (!(slot_h)) {
 					return -EFAULT;
