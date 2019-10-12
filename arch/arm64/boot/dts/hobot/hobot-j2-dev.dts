@@ -296,7 +296,6 @@
 	status = "okay";
 	bus-width = <4>;
 	no-mmc;
-	no-sdio;
 	cap-sd-highspeed;
 	sd-uhs-sdr12;
 	sd-uhs-sdr25;
