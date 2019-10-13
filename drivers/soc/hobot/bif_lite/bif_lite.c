@@ -135,6 +135,8 @@ void *dst, addr_t offset, int len)
 	return 0;
 }
 
+// we can adjust this time when clear server scheme complete
+#define ERROR_SYNC_DELAY (8000)
 static inline int bif_tx_get_available_buffer(
 struct comm_channel *channel, int *index, int *count, int expect_count)
 {
@@ -143,21 +145,39 @@ struct comm_channel *channel, int *index, int *count, int expect_count)
 		RING_INFO_ALIGN)];
 	struct bif_rx_ring_info *tx_remote_info_tmp =
 		(struct bif_rx_ring_info *)tx_remote_info_buf;
+#ifdef CONFIG_HOBOT_BIF_AP
+	int remaining_time = 0;
+#endif
 
 	*index = -1;
+#ifdef CONFIG_HOBOT_BIF_AP
+	if (channel->hw_trans_error) {
+		pr_info("tx get available delay\n");
+		remaining_time = msleep_interruptible(ERROR_SYNC_DELAY);
+		if (remaining_time) {
+			pr_info("tx get available sleep interruptible\n");
+			return -1;
+		}
+	}
+	channel->hw_trans_error = 0;
+#endif
 	ret = bif_read_cp_ddr_channel(channel, tx_remote_info_tmp,
 		channel->tx_remote_info_offset,
 		ALIGN(sizeof(struct bif_rx_ring_info),
 		channel->transfer_align));
 	if (ret < 0) {
 		printk_ratelimited(KERN_INFO "bif_err: %s %d\n", __func__, __LINE__);
-		return ret;
+#ifdef CONFIG_HOBOT_BIF_AP
+	channel->hw_trans_error = 1;
+#endif
+		return -2;
 	}
 #ifdef CONFIG_HOBOT_BIF_AP
 	if (tx_remote_info_tmp->recv_head == -1) {
 		if (!channel->ap_abnormal_sync) {
 			channel->tx_local_info->send_tail = 0;
 			channel->ap_abnormal_sync = 1;
+			pr_info("tx CP reboot!!!\n");
 		}
 	} else
 		channel->ap_abnormal_sync = 0;
@@ -239,8 +259,12 @@ static inline int bif_tx_update_to_cp_ddr(struct comm_channel *channel)
 		channel->tx_local_info_offset,
 		ALIGN(sizeof(struct bif_tx_ring_info),
 		channel->transfer_align));
-	if (ret < 0)
+	if (ret < 0) {
 		printk_ratelimited(KERN_INFO "bif_err: %s %d\n", __func__, __LINE__);
+#ifdef CONFIG_HOBOT_BIF_AP
+	channel->hw_trans_error = 1;
+#endif
+	}
 #ifdef CONFIG_HOBOT_BIF_AP
 	if ((channel->type == SOC_AP) &&
 		(channel->channel == BIF_SPI))
@@ -327,6 +351,9 @@ struct frag_info *fragment_info)
 		offset, channel->frag_len_max);
 		if (ret < 0) {
 			printk_ratelimited(KERN_INFO "bif_err: %s %d\n", __func__, __LINE__);
+#ifdef CONFIG_HOBOT_BIF_AP
+			channel->hw_trans_error = 1;
+#endif
 			goto err;
 		}
 	} else {
@@ -338,6 +365,9 @@ struct frag_info *fragment_info)
 		ALIGN(fragment_len, channel->transfer_align));
 		if (ret < 0) {
 			printk_ratelimited(KERN_INFO "bif_err: %s %d\n", __func__, __LINE__);
+#ifdef CONFIG_HOBOT_BIF_AP
+			channel->hw_trans_error = 1;
+#endif
 			goto err;
 		}
 	}
@@ -388,8 +418,11 @@ unsigned char *data, int len)
 	ret = bif_tx_get_available_buffer(channel,
 		&channel->tx_frag_index,
 		&count, frag_count);
-	if (ret < 0) {
+	if (ret == -1) {
 		ret = BIF_TX_ERROR_NO_MEM;
+		goto err;
+	} else if (ret == -2) {
+		ret = BIF_TX_ERROR_TRANS;
 		goto err;
 	}
 
@@ -464,15 +497,33 @@ RING_INFO_ALIGN)];
 #ifdef CONFIG_HOBOT_BIF_AP
 	struct bif_rx_ring_info *rx_local_info_tmp =
 (struct bif_rx_ring_info *)channel->rx_local_info_tmp_buf;
+	int remaining_time = 0;
 #endif
+#ifdef CONFIG_HOBOT_BIF_AP
+	if (channel->hw_trans_error) {
+		pr_info("tx get available delay\n");
+		remaining_time = msleep_interruptible(ERROR_SYNC_DELAY);
+		if (remaining_time) {
+			ret = -1;
+			pr_info("rx get available sleep interruptible\n");
+			goto err;
+		}
+	}
+	channel->hw_trans_error = 0;
+#endif
+
 	ret = bif_read_cp_ddr_channel(channel, rx_remote_info_tmp,
 		channel->rx_remote_info_offset,
 		ALIGN(sizeof(struct bif_tx_ring_info),
 		channel->transfer_align));
 	if (ret < 0) {
 		printk_ratelimited(KERN_INFO "bif_err: %s %d\n", __func__, __LINE__);
+#ifdef CONFIG_HOBOT_BIF_AP
+		channel->hw_trans_error = 1;
+#endif
 		goto err;
 	}
+
 #ifdef CONFIG_HOBOT_BIF_AP
 	ret = bif_read_cp_ddr_channel(channel,
 		channel->rx_local_info_tmp_buf,
@@ -481,10 +532,13 @@ RING_INFO_ALIGN)];
 		channel->transfer_align));
 	if (ret < 0) {
 		printk_ratelimited(KERN_INFO "bif_err: %s %d\n", __func__, __LINE__);
+		channel->hw_trans_error = 1;
 		goto err;
 	}
-	if (rx_local_info_tmp->recv_head == -1)
+	if (rx_local_info_tmp->recv_head == -1) {
 		channel->rx_local_info->recv_head = -1;
+		pr_info("rx CP reboot!!!!\n");
+	}
 #endif
 #if 0
 	pr_info("rx_r.s_t %d\n", rx_remote_info_tmp->send_tail);
@@ -540,6 +594,9 @@ int count)
 		channel->transfer_align));
 	if (ret < 0) {
 		printk_ratelimited(KERN_INFO "bif_err: %s  %d\n", __func__, __LINE__);
+#ifdef CONFIG_HOBOT_BIF_AP
+		channel->hw_trans_error = 1;
+#endif
 		goto err;
 	}
 
@@ -703,7 +760,9 @@ struct comm_channel *channel)
 #endif
 
 	ret = bif_rx_get_available_buffer(channel, &index, &count);
-	bif_debug("ret = %d  index = %d  count = %d\n", ret, index, count);
+#if 0
+	pr_info("ret = %d index = %d count = %d\n", ret, index, count);
+#endif
 	if (ret < 0) {
 		++channel->error_statistics.rx_error_sync_index;
 		goto err;
@@ -734,6 +793,9 @@ struct comm_channel *channel)
 			// do not update any rx index if read fragment occurred
 			frame_used_frag_count = 0;
 			printk_ratelimited(KERN_INFO "bif_err: %s %d\n", __func__, __LINE__);
+#ifdef CONFIG_HOBOT_BIF_AP
+			channel->hw_trans_error = 1;
+#endif
 			break;
 		}
 
@@ -996,6 +1058,9 @@ static inline int bif_sync_before_start(struct comm_channel *channel)
 		channel->transfer_align));
 	if (ret < 0) {
 		bif_err("bif_err: %s  %d\n", __func__, __LINE__);
+#ifdef CONFIG_HOBOT_BIF_AP
+		channel->hw_trans_error = 1;
+#endif
 		goto err;
 	}
 #if 0
@@ -1025,6 +1090,9 @@ static inline int bif_sync_before_start(struct comm_channel *channel)
 		channel->transfer_align));
 	if (ret < 0) {
 		bif_err("bif_err: %s  %d\n", __func__, __LINE__);
+#ifdef CONFIG_HOBOT_BIF_AP
+		channel->hw_trans_error = 1;
+#endif
 		goto err;
 	}
 #if 0
@@ -1054,6 +1122,9 @@ static inline int bif_sync_before_start(struct comm_channel *channel)
 		channel->transfer_align));
 	if (ret < 0) {
 		bif_err("bif_err: %s  %d\n", __func__, __LINE__);
+#ifdef CONFIG_HOBOT_BIF_AP
+	channel->hw_trans_error = 1;
+#endif
 		goto err;
 	}
 #if 0
@@ -1083,6 +1154,9 @@ static inline int bif_sync_before_start(struct comm_channel *channel)
 		channel->transfer_align));
 	if (ret < 0) {
 		bif_err("bif_err: %s  %d\n", __func__, __LINE__);
+#ifdef CONFIG_HOBOT_BIF_AP
+	channel->hw_trans_error = 1;
+#endif
 		goto err;
 	}
 #if 0
@@ -1170,6 +1244,9 @@ static inline int bif_init_cp_ddr(struct comm_channel *channel)
 		channel->transfer_align));
 	if (ret < 0) {
 		bif_err("bif_err: %s  %d\n", __func__, __LINE__);
+#ifdef CONFIG_HOBOT_BIF_AP
+		channel->hw_trans_error = 1;
+#endif
 		goto err;
 	}
 
@@ -1179,6 +1256,9 @@ static inline int bif_init_cp_ddr(struct comm_channel *channel)
 		channel->transfer_align));
 	if (ret < 0) {
 		bif_err("bif_err: %s  %d\n", __func__, __LINE__);
+#ifdef CONFIG_HOBOT_BIF_AP
+	channel->hw_trans_error = 1;
+#endif
 		goto err;
 	}
 	//pr_info("init: tx_remote_info %d\n", tx_remote_info_tmp->recv_head);
@@ -1198,6 +1278,9 @@ static inline int bif_init_cp_ddr(struct comm_channel *channel)
 		channel->transfer_align));
 	if (ret < 0) {
 		bif_err("bif_err: %s  %d\n", __func__, __LINE__);
+#ifdef CONFIG_HOBOT_BIF_AP
+		channel->hw_trans_error = 1;
+#endif
 		goto err;
 	}
 
@@ -1207,6 +1290,9 @@ static inline int bif_init_cp_ddr(struct comm_channel *channel)
 		channel->transfer_align));
 	if (ret < 0) {
 		bif_err("bif_err: %s  %d\n", __func__, __LINE__);
+#ifdef CONFIG_HOBOT_BIF_AP
+	channel->hw_trans_error = 1;
+#endif
 		goto err;
 	}
 	//pr_info("init: tx_local_info %d\n", tx_local_info_tmp->send_tail);
@@ -1227,6 +1313,9 @@ static inline int bif_init_cp_ddr(struct comm_channel *channel)
 		channel->transfer_align));
 	if (ret < 0) {
 		bif_err("bif_err: %s  %d\n", __func__, __LINE__);
+#ifdef CONFIG_HOBOT_BIF_AP
+		channel->hw_trans_error = 1;
+#endif
 		goto err;
 	}
 
@@ -1236,6 +1325,9 @@ static inline int bif_init_cp_ddr(struct comm_channel *channel)
 		channel->transfer_align));
 	if (ret < 0) {
 		bif_err("bif_err: %s  %d\n", __func__, __LINE__);
+#ifdef CONFIG_HOBOT_BIF_AP
+	channel->hw_trans_error = 1;
+#endif
 		goto err;
 	}
 	//pr_info("init: rx_local_info_tmp %d\n", rx_local_info_tmp->recv_head);
@@ -1255,6 +1347,9 @@ static inline int bif_init_cp_ddr(struct comm_channel *channel)
 		channel->transfer_align));
 	if (ret < 0) {
 		bif_err("bif_err: %s  %d\n", __func__, __LINE__);
+#ifdef CONFIG_HOBOT_BIF_AP
+		channel->hw_trans_error = 1;
+#endif
 		goto err;
 	}
 
@@ -1264,6 +1359,9 @@ static inline int bif_init_cp_ddr(struct comm_channel *channel)
 		channel->transfer_align));
 	if (ret < 0) {
 		bif_err("bif_err: %s  %d\n", __func__, __LINE__);
+#ifdef CONFIG_HOBOT_BIF_AP
+	channel->hw_trans_error = 1;
+#endif
 		goto err;
 	}
 	//pr_info("init: rx_remote_info_tmp %d\n", rx_remote_info_tmp->send_tail);

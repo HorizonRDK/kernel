@@ -161,6 +161,7 @@ struct comm_channel {
 	int tx_frag_avail;
 	int tx_frag_index;
 	int ap_abnormal_sync;
+	int hw_trans_error;
 	// buffer index info
 	int init_tx_remote_info;
 	int init_tx_local_info;

@@ -38,7 +38,7 @@
 #include "hbipc_errno.h"
 #include "bif_dev_sd.h"
 
-#define VERSION "2.7.1"
+#define VERSION "2.7.2"
 #define VERSION_LEN (16)
 static char version_str[VERSION_LEN];
 
@@ -668,7 +668,7 @@ err:
 }
 
 #define TX_RETRY_TIME (10)
-#define TX_RETRY_MAX (100)
+#define TX_RETRY_MAX (1000)
 static DEFINE_MUTEX(write_mutex);
 static ssize_t x2_bif_write(struct file *file, const char __user *buf,
 size_t count, loff_t *ppos)
@@ -751,7 +751,7 @@ resend_without_timeout:
 				if (ret == BIF_TX_ERROR_NO_MEM) {
 					++retry_count;
 					if (retry_count > TX_RETRY_MAX) {
-						data.result = HBIPC_ERROR_HW_TRANS_ERROR;
+						data.result = HBIPC_ERROR_SEND_NO_MEM;
 						pr_info("data resend over try\n");
 						++domain.domain_statistics.write_resend_over_count;
 						status = copy_to_user((void __user *)buf, &data, sizeof(data));
@@ -1194,6 +1194,8 @@ static long x2_bif_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 		// attempt to read manage frame
 		recv_handle_manage_frame(&domain);
+		// manual sync execute mode
+		bif_sync_ap();
 
 		ret = start_server(&domain, &data);
 		status = copy_to_user((void __user *)arg, &data,
@@ -1229,6 +1231,9 @@ static long x2_bif_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			ret = -1;
 			goto connect_out;
 		}
+
+		// manual sync execute mode
+		bif_sync_ap();
 
 		ret = register_connect(&domain, &data);
 		if (ret < 0) {

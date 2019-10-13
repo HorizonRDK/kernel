@@ -220,7 +220,8 @@ static void provider_server_map_deinit(struct provider_server_map *map)
 	map->first_avail = 0;
 }
 
-#define TX_RETRY_MAX (100)
+#define TX_RETRY_TIME (5)
+#define TX_RETRY_MAX (2000)
 int mang_frame_send2opposite(struct comm_domain *domain,
 int type, struct send_mang_data *data)
 {
@@ -334,7 +335,7 @@ repeat_resend:
 					hbipc_error("repeat put_frame overtry\n");
 				} else {
 					remaining_time =
-					msleep_interruptible(5);
+					msleep_interruptible(TX_RETRY_TIME);
 					if (!remaining_time) {
 						// lint warning
 						goto repeat_resend;
@@ -369,7 +370,8 @@ resend:
 				++domain->domain_statistics.mang_resend_over_count;
 				hbipc_error("bif_tx_put_frame overtry\n");
 			} else {
-				remaining_time = msleep_interruptible(5);
+				remaining_time =
+				msleep_interruptible(TX_RETRY_TIME);
 				if (!remaining_time) {
 					// lint warning
 					goto resend;
@@ -778,7 +780,9 @@ struct send_mang_data *data)
 	int index = 0;
 	struct server_desc *server = NULL;
 	struct provider_desc *provider = NULL;
+#ifndef CONFIG_HOBOT_BIF_AP
 	int ret = 0;
+#endif
 #ifdef CONFIG_HOBOT_BIF_AP
 	int provider_id_tmp = 0;
 #endif
@@ -807,7 +811,7 @@ struct send_mang_data *data)
 			--server->provider.count;
 			server->provider.first_avail =
 			get_provider_first_avail_index(&server->provider);
-			hbipc_debug("switch new provider\n");
+			hbipc_debug("switch new provider 1\n");
 #endif
 	} else {
 		provider = server->provider.provider_array +
@@ -819,17 +823,36 @@ struct send_mang_data *data)
 		get_provider_first_avail_index(&server->provider);
 		}
 	} else {
+#ifndef CONFIG_HOBOT_BIF_AP
 		hbipc_error("provider duplicate register\n");
 		ret = HBIPC_ERROR_REPEAT_REGISTER;
 		goto error;
+#else
+		// register new provider
+		provider_id_tmp = data->provider_id;
+		data->provider_id = server->provider.provider_array[0].provider_id;
+		unregister_provider(domain, data);
+		unregister_map(domain, data);
+		data->provider_id = provider_id_tmp;
+		provider = server->provider.provider_array +
+		server->provider.first_avail;
+		provider->valid = 1;
+		provider->provider_id = data->provider_id;
+		--server->provider.count;
+		server->provider.first_avail =
+		get_provider_first_avail_index(&server->provider);
+		hbipc_debug("switch new provider 2\n");
+#endif
 	}
 
 	hbipc_debug("provider_info: count = %d first_avail = %d\n",
 	server->provider.count, server->provider.first_avail);
 
 	return 0;
+#ifndef CONFIG_HOBOT_BIF_AP
 error:
 	return ret;
+#endif
 }
 
 static int register_provider_no_dup(struct comm_domain *domain,
