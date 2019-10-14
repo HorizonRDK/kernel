@@ -75,7 +75,7 @@
 
 #define BIFBASE_APMAGIC		"BIFA"
 #define BIFBASE_CPMAGIC		"BIFC"
-#define BIFBASE_VER		"HOBOT-bifbase_V21.190919"
+#define BIFBASE_VER		"HOBOT-bifbase_V21.191014"
 #define BIFBASE_MAJOR		(123)
 #define BIFBASE_BLOCK		(1024)	//(512)
 #define BIFBASE_VER_SIZE	(32)
@@ -1192,7 +1192,7 @@ int bif_send_irq(int irq)
 			}
 			pr_bif("bifbase: irq queue full\n");
 			pl->base_sendirq_wq_flg = 1;
-			if (wait_event_interruptible_timeout(pl->base_irq_wq,
+			if (wait_event_interruptible_timeout(pl->base_sendirq_wq,
 				(pl->self->send_irq_tail + 1)
 				% pl->self->irq_queue_size
 				!= pl->other->read_irq_head,
@@ -1270,11 +1270,11 @@ void *bif_query_address_wait(enum BUFF_ID buffer_id)
 			pr_debug("bifbase: query address\n");
 			bifbase_sync_cp((void *)pl);
 			bifbase_sync_ap((void *)pl);
-			pl->base_irq_wq_flg = 1;
+			pl->base_ap_wq_flg = 1;
 			wait_event_interruptible_timeout(pl->base_ap_wq,
 				pl->cp->address_list[buffer_id] != 0,
 				WQ_TIMEOUT*HZ);
-			pl->base_irq_wq_flg = 0;
+			pl->base_ap_wq_flg = 0;
 			if (signal_pending(current))
 				return (void *)-ERESTARTSYS;
 		}
