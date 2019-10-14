@@ -21,6 +21,11 @@
 #define X2_I2C_FIFO_SIZE	16
 #define WAIT_IDLE_TIMEOUT	200 /* ms */
 #define XFER_TIMEOUT		1000 /* ms */
+#define HOBOT_SYSCTRL_REG   (0xA1000000)
+#define CLK_EN_SET_REG      (0x154)
+#define I2C0_MCLK_EB_BIT    (1<<11)
+#define CLK_EN_CLR_REG      (0x158)
+#define I2C0_MCLK_CLR_BIT   (1<<11)
 
 enum {
 	i2c_idle,
@@ -638,7 +643,16 @@ static int x2_i2c_remove(struct platform_device *pdev)
 #ifdef CONFIG_PM_SLEEP
 static int x2_i2c_suspend(struct device *dev)
 {
+	u32 value;
+	void __iomem *address;
 	struct x2_i2c_dev *i2c_dev = dev_get_drvdata(dev);
+
+	pr_info("%s:%s, enter suspend...\n", __FILE__, __func__);
+
+	//disable clk to reduce power
+	address = ioremap(HOBOT_SYSCTRL_REG, 0x400);
+	value = I2C0_MCLK_CLR_BIT;
+	writel(value, address+CLK_EN_CLR_REG);
 
 	i2c_lock_adapter(&i2c_dev->adapter);
 	i2c_dev->is_suspended = true;
@@ -657,7 +671,16 @@ static int x2_i2c_suspend(struct device *dev)
 
 static int x2_i2c_resume(struct device *dev)
 {
+	u32 value;
+	void __iomem *address;
 	struct x2_i2c_dev *i2c_dev = dev_get_drvdata(dev);
+
+	pr_info("%s:%s, enter resume...\n", __FILE__, __func__);
+
+	//enable clk to work
+	address = ioremap(HOBOT_SYSCTRL_REG, 0x400);
+	value = I2C0_MCLK_EB_BIT;
+	writel(value, address+CLK_EN_SET_REG);
 
 	i2c_lock_adapter(&i2c_dev->adapter);
 	i2c_dev->is_suspended = false;
@@ -686,7 +709,7 @@ static struct platform_driver x2_i2c_driver = {
 	.driver = {
 		   .name = "i2c-x2",
 		   .of_match_table = x2_i2c_of_match,
-		   //.pm = &x2_i2c_pm,
+		   .pm = &x2_i2c_pm,
 		   },
 };
 
