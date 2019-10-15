@@ -532,7 +532,9 @@ static u32 x2_i2c_func(struct i2c_adapter *adap)
 
 static const struct i2c_algorithm x2_i2c_algo = {
 	.master_xfer = x2_i2c_xfer,
+#ifndef	CONFIG_X2A_FPGA
 	.smbus_xfer = x2_i2c_xfer_smbus,
+#endif
 	.functionality = x2_i2c_func,
 };
 

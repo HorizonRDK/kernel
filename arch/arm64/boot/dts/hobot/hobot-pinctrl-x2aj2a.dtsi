@@ -25,26 +25,38 @@
 			#interrupt-cells = <2>;
 			i2c0_func: i2c0_func {
 				pinctrl-x2,pins-muxs = <
-					9	0 /*i2c0 SCL*/
-					10	0 /*i2c0 SDA*/
+					8	0 /*i2c0 SCL*/
+					9	0 /*i2c0 SDA*/
 				>;
 			};
 			i2c1_func: i2c1_func {
 				pinctrl-x2,pins-muxs = <
-					11	1 /*i2c1 SDA*/
-					12	1 /*i2c1 SCL*/
+					10	0 /*i2c1 SDA*/
+					11	0 /*i2c1 SCL*/
 				>;
 			};
 			i2c2_func: i2c2_func {
 				pinctrl-x2,pins-muxs = <
-					76	1 /*i2c2 SCL*/
-					77	1 /*i2c2 SDA*/
+					12	0 /*i2c2 SCL*/
+					13	0 /*i2c2 SDA*/
 				>;
 			};
 			i2c3_func: i2c3_func {
 				pinctrl-x2,pins-muxs = <
-					66	2 /*i2c3 SCL*/
-					67	2 /*i2c3 SDA*/
+					14       0 /*i2c3 SCL*/
+					15       0 /*i2c3 SDA*/
+				>;
+			};
+			i2c4_func: i2c4_func {
+				pinctrl-x2,pins-muxs = <
+					16       0 /*i2c4 SCL*/
+					17       0 /*i2c4 SDA*/
+				>;
+			};
+			i2c5_func: i2c5_func {
+				pinctrl-x2,pins-muxs = <
+					18       0 /*i2c5 SCL*/
+					19       0 /*i2c5 SDA*/
 				>;
 			};
 			uart0_func: uart0_func {
