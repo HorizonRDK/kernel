@@ -38,6 +38,8 @@
 		bifspi	= &bifspi;
 		bifsd   = &bifsd;
 		mmc0	= &sdio0;
+		dma	= &dma;
+		x2dmatest = &x2dmatest;
 	};
 
 	chosen {
@@ -165,7 +167,7 @@
 };
 
 &x2dmatest {
-	status = "disabled";
+	status = "okay";
 };
 
 &rtc {
@@ -236,10 +238,16 @@
 		spi-rx-bus-width = <4>;
 		spi-max-frequency = <20000000>; /* For FPGA max clk is 20Mhz */
 
+		partition@qspi-rom {
+			label = "qspi-rom";
+			reg = <0x000000 0x200000>;
+		};
+
 		partition@qspi-uboot {
 			label = "qspi-uboot";
 			reg = <0x200000 0x200000>;
 		};
+/*
 		partition@qspi-linux {
 			label = "qspi-linux";
 			reg = <0x400000 0x1000000>;
@@ -252,6 +260,7 @@
 			label = "qspi-rootfs";
 			reg = <0x1500000 0x500000>;
 		};
+*/
 	};
 };
 
