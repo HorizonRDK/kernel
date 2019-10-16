@@ -93,18 +93,18 @@
 			};
 			i2s0_func: i2s0_func {
 				pinctrl-x2,pins-muxs = <
-					88 0 /*i2s0 MCLK*/
-					89 0 /*i2s0 BGLK*/
-					90 0 /*i2s0 LRGK*/
-					91 0 /*i2s0 SDIO*/
+					101 0 /*i2s0 MCLK*/
+					102 0 /*i2s0 BGLK*/
+					103 0 /*i2s0 LRGK*/
+					104 0 /*i2s0 SDIO*/
 				>;
 			};
 			i2s1_func: i2s1_func_a {
 				pinctrl-x2,pins-muxs = <
-					5 1 /*i2s1 MCLK*/
-					61 2
-					62 2
-					63 2
+					105 0 /*i2s1 MCLK*/
+					106 0
+					107 0
+					108 0
 				>;
 			};
 			i2s1_func_b: i2s1_func_b {

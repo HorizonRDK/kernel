@@ -795,25 +795,25 @@ static int x2_i2s_probe(struct platform_device *pdev)
 
 	i2s_num++;
 
-	i2s->mclk = devm_clk_get(&pdev->dev, "i2s-mclk");
+	i2s->mclk = devm_clk_get(&pdev->dev, "i2s_mclk");
 	if(IS_ERR(i2s->mclk)){
-		dev_err(&pdev->dev, "failed to get i2s-mclk\n");
+		dev_err(&pdev->dev, "failed to get i2s_mclk\n");
 		return PTR_ERR(i2s->mclk);
 	}
 	ret = clk_prepare(i2s->mclk);
 	if(ret != 0){
-		dev_err(&pdev->dev, "failed to prepare i2s-mclk\n");
+		dev_err(&pdev->dev, "failed to prepare i2s_mclk\n");
 		return ret;
 	}
 
-	i2s->bclk = devm_clk_get(&pdev->dev, "i2s-bclk");
+	i2s->bclk = devm_clk_get(&pdev->dev, "i2s_bclk");
 	if(IS_ERR(i2s->bclk)){
-		dev_err(&pdev->dev, "failed to get i2s-bclk\n");
+		dev_err(&pdev->dev, "failed to get i2s_bclk\n");
 		return PTR_ERR(i2s->bclk);
 	}
 	ret = clk_prepare(i2s->bclk);
 	if(ret != 0){
-		dev_err(&pdev->dev, "failed to prepare i2s-bclk\n");
+		dev_err(&pdev->dev, "failed to prepare i2s_bclk\n");
 		return ret;
 	}
 

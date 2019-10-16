@@ -212,10 +212,12 @@
 		};
 
 		i2s0: i2s@0xA5007000 {
-			compatible = "hobot, x2-i2s0";
+			compatible = "hobot,x2-i2s";
 			reg = <0 0xA5007000 0 0x100>,
 				<0 0xA5007500 0 0x100>,
 				<0 0xA1000000 0 0x500>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 36 4>;
 			resets = <&rst 0x50 18>;
 			reset-names = "i2s";
 			pinctrl-names = "default";
@@ -226,14 +228,16 @@
 			mclk_set = <12288000>;/* only for master mode,default is 12.288M*/
 			blck = <6144000>;/* only for master mode*/
 			slot_width= <128>;/*128,64*/
-			status = "disabled";
+			#status = "disabled";
 		};
 
 		i2s1: i2s@0xA5008000 {
-			compatible = "hobot, x2-i2s1";
+			compatible = "hobot,x2-i2s";
 			reg = <0 0xA5008000 0 0x100>,
 				<0 0xA5008500 0 0x100>,
 				<0 0xA1000000 0 0x500>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 37 4>;
 			resets = <&rst 0x50 19>;
 			reset-names = "i2s";
 			pinctrl-names = "default";
@@ -243,7 +247,7 @@
 			bclk_set = <6144000>;/* only for master mode,tianpai is 6.144M*/
 			mclk_set = <12288000>;/* only for master mode,default is 12.288M*/
 			slot_width= <128>;/*128,64*/
-			status = "disabled";
+			#status = "disabled";
 		};
 
 		i2sidma0: idma@0 {
