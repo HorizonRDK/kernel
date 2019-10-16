@@ -14,14 +14,17 @@
  *    GNU General Public License for more details.
  */
 
-#ifndef __ACAMERA_DWE_CONFIG_H__
-#define __ACAMERA_DWE_CONFIG_H__
+#ifndef _BUFFER_VB2_H_
+#define _BUFFER_VB2_H_
 
+#include <linux/videodev2.h>
+#include <media/videobuf2-core.h>
 
-#define FIRMWARE_CONTEXT_NUMBER 4
-#define HADRWARE_CONTEXT_MAX    4
-#define BUFFER_DMA 1 // 1 use dma  0 use vmalloc
-#define DIS_STAT_SIZE 12000 // (1920 + 1080)*1080 byte
+#include "buffer_v4l2_stream.h"
 
+/* VB2 control interfaces */
+int dwe_vb2_queue_init(struct vb2_queue *q, struct mutex *mlock,
+	dwe_v4l2_stream_t *pstream, struct device *dev);
+void dwe_vb2_queue_release(struct vb2_queue *q);
 
 #endif

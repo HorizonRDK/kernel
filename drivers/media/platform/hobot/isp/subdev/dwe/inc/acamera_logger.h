@@ -1,21 +1,18 @@
 /*
-*
-* SPDX-License-Identifier: GPL-2.0
-*
-* Copyright (C) 2011-2018 ARM or its affiliates
-*
-* This program is free software; you can redistribute it and/or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation; version 2.
-* This program is distributed in the hope that it will be useful, but
-* WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
-* or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License
-* for more details.
-* You should have received a copy of the GNU General Public License along
-* with this program; if not, write to the Free Software Foundation, Inc.,
-* 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
-*
-*/
+ *    driver, vb2_buffer interface
+ *
+ *    Copyright (C) 2018 Horizon Inc.
+ *
+ *    This program is free software; you can redistribute it and/or modify
+ *    it under the terms of the GNU General Public License as published by
+ *    the Free Software Foundation; either version 2 of the License, or
+ *    (at your option) any later version.
+ *
+ *    This program is distributed in the hope that it will be useful,
+ *    but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *    GNU General Public License for more details.
+ */
 
 #ifndef ACAMERA_LOGGER_H
 #define ACAMERA_LOGGER_H
@@ -77,8 +74,11 @@
 #define LOG_MODULE_SOC_SENSOR_MASK 1048576
 #define LOG_MODULE_SOC_LENS 21
 #define LOG_MODULE_SOC_LENS_MASK 2097152
-#define LOG_MODULE_MAX 22 // now we have 22 sub module name
-#define LOG_MODULE_ALL 0x3FFFFF
+#define LOG_MODULE_SOC_DWE 22
+#define LOG_MODULE_SOC_DWE_MASK 4194304
+#define LOG_MODULE_MAX 23 // now we have 22 sub module name
+#define LOG_MODULE_ALL 0x7FFFFF
+
 
 
 extern void LOG_INTER(const char *const func, const char *const file, const unsigned line, const uint32_t level, const uint32_t log_module, const char *const fmt, ... );

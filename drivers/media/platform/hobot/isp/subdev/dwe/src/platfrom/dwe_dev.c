@@ -1,4 +1,4 @@
-/*  ldc_dev.c - a device driver for the ldc-bus interface
+/*
  *
  *   Copyright (C) 2018 Horizon Inc.
  *
@@ -23,7 +23,6 @@
 #include <linux/kthread.h>
 #include <linux/dmaengine.h>
 #include <linux/compiler.h>
-#include <asm-generic/io.h>
 #include <linux/string.h>
 #include <linux/uaccess.h>
 #include <linux/mman.h>
@@ -32,17 +31,20 @@
 #include <linux/module.h>
 #include "acamera_logger.h"
 
-
-
 #include "dwe_dev.h"
 
 
-/* global variable define */
+#if defined( CUR_MOD_NAME)
+#undef CUR_MOD_NAME
+#define CUR_MOD_NAME LOG_MODULE_SOC_DWE
+#else
+#define CUR_MOD_NAME LOG_MODULE_SOC_DWE
+#endif
 
+/* global variable define */
 static struct dwe_dev_s dwe_dev;
 
 /* function */
-
 static int dwe_register(struct platform_device *pdev, struct resource *pres, dwe_subdev_s **psdev)
 {
 	int ret = 0;

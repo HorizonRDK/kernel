@@ -213,6 +213,7 @@ typedef union _ldc_woi_u {
 } ldc_woi_u;
 
 typedef struct _ldc_param_s {
+	uint32_t ldc_enable;
 	ldc_path_sel_u path_sel;
 	uint32_t y_start_addr;
 	uint32_t c_start_addr;
@@ -225,12 +226,19 @@ typedef struct _ldc_param_s {
 	ldc_woi_u woi_y;
 } ldc_param_s;
 
-
-static __inline void set_chn_ldc_param(const char __iomem *regbase, ldc_param_s *param, uint32_t chn)
+static __inline void set_chn_ldc_param(const char __iomem *regbase,
+	ldc_param_s *param, uint32_t chn)
 {
 	uint32_t model_sw = chn * 0x100;
 
-	ldc_write_buffer((regbase + model_sw), LDC_PATH_SEL_0, (uint32_t *)param, sizeof(ldc_param_s)/sizeof(uint32_t));
+	if (chn < 4) {
+		ldc_write_buffer(regbase, (model_sw + LDC_PATH_SEL_0),
+			(uint32_t *)param + 1, 3);
+		ldc_write_buffer(regbase, (model_sw + LDC_IMAGE_SIZE_0),
+			(uint32_t *)param + 4, 5);
+		ldc_write_buffer(regbase, (model_sw + LDC_IN_WOI_X_0),
+			(uint32_t *)param + 9, 3);
+	}
 }
 
 //----------------------------------------------------------------------------------------- //
@@ -267,16 +275,23 @@ typedef union _ldc_irqstatus_u {
 	ldc_irqstatus_s status_b;
 } ldc_irqstatus_u;
 
-static __inline void set_ldc_int_mask(const char __iomem *regbase, uint32_t *int_mask)
+static __inline void set_ldc_int_mask(const char __iomem *regbase,
+	uint32_t *int_mask)
 {
 	ldc_write_32reg(regbase, LDC_INT_MASK, int_mask);
 }
 
-static __inline void get_ldc_int_status(const char __iomem *regbase, uint32_t *int_status)
+static __inline void get_ldc_int_status(const char __iomem *regbase,
+	uint32_t *int_status)
 {
 	ldc_read_32reg(regbase, LDC_INT_STATUS, int_status);
 }
 
+static __inline void set_ldc_int_status(const char __iomem *regbase,
+	uint32_t *int_status)
+{
+	ldc_write_32reg(regbase, LDC_INT_STATUS, int_status);
+}
 //----------------------------------------------------------------------------------------- //
 //ldc bypass
 //----------------------------------------------------------------------------------------- //

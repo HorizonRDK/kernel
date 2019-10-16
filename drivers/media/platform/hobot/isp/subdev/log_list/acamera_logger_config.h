@@ -26,16 +26,16 @@
                    "AWB_MANUAL","COLOR_MATRIX","IRIDIX8_MANUAL","NOISE_REDUCTION",\
                    "SHARPENING","MATRIX_YUV","GAMMA_MANUAL","MONITOR","SBUF",\
                    "DMA_WRITER","METADATA","AF_MANUAL","FPGA_DMA_FE", "SOC_IQ",\
-		   "SOC_SENSOR", "SOC_LENS"}
+		   "SOC_SENSOR", "SOC_LENS", "SOC_DWE"}
 
 
 /* Module Log Output Control:
  * FW_GENERIC Disabled
 */
 //define initial printk model
-#define FW_LOG_MASK 0x3FFFFE
-// define initial printk level 
-#define FW_LOG_LEVEL LOG_ERR //Set Log level 
+#define FW_LOG_MASK 0x7FFFFE
+// define initial printk level
+#define FW_LOG_LEVEL LOG_DEBUG //Set Log level
 // used in isr
 #define FW_LOG_FROM_ISR 0
 // enable/disable printk function & file 
@@ -99,7 +99,9 @@
 #define LOG_MODULE_SOC_SENSOR_MASK 1048576
 #define LOG_MODULE_SOC_LENS 21
 #define LOG_MODULE_SOC_LENS_MASK 2097152
-#define LOG_MODULE_MAX 22 // now we have 22 sub module name
-#define LOG_MODULE_ALL 0x3FFFFF
+#define LOG_MODULE_SOC_DWE 22
+#define LOG_MODULE_SOC_DWE_MASK 4194304
+#define LOG_MODULE_MAX 23 // now we have 23 sub module name
+#define LOG_MODULE_ALL 0x7FFFFF
 
 #endif

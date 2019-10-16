@@ -1,15 +1,17 @@
 /*
- * dwe_base_io.h
+ *    driver, vb2_buffer interface
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
+ *    Copyright (C) 2018 Horizon Inc.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ *    This program is free software; you can redistribute it and/or modify
+ *    it under the terms of the GNU General Public License as published by
+ *    the Free Software Foundation; either version 2 of the License, or
+ *    (at your option) any later version.
+ *
+ *    This program is distributed in the hope that it will be useful,
+ *    but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *    GNU General Public License for more details.
  */
 
 #ifndef __DWE_BASE_IO_H__
@@ -166,7 +168,7 @@ typedef struct _dis_setting_s {
         uint32_t rg_max_index: 2;
 } dis_setting_s;
 
-typedef union _dis_setting_u {
+typedef union _dis_path_u {
         uint32_t set_g;
         dis_setting_s set_b;
 } dis_setting_u;
@@ -179,11 +181,16 @@ static __inline void set_dwe_setting(const char __iomem *regbase, uint32_t *pset
 //----------------------------------------------------------------------------------------- //
 //model setting
 //----------------------------------------------------------------------------------------- //
-typedef struct _dis_path_s {
+typedef struct _dis_path_sel_s {
 	uint32_t reserved0: 30;
 	uint32_t rg_dis_path_sel: 1;
 	uint32_t rg_dis_enable: 1;
-} dis_path_s;
+} dis_path_sel_s;
+
+typedef union _dis_path_sel_u {
+	uint32_t path_g;
+	dis_path_sel_s path_b;
+} dis_path_sel_u;
 
 typedef struct _dis_crop_s {
         uint16_t rg_dis_end;
@@ -197,7 +204,7 @@ typedef union _dis_crop_u {
 
 typedef struct _dis_param_s {
 	dis_picsize_u picsize;	
-	dis_setting_u setting;
+	dis_path_sel_u path;
 	uint32_t dis_h_ratio;
 	uint32_t dis_v_ratio;
 	dis_crop_u crop_x;
@@ -205,13 +212,26 @@ typedef struct _dis_param_s {
 	//uint32_t dis_buf_st_addr;
 } dis_param_s;
 
-static __inline void set_chn_dis_param(const char __iomem *regbase, dis_param_s *ptr, uint32_t model_sw)
+static __inline void set_chn_dis_param(const char __iomem *regbase,
+	dis_param_s *ptr, uint32_t model_sw)
 {
-	if (model_sw < 4 ) {
-		uint32_t model_sw = model_sw * 0x100;
-		dwe_write_buffer((regbase + model_sw), DWE_DIS_SETTING_0, (uint32_t *)(&ptr->setting), 5);
+	uint32_t chn = model_sw * 0x100;
+	if (model_sw < 4) {
+		dwe_write_buffer(regbase, (chn + DWE_DIS_SETTING_0),
+			(uint32_t *)(ptr) + 1, 5);
 	}
 }
+
+static __inline void set_chn_dis_addr(const char __iomem *regbase,
+	uint32_t *addr, uint32_t model_sw)
+{
+	uint32_t chn = model_sw * 0x100;
+
+	if (model_sw < 4) {
+		dwe_write_32reg(regbase, (chn + DWE_DIS_BUF_ST_ADDR_0), addr);
+	}
+}
+
 
 //----------------------------------------------------------------------------------------- //
 //intterrupt setting
@@ -242,35 +262,46 @@ typedef union _dis_irqmask_u {
 	dis_irqmask_s mask_b;
 } dis_irqmask_u;
 
-static __inline void set_dwe_int_mask(const char __iomem *regbase, uint32_t *mask)
+static __inline void set_dwe_int_mask(const char __iomem *regbase,
+	uint32_t *mask)
 {
 	dwe_write_32reg(regbase, DWE_INT_MASK, mask);
 }
 
-static __inline void get_dwe_int_status(const char __iomem *regbase, uint32_t *status)
+static __inline void get_dwe_int_status(const char __iomem *regbase,
+	uint32_t *status)
 {
 	dwe_read_32reg(regbase, DWE_INT_STATUS, status);
 }
 
+static __inline void set_dwe_int_status(const char __iomem *regbase,
+	uint32_t *status)
+{
+	dwe_write_32reg(regbase, DWE_INT_STATUS, status);
+}
 //----------------------------------------------------------------------------------------- //
 //dwe_soft setting
 //----------------------------------------------------------------------------------------- //
-static __inline void set_dwe_pg_start(const char __iomem *regbase, uint32_t *pg_start_sw)
+static __inline void set_dwe_pg_start(const char __iomem *regbase,
+	uint32_t *pg_start_sw)
 {
 	dwe_write_32reg(regbase, DWE_PG_START, pg_start_sw);
 }
 
-static __inline void set_dwe_sw_update(const char __iomem *regbase, uint32_t *sw_update_sw)
+static __inline void set_dwe_sw_update(const char __iomem *regbase,
+	uint32_t *sw_update_sw)
 {
 	dwe_write_32reg(regbase, DWE_SW_UPDATE, sw_update_sw);
 }
 
-static __inline void get_dwe_cur_index(const char __iomem *regbase, uint32_t *dwe_cur_index)
+static __inline void get_dwe_cur_index(const char __iomem *regbase,
+	uint32_t *dwe_cur_index)
 {
         dwe_read_32reg(regbase, DWE_CUR_SET_INDEX, dwe_cur_index);
 }
 
-static __inline void get_dwe_frame_index(const char __iomem *regbase, uint32_t *dwe_frame_index)
+static __inline void get_dwe_frame_index(const char __iomem *regbase,
+	uint32_t *dwe_frame_index)
 {
         dwe_read_32reg(regbase, DWE_FRAME_INDEX_0, dwe_frame_index);
 }
@@ -282,20 +313,23 @@ enum check_sw_s{
         c_check_sum = 0x4
 };
 
-static __inline void get_dwe_check_sum(const char __iomem *regbase, uint32_t *dwe_check, enum check_sw_s check_sw)
+static __inline void get_dwe_check_sum(const char __iomem *regbase,
+	uint32_t *dwe_check, enum check_sw_s check_sw)
 {
-        dwe_read_32reg((regbase + check_sw), DWE_CUR_SET_INDEX, dwe_check);
+        dwe_read_32reg(regbase, (check_sw + DWE_CUR_SET_INDEX), dwe_check);
 }
 
 //----------------------------------------------------------------------------------------- //
 //gdc_status
 //----------------------------------------------------------------------------------------- //
-static __inline void set_gdc_mask(const char __iomem *regbase, uint32_t *gdc_mask)
+static __inline void set_gdc_mask(const char __iomem *regbase,
+	uint32_t *gdc_mask)
 {
         dwe_write_32reg(regbase, DWE_INT_GDC_MASK, gdc_mask);
 }
 
-static __inline void get_gdc_status(const char __iomem *regbase, uint32_t *gdc_status)
+static __inline void get_gdc_status(const char __iomem *regbase,
+	uint32_t *gdc_status)
 {
         dwe_read_32reg(regbase, DWE_INT_GDC_STATUS, gdc_status);
 }

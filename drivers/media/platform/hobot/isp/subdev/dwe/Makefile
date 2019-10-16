@@ -41,7 +41,7 @@ endif
 
 #redefine KDIR
 ifeq ($(KDIR),)    
-    _KDIR= $(PWD)/../../../../kernel-4.14-proto-x2a
+    _KDIR= $(PWD)/../../../../../../../
     $(info "set default kernel path ${_KDIR}")
 else
     _KDIR=${KDIR}

@@ -23,11 +23,10 @@
 #include <linux/kthread.h>
 #include <linux/dmaengine.h>
 #include <linux/compiler.h>
-#include <asm-generic/io.h>
 #include <linux/string.h>
 #include <linux/uaccess.h>
 #include <linux/mman.h>
-
+#include <linux/mutex.h>
 #include <linux/device.h>
 #include <linux/module.h>
 #include <media/v4l2-subdev.h>
@@ -37,10 +36,17 @@
 #include "system_dwe_api.h"
 #include "dwe_dev.h"
 
+#if defined(CUR_MOD_NAME)
+#undef CUR_MOD_NAME
+#define CUR_MOD_NAME LOG_MODULE_SOC_DWE
+#else
+#define CUR_MOD_NAME LOG_MODULE_SOC_DWE
+#endif
 
 /* global variable define */
 static dwe_param_t dwe_param[FIRMWARE_CONTEXT_NUMBER];
 static struct dwe_dev_s *dev_ptr;
+struct mutex mc_mutex;
 
 //used by gdc model
 //model 0: gdc_0  1: gdc_1
@@ -73,23 +79,40 @@ void init_gdc1_mask(uint32_t model, uint32_t *enable)
 }
 EXPORT_SYMBOL(init_gdc1_mask);
 
+void printk_ldcparam(ldc_param_s *pldc)
+{
+	LOG(LOG_INFO, "ldc_enable %d, path_sel %d, y_addr %d, c_addr %d, pic %d, line_buf %d, x_param %d, y_param %d, off shift %d, woi_x %d ,woi_y %d", pldc->ldc_enable, pldc->path_sel.path_g, pldc->y_start_addr, pldc->c_start_addr, pldc->picsize.size_g, pldc->line_buf, pldc->x_param.param_g, pldc->y_param.param_g, pldc->off_shift.off_g, pldc->woi_x.woi_g, pldc->woi_y.woi_g);
+}
+
+void printk_disparam(dis_param_s *pdis)
+{
+	LOG(LOG_INFO, "pic %d, path %d, h_rat %d, v_rat %d, crop_x %d, crop_y %d.", pdis->picsize.psize_g, pdis->path.path_g, pdis->dis_h_ratio, pdis->dis_v_ratio, pdis->crop_x.crop_g, pdis->crop_y.crop_g);
+}
+
+void printk_pgparam(pg_param_s *ppg)
+{
+	LOG(LOG_INFO, "pic %d, blank %d.", ppg->size.psize_g, ppg->blank.blank_g);
+}
+
 //driver <--> user  by chardev
-int ldc_swparam_set(uint8_t port, uint8_t *enable, ldc_param_s *pldc)
+int ldc_swparam_set(uint8_t port, ldc_param_s *pldc)
 {
 	int ret = 0;
 	
-	if ( port > FIRMWARE_CONTEXT_NUMBER) {
+	if (port > FIRMWARE_CONTEXT_NUMBER) {
 		ret = -1;
 	} else {	
-		dwe_param[port].ldc_enable = *enable;
 		if (pldc)	
 			memcpy(&dwe_param[port].ldc_param, pldc, sizeof(ldc_param_s));
 		else
 			ret = -1;	
 	}
+
+	printk_ldcparam(&dwe_param[port].ldc_param);
 	
 	if (ret == 0) {	
-		if ((FIRMWARE_CONTEXT_NUMBER < HADRWARE_CONTEXT_MAX) && (dev_ptr != NULL)) {
+		if ((port < HADRWARE_CONTEXT_MAX) && (dev_ptr != NULL)) {
+			printk(KERN_INFO "%s -- %d .\n", __func__, __LINE__);
 			set_chn_ldc_param(dev_ptr->ldc_dev->io_vaddr, &dwe_param[port].ldc_param, port);
 		}		
 	}
@@ -97,20 +120,20 @@ int ldc_swparam_set(uint8_t port, uint8_t *enable, ldc_param_s *pldc)
 	return ret;
 } 
 
-int ldc_swparam_get(uint8_t port, uint8_t *enable, ldc_param_s *pldc)
+int ldc_swparam_get(uint8_t port, ldc_param_s *pldc)
 {
 	int ret = 0;
 
-	if ( port > FIRMWARE_CONTEXT_NUMBER) {
+	if (port > FIRMWARE_CONTEXT_NUMBER) {
 		ret = -1;
 	} else {
-		*enable = dwe_param[port].ldc_enable;
 		if (pldc)	
-			memcpy(&dwe_param[port].ldc_param, pldc, sizeof(ldc_param_s));
+			memcpy(pldc, &dwe_param[port].ldc_param, sizeof(ldc_param_s));
 		else
 			ret = -1;	
 	}
 	
+	printk_ldcparam(&dwe_param[port].ldc_param);
 	return ret;
 } 
 
@@ -118,7 +141,7 @@ int dis_swparam_set(uint8_t port, dis_param_s *pdis)
 {
 	int ret = 0;
 
-	if ( port > FIRMWARE_CONTEXT_NUMBER) {
+	if (port > FIRMWARE_CONTEXT_NUMBER) {
 		ret = -1;
 	} else {
 		if (pdis)	
@@ -126,9 +149,12 @@ int dis_swparam_set(uint8_t port, dis_param_s *pdis)
 		else
 			ret = -1;	
 	}
+
+	printk_disparam(&dwe_param[port].dis_param);
 	
 	if (ret == 0) {	
-		if ((FIRMWARE_CONTEXT_NUMBER < HADRWARE_CONTEXT_MAX) && (dev_ptr != NULL)) {
+		if ((port < HADRWARE_CONTEXT_MAX) && (dev_ptr != NULL)) {
+			printk(KERN_INFO "%s -- %d .\n", __func__, __LINE__);
 			set_chn_dis_param(dev_ptr->ldc_dev->io_vaddr, &dwe_param[port].dis_param, port);
 		}	
 	}
@@ -139,7 +165,7 @@ int dis_swparam_get(uint8_t port, dis_param_s *pdis)
 {
 	int ret = 0;
 
-	if ( port > FIRMWARE_CONTEXT_NUMBER) {
+	if (port > FIRMWARE_CONTEXT_NUMBER) {
 		ret = -1;
 	} else {
 		if (pdis)	
@@ -148,6 +174,7 @@ int dis_swparam_get(uint8_t port, dis_param_s *pdis)
 			ret = -1;	
 	}
 	
+	printk_disparam(&dwe_param[port].dis_param);
 	return ret;
 }
 
@@ -155,14 +182,16 @@ int pattgen_param_set(uint8_t port, pg_param_s *ppg)
 {
 	int ret  = 0;
 
-	if ( port > FIRMWARE_CONTEXT_NUMBER) {
+	if (port > FIRMWARE_CONTEXT_NUMBER) {
 		ret = -1;
 	} else {
 		if (ppg)	
-			memcpy(ppg, &dwe_param[port].pg_param, sizeof(pg_param_s));
+			memcpy(&dwe_param[port].pg_param, ppg, sizeof(pg_param_s));
 		else
 			ret = -1;	
 	}
+
+	printk_pgparam(&dwe_param[port].pg_param);
 	
 	return ret;
 } 
@@ -171,7 +200,7 @@ int pattgen_param_get(uint8_t port, pg_param_s *ppg)
 {
 	int ret = 0;
 
-	if ( port > FIRMWARE_CONTEXT_NUMBER) {
+	if (port > FIRMWARE_CONTEXT_NUMBER) {
 		ret = -1;
 	} else {
 		if (ppg)	
@@ -180,12 +209,25 @@ int pattgen_param_get(uint8_t port, pg_param_s *ppg)
 			ret = -1;	
 	}
 	
+	printk_pgparam(&dwe_param[port].pg_param);
 	return ret;
 }
 
-int start_pg_pulse(uint8_t port, ldc_param_s *ppg)
+int start_pg_pulse(uint8_t port)
 {
 	int ret = 0;
+	uint32_t tmp = 1;
+
+	mutex_lock(&mc_mutex);
+	set_dwe_pg_size(dev_ptr->dis_dev->io_vaddr,
+		&dwe_param[port].pg_param.size.psize_g);
+	set_dwe_pg_blanking(dev_ptr->dis_dev->io_vaddr,
+		&dwe_param[port].pg_param.blank.blank_g);
+	set_dwe_pg_start(dev_ptr->dis_dev->io_vaddr, &tmp);
+	mutex_unlock(&mc_mutex);
+
+	printk(KERN_INFO "%s -- %d.\n", __func__, __LINE__);
+
 	return ret;
 }
 
@@ -201,12 +243,26 @@ int dwe_init_api(dwe_context_t *ctx, struct dwe_dev_s *pdev, dwe_param_t **ppara
 	
 	*pparam = dwe_param;
 
-	ptr = kzalloc( DIS_STAT_SIZE, GFP_KERNEL);
+	ptr = kzalloc(DIS_STAT_SIZE, GFP_KERNEL);
         if (ptr == NULL) {
                 ret = -1;
         }
 
-       	ctx->ptr_mem = ptr; 
+	printk(KERN_INFO "ldc_dev io is %p !\n", dev_ptr->ldc_dev->io_vaddr);
+	printk(KERN_INFO "dis_dev io is %p !\n", dev_ptr->dis_dev->io_vaddr);
+	ctx->ptr_mem = ptr;
+	ctx->phy_mem = (uint32_t)__virt_to_phys(ptr);
+
+	printk(KERN_INFO "phy is %d !\n", ctx->phy_mem);
+
+	for (tmp = 0; tmp < HADRWARE_CONTEXT_MAX; tmp++) {
+		set_chn_dis_addr(dev_ptr->dis_dev->io_vaddr, &ctx->phy_mem, tmp);
+	}
+	//enable irq mask  ldc & dis
+	tmp = 0xf;
+	set_dwe_int_mask(dev_ptr->dis_dev->io_vaddr, &tmp);
+	tmp = 0xff;
+	set_ldc_int_mask(dev_ptr->ldc_dev->io_vaddr, &tmp);
 
 	ctx->prev_port = -1;
 	ctx->curr_port = -1;
@@ -214,6 +270,7 @@ int dwe_init_api(dwe_context_t *ctx, struct dwe_dev_s *pdev, dwe_param_t **ppara
 	
 	for (tmp = 0; tmp < FIRMWARE_CONTEXT_NUMBER; tmp++) {
 		//the data is temp, ldc is bypass
+		dwe_param[tmp].ldc_param.ldc_enable = 0;
 		dwe_param[tmp].ldc_param.path_sel.path_g = 0x2000;
 		dwe_param[tmp].ldc_param.y_start_addr = 0;
 		dwe_param[tmp].ldc_param.c_start_addr = 0xa0000;
@@ -224,9 +281,8 @@ int dwe_init_api(dwe_context_t *ctx, struct dwe_dev_s *pdev, dwe_param_t **ppara
 		dwe_param[tmp].ldc_param.off_shift.off_g = 0x02fe;
 		dwe_param[tmp].ldc_param.woi_x.woi_g = 0x4ff;
 		dwe_param[tmp].ldc_param.woi_y.woi_g = 0x2cf;
-		dwe_param[tmp].ldc_enable = 0;
 		dwe_param[tmp].dis_param.picsize.psize_g = 0x2cf04ff;
-		dwe_param[tmp].dis_param.setting.set_g = 0x0;
+		dwe_param[tmp].dis_param.path.path_g = 0x0;
 		dwe_param[tmp].dis_param.dis_h_ratio = 0x10000;
 		dwe_param[tmp].dis_param.dis_v_ratio = 0x10000;
 		dwe_param[tmp].dis_param.crop_x.crop_g = 0x4ff0000;
@@ -234,6 +290,7 @@ int dwe_init_api(dwe_context_t *ctx, struct dwe_dev_s *pdev, dwe_param_t **ppara
 		dwe_param[tmp].pg_param.size.psize_g = 0x2cf04ff;
 	}
 	
+	mutex_init(&mc_mutex);
 	return ret;
 }
 
@@ -250,11 +307,10 @@ int dwe_reset_api(dwe_context_t *ctx)
 	ctx->curr_port = -1;
 	ctx->next_port = -1;
 	
-	dev_ptr = NULL; 
 	for (tmp = 0; tmp < FIRMWARE_CONTEXT_NUMBER; tmp++) {
 		//the data is temp, ldc is bypass
-		dwe_param[tmp].ldc_enable = 0;
-		dwe_param[tmp].dis_param.setting.set_g = 0x0;
+		dwe_param[tmp].ldc_param.ldc_enable = 0;
+		dwe_param[tmp].dis_param.path.path_g = 0x0;
 	}
 	
 	return ret;
@@ -282,45 +338,54 @@ int ldc_hwparam_set(dwe_context_t *ctx, uint8_t port, uint8_t setting)
 	uint32_t tmp_cur = 0;
 	
 	if ((ctx == NULL) || (port > FIRMWARE_CONTEXT_NUMBER)) {
-		return -1;
+		return -EINVAL;
+	}
+
+	if (port > (HADRWARE_CONTEXT_MAX - 2)) {
+		goto ldc_update;
 	}
 	
 	ctx->next_port = port;
-	get_dwe_cur_index(dev_ptr->ldc_dev->io_vaddr, &tmp_cur);
-	ctx->ldc_cur = tmp_cur;	
-	if ((FIRMWARE_CONTEXT_NUMBER > HADRWARE_CONTEXT_MAX) && (dwe_param[port].ldc_enable)) {
-		set_chn_ldc_param(dev_ptr->ldc_dev->io_vaddr, &dwe_param[port].ldc_param, ((tmp_cur & 0x01)  ^ 1));
+
+	return ret;
+ldc_update:
+	if (dwe_param[port].ldc_param.ldc_enable) {
+		set_chn_ldc_param(dev_ptr->ldc_dev->io_vaddr, &dwe_param[port].ldc_param, 3);
 	}
-	
-	
 	return ret;
 }
-
-#if 0
-int ldc_hwparam_get(dwe_context_t *ctx, uint8_t port, uint8_t setting)
-{
-}
-#endif 
 
 int dis_hwparam_set(dwe_context_t *ctx, uint8_t port, uint8_t setting)
 {
 	int ret = 0;
 	uint32_t tmp_cur = 0;
+	uint32_t tmp_addr = 0;
 	
 	if ((ctx == NULL) || (port > FIRMWARE_CONTEXT_NUMBER)) {
-		return -1;
+		return -EINVAL;
 	}
 
-	if ( port > FIRMWARE_CONTEXT_NUMBER) {
-		ret = -1;
+	if (port > (HADRWARE_CONTEXT_MAX - 2)) {
+		goto dis_update;
+	}
+	ctx->next_port = port;
+
+	ret = dwe_stream_get_frame(port, &ctx->dframes[port]);
+	if (ret < 0) {
+		tmp_addr = ctx->phy_mem;
+		ctx->dframes[port].address = tmp_addr;
+		ctx->dframes[port].virt_addr = ctx->ptr_mem;
+		LOG(LOG_ERR, "port %d get buffer failed!\n", port);
 	} else {
-		get_dwe_cur_index(dev_ptr->dis_dev->io_vaddr, &tmp_cur);
-		ctx->ldc_cur = tmp_cur;	
-		if (FIRMWARE_CONTEXT_NUMBER > HADRWARE_CONTEXT_MAX) {
-			set_chn_dis_param(dev_ptr->dis_dev->io_vaddr, &dwe_param[port].dis_param, ((tmp_cur & 0x01)  ^ 1));
-		}
+		tmp_addr = ctx->dframes[port].address;
+		LOG(LOG_INFO, "port %d, addr is %d !\n", port, ctx->dframes[port].address);
 	}
 	
+	set_chn_dis_addr(dev_ptr->dis_dev->io_vaddr, &tmp_addr,	(port & 0x3));
+	return ret;
+dis_update:
+	set_chn_dis_param(dev_ptr->dis_dev->io_vaddr, &dwe_param[port].dis_param, 3);
+	set_chn_dis_addr(dev_ptr->dis_dev->io_vaddr, &ctx->dframes[port].address, 3);
 	return ret;
 }
 
@@ -328,8 +393,10 @@ int dis_hwparam_set(dwe_context_t *ctx, uint8_t port, uint8_t setting)
 int dis_hwparam_get(dwe_context_t *ctx, uint8_t port, uint8_t setting)
 {
 }
+int ldc_hwparam_get(dwe_context_t *ctx, uint8_t port, uint8_t setting)
+{
+}
 #endif
-
 
 /*
  *  if ldc == bypass
@@ -347,14 +414,17 @@ int ldc_hwpath_set(dwe_context_t *ctx, uint8_t port)
 	uint32_t set_tmp = ctx->ldc_setting.set_g;
 
 	if ((ctx == NULL) || (port > FIRMWARE_CONTEXT_NUMBER)) {
-		return -1;
+		return -EINVAL;
 	}
+
+	get_dwe_cur_index(dev_ptr->ldc_dev->io_vaddr, &tmp_cur);
+	ctx->ldc_cur = tmp_cur;
 	
-	if ( dwe_param[port].ldc_enable == 0 ) {
-		set_ldc_bypass(dev_ptr->ldc_dev->io_vaddr, &dwe_param[port].ldc_enable);
+	if (dwe_param[port].ldc_param.ldc_enable == 0) {
+		set_ldc_bypass(dev_ptr->ldc_dev->io_vaddr,
+			&dwe_param[port].ldc_param.ldc_enable);
 	} else {
-		if (FIRMWARE_CONTEXT_NUMBER == 1) {
-		} else if ( FIRMWARE_CONTEXT_NUMBER > HADRWARE_CONTEXT_MAX) {
+		if (port > (HADRWARE_CONTEXT_MAX - 2)) {
 			set_tmp |= 0xFF0000;	
 			set_tmp &= (tmp_cur << (16 + tmp_cur * 2));
 			set_ldc_setting(dev_ptr->ldc_dev->io_vaddr, &set_tmp);
@@ -385,11 +455,13 @@ int dis_hwpath_set(dwe_context_t *ctx, uint8_t port)
 	uint32_t size_tmp = dwe_param[port].dis_param.picsize.psize_g;
 
 	if ((ctx == NULL) || (port > FIRMWARE_CONTEXT_NUMBER)) {
-		return -1;
+		return -EINVAL;
 	}
 
-	if (FIRMWARE_CONTEXT_NUMBER == 1) {
-	} else if ( FIRMWARE_CONTEXT_NUMBER > HADRWARE_CONTEXT_MAX) {
+	get_dwe_cur_index(dev_ptr->dis_dev->io_vaddr, &tmp_cur);
+	ctx->ldc_cur = tmp_cur;
+
+	if (port > (HADRWARE_CONTEXT_MAX - 2)) {
 		set_dwe_image_size(dev_ptr->dis_dev->io_vaddr, &size_tmp);
 		set_tmp |= 0xFF0000;	
 		set_tmp &= (tmp_cur << (16 + tmp_cur * 2));
