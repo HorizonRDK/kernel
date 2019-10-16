@@ -815,6 +815,7 @@ resend_without_timeout:
 								status = copy_to_user((void __user *)buf, &data, sizeof(data));
 								if (status)
 									ret = -EFAULT;
+								mutex_unlock(&domain.write_mutex);
 								goto error;
 							}
 						}
@@ -872,6 +873,7 @@ resend_with_timeout:
 							status = copy_to_user((void __user *)buf, &data, sizeof(data));
 							if (status)
 								ret = -EFAULT;
+							mutex_unlock(&domain.write_mutex);
 							goto error;
 						}
 					}
