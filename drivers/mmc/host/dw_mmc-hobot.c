@@ -173,7 +173,7 @@ int x2_mmc_enable_clk(struct dw_mci_hobot_priv_data *priv)
 				if (priv->ctrl_id == DWMMC_MMC_ID)
 					usleep_range(10, 20);
 				else
-					usleep_range(10000, 20000);//least 5ms
+					usleep_range(20000, 25000);
 				return 0;
 			}
 			usleep_range(1, 2);
