@@ -1449,7 +1449,7 @@ static const struct dev_pm_ops x2_uart_dev_pm_ops = {
 
 /* Match table for of_platform binding */
 static const struct of_device_id x2_uart_of_match[] = {
-	{.compatible = "hobot, x2-uart", },
+	{.compatible = "hobot,x2-uart", },
 	{}
 };
 
