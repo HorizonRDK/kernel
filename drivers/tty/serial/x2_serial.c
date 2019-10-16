@@ -1,7 +1,7 @@
 /*
  * X2 UART driver (For X2 Platform)
  *
- * 2017 - 2018 (C) Horizon Inc.
+ * Copyright 2018, Horizon, Inc.
  *
  * This program is free software; you can redistribute it
  * and/or modify it under the terms of the GNU General Public
@@ -30,6 +30,7 @@
 #include <linux/pm_runtime.h>
 #include <linux/clk.h>
 #include <linux/debugfs.h>
+#include <linux/suspend.h>
 
 #include "x2_serial.h"
 
@@ -421,7 +422,8 @@ static void x2_uart_handle_tx(void *dev_id, unsigned char in_irq)
 	do {
 		while (!
 			   (readl(port->membase + X2_UART_LSR) &
-			UART_LSR_TX_EMPTY)) ;
+			UART_LSR_TX_EMPTY)) {
+		}
 		/*
 		 * Get the data from the UART circular buffer
 		 * and write it to the cdns_uart's TX_FIFO
@@ -620,7 +622,7 @@ static void x2_uart_start_tx(struct uart_port *port)
 
 #ifdef CONFIG_X2_TTY_IRQ_MODE
 	mask = UART_TXEPT;
-#elif defined (CONFIG_X2_TTY_DMA_MODE)
+#elif defined CONFIG_X2_TTY_DMA_MODE
 	mask = UART_TXTHD | UART_TXDON;
 #endif /* CONFIG_X2_TTY_IRQ_MODE */
 	writel(mask, port->membase + X2_UART_INT_UNMASK);
@@ -1102,7 +1104,6 @@ static unsigned int x2_uart_get_mctrl(struct uart_port *port)
 
 static void x2_uart_set_mctrl(struct uart_port *port, unsigned int mctrl)
 {
-
 }
 
 #ifdef CONFIG_CONSOLE_POLL
@@ -1312,7 +1313,6 @@ static void x2_uart_console_write(struct console *co, const char *s,
 
 	if (locked)
 		spin_unlock_irqrestore(&port->lock, flags);
-
 }
 
 /**
@@ -1399,6 +1399,9 @@ static int x2_uart_suspend(struct device *device)
 
 	pr_info("%s:%s, enter suspend...\n", __FILE__, __func__);
 
+	if (pm_suspend_target_state == PM_SUSPEND_TO_IDLE)
+		return 0;
+
 	uart_suspend_port(&x2_uart_driver, port);
 
 	return 0;
@@ -1414,6 +1417,9 @@ static int x2_uart_resume(struct device *device)
 {
 	/* Nothing to do, no implement */
 	struct uart_port *port = dev_get_drvdata(device);
+
+	if (pm_suspend_target_state == PM_SUSPEND_TO_IDLE)
+		return 0;
 
 	uart_resume_port(&x2_uart_driver, port);
 
@@ -1443,7 +1449,7 @@ static const struct dev_pm_ops x2_uart_dev_pm_ops = {
 
 /* Match table for of_platform binding */
 static const struct of_device_id x2_uart_of_match[] = {
-	{.compatible = "hobot,x2-uart",},
+	{.compatible = "hobot, x2-uart", },
 	{}
 };
 
