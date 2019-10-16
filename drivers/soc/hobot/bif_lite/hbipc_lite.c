@@ -222,10 +222,11 @@ static void provider_server_map_deinit(struct provider_server_map *map)
 
 #define TX_RETRY_TIME (5)
 #define TX_RETRY_MAX (2000)
+static int first_connect_frame = 1;
 int mang_frame_send2opposite(struct comm_domain *domain,
 int type, struct send_mang_data *data)
 {
-	char mang_frame_send_buf[HBIPC_HEADER_LEN + MANAGE_MSG_LEN];
+	char mang_frame_send_buf[HBIPC_HEADER_LEN + MANAGE_MSG_LEN] = {0};
 	struct hbipc_header *header =
 	(struct hbipc_header *)mang_frame_send_buf;
 	struct manage_message *message =
@@ -233,8 +234,9 @@ int type, struct send_mang_data *data)
 	HBIPC_HEADER_LEN);
 	int *p = (int *)(message->msg_text);
 	int ret = 0;
-	int remaining_time = 0;
+	//int remaining_time = 0;
 	int retry_count = 0;
+	struct manage_message *message_repeat = NULL;
 
 	++domain->domain_statistics.send_manage_count;
 
@@ -277,6 +279,12 @@ int type, struct send_mang_data *data)
 		 * provider_id
 		 * client_id
 		 */
+		// specify first connect frame
+		if (first_connect_frame) {
+			message->seq_num = 1;
+			// we can't clear flag at here
+			//first_connect_frame = 0;
+		}
 		*p++ = data->domain_id;
 		memcpy(p, data->server_id, UUID_LEN);
 		p += 4;
@@ -323,6 +331,8 @@ int type, struct send_mang_data *data)
 	// resend last error manage frame
 	if (domain->mang_send_error) {
 repeat_resend:
+		message_repeat = (struct manage_message *)(domain->mang_frame_send_error_buf +
+		HBIPC_HEADER_LEN);
 		ret = bif_tx_put_frame(&domain->channel,
 		domain->mang_frame_send_error_buf,
 			HBIPC_HEADER_LEN + MANAGE_MSG_LEN);
@@ -334,6 +344,9 @@ repeat_resend:
 					++domain->domain_statistics.mang_resend_over_count;
 					hbipc_error("repeat put_frame overtry\n");
 				} else {
+					msleep(TX_RETRY_TIME);
+					goto repeat_resend;
+					#if 0
 					remaining_time =
 					msleep_interruptible(TX_RETRY_TIME);
 					if (!remaining_time) {
@@ -341,8 +354,11 @@ repeat_resend:
 						goto repeat_resend;
 					} else {
 						// prompt message
-						hbipc_error("repeat send mang interruptible\n");
+						pr_info("repeat send mang interruptible\n");
+						// for manage frame, going on retry
+						goto repeat_resend;
 					}
+					#endif
 				}
 			} else {
 				// lint warning
@@ -355,6 +371,9 @@ repeat_resend:
 		} else {
 			// manage frame resend successfully
 			domain->mang_send_error = 0;
+
+			if (message_repeat->type == MANAGE_CMD_CONNECT_REQ)
+				first_connect_frame = 0;
 		}
 	}
 	retry_count = 0;
@@ -370,6 +389,9 @@ resend:
 				++domain->domain_statistics.mang_resend_over_count;
 				hbipc_error("bif_tx_put_frame overtry\n");
 			} else {
+				msleep(TX_RETRY_TIME);
+				goto resend;
+				#if 0
 				remaining_time =
 				msleep_interruptible(TX_RETRY_TIME);
 				if (!remaining_time) {
@@ -377,8 +399,11 @@ resend:
 					goto resend;
 				} else {
 					// prompt message
-					hbipc_error("send mang interruptible\n");
+					pr_info("send mang interruptible\n");
+					// for manage frame, going on retry
+					goto resend;
 				}
+				#endif
 			}
 		} else {
 			// lint warning
@@ -393,6 +418,9 @@ resend:
 		mutex_unlock(&domain->write_mutex);
 		domain->manage_send = 0;
 		goto error;
+	} else {
+		if (type == MANAGE_CMD_CONNECT_REQ)
+			first_connect_frame = 0;
 	}
 
 	mutex_unlock(&domain->write_mutex);
@@ -770,6 +798,19 @@ struct send_mang_data *data)
 	return 0;
 }
 
+static void unregister_server_cp_manager(struct comm_domain *domain,
+struct server_desc *server)
+{
+	server->valid = 0;
+	++domain->server.count;
+	domain->server.first_avail =
+	get_server_first_avail_index(&domain->server);
+
+	hbipc_debug("cp_manager server_info: count = %d"
+		"first_avail = %d\n",
+	domain->server.count, domain->server.first_avail);
+}
+
 static int unregister_provider(struct comm_domain *domain,
 struct send_mang_data *data);
 static int unregister_map(struct comm_domain *domain,
@@ -932,6 +973,43 @@ struct session_info *session_inf)
 	return 0;
 }
 
+static int clear_connect_cp_manager(struct comm_domain *domain,
+struct session_info *session_inf)
+{
+	int i = 0;
+
+	for (i = 0; i < SESSION_COUNT_MAX; ++i) {
+		if (session_inf->session_array[i].valid) {
+			session_inf->session_array[i].valid = 0;
+#ifdef CONFIG_HOBOT_BIF_AP
+			session_inf->session_array[i].connected = 0;
+#else
+			if (!session_inf->session_array[i].connected)
+				--domain->unaccept_session_count;
+			else
+				session_inf->session_array[i].connected = 0;
+#endif
+			resource_queue_deinit(domain,
+			&(session_inf->session_array[i].recv_list));
+
+			++session_inf->count;
+			session_inf->first_avail =
+			get_session_first_avail_index(session_inf);
+			--domain->session_count;
+#ifdef CONFIG_HOBOT_BIF_AP
+			up(&(session_inf->session_array[i].frame_count_sem));
+#endif
+		}
+	}
+
+	hbipc_debug("cp_manager: count = %d first_avail = %d \
+	session_count = %d unaccept_session_count = %d\n",
+	session_inf->count, session_inf->first_avail,
+	domain->session_count, domain->unaccept_session_count);
+
+	return 0;
+}
+
 static int unregister_provider(struct comm_domain *domain,
 struct send_mang_data *data)
 {
@@ -974,6 +1052,20 @@ error:
 	return ret;
 }
 
+static void unregister_provider_cp_manager(struct comm_domain *domain,
+struct server_desc *server, struct provider_desc *provider)
+{
+	provider->valid = 0;
+	clear_connect_cp_manager(domain, &provider->session);
+	++server->provider.count;
+	server->provider.first_avail =
+	get_provider_first_avail_index(&server->provider);
+
+	hbipc_debug("cp_manager provider_info: count = %d"
+		"first_avail = %d\n",
+	server->provider.count, server->provider.first_avail);
+}
+
 static int register_map(struct comm_domain *domain,
 struct send_mang_data *data)
 {
@@ -1010,6 +1102,20 @@ struct send_mang_data *data)
 	domain->map.count, domain->map.first_avail);
 
 	return 0;
+}
+
+static void unregister_map_cp_manager(struct comm_domain *domain,
+struct provider_server *relation)
+{
+	relation->valid = 0;
+	provider_start_info_deinit(&relation->start_list);
+	++domain->map.count;
+	domain->map.first_avail =
+	get_map_first_avail_index(&domain->map);
+
+	hbipc_debug("cp_manager provider_server_map: count = %d"
+		"first_avail = %d\n",
+	domain->map.count, domain->map.first_avail);
 }
 
 int register_server_provider(struct comm_domain *domain,
@@ -1161,6 +1267,49 @@ error:
 	return ret;
 }
 EXPORT_SYMBOL(unregister_server_provider);
+
+void clear_server_cp_manager(struct comm_domain *domain)
+{
+	int i = 0;
+	int j = 0;
+	struct server_desc *server = NULL;
+	struct provider_desc *provider = NULL;
+	struct provider_server *relation = NULL;
+
+	mutex_lock(&domain->connect_mutex);
+
+	pr_info("%s\n", __func__);
+
+	for (i = 0; i < SERVER_COUNT_MAX; ++i) {
+		server = domain->server.server_array + i;
+		if (server->valid) {
+			for (j = 0; j < PROVIDER_COUNT_MAX; ++j) {
+				provider = server->provider.provider_array + j;
+				if (provider->valid) {
+					// unregister valid provider
+					unregister_provider_cp_manager(domain,
+					server, provider);
+				}
+			}
+
+			// at hear, all valid provider within
+			// a valid server were unregistered
+			unregister_server_cp_manager(domain, server);
+		}
+	}
+
+	// at hear, all server were unregistered
+	for (i = 0; i < PROVIDER_SERVER_MAP_COUNT; ++i) {
+		relation = domain->map.map_array + i;
+		if (relation->valid) {
+			// unregister valid map
+			unregister_map_cp_manager(domain, relation);
+		}
+	}
+
+	mutex_unlock(&domain->connect_mutex);
+}
+EXPORT_SYMBOL(clear_server_cp_manager);
 
 int unregister_server_provider_abnormal(struct comm_domain *domain,
 struct send_mang_data *data)
@@ -1472,10 +1621,10 @@ struct send_mang_data *data)
 	provider->session.first_avail =
 	get_session_first_avail_index(&provider->session);
 	--domain->session_count;
-#ifndef CONFIG_HOBOT_BIF_AP
+//#ifndef CONFIG_HOBOT_BIF_AP
 	// wake up maybe block read ioctl in CP
 	up(&connect_des->frame_count_sem);
-#endif
+//#endif
 	mutex_unlock(&domain->connect_mutex);
 #ifdef CONFIG_HOBOT_BIF_AP
 	ret = mang_frame_send2opposite(domain,
@@ -1524,6 +1673,12 @@ struct bif_frame_cache *frame)
 		p += 4;
 		data.provider_id = *p++;
 		data.client_id = *p;
+
+		// recognize first connect frame
+		if (message->seq_num == 1) {
+			// TBD
+			// clear CP side connection
+		}
 
 		if (register_connect(domain, &data) < 0)
 			goto error;
@@ -2239,3 +2394,15 @@ int stop_server(struct comm_domain *domain, struct send_mang_data *data)
 	return ret;
 }
 EXPORT_SYMBOL(stop_server);
+
+int domain_register_high_level_clear(struct comm_domain *domain, clear_func_t clear_func)
+{
+	return channel_register_high_level_clear(&domain->channel, clear_func);
+}
+EXPORT_SYMBOL(domain_register_high_level_clear);
+
+void domain_unregister_high_level_clear(struct comm_domain *domain)
+{
+	channel_unregister_high_level_clear(&domain->channel);
+}
+EXPORT_SYMBOL(domain_unregister_high_level_clear);

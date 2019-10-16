@@ -245,5 +245,8 @@ int start_server(struct comm_domain *domain, struct send_mang_data *data);
 int stop_server(struct comm_domain *domain, struct send_mang_data *data);
 int mang_frame_send2opposite(struct comm_domain *domain,
 int type, struct send_mang_data *data);
+void clear_server_cp_manager(struct comm_domain *domain);
+int domain_register_high_level_clear(struct comm_domain *domain, clear_func_t clear_func);
+void domain_unregister_high_level_clear(struct comm_domain *domain);
 
 #endif  /* _HBIPC_LITE_H_ */

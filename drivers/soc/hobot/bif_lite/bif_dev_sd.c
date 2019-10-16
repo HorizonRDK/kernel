@@ -38,7 +38,7 @@
 #include "hbipc_errno.h"
 #include "bif_dev_sd.h"
 
-#define VERSION "2.7.2"
+#define VERSION "2.7.3"
 #define VERSION_LEN (16)
 static char version_str[VERSION_LEN];
 
@@ -267,14 +267,16 @@ static int bif_dev_sd_error_statistics_proc_show(struct seq_file *m, void *v)
 	seq_printf(m, "rx_error_assemble_frag = %d\n\
 rx_error_crc_check = %d\nrx_error_malloc_frame = %d\n\
 rx_error_no_frag = %d\nrx_error_read_frag = %d\n\
-rx_error_sync_index = %d\nrx_error_update_index = %d\n",
+rx_error_sync_index = %d\nrx_error_update_index = %d\n\
+rx_error_drop_frag_count = %d\n",
 	domain.channel.error_statistics.rx_error_assemble_frag,
 	domain.channel.error_statistics.rx_error_crc_check,
 	domain.channel.error_statistics.rx_error_malloc_frame,
 	domain.channel.error_statistics.rx_error_no_frag,
 	domain.channel.error_statistics.rx_error_read_frag,
 	domain.channel.error_statistics.rx_error_sync_index,
-	domain.channel.error_statistics.rx_error_update_index
+	domain.channel.error_statistics.rx_error_update_index,
+	domain.channel.error_statistics.rx_error_drop_frag_count
 	);
 
 	return 0;
@@ -669,6 +671,7 @@ err:
 
 #define TX_RETRY_TIME (10)
 #define TX_RETRY_MAX (1000)
+#define RE_JUDGE_INTERVAL  (10)
 static DEFINE_MUTEX(write_mutex);
 static ssize_t x2_bif_write(struct file *file, const char __user *buf,
 size_t count, loff_t *ppos)
@@ -761,6 +764,21 @@ resend_without_timeout:
 						goto error;
 		} else {
 						++domain.domain_statistics.write_resend_count;
+
+						// judge connection validity
+						if (!(retry_count % RE_JUDGE_INTERVAL)) {
+							if (!is_valid_session(&domain, &data, NULL, NULL)) {
+								hbipc_error("retry invalid session: %d_%d_%d\n", data.domain_id,
+								data.provider_id, data.client_id);
+								ret = -1;
+								data.result = HBIPC_ERROR_INVALID_SESSION;
+								status = copy_to_user((void __user *)buf, &data, sizeof(data));
+								if (status)
+									ret = -EFAULT;
+								goto error;
+							}
+						}
+
 						remaining_time =
 				msleep_interruptible(TX_RETRY_TIME);
 						if (!remaining_time)
@@ -792,6 +810,7 @@ resend_with_timeout:
 		ret = bif_tx_put_frame_domain(&domain, bif_data.send_frame, data.len);
 		if (ret < 0) {
 			if (ret == BIF_TX_ERROR_NO_MEM) {
+				++retry_count;
 					if (timeout_accumulate > feature->usr_timeout) {
 						data.result = HBIPC_ERROR_SEND_USER_TIMEOUT;
 					++domain.domain_statistics.write_resend_over_count;
@@ -802,6 +821,20 @@ resend_with_timeout:
 					goto error;
 				} else {
 					++domain.domain_statistics.write_resend_count;
+
+					// judge connection validity
+					if (!(retry_count % RE_JUDGE_INTERVAL)) {
+						if (!is_valid_session(&domain, &data, NULL, NULL)) {
+							hbipc_error("retry invalid session: %d_%d_%d\n", data.domain_id,
+							data.provider_id, data.client_id);
+							ret = -1;
+							data.result = HBIPC_ERROR_INVALID_SESSION;
+							status = copy_to_user((void __user *)buf, &data, sizeof(data));
+							if (status)
+								ret = -EFAULT;
+							goto error;
+						}
+					}
 					remaining_time =
 					msleep_interruptible(TX_RETRY_TIME);
 					if (!remaining_time) {
@@ -1318,6 +1351,13 @@ static irqreturn_t bif_lite_irq_handler(int irq, void *data)
 static int bif_major;
 static struct cdev bif_cdev;
 
+#ifdef CONFIG_HOBOT_BIF_AP
+static void bif_dev_sd_clear(void)
+{
+	clear_server_cp_manager(&domain);
+}
+#endif
+
 #ifndef CONFIG_NO_DTS_AP
 static int bif_lite_probe(struct platform_device *pdev)
 {
@@ -1461,6 +1501,9 @@ static int bif_lite_probe(struct platform_device *pdev)
 	ret = bifspi_read_share_reg(SYS_STATUS_REG, &value);
 	if (ret == 0)
 		bifspi_write_share_reg(SYS_STATUS_REG, value | BIF_SD_BIT);
+#endif
+#ifdef CONFIG_HOBOT_BIF_AP
+	domain_register_high_level_clear(&domain, bif_dev_sd_clear);
 #endif
 	bif_debug("bif driver init exit\n");
 	return 0;
@@ -1607,7 +1650,9 @@ static int bif_lite_probe_param(void)
 	//bif_lite_register_irq(hbipc_irq_handler); chencheng reconstitution
 	bif_lite_irq_register_domain(&domain, hbipc_irq_handler);
 #endif
-
+#ifdef CONFIG_HOBOT_BIF_AP
+	domain_register_high_level_clear(&domain, bif_dev_sd_clear);
+#endif
 	bif_debug("bif driver init exit\n");
 	return 0;
 #if 0
@@ -1641,6 +1686,9 @@ alloc_chrdev_error:
 #ifndef CONFIG_NO_DTS_AP
 static int bif_lite_remove(struct platform_device *pdev)
 {
+#ifdef CONFIG_HOBOT_BIF_AP
+	domain_unregister_high_level_clear(&domain);
+#endif
 	//bif_lite_exit(); chencheng resonstitution
 	bif_lite_exit_domain(&domain);
 	domain_deinit(&domain);
@@ -1662,6 +1710,9 @@ static int bif_lite_remove(struct platform_device *pdev)
 #ifdef CONFIG_NO_DTS_AP
 static int bif_lite_remove_param(void)
 {
+#ifdef CONFIG_HOBOT_BIF_AP
+	domain_unregister_high_level_clear(&domain);
+#endif
 	//bif_lite_exit(); chencheng resonstitution
 	bif_lite_exit_domain(&domain);
 	domain_deinit(&domain);

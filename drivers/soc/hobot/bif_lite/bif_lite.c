@@ -169,6 +169,8 @@ struct comm_channel *channel, int *index, int *count, int expect_count)
 		printk_ratelimited(KERN_INFO "bif_err: %s %d\n", __func__, __LINE__);
 #ifdef CONFIG_HOBOT_BIF_AP
 	channel->hw_trans_error = 1;
+	if (channel->higher_level_clear)
+		channel->higher_level_clear();
 #endif
 		return -2;
 	}
@@ -263,6 +265,8 @@ static inline int bif_tx_update_to_cp_ddr(struct comm_channel *channel)
 		printk_ratelimited(KERN_INFO "bif_err: %s %d\n", __func__, __LINE__);
 #ifdef CONFIG_HOBOT_BIF_AP
 	channel->hw_trans_error = 1;
+	if (channel->higher_level_clear)
+		channel->higher_level_clear();
 #endif
 	}
 #ifdef CONFIG_HOBOT_BIF_AP
@@ -353,6 +357,8 @@ struct frag_info *fragment_info)
 			printk_ratelimited(KERN_INFO "bif_err: %s %d\n", __func__, __LINE__);
 #ifdef CONFIG_HOBOT_BIF_AP
 			channel->hw_trans_error = 1;
+			if (channel->higher_level_clear)
+				channel->higher_level_clear();
 #endif
 			goto err;
 		}
@@ -367,6 +373,8 @@ struct frag_info *fragment_info)
 			printk_ratelimited(KERN_INFO "bif_err: %s %d\n", __func__, __LINE__);
 #ifdef CONFIG_HOBOT_BIF_AP
 			channel->hw_trans_error = 1;
+			if (channel->higher_level_clear)
+				channel->higher_level_clear();
 #endif
 			goto err;
 		}
@@ -520,6 +528,8 @@ RING_INFO_ALIGN)];
 		printk_ratelimited(KERN_INFO "bif_err: %s %d\n", __func__, __LINE__);
 #ifdef CONFIG_HOBOT_BIF_AP
 		channel->hw_trans_error = 1;
+		if (channel->higher_level_clear)
+			channel->higher_level_clear();
 #endif
 		goto err;
 	}
@@ -533,6 +543,8 @@ RING_INFO_ALIGN)];
 	if (ret < 0) {
 		printk_ratelimited(KERN_INFO "bif_err: %s %d\n", __func__, __LINE__);
 		channel->hw_trans_error = 1;
+		if (channel->higher_level_clear)
+			channel->higher_level_clear();
 		goto err;
 	}
 	if (rx_local_info_tmp->recv_head == -1) {
@@ -596,6 +608,8 @@ int count)
 		printk_ratelimited(KERN_INFO "bif_err: %s  %d\n", __func__, __LINE__);
 #ifdef CONFIG_HOBOT_BIF_AP
 		channel->hw_trans_error = 1;
+		if (channel->higher_level_clear)
+			channel->higher_level_clear();
 #endif
 		goto err;
 	}
@@ -683,7 +697,8 @@ struct bif_rx_cache *cache_tmp, struct frag_info *fragment_info)
 	} else {
 		if (channel->current_frame.pre_id != (fragment_info->id + 1)) {
 			ret = -EPERM;
-			bif_err("bif_err: %s %d\n", __func__, __LINE__);
+			bif_err("bif_err: %s %d[%d_%d]\n", __func__, __LINE__,
+			channel->current_frame.pre_id, fragment_info->id + 1);
 			goto err;
 		}
 		if (channel->current_frame.received_len == 0) {
@@ -795,6 +810,8 @@ struct comm_channel *channel)
 			printk_ratelimited(KERN_INFO "bif_err: %s %d\n", __func__, __LINE__);
 #ifdef CONFIG_HOBOT_BIF_AP
 			channel->hw_trans_error = 1;
+			if (channel->higher_level_clear)
+				channel->higher_level_clear();
 #endif
 			break;
 		}
@@ -841,8 +858,10 @@ struct comm_channel *channel)
 		} else {
 			// not start flag, if frame_start is false
 			// continue to next fragment
-			if (!channel->frame_start)
+			if (!channel->frame_start) {
+				++channel->error_statistics.rx_error_drop_frag_count;
 				goto next_frag;
+			}
 		}
 
 		cache_tmp->datalen = fragment_info->len;
@@ -1690,3 +1709,18 @@ int channel_stock_frame_num(struct comm_channel *channel)
 	return count_ret;
 }
 EXPORT_SYMBOL(channel_stock_frame_num);
+
+int channel_register_high_level_clear(struct comm_channel *channel,
+clear_func_t clear_func)
+{
+	channel->higher_level_clear = clear_func;
+
+	return 0;
+}
+EXPORT_SYMBOL(channel_register_high_level_clear);
+
+void channel_unregister_high_level_clear(struct comm_channel *channel)
+{
+	channel->higher_level_clear = NULL;
+}
+EXPORT_SYMBOL(channel_unregister_high_level_clear);

@@ -111,8 +111,10 @@ struct comm_channel_error_statistics {
 	int rx_error_malloc_frame;
 	int rx_error_assemble_frag;
 	int rx_error_update_index;
+	int rx_error_drop_frag_count;
 };
 
+typedef void (*clear_func_t)(void);
 struct comm_channel {
 	// hardware channel concerned
 	enum channel_id channel;
@@ -162,6 +164,7 @@ struct comm_channel {
 	int tx_frag_index;
 	int ap_abnormal_sync;
 	int hw_trans_error;
+	clear_func_t higher_level_clear;
 	// buffer index info
 	int init_tx_remote_info;
 	int init_tx_local_info;
@@ -192,5 +195,8 @@ void bif_frame_decrease_count(struct comm_channel *channel);
 void bif_del_frame_from_session_list(struct comm_channel *channel,
 struct bif_frame_cache *frame);
 int channel_stock_frame_num(struct comm_channel *channel);
+int channel_register_high_level_clear(struct comm_channel *channel,
+clear_func_t clear_func);
+void channel_unregister_high_level_clear(struct comm_channel *channel);
 
 #endif
