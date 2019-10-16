@@ -73,8 +73,7 @@ static ssize_t wakeup_cnt_show(struct device *dev,
 				  struct device_attribute *attr,
 				  char *buf)
 {
-	return snprintf(buf, sizeof(x2_suspend->wakeup_count),
-			"%d\n", x2_suspend->wakeup_count);
+	return snprintf(buf, 11, "%d\n", x2_suspend->wakeup_count);
 }
 
 static ssize_t sleep_period_store(struct device *dev,
@@ -223,6 +222,8 @@ static int x2_suspend_probe(struct platform_device *pdev)
 			sizeof(struct x2_suspend), GFP_KERNEL);
 	if (!x2_suspend)
 		goto err_out;
+
+	memset(x2_suspend, 0, sizeof(struct x2_suspend));
 
 	x2_suspend->dev = &pdev->dev;
 	data = &x2_suspend->data;
