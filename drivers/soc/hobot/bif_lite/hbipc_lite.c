@@ -432,6 +432,215 @@ error:
 }
 EXPORT_SYMBOL(mang_frame_send2opposite);
 
+int mang_frame_send2opposite_without_lock(struct comm_domain *domain,
+int type, struct send_mang_data *data)
+{
+	char mang_frame_send_buf[HBIPC_HEADER_LEN + MANAGE_MSG_LEN] = {0};
+	struct hbipc_header *header =
+	(struct hbipc_header *)mang_frame_send_buf;
+	struct manage_message *message =
+	(struct manage_message *)(mang_frame_send_buf +
+	HBIPC_HEADER_LEN);
+	int *p = (int *)(message->msg_text);
+	int ret = 0;
+	//int remaining_time = 0;
+	int retry_count = 0;
+	struct manage_message *message_repeat = NULL;
+
+	++domain->domain_statistics.send_manage_count;
+
+	header->length = MANAGE_MSG_LEN;
+	header->domain_id = data->domain_id;
+	header->provider_id = 0;
+	header->client_id = 0;
+	message->type = type;
+
+	switch (type) {
+	case MANAGE_CMD_REGISTER_PROVIDER:
+		/*
+		 * pass information:
+		 * domain_id
+		 * server_id
+		 * provider_id
+		 */
+		*p++ = data->domain_id;
+		memcpy(p, data->server_id, UUID_LEN);
+		p += 4;
+		*p = data->provider_id;
+		break;
+	case MANAGE_CMD_UNREGISTER_PROVIDER:
+		/*
+		 * pass information:
+		 * domain_id
+		 * server_id
+		 * provider_id
+		 */
+		*p++ = data->domain_id;
+		memcpy(p, data->server_id, UUID_LEN);
+		p += 4;
+		*p = data->provider_id;
+		break;
+	case MANAGE_CMD_CONNECT_REQ:
+		/*
+		 * pass information:
+		 * domain_id
+		 * server_id
+		 * provider_id
+		 * client_id
+		 */
+		// specify first connect frame
+		if (first_connect_frame) {
+			message->seq_num = 1;
+			// we can't clear flag at here
+			//first_connect_frame = 0;
+		}
+		*p++ = data->domain_id;
+		memcpy(p, data->server_id, UUID_LEN);
+		p += 4;
+		*p++ = data->provider_id;
+		*p = data->client_id;
+		break;
+	case MANAGE_CMD_DISCONNECT_REQ:
+		/*
+		 * pass information:
+		 * domain_id
+		 * server_id
+		 * provider_id
+		 * client_id
+		 */
+		*p++ = data->domain_id;
+		memcpy(p, data->server_id, UUID_LEN);
+		p += 4;
+		*p++ = data->provider_id;
+		*p = data->client_id;
+		break;
+	case MANAGE_CMD_QUERY_SERVER:
+		/* no message body */
+		break;
+	case MANAGE_CMD_QUERY_REGISTER:
+		/* just like register provider */
+		/*
+		 * pass information:
+		 * domain_id
+		 * server_id
+		 * provider_id
+		 */
+		*p++ = data->domain_id;
+		memcpy(p, data->server_id, UUID_LEN);
+		p += 4;
+		*p = data->provider_id;
+		break;
+	default:
+		goto error;
+	}
+
+	domain->manage_send = 1;
+	//mutex_lock(&domain->write_mutex);
+
+	// resend last error manage frame
+	if (domain->mang_send_error) {
+repeat_resend:
+		message_repeat = (struct manage_message *)(domain->mang_frame_send_error_buf +
+		HBIPC_HEADER_LEN);
+		ret = bif_tx_put_frame(&domain->channel,
+		domain->mang_frame_send_error_buf,
+			HBIPC_HEADER_LEN + MANAGE_MSG_LEN);
+		if (ret < 0) {
+			if (ret == BIF_TX_ERROR_NO_MEM) {
+				++retry_count;
+				++domain->domain_statistics.mang_resend_count;
+				if (retry_count > TX_RETRY_MAX) {
+					++domain->domain_statistics.mang_resend_over_count;
+					hbipc_error("no lock repeat put_frame overtry\n");
+				} else {
+					msleep(TX_RETRY_TIME);
+					goto repeat_resend;
+					#if 0
+					remaining_time =
+					msleep_interruptible(TX_RETRY_TIME);
+					if (!remaining_time) {
+						// lint warning
+						goto repeat_resend;
+					} else {
+						// prompt message
+						pr_info("repeat send mang interruptible\n");
+						// for manage frame, going on retry
+						goto repeat_resend;
+					}
+					#endif
+				}
+			} else {
+				// lint warning
+				hbipc_error("no lock repeat bif_tx_put_frame error\n");
+			}
+
+			//mutex_unlock(&domain->write_mutex);
+			domain->manage_send = 0;
+			goto error;
+		} else {
+			// manage frame resend successfully
+			domain->mang_send_error = 0;
+
+			if (message_repeat->type == MANAGE_CMD_CONNECT_REQ)
+				first_connect_frame = 0;
+		}
+	}
+	retry_count = 0;
+
+resend:
+	ret = bif_tx_put_frame(&domain->channel, mang_frame_send_buf,
+		HBIPC_HEADER_LEN + MANAGE_MSG_LEN);
+	if (ret < 0) {
+		if (ret == BIF_TX_ERROR_NO_MEM) {
+			++retry_count;
+			++domain->domain_statistics.mang_resend_count;
+			if (retry_count > TX_RETRY_MAX) {
+				++domain->domain_statistics.mang_resend_over_count;
+				hbipc_error("no lock bif_tx_put_frame overtry\n");
+			} else {
+				msleep(TX_RETRY_TIME);
+				goto resend;
+				#if 0
+				remaining_time =
+				msleep_interruptible(TX_RETRY_TIME);
+				if (!remaining_time) {
+					// lint warning
+					goto resend;
+				} else {
+					// prompt message
+					pr_info("send mang interruptible\n");
+					// for manage frame, going on retry
+					goto resend;
+				}
+				#endif
+			}
+		} else {
+			// lint warning
+			hbipc_error("no lock bif_tx_put_frame error\n");
+		}
+
+		// prepare to resent error manage frame
+		memcpy(domain->mang_frame_send_error_buf,
+		mang_frame_send_buf,
+		HBIPC_HEADER_LEN + MANAGE_MSG_LEN);
+		domain->mang_send_error = 1;
+		//mutex_unlock(&domain->write_mutex);
+		domain->manage_send = 0;
+		goto error;
+	} else {
+		if (type == MANAGE_CMD_CONNECT_REQ)
+			first_connect_frame = 0;
+	}
+
+	//mutex_unlock(&domain->write_mutex);
+	domain->manage_send = 0;
+
+	return 0;
+error:
+	return -1;
+}
+EXPORT_SYMBOL(mang_frame_send2opposite_without_lock);
+
 int domain_init(struct comm_domain *domain, struct domain_info *domain_inf)
 {
 	mutex_init(&domain->write_mutex);
@@ -1010,6 +1219,37 @@ struct session_info *session_inf)
 	return 0;
 }
 
+static int clear_connect_ap_abnormal(struct comm_domain *domain,
+struct session_info *session_inf)
+{
+	int i = 0;
+
+	for (i = 0; i < SESSION_COUNT_MAX; ++i) {
+		if (session_inf->session_array[i].valid) {
+			session_inf->session_array[i].valid = 0;
+			if (!session_inf->session_array[i].connected)
+				--domain->unaccept_session_count;
+			else
+				session_inf->session_array[i].connected = 0;
+			resource_queue_deinit(domain,
+			&(session_inf->session_array[i].recv_list));
+
+			++session_inf->count;
+			session_inf->first_avail =
+			get_session_first_avail_index(session_inf);
+			--domain->session_count;
+			up(&(session_inf->session_array[i].frame_count_sem));
+		}
+	}
+
+	hbipc_debug("clear_connect_ap_abnormal: count = %d first_avail = %d \
+	session_count = %d unaccept_session_count = %d\n",
+	session_inf->count, session_inf->first_avail,
+	domain->session_count, domain->unaccept_session_count);
+
+	return 0;
+}
+
 static int unregister_provider(struct comm_domain *domain,
 struct send_mang_data *data)
 {
@@ -1204,6 +1444,9 @@ static int register_server_provider_query(struct comm_domain *domain)
 	int ret = 0;
 	struct send_mang_data data;
 
+	// in case of deadlock
+	// acquire different lock with same sequence
+	mutex_lock(&domain->write_mutex);
 	mutex_lock(&domain->connect_mutex);
 
 	for (i = 0; i < SERVER_COUNT_MAX; ++i) {
@@ -1217,8 +1460,10 @@ static int register_server_provider_query(struct comm_domain *domain)
 					server->server_id, UUID_LEN);
 					data.provider_id =
 					provider->provider_id;
-					ret = mang_frame_send2opposite(domain,
+					//mutex_unlock(&domain->connect_mutex);
+					ret = mang_frame_send2opposite_without_lock(domain,
 					MANAGE_CMD_QUERY_REGISTER, &data);
+					//mutex_lock(&domain->connect_mutex);
 					if (ret < 0) {
 						// prompt message
 						hbipc_error("query send MANG_CMD_REGISTER_PROVIDER error\n");
@@ -1229,6 +1474,7 @@ static int register_server_provider_query(struct comm_domain *domain)
 	}
 
 	mutex_unlock(&domain->connect_mutex);
+	mutex_unlock(&domain->write_mutex);
 
 	return ret;
 }
@@ -1321,6 +1567,9 @@ struct send_mang_data *data)
 	struct server_desc *server = NULL;
 	short int *provider_id_factor = NULL;
 
+	// in case of deadlock
+	// acquire different lock with same sequence
+	mutex_lock(&domain->write_mutex);
 	mutex_lock(&domain->connect_mutex);
 
 	for (i = 0; i < SERVER_COUNT_MAX; ++i) {
@@ -1349,11 +1598,11 @@ struct send_mang_data *data)
 	unregister_server(domain, data);
 	unregister_map(domain, data);
 
-	mutex_unlock(&domain->connect_mutex);
+	//mutex_unlock(&domain->connect_mutex);
 	// send unregister provider datagram
-	ret = mang_frame_send2opposite(domain,
+	ret = mang_frame_send2opposite_without_lock(domain,
 		MANAGE_CMD_UNREGISTER_PROVIDER, data);
-		mutex_lock(&domain->connect_mutex);
+	//mutex_lock(&domain->connect_mutex);
 	if (ret < 0) {
 		ret = HBIPC_ERROR_HW_TRANS_ERROR;
 		hbipc_error("send MANG_CMD_UNREGISTER_PROVIDER error\n");
@@ -1362,6 +1611,7 @@ struct send_mang_data *data)
 	}
 
 	mutex_unlock(&domain->connect_mutex);
+	mutex_unlock(&domain->write_mutex);
 
 	return 0;
 }
@@ -1380,6 +1630,9 @@ struct comm_domain *domain, struct send_mang_data *data)
 	struct provider_server *relation = NULL;
 	struct provider_start_desc *provider_start = NULL;
 
+	// in case of deadlock
+	// acquire different lock with same sequence
+	mutex_lock(&domain->write_mutex);
 	mutex_lock(&domain->connect_mutex);
 
 	// disconnect abnormal connect
@@ -1416,10 +1669,10 @@ struct comm_domain *domain, struct send_mang_data *data)
 					provider->session.first_avail =
 			get_session_first_avail_index(&provider->session);
 					--domain->session_count;
-					mutex_unlock(&domain->connect_mutex);
-		mang_frame_send2opposite(domain,
+					//mutex_unlock(&domain->connect_mutex);
+		mang_frame_send2opposite_without_lock(domain,
 			MANAGE_CMD_DISCONNECT_REQ, data);
-					mutex_lock(&domain->connect_mutex);
+					//mutex_lock(&domain->connect_mutex);
 				}
 			}
 		}
@@ -1446,6 +1699,7 @@ struct comm_domain *domain, struct send_mang_data *data)
 	}
 
 	mutex_unlock(&domain->connect_mutex);
+	mutex_unlock(&domain->write_mutex);
 
 	return 0;
 }
@@ -1676,8 +1930,8 @@ struct bif_frame_cache *frame)
 
 		// recognize first connect frame
 		if (message->seq_num == 1) {
-			// TBD
 			// clear CP side connection
+			clear_invalid_connect_ap_abnormal(domain);
 		}
 
 		if (register_connect(domain, &data) < 0)
@@ -2406,3 +2660,28 @@ void domain_unregister_high_level_clear(struct comm_domain *domain)
 	channel_unregister_high_level_clear(&domain->channel);
 }
 EXPORT_SYMBOL(domain_unregister_high_level_clear);
+
+void clear_invalid_connect_ap_abnormal(struct comm_domain *domain)
+{
+	int i = 0;
+	int j = 0;
+	struct server_desc *server = NULL;
+	struct provider_desc *provider = NULL;
+
+	pr_info("%s\n", __func__);
+
+	mutex_lock(&domain->connect_mutex);
+
+	for (i = 0; i < SERVER_COUNT_MAX; ++i) {
+		server = domain->server.server_array + i;
+		if (server->valid) {
+			for (j = 0; j < PROVIDER_COUNT_MAX; ++j) {
+				provider = server->provider.provider_array + j;
+				if (provider->valid)
+					clear_connect_ap_abnormal(domain, &provider->session);
+			}
+		}
+	}
+
+	mutex_unlock(&domain->connect_mutex);
+}

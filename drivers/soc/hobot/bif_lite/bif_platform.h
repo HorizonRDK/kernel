@@ -41,6 +41,7 @@
 #include <linux/uaccess.h>
 #include <linux/delay.h>
 #include <linux/time.h>
+#include <linux/vmalloc.h>
 
 #if __SIZEOF_POINTER__ == 4
 #define addr_t unsigned int

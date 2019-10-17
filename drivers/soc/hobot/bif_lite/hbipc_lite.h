@@ -85,7 +85,7 @@ struct server_desc {
 	struct provider_info provider;
 };
 
-#define SERVER_COUNT_MAX (5)
+#define SERVER_COUNT_MAX (8)
 struct server_info {
 	struct server_desc server_array[SERVER_COUNT_MAX];
 	int count;
@@ -248,5 +248,6 @@ int type, struct send_mang_data *data);
 void clear_server_cp_manager(struct comm_domain *domain);
 int domain_register_high_level_clear(struct comm_domain *domain, clear_func_t clear_func);
 void domain_unregister_high_level_clear(struct comm_domain *domain);
+void clear_invalid_connect_ap_abnormal(struct comm_domain *domain);
 
 #endif  /* _HBIPC_LITE_H_ */

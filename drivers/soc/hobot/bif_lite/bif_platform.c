@@ -39,22 +39,44 @@ void bif_unlock(void)
 
 }
 
+#define MEM_THRESHOLD (64 * 1024)
+#define MEM_ALLOC_TYPE_SIZE (4)
+#define MEM_ALLOC_TYPE_VM (0)
+#define MEM_ALLOC_TYPE_KM (1)
 void *bif_malloc(size_t size)
-{	static int count;
-	void *p;
+{
+	void *p = NULL;
+	int *alloc_type = NULL;
 
-	p = kmalloc(size, GFP_KERNEL);
-	if (p)
-		count++;
-	//bif_debug("malloc count %d size %d  p  %p\n", count, size, p);
-	return p;
+	if (size > MEM_THRESHOLD) {
+		p = vmalloc(MEM_ALLOC_TYPE_SIZE + size);
+		if (p) {
+			alloc_type = p;
+			*alloc_type = MEM_ALLOC_TYPE_VM;
+		}
+	} else {
+		p = kmalloc(MEM_ALLOC_TYPE_SIZE + size, GFP_KERNEL);
+		if (p) {
+			alloc_type = p;
+			*alloc_type = MEM_ALLOC_TYPE_KM;
+		}
+	}
+
+	// return userdata position
+	return p + MEM_ALLOC_TYPE_SIZE;
 }
 
 void bif_free(void *p)
 {
-	static int count;
+	// alloc_type point to start position of allocated memory
+	int *alloc_type = p - MEM_ALLOC_TYPE_SIZE;
 
-	kfree(p);
-	count++;
-	//bif_debug("free count %d  p  %p\n", count, p );
+	if (!p)
+		return;
+	if (*alloc_type == MEM_ALLOC_TYPE_VM)
+		vfree(alloc_type);
+	else if (*alloc_type == MEM_ALLOC_TYPE_KM)
+		kfree(alloc_type);
+	else
+		pr_err("error mem type\n");
 }

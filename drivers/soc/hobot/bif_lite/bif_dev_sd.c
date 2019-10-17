@@ -38,7 +38,7 @@
 #include "hbipc_errno.h"
 #include "bif_dev_sd.h"
 
-#define VERSION "2.7.3"
+#define VERSION "2.7.4"
 #define VERSION_LEN (16)
 static char version_str[VERSION_LEN];
 
@@ -660,6 +660,10 @@ retry_3:
 		file->private_data = feature;
 		++bif_data.users;
 	}
+
+#ifdef CONFIG_HOBOT_BIF_AP
+	recv_handle_manage_frame(&domain);
+#endif
 
 	mutex_unlock(&open_mutex);
 
@@ -1357,6 +1361,7 @@ static struct cdev bif_cdev;
 static void bif_dev_sd_clear(void)
 {
 	clear_server_cp_manager(&domain);
+	bif_lite_init_success = 0;
 }
 #endif
 
