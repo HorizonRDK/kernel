@@ -1,0 +1,74 @@
+.Dd December 15, 2015
+.Os pka-mkimage
+.Dt PKA-MKIMAGE \&1 "Synopsys Security IP Driver SDK Manual"
+.Sh NAME
+.Nm pka-mkimage
+.Nd Generate a binary firmware image from PKA firmware listings.
+.Sh SYNOPSIS
+.Nm
+.Op Fl r Ns Op Ar addr
+.Op Fl o Ar file
+.Op Fl e Ar entfile | Fl S Ar symfile
+.Op Ar hexfile No ...
+.Sh DESCRIPTION
+.Nm
+parses PKA firmware inputs and outputs a binary firmware image suitable for use
+by the PKA SDK.  If any
+.Ar hexfile
+arguments are specified, the firmware code is read from the specified file(s).
+Otherwise, the firmware code is read from standard input.
+.Sh OPTIONS
+.Bl -tag -width indent
+.It Fl o , -output Ar file
+Write output to the specified
+.Ar file .
+If this option is not specified, write to standard output.
+.It Fl e , -entries Ar entfile
+Specifies the entry point file to use, typically with a .ent extension.
+.It Fl S , -symbols Ar symfile
+Specifies the raw symbol file to use, typically with a .sym extension.  If
+both
+.Fl -entries
+and
+.Fl -symbols
+are specified, the last one specified takes precedence.
+.It Fl r Ns Ar addr , Fl -rom-base Ar addr
+Generate a split ROM/RAM firmware image.  The
+.Ar addr
+value sets the location of the split, as an instruction word count from the
+start of the image.  This depends on the hardware version and configuration
+options selected.  For modern versions of the engine (version 1.17; late 2015),
+this should always be set to 2048 in a split RAM/ROM configuration.  For older
+cores, this should be set to the configured RAM size in words.
+.It Fl r , -rom-only
+Generate a pure ROM firmware image.  This is equivalent to specifying
+.Li --rom-base=0
+.It Fl -ram-only
+Generate a pure RAM firmware image, cancelling the effects of an earlier
+.Fl -rom-base
+option.  This is the default.
+.It Fl V , -version
+Print a version message and exit.
+.It Fl H , -help
+Print a help message and exit.
+.El
+.Sh EXAMPLES
+Generating a RAM image from a single input:
+.Bd -literal -offset indent
+pka-mkimage -o clp300.elf -e clp300.ent clp300.hex
+.Ed
+.Pp
+Generating a ROM image from a single input:
+.Bd -literal -offset indent
+pka-mkimage -r -o clp300.elf -e clp300.ent clp300.hex
+.Ed
+.Pp
+Generating a split RAM/ROM image from two inputs, with ROM starting at
+instruction 1024:
+.Bd -literal -offset indent
+pka-mkimage -r1024 -o clp300.elf -e clp300.ent clp300.hex clp300_rom.hex
+.Ed
+.Sh COPYRIGHT
+Copyright \(co 2011\(en2015 Synopsys, Inc.
+.Sh SEE ALSO
+.Xr elf 3

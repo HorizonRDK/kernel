@@ -1,0 +1,80 @@
+What:		/sys/devices/platform/clp800/epn
+Description:
+		This attribute reports the configured Elliptic Project Number
+		of the engine, in hexadeicmal.
+
+What:		/sys/devices/platform/clp800/stepping
+Description:
+		This attribute indicates the reported H/W revision of this
+		design, in decimal.
+
+What:		/sys/devices/platform/clp800/mode
+Description:
+		This attribute reports whether the engine is currently in
+		secure or promiscuous mode.  The mode can be changed by
+		writing either the string "secure" or "promiscuous".
+
+What:		/sys/devices/platform/clp800/seed
+Description:
+		In promiscuous mode, this attribute can be read to report
+		the internal random seed (as a sequence of hexadecimal digits)
+		currently being used by the engine.  It is not readable in
+		secure mode.  Writes of either exactly 32 bytes (binary input)
+		or 64 hexadecimal digits (text input) to this attribute will
+		stage a seed value for a subsequent nonce reseed operation.
+
+What:		/sys/devices/platfrom/clp800/reseed_action
+Description:
+		Writing "random" or "nonce" to this attribute will trigger a
+		random reseed or nonce reseed, respectively.  Writes will
+		block until the requested operation completes fully. Nonce
+		reseeds require that a seed value be previously written to the
+		seed attribute.  Reading this attribute reports the source of
+		the current seed.
+
+What:		/sys/devices/platform/clp800/reject_threshold
+Description:
+		Configures the rejection threshold of the internal bit
+		generators, which is used to tweak the ring lengths.
+
+What:		/sys/devices/platform/clp800/seed_generation
+Description:
+		A counter which increments whenever the driver detects that
+		the engine has been reseeded.  Note that if two or more random
+		reseeds occur in rapid succession, the driver may not detect
+		these as separate reseed events.
+
+What:		/sys/devices/platform/clp800/random
+Description:
+		Reads a single output value from the engine as a sequence
+		of hexadecimal digits.  Note that the size of the output is
+		variable.  For retrieving large amounts of random data from
+		the engine, it is much faster to use the standard Linux hwrng
+		interface rather than this attribute.
+
+What:		/sys/devices/platform/clp800/output_len
+Description:
+		Configures the output size of the engine, in bytes.  This can
+		set to either 16 (128-bit) or 32 (256-bit), but 256-bit mode
+		is not supported in all hardware configurations.  Except for
+		testing, there is little reason to set this to anything other
+		than the default (maximum) value.
+
+What:		/sys/devices/platform/clp800/wd_requests
+Description:
+		Configures the request-based reseed reminder.  A request alarm
+		will be signaled after the specified number of random numbers
+		have been generated on a single seed.  Note that changes to
+		this setting do not take effect until the next reseed.
+
+What:		/sys/devices/platform/clp800/wd_cycles
+Description:
+		Configures the age-based reseed reminder.  An age alarm will
+		be signaled after a single seed has been in use for the
+		specified number of cycles.  Note that changes to this
+		setting do not take effect until the next reseed.
+
+What:		/sys/bus/platform/clp800/wd_alarm
+Description:
+		Reports the most recent alarm to have triggered, or "none" if
+		there is no alarm.
