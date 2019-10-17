@@ -733,6 +733,7 @@
 			offset = <0x150 0x154 0x158>;
 			bits = <5 5 5>;
 			field = <0x1 0x1 0x1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		spi1_mclk: spi1_mclk {
@@ -742,6 +743,7 @@
 			offset = <0x150 0x154 0x158>;
 			bits = <6 6 6>;
 			field = <0x1 0x1 0x1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		spi2_mclk: spi2_mclk {
@@ -751,6 +753,7 @@
 			offset = <0x150 0x154 0x158>;
 			bits = <7 7 7>;
 			field = <0x1 0x1 0x1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		pwm_div_mclk: pwm_div_mclk {

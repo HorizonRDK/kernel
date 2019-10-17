@@ -431,6 +431,8 @@
 		spi0: spi@0xA5004000 {
 			compatible = "hobot,x2-spi";
 			reg = <0 0xA5004000 0 0x1000>;
+			clocks = <&spi0_mclk>;
+			clock-names = "spi_mclk";
 			interrupt-parent = <&gic>;
 			interrupts = <0 27 4>;
 			resets = <&rst 0x50 5>;
@@ -450,6 +452,8 @@
 		spi1: spi@0xA5005000 {
 			compatible = "hobot,x2-spi";
 			reg = <0 0xA5005000 0 0x1000>;
+			clocks = <&spi1_mclk>;
+			clock-names = "spi_mclk";
 			interrupt-parent = <&gic>;
 			interrupts = <0 28 4>;
 			status = "disabled";
@@ -460,6 +464,8 @@
 		spi2: spi@0xA5006000 {
 			compatible = "hobot,x2-spi";
 			reg = <0 0xA5006000 0 0x1000>;
+			clocks = <&spi2_mclk>;
+			clock-names = "spi_mclk";
 			interrupt-parent = <&gic>;
 			interrupts = <0 29 4>;
 			status = "disabled";

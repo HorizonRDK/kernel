@@ -19,6 +19,7 @@
 #include <linux/dma-mapping.h>
 #include <x2/diag.h>
 #include <linux/timer.h>
+#include <linux/clk.h>
 
 #define X2_SPI_MAX_CS          3
 #define X2_SPI_NAME            "x2_spi"
@@ -118,7 +119,6 @@
 /* X2 config Macro */
 #define msecs_to_loops(t)      (loops_per_jiffy / 1000 * HZ * t)
 #define X2_SPI_TIMEOUT         (msecs_to_jiffies(2000))
-#define X2_SPI_FREQ_CLK        (187500000)
 #define X2_SPI_FIFO_SIZE       (32)
 /* X2 SPI operation Macro */
 #define X2_SPI_OP_CORE_EN      1
@@ -155,7 +155,7 @@ struct x2_spi {
 	u16 word_width;		/* Bits per word:16bit or 8bit */
 	u16 mode;		/* current mode */
 	u32 speed;		/* current speed */
-	u32 freq_clk;		/* freq clock */
+	struct clk *spi_mclk;		/* clk source */
 	struct reset_control *rst;	/* reset controller */
 	struct completion completion;	/* xfer completion */
 
@@ -437,7 +437,7 @@ static int x2_spi_config(struct x2_spi *x2spi)
 		val |= X2_SPI_SSAL;
 	/* spi speed */
 	if (x2spi->speed) {
-		divider = x2spi->freq_clk / x2spi->speed;
+		divider = clk_get_rate(x2spi->spi_mclk) / x2spi->speed;
 		divider = (divider < 2) ? 2 : divider;
 		divider = (divider % 2) ? (divider / 2) : (divider / 2 - 1);
 		val &= ~X2_SPI_DIVIDER_MASK;
@@ -752,6 +752,8 @@ static int x2_spi_probe(struct platform_device *pdev)
 	struct spi_master *master;
 	struct resource *res;
 	char spi_name[20];
+	int ret = -ENXIO;
+	int rate = 0;
 
 	dev_info(&pdev->dev, "enter %s\n", __func__);
 	x2spi = devm_kzalloc(&pdev->dev, sizeof(*x2spi), GFP_KERNEL);
@@ -771,10 +773,23 @@ static int x2_spi_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "missing controller reset %s\n", spi_name);
 		return PTR_ERR(x2spi->rst);
 	}
-	err = of_property_read_u32(pdev->dev.of_node, "clock-frequency",
-				   &x2spi->freq_clk);
-	if (err < 0)
-		x2spi->freq_clk = X2_SPI_FREQ_CLK;
+
+	x2spi->spi_mclk = devm_clk_get(&pdev->dev, "spi_mclk");
+	if (IS_ERR(x2spi->spi_mclk)) {
+		dev_err(&pdev->dev, "spi_mclk clock not found.\n");
+		ret = PTR_ERR(x2spi->spi_mclk);
+		return ret;
+	}
+
+	ret = clk_prepare_enable(x2spi->spi_mclk);
+	if (ret) {
+		dev_err(&pdev->dev, "Unable to enable gate clock.\n");
+		goto err_clk;
+	}
+
+	rate = clk_get_rate(x2spi->spi_mclk);
+	dev_info(&pdev->dev, "spi clock is %d\n", rate);
+
 	x2_spi_init_hw(x2spi);
 
 	x2spi->irq = platform_get_irq(pdev, 0);
@@ -837,6 +852,9 @@ static int x2_spi_probe(struct platform_device *pdev)
 		add_timer(&spi_diag_timer);
 	}
 	return 0;
+err_clk:
+	clk_disable_unprepare(x2spi->spi_mclk);
+	return ret;
 }
 
 static int x2_spi_remove(struct platform_device *pdev)
@@ -868,6 +886,9 @@ int x2_spi_suspend(struct device *dev)
 	x2_spi_en_ctrl(x2spi, X2_SPI_OP_CORE_DIS, X2_SPI_OP_NONE,
 			X2_SPI_OP_NONE);
 
+	//disable clk to reduce power
+	clk_disable_unprepare(x2spi->spi_mclk);
+
 	return 0;
 }
 
@@ -877,6 +898,9 @@ int x2_spi_resume(struct device *dev)
 	struct x2_spi *x2spi = spi_master_get_devdata(master);
 
 	pr_info("%s:%s, enter resume...\n", __FILE__, __func__);
+
+	//enable clk to work
+	clk_prepare_enable(x2spi->spi_mclk);
 
 	x2_spi_init_hw(x2spi);
 
