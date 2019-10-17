@@ -270,7 +270,7 @@
 	polling-mode;
 	frame_len_max = <4096>;
 	frag_len_max = <128>;
-	frame_count = <4>;
+	frame_count = <16>;
 };
 &qspi {
 	status = "okay";
