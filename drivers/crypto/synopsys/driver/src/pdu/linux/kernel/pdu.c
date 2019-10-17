@@ -45,7 +45,7 @@
 
 #include <linux/dmapool.h>
 #include <linux/module.h>
-
+#include <linux/slab.h>
 #include "elppdu.h"
 
 static bool trace_io;
@@ -199,12 +199,19 @@ void pdu_free (void *p)
 /* allocate coherent memory */
 void *pdu_dma_alloc(size_t bytes, PDU_DMA_ADDR_T *phys)
 {
+  // void * vir_addr;
+
+   //vir_addr = kmalloc(bytes, GFP_KERNEL);
+   //phys = __pa(vir_addr);
+
+   //return vir_addr;
    return dma_alloc_coherent(ddt_device, bytes, phys, GFP_KERNEL);
 }
 
 /* free coherent memory */
 void pdu_dma_free(size_t bytes, void *virt, PDU_DMA_ADDR_T phys)
 {
+   //kfree(virt);
    dma_free_coherent(ddt_device, bytes, virt, phys);
 }
 

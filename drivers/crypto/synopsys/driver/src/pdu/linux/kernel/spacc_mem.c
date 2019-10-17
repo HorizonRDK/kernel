@@ -103,6 +103,10 @@ static void register_device(const char *name, int id,
    }
 
    devices[dev_id] = platform_device_register_full(&pdevinfo);
+  
+   if (id != -1)
+      arch_setup_dma_ops(&devices[id]->dev, 0, DMA_BIT_MASK(32), NULL, false);
+
    if (IS_ERR(devices[dev_id])) {
       if (id >= 0)
          snprintf(suffix, sizeof suffix, ".%d", id);
@@ -117,7 +121,7 @@ static void register_device(const char *name, int id,
 
 static int __init get_irq_num(unsigned irq_num)
 {
-   if (IS_ENABLED(CONFIG_ARCH_ZYNQ)) {
+//   if (IS_ENABLED(CONFIG_ARCH_ZYNQ)) {
       struct of_phandle_args args = {0};
 
       /*
@@ -132,12 +136,12 @@ static int __init get_irq_num(unsigned irq_num)
             pr_err("cannot find IRQ controller");
             return -ENODEV;
          }
-      } while (!of_device_is_compatible(args.np, "arm,cortex-a9-gic"));
+      } while (!of_device_is_compatible(args.np, "arm,gic-400"));
 
-      if (irq_num < 32 || irq_num >= 96) {
-         pr_err("SPI interrupts must be in the range [32,96) on Zynq\n");
-         return -EINVAL;
-      }
+    //  if (irq_num < 32 || irq_num >= 96) {
+    //     pr_err("SPI interrupts must be in the range [32,96) on Zynq\n");
+    //     return -EINVAL;
+    //  }
 
       args.args_count = 3;
       args.args[0] = 0; /* SPI */
@@ -148,7 +152,7 @@ static int __init get_irq_num(unsigned irq_num)
       of_node_put(args.np);
       if (irq_num == 0)
          return -EINVAL;
-   }
+//   }
 
    if (irq_num > INT_MAX)
       return -EINVAL;
@@ -175,7 +179,6 @@ static int __init pdu_vex_mod_init(void)
    }
 
 #ifndef PDU_SINGLE_CORE
-
    rc = spdu_init(vex_baseaddr, &info);
    if (rc < 0)
       return -1;
@@ -271,17 +274,57 @@ static int __init pdu_vex_mod_init(void)
          register_device("clp800", -1, res, 2, &info);
       }
 
-      if (info.pdu_config.is_pka) {
+      //if (info.pdu_config.is_pka) {
          res[0] = (struct resource) {
-            .start = vex_baseaddr + 0x20000,
-            .end   = vex_baseaddr + 0x20000 + 131072-1,
+            .start = 0xA1018000,
+            .end   = 0xA1018000 + 131072-1,
+            .flags = IORESOURCE_MEM,
+         };
+         printk("pka register!!!!\n");
+         pdu_io_write32(pdu_mem, pdu_io_read32(pdu_mem) | PDU_IRQ_EN_PKA);
+         register_device("pka", -1, res, 2, &info);
+      //}
+   }
+
+         res[0] = (struct resource) {
+            .start = 0xA1018000,
+            .end   = 0xA1018000 + 131072-1,
             .flags = IORESOURCE_MEM,
          };
 
+         if (irq_num >= 0) {
+            res[1] = (struct resource) {
+               .start = get_irq_num(PDU_BASE_IRQ+1),
+               .end   = get_irq_num(PDU_BASE_IRQ+1),
+               .flags = IORESOURCE_IRQ,
+            };
+         } else {
+            res[1] = (struct resource) { 0 };
+            pr_err("IRQ setup failed (error %d), not using IRQs\n", irq_num);
+         }
+      
+         printk("pka register!!!!\n");
          pdu_io_write32(pdu_mem, pdu_io_read32(pdu_mem) | PDU_IRQ_EN_PKA);
          register_device("pka", -1, res, 2, &info);
-      }
-   }
+
+	 /////////////////////////////////////////////////////////////////////////////////////////
+
+         res[0] = (struct resource) {
+            .start = 0xA100E000,
+            .end   = 0xA100E000 + 32768-1,
+            .flags = IORESOURCE_MEM,
+         };
+         res[1] = (struct resource) {
+            .start = get_irq_num(PDU_BASE_IRQ+5),
+            .end   = get_irq_num(PDU_BASE_IRQ+5),
+            .flags = IORESOURCE_IRQ,
+	 };
+         pdu_io_write32(pdu_mem, pdu_io_read32(pdu_mem) | PDU_IRQ_EN_RNG);
+         register_device("clp800", -1, res, 2, &info);
+
+	 /////////////////////////////////////////////////////////////////////////////////////////
+
+
    iounmap(pdu_mem);
 #else
 

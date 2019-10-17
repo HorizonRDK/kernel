@@ -43,7 +43,7 @@
 # POSSIBILITY OF SUCH DAMAGE.
 # ------------------------------------------------------------------------
 
-CC = gcc
+CC = aarch64-linux-gnu-gcc
 CFLAGS = -g -O2 -Wall
 
 ALL_CPPFLAGS = -I../include $(CPPFLAGS)

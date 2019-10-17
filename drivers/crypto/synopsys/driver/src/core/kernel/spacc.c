@@ -192,7 +192,7 @@ static const struct { unsigned addr; char *name; } reg_names[] = {
 };
 #undef HW_ENTRY
 
-static uint32_t reg_epn=0x605, reg_virt=0;
+static uint32_t reg_epn = 0x0, reg_virt = 0;
 
 static ssize_t show_reg(struct device *dev, struct device_attribute *devattr, char *buf)
 {

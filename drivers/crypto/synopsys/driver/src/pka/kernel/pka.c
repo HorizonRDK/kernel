@@ -621,13 +621,16 @@ static int pka_setup_firmware(struct device *dev, const struct firmware *fw,
    pka_describe_firmware(dev, &fw_priv->data);
 
    rc = elppka_fw_load(&priv->pka, &fw_priv->data);
+
    if (rc < 0) {
       if (rc == CRYPTO_INVALID_FIRMWARE)
          dev_err(dev, "cannot load firmware: %s\n", fw_priv->data.errmsg);
       return pdu_error_code(rc);
    }
 
-   rc = verify_firmware(dev, &fw_priv->data);
+   // FIXME: skip verfiy firmware part, it may cause stack overflow, 
+   //rc = verify_firmware(dev, &fw_priv->data);
+
    if (rc < 0)
       return rc;
 
@@ -651,6 +654,7 @@ static void pka_receive_firmware(const struct firmware *fw, void *dev)
 
    rc = pka_setup_firmware(dev, fw, fw_priv);
    if (rc < 0) {
+      dev_info(dev, "it is been freed!!!! %d\n", rc);
       kfree(fw_priv);
       goto out;
    }
@@ -663,6 +667,7 @@ static void pka_receive_firmware(const struct firmware *fw, void *dev)
 out:
    up(&priv->firmware_loading);
    release_firmware(fw);
+   dev_info(dev, "release firmware!!!\n");
    return;
 }
 
@@ -1031,7 +1036,8 @@ static int pka_probe(struct platform_device *pdev)
    if (pdev->id >= 0)
       rc = pka_request_firmware(&pdev->dev, true, "elppka-%.4d.elf", pdev->id);
    else
-      rc = pka_request_firmware(&pdev->dev, true, "elppka.elf");
+      rc = pka_request_firmware(&pdev->dev, true, "clp300.elf");
+      //rc = pka_request_firmware(&pdev->dev, true, "elppka.elf");
 
    if (rc < 0)
       return rc;

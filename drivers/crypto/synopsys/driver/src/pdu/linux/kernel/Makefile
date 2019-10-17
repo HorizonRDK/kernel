@@ -44,7 +44,7 @@
 # ------------------------------------------------------------------------
 
 #if KERNELDIR is not defined, set it to the modules directory
-KERNELDIR ?= /lib/modules/$(shell uname -r)/build
+KERNELDIR ?= /lib/modules/$(shell uname -r)/buil
 ifndef RD
 RD       := $(shell pwd)
 endif

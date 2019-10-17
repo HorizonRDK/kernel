@@ -6,7 +6,7 @@
 #For support please contact support@elliptictech.com
 #
 
-CONFIG_ME=1
+#CONFIG_ME=1
 ifdef CONFIG_ME
 def:
 	@echo You must configure the makefile before building and then remove the CONFIG_ME line to build, search for [CONFIG] in the Makefile
@@ -22,10 +22,10 @@ endif
 #[CONFIG] If we are not using PCI then we must configure the memory address/IRQ of the device
 ifndef PDU_USE_PCI
 ifndef PDU_BASE_ADDR
-PDU_OPTIONS+= PDU_BASE_ADDR=0x40000000
+PDU_OPTIONS+= PDU_BASE_ADDR=0xb2100000
 endif
 ifndef PDU_BASE_IRQ
-PDU_OPTIONS+= PDU_BASE_IRQ=91
+PDU_OPTIONS+= PDU_BASE_IRQ=118
 endif
 endif
 
@@ -38,8 +38,8 @@ endif
 #[CONFIG] Enable specific modules
 #ENABLE_SASPA=1
 ENABLE_SPACC=1
-#ENABLE_TRNG=1
-#ENABLE_PKA=1
+ENABLE_TRNG=1
+ENABLE_PKA=1
 
 ifdef ENABLE_SPACC
 #Can only enable these three if the SPACC is enabled
@@ -67,14 +67,8 @@ endif
 #ENABLE_SINGLE_EAPE=1
 #ENABLE_SINGLE_PKA=1
 
-
-
-
-
-
-
-
-
+#PKA_OPTIONS += KERNELDIR=${HOME}/source/kernel_branch/kernel-4.14-proto-x2a/ CROSS_COMPILE=aarch64-linux-gnu- ARCH=arm64
+PDU_OPTIONS += KERNELDIR=${PWD}/../../../kernel-4.14-proto-x2a CROSS_COMPILE=aarch64-linux-gnu- ARCH=arm64
 
 # Generally you don't have to modify anything below this point unless you're in some really odd configuration
 ifdef ENABLE_SINGLE_CORE

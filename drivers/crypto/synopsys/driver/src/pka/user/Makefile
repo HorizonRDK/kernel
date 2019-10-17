@@ -43,7 +43,8 @@
 # POSSIBILITY OF SUCH DAMAGE.
 # ------------------------------------------------------------------------
 
-CC = gcc
+#CC = gcc
+CC = aarch64-linux-gnu-gcc
 LD = $(CC)
 CFLAGS = -g -O2 -Wall
 AR = ar

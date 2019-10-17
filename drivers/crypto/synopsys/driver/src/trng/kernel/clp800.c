@@ -51,7 +51,7 @@
 #include <linux/hw_random.h>
 #include <linux/sched.h>
 #include <linux/ctype.h>
-
+#include <linux/sched/signal.h>
 #include "clp800_driver.h"
 
 /*

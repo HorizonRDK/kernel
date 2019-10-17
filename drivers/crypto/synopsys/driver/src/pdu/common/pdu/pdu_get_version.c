@@ -203,6 +203,7 @@ int pdu_get_version(void *dev, pdu_info *inf)
    }
 
    memset(inf, 0, sizeof *inf);
+   printk("KKKO address = %x\n", dev + PDU_REG_SPACC_VERSION);
    tmp = pdu_io_read32(dev + PDU_REG_SPACC_VERSION);
 
    ver = (SPACC_ID_MAJOR(tmp)<<4)|SPACC_ID_MINOR(tmp);

@@ -1,7 +1,8 @@
 GROFF = groff
 FLEX = flex
 BISON = bison
-CC = gcc -std=gnu99
+#CC = aarch64-linux-gnu-gcc
+CC = gcc
 
 OBJS = mkimage.o readmemh.o readmemh-scan.o readmemh-parse.o \
 	symbol.o symbol-scan.o symbol-parse.o pkaelf.o
