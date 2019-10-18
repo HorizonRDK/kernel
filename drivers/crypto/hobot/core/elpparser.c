@@ -55,7 +55,6 @@
 static unsigned char *vector_buf=NULL;
 static uint32_t vector_off, vector_size;
 
-
 void elp_parse_rewind(void)
 {
   vector_off = 0;

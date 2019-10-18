@@ -2,6 +2,9 @@
 #define SPACC_CRYPTOAPI_H_
 
 #include <crypto/hash.h>
+#include <crypto/aead.h>
+#include <crypto/internal/hash.h>
+#include <crypto/internal/aead.h>
 #include <crypto/scatterwalk.h>
 #include "elppdu.h"
 #include "elpspacc.h"
@@ -122,7 +125,7 @@ struct spacc_alg {
 
    union {
       struct ahash_alg hash;
-      struct crypto_alg cipher;
+      struct aead_alg aead;
    } alg;
 };
 
@@ -141,7 +144,7 @@ static inline void spacc_sg_chain(struct scatterlist *sg1, int num,
 {
    BUILD_BUG_ON(IS_ENABLED(CONFIG_DEBUG_SG));
 
-   scatterwalk_sg_chain(sg1, num, sg2);
+   sg_chain(sg1, num, sg2);
    sg1[num-1].page_link |= 1;
 }
 
@@ -152,7 +155,7 @@ static inline const struct spacc_alg *spacc_tfm_alg(struct crypto_tfm *tfm)
    if ((calg->cra_flags & CRYPTO_ALG_TYPE_MASK) == CRYPTO_ALG_TYPE_AHASH) {
       return container_of(calg, struct spacc_alg, alg.hash.halg.base);
    }
-   return container_of(calg, struct spacc_alg, alg.cipher);
+   return container_of(calg, struct spacc_alg, alg.aead.base);
 }
 
 int spacc_sgs_to_ddt(struct device *dev,
@@ -166,7 +169,7 @@ int spacc_sg_to_ddt(struct device *dev, struct scatterlist *sg,
                     int nbytes, pdu_ddt *ddt, int dma_direction);
 
 extern const struct ahash_alg spacc_hash_template;
-extern const struct crypto_alg spacc_aead_template;
+extern const struct aead_alg spacc_aead_template;
 
 int spacc_hash_module_init(void);
 void spacc_hash_module_exit(void);

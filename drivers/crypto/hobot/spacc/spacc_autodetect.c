@@ -815,7 +815,7 @@ int spacc_autodetect(spacc_device *spacc)
                   }
 #endif
                } else {
-                  printk("spacc_kernel_autodetect::Detected %-20s with keysize %3d-bits\n", names[x], keysizes[template[x]>>7][y]*8);
+                  pr_debug("spacc_kernel_autodetect::Detected %-20s with keysize %3d-bits\n", names[x], keysizes[template[x]>>7][y]*8);
                }
                spacc_close(spacc, h);
             }

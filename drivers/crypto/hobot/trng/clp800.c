@@ -840,6 +840,8 @@ static int __devinit elpclp800_probe(struct platform_device *pdev)
    void __iomem *regbase;
    int rc;
 
+   printk("%s\n", __func__);
+
    mem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
    if (!mem || resource_size(mem) < CLP800_REG_MAX)
       return -EINVAL;

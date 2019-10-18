@@ -50,11 +50,11 @@
 #include <linux/pagemap.h>
 #include <linux/dmapool.h>
 #include <crypto/hash.h>
-#include <crypto/internal/hash.h>
 #include "elpspaccdrv.h"
 #include "cryptoapi.h"
 
 static struct platform_device *spacc_pdev[ELP_CAPI_MAX_DEV+1];
+
 
 static LIST_HEAD(spacc_alg_list);
 static DEFINE_MUTEX(spacc_alg_mutex);
@@ -79,6 +79,7 @@ static int fixup_sg(struct scatterlist *sg, int nbytes)
           * them into proper chained SGs here (which dma_map_sg does
           * support) as a workaround.
           */
+		 //yu WARNING: if nbytes> 0 and sg->lenght == 0 at the beginning, this will cause deadloop
          spacc_sg_chain(sg, 1, sg_chain_ptr(sg));
          sg = sg_chain_ptr(sg);
       }
@@ -355,13 +356,13 @@ static int __devinit spacc_register_aead(unsigned aead_mode)
    }
    salg->dev[x] = NULL;
 
-   salg->calg       = &salg->alg.cipher;
-   salg->alg.cipher = spacc_aead_template;
+   salg->calg     = &salg->alg.aead.base;
+   salg->alg.aead = spacc_aead_template;
 
    spacc_init_calg(salg->calg, salg->mode);
-   salg->calg->cra_aead.ivsize      = salg->mode->ivlen;
-   salg->calg->cra_aead.maxauthsize = salg->mode->hashlen;
-   salg->calg->cra_blocksize        = salg->mode->blocklen;
+   salg->alg.aead.ivsize      = salg->mode->ivlen;
+   salg->alg.aead.maxauthsize = salg->mode->hashlen;
+   salg->alg.aead.chunksize   = salg->mode->blocklen;
 
    // TODO: remove salg's keylen_mask
    salg->keylen_mask = possible_aeads[aead_mode].keylen_mask;
@@ -372,12 +373,12 @@ static int __devinit spacc_register_aead(unsigned aead_mode)
          case SPACC_MANGLE_IV_RFC4106: //GCM
          case SPACC_MANGLE_IV_RFC4543: //GMAC
          case SPACC_MANGLE_IV_RFC4309: //CCM
-            salg->calg->cra_aead.ivsize  = 8;
+            salg->alg.aead.ivsize  = 8;
             break;
       }
    }
 
-   rc = crypto_register_alg(salg->calg);
+   rc = crypto_register_alg(&salg->alg.aead.base);
    if (rc < 0) {
      kfree(salg);
       return rc;

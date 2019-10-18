@@ -120,8 +120,8 @@
    #define PDU_IRQ_EN_MPM1 (1UL<<22)
 #endif
 
-#include "../../common/include/elppdu_error.h"
-#include "../../common/include/elppdu_types.h"
+#include "elppdu_error.h"
+#include "elppdu_types.h"
 
 void *pdu_linux_map_regs(struct device *dev, struct resource *regs);
 

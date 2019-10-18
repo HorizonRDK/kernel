@@ -272,6 +272,7 @@ static int __devinit spacc_probe(struct platform_device *pdev)
    }
 
    printk("spacc_probe: Device at %pR\n", mem);
+   printk("spacc_probe: Device at %pR\n", irq);
    baseaddr = pdu_linux_map_regs(&pdev->dev, mem);
    if (IS_ERR(baseaddr)) {
       dev_err(&pdev->dev, "unable to map iomem\n");

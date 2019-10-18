@@ -283,14 +283,14 @@ static int spacc_aead_init_dma(struct device *dev, struct aead_request *req, u64
       ctx->iv_nents = 0;
       rc = spacc_sgs_to_ddt(dev,
          iv->fullsg,     SPACC_MAX_IV_SIZE+B0len, &ctx->fulliv_nents,
-         req->assoc,     req->assoclen,     &ctx->assoc_nents,
+         NULL,     		 0,     &ctx->assoc_nents,
          NULL,           0,                 &ctx->iv_nents,
          req->src,       req->cryptlen + icvlen, &ctx->src_nents,
          &ctx->src, DMA_BIDIRECTIONAL);
    } else {
       rc = spacc_sgs_to_ddt(dev,
          iv->fullsg,     SPACC_MAX_IV_SIZE+B0len, &ctx->fulliv_nents,
-         req->assoc,     req->assoclen,     &ctx->assoc_nents,
+         NULL,     		 0,     &ctx->assoc_nents,
          iv->sg,         ivsize,            &ctx->iv_nents,
          req->src,       req->cryptlen + icvlen, &ctx->src_nents,
          &ctx->src, DMA_BIDIRECTIONAL);
@@ -314,7 +314,7 @@ err_free_src:
    if (ctx->iv_nents) {
       dma_unmap_sg(dev, iv->sg,     ctx->iv_nents,  DMA_BIDIRECTIONAL);
    }
-   dma_unmap_sg(dev, req->assoc, ctx->assoc_nents, DMA_BIDIRECTIONAL);
+//   dma_unmap_sg(dev, req->assoc, ctx->assoc_nents, DMA_BIDIRECTIONAL);
    dma_unmap_sg(dev, req->src,   ctx->src_nents,   DMA_BIDIRECTIONAL);
    pdu_ddt_free(&ctx->src);
 err_free_iv:
@@ -339,7 +339,7 @@ static void spacc_aead_cleanup_dma(struct device *dev, struct aead_request *req)
    if (ctx->iv_nents) {
       dma_unmap_sg(dev, iv->sg,     ctx->iv_nents,  DMA_BIDIRECTIONAL);
    }
-   dma_unmap_sg(dev, req->assoc, ctx->assoc_nents,  DMA_BIDIRECTIONAL);
+//   dma_unmap_sg(dev, req->assoc, ctx->assoc_nents,  DMA_BIDIRECTIONAL);
    dma_unmap_sg(dev, req->src,   ctx->src_nents, DMA_BIDIRECTIONAL);
    pdu_ddt_free(&ctx->src);
 
@@ -539,7 +539,8 @@ static int spacc_aead_setauthsize(struct crypto_aead *tfm, unsigned int authsize
 static int spacc_aead_process(struct aead_request *req, u64 seq, u8 *giv, int encrypt)
 {
    struct crypto_aead *reqtfm      = crypto_aead_reqtfm(req);
-   int ivsize                      = reqtfm->base.crt_aead.ivsize;
+//   int ivsize                      = reqtfm->base.crt_aead.ivsize;
+   int ivsize                      = crypto_aead_ivsize(reqtfm);
    struct spacc_crypto_ctx *tctx   = crypto_aead_ctx(reqtfm);
    struct spacc_crypto_reqctx *ctx = aead_request_ctx(req);
    struct spacc_priv *priv = dev_get_drvdata(tctx->dev);
@@ -656,18 +657,28 @@ static int spacc_aead_decrypt(struct aead_request *req)
    return spacc_aead_process(req, 0ULL, NULL, 0);
 }
 
+/*
 static int spacc_aead_givencrypt(struct aead_givcrypt_request *req)
 {
    return spacc_aead_process(&req->areq, req->seq, req->giv, 1);
 }
+*/
 
 static int spacc_aead_cra_init(struct crypto_tfm *tfm)
 {
    struct spacc_crypto_ctx *ctx  = crypto_tfm_ctx(tfm);
    const struct spacc_alg  *salg = spacc_tfm_alg(tfm);
 
+/*
+   ctx->fb.aead = crypto_alloc_aead(salg->calg->cra_name, 0, CRYPTO_ALG_NEED_FALLBACK);
+   if (ctx->fb.aead == NULL) {
+      pr_err("%s: crypto alloc aead failed!\n", __func__);
+	  return -1;
+   }
+*/
+
    get_random_bytes(ctx->csalt, sizeof(ctx->csalt));
-   tfm->crt_aead.reqsize = sizeof(struct spacc_crypto_reqctx);
+   ctx->fb.aead->reqsize = sizeof(struct spacc_crypto_reqctx);
    ctx->handle           = -1;
    ctx->mode             = salg->mode->aead.ciph;
    ctx->dev              = get_device(salg->dev[0]);
@@ -690,25 +701,23 @@ static void spacc_aead_cra_exit(struct crypto_tfm *tfm)
 }
 
 
-const struct crypto_alg spacc_aead_template __devinitconst = {
-   .cra_aead = {
-      .setkey      = spacc_aead_setkey,
-      .setauthsize = spacc_aead_setauthsize,
-      .encrypt     = spacc_aead_encrypt,
-      .decrypt     = spacc_aead_decrypt,
-      .givencrypt  = spacc_aead_givencrypt,
-   },
+const struct aead_alg spacc_aead_template __devinitconst = {
+	.setkey      = spacc_aead_setkey,
+	.setauthsize = spacc_aead_setauthsize,
+	.encrypt     = spacc_aead_encrypt,
+	.decrypt     = spacc_aead_decrypt,
+//	.givencrypt  = spacc_aead_givencrypt,
 
-   .cra_priority = 1301,
-   .cra_module   = THIS_MODULE,
-   .cra_init     = spacc_aead_cra_init,
-   .cra_exit     = spacc_aead_cra_exit,
-   .cra_ctxsize  = sizeof (struct spacc_crypto_ctx),
-   .cra_type     = &crypto_aead_type,
-   .cra_flags    = CRYPTO_ALG_TYPE_AEAD
-                 | CRYPTO_ALG_ASYNC
-                 | CRYPTO_ALG_NEED_FALLBACK
-                 | CRYPTO_ALG_KERN_DRIVER_ONLY
+	.base.cra_init = spacc_aead_cra_init,
+	.base.cra_exit     = spacc_aead_cra_exit,
+	.base.cra_priority = 1301,
+	.base.cra_module   = THIS_MODULE,
+	.base.cra_ctxsize  = sizeof (struct spacc_crypto_ctx),
+//	.base.cra_type     = &crypto_aead_type,//will set cra_type in register_aead
+	.base.cra_flags    = CRYPTO_ALG_TYPE_AEAD
+				 | CRYPTO_ALG_ASYNC
+				 | CRYPTO_ALG_NEED_FALLBACK
+				 | CRYPTO_ALG_KERN_DRIVER_ONLY
 };
 
 

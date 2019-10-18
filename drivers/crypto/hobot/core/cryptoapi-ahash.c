@@ -54,7 +54,7 @@
 #include "cryptoapi.h"
 #include "elpspaccdrv.h"
 
-static int spacc_epn = 0x0414;  // EPN of hardware to look up (TODO: change this to your own core)
+static int spacc_epn = 0x0;  // EPN of hardware to look up (TODO: change this to your own core)
 static struct dma_pool *spacc_hash_pool;
 
 static int spacc_hash_init_dma(struct device *dev, struct ahash_request *req)

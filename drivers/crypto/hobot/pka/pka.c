@@ -1004,6 +1004,9 @@ static int pka_probe(struct platform_device *pdev)
    if (!irq_resource)
       return -EINVAL;
 
+   pr_err("%s : mem:%pR\m", __func__, mem_resource);
+   pr_err("%s : irq:%pR\m", __func__, irq_resource);
+
    priv = devm_kzalloc(&pdev->dev, sizeof *priv, GFP_KERNEL);
    if (!priv)
       return -ENOMEM;

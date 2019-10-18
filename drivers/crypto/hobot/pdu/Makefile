@@ -43,103 +43,13 @@
 # POSSIBILITY OF SUCH DAMAGE.
 # ------------------------------------------------------------------------
 
-#if KERNELDIR is not defined, set it to the modules directory
-KERNELDIR ?= /lib/modules/$(shell uname -r)/buil
-ifndef RD
-RD       := $(shell pwd)
-endif
 
-include ${RD}/Makefile.opts
 
-ifdef PDU_MAX_DDT
-EXTRA_CFLAGS += -DPDU_MAX_DDT=${PDU_MAX_DDT}
-endif
+ccflags-y := -DPDU_BASE_ADDR=0xB2100000 -DPDU_BASE_IRQ=118
 
-ifdef PDU_DUAL_MPM
-EXTRA_CFLAGS += -DPDU_DUAL_MPM
-endif
+elppdu-objs += pdu.o pdu_dev32.o pdu_get_version.o
 
-ifdef PDU_BASE_ADDR
-EXTRA_CFLAGS += -DPDU_BASE_ADDR=${PDU_BASE_ADDR}
-endif
+elpmem-objs += spacc_mem.o
 
-ifdef PDU_BASE_IRQ
-EXTRA_CFLAGS += -DPDU_BASE_IRQ=${PDU_BASE_IRQ}
-endif
+obj-$(CONFIG_CRYPTO_DEV_HOBOT) := elppdu.o elpmem.o
 
-ifdef PDU_ZYNQ_RESET
-EXTRA_CFLAGS += -DPDU_ZYNQ_RESET
-endif
-
-EXTRA_CFLAGS += -I${RD}/../include -I${RD}/../../../../common_sdk/include/
-EXTRA_CFLAGS += -I${RD}/../../../trng/include
-EXTRA_CFLAGS += -I${RD}/../../../saspa/include
-
-#build up the object list depending on options
-OBJS-PDU += pdu.o ../../common/pdu/pdu_dev32.o \
-	../../common/pdu/pdu_get_version.o
-
-ifdef PDU_SINGLE_CORE
-EXTRA_CFLAGS += -DPDU_SINGLE_CORE
-endif
-ifdef PDU_SINGLE_CLP800
-EXTRA_CFLAGS += -DPDU_SINGLE_CLP800
-endif
-ifdef PDU_SINGLE_CLP850
-EXTRA_CFLAGS += -DPDU_SINGLE_CLP850
-endif
-ifdef PDU_SINGLE_CLP890
-EXTRA_CFLAGS += -DPDU_SINGLE_CLP890
-endif
-ifdef PDU_SINGLE_EAPE
-EXTRA_CFLAGS += -DPDU_SINGLE_EAPE
-endif
-ifdef PDU_SINGLE_CLP30
-EXTRA_CFLAGS += -DPDU_SINGLE_CLP30
-endif
-ifdef PDU_SINGLE_CLP36
-EXTRA_CFLAGS += -DPDU_SINGLE_CLP36
-endif
-ifdef CLP36_ENABLED
-EXTRA_CFLAGS += -DCLP36_ENABLED=1
-endif
-ifdef PDU_SINGLE_PKA
-EXTRA_CFLAGS += -DPDU_SINGLE_PKA
-endif
-ifdef PCI_INDIRECT
-EXTRA_CFLAGS += -DPCI_INDIRECT
-endif
-
-# creates the actual kernel module name based on input or uses a default name
-module-pdu=elppdu
-module-pci=elppci
-module-mem=elpmem
-module-standalone=elppci_standalone
-
-ifdef PDU_USE_PCI
-OUTPUT-PCI = ${module-pci}.o ${module-standalone}.o
-endif
-
-ifndef PDU_USE_PCI
-OUTPUT-MEM = ${module-mem}.o
-endif
-
-OUTPUT-PDU = ${module-pdu}.o 
-${module-pdu}-objs := $(OBJS-PDU)
-ifndef PDU_USE_SASPA
-${module-pci}-objs := spacc_pci.o
-${module-mem}-objs := spacc_mem.o
-else
-${module-pci}-objs := saspa_pci.o
-${module-mem}-objs := saspa_mem.o
-endif
-
-obj-m := ${OUTPUT-PDU} ${OUTPUT-PCI} ${OUTPUT-MEM}
-
-${module-standalone}-objs := standalone_pci.o
-
-all: 
-	RD=${RD} CFLAGS="${CFLAGS}" $(MAKE) -C $(KERNELDIR) SUBDIRS=$(RD) modules
-
-clean:
-	rm -rf *.o *.ko *.mod.? Module.* modules.* .*.cmd .tmp*

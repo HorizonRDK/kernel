@@ -164,7 +164,8 @@ static struct State
 } *states = NULL;
 
 static int state_num;
-static int spacc_epn = 0x0414;  // EPN of hardware to look up (TODO: change this to your own core)
+//static int spacc_epn = 0x0414;  // EPN of hardware to look up (TODO: change this to your own core)
+static int spacc_epn = 0x0;  // EPN of hardware to look up (TODO: change this to your own core)
 
 /*
  * Add an SG entry to DDT, taking care to split entries which straddle

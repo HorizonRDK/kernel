@@ -97,6 +97,8 @@ static void register_device(const char *name, int id,
       .dma_mask = 0xffffffff,
    };
 
+   pr_info("%s : name :%s , res[0]:start:0x%08x\n", __func__, name, res[0].start);
+
    if (dev_id >= MAX_DEV) {
       pr_err("Too many devices; increase MAX_DEV.\n");
       return;
@@ -167,6 +169,7 @@ static int __init pdu_vex_mod_init(void)
    pdu_info info;
    void *pdu_mem;
 
+
    if (irq_num >= 0) {
       res[1] = (struct resource) {
          .start = irq_num,
@@ -186,6 +189,43 @@ static int __init pdu_vex_mod_init(void)
    pdu_mem = ioremap_nocache(vex_baseaddr, 0x1000);
    if (!pdu_mem)
       return -ENOMEM;
+
+
+	pr_err("irq_num             = %d\n", irq_num);
+	pr_err("info.spacc_config.num_ctx             = %d\n", info.spacc_config.num_ctx          );
+	pr_err("info.spacc_config.num_rc4_ctx         = %d\n", info.spacc_config.num_rc4_ctx      );
+	pr_err("info.spacc_config.num_vspacc          = %d\n", info.spacc_config.num_vspacc           );
+	pr_err("info.spacc_config.ciph_ctx_page_size  = %d\n", info.spacc_config.ciph_ctx_page_size   );
+	pr_err("info.spacc_config.hash_ctx_page_size  = %d\n", info.spacc_config.hash_ctx_page_size   );
+	pr_err("info.spacc_config.dma_type            = %d\n", info.spacc_config.dma_type         );
+	pr_err("info.spacc_config.cmd0_fifo_depth     = %d\n", info.spacc_config.cmd0_fifo_depth  );
+	pr_err("info.spacc_config.cmd1_fifo_depth     = %d\n", info.spacc_config.cmd1_fifo_depth  );
+	pr_err("info.spacc_config.cmd2_fifo_depth     = %d\n", info.spacc_config.cmd2_fifo_depth  );
+	pr_err("info.spacc_config.stat_fifo_depth     = %d\n", info.spacc_config.stat_fifo_depth  );
+
+	pr_err("info.pdu_config.minor   = %d\n",  info.pdu_config.minor );
+	pr_err("info.pdu_config.major   = %d\n",  info.pdu_config.major );
+	pr_err("info.pdu_config.is_rng  = %d\n",  info.pdu_config.is_rng);
+	pr_err("info.pdu_config.is_pka  = %d\n",  info.pdu_config.is_pka);
+	pr_err("info.pdu_config.is_re   = %d\n",  info.pdu_config.is_re );
+	pr_err("info.pdu_config.is_kep  = %d\n",  info.pdu_config.is_kep);
+	pr_err("info.pdu_config.is_ea   = %d\n",  info.pdu_config.is_ea );
+	pr_err("info.pdu_config.is_mpm  = %d\n",  info.pdu_config.is_mpm);
+
+
+	pr_err("info.spacc_version.minor = %d\n",  	 info.spacc_version.minor );
+	pr_err("info.spacc_version.major = %d\n",  	 info.spacc_version.major );
+	pr_err("info.spacc_version.version= %d\n",   info.spacc_version.version);
+	pr_err("info.spacc_version.qos   = %d\n",  	 info.spacc_version.qos);
+	pr_err("info.spacc_version.is_spacc = %d\n", info.spacc_version.is_spacc );
+	pr_err("info.spacc_version.is_pdu = %d\n",  	info.spacc_version.is_pdu);
+	pr_err("info.spacc_version.is_hsm = %d\n",  info.spacc_version.is_hsm );
+	pr_err("info.spacc_version.idxidx = %d\n",  info.spacc_version.vspacc_idx);
+	pr_err("info.spacc_version.partial = %d\n",  info.spacc_version.partial);
+	pr_err("info.spacc_version.project = %d\n",  info.spacc_version.project);
+	pr_err("info.spacc_version.ivimport= %d\n", info.spacc_version.ivimport);
+
+
    for (i = 0; i < info.spacc_config.num_vspacc; i++) {
       unsigned long offset = i*0x40000;
 
@@ -271,6 +311,8 @@ static int __init pdu_vex_mod_init(void)
          };
 
          pdu_io_write32(pdu_mem, pdu_io_read32(pdu_mem) | PDU_IRQ_EN_RNG);
+         pr_info("%s: %d register clp800, res[0].start=0x%08x\n",
+                __func__, __LINE__, res[0].start);
          register_device("clp800", -1, res, 2, &info);
       }
 
@@ -320,6 +362,8 @@ static int __init pdu_vex_mod_init(void)
             .flags = IORESOURCE_IRQ,
 	 };
          pdu_io_write32(pdu_mem, pdu_io_read32(pdu_mem) | PDU_IRQ_EN_RNG);
+		 pr_err("%s: %d register clp800, res[0].start=0x%08x\n",
+		 		__func__, __LINE__, res[0].start);
          register_device("clp800", -1, res, 2, &info);
 
 	 /////////////////////////////////////////////////////////////////////////////////////////
