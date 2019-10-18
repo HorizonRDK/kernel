@@ -184,45 +184,47 @@ static DEFINE_MUTEX(diag_netlink_send_mutex);
 static int diag_send_msg(uint16_t module_id, uint16_t event_id,
 			char *pbuf, uint32_t len)
 {
-        struct sk_buff *nl_skb;
-        struct nlmsghdr *nlh;
-        int ret = 0;
-        sk_buff_data_t tmp;
+	struct sk_buff *nl_skb;
+	struct nlmsghdr *nlh;
+	int ret = 0;
+	sk_buff_data_t tmp;
 
-        if (!netlink_has_listeners(nlsk, USER_GROUP))
-                return -1;
+	if (!netlink_has_listeners(nlsk, USER_GROUP))
+		return -1;
 
-        /* create netlink skbuffer. */
-        nl_skb = nlmsg_new(len, GFP_ATOMIC);
-        if (!nl_skb) {
-                pr_err("netlink alloc failure\n");
-                return -1;
-        }
+	/* create netlink skbuffer. */
+	nl_skb = nlmsg_new(len, GFP_ATOMIC);
+	if (!nl_skb) {
+		pr_err("netlink alloc failure\n");
+		return -1;
+	}
 
-        /* set netlink header */
-        nlh = nlmsg_put(nl_skb, 0, 0, NETLINK_DIAG, len, 0);
-        if (nlh == NULL) {
-                pr_err("nlmsg_put failaure\n");
-                nlmsg_free(nl_skb);
-                return -1;
-        }
-        tmp = nl_skb->tail;
+	/* set netlink header */
+	nlh = nlmsg_put(nl_skb, 0, 0, NETLINK_DIAG, len, 0);
+	if (nlh == NULL) {
+		pr_err("nlmsg_put failaure\n");
+		nlmsg_free(nl_skb);
+		return -1;
+	}
+	tmp = nl_skb->tail;
 
-        /* send data*/
-        memcpy(nlmsg_data(nlh), pbuf, len);
-        nlh->nlmsg_len = nl_skb->tail - tmp;
-        NETLINK_CB(nl_skb).portid = 0;
-        NETLINK_CB(nl_skb).dst_group = USER_GROUP;
-        //mutex_lock(&diag_netlink_send_mutex);
-        ret = netlink_broadcast(nlsk, nl_skb, 0, USER_GROUP, GFP_KERNEL);
-        //mutex_unlock(&diag_netlink_send_mutex);
-        if (ret < 0) {
+	/* send data*/
+	memcpy(nlmsg_data(nlh), pbuf, len);
+	nlh->nlmsg_len = nl_skb->tail - tmp;
+	NETLINK_CB(nl_skb).portid = 0;
+	NETLINK_CB(nl_skb).dst_group = USER_GROUP;
+	//mutex_lock(&diag_netlink_send_mutex);
+	ret = netlink_broadcast(nlsk, nl_skb, 0, USER_GROUP, GFP_KERNEL);
+	//mutex_unlock(&diag_netlink_send_mutex);
+	if (ret < 0) {
+		if (ret == -3)
+			diag_app_ready = 0;
 		pr_err("netlink broadcast send fail, module_id: 0x%04x, event_id: 0x%04x, ret: %d\n",
 			module_id, event_id, ret);
-                return -1;
-        }
+		return -1;
+	}
 
-        return len;
+	return len;
 }
 #else
 static int diag_send_msg(uint16_t module_id, uint16_t event_id,
