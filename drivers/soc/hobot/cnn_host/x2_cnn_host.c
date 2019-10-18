@@ -69,7 +69,6 @@ static void x2_check_cnn(unsigned long arg);
 
 struct sock *cnn_nl_sk;
 #define FC_TIME_CNT 53
-
 static DEFINE_MUTEX(x2_cnn_mutex);
 static char *g_chrdev_name = "cnn";
 static struct dentry *cnn0_debugfs_root;
@@ -97,7 +96,7 @@ static pid_t pid_fc_id_mask[MAX_PID_NUM];
 static int checkirq0_enable = 1;
 static int checkirq1_enable = 1;
 #endif
-
+static int has_busy_status;
 
 static inline u32 x2_cnn_reg_read(struct x2_cnn_dev *dev, u32 off)
 {
@@ -368,7 +367,6 @@ error:
 	dev_err(cnn_dev->dev, "failed to get %s reset signal\n", name);
 	return PTR_ERR(rst_temp);
 }
-
 static void report_bpu_diagnose_msg(u32 err, int core_index)
 {
 	u32 ret;
@@ -392,7 +390,6 @@ static void report_bpu_diagnose_msg(u32 err, int core_index)
 		diag_send_event_stat(DiagMsgPrioMid, ModuleDiag_bpu,
 							bpu_event, DiagEventStaSuccess);
 }
-
 /**
  * x2_cnn_hw_reset_reinit - sw reset cnn controller
  * @cnn_dev: pointer cnn dev struct
@@ -817,9 +814,10 @@ static int x2_cnn_fc_fifo_enqueue(struct x2_cnn_dev *dev,
 	u32 fc_depth, insert_fc_cnt, residue_fc_cnt;
 	u32 count;
 	struct hbrt_x2_funccall_s *tmp_ptr = NULL;
-
+#ifndef CONFIG_X2A_FPGA
 	if (dev->disable_bpu)
 		return -1;
+#endif
 	fc_depth = x2_cnn_reg_read(dev, X2_CNN_FC_LEN);
 	fc_head_idx = x2_cnn_reg_read(dev, X2_CNN_FC_HEAD);
 	fc_head_flag = fc_head_idx & X2_CNN_FC_IDX_FLAG;
@@ -903,6 +901,7 @@ static int x2_cnn_open(struct inode *inode, struct file *filp)
 
 	devdata = container_of(inode->i_cdev, struct x2_cnn_dev, i_cdev);
 	filp->private_data = devdata;
+#ifndef CONFIG_X2A_FPGA
 	if (!regulator_is_enabled(devdata->cnn_regulator) ||
 	    !__clk_is_enabled(devdata->cnn_aclk) ||
 	    !__clk_is_enabled(devdata->cnn_mclk)) {
@@ -910,7 +909,7 @@ static int x2_cnn_open(struct inode *inode, struct file *filp)
 
 		return -1;
 	}
-
+#endif
 	for (i = 0; i < MAX_PID_NUM; i++) {
 		if (pid_fc_id_mask[i] == 0
 				|| pid_fc_id_mask[i] == task_pid_nr(current->group_leader))
@@ -1684,6 +1683,7 @@ int x2_cnn_probe(struct platform_device *pdev)
 		if (rc)
 			pr_err("init cnn%d debugfs failed\n", cnn_id);
 		cnn0_dev = cnn_dev;
+#ifndef CONFIG_X2A_FPGA
 		/*get regulator*/
 		cnn_dev->cnn_regulator = regulator_get(cnn_dev->dev, "cnn0");
 		if (cnn_dev->cnn_regulator == NULL)
@@ -1698,11 +1698,13 @@ int x2_cnn_probe(struct platform_device *pdev)
 		cnn_dev->cnn_mclk = devm_clk_get(cnn_dev->dev, "cnn0_mclk");
 		if (IS_ERR(cnn_dev->cnn_mclk))
 			pr_info("get cnn0 mclock err\n");
+#endif
 	} else if (cnn_id == 1) {
 		rc = cnn_debugfs_init(cnn_dev, cnn_id, cnn1_debugfs_root);
 		if (rc)
 			pr_err("init cnn%d debugfs failed\n", cnn_id);
 		cnn1_dev = cnn_dev;
+#ifndef CONFIG_X2A_FPGA
 		/*get regulator*/
 		cnn_dev->cnn_regulator = regulator_get(cnn_dev->dev, "cnn1");
 		if (cnn_dev->cnn_regulator == NULL)
@@ -1716,6 +1718,7 @@ int x2_cnn_probe(struct platform_device *pdev)
 		cnn_dev->cnn_mclk = devm_clk_get(cnn_dev->dev, "cnn1_mclk");
 		if (IS_ERR(cnn_dev->cnn_mclk))
 			pr_info("get cnn1 mclock err\n");
+#endif
 	}
 	pmu = platform_get_resource(pdev, IORESOURCE_MEM, 1);
 	if (!pmu) {
@@ -1739,6 +1742,7 @@ int x2_cnn_probe(struct platform_device *pdev)
 		pr_err("failed get cnn%d resets\n", cnn_id);
 		goto err_out;
 	}
+#ifndef CONFIG_X2A_FPGA
 	/*cnn power up*/
 	rc = regulator_enable(cnn_dev->cnn_regulator);
 	if (rc != 0)
@@ -1755,13 +1759,14 @@ int x2_cnn_probe(struct platform_device *pdev)
 	if (rc)
 		pr_info("cnn mclock prepare error\n");
 
+#endif
+	of_property_read_u32(np, "busy_check", &has_busy_status);
 	cnn_dev->irq = irq_of_parse_and_map(np, 0);
 	if (cnn_dev->irq < 0) {
 		dev_err(&pdev->dev, "no cnn irq found\n");
 		rc = -1;
 		goto err_out;
 	}
-
 	/* get cnn controller base addr */
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 
@@ -2046,12 +2051,12 @@ static void x2_cnn_check_func(unsigned long arg)
 	static int cnn1_busy;
 	static int fre;
 	static int fre_tmp;
-
-	int cnn0_head = x2_cnn_reg_read(cnn0_dev, X2_CNN_FC_HEAD);
-	int cnn0_tail = x2_cnn_reg_read(cnn0_dev, X2_CNN_FC_TAIL);
-
-	int cnn1_head = x2_cnn_reg_read(cnn1_dev, X2_CNN_FC_HEAD);
-	int cnn1_tail = x2_cnn_reg_read(cnn1_dev, X2_CNN_FC_TAIL);
+	int bpu0_status = 0;
+	int bpu1_status = 0;
+	int cnn0_head = 0;
+	int cnn0_tail = 0;
+	int cnn1_head = 0;
+	int cnn1_tail = 0;
 
 	fre_tmp = profiler_frequency;
 	if (fre != fre_tmp) {
@@ -2062,11 +2067,25 @@ static void x2_cnn_check_func(unsigned long arg)
 		time = 0;
 
 	}
-	if (cnn0_head != cnn0_tail || (atomic_read(&cnn0_dev->wait_fc_cnt) > 0))
-		cnn0_busy++;
-	if (cnn1_head != cnn1_tail || (atomic_read(&cnn1_dev->wait_fc_cnt) > 0))
-		cnn1_busy++;
-
+	if (has_busy_status) {
+		bpu0_status = x2_cnn_reg_read(cnn0_dev, X2_CNN_BUSY_STATUS);
+		bpu1_status = x2_cnn_reg_read(cnn1_dev, X2_CNN_BUSY_STATUS);
+		if (bpu0_status)
+			cnn0_busy++;
+		if (bpu1_status)
+			cnn1_busy++;
+	} else {
+		cnn0_head = x2_cnn_reg_read(cnn0_dev, X2_CNN_FC_HEAD);
+		cnn0_tail = x2_cnn_reg_read(cnn0_dev, X2_CNN_FC_TAIL);
+		cnn1_head = x2_cnn_reg_read(cnn1_dev, X2_CNN_FC_HEAD);
+		cnn1_tail = x2_cnn_reg_read(cnn1_dev, X2_CNN_FC_TAIL);
+		if (cnn0_head != cnn0_tail ||
+		    (atomic_read(&cnn0_dev->wait_fc_cnt) > 0))
+			cnn0_busy++;
+		if (cnn1_head != cnn1_tail ||
+		    (atomic_read(&cnn1_dev->wait_fc_cnt) > 0))
+			cnn1_busy++;
+	}
 	if (++time == fre) {
 		time = 0;
 		ratio0 = cnn0_busy * 100 / fre;

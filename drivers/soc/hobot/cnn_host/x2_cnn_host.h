@@ -30,6 +30,7 @@
 #define   X2_CNN_FC_TAIL		    (0x9C)
 #define   X2_CNN_FC_LEN			    (0xA0)
 #define   X2_CNNINT_INST_NUM		    (0xA4)
+#define   X2_CNN_BUSY_STATUS		    (0xB0)
 
 /*************************************************************
  * register bit
@@ -128,6 +129,7 @@ struct x2_int_info {
 	struct timeval end_time;
 };
 
+#ifdef CONFIG_HOBOT_CNN_DEVFREQ
 struct x2_cnnfreq {
 	struct devfreq *devfreq;
 	struct mutex lock;
@@ -137,7 +139,7 @@ struct x2_cnnfreq {
 	struct thermal_cooling_device *cooling;
 	struct devfreq_dev_profile devp;
 };
-
+#endif
 struct x2_cnn_int_num {
 	u32 cnn_int_num[CNN_INT_NUM];
 	u64 cnn_int_interval[CNN_INT_NUM];
@@ -201,7 +203,6 @@ struct x2_cnn_dev {
 	unsigned int inst_num;
 	unsigned int ref_cnt;
 	unsigned int disable_bpu;
-
 };
 
 struct cnn_debugfs_info {
