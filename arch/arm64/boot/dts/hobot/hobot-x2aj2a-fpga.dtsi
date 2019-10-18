@@ -722,6 +722,7 @@
 			cooling-min-level = <0>;
 			cooling-max-level = <4>;
 			operating-points-v2 = <&cnn_opp_table>;
+			busy_check = <1>;
 			status = "disabled";
 		};
 
@@ -742,6 +743,7 @@
 			cooling-min-level = <0>;
 			cooling-max-level = <4>;
 			operating-points-v2 = <&cnn_opp_table>;
+			busy_check = <1>;
 			status = "disabled";
 		};
 

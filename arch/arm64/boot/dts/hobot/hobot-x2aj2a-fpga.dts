@@ -80,7 +80,8 @@
 		};
 
 		/* Reserved 512MB memory for cnn subsystem */
-		cnn_reserved: cnn_reserved@0x40000000 {
+		ion_reserved: ion_reserved@0x40000000 {
+			compatible = "ion-pool";
 			reg = <0x0 0x40000000 0x0 0x20000000>;
 		};
 
@@ -91,7 +92,7 @@
 		};
 
 	};
-
+/*
 	cnn_mm {
 		compatible = "hobot,cnn-mm";
 		#address-cells = <1>;
@@ -123,8 +124,8 @@
 			type = <1>;
 		};
 	};
+*/
 };
-
 &i2c0 {
 	status = "okay";
 };
@@ -169,7 +170,7 @@
 };
 
 &x2dmatest {
-	status = "okay";
+	status = "disable";
 };
 
 &rtc {
