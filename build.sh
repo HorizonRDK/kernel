@@ -122,6 +122,11 @@ function all()
     cpfiles "$SRC_KERNEL_DIR/arch/$ARCH_KERNEL/boot/$KERNEL_IMAGE_NAME" "$prefix/"
     cd $SRC_KERNEL_DIR/arch/$ARCH_KERNEL/boot/dts/hobot/
     cpfiles "$KERNEL_DTB_NAME" "$prefix/"
+    cpfiles "$SRC_KERNEL_DIR/net/mac80211/mac80211.ko " "$TARGET_TMPROOTFS_DIR/lib/modules/"
+    cpfiles "$SRC_KERNEL_DIR/net/wireless/cfg80211.ko " "$TARGET_TMPROOTFS_DIR/lib/modules/"
+    cpfiles "$SRC_KERNEL_DIR/drivers/staging/rtl8723bs/r8723bs.ko " "$TARGET_TMPROOTFS_DIR/lib/modules/"
+    ${CROSS_COMPILE}strip -g $TARGET_TMPROOTFS_DIR/lib/modules/*.ko
+    cpfiles "$SRC_KERNEL_DIR/drivers/staging/rtl8723bs/rtlwifi/rtl8723bs_nic.bin " "$TARGET_TMPROOTFS_DIR/lib/firmware/rtlwifi/"
     cpfiles "$SRC_KERNEL_DIR/drivers/soc/hobot/cnn_host/x2_cnn_host_total.ko " "$TARGET_TMPROOTFS_DIR/lib/modules/"
     cpfiles "$SRC_KERNEL_DIR/drivers/misc/x2_efuse.ko " "$TARGET_TMPROOTFS_DIR/lib/modules/"
     # build dtb-mapping.conf
