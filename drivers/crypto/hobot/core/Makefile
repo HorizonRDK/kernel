@@ -1,10 +1,10 @@
 
 
 elpspaccdev-objs += spacc_dev.o
-obj-$(CONFIG_CRYPTO_DEV_HOBOT_DEV) := elpspaccdev.o
+obj-$(CONFIG_CRYPTO_DEV_HOBOT_DEV) += elpspaccdev.o
 
 elpspacccrypto-objs += cryptoapi.o cryptoapi-ahash.o  cryptoapi-aead.o
-obj-$(CONFIG_CRYPTO_DEV_HOBOT_CRYPTO) := elpspacccrypto.o
+obj-$(CONFIG_CRYPTO_DEV_HOBOT_CRYPTO) += elpspacccrypto.o
 
 spaccexample-objs += example.o
-obj-$(CONFIG_CRYPTO_DEV_HOBOT_EXAMPLE) := spaccexample.o
+obj-$(CONFIG_CRYPTO_DEV_HOBOT_EXAMPLE) += spaccexample.o
