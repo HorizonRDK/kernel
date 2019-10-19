@@ -118,6 +118,7 @@ struct idmac_desc {
 static int dw_mci_card_busy(struct mmc_host *mmc);
 static bool dw_mci_reset(struct dw_mci *host);
 static bool dw_mci_ctrl_reset(struct dw_mci *host, u32 reset);
+static void dw_mci_enable_cd(struct dw_mci *host);
 
 #if defined(CONFIG_DEBUG_FS)
 static int dw_mci_req_show(struct seq_file *s, void *v)
@@ -2971,6 +2972,9 @@ static int dw_mci_init_slot(struct dw_mci *host)
 
 	dw_mci_get_cd(mmc);
 
+	/* Now that slots are all setup, we can enable card detect */
+	dw_mci_enable_cd(host);
+
 	ret = mmc_add_host(mmc);
 	if (ret)
 		goto err_host_allocated;
@@ -3468,9 +3472,6 @@ int dw_mci_probe(struct dw_mci *host)
 		dev_dbg(host->dev, "slot %d init failed\n", i);
 		goto err_dmaunmap;
 	}
-
-	/* Now that slots are all setup, we can enable card detect */
-	dw_mci_enable_cd(host);
 
 	if (host->slot->mmc->index == INDEX_ID_EMMC) {
 		if (diag_register(ModuleDiag_emmc, EventIdEmmcErr,
