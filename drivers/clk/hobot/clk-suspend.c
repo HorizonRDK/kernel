@@ -21,8 +21,11 @@
 #define PLLCLK_SEL			0x300
 #define VIOPLL_PD_CTRL		0x44
 #define CNNPLL_PD_CTRL		0x24
+#define CNNSYS_CLKEN_CLR	0x128
 #define VIOSYS_CLK_DIV_SEL1	0x240
 #define VIOSYS_CLK_DIV_SEL2	0x244
+
+#define CNNSYS_CLK_DISABLE	0x33
 
 static u32 pllclk_sel = 0x111110;
 static u32 viopll_pd_ctrl;
@@ -140,6 +143,8 @@ static void x2_clk_resume(void)
 	writel(cnnpll_pd_ctrl, clk_reg_base + CNNPLL_PD_CTRL);
 	writel(viosys_clk_div_sel1, clk_reg_base + VIOSYS_CLK_DIV_SEL1);
 	writel(viosys_clk_div_sel2, clk_reg_base + VIOSYS_CLK_DIV_SEL2);
+	//cnn_clk_en reg initial value is on, need to be clear.
+	writel(CNNSYS_CLK_DISABLE, clk_reg_base + CNNSYS_CLKEN_CLR);
 
 //	dump_sysctrl_regs();
 }
