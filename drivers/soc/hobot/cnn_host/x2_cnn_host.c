@@ -54,7 +54,8 @@
 #include "x2_cnn_host.h"
 
 #define CNN_FREQ_CHANGE(id) (50 + id)
-
+#define BPU_CLOCK_DIS   (1 << 0)
+#define BPU_REGU_DIS   (1 << 1)
 #define NETLINK_BPU 24
 #define MOD_FRQ_DONE 0X0
 #define MOD_FRQ      0X01
@@ -712,7 +713,7 @@ static void x2_cnn_clock_up(struct x2_cnn_dev *dev)
 	x2_cnn_hw_init(dev);
 	x2_cnn_set_fc_base(dev);
 	x2_cnn_set_default_fc_depth(dev, 1023);
-	dev->disable_bpu = 0;
+	dev->disable_bpu &= ~BPU_CLOCK_DIS;
 	unlock_bpu(dev);
 }
 /**
@@ -736,7 +737,7 @@ static void x2_cnn_clock_down(struct x2_cnn_dev *dev)
 	udelay(5);
 
 	x2_cnn_reset_assert(dev->cnn_rst);
-	dev->disable_bpu = 1;
+	dev->disable_bpu |= BPU_CLOCK_DIS;
 	unlock_bpu(dev);
 }
 
@@ -754,6 +755,7 @@ static void x2_cnn_power_up(struct x2_cnn_dev *dev)
 	ret = regulator_enable(dev->cnn_regulator);
 	if (ret != 0)
 		dev_err(dev->dev, "regulator enable error\n");
+	dev->disable_bpu &= ~BPU_REGU_DIS;
 	tmp = readl(dev->cnn_pmu);
 
 	tmp &= ~(1 << dev->iso_bit);
@@ -768,7 +770,7 @@ static void x2_cnn_power_up(struct x2_cnn_dev *dev)
 	x2_cnn_hw_init(dev);
 	x2_cnn_set_fc_base(dev);
 	x2_cnn_set_default_fc_depth(dev, 1023);
-	dev->disable_bpu = 0;
+	dev->disable_bpu &= ~BPU_CLOCK_DIS;
 	unlock_bpu(dev);
 }
 /**
@@ -785,6 +787,7 @@ static void x2_cnn_power_down(struct x2_cnn_dev *dev)
 		clk_disable(dev->cnn_aclk);
 	if (__clk_is_enabled(dev->cnn_mclk))
 		clk_disable(dev->cnn_mclk);
+	dev->disable_bpu |= BPU_REGU_DIS;
 	tmp = readl(dev->cnn_pmu);
 
 	tmp |= (1 << dev->iso_bit);
@@ -793,7 +796,7 @@ static void x2_cnn_power_down(struct x2_cnn_dev *dev)
 
 	x2_cnn_reset_assert(dev->cnn_rst);
 	regulator_disable(dev->cnn_regulator);
-	dev->disable_bpu = 1;
+	dev->disable_bpu |= BPU_CLOCK_DIS;
 	unlock_bpu(dev);
 }
 /**
@@ -1982,18 +1985,22 @@ static int x2_cnn_drvsuspend(struct device *dev)
 {
 	struct x2_cnn_dev *cnn_dev = dev_get_drvdata(dev);
 	unsigned int tmp;
-	lock_bpu(cnn_dev);
 	pr_info("%s!!\n", __func__);
-	if (regulator_is_enabled(cnn_dev->cnn_regulator)) {
-		tmp = readl(cnn_dev->cnn_pmu);
+	lock_bpu(cnn_dev);
+	if (__clk_is_enabled(cnn_dev->cnn_aclk))
+		clk_disable(cnn_dev->cnn_aclk);
+	if (__clk_is_enabled(cnn_dev->cnn_mclk))
+		clk_disable(cnn_dev->cnn_mclk);
+	tmp = readl(cnn_dev->cnn_pmu);
 
-		tmp |= (1 << cnn_dev->iso_bit);
-		writel(tmp, cnn_dev->cnn_pmu);
-		udelay(5);
+	tmp |= (1 << cnn_dev->iso_bit);
+	writel(tmp, cnn_dev->cnn_pmu);
+	udelay(5);
 
-		x2_cnn_reset_assert(cnn_dev->cnn_rst);
+	x2_cnn_reset_assert(cnn_dev->cnn_rst);
+	if (regulator_is_enabled(cnn_dev->cnn_regulator))
 		regulator_disable(cnn_dev->cnn_regulator);
-	}
+	unlock_bpu(cnn_dev);
 	return 0;
 }
 
@@ -2012,20 +2019,31 @@ static int x2_cnn_drvresume(struct device *dev)
 	udelay(5);
 
 	x2_cnn_reset_assert(cnn_dev->cnn_rst);
-	ret = regulator_enable(cnn_dev->cnn_regulator);
-	if (ret != 0)
-		dev_err(cnn_dev->dev, "regulator enable error\n");
-	tmp = readl(cnn_dev->cnn_pmu);
+	if (!(cnn_dev->disable_bpu & BPU_REGU_DIS)) {
+		ret = regulator_enable(cnn_dev->cnn_regulator);
+		if (ret != 0)
+			dev_err(cnn_dev->dev, "regulator enable error\n");
+		tmp = readl(cnn_dev->cnn_pmu);
 
-	tmp &= ~(1 << cnn_dev->iso_bit);
-	writel(tmp, cnn_dev->cnn_pmu);
-	udelay(5);
+		tmp &= ~(1 << cnn_dev->iso_bit);
+		writel(tmp, cnn_dev->cnn_pmu);
+		udelay(5);
 
-	x2_cnn_reset_release(cnn_dev->cnn_rst);
-	x2_cnn_hw_init(cnn_dev);
-	x2_cnn_set_fc_base(cnn_dev);
-	x2_cnn_set_default_fc_depth(cnn_dev, 1023);
-	unlock_bpu(cnn_dev);
+		x2_cnn_reset_release(cnn_dev->cnn_rst);
+		if (!__clk_is_enabled(cnn_dev->cnn_aclk))
+			clk_enable(cnn_dev->cnn_aclk);
+		if (!__clk_is_enabled(cnn_dev->cnn_mclk))
+			clk_enable(cnn_dev->cnn_mclk);
+		x2_cnn_hw_init(cnn_dev);
+		x2_cnn_set_fc_base(cnn_dev);
+		x2_cnn_set_default_fc_depth(cnn_dev, 1023);
+
+		if (cnn_dev->disable_bpu & BPU_CLOCK_DIS)
+			x2_cnn_clock_down(cnn_dev);
+	} else {
+		if (!(cnn_dev->disable_bpu & BPU_CLOCK_DIS))
+			x2_cnn_clock_up(cnn_dev);
+	}
 	return 0;
 }
 
