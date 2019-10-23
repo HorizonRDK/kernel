@@ -34,6 +34,7 @@
 #include <linux/wait.h>
 #include <video/of_display_timing.h>
 #include <asm/cacheflush.h>
+#include <linux/linux_logo.h>
 
 #include "hobot_x2fb.h"
 #include "../../iar/x2_iar.h"
@@ -43,6 +44,35 @@
 
 #define X2FB_DEBUG_PRINT(format, args...)    \
 	pr_debug("IAR debug: " format, ## args)
+
+static const u32 cfb_tab8_be[] = {
+	0x00000000, 0x000000ff, 0x0000ff00, 0x0000ffff,
+	0x00ff0000, 0x00ff00ff, 0x00ffff00, 0x00ffffff,
+	0xff000000, 0xff0000ff, 0xff00ff00, 0xff00ffff,
+	0xffff0000, 0xffff00ff, 0xffffff00, 0xffffffff
+};
+
+static const u32 cfb_tab8_le[] = {
+	0x00000000, 0xff000000, 0x00ff0000, 0xffff0000,
+	0x0000ff00, 0xff00ff00, 0x00ffff00, 0xffffff00,
+	0x000000ff, 0xff0000ff, 0x00ff00ff, 0xffff00ff,
+	0x0000ffff, 0xff00ffff, 0x00ffffff, 0xffffffff
+};
+
+static const u32 cfb_tab16_be[] = {
+	0x00000000, 0x0000ffff, 0xffff0000, 0xffffffff
+};
+
+static const u32 cfb_tab16_le[] = {
+	0x00000000, 0xffff0000, 0x0000ffff, 0xffffffff
+};
+
+static const u32 cfb_tab32[] = {
+	0x00000000, 0xffffffff
+};
+
+#define FB_WRITEL fb_writel
+#define FB_READL  fb_readl
 
 struct update_cmd_t {
 	unsigned int enable_flag[IAR_CHANNEL_MAX];
@@ -102,6 +132,16 @@ static int x2fb_blank(int blank, struct fb_info *info);
 static u_long get_line_length(int xres_virtual, int bpp);
 static int x2fb_mmap(struct fb_info *info, struct vm_area_struct *pvma);
 static int x2fb_check_var(struct fb_var_screeninfo *var, struct fb_info *info);
+static void x2fb_imageblit(struct fb_info *p, const struct fb_image *image);
+static inline void x2_color_imageblit(const struct fb_image *image,
+		struct fb_info *p, u8 __iomem *dst1,
+		u32 start_index, u32 pitch_index);
+static inline void x2_slow_imageblit(const struct fb_image *image,
+		struct fb_info *p, u8 __iomem *dst1, u32 fgcolor,
+		u32 bgcolor, u32 start_index, u32 pitch_index);
+static inline void x2_fast_imageblit(const struct fb_image *image,
+		struct fb_info *p, u8 __iomem *dst1, u32 fgcolor,
+		u32 bgcolor);
 
 static int flag;
 static int start_flag;
@@ -264,7 +304,7 @@ struct fb_var_screeninfo RGB700_var_default = {
 	.yoffset = 0,
 	.bits_per_pixel = 32,
 	.grayscale = 0,
-	.red = {
+/*	.red = {
 		.offset = 8,
 		.length = 8,
 		.msb_right = 0,//MSB left; !=0,MSB right
@@ -281,6 +321,27 @@ struct fb_var_screeninfo RGB700_var_default = {
 	},
 	.transp = {
 		.offset = 0,
+		.length = 8,
+		.msb_right = 0,
+	},
+*/
+	.red = {
+		.offset = 16,
+		.length = 8,
+		.msb_right = 0,//MSB left; !=0,MSB right
+	},
+	.green = {
+		.offset = 8,
+		.length = 8,
+		.msb_right = 0,
+	},
+	.blue = {
+		.offset = 0,
+		.length = 8,
+		.msb_right = 0,
+	},
+	.transp = {
+		.offset = 24,
 		.length = 8,
 		.msb_right = 0,
 	},
@@ -741,11 +802,10 @@ static int x2fb_set_par(struct fb_info *fb)
 		start_flag = 1;
 		iar_stop();
 		iar_set_panel_timing(fb, display_type);
-
+		user_set_fb();
 	}
 
 	return regval;
-
 }
 
 int user_set_fb(void)
@@ -807,7 +867,7 @@ int user_set_fb(void)
 		iar_output_cfg(&x2_fbi->output_cfg);
 
 		hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x00, 4);
-		writel(0x051bf00f, hitm1_reg_addr);
+		writel(0x041bf00f, hitm1_reg_addr);
 
 		hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x204, 4);
 		writel(0x00000008, hitm1_reg_addr);
@@ -833,6 +893,222 @@ static void x2fb_activate_par(void)
 	iar_update();
 }
 
+static void x2fb_imageblit(struct fb_info *p, const struct fb_image *image)
+{
+	u32 fgcolor, bgcolor, start_index, bitstart, pitch_index = 0;
+	u32 bpl = sizeof(u32), bpp = p->var.bits_per_pixel;
+	u32 width = image->width;
+	u32 dx = image->dx, dy = image->dy;
+	u8 __iomem *dst1;
+
+	if (p->state != FBINFO_STATE_RUNNING)
+		return;
+
+	bitstart = (dy * p->fix.line_length * 8) + (dx * bpp);
+	start_index = bitstart & (32 - 1);
+	pitch_index = (p->fix.line_length & (bpl - 1)) * 8;
+	bitstart /= 8;
+	bitstart &= ~(bpl - 1);
+	dst1 = p->screen_base + bitstart;
+
+	if (p->fbops->fb_sync)
+		p->fbops->fb_sync(p);
+
+	if (image->depth == 1) {
+		if (p->fix.visual == FB_VISUAL_TRUECOLOR ||
+			p->fix.visual == FB_VISUAL_DIRECTCOLOR) {
+			fgcolor = ((u32 *)(p->pseudo_palette))[image->fg_color];
+			bgcolor = ((u32 *)(p->pseudo_palette))[image->bg_color];
+		} else {
+			fgcolor = image->fg_color;
+			bgcolor = image->bg_color;
+		}
+
+		if (32 % bpp == 0 && !start_index && !pitch_index &&
+			((width & (32/bpp-1)) == 0) && bpp >= 8 && bpp <= 32)
+			x2_fast_imageblit(image, p, dst1, fgcolor, bgcolor);
+		else
+			x2_slow_imageblit(image, p, dst1, fgcolor, bgcolor,
+			start_index, pitch_index);
+	} else {
+		x2_color_imageblit(image, p, dst1, start_index, pitch_index);
+	}
+}
+
+static inline void x2_color_imageblit(const struct fb_image *image,
+				struct fb_info *p, u8 __iomem *dst1,
+				u32 start_index, u32 pitch_index)
+{
+	/* Draw the penguin */
+	u32 __iomem *dst, *dst2;
+	u32 color = 0, val, shift;
+	u32 color_r, color_g, color_b;
+	int i, n, bpp = p->var.bits_per_pixel;
+	u32 null_bits = 32 - bpp;
+	u32 *palette = (u32 *) p->pseudo_palette;
+	const u8 *src = image->data;
+	u32 bswapmask = fb_compute_bswapmask(p);
+	const unsigned char *logo_lut = logo_linux_clut224.clut;
+
+	dst2 = (u32 __iomem *) dst1;
+	for (i = image->height; i--; ) {
+		n = image->width;
+		dst = (u32 __iomem *) dst1;
+		shift = 0;
+		val = 0;
+
+/*		if (start_index) {
+ *			u32 start_mask = ~fb_shifted_pixels_mask_u32(p,
+ *				start_index, bswapmask);
+ *			val = FB_READL(dst) & start_mask;
+ *			shift = start_index;
+ *		}
+ */
+		while (n--) {
+			if (p->fix.visual == FB_VISUAL_TRUECOLOR ||
+					p->fix.visual == FB_VISUAL_DIRECTCOLOR)
+				color = palette[*src];
+			else
+				color = *src;
+			color = color - 0x20;
+			//color_r = *((u32 *)(logo_lut + color*3));
+			color_r = *(logo_lut + color*3);
+			color_g = *(logo_lut + color*3 + 1);
+			color_b = *(logo_lut + color*3 + 2);
+			val = 0xff000000 |
+				color_r << 16 | color_g << 8 | color_b;
+
+			FB_WRITEL(val, dst++);
+			src++;
+		}
+		dst1 += p->fix.line_length;
+	}
+}
+
+static inline void x2_slow_imageblit(const struct fb_image *image,
+		struct fb_info *p, u8 __iomem *dst1, u32 fgcolor,
+		u32 bgcolor, u32 start_index, u32 pitch_index)
+{
+	u32 shift, color = 0, bpp = p->var.bits_per_pixel;
+	u32 __iomem *dst, *dst2;
+	u32 val, pitch = p->fix.line_length;
+	u32 null_bits = 32 - bpp;
+	u32 spitch = (image->width+7)/8;
+	const u8 *src = image->data, *s;
+	u32 i, j, l;
+	u32 bswapmask = fb_compute_bswapmask(p);
+
+	dst2 = (u32 __iomem *) dst1;
+	fgcolor <<= FB_LEFT_POS(p, bpp);
+	bgcolor <<= FB_LEFT_POS(p, bpp);
+
+	for (i = image->height; i--; ) {
+		shift = val = 0;
+		l = 8;
+		j = image->width;
+		dst = (u32 __iomem *) dst1;
+		s = src;
+
+		/* write leading bits */
+		if (start_index) {
+			u32 start_mask = ~fb_shifted_pixels_mask_u32(p,
+					start_index, bswapmask);
+			val = FB_READL(dst) & start_mask;
+			shift = start_index;
+		}
+
+		while (j--) {
+			l--;
+			color = (*s & (1 << l)) ? fgcolor : bgcolor;
+			val |= FB_SHIFT_HIGH(p, color, shift ^ bswapmask);
+
+			/* Did the bitshift spill bits to the next long? */
+			if (shift >= null_bits) {
+				FB_WRITEL(val, dst++);
+				val = (shift == null_bits) ? 0 :
+					FB_SHIFT_LOW(p, color, 32 - shift);
+			}
+			shift += bpp;
+			shift &= (32 - 1);
+			if (!l) {
+				l = 8;
+				s++;
+			}
+		}
+
+		/* write trailing bits */
+		if (shift) {
+			u32 end_mask = fb_shifted_pixels_mask_u32(p,
+					shift, bswapmask);
+
+			FB_WRITEL((FB_READL(dst) & end_mask) | val, dst);
+		}
+		dst1 += pitch;
+		src += spitch;
+		if (pitch_index) {
+			dst2 += pitch;
+			dst1 = (u8 __iomem *)
+				((u64 __force)dst2 & ~(sizeof(u32) - 1));
+			start_index += pitch_index;
+			start_index &= 32 - 1;
+		}
+	}
+}
+
+static inline void x2_fast_imageblit(const struct fb_image *image,
+		struct fb_info *p, u8 __iomem *dst1, u32 fgcolor,
+		u32 bgcolor)
+{
+	u32 fgx = fgcolor, bgx = bgcolor, bpp = p->var.bits_per_pixel;
+	u32 ppw = 32/bpp, spitch = (image->width + 7)/8;
+	u32 bit_mask, end_mask, eorx, shift;
+	const char *s = image->data, *src;
+	u32 __iomem *dst;
+	const u32 *tab = NULL;
+	int i, j, k;
+
+	switch (bpp) {
+	case 8:
+		tab = fb_be_math(p) ? cfb_tab8_be : cfb_tab8_le;
+		break;
+	case 16:
+		tab = fb_be_math(p) ? cfb_tab16_be : cfb_tab16_le;
+		break;
+	case 32:
+	default:
+		tab = cfb_tab32;
+		break;
+	}
+
+	for (i = ppw-1; i--; ) {
+		fgx <<= bpp;
+		bgx <<= bpp;
+		fgx |= fgcolor;
+		bgx |= bgcolor;
+	}
+
+	bit_mask = (1 << ppw) - 1;
+	eorx = fgx ^ bgx;
+	k = image->width/ppw;
+
+	for (i = image->height; i--; ) {
+		dst = (u32 __iomem *) dst1, shift = 8; src = s;
+
+		for (j = k; j--; ) {
+			shift -= ppw;
+			end_mask = tab[(*src >> shift) & bit_mask];
+			FB_WRITEL((end_mask & eorx)^bgx, dst++);
+			if (!shift) {
+				shift = 8;
+				src++;
+			}
+		}
+		dst1 += p->fix.line_length;
+		s += spitch;
+	}
+}
+
+
 static struct fb_ops x2fb_ops = {
 	.fb_check_var	= x2fb_check_var,
 	.fb_set_par	= x2fb_set_par,
@@ -841,7 +1117,8 @@ static struct fb_ops x2fb_ops = {
 	.fb_blank	= x2fb_blank,
 	.fb_fillrect	= cfb_fillrect,
 	.fb_copyarea	= cfb_copyarea,
-	.fb_imageblit	= cfb_imageblit,
+//	.fb_imageblit	= cfb_imageblit,
+	.fb_imageblit   = x2fb_imageblit,
 	.fb_mmap	= x2fb_mmap,
 };
 

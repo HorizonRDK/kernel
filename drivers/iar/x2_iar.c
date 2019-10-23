@@ -1613,7 +1613,6 @@ static int x2_iar_probe(struct platform_device *pdev)
 		ret = ips_set_iar_clk32(1);
 		if (ret)
 			return ret;
-
 		temp1 =
 		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr;
 		tempi = 0;
@@ -1629,9 +1628,9 @@ static int x2_iar_probe(struct platform_device *pdev)
 		g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].vaddr;
 		tempi = 0;
 
-		//for(tempi = 0; tempi < MAX_FRAME_BUF_SIZE; tempi++){
-		//	*temp1++ = 0x5a;
-		//}
+		for (tempi = 0; tempi < MAX_FRAME_BUF_SIZE; tempi++)
+			*temp1++ = 0x00;
+/*
 		deta = 800*480*4/10;
 		for (tempi = 0; tempi < 800*48*4; tempi++) {
 			if (((tempi + 4) % 4) == 0)
@@ -1708,6 +1707,7 @@ static int x2_iar_probe(struct platform_device *pdev)
 		//	pr_info("0x%x  ", *temp1);
 		//	temp1++;
 		//}
+*/
 	} else if (display_type == HDMI_TYPE) {
 		pr_info("display type is HDMI panel!!!!\n");
 		temp1 =

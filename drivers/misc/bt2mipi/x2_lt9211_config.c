@@ -94,12 +94,13 @@ int set_lt9211_config(struct fb_info *fb, unsigned int convert_type)
 	//}
 
 	if (convert_type == BT1120_TO_RGB888) {
-		ret = lt9211_chip_id();
+/*		ret = lt9211_chip_id();
 		if (ret) {
 			pr_err("%s() Err get lt9211 chip id ret= %d\n",
 						__func__, ret);
 			return ret;
 		}
+*/
 		ret = lt9211_system_int_to_RGB();
 		if (ret) {
 			pr_err("%s() Err init lt9211 system ret= %d\n",
@@ -119,22 +120,22 @@ int set_lt9211_config(struct fb_info *fb, unsigned int convert_type)
 	//		while(1);
 	//	}
 
-		msleep(500);
+//		msleep(500);
 
 		TimingStr = video_800x480_60Hz;
 		lt9211_set_timing_para_to_RGB();
 
-		msleep(500);
-		msleep(500);
+//		msleep(500);
+		msleep(20);
 		//msleep(500);
 		//800x480 timing parameter
 		//hfp:40 hs:48 hbp:40 hact:800 htotal:928 vfp:12 vs:3
 		//vbp:30 vact:480 vtotal:525 pclk:29232
-
+#ifdef CHECK_TIMING
 		//video check debug
 		x2_write_lt9211(0xff, 0x86);
 		x2_write_lt9211(0x20, 0x00);
-		msleep(500);
+		msleep(50);
 		//msleep(500);
 		x2_read_lt9211(0x70, &sync_polarity);
 		LT9211_DEBUG("sync_polarity is %d.\n", sync_polarity);
@@ -185,7 +186,8 @@ int set_lt9211_config(struct fb_info *fb, unsigned int convert_type)
 
 
 	//	lt9211r_patten(&video_800x480_60Hz);
-		msleep(100);
+//		msleep(100);
+#endif
 		ret = lt9211_tx_digital_RGB();
 		if (ret) {
 			pr_err("%s() Err init lt9211 system ret= %d\n",
