@@ -13,7 +13,9 @@
  * still shows in the naming of this file, the kconfig symbols and some symbols
  * in the code.
  */
-
+#if defined(CONFIG_SERIAL_X2_UART_CONSOLE) && defined(CONFIG_MAGIC_SYSRQ)
+#define SUPPORT_SYSRQ
+#endif
 #include <linux/platform_device.h>
 #include <linux/serial.h>
 #include <linux/console.h>
@@ -258,7 +260,7 @@ static void x2_uart_dma_txdone(void *dev_id)
 	return;
 }
 
-static void x2_uart_dma_rxdone(void *dev_id)
+static void x2_uart_dma_rxdone(void *dev_id, unsigned int irqstatus)
 {
 	unsigned int rx_bytes;
 	unsigned int count1, count2;
@@ -267,69 +269,85 @@ static void x2_uart_dma_rxdone(void *dev_id)
 	struct tty_port *tty_port = &port->state->port;
 	struct x2_uart *x2_port = port->private_data;
 	unsigned int val;
+	char data;
 
-	rx_bytes = readl(port->membase + X2_UART_RXSIZE);
-	dma_sync_single_for_cpu(port->dev, x2_port->rx_dma_buf,
-				X2_UART_DMA_SIZE, DMA_FROM_DEVICE);
-
-	if (rx_bytes > x2_port->rx_off) {
-		count1 = rx_bytes - x2_port->rx_off;
-		count2 = 0;
-	} else {
-		count1 = X2_UART_DMA_SIZE - x2_port->rx_off;
-		count2 = rx_bytes;
-	}
-
-#ifdef CONFIG_X2_SERIAL_DEBUGFS
-	dgb_rx_count = rx_bytes;
-#endif /* CONFIG_X2_SERIAL_DEBUGFS */
-
-	copied = tty_insert_flip_string(tty_port,
-					((unsigned char *)(x2_port->rx_buf +
-							   x2_port->rx_off)),
-					count1);
-	if (copied != count1) {
-		WARN_ON(1);
-		dev_err(port->dev, "first, rxdata copy to tty layer failed\n");
-		port->icount.rx += copied;
-	} else {
-		port->icount.rx += count1;
-
-		x2_port->rx_off = (x2_port->rx_off + count1) &
-			(X2_UART_DMA_SIZE - 1);
-
-		if (count2 > 0) {
-			copied = tty_insert_flip_string(tty_port,
-							((unsigned char
-							  *)(x2_port->rx_buf +
-								 x2_port->rx_off)),
-							count2);
-			if (copied != count2) {
-				WARN_ON(1);
-				dev_err(port->dev,
-					"second, rxdata copy to tty layer failed\n");
-				port->icount.rx += copied;
-			} else {
-				port->icount.rx += count2;
-
-				x2_port->rx_off = (x2_port->rx_off + count2) &
-					(X2_UART_DMA_SIZE - 1);
+	while (irqstatus & (UART_RXDON | UART_RXTO | UART_BI)) {
+		if (irqstatus & UART_BI) {
+			irqstatus &= ~UART_BI;
+			port->icount.brk++;
+			if (uart_handle_break(port))
+				continue;
+		}
+		rx_bytes = readl(port->membase + X2_UART_RXSIZE);
+		dma_sync_single_for_cpu(port->dev, x2_port->rx_dma_buf,
+					X2_UART_DMA_SIZE, DMA_FROM_DEVICE);
+		data = *(char *)(x2_port->rx_buf + x2_port->rx_off);
+		if (uart_handle_sysrq_char(port, data)) {
+			x2_port->rx_off++;
+			irqstatus = 0;
+			if (rx_bytes == x2_port->rx_off) {
+				x2_port->rx_off &= (X2_UART_DMA_SIZE - 1);
+				continue;
 			}
 		}
+		if (rx_bytes > x2_port->rx_off) {
+			count1 = rx_bytes - x2_port->rx_off;
+			count2 = 0;
+		} else {
+			count1 = X2_UART_DMA_SIZE - x2_port->rx_off;
+			count2 = rx_bytes;
+		}
+
+#ifdef CONFIG_X2_SERIAL_DEBUGFS
+		dgb_rx_count = rx_bytes;
+#endif /* CONFIG_X2_SERIAL_DEBUGFS */
+
+		copied = tty_insert_flip_string(tty_port,
+						((unsigned char *)(x2_port->rx_buf +
+								   x2_port->rx_off)),
+						count1);
+		if (copied != count1) {
+			WARN_ON(1);
+			dev_err(port->dev, "first, rxdata copy to tty layer failed\n");
+			port->icount.rx += copied;
+		} else {
+			port->icount.rx += count1;
+
+			x2_port->rx_off = (x2_port->rx_off + count1) &
+					  (X2_UART_DMA_SIZE - 1);
+
+			if (count2 > 0) {
+				copied = tty_insert_flip_string(tty_port,
+								((unsigned char
+								  *)(x2_port->rx_buf +
+								     x2_port->rx_off)),
+								count2);
+				if (copied != count2) {
+					WARN_ON(1);
+					dev_err(port->dev,
+						"second, rxdata copy to tty layer failed\n");
+					port->icount.rx += copied;
+				} else {
+					port->icount.rx += count2;
+
+					x2_port->rx_off = (x2_port->rx_off + count2) &
+							  (X2_UART_DMA_SIZE - 1);
+				}
+			}
+		}
+
+		dma_sync_single_for_device(port->dev, x2_port->rx_dma_buf,
+					   X2_UART_DMA_SIZE, DMA_TO_DEVICE);
+
+		spin_unlock(&port->lock);
+		tty_flip_buffer_push(&port->state->port);
+		spin_lock(&port->lock);
+		irqstatus = 0;
 	}
-
-	dma_sync_single_for_device(port->dev, x2_port->rx_dma_buf,
-				   X2_UART_DMA_SIZE, DMA_TO_DEVICE);
-
-	spin_unlock(&port->lock);
-	tty_flip_buffer_push(&port->state->port);
-	spin_lock(&port->lock);
-
 	val = readl(port->membase + X2_UART_RXDMA);
 	val &= ~UART_RXSTA;
 	val |= UART_RXSTA;
 	writel(val, port->membase + X2_UART_RXDMA);
-
 	return;
 }
 
@@ -506,8 +524,8 @@ static irqreturn_t x2_uart_isr(int irq, void *dev_id)
 	/* Clear irq's status */
 	writel(status, port->membase + X2_UART_SRC_PND);
 
-	if (status & (UART_RXTO | UART_RXDON)) {
-		x2_uart_dma_rxdone(dev_id);
+	if (status & (UART_RXTO | UART_RXDON | UART_BI)) {
+		x2_uart_dma_rxdone(dev_id, status);
 	}
 
 	if (status & UART_TXDON) {
