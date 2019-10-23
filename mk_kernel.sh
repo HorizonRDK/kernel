@@ -6,6 +6,7 @@ cross=aarch64-linux-gnu-
 arch=arm64
 cfg=x2aj2a_fpga_defconfig
 fs_tmp="rootfs"
+mod_path="mod_dir"
 
 ####################################
 # function define
@@ -66,6 +67,19 @@ mk_initramfs()
     cd -
 }
 
+mk_modules_install()
+{
+    make CROSS_COMPILE=$cross ARCH=$arch INSTALL_MOD_PATH=$mod_path modules_install
+
+    if [ ! -d "$mod_path" ] || [ ! -d "$fs_tmp" ]; then
+        echo no existing $mod_path or $fs_tmp, please make sure you already excute ./mk_kernel.sh -e
+        exit
+    fi
+
+    sudo cp $mod_path/* $fs_tmp/ -rf
+    sync
+}
+
 helper()
 {
     echo
@@ -79,6 +93,7 @@ helper()
     echo "    -r: pack rootfs from kernel root folder"
     echo "    -m: make menuconfig by specified defconfig (define as cfg above)"
     echo "    -o: make menuconfig without specified defconfig (define as cfg above)"
+    echo "    -i: make modules_install (to INSTALL_MOD_PATH)"
     echo "    -h: helper prompt"
     echo
 }
@@ -88,7 +103,7 @@ helper()
 ####################################
 
 #"uh" > "u:h:" if need args
-while getopts "mjcherod" opt; do
+while getopts "mjcheroid" opt; do
   case $opt in
        m)
 	   mk_cfg
@@ -116,6 +131,10 @@ while getopts "mjcherod" opt; do
            ;;
        d)
 	   mk_dtbs
+	   exit
+	   ;;
+       i)
+	   mk_modules_install
 	   exit
 	   ;;
        h)
