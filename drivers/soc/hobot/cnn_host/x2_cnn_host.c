@@ -856,7 +856,7 @@ static int x2_cnn_fc_fifo_enqueue(struct x2_cnn_dev *dev,
 			residue_fc_cnt * X2_CNN_FC_SIZE);
 		}
 
-		for (i = 0; i < insert_fc_cnt; i++) {
+		for (i = 0; i < fc_buf->fc_cnt; i++) {
 			x2_cnn_set_fc_start_time(dev,
 						 tmp_ptr->interrupt_num,
 						 count);
