@@ -502,16 +502,16 @@ static int recv_thread(void *data)
 	while (1) {
 		recv_handle_data_frame(&domain);
 		usleep_range(1000, 2000);
-	}
 thread_flow_control:
-	surplus_frame = domain_stock_frame_num(&domain);
-	if (surplus_frame > domain.channel.frame_cache_max) {
-		++domain.domain_statistics.rx_flowcontrol_count;
-		remaining_time = msleep_interruptible(20);
-		if (!remaining_time)
-			goto thread_flow_control;
-		else
-			pr_notice("thread_flow_control interruptible\n");
+		surplus_frame = domain_stock_frame_num(&domain);
+		if (surplus_frame > domain.channel.frame_cache_max) {
+			++domain.domain_statistics.rx_flowcontrol_count;
+			remaining_time = msleep_interruptible(20);
+			if (!remaining_time)
+				goto thread_flow_control;
+			else
+				pr_notice("thread_flow_control interruptible\n");
+		}
 	}
 
 	return 0;
