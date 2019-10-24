@@ -58,9 +58,82 @@ typedef struct _subdev_dwe_ctx {
 	dwe_context_t ctx;
 	uint32_t ldc_irqstatus;
 	uint32_t dis_irqstatus;
+	struct work_struct ldc_work;
+	struct work_struct dis_work;
 } subdev_dwe_ctx;
- 
+
 static subdev_dwe_ctx *dwe_ctx;
+
+static void ldc_task_work(struct work_struct *work)
+{
+	int ret = 0;
+
+	spin_lock_irq(&dwe_ctx->ldclock);
+	LOG(LOG_DEBUG, "%s -- %d, run %d , port %d, ldc_irq %d !\n", __func__, __LINE__, dwe_ctx->ctx.ldc_running, dwe_ctx->ctx.ldc_next_port, dwe_ctx->ldc_irqstatus);
+
+	//set param when next port is setting
+	if ((dwe_ctx->ctx.ldc_next_port >= 0) && (dwe_ctx->ctx.ldc_next_port < 0xff)) {
+		ret = ldc_hwparam_set(&dwe_ctx->ctx, dwe_ctx->ctx.ldc_next_port);
+		dwe_ctx->ctx.ldc_next_port = dwe_ctx->ctx.ldc_next_port + 0x100;
+	}
+
+	//set setting when ldc is not running
+	if (dwe_ctx->ctx.ldc_running == 0) {
+		if (dwe_ctx->ctx.ldc_next_port >= 0) {
+			ret = ldc_hwpath_set(&dwe_ctx->ctx, (dwe_ctx->ctx.ldc_next_port - 0x100));
+		}
+	}
+	spin_unlock_irq(&dwe_ctx->ldclock);
+}
+
+static void dis_task_work(struct work_struct *work)
+{
+	int ret = 0;
+
+	spin_lock_irq(&dwe_ctx->dislock);
+	LOG(LOG_DEBUG, "%s -- %d, run %d , port %d, dis_irq %d !\n", __func__, __LINE__, dwe_ctx->ctx.dis_running, dwe_ctx->ctx.dis_next_port, dwe_ctx->dis_irqstatus);
+
+	//set param when next port is setting
+	if ((dwe_ctx->ctx.dis_next_port >= 0) && (dwe_ctx->ctx.dis_next_port < 0xff)) {
+		ret = dis_hwparam_set(&dwe_ctx->ctx, dwe_ctx->ctx.dis_next_port);
+		dwe_ctx->ctx.dis_next_port = dwe_ctx->ctx.dis_next_port + 0x100;
+	}
+
+	//set setting when dis is not running
+	if (dwe_ctx->ctx.dis_running == 0) {
+		if (dwe_ctx->ctx.dis_next_port >= 0) {
+			ret = dis_hwpath_set(&dwe_ctx->ctx, (dwe_ctx->ctx.dis_next_port - 0x100));
+		}
+	}
+	spin_unlock_irq(&dwe_ctx->dislock);
+}
+
+//
+int ldc_set_ioctl(uint32_t port)
+{
+	int ret = 0;
+
+	spin_lock_irq(&dwe_ctx->ldclock);
+	dwe_ctx->ctx.ldc_next_port = port;
+	spin_unlock_irq(&dwe_ctx->ldclock);
+	schedule_work(&dwe_ctx->ldc_work);
+
+	return ret;
+}
+EXPORT_SYMBOL(ldc_set_ioctl);
+
+int dis_set_ioctl(uint32_t port)
+{
+	int ret = 0;
+
+	spin_lock_irq(&dwe_ctx->dislock);
+	dwe_ctx->ctx.dis_next_port = port;
+	spin_unlock_irq(&dwe_ctx->dislock);
+	schedule_work(&dwe_ctx->dis_work);
+
+	return ret;
+}
+EXPORT_SYMBOL(dis_set_ioctl);
 
 /* dis model irq
  * pg_done:
@@ -77,21 +150,39 @@ static subdev_dwe_ctx *dwe_ctx;
 static irqreturn_t x2a_dis_irq(int this_irq, void *data)
 {
 	unsigned long flags;
+	int ret = 0;
 	dis_irqstatus_u tmp_irq;
-	uint32_t tmp = 0xf;
 
 	disable_irq_nosync(this_irq);
 
 	spin_lock_irqsave(&dwe_ctx->dislock, flags);
 	//dis irq
-	get_dwe_int_status(dwe_ctx->dev_ctx->dis_dev->io_vaddr, &dwe_ctx->dis_irqstatus);
-	set_dwe_int_status(dwe_ctx->dev_ctx->dis_dev->io_vaddr, &tmp);
-	tmp_irq.status_g = dwe_ctx->dis_irqstatus;
-	printk(KERN_INFO "%s --%d, status %d !\n",
-		__func__, __LINE__, dwe_ctx->dis_irqstatus);
+	get_dwe_int_status(dwe_ctx->dev_ctx->dis_dev->io_vaddr,
+		&tmp_irq.status_g);
+	set_dwe_int_status(dwe_ctx->dev_ctx->dis_dev->io_vaddr,
+		&tmp_irq.status_g);
+	dwe_ctx->dis_irqstatus = tmp_irq.status_g;
 
-	dis_hwparam_set(&dwe_ctx->ctx, dwe_ctx->ctx.next_port, 0);
-	dis_hwpath_set(&dwe_ctx->ctx, dwe_ctx->ctx.next_port);
+	if (tmp_irq.status_b.int_pg_done == 1) {
+		LOG(LOG_DEBUG, "dis  pg_done  !\n");
+	}
+
+	if (tmp_irq.status_b.int_frame_done == 1) {
+		dwe_ctx->ctx.dis_running = 0;
+		ret = dwe_stream_put_frame(dwe_ctx->ctx.dis_curr_port,
+			&dwe_ctx->ctx.dframes[dwe_ctx->ctx.dis_curr_port]);
+		//if online
+		if (dwe_ctx->ctx.online_enable == 1) {
+			dwe_ctx->ctx.dis_next_port = dwe_ctx->ctx.online_port;
+		}
+		schedule_work(&dwe_ctx->dis_work);
+	}
+
+	if ((tmp_irq.status_b.int_dis_h_ratio_err == 1) ||
+		(tmp_irq.status_b.int_dis_v_ratio_err == 1)) {
+		dwe_ctx->ctx.dis_running = 0;
+		LOG(LOG_DEBUG, "over_flow! \n");
+	}
 
 	spin_unlock_irqrestore(&dwe_ctx->dislock, flags);
 
@@ -116,41 +207,46 @@ static irqreturn_t x2a_dis_irq(int this_irq, void *data)
  *   else
  *       using setting[0-1] 
  */
-
 static irqreturn_t x2a_ldc_irq(int this_irq, void *data)
 {
 	unsigned long flags;
 	ldc_irqstatus_u tmp_irq;
-	uint32_t tmp = 0xff;
 
 	disable_irq_nosync(this_irq);
 
 	spin_lock_irqsave(&dwe_ctx->ldclock, flags);
-	get_ldc_int_status(dwe_ctx->dev_ctx->ldc_dev->io_vaddr,
-		&dwe_ctx->ldc_irqstatus);
-	set_ldc_int_status(dwe_ctx->dev_ctx->ldc_dev->io_vaddr, &tmp);
-	tmp_irq.status_g = dwe_ctx->ldc_irqstatus;
-	printk(KERN_INFO "%s --%d, status %d !\n",
-		__func__, __LINE__, dwe_ctx->ldc_irqstatus);
-	
+	get_ldc_int_status(dwe_ctx->dev_ctx->ldc_dev->io_vaddr, &tmp_irq.status_g);
+	set_ldc_int_status(dwe_ctx->dev_ctx->ldc_dev->io_vaddr, &tmp_irq.status_g);
+	dwe_ctx->ldc_irqstatus = tmp_irq.status_g;
+
 	if (tmp_irq.status_b.frame_start == 1) {
-		dwe_ctx->ctx.ctx_sitchwin =  1;
-		dwe_ctx->ctx.ldc_update = 0;
-		dwe_ctx->ctx.dis_update = 0;
-	} 
+		dwe_ctx->ctx.ldc_running = 1;
+		dwe_ctx->ctx.dis_running = 1;
+		if ( dwe_ctx->ctx.dis_next_port > 0)
+			dwe_ctx->ctx.dis_next_port = -1;
 
-	if (tmp_irq.status_b.output_frame_done == 1)
-		dwe_ctx->ctx.ctx_sitchwin = 0;
+		if ( dwe_ctx->ctx.ldc_next_port > 0)
+			dwe_ctx->ctx.ldc_next_port = -1;
+	}
 
-	ldc_hwparam_set(&dwe_ctx->ctx, dwe_ctx->ctx.next_port, 0);
-	ldc_hwpath_set(&dwe_ctx->ctx, dwe_ctx->ctx.next_port);
+	if (tmp_irq.status_b.output_frame_done == 1) {
+		dwe_ctx->ctx.ldc_running = 0;
+		//if online
+		if (dwe_ctx->ctx.online_enable == 1) {
+			dwe_ctx->ctx.ldc_next_port = dwe_ctx->ctx.online_port;
+		}
+		schedule_work(&dwe_ctx->ldc_work);
+	}
+	if (tmp_irq.status_b.overflow == 1) {
+		dwe_ctx->ctx.ldc_running = 0;
+		LOG(LOG_DEBUG, "over_flow! \n");
+	}
 
 	spin_unlock_irqrestore(&dwe_ctx->ldclock, flags);
 
 	enable_irq(this_irq);
 	return IRQ_HANDLED;
 }
-
 
 int check_dev(struct dwe_dev_s *check)
 {
@@ -170,38 +266,37 @@ int dwe_hw_init(void)
 {
 	int ret = 0;
 	unsigned int irq = 0;
-
-	printk(KERN_INFO "%s --%d !\n", __func__, __LINE__);
 	
 	ret = check_dev(dwe_ctx->dev_ctx);
 	if (ret < 0) {
-		printk(KERN_INFO "dwe_ctx->dev_ctx is error! \n");
+		LOG(LOG_ERR, "dwe_ctx->dev_ctx is error! \n");
 		return ret;
 	} else {
 		irq = dwe_ctx->dev_ctx->ldc_dev->irq_num;
 		ret = request_irq(irq, x2a_ldc_irq, IRQF_TRIGGER_HIGH, "X2A_LDC", NULL);
 		if (ret < 0) {
-			printk(KERN_INFO "ldc irq %d register failed!\n", irq);
+			LOG(LOG_ERR, "ldc irq %d register failed!\n", irq);
 			goto irqldc_err;
 		}
-		
-		printk(KERN_INFO "%s --%d !\n", __func__, __LINE__);
-	
+
 		irq = dwe_ctx->dev_ctx->dis_dev->irq_num;
 		ret = request_irq(irq, x2a_dis_irq, IRQF_TRIGGER_HIGH, "X2A_DIS", NULL);
 		if (ret < 0) {
-			printk(KERN_INFO "dis irq %d register failed!\n", irq);
+			LOG(LOG_ERR, "dis irq %d register failed!\n", irq);
 			goto irqdis_err;
 		}
 	}
-	
-	printk(KERN_INFO "%s --%d !\n", __func__, __LINE__);
+
+	/* init workqueue */
+	INIT_WORK(&dwe_ctx->ldc_work, ldc_task_work);
+	INIT_WORK(&dwe_ctx->dis_work, dis_task_work);
+
 	ret = dwe_init_api(&dwe_ctx->ctx, dwe_ctx->dev_ctx, &dwe_ctx->ptr_param);
 	if (ret < 0) {
-		printk(KERN_INFO "dwe_init_api is failed!\n");
+		LOG(LOG_ERR, "dwe_init_api is failed!\n");
 		goto irq_err;
 	} else {
-		printk(KERN_INFO "dwe_ctx->ptr_param is %p\n", dwe_ctx->ptr_param);
+		LOG(LOG_INFO, "dwe_ctx->ptr_param is %p\n", dwe_ctx->ptr_param);
 	}
 
 	return ret;
@@ -266,7 +361,7 @@ static int soc_dwe_reset(struct v4l2_subdev *sd, u32 val)
 
 static long soc_dwe_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 {
-	long rc = 0;
+	int rc = 0;
 
 	if (ARGS_TO_PTR(arg)->ctx_num >= FIRMWARE_CONTEXT_NUMBER) {
 		LOG(LOG_ERR, "Failed to control dwe_ioctl :%d\n", ARGS_TO_PTR(arg)->ctx_num);
@@ -275,12 +370,12 @@ static long soc_dwe_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 
 	switch (cmd) {
 	case SOC_DWE_SET_LDC:
-		ldc_hwparam_set(&dwe_ctx->ctx, ARGS_TO_PTR(arg)->ctx_num, 0);
+		rc = ldc_set_ioctl(ARGS_TO_PTR(arg)->ctx_num);
 		break;
 	case SOC_DWE_GET_LDC:
 		break;
 	case SOC_DWE_SET_DIS:
-		dis_hwparam_set(&dwe_ctx->ctx, ARGS_TO_PTR(arg)->ctx_num, 0);
+		rc = dis_set_ioctl(ARGS_TO_PTR(arg)->ctx_num);
 		break;
 	case SOC_DWE_GET_DIS:
 		break;
@@ -289,7 +384,7 @@ static long soc_dwe_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 		rc = -1;
 		break;
 	};
-	return rc;
+	return (long)rc;
 }
 
 static const struct v4l2_subdev_core_ops core_ops = {
@@ -380,7 +475,7 @@ static int chardevs_init(void)
 devinit_err:
 	chardevs_exit();
 	return ret;
-} 
+}
 
 int __init acamera_soc_dwe_init(void)
 {

@@ -35,7 +35,7 @@
 //define initial printk model
 #define FW_LOG_MASK 0x7FFFFE
 // define initial printk level
-#define FW_LOG_LEVEL LOG_DEBUG //Set Log level
+#define FW_LOG_LEVEL LOG_ERR //Set Log level
 // used in isr
 #define FW_LOG_FROM_ISR 0
 // enable/disable printk function & file 

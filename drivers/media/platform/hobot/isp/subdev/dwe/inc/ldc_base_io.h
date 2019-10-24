@@ -100,25 +100,29 @@
 #define LDC_LIN_BUF_CNT_UV0         (0x81C)
 #define LDC_LIN_BUF_CNT_UV1         (0x820)
 
-//-------------------------------------------------------------------------------------------- //
+//----------------------------------------------------------------//
 //register operation
-//-------------------------------------------------------------------------------------------- //
-static __inline void ldc_write_32reg(const char __iomem *regbase, uint32_t addr, uint32_t *buffer)
+//----------------------------------------------------------------//
+static __inline void ldc_write_32reg(const char __iomem *regbase,
+	uint32_t addr, uint32_t *buffer)
 {
 	sys_write_32reg(regbase, addr, buffer);
 }
 
-static __inline void ldc_read_32reg(const char __iomem *regbase, uint32_t addr, uint32_t *buffer)
+static __inline void ldc_read_32reg(const char __iomem *regbase,
+	uint32_t addr, uint32_t *buffer)
 {
 	sys_read_32reg(regbase, addr, buffer);
 }
 
-static __inline void ldc_write_buffer(const char __iomem *regbase, uint32_t addr, uint32_t *buffer, uint32_t len)
+static __inline void ldc_write_buffer(const char __iomem *regbase,
+	uint32_t addr, uint32_t *buffer, uint32_t len)
 {
 	sys_write_buffer(regbase, addr, buffer, len);
 }
 
-static __inline void ldc_read_buffer(const char __iomem *regbase, uint32_t addr, uint32_t *buffer, uint32_t len)
+static __inline void ldc_read_buffer(const char __iomem *regbase,
+	uint32_t addr, uint32_t *buffer, uint32_t len)
 {
 	sys_read_buffer(regbase, addr, buffer, len);
 }
@@ -127,14 +131,14 @@ static __inline void ldc_read_buffer(const char __iomem *regbase, uint32_t addr,
 //change setting
 //----------------------------------------------------------------------------------------- //
 typedef struct _ldc_setting_s {
-	uint32_t rg_update_select: 1;
-	uint32_t reserverved0: 7;
-	uint32_t rg_redirect_3: 2;
-	uint32_t rg_redirect_2: 2;
-	uint32_t rg_redirect_1: 2;
-	uint32_t rg_redirect_0: 2;
-	uint32_t reserverved1: 14;
 	uint32_t rg_max_index: 2;
+	uint32_t reserverved1: 14;
+	uint32_t rg_redirect_0: 2;
+	uint32_t rg_redirect_1: 2;
+	uint32_t rg_redirect_2: 2;
+	uint32_t rg_redirect_3: 2;
+	uint32_t reserverved0: 7;
+	uint32_t rg_update_select: 1;
 } ldc_setting_s; 
 
 typedef union _ldc_setting_u {
@@ -142,26 +146,28 @@ typedef union _ldc_setting_u {
 	ldc_setting_s set_b;
 } ldc_setting_u;
 
-static __inline void set_ldc_setting(const char __iomem *regbase, uint32_t *pset)
+static __inline void set_ldc_setting(const char __iomem *regbase,
+	uint32_t *pset)
 {
 	ldc_write_32reg(regbase, LDC_SET_SETTING, pset);
 }
 
-static __inline void get_ldc_setting(const char __iomem *regbase, uint32_t *pset)
+static __inline void get_ldc_setting(const char __iomem *regbase,
+	uint32_t *pset)
 {
 	ldc_read_32reg(regbase, LDC_SET_SETTING, pset);
 }
 
-//----------------------------------------------------------------------------------------- //
+//---------------------------------------------------------------//
 //model setting
-//----------------------------------------------------------------------------------------- //
+//---------------------------------------------------------------//
 typedef struct _ldc_path_sel_s {
-	uint32_t reserved0: 16;
-	uint32_t rg_h_blank_cyc: 8;
-	uint32_t reserved1: 5;
-	uint32_t rg_uv_interpo: 1;
-	uint32_t rg_uv_mode: 1;
 	uint32_t rg_y_only: 1;
+	uint32_t rg_uv_mode: 1;
+	uint32_t rg_uv_interpo: 1;
+	uint32_t reserved1: 5;
+	uint32_t rg_h_blank_cyc: 8;
+	uint32_t reserved0: 16;
 } ldc_path_sel_s;
 
 typedef union _ldc_path_sel_u {
@@ -170,8 +176,8 @@ typedef union _ldc_path_sel_u {
 } ldc_path_sel_u;
 
 typedef struct _ldc_picsize_s {
-        uint16_t pic_h;
-        uint16_t pic_w;
+	uint16_t pic_h;
+	uint16_t pic_w;
 } ldc_picsize_s;
 
 typedef union _ldc_picsize_u {
@@ -180,19 +186,19 @@ typedef union _ldc_picsize_u {
 } ldc_picsize_u;
 
 typedef struct _ldc_algoparam_s {
-        uint16_t rg_algo_param_a;
-        uint16_t rg_algo_param_b;
+	uint16_t rg_algo_param_a;
+	uint16_t rg_algo_param_b;
 } ldc_algoparam_s;
- 
+
 typedef union _ldc_algoparam_u {
 	uint32_t param_g;
 	ldc_algoparam_s param_b;
 } ldc_algoparam_u;
 
 typedef struct _ldc_off_shift_s {
-	uint32_t reserved0: 16;
-	uint32_t rg_center_yoff: 8;
 	uint32_t rg_center_xoff: 8;
+	uint32_t rg_center_yoff: 8;
+	uint32_t reserved0: 16;
 } ldc_off_shift_s;
 
 typedef union _ldc_off_shift_u {
@@ -201,10 +207,10 @@ typedef union _ldc_off_shift_u {
 } ldc_off_shift_u;
 
 typedef struct _ldc_woi_s {
-	uint32_t reserved0: 4;
-	uint32_t rg_length: 12;
-	uint32_t reserved1: 4;
 	uint32_t rg_start: 12;
+	uint32_t reserved1: 4;
+	uint32_t rg_length: 12;
+	uint32_t reserved0: 4;
 } ldc_woi_s;
 
 typedef union _ldc_woi_u {
@@ -241,17 +247,18 @@ static __inline void set_chn_ldc_param(const char __iomem *regbase,
 	}
 }
 
-//----------------------------------------------------------------------------------------- //
+//--------------------------------------------------------------------//
 //intterrupt setting
-//----------------------------------------------------------------------------------------- //
+//--------------------------------------------------------------------//
 typedef struct _ldc_irqmask_s {
-	uint32_t reserved0: 26;
-	uint32_t overflow_en: 1;
-	uint32_t isp_in_overwrite_en: 1;
-	uint32_t line_in_overwrite_en: 1;
-	uint32_t frame_in_overwrite_en: 1;
-	uint32_t output_frame_done_en: 1;
 	uint32_t input_frame_done_en: 1;
+	uint32_t output_frame_done_en: 1;
+	uint32_t frame_overwrite_en: 1;
+	uint32_t line_overwrite_en: 1;
+	uint32_t isp_in_overwrite_en: 1;
+	uint32_t overflow_en: 1;
+	uint32_t line_buf_woi_errror_en: 1;
+	uint32_t reserved0: 25;
 } ldc_irqmask_s;
 
 typedef union _ldc_irqmask_u {
@@ -260,14 +267,15 @@ typedef union _ldc_irqmask_u {
 } ldc_irqmask_u;
 
 typedef struct _ldc_irqstatus_s {
-	uint32_t reserved0: 26;
-	uint32_t frame_start: 1;
-	uint32_t overflow: 1;
-	uint32_t isp_in_overwrite: 1;
-	uint32_t line_in_overwrite: 1;
-	uint32_t frame_in_overwrite: 1;
-	uint32_t output_frame_done: 1;
 	uint32_t input_frame_done: 1;
+	uint32_t output_frame_done: 1;
+	uint32_t frame_overwrite: 1;
+	uint32_t line_overwrite: 1;
+	uint32_t isp_in_overwrite: 1;
+	uint32_t overflow: 1;
+	uint32_t frame_start: 1;
+	uint32_t line_buf_woi_error: 1;
+	uint32_t reserved0: 25;
 } ldc_irqstatus_s;
 
 typedef union _ldc_irqstatus_u {
@@ -292,28 +300,32 @@ static __inline void set_ldc_int_status(const char __iomem *regbase,
 {
 	ldc_write_32reg(regbase, LDC_INT_STATUS, int_status);
 }
-//----------------------------------------------------------------------------------------- //
+//--------------------------------------------------------------------//
 //ldc bypass
-//----------------------------------------------------------------------------------------- //
-static __inline void set_ldc_bypass(const char __iomem *regbase, uint32_t *bypass)
+//--------------------------------------------------------------------//
+static __inline void set_ldc_bypass(const char __iomem *regbase,
+	uint32_t *bypass)
 {
 	ldc_write_32reg(regbase, LDC_BYPASS, bypass);
 }
 
-//----------------------------------------------------------------------------------------- //
+//--------------------------------------------------------------------//
 //ldc_soft setting
-//----------------------------------------------------------------------------------------- //
-static __inline void set_ldc_soft_reset(const char __iomem *regbase, uint32_t *soft_reset_sw)
+//--------------------------------------------------------------------//
+static __inline void set_ldc_soft_reset(const char __iomem *regbase,
+	uint32_t *soft_reset_sw)
 {
 	ldc_write_32reg(regbase, LDC_SOFT_RESET, soft_reset_sw);
 }
 
-static __inline void set_ldc_sw_update(const char __iomem *regbase, uint32_t *sw_update_sw)
+static __inline void set_ldc_sw_update(const char __iomem *regbase,
+	uint32_t *sw_update_sw)
 {
 	ldc_write_32reg(regbase, LDC_SW_UPDATE, sw_update_sw);
 }
 
-static __inline void get_ldc_cur_index(const char __iomem *regbase, uint32_t *ldc_cur_index)
+static __inline void get_ldc_cur_index(const char __iomem *regbase,
+	uint32_t *ldc_cur_index)
 {
 	ldc_read_32reg(regbase, LDC_CUR_SET_INDEX, ldc_cur_index);
 }

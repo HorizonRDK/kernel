@@ -40,6 +40,7 @@
 #include <linux/vmalloc.h>
 #include <linux/mutex.h>
 #include <linux/dma-mapping.h>
+#include <linux/delay.h>
 #include "dwe_char.h"
 #include "acamera_logger.h"
 #include "system_dwe_api.h"
@@ -96,8 +97,6 @@ static int dwe_fop_open(struct inode *pinode, struct file *pfile)
 		goto vb2_failed;
 	}
 
-	printk(KERN_INFO "dma_ops1  is %p !\n",
-		get_dma_ops(dwe_mod[tmp]->dwe_chardev.this_device));
 	LOG(LOG_INFO, "open is success !\n");
 
 	return 0;
@@ -179,7 +178,7 @@ static unsigned int dwe_fop_poll(struct file *pfile,
 
 
 	if (dwe_cdev->vb2_q.lock && mutex_lock_interruptible(dwe_cdev->vb2_q.lock))
-		return -1;//return POLLERR;
+		return POLLERR;//return POLLERR;
 
 //	ret = vb2_poll(&dwe_cdev->vb2_q, pfile, wait);
 	ret = vb2_core_poll(&dwe_cdev->vb2_q, pfile, wait);
@@ -344,6 +343,12 @@ static int dwe_v4l2_format(void *priv, struct v4l2_format *p)
 	return rc;
 }
 
+//temp
+extern int dis_set_ioctl(uint32_t port);
+extern int ldc_set_ioctl(uint32_t port);
+static uint32_t tmp_port_save = 0;
+//
+
 static long dwe_fop_ioctl(struct file *pfile, unsigned int cmd,
 			unsigned long arg)
 {
@@ -353,6 +358,7 @@ static long dwe_fop_ioctl(struct file *pfile, unsigned int cmd,
 	dis_param_s tmp_dis;
 	ldc_param_s tmp_ldc;
 	pg_param_s  tmp_pg;
+	uint32_t tmp_enable = 0;
 	struct v4l2_buffer tmp_b;
 	struct v4l2_requestbuffers tmp_p;
 	struct v4l2_format tmp_f;
@@ -445,7 +451,24 @@ static long dwe_fop_ioctl(struct file *pfile, unsigned int cmd,
 	}
 		break;
 	case DWEC_START_PG: {
+		tmp_port_save = tmp_port_save ^ 1;
+		ret = dis_set_ioctl(tmp_port_save);
+		ret = ldc_set_ioctl(tmp_port_save);
+		msleep(2000);
 		ret = start_pg_pulse(dwe_cdev->port);
+	}
+		break;
+	case DWEC_PG_ENABEL: {
+		if (arg == 0) {
+			LOG(LOG_ERR, "arg is null !\n");
+			return -1;
+		}
+		if (copy_from_user((void *)&tmp_enable, (void __user *)arg,
+			sizeof(uint32_t))) {
+			LOG(LOG_ERR, "copy is err !\n");
+			return -EINVAL;
+		}
+		ret = pg_mode_enable(tmp_enable);
 	}
 		break;
 	case DWEC_REQBUFS: {
@@ -570,7 +593,7 @@ int __init dwe_dev_init(uint32_t port)
 	int rc = 0;
 
 	LOG(LOG_DEBUG, "---[%s-%d]---\n", __func__, __LINE__);
-	if (port > FIRMWARE_CONTEXT_NUMBER) {
+	if (port >= FIRMWARE_CONTEXT_NUMBER) {
 		return -ENXIO;
 	}
 
@@ -595,11 +618,6 @@ int __init dwe_dev_init(uint32_t port)
 	dwe_mod[port]->dev_minor_id = dwe_mod[port]->dwe_chardev.minor;
 	dwe_mod[port]->dwe_chardev.this_device->bus = &platform_bus_type;
 	rc = of_dma_configure(dwe_mod[port]->dwe_chardev.this_device,
-		dwe_mod[port]->dwe_chardev.this_device->of_node);
-	printk(KERN_INFO "%s --%d, dma failed, err %d !\n",
-		__func__, __LINE__, rc);
-	printk(KERN_INFO "dev %p, of_node %p !\n",
-		dwe_mod[port]->dwe_chardev.this_device,
 		dwe_mod[port]->dwe_chardev.this_device->of_node);
 	dwe_mod[port]->port = port;
 	spin_lock_init(&(dwe_mod[port]->slock));
@@ -655,4 +673,4 @@ devinit_err:
 
 MODULE_AUTHOR("Horizon Inc.");
 MODULE_DESCRIPTION("dwe_char dev of x2a");
-MODULE_LICENSE("GPL");
+MODULE_LICENSE("GPL v2");

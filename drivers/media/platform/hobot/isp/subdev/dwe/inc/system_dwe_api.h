@@ -38,31 +38,38 @@ typedef struct _dwe_context_t {
 	uint32_t dis_irqsattus;
 	dis_setting_u dis_setting;
 	ldc_setting_u ldc_setting;
-	int ctx_sitchwin; // control set param
-	int prev_port;
-	int curr_port;
-	int next_port;
+        uint8_t ldc_running;
+	uint32_t ldc_dev_num;
+	int ldc_curr_port;
+	int ldc_next_port;
 	int ldc_update;
+	uint32_t ldc_cur_num;
+	uint8_t dis_running;
+	uint32_t dis_dev_num;
+	int dis_curr_port;
+	int dis_next_port;
 	int dis_update;
-	uint8_t ldc_cur;
-	uint8_t dis_cur;
+	uint32_t dis_cur_num;
+	uint32_t online_enable;
+	uint32_t online_port;
 	dframe_t dframes[FIRMWARE_CONTEXT_NUMBER];
 } dwe_context_t;
 
-int ldc_swparam_set(uint8_t port, ldc_param_s *pldc);
-int ldc_swparam_get(uint8_t port, ldc_param_s *pldc);
-int dis_swparam_set(uint8_t port, dis_param_s *pdis);
-int dis_swparam_get(uint8_t port, dis_param_s *pdis);
-int pattgen_param_set(uint8_t port, pg_param_s *ppg);
-int pattgen_param_get(uint8_t port, pg_param_s *ppg);
-int start_pg_pulse(uint8_t port);
+int ldc_swparam_set(uint32_t port, ldc_param_s *pldc);
+int ldc_swparam_get(uint32_t port, ldc_param_s *pldc);
+int dis_swparam_set(uint32_t port, dis_param_s *pdis);
+int dis_swparam_get(uint32_t port, dis_param_s *pdis);
+int pattgen_param_set(uint32_t port, pg_param_s *ppg);
+int pattgen_param_get(uint32_t port, pg_param_s *ppg);
+int start_pg_pulse(uint32_t port);
+int pg_mode_enable(uint32_t input);
 int dwe_init_api(dwe_context_t *ctx, struct dwe_dev_s *pdev, dwe_param_t **pparam);
 int dwe_reset_api(dwe_context_t *ctx);
 void dwe_deinit_api(dwe_context_t *ctx);
-int ldc_hwparam_set(dwe_context_t *ctx, uint8_t port, uint8_t setting);
-int dis_hwparam_set(dwe_context_t *ctx, uint8_t port, uint8_t setting);
-int ldc_hwpath_set(dwe_context_t *ctx, uint8_t port);
-int dis_hwpath_set(dwe_context_t *ctx, uint8_t port);
+int ldc_hwparam_set(dwe_context_t *ctx, uint32_t port);
+int dis_hwparam_set(dwe_context_t *ctx, uint32_t port);
+int ldc_hwpath_set(dwe_context_t *ctx, uint32_t port);
+int dis_hwpath_set(dwe_context_t *ctx, uint32_t port);
 
 
 #endif /* __ACAMERA_DWE_API_H__ */

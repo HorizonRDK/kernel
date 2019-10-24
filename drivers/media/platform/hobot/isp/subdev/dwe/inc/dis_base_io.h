@@ -75,32 +75,66 @@
 #define DWE_INT_GDC_MASK            (0x71C)
 #define FRAME_INDEX_1               (0x720)
 
-//-------------------------------------------------------------------------------------------- //
+//------------------------------------------------------------//
 //register operation
-//-------------------------------------------------------------------------------------------- //
-static __inline void dwe_write_32reg(const char __iomem *regbase, uint32_t addr, uint32_t *buffer)
+//------------------------------------------------------------//
+static __inline void dwe_write_32reg(const char __iomem *regbase,
+	uint32_t addr, uint32_t *buffer)
 {
 	sys_write_32reg(regbase, addr, buffer);
 }
 
-static __inline void dwe_read_32reg(const char __iomem *regbase, uint32_t addr, uint32_t *buffer)
+static __inline void dwe_read_32reg(const char __iomem *regbase,
+	int32_t addr, uint32_t *buffer)
 {
 	sys_read_32reg(regbase, addr, buffer);
 }
 
-static __inline void dwe_write_buffer(const char __iomem *regbase, uint32_t addr, uint32_t *buffer, uint32_t len)
+static __inline void dwe_write_buffer(const char __iomem *regbase,
+	uint32_t addr, uint32_t *buffer, uint32_t len)
 {
 	sys_write_buffer(regbase, addr, buffer, len);
 }
 
-static __inline void dwe_read_buffer(const char __iomem *regbase, uint32_t addr, uint32_t *buffer, uint32_t len)
+static __inline void dwe_read_buffer(const char __iomem *regbase,
+	uint32_t addr, uint32_t *buffer, uint32_t len)
 {
 	sys_read_buffer(regbase, addr, buffer, len);
 }
 
-//----------------------------------------------------------------------------------------- //
+
+//-----------------------------------------------------------//
 //change image_size  IMAGE+PG_SIZE
-//----------------------------------------------------------------------------------------- //
+//-----------------------------------------------------------//
+typedef struct _dis_checktype_s {
+        uint32_t rg_check_sum_type: 1;
+        uint32_t rg_ipu_full_sel: 1;
+        uint32_t rg_soft_rst: 1;
+        uint32_t rg_pg_enable: 1;
+        uint32_t rg_pg_mode: 2;
+        uint32_t reserced: 26;
+} dis_checktype_s;
+
+typedef union _dis_checktype_u {
+        uint32_t type_g;
+        dis_checktype_s type_b;
+} dis_checktype_u;
+
+static __inline void set_dwe_checktype(const char __iomem *regbase,
+	uint32_t *type)
+{
+        dwe_write_32reg(regbase, DWE_CHECK_SUM_TYPE, type);
+}
+
+static __inline void get_dwe_checktype(const char __iomem *regbase,
+	uint32_t *type)
+{
+        dwe_read_32reg(regbase, DWE_CHECK_SUM_TYPE, type);
+}
+
+//----------------------------------------------------------------//
+//change image_size  IMAGE+PG_SIZE
+//----------------------------------------------------------------//
 typedef struct _dis_picsize_s {
         uint16_t pic_h;
         uint16_t pic_w;
@@ -111,29 +145,33 @@ typedef union _dis_picsieze_u {
         dis_picsize_s psize_b;
 } dis_picsize_u;
 
-static __inline void set_dwe_image_size(const char __iomem *regbase, uint32_t *picsize)
+static __inline void set_dwe_image_size(const char __iomem *regbase,
+	uint32_t *picsize)
 {
         dwe_write_32reg(regbase, DWE_IMAGE_SIZE, picsize);
 }
 
-static __inline void get_dwe_image_size(const char __iomem *regbase, uint32_t *picsize)
+static __inline void get_dwe_image_size(const char __iomem *regbase,
+	uint32_t *picsize)
 {
         dwe_read_32reg(regbase, DWE_IMAGE_SIZE, picsize);
 }
 
-static __inline void set_dwe_pg_size(const char __iomem *regbase, uint32_t *picsize)
+static __inline void set_dwe_pg_size(const char __iomem *regbase,
+	uint32_t *picsize)
 {
-        dwe_write_32reg(regbase, DWE_IMAGE_SIZE, picsize);
+        dwe_write_32reg(regbase, DWE_PG_SIZE, picsize);
 }
 
-static __inline void get_dwe_pg_size(const char __iomem *regbase, uint32_t *picsize)
+static __inline void get_dwe_pg_size(const char __iomem *regbase,
+	uint32_t *picsize)
 {
-        dwe_read_32reg(regbase, DWE_IMAGE_SIZE, picsize);
+        dwe_read_32reg(regbase, DWE_PG_SIZE, picsize);
 }
 
-//----------------------------------------------------------------------------------------- //
+//--------------------------------------------------------------//
 //pg_blanking setting
-//----------------------------------------------------------------------------------------- //
+//--------------------------------------------------------------//
 typedef struct _pg_blanking_s {
         uint16_t rg_pg_v_blanking;
         uint16_t rg_pg_h_blanking;
@@ -149,23 +187,24 @@ typedef struct _pg_param_s {
         pg_blanking_u blank;
 } pg_param_s; 
 
-static __inline void set_dwe_pg_blanking(const char __iomem *regbase, uint32_t *pg_blank)
+static __inline void set_dwe_pg_blanking(const char __iomem *regbase,
+	uint32_t *pg_blank)
 {
-        dwe_write_32reg(regbase, DWE_PG_SIZE, pg_blank);
+        dwe_write_32reg(regbase, DWE_PG_BLANKING, pg_blank);
 }
 
-//----------------------------------------------------------------------------------------- //
+//-------------------------------------------------------------------//
 //change setting
-//----------------------------------------------------------------------------------------- //
+//-------------------------------------------------------------------//
 typedef struct _dis_setting_s {
-        uint32_t rg_update_select: 1;
-        uint32_t reserverved0: 7;
-        uint32_t rg_redirect_3: 2;
-        uint32_t rg_redirect_2: 2;
-        uint32_t rg_redirect_1: 2;
-        uint32_t rg_redirect_0: 2;
-        uint32_t reserverved1: 14;
         uint32_t rg_max_index: 2;
+        uint32_t reserverved1: 14;
+        uint32_t rg_redirect_0: 2;
+        uint32_t rg_redirect_1: 2;
+        uint32_t rg_redirect_2: 2;
+        uint32_t rg_redirect_3: 2;
+        uint32_t reserverved0: 7;
+        uint32_t rg_update_select: 1;
 } dis_setting_s;
 
 typedef union _dis_path_u {
@@ -173,18 +212,25 @@ typedef union _dis_path_u {
         dis_setting_s set_b;
 } dis_setting_u;
 
-static __inline void set_dwe_setting(const char __iomem *regbase, uint32_t *pset)
+static __inline void set_dwe_setting(const char __iomem *regbase,
+	uint32_t *pset)
 {
         dwe_write_32reg(regbase, DWE_SET_SETTING, pset);
 }
 
-//----------------------------------------------------------------------------------------- //
+static __inline void get_dwe_setting(const char __iomem *regbase,
+	uint32_t *pset)
+{
+        dwe_read_32reg(regbase, DWE_SET_SETTING, pset);
+}
+
+//---------------------------------------------------------------//
 //model setting
-//----------------------------------------------------------------------------------------- //
+//---------------------------------------------------------------//
 typedef struct _dis_path_sel_s {
-	uint32_t reserved0: 30;
-	uint32_t rg_dis_path_sel: 1;
 	uint32_t rg_dis_enable: 1;
+	uint32_t rg_dis_path_sel: 1;
+	uint32_t reserved0: 30;
 } dis_path_sel_s;
 
 typedef union _dis_path_sel_u {
@@ -232,16 +278,24 @@ static __inline void set_chn_dis_addr(const char __iomem *regbase,
 	}
 }
 
+static __inline void set_chn_dis_setting(const char __iomem *regbase,
+	uint32_t *ptr, uint32_t model_sw)
+{
+	uint32_t chn = model_sw * 0x100;
+	if (model_sw < 4) {
+		dwe_write_32reg(regbase, (chn + DWE_DIS_SETTING_0), ptr);
+	}
+}
 
-//----------------------------------------------------------------------------------------- //
+//---------------------------------------------------------------//
 //intterrupt setting
-//----------------------------------------------------------------------------------------- //
+//---------------------------------------------------------------//
 typedef struct _dis_irqstatus_s {
-	uint32_t reserved0: 28;
-	uint32_t int_pg_done: 1;
-	uint32_t int_dis_h_ratio_err: 1;
-	uint32_t int_dis_v_ratio_err: 1;
 	uint32_t int_frame_done: 1;
+	uint32_t int_dis_v_ratio_err: 1;
+	uint32_t int_dis_h_ratio_err: 1;
+	uint32_t int_pg_done: 1;
+	uint32_t reserved0: 28;
 } dis_irqstatus_s;
 
 typedef union _dis_irqstatus_u {
@@ -250,11 +304,11 @@ typedef union _dis_irqstatus_u {
 } dis_irqstatus_u;
 
 typedef struct _dis_irqmask_s {
-	uint32_t reserved0: 28;
-	uint32_t int_pg_done_en: 1;
-	uint32_t int_dis_h_ratio_err_en: 1;
-	uint32_t int_dis_v_ratio_err_en: 1;
 	uint32_t int_frame_done_en: 1;
+	uint32_t int_dis_v_ratio_err_en: 1;
+	uint32_t int_dis_h_ratio_err_en: 1;
+	uint32_t int_pg_done_en: 1;
+	uint32_t reserved0: 28;
 } dis_irqmask_s;
 
 typedef union _dis_irqmask_u {
@@ -279,9 +333,9 @@ static __inline void set_dwe_int_status(const char __iomem *regbase,
 {
 	dwe_write_32reg(regbase, DWE_INT_STATUS, status);
 }
-//----------------------------------------------------------------------------------------- //
+//-----------------------------------------------------------------//
 //dwe_soft setting
-//----------------------------------------------------------------------------------------- //
+//-----------------------------------------------------------------//
 static __inline void set_dwe_pg_start(const char __iomem *regbase,
 	uint32_t *pg_start_sw)
 {
@@ -305,9 +359,9 @@ static __inline void get_dwe_frame_index(const char __iomem *regbase,
 {
         dwe_read_32reg(regbase, DWE_FRAME_INDEX_0, dwe_frame_index);
 }
-//----------------------------------------------------------------------------------------- //
+//------------------------------------------------------------------//
 //check sum
-//----------------------------------------------------------------------------------------- //
+//------------------------------------------------------------------//
 enum check_sw_s{
         y_check_sum = 0x0,
         c_check_sum = 0x4
@@ -319,9 +373,9 @@ static __inline void get_dwe_check_sum(const char __iomem *regbase,
         dwe_read_32reg(regbase, (check_sw + DWE_CUR_SET_INDEX), dwe_check);
 }
 
-//----------------------------------------------------------------------------------------- //
+//------------------------------------------------------------------//
 //gdc_status
-//----------------------------------------------------------------------------------------- //
+//------------------------------------------------------------------//
 static __inline void set_gdc_mask(const char __iomem *regbase,
 	uint32_t *gdc_mask)
 {

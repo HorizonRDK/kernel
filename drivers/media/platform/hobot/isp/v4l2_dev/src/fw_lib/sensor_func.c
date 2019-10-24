@@ -47,7 +47,7 @@ typedef struct {
 } dvi_sync_param_t;
 
 
-#if defined( CUR_MOD_NAME)
+#if defined( CUR_MOD_NAME )
 #undef CUR_MOD_NAME 
 #define CUR_MOD_NAME LOG_MODULE_SENSOR
 #else
@@ -114,6 +114,8 @@ void sensor_hw_init( sensor_fsm_ptr_t p_fsm )
 
     // 1): set sensor to preset_mode as required.
     p_fsm->ctrl.set_mode( p_fsm->sensor_ctx, p_fsm->preset_mode );
+    p_fsm->ctrl.set_sensor_type(p_fsm->sensor_ctx,
+	p_fsm->sensor_type, p_fsm->sensor_i2c_channel);
     p_fsm->ctrl.disable_sensor_isp( p_fsm->sensor_ctx );
 
     // 2): set to wdr_mode through general router (wdr_mode changed in sensor param in 1st step).

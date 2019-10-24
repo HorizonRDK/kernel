@@ -35,7 +35,7 @@ static __inline void sys_write_32reg(const char __iomem *regbase,
 static __inline void sys_read_32reg(const char __iomem *regbase,
 	uint32_t addr, uint32_t *buffer)
 {
-        buffer = readl(regbase + addr);
+        *buffer = readl(regbase + addr);
 }
 
 static __inline void sys_write_buffer(const char __iomem *regbase,

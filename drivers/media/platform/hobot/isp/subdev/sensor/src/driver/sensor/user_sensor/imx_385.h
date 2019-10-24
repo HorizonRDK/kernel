@@ -1,5 +1,5 @@
-#ifndef __IMX_327_H__
-#define __IMX_327_H__
+#ifndef __IMX_385_H__
+#define __IMX_385_H__
 
 #include <linux/types.h>
 

@@ -31,6 +31,7 @@
 #define DWEC_SET_PG_PARAM         _IOW(DWE_IOC_MAGIC, 4, pg_param_s)
 #define DWEC_GET_PG_PARAM         _IOR(DWE_IOC_MAGIC, 5, pg_param_s)
 #define DWEC_START_PG             _IO(DWE_IOC_MAGIC, 6)
+#define DWEC_PG_ENABEL            _IOW(DWE_IOC_MAGIC, 12, uint32_t)
 //used by buffer
 #define DWEC_REQBUFS    _IOWR(DWE_IOC_MAGIC,  7, struct v4l2_requestbuffers)
 #define DWEC_QUERYBUF   _IOWR(DWE_IOC_MAGIC,  8, struct v4l2_buffer)

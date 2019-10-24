@@ -49,7 +49,7 @@ int dwe_stream_get_frame(uint32_t ctx_id, dframe_t *dframes)
 	struct vb2_buffer *vb;
 
 	LOG(LOG_DEBUG, "---[%s-%d]---: ctx_id = %d!\n", __func__, __LINE__, ctx_id);
-	if ((ctx_id > FIRMWARE_CONTEXT_NUMBER) || (dwe_buf[ctx_id] == NULL)
+	if ((ctx_id >= FIRMWARE_CONTEXT_NUMBER) || (dwe_buf[ctx_id] == NULL)
 		|| (dframes == NULL)) {
 		printk(KERN_INFO "dwe_buf[%d] = %p !\n", ctx_id, dwe_buf[ctx_id]);
 		return -1;
@@ -95,7 +95,7 @@ int dwe_stream_put_frame(uint32_t ctx_id, dframe_t *dframes)
 	dwe_v4l2_buffer_t *pbuf = NULL;
 	struct vb2_buffer *vb;
 
-	if ((ctx_id > FIRMWARE_CONTEXT_NUMBER) || (dwe_buf[ctx_id] == NULL)
+	if ((ctx_id >= FIRMWARE_CONTEXT_NUMBER) || (dwe_buf[ctx_id] == NULL)
 		|| (dframes == NULL)) {
 		printk(KERN_INFO "dwe_buf[%d] = %p !\n", ctx_id, dwe_buf[ctx_id]);
 		return -1;
