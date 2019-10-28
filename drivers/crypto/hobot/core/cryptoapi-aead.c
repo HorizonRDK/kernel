@@ -272,9 +272,9 @@ static int spacc_aead_init_dma(struct device *dev, struct aead_request *req, u64
    #endif
       }
    }
+
    sg_set_buf(iv->sg,     iv->iv,     ivsize);                  // this is part of the AAD
    sg_set_buf(iv->fullsg, iv->fulliv, SPACC_MAX_IV_SIZE+B0len); // this is the actual IV getting fed to the core (via IV IMPORT)
-
 
    // GCM and CCM don't include the IV in the AAD ...
    if (tctx->mode == CRYPTO_MODE_AES_GCM_RFC4106 ||
@@ -283,16 +283,16 @@ static int spacc_aead_init_dma(struct device *dev, struct aead_request *req, u64
       ctx->iv_nents = 0;
       rc = spacc_sgs_to_ddt(dev,
          iv->fullsg,     SPACC_MAX_IV_SIZE+B0len, &ctx->fulliv_nents,
-         NULL,     		 0,     &ctx->assoc_nents,
+         req->assoclen ? req->src : NULL,     		 req->assoclen,     &ctx->assoc_nents,
          NULL,           0,                 &ctx->iv_nents,
-         req->src,       req->cryptlen + icvlen, &ctx->src_nents,
+         req->assoclen ? &req->src[1] : req->src,       req->cryptlen + icvlen, &ctx->src_nents,
          &ctx->src, DMA_BIDIRECTIONAL);
    } else {
       rc = spacc_sgs_to_ddt(dev,
          iv->fullsg,     SPACC_MAX_IV_SIZE+B0len, &ctx->fulliv_nents,
-         NULL,     		 0,     &ctx->assoc_nents,
+         req->assoclen ? req->src : NULL,     		 req->assoclen,     &ctx->assoc_nents,
          iv->sg,         ivsize,            &ctx->iv_nents,
-         req->src,       req->cryptlen + icvlen, &ctx->src_nents,
+         req->assoclen ? &req->src[1] : req->src,       req->cryptlen + icvlen, &ctx->src_nents,
          &ctx->src, DMA_BIDIRECTIONAL);
    }
 
@@ -606,7 +606,7 @@ static int spacc_aead_process(struct aead_request *req, u64 seq, u8 *giv, int en
    if (req->dst == req->src) {
       dstoff = ((uint32_t)(SPACC_MAX_IV_SIZE + B0len + req->assoclen + ivaadsize));
    } else {
-      dstoff = 0;
+      dstoff = req->assoclen;//dst: assoc || output
    }
 
    // compute the ICV offset which is different for both encrypt/decrypt
@@ -625,6 +625,7 @@ static int spacc_aead_process(struct aead_request *req, u64 seq, u8 *giv, int en
        0,                                                              // no POST AAD
        0x80000000,                                                     // IV import from offset 0
        0);                                                             // default PRIO
+
    if (rc < 0) {
       spacc_aead_cleanup_dma(tctx->dev, req);
       spacc_close(&priv->spacc, ctx->cb.new_handle);
@@ -669,13 +670,7 @@ static int spacc_aead_cra_init(struct crypto_tfm *tfm)
    struct spacc_crypto_ctx *ctx  = crypto_tfm_ctx(tfm);
    const struct spacc_alg  *salg = spacc_tfm_alg(tfm);
 
-/*
-   ctx->fb.aead = crypto_alloc_aead(salg->calg->cra_name, 0, CRYPTO_ALG_NEED_FALLBACK);
-   if (ctx->fb.aead == NULL) {
-      pr_err("%s: crypto alloc aead failed!\n", __func__);
-	  return -1;
-   }
-*/
+   ctx->fb.aead = __crypto_aead_cast(tfm);
 
    get_random_bytes(ctx->csalt, sizeof(ctx->csalt));
    ctx->fb.aead->reqsize = sizeof(struct spacc_crypto_reqctx);
