@@ -42,7 +42,9 @@
 		mmc1	= &sdio0;
 		mmc2	= &sdio1;
 		sndcard0    = &snd0;
+		sndcard1    = &snd1;
 		idma0     = &i2sidma0;
+		idma1     = &i2sidma1;
 
 	};
 
@@ -68,7 +70,7 @@
 		reg = <0x35>;
 	};
 
-	ac101@0x1a {
+	ac101: ac101@0x1a {
 		compatible = "ac101";
 		// pinctrl-names = "default";
 		// pinctrl-0 = <&spk_amp_pins &gpclk0_pins>;
@@ -364,6 +366,16 @@
 	#sound-dai-cells = <0>;
 	clocks = <&i2s0_mclk>, <&i2s0_div_mclk>, <&i2s0_bclk>, <&i2s0_div_bclk>;
 	clock-names = "i2s-mclk", "i2s-mclk-div", "i2s-bclk", "i2s0_div_bclk";
+	//bclk_set = <1536000>; //duplex
+};
+
+&i2s1 {
+	status = "okay";
+	#sound-dai-cells = <0>;
+	clocks = <&i2s1_mclk>, <&i2s1_div_mclk>, <&i2s1_bclk>, <&i2s1_div_bclk>;
+	clock-names = "i2s-mclk", "i2s-mclk-div", "i2s-bclk", "i2s0_div_bclk";
+	//ms = <4>; //duplex
+	bclk_set = <1536000>;
 };
 
 
@@ -396,7 +408,8 @@
 &snd0 {
 	model = "x2snd0";
 	dai-link@0 {
-		dai-format = "dsp_a";
+		//dai-format = "i2s";   //duplex
+		dai-format = "dsp_a"; //simplex
 		bitclock-master;
 		frame-master;
 		frame-inversion;
@@ -405,10 +418,47 @@
 			sound-dai = <&i2s0>;
 		};
 		codec {
-			sound-dai = <&ac108_0 0>;
+			sound-dai = <&ac108_0 0>;  //simplex
+			//sound-dai = <&ac101>;    //duplex
 		};
 		platform {
 			sound-dai = <&i2sidma0>;
+		};
+	};
+/*	dai-link@1 {   //duplex
+		dai-format = "i2s";
+		//bitclock-master;
+		//frame-master;
+		frame-inversion;
+		link-name = "x2dailink1";
+		cpu {
+			sound-dai = <&i2s1>;
+		};
+		codec {
+			sound-dai = <&ac101>;
+		};
+		platform {
+			sound-dai = <&i2sidma1>;
+		};
+	};*/
+};
+
+&snd1 { //simplex
+	model = "x2snd1";
+	dai-link@1 {
+		dai-format = "i2s";
+		bitclock-master;
+		frame-master;
+		frame-inversion;
+		link-name = "x2dailink1";
+		cpu {
+			sound-dai = <&i2s1>;
+		};
+		codec {
+			sound-dai = <&ac101>;
+		};
+		platform {
+			sound-dai = <&i2sidma1>;
 		};
 	};
 };

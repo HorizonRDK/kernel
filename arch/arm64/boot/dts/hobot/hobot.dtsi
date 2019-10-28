@@ -270,11 +270,28 @@
 			interrupt-parent = <&gic>;
 			interrupts = <0 30 4>;
 		};
+
+		i2sidma1: idma@1 {
+			compatible = "x2-i2s1-idma";
+			reg = <0 0xA5008000 0 0x100>,
+				<0 0xA5008500 0 0x100>,
+				<0 0xA1000000 0 0x1000>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 31 4>;
+		};
+
 		snd0: sndcard@0{
 			compatible = "hobot, x2-snd0";
 			i2s_mode = <4>;/*1:i2s mode; 4:dsp mode*/
 			master = <1>;/*1:master; 4:slave*/
 			channel_max = <8>;
+		};
+
+		snd1: sndcard@1 {
+			compatible = "hobot, x2-snd1";
+			i2s_mode = <4>;
+			master = <4>;
+			channel_max = <2>;
 		};
 
 
