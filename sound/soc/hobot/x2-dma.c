@@ -135,6 +135,8 @@ static int i2sidma_enqueue(struct snd_pcm_substream *substream)
 		writel(val + dma_ctrl->periodsz,
 			x2_i2sidma[dma_ctrl->id].regaddr_tx +
 				I2S_BUF1_ADDR);
+		dma_ctrl->buffer_int_index = 0;
+		//dma_ctrl->buffer_set_index = 1;
 		val = (dma_ctrl->periodsz) / (dma_ctrl->ch_num);
 		writel(val, x2_i2sidma[dma_ctrl->id].regaddr_tx +
 			I2S_BUF_SIZE);
@@ -498,9 +500,86 @@ err:
 	iis_diag_report(errsta, intstatus, 0);
 	return IRQ_HANDLED;
 }
+
 static irqreturn_t iis_irq1(int irqno, void *dev_id)
 {
+	struct idma_ctrl_s *dma_ctrl = (struct idma_ctrl_s *)dev_id;
+	u32 intstatus;
+	u32	addr = 0;
+	uint8_t errsta = 0;
 
+	intstatus = readl(x2_i2sidma[1].regaddr_tx + I2S_SRCPND);
+
+	if (intstatus == 0x4) {
+		writel(0x4, x2_i2sidma[dma_ctrl->id].regaddr_tx + I2S_SRCPND);
+		addr = dma_ctrl->start;
+
+		dma_ctrl->buffer_int_index += 1;
+		if (dma_ctrl->buffer_int_index == dma_ctrl->buffer_num)
+			dma_ctrl->buffer_int_index = 0;
+
+
+		dma_ctrl->lastset = dma_ctrl->start +
+		(dma_ctrl->buffer_int_index * dma_ctrl->periodsz);
+		writel(addr, x2_i2sidma[dma_ctrl->id].regaddr_tx +
+			I2S_BUF0_ADDR);
+		writel(0x1, x2_i2sidma[dma_ctrl->id].regaddr_tx +
+			I2S_BUF0_RDY);
+
+		pr_debug("intstatus = 0x%x, dma_ctrl->lastset is 0x%x, \
+			buffer_int_index is %d, buffer_set_index is %d\n",
+			intstatus, dma_ctrl->lastset, dma_ctrl->buffer_int_index,
+			dma_ctrl->buffer_set_index);
+
+	} else if (intstatus == 0x8) {
+		writel(0x8, x2_i2sidma[dma_ctrl->id].regaddr_tx + I2S_SRCPND);
+		addr = dma_ctrl->start + dma_ctrl->periodsz;
+
+		dma_ctrl->buffer_int_index += 1;
+		if (dma_ctrl->buffer_int_index == dma_ctrl->buffer_num)
+			dma_ctrl->buffer_int_index = 0;
+
+
+		dma_ctrl->lastset = dma_ctrl->start +
+		(dma_ctrl->buffer_int_index * dma_ctrl->periodsz);
+		writel(addr, x2_i2sidma[dma_ctrl->id].regaddr_tx +
+			I2S_BUF1_ADDR);
+		writel(0x1, x2_i2sidma[dma_ctrl->id].regaddr_tx + I2S_BUF1_RDY);
+
+		pr_debug("intstatus = 0x%x, dma_ctrl->lastset is 0x%x, \
+			buffer_int_index is %d, buffer_set_index is %d\n",
+			intstatus, dma_ctrl->lastset, dma_ctrl->buffer_int_index,
+			dma_ctrl->buffer_set_index);
+
+	} else {
+		pr_err("intstatus = 0x%x,INT status exception!\n", intstatus);
+		errsta = 1;
+
+		writel(intstatus, x2_i2sidma[dma_ctrl->id].regaddr_tx +
+				I2S_SRCPND);
+
+		writel(dma_ctrl->start,
+			x2_i2sidma[dma_ctrl->id].regaddr_tx + I2S_BUF0_ADDR);
+		writel(dma_ctrl->start + dma_ctrl->periodsz,
+			x2_i2sidma[dma_ctrl->id].regaddr_tx + I2S_BUF1_ADDR);
+		//dma_ctrl->buffer_int_index = 0;
+		//dma_ctrl->buffer_set_index = 1;
+
+		writel(0x1, x2_i2sidma[dma_ctrl->id].regaddr_tx +
+				I2S_BUF0_RDY);
+		writel(0x1, x2_i2sidma[dma_ctrl->id].regaddr_tx +
+				I2S_BUF1_RDY);
+
+		if (dma_ctrl->cb)
+			dma_ctrl->cb(dma_ctrl->token, dma_ctrl->period);
+		goto err;
+	}
+
+	if (dma_ctrl->cb)
+		dma_ctrl->cb(dma_ctrl->token, dma_ctrl->period);
+
+err:
+	iis_diag_report(errsta, intstatus, 0);
 	return IRQ_HANDLED;
 }
 
@@ -524,6 +603,27 @@ static int i2sidma_open(struct snd_pcm_substream *substream)
 	/* set limit hw param to runtime */
 	snd_soc_set_runtime_hwparams(substream, &i2sidma_hardware);
 
+	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
+		dma_ctrl->id = 0;
+		ret = request_irq(x2_i2sidma[dma_ctrl->id].idma_irq, iis_irq0,
+			0, "idma0", dma_ctrl);
+		if (ret < 0) {
+			pr_err("fail to claim i2s irq , ret = %d\n", ret);
+			kfree(dma_ctrl);
+			return ret;
+		}
+	} else {
+		dma_ctrl->id = 1;
+		ret = request_irq(x2_i2sidma[dma_ctrl->id].idma_irq, iis_irq1,
+			0, "idma1", dma_ctrl);
+		if (ret < 0) {
+			pr_err("fail to claim i2s irq , ret = %d\n", ret);
+			kfree(dma_ctrl);
+			return ret;
+		}
+	}
+
+	/*
 	if (!strcmp(snd_card->name, "x2snd0")) {
 		dma_ctrl->id = 0;
 		ret = request_irq(x2_i2sidma[dma_ctrl->id].idma_irq, iis_irq0,
@@ -545,6 +645,7 @@ static int i2sidma_open(struct snd_pcm_substream *substream)
 			return ret;
 		}
 	}
+	*/
 
 	dma_ctrl->stream = substream->stream;
 

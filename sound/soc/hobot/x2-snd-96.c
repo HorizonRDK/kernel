@@ -6,6 +6,14 @@
 #include <linux/module.h>
 #include <sound/soc.h>
 
+/*pll source*/
+#define AC101_MCLK1 1
+#define AC101_MCLK2 2
+#define AC101_BCLK1 3
+#define AC101_BCLK2 4
+
+static int mclk;
+
 static int x2_snd_hw_params(struct snd_pcm_substream *substream,
 			     struct snd_pcm_hw_params *params)
 {
@@ -21,11 +29,13 @@ static int x2_snd_hw_params(struct snd_pcm_substream *substream,
 		}
 		if(rtd->dai_link->dai_fmt & SND_SOC_DAIFMT_CBS_CFS){
 			/* below div is getted by sample_rate */
+			/*
 			ret = snd_soc_dai_set_clkdiv(rtd->codec_dai, 0, sample_rate);
 			if (ret < 0) {
 				pr_err("%s, line:%d\n", __func__, __LINE__);
 				return ret;
 			}
+			*/
 		} else {
 			ret = snd_soc_dai_set_clkdiv(rtd->cpu_dai, 0, sample_rate);
 			if (ret < 0) {
@@ -35,6 +45,12 @@ static int x2_snd_hw_params(struct snd_pcm_substream *substream,
 		}
 	}
 
+	ret = snd_soc_dai_set_sysclk(rtd->codec_dai, AC101_MCLK1, mclk,
+			SND_SOC_CLOCK_IN);
+	if (ret < 0) {
+		pr_err("%s, line:%d\n", __func__, __LINE__);
+		return ret;
+	}
 	return ret;
 }
 
@@ -97,6 +113,9 @@ static int x2_snd_probe(struct platform_device *pdev)
 			dev_err(dev, "error getting cpu phandle\n");
 			return ret;
 		}
+
+		ret = of_property_read_u32(link->cpu_of_node,
+				"mclk_set", &mclk);
 		pr_info("Name of link->cpu_of_node : %s\n", link->cpu_of_node->name);
 		
 		ret = snd_soc_of_get_dai_link_codecs(dev, codec, link);
@@ -153,7 +172,8 @@ static int x2_snd_remove(struct platform_device *pdev)
 
 #ifdef CONFIG_OF
 static const struct of_device_id x2_snd_of_match[] = {
-	{.compatible = "hobot, x2-snd0",},
+	{.compatible = "hobot, x2-snd0", },
+	{.compatible = "hobot, x2-snd1", },
 	{}
 };
 

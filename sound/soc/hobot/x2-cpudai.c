@@ -31,7 +31,10 @@
 
 static unsigned int x2_i2s_read_base_reg(struct x2_i2s *i2s, int offset)
 {
-	return readl(i2s->regaddr_rx+offset);
+	if (i2s->id == 0)
+		return readl(i2s->regaddr_rx+offset);
+	else
+		return readl(i2s->regaddr_tx+offset);
 }
 
 
@@ -77,7 +80,7 @@ static int i2s_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 
 	spin_lock_irqsave(&i2s->lock, flags);
 
-	if (i2s->streamflag == 0) {	/* capture */
+	if (i2s->id == 0) {	/* capture */
 		val = readl(i2s->regaddr_rx + I2S_MODE);
 	} else {		/* play */
 		val = readl(i2s->regaddr_tx + I2S_MODE);
@@ -87,11 +90,13 @@ static int i2s_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 	case SND_SOC_DAIFMT_I2S:	/* i2s mode */
 		val &= ~(MOD_I2S_MODE);
 		i2s->i2sdsp = 0;
+		dev_dbg(i2s->dev, "x2 config i2s mode\n");
 		break;
 	case SND_SOC_DAIFMT_DSP_A:	/* dsp mode */
 	case SND_SOC_DAIFMT_DSP_B:
 		i2s->i2sdsp = 1;
 		val |= (MOD_I2S_MODE);
+		dev_dbg(i2s->dev, "x2 config dsp mode\n");
 		break;
 	default:
 		dev_err(i2s->dev, "Format not supported\n");
@@ -114,9 +119,11 @@ static int i2s_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 		return -EINVAL;
 	}
 
-	if (i2s->streamflag == 0) {	/* capture */
+	if (i2s->id == 0) {	/* capture */
 		writel(val, i2s->regaddr_rx + I2S_MODE);
 	} else {		/* play */
+		if (i2s->ms == 4)
+			val |= (0x1<<9); //slave
 		writel(val, i2s->regaddr_tx + I2S_MODE);
 	}
 
@@ -159,13 +166,13 @@ static void x2_i2s_sample_rate_set(struct snd_pcm_substream *substream,
 
 		reg_val = readl(i2s->regaddr_tx + I2S_DIV_WS);
 		writel(UPDATE_VALUE_FIELD
-			       (reg_val, ws_l, I2S_DIV_WS_DIV_WS_L_BIT,
+				(reg_val, ws_l, I2S_DIV_WS_DIV_WS_L_BIT,
 				I2S_DIV_WS_DIV_WS_L_FIELD),
-			       i2s->regaddr_tx + I2S_DIV_WS);
+				i2s->regaddr_tx + I2S_DIV_WS);
 		writel(UPDATE_VALUE_FIELD
-			       (reg_val, ws_h, I2S_DIV_WS_DIV_WS_H_BIT,
+				(reg_val, ws_h, I2S_DIV_WS_DIV_WS_H_BIT,
 				I2S_DIV_WS_DIV_WS_H_FIELD),
-			       i2s->regaddr_tx + I2S_DIV_WS);
+				i2s->regaddr_tx + I2S_DIV_WS);
 		}
 	}
 
@@ -306,7 +313,7 @@ static int i2s_startup(struct snd_pcm_substream *substream,
 	else
 		i2s->streamflag = 1;
 
-	i2s_transfer_ctl(i2s, 0);
+	//i2s_transfer_ctl(i2s, 0);
 
 
 	spin_unlock_irqrestore(&i2s->lock, flags);
@@ -328,18 +335,28 @@ static int i2s_trigger(struct snd_pcm_substream *substream,
 	case SNDRV_PCM_TRIGGER_RESUME:
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
 		spin_lock_irqsave(&i2s->lock, flags);
+		if (i2s->id == 0) {
+			writel(0x1, i2s->regaddr_rx + I2S_BUF0_RDY);
+			writel(0x1, i2s->regaddr_rx + I2S_BUF1_RDY);
+		} else {
+			writel(0x1, i2s->regaddr_tx + I2S_BUF0_RDY);
+			writel(0x1, i2s->regaddr_tx + I2S_BUF1_RDY);
+		}
 		i2s_transfer_ctl(i2s, 1);
-		writel(0x1, i2s->regaddr_rx + I2S_BUF0_RDY);
-		writel(0x1, i2s->regaddr_rx + I2S_BUF1_RDY);
 		spin_unlock_irqrestore(&i2s->lock, flags);
 		break;
 	case SNDRV_PCM_TRIGGER_STOP:
 	case SNDRV_PCM_TRIGGER_SUSPEND:
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
 		spin_lock_irqsave(&i2s->lock, flags);
-		i2s_transfer_ctl(i2s, 0);
-		writel(0x0, i2s->regaddr_rx + I2S_BUF0_RDY);
-		writel(0x0, i2s->regaddr_rx + I2S_BUF1_RDY);
+		//i2s_transfer_ctl(i2s, 0);
+		if (i2s->id == 0) {
+			writel(0x0, i2s->regaddr_rx + I2S_BUF0_RDY);
+			writel(0x0, i2s->regaddr_rx + I2S_BUF1_RDY);
+		} else {
+			writel(0x0, i2s->regaddr_tx + I2S_BUF0_RDY);
+			writel(0x0, i2s->regaddr_tx + I2S_BUF1_RDY);
+		}
 		spin_unlock_irqrestore(&i2s->lock, flags);
 		break;
 	}
@@ -388,6 +405,7 @@ static struct snd_soc_dai_driver x2_i2s_dai_drv[2] = {
 	{
 		.probe = x2_i2s_dai_probe,
 		.remove = x2_i2s_dai_remove,
+		/*
 		.playback = {
 			     .stream_name = "Playback",
 			     .channels_min = 1,
@@ -395,6 +413,7 @@ static struct snd_soc_dai_driver x2_i2s_dai_drv[2] = {
 			     .rates = X2_I2S_RATES,
 			     .formats = X2_I2S_FMTS,
 			     },
+		*/
 		.capture = {
 			    .stream_name = "Capture",
 			    .channels_min = 1,
@@ -416,6 +435,7 @@ static struct snd_soc_dai_driver x2_i2s_dai_drv[2] = {
 			     .rates = X2_I2S_RATES,
 			     .formats = X2_I2S_FMTS,
 			     },
+		/*
 		.capture = {
 			    .stream_name = "Capture",
 			    .channels_min = 1,
@@ -423,6 +443,7 @@ static struct snd_soc_dai_driver x2_i2s_dai_drv[2] = {
 			    .rates = X2_I2S_RATES,
 			    .formats = X2_I2S_FMTS,
 			    },
+		*/
 		.ops = &x2_i2s_dai_ops,/* the same as i2s0 dai param */
 		.symmetric_rates = 1,
 		.name = "x2-i2s1",
@@ -635,11 +656,13 @@ static int x2_i2s_probe(struct platform_device *pdev)
 				return ret;
 			}
 
+		reset_control_assert(i2s->rst);
+		ndelay(100);
+		reset_control_deassert(i2s->rst);
 
 		if (i2s->ms == 1) {
 			clk_disable(i2s->bclk);
-
-			//ret = change_clk(&pdev->dev,"i2s-mclk-div",
+			//ret = change_clk(&pdev->dev, "i2s-mclk-div",
 			//	i2s->mclk_set);
 			ret = change_clk(&pdev->dev, "i2s0_div_bclk",
 				i2s->bclk_set);
@@ -648,6 +671,7 @@ static int x2_i2s_probe(struct platform_device *pdev)
 			pr_err("change_clk blck ret = %d\n", ret);
 		} else if (i2s->ms == 4) {
 
+			/*
 			value = readl(i2s->sysctl_addr + 0x158);
 			if (i2s->id == 0)
 				value = (value | (0x1 << 18));
@@ -655,6 +679,10 @@ static int x2_i2s_probe(struct platform_device *pdev)
 				value = (value | (0x1 << 19));
 
 			writel(value, i2s->sysctl_addr + 0x158);
+			*/
+			value = readl(i2s->sysctl_addr + 0x360);
+			value = (value | (0x1 << 20));
+			writel(value, i2s->sysctl_addr + 0x360);
 			clk_disable(i2s->bclk);
 		} else {
 			pr_err("i2s->ms invalid\n");
@@ -665,6 +693,20 @@ static int x2_i2s_probe(struct platform_device *pdev)
 		if (ret < 0) {
 			pr_err("failed:get  div_ws rc %d", ret);
 			return ret;
+		}
+
+		if (i2s->id == 0) {
+			value = readl(i2s->regaddr_rx);
+			value |= 1<<0;
+			writel(value, i2s->regaddr_rx);
+			writel(i2s->div_ws, i2s->regaddr_rx + I2S_DIV_WS);
+			pr_err("run i2s0 probe\n");
+		} else {
+			value = readl(i2s->regaddr_tx);
+			value |= 1<<0;
+			writel(value, i2s->regaddr_tx);
+			writel(i2s->div_ws, i2s->regaddr_tx + I2S_DIV_WS);
+			pr_err("run i2s1 probe\n");
 		}
 
 	i2s->rst = devm_reset_control_get(&pdev->dev, "i2s");
