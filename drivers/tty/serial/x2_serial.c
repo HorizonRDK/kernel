@@ -789,6 +789,7 @@ static void x2_uart_set_termios(struct uart_port *port,
 		port->ignore_status_mask |= UART_RXFUL | UART_PE | UART_FE;
 
 #ifdef CONFIG_X2_TTY_DMA_MODE
+	x2_uart->rx_off = 0;
 	if (x2_uart->rx_enabled) {
 		ctrl_reg = readl(port->membase + X2_UART_RXDMA);
 		ctrl_reg |= UART_RXSTA;
@@ -1021,6 +1022,7 @@ static void x2_uart_shutdown(struct uart_port *port)
 #ifdef CONFIG_X2_TTY_DMA_MODE
 	dma_free_coherent(port->dev, X2_UART_DMA_SIZE,
 			(void *)x2_uart->rx_buf, x2_uart->rx_dma_buf);
+	x2_uart->rx_off = 0;
 #endif
 	free_irq(port->irq, port);
 	x2_uart->tx_in_progress = 0;
