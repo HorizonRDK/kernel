@@ -463,6 +463,8 @@ typedef struct _output_cfg_t {
 	ppcon1_cfg_t ppcon1;
 	ppcon2_cfg_t ppcon2;
 	refresh_cfg_t refresh_cfg;
+	uint32_t panel_type;
+	uint32_t rotate;
 } output_cfg_t;
 
 typedef struct _upscaling_cfg_t {
@@ -615,7 +617,46 @@ int user_set_fb(void);
 int set_video_display_channel(uint8_t channel_no);
 int set_video_display_ddr_layer(uint8_t ddr_layer_no);
 int32_t disp_set_timing(unsigned int resolution);
-
+int enable_iar_irq(void);
+int disable_iar_irq(void);
+int iar_rotate_video_buffer(phys_addr_t yaddr,
+		phys_addr_t uaddr, phys_addr_t vaddr);
 //int iar_is_enabled(void);
+
+
+// Supported rotation.
+enum RotationMode {
+	kRotate0 = 0,		// No rotation.
+	kRotate90 = 90,		// Rotate 90 degrees clockwise.
+	kRotate180 = 180,	// Rotate 180 degrees.
+	kRotate270 = 270,	// Rotate 270 degrees clockwise.
+	// Deprecated.
+	kRotateNone = 0,
+	kRotateClockwise = 90,
+	kRotateCounterClockwise = 270,
+};
+
+int NV12ToI420Rotate(const uint8_t *src_y,
+		int src_stride_y,
+		const uint8_t *src_uv,
+		int src_stride_uv,
+		uint8_t *dst_y,
+		int dst_stride_y,
+		uint8_t *dst_u,
+		int dst_stride_u,
+		uint8_t *dst_v,
+		int dst_stride_v,
+		int width,
+		int height,
+		enum RotationMode mode);
+
+void MergeUVPlane(const uint8_t *src_u,
+		int src_stride_u,
+		const uint8_t *src_v,
+		int src_stride_v,
+		uint8_t *dst_uv,
+		int dst_stride_uv,
+		int width,
+		int height);
 
 #endif //__X2_IAR_H__

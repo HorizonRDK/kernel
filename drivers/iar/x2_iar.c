@@ -22,6 +22,9 @@
 #include <linux/types.h>
 #include <linux/reset.h>
 #include <linux/fb.h>
+#include <linux/init.h>
+#include <linux/wait.h>
+#include <linux/kthread.h>
 #include "x2/x2_ips.h"
 #include "x2_iar.h"
 
@@ -45,8 +48,15 @@ uint32_t iar_display_ipu_slot_size = 0x1000000;
 uint8_t ch1_en;
 uint8_t disp_user_config_done;
 
+bool ipu_process_done;
+uint32_t ipu_display_slot_id;
+
+uint8_t config_rotate;
+//uint8_t pingpong_config = 0;
+uint8_t frame_count;
+
 #ifdef CONFIG_PM
-uint32_t g_iar_regs[90];
+uint32_t g_iar_regs[91];
 #endif
 
 const unsigned int g_iarReg_cfg_table[][3] = {
@@ -309,6 +319,8 @@ struct iar_dev_s {
 	unsigned int channel_format[IAR_CHANNEL_MAX];
 	unsigned int buf_w_h[IAR_CHANNEL_MAX][2];
 	int cur_framebuf_id[IAR_CHANNEL_MAX];
+	struct task_struct *iar_task;
+//	wake_queue_head_t wq_head;
 };
 struct iar_dev_s *g_iar_dev;
 
@@ -726,7 +738,7 @@ int32_t iar_channel_base_cfg(channel_base_cfg_t *cfg)
 		reg_overlay_opt_value & (0xffffffff & ~(1 << (channelid + 24)));
 	reg_overlay_opt_value =
 		reg_overlay_opt_value | (cfg->enable << (channelid + 24));
-	pr_info("channel id is %d, enable is %d, reg value is 0x%x.\n",
+	pr_debug("channel id is %d, enable is %d, reg value is 0x%x.\n",
 			channelid, cfg->enable, reg_overlay_opt_value);
 
 	writel(reg_overlay_opt_value, g_iar_dev->regaddr + REG_IAR_OVERLAY_OPT);
@@ -879,24 +891,7 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 
 	iar_display_cam_no = cfg->display_cam_no;
 	iar_display_addr_type = cfg->display_addr_type;
-/*
-	if (iar_display_cam_no == 0) {
-		iar_get_ipu_display_addr_single(iar_display_ipu_addr_single);
-		iar_display_yaddr_offset = iar_display_ipu_addr_single[0][0] +
-			iar_display_ipu_addr_single[cfg->display_addr_type][0];
-		iar_display_caddr_offset = iar_display_ipu_addr_single[0][0] +
-			iar_display_ipu_addr_single[cfg->display_addr_type][1];
-		iar_display_ipu_slot_size = iar_display_ipu_addr_single[0][1];
-	} else {
-		iar_get_ipu_display_addr_dual(iar_display_ipu_addr_dual);
-		iar_display_yaddr_offset = iar_display_ipu_addr_dual[0][0] +
-			iar_display_ipu_addr_dual[cfg->display_addr_type][0];
-		iar_display_caddr_offset = iar_display_ipu_addr_dual[0][0] +
-			iar_display_ipu_addr_dual[cfg->display_addr_type][1];
-		iar_display_ipu_slot_size = iar_display_ipu_addr_dual[0][1];
 
-	}
-*/
 	if (iar_display_cam_no == 0) {
 		iar_get_ipu_display_addr_single(iar_display_ipu_addr_single);
 		iar_display_yaddr_offset = iar_display_ipu_addr_single[0][0] +
@@ -922,18 +917,14 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 
 	}
 
-/*	iar_get_ipu_display_addr(iar_display_ipu_addr);
-	pr_info("iar display ipu addr00 is 0x%x\n", iar_display_ipu_addr[0][0]);
-	pr_info("iar display ipu addr ds5 y is 0x%x\n",
-			iar_display_ipu_addr[8][0]);
-	pr_info("iar display ipu addr ds5 c is 0x%x\n",
-			iar_display_ipu_addr[8][1]);
+	config_rotate = cfg->rotate;
 
-	iar_display_yaddr_offset = iar_display_ipu_addr[0][0] +
-		iar_display_ipu_addr[cfg->display_addr_type][0];
-	iar_display_caddr_offset = iar_display_ipu_addr[0][0] +
-		iar_display_ipu_addr[cfg->display_addr_type][1];
-*/
+	value = readl(g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
+	value = IAR_REG_SET_FILED(IAR_PANEL_COLOR_TYPE, 2, value);
+	value = IAR_REG_SET_FILED(IAR_YCBCR_OUTPUT, 1, value);
+	writel(value, g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
+
+
 #if 0
 	value = IAR_REG_SET_FILED(IAR_CONTRAST, cfg->ppcon1.contrast, 0);
 	value = IAR_REG_SET_FILED(IAR_THETA_SIGN, cfg->ppcon1.theta_sign, value);
@@ -1076,73 +1067,10 @@ int32_t iar_switch_buf(uint32_t channel)
 }
 EXPORT_SYMBOL_GPL(iar_switch_buf);
 
-/*
-int32_t iar_set_video_buffer(uint32_t yaddr, uint32_t caddr, int index)
-{
-	//uint32_t index;
-	buf_addr_t display_addr;
-	unsigned int uoffset, voffset;
-
-	pr_debug("begin set iar display yaddr 0x%x, caddr 0x%x", yaddr, caddr);
-	if (g_iar_dev == NULL) {
-		pr_err("IAR dev not inited!");
-		return -1;
-	}
-	//uoffset = voffset =
-	//g_iar_dev->buf_w_h[0][0] * g_iar_dev->buf_w_h[0][1];
-	if (index < 0) {
-		display_addr.Yaddr = yaddr;
-		display_addr.Uaddr = caddr;
-		display_addr.Vaddr = 0;
-
-	} else {
-		pr_debug("index is %d.\n", index);
-		display_addr.Yaddr =
-			g_iar_dev->pingpong_buf[0].pixel_addr[index].Yaddr;
-		display_addr.Uaddr =
-			g_iar_dev->pingpong_buf[0].pixel_addr[index].Yaddr +
-			800*480;
-		display_addr.Vaddr = 0;
-	}
-	iar_set_bufaddr(0, &display_addr);
-
-	iar_update();
-	pr_debug("end set iar display addr success!\n");
-
-	return 0;
-}
-EXPORT_SYMBOL_GPL(iar_set_video_buffer);
-*/
 int32_t iar_set_video_buffer(uint32_t slot_id)
 {
-	buf_addr_t display_addr;
-
-/*	display_addr.Yaddr = slot_id * iar_display_ipu_addr[0][1] +
-		iar_display_yaddr_offset;
-	display_addr.Uaddr = slot_id * iar_display_ipu_addr[0][1] +
-		iar_display_caddr_offset;
-*/
-	if (disp_user_config_done == 1) {
-		display_addr.Yaddr = slot_id * iar_display_ipu_slot_size +
-			iar_display_yaddr_offset;
-		display_addr.Uaddr = slot_id * iar_display_ipu_slot_size +
-			iar_display_caddr_offset;
-
-		display_addr.Vaddr = 0;
-
-		pr_debug("iar_display_yaddr offset is 0x%x.\n",
-				iar_display_yaddr_offset);
-		pr_debug("iar_display_caddr offset is 0x%x.\n",
-				iar_display_caddr_offset);
-		pr_debug("iar: iar_display_yaddr is 0x%x.\n",
-				display_addr.Yaddr);
-		pr_debug("iar: iar_display_caddr is 0x%x.\n",
-				display_addr.Uaddr);
-		iar_set_bufaddr(0, &display_addr);
-
-		iar_update();
-		pr_debug("end set iar display addr success!\n");
-	}
+	ipu_process_done = 1;
+	ipu_display_slot_id = slot_id;
 	return 0;
 }
 EXPORT_SYMBOL_GPL(iar_set_video_buffer);
@@ -1235,9 +1163,6 @@ int32_t iar_close(void)
 		return -1;
 	}
 	disp_user_config_done = 0;
-	iar_switch_buf(0);
-	iar_switch_buf(2);
-	iar_update();
 	//iar_stop();
 	//value = readl(g_iar_dev->sysctrl + 0x148);
 	//value |= (0x1<<2);
@@ -1325,7 +1250,7 @@ int32_t iar_pre_init(void)
 		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr;
 	bufaddr_channe1->Uaddr =
 		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr +
-		800*480;
+		1280*720;
 	iar_set_bufaddr(IAR_CHANNEL_1, bufaddr_channe1);
 
 	bufaddr_channe3 = &g_iar_dev->pingpong_buf[IAR_CHANNEL_3].pixel_addr[0];
@@ -1364,6 +1289,122 @@ static irqreturn_t x2_iar_irq(int this_irq, void *data)
 	IAR_DEBUG_PRINT("IAR int:0x%x", regval);
 	enable_irq(this_irq);
 	return IRQ_HANDLED;
+}
+
+int disable_iar_irq(void)
+{
+	int regval = 0;
+
+	regval = 0xffffffff;
+	writel(regval, g_iar_dev->regaddr + REG_IAR_DE_SETMASK);
+
+	IAR_DEBUG_PRINT("x2_iar driver: mask all interrupts!\n");
+	return 0;
+}
+
+int enable_iar_irq(void)
+{
+	int regval = 0;
+	//FBUF_END: bit22
+	regval = 0x00400000;
+	writel(regval, g_iar_dev->regaddr + REG_IAR_DE_UNMASK);
+	IAR_DEBUG_PRINT("x2_iar driver: unmask FBUF end interrupt!\n");
+
+	return 0;
+}
+
+static int iar_thread(void *data)
+{
+	buf_addr_t display_addr;
+
+	do {
+		if (kthread_should_stop())
+			break;
+		if (ipu_process_done == 1 && disp_user_config_done == 1) {
+			display_addr.Yaddr =
+				ipu_display_slot_id * iar_display_ipu_slot_size
+				+ iar_display_yaddr_offset;
+			display_addr.Uaddr =
+				ipu_display_slot_id * iar_display_ipu_slot_size
+				+ iar_display_caddr_offset;
+
+			display_addr.Vaddr = 0;
+			//pr_debug("iar_display_yaddr offset is 0x%x.\n",
+			//iar_display_yaddr_offset);
+			//pr_debug("iar_display_caddr offset is 0x%x.\n",
+			//iar_display_caddr_offset);
+			//pr_debug("iar: iar_display_yaddr is 0x%x.\n",
+			//display_addr.Yaddr);
+			//pr_debug("iar: iar_display_caddr is 0x%x.\n",
+			//display_addr.Uaddr);
+
+			if (config_rotate) {
+				iar_rotate_video_buffer(display_addr.Yaddr,
+					display_addr.Uaddr, display_addr.Vaddr);
+			} else {
+				iar_set_bufaddr(0, &display_addr);
+				iar_update();
+			}
+			ipu_process_done = 0;
+		}
+	} while (!kthread_should_stop());
+}
+
+int iar_rotate_video_buffer(phys_addr_t yaddr,
+		phys_addr_t uaddr, phys_addr_t vaddr)
+{
+	int video_index;
+	buf_addr_t display_addr;
+	void __iomem *video_display_vaddr;
+
+	video_index = g_iar_dev->cur_framebuf_id[IAR_CHANNEL_1];
+	video_display_vaddr =
+	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[!video_index].vaddr;
+	do {
+		struct timeval tv_s;
+		struct timeval tv_e;
+		int time_cost = 0;
+		uint8_t *src_addr = (void *)(phys_to_virt(yaddr));
+		uint8_t *tmp_addr =
+			(uint8_t *)g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr;
+
+		do_gettimeofday(&tv_s);
+		preempt_disable();
+
+		NV12ToI420Rotate(src_addr, 1280,
+				src_addr + 1280*720, 1280,
+				video_display_vaddr, 720,
+				tmp_addr, 720/2,
+				tmp_addr + 1280*720, 720/2,
+				1280, 720, kRotate90);
+
+		MergeUVPlane(tmp_addr, 720/2,
+				tmp_addr + 1280*720, 720/2,
+				video_display_vaddr + 1280*720, 720,
+				720/2, 1280/2);
+		preempt_enable();
+
+		do_gettimeofday(&tv_e);
+		time_cost = (tv_e.tv_sec*1000 + tv_e.tv_usec/1000) -
+			(tv_s.tv_sec*1000 + tv_s.tv_usec/1000);
+		pr_debug("time cost %dms\n", time_cost);
+	} while (0);
+
+	//display video
+	display_addr.Yaddr =
+	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[!video_index].paddr;
+	display_addr.Uaddr =
+	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[!video_index].paddr
+	+ 720*1280;
+	display_addr.Vaddr = 0;
+
+	iar_set_bufaddr(IAR_CHANNEL_1, &display_addr);
+	//switch video pingpong buffer
+	g_iar_dev->cur_framebuf_id[IAR_CHANNEL_1] = !video_index;
+
+	iar_update();
+
+	return 0;
 }
 
 #define IAR_DRAW_WIDTH	(1920)
@@ -1439,8 +1480,6 @@ static int x2_iar_probe(struct platform_device *pdev)
 	int tempi = 0;
 	void *vaddr;
 	int deta = 0;
-	//void *vio_refclk_regaddr, *iar_clk_regaddr;
-	//int regvalue1, regvalue;
 
 	pr_info("x2 iar probe begin!!!\n");
 	g_iar_dev = devm_kzalloc(&pdev->dev, sizeof(struct iar_dev_s), GFP_KERNEL);
@@ -1473,10 +1512,23 @@ static int x2_iar_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 	g_iar_dev->irq = irq->start;
+	pr_info("g_iar_dev->irq is %d\n", irq->start);
 
 	ret = request_threaded_irq(g_iar_dev->irq, x2_iar_irq, NULL, IRQF_TRIGGER_HIGH,
 							   dev_name(&pdev->dev), g_iar_dev);
 	disable_irq(g_iar_dev->irq);
+
+	if (g_iar_dev->iar_task == NULL) {
+		g_iar_dev->iar_task =
+			kthread_run(iar_thread,
+					(void *)g_iar_dev, "iar_thread");
+		if (IS_ERR(g_iar_dev->iar_task)) {
+			g_iar_dev->iar_task = NULL;
+			dev_err(&g_iar_dev->pdev->dev, "iar thread create fail\n");
+			ret = PTR_ERR(g_iar_dev->iar_task);
+			//goto err_out4;
+		}
+	}
 
 	np = of_parse_phandle(pdev->dev.of_node, "memory-region", 0);
 	if (!np) {
@@ -1496,10 +1548,11 @@ static int x2_iar_probe(struct platform_device *pdev)
 	return -1;
 	}
 
-	//for reserved 48M memory
+	//for reserved 32M(4*8) memory,
+	//three buffers for video, one buffer for graphic(fb)
 
-/*	//channel 2&4 disabled
-	vaddr = ioremap_nocache(r.start, MAX_FRAME_BUF_SIZE * 6);
+	//channel 2&4 disabled
+	vaddr = ioremap_nocache(r.start, MAX_FRAME_BUF_SIZE * 4);
 	g_iar_dev->frambuf[IAR_CHANNEL_1].paddr = r.start;
 	g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr = vaddr;
 	g_iar_dev->frambuf[IAR_CHANNEL_3].paddr = r.start + MAX_FRAME_BUF_SIZE;
@@ -1515,18 +1568,6 @@ static int x2_iar_probe(struct platform_device *pdev)
 
 	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].vaddr
 			= g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr + MAX_FRAME_BUF_SIZE;
-
-	g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].paddr
-			= g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].paddr + MAX_FRAME_BUF_SIZE;
-
-	g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].vaddr
-			= g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].vaddr + MAX_FRAME_BUF_SIZE;
-
-	g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[1].paddr
-			= g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].paddr + MAX_FRAME_BUF_SIZE;
-
-	g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[1].vaddr
-			= g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].vaddr + MAX_FRAME_BUF_SIZE;
 
 	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_1].paddr = 0x%llx\n",
 				g_iar_dev->frambuf[IAR_CHANNEL_1].paddr);
@@ -1545,15 +1586,7 @@ static int x2_iar_probe(struct platform_device *pdev)
 		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].paddr);
 	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].vaddr = 0x%p\n",
 		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].vaddr);
-	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].paddr = 0x%llx\n",
-		g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].paddr);
-	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].vaddr = 0x%p\n",
-		g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].vaddr);
-	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[1].paddr = 0x%llx\n",
-		g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[1].paddr);
-	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[1].vaddr = 0x%p\n",
-		g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[1].vaddr);
-*/
+/*
 	//for reserver 24M memory (1920*1080*4*3)
 	//channel 2&4 disabled
 	vaddr = ioremap_nocache(r.start, MAX_FRAME_BUF_SIZE * 3);
@@ -1606,31 +1639,24 @@ static int x2_iar_probe(struct platform_device *pdev)
 		g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[1].paddr);
 	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[1].vaddr = 0x%p\n",
 		g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[1].vaddr);
-
+*/
 	if (display_type == LCD_7_TYPE) {
 
 		pr_info("display type is lcd 7inch panel!!!!!!\n");
 		ret = ips_set_iar_clk32(1);
 		if (ret)
 			return ret;
+
 		temp1 =
 		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr;
 		tempi = 0;
-		for (tempi = 0; tempi < VIDEO_FRAME_BUF_SIZE; tempi++) {
-			*temp1 = 0x1d;
-			temp1++;
-			*temp1 = 0x81;
-			temp1++;
-			*temp1 = 0xd8;
-		}
-
-		temp1 =
-		g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].vaddr;
-		tempi = 0;
-
 		for (tempi = 0; tempi < MAX_FRAME_BUF_SIZE; tempi++)
 			*temp1++ = 0x00;
-/*
+		temp1 = g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr;
+		tempi = 0;
+		for (tempi = 0; tempi < MAX_FRAME_BUF_SIZE; tempi++)
+			*temp1++ = 0x00;
+		/*
 		deta = 800*480*4/10;
 		for (tempi = 0; tempi < 800*48*4; tempi++) {
 			if (((tempi + 4) % 4) == 0)
@@ -1700,18 +1726,10 @@ static int x2_iar_probe(struct platform_device *pdev)
 				*temp1 = 0xff;//a
 			temp1++;
 		}
-		//temp1 =
-		//g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].vaddr;
-		//tempi = 0;
-		//for (tempi = 0; tempi < 120; tempi++) {
-		//	pr_info("0x%x  ", *temp1);
-		//	temp1++;
-		//}
-*/
+		*/
 	} else if (display_type == HDMI_TYPE) {
 		pr_info("display type is HDMI panel!!!!\n");
-		temp1 =
-		g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].vaddr;
+		temp1 = g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr;
 		#define IAR_DRAW_X(c, p)	(IAR_DRAW_WIDTH * c / p)
 		#define IAR_DRAW_XL(c, p)	((IAR_DRAW_WIDTH * c / p) - 1)
 		#define IAR_DRAW_Y(c, p)	(IAR_DRAW_HEIGHT * c / p)
