@@ -716,6 +716,48 @@ int32_t iar_set_panel_timing(struct fb_info *fb, int display_type)
 
 		writel(0xa,
 			g_iar_dev->regaddr + REG_IAR_PARAMETER_VFP_CNT_FIELD12);
+	} else if (display_type == MIPI_720P) {
+		value = readl(g_iar_dev->regaddr +
+					REG_IAR_PARAMETER_HTIM_FIELD1);
+		value = IAR_REG_SET_FILED(IAR_DPI_HBP_FIELD,
+				36, value);//right_margin//hbp//46//40
+		value = IAR_REG_SET_FILED(IAR_DPI_HFP_FIELD,
+			84, value);//left_margin//hfp//46//40
+		value = IAR_REG_SET_FILED(IAR_DPI_HSW_FIELD,
+			24, value);//hsync_len//hs//10//10
+		writel(value, g_iar_dev->regaddr +
+					REG_IAR_PARAMETER_HTIM_FIELD1);
+
+		value = readl(g_iar_dev->regaddr +
+					REG_IAR_PARAMETER_VTIM_FIELD1);
+		value = IAR_REG_SET_FILED(IAR_DPI_VBP_FIELD,
+					11, value);//lower_margin//vbp//14//11
+
+		value = IAR_REG_SET_FILED(IAR_DPI_VFP_FIELD,
+					13, value);//upper_margin//vfp//16//16
+
+		value = IAR_REG_SET_FILED(IAR_DPI_VSW_FIELD,
+						2, value);//vsync_len//vs//3//3
+		writel(value, g_iar_dev->regaddr +
+					REG_IAR_PARAMETER_VTIM_FIELD1);
+
+#if 0
+		value = readl(g_iar_dev->regaddr +
+					REG_IAR_PARAMETER_VTIM_FIELD2);
+		value = IAR_REG_SET_FILED(IAR_DPI_VBP_FIELD2,
+					10, value);//lower_margin//vbp
+
+		value = IAR_REG_SET_FILED(IAR_DPI_VFP_FIELD2,
+				12, value);//upper_margin//vfp
+
+		value = IAR_REG_SET_FILED(IAR_DPI_VSW_FIELD2,
+					2, value);//vsync_len//vs
+		writel(value,
+			g_iar_dev->regaddr + REG_IAR_PARAMETER_VTIM_FIELD2);
+
+		writel(0xa,
+			g_iar_dev->regaddr + REG_IAR_PARAMETER_VFP_CNT_FIELD12);
+#endif
 	}
 
 	return 0;
@@ -862,6 +904,34 @@ int32_t iar_gamma_cfg(gamma_cfg_t *cfg)
 }
 EXPORT_SYMBOL_GPL(iar_gamma_cfg);
 
+int32_t iar_set_pixel_clk_div(unsigned int pixel_clk)
+{
+	void __iomem *iar_clk_div_addr;
+	uint32_t regvalue = 0;
+	int32_t ret = 0;
+
+	switch (pixel_clk) {
+	case PIXEL_CLK_162:
+		ips_set_iar_clk32(0);
+		break;
+	case PIXEL_CLK_32:
+		ips_set_iar_clk32(1);
+		break;
+	case PIXEL_CLK_69:
+		ips_set_iar_clk32(1);
+		iar_clk_div_addr = ioremap_nocache(0xA1000000 + 0x240, 4);
+		regvalue = readl(iar_clk_div_addr);
+		regvalue = (regvalue & 0xff0fffff) | 0x00600000;//72M
+		writel(regvalue, iar_clk_div_addr);
+		break;
+	default:
+		pr_err("%s: wrong pixel clk.\n");
+		ret = -1;
+		break;
+	}
+	return ret;
+}
+
 int32_t iar_output_cfg(output_cfg_t *cfg)
 {
 	uint32_t value;
@@ -918,6 +988,24 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 	}
 
 	config_rotate = cfg->rotate;
+	if (cfg->panel_type == 2) {
+		if (display_type == HDMI_TYPE) {
+			pr_err("%s: wrong json file or convert hw!\n");
+			return -1;
+		}
+		display_type = MIPI_720P;
+	} else if (cfg->panel_type == 1) {
+		if (display_type == HDMI_TYPE) {
+			pr_err("%s: wrong json file or convert hw!\n");
+			return -1;
+		}
+		display_type = LCD_7_TYPE;
+	} else if (cfg->panel_type == 0) {
+		if (display_type == LCD_7_TYPE) {
+			pr_err("%s: wrong json file or convert hw!\n");
+			return -1;
+		}
+	}
 
 	value = readl(g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
 	value = IAR_REG_SET_FILED(IAR_PANEL_COLOR_TYPE, 2, value);
@@ -1643,7 +1731,7 @@ static int x2_iar_probe(struct platform_device *pdev)
 	if (display_type == LCD_7_TYPE) {
 
 		pr_info("display type is lcd 7inch panel!!!!!!\n");
-		ret = ips_set_iar_clk32(1);
+		ret = iar_set_pixel_clk_div(PIXEL_CLK_32);
 		if (ret)
 			return ret;
 

@@ -24,6 +24,8 @@
 
 #include "x2_lt9211.h"
 
+//#define MIPI_PATTEN
+
 struct video_timing video_384x292_60Hz = {
 	6, 5, 5, 384, 400, 4, 2, 2, 292, 300, 3000};
 //struct video_timing video_800x480_60Hz = {
@@ -59,9 +61,16 @@ struct video_timing video_3840x2160_60Hz = {
 struct video_timing video_1920x1080_25Hz = {
 	528, 44, 148, 1920, 2640, 4, 5, 36, 1080, 1125, 74250};
 
+struct video_timing video = {
+	48, 24, 24, 720, 816, 12, 2, 10, 1280, 1304, 71980};
+struct video_timing video_720x1280_60Hz = {
+	72, 24, 24, 720, 840, 12, 2, 10, 1280, 1304, 71980};
+
 
 struct video_timing TimingStr;
 enum VideoFormat Video_Format;
+
+//extern int display_type;
 //extern int lt9211_reset_pin;
 //extern int lcd_reset_pin;
 //extern int lcd_pwm_pin;
@@ -186,7 +195,7 @@ int set_lt9211_config(struct fb_info *fb, unsigned int convert_type)
 
 
 	//	lt9211r_patten(&video_800x480_60Hz);
-//		msleep(100);
+		//msleep(100);
 #endif
 		ret = lt9211_tx_digital_RGB();
 		if (ret) {
@@ -216,37 +225,108 @@ int set_lt9211_config(struct fb_info *fb, unsigned int convert_type)
 			return ret;
 		}
 	} else if (convert_type == BT1120_TO_MIPI) {
+#ifdef MIPI_PATTEN
+		ret = lt9211_system_int_to_mipi_pattern();
+		if (ret) {
+			pr_err("%s() Err init lt9211 system ret= %d\n",
+					__func__, ret);
+			return ret;
+		}
+
+//		lt9211_csc_to_mipi();
+
+		lt9211_mipi_patten(&video);
+
+		ret = lt9211_mipi_tx_pll();
+		if (ret) {
+			pr_err("%s:Err config lt9211 mipi tx pll ret= %d\n",
+					__func__, ret);
+			return ret;
+		}
+
+		ret = lt9211_mipi_tx_phy();
+		if (ret) {
+			pr_err("%s:Err config lt9211 mipi tx phy ret= %d\n",
+					__func__, ret);
+			return ret;
+		}
+
+		ret = lt9211_set_mipi_tx_timing(&video);
+		if (ret) {
+			pr_err("%s:Err set lt9211 tx timing ret= %d\n",
+					__func__, ret);
+			return ret;
+		}
+
+		ret = init_panel(display_type);
+		if (ret) {
+			pr_err("%s:Err init dsi panel ret= %d\n",
+					__func__, ret);
+			return ret;
+		}
+
+		ret = lt9211_mipi_tx_digital();
+		if (ret) {
+			pr_err("%sErr config mipi tx digital ret= %d\n",
+					__func__, ret);
+			return ret;
+		}
+
+//		ret = lt9211_mipi_clock_debug();
+//		if (ret) {
+//			printk(KERN_ERR"%s() Err config lt9211 mipi clock debug
+//			ret= %d\n", __func__, ret);
+//			return ret;
+//		}
+
+#else
+		pr_debug("%s: 1.begin lt9211 system int to mipi\n",
+							__func__);
+		//ret = lt9211_system_int_to_RGB();
 		ret = lt9211_system_int_to_mipi();
 		if (ret) {
-			LT9211_DEBUG("%s() Err init lt9211 system ret= %d\n",
+			pr_err("%s() Err init lt9211 system ret= %d\n",
 					__func__, ret);
 			return ret;
 		}
+		pr_debug("%s: 2.begin lt9211 ttl rx phy to mipi\n", __func__);
 		ret = lt9211_ttl_rx_phy_to_mipi();
 		if (ret) {
-			LT9211_DEBUG("%s() Err config lt9211 ttl rx phy ret= %d\n",
+			pr_err("%s() Err config lt9211 ttl rx phy ret= %d\n",
 					__func__, ret);
 			return ret;
 		}
+		pr_debug("%s: 3.begin lt9211 video check to mipi\n", __func__);
+		ret = lt9211_video_check_to_mipi();
+		if (ret) {
+			pr_err("%s() Err check lt9211 video ret= %d\n",
+					__func__, ret);
+			return ret;
+		}
+/*
 		ret = lt9211_csc_to_mipi();
 		if (ret) {
 			LT9211_DEBUG("%s() Err config lt9211 csc ret= %d\n",
 					__func__, ret);
 			return ret;
 		}
-		ret = lt9211_video_check_to_mipi();
+*/
+		pr_debug("%s: 4.begin lt9211 set timing para to mipi\n",
+							__func__);
+		ret = lt9211_set_timing_para_to_mipi();
 		if (ret) {
-			LT9211_DEBUG("%s() Err check lt9211 video ret= %d\n",
-					__func__, ret);
+			pr_err("%s:Err set timing parameter ret= %d\n",
+							__func__, ret);
 			return ret;
 		}
-		//ret = lt9211_set_timing_para_to_mipi();
-		//if (ret) {
-			//LT9211_DEBUG("%s() Err set lt9211 timing
-			//parameter ret= %d\n", __FUNCTION__, ret);
-			//return ret;
-		//}
-
+		pr_debug("%s: 5.begin lt9211 mipi clock debug\n", __func__);
+		ret = lt9211_mipi_clock_debug();
+		if (ret) {
+			pr_err("%s:Err mipi clock debug ret= %d\n",
+						__func__, ret);
+			return ret;
+		}
+/*
 		ret = x2_write_lt9211(0xff, 0x85);
 		if (ret < 0)
 			return ret;
@@ -294,37 +374,51 @@ int set_lt9211_config(struct fb_info *fb, unsigned int convert_type)
 		ret = x2_write_lt9211(0x3d, (uint8_t)(fb->var.vsync_len));
 		if (ret < 0)
 			return ret;
-
+*/
+		pr_debug("%s: 6.begin lt9211 mipi tx phy\n", __func__);
 		ret = lt9211_mipi_tx_phy();
 		if (ret) {
-			LT9211_DEBUG("%s() Err config lt9211 mipi tx phy ret= %d\n",
+			pr_err("%s() Err config lt9211 mipi tx phy ret= %d\n",
 					__func__, ret);
 			return ret;
 		}
+		pr_debug("%s: 7.begin lt9211 mipi tx pll\n", __func__);
 		ret = lt9211_mipi_tx_pll();
 		if (ret) {
-			LT9211_DEBUG("%s() Err config lt9211 mipi tx pll ret= %d\n",
+			pr_err("%s() Err config lt9211 mipi tx pll ret= %d\n",
 					__func__, ret);
 			return ret;
 		}
-		ret = init_panel();
-		if (ret) {
-			LT9211_DEBUG("%s() Err init dsi panel ret= %d\n",
-					__func__, ret);
-			return ret;
-		}
+		pr_debug("%s: 8.begin lt9211 set tx timing\n", __func__);
 		ret = lt9211_set_tx_timing();
 		if (ret) {
-			LT9211_DEBUG("%s() Err set lt9211 tx timing ret= %d\n",
+			pr_err("%s() Err set lt9211 tx timing ret= %d\n",
 					__func__, ret);
 			return ret;
 		}
+
+		pr_debug("%s: 9.begin init panel\n", __func__);
+		ret = init_panel(display_type);
+		if (ret) {
+			pr_err("%s() Err init dsi panel ret= %d\n",
+					__func__, ret);
+			return ret;
+		}
+		pr_debug("%s: 10.begin lt9211 mipi tx digital\n", __func__);
 		ret = lt9211_mipi_tx_digital();
 		if (ret) {
-			LT9211_DEBUG("%s() Err config lt9211 mipi tx digital ret= %d\n",
+			pr_err("%s() Err config lt9211 mipi tx digital ret= %d\n",
 					__func__, ret);
 			return ret;
 		}
+		pr_debug("%s: 11.begin lt9211 csc to mipi\n", __func__);
+		ret = lt9211_csc_to_mipi();
+		if (ret) {
+			pr_err("%s() Err config lt9211 csc ret= %d\n",
+					__func__, ret);
+			return ret;
+		}
+#endif
 	}
 
 	LT9211_DEBUG("Framebuffer config lt9211 on line end!!!\n");
@@ -509,7 +603,7 @@ int lt9211_config(unsigned int convert_type)
 					__func__, ret);
 			return ret;
 		}
-		ret = init_panel();
+		ret = init_panel(display_type);
 		if (ret) {
 			LT9211_DEBUG("%s() Err init dsi panel ret= %d\n",
 					__func__, ret);
@@ -613,7 +707,7 @@ int lt9211_chip_id(void)
 		return -1;
 }
 
-int lt9211_system_int_to_mipi(void)
+int lt9211_system_int_to_mipi_pattern(void)
 {
 	int ret = 0;
 
@@ -636,7 +730,7 @@ int lt9211_system_int_to_mipi(void)
 		return ret;
 
 	/*reduced power consumption*/
-	ret = x2_write_lt9211(0xff, 0x81);//clock gating
+/*	ret = x2_write_lt9211(0xff, 0x81);//clock gating
 	if (ret < 0)
 		return ret;
 	ret = x2_write_lt9211(0x31, 0x00);
@@ -655,6 +749,52 @@ int lt9211_system_int_to_mipi(void)
 	if (ret < 0)
 		return ret;
 	ret = x2_write_lt9211(0x3b, 0x00);
+	if (ret < 0)
+		return ret;
+*/
+	ret = x2_write_lt9211(0xff, 0x87);//init plltx
+	if (ret < 0)
+		return ret;
+	ret = x2_write_lt9211(0x14, 0x08);//default value
+	if (ret < 0)
+		return ret;
+	ret = x2_write_lt9211(0x15, 0x00);//default value
+	if (ret < 0)
+		return ret;
+	ret = x2_write_lt9211(0x18, 0x0f);
+	if (ret < 0)
+		return ret;
+	ret = x2_write_lt9211(0x22, 0x08);//default value
+	if (ret < 0)
+		return ret;
+	ret = x2_write_lt9211(0x23, 0x00);//default value
+	if (ret < 0)
+		return ret;
+	ret = x2_write_lt9211(0x26, 0x0f);
+	if (ret < 0)
+		return ret;
+	return 0;
+}
+
+int lt9211_system_int_to_mipi(void)
+{
+	int ret = 0;
+
+	/*system clock init*/
+	ret = x2_write_lt9211(0xff, 0x82);
+	if (ret < 0)
+		return ret;
+	ret = x2_write_lt9211(0x01, 0x18);
+	if (ret < 0)
+		return ret;
+
+	ret = x2_write_lt9211(0xff, 0x86);
+	if (ret < 0)
+		return ret;
+	ret = x2_write_lt9211(0x06, 0x61);
+	if (ret < 0)
+		return ret;
+	ret = x2_write_lt9211(0x07, 0xa8);//fm for sys_clk
 	if (ret < 0)
 		return ret;
 
@@ -679,6 +819,14 @@ int lt9211_system_int_to_mipi(void)
 	ret = x2_write_lt9211(0x26, 0x0f);
 	if (ret < 0)
 		return ret;
+
+	ret = x2_write_lt9211(0xff, 0x81);//rpt reset
+	if (ret < 0)
+		return ret;
+	ret = x2_write_lt9211(0x0b, 0xfe);
+	if (ret < 0)
+		return ret;
+
 	return 0;
 }
 
@@ -727,7 +875,7 @@ int lt9211_system_int_to_RGB(void)
 	LT9211_DEBUG("step1:end to config lt9211 system int to RGB!!!\n");
 	return 0;
 }
-
+/*
 int lt9211_ttl_rx_phy_to_mipi(void)
 {
 	int ret = 0;
@@ -768,6 +916,42 @@ int lt9211_ttl_rx_phy_to_mipi(void)
 		return ret;
 	return 0;
 }
+*/
+int lt9211_ttl_rx_phy_to_mipi(void)
+{
+	int ret = 0;
+
+	ret = x2_write_lt9211(0xff, 0x82);
+	if (ret < 0)
+		return ret;
+	ret = x2_write_lt9211(0x28, 0x40);
+	if (ret < 0)
+		return ret;
+	ret = x2_write_lt9211(0x61, 0x09);
+	if (ret < 0)
+		return ret;
+	ret = x2_write_lt9211(0x63, 0x00);
+	if (ret < 0)
+		return ret;
+
+	ret = x2_write_lt9211(0xff, 0x85);
+	if (ret < 0)
+		return ret;
+	ret = x2_write_lt9211(0x88, 0x90);
+	if (ret < 0)
+		return ret;
+	//ret = x2_write_lt9211(0x45, 0x70);
+	ret = x2_write_lt9211(0x45, 0x60);
+	if (ret < 0)
+		return ret;
+	ret = x2_write_lt9211(0x48, 0x18);
+	if (ret < 0)
+		return ret;
+
+	return 0;
+}
+
+
 
 int lt9211_ttl_rx_phy_to_RGB(void)
 {
@@ -818,12 +1002,13 @@ int lt9211_csc_to_mipi(void)
 	ret = x2_write_lt9211(0x90, 0x03);
 	if (ret < 0)
 		return ret;
-	ret = x2_write_lt9211(0x91, 0x4f);
+	ret = x2_write_lt9211(0x91, 0x03);
 	if (ret < 0)
 		return ret;
 	return 0;
 }
 
+/*
 int lt9211_video_check_to_mipi(void)
 {
 	uint16_t hact, vact;
@@ -887,6 +1072,82 @@ int lt9211_video_check_to_mipi(void)
 	}
 	return 0;
 }
+*/
+int lt9211_video_check_to_mipi(void)
+{
+	uint16_t hact, vact;
+	uint8_t hact_h, hact_l, vact_h, vact_l;
+	uint16_t htotal;
+	uint8_t htotal_h, htotal_l;
+	uint8_t read_result;
+	int ret = 0;
+
+	ret = x2_write_lt9211(0xff, 0x86);
+	if (ret < 0)
+		return ret;
+	ret = x2_write_lt9211(0x20, 0x33);
+	if (ret < 0)
+		return ret;
+	msleep(100);
+
+	while (1) {
+		ret = x2_write_lt9211(0xff, 0x85);
+		if (ret < 0)
+			return ret;
+		ret = x2_read_lt9211(0x4f, &read_result);
+		if (ret < 0)
+			return ret;
+		pr_debug("854F value is 0x%x\n", read_result);
+		if (read_result & 0x40) {
+			//BT1120 flag is set
+			ret = x2_write_lt9211(0xff, 0x86);
+			if (ret < 0)
+				return ret;
+			ret = x2_read_lt9211(0x8b, &vact_h);
+			if (ret < 0)
+				return ret;
+			ret = x2_read_lt9211(0x8c, &vact_l);
+			if (ret < 0)
+				return ret;
+			vact = (((uint16_t)vact_h) << 8) + (uint8_t)vact_l;
+			ret = x2_read_lt9211(0x8d, &hact_h);
+			if (ret < 0)
+				return ret;
+			ret = x2_read_lt9211(0x8e, &hact_l);
+			if (ret < 0)
+				return ret;
+			hact = (((uint8_t)hact_h) << 8) + (uint8_t)hact_l;
+			hact = hact - 4;
+			ret = x2_read_lt9211(0x8f, &htotal_h);
+			if (ret < 0)
+				return ret;
+			ret = x2_read_lt9211(0x90, &htotal_l);
+			if (ret < 0)
+				return ret;
+			htotal = (((uint8_t)htotal_h) << 8) + (uint8_t)htotal_l;
+
+			pr_debug("\nlt9211 video chech debug: hact = 0x%x",
+					hact);
+			pr_debug("\nlt9211 video chech debug:vact = 0x%x",
+					vact);
+			pr_debug("\nlt9211 video chech debug:htotal = 0x%x",
+					htotal);
+
+			if ((hact == video_720x1280_60Hz.hact) &&
+					(vact == video_720x1280_60Hz.vact)) {
+				pr_info("\nVideo_check = video_720x1280_60Hz");
+				Video_Format = video_720x1280_60Hz_vic;
+				TimingStr = video_720x1280_60Hz;
+				break;
+			}
+			pr_info("\nVideo_check None\n");
+			Video_Format = video_none;
+			msleep(2000);
+		}
+	}
+	return 0;
+}
+
 
 int lt9211_BT_video_check_to_RGB(void)
 {
@@ -954,7 +1215,7 @@ int lt9211_BT_video_check_to_RGB(void)
 	}
 	return 0;
 }
-
+/*
 int lt9211_set_timing_para_to_mipi(void)
 {
 	int ret = 0;
@@ -981,6 +1242,51 @@ int lt9211_set_timing_para_to_mipi(void)
 	if (ret < 0)
 		return ret;
 	ret = x2_write_lt9211(0x35, (uint8_t)(TimingStr.hs));
+	if (ret < 0)
+		return ret;
+	//VFP
+	ret = x2_write_lt9211(0x38, (uint8_t)(TimingStr.vfp >> 8));
+	if (ret < 0)
+		return ret;
+	ret = x2_write_lt9211(0x39, (uint8_t)(TimingStr.vfp));
+	if (ret < 0)
+		return ret;
+	//VSW
+	ret = x2_write_lt9211(0x3c, (uint8_t)(TimingStr.vs >> 8));
+	if (ret < 0)
+		return ret;
+	ret = x2_write_lt9211(0x3d, (uint8_t)(TimingStr.vs));
+	if (ret < 0)
+		return ret;
+	return 0;
+}
+*/
+int lt9211_set_timing_para_to_mipi(void)
+{
+	int ret = 0;
+	//Htotal
+
+	ret = x2_write_lt9211(0xff, 0x85);
+	if (ret < 0)
+		return ret;
+	ret = x2_write_lt9211(0x20, (uint8_t)(TimingStr.hact >> 8));
+	if (ret < 0)
+		return ret;
+	ret = x2_write_lt9211(0x21, (uint8_t)(TimingStr.hact));
+	if (ret < 0)
+		return ret;
+	//HFP
+	ret = x2_write_lt9211(0x22, (uint8_t)(TimingStr.hfp >> 8));
+	if (ret < 0)
+		return ret;
+	ret = x2_write_lt9211(0x23, (uint8_t)(TimingStr.hfp));
+	if (ret < 0)
+		return ret;
+	//HSW
+	ret = x2_write_lt9211(0x24, (uint8_t)(TimingStr.hs >> 8));
+	if (ret < 0)
+		return ret;
+	ret = x2_write_lt9211(0x25, (uint8_t)(TimingStr.hs));
 	if (ret < 0)
 		return ret;
 	//VFP
@@ -1058,10 +1364,34 @@ int lt9211_mipi_tx_phy(void)
 	if (ret < 0)
 		return ret;
 	//mipi 0x32:Port A/B Enable 0x12:portB 0x22:port A
-	ret = x2_write_lt9211(0x3b, 0x32);
+	ret = x2_write_lt9211(0x3b, 0x32);//mipi_en
 	//mipi 0x32:Port A/B Enable 0x12:portB 0x22:port A
 	if (ret < 0)
 		return ret;
+
+	ret = x2_write_lt9211(0xff, 0x86);
+	if (ret < 0)
+		return ret;
+	ret = x2_write_lt9211(0x40, 0x80);//tx src sel
+	if (ret < 0)
+		return ret;
+
+	ret = x2_write_lt9211(0x41, 0x01);
+	if (ret < 0)
+		return ret;
+	ret = x2_write_lt9211(0x42, 0x23);
+	if (ret < 0)
+		return ret;
+	ret = x2_write_lt9211(0x43, 0x40);//PORTA mipi lane swap
+	if (ret < 0)
+		return ret;
+	ret = x2_write_lt9211(0x44, 0x12);
+	if (ret < 0)
+		return ret;
+	ret = x2_write_lt9211(0x45, 0x34);//PORTB mipi lane swap
+	if (ret < 0)
+		return ret;
+
 	return 0;
 }
 
@@ -1157,6 +1487,7 @@ int lt9211_RGB_tx_phy(void)
 	return 0;
 }
 
+/*
 int lt9211_mipi_tx_pll(void)
 {
 	uint32_t pixelclk, pixelclk0, pixelclk1;
@@ -1254,6 +1585,60 @@ int lt9211_mipi_tx_pll(void)
 	}
 	return 0;
 }
+*/
+
+int lt9211_mipi_tx_pll(void)
+{
+	int ret = 0;
+	int loopx = 0;
+	uint8_t read_result = 0;
+
+	ret = x2_write_lt9211(0xff, 0x82);
+	if (ret < 0)
+		return ret;
+
+	ret = x2_write_lt9211(0x36, 0x03);
+	if (ret < 0)
+		return ret;
+	ret = x2_write_lt9211(0x37, 0x28);
+	if (ret < 0)
+		return ret;
+	ret = x2_write_lt9211(0x38, 0x04);
+	if (ret < 0)
+		return ret;
+	ret = x2_write_lt9211(0x3a, 0x93);
+	if (ret < 0)
+		return ret;
+
+	ret = x2_write_lt9211(0xff, 0x87);
+	if (ret < 0)
+		return ret;
+	ret = x2_write_lt9211(0x13, 0x00);
+	if (ret < 0)
+		return ret;
+	ret = x2_write_lt9211(0x13, 0x80);
+	if (ret < 0)
+		return ret;
+
+	msleep(100);
+
+	//check tx pll cal done
+	for (loopx = 0; loopx < 10; loopx++) {
+		x2_write_lt9211(0xff, 0x87);
+		ret = x2_read_lt9211(0x1f, &read_result);
+		if (read_result & 0x80) {
+			ret = x2_read_lt9211(0x20, &read_result);
+			if (read_result & 0x80)
+				pr_debug("\r\nLT9211 tx pll lock");
+			else
+				pr_debug("\r\nLT9211 tx pll unlocked");
+			pr_debug("\r\nLT9211 tx pll cal done");
+			break;
+		}
+		pr_debug("\r\nLT9211 tx pll unlocked");
+	}
+	return 0;
+}
 
 int lt9211_RGB_tx_pll(void)
 {
@@ -1345,7 +1730,7 @@ int lt9211_RGB_tx_pll(void)
 	LT9211_DEBUG("step: end config lt9211 rgb tx pll!!!\n");
 	return 0;
 }
-
+/*
 int lt9211_set_tx_timing(void)
 {
 	int ret = 0;
@@ -1594,7 +1979,145 @@ int lt9211_set_tx_timing(void)
 		vfp, vs, vbp, vact, vtotal);
 	return 0;
 }
+*/
+int lt9211_set_tx_timing(void)
+{
+	int ret = 0;
 
+	ret = x2_write_lt9211(0xff, 0xd4);
+	if (ret < 0) {
+		pr_err("%s() Err write lt9211 reg, ret= %d\n",
+							 __func__, ret);
+		return ret;
+	}
+	ret = x2_write_lt9211(0x04, 0x08);//hs[7:0] not care
+	if (ret < 0) {
+		pr_err("%s() Err write lt9211 reg, ret= %d\n",
+							 __func__, ret);
+		return ret;
+	}
+	ret = x2_write_lt9211(0x05, 0x08);//hbp[7:0] not care
+	if (ret < 0) {
+		pr_err("%s() Err write lt9211 reg, ret= %d\n",
+							 __func__, ret);
+		return ret;
+	}
+	ret = x2_write_lt9211(0x06, 0x08);//hfp[7:0] not care
+	if (ret < 0) {
+		pr_err("%s() Err write lt9211 reg, ret= %d\n",
+							 __func__, ret);
+		return ret;
+	}
+	ret = x2_write_lt9211(0x07, (uint8_t)(TimingStr.hact >> 8));
+	//hactive[15:8]
+	if (ret < 0) {
+		pr_err("%s() Err write lt9211 reg, ret= %d\n",
+							 __func__, ret);
+		return ret;
+	}
+	ret = x2_write_lt9211(0x08, (uint8_t)(TimingStr.hact));
+	//hactive[7:0]
+	if (ret < 0) {
+		pr_err("%s() Err write lt9211 reg, ret= %d\n",
+							 __func__, ret);
+		return ret;
+	}
+	//vfp[7:0]
+	ret = x2_write_lt9211(0x09, (uint8_t)(TimingStr.vs));
+	if (ret < 0) {
+		pr_err("%s() Err write lt9211 reg, ret= %d\n",
+							 __func__, ret);
+		return ret;
+	}
+	ret = x2_write_lt9211(0x0a, 0x00);//bit[3:0]:vbp[11:8]
+	if (ret < 0) {
+		pr_err("%s() Err write lt9211 reg, ret= %d\n",
+							 __func__, ret);
+		return ret;
+	}
+	ret = x2_write_lt9211(0x0b, (uint8_t)(TimingStr.vbp));//vbp[7:0]
+	if (ret < 0) {
+		pr_err("%s() Err write lt9211 reg, ret= %d\n",
+							 __func__, ret);
+		return ret;
+	}
+	//vcat[15:8]
+	ret = x2_write_lt9211(0x0c, (uint8_t)(TimingStr.vact >> 8));
+	if (ret < 0) {
+		pr_err("%s() Err write lt9211 reg, ret= %d\n",
+							 __func__, ret);
+		return ret;
+	}
+	//vcat[7:0]
+	ret = x2_write_lt9211(0x0d, (uint8_t)(TimingStr.vact));
+	if (ret < 0) {
+		pr_err("%s() Err write lt9211 reg, ret= %d\n",
+							 __func__, ret);
+		return ret;
+	}
+	ret = x2_write_lt9211(0x0e, (uint8_t)(TimingStr.vfp >> 8));//vfp[11:8]
+	if (ret < 0) {
+		pr_err("%s() Err write lt9211 reg, ret= %d\n",
+							 __func__, ret);
+		return ret;
+	}
+	ret = x2_write_lt9211(0x0f, (uint8_t)(TimingStr.vfp));//vfp[7:0]
+	if (ret < 0) {
+		pr_err("%s() Err write lt9211 reg, ret= %d\n",
+							 __func__, ret);
+		return ret;
+	}
+
+	return 0;
+}
+
+
+int lt9211_set_mipi_tx_timing(struct video_timing *video_format)
+{
+	uint16_t hact, vact;
+	uint16_t hs, vs;
+	uint16_t hbp, vbp;
+	uint16_t htotal, vtotal;
+	uint16_t hfp, vfp;
+	//struct Timing TimingStr;
+	struct video_timing TimingStr;
+
+	vs = video_format->vs;
+	hs = video_format->hs;
+	vbp = video_format->vbp;
+	vfp = video_format->vfp;
+	hbp = video_format->hbp;
+	hfp = video_format->hfp;
+	vtotal = video_format->vtotal;
+	htotal = video_format->htotal;
+	vact = video_format->vact;
+	hact = video_format->hact;
+
+	TimingStr.hact = hact;
+	TimingStr.vact = vact;
+	TimingStr.vs = vs;
+	TimingStr.vbp = vbp;
+	TimingStr.vfp = vfp;
+
+	x2_write_lt9211(0xff, 0xd4);
+	x2_write_lt9211(0x04, 0x08); //hs[7:0] not care
+	x2_write_lt9211(0x05, 0x08); //hbp[7:0] not care
+	x2_write_lt9211(0x06, 0x08); //hfp[7:0] not care
+	x2_write_lt9211(0x07, (uint8_t)(hact >> 8)); //hactive[15:8]
+	x2_write_lt9211(0x08, (uint8_t)(hact)); //hactive[7:0]
+
+	x2_write_lt9211(0x09, (uint8_t)(vs)); //vfp[7:0]
+	x2_write_lt9211(0x0a, 0x00); //bit[3:0]:vbp[11:8]
+	x2_write_lt9211(0x0b, (uint8_t)(vbp)); //vbp[7:0]
+	x2_write_lt9211(0x0c, (uint8_t)(vact >> 8)); //vcat[15:8]
+	x2_write_lt9211(0x0d, (uint8_t)(vact)); //vcat[7:0]
+	x2_write_lt9211(0x0e, (uint8_t)(vfp >> 8)); //vfp[11:8]
+	x2_write_lt9211(0x0f, (uint8_t)(vfp)); //vfp[7:0]
+
+	return 0;
+}
+
+/*
 int lt9211_mipi_tx_digital(void)
 {
 	int ret = 0;
@@ -1611,7 +2134,7 @@ int lt9211_mipi_tx_digital(void)
 							 __func__, ret);
 		return ret;
 	}
-	/*port src sel*/
+	//port src sel
 	ret = x2_write_lt9211(0x41, 0x01);
 	if (ret < 0) {
 		pr_err("%s() Err write lt9211 reg, ret= %d\n",
@@ -1688,6 +2211,141 @@ int lt9211_mipi_tx_digital(void)
 							__func__, ret);
 		return ret;
 	}
+	return 0;
+}
+*/
+int lt9211_mipi_tx_digital(void)
+{
+	int ret = 0;
+	uint8_t read_result;
+
+	ret = x2_write_lt9211(0xff, 0xd4);
+	if (ret < 0) {
+		pr_err("%s() Err write lt9211 reg, ret= %d\n",
+							 __func__, ret);
+		return ret;
+	}
+	ret = x2_write_lt9211(0x1c, 0x30);//Select MIPI TX
+	if (ret < 0) {
+		pr_err("%s() Err write lt9211 reg, ret= %d\n",
+							 __func__, ret);
+		return ret;
+	}
+	/*port src sel*/
+	ret = x2_write_lt9211(0x1d, 0x0a);
+	if (ret < 0) {
+		pr_err("%s() Err write lt9211 reg, ret= %d\n",
+							 __func__, ret);
+		return ret;
+	}
+	ret = x2_write_lt9211(0x1e, 0x06);
+	if (ret < 0) {
+		pr_err("%s() Err write lt9211 reg, ret= %d\n",
+							 __func__, ret);
+		return ret;
+	}
+	ret = x2_write_lt9211(0x1f, 0x0a);//pt0_tx_src_sel
+	if (ret < 0) {
+		pr_err("%s() Err write lt9211 reg, ret= %d\n",
+							 __func__, ret);
+		return ret;
+	}
+	ret = x2_write_lt9211(0x21, 0x00);
+	if (ret < 0) {
+		pr_err("%s() Err write lt9211 reg, ret= %d\n",
+							 __func__, ret);
+		return ret;
+	}
+
+
+	ret = x2_write_lt9211(0xff, 0xd4);//pt1_tx_src_scl
+	if (ret < 0) {
+		pr_err("%s() Err write lt9211 reg, ret= %d\n",
+							 __func__, ret);
+		return ret;
+	}
+
+//	ret = x2_write_lt9211(0xff, 0xd4);
+//	if (ret < 0) {
+//		pr_err("%s() Err write lt9211 reg, ret= %d\n",
+//							 __func__, ret);
+//		return ret;
+//	}
+	ret = x2_write_lt9211(0x16, 0x55);
+	if (ret < 0) {
+		pr_err("%s() Err write lt9211 reg, ret= %d\n",
+							 __func__, ret);
+		return ret;
+	}
+	//ret = x2_write_lt9211(0x10, 0x01);
+	ret = x2_write_lt9211(0x10, 0x01);
+	if (ret < 0) {
+		pr_err("%s() Err write lt9211 reg, ret= %d\n",
+							 __func__, ret);
+		return ret;
+	}
+	//read byteclk change big, the value change
+	//ret = x2_write_lt9211(0x11, 0x50);
+	ret = x2_write_lt9211(0x11, 0x3b);
+	if (ret < 0) {
+		pr_err("%s() Err write lt9211 reg, ret= %d\n",
+							 __func__, ret);
+		return ret;
+	}
+#ifdef MIPI_PATTEN
+	//bit[5:4]:lane num, bit[2]:bllp,bit[1:0]:vid_mode
+	ret = x2_write_lt9211(0x13, 0x0f);
+	if (ret < 0) {
+		pr_err("%s() Err write lt9211 reg, ret= %d\n",
+							 __func__, ret);
+		return ret;
+	}
+#else
+	ret = x2_write_lt9211(0x12, 0x3e);
+	if (ret < 0) {
+		pr_err("%s() Err write lt9211 reg, ret= %d\n",
+							 __func__, ret);
+		return ret;
+	}
+
+#endif
+	//bit[5:4]:data typ,bit[2:0]:fmt sel 000:rgb888
+	ret = x2_write_lt9211(0x14, 0x20);
+	if (ret < 0) {
+		pr_err("%s() Err write lt9211 reg, ret= %d\n",
+							 __func__, ret);
+		return ret;
+	}
+	ret = x2_write_lt9211(0x21, 0x00);
+	if (ret < 0) {
+		pr_err("%s() Err write lt9211 reg, ret= %d\n",
+							__func__, ret);
+		return ret;
+	}
+
+#ifdef MIPI_PATTEN
+#else
+	x2_write_lt9211(0x13, MIPI_LaneNum);
+	//bit[5:4]:lane num, bit[2]:bllp,bit[1:0]:vid_mode
+	pr_debug("set mipi 4 lane\n");
+	if (MIPI_VideoMode == MIPI_BurstMode) {
+		pr_debug("Set to Burst Mode\n");
+		x2_read_lt9211(0x13, &read_result);
+		x2_write_lt9211(0x13, read_result | 0x0f);
+		x2_write_lt9211(0x21, 0x01);
+	} else if (MIPI_VideoMode == MIPI_NonBurst_SyncPulse_Mode) {
+		pr_debug("Set to NonBurst SyncPulse Mode\n");
+		x2_read_lt9211(0x13, &read_result);
+		x2_write_lt9211(0x13, read_result | 0x01);
+		x2_write_lt9211(0x21, 0x00);
+	} else if (MIPI_VideoMode == MIPI_NonBurst_SyncEvent_Mode) {
+		pr_debug("Set to NonBurst SyncEvent Mode\n");
+		x2_read_lt9211(0x13, &read_result);
+		x2_write_lt9211(0x13, read_result | 0x02);
+		x2_write_lt9211(0x21, 0x00);
+	}
+#endif
+
 	return 0;
 }
 
@@ -1885,6 +2543,7 @@ int lt9211_rx_csc(void)
 	LT9211_DEBUG("step: end config lt9211 rx csc!!!\n");
 	return 0;
 }
+
 void lt9211r_patten(struct video_timing *video_format)
 {
 	uint32_t pclk_khz;
@@ -1971,4 +2630,139 @@ void lt9211r_patten(struct video_timing *video_format)
 	x2_write_lt9211(0x28, (uint8_t)((pcr_k >> 8) & 0xff));//K
 	x2_write_lt9211(0x29, (uint8_t)(pcr_k & 0xff));//K
 
+}
+
+void lt9211_mipi_patten(struct video_timing *video_format)
+{
+	uint32_t pclk_khz;
+	uint8_t dessc_pll_post_div;
+	uint32_t pcr_m, pcr_k;
+
+	pclk_khz = video_format->pclk_khz;
+
+	x2_write_lt9211(0xff, 0xf9);
+	x2_write_lt9211(0x3e, 0x80);
+
+	x2_write_lt9211(0xff, 0x85);
+	x2_write_lt9211(0x88, 0xd0);
+
+	x2_write_lt9211(0xa1, 0x77);
+	x2_write_lt9211(0xa2, 0xff);
+
+	x2_write_lt9211(0xa3,
+		(uint8_t)((video_format->hs+video_format->hbp)/256));
+	x2_write_lt9211(0xa4, (uint8_t)
+			((video_format->hs+video_format->hbp)%256));//h_start
+
+	x2_write_lt9211(0xa5, (uint8_t)
+			((video_format->vs+video_format->vbp)%256));//v_start
+
+	x2_write_lt9211(0xa6, (uint8_t)(video_format->hact/256));
+	x2_write_lt9211(0xa7, (uint8_t)(video_format->hact%256)); //hactive
+
+	x2_write_lt9211(0xa8, (uint8_t)(video_format->vact/256));
+	x2_write_lt9211(0xa9, (uint8_t)(video_format->vact%256));  //vactive
+
+	x2_write_lt9211(0xaa, (uint8_t)(video_format->htotal/256));
+	x2_write_lt9211(0xab, (uint8_t)(video_format->htotal%256));//htotal
+
+	x2_write_lt9211(0xac, (uint8_t)(video_format->vtotal/256));
+	x2_write_lt9211(0xad, (uint8_t)(video_format->vtotal%256));//vtotal
+
+	x2_write_lt9211(0xae, (uint8_t)(video_format->hs/256));
+	x2_write_lt9211(0xaf, (uint8_t)(video_format->hs%256));   //hsa
+
+	x2_write_lt9211(0xb0, (uint8_t)(video_format->vs%256));    //vsa
+
+	//dessc pll to generate pixel clk
+	x2_write_lt9211(0xff, 0x82); //dessc pll
+	x2_write_lt9211(0x2d, 0x48); //pll ref select xtal
+
+	if (pclk_khz < 44000) {
+		x2_write_lt9211(0x35, 0x83);
+		dessc_pll_post_div = 16;
+	} else if (pclk_khz < 88000) {
+		x2_write_lt9211(0x35, 0x82);
+		dessc_pll_post_div = 8;
+	} else if (pclk_khz < 176000) {
+		x2_write_lt9211(0x35, 0x81);
+		dessc_pll_post_div = 4;
+	} else if (pclk_khz < 352000) {
+		x2_write_lt9211(0x35, 0x80);
+		dessc_pll_post_div = 0;
+	}
+
+	pcr_m = (pclk_khz * dessc_pll_post_div) / 25;
+	pcr_k = pcr_m % 1000;
+	pcr_m = pcr_m / 1000;
+
+	pcr_k <<= 14;
+
+	//pixel clk
+	x2_write_lt9211(0xff, 0xd0); //pcr
+	x2_write_lt9211(0x2d, 0x7f);
+	x2_write_lt9211(0x31, 0x00);
+
+	x2_write_lt9211(0x26, 0x80 | ((uint8_t)pcr_m));
+	x2_write_lt9211(0x27, (uint8_t)((pcr_k >> 16) & 0xff)); //K
+	x2_write_lt9211(0x28, (uint8_t)((pcr_k >> 8) & 0xff)); //K
+	x2_write_lt9211(0x29, (uint8_t)(pcr_k & 0xff)); //K
+}
+
+int lt9211_mipi_clock_debug(void)
+{
+	uint8_t sync_polarity;
+	uint8_t vs, hs_h, hs_l, vbp, vfp, hbp_h, hbp_l,
+		hfp_h, hfp_l, vtotal_h, vtotal_l, htotal_h,
+		htotal_l, vact_h, vact_l, hact_h, hact_l;
+	uint16_t hs, hbp, hfp, vtotal, htotal, vact, hact;
+	int ret = 0;
+
+	x2_write_lt9211(0xff, 0x86);
+	x2_write_lt9211(0x20, 0x00);
+
+	msleep(100);
+
+	ret = x2_read_lt9211(0x70, &sync_polarity);
+
+	ret = x2_read_lt9211(0x71, &vs);
+
+	ret = x2_read_lt9211(0x72, &hs_h);
+	ret = x2_read_lt9211(0x73, &hs_l);
+	hs = (((uint16_t)hs_h) << 8) + (uint16_t)hs_l;
+
+	ret = x2_read_lt9211(0x74, &vbp);
+
+	ret = x2_read_lt9211(0x75, &vfp);
+
+	ret = x2_read_lt9211(0x76, &hbp_h);
+	ret = x2_read_lt9211(0x77, &hbp_l);
+	hbp = (((uint16_t)hbp_h) << 8) + (uint16_t)hbp_l;
+
+	ret = x2_read_lt9211(0x78, &hfp_h);
+	ret = x2_read_lt9211(0x79, &hfp_l);
+	hfp = (((uint16_t)hfp_h) << 8) + (uint16_t)hfp_l;
+
+	ret = x2_read_lt9211(0x7a, &vtotal_h);
+	ret = x2_read_lt9211(0x7b, &vtotal_l);
+	vtotal = (((uint16_t)vtotal_h) << 8) + (uint16_t)vtotal_l;
+
+	ret = x2_read_lt9211(0x7c, &htotal_h);
+	ret = x2_read_lt9211(0x7d, &htotal_l);
+	htotal = (((uint16_t)htotal_h) << 8) + (uint16_t)htotal_l;
+
+	ret = x2_read_lt9211(0x7e, &vact_h);
+	ret = x2_read_lt9211(0x7f, &vact_l);
+	vact = (((uint16_t)vact_h) << 8) + (uint16_t)vact_l;
+
+	ret = x2_read_lt9211(0x80, &hact_h);
+	ret = x2_read_lt9211(0x81, &hact_l);
+	hact = (((uint16_t)hact_h) << 8) + (uint16_t)hact_l;
+
+	pr_debug("\nhfp=%d, hs=%d, hbp=%d, hact=%d, htotal=%d\n",
+			hfp, hs, hbp, hact, htotal);
+	pr_debug("\nvfp=%d, vs=%d, vbp=%d, vact=%d, vtotal=%d\n",
+			vfp, vs, vbp, vact, vtotal);
+
+	return 0;
 }

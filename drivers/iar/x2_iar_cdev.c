@@ -329,7 +329,12 @@ static ssize_t x2_iar_store(struct kobject *kobj, struct kobj_attribute *attr, c
 			return error;
 		}
 	} else if (strncmp(tmp, "lcd", 3) == 0) {
-		pr_info("iar output lcd config......\n");
+		pr_info("iar output lcd rgb panel config......\n");
+		user_set_fb();
+	} else if (strncmp(tmp, "mipi", 4) == 0) {
+		pr_info("iar output lcd mipi 720p panel config......\n");
+		display_type = MIPI_720P;
+		iar_set_pixel_clk_div(PIXEL_CLK_69);
 		user_set_fb();
 	} else if (strncmp(buf, "enable", 6) == 0) {
 		tmp = buf + 6;

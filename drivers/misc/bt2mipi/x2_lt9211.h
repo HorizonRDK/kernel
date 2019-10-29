@@ -1,3 +1,6 @@
+/*
+ * Copyright rui.guo@horizon.ai
+ */
 #ifndef __X2_LT9211_H__
 #define __X2_LT9211_H__
 
@@ -25,8 +28,22 @@
 
 extern int lt9211_reset_pin;
 extern int lcd_reset_pin;
+extern int display_type;
 extern struct x2_lt9211_s *g_x2_lt9211;
 //extern struct ips_dev_s *g_ipsdev;
+enum MIPI_LANE_NUM {
+	MIPI_1LANE = 0x10,
+	MIPI_2LANE = 0x20,
+	MIPI_4LANE = 0x00
+};
+#define MIPI_LaneNum MIPI_4LANE
+
+enum MIPI_VIDEO_MODE {
+	MIPI_BurstMode,
+	MIPI_NonBurst_SyncPulse_Mode,
+	MIPI_NonBurst_SyncEvent_Mode
+};
+#define MIPI_VideoMode MIPI_BurstMode
 
 struct x2_lt9211_s {
 	struct i2c_client *client;
@@ -46,6 +63,7 @@ enum {
 enum DISPLAY_TYPE {
 	LCD_7_TYPE,
 	HDMI_TYPE,
+	MIPI_720P,
 };
 
 struct video_timing {
@@ -81,6 +99,7 @@ enum VideoFormat {
 	video_1920x1080_60Hz_vic,
 	video_1920x1200_60Hz_vic,
 	video_1920x1080_25Hz_vic,
+	video_720x1280_60Hz_vic,
 	video_none
 };
 #define _Mipi_PortA_
@@ -140,8 +159,11 @@ int lt9211_tx_digital_RGB(void);
 int lt9211_RGB_tx_phy(void);
 int lt9211_RGB_tx_pll(void);
 int lt9211_rx_csc(void);
+int lt9211_mipi_clock_debug(void);
+void lt9211_mipi_patten(struct video_timing *video_format);
+int lt9211_set_mipi_tx_timing(struct video_timing *video_format);
 
-int init_panel(void);
+int init_panel(unsigned int pannel_type);
 int LCD_reset(void);
 int generic_short_write_1P(uint8_t data0, uint8_t data1);
 int dcs_pkt_write(uint8_t dcs_di, uint8_t len, uint8_t *ptr);

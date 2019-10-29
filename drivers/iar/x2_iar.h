@@ -509,6 +509,7 @@ enum {
 enum DISPLAY_TYPE {
 	LCD_7_TYPE,
 	HDMI_TYPE,
+	MIPI_720P,
 };
 
 enum DISPLAY_ADDR_TYPE {
@@ -578,6 +579,12 @@ enum DISPLAY_ADDR_TYPE {
 
 };
 
+enum PIXEL_CLK {
+	PIXEL_CLK_69,
+	PIXEL_CLK_32,
+	PIXEL_CLK_162,
+};
+
 extern int display_type;
 extern unsigned int iar_debug_level;
 extern uint8_t disp_user_config_done;
@@ -621,6 +628,8 @@ int enable_iar_irq(void);
 int disable_iar_irq(void);
 int iar_rotate_video_buffer(phys_addr_t yaddr,
 		phys_addr_t uaddr, phys_addr_t vaddr);
+int32_t iar_set_pixel_clk_div(unsigned int pixel_clk);
+
 //int iar_is_enabled(void);
 
 

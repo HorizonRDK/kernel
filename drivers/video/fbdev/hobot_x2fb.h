@@ -1,5 +1,8 @@
-#if !defined (_X2FB_H)
-#define _X2FB_H
+/*
+ * Copyright rui.guo@horizon.ai
+ */
+#ifndef DRIVERS_VIDEO_FBDEV_HOBOT_X2FB_H_
+#define DRIVERS_VIDEO_FBDEV_HOBOT_X2FB_H_
 
 #include<linux/fb.h>
 #include"core/fb_draw.h"
