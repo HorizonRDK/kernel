@@ -42,6 +42,9 @@
 #define DRIVER_NAME "x2-fb"
 #define IAR_DMA_MODE
 
+#define FORMAT_ORGANIZATION_VAL 0x9c36
+#define REFRESH_CFG_VAL 0x808
+
 #define X2FB_DEBUG_PRINT(format, args...)    \
 	pr_debug("IAR debug: " format, ## args)
 
@@ -872,11 +875,13 @@ int user_set_fb(void)
 		hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x00, 4);
 		writel(0x041bf00f, hitm1_reg_addr);
 
+		//panel color type is yuv444, YCbCr conversion needed
 		hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x204, 4);
-		writel(0x00000008, hitm1_reg_addr);
+		writel(REFRESH_CFG_VAL, hitm1_reg_addr);
 
+		//select BT709 color domain
 		hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x48, 4);
-		writel(0x00001c36, hitm1_reg_addr);
+		writel(FORMAT_ORGANIZATION_VAL, hitm1_reg_addr);
 
 		iar_switch_buf(0);
 		iar_set_bufaddr(IAR_CHANNEL_3, &graphic_display_paddr);
@@ -933,11 +938,13 @@ int user_set_fb(void)
 		hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x00, 4);
 		writel(0x011bf00f, hitm1_reg_addr);
 
+		//panel color type is yuv444, YCbCr conversion needed
 		hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x204, 4);
-		writel(0x00000808, hitm1_reg_addr);
+		writel(REFRESH_CFG_VAL, hitm1_reg_addr);
 
+		//select BT709 color domain
 		hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x48, 4);
-		writel(0x00009c36, hitm1_reg_addr);
+		writel(FORMAT_ORGANIZATION_VAL, hitm1_reg_addr);
 
 		iar_switch_buf(0);
 		iar_set_bufaddr(2, &graphic_display_paddr);
