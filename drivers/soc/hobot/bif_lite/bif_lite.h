@@ -10,12 +10,17 @@
 #include <linux/mutex.h>
 #include <linux/spinlock.h>
 #include <linux/time.h>
+#include <linux/errno.h>
 #include "../bif_base/bif_base.h"
 #include "../bif_base/bif_api.h"
 #include "bif_platform.h"
+#ifdef CONFIG_HOBOT_BIF_ETHERNET
+#include "hbipc_eth.h"
+#endif
 
 #define BIF_TX_ERROR_NO_MEM   (-1)
 #define BIF_TX_ERROR_TRANS    (-2)
+#define BIF_TX_ERROR_TIMEOUT (-3)
 
 struct bif_frame_cache {
 	int framelen;
@@ -56,6 +61,7 @@ enum channel_id {
 	BIF_SPI,
 	BIF_SD,
 	NORM_SPI,
+	ETHERNET,
 };
 
 enum ap_type {
@@ -198,5 +204,7 @@ int channel_stock_frame_num(struct comm_channel *channel);
 int channel_register_high_level_clear(struct comm_channel *channel,
 clear_func_t clear_func);
 void channel_unregister_high_level_clear(struct comm_channel *channel);
+int bif_rx_add_frame_to_list(
+struct comm_channel *channel, struct bif_frame_cache *frame_cache_tmp);
 
 #endif

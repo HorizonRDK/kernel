@@ -40,7 +40,7 @@
 #include <x2/x2_bifspi.h>
 #endif
 
-#define VERSION "2.7.4"
+#define VERSION "2.8.0"
 #define VERSION_LEN (16)
 static char version_str[VERSION_LEN];
 
@@ -98,7 +98,7 @@ static struct class  *g_bif_class;
 static struct device *g_bif_dev;
 
 static struct domain_info domain_config = {.domain_name = "X2BIF001",
-	.domain_id = 0,
+	.domain_id = X2BIFSPI,
 	.device_name = "/dev/x2_bif",
 	.type = SOC_AP,
 	.mode = INTERRUPT_MODE,

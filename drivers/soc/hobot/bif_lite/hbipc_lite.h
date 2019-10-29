@@ -25,6 +25,12 @@
 
 #define hbipc_error printk
 
+enum domain_id {
+	X2BIFSPI,
+	X2BIFSD,
+	X2ETH,
+};
+
 struct domain_info {
 	char *domain_name;
 	int domain_id;
@@ -166,6 +172,7 @@ struct comm_domain {
 	char *mang_frame_send_error_buf;
 	int data_send;
 	int data_recv;
+	int first_connect_frame;
 };
 
 struct send_mang_data {
@@ -249,5 +256,8 @@ void clear_server_cp_manager(struct comm_domain *domain);
 int domain_register_high_level_clear(struct comm_domain *domain, clear_func_t clear_func);
 void domain_unregister_high_level_clear(struct comm_domain *domain);
 void clear_invalid_connect_ap_abnormal(struct comm_domain *domain);
+#ifdef CONFIG_HOBOT_BIF_ETHERNET
+int recv_frame_eth(struct comm_domain *domain);
+#endif
 
 #endif  /* _HBIPC_LITE_H_ */

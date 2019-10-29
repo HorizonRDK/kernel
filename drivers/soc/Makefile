@@ -34,5 +34,6 @@ obj-$(CONFIG_HOBOT_BIF_SIO)	+= hobot/bif_sio/
 obj-$(CONFIG_HOBOT_BIF_LITE_CORE)  += hobot/bif_lite/
 obj-$(CONFIG_HOBOT_BIF_LITE_SPI)   += hobot/bif_lite/
 obj-$(CONFIG_HOBOT_BIF_LITE_SD)    += hobot/bif_lite/
+obj-$(CONFIG_HOBOT_HBIPC_ETH)    += hobot/bif_lite/
 obj-y	+= hobot/ddr_monitor/
 obj-y	+= hobot/socinfo/

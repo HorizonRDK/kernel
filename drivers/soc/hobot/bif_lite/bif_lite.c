@@ -486,7 +486,22 @@ err:
 int bif_tx_put_frame(struct comm_channel *channel, void *data, int len)
 {
 	int ret;
-
+#ifdef CONFIG_HOBOT_BIF_ETHERNET
+	if (channel->channel == ETHERNET) {
+		ret = hbeth_sendframe(data, len);
+		if (ret < 0) {
+			if (ret == -EAGAIN)
+				ret = BIF_TX_ERROR_TIMEOUT;
+			else {
+				ret = BIF_TX_ERROR_TRANS;
+			#ifdef CONFIG_HOBOT_BIF_AP
+				if (channel->higher_level_clear)
+					channel->higher_level_clear();
+			#endif
+			}
+		}
+	} else
+#endif
 	ret = bif_tx_cut_fragment(channel, data, len);
 
 	return ret;
@@ -633,7 +648,7 @@ err:
 	return ret;
 }
 
-static inline int bif_rx_add_frame_to_list(
+int bif_rx_add_frame_to_list(
 struct comm_channel *channel, struct bif_frame_cache *frame_cache_tmp)
 {
 	int ret = 0;
@@ -647,6 +662,7 @@ struct comm_channel *channel, struct bif_frame_cache *frame_cache_tmp)
 	bif_unlock();
 	return ret;
 }
+EXPORT_SYMBOL(bif_rx_add_frame_to_list);
 
 static inline int bif_rx_reassemble_fragment(
 struct comm_channel *channel, struct bif_frame_cache *frame_p,
@@ -1565,7 +1581,8 @@ int channel_init(struct comm_channel *channel, struct channel_config *config)
 	} else if (channel->channel == BIF_SD) {
 		channel->buffer_id = BUFF_LITE;
 		channel->transfer_align = 512; // bif_sd 512 align
-	}
+	} else if (channel->channel == ETHERNET)
+		channel->transfer_align = 1;
 
 	// memory limit concerned
 	channel->frame_len_max = config->frame_len_max;

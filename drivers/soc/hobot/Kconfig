@@ -87,6 +87,19 @@ config HOBOT_BIF_LITE_SD
         default y
         help
           Say yes to enable bif_lite_sd driver
+
+config HOBOT_BIF_LITE_ETH
+        tristate "Enable HOBOT BIF Lite ETH Drivers"
+	depends on HOBOT_BIF_LITE_CORE && HOBOT_BIF_ETHERNET
+        default y
+        help
+          Say yes to enable bif_lite_eth driver
+
+config HOBOT_HBIPC_ETH
+        tristate "Enable HBIPC Ethernet Drivers"
+        default y
+        help
+          Say yes to enable bif_lite_sd driver
 endif
 
 config X2_DDR_MON

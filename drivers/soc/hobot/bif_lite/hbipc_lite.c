@@ -222,7 +222,6 @@ static void provider_server_map_deinit(struct provider_server_map *map)
 
 #define TX_RETRY_TIME (5)
 #define TX_RETRY_MAX (2000)
-static int first_connect_frame = 1;
 int mang_frame_send2opposite(struct comm_domain *domain,
 int type, struct send_mang_data *data)
 {
@@ -280,7 +279,7 @@ int type, struct send_mang_data *data)
 		 * client_id
 		 */
 		// specify first connect frame
-		if (first_connect_frame) {
+		if (domain->first_connect_frame) {
 			message->seq_num = 1;
 			// we can't clear flag at here
 			//first_connect_frame = 0;
@@ -373,7 +372,7 @@ repeat_resend:
 			domain->mang_send_error = 0;
 
 			if (message_repeat->type == MANAGE_CMD_CONNECT_REQ)
-				first_connect_frame = 0;
+				domain->first_connect_frame = 0;
 		}
 	}
 	retry_count = 0;
@@ -420,7 +419,7 @@ resend:
 		goto error;
 	} else {
 		if (type == MANAGE_CMD_CONNECT_REQ)
-			first_connect_frame = 0;
+			domain->first_connect_frame = 0;
 	}
 
 	mutex_unlock(&domain->write_mutex);
@@ -489,7 +488,7 @@ int type, struct send_mang_data *data)
 		 * client_id
 		 */
 		// specify first connect frame
-		if (first_connect_frame) {
+		if (domain->first_connect_frame) {
 			message->seq_num = 1;
 			// we can't clear flag at here
 			//first_connect_frame = 0;
@@ -582,7 +581,7 @@ repeat_resend:
 			domain->mang_send_error = 0;
 
 			if (message_repeat->type == MANAGE_CMD_CONNECT_REQ)
-				first_connect_frame = 0;
+				domain->first_connect_frame = 0;
 		}
 	}
 	retry_count = 0;
@@ -629,7 +628,7 @@ resend:
 		goto error;
 	} else {
 		if (type == MANAGE_CMD_CONNECT_REQ)
-			first_connect_frame = 0;
+			domain->first_connect_frame = 0;
 	}
 
 	//mutex_unlock(&domain->write_mutex);
@@ -659,6 +658,7 @@ int domain_init(struct comm_domain *domain, struct domain_info *domain_inf)
 	domain->type = domain_inf->type;
 	domain->mode = domain_inf->mode;
 	domain->crc_enable = domain_inf->crc_enable;
+	domain->first_connect_frame = 1;
 
 	domain->mang_frame_send_error_buf = bif_malloc(HBIPC_HEADER_LEN +
 		MANAGE_MSG_LEN);
@@ -2261,6 +2261,103 @@ int recv_handle_data_frame(struct comm_domain *domain)
 	return 0;
 }
 EXPORT_SYMBOL(recv_handle_data_frame);
+
+/*
+ * return value:
+ * -1: error
+ * 0: success
+ */
+#ifdef CONFIG_HOBOT_BIF_ETHERNET
+int recv_frame_eth(struct comm_domain *domain)
+{
+	int ret = 0;
+	char hbipc_head[HBIPC_HEADER_LEN];
+	struct hbipc_header *header = (struct hbipc_header *)hbipc_head;
+	struct bif_frame_cache *frame_p = NULL;
+	struct send_mang_data data;
+	struct session_desc *session_des = NULL;
+
+	mutex_lock(&domain->read_mutex);
+
+	++domain->domain_statistics.data_recv_count;
+	// read hbipc_header
+	ret = hbeth_recvframe(hbipc_head, HBIPC_HEADER_LEN);
+	if (ret != HBIPC_HEADER_LEN) {
+		pr_err("read hbipc_header error\n");
+	#ifdef CONFIG_HOBOT_BIF_AP
+		if (domain->channel.higher_level_clear)
+			domain->channel.higher_level_clear();
+	#endif
+		goto error;
+	}
+
+	// allocate frame memory
+	frame_p = bif_malloc(sizeof(struct bif_frame_cache) + HBIPC_HEADER_LEN + header->length);
+	if (!frame_p) {
+		pr_err("malloc frame memory error\n");
+		goto error;
+	}
+	memcpy(frame_p->framecache, hbipc_head, HBIPC_HEADER_LEN);
+
+	// read userdata
+	ret = hbeth_recvframe(frame_p->framecache + HBIPC_HEADER_LEN, header->length);
+	if (ret != header->length) {
+		pr_err("read userdata error\n");
+	#ifdef CONFIG_HOBOT_BIF_AP
+		if (domain->channel.higher_level_clear)
+			domain->channel.higher_level_clear();
+	#endif
+		goto error;
+	}
+	frame_p->framelen = header->length + HBIPC_HEADER_LEN;
+
+	// primary reason: maitain channel->rx_frame_count
+	bif_rx_add_frame_to_list(&domain->channel, frame_p);
+
+	// handle frame
+	if ((header->provider_id == 0) && (header->client_id == 0)) {
+		// manage frame
+		// just for handle frame link list relation
+		++domain->domain_statistics.manage_frame_count;
+		list_del(&frame_p->frame_cache_list);
+		list_add_tail(&frame_p->frame_cache_list, &domain->manage_frame_list);
+		ret = handle_manage_frame(domain, frame_p);
+		bif_del_frame_from_list(&domain->channel, frame_p);
+	} else {
+		// data frame
+		// check session validity and insert data frame
+		++domain->domain_statistics.data_frame_count;
+		data.domain_id = header->domain_id;
+		data.provider_id = header->provider_id;
+		data.client_id = header->client_id;
+
+		session_des = is_valid_session(domain, &data, NULL, NULL);
+		if (!session_des) {
+			printk_ratelimited(KERN_INFO "ethernet recv invalid session\n");
+			bif_del_frame_from_list(&domain->channel, frame_p);
+		} else {
+			// at extreme condition, session_des maybe invalid at here
+			// but do not make harm if register operation with init
+			list_del(&frame_p->frame_cache_list);
+			spin_lock(&(session_des->recv_list.lock));
+			list_add_tail(&frame_p->frame_cache_list,
+			&session_des->recv_list.list);
+			++session_des->recv_list.frame_count;
+			spin_unlock(&(session_des->recv_list.lock));
+			up(&session_des->frame_count_sem);
+			++domain->domain_statistics.up_sem_count;
+		}
+	}
+
+	mutex_unlock(&domain->read_mutex);
+
+	return 0;
+error:
+	mutex_unlock(&domain->read_mutex);
+	return -1;
+}
+EXPORT_SYMBOL(recv_frame_eth);
+#endif
 
 /*
  * return value:
