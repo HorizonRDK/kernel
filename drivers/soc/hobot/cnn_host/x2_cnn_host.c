@@ -43,6 +43,7 @@
 #include <linux/debugfs.h>
 #include <linux/time.h>
 #include <linux/kfifo.h>
+#include <linux/kthread.h>
 #include <linux/clk-provider.h>
 #include <linux/regulator/consumer.h>
 #include <x2/diag.h>
@@ -96,6 +97,13 @@ static int checkirq0_enable = 1;
 static int checkirq1_enable = 1;
 #endif
 static int has_busy_status;
+
+#define MAINT_PREP_START_TIMES	500
+static bool recovery = 0;
+module_param(recovery, bool, S_IRUSR);
+static int maintain_pre_time;
+static uint64_t max_check_interval;
+static int x2_cnn_maintain_thread(void *data);
 
 static inline u32 x2_cnn_reg_read(struct x2_cnn_dev *dev, u32 off)
 {
@@ -508,6 +516,16 @@ static irqreturn_t x2_cnn_interrupt_handler(int irq, void *dev_id)
 		(*p_user_info)->cnn_int_num.cnn_int_interval[(*p_user_info)->cnn_int_num.cnn_int_count] =
 			(tmp.end_time.tv_sec * 1000000 + tmp.end_time.tv_usec)
 			- (tmp.start_time.tv_sec * 1000000 + tmp.start_time.tv_usec);
+
+		if (recovery) {
+			if (maintain_pre_time < MAINT_PREP_START_TIMES) {
+				max_check_interval = max(max_check_interval,
+						(*p_user_info)->cnn_int_num.cnn_int_interval[
+						(*p_user_info)->cnn_int_num.cnn_int_count]);
+				maintain_pre_time++;
+			}
+		}
+
 		dev->run_time += (*p_user_info)->cnn_int_num.cnn_int_interval[(*p_user_info)->cnn_int_num.cnn_int_count];
 		if ((*p_user_info)->cnn_int_num.cnn_int_count < CNN_INT_NUM - 1) {
 			(*p_user_info)->cnn_int_num.cnn_int_count++;
@@ -1006,7 +1024,7 @@ static int x2_cnn_open(struct inode *inode, struct file *filp)
 		mutex_unlock(&x2_cnn_mutex);
 		kfree(filp->private_data);
 		filp->private_data = NULL;
-		pr_err("Too many processes, BPU now support max %d processes\n");
+		pr_err("Too many processes, BPU now support max %d processes\n", MAX_PID_NUM);
 		return -EINVAL;
 	}
 
@@ -1022,6 +1040,12 @@ static int x2_cnn_open(struct inode *inode, struct file *filp)
 			add_timer(&devdata->cnn_timer);
 		}
 #endif
+		if (recovery) {
+			maintain_pre_time = 0;
+			devdata->maintain_task = kthread_run(
+					x2_cnn_maintain_thread,
+					devdata, devdata->chrdev_name);
+		}
 	}
 	mutex_unlock(&x2_cnn_mutex);
 	x2_cnn_reg_read(devdata, X2_CNN_FC_LEN);
@@ -1048,6 +1072,14 @@ static int x2_cnn_release(struct inode *inode, struct file *filp)
 			(devdata->core_index == 0 && checkirq0_enable))
 			del_timer(&devdata->cnn_timer);
 #endif
+		if (recovery) {
+			if (devdata->maintain_task) {
+				kthread_stop(devdata->maintain_task);
+				devdata->maintain_head = 0;
+				devdata->maintain_task = NULL;
+			}
+		}
+
 		devdata->inst_num = 0;
 		devdata->head_value = 0;
 	}
@@ -1705,6 +1737,138 @@ static void x2_simu_irq(struct x2_cnn_dev *dev)
 	} else
 		pr_err("%s:interrupt info fifo is empty\n", __func__);
 }
+
+static int x2_cnn_recover(struct x2_cnn_dev *dev, int head, int tail)
+{
+	int head_tmp = 0;
+	int tail_tmp = 0;
+	int fc_depth = 0;
+	void *tmp_trans_buf;
+	int tmp_trans_fc_num;
+
+	head_tmp = head & X2_CNN_MAX_FC_LEN_MASK;
+	tail_tmp = tail & X2_CNN_MAX_FC_LEN_MASK;
+
+	fc_depth = x2_cnn_reg_read(dev, X2_CNN_FC_LEN);
+
+	if (tail_tmp > head_tmp) {
+		tmp_trans_fc_num = tail_tmp - head_tmp;
+	} else if (tail_tmp < head_tmp)
+		tmp_trans_fc_num = fc_depth + 1 + tail_tmp - head_tmp;
+	else {
+		if (kfifo_len(&dev->int_info_fifo))
+			tmp_trans_fc_num = 1;
+	}
+
+	if (!tmp_trans_fc_num)
+		return 0;
+
+	tmp_trans_buf = kzalloc(tmp_trans_fc_num * X2_CNN_FC_SIZE, GFP_KERNEL);
+	if (!tmp_trans_buf) {
+		pr_err("cnn core(%d), recover error\n", dev->core_index);
+		return -ENOMEM;
+	}
+
+	if (tail_tmp >= head_tmp)
+		memcpy(tmp_trans_buf, dev->fc_base + head_tmp* X2_CNN_FC_SIZE,
+			tmp_trans_fc_num * X2_CNN_FC_SIZE);
+	else {
+		memcpy(tmp_trans_buf, dev->fc_base + head_tmp* X2_CNN_FC_SIZE,
+			(fc_depth + 1 - head_tmp) * X2_CNN_FC_SIZE);
+		memcpy(tmp_trans_buf + (fc_depth + 1 - head_tmp) * X2_CNN_FC_SIZE,
+				dev->fc_base,
+			(tail_tmp + 1) * X2_CNN_FC_SIZE);
+	}
+
+	x2_cnn_hw_reset_reinit(dev, dev->core_index);
+
+	memcpy(dev->fc_base, tmp_trans_buf,
+			tmp_trans_fc_num * X2_CNN_FC_SIZE);
+
+	x2_cnn_set_fc_tail_idx(dev, tmp_trans_fc_num);
+
+	kfree(tmp_trans_buf);
+
+	return 0;
+}
+
+static int x2_cnn_maintain_thread(void *data)
+{
+	struct x2_cnn_dev *dev = (struct x2_cnn_dev *)data;
+	struct x2_int_info tmp;
+	int head_tmp, tail_tmp;
+	int last_peek_hw_id = -1;
+	int fifo_len;
+	int recove_len;
+	int fc_depth;
+	int check_time = 1000;
+	int ret;
+
+	fc_depth = x2_cnn_reg_read(dev, X2_CNN_FC_LEN);
+	while (!kthread_should_stop()) {
+		if (maintain_pre_time >= MAINT_PREP_START_TIMES)
+			/* use the 5 * max fc process time to check if bpu hung */
+			check_time = max_check_interval / 1000 * 5;
+#ifdef CONFIG_HOBOT_CNN_DEVFREQ
+		/* if the bpu clock is not highest, accroding the highest */
+		check_time *= dev->cnnfreq->devfreq->max_freq
+			/ clk_get_rate(dev->cnn_mclk);
+#endif
+		msleep(check_time);
+
+		mutex_lock(&dev->cnn_lock);
+		ret = kfifo_out_peek(&dev->int_info_fifo, &tmp, sizeof(struct x2_int_info));
+		if (ret) {
+			if (last_peek_hw_id < 0) {
+				last_peek_hw_id = tmp.hw_id;
+				mutex_unlock(&dev->cnn_lock);
+				continue;
+			}
+		}
+		/* check wether bpu hung */
+		head_tmp = x2_cnn_reg_read(dev, X2_CNN_FC_HEAD);
+		tail_tmp = x2_cnn_reg_read(dev, X2_CNN_FC_TAIL);
+		fifo_len = kfifo_len(&dev->int_info_fifo) / sizeof(struct x2_int_info);
+		if ((dev->maintain_head == head_tmp) && (last_peek_hw_id == tmp.hw_id)) {
+			/* check debug reg */
+			if ((head_tmp == tail_tmp) && (!fifo_len)) {
+				/* no data to process */
+				mutex_unlock(&dev->cnn_lock);
+				continue;
+			}
+
+			if (head_tmp >= tail_tmp)
+				recove_len = max(head_tmp - tail_tmp, fifo_len);
+			else
+				recove_len = max(head_tmp + fc_depth + 1 - tail_tmp, fifo_len);
+
+			if (tail_tmp - recove_len >= 0)
+				head_tmp = tail_tmp - recove_len;
+			else
+				head_tmp = tail_tmp + fc_depth + 1 - recove_len;
+		} else {
+			if (last_peek_hw_id != tmp.hw_id)
+				last_peek_hw_id = tmp.hw_id;
+			if (dev->maintain_head != head_tmp)
+				dev->maintain_head = head_tmp;
+			mutex_unlock(&dev->cnn_lock);
+			continue;
+		}
+
+		pr_err("bpu core[%d] may hung, try to recover[%d, %d]\n",
+				dev->core_index, head_tmp, tail_tmp);
+		if (maintain_pre_time < MAINT_PREP_START_TIMES)
+			maintain_pre_time = MAINT_PREP_START_TIMES;
+		ret = x2_cnn_recover(dev, head_tmp, tail_tmp);
+		if (ret < 0) {
+			pr_err("cnn core %d recover failed\n", dev->core_index);
+		}
+		mutex_unlock(&dev->cnn_lock);
+	}
+
+	return 0;
+}
+
 static void x2_check_cnn(unsigned long arg)
 {
 	struct x2_cnn_dev *dev = (struct x2_cnn_dev *)arg;

@@ -189,6 +189,8 @@ struct x2_cnn_dev {
 	atomic_t wait_fc_cnt;
 	atomic_t hw_flg;
 	struct tasklet_struct tasklet;
+	struct task_struct *maintain_task;
+	unsigned int maintain_head;
 	struct dentry *debugfs_root;
 	struct list_head debugfs_list;
 	struct mutex debugfs_lock; /* Protects debugfs_list. */
