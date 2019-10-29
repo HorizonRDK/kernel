@@ -23,35 +23,38 @@
 			#clock-cells = <0>;
 			compatible = "x2,gate-clk";
 			clocks = <&timer_div_mclk>;
-			offset = <0x100 0x104 0x108>;
-			bits = <8 8 8>;
-			field = <0x1 0x1 0x1>;
+			offset = <0x100 0x104 0x108 0x0>;
+			bits = <8 8 8 32>;
+			field = <1 1 1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		timer1_mclk: timer1_mclk {
 			#clock-cells = <0>;
 			compatible = "x2,gate-clk";
 			clocks = <&timer_div_mclk>;
-			offset = <0x100 0x104 0x108>;
-			bits = <9 9 9>;
-			field = <0x1 0x1 0x1>;
+			offset = <0x100 0x104 0x108 0x0>;
+			bits = <9 9 9 32>;
+			field = <1 1 1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		timer2_mclk: timer2_mclk {
 			#clock-cells = <0>;
 			compatible = "x2,gate-clk";
 			clocks = <&timer_div_mclk>;
-			offset = <0x100 0x104 0x108>;
-			bits = <10 10 10>;
-			field = <0x1 0x1 0x1>;
+			offset = <0x100 0x104 0x108 0x0>;
+			bits = <10 10 10 32>;
+			field = <1 1 1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		atb_tsclk: atb_tsclk {
 			#clock-cells = <0>;
 			compatible = "x2,gate-clk";
 			clocks = <&osc_clk>;
-			offset = <0x110 0x114 0x118>;
-			bits = <2 2 2>;
+			offset = <0x110 0x114 0x118 0x0>;
+			bits = <2 2 2 32>;
 			field = <0x1 0x1 0x1>;
 		};
 
@@ -67,9 +70,10 @@
 			#clock-cells = <0>;
 			compatible = "x2,gate-clk";
 			clocks = <&temp_sensor_div_clk>;
-			offset = <0x100 0x104 0x108>;
-			bits = <12 12 12>;
-			field = <0x1 0x1 0x1>;
+			offset = <0x100 0x104 0x108 0x0>;
+			bits = <12 12 12 32>;
+			field = <1 1 1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		armpll1_clk: armpll1_clk {
@@ -144,9 +148,10 @@
 			#clock-cells = <0>;
 			compatible = "x2,gate-clk";
 			clocks = <&acp_div_aclk>;
-			offset = <0x100 0x104 0x108>;
-			bits = <0 0 0>;
-			field = <0x1 0x1 0x1>;
+			offset = <0x100 0x104 0x108 0x208>;
+			bits = <0 0 0 0>;
+			field = <1 1 1 1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		cpu_div_cntclk: cpu_div_cntclk {
@@ -162,9 +167,10 @@
 			#clock-cells = <0>;
 			compatible = "x2,gate-clk";
 			clocks = <&cpu_div_cntclk>;
-			offset = <0x100 0x104 0x108>;
-			bits = <11 11 11>;
-			field = <0x1 0x1 0x1>;
+			offset = <0x100 0x104 0x108 0x208>;
+			bits = <11 11 11 1>;
+			field = <1 1 1 1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		sys_noc_div_aclk: sys_noc_div_aclk {
@@ -180,63 +186,70 @@
 			#clock-cells = <0>;
 			compatible = "x2,gate-clk";
 			clocks = <&sys_noc_div_aclk>;
-			offset = <0x100 0x104 0x108>;
-			bits = <7 7 7>;
-			field = <0x1 0x1 0x1>;
+			offset = <0x100 0x104 0x108 0x0>;
+			bits = <7 7 7 32>;
+			field = <1 1 1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		sys_bifspi_aclk: sys_bifspi_aclk {
 			#clock-cells = <0>;
 			compatible = "x2,gate-clk";
 			clocks = <&sys_noc_div_aclk>;
-			offset = <0x100 0x104 0x108>;
-			bits = <4 4 4>;
-			field = <0x1 0x1 0x1>;
+			offset = <0x100 0x104 0x108 0x0>;
+			bits = <4 4 4 32>;
+			field = <1 1 1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		sys_bifsd_aclk: sys_bifsd_aclk {
 			#clock-cells = <0>;
 			compatible = "x2,gate-clk";
 			clocks = <&sys_noc_div_aclk>;
-			offset = <0x100 0x104 0x108>;
-			bits = <5 5 5>;
-			field = <0x1 0x1 0x1>;
+			offset = <0x100 0x104 0x108 0x0>;
+			bits = <5 5 5 32>;
+			field = <1 1 1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		sys_romc_aclk: sys_romc_aclk {
 			#clock-cells = <0>;
 			compatible = "x2,gate-clk";
 			clocks = <&sys_noc_div_aclk>;
-			offset = <0x100 0x104 0x108>;
-			bits = <1 1 1>;
-			field = <0x1 0x1 0x1>;
+			offset = <0x100 0x104 0x108 0x0>;
+			bits = <1 1 1 32>;
+			field = <1 1 1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		sys_sramc_aclk: sys_sramc_aclk {
 			#clock-cells = <0>;
 			compatible = "x2,gate-clk";
 			clocks = <&sys_noc_div_aclk>;
-			offset = <0x100 0x104 0x108>;
-			bits = <2 2 2>;
-			field = <0x1 0x1 0x1>;
+			offset = <0x100 0x104 0x108 0x0>;
+			bits = <2 2 2 32>;
+			field = <1 1 1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		sys_gic_aclk: sys_gic_aclk {
 			#clock-cells = <0>;
 			compatible = "x2,gate-clk";
 			clocks = <&sys_noc_div_aclk>;
-			offset = <0x100 0x104 0x108>;
-			bits = <3 3 3>;
-			field = <0x1 0x1 0x1>;
+			offset = <0x100 0x104 0x108 0x0>;
+			bits = <3 3 3 32>;
+			field = <1 1 1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		sys_qspi_aclk: sys_qspi_aclk {
 			#clock-cells = <0>;
 			compatible = "x2,gate-clk";
 			clocks = <&sys_noc_div_aclk>;
-			offset = <0x100 0x104 0x108>;
-			bits = <6 6 6>;
-			field = <0x1 0x1 0x1>;
+			offset = <0x100 0x104 0x108 0x0>;
+			bits = <6 6 6 32>;
+			field = <1 1 1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		sys_div_pclk: sys_div_pclk {
@@ -279,27 +292,30 @@
 			#clock-cells = <0>;
 			compatible = "x2,gate-clk";
 			clocks = <&cx_div_dbgclk>;
-			offset = <0x110 0x114 0x118>;
-			bits = <0 0 0>;
-			field = <0x1 0x1 0x1>;
+			offset = <0x110 0x114 0x118 0x0>;
+			bits = <0 0 0 32>;
+			field = <1 1 1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		atb_atclk: atb_atclk {
 			#clock-cells = <0>;
 			compatible = "x2,gate-clk";
 			clocks = <&cx_div_dbgclk>;
-			offset = <0x110 0x114 0x118>;
-			bits = <1 1 1>;
-			field = <0x1 0x1 0x1>;
+			offset = <0x110 0x114 0x118 0x0>;
+			bits = <1 1 1 32>;
+			field = <1 1 1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		armv8pil_clk: armv8pil_clk {
 			#clock-cells = <0>;
 			compatible = "x2,gate-clk";
 			clocks = <&cx_div_dbgclk>;
-			offset = <0x110 0x114 0x118>;
-			bits = <3 3 3>;
-			field = <0x1 0x1 0x1>;
+			offset = <0x110 0x114 0x118 0x0>;
+			bits = <3 3 3 32>;
+			field = <1 1 1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		cx_tpiu_div_clk: cx_tpiu_div_clk {
@@ -315,9 +331,10 @@
 			#clock-cells = <0>;
 			compatible = "x2,gate-clk";
 			clocks = <&cx_tpiu_div_clk>;
-			offset = <0x110 0x114 0x118>;
-			bits = <4 4 4>;
-			field = <0x1 0x1 0x1>;
+			offset = <0x110 0x114 0x118 0x218>;
+			bits = <4 4 4 0>;
+			field = <1 1 1 1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		cnnpll_clk: cnnpll_clk {
@@ -349,9 +366,9 @@
 			#clock-cells = <0>;
 			compatible = "x2,gate-clk";
 			clocks = <&cnn0_div_aclk>;
-			offset = <0x120 0x124 0x128>;
-			bits = <0 0 0>;
-			field = <0x1 0x1 0x1>;
+			offset = <0x120 0x124 0x128 0x228>;
+			bits = <0 0 0 0>;
+			field = <1 1 1 1>;
 			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
@@ -368,9 +385,9 @@
 			#clock-cells = <0>;
 			compatible = "x2,gate-clk";
 			clocks = <&cnn0_div_mclk>;
-			offset = <0x120 0x124 0x128>;
-			bits = <1 1 1>;
-			field = <0x1 0x1 0x1>;
+			offset = <0x120 0x124 0x128 0x228>;
+			bits = <1 1 1 1>;
+			field = <1 1 1 1>;
 			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
@@ -388,9 +405,9 @@
 			#clock-cells = <0>;
 			compatible = "x2,gate-clk";
 			clocks = <&cnn1_div_aclk>;
-			offset = <0x120 0x124 0x128>;
-			bits = <4 4 4>;
-			field = <0x1 0x1 0x1>;
+			offset = <0x120 0x124 0x128 0x228>;
+			bits = <4 4 4 2>;
+			field = <1 1 1 1>;
 			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
@@ -407,9 +424,9 @@
 			#clock-cells = <0>;
 			compatible = "x2,gate-clk";
 			clocks = <&cnn1_div_mclk>;
-			offset = <0x120 0x124 0x128>;
-			bits = <5 5 5>;
-			field = <0x1 0x1 0x1>;
+			offset = <0x120 0x124 0x128 0x228>;
+			bits = <5 5 5 3>;
+			field = <1 1 1 1>;
 			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
@@ -438,12 +455,14 @@
 			field = <3>;
 		};
 
-		ddr_mclk: ddr_mclk {
+		ddr_mclk: ddrddr_mclk {
 			#clock-cells = <0>;
 			compatible = "x2,gate-clk";
 			clocks = <&ddr_div_mclk>;
-			offset = <0x130 0x134 0x138>;
-			bits = <0 0 0>;
+			offset = <0x130 0x134 0x138 0x238>;
+			bits = <0 0 0 0>;
+			field = <1 1 1 1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		viopll_clk: viopll_clk {
@@ -475,9 +494,10 @@
 			#clock-cells = <0>;
 			compatible = "x2,gate-clk";
 			clocks = <&vio_div_aclk>;
-			offset = <0x140 0x144 0x148>;
-			bits = <0 0 0>;
-			field = <0x1 0x1 0x1>;
+			offset = <0x140 0x144 0x148 0x248>;
+			bits = <0 0 0 0>;
+			field = <1 1 1 1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		sif_div_mclk: sif_div_mclk {
@@ -493,9 +513,10 @@
 			#clock-cells = <0>;
 			compatible = "x2,gate-clk";
 			clocks = <&sif_div_mclk>;
-			offset = <0x140 0x144 0x148>;
-			bits = <1 1 1>;
-			field = <0x1 0x1 0x1>;
+			offset = <0x140 0x144 0x148 0x248>;
+			bits = <1 1 1 1>;
+			field = <1 1 1 1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		mipi_ipi_1stdiv_clk: mipi_ipi_1stdiv_clk {
@@ -551,9 +572,10 @@
 			#clock-cells = <0>;
 			compatible = "x2,gate-clk";
 			clocks = <&iar_pix_div_clk>;
-			offset = <0x140 0x144 0x148>;
-			bits = <2 2 2>;
-			field = <0x1 0x1 0x1>;
+			offset = <0x140 0x144 0x148 0x248>;
+			bits = <2 2 2 2>;
+			field = <1 1 1 1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		bt_padc_pixclk: bt_padc_pixclk {
@@ -577,9 +599,10 @@
 			#clock-cells = <0>;
 			compatible = "x2,gate-clk";
 			clocks = <&pym_div_mclk>;
-			offset = <0x140 0x144 0x148>;
-			bits = <5 5 5>;
-			field = <0x1 0x1 0x1>;
+			offset = <0x140 0x144 0x148 0x248>;
+			bits = <5 5 5 5>;
+			field = <1 1 1 1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		mipi_phy_ref_1stdiv_clk: mipi_phy_ref_1stdiv_clk {
@@ -605,9 +628,20 @@
 			#clock-cells = <0>;
 			compatible = "x2,gate-clk";
 			clocks = <&mipi_phy_ref_2nddiv_clk>;
-			offset = <0x140 0x144 0x148>;
-			bits = <3 3 3>;
-			field = <0x1 0x1 0x1>;
+			offset = <0x140 0x144 0x148 0x0>;
+			bits = <3 3 3 32>;
+			field = <1 1 1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
+		};
+
+		mipi_host_ref_clk: mipi_host_ref_clk {
+			#clock-cells = <0>;
+			compatible = "x2,gate-clk";
+			clocks = <&mipi_phy_ref_2nddiv_clk>;
+			offset = <0x140 0x144 0x148 0x0>;
+			bits = <6 6 6 32>;
+			field = <1 1 1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		sensor_1stdiv_clk: sensor_1stdiv_clk {
@@ -633,9 +667,10 @@
 			#clock-cells = <0>;
 			compatible = "x2,gate-clk";
 			clocks = <&sensor_2nddiv_clk>;
-			offset = <0x140 0x144 0x148>;
-			bits = <4 4 4>;
-			field = <0x1 0x1 0x1>;
+			offset = <0x140 0x144 0x148 0x248>;
+			bits = <4 4 4 4>;
+			field = <1 1 1 1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		peripll_clk: peripll_clk {
@@ -667,9 +702,10 @@
 			#clock-cells = <0>;
 			compatible = "x2,gate-clk";
 			clocks = <&peri_div_aclk>;
-			offset = <0x150 0x154 0x158>;
-			bits = <0 0 0>;
-			field = <0x1 0x1 0x1>;
+			offset = <0x150 0x154 0x158 0x258>;
+			bits = <0 0 0 0>;
+			field = <1 1 1 1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		uart_div_mclk: uart_div_mclk {
@@ -685,36 +721,40 @@
 			#clock-cells = <0>;
 			compatible = "x2,gate-clk";
 			clocks = <&uart_div_mclk>;
-			offset = <0x150 0x154 0x158>;
-			bits = <1 1 1>;
+			offset = <0x150 0x154 0x158 0x0>;
+			bits = <1 1 1 32>;
 			field = <0x1 0x1 0x1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		uart1_mclk: uart1_mclk {
 			#clock-cells = <0>;
 			compatible = "x2,gate-clk";
 			clocks = <&uart_div_mclk>;
-			offset = <0x150 0x154 0x158>;
-			bits = <2 2 2>;
-			field = <0x1 0x1 0x1>;
+			offset = <0x150 0x154 0x158 0x0>;
+			bits = <2 2 2 32>;
+			field = <1 1 1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		uart2_mclk: uart2_mclk {
 			#clock-cells = <0>;
 			compatible = "x2,gate-clk";
 			clocks = <&uart_div_mclk>;
-			offset = <0x150 0x154 0x158>;
-			bits = <3 3 3>;
-			field = <0x1 0x1 0x1>;
+			offset = <0x150 0x154 0x158 0x0>;
+			bits = <3 3 3 32>;
+			field = <1 1 1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		uart3_mclk: uart3_mclk {
 			#clock-cells = <0>;
 			compatible = "x2,gate-clk";
 			clocks = <&uart_div_mclk>;
-			offset = <0x150 0x154 0x158>;
-			bits = <4 4 4>;
-			field = <0x1 0x1 0x1>;
+			offset = <0x150 0x154 0x158 0x0>;
+			bits = <4 4 4 32>;
+			field = <1 1 1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		spi_div_mclk: spi_div_mclk {
@@ -730,9 +770,9 @@
 			#clock-cells = <0>;
 			compatible = "x2,gate-clk";
 			clocks = <&spi_div_mclk>;
-			offset = <0x150 0x154 0x158>;
-			bits = <5 5 5>;
-			field = <0x1 0x1 0x1>;
+			offset = <0x150 0x154 0x158 0x0>;
+			bits = <5 5 5 32>;
+			field = <1 1 1>;
 			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
@@ -740,9 +780,9 @@
 			#clock-cells = <0>;
 			compatible = "x2,gate-clk";
 			clocks = <&spi_div_mclk>;
-			offset = <0x150 0x154 0x158>;
-			bits = <6 6 6>;
-			field = <0x1 0x1 0x1>;
+			offset = <0x150 0x154 0x158 0x0>;
+			bits = <6 6 6 32>;
+			field = <1 1 1>;
 			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
@@ -750,9 +790,9 @@
 			#clock-cells = <0>;
 			compatible = "x2,gate-clk";
 			clocks = <&spi_div_mclk>;
-			offset = <0x150 0x154 0x158>;
-			bits = <7 7 7>;
-			field = <0x1 0x1 0x1>;
+			offset = <0x150 0x154 0x158 0x0>;
+			bits = <7 7 7 32>;
+			field = <1 1 1>;
 			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
@@ -769,27 +809,30 @@
 			#clock-cells = <0>;
 			compatible = "x2,gate-clk";
 			clocks = <&pwm_div_mclk>;
-			offset = <0x150 0x154 0x158>;
-			bits = <8 8 8>;
-			field = <0x1 0x1 0x1>;
+			offset = <0x150 0x154 0x158 0x0>;
+			bits = <8 8 8 32>;
+			field = <1 1 1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		pwm1_mclk: pwm1_mclk {
 			#clock-cells = <0>;
 			compatible = "x2,gate-clk";
 			clocks = <&pwm_div_mclk>;
-			offset = <0x150 0x154 0x158>;
-			bits = <9 9 9>;
-			field = <0x1 0x1 0x1>;
+			offset = <0x150 0x154 0x158 0x0>;
+			bits = <9 9 9 32>;
+			field = <1 1 1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		pwm2_mclk: pwm2_mclk {
 			#clock-cells = <0>;
 			compatible = "x2,gate-clk";
 			clocks = <&pwm_div_mclk>;
-			offset = <0x150 0x154 0x158>;
-			bits = <10 10 10>;
-			field = <0x1 0x1 0x1>;
+			offset = <0x150 0x154 0x158 0x0>;
+			bits = <10 10 10 32>;
+			field = <1 1 1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		i2c_div_mclk: i2c_div_mclk {
@@ -805,36 +848,40 @@
 			#clock-cells = <0>;
 			compatible = "x2,gate-clk";
 			clocks = <&i2c_div_mclk>;
-			offset = <0x150 0x154 0x158>;
-			bits = <11 11 11>;
-			field = <0x1 0x1 0x1>;
+			offset = <0x150 0x154 0x158 0x0>;
+			bits = <11 11 11 32>;
+			field = <1 1 1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		i2c1_mclk: i2c1_mclk {
 			#clock-cells = <0>;
 			compatible = "x2,gate-clk";
 			clocks = <&i2c_div_mclk>;
-			offset = <0x150 0x154 0x158>;
-			bits = <12 12 12>;
-			field = <0x1 0x1 0x1>;
+			offset = <0x150 0x154 0x158 0x0>;
+			bits = <12 12 12 32>;
+			field = <1 1 1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		i2c2_mclk: i2c2_mclk {
 			#clock-cells = <0>;
 			compatible = "x2,gate-clk";
 			clocks = <&i2c_div_mclk>;
-			offset = <0x150 0x154 0x158>;
-			bits = <13 13 13>;
-			field = <0x1 0x1 0x1>;
+			offset = <0x150 0x154 0x158 0x0>;
+			bits = <13 13 13 32>;
+			field = <1 1 1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		i2c3_mclk: i2c3_mclk {
 			#clock-cells = <0>;
 			compatible = "x2,gate-clk";
 			clocks = <&i2c_div_mclk>;
-			offset = <0x150 0x154 0x158>;
-			bits = <14 14 14>;
-			field = <0x1 0x1 0x1>;
+			offset = <0x150 0x154 0x158 0x0>;
+			bits = <14 14 14 32>;
+			field = <1 1 1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		sd0_div_clk: sd0_div_clk {
@@ -862,9 +909,9 @@
 			#clock-cells = <0>;
 			compatible = "x2,gate-clk";
 			clocks = <&sd0_div_cclk>;
-			offset = <0x150 0x154 0x158>;
-			bits = <15 15 15>;
-			field = <0x1 0x1 0x1>;
+			offset = <0x150 0x154 0x158 0x258>;
+			bits = <15 15 15 1>;
+			field = <1 1 1 1>;
 			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
@@ -893,9 +940,9 @@
 			#clock-cells = <0>;
 			compatible = "x2,gate-clk";
 			clocks = <&sd1_div_cclk>;
-			offset = <0x150 0x154 0x158>;
-			bits = <16 16 16>;
-			field = <0x1 0x1 0x1>;
+			offset = <0x150 0x154 0x158 0x258>;
+			bits = <16 16 16 2>;
+			field = <1 1 1 1>;
 			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
@@ -922,9 +969,9 @@
 			#clock-cells = <0>;
 			compatible = "x2,gate-clk";
 			clocks = <&eth0_div_clk>;
-			offset = <0x150 0x154 0x158>;
-			bits = <17 17 17>;
-			field = <1 1 1>;
+			offset = <0x150 0x154 0x158 0x258>;
+			bits = <17 17 17 3>;
+			field = <1 1 1 1>;
 			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
@@ -950,9 +997,10 @@
 			#clock-cells = <0>;
 			compatible = "x2,gate-clk";
 			clocks = <&i2s0_div_mclk>;
-			offset = <0x150 0x154 0x158>;
-			bits = <18 18 18>;
-			field = <0x1 0x1 0x1>;
+			offset = <0x150 0x154 0x158 0x258>;
+			bits = <18 18 18 5>;
+			field = <1 1 1 1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		i2s0_div_bclk: i2s0_div_bclk {
@@ -961,7 +1009,8 @@
 			clocks = <&i2s0_mclk>;
 			offset = <0x350>;
 			bits = <16>;
-			field = <0x7>;
+			field = <7>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		i2s0_bclk: i2s0_bclk {
@@ -970,6 +1019,7 @@
 			clocks = <&i2s0_div_bclk>;
 			offset = <0x350>;
 			bits = <20>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		i2s1_prediv_mclk: i2s1_prediv_mclk {
@@ -994,9 +1044,10 @@
 			#clock-cells = <0>;
 			compatible = "x2,gate-clk";
 			clocks = <&i2s1_div_mclk>;
-			offset = <0x150 0x154 0x158>;
-			bits = <19 19 19>;
-			field = <0x1 0x1 0x1>;
+			offset = <0x150 0x154 0x158 0x258>;
+			bits = <19 19 19 6>;
+			field = <1 1 1 1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		i2s1_div_bclk: i2s1_div_bclk {
@@ -1006,6 +1057,7 @@
 			offset = <0x360>;
 			bits = <16>;
 			field = <3>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		i2s1_bclk: i2s1_bclk {
@@ -1014,6 +1066,7 @@
 			clocks = <&i2s1_div_bclk>;
 			offset = <0x360>;
 			bits = <20>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 	};
 	clk_test: clk_test {
