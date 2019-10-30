@@ -25,6 +25,7 @@
 #include <linux/init.h>
 #include <linux/wait.h>
 #include <linux/kthread.h>
+#include <linux/semaphore.h>
 #include "x2/x2_ips.h"
 #include "x2_iar.h"
 
@@ -47,8 +48,7 @@ uint8_t iar_display_cam_no;
 uint32_t iar_display_ipu_slot_size = 0x1000000;
 uint8_t ch1_en;
 uint8_t disp_user_config_done;
-
-bool ipu_process_done;
+struct semaphore rotate_sync;
 uint32_t ipu_display_slot_id;
 
 uint8_t config_rotate;
@@ -1157,8 +1157,10 @@ EXPORT_SYMBOL_GPL(iar_switch_buf);
 
 int32_t iar_set_video_buffer(uint32_t slot_id)
 {
-	ipu_process_done = 1;
-	ipu_display_slot_id = slot_id;
+	if (disp_user_config_done == 1) {
+		ipu_display_slot_id = slot_id;
+		up(&rotate_sync);
+	}
 	return 0;
 }
 EXPORT_SYMBOL_GPL(iar_set_video_buffer);
@@ -1429,32 +1431,30 @@ static int iar_thread(void *data)
 	do {
 		if (kthread_should_stop())
 			break;
-		if (ipu_process_done == 1 && disp_user_config_done == 1) {
-			display_addr.Yaddr =
-				ipu_display_slot_id * iar_display_ipu_slot_size
-				+ iar_display_yaddr_offset;
-			display_addr.Uaddr =
-				ipu_display_slot_id * iar_display_ipu_slot_size
-				+ iar_display_caddr_offset;
+		down(&rotate_sync);
+		display_addr.Yaddr =
+			ipu_display_slot_id * iar_display_ipu_slot_size
+			+ iar_display_yaddr_offset;
+		display_addr.Uaddr =
+			ipu_display_slot_id * iar_display_ipu_slot_size
+			+ iar_display_caddr_offset;
 
-			display_addr.Vaddr = 0;
-			//pr_debug("iar_display_yaddr offset is 0x%x.\n",
-			//iar_display_yaddr_offset);
-			//pr_debug("iar_display_caddr offset is 0x%x.\n",
-			//iar_display_caddr_offset);
-			//pr_debug("iar: iar_display_yaddr is 0x%x.\n",
-			//display_addr.Yaddr);
-			//pr_debug("iar: iar_display_caddr is 0x%x.\n",
-			//display_addr.Uaddr);
+		display_addr.Vaddr = 0;
+		//pr_debug("iar_display_yaddr offset is 0x%x.\n",
+		//iar_display_yaddr_offset);
+		//pr_debug("iar_display_caddr offset is 0x%x.\n",
+		//iar_display_caddr_offset);
+		//pr_debug("iar: iar_display_yaddr is 0x%x.\n",
+		//display_addr.Yaddr);
+		//pr_debug("iar: iar_display_caddr is 0x%x.\n",
+		//display_addr.Uaddr);
 
-			if (config_rotate) {
-				iar_rotate_video_buffer(display_addr.Yaddr,
-					display_addr.Uaddr, display_addr.Vaddr);
-			} else {
-				iar_set_bufaddr(0, &display_addr);
-				iar_update();
-			}
-			ipu_process_done = 0;
+		if (config_rotate) {
+			iar_rotate_video_buffer(display_addr.Yaddr,
+				display_addr.Uaddr, display_addr.Vaddr);
+		} else {
+			iar_set_bufaddr(0, &display_addr);
+			iar_update();
 		}
 	} while (!kthread_should_stop());
 }
@@ -1591,6 +1591,9 @@ static int x2_iar_probe(struct platform_device *pdev)
 	int deta = 0;
 
 	pr_info("x2 iar probe begin!!!\n");
+	sema_init(&rotate_sync, 1);
+	down(&rotate_sync);//sem - 1
+
 	g_iar_dev = devm_kzalloc(&pdev->dev, sizeof(struct iar_dev_s), GFP_KERNEL);
 	if (!g_iar_dev) {
 		dev_err(&pdev->dev, "Unable to alloc IAR DEV\n");
