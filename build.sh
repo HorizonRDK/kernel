@@ -6,11 +6,11 @@ function choose()
     local conftmp=.config_tmp
     local rootfscpio="CONFIG_INITRAMFS_SOURCE=\"./usr/rootfs.cpio\""
     local rootfspre="CONFIG_INITRAMFS_SOURCE=\"./usr/prerootfs/\""
+    local rootfsnone="CONFIG_INITRAMFS_SOURCE=\"\""
     cp .config $conftmp
 
     if ! $hascpio ;then
-        sed -i "/CONFIG_BLK_DEV_INITRD/d" $conftmp
-        echo "CONFIG_BLK_DEV_INITRD=n" >> $conftmp
+        sed -i "s#${rootfscpio}#${rootfsnone}#g" $conftmp
     else
         sed -i "s#${rootfscpio}#${rootfspre}#g" $conftmp
         rm -rf ${SRC_KERNEL_DIR}/usr/prerootfs/
