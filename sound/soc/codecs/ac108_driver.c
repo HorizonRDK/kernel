@@ -848,7 +848,7 @@ static void ac108_hw_init(struct i2c_client *i2c)
 static int ac108_set_sysclk(struct snd_soc_dai *dai, int clk_id, unsigned int freq, int dir)
 {
 	AC108_DEBUG("\n--->%s\n",__FUNCTION__);
-	
+#if 0
 	switch(clk_id){
 		case SYSCLK_SRC_MCLK:
 			AC108_DEBUG("AC108 SYSCLK source select MCLK\n\n");
@@ -865,6 +865,7 @@ static int ac108_set_sysclk(struct snd_soc_dai *dai, int clk_id, unsigned int fr
 
 	//SYSCLK Enable
 	ac108_multi_chips_update_bits(SYSCLK_CTRL, 0x1<<SYSCLK_EN, 0x1<<SYSCLK_EN);
+#endif
 	return 0;
 }
 
