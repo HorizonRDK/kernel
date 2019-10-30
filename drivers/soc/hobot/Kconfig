@@ -113,6 +113,11 @@ config HOBOT_PM
 	default y
 	help
 	  say yes to enable x2 suspend
+config HOBOT_VCAM
+        tristate "Enable HOBOT VCAM Drivers"
+        default y
+        help
+          Say yes to enable vcam driver
 endif #SOC_X2_MP
 
 menuconfig HOBOT_BIF_AP

@@ -37,3 +37,4 @@ obj-$(CONFIG_HOBOT_BIF_LITE_SD)    += hobot/bif_lite/
 obj-$(CONFIG_HOBOT_HBIPC_ETH)    += hobot/bif_lite/
 obj-y	+= hobot/ddr_monitor/
 obj-y	+= hobot/socinfo/
+obj-y	+= hobot/vcam/
