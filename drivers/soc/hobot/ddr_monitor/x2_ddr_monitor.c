@@ -160,6 +160,9 @@ static int get_monitor_data(char* buf)
 	int cur = 0;
 	int length = 0;
 	volatile int num = 0;
+	unsigned long read_bw = 0;
+	unsigned long write_bw = 0;
+	unsigned long mask_bw = 0;
 	if (!ddr_info) {
 		length += sprintf(buf + length, "ddr_monitor not started \n");
 		return 0;
@@ -180,27 +183,37 @@ static int get_monitor_data(char* buf)
 			for (i = 0; i < 6; i++)
 			{
 				if (ddr_info[cur].portdata[i].raddr_num) {
-					length += sprintf(buf + length, "p[%d](bw:%u stall:%u delay:%u) ", i, \
-						(ddr_info[cur].portdata[i].rdata_num * 16 * (1000000/g_monitor_poriod)) >> 20, \
+					read_bw = ((unsigned long) ddr_info[cur].portdata[i].rdata_num) *
+						  16 * (1000000 / g_monitor_poriod) >> 20;
+					length += sprintf(buf + length, "p[%d](bw:%lu stall:%u delay:%u) ", i, \
+						read_bw,\
 						ddr_info[cur].portdata[i].raddr_cyc / ddr_info[cur].portdata[i].raddr_num, \
 						ddr_info[cur].portdata[i].raddr_latency / ddr_info[cur].portdata[i].raddr_num);
 				} else {
 					length += sprintf(buf + length, "p[%d](bw:%u stall:%u delay:%u) ", i, 0, 0, 0);
 				}
 			}
-			length += sprintf(buf + length, "ddrc:%u MB/s;\n", (ddr_info[cur].rd_cmd_num * 64 * (1000000/g_monitor_poriod)) >> 20);
+			read_bw = ((unsigned long) ddr_info[cur].rd_cmd_num) *
+				  64 * (1000000/g_monitor_poriod) >> 20;
+			length += sprintf(buf + length, "ddrc:%lu MB/s;\n", read_bw);
 			length += sprintf(buf + length, "Write: ");
 			for (i = 0; i < 6; i++) {
 				if (ddr_info[cur].portdata[i].waddr_num) {
-					length += sprintf(buf + length, "p[%d](bw:%u stall:%u delay:%u) ", i, \
-						(ddr_info[cur].portdata[i].wdata_num * 16 * (1000000/g_monitor_poriod)) >> 20, \
+					write_bw = ((unsigned long) ddr_info[cur].portdata[i].wdata_num) *
+						    16 * (1000000 / g_monitor_poriod) >> 20;
+					length += sprintf(buf + length, "p[%d](bw:%lu stall:%u delay:%u) ", i, \
+							write_bw, \
 						ddr_info[cur].portdata[i].waddr_cyc / ddr_info[cur].portdata[i].waddr_num, \
 						ddr_info[cur].portdata[i].waddr_latency / ddr_info[cur].portdata[i].waddr_num);
 				} else {
 					length += sprintf(buf + length, "p[%d](bw:%u stall:%u delay:%u) ", i, 0, 0, 0);
 				}
 			}
-				length += sprintf(buf + length, "ddrc %u MB/s, mask %u MB/s\n", (ddr_info[cur].wr_cmd_num * 64 * (1000000/g_monitor_poriod)) >> 20, (ddr_info[cur].mwr_cmd_num * 64 * (1000000/g_monitor_poriod)) >> 20);
+			write_bw = ((unsigned long) ddr_info[cur].wr_cmd_num) *
+				    64 * (1000000 / g_monitor_poriod) >> 20;
+			mask_bw = ((unsigned int) ddr_info[cur].mwr_cmd_num) *
+				   64 * (1000000 / g_monitor_poriod) >> 20;
+			length += sprintf(buf + length, "ddrc %lu MB/s, mask %lu MB/s\n", write_bw, mask_bw);
 		}
 	}
 	return length;
