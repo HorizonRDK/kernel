@@ -45,6 +45,8 @@
 #include "./user_sensor/imx_327.h"
 #endif
 
+#include "./user_sensor/ar_0233.h"
+
 struct i2c_client *client[FIRMWARE_CONTEXT_NUMBER];
 struct sensor_data;
 
@@ -65,6 +67,10 @@ static struct i2c_board_info board_info[] = {
 	{
 		.type = "imx327",
 		.addr = 0x1a,
+	},
+	{
+		.type = "ar0233",
+		.addr = 0x10,
 	},
 	{
 		.type = "OV8a10",
@@ -104,10 +110,10 @@ struct sensor_operations *sensor_ops_register(uint8_t sensor_sw)
 		LOG(LOG_INFO, "IMX_327_register !");
 		break;
 #endif
-#ifdef SENSOR_IMX390 
 	case 4:
+		sensor_ctrl = ar0233_ops_register();
+		LOG(LOG_INFO, "IMX_0233_register !");
 		break;
-#endif
 	default:
 		LOG(LOG_INFO, "sensor %d is not register !", sensor_sw);
 		break;

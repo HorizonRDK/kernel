@@ -312,6 +312,33 @@ static sensor_mode_t dummy_drv_supported_modes[] = {
         .bits = 8,
         .exposures = 1,
     },
+    {//30 
+        //.wdr_mode = WDR_MODE_FS_LIN,
+	.wdr_mode = WDR_MODE_NATIVE,
+        .fps = 10 * 256,
+        .resolution.width = 1920,
+        .resolution.height = 1080,
+        .bits = 12,
+        .exposures = 1,
+    },
+    {//31 
+        //.wdr_mode = WDR_MODE_FS_LIN,
+	.wdr_mode = WDR_MODE_NATIVE,
+        .fps = 10 * 256,
+        .resolution.width = 1920,
+        .resolution.height = 1080,
+        .bits = 12,
+        .exposures = 2,
+    },
+    {//32 
+        //.wdr_mode = WDR_MODE_FS_LIN,
+	.wdr_mode = WDR_MODE_NATIVE,
+        .fps = 10 * 256,
+        .resolution.width = 1920,
+        .resolution.height = 1080,
+        .bits = 12,
+        .exposures = 3,
+    },
 
 };
 

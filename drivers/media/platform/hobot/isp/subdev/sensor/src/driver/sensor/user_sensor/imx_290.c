@@ -212,11 +212,11 @@ static int set290_ex_gain_control(uint8_t chn, uint32_t expo_L, uint32_t expo_M,
 		break;
         case imx290_DOL2_M:
 		set_normal_gain(chn, a_gain);
-		set_imx290_dol2_exposure(chn, expo_S, expo_M);//TODO
+		set_imx290_dol2_exposure(chn, expo_S, expo_L);
 		break;
 	case imx290_DOL3_M:
 		set_normal_gain(chn, a_gain);
-		set_imx290_dol3_exposure(chn, expo_S, expo_M, expo_L);//TODO
+		set_imx290_dol3_exposure(chn, expo_S, expo_M, expo_L);
 		break;
 	default:
 		LOG( LOG_ERR, "[%s -- %d ] mode is err !", __func__, __LINE__);

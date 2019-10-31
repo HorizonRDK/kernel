@@ -113,12 +113,17 @@ static int set_imx327_dol2_exposure(uint8_t chn, uint32_t input_exp1,
 	char exp_d[3];
 	int ret = 0;
 
-	input_exp2 = imx327_param[chn].VMAX - 1 - input_exp2;
+	if (input_exp2 >= imx327_param[chn].FSC_DOL2)
+		input_exp2 = imx327_param[chn].FSC_DOL2 - 1;
+
+	input_exp2 = imx327_param[chn].FSC_DOL2 - 1 - input_exp2;
 	exp_d[2] =(char)((input_exp2 >> 16) & 0x03);
 	exp_d[1] =(char)((input_exp2 >> 8) & 0xff);
 	exp_d[0] =(char)(input_exp2 & 0xff);
 	ret = sensor_i2c_write(chn, IMX327_SHS2, 16, exp_d, 3);
 
+	if (input_exp1 >= imx327_param[chn].RHS1)
+		input_exp1 = imx327_param[chn].RHS1 - 1;
 	input_exp1 = imx327_param[chn].RHS1 - 1 - input_exp1;
 	exp_d[2] =(char)((input_exp1 >> 16) & 0x03);
 	exp_d[1] =(char)((input_exp1 >> 8) & 0xff);
@@ -134,7 +139,7 @@ static int set_imx327_dol3_exposure(uint8_t chn, uint32_t input_exp1,
 	char exp_d[3];
 	int ret = 0;
 
-	input_exp3 = imx327_param[chn].VMAX - 1 - input_exp3;
+	input_exp3 = imx327_param[chn].FSC_DOL3 - 1 - input_exp3;
 	exp_d[2] =(char)((input_exp3 >> 16) & 0x03);
 	exp_d[1] =(char)((input_exp3 >> 8) & 0xff);
 	exp_d[0] =(char)(input_exp3 & 0xff);
@@ -210,7 +215,7 @@ static int set327_ex_gain_control(uint8_t chn, uint32_t expo_L,
 		break;
 	case DOL2_M:
 		set_normal_gain(chn, a_gain);
-		set_imx327_dol2_exposure(chn, expo_S, expo_M);//
+		set_imx327_dol2_exposure(chn, expo_S, expo_L);//
 		break;
 	case DOL3_M:
 		set_normal_gain(chn, a_gain);

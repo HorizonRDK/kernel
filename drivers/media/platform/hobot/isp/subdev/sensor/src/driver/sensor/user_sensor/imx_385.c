@@ -141,7 +141,7 @@ static int set385_ex_gain_control(uint8_t chn, uint32_t expo_L, uint32_t expo_M,
 		break;
         case imx385_DOL2_M:
 		set_normal_gain(chn, a_gain);
-		set_imx385_dol2_exposure(chn, expo_S, expo_M);//TODO
+		set_imx385_dol2_exposure(chn, expo_S, expo_L);
 		break;
 	default:
 		LOG( LOG_ERR, " mode is err !");
