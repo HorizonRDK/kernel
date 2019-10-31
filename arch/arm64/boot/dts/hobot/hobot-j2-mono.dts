@@ -282,8 +282,6 @@
 	qspi-mode = <1>;
 	#address-cells = <1>;
 	#size-cells = <0>;
-	clocks = <&sys_qspi_aclk>;
-	clock-names = "qspi_aclk";
 
 	flash@0 {
 		compatible = "gd25lq128d";
@@ -307,8 +305,6 @@
 	qspi-mode = <1>;
 	#address-cells = <1>;
 	#size-cells = <0>;
-	clocks = <&sys_qspi_aclk>;
-	clock-names = "qspi_aclk";
 
 	flash@0 {
 		compatible = "is25wp512";

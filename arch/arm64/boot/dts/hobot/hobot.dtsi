@@ -497,6 +497,8 @@
 			reg = <0x0 0xB0000000 0x0 0x1000>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 19 4>;
+			clocks = <&sys_qspi_aclk>;
+			clock-names = "qspi_aclk";
 		};
 
 		nor_flash: nor@0xB0000000 {
@@ -505,6 +507,8 @@
 			reg = <0x0 0xB0000000 0x0 0x1000>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 19 4>;
+			clocks = <&sys_qspi_aclk>;
+			clock-names = "qspi_aclk";
 		};
 
 		ethernet: ethernet@A5014000 {

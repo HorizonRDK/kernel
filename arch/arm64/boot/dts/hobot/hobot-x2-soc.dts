@@ -190,8 +190,6 @@
 	#address-cells = <1>;
 	#size-cells = <0>;
 	qspi-mode = <4>;
-	clocks = <&sys_qspi_aclk>;
-	clock-names = "qspi_aclk";
 
 	flash@0 {
 		compatible = "gd256lq256d";
@@ -225,8 +223,6 @@
 	status = "disabled";
 	#address-cells = <1>;
 	#size-cells = <0>;
-	clocks = <&sys_qspi_aclk>;
-	clock-names = "qspi_aclk";
 	qspi-mode = <4>;
 
 	flash@0 {
