@@ -34,6 +34,7 @@
 
 int lt9211_reset_pin;
 int lcd_reset_pin;
+//int display_type = HDMI_TYPE;
 
 struct pwm_device *lcd_backlight_pwm;
 

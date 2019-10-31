@@ -46,6 +46,7 @@ module_param(iar_debug_level, uint, 0644);
 #define DISPLAY_TYPE_TOTAL_MULTI 63
 
 int panel_reset_pin;
+int display_type = HDMI_TYPE;
 uint32_t iar_display_ipu_addr_single[DISPLAY_TYPE_TOTAL_SINGLE][2];
 uint32_t iar_display_ipu_addr_dual[DISPLAY_TYPE_TOTAL_MULTI][2];
 uint32_t iar_display_ipu_addr_ddrmode[33][2];

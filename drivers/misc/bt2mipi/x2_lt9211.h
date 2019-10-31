@@ -27,6 +27,7 @@
 #define LT9211_DEBUG(format, args...)
 #endif
 
+extern int display_type;
 extern int lt9211_reset_pin;
 extern int lcd_reset_pin;
 extern int display_type;
