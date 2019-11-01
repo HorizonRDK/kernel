@@ -25,7 +25,6 @@
 #include <linux/init.h>
 #include <linux/wait.h>
 #include <linux/kthread.h>
-#include <linux/semaphore.h>
 #include "x2/x2_ips.h"
 #include "x2_iar.h"
 
@@ -48,10 +47,10 @@ uint8_t iar_display_cam_no;
 uint32_t iar_display_ipu_slot_size = 0x1000000;
 uint8_t ch1_en;
 uint8_t disp_user_config_done;
-struct semaphore rotate_sync;
 uint32_t ipu_display_slot_id;
 
 uint8_t config_rotate;
+uint8_t ipu_process_done;
 //uint8_t pingpong_config = 0;
 uint8_t frame_count;
 
@@ -320,7 +319,7 @@ struct iar_dev_s {
 	unsigned int buf_w_h[IAR_CHANNEL_MAX][2];
 	int cur_framebuf_id[IAR_CHANNEL_MAX];
 	struct task_struct *iar_task;
-//	wake_queue_head_t wq_head;
+	wait_queue_head_t wq_head;
 };
 struct iar_dev_s *g_iar_dev;
 
@@ -1159,7 +1158,8 @@ int32_t iar_set_video_buffer(uint32_t slot_id)
 {
 	if (disp_user_config_done == 1) {
 		ipu_display_slot_id = slot_id;
-		up(&rotate_sync);
+		ipu_process_done = 1;
+		wake_up_interruptible(&g_iar_dev->wq_head);
 	}
 	return 0;
 }
@@ -1431,7 +1431,8 @@ static int iar_thread(void *data)
 	do {
 		if (kthread_should_stop())
 			break;
-		down(&rotate_sync);
+		wait_event_interruptible(g_iar_dev->wq_head, ipu_process_done);
+		ipu_process_done = 0;
 		display_addr.Yaddr =
 			ipu_display_slot_id * iar_display_ipu_slot_size
 			+ iar_display_yaddr_offset;
@@ -1591,8 +1592,6 @@ static int x2_iar_probe(struct platform_device *pdev)
 	int deta = 0;
 
 	pr_info("x2 iar probe begin!!!\n");
-	sema_init(&rotate_sync, 1);
-	down(&rotate_sync);//sem - 1
 
 	g_iar_dev = devm_kzalloc(&pdev->dev, sizeof(struct iar_dev_s), GFP_KERNEL);
 	if (!g_iar_dev) {
@@ -1626,6 +1625,7 @@ static int x2_iar_probe(struct platform_device *pdev)
 	g_iar_dev->irq = irq->start;
 	pr_info("g_iar_dev->irq is %d\n", irq->start);
 
+	init_waitqueue_head(&g_iar_dev->wq_head);
 	ret = request_threaded_irq(g_iar_dev->irq, x2_iar_irq, NULL, IRQF_TRIGGER_HIGH,
 							   dev_name(&pdev->dev), g_iar_dev);
 	disable_irq(g_iar_dev->irq);
