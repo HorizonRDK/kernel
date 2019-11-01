@@ -357,7 +357,6 @@ static int hb_vcam_deinit(void)
  */
 static int hb_vcam_open(struct inode *inode, struct file *file)
 {
-	/* TBD */
 	struct vcam_ctx_t *vcam_ctx;
 
 	pr_err("vcam open start %d\n", __LINE__);
@@ -365,13 +364,13 @@ static int hb_vcam_open(struct inode *inode, struct file *file)
 	file->private_data = vcam_ctx;
 	/* ion alloc vcam buff */
 	if (g_ion_flag == 0) {
-		/* create vcam ion client */
 		if (!hb_ion_dev) {
 			pr_err("ion dev is null\n");
 			return -EFAULT;
 		}
-		vcam_ctx->vcam_iclient = ion_client_create(hb_ion_dev, "hb_vcam");
-		if (IS_ERR(vcam_ctx->vcam_iclient)) {
+		/* create vcam ion client */
+		g_vcam_ctx.vcam_iclient = ion_client_create(hb_ion_dev, "hb_vcam");
+		if (IS_ERR(g_vcam_ctx.vcam_iclient)) {
 			pr_err("vcam ion client create failed!!\n");
 			return -ENOMEM;
 		}
@@ -402,10 +401,10 @@ static int hb_vcam_close(struct inode *inode, struct file *file)
 	g_vcam_next_flag = 0;
 	g_vcam_get_flag = 0;
 	g_ion_flag--;
+	/* free vcam ion */
 	if (g_ion_flag == 0) {
 		hb_vcam_ion_free();
-		/* free vcam ion */
-		ion_client_destroy(vcam_ctx->vcam_iclient);
+		ion_client_destroy(g_vcam_ctx.vcam_iclient);
 	}
 	return 0;
 }
