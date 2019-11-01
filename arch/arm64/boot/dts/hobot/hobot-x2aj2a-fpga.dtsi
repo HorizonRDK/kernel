@@ -271,7 +271,8 @@
 			reg = <0 0xA5009000 0 0x100>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 38 4>;
-			clock-frequency = <24000000>;
+			clocks = <&i2c0_mclk>;
+			clock-names = "i2c_mclk";
 			resets = <&rst 0x50 11>;
 			reset-names = "i2c0";
 			#status = "disabled";
@@ -284,7 +285,8 @@
 			reg = <0 0xA500A000 0 0x100>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 39 4>;
-			clock-frequency = <24000000>;
+			clocks = <&i2c1_mclk>;
+			clock-names = "i2c_mclk";
 			resets = <&rst 0x50 12>;
 			reset-names = "i2c1";
 			#status = "disabled";
@@ -297,7 +299,8 @@
 			reg = <0 0xA500B000 0 0x100>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 40 4>;
-			clock-frequency = <24000000>;
+			clocks = <&i2c2_mclk>;
+			clock-names = "i2c_mclk";
 			resets = <&rst 0x50 13>;
 			reset-names = "i2c2";
 			#status = "disabled";
@@ -310,7 +313,8 @@
 			reg = <0 0xA500C000 0 0x100>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 41 4>;
-			clock-frequency = <24000000>;
+			clocks = <&i2c3_mclk>;
+			clock-names = "i2c_mclk";
 			resets = <&rst 0x50 14>;
 			reset-names = "i2c3";
 			#status = "disabled";
@@ -323,7 +327,8 @@
 			reg = <0 0xA5016000 0 0x100>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 42 4>;
-			clock-frequency = <24000000>;
+			clocks = <&i2c4_mclk>;
+			clock-names = "i2c_mclk";
 			resets = <&rst 0x50 15>;
 			reset-names = "i2c4";
 			#status = "disabled";
@@ -336,7 +341,8 @@
 			reg = <0 0xA5017000 0 0x100>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 43 4>;
-			clock-frequency = <24000000>;
+			clocks = <&i2c5_mclk>;
+			clock-names = "i2c_mclk";
 			resets = <&rst 0x50 16>;
 			reset-names = "i2c5";
 			#status = "disabled";

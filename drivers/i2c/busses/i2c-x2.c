@@ -15,8 +15,9 @@
 #include <linux/string.h>
 #include <linux/reset.h>
 #include <x2/diag.h>
+#include <linux/clk.h>
 
-#include "i2c-x2.h"
+#include <linux/i2c-x2.h>
 
 #define X2_I2C_FIFO_SIZE	16
 #define WAIT_IDLE_TIMEOUT	200 /* ms */
@@ -25,7 +26,11 @@
 #define CLK_EN_SET_REG      (0x154)
 #define I2C0_MCLK_EB_BIT    (1<<11)
 #define CLK_EN_CLR_REG      (0x158)
+
 #define I2C0_MCLK_CLR_BIT   (1<<11)
+#define I2C_MAX_DIV			255
+#define I2C_SCL_DEFAULT_FREQ	100000 /*I2c SCL default frequency is 100KHZ*/
+#define I2C_CONTROL_CLK		24000000
 
 enum {
 	i2c_idle,
@@ -40,9 +45,11 @@ struct x2_i2c_dev {
 	struct reset_control *rst;
 	struct mutex lock;
 	int clkdiv;
+	int default_trans_freq;
 	int irq;
 	struct i2c_adapter adapter;
 	struct completion completion;
+	struct clk *clk;
 	u32 i2c_state;
 	u32 msg_err;
 	u8 *tx_buf;
@@ -357,6 +364,33 @@ static int x2_i2c_xfer_msg(struct x2_i2c_dev *dev, struct i2c_msg *msg)
 	return -EIO;
 }
 
+static void recal_clk_div(struct x2_i2c_dev *dev)
+{
+	u32 clk_freq = 0;
+	int temp_div = 0;
+	struct client_request *client_req;
+
+	client_req = (struct client_request *)dev->adapter.algo_data;
+	clk_freq = clk_get_rate(dev->clk);
+	if (client_req->client_req_freq != 0)
+		temp_div = DIV_ROUND_UP(clk_freq, client_req->client_req_freq) - 1;
+	else
+		temp_div = DIV_ROUND_UP(clk_freq, dev->default_trans_freq) - 1;
+	dev->clkdiv = DIV_ROUND_UP(temp_div, 8) - 1;
+	if (dev->clkdiv > I2C_MAX_DIV) {
+		dev_dbg(dev->dev, "clkdiv too large, set to 255");
+		dev->clkdiv = I2C_MAX_DIV;
+	}
+}
+
+static void reset_client_freq(struct x2_i2c_dev *dev)
+{
+	struct client_request *client_req;
+
+	client_req = (struct client_request *)dev->adapter.algo_data;
+	client_req->client_req_freq = 0;
+}
+
 static int x2_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[], int num)
 {
 	struct x2_i2c_dev *dev = i2c_get_adapdata(adap);
@@ -369,6 +403,7 @@ static int x2_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[], int num)
 	mutex_lock(&dev->lock);
 
 	x2_i2c_reset(dev);
+	recal_clk_div(dev);
 	if (msgs[0].flags & 0x20) {
 		x2_i2c_cfg(dev, 0, 0);
 	} else {
@@ -381,6 +416,7 @@ static int x2_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[], int num)
 			break;
 	}
 
+	reset_client_freq(dev);
 	mutex_unlock(&dev->lock);
 
 	if (ret == -ETIMEDOUT) {
@@ -481,6 +517,7 @@ static int x2_i2c_xfer_smbus(struct i2c_adapter *adap, u16 addr,
 				addr, command, read_write, size);
 
 	x2_i2c_reset(dev);
+	recal_clk_div(dev);
 	x2_i2c_cfg(dev, 0, 1);
 
 	switch (size) {
@@ -514,6 +551,7 @@ static int x2_i2c_xfer_smbus(struct i2c_adapter *adap, u16 addr,
 		ret = -EOPNOTSUPP;
 	}
 
+	reset_client_freq(dev);
 	mutex_unlock(&dev->lock);
 
 	if (ret == -ETIMEDOUT) {
@@ -542,15 +580,18 @@ static int x2_i2c_probe(struct platform_device *pdev)
 {
 	struct x2_i2c_dev *dev;
 	struct resource *mem, *irq;
-	int ret, i2c_id;
-	u32 bus_clk_rate;
+	int ret, i2c_id, temp_div;
+	struct client_request *client_req = NULL;
+	u64 round_rate = 0;
 	char i2c_name[20] = {0};
 	struct i2c_adapter *adap;
 
 	printk("x2_i2c_probe start\n");
 	dev = devm_kzalloc(&pdev->dev, sizeof(struct x2_i2c_dev), GFP_KERNEL);
-	if (!dev)
-		return -ENOMEM;
+	if (!dev) {
+		ret = -ENOMEM;
+		goto err;
+	}
 
 	platform_set_drvdata(pdev, dev);
 	dev->dev = &pdev->dev;
@@ -567,28 +608,53 @@ static int x2_i2c_probe(struct platform_device *pdev)
 	dev->rst = devm_reset_control_get(&pdev->dev, i2c_name);
 	if (IS_ERR(dev->rst)) {
 		dev_err(dev->dev, "missing controller reset\n");
-		return PTR_ERR(dev->rst);
+		ret = PTR_ERR(dev->rst);
+		goto err;
 	}
 
-	ret = of_property_read_u32(pdev->dev.of_node, "clock-frequency",
-				   &bus_clk_rate);
-	if (ret < 0) {
-		dev_warn(&pdev->dev,
-			 "Could not read clock-frequency property, set to 100000\n");
-		bus_clk_rate = 100000;
+	dev->clk = devm_clk_get(&pdev->dev, "i2c_mclk");
+	if (IS_ERR(dev->clk)) {
+		dev_err(&pdev->dev, "failed to get i2c_mclk\n");
+		ret = PTR_ERR(dev->clk);
+		goto err;
 	}
-	if (bus_clk_rate < 40000 || bus_clk_rate > 400000) {
-		dev_warn(&pdev->dev,
-			 "not supported clock-frequency %d, set to 100000\n", bus_clk_rate);
-		bus_clk_rate = 100000;
+
+	ret = clk_prepare_enable(dev->clk);
+	if (ret != 0) {
+		dev_err(&pdev->dev, "failed to prepare i2c_clk\n");
+		goto err_clk;
 	}
-	dev->clkdiv = DIV_ROUND_UP(24000000, bus_clk_rate) - 1;
-	dev_err(dev->dev, "clock = %d, clkdiv = 0x%x\n", bus_clk_rate, dev->clkdiv);
+	clk_disable_unprepare(dev->clk);
+	round_rate = clk_round_rate(dev->clk, I2C_CONTROL_CLK);
+	dev_info(&pdev->dev, "round_rate:%llu\n", round_rate);
+	ret = clk_set_rate(dev->clk, round_rate);
+	if (unlikely(ret < 0)) {
+		dev_err(&pdev->dev, "failed to set clk: i2c0_clk\n");
+		goto err_clk;
+	}
+
+	ret = clk_prepare_enable(dev->clk);
+	if (ret != 0) {
+		dev_err(&pdev->dev, "failed to prepare i2c_clk\n");
+		goto err_clk;
+	}
+
+	dev->default_trans_freq = I2C_SCL_DEFAULT_FREQ;
+
+	temp_div = DIV_ROUND_UP(round_rate, dev->default_trans_freq) - 1;
+	dev->clkdiv = DIV_ROUND_UP(temp_div, 8) - 1;
+	if (dev->clkdiv > I2C_MAX_DIV) {
+		dev_err(&pdev->dev, "clkdiv too large, set to 255");
+		dev->clkdiv = I2C_MAX_DIV;
+	}
+
+	dev_info(&pdev->dev, "clkdiv = 0x%x\n", dev->clkdiv);
 
 	irq = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
 	if (!irq) {
 		dev_err(&pdev->dev, "No IRQ resource\n");
-		return -ENODEV;
+		ret = -ENODEV;
+		goto err_clk;
 	}
 	dev->irq = irq->start;
 
@@ -596,15 +662,27 @@ static int x2_i2c_probe(struct platform_device *pdev)
 			  dev_name(&pdev->dev), dev);
 	if (ret) {
 		dev_err(&pdev->dev, "Could not request IRQ\n");
-		return -ENODEV;
+		ret = -ENODEV;
+		goto err_irq;
 	}
 
+	if (NULL == client_req)
+		client_req = (struct client_request*)
+						kmalloc(sizeof(struct client_request), GFP_KERNEL);
+	if (!client_req) {
+		dev_err(&pdev->dev, "func:%s : there is no memory", __FUNCTION__);
+		ret = -ENOMEM;
+		goto err_irq;
+	}
+
+	client_req->client_req_freq = 0;
 	adap = &dev->adapter;
 	i2c_set_adapdata(adap, dev);
 	adap->owner = THIS_MODULE;
 	adap->class = I2C_CLASS_DEPRECATED;
 	strlcpy(adap->name, "x2 I2C adapter", sizeof(adap->name));
 	adap->algo = &x2_i2c_algo;
+	adap->algo_data = (void*)client_req;
 	adap->dev.parent = &pdev->dev;
 	adap->dev.of_node = pdev->dev.of_node;
 	adap->timeout = 4000;
@@ -612,7 +690,7 @@ static int x2_i2c_probe(struct platform_device *pdev)
 
 	ret = i2c_add_adapter(adap);
 	if (ret)
-		free_irq(dev->irq, dev);
+		goto err_irq;
 
 	/* 
 	 * diag ref init 
@@ -629,6 +707,13 @@ static int x2_i2c_probe(struct platform_device *pdev)
 					EventIdI2cController0Err + i2c_id);
 	}
 	printk("x2_i2c_probe done\n");
+	return 0;
+
+err_irq:
+	free_irq(dev->irq, dev);
+err_clk:
+	clk_disable_unprepare(dev->clk);
+err:
 	return ret;
 }
 
@@ -638,6 +723,10 @@ static int x2_i2c_remove(struct platform_device *pdev)
 
 	free_irq(dev->irq, dev);
 	i2c_del_adapter(&dev->adapter);
+	if (dev->adapter.algo_data) {
+		kfree(dev->adapter.algo_data);
+		dev->adapter.algo_data = NULL;
+	}
 
 	return 0;
 }
@@ -667,6 +756,8 @@ static int x2_i2c_suspend(struct device *dev)
 	i2c_unlock_adapter(&i2c_dev->adapter);
 	
 	//disable_irq(i2c_dev->irq);
+	//disable clk to reduce power
+	clk_disable_unprepare(i2c_dev->clk);
 
 	return 0;
 }
@@ -689,6 +780,8 @@ static int x2_i2c_resume(struct device *dev)
 	i2c_unlock_adapter(&i2c_dev->adapter);
 
 	//enable_irq(i2c_dev->irq);
+	//enable clk to work
+	clk_prepare_enable(i2c_dev->clk);
 
 	return 0;
 }

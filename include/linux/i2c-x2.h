@@ -1,3 +1,8 @@
+/***************************************************************************
+ *                      COPYRIGHT NOTICE
+ *             Copyright 2018 Horizon Robotics, Inc.
+ *                     All rights reserved.
+ ***************************************************************************/
 #ifndef __X2_I2C_H__
 #define __X2_I2C_H__
 struct cfg_bits_s {
@@ -206,5 +211,9 @@ struct x2_i2c_regs_s {
 	union intunmask_reg_e intunmask;
 	union pmu_delay_reg_e pmu_delay;
 	union fifo_ctl_reg_e fifo_ctl;
+};
+
+struct client_request{
+	u32 client_req_freq;
 };
 #endif
