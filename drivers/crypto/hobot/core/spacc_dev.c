@@ -488,7 +488,7 @@ static int spacc_dev_open (struct inode *in, struct file *fp)
 {
    int x;
 
-   // printk("spaccdev::open %p\n", fp);
+   printk("spaccdev::open %p\n", fp);
 
    down(&dev_lock);
 
@@ -1031,7 +1031,6 @@ static int __init spacc_dev_init (void)
 #ifdef PERF_MON
    memset(&perf, 0, sizeof perf);
 #endif
-
    sema_init(&dev_lock, 1);
 
    // sort out SPAcc
@@ -1136,7 +1135,8 @@ static void __exit spacc_dev_exit (void)
 MODULE_AUTHOR("Synopsys, Inc.");
 MODULE_LICENSE ("GPL");
 
-module_init (spacc_dev_init);
+//module_init (spacc_dev_init);
+late_initcall(spacc_dev_init)
 module_exit (spacc_dev_exit);
 module_param (spacc_epn, int, 0);
 MODULE_PARM_DESC (spacc_epn, "Set SPAcc EPN number to use");

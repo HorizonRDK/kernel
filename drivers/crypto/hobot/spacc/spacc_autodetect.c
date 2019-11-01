@@ -593,6 +593,9 @@ int spacc_autodetect(spacc_device *spacc)
    int proclen, aadlen, ivsize, x, y, h, err, enc, hash;
    unsigned char key[64];
 
+   printk("spacc->config.version: %04x,  spacc->config.project:0x%04x\n", 
+   			spacc->config.version, spacc->config.project);
+
    if (spacc->config.version < 0x47) {
       unsigned char *modes = &spacc->config.modes[0];
       // we can't run autodetect so let's just jam values in...
@@ -703,6 +706,7 @@ int spacc_autodetect(spacc_device *spacc)
 
    for (x = 0; x < sizeof template / sizeof template[0]; x++) {
       spacc->config.modes[x] = template[x];
+
       if (template[x] && spacc->config.version >= testdata[x].min_version) {
          for (y = 0; y < (sizeof(keysizes[0])/sizeof(keysizes[0][0])); y++) {
             if (template[x] & (1<<y)) {
@@ -816,6 +820,7 @@ int spacc_autodetect(spacc_device *spacc)
 #endif
                } else {
                   pr_debug("spacc_kernel_autodetect::Detected %-20s with keysize %3d-bits\n", names[x], keysizes[template[x]>>7][y]*8);
+                  printk("spacc_kernel_autodetect::Detected %-20s with keysize %3d-bits\n", names[x], keysizes[template[x]>>7][y]*8);
                }
                spacc_close(spacc, h);
             }

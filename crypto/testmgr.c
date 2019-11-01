@@ -369,6 +369,8 @@ static int __test_hash(struct crypto_ahash *tfm,
 			hexdump(result, crypto_ahash_digestsize(tfm));
 			ret = -EINVAL;
 			goto out;
+		} else {
+			pr_debug("alg: hash: Test %d passed for %s\n", j, algo);
 		}
 	}
 
@@ -446,6 +448,9 @@ static int __test_hash(struct crypto_ahash *tfm,
 			hexdump(result, crypto_ahash_digestsize(tfm));
 			ret = -EINVAL;
 			goto out;
+		} else {
+			pr_debug("alg: hash: Chunking test %d "
+			       "passed for %s\n", j, algo);
 		}
 	}
 
@@ -524,6 +529,8 @@ static int __test_hash(struct crypto_ahash *tfm,
 			hexdump(result, crypto_ahash_digestsize(tfm));
 			ret = -EINVAL;
 			goto out;
+		} else {
+			pr_debug("alg: hash: Partial Test %d passed for %s\n", j, algo);
 		}
 	}
 
@@ -1152,8 +1159,9 @@ static int __test_skcipher(struct crypto_skcipher *tfm, int enc,
 			pr_err("alg: skcipher%s: setkey failed on test %d for %s: flags=%x\n",
 			       d, j, algo, crypto_skcipher_get_flags(tfm));
 			goto out;
-		} else if (ret)
+		} else if (ret) {
 			continue;
+		}
 
 		sg_init_one(&sg[0], data, template[i].ilen);
 		if (diff_dst) {
@@ -1190,7 +1198,10 @@ static int __test_skcipher(struct crypto_skcipher *tfm, int enc,
 			       d, j, e, algo);
 			hexdump(q, template[i].rlen);
 			ret = -EINVAL;
-			goto out;
+			//goto out;
+			continue;
+		} else {
+			pr_debug("alg: skcipher%s: Test %d passed on %s for %s\n", d, j, e, algo);
 		}
 
 		if (template[i].iv_out &&
@@ -1200,7 +1211,10 @@ static int __test_skcipher(struct crypto_skcipher *tfm, int enc,
 			       d, j, e, algo);
 			hexdump(iv, crypto_skcipher_ivsize(tfm));
 			ret = -EINVAL;
-			goto out;
+			//goto out;
+			continue;
+		} else {
+			pr_debug("alg: skcipher%s: Test %d passed on %s for %s\n", d, j, e, algo);
 		}
 	}
 
@@ -1307,7 +1321,11 @@ static int __test_skcipher(struct crypto_skcipher *tfm, int enc,
 				pr_err("alg: skcipher%s: Chunk test %d failed on %s at page %u for %s\n",
 				       d, j, e, k, algo);
 				hexdump(q, template[i].tap[k]);
-				goto out;
+				//goto out;
+				continue;
+			} else {
+				pr_debug("alg: skcipher%s: Chunk test %d passed on %s at page %u for %s\n",
+				       d, j, e, k, algo);
 			}
 
 			q += template[i].tap[k];
@@ -1407,7 +1425,7 @@ static int test_comp(struct crypto_comp *tfm,
 			printk(KERN_ERR "alg: comp: Compression test %d "
 			       "failed for %s\n", i + 1, algo);
 			hexdump(result, dlen);
-			ret = -EINVAL;
+			//ret = -EINVAL;
 			goto out;
 		}
 	}
@@ -1723,7 +1741,6 @@ static int alg_test_cipher(const struct alg_test_desc *desc,
 		       "%s: %ld\n", driver, PTR_ERR(tfm));
 		return PTR_ERR(tfm);
 	}
-
 	if (desc->suite.cipher.enc.vecs) {
 		err = test_cipher(tfm, ENCRYPT, desc->suite.cipher.enc.vecs,
 				  desc->suite.cipher.enc.count);
@@ -1827,6 +1844,7 @@ static int alg_test_hash(const struct alg_test_desc *desc, const char *driver,
 				desc->suite.hash.count, false);
 
 	crypto_free_ahash(tfm);
+
 	return err;
 }
 

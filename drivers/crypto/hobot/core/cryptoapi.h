@@ -3,8 +3,10 @@
 
 #include <crypto/hash.h>
 #include <crypto/aead.h>
+#include <crypto/skcipher.h>
 #include <crypto/internal/hash.h>
 #include <crypto/internal/aead.h>
+#include <crypto/internal/skcipher.h>
 #include <crypto/scatterwalk.h>
 #include "elppdu.h"
 #include "elpspacc.h"
@@ -43,12 +45,17 @@
 
 struct spacc_crypto_ctx {
    union {
-      struct crypto_ahash      *hash;
-      struct crypto_aead       *aead;
+      struct crypto_ahash    *hash;
+      struct crypto_skcipher *cipher;
+      struct crypto_aead     *aead;
    } fb;
 
    struct device *dev;
+   struct spacc_crypto_reqctx *reqctx;
 
+   /* save key in setkey and used when set iv, because write_context can't handle NULL key */
+   char key[SPACC_MAX_KEY_SIZE];
+   int keylen;
    spinlock_t lock;
    struct list_head jobs;
    int handle, mode, auth_size;
@@ -86,6 +93,14 @@ struct spacc_crypto_reqctx {
       struct ahash_request       *req;
       spacc_device               *spacc;
    } acb;
+ 
+   struct cipher_cb_data {
+      int new_handle;
+      struct spacc_crypto_ctx    *tctx;
+      struct spacc_crypto_reqctx *ctx;
+      struct skcipher_request    *req;
+      spacc_device               *spacc;
+   } ccb;
 
    /* The fallback request must be the last member of this struct. */
    union {
@@ -106,7 +121,7 @@ struct mode_tab {
       int ciph, hash;
    } aead;
 
-   unsigned hashlen, ivlen, blocklen, keylen[3], keylen_mask, testlen;
+   unsigned hashlen, ivlen, blocklen, keylen[3], keylen_mask, testlen, statelen;
 
    union {
       unsigned char hash_test[SPACC_MAX_DIGEST_SIZE];
@@ -125,6 +140,7 @@ struct spacc_alg {
 
    union {
       struct ahash_alg hash;
+      struct skcipher_alg cipher;
       struct aead_alg aead;
    } alg;
 };
@@ -154,7 +170,10 @@ static inline const struct spacc_alg *spacc_tfm_alg(struct crypto_tfm *tfm)
 
    if ((calg->cra_flags & CRYPTO_ALG_TYPE_MASK) == CRYPTO_ALG_TYPE_AHASH) {
       return container_of(calg, struct spacc_alg, alg.hash.halg.base);
+   } else if ((calg->cra_flags & CRYPTO_ALG_TYPE_MASK) == CRYPTO_ALG_TYPE_SKCIPHER) {
+      return container_of(calg, struct spacc_alg, alg.cipher.base);
    }
+
    return container_of(calg, struct spacc_alg, alg.aead.base);
 }
 
@@ -170,9 +189,13 @@ int spacc_sg_to_ddt(struct device *dev, struct scatterlist *sg,
 
 extern const struct ahash_alg spacc_hash_template;
 extern const struct aead_alg spacc_aead_template;
+extern const struct skcipher_alg spacc_cipher_template;
 
 int spacc_hash_module_init(void);
 void spacc_hash_module_exit(void);
+
+int spacc_cipher_module_init(void);
+void spacc_cipher_module_exit(void);
 
 int spacc_aead_module_init(void);
 void spacc_aead_module_exit(void);

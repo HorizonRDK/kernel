@@ -57,11 +57,12 @@ int spacc_isenabled(spacc_device *spacc, int mode, int keysize)
       return 0;
    }
 
+
    // always return true for NULL
    if (mode == CRYPTO_MODE_NULL) {
       return 1;
    }
-
+ 
    if (spacc->config.modes[mode] & 128) {
       for (x = 0; x < 6; x++) {
          if (keysizes[1][x] >= keysize && ((1<<x)&spacc->config.modes[mode])) {
@@ -80,5 +81,6 @@ int spacc_isenabled(spacc_device *spacc, int mode, int keysize)
          }
       }
    }
+
    return 0;
 }

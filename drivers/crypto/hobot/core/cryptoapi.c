@@ -50,6 +50,8 @@
 #include <linux/pagemap.h>
 #include <linux/dmapool.h>
 #include <crypto/hash.h>
+#include <crypto/md5.h>
+#include <crypto/sha.h>
 #include "elpspaccdrv.h"
 #include "cryptoapi.h"
 
@@ -182,6 +184,7 @@ static void __devinit spacc_init_calg(struct crypto_alg *calg, const struct mode
    snprintf(calg->cra_name,        sizeof calg->cra_name,        "%s",       mode->name);
    snprintf(calg->cra_driver_name, sizeof calg->cra_driver_name, "spacc-%s", mode->name);
    calg->cra_blocksize = mode->blocklen;
+   calg->cra_ablkcipher.ivsize = mode->ivlen;
 }
 
 static void spacc_unregister_algs(struct device *dev)
@@ -212,17 +215,83 @@ static void spacc_unregister_algs(struct device *dev)
 #define MODE_TAB_HASH_XCBC 0x8000
 
 static struct mode_tab possible_hashes[] = {
-   { .keylen[0] = 16,                    MODE_TAB_HASH("cmac(aes)", MAC_CMAC, 16,  16),  },
-   { .keylen[0] = 48|MODE_TAB_HASH_XCBC, MODE_TAB_HASH("xcbc(aes)", MAC_XCBC, 16,  16), },
-   { MODE_TAB_HASH("hmac(md5)",        HMAC_MD5,        16,  64), },
-   { MODE_TAB_HASH("hmac(sha1)",       HMAC_SHA1,       20,  64), },
+//   { .keylen[0] = 16,                    MODE_TAB_HASH("cmac(aes)", MAC_CMAC, 16,  16),  },
+//   { .keylen[0] = 48|MODE_TAB_HASH_XCBC, MODE_TAB_HASH("xcbc(aes)", MAC_XCBC, 16,  16), },
+   { MODE_TAB_HASH("hmac(md5)",        HMAC_MD5,        16,  64), .statelen = sizeof(struct md5_state)},
+   { MODE_TAB_HASH("hmac(sha1)",       HMAC_SHA1,       20,  64), .statelen = sizeof(struct sha1_state)},
    { MODE_TAB_HASH("hmac(sha224)",     HMAC_SHA224,     28,  64), },
-   { MODE_TAB_HASH("hmac(sha256)",     HMAC_SHA256,     32,  64), },
+   { MODE_TAB_HASH("hmac(sha256)",     HMAC_SHA256,     32,  64), .statelen = sizeof(struct sha256_state)},
    { MODE_TAB_HASH("hmac(sha384)",     HMAC_SHA384,     48, 128), },
-   { MODE_TAB_HASH("hmac(sha512)",     HMAC_SHA512,     64, 128), },
-   { MODE_TAB_HASH("hmac(sha512-224)", HMAC_SHA512_224, 28, 128), },
-   { MODE_TAB_HASH("hmac(sha512-256)", HMAC_SHA512_256, 32, 128), },
+   { MODE_TAB_HASH("hmac(sha512)",     HMAC_SHA512,     64, 128), .statelen = sizeof(struct sha512_state)},
+   { MODE_TAB_HASH("hmac(sha512-224)", HMAC_SHA512_224, 28, 128), .statelen = sizeof(struct sha512_state)},
+   { MODE_TAB_HASH("hmac(sha512-256)", HMAC_SHA512_256, 32, 128), .statelen = sizeof(struct sha512_state)},
 };
+
+static struct mode_tab possible_ciphers[] = {
+   { MODE_TAB_CIPH("ecb(aes)",         AES_ECB,  16, 16), .keylen = { 16, 24, 32 } },
+   { MODE_TAB_CIPH("cbc(aes)",         AES_CBC,  16, 16), .keylen = { 16, 24, 32 } },
+   { MODE_TAB_CIPH("ctr(aes)",         AES_CTR,  16, 16), .keylen = { 16, 24, 32 } },
+   { MODE_TAB_CIPH("cbc(des3_ede)",    3DES_CBC, 8, 8), .keylen = { 24 } },
+   { MODE_TAB_CIPH("ecb(des3_ede)",    3DES_ECB, 8, 8), .keylen = { 24 } },
+   { MODE_TAB_CIPH("cbc(des)",         DES_CBC,  8, 8), .keylen = { 8 } },
+   { MODE_TAB_CIPH("ecb(des)",         DES_ECB,  8, 8), .keylen = { 8 } },
+};
+
+
+#define MODE_TAB_AEAD(_name, _ciph, _hash, _hashlen, _ivlen, _blocklen) \
+    .name = _name, .aead = { .ciph = _ciph, .hash = _hash }, .hashlen = _hashlen, .ivlen = _ivlen, .blocklen = _blocklen
+
+static struct mode_tab possible_aeads[] = {
+
+// cipher only modes for ESP
+   { MODE_TAB_AEAD("authenc(digest_null,cbc(des3_ede))",      CRYPTO_MODE_3DES_CBC,         CRYPTO_MODE_NULL, 0, 8, 8),   .keylen = { 24 } },
+   { MODE_TAB_AEAD("authenc(digest_null,cbc(aes))",           CRYPTO_MODE_AES_CBC,          CRYPTO_MODE_NULL, 0, 16, 16), .keylen = { 16, 24, 32 } },
+   { MODE_TAB_AEAD("authenc(digest_null,rfc3686(ctr(aes)))",  CRYPTO_MODE_AES_CTR_RFC3686,  CRYPTO_MODE_NULL, 0, 16, 1),  .keylen = { 16, 24, 32 } },
+
+// hash only modes for ESP
+   { MODE_TAB_AEAD("authenc(hmac(md5),ecb(cipher_null))",     CRYPTO_MODE_NULL,  CRYPTO_MODE_HMAC_MD5,    16, 0, 1), },
+   { MODE_TAB_AEAD("authenc(hmac(sha1),ecb(cipher_null))",    CRYPTO_MODE_NULL,  CRYPTO_MODE_HMAC_SHA1,   20, 0, 1), },
+   { MODE_TAB_AEAD("authenc(hmac(sha256),ecb(cipher_null))",  CRYPTO_MODE_NULL,  CRYPTO_MODE_HMAC_SHA256, 32, 0, 1), },
+   { MODE_TAB_AEAD("authenc(hmac(sha384),ecb(cipher_null))",  CRYPTO_MODE_NULL,  CRYPTO_MODE_HMAC_SHA384, 48, 0, 1), },
+   { MODE_TAB_AEAD("authenc(hmac(sha512),ecb(cipher_null))",  CRYPTO_MODE_NULL,  CRYPTO_MODE_HMAC_SHA512, 64, 0, 1), },
+   { MODE_TAB_AEAD("authenc(cmac(aes),ecb(cipher_null))",     CRYPTO_MODE_NULL,  CRYPTO_MODE_MAC_CMAC,    16, 0, 1), },
+   { MODE_TAB_AEAD("authenc(xcbc(aes),ecb(cipher_null))",     CRYPTO_MODE_NULL,  CRYPTO_MODE_MAC_XCBC,    16, 0, 1), },
+
+
+// combined or AEAD modes
+
+   { MODE_TAB_AEAD("authenc(hmac(md5),cbc(des3_ede))",    CRYPTO_MODE_3DES_CBC, CRYPTO_MODE_HMAC_MD5,    16, 8, 8), .keylen = { 24 } },
+   { MODE_TAB_AEAD("authenc(hmac(sha1),cbc(des3_ede))",   CRYPTO_MODE_3DES_CBC, CRYPTO_MODE_HMAC_SHA1,   20, 8, 8), .keylen = { 24 } },
+   { MODE_TAB_AEAD("authenc(hmac(sha256),cbc(des3_ede))", CRYPTO_MODE_3DES_CBC, CRYPTO_MODE_HMAC_SHA256, 32, 8, 8), .keylen = { 24 } },
+   { MODE_TAB_AEAD("authenc(hmac(sha384),cbc(des3_ede))", CRYPTO_MODE_3DES_CBC, CRYPTO_MODE_HMAC_SHA384, 48, 8, 8), .keylen = { 24 } },
+   { MODE_TAB_AEAD("authenc(hmac(sha512),cbc(des3_ede))", CRYPTO_MODE_3DES_CBC, CRYPTO_MODE_HMAC_SHA512, 64, 8, 8), .keylen = { 24 } },
+   { MODE_TAB_AEAD("authenc(cmac(aes),cbc(des3_ede))",    CRYPTO_MODE_3DES_CBC, CRYPTO_MODE_MAC_CMAC,    16, 8, 8), .keylen = { 24 } },
+   { MODE_TAB_AEAD("authenc(xcbc(aes),cbc(des3_ede))",    CRYPTO_MODE_3DES_CBC, CRYPTO_MODE_MAC_XCBC,    16, 8, 8), .keylen = { 24 } },
+
+   { MODE_TAB_AEAD("authenc(hmac(md5),cbc(aes))",    CRYPTO_MODE_AES_CBC, CRYPTO_MODE_HMAC_MD5,    16, 16, 16), .keylen = { 16, 24, 32 } },
+   { MODE_TAB_AEAD("authenc(hmac(sha1),cbc(aes))",   CRYPTO_MODE_AES_CBC, CRYPTO_MODE_HMAC_SHA1,   20, 16, 16), .keylen = { 16, 24, 32 } },
+
+   { MODE_TAB_AEAD("authenc(hmac(sha256),cbc(aes))", CRYPTO_MODE_AES_CBC, CRYPTO_MODE_HMAC_SHA256, 32, 16, 16), .keylen = { 16, 24, 32 } },
+
+   { MODE_TAB_AEAD("authenc(hmac(sha384),cbc(aes))", CRYPTO_MODE_AES_CBC, CRYPTO_MODE_HMAC_SHA384, 48, 16, 16), .keylen = { 16, 24, 32 } },
+   { MODE_TAB_AEAD("authenc(hmac(sha512),cbc(aes))", CRYPTO_MODE_AES_CBC, CRYPTO_MODE_HMAC_SHA512, 64, 16, 16), .keylen = { 16, 24, 32 } },
+   { MODE_TAB_AEAD("authenc(cmac(aes),cbc(aes))",    CRYPTO_MODE_AES_CBC, CRYPTO_MODE_MAC_CMAC,    16, 16, 16), .keylen = { 16, 24, 32 } },
+   { MODE_TAB_AEAD("authenc(xcbc(aes),cbc(aes))",    CRYPTO_MODE_AES_CBC, CRYPTO_MODE_MAC_XCBC,    16, 16, 16), .keylen = { 16, 24, 32 } },
+
+   { MODE_TAB_AEAD("authenc(hmac(md5),rfc3686(ctr(aes)))",    CRYPTO_MODE_AES_CTR_RFC3686, CRYPTO_MODE_HMAC_MD5,    16, 16, 1), .keylen = { 16, 24, 32 } },
+   { MODE_TAB_AEAD("authenc(hmac(sha1),rfc3686(ctr(aes)))",   CRYPTO_MODE_AES_CTR_RFC3686, CRYPTO_MODE_HMAC_SHA1,   20, 16, 1), .keylen = { 16, 24, 32 } },
+   { MODE_TAB_AEAD("authenc(hmac(sha256),rfc3686(ctr(aes)))", CRYPTO_MODE_AES_CTR_RFC3686, CRYPTO_MODE_HMAC_SHA256, 32, 16, 1), .keylen = { 16, 24, 32 } },
+   { MODE_TAB_AEAD("authenc(hmac(sha384),rfc3686(ctr(aes)))", CRYPTO_MODE_AES_CTR_RFC3686, CRYPTO_MODE_HMAC_SHA384, 48, 16, 1), .keylen = { 16, 24, 32 } },
+   { MODE_TAB_AEAD("authenc(hmac(sha512),rfc3686(ctr(aes)))", CRYPTO_MODE_AES_CTR_RFC3686, CRYPTO_MODE_HMAC_SHA512, 64, 16, 1), .keylen = { 16, 24, 32 } },
+   { MODE_TAB_AEAD("authenc(cmac(aes),rfc3686(ctr(aes)))",    CRYPTO_MODE_AES_CTR_RFC3686, CRYPTO_MODE_MAC_CMAC,    16, 16, 1), .keylen = { 16, 24, 32 } },
+   { MODE_TAB_AEAD("authenc(xcbc(aes),rfc3686(ctr(aes)))",    CRYPTO_MODE_AES_CTR_RFC3686, CRYPTO_MODE_MAC_XCBC,    16, 16, 1), .keylen = { 16, 24, 32 } },
+
+   { MODE_TAB_AEAD("rfc4106(gcm(aes))",                       CRYPTO_MODE_AES_GCM_RFC4106, CRYPTO_MODE_NULL,        16, 16, 1), .keylen = { 16, 24, 32 } },
+   { MODE_TAB_AEAD("rfc4543(gcm(aes))",                       CRYPTO_MODE_AES_GCM_RFC4543, CRYPTO_MODE_NULL,        16, 16, 1), .keylen = { 16, 24, 32 } },
+
+//   { MODE_TAB_AEAD("rfc4309(ccm(aes))",                       CRYPTO_MODE_AES_CCM_RFC4309, CRYPTO_MODE_NULL,        16, 16, 1), .keylen = { 16, 24, 32 } },
+};
+
 
 static int __devinit spacc_register_hash(struct spacc_alg *salg)
 {
@@ -233,10 +302,12 @@ static int __devinit spacc_register_hash(struct spacc_alg *salg)
 
    spacc_init_calg(salg->calg, salg->mode);
    salg->alg.hash.halg.digestsize = salg->mode->hashlen;
+   salg->alg.hash.halg.statesize = salg->mode->statelen;
 
    rc = crypto_register_ahash(&salg->alg.hash);
-   if (rc < 0)
+   if (rc < 0) {
       return rc;
+   }
 
    mutex_lock(&spacc_alg_mutex);
    list_add(&salg->list, &spacc_alg_list);
@@ -279,6 +350,7 @@ static int __devinit probe_hashes(void)
                   continue;
                }
                dev_info(&spacc_pdev[j]->dev, "registered %s\n", possible_hashes[i].name);
+               printk("registered %s\n", possible_hashes[i].name);
                registered++;
                possible_hashes[i].valid = 1;
             }
@@ -288,55 +360,86 @@ static int __devinit probe_hashes(void)
    return registered;
 }
 
-#define MODE_TAB_AEAD(_name, _ciph, _hash, _hashlen, _ivlen, _blocklen) \
-    .name = _name, .aead = { .ciph = _ciph, .hash = _hash }, .hashlen = _hashlen, .ivlen = _ivlen, .blocklen = _blocklen
+static int __devinit spacc_register_cipher(struct spacc_alg *salg)
+{
+   int rc;
 
-static struct mode_tab possible_aeads[] = {
+   salg->alg.cipher = spacc_cipher_template;
+   salg->calg = &salg->alg.cipher.base;
+   salg->alg.cipher.ivsize = salg->mode->ivlen;
 
-// cipher only modes for ESP
-   { MODE_TAB_AEAD("authenc(digest_null,cbc(des3_ede))",      CRYPTO_MODE_3DES_CBC,         CRYPTO_MODE_NULL, 0, 8, 8),   .keylen = { 24 } },
-   { MODE_TAB_AEAD("authenc(digest_null,cbc(aes))",           CRYPTO_MODE_AES_CBC,          CRYPTO_MODE_NULL, 0, 16, 16), .keylen = { 16, 24, 32 } },
-   { MODE_TAB_AEAD("authenc(digest_null,rfc3686(ctr(aes)))",  CRYPTO_MODE_AES_CTR_RFC3686,  CRYPTO_MODE_NULL, 0, 16, 1),  .keylen = { 16, 24, 32 } },
+   spacc_init_calg(salg->calg, salg->mode);
 
-// hash only modes for ESP
-   { MODE_TAB_AEAD("authenc(hmac(md5),ecb(cipher_null))",     CRYPTO_MODE_NULL,  CRYPTO_MODE_HMAC_MD5,    16, 0, 1), },
-   { MODE_TAB_AEAD("authenc(hmac(sha1),ecb(cipher_null))",    CRYPTO_MODE_NULL,  CRYPTO_MODE_HMAC_SHA1,   20, 0, 1), },
-   { MODE_TAB_AEAD("authenc(hmac(sha256),ecb(cipher_null))",  CRYPTO_MODE_NULL,  CRYPTO_MODE_HMAC_SHA256, 32, 0, 1), },
-   { MODE_TAB_AEAD("authenc(hmac(sha384),ecb(cipher_null))",  CRYPTO_MODE_NULL,  CRYPTO_MODE_HMAC_SHA384, 48, 0, 1), },
-   { MODE_TAB_AEAD("authenc(hmac(sha512),ecb(cipher_null))",  CRYPTO_MODE_NULL,  CRYPTO_MODE_HMAC_SHA512, 64, 0, 1), },
-   { MODE_TAB_AEAD("authenc(cmac(aes),ecb(cipher_null))",     CRYPTO_MODE_NULL,  CRYPTO_MODE_MAC_CMAC,    16, 0, 1), },
-   { MODE_TAB_AEAD("authenc(xcbc(aes),ecb(cipher_null))",     CRYPTO_MODE_NULL,  CRYPTO_MODE_MAC_XCBC,    16, 0, 1), },
+   rc = crypto_register_skcipher(&salg->alg.cipher);
+   if (rc < 0) {
+      pr_err("register cipher alg failed\n");
+      return rc;
+   }
 
+   mutex_lock(&spacc_alg_mutex);
+   list_add(&salg->list, &spacc_alg_list);
+   mutex_unlock(&spacc_alg_mutex);
 
-// combined or AEAD modes
-   { MODE_TAB_AEAD("authenc(hmac(md5),cbc(des3_ede))",    CRYPTO_MODE_3DES_CBC, CRYPTO_MODE_HMAC_MD5,    16, 8, 8), .keylen = { 24 } },
-   { MODE_TAB_AEAD("authenc(hmac(sha1),cbc(des3_ede))",   CRYPTO_MODE_3DES_CBC, CRYPTO_MODE_HMAC_SHA1,   20, 8, 8), .keylen = { 24 } },
-   { MODE_TAB_AEAD("authenc(hmac(sha256),cbc(des3_ede))", CRYPTO_MODE_3DES_CBC, CRYPTO_MODE_HMAC_SHA256, 32, 8, 8), .keylen = { 24 } },
-   { MODE_TAB_AEAD("authenc(hmac(sha384),cbc(des3_ede))", CRYPTO_MODE_3DES_CBC, CRYPTO_MODE_HMAC_SHA384, 48, 8, 8), .keylen = { 24 } },
-   { MODE_TAB_AEAD("authenc(hmac(sha512),cbc(des3_ede))", CRYPTO_MODE_3DES_CBC, CRYPTO_MODE_HMAC_SHA512, 64, 8, 8), .keylen = { 24 } },
-   { MODE_TAB_AEAD("authenc(cmac(aes),cbc(des3_ede))",    CRYPTO_MODE_3DES_CBC, CRYPTO_MODE_MAC_CMAC,    16, 8, 8), .keylen = { 24 } },
-   { MODE_TAB_AEAD("authenc(xcbc(aes),cbc(des3_ede))",    CRYPTO_MODE_3DES_CBC, CRYPTO_MODE_MAC_XCBC,    16, 8, 8), .keylen = { 24 } },
+   return 0;
+}
 
-   { MODE_TAB_AEAD("authenc(hmac(md5),cbc(aes))",    CRYPTO_MODE_AES_CBC, CRYPTO_MODE_HMAC_MD5,    16, 16, 16), .keylen = { 16, 24, 32 } },
-   { MODE_TAB_AEAD("authenc(hmac(sha1),cbc(aes))",   CRYPTO_MODE_AES_CBC, CRYPTO_MODE_HMAC_SHA1,   20, 16, 16), .keylen = { 16, 24, 32 } },
-   { MODE_TAB_AEAD("authenc(hmac(sha256),cbc(aes))", CRYPTO_MODE_AES_CBC, CRYPTO_MODE_HMAC_SHA256, 32, 16, 16), .keylen = { 16, 24, 32 } },
-   { MODE_TAB_AEAD("authenc(hmac(sha384),cbc(aes))", CRYPTO_MODE_AES_CBC, CRYPTO_MODE_HMAC_SHA384, 48, 16, 16), .keylen = { 16, 24, 32 } },
-   { MODE_TAB_AEAD("authenc(hmac(sha512),cbc(aes))", CRYPTO_MODE_AES_CBC, CRYPTO_MODE_HMAC_SHA512, 64, 16, 16), .keylen = { 16, 24, 32 } },
-   { MODE_TAB_AEAD("authenc(cmac(aes),cbc(aes))",    CRYPTO_MODE_AES_CBC, CRYPTO_MODE_MAC_CMAC,    16, 16, 16), .keylen = { 16, 24, 32 } },
-   { MODE_TAB_AEAD("authenc(xcbc(aes),cbc(aes))",    CRYPTO_MODE_AES_CBC, CRYPTO_MODE_MAC_XCBC,    16, 16, 16), .keylen = { 16, 24, 32 } },
+static int __devinit probe_ciphers(void)
+{
+   struct spacc_alg *salg;
+   int x, rc;
+   int registered = 0;
+   unsigned i, j, k;
 
-   { MODE_TAB_AEAD("authenc(hmac(md5),rfc3686(ctr(aes)))",    CRYPTO_MODE_AES_CTR_RFC3686, CRYPTO_MODE_HMAC_MD5,    16, 16, 1), .keylen = { 16, 24, 32 } },
-   { MODE_TAB_AEAD("authenc(hmac(sha1),rfc3686(ctr(aes)))",   CRYPTO_MODE_AES_CTR_RFC3686, CRYPTO_MODE_HMAC_SHA1,   20, 16, 1), .keylen = { 16, 24, 32 } },
-   { MODE_TAB_AEAD("authenc(hmac(sha256),rfc3686(ctr(aes)))", CRYPTO_MODE_AES_CTR_RFC3686, CRYPTO_MODE_HMAC_SHA256, 32, 16, 1), .keylen = { 16, 24, 32 } },
-   { MODE_TAB_AEAD("authenc(hmac(sha384),rfc3686(ctr(aes)))", CRYPTO_MODE_AES_CTR_RFC3686, CRYPTO_MODE_HMAC_SHA384, 48, 16, 1), .keylen = { 16, 24, 32 } },
-   { MODE_TAB_AEAD("authenc(hmac(sha512),rfc3686(ctr(aes)))", CRYPTO_MODE_AES_CTR_RFC3686, CRYPTO_MODE_HMAC_SHA512, 64, 16, 1), .keylen = { 16, 24, 32 } },
-   { MODE_TAB_AEAD("authenc(cmac(aes),rfc3686(ctr(aes)))",    CRYPTO_MODE_AES_CTR_RFC3686, CRYPTO_MODE_MAC_CMAC,    16, 16, 1), .keylen = { 16, 24, 32 } },
-   { MODE_TAB_AEAD("authenc(xcbc(aes),rfc3686(ctr(aes)))",    CRYPTO_MODE_AES_CTR_RFC3686, CRYPTO_MODE_MAC_XCBC,    16, 16, 1), .keylen = { 16, 24, 32 } },
+   for (i = 0; i < ARRAY_SIZE(possible_ciphers); i++) {
+      possible_ciphers[i].valid = 0;
+   }
 
-   { MODE_TAB_AEAD("rfc4106(gcm(aes))",                       CRYPTO_MODE_AES_GCM_RFC4106, CRYPTO_MODE_NULL,        16, 16, 1), .keylen = { 16, 24, 32 } },
-   { MODE_TAB_AEAD("rfc4543(gcm(aes))",                       CRYPTO_MODE_AES_GCM_RFC4543, CRYPTO_MODE_NULL,        16, 16, 1), .keylen = { 16, 24, 32 } },
-//   { MODE_TAB_AEAD("rfc4309(ccm(aes))",                       CRYPTO_MODE_AES_CCM_RFC4309, CRYPTO_MODE_NULL,        16, 16, 1), .keylen = { 16, 24, 32 } },
-};
+   for (j = 0; j < ELP_CAPI_MAX_DEV && spacc_pdev[j]; ++j) {
+      struct spacc_priv *priv = dev_get_drvdata(&spacc_pdev[j]->dev);
+      for (i = 0; i < ARRAY_SIZE(possible_ciphers); i++) {
+         if (possible_ciphers[i].valid == 0) {
+
+		    possible_ciphers[i].keylen_mask = 0;
+			for (k = 0; k < ARRAY_SIZE(possible_ciphers[i].keylen); k++) {
+               if (spacc_isenabled(&priv->spacc, possible_ciphers[i].id&0xFF, possible_ciphers[i].keylen[k])) { 
+			       possible_ciphers[i].keylen_mask |= 1u<<k;
+			   }
+			}
+
+            if (possible_ciphers[i].keylen_mask) {
+
+               salg = kmalloc(sizeof *salg, GFP_KERNEL);
+               if (!salg) {
+                  pr_err("Failed to allocate salg\n");
+                  return -ENOMEM;
+               }
+               salg->mode = &possible_ciphers[i];
+
+               // Copy all dev's over to the salg
+               for (x = 0; x < ELP_CAPI_MAX_DEV && spacc_pdev[x]; x++) {
+                  salg->dev[x]  = &spacc_pdev[x]->dev;
+               }
+
+               salg->dev[x] = NULL;
+			   salg->alg.cipher.ivsize = salg->mode->ivlen;
+			   salg->alg.cipher.chunksize = salg->mode->blocklen;
+			   salg->alg.cipher.walksize = salg->mode->blocklen;
+
+               rc = spacc_register_cipher(salg);
+               if (rc < 0) {
+                  pr_err("failed to register cipher %s\n", possible_ciphers[i].name);
+                  kfree(salg);
+                  continue;
+               }
+               dev_info(&spacc_pdev[j]->dev, "registered %s\n", possible_ciphers[i].name);
+               registered++;
+               possible_ciphers[i].valid = 1;
+            }
+         }
+      }
+   }
+   return registered;
+}
 
 static int __devinit spacc_register_aead(unsigned aead_mode)
 {
@@ -415,7 +518,7 @@ static int __devinit probe_aeads(void)
       }
    }
 
-//scan for combined modes
+   //scan for combined modes
    for (z = 0; spacc_pdev[z] != NULL; z++) {
       struct spacc_priv *priv = dev_get_drvdata(&spacc_pdev[z]->dev);
       for (x = 0; x < ARRAY_SIZE(possible_aeads); x++) {
@@ -432,6 +535,7 @@ static int __devinit probe_aeads(void)
        }
    }
    return 0;
+
 error:
    return err;
 }
@@ -473,6 +577,14 @@ static int __init spacc_crypto_init(void)
       goto err;
 
    rc = probe_hashes();
+   if (rc < 0)
+      goto err;
+
+   rc = spacc_cipher_module_init();
+   if (rc < 0)
+      goto err;
+
+   rc = probe_ciphers();
    if (rc < 0)
       goto err;
 

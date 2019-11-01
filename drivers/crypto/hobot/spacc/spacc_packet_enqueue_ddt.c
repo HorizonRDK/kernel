@@ -45,6 +45,14 @@
 
 #include "elpspacc.h"
 
+static int debug_dump;
+
+static void hexdump(unsigned char *buf, unsigned int len)
+{
+	print_hex_dump(KERN_CONT, "", DUMP_PREFIX_OFFSET,
+			16, 1, buf, len, false);
+}
+
 static int _spacc_fifo_full(spacc_device *spacc, uint32_t prio)
 {
    if (spacc->config.is_qos) {
@@ -54,12 +62,48 @@ static int _spacc_fifo_full(spacc_device *spacc, uint32_t prio)
    }
 }
 
+void dump_regs(spacc_device *spacc)
+{
+	printk("--- dump regs ------\n");
+	printk("SPACC_REG_PROC_LEN:     0x%08x\n", pdu_io_read32(spacc->regmap + SPACC_REG_PROC_LEN)      );
+	printk("SPACC_REG_ICV_LEN:      0x%08x\n", pdu_io_read32(spacc->regmap + SPACC_REG_ICV_LEN)       );
+	printk("SPACC_REG_ICV_OFFSET:   0x%08x\n", pdu_io_read32(spacc->regmap + SPACC_REG_ICV_OFFSET)    );
+	printk("SPACC_REG_PRE_AAD_LEN:  0x%08x\n", pdu_io_read32(spacc->regmap + SPACC_REG_PRE_AAD_LEN)   );
+	printk("SPACC_REG_POST_AAD_LEN: 0x%08x\n", pdu_io_read32(spacc->regmap + SPACC_REG_POST_AAD_LEN)  );
+	printk("SPACC_REG_IV_OFFSET:    0x%08x\n", pdu_io_read32(spacc->regmap + SPACC_REG_IV_OFFSET)     );
+	printk("SPACC_REG_OFFSET:       0x%08x\n", pdu_io_read32(spacc->regmap + SPACC_REG_OFFSET)        );
+	printk("SPACC_REG_AUX_INFO:     0x%08x\n", pdu_io_read32(spacc->regmap + SPACC_REG_AUX_INFO)      );
+	printk("SPACC_REG_SW_CTRL:      0x%08x\n", pdu_io_read32(spacc->regmap + SPACC_REG_SW_CTRL)       );
+}
+
+void dump_job(spacc_job *job)
+{
+	printk("--- dump job -------\n");
+	printk("enc_mode: %d, hash_mode: %d, icv_len:%d, icv_offset: %d\n", job->enc_mode, job->hash_mode, job->icv_len, job->icv_offset);
+	printk("op:%08x, ctrl:%08x, first_use:%d, pre_aad_sz:%d, post_aad_sz:%d\n", job->op, job->ctrl, job->first_use, job->pre_aad_sz, job->post_aad_sz);
+	printk("hkey_sz: %d, ckey_sz: 0x%08x, ctx_idx:%d\n", job->hkey_sz, job->ckey_sz, job->ctx_idx);
+	printk("job_used: %d, job_swid: %d, job_done: %d, job_err: %d, job_secure: %d\n", job->job_used, job->job_swid, job->job_err, job->job_secure);
+}
+
+void dump_ctx(spacc_ctx *ctx)
+{
+	char aes_ctx[64];
+
+	memset(aes_ctx, 0, sizeof(aes_ctx));
+	pdu_from_dev32_s(aes_ctx,  ctx->ciph_key, 64>>2, spacc_endian);
+	printk(" dump key:\n");
+	hexdump(aes_ctx, 16);
+	printk(" dump iv\n");
+	hexdump(aes_ctx+0x20, 16);
+}
+
 // When proc_sz != 0 it overrides the ddt_len value defined in the context referenced by 'job_idx'
 int spacc_packet_enqueue_ddt_ex (spacc_device * spacc, int use_jb, int job_idx, pdu_ddt * src_ddt, pdu_ddt * dst_ddt, uint32_t proc_sz, uint32_t aad_offset, uint32_t pre_aad_sz,
                               uint32_t post_aad_sz, uint32_t iv_offset, uint32_t prio)
 {
    int ret = CRYPTO_OK, proc_len;
    spacc_job *job;
+   spacc_ctx *ctx;
 
    if (job_idx < 0 || job_idx > SPACC_MAX_JOBS) {
       return CRYPTO_INVALID_HANDLE;
@@ -71,6 +115,7 @@ int spacc_packet_enqueue_ddt_ex (spacc_device * spacc, int use_jb, int job_idx, 
    }
 
    job = &spacc->job[job_idx];
+   ctx = context_lookup_by_job(spacc, job_idx);
    if (NULL == job) {
       ret = CRYPTO_FAILED;
    } else {
@@ -176,6 +221,9 @@ int spacc_packet_enqueue_ddt_ex (spacc_device * spacc, int use_jb, int job_idx, 
       spacc->job_tally &= 0xFF;
       spacc->job_lookup[job->job_swid] = job_idx;
 
+	  //printk("Crypto Engine is working ...");
+	  if (debug_dump) dump_regs(spacc);
+
 
 #ifdef MAKEAVECTOR
 { int x;
@@ -229,6 +277,10 @@ int spacc_packet_enqueue_ddt_ex (spacc_device * spacc, int use_jb, int job_idx, 
       }
 
    }
+
+   if (debug_dump) dump_job(job);
+   if (debug_dump) dump_ctx(ctx);
+
    return ret;
 fifo_full:
    // try to add a job to the job buffers
