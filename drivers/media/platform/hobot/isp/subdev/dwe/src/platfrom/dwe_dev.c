@@ -54,31 +54,31 @@ static int dwe_register(struct platform_device *pdev, struct resource *pres, dwe
 
 	ptr = kzalloc(sizeof(dwe_subdev_s), GFP_KERNEL );
 	if (ptr == NULL) {
-		printk(KERN_INFO " kzalloc is failed \n");
+		LOG(LOG_ERR, "kzalloc is failed \n");
 		return -ENOMEM;
 	}	
-	printk(KERN_INFO " ptr %p \n", ptr);
+	LOG(LOG_DEBUG, "ptr %p \n", ptr);
 	//io map	
 	ptr->io_paddr = pres->start;
 	ptr->io_memsize = resource_size(pres);
 	sprintf(dwe_name, "%s_io", pres->name);	
         if (!request_mem_region(pres->start, resource_size(pres),
                 dwe_name)) {
-		printk(KERN_INFO " request_mem_region is failed! \n");
+		LOG(LOG_ERR, "request_mem_region is failed! \n");
                 ret = -ENOMEM;
                 goto reqregion_err;
         }
 
 	ptr->io_vaddr = ioremap_nocache(pres->start, resource_size(pres));
         if (!ptr->io_vaddr) {
-		printk(KERN_INFO " ioremap_nocache is failed! \n");
+		LOG(LOG_ERR, "ioremap_nocache is failed! \n");
 		ret = -ENOMEM;
 		goto map_err;
         }
 	//irq num
 	irqs = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
         if (irqs < 0) {
-		printk(KERN_INFO " get irq source failed! \n");
+		LOG(LOG_ERR, "get irq source failed! \n");
 		ret = -ENODEV; 
 		goto irq_err;
         }
@@ -86,8 +86,7 @@ static int dwe_register(struct platform_device *pdev, struct resource *pres, dwe
 	
 	*psdev = ptr;
 	
-	printk(KERN_INFO "%s,io_paddr %lld, io_vaddr %p, irq_num %d\n", pres->name,
-		ptr->io_paddr, ptr->io_vaddr, ptr->irq_num);
+	LOG(LOG_DEBUG, "%s,io_paddr %lld, io_vaddr %p, irq_num %d\n", pres->name, ptr->io_paddr, ptr->io_vaddr, ptr->irq_num);
 
 	return ret;
 irq_err:
@@ -116,35 +115,35 @@ static int dwe_dev_probe(struct platform_device *pdev)
 	char dwe_name[25];
 	struct resource *pres;
 
-	printk(KERN_INFO "dwe_dev_probe!!!\n");
+	LOG(LOG_DEBUG, "dwe_dev_probe!!!\n");
 	
 	//get name of this dev	
 	pres = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!pres) {
-		printk(KERN_INFO " get info failed! \n");
+		LOG(LOG_ERR, "get info failed! \n");
 		return -ENOMEM;
 	}
 
 	if ( strstr(pres->name, "ldc") != 0) {
 		if (dwe_dev.ldc_dev != NULL) {
-			printk(KERN_INFO "ldc_dev is not null, the addr is %p \n", dwe_dev.ldc_dev);
+			LOG(LOG_ERR, "ldc_dev is not null, the addr is %p \n", dwe_dev.ldc_dev);
 			dwe_unregister(dwe_dev.ldc_dev);
 		}
 		ret = dwe_register(pdev, pres, &dwe_dev.ldc_dev);
 		if (ret < 0) {
-			printk(KERN_INFO "ldc register failed !\n");
+			LOG(LOG_ERR, "ldc register failed !\n");
 		}
 	} else if ( strstr(pres->name, "dis") != 0) {
 		if (dwe_dev.dis_dev != NULL) {
-			printk(KERN_INFO "dis_dev is not null, the addr is %p \n", dwe_dev.dis_dev);
+			LOG(LOG_ERR, "dis_dev is not null, the addr is %p \n", dwe_dev.dis_dev);
 			dwe_unregister(dwe_dev.dis_dev);
 		}
 		ret = dwe_register(pdev, pres, &dwe_dev.dis_dev);
 		if (ret < 0) {
-			printk(KERN_INFO "dis register failed !\n");
+			LOG(LOG_ERR, "dis register failed !\n");
 		}
 	} else {
-		printk(KERN_INFO " name is error \n");
+		LOG(LOG_ERR, "name is error \n");
 		ret = -1;
 	}
 
@@ -155,7 +154,7 @@ static int dwe_dev_remove(struct platform_device *pdev)
 {
 	int ret = 0;
 
-	printk(KERN_INFO "dwe_dev_remove!!!\n");
+	LOG(LOG_DEBUG, "dwe_dev_remove!!!\n");
 	
 	if (dwe_dev.ldc_dev != NULL) {
 		dwe_unregister(dwe_dev.ldc_dev);
@@ -186,14 +185,14 @@ static struct platform_driver dwe_dev_driver = {
 
 int __init system_dwe_init( struct dwe_dev_s **ptr )
 {
-    int rc = 0;
+	int rc = 0;
 
-    rc = platform_driver_register( &dwe_dev_driver );
-    if (rc == 0)
-	*ptr = &dwe_dev; 
-    printk(KERN_INFO "%s --%d dwe_dev %p !\n", __func__, __LINE__, &dwe_dev);
+	rc = platform_driver_register(&dwe_dev_driver);
+	if (rc == 0)
+		*ptr = &dwe_dev;
+	LOG(LOG_DEBUG, "%s --%d dwe_dev %p !\n", __func__, __LINE__, &dwe_dev);
 
-    return rc;
+	return rc;
 }
 EXPORT_SYMBOL(system_dwe_init);
 

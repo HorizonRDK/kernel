@@ -26,7 +26,7 @@ else
     _ARCH=${ARCH}
 endif
 
-KBUILD_EXTRA_SYMBOLS += $(PWD)/../log_list/Module.symvers
+KBUILD_EXTRA_SYMBOLS += $(PWD)/../subdev/log_list/Module.symvers
 export KBUILD_EXTRA_SYMBOLS
 
 #redefine CROSS_COMPILE

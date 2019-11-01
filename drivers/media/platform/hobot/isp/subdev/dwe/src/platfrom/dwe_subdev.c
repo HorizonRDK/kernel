@@ -253,10 +253,13 @@ int check_dev(struct dwe_dev_s *check)
 	int ret = 0;
 
 	if (check == NULL) {
+		LOG(LOG_ERR, "dwe_dev_s is null! \n");
 		ret = -EINVAL;
 	} else {
-		if ((check->ldc_dev == NULL) || (check->dis_dev == NULL))
+		if ((check->ldc_dev == NULL) || (check->dis_dev == NULL)) {
+			LOG(LOG_ERR, "ldc_dev %p, dis_dev %p!\n", check->ldc_dev, check->dis_dev);
 			ret = -EINVAL;
+		}
 	}
 
 	return ret;
@@ -316,7 +319,7 @@ void dwe_hw_deinit(void)
 
 	ret = check_dev(dwe_ctx->dev_ctx);
 	if (ret < 0) {
-		printk(KERN_INFO "dwe_ctx->dev_ctx is error! \n");
+		LOG(LOG_INFO, "dwe_ctx->dev_ctx is error! \n");
 	} else {
 		irq = dwe_ctx->dev_ctx->ldc_dev->irq_num;
 		free_irq(irq, x2a_ldc_irq);
@@ -331,7 +334,7 @@ void dwe_hw_deinit(void)
 
 static int soc_dwe_log_status(struct v4l2_subdev *sd)
 {
-	LOG(LOG_INFO, "log status called");
+	LOG(LOG_DEBUG, "log status called");
 	return 0;
 }
 
@@ -418,7 +421,7 @@ static int32_t soc_dwe_probe(struct platform_device *pdev)
 	dwe_ctx->soc_dwe.dev = &pdev->dev;
 	rc = v4l2_async_register_subdev(&dwe_ctx->soc_dwe);
 
-	LOG(LOG_INFO, "register v4l2 lens device. result %d", rc);
+	LOG(LOG_DEBUG, "register v4l2 lens device. result %d", rc);
 
 	return rc;
 }
@@ -466,7 +469,7 @@ static int chardevs_init(void)
 	for (tmp = 0; tmp < FIRMWARE_CONTEXT_NUMBER; tmp++) {
 		ret = dwe_dev_init(tmp);
 		if (ret < 0) {
-			printk(KERN_INFO "dwe_dev_init %d is failed\n", tmp);
+			LOG(LOG_ERR, "dwe_dev_init %d is failed\n", tmp);
 			goto devinit_err;
 		}
 	}
@@ -481,7 +484,7 @@ int __init acamera_soc_dwe_init(void)
 {
 	int rc = 0;
 
-	LOG(LOG_INFO, "[KeyMsg] dwe subdevice init");
+	LOG(LOG_DEBUG, "[KeyMsg] dwe subdevice init");
 
 	soc_dwe_dev = platform_device_register_simple(
 		"soc_dwe_v4l2", -1, NULL, 0);
@@ -491,21 +494,20 @@ int __init acamera_soc_dwe_init(void)
 		rc = system_dwe_init(&dwe_ctx->dev_ctx);
 		if (rc == 0) {
 			//dwe hardward init
-			printk(KERN_INFO "%s --%d  system_dwe_init is success!\n",
-				__func__, __LINE__);
+			LOG(LOG_INFO, "system_dwe_init is success!\n");
 			rc = dwe_hw_init();
 			if (rc < 0) {
-				printk(KERN_INFO "dwe_hw_init is failed\n");
+				LOG(LOG_ERR, "dwe_hw_init is failed\n");
 				goto init_err;
 			}
 			rc = chardevs_init();
 			if (rc < 0) {
-				printk(KERN_INFO "dwe_dev_init is failed\n");
+				LOG(LOG_ERR, "dwe_dev_init is failed\n");
 				goto devinit_err;
 			}
 		}
 	}
-	LOG(LOG_INFO, "[KeyMsg] dwe subdevice init done: %d", rc);
+	LOG(LOG_DEBUG, "[KeyMsg] dwe subdevice init done: %d", rc);
 
 	return rc;
 devinit_err:
@@ -519,14 +521,14 @@ init_err:
 
 void __exit acamera_soc_dwe_exit(void)
 {
-	LOG(LOG_INFO, "[KeyMsg] dwe subdevice exit");
+	LOG(LOG_DEBUG, "[KeyMsg] dwe subdevice exit");
 
 	dwe_hw_deinit();
 	chardevs_exit();
 	platform_driver_unregister(&soc_dwe_driver);
 	platform_device_unregister(soc_dwe_dev);
 	system_dwe_exit();
-	LOG(LOG_INFO, "[KeyMsg] dwe subdevice exit done");
+	LOG(LOG_DEBUG, "[KeyMsg] dwe subdevice exit done");
 }
 
 module_init(acamera_soc_dwe_init);
