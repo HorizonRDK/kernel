@@ -10,6 +10,8 @@ cd ../sensor
 make
 cd ../dwe
 make
+cd ../common
+make
 cd ../../v4l2_dev
 make
 cd ..

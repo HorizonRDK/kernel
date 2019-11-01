@@ -1,5 +1,6 @@
-#include "acamera_math.h"
 
+#include <linux/module.h>
+#include "acamera_math.h"
 
 //input --- output ===>2^(m/32)
 //output --->Ux.8  ===>(uint32_t)(2^(m/32)*256 + 0.5)
@@ -58,4 +59,7 @@ uint32_t sensor_log10(uint32_t val)
 
         return data_log10;
 }
+EXPORT_SYMBOL(sensor_log10);
+
+
 

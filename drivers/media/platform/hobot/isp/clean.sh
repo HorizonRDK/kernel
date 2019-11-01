@@ -9,6 +9,8 @@ cd ../lens
 make clean
 cd ../sensor
 make clean
+cd ../common
+make clean
 cd ../../v4l2_dev
 make clean
 cd ..

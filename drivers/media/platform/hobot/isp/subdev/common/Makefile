@@ -1,0 +1,76 @@
+#
+# SPDX-License-Identifier: GPL-2.0
+#
+# Copyright (C) 2011-2018 ARM or its affiliates
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; version 2.
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+# or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License
+# for more details.
+# You should have received a copy of the GNU General Public License along
+# with this program; if not, write to the Free Software Foundation, Inc.,
+# 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+#
+
+CONFIG_MODULE_SIG=n
+
+
+#redefine ARCH
+ifeq ($(ARCH),)    
+    _ARCH=arm64
+    $(info "set default ARCH=${_ARCH}")
+else
+    _ARCH=${ARCH}
+endif
+
+KBUILD_EXTRA_SYMBOLS += $(PWD)/../sensor/Module.symvers
+export KBUILD_EXTRA_SYMBOLS
+
+
+
+#redefine CROSS_COMPILE
+ifeq ($(CROSS_COMPILE),)    
+    _CROSS_COMPILE=aarch64-linux-gnu-
+    $(info "set default toolachains ${_CROSS_COMPILE}") 
+else
+    _CROSS_COMPILE=${CROSS_COMPILE}
+endif
+
+#redefine KDIR
+ifeq ($(KDIR),)    
+    _KDIR= $(PWD)/../../../../../../../
+    $(info "set default kernel path ${_KDIR}")
+else
+    _KDIR=${KDIR}
+endif
+
+obj-m += camera_common.o
+
+ifeq ($(FW_SRC_OBJ),)
+	FW_SRC := $(wildcard src/*.c )
+	export FW_SRC_OBJ := $(FW_SRC:.c=.o)
+
+	ifneq ($(wildcard src/fw_lib/libacamera_isp.a),) 
+		export FW_SRC_OBJ := $(FW_SRC_OBJ) src/fw_lib/libacamera_isp.a
+	endif
+##$(info ### FW_SRC_OBJ is: $(FW_SRC_OBJ))	
+endif
+
+
+camera_common-objs += $(FW_SRC_OBJ) 
+
+INCLUDE_DIRS := $(addprefix -I,$(shell find ../ -type d ))
+
+ccflags-y:=-I$(PWD)/ -I$(PWD)/src/ -I$(pwd)/../sensor/src/driver/sensor/ -I$(_KDIR)/include/linux/
+
+ccflags-y += -Wno-declaration-after-statement
+
+all:
+		CROSS_COMPILE=${_CROSS_COMPILE} make ARCH=${_ARCH} -C $(_KDIR) M=$(PWD) modules
+
+clean:
+		CROSS_COMPILE=${_CROSS_COMPILE} make ARCH=${_ARCH} -C $(_KDIR) M=$(PWD) clean
+
