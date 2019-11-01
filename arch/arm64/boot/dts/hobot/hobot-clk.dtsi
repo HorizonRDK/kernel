@@ -884,23 +884,25 @@
 			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
-                i2c4_mclk: i2c4_mclk {
-                        #clock-cells = <0>;
-                        compatible = "x2,gate-clk";
-                        clocks = <&i2c_div_mclk>;
-                        offset = <0x150 0x154 0x158>;
-                        bits = <15 15 15>;
-                        field = <0x1 0x1 0x1>;
-                };
+		i2c4_mclk: i2c4_mclk {
+			#clock-cells = <0>;
+			compatible = "x2,gate-clk";
+			clocks = <&i2c_div_mclk>;
+			offset = <0x150 0x154 0x158 0x0>;
+			bits = <15 15 15 32>;
+			field = <1 1 1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
+		};
 
-                i2c5_mclk: i2c5_mclk {
-                        #clock-cells = <0>;
-                        compatible = "x2,gate-clk";
-                        clocks = <&i2c_div_mclk>;
-                        offset = <0x150 0x154 0x158>;
-                        bits = <16 16 16>;
-                        field = <0x1 0x1 0x1>;
-                };
+		i2c5_mclk: i2c5_mclk {
+			#clock-cells = <0>;
+			compatible = "x2,gate-clk";
+			clocks = <&i2c_div_mclk>;
+			offset = <0x150 0x154 0x158 0x0>;
+			bits = <16 16 16 32>;
+			field = <1 1 1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
+		};
 
 		sd0_div_clk: sd0_div_clk {
 			#clock-cells = <0>;
