@@ -46,6 +46,7 @@
 #endif
 
 #include "./user_sensor/ar_0233.h"
+#include "./user_sensor/os8a10.h"
 
 struct i2c_client *client[FIRMWARE_CONTEXT_NUMBER];
 struct sensor_data;
@@ -73,7 +74,7 @@ static struct i2c_board_info board_info[] = {
 		.addr = 0x10,
 	},
 	{
-		.type = "OV8a10",
+		.type = "os8a10",
 		.addr = 0x1a,
 	},
 	{
@@ -112,7 +113,11 @@ struct sensor_operations *sensor_ops_register(uint8_t sensor_sw)
 #endif
 	case 4:
 		sensor_ctrl = ar0233_ops_register();
-		LOG(LOG_INFO, "IMX_0233_register !");
+		LOG(LOG_INFO, "ar0233_register !");
+		break;
+	case 5:
+		sensor_ctrl = os8a10_ops_register();
+		LOG(LOG_INFO, "os8a10_register !");
 		break;
 	default:
 		LOG(LOG_INFO, "sensor %d is not register !", sensor_sw);
