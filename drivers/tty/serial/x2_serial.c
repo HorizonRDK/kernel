@@ -1178,6 +1178,13 @@ static void x2_uart_pm(struct uart_port *port, unsigned int state,
 	}
 }
 
+static void x2_flush_buffer(struct uart_port *port)
+{
+	struct x2_uart *x2_port = port->private_data;
+
+	x2_port->tx_bytes_requested = 0;
+}
+
 static const struct uart_ops x2_uart_ops = {
 	.set_mctrl = x2_uart_set_mctrl,
 	.get_mctrl = x2_uart_get_mctrl,
@@ -1195,6 +1202,7 @@ static const struct uart_ops x2_uart_ops = {
 	.request_port = x2_uart_request_port,
 	.release_port = x2_uart_release_port,
 	.config_port = x2_uart_config_port,
+	.flush_buffer   = x2_flush_buffer,
 #ifdef CONFIG_CONSOLE_POLL
 	.poll_get_char = x2_uart_poll_get_char,
 	.poll_put_char = x2_uart_poll_put_char,
