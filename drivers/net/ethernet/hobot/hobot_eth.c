@@ -1,4 +1,5 @@
 /* 
+ * Copyright (C) 2015 Axis Communications AB.
  *
  * This code from  Synopsys DWC Ethernet Quality-of-Service v4.10a linux driver
  *
@@ -19,7 +20,6 @@
  *  - The statistics module.
  *  - Single RX and TX queue.
  *
- *  Copyright (C) 2015 Axis Communications AB.
  *
  *  This program is free software; you can redistribute it and/or modify it
  *  under the terms and conditions of the GNU General Public License,
@@ -1248,7 +1248,7 @@ static void x2_tsn_fp_configure(struct x2_priv *priv)
 	writel(0x10001000, priv->ioaddr + MTL_FPE_Advance);
 	
 	value = readl(priv->ioaddr + GMAC_INT_EN);
-	value |= (1 << GMAC_INT_FPEIE_EN);	
+	value |= (GMAC_INT_FPEIE_EN);
 	writel(value, priv->ioaddr + GMAC_INT_EN);
 	
 
