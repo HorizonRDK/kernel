@@ -1,21 +1,21 @@
-#!/usr/bin/python2
+#!/usr/bin/env python
 import json
 import types
 import collections
 import os
 import binascii
-import numpy as np 
+import numpy as np
 import sys
 import math
 import gzip
 import shutil
 
 from array import array
-from collections import OrderedDict  
+from collections import OrderedDict
 
 def resolveJson(path):
     file = open(path, "rb")
-    fileJson = json.load(file, object_pairs_hook=OrderedDict) 
+    fileJson = json.load(file, object_pairs_hook=OrderedDict)
     tmp_list = list(fileJson.values())
 
     return tmp_list
@@ -49,10 +49,10 @@ def addCheckSum(filename):
     file_object = open(filename, 'rb')
     file_content = file_object.read()
     file_object.close()
- 
+
     sum = 0
     for c in file_content:
-        sum += ord(c) 
+        sum += ord(c)
     return sum
 
 def dtbNameTranfer(bootInfoContent, filename, num):
@@ -93,13 +93,13 @@ bootDtb     = r"bootdtb.json"
 if __name__ == '__main__':
 
     if len(sys.argv) == 3:
-        print 'len = 3'
+        print ('len = 3')
         bootInfoPath   = sys.argv[1]
         bootLoaderPath = sys.argv[2]
 
     if len(sys.argv) == 2:
         bootInfoPath = sys.argv[1]
-        print 'len = 2'
+        print ('len = 2')
 
     bootInfoContent = bootInfoOutput()
     filePath = bootloaderInfoOutput()
@@ -115,7 +115,7 @@ if __name__ == '__main__':
     file = open(bootLoaderPath, "rb")
     fjson = json.load(file, object_pairs_hook=OrderedDict)
 
-    bootInfoContent[0] = np.asarray(str2hex(fjson['imageaddr']), dtype=np.int32) 
+    bootInfoContent[0] = np.asarray(str2hex(fjson['imageaddr']), dtype=np.int32)
     bootInfoContent[1] = np.asarray(str2hex(fjson['imagesize']), dtype=np.int32)
     bootInfoContent[2] = np.asarray(str2hex(fjson['recoveryaddr']), dtype=np.int32)
     bootInfoContent[3] = np.asarray(str2hex(fjson['recoverysize']), dtype=np.int32)
@@ -135,7 +135,7 @@ if __name__ == '__main__':
         dtbNameTranfer(bootInfoContent, hjson[key]['dtb_name'], j+4)
 
         dict_key = hjson[key]['dtb_name']
-        if (dict.has_key(dict_key)):
+        if dict_key in dict:
             value = dict[dict_key]
             bootInfoContent[j+2] = value
         else :
@@ -153,7 +153,7 @@ if __name__ == '__main__':
                 zero0 = 64*1024 - file_size
                 file_produced1.write('\x00' * zero0)
         j = j + 12
-    
+
     dtbname = resolveJson(bootLoaderPath)
     listname = list(dtbname[0])
 
