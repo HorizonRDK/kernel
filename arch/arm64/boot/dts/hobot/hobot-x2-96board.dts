@@ -261,12 +261,12 @@
 
 &cnn0 {
 	status = "okay";
-	cnn0-supply = <&vcc_cnn0_reg>;
+	cnn-supply = <&vcc_cnn0_reg>;
 };
 
 &cnn1 {
 	status = "okay";
-	cnn1-supply = <&vcc_cnn1_reg>;
+	cnn-supply = <&vcc_cnn1_reg>;
 };
 
 &iar {

@@ -71,8 +71,6 @@ static void x2_check_cnn(unsigned long arg);
 #define FC_TIME_CNT 53
 static DEFINE_MUTEX(x2_cnn_mutex);
 static char *g_chrdev_name = "cnn";
-static struct dentry *cnn0_debugfs_root;
-static struct dentry *cnn1_debugfs_root;
 static struct x2_cnn_dev *cnn0_dev;
 static struct x2_cnn_dev *cnn1_dev;
 static int profiler_frequency;
@@ -346,27 +344,17 @@ static int x2_cnn_hw_init(struct x2_cnn_dev *dev)
  * Return: 0 on success or error on failure
  */
 
-static int x2_cnn_get_resets(struct x2_cnn_dev *cnn_dev, int cnn_id)
+static int x2_cnn_get_resets(struct x2_cnn_dev *cnn_dev)
 {
 	char *name;
 	struct reset_control *rst_temp;
 
-	if (cnn_id == 0) {
-		cnn_dev->cnn_rst =
-			devm_reset_control_get(cnn_dev->dev, "cnn0_rst");
-		if (IS_ERR(cnn_dev->cnn_rst)) {
-			name = "cnn0_rst";
-			rst_temp = cnn_dev->cnn_rst;
-			goto error;
-		}
-	} else if (cnn_id == 1) {
-		cnn_dev->cnn_rst =
-			devm_reset_control_get(cnn_dev->dev, "cnn1_rst");
-		if (IS_ERR(cnn_dev->cnn_rst)) {
-			name = "cnn1_rst";
-			rst_temp = cnn_dev->cnn_rst;
-			goto error;
-		}
+	cnn_dev->cnn_rst =
+		devm_reset_control_get(cnn_dev->dev, "cnn_rst");
+	if (IS_ERR(cnn_dev->cnn_rst)) {
+		name = "cnn_rst";
+		rst_temp = cnn_dev->cnn_rst;
+		goto error;
 	}
 
 	return 0;
@@ -1944,48 +1932,27 @@ int x2_cnn_probe(struct platform_device *pdev)
 	}
 
 
-	if (cnn_id == 0) {
-		rc = cnn_debugfs_init(cnn_dev, cnn_id, cnn0_debugfs_root);
-		if (rc)
-			pr_err("init cnn%d debugfs failed\n", cnn_id);
+	if (cnn_id == 0)
 		cnn0_dev = cnn_dev;
-#ifndef CONFIG_X2A_FPGA
-		/*get regulator*/
-		cnn_dev->cnn_regulator = regulator_get(cnn_dev->dev, "cnn0");
-		if (cnn_dev->cnn_regulator == NULL)
-			pr_info("get regu err\n");
-		if (IS_ERR(cnn_dev->cnn_regulator))
-			pr_info("get err1\n");
-
-		/*get cnn clock and prepare*/
-		cnn_dev->cnn_aclk = devm_clk_get(cnn_dev->dev, "cnn0_aclk");
-		if (IS_ERR(cnn_dev->cnn_aclk))
-			pr_info("get cnn0 aclock err\n");
-		cnn_dev->cnn_mclk = devm_clk_get(cnn_dev->dev, "cnn0_mclk");
-		if (IS_ERR(cnn_dev->cnn_mclk))
-			pr_info("get cnn0 mclock err\n");
-#endif
-	} else if (cnn_id == 1) {
-		rc = cnn_debugfs_init(cnn_dev, cnn_id, cnn1_debugfs_root);
-		if (rc)
-			pr_err("init cnn%d debugfs failed\n", cnn_id);
+	else
 		cnn1_dev = cnn_dev;
+	rc = cnn_debugfs_init(cnn_dev, cnn_id, cnn_dev->cnn_debugfs_root);
+	if (rc)
+		pr_err("init cnn%d debugfs failed\n", cnn_id);
 #ifndef CONFIG_X2A_FPGA
-		/*get regulator*/
-		cnn_dev->cnn_regulator = regulator_get(cnn_dev->dev, "cnn1");
-		if (cnn_dev->cnn_regulator == NULL)
-			pr_info("get regu err\n");
-		if (IS_ERR(cnn_dev))
-			pr_info("get err1\n");
-		/*get cnn clock and prepare*/
-		cnn_dev->cnn_aclk = devm_clk_get(cnn_dev->dev, "cnn1_aclk");
-		if (IS_ERR(cnn_dev->cnn_aclk))
-			pr_info("get cnn1 aclock err\n");
-		cnn_dev->cnn_mclk = devm_clk_get(cnn_dev->dev, "cnn1_mclk");
-		if (IS_ERR(cnn_dev->cnn_mclk))
-			pr_info("get cnn1 mclock err\n");
+	/*get regulator*/
+	cnn_dev->cnn_regulator = regulator_get(cnn_dev->dev, "cnn");
+	if (IS_ERR(cnn_dev->cnn_regulator))
+		pr_info("get err1\n");
+
+	/*get cnn clock and prepare*/
+	cnn_dev->cnn_aclk = devm_clk_get(cnn_dev->dev, "cnn_aclk");
+	if (IS_ERR(cnn_dev->cnn_aclk))
+		pr_info("get cnn0 aclock err\n");
+	cnn_dev->cnn_mclk = devm_clk_get(cnn_dev->dev, "cnn_mclk");
+	if (IS_ERR(cnn_dev->cnn_mclk))
+		pr_info("get cnn0 mclock err\n");
 #endif
-	}
 	pmu = platform_get_resource(pdev, IORESOURCE_MEM, 1);
 	if (!pmu) {
 		rc = -ENODEV;
@@ -2003,7 +1970,7 @@ int x2_cnn_probe(struct platform_device *pdev)
 		dev_err(cnn_dev->dev, "missing iso-bit property\n");
 		goto err_out;
 	}
-	rc = x2_cnn_get_resets(cnn_dev, cnn_id);
+	rc = x2_cnn_get_resets(cnn_dev);
 	if (rc < 0) {
 		pr_err("failed get cnn%d resets\n", cnn_id);
 		goto err_out;

@@ -217,6 +217,7 @@ struct x2_cnn_dev {
 	unsigned int inst_num;
 	unsigned int ref_cnt;
 	unsigned int disable_bpu;
+	struct dentry *cnn_debugfs_root;
 };
 
 struct cnn_debugfs_info {
