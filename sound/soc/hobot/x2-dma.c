@@ -72,6 +72,7 @@ struct idma_ctrl_s {
 	void (*cb)(void *dt, int bytes_xfer);
 	int stream;		/* capture or play */
 	int ch_num;		/* paly or capture channel */
+	int word_len;
 	int id;
 	int buffer_num;
 	int buffer_int_index;
@@ -85,6 +86,50 @@ static struct idma_info_s {
 
 	int idma_irq;
 } x2_i2sidma[2];
+
+static int x2_copy_usr(struct snd_pcm_substream *substream,
+		int channel, unsigned long hwoff,
+		void *buf, unsigned long bytes)
+{
+	char *dma_ptr;
+	int channel_buf_offset, i, j;
+	struct snd_pcm_runtime *runtime = substream->runtime;
+	struct idma_ctrl_s *dma_ctrl = substream->runtime->private_data;
+
+	dma_ptr = runtime->dma_area + hwoff;
+	channel_buf_offset = (dma_ctrl->periodsz) / (dma_ctrl->ch_num);
+	char *tmp_buf = kzalloc(bytes, GFP_KERNEL);
+
+	if (!tmp_buf)
+		return ERR_PTR(-ENOMEM);
+	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+		if (copy_from_user(tmp_buf, (void __user *)buf, bytes))
+			return -EFAULT;
+		for (i = 0; i < bytes;) {
+			for (j = 0; j < dma_ctrl->ch_num; j++) {
+				memcpy(&dma_ptr[j*channel_buf_offset],
+					&tmp_buf[i+j*dma_ctrl->word_len],
+					dma_ctrl->word_len);
+			}
+			dma_ptr = dma_ptr + dma_ctrl->word_len;
+			i = i + dma_ctrl->ch_num * dma_ctrl->word_len;
+		}
+	} else {
+		for (i = 0; i < bytes;) {
+			for (j = 0; j < dma_ctrl->ch_num; j++) {
+				memcpy(&tmp_buf[i+j*dma_ctrl->word_len],
+					&dma_ptr[j*channel_buf_offset],
+					dma_ctrl->word_len);
+			}
+			dma_ptr = dma_ptr + dma_ctrl->word_len;
+			i = i + dma_ctrl->ch_num * dma_ctrl->word_len;
+		}
+		if (copy_to_user((void __user *)buf, tmp_buf, bytes))
+			return -EFAULT;
+	}
+	kfree(tmp_buf);
+	return 0;
+}
 
 static struct snd_dmaengine_dai_dma_data *x2_dai_get_dma_data(struct
 							      snd_pcm_substream
@@ -224,6 +269,19 @@ static int i2sidma_hw_params(struct snd_pcm_substream *substream,
 	dma_ctrl->ch_num = params_channels(params);
 	dma_ctrl->bytesnum = runtime->dma_bytes;//total bytes
 	dma_ctrl->buffer_num = dma_ctrl->bytesnum / dma_ctrl->periodsz;
+
+	switch (params_format(params)) { /* 16bit or 8bit. */
+	case SNDRV_PCM_FORMAT_S16_LE:
+		dma_ctrl->word_len = 2;
+		break;
+	case SNDRV_PCM_FORMAT_S8:
+		dma_ctrl->word_len  = 1;
+		break;
+	default:
+		pr_err("not supported data format %d\n",
+			params_format(params));
+		return -EINVAL;
+	}
 
 	pr_debug("dma_ctrl->period is %llu, dma_ctrl->periodsz bytes is %llu,dma_ctrl->bytesnum is %lu\n", dma_ctrl->period,
 		dma_ctrl->periodsz, dma_ctrl->bytesnum);
@@ -678,6 +736,7 @@ static struct snd_pcm_ops i2sidma_ops = {
 	.hw_params = i2sidma_hw_params,
 	.hw_free = i2sidma_hw_free,
 	.prepare = i2sidma_prepare,
+	.copy_user = x2_copy_usr,
 };
 
 /* free capture or playback dma buffer(ioummap) */
