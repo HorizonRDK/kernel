@@ -25,12 +25,24 @@
 #include <linux/kfifo.h>
 #include <linux/sched.h>
 #include <linux/wait.h>
+#include <linux/string.h>
+#include <linux/ioctl.h>
+#include <linux/uaccess.h>
 #include "system_chardev.h"
 #include "acamera_logger.h"
-
+#include "acamera_tuning.h"
 
 #define SYSTEM_CHARDEV_FIFO_SIZE 4096
 #define SYSTEM_CHARDEV_NAME "ac_isp"
+
+typedef struct _isp_packet_s {
+        uint32_t buf[5];
+        void *pdata;
+} isp_packet_s;
+
+#define DISP_IOC_MAGIC    'k'
+#define DISP_BUF_PACTET   _IOWR(DISP_IOC_MAGIC, 0, isp_packet_s)
+#define BUF_LENGTH  1024
 
 struct isp_dev_context {
     uint8_t dev_inited;
@@ -80,6 +92,8 @@ static int isp_fops_open( struct inode *inode, struct file *f )
         goto lock_failure;
     }
 
+	f->private_data = p_ctx;
+#if 0
     if ( p_ctx->dev_opened ) {
         LOG( LOG_ERR, "open(%s) failed, already opened.", p_ctx->dev_name );
         rc = -EBUSY;
@@ -92,7 +106,7 @@ static int isp_fops_open( struct inode *inode, struct file *f )
         f->private_data = p_ctx;
         LOG( LOG_INFO, "Af set, private_data: %p.", f->private_data );
     }
-
+#endif
     mutex_unlock( &p_ctx->fops_lock );
 
 lock_failure:
@@ -202,13 +216,85 @@ static ssize_t isp_fops_read( struct file *file, char __user *buf, size_t count,
     return rc ? rc : copied;
 }
 
+static long isp_fops_ioctl(struct file *pfile, unsigned int cmd,
+	unsigned long arg)
+{
+	long ret = 0;
+	isp_packet_s packet;
+	uint32_t buf[BUF_LENGTH];
+	uint32_t *buf_m = NULL;
+
+	LOG(LOG_DEBUG, "---[%s-%d]---\n", __func__, __LINE__);
+
+	switch (cmd) {
+	case DISP_BUF_PACTET: {
+		if (arg == 0) {
+			LOG(LOG_ERR, "arg is null !\n");
+			return -1;
+		}
+		if (copy_from_user((void *)&packet, (void __user *)arg,
+			sizeof(isp_packet_s))) {
+			LOG(LOG_ERR, "copy is err !\n");
+			return -EINVAL;
+		}
+		if (packet.buf[0] < BUF_LENGTH * 4) {
+			buf_m = buf;
+		} else {
+			buf_m = kzalloc(sizeof(uint32_t) * packet.buf[0], GFP_KERNEL);
+			if (buf_m == NULL) {
+				LOG(LOG_ERR, "kzalloc is failed!\n");
+				return -EINVAL;
+			}
+		}
+		memcpy(buf_m, packet.buf, sizeof(packet.buf));
+		if (packet.pdata != NULL) {
+			if (copy_from_user((void *)(buf_m + (sizeof(packet.buf)
+				/ sizeof(uint32_t))), (void __user *)packet.pdata, packet.buf[4])) {
+				LOG(LOG_ERR, "copy is err !\n");
+				ret = -EINVAL;
+				goto err_flag;
+			}
+		}
+		process_ioctl_buf(buf_m);
+		if (packet.pdata != NULL) {
+			if (copy_to_user((void __user *)packet.pdata,
+				(void *)(buf_m + (sizeof(packet.buf)
+				/ sizeof(uint32_t))), packet.buf[4])) {
+				LOG(LOG_ERR, "copy is err !\n");
+				ret = -EINVAL;
+				goto err_flag;
+			}
+		}
+		if (copy_to_user((void __user *)arg, (void *)buf_m, sizeof(isp_packet_s))) {
+			LOG(LOG_ERR, "copy is err !\n");
+			ret = -EINVAL;
+		}
+err_flag:
+		if (packet.buf[0] >= (BUF_LENGTH * 4)) {
+			kzfree(buf_m);
+		}
+	}
+	break;
+	default: {
+		LOG(LOG_ERR, "---cmd is err---\n");
+		ret = -1;
+	}
+	break;
+	}
+
+	return ret;
+}
+
+
 static struct file_operations isp_fops = {
-    .owner = THIS_MODULE,
-    .open = isp_fops_open,
-    .release = isp_fops_release,
-    .read = isp_fops_read,
-    .write = isp_fops_write,
-    .llseek = noop_llseek,
+	.owner = THIS_MODULE,
+	.open = isp_fops_open,
+	.release = isp_fops_release,
+	.read = isp_fops_read,
+	.write = isp_fops_write,
+	.llseek = noop_llseek,
+	.unlocked_ioctl = isp_fops_ioctl,
+	.compat_ioctl = isp_fops_ioctl,
 };
 
 static int isp_dev_context_init( struct isp_dev_context *p_ctx )

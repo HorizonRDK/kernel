@@ -410,7 +410,7 @@ static void sensor_alloc_integration_time( void *ctx, uint16_t *int_time, uint16
 //-- TODO
 	sensor_context_t *p_ctx = ctx;
 
-       	LOG( LOG_INFO, "IE&E %s, s_t %d, M_t %d, L_t %d .", __func__, *int_time, *int_time_M, *int_time_L);
+	LOG(LOG_INFO, "init s_t %d, M_t %d, L_t %d", *int_time, *int_time_M, *int_time_L);
 	if (sensor_ops[p_ctx->channel])
 		sensor_ops[p_ctx->channel]->sensor_alloc_integration_time(p_ctx->channel, int_time, int_time_M, int_time_L);
 	else
@@ -418,6 +418,8 @@ static void sensor_alloc_integration_time( void *ctx, uint16_t *int_time, uint16
 	sensor_data[p_ctx->channel].int_time = *int_time;
 	sensor_data[p_ctx->channel].int_time_M = *int_time_M;
 	sensor_data[p_ctx->channel].int_time_L = *int_time_L;
+
+	LOG(LOG_INFO, "end s_t %d, M_t %d, L_t %d", *int_time, *int_time_M, *int_time_L);
 }
 
 static void sensor_update( void *ctx )
@@ -431,7 +433,7 @@ static void sensor_update( void *ctx )
 //        uint16_t int_time_M;
 //        uint16_t int_time_L; 
 #if 1
-        LOG( LOG_CRIT, "IE&E %s, analog_gain %d, digital_gain %d, int_time %d ", __func__, sensor_data[p_ctx->channel].analog_gain, sensor_data[p_ctx->channel].digital_gain, sensor_data[p_ctx->channel].int_time);
+	LOG(LOG_INFO, "analog_gain %d, digital_gain %d, int_time %d ", sensor_data[p_ctx->channel].analog_gain, sensor_data[p_ctx->channel].digital_gain, sensor_data[p_ctx->channel].int_time);
 	if (sensor_ops[p_ctx->channel])
 		sensor_ops[p_ctx->channel]->sensor_update(p_ctx->channel, sensor_data[p_ctx->channel]);
 	else
@@ -463,7 +465,7 @@ static void sensor_set_mode( void *ctx, uint8_t mode )
     param->integration_time_long_max = 3685 * 3; // (((uint32_t)(dummy_drv_supported_modes[mode].resolution.height)) << 2)-256;
     param->integration_time_limit = 3685;//TODO
     param->mode = mode;
-    param->lines_per_second = 9212;//TODO
+    param->lines_per_second = 5993;//9212;//TODO
     param->sensor_exp_number = param->modes_table[mode].exposures;
     //sensor - init
 #if 0
@@ -500,12 +502,16 @@ static void sensor_set_type( void *ctx, uint8_t sensor_type, uint8_t sensor_i2c_
 	if (sensor_ops[p_ctx->channel]) {
 		if (param->modes_table[param->mode].wdr_mode == WDR_MODE_LINEAR) {
 			//normal
+    			param->lines_per_second = 5511;//
     			sensor_ops[p_ctx->channel]->sensor_init(p_ctx->channel, 0);
 		} else if (param->modes_table[param->mode].wdr_mode == WDR_MODE_FS_LIN) {
-			if (param->sensor_exp_number == 2)//dol2
+			if (param->sensor_exp_number == 2) {
+    				param->lines_per_second = 5993;//9212;
     				sensor_ops[p_ctx->channel]->sensor_init(p_ctx->channel, 1);
-			else if (param->sensor_exp_number == 3)//dol3
+			} else if (param->sensor_exp_number == 3) {
+    				param->lines_per_second = 5993;//9212;
     				sensor_ops[p_ctx->channel]->sensor_init(p_ctx->channel, 2);
+			}
 		} else if (param->modes_table[param->mode].wdr_mode == WDR_MODE_NATIVE) {
 			//pwl
     			sensor_ops[p_ctx->channel]->sensor_init(p_ctx->channel, 4);

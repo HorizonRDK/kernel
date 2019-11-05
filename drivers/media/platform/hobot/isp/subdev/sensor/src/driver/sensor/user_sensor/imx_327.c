@@ -300,6 +300,22 @@ static int32_t imx327_alloc_digital_gain(uint8_t chn, int32_t gain)
 static void imx327_alloc_integration_time(uint8_t chn, uint16_t *int_time,
 	uint16_t *int_time_M, uint16_t *int_time_L)
 {
+	switch(imx327_param[chn].imx327_mode_save) {
+	case NORMAL_M:
+		break;
+	case DOL2_M:
+		if (*int_time_L >= imx327_param[chn].FSC_DOL2)
+			*int_time_L = imx327_param[chn].FSC_DOL2 - 1;
+
+		if (*int_time >= imx327_param[chn].RHS1)
+			*int_time = imx327_param[chn].RHS1 - 1;
+			break;
+	case DOL3_M:
+		break;
+	default:
+		LOG(LOG_ERR, "mode is err !");
+		break;
+	}
 }
 
 static void imx327_update(uint8_t chn, struct sensor_priv updata)

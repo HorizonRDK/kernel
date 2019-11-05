@@ -77,8 +77,11 @@
 #define LOG_MODULE_SOC_SENSOR_MASK 1048576
 #define LOG_MODULE_SOC_LENS 21
 #define LOG_MODULE_SOC_LENS_MASK 2097152
-#define LOG_MODULE_MAX 22 // now we have 22 sub module name
-#define LOG_MODULE_ALL 0x3FFFFF
+#define LOG_MODULE_SOC_DWE 22
+#define LOG_MODULE_SOC_DWE_MASK 4194304
+#define LOG_MODULE_MAX 23 // now we have 22 sub module name
+#define LOG_MODULE_ALL 0x7FFFFF
+
 
 
 extern void LOG_INTER(const char *const func, const char *const file, const unsigned line, const uint32_t level, const uint32_t log_module, const char *const fmt, ... );
