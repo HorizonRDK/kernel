@@ -19,7 +19,7 @@
 #include <linux/init.h>
 #include <linux/kthread.h>
 #include <linux/interrupt.h>
-#include <linux/irq.h>
+#include <linux/printk.h>
 #include <linux/dmaengine.h>
 #include <linux/compiler.h>
 #include <linux/string.h>
@@ -32,7 +32,6 @@
 #include "inc/camera_spi.h"
 #include "inc/camera_subdev.h"
 #include "inc/camera_dev.h"
-#include "inc/acamera_logger.h"
 
 int camera_spi_release(uint32_t port)
 {
@@ -69,7 +68,6 @@ int camera_spi_open(uint32_t port, uint32_t spi_bus, uint32_t cs,
         	return -ENOMEM;
     }
 
-	LOG(LOG_INFO, "the %s is open success !", camera_mod[port]->spidev);
     return 0;
 }
 

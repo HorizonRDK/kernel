@@ -22,13 +22,11 @@
 #include "inc/camera_subdev.h"
 
 #define CHAR_DEVNAME_LEN  20
-#define I2C_BUS  1
-#define SPI_BUS  2
+#define I2C_BUS  0
+#define SPI_BUS  1
 
-#define CAMERA_IOC_MAGIC    'h'
+#define CAMERA_IOC_MAGIC    'x'
 #define SENSOR_TURNING_PARAM  _IOW(CAMERA_IOC_MAGIC, 0, sensor_turning_data_t)
-#define X2A_VIDIOC_I2CREAD       _IOW(CAMERA_IOC_MAGIC, 1, x2a_camera_i2c_t)
-#define X2A_VIDIOC_I2CWRITE       _IOW(CAMERA_IOC_MAGIC, 2, x2a_camera_i2c_t)
 
 typedef struct _camera_charmod_s {
 	char name[CHAR_DEVNAME_LEN];

@@ -17,6 +17,7 @@
 #include <linux/errno.h>
 #include <linux/types.h>
 #include <linux/init.h>
+#include <linux/printk.h>
 #include <linux/string.h>
 #include <linux/device.h>
 #include <linux/module.h>
@@ -26,7 +27,6 @@
 #include "inc/camera_dev.h"
 #include "inc/camera_subdev.h"
 #include "inc/camera_i2c.h"
-#include "inc/acamera_logger.h"
 
 extern camera_charmod_s *camera_mod[CAMERA_TOTAL_NUMBER];
 
@@ -36,18 +36,19 @@ int camera_i2c_open(uint32_t port, uint32_t i2c_bus,
     struct i2c_adapter *adap;
 	uint32_t minor = 0;
 
+	pr_info("camera_i2c_open come in sensor_name %s sensor_addr 0x%x\n",
+			sensor_name, sensor_addr);
 	strncpy(camera_mod[port]->board_info.type, sensor_name,
 			sizeof(camera_mod[port]->board_info.type));
 	// camera_mod[port]->board_info.type = sensor_name;
 	camera_mod[port]->board_info.addr = sensor_addr;
-
 	if(camera_mod[port]->client) {
 		camera_i2c_release(port);
 	}
 	minor = i2c_bus;
     adap = i2c_get_adapter(minor);
     if (!adap) {
-	LOG(LOG_ERR, "can not get i2c_adapter");
+	pr_err("can not get i2c_adapter");
             return -ENODEV;
 	}
 	camera_mod[port]->client = i2c_new_device(adap, &camera_mod[port]->board_info);
@@ -56,7 +57,7 @@ int camera_i2c_open(uint32_t port, uint32_t i2c_bus,
         return -ENOMEM;
     }
 
-	LOG(LOG_INFO, "the %s is open success !", camera_mod[port]->client->name);
+	pr_info("the %s is open success !", camera_mod[port]->client->name);
     return 0;
 }
 
@@ -67,22 +68,21 @@ int camera_i2c_release(uint32_t port)
 		return -ENOMEM;
 
 	i2c_unregister_device(camera_mod[port]->client);
-        camera_mod[port]->client = NULL;
-	LOG(LOG_INFO, "the %s  is close success !", camera_mod[port]->client->name);
-
-        return 0;
+	camera_mod[port]->client = NULL;
+	pr_info("the %s  is close success !", camera_mod[port]->client->name);
+    return 0;
 }
 
 int camera_i2c_read(uint32_t port, uint32_t reg_addr,
 		uint32_t bit_width, char *buf, uint32_t count)
 {
-		char tmp[4];
-		int ret = 0;
+	char tmp[4];
+	int ret = 0;
 
 	if (count > 100)
 				count = 100;
 	if (!camera_mod[port]->client) {
-		LOG(LOG_ERR, "can not get client[%d]", port);
+		pr_err("can not get client[%d]", port);
 		return -ENOMEM;
 	}
 
@@ -104,7 +104,7 @@ int camera_i2c_read(uint32_t port, uint32_t reg_addr,
 
 	ret = i2c_master_recv(camera_mod[port]->client, buf, count);
 	if(ret != count) {
-		LOG(LOG_ERR, "read failed !");
+		pr_err("read failed !");
 		ret = -1;
 	}
 
@@ -122,7 +122,7 @@ int camera_i2c_write(uint32_t port, uint32_t reg_addr, uint32_t bit_width,
 	if (count > 100)
 				count = 100;
 	if (!camera_mod[port]->client) {
-		LOG(LOG_ERR, "can not get client[%d]", port);
+		pr_err("can not get client[%d]", port);
 		return -ENOMEM;
 	}
 
@@ -139,7 +139,7 @@ int camera_i2c_write(uint32_t port, uint32_t reg_addr, uint32_t bit_width,
 
 	ret = i2c_master_send(camera_mod[port]->client, tmp, count);
 	if (ret != count) {
-		LOG(LOG_INFO, "write failed !");
+		pr_err("write failed !");
 		ret = -1;
 	}
 	return ret;
@@ -172,7 +172,7 @@ int camera_user_i2c_read(struct i2c_client *client,
 		return 0;
 	}
 
-	printk(KERN_ERR "x2_camera i2c read error addr: 0x%x"
+	pr_info("x2_camera i2c read error addr: 0x%x"
 			"reg: 0x%x ret %d !!!\n", addr, reg, ret);
 
 	return ret;
@@ -203,7 +203,7 @@ int camera_user_i2c_read_byte(struct i2c_client *client,
 		return 0;
 	}
 
-	printk(KERN_ERR "x2_camera i2c read error addr: 0x%x"
+	pr_info("x2_camera i2c read error addr: 0x%x"
 			"reg: 0x%x ret %d !!!\n", addr, reg, ret);
 
 	return ret;
@@ -228,7 +228,7 @@ int camera_user_i2c_write_byte(struct i2c_client *client,
 	if (ret >= 0)
 		return 0;
 
-	printk(KERN_ERR "x2_camera i2c write error addr: 0%x"
+	pr_info("x2_camera i2c write error addr: 0%x"
 			"reg: 0x%x ret %d !!!\n", addr, reg, ret);
 
 	return ret;
@@ -255,7 +255,7 @@ int camera_user_i2c_write(struct i2c_client *client, uint32_t addr,
 	if (ret >= 0)
 		return 0;
 
-	printk(KERN_ERR "x2_camera i2c write error addr: 0%x"
+	pr_info("x2_camera i2c write error addr: 0%x"
 			"reg: 0x%x ret %d !!!\n", addr, reg, ret);
 
 	return ret;

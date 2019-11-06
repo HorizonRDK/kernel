@@ -26,9 +26,35 @@ typedef struct sensor_priv {
 	  uint8_t  mode;
 }sensor_priv_t;
 
+typedef struct sensor_data {
+	uint32_t  gain_type;
+	uint32_t  VMAX;
+	uint32_t  HMAX;
+	uint32_t  FSC_DOL2;
+	uint32_t  FSC_DOL3;
+	uint32_t  RHS1;
+	uint32_t  RHS2;
+	uint32_t  lane;
+	uint32_t  clk;
+	uint32_t  frame;
+	uint32_t  gain_max;
+	uint32_t  lines_per_second;
+	uint32_t  analog_gain_max;
+	uint32_t  digital_gain_max;
+	uint32_t  exposure_time_max;
+	uint32_t  exposure_time_min;
+	uint32_t  exposure_time_long_max;
+	uint32_t  active_width;
+	uint32_t  active_height;
+}sensor_data_t;
+
 struct sensor_arg {
 	 uint32_t port;
 	 sensor_priv_t *sensor_priv;
+	 sensor_data_t *sensor_data;
+	 uint32_t *a_gain;
+	 uint32_t *d_gain;
+	 uint32_t *integration_time;
 };
 
 typedef struct dol3_s {
@@ -64,35 +90,13 @@ typedef struct normal_s {
 	uint32_t s_line_length;
 }normal_t;
 
-typedef struct sensor_data {
-	uint32_t  gain_type;
-	uint32_t  VMAX;
-	uint32_t  HMAX;
-	uint32_t  FSC_DOL2;
-	uint32_t  FSC_DOL3;
-	uint32_t  RHS1;
-	uint32_t  RHS2;
-	uint32_t  lane;
-	uint32_t  clk;
-	uint32_t  frame;
-	uint32_t  gain_max;
-	uint32_t  lines_per_second;
-	uint32_t  analog_gain_max;
-	uint32_t  digital_gain_max;
-	uint32_t  exposure_time_max;
-	uint32_t  exposure_time_min;
-	uint32_t  exposure_time_long_max;
-	uint32_t  active_width;
-	uint32_t  active_height;
-}sensor_data_t;
-
 typedef struct sensor_turning_data {
 	uint32_t  port;
 	char     *sensor_name;
 	uint32_t  sensor_addr;
     uint32_t  bus_num;
 	uint32_t  bus_type;
-	uint32_t  reg_length;
+	uint32_t  reg_width;
 	uint32_t  mode;
 	uint32_t  cs;
 	uint32_t  spi_mode;
@@ -103,14 +107,12 @@ typedef struct sensor_turning_data {
 	sensor_data_t sensor_data;
 }sensor_turning_data_t;
 
-struct sensor_basic_arg {
-	 uint32_t port;
-	 sensor_turning_data_t *sensor_turning;
-};
-
 enum camera_IOCTL {
     SENSOR_UPDATE = 0,
-    SENSOR_GET_PARAM
+    SENSOR_GET_PARAM,
+	SENSOR_ALLOC_ANALOG_GAIN,
+	SENSOR_ALLOC_DIGITAL_GAIN,
+	SENSOR_ALLOC_INTEGRATION_TIME
 };
 
 #endif // DRIVERS_MEDIA_PLATFORM_HOBOT_ISP_SUBDEV_COMMON_INC_CAMERA_SUBDEV_H_
