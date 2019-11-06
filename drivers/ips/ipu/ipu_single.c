@@ -150,6 +150,8 @@ static int8_t ipu_get_frameid(struct x2_ipu_data *ipu, ipu_slot_h_t *slot)
 	ipu_cfg_t *cfg = (ipu_cfg_t *)ipu->cfg;
 	int64_t ts = ipu_tsin_get(g_ipu_time);
 
+	slot->info_h.cf_timestamp = ts;
+	slot->info_h.sf_timestamp = ts;
 	if (!cfg->frame_id.id_en)
 		return 0;
 	if (cfg->frame_id.crop_en && cfg->ctrl.crop_ddr_en) {
@@ -157,7 +159,6 @@ static int8_t ipu_get_frameid(struct x2_ipu_data *ipu, ipu_slot_h_t *slot)
 		tmp = (uint8_t *)(slot->info_h.ddr_info.crop.y_offset + vaddr);
 		__inval_dcache_area((void *)tmp, L1_CACHE_BYTES);
 		if (cfg->frame_id.bus_mode == 0) {
-			slot->info_h.cf_timestamp = ts;
 			slot->info_h.cf_id = tmp[0] << 8 | tmp[1];
 			ipu_dbg("cframe_id=%d, %d, %d\n", tmp[0], tmp[1], slot->info_h.cf_id);
 		} else {
@@ -173,7 +174,6 @@ static int8_t ipu_get_frameid(struct x2_ipu_data *ipu, ipu_slot_h_t *slot)
 			tmp = (uint8_t *)(slot->info_h.ddr_info.scale.y_offset + vaddr);
 			__inval_dcache_area((void *)tmp, L1_CACHE_BYTES);
 			if (cfg->frame_id.bus_mode == 0) {
-				slot->info_h.sf_timestamp = ts;
 				slot->info_h.sf_id = tmp[0] << 8 | tmp[1];
 				ipu_dbg("sframe_id=%d, %d, %d\n", tmp[0], tmp[1], slot->info_h.sf_id);
 			} else {
@@ -187,7 +187,6 @@ static int8_t ipu_get_frameid(struct x2_ipu_data *ipu, ipu_slot_h_t *slot)
 			tmp = (uint8_t *)(slot->info_h.ddr_info.ds[0].y_offset + vaddr);
 			__inval_dcache_area((void *)tmp, L1_CACHE_BYTES);
 			if (cfg->frame_id.bus_mode == 0) {
-				slot->info_h.sf_timestamp = ts;
 				slot->info_h.sf_id = tmp[0] << 8 | tmp[1];
 				ipu_dbg("pframe_id=%d, %d, %d\n", tmp[0], tmp[1], slot->info_h.sf_id);
 			} else {

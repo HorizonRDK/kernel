@@ -97,6 +97,8 @@ static int8_t ipu_get_frameid(struct x2_ipu_data *ipu, ipu_slot_dual_h_t *slot)
 	ipu_cfg_t *cfg = (ipu_cfg_t *)ipu->cfg;
 	int64_t ts = ipu_tsin_get(g_ipu_time);
 
+	slot->info_h.cf_timestamp = ts;
+	slot->info_h.sf_timestamp = ts;
 	if (!cfg->frame_id.id_en)
 		return 0;
 	/* get first id from pymid ddr address */
@@ -104,7 +106,6 @@ static int8_t ipu_get_frameid(struct x2_ipu_data *ipu, ipu_slot_dual_h_t *slot)
 	__inval_dcache_area((void *)tmp, L1_CACHE_BYTES);
 	if (cfg->frame_id.bus_mode == 0) {
 		slot->info_h.cf_id = tmp[0] << 8 | tmp[1];
-		slot->info_h.cf_timestamp = ts;
 		ipu_dbg("pframe_id_fst=%d, %d, %d\n", tmp[0], tmp[1], slot->info_h.cf_id);
 	} else {
 		slot->info_h.cf_id = decode_frame_id((uint16_t *)tmp);
@@ -116,7 +117,6 @@ static int8_t ipu_get_frameid(struct x2_ipu_data *ipu, ipu_slot_dual_h_t *slot)
 	__inval_dcache_area((void *)tmp, L1_CACHE_BYTES);
 	if (cfg->frame_id.bus_mode == 0) {
 		slot->info_h.sf_id = tmp[0] << 8 | tmp[1];
-		slot->info_h.sf_timestamp = ts;
 		ipu_dbg("pframe_id_sec=%d, %d, %d\n", tmp[0], tmp[1], slot->info_h.sf_id);
 	} else {
 		slot->info_h.sf_id = decode_frame_id((uint16_t *)tmp);
