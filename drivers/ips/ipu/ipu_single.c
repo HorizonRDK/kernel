@@ -828,6 +828,8 @@ int ipu_close(struct inode *inode, struct file *filp)
 	struct ipu_single_cdev *ipu_cdev = filp->private_data;
 	ipu_drv_stop();
 	ipu_cdev->ipu->ipu_mode = IPU_INVALID;
+	g_ipu->cfg->video_in.w = 0;
+	g_ipu->cfg->video_in.h = 0;
 	//del_timer(&iputimer);
 	return 0;
 }
