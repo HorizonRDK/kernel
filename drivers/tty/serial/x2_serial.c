@@ -43,6 +43,7 @@
 #define X2_UART_NR_PORTS	CONFIG_SERIAL_X2_NR_UARTS
 #define X2_UART_FIFO_SIZE	32	/* FIFO size */
 #define X2_UART_REGISTER_SPACE	0x1000
+#define X2_UART_OVERRUN_FIFO_SIZE 16
 
 unsigned int early_console_baud;
 
@@ -364,9 +365,10 @@ static void x2_uart_handle_rx(void *dev_id, unsigned int irqstatus)
 {
 	struct uart_port *port = (struct uart_port *)dev_id;
 	unsigned int data;
+	unsigned int size;
 	char status = TTY_NORMAL;
 
-	while (irqstatus & UART_RXFUL) {
+	while (irqstatus) {
 		data = readl(port->membase + X2_UART_RDR);
 		port->icount.rx++;
 
@@ -396,6 +398,10 @@ static void x2_uart_handle_rx(void *dev_id, unsigned int irqstatus)
 			status = TTY_FRAME;
 		}
 		if (irqstatus & UART_RXOE) {
+			/* Clear overrun fifo */
+			for (size = 0; size < X2_UART_OVERRUN_FIFO_SIZE; size++)
+				readl(port->membase + X2_UART_RDR);
+
 			port->icount.overrun++;
 			tty_insert_flip_char(&port->state->port, 0,
 						 TTY_OVERRUN);
@@ -502,9 +508,8 @@ static irqreturn_t x2_uart_isr(int irq, void *dev_id)
 	/* Clear irq's status */
 	writel(status, port->membase + X2_UART_SRC_PND);
 
-	if (status & UART_RXFUL) {
+	if (status & (UART_RXFUL | UART_RXOE | UART_BI | UART_PE | UART_FE))
 		x2_uart_handle_rx(dev_id, status);
-	}
 
 	if (status & UART_TXEPT) {
 		x2_uart_handle_tx(dev_id, 1);
