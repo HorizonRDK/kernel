@@ -1187,7 +1187,9 @@ static void x2_flush_buffer(struct uart_port *port)
 {
 	struct x2_uart *x2_port = port->private_data;
 
+#ifdef CONFIG_X2_TTY_DMA_MODE
 	x2_port->tx_bytes_requested = 0;
+#endif
 }
 
 static const struct uart_ops x2_uart_ops = {

@@ -1479,7 +1479,7 @@ config SERIAL_X2_UART_CONSOLE
 config X2_TTY_DMA_MODE
 	bool "X2 uart DMA MODE Support"
 	depends on SERIAL_X2_UART
-	default y
+	default n
 	help
 	  x2 uart dma mode support
 
