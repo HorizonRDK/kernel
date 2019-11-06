@@ -40,7 +40,7 @@
 #include <x2/x2_bifspi.h>
 #endif
 
-#define VERSION "2.8.0"
+#define VERSION "2.9.0"
 #define VERSION_LEN (16)
 static char version_str[VERSION_LEN];
 
@@ -116,11 +116,13 @@ static struct comm_domain domain;
 #define BIF_DEV_SPI_INFO "info"
 #define BIF_DEV_SPI_SERVER_INFO "server_info"
 #define BIF_DEV_SPI_ERROR "error_statistics"
+#define BIF_DEV_SPI_CHANNEL_SLEEP "channel_sleep"
 static struct proc_dir_entry *bif_dev_spi_entry;
 static struct proc_dir_entry *bif_dev_spi_statistics_entry;
 static struct proc_dir_entry *bif_dev_spi_info_entry;
 static struct proc_dir_entry *bif_dev_spi_server_info_entry;
 static struct proc_dir_entry *bif_dev_spi_error_statistics_entry;
+static struct proc_dir_entry *bif_dev_spi_channel_sleep_entry;
 
 static int bif_dev_spi_statistics_proc_show(struct seq_file *m, void *v)
 {
@@ -285,6 +287,19 @@ rx_error_drop_frag_count = %d\n",
 	return 0;
 }
 
+static int bif_dev_spi_channel_sleep_proc_show(struct seq_file *m, void *v)
+{
+	int channel_sleep_local = 0;
+
+	mutex_lock(&(domain.channel.channel_sleep_lock));
+	channel_sleep_local = domain.channel.channel_sleep_flag;
+	mutex_lock(&(domain.channel.channel_sleep_lock));
+
+	seq_printf(m, "channel_sleep = %d\n", channel_sleep_local);
+
+	return 0;
+}
+
 static ssize_t bif_dev_spi_statistics_proc_write(struct file *file,
 const char __user *buffer, size_t count, loff_t *ppos)
 {
@@ -317,6 +332,42 @@ const char __user *buffer, size_t count, loff_t *ppos)
 	return count;
 }
 
+#define STR_LEN_MAX (2)
+static ssize_t bif_dev_spi_channel_sleep_proc_write(struct file *file,
+const char __user *buffer, size_t count, loff_t *ppos)
+{
+	char tmp_buf[STR_LEN_MAX] = {0};
+	long channel_sleep_local = 0;
+
+	if (count > STR_LEN_MAX) {
+		pr_err("str_len_max = %d\n", STR_LEN_MAX);
+		return -EINVAL;
+	}
+
+	if (copy_from_user(tmp_buf, buffer, STR_LEN_MAX)) {
+		pr_err("copy string error\n");
+		return -EFAULT;
+	}
+	tmp_buf[STR_LEN_MAX - 1] = 0;
+
+	channel_sleep_local = simple_strtol(tmp_buf, NULL, 10);
+	pr_info("channel_sleep_local = %d\n", (int)channel_sleep_local);
+	if (channel_sleep_local) {
+		// set channel sleep
+		mutex_lock(&(domain.channel.channel_sleep_lock));
+		domain.channel.channel_sleep_flag = 1;
+		mutex_unlock(&(domain.channel.channel_sleep_lock));
+	} else {
+		// clear channel sleep
+		mutex_lock(&(domain.channel.channel_sleep_lock));
+		domain.channel.channel_sleep_flag = 0;
+		mutex_unlock(&(domain.channel.channel_sleep_lock));
+		wake_up_all(&(domain.channel.channel_sleep_wq));
+	}
+
+	return count;
+}
+
 static int bif_dev_spi_statistics_proc_open(struct inode *inode,
 struct file *file)
 {
@@ -339,6 +390,12 @@ static int bif_dev_spi_error_statistics_proc_open(struct inode *inode,
 struct file *file)
 {
 	return single_open(file, bif_dev_spi_error_statistics_proc_show, NULL);
+}
+
+static int bif_dev_spi_channel_sleep_proc_open(struct inode *inode,
+struct file *file)
+{
+	return single_open(file, bif_dev_spi_channel_sleep_proc_show, NULL);
 }
 
 static const struct file_operations bif_dev_spi_statistics_proc_ops = {
@@ -373,6 +430,15 @@ static const struct file_operations bif_dev_spi_error_statistics_proc_ops = {
 	.open     = bif_dev_spi_error_statistics_proc_open,
 	.read     = seq_read,
 	.write    = bif_dev_spi_error_statistics_proc_write,
+	.llseek   = seq_lseek,
+	.release  = single_release,
+};
+
+static const struct file_operations bif_dev_spi_channel_sleep_proc_ops = {
+	.owner    = THIS_MODULE,
+	.open     = bif_dev_spi_channel_sleep_proc_open,
+	.read     = seq_read,
+	.write    = bif_dev_spi_channel_sleep_proc_write,
 	.llseek   = seq_lseek,
 	.release  = single_release,
 };
@@ -417,7 +483,17 @@ static int init_bif_dev_spi_debug_port(void)
 		goto create_error_statistics_file_error;
 	}
 
+	bif_dev_spi_channel_sleep_entry = proc_create(BIF_DEV_SPI_CHANNEL_SLEEP,
+	0777, bif_dev_spi_entry, &bif_dev_spi_channel_sleep_proc_ops);
+	if (!bif_dev_spi_channel_sleep_entry) {
+		pr_info("create /proc/%s/%s fail\n", BIF_DEV_SPI_DIR,
+			BIF_DEV_SPI_CHANNEL_SLEEP);
+		goto create_channel_sleep_file_error;
+	}
+
 	return 0;
+create_channel_sleep_file_error:
+	remove_proc_entry(BIF_DEV_SPI_CHANNEL_SLEEP, bif_dev_spi_entry);
 create_error_statistics_file_error:
 	remove_proc_entry(BIF_DEV_SPI_SERVER_INFO, bif_dev_spi_entry);
 create_server_info_file_error:
@@ -432,6 +508,7 @@ create_top_dir_error:
 
 static void remove_bif_dev_spi_debug_port(void)
 {
+	remove_proc_entry(BIF_DEV_SPI_CHANNEL_SLEEP, bif_dev_spi_entry);
 	remove_proc_entry(BIF_DEV_SPI_ERROR, bif_dev_spi_entry);
 	remove_proc_entry(BIF_DEV_SPI_SERVER_INFO, bif_dev_spi_entry);
 	remove_proc_entry(BIF_DEV_SPI_INFO, bif_dev_spi_entry);
@@ -1043,6 +1120,14 @@ loff_t *ppos)
 		ret = down_timeout(&session_des->frame_count_sem,
 				msecs_to_jiffies(feature->usr_timeout));
 		if (ret < 0) {
+			if (domain.channel.channel_sleep_flag) {
+				ret = -1;
+				data.result = HBIPC_ERROR_CHANNEL_SLEEP;
+				status = copy_to_user((void __user *)buf, &data, sizeof(data));
+				if (status)
+					ret = -EFAULT;
+				goto error;
+			}
 				data.result = HBIPC_ERROR_RECV_USER_TIMEOUT;
 			status = copy_to_user((void __user *)buf, &data, sizeof(data));
 			if (status)
@@ -1823,6 +1908,27 @@ static int bif_lite_remove_param(void)
 #endif
 
 #ifndef CONFIG_NO_DTS_AP
+static int bif_lite_suspend(struct platform_device *pdev, pm_message_t state)
+{
+	pr_info("%s\n", __func__);
+
+	return 0;
+}
+
+static int bif_lite_resume(struct platform_device *pdev)
+{
+	pr_info("%s\n", __func__);
+
+	mutex_lock(&(domain.channel.channel_sleep_lock));
+	domain.channel.channel_sleep_flag = 0;
+	mutex_unlock(&(domain.channel.channel_sleep_lock));
+	wake_up_all(&(domain.channel.channel_sleep_wq));
+
+	return 0;
+}
+#endif
+
+#ifndef CONFIG_NO_DTS_AP
 static struct platform_driver bif_lite_driver = {
 	.driver = {
 		.name = "bif_lite_spi",
@@ -1830,6 +1936,8 @@ static struct platform_driver bif_lite_driver = {
 	},
 	.probe = bif_lite_probe,
 	.remove = bif_lite_remove,
+	.suspend = bif_lite_suspend,
+	.resume = bif_lite_resume,
 };
 #endif
 

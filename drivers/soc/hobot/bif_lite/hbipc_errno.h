@@ -19,5 +19,6 @@
 #define HBIPC_ERROR_RECV_USER_TIMEOUT           (-16)
 #define HBIPC_ERROR_SEND_USER_TIMEOUT           (-17)
 #define HBIPC_ERROR_SEND_NO_MEM                 (-18)
+#define HBIPC_ERROR_CHANNEL_SLEEP               (-19)
 
 #endif /* _HBIPC_ERRNO_H_ */

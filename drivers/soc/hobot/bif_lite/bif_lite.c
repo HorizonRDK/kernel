@@ -88,6 +88,14 @@ void *src, addr_t offset, int len)
 	}
 	dst = (void *)(channel->base_addr + offset);
 
+	mutex_lock(&channel->channel_sleep_lock);
+	if (channel->channel_sleep_flag) {
+		pr_info("write cp wait\n");
+		mutex_unlock(&channel->channel_sleep_lock);
+		wait_event_freezable(channel->channel_sleep_wq, !channel->channel_sleep_flag);
+		pr_info("write cp wake\n");
+		mutex_lock(&channel->channel_sleep_lock);
+	}
 #ifndef CONFIG_HOBOT_BIF_AP
 	if (channel->type == MCU_AP)
 		swap_bytes_order((unsigned char *)src, len);
@@ -102,6 +110,7 @@ void *src, addr_t offset, int len)
 			return -1;
 	}
 #endif
+	mutex_unlock(&channel->channel_sleep_lock);
 
 	return 0;
 }
@@ -117,6 +126,14 @@ void *dst, addr_t offset, int len)
 	}
 	src = (void *)(channel->base_addr + offset);
 
+	mutex_lock(&channel->channel_sleep_lock);
+	if (channel->channel_sleep_flag) {
+		pr_info("read cp wait\n");
+		mutex_unlock(&channel->channel_sleep_lock);
+		wait_event_freezable(channel->channel_sleep_wq, !channel->channel_sleep_flag);
+		pr_info("read cp wake\n");
+		mutex_lock(&channel->channel_sleep_lock);
+	}
 #ifndef CONFIG_HOBOT_BIF_AP
 	//bif_memcpy(dst, src, len);
 	memcpy(dst, src, len);
@@ -131,6 +148,7 @@ void *dst, addr_t offset, int len)
 			return -1;
 	}
 #endif
+	mutex_unlock(&channel->channel_sleep_lock);
 
 	return 0;
 }
@@ -1468,7 +1486,16 @@ int bif_lite_init(struct comm_channel *channel)
 		goto err;
 #else
 	// AP get and set physical address
+	mutex_lock(&channel->channel_sleep_lock);
+	if (channel->channel_sleep_flag) {
+		pr_info("bif sync base wait\n");
+		mutex_unlock(&channel->channel_sleep_lock);
+		wait_event_freezable(channel->channel_sleep_wq, !channel->channel_sleep_flag);
+		pr_info("bif sync base wake\n");
+		mutex_lock(&channel->channel_sleep_lock);
+	}
 	ret = bif_sync_base();
+	mutex_unlock(&channel->channel_sleep_lock);
 	if (ret < 0)
 		goto err;
 	base_addr_tmp_phy = (addr_t)bif_query_address(channel->buffer_id);
@@ -1671,7 +1698,9 @@ int channel_init(struct comm_channel *channel, struct channel_config *config)
 	channel->type = config->type;
 	channel->mode = config->mode;
 	channel->crc_enable = config->crc_enable;
-
+	mutex_init(&channel->channel_sleep_lock);
+	//init_completion(&channel->channel_sleep_complete);
+	init_waitqueue_head(&channel->channel_sleep_wq);
 	dump_channel_info(channel);
 
 	return 0;
@@ -1712,6 +1741,7 @@ void channel_deinit(struct comm_channel *channel)
 #ifdef CONFIG_HOBOT_BIF_AP
 	bif_free(channel->rx_local_info_tmp_buf);
 #endif
+	mutex_destroy(&channel->channel_sleep_lock);
 }
 EXPORT_SYMBOL(channel_deinit);
 

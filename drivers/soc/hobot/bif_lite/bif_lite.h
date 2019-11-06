@@ -11,6 +11,8 @@
 #include <linux/spinlock.h>
 #include <linux/time.h>
 #include <linux/errno.h>
+#include <linux/wait.h>
+#include <linux/freezer.h>
 #include "../bif_base/bif_base.h"
 #include "../bif_base/bif_api.h"
 #include "bif_platform.h"
@@ -171,6 +173,9 @@ struct comm_channel {
 	int ap_abnormal_sync;
 	int hw_trans_error;
 	clear_func_t higher_level_clear;
+	int channel_sleep_flag;
+	struct mutex channel_sleep_lock;
+	wait_queue_head_t channel_sleep_wq;
 	// buffer index info
 	int init_tx_remote_info;
 	int init_tx_local_info;

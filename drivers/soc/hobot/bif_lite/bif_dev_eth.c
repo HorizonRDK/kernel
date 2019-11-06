@@ -36,7 +36,7 @@
 #include "hbipc_eth.h"
 #include "bif_dev_eth.h"
 
-#define VERSION "2.8.0"
+#define VERSION "2.9.0"
 #define VERSION_LEN (16)
 static char version_str[VERSION_LEN];
 
