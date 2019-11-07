@@ -3,22 +3,6 @@
  *   Copyright 2019 Horizon Robotics, Inc.
  *    All rights reserved.
  */
-
-/*
- * X2 EFUSE driver (For X2 Platform)
- *
- * 2017 - 2018 (C) Horizon Inc.
- *
- * This program is free software; you can redistribute it
- * and/or modify it under the terms of the GNU General Public
- * License as published by the Free Software Foundation;
- * either version 2 of the License, or (at your option) any
- * later version.
- *
- * This driver has originally been pushed by Horizon using a X2-branding. This
- * still shows in the naming of this file, the kconfig symbols and some symbols
- * in the code.
- */
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/io.h>
@@ -38,6 +22,7 @@
 
 const char *soc_id;
 const char *bootmode;
+const char *socuid;
 
 unsigned int x2_board_id[] = {
 	0x100, 0x101, 0x102, 0x103, 0x200, 0x201, 0x202, 0x203, 0x204, 0x205,
@@ -133,6 +118,21 @@ ssize_t boot_store(struct class *class,
 	return count;
 }
 
+ssize_t socuid_show(struct class *class,
+			struct class_attribute *attr, char *buf)
+{
+	strcpy(buf, socuid);
+	strcat(buf, "\n");
+
+	return strlen(buf);
+}
+
+ssize_t socuid_store(struct class *class, struct class_attribute *attr,
+				const char *buf, size_t count)
+{
+	return count;
+}
+
 static struct class_attribute id_attribute =
 	__ATTR(board_id, 0644, id_show, id_store);
 
@@ -142,10 +142,14 @@ static struct class_attribute name_attribute =
 static struct class_attribute boot_attribute =
 	__ATTR(boot_mode, 0644, boot_show, boot_store);
 
+static struct class_attribute socuid_attribute =
+	__ATTR(socuid, 0644, socuid_show, socuid_store);
+
 static struct attribute *socinfo_attributes[] = {
 	&id_attribute.attr,
 	&name_attribute.attr,
 	&boot_attribute.attr,
+	&socuid_attribute.attr,
 	NULL
 };
 
@@ -182,6 +186,12 @@ static int socinfo_probe(struct platform_device *pdev)
 
 	ret = of_property_read_string(pdev->dev.of_node, "boot_mode",
 		&bootmode);
+	if (ret != 0) {
+		pr_err("of_property_read_string error\n");
+		return ret;
+	}
+
+	ret = of_property_read_string(pdev->dev.of_node, "socuid", &socuid);
 	if (ret != 0) {
 		pr_err("of_property_read_string error\n");
 		return ret;
