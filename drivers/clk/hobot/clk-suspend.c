@@ -24,6 +24,9 @@
 #define CNNSYS_CLKEN_CLR	0x128
 #define VIOSYS_CLK_DIV_SEL1	0x240
 #define VIOSYS_CLK_DIV_SEL2	0x244
+#define ETH0_CLK_CTRL	0x340
+#define I2S0_CLK_CTRL	0x350
+#define I2S1_CLK_CTRL	0x360
 
 #define CNNSYS_CLK_DISABLE	0x33
 
@@ -32,6 +35,9 @@ static u32 viopll_pd_ctrl;
 static u32 viosys_clk_div_sel1;
 static u32 viosys_clk_div_sel2;
 static u32 cnnpll_pd_ctrl;
+static u32 eth0_clk_ctrl;
+static u32 i2s0_clk_ctrl;
+static u32 i2s1_clk_ctrl;
 
 extern void __iomem *clk_reg_base;
 
@@ -125,6 +131,9 @@ static int x2_clk_suspend(void)
 	cnnpll_pd_ctrl = readl(clk_reg_base + CNNPLL_PD_CTRL);
 	viosys_clk_div_sel1 = readl(clk_reg_base + VIOSYS_CLK_DIV_SEL1);
 	viosys_clk_div_sel2 = readl(clk_reg_base + VIOSYS_CLK_DIV_SEL2);
+	eth0_clk_ctrl = readl(clk_reg_base + ETH0_CLK_CTRL);
+	i2s0_clk_ctrl = readl(clk_reg_base + I2S0_CLK_CTRL);
+	i2s1_clk_ctrl = readl(clk_reg_base + I2S1_CLK_CTRL);
 
 	return 0;
 }
@@ -143,6 +152,9 @@ static void x2_clk_resume(void)
 	writel(cnnpll_pd_ctrl, clk_reg_base + CNNPLL_PD_CTRL);
 	writel(viosys_clk_div_sel1, clk_reg_base + VIOSYS_CLK_DIV_SEL1);
 	writel(viosys_clk_div_sel2, clk_reg_base + VIOSYS_CLK_DIV_SEL2);
+	writel(eth0_clk_ctrl, clk_reg_base + ETH0_CLK_CTRL);
+	writel(i2s0_clk_ctrl, clk_reg_base + I2S0_CLK_CTRL);
+	writel(i2s1_clk_ctrl, clk_reg_base + I2S1_CLK_CTRL);
 	//cnn_clk_en reg initial value is on, need to be clear.
 	writel(CNNSYS_CLK_DISABLE, clk_reg_base + CNNSYS_CLKEN_CLR);
 
