@@ -210,7 +210,10 @@
 		rst_pin = <85>;
 		irq_pin = <2>;
 	};
-
+	adau1977@0x11 {
+		compatible = "adau1977";
+		reg = <0x11>;
+	};
 };
 
 &i2c1 {
@@ -399,7 +402,17 @@
 
 &i2s0 {
 	status = "okay";
+	#sound-dai-cells = <0>;
+	clocks = <&i2s0_mclk>, <&i2s0_div_mclk>, <&i2s0_bclk>, <&i2s0_div_bclk>;
+	clock-names = "i2s-mclk", "i2s-mclk-div", "i2s-bclk", "i2s0_div_bclk";
+	bclk_set = <1536000>;
 };
+
+&snd0 {
+	i2s_mode = <1>;/*1:i2s mode; 4:dsp mode*/
+	channel_max = <4>;
+};
+
 
 &onewire {
 	status = "okay";

@@ -623,6 +623,15 @@ static int adau1977_set_dai_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 	int ret;
 
 	switch (fmt & SND_SOC_DAIFMT_MASTER_MASK) {
+#ifdef CONFIG_X2_SOC
+	case SND_SOC_DAIFMT_CBS_CFS:
+		ctrl1 |= ADAU1977_SAI_CTRL1_MASTER;
+		adau1977->master = true;
+		break;
+	case SND_SOC_DAIFMT_CBM_CFM:
+		adau1977->master = false;
+                break;
+#else
 	case SND_SOC_DAIFMT_CBS_CFS:
 		adau1977->master = false;
 		break;
@@ -632,6 +641,7 @@ static int adau1977_set_dai_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 		break;
 	default:
 		return -EINVAL;
+#endif
 	}
 
 	switch (fmt & SND_SOC_DAIFMT_INV_MASK) {
@@ -741,6 +751,10 @@ static int adau1977_set_tristate(struct snd_soc_dai *dai, int tristate)
 		ADAU1977_SAI_OVERTEMP_DRV_HIZ, val);
 }
 
+static int adau1977_set_clkdiv(struct snd_soc_dai *dai, int div_id, int div) {
+	return 0;
+}
+
 static const struct snd_soc_dai_ops adau1977_dai_ops = {
 	.startup	= adau1977_startup,
 	.hw_params	= adau1977_hw_params,
@@ -748,6 +762,7 @@ static const struct snd_soc_dai_ops adau1977_dai_ops = {
 	.set_fmt	= adau1977_set_dai_fmt,
 	.set_tdm_slot	= adau1977_set_tdm_slot,
 	.set_tristate	= adau1977_set_tristate,
+	.set_clkdiv     = adau1977_set_clkdiv,
 };
 
 static struct snd_soc_dai_driver adau1977_dai = {

@@ -34,6 +34,11 @@ struct s2_snd_config_s {
 	u32 channel_max;
 
 };
+enum adau1977_sysclk_src {
+	ADAU1977_SYSCLK_SRC_MCLK,
+	ADAU1977_SYSCLK_SRC_LRCLK,
+};
+
 static struct s2_snd_config_s x2_snd_config[2] = {
 
 	{
@@ -97,6 +102,9 @@ static int x2_snd_hw_params(struct snd_pcm_substream *substream,
 		return ret;
 	}
 
+	ret = snd_soc_component_set_sysclk(rtd->codec_dai->component, 0,
+		ADAU1977_SYSCLK_SRC_LRCLK, 48000, SND_SOC_CLOCK_IN);
+
 	return 0;
 
 }
@@ -121,8 +129,10 @@ static struct snd_soc_dai_link x2_snd0_dai_link = {
 	.stream_name = "x2-stream",
 	.cpu_dai_name = "x2-i2s0",
 
-	.codec_dai_name = "ac108-pcm0",
-	 .codec_name   = "ac108.0-0035",
+	//.codec_dai_name = "ac108-pcm0",
+	 //.codec_name   = "ac108.0-0035",
+	 .codec_dai_name = "adau1977-hifi",
+	 .codec_name = "adau1977.0-0011",
 	 //.codec_dai_name = "snd-soc-dummy-dai",
 	 //.codec_name   = "snd-soc-dummy",
 	.init = x2_snd_init,
