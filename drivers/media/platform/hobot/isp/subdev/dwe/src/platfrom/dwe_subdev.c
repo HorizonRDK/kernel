@@ -401,6 +401,27 @@ static const struct v4l2_subdev_ops dwe_ops = {
 	.core = &core_ops,
 };
 
+static int dwe_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
+{
+	int ret = 0;
+	LOG(LOG_ERR, "+++++start dwe subdev control+++++!");
+
+	return ret;
+}
+
+static int dwe_close(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
+{
+	int ret = 0;
+	LOG(LOG_ERR, "-----stop dwe subdev control-----!");
+
+	return ret;
+}
+
+static const struct v4l2_subdev_internal_ops dwe_int_ops = {
+        .open = dwe_open,
+        .close = dwe_close,
+};
+
 static int32_t soc_dwe_probe(struct platform_device *pdev)
 {
 	int32_t rc = 0;
@@ -419,6 +440,7 @@ static int32_t soc_dwe_probe(struct platform_device *pdev)
 		"%s", V4L2_SOC_DWE_NAME);
 
 	dwe_ctx->soc_dwe.dev = &pdev->dev;
+	dwe_ctx->soc_dwe.internal_ops = &dwe_int_ops;
 	rc = v4l2_async_register_subdev(&dwe_ctx->soc_dwe);
 
 	LOG(LOG_DEBUG, "register v4l2 lens device. result %d", rc);

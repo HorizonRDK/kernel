@@ -13,23 +13,6 @@ int set_ex_line_pwl_0233(uint8_t chn, uint32_t line)
 	return 0;
 }
 
-//Conversion gain == 14.8
-#define GAIN1 (1024)
-#define GAIN2 (2048)
-#define GAIN3 (3789)
-#define GAIN4 (GAIN3*2) //29.6
-#define GAIN5 (GAIN4*2) //59.2
-#define GAIN6 (GAIN5*2) //118.4
-#define GAIN7 (GAIN6*2) //236.8
-
-#define STEP0 (768)  //4.0- STEP1  -8.0
-#define STEP1 ((uint32_t)(GAIN1+(GAIN2-GAIN1)/2))  //4.0- STEP1  -8.0
-#define STEP2 ((uint32_t)(GAIN2+(GAIN3-GAIN2)/2))  //8.0-  STEP2 -14.8
-#define STEP3 ((uint32_t)(GAIN3+(GAIN4-GAIN3)/2))  //14.8-  STEP3 -29.6
-#define STEP4 ((uint32_t)(GAIN4+(GAIN5-GAIN4)/2))  //29.6-  STEP4  -59.2
-#define STEP5 ((uint32_t)(GAIN5+(GAIN6-GAIN5)/2))  //59.2-  STEP5 -118.4
-#define STEP6 ((uint32_t)(GAIN6+(GAIN7-GAIN6)/2))  //118.4-  STEP5 -236.8
-
 int set_ex_gain_pwl_0233(uint8_t chn, uint32_t gain)
 {
 	uint32_t gain_tmp;
@@ -62,6 +45,95 @@ int set_ex_gain_control_0233(uint8_t chn, uint32_t exposure_setting,
 	buf[1] = 0x00;
 	ret = sensor_i2c_write(chn, 0x3022, 16, buf, 2);
 	return 0;
+}
+
+//TODO ar0233 analog_gain
+
+static int ar0233_set_a_gain(uint8_t chn, uint32_t a_gain)
+{
+	int ret = 0;
+	uint32_t temp = 0;
+	char buf[2];
+
+	if (a_gain <= 256) {// coarse 0
+		a_gain = 256;
+		buf[0] = 0x00;
+		buf[1] = 0x11;
+		ret = sensor_i2c_write(chn, 0x3366, 16, buf, 2);
+		buf[0] = 0x00;
+		buf[1] = 0x00;
+		ret = sensor_i2c_write(chn, 0x336a, 16, buf, 2);
+	} else if (a_gain < 512) { //coarse 1 1x
+		buf[0] = 0x00;
+		buf[1] = 0x11;
+		ret = sensor_i2c_write(chn, 0x3366, 16, buf, 2);
+		temp = (uint32_t)((32*(a_gain -256))/a_gain);
+		buf[0] = 0x00;
+		buf[1] = 0x00;
+		buf[1] |= ((temp & 0x0f) | ((temp << 4) & 0xf0));
+		ret = sensor_i2c_write(chn, 0x336a, 16, buf, 2);
+	} else if (a_gain < 1024) { //coarse 2 2x
+		buf[0] = 0x00;
+		buf[1] = 0x22;
+		ret = sensor_i2c_write(chn, 0x3366, 16, buf, 2);
+		temp = (uint32_t)(((16 * a_gain - 16 * 2 * 256)/a_gain) * 2);
+		buf[0] = 0x00;
+		buf[1] = 0x00;
+		buf[1] |= ((temp & 0x0f) | ((temp << 4) & 0xf0));
+		ret = sensor_i2c_write(chn, 0x336a, 16, buf, 2);
+	} else if (a_gain < 2048) { //coarse 3 4x
+		buf[0] = 0x00;
+		buf[1] = 0x33;
+		ret = sensor_i2c_write(chn, 0x3366, 16, buf, 2);
+		temp = (uint32_t)(((16 * a_gain - 16 * 4 * 256)/a_gain) * 2);
+		buf[0] = 0x00;
+		buf[1] = 0x00;
+		buf[1] |= ((temp & 0x0f) | ((temp << 4) & 0xf0));
+		ret = sensor_i2c_write(chn, 0x336a, 16, buf, 2);
+	} else if (a_gain < 1024) { //coarse 4 8x
+		buf[0] = 0x00;
+		buf[1] = 0x44;
+		ret = sensor_i2c_write(chn, 0x3366, 16, buf, 2);
+		temp = (uint32_t)(((16 * a_gain - 16 * 8 * 256)/a_gain) * 2);
+		buf[0] = 0x00;
+		buf[1] = 0x00;
+		buf[1] |= ((temp & 0x0f) | ((temp << 4) & 0xf0));
+		ret = sensor_i2c_write(chn, 0x336a, 16, buf, 2);
+	} else if (a_gain < 2048) { //coarse 5 16x
+		buf[0] = 0x00;
+		buf[1] = 0x55;
+		ret = sensor_i2c_write(chn, 0x3366, 16, buf, 2);
+		temp = (uint32_t)(((16 * a_gain - 16 * 16 * 256)/a_gain) * 2);
+		buf[0] = 0x00;
+		buf[1] = 0x00;
+		buf[1] |= ((temp & 0x0f) | ((temp << 4) & 0xf0));
+		ret = sensor_i2c_write(chn, 0x336a, 16, buf, 2);
+	} else if (a_gain < 16384) { //coarse 6 32x
+		buf[0] = 0x00;
+		buf[1] = 0x66;
+		ret = sensor_i2c_write(chn, 0x3366, 16, buf, 2);
+		temp = (uint32_t)(((8 * a_gain - 256 * 256)/a_gain) * 4);
+		buf[0] = 0x00;
+		buf[1] = 0x00;
+		buf[1] |= ((temp & 0x0f) | ((temp << 4) & 0xf0));
+		ret = sensor_i2c_write(chn, 0x336a, 16, buf, 2);
+	} else if (a_gain < 21350) { //coarse 7  64x
+		buf[0] = 0x00;
+		buf[1] = 0x77;
+		ret = sensor_i2c_write(chn, 0x3366, 16, buf, 2);
+		temp = (uint32_t)(((4 * a_gain - 256 * 256)/a_gain) * 8);
+		buf[0] = 0x00;
+		buf[1] = 0x00;
+		buf[1] |= ((temp & 0x0f) | ((temp << 4) & 0xf0));
+		ret = sensor_i2c_write(chn, 0x336a, 16, buf, 2);
+	} else {
+		buf[0] = 0x00;
+		buf[1] = 0x77;
+		ret = sensor_i2c_write(chn, 0x3366, 16, buf, 2);
+		buf[0] = 0x00;
+		buf[1] = 0xff;
+		ret = sensor_i2c_write(chn, 0x336a, 16, buf, 2);
+	}
 }
 
 static int ar0233_init(uint8_t chn, uint8_t mode)

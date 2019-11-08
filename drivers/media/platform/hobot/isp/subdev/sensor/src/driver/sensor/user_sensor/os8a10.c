@@ -14,11 +14,11 @@ static int set_os8a10_init(uint8_t chn)
 	char init_d[3];
 	int ret = 0;
 //line
-	sensor_i2c_read(chn, 0x380c, 16, init_d, 2);
+	sensor_i2c_read(chn, 0x380e, 16, init_d, 2);
 	os8a10_param[chn].VMAX = init_d[0];
 	os8a10_param[chn].VMAX = (os8a10_param[chn].VMAX << 8) | init_d[0];
 
-	sensor_i2c_read(chn, 0x380e, 16, init_d, 2);
+	sensor_i2c_read(chn, 0x380c, 16, init_d, 2);
 	os8a10_param[chn].HMAX = init_d[0];
 	os8a10_param[chn].HMAX = (os8a10_param[chn].VMAX << 8) | init_d[0];
 
@@ -35,15 +35,41 @@ static int set_os8a10_normal_exposure(uint8_t chn, uint32_t input_exp)
 		input_exp = 8;
 	}
 
-	exp_d[0] =(char)((input_exp >> 16) & 0x03);
-	exp_d[1] =(char)((input_exp >> 8) & 0xff);
-	exp_d[2] =(char)(input_exp & 0xff);
-	ret = sensor_i2c_write(chn, 0x3500, 16, exp_d, 3);
+	exp_d[0] =(char)((input_exp >> 8) & 0xff);
+	exp_d[1] =(char)(input_exp & 0xff);
+	ret = sensor_i2c_write(chn, 0x3501, 16, exp_d, 3);
+	return ret;
+}
+
+static int set_os8a10_dol2_exposure(uint8_t chn,
+	uint32_t input_exp1, uint32_t input_exp2)
+{
+	char exp_d[3];
+	int ret = 0;
+
+	//line must >= 8
+	if (input_exp1 < 8) {
+		input_exp1 = 8;
+	}
+
+	exp_d[0] =(char)((input_exp1 >> 8) & 0xff);
+	exp_d[1] =(char)(input_exp1 & 0xff);
+	ret = sensor_i2c_write(chn, 0x3501, 16, exp_d, 2);
+
+	//line must >= 8
+	if (input_exp2 < 8) {
+		input_exp2 = 8;
+	}
+
+	exp_d[0] =(char)((input_exp2 >> 8) & 0xff);
+	exp_d[1] =(char)(input_exp2 & 0xff);
+	ret = sensor_i2c_write(chn, 0x3511, 16, exp_d, 2);
+
 	return ret;
 }
 
 static int set_os8a10_normal_gain(uint8_t chn, uint32_t input_gain)
-{
+{// long gain
 	char gain_d[2];
 	uint32_t a_gain = 0;
 	uint32_t d_gain = 0;
@@ -71,27 +97,60 @@ static int set_os8a10_normal_gain(uint8_t chn, uint32_t input_gain)
 	return ret;
 }
 
+static int set_os8a10_hdr_gain(uint8_t chn, uint32_t input_gain)
+{//short gain
+	char gain_d[2];
+	uint32_t a_gain = 0;
+	uint32_t d_gain = 0;
+	int ret = 0;
+
+	//gain must >=1
+	if (input_gain < 256)
+		input_gain = 256;
+
+	if (input_gain <= 3968) { // a_gain  max 15.5
+		a_gain = (input_gain >> 1);
+		gain_d[0] = (char)((a_gain >> 8) && 0xff);
+		gain_d[1] = (char)(a_gain && 0xff);
+		ret = sensor_i2c_write(chn, 0x350c, 16, gain_d, 2);
+	} else { //d_gain
+		gain_d[0] = 0x07;
+		gain_d[1] = 0xc0;
+		ret = sensor_i2c_write(chn, 0x3508, 16, gain_d, 2);
+		d_gain = (uint32_t)((input_gain << 3) / 31);
+		gain_d[0] = (char)((d_gain >> 8) && 0xff);
+		gain_d[1] = (char)(d_gain && 0xff);
+		ret = sensor_i2c_write(chn, 0x350e, 16, gain_d, 2);
+	}
+
+	return ret;
+}
+
 static int set_os8a10_ex_gain_control(uint8_t chn, uint32_t expo_L,
 	uint32_t expo_M, uint32_t expo_S, uint32_t gain)
 {
 	int ret = 0;
 	uint32_t a_gain = 0;
 
-	a_gain = sensor_log10(gain);//ux.8
-	a_gain =(uint32_t)(((a_gain * 200) / 3) >> 8);
+	a_gain = gain;
+	//a_gain = sensor_log10(gain);//ux.8
+	//a_gain =(uint32_t)(((a_gain * 200) / 3) >> 8);
 
 	switch(os8a10_param[chn].os8a10_mode_save) {
 	case OS8A10_NORMAL_M:
+		if (expo_S > os8a10_param[chn].VMAX - 8) {
+			expo_S = os8a10_param[chn].VMAX - 8;
+		}
 		set_os8a10_normal_gain(chn, a_gain);
 		set_os8a10_normal_exposure(chn, expo_S);
 		break;
 	case OS8A10_DOL2_M:
+		if ((expo_S + expo_L) > os8a10_param[chn].VMAX - 4) {
+			expo_L = os8a10_param[chn].VMAX - 4 - expo_S;
+		}
 		set_os8a10_normal_gain(chn, a_gain);
-		//set_os8a10_dol2_exposure(chn, expo_S, expo_L);//
-		break;
-	case OS8A10_DOL3_M:
-		set_os8a10_normal_gain(chn, a_gain);
-		//set_os8a10_dol3_exposure(chn, expo_S, expo_M, expo_L);//
+		set_os8a10_hdr_gain(chn, a_gain);
+		set_os8a10_dol2_exposure(chn, expo_S, expo_L);//
 		break;
 	default:
 		LOG(LOG_ERR, "mode is err !");
