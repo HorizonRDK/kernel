@@ -499,6 +499,7 @@ static int bif_tty_set_base(struct bif_tty_cdev *cdev)
 {
 	int rc = 0;
 	int i;
+	unsigned int count;
 	struct ringbuf_t *rb_tmp;
 
 	tty_debug_log("enter\n");
@@ -533,6 +534,14 @@ static int bif_tty_set_base(struct bif_tty_cdev *cdev)
 	for (i = 0; i < cdev->num_nodes; i++) {
 		cdev->tb_node[i]->rb_other = &rb_tmp[i];
 		bif_tty_check_other(cdev->tb_node[i]->rb_other);
+		/* check invalid count */
+		count = bif_ringbuf_other_used(cdev->tb_node[i]);
+		if (count > 0) {
+			cdev->tb_node[i]->rb_self->tail += count;
+			cdev->tb_node[i]->rb_self->tail %=
+						cdev->tb_node[i]->rb_self->size;
+			tty_err_log("other invalid count %d\n", count);
+		}
 	}
 
 fail:
