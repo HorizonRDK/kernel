@@ -131,6 +131,7 @@
 		dr_mode = "gadget";
 		/* phy_type: {utmi, utmi_wide, ulpi, serial, hsic} */
 		phy_type = "utmi_wide";
+		snps,dis_u2_susphy_quirk;
 		status = "okay";
 	};
 };
