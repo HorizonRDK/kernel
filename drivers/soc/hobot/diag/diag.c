@@ -1430,7 +1430,7 @@ static void netlink_rcv_diagmsg_process(char *pstr)
 	if (pstr && (strncmp(pstr, "getsta:", 7)) == 0) {
 		reg_id.module_id = *((uint32_t *)(pstr + 7));
 		reg_id.event_id = *((uint32_t *)(pstr + 12));
-		pr_notice("get sta rcved, module id: %d, event id: %d",
+		pr_debug("get sta rcved, module id: %d, event id: %d",
 					reg_id.module_id,
 					reg_id.event_id);
 		regisid = diag_id_in_register_list(&reg_id);
@@ -1442,7 +1442,7 @@ static void netlink_rcv_diagmsg_process(char *pstr)
 		if (regisid->msg_rcvcallback)
 			regisid->msg_rcvcallback(paylod, paylodlen);
 		else
-			pr_err("module id:%d,event id:%d rcv callback func is NULL\n",
+			pr_debug("module id:%d,event id:%d rcv callback func is NULL\n",
 					reg_id.module_id, reg_id.event_id);
 	}
 exit:

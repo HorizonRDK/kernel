@@ -686,6 +686,11 @@ static void qspinorflash_diag_report(uint8_t errsta, uint32_t sta_reg)
 	}
 }
 
+static void qspi_callback(void *p, size_t len)
+{
+	first_time = 0;
+}
+
 static irqreturn_t x2_qspi_irq_handler(int irq, void *dev_id)
 {
 	unsigned int irq_status;
@@ -909,7 +914,7 @@ static int x2_qspi_probe(struct platform_device *pdev)
 		goto probe_setup_failed;
 	}
 	if (diag_register(ModuleDiag_norflash, EventIdNorflashErr,
-						4, 10, 5000, NULL) < 0)
+						4, 10, 5000, qspi_callback) < 0)
 		pr_err("qspi norflash diag register fail\n");
 
 	return ret;
