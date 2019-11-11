@@ -361,18 +361,21 @@ static bool spacc_keylen_ok(const struct spacc_alg *salg, unsigned keylen)
    return false;
 }
 
-static void spacc_aead_cb(void *spacc, void *tfm)
+static void spacc_aead_cb(void *spacc, void *data)
 {
-   struct aead_cb_data *cb = tfm;
+   struct aead_request *req = data;
+   struct crypto_aead *tfm      = crypto_aead_reqtfm(req);
+   struct spacc_crypto_ctx *tctx   = crypto_aead_ctx(tfm);
+   struct spacc_crypto_reqctx *ctx = aead_request_ctx(req);
+   struct spacc_priv *priv = dev_get_drvdata(tctx->dev);
    int err;
 
-   spacc_aead_cleanup_dma(cb->tctx->dev, cb->req);
+   spacc_aead_cleanup_dma(tctx->dev, req);
 
-   err = pdu_error_code(cb->spacc->job[cb->new_handle].job_err);
-   spacc_close(cb->spacc, cb->new_handle);
+   err = pdu_error_code(priv->spacc.job[ctx->new_handle].job_err);
+   spacc_close(&priv->spacc, ctx->new_handle);
 
-// call complete
-   cb->req->base.complete(&cb->req->base, err);
+   req->base.complete(&req->base, err);
 }
 
 static int spacc_aead_setkey(struct crypto_aead *tfm, const u8 *key, unsigned int keylen)
@@ -539,11 +542,10 @@ static int spacc_aead_setauthsize(struct crypto_aead *tfm, unsigned int authsize
 static int spacc_aead_process(struct aead_request *req, u64 seq, u8 *giv, int encrypt)
 {
    struct crypto_aead *reqtfm      = crypto_aead_reqtfm(req);
-//   int ivsize                      = reqtfm->base.crt_aead.ivsize;
-   int ivsize                      = crypto_aead_ivsize(reqtfm);
    struct spacc_crypto_ctx *tctx   = crypto_aead_ctx(reqtfm);
    struct spacc_crypto_reqctx *ctx = aead_request_ctx(req);
    struct spacc_priv *priv = dev_get_drvdata(tctx->dev);
+   int ivsize                      = crypto_aead_ivsize(reqtfm);
    int rc;
    int icvremove;
    int ivaadsize;
@@ -566,17 +568,11 @@ static int spacc_aead_process(struct aead_request *req, u64 seq, u8 *giv, int en
     * Note: This won't work if IV_IMPORT has been disabled
     */
 
-   ctx->cb.new_handle = spacc_clone_handle(&priv->spacc, tctx->handle, &ctx->cb);
-   if (ctx->cb.new_handle < 0) {
+   ctx->new_handle = spacc_clone_handle(&priv->spacc, tctx->handle, req);
+   if (ctx->new_handle < 0) {
       spacc_aead_cleanup_dma(tctx->dev, req);
       return -EINVAL;
    }
-
-   ctx->cb.tctx  = tctx;
-   ctx->cb.ctx   = ctx;
-   ctx->cb.req   = req;
-   ctx->cb.spacc = &priv->spacc;
-
 
    // CCM and GCM don't include the IV in the AAD ...
    if (tctx->mode == CRYPTO_MODE_AES_GCM_RFC4106 ||
@@ -611,13 +607,13 @@ static int spacc_aead_process(struct aead_request *req, u64 seq, u8 *giv, int en
 
    // compute the ICV offset which is different for both encrypt/decrypt
    if (encrypt) {
-      rc = spacc_set_operation(&priv->spacc, ctx->cb.new_handle, encrypt ? OP_ENCRYPT : OP_DECRYPT, ICV_ENCRYPT_HASH, IP_ICV_OFFSET, dstoff + req->cryptlen, tctx->auth_size, 0);
+      rc = spacc_set_operation(&priv->spacc, ctx->new_handle, encrypt ? OP_ENCRYPT : OP_DECRYPT, ICV_ENCRYPT_HASH, IP_ICV_OFFSET, dstoff + req->cryptlen, tctx->auth_size, 0);
    } else {
       // in decrypt mode we have to account for the offset based on the AAD and what not ...
-      rc = spacc_set_operation(&priv->spacc, ctx->cb.new_handle, encrypt ? OP_ENCRYPT : OP_DECRYPT, ICV_ENCRYPT_HASH, IP_ICV_OFFSET, req->cryptlen - icvremove + SPACC_MAX_IV_SIZE + B0len + req->assoclen + ivaadsize, tctx->auth_size, 0);
+      rc = spacc_set_operation(&priv->spacc, ctx->new_handle, encrypt ? OP_ENCRYPT : OP_DECRYPT, ICV_ENCRYPT_HASH, IP_ICV_OFFSET, req->cryptlen - icvremove + SPACC_MAX_IV_SIZE + B0len + req->assoclen + ivaadsize, tctx->auth_size, 0);
    }
 
-   rc = spacc_packet_enqueue_ddt(&priv->spacc, ctx->cb.new_handle,
+   rc = spacc_packet_enqueue_ddt(&priv->spacc, ctx->new_handle,
        &ctx->src, (req->dst == req->src) ? &ctx->src : &ctx->dst,      // SRC and DST DDTs (we re-use the src if they overlap)
        B0len + req->cryptlen + req->assoclen + ivaadsize - icvremove,  // PROC len
        (dstoff << SPACC_OFFSET_DST_O) | SPACC_MAX_IV_SIZE,             // OFFSET:  SRC is offset by IV import block, DST is potentially offset by IV + AAD
@@ -628,7 +624,7 @@ static int spacc_aead_process(struct aead_request *req, u64 seq, u8 *giv, int en
 
    if (rc < 0) {
       spacc_aead_cleanup_dma(tctx->dev, req);
-      spacc_close(&priv->spacc, ctx->cb.new_handle);
+      spacc_close(&priv->spacc, ctx->new_handle);
 
       if (rc != CRYPTO_FIFO_FULL) {
          dev_err(tctx->dev, "failed to enqueue job: %s\n", spacc_error_msg(rc));

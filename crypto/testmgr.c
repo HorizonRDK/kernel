@@ -43,6 +43,7 @@ MODULE_PARM_DESC(notests, "disable crypto self-tests");
 
 #ifdef CONFIG_CRYPTO_MANAGER_DISABLE_TESTS
 
+
 /* a perfect nop */
 int alg_test(const char *driver, const char *alg, u32 type, u32 mask)
 {
@@ -277,6 +278,7 @@ static int __test_hash(struct crypto_ahash *tfm,
 	char *xbuf[XBUFSIZE];
 	int ret = -ENOMEM;
 
+
 	result = kmalloc(digest_size, GFP_KERNEL);
 	if (!result)
 		return ret;
@@ -364,11 +366,11 @@ static int __test_hash(struct crypto_ahash *tfm,
 
 		if (memcmp(result, template[i].digest,
 			   crypto_ahash_digestsize(tfm))) {
-			printk(KERN_ERR "alg: hash: Test %d failed for %s\n",
-			       j, algo);
+			printk(KERN_ERR "alg: hash: Test %d failed for %s, plaintext_len:%d, datalen:%d, np:%d\n",
+			       j, algo, template[i].psize, template[i].ksize, template[i].np);
 			hexdump(result, crypto_ahash_digestsize(tfm));
 			ret = -EINVAL;
-			goto out;
+			//goto out;
 		} else {
 			pr_debug("alg: hash: Test %d passed for %s\n", j, algo);
 		}
@@ -524,11 +526,10 @@ static int __test_hash(struct crypto_ahash *tfm,
 		}
 		if (memcmp(result, template[i].digest,
 			   crypto_ahash_digestsize(tfm))) {
-			pr_err("alg: hash: Partial Test %d failed for %s\n",
-			       j, algo);
-			hexdump(result, crypto_ahash_digestsize(tfm));
+			printk(KERN_ERR "alg: hash: Partial Test %d failed for %s, plaintext_len:%d, datalen:%d, np:%d\n",
+			       j, algo, template[i].psize, template[i].ksize, template[i].np);
 			ret = -EINVAL;
-			goto out;
+			//goto out;
 		} else {
 			pr_debug("alg: hash: Partial Test %d passed for %s\n", j, algo);
 		}
@@ -3731,7 +3732,7 @@ test_done:
 		panic("%s: %s alg self test failed in fips mode!\n", driver, alg);
 
 	if (fips_enabled && !rc)
-		pr_info("alg: self-tests for %s (%s) passed\n", driver, alg);
+		pr_debug("alg: self-tests for %s (%s) passed\n", driver, alg);
 
 	return rc;
 

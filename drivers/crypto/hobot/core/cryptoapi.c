@@ -205,36 +205,36 @@ static void spacc_unregister_algs(struct device *dev)
    .name = _name, .id = CRYPTO_MODE_##_id_name, .blocklen = _blocklen
 
 #define MODE_TAB_HASH(_name, _id_name, _hashlen, _blocklen) \
-   MODE_TAB_COMMON(_name, _id_name, _blocklen), \
-   .hashlen = _hashlen, .testlen = _hashlen
+   MODE_TAB_COMMON(_name, _id_name, _blocklen), .hashlen = _hashlen
 
 #define MODE_TAB_CIPH(_name, _id_name, _ivlen, _blocklen) \
    MODE_TAB_COMMON(_name, _id_name, _blocklen), \
    .ivlen = _ivlen
 
 #define MODE_TAB_HASH_XCBC 0x8000
+#define HASH_PROCESS_LEN 0x800 //2048Byte
 
-static struct mode_tab possible_hashes[] = {
+struct mode_tab possible_hashes[] = {
 //   { .keylen[0] = 16,                    MODE_TAB_HASH("cmac(aes)", MAC_CMAC, 16,  16),  },
 //   { .keylen[0] = 48|MODE_TAB_HASH_XCBC, MODE_TAB_HASH("xcbc(aes)", MAC_XCBC, 16,  16), },
-   { MODE_TAB_HASH("hmac(md5)",        HMAC_MD5,        16,  64), .statelen = sizeof(struct md5_state)},
-   { MODE_TAB_HASH("hmac(sha1)",       HMAC_SHA1,       20,  64), .statelen = sizeof(struct sha1_state)},
-   { MODE_TAB_HASH("hmac(sha224)",     HMAC_SHA224,     28,  64), },
-   { MODE_TAB_HASH("hmac(sha256)",     HMAC_SHA256,     32,  64), .statelen = sizeof(struct sha256_state)},
-   { MODE_TAB_HASH("hmac(sha384)",     HMAC_SHA384,     48, 128), },
-   { MODE_TAB_HASH("hmac(sha512)",     HMAC_SHA512,     64, 128), .statelen = sizeof(struct sha512_state)},
-   { MODE_TAB_HASH("hmac(sha512-224)", HMAC_SHA512_224, 28, 128), .statelen = sizeof(struct sha512_state)},
-   { MODE_TAB_HASH("hmac(sha512-256)", HMAC_SHA512_256, 32, 128), .statelen = sizeof(struct sha512_state)},
+   { MODE_TAB_HASH("hmac(md5)",        HMAC_MD5,        16,  64), },
+   { MODE_TAB_HASH("hmac(sha1)",       HMAC_SHA1,       20,  64), },
+//   { MODE_TAB_HASH("hmac(sha224)",     HMAC_SHA224,     28,  64), },
+   { MODE_TAB_HASH("hmac(sha256)",     HMAC_SHA256,     32,  64), },
+//   { MODE_TAB_HASH("hmac(sha384)",     HMAC_SHA384,     48, 128), },
+//   { MODE_TAB_HASH("hmac(sha512)",     HMAC_SHA512,     64, 128), },
+//   { MODE_TAB_HASH("hmac(sha512-224)", HMAC_SHA512_224, 28, 128), },
+//   { MODE_TAB_HASH("hmac(sha512-256)", HMAC_SHA512_256, 32, 128), },
 };
 
 static struct mode_tab possible_ciphers[] = {
-   { MODE_TAB_CIPH("ecb(aes)",         AES_ECB,  16, 16), .keylen = { 16, 24, 32 } },
+//   { MODE_TAB_CIPH("ecb(aes)",         AES_ECB,  16, 16), .keylen = { 16, 24, 32 } },
    { MODE_TAB_CIPH("cbc(aes)",         AES_CBC,  16, 16), .keylen = { 16, 24, 32 } },
    { MODE_TAB_CIPH("ctr(aes)",         AES_CTR,  16, 16), .keylen = { 16, 24, 32 } },
    { MODE_TAB_CIPH("cbc(des3_ede)",    3DES_CBC, 8, 8), .keylen = { 24 } },
-   { MODE_TAB_CIPH("ecb(des3_ede)",    3DES_ECB, 8, 8), .keylen = { 24 } },
-   { MODE_TAB_CIPH("cbc(des)",         DES_CBC,  8, 8), .keylen = { 8 } },
-   { MODE_TAB_CIPH("ecb(des)",         DES_ECB,  8, 8), .keylen = { 8 } },
+//   { MODE_TAB_CIPH("ecb(des3_ede)",    3DES_ECB, 8, 8), .keylen = { 24 } },
+//   { MODE_TAB_CIPH("cbc(des)",         DES_CBC,  8, 8), .keylen = { 8 } },
+//   { MODE_TAB_CIPH("ecb(des)",         DES_ECB,  8, 8), .keylen = { 8 } },
 };
 
 
@@ -243,6 +243,7 @@ static struct mode_tab possible_ciphers[] = {
 
 static struct mode_tab possible_aeads[] = {
 
+#if 0
 // cipher only modes for ESP
    { MODE_TAB_AEAD("authenc(digest_null,cbc(des3_ede))",      CRYPTO_MODE_3DES_CBC,         CRYPTO_MODE_NULL, 0, 8, 8),   .keylen = { 24 } },
    { MODE_TAB_AEAD("authenc(digest_null,cbc(aes))",           CRYPTO_MODE_AES_CBC,          CRYPTO_MODE_NULL, 0, 16, 16), .keylen = { 16, 24, 32 } },
@@ -258,8 +259,9 @@ static struct mode_tab possible_aeads[] = {
    { MODE_TAB_AEAD("authenc(xcbc(aes),ecb(cipher_null))",     CRYPTO_MODE_NULL,  CRYPTO_MODE_MAC_XCBC,    16, 0, 1), },
 
 
+#endif
 // combined or AEAD modes
-
+#if 0
    { MODE_TAB_AEAD("authenc(hmac(md5),cbc(des3_ede))",    CRYPTO_MODE_3DES_CBC, CRYPTO_MODE_HMAC_MD5,    16, 8, 8), .keylen = { 24 } },
    { MODE_TAB_AEAD("authenc(hmac(sha1),cbc(des3_ede))",   CRYPTO_MODE_3DES_CBC, CRYPTO_MODE_HMAC_SHA1,   20, 8, 8), .keylen = { 24 } },
    { MODE_TAB_AEAD("authenc(hmac(sha256),cbc(des3_ede))", CRYPTO_MODE_3DES_CBC, CRYPTO_MODE_HMAC_SHA256, 32, 8, 8), .keylen = { 24 } },
@@ -267,12 +269,11 @@ static struct mode_tab possible_aeads[] = {
    { MODE_TAB_AEAD("authenc(hmac(sha512),cbc(des3_ede))", CRYPTO_MODE_3DES_CBC, CRYPTO_MODE_HMAC_SHA512, 64, 8, 8), .keylen = { 24 } },
    { MODE_TAB_AEAD("authenc(cmac(aes),cbc(des3_ede))",    CRYPTO_MODE_3DES_CBC, CRYPTO_MODE_MAC_CMAC,    16, 8, 8), .keylen = { 24 } },
    { MODE_TAB_AEAD("authenc(xcbc(aes),cbc(des3_ede))",    CRYPTO_MODE_3DES_CBC, CRYPTO_MODE_MAC_XCBC,    16, 8, 8), .keylen = { 24 } },
-
+#endif
    { MODE_TAB_AEAD("authenc(hmac(md5),cbc(aes))",    CRYPTO_MODE_AES_CBC, CRYPTO_MODE_HMAC_MD5,    16, 16, 16), .keylen = { 16, 24, 32 } },
    { MODE_TAB_AEAD("authenc(hmac(sha1),cbc(aes))",   CRYPTO_MODE_AES_CBC, CRYPTO_MODE_HMAC_SHA1,   20, 16, 16), .keylen = { 16, 24, 32 } },
-
    { MODE_TAB_AEAD("authenc(hmac(sha256),cbc(aes))", CRYPTO_MODE_AES_CBC, CRYPTO_MODE_HMAC_SHA256, 32, 16, 16), .keylen = { 16, 24, 32 } },
-
+#if 0
    { MODE_TAB_AEAD("authenc(hmac(sha384),cbc(aes))", CRYPTO_MODE_AES_CBC, CRYPTO_MODE_HMAC_SHA384, 48, 16, 16), .keylen = { 16, 24, 32 } },
    { MODE_TAB_AEAD("authenc(hmac(sha512),cbc(aes))", CRYPTO_MODE_AES_CBC, CRYPTO_MODE_HMAC_SHA512, 64, 16, 16), .keylen = { 16, 24, 32 } },
    { MODE_TAB_AEAD("authenc(cmac(aes),cbc(aes))",    CRYPTO_MODE_AES_CBC, CRYPTO_MODE_MAC_CMAC,    16, 16, 16), .keylen = { 16, 24, 32 } },
@@ -290,6 +291,7 @@ static struct mode_tab possible_aeads[] = {
    { MODE_TAB_AEAD("rfc4543(gcm(aes))",                       CRYPTO_MODE_AES_GCM_RFC4543, CRYPTO_MODE_NULL,        16, 16, 1), .keylen = { 16, 24, 32 } },
 
 //   { MODE_TAB_AEAD("rfc4309(ccm(aes))",                       CRYPTO_MODE_AES_CCM_RFC4309, CRYPTO_MODE_NULL,        16, 16, 1), .keylen = { 16, 24, 32 } },
+#endif
 };
 
 
@@ -302,7 +304,8 @@ static int __devinit spacc_register_hash(struct spacc_alg *salg)
 
    spacc_init_calg(salg->calg, salg->mode);
    salg->alg.hash.halg.digestsize = salg->mode->hashlen;
-   salg->alg.hash.halg.statesize = salg->mode->statelen;
+   //salg->alg.hash.halg.statesize = sizeof(struct spacc_hash_state);
+   salg->alg.hash.halg.statesize = SPACC_HASH_STATE_SIZE;
 
    rc = crypto_register_ahash(&salg->alg.hash);
    if (rc < 0) {

@@ -17,6 +17,12 @@
 #define SPACC_MAX_DIGEST_SIZE 64
 #define SPACC_MAX_KEY_SIZE    32
 #define SPACC_MAX_IV_SIZE     16
+#define SPACC_MAX_HASH_BLOCK_SIZE 128
+
+#define SPACC_HASH_STATE_SIZE (SPACC_MAX_DIGEST_SIZE + SPACC_MAX_HASH_BLOCK_SIZE + 64)
+
+//#define SPACC_HASH_PROCESS_SIZE 0x800 //2048Byte
+#define SPACC_HASH_PROCESS_SIZE 0x101 //256Byte
 
 #define SPACC_DMA_ALIGN    4
 #define SPACC_DMA_BOUNDARY 0x10000
@@ -42,7 +48,6 @@
 #define CRYPTO_MODE_AES_GCM_RFC4543 (CRYPTO_MODE_AES_GCM | SPACC_MANGLE_IV_FLAG | SPACC_MANGLE_IV_RFC4543)
 #define CRYPTO_MODE_AES_CCM_RFC4309 (CRYPTO_MODE_AES_CCM | SPACC_MANGLE_IV_FLAG | SPACC_MANGLE_IV_RFC4309)
 
-
 struct spacc_crypto_ctx {
    union {
       struct crypto_ahash    *hash;
@@ -51,7 +56,6 @@ struct spacc_crypto_ctx {
    } fb;
 
    struct device *dev;
-   struct spacc_crypto_reqctx *reqctx;
 
    /* save key in setkey and used when set iv, because write_context can't handle NULL key */
    char key[SPACC_MAX_KEY_SIZE];
@@ -70,42 +74,44 @@ struct spacc_crypto_ctx {
    unsigned char csalt[16];
 };
 
+/* seperate hash reqctx due many members for hash update */
+struct spacc_hash_reqctx {
+   pdu_ddt src, dst;
+   void *digest_buf, *iv_buf;
+   dma_addr_t digest_dma, iv_dma, *data_dma;
+
+   int src_nents, dst_nents;
+
+   int digest_mode; //1: digest mode, 0: update mode
+   bool last_req;
+   bool first_blk;
+   int new_handle;
+
+   struct scatterlist sg[2];
+   struct scatterlist *reqsrc; //backup req and recover in complete
+   int nbytes;
+
+   /* below are state info for hash update */
+   uint8_t digest[SPACC_MAX_DIGEST_SIZE] __aligned(sizeof(u32));
+   int hashlen;
+   uint8_t data[SPACC_MAX_HASH_BLOCK_SIZE] __aligned(sizeof(u32));
+   uint32_t datalen;
+   uint8_t staging_dmabuf[SPACC_MAX_HASH_BLOCK_SIZE] __aligned(sizeof(u32));
+
+   /* The fallback request must be the last member of this struct. */
+   union {
+      struct ahash_request hash_req;
+   } fb;
+};
+
+/* spacc_crypto_reqctx is used in cipher and aead */
 struct spacc_crypto_reqctx {
    pdu_ddt src, dst;
    void *digest_buf, *iv_buf;
    dma_addr_t digest_dma, iv_dma;
    int fulliv_nents, iv_nents, assoc_nents, src_nents, dst_nents;
 
-// TODO: union the two of these at some point
-
-   struct aead_cb_data {
-      int new_handle;
-      struct spacc_crypto_ctx    *tctx;
-      struct spacc_crypto_reqctx *ctx;
-      struct aead_request        *req;
-      spacc_device               *spacc;
-   } cb;
-
-   struct ahash_cb_data {
-      int new_handle;
-      struct spacc_crypto_ctx    *tctx;
-      struct spacc_crypto_reqctx *ctx;
-      struct ahash_request       *req;
-      spacc_device               *spacc;
-   } acb;
- 
-   struct cipher_cb_data {
-      int new_handle;
-      struct spacc_crypto_ctx    *tctx;
-      struct spacc_crypto_reqctx *ctx;
-      struct skcipher_request    *req;
-      spacc_device               *spacc;
-   } ccb;
-
-   /* The fallback request must be the last member of this struct. */
-   union {
-      struct ahash_request hash_req;
-   } fb;
+   int new_handle;
 };
 
 struct mode_tab {
@@ -121,7 +127,7 @@ struct mode_tab {
       int ciph, hash;
    } aead;
 
-   unsigned hashlen, ivlen, blocklen, keylen[3], keylen_mask, testlen, statelen;
+   unsigned hashlen, ivlen, blocklen, keylen[3], keylen_mask;
 
    union {
       unsigned char hash_test[SPACC_MAX_DIGEST_SIZE];

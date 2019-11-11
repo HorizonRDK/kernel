@@ -53,38 +53,24 @@ static void spacc_cipher_cleanup_dma(struct device *dev, struct skcipher_request
    pdu_ddt_free(&ctx->dst);
 }
 
-#if 0
-static void spacc_cipher_cb(void *spacc, void *tfm)
+static void spacc_cipher_cb(void *spacc, void *data)
 {
-   struct spacc_crypto_ctx *ctx = crypto_skcipher_ctx(tfm);
-   struct cipher_cb_data *ccb = &ctx->reqctx->ccb;
+   struct skcipher_request *req = data;
+   struct crypto_skcipher *tfm = crypto_skcipher_reqtfm(req);
+   struct spacc_crypto_ctx *tctx = crypto_skcipher_ctx(tfm);
+   struct spacc_crypto_reqctx *ctx = skcipher_request_ctx(req);
+   struct spacc_priv *priv = dev_get_drvdata(tctx->dev);
+
    int err;
 
-   printk("----%s----tfm:%p, ctx:%p, ccb:%p\n", __func__, tfm,  ctx, ccb);
-   spacc_cipher_cleanup_dma(ctx->dev, ccb->req);
+   spacc_cipher_cleanup_dma(tctx->dev, req);
 
-   err = pdu_error_code(ccb->spacc->job[ccb->new_handle].job_err);
-   printk("----%s----err:%d\n", __func__, err);
-   spacc_close(ccb->spacc, ccb->new_handle);
+   err = pdu_error_code(priv->spacc.job[ctx->new_handle].job_err);
+   spacc_close(&priv->spacc, ctx->new_handle);
 
-   ccb->req->base.complete(&ccb->req->base, err);
-}
-#else
-static void spacc_cipher_cb(void *spacc, void *tfm)
-{
-   struct cipher_cb_data *cb = tfm;
-   int err;
-
-   spacc_cipher_cleanup_dma(cb->tctx->dev, cb->req);
-
-   err = pdu_error_code(cb->spacc->job[cb->new_handle].job_err);
-   spacc_close(cb->spacc, cb->new_handle);
-
-// call complete
-   cb->req->base.complete(&cb->req->base, err);
+   req->base.complete(&req->base, err);
 }
 
-#endif
 
 static int spacc_cipher_process(struct skcipher_request *req, int enc)
 {
@@ -108,14 +94,14 @@ static int spacc_cipher_process(struct skcipher_request *req, int enc)
    }
 
    //TODO: why clone new handle? for multiple thread usage?
-   ctx->ccb.new_handle = spacc_clone_handle(&priv->spacc, tctx->handle, &ctx->ccb);
-   if (ctx->ccb.new_handle < 0) {
+   ctx->new_handle = spacc_clone_handle(&priv->spacc, tctx->handle, req);
+   if (ctx->new_handle < 0) {
       spacc_cipher_cleanup_dma(tctx->dev, req);
       pr_err("%s: failed to clone handle.\n", __func__);
       return -EBUSY;
    }
 
-   rc = spacc_set_operation(&priv->spacc, ctx->ccb.new_handle, enc ? OP_ENCRYPT : OP_DECRYPT, 0, 0, 0, 0, 0);
+   rc = spacc_set_operation(&priv->spacc, ctx->new_handle, enc ? OP_ENCRYPT : OP_DECRYPT, 0, 0, 0, 0, 0);
    if (rc < 0) {
       spacc_close(&priv->spacc, tctx->handle);
       tctx->handle = -1;
@@ -123,14 +109,12 @@ static int spacc_cipher_process(struct skcipher_request *req, int enc)
       return rc;
    }
 
-#if 1 //add from spacc_dev trying to solve aes decryption failure
    // if we are decrypting set the expand bit (required for RC4/AES)
    if (!enc) {
-      spacc_set_key_exp (&priv->spacc, ctx->ccb.new_handle);
+      spacc_set_key_exp (&priv->spacc, ctx->new_handle);
    }
-#endif
 
-   rc = spacc_write_context(&priv->spacc, ctx->ccb.new_handle, SPACC_CRYPTO_OPERATION,
+   rc = spacc_write_context(&priv->spacc, ctx->new_handle, SPACC_CRYPTO_OPERATION,
    		tctx->key, tctx->keylen, req->iv, crypto_skcipher_ivsize(reqtfm));
    if (rc < 0) {
       dev_warn(tctx->dev, "failed to write SPAcc context %d: %s\n",
@@ -138,20 +122,13 @@ static int spacc_cipher_process(struct skcipher_request *req, int enc)
 	  return -EINVAL;
    }
 
-   ctx->ccb.tctx  = tctx;
-   ctx->ccb.ctx   = ctx;
-   ctx->ccb.req   = req;
-   ctx->ccb.spacc = &priv->spacc;
-   // used by callback function
-   tctx->reqctx = ctx;
-
-   rc = spacc_packet_enqueue_ddt(&priv->spacc, ctx->ccb.new_handle,
+   rc = spacc_packet_enqueue_ddt(&priv->spacc, ctx->new_handle,
                                  &ctx->src, &ctx->dst, req->cryptlen, 0, 0, 0, 0, 0);
 
    if (rc < 0) {
       
       spacc_cipher_cleanup_dma(tctx->dev, req);
-      spacc_close(&priv->spacc, ctx->ccb.new_handle);
+      spacc_close(&priv->spacc, ctx->new_handle);
 
       pr_err("%s: failed to enqueue ddt.\n", __func__);
       if (rc != CRYPTO_FIFO_FULL) {
@@ -207,14 +184,8 @@ static int spacc_cipher_setkey(struct crypto_skcipher *tfm, const u8 *key, unsig
 
    if (tctx->handle < 0) {
       dev_err(salg->dev[0], "failed to open SPAcc context\n");
-      return rc;
+      return -EEXIST;
    }
-/*
-   if (keylen > crypto_tfm_alg_blocksize(&tfm->base)) {
-      pr_err("%s: keylen:%d > blksize:%d\n", __func__, keylen, crypto_tfm_alg_blocksize(&tfm->base));
-      return 0;
-   }
-*/
    
    rc = spacc_write_context(&priv->spacc, tctx->handle, SPACC_CRYPTO_OPERATION, key, keylen, NULL, 0);
    if (rc < 0) {
@@ -270,8 +241,6 @@ static void spacc_cipher_cra_exit(struct crypto_tfm *tfm)
    put_device(tctx->dev);
 }
 
-
-//const struct crypto_alg hbsec_cbc_aes_alg = {
 const struct skcipher_alg spacc_cipher_template = {
    .min_keysize = 8,
    .max_keysize = 32,
