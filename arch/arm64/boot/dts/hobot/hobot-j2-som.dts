@@ -192,8 +192,6 @@
 
 &ethernet {
 	status = "okay";
-	clocks = <&eth0_ephy_2nddiv_clk>, <&eth0_prediv_clk>, <&eth0_div_clk>;
-	clock-names = "phy_ref_clk", "mac_pre_div_clk", "mac_div_clk";
 
 	pinctrl-names = "default";
 	pinctrl-0 = <&eth_func>;
@@ -310,8 +308,6 @@
 };
 
 &temp {
-	clocks = <&temp_sensor_div_clk>;
-	clock-names = "tsensor_clk";
 	status = "okay";
 };
 
