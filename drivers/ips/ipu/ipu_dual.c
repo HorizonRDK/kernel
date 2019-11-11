@@ -719,7 +719,12 @@ long ipu_dual_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 				return -EFAULT;
 			}
 			spin_lock_irqsave(&g_ipu_d_cdev->slock, flags);
-			insert_dual_slot_to_free(slot_id, &g_ipu_d_cdev->s_info);
+			if (insert_dual_slot_to_free(slot_id, &g_ipu_d_cdev->s_info) < 0) {
+				pr_err("mult free bad slot id: %d\n", slot_id);
+				spin_unlock_irqrestore(&g_ipu_d_cdev->slock, flags);
+				mutex_unlock(&ipu_cdev->mutex_lock);
+				return -EFAULT;
+			}
 			tmp_ipu_user->used_slot[slot_id] = 0;
 			spin_unlock_irqrestore(&g_ipu_d_cdev->slock, flags);
 			mutex_unlock(&ipu_cdev->mutex_lock);

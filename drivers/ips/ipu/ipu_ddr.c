@@ -807,7 +807,12 @@ wait:
 				return -EFAULT;
 			}
 			spin_lock_irqsave(&g_ipu_ddr_cdev->slock, flags);
-			insert_slot_to_free(slot_id);
+			if (insert_slot_to_free(slot_id) < 0) {
+				pr_err("free bad slot id: %d\n", slot_id);
+				spin_unlock_irqrestore(&g_ipu_ddr_cdev->slock, flags);
+				mutex_unlock(&ipu_cdev->mutex_lock);
+				return -EFAULT;
+			}
 			tmp_ipu_user->used_slot[slot_id] = 0;
 			spin_unlock_irqrestore(&g_ipu_ddr_cdev->slock, flags);
 			mutex_unlock(&ipu_cdev->mutex_lock);
