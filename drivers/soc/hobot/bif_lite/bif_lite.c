@@ -103,11 +103,15 @@ void *src, addr_t offset, int len)
 	memcpy(dst, src, len);
 #else
 	if (channel->channel == BIF_SPI) {
-		if (bif_spi_write(dst, len, src))
+		if (bif_spi_write(dst, len, src)) {
+			mutex_unlock(&channel->channel_sleep_lock);
 			return -1;
+		}
 	} else if (channel->channel == BIF_SD) {
-		if (bif_sd_write(dst, len, src))
+		if (bif_sd_write(dst, len, src)) {
+			mutex_unlock(&channel->channel_sleep_lock);
 			return -1;
+	}
 	}
 #endif
 	mutex_unlock(&channel->channel_sleep_lock);
@@ -140,12 +144,17 @@ void *dst, addr_t offset, int len)
 	if (channel->type == MCU_AP)
 		swap_bytes_order((unsigned char *)dst, len);
 #else
+
 	if (channel->channel == BIF_SPI) {
-		if (bif_spi_read(src, len, dst))
+		if (bif_spi_read(src, len, dst)) {
+			mutex_unlock(&channel->channel_sleep_lock);
 			return -1;
+		}
 	} else if (channel->channel == BIF_SD) {
-		if (bif_sd_read(src, len, dst))
+		if (bif_sd_read(src, len, dst)) {
+			mutex_unlock(&channel->channel_sleep_lock);
 			return -1;
+	}
 	}
 #endif
 	mutex_unlock(&channel->channel_sleep_lock);
@@ -542,7 +551,7 @@ RING_INFO_ALIGN)];
 #endif
 #ifdef CONFIG_HOBOT_BIF_AP
 	if (channel->hw_trans_error) {
-		pr_info("tx get available delay\n");
+		pr_info("rx get available delay\n");
 		remaining_time = msleep_interruptible(ERROR_SYNC_DELAY);
 		if (remaining_time) {
 			ret = -1;
@@ -807,7 +816,6 @@ struct comm_channel *channel)
 		return 1;
 	}
 #endif
-
 	ret = bif_rx_get_available_buffer(channel, &index, &count);
 #if 0
 	pr_info("ret = %d index = %d count = %d\n", ret, index, count);
