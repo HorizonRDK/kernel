@@ -43,9 +43,6 @@
 #define TX_REFSCLK_DEFAULT       (24)
 #define TX_PLL_INPUT_DIV_MIN     (1)
 #define TX_PLL_INPUT_DIV_MAX     (16)
-#ifdef ADJUST_CLK_RECALCULATION
-#define TX_PLL_INPUT_DIV_DEF     (12)
-#endif
 #define TX_PLL_FB_MULTI_MIN      (64)
 #define TX_PLL_FB_MULTI_MAX      (625)
 #define TX_PLL_INPUT_FEQ_MIN     (2)
@@ -90,8 +87,8 @@
 #define RX_CLK_SETTLE            (0x1 << 4)
 #define RX_HS_SETTLE(s)          (0x80 | ((s) & 0x7F))
 #define RX_SYSTEM_CONFIG         (0x38)
-#define RX_OSCFREQ_HIGH          (0x1)
-#define RX_OSCFREQ_LOW           (0xB6)
+#define RX_OSCFREQ_HIGH(f)       (((f) & 0xF00) >> 8)
+#define RX_OSCFREQ_LOW(f)        ((f) & 0xFF)
 #define RX_OSCFREQ_EN            (0x1)
 
 #define TX_HS_ZERO(s)            (0x80 | ((s) & 0x7F))
@@ -100,7 +97,7 @@
 #define TX_PLL_DIV(n)            (0x80 | ((n) << 3) | 0x2)
 #define TX_PLL_MULTI_L(m)        ((m) & 0xFF)
 #define TX_PLL_MULTI_H(m)        (((m) & 0x300) >> 8)
-#define TX_PLL_VCO(v)            (0x81 | (((v) & 0x1F) << 1))
+#define TX_PLL_VCO(v)            (0x81 | (((v) & 0x3F) << 1))
 #define TX_PLL_CPBIAS            (0x10)
 #define TX_PLL_INT_CTL           (0x4)
 #define TX_PLL_PROP_CNTRL        (0x0C)
@@ -135,9 +132,14 @@ typedef struct _pll_range_table_s {
 } pll_range_table_t;
 
 /* module params */
-unsigned int txout_freq_autolarge_enbale = 1;
+unsigned int txout_freq_autolarge_enbale;
+unsigned int txout_freq_gain_precent = 5;
+unsigned int txout_freq_force;
 
 module_param(txout_freq_autolarge_enbale, uint, 0644);
+module_param(txout_freq_gain_precent, uint, 0644);
+module_param(txout_freq_force, uint, 0644);
+
 
 static const pll_range_table_t g_pll_range_table[] = {
 	{80,   97,  0x00},
@@ -165,160 +167,93 @@ static const pll_range_table_t g_pll_range_table[] = {
 };
 
 typedef struct _pll_sel_table_s {
+	uint16_t     osc_freq;
 	uint16_t     freq;
-#ifdef ADJUST_CLK_RECALCULATION
-	uint16_t     freqmax;
-#endif
 	uint32_t     value;
 } pll_sel_table_t;
 
-#ifndef ADJUST_CLK_RECALCULATION
 static const pll_sel_table_t g_pll_sel_table[] = {
-	{80, 0x00},
-	{90, 0x10},
-	{100, 0x20},
-	{110, 0x30},
-	{120, 0x01},
-	{130, 0x11},
-	{140, 0x21},
-	{150, 0x31},
-	{160, 0x02},
-	{170, 0x12},
-	{180, 0x22},
-	{190, 0x32},
-	{205, 0x03},
-	{220, 0x13},
-	{235, 0x23},
-	{250, 0x33},
-	{275, 0x04},
-	{300, 0x14},
-	{325, 0x25},
-	{350, 0x35},
-	{400, 0x05},
-	{450, 0x16},
-	{500, 0x26},
-	{550, 0x37},
-	{600, 0x07},
-	{650, 0x18},
-	{700, 0x28},
-	{750, 0x39},
-	{800, 0x09},
-	{850, 0x19},
-	{900, 0x29},
-	{950, 0x3A},
-	{1000, 0x0A},
-	{1050, 0x1A},
-	{1100, 0x2A},
-	{1150, 0x3B},
-	{1200, 0x0B},
-	{1250, 0x1B},
-	{1300, 0x2B},
-	{1350, 0x3C},
-	{1400, 0x0C},
-	{1450, 0x1C},
-	{1500, 0x2C},
-	{1550, 0x3D},
-	{1600, 0x0D},
-	{1650, 0x1D},
-	{1700, 0x2D},
-	{1750, 0x3E},
-	{1800, 0x0E},
-	{1850, 0x1E},
-	{1900, 0x2F},
-	{1950, 0x3F},
-	{2000, 0x0F},
-	{2050, 0x40},
-	{2100, 0x41},
-	{2150, 0x42},
-	{2200, 0x43},
-	{2250, 0x44},
-	{2300, 0x45},
-	{2350, 0x46},
-	{2400, 0x47},
-	{2450, 0x48},
-	{2500, 0x49},
+	{438, 80, 0x00},
+	{438, 90, 0x10},
+	{438, 100, 0x20},
+	{438, 110, 0x30},
+	{438, 120, 0x01},
+	{438, 130, 0x11},
+	{438, 140, 0x21},
+	{438, 150, 0x31},
+	{438, 160, 0x02},
+	{438, 170, 0x12},
+	{438, 180, 0x22},
+	{438, 190, 0x32},
+	{438, 205, 0x03},
+	{438, 220, 0x13},
+	{438, 235, 0x23},
+	{438, 250, 0x33},
+	{438, 270, 0x04},
+	{438, 290, 0x14},
+	{438, 310, 0x25},
+	{438, 330, 0x35},
+	{438, 375, 0x05},
+	{438, 425, 0x16},
+	{438, 475, 0x26},
+	{438, 525, 0x37},
+	{438, 575, 0x07},
+	{438, 630, 0x18},
+	{438, 680, 0x28},
+	{438, 720, 0x39},
+	{438, 780, 0x09},
+	{438, 820, 0x19},
+	{438, 880, 0x29},
+	{438, 920, 0x3A},
+	{438, 980, 0x0A},
+	{438, 1020, 0x1A},
+	{438, 1100, 0x2A},
+	{438, 1150, 0x3B},
+	{438, 1200, 0x0B},
+	{438, 1250, 0x1B},
+	{438, 1300, 0x2B},
+	{438, 1350, 0x3C},
+	{438, 1400, 0x0C},
+	{438, 1450, 0x1C},
+	{438, 1500, 0x2C},
+	{271, 1550, 0x3D},
+	{280, 1600, 0x0D},
+	{289, 1650, 0x1D},
+	{298, 1700, 0x2D},
+	{306, 1750, 0x3E},
+	{315, 1800, 0x0E},
+	{324, 1850, 0x1E},
+	{333, 1900, 0x2F},
+	{341, 1950, 0x3F},
+	{350, 2000, 0x0F},
+	{359, 2050, 0x40},
+	{368, 2100, 0x41},
+	{376, 2150, 0x42},
+	{385, 2200, 0x43},
+	{394, 2250, 0x44},
+	{403, 2300, 0x45},
+	{411, 2350, 0x46},
+	{420, 2400, 0x47},
+	{429, 2450, 0x48},
+	{438, 2500, 0x49},
+	{438, 2501, 0x49},
 };
-#else
-static const pll_sel_table_t g_pll_sel_table[] = {
-	{80, 97, 0x00},
-	{90, 107, 0x10},
-	{100, 118, 0x20},
-	{110, 128, 0x30},
-	{120, 139, 0x01},
-	{130, 149, 0x11},
-	{140, 160, 0x21},
-	{150, 170, 0x31},
-	{160, 181, 0x02},
-	{170, 191, 0x12},
-	{180, 202, 0x22},
-	{190, 212, 0x32},
-	{205, 228, 0x03},
-	{220, 244, 0x13},
-	{235, 260, 0x23},
-	{250, 275, 0x33},
-	{275, 301, 0x04},
-	{300, 328, 0x14},
-	{325, 354, 0x25},
-	{350, 380, 0x35},
-	{400, 433, 0x05},
-	{450, 485, 0x16},
-	{500, 538, 0x26},
-	{550, 590, 0x37},
-	{600, 643, 0x07},
-	{650, 695, 0x18},
-	{700, 748, 0x28},
-	{750, 800, 0x39},
-	{800, 853, 0x09},
-	{850, 905, 0x19},
-	{900, 958, 0x29},
-	{950, 1010, 0x3A},
-	{1000, 1063, 0x0A},
-	{1050, 1115, 0x1A},
-	{1100, 1168, 0x2A},
-	{1150, 1220, 0x3B},
-	{1200, 1273, 0x0B},
-	{1250, 1325, 0x1B},
-	{1300, 1378, 0x2B},
-	{1350, 1430, 0x3C},
-	{1400, 1483, 0x0C},
-	{1450, 1535, 0x1C},
-	{1500, 1588, 0x2C},
-	{1550, 1640, 0x3D},
-	{1600, 1693, 0x0D},
-	{1650, 1745, 0x1D},
-	{1700, 1798, 0x2D},
-	{1750, 1850, 0x3E},
-	{1800, 1903, 0x0E},
-	{1850, 1955, 0x1E},
-	{1900, 2008, 0x2F},
-	{1950, 2060, 0x3F},
-	{2000, 2113, 0x0F},
-	{2050, 2165, 0x40},
-	{2100, 2218, 0x41},
-	{2150, 2270, 0x42},
-	{2200, 2323, 0x43},
-	{2250, 2375, 0x44},
-	{2300, 2428, 0x45},
-	{2350, 2480, 0x46},
-	{2400, 2500, 0x47},
-	{2450, 2500, 0x48},
-	{2500, 2500, 0x49},
-};
-#endif
 
-static uint32_t mipi_dphy_clk_range(uint32_t mipiclk)
+static uint32_t mipi_dphy_clk_range(uint32_t mipiclk, uint16_t *osc_freq)
 {
 	uint8_t  index = 0;
-	for (index = 0; index < sizeof(g_pll_sel_table) / sizeof(pll_sel_table_t); index++) {
-#ifndef ADJUST_CLK_RECALCULATION
-		if (mipiclk <= g_pll_sel_table[index].freq) {
-			mipidbg("pll div mipiclk: %d, selected clk: %d, range value: %d",
-					 mipiclk, g_pll_sel_table[index].freq, g_pll_sel_table[index].value);
-#else
-		if (mipiclk >= g_pll_sel_table[index].freq && mipiclk <= g_pll_sel_table[index].freqmax) {
-			mipiinfo("pll div mipiclk: %d, selected clk: %d - %d, range value: %d",
-					mipiclk, g_pll_sel_table[index].freq, g_pll_sel_table[index].freqmax, g_pll_sel_table[index].value);
-#endif
+	for (index = 0; index < (ARRAY_SIZE(g_pll_sel_table) - 1); index++) {
+		if (mipiclk >= g_pll_sel_table[index].freq &&
+			mipiclk < g_pll_sel_table[index + 1].freq) {
+			mipidbg("pll div mipiclk: %d, clk: %d-%d, range: 0x%x",
+			 mipiclk, g_pll_sel_table[index].freq,
+			 g_pll_sel_table[index + 1].freq,
+			 g_pll_sel_table[index].value);
+			if (osc_freq) {
+				mipidbg("pll osc_freq: %d",
+					g_pll_sel_table[index].osc_freq);
+				*osc_freq = g_pll_sel_table[index].osc_freq;
+			}
 			return g_pll_sel_table[index].value;
 		}
 	}
@@ -366,6 +301,7 @@ static void mipi_host_dphy_testdata(uint16_t testcode, uint8_t testdata)
  */
 int32_t mipi_host_dphy_initialize(uint16_t mipiclk, uint16_t lane, uint16_t settle, void __iomem *iomem)
 {
+	uint16_t osc_freq = 438;
 	g_hostmem = iomem;
 
 	mipidbg("mipi host initialize begin");
@@ -379,19 +315,20 @@ int32_t mipi_host_dphy_initialize(uint16_t mipiclk, uint16_t lane, uint16_t sett
 	mipi_host_dphy_testdata(REGS_RX_STARTUP_OVR_4, RX_CLK_SETTLE);
 	mipi_host_dphy_testdata(REGS_RX_STARTUP_OVR_17, RX_HS_SETTLE(settle));
 	/*Configure the D-PHY frequency range*/
-	ips_set_mipi_freqrange(MIPI_HOST_HSFREQRANGE, mipi_dphy_clk_range(mipiclk / lane));
+	ips_set_mipi_freqrange(MIPI_HOST_HSFREQRANGE,
+		mipi_dphy_clk_range(mipiclk / lane, &osc_freq));
 	mipi_host_dphy_testdata(REGS_RX_SYS_7, RX_SYSTEM_CONFIG);
-	mipi_host_dphy_testdata(REGS_RX_LANE0_DDL_4, RX_OSCFREQ_LOW);
-	mipi_host_dphy_testdata(REGS_RX_LANE0_DDL_5, RX_OSCFREQ_HIGH);
+	mipi_host_dphy_testdata(REGS_RX_LANE0_DDL_4, RX_OSCFREQ_LOW(osc_freq));
+	mipi_host_dphy_testdata(REGS_RX_LANE0_DDL_5, RX_OSCFREQ_HIGH(osc_freq));
 	mipi_host_dphy_testdata(REGS_RX_LANE0_DDL_6, RX_OSCFREQ_EN);
-	mipi_host_dphy_testdata(REGS_RX_LANE1_DDL_4, RX_OSCFREQ_LOW);
-	mipi_host_dphy_testdata(REGS_RX_LANE1_DDL_5, RX_OSCFREQ_HIGH);
+	mipi_host_dphy_testdata(REGS_RX_LANE1_DDL_4, RX_OSCFREQ_LOW(osc_freq));
+	mipi_host_dphy_testdata(REGS_RX_LANE1_DDL_5, RX_OSCFREQ_HIGH(osc_freq));
 	mipi_host_dphy_testdata(REGS_RX_LANE1_DDL_6, RX_OSCFREQ_EN);
-	mipi_host_dphy_testdata(REGS_RX_LANE2_DDL_4, RX_OSCFREQ_LOW);
-	mipi_host_dphy_testdata(REGS_RX_LANE2_DDL_5, RX_OSCFREQ_HIGH);
+	mipi_host_dphy_testdata(REGS_RX_LANE2_DDL_4, RX_OSCFREQ_LOW(osc_freq));
+	mipi_host_dphy_testdata(REGS_RX_LANE2_DDL_5, RX_OSCFREQ_HIGH(osc_freq));
 	mipi_host_dphy_testdata(REGS_RX_LANE2_DDL_6, RX_OSCFREQ_EN);
-	mipi_host_dphy_testdata(REGS_RX_LANE3_DDL_4, RX_OSCFREQ_LOW);
-	mipi_host_dphy_testdata(REGS_RX_LANE3_DDL_5, RX_OSCFREQ_HIGH);
+	mipi_host_dphy_testdata(REGS_RX_LANE3_DDL_4, RX_OSCFREQ_LOW(osc_freq));
+	mipi_host_dphy_testdata(REGS_RX_LANE3_DDL_5, RX_OSCFREQ_HIGH(osc_freq));
 	mipi_host_dphy_testdata(REGS_RX_LANE3_DDL_6, RX_OSCFREQ_EN);
 
 	return 0;
@@ -456,28 +393,32 @@ static const pll_range_table_t g_vco_range_table[] = {
 	{40,   55,   0x3F},
 };
 
-static uint32_t mipi_tx_vco_range(uint16_t vcoclk, uint16_t *vcomax)
+static uint32_t mipi_tx_vco_range(uint16_t outclk, uint16_t *outmax)
 {
 	uint8_t  index = 0;
-	for (index = 0; index < sizeof(g_vco_range_table) / sizeof(pll_range_table_t); index++) {
-		if (vcoclk >= g_vco_range_table[index].low && vcoclk <= g_vco_range_table[index].high) {
-			mipidbg("vcoclk: %d, selected range: %d-%d, range value: %d",
-					 vcoclk, g_vco_range_table[index].low, g_vco_range_table[index].high, g_vco_range_table[index].value);
-			*vcomax = g_vco_range_table[index].high;
+	for (index = 0; index < ARRAY_SIZE(g_vco_range_table); index++) {
+		if (outclk >= g_vco_range_table[index].low &&
+			outclk <= g_vco_range_table[index].high) {
+			mipidbg("outclk: %d, selected: %d-%d, range: %d",
+				outclk, g_vco_range_table[index].low,
+				g_vco_range_table[index].high,
+				g_vco_range_table[index].value);
+			*outmax = g_vco_range_table[index].high;
 			return g_vco_range_table[index].value;
 		}
 	}
-	mipidbg("vco clock %d not supported", vcoclk);
+	mipidbg("out clock %d not supported", outclk);
 	return 0;
 }
 
 static int32_t mipi_tx_pll_div(uint16_t refsclk, uint16_t laneclk, uint8_t *n, uint16_t *m, uint16_t *vco)
 {
-	uint16_t n_tmp = TX_PLL_INPUT_DIV_MIN;
+	int32_t vco_tmp = 0;
+	uint16_t n_tmp = TX_PLL_INPUT_DIV_MAX;
 	uint16_t m_tmp = TX_PLL_FB_MULTI_MIN;
 	uint16_t fout = 0;
 	uint16_t fvco = 0;
-	uint16_t fvco_max = 0;
+	uint16_t fout_max = 0;
 	uint16_t vco_div = 0;
 	uint16_t outclk = 0;
 	if (!refsclk || !laneclk || NULL == n || NULL == m) {
@@ -485,64 +426,51 @@ static int32_t mipi_tx_pll_div(uint16_t refsclk, uint16_t laneclk, uint8_t *n, u
 		return 0;
 	}
 	fout = laneclk >> 1; /* data rate(Gbps) = PLL Fout(GHz)*2 */
-	if (fout >= 320  && fout <= 1250) {
-		vco_div = 0;
-	} else if (fout >= 160  && fout < 320) {
-		vco_div = 1;
-	} else if (fout >= 80  && fout < 160) {
-		vco_div = 2;
-	} else if (fout >= 40  && fout < 80) {
-		vco_div = 3;
-	} else {
+	vco_tmp = mipi_tx_vco_range(fout, &fout_max);
+	if (vco_tmp == 0) {
 		mipierr("pll output clk error!!! laneclk: %d", laneclk);
 		return 0;
 	}
+	if (txout_freq_autolarge_enbale) {
+		mipidbg("txout freq autolarge to %dMHz\n", fout_max);
+		fout = fout_max;
+		laneclk = fout << 1;
+	}
+	vco_div = (vco_tmp >> 4) & 0x3;
 	fvco = fout << vco_div;
 	if ((TX_PLL_INPUT_FEQ_MIN > refsclk / TX_PLL_INPUT_DIV_MIN) ||
 		(TX_PLL_INPUT_FEQ_MAX < refsclk / TX_PLL_INPUT_DIV_MAX)) {
 		mipierr("pll parameter error!!! refsclk: %d, laneclk: %d", refsclk, laneclk);
 		return 0;
 	}
-#ifndef ADJUST_CLK_RECALCULATION
-	while (TX_PLL_INPUT_FEQ_MIN * n_tmp <= refsclk)
-		n_tmp++;
-
-	n_tmp -= 1;
-	outclk = refsclk / n_tmp;
-	while ((outclk * m_tmp) <= fvco) {
-		m_tmp++;
+	while (n_tmp >= TX_PLL_INPUT_DIV_MIN) {
+		if (refsclk / n_tmp < TX_PLL_INPUT_FEQ_MIN) {
+			n_tmp--;
+			continue;
+		}
+		m_tmp = fvco * n_tmp / refsclk;
+		if (m_tmp >= TX_PLL_FB_MULTI_MIN &&
+			m_tmp < TX_PLL_FB_MULTI_MAX) {
+			m_tmp++;
+			break;
+		}
+		n_tmp--;
 	}
-#else
-	n_tmp = TX_PLL_INPUT_DIV_DEF;
-	outclk = refsclk / n_tmp;
-	while ((outclk * m_tmp) <= fvco) {
-		m_tmp++;
+	if (n_tmp < TX_PLL_INPUT_DIV_MIN) {
+		mipierr("pll output clk error!!! fvco: %d, refsclk: %d",
+			fvco, refsclk);
+		return 0;
 	}
-#endif
-	m_tmp -= 1;
+	*vco = vco_tmp;
 	*n = n_tmp - 1;
-	//*n = n_tmp - 2; /*device's clk must be higher than host's clk*/
 	*m = m_tmp - 2;
 	fvco = (refsclk * (*m + 2)) / (*n + 1);
 	fout = fvco >> vco_div;
-#ifndef ADJUST_CLK_RECALCULATION
-	*vco = mipi_tx_vco_range(fvco, &fvco_max);
-	if (txout_freq_autolarge_enbale)
-		*m = fvco_max * (*n + 1) / refsclk - 2;
-
-#else
-	*vco = mipi_tx_vco_range(fout, &fvco_max);
-	//!1 for case rx&tx freq same, and rx already taken >95% bandwidth
-	//!0 for other case. tx>=rx>> 80%bandwidth, e.g.
-	//make tx freq fixed 400M for TI ser.
-	if (txout_freq_autolarge_enbale) {
-		mipidbg("txout freq autolarge enbaled\n");
-		*m = (fvco_max << vco_div) * (*n + 1) / refsclk - 2;
-	}
-#endif
 	outclk = fout << 1;
-	mipidbg("pll div refsclk: %d, laneclk: %d, n: %d, m: %d, outclk: %d",
-			 refsclk, laneclk, *n, *m, outclk);
+	mipidbg("pll div refsclk: %d, laneclk: %dMbps, n: %d, m: %d",
+			 refsclk, laneclk, *n, *m);
+	mipidbg("pll vco: %d, outclk: %dMbps(%dMHz)",
+			 *vco, outclk, fout);
 	return outclk;
 }
 
@@ -563,6 +491,18 @@ int32_t mipi_dev_dphy_initialize(void __iomem *iomem, uint16_t mipiclk, uint16_t
 
 	mipidbg("mipi device initialize dphy begin");
 
+	if (txout_freq_force >= 40) {
+		mipidbg("txout freq force as %dMHz", txout_freq_force);
+		mipiclk = txout_freq_force * 2 * lane;
+	} else if (txout_freq_gain_precent) {
+		outclk = mipiclk * (100 + txout_freq_gain_precent) / 100;
+		mipidbg("txout freq %dMHz gain %d%c to %dMHz",
+			mipiclk / lane / 2,
+			txout_freq_gain_precent, '%',
+			outclk / lane / 2);
+		mipiclk = outclk;
+	}
+
 	/*Configure the D-PHY PLL*/
 	mipi_putreg(g_devmem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_RESETN);
 	/*Ensure that testclk and testen is set to low*/
@@ -572,7 +512,8 @@ int32_t mipi_dev_dphy_initialize(void __iomem *iomem, uint16_t mipiclk, uint16_t
 		return -1;
 	}
 	/*Configure the D-PHY frequency range*/
-	ips_set_mipi_freqrange(MIPI_DEV_HSFREQRANGE, mipi_dphy_clk_range(mipiclk / lane));
+	ips_set_mipi_freqrange(MIPI_DEV_HSFREQRANGE,
+		mipi_dphy_clk_range(outclk, NULL));
 
 	mipi_dev_dphy_testdata(REGS_TX_SLEW_5, TX_SLEW_RATE_CAL);
 	mipi_dev_dphy_testdata(REGS_TX_SLEW_7, TX_SLEW_RATE_CTL);
