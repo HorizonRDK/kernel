@@ -21,8 +21,22 @@
 #include <linux/gfp.h>
 #include <linux/slab.h>
 #include "acamera_firmware_config.h"
+#include "acamera_fw.h"
+#include "acamera_command_api.h"
 #include <asm/io.h>
 #include "hobot_isp_reg_dma_regset.h"
+
+#define	BIT_FIELD_MASK(m, n)	((~0U >> (BITS_PER_LONG - (n - m + 1))) << m)
+
+// for register read/write
+struct regs_t {
+        uint32_t addr;
+        uint8_t m;
+        uint8_t n;
+        uint32_t v;
+};
+
+extern void *acamera_get_api_ctx_ptr(void);
 
 #if HOBOT_REGISTER_MONITOR
 #include <linux/fs.h>
@@ -34,8 +48,6 @@
 #define HRM_RC_SW_BASE   0x22200000
 #define HRM_RC_DMA_START 0x33310000
 #define HRM_RC_DMA_END   0x33320000
-
-
 
 #define MAX_SW_ISP_BASE 4
 typedef struct _sw_isp_base_t {
@@ -384,4 +396,20 @@ void system_sw_write_8( uintptr_t addr, uint8_t data )
     } else {
         LOG( LOG_ERR, "Failed to write %d to memory 0x%x. Base pointer is null ", data, addr );
     }
+}
+
+void system_reg_rw(struct regs_t *rg, uint8_t dir)
+{
+	acamera_context_ptr_t context_ptr = (acamera_context_ptr_t)acamera_get_api_ctx_ptr();
+        uintptr_t sw_addr = context_ptr->settings.isp_base + rg->addr;
+        uint32_t data = system_sw_read_32(sw_addr);
+	uint32_t mask = BIT_FIELD_MASK(rg->m, rg->n);
+
+	if (dir == COMMAND_SET) {
+		data = (data & ~mask) | (rg->v << rg->m);
+		system_sw_write_32(sw_addr, data);
+	} else if (dir == COMMAND_GET) {
+		data &= mask;
+		rg->v = data >> rg->m;
+	}
 }

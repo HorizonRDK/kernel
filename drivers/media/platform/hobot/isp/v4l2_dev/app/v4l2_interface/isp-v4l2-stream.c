@@ -595,6 +595,7 @@ int isp_v4l2_stream_init( isp_v4l2_stream_t **ppstream, int stream_id, int ctx_i
     return 0;
 }
 
+void dma_writer_clear(uint32_t ctx_id);
 void isp_v4l2_stream_deinit( isp_v4l2_stream_t *pstream )
 {
     if ( !pstream ) {
@@ -603,6 +604,8 @@ void isp_v4l2_stream_deinit( isp_v4l2_stream_t *pstream )
     }
 
     LOG( LOG_INFO, "[Stream#%d] Deinitializing stream ...", pstream->stream_id );
+
+dma_writer_clear(pstream->ctx_id);
 
     /* do stream-off first if it's on */
     isp_v4l2_stream_off( pstream );

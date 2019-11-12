@@ -31,9 +31,38 @@
 #include "system_chardev.h"
 #include "acamera_logger.h"
 #include "acamera_tuning.h"
+#include "acamera_command_api.h"
 
 #define SYSTEM_CHARDEV_FIFO_SIZE 4096
 #define SYSTEM_CHARDEV_NAME "ac_isp"
+
+#define ISPIOC_REG_RW   _IOWR('P', 0, struct metadata_t)
+#define ISPIOC_LUT_RW   _IOWR('P', 1, struct metadata_t)
+#define ISPIOC_COMMAND  _IOWR('P', 2, struct metadata_t)
+
+#define CHECK_CODE	0xeeff
+
+struct metadata_t {
+        void *ptr;
+        uint8_t chn;
+        uint8_t dir;
+        uint8_t id;
+        uint32_t elem;
+};
+
+// for register
+struct regs_t {
+        uint32_t addr;
+        uint8_t m;
+        uint8_t n;
+        uint32_t v;
+};
+
+// for command
+struct kv_t {
+        uint32_t k;
+        uint32_t v;
+};
 
 typedef struct _isp_packet_s {
         uint32_t buf[5];
@@ -59,6 +88,9 @@ struct isp_dev_context {
     wait_queue_head_t kfifo_in_queue;
     wait_queue_head_t kfifo_out_queue;
 };
+
+extern int32_t acamera_set_api_context(uint32_t ctx_num);
+extern void system_reg_rw(struct regs_t *rg, uint8_t dir);
 
 /* First item for ACT Control, second for user-FW */
 static struct isp_dev_context isp_dev_ctx;
@@ -216,7 +248,7 @@ static ssize_t isp_fops_read( struct file *file, char __user *buf, size_t count,
     return rc ? rc : copied;
 }
 
-static long isp_fops_ioctl(struct file *pfile, unsigned int cmd,
+static long isp_fops_ioctl_bak(struct file *pfile, unsigned int cmd,
 	unsigned long arg)
 {
 	long ret = 0;
@@ -285,6 +317,128 @@ err_flag:
 	return ret;
 }
 
+static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+{
+	uint32_t ret_value = 0, s = 0;
+        uint8_t i = 0, type = 0xff;
+	struct metadata_t md;
+	struct metadata_t *pmd = (struct metadata_t *)arg;
+	struct kv_t *kv;
+	struct regs_t *rg;
+	long ret = 0;
+
+	if (!isp_dev_ctx.dev_inited) {
+		LOG(LOG_ERR, "dev is not inited, failed to ioctl.");
+		return -1;
+	}
+
+	mutex_lock(&isp_dev_ctx.fops_lock);
+
+	if (copy_from_user(&md, (void __user *)arg, sizeof(md)))
+		return -EFAULT;
+
+	acamera_set_api_context(md.chn);
+
+	switch (cmd) {
+	case ISPIOC_REG_RW:
+		s = md.elem * sizeof(struct regs_t);
+		md.ptr = kzalloc(s, GFP_KERNEL);
+
+		if (copy_from_user(md.ptr, pmd->ptr, s)) {
+			ret = -EFAULT;
+			break;
+		}
+
+		rg = md.ptr;
+
+		for (i = 0; i < md.elem; i++) {
+			system_reg_rw(&rg[i], md.dir);
+//test
+printk("[%d] reg %x\n", i, rg[i].v);
+//end
+		}
+
+		if (md.dir == COMMAND_GET) {
+			if (copy_to_user(pmd->ptr, md.ptr, s)) {
+				ret = -EFAULT;
+				break;
+			}
+		}
+
+		break;
+
+	case ISPIOC_LUT_RW:
+		s = md.elem * sizeof(uint16_t);
+		md.ptr = kzalloc(s, GFP_KERNEL);
+
+		if (copy_from_user(md.ptr, pmd->ptr, s)) {
+			ret = -EFAULT;
+			break;
+		}
+//test
+{
+int i;
+for (i = 0; i < md.elem / sizeof(uint16_t); i++)
+printk("[%d] chn:%d, dir:%d, id:%x, v:%x\n", i, md.chn, md.dir, md.id, ((uint16_t *)(md.ptr))[i]);
+}
+//end
+		ret = acamera_api_calibration(md.chn, 0, md.id, md.dir, md.ptr, md.elem, &ret_value);
+
+		if (ret == SUCCESS && md.dir == COMMAND_GET) {
+			if (copy_to_user(pmd->ptr, md.ptr, s)) {
+				ret = -EFAULT;
+				break;
+			}
+		}
+
+		break;
+
+	case ISPIOC_COMMAND:
+		s = md.elem * sizeof(struct kv_t);
+		md.ptr = kzalloc(s, GFP_KERNEL);
+
+		if (copy_from_user(md.ptr, pmd->ptr, s)) {
+			ret = -EFAULT;
+			break;
+		}
+
+		kv = md.ptr;
+
+		for (i = 0; i < md.elem; i++) {
+//test
+printk("[%d] chn:%d, dir:%d, id:%x, v:%x\n", i, md.chn, md.dir, kv[i].k, kv[i].v);
+//end
+			if (kv[i].v == CHECK_CODE) {
+				type = kv[i].k;
+				continue;
+			}
+
+			ret = acamera_command(md.chn, type, kv[i].k, kv[i].v, md.dir, &ret_value);
+
+			if (ret == SUCCESS && md.dir == COMMAND_GET)
+				kv[i].v = ret_value;
+		}
+
+		if (md.dir == COMMAND_GET) {
+			if (copy_to_user(pmd->ptr, md.ptr, s)) {
+				ret = -EFAULT;
+				break;
+			}
+		}
+
+		break;
+
+	default:
+		LOG(LOG_ERR, "command %d not support.\n", cmd);
+		break;
+	}
+
+	kfree(md.ptr);
+
+	mutex_unlock(&isp_dev_ctx.fops_lock);
+
+	return ret;
+}
 
 static struct file_operations isp_fops = {
 	.owner = THIS_MODULE,
