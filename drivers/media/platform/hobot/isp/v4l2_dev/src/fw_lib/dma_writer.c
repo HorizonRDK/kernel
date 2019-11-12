@@ -26,6 +26,7 @@
 #include "acamera_isp_config.h"
 #include "acamera.h"
 #include "acamera_fw.h"
+#include "dma_writer_fsm.h"
 
 
 #if defined( CUR_MOD_NAME)
@@ -319,6 +320,26 @@ static int dma_writer_configure_pipe( dma_pipe *pipe )
     dma_writer_configure_frame_writer( pipe, &curr_frame->secondary, secondary_ops );
 
     return 0;
+}
+
+extern void *acamera_get_ctx_ptr(uint32_t ctx_id);
+void dma_writer_clear(uint32_t ctx_id)
+{
+	acamera_context_t *ptr = (acamera_context_t *)acamera_get_ctx_ptr(ctx_id);
+	acamera_fsm_mgr_t *fsm_mgr = &(ptr->fsm_mgr);
+	dma_writer_fsm_t *dma_fsm;
+	dma_handle *dh;
+
+	dma_fsm = (dma_writer_fsm_t *)fsm_mgr->fsm_arr[FSM_ID_DMA_WRITER]->p_fsm;
+
+	dh = (dma_handle *)dma_fsm->handle;
+
+	dh->pipe[dma_fr].settings.curr_frame.primary.status = dma_buf_purge;
+	dh->pipe[dma_fr].settings.curr_frame.secondary.status = dma_buf_purge;
+	dh->pipe[dma_fr].settings.done_frame.primary.status = dma_buf_purge;
+	dh->pipe[dma_fr].settings.done_frame.secondary.status = dma_buf_purge;
+	dh->pipe[dma_fr].settings.delay_frame.primary.status = dma_buf_purge;
+	dh->pipe[dma_fr].settings.delay_frame.secondary.status = dma_buf_purge;
 }
 
 static dma_handle s_handle[FIRMWARE_CONTEXT_NUMBER];
