@@ -82,5 +82,10 @@
     "106": {
         "dtb_name"  :   "hobot-x2-dev-512m.dtb",
         "gpio_id"   :   "0"
+    },
+
+    "107": {
+        "dtb_name"  :   "hobot-x2-xiaomi.dtb",
+        "gpio_id"   :   "0"
     }
 }

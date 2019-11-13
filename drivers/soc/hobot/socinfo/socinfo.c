@@ -50,7 +50,8 @@ struct hobot_board_info board_of_id[] = {
 	[17] = {X2_SOMFULL, "X2-SOMFULL"},
 	[18] = {X2_96BOARD, "X2_96BOARD"},
 	[19] = {X2_DEV512M, "X2-DEV512M"},
-	[20] = {Unknown, "Unknown"},
+	[20] = {X2_XIAOMI, "X2-XIAOMI"},
+	[21] = {Unknown, "Unknown"},
 };
 
 static int parse_boardid(uint32_t board_id)

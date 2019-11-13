@@ -14,6 +14,7 @@ dtb-$(CONFIG_X2_SOC)  += hobot-j2-sk.dtb
 dtb-$(CONFIG_X2_SOC)  += hobot-j2-sam.dtb
 dtb-$(CONFIG_X2_SOC)  += hobot-x2-96board.dtb
 dtb-$(CONFIG_X2_SOC)  += hobot-j2-mono-lite.dtb
+dtb-$(CONFIG_X2_SOC)  += hobot-x2-xiaomi.dtb
 always		:= $(dtb-y)
 subdir-y	:= $(dts-dirs)
 clean-files	:= *.dtb
