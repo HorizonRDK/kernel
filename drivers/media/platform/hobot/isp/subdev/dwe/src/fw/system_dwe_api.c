@@ -51,33 +51,61 @@ struct mutex mc_mutex;
 //used by gdc model
 //model 0: gdc_0  1: gdc_1
 //enable 0: disabel 1: enable
-void init_gdc0_status(uint32_t model, uint32_t *enable)
+void read_gdc0_status(uint32_t model, uint32_t *enable)
 {
 	if (dev_ptr != NULL)
 		get_gdc_status(dev_ptr->dis_dev->io_vaddr, enable);
 }
-EXPORT_SYMBOL(init_gdc0_status);
+EXPORT_SYMBOL(read_gdc0_status);
 
-void init_gdc0_mask(uint32_t model, uint32_t *enable)
+void write_gdc0_status(uint32_t model, uint32_t *enable)
+{
+	if (dev_ptr != NULL)
+		set_gdc_status(dev_ptr->dis_dev->io_vaddr, enable);
+}
+EXPORT_SYMBOL(write_gdc0_status);
+
+void write_gdc0_mask(uint32_t model, uint32_t *enable)
 {
 	if (dev_ptr != NULL)
 		set_gdc_mask(dev_ptr->dis_dev->io_vaddr, enable);
 }
-EXPORT_SYMBOL(init_gdc0_mask);
+EXPORT_SYMBOL(write_gdc0_mask);
 
-void init_gdc1_status(uint32_t model, uint32_t *enable)
+void read_gdc0_mask(uint32_t model, uint32_t *enable)
+{
+	if (dev_ptr != NULL)
+		get_gdc_mask(dev_ptr->dis_dev->io_vaddr, enable);
+}
+EXPORT_SYMBOL(read_gdc0_mask);
+
+void read_gdc1_status(uint32_t model, uint32_t *enable)
 {
 	if (dev_ptr != NULL)
 		get_gdc_status(dev_ptr->dis_dev->io_vaddr, enable);
 }
-EXPORT_SYMBOL(init_gdc1_status);
+EXPORT_SYMBOL(read_gdc1_status);
 
-void init_gdc1_mask(uint32_t model, uint32_t *enable)
+void write_gdc1_status(uint32_t model, uint32_t *enable)
+{
+	if (dev_ptr != NULL)
+		set_gdc_status(dev_ptr->dis_dev->io_vaddr, enable);
+}
+EXPORT_SYMBOL(write_gdc1_status);
+
+void write_gdc1_mask(uint32_t model, uint32_t *enable)
 {
 	if (dev_ptr != NULL)
 		set_gdc_mask(dev_ptr->dis_dev->io_vaddr, enable);
 }
-EXPORT_SYMBOL(init_gdc1_mask);
+EXPORT_SYMBOL(write_gdc1_mask);
+
+void read_gdc1_mask(uint32_t model, uint32_t *enable)
+{
+	if (dev_ptr != NULL)
+		get_gdc_mask(dev_ptr->dis_dev->io_vaddr, enable);
+}
+EXPORT_SYMBOL(read_gdc1_mask);
 
 void printk_ldcparam(ldc_param_s *pldc)
 {

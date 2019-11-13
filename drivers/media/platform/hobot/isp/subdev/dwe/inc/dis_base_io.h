@@ -382,10 +382,22 @@ static __inline void set_gdc_mask(const char __iomem *regbase,
         dwe_write_32reg(regbase, DWE_INT_GDC_MASK, gdc_mask);
 }
 
+static __inline void get_gdc_mask(const char __iomem *regbase,
+	uint32_t *gdc_mask)
+{
+        dwe_read_32reg(regbase, DWE_INT_GDC_MASK, gdc_mask);
+}
+
 static __inline void get_gdc_status(const char __iomem *regbase,
 	uint32_t *gdc_status)
 {
         dwe_read_32reg(regbase, DWE_INT_GDC_STATUS, gdc_status);
+}
+
+static __inline void set_gdc_status(const char __iomem *regbase,
+	uint32_t *gdc_status)
+{
+        dwe_write_32reg(regbase, DWE_INT_GDC_STATUS, gdc_status);
 }
 
 #endif /* __DWE_BASE_IO_H__ */
