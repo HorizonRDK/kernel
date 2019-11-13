@@ -858,6 +858,8 @@ int isp_v4l2_stream_try_format( isp_v4l2_stream_t *pstream, struct v4l2_format *
     for ( i = 0; i < tfmt->planes; i++ ) {
         f->fmt.pix_mp.plane_fmt[i].bytesperline = ( ( ( f->fmt.pix_mp.width * tfmt->depth / 8 ) + 127 ) >> 7 ) << 7; // for padding
         f->fmt.pix_mp.plane_fmt[i].sizeimage = f->fmt.pix_mp.height * f->fmt.pix_mp.plane_fmt[i].bytesperline;
+        if (i == 1 && f->fmt.pix_mp.pixelformat == V4L2_PIX_FMT_NV12)
+		f->fmt.pix_mp.plane_fmt[i].sizeimage = f->fmt.pix_mp.plane_fmt[i].sizeimage / 2;
         memset( f->fmt.pix_mp.plane_fmt[i].reserved, 0, sizeof( f->fmt.pix_mp.plane_fmt[i].reserved ) );
         memset( f->fmt.pix_mp.reserved, 0, sizeof( f->fmt.pix_mp.reserved ) );
     }
