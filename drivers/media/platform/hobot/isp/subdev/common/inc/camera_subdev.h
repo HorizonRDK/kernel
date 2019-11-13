@@ -28,6 +28,10 @@ typedef struct sensor_priv {
 
 typedef struct sensor_data {
 	uint32_t  gain_type;
+	uint32_t  line_type;
+	uint32_t  step_gain;
+	uint32_t  again_prec;
+	uint32_t  dgain_prec;
 	uint32_t  VMAX;
 	uint32_t  HMAX;
 	uint32_t  FSC_DOL2;
@@ -60,10 +64,16 @@ struct sensor_arg {
 typedef struct dol3_s {
 	uint32_t s_gain;
 	uint32_t s_gain_length;
+	uint32_t sd_gain;
+	uint32_t sd_gain_length;
 	uint32_t m_gain;
 	uint32_t m_gain_length;
+	uint32_t md_gain;
+	uint32_t md_gain_length;
 	uint32_t l_gain;
 	uint32_t l_gain_length;
+	uint32_t ld_gain;
+	uint32_t ld_gain_length;
 	uint32_t s_line;
 	uint32_t s_line_length;
 	uint32_t m_line;
@@ -75,8 +85,12 @@ typedef struct dol3_s {
 typedef struct dol2_s {
 	uint32_t s_gain;
     uint32_t s_gain_length;
+	uint32_t sd_gain;
+	uint32_t sd_gain_length;
 	uint32_t m_gain;
 	uint32_t m_gain_length;
+	uint32_t md_gain;
+	uint32_t md_gain_length;
 	uint32_t s_line;
 	uint32_t s_line_length;
 	uint32_t m_line;
@@ -86,6 +100,8 @@ typedef struct dol2_s {
 typedef struct normal_s {
 	uint32_t s_gain;
 	uint32_t s_gain_length;
+	uint32_t sd_gain;
+	uint32_t sd_gain_length;
 	uint32_t s_line;
 	uint32_t s_line_length;
 }normal_t;
@@ -97,6 +113,7 @@ typedef struct sensor_turning_data {
     uint32_t  bus_num;
 	uint32_t  bus_type;
 	uint32_t  reg_width;
+	uint32_t  chip_id;
 	uint32_t  mode;
 	uint32_t  cs;
 	uint32_t  spi_mode;

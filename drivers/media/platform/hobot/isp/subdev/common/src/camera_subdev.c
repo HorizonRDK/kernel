@@ -138,7 +138,7 @@ static int32_t camera_subdev_probe(struct platform_device *pdev)
 	camera_ctx->camera.flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
 
 	snprintf(camera_ctx->camera.name, V4L2_SUBDEV_NAME_SIZE,
-		"%s%d", V4L2_CAMERA_NAME);
+		"%s", V4L2_CAMERA_NAME);
 
 	camera_ctx->camera.dev = &pdev->dev;
 	ret = v4l2_async_register_subdev(&camera_ctx->camera);

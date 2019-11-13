@@ -46,14 +46,16 @@ void camera_sys_printk_disturing(sensor_turning_data_t *turing_param)
 		turing_param->normal.s_line_length);
 }
 int camera_sys_write(uint32_t port, uint32_t reg_addr,
-		uint32_t reg_width, const char *buf, uint32_t length)
+		uint32_t reg_width, char *buf, uint32_t length)
 {
 	int ret = 0;
+	uint32_t chip_id;
+	chip_id = camera_mod[port]->camera_param.chip_id;
 
 	if(camera_mod[port]->camera_param.bus_type == I2C_BUS) {
 		ret = camera_i2c_write(port, reg_addr, reg_width, buf, length);
 	} else if (camera_mod[port]->camera_param.bus_type == SPI_BUS) {
-		ret = camera_spi_write(port, buf, length);
+		ret = camera_spi_write(port, chip_id, reg_width, reg_addr, buf, length);
 	}
 
 	return ret;
@@ -85,21 +87,33 @@ int camera_sys_alloc_intergration_time(uint32_t port,
 	return ret;
 }
 
-static int camera_sys_set_normal_gain(uint32_t port, uint32_t *input_gain)
+static int camera_sys_set_normal_gain(uint32_t port, uint32_t *input_gain,
+			uint32_t *dinput_gain)
 {
-	char gain_d[3] = {0};
+	char a_gain[3] = {0};
+	char dig_gain[3] = {0};
 	char rev_d[3] = {0};
 	int ret = 0;
-	uint32_t reg_width, s_gain, s_gain_length;
+	uint32_t reg_width, s_gain, s_gain_length, sd_gain, sd_gain_length;
 
 	reg_width = camera_mod[port]->camera_param.reg_width;
 	s_gain = camera_mod[port]->camera_param.normal.s_gain;
 	s_gain_length = camera_mod[port]->camera_param.normal.s_gain_length;
+	sd_gain = camera_mod[port]->camera_param.normal.sd_gain;
+	sd_gain_length = camera_mod[port]->camera_param.normal.sd_gain_length;
 
-	gain_d[0] = (char)(input_gain[0] & 0xff);
-	gain_d[1] = (char)((input_gain[0] >> 8) & 0xff);
-	gain_d[2] = (char)((input_gain[0] >> 16) & 0xff);
-	ret = camera_sys_write(port, s_gain, reg_width, gain_d, s_gain_length);
+	a_gain[0] = (char)(input_gain[0] & 0xff);
+	a_gain[1] = (char)((input_gain[0] >> 8) & 0xff);
+	a_gain[2] = (char)((input_gain[0] >> 16) & 0xff);
+	if(sd_gain == 0) {
+		ret = camera_sys_write(port, s_gain, reg_width, a_gain, s_gain_length);
+	} else {
+		dig_gain[0] = (char)(dinput_gain[0] & 0xff);
+		dig_gain[1] = (char)((dinput_gain[0] >> 8) & 0xff);
+		dig_gain[2] = (char)((dinput_gain[0] >> 16) & 0xff);
+		ret = camera_sys_write(port, s_gain, reg_width, a_gain, s_gain_length);
+		ret = camera_sys_write(port, sd_gain, reg_width, dig_gain, sd_gain_length);
+	}
 	// ret = camera_i2c_read(port, s_gain, reg_width, rev_d, s_gain_length);
 	// pr_info("rev_d[0] 0x%x rev_d[1] 0x%x rev_d[2] 0x%x\n",
 	// rev_d[0], rev_d[1], rev_d[2]);
@@ -117,10 +131,6 @@ static int camera_sys_set_normal_line(uint32_t port, uint32_t *input_line)
 	s_line = camera_mod[port]->camera_param.normal.s_line;
 	s_line_length = camera_mod[port]->camera_param.normal.s_line_length;
 
-	if(camera_mod[port]->camera_param.sensor_data.VMAX != 0) {
-		 input_line[0] = camera_mod[port]->camera_param.sensor_data.VMAX
-			 - 1 - input_line[0];
-	}
 	line_d[0] = (char)(input_line[0] & 0xff);
 	line_d[1] = (char)((input_line[0] >> 8) & 0xff);
 	line_d[2] = (char)((input_line[0] >> 16) & 0xff);
@@ -129,28 +139,51 @@ static int camera_sys_set_normal_line(uint32_t port, uint32_t *input_line)
 }
 
 static int camera_sys_set_dol2_gain(uint32_t port, uint32_t gain_num,
-		uint32_t *input_gain)
+		uint32_t *input_gain, uint32_t *dinput_gain)
 {
-	char gain_d[3] = {0};
+	char a_gain[3] = {0};
+	char dig_gain[3] = {0};
 	int ret = 0;
 	uint32_t reg_width, s_gain_length, m_gain_length, s_gain, m_gain;
+	uint32_t sd_gain, sd_gain_length, md_gain, md_gain_length;
 
 	reg_width = camera_mod[port]->camera_param.reg_width;
 	s_gain = camera_mod[port]->camera_param.dol2.s_gain;
+	sd_gain = camera_mod[port]->camera_param.dol2.sd_gain;
 	m_gain = camera_mod[port]->camera_param.dol2.m_gain;
+	md_gain = camera_mod[port]->camera_param.dol2.md_gain;
+
 	s_gain_length = camera_mod[port]->camera_param.dol2.s_gain_length;
+	sd_gain_length = camera_mod[port]->camera_param.dol2.sd_gain_length;
 	m_gain_length = camera_mod[port]->camera_param.dol2.m_gain_length;
+	md_gain_length = camera_mod[port]->camera_param.dol2.md_gain_length;
 	switch (gain_num) {
 		case 2:  // m_gain
-			gain_d[0] = (char)(input_gain[1] & 0xff);
-			gain_d[1] = (char)((input_gain[1] >> 8) & 0xff);
-			gain_d[2] = (char)((input_gain[1] >> 16) & 0xff);
-			ret = camera_sys_write(port, m_gain, reg_width, gain_d, m_gain_length);
+			a_gain[0] = (char)(input_gain[1] & 0xff);
+			a_gain[1] = (char)((input_gain[1] >> 8) & 0xff);
+			a_gain[2] = (char)((input_gain[1] >> 16) & 0xff);
+			if(md_gain == 0) {
+				ret = camera_sys_write(port, m_gain, reg_width, a_gain, m_gain_length);
+			} else {
+				dig_gain[0] = (char)(dinput_gain[1] & 0xff);
+				dig_gain[1] = (char)((dinput_gain[1] >> 8) & 0xff);
+				dig_gain[2] = (char)((dinput_gain[1] >> 16) & 0xff);
+				ret = camera_sys_write(port, m_gain, reg_width, a_gain, m_gain_length);
+				ret = camera_sys_write(port, md_gain, reg_width, dig_gain, md_gain_length);
+			}
 		case 1:  // s_gain
-			gain_d[0] = (char)(input_gain[0] & 0xff);
-			gain_d[1] = (char)((input_gain[0] >> 8) & 0xff);
-			gain_d[2] = (char)((input_gain[0] >> 16) & 0xff);
-			ret = camera_sys_write(port, s_gain, reg_width, gain_d, s_gain_length);
+			a_gain[0] = (char)(input_gain[0] & 0xff);
+			a_gain[1] = (char)((input_gain[0] >> 8) & 0xff);
+			a_gain[2] = (char)((input_gain[0] >> 16) & 0xff);
+			if(s_gain == 0) {
+				ret = camera_sys_write(port, s_gain, reg_width, a_gain, s_gain_length);
+			} else {
+				dig_gain[0] = (char)(dinput_gain[0] & 0xff);
+				dig_gain[1] = (char)((dinput_gain[0] >> 8) & 0xff);
+				dig_gain[2] = (char)((dinput_gain[0] >> 16) & 0xff);
+				ret = camera_sys_write(port, s_gain, reg_width, a_gain, s_gain_length);
+				ret = camera_sys_write(port, sd_gain, reg_width, dig_gain, sd_gain_length);
+			}
 			break;
 		default:
 			break;
@@ -173,19 +206,11 @@ static int camera_sys_set_dol2_line(uint32_t port, uint32_t gain_num,
 	m_line_length = camera_mod[port]->camera_param.dol2.m_line_length;
 	switch (gain_num) {
 		case 2:  // m_line
-			if(camera_mod[port]->camera_param.sensor_data.VMAX != 0) {
-		   		 input_line[1] = camera_mod[port]->camera_param.sensor_data.VMAX
-					 - 1 - input_line[1];
-			}
 			line_d[0] = (char)(input_line[1] & 0xff);
 			line_d[1] = (char)((input_line[1] >> 8) & 0xff);
 			line_d[2] = (char)((input_line[1] >> 16) & 0xff);
 			ret = camera_sys_write(port, m_line, reg_width, line_d, m_line_length);
 		case 1:  // s_line
-			if(camera_mod[port]->camera_param.sensor_data.RHS1 != 0) {
-		   		 input_line[0] = camera_mod[port]->camera_param.sensor_data.RHS1
-					 - 1 - input_line[0];
-			}
 			line_d[0] = (char)(input_line[0] & 0xff);
 			line_d[1] = (char)((input_line[0] >> 8) & 0xff);
 			line_d[2] = (char)((input_line[0] >> 16) & 0xff);
@@ -199,36 +224,69 @@ static int camera_sys_set_dol2_line(uint32_t port, uint32_t gain_num,
 }
 
 static int camera_sys_set_dol3_gain(uint32_t port, uint32_t gain_num,
-		uint32_t *input_gain)
+		uint32_t *input_gain, uint32_t *dinput_gain)
 {
 	char gain_d[3] = {0};
+	char dig_gain[3] = {0};
 	int ret = 0;
 	uint32_t reg_width, s_gain_length, m_gain_length, s_gain, m_gain;
-	uint32_t l_gain_length, l_gain;
+	uint32_t l_gain_length, l_gain, ld_gain, ld_gain_length;
+	uint32_t sd_gain, sd_gain_length, md_gain, md_gain_length;
 
 	reg_width = camera_mod[port]->camera_param.reg_width;
 	s_gain = camera_mod[port]->camera_param.dol3.s_gain;
 	m_gain = camera_mod[port]->camera_param.dol3.m_gain;
 	l_gain = camera_mod[port]->camera_param.dol3.l_gain;
+	sd_gain = camera_mod[port]->camera_param.dol3.sd_gain;
+	md_gain = camera_mod[port]->camera_param.dol3.md_gain;
+	ld_gain = camera_mod[port]->camera_param.dol3.ld_gain;
+
 	s_gain_length = camera_mod[port]->camera_param.dol3.s_gain_length;
 	m_gain_length = camera_mod[port]->camera_param.dol3.m_gain_length;
 	l_gain_length = camera_mod[port]->camera_param.dol3.l_gain_length;
+	sd_gain_length = camera_mod[port]->camera_param.dol3.sd_gain_length;
+	md_gain_length = camera_mod[port]->camera_param.dol3.md_gain_length;
+	ld_gain_length = camera_mod[port]->camera_param.dol3.ld_gain_length;
 	switch (gain_num) {
 		case 3:  // l_gain
 			gain_d[0] = (char)(input_gain[2] & 0xff);
 			gain_d[1] = (char)((input_gain[2] >> 8) & 0xff);
 			gain_d[2] = (char)((input_gain[2] >> 16) & 0xff);
-			ret = camera_sys_write(port, l_gain, reg_width, gain_d, l_gain_length);
+			if(ld_gain == 0) {
+				ret = camera_sys_write(port, l_gain, reg_width, gain_d, l_gain_length);
+			} else {
+				dig_gain[0] = (char)(dinput_gain[2] & 0xff);
+				dig_gain[1] = (char)((dinput_gain[2] >> 8) & 0xff);
+				dig_gain[2] = (char)((dinput_gain[2] >> 16) & 0xff);
+				ret = camera_sys_write(port, l_gain, reg_width, gain_d, l_gain_length);
+				ret = camera_sys_write(port, ld_gain, reg_width, dig_gain, ld_gain_length);
+			}
 		case 2:  // m_gain
 			gain_d[0] = (char)(input_gain[1] & 0xff);
 			gain_d[1] = (char)((input_gain[1] >> 8) & 0xff);
 			gain_d[2] = (char)((input_gain[1] >> 16) & 0xff);
-			ret = camera_sys_write(port, m_gain,  reg_width, gain_d, m_gain_length);
+			if(md_gain == 0) {
+				ret = camera_sys_write(port, m_gain, reg_width, gain_d, m_gain_length);
+			} else {
+				dig_gain[0] = (char)(dinput_gain[1] & 0xff);
+				dig_gain[1] = (char)((dinput_gain[1] >> 8) & 0xff);
+				dig_gain[2] = (char)((dinput_gain[1] >> 16) & 0xff);
+				ret = camera_sys_write(port, m_gain, reg_width, gain_d, m_gain_length);
+				ret = camera_sys_write(port, md_gain, reg_width, dig_gain, md_gain_length);
+			}
 		case 1:  // s_gain
 			gain_d[0] = (char)(input_gain[0] & 0xff);
 			gain_d[1] = (char)((input_gain[0] >> 8) & 0xff);
 			gain_d[2] = (char)((input_gain[0] >> 16) & 0xff);
-			ret = camera_sys_write(port, s_gain, reg_width, gain_d, s_gain_length);
+			if(sd_gain == 0) {
+				ret = camera_sys_write(port, s_gain, reg_width, gain_d, s_gain_length);
+			} else {
+				dig_gain[0] = (char)(dinput_gain[0] & 0xff);
+				dig_gain[1] = (char)((dinput_gain[0] >> 8) & 0xff);
+				dig_gain[2] = (char)((dinput_gain[0] >> 16) & 0xff);
+				ret = camera_sys_write(port, s_gain, reg_width, gain_d, s_gain_length);
+				ret = camera_sys_write(port, sd_gain, reg_width, dig_gain, sd_gain_length);
+			}
 			break;
 		default:
 			break;
@@ -254,28 +312,16 @@ static int camera_sys_set_dol3_line(uint32_t port, uint32_t gain_num,
 	l_line_length = camera_mod[port]->camera_param.dol3.l_line_length;
 	switch (gain_num) {
 		case 3:  // l_line
-			if(camera_mod[port]->camera_param.sensor_data.VMAX != 0) {
-		   		 input_line[2] = camera_mod[port]->camera_param.sensor_data.VMAX
-					 - 1 - input_line[2];
-			}
 			line_d[0] = (char)(input_line[2] & 0xff);
 			line_d[1] = (char)((input_line[2] >> 8) & 0xff);
 			line_d[2] = (char)((input_line[2] >> 16) & 0xff);
 			ret = camera_sys_write(port, l_line, reg_width, line_d, l_line_length);
 		case 2:  // m_line
-			if(camera_mod[port]->camera_param.sensor_data.RHS2 != 0) {
-		   		 input_line[1] = camera_mod[port]->camera_param.sensor_data.RHS2
-					 - 1 - input_line[1];
-			}
 			line_d[0] = (char)(input_line[1] & 0xff);
 			line_d[1] = (char)((input_line[1] >> 8) & 0xff);
 			line_d[2] = (char)((input_line[1] >> 16) & 0xff);
 			ret = camera_sys_write(port, m_line, reg_width, line_d, m_line_length);
 		case 1:  // s_line
-			if(camera_mod[port]->camera_param.sensor_data.RHS1 != 0) {
-		   		 input_line[0] = camera_mod[port]->camera_param.sensor_data.RHS1
-					 - 1 - input_line[0];
-			}
 			line_d[0] = (char)(input_line[0] & 0xff);
 			line_d[1] = (char)((input_line[0] >> 8) & 0xff);
 			line_d[2] = (char)((input_line[0] >> 16) & 0xff);
@@ -288,37 +334,135 @@ static int camera_sys_set_dol3_line(uint32_t port, uint32_t gain_num,
 	return ret;
 }
 
-int  camera_sys_set_gain_line_control(uint32_t port, sensor_priv_t *priv_param)
+int camera_sys_gain_line_process(uint32_t port, sensor_priv_t *priv_param,
+				uint32_t *a_gain, uint32_t *d_gain, uint32_t *a_line)
 {
-	int ret = 0, i;
-	uint32_t a_gain[3] = {0};
-	uint32_t a_line[3] = {0};
+	int i;
+	uint32_t again_prec, dgain_prec;
+	uint32_t step_gain = camera_mod[port]->camera_param.sensor_data.step_gain;
+	again_prec = camera_mod[port]->camera_param.sensor_data.again_prec;
+	dgain_prec = camera_mod[port]->camera_param.sensor_data.dgain_prec;
 
 	if(camera_mod[port]->camera_param.sensor_data.gain_type == 1) {
 		for(i = 0; i < priv_param->gain_num; i++) {
-			a_gain[i] = sensor_log10(priv_param->gain_buf[i]);  // ux.8 转化为DB
-			a_gain[i] = (uint32_t)(((a_gain[i]* 200) / 3) >> 8);
+			a_gain[i] = sensor_log10(priv_param->gain_buf[i]);
+			a_gain[i] = (uint32_t)(((a_gain[i]* 200) / step_gain) >> 8);
 		}
 	} else if (camera_mod[port]->camera_param.sensor_data.gain_type == 2) {
-		for(i = 0; i < priv_param->gain_num; i++) {
-			a_gain[i] = sensor_log10(priv_param->gain_buf[i]);
-			a_gain[i] = (uint32_t)(a_gain[i] << 8);
+		if (priv_param->gain_buf[0] < 256)
+			priv_param->gain_buf[0] = 256;
+		if(camera_mod[port]->camera_param.mode == NORMAL_M) {
+			if(priv_param->gain_buf[0] <= camera_mod[port]->camera_param.sensor_data.
+					analog_gain_max) {
+				if(again_prec <= 8)
+					a_gain[0] = (priv_param->gain_buf[0] >> (8 - again_prec));
+				else
+					a_gain[0] = (priv_param->gain_buf[0] << (again_prec - 8));
+			} else {
+				a_gain[0] = camera_mod[port]->camera_param.sensor_data.analog_gain_max;
+				d_gain[0] = priv_param->gain_buf[0] / a_gain[0];
+				if(again_prec <= 8)
+				 	a_gain[0] = (priv_param->gain_buf[0] >> (8 - again_prec));
+				else
+					a_gain[0] = (priv_param->gain_buf[0] << (again_prec - 8));
+				if(dgain_prec <= 8)
+				 	d_gain[0] = (priv_param->gain_buf[0] >> (8 - dgain_prec));
+				else
+					d_gain[0] = (priv_param->gain_buf[0] << (dgain_prec - 8));
+			}
+		} else if (camera_mod[port]->camera_param.mode == DOL2_M) {
+			if(priv_param->gain_buf[0] <= camera_mod[port]->camera_param.sensor_data.
+													analog_gain_max) {
+				if(again_prec <= 8)
+					a_gain[0] = (priv_param->gain_buf[0] >> (8 - again_prec));
+				else
+					a_gain[0] = (priv_param->gain_buf[0] << (again_prec - 8));
+			} else {
+				a_gain[0] = camera_mod[port]->camera_param.sensor_data.analog_gain_max;
+				d_gain[0] = priv_param->gain_buf[0] / a_gain[0];
+				if(again_prec <= 8)
+				 	a_gain[0] = (priv_param->gain_buf[0] >> (8 - again_prec));
+				else
+					a_gain[0] = (priv_param->gain_buf[0] << (again_prec - 8));
+				if(dgain_prec <= 8)
+				 	d_gain[0] = (priv_param->gain_buf[0] >> (8 - dgain_prec));
+				else
+					d_gain[0] = (priv_param->gain_buf[0] << (dgain_prec - 8));
+			}
+			if(priv_param->gain_buf[1] <= camera_mod[port]->camera_param.
+					sensor_data.analog_gain_max) {
+				if(again_prec <= 8)
+					a_gain[1] = (priv_param->gain_buf[1] >> (8 - again_prec));
+				else
+					a_gain[1] = (priv_param->gain_buf[1] << (again_prec - 8));
+			} else {
+				a_gain[1] = camera_mod[port]->camera_param.sensor_data.analog_gain_max;
+				d_gain[1] = priv_param->gain_buf[1] / a_gain[1];
+				if(again_prec <= 8)
+				 	a_gain[1] = (priv_param->gain_buf[1] >> (8 - again_prec));
+				else
+					a_gain[1] = (priv_param->gain_buf[1] << (again_prec - 8));
+				if(dgain_prec <= 8)
+				 	d_gain[1] = (priv_param->gain_buf[1] >> (8 - dgain_prec));
+				else
+					d_gain[1] = (priv_param->gain_buf[1] << (dgain_prec - 8));
+			}
 		}
 	}
-	for(i = 0; i < priv_param->line_num; i++) {
-		a_line[i] = priv_param->line_buf[i];
+	if(camera_mod[port]->camera_param.sensor_data.line_type == 1) {
+		if(priv_param->line_num == 1) {
+			a_line[0] = camera_mod[port]->camera_param.sensor_data.VMAX
+				- 1 - priv_param->line_buf[0];
+		} else if (priv_param->line_num == 2) {
+			 a_line[1] = camera_mod[port]->camera_param.sensor_data.VMAX
+				 - 1 - priv_param->line_buf[1];
+			 a_line[0] = camera_mod[port]->camera_param.sensor_data.RHS1
+				 - 1 - priv_param->line_buf[0];
+		} else if (priv_param->line_num == 3) {
+			 a_line[2] = camera_mod[port]->camera_param.sensor_data.VMAX
+				- 1 - priv_param->line_buf[2];
+			 a_line[1] = camera_mod[port]->camera_param.sensor_data.RHS2
+				 - 1 - priv_param->line_buf[1];
+			 a_line[0] = camera_mod[port]->camera_param.sensor_data.RHS1
+				 - 1 - priv_param->line_buf[0];
+		}
+	} else if (camera_mod[port]->camera_param.sensor_data.line_type == 2) {
+		if(camera_mod[port]->camera_param.mode == NORMAL_M) {
+			if(priv_param->line_buf[0] > camera_mod[port]->camera_param.
+						sensor_data.VMAX - 8)
+				priv_param->line_buf[0] = camera_mod[port]->camera_param.
+								sensor_data.VMAX - 8;
+		} else if (camera_mod[port]->camera_param.mode == DOL2_M) {
+			if((priv_param->line_buf[0] + priv_param->line_buf[1]) >
+					(camera_mod[port]->camera_param.sensor_data.VMAX - 4))
+				priv_param->line_buf[1] = camera_mod[port]->camera_param.sensor_data.VMAX
+					- 4 - priv_param->line_buf[0];
+		}
+		for(i = 0; i < priv_param->line_num; i++) {
+			a_line[i] = priv_param->line_buf[i];
+		}
 	}
+	return 0;
+}
+int  camera_sys_set_gain_line_control(uint32_t port, sensor_priv_t *priv_param)
+{
+	int ret = 0;
+	uint32_t a_gain[3] = {0};
+	uint32_t d_gain[3] = {0};
+	uint32_t a_line[3] = {0};
+
+	camera_sys_gain_line_process(port, priv_param, a_gain, d_gain, a_line);
 	switch(camera_mod[port]->camera_param.mode) {
 		case NORMAL_M:
-			camera_sys_set_normal_gain(port, a_gain);
+			camera_sys_set_normal_gain(port, a_gain, d_gain);
 			camera_sys_set_normal_line(port, a_line);
 			break;
 		case DOL2_M:
-			camera_sys_set_dol2_gain(port, priv_param->gain_num, a_gain);
+			camera_sys_set_dol2_gain(port, priv_param->gain_num, a_gain, d_gain);
 			camera_sys_set_dol2_line(port, priv_param->line_num, a_line);
 			break;
 		case DOL3_M:
-			camera_sys_set_dol3_gain(port, priv_param->gain_num, a_gain);
+			camera_sys_set_dol3_gain(port, priv_param->gain_num, a_gain, d_gain);
 			camera_sys_set_dol3_line(port, priv_param->line_num, a_line);
 			break;
 		default:
