@@ -1,0 +1,12 @@
+#
+# VIO configuration
+#
+
+menu "VIO Configuratio"
+config HOBOT_VIO
+	tristate "X2A VIO Drivers"
+	default n
+	---help---
+	   Drivers for the X2A VIO
+
+endmenu

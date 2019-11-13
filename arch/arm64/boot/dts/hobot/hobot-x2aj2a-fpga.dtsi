@@ -355,42 +355,40 @@
 			reg = <0 0xA500C000 0 0x100>;
 			interrupt-parent = <&gic>;
 			/* interrupt list : sif, ipu, pym, ldc, dwe*/
-			interrupts = <0 70 4>, <0 81 4>, <0 83 4>, <0 75 4>, <0 73 4>;
+			interrupts = <0 75 4>, <0 73 4>;
 		};
 
 		ips: ips@0xA4000000 {
-			compatible = "hobot,x2-ips";
-			reg = <0 0xA4000000 0 0x100>,
-				  <0 0xA1000000 0  0x1000>;
+			compatible = "hobot,x2a-ips";
+			reg = <0 0xA4000000 0 0x200>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 85 4>;
 			status = "disabled";
-			resets = <&rst 0x40 0>, <&rst 0x40 1>, <&rst 0x40 2>, <&rst 0x40 3>, <&rst 0x40 4>, <&rst 0x40 5>;
-			reset-names = "mipi_ipi", "mipi_cfg", "sif", "ipu", "dvp", "bt";
-			clocks = <&vio_pllmux_clk>, <&mipi_ipi_1stdiv_clk>,
-				<&viopll_clk>, <&vio_div_aclk>,<&sif_div_mclk>,
-				<&mipi_cfg_2nddiv_clk>,<&pym_div_mclk>,
-				<&mipi_phy_ref_2nddiv_clk>,
-				<&sensor_2nddiv_clk>,
-				<&mipi_ipi_2nddiv_clk>,<&iar_pix_div_clk>;
-			clock-names = "vio_pllmux", "ipi_div1",
-				"vio_pll", "vio_aclk", "sif_mclk",
-				"mipi_cfg", "pym_mclk", "mipi_phy_ref",
-				"sensor_mclk", "ipi_div2", "iar_pix";
 		};
 
-		ipu: ipu@0xA4000900 {
-			compatible = "hobot,x2-ipu";
-			reg = <0 0xA4000900 0 0x400>;
-			memory-region = <&ipu_reserved>;
+		ipu: ipu@0xA4040000 {
+			compatible = "hobot,x2a-ipu";
+			reg = <0 0xA4040000 0 0x1000>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 81 4>;
 			status = "disabled";
 		};
 
-		sif: sif@0xA4000100 {
-			compatible = "hobot,x2-sif";
-			reg = <0 0xA4000100 0 0x100>;
-			status = "disabled";
-		};
+                pym: pym@0xA4042000 {
+                        compatible = "hobot,x2a-pym";
+                        reg = <0 0xA4042000 0 0x1000>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 83 4>;
+                        status = "okay";
+                };
+
+                sif: sif@0xA4001000 {
+                        compatible = "hobot,x2a-sif";
+                        reg = <0 0xA4001000 0 0x1000>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 70 4>;
+                        status = "disabled";
+                };
 
 		mipi_host: mipi_host@0xA4012000 {
 			compatible = "hobot,x2-mipi-host";
@@ -400,7 +398,7 @@
 			status = "disabled";
 		};
 
-		mipi_dev: mipi_dev@0xA4013000 {
+	        mipi_dev: mipi_dev@0xA4013000 {
 			compatible = "hobot,x2-mipi-dev";
 			reg = <0 0xA4013000 0 0x1000>;
 			interrupt-parent = <&gic>;
@@ -410,8 +408,9 @@
 
 		/* gdc0 */
 		gdc0: gdc0@0xA4010000 {
-			compatible = "hobot,gdc0";
+			compatible = "hobot,gdc";
 			reg = <0 0xA4010000 0 0x10000>;
+			id = <0>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 74 4>;
 			status = "okay";
@@ -419,12 +418,24 @@
 
 		/* gdc1 */
 		gdc1: gdc1@0xA4020000 {
-			compatible = "hobot,gdc1";
+			compatible = "hobot,gdc";
 			reg = <0 0xA4020000 0 0x10000>;
+			id = <1>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 78 4>;
 			status = "okay";
 		};
+
+                iar: iar@0xA4001000 {
+                        compatible = "hobot,x2-iar";
+                        reg = <0 0xA4001000 0 0x400>;
+                        memory-region = <&iar_reserved>;
+                        interrupt-parent = <&gic>;
+                        interrupts = <0 69 4>;
+                        resets = <&rst 0x40 6>;
+                        reset-names = "iar";
+                        status = "disabled";
+                };
 
 		/* isp0 */
 		isp: isp@0xB3000000 {
@@ -673,16 +684,6 @@
 			};
 		};
 
-		iar: iar@0xA4001000 {
-			compatible = "hobot,x2-iar";
-			reg = <0 0xA4001000 0 0x400>;
-			memory-region = <&iar_reserved>;
-			interrupt-parent = <&gic>;
-			interrupts = <0 69 4>;
-			resets = <&rst 0x40 6>;
-			reset-names = "iar";
-			status = "disabled";
-		};
 
 		fb: fb {
 			compatible = "hobot,x2-fb";

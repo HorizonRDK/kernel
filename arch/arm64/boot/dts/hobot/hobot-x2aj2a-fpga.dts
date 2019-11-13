@@ -214,7 +214,7 @@
 };
 
 &iar {
-	status = "okay";
+        status = "okay";
 };
 
 &bifspi {
