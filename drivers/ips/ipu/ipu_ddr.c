@@ -678,8 +678,13 @@ wait:
 			mutex_unlock(&ipu_cdev->mutex_lock);
 			return -EFAULT;
 		}
-
-		//printk("get src done !! %d\n", g_get_slot_h->info_h.slot_id);
+		if (ipu_fs_flag == 1)
+			g_ipu_ts = g_ipu_time_p;
+		else if (ipu_fs_flag == 0)
+			g_ipu_ts = g_ipu_time;
+		spin_unlock_irqrestore(&g_ipu_ddr_cdev->slock, flags);
+		ipu_get_frameid(ipu, g_get_slot_h);
+		spin_lock_irqsave(&g_ipu_ddr_cdev->slock, flags);
 		tmp_info = g_get_slot_h->info_h;
 		tmp_info.ddr_info = tmp_ipu_user->ddr_info;
 		tmp_info.base = (uint64_t)IPU_GET_SLOT(g_get_slot_h->info_h.slot_id,
@@ -689,13 +694,6 @@ wait:
 		    tmp_info.ddr_info.scale.c_stride * tmp_info.ddr_info.scale.c_height;
 		dma_sync_single_for_cpu(NULL,
 		    tmp_info.base, data_end, DMA_FROM_DEVICE);
-		spin_lock_irqsave(&g_ipu_ddr_cdev->slock, flags);
-		if (ipu_fs_flag == 1)
-			g_ipu_ts = g_ipu_time_p;
-		else if (ipu_fs_flag == 0)
-			g_ipu_ts = g_ipu_time;
-		spin_unlock_irqrestore(&g_ipu_ddr_cdev->slock, flags);
-		ipu_get_frameid(ipu, g_get_slot_h);
 		tmp_ipu_user->used_slot[tmp_info.slot_id] = 1;
 		ret = copy_to_user((void __user *)data, (const void *)&tmp_info,
 		sizeof(info_h_t));
@@ -724,14 +722,11 @@ wait:
 					mutex_unlock(&ipu_cdev->mutex_lock);
 					return -EFAULT;
 				}
-				//printk("fb none free\n");
 			}
-			//printk("@@ get src done sema !! %d\n",g_get_slot_h->info_h.slot_id);
 			tmp_info = g_get_fb_slot_h->info_h;
 			tmp_info.ddr_info = tmp_ipu_user->ddr_info;
 			tmp_info.base = (uint64_t)IPU_GET_SLOT(g_get_fb_slot_h->info_h.slot_id,
 			g_ipu->paddr);
-			//printk(" ipu->paddr %x\n", g_ipu->paddr);
 			spin_unlock_irqrestore(&g_ipu_ddr_cdev->slock, flags);
 			tmp_ipu_user->used_slot[tmp_info.slot_id] = 1;
 			ret = copy_to_user((void __user *)data, (const void *)&tmp_info,
