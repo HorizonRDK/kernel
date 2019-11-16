@@ -61,6 +61,9 @@
 #include <linux/ctype.h>
 #include <linux/version.h>
 
+#define PDU_BASE_ADDR 0xB2100000
+#define PDU_BASE_IRQ  118
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
       #undef __devexit_p
       #undef __devexit

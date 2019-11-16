@@ -43,10 +43,6 @@
 # POSSIBILITY OF SUCH DAMAGE.
 # ------------------------------------------------------------------------
 
-
-
-ccflags-y := -DPDU_BASE_ADDR=0xB2100000 -DPDU_BASE_IRQ=118
-
 elppdu-objs += pdu.o pdu_dev32.o pdu_get_version.o
 
 elpmem-objs += spacc_mem.o

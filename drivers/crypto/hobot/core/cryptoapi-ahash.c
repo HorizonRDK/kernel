@@ -190,9 +190,6 @@ static int spacc_hash_digest(struct ahash_request *req)
    dev_info(tctx->dev, "%s (%u)\n", __func__, req->nbytes);
 
    ctx->digest_mode = 1;
-// TODO: Add support for allocating a context here to support non-MAC [HMAC] users.  Right now all hash jobs
-// TODO: will be redirected to software.  Which is acceptable at the moment since this is mostly designed to speed
-// TODO: up MAC (srtp/ipsec/etc) applications
 
    if (tctx->handle < 0 || !tctx->ctx_valid || req->nbytes > priv->max_msg_len)
       goto fallback;
@@ -439,47 +436,19 @@ static size_t spacc_sg_copy_to_buffer(struct scatterlist *sgl,
 	return offset;
 }
 
-#if 0
-/*
- * Use state->hash to mix with data, simulate IV udpating
- * since x2a can't update IV for Hash
- */
-static void spacc_hash_apply_iv(uint8_t *data, int datalen, uint8_t *hash, uint8_t hashlen)
+static int spacc_hash_add_digest(struct ahash_request *req)
 {
-	uint32_t *phash = (uint32_t *)hash;
-	uint32_t *pdata = (uint32_t *)data;
-	uint32_t hashlen_w;
-	int i;
-	int rest;
-    
-    /*
-     * Be careful about the unalignment of datalen,
-     * random trailing data may cause random hash value.
-     */
-	if (datalen % 4) {
-		pr_warn("datalen is :%d, not 4B alginment, set trailing buffer to 0\n", datalen);
-		memset(data + datalen, 0, (4 - datalen % 4));
-	}
+   struct spacc_hash_reqctx *ctx = ahash_request_ctx(req);
 
-    hashlen_w = hashlen >> 2;
+   memset(ctx->sg_hash, 0, sizeof(ctx->sg_hash));
+   sg_set_buf(&ctx->sg_hash[0], ctx->digest, ctx->hashlen);
+   sg_mark_end(&ctx->sg_hash[1]);
+   sg_chain(ctx->sg_hash, 2, req->src);
+   req->src = ctx->sg_hash;
+   req->nbytes += ctx->hashlen;
 
-	while (pdata + hashlen_w < data + datalen) {
-		for (i = 0; i < hashlen_w; i++) {
-			*pdata = *pdata ^ *phash;
-			pdata++;
-		}
-		
-		phash = (uint32_t *)hash;
-	}
-
-	rest = (data + datalen - (uint8_t *)phash) >> 2;
-
-	for (i = 0; i < rest; i++) {
-		*pdata = *pdata ^ *phash;
-		pdata++;
-	}
+   return 0;
 }
-#endif
 
 /* only enqueue PROCESS_SIZE data in update, for smaller size, handle it in final */
 static int spacc_hash_update(struct ahash_request *req)
@@ -546,26 +515,31 @@ static int spacc_hash_update(struct ahash_request *req)
    sg_last = req->src;
 
    while (len < nbytes) {
-       if ((len + sg_last->length) > nbytes)
-           break;
-       len += sg_last->length;
-       sg_last = sg_next(sg_last);
+      if ((len + sg_last->length) > nbytes)
+          break;
+      len += sg_last->length;
+      sg_last = sg_next(sg_last);
    }
 
    if (ctx->datalen) {
-       sg_mark_end(sg_last);
-       memset(ctx->sg, 0, sizeof(ctx->sg));
-       sg_set_buf(&ctx->sg[0], staging, ctx->datalen);
-       sg_mark_end(&ctx->sg[1]);
-       sg_chain(ctx->sg, 2, req->src);
-       req->src = ctx->sg;
+      sg_mark_end(sg_last);
+      memset(ctx->sg, 0, sizeof(ctx->sg));
+      sg_set_buf(&ctx->sg[0], staging, ctx->datalen);
+      sg_mark_end(&ctx->sg[1]);
+      sg_chain(ctx->sg, 2, req->src);
+      req->src = ctx->sg;
    } else
        sg_mark_end(sg_last);
-
 
    req->nbytes = nbytes; 
    ctx->datalen = datalen;
    ctx->src_nents = spacc_count_sg(req->src, req->nbytes); 
+
+   if (!ctx->first_blk)
+      spacc_hash_add_digest(req);
+   else {
+      ctx->first_blk = false;
+   }
 
    ret = spacc_hash_queue_req(req);
    return ret;
@@ -711,10 +685,15 @@ static int spacc_hash_import(struct ahash_request *req, const void *in)
    struct crypto_ahash *reqtfm = crypto_ahash_reqtfm(req);
    struct spacc_crypto_ctx *tctx = crypto_ahash_ctx(reqtfm);
    struct spacc_hash_reqctx *ctx = ahash_request_ctx(req);
+   uint8_t zero_buf = kzalloc(SPACC_MAX_DIGEST_SIZE, GFP_KERNEL);
 
    dev_info(tctx->dev, "%s\n", __func__);
 
    spacc_hash_copy_state(tctx, ctx, in, true);
+   if (!memcmp(ctx->digest, zero_buf, ctx->hashlen))
+      ctx->first_blk = true;
+
+   ctx->hashlen = crypto_ahash_digestsize(crypto_ahash_reqtfm(req));
 
    return 0;
 }
@@ -753,8 +732,6 @@ static int spacc_hash_final(struct ahash_request *req)
    }
 
    ctx->hashlen = crypto_ahash_digestsize(crypto_ahash_reqtfm(req));
-   //spacc_hash_apply_iv(ctx->state.data, ctx->state.datalen, ctx->state.hash, ctx->hashlen);
-
 
    if (ctx->datalen) {
       memset(ctx->sg, 0, sizeof(ctx->sg));
@@ -767,6 +744,9 @@ static int spacc_hash_final(struct ahash_request *req)
       memset(ctx->data, 0, ARRAY_SIZE(ctx->data));
       ctx->datalen = 0;
       ctx->src_nents = spacc_count_sg(req->src, req->nbytes); 
+
+      if (!ctx->first_blk)
+		  spacc_hash_add_digest(req);
 
       ret = spacc_hash_queue_req(req);
    } else {

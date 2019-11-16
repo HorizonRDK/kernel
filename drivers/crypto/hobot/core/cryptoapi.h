@@ -88,6 +88,7 @@ struct spacc_hash_reqctx {
    int new_handle;
 
    struct scatterlist sg[2];
+   struct scatterlist sg_hash[2];
    struct scatterlist *reqsrc; //backup req and recover in complete
    int nbytes;
 
