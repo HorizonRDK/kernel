@@ -159,6 +159,7 @@ int spacc_sg_to_ddt(struct device *dev, struct scatterlist *sg,
    int i, rc;
 
    orig_nents = fixup_sg(sg, nbytes);
+
    nents = dma_map_sg(dev, sg, orig_nents, dma_direction);
    if (nents <= 0) {
       dev_err(dev, "failed to map scatterlist for DMA: %d\n", nents);
@@ -217,24 +218,30 @@ static void spacc_unregister_algs(struct device *dev)
 struct mode_tab possible_hashes[] = {
 //   { .keylen[0] = 16,                    MODE_TAB_HASH("cmac(aes)", MAC_CMAC, 16,  16),  },
 //   { .keylen[0] = 48|MODE_TAB_HASH_XCBC, MODE_TAB_HASH("xcbc(aes)", MAC_XCBC, 16,  16), },
-   { MODE_TAB_HASH("hmac(md5)",        HMAC_MD5,        16,  64), },
-   { MODE_TAB_HASH("hmac(sha1)",       HMAC_SHA1,       20,  64), },
-//   { MODE_TAB_HASH("hmac(sha224)",     HMAC_SHA224,     28,  64), },
-   { MODE_TAB_HASH("hmac(sha256)",     HMAC_SHA256,     32,  64), },
-//   { MODE_TAB_HASH("hmac(sha384)",     HMAC_SHA384,     48, 128), },
-//   { MODE_TAB_HASH("hmac(sha512)",     HMAC_SHA512,     64, 128), },
-//   { MODE_TAB_HASH("hmac(sha512-224)", HMAC_SHA512_224, 28, 128), },
-//   { MODE_TAB_HASH("hmac(sha512-256)", HMAC_SHA512_256, 32, 128), },
+     { MODE_TAB_HASH("md5",              HASH_MD5,        16,  64), .keylen = { 0 } },
+     { MODE_TAB_HASH("sha1",             HASH_SHA1,       20,  64), .keylen = { 0 } },
+     { MODE_TAB_HASH("sha256",           HASH_SHA256,     32,  64), .keylen = { 0 } },
+     { MODE_TAB_HASH("sha512",           HASH_SHA512,     64, 128), .keylen = { 0 } },
+     { MODE_TAB_HASH("hmac(md5)",        HMAC_MD5,        16,  64), .keylen = { 16 } },
+     { MODE_TAB_HASH("hmac(sha1)",       HMAC_SHA1,       20,  64), .keylen = { 20 } },
+//     { MODE_TAB_HASH("hmac(sha224)",     HMAC_SHA224,     28,  64), .keylen = { 28 } },
+     { MODE_TAB_HASH("hmac(sha256)",     HMAC_SHA256,     32,  64), .keylen = { 32 } },
+//   { MODE_TAB_HASH("hmac(sha384)",     HMAC_SHA384,     48, 128), .keylen = { 24 } },
+     { MODE_TAB_HASH("hmac(sha512)",     HMAC_SHA512,     64, 128), .keylen = { 24 } },
+//   { MODE_TAB_HASH("hmac(sha512-224)", HMAC_SHA512_224, 28, 128), .keylen = { 24 } },
+//   { MODE_TAB_HASH("hmac(sha512-256)", HMAC_SHA512_256, 32, 128), .keylen = { 24 } },
 };
 
 static struct mode_tab possible_ciphers[] = {
-//   { MODE_TAB_CIPH("ecb(aes)",         AES_ECB,  16, 16), .keylen = { 16, 24, 32 } },
+#if 1
+   { MODE_TAB_CIPH("ecb(aes)",         AES_ECB,  16, 16), .keylen = { 16, 24, 32 } },
    { MODE_TAB_CIPH("cbc(aes)",         AES_CBC,  16, 16), .keylen = { 16, 24, 32 } },
    { MODE_TAB_CIPH("ctr(aes)",         AES_CTR,  16, 16), .keylen = { 16, 24, 32 } },
    { MODE_TAB_CIPH("cbc(des3_ede)",    3DES_CBC, 8, 8), .keylen = { 24 } },
-//   { MODE_TAB_CIPH("ecb(des3_ede)",    3DES_ECB, 8, 8), .keylen = { 24 } },
-//   { MODE_TAB_CIPH("cbc(des)",         DES_CBC,  8, 8), .keylen = { 8 } },
-//   { MODE_TAB_CIPH("ecb(des)",         DES_ECB,  8, 8), .keylen = { 8 } },
+   { MODE_TAB_CIPH("ecb(des3_ede)",    3DES_ECB, 8, 8), .keylen = { 24 } },
+   { MODE_TAB_CIPH("cbc(des)",         DES_CBC,  8, 8), .keylen = { 8 } },
+   { MODE_TAB_CIPH("ecb(des)",         DES_ECB,  8, 8), .keylen = { 8 } },
+#endif
 };
 
 
@@ -300,11 +307,14 @@ static int __devinit spacc_register_hash(struct spacc_alg *salg)
    int rc;
 
    salg->calg     = &salg->alg.hash.halg.base;
-   salg->alg.hash = spacc_hash_template;
+
+   if (salg->mode->keylen[0] == 0)
+      salg->alg.hash = spacc_hash_template;
+   else
+      salg->alg.hash = spacc_hmac_template;
 
    spacc_init_calg(salg->calg, salg->mode);
    salg->alg.hash.halg.digestsize = salg->mode->hashlen;
-   //salg->alg.hash.halg.statesize = sizeof(struct spacc_hash_state);
    salg->alg.hash.halg.statesize = SPACC_HASH_STATE_SIZE;
 
    rc = crypto_register_ahash(&salg->alg.hash);
@@ -334,7 +344,7 @@ static int __devinit probe_hashes(void)
       struct spacc_priv *priv = dev_get_drvdata(&spacc_pdev[j]->dev);
       for (i = 0; i < ARRAY_SIZE(possible_hashes); i++) {
          if (possible_hashes[i].valid == 0) {
-            if (spacc_isenabled(&priv->spacc, possible_hashes[i].id&0xFF,possible_hashes[i].hashlen)) {
+            if (spacc_isenabled(&priv->spacc, possible_hashes[i].id&0xFF, possible_hashes[i].keylen[0])) {
                salg = kmalloc(sizeof *salg, GFP_KERNEL);
                if (!salg) {
                   return -ENOMEM;
@@ -356,7 +366,9 @@ static int __devinit probe_hashes(void)
                printk("registered %s\n", possible_hashes[i].name);
                registered++;
                possible_hashes[i].valid = 1;
-            }
+            } else {
+		       pr_err(" %s is not enabled", possible_hashes[i].name);
+			}
          }
       }
    }

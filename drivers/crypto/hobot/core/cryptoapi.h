@@ -42,6 +42,7 @@
 // we're doing CCM
 #define SPACC_MANGLE_IV_RFC4309 0x0400
 
+#define dbg(format, x...) printk("%s:%d " format "\n", __func__, __LINE__, ##x)
 
 #define CRYPTO_MODE_AES_CTR_RFC3686 (CRYPTO_MODE_AES_CTR | SPACC_MANGLE_IV_FLAG | SPACC_MANGLE_IV_RFC3686)
 #define CRYPTO_MODE_AES_GCM_RFC4106 (CRYPTO_MODE_AES_GCM | SPACC_MANGLE_IV_FLAG | SPACC_MANGLE_IV_RFC4106)
@@ -195,6 +196,7 @@ int spacc_sg_to_ddt(struct device *dev, struct scatterlist *sg,
                     int nbytes, pdu_ddt *ddt, int dma_direction);
 
 extern const struct ahash_alg spacc_hash_template;
+extern const struct ahash_alg spacc_hmac_template;
 extern const struct aead_alg spacc_aead_template;
 extern const struct skcipher_alg spacc_cipher_template;
 

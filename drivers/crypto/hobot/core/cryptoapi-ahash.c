@@ -65,6 +65,8 @@ static void hexdump(unsigned char *buf, unsigned int len)
 	print_hex_dump(KERN_CONT, "", DUMP_PREFIX_OFFSET,
 			16, 1, buf, len, false);
 }
+
+static int spacc_count_sg(struct scatterlist *sg, int nbytes);
 static int spacc_hash_init_dma(struct device *dev, struct ahash_request *req)
 {
    struct spacc_hash_reqctx *ctx = ahash_request_ctx(req);
@@ -114,32 +116,119 @@ static void spacc_digest_cb(void *spacc, void *data)
 {
    struct ahash_request *req = data;
    struct crypto_ahash *tfm = crypto_ahash_reqtfm(req);
-   struct spacc_crypto_ctx *ctx = crypto_ahash_ctx(tfm);
-   struct spacc_hash_reqctx *rctx = ahash_request_ctx(req);
-   struct spacc_priv *priv = dev_get_drvdata(ctx->dev); 
+   struct spacc_crypto_ctx *tctx = crypto_ahash_ctx(tfm);
+   struct spacc_hash_reqctx *ctx = ahash_request_ctx(req);
+   struct spacc_priv *priv = dev_get_drvdata(tctx->dev);
    int err;
 
-   if (rctx->digest_mode) {
-      memcpy(req->result, rctx->digest_buf, rctx->hashlen);
+   if (ctx->digest_mode) {
+      memcpy(req->result, ctx->digest_buf, ctx->hashlen);
    } else {
-      memcpy(rctx->digest, rctx->digest_buf, rctx->hashlen);
-	  if (rctx->last_req)
-         memcpy(req->result, rctx->digest_buf, rctx->hashlen);
+      memcpy(ctx->digest, ctx->digest_buf, ctx->hashlen);
+	  if (ctx->last_req)
+         memcpy(req->result, ctx->digest_buf, ctx->hashlen);
    }
 
-   hexdump(rctx->digest_buf, rctx->hashlen);
-   spacc_hash_cleanup_dma(ctx->dev, req);
+   spacc_hash_cleanup_dma(tctx->dev, req);
 
-   err = pdu_error_code(priv->spacc.job[rctx->new_handle].job_err);
-   spacc_close(&priv->spacc, rctx->new_handle);
+   err = pdu_error_code(priv->spacc.job[ctx->new_handle].job_err);
+   spacc_close(&priv->spacc, ctx->new_handle);
 
-   if(!rctx->digest_mode) {
-      req->src = rctx->reqsrc;
-      req->nbytes = rctx->nbytes;
+   if(!ctx->digest_mode) {
+      req->src = ctx->reqsrc;
+      req->nbytes = ctx->nbytes;
    }
 
    req->base.complete(&req->base, err);
 }
+
+static int spacc_hash_close(struct crypto_ahash *tfm)
+{
+   struct spacc_crypto_ctx *tctx = crypto_ahash_ctx(tfm);
+   struct spacc_priv *priv = dev_get_drvdata(tctx->dev);
+
+   spacc_close(&priv->spacc, tctx->handle);
+   put_device(tctx->dev);
+   tctx->handle = -1;
+   tctx->dev    = NULL;
+
+   return 0;
+}
+
+static int spacc_hash_open(struct crypto_ahash *tfm)
+{
+   const struct spacc_alg *salg = spacc_tfm_alg(&tfm->base);
+   struct spacc_crypto_ctx *tctx = crypto_ahash_ctx(tfm);
+   struct spacc_priv *priv = dev_get_drvdata(tctx->dev);
+   int x;
+
+   if (tctx == NULL) {
+      pr_err("%s: tctx == NULL.\n", __func__);
+	  return -EINVAL;
+   }
+
+   // close handle since key size may have changed
+   if (tctx->handle >= 0) {
+      spacc_hash_close(tfm);
+   }
+
+   for (x = 0; x < ELP_CAPI_MAX_DEV && salg->dev[x]; x++) {
+      priv = dev_get_drvdata(salg->dev[x]);
+      tctx->dev = get_device(salg->dev[x]);
+
+      tctx->handle = spacc_open(&priv->spacc, CRYPTO_MODE_NULL, salg->mode->id, -1, 0, spacc_digest_cb, tfm);
+
+      if (tctx->handle >= 0) { break; }
+      put_device(salg->dev[x]);
+   }
+
+   if (tctx->handle < 0) {
+      dev_info(salg->dev[0], "failed to open SPAcc context\n");
+      return -ENODEV;
+   }
+
+   return 0;
+}
+
+static int spacc_hash_set_context(struct crypto_ahash *tfm, uint8_t *key, int keylen)
+{
+   struct spacc_crypto_ctx *tctx = crypto_ahash_ctx(tfm);
+   struct spacc_priv *priv = dev_get_drvdata(tctx->dev);
+   int rc;
+
+
+   /*
+    * If keylen > hash block len, the key is supposed to be hashed so that it
+    * is less than the block length.  This is kind of a useless property of
+    * HMAC as you can just use that hash as the key directly.  We will just
+    * not use the hardware in this case to avoid the issue.
+    *
+    * This test was meant for hashes but it works for cmac/xcbc since we only intend
+    * to support 128-bit keys...
+    */
+   if (keylen > crypto_tfm_alg_blocksize(&tfm->base)) {
+      return 0;
+   }
+
+   rc = spacc_write_context(&priv->spacc, tctx->handle, SPACC_HASH_OPERATION, key, keylen, NULL, 0);
+
+   if (rc < 0) {
+      dev_warn(tctx->dev, "failed to write SPAcc context %d: %s\n",
+                          tctx->handle, spacc_error_msg(rc));
+      return -EINVAL;
+   }
+   rc = spacc_set_operation(&priv->spacc, tctx->handle, OP_ENCRYPT, 0, 0, 0, 0, 0);
+   if (rc < 0) {
+      pr_err("%s: spacc set operation failed.\n", __func__);
+      spacc_hash_close(tfm);
+	  return rc;
+   }
+
+   tctx->ctx_valid = true;
+
+   return 0;
+}
+
 
 static int spacc_hash_queue_req(struct ahash_request *req)
 {
@@ -153,7 +242,6 @@ static int spacc_hash_queue_req(struct ahash_request *req)
    if (rc < 0)
       return -EINVAL;
 
-   //TODO try not to use this new_handle
    ctx->new_handle = spacc_clone_handle(&priv->spacc, tctx->handle, req);
    if (ctx->new_handle < 0) {
       spacc_hash_cleanup_dma(tctx->dev, req);
@@ -187,20 +275,44 @@ static int spacc_hash_digest(struct ahash_request *req)
    struct spacc_priv *priv = dev_get_drvdata(tctx->dev);
    int rc;
 
-   dev_info(tctx->dev, "%s (%u)\n", __func__, req->nbytes);
+   dev_dbg(tctx->dev, "%s (%u)\n", __func__, req->nbytes);
+
+   if (req->nbytes == 0) {
+      pr_info("%s: fallback for empty message\n", __func__);
+	  goto fallback;
+   }
+
+   if (tctx->keylen == 0) {
+      rc = spacc_hash_open(reqtfm);
+	  if (rc < 0) {
+	     pr_err("%s: spacc open failed.\n", __func__);
+		 return -ENODEV;
+	  }
+
+      rc = spacc_hash_set_context(reqtfm, NULL, 0);
+      if (rc < 0) {
+         pr_err("%s: set context failed, rc:%d\n", __func__, rc);
+         return rc;
+      }
+   }
 
    ctx->digest_mode = 1;
 
-   if (tctx->handle < 0 || !tctx->ctx_valid || req->nbytes > priv->max_msg_len)
+   if (tctx->handle < 0 || !tctx->ctx_valid || req->nbytes > priv->max_msg_len) {
+      pr_info("fallback : tctx->handle :%d tctx->ctx_valid:%d\n", tctx->handle, tctx->ctx_valid);
       goto fallback;
+   }
 
    rc = spacc_hash_init_dma(tctx->dev, req);
-   if (rc < 0)
+   if (rc < 0) {
+      pr_info("fallback: spacc_hash_init_dma rc :%d\n", rc);
       goto fallback;
+   }
 
    ctx->new_handle = spacc_clone_handle(&priv->spacc, tctx->handle, req);
    if (ctx->new_handle < 0) {
       spacc_hash_cleanup_dma(tctx->dev, req);
+      pr_info("fallback:  ctx->new_handle < 0\n");
       goto fallback;
    }
 
@@ -220,6 +332,7 @@ static int spacc_hash_digest(struct ahash_request *req)
          return -EBUSY;
       }
 
+      pr_info("fallback:  spacc_packet_enqueue_ddt failed, rc:%d\n", rc);
       goto fallback;
    }
 
@@ -242,81 +355,29 @@ static int spacc_hash_setkey(struct crypto_ahash *tfm, const u8 *key, unsigned k
 {
    const struct spacc_alg *salg = spacc_tfm_alg(&tfm->base);
    struct spacc_crypto_ctx *tctx = crypto_ahash_ctx(tfm);
-   struct spacc_priv *priv = dev_get_drvdata(tctx->dev);
-   int x, rc;
-   unsigned char xkey[48];
+   int rc;
 
-   dev_info(salg->dev[0], "%s\n", __func__);
+   dev_dbg(salg->dev[0], "%s, keylen: %d\n", __func__, keylen);
    tctx->ctx_valid = false;
 
    rc = crypto_ahash_setkey(tctx->fb.hash, key, keylen);
-   if (rc < 0)
-      return rc;
-
-   // close handle since key size may have changed
-   if (tctx->handle >= 0) {
-      spacc_close(&priv->spacc, tctx->handle);
-      put_device(tctx->dev);
-      tctx->handle = -1;
-      tctx->dev    = NULL;
-   }
-
-   priv = NULL;
-   for (x = 0; x < ELP_CAPI_MAX_DEV && salg->dev[x]; x++) {
-      priv = dev_get_drvdata(salg->dev[x]);
-      tctx->dev = get_device(salg->dev[x]);
-      if (spacc_isenabled(&priv->spacc, salg->mode->id, keylen)) {
-         tctx->handle = spacc_open(&priv->spacc, CRYPTO_MODE_NULL, salg->mode->id, -1, 0, spacc_digest_cb, tfm);
-      }
-      if (tctx->handle >= 0) { break; }
-      put_device(salg->dev[x]);
-   }
-
-   if (tctx->handle < 0) {
-      dev_info(salg->dev[0], "failed to open SPAcc context\n");
-      return rc;
-   }
-
-   rc = spacc_set_operation(&priv->spacc, tctx->handle, OP_ENCRYPT, ICV_HASH, IP_ICV_OFFSET, 0, 0, 0);
    if (rc < 0) {
-      spacc_close(&priv->spacc, tctx->handle);
-      tctx->handle = -1;
-      put_device(tctx->dev);
+      pr_err("%s: set key failed, key:%p, keylen:%d\n", __func__, key, keylen);
       return rc;
    }
 
-   /*
-    * If keylen > hash block len, the key is supposed to be hashed so that it
-    * is less than the block length.  This is kind of a useless property of
-    * HMAC as you can just use that hash as the key directly.  We will just
-    * not use the hardware in this case to avoid the issue.
-    *
-    * This test was meant for hashes but it works for cmac/xcbc since we only intend
-    * to support 128-bit keys...
-    */
-   if (keylen > crypto_tfm_alg_blocksize(&tfm->base)) {
-      return 0;
-   }
-   if (salg->mode->id == CRYPTO_MODE_MAC_XCBC) {
-      rc = spacc_compute_xcbc_key(&priv->spacc, tctx->handle, key, keylen, xkey);
-      if (rc < 0) {
-         dev_warn(tctx->dev, "failed to compute XCBC key: %d\n", rc);
-         return 0;
-      }
-      rc = spacc_write_context(&priv->spacc, tctx->handle, SPACC_HASH_OPERATION, xkey, 32+keylen, NULL, 0);
-      memset(xkey, 0, sizeof xkey);
-   } else {
-      rc = spacc_write_context(&priv->spacc, tctx->handle, SPACC_HASH_OPERATION, key, keylen, NULL, 0);
-   }
+   rc = spacc_hash_open(tfm);
    if (rc < 0) {
-      dev_warn(tctx->dev, "failed to write SPAcc context %d: %s\n",
-                          tctx->handle, spacc_error_msg(rc));
-
-      /* Non-fatal; we continue with the software fallback. */
-      return 0;
+      pr_err("%s: spacc open failed, rc:%d\n", __func__, rc);
+      return rc;
    }
 
-   tctx->ctx_valid = true;
+   rc = spacc_hash_set_context(tfm, key, keylen);
+   if (rc < 0) {
+      pr_err("%s: set context failed, rc:%d\n", __func__, rc);
+      return rc;
+   }
+
    return 0;
 }
 
@@ -326,14 +387,16 @@ static int spacc_hash_cra_init(struct crypto_tfm *tfm)
    struct spacc_crypto_ctx *tctx = crypto_tfm_ctx(tfm);
    struct spacc_priv *priv;
 
-   dev_info(salg->dev[0], "%s: %s\n", __func__, salg->calg->cra_name);
+   dev_dbg(salg->dev[0], "%s: %s\n", __func__, salg->calg->cra_name);
 
    tctx->handle    = -1;
    tctx->ctx_valid = false;
    tctx->dev       = get_device(salg->dev[0]);
    tctx->mode = salg->mode->id;
+   tctx->keylen = salg->mode->keylen[0];//just for check if keylen is 0
    priv = dev_get_drvdata(tctx->dev);
 
+   /* allocate an ahash for SW fallback */
    tctx->fb.hash = crypto_alloc_ahash(salg->calg->cra_name, 0, CRYPTO_ALG_NEED_FALLBACK);
    if (IS_ERR(tctx->fb.hash)) {
       if (tctx->handle >= 0) {
@@ -355,7 +418,7 @@ static void spacc_hash_cra_exit(struct crypto_tfm *tfm)
    struct spacc_crypto_ctx *tctx = crypto_tfm_ctx(tfm);
    struct spacc_priv *priv = dev_get_drvdata(tctx->dev);
 
-   dev_info(tctx->dev, "%s\n", __func__);
+   dev_dbg(tctx->dev, "%s\n", __func__);
 
    crypto_free_ahash(tctx->fb.hash);
 
@@ -377,16 +440,34 @@ static int spacc_hash_init(struct ahash_request *req)
    struct crypto_ahash *reqtfm = crypto_ahash_reqtfm(req);
    struct spacc_crypto_ctx *tctx = crypto_ahash_ctx(reqtfm);
    struct spacc_hash_reqctx *ctx = ahash_request_ctx(req);
+   struct spacc_priv *priv = dev_get_drvdata(tctx->dev);
+   int rc;
 
    ctx->hashlen = crypto_ahash_digestsize(crypto_ahash_reqtfm(req));
 
-   dev_info(tctx->dev, "%s\n", __func__);
+   dev_dbg(tctx->dev, "%s\n", __func__);
 
    memset(&ctx->digest, 0, sizeof(ctx->digest));
    memset(&ctx->data, 0, sizeof(ctx->data));
    ctx->datalen = 0;
    ctx->last_req = false;
    ctx->first_blk = true;
+
+   /* need to open it for hash mode, hmac mode will open it when setkey*/
+   if (tctx->keylen == 0) {
+      rc = spacc_hash_open(reqtfm);
+      if (rc < 0) {
+         pr_err("%s: spacc open failed\n", __func__);
+	     return -ENODEV;
+      }
+
+      rc = spacc_set_operation(&priv->spacc, tctx->handle, OP_ENCRYPT, 0, 0, 0, 0, 0);
+      if (rc < 0) {
+         pr_err("%s: spacc set operation failed.\n", __func__);
+         spacc_hash_close(reqtfm);
+	     return rc;
+      }
+   }
 
    return 0;
 }
@@ -400,23 +481,6 @@ static int spacc_count_sg(struct scatterlist *sg, int nbytes)
 		nbytes -= sg->length;
 
 	return i;
-}
-
-static size_t spaccc_sg_copy_from_buffer(struct scatterlist *sgl,
-				unsigned int nents, void *buf, size_t buflen)
-{
-	int i;
-	size_t offset, len;
-
-	for (i = 0, offset = 0; i < nents; ++i) {
-		len = sg_copy_from_buffer(sgl, 1, buf, buflen);
-		buf += len;
-		buflen -= len;
-		offset += len;
-		sgl = sg_next(sgl);
-	}
-
-	return offset;
 }
 
 static size_t spacc_sg_copy_to_buffer(struct scatterlist *sgl,
@@ -439,6 +503,8 @@ static size_t spacc_sg_copy_to_buffer(struct scatterlist *sgl,
 static int spacc_hash_add_digest(struct ahash_request *req)
 {
    struct spacc_hash_reqctx *ctx = ahash_request_ctx(req);
+
+   pr_info("%s\n", __func__);
 
    memset(ctx->sg_hash, 0, sizeof(ctx->sg_hash));
    sg_set_buf(&ctx->sg_hash[0], ctx->digest, ctx->hashlen);
@@ -471,18 +537,29 @@ static int spacc_hash_update(struct ahash_request *req)
    int num_sg;
    int len;
 
-   if (tctx->handle < 0 || !tctx->ctx_valid || req->nbytes > priv->max_msg_len)
+   if (tctx->handle < 0 || !tctx->ctx_valid || req->nbytes > priv->max_msg_len) {
+      pr_info("fallback : tctx->handle :%d tctx->ctx_valid:%d\n", tctx->handle, tctx->ctx_valid);
+	  if (req->result == NULL) {
+	     pr_info("result pointer is NULL, set to ctx->digest");
+	     req->result = ctx->digest;
+	  }
       goto fallback;
+   }
+
+   if (req->nbytes == 0) {
+      pr_info("%s: fallback when nbytes is 0\n", __func__);
+      return 0;
+   }
 
    ctx->digest_mode = 0;
 
-   dev_info(tctx->dev, "%s\n", __func__);
+   dev_dbg(tctx->dev, "%s\n", __func__);
 
    datalen = ctx->datalen;
    total = req->nbytes + datalen;
    pdata = &ctx->data[0] + datalen;
 
-   if (total < blocksize) {
+   if (total <= blocksize) {
       nents = spacc_count_sg(req->src, req->nbytes);
       spacc_sg_copy_to_buffer(req->src, nents, pdata, req->nbytes);
 	  ctx->datalen = total;
@@ -494,7 +571,7 @@ static int spacc_hash_update(struct ahash_request *req)
    ctx->reqsrc = req->src;
    ctx->nbytes = req->nbytes;
 
-   /* change to ALING(rctx->staging_dmabuf, blocksize) if needed */
+   /* change to ALING(ctx->staging_dmabuf, blocksize) if needed */
    staging = ctx->staging_dmabuf;
 
    memcpy(staging, ctx->data, ctx->datalen);
@@ -506,7 +583,7 @@ static int spacc_hash_update(struct ahash_request *req)
 
    if (offset != req->nbytes)
       scatterwalk_map_and_copy(pdata, req->src, offset, datalen, 0);
-	
+
    nbytes = total - datalen;
 
    num_sg = spacc_count_sg(req->src, req->nbytes);
@@ -531,9 +608,9 @@ static int spacc_hash_update(struct ahash_request *req)
    } else
        sg_mark_end(sg_last);
 
-   req->nbytes = nbytes; 
+   req->nbytes = nbytes;
    ctx->datalen = datalen;
-   ctx->src_nents = spacc_count_sg(req->src, req->nbytes); 
+   ctx->src_nents = spacc_count_sg(req->src, req->nbytes);
 
    if (!ctx->first_blk)
       spacc_hash_add_digest(req);
@@ -647,7 +724,7 @@ static int spacc_hash_copy_state(struct spacc_crypto_ctx *tctx, struct spacc_has
    case CRYPTO_MODE_HMAC_MD5:
       spacc_hash_copy_md5_state(ctx, state, import);
       break;
-        
+
    case CRYPTO_MODE_HASH_SHA1:
    case CRYPTO_MODE_HMAC_SHA1:
       spacc_hash_copy_sha1_state(ctx, state, import);
@@ -673,6 +750,7 @@ static int spacc_hash_copy_state(struct spacc_crypto_ctx *tctx, struct spacc_has
       pr_err("unsupported mode :%d\n", tctx->mode);
    }
 
+   return 0;
 }
 
 /*
@@ -685,15 +763,26 @@ static int spacc_hash_import(struct ahash_request *req, const void *in)
    struct crypto_ahash *reqtfm = crypto_ahash_reqtfm(req);
    struct spacc_crypto_ctx *tctx = crypto_ahash_ctx(reqtfm);
    struct spacc_hash_reqctx *ctx = ahash_request_ctx(req);
-   uint8_t zero_buf = kzalloc(SPACC_MAX_DIGEST_SIZE, GFP_KERNEL);
+   uint8_t *zero_buf = kzalloc(SPACC_MAX_DIGEST_SIZE, GFP_KERNEL);
 
-   dev_info(tctx->dev, "%s\n", __func__);
+   dev_dbg(tctx->dev, "%s\n", __func__);
 
-   spacc_hash_copy_state(tctx, ctx, in, true);
-   if (!memcmp(ctx->digest, zero_buf, ctx->hashlen))
-      ctx->first_blk = true;
+   if (zero_buf == NULL) {
+      return -ENOMEM;
+   }
 
    ctx->hashlen = crypto_ahash_digestsize(crypto_ahash_reqtfm(req));
+
+   spacc_hash_copy_state(tctx, ctx, in, true);
+
+   ctx->hashlen = crypto_ahash_digestsize(crypto_ahash_reqtfm(req));
+
+   if (!memcmp(ctx->digest, zero_buf, ctx->hashlen)) {
+      ctx->first_blk = true;
+   } else
+      ctx->first_blk = false;
+
+   kfree(zero_buf);
 
    return 0;
 }
@@ -704,7 +793,7 @@ static int spacc_hash_export(struct ahash_request *req, void *out)
    struct spacc_crypto_ctx *tctx = crypto_ahash_ctx(reqtfm);
    struct spacc_hash_reqctx *ctx = ahash_request_ctx(req);
 
-   dev_info(tctx->dev, "%s\n", __func__);
+   dev_dbg(tctx->dev, "%s\n", __func__);
 
    spacc_hash_copy_state(tctx, ctx, out, false);
 
@@ -719,12 +808,19 @@ static int spacc_hash_final(struct ahash_request *req)
    struct spacc_priv *priv = dev_get_drvdata(tctx->dev);
    int ret = 0;
 
-   dev_info(tctx->dev, "%s\n", __func__);
+   dev_dbg(tctx->dev, "%s\n", __func__);
 
-   if (tctx->handle < 0 || !tctx->ctx_valid || req->nbytes > priv->max_msg_len)
+   if (tctx->handle < 0 || !tctx->ctx_valid || req->nbytes > priv->max_msg_len) {
+      pr_info("fallback : tctx->handle :%d tctx->ctx_valid:%d\n", tctx->handle, tctx->ctx_valid);
       goto fallback;
+   }
 
    ctx->last_req = true;
+
+   if (ctx->datalen == 0 && ctx->first_blk) {
+      pr_info("%s: fallback for empty plaintext\n", __func__);
+      goto fallback;
+   }
 
    if (ctx->datalen == 0) {
       memcpy(req->result, ctx->digest, ctx->hashlen);
@@ -743,14 +839,14 @@ static int spacc_hash_final(struct ahash_request *req)
 
       memset(ctx->data, 0, ARRAY_SIZE(ctx->data));
       ctx->datalen = 0;
-      ctx->src_nents = spacc_count_sg(req->src, req->nbytes); 
+      ctx->src_nents = spacc_count_sg(req->src, req->nbytes);
 
       if (!ctx->first_blk)
 		  spacc_hash_add_digest(req);
 
       ret = spacc_hash_queue_req(req);
    } else {
-      memcpy(req->result, ctx->digest, ctx->hashlen);  
+      memcpy(req->result, ctx->digest, ctx->hashlen);
       req->base.complete(&req->base, 0);
    }
 
@@ -773,6 +869,26 @@ fallback:
 }
 
 const struct ahash_alg spacc_hash_template __devinitconst = {
+   .init   = spacc_hash_init,
+   .update = spacc_hash_update,
+   .final  = spacc_hash_final,
+   .import = spacc_hash_import,
+   .export = spacc_hash_export,
+   .digest = spacc_hash_digest,
+
+   .halg.base = {
+      .cra_priority = 300,
+      .cra_module   = THIS_MODULE,
+      .cra_init     = spacc_hash_cra_init,
+      .cra_exit     = spacc_hash_cra_exit,
+      .cra_ctxsize  = sizeof (struct spacc_crypto_ctx),
+      .cra_flags    = CRYPTO_ALG_TYPE_AHASH
+                    | CRYPTO_ALG_ASYNC
+					| CRYPTO_ALG_NEED_FALLBACK,
+   },
+};
+
+const struct ahash_alg spacc_hmac_template __devinitconst = {
    .init   = spacc_hash_init,
    .update = spacc_hash_update,
    .final  = spacc_hash_final,
