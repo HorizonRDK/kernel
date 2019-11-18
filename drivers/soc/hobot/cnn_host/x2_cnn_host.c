@@ -2356,8 +2356,6 @@ static ssize_t fre_store(struct kobject *kobj, struct kobj_attribute *attr,
 	}
 	if (!profiler_enable)
 		check_timer.expires = jiffies + HZ / profiler_frequency;
-	else
-		mod_timer(&check_timer, jiffies + HZ / profiler_frequency);
 	return count;
 }
 
