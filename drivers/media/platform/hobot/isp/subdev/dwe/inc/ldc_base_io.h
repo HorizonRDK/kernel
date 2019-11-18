@@ -176,8 +176,8 @@ typedef union _ldc_path_sel_u {
 } ldc_path_sel_u;
 
 typedef struct _ldc_picsize_s {
-	uint16_t pic_h;
 	uint16_t pic_w;
+	uint16_t pic_h;
 } ldc_picsize_s;
 
 typedef union _ldc_picsize_u {
@@ -186,8 +186,8 @@ typedef union _ldc_picsize_u {
 } ldc_picsize_u;
 
 typedef struct _ldc_algoparam_s {
-	uint16_t rg_algo_param_a;
 	uint16_t rg_algo_param_b;
+	uint16_t rg_algo_param_a;
 } ldc_algoparam_s;
 
 typedef union _ldc_algoparam_u {
@@ -330,4 +330,9 @@ static __inline void get_ldc_cur_index(const char __iomem *regbase,
 	ldc_read_32reg(regbase, LDC_CUR_SET_INDEX, ldc_cur_index);
 }
 
+static __inline void ldc_debug_info(const char __iomem *regbase, uint32_t addr,
+	uint32_t *info)
+{
+	ldc_read_32reg(regbase, addr, info);
+}
 #endif /* __LDC_BASE_IO_H__ */

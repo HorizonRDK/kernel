@@ -136,8 +136,8 @@ static __inline void get_dwe_checktype(const char __iomem *regbase,
 //change image_size  IMAGE+PG_SIZE
 //----------------------------------------------------------------//
 typedef struct _dis_picsize_s {
-        uint16_t pic_h;
         uint16_t pic_w;
+        uint16_t pic_h;
 } dis_picsize_s;
 
 typedef union _dis_picsieze_u {
@@ -173,8 +173,8 @@ static __inline void get_dwe_pg_size(const char __iomem *regbase,
 //pg_blanking setting
 //--------------------------------------------------------------//
 typedef struct _pg_blanking_s {
-        uint16_t rg_pg_v_blanking;
         uint16_t rg_pg_h_blanking;
+        uint16_t rg_pg_v_blanking;
 } pg_blanking_s;
 
 typedef union _pg_blanking_u {
@@ -239,8 +239,8 @@ typedef union _dis_path_sel_u {
 } dis_path_sel_u;
 
 typedef struct _dis_crop_s {
-        uint16_t rg_dis_end;
         uint16_t rg_dis_start;
+        uint16_t rg_dis_end;
 } dis_crop_s;
 
 typedef union _dis_crop_u {
@@ -398,6 +398,12 @@ static __inline void set_gdc_status(const char __iomem *regbase,
 	uint32_t *gdc_status)
 {
         dwe_write_32reg(regbase, DWE_INT_GDC_STATUS, gdc_status);
+}
+
+static __inline void dwe_debug_info(const char __iomem *regbase,
+	uint32_t addr, uint32_t *gdc_status)
+{
+        dwe_read_32reg(regbase, addr, gdc_status);
 }
 
 #endif /* __DWE_BASE_IO_H__ */

@@ -344,8 +344,8 @@ static int dwe_v4l2_format(void *priv, struct v4l2_format *p)
 }
 
 //temp
-extern int dis_set_ioctl(uint32_t port);
-extern int ldc_set_ioctl(uint32_t port);
+extern int dis_set_ioctl(uint32_t port, uint32_t online);
+extern int ldc_set_ioctl(uint32_t port, uint32_t online);
 static uint32_t tmp_port_save = 0;
 //
 
@@ -451,10 +451,10 @@ static long dwe_fop_ioctl(struct file *pfile, unsigned int cmd,
 	}
 		break;
 	case DWEC_START_PG: {
-		tmp_port_save = tmp_port_save ^ 1;
-		ret = dis_set_ioctl(tmp_port_save);
-		ret = ldc_set_ioctl(tmp_port_save);
-		msleep(2000);
+		//tmp_port_save = tmp_port_save ^ 1;
+		//ret = dis_set_ioctl(tmp_port_save, 0);
+		//ret = ldc_set_ioctl(tmp_port_save, 0);
+		msleep(1000);
 		ret = start_pg_pulse(dwe_cdev->port);
 	}
 		break;

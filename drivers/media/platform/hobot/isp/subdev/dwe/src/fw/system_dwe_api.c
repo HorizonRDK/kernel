@@ -122,19 +122,22 @@ void printk_pgparam(pg_param_s *ppg)
 	LOG(LOG_INFO, "pic %d, blank %d.", ppg->size.psize_g, ppg->blank.blank_g);
 }
 
+extern int dis_set_ioctl(uint32_t port, uint32_t online);
+extern int ldc_set_ioctl(uint32_t port, uint32_t online);
+
 //driver <--> user  by chardev
 int ldc_swparam_set(uint32_t port, ldc_param_s *pldc)
 {
 	int ret = 0;
 
 	if (port >= FIRMWARE_CONTEXT_NUMBER) {
-		LOG(LOG_ERR, "---param is err!---");
+		LOG(LOG_ERR, "---port %d param is error!---", port);
 		ret = -1;
 	} else {	
 		if (pldc) {
 			memcpy(&dwe_param[port].ldc_param, pldc, sizeof(ldc_param_s));
 		} else {
-			LOG(LOG_ERR, "---param is err!---");
+			LOG(LOG_ERR, "---pldc is null!---");
 			ret = -1;
 		}
 	}
@@ -149,11 +152,15 @@ int ldc_swparam_set(uint32_t port, ldc_param_s *pldc)
 	if (ret == 0) {
 		if ((port < HADRWARE_CONTEXT_MAX) && (dev_ptr != NULL)) {
 			printk(KERN_INFO "%s -- %d .\n", __func__, __LINE__);
-			set_chn_ldc_param(dev_ptr->ldc_dev->io_vaddr, &dwe_param[port].ldc_param, port);
+			set_chn_ldc_param(dev_ptr->ldc_dev->io_vaddr, &dwe_param[port].ldc_param, 0);
 		}
 	}
+	uint32_t temp = 1;
+	set_ldc_bypass(dev_ptr->ldc_dev->io_vaddr, &temp);
 #endif
-	LOG(LOG_ERR, "port is %d", port);
+	ldc_set_ioctl(port, 1);
+
+	LOG(LOG_DEBUG, "port is %d", port);
 
 	return ret;
 }
@@ -163,13 +170,13 @@ int ldc_swparam_get(uint32_t port, ldc_param_s *pldc)
 	int ret = 0;
 
 	if (port >= FIRMWARE_CONTEXT_NUMBER) {
-		LOG(LOG_ERR, "---param is err!---");
+		LOG(LOG_ERR, "---port %d param is error!---", port);
 		ret = -1;
 	} else {
 		if (pldc) {
 			memcpy(pldc, &dwe_param[port].ldc_param, sizeof(ldc_param_s));
 		} else {
-			LOG(LOG_ERR, "---param is err!---");
+			LOG(LOG_ERR, "---pldc is err!---");
 			ret = -1;
 		}
 	}
@@ -184,13 +191,13 @@ int dis_swparam_set(uint32_t port, dis_param_s *pdis)
 	int ret = 0;
 
 	if (port >= FIRMWARE_CONTEXT_NUMBER) {
-		LOG(LOG_ERR, "---param is err!---");
+		LOG(LOG_ERR, "---port %d param is error!---", port);
 		ret = -1;
 	} else {
 		if (pdis) {
 			memcpy(&dwe_param[port].dis_param, pdis, sizeof(dis_param_s));
 		} else {
-			LOG(LOG_ERR, "---param is err!---");
+			LOG(LOG_ERR, "---pdis is null!---");
 			ret = -1;
 		}
 	}
@@ -199,14 +206,16 @@ int dis_swparam_set(uint32_t port, dis_param_s *pdis)
 
 	LOG(LOG_DEBUG, "port is %d", port);
 #if 0
+	//temp
 	if (ret == 0) {
 		if ((port < HADRWARE_CONTEXT_MAX) && (dev_ptr != NULL)) {
 			printk(KERN_INFO "%s -- %d .\n", __func__, __LINE__);
 			set_chn_dis_param(dev_ptr->dis_dev->io_vaddr,
-				&dwe_param[port].dis_param, port);
+				&dwe_param[port].dis_param, 0);
 		}
 	}
 #endif
+	dis_set_ioctl(port, 1);
 	return ret;
 }
 
@@ -215,13 +224,13 @@ int dis_swparam_get(uint32_t port, dis_param_s *pdis)
 	int ret = 0;
 
 	if (port >= FIRMWARE_CONTEXT_NUMBER) {
-		LOG(LOG_ERR, "---param is err!---");
+		LOG(LOG_ERR, "---port %d param is error!---", port);
 		ret = -1;
 	} else {
 		if (pdis) {
 			memcpy(pdis, &dwe_param[port].dis_param, sizeof(dis_param_s));
 		} else {
-			LOG(LOG_ERR, "---param is err!---");
+			LOG(LOG_ERR, "---pdis is null!---");
 			ret = -1;
 		}
 	}
@@ -236,13 +245,13 @@ int pattgen_param_set(uint32_t port, pg_param_s *ppg)
 	int ret  = 0;
 
 	if (port >= FIRMWARE_CONTEXT_NUMBER) {
-		LOG(LOG_ERR, "---param is err!---");
+		LOG(LOG_ERR, "---port %d param is error!---", port);
 		ret = -1;
 	} else {
 		if (ppg) {
 			memcpy(&dwe_param[port].pg_param, ppg, sizeof(pg_param_s));
 		} else {
-			LOG(LOG_ERR, "---param is err!---");
+			LOG(LOG_ERR, "---ppg is err!---");
 			ret = -1;
 		}
 	}
@@ -258,13 +267,13 @@ int pattgen_param_get(uint32_t port, pg_param_s *ppg)
 	int ret = 0;
 
 	if (port >= FIRMWARE_CONTEXT_NUMBER) {
-		LOG(LOG_ERR, "---param is err!---");
+		LOG(LOG_ERR, "---port %d param is error!---", port);
 		ret = -1;
 	} else {
 		if (ppg) {
 			memcpy(ppg, &dwe_param[port].pg_param, sizeof(pg_param_s));
 		} else {
-			LOG(LOG_ERR, "---param is err!---");
+			LOG(LOG_ERR, "---ppg is err!---");
 			ret = -1;
 		}
 	}
@@ -287,7 +296,7 @@ int start_pg_pulse(uint32_t port)
 	set_dwe_pg_start(dev_ptr->dis_dev->io_vaddr, &tmp);
 	mutex_unlock(&mc_mutex);
 
-	printk(KERN_INFO "%s -- %d.\n", __func__, __LINE__);
+	LOG(LOG_DEBUG, "--pg_pulse--");
 
 	return ret;
 }
@@ -303,7 +312,7 @@ int pg_mode_enable(uint32_t input)
 	tmp.type_b.rg_pg_mode = (input & 0xff00) >> 8;
 
 	set_dwe_checktype(dev_ptr->dis_dev->io_vaddr, &tmp.type_g);
-	printk(KERN_INFO "%s -- %d.\n", __func__, __LINE__);
+	LOG(LOG_DEBUG, "--pg_pulse--");
 
 	return ret;
 }
@@ -333,9 +342,9 @@ int dwe_init_api(dwe_context_t *ctx, struct dwe_dev_s *pdev, dwe_param_t **ppara
 		set_chn_dis_addr(dev_ptr->dis_dev->io_vaddr, &ctx->phy_mem, tmp);
 	}
 	//enable irq mask  ldc & dis
-	tmp = 0xf;
+	tmp = 0x1;
 	set_dwe_int_mask(dev_ptr->dis_dev->io_vaddr, &tmp);
-	tmp = 0xff;
+	tmp = 0x7f;
 	set_ldc_int_mask(dev_ptr->ldc_dev->io_vaddr, &tmp);
 //------------------------------------------------------
 //tmp
@@ -343,8 +352,8 @@ int dwe_init_api(dwe_context_t *ctx, struct dwe_dev_s *pdev, dwe_param_t **ppara
 	set_ldc_setting(dev_ptr->ldc_dev->io_vaddr, &tmp);
 	tmp = 0x80fc0000;
 	set_dwe_setting(dev_ptr->dis_dev->io_vaddr, &tmp);
-	tmp = 0x8;
-	set_dwe_checktype(dev_ptr->dis_dev->io_vaddr, &tmp);
+//	tmp = 0x8;
+//	set_dwe_checktype(dev_ptr->dis_dev->io_vaddr, &tmp);
 //-------------------------------------------------------
 
 	ctx->ldc_running = 0;
@@ -359,7 +368,8 @@ int dwe_init_api(dwe_context_t *ctx, struct dwe_dev_s *pdev, dwe_param_t **ppara
 	ctx->dis_next_port = -1;
 	ctx->dis_update = 0;
 	ctx->dis_cur_num = 0;
-	ctx->online_enable = 0;
+	ctx->online_enable = 1;
+	ctx->online_port = 0;
 
 	for (tmp = 0; tmp < FIRMWARE_CONTEXT_NUMBER; tmp++) {
 		//the data is temp, ldc is bypass
@@ -408,6 +418,8 @@ int dwe_reset_api(dwe_context_t *ctx)
 	ctx->dis_next_port = -1;
 	ctx->dis_update = 0;
 	ctx->dis_cur_num = 0;
+	ctx->online_enable = 1;
+	ctx->online_port = 0;
 	
 	for (tmp = 0; tmp < FIRMWARE_CONTEXT_NUMBER; tmp++) {
 		//the data is temp, ldc is bypass
@@ -427,6 +439,138 @@ void dwe_deinit_api(dwe_context_t *ctx)
 	LOG(LOG_DEBUG, "dwe_deinit_api is success");
 }
 
+//debug info
+void ldc_printk_info(void)
+{
+	uint32_t tmp = 0;
+	uint32_t addr = 0;
+	uint32_t count = 0;
+
+	addr = 0x4;
+	ldc_debug_info(dev_ptr->ldc_dev->io_vaddr, addr, &tmp);
+	LOG(LOG_DEBUG, "[dump] addr 0x%x, data 0x%x", addr, tmp);
+	addr = 0x8;
+	ldc_debug_info(dev_ptr->ldc_dev->io_vaddr, addr, &tmp);
+	LOG(LOG_DEBUG, "[dump] addr 0x%x, data 0x%x", addr, tmp);
+	addr = 0x40;
+	ldc_debug_info(dev_ptr->ldc_dev->io_vaddr, addr, &tmp);
+	LOG(LOG_DEBUG, "[dump] addr 0x%x, data 0x%x", addr, tmp);
+	addr = 0x44;
+	ldc_debug_info(dev_ptr->ldc_dev->io_vaddr, addr, &tmp);
+	LOG(LOG_DEBUG, "[dump] addr 0x%x, data 0x%x", addr, tmp);
+	//channl0
+	for(count = 0; count < 2; count++) {
+		addr = 0x100 + count * 0x100;
+		ldc_debug_info(dev_ptr->ldc_dev->io_vaddr, addr, &tmp);
+		LOG(LOG_DEBUG, "[dump] addr 0x%x, data 0x%x", addr, tmp);
+		addr = 0x104 + count * 0x100;
+		ldc_debug_info(dev_ptr->ldc_dev->io_vaddr, addr, &tmp);
+		LOG(LOG_DEBUG, "[dump] addr 0x%x, data 0x%x", addr, tmp);
+		addr = 0x108 + count * 0x100;
+		ldc_debug_info(dev_ptr->ldc_dev->io_vaddr, addr, &tmp);
+		LOG(LOG_DEBUG, "[dump] addr 0x%x, data 0x%x", addr, tmp);
+		addr = 0x140 + count * 0x100;
+		ldc_debug_info(dev_ptr->ldc_dev->io_vaddr, addr, &tmp);
+		LOG(LOG_DEBUG, "[dump] addr 0x%x, data 0x%x", addr, tmp);
+		addr = 0x144 + count * 0x100;
+		ldc_debug_info(dev_ptr->ldc_dev->io_vaddr, addr, &tmp);
+		LOG(LOG_DEBUG, "[dump] addr 0x%x, data 0x%x", addr, tmp);
+		addr = 0x148 + count * 0x100;
+		ldc_debug_info(dev_ptr->ldc_dev->io_vaddr, addr, &tmp);
+		LOG(LOG_DEBUG, "[dump] addr 0x%x, data 0x%x", addr, tmp);
+		addr = 0x14c + count * 0x100;
+		ldc_debug_info(dev_ptr->ldc_dev->io_vaddr, addr, &tmp);
+		LOG(LOG_DEBUG, "[dump] addr 0x%x, data 0x%x", addr, tmp);
+		addr = 0x150 + count * 0x100;
+		ldc_debug_info(dev_ptr->ldc_dev->io_vaddr, addr, &tmp);
+		LOG(LOG_DEBUG, "[dump] addr 0x%x, data 0x%x", addr, tmp);
+		addr = 0x180 + count * 0x100;
+		ldc_debug_info(dev_ptr->ldc_dev->io_vaddr, addr, &tmp);
+		LOG(LOG_DEBUG, "[dump] addr 0x%x, data 0x%x", addr, tmp);
+		addr = 0x184 + count * 0x100;
+		ldc_debug_info(dev_ptr->ldc_dev->io_vaddr, addr, &tmp);
+		LOG(LOG_DEBUG, "[dump] addr 0x%x, data 0x%x", addr, tmp);
+	}
+	addr = 0x708;
+	ldc_debug_info(dev_ptr->ldc_dev->io_vaddr, addr, &tmp);
+	LOG(LOG_DEBUG, "[dump] addr 0x%x, data 0x%x", addr, tmp);
+	for(count = 0; count < 10; count++) {
+		addr = 0x800 + count * 4;
+		ldc_debug_info(dev_ptr->ldc_dev->io_vaddr, addr, &tmp);
+		LOG(LOG_DEBUG, "[dump] addr 0x%x, data 0x%x", addr, tmp);
+	}
+}
+
+//debug info
+void dwe_printk_info(void)
+{
+	uint32_t tmp = 0;
+	uint32_t addr = 0;
+	uint32_t count = 0;
+
+	addr = 0x0;
+	dwe_debug_info(dev_ptr->dis_dev->io_vaddr, addr, &tmp);
+	LOG(LOG_DEBUG, "[dump] addr 0x%x, data 0x%x", addr, tmp);
+	addr = 0x4;
+	dwe_debug_info(dev_ptr->dis_dev->io_vaddr, addr, &tmp);
+	LOG(LOG_DEBUG, "[dump] addr 0x%x, data 0x%x", addr, tmp);
+	addr = 0x8;
+	dwe_debug_info(dev_ptr->dis_dev->io_vaddr, addr, &tmp);
+	LOG(LOG_DEBUG, "[dump] addr 0x%x, data 0x%x", addr, tmp);
+	addr = 0x10;
+	dwe_debug_info(dev_ptr->dis_dev->io_vaddr, addr, &tmp);
+	LOG(LOG_DEBUG, "[dump] addr 0x%x, data 0x%x", addr, tmp);
+	addr = 0x14;
+	dwe_debug_info(dev_ptr->dis_dev->io_vaddr, addr, &tmp);
+	LOG(LOG_DEBUG, "[dump] addr 0x%x, data 0x%x", addr, tmp);
+	addr = 0x40;
+	dwe_debug_info(dev_ptr->dis_dev->io_vaddr, addr, &tmp);
+	LOG(LOG_DEBUG, "[dump] addr 0x%x, data 0x%x", addr, tmp);
+	addr = 0x44;
+	dwe_debug_info(dev_ptr->dis_dev->io_vaddr, addr, &tmp);
+	LOG(LOG_DEBUG, "[dump] addr 0x%x, data 0x%x", addr, tmp);
+	//channel
+	for(count = 0; count < 2; count++) {
+		addr = 0x100 + count * 0x100;
+		dwe_debug_info(dev_ptr->dis_dev->io_vaddr, addr, &tmp);
+		LOG(LOG_DEBUG, "[dump] addr 0x%x, data 0x%x", addr, tmp);
+		addr = 0x104 + count * 0x100;
+		dwe_debug_info(dev_ptr->dis_dev->io_vaddr, addr, &tmp);
+		LOG(LOG_DEBUG, "[dump] addr 0x%x, data 0x%x", addr, tmp);
+		addr = 0x108 + count * 0x100;
+		dwe_debug_info(dev_ptr->dis_dev->io_vaddr, addr, &tmp);
+		LOG(LOG_DEBUG, "[dump] addr 0x%x, data 0x%x", addr, tmp);
+		addr = 0x140 + count * 0x100;
+		dwe_debug_info(dev_ptr->dis_dev->io_vaddr, addr, &tmp);
+		LOG(LOG_DEBUG, "[dump] addr 0x%x, data 0x%x", addr, tmp);
+		addr = 0x144 + count * 0x100;
+		dwe_debug_info(dev_ptr->dis_dev->io_vaddr, addr, &tmp);
+		LOG(LOG_DEBUG, "[dump] addr 0x%x, data 0x%x", addr, tmp);
+		addr = 0x148 + count * 0x100;
+		dwe_debug_info(dev_ptr->dis_dev->io_vaddr, addr, &tmp);
+		LOG(LOG_DEBUG, "[dump] addr 0x%x, data 0x%x", addr, tmp);
+		addr = 0x14c + count * 0x100;
+		dwe_debug_info(dev_ptr->dis_dev->io_vaddr, addr, &tmp);
+		LOG(LOG_DEBUG, "[dump] addr 0x%x, data 0x%x", addr, tmp);
+		addr = 0x150 + count * 0x100;
+		dwe_debug_info(dev_ptr->dis_dev->io_vaddr, addr, &tmp);
+		LOG(LOG_DEBUG, "[dump] addr 0x%x, data 0x%x", addr, tmp);
+		addr = 0x180 + count * 0x100;
+		dwe_debug_info(dev_ptr->dis_dev->io_vaddr, addr, &tmp);
+		LOG(LOG_DEBUG, "[dump] addr 0x%x, data 0x%x", addr, tmp);
+		addr = 0x184 + count * 0x100;
+		dwe_debug_info(dev_ptr->dis_dev->io_vaddr, addr, &tmp);
+		LOG(LOG_DEBUG, "[dump] addr 0x%x, data 0x%x", addr, tmp);
+	}
+
+	//info
+	for(count = 0; count < 9; count++) {
+		addr = 0x700 + count * 4;
+		dwe_debug_info(dev_ptr->dis_dev->io_vaddr, addr, &tmp);
+		LOG(LOG_DEBUG, "[dump] addr 0x%x, data 0x%x", addr, tmp);
+	}
+}
+
 /* 
  * ldc & dis 
  * if  port == 1
@@ -443,7 +587,7 @@ int ldc_hwparam_set(dwe_context_t *ctx, uint32_t port)
 	uint32_t tmp_cur = 0;
 	
 	if ((ctx == NULL) || (port >= FIRMWARE_CONTEXT_NUMBER)) {
-		LOG(LOG_ERR, "---param is error!---", __func__);
+		LOG(LOG_ERR, "---port %d param is error!---", port);
 		return -EINVAL;
 	}
 
@@ -470,7 +614,7 @@ int dis_hwparam_set(dwe_context_t *ctx, uint32_t port)
 	uint32_t tmp_addr = 0;
 	
 	if ((ctx == NULL) || (port >= FIRMWARE_CONTEXT_NUMBER)) {
-		LOG(LOG_ERR, "---param is error!---", __func__);
+		LOG(LOG_ERR, "---port %d param is error!---", port);
 		return -EINVAL;
 	}
 
@@ -498,7 +642,7 @@ int dis_hwparam_set(dwe_context_t *ctx, uint32_t port)
 		ctx->dframes[port].address = ctx->phy_mem;
 		ctx->dframes[port].virt_addr = ctx->ptr_mem;
 		tmp_cur = dwe_param[port].dis_param.path.path_g | 1;
-		set_chn_dis_setting(dev_ptr->dis_dev->io_vaddr, &tmp_cur, ctx->dis_dev_num);
+		//set_chn_dis_setting(dev_ptr->dis_dev->io_vaddr, &tmp_cur, ctx->dis_dev_num);
 	}
 
 	set_chn_dis_addr(dev_ptr->dis_dev->io_vaddr,
@@ -527,7 +671,7 @@ int ldc_hwpath_set(dwe_context_t *ctx, uint32_t port)
 	uint32_t set_tmp = 0;
 
 	if ((ctx == NULL) || (port >= FIRMWARE_CONTEXT_NUMBER)) {
-		LOG(LOG_ERR, "---param is error!---", __func__);
+		LOG(LOG_ERR, "---port %d param is error!---", port);
 		return -EINVAL;
 	}
 
@@ -535,11 +679,12 @@ int ldc_hwpath_set(dwe_context_t *ctx, uint32_t port)
 	//ctx->ldc_cur_num = tmp_cur;
 
 	get_ldc_setting(dev_ptr->ldc_dev->io_vaddr, &set_tmp);
-	set_tmp &= 0xfc0000;
+	set_tmp &= 0x80fc0000;
 	set_tmp |= ctx->ldc_dev_num << 16;
 	//set_tmp |= (tmp_cur << (16 + ctx->ldc_dev_num * 2));
 	set_ldc_setting(dev_ptr->ldc_dev->io_vaddr, &set_tmp);
 	LOG(LOG_DEBUG, "num %d,set_tmp %x", ctx->ldc_dev_num, set_tmp);
+	tmp_num = 1;
 	//set_ldc_bypass(dev_ptr->ldc_dev->io_vaddr, &tmp_num);
 
 	return ret;
@@ -562,7 +707,7 @@ int dis_hwpath_set(dwe_context_t *ctx, uint32_t port)
 	uint32_t size_tmp = dwe_param[port].dis_param.picsize.psize_g;
 
 	if ((ctx == NULL) || (port >= FIRMWARE_CONTEXT_NUMBER)) {
-		LOG(LOG_ERR, "---param is error!---", __func__);
+		LOG(LOG_ERR, "---port %d param is error!---", port);
 		return -EINVAL;
 	}
 
@@ -572,7 +717,7 @@ int dis_hwpath_set(dwe_context_t *ctx, uint32_t port)
 	set_dwe_image_size(dev_ptr->dis_dev->io_vaddr, &size_tmp);
 
 	get_dwe_setting(dev_ptr->dis_dev->io_vaddr, &set_tmp);
-	set_tmp &= 0xfc0000;
+	set_tmp &= 0x80fc0000;
 	set_tmp |= ctx->dis_dev_num << 16;
 	//set_tmp |= (tmp_cur << (16 + ctx->dis_dev_num * 2));
 	set_dwe_setting(dev_ptr->dis_dev->io_vaddr, &set_tmp);

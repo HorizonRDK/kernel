@@ -70,6 +70,7 @@ int ldc_hwparam_set(dwe_context_t *ctx, uint32_t port);
 int dis_hwparam_set(dwe_context_t *ctx, uint32_t port);
 int ldc_hwpath_set(dwe_context_t *ctx, uint32_t port);
 int dis_hwpath_set(dwe_context_t *ctx, uint32_t port);
-
+void ldc_printk_info(void);
+void dwe_printk_info(void);
 
 #endif /* __ACAMERA_DWE_API_H__ */

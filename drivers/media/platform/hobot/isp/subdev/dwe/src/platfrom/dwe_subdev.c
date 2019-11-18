@@ -64,13 +64,22 @@ typedef struct _subdev_dwe_ctx {
 
 static subdev_dwe_ctx *dwe_ctx;
 
+void ldc_printk(void)
+{
+}
+
+void dis_printk(void)
+{
+}
+
 static void ldc_task_work(struct work_struct *work)
 {
+	unsigned long flags;
 	int ret = 0;
 
-	spin_lock_irq(&dwe_ctx->ldclock);
-	LOG(LOG_DEBUG, "%s -- %d, run %d , port %d, ldc_irq %d !\n", __func__, __LINE__, dwe_ctx->ctx.ldc_running, dwe_ctx->ctx.ldc_next_port, dwe_ctx->ldc_irqstatus);
+	LOG(LOG_INFO, "run %d , port %d, ldc_irq %d !\n", dwe_ctx->ctx.ldc_running, dwe_ctx->ctx.ldc_next_port, dwe_ctx->ldc_irqstatus);
 
+	spin_lock_irqsave(&dwe_ctx->ldclock, flags);
 	//set param when next port is setting
 	if ((dwe_ctx->ctx.ldc_next_port >= 0) && (dwe_ctx->ctx.ldc_next_port < 0xff)) {
 		ret = ldc_hwparam_set(&dwe_ctx->ctx, dwe_ctx->ctx.ldc_next_port);
@@ -83,16 +92,19 @@ static void ldc_task_work(struct work_struct *work)
 			ret = ldc_hwpath_set(&dwe_ctx->ctx, (dwe_ctx->ctx.ldc_next_port - 0x100));
 		}
 	}
-	spin_unlock_irq(&dwe_ctx->ldclock);
+	spin_unlock_irqrestore(&dwe_ctx->ldclock, flags);
+	//debug
+	ldc_printk_info();
 }
 
 static void dis_task_work(struct work_struct *work)
 {
+	unsigned long flags;
 	int ret = 0;
 
-	spin_lock_irq(&dwe_ctx->dislock);
-	LOG(LOG_DEBUG, "%s -- %d, run %d , port %d, dis_irq %d !\n", __func__, __LINE__, dwe_ctx->ctx.dis_running, dwe_ctx->ctx.dis_next_port, dwe_ctx->dis_irqstatus);
+	LOG(LOG_INFO, "run %d , port %d, dis_irq %d !\n", dwe_ctx->ctx.dis_running, dwe_ctx->ctx.dis_next_port, dwe_ctx->dis_irqstatus);
 
+	spin_lock_irqsave(&dwe_ctx->dislock, flags);
 	//set param when next port is setting
 	if ((dwe_ctx->ctx.dis_next_port >= 0) && (dwe_ctx->ctx.dis_next_port < 0xff)) {
 		ret = dis_hwparam_set(&dwe_ctx->ctx, dwe_ctx->ctx.dis_next_port);
@@ -105,30 +117,48 @@ static void dis_task_work(struct work_struct *work)
 			ret = dis_hwpath_set(&dwe_ctx->ctx, (dwe_ctx->ctx.dis_next_port - 0x100));
 		}
 	}
-	spin_unlock_irq(&dwe_ctx->dislock);
+	spin_unlock_irqrestore(&dwe_ctx->dislock, flags);
+	//debug info
+	dwe_printk_info();
 }
 
 //
-int ldc_set_ioctl(uint32_t port)
+int ldc_set_ioctl(uint32_t port, uint32_t online)
 {
+	unsigned long flags;
 	int ret = 0;
 
-	spin_lock_irq(&dwe_ctx->ldclock);
+	if (online == 1) {
+		dwe_ctx->ctx.online_enable = 1;
+		dwe_ctx->ctx.online_port = port;
+	} else {
+		dwe_ctx->ctx.online_enable = 0;
+	}
+
+	spin_lock_irqsave(&dwe_ctx->ldclock, flags);
 	dwe_ctx->ctx.ldc_next_port = port;
-	spin_unlock_irq(&dwe_ctx->ldclock);
+	spin_unlock_irqrestore(&dwe_ctx->ldclock, flags);
 	schedule_work(&dwe_ctx->ldc_work);
 
 	return ret;
 }
 EXPORT_SYMBOL(ldc_set_ioctl);
 
-int dis_set_ioctl(uint32_t port)
+int dis_set_ioctl(uint32_t port, uint32_t online)
 {
+	unsigned long flags;
 	int ret = 0;
 
-	spin_lock_irq(&dwe_ctx->dislock);
+	if (online == 1) {
+		dwe_ctx->ctx.online_enable = 1;
+		dwe_ctx->ctx.online_port = port;
+	} else {
+		dwe_ctx->ctx.online_enable = 0;
+	}
+
+	spin_lock_irqsave(&dwe_ctx->dislock, flags);
 	dwe_ctx->ctx.dis_next_port = port;
-	spin_unlock_irq(&dwe_ctx->dislock);
+	spin_unlock_irqrestore(&dwe_ctx->dislock, flags);
 	schedule_work(&dwe_ctx->dis_work);
 
 	return ret;
@@ -149,25 +179,27 @@ EXPORT_SYMBOL(dis_set_ioctl);
 
 static irqreturn_t x2a_dis_irq(int this_irq, void *data)
 {
-	unsigned long flags;
+	unsigned long flags = 0;
 	int ret = 0;
 	dis_irqstatus_u tmp_irq;
 
 	disable_irq_nosync(this_irq);
 
-	spin_lock_irqsave(&dwe_ctx->dislock, flags);
+	spin_lock(&dwe_ctx->dislock);
 	//dis irq
 	get_dwe_int_status(dwe_ctx->dev_ctx->dis_dev->io_vaddr,
 		&tmp_irq.status_g);
-	set_dwe_int_status(dwe_ctx->dev_ctx->dis_dev->io_vaddr,
-		&tmp_irq.status_g);
-	dwe_ctx->dis_irqstatus = tmp_irq.status_g;
+	set_dwe_int_status(dwe_ctx->dev_ctx->dis_dev->io_vaddr, &tmp_irq.status_g);
 
 	if (tmp_irq.status_b.int_pg_done == 1) {
-		LOG(LOG_DEBUG, "dis  pg_done  !\n");
+		LOG(LOG_DEBUG, "dis pg_done  !\n");
 	}
 
 	if (tmp_irq.status_b.int_frame_done == 1) {
+		//debug
+		LOG(LOG_INFO, "----ldc_irqstatus %x ----", dwe_ctx->dis_irqstatus);
+		dwe_ctx->dis_irqstatus = tmp_irq.status_g;
+
 		dwe_ctx->ctx.dis_running = 0;
 		ret = dwe_stream_put_frame(dwe_ctx->ctx.dis_curr_port,
 			&dwe_ctx->ctx.dframes[dwe_ctx->ctx.dis_curr_port]);
@@ -175,16 +207,19 @@ static irqreturn_t x2a_dis_irq(int this_irq, void *data)
 		if (dwe_ctx->ctx.online_enable == 1) {
 			dwe_ctx->ctx.dis_next_port = dwe_ctx->ctx.online_port;
 		}
+		flags = 1;
 		schedule_work(&dwe_ctx->dis_work);
 	}
 
 	if ((tmp_irq.status_b.int_dis_h_ratio_err == 1) ||
 		(tmp_irq.status_b.int_dis_v_ratio_err == 1)) {
+		dwe_ctx->dis_irqstatus |= tmp_irq.status_g;
+
 		dwe_ctx->ctx.dis_running = 0;
-		LOG(LOG_DEBUG, "over_flow! \n");
+		LOG(LOG_DEBUG, "----over_flow!----");
 	}
 
-	spin_unlock_irqrestore(&dwe_ctx->dislock, flags);
+	spin_unlock(&dwe_ctx->dislock);
 
 	enable_irq(this_irq);
 	return IRQ_HANDLED;
@@ -214,12 +249,15 @@ static irqreturn_t x2a_ldc_irq(int this_irq, void *data)
 
 	disable_irq_nosync(this_irq);
 
-	spin_lock_irqsave(&dwe_ctx->ldclock, flags);
+	spin_lock(&dwe_ctx->ldclock);
 	get_ldc_int_status(dwe_ctx->dev_ctx->ldc_dev->io_vaddr, &tmp_irq.status_g);
 	set_ldc_int_status(dwe_ctx->dev_ctx->ldc_dev->io_vaddr, &tmp_irq.status_g);
-	dwe_ctx->ldc_irqstatus = tmp_irq.status_g;
 
 	if (tmp_irq.status_b.frame_start == 1) {
+		//debug
+		LOG(LOG_INFO, "----ldc_irqstatus %x----", dwe_ctx->ldc_irqstatus);
+		dwe_ctx->ldc_irqstatus = tmp_irq.status_g;
+
 		dwe_ctx->ctx.ldc_running = 1;
 		dwe_ctx->ctx.dis_running = 1;
 		if ( dwe_ctx->ctx.dis_next_port > 0)
@@ -230,19 +268,22 @@ static irqreturn_t x2a_ldc_irq(int this_irq, void *data)
 	}
 
 	if (tmp_irq.status_b.output_frame_done == 1) {
+		dwe_ctx->ldc_irqstatus |= tmp_irq.status_g;
 		dwe_ctx->ctx.ldc_running = 0;
 		//if online
 		if (dwe_ctx->ctx.online_enable == 1) {
 			dwe_ctx->ctx.ldc_next_port = dwe_ctx->ctx.online_port;
 		}
+		flags = 1;
 		schedule_work(&dwe_ctx->ldc_work);
 	}
 	if (tmp_irq.status_b.overflow == 1) {
+		dwe_ctx->ldc_irqstatus |= tmp_irq.status_g;
 		dwe_ctx->ctx.ldc_running = 0;
-		LOG(LOG_DEBUG, "over_flow! \n");
+		//LOG(LOG_DEBUG, "----over_flow!----");
 	}
 
-	spin_unlock_irqrestore(&dwe_ctx->ldclock, flags);
+	spin_unlock(&dwe_ctx->ldclock);
 
 	enable_irq(this_irq);
 	return IRQ_HANDLED;
@@ -293,6 +334,9 @@ int dwe_hw_init(void)
 	/* init workqueue */
 	INIT_WORK(&dwe_ctx->ldc_work, ldc_task_work);
 	INIT_WORK(&dwe_ctx->dis_work, dis_task_work);
+	/* init spin_lock */
+	spin_lock_init(&dwe_ctx->ldclock);
+	spin_lock_init(&dwe_ctx->dislock);
 
 	ret = dwe_init_api(&dwe_ctx->ctx, dwe_ctx->dev_ctx, &dwe_ctx->ptr_param);
 	if (ret < 0) {
@@ -373,12 +417,12 @@ static long soc_dwe_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 
 	switch (cmd) {
 	case SOC_DWE_SET_LDC:
-		rc = ldc_set_ioctl(ARGS_TO_PTR(arg)->ctx_num);
+		rc = ldc_set_ioctl(ARGS_TO_PTR(arg)->ctx_num, 0);
 		break;
 	case SOC_DWE_GET_LDC:
 		break;
 	case SOC_DWE_SET_DIS:
-		rc = dis_set_ioctl(ARGS_TO_PTR(arg)->ctx_num);
+		rc = dis_set_ioctl(ARGS_TO_PTR(arg)->ctx_num, 0);
 		break;
 	case SOC_DWE_GET_DIS:
 		break;
