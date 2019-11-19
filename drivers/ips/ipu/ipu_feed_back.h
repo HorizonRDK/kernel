@@ -12,10 +12,10 @@ struct addr_info_t {
 	uint16_t width;
 	uint16_t height;
 	uint16_t step;
-	uint8_t *y_paddr;
-	uint8_t *c_paddr;
-	uint8_t *y_vaddr;
-	uint8_t *c_vaddr;
+	uint64_t y_paddr;
+	uint64_t c_paddr;
+	uint64_t y_vaddr;
+	uint64_t c_vaddr;
 };
 struct img_info_t {
 	int slot_id;		// 缓存的slot
