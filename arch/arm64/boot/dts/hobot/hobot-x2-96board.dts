@@ -360,16 +360,12 @@
 &i2s0 {
 	status = "okay";
 	#sound-dai-cells = <0>;
-	clocks = <&i2s0_mclk>, <&i2s0_div_mclk>, <&i2s0_bclk>, <&i2s0_div_bclk>;
-	clock-names = "i2s-mclk", "i2s-mclk-div", "i2s-bclk", "i2s0_div_bclk";
 	//bclk_set = <1536000>; //duplex
 };
 
 &i2s1 {
 	status = "okay";
 	#sound-dai-cells = <0>;
-	clocks = <&i2s1_mclk>, <&i2s1_div_mclk>, <&i2s1_bclk>, <&i2s1_div_bclk>;
-	clock-names = "i2s-mclk", "i2s-mclk-div", "i2s-bclk", "i2s0_div_bclk";
 	//ms = <4>; //duplex
 	bclk_set = <1536000>;
 };

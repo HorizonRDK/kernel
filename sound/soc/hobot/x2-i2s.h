@@ -182,8 +182,6 @@ struct x2_i2s {
 	int id;
 	struct clk *mclk;
 	struct clk *bclk;
-	struct clk *div_bclk;
-	struct clk *div_mclk;
 	u32 div_ws;
 	u32 ms;
 	u32 slot_width;

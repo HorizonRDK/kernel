@@ -294,8 +294,6 @@
 
 &i2s0 {
 	status = "okay";
-	clocks = <&i2s0_mclk>, <&i2s0_div_mclk>, <&i2s0_bclk>, <&i2s0_div_bclk>;
-	clock-names = "i2s-mclk", "i2s-mclk-div", "i2s-bclk", "i2s0_div_bclk";
 };
 
 

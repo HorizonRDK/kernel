@@ -590,7 +590,7 @@ static int x2_i2s_probe(struct platform_device *pdev)
 			dev_err(&pdev->dev, "failed to get i2s-mclk\n");
 			return PTR_ERR(i2s->mclk);
 		}
-		ret = clk_prepare(i2s->mclk);
+		ret = clk_prepare_enable(i2s->mclk);
 		if (ret != 0) {
 			dev_err(&pdev->dev, "failed to prepare i2s-mclk\n");
 			return ret;
@@ -601,35 +601,11 @@ static int x2_i2s_probe(struct platform_device *pdev)
 			dev_err(&pdev->dev, "failed to get i2s-bclk\n");
 			return PTR_ERR(i2s->bclk);
 		}
-		ret = clk_prepare(i2s->bclk);
+		ret = clk_prepare_enable(i2s->bclk);
 		if (ret != 0) {
 			dev_err(&pdev->dev, "failed to prepare i2s-bclk\n");
 			return ret;
 		}
-
-		i2s->div_bclk = devm_clk_get(&pdev->dev, "i2s0_div_bclk");
-		if (IS_ERR(i2s->div_bclk)) {
-			dev_err(&pdev->dev, "failed to get i2s0_div_bclk\n");
-			return PTR_ERR(i2s->div_bclk);
-		}
-		ret = clk_prepare(i2s->div_bclk);
-			if (ret != 0) {
-				dev_err(&pdev->dev, "failed to prepare i2s0_div_bclk\n");
-				return ret;
-		}
-		i2s->div_mclk = devm_clk_get(&pdev->dev, "i2s-mclk-div");
-			if (IS_ERR(i2s->div_mclk)) {
-					dev_err(&pdev->dev, "failed to get i2s-mclk-div\n");
-					return PTR_ERR(i2s->div_mclk);
-		}
-		ret = clk_prepare(i2s->div_mclk);
-			if (ret != 0) {
-				dev_err(&pdev->dev, "failed to prepare i2s-mclk-div\n");
-				return ret;
-		}
-
-		clk_enable(i2s->bclk);//must do this
-		clk_enable(i2s->mclk);
 
 		ret = of_property_read_u32(pdev->dev.of_node,
 			"bclk_set", &i2s->bclk_set);
@@ -664,7 +640,7 @@ static int x2_i2s_probe(struct platform_device *pdev)
 			clk_disable(i2s->bclk);
 			//ret = change_clk(&pdev->dev, "i2s-mclk-div",
 			//	i2s->mclk_set);
-			ret = change_clk(&pdev->dev, "i2s0_div_bclk",
+			ret = change_clk(&pdev->dev, "i2s-bclk",
 				i2s->bclk_set);
 
 			clk_enable(i2s->bclk);

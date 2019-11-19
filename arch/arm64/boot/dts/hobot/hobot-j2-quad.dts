@@ -323,14 +323,10 @@
 
 &i2s0 {
 	status = "disabled";
-	clocks = <&i2s0_mclk>, <&i2s0_bclk>;
-	clock-names = "i2s_mclk", "i2s_bclk";
 };
 
 &i2s1 {
 	status = "disabled";
-	clocks = <&i2s1_mclk>, <&i2s1_bclk>;
-	clock-names = "i2s_mclk", "i2s_bclk";
 };
 &ddr_monitor {
 	status = "okay";
