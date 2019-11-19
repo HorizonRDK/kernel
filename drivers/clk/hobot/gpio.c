@@ -158,6 +158,10 @@ static void __init _of_x2_gpio_clk_setup(struct device_node *node, const struct 
 	}
 	bit = val;
 
+	ret = of_property_read_u32(node, "clk-flags", &val);
+	if (!ret)
+		flags |= val;
+
 	clk = x2_gpio_clk_register(NULL, node->name, parent_name, flags, reg, bit, clk_gpio_flags, ops);
 
 	if(!IS_ERR(clk)){
