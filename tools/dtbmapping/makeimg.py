@@ -107,7 +107,7 @@ if __name__ == '__main__':
     dtbPath = os.getenv('TARGET_KERNEL_DIR') + '/'
     imageType = os.getenv('IMAGE_TYPE')
 
-    if (imageType == "nor"):
+    if (imageType == "nor" or imageType == "nand"):
         filePath[6] = dtbPath + filePath[6]
         filePath[7] = dtbPath + filePath[7]
         file_produced1 = open(filePath[6], "wb")
@@ -143,7 +143,7 @@ if __name__ == '__main__':
             dict[dict_key] = addr
             addr = addr + 64*1024
 
-            if (imageType == "nor"):
+            if (imageType == "nor" or imageType== "nand"):
                 dtb_file = dtbPath + dict_key
                 file_object = open(dtb_file, 'rb')
                 file_content = file_object.read()
@@ -161,7 +161,7 @@ if __name__ == '__main__':
     file_produced0.write(bootInfoContent)
 
     file_produced0.close()
-    if (imageType == "nor"):
+    if (imageType == "nor" or imageType == "nand"):
         file_produced1.close()
 
         with open(filePath[6], 'rb') as f_in, gzip.open(filePath[7], 'wb') as f_out:

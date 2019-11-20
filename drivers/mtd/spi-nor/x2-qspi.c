@@ -980,7 +980,7 @@ static const struct dev_pm_ops x2_qspi_nor_dev_pm_ops = {
 };
 
 static const struct of_device_id x2_qspi_of_match[] = {
-    { .compatible = "hobot,x2-qspi" },
+    { .compatible = "hobot,x2-qspi-nor", },
     { /* end of table */ }
 };
 
@@ -1000,4 +1000,3 @@ module_platform_driver(x2_qspi_driver);
 MODULE_AUTHOR("hobot, Inc.");
 MODULE_DESCRIPTION("X2 QSPI driver");
 MODULE_LICENSE("GPL v2");
-

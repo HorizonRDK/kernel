@@ -426,16 +426,17 @@ void trace_transfer(const struct spi_transfer *transfer)
 		return ;
 	}
 
-	sprintf(prbuf, "%s-%s[B:%d][L:%d] ", transfer->rx_buf ? "<" : "", 
-		transfer->tx_buf ? ">" : "", nbits, transfer->len);
+	snprintf(prbuf, sizeof(prbuf), "%s-%s[B:%d][L:%d] ",
+		transfer->rx_buf ? "<" : "", transfer->tx_buf ? ">" : "",
+		nbits, transfer->len);
 
 	if(transfer->len) {
-		sprintf(tmp_prbuf, " ");
+		snprintf(tmp_prbuf, sizeof(tmp_prbuf), " ");
 		strcat(prbuf, tmp_prbuf);
 #define QSPI_DEBUG_DATA_LEN	16
-		for(i = 0; i < ((transfer->len < QSPI_DEBUG_DATA_LEN) ? 
-					transfer->len : QSPI_DEBUG_DATA_LEN); i++) {
-			sprintf(tmp_prbuf, "%02X ", tmpbuf[i]);
+		for (i = 0; i < ((transfer->len < QSPI_DEBUG_DATA_LEN) ?
+			transfer->len : QSPI_DEBUG_DATA_LEN); i++) {
+			snprintf(tmp_prbuf, sizeof(tmp_prbuf), "%02X ", tmpbuf[i]);
 			strcat(prbuf, tmp_prbuf);
 		}
 	}
@@ -454,7 +455,7 @@ void trace_xqspi(struct x2_qspi *xqspi)
 #ifdef CONFIG_X2_SOC
 	printk("\t\t.ref_clk = %u\n", xqspi->ref_clk);
 	if(xqspi->pclk) {
-		printk("\t\t.pclk = %s@%u\n", __clk_get_name(xqspi->pclk), 
+		printk("\t\t.pclk = %s@%u\n", __clk_get_name(xqspi->pclk),
 			clk_get_rate(xqspi->pclk));
 	}
 #else
@@ -1185,7 +1186,7 @@ static const struct dev_pm_ops x2_qspi_dev_pm_ops = {
 };
 
 static const struct of_device_id x2_qspi_of_match[] = {
-	{.compatible = "hobot,x2-qspi",},
+	{.compatible = "hobot,x2-qspi-nand", },
 	{ /* End of table */ }
 };
 
@@ -1195,7 +1196,7 @@ static struct platform_driver x2_qspi_driver = {
 	.probe = x2_qspi_probe,
 	.remove = x2_qspi_remove,
 	.driver = {
-		   .name = "x2_qspi",
+		   .name = "x2_qspi_nand",
 		   .of_match_table = x2_qspi_of_match,
 		   .pm = &x2_qspi_dev_pm_ops,
 		   },

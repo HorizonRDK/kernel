@@ -217,13 +217,13 @@
 	};
 };
 
-&qspi {
+&nand_flash {
 	status = "disabled";
 	#address-cells = <1>;
 	#size-cells = <0>;
 	qspi-mode = <4>;
 
-	flash@0 {
+	spi-nand@0 {
 		compatible = "spi-nand";
 		#address-cells = <1>;
 		#size-cells = <1>;
@@ -232,9 +232,17 @@
 		spi-rx-bus-width = <4>;
 		spi-max-frequency = <50000000>; /* For FPGA max clk is 20Mhz */
 
-		partition@qspi-nor {
-			label = "qspi-nor";
-			reg = <0x200000 0x10000000>;
+		bootloader@0 {
+			label = "bootloader";
+			reg = <0 0x300000>;
+		};
+		sys@300000 {
+			label = "sys";
+			reg = <0x300000 0xA00000>;
+		};
+		rootfs@D00000 {
+			label = "rootfs";
+			reg = <0xD00000 0>;
 		};
 	};
 };
@@ -289,4 +297,3 @@
 &temp {
 	status = "okay";
 };
-

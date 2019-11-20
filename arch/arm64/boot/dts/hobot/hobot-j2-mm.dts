@@ -296,7 +296,7 @@
 	frag_len_max = <32768>;
 	frame_count = <12>;
 };
-&qspi {
+&nor_flash {
 	status = "okay";
 	qspi-mode = <1>;
 	#address-cells = <1>;

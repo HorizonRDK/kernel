@@ -226,7 +226,7 @@
 	bifbase_irq_pin = <85>;
 	bifbase_tri_pin = <84>;
 };
-&qspi {
+&nor_flash {
 	status = "okay";
 	#address-cells = <1>;
 	#size-cells = <0>;

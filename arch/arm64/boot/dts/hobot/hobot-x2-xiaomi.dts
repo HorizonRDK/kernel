@@ -253,7 +253,7 @@
 	status = "okay";
 };
 
-&qspi {
+&nor_flash {
 	status = "okay";
 	qspi-mode = <1>;
 	#address-cells = <1>;
