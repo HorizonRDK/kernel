@@ -43,8 +43,8 @@
 #include "../bif_base/bif_base.h"
 #include "../bif_base/bif_api.h"
 
-#define BIFETH_CPVER		"HOBOT-bifeth_CPV21.190930"
-#define BIFETH_APVER		"HOBOT-bifeth_APV21.190930"
+#define BIFETH_CPVER		"HOBOT-bifeth_CPV21.191120"
+#define BIFETH_APVER		"HOBOT-bifeth_APV21.191120"
 #define BIFETH_NAME		"bifeth0"
 #define BIFETH_FIX_MAC
 //#define BIFETH_RESERVED_MEM
@@ -70,6 +70,7 @@
 //wait_for_completion_timeout
 //wait_for_completion_interruptible_timeout
 #define bifnet_wc	wait_for_completion_interruptible_timeout
+//#define NET_TIMOUT
 
 static uint64_t g_ts = 0;
 static int debug_time = 0;
@@ -250,7 +251,7 @@ static void bifnet_query_addr(void *p, int wait_flag)
 		else
 			phy_addr = bif_query_address(pl->bifnet_id);
 		if (phy_addr == (void *)-1) {
-			pr_bif("bifnet：%s() Warn bif query address\n",
+			pr_bif("bifeth: %s() Warn bif query address\n",
 				__func__);
 			pl->query_ok = 0;
 		} else {
@@ -266,7 +267,7 @@ static void bifnet_query_addr(void *p, int wait_flag)
 			else
 				vir_addr = bif_query_otherbase(pl->bifnet_id);
 			if (vir_addr == (void *)-1) {
-				pr_bif("bifnet: Warn bif query otherbase\n");
+				pr_bif("bifeth: Warn bif query otherbase\n");
 				pl->query_ok = 0;
 			} else {
 				pl->cp = (struct bif_ether_info *)(vir_addr);
@@ -489,12 +490,12 @@ next_step:
 	}
 }
 
-irqreturn_t bitnet_irq_handler(int irq, void *data)
+static irqreturn_t bitnet_irq_handler(int irq, void *data)
 {
 	struct net_device *dev = get_bifnet();
 	struct bifnet_local *pl = netdev_priv(dev);
 
-	pr_bif("bifeth: handler irq=%d...\n", irq);
+	pr_bif("bifeth: handler irq=%d\n", irq);
 
 	if (!dev || !pl || !pl->start)
 		return IRQ_NONE;
@@ -618,12 +619,12 @@ static int net_send_thread(void *arg)
 			if (rw((void *)pl, cur_phy, cur_elen,
 				cur_vir, BIFBUS_SPI, 0)) {
 				pr_err("%s: Err sync apbuf\n", dev->name);
-						dev->stats.tx_errors++;
-						goto next_step;
-				}
+				dev->stats.tx_errors++;
+				goto next_step;
+			}
 
-				if (skb)
-					dev_consume_skb_any(skb);
+			if (skb)
+				dev_consume_skb_any(skb);
 			pl->skbs_head = (pl->skbs_head + 1) % MAX_SKB_BUFFERS;
 			dev->stats.tx_packets++;
 			dev->stats.tx_bytes += cur_elen;
@@ -666,10 +667,11 @@ next_step:
 				pl->self->queue_full = 1;
 				spin_unlock_irqrestore(&pl->lock_full, flags);
 				bifnet_irq((void *)pl);
-				if (cur_plat == PLAT_AP)
+				if (cur_plat == PLAT_AP) {
 					if (!bifnet_wc(&pl->tx_cp,
 						msecs_to_jiffies(5*CP_TOUT)))
 						pr_info("t\n");
+				}
 			} else
 				send_flag = 0;
 		}
@@ -727,13 +729,13 @@ static struct net_device_stats *net_get_stats(struct net_device *dev)
 {
 	return &dev->stats;
 }
-
+#ifdef NET_TIMOUT
 static void net_timeout(struct net_device *dev)
 {
 	pr_warn("%s: %s()\n", dev->name, __func__);
 	netif_wake_queue(dev);
 }
-
+#endif
 static void set_multicast_list(struct net_device *dev)
 {
 	;
@@ -754,7 +756,9 @@ static int set_mac_address(struct net_device *dev, void *addr)
 static const struct net_device_ops bifnet_ops = {
 	.ndo_open = net_open,
 	.ndo_stop = net_close,
-//	.ndo_tx_timeout = net_timeout,
+#ifdef NET_TIMOUT
+	.ndo_tx_timeout = net_timeout,
+#endif
 	.ndo_start_xmit = net_send_packet,
 	.ndo_get_stats = net_get_stats,
 	.ndo_set_rx_mode = set_multicast_list,
@@ -770,10 +774,10 @@ static int bifnet_pre_init(void)
 	void *vir_addr;
 	int ret = 0;
 
-	//pr_info("bifnet: init begin...\n");
+	pr_debug("bifeth: pre_init begin\n");
 	dev = alloc_etherdev(sizeof(struct bifnet_local));
 	if (!dev) {
-		pr_err("bifnet: %s() Err alloc etherdev!\n", __func__);
+		pr_err("bifeth: %s() Err alloc etherdev!\n", __func__);
 		ret = -ENOMEM;
 		goto exit_1;
 	}
@@ -821,8 +825,7 @@ static int bifnet_pre_init(void)
 	pl->tx_task =
 		kthread_create(net_send_thread, (void *)bifnet, BIFETH_NAME);
 	if (IS_ERR(pl->tx_task)) {
-		pr_err("bifnet: %s() Err Unable to start kernel thread",
-			__func__);
+		pr_err("bifeth: Err Unable to start kernel thread\n");
 		ret = PTR_ERR(pl->tx_task);
 		pl->tx_task = NULL;
 		goto exit_3;
@@ -847,11 +850,11 @@ static int bifnet_pre_init(void)
 	} else {
 		sprintf(pl->ver, "%s", BIFETH_CPVER);
 #ifdef BIFETH_RESERVED_MEM
-		pr_debug("bifnet: call bif_alloc_cp()\n");
+		pr_debug("bifeth: call bif_alloc_cp()\n");
 		pl->self_vir = bif_alloc_cp(pl->bifnet_id, 2 * ALLOC_SIZE,
 			&pl->self_phy);
 #else
-		pr_debug("bifnet: call bif_dma_alloc() %d\n", BIFETH_MEMATTRS);
+		pr_debug("bifeth: call bif_dma_alloc() %d\n", BIFETH_MEMATTRS);
 		pl->self_vir = bif_dma_alloc(2 * ALLOC_SIZE,
 			(dma_addr_t *)&pl->self_phy,
 			GFP_KERNEL, BIFETH_MEMATTRS);
@@ -902,7 +905,6 @@ static int bifnet_pre_init(void)
 				(ulong)pl->other_vir, (ulong)pl->cp);
 		}
 	}
-	pr_debug("bifeth: init end...\n");
 
 	if (ret) {
 exit_5:
@@ -922,10 +924,10 @@ exit_3:
 exit_2:
 		free_netdev(dev);
 exit_1:
-		pr_err("bifnet: Err init failed.\n");
+		pr_err("bifeth: Err pre_init\n");
 	} else {
 		pl->start = 1;
-		pr_debug("bifnet: Suc init success.\n");
+		pr_info("bifeth: Suc pre_init\n");
 	}
 
 	return ret;
@@ -937,8 +939,10 @@ static void bifnet_pre_exit(void)
 	struct net_device *dev = get_bifnet();
 	struct bifnet_local *pl = netdev_priv(dev);
 
-	pr_debug("bifeth: exit begin...\n");
+	pr_debug("bifeth: pre_exit begin\n");
 	pl->start = 0;
+
+	bif_unregister_irq(pl->bifnet_id);	//20191119
 
 	netif_stop_queue(dev);
 	complete_all(&pl->tx_cp);
@@ -980,7 +984,7 @@ static void bifnet_pre_exit(void)
 
 	free_netdev(dev);
 
-	pr_debug("bifeth: exit end...\n");
+	pr_info("bifeth: Suc pre_exit\n");
 }
 static int bifnet_probe(struct platform_device *pdev)
 {
@@ -1029,6 +1033,7 @@ static void bifnet_exit(void)
 		bifnet_pre_exit();
 	else
 		platform_driver_unregister(&bifeth_driver);
+	pr_info("bifeth: Suc exit\n");
 }
 
 late_initcall(bifnet_init);

@@ -1,3 +1,7 @@
+/*
+* Copyright 2019
+* <Copyright horizon>
+*/
 #ifndef _BIF_BASE_H_
 #define _BIF_BASE_H_
 #include <linux/interrupt.h>
@@ -40,8 +44,9 @@ struct bif_base_info {
 #define BIF_MT_WC 0x3
 #define BIF_MT_WT 0x4
 
-//cp,ap register irq
+//cp,ap register/unregister irq
 int bif_register_irq(enum BUFF_ID buffer_id, irq_handler_t handler);
+int bif_unregister_irq(enum BUFF_ID buffer_id);
 int bif_send_irq(int irq);
 //cp register self phyaddr to base
 int bif_register_address(enum BUFF_ID buffer_id, void *address);

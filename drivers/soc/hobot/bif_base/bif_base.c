@@ -75,7 +75,7 @@
 
 #define BIFBASE_APMAGIC		"BIFA"
 #define BIFBASE_CPMAGIC		"BIFC"
-#define BIFBASE_VER		"HOBOT-bifbase_V21.191014"
+#define BIFBASE_VER		"HOBOT-bifbase_V21.191120"
 #define BIFBASE_MAJOR		(123)
 #define BIFBASE_BLOCK		(1024)	//(512)
 #define BIFBASE_VER_SIZE	(32)
@@ -118,6 +118,7 @@ struct bifbase_local {
 	char ver[BIFBASE_VER_SIZE];
 	int start;
 	struct bif_base_info *cp, *ap, *self, *other;
+	struct workqueue_struct *base_workqueue;
 	struct work_struct base_irq_work;
 	irq_handler_t irq_func[BUFF_MAX];
 
@@ -699,8 +700,9 @@ static irqreturn_t bifbase_irq_handler(int irq, void *data)
 
 	rmode = pl->self->running_mode;
 	if (rmode == BUFF_BASE) {
-		if (!schedule_work(&pl->base_irq_work))
-			pr_err("schedule_work fail\n");
+		//if (!schedule_work(&pl->base_irq_work))
+		if (!queue_work(pl->base_workqueue, &pl->base_irq_work))
+			pr_err("schedule_work fail, irq=%d\n", irq);
 	} else{
 		if (rmode < BUFF_MAX && pl->irq_func[rmode])
 			pl->irq_func[rmode] (rmode, NULL);
@@ -827,6 +829,7 @@ static int bifbase_pre_init(void *p)
 		bif_register_irq(pl->bifbase_id, bifbase_baseirq_handler);
 		init_waitqueue_head(&pl->base_irq_wq);
 		init_waitqueue_head(&pl->base_sendirq_wq);
+		pl->base_workqueue = create_singlethread_workqueue("bifbase_irq_wq");
 		INIT_WORK(&pl->base_irq_work, bifbase_irq_work);
 	}
 	pl->start = 1;
@@ -864,8 +867,11 @@ void bifbase_pre_exit(void *p)
 		iounmap(pl->bifbase_viraddr);
 	}
 
-	if (!pl->plat->irq_pin_absent)
+	if (!pl->plat->irq_pin_absent) {
 		devm_free_irq(pl->dev, pl->plat->irq_num, (void *)pl);
+		if (pl->base_workqueue)
+			destroy_workqueue(pl->base_workqueue);
+	}
 
 	bifplat_gpio_deinit((void *)pl->plat);
 }
@@ -1253,6 +1259,19 @@ int bif_register_irq(enum BUFF_ID buffer_id, irq_handler_t irq_handler)
 	return buffer_id;
 }
 EXPORT_SYMBOL(bif_register_irq);
+
+int bif_unregister_irq(enum BUFF_ID buffer_id)
+{
+	struct bifbase_local *pl = get_bifbase_local();
+
+	if (!pl || !pl->start || !pl->plat || buffer_id >= BUFF_MAX)
+		return -1;
+
+	pl->irq_func[buffer_id] = 0;
+
+	return buffer_id;
+}
+EXPORT_SYMBOL(bif_unregister_irq);
 
 void *bif_query_address_wait(enum BUFF_ID buffer_id)
 {
