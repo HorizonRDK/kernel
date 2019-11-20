@@ -1,56 +1,29 @@
-CONFIG_MODULE_SIG=n
+#
+# Makefile for the Linux Kernel IPS specific device drivers.
+#
+#obj-y += x2a_sif_hw_reg.o
+#obj-y += x2a_dev_sif.o
 
 
-#redefine ARCH
-ifeq ($(ARCH),)
-    _ARCH=arm64
-    $(info "set default ARCH=${_ARCH}")
-else
-    _ARCH=${ARCH}
-endif
 
 
-#redefine CROSS_COMPILE
-ifeq ($(CROSS_COMPILE),)
-    _CROSS_COMPILE=aarch64-linux-gnu-
-    $(info "set default toolachains ${_CROSS_COMPILE}")
-else
-    _CROSS_COMPILE=${CROSS_COMPILE}
-endif
 
-#redefine KDIR
-ifeq ($(KDIR),)
-	_KDIR= $(PWD)/../../../../../
-    $(info "set default kernel path ${_KDIR}")
-else
-    _KDIR=${KDIR}
-endif
+#
+# Makefile for the Linux Kernel IPS specific device drivers.
+#
+#obj-y += x2a_sif_hw_reg.o
+#obj-y += x2a_dev_sif.o
+TARGET:=gdc
 
+FW_SRC := ./gdc_hw_reg.c ./gdc_dev.c ../common_api/vio_framemgr.c ../common_api/vio_hw_common_api.c ../common_api/vio_group_api.c 
+export FW_SRC_OBJ := $(FW_SRC:.c=.o)
 
-obj-m += gdc0.o
+ccflags-y:= -I./ -I../
+EXTRA_CFLAGS += -Idrivers/media/platform/hobot/common_api/
 
-ifeq ($(FW_SRC_OBJ),)
-	FW_SRC := $(wildcard src/*.c src/*/*.c src/*/*/*.c app/*.c app/*/*.c ../bsp/*.c)
-	export FW_SRC_OBJ := $(FW_SRC:.c=.o)
-endif
-
-
-gdc0-objs += $(FW_SRC_OBJ)
-
-INCLUDE_DIRS := $(addprefix -I,$(shell find ../ -type d ))
-
-ccflags-y:=-I$(PWD)/app -I$(PWD)/inc -I$(PWD)/app/control -I$(PWD)/inc/api -I$(PWD)/inc/gdc -I$(PWD)/inc/sys -I$(PWD)/src/platform -I$(PWD)/src/fw  -I$(PWD)/src/fw_lib  -I$(PWD)/src/driver/lens -I$(_KDIR)/include/linux/
-
-ccflags-y += -Wno-declaration-after-statement
-
-ccflags-y += -DBUILD_GDC0
-
-$(info "make driver for GDC0")
-
+obj-m += $(TARGET).o
+$(TARGET)-objs += $(FW_SRC_OBJ)
 
 all:
-		CROSS_COMPILE=${_CROSS_COMPILE} make ARCH=${_ARCH} -C $(_KDIR) M=$(PWD) modules
-
-clean:
-		CROSS_COMPILE=${_CROSS_COMPILE} make ARCH=${_ARCH} -C $(_KDIR) M=$(PWD) clean
+	CROSS_COMPILE=~/codes/testbench-master/hbtdisk/toolchain/aarch64-gcc-linaro-7.2.1-2017.11/bin/aarch64-linux-gnu- make ARCH=arm64 -C /home/skk/codes/x2aj2a/kernel-4.14 M=$(PWD) modules
 

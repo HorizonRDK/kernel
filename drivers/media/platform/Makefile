@@ -95,6 +95,6 @@ obj-$(CONFIG_VIDEO_HOBOTC_JPEG)     += hobot/jpg/
 
 obj-$(CONFIG_VIDEO_HOBOTC_VPU)      += hobot/vpu/
 
-obj-$(CONFIG_HOBOT_VIO)		    += hobot/vio/
+obj-$(CONFIG_HOBOT_VIO)		    += hobot/
 
 obj-y					+= meson/
