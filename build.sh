@@ -81,6 +81,20 @@ function build_dtbmapping()
     cd $SRC_KERNEL_DIR
 }
 
+function set_kernel_config()
+{
+    if [ "$BOOT_MODE" = "nand"  ];then
+
+        sed -i 's/# CONFIG_MTD_CMDLINE_PARTS is not set/CONFIG_MTD_CMDLINE_PARTS=y/g' $TOPDIR/kernel/arch/arm64/configs/x2_debug_defconfig
+        sed -i 's/# CONFIG_MTD_UBI_FASTMAP is not set/CONFIG_MTD_UBI_FASTMAP=y/g' $TOPDIR/kernel/arch/arm64/configs/x2_debug_defconfig
+        sed -i 's/# CONFIG_MTD_UBI_FASTMAP_AUTOCONVERT is not set/CONFIG_MTD_UBI_FASTMAP_AUTOCONVERT=y/g' $TOPDIR/kernel/arch/arm64/configs/x2_debug_defconfig
+    else
+        sed -i 's/CONFIG_MTD_CMDLINE_PARTS=y/# CONFIG_MTD_CMDLINE_PARTS is not set/g' $TOPDIR/kernel/arch/arm64/configs/x2_debug_defconfig
+        sed -i 's/CONFIG_MTD_UBI_FASTMAP=y/# CONFIG_MTD_UBI_FASTMAP is not set/g' $TOPDIR/kernel/arch/arm64/configs/x2_debug_defconfig
+        sed -i 's/CONFIG_MTD_UBI_FASTMAP_AUTOCONVERT=y/# CONFIG_MTD_UBI_FASTMAP_AUTOCONVERT is not set/g' $TOPDIR/kernel/arch/arm64/configs/x2_debug_defconfig
+    fi
+}
+
 function all()
 {
     if [ "x$KERNEL_WITH_RECOVERY" = "xtrue" ];then
@@ -137,5 +151,5 @@ function clean()
 # include end
 
 cd $(dirname $0)
-
+set_kernel_config
 buildopt $1
