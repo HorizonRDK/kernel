@@ -41,6 +41,7 @@
 
 #define DRIVER_NAME "x2-fb"
 #define IAR_DMA_MODE
+//#define CONFIG_LOGO_FROM_KERNEL
 
 #define FORMAT_ORGANIZATION_VAL 0x9c36
 #define REFRESH_CFG_VAL 0x808
@@ -148,6 +149,7 @@ static inline void x2_fast_imageblit(const struct fb_image *image,
 
 static int flag;
 static int start_flag;
+static uint32_t logo_addr;
 
 struct fb_var_screeninfo RGB500_var_default = {
 	.xres = 800,
@@ -817,6 +819,8 @@ int user_set_fb(void)
 	void __iomem *hitm1_reg_addr;
 	uint32_t regval = 0;
 	buf_addr_t graphic_display_paddr;
+	uint8_t *mem_src = logo_addr - x2_fbi->fb.fix.smem_start
+		+ x2_fbi->fb.screen_base;
 
 	if (x2_fbi == NULL) {
 		pr_info("x2_fb is not initialize, exit!\n");
@@ -882,7 +886,11 @@ int user_set_fb(void)
 		//select BT709 color domain
 		hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x48, 4);
 		writel(FORMAT_ORGANIZATION_VAL, hitm1_reg_addr);
-
+#ifdef CONFIG_LOGO
+#ifndef CONFIG_LOGO_FROM_KERNEL
+		memcpy(x2_fbi->fb.screen_base, mem_src, 800*480*4);
+#endif
+#endif
 		iar_switch_buf(0);
 		iar_set_bufaddr(IAR_CHANNEL_3, &graphic_display_paddr);
 		iar_start(1);
@@ -968,6 +976,7 @@ static void x2fb_activate_par(void)
 
 static void x2fb_imageblit(struct fb_info *p, const struct fb_image *image)
 {
+#ifdef CONFIG_LOGO_FROM_KERNEL
 	u32 fgcolor, bgcolor, start_index, bitstart, pitch_index = 0;
 	u32 bpl = sizeof(u32), bpp = p->var.bits_per_pixel;
 	u32 width = image->width;
@@ -1006,6 +1015,7 @@ static void x2fb_imageblit(struct fb_info *p, const struct fb_image *image)
 	} else {
 		x2_color_imageblit(image, p, dst1, start_index, pitch_index);
 	}
+#endif
 }
 
 static inline void x2_color_imageblit(const struct fb_image *image,
@@ -1209,6 +1219,11 @@ static int x2fb_probe(struct platform_device *pdev)
 	}
 
 	strcpy(x2_fbi->fb.fix.id, DRIVER_NAME);
+
+	ret = of_property_read_u32(pdev->dev.of_node, "logo_addr",
+			&logo_addr);
+	if (ret)
+		pr_err("%s: can't get display logo address!\n", __func__);
 	
 	framebuf_user = *x2_iar_get_framebuf_addr(2);
 //	framebuf_user.paddr = framebuf_user.paddr + 3*MAX_FRAME_BUF_SIZE;

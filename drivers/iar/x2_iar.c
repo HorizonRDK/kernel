@@ -989,19 +989,22 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 	config_rotate = cfg->rotate;
 	if (cfg->panel_type == 2) {
 		if (display_type == HDMI_TYPE) {
-			pr_err("%s: wrong json file or convert hw!\n");
+			pr_err("%s: wrong json file or convert hw!\n",
+					__func__);
 			return -1;
 		}
 		display_type = MIPI_720P;
 	} else if (cfg->panel_type == 1) {
 		if (display_type == HDMI_TYPE) {
-			pr_err("%s: wrong json file or convert hw!\n");
+			pr_err("%s: wrong json file or convert hw!\n",
+					__func__);
 			return -1;
 		}
 		display_type = LCD_7_TYPE;
 	} else if (cfg->panel_type == 0) {
 		if (display_type == LCD_7_TYPE) {
-			pr_err("%s: wrong json file or convert hw!\n");
+			pr_err("%s: wrong json file or convert hw!\n",
+					__func__);
 			return -1;
 		}
 	}
@@ -1758,12 +1761,13 @@ static int x2_iar_probe(struct platform_device *pdev)
 		ret = iar_set_pixel_clk_div(PIXEL_CLK_32);
 		if (ret)
 			return ret;
-
+/*
 		temp1 =
 		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr;
 		tempi = 0;
 		for (tempi = 0; tempi < MAX_FRAME_BUF_SIZE; tempi++)
 			*temp1++ = 0x00;
+*/
 		temp1 = g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr;
 		tempi = 0;
 		for (tempi = 0; tempi < MAX_FRAME_BUF_SIZE; tempi++)
