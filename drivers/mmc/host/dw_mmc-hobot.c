@@ -62,7 +62,7 @@
 #define SD1_PADC_VAL_CLR1 0xF8F8F8F8
 #define SD1_PADC_VAL 0x04040404
 
-#define VER		"HOBOT-mmc_V10.190926"
+#define VER		"HOBOT-mmc_V10.191121"
 
 static int debug;
 module_param(debug, int, 0644);
@@ -193,7 +193,7 @@ void x2_mmc_set_power(struct dw_mci_hobot_priv_data *priv, bool val)
 	if (priv->ctrl_id != DWMMC_MMC_ID) {
 		if (priv->powerup_gpio) {
 			gpio_direction_output(priv->powerup_gpio, val);
-			usleep_range(1000, 2000);
+			usleep_range(10000, 20000);
 		}
 	}
 }
@@ -533,6 +533,7 @@ static int dw_mci_x2_parse_dt(struct dw_mci *host)
 		&priv->powerup_gpio)) {
 		gpio_request(priv->powerup_gpio, NULL);
 		x2_mmc_set_power(priv, 0);
+		usleep_range(20000, 30000);
 		x2_mmc_set_power(priv, 1);
 	}
 
@@ -683,15 +684,19 @@ static int dw_mci_hobot_remove(struct platform_device *pdev)
 
 	host = platform_get_drvdata(pdev);
 	priv = host->priv;
-	dw_mci_pltfm_remove(pdev);
+
 	if (priv->padcctrl_reg)
 		iounmap(priv->padcctrl_reg);
 	if (priv->sysctrl_reg)
 		iounmap(priv->sysctrl_reg);
 	if (priv->uhs_180v_gpio)
 		gpio_free(priv->uhs_180v_gpio);
-	if (priv->powerup_gpio)
+	if (priv->powerup_gpio) {
+		gpio_direction_output(priv->powerup_gpio, 0);
 		gpio_free(priv->powerup_gpio);
+	}
+
+	dw_mci_pltfm_remove(pdev);
 
 	return 0;
 }
