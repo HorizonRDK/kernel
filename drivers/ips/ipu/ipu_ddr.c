@@ -843,6 +843,8 @@ wait:
 		{
 			unsigned long flags;
 
+			ipu_pym_user_exit(&tmp_ipu_user->pym_user);
+
 			if (ipu_cdev->open_counter > 1)
 				break;
 
