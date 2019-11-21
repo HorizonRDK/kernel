@@ -83,6 +83,8 @@ struct spacc_hash_reqctx {
 	int digest_mode; /* 1: digest mode, 0: update mode */
 	bool last_req;
 	bool first_blk;
+	bool partial_updating;
+	struct completion partial_completion;
 	int new_handle;
 
 	struct scatterlist sg[2];
@@ -109,6 +111,12 @@ struct spacc_crypto_reqctx {
 	void *digest_buf, *iv_buf;
 	dma_addr_t digest_dma, iv_dma;
 	int fulliv_nents, iv_nents, assoc_nents, src_nents, dst_nents;
+	bool partial_processing;
+	struct completion partial_completion;
+	struct scatterlist *reqsrc;
+	struct scatterlist *reqdst;
+	int req_cryptlen;
+
 
 	int new_handle;
 };
@@ -179,6 +187,12 @@ static inline const struct spacc_alg *spacc_tfm_alg(struct crypto_tfm *tfm)
 		return container_of(calg, struct spacc_alg, alg.cipher.base);
 
 	return container_of(calg, struct spacc_alg, alg.aead.base);
+}
+
+static inline void hexdump(unsigned char *buf, unsigned int len)
+{
+	print_hex_dump(KERN_CONT, "", DUMP_PREFIX_OFFSET,
+			16, 1, buf, len, false);
 }
 
 int spacc_sgs_to_ddt(struct device *dev,

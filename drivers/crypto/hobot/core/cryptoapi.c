@@ -226,7 +226,6 @@ struct mode_tab possible_hashes[] = {
 };
 
 static struct mode_tab possible_ciphers[] = {
-#if 1
 	{ MODE_TAB_CIPH("ecb(aes)",			AES_ECB,  16, 16), .keylen = { 16, 24, 32 } },
 	{ MODE_TAB_CIPH("cbc(aes)",			AES_CBC,  16, 16), .keylen = { 16, 24, 32 } },
 	{ MODE_TAB_CIPH("ctr(aes)",			AES_CTR,  16, 16), .keylen = { 16, 24, 32 } },
@@ -234,7 +233,6 @@ static struct mode_tab possible_ciphers[] = {
 	{ MODE_TAB_CIPH("ecb(des3_ede)",	3DES_ECB, 8, 8), .keylen = { 24 } },
 	{ MODE_TAB_CIPH("cbc(des)",			DES_CBC,  8, 8), .keylen = { 8 } },
 	{ MODE_TAB_CIPH("ecb(des)",			DES_ECB,  8, 8), .keylen = { 8 } },
-#endif
 };
 
 
@@ -400,11 +398,11 @@ static int __devinit probe_ciphers(void)
 		for (i = 0; i < ARRAY_SIZE(possible_ciphers); i++) {
 			if (possible_ciphers[i].valid == 0) {
 
-			 possible_ciphers[i].keylen_mask = 0;
-			for (k = 0; k < ARRAY_SIZE(possible_ciphers[i].keylen); k++) {
+				possible_ciphers[i].keylen_mask = 0;
+				for (k = 0; k < ARRAY_SIZE(possible_ciphers[i].keylen); k++) {
 					if (spacc_isenabled(&priv->spacc, possible_ciphers[i].id&0xFF, possible_ciphers[i].keylen[k]))
-					 possible_ciphers[i].keylen_mask |= 1u<<k;
-			}
+						 possible_ciphers[i].keylen_mask |= 1u<<k;
+				}
 
 				if (possible_ciphers[i].keylen_mask) {
 
@@ -420,9 +418,9 @@ static int __devinit probe_ciphers(void)
 						salg->dev[x]  = &spacc_pdev[x]->dev;
 
 					salg->dev[x] = NULL;
-				salg->alg.cipher.ivsize = salg->mode->ivlen;
-				salg->alg.cipher.chunksize = salg->mode->blocklen;
-				salg->alg.cipher.walksize = salg->mode->blocklen;
+					salg->alg.cipher.ivsize = salg->mode->ivlen;
+					salg->alg.cipher.chunksize = salg->mode->blocklen;
+					salg->alg.cipher.walksize = salg->mode->blocklen;
 
 					rc = spacc_register_cipher(salg);
 					if (rc < 0) {
@@ -433,10 +431,13 @@ static int __devinit probe_ciphers(void)
 					dev_info(&spacc_pdev[j]->dev, "registered %s\n", possible_ciphers[i].name);
 					registered++;
 					possible_ciphers[i].valid = 1;
+				} else {
+					dbg(" %s is not enabled \n", possible_ciphers[i].name);	
 				}
 			}
 		}
 	}
+
 	return registered;
 }
 
