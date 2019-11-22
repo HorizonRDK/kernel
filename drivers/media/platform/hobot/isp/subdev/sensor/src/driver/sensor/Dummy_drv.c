@@ -450,7 +450,7 @@ static void sensor_set_mode( void *ctx, uint8_t mode )
 //TODO	
 
     p_ctx->param.sensor_exp_number = 1;
-    p_ctx->param.again_log2_max = 2088960;//0 255*2^13 = 255*8196
+    p_ctx->param.again_log2_max = 2088960;//0 255*2^13 = 255*8192
     p_ctx->param.dgain_log2_max = 2088960;//0
     p_ctx->param.integration_time_apply_delay = 2;
     p_ctx->param.isp_exposure_channel_delay = 0;
@@ -460,12 +460,12 @@ static void sensor_set_mode( void *ctx, uint8_t mode )
     param->total.width = dummy_drv_supported_modes[mode].resolution.width;
     param->total.height = dummy_drv_supported_modes[mode].resolution.height;
     param->pixels_per_line = param->total.width;
-    param->integration_time_min = 1;
+    //param->integration_time_min = 1;
     //param->integration_time_max = 11;//3685;//TODO
     param->integration_time_long_max = 3685 * 3; // (((uint32_t)(dummy_drv_supported_modes[mode].resolution.height)) << 2)-256;
     //param->integration_time_limit = 11;//TODO
     param->mode = mode;
-    param->lines_per_second = 5993;//9212;//TODO
+    //param->lines_per_second = 5993;//9212;//TODO
     param->sensor_exp_number = param->modes_table[mode].exposures;
     //sensor - init
 #if 0
@@ -492,6 +492,7 @@ static void sensor_set_type( void *ctx, uint8_t sensor_type, uint8_t sensor_i2c_
 {
     sensor_context_t *p_ctx = ctx;
     sensor_param_t *param = &p_ctx->param;
+    struct _setting_param_t sensor_param;
 
     LOG( LOG_INFO, "[%s--%d]", __func__, __LINE__ );
     if (param->sensor_type != sensor_type || param->sensor_i2c_channel != sensor_i2c_channel) {
@@ -502,23 +503,30 @@ static void sensor_set_type( void *ctx, uint8_t sensor_type, uint8_t sensor_i2c_
 	if (sensor_ops[p_ctx->channel]) {
 		if (param->modes_table[param->mode].wdr_mode == WDR_MODE_LINEAR) {
 			//normal
-    			param->lines_per_second = 10074;//
+			//param->integration_time_max = 3096;//TODO
+			//param->integration_time_limit = 3096;//TODO
+    			//param->lines_per_second = 10074;//
     			sensor_ops[p_ctx->channel]->sensor_init(p_ctx->channel, 0);
 		} else if (param->modes_table[param->mode].wdr_mode == WDR_MODE_FS_LIN) {
 			if (param->sensor_exp_number == 2) {
-				param->integration_time_max = 11;//TODO
-				param->integration_time_limit = 11;//TODO
-    				param->lines_per_second = 7183;//9212;
+				//param->integration_time_max = 11;//TODO
+				//param->integration_time_limit = 11;//TODO
+    				//param->lines_per_second = 7183;//9212;
     				sensor_ops[p_ctx->channel]->sensor_init(p_ctx->channel, 1);
 			} else if (param->sensor_exp_number == 3) {
-    				param->lines_per_second = 5993;//9212;
     				sensor_ops[p_ctx->channel]->sensor_init(p_ctx->channel, 2);
 			}
 		} else if (param->modes_table[param->mode].wdr_mode == WDR_MODE_NATIVE) {
 			//pwl
     			sensor_ops[p_ctx->channel]->sensor_init(p_ctx->channel, 4);
-			}
-    		}
+		}
+		sensor_ops[p_ctx->channel]->sesor_get_para(p_ctx->channel, &sensor_param);
+		param->lines_per_second = sensor_param.lines_per_second;
+		param->integration_time_min = sensor_param.exposure_time_min;
+		param->integration_time_max = sensor_param.exposure_time_max;
+		param->integration_time_limit = sensor_param.exposure_time_max;
+		param->integration_time_long_max = sensor_param.exposure_time_long_max;
+    	}
     }
 }
 

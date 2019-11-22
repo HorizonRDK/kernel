@@ -265,6 +265,76 @@ int sensor_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_t in
         p_fsm->sensor_type = *(uint32_t *)input;
         break;
 
+    case FSM_PARAM_SET_SENSOR_MAX_AGAIN://IE&E ADD
+        if (!input || input_size != sizeof(uint32_t)) {
+            LOG(LOG_ERR, "Invalid param, param_id: %d.", param_id);
+            rc = -1;
+            break;
+        }
+
+        //p_fsm->again_log2_max = (*(uint32_t *)input)*8196;
+        break;
+
+    case FSM_PARAM_SET_SENSOR_MAX_DGAIN://IE&E ADD
+        if (!input || input_size != sizeof(uint32_t)) {
+            LOG(LOG_ERR, "Invalid param, param_id: %d.", param_id);
+            rc = -1;
+            break;
+        }
+
+        //p_fsm->dgain_log2_max = (*(uint32_t *)input)*8196;
+        break;
+
+    case FSM_PARAM_SET_SENSOR_MIN_INTERTIME://IE&E ADD
+        if (!input || input_size != sizeof(uint32_t)) {
+            LOG(LOG_ERR, "Invalid param, param_id: %d.", param_id);
+            rc = -1;
+            break;
+        }
+
+        //p_fsm->integration_time_min = *(uint32_t *)input;
+        break;
+
+    case FSM_PARAM_SET_SENSOR_MAX_INTERTIME://IE&E ADD
+        if (!input || input_size != sizeof(uint32_t)) {
+            LOG(LOG_ERR, "Invalid param, param_id: %d.", param_id);
+            rc = -1;
+            break;
+        }
+
+        //p_fsm->integration_time_max = *(uint32_t *)input;
+        break;
+
+    case FSM_PARAM_SET_SENSOR_MAX_LONGTIME://IE&E ADD
+        if (!input || input_size != sizeof(uint32_t)) {
+            LOG(LOG_ERR, "Invalid param, param_id: %d.", param_id);
+            rc = -1;
+            break;
+        }
+
+        //p_fsm->integration_time_long_max = *(uint32_t *)input;
+        break;
+
+    case FSM_PARAM_SET_SENSOR_LIMIT_INTERTIM://IE&E ADD
+        if (!input || input_size != sizeof(uint32_t)) {
+            LOG(LOG_ERR, "Invalid param, param_id: %d.", param_id);
+            rc = -1;
+            break;
+        }
+
+        //p_fsm->integration_time_limit = *(uint32_t *)input;
+        break;
+
+    case FSM_PARAM_SET_SENSOR_LINES_PER_SECOND://IE&E ADD
+        if (!input || input_size != sizeof(uint32_t)) {
+            LOG(LOG_ERR, "Invalid param, param_id: %d.", param_id);
+            rc = -1;
+            break;
+        }
+
+        //p_fsm->lines_per_second = *(uint32_t *)input;
+        break;
+
     case FSM_PARAM_SET_SENSOR_INFO_PRESET_NUM:
         if ( !input || input_size != sizeof( uint32_t ) ) {
             LOG( LOG_ERR, "Invalid param, param_id: %d.", param_id );

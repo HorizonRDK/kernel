@@ -47,6 +47,8 @@ uint32_t sensor_log10(uint32_t val)
 
 	if (val == 0)
 		return 0;
+	if (val > 255)
+		val = 255;
 //  y = log2(x)
 //
 //    input:  Integer: val
@@ -61,5 +63,19 @@ uint32_t sensor_log10(uint32_t val)
 }
 EXPORT_SYMBOL(sensor_log10);
 
+uint32_t sensor_date(uint32_t val)
+{
+	uint32_t data = 0;
 
+	if (val == 0)
+		return 0;
+
+	if (val > 255)
+		val = 255;
+
+	data = gain_map[val];
+
+	return data;
+}
+EXPORT_SYMBOL(sensor_date);
 

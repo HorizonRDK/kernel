@@ -313,6 +313,14 @@
 #define REGISTERS_VALUE_ID                                0x00000067
 #define SENSOR_TYPE                                       0x00000068 //add 
 #define SENSOR_I2C_CHANNEL                                0x00000069 //add
+#define SENSOR_MAX_AGAIN                                  0x0000006a//add
+#define SENSOR_MAX_DGAIN                                  0x0000006b//add
+#define SENSOR_MIN_INTERTIME                              0x0000006c//add
+#define SENSOR_MAX_INTERTIME                              0x0000006d//add
+#define SENSOR_MAX_LONGTIME                               0x0000006e//add
+#define SENSOR_LIMIT_INTERTIME                            0x0000006f//add
+#define SENSOR_LINES_PER_SECOND                           0x00000070//add
+
 
 #define LOG_LIST_LEVEL                                    0x00000094 // add API by myself
 #define LOG_LIST_MASK                                     0x00000095 // add API by myself

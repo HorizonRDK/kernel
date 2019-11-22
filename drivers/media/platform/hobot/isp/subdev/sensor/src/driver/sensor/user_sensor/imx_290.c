@@ -55,8 +55,6 @@ static int set_imx290_init(uint8_t chn)
 	imx290_param[chn].FSC_DOL2 = imx290_param[chn].VMAX * 2;
 	imx290_param[chn].FSC_DOL3 = imx290_param[chn].VMAX * 4;
 	imx290_param[chn].gain_max = 210;
-	imx290_param[chn].exposure_time_min = 1;
-	imx290_param[chn].exposure_time_max = imx290_param[chn].VMAX;
 	
 	ret = sensor_i2c_read(chn, IMX290_HAMX, 16, init_d, 2);
 	imx290_param[chn].HMAX = init_d[1];
@@ -71,6 +69,7 @@ static int set_imx290_init(uint8_t chn)
 	imx290_param[chn].RHS2 = init_d[2];
 	imx290_param[chn].RHS2 = (imx290_param[chn].RHS2 << 8) | init_d[1];
 	imx290_param[chn].RHS2 = (imx290_param[chn].RHS2 << 8) | init_d[0];
+#if 0
 //lane	
 	ret = sensor_i2c_read(chn, IMX290_CSI_LANE_MODE, 16, init_d, 1);
 	if (init_d[0] == 3)
@@ -86,6 +85,7 @@ static int set_imx290_init(uint8_t chn)
 
 	imx290_param[chn].frame = (imx290_param[chn].clk * imx290_param[chn].lane) / (imx290_param[chn].HMAX * imx290_param[chn].VMAX);
 	imx290_param[chn].lines_per_second = (imx290_param[chn].clk * imx290_param[chn].lane) / imx290_param[chn].VMAX;
+#endif
 // width & heigth
 	ret = sensor_i2c_read(chn, IMX290_X_SIZE, 16, init_d, 2);
 	imx290_param[chn].active_width = init_d[1];
@@ -246,6 +246,11 @@ static int imx290_init(uint8_t chn, uint8_t mode)
 			ret = sensor_i2c_write(chn, tmp_addr, 16, &tmp_data, 1);
 		}
 		imx290_param[chn].imx290_mode_save = imx290_NORMAL_M;
+		imx290_param[chn].lines_per_second = 10074;
+		imx290_param[chn].exposure_time_max = imx290_param[chn].VMAX - 2;
+		imx290_param[chn].exposure_time_min = 1;
+		imx290_param[chn].exposure_time_long_max = imx290_param[chn].FSC_DOL2 - 2;
+
 		LOG( LOG_CRIT, " imx290 raw12 normal init success ");
 		break;
 	case 1://dol2
@@ -256,6 +261,10 @@ static int imx290_init(uint8_t chn, uint8_t mode)
 			ret = sensor_i2c_write(chn, tmp_addr, 16, &tmp_data, 1);
 		}
 		imx290_param[chn].imx290_mode_save = imx290_DOL2_M;
+		imx290_param[chn].lines_per_second = 7183;
+		imx290_param[chn].exposure_time_max = imx290_param[chn].RHS1 - 2;
+		imx290_param[chn].exposure_time_min = 1;
+		imx290_param[chn].exposure_time_long_max = imx290_param[chn].FSC_DOL2 - 2;
 		LOG( LOG_CRIT, " imx290 raw12 dol2 init success");
 		break;
 	case 2://dol3
@@ -266,6 +275,10 @@ static int imx290_init(uint8_t chn, uint8_t mode)
 			ret = sensor_i2c_write(chn, tmp_addr, 16, &tmp_data, 1);
 		}
 		imx290_param[chn].imx290_mode_save = imx290_DOL3_M;
+		imx290_param[chn].lines_per_second = 7183;
+		imx290_param[chn].exposure_time_max = imx290_param[chn].RHS1 - 2;
+		imx290_param[chn].exposure_time_min = 1;
+		imx290_param[chn].exposure_time_long_max = imx290_param[chn].FSC_DOL2 - 2;
 		LOG( LOG_CRIT," imx290 raw12 dol3 init3 success");
 		break;
 	default:
@@ -355,16 +368,16 @@ static void imx290_start_streaming( uint8_t chn )
 	sensor_i2c_write(chn, 0x3000, 16, &buf, 1);
 }
 
-void imx290_get_para (uint8_t chn, struct _setting_param_t user_para)
+void imx290_get_para(uint8_t chn, struct _setting_param_t *user_para)
 {
-	user_para.lines_per_second = imx290_param[chn].lines_per_second;
-	user_para.analog_gain_max = imx290_param[chn].gain_max;
-	user_para.digital_gain_max = imx290_param[chn].gain_max;
-	user_para.exposure_time_max = imx290_param[chn].VMAX - 2;
-	user_para.exposure_time_min = 2;
-	user_para.exposure_time_long_max = imx290_param[chn].FSC_DOL3 - 2;
-	user_para.active_width = imx290_param[chn].active_width;
-	user_para.active_height = imx290_param[chn].active_height;
+	user_para->lines_per_second = imx290_param[chn].lines_per_second;
+	user_para->analog_gain_max = imx290_param[chn].gain_max;
+	user_para->digital_gain_max = imx290_param[chn].gain_max;
+	user_para->exposure_time_max = imx290_param[chn].exposure_time_max;
+	user_para->exposure_time_min = imx290_param[chn].exposure_time_min;
+	user_para->exposure_time_long_max = imx290_param[chn].exposure_time_long_max;
+	user_para->active_width = imx290_param[chn].active_width;
+	user_para->active_height = imx290_param[chn].active_height;
 }
 
 static struct sensor_operations imx290_ops = {

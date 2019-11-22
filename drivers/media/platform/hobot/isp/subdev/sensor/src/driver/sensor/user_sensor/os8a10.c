@@ -132,7 +132,7 @@ static int set_os8a10_ex_gain_control(uint8_t chn, uint32_t expo_L,
 	int ret = 0;
 	uint32_t a_gain = 0;
 
-	a_gain = gain;
+	a_gain = sensor_date(gain);;
 	//a_gain = sensor_log10(gain);//ux.8
 	//a_gain =(uint32_t)(((a_gain * 200) / 3) >> 8);
 
@@ -179,6 +179,11 @@ static int os8a10_init(uint8_t chn, uint8_t mode)
 			LOG(LOG_DEBUG, "tmp_addr %x, data %x", tmp_addr, tmp_data);
 		}
 		os8a10_param[chn].os8a10_mode_save = OS8A10_NORMAL_M;
+		os8a10_param[chn].lines_per_second = 10074;
+		os8a10_param[chn].exposure_time_max = 3880;
+		os8a10_param[chn].exposure_time_min = 1;
+		os8a10_param[chn].exposure_time_long_max = 10000;
+
 		//gain control init
 		tmp_data = 0x88;
 		ret = sensor_i2c_write(chn, 0x3503, 16, &tmp_data, 1);
@@ -192,6 +197,10 @@ static int os8a10_init(uint8_t chn, uint8_t mode)
 			ret = sensor_i2c_write(chn, tmp_addr, 16, &tmp_data, 1);
 		}
 		os8a10_param[chn].os8a10_mode_save = OS8A10_DOL2_M;
+		os8a10_param[chn].lines_per_second = 10074;
+		os8a10_param[chn].exposure_time_max = 3880;
+		os8a10_param[chn].exposure_time_min = 1;
+		os8a10_param[chn].exposure_time_long_max = 10000;
 		LOG(LOG_CRIT, "os8a10 raw12 dol2 init success", __func__, __LINE__);
 		break;
 	default:
@@ -283,16 +292,16 @@ static void os8a10_start_streaming(uint8_t chn)
 	sensor_i2c_write(chn, 0x0100, 16, &buf, 1);
 }
 
-void os8a10_get_para(uint8_t chn, struct _setting_param_t user_para)
+static void os8a10_get_para(uint8_t chn, struct _setting_param_t *user_para)
 {
-	user_para.lines_per_second = os8a10_param[chn].lines_per_second;
-	user_para.analog_gain_max = os8a10_param[chn].gain_max;
-	user_para.digital_gain_max = os8a10_param[chn].gain_max;
-	user_para.exposure_time_max = os8a10_param[chn].VMAX - 2;
-	user_para.exposure_time_min = 1;
-	user_para.exposure_time_long_max = os8a10_param[chn].VMAX - 2;
-	user_para.active_width = os8a10_param[chn].active_width;
-	user_para.active_height = os8a10_param[chn].active_height;
+	user_para->lines_per_second = os8a10_param[chn].lines_per_second;
+	user_para->analog_gain_max = os8a10_param[chn].gain_max;
+	user_para->digital_gain_max = os8a10_param[chn].gain_max;
+	user_para->exposure_time_max = os8a10_param[chn].exposure_time_max;
+	user_para->exposure_time_min = os8a10_param[chn].exposure_time_min;
+	user_para->exposure_time_long_max = os8a10_param[chn].exposure_time_long_max;
+	user_para->active_width = os8a10_param[chn].active_width;
+	user_para->active_height = os8a10_param[chn].active_height;
 }
 
 static struct sensor_operations os8a10_ops = {

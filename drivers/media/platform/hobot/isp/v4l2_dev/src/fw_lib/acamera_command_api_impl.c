@@ -3078,8 +3078,8 @@ uint8_t register_value( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t dir
 //    [0-255]
 //   IMX290 : IMX327 : IMX390
 // ------------------------------------------------------------------------------ //
-#ifdef SENSOR_TYPE  //TODO
-#define SENSOR_NUM 5
+#ifdef SENSOR_TYPE
+#define SENSOR_NUM 10
 uint8_t sensor_type( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
 {
     uint32_t result = SUCCESS;
@@ -3107,7 +3107,6 @@ uint8_t sensor_type( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direct
 }
 #endif 
 
-
 // ------------------------------------------------------------------------------ //
 //  sensor type of different chn :
 //
@@ -3117,7 +3116,7 @@ uint8_t sensor_type( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direct
 //    [0-255]
 //   IMX290 : IMX327 : IMX390
 // ------------------------------------------------------------------------------ //
-#ifdef SENSOR_I2C_CHANNEL  //TODO
+#ifdef SENSOR_I2C_CHANNEL
 #define X2A_I2C_NUM 5
 uint8_t sensor_i2c_chnnel( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
 {
@@ -3146,7 +3145,195 @@ uint8_t sensor_i2c_chnnel( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t 
 }
 #endif
 
+// --------------------------------------------------------- //
+//  sensor_max_again
+// --------------------------------------------------------- //
+#ifdef SENSOR_MAX_AGAIN
+uint8_t sensor_max_again(acamera_fsm_mgr_t *instance,
+	uint32_t value, uint8_t direction, uint32_t *ret_value)
+{
+    uint32_t result = SUCCESS;
+    *ret_value = 0;
+
+    const sensor_param_t *param = NULL;
+    acamera_fsm_mgr_get_param(instance,
+	FSM_PARAM_GET_SENSOR_PARAM, NULL, 0, &param, sizeof(param));
+
+    if (direction == COMMAND_GET) {
+        *ret_value = (param->again_log2_max >> 13);
+        result = SUCCESS;
+    } else {
+            acamera_fsm_mgr_set_param(instance,
+		FSM_PARAM_SET_SENSOR_MAX_AGAIN, &value, sizeof(value));
+
+            result = SUCCESS;
+    }
+    return result;
+}
+#endif
+
+// --------------------------------------------------------- //
+//  sensor_max_dgain
+// --------------------------------------------------------- //
+#ifdef SENSOR_MAX_DGAIN
+uint8_t sensor_max_dgain(acamera_fsm_mgr_t *instance,
+	uint32_t value, uint8_t direction, uint32_t *ret_value)
+{
+    uint32_t result = SUCCESS;
+    *ret_value = 0;
+
+    const sensor_param_t *param = NULL;
+    acamera_fsm_mgr_get_param(instance,
+	FSM_PARAM_GET_SENSOR_PARAM, NULL, 0, &param, sizeof(param));
+
+    if (direction == COMMAND_GET) {
+        *ret_value = (param->dgain_log2_max >> 13);
+        result = SUCCESS;
+    } else {
+            acamera_fsm_mgr_set_param(instance,
+		FSM_PARAM_SET_SENSOR_MAX_DGAIN, &value, sizeof(value));
+
+            result = SUCCESS;
+    }
+    return result;
+}
+#endif
+
+// ------------------------------------------------------- //
+//  sensor_min_intertime
+// ------------------------------------------------------- //
+#ifdef SENSOR_MIN_INTERTIME
+uint8_t sensor_min_intertime(acamera_fsm_mgr_t *instance,
+	uint32_t value, uint8_t direction, uint32_t *ret_value)
+{
+    uint32_t result = SUCCESS;
+    *ret_value = 0;
+
+    const sensor_param_t *param = NULL;
+    acamera_fsm_mgr_get_param(instance,
+	FSM_PARAM_GET_SENSOR_PARAM, NULL, 0, &param, sizeof(param));
+
+    if (direction == COMMAND_GET) {
+        *ret_value = param->integration_time_min;
+        result = SUCCESS;
+    } else {
+            acamera_fsm_mgr_set_param(instance,
+		FSM_PARAM_SET_SENSOR_MIN_INTERTIME, &value, sizeof(value));
+
+            result = SUCCESS;
+    }
+    return result;
+}
+#endif
  
+// -------------------------------------------------- //
+//  sensor_max_inter_time
+// -------------------------------------------------- //
+#ifdef SENSOR_MAX_INTERTIME
+uint8_t sensor_max_intertime(acamera_fsm_mgr_t *instance,
+	uint32_t value, uint8_t direction, uint32_t *ret_value)
+{
+    uint32_t result = SUCCESS;
+    *ret_value = 0;
+
+    const sensor_param_t *param = NULL;
+    acamera_fsm_mgr_get_param(instance,
+	FSM_PARAM_GET_SENSOR_PARAM, NULL, 0, &param, sizeof(param));
+
+    if (direction == COMMAND_GET) {
+        *ret_value = param->integration_time_max;
+        result = SUCCESS;
+    } else {
+            acamera_fsm_mgr_set_param(instance,
+		FSM_PARAM_SET_SENSOR_MAX_INTERTIME, &value, sizeof(value));
+
+            result = SUCCESS;
+    }
+    return result;
+}
+#endif
+
+// ------------------------------------------------- //
+//  sensor_max_long_time
+// ------------------------------------------------- //
+#ifdef SENSOR_MAX_LONGTIME
+uint8_t sensor_max_longtime(acamera_fsm_mgr_t *instance,
+	uint32_t value, uint8_t direction, uint32_t *ret_value)
+{
+    uint32_t result = SUCCESS;
+    *ret_value = 0;
+
+    const sensor_param_t *param = NULL;
+    acamera_fsm_mgr_get_param(instance,
+	FSM_PARAM_GET_SENSOR_PARAM, NULL, 0, &param, sizeof(param));
+
+    if (direction == COMMAND_GET) {
+        *ret_value = param->integration_time_long_max;
+        result = SUCCESS;
+    } else {
+            acamera_fsm_mgr_set_param(instance,
+		FSM_PARAM_SET_SENSOR_MAX_LONGTIME, &value, sizeof(value));
+
+            result = SUCCESS;
+    }
+    return result;
+}
+#endif
+
+// --------------------------------------------------- //
+//  sensor_limit_inter_time
+// --------------------------------------------------- //
+#ifdef SENSOR_LIMIT_INTERTIME
+uint8_t sensor_limit_intertime(acamera_fsm_mgr_t *instance,
+	uint32_t value, uint8_t direction, uint32_t *ret_value)
+{
+    uint32_t result = SUCCESS;
+    *ret_value = 0;
+
+    const sensor_param_t *param = NULL;
+    acamera_fsm_mgr_get_param(instance,
+	FSM_PARAM_GET_SENSOR_PARAM, NULL, 0, &param, sizeof(param));
+
+    if (direction == COMMAND_GET) {
+        *ret_value = param->integration_time_limit;
+        result = SUCCESS;
+    } else {
+            acamera_fsm_mgr_set_param(instance,
+		FSM_PARAM_SET_SENSOR_LIMIT_INTERTIM, &value, sizeof(value));
+
+            result = SUCCESS;
+    }
+    return result;
+}
+#endif
+
+// ------------------------------------------------- //
+//  sensor_lines_per_second
+// ------------------------------------------------ //
+#ifdef SENSOR_LINES_PER_SECOND
+uint8_t sensor_lines_per_second(acamera_fsm_mgr_t *instance,
+	uint32_t value, uint8_t direction, uint32_t *ret_value)
+{
+    uint32_t result = SUCCESS;
+    *ret_value = 0;
+
+    const sensor_param_t *param = NULL;
+    acamera_fsm_mgr_get_param(instance,
+	FSM_PARAM_GET_SENSOR_PARAM, NULL, 0, &param, sizeof(param));
+
+    if (direction == COMMAND_GET) {
+        *ret_value = param->lines_per_second;
+        result = SUCCESS;
+    } else {
+            acamera_fsm_mgr_set_param(instance,
+		FSM_PARAM_SET_SENSOR_LINES_PER_SECOND, &value, sizeof(value));
+
+            result = SUCCESS;
+    }
+    return result;
+}
+#endif
+
 // ------------------------------------------------------------------------------ //
 //        TSCENE_MODES
 // ------------------------------------------------------------------------------ //

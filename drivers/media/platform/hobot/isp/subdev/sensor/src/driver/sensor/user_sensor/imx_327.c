@@ -46,8 +46,6 @@ static int set_imx327_init(uint8_t chn)
 	imx327_param[chn].FSC_DOL2 = imx327_param[chn].VMAX * 2;
 	imx327_param[chn].FSC_DOL3 = imx327_param[chn].VMAX * 4;
 	imx327_param[chn].gain_max = 210;
-	imx327_param[chn].exposure_time_min = 1;
-	imx327_param[chn].exposure_time_max = imx327_param[chn].VMAX;
 
 	ret = sensor_i2c_read(chn, IMX327_HAMX, 16, init_d, 2);
 	imx327_param[chn].HMAX = init_d[1];
@@ -69,6 +67,7 @@ static int set_imx327_init(uint8_t chn)
 	else
 		imx327_param[chn].lane = 2;
 //clk
+#if 0
 	ret = sensor_i2c_read(chn, IMX327_INCKSEL6, 16, init_d, 1);
 	if(init_d[0] == 0x1A)
 		imx327_param[chn].clk = 37125000;
@@ -84,7 +83,7 @@ static int set_imx327_init(uint8_t chn)
 	imx327_param[chn].active_width = init_d[1];
 	imx327_param[chn].active_width =(imx327_param[chn].active_width << 8)
 		| init_d[0];
-
+#endif
 	ret = sensor_i2c_read(chn, IMX327_Y_SIZE, 16, init_d, 2);
 	imx327_param[chn].active_height = init_d[1];
 	imx327_param[chn].active_height =(imx327_param[chn].active_height << 8)
@@ -248,6 +247,10 @@ static int imx327_init(uint8_t chn, uint8_t mode)
 			LOG(LOG_DEBUG, "tmp_addr %x, data %x", tmp_addr, tmp_data);
 		}
 		imx327_param[chn].imx327_mode_save = NORMAL_M;
+		imx327_param[chn].lines_per_second = 10074;
+		imx327_param[chn].exposure_time_max = imx327_param[chn].VMAX - 2;
+		imx327_param[chn].exposure_time_min = 1;
+		imx327_param[chn].exposure_time_long_max = imx327_param[chn].FSC_DOL2 - 2;
 		LOG(LOG_CRIT, "imx327 raw12 normal init success ", __func__, __LINE__);
 		break;
 	case 1:
@@ -257,7 +260,11 @@ static int imx327_init(uint8_t chn, uint8_t mode)
 			tmp_data =(char)(imx327_raw12_dol2_setting[tmp_c++] & 0xff);
 			ret = sensor_i2c_write(chn, tmp_addr, 16, &tmp_data, 1);
 		}
-		imx327_param[chn].imx327_mode_save = DOL2_M;
+		imx327_param[chn].lines_per_second = 7183;
+		imx327_param[chn].exposure_time_max = imx327_param[chn].RHS1 - 2;
+		imx327_param[chn].exposure_time_min = 1;
+		imx327_param[chn].exposure_time_long_max = imx327_param[chn].FSC_DOL2 - 2;
+
 		LOG(LOG_CRIT, "imx327 raw12 dol2 init success", __func__, __LINE__);
 		break;
 	default:
@@ -366,16 +373,16 @@ static void imx327_start_streaming(uint8_t chn)
 	sensor_i2c_write(chn, 0x3000, 16, &buf, 1);
 }
 
-void imx327_get_para(uint8_t chn, struct _setting_param_t user_para)
+void imx327_get_para(uint8_t chn, struct _setting_param_t *user_para)
 {
-	user_para.lines_per_second = imx327_param[chn].lines_per_second;
-	user_para.analog_gain_max = imx327_param[chn].gain_max;
-	user_para.digital_gain_max = imx327_param[chn].gain_max;
-	user_para.exposure_time_max = imx327_param[chn].VMAX - 2;
-	user_para.exposure_time_min = 1;
-	user_para.exposure_time_long_max = imx327_param[chn].VMAX - 2;
-	user_para.active_width = imx327_param[chn].active_width;
-	user_para.active_height = imx327_param[chn].active_height;
+	user_para->lines_per_second = imx327_param[chn].lines_per_second;
+	user_para->analog_gain_max = imx327_param[chn].gain_max;
+	user_para->digital_gain_max = imx327_param[chn].gain_max;
+	user_para->exposure_time_max = imx327_param[chn].exposure_time_max;
+	user_para->exposure_time_min = imx327_param[chn].exposure_time_min;
+	user_para->exposure_time_long_max = imx327_param[chn].exposure_time_long_max;
+	user_para->active_width = imx327_param[chn].active_width;
+	user_para->active_height = imx327_param[chn].active_height;
 }
 
 static struct sensor_operations imx327_ops = {

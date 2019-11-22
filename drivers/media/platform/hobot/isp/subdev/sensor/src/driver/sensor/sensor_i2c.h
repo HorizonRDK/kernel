@@ -24,6 +24,7 @@ struct _setting_param_t {
         uint32_t digital_gain_max;
         uint32_t exposure_time_max;
         uint32_t exposure_time_min;
+        uint32_t exposure_time_limit;
 	uint32_t exposure_time_long_max;
         uint16_t active_width;
         uint16_t active_height;
@@ -45,7 +46,7 @@ struct sensor_operations {
 	void (* stop_streaming) ( uint8_t chn );
 	void (* start_streaming) ( uint8_t chn );
 	int (* sensor_init) ( uint8_t chn, uint8_t mode);
-	void (* sesor_get_para) (uint8_t chn, struct _setting_param_t user_para);
+	void (* sesor_get_para)(uint8_t chn, struct _setting_param_t *user_para);
 };
 
 

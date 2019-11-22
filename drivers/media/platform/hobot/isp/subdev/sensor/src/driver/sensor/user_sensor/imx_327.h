@@ -38,6 +38,7 @@ typedef struct _imx327_param_t {
 	uint32_t gain_max;
 	uint32_t exposure_time_max;
 	uint32_t exposure_time_min;
+	uint32_t exposure_time_long_max;
 	uint16_t active_width;
 	uint16_t active_height;
 	uint8_t  lane;

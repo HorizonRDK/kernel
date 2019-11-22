@@ -1,6 +1,10 @@
 #include "acamera_logger.h"
+#include "acamera_firmware_config.h"
 #include "../sensor_i2c.h"
 #include "../sensor_math.h"
+#include "ar_0233.h"
+
+ar0233_param_t ar0233_param[FIRMWARE_CONTEXT_NUMBER];
 
 int set_ex_line_pwl_0233(uint8_t chn, uint32_t line)
 {
@@ -22,6 +26,10 @@ int set_ex_gain_pwl_0233(uint8_t chn, uint32_t gain)
 	gain = gain >> 1;
 	if(gain < 128)
 		gain = 128; //128==0x80
+
+	if(gain > 0x7fe)
+		gain = 0x7fe;
+
 	buf[0] = (char)((gain >> 8) & 0xff);
 	buf[1] = (char)(gain & 0xff);
 	ret = sensor_i2c_write(chn, 0x305e, 16, buf, 2);
@@ -157,6 +165,12 @@ static int ar0233_init(uint8_t chn, uint8_t mode)
 		}
 #endif
 		LOG(LOG_NOTICE, "0233 pwl init success ");
+		ar0233_param[chn].lines_per_second = 15858;
+		ar0233_param[chn].exposure_time_max = 4000;
+		ar0233_param[chn].exposure_time_min = 32;
+		ar0233_param[chn].exposure_time_long_max = 4000;
+		ar0233_param[chn].gain_max = 128 * 8192;
+
 		break;
 	case 1://lcg
 #if 0
@@ -216,6 +230,7 @@ static void ar0233_alloc_integration_time(uint8_t chn, uint16_t *int_time,
 
 static void ar0233_update(uint8_t chn, struct sensor_priv updata)
 {
+	uint32_t data = 0;
 	LOG(LOG_DEBUG, "[%s -- %d ]", __func__, __LINE__);
 /*
 	struct sensor_priv {
@@ -226,7 +241,9 @@ static void ar0233_update(uint8_t chn, struct sensor_priv updata)
 		uint16_t int_time_L; 
 	};
 */
-	set_ex_gain_control_0233(chn, updata.int_time, updata.analog_gain, 0);
+	data = sensor_date(updata.analog_gain);
+	LOG(LOG_INFO, "int_time %d, analog_gain %d", updata.int_time, data);
+	set_ex_gain_control_0233(chn, updata.int_time, data, 0);
 	//set390_ex_gain_control(updata.int_time, updata.analog_gain, 385);
 }
 
@@ -276,6 +293,20 @@ static void ar0233_stop_streaming(uint8_t chn)
 	sensor_i2c_write(chn, 0x301a, 16, buf, 2);
 }
 
+void ar0233_get_para(uint8_t chn, struct _setting_param_t *user_para)
+{
+        user_para->lines_per_second = ar0233_param[chn].lines_per_second;
+        user_para->analog_gain_max = ar0233_param[chn].gain_max;
+        user_para->digital_gain_max = ar0233_param[chn].gain_max;
+        user_para->exposure_time_max = ar0233_param[chn].exposure_time_max;
+        user_para->exposure_time_min = ar0233_param[chn].exposure_time_min;
+        user_para->exposure_time_long_max =
+		ar0233_param[chn].exposure_time_long_max;
+        user_para->active_width = ar0233_param[chn].active_width;
+        user_para->active_height = ar0233_param[chn].active_height;
+}
+
+
 static struct sensor_operations ar0233_ops = {
 	.sensor_hw_reset_enable = ar0233_hw_reset_enable,
 	.sensor_hw_reset_disable = ar0233_hw_reset_disable,
@@ -290,6 +321,7 @@ static struct sensor_operations ar0233_ops = {
 	.stop_streaming = ar0233_stop_streaming,
 	.start_streaming = ar0233_start_streaming,
 	.sensor_init = ar0233_init,
+	.sesor_get_para = ar0233_get_para,
 };
 
 struct sensor_operations *ar0233_ops_register(void)

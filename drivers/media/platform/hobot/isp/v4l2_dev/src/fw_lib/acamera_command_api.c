@@ -396,6 +396,27 @@ case  MSENSOR:
 		case  SENSOR_I2C_CHANNEL:
 			ret = sensor_i2c_chnnel(instance, value, direction, ret_value);
 			break;
+		case  SENSOR_MAX_AGAIN:
+			ret = sensor_max_again(instance, value, direction, ret_value);
+			break;
+		case  SENSOR_MAX_DGAIN:
+			ret = sensor_max_dgain(instance, value, direction, ret_value);
+			break;
+		case  SENSOR_MIN_INTERTIME:
+			ret = sensor_min_intertime(instance, value, direction, ret_value);
+			break;
+		case  SENSOR_MAX_INTERTIME:
+			ret = sensor_max_intertime(instance, value, direction, ret_value);
+			break;
+		case  SENSOR_MAX_LONGTIME:
+			ret = sensor_max_longtime(instance, value, direction, ret_value);
+			break;
+		case  SENSOR_LIMIT_INTERTIME:
+			ret = sensor_limit_intertime(instance, value, direction, ret_value);
+			break;
+		case  SENSOR_LINES_PER_SECOND:
+			ret = sensor_lines_per_second(instance, value, direction, ret_value);
+			break;
 	}//switch (command)
 	break;
 case  LOG_LIST:
