@@ -105,7 +105,7 @@ struct _acamera_fsm_mgr_t
     fsm_common_t *fsm_arr[FSM_ID_MAX];
     acamera_event_queue_t event_queue;
     uint8_t event_queue_data[ACAMERA_EVENT_QUEUE_SIZE];
-    uint32_t reserved;
+    uint32_t reserved;	//bit[0]:dma writer on/off
 };
 
 void acamera_fsm_mgr_raise_event(acamera_fsm_mgr_t *p_fsm_mgr, event_id_t event_id);

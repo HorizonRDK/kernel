@@ -3516,6 +3516,7 @@ uint8_t fr_format_base_plane( acamera_fsm_mgr_t *instance, uint32_t value, uint8
         result = SUCCESS;
     } else if ( direction == COMMAND_SET ) {
         uint8_t base, base_uv = DMA_FORMAT_DISABLE;
+	instance->reserved = 1;	//for dma writer on/off
 
         switch ( value ) {
         case DMA_DISABLE:
@@ -3598,10 +3599,16 @@ uint8_t fr_format_base_plane( acamera_fsm_mgr_t *instance, uint32_t value, uint8
             break;
         }
 
-        acamera_isp_fr_dma_writer_format_write( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base, base );
-        acamera_isp_fr_uv_dma_writer_format_write( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base, base_uv );
+	if (base == DMA_FORMAT_DISABLE) {
+		acamera_isp_fr_dma_writer_frame_write_on_write(ACAMERA_MGR2CTX_PTR(instance)->settings.isp_base, 0);
+		instance->reserved = 0;
+	} else {
+		acamera_isp_fr_dma_writer_format_write(ACAMERA_MGR2CTX_PTR(instance)->settings.isp_base, base);
+		acamera_isp_fr_uv_dma_writer_format_write(ACAMERA_MGR2CTX_PTR(instance)->settings.isp_base, base_uv);
 
-        acamera_fsm_mgr_set_param( instance, FSM_PARAM_SET_MATRIX_YUV_FR_OUT_FMT, &pipe_output_format, sizeof( pipe_output_format ) );
+		acamera_fsm_mgr_set_param(instance, FSM_PARAM_SET_MATRIX_YUV_FR_OUT_FMT, &pipe_output_format, sizeof(pipe_output_format));
+	}
+
         result = SUCCESS;
     }
     return result;
