@@ -18,19 +18,22 @@ export READELF="${CROSS_COMPILE}readelf"
 export STRIP="${CROSS_COMPILE}strip"
 
 
-//EXTRA_CFLAGS +=	$(DEBFLAGS) -I$(LDDINCDIR)
-EXTRA_CFLAGS +=	$(DEBFLAGS) -I$(LDDINCDIR)  -DCNM_FPGA_PLATFORM -DCNM_FPGA_PCI_INTERFACE -DCONFIG_PM
+#EXTRA_CFLAGS +=	$(DEBFLAGS) -I$(LDDINCDIR)
+EXTRA_CFLAGS +=	$(DEBFLAGS) -I$(LDDINCDIR) -DCONFIG_PM
 
 
 ifneq ($(KERNELRELEASE),)
 # call from kernel build system
 
 #obj-m	:= vpu.o
-obj-$(CONFIG_VIDEO_HOBOTC_VPU)	:= vpu.o
+hobot-vpu-objs := hobot_vpu.o hobot_vpu_buf.o
+hobot-vpu-objs += hobot_vpu_ctl.o hobot_vpu_pm.o
+
+obj-$(CONFIG_VIDEO_HOBOTC_VPU)	:= hobot-vpu.o
 
 else
 
-KERNELDIR := ../../../../../../kernel
+KERNELDIR := ../../../../../kernel
 #KERNELDIR ?= /lib/modules/$(shell uname -r)/build
 
 PWD	  := $(shell pwd)

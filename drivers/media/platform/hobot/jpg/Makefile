@@ -24,11 +24,14 @@ ifneq ($(KERNELRELEASE),)
 # call from kernel build system
 
 #obj-m	:= jpu.o
-obj-$(CONFIG_VIDEO_HOBOTC_JPEG)	:= jpu.o
+hobot-jpu-objs := hobot_jpu.o hobot_jpu_buf.o
+hobot-jpu-objs += hobot_jpu_ctl.o hobot_jpu_pm.o
+
+obj-$(CONFIG_VIDEO_HOBOTC_JPU)	:= hobot-jpu.o
 
 else
 
-KERNELDIR := ../../../../../../kernel
+KERNELDIR := ../../../../../kernel
 PWD	  := $(shell pwd)
 
 default:

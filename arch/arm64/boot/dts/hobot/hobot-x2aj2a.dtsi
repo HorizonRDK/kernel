@@ -413,7 +413,7 @@
 		};
 
 		jpu: jpu@0xA8010000 {
-			compatible = "hobot,cnm_jpu";
+			compatible = "hobot,x2a_jpu";
 			reg = <0 0xA8010000 0 0x10000>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 67 4>;
@@ -421,7 +421,7 @@
 		};
 
 		vpu: vpu@0xA8000000 {
-			compatible = "hobot,cnm_vpu";
+			compatible = "hobot,x2a_vpu";
 			reg = <0 0xA8000000 0 0x10000>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 66 4>;
