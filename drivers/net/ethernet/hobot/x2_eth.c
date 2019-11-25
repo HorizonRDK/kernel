@@ -2307,6 +2307,7 @@ static int dwceqos_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 		return NETDEV_TX_BUSY;
 	}
 
+	//printk("%s,\n",__func__);
 	err = dwceqos_tx_linear(skb, lp, &trans);
 	if (err)
 		goto tx_error;
@@ -3123,17 +3124,19 @@ static int hobot_eth_resume(struct device *dev)
        if (!netif_running(ndev))
                return 0;
 
+	rtnl_lock();
 		/*enable clk to work*/
-		clk_prepare_enable(lp->eth0_clk);
-
+	clk_prepare_enable(lp->eth0_clk);
        //netif_device_attach(ndev);
 	ret = dwceqos_open(ndev);
 	if (ret < 0) {
 		pr_err("%s, resume failed\n", __func__);
+		rtnl_unlock();
 		return ret;
 	}
 
 	netif_device_attach(ndev);
+	rtnl_unlock();
 	return ret;
 }
 static SIMPLE_DEV_PM_OPS(hobot_pm_ops, hobot_eth_suspend, hobot_eth_resume);
