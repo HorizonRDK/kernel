@@ -1,5 +1,7 @@
 /*  Synopsys DWC Ethernet Quality-of-Service v4.10a linux driver
  *
+ *	Copyright (C) 2015 Axis Communications AB.
+ *
  *  This is a driver for the Synopsys DWC Ethernet QoS IP version 4.10a (GMAC).
  *  This version introduced a lot of changes which breaks backwards
  *  compatibility the non-QoS IP from Synopsys (used in the ST Micro drivers).
@@ -17,7 +19,6 @@
  *  - The statistics module.
  *  - Single RX and TX queue.
  *
- *  Copyright (C) 2015 Axis Communications AB.
  *
  *  This program is free software; you can redistribute it and/or modify it
  *  under the terms and conditions of the GNU General Public License,
@@ -1174,19 +1175,21 @@ static int dwceqos_descriptor_init(struct net_local *lp)
 	size = DWCEQOS_RX_DCNT * sizeof(struct dwceqos_dma_desc);
 	lp->rx_descs = dma_alloc_coherent(lp->ndev->dev.parent, size,
 			&lp->rx_descs_addr, GFP_KERNEL);
+
 	if (!lp->rx_descs)
 		goto err_out;
+
 	lp->rx_descs_tail_addr = lp->rx_descs_addr +
 		sizeof(struct dwceqos_dma_desc) * DWCEQOS_RX_DCNT;
 
 	size = DWCEQOS_TX_DCNT * sizeof(struct dwceqos_dma_desc);
 	lp->tx_descs = dma_alloc_coherent(lp->ndev->dev.parent, size,
 			&lp->tx_descs_addr, GFP_KERNEL);
+
 	if (!lp->tx_descs)
 		goto err_out;
 	lp->tx_descs_tail_addr = lp->tx_descs_addr +
-		sizeof(struct dwceqos_dma_desc) * DWCEQOS_TX_DCNT;
-
+		 sizeof(struct dwceqos_dma_desc) * DWCEQOS_TX_DCNT;
 	/* Initialize RX Ring Descriptors and buffers */
 	for (i = 0; i < DWCEQOS_RX_DCNT; ++i) {
 		dwceqos_alloc_rxring_desc(lp, i);
@@ -2130,7 +2133,6 @@ static int dwceqos_tx_linear(struct sk_buff *skb, struct net_local *lp,
 	struct dwceqos_dma_desc *dd;
 	size_t payload_len;
 	dma_addr_t dma_handle;
-
 	if (skb_is_gso(skb) && skb_shinfo(skb)->gso_size != lp->gso_size) {
 		dwceqos_dmadesc_set_ctx(lp, skb_shinfo(skb)->gso_size);
 		lp->gso_size = skb_shinfo(skb)->gso_size;
@@ -2299,7 +2301,6 @@ static int dwceqos_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 	struct dwceqos_tx trans;
 	unsigned long flags;
 	int err;
-
 	dwceqos_tx_prepare(skb, lp, &trans);
 	if (lp->tx_free < trans.nr_descriptors) {
 		netif_stop_queue(ndev);
@@ -2320,7 +2321,9 @@ static int dwceqos_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 
     spin_lock_irqsave(&lp->tx_lock, flags);
 	lp->tx_free -= trans.nr_descriptors;
+
 	dwceqos_tx_finalize(skb, lp, &trans);
+
 	netdev_sent_queue(ndev, skb->len);
     spin_unlock_irqrestore(&lp->tx_lock, flags);
 
@@ -3080,17 +3083,15 @@ static int hobot_eth_suspend(struct device *dev)
        }
 
        if (!netif_running(ndev)) {
-               printk("%s, and not runing\n", __func__);
                return 0;
        }
 
        napi_synchronize(&lp->napi);
        napi_disable(&lp->napi);
-
-       dwceqos_dma_enable_rxirq(lp);
-       dwceqos_dma_enable_txirq(lp);
-       netif_device_detach(ndev);
-       netif_carrier_off(ndev);
+	dwceqos_dma_disable_rxirq(lp);
+	dwceqos_dma_disable_txirq(lp);
+	netif_device_detach(ndev);
+	netif_carrier_off(ndev);
 
        netif_tx_lock_bh(lp->ndev);
        netif_stop_queue(ndev);
@@ -3109,7 +3110,6 @@ static int hobot_eth_suspend(struct device *dev)
        lp->speed = 0;
        lp->duplex = DUPLEX_UNKNOWN;
 
-       printk("%s, successfully\n", __func__);
        return 0;
 }
 
@@ -3117,7 +3117,7 @@ static int hobot_eth_resume(struct device *dev)
 {
        struct net_device *ndev = dev_get_drvdata(dev);
        struct net_local *lp = netdev_priv(ndev);
-
+	u32 ret = 0;
 		pr_info("%s:%s, enter resume...\n", __FILE__, __func__);
 
        if (!netif_running(ndev))
@@ -3126,11 +3126,15 @@ static int hobot_eth_resume(struct device *dev)
 		/*enable clk to work*/
 		clk_prepare_enable(lp->eth0_clk);
 
-       netif_device_attach(ndev);
+       //netif_device_attach(ndev);
+	ret = dwceqos_open(ndev);
+	if (ret < 0) {
+		pr_err("%s, resume failed\n", __func__);
+		return ret;
+	}
 
-       dwceqos_open(ndev);
-
-		return 0;
+	netif_device_attach(ndev);
+	return ret;
 }
 static SIMPLE_DEV_PM_OPS(hobot_pm_ops, hobot_eth_suspend, hobot_eth_resume);
 #endif
