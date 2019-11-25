@@ -366,12 +366,15 @@ static int mpq7920_pmic_probe(struct i2c_client *client,
 		dev_err(dev, "Failed to allocate register map: %d\n", ret);
 		return ret;
 	}
-
+#if 0
 	if (of_device_is_system_power_controller(dev->of_node)) {
 		mpq7920->off_reg = off_reg;
 		pm_power_off = mpq7920_power_off;
 	}
-
+#else
+	mpq7920->off_reg = off_reg;
+	pm_power_off = mpq7920_power_off;
+#endif
 
 	/* Finally register devices */
 	for (i = 0; i < num_regulators; i++) {
