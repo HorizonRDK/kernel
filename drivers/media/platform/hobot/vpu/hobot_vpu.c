@@ -91,8 +91,8 @@ static int vpu_alloc_dma_buffer(hb_vpu_drv_buffer_t * vb)
 				   (vb->phys_addr - s_video_memory.phys_addr));
 #else
 	vb->base = (unsigned long)dma_alloc_coherent(NULL, PAGE_ALIGN(vb->size),
-						     (dma_addr_t *) (&vb->
-								     phys_addr),
+						     (dma_addr_t
+						      *) (&vb->phys_addr),
 						     GFP_DMA | GFP_KERNEL);
 	if ((void *)(vb->base) == NULL) {
 		vpu_err("Physical memory allocation error size=%d\n", vb->size);
@@ -430,8 +430,7 @@ static irqreturn_t vpu_irq_handler(int irq, void *dev_id)
 							  intr_inst_index);
 					}
 					if (!kfifo_is_full
-					    (&dev->
-					     interrupt_pending_q
+					    (&dev->interrupt_pending_q
 					     [intr_inst_index])) {
 						if (intr_reason ==
 						    ((1 << INT_WAVE5_DEC_PIC) |
@@ -442,28 +441,24 @@ static irqreturn_t vpu_irq_handler(int irq, void *dev_id)
 							    (1 <<
 							     INT_WAVE5_DEC_PIC);
 							kfifo_in_spinlocked
-							    (&dev->
-							     interrupt_pending_q
+							    (&dev->interrupt_pending_q
 							     [intr_inst_index],
 							     &ll_intr_reason,
 							     sizeof(u32),
-							     &dev->
-							     vpu_kfifo_lock);
+							     &dev->vpu_kfifo_lock);
 						} else
 							kfifo_in_spinlocked
-							    (&dev->
-							     interrupt_pending_q
+							    (&dev->interrupt_pending_q
 							     [intr_inst_index],
 							     &intr_reason,
 							     sizeof(u32),
-							     &dev->
-							     vpu_kfifo_lock);
+							     &dev->vpu_kfifo_lock);
 					} else {
 						vpu_err
 						    ("kfifo_is_full kfifo_count=%d \n",
-						     kfifo_len(&dev->
-							       interrupt_pending_q
-							       [intr_inst_index]));
+						     kfifo_len
+						     (&dev->interrupt_pending_q
+						      [intr_inst_index]));
 					}
 				} else {
 					vpu_err("intr_inst_index is wrong "
@@ -488,8 +483,7 @@ static irqreturn_t vpu_irq_handler(int irq, void *dev_id)
 				intr_reason = VPU_READL(BIT_INT_REASON);
 				// in case of coda seriese. treats intr_inst_index is already 0
 				intr_inst_index = 0;
-				kfifo_in_spinlocked(&dev->
-						    interrupt_pending_q
+				kfifo_in_spinlocked(&dev->interrupt_pending_q
 						    [intr_inst_index],
 						    &intr_reason, sizeof(u32),
 						    &dev->vpu_kfifo_lock);
@@ -732,8 +726,7 @@ static long vpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 
 			intr_reason_in_q = 0;
 			interrupt_flag_in_q =
-			    kfifo_out_spinlocked(&dev->
-						 interrupt_pending_q
+			    kfifo_out_spinlocked(&dev->interrupt_pending_q
 						 [intr_inst_index],
 						 &intr_reason_in_q, sizeof(u32),
 						 &dev->vpu_kfifo_lock);
@@ -752,34 +745,22 @@ static long vpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 #ifdef SUPPORT_TIMEOUT_RESOLUTION
 			kt = ktime_set(0, info.timeout * 1000 * 1000);
 			ret =
-			    wait_event_interruptible_hrtimeout(dev->
-							       interrupt_wait_q
-							       [intr_inst_index],
-							       dev->
-							       interrupt_flag
-							       [intr_inst_index]
-							       != 0, kt);
+			    wait_event_interruptible_hrtimeout
+			    (dev->interrupt_wait_q[intr_inst_index],
+			     dev->interrupt_flag[intr_inst_index]
+			     != 0, kt);
 #else
 			ret =
-			    wait_event_interruptible_timeout(dev->
-							     interrupt_wait_q
-							     [intr_inst_index],
-							     dev->
-							     interrupt_flag
-							     [intr_inst_index]
-							     != 0,
-							     msecs_to_jiffies
-							     (info.timeout));
+			    wait_event_interruptible_timeout
+			    (dev->interrupt_wait_q[intr_inst_index],
+			     dev->interrupt_flag[intr_inst_index]
+			     != 0, msecs_to_jiffies(info.timeout));
 #endif
 #else
 			ret =
-			    wait_event_interruptible_timeout(dev->
-							     interrupt_wait_q,
-							     dev->
-							     interrupt_flag !=
-							     0,
-							     msecs_to_jiffies
-							     (info.timeout));
+			    wait_event_interruptible_timeout
+			    (dev->interrupt_wait_q, dev->interrupt_flag != 0,
+			     msecs_to_jiffies(info.timeout));
 #endif
 #ifdef SUPPORT_TIMEOUT_RESOLUTION
 			if (ret == -ETIME) {
@@ -802,8 +783,7 @@ static long vpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 #ifdef SUPPORT_MULTI_INST_INTR
 			intr_reason_in_q = 0;
 			interrupt_flag_in_q =
-			    kfifo_out_spinlocked(&dev->
-						 interrupt_pending_q
+			    kfifo_out_spinlocked(&dev->interrupt_pending_q
 						 [intr_inst_index],
 						 &intr_reason_in_q, sizeof(u32),
 						 &dev->vpu_kfifo_lock);
@@ -887,13 +867,12 @@ INTERRUPT_REMAIN_IN_QUEUE:
 					if (ret == 0) {
 #ifdef USE_VMALLOC_FOR_INSTANCE_POOL_MEMORY
 						dev->instance_pool.size =
-						    PAGE_ALIGN(dev->
-							       instance_pool.
-							       size);
+						    PAGE_ALIGN
+						    (dev->instance_pool.size);
 						dev->instance_pool.base =
-						    (unsigned long)vmalloc(dev->
-									   instance_pool.
-									   size);
+						    (unsigned long)
+						    vmalloc
+						    (dev->instance_pool.size);
 						dev->instance_pool.phys_addr =
 						    dev->instance_pool.base;
 
@@ -906,26 +885,22 @@ INTERRUPT_REMAIN_IN_QUEUE:
 #endif
 						{
 							/*clearing memory */
-							memset((void *)dev->
-							       instance_pool.
-							       base, 0x0,
-							       dev->
-							       instance_pool.
-							       size);
+							memset((void *)
+							       dev->instance_pool.base,
+							       0x0,
+							       dev->instance_pool.size);
 							ret =
 							    copy_to_user((void
 									  __user
 									  *)arg,
-									 &dev->
-									 instance_pool,
+									 &dev->instance_pool,
 									 sizeof
 									 (hb_vpu_drv_buffer_t));
 							if (ret == 0) {
 								/* success to get memory for instance pool */
 								vpu_debug(5,
 									  "[-]VDI_IOCTL_GET_INSTANCE_POOL\n");
-								up(&dev->
-								   vpu_sem);
+								up(&dev->vpu_sem);
 								break;
 							}
 						}
@@ -961,8 +936,7 @@ INTERRUPT_REMAIN_IN_QUEUE:
 						ret =
 						    copy_to_user((void __user *)
 								 arg,
-								 &dev->
-								 common_memory,
+								 &dev->common_memory,
 								 sizeof
 								 (hb_vpu_drv_buffer_t));
 						if (ret == 0) {
@@ -1031,8 +1005,8 @@ INTERRUPT_REMAIN_IN_QUEUE:
 					inst_info.inst_open_count++;
 			}
 #ifdef SUPPORT_MULTI_INST_INTR
-			kfifo_reset(&dev->
-				    interrupt_pending_q[inst_info.inst_idx]);
+			kfifo_reset(&dev->interrupt_pending_q
+				    [inst_info.inst_idx]);
 #endif
 			spin_unlock(&dev->vpu_spinlock);
 
@@ -1087,8 +1061,8 @@ INTERRUPT_REMAIN_IN_QUEUE:
 					inst_info.inst_open_count++;
 			}
 #ifdef SUPPORT_MULTI_INST_INTR
-			kfifo_reset(&dev->
-				    interrupt_pending_q[inst_info.inst_idx]);
+			kfifo_reset(&dev->interrupt_pending_q
+				    [inst_info.inst_idx]);
 #endif
 			spin_unlock(&dev->vpu_spinlock);
 
@@ -1284,8 +1258,8 @@ static ssize_t vpu_write(struct file *filp, const char __user * buf, size_t len,
 				return -ENODEV;
 			}
 
-			memcpy((void *)&dev->
-			       bit_fm_info[bit_firmware_info->core_idx],
+			memcpy((void *)
+			       &dev->bit_fm_info[bit_firmware_info->core_idx],
 			       bit_firmware_info,
 			       sizeof(hb_vpu_drv_firmware_t));
 			kfree(bit_firmware_info);

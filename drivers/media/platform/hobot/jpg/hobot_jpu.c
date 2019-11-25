@@ -91,12 +91,11 @@ static int jpu_alloc_dma_buffer(hb_jpu_drv_buffer_t * jb)
 
 	jb->base = (unsigned long)(s_video_memory.base + (jb->phys_addr
 							  -
-							  s_video_memory.
-							  phys_addr));
+							  s_video_memory.phys_addr));
 #else
 	jb->base = (unsigned long)dma_alloc_coherent(NULL, PAGE_ALIGN(jb->size),
-						     (dma_addr_t *) (&jb->
-								     phys_addr),
+						     (dma_addr_t
+						      *) (&jb->phys_addr),
 						     GFP_DMA | GFP_KERNEL);
 	if ((void *)(jb->base) == NULL) {
 		jpu_debug(5, "Physical memory allocation error size=%d\n",
@@ -152,7 +151,7 @@ static int jpu_free_instances(struct file *filp)
 			vip_base = (void *)(dev->instance_pool.base +
 					    instance_pool_size_per_core);
 			jpu_debug(5,
-				  "jpu_free_instances detect instance crash " 
+				  "jpu_free_instances detect instance crash "
 				  "instIdx=%d, vip_base=%p, instance_pool_size_per_core=%d\n",
 				  (int)vil->inst_idx, vip_base,
 				  (int)instance_pool_size_per_core);
@@ -424,14 +423,10 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 			instance_no = info.inst_idx;
 			jpu_debug(5, "INSTANCE NO: %d\n", instance_no);
 			ret =
-			    wait_event_interruptible_timeout(dev->
-							     interrupt_wait_q
-							     [instance_no],
-							     dev->
-							     interrupt_flag
-							     [instance_no] != 0,
-							     msecs_to_jiffies
-							     (info.timeout));
+			    wait_event_interruptible_timeout
+			    (dev->interrupt_wait_q[instance_no],
+			     dev->interrupt_flag[instance_no] != 0,
+			     msecs_to_jiffies(info.timeout));
 			if (!ret) {
 				jpu_debug(5, "INSTANCE NO: %d ETIME\n",
 					  instance_no);
@@ -503,22 +498,21 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 					dev->instance_pool.size =
 					    PAGE_ALIGN(dev->instance_pool.size);
 					dev->instance_pool.base =
-					    (unsigned long)vmalloc(dev->
-								   instance_pool.
-								   size);
+					    (unsigned long)
+					    vmalloc(dev->instance_pool.size);
 					dev->instance_pool.phys_addr =
 					    dev->instance_pool.base;
 
 					if (dev->instance_pool.base != 0) {
 						/*clearing memory */
-						memset((void *)dev->
-						       instance_pool.base, 0x0,
+						memset((void *)
+						       dev->instance_pool.base,
+						       0x0,
 						       dev->instance_pool.size);
 						ret =
 						    copy_to_user((void __user *)
 								 arg,
-								 &dev->
-								 instance_pool,
+								 &dev->instance_pool,
 								 sizeof
 								 (hb_jpu_drv_buffer_t));
 						if (ret == 0) {

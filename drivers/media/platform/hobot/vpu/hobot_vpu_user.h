@@ -73,5 +73,5 @@ typedef struct _hb_vpu_drv_intr {
 #define VDI_IOCTL_ALLOCATE_INSTANCE_ID				\
 	_IOR(VDI_IOCTL_MAGIC, 14, int)
 #define VDI_IOCTL_FREE_INSTANCE_ID				\
-	_IOW(VDI_IOCTL_MAGIC, 15, int) 
+	_IOW(VDI_IOCTL_MAGIC, 15, int)
 #endif /* HOBOT_VPU_USER_H_ */

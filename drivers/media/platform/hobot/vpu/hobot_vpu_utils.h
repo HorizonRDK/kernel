@@ -50,7 +50,7 @@ typedef struct _hb_vpu_instance_list {
 
 typedef struct _hb_vpu_instance_pool {
 	unsigned char
-	codec_inst_pool[MAX_NUM_VPU_INSTANCE][MAX_INST_HANDLE_SIZE];
+	 codec_inst_pool[MAX_NUM_VPU_INSTANCE][MAX_INST_HANDLE_SIZE];
 } hb_vpu_instance_pool_t;
 
 typedef struct _hb_vpu_dev {
