@@ -80,6 +80,7 @@ int ipu_pym_to_process(struct ipu_pym_user *user, void *img_info,
 
 	if (type == PYM_SLOT_SINGLE) {
 		single_img_info = (struct src_img_info_t *)img_info;
+		/*
 		if ((all_fifo_len > 0)
 				&& (g_ipu_pym->new_slot_id == single_img_info->slot_id)) {
 			spin_unlock_irqrestore(&g_ipu_pym->slock, flags);
@@ -87,6 +88,7 @@ int ipu_pym_to_process(struct ipu_pym_user *user, void *img_info,
 			return -EBUSY;
 		}
 		g_ipu_pym->new_slot_id = single_img_info->slot_id;
+		*/
 
 		memcpy(&tmp_pym_slot.img_info.src_img_info,
 				single_img_info, sizeof(struct src_img_info_t));
@@ -106,6 +108,7 @@ int ipu_pym_to_process(struct ipu_pym_user *user, void *img_info,
 		user->left_slot++;
 	} else if (type == PYM_SLOT_MULT) {
 		mult_img_info = (struct mult_img_info_t *)img_info;
+		/*
 		if ((all_fifo_len > 0)
 				&& (g_ipu_pym->new_slot_id
 					== mult_img_info->src_img_info[0].slot_id)) {
@@ -114,6 +117,7 @@ int ipu_pym_to_process(struct ipu_pym_user *user, void *img_info,
 			return -EBUSY;
 		}
 		g_ipu_pym->new_slot_id = mult_img_info->src_img_info[0].slot_id;
+		*/
 
 		for (i = 0; i < mult_img_info->src_num; i++) {
 			memcpy(&tmp_pym_slot.img_info.mult_img_info,
@@ -272,6 +276,13 @@ int ipu_pym_process_done(int errno)
 		pr_err("IPU slot to pym error!\n");
 		return ret;
 	}
+	if (g_ipu_pym->pyming_slot_info->slot_type == PYM_SLOT_SINGLE) {
+		g_ipu_pym->done_slots[
+			g_ipu_pym->pyming_slot_info->img_info.src_img_info.slot_id]++;
+	} else {
+		g_ipu_pym->done_slots[
+			g_ipu_pym->pyming_slot_info->img_info.mult_img_info.src_img_info[0].slot_id]++;
+	}
 	spin_unlock_irqrestore(&tmp_p_user->slock, user_flags);
 	tmp_p_user->left_slot--;
 	g_ipu_pym->processing = 0;
@@ -362,6 +373,18 @@ slot_pop:
 		return -EFAULT;
 	}
 
+	if (tmp_pym_slot.slot_type == PYM_SLOT_SINGLE) {
+		if (g_ipu_pym->done_slots[
+			tmp_pym_slot.img_info.src_img_info.slot_id] > 0)
+		g_ipu_pym->done_slots[
+			tmp_pym_slot.img_info.src_img_info.slot_id]--;
+	} else {
+		if (g_ipu_pym->done_slots[
+			tmp_pym_slot.img_info.mult_img_info.src_img_info[0].slot_id] > 0)
+		g_ipu_pym->done_slots[
+			tmp_pym_slot.img_info.mult_img_info.src_img_info[0].slot_id]--;
+	}
+
 	if (tmp_pym_slot.errno) {
 		spin_unlock_irqrestore(&user->slock, flags);
 		memcpy(data, &tmp_pym_slot.img_info, len);
@@ -379,6 +402,8 @@ static int ipu_pym_process_thread(void *data)
 {
 	struct ipu_pym *ipu_pym = (struct ipu_pym *)data;
 	struct pym_slot_info tmp_pym_slot;
+	struct ipu_pym_user *tmp_p_user;
+	int tmp_slot;
 	unsigned long flags;
 	int ret;
 
@@ -402,7 +427,49 @@ static int ipu_pym_process_thread(void *data)
 			pr_err("Get ipu slot from fifo error!\n");
 			continue;
 		}
+
+		/* repeate slot to user directly */
+		if (tmp_pym_slot.slot_type == PYM_SLOT_SINGLE) {
+			tmp_slot = tmp_pym_slot.img_info.src_img_info.slot_id;
+		} else {
+			tmp_slot =
+				tmp_pym_slot.img_info.mult_img_info.src_img_info[0].slot_id;
+		}
+
+		if (ipu_pym->done_slots[tmp_slot]) {
+			tmp_p_user = tmp_pym_slot.p_user;
+			if (tmp_pym_slot.slot_type == PYM_SLOT_MULT) {
+				if (tmp_pym_slot.pym_left_num) {
+					/* not the end of the mult slot, not need report */
+					g_ipu_pym->processing = 0;
+					tmp_pym_slot.p_user->left_slot--;
+					spin_unlock_irqrestore(&g_ipu_pym->slock, flags);
+					continue;
+				}
+			}
+			if (tmp_pym_slot.process_type == PYM_INLINE)
+				ret = kfifo_in(&g_ipu_pym->done_inline_pym_slots,
+						&tmp_pym_slot, 1);
+			else
+				ret = kfifo_in(&tmp_p_user->done_offline_pym_slots,
+						&tmp_pym_slot, 1);
+			if (ret < 1) {
+				g_ipu_pym->processing = 0;
+				spin_unlock_irqrestore(&g_ipu_pym->slock, flags);
+				pr_err("IPU slot to user pym(no) error!\n");
+				continue;
+			}
+			g_ipu_pym->done_slots[tmp_slot]++;
+			tmp_p_user->left_slot--;
+			g_ipu_pym->processing = 0;
+			spin_unlock_irqrestore(&g_ipu_pym->slock, flags);
+			wake_up_interruptible(
+					&tmp_p_user->done_wait[tmp_pym_slot.process_type]);
+			continue;
+		}
+
 		spin_unlock_irqrestore(&ipu_pym->slock, flags);
+
 		/* parse the slot info to real info to process */
 		memcpy(ipu_pym->pyming_slot_info,
 				&tmp_pym_slot, sizeof(struct pym_slot_info));
@@ -422,7 +489,7 @@ void ipu_pym_clear(void)
 
 	spin_lock_irqsave(&g_ipu_pym->slock, flags);
 	g_ipu_pym->processing = 0;
-	g_ipu_pym->new_slot_id = -1;
+	//g_ipu_pym->new_slot_id = -1;
 	g_ipu_pym->pyming_slot_info->errno = -ECANCELED;
 	kfifo_reset(&g_ipu_pym->pym_slots);
 	kfifo_reset(&g_ipu_pym->done_inline_pym_slots);
@@ -480,6 +547,17 @@ void ipu_pym_user_exit(struct ipu_pym_user *user)
 
 		ret = kfifo_out(&user->done_offline_pym_slots, &tmp_pym_slot, 1);
 		if (ret > 0) {
+			if (tmp_pym_slot.slot_type == PYM_SLOT_SINGLE) {
+				if (g_ipu_pym->done_slots[
+						tmp_pym_slot.img_info.src_img_info.slot_id] > 0)
+					g_ipu_pym->done_slots[
+						tmp_pym_slot.img_info.src_img_info.slot_id]--;
+			} else {
+				if (g_ipu_pym->done_slots[
+						tmp_pym_slot.img_info.mult_img_info.src_img_info[0].slot_id] > 0)
+					g_ipu_pym->done_slots[
+						tmp_pym_slot.img_info.mult_img_info.src_img_info[0].slot_id]--;
+			}
 			ipu_pym_slot_free(&tmp_pym_slot);
 		}
 	} while (ret);
@@ -552,7 +630,7 @@ int ipu_pym_init(void)
 		return PTR_ERR_OR_ZERO(pym->process_task);
 	}
 	pym->processing = 0;
-	pym->new_slot_id = -1;
+	//pym->new_slot_id = -1;
 
 	g_ipu_pym = pym;
 

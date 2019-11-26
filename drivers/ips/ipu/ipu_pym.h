@@ -62,6 +62,7 @@ struct ipu_pym {
 	struct pym_slot_info *pyming_slot_info;
 	spinlock_t slock;
 	int new_slot_id;
+	uint8_t done_slots[IPU_MAX_SLOT];
 	int processing;
 	int inited;
 };
