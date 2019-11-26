@@ -63,6 +63,11 @@ struct ddr_monitor_result_s {
 	unsigned int per_cmd_rdwr_num;
 };
 
+typedef struct ddr_monitor_sample_s {
+       unsigned int sample_period;
+       unsigned int sample_number;
+} ddr_monitor_sample;
+
 #define TOTAL_RECORD_NUM 400
 #define TOTAL_RESULT_SIZE (400*1024)
 ktime_t g_ktime_start;
@@ -72,6 +77,7 @@ char * result_buf = NULL;
 unsigned int g_current_index = 0;
 volatile unsigned int g_record_num = 0;
 unsigned int g_monitor_poriod = 1000;
+unsigned int g_sample_number = 0;
 
 module_param(g_current_index, uint, 0644);
 //module_param(g_record_num, uint, 0644);
@@ -169,13 +175,11 @@ static int get_monitor_data(char* buf)
 	}
 	if (g_record_num > 0) {
 
-		spin_lock_irq(&g_ddr_monitor_dev->lock);
 		num = g_record_num;
 		if (num >= TOTAL_RECORD_NUM)
 			num = TOTAL_RECORD_NUM;
 		start = (g_current_index + TOTAL_RECORD_NUM - num) % TOTAL_RECORD_NUM;
 		g_record_num = 0;
-		spin_unlock_irq(&g_ddr_monitor_dev->lock);
 		for (j = 0; j < num; j++) {
 			cur = (start + j) % TOTAL_RECORD_NUM;
 			length += sprintf(buf + length, "Time %llu ", ddr_info[cur].curtime);
@@ -246,6 +250,7 @@ typedef struct _reg_s {
 #define DDR_MONITOR_READ	_IOWR('m', 0, reg_t)
 #define DDR_MONITOR_WRITE	_IOW('m', 1, reg_t)
 #define DDR_MONITOR_CUR	_IOWR('m', 2, struct ddr_monitor_result_s)
+#define DDR_MONITOR_SAMPLE_CONFIG_SET  _IOW('m', 3, ddr_monitor_sample)
 
 static int ddr_monitor_mod_open(struct inode *pinode, struct file *pfile)
 {
@@ -264,8 +269,11 @@ static int ddr_monitor_mod_release(struct inode *pinode, struct file *pfile)
 static ssize_t ddr_monitor_mod_read(struct file *pfile, char *puser_buf, size_t len, loff_t *poff)
 {
 	int result_len = 0;
-	wait_event_interruptible(g_ddr_monitor_dev->wq_head, g_record_num > 200);
+	wait_event_interruptible(g_ddr_monitor_dev->wq_head,
+					g_record_num >= g_sample_number);
+	spin_lock_irq(&g_ddr_monitor_dev->lock);
 	result_len = get_monitor_data(result_buf);
+	spin_unlock_irq(&g_ddr_monitor_dev->lock);
 	//if( result_len < len)
 		//copy_to_user(puser_buf, result_buf, result_len);
 	//else
@@ -283,6 +291,11 @@ static long ddr_monitor_mod_ioctl(struct file *pfile, unsigned int cmd, unsigned
 {
 	void __iomem *iomem = g_ddr_monitor_dev->regaddr;
 	reg_t reg;
+	unsigned int temp = 0;
+	ddr_monitor_sample sample_config;
+	sample_config.sample_period = 1;
+	sample_config.sample_number = 50;
+
 	if ( NULL == iomem ) {
 		printk(KERN_ERR "x2 ddr_monitor no iomem\n");
 		return -EINVAL;
@@ -329,6 +342,26 @@ static long ddr_monitor_mod_ioctl(struct file *pfile, unsigned int cmd, unsigned
 			}
 		}
 		break;
+	case DDR_MONITOR_SAMPLE_CONFIG_SET:
+		if (!arg) {
+			dev_err(&g_ddr_monitor_dev->pdev->dev,
+					"sampletime set arg should not be NULL\n");
+			return -EINVAL;
+		}
+		if (copy_from_user((void *)&sample_config,
+					(void __user *)arg, sizeof(ddr_monitor_sample))) {
+			dev_err(&g_ddr_monitor_dev->pdev->dev,
+					"sampletime set copy_from_user failed\n");
+			return -EINVAL;
+		}
+		temp = sample_config.sample_period;
+		g_sample_number = sample_config.sample_number;
+		writel(temp * 1000 * 1000 / 3,
+			g_ddr_monitor_dev->regaddr + PERF_MONITOR_PERIOD);
+		writel(0x1, g_ddr_monitor_dev->regaddr + PERF_MONITOR_ENABLE_UNMASK);
+		writel(0xff, g_ddr_monitor_dev->regaddr + PERF_MONITOR_ENABLE);
+		g_ktime_start = ktime_get();
+		break;
 	default:
 
 		break;
@@ -339,7 +372,7 @@ static long ddr_monitor_mod_ioctl(struct file *pfile, unsigned int cmd, unsigned
 int ddr_monitor_mmap(struct file *filp, struct vm_area_struct *pvma)
 {
 
-	printk("ddr_monitor_mmap! \n");
+//	printk("ddr_monitor_mmap! \n");
 
 	if (remap_pfn_range(pvma, pvma->vm_start,
 						virt_to_pfn(g_ddr_monitor_dev->res_vaddr),
@@ -348,7 +381,7 @@ int ddr_monitor_mmap(struct file *filp, struct vm_area_struct *pvma)
 		printk(KERN_ERR "ddr_monitor_mmap fail\n");
 		return -EAGAIN;
 	}
-	printk("ddr_monitor_mmap end!:%p \n", g_ddr_monitor_dev->res_vaddr);
+//	printk("ddr_monitor_mmap end!:%p \n", g_ddr_monitor_dev->res_vaddr);
 	return 0;
 }
 
@@ -407,17 +440,13 @@ void ddr_monitor_dev_remove(void)
 int ddr_monitor_start(void)
 {
 	if (g_ddr_monitor_dev && !ddr_info) {
-		printk("ddr_monitor_start\n");
+//		printk("ddr_monitor_start\n");
 		//enable_irq(g_ddr_monitor_dev->irq);
 		ddr_info = vmalloc(sizeof(struct ddr_monitor_result_s) * TOTAL_RECORD_NUM);
 		result_buf = g_ddr_monitor_dev->res_vaddr;//vmalloc(1024*80);
 		g_current_index = 0;
 		g_record_num = 0;
 		//writel(0x51616 * g_monitor_poriod, g_ddr_monitor_dev->regaddr + PERF_MONITOR_PERIOD);
-		writel(g_monitor_poriod * 1000 /3, g_ddr_monitor_dev->regaddr + PERF_MONITOR_PERIOD);
-		writel(0x1, g_ddr_monitor_dev->regaddr + PERF_MONITOR_ENABLE_UNMASK);
-		writel(0xff, g_ddr_monitor_dev->regaddr + PERF_MONITOR_ENABLE);
-		g_ktime_start = ktime_get();
 	}
 	return 0;
 }
@@ -425,7 +454,7 @@ int ddr_monitor_start(void)
 int ddr_monitor_stop(void)
 {
 	if (g_ddr_monitor_dev && ddr_info) {
-		printk("ddr_monitor_stop\n");
+		//printk("ddr_monitor_stop\n");
 		//disable_irq(g_ddr_monitor_dev->irq);
 		writel(0, g_ddr_monitor_dev->regaddr + PERF_MONITOR_ENABLE);
 		writel(0x1, g_ddr_monitor_dev->regaddr + PERF_MONITOR_ENABLE_SETMASK);
@@ -471,7 +500,7 @@ int ddr_get_port_status(void)
 	g_current_index = (g_current_index + 1) % TOTAL_RECORD_NUM;
 	g_record_num ++;
 
-	if (g_record_num >= 200)
+	if (g_record_num >= g_sample_number)
 		wake_up_interruptible(&g_ddr_monitor_dev->wq_head);
 	return 0;
 }
@@ -480,7 +509,9 @@ static irqreturn_t ddr_monitor_isr(int this_irq, void *data)
 {
 	//printk("ddrisr\n");
 	writel(0x1, g_ddr_monitor_dev->regaddr + PERF_MONITOR_SRCPND);
+	spin_lock(&g_ddr_monitor_dev->lock);
 	ddr_get_port_status();
+	spin_unlock(&g_ddr_monitor_dev->lock);
 	return IRQ_HANDLED;
 }
 static unsigned int read_ctl_value;
