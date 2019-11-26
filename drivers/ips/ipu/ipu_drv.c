@@ -355,6 +355,8 @@ int8_t ipu_cfg_ddrinfo_init(ipu_cfg_t *ipu)
 
 	return 0;
 err_out:
+	pr_err("[%s]%d: slot size exceed the limit, slotsize = 0x%llx\n",
+		__func__, __LINE__, ddrbase);
 	return -1;
 }
 

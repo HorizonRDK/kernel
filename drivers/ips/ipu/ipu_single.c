@@ -427,8 +427,11 @@ int8_t iar_get_ipu_display_addr_single(uint32_t display_addr[][2])
 
 static int8_t ipu_core_update(ipu_cfg_t *ipu_cfg)
 {
+	int8_t ret = 0;
 	//ips_module_reset(RST_IPU);
-	ipu_cfg_ddrinfo_init(ipu_cfg);
+	ret = ipu_cfg_ddrinfo_init(ipu_cfg);
+	if (ret < 0)
+		return ret;
 	ipu_set(IPUC_SET_BASE, ipu_cfg, 0);
 	ipu_set(IPUC_SET_CROP, ipu_cfg, 0);
 	ipu_set(IPUC_SET_SCALE, ipu_cfg, 0);
@@ -443,8 +446,11 @@ static int8_t ipu_core_update(ipu_cfg_t *ipu_cfg)
 
 static int8_t ipu_core_init(ipu_cfg_t *ipu_cfg)
 {
+	int8_t ret = 0;
 	ips_module_reset(RST_IPU);
-	ipu_cfg_ddrinfo_init(ipu_cfg);
+	ret = ipu_cfg_ddrinfo_init(ipu_cfg);
+	if (ret < 0)
+		return ret;
 
 	ipu_set(IPUC_SET_BASE, ipu_cfg, 0);
 	ipu_set(IPUC_SET_CROP, ipu_cfg, 0);
@@ -742,7 +748,13 @@ slot_next:
 			spin_lock(&g_ipu_s_cdev->slock);
 			wake_up_interruptible(&ipu_cdev->event_head);
 			//update
-			ipu_core_update(ipu_cfg);
+			ret = ipu_core_update(ipu_cfg);
+			if (ret < 0) {
+				ret = EFAULT;
+				spin_unlock(&g_ipu_s_cdev->slock);
+				break;
+			}
+
 			//restart
 			slot_h = slot_free_to_busy();
 			if (slot_h) {
