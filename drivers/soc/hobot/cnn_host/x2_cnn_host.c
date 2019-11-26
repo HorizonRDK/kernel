@@ -455,6 +455,8 @@ static irqreturn_t x2_cnn_interrupt_handler(int irq, void *dev_id)
 	irq_err = tmp_irq & 0xf000;
 	report_bpu_diagnose_msg(irq_err, dev->core_index);
 	spin_unlock_irqrestore(&dev->cnn_spin_lock, flags);
+	dev->head_value = 0;
+	dev->inst_num = 0;
 
 	do {
 		lost_report = 0;
@@ -1867,7 +1869,6 @@ static void x2_check_cnn(unsigned long arg)
 	pr_debug("%s:[%d]\n", __func__, __LINE__);
 	head_tmp = x2_cnn_reg_read(dev, X2_CNN_FC_HEAD);
 	inst_num_tmp = x2_cnn_reg_read(dev, X2_CNNINT_INST_NUM);
-
 	ret = kfifo_len(&dev->int_info_fifo);
 	if (ret) {
 		if (dev->head_value == head_tmp &&
