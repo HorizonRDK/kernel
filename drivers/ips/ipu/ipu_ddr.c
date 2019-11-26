@@ -501,6 +501,11 @@ int ipu_ddr_open(struct inode *node, struct file *filp)
 	started = 0;
 	int ret = 0;
 
+	if ((g_ipu->vio_mode != IPU_INVALID) && (g_ipu->vio_mode != IPU_DDR_SIGNLE)) {
+		pr_err("ipu have been opened in %d, ipu ddr open fail\n", g_ipu->vio_mode);
+		return -EFAULT;
+	}
+	g_ipu->vio_mode = IPU_DDR_SIGNLE;
 	if (!g_ipu->ion_cnt) {
 		ret = ipu_ion_alloc();
 		if (ret < 0) {
@@ -1048,6 +1053,7 @@ int ipu_ddr_close(struct inode *inode, struct file *filp)
 	ipu_drv_stop();
 	ipu_cdev->ipu->ipu_mode = IPU_INVALID;
 	ipu_pym_clear();
+	g_ipu->vio_mode = IPU_INVALID;
 	g_ipu->cfg->video_in.w = 0;
 	g_ipu->cfg->video_in.h = 0;
 	return 0;

@@ -468,6 +468,11 @@ int ipu_open(struct inode *node, struct file *filp)
 	struct ipu_single_cdev *ipu_cdev = NULL;
 	int ret = 0;
 
+	if ((g_ipu->vio_mode != IPU_INVALID) && (g_ipu->vio_mode != IPU_ISP_SINGLE)) {
+		pr_err("ipu have been opened in %d, ipu single open fail\n", g_ipu->vio_mode);
+		return -EFAULT;
+	}
+	g_ipu->vio_mode = IPU_ISP_SINGLE;
 	if (!g_ipu->ion_cnt) {
 		ret = ipu_ion_alloc();
 		if (ret < 0) {
@@ -840,6 +845,7 @@ int ipu_close(struct inode *inode, struct file *filp)
 	struct ipu_single_cdev *ipu_cdev = filp->private_data;
 	ipu_drv_stop();
 	ipu_cdev->ipu->ipu_mode = IPU_INVALID;
+	g_ipu->vio_mode = IPU_INVALID;
 	g_ipu->cfg->video_in.w = 0;
 	g_ipu->cfg->video_in.h = 0;
 	//del_timer(&iputimer);
