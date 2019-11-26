@@ -30,6 +30,7 @@
 #include <media/v4l2-common.h>
 
 #include <media/videobuf2-v4l2.h>
+#include <media/videobuf2-dma-contig.h>
 
 static int debug;
 module_param(debug, int, 0644);
@@ -226,6 +227,7 @@ static void __fill_v4l2_buffer(struct vb2_buffer *vb, void *pb)
 				pdst->m.fd = psrc->m.fd;
 			pdst->data_offset = psrc->data_offset;
 			memset(pdst->reserved, 0, sizeof(pdst->reserved));
+			pdst->reserved[0] = vb2_dma_contig_plane_dma_addr(vb, plane);
 		}
 	} else {
 		/*
