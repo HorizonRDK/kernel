@@ -737,6 +737,14 @@ static void x2_cnn_clock_up(struct x2_cnn_dev *dev)
 	unsigned int tmp;
 
 	lock_bpu(dev);
+	if (dev->disable_bpu & BPU_REGU_DIS) {
+		unlock_bpu(dev);
+		return;
+	}
+	if (!(dev->disable_bpu & BPU_CLOCK_DIS)) {
+		unlock_bpu(dev);
+		return;
+	}
 	pr_info("%s\n", __func__);
 	tmp = readl(dev->cnn_pmu);
 
@@ -764,6 +772,15 @@ static void x2_cnn_clock_down(struct x2_cnn_dev *dev)
 	unsigned int tmp;
 
 	lock_bpu(dev);
+	if (dev->disable_bpu & BPU_REGU_DIS) {
+		unlock_bpu(dev);
+		return;
+	}
+	if (!__clk_is_enabled(dev->cnn_aclk) &&
+		!__clk_is_enabled(dev->cnn_mclk)) {
+		unlock_bpu(dev);
+		return;
+	}
 	pr_info("%s\n", __func__);
 	if (__clk_is_enabled(dev->cnn_aclk))
 		clk_disable(dev->cnn_aclk);
@@ -790,10 +807,16 @@ static void x2_cnn_power_up(struct x2_cnn_dev *dev)
 	unsigned int tmp;
 
 	lock_bpu(dev);
+	if (!dev->disable_bpu) {
+		unlock_bpu(dev);
+		return;
+	}
 	pr_info("%s\n", __func__);
-	ret = regulator_enable(dev->cnn_regulator);
-	if (ret != 0)
-		dev_err(dev->dev, "regulator enable error\n");
+	if (!regulator_is_enabled(dev->cnn_regulator)) {
+		ret = regulator_enable(dev->cnn_regulator);
+		if (ret != 0)
+			dev_err(dev->dev, "regulator enable error\n");
+	}
 	dev->disable_bpu &= ~BPU_REGU_DIS;
 	tmp = readl(dev->cnn_pmu);
 
@@ -819,9 +842,13 @@ static void x2_cnn_power_up(struct x2_cnn_dev *dev)
 static void x2_cnn_power_down(struct x2_cnn_dev *dev)
 {
 	unsigned int tmp;
-	pr_info("%s\n", __func__);
 
 	lock_bpu(dev);
+	if (dev->disable_bpu == (BPU_CLOCK_DIS | BPU_REGU_DIS)) {
+		unlock_bpu(dev);
+		return;
+	}
+	pr_info("%s\n", __func__);
 	if (__clk_is_enabled(dev->cnn_aclk))
 		clk_disable(dev->cnn_aclk);
 	if (__clk_is_enabled(dev->cnn_mclk))
@@ -834,7 +861,8 @@ static void x2_cnn_power_down(struct x2_cnn_dev *dev)
 	udelay(5);
 
 	x2_cnn_reset_assert(dev->cnn_rst);
-	regulator_disable(dev->cnn_regulator);
+	if (regulator_is_enabled(dev->cnn_regulator))
+		regulator_disable(dev->cnn_regulator);
 	dev->disable_bpu |= BPU_CLOCK_DIS;
 	unlock_bpu(dev);
 }
@@ -2550,15 +2578,10 @@ static ssize_t bpu0_clock_store(struct kobject *kobj,
 
 	ret = sscanf(buf, "%du", &bpu0_clk);
 	if (bpu0_clk) {
-		if (!__clk_is_enabled(cnn0_dev->cnn_aclk) ||
-			!__clk_is_enabled(cnn0_dev->cnn_mclk))
-			x2_cnn_clock_up(cnn0_dev);
+		x2_cnn_clock_up(cnn0_dev);
 	} else {
-		if (__clk_is_enabled(cnn0_dev->cnn_aclk) ||
-			__clk_is_enabled(cnn0_dev->cnn_mclk))
-			x2_cnn_clock_down(cnn0_dev);
+		x2_cnn_clock_down(cnn0_dev);
 	}
-
 	return count;
 
 }
@@ -2579,13 +2602,9 @@ static ssize_t bpu1_clock_store(struct kobject *kobj,
 
 	ret = sscanf(buf, "%du", &bpu1_clk);
 	if (bpu1_clk) {
-		if (!__clk_is_enabled(cnn1_dev->cnn_aclk) ||
-			!__clk_is_enabled(cnn1_dev->cnn_mclk))
-			x2_cnn_clock_up(cnn1_dev);
+		x2_cnn_clock_up(cnn1_dev);
 	} else {
-		if (__clk_is_enabled(cnn1_dev->cnn_aclk) ||
-			__clk_is_enabled(cnn1_dev->cnn_mclk))
-			x2_cnn_clock_down(cnn1_dev);
+		x2_cnn_clock_down(cnn1_dev);
 	}
 	return count;
 }
@@ -2605,13 +2624,10 @@ static ssize_t bpu0_power_store(struct kobject *kobj,
 	int ret;
 
 	ret = sscanf(buf, "%du", &bpu0_power);
-	if (bpu0_power) {
-		if (!regulator_is_enabled(cnn0_dev->cnn_regulator))
-			x2_cnn_power_up(cnn0_dev);
-	} else {
-		if (regulator_is_enabled(cnn0_dev->cnn_regulator))
-			x2_cnn_power_down(cnn0_dev);
-	}
+	if (bpu0_power)
+		x2_cnn_power_up(cnn0_dev);
+	else
+		x2_cnn_power_down(cnn0_dev);
 	return count;
 }
 static ssize_t bpu1_power_show(struct kobject *kobj,
@@ -2629,13 +2645,10 @@ static ssize_t bpu1_power_store(struct kobject *kobj,
 	int ret;
 
 	ret = sscanf(buf, "%du", &bpu1_power);
-	if (bpu1_power) {
-		if (!regulator_is_enabled(cnn1_dev->cnn_regulator))
-			x2_cnn_power_up(cnn1_dev);
-	} else {
-		if (regulator_is_enabled(cnn1_dev->cnn_regulator))
-			x2_cnn_power_down(cnn1_dev);
-	}
+	if (bpu1_power)
+		x2_cnn_power_up(cnn1_dev);
+	else
+		x2_cnn_power_down(cnn1_dev);
 	return count;
 }
 #ifdef CHECK_IRQ_LOST
