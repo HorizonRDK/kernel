@@ -47,6 +47,7 @@ struct vcam_img_info_t {
 struct vcam_slot_info_t {
 	int						slot_id;
 	int						cam_id;
+	int						frame_id;
 	int64_t					timestamp;
 	struct vcam_img_info_t	img_info;
 };
@@ -121,6 +122,7 @@ struct vcam_to_ipu_t {
 	int g_id;
 	int slot_id;
 	int cam_id;
+	int frame_id;
 	int64_t timestamp;
 	struct addr_info_t src_img;
 };

@@ -81,6 +81,7 @@ static struct vcam_to_ipu_t vcam_to_ipu(struct hb_vcam_msg_t *vcam)
 	size = vcam->slot_info.img_info.width * vcam->slot_info.img_info.heigh;
 	to_ipu.g_id = vcam->group_info.g_id;
 	to_ipu.cam_id = vcam->slot_info.cam_id;
+	to_ipu.frame_id = vcam->slot_info.frame_id;
 	to_ipu.slot_id = vcam->slot_info.slot_id;
 	to_ipu.timestamp = vcam->slot_info.timestamp;
 	to_ipu.src_img.width = vcam->slot_info.img_info.width;
