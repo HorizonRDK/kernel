@@ -3163,6 +3163,7 @@ uint8_t sensor_max_again(acamera_fsm_mgr_t *instance,
         *ret_value = (param->again_log2_max >> 13);
         result = SUCCESS;
     } else {
+	    value = value << 13;
             acamera_fsm_mgr_set_param(instance,
 		FSM_PARAM_SET_SENSOR_MAX_AGAIN, &value, sizeof(value));
 
@@ -3190,6 +3191,7 @@ uint8_t sensor_max_dgain(acamera_fsm_mgr_t *instance,
         *ret_value = (param->dgain_log2_max >> 13);
         result = SUCCESS;
     } else {
+	    value = value << 13;
             acamera_fsm_mgr_set_param(instance,
 		FSM_PARAM_SET_SENSOR_MAX_DGAIN, &value, sizeof(value));
 

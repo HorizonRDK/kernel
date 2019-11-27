@@ -229,6 +229,16 @@ typedef struct _sensor_control_t {
 
 
     /**
+     *   Set sensor parameters
+     *
+     *   This function returns a pointer to a sensor parameter structure
+     *
+     *   @param ctx - pointer to the sensor context
+     */
+    const void ( *set_parameters )( void *ctx, uint32_t cmd, uint32_t data );
+
+
+    /**
      *   disable on-sensor isp
      *
      *   @param ctx - pointer to the sensor context

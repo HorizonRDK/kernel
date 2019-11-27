@@ -71,6 +71,15 @@ typedef struct _sensor_param_t {
     uint8_t sensor_i2c_channel;
 } sensor_param_t;
 
+//add ie&e
+enum sensor_tuning_cmd {
+	SET_AGAIN_MAX = 0,
+	SET_DGAIN_MAX = 1,
+	SET_INTER_MIN,
+	SET_INTER_MAX,
+	SET_INTER_LONG_MAX,
+	SET_INTER_LIMIT,
+};
 
 // sensor control structure implements sensor API which is used by firmware
 typedef struct _sensor_control_t {
@@ -226,6 +235,16 @@ typedef struct _sensor_control_t {
      *   @param ctx - pointer to the sensor context
      */
     const sensor_param_t *( *get_parameters )( void *ctx );
+
+
+    /**
+     *   Set sensor parameters
+     *
+     *   This function returns a pointer to a sensor parameter structure
+     *
+     *   @param ctx - pointer to the sensor context
+     */
+    const void ( *set_parameters )( void *ctx, uint32_t cmd, uint32_t data );
 
 
     /**

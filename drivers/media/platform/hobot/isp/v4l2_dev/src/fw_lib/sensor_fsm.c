@@ -272,6 +272,9 @@ int sensor_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_t in
             break;
         }
 
+	LOG(LOG_ERR, "set tuning max again.");
+	p_fsm->ctrl.set_parameters(p_fsm->sensor_ctx,
+		SET_AGAIN_MAX, *(uint32_t *)input);
         //p_fsm->again_log2_max = (*(uint32_t *)input)*8196;
         break;
 
@@ -282,7 +285,8 @@ int sensor_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_t in
             break;
         }
 
-        //p_fsm->dgain_log2_max = (*(uint32_t *)input)*8196;
+	p_fsm->ctrl.set_parameters(p_fsm->sensor_ctx,
+		SET_DGAIN_MAX, *(uint32_t *)input);
         break;
 
     case FSM_PARAM_SET_SENSOR_MIN_INTERTIME://IE&E ADD
@@ -292,7 +296,8 @@ int sensor_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_t in
             break;
         }
 
-        //p_fsm->integration_time_min = *(uint32_t *)input;
+	p_fsm->ctrl.set_parameters(p_fsm->sensor_ctx,
+		SET_INTER_MIN, *(uint32_t *)input);
         break;
 
     case FSM_PARAM_SET_SENSOR_MAX_INTERTIME://IE&E ADD
@@ -302,7 +307,8 @@ int sensor_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_t in
             break;
         }
 
-        //p_fsm->integration_time_max = *(uint32_t *)input;
+	p_fsm->ctrl.set_parameters(p_fsm->sensor_ctx,
+		SET_INTER_MAX, *(uint32_t *)input);
         break;
 
     case FSM_PARAM_SET_SENSOR_MAX_LONGTIME://IE&E ADD
@@ -312,7 +318,8 @@ int sensor_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_t in
             break;
         }
 
-        //p_fsm->integration_time_long_max = *(uint32_t *)input;
+	p_fsm->ctrl.set_parameters(p_fsm->sensor_ctx,
+		SET_INTER_LONG_MAX, *(uint32_t *)input);
         break;
 
     case FSM_PARAM_SET_SENSOR_LIMIT_INTERTIM://IE&E ADD
@@ -322,7 +329,8 @@ int sensor_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_t in
             break;
         }
 
-        //p_fsm->integration_time_limit = *(uint32_t *)input;
+	p_fsm->ctrl.set_parameters(p_fsm->sensor_ctx,
+		SET_INTER_LIMIT, *(uint32_t *)input);
         break;
 
     case FSM_PARAM_SET_SENSOR_LINES_PER_SECOND://IE&E ADD

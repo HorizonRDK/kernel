@@ -28,16 +28,14 @@
 
 #include "soc_sensor.h"
 
-
 extern void *acamera_camera_v4l2_get_subdev_by_name( const char *name );
-
 
 typedef struct _sensor_context_t {
     sensor_param_t param;
     sensor_mode_t supported_modes[ISP_MAX_SENSOR_MODES];
     struct v4l2_subdev *soc_sensor;
+    sensor_param_t tuning_param;//add ie&e
 } sensor_context_t;
-
 
 static sensor_context_t s_ctx[FIRMWARE_CONTEXT_NUMBER];
 static int ctx_counter = 0;
@@ -85,6 +83,60 @@ static void sensor_print_params( void *ctx )
         LOG( LOG_INFO, "    fps:    %d", p_ctx->param.modes_table[idx].fps );
         LOG( LOG_INFO, "    exp:    %d", p_ctx->param.modes_table[idx].exposures );
     }
+}
+
+//add ie&e
+static void sensor_init_tuning_parameters(void *ctx)
+{
+	sensor_context_t *p_ctx = ctx;
+
+        LOG(LOG_DEBUG, "init tuning parameters.");
+	if(p_ctx != NULL) {
+		memset(&p_ctx->tuning_param, 0, sizeof(sensor_param_t));
+		p_ctx->tuning_param.again_log2_max = 0;
+		p_ctx->tuning_param.dgain_log2_max = 0;
+		p_ctx->tuning_param.integration_time_min = 0xffffffff;
+		p_ctx->tuning_param.integration_time_max = 0;
+		p_ctx->tuning_param.integration_time_long_max = 0;
+		p_ctx->tuning_param.integration_time_limit = 0;
+	}
+}
+
+//add ie&e
+static void sensor_update_tuning_parameters(void *ctx)
+{
+	sensor_context_t *p_ctx = ctx;
+
+	LOG(LOG_INFO, "update tuning parameters.");
+
+	if(p_ctx != NULL) {
+		if(p_ctx->tuning_param.again_log2_max > 0) {
+			p_ctx->param.again_log2_max =
+				p_ctx->tuning_param.again_log2_max;
+		}
+		if(p_ctx->tuning_param.dgain_log2_max > 0) {
+			p_ctx->param.dgain_log2_max =
+				p_ctx->tuning_param.dgain_log2_max;
+		}
+		if(p_ctx->tuning_param.integration_time_max > 0) {
+			p_ctx->param.integration_time_max =
+				p_ctx->tuning_param.integration_time_max;
+		}
+		if(p_ctx->tuning_param.integration_time_long_max > 0) {
+			p_ctx->param.integration_time_long_max =
+				p_ctx->tuning_param.integration_time_long_max;
+		}
+		if(p_ctx->tuning_param.integration_time_min < 0xffffffe) {
+			p_ctx->param.integration_time_min =
+				p_ctx->tuning_param.integration_time_min;
+		}
+		if(p_ctx->tuning_param.integration_time_limit > 0) {
+			p_ctx->param.integration_time_limit =
+				p_ctx->tuning_param.integration_time_limit;
+		}
+	} else {
+		LOG(LOG_ERR, "Sensor context pointer is NULL");
+	}
 }
 
 
@@ -316,6 +368,7 @@ static void sensor_set_mode( void *ctx, uint8_t mode )
             int rc = v4l2_subdev_call( sd, core, ioctl, SOC_SENSOR_SET_PRESET, &settings );
             if ( rc == 0 ) {
                 sensor_update_parameters( p_ctx );
+		sensor_update_tuning_parameters(p_ctx);//add ie&e
             } else {
                 LOG( LOG_ERR, "Failed to set mode. rc = %d", rc );
             }
@@ -346,6 +399,7 @@ static void sensor_set_type( void *ctx, uint8_t sensor_type, uint8_t sensor_i2c_
             int rc = v4l2_subdev_call( sd, core, ioctl, SOC_SENSOR_SET_TYPE, &settings );
             if ( rc == 0 ) {
                 sensor_update_parameters( p_ctx );
+		sensor_update_tuning_parameters(p_ctx);//add ie&e
             } else {
                 LOG( LOG_ERR, "Failed to set sensor type. rc = %d", rc );
             }
@@ -366,6 +420,78 @@ static const sensor_param_t *sensor_get_parameters( void *ctx )
     return (const sensor_param_t *)&p_ctx->param;
 }
 
+//add ie&e
+static const void sensor_set_parameters(void *ctx, uint32_t cmd, uint32_t data)
+{
+	sensor_context_t *p_ctx = ctx;
+
+	if(ctx != NULL) {
+		sensor_update_parameters(p_ctx);//get sensor info
+
+		switch (cmd) {
+		case SET_AGAIN_MAX: {
+			if(data > p_ctx->param.again_log2_max) {
+				p_ctx->tuning_param.again_log2_max
+					= p_ctx->param.again_log2_max;
+			} else {
+				p_ctx->tuning_param.again_log2_max = data;
+			}
+		}
+		break;
+		case SET_DGAIN_MAX: {
+			if(data > p_ctx->param.dgain_log2_max) {
+				p_ctx->tuning_param.dgain_log2_max
+					= p_ctx->param.dgain_log2_max;
+			} else {
+				p_ctx->tuning_param.dgain_log2_max = data;
+			}
+		}
+		break;
+		case SET_INTER_MIN: {
+			if(data < p_ctx->param.integration_time_min) {
+				p_ctx->tuning_param.integration_time_min
+					= p_ctx->param.integration_time_min;
+			} else {
+				p_ctx->tuning_param.integration_time_min = data;
+			}
+		}
+		break;
+		case SET_INTER_MAX: {
+			if(data > p_ctx->param.integration_time_max) {
+				p_ctx->tuning_param.integration_time_max
+					= p_ctx->param.integration_time_max;
+			} else {
+				p_ctx->tuning_param.integration_time_max = data;
+			}
+		}
+		break;
+		case SET_INTER_LONG_MAX: {
+			if(data > p_ctx->param.integration_time_long_max) {
+				p_ctx->tuning_param.integration_time_long_max
+					= p_ctx->param.integration_time_long_max;
+			} else {
+				p_ctx->tuning_param.integration_time_long_max = data;
+			}
+		}
+		break;
+		case SET_INTER_LIMIT: {
+			if(data > p_ctx->param.integration_time_limit) {
+				p_ctx->tuning_param.integration_time_limit
+					= p_ctx->param.integration_time_limit;
+			} else {
+				p_ctx->tuning_param.integration_time_limit = data;
+			}
+		}
+		break;
+		default:
+		break;
+		}
+		sensor_update_tuning_parameters(p_ctx);
+		LOG(LOG_INFO, " set sensor tuning param");
+	} else {
+		LOG(LOG_ERR, "Sensor context pointer is NULL");
+	}
+}
 
 static void sensor_disable_isp( void *ctx )
 {
@@ -509,6 +635,7 @@ void sensor_init_v4l2( void **ctx, sensor_control_t *ctrl )
 	ctrl->set_sensor_type = sensor_set_type;
         ctrl->get_id = sensor_get_id;
         ctrl->get_parameters = sensor_get_parameters;
+        ctrl->set_parameters = sensor_set_parameters;
         ctrl->disable_sensor_isp = sensor_disable_isp;
         ctrl->read_sensor_register = read_register;
         ctrl->write_sensor_register = write_register;
@@ -534,6 +661,7 @@ void sensor_init_v4l2( void **ctx, sensor_control_t *ctrl )
         }
 
         sensor_update_parameters( p_ctx );
+	sensor_init_tuning_parameters(p_ctx);//add ie&e
 
         ctx_counter++;
 
