@@ -26,6 +26,7 @@
 #include <linux/workqueue.h>
 #include <linux/mtd/spi-nor.h>
 #include <linux/mtd/spinand.h>
+#include <linux/completion.h>
 
 /* Uncomment the following macro definition to turn on debugging */
 // #define QSPI_DEBUG
@@ -70,6 +71,7 @@
 #define	SPI_FIFO_DEPTH			(FIFO_DEPTH)
 #define	SPI_BACKUP_OFFSET		(0x10000)	//64K
 #define	SPI_CS0				(0x01)
+#define SPI_TRIG_LVL			(FIFO_DEPTH / 2)
 
 #define	SPI_MODE0			(CPOL_L | CPHA_L)
 #define	SPI_MODE1			(CPOL_L | CPHA_H)
@@ -218,7 +220,7 @@ int x2_qspi_poll_rx_empty(struct x2_qspi *xqspi,
 
 	while (timeout--) {
 		reg_val = x2_qspi_read(xqspi, offset);
-		udelay(10);
+		ndelay(10);
 		if (!(reg_val & mask)) {
 			ret = 0;
 			break;
@@ -235,7 +237,7 @@ static int qspi_check_status(struct x2_qspi *xqspi, u32 offset, uint32_t mask,
 
 	do {
 		val = x2_qspi_read(xqspi, offset);
-		udelay(10);
+		ndelay(10);
 		timeout = timeout - 1;
 		if (timeout == 0) {
 			ret = -1;
@@ -493,8 +495,8 @@ static void x2_qspi_hw_init(struct x2_qspi *xqspi)
 	reg_val |= ((SPI_MODE0 & 0x30) | MST_MODE | FIFO_WIDTH8 | MSB);
 	x2_qspi_write(xqspi, QSPI_CTL1, reg_val);
 
-	x2_qspi_write(xqspi, QSPI_FIFO_TXTRIG_LVL, FIFO_DEPTH / 2);
-	x2_qspi_write(xqspi, QSPI_FIFO_RXTRIG_LVL, FIFO_DEPTH / 2);
+	x2_qspi_write(xqspi, QSPI_FIFO_TXTRIG_LVL, SPI_TRIG_LVL);
+	x2_qspi_write(xqspi, QSPI_FIFO_RXTRIG_LVL, SPI_TRIG_LVL);
 
 	/* Disable all interrupt */
 	x2_qspi_write(xqspi, QSPI_CTL2, 0x0);
@@ -554,71 +556,40 @@ int x2_qspi_write_data(struct x2_qspi *xqspi, const void *txbuf, uint32_t len)
 
 	qspi_disable_tx(xqspi);
 	qspi_reset_fifo(xqspi);
-	if (xqspi->batch_mode) {
-		/* Enable batch mode */
-		qspi_batch_mode_set(xqspi, 1);
 
-		while (remain_len > 0) {
-			tx_len = MIN(remain_len, BATCH_MAX_SIZE);
+	/* Enable batch mode */
+	qspi_batch_mode_set(xqspi, xqspi->batch_mode);
 
+	while (remain_len > 0) {
+		tx_len = MIN(remain_len, BATCH_MAX_SIZE);
+		if (xqspi->batch_mode) {
 			/* clear BATCH_TXDONE bit */
 			qspi_batch_tx_rx_flag_clr(xqspi, 1);
-
 			/* set batch cnt */
 			x2_qspi_write(xqspi, QSPI_BATCH_CNT_TX, tx_len);
-			tmp_txlen = MIN(tx_len, FIFO_DEPTH);
-			for (i = 0; i < tmp_txlen; i++)
-				x2_qspi_write(xqspi, QSPI_TX_RX_REG, ptr[i]);
-
-			qspi_enable_tx(xqspi);
-			err =
-			    qspi_check_status(xqspi, QSPI_STATUS2, TXFIFO_EMPTY,
-					      timeout);
-			if (err) {
-				current_transfer_len = tmp_txlen;
-				pr_err("%s:%d qspi send data timeout\n",
-				       __func__, __LINE__);
-#ifdef QSPI_DEBUG
-				qspi_dump_reg(xqspi);
-#endif
-				goto SPI_ERROR;
-			}
-
-			qspi_disable_tx(xqspi);
-			remain_len -= tmp_txlen;
-			ptr += tmp_txlen;
 		}
-		/* clear BATCH_TXDONE bit */
+		tmp_txlen = MIN(tx_len, FIFO_DEPTH);
+		for (i = 0; i < tmp_txlen; i++)
+			x2_qspi_write(xqspi, QSPI_TX_RX_REG, ptr[i]);
+
+		qspi_enable_tx(xqspi);
+		err = qspi_check_status(xqspi, QSPI_STATUS2, TXFIFO_EMPTY, timeout);
+		if (err) {
+			current_transfer_len = tmp_txlen;
+			pr_err("%s:%d qspi send data timeout\n",
+				__func__, __LINE__);
+#ifdef QSPI_DEBUG
+			qspi_dump_reg(xqspi);
+#endif
+			goto SPI_ERROR;
+		}
+		qspi_disable_tx(xqspi);
+		remain_len -= tmp_txlen;
+		ptr += tmp_txlen;
+	}
+	if(xqspi->batch_mode) {
 		qspi_batch_tx_rx_flag_clr(xqspi, 1);
-
 		qspi_batch_mode_set(xqspi, 0);
-	} else {
-		/* Disable batch mode */
-		qspi_batch_mode_set(xqspi, 0);
-
-		while (remain_len > 0) {
-			tx_len = MIN(remain_len, FIFO_DEPTH);
-
-			for (i = 0; i < tx_len; i++)
-				x2_qspi_write(xqspi, QSPI_TX_RX_REG, ptr[i]);
-
-			qspi_enable_tx(xqspi);
-			err =
-			    qspi_check_status(xqspi, QSPI_STATUS2, TXFIFO_EMPTY,
-					      timeout);
-			if (err) {
-				pr_err("%s:%d qspi send data timeout\n",
-				       __func__, __LINE__);
-#ifdef QSPI_DEBUG
-				qspi_dump_reg(xqspi);
-#endif
-				goto SPI_ERROR;
-			}
-
-			qspi_disable_tx(xqspi);
-			remain_len -= tx_len;
-			ptr += tx_len;
-		}
 	}
 	return len;
 
@@ -638,169 +609,60 @@ static int x2_qspi_read_data(struct x2_qspi *xqspi, uint8_t *rxbuf,
 	int32_t i = 0;
 	uint32_t rx_len = 0;
 	uint8_t *ptr = rxbuf;
-	uint32_t level;
 	uint32_t rx_remain = len;
 	uint32_t timeout = 0x1000;
 	uint32_t tmp_rxlen;
 	uint32_t current_receive_len = 0;
 
-	level = x2_qspi_read(xqspi, QSPI_FIFO_RXTRIG_LVL);
 	qspi_reset_fifo(xqspi);
 
-	if (xqspi->batch_mode) {
-		qspi_batch_mode_set(xqspi, 1);
-		do {
-			rx_len = MIN(rx_remain, 0xFFFF);
-			rx_remain -= rx_len;
-
-			/* clear BATCH_RXDONE bit */
+	qspi_batch_mode_set(xqspi, xqspi->batch_mode);
+	do {
+		rx_len = MIN(rx_remain, BATCH_MAX_SIZE);
+		rx_remain -= rx_len;
+		if(xqspi->batch_mode) {
+		/* clear BATCH_RXDONE bit */
 			qspi_batch_tx_rx_flag_clr(xqspi, 0);
-
 			x2_qspi_write(xqspi, QSPI_BATCH_CNT_RX, rx_len);
+		}
+		qspi_enable_rx(xqspi);
 
-			qspi_enable_rx(xqspi);
-
-			while (rx_len > 0) {
-				if (rx_len > level) {
-					tmp_rxlen = level;
-					if (x2_qspi_poll_rx_empty
-					    (xqspi, QSPI_STATUS2, RXFIFO_EMPTY,
-					     timeout)) {
-						pr_err
-						    ("%s:%d timeout no data fill into rx fifo\n",
-						     __func__, __LINE__);
-#ifdef QSPI_DEBUG
-						qspi_dump_reg(xqspi);
-#endif
+		while (rx_len > 0) {
+			tmp_rxlen = (rx_len > SPI_TRIG_LVL) ? SPI_TRIG_LVL : rx_len;
+			if (!xqspi->batch_mode) {
+				if (qspi_check_status(xqspi, QSPI_STATUS2, TXFIFO_EMPTY, timeout)) {
+					pr_err("%s:%d generate read sclk failed\n", __func__, __LINE__);
 						goto SPI_ERROR;
-					}
-					for (i = 0; i < tmp_rxlen; i++)
-						ptr[i] =
-						    x2_qspi_read(xqspi,
-								 QSPI_TX_RX_REG);
-
-					rx_len -= tmp_rxlen;
-					ptr += tmp_rxlen;
-					current_receive_len += tmp_rxlen;
-				} else {
-					tmp_rxlen = rx_len;
-					if (x2_qspi_poll_rx_empty
-					    (xqspi, QSPI_STATUS2, RXFIFO_EMPTY,
-					     timeout)) {
-						pr_err
-						    ("%s:%d timeout no data fill into rx fifo\n",
-						     __func__, __LINE__);
-#ifdef QSPI_DEBUG
-						qspi_dump_reg(xqspi);
-#endif
-						goto SPI_ERROR;
-					}
-					for (i = 0; i < tmp_rxlen; i++)
-						ptr[i] =
-						    x2_qspi_read(xqspi,
-								 QSPI_TX_RX_REG);
-
-					rx_len -= tmp_rxlen;
-					ptr += tmp_rxlen;
-					current_receive_len += tmp_rxlen;
 				}
+				for (i = 0; i < tmp_rxlen; i++)
+					x2_qspi_write(xqspi, QSPI_TX_RX_REG, 0x00);
 			}
-			if (qspi_check_status
-			    (xqspi, QSPI_STATUS1, BATCH_RXDONE, timeout)) {
-				pr_err("%s:%d timeout loop batch rx done\n",
-				       __func__, __LINE__);
+
+			if (x2_qspi_poll_rx_empty(xqspi, QSPI_STATUS2, RXFIFO_EMPTY, timeout)) {
+				pr_err("%s:%d timeout no data fill into rx fifo\n", __func__, __LINE__);
+#ifdef QSPI_DEBUG
+					qspi_dump_reg(xqspi);
+#endif
+				goto SPI_ERROR;
+			}
+			for (i = 0; i < tmp_rxlen; i++)
+				ptr[i] = x2_qspi_read(xqspi, QSPI_TX_RX_REG);
+			rx_len -= tmp_rxlen;
+			ptr += tmp_rxlen;
+			current_receive_len += tmp_rxlen;
+		}
+		if (xqspi->batch_mode) {
+			if (qspi_check_status(xqspi, QSPI_STATUS1, BATCH_RXDONE, timeout)) {
+				pr_err("%s:%d timeout loop batch rx done\n", __func__, __LINE__);
 #ifdef QSPI_DEBUG
 				qspi_dump_reg(xqspi);
 #endif
 				goto SPI_ERROR;
 			}
-
-			qspi_disable_rx(xqspi);
-			/* clear BATCH_RXDONE bit */
 			qspi_batch_tx_rx_flag_clr(xqspi, 0);
-		} while (rx_remain != 0);
-	} else {
-		qspi_batch_mode_set(xqspi, 0);
-
-		do {
-			rx_len = MIN(rx_remain, 0xFFFF);
-			rx_remain -= rx_len;
-			qspi_enable_rx(xqspi);
-
-			while (rx_len > 0) {
-				if (rx_len > level) {
-					tmp_rxlen = level;
-					if (qspi_check_status
-					    (xqspi, QSPI_STATUS2, TXFIFO_EMPTY,
-					     timeout)) {
-						pr_err
-						    ("%s:%d generate read sclk failed\n",
-						     __func__, __LINE__);
-						goto SPI_ERROR;
-					}
-
-					for (i = 0; i < tmp_rxlen; i++)
-						x2_qspi_write(xqspi,
-							      QSPI_TX_RX_REG,
-							      0x0);
-
-					if (x2_qspi_poll_rx_empty
-					    (xqspi, QSPI_STATUS2, RXFIFO_EMPTY,
-					     timeout)) {
-						pr_err
-						    ("%s:%d timeout no data fill into rx fifo\n",
-						     __func__, __LINE__);
-						goto SPI_ERROR;
-					}
-					for (i = 0; i < tmp_rxlen; i++)
-						ptr[i] =
-						    x2_qspi_read(xqspi,
-								 QSPI_TX_RX_REG);
-
-					rx_len -= tmp_rxlen;
-					ptr += tmp_rxlen;
-					current_receive_len += tmp_rxlen;
-				} else {
-					tmp_rxlen = rx_len;
-					if (qspi_check_status
-					    (xqspi, QSPI_STATUS2, TXFIFO_EMPTY,
-					     timeout)) {
-						pr_err
-						    ("%s:%d generate read sclk failed\n",
-						     __func__, __LINE__);
-						goto SPI_ERROR;
-					}
-
-					for (i = 0; i < tmp_rxlen; i++)
-						x2_qspi_write(xqspi,
-							      QSPI_TX_RX_REG,
-							      0x0);
-
-					if (x2_qspi_poll_rx_empty
-					    (xqspi, QSPI_STATUS2, RXFIFO_EMPTY,
-					     timeout)) {
-						pr_err
-						    ("%s:%d timeout no data fill into rx fifo\n",
-						     __func__, __LINE__);
-#ifdef QSPI_DEBUG
-						qspi_dump_reg(xqspi);
-#endif
-						goto SPI_ERROR;
-					}
-					for (i = 0; i < tmp_rxlen; i++)
-						ptr[i] =
-						    x2_qspi_read(xqspi,
-								 QSPI_TX_RX_REG);
-
-					rx_len -= tmp_rxlen;
-					ptr += tmp_rxlen;
-					current_receive_len += tmp_rxlen;
-				}
-			}
-			qspi_disable_rx(xqspi);
-
-		} while (rx_remain != 0);
-	}
+		}
+		qspi_disable_rx(xqspi);
+	} while (rx_remain != 0);
 	qspi_reset_fifo(xqspi);
 	return len;
 
@@ -810,57 +672,6 @@ SPI_ERROR:
 	pr_err("error: spi rx current_receive_len = %d\n", current_receive_len);
 	return current_receive_len;
 }
-
-#if 0
-static void x2_qspi_configure(struct spi_nor *nor, bool is_cmd)
-{
-	struct x2_qspi_flash_pdata *f_pdata = nor->priv;
-
-	if (is_cmd) {
-	}
-}
-
-static int qspi_set_protocol(struct spi_nor *nor, const int read)
-{
-	struct x2_qspi_flash_pdata *f_pdata = nor->priv;
-
-	f_pdata->inst_width = CQSPI_INST_TYPE_SINGLE;
-	f_pdata->addr_width = CQSPI_INST_TYPE_SINGLE;
-	f_pdata->data_width = CQSPI_INST_TYPE_SINGLE;
-
-	if (read) {
-		switch (nor->read_proto) {
-		case SNOR_PROTO_1_1_1:
-			f_pdata->data_width = CQSPI_INST_TYPE_SINGLE;
-			break;
-		case SNOR_PROTO_1_1_2:
-			f_pdata->data_width = CQSPI_INST_TYPE_DUAL;
-			break;
-		case SNOR_PROTO_1_1_4:
-			f_pdata->data_width = CQSPI_INST_TYPE_QUAD;
-			break;
-		default:
-			return -EINVAL;
-		}
-	}
-
-	x2_qspi_configure(nor);
-
-	return 0;
-}
-
-static int x2_qspi_flash_read_reg(struct spi_nor *nor, u8 opcode, u8 *buf,
-				  int len)
-{
-	int ret;
-
-	ret = x2_qspi_set_protocol(nor, 0);
-	if (!ret)
-		ret = cqspi_command_read(nor, &opcode, 1, buf, len);
-
-	return ret;
-}
-#endif
 
 /**
  * x2_qspi_start_transfer:	Initiates the QSPI transfer
@@ -883,7 +694,9 @@ static int x2_qspi_start_transfer(struct spi_master *master,
 	u16 mode = 0;
 	int transfer_len = 0;
 	struct x2_qspi *xqspi = spi_master_get_devdata(master);
-
+	unsigned remainder, residue;
+	remainder = transfer->len % (SPI_TRIG_LVL);
+	residue   = transfer->len - remainder;
 	/*
 	 * this 'mode' init by spi core,
 	 * depending on tx-bus-width property defined in dts
@@ -911,8 +724,15 @@ static int x2_qspi_start_transfer(struct spi_master *master,
 			else if (qspi->mode & SPI_TX_DUAL)
 				x2_qspi_cfg_line_mode(xqspi, SPI_TX_DUAL, true);
 		}
-		transfer_len =
-		    x2_qspi_write_data(xqspi, xqspi->txbuf, transfer->len);
+
+		if (residue > 0) {
+			xqspi->batch_mode = 1;
+			transfer_len += x2_qspi_write_data(xqspi, xqspi->txbuf, residue);
+		}
+		if (remainder > 0) {
+			xqspi->batch_mode = 0;
+			transfer_len += x2_qspi_write_data(xqspi, (void *)xqspi->txbuf + residue, remainder);
+		}
 
 		if (transfer->len) {
 			if (qspi->mode & SPI_TX_QUAD)
@@ -928,8 +748,14 @@ static int x2_qspi_start_transfer(struct spi_master *master,
 		if (qspi->mode & SPI_RX_DUAL)
 			x2_qspi_cfg_line_mode(xqspi, SPI_RX_DUAL, true);
 
-		transfer_len =
-		    x2_qspi_read_data(xqspi, xqspi->rxbuf, transfer->len);
+		if (residue > 0) {
+			xqspi->batch_mode = 1;
+			transfer_len += x2_qspi_read_data(xqspi, xqspi->rxbuf, residue);
+		}
+		if (remainder > 0) {
+			xqspi->batch_mode = 0;
+			transfer_len += x2_qspi_read_data(xqspi, (void *)xqspi->rxbuf + residue, remainder);
+		}
 
 		if (qspi->mode & SPI_RX_QUAD)
 			x2_qspi_cfg_line_mode(xqspi, SPI_RX_QUAD, false);
