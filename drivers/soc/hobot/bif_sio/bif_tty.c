@@ -31,7 +31,7 @@
 #define _DEBUG_PRINTF_
 #include "debug.h"
 
-#define BIF_SIO_VER	"HOBOT-bifsio_V20.190712"
+#define BIF_SIO_VER	"HOBOT-bifsio_V20.191122"
 
 /* define how many bif serial port */
 //#define BIF_SIO_NR_PORTS      CONFIG_BIF_SIO_NR
@@ -66,7 +66,7 @@ struct bif_tty_cdev {
 	int channel;
 	struct class *drv_class;
 	wait_queue_head_t wq;
-
+	struct work_struct irq_work;
 	struct bif_tty_node *tb_node[BIF_SIO_NR_PORTS];
 
 	/* only as record for free */
@@ -88,146 +88,15 @@ static struct bif_tty_cdev *bif_tty_get(void)
 
 static void tty_buf_info(struct bif_tty_node *p)
 {
-	tty_debug_log("index:%d\n"
-		      "self :head=%4d tail=%4d\n"
-		      "other:head=%4d tail=%4d\n",
-		      p->index,
-		      p->rb_self->head, p->rb_self->tail,
-		      p->rb_other->head, p->rb_other->tail);
-}
-
-#ifdef CONFIG_HOBOT_BIF_AP
-static int bif_tty_reset_rwbuf(struct bif_tty_cdev *cdev)
-{
-	int i;
-	void *addr = NULL;
-	struct bif_tty_node *tmp;
-
-	addr = bif_query_address(BUFF_SMD);
-	if (addr == (void *)-1 || addr == NULL) {
-		tty_err_log("irq reset ap addr failed\n");
-		return 0;
+	if (p->rb_self && p->rb_other) {
+		tty_debug_log("index:%d\n"
+				"self :head=%4d tail=%4d\n"
+				"other:head=%4d tail=%4d\n",
+				p->index,
+				p->rb_self->head, p->rb_self->tail,
+				p->rb_other->head, p->rb_other->tail);
 	}
-	for (i = 0; i < cdev->num_nodes; i++) {
-		tmp = cdev->tb_node[i];
-		tmp->wbuf_phy_addr = addr + i * 2 * TTY_BUF_SIZE;
-		tmp->rbuf_phy_addr = tmp->wbuf_phy_addr + TTY_BUF_SIZE;
-		tty_debug_log("index:%d phy_r=0x%p phy_w=0x%p\n",
-			      i, tmp->rbuf_phy_addr, tmp->wbuf_phy_addr);
-	}
-	return 0;
 }
-#endif
-
-static int bif_tty_reset_otherbase(struct bif_tty_cdev *cdev)
-{
-	int i;
-	struct ringbuf_t *tmp;
-
-	tty_debug_log("enter\n");
-
-	tmp = bif_query_otherbase(BUFF_SMD);
-	if (tmp == (void *)-1 || tmp == NULL) {
-		tty_err_log("irq wait other address fail\n");
-		return 0;
-	}
-
-	for (i = 0; i < cdev->num_nodes; i++) {
-		cdev->tb_node[i]->rb_other = &tmp[i];
-		tty_debug_log("index:%d rb_other=0x%p\n", i, &tmp[i]);
-	}
-	return 0;
-}
-
-static int bif_tty_check_other(struct ringbuf_t *rb)
-{
-	int rc = 0;
-
-	if (rb->head >= rb->size || rb->tail >= rb->size) {
-#ifdef CONFIG_HOBOT_BIF_AP
-		rc = bif_sync_base();
-#else
-		rc = bif_sync_ap();
-#endif
-	}
-	return rc;
-}
-
-static irqreturn_t bif_tty_irq_handler(int irq, void *data)
-{
-	struct bif_tty_cdev *cdev = bif_tty_get();
-
-	tty_debug_log("enter\n");
-#ifdef CONFIG_HOBOT_BIF_AP
-	if (cdev->tb_node[0]->rbuf_phy_addr == NULL)
-		bif_tty_reset_rwbuf(cdev);
-#endif
-	if (cdev->tb_node[0]->rb_other == NULL)
-		bif_tty_reset_otherbase(cdev);
-
-	wake_up(&cdev->wq);
-	return IRQ_HANDLED;
-}
-
-static void bif_tty_irq(void)
-{
-	tty_debug_log("enter\n");
-	bif_send_irq(BUFF_SMD);
-}
-
-#ifdef CONFIG_HOBOT_BIF_AP
-/**
- * bif_tty_get_phychannel
- * @brief: get phy channel, spi or sd
- */
-static int bif_tty_get_phychannel(struct bif_tty_cdev *cdev)
-{
-	char *channel = bif_get_str_bus(BUFF_SMD);
-
-	tty_debug_log("enter\n");
-	if (channel == NULL) {
-		tty_err_log("bif_get_str_bus err");
-		return -1;
-	}
-	cdev->channel = bifget_bifbustype(channel);
-	tty_debug_log("channel = %d\n", cdev->channel);
-	return 0;
-}
-
-static int bif_sync_cpbuf(unsigned long phy_addr,
-			  unsigned int blklen, unsigned char *buffer)
-{
-	int ret;
-	struct bif_tty_cdev *cdev = bif_tty_get();
-
-	tty_debug_log("enter\n");
-	ret = bifread(cdev->channel, (void *)phy_addr, blklen, buffer);
-	if (!ret) {
-		tty_err_log("ret=%d\n", ret);
-		return -1;
-	}
-	tty_dump_log(buffer, blklen);
-	tty_debug_log("read cp succ leave\n");
-	return 0;
-}
-
-static int bif_sync_apbuf(unsigned long phy_addr,
-			  unsigned int blklen, unsigned char *buffer)
-{
-	int ret;
-	struct bif_tty_cdev *cdev = bif_tty_get();
-
-	tty_debug_log("enter\n");
-	tty_dump_log(buffer, blklen);
-	ret = bifwrite(cdev->channel, (void *)phy_addr, blklen, buffer);
-	if (!ret) {
-		tty_err_log("ret=%d\n", ret);
-		return -1;
-	}
-	tty_debug_log("ap write succ leave\n");
-	return 0;
-}
-#endif
 
 static unsigned int bif_ringbuf_self_free(struct bif_tty_node *bt_node)
 {
@@ -272,8 +141,179 @@ static unsigned int bif_ringbuf_cmp_crc(struct ringbuf_t *rb)
 		return 1;
 }
 
+/**
+ * bif_tty_init_crc_info
+ * @brief: write crc init data after connect success
+ */
+static int bif_tty_init_crc_info(struct bif_tty_cdev *cdev)
+{
+	int i;
+	unsigned int count;
+
+	for (i = 0; i < cdev->num_nodes; i++) {
+		if (cdev->tb_node[i]->rb_other == NULL)
+			continue;
+		/* check invalid count */
+		count = bif_ringbuf_other_used(cdev->tb_node[i]);
+		if (count > 0)
+			tty_err_log("other invalid count %d\n", count);
+		cdev->tb_node[i]->rb_self->tail =
+					cdev->tb_node[i]->rb_other->head;
+		cdev->tb_node[i]->rb_self->head =
+					cdev->tb_node[i]->rb_other->tail;
+
+		bif_ringbuf_cal_crc(cdev->tb_node[i]);
+	}
+	return 0;
+}
+
+static void bif_tty_irq(void)
+{
+	int ret;
+
+	tty_debug_log("enter\n");
+	ret = bif_send_irq(BUFF_SMD);
+	tty_debug_log("leave ret = %d\n", ret);
+}
+
+#ifdef CONFIG_HOBOT_BIF_AP
+static int bif_tty_set_ap_rwbuf(struct bif_tty_cdev *cdev)
+{
+	int i;
+	void *addr = NULL;
+	struct bif_tty_node *tmp;
+
+	addr = bif_query_address(BUFF_SMD);
+	if (addr == (void *)-1 || addr == NULL) {
+		tty_err_log("irq reset ap addr failed\n");
+		return 0;
+	}
+	for (i = 0; i < cdev->num_nodes; i++) {
+		tmp = cdev->tb_node[i];
+		tmp->wbuf_phy_addr = addr + i * 2 * TTY_BUF_SIZE;
+		tmp->rbuf_phy_addr = tmp->wbuf_phy_addr + TTY_BUF_SIZE;
+		tty_debug_log("index:%d phy_r=0x%p phy_w=0x%p\n",
+			      i, tmp->rbuf_phy_addr, tmp->wbuf_phy_addr);
+	}
+	return 0;
+}
+#endif
+
+static int bif_tty_set_otherbase(struct bif_tty_cdev *cdev)
+{
+	int i;
+	struct ringbuf_t *tmp;
+
+	tty_debug_log("enter\n");
+
+	tmp = bif_query_otherbase(BUFF_SMD);
+	if (tmp == (void *)-1 || tmp == NULL) {
+		tty_err_log("irq wait other address fail\n");
+		return -1;
+	}
+
+	for (i = 0; i < cdev->num_nodes; i++) {
+		cdev->tb_node[i]->rb_other = &tmp[i];
+		tty_debug_log("index:%d rb_other=0x%p\n", i, &tmp[i]);
+	}
+	return 0;
+}
+
+static void tty_irq_work(struct work_struct *work)
+{
+	struct bif_tty_cdev *cdev = bif_tty_get();
+	struct ringbuf_t *rb_tmp;
+
+	tty_debug_log("enter\n");
+	if (cdev->tb_node[0]->rb_other == NULL) {
+		bif_tty_set_otherbase(cdev);
+		bif_tty_init_crc_info(cdev);
+	}
+
+#ifdef CONFIG_HOBOT_BIF_AP
+	/*if cp reboot, 
+		and ap recv irq, check no crc
+		then sync ap to cp*/
+	rb_tmp = cdev->tb_node[0]->rb_other;
+	if (rb_tmp != NULL && bif_ringbuf_cmp_crc(rb_tmp) != 0) {
+		bif_sync_ap();
+		//bif_tty_irq();
+	}
+	if (cdev->tb_node[0]->rbuf_phy_addr == NULL)
+		bif_tty_set_ap_rwbuf(cdev);
+#endif
+	wake_up(&cdev->wq);
+}
+
+static irqreturn_t bif_tty_irq_handler(int irq, void *data)
+{
+	struct bif_tty_cdev *cdev = bif_tty_get();
+
+	if (!schedule_work(&cdev->irq_work))
+		pr_err("%s schedule err\n", __func__);
+
+	return IRQ_HANDLED;
+}
+
+#ifdef CONFIG_HOBOT_BIF_AP
+extern int bifget_bifbustype(char *str_bustype);
+/**
+ * bif_tty_get_phychannel
+ * @brief: get phy channel, spi or sd
+ */
+static int bif_tty_get_phychannel(struct bif_tty_cdev *cdev)
+{
+	char *channel = bif_get_str_bus(BUFF_SMD);
+
+	tty_debug_log("enter\n");
+	if (channel == NULL) {
+		tty_err_log("bif_get_str_bus err");
+		return -1;
+	}
+	cdev->channel = bifget_bifbustype(channel);
+	tty_debug_log("channel = %d\n", cdev->channel);
+	return 0;
+}
+
+static int bif_sync_cpbuf(unsigned long phy_addr,
+			  unsigned int blklen, unsigned char *buffer)
+{
+	int ret;
+	struct bif_tty_cdev *cdev = bif_tty_get();
+
+	tty_debug_log("enter\n");
+	ret = bifread(cdev->channel, (void *)phy_addr, blklen, buffer);
+	if (!ret) {
+		tty_err_log("ret=%d cp phy_addr = %x\n", ret, phy_addr);
+		return -1;
+	}
+	tty_dump_log(buffer, blklen);
+	tty_debug_log("read cp succ leave\n");
+	return 0;
+}
+
+static int bif_sync_apbuf(unsigned long phy_addr,
+			  unsigned int blklen, unsigned char *buffer)
+{
+	int ret;
+	struct bif_tty_cdev *cdev = bif_tty_get();
+
+	tty_debug_log("enter\n");
+	tty_dump_log(buffer, blklen);
+	ret = bifwrite(cdev->channel, (void *)phy_addr, blklen, buffer);
+	if (!ret) {
+		tty_err_log("ret=%d cp phy_addr = %x\n", ret, phy_addr);
+		return -1;
+	}
+	tty_debug_log("ap write succ leave\n");
+	return 0;
+}
+#endif
+
 static int bif_tty_open(struct inode *inode, struct file *filp)
 {
+	int ret = 0;
+	int i;
 	unsigned int minor;
 	struct bif_tty_node *node_tmp;
 	struct bif_tty_cdev *cdev = bif_tty_get();
@@ -287,17 +327,39 @@ static int bif_tty_open(struct inode *inode, struct file *filp)
 #ifdef CONFIG_HOBOT_BIF_AP
 	if (node_tmp->rbuf_phy_addr == NULL) {
 		tty_err_log("ap bif base space is null\n");
-		return -1;
+		ret = -1;
 	}
 #endif
 	if (node_tmp->rb_other == NULL) {
 		tty_err_log("other side info = null\n");
-		return -2;
+
+		for (i = 0; i < 7; i++) {
+			tty_err_log("debug\n");
+			bif_tty_set_otherbase(cdev);
+#ifdef CONFIG_HOBOT_BIF_AP
+			bif_tty_set_ap_rwbuf(cdev);
+#else
+			bif_tty_irq();
+#endif
+			ret = wait_event_interruptible_timeout(cdev->wq,
+						      node_tmp->rb_other,
+						      msecs_to_jiffies(1000));
+			tty_err_log("debug ret=%d node_tmp->rb_other=%p\n", ret, node_tmp->rb_other);
+			if (ret < 0) {
+				tty_err_log("wait canceled\n");
+				return -EFAULT;
+			} else if (ret == 0) {
+				pr_debug("wait timeout %d %d\n", __LINE__, i);
+			} else {
+				bif_tty_init_crc_info(cdev);
+				ret = 0;
+				break;
+			}
+		}
 	}
-	bif_tty_check_other(node_tmp->rb_other);
 	filp->private_data = node_tmp;
 	tty_buf_info(node_tmp);
-	return 0;
+	return ret;
 }
 
 static int bif_tty_release(struct inode *inode, struct file *filp)
@@ -325,6 +387,11 @@ static ssize_t bif_tty_read(struct file *filp, char __user *buf,
 
 	if (bt_node == NULL) {
 		tty_err_log("node not init\n");
+		return -ENOENT;
+	}
+
+	if (bt_node->rb_other == NULL) {
+		tty_err_log("node rb_other not init\n");
 		return -ENOENT;
 	}
 
@@ -369,6 +436,11 @@ static ssize_t bif_tty_write(struct file *filp, const char __user *buf,
 
 	if (bt_node == NULL) {
 		tty_err_log("node not init\n");
+		return -ENOENT;
+	}
+
+	if (bt_node->rb_other == NULL) {
+		tty_err_log("node rb_other not init\n");
 		return -ENOENT;
 	}
 
@@ -471,6 +543,7 @@ static struct bif_tty_cdev *bif_tty_create_dev(void)
 	cdev->name = "ttyBIF";
 	cdev->num_nodes = BIF_SIO_NR_PORTS;
 	init_waitqueue_head(&cdev->wq);
+	INIT_WORK(&cdev->irq_work, tty_irq_work);
 	g_tb_dev = cdev;
 
 	node_tmp = kcalloc(cdev->num_nodes, sizeof(struct bif_tty_node),
@@ -499,7 +572,6 @@ static int bif_tty_set_base(struct bif_tty_cdev *cdev)
 {
 	int rc = 0;
 	int i;
-	unsigned int count;
 	struct ringbuf_t *rb_tmp;
 
 	tty_debug_log("enter\n");
@@ -522,27 +594,9 @@ static int bif_tty_set_base(struct bif_tty_cdev *cdev)
 			cdev->tb_node[i]->rb_self->size = TTY_BUF_SIZE;
 		}
 	}
-	/* rb_base_other can be null */
-	rb_tmp = bif_query_otherbase(BUFF_SMD);
-	if (rb_tmp == (void *)-1
-	    || rb_tmp == NULL || rb_tmp == (void *)-ERESTARTSYS) {
-		rc = 0;
-		tty_err_log("query other address failed\n");
-		goto fail;
-	}
 
-	for (i = 0; i < cdev->num_nodes; i++) {
-		cdev->tb_node[i]->rb_other = &rb_tmp[i];
-		bif_tty_check_other(cdev->tb_node[i]->rb_other);
-		/* check invalid count */
-		count = bif_ringbuf_other_used(cdev->tb_node[i]);
-		if (count > 0) {
-			cdev->tb_node[i]->rb_self->tail += count;
-			cdev->tb_node[i]->rb_self->tail %=
-						cdev->tb_node[i]->rb_self->size;
-			tty_err_log("other invalid count %d\n", count);
-		}
-	}
+	bif_tty_set_otherbase(cdev);
+	bif_tty_init_crc_info(cdev);
 
 fail:
 	return rc;
@@ -568,23 +622,8 @@ static int bif_tty_set_rwbuf(struct bif_tty_cdev *cdev)
 	vir_addr = kzalloc(2 * cdev->num_nodes * TTY_BUF_SIZE, GFP_KERNEL);
 	if (!vir_addr)
 		goto fail;
-
-	phy_addr = bif_query_address(BUFF_SMD);
-	if (phy_addr == (void *)-1
-	    || phy_addr == NULL || phy_addr == (void *)-ERESTARTSYS) {
-
-		phy_addr = NULL;
-		tty_err_log("query ap address failed\n");
-	}
 	cdev->rw_addr = vir_addr;
-	if (phy_addr != NULL) {
-		for (i = 0; i < cdev->num_nodes; i++) {
-			cdev->tb_node[i]->wbuf_phy_addr
-			    = phy_addr + 2 * i * TTY_BUF_SIZE;
-			cdev->tb_node[i]->rbuf_phy_addr
-			    = cdev->tb_node[i]->wbuf_phy_addr + TTY_BUF_SIZE;
-		}
-	}
+	bif_tty_set_ap_rwbuf(cdev);
 #else
 	/*
 	 * at cp side, data save to buff directily,
@@ -601,12 +640,12 @@ static int bif_tty_set_rwbuf(struct bif_tty_cdev *cdev)
 	phy_addr = (void *)cdev->phy_addr_rw;
 	cdev->vir_addr_rw = vir_addr;
 	bif_register_address(BUFF_SMD, (void *)cdev->phy_addr_rw);
+	tty_debug_log("buff_addr_phy = 0x%p\n", phy_addr);
 #endif
 	for (i = 0; i < cdev->num_nodes; i++) {
 		cdev->tb_node[i]->rbuf = vir_addr + 2 * i * TTY_BUF_SIZE;
 		cdev->tb_node[i]->wbuf = cdev->tb_node[i]->rbuf + TTY_BUF_SIZE;
 	}
-	tty_debug_log("buff_addr_phy = 0x%p\n", phy_addr);
 	return 0;
 fail:
 //      kfree(cdev);//hobot 20190711
