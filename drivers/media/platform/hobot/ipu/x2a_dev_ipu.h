@@ -30,13 +30,25 @@
 #define IPU_IOC_OSD_STA_BIN      _IOR(IPU_IOC_MAGIC, 9, int)
 #define IPU_IOC_OSD_ADDR         _IOW(IPU_IOC_MAGIC, 10, int)
 
+struct ipu_osd_cfg{
+	bool osd_box_update;
+	osd_box_t osd_box[MAX_OSD_NUM];
+	bool osd_buf_update;
+	u32 osd_buf[MAX_OSD_NUM];
+	bool osd_sta_update;
+	osd_sta_box_t osd_sta[MAX_STA_NUM];
+	bool osd_sta_level_update;
+	u8 osd_sta_level[MAX_OSD_STA_LEVEL_NUM];
+	osd_color_map_t color_map;
+};
+
 struct ipu_video_ctx {
 	wait_queue_head_t done_wq;
 	struct x2a_ipu_dev *ipu_dev;
 
 	struct vio_framemgr framemgr;
 	struct ipu_group *group;
-	u32 osd_num;
+	struct ipu_osd_cfg osd_cfg;
 	u32 group_id;
 	unsigned long state;
 	bool leader;

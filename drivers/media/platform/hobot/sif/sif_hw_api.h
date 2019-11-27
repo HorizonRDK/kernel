@@ -29,5 +29,6 @@ void sif_disable_wdma(u32 __iomem *base_reg);
 int sif_get_irq_src(u32 __iomem *base_reg, struct sif_irq_src *src, bool clear);
 void sif_hw_dump(u32 __iomem *base_reg);
 u32 sif_get_frame_intr(void __iomem *base_reg);
+void sif_set_isp_performance(u32 __iomem *base_reg, u8 value);
 
 #endif

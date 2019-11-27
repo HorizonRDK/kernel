@@ -169,7 +169,6 @@ static void sif_read_work_function(struct kthread_work *work)
 		trans_frame(framemgr, frame, FS_PROCESS);
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
-	sif_hw_dump(sif->base_reg);
 
 	clear_bit(VIO_GTASK_SHOT, &gtask->state);
 
@@ -396,8 +395,8 @@ int sif_mux_init(struct sif_video_ctx *sif_ctx, unsigned long arg)
 	sema_init(&gtask->hw_resource, 4);
 	vio_group_task_start(gtask);
 
-	if (test_bit(SIF_OTF_OUTPUT, &sif->state))
-		sif_disable_wdma(sif->base_reg);
+	//if (test_bit(SIF_OTF_OUTPUT, &sif->state))
+	//	sif_disable_wdma(sif->base_reg);
 
 	sif_hw_config(sif->base_reg, &sif_config);
 
@@ -409,9 +408,8 @@ int sif_mux_init(struct sif_video_ctx *sif_ctx, unsigned long arg)
 
 int sif_video_init(struct sif_video_ctx *sif_ctx, unsigned long arg)
 {
-
-	struct x2a_sif_dev *sif;
 	int ret = 0;
+	struct x2a_sif_dev *sif;
 
 	if (!(sif_ctx->state & (BIT(VIO_VIDEO_OPEN) | BIT(VIO_VIDEO_REBUFS)))) {
 		vio_err("[%s][V%02d] invalid INIT is requested(%lX)", __func__,
@@ -426,6 +424,7 @@ int sif_video_init(struct sif_video_ctx *sif_ctx, unsigned long arg)
 	} else if (sif_ctx->id == 1) {
 		vio_group_task_start(&sif->sifin_task);
 		set_bit(SIF_DMA_IN_ENABLE, &sif->state);
+		sif_set_isp_performance(sif->base_reg, 1);
 	}
 
 	vio_info("V[%d]%s ret(%d)\n", sif_ctx->id, __func__, ret);
@@ -438,17 +437,17 @@ int sif_video_init(struct sif_video_ctx *sif_ctx, unsigned long arg)
 int sif_video_streamon(struct sif_video_ctx *sif_ctx)
 {
 	struct x2a_sif_dev *sif_dev;
-	sif_dev = sif_ctx->sif_dev;
 	unsigned long flag;
 
-	if (!
-	    (sif_ctx->
-	     state & (BIT(VIO_VIDEO_STOP) | BIT(VIO_VIDEO_REBUFS) |
+	if (!(sif_ctx->state &
+			(BIT(VIO_VIDEO_STOP) | BIT(VIO_VIDEO_REBUFS) |
 		      BIT(VIO_VIDEO_INIT)))) {
 		vio_err("[%s][V%02d] invalid STREAM ON is requested(%lX)",
 			__func__, sif_ctx->id, sif_ctx->state);
 		return -EINVAL;
 	}
+
+	sif_dev = sif_ctx->sif_dev;
 
 	if (atomic_read(&sif_dev->rsccount) > 0)
 		goto p_inc;
@@ -510,7 +509,7 @@ int sif_video_streamoff(struct sif_video_ctx *sif_ctx)
 p_dec:
 
 	if (sif_ctx->id == 1) {
-		set_bit(SIF_DMA_IN_ENABLE, &sif_dev->state);
+		clear_bit(SIF_DMA_IN_ENABLE, &sif_dev->state);
 	}else
 		clear_bit(sif_ctx->mux_index + 1, &sif_dev->state);
 

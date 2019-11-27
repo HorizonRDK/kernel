@@ -170,7 +170,7 @@ static void sif_set_pattern_gen(u32 __iomem *base_reg, u32 pat_index, sif_data_d
 
 #else
 	const u32 padding = 1;
-	u32 h_time = 4096;
+	u32 h_time = 4096 * 2;
 	u32 v_line = p_data->height + 100 + 1;
 #endif
 	u32 y,cb, cr;
@@ -694,11 +694,6 @@ void sif_set_ddr_input(u32 __iomem *base_reg, sif_input_ddr_t* p_ddr)
 	width = p_ddr->data.width;
 	format  = p_ddr->data.format;
 	sif_config_rdma_fmt(base_reg, format, width, height);
-
-	vio_hw_set_field(base_reg, &sif_regs[SIF_OUT_EN_INT],
-			&sif_fields[SIF_ISP0_OUT_FE_INT_EN], 1);
-	vio_hw_set_field(base_reg, &sif_regs[SIF_OUT_EN_INT],
-			&sif_fields[SIF_ISP0_OUT_FS_INT_EN], 1);
 }
 
 
@@ -1038,6 +1033,8 @@ void sif_hw_disable(u32 __iomem *base_reg)
 	vio_hw_set_reg(base_reg, &sif_regs[SIF_SW_RESET], 0x00000001); //remove it for test only
 	vio_hw_set_reg(base_reg, &sif_regs[SIF_SW_RESET], 0x00000000); //remove it for test only
 
+	sif_set_isp_performance(base_reg, 0);
+
 #ifdef SIF_MEMORY_DEBUG
 	// For Debug: Memory Violation
 	vio_hw_set_reg(base_reg, &sif_regs[SIF_AXI_FRM_W_LIMIT_SET], 1);
@@ -1195,6 +1192,12 @@ int sif_get_irq_src(u32 __iomem *base_reg, struct sif_irq_src *src, bool clear)
 	src->sif_in_buf_overflow = vio_hw_get_reg(base_reg, &sif_regs[SIF_ERR_STATUS]);
 
 	return 0;
+}
+
+void sif_set_isp_performance(u32 __iomem *base_reg, u8 value)
+{
+	vio_hw_set_reg(base_reg, &sif_regs[SIF_ISP_PERFORMANCE], value);
+
 }
 
 void sif_hw_dump(u32 __iomem *base_reg)
