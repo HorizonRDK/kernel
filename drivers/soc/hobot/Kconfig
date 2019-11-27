@@ -33,10 +33,11 @@ config X2_DIAG
           by calling the API of the diag module(driver)
 
 config HOBOT_MCU_IRQ
-        tristate "Skt change gpio state and return timestamp"
-        default m
+        tristate "Time sync driver with MCU by 2 GPIO"
+        default y
         help
-	  skt change gpio state and return timestamp
+          Get mcu state&send irq and return timestamp
+	  
 
 menuconfig HOBOT_BIF_CP
         bool "Enable Horizon CP side BIF driver"
