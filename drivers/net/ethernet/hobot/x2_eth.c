@@ -1995,17 +1995,21 @@ static inline int dwceqos_probe_config_dt(struct platform_device *pdev)
 	return 0;
 }
 
-static int dwceqos_open(struct net_device *ndev)
+static int __dwceqos_open(struct net_device *ndev, bool oflags)
 {
 	struct net_local *lp = netdev_priv(ndev);
 	int res;
 
 	dwceqos_reset_state(lp);
-	res = dwceqos_descriptor_init(lp);
-	if (res) {
-		netdev_err(ndev, "Unable to allocate DMA memory, rc %d\n", res);
-		return res;
+	if (oflags) {
+		res = dwceqos_descriptor_init(lp);
+		if (res) {
+			netdev_err(ndev, "Unable to allocate DMA memory, rc %d\n",
+				   res);
+			return res;
+		}
 	}
+
 	netdev_reset_queue(ndev);
 
 	/* The dwceqos reset state machine requires all phy clocks to complete,
@@ -2031,6 +2035,13 @@ static int dwceqos_open(struct net_device *ndev)
 	return 0;
 }
 
+static int dwceqos_open(struct net_device *ndev)
+{
+	int ret = 0;
+
+	ret = __dwceqos_open(ndev, true);
+	return ret;
+}
 static bool dweqos_is_tx_dma_suspended(struct net_local *lp)
 {
 	u32 reg;
@@ -3102,7 +3113,7 @@ static int hobot_eth_suspend(struct device *dev)
        dwceqos_link_down(lp);
        phy_stop(ndev->phydev);
 
-       dwceqos_descriptor_free(lp);
+       //dwceqos_descriptor_free(lp);
 
 		/*disable clock to reduce power*/
 		clk_disable_unprepare(lp->eth0_clk);
@@ -3112,6 +3123,14 @@ static int hobot_eth_suspend(struct device *dev)
        lp->duplex = DUPLEX_UNKNOWN;
 
        return 0;
+}
+
+static void dwceqos_reset_queues_param(struct net_local *lp)
+{
+	lp->rx_cur = 0;
+	lp->tx_cur = 0;
+	lp->tx_next = 0;
+	lp->tx_free = DWCEQOS_TX_DCNT;
 }
 
 static int hobot_eth_resume(struct device *dev)
@@ -3127,8 +3146,9 @@ static int hobot_eth_resume(struct device *dev)
 	rtnl_lock();
 		/*enable clk to work*/
 	clk_prepare_enable(lp->eth0_clk);
+	dwceqos_reset_queues_param(lp);
        //netif_device_attach(ndev);
-	ret = dwceqos_open(ndev);
+	ret = __dwceqos_open(ndev, false);
 	if (ret < 0) {
 		pr_err("%s, resume failed\n", __func__);
 		rtnl_unlock();
