@@ -1,3 +1,14 @@
+/***************************************************************************
+* COPYRIGHT NOTICE
+* Copyright 2019 Horizon Robotics, Inc.
+* All rights reserved.
+***************************************************************************/
+/**
+ * @author   Jesse.Huang (Jesse.Huang@hobot.cc)
+ * @date     2019/11/27
+ * @version  V1.0
+ * @par      Horizon Robotics
+ */
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/device.h>
@@ -18,10 +29,11 @@
 #include <linux/of_dma.h>
 #include <linux/of_platform.h>
 #include <linux/of_irq.h>
-#include "usrdrv.h"
+#include <linux/proc_fs.h>
+#include "./usrdrv.h"
 
 #define CONFIG_USRDRV_DEBUG
-
+#define ONFIG_USRDRV_PROC
 /************************************************
 * Driver Struct
 ************************************************/
@@ -55,7 +67,7 @@ static struct class *g_usrdrv_class;
 static struct device *g_usrdrv_dev;
 static int usrdrv_major;
 struct cdev usrdrv_cdev;
-
+static void __iomem *g_regs;
 /************************************************
 * Utility
 ************************************************/
@@ -65,14 +77,15 @@ struct cdev usrdrv_cdev;
 #ifdef CONFIG_USRDRV_DEBUG
 #define usrdrvinfo(format, ...)   printk(KERN_INFO format "\n", ##__VA_ARGS__)
 #define usrdrverr(format, ...)    printk(KERN_ERR format "\n", ##__VA_ARGS__)
-#else				//CONFIG_USRDRV_DEBUG
+#else //CONFIG_USRDRV_DEBUG
 #define usrdrvinfo(format, ...)
 #define usrdrverr(format, ...)    printk(KERN_ERR format "\n", ##__VA_ARGS__)
-#endif				//CONFIG_USRDRV_DEBUG
+#endif //CONFIG_USRDRV_DEBUG
 
 #ifndef VM_RESERVED		/*for kernel up to 3.7.0 version */
 #define VM_RESERVED   (VM_DONTEXPAND | VM_DONTDUMP)
 #endif
+
 /************************************************
 * Functions
 ************************************************/
@@ -101,7 +114,9 @@ static int usrdrv_open(struct inode *inode, struct file *file)
 {
 	usrdrv_file_pri_t *fpri = NULL;
 
-	fpri = (usrdrv_file_pri_t *) kzalloc(sizeof(usrdrv_file_pri_t), GFP_KERNEL);
+	fpri =
+	    (usrdrv_file_pri_t *) kzalloc(sizeof(usrdrv_file_pri_t),
+					  GFP_KERNEL);
 
 	if (fpri == NULL) {
 		printk(KERN_ERR "file_pri malloc failed\n");
@@ -155,8 +170,8 @@ static unsigned int usrdrv_poll(struct file *file,
 	} else {
 		usrdrverr("usrdrv irq input data error!");
 		usrdrverr("auto fire %d, irq_enable=%d, irq_auto_fire_cnt=%d",
-				fpri->irq_num, fpri->irq_enable,
-				fpri->irq_auto_fire_cnt);
+			  fpri->irq_num, fpri->irq_enable,
+			  fpri->irq_auto_fire_cnt);
 	}
 	if (fpri->irq_auto_fire) {
 		usrdrv_irq_set_pending(fpri->irq_num);
@@ -188,11 +203,8 @@ static int usrdrv_mmap(struct file *file, struct vm_area_struct *vm)
 	fpri->map.phys_addr = pfn << PAGE_SHIFT;
 	fpri->map.virt_addr = vm->vm_start;
 	fpri->map.length = vm->vm_end - vm->vm_start;
-	printk(KERN_INFO "[%s] phys=%llx, virt=%llx, length=%llu\n",
-			__func__,
-			fpri->map.phys_addr,
-			fpri->map.virt_addr,
-			fpri->map.length);
+	printk(KERN_INFO "[%s] phys=%llx, virt=%llx, length=%llu\n", __func__,
+	       fpri->map.phys_addr, fpri->map.virt_addr, fpri->map.length);
 
 	return remap_pfn_range(vm, vm->vm_start, pfn, vm->vm_end - vm->vm_start,
 			       vm->vm_page_prot) ? -EAGAIN : 0;
@@ -209,95 +221,105 @@ static long usrdrv_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 	switch (cmd) {
 	case USRDRV_IRQ_REGISTER: {
-		ioctl_irq_info_t irq_info;
-		struct device_node *np;
-		uint32_t irq_in_dts;
-		if (copy_from_user
-		    ((void *)&irq_info, (void __user *)arg,
-		     sizeof(ioctl_irq_info_t))) {
-			usrdrverr
-			("ERROR: usrdrv copy data from user failed\n");
-			return -EINVAL;
+			ioctl_irq_info_t irq_info;
+			struct device_node *np;
+			uint32_t irq_in_dts;
+			if (copy_from_user
+			    ((void *)&irq_info, (void __user *)arg,
+			     sizeof(ioctl_irq_info_t))) {
+				usrdrverr
+				    ("ERROR: usrdrv copy data from user failed\n");
+				return -EINVAL;
+			}
+
+			np = of_find_compatible_node(NULL, NULL,
+						     "hobot,usrdrv");
+			if (!np) {
+				return -ENODEV;
+			}
+
+			/* PTP2 IRQ */
+			irq_in_dts =
+			    irq_of_parse_and_map(np, irq_info.irq_index);
+			fpri->irq_num = irq_in_dts;
+			strncpy(fpri->irq_name, irq_info.irq_name,
+				USRDRV_IRQNAME_MAX);
+
+			printk("usrdrv irq index=%d, request_irq: num=%d,handler=%p," \
+				"flag=%x, name=%s, data=%p\n",
+			     irq_info.irq_index, fpri->irq_num, usrdrv_irq,
+			     IRQF_TRIGGER_HIGH, fpri->irq_name, fpri);
+
+			ret =
+			    request_irq(fpri->irq_num, usrdrv_irq,
+					IRQF_TRIGGER_HIGH, fpri->irq_name,
+					fpri);
+
+			if (ret)
+				usrdrverr
+				    ("ERROR: usrdrv request_irq() failed: %d\n",
+				     ret);
+
+			//@fixme why need disable first
+			disable_irq_nosync(fpri->irq_num);
+			fpri->irq_auto_fire_cnt = 0;
 		}
-
-		np = of_find_compatible_node(NULL, NULL,
-					     "hobot,usrdrv");
-		if (!np) {
-			return -ENODEV;
-		}
-
-		/* PTP2 IRQ */
-		irq_in_dts = irq_of_parse_and_map(np, irq_info.irq_index);
-		fpri->irq_num = irq_in_dts;
-		strncpy(fpri->irq_name, irq_info.irq_name, USRDRV_IRQNAME_MAX);
-
-		printk("usrdrv irq index=%d, request_irq: num=%d,handler=%p,flag=%x,name=%s,data=%p\n",
-				irq_info.irq_index, fpri->irq_num, usrdrv_irq,
-				IRQF_TRIGGER_HIGH, fpri->irq_name, fpri);
-
-		ret = request_irq(fpri->irq_num, usrdrv_irq,
-				IRQF_TRIGGER_HIGH, fpri->irq_name,
-				fpri);
-
-		if (ret)
-			usrdrverr("ERROR: usrdrv request_irq() failed: %d\n", ret);
-
-		//@fixme why need disable first
-		disable_irq_nosync(fpri->irq_num);
-		fpri->irq_auto_fire_cnt = 0;
-	}
-	break;
+		break;
 	case USRDRV_IRQ_UNREGISTER: {
-		const char *devname;
-		devname = free_irq(fpri->irq_num, fpri);
-		printk("free irq %d, devname %p\n", fpri->irq_num,
-		       devname);
-		if (fpri->irq_auto_fire)
-			printk("irq %d: irq_auto_fire_cnt = %d\n",
-			       fpri->irq_num, fpri->irq_auto_fire_cnt);
-	}
-	break;
+			const char *devname;
+			devname = free_irq(fpri->irq_num, fpri);
+			printk("free irq %d, devname %p\n", fpri->irq_num,
+			       devname);
+			if (fpri->irq_auto_fire)
+				printk("irq %d: irq_auto_fire_cnt = %d\n",
+				       fpri->irq_num, fpri->irq_auto_fire_cnt);
+		}
+		break;
 	case USRDRV_IRQ_ENABLE: {
-		uint32_t irq_enable;
-		//unsigned long flags;
-		if (copy_from_user((void *)&irq_enable, (void __user *)arg,
-					sizeof(uint32_t))) {
-			usrdrverr("ERROR: usrdrv copy data from user failed\n");
-			return -EINVAL;
-		}
-		//spin_lock_irqsave(&fpri->event_lock, flags);
-		if (irq_enable) {
-			printk("usrdrv enable\n");
-			if (fpri->irq_enable == 0) {
-				enable_irq(fpri->irq_num);
-				fpri->irq_enable = 1;
+			uint32_t irq_enable;
+			//unsigned long flags;
+			if (copy_from_user
+			    ((void *)&irq_enable, (void __user *)arg,
+			     sizeof(uint32_t))) {
+				usrdrverr
+				    ("ERROR: usrdrv copy data from user failed\n");
+				return -EINVAL;
 			}
-		} else {
-			printk("usrdrv disable\n");
-			if (fpri->irq_enable == 1) {
-				disable_irq_nosync(fpri->irq_num);
-				fpri->irq_enable = 0;
+			//spin_lock_irqsave(&fpri->event_lock, flags);
+			if (irq_enable) {
+				printk("usrdrv enable\n");
+				if (fpri->irq_enable == 0) {
+					enable_irq(fpri->irq_num);
+					fpri->irq_enable = 1;
+				}
+			} else {
+				printk("usrdrv disable\n");
+				if (fpri->irq_enable == 1) {
+					disable_irq_nosync(fpri->irq_num);
+					fpri->irq_enable = 0;
+				}
 			}
+			//spin_unlock_irqrestore(&fpri->event_lock, flags);
 		}
-		//spin_unlock_irqrestore(&fpri->event_lock, flags);
-	}
-	break;
+		break;
 	case USRDRV_IRQ_AUTO_FIRE: {
-		uint32_t irq_auto_fire;
-		if (copy_from_user((void *)&irq_auto_fire, (void __user *)arg,
-					sizeof(uint32_t))) {
-			usrdrverr("ERROR: usrdrv copy data from user failed\n");
-			return -EINVAL;
+			uint32_t irq_auto_fire;
+			if (copy_from_user
+			    ((void *)&irq_auto_fire, (void __user *)arg,
+			     sizeof(uint32_t))) {
+				usrdrverr
+				    ("ERROR: usrdrv copy data from user failed\n");
+				return -EINVAL;
+			}
+			if (irq_auto_fire) {
+				printk("usrdrv auto fire: enable\n");
+				fpri->irq_auto_fire = 1;
+			} else {
+				printk("usrdrv auto fire: disable\n");
+				fpri->irq_auto_fire = 0;
+			}
 		}
-		if (irq_auto_fire) {
-			printk("usrdrv auto fire: enable\n");
-			fpri->irq_auto_fire = 1;
-		} else {
-			printk("usrdrv auto fire: disable\n");
-			fpri->irq_auto_fire = 0;
-		}
-	}
-	break;
+		break;
 	default:
 		usrdrverr("usrdrv cmd 0x%x not support\n", cmd);
 		break;
@@ -315,12 +337,35 @@ static struct file_operations usrdrv_fops = {
 	.mmap = usrdrv_mmap,
 };
 
+#ifdef ONFIG_USRDRV_PROC
+#include "inc/procfs_macro.h"
+#include "inc/clock_dump.h"
+#include "inc/script.h"
+#define MSG_MAX 			1000
+char g_msg[MSG_MAX];
+PROCFS_DECLARE(script, usrdrv_list_script, usrdrv_run_script);
+PROCFS_DECLARE(clktree, clk_dump_list, clk_dump);
+#endif //ONFIG_USRDRV_PROC
+
 static int __init usrdrv_module_init(void)
 {
 	int ret = 0;
 	dev_t devno;
 	struct cdev *p_cdev = &usrdrv_cdev;
 	usrdrv_dev_pri_t *dpri = NULL;
+
+	g_regs = ioremap(0xA0000000, 0x15000000);
+
+	printk("\n==== %s x2 test bif offset 31 ====\n", __FUNCTION__);
+	printk("bif offset 31=%x, (expect val = 5a5a0200)\n",
+	       readl(g_regs + 0x01006000 + 31 * 4));
+	printk("\n==== %s x2 test gpio interrupt ====\n", __FUNCTION__);
+
+#ifdef ONFIG_USRDRV_PROC
+	PROCFS_CREATE(script);
+	PROCFS_CREATE(clktree);
+	clk_dump(g_regs, "all");
+#endif //ONFIG_USRDRV_PROC
 
 	printk(KERN_INFO "usrdrv driver init enter\n");
 	dpri = kzalloc(sizeof(usrdrv_dev_pri_t), GFP_KERNEL);
@@ -352,8 +397,9 @@ static int __init usrdrv_module_init(void)
 		goto err;
 	}
 
-	g_usrdrv_dev = device_create(g_usrdrv_class, NULL, MKDEV(usrdrv_major, 0),
-			(void *)dpri, "usrdrv");
+	g_usrdrv_dev =
+	    device_create(g_usrdrv_class, NULL, MKDEV(usrdrv_major, 0),
+			  (void *)dpri, "usrdrv");
 	if (IS_ERR(g_usrdrv_dev)) {
 		printk(KERN_ERR "[%s] deivce create error\n", __func__);
 		ret = PTR_ERR(g_usrdrv_dev);
@@ -379,6 +425,10 @@ static void __exit usrdrv_module_exit(void)
 	cdev_del(&usrdrv_cdev);
 	unregister_chrdev_region(MKDEV(usrdrv_major, 0), 1);
 	kzfree(dpri);
+#ifdef ONFIG_USRDRV_PROC
+	PROCFS_REMOVE(script);
+	PROCFS_REMOVE(clktree);
+#endif //ONFIG_USRDRV_PROC
 	return;
 }
 

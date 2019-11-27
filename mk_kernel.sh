@@ -103,43 +103,49 @@ helper()
 ####################################
 
 #"uh" > "u:h:" if need args
-while getopts "mjcheroid" opt; do
+while getopts "Mmjcheroid" opt; do
   case $opt in
        m)
-	   mk_cfg
-	   exit
-	   ;;
+			mk_cfg
+			exit
+			;;
+       M)
+			cfg=x2aj2a_soc_defconfig
+			echo $cfg
+			mk_cfg
+			exit
+			;;
        o)
-	   mk_old_cfg
-	   exit
-	   ;;
+			mk_old_cfg
+			exit
+			;;
        j)
            j="-j64"
-	   echo burst build !
+			echo burst build !
            ;;
        c)
-	   mk_clean
-	   exit
-	   ;;
+			mk_clean
+			exit
+			;;
        e)
-           extract_initramfs
-           exit
-           ;;
+			extract_initramfs
+			exit
+			;;
        r)
-	   mk_initramfs
-           exit
-           ;;
+			mk_initramfs
+			exit
+			;;
        d)
-	   mk_dtbs
-	   exit
-	   ;;
+			mk_dtbs
+			exit
+			;;
        i)
-	   mk_modules_install
-	   exit
-	   ;;
+			mk_modules_install
+			exit
+			;;
        h)
            helper
-	   exit
+			exit
            ;;
       \?)
       echo "Invalid option: -$OPTARG" >&2

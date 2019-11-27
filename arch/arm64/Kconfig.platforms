@@ -303,6 +303,14 @@ config X2_SOC
 	  This enables Hobot X2 SOC support.
 	  You only need to enable this, if you want to support x2 soc.
 
+config X2A_SOC
+	bool "X2A SOC Support"
+	depends on ARCH_HOBOT
+	select PINCTRL_X2A
+	help
+	  This enables Hobot X2A SOC support.
+	  You only need to enable this, if you want to support x2a soc.
+
 endchoice
 endif #ARCH_HOBOT
 

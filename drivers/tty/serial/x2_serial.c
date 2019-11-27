@@ -433,7 +433,8 @@ static void x2_uart_stop_rx(struct uart_port *port)
 	writel(regval, port->membase + X2_UART_ENR);
 }
 
-#if defined(CONFIG_X2_TTY_IRQ_MODE) || defined(CONFIG_X2_TTY_POLL_MODE)
+#if defined(CONFIG_X2_TTY_IRQ_MODE) || defined(CONFIG_X2_TTY_POLL_MODE)\
+	|| !defined(CONFIG_X2_TTY_DMA_MODE)
 /**
  * x2_uart_handle_tx - Handle the bytes to be Txed.
  * @dev_id: Id of the UART port

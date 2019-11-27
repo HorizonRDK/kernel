@@ -1,5 +1,17 @@
-#ifndef USRDRV_H
-#define USRDRV_H
+/***************************************************************************
+* COPYRIGHT NOTICE
+* Copyright 2019 Horizon Robotics, Inc.
+* All rights reserved.
+***************************************************************************/
+/**
+ * @author   Jesse.Huang (Jesse.Huang@hobot.cc)
+ * @date     2019/11/27
+ * @version  V1.0
+ * @par      Horizon Robotics
+ */
+
+#ifndef DRIVERS_IPS_USRDRV_USRDRV_H_
+#define DRIVERS_IPS_USRDRV_USRDRV_H_
 /*reg driver info*/
 #define USRDRV_MAJOR 253
 /*reg mode attr*/
@@ -19,4 +31,4 @@ typedef struct ioctl_irq_info_s {
 	uint32_t irq_index;
 	uint8_t irq_name[USRDRV_IRQNAME_MAX];
 } ioctl_irq_info_t;
-#endif				//USRDRV_H
+#endif //DRIVERS_IPS_USRDRV_USRDRV_H_

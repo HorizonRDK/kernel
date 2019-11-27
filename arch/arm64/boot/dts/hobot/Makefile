@@ -15,6 +15,7 @@ dtb-$(CONFIG_X2_SOC)  += hobot-x2-96board.dtb
 dtb-$(CONFIG_X2_SOC)  += hobot-j2-mono-lite.dtb
 dtb-$(CONFIG_X2_SOC)  += hobot-x2-xiaomi.dtb
 dtb-$(CONFIG_X2A_FPGA) += hobot-x2aj2a-fpga.dtb
+dtb-$(CONFIG_X2A_SOC)  += hobot-x2aj2a-soc.dtb
 
 ifeq ($(CONFIG_X2A_FPGA),y)
 	ifeq ($(CONFIG_USB_DWC3_HOST),y)
