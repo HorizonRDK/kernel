@@ -75,7 +75,7 @@
 
 #define BIFBASE_APMAGIC		"BIFA"
 #define BIFBASE_CPMAGIC		"BIFC"
-#define BIFBASE_VER		"HOBOT-bifbase_V21.191120"
+#define BIFBASE_VER		"HOBOT-bifbase_V21.191122"
 #define BIFBASE_MAJOR		(123)
 #define BIFBASE_BLOCK		(1024)	//(512)
 #define BIFBASE_VER_SIZE	(32)
@@ -688,6 +688,12 @@ static irqreturn_t bifbase_irq_handler(int irq, void *data)
 	//struct bifbase_local *pl = get_bifbase_local();
 
 	pr_bif("bifbase: handler irq=%d...\n", irq);
+#ifdef UNSUPPORT_EDGE_BOTH
+	if (irq_get_trigger_type(irq) == IRQ_TYPE_EDGE_FALLING)
+		irq_set_irq_type(irq, IRQ_TYPE_EDGE_RISING);
+	else
+		irq_set_irq_type(irq, IRQ_TYPE_EDGE_FALLING);
+#endif
 	if (!pl || !pl->start || !pl->plat || !pl->self || !pl->other)
 		return IRQ_NONE;
 
@@ -745,9 +751,15 @@ static int bifbase_pre_init(void *p)
 			ret = -ENODEV;
 			goto exit_2;
 		}
+#ifdef UNSUPPORT_EDGE_BOTH
+		ret = devm_request_irq(pl->dev, pl->plat->irq_num,
+			bifbase_irq_handler, IRQ_TYPE_EDGE_FALLING, "bifbase",
+			(void *)pl);
+#else
 		ret = devm_request_irq(pl->dev, pl->plat->irq_num,
 			bifbase_irq_handler, IRQ_TYPE_EDGE_BOTH, "bifbase",
 			(void *)pl);
+#endif
 		if (ret) {
 			dev_err(pl->dev, "Err request irq_num=%d, ret=%d\n",
 				pl->plat->irq_num, ret);
@@ -836,6 +848,8 @@ static int bifbase_pre_init(void *p)
 	return 0;
 exit_3:
 	devm_free_irq(pl->dev, pl->plat->irq_num, (void *)pl);
+	if (bifbase_kobj)
+		kobject_put(bifbase_kobj);
 exit_2:
 	bifplat_gpio_deinit((void *)pl->plat);
 exit_1:
