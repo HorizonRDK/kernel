@@ -1,3 +1,8 @@
+/***************************************************************************
+ *                      COPYRIGHT NOTICE
+ *             Copyright 2018 Horizon Robotics, Inc.
+ *                     All rights reserved.
+ ***************************************************************************/
 #include <linux/platform_device.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
@@ -920,7 +925,7 @@ int ipu_suspend(struct device *dev)
 
 	/* stop ipu */
 	ctrl_ipu_to_ddr(CROP_TO_DDR | SCALAR_TO_DDR | PYM_TO_DDR, DISABLE);
-	//ips_irq_disable(IPU_INT);
+	ips_irq_disable(IPU_INT);
 
 	return 0;
 }
