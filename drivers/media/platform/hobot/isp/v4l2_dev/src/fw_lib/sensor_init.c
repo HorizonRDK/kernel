@@ -24,7 +24,6 @@
 #include "system_stdlib.h"
 #include "acamera_firmware_config.h"
 
-#define PONG_OFFSET 0x17fc0
 /*
 0x01 -> set address
 addr16
@@ -257,7 +256,6 @@ void acamera_load_array_sequence( acamera_sbus_ptr_t p_sbus, uintptr_t isp_offse
                     val = ( sdata & ~mask ) | ( wdata & mask );
                 }
                 acamera_sbus_write_u32( p_sbus, seq->address + isp_offset, val );
-                acamera_sbus_write_u32( p_sbus, seq->address + isp_offset + PONG_OFFSET, val );
                 LOG( LOG_DEBUG, "A32: 0x%x : 0x%x", seq->address + isp_offset, val );
             } else if ( size == 2 ) {
                 if ( seq->mask ) {
@@ -267,7 +265,6 @@ void acamera_load_array_sequence( acamera_sbus_ptr_t p_sbus, uintptr_t isp_offse
                     val = ( uint16_t )( ( sdata & ~mask ) | ( wdata & mask ) );
                 }
                 acamera_sbus_write_u16( p_sbus, seq->address + isp_offset, (uint16_t)val );
-                acamera_sbus_write_u16( p_sbus, seq->address + isp_offset + PONG_OFFSET, (uint16_t)val );
                 LOG( LOG_DEBUG, "A16: 0x%x : 0x%x", seq->address + isp_offset, (uint16_t)val );
             } else if ( size == 1 ) {
                 if ( seq->mask ) {
@@ -277,7 +274,6 @@ void acamera_load_array_sequence( acamera_sbus_ptr_t p_sbus, uintptr_t isp_offse
                     val = ( uint8_t )( ( sdata & ~mask ) | ( wdata & mask ) );
                 }
                 acamera_sbus_write_u8( p_sbus, seq->address + isp_offset, (uint8_t)val );
-                acamera_sbus_write_u8( p_sbus, seq->address + isp_offset + PONG_OFFSET, (uint8_t)val );
                 LOG( LOG_DEBUG, "A16: 0x%x : 0x%x", seq->address + isp_offset, (uint8_t)val );
             } else {
                 LOG( LOG_ERR, "Invalid size %d", size );

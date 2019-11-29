@@ -34,7 +34,7 @@
 #if FW_USE_HOBOT_DMA
 
 #define HOBOT_DMA_RESULT_CHK     0
-#define HOBOT_DMA_DEBUG          0
+#define HOBOT_DMA_DEBUG          1
 #if HOBOT_DMA_DEBUG
     #define HOBOT_DMA_LOG(...)   printk(__VA_ARGS__)
 #else

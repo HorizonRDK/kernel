@@ -142,10 +142,6 @@ static int32_t validate_settings( acamera_settings *settings, uint32_t ctx_num )
     return result;
 }
 
-
-//#define ACAMERA_CONTEXT_SIZE ACAMERA_ISP1_BASE_ADDR + ACAMERA_ISP1_SIZE
-#define ACAMERA_CONTEXT_SIZE ((128 * 1024))
-
 static int32_t dma_channel_addresses_setup( void *isp_chan, void *metering_chan, void *sw_context_map,
                                                          uint32_t idx, uint32_t hw_isp_addr, uint32_t sw_isp_phy_addr )
 {
@@ -350,11 +346,11 @@ int32_t acamera_init( acamera_settings *settings, uint32_t ctx_num )
                         // dump hw default configuration to the current context
 
 #if FW_USE_HOBOT_DMA
-                        p_ctx->sw_reg_map.isp_sw_config_map = system_sw_alloc_dma_sram( ACAMERA_CONTEXT_SIZE,
+                        p_ctx->sw_reg_map.isp_sw_config_map = system_sw_alloc_dma_sram(HOBOT_DMA_SRAM_ONE_ZONE,
                                                                                         p_ctx->context_id,
-                                                                                        &p_ctx->sw_reg_map.isp_sw_phy_addr );
+                                                                                        &p_ctx->sw_reg_map.isp_sw_phy_addr);
 #else
-                        p_ctx->sw_reg_map.isp_sw_config_map = system_sw_alloc( ACAMERA_CONTEXT_SIZE );
+                        p_ctx->sw_reg_map.isp_sw_config_map = system_sw_alloc(HOBOT_DMA_SRAM_SIZE);
                         p_ctx->sw_reg_map.isp_sw_phy_addr = 0;  // no use when DMA mode disable
 #endif
                         if ( p_ctx->sw_reg_map.isp_sw_config_map ) {
