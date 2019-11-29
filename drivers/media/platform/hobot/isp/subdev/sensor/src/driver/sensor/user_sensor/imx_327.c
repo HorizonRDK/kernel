@@ -129,6 +129,8 @@ static int set_imx327_dol2_exposure(uint8_t chn, uint32_t input_exp1,
 	exp_d[0] =(char)(input_exp1 & 0xff);
 	ret = sensor_i2c_write(chn, IMX327_SHS1, 16, exp_d, 3);
 
+	LOG(LOG_INFO, "long %d, short %d", input_exp1, input_exp2);
+	
 	return ret;
 }
 
@@ -247,7 +249,7 @@ static int imx327_init(uint8_t chn, uint8_t mode)
 			LOG(LOG_DEBUG, "tmp_addr %x, data %x", tmp_addr, tmp_data);
 		}
 		imx327_param[chn].imx327_mode_save = NORMAL_M;
-		imx327_param[chn].lines_per_second = 10074;
+		imx327_param[chn].lines_per_second = 11250;
 		imx327_param[chn].exposure_time_max = imx327_param[chn].VMAX - 2;
 		imx327_param[chn].exposure_time_min = 1;
 		imx327_param[chn].exposure_time_long_max = imx327_param[chn].FSC_DOL2 - 2;
@@ -260,7 +262,8 @@ static int imx327_init(uint8_t chn, uint8_t mode)
 			tmp_data =(char)(imx327_raw12_dol2_setting[tmp_c++] & 0xff);
 			ret = sensor_i2c_write(chn, tmp_addr, 16, &tmp_data, 1);
 		}
-		imx327_param[chn].lines_per_second = 7183;
+		imx327_param[chn].imx327_mode_save = DOL2_M;
+		imx327_param[chn].lines_per_second = 11250;
 		imx327_param[chn].exposure_time_max = imx327_param[chn].RHS1 - 2;
 		imx327_param[chn].exposure_time_min = 1;
 		imx327_param[chn].exposure_time_long_max = imx327_param[chn].FSC_DOL2 - 2;
@@ -327,6 +330,7 @@ static void imx327_alloc_integration_time(uint8_t chn, uint16_t *int_time,
 
 static void imx327_update(uint8_t chn, struct sensor_priv updata)
 {
+	LOG(LOG_INFO, "int l %d, int m %d, int s %d, a_gain %d", updata.int_time_L, updata.int_time_M, updata.int_time, updata.analog_gain);
 	set327_ex_gain_control(chn, updata.int_time_L, updata.int_time_M,
 		updata.int_time, updata.analog_gain);
 }

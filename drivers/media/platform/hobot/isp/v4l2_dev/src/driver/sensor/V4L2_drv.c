@@ -398,6 +398,7 @@ static void sensor_set_type( void *ctx, uint8_t sensor_type, uint8_t sensor_i2c_
             settings.args.general.val_in2 = sensor_i2c_channel;
             int rc = v4l2_subdev_call( sd, core, ioctl, SOC_SENSOR_SET_TYPE, &settings );
             if ( rc == 0 ) {
+		sensor_init_tuning_parameters(p_ctx);
                 sensor_update_parameters( p_ctx );
 		sensor_update_tuning_parameters(p_ctx);//add ie&e
             } else {

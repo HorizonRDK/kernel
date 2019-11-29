@@ -189,7 +189,7 @@ static int os8a10_init(uint8_t chn, uint8_t mode)
 		ret = sensor_i2c_write(chn, 0x3503, 16, &tmp_data, 1);
 		LOG(LOG_CRIT, "os8a10 raw12 normal init success ", __func__, __LINE__);
 		break;
-	case 4:
+	case 1:
 		tmp_size = sizeof(os8a10_raw10_hdr_setting)/sizeof(uint16_t);
 		while(tmp_c < tmp_size) {
 			tmp_addr = os8a10_raw10_hdr_setting[tmp_c++];
