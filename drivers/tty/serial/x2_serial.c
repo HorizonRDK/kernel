@@ -291,7 +291,7 @@ static void x2_uart_dma_rxdone(void *dev_id, unsigned int irqstatus)
 				continue;
 			}
 		}
-		if (rx_bytes > x2_port->rx_off) {
+		if (rx_bytes >= x2_port->rx_off) {
 			count1 = rx_bytes - x2_port->rx_off;
 			count2 = 0;
 		} else {
@@ -308,8 +308,10 @@ static void x2_uart_dma_rxdone(void *dev_id, unsigned int irqstatus)
 								   x2_port->rx_off)),
 						count1);
 		if (copied != count1) {
+			spin_unlock(&port->lock);
 			WARN_ON(1);
 			dev_err(port->dev, "first, rxdata copy to tty layer failed\n");
+			spin_lock(&port->lock);
 			port->icount.rx += copied;
 		} else {
 			port->icount.rx += count1;
@@ -324,9 +326,11 @@ static void x2_uart_dma_rxdone(void *dev_id, unsigned int irqstatus)
 								     x2_port->rx_off)),
 								count2);
 				if (copied != count2) {
+					spin_unlock(&port->lock);
 					WARN_ON(1);
 					dev_err(port->dev,
 						"second, rxdata copy to tty layer failed\n");
+					spin_lock(&port->lock);
 					port->icount.rx += copied;
 				} else {
 					port->icount.rx += count2;
