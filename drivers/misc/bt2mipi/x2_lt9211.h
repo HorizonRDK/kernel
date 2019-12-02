@@ -168,6 +168,7 @@ int LCD_reset(void);
 int generic_short_write_1P(uint8_t data0, uint8_t data1);
 int dcs_pkt_write(uint8_t dcs_di, uint8_t len, uint8_t *ptr);
 int set_lcd_backlight(unsigned int backlight_level);
+int set_lt9211_output_ctrl(unsigned int on_off);
 
 
 #endif

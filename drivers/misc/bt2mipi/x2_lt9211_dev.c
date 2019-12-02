@@ -30,6 +30,7 @@
 
 #define LT9211_CDEV_MAGIC 'i'
 #define LCD_BACKLIGHT_SET	_IOW(LT9211_CDEV_MAGIC, 0x11, unsigned int)
+#define CONVERTER_OUTPUT_CTRL       _IOW(LT9211_CDEV_MAGIC, 0x12, unsigned int)
 
 int lt9211_reset_pin;
 int lcd_reset_pin;
@@ -83,6 +84,18 @@ static long lt9211_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 				return -EFAULT;
 			pr_info("%s: level is %d!!\n", __func__, duty_level);
 			ret = set_lcd_backlight(duty_level);
+		}
+		break;
+	case CONVERTER_OUTPUT_CTRL:
+		{
+			unsigned int ctrl_val;
+
+			if (copy_from_user(&ctrl_val, arg,
+						sizeof(unsigned int)))
+				return -EFAULT;
+			pr_info("%s: output is %d!!\n", __func__, ctrl_val);
+			LT9211_DEBUG("%s: begin set lt9211 output\n", __func__);
+			ret = set_lt9211_output_ctrl(ctrl_val);
 		}
 		break;
 	default:

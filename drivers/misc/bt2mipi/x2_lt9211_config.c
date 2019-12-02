@@ -76,6 +76,66 @@ enum VideoFormat Video_Format;
 //extern int lcd_pwm_pin;
 
 //extern struct x2_lt9211_s  *g_x2_lt9211;
+int set_lt9211_output_ctrl(unsigned int on_off)
+{
+	uint8_t read_value;
+	int ret;
+
+	if (display_type == LCD_7_TYPE) {
+		if (on_off == 0) {
+			pr_debug("lt9211 rgb output off!\n");
+			ret = x2_write_lt9211(0xff, 0x82);
+			if (ret < 0)
+				return ret;
+			ret = x2_read_lt9211(0x62, &read_value);
+			if (ret < 0)
+				return ret;
+			read_value = read_value & 0xfe;
+			ret = x2_write_lt9211(0x62, read_value);
+			if (ret < 0)
+				return ret;
+		} else {
+			pr_debug("lt9211 rgb output on!\n");
+			ret = x2_write_lt9211(0xff, 0x82);
+			if (ret < 0)
+				return ret;
+			ret = x2_read_lt9211(0x62, &read_value);
+			if (ret < 0)
+				return ret;
+			read_value = read_value | 0x01;
+			ret = x2_write_lt9211(0x62, read_value);
+			if (ret < 0)
+				return ret;
+		}
+	} else if (display_type == MIPI_720P) {
+		if (on_off == 0) {
+			pr_debug("lt9211 mipi output off!\n");
+			ret = x2_write_lt9211(0xff, 82);
+			if (ret < 0)
+				return ret;
+			ret = x2_read_lt9211(0x3B, &read_value);
+			if (ret < 0)
+				return ret;
+			read_value = read_value & 0xbd;
+			ret = x2_write_lt9211(0x3b, read_value);
+			if (ret < 0)
+				return ret;
+		} else {
+			pr_debug("lt9211 mipi output on!\n");
+			ret = x2_write_lt9211(0xff, 82);
+			if (ret < 0)
+				return ret;
+			ret = x2_read_lt9211(0x3B, &read_value);
+			if (ret < 0)
+				return ret;
+			read_value = read_value | 0x42;
+			ret = x2_write_lt9211(0x3b, read_value);
+			if (ret < 0)
+				return ret;
+		}
+	}
+	return 0;
+}
 
 int set_lt9211_config(struct fb_info *fb, unsigned int convert_type)
 {
