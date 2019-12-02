@@ -1713,7 +1713,7 @@ int ac10x_fill_regcache(struct device* dev, struct regmap* map) {
 		regcache_cache_bypass(map, true);
 		r = regmap_read(map, i, &v);
 		if (r) {
-			dev_err(dev, "failed to read register %d\n", i);
+			dev_dbg(dev, "failed to read register %d\n", i);
 			continue;
 		}
 		regcache_cache_bypass(map, false);
@@ -1808,8 +1808,8 @@ int ac101_i2c_probe(struct i2c_client *i2c, const struct i2c_device_id *id)
 	}
 
 	if (v != AC101_CHIP_ID) {
-		dev_err(&i2c->dev, "chip is not AC101 (%X)\n", v);
-		dev_err(&i2c->dev, "Expected %X\n", AC101_CHIP_ID);
+		dev_dbg(&i2c->dev, "chip is not AC101 (%X)\n", v);
+		dev_dbg(&i2c->dev, "Expected %X\n", AC101_CHIP_ID);
 		return -ENODEV;
 	}
 

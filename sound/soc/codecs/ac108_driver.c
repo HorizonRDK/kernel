@@ -660,13 +660,13 @@ static int ac108_read(u8 reg, u8 *rt_value, struct i2c_client *client)
 	
 	ret = i2c_master_send(client, read_cmd, cmd_len);
 	if (ret != cmd_len) {
-		pr_err("ac108_read error1\n");
+		pr_debug("ac108_read error1\n");
 		return -1;
 	}
 	
 	ret = i2c_master_recv(client, rt_value, 1);
 	if (ret != 1) {
-		pr_err("ac108_read error2, ret = %d.\n", ret);
+		pr_debug("ac108_read error2, ret = %d.\n", ret);
 		return -1;
 	}
 	pr_debug("%s(%02X(R), %02X(V), %02X(C))\n", __func__, reg, *rt_value, client->addr);
@@ -685,7 +685,7 @@ static int ac108_write(u8 reg, unsigned char value, struct i2c_client *client)
 	pr_debug("%s(%02X(R), %02X(V), %02X(C))\n", __func__, reg, value, client->addr);
 	ret = i2c_master_send(client, write_cmd, 2);
 	if (ret != 2) {
-		pr_err("ac108_write error->[REG-0x%02x,val-0x%02x]\n",reg,value);
+		pr_debug("ac108_write error->[REG-0x%02x,val-0x%02x]\n",reg,value);
 		return -1;
 	}
 	
