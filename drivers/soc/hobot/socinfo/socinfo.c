@@ -72,6 +72,9 @@ static int parse_boardid(uint32_t board_id)
 ssize_t id_show(struct class *class,
 			struct class_attribute *attr, char *buf)
 {
+	if (soc_id == NULL)
+		return 0;
+
 	strcpy(buf, soc_id);
 	strcat(buf, "\n");
 
