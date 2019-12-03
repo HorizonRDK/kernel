@@ -27,6 +27,11 @@
 #include <linux/kthread.h>
 #include "x2/x2_ips.h"
 #include "x2_iar.h"
+#include "linux/ion.h"
+
+#define USE_ION_MEM
+#define IAR_MEM_SIZE 0x2000000        //32MB
+//#define IAR_MEM_SIZE 0x100000  //24MB
 
 unsigned int iar_debug_level = 0;
 module_param(iar_debug_level, uint, 0644);
@@ -53,6 +58,9 @@ uint8_t config_rotate;
 uint8_t ipu_process_done;
 //uint8_t pingpong_config = 0;
 uint8_t frame_count;
+
+phys_addr_t logo_paddr;
+void *logo_vaddr;
 
 #ifdef CONFIG_PM
 uint32_t g_iar_regs[91];
@@ -307,6 +315,8 @@ typedef enum _iar_table_e {
 
 struct iar_dev_s {
 	struct platform_device *pdev;
+	struct ion_client *iar_iclient;
+	struct ion_handle *iar_ihandle;
 	void __iomem *regaddr;
 	void __iomem *sysctrl;
 	struct reset_control *rst;
@@ -1586,6 +1596,8 @@ static void x2_iar_draw_rect(char *frame, int x0, int y0, int x1, int y1,
 static int x2_iar_probe(struct platform_device *pdev)
 {
 	struct resource *res, *irq;
+	phys_addr_t mem_paddr;
+	size_t mem_size;
 	int ret = 0;
 	struct device_node *np;
 	struct resource r;
@@ -1623,7 +1635,7 @@ static int x2_iar_probe(struct platform_device *pdev)
 	irq = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
 	if (!irq) {
 		dev_err(&pdev->dev, "No IRQ resource\n");
-		return -ENODEV;
+		goto err1;
 	}
 	g_iar_dev->irq = irq->start;
 	pr_info("g_iar_dev->irq is %d\n", irq->start);
@@ -1641,42 +1653,92 @@ static int x2_iar_probe(struct platform_device *pdev)
 			g_iar_dev->iar_task = NULL;
 			dev_err(&g_iar_dev->pdev->dev, "iar thread create fail\n");
 			ret = PTR_ERR(g_iar_dev->iar_task);
-			//goto err_out4;
 		}
 	}
-
 	np = of_parse_phandle(pdev->dev.of_node, "memory-region", 0);
 	if (!np) {
 		dev_err(&g_iar_dev->pdev->dev, "No %s specified\n", "memory-region");
-		return -1;
+#ifndef USE_ION_MEM
+		goto err1;
+#endif
 	}
 	ret = of_address_to_resource(np, 0, &r);
 	if (ret) {
 		dev_err(&pdev->dev, "No memory address assigned to the region\n");
-		return -1;
+		goto err1;
 	}
 
 	pr_debug("iar reserved memory size is %lld\n", resource_size(&r));
-
-	if (resource_size(&r) < MAX_FRAME_BUF_SIZE*3) {
-		pr_info("iar memory size is not large enough!(<3buffer)\n");
-	return -1;
+#ifdef USE_ION_MEM
+	if (resource_size(&r) < MAX_FRAME_BUF_SIZE) {
+		pr_debug("iar logo memory size is not large enough!(<1buffer)\n");
+		//return -1;
+	} else {
+		logo_paddr = r.start;
+		logo_vaddr = ioremap_nocache(r.start, MAX_FRAME_BUF_SIZE);
 	}
+
+	if (!hb_ion_dev) {
+		dev_err(&pdev->dev, "NO ION device found!!");
+		goto err1;
+	}
+
+	g_iar_dev->iar_iclient = ion_client_create(hb_ion_dev, "iar");
+	if (!g_iar_dev->iar_iclient) {
+		dev_err(&pdev->dev, "Create iar ion client failed!!");
+		ret = -ENOMEM;
+		goto err1;
+	}
+
+	g_iar_dev->iar_ihandle = ion_alloc(g_iar_dev->iar_iclient,
+		IAR_MEM_SIZE - MAX_FRAME_BUF_SIZE, 0x20,
+		ION_HEAP_CARVEOUT_MASK, 0);
+
+	if (!g_iar_dev->iar_ihandle || IS_ERR(g_iar_dev->iar_ihandle)) {
+		dev_err(&pdev->dev, "Create iar ion client failed!!");
+		goto err2;
+	}
+
+	ret = ion_phys(g_iar_dev->iar_iclient, g_iar_dev->iar_ihandle->id,
+			&mem_paddr, &mem_size);
+
+	if (ret) {
+		dev_err(&pdev->dev, "Get buffer paddr failed!!");
+		ion_free(g_iar_dev->iar_iclient, g_iar_dev->iar_ihandle);
+		goto err2;
+	}
+	vaddr = ion_map_kernel(g_iar_dev->iar_iclient,
+			g_iar_dev->iar_ihandle);
+
+	if (IS_ERR(vaddr)) {
+		dev_err(&pdev->dev, "Get buffer paddr failed!!");
+		ion_free(g_iar_dev->iar_iclient, g_iar_dev->iar_ihandle);
+		goto err2;
+	}
+#else
+	if (resource_size(&r) < MAX_FRAME_BUF_SIZE*4) {
+		pr_info("iar memory size is not large enough!(<3buffer)\n");
+		goto err1;
+	}
+	mem_paddr = r.start;
 
 	//for reserved 32M(4*8) memory,
 	//three buffers for video, one buffer for graphic(fb)
 
 	//channel 2&4 disabled
 	vaddr = ioremap_nocache(r.start, MAX_FRAME_BUF_SIZE * 4);
-	g_iar_dev->frambuf[IAR_CHANNEL_1].paddr = r.start;
-	g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr = vaddr;
-	g_iar_dev->frambuf[IAR_CHANNEL_3].paddr = r.start + MAX_FRAME_BUF_SIZE;
-	g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr = vaddr + MAX_FRAME_BUF_SIZE;
+#endif
+
+#ifdef USE_ION_MEM
+	g_iar_dev->frambuf[IAR_CHANNEL_1].paddr = logo_paddr;
+	g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr = logo_vaddr;
+	g_iar_dev->frambuf[IAR_CHANNEL_3].paddr = mem_paddr;
+	g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr = vaddr;
 
 	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr =
-				r.start + MAX_FRAME_BUF_SIZE * 2;
+				mem_paddr + MAX_FRAME_BUF_SIZE;
 	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr =
-				vaddr + MAX_FRAME_BUF_SIZE * 2;
+				vaddr + MAX_FRAME_BUF_SIZE;
 
 	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].paddr
 			= g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr + MAX_FRAME_BUF_SIZE;
@@ -1701,42 +1763,35 @@ static int x2_iar_probe(struct platform_device *pdev)
 		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].paddr);
 	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].vaddr = 0x%p\n",
 		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].vaddr);
-/*
-	//for reserver 24M memory (1920*1080*4*3)
-	//channel 2&4 disabled
-	vaddr = ioremap_nocache(r.start, MAX_FRAME_BUF_SIZE * 3);
-	g_iar_dev->frambuf[IAR_CHANNEL_1].paddr = r.start;
+
+#else
+	g_iar_dev->frambuf[IAR_CHANNEL_1].paddr = mem_paddr;
 	g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr = vaddr;
-	g_iar_dev->frambuf[IAR_CHANNEL_3].paddr = r.start;
-	g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr = vaddr;
+	g_iar_dev->frambuf[IAR_CHANNEL_3].paddr =
+				mem_paddr + MAX_FRAME_BUF_SIZE;
+	g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr = vaddr + MAX_FRAME_BUF_SIZE;
 
 	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr =
-		r.start + MAX_FRAME_BUF_SIZE*2;
+				mem_paddr + MAX_FRAME_BUF_SIZE * 2;
 	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr =
-		vaddr + MAX_FRAME_BUF_SIZE*2;
+				vaddr + MAX_FRAME_BUF_SIZE * 2;
 
-	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].paddr =
-		r.start + MAX_FRAME_BUF_SIZE;
+	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].paddr
+		= g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr +
+			MAX_FRAME_BUF_SIZE;
 
-	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].vaddr =
-		vaddr + MAX_FRAME_BUF_SIZE;
-
-	g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].paddr = r.start;
-
-	g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].vaddr = vaddr;
-
-	g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[1].paddr = r.start;
-
-	g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[1].vaddr = vaddr;
+	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].vaddr
+		= g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr +
+			MAX_FRAME_BUF_SIZE;
 
 	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_1].paddr = 0x%llx\n",
-			g_iar_dev->frambuf[IAR_CHANNEL_1].paddr);
+				g_iar_dev->frambuf[IAR_CHANNEL_1].paddr);
 	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr = 0x%p\n",
-			g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr);
+				g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr);
 	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_3].paddr = 0x%llx\n",
-			g_iar_dev->frambuf[IAR_CHANNEL_3].paddr);
+				g_iar_dev->frambuf[IAR_CHANNEL_3].paddr);
 	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr = 0x%p\n",
-			g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr);
+				g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr);
 
 	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr = 0x%llx\n",
 		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr);
@@ -1746,28 +1801,14 @@ static int x2_iar_probe(struct platform_device *pdev)
 		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].paddr);
 	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].vaddr = 0x%p\n",
 		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].vaddr);
-	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].paddr = 0x%llx\n",
-		g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].paddr);
-	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].vaddr = 0x%p\n",
-		g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].vaddr);
-	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[1].paddr = 0x%llx\n",
-		g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[1].paddr);
-	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[1].vaddr = 0x%p\n",
-		g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[1].vaddr);
-*/
+#endif
 	if (display_type == LCD_7_TYPE) {
 
 		pr_info("display type is lcd 7inch panel!!!!!!\n");
 		ret = iar_set_pixel_clk_div(PIXEL_CLK_32);
 		if (ret)
 			return ret;
-/*
-		temp1 =
-		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr;
-		tempi = 0;
-		for (tempi = 0; tempi < MAX_FRAME_BUF_SIZE; tempi++)
-			*temp1++ = 0x00;
-*/
+
 		temp1 = g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr;
 		tempi = 0;
 		for (tempi = 0; tempi < MAX_FRAME_BUF_SIZE; tempi++)
@@ -1876,7 +1917,14 @@ static int x2_iar_probe(struct platform_device *pdev)
 	iar_pre_init();
 	iar_close();
 	pr_info("x2 iar probe end success!!!\n");
-
+	return 0;
+err1:
+	devm_kfree(&pdev->dev, g_iar_dev);
+	return -1;
+err2:
+#ifdef USE_ION_MEM
+	ion_client_destroy(g_iar_dev->iar_iclient);
+#endif
 	return ret;
 }
 

@@ -819,8 +819,8 @@ int user_set_fb(void)
 	void __iomem *hitm1_reg_addr;
 	uint32_t regval = 0;
 	buf_addr_t graphic_display_paddr;
-	uint8_t *mem_src = logo_addr - x2_fbi->fb.fix.smem_start
-		+ x2_fbi->fb.screen_base;
+//	uint8_t *mem_src = logo_addr - x2_fbi->fb.fix.smem_start
+//		+ x2_fbi->fb.screen_base;
 
 	if (x2_fbi == NULL) {
 		pr_info("x2_fb is not initialize, exit!\n");
@@ -888,7 +888,8 @@ int user_set_fb(void)
 		writel(FORMAT_ORGANIZATION_VAL, hitm1_reg_addr);
 #ifdef CONFIG_LOGO
 #ifndef CONFIG_LOGO_FROM_KERNEL
-		memcpy(x2_fbi->fb.screen_base, mem_src, 800*480*4);
+		if (logo_vaddr != NULL)
+			memcpy(x2_fbi->fb.screen_base, logo_vaddr, 800*480*4);
 #endif
 #endif
 		iar_switch_buf(0);
@@ -1219,12 +1220,6 @@ static int x2fb_probe(struct platform_device *pdev)
 	}
 
 	strcpy(x2_fbi->fb.fix.id, DRIVER_NAME);
-
-	ret = of_property_read_u32(pdev->dev.of_node, "logo_addr",
-			&logo_addr);
-	if (ret)
-		pr_err("%s: can't get display logo address!\n", __func__);
-	
 	framebuf_user = *x2_iar_get_framebuf_addr(2);
 //	framebuf_user.paddr = framebuf_user.paddr + 3*MAX_FRAME_BUF_SIZE;
 //	framebuf_user.vaddr = framebuf_user.vaddr + 3*MAX_FRAME_BUF_SIZE;

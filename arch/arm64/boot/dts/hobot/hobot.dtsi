@@ -544,7 +544,6 @@
 
 		fb: fb {
 			compatible = "hobot,x2-fb";
-			logo_addr = <0x3100000>;
 			status = "enabled";
 		};
 

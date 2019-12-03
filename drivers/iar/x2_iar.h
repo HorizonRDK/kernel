@@ -588,6 +588,7 @@ enum PIXEL_CLK {
 extern int display_type;
 extern unsigned int iar_debug_level;
 extern uint8_t disp_user_config_done;
+extern struct ion_device *hb_ion_dev;
 #define IAR_DEBUG_PRINT(format, args...)	\
 	do {									\
 		if(iar_debug_level)					\
