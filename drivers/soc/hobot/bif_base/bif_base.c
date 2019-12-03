@@ -75,7 +75,7 @@
 
 #define BIFBASE_APMAGIC		"BIFA"
 #define BIFBASE_CPMAGIC		"BIFC"
-#define BIFBASE_VER		"HOBOT-bifbase_V21.191122"
+#define BIFBASE_VER		"HOBOT-bifbase_V21.191203"
 #define BIFBASE_MAJOR		(123)
 #define BIFBASE_BLOCK		(1024)	//(512)
 #define BIFBASE_VER_SIZE	(32)
@@ -506,17 +506,22 @@ static ssize_t bifrmode_store(struct kobject *kobj,
 	int ret;
 	int error = 0;
 	long mode;
+	struct bifbase_local *pl = get_bifbase_local();
 
 	ret = kstrtol(buf, 0, &mode);
 	if (!ret && (mode >= BUFF_BASE) && (mode <= BUFF_MAX)) {
-		//pr_debug("bifbase: change running mode to = %lu\n", mode);
-		if (mode)
-			error = bif_excmode_request(mode);
-		else
-			error = bif_excmode_release();
+		if (!pl || !pl->start || !pl->plat || pl->irq_func[mode] == 0) {
+			pr_err("bifbase: Err unregister mode = %lu\n", mode);
+			error = -ENODEV;
+		} else {
+			if (mode)
+				error = bif_excmode_request(mode);
+			else
+				error = bif_excmode_release();
 
-		if (!error)
-			bifbase_rmode = mode;
+			if (!error)
+				bifbase_rmode = mode;
+		}
 	} else {
 		pr_debug("bifbase: NOT Change running mode = %lu\n", mode);
 		error = -EINVAL;
