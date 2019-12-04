@@ -309,7 +309,7 @@ static int isp_fill_3a_data(struct isp_3a_data *p, struct isp_mod_s *isp_mod)
 
 	/* gma */
 	rioregs.udatalen = sizeof(p->gma);
-	rioregs.udataaddr = 0x2c8;
+	rioregs.udataaddr = 0x0c8;
 	rioregs.p_databuffer = (uint32_t *)&p->gma;
 	spin_lock(&isp_mod->slock);
 	isp_read_regs(rioregs.udataaddr, rioregs.udatalen,
