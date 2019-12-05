@@ -486,9 +486,13 @@ static int ipu_pym_process_thread(void *data)
 void ipu_pym_clear(void)
 {
 	unsigned long flags;
+	int i;
 
 	spin_lock_irqsave(&g_ipu_pym->slock, flags);
 	g_ipu_pym->processing = 0;
+	for(i = 0; i < IPU_MAX_SLOT; i++) {
+		g_ipu_pym->done_slots[i] = 0;
+	}
 	//g_ipu_pym->new_slot_id = -1;
 	g_ipu_pym->pyming_slot_info->errno = -ECANCELED;
 	kfifo_reset(&g_ipu_pym->pym_slots);

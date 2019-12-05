@@ -618,6 +618,7 @@ long ipu_dual_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 				memcpy(g_ipu->cfg, ipu_cfg, sizeof(ipu_cfg_t));
 				memcpy(&tmp_ipu_user->dual_ddr_info,
 						&g_ipu_d_cdev->s_info, sizeof(slot_ddr_info_dual_t));
+				ipu_pym_clear();
 			} else {
 				ret = ipu_cfg_ddrinfo_init(ipu_cfg);
 				if (ret < 0) {
