@@ -465,6 +465,7 @@ typedef struct _output_cfg_t {
 	refresh_cfg_t refresh_cfg;
 	uint32_t panel_type;
 	uint32_t rotate;
+	uint32_t user_control_disp;
 } output_cfg_t;
 
 typedef struct _upscaling_cfg_t {
@@ -478,6 +479,13 @@ typedef struct _upscaling_cfg_t {
 	uint32_t pos_x;
 	uint32_t pos_y;
 } upscaling_cfg_t;
+
+struct display_video_vaddr {
+	void *channel0_y_addr;
+	void *channel0_c_addr;
+	void *channel1_y_addr;
+	void *channel1_c_addr;
+};
 
 enum {
 	FORMAT_YUV422_UYVY = 0,
@@ -630,6 +638,7 @@ int disable_iar_irq(void);
 int iar_rotate_video_buffer(phys_addr_t yaddr,
 		phys_addr_t uaddr, phys_addr_t vaddr);
 int32_t iar_set_pixel_clk_div(unsigned int pixel_clk);
+int disp_set_ppbuf_addr(uint8_t layer_no, void *yaddr, void *caddr);
 
 //int iar_is_enabled(void);
 

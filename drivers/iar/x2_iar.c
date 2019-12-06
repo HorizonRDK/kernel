@@ -56,6 +56,7 @@ uint32_t ipu_display_slot_id;
 
 uint8_t config_rotate;
 uint8_t ipu_process_done;
+uint8_t disp_user_update;
 //uint8_t pingpong_config = 0;
 uint8_t frame_count;
 
@@ -997,6 +998,7 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 	}
 
 	config_rotate = cfg->rotate;
+	disp_user_update = cfg->user_control_disp;
 	if (cfg->panel_type == 2) {
 		if (display_type == HDMI_TYPE) {
 			pr_err("%s: wrong json file or convert hw!\n",
@@ -1169,7 +1171,7 @@ EXPORT_SYMBOL_GPL(iar_switch_buf);
 
 int32_t iar_set_video_buffer(uint32_t slot_id)
 {
-	if (disp_user_config_done == 1) {
+	if (disp_user_config_done == 1 && disp_user_update == 0) {
 		ipu_display_slot_id = slot_id;
 		ipu_process_done = 1;
 		wake_up_interruptible(&g_iar_dev->wq_head);
@@ -1471,6 +1473,36 @@ static int iar_thread(void *data)
 			iar_update();
 		}
 	} while (!kthread_should_stop());
+}
+
+int disp_set_ppbuf_addr(uint8_t layer_no, void *yaddr, void *caddr)
+{
+	int ret = 0;
+	buf_addr_t display_addr;
+	uint8_t video_index;
+	uint32_t y_size;
+	void __iomem *video_to_display_vaddr;
+
+	if (layer_no > 1 || yaddr == NULL)
+		return -1;
+	y_size =
+	g_iar_dev->buf_w_h[layer_no][0] * g_iar_dev->buf_w_h[layer_no][1];
+	video_index = g_iar_dev->cur_framebuf_id[layer_no];
+	video_to_display_vaddr =
+		g_iar_dev->pingpong_buf[layer_no].framebuf[!video_index].vaddr;
+	memcpy(video_to_display_vaddr, yaddr, y_size);
+	memcpy(video_to_display_vaddr + y_size, caddr, y_size >> 1);
+
+	display_addr.Yaddr =
+	g_iar_dev->pingpong_buf[layer_no].framebuf[!video_index].paddr;
+	display_addr.Uaddr =
+	g_iar_dev->pingpong_buf[layer_no].framebuf[!video_index].paddr + y_size;
+	display_addr.Vaddr = 0;
+
+	iar_set_bufaddr(layer_no, &display_addr);
+	//switch video pingpong buffer
+	g_iar_dev->cur_framebuf_id[layer_no] = !video_index;
+	return 0;
 }
 
 int iar_rotate_video_buffer(phys_addr_t yaddr,

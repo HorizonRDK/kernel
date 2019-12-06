@@ -39,6 +39,9 @@
 #define IAR_BACKLIGHT_CFG	_IOW(IAR_CDEV_MAGIC, 0x20, unsigned int)
 #define IAR_SET_VIDEO_CHANNEL	_IOW(IAR_CDEV_MAGIC, 0x21, unsigned int)
 #define IAR_SET_VIDEO_DDR_LAYER _IOW(IAR_CDEV_MAGIC, 0x22, unsigned int)
+#define DISP_SET_VIDEO_ADDR	\
+	_IOW(IAR_CDEV_MAGIC, 0x23, struct display_video_vaddr)
+
 
 typedef struct _update_cmd_t {
 	unsigned int enable_flag[IAR_CHANNEL_MAX];
@@ -248,6 +251,26 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 			//pr_info("\niar_cdev_driver: display ddr layer
 			//number is %d!!\n", ddr_layer_number);
 			ret = set_video_display_ddr_layer(ddr_layer_number);
+		}
+		break;
+	case DISP_SET_VIDEO_ADDR:
+		{
+			struct display_video_vaddr disp_vaddr;
+
+			pr_debug("iar_cdev: %s: disp set video0&1 addr\n",
+					__func__);
+			if (copy_from_user(&disp_vaddr, arg,
+						sizeof(disp_vaddr)))
+				return -EFAULT;
+			ret = disp_set_ppbuf_addr(0,
+			disp_vaddr.channel0_y_addr, disp_vaddr.channel0_c_addr);
+			if (ret)
+				pr_err("%s: channel 0 not display\n", __func__);
+			ret = disp_set_ppbuf_addr(1,
+			disp_vaddr.channel1_y_addr, disp_vaddr.channel1_c_addr);
+			if (ret)
+				pr_err("%s: channel 1 not display\n", __func__);
+			iar_update();
 		}
 		break;
 	default:
