@@ -520,6 +520,9 @@ int8_t ipu_drv_start(void)
 	if (g_ipu->cfg->pymid.pymid_en) {
 		if (g_ipu->ipu_mode == IPU_ISP_SINGLE)
 			ips_mask_int(PYM_FRAME_START | IPU_FRAME_DONE);
+
+		ips_unmask_int(PYM_FRAME_START | PYM_FRAME_DONE
+				| IPU_FRAME_START | IPU_FRAME_DONE);
 	}
 	else
 		ips_mask_int(PYM_FRAME_START | PYM_FRAME_DONE);
