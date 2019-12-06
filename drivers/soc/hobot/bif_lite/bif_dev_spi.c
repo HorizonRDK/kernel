@@ -732,8 +732,8 @@ retry_1:
 					goto err;
 				} else {
 					bif_lite_init_success = 1;
-					bif_lite_irq_register_domain(
-					&domain, hbipc_irq_handler);
+					//bif_lite_irq_register_domain(
+					//&domain, hbipc_irq_handler);
 				}
 			}
 		} else {
@@ -1648,13 +1648,14 @@ static int bif_lite_probe(struct platform_device *pdev)
 		goto bif_lite_init_error;
 	}
 
-	if (domain.mode == INTERRUPT_MODE)
-		bif_lite_irq_register_domain(&domain, hbipc_irq_handler);
-
 	ret = bifspi_read_share_reg(SYS_STATUS_REG, &value);
 	if (ret == 0)
 		bifspi_write_share_reg(SYS_STATUS_REG, value | BIF_SPI_BIT);
 #endif
+
+	if (domain.mode == INTERRUPT_MODE)
+		bif_lite_irq_register_domain(&domain, hbipc_irq_handler);
+
 #ifdef CONFIG_HOBOT_BIF_AP
 	domain_register_high_level_clear(&domain, bif_dev_spi_clear);
 #endif
@@ -1822,10 +1823,11 @@ static int bif_lite_probe_param(void)
 		pr_info("bif_lite_init error\n");
 		goto bif_lite_init_error;
 	}
+#endif
 
 	if (domain.mode == INTERRUPT_MODE)
 		bif_lite_irq_register_domain(&domain, hbipc_irq_handler);
-#endif
+
 #ifdef CONFIG_HOBOT_BIF_AP
 	domain_register_high_level_clear(&domain, bif_dev_spi_clear);
 #endif

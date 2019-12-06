@@ -694,8 +694,8 @@ retry_1:
 					goto err;
 				} else {
 					bif_lite_init_success = 1;
-					bif_lite_irq_register_domain(
-					&domain, hbipc_irq_handler);
+					//bif_lite_irq_register_domain(
+					//&domain, hbipc_irq_handler);
 				}
 			}
 		} else {
@@ -1589,12 +1589,14 @@ static int bif_lite_probe(struct platform_device *pdev)
 	}
 
 	//bif_lite_register_irq(hbipc_irq_handler); chencheng reconstitution
-	bif_lite_irq_register_domain(&domain, hbipc_irq_handler);
 
 	ret = bifspi_read_share_reg(SYS_STATUS_REG, &value);
 	if (ret == 0)
 		bifspi_write_share_reg(SYS_STATUS_REG, value | BIF_SD_BIT);
 #endif
+
+	bif_lite_irq_register_domain(&domain, hbipc_irq_handler);
+
 #ifdef CONFIG_HOBOT_BIF_AP
 	domain_register_high_level_clear(&domain, bif_dev_sd_clear);
 #endif
@@ -1741,8 +1743,10 @@ static int bif_lite_probe_param(void)
 		goto bif_lite_init_error;
 	}
 	//bif_lite_register_irq(hbipc_irq_handler); chencheng reconstitution
-	bif_lite_irq_register_domain(&domain, hbipc_irq_handler);
 #endif
+
+	bif_lite_irq_register_domain(&domain, hbipc_irq_handler);
+
 #ifdef CONFIG_HOBOT_BIF_AP
 	domain_register_high_level_clear(&domain, bif_dev_sd_clear);
 #endif
