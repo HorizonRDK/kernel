@@ -75,7 +75,7 @@
 
 #define BIFBASE_APMAGIC		"BIFA"
 #define BIFBASE_CPMAGIC		"BIFC"
-#define BIFBASE_VER		"HOBOT-bifbase_V21.191203"
+#define BIFBASE_VER		"HOBOT-bifbase_V21.191206"
 #define BIFBASE_MAJOR		(123)
 #define BIFBASE_BLOCK		(1024)	//(512)
 #define BIFBASE_VER_SIZE	(32)
@@ -1270,10 +1270,11 @@ int bif_register_irq(enum BUFF_ID buffer_id, irq_handler_t irq_handler)
 {
 	struct bifbase_local *pl = get_bifbase_local();
 
-	if (!pl || !pl->start || !pl->plat || buffer_id >= BUFF_MAX)
+	if (!pl || !pl->plat || buffer_id >= BUFF_MAX)
 		return -1;
-
 	pl->irq_func[buffer_id] = irq_handler;
+
+	pr_err("bifbase: %d register irq hander %x\n", buffer_id, irq_handler);
 
 	return buffer_id;
 }
@@ -1283,10 +1284,12 @@ int bif_unregister_irq(enum BUFF_ID buffer_id)
 {
 	struct bifbase_local *pl = get_bifbase_local();
 
-	if (!pl || !pl->start || !pl->plat || buffer_id >= BUFF_MAX)
+	if (!pl || !pl->plat || buffer_id >= BUFF_MAX)
 		return -1;
 
 	pl->irq_func[buffer_id] = 0;
+
+	pr_err("bifbase: %d unregister irq\n", buffer_id);
 
 	return buffer_id;
 }

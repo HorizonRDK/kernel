@@ -9,9 +9,9 @@
 enum BUFF_ID {
 	BUFF_BASE = 0,
 	BUFF_ETH,	//bifeth0
-	BUFF_SMD,	//biftty0
-	BUFF_SIO,	//biftty1
-	BUFF_LITE,	//biflite0
+	BUFF_SMD,	//biftty
+	BUFF_SIO,	//biflite bifspi
+	BUFF_LITE,	//biflite bifsd
 	BUFF_MAX,
 	BUFF_POSTAKEN = 8 //it seems enough in near future
 };
