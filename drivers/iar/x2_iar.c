@@ -344,6 +344,11 @@ struct iar_dev_s {
 	int cur_framebuf_id[IAR_CHANNEL_MAX];
 	struct task_struct *iar_task;
 	wait_queue_head_t wq_head;
+	struct pinctrl *pinctrl;
+	struct pinctrl_state *pins_bt1120;
+	struct pinctrl_state *pins_bt656;
+	struct pinctrl_state *pins_mipi_dsi;
+	struct pinctrl_state *pins_rgb;
 };
 struct iar_dev_s *g_iar_dev;
 
@@ -762,6 +767,38 @@ int32_t iar_set_pixel_clk_div(unsigned int pixel_clk)
 	return ret;
 }
 
+int disp_pinmux_bt1120(void)
+{
+	if (!g_iar_dev->pins_bt1120)
+		return -ENODEV;
+	return pinctrl_select_state(g_iar_dev->pinctrl,
+			g_iar_dev->pins_bt1120);
+}
+
+int disp_pinmux_bt656(void)
+{
+	if (!g_iar_dev->pins_bt656)
+		return -ENODEV;
+	return pinctrl_select_state(g_iar_dev->pinctrl,
+			g_iar_dev->pins_bt656);
+}
+
+int disp_pinmux_mipi_dsi(void)
+{
+	if (!g_iar_dev->pins_mipi_dsi)
+		return -ENODEV;
+	return pinctrl_select_state(g_iar_dev->pinctrl,
+			g_iar_dev->pins_mipi_dsi);
+}
+
+int disp_pinmux_rgb(void)
+{
+	if (!g_iar_dev->pins_rgb)
+		return -ENODEV;
+	return pinctrl_select_state(g_iar_dev->pinctrl,
+			g_iar_dev->pins_rgb);
+}
+
 int32_t iar_output_cfg(output_cfg_t *cfg)
 {
 	uint32_t value;
@@ -773,6 +810,7 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 		pr_debug("cfg[2].out_sel is OUTPUT_BT1120.\n");
 		pr_debug("pinmux iar output as bt.\n");
 		ips_pinmux_bt();
+		//disp_pinmux_bt1120();
 		pr_debug("set btout clksrc.\n");
 		ips_set_btout_clksrc(IAR_CLK, true);
 	}
@@ -1490,6 +1528,45 @@ static int x2_iar_probe(struct platform_device *pdev)
 	}
 	g_iar_dev->irq = irq->start;
 	pr_info("g_iar_dev->irq is %d\n", irq->start);
+
+	g_iar_dev->pinctrl = devm_pinctrl_get(&pdev->dev);
+	if (IS_ERR(g_iar_dev->pinctrl)) {
+		dev_warn(&pdev->dev, "pinctrl get none\n");
+		g_iar_dev->pinctrl = NULL;
+		g_iar_dev->pins_bt1120 = NULL;
+		g_iar_dev->pins_bt656 = NULL;
+		g_iar_dev->pins_mipi_dsi = NULL;
+		g_iar_dev->pins_rgb = NULL;
+	} else {
+		g_iar_dev->pins_bt1120 =
+			pinctrl_lookup_state(g_iar_dev->pinctrl, "bt_func");
+		if (IS_ERR(g_iar_dev->pins_bt1120)) {
+			dev_warn(&pdev->dev, "bt_func get error %ld\n",
+					PTR_ERR(g_iar_dev->pins_bt1120));
+			g_iar_dev->pins_bt1120 = NULL;
+		}
+		g_iar_dev->pins_bt656 = pinctrl_lookup_state(g_iar_dev->pinctrl,
+					"bt656_func");
+		if (IS_ERR(g_iar_dev->pins_bt656)) {
+			dev_warn(&pdev->dev, "bt_func get error %ld\n",
+					PTR_ERR(g_iar_dev->pins_bt656));
+			g_iar_dev->pins_bt656 = NULL;
+		}
+		g_iar_dev->pins_mipi_dsi =
+		pinctrl_lookup_state(g_iar_dev->pinctrl, "mipi_dsi_func");
+		if (IS_ERR(g_iar_dev->pins_mipi_dsi)) {
+			dev_warn(&pdev->dev, "mipi_dsi_func get error %ld\n",
+					PTR_ERR(g_iar_dev->pins_mipi_dsi));
+			g_iar_dev->pins_mipi_dsi = NULL;
+		}
+		g_iar_dev->pins_rgb = pinctrl_lookup_state(g_iar_dev->pinctrl,
+					"rgb_func");
+		if (IS_ERR(g_iar_dev->pins_rgb)) {
+			dev_warn(&pdev->dev, "rgb_func get error %ld\n",
+					PTR_ERR(g_iar_dev->pins_rgb));
+			g_iar_dev->pins_rgb = NULL;
+		}
+	}
 
 	init_waitqueue_head(&g_iar_dev->wq_head);
 	ret = request_threaded_irq(g_iar_dev->irq, x2_iar_irq, NULL, IRQF_TRIGGER_HIGH,

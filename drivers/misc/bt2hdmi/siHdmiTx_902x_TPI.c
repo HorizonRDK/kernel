@@ -3801,6 +3801,7 @@ void OnHdmiCableConnected(void)
 	g_sys.hdmiCableConnected = TRUE;
 	TPI_INFO_PRINT("pinmux bt1120 output!\n");
 	ips_pinmux_bt();
+	//disp_pinmux_bt1120();
 
 	if ((Sii9024A_HDCP_supported)
 		&& (g_hdcp.HDCP_TxSupports == TRUE)
