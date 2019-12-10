@@ -236,7 +236,9 @@ void ipu_handle_pym_frame_done(void)
 	if(ipu_pym_process_done(0) > 0) {
 		if (pyming_slot_id >= 0) {
 			pr_debug("ipu: done slot id is %d.\n", pyming_slot_id);
-			iar_set_video_buffer(pyming_slot_id);
+			if (!(g_ipu_pym->pyming_slot_info->img_info.src_img_info.cam_id >> 4)) {
+				iar_set_video_buffer(pyming_slot_id);
+			}
 		}
 	}
 #if 0
@@ -706,6 +708,7 @@ wait:
 		tmp_info.ddr_info = tmp_ipu_user->ddr_info;
 		tmp_info.base = (uint64_t)IPU_GET_SLOT(g_get_slot_h->info_h.slot_id,
 		g_ipu->paddr);
+		tmp_info.cam_id[0] = CAM_0;
 		spin_unlock_irqrestore(&g_ipu_ddr_cdev->slock, flags);
 		data_end = tmp_info.ddr_info.scale.c_offset+
 		    tmp_info.ddr_info.scale.c_stride * tmp_info.ddr_info.scale.c_height;
@@ -746,6 +749,7 @@ wait:
 			g_ipu->paddr);
 			spin_unlock_irqrestore(&g_ipu_ddr_cdev->slock, flags);
 			tmp_ipu_user->used_slot[tmp_info.slot_id] = 1;
+			tmp_info.cam_id[0] = CAM_FB_0;
 			ret = copy_to_user((void __user *)data, (const void *)&tmp_info,
 			sizeof(info_h_t));
 			if (ret)
@@ -774,6 +778,7 @@ wait:
 			spin_lock_irqsave(&g_ipu_ddr_cdev->slock, flags);
 			pym_img_info = &pym_info;
 			pym_img_info->slot_id = tmp_src_img_info.slot_id;
+			pym_img_info->cam_id[0] = tmp_src_img_info.cam_id;
 			pym_img_info->slot_flag = 0;
 			pym_img_info->ipu_flag = 0;
 			pym_img_info->cnn_flag = 0;
@@ -845,6 +850,7 @@ wait:
 			}
 			info = &slot_h->info_h;
 			info->base = (uint64_t)IPU_GET_SLOT(slot_h->info_h.slot_id, ipu->paddr);
+			info->cam_id[0] = CAM_0;
 			spin_unlock_irqrestore(&g_ipu_ddr_cdev->slock, flags);
 			ret = copy_to_user((void __user *)data, (const void *)info, sizeof(info_h_t));
 			if (ret)

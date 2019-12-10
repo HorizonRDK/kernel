@@ -647,6 +647,7 @@ long ipu_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 //			}
 			info = &slot_h->info_h;
 			info->base = (uint64_t)IPU_GET_SLOT(slot_h->info_h.slot_id, ipu->paddr);
+			info->cam_id[0] = CAM_0;
 			spin_unlock(&g_ipu_s_cdev->slock);
 			ret = copy_to_user((void __user *)data, (const void *)info, sizeof(info_h_t));
 			if (ret) {
@@ -677,6 +678,7 @@ long ipu_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 				}
 				info = &slot_h->info_h;
 				info->base = (uint64_t)IPU_GET_SLOT(slot_h->info_h.slot_id, ipu->paddr);
+				info->cam_id[0] = CAM_0;
 				ret = copy_to_user(((void __user*)&((vio_ipu_info_t *)data)->info),(const void *)info, sizeof(info_h_t));
 				if (ret) {
 					ipu_err("copy to user fail\n");

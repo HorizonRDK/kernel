@@ -217,6 +217,8 @@ void ipu_dual_mode_process(uint32_t status)
 					pym_manual_start();
 				}*/
 					tmp_mult_img_info.src_num = 2;
+					tmp_mult_img_info.src_img_info[0].cam_id = CAM_0;
+					tmp_mult_img_info.src_img_info[1].cam_id = CAM_1;
 					tmp_mult_img_info.src_img_info[0].slot_id = slot_h->info_h.slot_id;
 					tmp_mult_img_info.src_img_info[1].slot_id = slot_h->info_h.slot_id;
 					tmp_mult_img_info.src_img_info[0].frame_id = slot_h->info_h.cf_id;
@@ -307,7 +309,9 @@ void ipu_dual_mode_process(uint32_t status)
 		if(ipu_pym_process_done(0) > 0) {
 			if (pyming_slot_id >= 0) {
 				pr_debug("ipu: done slot id is %d.\n", pyming_slot_id);
-				iar_set_video_buffer(pyming_slot_id);
+				if (!(g_ipu_pym->pyming_slot_info->img_info.mult_img_info.src_img_info[0].cam_id >> 4)) {
+					iar_set_video_buffer(pyming_slot_id);
+				}
 				base = (uint64_t)IPU_GET_DUAL_SLOT(pyming_slot_id, ipu->paddr);
 				len = IPU_SLOT_DAUL_SIZE;
 				dma_sync_single_for_cpu(NULL, base, len, DMA_FROM_DEVICE);
@@ -687,6 +691,8 @@ long ipu_dual_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 			spin_lock_irqsave(&g_ipu_d_cdev->slock, flags);
 			pym_img_info = &pym_info;
 			pym_img_info->slot_id = tmp_mult_img_info.src_img_info[0].slot_id;
+			pym_img_info->cam_id[0] = tmp_mult_img_info.src_img_info[0].cam_id;
+			pym_img_info->cam_id[1] = tmp_mult_img_info.src_img_info[1].cam_id;
 			pym_img_info->slot_flag = 0;
 			pym_img_info->ipu_flag = 0;
 			pym_img_info->cnn_flag = 0;
@@ -780,6 +786,8 @@ again:
 			spin_lock_irqsave(&g_ipu_d_cdev->slock, flags);
 			pym_img_info = &pym_info;
 			pym_img_info->slot_id = tmp_mult_img_info.src_img_info[0].slot_id;
+			pym_img_info->cam_id[0] = tmp_mult_img_info.src_img_info[0].cam_id;
+			pym_img_info->cam_id[1] = tmp_mult_img_info.src_img_info[1].cam_id;
 			pym_img_info->slot_flag = 0;
 			pym_img_info->ipu_flag = 0;
 			pym_img_info->cnn_flag = 0;
@@ -953,6 +961,8 @@ again:
 				info = &tmp_info;
 				spin_unlock_irqrestore(&g_ipu_d_cdev->slock, flags);
 			}
+			info->cam_id[0] = CAM_FB_0;
+			info->cam_id[1] = CAM_FB_1;
 			ret = copy_to_user((void __user *)data, (const void *)info,
 			sizeof(info_dual_h_t));
 			if (ret)

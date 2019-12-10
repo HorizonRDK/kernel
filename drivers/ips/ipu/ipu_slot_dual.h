@@ -50,6 +50,12 @@ typedef struct {
 	slot_ddr_t us_2nd[6];
 } slot_ddr_info_dual_t;
 
+#define CHANNEL_MAX		2
+#define CAM_0			0
+#define CAM_1			1
+#define CAM_FB_0		0xFB0
+#define CAM_FB_1		0xFB1
+
 typedef struct {
 	uint8_t slot_id;
 	uint8_t slot_flag;          /// busy, free, done
@@ -64,6 +70,7 @@ typedef struct {
 		slot_ddr_info_dual_t dual_ddr_info;
 		slot_ddr_info_t ddr_info;
 	};
+	int cam_id[CHANNEL_MAX];
 } info_dual_h_t;
 
 typedef struct {
