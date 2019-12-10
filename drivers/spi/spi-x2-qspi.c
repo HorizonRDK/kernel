@@ -148,7 +148,7 @@
 #define	SCLK_VAL(div, scaler)		(((div) << 4) | ((scaler) << 0))
 #define	MIN(a, b)			(((a) < (b)) ? (a) : (b))
 
-#define	CONFIG_X2_QSPI_REF_CLK 20000000
+#define	CONFIG_X2_QSPI_REF_CLK 10000000
 #define	CONFIG_X2_QSPI_CLK 5000000
 
 #define	X2_QSPI_MAX_CHIPSELECT		1
@@ -220,7 +220,7 @@ int x2_qspi_poll_rx_empty(struct x2_qspi *xqspi,
 
 	while (timeout--) {
 		reg_val = x2_qspi_read(xqspi, offset);
-		ndelay(10);
+		udelay(50);
 		if (!(reg_val & mask)) {
 			ret = 0;
 			break;
@@ -237,7 +237,7 @@ static int qspi_check_status(struct x2_qspi *xqspi, u32 offset, uint32_t mask,
 
 	do {
 		val = x2_qspi_read(xqspi, offset);
-		ndelay(10);
+		udelay(50);
 		timeout = timeout - 1;
 		if (timeout == 0) {
 			ret = -1;
@@ -428,7 +428,7 @@ void trace_transfer(const struct spi_transfer *transfer)
 		return ;
 	}
 
-	snprintf(prbuf, sizeof(prbuf), "%s-%s[B:%d][L:%d] ",
+	snprintf(prbuf, __TRACE_BUF_SIZE__, "%s-%s[B:%d][L:%d] ",
 		transfer->rx_buf ? "<" : "", transfer->tx_buf ? ">" : "",
 		nbits, transfer->len);
 
@@ -438,7 +438,7 @@ void trace_transfer(const struct spi_transfer *transfer)
 #define QSPI_DEBUG_DATA_LEN	16
 		for (i = 0; i < ((transfer->len < QSPI_DEBUG_DATA_LEN) ?
 			transfer->len : QSPI_DEBUG_DATA_LEN); i++) {
-			snprintf(tmp_prbuf, sizeof(tmp_prbuf), "%02X ", tmpbuf[i]);
+			snprintf(tmp_prbuf, 32, "%02X ", tmpbuf[i]);
 			strcat(prbuf, tmp_prbuf);
 		}
 	}
@@ -896,6 +896,9 @@ static int x2_qspi_probe(struct platform_device *pdev)
 	}
 
 	xqspi->ref_clk = clk_get_rate(xqspi->pclk);
+#else
+	xqspi->ref_clk = CONFIG_X2_QSPI_REF_CLK;
+	xqspi->qspi_clk = CONFIG_X2_QSPI_CLK;
 #endif
 
 	if (of_property_read_bool(pdev->dev.of_node, "is-batch-mode"))
@@ -989,9 +992,9 @@ int x2_qspi_suspend(struct device *dev)
 
 	qspi_disable_tx(x2qspi);
 	qspi_disable_rx(x2qspi);
-
+#ifdef CONFIG_X2_SOC
 	clk_disable_unprepare(x2qspi->pclk);
-
+#endif
 	return 0;
 }
 
@@ -1001,9 +1004,9 @@ int x2_qspi_resume(struct device *dev)
 	struct x2_qspi *x2qspi = spi_master_get_devdata(master);
 
 	pr_info("%s:%s, enter resume...\n", __FILE__, __func__);
-
+#ifdef CONFIG_X2_SOC
 	clk_prepare_enable(x2qspi->pclk);
-
+#endif
 	x2_qspi_hw_init(x2qspi);
 
 	return 0;
@@ -1016,7 +1019,7 @@ static const struct dev_pm_ops x2_qspi_dev_pm_ops = {
 };
 
 static const struct of_device_id x2_qspi_of_match[] = {
-	{.compatible = "hobot,x2-qspi-nand", },
+	{.compatible = "hobot,x2-qspi-nand",},
 	{ /* End of table */ }
 };
 

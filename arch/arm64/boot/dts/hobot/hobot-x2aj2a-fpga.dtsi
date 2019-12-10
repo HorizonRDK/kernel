@@ -589,8 +589,8 @@
 			#size-cells = <0>;
 		};
 
-		qspi: qspi@0xB0000000 {
-			compatible = "hobot,x2-qspi";
+		nand_flash: nand@0xB0000000 {
+			compatible = "hobot,x2-qspi-nand";
 			status = "disabled";
 			num-cs = <8>;
 			reg = <0x0 0xB0000000 0x0 0x1000>;
@@ -606,6 +606,8 @@
 			reg = <0x0 0xB0000000 0x0 0x1000>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 19 4>;
+			clocks = <&sys_qspi_aclk>;
+			clock-names = "qspi_aclk";
 		};
 
 		ethernet: ethernet@A5014000 {

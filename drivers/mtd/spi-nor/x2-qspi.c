@@ -980,7 +980,7 @@ static const struct dev_pm_ops x2_qspi_nor_dev_pm_ops = {
 };
 
 static const struct of_device_id x2_qspi_of_match[] = {
-    { .compatible = "hobot,x2-qspi-nor", },
+    { .compatible = "hobot,x2-qspi-nor" },
     { /* end of table */ }
 };
 
