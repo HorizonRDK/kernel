@@ -63,6 +63,19 @@ uint8_t frame_count;
 phys_addr_t logo_paddr;
 void *logo_vaddr;
 
+struct disp_timing video_1920x1080 = {
+	148, 88, 44, 36, 4, 5
+};
+struct disp_timing video_800x480 = {
+	80, 120, 48, 32, 43, 2
+};
+struct disp_timing video_720x1280 = {
+	36, 84, 24, 11, 13, 2
+};
+struct disp_timing video_1080x1920 = {
+	32, 300, 5, 4, 100, 5
+};
+
 #ifdef CONFIG_PM
 uint32_t g_iar_regs[91];
 #endif
@@ -551,228 +564,35 @@ int32_t iar_config_pixeladdr(void)
 	return 0;
 }
 
-int32_t iar_set_hvsync_timing(int outmode)
+int disp_set_panel_timing(struct disp_timing *timing)
 {
 	uint32_t value;
-	if (NULL == g_iar_dev) {
-		printk(KERN_ERR "IAR dev not inited!");
-		return -1;
-	}
 
+	if (timing == NULL)
+		return -1;
+	pr_debug("disp set panel timing!!!!\n");
 	value = readl(g_iar_dev->regaddr + REG_IAR_PARAMETER_HTIM_FIELD1);
-	value = IAR_REG_SET_FILED(IAR_DPI_HBP_FIELD2, 0x3e8, value);
-	value = IAR_REG_SET_FILED(IAR_DPI_HFP_FIELD2, 0x3e8, value);
-	value = IAR_REG_SET_FILED(IAR_DPI_HSW_FIELD2, 0x5, value);
+	value = IAR_REG_SET_FILED(IAR_DPI_HBP_FIELD, timing->hbp, value);
+	value = IAR_REG_SET_FILED(IAR_DPI_HFP_FIELD, timing->hfp, value);
+	value = IAR_REG_SET_FILED(IAR_DPI_HSW_FIELD, timing->hs, value);
 	writel(value, g_iar_dev->regaddr + REG_IAR_PARAMETER_HTIM_FIELD1);
 
 	value = readl(g_iar_dev->regaddr + REG_IAR_PARAMETER_VTIM_FIELD1);
-	value = IAR_REG_SET_FILED(IAR_DPI_VBP_FIELD, 0x4, value);
-	if (outmode == OUTPUT_BT1120)
-		value = IAR_REG_SET_FILED(IAR_DPI_VFP_FIELD, 0x6, value);
-	else
-		value = IAR_REG_SET_FILED(IAR_DPI_VFP_FIELD, 0x1, value);
-	value = IAR_REG_SET_FILED(IAR_DPI_VSW_FIELD, 0x1, value);
+	value = IAR_REG_SET_FILED(IAR_DPI_VBP_FIELD, timing->vbp, value);
+	value = IAR_REG_SET_FILED(IAR_DPI_VFP_FIELD, timing->vfp, value);
+	value = IAR_REG_SET_FILED(IAR_DPI_VSW_FIELD, timing->vs, value);
 	writel(value, g_iar_dev->regaddr + REG_IAR_PARAMETER_VTIM_FIELD1);
 
+	value = readl(g_iar_dev->regaddr + REG_IAR_PARAMETER_VTIM_FIELD2);
+	value = IAR_REG_SET_FILED(IAR_DPI_VBP_FIELD2, timing->vbp, value);
+	value = IAR_REG_SET_FILED(IAR_DPI_VFP_FIELD2, timing->vfp, value);
+	value = IAR_REG_SET_FILED(IAR_DPI_VSW_FIELD2, timing->vs, value);
+	writel(value, g_iar_dev->regaddr + REG_IAR_PARAMETER_VTIM_FIELD2);
+
 	writel(0xa, g_iar_dev->regaddr + REG_IAR_PARAMETER_VFP_CNT_FIELD12);
-
 	return 0;
 }
-
-int32_t disp_set_timing(unsigned int resolution)
-{
-	uint32_t value;
-
-	if (g_iar_dev == NULL) {
-		pr_err("IAR dev not inited!");
-		return -1;
-	}
-
-	if (resolution == 0) {
-		pr_info("x2_iar:set disp resolution timing type is 0\n");
-		value = readl(g_iar_dev->regaddr +
-					REG_IAR_PARAMETER_HTIM_FIELD1);
-		value = IAR_REG_SET_FILED(IAR_DPI_HBP_FIELD,
-					148, value);
-		value = IAR_REG_SET_FILED(IAR_DPI_HFP_FIELD,
-					88, value);
-		value = IAR_REG_SET_FILED(IAR_DPI_HSW_FIELD,
-					44, value);
-		writel(value, g_iar_dev->regaddr +
-					REG_IAR_PARAMETER_HTIM_FIELD1);
-
-		value = readl(g_iar_dev->regaddr +
-					REG_IAR_PARAMETER_VTIM_FIELD1);
-		value = IAR_REG_SET_FILED(IAR_DPI_VBP_FIELD, 36,
-				value);
-		value = IAR_REG_SET_FILED(IAR_DPI_VFP_FIELD,
-					4, value);
-
-		value = IAR_REG_SET_FILED(IAR_DPI_VSW_FIELD, 5, value);
-		writel(value, g_iar_dev->regaddr +
-					REG_IAR_PARAMETER_VTIM_FIELD1);
-
-		value = readl(g_iar_dev->regaddr +
-					REG_IAR_PARAMETER_VTIM_FIELD2);
-		value = IAR_REG_SET_FILED(IAR_DPI_VBP_FIELD2,
-				36, value);
-
-		value = IAR_REG_SET_FILED(IAR_DPI_VFP_FIELD2,
-					4, value);
-		value = IAR_REG_SET_FILED(IAR_DPI_VSW_FIELD2, 5, value);
-		writel(value, g_iar_dev->regaddr +
-				REG_IAR_PARAMETER_VTIM_FIELD2);
-
-		writel(0xa, g_iar_dev->regaddr +
-				REG_IAR_PARAMETER_VFP_CNT_FIELD12);
-
-	} else if (resolution == 1) {//800*480
-		pr_info("x2_iar:set disp resolution timing type is 1\n");
-		value = readl(g_iar_dev->regaddr +
-					REG_IAR_PARAMETER_HTIM_FIELD1);
-		value = IAR_REG_SET_FILED(IAR_DPI_HBP_FIELD,
-				80, value);//right_margin
-		value = IAR_REG_SET_FILED(IAR_DPI_HFP_FIELD,
-			120, value);//left_margin
-		value = IAR_REG_SET_FILED(IAR_DPI_HSW_FIELD,
-			48, value);//hsync_len
-		writel(value, g_iar_dev->regaddr +
-					REG_IAR_PARAMETER_HTIM_FIELD1);
-
-		value = readl(g_iar_dev->regaddr +
-					REG_IAR_PARAMETER_VTIM_FIELD1);
-		value = IAR_REG_SET_FILED(IAR_DPI_VBP_FIELD,
-					32, value);//lower_margin
-
-		value = IAR_REG_SET_FILED(IAR_DPI_VFP_FIELD,
-					43, value);//upper_margin
-
-		value = IAR_REG_SET_FILED(IAR_DPI_VSW_FIELD,
-						2, value);//vsync_len
-		writel(value, g_iar_dev->regaddr +
-					REG_IAR_PARAMETER_VTIM_FIELD1);
-
-		value = readl(g_iar_dev->regaddr +
-					REG_IAR_PARAMETER_VTIM_FIELD2);
-		value = IAR_REG_SET_FILED(IAR_DPI_VBP_FIELD2,
-				32, value);//lower_margin
-
-		value = IAR_REG_SET_FILED(IAR_DPI_VFP_FIELD2,
-				43, value);//upper_margin
-
-		value = IAR_REG_SET_FILED(IAR_DPI_VSW_FIELD2,
-					2, value);//vsync_len
-		writel(value,
-			g_iar_dev->regaddr + REG_IAR_PARAMETER_VTIM_FIELD2);
-
-		writel(0xa,
-			g_iar_dev->regaddr + REG_IAR_PARAMETER_VFP_CNT_FIELD12);
-	}
-	return 0;
-}
-EXPORT_SYMBOL_GPL(disp_set_timing);
-
-
-int32_t iar_set_panel_timing(struct fb_info *fb, int display_type)
-{
-	uint32_t value;
-
-	if (g_iar_dev == NULL) {
-		pr_err("IAR dev not inited!");
-		return -1;
-	}
-
-	if (display_type == HDMI_TYPE) {
-		disp_set_timing(0);
-
-	} else if (display_type == LCD_7_TYPE) {
-		pr_info("iar set 7inch lcd panel timing!!!!\n");
-		value = readl(g_iar_dev->regaddr +
-					REG_IAR_PARAMETER_HTIM_FIELD1);
-		value = IAR_REG_SET_FILED(IAR_DPI_HBP_FIELD,
-				fb->var.right_margin, value);
-		value = IAR_REG_SET_FILED(IAR_DPI_HFP_FIELD,
-			fb->var.left_margin, value);
-		value = IAR_REG_SET_FILED(IAR_DPI_HSW_FIELD,
-			fb->var.hsync_len, value);
-		writel(value, g_iar_dev->regaddr +
-					REG_IAR_PARAMETER_HTIM_FIELD1);
-
-		value = readl(g_iar_dev->regaddr +
-					REG_IAR_PARAMETER_VTIM_FIELD1);
-		value = IAR_REG_SET_FILED(IAR_DPI_VBP_FIELD,
-					fb->var.lower_margin, value);
-
-		value = IAR_REG_SET_FILED(IAR_DPI_VFP_FIELD,
-					fb->var.upper_margin, value);
-
-		value = IAR_REG_SET_FILED(IAR_DPI_VSW_FIELD,
-						fb->var.vsync_len, value);
-		writel(value, g_iar_dev->regaddr +
-					REG_IAR_PARAMETER_VTIM_FIELD1);
-
-		value = readl(g_iar_dev->regaddr +
-					REG_IAR_PARAMETER_VTIM_FIELD2);
-		value = IAR_REG_SET_FILED(IAR_DPI_VBP_FIELD2,
-				fb->var.lower_margin, value);
-
-		value = IAR_REG_SET_FILED(IAR_DPI_VFP_FIELD2,
-				fb->var.upper_margin, value);
-
-		value = IAR_REG_SET_FILED(IAR_DPI_VSW_FIELD2,
-					fb->var.vsync_len, value);
-		writel(value,
-			g_iar_dev->regaddr + REG_IAR_PARAMETER_VTIM_FIELD2);
-
-		writel(0xa,
-			g_iar_dev->regaddr + REG_IAR_PARAMETER_VFP_CNT_FIELD12);
-	} else if (display_type == MIPI_720P) {
-		value = readl(g_iar_dev->regaddr +
-					REG_IAR_PARAMETER_HTIM_FIELD1);
-		value = IAR_REG_SET_FILED(IAR_DPI_HBP_FIELD,
-				36, value);//right_margin//hbp//46//40
-		value = IAR_REG_SET_FILED(IAR_DPI_HFP_FIELD,
-			84, value);//left_margin//hfp//46//40
-		value = IAR_REG_SET_FILED(IAR_DPI_HSW_FIELD,
-			24, value);//hsync_len//hs//10//10
-		writel(value, g_iar_dev->regaddr +
-					REG_IAR_PARAMETER_HTIM_FIELD1);
-
-		value = readl(g_iar_dev->regaddr +
-					REG_IAR_PARAMETER_VTIM_FIELD1);
-		value = IAR_REG_SET_FILED(IAR_DPI_VBP_FIELD,
-					11, value);//lower_margin//vbp//14//11
-
-		value = IAR_REG_SET_FILED(IAR_DPI_VFP_FIELD,
-					13, value);//upper_margin//vfp//16//16
-
-		value = IAR_REG_SET_FILED(IAR_DPI_VSW_FIELD,
-						2, value);//vsync_len//vs//3//3
-		writel(value, g_iar_dev->regaddr +
-					REG_IAR_PARAMETER_VTIM_FIELD1);
-
-#if 0
-		value = readl(g_iar_dev->regaddr +
-					REG_IAR_PARAMETER_VTIM_FIELD2);
-		value = IAR_REG_SET_FILED(IAR_DPI_VBP_FIELD2,
-					10, value);//lower_margin//vbp
-
-		value = IAR_REG_SET_FILED(IAR_DPI_VFP_FIELD2,
-				12, value);//upper_margin//vfp
-
-		value = IAR_REG_SET_FILED(IAR_DPI_VSW_FIELD2,
-					2, value);//vsync_len//vs
-		writel(value,
-			g_iar_dev->regaddr + REG_IAR_PARAMETER_VTIM_FIELD2);
-
-		writel(0xa,
-			g_iar_dev->regaddr + REG_IAR_PARAMETER_VFP_CNT_FIELD12);
-#endif
-	}
-
-	return 0;
-}
-EXPORT_SYMBOL_GPL(iar_set_panel_timing);
+EXPORT_SYMBOL_GPL(disp_set_panel_timing);
 
 int32_t iar_channel_base_cfg(channel_base_cfg_t *cfg)
 {
@@ -1025,7 +845,6 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 	value = IAR_REG_SET_FILED(IAR_PANEL_COLOR_TYPE, 2, value);
 	value = IAR_REG_SET_FILED(IAR_YCBCR_OUTPUT, 1, value);
 	writel(value, g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
-
 
 #if 0
 	value = IAR_REG_SET_FILED(IAR_CONTRAST, cfg->ppcon1.contrast, 0);

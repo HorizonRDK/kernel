@@ -807,7 +807,6 @@ static int x2fb_set_par(struct fb_info *fb)
 		pr_debug("start_flag = %d\n", start_flag);
 		start_flag = 1;
 		iar_stop();
-		iar_set_panel_timing(fb, display_type);
 		user_set_fb();
 	}
 
@@ -827,11 +826,14 @@ int user_set_fb(void)
 		return -1;
 	}
 	iar_stop();
-	iar_set_panel_timing(&x2_fbi->fb, display_type);
 	graphic_display_paddr.addr = x2_iar_get_framebuf_addr(2)->paddr;
 
+	if (display_type == HDMI_TYPE) {
+		disp_set_panel_timing(&video_1920x1080);
+	}
 	if (display_type == LCD_7_TYPE) {
 
+		disp_set_panel_timing(&video_800x480);
 		x2_fbi->memory_mode = 0;
 
 		x2_fbi->channel_base_cfg[0].enable = 1;
@@ -900,6 +902,7 @@ int user_set_fb(void)
 
 		set_lt9211_config(&x2_fbi->fb, 0);
 	} else if (display_type == MIPI_720P) {
+		disp_set_panel_timing(&video_720x1280);
 		x2_fbi->memory_mode = 0;
 
 		x2_fbi->channel_base_cfg[0].enable = 1;
@@ -945,7 +948,7 @@ int user_set_fb(void)
 		iar_output_cfg(&x2_fbi->output_cfg);
 
 		hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x00, 4);
-		writel(0x011bf00f, hitm1_reg_addr);
+		writel(0x041bf00f, hitm1_reg_addr);
 
 		//panel color type is yuv444, YCbCr conversion needed
 		hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x204, 4);

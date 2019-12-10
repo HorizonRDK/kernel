@@ -220,6 +220,7 @@ static int hdmi_sii_probe(struct i2c_client *client,
 			pr_info("bt1120 to HDMI device:sii9022a is not exist!\n");
 			return ret;
 		}
+		display_type = HDMI_TYPE;
 		// init hotplug service.
 		sii902xAwork = kmalloc(sizeof(*sii902xAwork),
 				GFP_ATOMIC);
@@ -337,7 +338,7 @@ static ssize_t sii902x_hdmi_store(struct kobject *kobj,
 		pr_info("ReConfig HDMI resolution 800*480");
 		iar_stop();
 		ips_set_iar_clk32(1);
-		disp_set_timing(1);
+		disp_set_panel_timing(&video_800x480);
 		iar_start(1);
 
 		siHdmiTx_ReConfig(vmode, vformat, afs);
@@ -348,7 +349,7 @@ static ssize_t sii902x_hdmi_store(struct kobject *kobj,
 		pr_info("ReConfig HDMI resolution 1920*1080");
 		iar_stop();
 		ips_set_iar_clk32(0);
-		disp_set_timing(0);
+		disp_set_panel_timing(&video_1920x1080);
 		iar_start(1);
 
 		siHdmiTx_ReConfig(vmode, vformat, afs);

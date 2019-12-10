@@ -480,6 +480,16 @@ typedef struct _upscaling_cfg_t {
 	uint32_t pos_y;
 } upscaling_cfg_t;
 
+struct disp_timing {
+	uint32_t hbp;
+	uint32_t hfp;
+	uint32_t hs;
+	uint32_t vbp;
+	uint32_t vfp;
+	uint32_t vs;
+	uint32_t vfp_cnt;
+};
+
 struct display_video_vaddr {
 	void *channel0_y_addr;
 	void *channel0_c_addr;
@@ -639,6 +649,7 @@ int iar_rotate_video_buffer(phys_addr_t yaddr,
 		phys_addr_t uaddr, phys_addr_t vaddr);
 int32_t iar_set_pixel_clk_div(unsigned int pixel_clk);
 int disp_set_ppbuf_addr(uint8_t layer_no, void *yaddr, void *caddr);
+int disp_set_panel_timing(struct disp_timing *timing);
 
 //int iar_is_enabled(void);
 

@@ -62,6 +62,10 @@ extern unsigned int Si9022A_irq_pin;
 extern void siHdmiTx_PowerStateD0(void);
 extern void SetAudioMute(byte audioMute);
 
+extern struct disp_timing video_1920x1080;
+extern struct disp_timing video_800x480;
+extern struct disp_timing video_720x1280;
+extern int display_type;
 
 // Generic Constants
 //====================================================

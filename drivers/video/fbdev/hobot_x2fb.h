@@ -23,5 +23,9 @@ extern void *logo_vaddr;
 extern int set_lt9211_config(struct fb_info *fb, unsigned int convert_type);
 extern int32_t iar_write_framebuf_dma(uint32_t channel,
 		phys_addr_t srcaddr, uint32_t size);
+extern struct disp_timing video_1920x1080;
+extern struct disp_timing video_800x480;
+extern struct disp_timing video_720x1280;
+extern struct disp_timing video_1080x1920;
 
 #endif
