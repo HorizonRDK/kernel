@@ -330,7 +330,7 @@ typedef enum _iar_table_e {
 
 struct iar_dev_s *g_iar_dev;
 
-//static int display_type = LCD_7_TYPE;
+int display_type = MIPI_720P_TOUCH;
 
 #ifdef CONFIG_PM
 
@@ -829,7 +829,7 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 #else
 		pr_err("%s: error output mode!!!\n", __func__);
 #endif
-	} else if (cfg->out_sel == OUTPUT_RGB888) {
+	} else if (cfg->out_sel == OUTPUT_RGB) {
 		ret = disp_pinmux_rgb();
 		if (ret)
 			return -1;
@@ -1544,6 +1544,7 @@ static int x2_iar_probe(struct platform_device *pdev)
 	void *vaddr;
 	int deta = 0;
 	uint64_t pixel_rate;
+	char *type;
 
 	pr_info("x2 iar probe begin!!!\n");
 
@@ -1611,14 +1612,14 @@ static int x2_iar_probe(struct platform_device *pdev)
 		g_iar_dev->pins_bt1120 =
 			pinctrl_lookup_state(g_iar_dev->pinctrl, "bt_func");
 		if (IS_ERR(g_iar_dev->pins_bt1120)) {
-			dev_warn(&pdev->dev, "bt_func get error %ld\n",
+			dev_warn(&pdev->dev, "bt1120_func get error %ld\n",
 					PTR_ERR(g_iar_dev->pins_bt1120));
 			g_iar_dev->pins_bt1120 = NULL;
 		}
 		g_iar_dev->pins_bt656 = pinctrl_lookup_state(g_iar_dev->pinctrl,
 					"bt656_func");
 		if (IS_ERR(g_iar_dev->pins_bt656)) {
-			dev_warn(&pdev->dev, "bt_func get error %ld\n",
+			dev_warn(&pdev->dev, "bt656_func get error %ld\n",
 					PTR_ERR(g_iar_dev->pins_bt656));
 			g_iar_dev->pins_bt656 = NULL;
 		}
@@ -1814,89 +1815,43 @@ static int x2_iar_probe(struct platform_device *pdev)
 	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].vaddr = 0x%p\n",
 		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].vaddr);
 #endif
+	ret = fb_get_options("hobot", &type);
+	pr_debug("%s: fb get options display type is %s\n", __func__, type);
+	if (type != NULL) {
+#ifdef CONFIG_X3
+		if (strncmp(type, "mipi1080p", 9) == 0)
+			display_type = MIPI_1080P;
+#else
+		if (display_type == LCD_7_TYPE) {
+			if (strncmp(type, "mipi", 4) == 0)
+				display_type = MIPI_720P;
+		}
+#endif
+	}
+
+	temp1 = g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr;
+	tempi = 0;
+	for (tempi = 0; tempi < MAX_FRAME_BUF_SIZE; tempi++)
+		*temp1++ = 0x00;
+	temp1 = g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr;
+	tempi = 0;
+	for (tempi = 0; tempi < MAX_FRAME_BUF_SIZE; tempi++)
+		*temp1++ = 0x00;
+
 	if (display_type == LCD_7_TYPE) {
 
+		pr_debug("%s: display_type is 7inch lcd panel!\n", __func__);
 		ret = disp_set_pixel_clk(32000000);
 		if (ret)
 			return ret;
-
-		temp1 = g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr;
-		tempi = 0;
-		for (tempi = 0; tempi < MAX_FRAME_BUF_SIZE; tempi++)
-			*temp1++ = 0x00;
-		/*
-		deta = 800*480*4/10;
-		for (tempi = 0; tempi < 800*48*4; tempi++) {
-			if (((tempi + 4) % 4) == 0)
-				*temp1 = 0xff;//b
-			else if (((tempi + 4) % 4) == 1)
-				*temp1 = 0x00;//g
-			else if (((tempi + 4) % 4) == 2)
-				*temp1 = 0x00;//r
-			else if (((tempi + 4) % 4) == 3)
-				*temp1 = 0xff;//a
-			temp1++;
-		}
-
-		temp1 =
-		g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].vaddr
-		+ 800*48*4;
-		for (tempi = 0; tempi < 800*48*4; tempi++) {
-			if (((tempi + 4) % 4) == 0)
-				*temp1 = 0x00;//b
-			else if (((tempi + 4) % 4) == 1)
-				*temp1 = 0xff;//g
-			else if (((tempi + 4) % 4) == 2)
-				*temp1 = 0x00;//r
-			else if (((tempi + 4) % 4) == 3)
-				*temp1 = 0xff;//a
-			temp1++;
-		}
-		temp1 =
-		g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].vaddr
-		+ 800*48*4*2;
-		for (tempi = 0; tempi < 800*48*4; tempi++) {
-			if (((tempi + 4) % 4) == 0)
-				*temp1 = 0x00;//b
-			else if (((tempi + 4) % 4) == 1)
-				*temp1 = 0x00;//g
-			else if (((tempi + 4) % 4) == 2)
-				*temp1 = 0xff;//r
-			else if (((tempi + 4) % 4) == 3)
-				*temp1 = 0xff;//a
-			temp1++;
-		}
-		temp1 =
-		g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].vaddr
-		+ 800*48*4*3;
-		for (tempi = 0; tempi < 800*48*4; tempi++) {
-			if (((tempi + 4) % 4) == 0)
-				*temp1 = 0x00;//b
-			else if (((tempi + 4) % 4) == 1)
-				*temp1 = 0x00;//g
-			else if (((tempi + 4) % 4) == 2)
-				*temp1 = 0x00;//r
-			else if (((tempi + 4) % 4) == 3)
-				*temp1 = 0xff;//a
-			temp1++;
-		}
-		temp1 =
-		g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].vaddr
-		+ 800*48*4*4;
-		for (tempi = 0; tempi < 800*48*4; tempi++) {
-			if (((tempi + 4) % 4) == 0)
-				*temp1 = 0xff;//b
-			else if (((tempi + 4) % 4) == 1)
-				*temp1 = 0xff;//g
-			else if (((tempi + 4) % 4) == 2)
-				*temp1 = 0xff;//r
-			else if (((tempi + 4) % 4) == 3)
-				*temp1 = 0xff;//a
-			temp1++;
-		}
-		*/
+	} else if (display_type == MIPI_720P) {
+		pr_debug("%s: display_type is mipi-720p-dsi panel!\n", __func__);
+		ret = disp_set_pixel_clk(68000000);
+		if (ret)
+			return ret;
 	} else if (display_type == HDMI_TYPE) {
-		pr_info("display type is HDMI panel!!!!\n");
+		pr_debug("%s: display_type is HDMI panel!\n", __func__);
+#if 0
 		temp1 = g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr;
 		#define IAR_DRAW_X(c, p)	(IAR_DRAW_WIDTH * c / p)
 		#define IAR_DRAW_XL(c, p)	((IAR_DRAW_WIDTH * c / p) - 1)
@@ -1923,8 +1878,8 @@ static int x2_iar_probe(struct platform_device *pdev)
 		deta = 0xFF000000;
 		x2_iar_draw_rect(temp1, IAR_DRAW_X(4, 10), IAR_DRAW_Y(4, 10),
 			IAR_DRAW_XL(6, 10), IAR_DRAW_YL(6, 10), deta, 1);
+#endif
 	}
-
 	iar_pre_init();
 	iar_close();
 	pr_info("x2 iar probe end success!!!\n");

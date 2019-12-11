@@ -137,7 +137,7 @@ int set_lt9211_output_ctrl(unsigned int on_off)
 	return 0;
 }
 
-int set_lt9211_config(struct fb_info *fb, unsigned int convert_type)
+int set_lt9211_config(struct fb_info *fb)
 {
 	int ret = 0;
 	uint8_t value_4f = 0;
@@ -161,8 +161,7 @@ int set_lt9211_config(struct fb_info *fb, unsigned int convert_type)
 	//	pr_err("Err reset lt9211!!\n");
 	//	return ret;
 	//}
-
-	if (convert_type == BT1120_TO_RGB888) {
+	if (display_type == LCD_7_TYPE) {
 /*		ret = lt9211_chip_id();
 		if (ret) {
 			pr_err("%s() Err get lt9211 chip id ret= %d\n",
@@ -284,7 +283,7 @@ int set_lt9211_config(struct fb_info *fb, unsigned int convert_type)
 					__func__, ret);
 			return ret;
 		}
-	} else if (convert_type == BT1120_TO_MIPI) {
+	} else if (display_type == MIPI_720P) {
 #ifdef MIPI_PATTEN
 		ret = lt9211_system_int_to_mipi_pattern();
 		if (ret) {
@@ -552,7 +551,7 @@ int x2_read_lt9211(uint8_t reg_addr, uint8_t *reg_val)
 			LT9211_SLAVE_ADDR, reg_addr, reg_val);
 }
 
-int lt9211_dsi_lcd_init(unsigned int convert_type)
+int lt9211_dsi_lcd_init(void)
 {
 	//unsigned int type = convert_type;
 	int ret = 0;
@@ -620,7 +619,7 @@ int lt9211_config(unsigned int convert_type)
 					__func__, ret);
 		return ret;
 	}
-	if (convert_type == BT1120_TO_MIPI) {
+	if (display_type == MIPI_720P) {
 		ret = lt9211_system_int_to_mipi();
 		if (ret) {
 			LT9211_DEBUG("%s() Err init lt9211 system ret= %d\n",
@@ -681,7 +680,7 @@ int lt9211_config(unsigned int convert_type)
 					__func__, ret);
 			return ret;
 		}
-	} else if (convert_type == BT1120_TO_RGB888) {
+	} else if (display_type == LCD_7_TYPE) {
 		LT9211_DEBUG("begin config lt9211, config bt1120 convert to RGB888!!!\n");
 		//TimingStr = video_720x480_60Hz;
 		ret = lt9211_system_int_to_RGB();

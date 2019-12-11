@@ -217,7 +217,8 @@ static int hdmi_sii_probe(struct i2c_client *client,
 				 vmode, vformat, afs);
 		ret = siHdmiTx_ReConfig(vmode, vformat, afs);
 		if (ret < 0) {
-			pr_info("bt1120 to HDMI device:sii9022a is not exist!\n");
+			pr_err("bt1120 to HDMI device:sii9022a is not exist!\n");
+			gpio_free(Si9022A_rst_pin);
 			return ret;
 		}
 		display_type = HDMI_TYPE;
@@ -825,7 +826,7 @@ static void __exit hdmi_sii_exit(void)
 
 }
 
-late_initcall(hdmi_sii_init);
+module_init(hdmi_sii_init);
 module_exit(hdmi_sii_exit);
 MODULE_VERSION("1.4");
 MODULE_AUTHOR("Silicon image SZ office, Inc.");

@@ -9,6 +9,7 @@
 #include <linux/of_address.h>
 #include <linux/slab.h>
 #include <linux/fb.h>
+#include "../../iar/x2_iar.h"
 
 #define LT9211_SLAVE_ADDR 0x2D
 
@@ -54,16 +55,6 @@ struct x2_lt9211_s {
 	dev_t dev_num;
 	struct class *x2_lt9211_classes;
 	struct mutex lt9211_mutex;
-};
-
-enum {
-	BT1120_TO_RGB888 = 0,
-	BT1120_TO_MIPI = 1,
-};
-enum DISPLAY_TYPE {
-	LCD_7_TYPE,
-	HDMI_TYPE,
-	MIPI_720P,
 };
 
 struct video_timing {
@@ -130,8 +121,8 @@ enum VIDEO_INPUTMODE_ENUM {
 #define Video_Input_Mode  Input_YCbCr422_16BIT
 
 //int ips_set_iar_clk(void);
-int set_lt9211_config(struct fb_info *fb, unsigned int convert_type);
-int lt9211_dsi_lcd_init(unsigned int convert_type);
+int set_lt9211_config(struct fb_info *fb);
+int lt9211_dsi_lcd_init(void);
 int x2_lt9211_write_byte(struct i2c_client *client, uint32_t addr,
 		uint8_t reg, uint8_t val);
 int x2_lt9211_read_byte(struct i2c_client *client, uint32_t addr,

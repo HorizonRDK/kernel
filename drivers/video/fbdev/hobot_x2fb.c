@@ -672,7 +672,7 @@ static int x2fb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
 	var->transp.msb_right = 0;
 
 	//check LCD panel timing parameter
-	if (outmode == OUTPUT_RGB888 && lcd_type == RGB888_500) {
+	if (outmode == OUTPUT_RGB && lcd_type == RGB888_500) {
 		if (var->pixclock < 20000)
 			var->pixclock = 20000;
 		if (var->pixclock > 33000)
@@ -696,7 +696,7 @@ static int x2fb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
 		if (var->vsync_len > 20)
 			var->vsync_len = 20;
 
-	} else if (outmode == OUTPUT_RGB888 && lcd_type == RGB888_700) {
+	} else if (outmode == OUTPUT_RGB && lcd_type == RGB888_700) {
 		if (var->pixclock < 15873)
 			var->pixclock = 15873;
 		if (var->pixclock > 22272)
@@ -897,10 +897,10 @@ int user_set_fb(void)
 		iar_switch_buf(0);
 		iar_set_bufaddr(IAR_CHANNEL_3, &graphic_display_paddr);
 		iar_start(1);
-
+#ifndef CONFIG_X3
 		msleep(20);
-
-		set_lt9211_config(&x2_fbi->fb, 0);
+		set_lt9211_config(&x2_fbi->fb);
+#endif
 	} else if (display_type == MIPI_720P) {
 		disp_set_panel_timing(&video_720x1280);
 		x2_fbi->memory_mode = 0;
@@ -966,7 +966,7 @@ int user_set_fb(void)
 		msleep(20);
 
 		pr_debug("fb_driver: %s: begin set_lt9211_config\n", __func__);
-		set_lt9211_config(&x2_fbi->fb, 1);//bt1120 to mipi
+		set_lt9211_config(&x2_fbi->fb);
 	}
 	return regval;
 
@@ -1214,7 +1214,7 @@ static int x2fb_probe(struct platform_device *pdev)
 	int ret;
 	frame_buf_t framebuf_user;
 
-	pr_info("x2fb probe!!!\n");
+	pr_debug("x2fb probe!!!\n");
 
 	x2_fbi = devm_kzalloc(&pdev->dev, sizeof(struct x2fb_info), GFP_KERNEL);
 	if (!x2_fbi) {
@@ -1239,7 +1239,7 @@ static int x2fb_probe(struct platform_device *pdev)
 		get_line_length(RGB700_var_default.xres_virtual,
 				RGB700_var_default.bits_per_pixel);
 
-	if (outmode == OUTPUT_RGB888 && lcd_type == RGB888_500) {
+	if (outmode == OUTPUT_RGB && lcd_type == RGB888_500) {
 		x2_fbi->fb.fix = RGB500_fix_default;
 		x2_fbi->fb.var = RGB500_var_default;
 		x2_fbi->fb.flags = FBINFO_DEFAULT | FBINFO_HWACCEL_YPAN;
@@ -1249,7 +1249,7 @@ static int x2fb_probe(struct platform_device *pdev)
 		x2_fbi->fb.pseudo_palette = &x2fb_pseudo_palette;
 		if (fb_alloc_cmap(&x2_fbi->fb.cmap, 256, 0))
 			return -ENOMEM;
-	} else if (outmode == OUTPUT_RGB888 && lcd_type == RGB888_700) {
+	} else if (outmode == OUTPUT_RGB && lcd_type == RGB888_700) {
 		x2_fbi->fb.fix = RGB700_fix_default;
 		x2_fbi->fb.var = RGB700_var_default;
 		x2_fbi->fb.flags = FBINFO_DEFAULT | FBINFO_HWACCEL_YPAN;

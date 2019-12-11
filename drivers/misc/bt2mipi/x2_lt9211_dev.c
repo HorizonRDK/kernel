@@ -34,7 +34,6 @@
 
 int lt9211_reset_pin;
 int lcd_reset_pin;
-int display_type = HDMI_TYPE;
 
 struct pwm_device *lcd_backlight_pwm;
 
@@ -291,13 +290,12 @@ static int x2_lt9211_probe(struct i2c_client *client,
 	struct device *x2_lt9211_dev;
 	dev_t devno;
 	int ret = 0;
-	unsigned int convert_type = BT1120_TO_RGB888;
 	//void __iomem *iar_clk_regaddr;
 	//void __iomem *vio_refclk_regaddr;
 	//int regvalue = 0;
 	//int regvalue1 = 0;
 
-	pr_info("x2 lt9211 probe start.\n");
+	pr_debug("x2 lt9211 probe start.\n");
 
 	if (!i2c_check_functionality(adapter, I2C_FUNC_I2C))
 		return -ENODEV;
@@ -324,7 +322,6 @@ static int x2_lt9211_probe(struct i2c_client *client,
 	g_x2_lt9211->cdev.owner = THIS_MODULE;
 	ret = lt9211_chip_id();
 	if (ret != 0) {
-		display_type = HDMI_TYPE;
 		pr_err("not found lt9211 device, exit probe!!!\n");
 		return ret;
 	}
@@ -412,7 +409,7 @@ static int x2_lt9211_probe(struct i2c_client *client,
 	if (ret)
 		LT9211_DEBUG("\nlcd backlight init err!\n");
 
-	ret = lt9211_dsi_lcd_init(convert_type);
+	ret = lt9211_dsi_lcd_init();
 	if (ret) {
 		pr_err("\nlt9211 and dsi panel init err!\n");
 		return ret;
