@@ -647,7 +647,7 @@ int enable_iar_irq(void);
 int disable_iar_irq(void);
 int iar_rotate_video_buffer(phys_addr_t yaddr,
 		phys_addr_t uaddr, phys_addr_t vaddr);
-int32_t iar_set_pixel_clk_div(unsigned int pixel_clk);
+int8_t disp_set_pixel_clk(uint64_t pixel_clk);
 int disp_set_ppbuf_addr(uint8_t layer_no, void *yaddr, void *caddr);
 int disp_set_panel_timing(struct disp_timing *timing);
 int disp_pinmux_bt1120(void);

@@ -349,6 +349,7 @@ struct iar_dev_s {
 	struct pinctrl_state *pins_bt656;
 	struct pinctrl_state *pins_mipi_dsi;
 	struct pinctrl_state *pins_rgb;
+	struct clk *iar_pixel_clk;
 };
 struct iar_dev_s *g_iar_dev;
 
@@ -739,32 +740,33 @@ int32_t iar_gamma_cfg(gamma_cfg_t *cfg)
 }
 EXPORT_SYMBOL_GPL(iar_gamma_cfg);
 
-int32_t iar_set_pixel_clk_div(unsigned int pixel_clk)
+int8_t disp_set_pixel_clk(uint64_t pixel_clk)
 {
-	void __iomem *iar_clk_div_addr;
-	uint32_t regvalue = 0;
 	int32_t ret = 0;
+	uint64_t pixel_rate;
 
-	switch (pixel_clk) {
-	case PIXEL_CLK_162:
+#ifndef CONFIG_X3
+	if (pixel_clk < 102000000)
+		ips_set_iar_clk32(1);
+	else
 		ips_set_iar_clk32(0);
-		break;
-	case PIXEL_CLK_32:
-		ips_set_iar_clk32(1);
-		break;
-	case PIXEL_CLK_69:
-		ips_set_iar_clk32(1);
-		iar_clk_div_addr = ioremap_nocache(0xA1000000 + 0x240, 4);
-		regvalue = readl(iar_clk_div_addr);
-		regvalue = (regvalue & 0xff0fffff) | 0x00600000;//72M
-		writel(regvalue, iar_clk_div_addr);
-		break;
-	default:
-		pr_err("%s: wrong pixel clk.\n");
-		ret = -1;
-		break;
+#else
+	clk_disable_unprepare(g_iar_dev->iar_pixel_clk);
+#endif
+	pixel_rate = clk_round_rate(g_iar_dev->iar_pixel_clk, pixel_clk);
+	ret = clk_set_rate(g_iar_dev->iar_pixel_clk, pixel_rate);
+	if (ret) {
+		pr_err("%s: err checkout iar pixel clock rate!!\n", __func__);
+		return -1;
 	}
-	return ret;
+	ret = clk_prepare_enable(g_iar_dev->iar_pixel_clk);
+	if (ret) {
+		pr_err("%s: err enable iar pixel clock!!\n", __func__);
+		return -1;
+	}
+	pixel_rate = clk_get_rate(g_iar_dev->iar_pixel_clk);
+	pr_err("%s: iar pixel rate is %ld\n", __func__, pixel_rate);
+	return 0;
 }
 
 int disp_pinmux_bt1120(void)
@@ -812,7 +814,7 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 		ips_pinmux_bt();
 		//disp_pinmux_bt1120();
 		pr_debug("set btout clksrc.\n");
-		ips_set_btout_clksrc(IAR_CLK, true);
+		ips_set_btout_clksrc(IAR_CLK, true);//pll invert clk
 	}
 //	iar_set_hvsync_timing(cfg->out_sel);
 
@@ -1494,6 +1496,7 @@ static int x2_iar_probe(struct platform_device *pdev)
 	int tempi = 0;
 	void *vaddr;
 	int deta = 0;
+	uint64_t pixel_rate;
 
 	pr_info("x2 iar probe begin!!!\n");
 
@@ -1567,6 +1570,20 @@ static int x2_iar_probe(struct platform_device *pdev)
 			g_iar_dev->pins_rgb = NULL;
 		}
 	}
+
+	g_iar_dev->iar_pixel_clk = devm_clk_get(&pdev->dev, "iar_pix_clk");
+	if (IS_ERR(g_iar_dev->iar_pixel_clk)) {
+		dev_err(&pdev->dev, "failed to get iar_pix_clk\n");
+		return PTR_ERR(g_iar_dev->iar_pixel_clk);
+	}
+
+	ret = clk_prepare(g_iar_dev->iar_pixel_clk);
+	if (ret != 0) {
+		dev_err(&pdev->dev, "failed to prepare iar_pix_clk\n");
+		return ret;
+	}
+	pixel_rate = clk_get_rate(g_iar_dev->iar_pixel_clk);
+	pr_debug("%s: iar pixel rate is %ld\n", __func__, pixel_rate);
 
 	init_waitqueue_head(&g_iar_dev->wq_head);
 	ret = request_threaded_irq(g_iar_dev->irq, x2_iar_irq, NULL, IRQF_TRIGGER_HIGH,
@@ -1732,8 +1749,7 @@ static int x2_iar_probe(struct platform_device *pdev)
 #endif
 	if (display_type == LCD_7_TYPE) {
 
-		pr_info("display type is lcd 7inch panel!!!!!!\n");
-		ret = iar_set_pixel_clk_div(PIXEL_CLK_32);
+		ret = disp_set_pixel_clk(32000000);
 		if (ret)
 			return ret;
 

@@ -534,6 +534,8 @@
 		iar: iar@0xA4001000 {
 			compatible = "hobot,x2-iar";
 			reg = <0 0xA4001000 0 0x400>;
+			clocks = <&iar_pix_clk>;
+			clock-names = "iar_pix_clk";
 			memory-region = <&iar_reserved>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 51 4>;

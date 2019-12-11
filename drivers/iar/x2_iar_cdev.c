@@ -357,7 +357,7 @@ static ssize_t x2_iar_store(struct kobject *kobj, struct kobj_attribute *attr, c
 	} else if (strncmp(tmp, "mipi", 4) == 0) {
 		pr_info("iar output lcd mipi 720p panel config......\n");
 		display_type = MIPI_720P;
-		iar_set_pixel_clk_div(PIXEL_CLK_69);
+		disp_set_pixel_clk(69000000);
 		user_set_fb();
 	} else if (strncmp(buf, "enable", 6) == 0) {
 		tmp = buf + 6;
