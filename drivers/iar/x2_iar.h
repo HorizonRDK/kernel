@@ -115,6 +115,9 @@
 #define REG_IAR_DE_AR_CLASS 0x400
 #define REG_IAR_DE_AR_CLASS_WEIGHT	0x404
 
+#define REG_DISP_LCDIF_CFG 0x800
+#define REG_DISP_LCDIF_PADC_RESET_N 0x804
+
 enum {
 	IAR_CHANNEL_1 = 0,
 	IAR_CHANNEL_2 = 1,
@@ -480,6 +483,33 @@ typedef struct _upscaling_cfg_t {
 	uint32_t pos_y;
 } upscaling_cfg_t;
 
+struct iar_dev_s {
+	struct platform_device *pdev;
+	struct ion_client *iar_iclient;
+	struct ion_handle *iar_ihandle;
+	void __iomem *regaddr;
+	void __iomem *mipi_dsi_regaddr;
+	void __iomem *sysctrl;
+	struct reset_control *rst;
+	int irq;
+	spinlock_t spinlock;
+	spinlock_t *lock;
+	frame_buf_t frambuf[IAR_CHANNEL_MAX];
+	pingpong_buf_t pingpong_buf[IAR_CHANNEL_MAX];
+	unsigned int channel_format[IAR_CHANNEL_MAX];
+	unsigned int buf_w_h[IAR_CHANNEL_MAX][2];
+	int cur_framebuf_id[IAR_CHANNEL_MAX];
+	struct task_struct *iar_task;
+	wait_queue_head_t wq_head;
+	struct pinctrl *pinctrl;
+	struct pinctrl_state *pins_bt1120;
+	struct pinctrl_state *pins_bt656;
+	struct pinctrl_state *pins_mipi_dsi;
+	struct pinctrl_state *pins_rgb;
+	struct clk *iar_pixel_clk;
+};
+extern struct iar_dev_s *g_iar_dev;
+
 struct disp_timing {
 	uint32_t hbp;
 	uint32_t hfp;
@@ -520,9 +550,11 @@ enum {
 	FORMAT_RGBA8888 = 5,
 };
 enum {
-	OUTPUT_MIPI = 0,
+	OUTPUT_MIPI_DSI = 0,
 	OUTPUT_BT1120 = 1,
 	OUTPUT_RGB888 = 2,
+	OUTPUT_BT656 = 3,
+	OUTPUT_IPI = 4,//SIF
 };
 enum DISPLAY_TYPE {
 	LCD_7_TYPE,
@@ -654,6 +686,8 @@ int disp_pinmux_bt1120(void);
 int disp_pinmux_bt656(void);
 int disp_pinmux_mipi_dsi(void);
 int disp_pinmux_rgb(void);
+int panel_hardware_reset(void);
+int set_mipi_display(uint8_t panel_no);
 //int iar_is_enabled(void);
 
 

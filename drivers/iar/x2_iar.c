@@ -42,6 +42,7 @@ module_param(iar_debug_level, uint, 0644);
 #define DISPLAY_TYPE_TOTAL_SINGLE 33
 #define DISPLAY_TYPE_TOTAL_MULTI 63
 
+int panel_reset_pin;
 uint32_t iar_display_ipu_addr_single[DISPLAY_TYPE_TOTAL_SINGLE][2];
 uint32_t iar_display_ipu_addr_dual[DISPLAY_TYPE_TOTAL_MULTI][2];
 uint32_t iar_display_ipu_addr_ddrmode[33][2];
@@ -327,30 +328,6 @@ typedef enum _iar_table_e {
 #define IAR_REG_SET_FILED(key, value, regvalue) VALUE_SET(value, g_iarReg_cfg_table[key][TABLE_MASK], g_iarReg_cfg_table[key][TABLE_OFFSET], regvalue)
 #define IAR_REG_GET_FILED(key, regvalue) VALUE_GET(g_iarReg_cfg_table[key][TABLE_MASK], g_iarReg_cfg_table[key][TABLE_OFFSET], regvalue)
 
-struct iar_dev_s {
-	struct platform_device *pdev;
-	struct ion_client *iar_iclient;
-	struct ion_handle *iar_ihandle;
-	void __iomem *regaddr;
-	void __iomem *sysctrl;
-	struct reset_control *rst;
-	int irq;
-	spinlock_t spinlock;
-	spinlock_t *lock;
-	frame_buf_t frambuf[IAR_CHANNEL_MAX];
-	pingpong_buf_t pingpong_buf[IAR_CHANNEL_MAX];
-	unsigned int channel_format[IAR_CHANNEL_MAX];
-	unsigned int buf_w_h[IAR_CHANNEL_MAX][2];
-	int cur_framebuf_id[IAR_CHANNEL_MAX];
-	struct task_struct *iar_task;
-	wait_queue_head_t wq_head;
-	struct pinctrl *pinctrl;
-	struct pinctrl_state *pins_bt1120;
-	struct pinctrl_state *pins_bt656;
-	struct pinctrl_state *pins_mipi_dsi;
-	struct pinctrl_state *pins_rgb;
-	struct clk *iar_pixel_clk;
-};
 struct iar_dev_s *g_iar_dev;
 
 //static int display_type = LCD_7_TYPE;
@@ -804,25 +781,82 @@ int disp_pinmux_rgb(void)
 int32_t iar_output_cfg(output_cfg_t *cfg)
 {
 	uint32_t value;
+	int ret;
+
 	if (NULL == g_iar_dev) {
 		printk(KERN_ERR "IAR dev not inited!");
 		return -1;
 	}
-	if (cfg->out_sel == OUTPUT_BT1120) {
-		pr_debug("cfg[2].out_sel is OUTPUT_BT1120.\n");
-		pr_debug("pinmux iar output as bt.\n");
-		ips_pinmux_bt();
-		//disp_pinmux_bt1120();
-		pr_debug("set btout clksrc.\n");
-		ips_set_btout_clksrc(IAR_CLK, true);//pll invert clk
-	}
-//	iar_set_hvsync_timing(cfg->out_sel);
 
 #ifdef CONFIG_PM
 	g_out_sel = cfg->out_sel;
 #endif
 	writel(cfg->bgcolor, g_iar_dev->regaddr + REG_IAR_BG_COLOR);
-	writel((0x1 << cfg->out_sel), g_iar_dev->regaddr + REG_IAR_DE_OUTPUT_SEL);
+
+	if (cfg->out_sel == OUTPUT_BT1120) {
+		//output config
+		ips_pinmux_bt();
+		//ret = disp_pinmux_bt1120();
+		if (ret)
+			return -1;
+		ips_set_btout_clksrc(IAR_CLK, true);//clk invert
+		writel(0xa, g_iar_dev->regaddr + REG_IAR_DE_OUTPUT_SEL);
+		//color config
+		value = readl(g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
+		value = IAR_REG_SET_FILED(IAR_PANEL_COLOR_TYPE, 2, value);
+		//yuv444
+		value = IAR_REG_SET_FILED(IAR_YCBCR_OUTPUT, 1, value);
+		//convert ycbcr
+		writel(value, g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
+		value = readl(g_iar_dev->regaddr + REG_IAR_FORMAT_ORGANIZATION);
+		value = IAR_REG_SET_FILED(IAR_BT601_709_SEL, 1, value);
+		writel(value, g_iar_dev->regaddr + REG_IAR_FORMAT_ORGANIZATION);
+	} else if (cfg->out_sel == OUTPUT_MIPI_DSI) {
+#ifdef CONFIG_X3
+		ret = disp_pinmux_mipi_dsi();
+		if (ret)
+			return -1;
+		ret = disp_set_pixel_clk(162000);
+		if (ret)
+			return -1;
+		//output config
+		writel(0x8, g_iar_dev->regaddr + REG_IAR_DE_OUTPUT_SEL);
+		writel(0x13, g_iar_dev->regaddr + REG_DISP_LCDIF_CFG);
+		writel(0x3, g_iar_dev->regaddr + REG_DISP_LCDIF_PADC_RESET_N);
+		//color config
+		writel(0x0, g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
+		//rgb panel
+#else
+		pr_err("%s: error output mode!!!\n", __func__);
+#endif
+	} else if (cfg->out_sel == OUTPUT_RGB888) {
+		ret = disp_pinmux_rgb();
+		if (ret)
+			return -1;
+		writel(0xc, g_iar_dev->regaddr + REG_IAR_DE_OUTPUT_SEL);
+		writel(0x0, g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
+		//rgb panel
+	} else if (cfg->out_sel == OUTPUT_BT656) {
+#ifdef CONFIG_X3
+		ret = disp_pinmux_bt656();
+		if (ret)
+			return -1;
+		writel(0x8, g_iar_dev->regaddr + REG_IAR_DE_OUTPUT_SEL);
+		// TODO(bt656_output_mode_config)
+#else
+		pr_err("%s: error output mode!!!\n", __func__);
+#endif
+	} else if (cfg->out_sel == OUTPUT_IPI) {
+		writel(0x9, g_iar_dev->regaddr + REG_IAR_DE_OUTPUT_SEL);
+		//IPI(SIF)
+		value = readl(g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
+		value = IAR_REG_SET_FILED(IAR_PANEL_COLOR_TYPE, 2, value);
+		//yuv444
+	} else {
+		pr_err("%s: error output mode!!!\n", __func__);
+		return -1;
+	}
+
 	value = IAR_REG_SET_FILED(IAR_PANEL_WIDTH, cfg->width, 0);
 	value = IAR_REG_SET_FILED(IAR_PANEL_HEIGHT, cfg->height, value);
 	writel(value, g_iar_dev->regaddr + REG_IAR_PANEL_SIZE);
@@ -1484,6 +1518,19 @@ static void x2_iar_draw_rect(char *frame, int x0, int y0, int x1, int y1,
 	}
 }
 
+int panel_hardware_reset(void)
+{
+	gpio_direction_output(panel_reset_pin, 0);
+	pr_debug("panel reset pin output low!!!!!\n");
+	msleep(1000);
+	gpio_direction_output(panel_reset_pin, 1);
+	pr_debug("panel reset pin output high!!!!\n");
+	msleep(1000);
+	pr_debug("panel reset again success!\n");
+	return 0;
+}
+EXPORT_SYMBOL_GPL(panel_hardware_reset);
+
 static int x2_iar_probe(struct platform_device *pdev)
 {
 	struct resource *res, *irq;
@@ -1515,6 +1562,26 @@ static int x2_iar_probe(struct platform_device *pdev)
 	g_iar_dev->regaddr = devm_ioremap_resource(&pdev->dev, res);
 	if (IS_ERR(g_iar_dev->regaddr))
 		return PTR_ERR(g_iar_dev->regaddr);
+#ifdef CONFIG_X3
+	res_mipi = platform_get_resource(pdev, IORESOURCE_MEM, 1);
+	g_iar_dev->mipi_dsi_regaddr =
+		devm_ioremap_resource(&pdev->dev, res_mipi);
+	if (IS_ERR(g_iar_dev->mipi_dsi_regaddr))
+		return PTR_ERR(g_iar_dev->mipi_dsi_regaddr);
+
+	ret = of_property_read_u32(pdev->dev.of_node,
+		"disp_panel_reset_pin", &panel_reset_pin);
+	if (ret)
+		dev_err(&pdev->dev, "Filed to get panel_reset_pin\n");
+
+	ret = gpio_request(panel_reset_pin, "disp_panel_reset_pin");
+	if (ret) {
+		pr_err("%s() Err get trigger pin ret= %d\n",
+					__func__, ret);
+		return -ENODEV;
+	}
+	pr_debug("gpio request succeed!!!!\n");
+#endif
 	g_iar_dev->rst = devm_reset_control_get(&pdev->dev, "iar");
 	if (IS_ERR(g_iar_dev->rst)) {
 		dev_err(&pdev->dev, "missing controller reset\n");
