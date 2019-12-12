@@ -44,6 +44,7 @@
 #define HB_VCAM_FREE_IMG	_IO(VCAM_IOC_MAGIC, 6)
 #define HB_VCAM_GET_IMG		_IO(VCAM_IOC_MAGIC, 7)
 #define HB_VCAM_MEMINFO		_IO(VCAM_IOC_MAGIC, 8)
+#define HB_VCAM_CLEAN		_IO(VCAM_IOC_MAGIC, 9)
 
 #define VCAM_GROUP_FREE	0
 #define VCAM_GROUP_BUSY	1
@@ -419,6 +420,7 @@ static long hb_vcam_ioctl(struct file *file, unsigned int cmd, unsigned long dat
 	struct hb_vcam_msg_t init_info;
 	struct vcam_to_ipu_t to_ipu;
 	struct vcam_to_ipu_t free_info;
+	struct vcam_to_ipu_t clean_info;
 	struct vcam_to_ipu_t get_info;
 	struct mem_info_t mem_info;
 
@@ -458,6 +460,17 @@ static long hb_vcam_ioctl(struct file *file, unsigned int cmd, unsigned long dat
 		if (ret < 0) {
 			pr_err("%s %d free img fail\n", __func__, __LINE__);
 			return -EFAULT;
+		}
+		break;
+	case HB_VCAM_CLEAN:
+		ret = copy_from_user((void *)(&clean_info), (const void __user *)data,
+							sizeof(struct vcam_to_ipu_t));
+		if (clean_info.g_id < 0 || clean_info.g_id > (VCAM_GROUP_MAX - 1)) {
+			pr_err("group id not available %d\n", clean_info.g_id);
+			return -EFAULT;
+		} else {
+			/* TBD for more special case */
+			g_vcam_msg[clean_info.g_id].group_info.flag = VCAM_GROUP_FREE;
 		}
 		break;
 	case HB_VCAM_MEMINFO:
