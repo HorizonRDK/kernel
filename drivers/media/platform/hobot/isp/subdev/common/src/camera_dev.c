@@ -83,7 +83,6 @@ static long camera_fop_ioctl(struct file *pfile, unsigned int cmd,
 	int ret = 0;
 	camera_charmod_s *camera_cdev = pfile->private_data;
 	sensor_turning_data_t turning_data;
-	struct i2c_client *client = camera_cdev->client;
 
 	pr_info("---[%s-%d]---\n", __func__, __LINE__);
 	switch(cmd) {

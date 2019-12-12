@@ -40,7 +40,6 @@ int camera_i2c_open(uint32_t port, uint32_t i2c_bus,
 			sensor_name, sensor_addr);
 	strncpy(camera_mod[port]->board_info.type, sensor_name,
 			sizeof(camera_mod[port]->board_info.type));
-	// camera_mod[port]->board_info.type = sensor_name;
 	camera_mod[port]->board_info.addr = sensor_addr;
 	if(camera_mod[port]->client) {
 		camera_i2c_release(port);

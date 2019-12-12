@@ -18,7 +18,8 @@
 enum control_mode_e {
         NORMAL_M = 0x00,
         DOL2_M = 0x01,
-        DOL3_M = 0x02
+        DOL3_M = 0x02,
+        PWL = 0x03
 };
 
 int camera_sys_priv_set(uint32_t port, sensor_priv_t *priv_param);

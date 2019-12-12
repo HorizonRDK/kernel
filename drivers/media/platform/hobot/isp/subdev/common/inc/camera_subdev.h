@@ -16,6 +16,7 @@
 
 #define CAMERA_TOTAL_NUMBER  4
 #define V4L2_CAMERA_NAME "camera"
+#define CAMERA_SENSOR_NAME  20
 
 typedef struct sensor_priv {
 	  uint32_t gain_num;
@@ -27,8 +28,7 @@ typedef struct sensor_priv {
 }sensor_priv_t;
 
 typedef struct sensor_data {
-	uint32_t  gain_type;
-	uint32_t  line_type;
+	uint32_t  turning_type;
 	uint32_t  step_gain;
 	uint32_t  again_prec;
 	uint32_t  dgain_prec;
@@ -40,9 +40,9 @@ typedef struct sensor_data {
 	uint32_t  RHS2;
 	uint32_t  lane;
 	uint32_t  clk;
-	uint32_t  frame;
+	uint32_t  fps;
 	uint32_t  gain_max;
-	uint32_t  lines_per_second;
+	uint32_t  pixels_per_line;
 	uint32_t  analog_gain_max;
 	uint32_t  digital_gain_max;
 	uint32_t  exposure_time_max;
@@ -106,9 +106,20 @@ typedef struct normal_s {
 	uint32_t s_line_length;
 }normal_t;
 
+typedef struct pwl_s {
+	uint32_t param_hold;
+	uint32_t param_hold_length;
+	uint32_t gain;
+	uint32_t gain_length;
+	uint32_t line;
+	uint32_t line_length;
+	uint32_t min_gain_time;
+	uint32_t max_gain_time;
+}pwl_t;
+
 typedef struct sensor_turning_data {
 	uint32_t  port;
-	char     *sensor_name;
+	char      sensor_name[CAMERA_SENSOR_NAME];
 	uint32_t  sensor_addr;
     uint32_t  bus_num;
 	uint32_t  bus_type;
@@ -121,6 +132,7 @@ typedef struct sensor_turning_data {
 	normal_t normal;
 	dol2_t   dol2;
 	dol3_t   dol3;
+	pwl_t    pwl;  // ar0233
 	sensor_data_t sensor_data;
 }sensor_turning_data_t;
 
