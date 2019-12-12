@@ -86,6 +86,7 @@ struct update_cmd_t {
 
 struct x2fb_info {
 	struct fb_info fb;
+	struct fb_info fb1;
 	struct platform_device *pdev;
 	int channel3_en;
 	void __iomem *regaddr;
@@ -421,77 +422,30 @@ static int x2fb_blank(int blank, struct fb_info *info)
 
 	return 0;
 }
-//------------------------------------------------------------------------------
+
 static int x2fb_mmap(struct fb_info *info, struct vm_area_struct *pvma)
 {
 	unsigned int frame_size = 0;
 	int ret = 0;
-	frame_buf_t *framebuf = x2_iar_get_framebuf_addr(2);
-	x2_fbi->channel3_en = 1;
-	iar_get_framesize();
-	frame_size = x2_fbi->update_cmd.frame_size[2];
 
 	pr_debug("x2fb mmap begin!\n");
 	flag = 0;
-	if (!framebuf || (pvma->vm_end - pvma->vm_start) > MAX_FRAME_BUF_SIZE)
+	if (info->fix.smem_start == 0 ||
+			(pvma->vm_end - pvma->vm_start) > MAX_FRAME_BUF_SIZE)
 		return -ENOMEM;
 
 	pvma->vm_flags |= VM_IO;
 	pvma->vm_flags |= VM_LOCKED;
 	//pvma->vm_page_prot = pgprot_noncached(pvma->vm_page_prot);
 	if (remap_pfn_range(pvma, pvma->vm_start,
-			framebuf->paddr >> PAGE_SHIFT,
+			info->fix.smem_start >> PAGE_SHIFT,
 			pvma->vm_end - pvma->vm_start, pvma->vm_page_prot)) {
 		pr_err("x2fb mmap fail\n");
 		return -EAGAIN;
 	}
-	pr_debug("x2fb mmap end!:%llx\n", framebuf->paddr);
+	pr_err("x2fb mmap end!:%llx\n", info->fix.smem_start);
 	return ret;
 }
-/*
-static int x2fb_mmap(struct fb_info *info, struct vm_area_struct *pvma)
-{
-	unsigned int frame_size = 0;
-	int ret = 0;
-	frame_buf_t *framebuf = x2_iar_get_framebuf_addr(2);
-	x2_fbi->channel3_en = 1;
-	iar_get_framesize();
-	frame_size = x2_fbi->update_cmd.frame_size[2];
-	if(flag == 0){
-		pr_info("x2fb mmap begin!\n");
-		flag = 1;
-		if (!framebuf || (pvma->vm_end - pvma->vm_start) >
-						MAX_FRAME_BUF_SIZE)
-			return -ENOMEM;
-
-		pvma->vm_flags |= VM_IO;
-		pvma->vm_flags |= VM_LOCKED;
-		if (remap_pfn_range(pvma, pvma->vm_start,
-			framebuf->paddr >> PAGE_SHIFT,
-			pvma->vm_end - pvma->vm_start, pvma->vm_page_prot)) {
-			pr_err("x2fb mmap fail\n");
-			return -EAGAIN;
-		}
-		pr_info("x2fb mmap end!:%llx\n", framebuf->paddr);
-	} else if (flag == 1) {
-		flag = 0;
-		printk("channel3_en is 0x%x, fram_size is 0x%x.",
-			x2_fbi->channel3_en, frame_size);
-		if (x2_fbi->channel3_en && frame_size <= MAX_FRAME_BUF_SIZE) {
-			printk(".......................................\n");
-			if (framebuf) {
-				printk("begin write framebuffer to pingpong buffer by dma.\n");
-				//clean_cache(framebuf->vaddr, frame_size);
-				__clean_dcache_area_poc(framebuf->vaddr, frame_size);
-				ret = iar_write_framebuf_dma(2,
-						framebuf->paddr, frame_size);
-				pr_info("write framebuffer to pinpong buffer by dma success!\n");
-			}
-		}
-	}
-	return ret;
-}
-*/
 
 static int x2fb_setcolreg(unsigned int regno, unsigned int red,
 		unsigned int green, unsigned int blue, unsigned int transp,
@@ -1213,6 +1167,8 @@ static int x2fb_probe(struct platform_device *pdev)
 {
 	int ret;
 	frame_buf_t framebuf_user;
+	frame_buf_t framebuf_user1;
+	char *fb1_id = "x2-fb1";
 
 	pr_debug("x2fb probe!!!\n");
 
@@ -1224,6 +1180,7 @@ static int x2fb_probe(struct platform_device *pdev)
 
 	strcpy(x2_fbi->fb.fix.id, DRIVER_NAME);
 	framebuf_user = *x2_iar_get_framebuf_addr(2);
+	framebuf_user1 = *x2_iar_get_framebuf_addr(3);
 //	framebuf_user.paddr = framebuf_user.paddr + 3*MAX_FRAME_BUF_SIZE;
 //	framebuf_user.vaddr = framebuf_user.vaddr + 3*MAX_FRAME_BUF_SIZE;
 	pr_debug("framebuf_user.paddr = 0x%llx\n", framebuf_user.paddr);
@@ -1278,15 +1235,20 @@ static int x2fb_probe(struct platform_device *pdev)
 		x2_fbi->fb.pseudo_palette = &x2fb_pseudo_palette;
 		if (fb_alloc_cmap(&x2_fbi->fb.cmap, 256, 0))
 			return -ENOMEM;
-
+		x2_fbi->fb1 = x2_fbi->fb;
+		x2_fbi->fb1.fix.smem_start = framebuf_user1.paddr;
+		snprintf(x2_fbi->fb1.fix.id, sizeof(x2_fbi->fb1.fix.id),
+				"x2-fb1");
+		x2_fbi->fb1.screen_base = framebuf_user1.vaddr;
+		if (fb_alloc_cmap(&x2_fbi->fb1.cmap, 256, 0))
+			return -ENOMEM;
 	} else if (outmode == OUTPUT_BT1120 && lcd_type == DSI_PANEL) {
 
 	}
 
 	platform_set_drvdata(pdev, x2_fbi);
-	pr_debug("*********begin register framebuffer********\n");
+
 	ret = register_framebuffer(&x2_fbi->fb);
-	pr_debug("*********end register framebuffer**********\n");
 	if (ret < 0) {
 		dev_err(&pdev->dev,
 			"Failed to register framebuffer device: %d\n", ret);
@@ -1295,15 +1257,23 @@ static int x2fb_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	/* create device files */
-//	ret = device_create_file(&pdev->dev, &dev_attr_debug);
-//	if (ret)
-//		dev_err(&pdev->dev, "failed to add debug attribute\n");
-
 	fb_info(&x2_fbi->fb, "%s frame buffer at 0x%lx-0x%lx\n",
 		x2_fbi->fb.fix.id, x2_fbi->fb.fix.smem_start,
 		x2_fbi->fb.fix.smem_start + x2_fbi->fb.fix.smem_len - 1);
 
+#ifdef CONFIG_X3
+	ret = register_framebuffer(&x2_fbi->fb1);
+	if (ret < 0) {
+		dev_err(&pdev->dev,
+			"Failed to register framebuffer device: %d\n", ret);
+		if (x2_fbi->fb1.cmap.len)
+			fb_dealloc_cmap(&x2_fbi->fb1.cmap);
+		return ret;
+	}
+	fb_info(&x2_fbi->fb1, "%s frame buffer at 0x%lx-0x%lx\n",
+		x2_fbi->fb1.fix.id, x2_fbi->fb1.fix.smem_start,
+		x2_fbi->fb1.fix.smem_start + x2_fbi->fb1.fix.smem_len - 1);
+#endif
 	pr_debug("x2 fb probe ok!!!\n");
 	return 0;
 }
@@ -1313,13 +1283,16 @@ static int x2fb_remove(struct platform_device *pdev)
 	struct x2fb_info *fbi = platform_get_drvdata(pdev);
 
 	iar_stop();
-	//device_remove_file(&pdev->dev, &dev_attr_debug);
-
 	unregister_framebuffer(&fbi->fb);
 
 	if (fbi->fb.cmap.len)
 		fb_dealloc_cmap(&fbi->fb.cmap);
+#ifdef CONFIG_X3
+	unregister_framebuffer(&fbi->fb1);
 
+        if (fbi->fb1.cmap.len)
+                fb_dealloc_cmap(&fbi->fb1.cmap);
+#endif
 	return 0;
 }
 
