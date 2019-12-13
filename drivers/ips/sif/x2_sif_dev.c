@@ -77,8 +77,8 @@
 
 /*SIF FRAME ID CFG REGISTER OFFSET*/
 #define OFFSET_ID_EN		   (0)
-#define OFFSET_ID_INIT		   (8)
-#define OFFSET_ID_SET_EN	   (16)
+#define OFFSET_ID_INIT		   (1)
+#define OFFSET_ID_SET_EN	   (17)
 
 #define SIF_ENABLE			   (1)
 #define SIF_DISABLE			   (0)
@@ -421,6 +421,9 @@ int32_t sif_dev_frame_id_cfg(frame_id_t *cfg)
 		return -1;
 	}
 	iomem = g_sif_dev->iomem;
+	//J2 CHIPSET bug, first fix mode, then incre mode
+	sif_putreg(iomem + REG_FRAME_ID_CFG, 0x00020001);
+	sifinfo("set frame_id to fix mode then incre mode");
 	frameid_cfg |= CONFIG_SET(FRAME_ID_EN, cfg->enable);
 	frameid_cfg |= CONFIG_SET(FRAME_ID_SET_EN, cfg->fix_mode);
 	frameid_cfg |= CONFIG_SET(FRAME_ID_INIT, cfg->init_value);
