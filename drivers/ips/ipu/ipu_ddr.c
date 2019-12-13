@@ -639,6 +639,12 @@ long ipu_ddr_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 			pym_manual_start();
 			spin_unlock_irqrestore(&g_ipu_ddr_cdev->slock, flags);
 			*/
+
+			__flush_dcache_area(page_address(pfn_to_page(
+				PHYS_PFN((phys_addr_t)src_img_info->src_img.y_paddr))),
+				src_img_info->src_img.width * src_img_info->src_img.height +
+				src_img_info->src_img.width * src_img_info->src_img.height/2);
+
 			ret = ipu_pym_to_process(&tmp_ipu_user->pym_user,
 					src_img_info, &tmp_ipu_user->cfg,
 					PYM_SLOT_SINGLE, PYM_OFFLINE);
