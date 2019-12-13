@@ -34,6 +34,12 @@ struct ddr_monitor_dev_s {
 	spinlock_t lock;
 };
 
+#ifdef CONFIG_HOBOT_XJ3
+#define PORT_NUM 8
+#else
+#define PORT_NUM 6
+#endif
+
 struct ddr_monitor_dev_s* g_ddr_monitor_dev = NULL;
 
 struct ddr_portdata_s {
@@ -49,7 +55,7 @@ struct ddr_portdata_s {
 
 struct ddr_monitor_result_s {
 	unsigned long long curtime;
-	struct ddr_portdata_s portdata[6];
+	struct ddr_portdata_s portdata[PORT_NUM];
 	unsigned int rd_cmd_num;
 	unsigned int wr_cmd_num;
 	unsigned int mwr_cmd_num;
@@ -184,7 +190,7 @@ static int get_monitor_data(char* buf)
 			cur = (start + j) % TOTAL_RECORD_NUM;
 			length += sprintf(buf + length, "Time %llu ", ddr_info[cur].curtime);
 			length += sprintf(buf + length, "Read: ");
-			for (i = 0; i < 6; i++)
+			for (i = 0; i < PORT_NUM; i++)
 			{
 				if (ddr_info[cur].portdata[i].raddr_num) {
 					read_bw = ((unsigned long) ddr_info[cur].portdata[i].rdata_num) *
@@ -201,7 +207,7 @@ static int get_monitor_data(char* buf)
 				  64 * (1000000/g_monitor_poriod) >> 20;
 			length += sprintf(buf + length, "ddrc:%lu MB/s;\n", read_bw);
 			length += sprintf(buf + length, "Write: ");
-			for (i = 0; i < 6; i++) {
+			for (i = 0; i < PORT_NUM; i++) {
 				if (ddr_info[cur].portdata[i].waddr_num) {
 					write_bw = ((unsigned long) ddr_info[cur].portdata[i].wdata_num) *
 						    16 * (1000000 / g_monitor_poriod) >> 20;
@@ -402,7 +408,7 @@ int ddr_monitor_cdev_create(void)
 
 	printk(KERN_INFO "ddr_monitor_cdev_create()\n");
 
-	g_ddr_monitor_dev->ddr_monitor_classes = class_create(THIS_MODULE, "x2_ddr_monitor");
+	g_ddr_monitor_dev->ddr_monitor_classes = class_create(THIS_MODULE, "ddr_monitor");
 	if (IS_ERR(g_ddr_monitor_dev->ddr_monitor_classes))
 		return PTR_ERR(g_ddr_monitor_dev->ddr_monitor_classes);
 
@@ -472,7 +478,7 @@ int ddr_get_port_status(void)
 	ktime_t ktime;
 	ktime = ktime_sub(ktime_get(), g_ktime_start);
 	ddr_info[g_current_index].curtime = ktime_to_us(ktime);
-	for (i = 0; i < 6; i++) {
+	for (i = 0; i < PORT_NUM; i++) {
 		ddr_info[g_current_index].portdata[i].raddr_num = readl(g_ddr_monitor_dev->regaddr + MP_BASE_RADDR_TX_NUM + i * MP_REG_OFFSET);
 		ddr_info[g_current_index].portdata[i].rdata_num = readl(g_ddr_monitor_dev->regaddr + MP_BASE_RDATA_TX_NUM + i * MP_REG_OFFSET);
 		ddr_info[g_current_index].portdata[i].raddr_cyc = readl(g_ddr_monitor_dev->regaddr + MP_BASE_RADDR_ST_CYC + i * MP_REG_OFFSET);
@@ -516,8 +522,7 @@ static irqreturn_t ddr_monitor_isr(int this_irq, void *data)
 }
 static unsigned int read_ctl_value;
 static unsigned int write_ctl_value;
-static ssize_t cpu_read_ctl_store(struct kobject *kobj,
-				  struct kobj_attribute *attr,
+static ssize_t cpu_read_ctl_store(struct device_driver *drv,
 				  const char *buf, size_t count)
 {
 	int ret;
@@ -538,9 +543,7 @@ static ssize_t cpu_read_ctl_store(struct kobject *kobj,
 	return count;
 }
 
-static ssize_t cpu_read_ctl_show(struct kobject *kobj,
-				 struct kobj_attribute *attr,
-				 char *buf)
+static ssize_t cpu_read_ctl_show(struct device_driver *drv, char *buf)
 {
 	unsigned int tmp;
 
@@ -548,8 +551,7 @@ static ssize_t cpu_read_ctl_show(struct kobject *kobj,
 	tmp &= 0x0f;
 	return sprintf(buf, "%x\n", tmp);
 }
-static ssize_t bifdma_read_ctl_store(struct kobject *kobj,
-				     struct kobj_attribute *attr,
+static ssize_t bifdma_read_ctl_store(struct device_driver *drv,
 				     const char *buf, size_t count)
 {
 	int ret;
@@ -570,9 +572,7 @@ static ssize_t bifdma_read_ctl_store(struct kobject *kobj,
 	return count;
 }
 
-static ssize_t bifdma_read_ctl_show(struct kobject *kobj,
-				    struct kobj_attribute *attr,
-				    char *buf)
+static ssize_t bifdma_read_ctl_show(struct device_driver *drv, char *buf)
 {
 	unsigned int tmp;
 
@@ -581,8 +581,7 @@ static ssize_t bifdma_read_ctl_show(struct kobject *kobj,
 	tmp &= 0x0f;
 	return sprintf(buf, "%x\n", tmp);
 }
-static ssize_t bpu0_read_ctl_store(struct kobject *kobj,
-				   struct kobj_attribute *attr,
+static ssize_t bpu0_read_ctl_store(struct device_driver *drv,
 				   const char *buf, size_t count)
 {
 	int ret;
@@ -603,9 +602,7 @@ static ssize_t bpu0_read_ctl_store(struct kobject *kobj,
 	return count;
 }
 
-static ssize_t bpu0_read_ctl_show(struct kobject *kobj,
-				 struct kobj_attribute *attr,
-				 char *buf)
+static ssize_t bpu0_read_ctl_show(struct device_driver *drv, char *buf)
 {
 	unsigned int tmp;
 
@@ -615,8 +612,7 @@ static ssize_t bpu0_read_ctl_show(struct kobject *kobj,
 	return sprintf(buf, "%x\n", tmp);
 }
 
-static ssize_t bpu1_read_ctl_store(struct kobject *kobj,
-				   struct kobj_attribute *attr,
+static ssize_t bpu1_read_ctl_store(struct device_driver *drv,
 				   const char *buf, size_t count)
 {
 	int ret;
@@ -637,9 +633,7 @@ static ssize_t bpu1_read_ctl_store(struct kobject *kobj,
 	return count;
 }
 
-static ssize_t bpu1_read_ctl_show(struct kobject *kobj,
-				  struct kobj_attribute *attr,
-				  char *buf)
+static ssize_t bpu1_read_ctl_show(struct device_driver *drv, char *buf)
 {
 	unsigned int tmp;
 
@@ -648,8 +642,7 @@ static ssize_t bpu1_read_ctl_show(struct kobject *kobj,
 	tmp &= 0x0f;
 	return sprintf(buf, "%x\n", tmp);
 }
-static ssize_t vio_read_ctl_store(struct kobject *kobj,
-				  struct kobj_attribute *attr,
+static ssize_t vio_read_ctl_store(struct device_driver *drv,
 				  const char *buf, size_t count)
 {
 	int ret;
@@ -671,9 +664,7 @@ static ssize_t vio_read_ctl_store(struct kobject *kobj,
 
 }
 
-static ssize_t vio_read_ctl_show(struct kobject *kobj,
-				 struct kobj_attribute *attr,
-				 char *buf)
+static ssize_t vio_read_ctl_show(struct device_driver *drv, char *buf)
 {
 	unsigned int tmp;
 
@@ -682,9 +673,10 @@ static ssize_t vio_read_ctl_show(struct kobject *kobj,
 	tmp &= 0x0f;
 	return sprintf(buf, "%x\n", tmp);
 }
-static ssize_t periph_read_ctl_store(struct kobject *kobj,
-				     struct kobj_attribute *attr,
-				     const char *buf, size_t count)
+
+#ifdef CONFIG_HOBOT_XJ3
+static ssize_t vpu_read_ctl_store(struct device_driver *drv,
+				   const char *buf, size_t count)
 {
 	int ret;
 	unsigned int tmp;
@@ -704,9 +696,7 @@ static ssize_t periph_read_ctl_store(struct kobject *kobj,
 	return count;
 }
 
-static ssize_t periph_read_ctl_show(struct kobject *kobj,
-				    struct kobj_attribute *attr,
-				    char *buf)
+static ssize_t vpu_read_ctl_show(struct device_driver *drv, char *buf)
 {
 	unsigned int tmp;
 
@@ -715,8 +705,81 @@ static ssize_t periph_read_ctl_show(struct kobject *kobj,
 	tmp &= 0x0f;
 	return sprintf(buf, "%x\n", tmp);
 }
-static ssize_t all_read_ctl_store(struct kobject *kobj,
-				  struct kobj_attribute *attr,
+
+static ssize_t iar_read_ctl_store(struct device_driver *drv,
+				  const char *buf, size_t count)
+{
+	int ret;
+	unsigned int tmp;
+
+	mutex_lock(&ddr_mo_mutex);
+	ret = sscanf(buf, "%du", &read_ctl_value);
+	if (read_ctl_value > 15) {
+		pr_err("set value error,you should set 0~15\n");
+		mutex_unlock(&ddr_mo_mutex);
+		return 0;
+	}
+	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_READ_QOS_CTRL);
+	tmp &= ~(0x0f << 24);
+	tmp |= (read_ctl_value << 24);
+	writel(tmp, g_ddr_monitor_dev->regaddr + DDR_PORT_READ_QOS_CTRL);
+	mutex_unlock(&ddr_mo_mutex);
+	return count;
+
+}
+
+static ssize_t iar_read_ctl_show(struct device_driver *drv, char *buf)
+{
+	unsigned int tmp;
+
+	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_READ_QOS_CTRL);
+	tmp >>= 24;
+	tmp &= 0x0f;
+	return sprintf(buf, "%x\n", tmp);
+}
+#endif
+
+static ssize_t periph_read_ctl_store(struct device_driver *drv,
+				     const char *buf, size_t count)
+{
+	int ret;
+	unsigned int tmp;
+	int shift = 20;
+
+#ifdef CONFIG_HOBOT_XJ3
+	shift = 28;
+#endif
+
+	mutex_lock(&ddr_mo_mutex);
+	ret = sscanf(buf, "%du", &read_ctl_value);
+	if (read_ctl_value > 15) {
+		pr_err("set value error,you should set 0~15\n");
+		mutex_unlock(&ddr_mo_mutex);
+		return 0;
+	}
+	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_READ_QOS_CTRL);
+	tmp &= ~(0x0f << shift);
+	tmp |= (read_ctl_value << shift);
+	writel(tmp, g_ddr_monitor_dev->regaddr + DDR_PORT_READ_QOS_CTRL);
+	mutex_unlock(&ddr_mo_mutex);
+	return count;
+}
+
+static ssize_t periph_read_ctl_show(struct device_driver *drv, char *buf)
+{
+	unsigned int tmp;
+	int shift = 20;
+
+#ifdef CONFIG_HOBOT_XJ3
+	shift = 28;
+#endif
+
+	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_READ_QOS_CTRL);
+	tmp >>= shift;
+	tmp &= 0x0f;
+	return sprintf(buf, "%x\n", tmp);
+}
+static ssize_t all_read_ctl_store(struct device_driver *drv,
 				  const char *buf, size_t count)
 {
 	int ret;
@@ -732,6 +795,9 @@ static ssize_t all_read_ctl_store(struct kobject *kobj,
 	tmp = 0;
 	tmp = read_ctl_value | (read_ctl_value << 4) |
 		(read_ctl_value << 8) | (read_ctl_value << 12) |
+#ifdef CONFIG_HOBOT_XJ3
+		(read_ctl_value << 24) | (read_ctl_value << 28) |
+#endif
 		(read_ctl_value << 16) | (read_ctl_value << 20);
 	writel(tmp, g_ddr_monitor_dev->regaddr + DDR_PORT_READ_QOS_CTRL);
 	mutex_unlock(&ddr_mo_mutex);
@@ -739,9 +805,7 @@ static ssize_t all_read_ctl_store(struct kobject *kobj,
 
 }
 
-static ssize_t all_read_ctl_show(struct kobject *kobj,
-				 struct kobj_attribute *attr,
-				 char *buf)
+static ssize_t all_read_ctl_show(struct device_driver *drv, char *buf)
 {
 	unsigned int tmp;
 
@@ -750,25 +814,33 @@ static ssize_t all_read_ctl_show(struct kobject *kobj,
 }
 
 
-static struct kobj_attribute cpu_read_ctl = __ATTR(cpu, 0664,
+static struct driver_attribute cpu_read_ctl = __ATTR(cpu, 0664,
 						   cpu_read_ctl_show,
 						   cpu_read_ctl_store);
-static struct kobj_attribute bifdma_read_ctl = __ATTR(bifdma, 0664,
+static struct driver_attribute bifdma_read_ctl = __ATTR(bifdma, 0664,
 						      bifdma_read_ctl_show,
 						      bifdma_read_ctl_store);
-static struct kobj_attribute bpu0_read_ctl = __ATTR(bpu0, 0664,
+static struct driver_attribute bpu0_read_ctl = __ATTR(bpu0, 0664,
 						    bpu0_read_ctl_show,
 						    bpu0_read_ctl_store);
-static struct kobj_attribute bpu1_read_ctl = __ATTR(bpu1, 0664,
+static struct driver_attribute bpu1_read_ctl = __ATTR(bpu1, 0664,
 						    bpu1_read_ctl_show,
 						    bpu1_read_ctl_store);
-static struct kobj_attribute vio_read_ctl    = __ATTR(vio, 0664,
+static struct driver_attribute vio_read_ctl    = __ATTR(vio, 0664,
 						      vio_read_ctl_show,
 						      vio_read_ctl_store);
-static struct kobj_attribute periph_read_ctl = __ATTR(peripheral, 0664,
+#ifdef CONFIG_HOBOT_XJ3
+static struct driver_attribute vpu_read_ctl    = __ATTR(vpu, 0664,
+						      vpu_read_ctl_show,
+						      vpu_read_ctl_store);
+static struct driver_attribute iar_read_ctl    = __ATTR(iar, 0664,
+						      iar_read_ctl_show,
+						      iar_read_ctl_store);
+#endif
+static struct driver_attribute periph_read_ctl = __ATTR(peri, 0664,
 						      periph_read_ctl_show,
 						      periph_read_ctl_store);
-static struct kobj_attribute all_read_ctl    = __ATTR(all, 0664,
+static struct driver_attribute all_read_ctl    = __ATTR(all, 0664,
 						      all_read_ctl_show,
 						      all_read_ctl_store);
 
@@ -778,14 +850,17 @@ static struct attribute *read_qctrl_attrs[] = {
 	&bpu0_read_ctl.attr,
 	&bpu1_read_ctl.attr,
 	&vio_read_ctl.attr,
+#ifdef CONFIG_HOBOT_XJ3
+	&vpu_read_ctl.attr,
+	&iar_read_ctl.attr,
+#endif
 	&periph_read_ctl.attr,
 	&all_read_ctl.attr,
 	NULL,
 };
 
 
-static ssize_t cpu_write_ctl_store(struct kobject *kobj,
-				   struct kobj_attribute *attr,
+static ssize_t cpu_write_ctl_store(struct device_driver *drv,
 				   const char *buf, size_t count)
 {
 	int ret;
@@ -805,9 +880,7 @@ static ssize_t cpu_write_ctl_store(struct kobject *kobj,
 	return count;
 }
 
-static ssize_t cpu_write_ctl_show(struct kobject *kobj,
-				  struct kobj_attribute *attr,
-				  char *buf)
+static ssize_t cpu_write_ctl_show(struct device_driver *drv, char *buf)
 {
 	unsigned int tmp;
 
@@ -815,8 +888,7 @@ static ssize_t cpu_write_ctl_show(struct kobject *kobj,
 	tmp &= 0x0f;
 	return sprintf(buf, "%x\n", tmp);
 }
-static ssize_t bifdma_write_ctl_store(struct kobject *kobj,
-				      struct kobj_attribute *attr,
+static ssize_t bifdma_write_ctl_store(struct device_driver *drv,
 				      const char *buf, size_t count)
 {
 	int ret;
@@ -836,9 +908,7 @@ static ssize_t bifdma_write_ctl_store(struct kobject *kobj,
 	return count;
 }
 
-static ssize_t bifdma_write_ctl_show(struct kobject *kobj,
-				     struct kobj_attribute *attr,
-				     char *buf)
+static ssize_t bifdma_write_ctl_show(struct device_driver *drv, char *buf)
 {
 	unsigned int tmp;
 
@@ -847,8 +917,7 @@ static ssize_t bifdma_write_ctl_show(struct kobject *kobj,
 	tmp &= 0x0f;
 	return sprintf(buf, "%x\n", tmp);
 }
-static ssize_t bpu0_write_ctl_store(struct kobject *kobj,
-				    struct kobj_attribute *attr,
+static ssize_t bpu0_write_ctl_store(struct device_driver *drv,
 				    const char *buf, size_t count)
 {
 	int ret;
@@ -868,9 +937,7 @@ static ssize_t bpu0_write_ctl_store(struct kobject *kobj,
 	return count;
 }
 
-static ssize_t bpu0_write_ctl_show(struct kobject *kobj,
-				   struct kobj_attribute *attr,
-				   char *buf)
+static ssize_t bpu0_write_ctl_show(struct device_driver *drv, char *buf)
 {
 	unsigned int tmp;
 
@@ -880,8 +947,7 @@ static ssize_t bpu0_write_ctl_show(struct kobject *kobj,
 	return sprintf(buf, "%x\n", tmp);
 }
 
-static ssize_t bpu1_write_ctl_store(struct kobject *kobj,
-				    struct kobj_attribute *attr,
+static ssize_t bpu1_write_ctl_store(struct device_driver *drv,
 				    const char *buf, size_t count)
 {
 	int ret;
@@ -901,9 +967,7 @@ static ssize_t bpu1_write_ctl_store(struct kobject *kobj,
 	return count;
 }
 
-static ssize_t bpu1_write_ctl_show(struct kobject *kobj,
-				   struct kobj_attribute *attr,
-				   char *buf)
+static ssize_t bpu1_write_ctl_show(struct device_driver *drv, char *buf)
 {
 	unsigned int tmp;
 
@@ -912,8 +976,7 @@ static ssize_t bpu1_write_ctl_show(struct kobject *kobj,
 	tmp &= 0x0f;
 	return sprintf(buf, "%x\n", tmp);
 }
-static ssize_t vio_write_ctl_store(struct kobject *kobj,
-				   struct kobj_attribute *attr,
+static ssize_t vio_write_ctl_store(struct device_driver *drv,
 				   const char *buf, size_t count)
 {
 	int ret;
@@ -934,9 +997,7 @@ static ssize_t vio_write_ctl_store(struct kobject *kobj,
 
 }
 
-static ssize_t vio_write_ctl_show(struct kobject *kobj,
-				  struct kobj_attribute *attr,
-				  char *buf)
+static ssize_t vio_write_ctl_show(struct device_driver *drv, char *buf)
 {
 	unsigned int tmp;
 
@@ -945,9 +1006,10 @@ static ssize_t vio_write_ctl_show(struct kobject *kobj,
 	tmp &= 0x0f;
 	return sprintf(buf, "%x\n", tmp);
 }
-static ssize_t periph_write_ctl_store(struct kobject *kobj,
-				      struct kobj_attribute *attr,
-				      const char *buf, size_t count)
+
+#ifdef CONFIG_HOBOT_XJ3
+static ssize_t vpu_write_ctl_store(struct device_driver *drv,
+				   const char *buf, size_t count)
 {
 	int ret;
 	unsigned int tmp;
@@ -964,11 +1026,10 @@ static ssize_t periph_write_ctl_store(struct kobject *kobj,
 	writel(tmp, g_ddr_monitor_dev->regaddr + DDR_PORT_WRITE_QOS_CTRL);
 	mutex_unlock(&ddr_mo_mutex);
 	return count;
+
 }
 
-static ssize_t periph_write_ctl_show(struct kobject *kobj,
-				     struct kobj_attribute *attr,
-				     char *buf)
+static ssize_t vpu_write_ctl_show(struct device_driver *drv, char *buf)
 {
 	unsigned int tmp;
 
@@ -977,9 +1038,80 @@ static ssize_t periph_write_ctl_show(struct kobject *kobj,
 	tmp &= 0x0f;
 	return sprintf(buf, "%x\n", tmp);
 }
-static ssize_t all_write_ctl_store(struct kobject *kobj,
-				   struct kobj_attribute *attr,
+
+static ssize_t iar_write_ctl_store(struct device_driver *drv,
 				   const char *buf, size_t count)
+{
+	int ret;
+	unsigned int tmp;
+
+	mutex_lock(&ddr_mo_mutex);
+	ret = sscanf(buf, "%du", &write_ctl_value);
+	if (write_ctl_value > 15) {
+		pr_err("set value error,you should set 0~15\n");
+		return 0;
+	}
+	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_WRITE_QOS_CTRL);
+	tmp &= ~(0x0f << 24);
+	tmp |= (write_ctl_value << 24);
+	writel(tmp, g_ddr_monitor_dev->regaddr + DDR_PORT_WRITE_QOS_CTRL);
+	mutex_unlock(&ddr_mo_mutex);
+	return count;
+
+}
+
+static ssize_t iar_write_ctl_show(struct device_driver *drv, char *buf)
+{
+	unsigned int tmp;
+
+	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_WRITE_QOS_CTRL);
+	tmp >>= 24;
+	tmp &= 0x0f;
+	return sprintf(buf, "%x\n", tmp);
+}
+#endif
+
+static ssize_t periph_write_ctl_store(struct device_driver *drv,
+				      const char *buf, size_t count)
+{
+	int ret;
+	unsigned int tmp;
+	int shift = 20;
+
+#ifdef CONFIG_HOBOT_XJ3
+	shift = 28;
+#endif
+
+	mutex_lock(&ddr_mo_mutex);
+	ret = sscanf(buf, "%du", &write_ctl_value);
+	if (write_ctl_value > 15) {
+		pr_err("set value error,you should set 0~15\n");
+		return 0;
+	}
+	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_WRITE_QOS_CTRL);
+	tmp &= ~(0x0f << shift);
+	tmp |= (write_ctl_value << shift);
+	writel(tmp, g_ddr_monitor_dev->regaddr + DDR_PORT_WRITE_QOS_CTRL);
+	mutex_unlock(&ddr_mo_mutex);
+	return count;
+}
+
+static ssize_t periph_write_ctl_show(struct device_driver *drv, char *buf)
+{
+	unsigned int tmp;
+	int shift = 20;
+
+#ifdef CONFIG_HOBOT_XJ3
+	shift = 28;
+#endif
+
+	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_WRITE_QOS_CTRL);
+	tmp >>= shift;
+	tmp &= 0x0f;
+	return sprintf(buf, "%x\n", tmp);
+}
+static ssize_t all_write_ctl_store(struct device_driver *drv,
+		const char *buf, size_t count)
 {
 	int ret;
 	unsigned int tmp;
@@ -993,6 +1125,9 @@ static ssize_t all_write_ctl_store(struct kobject *kobj,
 	tmp = 0;
 	tmp = write_ctl_value | (write_ctl_value << 4) |
 		(write_ctl_value << 8) | (write_ctl_value << 12) |
+#ifdef CONFIG_HOBOT_XJ3
+		(write_ctl_value << 24) | (write_ctl_value << 28) |
+#endif
 		(write_ctl_value << 16) | (write_ctl_value << 20);
 	writel(tmp, g_ddr_monitor_dev->regaddr + DDR_PORT_WRITE_QOS_CTRL);
 	mutex_unlock(&ddr_mo_mutex);
@@ -1000,9 +1135,7 @@ static ssize_t all_write_ctl_store(struct kobject *kobj,
 
 }
 
-static ssize_t all_write_ctl_show(struct kobject *kobj,
-				  struct kobj_attribute *attr,
-				  char *buf)
+static ssize_t all_write_ctl_show(struct device_driver *drv, char *buf)
 {
 	unsigned int tmp;
 
@@ -1011,25 +1144,34 @@ static ssize_t all_write_ctl_show(struct kobject *kobj,
 }
 
 
-static struct kobj_attribute cpu_write_ctl = __ATTR(cpu, 0664,
+static struct driver_attribute cpu_write_ctl = __ATTR(cpu, 0664,
 						    cpu_write_ctl_show,
 						    cpu_write_ctl_store);
-static struct kobj_attribute bifdma_write_ctl = __ATTR(bifdma, 0664,
+static struct driver_attribute bifdma_write_ctl = __ATTR(bifdma, 0664,
 						       bifdma_write_ctl_show,
 						       bifdma_write_ctl_store);
-static struct kobj_attribute bpu0_write_ctl = __ATTR(bpu0, 0664,
+static struct driver_attribute bpu0_write_ctl = __ATTR(bpu0, 0664,
 						     bpu0_write_ctl_show,
 						     bpu0_write_ctl_store);
-static struct kobj_attribute bpu1_write_ctl = __ATTR(bpu1, 0664,
+static struct driver_attribute bpu1_write_ctl = __ATTR(bpu1, 0664,
 						     bpu1_write_ctl_show,
 						     bpu1_write_ctl_store);
-static struct kobj_attribute vio_write_ctl    = __ATTR(vio, 0664,
+static struct driver_attribute vio_write_ctl    = __ATTR(vio, 0664,
 						       vio_write_ctl_show,
 						       vio_write_ctl_store);
-static struct kobj_attribute periph_write_ctl = __ATTR(peripheral, 0664,
+#ifdef CONFIG_HOBOT_XJ3
+static struct driver_attribute vpu_write_ctl    = __ATTR(vpu, 0664,
+						       vpu_write_ctl_show,
+						       vpu_write_ctl_store);
+static struct driver_attribute iar_write_ctl    = __ATTR(iar, 0664,
+						       iar_write_ctl_show,
+						       iar_write_ctl_store);
+#endif
+
+static struct driver_attribute periph_write_ctl = __ATTR(peri, 0664,
 						       periph_write_ctl_show,
 						       periph_write_ctl_store);
-static struct kobj_attribute all_write_ctl    = __ATTR(all, 0664,
+static struct driver_attribute all_write_ctl    = __ATTR(all, 0664,
 						       all_write_ctl_show,
 						       all_write_ctl_store);
 
@@ -1039,6 +1181,10 @@ static struct attribute *write_qctl_attrs[] = {
 	&bpu0_write_ctl.attr,
 	&bpu1_write_ctl.attr,
 	&vio_write_ctl.attr,
+#ifdef CONFIG_HOBOT_XJ3
+	&vpu_write_ctl.attr,
+	&iar_write_ctl.attr,
+#endif
 	&periph_write_ctl.attr,
 	&all_write_ctl.attr,
 	NULL,
@@ -1123,9 +1269,6 @@ static int ddr_monitor_probe(struct platform_device *pdev)
 	writel(0x21100, g_ddr_monitor_dev->regaddr + DDR_PORT_READ_QOS_CTRL);
 	writel(0x21100, g_ddr_monitor_dev->regaddr + DDR_PORT_WRITE_QOS_CTRL);
 
-	/*register bpu sys node*/
-	if (subsys_system_register(&ddr_monitor_subsys, ddr_attr_groups))
-		pr_err("fialed to register bpu subsystem");
 	return ret;
 }
 
@@ -1152,6 +1295,7 @@ static struct platform_driver ddr_monitor_driver = {
 	.driver = {
 		.name	= "ddr_monitor",
 		.of_match_table = ddr_monitor_match,
+		.groups = ddr_attr_groups,
 	},
 };
 
