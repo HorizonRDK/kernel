@@ -41,6 +41,7 @@
 #define IAR_SET_VIDEO_DDR_LAYER _IOW(IAR_CDEV_MAGIC, 0x22, unsigned int)
 #define DISP_SET_VIDEO_ADDR	\
 	_IOW(IAR_CDEV_MAGIC, 0x23, struct display_video_vaddr)
+#define GET_DISP_DONE     _IOR(IAR_CDEV_MAGIC, 0x24, unsigned int)
 
 
 typedef struct _update_cmd_t {
@@ -162,7 +163,7 @@ static int iar_cdev_open(struct inode *inode, struct file *filp)
 
 static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 {
-	int ret;
+	int ret = 0;
 	void	__user *arg = (void __user *)p;
 	mutex_lock(&g_iar_cdev->iar_mutex);
 	switch (cmd) {
@@ -271,6 +272,18 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 			if (ret)
 				pr_err("%s: channel 1 not display\n", __func__);
 			iar_update();
+		}
+		break;
+	case GET_DISP_DONE:
+		 {
+			uint8_t display_done;
+
+			//display_done = disp_get_display_done();
+			display_done = (uint8_t)((readl(g_iar_dev->regaddr +
+				REG_IAR_DE_SRCPNDREG) & 0x00400000) >> 22);
+			if (copy_to_user(arg, &display_done,
+						sizeof(uint8_t)))
+				return -EFAULT;
 		}
 		break;
 	default:

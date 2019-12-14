@@ -645,6 +645,8 @@ int32_t iar_channel_base_cfg(channel_base_cfg_t *cfg)
 
 	g_iar_dev->buf_w_h[channelid][0] = cfg->buf_width;
 	g_iar_dev->buf_w_h[channelid][1] = cfg->buf_height;
+	writel(cfg->buf_height << 16 | cfg->buf_width,
+		g_iar_dev->regaddr + REG_IAR_CROPPED_WINDOW_RD1 - channelid*4);
 //	iar_config_pixeladdr();
 
 	return 0;
@@ -919,7 +921,7 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 	value = IAR_REG_SET_FILED(IAR_PANEL_COLOR_TYPE, 2, value);
 	value = IAR_REG_SET_FILED(IAR_YCBCR_OUTPUT, 1, value);
 	writel(value, g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
-#if 0
+
 	value = IAR_REG_SET_FILED(IAR_CONTRAST, cfg->ppcon1.contrast, 0);
 	value = IAR_REG_SET_FILED(IAR_THETA_SIGN, cfg->ppcon1.theta_sign, value);
 	value = IAR_REG_SET_FILED(IAR_BRIGHT_EN, cfg->ppcon1.bright_en, value);
@@ -936,7 +938,7 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 	value = IAR_REG_SET_FILED(IAR_SATURATION, cfg->ppcon2.saturation, value);
 	value = IAR_REG_SET_FILED(IAR_THETA_ABS, cfg->ppcon2.theta_abs, value);
 	writel(value, g_iar_dev->regaddr + REG_IAR_PP_CON_2);
-
+#if 0
 	value = IAR_REG_SET_FILED(IAR_DBI_REFRESH_MODE, cfg->refresh_cfg.dbi_refresh_mode, 0);
 	value = IAR_REG_SET_FILED(IAR_PANEL_COLOR_TYPE, cfg->refresh_cfg.panel_corlor_type, value);
 	value = IAR_REG_SET_FILED(IAR_INTERLACE_SEL, cfg->refresh_cfg.interlace_sel, value);

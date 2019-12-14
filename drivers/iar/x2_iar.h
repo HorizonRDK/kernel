@@ -399,6 +399,8 @@ typedef struct _channel_base_cfg_t {
 	uint32_t alpha_sel;
 	uint32_t ov_mode;
 	uint32_t alpha_en;
+	uint32_t crop_width;
+	uint32_t crop_height;
 } channel_base_cfg_t;
 
 struct gamma_reg_bits_s {
