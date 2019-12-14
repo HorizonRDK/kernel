@@ -18,6 +18,32 @@ int slot_alive(int type)
 	ipu_dbg("q_cnt = %d\n", q_cnt);
 	return q_cnt;
 }
+
+int ipu_dual_slot_check(int type, int slot_id)
+{
+	ipu_slot_dual_h_t *dual_slot = NULL;
+	struct list_head *pos = NULL;
+	struct list_head *n = NULL;
+
+	spin_lock(&g_dual_slot_queue[type].lock);
+	list_for_each_safe(pos, n, &g_dual_slot_queue[type].queue) {
+		dual_slot = (ipu_slot_dual_h_t *)pos;
+		if (dual_slot == NULL) {
+			spin_unlock(&g_dual_slot_queue[type].lock);
+			pr_err("check slot is NULL\n");
+			return -ENOMEM;
+		}
+		if (slot_id == dual_slot->info_h.slot_id) {
+			spin_unlock(&g_dual_slot_queue[type].lock);
+			pr_err("slot %d have have been in existence\n", slot_id);
+			return -EFAULT;
+		}
+	}
+	spin_unlock(&g_dual_slot_queue[type].lock);
+	pr_debug("[%s] slot type = %d slot_id %d\n", __func__, type, slot_id);
+	return slot_id;
+}
+
 void enqueue_slot(slot_queue_t *slot_queue, ipu_slot_dual_h_t *slot_h)
 {
 	struct list_head *phead;
@@ -49,11 +75,19 @@ ipu_slot_dual_h_t* dequeue_slot(slot_queue_t *slot_queue)
 int insert_dual_slot_to_free(int slot_id, slot_ddr_info_dual_t *data)
 {
 	ipu_slot_dual_h_t *slot_h = NULL;
+
 	if (slot_id < 0 || slot_id >= g_ipu->slot_num / 2) {
 		ipu_err("invalid slot id when free to done\n");
 		return -1;
 	}
-
+	if ((ipu_dual_slot_check(FREE_SLOT_QUEUE, slot_id) < 0) ||
+		(ipu_dual_slot_check(RECVING_SLOT_QUEUE, slot_id) < 0) ||
+		(ipu_dual_slot_check(RECVDONE_SLOT_QUEUE, slot_id) < 0) ||
+		(ipu_dual_slot_check(PYMING_SLOT_QUEUE, slot_id) < 0) ||
+		(ipu_dual_slot_check(PYMDONE_SLOT_QUEUE, slot_id) < 0)) {
+		pr_err("dual slot %d have been free !!\n", slot_id);
+		return 0;
+	}
 	ipu_info("insert slot-%d \n", slot_id);
 	slot_h = &g_ipu_slot_dual[slot_id];
 	slot_h->info_h.cnn_flag = 0;

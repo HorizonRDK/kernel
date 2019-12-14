@@ -98,9 +98,6 @@ typedef struct {
         int time;
 }vio_ipu_info_t;
 
-
-
-
 int slot_left_num(int type);
 int8_t init_ipu_slot(uint64_t base, slot_ddr_info_t *data);
 int8_t ipu_clean_slot(slot_ddr_info_t *data);

@@ -50,8 +50,6 @@ int8_t ipu_slot_recfg(slot_ddr_info_t *data)
 	return 0;
 }
 
-
-
 int8_t ipu_clean_slot(slot_ddr_info_t *data)
 {
 	while (!list_empty(&g_ipu_slot_list[DONE_SLOT_LIST])) {
@@ -70,6 +68,7 @@ ipu_slot_h_t* ipu_get_done_slot()
 	struct list_head *node = NULL;
 	struct list_head *head = NULL;
 	ipu_slot_h_t	 *slot_h = NULL;
+
 	if (list_empty(&g_ipu_slot_list[DONE_SLOT_LIST])) {
 		return NULL;
 	}
@@ -79,8 +78,6 @@ ipu_slot_h_t* ipu_get_done_slot()
 	list_del_init(node);
 	return slot_h;
 }
-
-
 
 ipu_slot_h_t *ipu_read_done_slot(void)
 {
@@ -92,7 +89,6 @@ ipu_slot_h_t *ipu_read_done_slot(void)
 		ipu_info("done slot empty\n");
 		return NULL;
 	}
-
 	head = &g_ipu_slot_list[DONE_SLOT_LIST];
 	node = head->next;
 	slot_h = (ipu_slot_h_t *)node;
@@ -110,7 +106,6 @@ ipu_slot_h_t* slot_free_to_busy(void)
 		ipu_info("busy list already have 2 nodes\n");
 		goto out;
 	}
-
 	/* get node from done list */
 	if (list_empty(&g_ipu_slot_list[FREE_SLOT_LIST])) {
 		done_cnt = slot_left_num(DONE_SLOT_LIST);
@@ -124,17 +119,14 @@ ipu_slot_h_t* slot_free_to_busy(void)
 		node = g_ipu_slot_list[FREE_SLOT_LIST].next;
 		slot_h = (ipu_slot_h_t *)node;
 	}
-
 	if (slot_h) {
 		slot_h->info_h.slot_flag = SLOT_BUSY;
 		slot_h->slot_cnt++;
 		list_move_tail(&slot_h->list, &g_ipu_slot_list[BUSY_SLOT_LIST]);
 	}
-
 out:
 	return slot_h;
 }
-
 
 ipu_slot_h_t *ipu_get_free_slot(void)
 {
@@ -151,6 +143,26 @@ ipu_slot_h_t *ipu_get_free_slot(void)
 	return slot_h;
 }
 
+int ipu_slot_id_check(int type, int slot_id)
+{
+	struct list_head *pos = NULL;
+	struct list_head *n = NULL;
+	ipu_slot_h_t	 *slot_h = NULL;
+
+	list_for_each_safe(pos, n, &g_ipu_slot_list[type]) {
+		slot_h = (ipu_slot_h_t *)pos;
+		if (slot_h == NULL) {
+			pr_err("check slot is NULL\n");
+			return -ENOMEM;
+		}
+		if (slot_id == slot_h->info_h.slot_id) {
+			pr_err("slot %d have have been in existence\n", slot_id);
+			return -EFAULT;
+		}
+	}
+	pr_debug("[%s] slot type = %d\n", __func__, type);
+	return slot_id;
+}
 
 int slot_left_num(int type)
 {
@@ -230,6 +242,12 @@ int insert_slot_to_free(int slot_id)
 		ipu_err("invalid slot id when free to done, %d\n", slot_id);
 		return -1;
 	}
+	if ((ipu_slot_id_check(FREE_SLOT_LIST, slot_id) < 0) ||
+		(ipu_slot_id_check(BUSY_SLOT_LIST, slot_id) < 0) ||
+		(ipu_slot_id_check(DONE_SLOT_LIST, slot_id) < 0)) {
+		pr_err("slot %d have been free !!\n", slot_id);
+		return 0;
+	}
 	slot_h = &g_ipu_slot_[slot_id];
 	list_move_tail(&slot_h->list, &g_ipu_slot_list[FREE_SLOT_LIST]);
 	slot_h->info_h.cnn_flag = 0;
@@ -240,12 +258,12 @@ int insert_slot_to_free(int slot_id)
 
 bool is_slot_busy_empty(void)
 {
-
 	if (list_empty(&g_ipu_slot_list[BUSY_SLOT_LIST])) {
 		return true;
 	}
 	return false;
 }
+
 bool is_slot_free_empty(void)
 {
 	if (list_empty(&g_ipu_slot_list[FREE_SLOT_LIST])) {
