@@ -76,6 +76,8 @@ static int sif_start(sif_t *dev)
 		siferr("ERROR: sif dev start error: %d", ret);
 		return ret;
 	}
+	ips_unmask_int(MOT_DET | SIF_SOFT_DROP | SIF_FRAME_END_INTERRUPT
+			| SIF_FRAME_START_INTERRUPT | SIF_SIZE_ERR0 | SIF_SIZE_ERR1);
 	ips_irq_enable(SIF_INT);
 	return ret;
 }
