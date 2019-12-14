@@ -75,6 +75,7 @@ static struct x2_cnn_dev *cnn0_dev;
 static struct x2_cnn_dev *cnn1_dev;
 static int profiler_frequency;
 static int profiler_enable;
+static int brust_length = 0x80;
 static int fc_time_enable;
 static int ratio0;
 static int ratio1;
@@ -316,7 +317,7 @@ static int x2_cnn_hw_init(struct x2_cnn_dev *dev)
 {
 
 	/* Config axi write master */
-	x2_cnnbus_wm_set(dev, X2_CNNBUS_CTRL_WM_0, 0x80, 0xf, 0x1);
+	x2_cnnbus_wm_set(dev, X2_CNNBUS_CTRL_WM_0, brust_length, 0xf, 0x1);
 	x2_cnnbus_wm_set(dev, X2_CNNBUS_CTRL_WM_1, 0x80, 0xf, 0x2);
 	x2_cnnbus_wm_set(dev, X2_CNNBUS_CTRL_WM_2, 0x8, 0x0, 0x3);
 	x2_cnnbus_wm_set(dev, X2_CNNBUS_CTRL_WM_3, 0x80, 0x0, 0x4);
@@ -2388,6 +2389,41 @@ static ssize_t fre_store(struct kobject *kobj, struct kobj_attribute *attr,
 	return count;
 }
 
+static ssize_t brust_len_show(struct kobject *kobj,
+		struct kobj_attribute *attr, char *buf)
+{
+	return snprintf(buf, PAGE_SIZE, "%d\n", brust_length * 16);
+}
+
+static ssize_t brust_len_store(struct kobject *kobj,
+		struct kobj_attribute *attr,
+		const char *buf, size_t count)
+{
+	int ret;
+	int tmp_val;
+
+	ret = sscanf(buf, "%du", &tmp_val);
+	if (ret < 0) {
+		pr_info("%s sscanf error\n", __func__);
+		return 0;
+	}
+
+	if (tmp_val % 16 > 0) {
+		pr_err("brust len must align 16");
+	}
+
+	brust_length = tmp_val / 16;
+
+	if (brust_length <= 0)
+		brust_length = 1;
+	else if (brust_length > 0x80)
+		brust_length = 0x80;
+
+	pr_info("func:%s, set brust len:%d\n", __func__, brust_length);
+
+	return count;
+}
+
 static ssize_t enable_show(struct kobject *kobj, struct kobj_attribute *attr,
 						 char *buf)
 {
@@ -2717,6 +2753,8 @@ static struct kobj_attribute pro_frequency = __ATTR(profiler_frequency, 0664,
 						    fre_show, fre_store);
 static struct kobj_attribute pro_enable    = __ATTR(profiler_enable, 0664,
 						    enable_show, enable_store);
+static struct kobj_attribute brust_len = __ATTR(brust_len, 0664,
+						    brust_len_show, brust_len_store);
 static struct kobj_attribute fc_enable    = __ATTR(fc_time_enable, 0664,
 						    fc_time_enable_show,
 						    fc_time_enable_store);
@@ -2757,6 +2795,7 @@ static struct attribute *bpu_attrs[] = {
 	&pro_frequency.attr,
 	&pro_enable.attr,
 	&fc_enable.attr,
+	&brust_len.attr,
 	NULL,
 };
 static struct attribute *bpu0_attrs[] = {
