@@ -623,6 +623,7 @@ long ipu_dual_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 				memcpy(&tmp_ipu_user->dual_ddr_info,
 						&g_ipu_d_cdev->s_info, sizeof(slot_ddr_info_dual_t));
 				ipu_pym_clear();
+				g_ipu_time = 0;
 			} else {
 				ret = ipu_cfg_ddrinfo_init(ipu_cfg);
 				if (ret < 0) {
@@ -634,7 +635,6 @@ long ipu_dual_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 				ipu_sinfo_init(&tmp_ipu_user->dual_ddr_info, ipu_cfg);
 			}
 
-			g_ipu_time = 0;
 			ret = 0;
 			mutex_unlock(&ipu_cdev->mutex_lock);
 		}
@@ -835,6 +835,9 @@ again:
 	case IPUC_START:
 		{
 #if 1
+			if (ipu_cdev->open_counter > 1)
+				break;
+
 			mutex_lock(&ipu_cdev->mutex_lock);
 			if (slot_alive(RECVING_SLOT_QUEUE) < 1) {
 				spin_lock_irqsave(&g_ipu_d_cdev->slock, flags);

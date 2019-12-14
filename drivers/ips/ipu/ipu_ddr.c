@@ -592,6 +592,7 @@ long ipu_ddr_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 				memcpy(g_ipu->cfg, ipu_cfg, sizeof(ipu_cfg_t));
 				memcpy(&tmp_ipu_user->ddr_info,
 						&g_ipu_ddr_cdev->s_info, sizeof(slot_ddr_info_t));
+				started = 0;
 			} else {
 				ret = ipu_cfg_ddrinfo_init(ipu_cfg);
 				if (ret < 0) {
@@ -603,7 +604,6 @@ long ipu_ddr_ioctl(struct file *filp, unsigned int cmd, unsigned long data)
 				ipu_sinfo_init(&tmp_ipu_user->ddr_info, ipu_cfg);
 			}
 
-			started = 0;
 			ret = 0;
 			mutex_unlock(&ipu_cdev->mutex_lock);
 		}
@@ -885,6 +885,9 @@ wait:
 	case IPUC_START:
 		{
 			unsigned long flags;
+
+			if (ipu_cdev->open_counter > 1)
+				break;
 
 			mutex_lock(&ipu_cdev->mutex_lock);
 			if (slot_left_num(BUSY_SLOT_LIST) < 1) {
