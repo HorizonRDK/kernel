@@ -60,7 +60,6 @@
 #define X2_IPU_DUAL_NAME	"x2-ipu-dual"
 
 extern struct x2_ipu_data *g_ipu;
-
 static struct ipu_dual_cdev *g_ipu_d_cdev = NULL;
 static int64_t g_ipu_time;
 
@@ -93,7 +92,7 @@ static int64_t ipu_current_time(void)
 static int8_t ipu_get_frameid(struct x2_ipu_data *ipu, ipu_slot_dual_h_t *slot)
 {
 	uint8_t *tmp = NULL;
-	uint64_t vaddr = (uint64_t)IPU_GET_DUAL_SLOT(slot->info_h.slot_id, ipu->vaddr);
+	uint64_t vaddr = NULL;
 	ipu_cfg_t *cfg = (ipu_cfg_t *)ipu->cfg;
 	int64_t ts = ipu_tsin_get(g_ipu_time);
 
@@ -101,6 +100,11 @@ static int8_t ipu_get_frameid(struct x2_ipu_data *ipu, ipu_slot_dual_h_t *slot)
 	slot->info_h.sf_timestamp = ts;
 	if (!cfg->frame_id.id_en)
 		return 0;
+	if (slot->info_h.slot_id > (g_slot_num / 2) || slot->info_h.slot_id < 0) {
+		pr_err("%d slot id %d not available\n", __LINE__, slot->info_h.slot_id);
+		return -ENOMEM;
+	}
+	vaddr = (uint64_t)IPU_GET_DUAL_SLOT(slot->info_h.slot_id, ipu->vaddr);
 	/* get first id from pymid ddr address */
 	tmp = (uint8_t *)(slot->info_h.dual_ddr_info.crop.y_offset + vaddr);
 	__inval_dcache_area((void *)tmp, L1_CACHE_BYTES);

@@ -86,7 +86,6 @@ struct ipu_ddr_cdev {
 struct ipu_ddr_cdev *g_ipu_ddr_cdev;
 static int64_t g_ipu_time;
 int g_pym_from;
-
 /* new process */
 static struct src_img_info_t g_process_info;
 /* new process */
@@ -143,7 +142,7 @@ static char ipu_fs_flag = 0, ipu_fd_flag = 0;
 static int8_t ipu_get_frameid(struct x2_ipu_data *ipu, ipu_slot_h_t *slot)
 {
 	uint8_t *tmp = NULL;
-	uint64_t vaddr = (uint64_t)IPU_GET_SLOT(slot->info_h.slot_id, ipu->vaddr);
+	uint64_t vaddr = NULL;
 	ipu_cfg_t *cfg = (ipu_cfg_t *)ipu->cfg;
 	int64_t ts = ipu_tsin_get(g_ipu_ts);
 
@@ -151,6 +150,11 @@ static int8_t ipu_get_frameid(struct x2_ipu_data *ipu, ipu_slot_h_t *slot)
 	slot->info_h.sf_timestamp = ts;
 	if (!cfg->frame_id.id_en)
 		return 0;
+	if (slot->info_h.slot_id > g_slot_num || slot->info_h.slot_id < 0) {
+		pr_err("%d slot id %d not available\n", __LINE__, slot->info_h.slot_id);
+		return -ENOMEM;
+	}
+	vaddr = (uint64_t)IPU_GET_SLOT(slot->info_h.slot_id, ipu->vaddr);
 	if (cfg->frame_id.crop_en && cfg->ctrl.crop_ddr_en) {
 		/* get id from crop ddr address */
 		tmp = (uint8_t *)(slot->info_h.ddr_info.crop.y_offset + vaddr);

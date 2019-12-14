@@ -60,8 +60,8 @@ static int64_t ipu_tsin_val;
 static int64_t ipu_tsadj_val;
 static int ipu_tsadj_calv;
 static int64_t ipu_tsadj_cal;
-static uint8_t g_slot_num;
 static uint32_t g_slot_size;
+uint8_t g_slot_num;
 
 module_param(ipu_debug_level, uint, 0644);
 unsigned int ipu_irq_debug = 0;

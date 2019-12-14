@@ -73,8 +73,6 @@ struct ipu_single_cdev {
 struct ipu_single_cdev *g_ipu_s_cdev;
 extern struct x2_ipu_data *g_ipu;
 static int64_t g_ipu_time;
-
-
 #if 1
 unsigned int frequency_ipu = 0;
 unsigned int drop_ipu = 0;
@@ -146,7 +144,7 @@ static int decode_timestamp(void *addr, int64_t *timestamp)
 static int8_t ipu_get_frameid(struct x2_ipu_data *ipu, ipu_slot_h_t *slot)
 {
 	uint8_t *tmp = NULL;
-	uint64_t vaddr = (uint64_t)IPU_GET_SLOT(slot->info_h.slot_id, ipu->vaddr);
+	uint64_t vaddr = NULL;
 	ipu_cfg_t *cfg = (ipu_cfg_t *)ipu->cfg;
 	int64_t ts = ipu_tsin_get(g_ipu_time);
 
@@ -154,6 +152,11 @@ static int8_t ipu_get_frameid(struct x2_ipu_data *ipu, ipu_slot_h_t *slot)
 	slot->info_h.sf_timestamp = ts;
 	if (!cfg->frame_id.id_en)
 		return 0;
+	if (slot->info_h.slot_id > g_slot_num || slot->info_h.slot_id < 0) {
+		pr_err("%d slot id %d not available\n", __LINE__, slot->info_h.slot_id);
+		return -ENOMEM;
+	}
+	vaddr = (uint64_t)IPU_GET_SLOT(slot->info_h.slot_id, ipu->vaddr);
 	if (cfg->frame_id.crop_en && cfg->ctrl.crop_ddr_en) {
 		/* get id from crop ddr address */
 		tmp = (uint8_t *)(slot->info_h.ddr_info.crop.y_offset + vaddr);

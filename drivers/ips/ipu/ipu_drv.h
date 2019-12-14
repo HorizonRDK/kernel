@@ -27,6 +27,8 @@ enum {
 	IPU_DDR_DUAL,
 };
 
+extern uint8_t g_slot_num;
+
 typedef void (*ipu_handle_t)(uint32_t status);
 
 struct x2_ipu_data {
