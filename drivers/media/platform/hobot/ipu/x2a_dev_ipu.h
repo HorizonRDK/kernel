@@ -103,7 +103,7 @@ enum ipu_status {
 	IPU_OTF_INPUT,
 	IPU_DMA_INPUT,
 	IPU_OTF_OUTPUT,
-	IPU_DMA_OUTPUT,
+	IPU_DS2_DMA_OUTPUT,
 };
 
 struct ipu_group {

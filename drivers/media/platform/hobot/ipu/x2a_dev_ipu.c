@@ -157,6 +157,8 @@ static void frame_work_function(struct kthread_work *work)
 
 	set_bit(VIO_GTASK_SHOT, &gtask->state);
 
+	//vio_info("IPU %s start\n", __func__);
+
 	if (unlikely(test_bit(VIO_GTASK_REQUEST_STOP, &gtask->state))) {
 		vio_err(" cancel by gstop0");
 		goto p_err_ignore;
@@ -224,7 +226,7 @@ static void frame_work_function(struct kthread_work *work)
 	rdy = ipu_get_shd_rdy(ipu->base_reg);
 	rdy = rdy | (1 << 4);
 	ipu_set_shd_rdy(ipu->base_reg, rdy);
-	vio_info("IPU %s\n", __func__);
+	//vio_info("IPU %s done\n", __func__);
 	clear_bit(VIO_GTASK_SHOT, &gtask->state);
 
 	//ipu_hw_dump(ipu->base_reg);
@@ -629,6 +631,7 @@ int ipu_update_common_param(struct ipu_video_ctx *ipu_ctx, ipu_cfg_t * ipu_cfg)
 	if (ipu_ctrl->ds2_to_pym_en == 1) {
 		ipu_update_ds_ch_param(ipu_ctx, 2, &ipu_cfg->ds_info[2]);
 		ipu_set_ds2_wdma_enable(ipu->base_reg, shadow_index, 1);
+		set_bit(IPU_DS2_DMA_OUTPUT, &ipu->state);
 	}
 	///RD Buffer stride
 	src_stride_uv = ipu_ctrl->src_stride_uv;
@@ -1023,7 +1026,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 	}
 
 	if (status & (1 << INTR_IPU_DS2_FRAME_DONE)
-	    && test_bit(IPU_DMA_OUTPUT, &ipu->state)) {
+	    && test_bit(IPU_DS2_DMA_OUTPUT, &ipu->state)) {
 		ipu_frame_done(group->sub_ctx[GROUP_ID_DS2]);
 	}
 

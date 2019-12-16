@@ -170,7 +170,7 @@ static void sif_set_pattern_gen(u32 __iomem *base_reg, u32 pat_index, sif_data_d
 
 #else
 	const u32 padding = 1;
-	u32 h_time = 4096 * 2;
+	u32 h_time = 4096 * 5;
 	u32 v_line = p_data->height + 100 + 1;
 #endif
 	u32 y,cb, cr;

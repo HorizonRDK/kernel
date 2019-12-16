@@ -91,10 +91,11 @@ typedef struct sif_input_mipi {
 
 //will move to isp input, sif ddr read is just for isp
 typedef struct sif_input_ddr {
-	sif_data_desc_t   data;
 	uint32_t		  mux_index;
 	uint32_t		  enable;
 	uint32_t		  stride;
+	uint32_t 		  raw_dump_en;
+	sif_data_desc_t   data;
 } sif_input_ddr_t;
 
 typedef struct sif_input_iar {
@@ -120,6 +121,7 @@ typedef struct sif_output_ddr {
 	uint32_t		  mux_index;
 	uint32_t		  stride;
 	uint32_t		  buffer_num;
+	uint32_t		  raw_dump_en;
 	sif_ddr_out_type_e sif_ddr_out_type;
 } sif_output_ddr_t;
 

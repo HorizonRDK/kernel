@@ -1,9 +1,12 @@
+#include <linux/sched.h>
+#include <uapi/linux/sched/types.h>
 #include "vio_group_api.h"
 
 int vio_group_task_start(struct vio_group_task *group_task)
 {
 	int ret = 0;
 	char name[30];
+	struct sched_param param = { .sched_priority = MAX_RT_PRIO - 1 };
 
 	BUG_ON(!group_task);
 
@@ -18,6 +21,14 @@ int vio_group_task_start(struct vio_group_task *group_task)
 		ret = PTR_ERR(group_task->task);
 		goto p_err;
 	}
+
+	ret = sched_setscheduler_nocheck(group_task->task, SCHED_FIFO, &param);
+	if (ret) {
+		vio_err("sched_setscheduler_nocheck is fail(%d)", ret);
+		goto p_err;
+	}
+
+	sema_init(&group_task->hw_resource, 1);
 
 	set_bit(VIO_GTASK_START, &group_task->state);
 p_work:

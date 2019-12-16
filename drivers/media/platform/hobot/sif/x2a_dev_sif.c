@@ -392,8 +392,8 @@ int sif_mux_init(struct sif_video_ctx *sif_ctx, unsigned long arg)
 	sif_ctx->group = group;
 	gtask = &sif->sifout_task[mux_index];
 
-	sema_init(&gtask->hw_resource, 4);
 	vio_group_task_start(gtask);
+	sema_init(&gtask->hw_resource, 4);
 
 	//if (test_bit(SIF_OTF_OUTPUT, &sif->state))
 	//	sif_disable_wdma(sif->base_reg);
