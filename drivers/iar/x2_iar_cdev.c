@@ -42,6 +42,7 @@
 #define DISP_SET_VIDEO_ADDR	\
 	_IOW(IAR_CDEV_MAGIC, 0x23, struct display_video_vaddr)
 #define GET_DISP_DONE     _IOR(IAR_CDEV_MAGIC, 0x24, unsigned int)
+#define DISP_SET_TIMING	_IOW(IAR_CDEV_MAGIC, 0x25, struct disp_timing)
 
 
 typedef struct _update_cmd_t {
@@ -284,6 +285,21 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 			if (copy_to_user(arg, &display_done,
 						sizeof(uint8_t)))
 				return -EFAULT;
+		}
+		break;
+	case DISP_SET_TIMING:
+		 {
+			struct disp_timing user_disp_timing;
+
+			pr_debug("iar_cdev: %s: user set video timing\n",
+					__func__);
+			if (copy_from_user(&user_disp_timing, arg,
+						sizeof(user_disp_timing)))
+				return -EFAULT;
+			ret = disp_set_panel_timing(&user_disp_timing);
+			if (ret)
+				pr_err("error user set video timing!\n");
+			iar_update();
 		}
 		break;
 	default:
