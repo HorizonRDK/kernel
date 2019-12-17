@@ -38,6 +38,7 @@
 #endif
 
 #include "acamera_logger.h"
+#include "acamera_fw.h"
 
 #include "isp-v4l2-common.h"
 #include "isp-v4l2.h"
@@ -126,6 +127,8 @@ void callback_meta( uint32_t ctx_id, const void *fw_metadata )
     void *vb2_buf = NULL;
     uint32_t frame_id = 0;
     int rc;
+    int cnt = 0;
+    struct list_head *p, *n;
 #if ( LINUX_VERSION_CODE >= KERNEL_VERSION( 4, 4, 0 ) )
     struct vb2_v4l2_buffer *vvb;
 #endif
@@ -157,8 +160,14 @@ void callback_meta( uint32_t ctx_id, const void *fw_metadata )
     pstream->last_frame_id = frame_id;
     LOG( LOG_INFO, "[ctx_id#%d::stream#%d] Meta Frame ID %d.", ctx_id, pstream->stream_id, frame_id );
 
+
     /* get buffer from vb2 queue  */
     spin_lock( &pstream->slock );
+//debug start
+    list_for_each_safe(p, n, &pstream->stream_buffer_list)
+	cnt++;
+    LOG( LOG_ERR, "stream_buffer_list count %d", cnt);
+// debug end
     if ( !list_empty( &pstream->stream_buffer_list ) ) {
         pbuf = list_entry( pstream->stream_buffer_list.next, isp_v4l2_buffer_t, list );
         list_del( &pbuf->list );
@@ -365,6 +374,8 @@ int callback_stream_get_frame( uint32_t ctx_id, acamera_stream_type_t type, afra
 #endif
     struct vb2_buffer *vb;
     int i;
+    int cnt = 0;
+    struct list_head *p, *n;
 
     LOG(LOG_INFO,"++ : ctx_id = %d, type = %d, num_planes = %ld",ctx_id,type,num_planes);
     for ( i = 0; i < num_planes; i++ ) {
@@ -396,6 +407,17 @@ int callback_stream_get_frame( uint32_t ctx_id, acamera_stream_type_t type, afra
 
     /* try to get an active buffer from vb2 queue  */
     spin_lock( &pstream->slock );
+//debug start
+    list_for_each_safe(p, n, &pstream->stream_buffer_list)
+	cnt++;
+    LOG(LOG_ERR, "stream_buffer_list count %d", cnt);
+
+    cnt = 0;
+    list_for_each_safe(p, n, &pstream->stream_buffer_list_busy)
+	cnt++;
+    LOG(LOG_ERR, "stream_buffer_list_busy count %d", cnt);
+//debug end
+
     if ( !list_empty( &pstream->stream_buffer_list ) ) {
         pbuf = list_entry( pstream->stream_buffer_list.next, isp_v4l2_buffer_t, list );
         list_del( &pbuf->list );
@@ -445,9 +467,11 @@ int callback_stream_get_frame( uint32_t ctx_id, acamera_stream_type_t type, afra
 int callback_stream_put_frame( uint32_t ctx_id, acamera_stream_type_t type, aframe_t *aframes, uint64_t num_planes )
 {
     int rc;
+    int cnt = 0;
     isp_v4l2_stream_type_t v4l2_type;
     isp_v4l2_stream_t *pstream;
     isp_v4l2_buffer_t *pbuf = NULL;
+    struct list_head *p, *n;
 #if ( LINUX_VERSION_CODE >= KERNEL_VERSION( 4, 4, 0 ) )
     struct vb2_v4l2_buffer *vvb;
 #endif
@@ -475,6 +499,11 @@ int callback_stream_put_frame( uint32_t ctx_id, acamera_stream_type_t type, afra
 
     /* try to get an active buffer from vb2 queue  */
     spin_lock( &pstream->slock );
+// debug start
+    list_for_each_safe(p, n, &pstream->stream_buffer_list_busy)
+	cnt++;
+    LOG( LOG_ERR, "stream_buffer_list_busy count %d", cnt );
+// debug end
     if ( !list_empty( &pstream->stream_buffer_list_busy ) ) {
         pbuf = list_entry( pstream->stream_buffer_list_busy.next, isp_v4l2_buffer_t, list );
         list_del( &pbuf->list );
@@ -504,10 +533,12 @@ int callback_stream_put_frame( uint32_t ctx_id, acamera_stream_type_t type, afra
         return -1;
     }
 
+#ifndef HOBOT_DMA_WRITER_FRAME
     for ( i = 0; i < vb->num_planes; i++ ) {
         if ( aframes[i].status == dma_buf_busy )
             isp_v4l2_stream_put_plane( vb, &aframes[i], i );
     }
+#endif
 
 #if ( LINUX_VERSION_CODE >= KERNEL_VERSION( 4, 4, 0 ) )
     vb->timestamp = ktime_get_ns();
@@ -519,6 +550,77 @@ int callback_stream_put_frame( uint32_t ctx_id, acamera_stream_type_t type, afra
     vb2_buffer_done( vb, VB2_BUF_STATE_DONE );
     /* Notify buffer ready */
     isp_v4l2_notify_event( pstream->ctx_id, pstream->stream_id, V4L2_EVENT_ACAMERA_FRAME_READY );
+
+    return 0;
+}
+
+int callback_stream_release_frame( uint32_t ctx_id, acamera_stream_type_t type, aframe_t *aframes, uint64_t num_planes )
+{
+    int rc;
+    int cnt = 0;
+    isp_v4l2_stream_type_t v4l2_type;
+    isp_v4l2_stream_t *pstream;
+    isp_v4l2_buffer_t *pbuf = NULL;
+    struct list_head *p, *n;
+#if ( LINUX_VERSION_CODE >= KERNEL_VERSION( 4, 4, 0 ) )
+    struct vb2_v4l2_buffer *vvb;
+#endif
+    struct vb2_buffer *vb;
+    int i;
+
+    v4l2_type = fw_to_isp_v4l2_stream_type( type );
+    if ( v4l2_type == V4L2_STREAM_TYPE_MAX )
+        return -1;
+
+    /* find stream pointer */
+    rc = isp_v4l2_find_stream( &pstream, ctx_id, v4l2_type );
+    if ( rc < 0 ) {
+        LOG( LOG_DEBUG, "can't find stream on ctx %d (errno = %d)",
+             ctx_id, rc );
+        return -1;
+    }
+
+    /* check if stream is on */
+    if ( !pstream->stream_started ) {
+        LOG( LOG_DEBUG, "[Stream#%d] type: %d is not started yet on ctx %d",
+             pstream->stream_id, type, ctx_id );
+        return -1;
+    }
+
+    /* move node from busy list to free list */
+    spin_lock( &pstream->slock );
+// debug start
+    list_for_each_safe(p, n, &pstream->stream_buffer_list_busy)
+	cnt++;
+    LOG( LOG_ERR, "stream_buffer_list_busy count %d", cnt );
+// debug end
+    if ( !list_empty( &pstream->stream_buffer_list_busy ) ) {
+        pbuf = list_entry( pstream->stream_buffer_list_busy.next, isp_v4l2_buffer_t, list );
+        list_move_tail(&pbuf->list, &pstream->stream_buffer_list);
+    }
+    spin_unlock( &pstream->slock );
+
+#if 0	//open this if user need sense
+    if ( !pbuf ) {
+        LOG( LOG_INFO, "[Stream#%d] type: %d no empty buffers",
+             pstream->stream_id, type );
+        return -1;
+    }
+
+#if ( LINUX_VERSION_CODE >= KERNEL_VERSION( 4, 4, 0 ) )
+    vvb = &pbuf->vvb;
+    vb = &vvb->vb2_buf;
+    vvb->sequence = aframes[0].frame_id;
+    vvb->field = V4L2_FIELD_NONE;
+#else
+    vb = &pbuf->vb;
+    vb->v4l2_buf.sequence = aframes[0].frame_id;
+    vb->v4l2_buf.field = V4L2_FIELD_NONE;
+#endif
+
+    /* Put buffer back to vb2 queue */
+    vb2_buffer_done( vb, VB2_BUF_STATE_ERROR );
+#endif
 
     return 0;
 }
@@ -650,6 +752,7 @@ static void isp_v4l2_stream_buffer_list_release( isp_v4l2_stream_t *pstream,
     }
 }
 
+extern void *acamera_get_ctx_ptr( uint32_t ctx_id );
 int isp_v4l2_stream_on( isp_v4l2_stream_t *pstream )
 {
     if ( !pstream ) {
@@ -679,6 +782,10 @@ int isp_v4l2_stream_on( isp_v4l2_stream_t *pstream )
 
     /* control fields update */
     pstream->stream_started = 1;
+
+    /* get one vb2 buffer config to dma writer */
+    acamera_fsm_mgr_t *instance = &(((acamera_context_ptr_t)acamera_get_ctx_ptr(pstream->ctx_id))->fsm_mgr);
+    acamera_general_interrupt_hanlder(ACAMERA_MGR2CTX_PTR(instance), ACAMERA_IRQ_FRAME_WRITER_FR);
 
     return 0;
 }

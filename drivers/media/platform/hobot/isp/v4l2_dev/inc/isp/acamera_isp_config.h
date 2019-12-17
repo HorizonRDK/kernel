@@ -3233,5 +3233,338 @@ static __inline uint32_t acamera_isp_input_port_frame_stats_vblank_sum_read(uint
 static __inline uint32_t acamera_isp_input_port_frame_stats_vblank_num_read(uintptr_t base) {
     return system_hw_read_32(0xf0L);
 }
+
+// ------------------------------------------------------------------------------ //
+// Group: fr dma writer
+// ------------------------------------------------------------------------------ //
+
+// ------------------------------------------------------------------------------ //
+// DMA writer controls
+// ------------------------------------------------------------------------------ //
+
+// ------------------------------------------------------------------------------ //
+// Register: Format
+// ------------------------------------------------------------------------------ //
+
+// ------------------------------------------------------------------------------ //
+// Format
+// ------------------------------------------------------------------------------ //
+
+#define ACAMERA_ISP_FR_DMA_WRITER_FORMAT_DEFAULT (0x0)
+#define ACAMERA_ISP_FR_DMA_WRITER_FORMAT_DATASIZE (8)
+#define ACAMERA_ISP_FR_DMA_WRITER_FORMAT_OFFSET (0x3264)
+#define ACAMERA_ISP_FR_DMA_WRITER_FORMAT_MASK (0xff)
+
+// args: data (8-bit)
+static __inline void acamera_isp_fr_dma_writer_format_write_hw(uintptr_t base, uint8_t data) {
+    uint32_t curr = system_hw_read_32(base + 0x1c0ecL);
+    system_hw_write_32(base + 0x1c0ecL, (((uint32_t) (data & 0xff)) << 0) | (curr & 0xffffff00));
+}
+static __inline uint8_t acamera_isp_fr_dma_writer_format_read_hw(uintptr_t base) {
+    return (uint8_t)((system_hw_read_32(base + 0x1c0ecL) & 0xff) >> 0);
+}
+
+// ------------------------------------------------------------------------------ //
+// Register: max bank
+// ------------------------------------------------------------------------------ //
+
+// ------------------------------------------------------------------------------ //
+// highest bank*_base to use for frame writes before recycling to bank0_base, only 0 to 4 are valid
+// ------------------------------------------------------------------------------ //
+
+#define ACAMERA_ISP_FR_DMA_WRITER_MAX_BANK_DEFAULT (0x0)
+#define ACAMERA_ISP_FR_DMA_WRITER_MAX_BANK_DATASIZE (3)
+#define ACAMERA_ISP_FR_DMA_WRITER_MAX_BANK_OFFSET (0x3280)
+#define ACAMERA_ISP_FR_DMA_WRITER_MAX_BANK_MASK (0x7)
+
+// args: data (3-bit)
+static __inline void acamera_isp_fr_dma_writer_max_bank_write_hw(uintptr_t base, uint8_t data) {
+    uint32_t curr = system_hw_read_32(base + 0x1c108L);
+    system_hw_write_32(base + 0x1c108L, (((uint32_t) (data & 0x7)) << 0) | (curr & 0xfffffff8));
+}
+static __inline uint8_t acamera_isp_fr_dma_writer_max_bank_read_hw(uintptr_t base) {
+    return (uint8_t)((system_hw_read_32(base + 0x1c108L) & 0x7) >> 0);
+}
+
+// ------------------------------------------------------------------------------ //
+// Register: bank0_base
+// ------------------------------------------------------------------------------ //
+
+// ------------------------------------------------------------------------------ //
+// bank 0 base address for frame buffer, should be word-aligned
+// ------------------------------------------------------------------------------ //
+
+#define ACAMERA_ISP_FR_DMA_WRITER_BANK0_BASE_DEFAULT (0x0)
+#define ACAMERA_ISP_FR_DMA_WRITER_BANK0_BASE_DATASIZE (32)
+#define ACAMERA_ISP_FR_DMA_WRITER_BANK0_BASE_OFFSET (0x326c)
+#define ACAMERA_ISP_FR_DMA_WRITER_BANK0_BASE_MASK (0xffffffff)
+
+// args: data (32-bit)
+static __inline void acamera_isp_fr_dma_writer_bank0_base_write_hw(uintptr_t base, uint32_t data) {
+    system_hw_write_32(base + 0x1c0f4L, data);
+}
+static __inline uint32_t acamera_isp_fr_dma_writer_bank0_base_read_hw(uintptr_t base) {
+    return system_hw_read_32(base + 0x1c0f4L);
+}
+
+// ------------------------------------------------------------------------------ //
+// Register: Line_offset
+// ------------------------------------------------------------------------------ //
+
+// ------------------------------------------------------------------------------ //
+// 
+//        Indicates the offset in bytes from the start of one line to the next line.  
+//        This value should be equal to or larger than one line of image data and should be word-aligned
+//        
+// ------------------------------------------------------------------------------ //
+
+#define ACAMERA_ISP_FR_DMA_WRITER_LINE_OFFSET_DEFAULT (0x1000)
+#define ACAMERA_ISP_FR_DMA_WRITER_LINE_OFFSET_DATASIZE (32)
+#define ACAMERA_ISP_FR_DMA_WRITER_LINE_OFFSET_OFFSET (0x3284)
+#define ACAMERA_ISP_FR_DMA_WRITER_LINE_OFFSET_MASK (0xffffffff)
+
+// args: data (32-bit)
+static __inline void acamera_isp_fr_dma_writer_line_offset_write_hw(uintptr_t base, uint32_t data) {
+    system_hw_write_32(base + 0x1c10cL, data);
+}
+static __inline uint32_t acamera_isp_fr_dma_writer_line_offset_read_hw(uintptr_t base) {
+    return system_hw_read_32(base + 0x1c10cL);
+}
+
+// ------------------------------------------------------------------------------ //
+// Register: frame write on
+// ------------------------------------------------------------------------------ //
+
+// ------------------------------------------------------------------------------ //
+// 
+//        0 = no frames written(when switched from 1, current frame completes writing before stopping),
+//        1= write frame(s) (write single or continous frame(s) )
+//        
+// ------------------------------------------------------------------------------ //
+
+#define ACAMERA_ISP_FR_DMA_WRITER_FRAME_WRITE_ON_DEFAULT (0)
+#define ACAMERA_ISP_FR_DMA_WRITER_FRAME_WRITE_ON_DATASIZE (1)
+#define ACAMERA_ISP_FR_DMA_WRITER_FRAME_WRITE_ON_OFFSET (0x3264)
+#define ACAMERA_ISP_FR_DMA_WRITER_FRAME_WRITE_ON_MASK (0x200)
+
+// args: data (1-bit)
+static __inline void acamera_isp_fr_dma_writer_frame_write_on_write_hw(uintptr_t base, uint8_t data) {
+    uint32_t curr = system_hw_read_32(base + 0x1c0ecL);
+    system_hw_write_32(base + 0x1c0ecL, (((uint32_t) (data & 0x1)) << 9) | (curr & 0xfffffdff));
+}
+static __inline uint8_t acamera_isp_fr_dma_writer_frame_write_on_read_hw(uintptr_t base) {
+    return (uint8_t)((system_hw_read_32(base + 0x1c0ecL) & 0x200) >> 9);
+}
+
+// ------------------------------------------------------------------------------ //
+// Register: active width
+// ------------------------------------------------------------------------------ //
+
+// ------------------------------------------------------------------------------ //
+// Active video width in pixels 128-8000
+// ------------------------------------------------------------------------------ //
+
+#define ACAMERA_ISP_FR_DMA_WRITER_ACTIVE_WIDTH_DEFAULT (0x780)
+#define ACAMERA_ISP_FR_DMA_WRITER_ACTIVE_WIDTH_DATASIZE (16)
+#define ACAMERA_ISP_FR_DMA_WRITER_ACTIVE_WIDTH_OFFSET (0x3268)
+#define ACAMERA_ISP_FR_DMA_WRITER_ACTIVE_WIDTH_MASK (0xffff)
+
+// args: data (16-bit)
+static __inline void acamera_isp_fr_dma_writer_active_width_write_hw(uintptr_t base, uint16_t data) {
+    uint32_t curr = system_hw_read_32(base + 0x1c0f0L);
+    system_hw_write_32(base + 0x1c0f0L, (((uint32_t) (data & 0xffff)) << 0) | (curr & 0xffff0000));
+}
+static __inline uint16_t acamera_isp_fr_dma_writer_active_width_read_hw(uintptr_t base) {
+    return (uint16_t)((system_hw_read_32(base + 0x1c0f0L) & 0xffff) >> 0);
+}
+
+// ------------------------------------------------------------------------------ //
+// Register: active height
+// ------------------------------------------------------------------------------ //
+
+// ------------------------------------------------------------------------------ //
+// Active video height in lines 128-8000
+// ------------------------------------------------------------------------------ //
+
+#define ACAMERA_ISP_FR_DMA_WRITER_ACTIVE_HEIGHT_DEFAULT (0x438)
+#define ACAMERA_ISP_FR_DMA_WRITER_ACTIVE_HEIGHT_DATASIZE (16)
+#define ACAMERA_ISP_FR_DMA_WRITER_ACTIVE_HEIGHT_OFFSET (0x3268)
+#define ACAMERA_ISP_FR_DMA_WRITER_ACTIVE_HEIGHT_MASK (0xffff0000)
+
+// args: data (16-bit)
+static __inline void acamera_isp_fr_dma_writer_active_height_write_hw(uintptr_t base, uint16_t data) {
+    uint32_t curr = system_hw_read_32(base + 0x1c0f0L);
+    system_hw_write_32(base + 0x1c0f0L, (((uint32_t) (data & 0xffff)) << 16) | (curr & 0xffff));
+}
+static __inline uint16_t acamera_isp_fr_dma_writer_active_height_read_hw(uintptr_t base) {
+    return (uint16_t)((system_hw_read_32(base + 0x1c0f0L) & 0xffff0000) >> 16);
+}
+
+// ------------------------------------------------------------------------------ //
+// Group: fr uv dma writer
+// ------------------------------------------------------------------------------ //
+
+// ------------------------------------------------------------------------------ //
+// DMA writer controls
+// ------------------------------------------------------------------------------ //
+
+// ------------------------------------------------------------------------------ //
+// Register: Format
+// ------------------------------------------------------------------------------ //
+
+// ------------------------------------------------------------------------------ //
+// Format
+// ------------------------------------------------------------------------------ //
+
+#define ACAMERA_ISP_FR_UV_DMA_WRITER_FORMAT_DEFAULT (0x0)
+#define ACAMERA_ISP_FR_UV_DMA_WRITER_FORMAT_DATASIZE (8)
+#define ACAMERA_ISP_FR_UV_DMA_WRITER_FORMAT_OFFSET (0x32bc)
+#define ACAMERA_ISP_FR_UV_DMA_WRITER_FORMAT_MASK (0xff)
+
+// args: data (8-bit)
+static __inline void acamera_isp_fr_uv_dma_writer_format_write_hw(uintptr_t base, uint8_t data) {
+    uint32_t curr = system_hw_read_32(base + 0x1c144L);
+    system_hw_write_32(base + 0x1c144L, (((uint32_t) (data & 0xff)) << 0) | (curr & 0xffffff00));
+}
+static __inline uint8_t acamera_isp_fr_uv_dma_writer_format_read_hw(uintptr_t base) {
+    return (uint8_t)((system_hw_read_32(base + 0x1c144L) & 0xff) >> 0);
+}
+
+// ------------------------------------------------------------------------------ //
+// Register: bank0_base
+// ------------------------------------------------------------------------------ //
+
+// ------------------------------------------------------------------------------ //
+// bank 0 base address for frame buffer, should be word-aligned
+// ------------------------------------------------------------------------------ //
+
+#define ACAMERA_ISP_FR_UV_DMA_WRITER_BANK0_BASE_DEFAULT (0x0)
+#define ACAMERA_ISP_FR_UV_DMA_WRITER_BANK0_BASE_DATASIZE (32)
+#define ACAMERA_ISP_FR_UV_DMA_WRITER_BANK0_BASE_OFFSET (0x32c4)
+#define ACAMERA_ISP_FR_UV_DMA_WRITER_BANK0_BASE_MASK (0xffffffff)
+
+// args: data (32-bit)
+static __inline void acamera_isp_fr_uv_dma_writer_bank0_base_write_hw(uintptr_t base, uint32_t data) {
+    system_hw_write_32(base + 0x1c14cL, data);
+}
+static __inline uint32_t acamera_isp_fr_uv_dma_writer_bank0_base_read_hw(uintptr_t base) {
+    return system_hw_read_32(base + 0x1c14cL);
+}
+
+// ------------------------------------------------------------------------------ //
+// Register: max bank
+// ------------------------------------------------------------------------------ //
+
+// ------------------------------------------------------------------------------ //
+// highest bank*_base to use for frame writes before recycling to bank0_base, only 0 to 4 are valid
+// ------------------------------------------------------------------------------ //
+
+#define ACAMERA_ISP_FR_UV_DMA_WRITER_MAX_BANK_DEFAULT (0x0)
+#define ACAMERA_ISP_FR_UV_DMA_WRITER_MAX_BANK_DATASIZE (3)
+#define ACAMERA_ISP_FR_UV_DMA_WRITER_MAX_BANK_OFFSET (0x32d8)
+#define ACAMERA_ISP_FR_UV_DMA_WRITER_MAX_BANK_MASK (0x7)
+
+// args: data (3-bit)
+static __inline void acamera_isp_fr_uv_dma_writer_max_bank_write_hw(uintptr_t base, uint8_t data) {
+    uint32_t curr = system_hw_read_32(base + 0x1c160L);
+    system_hw_write_32(base + 0x1c160L, (((uint32_t) (data & 0x7)) << 0) | (curr & 0xfffffff8));
+}
+static __inline uint8_t acamera_isp_fr_uv_dma_writer_max_bank_read_hw(uintptr_t base) {
+    return (uint8_t)((system_hw_read_32(base + 0x1c160L) & 0x7) >> 0);
+}
+
+// ------------------------------------------------------------------------------ //
+// Register: Line_offset
+// ------------------------------------------------------------------------------ //
+
+// ------------------------------------------------------------------------------ //
+// 
+//        Indicates the offset in bytes from the start of one line to the next line.  
+//        This value should be equal to or larger than one line of image data and should be word-aligned
+//        
+// ------------------------------------------------------------------------------ //
+
+#define ACAMERA_ISP_FR_UV_DMA_WRITER_LINE_OFFSET_DEFAULT (0x1000)
+#define ACAMERA_ISP_FR_UV_DMA_WRITER_LINE_OFFSET_DATASIZE (32)
+#define ACAMERA_ISP_FR_UV_DMA_WRITER_LINE_OFFSET_OFFSET (0x32dc)
+#define ACAMERA_ISP_FR_UV_DMA_WRITER_LINE_OFFSET_MASK (0xffffffff)
+
+// args: data (32-bit)
+static __inline void acamera_isp_fr_uv_dma_writer_line_offset_write_hw(uintptr_t base, uint32_t data) {
+    system_hw_write_32(base + 0x1c164L, data);
+}
+static __inline uint32_t acamera_isp_fr_uv_dma_writer_line_offset_read_hw(uintptr_t base) {
+    return system_hw_read_32(base + 0x1c164L);
+}
+
+// ------------------------------------------------------------------------------ //
+// Register: frame write on
+// ------------------------------------------------------------------------------ //
+
+// ------------------------------------------------------------------------------ //
+// 
+//        0 = no frames written(when switched from 1, current frame completes writing before stopping),
+//        1= write frame(s) (write single or continous frame(s) )
+//        
+// ------------------------------------------------------------------------------ //
+
+#define ACAMERA_ISP_FR_UV_DMA_WRITER_FRAME_WRITE_ON_DEFAULT (0)
+#define ACAMERA_ISP_FR_UV_DMA_WRITER_FRAME_WRITE_ON_DATASIZE (1)
+#define ACAMERA_ISP_FR_UV_DMA_WRITER_FRAME_WRITE_ON_OFFSET (0x32bc)
+#define ACAMERA_ISP_FR_UV_DMA_WRITER_FRAME_WRITE_ON_MASK (0x200)
+
+// args: data (1-bit)
+static __inline void acamera_isp_fr_uv_dma_writer_frame_write_on_write_hw(uintptr_t base, uint8_t data) {
+    uint32_t curr = system_hw_read_32(base + 0x1c144L);
+    system_hw_write_32(base + 0x1c144L, (((uint32_t) (data & 0x1)) << 9) | (curr & 0xfffffdff));
+}
+static __inline uint8_t acamera_isp_fr_uv_dma_writer_frame_write_on_read_hw(uintptr_t base) {
+    return (uint8_t)((system_hw_read_32(base + 0x1c144L) & 0x200) >> 9);
+}
+
+// ------------------------------------------------------------------------------ //
+// Register: active width
+// ------------------------------------------------------------------------------ //
+
+// ------------------------------------------------------------------------------ //
+// Active video width in pixels 128-8000
+// ------------------------------------------------------------------------------ //
+
+#define ACAMERA_ISP_FR_UV_DMA_WRITER_ACTIVE_WIDTH_DEFAULT (0x780)
+#define ACAMERA_ISP_FR_UV_DMA_WRITER_ACTIVE_WIDTH_DATASIZE (16)
+#define ACAMERA_ISP_FR_UV_DMA_WRITER_ACTIVE_WIDTH_OFFSET (0x32c0)
+#define ACAMERA_ISP_FR_UV_DMA_WRITER_ACTIVE_WIDTH_MASK (0xffff)
+
+// args: data (16-bit)
+static __inline void acamera_isp_fr_uv_dma_writer_active_width_write_hw(uintptr_t base, uint16_t data) {
+    uint32_t curr = system_hw_read_32(base + 0x1c148L);
+    system_hw_write_32(base + 0x1c148L, (((uint32_t) (data & 0xffff)) << 0) | (curr & 0xffff0000));
+}
+static __inline uint16_t acamera_isp_fr_uv_dma_writer_active_width_read_hw(uintptr_t base) {
+    return (uint16_t)((system_hw_read_32(base + 0x1c148L) & 0xffff) >> 0);
+}
+
+// ------------------------------------------------------------------------------ //
+// Register: active height
+// ------------------------------------------------------------------------------ //
+
+// ------------------------------------------------------------------------------ //
+// Active video height in lines 128-8000
+// ------------------------------------------------------------------------------ //
+
+#define ACAMERA_ISP_FR_UV_DMA_WRITER_ACTIVE_HEIGHT_DEFAULT (0x438)
+#define ACAMERA_ISP_FR_UV_DMA_WRITER_ACTIVE_HEIGHT_DATASIZE (16)
+#define ACAMERA_ISP_FR_UV_DMA_WRITER_ACTIVE_HEIGHT_OFFSET (0x32c0)
+#define ACAMERA_ISP_FR_UV_DMA_WRITER_ACTIVE_HEIGHT_MASK (0xffff0000)
+
+// args: data (16-bit)
+static __inline void acamera_isp_fr_uv_dma_writer_active_height_write_hw(uintptr_t base, uint16_t data) {
+    uint32_t curr = system_hw_read_32(base + 0x1c148L);
+    system_hw_write_32(base + 0x1c148L, (((uint32_t) (data & 0xffff)) << 16) | (curr & 0xffff));
+}
+static __inline uint16_t acamera_isp_fr_uv_dma_writer_active_height_read_hw(uintptr_t base) {
+    return (uint16_t)((system_hw_read_32(base + 0x1c148L) & 0xffff0000) >> 16);
+}
+
 // ------------------------------------------------------------------------------ //
 #endif //__ACAMERA_ISP_CONFIG_H__

@@ -41,6 +41,7 @@ extern void callback_dma_free_coherent( uint32_t ctx_id, uint64_t size, void *vi
 
 extern int callback_stream_get_frame( uint32_t ctx_id, acamera_stream_type_t type, aframe_t *aframes, uint64_t num_planes ) ;
 extern int callback_stream_put_frame( uint32_t ctx_id, acamera_stream_type_t type, aframe_t *aframes, uint64_t num_planes ) ;
+extern int callback_stream_release_frame( uint32_t ctx_id, acamera_stream_type_t type, aframe_t *aframes, uint64_t num_planes ) ;
 
 static acamera_settings settings[ FIRMWARE_CONTEXT_NUMBER ] = {    {
         .sensor_init = sensor_init_v4l2,
@@ -55,6 +56,7 @@ static acamera_settings settings[ FIRMWARE_CONTEXT_NUMBER ] = {    {
         .callback_dma_free_coherent = callback_dma_free_coherent,
         .callback_stream_get_frame = callback_stream_get_frame,
         .callback_stream_put_frame = callback_stream_put_frame,
+	.callback_stream_release_frame = callback_stream_release_frame,
     },
 
 #if FIRMWARE_CONTEXT_NUMBER >= 2
@@ -71,6 +73,7 @@ static acamera_settings settings[ FIRMWARE_CONTEXT_NUMBER ] = {    {
         .callback_dma_free_coherent = callback_dma_free_coherent,
         .callback_stream_get_frame = callback_stream_get_frame,
         .callback_stream_put_frame = callback_stream_put_frame,
+	.callback_stream_release_frame = callback_stream_release_frame,
     },
 #endif // FIRMWARE_CONTEXT_NUMBER == 2
 
@@ -88,6 +91,7 @@ static acamera_settings settings[ FIRMWARE_CONTEXT_NUMBER ] = {    {
         .callback_dma_free_coherent = callback_dma_free_coherent,
         .callback_stream_get_frame = callback_stream_get_frame,
         .callback_stream_put_frame = callback_stream_put_frame,
+	.callback_stream_release_frame = callback_stream_release_frame,
     },
 #endif // FIRMWARE_CONTEXT_NUMBER == 2
 
@@ -105,6 +109,7 @@ static acamera_settings settings[ FIRMWARE_CONTEXT_NUMBER ] = {    {
         .callback_dma_free_coherent = callback_dma_free_coherent,
         .callback_stream_get_frame = callback_stream_get_frame,
         .callback_stream_put_frame = callback_stream_put_frame,
+	.callback_stream_release_frame = callback_stream_release_frame,
     },
 #endif // FIRMWARE_CONTEXT_NUMBER == 2
 
@@ -122,6 +127,7 @@ static acamera_settings settings[ FIRMWARE_CONTEXT_NUMBER ] = {    {
         .callback_dma_free_coherent = callback_dma_free_coherent,
         .callback_stream_get_frame = callback_stream_get_frame,
         .callback_stream_put_frame = callback_stream_put_frame,
+	.callback_stream_release_frame = callback_stream_release_frame,
     },
 #endif // FIRMWARE_CONTEXT_NUMBER == 2
 
@@ -139,6 +145,7 @@ static acamera_settings settings[ FIRMWARE_CONTEXT_NUMBER ] = {    {
         .callback_dma_free_coherent = callback_dma_free_coherent,
         .callback_stream_get_frame = callback_stream_get_frame,
         .callback_stream_put_frame = callback_stream_put_frame,
+	.callback_stream_release_frame = callback_stream_release_frame,
     },
 #endif // FIRMWARE_CONTEXT_NUMBER == 2
 } ;

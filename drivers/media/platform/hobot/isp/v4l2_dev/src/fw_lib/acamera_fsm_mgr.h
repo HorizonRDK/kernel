@@ -63,6 +63,9 @@ typedef enum _event_id_t
     event_id_sharp_lut_update,
     event_id_update_iridix,
     event_id_update_sharp_lut,
+    event_id_frame_config,
+    event_id_frame_done,
+    event_id_frame_error,
     number_of_event_ids
 } event_id_t;
 

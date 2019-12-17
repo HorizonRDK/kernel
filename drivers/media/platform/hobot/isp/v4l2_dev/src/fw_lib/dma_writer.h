@@ -38,12 +38,22 @@ typedef struct dma_writer_reg_ops {
     void ( *active_height_write )( uintptr_t, uint16_t );
     uint16_t ( *active_width_read )( uintptr_t );
     uint16_t ( *active_height_read )( uintptr_t );
+
+    uint8_t ( *format_read_hw )( uintptr_t );
+    void ( *format_write_hw )( uintptr_t, uint8_t );
+    void ( *bank0_base_write_hw )( uintptr_t, uint32_t );
+    void ( *line_offset_write_hw )( uintptr_t, uint32_t );
+    void ( *write_on_write_hw )( uintptr_t, uint8_t );
+    void ( *active_width_write_hw )( uintptr_t, uint16_t );
+    void ( *active_height_write_hw )( uintptr_t, uint16_t );
+    uint16_t ( *active_width_read_hw )( uintptr_t );
+    uint16_t ( *active_height_read_hw )( uintptr_t );
 } dma_writer_reg_ops_t;
 
 typedef struct _dma_pipe {
     dma_pipe_settings settings;
     dma_pipe_state state;
-    dma_api api;
+    dma_api api[2];
     dma_type type;
     dma_writer_reg_ops_t primary;
     dma_writer_reg_ops_t secondary;

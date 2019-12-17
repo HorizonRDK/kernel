@@ -52,25 +52,45 @@ static void dma_writer_initialize_reg_ops( dma_pipe *pipe )
     dma_writer_reg_ops_t *primary_ops = &pipe->primary;
     dma_writer_reg_ops_t *secondary_ops = &pipe->secondary;
 
-    primary_ops->format_read = pipe->api.p_acamera_isp_dma_writer_format_read;
-    primary_ops->format_write = pipe->api.p_acamera_isp_dma_writer_format_write;
-    primary_ops->bank0_base_write = pipe->api.p_acamera_isp_dma_writer_bank0_base_write;
-    primary_ops->line_offset_write = pipe->api.p_acamera_isp_dma_writer_line_offset_write;
-    primary_ops->write_on_write = pipe->api.p_acamera_isp_dma_writer_frame_write_on_write;
-    primary_ops->active_width_write = pipe->api.p_acamera_isp_dma_writer_active_width_write;
-    primary_ops->active_height_write = pipe->api.p_acamera_isp_dma_writer_active_height_write;
-    primary_ops->active_width_read = pipe->api.p_acamera_isp_dma_writer_active_width_read;
-    primary_ops->active_height_read = pipe->api.p_acamera_isp_dma_writer_active_height_read;
+    primary_ops->format_read = pipe->api[0].p_acamera_isp_dma_writer_format_read;
+    primary_ops->format_write = pipe->api[0].p_acamera_isp_dma_writer_format_write;
+    primary_ops->bank0_base_write = pipe->api[0].p_acamera_isp_dma_writer_bank0_base_write;
+    primary_ops->line_offset_write = pipe->api[0].p_acamera_isp_dma_writer_line_offset_write;
+    primary_ops->write_on_write = pipe->api[0].p_acamera_isp_dma_writer_frame_write_on_write;
+    primary_ops->active_width_write = pipe->api[0].p_acamera_isp_dma_writer_active_width_write;
+    primary_ops->active_height_write = pipe->api[0].p_acamera_isp_dma_writer_active_height_write;
+    primary_ops->active_width_read = pipe->api[0].p_acamera_isp_dma_writer_active_width_read;
+    primary_ops->active_height_read = pipe->api[0].p_acamera_isp_dma_writer_active_height_read;
 
-    secondary_ops->format_read = pipe->api.p_acamera_isp_dma_writer_format_read_uv;
-    secondary_ops->format_write = pipe->api.p_acamera_isp_dma_writer_format_write_uv;
-    secondary_ops->bank0_base_write = pipe->api.p_acamera_isp_dma_writer_bank0_base_write_uv;
-    secondary_ops->line_offset_write = pipe->api.p_acamera_isp_dma_writer_line_offset_write_uv;
-    secondary_ops->write_on_write = pipe->api.p_acamera_isp_dma_writer_frame_write_on_write_uv;
-    secondary_ops->active_width_write = pipe->api.p_acamera_isp_dma_writer_active_width_write_uv;
-    secondary_ops->active_height_write = pipe->api.p_acamera_isp_dma_writer_active_height_write_uv;
-    secondary_ops->active_width_read = pipe->api.p_acamera_isp_dma_writer_active_width_read_uv;
-    secondary_ops->active_height_read = pipe->api.p_acamera_isp_dma_writer_active_height_read_uv;
+    secondary_ops->format_read = pipe->api[0].p_acamera_isp_dma_writer_format_read_uv;
+    secondary_ops->format_write = pipe->api[0].p_acamera_isp_dma_writer_format_write_uv;
+    secondary_ops->bank0_base_write = pipe->api[0].p_acamera_isp_dma_writer_bank0_base_write_uv;
+    secondary_ops->line_offset_write = pipe->api[0].p_acamera_isp_dma_writer_line_offset_write_uv;
+    secondary_ops->write_on_write = pipe->api[0].p_acamera_isp_dma_writer_frame_write_on_write_uv;
+    secondary_ops->active_width_write = pipe->api[0].p_acamera_isp_dma_writer_active_width_write_uv;
+    secondary_ops->active_height_write = pipe->api[0].p_acamera_isp_dma_writer_active_height_write_uv;
+    secondary_ops->active_width_read = pipe->api[0].p_acamera_isp_dma_writer_active_width_read_uv;
+    secondary_ops->active_height_read = pipe->api[0].p_acamera_isp_dma_writer_active_height_read_uv;
+
+    primary_ops->format_read_hw = pipe->api[1].p_acamera_isp_dma_writer_format_read;
+    primary_ops->format_write_hw = pipe->api[1].p_acamera_isp_dma_writer_format_write;
+    primary_ops->bank0_base_write_hw = pipe->api[1].p_acamera_isp_dma_writer_bank0_base_write;
+    primary_ops->line_offset_write_hw = pipe->api[1].p_acamera_isp_dma_writer_line_offset_write;
+    primary_ops->write_on_write_hw = pipe->api[1].p_acamera_isp_dma_writer_frame_write_on_write;
+    primary_ops->active_width_write_hw = pipe->api[1].p_acamera_isp_dma_writer_active_width_write;
+    primary_ops->active_height_write_hw = pipe->api[1].p_acamera_isp_dma_writer_active_height_write;
+    primary_ops->active_width_read_hw = pipe->api[1].p_acamera_isp_dma_writer_active_width_read;
+    primary_ops->active_height_read_hw = pipe->api[1].p_acamera_isp_dma_writer_active_height_read;
+
+    secondary_ops->format_read_hw = pipe->api[1].p_acamera_isp_dma_writer_format_read_uv;
+    secondary_ops->format_write_hw = pipe->api[1].p_acamera_isp_dma_writer_format_write_uv;
+    secondary_ops->bank0_base_write_hw = pipe->api[1].p_acamera_isp_dma_writer_bank0_base_write_uv;
+    secondary_ops->line_offset_write_hw = pipe->api[1].p_acamera_isp_dma_writer_line_offset_write_uv;
+    secondary_ops->write_on_write_hw = pipe->api[1].p_acamera_isp_dma_writer_frame_write_on_write_uv;
+    secondary_ops->active_width_write_hw = pipe->api[1].p_acamera_isp_dma_writer_active_width_write_uv;
+    secondary_ops->active_height_write_hw = pipe->api[1].p_acamera_isp_dma_writer_active_height_write_uv;
+    secondary_ops->active_width_read_hw = pipe->api[1].p_acamera_isp_dma_writer_active_width_read_uv;
+    secondary_ops->active_height_read_hw = pipe->api[1].p_acamera_isp_dma_writer_active_height_read_uv;
 }
 
 #if CONFIG_DMA_WRITER_DEFAULT_BUFFER
@@ -190,6 +210,30 @@ static int dma_writer_stream_put_frame( dma_pipe *pipe, tframe_t *tframe )
     return rc;
 }
 
+static int dma_writer_stream_release_frame( dma_pipe *pipe, tframe_t *tframe )
+{
+    uint32_t ctx_id = pipe->settings.p_ctx->context_id;
+    acamera_stream_type_t type = pipe->type == dma_fr ? ACAMERA_STREAM_FR : ACAMERA_STREAM_DS1;
+    acamera_settings *settings = &pipe->settings.p_ctx->settings;
+    aframe_t tmp_aframes[2];
+    int rc;
+
+    rc = settings->callback_stream_release_frame( ctx_id, type, tmp_aframes, 2 );
+/*
+    LOG(LOG_INFO, "ISP output frame id: %d",tframe->primary.frame_id);
+
+    tmp_aframes[0] = tframe->primary;
+    tmp_aframes[1] = tframe->secondary;
+
+    rc = settings->callback_stream_release_frame( ctx_id, type, tmp_aframes, 2 );
+
+    tframe->primary = tmp_aframes[0];
+    tframe->secondary = tmp_aframes[1];
+*/
+
+    return rc;
+}
+
 #if CONFIG_DMA_WRITER_DEFAULT_BUFFER
 static int dma_writer_configure_frame_reader( dma_pipe *pipe, tframe_t *frame )
 {
@@ -200,14 +244,77 @@ static int dma_writer_configure_frame_reader( dma_pipe *pipe, tframe_t *frame )
 
     aframe = &frame->primary;
 
-    pipe->api.p_acamera_fpga_frame_reader_rbase_write( pipe->settings.isp_base, aframe->address );
-    pipe->api.p_acamera_fpga_frame_reader_line_offset_write( pipe->settings.isp_base, aframe->line_offset );
-    pipe->api.p_acamera_fpga_frame_reader_format_write( pipe->settings.isp_base, aframe->type );
+    pipe->api[0].p_acamera_fpga_frame_reader_rbase_write( pipe->settings.isp_base, aframe->address );
+    pipe->api[0].p_acamera_fpga_frame_reader_line_offset_write( pipe->settings.isp_base, aframe->line_offset );
+    pipe->api[0].p_acamera_fpga_frame_reader_format_write( pipe->settings.isp_base, aframe->type );
 
     return 0;
 }
 #endif
 
+#if HOBOT_DMA_WRITER_FRAME
+static int dma_writer_configure_frame_writer( dma_pipe *pipe,
+                                              aframe_t *aframe,
+                                              dma_writer_reg_ops_t *reg_ops )
+{
+    uint32_t addr;
+    uint32_t line_offset;
+    uintptr_t base;
+    struct _acamera_context_t *p_ctx = pipe->settings.p_ctx;
+
+    if ( acamera_isp_isp_global_ping_pong_config_select_read( 0 ) == ISP_CONFIG_PING ) {
+	    base = ISP_CONFIG_PING_SIZE;
+	    LOG(LOG_ERR, "%s current is ping, next pong", __func__);
+    } else {
+	    base = 0;
+	    LOG(LOG_ERR, "%s current is pong, next ping", __func__);
+    }
+
+    /* config ping on first frame */
+    if (p_ctx->isp_frame_counter == 0) {
+	base = 0;
+	LOG(LOG_ERR, "%s this is first frame, config to ping", __func__);
+    }
+
+    if ( aframe->status != dma_buf_purge ) {
+        /*
+         * For now we don't change the settings, so we take them from the hardware
+         * The reason is that they are configured through a different API
+         */
+        aframe->type = reg_ops->format_read( pipe->settings.isp_base );
+        aframe->width = reg_ops->active_width_read( pipe->settings.isp_base );
+        aframe->height = reg_ops->active_height_read( pipe->settings.isp_base );
+
+        aframe->line_offset = acamera_line_offset( aframe->width, _get_pixel_width( aframe->type ) );
+        aframe->size = aframe->line_offset * aframe->height * 3 / 2;
+
+        addr = aframe->address;
+        line_offset = aframe->line_offset;
+
+        if ( pipe->settings.vflip ) {
+            addr += aframe->size - aframe->line_offset;
+            line_offset = -aframe->line_offset;
+        }
+
+        reg_ops->format_write_hw( base, aframe->type );
+        reg_ops->active_width_write_hw( base, aframe->width );
+        reg_ops->active_height_write_hw( base, aframe->height );
+        reg_ops->line_offset_write_hw( base, line_offset );
+        reg_ops->bank0_base_write_hw( base, addr );
+        reg_ops->write_on_write_hw( base, 1 );
+        LOG( LOG_INFO, "enable dma write, frame%d, %dx%d, stride=%d, phy_addr=0x%x, size=%d, type=%d",
+            aframe->frame_id, aframe->width, aframe->height, aframe->line_offset,
+            aframe->address, aframe->size, aframe->type);
+    } else {
+        reg_ops->write_on_write_hw( base, 0 );
+        LOG( LOG_INFO, "disable dma write, frame%d, %dx%d, stride=%d, phy_addr=0x%x, size=%d, type=%d",
+            aframe->frame_id, aframe->width, aframe->height, aframe->line_offset,
+            aframe->address, aframe->size, aframe->type);
+    }
+
+    return 0;
+}
+#else
 static int dma_writer_configure_frame_writer( dma_pipe *pipe,
                                               aframe_t *aframe,
                                               dma_writer_reg_ops_t *reg_ops )
@@ -244,11 +351,6 @@ static int dma_writer_configure_frame_writer( dma_pipe *pipe,
         LOG( LOG_INFO, "enable dma write, frame%d, %dx%d, stride=%d, phy_addr=0x%x, size=%d, type=%d",
             aframe->frame_id, aframe->width, aframe->height, aframe->line_offset,
             aframe->address, aframe->size, aframe->type);
-#if HOBOT_SHOW_STRIDE
-        printk( "enable dma write, frame%d, %dx%d, stride=%d, phy_addr=0x%x, size=%d, type=%d\n",
-            aframe->frame_id, aframe->width, aframe->height, aframe->line_offset,
-            aframe->address, aframe->size, aframe->type);
-#endif
     } else {
         reg_ops->write_on_write( pipe->settings.isp_base, 0 );
         LOG( LOG_INFO, "disable dma write, frame%d, %dx%d, stride=%d, phy_addr=0x%x, size=%d, type=%d",
@@ -258,7 +360,92 @@ static int dma_writer_configure_frame_writer( dma_pipe *pipe,
 
     return 0;
 }
+#endif
 
+#if HOBOT_DMA_WRITER_FRAME
+static int dma_writer_configure_pipe( dma_pipe *pipe )
+{
+    struct _acamera_context_t *p_ctx = pipe->settings.p_ctx;
+    metadata_t *meta = &pipe->settings.curr_metadata;
+    tframe_t *curr_frame = &pipe->settings.curr_frame;
+    dma_writer_reg_ops_t *primary_ops = &pipe->primary;
+    dma_writer_reg_ops_t *secondary_ops = &pipe->secondary;
+    int rc;
+    LOG(LOG_INFO,"+: curr_frame_id = %d",curr_frame->primary.frame_id);
+    if ( !p_ctx ) {
+        LOG( LOG_ERR, "No context available." );
+        return -1;
+    }
+
+    curr_frame->primary.frame_id = meta->frame_id;
+    curr_frame->secondary.frame_id = meta->frame_id;
+
+#if CONFIG_DMA_WRITER_DEFAULT_BUFFER
+    dma_writer_configure_frame_reader( pipe, done_frame );
+#endif
+
+    /* try to get a new buffer from application (V4l2 for example) */
+    rc = dma_writer_stream_get_frame( pipe, curr_frame );
+    if ( rc ) {
+#if CONFIG_DMA_WRITER_DEFAULT_BUFFER
+        /* if there is no available buffer, use one of the default buffers */
+        *curr_frame = pipe->settings.default_frame[pipe->settings.default_index];
+        pipe->settings.default_index = ( pipe->settings.default_index + 1 ) % DMA_WRITER_DEFAULT_BUFFER_NO;
+#else
+        curr_frame->primary.status = dma_buf_purge;
+        curr_frame->secondary.status = dma_buf_purge;
+#endif
+    } else {
+        if ( curr_frame->primary.status == dma_buf_empty )
+            curr_frame->primary.status = dma_buf_busy;
+        if ( curr_frame->secondary.status == dma_buf_empty )
+            curr_frame->secondary.status = dma_buf_busy;
+    }
+
+    /* write the current frame in the software config */
+    dma_writer_configure_frame_writer( pipe, &curr_frame->primary, primary_ops );
+    dma_writer_configure_frame_writer( pipe, &curr_frame->secondary, secondary_ops );
+
+    return 0;
+}
+
+static int dma_writer_done_process( dma_pipe *pipe )
+{
+    struct _acamera_context_t *p_ctx = pipe->settings.p_ctx;
+    tframe_t *curr_frame = &pipe->settings.curr_frame;
+
+    LOG(LOG_INFO,"+: curr_frame_id = %d",curr_frame->primary.frame_id);
+
+    if ( !p_ctx ) {
+        LOG( LOG_ERR, "No context available." );
+        return -1;
+    }
+
+    /* put back frame to the application (V4L2 for example) */
+    dma_writer_stream_put_frame( pipe, curr_frame );
+
+    return 0;
+}
+
+static int dma_writer_error_process( dma_pipe *pipe )
+{
+    struct _acamera_context_t *p_ctx = pipe->settings.p_ctx;
+    tframe_t *curr_frame = &pipe->settings.curr_frame;
+
+    LOG(LOG_ERR,"+: curr_frame_id = %d",curr_frame->primary.frame_id);
+    LOG(LOG_INFO,"+: curr_frame_id = %d",curr_frame->primary.frame_id);
+
+    if ( !p_ctx ) {
+        LOG( LOG_ERR, "No context available." );
+        return -1;
+    }
+
+    /* release frame to free list */
+    dma_writer_stream_release_frame( pipe, curr_frame );
+
+    return 0;
+}
+#else
 static int dma_writer_configure_pipe( dma_pipe *pipe )
 {
     struct _acamera_context_t *p_ctx = pipe->settings.p_ctx;
@@ -269,14 +456,12 @@ static int dma_writer_configure_pipe( dma_pipe *pipe )
     dma_writer_reg_ops_t *primary_ops = &pipe->primary;
     dma_writer_reg_ops_t *secondary_ops = &pipe->secondary;
     int rc;
-    DEBUG_FRAME2USR("dma_writer_configure_pipe %d",__LINE__);
     LOG(LOG_INFO,"+: curr_frame_id = %d",curr_frame->primary.frame_id);
     if ( !p_ctx ) {
         LOG( LOG_ERR, "No context available." );
         return -1;
     }
 
-    DEBUG_FRAME2USR("dma_writer_configure_pipe %d %x, %x",__LINE__, done_frame->primary.status == dma_buf_busy, done_frame->secondary.status == dma_buf_busy);
     curr_frame->primary.frame_id = meta->frame_id;
     curr_frame->secondary.frame_id = meta->frame_id;
 
@@ -298,7 +483,6 @@ static int dma_writer_configure_pipe( dma_pipe *pipe )
     /* try to get a new buffer from application (V4l2 for example) */
     rc = dma_writer_stream_get_frame( pipe, curr_frame );
     if ( rc ) {
-        DEBUG_FRAME2USR("dma_writer_configure_pipe %d",__LINE__);
 #if CONFIG_DMA_WRITER_DEFAULT_BUFFER
         /* if there is no available buffer, use one of the default buffers */
         *curr_frame = pipe->settings.default_frame[pipe->settings.default_index];
@@ -308,7 +492,6 @@ static int dma_writer_configure_pipe( dma_pipe *pipe )
         curr_frame->secondary.status = dma_buf_purge;
 #endif
     } else {
-        DEBUG_FRAME2USR("dma_writer_configure_pipe %d %x %x",__LINE__, curr_frame->primary.status == dma_buf_empty, curr_frame->secondary.status == dma_buf_empty);
         if ( curr_frame->primary.status == dma_buf_empty )
             curr_frame->primary.status = dma_buf_busy;
         if ( curr_frame->secondary.status == dma_buf_empty )
@@ -321,6 +504,7 @@ static int dma_writer_configure_pipe( dma_pipe *pipe )
 
     return 0;
 }
+#endif
 
 extern void *acamera_get_ctx_ptr(uint32_t ctx_id);
 void dma_writer_clear(uint32_t ctx_id)
@@ -387,8 +571,8 @@ dma_error dma_writer_update_state( dma_pipe *pipe )
             result = edma_invalid_settings;
             pipe->settings.enabled = 0;
             LOG( LOG_ERR, "stop dma writter: %dx%d, enable=%d\n", (int)pipe->settings.width, (int)pipe->settings.height, pipe->settings.enabled );
-            pipe->api.p_acamera_isp_dma_writer_frame_write_on_write( pipe->settings.isp_base, pipe->settings.enabled ); //disable pipe on invalid settings
-            pipe->api.p_acamera_isp_dma_writer_frame_write_on_write_uv( pipe->settings.isp_base, pipe->settings.enabled );
+            pipe->api[0].p_acamera_isp_dma_writer_frame_write_on_write( pipe->settings.isp_base, pipe->settings.enabled ); //disable pipe on invalid settings
+            pipe->api[0].p_acamera_isp_dma_writer_frame_write_on_write_uv( pipe->settings.isp_base, pipe->settings.enabled );
             return result;
         }
 
@@ -397,13 +581,12 @@ dma_error dma_writer_update_state( dma_pipe *pipe )
         acamera_isp_top_bypass_demosaic_rgbir_write(pipe->settings.isp_base, 1 );
 
         //set default settings here
-        pipe->api.p_acamera_isp_dma_writer_max_bank_write( pipe->settings.isp_base, 0 );
-        pipe->api.p_acamera_isp_dma_writer_active_width_write( pipe->settings.isp_base, pipe->settings.width );
-        pipe->api.p_acamera_isp_dma_writer_active_height_write( pipe->settings.isp_base, pipe->settings.height );
-
-        pipe->api.p_acamera_isp_dma_writer_max_bank_write_uv( pipe->settings.isp_base, 0 );
-        pipe->api.p_acamera_isp_dma_writer_active_width_write_uv( pipe->settings.isp_base, pipe->settings.width );
-        pipe->api.p_acamera_isp_dma_writer_active_height_write_uv( pipe->settings.isp_base, pipe->settings.height );
+        pipe->api[0].p_acamera_isp_dma_writer_max_bank_write( pipe->settings.isp_base, 0 );
+        pipe->api[0].p_acamera_isp_dma_writer_active_width_write( pipe->settings.isp_base, pipe->settings.width );
+        pipe->api[0].p_acamera_isp_dma_writer_active_height_write( pipe->settings.isp_base, pipe->settings.height );
+        pipe->api[0].p_acamera_isp_dma_writer_max_bank_write_uv( pipe->settings.isp_base, 0 );
+        pipe->api[0].p_acamera_isp_dma_writer_active_width_write_uv( pipe->settings.isp_base, pipe->settings.width );
+        pipe->api[0].p_acamera_isp_dma_writer_active_height_write_uv( pipe->settings.isp_base, pipe->settings.height );
     } else {
         result = edma_fail;
     }
@@ -470,7 +653,7 @@ dma_error dma_writer_init( void *handle, dma_type type, dma_pipe_settings *setti
         dma_handle *p_dma = (dma_handle *)handle;
         p_dma->pipe[type].type = type;
 
-        system_memcpy( (void *)&p_dma->pipe[type].api, api, sizeof( dma_api ) );
+        system_memcpy( (void *)&p_dma->pipe[type].api, api, sizeof( dma_api ) * 2 );
         result = dma_writer_set_settings( handle, type, settings );
 
         dma_writer_initialize_reg_ops( &p_dma->pipe[type] );
@@ -501,6 +684,16 @@ dma_error dma_writer_pipe_process_interrupt( dma_pipe *pipe, uint32_t irq_event 
             dma_writer_configure_pipe( pipe );
         }
         break;
+    case ACAMERA_IRQ_FRAME_WRITER_FR_DONE:
+        if ( pipe->type == dma_fr ) {
+            dma_writer_done_process( pipe );
+        }
+        break;
+    case ACAMERA_IRQ_FRAME_ERROR:
+        if ( pipe->type == dma_fr ) {
+	    dma_writer_error_process( pipe );
+        }
+	break;
     case ACAMERA_IRQ_FRAME_WRITER_DS:
         if ( pipe->type == dma_ds1 ) {
             dma_writer_configure_pipe( pipe );

@@ -117,10 +117,14 @@ void acamera_frame_buffer_update( dma_writer_fsm_const_ptr_t p_fsm )
 
 void frame_buffer_initialize( dma_writer_fsm_ptr_t p_fsm )
 {
-    dma_api api_ops;
+    dma_api api_ops[2];
     dma_pipe_settings set_pipe;
     // register interrupts
-    p_fsm->mask.repeat_irq_mask = ACAMERA_IRQ_MASK( ACAMERA_IRQ_FRAME_START ) | ACAMERA_IRQ_MASK( ACAMERA_IRQ_FRAME_WRITER_FR ) | ACAMERA_IRQ_MASK( ACAMERA_IRQ_FRAME_WRITER_DS );
+    p_fsm->mask.repeat_irq_mask = ACAMERA_IRQ_MASK( ACAMERA_IRQ_FRAME_START )
+				| ACAMERA_IRQ_MASK( ACAMERA_IRQ_FRAME_WRITER_FR )
+				| ACAMERA_IRQ_MASK( ACAMERA_IRQ_FRAME_WRITER_DS )
+				| ACAMERA_IRQ_MASK( ACAMERA_IRQ_FRAME_WRITER_FR_DONE )
+				| ACAMERA_IRQ_MASK( ACAMERA_IRQ_FRAME_ERROR );
 
     dma_writer_request_interrupt( p_fsm, p_fsm->mask.repeat_irq_mask );
 
@@ -155,44 +159,68 @@ void frame_buffer_initialize( dma_writer_fsm_ptr_t p_fsm )
 
         // initialize fr pipe
         system_memset( &set_pipe, 0, sizeof( set_pipe ) );
-        system_memset( &api_ops, 0, sizeof( api_ops ) );
+        system_memset( api_ops, 0, sizeof( api_ops ) * 2 );
         // api
-        api_ops.p_acamera_isp_dma_writer_format_read = acamera_isp_fr_dma_writer_format_read;
-        api_ops.p_acamera_isp_dma_writer_format_write = acamera_isp_fr_dma_writer_format_write;
-        api_ops.p_acamera_isp_dma_writer_max_bank_write = acamera_isp_fr_dma_writer_max_bank_write;
-        api_ops.p_acamera_isp_dma_writer_bank0_base_write = acamera_isp_fr_dma_writer_bank0_base_write;
+        api_ops[0].p_acamera_isp_dma_writer_format_read = acamera_isp_fr_dma_writer_format_read;
+        api_ops[0].p_acamera_isp_dma_writer_format_write = acamera_isp_fr_dma_writer_format_write;
+        api_ops[0].p_acamera_isp_dma_writer_max_bank_write = acamera_isp_fr_dma_writer_max_bank_write;
+        api_ops[0].p_acamera_isp_dma_writer_bank0_base_write = acamera_isp_fr_dma_writer_bank0_base_write;
 #if ISP_HAS_FPGA_WRAPPER
         api_ops.p_acamera_fpga_frame_reader_rbase_write = acamera_fpga_frame_reader_rbase_write;
         api_ops.p_acamera_fpga_frame_reader_line_offset_write = acamera_fpga_frame_reader_line_offset_write;
         api_ops.p_acamera_fpga_frame_reader_format_write = acamera_fpga_frame_reader_format_write;
         api_ops.p_acamera_fpga_frame_reader_rbase_load_write = acamera_fpga_frame_reader_rbase_load_write;
 #endif
-        api_ops.p_acamera_isp_dma_writer_line_offset_write = acamera_isp_fr_dma_writer_line_offset_write;
-        api_ops.p_acamera_isp_dma_writer_line_offset_write = acamera_isp_fr_dma_writer_line_offset_write;
+        api_ops[0].p_acamera_isp_dma_writer_line_offset_write = acamera_isp_fr_dma_writer_line_offset_write;
+        api_ops[0].p_acamera_isp_dma_writer_line_offset_write = acamera_isp_fr_dma_writer_line_offset_write;
 
-        api_ops.p_acamera_isp_dma_writer_frame_write_on_write = acamera_isp_fr_dma_writer_frame_write_on_write;
-        api_ops.p_acamera_isp_dma_writer_active_width_write = acamera_isp_fr_dma_writer_active_width_write;
-        api_ops.p_acamera_isp_dma_writer_active_height_write = acamera_isp_fr_dma_writer_active_height_write;
-        api_ops.p_acamera_isp_dma_writer_active_width_read = acamera_isp_fr_dma_writer_active_width_read;
-        api_ops.p_acamera_isp_dma_writer_active_height_read = acamera_isp_fr_dma_writer_active_height_read;
+        api_ops[0].p_acamera_isp_dma_writer_frame_write_on_write = acamera_isp_fr_dma_writer_frame_write_on_write;
+        api_ops[0].p_acamera_isp_dma_writer_active_width_write = acamera_isp_fr_dma_writer_active_width_write;
+        api_ops[0].p_acamera_isp_dma_writer_active_height_write = acamera_isp_fr_dma_writer_active_height_write;
+        api_ops[0].p_acamera_isp_dma_writer_active_width_read = acamera_isp_fr_dma_writer_active_width_read;
+        api_ops[0].p_acamera_isp_dma_writer_active_height_read = acamera_isp_fr_dma_writer_active_height_read;
 
 
-        api_ops.p_acamera_isp_dma_writer_format_read_uv = acamera_isp_fr_uv_dma_writer_format_read;
-        api_ops.p_acamera_isp_dma_writer_format_write_uv = acamera_isp_fr_uv_dma_writer_format_write;
-        api_ops.p_acamera_isp_dma_writer_bank0_base_write_uv = acamera_isp_fr_uv_dma_writer_bank0_base_write;
-        api_ops.p_acamera_isp_dma_writer_max_bank_write_uv = acamera_isp_fr_uv_dma_writer_max_bank_write;
-        api_ops.p_acamera_isp_dma_writer_line_offset_write_uv = acamera_isp_fr_uv_dma_writer_line_offset_write;
-        api_ops.p_acamera_isp_dma_writer_frame_write_on_write_uv = acamera_isp_fr_uv_dma_writer_frame_write_on_write;
-        api_ops.p_acamera_isp_dma_writer_active_width_write_uv = acamera_isp_fr_uv_dma_writer_active_width_write;
-        api_ops.p_acamera_isp_dma_writer_active_height_write_uv = acamera_isp_fr_uv_dma_writer_active_height_write;
-        api_ops.p_acamera_isp_dma_writer_active_width_read_uv = acamera_isp_fr_uv_dma_writer_active_width_read;
-        api_ops.p_acamera_isp_dma_writer_active_height_read_uv = acamera_isp_fr_uv_dma_writer_active_height_read;
+        api_ops[0].p_acamera_isp_dma_writer_format_read_uv = acamera_isp_fr_uv_dma_writer_format_read;
+        api_ops[0].p_acamera_isp_dma_writer_format_write_uv = acamera_isp_fr_uv_dma_writer_format_write;
+        api_ops[0].p_acamera_isp_dma_writer_bank0_base_write_uv = acamera_isp_fr_uv_dma_writer_bank0_base_write;
+        api_ops[0].p_acamera_isp_dma_writer_max_bank_write_uv = acamera_isp_fr_uv_dma_writer_max_bank_write;
+        api_ops[0].p_acamera_isp_dma_writer_line_offset_write_uv = acamera_isp_fr_uv_dma_writer_line_offset_write;
+        api_ops[0].p_acamera_isp_dma_writer_frame_write_on_write_uv = acamera_isp_fr_uv_dma_writer_frame_write_on_write;
+        api_ops[0].p_acamera_isp_dma_writer_active_width_write_uv = acamera_isp_fr_uv_dma_writer_active_width_write;
+        api_ops[0].p_acamera_isp_dma_writer_active_height_write_uv = acamera_isp_fr_uv_dma_writer_active_height_write;
+        api_ops[0].p_acamera_isp_dma_writer_active_width_read_uv = acamera_isp_fr_uv_dma_writer_active_width_read;
+        api_ops[0].p_acamera_isp_dma_writer_active_height_read_uv = acamera_isp_fr_uv_dma_writer_active_height_read;
 #if ISP_HAS_FPGA_WRAPPER && defined( ACAMERA_FPGA_FRAME_READER_UV_RBASE_DEFAULT )
         api_ops.p_acamera_fpga_frame_reader_rbase_write_uv = acamera_fpga_frame_reader_uv_rbase_write;
         api_ops.p_acamera_fpga_frame_reader_line_offset_write_uv = acamera_fpga_frame_reader_uv_line_offset_write;
         api_ops.p_acamera_fpga_frame_reader_format_write_uv = acamera_fpga_frame_reader_uv_format_write;
         api_ops.p_acamera_fpga_frame_reader_rbase_load_write_uv = acamera_fpga_frame_reader_uv_rbase_load_write;
 #endif
+
+        api_ops[1].p_acamera_isp_dma_writer_format_read = acamera_isp_fr_dma_writer_format_read_hw;
+        api_ops[1].p_acamera_isp_dma_writer_format_write = acamera_isp_fr_dma_writer_format_write_hw;
+        api_ops[1].p_acamera_isp_dma_writer_max_bank_write = acamera_isp_fr_dma_writer_max_bank_write_hw;
+        api_ops[1].p_acamera_isp_dma_writer_bank0_base_write = acamera_isp_fr_dma_writer_bank0_base_write_hw;
+        api_ops[1].p_acamera_isp_dma_writer_line_offset_write = acamera_isp_fr_dma_writer_line_offset_write_hw;
+        api_ops[1].p_acamera_isp_dma_writer_line_offset_write = acamera_isp_fr_dma_writer_line_offset_write_hw;
+        api_ops[1].p_acamera_isp_dma_writer_frame_write_on_write = acamera_isp_fr_dma_writer_frame_write_on_write_hw;
+        api_ops[1].p_acamera_isp_dma_writer_active_width_write = acamera_isp_fr_dma_writer_active_width_write_hw;
+        api_ops[1].p_acamera_isp_dma_writer_active_height_write = acamera_isp_fr_dma_writer_active_height_write_hw;
+        api_ops[1].p_acamera_isp_dma_writer_active_width_read = acamera_isp_fr_dma_writer_active_width_read_hw;
+        api_ops[1].p_acamera_isp_dma_writer_active_height_read = acamera_isp_fr_dma_writer_active_height_read_hw;
+
+        api_ops[1].p_acamera_isp_dma_writer_format_read_uv = acamera_isp_fr_uv_dma_writer_format_read_hw;
+        api_ops[1].p_acamera_isp_dma_writer_format_write_uv = acamera_isp_fr_uv_dma_writer_format_write_hw;
+        api_ops[1].p_acamera_isp_dma_writer_bank0_base_write_uv = acamera_isp_fr_uv_dma_writer_bank0_base_write_hw;
+        api_ops[1].p_acamera_isp_dma_writer_max_bank_write_uv = acamera_isp_fr_uv_dma_writer_max_bank_write_hw;
+        api_ops[1].p_acamera_isp_dma_writer_line_offset_write_uv = acamera_isp_fr_uv_dma_writer_line_offset_write_hw;
+        api_ops[1].p_acamera_isp_dma_writer_frame_write_on_write_uv = acamera_isp_fr_uv_dma_writer_frame_write_on_write_hw;
+        api_ops[1].p_acamera_isp_dma_writer_active_width_write_uv = acamera_isp_fr_uv_dma_writer_active_width_write_hw;
+        api_ops[1].p_acamera_isp_dma_writer_active_height_write_uv = acamera_isp_fr_uv_dma_writer_active_height_write_hw;
+        api_ops[1].p_acamera_isp_dma_writer_active_width_read_uv = acamera_isp_fr_uv_dma_writer_active_width_read_hw;
+        api_ops[1].p_acamera_isp_dma_writer_active_height_read_uv = acamera_isp_fr_uv_dma_writer_active_height_read_hw;
+
         // settings
         dma_writer_get_settings( p_fsm->handle, dma_fr, &set_pipe );
         set_pipe.p_ctx = ACAMERA_FSM2CTX_PTR( p_fsm ); //back reference
@@ -206,7 +234,7 @@ void frame_buffer_initialize( dma_writer_fsm_ptr_t p_fsm )
         set_pipe.active = ( p_fsm->dma_reader_out == dma_fr );
         set_pipe.vflip = p_fsm->vflip;
         LOG( LOG_INFO, "fr init crop %d x %d", (int)crop_info.width_fr, (int)crop_info.height_fr );
-        result |= dma_writer_init( p_fsm->handle, dma_fr, &set_pipe, &api_ops );
+        result |= dma_writer_init( p_fsm->handle, dma_fr, &set_pipe, api_ops );
 
 
         if ( result == edma_ok )

@@ -152,8 +152,8 @@ static void isp_vb2_buf_queue( struct vb2_buffer *vb )
 
 static const struct vb2_ops isp_vb2_ops = {
     .queue_setup = isp_vb2_queue_setup, // called from VIDIOC_REQBUFS
-    .buf_prepare = isp_vb2_buf_prepare,
-    .buf_queue = isp_vb2_buf_queue,
+    .buf_prepare = isp_vb2_buf_prepare, // called from VIDIOC_QBUFS
+    .buf_queue = isp_vb2_buf_queue,	// called from VIDIOC_QBUFS/STREAMON
     .wait_prepare = vb2_ops_wait_prepare,
     .wait_finish = vb2_ops_wait_finish,
 };

@@ -42,11 +42,11 @@ static sys_spinlock reg_lock;
 
 int32_t init_hw_io( resource_size_t addr , resource_size_t size )
 {
-    p_hw_base = ioremap_nocache( addr, size );
-    p_hw_sysctrl_base = ioremap_nocache( X2A_SYS_CTRL_BASE, X2A_SYS_CTRL_SIZE );
-    p_hw_ips_base = ioremap_nocache( X2A_IPS_BASE, X2A_IPS_SIZE );
-    p_hw_dmac_isp_base = ioremap_nocache( X2A_DMAC_ISP_BASE, X2A_DMAC_ISP_SIZE );
-    p_hw_dmac_sram_base = ioremap_nocache( X2A_DMAC_SRAM_BASE, X2A_DMAC_SRAM_SIZE );
+    p_hw_base = ioremap_nocache( addr, size );						//for isp ctrl
+    p_hw_sysctrl_base = ioremap_nocache( X2A_SYS_CTRL_BASE, X2A_SYS_CTRL_SIZE );	//for isp reset
+    p_hw_ips_base = ioremap_nocache( X2A_IPS_BASE, X2A_IPS_SIZE );			//for frame id read
+    p_hw_dmac_isp_base = ioremap_nocache( X2A_DMAC_ISP_BASE, X2A_DMAC_ISP_SIZE );	//for isp dma ctrl
+    p_hw_dmac_sram_base = ioremap_nocache( X2A_DMAC_SRAM_BASE, X2A_DMAC_SRAM_SIZE );	//for debug, read sram data for compare
     system_spinlock_init( &reg_lock );
     if ( p_hw_base == NULL ) {
         LOG( LOG_CRIT, "failed to map isp memory" );

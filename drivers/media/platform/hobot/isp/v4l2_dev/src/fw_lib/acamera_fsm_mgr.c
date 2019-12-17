@@ -151,6 +151,9 @@ static const char * const event_name[] = {
     "event_id_sharp_lut_update",
     "event_id_update_iridix",
     "event_id_update_sharp_lut",
+    "event_id_frame_config",
+    "event_id_dma_writer_done",
+    "event_id_frame_error",
     "unknown"
 };
 

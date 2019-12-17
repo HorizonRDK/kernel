@@ -104,6 +104,7 @@ void acamera_fw_error_routine( acamera_context_t *p_ctx, uint32_t irq_mask )
 {
     //masked all interrupts
     acamera_isp_isp_global_interrupt_mask_vector_write( 0, ISP_IRQ_DISABLE_ALL_IRQ );
+
     //safe stop
     acamera_isp_input_port_mode_request_write( p_ctx->settings.isp_base, ACAMERA_ISP_INPUT_PORT_MODE_REQUEST_SAFE_STOP );
 
@@ -123,6 +124,25 @@ void acamera_fw_error_routine( acamera_context_t *p_ctx, uint32_t irq_mask )
 
     acamera_isp_isp_global_global_fsm_reset_write( p_ctx->settings.isp_base, 1 );
     acamera_isp_isp_global_global_fsm_reset_write( p_ctx->settings.isp_base, 0 );
+
+    //skip 4 isp_done irq
+    //TODO:
+
+    //clear alarms
+    acamera_isp_isp_global_monitor_broken_frame_error_clear_write( p_ctx->settings.isp_base, 1 );
+    count = 0;
+    while ( acamera_isp_isp_global_monitor_dma_alarms_read( p_ctx->settings.isp_base ) != ACAMERA_ISP_ISP_GLOBAL_MONITOR_DMA_ALARMS_DEFAULT ) {
+        //cannot sleep use this delay
+        do {
+            count++;
+        } while ( count % 32 != 0 );
+
+        if ( ( count >> 5 ) > 50 ) {
+            LOG( LOG_ERR, "stopping isp failed, timeout: %u.", (unsigned int)count * 1000 );
+            break;
+        }
+    }
+    acamera_isp_isp_global_monitor_broken_frame_error_clear_write( p_ctx->settings.isp_base, 0 );
 
     //return the interrupts
     acamera_isp_isp_global_interrupt_mask_vector_write( 0, ISP_IRQ_MASK_VECTOR );
@@ -160,6 +180,7 @@ void acamera_fw_raise_event( acamera_context_t *p_ctx, event_id_t event_id )
     if ( p_ctx->stab.global_freeze_firmware == 0 || event_id == event_id_new_frame
 #if defined( ISP_HAS_DMA_WRITER_FSM )
          || event_id == event_id_frame_buffer_fr_ready || event_id == event_id_frame_buffer_ds_ready || event_id == event_id_frame_buffer_metadata
+	 || event_id == event_id_frame_config || event_id == event_id_frame_done || event_id == event_id_frame_error
 #endif
 #if defined( ISP_HAS_METADATA_FSM )
          || event_id == event_id_metadata_ready || event_id == event_id_metadata_update
@@ -504,12 +525,12 @@ void acamera_general_interrupt_hanlder( acamera_context_ptr_t p_ctx, uint8_t eve
 
     if ( event == ACAMERA_IRQ_FRAME_END ) {
         // Update frame counter
-#if 0
+#if 1
         p_ctx->isp_frame_counter++;
 #else
         p_ctx->isp_frame_counter = x2a_isp_frame_id_read();
 #endif
-        LOG( LOG_DEBUG, "Meta frame counter = %d", (int)p_ctx->isp_frame_counter );
+        LOG( LOG_INFO, "Meta frame counter = %d", (int)p_ctx->isp_frame_counter );
 
 #if ISP_DMA_RAW_CAPTURE
         p_ctx->isp_frame_counter_raw++;
@@ -535,6 +556,8 @@ void acamera_general_interrupt_hanlder( acamera_context_ptr_t p_ctx, uint8_t eve
 #if defined( ISP_HAS_DMA_WRITER_FSM )
          || ( event == ACAMERA_IRQ_FRAME_WRITER_FR ) // process interrupts for frame buffer anyway (otherwise picture will be frozen)
          || ( event == ACAMERA_IRQ_FRAME_WRITER_DS ) // process interrupts for frame buffer anyway (otherwise picture will be frozen)
+	 || ( event == ACAMERA_IRQ_FRAME_WRITER_FR_DONE )
+	 || ( event == ACAMERA_IRQ_FRAME_ERROR )
 #endif
 #if defined( ISP_HAS_CMOS_FSM )
          || ( event == ACAMERA_IRQ_FRAME_START ) || ( event == ACAMERA_IRQ_FPGA_FRAME_END ) // process interrupts for FS anyway (otherwise exposure will be only short)

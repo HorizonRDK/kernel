@@ -742,13 +742,13 @@ static void set_dma_cmd_queue(dma_cmd *cmd, uint32_t ping_pong_sel)
     cmd[0].buff_loc = ping_pong_sel;
     cmd[0].direction = SYS_DMA_FROM_DEVICE;
     cmd[0].complete_func = dma_complete_metering_func;
-    cmd[0].fw_ctx_id = 0;
+    cmd[0].fw_ctx_id = last_context_id;
 
     cmd[1].ctx = g_firmware.dma_chan_isp_config;
     cmd[1].buff_loc = ping_pong_sel;
     cmd[1].direction = SYS_DMA_TO_DEVICE;
     cmd[1].complete_func = dma_complete_context_func;
-    cmd[1].fw_ctx_id = 0;
+    cmd[1].fw_ctx_id = next_context_id;
 }
 #endif /* FW_USE_HOBOT_DMA*/
 
@@ -759,13 +759,12 @@ int32_t acamera_interrupt_handler()
     int32_t irq_bit = ISP_INTERRUPT_EVENT_NONES_COUNT - 1;
     LOG( LOG_DEBUG, "Interrupt handler called" );
 
-//    acamera_context_ptr_t p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[0];
     acamera_context_ptr_t p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[current_context_id];
 
     // read the irq vector from isp
     uint32_t irq_mask = acamera_isp_isp_global_interrupt_status_vector_read( 0 );
 
-    LOG( LOG_INFO, "IRQ MASK is 0x%x, context id is %d", irq_mask, current_context_id );
+    LOG( LOG_ERR, "IRQ MASK is 0x%x, context id is %d", irq_mask, current_context_id );
     if(irq_mask&0x8) {
         printk("broken frame status = 0x%x", acamera_isp_isp_global_monitor_broken_frame_status_read(0));
         printk("active width min/max/sum/num = %d/%d/%d/%d", system_hw_read_32(0xb4),system_hw_read_32(0xb8),system_hw_read_32(0xbc),system_hw_read_32(0xc0));
@@ -780,22 +779,23 @@ int32_t acamera_interrupt_handler()
     acamera_isp_isp_global_interrupt_clear_write( 0, 1 );
 
     if ( irq_mask > 0 ) {
-#if 0
-#if defined( ISP_INTERRUPT_EVENT_BROKEN_FRAME ) && defined( ISP_INTERRUPT_EVENT_MULTICTX_ERROR ) && defined( ISP_INTERRUPT_EVENT_DMA_ERROR ) && defined( ISP_INTERRUPT_EVENT_WATCHDOG_EXP ) && defined( ISP_INTERRUPT_EVENT_FRAME_COLLISION )
         //check for errors in the interrupt
         if ( ( irq_mask & 1 << ISP_INTERRUPT_EVENT_BROKEN_FRAME ) ||
              ( irq_mask & 1 << ISP_INTERRUPT_EVENT_MULTICTX_ERROR ) ||
-             ( irq_mask & 1 << ISP_INTERRUPT_EVENT_DMA_ERROR ) ||
              ( irq_mask & 1 << ISP_INTERRUPT_EVENT_WATCHDOG_EXP ) ||
              ( irq_mask & 1 << ISP_INTERRUPT_EVENT_FRAME_COLLISION ) ) {
 
-            LOG( LOG_ERR, "Found error resetting ISP. MASK is 0x%x", irq_mask );
+            //LOG( LOG_ERR, "Found error resetting ISP. MASK is 0x%x", irq_mask );
+            //acamera_fw_error_routine( p_ctx, irq_mask );
+            return -1;
+        } else if ( irq_mask & 1 << ISP_INTERRUPT_EVENT_DMA_ERROR ) {
+			/* if ping/pong switch happen and error occur, we need to do below operation.
+			   if error occur but ping/pong switch not happen, we do not need to do this. */
+			//acamera_fw_raise_event( p_ctx, event_id_frame_error );	//move node from busy to free list
+			//acamera_fw_raise_event( p_ctx, event_id_frame_config );	//get a new buffer put to busy list
+            return -1;
+		}
 
-            acamera_fw_error_routine( p_ctx, irq_mask );
-            return -1; //skip other interrupts in case of error
-        }
-#endif
-#endif
         while ( irq_mask > 0 && irq_bit >= 0 ) {
             int32_t irq_is_1 = ( irq_mask & ( 1 << irq_bit ) );
             irq_mask &= ~( 1 << irq_bit );
@@ -824,9 +824,8 @@ int32_t acamera_interrupt_handler()
                         g_firmware.dma_flag_isp_config_completed = 0;
                         g_firmware.dma_flag_isp_metering_completed = 0;
 
-                        //if (!acamera_isp_isp_global_mcu_ping_pong_config_select_read(0)) { // cmodel compatibility
                         if ( acamera_isp_isp_global_ping_pong_config_select_read( 0 ) == ISP_CONFIG_PONG ) {
-                            LOG( LOG_INFO, "Current config is pong" );
+                            LOG( LOG_ERR, "Current config is pong" );
                             //            |^^^^^^^^^|
                             // next --->  |  PING   |
                             //            |_________|
@@ -842,21 +841,16 @@ int32_t acamera_interrupt_handler()
                             LOG( LOG_INFO, "DMA metering from pong to DDR of size %d, config from pong to DDR of size %d",
                                 ACAMERA_METERING_STATS_MEM_SIZE, ACAMERA_ISP1_SIZE);
                             set_dma_cmd_queue(cmd, ISP_CONFIG_PING);
-    			    cmd[0].fw_ctx_id = last_context_id;
-    			    cmd[1].fw_ctx_id = next_context_id;
                             system_dma_copy_multi_sg(cmd,2);
-
-			    acamera_isp_pong_multi_ctx_config_done_write(p_ctx->fsm_mgr.fsm_arr[0]->isp_base, 1);
 #else
                             LOG( LOG_INFO, "DMA metering from pong to DDR of size %d", ACAMERA_METERING_STATS_MEM_SIZE );
                             // dma all stat memory only to the software context
                             system_dma_copy_sg( g_firmware.dma_chan_isp_metering, ISP_CONFIG_PING, SYS_DMA_FROM_DEVICE, dma_complete_metering_func, last_context_id );
-                            LOG( LOG_INFO, "DMA config from pong to DDR of size %d", ACAMERA_ISP1_SIZE );
+                            LOG( LOG_INFO, "DMA config from DDR to pong of size %d", ACAMERA_ISP1_SIZE );
                             system_dma_copy_sg( g_firmware.dma_chan_isp_config, ISP_CONFIG_PING, SYS_DMA_TO_DEVICE, dma_complete_context_func, next_context_id );
-			    acamera_isp_pong_multi_ctx_config_done_write(p_ctx->fsm_mgr.fsm_arr[0]->isp_base, 1);
 #endif
                         } else {
-                            LOG( LOG_INFO, "Current config is ping" );
+                            LOG( LOG_ERR, "Current config is ping" );
                             //            |^^^^^^^^^|
                             // next --->  |  PONG   |
                             //            |_________|
@@ -872,30 +866,31 @@ int32_t acamera_interrupt_handler()
                             LOG( LOG_INFO, "DMA metering from ping to DDR of size %d, config from ping to DDR of size %d",
                                 ACAMERA_METERING_STATS_MEM_SIZE, ACAMERA_ISP1_SIZE);
                             set_dma_cmd_queue(cmd, ISP_CONFIG_PONG);
-    			    cmd[0].fw_ctx_id = last_context_id;
-			    cmd[1].fw_ctx_id = next_context_id;
                             system_dma_copy_multi_sg(cmd,2);
-			    acamera_isp_multi_ctx_config_done_write(p_ctx->fsm_mgr.fsm_arr[0]->isp_base, 1);
 #else
                             LOG( LOG_INFO, "DMA metering from ping to DDR of size %d", ACAMERA_METERING_STATS_MEM_SIZE );
                             // dma all stat memory only to the software context
                             system_dma_copy_sg( g_firmware.dma_chan_isp_metering, ISP_CONFIG_PONG, SYS_DMA_FROM_DEVICE, dma_complete_metering_func, last_context_id );
                             LOG( LOG_INFO, "DMA config from DDR to ping of size %d", ACAMERA_ISP1_SIZE );
                             system_dma_copy_sg( g_firmware.dma_chan_isp_config, ISP_CONFIG_PONG, SYS_DMA_TO_DEVICE, dma_complete_context_func, next_context_id );
-			    acamera_isp_multi_ctx_config_done_write(p_ctx->fsm_mgr.fsm_arr[0]->isp_base, 1);
 #endif
                         }
                     } else {
                         LOG( LOG_ERR, "Attempt to start a new frame before processing is done for the prevous frame. Skip this frame" );
-                    }
-                } else {
+                    } //if ( acamera_event_queue_empty( &p_ctx->fsm_mgr.event_queue ) )
+                } else if ( irq_bit == ISP_INTERRUPT_EVENT_FR_Y_WRITE_DONE ) {
+					LOG( LOG_INFO, "frame write to ddr done" );
+					acamera_fw_raise_event( p_ctx, event_id_frame_done );
+                } else if ( irq_bit == ISP_INTERRUPT_EVENT_FR_UV_WRITE_DONE ) {
+					//do nothing
+				} else {
                     // unhandled irq
                     LOG( LOG_INFO, "Unhandled interrupt bit %d", irq_bit );
                 }
             }
-            irq_bit--;
-        }
-    }
+			irq_bit--;
+        } //while ( irq_mask > 0 && irq_bit >= 0 )
+    } //if ( irq_mask > 0 )
 
     return result;
 }
