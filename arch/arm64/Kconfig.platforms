@@ -294,6 +294,14 @@ config X2A_FPGA
 	  This enables Hobot X2 FPGA support.
 	  You only need to enable this, if you want to support x2 fpga.
 
+config X2A_FPGA_HAPS
+	bool "X2A FPGA Support"
+	depends on X2A_FPGA
+	help
+	  This enables Hobot X2A FPGA HAPS support.
+	  You only need to enable this, if you want to support x2a HAPS fpga.
+
+
 
 config X2_SOC
 	bool "X2 SOC Support"

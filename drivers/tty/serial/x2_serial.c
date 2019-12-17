@@ -1257,7 +1257,11 @@ static struct uart_port *x2_uart_get_port(int id)
 	port->fifosize = X2_UART_FIFO_SIZE;
 	port->line = id;
 	port->dev = NULL;
+#ifdef	CONFIG_X2A_FPGA_HAPS
+	port->uartclk = 10000000;
+#else
 	port->uartclk = 20000000;
+#endif
 	return port;
 }
 

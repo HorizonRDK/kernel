@@ -1,0 +1,26 @@
+/dts-v1/;
+#include "hobot-x2aj2a-fpga.dts"
+
+
+&arch_timer {
+       clock-frequency = <10000000>;
+};
+
+
+&ethernet {
+        status = "okay";
+
+        /* local-mac-address = [ 00 11 22 33 44 55 ]; */
+        phy-handle = <&phy2>;
+        phy-mode = "rgmii-id";
+        mdio {
+                #address-cells = <0x1>;
+                #size-cells = <0x0>;
+                phy2: phy@7 {
+                        compatible = "marvell,88E1111","ethernet-phy-ieee802.3-c22";
+                        reg = <0x7>;
+                };
+        };
+};
+
+
