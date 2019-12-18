@@ -93,6 +93,9 @@ ssize_t name_show(struct class *class,
 	int index;
 	uint32_t board_id;
 
+	if (!soc_id)
+		return 0;
+
 	board_id = simple_strtoul(soc_id, NULL, 16);
 	index = parse_boardid(board_id);
 
@@ -111,6 +114,8 @@ ssize_t name_store(struct class *class,
 ssize_t boot_show(struct class *class,
 			struct class_attribute *attr, char *buf)
 {
+	if (!buf || !bootmode)
+		return 0;
 	strcpy(buf, bootmode);
 	strcat(buf, "\n");
 
@@ -126,6 +131,8 @@ ssize_t boot_store(struct class *class,
 ssize_t socuid_show(struct class *class,
 			struct class_attribute *attr, char *buf)
 {
+	if (!buf)
+		return 0;
 	strcpy(buf, socuid);
 	strcat(buf, "\n");
 
