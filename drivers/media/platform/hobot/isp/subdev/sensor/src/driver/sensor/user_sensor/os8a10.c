@@ -245,7 +245,7 @@ static void os8a10_alloc_integration_time(uint8_t chn, uint16_t *int_time,
 {
 }
 
-static void os8a10_update(uint8_t chn, struct sensor_priv updata)
+static void os8a10_update(uint8_t chn, struct sensor_priv_old updata)
 {
 	set_os8a10_ex_gain_control(chn, updata.int_time_L, updata.int_time_M,
 		updata.int_time, updata.analog_gain);

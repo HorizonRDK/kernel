@@ -55,13 +55,13 @@ uint8_t lens_null_test( uint32_t lens_bus )
 static void vcm_null_drv_move( void *ctx, uint16_t position )
 {
     LOG( LOG_WARNING, "Null VCM driver use attempted: no lens movement can be performed with the null driver" );
-    //LOG( LOG_CRIT, "IE&E %s, position %d ", __func__, position );
+    LOG( LOG_INFO, "IE&E %s, position %d ", __func__, position );
 }
 
 static uint8_t vcm_null_drv_is_moving( void *ctx )
 {
     LOG( LOG_WARNING, "Null VCM driver use attempted: no lens movement can be performed with the null driver" );
-    //LOG( LOG_CRIT, "IE&E %s  ", __func__ );
+    LOG( LOG_INFO, "IE&E %s  ", __func__ );
     return 0;
 }
 
@@ -87,7 +87,7 @@ void lens_null_deinit( void *ctx )
 void lens_null_init( void **ctx, lens_control_t *ctrl, uint32_t lens_bus )
 {
 
-    //LOG( LOG_CRIT, "IE&E %s -----  ", __func__ );
+    LOG( LOG_INFO, "IE&E %s -----  ", __func__ );
     lens_context_t *p_ctx = &lens_ctx[0];
     *ctx = p_ctx;
 

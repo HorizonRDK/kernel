@@ -20,10 +20,10 @@
 
 typedef struct sensor_priv {
 	  uint32_t gain_num;
-	  uint32_t *gain_buf;
+	  uint32_t gain_buf[4];
 	  uint32_t en_dgain;
 	  uint32_t line_num;
-	  uint32_t *line_buf;
+	  uint32_t line_buf[4];
 	  uint8_t  mode;
 }sensor_priv_t;
 

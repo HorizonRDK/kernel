@@ -228,7 +228,7 @@ static void ar0233_alloc_integration_time(uint8_t chn, uint16_t *int_time,
 	LOG(LOG_DEBUG, "[%s -- %d ]", __func__, __LINE__);
 }
 
-static void ar0233_update(uint8_t chn, struct sensor_priv updata)
+static void ar0233_update(uint8_t chn, struct sensor_priv_old updata)
 {
 	uint32_t data = 0;
 	LOG(LOG_DEBUG, "[%s -- %d ]", __func__, __LINE__);

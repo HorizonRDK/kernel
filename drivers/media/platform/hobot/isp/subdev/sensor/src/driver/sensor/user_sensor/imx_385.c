@@ -232,7 +232,7 @@ static void imx385_alloc_integration_time( uint8_t chn, uint16_t *int_time, uint
 {
 }
 
-static void imx385_update( uint8_t chn, struct sensor_priv updata )
+static void imx385_update(uint8_t chn, struct sensor_priv_old updata)
 {	
 	LOG( LOG_CRIT," int_time %d, int_time_M %d, int_time_L %d, analog_gain %d ", updata.int_time, updata.int_time_M, updata.int_time_L, updata.analog_gain);
 	

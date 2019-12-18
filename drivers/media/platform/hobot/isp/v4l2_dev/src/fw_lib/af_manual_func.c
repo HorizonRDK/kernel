@@ -55,7 +55,7 @@ static void af_update_lens_position( AF_fsm_ptr_t p_fsm )
     if ( p_fsm->last_position != p_fsm->new_pos ) {
         int fw_id = p_fsm->cmn.ctx_id;
 
-        //LOG( LOG_CRIT, "IE&E [%s].pso_min %d, pos_max %d, new_pos %d", __func__, p_fsm->pos_min, p_fsm->pos_max, p_fsm->new_pos );
+        LOG( LOG_INFO, "pso_min %d, pos_max %d, new_pos %d", p_fsm->pos_min, p_fsm->pos_max, p_fsm->new_pos );
         p_fsm->lens_ctrl.move( p_fsm->lens_ctx, p_fsm->new_pos );
         p_fsm->frame_skip_start = 1;
         LOG( LOG_INFO, "ctx: %d, new af applied, position: %u, last_position: %u.", fw_id, p_fsm->new_pos, p_fsm->last_position );

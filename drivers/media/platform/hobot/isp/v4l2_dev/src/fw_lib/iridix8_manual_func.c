@@ -241,6 +241,7 @@ void iridix_set_new_param( iridix_fsm_ptr_t p_fsm, sbuf_iridix_t *p_sbuf_iridix 
     p_fsm->iridix_contrast = p_sbuf_iridix->iridix_contrast;
     p_fsm->iridix_global_DG = p_sbuf_iridix->iridix_global_DG;
 
+    LOG( LOG_DEBUG, "strength_target:%d, dark_enh: %d, iridix_contrast: %d, iridix_global_DG %d.", p_fsm->strength_target, p_fsm->dark_enh, p_fsm->iridix_contrast, p_fsm->iridix_global_DG );
     if ( p_fsm->frame_id_tracking != p_sbuf_iridix->frame_id ) {
         LOG( LOG_CRIT, "Error: Frame_id is not match: iridix frame_id_tracking: %d, sbuf_iridix->frame_id: %d.", p_fsm->frame_id_tracking, p_sbuf_iridix->frame_id );
     }

@@ -47,6 +47,7 @@
 
 #include "./user_sensor/ar_0233.h"
 #include "./user_sensor/os8a10.h"
+#include "./user_sensor/camera_subdev.h"
 
 struct i2c_client *client[FIRMWARE_CONTEXT_NUMBER];
 struct sensor_data;
@@ -119,6 +120,9 @@ struct sensor_operations *sensor_ops_register(uint8_t sensor_sw)
 		sensor_ctrl = os8a10_ops_register();
 		LOG(LOG_INFO, "os8a10_register !");
 		break;
+	case 6:
+		sensor_ctrl = common_ops_register();
+		LOG(LOG_INFO, "common_register !");
 	default:
 		LOG(LOG_INFO, "sensor %d is not register !", sensor_sw);
 		break;
@@ -175,20 +179,28 @@ struct sensor_operations *sensor_chn_open(uint8_t chn,
 {
 	int ret = 0;
 	struct sensor_operations *sensor_ctrl = NULL;
-	
-	ret = sensor_i2c_open(chn, i2c_chn, sensor_num);
-	if (ret < 0)
-		return NULL;
 
-	sensor_ctrl = sensor_ops_register(sensor_num);
-	if (sensor_ctrl == NULL) {
-		LOG(LOG_ERR, " the sensor %d with i2c %d is failed ", sensor_num, i2c_chn);
-		ret = sensor_chn_release(chn);
+	//todo
+	if (sensor_num < 6) {
+		ret = sensor_i2c_open(chn, i2c_chn, sensor_num);
+		if (ret < 0)
+			return NULL;
+
+		sensor_ctrl = sensor_ops_register(sensor_num);
+		if (sensor_ctrl == NULL) {
+			LOG(LOG_ERR, " the sensor %d with i2c %d is failed ", sensor_num, i2c_chn);
+			ret = sensor_chn_release(chn);
+		}
+	} else {
+		sensor_ctrl = sensor_ops_register(sensor_num);
+		if (sensor_ctrl == NULL) {
+			LOG(LOG_ERR, " the sensor %d with i2c %d is failed ", sensor_num, i2c_chn);
+			ret = sensor_chn_release(chn);
+		}
 	}
 
         return sensor_ctrl;
 }
-
 
 int sensor_i2c_read(uint8_t chn, uint16_t reg_addr, uint8_t bit_width, char *buf, size_t count)
 {

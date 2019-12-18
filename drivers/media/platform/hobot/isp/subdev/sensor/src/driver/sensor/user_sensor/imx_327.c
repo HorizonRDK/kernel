@@ -328,7 +328,7 @@ static void imx327_alloc_integration_time(uint8_t chn, uint16_t *int_time,
 	}
 }
 
-static void imx327_update(uint8_t chn, struct sensor_priv updata)
+static void imx327_update(uint8_t chn, struct sensor_priv_old updata)
 {
 	LOG(LOG_INFO, "int l %d, int m %d, int s %d, a_gain %d", updata.int_time_L, updata.int_time_M, updata.int_time, updata.analog_gain);
 	set327_ex_gain_control(chn, updata.int_time_L, updata.int_time_M,

@@ -20,6 +20,7 @@
 #include <linux/platform_device.h>
 #include <linux/device.h>
 #include <linux/module.h>
+#include <media/v4l2-device.h>
 #include <media/v4l2-subdev.h>
 #include <media/v4l2-async.h>
 #include "acamera_logger.h"
@@ -55,12 +56,42 @@ typedef struct _subdev_camera_ctx {
 static subdev_camera_ctx s_ctx[FIRMWARE_CONTEXT_NUMBER];
 
 
+struct v4l2_subdev * get_sensor_subdev(const char* name)
+{
+	struct list_head *temp_head = &(soc_sensor.list);
+	struct list_head *head_ptr = temp_head;
+	struct v4l2_subdev *temp_subdev = NULL;
+	struct v4l2_subdev *ret_subdev = NULL;
+
+	uint32_t list_offset = offsetof(struct v4l2_subdev, list);
+
+	if (list_empty(temp_head)) {
+		LOG(LOG_ERR, "v4l2_device non-existent subdevs!");
+		return NULL;
+	} else {
+		head_ptr = temp_head->next;
+		while (head_ptr != temp_head) {
+			temp_subdev = (struct v4l2_subdev *)((char *)(head_ptr->next) - list_offset);
+			LOG(LOG_DEBUG, "temp_subdev addr %p", temp_subdev);
+			LOG(LOG_DEBUG, "subdev name %s", temp_subdev->name);
+			if (strcmp(temp_subdev->name, name) == 0) {
+				ret_subdev = temp_subdev;
+				LOG(LOG_DEBUG, "get subdev name %s", temp_subdev->name);
+				break;
+			}
+			head_ptr = head_ptr->next;
+		}
+	}
+
+	return ret_subdev;
+}
+EXPORT_SYMBOL(get_sensor_subdev);
+
 static int camera_log_status( struct v4l2_subdev *sd )
 {
     LOG( LOG_INFO, "log status called" );
     return 0;
 }
-
 
 static int camera_init( struct v4l2_subdev *sd, u32 val )
 {

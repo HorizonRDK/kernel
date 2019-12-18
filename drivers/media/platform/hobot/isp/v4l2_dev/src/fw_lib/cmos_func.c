@@ -852,7 +852,7 @@ void cmos_inttime_update( cmos_fsm_ptr_t p_fsm )
                     break;
                 }
             }
-            //LOG( LOG_CRIT, "IE&E target %d, exposure: %u gain %d ", exp_target, int_time, exposure);
+            LOG( LOG_DEBUG, "exp_target %d, int_time: %d exposure %d ", exp_target, int_time, exposure);
             if ( p_fsm->flicker_freq && !p_fsm->manual_gain_mode && param->global_antiflicker_enable ) {
                 fsm_param_sensor_info_t sensor_info;
                 acamera_fsm_mgr_get_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_GET_SENSOR_INFO, NULL, 0, &sensor_info, sizeof( sensor_info ) );
@@ -919,7 +919,7 @@ void cmos_analog_gain_update( cmos_fsm_ptr_t p_fsm )
         }
     }
     p_fsm->again_val_log2 = again;
-    //LOG( LOG_INFO, "target_gain %d, again_accuracy %d ", target_gain, again_accuracy);
+    LOG( LOG_DEBUG, "target_gain %d, again_accuracy %d ", target_gain, again_accuracy);
 }
 
 void cmos_digital_gain_update( cmos_fsm_ptr_t p_fsm )
@@ -1067,7 +1067,7 @@ void cmos_long_exposure_update( cmos_fsm_ptr_t p_fsm )
 
             const uint32_t exposure_ratio_thresholded = exposure_ratio > 256 ? exposure_ratio / 2 : exposure_ratio;
             const uint32_t ratio_cube_root = acamera_math_exp2( acamera_log2_fixed_to_fixed( exposure_ratio_thresholded, 6, 16 ) / 3, 16, 6 );
-            //LOG( LOG_INFO, "ratio_cube_root: %d -> %d", exposure_ratio_thresholded, ratio_cube_root);
+            LOG( LOG_DEBUG, "ratio_cube_root: %d -> %d", exposure_ratio_thresholded, ratio_cube_root);
 
             uint32_t integration_time_medium1 = p_fsm->integration_time_short * ratio_cube_root >> 6;
             uint32_t integration_time_medium2 = integration_time_medium1 * ratio_cube_root >> 6;
@@ -1105,7 +1105,7 @@ void cmos_long_exposure_update( cmos_fsm_ptr_t p_fsm )
             }
             //integration_time_medium = (uint32_t)p_fsm->integration_time_short * acamera_sqrt32( exposure_ratio ) >> 3;
 
-            //LOG( LOG_CRIT, "integration_short_medium %d exposure_ratio %d  sqrt32( exposure_ratio ) %d", integration_short_medium, exposure_ratio/64, acamera_sqrt32( exposure_ratio )<<3 );
+            //LOG( LOG_DEBUG, "integration_short_medium %d exposure_ratio %d  sqrt32( exposure_ratio ) %d", integration_short_medium, exposure_ratio/64, acamera_sqrt32( exposure_ratio )<<3 );
             if ( integration_time_medium > integration_time_long_max ) {
                 integration_time_medium = integration_time_long_max;
             }
@@ -1117,7 +1117,7 @@ void cmos_long_exposure_update( cmos_fsm_ptr_t p_fsm )
             time.int_time = p_fsm->integration_time_short;
             time.int_time_M = p_fsm->integration_time_medium;
             time.int_time_L = p_fsm->integration_time_long;
-            //LOG( LOG_NOTICE, " short %d medium %d long %d", p_fsm->integration_time_short, p_fsm->integration_time_medium, p_fsm->integration_time_long );
+            LOG( LOG_DEBUG, " short %d medium %d long %d", p_fsm->integration_time_short, p_fsm->integration_time_medium, p_fsm->integration_time_long );
 
             acamera_fsm_mgr_set_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_SET_SENSOR_ALLOC_INTEGRATION_TIME, &time, sizeof( time ) );
 
@@ -1210,7 +1210,7 @@ void cmos_calc_target_gain( cmos_fsm_ptr_t p_fsm )
         target_gain_log2 = p_fsm->exposure_log2 - acamera_log2_fixed_to_fixed( ( ( wdr_mode == WDR_MODE_LINEAR ) ? p_fsm->integration_time_short : p_fsm->integration_time_long ), 0, LOG2_GAIN_SHIFT );
 #else
         target_gain_log2 = p_fsm->exposure_log2 - acamera_log2_fixed_to_fixed( p_fsm->integration_time_short, 0, LOG2_GAIN_SHIFT );
-	//LOG( LOG_CRIT, "IE&E gain %d ", target_gain_log2);
+	LOG( LOG_DEBUG, "target_gain_log2 %d ", target_gain_log2);
 #endif
     }
 
