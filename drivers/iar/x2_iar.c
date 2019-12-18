@@ -58,6 +58,8 @@ uint32_t iar_display_ipu_slot_size = 0x1000000;
 uint8_t ch1_en;
 uint8_t disp_user_config_done;
 uint32_t ipu_display_slot_id;
+uint32_t g_disp_yaddr;
+uint32_t g_disp_caddr;
 
 uint8_t config_rotate;
 uint8_t ipu_process_done;
@@ -1075,6 +1077,27 @@ int32_t iar_set_video_buffer(uint32_t slot_id)
 }
 EXPORT_SYMBOL_GPL(iar_set_video_buffer);
 
+int32_t ipu_set_display_addr(uint32_t yaddr, uint32_t caddr)
+{
+	if (disp_user_config_done == 1 && disp_user_update == 0) {
+		g_disp_yaddr = yaddr;
+		g_disp_caddr = caddr;
+                ipu_process_done = 1;
+                wake_up_interruptible(&g_iar_dev->wq_head);
+        }
+        return 0;
+}
+EXPORT_SYMBOL_GPL(ipu_set_display_addr);
+
+uint32_t ipu_get_iar_display_type(void)
+{
+	if (disp_user_config_done == 0 | disp_user_update == 1)
+		return 0;
+	else
+		return iar_display_addr_type;
+}
+EXPORT_SYMBOL_GPL(ipu_get_iar_display_type);
+
 int8_t iar_checkout_display_camera(uint8_t camera_no)
 {
 	iar_get_ipu_display_addr_dual(iar_display_ipu_addr_dual);
@@ -1343,6 +1366,11 @@ static int iar_thread(void *data)
 			break;
 		wait_event_interruptible(g_iar_dev->wq_head, ipu_process_done);
 		ipu_process_done = 0;
+#ifdef CONFIG_HOBOT_XJ3
+		display_addr.Yaddr = g_disp_yaddr;
+		display_addr.Uaddr = g_disp_caddr;
+		display_addr.Vaddr = 0;
+#else
 		display_addr.Yaddr =
 			ipu_display_slot_id * iar_display_ipu_slot_size
 			+ iar_display_yaddr_offset;
@@ -1359,7 +1387,7 @@ static int iar_thread(void *data)
 		//display_addr.Yaddr);
 		//pr_debug("iar: iar_display_caddr is 0x%x.\n",
 		//display_addr.Uaddr);
-
+#endif
 		if (config_rotate) {
 			iar_rotate_video_buffer(display_addr.Yaddr,
 				display_addr.Uaddr, display_addr.Vaddr);

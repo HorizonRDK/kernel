@@ -565,7 +565,46 @@ enum DISPLAY_TYPE {
 	MIPI_720P_TOUCH = 3,//mipi-dsi 720*1280 touch
 	MIPI_1080P = 4,//1080*1920
 };
-
+#ifdef CONFIG_HOBOT_XJ3
+enum XJ3_DISPLAY_TYPE {
+	DISPLAY_CHANNEL0 = 1,
+	DISPLAY_CHANNEL1 = 2,
+	DISPLAY_CHANNEL2 = 3,
+	DISPLAY_CHANNEL3 = 4,
+	DISPLAY_CHANNEL4 = 5,
+	DISPLAY_CHANNEL5 = 6,
+	DS0 = 7,
+	DS1 = 8,
+	DS2 = 9,
+	DS3 = 10,
+	DS4 = 11,
+	DS5 = 12,
+	DS6 = 13,
+	DS7 = 14,
+	DS8 = 15,
+	DS9 = 16,
+	DS10 = 17,
+	DS11 = 18,
+	DS12 = 19,
+	DS13 = 20,
+	DS14 = 21,
+	DS15 = 22,
+	DS16 = 23,
+	DS17 = 24,
+	DS18 = 25,
+	DS19 = 26,
+	DS20 = 27,
+	DS21 = 28,
+	DS22 = 29,
+	DS23 = 20,
+	US0 = 21,
+	US1 = 22,
+	US2 = 23,
+	US3 = 24,
+	US4 = 25,
+	US5 = 26,
+};
+#else
 enum DISPLAY_ADDR_TYPE {
 	BASE, //0
 	CROP, //1
@@ -632,6 +671,7 @@ enum DISPLAY_ADDR_TYPE {
 	US_2_5, //62
 
 };
+#endif
 
 enum PIXEL_CLK {
 	PIXEL_CLK_69,
@@ -668,6 +708,7 @@ void x2_iar_dump(void);
 frame_buf_t* x2_iar_get_framebuf_addr(int channel);
 //int32_t iar_set_video_buffer(uint32_t yaddr, uint32_t caddr, int index);
 int32_t iar_set_video_buffer(uint32_t slot_id);
+int32_t ipu_set_display_addr(uint32_t yaddr, uint32_t caddr);
 int32_t iar_write_framebuf_dma(uint32_t channel, phys_addr_t srcaddr,
 		uint32_t size);
 void *ipu_get_iar_framebuf_addr(uint32_t channel, unsigned int index);
