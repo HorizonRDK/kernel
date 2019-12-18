@@ -1,4 +1,5 @@
 /*
+ * Copyright (c) 2019
  * mpq7920-regulator.c - Voltage regulation for MPS mp5416 and mpq7920 PMUs
  *
  * This program is free software; you can redistribute it and/or modify
@@ -284,7 +285,9 @@ static struct i2c_client *mpq7920_i2c_client;
 static void mpq7920_power_off(void)
 {
 	struct mpq7920 *mpq7920;
-
+#ifdef CONFIG_X2A_FPGA
+	return;
+#endif
 	mpq7920 = i2c_get_clientdata(mpq7920_i2c_client);
 	regmap_write(mpq7920->regmap, mpq7920->off_reg, 0x0);
 

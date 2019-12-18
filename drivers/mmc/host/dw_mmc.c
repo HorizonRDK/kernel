@@ -3614,6 +3614,9 @@ int dw_mci_system_resume(struct device *dev)
 	struct dw_mci *host = dev_get_drvdata(dev);
 	int ret;
 	pr_info("%s:%s, enter resume...\n", __FILE__, __func__);
+#ifdef CONFIG_X2A_FPGA
+	return 0;
+#endif
 
 	x2_mmc_set_power(host->priv, 1);
 	if (host->slot &&

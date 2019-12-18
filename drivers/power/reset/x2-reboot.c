@@ -497,6 +497,8 @@ static int x2_reboot_probe(struct platform_device *pdev)
 	u32 swi[3], i;
 	int err;
 
+	return -ENODEV;
+
 	base = of_iomap(np, 0);
 	if (!base) {
 		WARN(1, "failed to map base address");

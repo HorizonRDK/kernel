@@ -129,3 +129,6 @@ dtb-mapping.conf
 # prerootfs
 /usr/prerootfs/
 /tools/ubifs/*.img
+
+# rootfs
+rootfs/
