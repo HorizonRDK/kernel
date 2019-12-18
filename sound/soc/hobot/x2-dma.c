@@ -19,7 +19,7 @@
 #include <linux/semaphore.h>
 #include <linux/reset.h>
 #include <linux/delay.h>
-#include <x2/diag.h>
+#include <soc/hobot/diag.h>
 
 #include <linux/interrupt.h>
 #include <linux/platform_device.h>

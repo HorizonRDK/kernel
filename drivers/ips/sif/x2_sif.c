@@ -17,11 +17,11 @@
 #include <linux/fs.h>
 #include <linux/poll.h>
 #include <linux/eventpoll.h>
-#include <x2/diag.h>
+#include <soc/hobot/diag.h>
 #include <linux/suspend.h>
 
-#include "x2/x2_ips.h"
-#include "x2/x2_sif.h"
+#include "soc/hobot/x2_ips.h"
+#include "soc/hobot/x2_sif.h"
 #include "x2_sif_dev.h"
 #include "x2_sif_utils.h"
 

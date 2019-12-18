@@ -19,7 +19,7 @@
 #include <linux/jiffies.h>
 #include <linux/ratelimit.h>
 #include <linux/printk.h>
-#include <x2/diag.h>
+#include <soc/hobot/diag.h>
 #include "diag_dev.h"
 
 //#define NETLINK_DIAG 30

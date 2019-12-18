@@ -60,7 +60,7 @@
 #include <linux/of_mdio.h>
 #include <linux/timer.h>
 #include <linux/tcp.h>
-#include <x2/diag.h>
+#include <soc/hobot/diag.h>
 #include <linux/of_gpio.h>
 #include <linux/pinctrl/consumer.h>
 

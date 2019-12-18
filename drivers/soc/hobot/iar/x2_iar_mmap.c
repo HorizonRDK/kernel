@@ -22,7 +22,7 @@
 #include <linux/fs.h>
 #include <asm/io.h>
 #include <linux/mutex.h>
-#include "x2_iar.h"
+#include <soc/hobot/x2_iar.h>
 
 struct iar_mmap_s {
 	const char	*name;

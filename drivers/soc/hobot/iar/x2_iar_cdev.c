@@ -23,7 +23,7 @@
 #include <asm/io.h>
 #include <linux/mutex.h>
 #include <asm/cacheflush.h>
-#include "x2_iar.h"
+#include <soc/hobot/x2_iar.h>
 
 #define IAR_DMA_MODE
 

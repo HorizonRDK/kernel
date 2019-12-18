@@ -183,8 +183,5 @@ obj-$(CONFIG_FPGA)		+= fpga/
 obj-$(CONFIG_FSI)		+= fsi/
 obj-$(CONFIG_TEE)		+= tee/
 obj-$(CONFIG_MULTIPLEXER)	+= mux/
+obj-$(CONFIG_X2_IPS)	+= ips/
 
-obj-$(CONFIG_USRDRV)		+= ips/
-obj-$(CONFIG_X2_IPS)		+= ips/
-obj-$(CONFIG_X2_IAR)		+= iar/
-obj-$(CONFIG_X2_BIFSD_DEV)	+= bifsd/

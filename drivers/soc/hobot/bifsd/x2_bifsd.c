@@ -17,7 +17,7 @@
 #include <linux/slab.h>
 #include <linux/fs.h>
 #include <linux/timer.h>
-#include <x2/diag.h>
+#include <soc/hobot/diag.h>
 
 #define BIFSD_DETECT_GPIO 77
 /*****************************************************************************/

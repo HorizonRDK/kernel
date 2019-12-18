@@ -36,7 +36,7 @@
 #include <asm-generic/io.h>
 #include <linux/string.h>
 #include <linux/wait.h>
-#include <x2/diag.h>
+#include <soc/hobot/diag.h>
 #include "isp.h"
 #include "isp_dev.h"
 #include "isp_dev_regs.h"

@@ -39,7 +39,7 @@
 #include <linux/of.h>
 #include <linux/of_gpio.h>
 #include <linux/mmc/slot-gpio.h>
-#include <x2/diag.h>
+#include <soc/hobot/diag.h>
 
 #include "dw_mmc.h"
 #include "dw_mmc-hobot.h"

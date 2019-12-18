@@ -14,7 +14,8 @@
 #include <linux/device.h>
 #include <linux/compiler.h>
 #include <linux/slab.h>
-#include <x2/x2_ips.h>
+#include <soc/hobot/x2_ips.h>
+#include <soc/hobot/x2_iar.h>
 #include <linux/proc_fs.h>
 #include <linux/delay.h>
 #include <linux/poll.h>
@@ -28,9 +29,7 @@
 #include <asm/string.h>
 #include <linux/uaccess.h>
 #include <asm/cacheflush.h>
-#include <x2/diag.h>
-
-#include "../../iar/x2_iar.h"
+#include <soc/hobot/diag.h>
 
 #define IPU_IOC_MAGIC       'm'
 

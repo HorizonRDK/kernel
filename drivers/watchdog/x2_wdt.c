@@ -21,7 +21,7 @@
 #include <linux/sched/clock.h>
 #include <linux/sched/debug.h>
 #include <uapi/linux/sched/types.h>
-#include <x2/x2_timer.h>
+#include <soc/hobot/x2_timer.h>
 
 #define X2_WDT_NAME				"x2_wdt"
 

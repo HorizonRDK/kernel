@@ -26,8 +26,8 @@
 #include <linux/io.h>
 #include <linux/interrupt.h>
 #include <linux/timer.h>
-#include <x2/diag.h>
-#include <x2/x2_bifspi.h>
+#include <soc/hobot/diag.h>
+#include <soc/hobot/x2_bifspi.h>
 
 #define BIF_BASE_ADDRESS  (0x00000000)
 #define BIF_ACCESS_FIRST  (0x00000110)

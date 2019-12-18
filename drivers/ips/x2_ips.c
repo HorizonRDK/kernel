@@ -25,7 +25,7 @@
 #include <linux/pinctrl/consumer.h>
 #include <linux/suspend.h>
 
-#include "x2/x2_ips.h"
+#include "soc/hobot/x2_ips.h"
 
 #define IPSINTMASK          0x0
 #define IPSINTSTATE         0x4

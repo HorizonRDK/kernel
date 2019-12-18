@@ -40,7 +40,7 @@
 #include "isp_dev.h"
 #include "x2_isp.h"
 #include "isp_base.h"
-#include "x2/x2_ips.h"
+#include "soc/hobot/x2_ips.h"
 #include "isp.h"
 #include "linux/ion.h"
 

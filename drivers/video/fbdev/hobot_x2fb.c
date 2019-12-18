@@ -35,9 +35,9 @@
 #include <video/of_display_timing.h>
 #include <asm/cacheflush.h>
 #include <linux/linux_logo.h>
+#include <soc/hobot/x2_iar.h>
 
 #include "hobot_x2fb.h"
-#include "../../iar/x2_iar.h"
 
 #define DRIVER_NAME "x2-fb"
 #define IAR_DMA_MODE
@@ -851,7 +851,7 @@ int user_set_fb(void)
 		iar_switch_buf(0);
 		iar_set_bufaddr(IAR_CHANNEL_3, &graphic_display_paddr);
 		iar_start(1);
-#ifndef CONFIG_X3
+#ifdef CONFIG_HOBOT_XJ2
 		msleep(20);
 		set_lt9211_config(&x2_fbi->fb);
 #endif
@@ -920,7 +920,9 @@ int user_set_fb(void)
 		msleep(20);
 
 		pr_debug("fb_driver: %s: begin set_lt9211_config\n", __func__);
+#ifdef CONFIG_HOBOT_XJ2
 		set_lt9211_config(&x2_fbi->fb);
+#endif
 	} else if (display_type == MIPI_1080P) {
 		disp_set_panel_timing(&video_1080x1920);
 		x2_fbi->memory_mode = 0;
@@ -1309,7 +1311,7 @@ static int x2fb_probe(struct platform_device *pdev)
 		x2_fbi->fb.fix.id, x2_fbi->fb.fix.smem_start,
 		x2_fbi->fb.fix.smem_start + x2_fbi->fb.fix.smem_len - 1);
 
-#ifdef CONFIG_X3
+#ifdef CONFIG_HOBOT_XJ3
 	ret = register_framebuffer(&x2_fbi->fb1);
 	if (ret < 0) {
 		dev_err(&pdev->dev,
@@ -1335,7 +1337,7 @@ static int x2fb_remove(struct platform_device *pdev)
 
 	if (fbi->fb.cmap.len)
 		fb_dealloc_cmap(&fbi->fb.cmap);
-#ifdef CONFIG_X3
+#ifdef CONFIG_HOBOT_XJ3
 	unregister_framebuffer(&fbi->fb1);
 
         if (fbi->fb1.cmap.len)

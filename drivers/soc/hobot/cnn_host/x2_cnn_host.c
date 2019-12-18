@@ -46,7 +46,7 @@
 #include <linux/kthread.h>
 #include <linux/clk-provider.h>
 #include <linux/regulator/consumer.h>
-#include <x2/diag.h>
+#include <soc/hobot/diag.h>
 #ifdef CONFIG_HOBOT_CNN_DEVFREQ
 #include <linux/devfreq.h>
 #include <linux/devfreq_cooling.h>

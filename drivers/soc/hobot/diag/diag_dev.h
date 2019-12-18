@@ -9,7 +9,7 @@
 #ifndef DIAG_DEV_H
 #define DIAG_DEV_H
 #include <linux/completion.h>
-#include <x2/diag.h>
+#include <soc/hobot/diag.h>
 
 #define IOCS_DIAG_DEV_SELF_TEST 0x01
 #define IOCS_DIAG_DEV_UNMASK_ID 0x03

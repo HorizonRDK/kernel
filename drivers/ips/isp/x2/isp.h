@@ -58,7 +58,7 @@
 #include <linux/types.h>
 #include <linux/wait.h>
 #include "isp_base.h"
-#include "x2/x2_ips.h"
+#include "soc/hobot/x2_ips.h"
 
 struct isp_cfg_s {
 	uint32_t isp_cfg;

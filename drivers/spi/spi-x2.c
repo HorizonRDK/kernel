@@ -17,7 +17,7 @@
 #include <linux/spinlock_types.h>
 #include <linux/pm_runtime.h>
 #include <linux/dma-mapping.h>
-#include <x2/diag.h>
+#include <soc/hobot/diag.h>
 #include <linux/timer.h>
 #include <linux/clk.h>
 

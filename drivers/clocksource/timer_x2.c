@@ -16,7 +16,7 @@
 #include <linux/of_irq.h>
 #include <linux/slab.h>
 #include <linux/sched_clock.h>
-#include <x2/x2_timer.h>
+#include <soc/hobot/x2_timer.h>
 
 /**
  * struct x2_timer - This definition defines local timer structure

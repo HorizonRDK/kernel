@@ -29,7 +29,7 @@
 #include <linux/spi/flash.h>
 #include <linux/mtd/partitions.h>
 #include <linux/slab.h>
-#include <x2/diag.h>
+#include <soc/hobot/diag.h>
 #include "x2-qspi.h"
 
 static int first_time;

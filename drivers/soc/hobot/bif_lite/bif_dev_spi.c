@@ -37,7 +37,7 @@
 #include "hbipc_errno.h"
 #include "bif_dev_spi.h"
 #ifndef CONFIG_HOBOT_BIF_AP
-#include <x2/x2_bifspi.h>
+#include <soc/hobot/x2_bifspi.h>
 #endif
 
 #define VERSION "2.9.0"

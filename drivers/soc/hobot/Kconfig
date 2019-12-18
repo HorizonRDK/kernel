@@ -114,11 +114,24 @@ config HOBOT_PM
 	default y
 	help
 	  say yes to enable x2 suspend
+
+config X2_IAR
+	tristate "X2 IAR Drivers"
+	default n
+	---help---
+	   Drivers for the X2 IAR
+
 config HOBOT_VCAM
         tristate "Enable HOBOT VCAM Drivers"
         default y
         help
           Say yes to enable vcam driver
+
+config USRDRV
+    tristate "USRDRV Driver"
+    help
+       Driver for the user mode drive
+
 endif #SOC_X2_MP
 
 menuconfig HOBOT_BIF_AP
@@ -139,4 +152,5 @@ config HOBOT_BIFSPI
         default y
         help
           Say yes to enable bifspi AP side driver
+
 endif

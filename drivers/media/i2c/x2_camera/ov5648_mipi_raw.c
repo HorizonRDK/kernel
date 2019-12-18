@@ -1,4 +1,4 @@
-#include "x2/x2_sensor_dev.h"
+#include "soc/hobot/x2_sensor_dev.h"
 
 #define OV5648_I2C_ADDR   (0x6C>>1)
 #define OV5648_CHIP_INFO  { 0x300A, 0x5648, 0 }

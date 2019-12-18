@@ -9,7 +9,7 @@
 #include <linux/of_address.h>
 #include <linux/slab.h>
 #include <linux/fb.h>
-#include "../../iar/x2_iar.h"
+#include <soc/hobot/x2_iar.h>
 
 #define LT9211_SLAVE_ADDR 0x2D
 

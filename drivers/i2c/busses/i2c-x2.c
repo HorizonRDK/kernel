@@ -14,7 +14,7 @@
 #include <linux/slab.h>
 #include <linux/string.h>
 #include <linux/reset.h>
-#include <x2/diag.h>
+#include <soc/hobot/diag.h>
 #include <linux/clk.h>
 
 #include <linux/i2c-x2.h>

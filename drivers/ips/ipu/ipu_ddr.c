@@ -15,8 +15,8 @@
 #include <linux/compiler.h>
 #include <linux/slab.h>
 #include <linux/mutex.h>
-#include <x2/x2_ips.h>
-#include <x2/diag.h>
+#include <soc/hobot/x2_ips.h>
+#include <soc/hobot/diag.h>
 #include <linux/proc_fs.h>
 #include <linux/delay.h>
 #include <linux/poll.h>
@@ -32,7 +32,7 @@
 #include <linux/time.h>
 #include <asm/cacheflush.h>
 #include <linux/semaphore.h>
-#include "../../iar/x2_iar.h"
+#include <soc/hobot/x2_iar.h>
 
 #include "ipu_pym.h"
 

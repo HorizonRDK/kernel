@@ -25,8 +25,8 @@
 #include <linux/init.h>
 #include <linux/wait.h>
 #include <linux/kthread.h>
-#include "x2/x2_ips.h"
-#include "x2_iar.h"
+#include <soc/hobot/x2_ips.h>
+#include <soc/hobot/x2_iar.h>
 #include "linux/ion.h"
 
 #define USE_ION_MEM
@@ -46,7 +46,6 @@ module_param(iar_debug_level, uint, 0644);
 #define DISPLAY_TYPE_TOTAL_MULTI 63
 
 int panel_reset_pin;
-int display_type = HDMI_TYPE;
 uint32_t iar_display_ipu_addr_single[DISPLAY_TYPE_TOTAL_SINGLE][2];
 uint32_t iar_display_ipu_addr_dual[DISPLAY_TYPE_TOTAL_MULTI][2];
 uint32_t iar_display_ipu_addr_ddrmode[33][2];
@@ -730,14 +729,14 @@ int8_t disp_set_pixel_clk(uint64_t pixel_clk)
 	int32_t ret = 0;
 	uint64_t pixel_rate;
 
-#ifndef CONFIG_X3
+#ifdef CONFIG_HOBOT_XJ2
 	if (pixel_clk < 102000000)
 		ips_set_iar_clk32(1);
 	else
 		ips_set_iar_clk32(0);
-#else
-	clk_disable_unprepare(g_iar_dev->iar_pixel_clk);
 #endif
+	clk_disable_unprepare(g_iar_dev->iar_pixel_clk);
+
 	pixel_rate = clk_round_rate(g_iar_dev->iar_pixel_clk, pixel_clk);
 	ret = clk_set_rate(g_iar_dev->iar_pixel_clk, pixel_rate);
 	if (ret) {
@@ -803,11 +802,13 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 
 	if (cfg->out_sel == OUTPUT_BT1120) {
 		//output config
-		ips_pinmux_bt();
-		//ret = disp_pinmux_bt1120();
+		//ips_pinmux_bt();
+		ret = disp_pinmux_bt1120();
 		if (ret)
 			return -1;
+#ifdef CONFIG_HOBOT_XJ2
 		ips_set_btout_clksrc(IAR_CLK, true);//clk invert
+#endif
 		writel(0xa, g_iar_dev->regaddr + REG_IAR_DE_OUTPUT_SEL);
 		//color config
 		value = readl(g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
@@ -874,6 +875,7 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 	iar_display_cam_no = cfg->display_cam_no;
 	iar_display_addr_type = cfg->display_addr_type;
 
+#ifdef CONFIG_HOBOT_XJ2
 	if (iar_display_cam_no == 0) {
 		iar_get_ipu_display_addr_single(iar_display_ipu_addr_single);
 		iar_display_yaddr_offset = iar_display_ipu_addr_single[0][0] +
@@ -898,6 +900,7 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 		iar_display_ipu_slot_size = iar_display_ipu_addr_ddrmode[0][1];
 
 	}
+#endif
 
 	config_rotate = cfg->rotate;
 	disp_user_update = cfg->user_control_disp;
@@ -1100,7 +1103,10 @@ EXPORT_SYMBOL_GPL(ipu_get_iar_display_type);
 
 int8_t iar_checkout_display_camera(uint8_t camera_no)
 {
+#ifdef CONFIG_HOBOT_XJ2
 	iar_get_ipu_display_addr_dual(iar_display_ipu_addr_dual);
+#endif
+
 	iar_display_ipu_slot_size = iar_display_ipu_addr_dual[0][1];
 	if (camera_no == 0) {
 		pr_debug("iar: checkout camera 0!\n");
