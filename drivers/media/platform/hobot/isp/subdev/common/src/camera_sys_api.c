@@ -617,7 +617,7 @@ int camera_sys_get_param(uint32_t port, sensor_data_t *sensor_data)
 {
 	int ret = 0;
 
-	memcpy(&sensor_data, &camera_mod[port]->camera_param.sensor_data,
+	memcpy(sensor_data, &camera_mod[port]->camera_param.sensor_data,
 			sizeof(sensor_data_t));
 	return ret;
 }
