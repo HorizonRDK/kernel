@@ -370,16 +370,14 @@ uint8_t general_fsm_process_event( general_fsm_t *p_fsm, event_id_t event_id )
     default:
         break;
     case event_id_new_frame:
+        //need to be almost sync as the new address available from FR or DS
+        acamera_general_interrupt_hanlder( ACAMERA_FSM2CTX_PTR( p_fsm ), ACAMERA_IRQ_FRAME_WRITER_FR ); //enabled for DMA_WRITER_FSM
         acamera_general_interrupt_hanlder( ACAMERA_FSM2CTX_PTR( p_fsm ), ACAMERA_IRQ_FRAME_START );
         acamera_general_interrupt_hanlder( ACAMERA_FSM2CTX_PTR( p_fsm ), ACAMERA_IRQ_FRAME_END );
         acamera_general_interrupt_hanlder( ACAMERA_FSM2CTX_PTR( p_fsm ), ACAMERA_IRQ_ANTIFOG_HIST );
         acamera_general_interrupt_hanlder( ACAMERA_FSM2CTX_PTR( p_fsm ), ACAMERA_IRQ_AF2_STATS );
         acamera_general_interrupt_hanlder( ACAMERA_FSM2CTX_PTR( p_fsm ), ACAMERA_IRQ_AWB_STATS );
         acamera_general_interrupt_hanlder( ACAMERA_FSM2CTX_PTR( p_fsm ), ACAMERA_IRQ_AE_STATS );
-
-        //need to be almost sync as the new address available from FR or DS
-        acamera_general_interrupt_hanlder( ACAMERA_FSM2CTX_PTR( p_fsm ), ACAMERA_IRQ_FRAME_WRITER_FR ); //enabled for DMA_WRITER_FSM
-        //acamera_general_interrupt_hanlder( ACAMERA_FSM2CTX_PTR( p_fsm ), ACAMERA_IRQ_FRAME_WRITER_DS );
 
         b_event_processed = 1;
         break;

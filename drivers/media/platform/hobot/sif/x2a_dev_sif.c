@@ -32,6 +32,14 @@ int g_test = -1;
 #endif
 static int timer_init(struct x2a_sif_dev *sif, int index);
 
+typedef int (*isp_callback)(int);
+isp_callback sif_isp_ctx_sync;
+void isp_register_callback(isp_callback func)
+{
+	sif_isp_ctx_sync = func;
+}
+EXPORT_SYMBOL(isp_register_callback);
+
 static int x2a_sif_suspend(struct device *dev)
 {
 	int ret = 0;
@@ -152,6 +160,12 @@ static void sif_read_work_function(struct kthread_work *work)
 	}
 
 	atomic_set(&sif->instance, instance);
+
+	if (sif_isp_ctx_sync != NULL) {
+		printk("SIF->ISP: %s tell isp ctx id\n", __func__);
+		(*sif_isp_ctx_sync)(instance);
+	}
+	printk("SIF->ISP: %s isp config done, starting to feed\n", __func__);
 
 	framemgr = &ctx->framemgr;
 	framemgr_e_barrier_irqs(framemgr, 0, flags);

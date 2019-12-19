@@ -21,6 +21,7 @@
 
 #include <linux/dma-mapping.h>
 #include <linux/dmaengine.h>
+#include <linux/irqreturn.h>
 #include <asm/dma-mapping.h>
 #include <asm/cacheflush.h>
 #include "acamera_types.h"

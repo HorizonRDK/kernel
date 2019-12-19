@@ -253,6 +253,7 @@ static int dma_writer_configure_frame_reader( dma_pipe *pipe, tframe_t *frame )
 #endif
 
 #if HOBOT_DMA_WRITER_FRAME
+extern void dma_writer_config_done(void);
 static int dma_writer_configure_frame_writer( dma_pipe *pipe,
                                               aframe_t *aframe,
                                               dma_writer_reg_ops_t *reg_ops )
@@ -305,6 +306,12 @@ static int dma_writer_configure_frame_writer( dma_pipe *pipe,
         LOG( LOG_INFO, "enable dma write, frame%d, %dx%d, stride=%d, phy_addr=0x%x, size=%d, type=%d",
             aframe->frame_id, aframe->width, aframe->height, aframe->line_offset,
             aframe->address, aframe->size, aframe->type);
+
+	/* for offline, tell feed thread dma writer config done */
+	if (aframe->type == DMA_FORMAT_NV12_UV) {
+		p_ctx->p_gfw->dma_flag_dma_writer_config_completed = 1;
+		dma_writer_config_done();
+	}
     } else {
         reg_ops->write_on_write_hw( base, 0 );
         LOG( LOG_INFO, "disable dma write, frame%d, %dx%d, stride=%d, phy_addr=0x%x, size=%d, type=%d",

@@ -174,6 +174,8 @@ struct _acamera_firmware_t {
     void *dma_chan_isp_metering;
     uint32_t dma_flag_isp_metering_completed;
 
+    uint32_t dma_flag_dma_writer_config_completed;
+
     uint32_t initialized;
 
     semaphore_t sem_evt_avail;

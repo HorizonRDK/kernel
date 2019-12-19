@@ -18,6 +18,7 @@
 */
 
 #include <linux/module.h>
+#include <linux/semaphore.h>
 #include "acamera_fw.h"
 #include "acamera_firmware_api.h"
 #include "acamera_firmware_config.h"
@@ -60,9 +61,18 @@
 
 #include "acamera_logger.h"
 #include "fsm_param.h"
+#include "system_dma.h"
+#include "hobot_isp_reg_dma.h"
 
 static acamera_firmware_t g_firmware;
 
+typedef int (*isp_callback)(int);
+extern void isp_register_callback(isp_callback func);
+int sif_isp_ctx_sync(int ctx_id);
+static int sif_isp_offline = 0;
+
+static DECLARE_WAIT_QUEUE_HEAD(wq);
+static DEFINE_SEMAPHORE(sem_event_process_done);
 
 int32_t acamera_set_api_context( uint32_t ctx_num )
 {
@@ -423,6 +433,9 @@ int32_t acamera_init( acamera_settings *settings, uint32_t ctx_num )
         LOG( LOG_CRIT, "Input initializations settings are not correct" );
         result = -1;
     }
+
+    isp_register_callback(sif_isp_ctx_sync);
+
     acamera_isp_isp_global_mcu_override_config_select_write( 0, 1 ); //put ping pong in slave mode
     g_firmware.dma_flag_isp_config_completed = 1;
     g_firmware.dma_flag_isp_metering_completed = 1;
@@ -445,6 +458,8 @@ static void acamera_deinit( void )
 #if FW_HAS_CONTROL_CHANNEL
     ctrl_channel_deinit();
 #endif
+
+    sif_isp_offline = 0;
 
     system_dma_destroy( g_firmware.dma_chan_isp_config );
     system_dma_destroy( g_firmware.dma_chan_isp_metering );
@@ -505,15 +520,32 @@ static void start_processing_frame( void )
     acamera_fw_raise_event( p_ctx, event_id_new_frame );
 }
 
+void dma_writer_config_done(void)
+{
+	wake_up(&wq);
+}
+EXPORT_SYMBOL(dma_writer_config_done);
+
 static void dma_complete_context_func( void *arg )
 {
+    int ctx_id = 0;
+    system_dma_device_t *system_dma_device = (system_dma_device_t *)arg;
+
     LOG( LOG_INFO, "DMA COMPLETION FOR CONTEXT" );
 
     g_firmware.dma_flag_isp_config_completed = 1;
 
+    if (system_dma_device != NULL)
+	ctx_id = system_dma_device->cur_fw_ctx_id;
 
     if ( g_firmware.dma_flag_isp_config_completed && g_firmware.dma_flag_isp_metering_completed ) {
         LOG( LOG_INFO, "START PROCESSING FROM CONTEXT CALLBACK" );
+
+	if (g_firmware.fw_ctx[ctx_id].fsm_mgr.reserved == 0) { // indicate dma writer is disabled
+		g_firmware.dma_flag_dma_writer_config_completed = 1;
+		dma_writer_config_done();
+	}
+
         start_processing_frame();
     }
 
@@ -522,19 +554,30 @@ static void dma_complete_context_func( void *arg )
 
 static void dma_complete_metering_func( void *arg )
 {
+    int ctx_id = 0;
+    system_dma_device_t *system_dma_device = (system_dma_device_t *)arg;
+
     LOG( LOG_INFO, "DMA COMPLETION FOR METERING" );
 
     g_firmware.dma_flag_isp_metering_completed = 1;
 
+    if (system_dma_device != NULL)
+	ctx_id = system_dma_device->cur_fw_ctx_id;
+
     if ( g_firmware.dma_flag_isp_config_completed && g_firmware.dma_flag_isp_metering_completed ) {
         LOG( LOG_INFO, "START PROCESSING FROM METERING CALLBACK" );
+
+	if (g_firmware.fw_ctx[ctx_id].fsm_mgr.reserved == 0) { // indicate dma writer is disabled
+		g_firmware.dma_flag_dma_writer_config_completed = 1;
+		dma_writer_config_done();
+	}
+
         start_processing_frame();
     }
 
     system_dma_unmap_sg( arg );
     // after we finish transfer context and metering we can start processing the current data
 }
-
 
 #if ISP_HAS_DMA_INPUT
 
@@ -752,6 +795,64 @@ static void set_dma_cmd_queue(dma_cmd *cmd, uint32_t ping_pong_sel)
 }
 #endif /* FW_USE_HOBOT_DMA*/
 
+int sif_isp_ctx_sync(int ctx_id)
+{
+	dma_cmd cmd[2];
+	acamera_context_ptr_t p_ctx;
+
+	sif_isp_offline = 1;
+	last_context_id = current_context_id;
+	current_context_id = ctx_id;
+	next_context_id = ctx_id;
+	p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[current_context_id];
+
+retry:
+	if (acamera_event_queue_empty(&p_ctx->fsm_mgr.event_queue)) {
+		// these flags are used for sync of callbacks
+		g_firmware.dma_flag_isp_config_completed = 0;
+		g_firmware.dma_flag_isp_metering_completed = 0;
+		g_firmware.dma_flag_dma_writer_config_completed = 0;
+
+		// switch to ping/pong contexts for the next frame
+		if (acamera_isp_isp_global_ping_pong_config_select_read(0) == ISP_CONFIG_PONG || p_ctx->isp_frame_counter == 0) {
+			acamera_isp_isp_global_mcu_ping_pong_config_select_write(0, ISP_CONFIG_PING);
+
+			LOG(LOG_ERR, "next is ping, DMA config from ddr to ping");
+#if FW_USE_HOBOT_DMA
+			set_dma_cmd_queue(cmd, ISP_CONFIG_PING);
+			system_dma_copy_multi_sg(cmd,2);
+#else
+			system_dma_copy_sg( g_firmware.dma_chan_isp_metering, ISP_CONFIG_PING, SYS_DMA_FROM_DEVICE, dma_complete_metering_func, last_context_id );
+			system_dma_copy_sg( g_firmware.dma_chan_isp_config, ISP_CONFIG_PING, SYS_DMA_TO_DEVICE, dma_complete_context_func, next_context_id );
+#endif
+		} else {
+			acamera_isp_isp_global_mcu_ping_pong_config_select_write(0, ISP_CONFIG_PONG);
+			LOG(LOG_ERR, "next is pong, DMA config from ddr to pong");
+#if FW_USE_HOBOT_DMA
+			set_dma_cmd_queue(cmd, ISP_CONFIG_PONG);
+			system_dma_copy_multi_sg(cmd,2);
+#else
+			system_dma_copy_sg( g_firmware.dma_chan_isp_metering, ISP_CONFIG_PONG, SYS_DMA_FROM_DEVICE, dma_complete_metering_func, last_context_id );
+			system_dma_copy_sg( g_firmware.dma_chan_isp_config, ISP_CONFIG_PONG, SYS_DMA_TO_DEVICE, dma_complete_context_func, next_context_id );
+#endif
+		}
+	} else {
+		down_interruptible(&sem_event_process_done);
+		goto retry;
+	}
+
+	if (!(g_firmware.dma_flag_isp_config_completed &&
+		g_firmware.dma_flag_isp_metering_completed &&
+		g_firmware.dma_flag_dma_writer_config_completed)) {
+
+		wait_event_timeout(wq, g_firmware.dma_flag_dma_writer_config_completed, msecs_to_jiffies(1000));
+		LOG( LOG_ERR, "ISP->SIF: wake up sif feed thread");
+	} else
+		LOG( LOG_ERR, "ISP->SIF: do not need waiting, return to sif feed thread");
+
+	return 0;
+}
+
 // single context handler
 int32_t acamera_interrupt_handler()
 {
@@ -771,7 +872,7 @@ int32_t acamera_interrupt_handler()
         printk("active high min/max/sum/num = %d/%d/%d/%d", system_hw_read_32(0xc4),system_hw_read_32(0xc8),system_hw_read_32(0xcc),system_hw_read_32(0xd0));
         printk("hblank min/max/sum/num = %d/%d/%d/%d", system_hw_read_32(0xd4),system_hw_read_32(0xd8),system_hw_read_32(0xdc),system_hw_read_32(0xe0));
         printk("vblank min/max/sum/num = %d/%d/%d/%d", system_hw_read_32(0xe4),system_hw_read_32(0xe8),system_hw_read_32(0xec),system_hw_read_32(0xf0));
-
+	printk("input port w/h %x, ping w/h %x, pong w/h %x", system_hw_read_32(0x98L), system_hw_read_32(0x18e88L), system_hw_read_32(0x30e48L));
     }
 
     // clear irq vector
@@ -779,6 +880,7 @@ int32_t acamera_interrupt_handler()
     acamera_isp_isp_global_interrupt_clear_write( 0, 1 );
 
     if ( irq_mask > 0 ) {
+#if 0
         //check for errors in the interrupt
         if ( ( irq_mask & 1 << ISP_INTERRUPT_EVENT_BROKEN_FRAME ) ||
              ( irq_mask & 1 << ISP_INTERRUPT_EVENT_MULTICTX_ERROR ) ||
@@ -794,14 +896,15 @@ int32_t acamera_interrupt_handler()
 			//acamera_fw_raise_event( p_ctx, event_id_frame_error );	//move node from busy to free list
 			//acamera_fw_raise_event( p_ctx, event_id_frame_config );	//get a new buffer put to busy list
             return -1;
-		}
+	}
+#endif
 
         while ( irq_mask > 0 && irq_bit >= 0 ) {
             int32_t irq_is_1 = ( irq_mask & ( 1 << irq_bit ) );
             irq_mask &= ~( 1 << irq_bit );
             if ( irq_is_1 ) {
                 // process interrupts
-                if ( irq_bit == ISP_INTERRUPT_EVENT_ISP_START_FRAME_START ) {
+                if ( sif_isp_offline == 0 && irq_bit == ISP_INTERRUPT_EVENT_ISP_START_FRAME_START ) {
                     static uint32_t fs_cnt = 0;
                     if ( fs_cnt < 10 ) {
                         LOG( LOG_INFO, "[KeyMsg]: FS interrupt: %d", fs_cnt++ );
@@ -917,6 +1020,8 @@ int32_t acamera_process( void )
 #if FW_HAS_CONTROL_CHANNEL
     ctrl_channel_process();
 #endif
+
+    up(&sem_event_process_done);
 
     system_semaphore_wait( g_firmware.sem_evt_avail, FW_EVT_QUEUE_TIMEOUT_MS );
 
