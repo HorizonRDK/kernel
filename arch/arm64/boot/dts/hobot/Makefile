@@ -1,24 +1,24 @@
-dtb-$(CONFIG_X2_SOC)  += hobot-x2-soc.dtb
-dtb-$(CONFIG_X2_SOC)  += hobot-x2-som.dtb
-dtb-$(CONFIG_X2_SOC)  += hobot-x2-dev.dtb
-dtb-$(CONFIG_X2_SOC)  += hobot-x2-dev-512m.dtb
-dtb-$(CONFIG_X2_SOC)  += hobot-j2-som.dtb
-dtb-$(CONFIG_X2_SOC)  += hobot-x2-som-ipc.dtb
-dtb-$(CONFIG_X2_SOC)  += hobot-j2-mono.dtb
-dtb-$(CONFIG_X2_SOC)  += hobot-j2-dev.dtb
-dtb-$(CONFIG_X2_SOC)  += hobot-j2-quad.dtb
-dtb-$(CONFIG_X2_SOC)  += hobot-j2-mm.dtb
-dtb-$(CONFIG_X2_SOC)  += hobot-j2-mm-s202.dtb
-dtb-$(CONFIG_X2_SOC)  += hobot-j2-sk.dtb
-dtb-$(CONFIG_X2_SOC)  += hobot-j2-sam.dtb
-dtb-$(CONFIG_X2_SOC)  += hobot-x2-96board.dtb
-dtb-$(CONFIG_X2_SOC)  += hobot-j2-mono-lite.dtb
-dtb-$(CONFIG_X2_SOC)  += hobot-x2-xiaomi.dtb
-dtb-$(CONFIG_X2A_FPGA) += hobot-x2aj2a-fpga.dtb
-dtb-$(CONFIG_X2A_FPGA_HAPS) += hobot-x2aj2a-fpga-haps.dtb
-dtb-$(CONFIG_X2A_SOC)  += hobot-x2aj2a-soc.dtb
+dtb-$(CONFIG_HOBOT_XJ2)  += hobot-x2-soc.dtb
+dtb-$(CONFIG_HOBOT_XJ2)  += hobot-x2-som.dtb
+dtb-$(CONFIG_HOBOT_XJ2)  += hobot-x2-dev.dtb
+dtb-$(CONFIG_HOBOT_XJ2)  += hobot-x2-dev-512m.dtb
+dtb-$(CONFIG_HOBOT_XJ2)  += hobot-j2-som.dtb
+dtb-$(CONFIG_HOBOT_XJ2)  += hobot-x2-som-ipc.dtb
+dtb-$(CONFIG_HOBOT_XJ2)  += hobot-j2-mono.dtb
+dtb-$(CONFIG_HOBOT_XJ2)  += hobot-j2-dev.dtb
+dtb-$(CONFIG_HOBOT_XJ2)  += hobot-j2-quad.dtb
+dtb-$(CONFIG_HOBOT_XJ2)  += hobot-j2-mm.dtb
+dtb-$(CONFIG_HOBOT_XJ2)  += hobot-j2-mm-s202.dtb
+dtb-$(CONFIG_HOBOT_XJ2)  += hobot-j2-sk.dtb
+dtb-$(CONFIG_HOBOT_XJ2)  += hobot-j2-sam.dtb
+dtb-$(CONFIG_HOBOT_XJ2)  += hobot-x2-96board.dtb
+dtb-$(CONFIG_HOBOT_XJ2)  += hobot-j2-mono-lite.dtb
+dtb-$(CONFIG_HOBOT_XJ2)  += hobot-x2-xiaomi.dtb
+dtb-$(CONFIG_HOBOT_FPGA_X3) += hobot-x2aj2a-fpga.dtb
+dtb-$(CONFIG_HOBOT_FPGA_HAPS_X3) += hobot-x2aj2a-fpga-haps.dtb
+dtb-$(CONFIG_HOBOT_XJ3)  += hobot-x2aj2a-soc.dtb
 
-ifeq ($(CONFIG_X2A_FPGA),y)
+ifeq ($(CONFIG_HOBOT_FPGA_X3),y)
 	ifeq ($(CONFIG_USB_DWC3_HOST),y)
 		dtb-y += hobot-x2aj2a-fpga-usb-host.dtb
 	else ifeq ($(CONFIG_USB_DWC3_GADGET),y)

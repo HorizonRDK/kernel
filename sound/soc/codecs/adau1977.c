@@ -623,7 +623,7 @@ static int adau1977_set_dai_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 	int ret;
 
 	switch (fmt & SND_SOC_DAIFMT_MASTER_MASK) {
-#ifdef CONFIG_X2_SOC
+#ifdef CONFIG_HOBOT_XJ2
 	case SND_SOC_DAIFMT_CBS_CFS:
 		ctrl1 |= ADAU1977_SAI_CTRL1_MASTER;
 		adau1977->master = true;

@@ -731,7 +731,7 @@ config CRYPTO_DEV_ARTPEC6
 config CRYPTO_DEV_HOBOT
 	tristate "Support for low level part of HOBOT Secure Engine."
 	depends on ARCH_HOBOT
-	depends on X2A_FPGA
+	depends on HOBOT_XJ3
 	select CRYPTO_AEAD
 	select CRYPTO_AES
 	select CRYPTO_ALGAPI

@@ -1,8 +1,8 @@
 LANG=ENG
 echo "======== check config start================"
 echo "please make sure to use ./mk_kernel -M to create new config"
-grep CONFIG_X2A_SOC .config
-grep CONFIG_X2_FPGA .config
+grep CONFIG_HOBOT_XJ3 .config
+grep CONFIG_HOBOT_FPGA_X2 .config
 echo "======== check config end=================="
 
 

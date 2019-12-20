@@ -986,7 +986,7 @@ static int ac108_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 
 	//AC108 config Master/Slave mode
 	switch (fmt & SND_SOC_DAIFMT_MASTER_MASK) {
-#ifdef CONFIG_X2_SOC
+#ifdef CONFIG_HOBOT_XJ2
 		case SND_SOC_DAIFMT_CBS_CFS:	//AC108 Master
 			AC108_DEBUG("AC108 set to work as Master\n");
 			ac108_multi_chips_update_bits(I2S_CTRL, 0x3<<LRCK_IOEN, 0x3<<LRCK_IOEN);	//BCLK & LRCK output

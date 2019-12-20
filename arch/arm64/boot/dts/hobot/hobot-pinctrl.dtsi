@@ -19,7 +19,7 @@
 			interrupts = <0 45 4>;
 			/*specific the gpio of each irq banck, 0 is invalid*/
 /*
-#ifdef CONFIG_X2_FPGA
+#ifdef CONFIG_HOBOT_FPGA_X2
 			gpioirq-bank-cfg = <85 0 0 0>;
 #else
 			gpioirq-bank-cfg = <95 0 0 0>;	//som

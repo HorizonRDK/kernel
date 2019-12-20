@@ -908,7 +908,7 @@ static int x2_cnn_fc_fifo_enqueue(struct x2_cnn_dev *dev,
 	u32 count;
 	struct hbrt_x2_funccall_s *tmp_ptr = NULL;
 	int tmp_orgin_id;
-#ifndef CONFIG_X2A_FPGA
+#ifndef CONFIG_HOBOT_FPGA_X3
 	if (dev->disable_bpu)
 		return -1;
 #endif
@@ -1019,7 +1019,7 @@ static int x2_cnn_open(struct inode *inode, struct file *filp)
 	devdata = container_of(inode->i_cdev, struct x2_cnn_dev, i_cdev);
 
 	user_info->cnn_dev = devdata;
-#ifndef CONFIG_X2A_FPGA
+#ifndef CONFIG_HOBOT_FPGA_X3
 	if (!regulator_is_enabled(devdata->cnn_regulator) ||
 	    !__clk_is_enabled(devdata->cnn_aclk) ||
 	    !__clk_is_enabled(devdata->cnn_mclk)) {
@@ -1969,7 +1969,7 @@ int x2_cnn_probe(struct platform_device *pdev)
 	rc = cnn_debugfs_init(cnn_dev, cnn_id, cnn_dev->cnn_debugfs_root);
 	if (rc)
 		pr_err("init cnn%d debugfs failed\n", cnn_id);
-#ifndef CONFIG_X2A_FPGA
+#ifndef CONFIG_HOBOT_FPGA_X3
 	/*get regulator*/
 	cnn_dev->cnn_regulator = regulator_get(cnn_dev->dev, "cnn");
 	if (IS_ERR(cnn_dev->cnn_regulator))
@@ -2005,7 +2005,7 @@ int x2_cnn_probe(struct platform_device *pdev)
 		pr_err("failed get cnn%d resets\n", cnn_id);
 		goto err_out;
 	}
-#ifndef CONFIG_X2A_FPGA
+#ifndef CONFIG_HOBOT_FPGA_X3
 	/*cnn power up*/
 	rc = regulator_enable(cnn_dev->cnn_regulator);
 	if (rc != 0)

@@ -375,10 +375,10 @@ CONFIG_FREEZER=y
 # CONFIG_ARCH_ZX is not set
 # CONFIG_ARCH_ZYNQMP is not set
 CONFIG_ARCH_HOBOT=y
-# CONFIG_X2_FPGA is not set
-# CONFIG_X2A_FPGA is not set
-# CONFIG_X2_SOC is not set
-CONFIG_X2A_SOC=y
+# CONFIG_HOBOT_FPGA_X2 is not set
+# CONFIG_HOBOT_FPGA_X3 is not set
+# CONFIG_HOBOT_XJ2 is not set
+CONFIG_HOBOT_XJ3=y
 
 #
 # Bus support

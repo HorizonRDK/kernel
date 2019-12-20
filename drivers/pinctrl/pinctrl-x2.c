@@ -654,7 +654,7 @@ static inline void x2_pinctrl_fsel_set(struct x2_pinctrl *pctrl,
 		regaddr = pctrl->regbase + (pin << 2);
 		value = readl(regaddr);
 		value &= ~(0x3);
-#ifndef	CONFIG_X2A_FPGA
+#ifndef	CONFIG_HOBOT_FPGA_X3
 		if (pin>=16 && pin<=19)
 			value |= (0x1);//Set as I2C4/I2C5 function
 #endif

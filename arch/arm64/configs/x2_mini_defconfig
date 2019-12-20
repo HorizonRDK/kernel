@@ -325,8 +325,8 @@ CONFIG_ARCH_HOBOT=y
 #
 # Hobot X2 FPGA Family
 #
-# CONFIG_X2_FPGA is not set
-CONFIG_X2_SOC=y
+# CONFIG_HOBOT_FPGA_X2 is not set
+CONFIG_HOBOT_XJ2=y
 
 #
 # Bus support

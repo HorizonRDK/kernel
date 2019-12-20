@@ -46,7 +46,7 @@
 /*****************************************************************************/
 /* Constants                                                                 */
 /*****************************************************************************/
-#ifdef CONFIG_X2A_FPGA
+#ifdef CONFIG_HOBOT_FPGA_X3
 #define HUGO_PLM
 #endif
 /* MMC AHB related Registers */

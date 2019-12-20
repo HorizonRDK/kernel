@@ -390,7 +390,7 @@ static void dw_mci_x2_set_ios(struct dw_mci *host, struct mmc_ios *ios)
 
 
 
-#ifdef CONFIG_X2A_FPGA
+#ifdef CONFIG_HOBOT_FPGA_X3
 	return;
 #endif
 

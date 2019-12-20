@@ -1257,7 +1257,7 @@ static struct uart_port *x2_uart_get_port(int id)
 	port->fifosize = X2_UART_FIFO_SIZE;
 	port->line = id;
 	port->dev = NULL;
-#ifdef	CONFIG_X2A_FPGA_HAPS
+#ifdef	CONFIG_HOBOT_FPGA_HAPS_X3
 	port->uartclk = 10000000;
 #else
 	port->uartclk = 20000000;
@@ -1687,7 +1687,7 @@ static int x2_uart_probe(struct platform_device *pdev)
 	port->mapbase = res->start;
 	port->irq = irq;
 	port->dev = &pdev->dev;
-	if (0 == IS_ENABLED(CONFIG_X2_FPGA) && 0 == IS_ENABLED(CONFIG_X2A_FPGA)) {
+	if (0 == IS_ENABLED(CONFIG_HOBOT_FPGA_X2) && 0 == IS_ENABLED(CONFIG_HOBOT_FPGA_X3)) {
 		port->uartclk = clk_get_rate(x2_uart_data->uartclk);
 	}
 	port->private_data = x2_uart_data;

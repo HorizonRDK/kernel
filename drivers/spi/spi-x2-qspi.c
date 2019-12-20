@@ -174,7 +174,7 @@ struct x2_qspi {
 	struct platform_device *pdev;
 	struct completion transfer_complete;
 
-#ifdef CONFIG_X2_SOC
+#ifdef CONFIG_HOBOT_XJ2
 	u32 ref_clk;
 	struct clk *pclk;
 #else
@@ -454,7 +454,7 @@ void trace_xqspi(struct x2_qspi *xqspi)
 	if(xqspi->pdev) {
 		printk(".pdev = %s\n", dev_name(&xqspi->pdev->dev));
 	}
-#ifdef CONFIG_X2_SOC
+#ifdef CONFIG_HOBOT_XJ2
 	printk("\t\t.ref_clk = %u\n", xqspi->ref_clk);
 	if(xqspi->pclk) {
 		printk("\t\t.pclk = %s@%u\n", __clk_get_name(xqspi->pclk),
@@ -482,7 +482,7 @@ static void x2_qspi_hw_init(struct x2_qspi *xqspi)
 	uint32_t reg_val;
 
 	/* set qspi clk div */
-#ifdef CONFIG_X2_SOC
+#ifdef CONFIG_HOBOT_XJ2
 	qspi_div = caculate_qspi_divider(xqspi->ref_clk, xqspi->speed_hz);
 	x2_qspi_write(xqspi, QSPI_SCLK_CON, qspi_div);
 #else
@@ -881,7 +881,7 @@ static int x2_qspi_probe(struct platform_device *pdev)
 
 	xqspi->dev = dev;
 
-#ifdef CONFIG_X2_SOC
+#ifdef CONFIG_HOBOT_XJ2
 	xqspi->pclk = devm_clk_get(&pdev->dev, "qspi_aclk");
 	if (IS_ERR(xqspi->pclk)) {
 		dev_err(dev, "pclk clock not found.\n");
@@ -954,7 +954,7 @@ static int x2_qspi_probe(struct platform_device *pdev)
 	return 0;
 
 clk_dis_pclk:
-#ifdef CONFIG_X2_SOC
+#ifdef CONFIG_HOBOT_XJ2
 	clk_disable_unprepare(xqspi->pclk);
 #endif
 
@@ -992,7 +992,7 @@ int x2_qspi_suspend(struct device *dev)
 
 	qspi_disable_tx(x2qspi);
 	qspi_disable_rx(x2qspi);
-#ifdef CONFIG_X2_SOC
+#ifdef CONFIG_HOBOT_XJ2
 	clk_disable_unprepare(x2qspi->pclk);
 #endif
 	return 0;
@@ -1004,7 +1004,7 @@ int x2_qspi_resume(struct device *dev)
 	struct x2_qspi *x2qspi = spi_master_get_devdata(master);
 
 	pr_info("%s:%s, enter resume...\n", __FILE__, __func__);
-#ifdef CONFIG_X2_SOC
+#ifdef CONFIG_HOBOT_XJ2
 	clk_prepare_enable(x2qspi->pclk);
 #endif
 	x2_qspi_hw_init(x2qspi);

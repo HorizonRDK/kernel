@@ -1146,7 +1146,7 @@ int ac101_set_dai_fmt(struct snd_soc_dai *codec_dai, unsigned int fmt)
 	reg_val = ac101_read(codec, AIF_CLK_CTRL);
 	reg_val &= ~(0x1<<AIF1_MSTR_MOD);
 	switch(fmt & SND_SOC_DAIFMT_MASTER_MASK) {
-#ifdef CONFIG_X2_SOC
+#ifdef CONFIG_HOBOT_XJ2
 	case SND_SOC_DAIFMT_CBS_CFS:
 		pr_warn("AC101 as Slave\n");
                 reg_val |= (0x1<<AIF1_MSTR_MOD);
