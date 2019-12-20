@@ -13,7 +13,7 @@
  */
 #ifndef __X2_MIPI_DPHY_H__
 #define __X2_MIPI_DPHY_H__
-#ifdef CONFIG_X2_MIPI_PHY
+#ifdef CONFIG_HOBOT_MIPI_PHY
 
 int32_t mipi_host_dphy_initialize(uint16_t mipiclk, uint16_t lane, uint16_t settle, void __iomem *iomem);
 void    mipi_host_dphy_reset(void __iomem *iomem);

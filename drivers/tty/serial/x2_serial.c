@@ -13,7 +13,7 @@
  * still shows in the naming of this file, the kconfig symbols and some symbols
  * in the code.
  */
-#if defined(CONFIG_SERIAL_X2_UART_CONSOLE) && defined(CONFIG_MAGIC_SYSRQ)
+#if defined(CONFIG_SERIAL_HOBOT_UART_CONSOLE) && defined(CONFIG_MAGIC_SYSRQ)
 #define SUPPORT_SYSRQ
 #endif
 #include <linux/platform_device.h>
@@ -40,7 +40,7 @@
 #define X2_UART_NAME		"x2-uart"
 #define X2_UART_MAJOR		0	/* use dynamic node allocation */
 #define X2_UART_MINOR		0	/* works best with devtmpfs */
-#define X2_UART_NR_PORTS	CONFIG_SERIAL_X2_NR_UARTS
+#define X2_UART_NR_PORTS	CONFIG_SERIAL_HOBOT_NR_UARTS
 #define X2_UART_FIFO_SIZE	32	/* FIFO size */
 #define X2_UART_REGISTER_SPACE	0x1000
 #define X2_UART_OVERRUN_FIFO_SIZE 16
@@ -57,13 +57,13 @@ static int tx_trigger_level = 0;
 module_param(tx_trigger_level, uint, S_IRUGO);
 MODULE_PARM_DESC(tx_trigger_level, "Tx trigger level, 0-15 (uint: 4 bytes)");
 
-#ifdef CONFIG_X2_TTY_POLL_MODE
+#ifdef CONFIG_HOBOT_TTY_POLL_MODE
 #define X2_UART_RX_POLL_TIME	50	/* Unit is ms */
-#endif /* CONFIG_X2_TTY_POLL_MODE */
+#endif /* CONFIG_HOBOT_TTY_POLL_MODE */
 #define TX_IN_PROGRESS_DMA     1
 #define TX_IN_PROGRESS_INT     2
 
-#ifdef CONFIG_X2_SERIAL_DEBUGFS
+#ifdef CONFIG_HOBOT_SERIAL_DEBUGFS
 /* for debugfs */
 struct dentry *dentry_root;
 struct dentry *dentry_data;
@@ -75,7 +75,7 @@ static unsigned int dgb_tx_head;
 static unsigned int dgb_rx_count;
 static unsigned int dgb_addr;
 static unsigned char __iomem *dgb_membase;
-#endif /* CONFIG_X2_SERIAL_DEBUGFS */
+#endif /* CONFIG_HOBOT_SERIAL_DEBUGFS */
 
 /**
  * struct x2_uart - device data
@@ -88,11 +88,11 @@ struct x2_uart {
 	char name[16];
 	struct clk *uartclk;
 
-#ifdef CONFIG_X2_TTY_POLL_MODE
+#ifdef CONFIG_HOBOT_TTY_POLL_MODE
 	struct timer_list rx_timer;
-#endif				/* CONFIG_X2_TTY_POLL_MODE */
+#endif				/* CONFIG_HOBOT_TTY_POLL_MODE */
 
-#ifdef CONFIG_X2_TTY_DMA_MODE
+#ifdef CONFIG_HOBOT_TTY_DMA_MODE
 	dma_addr_t tx_dma_buf;	/* dma tx buffer bus address */
 	unsigned int tx_bytes_requested;
 
@@ -114,7 +114,7 @@ static unsigned int dbg_tx_index = 0;
 
 #endif /* X2_UART_DBG */
 
-#ifdef CONFIG_X2_TTY_DMA_MODE
+#ifdef CONFIG_HOBOT_TTY_DMA_MODE
 
 #define X2_UART_DMA_SIZE	UART_XMIT_SIZE
 
@@ -174,11 +174,11 @@ static void x2_uart_dma_tx_start(struct uart_port *port)
 		return;
 	}
 
-#ifdef CONFIG_X2_SERIAL_DEBUGFS
+#ifdef CONFIG_HOBOT_SERIAL_DEBUGFS
 		dgb_tx_count = port->icount.tx;
 		dgb_tx_head = port->state->xmit.head;
 		dgb_tx_tail = port->state->xmit.tail;
-#endif /* CONFIG_X2_SERIAL_DEBUGFS */
+#endif /* CONFIG_HOBOT_SERIAL_DEBUGFS */
 
 #ifdef X2_UART_DBG
 	dbg_tx_cnt[dbg_tx_index] = count;
@@ -299,9 +299,9 @@ static void x2_uart_dma_rxdone(void *dev_id, unsigned int irqstatus)
 			count2 = rx_bytes;
 		}
 
-#ifdef CONFIG_X2_SERIAL_DEBUGFS
+#ifdef CONFIG_HOBOT_SERIAL_DEBUGFS
 		dgb_rx_count = rx_bytes;
-#endif /* CONFIG_X2_SERIAL_DEBUGFS */
+#endif /* CONFIG_HOBOT_SERIAL_DEBUGFS */
 
 		copied = tty_insert_flip_string(tty_port,
 						((unsigned char *)(x2_port->rx_buf +
@@ -356,9 +356,9 @@ static void x2_uart_dma_rxdone(void *dev_id, unsigned int irqstatus)
 	return;
 }
 
-#endif /* CONFIG_X2_TTY_DMA_MODE */
+#endif /* CONFIG_HOBOT_TTY_DMA_MODE */
 
-#ifdef CONFIG_X2_TTY_IRQ_MODE
+#ifdef CONFIG_HOBOT_TTY_IRQ_MODE
 /**
  * x2_uart_handle_rx - Handle the received bytes along with Rx errors.
  * @dev_id: Id of the UART port
@@ -376,9 +376,9 @@ static void x2_uart_handle_rx(void *dev_id, unsigned int irqstatus)
 		data = readl(port->membase + X2_UART_RDR);
 		port->icount.rx++;
 
-#ifdef CONFIG_X2_SERIAL_DEBUGFS
+#ifdef CONFIG_HOBOT_SERIAL_DEBUGFS
 	dgb_rx_count = port->icount.rx;
-#endif /* CONFIG_X2_SERIAL_DEBUGFS */
+#endif /* CONFIG_HOBOT_SERIAL_DEBUGFS */
 
 		if (irqstatus & UART_BI) {
 			port->icount.brk++;
@@ -417,7 +417,7 @@ static void x2_uart_handle_rx(void *dev_id, unsigned int irqstatus)
 	tty_flip_buffer_push(&port->state->port);
 	spin_lock(&port->lock);
 }
-#endif /* CONFIG_X2_TTY_IRQ_MODE */
+#endif /* CONFIG_HOBOT_TTY_IRQ_MODE */
 
 /**
  * x2_uart_stop_rx - Stop RX
@@ -433,8 +433,8 @@ static void x2_uart_stop_rx(struct uart_port *port)
 	writel(regval, port->membase + X2_UART_ENR);
 }
 
-#if defined(CONFIG_X2_TTY_IRQ_MODE) || defined(CONFIG_X2_TTY_POLL_MODE)\
-	|| !defined(CONFIG_X2_TTY_DMA_MODE)
+#if defined(CONFIG_HOBOT_TTY_IRQ_MODE) || defined(CONFIG_HOBOT_TTY_POLL_MODE)\
+	|| !defined(CONFIG_HOBOT_TTY_DMA_MODE)
 /**
  * x2_uart_handle_tx - Handle the bytes to be Txed.
  * @dev_id: Id of the UART port
@@ -470,20 +470,20 @@ static void x2_uart_handle_tx(void *dev_id, unsigned char in_irq)
 		port->state->xmit.tail =
 			(port->state->xmit.tail + 1) & (UART_XMIT_SIZE - 1);
 
-#ifdef CONFIG_X2_SERIAL_DEBUGFS
+#ifdef CONFIG_HOBOT_SERIAL_DEBUGFS
 		dgb_tx_count = port->icount.tx;
 		dgb_tx_head = port->state->xmit.head;
 		dgb_tx_tail = port->state->xmit.tail;
-#endif /* CONFIG_X2_SERIAL_DEBUGFS */
+#endif /* CONFIG_HOBOT_SERIAL_DEBUGFS */
 
 		/*
 		 * Hardware needs to transmit a char to make the interrupt of tx.
 		 */
-#ifdef CONFIG_X2_TTY_IRQ_MODE
+#ifdef CONFIG_HOBOT_TTY_IRQ_MODE
 		if (!in_irq) {
 			return;
 		}
-#endif /* CONFIG_X2_TTY_IRQ_MODE */
+#endif /* CONFIG_HOBOT_TTY_IRQ_MODE */
 	} while (!uart_circ_empty(&port->state->xmit));
 
 	if (uart_circ_chars_pending(&port->state->xmit) < WAKEUP_CHARS)
@@ -491,7 +491,7 @@ static void x2_uart_handle_tx(void *dev_id, unsigned char in_irq)
 
 	return;
 }
-#endif /* CONFIG_X2_TTY_IRQ_MODE || CONFIG_X2_TTY_POLL_MODE */
+#endif /* CONFIG_HOBOT_TTY_IRQ_MODE || CONFIG_HOBOT_TTY_POLL_MODE */
 
 /**
  * x2_uart_isr - Interrupt handler
@@ -502,7 +502,7 @@ static void x2_uart_handle_tx(void *dev_id, unsigned char in_irq)
  */
 static irqreturn_t x2_uart_isr(int irq, void *dev_id)
 {
-#ifdef CONFIG_X2_TTY_IRQ_MODE
+#ifdef CONFIG_HOBOT_TTY_IRQ_MODE
 	struct uart_port *port = (struct uart_port *)dev_id;
 	unsigned int status;
 
@@ -523,7 +523,7 @@ static irqreturn_t x2_uart_isr(int irq, void *dev_id)
 	writel(status, port->membase + X2_UART_INT_UNMASK);
 
 	spin_unlock(&port->lock);
-#elif defined(CONFIG_X2_TTY_DMA_MODE)
+#elif defined(CONFIG_HOBOT_TTY_DMA_MODE)
 	struct uart_port *port = (struct uart_port *)dev_id;
 	unsigned int status;
 
@@ -546,7 +546,7 @@ static irqreturn_t x2_uart_isr(int irq, void *dev_id)
 	writel(status, port->membase + X2_UART_INT_UNMASK);
 
 	spin_unlock(&port->lock);
-#endif /* CONFIG_X2_TTY_IRQ_MODE */
+#endif /* CONFIG_HOBOT_TTY_IRQ_MODE */
 
 	return IRQ_HANDLED;
 }
@@ -641,30 +641,30 @@ static void x2_uart_start_tx(struct uart_port *port)
 	if (uart_tx_stopped(port) || uart_circ_empty(&port->state->xmit)) {
 		return;
 	}
-#ifdef CONFIG_X2_TTY_DMA_MODE
+#ifdef CONFIG_HOBOT_TTY_DMA_MODE
 	val = readl(port->membase + X2_UART_TXDMA);
 	if (val & UART_TXSTA) {
 		return;
 	}
-#endif /* CONFIG_X2_TTY_DMA_MODE */
+#endif /* CONFIG_HOBOT_TTY_DMA_MODE */
 
-#ifdef CONFIG_X2_TTY_IRQ_MODE
+#ifdef CONFIG_HOBOT_TTY_IRQ_MODE
 	mask = UART_TXEPT;
-#elif defined CONFIG_X2_TTY_DMA_MODE
+#elif defined CONFIG_HOBOT_TTY_DMA_MODE
 	mask = UART_TXTHD | UART_TXDON;
-#endif /* CONFIG_X2_TTY_IRQ_MODE */
+#endif /* CONFIG_HOBOT_TTY_IRQ_MODE */
 	writel(mask, port->membase + X2_UART_INT_UNMASK);
 
 	ctrl = readl(port->membase + X2_UART_ENR);
 	ctrl |= UART_ENR_TX_EN;
 	writel(ctrl, port->membase + X2_UART_ENR);
 
-#ifdef CONFIG_X2_TTY_DMA_MODE
+#ifdef CONFIG_HOBOT_TTY_DMA_MODE
 	if (!x2_port->tx_in_progress)
 		x2_uart_dma_tx_start(port);
 #else
 	x2_uart_handle_tx(port, 0);
-#endif /* CONFIG_X2_TTY_DMA_MODE */
+#endif /* CONFIG_HOBOT_TTY_DMA_MODE */
 }
 
 /**
@@ -676,10 +676,10 @@ static void x2_uart_stop_tx(struct uart_port *port)
 	unsigned int ctrl;
 	struct x2_uart *x2_port = port->private_data;
 
-#if defined(CONFIG_X2_TTY_IRQ_MODE) || defined(CONFIG_X2_TTY_DMA_MODE)
+#if defined(CONFIG_HOBOT_TTY_IRQ_MODE) || defined(CONFIG_HOBOT_TTY_DMA_MODE)
 	writel(UART_TXEPT | UART_TXTHD | UART_TXDON,
 		   port->membase + X2_UART_INT_SETMASK);
-#endif /* CONFIG_X2_TTY_IRQ_MODE */
+#endif /* CONFIG_HOBOT_TTY_IRQ_MODE */
 
 	/* Disable the transmitter */
 	ctrl = readl(port->membase + X2_UART_ENR);
@@ -798,14 +798,14 @@ static void x2_uart_set_termios(struct uart_port *port,
 	if ((termios->c_cflag & CREAD) == 0)
 		port->ignore_status_mask |= UART_RXFUL | UART_PE | UART_FE;
 
-#ifdef CONFIG_X2_TTY_DMA_MODE
+#ifdef CONFIG_HOBOT_TTY_DMA_MODE
 	x2_uart->rx_off = 0;
 	if (x2_uart->rx_enabled) {
 		ctrl_reg = readl(port->membase + X2_UART_RXDMA);
 		ctrl_reg |= UART_RXSTA;
 		writel(ctrl_reg, port->membase + X2_UART_RXDMA);
 	}
-#endif /* CONFIG_X2_TTY_DMA_MODE */
+#endif /* CONFIG_HOBOT_TTY_DMA_MODE */
 
 	lcr_reg = readl(port->membase + X2_UART_LCR);
 
@@ -866,7 +866,7 @@ static void x2_uart_set_termios(struct uart_port *port,
 	spin_unlock_irqrestore(&port->lock, flags);
 }
 
-#ifdef CONFIG_X2_TTY_POLL_MODE
+#ifdef CONFIG_HOBOT_TTY_POLL_MODE
 static void x2_uart_rx_polling_func(unsigned long data)
 {
 	struct uart_port *port = (struct uart_port *)data;
@@ -893,7 +893,7 @@ static void x2_uart_rx_polling_func(unsigned long data)
 
 	return;
 }
-#endif /* CONFIG_X2_TTY_POLL_MODE */
+#endif /* CONFIG_HOBOT_TTY_POLL_MODE */
 
 /**
  * x2_uart_startup - Called when an application opens a x2_uart port
@@ -909,9 +909,9 @@ static int x2_uart_startup(struct uart_port *port)
 	unsigned int mask;
 	struct x2_uart *x2_uart = port->private_data;
 
-#ifdef CONFIG_X2_SERIAL_DEBUGFS
+#ifdef CONFIG_HOBOT_SERIAL_DEBUGFS
 	dgb_membase = port->membase;
-#endif /* CONFIG_X2_SERIAL_DEBUGFS */
+#endif /* CONFIG_HOBOT_SERIAL_DEBUGFS */
 
 	spin_lock_irqsave(&port->lock, flags);
 
@@ -931,12 +931,12 @@ static int x2_uart_startup(struct uart_port *port)
 
 	/* Set TX/RX FIFO Trigger level and disable dma tx/rx */
 	val = readl(port->membase + X2_UART_FCR);
-#ifdef CONFIG_X2_TTY_DMA_MODE
+#ifdef CONFIG_HOBOT_TTY_DMA_MODE
 	/* Only enable rx dma */
 	val |= UART_FCR_RDMA_EN;
 #else
 	val &= ~(UART_FCR_RDMA_EN | UART_FCR_TDMA_EN);
-#endif /* CONFIG_X2_TTY_DMA_MODE */
+#endif /* CONFIG_HOBOT_TTY_DMA_MODE */
 	val |=
 		UART_FCR_RFTRL(rx_trigger_level) | UART_FCR_TFTRL(tx_trigger_level);
 	writel(val, port->membase + X2_UART_FCR);
@@ -949,7 +949,7 @@ static int x2_uart_startup(struct uart_port *port)
 	/* Clear all pending Interrupt */
 	writel(0x7FFF, port->membase + X2_UART_SRC_PND);
 
-#if defined(CONFIG_X2_TTY_IRQ_MODE) || defined(CONFIG_X2_TTY_DMA_MODE)
+#if defined(CONFIG_HOBOT_TTY_IRQ_MODE) || defined(CONFIG_HOBOT_TTY_DMA_MODE)
 	mask = UART_TXEPT | UART_TXTHD | UART_TXDON;
 	writel(mask, port->membase + X2_UART_INT_SETMASK);
 
@@ -967,7 +967,7 @@ static int x2_uart_startup(struct uart_port *port)
 
 	spin_unlock_irqrestore(&port->lock, flags);
 
-#ifdef CONFIG_X2_TTY_DMA_MODE
+#ifdef CONFIG_HOBOT_TTY_DMA_MODE
 	ret = x2_uart_dma_alloc(port);
 	if (ret < 0) {
 		dev_err(port->dev, "could not allocate dma buffers!\n");
@@ -975,7 +975,7 @@ static int x2_uart_startup(struct uart_port *port)
 	}
 
 	x2_uart_dma_rx_start(port);
-#endif /* CONFIG_X2_TTY_DMA_MODE */
+#endif /* CONFIG_HOBOT_TTY_DMA_MODE */
 
 	ret =
 		request_irq(port->irq, x2_uart_isr, IRQF_TRIGGER_HIGH,
@@ -985,7 +985,7 @@ static int x2_uart_startup(struct uart_port *port)
 			port->irq, ret);
 		return ret;
 	}
-#ifdef CONFIG_X2_TTY_POLL_MODE
+#ifdef CONFIG_HOBOT_TTY_POLL_MODE
 	setup_timer(&x2_uart->rx_timer, x2_uart_rx_polling_func,
 			(unsigned long)port);
 	mod_timer(&x2_uart->rx_timer,
@@ -1006,9 +1006,9 @@ static void x2_uart_shutdown(struct uart_port *port)
 
 	struct x2_uart *x2_uart = port->private_data;
 
-#ifdef CONFIG_X2_TTY_POLL_MODE
+#ifdef CONFIG_HOBOT_TTY_POLL_MODE
 	del_timer(&x2_uart->rx_timer);
-#endif /* CONFIG_X2_TTY_POLL_MODE */
+#endif /* CONFIG_HOBOT_TTY_POLL_MODE */
 
 	spin_lock_irqsave(&port->lock, flags);
 
@@ -1029,7 +1029,7 @@ static void x2_uart_shutdown(struct uart_port *port)
 
 	spin_unlock_irqrestore(&port->lock, flags);
 
-#ifdef CONFIG_X2_TTY_DMA_MODE
+#ifdef CONFIG_HOBOT_TTY_DMA_MODE
 	dma_free_coherent(port->dev, X2_UART_DMA_SIZE,
 			(void *)x2_uart->rx_buf, x2_uart->rx_dma_buf);
 	x2_uart->rx_off = 0;
@@ -1192,7 +1192,7 @@ static void x2_flush_buffer(struct uart_port *port)
 {
 	struct x2_uart *x2_port = port->private_data;
 
-#ifdef CONFIG_X2_TTY_DMA_MODE
+#ifdef CONFIG_HOBOT_TTY_DMA_MODE
 	x2_port->tx_bytes_requested = 0;
 #endif
 }
@@ -1265,7 +1265,7 @@ static struct uart_port *x2_uart_get_port(int id)
 	return port;
 }
 
-#ifdef CONFIG_SERIAL_X2_UART_CONSOLE
+#ifdef CONFIG_SERIAL_HOBOT_UART_CONSOLE
 /**
  * x2_uart_console_wait_tx - Wait for the TX to be full
  * @port: Handle to the uart port structure
@@ -1415,7 +1415,7 @@ static int __init x2_uart_console_init(void)
 
 console_initcall(x2_uart_console_init);
 
-#endif /* CONFIG_SERIAL_X2_UART_CONSOLE */
+#endif /* CONFIG_SERIAL_HOBOT_UART_CONSOLE */
 
 static struct uart_driver x2_uart_driver = {
 	.owner = THIS_MODULE,
@@ -1424,7 +1424,7 @@ static struct uart_driver x2_uart_driver = {
 	.major = X2_UART_MAJOR,
 	.minor = X2_UART_MINOR,
 	.nr = X2_UART_NR_PORTS,
-#ifdef CONFIG_SERIAL_X2_UART_CONSOLE
+#ifdef CONFIG_SERIAL_HOBOT_UART_CONSOLE
 	.cons = &x2_uart_console,
 #endif
 };
@@ -1499,7 +1499,7 @@ static const struct of_device_id x2_uart_of_match[] = {
 
 MODULE_DEVICE_TABLE(of, x2_uart_of_match);
 
-#ifdef CONFIG_X2_SERIAL_DEBUGFS
+#ifdef CONFIG_HOBOT_SERIAL_DEBUGFS
 static int x2_regaddr_get(void *data, u64 *val)
 {
 	*val = dgb_addr;
@@ -1612,7 +1612,7 @@ static void x2_uart_debugfs_init(struct platform_device *pdev)
 		return;
 	}
 }
-#endif /* CONFIG_X2_SERIAL_DEBUGFS */
+#endif /* CONFIG_HOBOT_SERIAL_DEBUGFS */
 
 /**
  * x2_uart_probe - Platform driver probe
@@ -1628,9 +1628,9 @@ static int x2_uart_probe(struct platform_device *pdev)
 	struct x2_uart *x2_uart_data;
 	const struct of_device_id *match;
 
-#ifdef CONFIG_X2_SERIAL_DEBUGFS
+#ifdef CONFIG_HOBOT_SERIAL_DEBUGFS
 	x2_uart_debugfs_init(pdev);
-#endif /* CONFIG_X2_SERIAL_DEBUGFS */
+#endif /* CONFIG_HOBOT_SERIAL_DEBUGFS */
 
 	x2_uart_data = devm_kzalloc(&pdev->dev, sizeof(*x2_uart_data),
 					GFP_KERNEL);

@@ -506,7 +506,7 @@ config PCI_ENDPOINT_TEST
            Enable this configuration option to enable the host side test driver
            for PCI Endpoint.
 
-config X2_EFUSE
+config HOBOT_EFUSE
 	tristate "X2 efuse driver"
 	---help---
            Enable this configuration option to enable the X2 efuse driver.

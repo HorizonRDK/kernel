@@ -21,5 +21,5 @@ obj-$(CONFIG_RESET_TI_SYSCON) += reset-ti-syscon.o
 obj-$(CONFIG_RESET_UNIPHIER) += reset-uniphier.o
 obj-$(CONFIG_RESET_ZX2967) += reset-zx2967.o
 obj-$(CONFIG_RESET_ZYNQ) += reset-zynq.o
-obj-$(CONFIG_X2_RESET_CONTROLLER) += reset-x2.o
+obj-$(CONFIG_HOBOT_RESET_CONTROLLER) += reset-x2.o
 

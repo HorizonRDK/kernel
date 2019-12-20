@@ -388,7 +388,7 @@ config PINCTRL_X2
 	select GENERIC_PINCONF
 	select GPIOLIB_IRQCHIP
 
-config PINCTRL_X2A
+config PINCTRL_HOBOT
 	bool
 	depends on ARCH_HOBOT
 	select PINMUX

@@ -94,4 +94,4 @@ obj-$(CONFIG_NET_VENDOR_WIZNET) += wiznet/
 obj-$(CONFIG_NET_VENDOR_XILINX) += xilinx/
 obj-$(CONFIG_NET_VENDOR_XIRCOM) += xircom/
 obj-$(CONFIG_NET_VENDOR_SYNOPSYS) += synopsys/
-obj-$(CONFIG_VENDOR_HOBOT) += hobot/
+obj-$(CONFIG_NET_VENDOR_HOBOT) += hobot/

@@ -3,6 +3,6 @@
 # on x2 chip.
 #
 
-obj-$(CONFIG_X2_ISP) += isp_dev.o
-obj-$(CONFIG_X2_ISP) += isp_base.o
-obj-$(CONFIG_X2_ISP) += isp.o
+obj-$(CONFIG_HOBOT_ISP_X2) += isp_dev.o
+obj-$(CONFIG_HOBOT_ISP_X2) += isp_base.o
+obj-$(CONFIG_HOBOT_ISP_X2) += isp.o

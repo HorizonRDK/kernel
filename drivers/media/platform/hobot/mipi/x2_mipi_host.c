@@ -711,7 +711,7 @@ void mipi_host_deinit(void)
 		return;
 	}
 	iomem = g_mipi_host->iomem;
-#ifdef CONFIG_X2_MIPI_PHY
+#ifdef CONFIG_HOBOT_MIPI_PHY
 	mipi_host_dphy_reset(iomem);
 #endif
 	/* new add */
@@ -760,7 +760,7 @@ int32_t mipi_host_init(mipi_host_cfg_t *control)
 	mipi_putreg(iomem + REG_MIPI_HOST_DPHY_RSTZ, MIPI_HOST_CSI2_RESETN);
 	mipi_putreg(iomem + REG_MIPI_HOST_PHY_SHUTDOWNZ, MIPI_HOST_CSI2_RESETN);
 
-#ifdef CONFIG_X2_MIPI_PHY
+#ifdef CONFIG_HOBOT_MIPI_PHY
 	if (0 != mipi_host_dphy_initialize(control->mipiclk, control->lane, control->settle, iomem)) {
 		mipierr("mipi host dphy initialize error!!!");
 		mipi_host_deinit();

@@ -1773,7 +1773,7 @@ config RTC_DRV_RTD119X
 	  If you say yes here, you get support for the RTD1295 SoC
 	  Real Time Clock.
 
-config RTC_DRV_X2
+config RTC_DRV_HOBOT
 	tristate "Hobot X2 RTC controller support"
 	depends on ARCH_HOBOT
 	help

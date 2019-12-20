@@ -148,8 +148,8 @@
 #define	SCLK_VAL(div, scaler)		(((div) << 4) | ((scaler) << 0))
 #define	MIN(a, b)			(((a) < (b)) ? (a) : (b))
 
-#define	CONFIG_X2_QSPI_REF_CLK 10000000
-#define	CONFIG_X2_QSPI_CLK 5000000
+#define	CONFIG_HOBOT_QSPI_REF_CLK 10000000
+#define	CONFIG_HOBOT_QSPI_CLK 5000000
 
 #define	X2_QSPI_MAX_CHIPSELECT		1
 
@@ -897,8 +897,8 @@ static int x2_qspi_probe(struct platform_device *pdev)
 
 	xqspi->ref_clk = clk_get_rate(xqspi->pclk);
 #else
-	xqspi->ref_clk = CONFIG_X2_QSPI_REF_CLK;
-	xqspi->qspi_clk = CONFIG_X2_QSPI_CLK;
+	xqspi->ref_clk = CONFIG_HOBOT_QSPI_REF_CLK;
+	xqspi->qspi_clk = CONFIG_HOBOT_QSPI_CLK;
 #endif
 
 	if (of_property_read_bool(pdev->dev.of_node, "is-batch-mode"))

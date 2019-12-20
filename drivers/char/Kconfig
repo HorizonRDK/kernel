@@ -7,7 +7,7 @@ menu "Character devices"
 
 source "drivers/tty/Kconfig"
 
-config X2_BIF_SPI
+config HOBOT_BIF_SPI
 	bool "X2 BIF-SPI CHRDEV"
 	default y
 	help

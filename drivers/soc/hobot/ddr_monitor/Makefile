@@ -3,4 +3,4 @@
 # on x2 chip.
 #
 
-obj-$(CONFIG_X2_DDR_MON) += x2_ddr_monitor.o
+obj-$(CONFIG_HOBOT_DDR_MON) += x2_ddr_monitor.o

@@ -585,7 +585,7 @@ int32_t mipi_dev_deinit(void)
 	iomem = g_mipi_dev->iomem;
 	/*stop mipi dev here*/
 	mipi_putreg(iomem + REG_MIPI_DEV_LPCLK_CTRL, MIPI_DEV_LPCLK_NCONT);
-#ifdef CONFIG_X2_MIPI_PHY
+#ifdef CONFIG_HOBOT_MIPI_PHY
 	mipi_dev_dphy_reset(iomem);
 #endif
 	/*Set DWC_mipi_csi2_dev reset*/
@@ -619,7 +619,7 @@ int32_t mipi_dev_init(mipi_dev_cfg_t *control)
 	mipiinfo("mipi device iomem %p", iomem);
 
 	ips_set_mipi_freqrange(MIPI_DEV_CFGCLKFREQRANGE, MIPI_DEV_CFGCLK_DEFAULT);
-#ifdef CONFIG_X2_MIPI_PHY
+#ifdef CONFIG_HOBOT_MIPI_PHY
 	/*Shut down and reset SNPS D-PHY*/
 	mipi_dev_dphy_reset(iomem);
 #endif
@@ -634,7 +634,7 @@ int32_t mipi_dev_init(mipi_dev_cfg_t *control)
 	mipi_putreg(iomem + REG_MIPI_DEV_CLKMGR_CFG, MIPI_DEV_CLKMGR_RAISE);
 	mipi_putreg(iomem + REG_MIPI_DEV_LPCLK_CTRL, MIPI_DEV_LPCLK_NCONT);
 
-#ifdef CONFIG_X2_MIPI_PHY
+#ifdef CONFIG_HOBOT_MIPI_PHY
 	/*Initialize the PHY*/
 	if (0 != mipi_dev_dphy_initialize(iomem, control->mipiclk, control->lane, control->settle)) {
 		mipierr("mipi dev initialize error!!!");

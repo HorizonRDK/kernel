@@ -22,6 +22,6 @@ cd ..
 ls -lh palladium/ddrmem.bin
 ls -lh palladium/ddrmem.zip
 
-echo "NOTE: NEED TO disable drivers/tty/serial/x2_serial.c::CONFIG_X2_TTY_DMA_MODE for palladium"
-echo "NOTE: NEET TO disable CONFIG_X2_TTY_DMA_MODE=y in .config for palladium"
+echo "NOTE: NEED TO disable drivers/tty/serial/x2_serial.c::CONFIG_HOBOT_TTY_DMA_MODE for palladium"
+echo "NOTE: NEET TO disable CONFIG_HOBOT_TTY_DMA_MODE=y in .config for palladium"
 echo "======== Generate files for Palladium end================"

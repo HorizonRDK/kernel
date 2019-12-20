@@ -12,22 +12,22 @@ config HOBOT_VIO
 endmenu
 
 menu "MIPI Configuration"
-config X2_MIPI_HOST
-    tristate "X2 MIPI Host Driver"
+config HOBOT_MIPI_HOST
+    tristate "HOBOT MIPI Host Driver"
     help
-       Driver for the X2 MIPI Host
+       Driver for the HOBOT MIPI Host
 
-config X2_MIPI_DEV
-    tristate "X2 MIPI Device Driver"
+config HOBOT_MIPI_DEV
+    tristate "HOBOT MIPI Device Driver"
     help
-       Driver for the X2 MIPI Device
+       Driver for the HOBOT MIPI Device
 
-config X2_MIPI_PHY
-    tristate "X2 MIPI DPHY Driver"
+config HOBOT_MIPI_PHY
+    tristate "HOBOT MIPI DPHY Driver"
     help
-       Driver for the X2 MIPI DPHY
+       Driver for the HOBOT MIPI DPHY
 
-config X2_MIPI_CLK_RECALCULATION
+config HOBOT_MIPI_CLK_RECALCULATION
     bool "ENABLE CLK ACCURACY IMPROVE"
     default n
     help

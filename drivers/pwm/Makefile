@@ -52,4 +52,4 @@ obj-$(CONFIG_PWM_TWL)		+= pwm-twl.o
 obj-$(CONFIG_PWM_TWL_LED)	+= pwm-twl-led.o
 obj-$(CONFIG_PWM_VT8500)	+= pwm-vt8500.o
 obj-$(CONFIG_PWM_ZX)		+= pwm-zx.o
-obj-$(CONFIG_PWM_X2)		+= pwm-x2.o
+obj-$(CONFIG_PWM_HOBOT)		+= pwm-x2.o

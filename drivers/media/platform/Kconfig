@@ -22,7 +22,7 @@ menuconfig V4L_PLATFORM_DRIVERS
 	  Say Y here to enable support for platform-specific V4L drivers.
 
 if V4L_PLATFORM_DRIVERS
-config VIDEO_HOBOTC_ISP
+config VIDEO_HOBOT_ISP
 	tristate "HOBOT C-series ISP v4l2 driver"
 	depends on VIDEO_DEV
 	depends on VIDEO_V4L2_SUBDEV_API

@@ -615,11 +615,11 @@ config CLKSRC_ST_LPC
 	  Enable this option to use the Low Power controller timer
 	  as clocksource.
 
-config X2_TIMER
-	bool "x2 timer driver"
+config HOBOT_TIMER
+	bool "HOBOT timer driver"
 	depends on ARCH_HOBOT
 	select CLKSRC_OF
 	help
-	  Enables the support for the x2 timer driver.
+	  Enables the support for the hobot timer driver.
 
 endmenu

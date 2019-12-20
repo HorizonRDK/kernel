@@ -95,4 +95,4 @@ obj-$(CONFIG_VIDEO_OV2659)	+= ov2659.o
 obj-$(CONFIG_VIDEO_TC358743)	+= tc358743.o
 
 obj-$(CONFIG_SDR_MAX2175) += max2175.o
-obj-$(CONFIG_VIDEO_X2_CAMERA)		+= x2_camera/
+obj-$(CONFIG_VIDEO_HOBOT_CAMERA_X2)		+= x2_camera/

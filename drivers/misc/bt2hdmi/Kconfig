@@ -1,7 +1,7 @@
 #
 # BT2HDMI device configuration
 #
-config X2_HDMI
+config HOBOT_HDMI
 	tristate "X2 HDMI Drivers"
 	default y
 	---help---

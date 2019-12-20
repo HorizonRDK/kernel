@@ -3,4 +3,4 @@
 # on x2 chip.
 #
 
-obj-$(CONFIG_X2_ISP) += x2/
+obj-$(CONFIG_HOBOT_ISP_X2) += x2/

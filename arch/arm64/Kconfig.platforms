@@ -285,7 +285,7 @@ config HOBOT_FPGA_X2
 
 config HOBOT_FPGA_X3
 	bool "X2A/X3 FPGA Support"
-	select PINCTRL_X2A
+	select PINCTRL_HOBOT
 	help
 	  This enables Hobot X3 FPGA support.
 	  You only need to enable this, if you want to support x2 fpga.
@@ -322,7 +322,7 @@ config HOBOT_J2
 config HOBOT_XJ3
 	bool "X2A/X3 SOC Support"
 	depends on ARCH_HOBOT
-	select PINCTRL_X2A
+	select PINCTRL_HOBOT
 	help
 	  This enables Hobot X2A SOC support.
 	  You only need to enable this, if you want to support x2a soc.

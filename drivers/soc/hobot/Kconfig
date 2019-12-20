@@ -1,7 +1,7 @@
 #
 # Hobot MPSoC configuration
 #
-menuconfig SOC_X2_MP
+menuconfig HOBOT_SOC_DRIVERS
         bool "X2 MPSoC driver support"
         depends on ARCH_HOBOT
 
@@ -11,21 +11,21 @@ config HOBOT_SOCINFO
         help
           Say yes to enable x2 socinfo driver In doubt, say N
 
-if SOC_X2_MP
+if HOBOT_SOC_DRIVERS
 
-config X2_CNN_HOST
+config HOBOT_CNN_HOST
         tristate "Enable X2 CNN HOST Drivers"
         default n
         help
           Say yes to enable x2 cnn driver In doubt, say N
 
-config X2_CNN_MM
+config HOBOT_CNN_MM
         bool "X2 CNN Memory Heap Drivers"
         default y
         help
           Add x2 cnn memory heap management driver
 
-config X2_DIAG
+config HOBOT_DIAG
         bool "x2 diag driver, based on netlink"
         default y
         help
@@ -103,7 +103,7 @@ config HOBOT_HBIPC_ETH
           Say yes to enable bif_lite_sd driver
 endif
 
-config X2_DDR_MON
+config HOBOT_DDR_MON
 	bool "Enable X2 DDR Monitor"
 	default n
 	help
@@ -115,7 +115,7 @@ config HOBOT_PM
 	help
 	  say yes to enable x2 suspend
 
-config X2_IAR
+config HOBOT_IAR
 	tristate "X2 IAR Drivers"
 	default n
 	---help---
@@ -132,7 +132,7 @@ config USRDRV
     help
        Driver for the user mode drive
 
-endif #SOC_X2_MP
+endif #HOBOT_SOC_DRIVERS
 
 menuconfig HOBOT_BIF_AP
         bool "Enable HOBOT BIF AP Drivers"

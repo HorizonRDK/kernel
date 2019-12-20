@@ -519,7 +519,7 @@ config PWM_ZX
 	  To compile this driver as a module, choose M here: the module
 	  will be called pwm-zx.
 
-config PWM_X2
+config PWM_HOBOT
 	tristate "Hobot X2 PWM controller support"
 	depends on ARCH_HOBOT
 	help

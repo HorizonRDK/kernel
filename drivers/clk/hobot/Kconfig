@@ -1,4 +1,4 @@
-config X2_COMMON_CLK
+config HOBOT_COMMON_CLK
 	bool "X2 clock controller support"
-config X2_COMMON_CLK_TEST
+config CLK_HOBOT_COMMON_TEST
 	bool "X2 clock controller test support"

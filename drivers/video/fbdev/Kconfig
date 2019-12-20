@@ -2500,7 +2500,7 @@ config FB_SM712
 config FB_HOBOT_X2
 	tristate "Horizon Robotics framebuffer support"
 	default y
-	depends on FB && X2_IAR && I2C
+	depends on FB && HOBOT_IAR && I2C
 	select FB_CFB_FILLRECT
 	select FB_CFB_COPYAREA
 	select FB_CFB_IMAGEBLIT
