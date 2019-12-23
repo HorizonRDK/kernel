@@ -29,7 +29,7 @@
 #include <linux/gpio/consumer.h>
 
 #include "siHdmiTx_902x_TPI.h"
-#include "soc/hobot/x2_ips.h"
+#include "soc/hobot/hobot_ips_x2.h"
 
 
 SIHDMITX_CONFIG	siHdmiTx;

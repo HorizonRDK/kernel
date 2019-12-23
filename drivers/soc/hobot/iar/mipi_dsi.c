@@ -23,7 +23,7 @@
 #include <linux/io.h>
 #include <linux/mutex.h>
 #include <asm/cacheflush.h>
-#include <soc/hobot/x2_iar.h>
+#include <soc/hobot/hobot_iar.h>
 
 
 extern struct iar_dev_s *g_iar_dev;

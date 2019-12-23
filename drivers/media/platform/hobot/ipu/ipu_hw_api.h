@@ -1,5 +1,5 @@
-#ifndef __X2A_IPU_HW_API__
-#define __X2A_IPU_HW_API__
+#ifndef __HOBOT_IPU_HW_API__
+#define __HOBOT_IPU_HW_API__
 
 void ipu_set_input_img_size(void __iomem *base_addr, u8 shadow_index, u32 width, u32 height);
 void ipu_set_rdma_stride(void __iomem *base_addr, u8 shadow_index, u32 y_stride, u32 uv_stride);

@@ -1,5 +1,5 @@
-#ifndef __X2A_IPS_HW_API__
-#define __X2A_IPS_HW_API__
+#ifndef __HOBOT_IPS_HW_API__
+#define __HOBOT_IPS_HW_API__
 
 void ips_module_reset(void __iomem *base_addr, unsigned int module);
 void ips_enable_intr(void __iomem *base_addr, unsigned int module, bool enable);

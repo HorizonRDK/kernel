@@ -12,8 +12,8 @@
  * GNU General Public License for more details.
  */
 
-#ifndef __X2A_DWE_H__
-#define __X2A_DWE_H__
+#ifndef __HOBOT_DWE_H__
+#define __HOBOT_DWE_H__
 
 #include <linux/types.h>
 

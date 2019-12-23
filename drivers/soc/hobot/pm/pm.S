@@ -7,7 +7,7 @@
  *
  */
 #include <linux/linkage.h>
-#include "x2_pm.h"
+#include "hobot_pm.h"
 
 ENTRY(__asm_dcache_level)
 	lsl	x12, x0, #1

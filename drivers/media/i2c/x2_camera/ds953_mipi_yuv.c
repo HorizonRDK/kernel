@@ -1,4 +1,4 @@
-#include "soc/hobot/x2_sensor_dev.h"
+#include "soc/hobot/hobot_sensor_dev.h"
 
 //#define TEST_PATTERN 1
 #define DS953_I2C_ADDR   (0x30>>1)

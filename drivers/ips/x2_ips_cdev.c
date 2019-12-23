@@ -22,7 +22,7 @@
 #include <linux/fs.h>
 #include <asm/io.h>
 
-#include "soc/hobot/x2_ips.h"
+#include "soc/hobot/hobot_ips_x2.h"
 
 #define IPS_CDEV_MAGIC 'I'
 #define IPS_GETVALUE	_IOR(IPS_CDEV_MAGIC,0x11, unsigned int)

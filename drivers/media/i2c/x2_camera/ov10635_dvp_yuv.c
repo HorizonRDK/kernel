@@ -1,4 +1,4 @@
-#include "soc/hobot/x2_sensor_dev.h"
+#include "soc/hobot/hobot_sensor_dev.h"
 
 //#define TEST_PATTERN 1
 #define OV10635_I2C_ADDR   (0x70>>1)

@@ -171,8 +171,8 @@ obj-$(CONFIG_SENSORS_W83L786NG)	+= w83l786ng.o
 obj-$(CONFIG_SENSORS_WM831X)	+= wm831x-hwmon.o
 obj-$(CONFIG_SENSORS_WM8350)	+= wm8350-hwmon.o
 obj-$(CONFIG_SENSORS_XGENE)	+= xgene-hwmon.o
-obj-$(CONFIG_SENSORS_HOBOT_TEMP)	+= temp-x2.o
-obj-$(CONFIG_SENSORS_HOBOT_POWER)	+= power_mon_x2.o
+obj-$(CONFIG_SENSORS_HOBOT_TEMP)	+= hobot-temp.o
+obj-$(CONFIG_SENSORS_HOBOT_POWER)	+= hobot-power_mon.o
 
 obj-$(CONFIG_PMBUS)		+= pmbus/
 

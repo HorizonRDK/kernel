@@ -1,5 +1,5 @@
-#ifndef __X2A_GDC_HW_API__
-#define __X2A_GDC_HW_API__
+#ifndef __HOBOT_GDC_HW_API__
+#define __HOBOT_GDC_HW_API__
 
 void gdc_set_config_addr(void __iomem *base_addr, u32 config_addr);
 void gdc_set_config_size(void __iomem *base_addr, u32 config_addr);

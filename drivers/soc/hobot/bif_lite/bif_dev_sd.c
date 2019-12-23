@@ -32,7 +32,7 @@
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
 #ifndef CONFIG_HOBOT_BIF_AP
-#include <soc/hobot/x2_bifspi.h>
+#include <soc/hobot/hobot_bifspi.h>
 #endif
 #include "hbipc_lite.h"
 #include "hbipc_errno.h"

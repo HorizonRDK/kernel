@@ -1,5 +1,5 @@
-#ifndef __X2A_VIO_H__
-#define __X2A_VIO_H__
+#ifndef __HOBOT_VIO_CONFIG_H__
+#define __HOBOT_VIO_CONFIG_H__
 
 #define vio_err(fmt, ...)	printk( fmt, ##__VA_ARGS__)
 #define vio_warn(fmt, ...)	printk(KERN_DEBUG fmt, ##__VA_ARGS__)

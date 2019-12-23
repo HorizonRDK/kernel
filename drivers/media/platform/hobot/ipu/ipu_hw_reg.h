@@ -1,8 +1,8 @@
-#ifndef __X2A_IPU_REG_H__
-#define __X2A_IPU_REG_H__
+#ifndef __HOBOT_IPU_REG_H__
+#define __HOBOT_IPU_REG_H__
 
 #include "vio_hw_common_api.h"
-#include "x2a_dev_ipu.h"
+#include "hobot_dev_ipu.h"
 
 enum ipu_shadow_id{
 	SDW_ID_0,

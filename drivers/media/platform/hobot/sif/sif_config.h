@@ -1,5 +1,5 @@
-#ifndef __X2A_SIF_CONFIG__
-#define __X2A_SIF_CONFIG__
+#ifndef __HOBOT_SIF_CONFIG__
+#define __HOBOT_SIF_CONFIG__
 
 typedef enum _sif_event_e {
 	SIF_START  = 1,

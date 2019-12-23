@@ -1,5 +1,5 @@
-#ifndef __X2A_GDC_H__
-#define __X2A_GDC_H__
+#ifndef __HOBOT_GDC_DEV_H__
+#define __HOBOT_GDC_DEV_H__
 
 #include <uapi/linux/types.h>
 #include <linux/kthread.h>

@@ -59,7 +59,7 @@ obj-$(CONFIG_PCI_ENDPOINT_TEST)	+= pci_endpoint_test.o
 obj-$(CONFIG_HOBOT_HDMI)		+= bt2hdmi/
 obj-$(CONFIG_HOBOT_MIPI)		+= bt2mipi/
 obj-$(CONFIG_TIMESYNC)		+= timesync/
-obj-$(CONFIG_HOBOT_EFUSE)		+= x2_efuse.o
+obj-$(CONFIG_HOBOT_EFUSE)		+= hobot_efuse.o
 
 lkdtm-$(CONFIG_LKDTM)		+= lkdtm_core.o
 lkdtm-$(CONFIG_LKDTM)		+= lkdtm_bugs.o

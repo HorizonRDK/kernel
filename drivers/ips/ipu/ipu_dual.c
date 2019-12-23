@@ -14,9 +14,9 @@
 #include <linux/device.h>
 #include <linux/compiler.h>
 #include <linux/slab.h>
-#include <soc/hobot/x2_ips.h>
+#include <soc/hobot/hobot_ips_x2.h>
 #include <soc/hobot/diag.h>
-#include <soc/hobot/x2_iar.h>
+#include <soc/hobot/hobot_iar.h>
 #include <linux/proc_fs.h>
 #include <linux/delay.h>
 #include <linux/poll.h>

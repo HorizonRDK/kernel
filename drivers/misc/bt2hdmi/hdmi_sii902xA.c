@@ -34,8 +34,8 @@
 #include <linux/regulator/consumer.h>
 
 #include "siHdmiTx_902x_TPI.h"
-#include "soc/hobot/x2_iar.h"
-#include "soc/hobot/x2_ips.h"
+#include "soc/hobot/hobot_iar.h"
+#include "soc/hobot/hobot_ips_x2.h"
 
 
 #define DEVICE_NAME	"sii902xA"

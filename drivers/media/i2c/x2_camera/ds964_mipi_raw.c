@@ -1,4 +1,4 @@
-#include "soc/hobot/x2_sensor_dev.h"
+#include "soc/hobot/hobot_sensor_dev.h"
 
 #define PATTERN_GEN
 #define DS964_I2C_ADDR   (0x60>>1)

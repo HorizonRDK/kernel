@@ -1,5 +1,5 @@
-#ifndef __X2A_PYM_CONFIG_H__
-#define __X2A_PYM_CONFIG_H__
+#ifndef __HOBOT_PYM_CONFIG_H__
+#define __HOBOT_PYM_CONFIG_H__
 
 #define MAX_PYM_DS_COUNT        24
 #define MAX_PYM_US_COUNT        6

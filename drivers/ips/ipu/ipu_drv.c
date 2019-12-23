@@ -20,7 +20,7 @@
 #include <linux/device.h>
 #include <linux/compiler.h>
 #include <linux/slab.h>
-#include <soc/hobot/x2_ips.h>
+#include <soc/hobot/hobot_ips_x2.h>
 #include <linux/proc_fs.h>
 #include <linux/delay.h>
 #include <linux/poll.h>

@@ -20,8 +20,8 @@
 #include <soc/hobot/diag.h>
 #include <linux/suspend.h>
 
-#include "soc/hobot/x2_ips.h"
-#include "soc/hobot/x2_sif.h"
+#include "soc/hobot/hobot_ips_x2.h"
+#include "soc/hobot/hobot_sif_x2.h"
 #include "x2_sif_dev.h"
 #include "x2_sif_utils.h"
 

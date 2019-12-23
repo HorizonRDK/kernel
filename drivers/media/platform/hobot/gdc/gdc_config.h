@@ -1,5 +1,5 @@
-#ifndef __X2A_IPU_CONFIG_H__
-#define __X2A_IPU_CONFIG_H__
+#ifndef __HOBOT_GDC_CONFIG_H__
+#define __HOBOT_GDC_CONFIG_H__
 
 #define MAX_DS_NUM      5
 #define MAX_ADJ_NUM     3

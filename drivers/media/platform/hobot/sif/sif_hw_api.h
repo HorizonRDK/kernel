@@ -1,5 +1,5 @@
-#ifndef __X2A_SIF_HW_API__
-#define __X2A_SIF_HW_API__
+#ifndef __HOBOT_SIF_HW_API__
+#define __HOBOT_SIF_HW_API__
 
 void sif_transfer_ddr_owner(u32 __iomem *base_reg, u32 mux_out_index, u32 buf_index);
 u32 sif_get_ddr_addr(u32 __iomem *base_reg, u32 mux_out_index, u32 buf_index);

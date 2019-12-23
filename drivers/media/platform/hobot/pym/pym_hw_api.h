@@ -1,5 +1,5 @@
-#ifndef __X2A_PYM_HW_API__
-#define __X2A_PYM_HW_API__
+#ifndef __HOBOT_PYM_HW_API__
+#define __HOBOT_PYM_HW_API__
 
 void pym_select_input_path(void __iomem *base_addr, u8 mode);
 void pym_enable_module(void __iomem *base_addr, bool enable);

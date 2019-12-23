@@ -27,7 +27,7 @@
 #include <linux/console.h>
 #include <linux/bug.h>
 #include <linux/ratelimit.h>
-#include <soc/hobot/x2_bifspi.h>
+#include <soc/hobot/hobot_bifspi.h>
 
 #define PANIC_TIMER_STEP 100
 #define PANIC_BLINK_SPD 18

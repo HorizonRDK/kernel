@@ -26,7 +26,7 @@
 #include <linux/io.h>
 #include <linux/fs.h>
 #include <linux/seq_file.h>
-#include "soc/hobot/x2_sensor_dev.h"
+#include "soc/hobot/hobot_sensor_dev.h"
 
 static int g_debug;
 module_param(g_debug, int, 0644);

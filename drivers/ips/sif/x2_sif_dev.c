@@ -20,7 +20,7 @@
 #include "x2_sif_dev.h"
 #include "x2_sif_regs.h"
 #include "x2_sif_utils.h"
-#include "soc/hobot/x2_ips.h"
+#include "soc/hobot/hobot_ips_x2.h"
 
 
 

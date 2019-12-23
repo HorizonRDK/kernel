@@ -14,7 +14,7 @@
 
 #include <linux/string.h>
 #include <linux/printk.h>
-#include "soc/hobot/x2_sensor_dev.h"
+#include "soc/hobot/hobot_sensor_dev.h"
 
 static sensor_size_t g_support_preview_sizes[] = {
 	{4096, 2160}, /* true 4K */

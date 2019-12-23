@@ -14,7 +14,7 @@
 #ifndef __X2_SIF_DEV_H__
 #define __X2_SIF_DEV_H__
 
-#include "soc/hobot/x2_sif.h"
+#include "soc/hobot/hobot_sif_x2.h"
 
 int32_t sif_dev_bypass_ctrl(uint32_t port, uint32_t enable);
 int32_t actual_enable_bypass(void);
