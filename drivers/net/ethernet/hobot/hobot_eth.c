@@ -4512,7 +4512,7 @@ static netdev_tx_t x2_xmit(struct sk_buff *skb, struct net_device *ndev)
 
 	tx_q = &priv->tx_queue[queue];
 
-	printk("%s, queue:%d\n", __func__, queue);
+	//printk("%s, queue:%d\n", __func__, queue);
 #if 0
 	cnt++;
 
@@ -4659,13 +4659,13 @@ static netdev_tx_t x2_xmit(struct sk_buff *skb, struct net_device *ndev)
 	
 //	priv->tx_count_frames = 0;
 	if (likely(priv->tx_coal_frames > tx_q->tx_count_frames) && !(skb_shinfo(skb)->tx_flags & SKBTX_HW_TSTAMP) &&  priv->hwts_tx_en) {
-		printk("%s, and tx coal frame %d > tx count %d\n", __func__,priv->tx_coal_frames, tx_q->tx_count_frames);
+	//	printk("%s, and tx coal frame %d > tx count %d\n", __func__,priv->tx_coal_frames, tx_q->tx_count_frames);
 		x2_tx_timer_arm(priv, queue);
 	} else {
 		tx_q->tx_count_frames = 0;
 		desc->des2 |= cpu_to_le32(TDES2_INTERRUPT_ON_COMPLETION);
 		priv->xstats.tx_set_ic_bit++;		
-		printk("%s, and tx_q_>tx_count_frames is set bit:%d\n", __func__,priv->xstats.tx_set_ic_bit++);
+		//printk("%s, and tx_q_>tx_count_frames is set bit:%d\n", __func__,priv->xstats.tx_set_ic_bit++);
 	}
 
 	entry = X2_GET_ENTRY(entry, DMA_TX_SIZE);
