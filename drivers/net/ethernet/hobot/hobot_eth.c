@@ -3313,7 +3313,7 @@ static int x2_dma_interrupt(struct x2_priv *priv, struct x2_extra_stats *x, u32 
 	u32 intr_status = readl(ioaddr + DMA_CHAN_STATUS(chan)); //0x1160
 	u32 intr_en = readl(ioaddr + DMA_CHAN_INTR_ENA(chan));
 
-	printk("%s, chan:%d, intr_en:%x,  intr_status:0x%x\n",__func__, chan,intr_en, intr_status);
+//	printk("%s, chan:%d, intr_en:%x,  intr_status:0x%x\n",__func__, chan,intr_en, intr_status);
 	if (intr_status & DMA_CHAN_STATUS_AIS) {
 		if (intr_status & DMA_CHAN_STATUS_RBU) {
 			printk("%s, rx_buf_unavailble\n",__func__);
@@ -3492,7 +3492,7 @@ static int x2_host_irq_status(struct x2_priv *priv, struct x2_extra_stats *x)
 	int ret = 0;
 
 
-    printk("%s, mac int status:0x%x, and intr_enable:0x%x\n", __func__, intr_status, intr_enable);
+//    printk("%s, mac int status:0x%x, and intr_enable:0x%x\n", __func__, intr_status, intr_enable);
 	intr_status &= intr_enable;
 
 //	printk("%s, intr status:0x%x\n",__func__,intr_status);
@@ -3539,12 +3539,12 @@ static int x2_host_mtl_irq_status(struct x2_priv *priv, u32 chan)
 
 	
 	mtl_irq_status = readl(ioaddr + MTL_INT_STATUS);
-	printk("%s, chan:%d, mtl_irq_status:0x%x\n",__func__,chan,mtl_irq_status);
+//	printk("%s, chan:%d, mtl_irq_status:0x%x\n",__func__,chan,mtl_irq_status);
    
 	if (mtl_irq_status & MTL_INT_QX(chan)) {
 		u32 status = readl(ioaddr + MTL_CHAN_INT_CTRL(chan));
-		printk("%s, and int MTL_CHAN_INT_CTRL: 0x%x\n", __func__, status);
-		printk("%s, read again int MTL_CHAN_INT_CTRL: 0x%x\n", __func__, readl(ioaddr + MTL_CHAN_INT_CTRL(chan)));
+//		printk("%s, and int MTL_CHAN_INT_CTRL: 0x%x\n", __func__, status);
+//		printk("%s, read again int MTL_CHAN_INT_CTRL: 0x%x\n", __func__, readl(ioaddr + MTL_CHAN_INT_CTRL(chan)));
 		if ((status & MTL_RX_OVERFLOW_INT) & BIT(24)) {
 			writel(status | MTL_RX_OVERFLOW_INT, ioaddr + MTL_CHAN_INT_CTRL(chan));
 			ret = CORE_IRQ_MTL_RX_OVERFLOW;
@@ -3559,10 +3559,10 @@ static int x2_host_mtl_irq_status(struct x2_priv *priv, u32 chan)
 	}
 
 
-		printk("%s, read sencond int MTL_CHAN_INT_CTRL: 0x%x\n", __func__, readl(ioaddr + MTL_CHAN_INT_CTRL(chan)));
+	//	printk("%s, read sencond int MTL_CHAN_INT_CTRL: 0x%x\n", __func__, readl(ioaddr + MTL_CHAN_INT_CTRL(chan)));
 	if (mtl_irq_status & MTL_ESTIS) {
 		u32 status = readl(ioaddr + 0xc58);
-		printk("%s, MTL EST intterupt here, status:0x%x\n",__func__,status);
+	//	printk("%s, MTL EST intterupt here, status:0x%x\n",__func__,status);
 		if (status & MTL_STATUS_CGSN) {
 			printk("est current gcl slot num:%ld\n",((status & MTL_STATUS_CGSN) >> 16) & 0xf);
 		}
@@ -3643,8 +3643,11 @@ static irqreturn_t x2_interrupt(int irq, void *dev_id)
 	
 	queues_count = (rx_cnt > tx_cnt) ? rx_cnt : tx_cnt;
 
+#if 0
 	printk("%s\n",__func__);	
 	printk("%s, dma int staus:0x%x\n", __func__, readl(priv->ioaddr + 0x1008));
+#endif // 2019-12-23
+
 	status = x2_host_irq_status(priv, &priv->xstats);
 
 	if (status) {
@@ -3659,8 +3662,8 @@ static irqreturn_t x2_interrupt(int irq, void *dev_id)
 		struct x2_rx_queue *rx_q = &priv->rx_queue[queue];
 		//status |= x2_host_mtl_irq_status(priv, queue);
 		mtl_status[queue] = status | x2_host_mtl_irq_status(priv, queue);
-        printk("%s, mtl_status:0x%x\n", __func__, mtl_status[queue]);
-        printk("%s, first mtl_rx_overflow & mtl_status:0x%x\n", __func__, mtl_status[queue] & CORE_IRQ_MTL_RX_OVERFLOW);
+       // printk("%s, mtl_status:0x%x\n", __func__, mtl_status[queue]);
+       // printk("%s, first mtl_rx_overflow & mtl_status:0x%x\n", __func__, mtl_status[queue] & CORE_IRQ_MTL_RX_OVERFLOW);
 		//if (status & CORE_IRQ_MTL_RX_OVERFLOW) {
 		if (mtl_status[queue] & CORE_IRQ_MTL_RX_OVERFLOW) {
 			x2_set_rx_tail_ptr(priv->ioaddr, rx_q->rx_tail_addr, queue);
@@ -3680,7 +3683,7 @@ static irqreturn_t x2_interrupt(int irq, void *dev_id)
 		status = x2_dma_interrupt(priv, &priv->xstats, chan);
 	
 		//printk("%s, and status:0x%x, handler_rx:0x%x, handle_tx:0x%x\n",__func__,status, handle_rx, handle_tx);	
-        printk("%s,and mtl_status & CORE_MTL_RX_OVER:0x%x\n", __func__, mtl_status[chan] & CORE_IRQ_MTL_RX_OVERFLOW);
+    //    printk("%s,and mtl_status & CORE_MTL_RX_OVER:0x%x\n", __func__, mtl_status[chan] & CORE_IRQ_MTL_RX_OVERFLOW);
 		if ((likely((status & handle_rx)) && (chan < priv->plat->rx_queues_to_use)) || (mtl_status[chan] & CORE_IRQ_MTL_RX_OVERFLOW)){ // (status & handle_tx) || (mtl_status & CORE_IRQ_MTL_RX_OVERFLOW)) {
 			if (napi_schedule_prep(&rx_q->napi)) {
 				x2_disable_dma_irq(priv, chan);
@@ -3698,7 +3701,7 @@ static irqreturn_t x2_interrupt(int irq, void *dev_id)
 		}
 	}
 
-	printk("%s,and return\n", __func__);
+//	printk("%s,and return\n", __func__);
 	return IRQ_HANDLED;
 }
 
@@ -5798,7 +5801,7 @@ static inline void x2_rx_refill(struct x2_priv *priv, u32 queue)
 
 
 	int bfsize = priv->dma_buf_sz;
-	printk("%s, and dirty:%d\n",__func__,dirty);
+	//printk("%s, and dirty:%d\n",__func__,dirty);
 	while (dirty-- > 0) {
 		struct dma_desc *p;
 		bool use_rx_wd;
@@ -5837,20 +5840,20 @@ static inline void x2_rx_refill(struct x2_priv *priv, u32 queue)
 			//printk("%s: refill entry: #%d\n",__func__,entry);
 		}
 		rx_q->rx_count_frames++;
-		printk("%s, and entry:%d, rx count:%d, and rx coal:%d\n", __func__, entry,rx_q->rx_count_frames,priv->rx_coal_frames);
+//		printk("%s, and entry:%d, rx count:%d, and rx coal:%d\n", __func__, entry,rx_q->rx_count_frames,priv->rx_coal_frames);
 		rx_q->rx_count_frames %= priv->rx_coal_frames;
 		use_rx_wd = priv->use_riwt && rx_q->rx_count_frames;
 		dma_wmb();
 
 		p->des3 = cpu_to_le32(RDES3_OWN | RDES3_BUFFER1_VALID_ADDR);//x2_init_rx_desc(p, priv->use_riwt, 0,0);
 		if (!use_rx_wd) {
-			printk("%s, and set rx ioc bit\n", __func__);
+		//	printk("%s, and set rx ioc bit\n", __func__);
 		//	p->des3 |= cpu_to_le32(RDES3_INT_ON_COMPLETION_EN);
 		}
 		dma_wmb();
 		entry = X2_GET_ENTRY(entry, DMA_RX_SIZE);
 	}
-	printk("%s,and next diry_rx:%d\n", __func__, entry);
+//	printk("%s,and next diry_rx:%d\n", __func__, entry);
 	rx_q->dirty_rx = entry;
 }
 
@@ -5870,7 +5873,7 @@ static int x2_rx_packet(struct x2_priv *priv, int limit, u32 queue)
 
 	//struct arphdr *arph;
 	//unsigned char *arp_ptr;
-	printk("%s, and into , entry(curr_rx):%d\n", __func__, entry);
+	//printk("%s, and into , entry(curr_rx):%d\n", __func__, entry);
 	while (count < limit) {
 		int status;
 		struct dma_desc *p, *np;
@@ -5891,7 +5894,7 @@ static int x2_rx_packet(struct x2_priv *priv, int limit, u32 queue)
 		rx_q->cur_rx = X2_GET_ENTRY(rx_q->cur_rx, DMA_RX_SIZE);
 		next_entry = rx_q->cur_rx;
 	
-		printk("%s, cur_rx:%d\n",__func__,rx_q->cur_rx);
+	//	printk("%s, cur_rx:%d\n",__func__,rx_q->cur_rx);
 		if (priv->extend_desc)
 			np = (struct dma_desc *)(rx_q->dma_erx + next_entry);
 		else 
@@ -6000,9 +6003,9 @@ static int x2_rx_packet(struct x2_priv *priv, int limit, u32 queue)
 		
 		entry = next_entry;
 	}
-	printk("%s, count:%d\n", __func__, count);
+//	printk("%s, count:%d\n", __func__, count);
 	tmp = rx_q->dma_rx + rx_q->cur_rx;
-	printk("%s,and next receive:%d, and desc3:0x%x, addr:0x%p\n", __func__, rx_q->cur_rx, tmp->des3, tmp);
+//	printk("%s,and next receive:%d, and desc3:0x%x, addr:0x%p\n", __func__, rx_q->cur_rx, tmp->des3, tmp);
 	x2_rx_refill(priv, queue);
 	priv->xstats.rx_pkt_n += count;
 
