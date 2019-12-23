@@ -3350,14 +3350,14 @@ static int x2_dma_interrupt(struct x2_priv *priv, struct x2_extra_stats *x, u32 
 
 			value = readl(ioaddr + DMA_CHAN_INTR_ENA(chan));
 			if (value & DMA_CHAN_INTR_ENA_RIE) {
-				printk("%s and rx\n", __func__);
+			//	printk("%s and rx\n", __func__);
 				x->rx_normal_irq_n++;
 				ret |= handle_rx;
 			}
 		}
 
 		if (intr_status &( DMA_CHAN_STATUS_TI| DMA_CHAN_STATUS_TBU)) {
-			printk("%s, and tx\n", __func__);
+			//printk("%s, and tx\n", __func__);
 			x->tx_normal_irq_n++;
 			ret |= handle_tx;
 		}
@@ -3692,7 +3692,7 @@ static irqreturn_t x2_interrupt(int irq, void *dev_id)
 		}
 		
 		if ((status & handle_tx) && (chan < priv->plat->tx_queues_to_use)) {
-			printk("%s,and tx interrupt\n", __func__);
+		//	printk("%s,and tx interrupt\n", __func__);
 			napi_schedule_irqoff(&tx_q->tx_napi);
 		}
 		
@@ -4508,7 +4508,7 @@ static netdev_tx_t x2_xmit(struct sk_buff *skb, struct net_device *ndev)
 	
 
    
-        x2_dump_rx_des3(priv, 0);
+   //     x2_dump_rx_des3(priv, 0);
 
 	tx_q = &priv->tx_queue[queue];
 
@@ -5784,7 +5784,7 @@ static inline u32 x2_rx_dirty(struct x2_priv *priv, u32 queue)
 {
 	struct x2_rx_queue *rx_q = &priv->rx_queue[queue];
 	u32 dirty;
-	printk("%s, queue:%d, dirty_rx:%d, cur_rx:%d\n", __func__, queue, rx_q->dirty_rx, rx_q->cur_rx);
+//	printk("%s, queue:%d, dirty_rx:%d, cur_rx:%d\n", __func__, queue, rx_q->dirty_rx, rx_q->cur_rx);
 	if (rx_q->dirty_rx <= rx_q->cur_rx)
 		dirty = rx_q->cur_rx - rx_q->dirty_rx;
 	else
