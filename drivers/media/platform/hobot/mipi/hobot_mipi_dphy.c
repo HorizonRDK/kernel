@@ -25,11 +25,11 @@
 #include <linux/fs.h>
 #include <linux/seq_file.h>
 
-#include "x2_mipi_host_regs.h"
-#include "x2_mipi_dev_regs.h"
-#include "x2_mipi_dphy.h"
-#include "x2_mipi_utils.h"
-#include "soc/hobot/hobot_ips.h"
+#include "hobot_mipi_host_regs.h"
+#include "hobot_mipi_dev_regs.h"
+#include "hobot_mipi_dphy.h"
+#include "hobot_mipi_utils.h"
+#include "soc/hobot/hobot_ips_x2.h"
 
 #define DPHY_RAISE               (1)
 #define DPHY_RESETN              (0)

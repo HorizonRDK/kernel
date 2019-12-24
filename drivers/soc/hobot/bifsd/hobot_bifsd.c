@@ -13,7 +13,7 @@
 #include <linux/of_address.h>
 #include <linux/reset.h>
 #include <linux/gpio.h>
-#include "x2_bifsd.h"
+#include "hobot_bifsd.h"
 #include <linux/slab.h>
 #include <linux/fs.h>
 #include <linux/timer.h>

@@ -101,6 +101,15 @@ config HOBOT_HBIPC_ETH
         default y
         help
           Say yes to enable bif_lite_sd driver
+
+config HOBOT_BIFSD_DEV
+	bool "Bif SD device driver support"
+	default y
+        help
+          This supports Bif SD Card protocol drivers.
+
+          Note that this application programming interface is EXPERIMENTAL
+          and hence SUBJECT TO CHANGE WITHOUT NOTICE while it stabilizes.
 endif
 
 config HOBOT_DDR_MON

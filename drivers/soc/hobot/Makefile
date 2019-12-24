@@ -19,4 +19,5 @@ obj-$(CONFIG_HOBOT_DDR_MON)	+= ddr_monitor/
 obj-$(CONFIG_HOBOT_SOCINFO)	+= socinfo/
 obj-$(CONFIG_HOBOT_VCAM)	+= vcam/
 obj-$(CONFIG_HOBOT_IAR)		+= iar/
-obj-y		+= usrdrv/
+obj-$(CONFIG_HOBOT_BIFSD_DEV)		+= bifsd/
+obj-$(CONFIG_HOBOT_XJ3)		+= usrdrv/

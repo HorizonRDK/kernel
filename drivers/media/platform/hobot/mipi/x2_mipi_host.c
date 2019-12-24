@@ -32,10 +32,10 @@
 #include <soc/hobot/diag.h>
 #include <linux/timer.h>
 #include "soc/hobot/hobot_mipi_host.h"
-#include "x2_mipi_host_regs.h"
-#include "x2_mipi_dphy.h"
-#include "x2_mipi_utils.h"
-#include "soc/hobot/hobot_ips.h"
+#include "hobot_mipi_host_regs.h"
+#include "hobot_mipi_dphy.h"
+#include "hobot_mipi_utils.h"
+#include "soc/hobot/hobot_ips_x2.h"
 
 #define MIPI_HOST_INT_DBG		   (1)
 
