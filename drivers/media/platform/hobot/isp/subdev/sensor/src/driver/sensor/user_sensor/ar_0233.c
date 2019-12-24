@@ -165,9 +165,9 @@ static int ar0233_init(uint8_t chn, uint8_t mode)
 		}
 #endif
 		LOG(LOG_NOTICE, "0233 pwl init success ");
-		ar0233_param[chn].lines_per_second = 15858;
+		ar0233_param[chn].lines_per_second = 12752;
 		ar0233_param[chn].exposure_time_max = 4000;
-		ar0233_param[chn].exposure_time_min = 32;
+		ar0233_param[chn].exposure_time_min = 26;
 		ar0233_param[chn].exposure_time_long_max = 4000;
 		ar0233_param[chn].gain_max = 128 * 8192;
 

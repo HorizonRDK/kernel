@@ -159,7 +159,6 @@ int AF_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_t input_
         }
 
         uint32_t pos_manual = *(uint32_t *)input;
-        //LOG( LOG_CRIT, "IE&E %s, pos_manual %d.", __func__, pos_manual );
 
         if ( pos_manual <= 256 ) {
             p_fsm->pos_manual = pos_manual;

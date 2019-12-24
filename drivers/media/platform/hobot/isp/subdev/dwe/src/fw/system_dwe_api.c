@@ -143,6 +143,7 @@ int ldc_swparam_set(uint32_t port, ldc_param_s *pldc)
 	}
 
 	printk_ldcparam(&dwe_param[port].ldc_param);
+
 	if (dwe_param[port].ldc_param.ldc_enable == 0) {
 		dwe_param[port].ldc_param.x_param.param_g = 0;
 		dwe_param[port].ldc_param.y_param.param_g = 0;
@@ -684,9 +685,16 @@ int ldc_hwpath_set(dwe_context_t *ctx, uint32_t port)
 	//set_tmp |= (tmp_cur << (16 + ctx->ldc_dev_num * 2));
 	set_ldc_setting(dev_ptr->ldc_dev->io_vaddr, &set_tmp);
 	LOG(LOG_DEBUG, "num %d,set_tmp %x", ctx->ldc_dev_num, set_tmp);
-	tmp_num = 1;
-	//set_ldc_bypass(dev_ptr->ldc_dev->io_vaddr, &tmp_num);
+	if (dwe_param[port].ldc_param.ldc_enable == 1) {
+		LOG(LOG_DEBUG, "port %d is enable", port);
+		tmp_num = 0;
+	} else {
+		LOG(LOG_DEBUG, "port %d is disable", port);
+		tmp_num = 1;
+	}
+	set_ldc_bypass(dev_ptr->ldc_dev->io_vaddr, &tmp_num);
 
+	LOG(LOG_DEBUG, "ldc_hwpath_set success!");
 	return ret;
 }
 

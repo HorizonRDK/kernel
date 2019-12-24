@@ -72,9 +72,11 @@ static long camera_subdev_ioctl(struct v4l2_subdev *sd,
 				ARGS_TO_PTR(arg)->sensor_data);
 		break;
 	case SENSOR_ALLOC_ANALOG_GAIN:
+		pr_err("analog gain error port %p\n", ARGS_TO_PTR(arg)->a_gain);
 	//	camera_sys_alloc_again(ARGS_TO_PTR(arg)->port, ARGS_TO_PTR(arg)->a_gain);
 		break;
 	case SENSOR_ALLOC_DIGITAL_GAIN:
+		pr_err("digaital gain error port %p\n", ARGS_TO_PTR(arg)->d_gain);
 	//	camera_sys_alloc_dgain(ARGS_TO_PTR(arg)->port, ARGS_TO_PTR(arg)->d_gain);
 		break;
 	case SENSOR_ALLOC_INTEGRATION_TIME:
