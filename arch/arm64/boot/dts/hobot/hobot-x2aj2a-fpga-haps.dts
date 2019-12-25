@@ -23,4 +23,6 @@
         };
 };
 
-
+/ {
+	model = "Hobot X3 FPGA HAPS";
+};
