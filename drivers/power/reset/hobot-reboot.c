@@ -497,7 +497,9 @@ static int x2_reboot_probe(struct platform_device *pdev)
 	u32 swi[3], i;
 	int err;
 
+#ifdef CONFIG_HOBOT_FPGA_X3
 	return -ENODEV;
+#endif
 
 	base = of_iomap(np, 0);
 	if (!base) {
