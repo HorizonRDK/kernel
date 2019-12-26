@@ -7,7 +7,7 @@
 
 #include "common.h"
 
-static void __init _of_x2_mux_clk_setup(struct device_node *node)
+static void __init _of_hobot_mux_clk_setup(struct device_node *node)
 {
 	struct clk_hw *clk_hw;
 	const char **parent_names;
@@ -96,8 +96,8 @@ static void __init _of_x2_mux_clk_setup(struct device_node *node)
 	return;
 }
 
-static void __init of_x2_mux_clk_setup(struct device_node *node)
+static void __init of_hobot_mux_clk_setup(struct device_node *node)
 {
-	_of_x2_mux_clk_setup(node);
+	_of_hobot_mux_clk_setup(node);
 }
-CLK_OF_DECLARE(x2_mux_clk, "x2,mux-clk", of_x2_mux_clk_setup);
+CLK_OF_DECLARE(hobot_mux_clk, "hobot,mux-clk", of_hobot_mux_clk_setup);

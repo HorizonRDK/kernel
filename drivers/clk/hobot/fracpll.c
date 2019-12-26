@@ -338,7 +338,8 @@ static struct clk *fracpll_clk_register(struct device *dev, const char *name,
 	return clk;
 }
 
-static void __init _of_x2_fracpll_clk_setup(struct device_node *node, const struct clk_ops *ops)
+static void __init _of_hobot_fracpll_clk_setup(struct device_node *node,
+		const struct clk_ops *ops)
 {
 	struct clk *clk;
 	struct clk_fracpll_reg reg;
@@ -380,8 +381,9 @@ static void __init _of_x2_fracpll_clk_setup(struct device_node *node, const stru
 	//pr_info("%s: %s fracpll clock set up.\n", __func__, node->name);
 }
 
-static void __init of_x2_fracpll_clk_setup(struct device_node *node)
+static void __init of_hobot_fracpll_clk_setup(struct device_node *node)
 {
-	_of_x2_fracpll_clk_setup(node, &fracpll_clk_ops);
+	_of_hobot_fracpll_clk_setup(node, &fracpll_clk_ops);
 }
-CLK_OF_DECLARE(x2_fracpll_clk, "x2,fracpll-clk", of_x2_fracpll_clk_setup);
+CLK_OF_DECLARE(hobot_fracpll_clk, "hobot,fracpll-clk",
+		of_hobot_fracpll_clk_setup);

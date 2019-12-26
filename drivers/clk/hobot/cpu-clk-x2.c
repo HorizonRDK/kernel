@@ -6,9 +6,9 @@
 
 #include "common.h"
 
-#define to_cpuclk(_hw) container_of(_hw, struct cpuclk, hw)
+#define to_armcpuclk(_hw) container_of(_hw, struct armcpuclk, hw)
 
-struct cpuclk {
+struct armcpuclk {
 	struct clk_hw hw;
 	struct clk *armpll1;
 	struct clk *armpll2;
@@ -21,34 +21,33 @@ struct cpuclk {
 	spinlock_t lock;
 };
 
-static unsigned long cpuclk_recalc_rate(struct clk_hw *hw,
+static unsigned long armcpuclk_recalc_rate(struct clk_hw *hw,
 					unsigned long parent_rate)
 {
-	struct clk_hw *parent;
-	struct cpuclk *cpu_clk;
+	struct armcpuclk *cpu_clk;
 	unsigned long rate;
 
-	cpu_clk = to_cpuclk(hw);
+	cpu_clk = to_armcpuclk(hw);
 	rate = clk_get_rate(cpu_clk->cpu_div);
 
 	return rate;
 }
 
 
-static long cpuclk_round_rate(struct clk_hw *hw,
+static long armcpuclk_round_rate(struct clk_hw *hw,
 				unsigned long rate, unsigned long *prate)
 {
 	/* return directly, use exact rate for cpu freq */;
 	return rate;
 }
 
-struct cpu_pll_table {
+struct cpu_armpll_table {
 	unsigned long cpu_freq;
 	unsigned long pll_freq;
 };
 
 #define CPU_FREQ_NUM 5
-struct cpu_pll_table pll_table[CPU_FREQ_NUM] = {
+struct cpu_armpll_table armpll_table[CPU_FREQ_NUM] = {
 	{250000000,  2000000000},
 	{500000000,  2000000000},
 	{800000000,  1600000000},
@@ -58,17 +57,16 @@ struct cpu_pll_table pll_table[CPU_FREQ_NUM] = {
 
 static int __set_armpll_clk(struct clk_hw *hw, unsigned long cpu_freq)
 {
-	struct cpuclk *cpuclk;
-	struct clk_hw *pll;
+	struct armcpuclk *armcpuclk;
 	unsigned long pll_rate, old_pll_rate;
 	int found = 0;
 	int i, ret;
 
-	cpuclk = to_cpuclk(hw);
+	armcpuclk = to_armcpuclk(hw);
 
 	for (i = 0; i < CPU_FREQ_NUM; i++) {
-		if (cpu_freq == pll_table[i].cpu_freq) {
-			pll_rate = pll_table[i].pll_freq;
+		if (cpu_freq == armpll_table[i].cpu_freq) {
+			pll_rate = armpll_table[i].pll_freq;
 			found = 1;
 			break;
 		}
@@ -79,53 +77,52 @@ static int __set_armpll_clk(struct clk_hw *hw, unsigned long cpu_freq)
 		return -1;
 	}
 
-	old_pll_rate = clk_get_rate(cpuclk->armpll1);
+	old_pll_rate = clk_get_rate(armcpuclk->armpll1);
 	if (pll_rate != old_pll_rate) {
 
 		/* enable and switch to pll2 */
-		clk_set_rate(cpuclk->armpll2, old_pll_rate);
-		clk_prepare(cpuclk->armpll2);
-		clk_enable(cpuclk->armpll2);
+		clk_set_rate(armcpuclk->armpll2, old_pll_rate);
+		clk_prepare(armcpuclk->armpll2);
+		clk_enable(armcpuclk->armpll2);
 
 		/* switch to armpll2 */
-		ret = clk_set_parent(cpuclk->armpll_mux, cpuclk->armpll2);
+		ret = clk_set_parent(armcpuclk->armpll_mux, armcpuclk->armpll2);
 		if (ret)
 			return ret;
 
 		/* change PLL */
-		clk_prepare(cpuclk->armpll1);
-		clk_enable(cpuclk->armpll1);
-		clk_disable(cpuclk->armpll1);
+		clk_prepare(armcpuclk->armpll1);
+		clk_enable(armcpuclk->armpll1);
+		clk_disable(armcpuclk->armpll1);
 
-		ret = clk_set_rate(cpuclk->armpll1, pll_rate);
+		ret = clk_set_rate(armcpuclk->armpll1, pll_rate);
 		if (ret) {
-			clk_set_parent(cpuclk->cpu_mux, cpuclk->cpu_div);
+			clk_set_parent(armcpuclk->cpu_mux, armcpuclk->cpu_div);
 			return ret;
 		}
-		clk_prepare(cpuclk->armpll1);
-		clk_enable(cpuclk->armpll1);
+		clk_prepare(armcpuclk->armpll1);
+		clk_enable(armcpuclk->armpll1);
 
 		/* switch back to armpll1 */
-		ret = clk_set_parent(cpuclk->armpll_mux, cpuclk->armpll1);
+		ret = clk_set_parent(armcpuclk->armpll_mux, armcpuclk->armpll1);
 		if (ret)
 			return ret;
 
-		clk_disable(cpuclk->armpll2);
+		clk_disable(armcpuclk->armpll2);
 	}
 
 	return 0;
 }
 
-static int cpuclk_set_rate(struct clk_hw *hw,
+static int armcpuclk_set_rate(struct clk_hw *hw,
 		unsigned long rate, unsigned long parent_rate)
 {
-	struct clk *parent;
-	struct cpuclk *cpu_clk;
+	struct armcpuclk *cpu_clk;
 	int ret;
 	static int recursive_flag;
 
 	/*
-	 * clk_set_rate may re-enter this function since cpuclk is children of
+	 * clk_set_rate may re-enter this function since armcpuclk is children of
 	 * cpu_div return if recursive call is detected to prevent deadloop
 	 */
 	if (recursive_flag == 1) {
@@ -133,7 +130,7 @@ static int cpuclk_set_rate(struct clk_hw *hw,
 		return 0;
 	}
 
-	cpu_clk = to_cpuclk(hw);
+	cpu_clk = to_armcpuclk(hw);
 	recursive_flag = 1;
 	ret = __set_armpll_clk(hw, rate);
 	clk_set_rate(cpu_clk->cpu_div, rate);
@@ -142,18 +139,18 @@ static int cpuclk_set_rate(struct clk_hw *hw,
 	return ret;
 }
 
-const struct clk_ops cpuclk_ops = {
-	.recalc_rate = cpuclk_recalc_rate,
-	.round_rate = cpuclk_round_rate,
-	.set_rate = cpuclk_set_rate,
+const struct clk_ops armcpuclk_ops = {
+	.recalc_rate = armcpuclk_recalc_rate,
+	.round_rate = armcpuclk_round_rate,
+	.set_rate = armcpuclk_set_rate,
 };
 
-static struct clk *cpuclk_register(struct device *dev, const char *name,
+static struct clk *armcpuclk_register(struct device *dev, const char *name,
 		const char *parent_name, unsigned long flags,
 		const struct clk_ops *ops)
 {
 	struct clk_init_data init = {NULL};
-	struct cpuclk *cpu_clk;
+	struct armcpuclk *cpu_clk;
 	struct clk *clk;
 	unsigned int ret;
 
@@ -195,13 +192,12 @@ static struct clk *cpuclk_register(struct device *dev, const char *name,
 	return clk;
 }
 
-static void __init _of_x2_cpuclk_setup(struct device_node *node,
+static void __init _of_hobot_armcpuclk_setup(struct device_node *node,
 				const struct clk_ops *ops)
 {
 	struct clk *clk;
 	const char *parent_name;
 	unsigned int flags = 0;
-	int ret;
 
 	if (of_clk_get_parent_count(node) != 1) {
 		pr_err("%s must have 1 parent\n", node->name);
@@ -210,15 +206,16 @@ static void __init _of_x2_cpuclk_setup(struct device_node *node,
 
 	parent_name = of_clk_get_parent_name(node, 0);
 
-	clk = cpuclk_register(NULL, node->name, parent_name, flags, ops);
+	clk = armcpuclk_register(NULL, node->name, parent_name, flags, ops);
 
 	if (!IS_ERR(clk))
 		of_clk_add_provider(node, of_clk_src_simple_get, clk);
 
 }
 
-static void __init of_x2_cpuclk_setup(struct device_node *node)
+static void __init of_hobot_armcpuclk_setup(struct device_node *node)
 {
-	_of_x2_cpuclk_setup(node, &cpuclk_ops);
+	_of_hobot_armcpuclk_setup(node, &armcpuclk_ops);
 }
-CLK_OF_DECLARE(x2_cpuclk, "x2,cpu-clk", of_x2_cpuclk_setup);
+CLK_OF_DECLARE(hobot_x2_armcpuclk, "hobot,cpu-clk-x2",
+		of_hobot_armcpuclk_setup);

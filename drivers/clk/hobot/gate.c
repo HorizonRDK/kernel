@@ -4,7 +4,7 @@
 
 #include "common.h"
 
-struct x2_clk_gate_reg {
+struct clk_gate_reg {
 	void __iomem *clken_sta_reg;
 	unsigned int clken_sta_bit;
 	unsigned int clken_sta_field;
@@ -19,23 +19,28 @@ struct x2_clk_gate_reg {
 	unsigned int disable_field;
 };
 
-#define to_clk_gate_x2(_hw) container_of(_hw, struct clk_gate_x2, hw)
+#define to_hobot_clk_gate(_hw) container_of(_hw, struct hobot_clk_gate, hw)
 
-struct clk_gate_x2 {
+struct hobot_clk_gate {
 	struct clk_hw hw;
-	struct x2_clk_gate_reg reg;
+	struct clk_gate_reg reg;
 	unsigned int flags;
-	spinlock_t lock;
+	spinlock_t *lock;
 };
 
-int x2_gate_clk_enable(struct clk_hw *hw)
+int gate_clk_enable(struct clk_hw *hw)
 {
-	struct clk_gate_x2 *clk;
+	struct hobot_clk_gate *clk;
 	unsigned int val, val1, status0, status1, reg_val;
+	unsigned long flags = 0;
 
-	clk = to_clk_gate_x2(hw);
+	clk = to_hobot_clk_gate(hw);
 
-	__acquire(clk->lock);
+	if (clk->lock)
+		spin_lock_irqsave(clk->lock, flags);
+	else
+		__acquire(clk->lock);
+
 	val = readl(clk->reg.clken_sta_reg);
 	status0 = (val & (1 << clk->reg.clken_sta_bit))
 	>> clk->reg.clken_sta_bit;
@@ -55,18 +60,28 @@ int x2_gate_clk_enable(struct clk_hw *hw)
 			writel(reg_val, clk->reg.enable_reg);
 		}
 	}
-	__release(clk->lock);
+
+	if (clk->lock)
+		spin_unlock_irqrestore(clk->lock, flags);
+	else
+		__release(clk->lock);
+
 	return 0;
 }
 
-void x2_gate_clk_disable(struct clk_hw *hw)
+void gate_clk_disable(struct clk_hw *hw)
 {
-	struct clk_gate_x2 *clk;
+	struct hobot_clk_gate *clk;
 	unsigned int val, val1, status0, status1, reg_val;
+	unsigned long flags = 0;
 
-	clk = to_clk_gate_x2(hw);
+	clk = to_hobot_clk_gate(hw);
 
-	__acquire(clk->lock);
+	if (clk->lock)
+		spin_lock_irqsave(clk->lock, flags);
+	else
+		__acquire(clk->lock);
+
 	val = readl(clk->reg.clken_sta_reg);
 	status0 = (val & (1 << clk->reg.clken_sta_bit))
 	>> clk->reg.clken_sta_bit;
@@ -86,16 +101,21 @@ void x2_gate_clk_disable(struct clk_hw *hw)
 			writel(reg_val, clk->reg.disable_reg);
 		}
 	}
-	__release(clk->lock);
+
+	if (clk->lock)
+		spin_unlock_irqrestore(clk->lock, flags);
+	else
+		__release(clk->lock);
+
 	return;
 }
 
-int x2_gate_clk_is_enabled(struct clk_hw *hw)
+int gate_clk_is_enabled(struct clk_hw *hw)
 {
-	struct clk_gate_x2 *clk;
+	struct hobot_clk_gate *clk;
 	unsigned int val, status;
 
-	clk = to_clk_gate_x2(hw);
+	clk = to_hobot_clk_gate(hw);
 
 	val = readl(clk->reg.clken_sta_reg);
 	status = (val & (1 << clk->reg.clken_sta_bit))
@@ -104,18 +124,18 @@ int x2_gate_clk_is_enabled(struct clk_hw *hw)
 	return status;
 }
 
-const struct clk_ops x2_gate_clk_ops = {
-	.enable = &x2_gate_clk_enable,
-	.disable = &x2_gate_clk_disable,
-	.is_enabled = &x2_gate_clk_is_enabled,
+const struct clk_ops gate_clk_ops = {
+	.enable = &gate_clk_enable,
+	.disable = &gate_clk_disable,
+	.is_enabled = &gate_clk_is_enabled,
 };
 
-static struct clk *x2_gate_clk_register(struct device *dev, const char *name,
-		const char *parent_name, unsigned long flags, struct x2_clk_gate_reg *reg,
-		unsigned int clk_gate_flags, const struct clk_ops *ops)
+static struct clk *gate_clk_register(struct device *dev, const char *name,
+		const char *parent_name, unsigned long flags, struct clk_gate_reg *reg,
+		unsigned int clk_gate_flags, spinlock_t *lock, const struct clk_ops *ops)
 {
 	struct clk_init_data init = {NULL};
-	struct clk_gate_x2 *clk_hw;
+	struct hobot_clk_gate *clk_hw;
 	struct clk *clk;
 	int ret;
 
@@ -135,7 +155,7 @@ static struct clk *x2_gate_clk_register(struct device *dev, const char *name,
 	memcpy(&clk_hw->reg, reg, sizeof(*reg));
 	clk_hw->flags = clk_gate_flags;
 
-	spin_lock_init(&clk_hw->lock);
+	clk_hw->lock = lock;
 	clk = clk_register(dev, &clk_hw->hw);
 	if (IS_ERR(clk)) {
 		pr_err("%s: failed to register clock for %s!\n", __func__, name);
@@ -154,17 +174,24 @@ static struct clk *x2_gate_clk_register(struct device *dev, const char *name,
 	return clk;
 }
 
-static void __init _of_x2_gate_clk_setup(struct device_node *node, const struct clk_ops *ops)
+static void __init _of_hobot_gate_clk_setup(struct device_node *node,
+		const struct clk_ops *ops)
 {
 	struct clk *clk;
-	struct x2_clk_gate_reg reg;
+	struct clk_gate_reg reg;
 	const char *parent_name;
 	unsigned int flags = 0;
 	unsigned int val;
 	unsigned int clk_gate_flags = 0;
 	unsigned int data[4] = {0};
 	static void __iomem *reg_base;
+	spinlock_t *lock;
 	int ret;
+
+	lock = kzalloc(sizeof(*lock), GFP_KERNEL);
+	if(!lock)
+		return;
+	spin_lock_init(lock);
 
 	if (of_clk_get_parent_count(node) != 1) {
 		pr_err("%s: %s must have 1 parent\n", __func__, node->name);
@@ -225,7 +252,8 @@ static void __init _of_x2_gate_clk_setup(struct device_node *node, const struct 
 	if (!ret)
 		flags |= val;
 
-	clk = x2_gate_clk_register(NULL, node->name, parent_name, flags, &reg, clk_gate_flags, ops);
+	clk = gate_clk_register(NULL, node->name, parent_name,
+		flags, &reg, clk_gate_flags, lock, ops);
 
 	if (!IS_ERR(clk))
 		of_clk_add_provider(node, of_clk_src_simple_get, clk);
@@ -233,8 +261,8 @@ static void __init _of_x2_gate_clk_setup(struct device_node *node, const struct 
 	/* pr_info("%s: %s gate clock set up.\n", __func__, node->name); */
 }
 
-static void __init of_x2_gate_clk_setup(struct device_node *node)
+static void __init of_hobot_gate_clk_setup(struct device_node *node)
 {
-	_of_x2_gate_clk_setup(node, &x2_gate_clk_ops);
+	_of_hobot_gate_clk_setup(node, &gate_clk_ops);
 }
-CLK_OF_DECLARE(x2_gate_clk, "x2,gate-clk", of_x2_gate_clk_setup);
+CLK_OF_DECLARE(hobot_gate_clk, "hobot,gate-clk", of_hobot_gate_clk_setup);

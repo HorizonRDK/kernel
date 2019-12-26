@@ -13,7 +13,7 @@
 /dts-v1/;
 #include "hobot-x2aj2a.dtsi"
 #include "hobot-pinctrl-x2aj2a.dtsi"
-#include "hobot-clk.dtsi"
+#include "hobot-clk-x3.dtsi"
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/phy/phy.h>
 

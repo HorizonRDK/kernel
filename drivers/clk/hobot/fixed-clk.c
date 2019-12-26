@@ -4,7 +4,7 @@
 #include <linux/of_address.h>
 #include <linux/clkdev.h>
 
-static void __init _of_x2_fixed_clk_setup(struct device_node *node)
+static void __init _of_hobot_fixed_clk_setup(struct device_node *node)
 {
 	struct clk_hw *clk_hw;
 	unsigned int fixed_rate;
@@ -35,8 +35,8 @@ static void __init _of_x2_fixed_clk_setup(struct device_node *node)
 	return;
 }
 
-static void __init of_x2_fixed_clk_setup(struct device_node *node)
+static void __init of_hobot_fixed_clk_setup(struct device_node *node)
 {
-	_of_x2_fixed_clk_setup(node);
+	_of_hobot_fixed_clk_setup(node);
 }
-CLK_OF_DECLARE(x2_fixed_clk, "x2,fixed-clk", of_x2_fixed_clk_setup);
+CLK_OF_DECLARE(hobot_fixed_clk, "hobot,fixed-clk", of_hobot_fixed_clk_setup);

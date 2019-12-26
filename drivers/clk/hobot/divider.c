@@ -8,7 +8,7 @@
 
 #include "common.h"
 
-static void __init _of_x2_divider_clk_setup(struct device_node *node)
+static void __init _of_hobot_divider_clk_setup(struct device_node *node)
 {
 	struct clk_hw *clk_hw;
 	const char* parent_name;
@@ -87,8 +87,8 @@ static void __init _of_x2_divider_clk_setup(struct device_node *node)
 	return;
 }
 
-static void __init of_x2_divider_clk_setup(struct device_node *node)
+static void __init of_hobot_divider_clk_setup(struct device_node *node)
 {
-	_of_x2_divider_clk_setup(node);
+	_of_hobot_divider_clk_setup(node);
 }
-CLK_OF_DECLARE(x2_div_clk, "x2,div-clk", of_x2_divider_clk_setup);
+CLK_OF_DECLARE(hobot_div_clk, "hobot,div-clk", of_hobot_divider_clk_setup);

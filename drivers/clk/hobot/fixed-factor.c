@@ -7,7 +7,7 @@
 
 #define div_mask(width) ((1 << (width)) - 1)
 
-static void __init _of_x2_fixed_factor_clk_setup(struct device_node *node)
+static void __init _of_hobot_fixed_factor_clk_setup(struct device_node *node)
 {
 	struct clk_hw *clk_hw;
 	const char* parent_name;
@@ -84,8 +84,9 @@ static void __init _of_x2_fixed_factor_clk_setup(struct device_node *node)
 	return;
 }
 
-static void __init of_x2_fixed_factor_clk_setup(struct device_node *node)
+static void __init of_hobot_fixed_factor_clk_setup(struct device_node *node)
 {
-	_of_x2_fixed_factor_clk_setup(node);
+	_of_hobot_fixed_factor_clk_setup(node);
 }
-CLK_OF_DECLARE(x2_fixed_factor_clk, "x2,fixed-factor-clk", of_x2_fixed_factor_clk_setup);
+CLK_OF_DECLARE(hobot_fixed_factor_clk, "hobot,fixed-factor-clk",
+					of_hobot_fixed_factor_clk_setup);

@@ -4,24 +4,29 @@
 
 #include "common.h"
 
-#define to_clk_gpio_x2(_hw) container_of(_hw, struct clk_gpio_x2, hw)
+#define to_hobot_clk_gpio(_hw) container_of(_hw, struct hobot_clk_gpio, hw)
 
-struct clk_gpio_x2 {
+struct hobot_clk_gpio {
 	struct clk_hw hw;
 	void __iomem *reg;
 	unsigned int bit;
 	unsigned int flags;
-	spinlock_t lock;
+	spinlock_t *lock;
 };
 
-int x2_gpio_clk_enable(struct clk_hw *hw)
+int gpio_clk_enable(struct clk_hw *hw)
 {
-	struct clk_gpio_x2 *clk;
+	struct hobot_clk_gpio *clk;
 	unsigned int val, status;
+	unsigned long flags = 0;
 
-	clk = to_clk_gpio_x2(hw);
+	clk = to_hobot_clk_gpio(hw);
 
-	__acquire(clk->lock);
+	if (clk->lock)
+		spin_lock_irqsave(clk->lock, flags);
+	else
+		__acquire(clk->lock);
+
 	val = readl(clk->reg);
 	status = (val & (1 << clk->bit)) >> clk->bit;
 
@@ -30,19 +35,28 @@ int x2_gpio_clk_enable(struct clk_hw *hw)
 		writel(val, clk->reg);
 	}
 
-	__release(clk->lock);
+	if (clk->lock)
+		spin_unlock_irqrestore(clk->lock, flags);
+	else
+		__release(clk->lock);
+
 	return 0;
 }
 
-void x2_gpio_clk_disable(struct clk_hw *hw)
+void gpio_clk_disable(struct clk_hw *hw)
 {
 
-	struct clk_gpio_x2 *clk;
+	struct hobot_clk_gpio *clk;
 	unsigned int val, status;
+	unsigned long flags = 0;
 
-	clk = to_clk_gpio_x2(hw);
+	clk = to_hobot_clk_gpio(hw);
 
-	__acquire(clk->lock);
+	if (clk->lock)
+		spin_lock_irqsave(clk->lock, flags);
+	else
+		__acquire(clk->lock);
+
 	val = readl(clk->reg);
 	status = (val & (1 << clk->bit)) >> clk->bit;
 
@@ -51,16 +65,20 @@ void x2_gpio_clk_disable(struct clk_hw *hw)
 		writel( val, clk->reg);
 	}
 
-	__release(clk->lock);
+	if (clk->lock)
+		spin_unlock_irqrestore(clk->lock, flags);
+	else
+		__release(clk->lock);
+
 	return;
 }
 
-int x2_gpio_clk_is_enabled(struct clk_hw *hw)
+int gpio_clk_is_enabled(struct clk_hw *hw)
 {
-	struct clk_gpio_x2 *clk;
+	struct hobot_clk_gpio *clk;
 	unsigned int val, status;
 
-	clk = to_clk_gpio_x2(hw);
+	clk = to_hobot_clk_gpio(hw);
 
 	val = readl(clk->reg);
 	status = (val & (1 << clk->bit)) >> clk->bit;
@@ -68,18 +86,18 @@ int x2_gpio_clk_is_enabled(struct clk_hw *hw)
 	return status?0:1;
 }
 
-const struct clk_ops x2_gpio_clk_ops = {
-	.enable = &x2_gpio_clk_enable,
-	.disable = &x2_gpio_clk_disable,
-	.is_enabled = &x2_gpio_clk_is_enabled,
+const struct clk_ops gpio_clk_ops = {
+	.enable = &gpio_clk_enable,
+	.disable = &gpio_clk_disable,
+	.is_enabled = &gpio_clk_is_enabled,
 };
 
-static struct clk *x2_gpio_clk_register(struct device *dev, const char *name,
+static struct clk *gpio_clk_register(struct device *dev, const char *name,
 		const char *parent_name, unsigned long flags, void __iomem *reg, unsigned int bit,
-		unsigned int clk_gpio_flags, const struct clk_ops *ops)
+		unsigned int clk_gpio_flags, spinlock_t *lock, const struct clk_ops *ops)
 {
 	struct clk_init_data init = {NULL};
-	struct clk_gpio_x2 *clk_hw;
+	struct hobot_clk_gpio *clk_hw;
 	struct clk *clk;
 	int ret;
 
@@ -100,7 +118,7 @@ static struct clk *x2_gpio_clk_register(struct device *dev, const char *name,
 	clk_hw->bit = bit;
 	clk_hw->flags = clk_gpio_flags;
 
-	spin_lock_init(&clk_hw->lock);
+	clk_hw->lock = lock;
 	clk = clk_register(dev, &clk_hw->hw);
 	if(IS_ERR(clk)){
 		pr_err("%s: failed to register clock for %s!\n", __func__, name);
@@ -119,7 +137,8 @@ static struct clk *x2_gpio_clk_register(struct device *dev, const char *name,
 	return clk;
 }
 
-static void __init _of_x2_gpio_clk_setup(struct device_node *node, const struct clk_ops *ops)
+static void __init _of_hobot_gpio_clk_setup(struct device_node *node,
+	const struct clk_ops *ops)
 {
 	struct clk *clk;
 	const char *parent_name;
@@ -129,7 +148,13 @@ static void __init _of_x2_gpio_clk_setup(struct device_node *node, const struct 
 	unsigned int val;
 	void __iomem *reg_base;
 	void __iomem *reg;
+	spinlock_t *lock;
 	int ret;
+
+	lock = kzalloc(sizeof(*lock), GFP_KERNEL);
+	if(!lock)
+		return;
+	spin_lock_init(lock);
 
 	if(of_clk_get_parent_count(node) != 1){
 		pr_err("%s: %s must have 1 parent\n", __func__, node->name);
@@ -162,17 +187,17 @@ static void __init _of_x2_gpio_clk_setup(struct device_node *node, const struct 
 	if (!ret)
 		flags |= val;
 
-	clk = x2_gpio_clk_register(NULL, node->name, parent_name, flags, reg, bit, clk_gpio_flags, ops);
+	clk = gpio_clk_register(NULL, node->name, parent_name, flags, reg,
+		bit, clk_gpio_flags, lock, ops);
 
 	if(!IS_ERR(clk)){
 		of_clk_add_provider(node, of_clk_src_simple_get, clk);
 	}
-
 	//pr_info("%s: %s gpio clock set up.\n", __func__, node->name);
 }
 
-static void __init of_x2_gpio_clk_setup(struct device_node *node)
+static void __init of_hobot_gpio_clk_setup(struct device_node *node)
 {
-	_of_x2_gpio_clk_setup(node, &x2_gpio_clk_ops);
+	_of_hobot_gpio_clk_setup(node, &gpio_clk_ops);
 }
-CLK_OF_DECLARE(x2_gpio_clk, "x2,gpio-clk", of_x2_gpio_clk_setup);
+CLK_OF_DECLARE(hobot_gpio_clk, "hobot,gpio-clk", of_hobot_gpio_clk_setup);

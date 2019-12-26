@@ -414,7 +414,7 @@ static struct clk *laintpll_clk_register(struct device *dev, const char *name,
 	return clk;
 }
 
-static void __init _of_x2_laintpll_clk_setup(struct device_node *node,
+static void __init _of_hobot_laintpll_clk_setup(struct device_node *node,
 			const struct clk_ops *ops)
 {
 	struct clk *clk;
@@ -458,8 +458,9 @@ static void __init _of_x2_laintpll_clk_setup(struct device_node *node,
 	//pr_info("%s: %s pll clock set up.\n", __func__, node->name);
 }
 
-static void __init of_x2_laintpll_clk_setup(struct device_node *node)
+static void __init of_hobot_laintpll_clk_setup(struct device_node *node)
 {
-	_of_x2_laintpll_clk_setup(node, &laintpll_clk_ops);
+	_of_hobot_laintpll_clk_setup(node, &laintpll_clk_ops);
 }
-CLK_OF_DECLARE(x2_laintpll_clk, "x2,laintpll-clk", of_x2_laintpll_clk_setup);
+CLK_OF_DECLARE(hobot_laintpll_clk, "hobot,laintpll-clk",
+		of_hobot_laintpll_clk_setup);

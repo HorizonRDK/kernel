@@ -7,13 +7,13 @@
 
 		osc_clk: osc_clk {
 			#clock-cells = <0>;
-			compatible = "x2,fixed-clk";
+			compatible = "hobot,fixed-clk";
 			clock-freq = <24000000>;
 		};
 
 		timer_div_mclk: timer_div_mclk {
 			#clock-cells = <0>;
-			compatible = "x2,fixed-factor-clk";
+			compatible = "hobot,fixed-factor-clk";
 			clocks = <&osc_clk>;
 			clk-div = <24>;
 			clk-mult = <1>;
@@ -21,7 +21,7 @@
 
 		timer0_mclk: timer0_mclk {
 			#clock-cells = <0>;
-			compatible = "x2,gate-clk";
+			compatible = "hobot,gate-clk";
 			clocks = <&timer_div_mclk>;
 			offset = <0x100 0x104 0x108 0x0>;
 			bits = <8 8 8 32>;
@@ -31,7 +31,7 @@
 
 		timer1_mclk: timer1_mclk {
 			#clock-cells = <0>;
-			compatible = "x2,gate-clk";
+			compatible = "hobot,gate-clk";
 			clocks = <&timer_div_mclk>;
 			offset = <0x100 0x104 0x108 0x0>;
 			bits = <9 9 9 32>;
@@ -41,7 +41,7 @@
 
 		timer2_mclk: timer2_mclk {
 			#clock-cells = <0>;
-			compatible = "x2,gate-clk";
+			compatible = "hobot,gate-clk";
 			clocks = <&timer_div_mclk>;
 			offset = <0x100 0x104 0x108 0x0>;
 			bits = <10 10 10 32>;
@@ -51,7 +51,7 @@
 
 		atb_tsclk: atb_tsclk {
 			#clock-cells = <0>;
-			compatible = "x2,gate-clk";
+			compatible = "hobot,gate-clk";
 			clocks = <&osc_clk>;
 			offset = <0x110 0x114 0x118 0x0>;
 			bits = <2 2 2 32>;
@@ -60,7 +60,7 @@
 
 		temp_sensor_div_clk: temp_sensor_div_clk {
 			#clock-cells = <0>;
-			compatible = "x2,fixed-factor-clk";
+			compatible = "hobot,fixed-factor-clk";
 			clocks = <&osc_clk>;
 			clk-div = <12>;
 			clk-mult = <1>;
@@ -68,7 +68,7 @@
 
 		temp_sensor0_clk: temp_sensor0_clk {
 			#clock-cells = <0>;
-			compatible = "x2,gate-clk";
+			compatible = "hobot,gate-clk";
 			clocks = <&temp_sensor_div_clk>;
 			offset = <0x100 0x104 0x108 0x0>;
 			bits = <12 12 12 32>;
@@ -78,21 +78,21 @@
 
 		armpll1_clk: armpll1_clk {
 			#clock-cells = <0>;
-			compatible = "x2,laintpll-clk";
+			compatible = "hobot,laintpll-clk";
 			clocks = <&osc_clk>;
 			offset = <0x0 0x4 0x8>;
 		};
 
 		armpll2_clk: armpll2_clk {
 			#clock-cells = <0>;
-			compatible = "x2,laintpll-clk";
+			compatible = "hobot,laintpll-clk";
 			clocks = <&osc_clk>;
 			offset = <0x10 0x14 0x18>;
 		};
 
 		arm_pllmux_clk: arm_pllmux_clk {
 			#clock-cells = <0>;
-			compatible = "x2,mux-clk";
+			compatible = "hobot,mux-clk";
 			clocks = <&armpll1_clk>, <&armpll2_clk>;
 			offset = <0x300>;
 			bits = <0>;
@@ -101,7 +101,7 @@
 
 		cpu_divclk: cpu_divclk {
 			#clock-cells = <0>;
-			compatible = "x2,div-clk";
+			compatible = "hobot,div-clk";
 			clocks = <&arm_pllmux_clk>;
 			offset = <0x204>;
 			bits = <0>;
@@ -110,7 +110,7 @@
 
 		cpu_mux_clk: cpu_mux_clk {
 			#clock-cells = <0>;
-			compatible = "x2,mux-clk";
+			compatible = "hobot,mux-clk";
 			clocks = <&osc_clk>, <&cpu_divclk>;
 			offset = <0x300>;
 			bits = <4>;
@@ -121,14 +121,14 @@
 
 		cpu_clk: cpu_clk {
 			#clock-cells = <0>;
-			compatible = "x2,cpu-clk";
+			compatible = "hobot,cpu-clk-x2";
 			clocks = <&cpu_mux_clk>;
 			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		ace_div_aclk: ace_div_aclk {
 			#clock-cells = <0>;
-			compatible = "x2,div-clk";
+			compatible = "hobot,div-clk";
 			clocks = <&cpu_mux_clk>;
 			offset = <0x204>;
 			bits = <4>;
@@ -137,7 +137,7 @@
 
 		acp_div_aclk: acp_div_aclk {
 			#clock-cells = <0>;
-			compatible = "x2,div-clk";
+			compatible = "hobot,div-clk";
 			clocks = <&cpu_mux_clk>;
 			offset = <0x200>;
 			bits = <0>;
@@ -146,7 +146,7 @@
 
 		acp_aclk: acp_aclk {
 			#clock-cells = <0>;
-			compatible = "x2,gate-clk";
+			compatible = "hobot,gate-clk";
 			clocks = <&acp_div_aclk>;
 			offset = <0x100 0x104 0x108 0x208>;
 			bits = <0 0 0 0>;
@@ -156,7 +156,7 @@
 
 		cpu_div_cntclk: cpu_div_cntclk {
 			#clock-cells = <0>;
-			compatible = "x2,div-clk";
+			compatible = "hobot,div-clk";
 			clocks = <&cpu_mux_clk>;
 			offset = <0x200>;
 			bits = <4>;
@@ -165,7 +165,7 @@
 
 		cpu_cntclk: cpu_cntclk {
 			#clock-cells = <0>;
-			compatible = "x2,gate-clk";
+			compatible = "hobot,gate-clk";
 			clocks = <&cpu_div_cntclk>;
 			offset = <0x100 0x104 0x108 0x208>;
 			bits = <11 11 11 1>;
@@ -175,7 +175,7 @@
 
 		sys_noc_div_aclk: sys_noc_div_aclk {
 			#clock-cells = <0>;
-			compatible = "x2,div-clk";
+			compatible = "hobot,div-clk";
 			clocks = <&cpu_mux_clk>;
 			offset = <0x204>;
 			bits = <8>;
@@ -184,7 +184,7 @@
 
 		sys_dmac_aclk: sys_dmac_aclk {
 			#clock-cells = <0>;
-			compatible = "x2,gate-clk";
+			compatible = "hobot,gate-clk";
 			clocks = <&sys_noc_div_aclk>;
 			offset = <0x100 0x104 0x108 0x0>;
 			bits = <7 7 7 32>;
@@ -194,7 +194,7 @@
 
 		sys_bifspi_aclk: sys_bifspi_aclk {
 			#clock-cells = <0>;
-			compatible = "x2,gate-clk";
+			compatible = "hobot,gate-clk";
 			clocks = <&sys_noc_div_aclk>;
 			offset = <0x100 0x104 0x108 0x0>;
 			bits = <4 4 4 32>;
@@ -204,7 +204,7 @@
 
 		sys_bifsd_aclk: sys_bifsd_aclk {
 			#clock-cells = <0>;
-			compatible = "x2,gate-clk";
+			compatible = "hobot,gate-clk";
 			clocks = <&sys_noc_div_aclk>;
 			offset = <0x100 0x104 0x108 0x0>;
 			bits = <5 5 5 32>;
@@ -214,7 +214,7 @@
 
 		sys_romc_aclk: sys_romc_aclk {
 			#clock-cells = <0>;
-			compatible = "x2,gate-clk";
+			compatible = "hobot,gate-clk";
 			clocks = <&sys_noc_div_aclk>;
 			offset = <0x100 0x104 0x108 0x0>;
 			bits = <1 1 1 32>;
@@ -224,7 +224,7 @@
 
 		sys_sramc_aclk: sys_sramc_aclk {
 			#clock-cells = <0>;
-			compatible = "x2,gate-clk";
+			compatible = "hobot,gate-clk";
 			clocks = <&sys_noc_div_aclk>;
 			offset = <0x100 0x104 0x108 0x0>;
 			bits = <2 2 2 32>;
@@ -234,7 +234,7 @@
 
 		sys_gic_aclk: sys_gic_aclk {
 			#clock-cells = <0>;
-			compatible = "x2,gate-clk";
+			compatible = "hobot,gate-clk";
 			clocks = <&sys_noc_div_aclk>;
 			offset = <0x100 0x104 0x108 0x0>;
 			bits = <3 3 3 32>;
@@ -244,7 +244,7 @@
 
 		sys_qspi_aclk: sys_qspi_aclk {
 			#clock-cells = <0>;
-			compatible = "x2,gate-clk";
+			compatible = "hobot,gate-clk";
 			clocks = <&sys_noc_div_aclk>;
 			offset = <0x100 0x104 0x108 0x0>;
 			bits = <6 6 6 32>;
@@ -254,7 +254,7 @@
 
 		sys_div_pclk: sys_div_pclk {
 			#clock-cells = <0>;
-			compatible = "x2,div-clk";
+			compatible = "hobot,div-clk";
 			clocks = <&cpu_mux_clk>;
 			offset = <0x204>;
 			bits = <12>;
@@ -263,7 +263,7 @@
 
 		eth0_ephy_1stdiv_clk: eth0_ephy_1stdiv_clk {
 			#clock-cells = <0>;
-			compatible = "x2,div-clk";
+			compatible = "hobot,div-clk";
 			clocks = <&cpu_mux_clk>;
 			offset = <0x340>;
 			bits = <12>;
@@ -272,7 +272,7 @@
 
 		eth0_ephy_2nddiv_clk: eth0_ephy_2nddiv_clk {
 			#clock-cells = <0>;
-			compatible = "x2,div-clk";
+			compatible = "hobot,div-clk";
 			clocks = <&eth0_ephy_1stdiv_clk>;
 			offset = <0x340>;
 			bits = <20>;
@@ -281,7 +281,7 @@
 
 		cx_div_dbgclk: cx_div_dbgclk {
 			#clock-cells = <0>;
-			compatible = "x2,div-clk";
+			compatible = "hobot,div-clk";
 			clocks = <&cpu_mux_clk>;
 			offset = <0x210>;
 			bits = <0>;
@@ -290,7 +290,7 @@
 
 		dbg_pclk: dbg_pclk {
 			#clock-cells = <0>;
-			compatible = "x2,gate-clk";
+			compatible = "hobot,gate-clk";
 			clocks = <&cx_div_dbgclk>;
 			offset = <0x110 0x114 0x118 0x0>;
 			bits = <0 0 0 32>;
@@ -300,7 +300,7 @@
 
 		atb_atclk: atb_atclk {
 			#clock-cells = <0>;
-			compatible = "x2,gate-clk";
+			compatible = "hobot,gate-clk";
 			clocks = <&cx_div_dbgclk>;
 			offset = <0x110 0x114 0x118 0x0>;
 			bits = <1 1 1 32>;
@@ -310,7 +310,7 @@
 
 		armv8pil_clk: armv8pil_clk {
 			#clock-cells = <0>;
-			compatible = "x2,gate-clk";
+			compatible = "hobot,gate-clk";
 			clocks = <&cx_div_dbgclk>;
 			offset = <0x110 0x114 0x118 0x0>;
 			bits = <3 3 3 32>;
@@ -320,7 +320,7 @@
 
 		cx_tpiu_div_clk: cx_tpiu_div_clk {
 			#clock-cells = <0>;
-			compatible = "x2,div-clk";
+			compatible = "hobot,div-clk";
 			clocks = <&cpu_mux_clk>;
 			offset = <0x210>;
 			bits = <4>;
@@ -329,7 +329,7 @@
 
 		cx_tpiu_clk: cx_tpiu_clk {
 			#clock-cells = <0>;
-			compatible = "x2,gate-clk";
+			compatible = "hobot,gate-clk";
 			clocks = <&cx_tpiu_div_clk>;
 			offset = <0x110 0x114 0x118 0x218>;
 			bits = <4 4 4 0>;
@@ -339,14 +339,14 @@
 
 		cnnpll_clk: cnnpll_clk {
 			#clock-cells = <0>;
-			compatible = "x2,laintpll-clk";
+			compatible = "hobot,laintpll-clk";
 			clocks = <&osc_clk>;
 			offset = <0x20 0x24 0x28>;
 		};
 
 		cnn_pllmux_clk: cnn_pllmux_clk {
 			#clock-cells = <0>;
-			compatible = "x2,mux-clk";
+			compatible = "hobot,mux-clk";
 			clocks = <&osc_clk>, <&cnnpll_clk>;
 			offset = <0x300>;
 			bits = <8>;
@@ -355,7 +355,7 @@
 
 		cnn0_div_aclk: cnn0_div_aclk {
 			#clock-cells = <0>;
-			compatible = "x2,div-clk";
+			compatible = "hobot,div-clk";
 			clocks = <&cnn_pllmux_clk>;
 			offset = <0x220>;
 			bits = <0>;
@@ -364,7 +364,7 @@
 
 		cnn0_aclk: cnn0_aclk {
 			#clock-cells = <0>;
-			compatible = "x2,gate-clk";
+			compatible = "hobot,gate-clk";
 			clocks = <&cnn0_div_aclk>;
 			offset = <0x120 0x124 0x128 0x228>;
 			bits = <0 0 0 0>;
@@ -374,7 +374,7 @@
 
 		cnn0_div_mclk: cnn0_div_mclk {
 			#clock-cells = <0>;
-			compatible = "x2,div-clk";
+			compatible = "hobot,div-clk";
 			clocks = <&cnn_pllmux_clk>;
 			offset = <0x220>;
 			bits = <4>;
@@ -383,7 +383,7 @@
 
 		cnn0_mclk: cnn0_mclk {
 			#clock-cells = <0>;
-			compatible = "x2,gate-clk";
+			compatible = "hobot,gate-clk";
 			clocks = <&cnn0_div_mclk>;
 			offset = <0x120 0x124 0x128 0x228>;
 			bits = <1 1 1 1>;
@@ -394,7 +394,7 @@
 
 		cnn1_div_aclk: cnn1_div_aclk {
 			#clock-cells = <0>;
-			compatible = "x2,div-clk";
+			compatible = "hobot,div-clk";
 			clocks = <&cnn_pllmux_clk>;
 			offset = <0x220>;
 			bits = <8>;
@@ -403,7 +403,7 @@
 
 		cnn1_aclk: cnn1_aclk {
 			#clock-cells = <0>;
-			compatible = "x2,gate-clk";
+			compatible = "hobot,gate-clk";
 			clocks = <&cnn1_div_aclk>;
 			offset = <0x120 0x124 0x128 0x228>;
 			bits = <4 4 4 2>;
@@ -413,7 +413,7 @@
 
 		cnn1_div_mclk: cnn1_div_mclk {
 			#clock-cells = <0>;
-			compatible = "x2,div-clk";
+			compatible = "hobot,div-clk";
 			clocks = <&cnn_pllmux_clk>;
 			offset = <0x220>;
 			bits = <12>;
@@ -422,7 +422,7 @@
 
 		cnn1_mclk: cnn1_mclk {
 			#clock-cells = <0>;
-			compatible = "x2,gate-clk";
+			compatible = "hobot,gate-clk";
 			clocks = <&cnn1_div_mclk>;
 			offset = <0x120 0x124 0x128 0x228>;
 			bits = <5 5 5 3>;
@@ -432,14 +432,14 @@
 
 		ddrpll_clk: ddrpll_clk {
 			#clock-cells = <0>;
-			compatible = "x2,fracpll-clk";
+			compatible = "hobot,fracpll-clk";
 			clocks = <&osc_clk>;
 			offset = <0x30 0x34 0x3C>;
 		};
 
 		ddr_pllmux_clk: ddr_pllmux_clk {
 			#clock-cells = <0>;
-			compatible = "x2,mux-clk";
+			compatible = "hobot,mux-clk";
 			clocks = <&osc_clk>, <&ddrpll_clk>;
 			offset = <0x300>;
 			bits = <12>;
@@ -448,7 +448,7 @@
 
 		ddr_div_mclk: ddr_div_mclk {
 			#clock-cells = <0>;
-			compatible = "x2,div-clk";
+			compatible = "hobot,div-clk";
 			clocks = <&ddr_pllmux_clk>;
 			offset = <0x230>;
 			bits = <0>;
@@ -457,7 +457,7 @@
 
 		ddr_mclk: ddrddr_mclk {
 			#clock-cells = <0>;
-			compatible = "x2,gate-clk";
+			compatible = "hobot,gate-clk";
 			clocks = <&ddr_div_mclk>;
 			offset = <0x130 0x134 0x138 0x238>;
 			bits = <0 0 0 0>;
@@ -467,14 +467,14 @@
 
 		viopll_clk: viopll_clk {
 			#clock-cells = <0>;
-			compatible = "x2,laintpll-clk";
+			compatible = "hobot,laintpll-clk";
 			clocks = <&osc_clk>;
 			offset = <0x40 0x44 0x48>;
 		};
 
 		vio_pllmux_clk: vio_pllmux_clk {
 			#clock-cells = <0>;
-			compatible = "x2,mux-clk";
+			compatible = "hobot,mux-clk";
 			clocks = <&osc_clk>, <&viopll_clk>;
 			offset = <0x300>;
 			bits = <16>;
@@ -483,7 +483,7 @@
 
 		vio_div_aclk: vio_div_aclk {
 			#clock-cells = <0>;
-			compatible = "x2,div-clk";
+			compatible = "hobot,div-clk";
 			clocks = <&vio_pllmux_clk>;
 			offset = <0x240>;
 			bits = <0>;
@@ -492,7 +492,7 @@
 
 		vio_aclk: vio_aclk {
 			#clock-cells = <0>;
-			compatible = "x2,gate-clk";
+			compatible = "hobot,gate-clk";
 			clocks = <&vio_div_aclk>;
 			offset = <0x140 0x144 0x148 0x248>;
 			bits = <0 0 0 0>;
@@ -502,7 +502,7 @@
 
 		sif_div_mclk: sif_div_mclk {
 			#clock-cells = <0>;
-			compatible = "x2,div-clk";
+			compatible = "hobot,div-clk";
 			clocks = <&vio_pllmux_clk>;
 			offset = <0x240>;
 			bits = <12>;
@@ -511,7 +511,7 @@
 
 		sif_mclk: sif_mclk {
 			#clock-cells = <0>;
-			compatible = "x2,gate-clk";
+			compatible = "hobot,gate-clk";
 			clocks = <&sif_div_mclk>;
 			offset = <0x140 0x144 0x148 0x248>;
 			bits = <1 1 1 1>;
@@ -521,7 +521,7 @@
 
 		mipi_ipi_1stdiv_clk: mipi_ipi_1stdiv_clk {
 			#clock-cells = <0>;
-			compatible = "x2,div-clk";
+			compatible = "hobot,div-clk";
 			clocks = <&vio_pllmux_clk>;
 			offset = <0x240>;
 			bits = <4>;
@@ -531,7 +531,7 @@
 
 		mipi_ipi_2nddiv_clk: mipi_ipi_2nddiv_clk {
 			#clock-cells = <0>;
-			compatible = "x2,div-clk";
+			compatible = "hobot,div-clk";
 			clocks = <&mipi_ipi_1stdiv_clk>;
 			offset = <0x240>;
 			bits = <9>;
@@ -542,7 +542,7 @@
 
 		mipi_cfg_1stdiv_clk: mipi_cfg_1stdiv_clk {
 			#clock-cells = <0>;
-			compatible = "x2,div-clk";
+			compatible = "hobot,div-clk";
 			clocks = <&vio_pllmux_clk>;
 			offset = <0x240>;
 			bits = <24>;
@@ -551,7 +551,7 @@
 
 		mipi_cfg_2nddiv_clk: mipi_cfg_2nddiv_clk {
 			#clock-cells = <0>;
-			compatible = "x2,div-clk";
+			compatible = "hobot,div-clk";
 			clocks = <&mipi_cfg_1stdiv_clk>;
 			offset = <0x240>;
 			bits = <29>;
@@ -561,7 +561,7 @@
 
 		iar_pix_div_clk: iar_pix_div_clk {
 			#clock-cells = <0>;
-			compatible = "x2,div-clk";
+			compatible = "hobot,div-clk";
 			clocks = <&vio_pllmux_clk>;
 			offset = <0x240>;
 			bits = <20>;
@@ -570,7 +570,7 @@
 
 		iar_pix_clk: iar_pix_clk {
 			#clock-cells = <0>;
-			compatible = "x2,gate-clk";
+			compatible = "hobot,gate-clk";
 			clocks = <&iar_pix_div_clk>;
 			offset = <0x140 0x144 0x148 0x248>;
 			bits = <2 2 2 2>;
@@ -580,7 +580,7 @@
 
 		bt_padc_pixclk: bt_padc_pixclk {
 			#clock-cells = <0>;
-			compatible = "x2,gpio-clk";
+			compatible = "hobot,gpio-clk";
 			clocks = <&iar_pix_clk>;
 			offset = <0x310>;
 			bits = <16>;
@@ -588,7 +588,7 @@
 
 		pym_div_mclk: pym_div_mclk {
 			#clock-cells = <0>;
-			compatible = "x2,div-clk";
+			compatible = "hobot,div-clk";
 			clocks = <&vio_pllmux_clk>;
 			offset = <0x240>;
 			bits = <16>;
@@ -597,7 +597,7 @@
 
 		pym_mclk: pym_mclk {
 			#clock-cells = <0>;
-			compatible = "x2,gate-clk";
+			compatible = "hobot,gate-clk";
 			clocks = <&pym_div_mclk>;
 			offset = <0x140 0x144 0x148 0x248>;
 			bits = <5 5 5 5>;
@@ -607,7 +607,7 @@
 
 		mipi_phy_ref_1stdiv_clk: mipi_phy_ref_1stdiv_clk {
 			#clock-cells = <0>;
-			compatible = "x2,div-clk";
+			compatible = "hobot,div-clk";
 			clocks = <&vio_pllmux_clk>;
 			offset = <0x244>;
 			bits = <0>;
@@ -616,7 +616,7 @@
 
 		mipi_phy_ref_2nddiv_clk: mipi_phy_ref_2nddiv_clk {
 			#clock-cells = <0>;
-			compatible = "x2,div-clk";
+			compatible = "hobot,div-clk";
 			clocks = <&mipi_phy_ref_1stdiv_clk>;
 			offset = <0x244>;
 			bits = <8>;
@@ -626,7 +626,7 @@
 
 		mipi_dev_ref_clk: mipi_dev_ref_clk {
 			#clock-cells = <0>;
-			compatible = "x2,gate-clk";
+			compatible = "hobot,gate-clk";
 			clocks = <&mipi_phy_ref_2nddiv_clk>;
 			offset = <0x140 0x144 0x148 0x0>;
 			bits = <3 3 3 32>;
@@ -636,7 +636,7 @@
 
 		mipi_host_ref_clk: mipi_host_ref_clk {
 			#clock-cells = <0>;
-			compatible = "x2,gate-clk";
+			compatible = "hobot,gate-clk";
 			clocks = <&mipi_phy_ref_2nddiv_clk>;
 			offset = <0x140 0x144 0x148 0x0>;
 			bits = <6 6 6 32>;
@@ -646,7 +646,7 @@
 
 		sensor_1stdiv_clk: sensor_1stdiv_clk {
 			#clock-cells = <0>;
-			compatible = "x2,div-clk";
+			compatible = "hobot,div-clk";
 			clocks = <&vio_pllmux_clk>;
 			offset = <0x244>;
 			bits = <12>;
@@ -655,7 +655,7 @@
 
 		sensor_2nddiv_clk: sensor_2nddiv_clk {
 			#clock-cells = <0>;
-			compatible = "x2,div-clk";
+			compatible = "hobot,div-clk";
 			clocks = <&sensor_1stdiv_clk>;
 			offset = <0x244>;
 			bits = <20>;
@@ -665,7 +665,7 @@
 
 		sensor_mclk: sensor_mclk {
 			#clock-cells = <0>;
-			compatible = "x2,gate-clk";
+			compatible = "hobot,gate-clk";
 			clocks = <&sensor_2nddiv_clk>;
 			offset = <0x140 0x144 0x148 0x248>;
 			bits = <4 4 4 4>;
@@ -675,14 +675,14 @@
 
 		peripll_clk: peripll_clk {
 			#clock-cells = <0>;
-			compatible = "x2,laintpll-clk";
+			compatible = "hobot,laintpll-clk";
 			clocks = <&osc_clk>;
 			offset = <0x50 0x54 0x58>;
 		};
 
 		peri_pllmux_clk: peri_pllmux_clk {
 			#clock-cells = <0>;
-			compatible = "x2,mux-clk";
+			compatible = "hobot,mux-clk";
 			clocks = <&osc_clk>, <&peripll_clk>;
 			offset = <0x300>;
 			bits = <20>;
@@ -691,7 +691,7 @@
 
 		peri_div_aclk: peri_div_aclk {
 			#clock-cells = <0>;
-			compatible = "x2,div-clk";
+			compatible = "hobot,div-clk";
 			clocks = <&peri_pllmux_clk>;
 			offset = <0x250>;
 			bits = <0>;
@@ -700,7 +700,7 @@
 
 		peri_aclk: peri_aclk {
 			#clock-cells = <0>;
-			compatible = "x2,gate-clk";
+			compatible = "hobot,gate-clk";
 			clocks = <&peri_div_aclk>;
 			offset = <0x150 0x154 0x158 0x258>;
 			bits = <0 0 0 0>;
@@ -710,7 +710,7 @@
 
 		uart_div_mclk: uart_div_mclk {
 			#clock-cells = <0>;
-			compatible = "x2,div-clk";
+			compatible = "hobot,div-clk";
 			clocks = <&peri_pllmux_clk>;
 			offset = <0x250>;
 			bits = <4>;
@@ -719,7 +719,7 @@
 
 		uart0_mclk: uart0_mclk {
 			#clock-cells = <0>;
-			compatible = "x2,gate-clk";
+			compatible = "hobot,gate-clk";
 			clocks = <&uart_div_mclk>;
 			offset = <0x150 0x154 0x158 0x0>;
 			bits = <1 1 1 32>;
@@ -729,7 +729,7 @@
 
 		uart1_mclk: uart1_mclk {
 			#clock-cells = <0>;
-			compatible = "x2,gate-clk";
+			compatible = "hobot,gate-clk";
 			clocks = <&uart_div_mclk>;
 			offset = <0x150 0x154 0x158 0x0>;
 			bits = <2 2 2 32>;
@@ -739,7 +739,7 @@
 
 		uart2_mclk: uart2_mclk {
 			#clock-cells = <0>;
-			compatible = "x2,gate-clk";
+			compatible = "hobot,gate-clk";
 			clocks = <&uart_div_mclk>;
 			offset = <0x150 0x154 0x158 0x0>;
 			bits = <3 3 3 32>;
@@ -749,7 +749,7 @@
 
 		uart3_mclk: uart3_mclk {
 			#clock-cells = <0>;
-			compatible = "x2,gate-clk";
+			compatible = "hobot,gate-clk";
 			clocks = <&uart_div_mclk>;
 			offset = <0x150 0x154 0x158 0x0>;
 			bits = <4 4 4 32>;
@@ -759,7 +759,7 @@
 
 		spi_div_mclk: spi_div_mclk {
 			#clock-cells = <0>;
-			compatible = "x2,div-clk";
+			compatible = "hobot,div-clk";
 			clocks = <&peri_pllmux_clk>;
 			offset = <0x250>;
 			bits = <8>;
@@ -768,7 +768,7 @@
 
 		spi0_mclk: spi0_mclk {
 			#clock-cells = <0>;
-			compatible = "x2,gate-clk";
+			compatible = "hobot,gate-clk";
 			clocks = <&spi_div_mclk>;
 			offset = <0x150 0x154 0x158 0x0>;
 			bits = <5 5 5 32>;
@@ -778,7 +778,7 @@
 
 		spi1_mclk: spi1_mclk {
 			#clock-cells = <0>;
-			compatible = "x2,gate-clk";
+			compatible = "hobot,gate-clk";
 			clocks = <&spi_div_mclk>;
 			offset = <0x150 0x154 0x158 0x0>;
 			bits = <6 6 6 32>;
@@ -788,7 +788,7 @@
 
 		spi2_mclk: spi2_mclk {
 			#clock-cells = <0>;
-			compatible = "x2,gate-clk";
+			compatible = "hobot,gate-clk";
 			clocks = <&spi_div_mclk>;
 			offset = <0x150 0x154 0x158 0x0>;
 			bits = <7 7 7 32>;
@@ -798,7 +798,7 @@
 
 		pwm_div_mclk: pwm_div_mclk {
 			#clock-cells = <0>;
-			compatible = "x2,div-clk";
+			compatible = "hobot,div-clk";
 			clocks = <&peri_pllmux_clk>;
 			offset = <0x250>;
 			bits = <12>;
@@ -807,7 +807,7 @@
 
 		pwm0_mclk: pwm0_mclk {
 			#clock-cells = <0>;
-			compatible = "x2,gate-clk";
+			compatible = "hobot,gate-clk";
 			clocks = <&pwm_div_mclk>;
 			offset = <0x150 0x154 0x158 0x0>;
 			bits = <8 8 8 32>;
@@ -817,7 +817,7 @@
 
 		pwm1_mclk: pwm1_mclk {
 			#clock-cells = <0>;
-			compatible = "x2,gate-clk";
+			compatible = "hobot,gate-clk";
 			clocks = <&pwm_div_mclk>;
 			offset = <0x150 0x154 0x158 0x0>;
 			bits = <9 9 9 32>;
@@ -827,7 +827,7 @@
 
 		pwm2_mclk: pwm2_mclk {
 			#clock-cells = <0>;
-			compatible = "x2,gate-clk";
+			compatible = "hobot,gate-clk";
 			clocks = <&pwm_div_mclk>;
 			offset = <0x150 0x154 0x158 0x0>;
 			bits = <10 10 10 32>;
@@ -837,7 +837,7 @@
 
 		i2c_div_mclk: i2c_div_mclk {
 			#clock-cells = <0>;
-			compatible = "x2,div-clk";
+			compatible = "hobot,div-clk";
 			clocks = <&peri_pllmux_clk>;
 			offset = <0x250>;
 			bits = <16>;
@@ -846,7 +846,7 @@
 
 		i2c0_mclk: i2c0_mclk {
 			#clock-cells = <0>;
-			compatible = "x2,gate-clk";
+			compatible = "hobot,gate-clk";
 			clocks = <&i2c_div_mclk>;
 			offset = <0x150 0x154 0x158 0x0>;
 			bits = <11 11 11 32>;
@@ -856,7 +856,7 @@
 
 		i2c1_mclk: i2c1_mclk {
 			#clock-cells = <0>;
-			compatible = "x2,gate-clk";
+			compatible = "hobot,gate-clk";
 			clocks = <&i2c_div_mclk>;
 			offset = <0x150 0x154 0x158 0x0>;
 			bits = <12 12 12 32>;
@@ -866,7 +866,7 @@
 
 		i2c2_mclk: i2c2_mclk {
 			#clock-cells = <0>;
-			compatible = "x2,gate-clk";
+			compatible = "hobot,gate-clk";
 			clocks = <&i2c_div_mclk>;
 			offset = <0x150 0x154 0x158 0x0>;
 			bits = <13 13 13 32>;
@@ -876,7 +876,7 @@
 
 		i2c3_mclk: i2c3_mclk {
 			#clock-cells = <0>;
-			compatible = "x2,gate-clk";
+			compatible = "hobot,gate-clk";
 			clocks = <&i2c_div_mclk>;
 			offset = <0x150 0x154 0x158 0x0>;
 			bits = <14 14 14 32>;
@@ -884,29 +884,9 @@
 			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
-		i2c4_mclk: i2c4_mclk {
-			#clock-cells = <0>;
-			compatible = "x2,gate-clk";
-			clocks = <&i2c_div_mclk>;
-			offset = <0x150 0x154 0x158 0x0>;
-			bits = <15 15 15 32>;
-			field = <1 1 1>;
-			clk-flags = <CLK_SET_RATE_PARENT>;
-		};
-
-		i2c5_mclk: i2c5_mclk {
-			#clock-cells = <0>;
-			compatible = "x2,gate-clk";
-			clocks = <&i2c_div_mclk>;
-			offset = <0x150 0x154 0x158 0x0>;
-			bits = <16 16 16 32>;
-			field = <1 1 1>;
-			clk-flags = <CLK_SET_RATE_PARENT>;
-		};
-
 		sd0_div_clk: sd0_div_clk {
 			#clock-cells = <0>;
-			compatible = "x2,div-clk";
+			compatible = "hobot,div-clk";
 			clocks = <&peri_pllmux_clk>;
 			offset = <0x320>;
 			bits = <0>;
@@ -915,7 +895,7 @@
 
 		sd0_div_cclk: sd0_div_cclk {
 			#clock-cells = <0>;
-			compatible = "x2,fixed-factor-clk";
+			compatible = "hobot,fixed-factor-clk";
 			clocks = <&sd0_div_clk>;
 			offset = <0x320>;
 			bits = <4>;
@@ -927,7 +907,7 @@
 
 		sd0_cclk: sd0_cclk {
 			#clock-cells = <0>;
-			compatible = "x2,gate-clk";
+			compatible = "hobot,gate-clk";
 			clocks = <&sd0_div_cclk>;
 			offset = <0x150 0x154 0x158 0x258>;
 			bits = <15 15 15 1>;
@@ -937,7 +917,7 @@
 
 		sd1_div_clk: sd1_div_clk {
 			#clock-cells = <0>;
-			compatible = "x2,div-clk";
+			compatible = "hobot,div-clk";
 			clocks = <&peri_pllmux_clk>;
 			offset = <0x330>;
 			bits = <0>;
@@ -946,7 +926,7 @@
 
 		sd1_div_cclk: sd1_div_cclk {
 			#clock-cells = <0>;
-			compatible = "x2,fixed-factor-clk";
+			compatible = "hobot,fixed-factor-clk";
 			clocks = <&sd1_div_clk>;
 			offset = <0x330>;
 			bits = <4>;
@@ -958,7 +938,7 @@
 
 		sd1_cclk: sd1_cclk {
 			#clock-cells = <0>;
-			compatible = "x2,gate-clk";
+			compatible = "hobot,gate-clk";
 			clocks = <&sd1_div_cclk>;
 			offset = <0x150 0x154 0x158 0x258>;
 			bits = <16 16 16 2>;
@@ -968,7 +948,7 @@
 
 		eth0_prediv_clk: eth0_prediv_clk {
 			#clock-cells = <0>;
-			compatible = "x2,div-clk";
+			compatible = "hobot,div-clk";
 			clocks = <&peri_pllmux_clk>;
 			offset = <0x340>;
 			bits = <0>;
@@ -977,7 +957,7 @@
 
 		eth0_div_clk: eth0_div_clk {
 			#clock-cells = <0>;
-			compatible = "x2,div-clk";
+			compatible = "hobot,div-clk";
 			clocks = <&eth0_prediv_clk>;
 			offset = <0x340>;
 			bits = <8>;
@@ -987,7 +967,7 @@
 
 		eth0_clk: eth0_clk {
 			#clock-cells = <0>;
-			compatible = "x2,gate-clk";
+			compatible = "hobot,gate-clk";
 			clocks = <&eth0_div_clk>;
 			offset = <0x150 0x154 0x158 0x258>;
 			bits = <17 17 17 3>;
@@ -997,7 +977,7 @@
 
 		i2s0_prediv_mclk: i2s0_prediv_mclk {
 			#clock-cells = <0>;
-			compatible = "x2,div-clk";
+			compatible = "hobot,div-clk";
 			clocks = <&peri_pllmux_clk>;
 			offset = <0x350>;
 			bits = <0>;
@@ -1006,7 +986,7 @@
 
 		i2s0_div_mclk: i2s0_div_mclk {
 			#clock-cells = <0>;
-			compatible = "x2,div-clk";
+			compatible = "hobot,div-clk";
 			clocks = <&i2s0_prediv_mclk>;
 			offset = <0x350>;
 			bits = <8>;
@@ -1015,7 +995,7 @@
 
 		i2s0_mclk: i2s0_mclk {
 			#clock-cells = <0>;
-			compatible = "x2,gate-clk";
+			compatible = "hobot,gate-clk";
 			clocks = <&i2s0_div_mclk>;
 			offset = <0x150 0x154 0x158 0x258>;
 			bits = <18 18 18 5>;
@@ -1025,7 +1005,7 @@
 
 		i2s0_div_bclk: i2s0_div_bclk {
 			#clock-cells = <0>;
-			compatible = "x2,div-clk";
+			compatible = "hobot,div-clk";
 			clocks = <&i2s0_mclk>;
 			offset = <0x350>;
 			bits = <16>;
@@ -1035,7 +1015,7 @@
 
 		i2s0_bclk: i2s0_bclk {
 			#clock-cells = <0>;
-			compatible = "x2,gpio-clk";
+			compatible = "hobot,gpio-clk";
 			clocks = <&i2s0_div_bclk>;
 			offset = <0x350>;
 			bits = <20>;
@@ -1044,7 +1024,7 @@
 
 		i2s1_prediv_mclk: i2s1_prediv_mclk {
 			#clock-cells = <0>;
-			compatible = "x2,div-clk";
+			compatible = "hobot,div-clk";
 			clocks = <&peri_pllmux_clk>;
 			offset = <0x360>;
 			bits = <0>;
@@ -1053,7 +1033,7 @@
 
 		i2s1_div_mclk: i2s1_div_mclk {
 			#clock-cells = <0>;
-			compatible = "x2,div-clk";
+			compatible = "hobot,div-clk";
 			clocks = <&i2s1_prediv_mclk>;
 			offset = <0x360>;
 			bits = <8>;
@@ -1062,7 +1042,7 @@
 
 		i2s1_mclk: i2s1_mclk {
 			#clock-cells = <0>;
-			compatible = "x2,gate-clk";
+			compatible = "hobot,gate-clk";
 			clocks = <&i2s1_div_mclk>;
 			offset = <0x150 0x154 0x158 0x258>;
 			bits = <19 19 19 6>;
@@ -1072,7 +1052,7 @@
 
 		i2s1_div_bclk: i2s1_div_bclk {
 			#clock-cells = <0>;
-			compatible = "x2,div-clk";
+			compatible = "hobot,div-clk";
 			clocks = <&i2s1_mclk>;
 			offset = <0x360>;
 			bits = <16>;
@@ -1082,7 +1062,7 @@
 
 		i2s1_bclk: i2s1_bclk {
 			#clock-cells = <0>;
-			compatible = "x2,gpio-clk";
+			compatible = "hobot,gpio-clk";
 			clocks = <&i2s1_div_bclk>;
 			offset = <0x360>;
 			bits = <20>;
