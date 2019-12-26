@@ -417,6 +417,7 @@ struct plat_config_data {
 	int maxmtu;
 	struct x2_axi *axi;
 
+	u32 use_riwt;
 
 	
 	struct x2_mdio_bus_data *mdio_bus_data;
@@ -483,7 +484,7 @@ struct x2_priv {
 	u32 tx_coal_frames;
 
 	u32 tx_coal_timer;
-	int use_riwt;
+	u32 use_riwt;
 	u32 rx_riwt;
 	
 	void __iomem *ioaddr;

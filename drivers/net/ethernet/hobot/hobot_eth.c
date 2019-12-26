@@ -392,7 +392,7 @@ struct plat_config_data *x2_probe_config_dt(struct platform_device *pdev, const 
 	if (plat->bus_id < 0)
 		plat->bus_id = 0;
 
-
+   
 	plat->phy_addr = -1;
 
 	if (of_property_read_u32(np, "snps,phy-addr", &plat->phy_addr) == 0)
@@ -460,6 +460,9 @@ struct plat_config_data *x2_probe_config_dt(struct platform_device *pdev, const 
 	of_property_read_u32(np, "snps,ps-speed",&plat->mac_port_sel_speed);
 
 	of_property_read_u32(np,"interrupt_mode",&dma_cfg->interrupt_mode);
+
+    of_property_read_u32(np, "use_riwt", &plat->use_riwt);
+
 
 	plat->axi = x2_axi_setup(pdev);
 
@@ -674,7 +677,6 @@ static int x2_hw_init(struct x2_priv *priv)
 	if (priv->plat->force_thresh_dma_mode)
 		priv->plat->tx_coe = 0;
 	
-	priv->use_riwt = 1;
 	if (priv->dma_cap.tsoen)
 		printk("TSO supported\n");
 	return 0;
@@ -2043,8 +2045,10 @@ static int x2_dma_reset(void __iomem *ioaddr)
 
 
 }
-static void x2_dma_init(void __iomem *ioaddr, struct x2_dma_cfg *dma_cfg, u32 dma_tx, u32 dma_rx, int atds)
+static void x2_dma_init(struct x2_priv *priv, struct x2_dma_cfg *dma_cfg, u32 dma_tx, u32 dma_rx, int atds)
 {
+    void __iomem *ioaddr = priv->ioaddr;
+
 	u32 value = readl(ioaddr + DMA_SYS_BUS_MODE);
 
 	if (dma_cfg->fixed_burst)
@@ -2056,12 +2060,13 @@ static void x2_dma_init(void __iomem *ioaddr, struct x2_dma_cfg *dma_cfg, u32 dm
 
 	writel(value, ioaddr + DMA_SYS_BUS_MODE);
 
-	value = 0;
-	value = readl(ioaddr + DMA_BUS_MODE);
-	value &= ~DMA_BUS_INTM;
-	value |= (dma_cfg->interrupt_mode << 16);
-	
-	writel(value, ioaddr + DMA_BUS_MODE);
+    if (priv->use_riwt) {   
+        value = 0;
+        value = readl(ioaddr + DMA_BUS_MODE);
+        value &= ~DMA_BUS_INTM;
+        value |= (dma_cfg->interrupt_mode << 16);
+        writel(value, ioaddr + DMA_BUS_MODE);
+    }
 	printk("%s, dma bus mode:%x\n",__func__, readl(ioaddr + DMA_BUS_MODE));
 }
 
@@ -2181,7 +2186,7 @@ static int x2_init_dma_engine(struct x2_priv *priv)
 		return ret;
 	}
 
-	x2_dma_init(priv->ioaddr, priv->plat->dma_cfg,0,0,0);
+	x2_dma_init(priv, priv->plat->dma_cfg,0,0,0);
 
 	for (chan = 0; chan < rx_channel_count; chan++) {
 		rx_q = &priv->rx_queue[chan];
@@ -4067,10 +4072,12 @@ static void x2_init_coalesce(struct x2_priv *priv)
 	u32 tx_count = priv->plat->tx_queues_to_use;
 	u32 chan;
 
-
+    priv->rx_coal_frames = 0;
+    if (priv->use_riwt)
+    	priv->rx_coal_frames = X2_RX_FRAMES;
+    	
 	priv->tx_coal_frames = X2_TX_FRAMES;
 	priv->tx_coal_timer = X2_COAL_TX_TIMER;
-	priv->rx_coal_frames = X2_RX_FRAMES;
 	
 	for (chan = 0; chan < tx_count; chan++) {
 		struct x2_tx_queue *tx_q = &priv->tx_queue[chan];
@@ -5244,35 +5251,35 @@ static int x2_set_coalesce(struct net_device *ndev, struct ethtool_coalesce *ec)
                 return -EOPNOTSUPP;
 
 	printk("%s, 1....\n", __func__);
-	if (priv->use_riwt && (ec->rx_coalesce_usecs > 0)) {
-                rx_riwt = x2_usec2riwt(ec->rx_coalesce_usecs, priv);
+    if (priv->use_riwt && (ec->rx_coalesce_usecs > 0)) {
+        rx_riwt = x2_usec2riwt(ec->rx_coalesce_usecs, priv);
 
-	printk("%s, 2222., rx_riwt %x\n", __func__, rx_riwt);
-                if ((rx_riwt > MAX_DMA_RIWT) || (rx_riwt < MIN_DMA_RIWT))
-                        return -EINVAL;
+        printk("%s, 2222., rx_riwt %x\n", __func__, rx_riwt);
+        if ((rx_riwt > MAX_DMA_RIWT) || (rx_riwt < MIN_DMA_RIWT))
+            return -EINVAL;
 
-	printk("%s, 3....\n", __func__);
-                priv->rx_riwt = rx_riwt;
-                x2_rx_watchdog(priv, priv->rx_riwt, rx_cnt);
-        }
-        /* Only copy relevant parameters, ignore all others. */
-	
-	printk("%s, 4....\n", __func__);
-	if ((ec->tx_coalesce_usecs == 0) && (ec->tx_max_coalesced_frames == 0)) {
-		return -EINVAL;
-	}
+        printk("%s, 3....\n", __func__);
+        priv->rx_riwt = rx_riwt;
+        x2_rx_watchdog(priv, priv->rx_riwt, rx_cnt);
+    }
+    /* Only copy relevant parameters, ignore all others. */
 
-	printk("%s, 5....\n", __func__);
-	if ((ec->tx_coalesce_usecs > X2_MAX_COAL_TX_TICK) || (ec->tx_max_coalesced_frames > X2_TX_MAX_FRAMES))
-		return -EINVAL;
+    printk("%s, 4....\n", __func__);
+    if ((ec->tx_coalesce_usecs == 0) && (ec->tx_max_coalesced_frames == 0)) {
+        return -EINVAL;
+    }
 
-	printk("%s, 6....\n", __func__);
-        priv->tx_coal_frames = ec->tx_max_coalesced_frames;
-        priv->tx_coal_timer = ec->tx_coalesce_usecs;
-        priv->rx_coal_frames = ec->rx_max_coalesced_frames;
-	
+    printk("%s, 5....\n", __func__);
+    if ((ec->tx_coalesce_usecs > X2_MAX_COAL_TX_TICK) || (ec->tx_max_coalesced_frames > X2_TX_MAX_FRAMES))
+        return -EINVAL;
 
-        return 0;
+    printk("%s, 6....\n", __func__);
+    priv->tx_coal_frames = ec->tx_max_coalesced_frames;
+    priv->tx_coal_timer = ec->tx_coalesce_usecs;
+    priv->rx_coal_frames = ec->rx_max_coalesced_frames;
+
+
+    return 0;
 
 
 }
@@ -5848,7 +5855,7 @@ static inline void x2_rx_refill(struct x2_priv *priv, u32 queue)
 		p->des3 = cpu_to_le32(RDES3_OWN | RDES3_BUFFER1_VALID_ADDR);//x2_init_rx_desc(p, priv->use_riwt, 0,0);
 		if (!use_rx_wd) {
 		//	printk("%s, and set rx ioc bit\n", __func__);
-		//	p->des3 |= cpu_to_le32(RDES3_INT_ON_COMPLETION_EN);
+			p->des3 |= cpu_to_le32(RDES3_INT_ON_COMPLETION_EN);
 		}
 		dma_wmb();
 		entry = X2_GET_ENTRY(entry, DMA_RX_SIZE);
@@ -6137,7 +6144,8 @@ static int x2_dvr_probe(struct device *device, struct plat_config_data *plat_dat
 	priv->dev->base_addr = (unsigned long)x2_res->addr;
 
 	priv->dev->irq = x2_res->irq;
-	
+    priv->use_riwt = plat_dat->use_riwt;
+
 	priv->tx_irq = x2_res->tx_irq;
 	priv->rx_irq = x2_res->rx_irq;
 	if (x2_res->mac) {
@@ -6239,26 +6247,30 @@ static int x2_dvr_probe(struct device *device, struct plat_config_data *plat_dat
 		printk("MDIO bus error register\n");
 		goto err_mdio_reg;
 	}
-	
-	ret = devm_request_irq(priv->device, ndev->irq, &x2_interrupt, 0, "eth-mac", ndev);
-	if (ret < 0) {
-		printk("%s: error allocating the MAC IRQ\n",__func__);
-		goto irq_error;
-	}
 
-	ret = devm_request_irq(priv->device, priv->tx_irq, &x2_interrupt, 0, "eth-tx",ndev);
-	if (ret < 0) {
-		printk("%s: error allocating the TX IRQ\n",__func__);
-		goto irq_error;
-	}
+    ret = devm_request_irq(priv->device, ndev->irq, &x2_interrupt, 0, "eth-mac", ndev);
+    if (ret < 0) {
+        printk("%s: error allocating the MAC IRQ\n",__func__);
+        goto irq_error;
+    }
 
-	ret = devm_request_irq(priv->device, priv->rx_irq, &x2_interrupt, 0, "eth-rx",ndev);
-	if (ret < 0) {
-		printk("%s: error allocating the RX IRQ\n",__func__);
-		goto irq_error;
+
+    if (priv->use_riwt) {	
+        ret = devm_request_irq(priv->device, priv->tx_irq, &x2_interrupt, 0, "eth-tx",ndev);
+	    if (ret < 0) {
+		    printk("%s: error allocating the TX IRQ\n",__func__);
+    		goto irq_error;
+	    }
+
+    	ret = devm_request_irq(priv->device, priv->rx_irq, &x2_interrupt, 0, "eth-rx",ndev);
+    	if (ret < 0) {
+	    	printk("%s: error allocating the RX IRQ\n",__func__);
+		    goto irq_error;
 		
-	}
+	    }
+    } 
 
+    
 	ret = register_netdev(ndev);
 	if (ret) {
 		printk("error register network device\n");
