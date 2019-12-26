@@ -568,14 +568,22 @@ int ipu_update_common_param(struct ipu_video_ctx *ipu_ctx, ipu_cfg_t * ipu_cfg)
 	// SRC select
 	ipu_src_select(ipu->base_reg, ipu_ctrl->source_sel);
 
-	if (test_bit(IPU_OTF_INPUT, &ipu->state)) {
-		if (ipu_ctrl->source_sel == IPU_FROM_DDR_YUV420) {
+	if(ipu_ctrl->source_sel != IPU_FROM_DDR_YUV420){
+		if (test_bit(IPU_DMA_INPUT, &ipu->state)){
+			vio_err("IPU DMA input already,can't set otf input\n");
+			return -EINVAL;
+		}else{
+			set_bit(IPU_OTF_INPUT, &ipu->state);
+			set_bit(VIO_GROUP_OTF_INPUT, &group->state);
+		}
+	}else{
+		if (test_bit(IPU_OTF_INPUT, &ipu->state)) {
 			vio_err("IPU otf input already,can't set dma input\n");
 			return -EINVAL;
+		} else {
+			set_bit(IPU_DMA_INPUT, &ipu->state);
+			set_bit(VIO_GROUP_DMA_INPUT, &group->state);
 		}
-	} else if (ipu_ctrl->source_sel != IPU_FROM_DDR_YUV420){
-		set_bit(IPU_OTF_INPUT, &ipu->state);
-		set_bit(VIO_GROUP_OTF_INPUT, &group->state);
 	}
 
 	if (ipu_ctrl->source_sel == IPU_FROM_DDR_YUV420) {
@@ -711,7 +719,8 @@ int ipu_video_streamon(struct ipu_video_ctx *ipu_ctx)
 	ipu_dev = ipu_ctx->ipu_dev;
 	group = ipu_ctx->group;
 
-	if (!(ipu_ctx->state & (BIT(VIO_VIDEO_STOP) | BIT(VIO_VIDEO_REBUFS)))) {
+	if (!(ipu_ctx->state & (BIT(VIO_VIDEO_STOP) | BIT(VIO_VIDEO_REBUFS)
+			| BIT(VIO_VIDEO_INIT)))) {
 		vio_err("[%s][V%02d] invalid STREAM_ON is requested(%lX)\n",
 			__func__, group->instance, ipu_ctx->state);
 		return -EINVAL;
@@ -773,6 +782,10 @@ int ipu_video_streamoff(struct ipu_video_ctx *ipu_ctx)
 
 #else
 	ips_set_clk_ctrl(IPU0_CLOCK_GATE, false);
+	clear_bit(IPU_OTF_INPUT, &ipu_dev->state);
+	clear_bit(IPU_DMA_INPUT, &ipu_dev->state);
+	clear_bit(IPU_DS2_DMA_OUTPUT, &ipu_dev->state);
+
 #endif
 	vio_info("%s timer del\n", __func__);
 
@@ -1037,7 +1050,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 	vio_info("%s status = %x\n", __func__, status);
 
 	if (status & (1 << INTR_IPU_FRAME_DONE)) {
-		if (!test_bit(IPU_OTF_INPUT, &ipu->state)) {
+		if (test_bit(IPU_DMA_INPUT, &ipu->state)) {
 			up(&gtask->hw_resource);
 			ipu_frame_done(group->sub_ctx[GROUP_ID_SRC]);
 		}
@@ -1355,7 +1368,7 @@ static void ipu_timer(unsigned long data)
 	vio_info("%s status = %x\n", __func__, status);
 	mod_timer(&tm[0], jiffies + HZ / 25);
 	if (status & (1 << INTR_IPU_FRAME_DONE)) {
-		if (!test_bit(IPU_OTF_INPUT, &ipu->state)) {
+		if (test_bit(IPU_DMA_INPUT, &ipu->state)) {
 			up(&gtask->hw_resource);
 			ipu_frame_done(group->sub_ctx[GROUP_ID_SRC]);
 			vio_info("%s ipu_frame_done\n", __func__);

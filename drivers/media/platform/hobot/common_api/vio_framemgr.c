@@ -189,10 +189,11 @@ void frame_work_function(struct kthread_work *work)
 	group = leader;
 	while(group->next){
 		group = group->next;
-		vio_info("%s 1111111\n", __func__);
+		vio_dbg("%s #1\n", __func__);
 		if(group->frame_work)
 			group->frame_work(group);
 	}
+	vio_dbg("%s #2\n", __func__);
 
 	leader->frame_work(leader);
 	clear_bit(VIO_GTASK_SHOT, &gtask->state);

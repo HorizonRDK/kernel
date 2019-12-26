@@ -475,13 +475,14 @@ int sif_video_streamoff(struct sif_video_ctx *sif_ctx)
 	spin_lock_irqsave(&sif_dev->shared_slock, flag);
 
 	sif_hw_disable(sif_dev->base_reg);
+
+	if (sif_ctx->id == 1)
+		clear_bit(SIF_DMA_IN_ENABLE, &sif_dev->state);
 	spin_unlock_irqrestore(&sif_dev->shared_slock, flag);
 
 p_dec:
 
-	if (sif_ctx->id == 1) {
-		clear_bit(SIF_DMA_IN_ENABLE, &sif_dev->state);
-	}else
+	if (sif_ctx->id == 0)
 		clear_bit(sif_ctx->mux_index + 1, &sif_dev->state);
 
 	if (framemgr->frames != NULL)

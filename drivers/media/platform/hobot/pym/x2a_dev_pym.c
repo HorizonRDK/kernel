@@ -150,7 +150,7 @@ static void pym_frame_work(struct vio_group *group)
 	if (frame) {
 		pym_set_buffers(pym, frame);
 
-		if (!test_bit(PYM_OTF_INPUT, &pym->state)) {
+		if (test_bit(PYM_DMA_INPUT, &pym->state)) {
 			pym_rdma_set_addr(pym->base_reg,
 					  frame->frameinfo.addr[0],
 					  frame->frameinfo.addr[1]);
@@ -320,7 +320,8 @@ int pym_video_streamon(struct pym_video_ctx *pym_ctx)
 
 	pym_dev = pym_ctx->pym_dev;
 
-	if (!(pym_ctx->state & (BIT(VIO_VIDEO_STOP) | BIT(VIO_VIDEO_REBUFS)))) {
+	if (!(pym_ctx->state & (BIT(VIO_VIDEO_STOP) | BIT(VIO_VIDEO_REBUFS)
+			| BIT(VIO_VIDEO_INIT)))) {
 		vio_err("[V%02d] invalid STREAM ON is requested(%lX)",
 			pym_ctx->group->instance, pym_ctx->state);
 		return -EINVAL;
@@ -383,6 +384,9 @@ int pym_video_streamoff(struct pym_video_ctx *pym_ctx)
 	del_timer_sync(&tm[0]);
 	g_test_bit = 0;
 #endif
+
+	clear_bit(PYM_OTF_INPUT, &pym_dev->state);
+	clear_bit(PYM_DMA_INPUT, &pym_dev->state);
 
 	spin_unlock_irqrestore(&pym_dev->shared_slock, flag);
 	vio_info("%s timer del\n", __func__);

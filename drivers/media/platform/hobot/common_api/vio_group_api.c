@@ -169,7 +169,6 @@ void vio_bind_group_done(int instance)
 
 	for(i = 0; i < GROUP_ID_NUMBER; i++){
 		group = &ischain->group[i];
-		vio_info("group[%d].leader = %d\n", i , group->leader);
 		if(group->leader){
 			break;
 		}else if(i >= GROUP_ID_IPU){
