@@ -18,6 +18,7 @@
 #include <asm/cacheflush.h>
 #include <linux/io.h>
 #include <linux/timer.h>
+#include <linux/poll.h>
 
 #include "x2a_dev_sif.h"
 #include "sif_hw_api.h"
@@ -31,6 +32,7 @@ int g_test_input = 0;
 int g_test = -1;
 #endif
 static int timer_init(struct x2a_sif_dev *sif, int index);
+int sif_bind_chain_group(struct sif_video_ctx *sif_ctx, int instance);
 
 typedef int (*isp_callback)(int);
 isp_callback sif_isp_ctx_sync;
@@ -83,81 +85,19 @@ static const struct dev_pm_ops x2a_sif_pm_ops = {
 	.runtime_resume = x2a_sif_runtime_resume,
 };
 
-struct sif_group *sif_get_mux_group(struct x2a_sif_dev *sif, u32 mux_index)
-{
-	struct sif_group *group;
-
-	if (mux_index >= 8) {
-		vio_err("wrong mux_index(%d)\n", mux_index);
-		goto p_err;
-	}
-
-	group = &sif->sif_mux[mux_index];
-	if (!test_bit(SIF_GROUP_OPEN, &group->state)) {
-		group->instance = mux_index;
-		set_bit(SIF_GROUP_OPEN, &group->state);
-		return group;
-	}
-
-      p_err:
-	return NULL;
-}
-
-struct sif_group *sif_get_input_group(struct x2a_sif_dev *sif)
-{
-	u32 stream;
-	struct sif_group *group;
-	for (stream = 0; stream < VIO_MAX_STREAM; ++stream) {
-		group = &sif->sif_input[stream];
-		if (!test_bit(SIF_GROUP_OPEN, &group->state)) {
-			group->instance = stream;
-			set_bit(SIF_GROUP_OPEN, &group->state);
-			return group;
-		}
-	}
-	return NULL;
-}
-
-static void sif_read_work_function(struct kthread_work *work)
+void sif_read_frame_work(struct vio_group *group)
 {
 	struct sif_video_ctx *ctx;
 	struct x2a_sif_dev *sif;
 	struct vio_framemgr *framemgr;
 	struct vio_frame *frame;
 	struct frame_info *frameinfo;
-	struct sif_group *group;
-	struct vio_group_task *gtask;
 	unsigned long flags;
 	u32 instance = 0;
-	bool try_rdown = false;
-	int ret = 0;
 
-	frame = container_of(work, struct vio_frame, work);
-	group = (struct sif_group *) frame->data;
 	instance = group->instance;
-	ctx = group->sub_ctx;
+	ctx = group->sub_ctx[0];
 	sif = ctx->sif_dev;
-	gtask = &sif->sifin_task;
-
-	set_bit(VIO_GTASK_SHOT, &gtask->state);
-
-	if (unlikely(test_bit(VIO_GTASK_REQUEST_STOP, &gtask->state))) {
-		vio_err(" cancel by gstop0");
-		goto p_err_ignore;
-	}
-
-	ret = down_interruptible(&gtask->hw_resource);
-	if (ret) {
-		vio_err(" down fail(%d)", ret);
-		goto p_err_ignore;
-	}
-
-	try_rdown = true;
-
-	if (unlikely(test_bit(VIO_GTASK_SHOT_STOP, &gtask->state))) {
-		vio_err(" cancel by gstop1");
-		goto p_err_ignore;
-	}
 
 	atomic_set(&sif->instance, instance);
 
@@ -171,6 +111,7 @@ static void sif_read_work_function(struct kthread_work *work)
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	frame = peek_frame(framemgr, FS_REQUEST);
 	if (frame) {
+		// TODO:add the dol mode
 		frameinfo = &frame->frameinfo;
 		sif_config_rdma_fmt(sif->base_reg, frameinfo->format,
 				    frameinfo->width, frameinfo->height);
@@ -183,59 +124,26 @@ static void sif_read_work_function(struct kthread_work *work)
 		trans_frame(framemgr, frame, FS_PROCESS);
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
-
-	clear_bit(VIO_GTASK_SHOT, &gtask->state);
-
-	return;
-
-p_err_ignore:
-	if (try_rdown)
-		up(&gtask->hw_resource);
-
-	clear_bit(VIO_GTASK_SHOT, &gtask->state);
-	return;
 }
 
-static void sif_write_work_function(struct kthread_work *work)
+
+void sif_write_frame_work(struct vio_group *group)
 {
 	struct sif_video_ctx *ctx;
 	struct x2a_sif_dev *sif;
 	struct vio_framemgr *framemgr;
 	struct vio_frame *frame;
-	struct sif_group *group;
-	struct vio_group_task *gtask;
 	unsigned long flags;
+	u32 instance = 0;
 	u32 buf_index, mux_index;
 	u32 yuv_format = 0;
-	bool try_rdown = false;
-	int ret = 0;
 
-	frame = container_of(work, struct vio_frame, work);
-	group = (struct sif_group *) frame->data;
-	ctx = group->sub_ctx;
+	instance = group->instance;
+	ctx = group->sub_ctx[0];
 	sif = ctx->sif_dev;
 	mux_index = ctx->mux_index;
-	gtask = &sif->sifout_task[mux_index];
 
-	set_bit(VIO_GTASK_SHOT, &gtask->state);
-
-	if (unlikely(test_bit(VIO_GTASK_REQUEST_STOP, &gtask->state))) {
-		vio_err(" cancel by gstop0");
-		goto p_err_ignore;
-	}
-
-	ret = down_interruptible(&gtask->hw_resource);
-	if (ret) {
-		vio_err(" down fail(%d)", ret);
-		goto p_err_ignore;
-	}
-
-	try_rdown = true;
-
-	if (unlikely(test_bit(VIO_GTASK_SHOT_STOP, &gtask->state))) {
-		vio_err(" cancel by gstop1");
-		goto p_err_ignore;
-	}
+	atomic_set(&sif->instance, instance);
 
 	framemgr = &ctx->framemgr;
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
@@ -247,37 +155,32 @@ static void sif_write_work_function(struct kthread_work *work)
 		sif_set_wdma_buf_addr(sif->base_reg, mux_index, buf_index,
 				      frame->frameinfo.addr[0]);
 		sif_transfer_ddr_owner(sif->base_reg, mux_index, buf_index);
-		if (yuv_format) {
+		if (yuv_format || ctx->dol_num > 1) {
 			sif_set_wdma_buf_addr(sif->base_reg, mux_index + 1,
 					      buf_index, frame->frameinfo.addr[1]);
 			sif_transfer_ddr_owner(sif->base_reg, mux_index + 1,
 					       buf_index);
 		}
 
+		if(ctx->dol_num > 2){
+			sif_set_wdma_buf_addr(sif->base_reg, mux_index + 2,
+					      buf_index, frame->frameinfo.addr[2]);
+			sif_transfer_ddr_owner(sif->base_reg, mux_index + 2,
+					       buf_index);
+		}
 		trans_frame(framemgr, frame, FS_PROCESS);
 		ctx->bufcount++;
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
-
-	clear_bit(VIO_GTASK_SHOT, &gtask->state);
-
-	return;
-
-p_err_ignore:
-	if (try_rdown)
-		up(&gtask->hw_resource);
-
-	clear_bit(VIO_GTASK_SHOT, &gtask->state);
-	return;
 }
+
 
 static int x2a_sif_open(struct inode *inode, struct file *file)
 {
 	struct sif_video_ctx *sif_ctx;
 	struct x2a_sif_dev *sif;
-	struct sif_group *group;
 	int ret = 0;
-	int minor;
+	int minor = 0;
 
 	minor = MINOR(inode->i_rdev);
 
@@ -287,19 +190,6 @@ static int x2a_sif_open(struct inode *inode, struct file *file)
 		vio_err("kzalloc is fail");
 		ret = -ENOMEM;
 		goto p_err;
-	}
-
-	if (minor == 1) {
-		group = sif_get_input_group(sif);
-		if (group == NULL) {
-			ret = -EBUSY;
-			vio_err("can get free group\n");
-			goto p_err;
-		}
-
-		group->id = minor;
-		group->sub_ctx = sif_ctx;
-		sif_ctx->group = group;
 	}
 
 	init_waitqueue_head(&sif_ctx->done_wq);
@@ -324,10 +214,21 @@ static ssize_t x2a_sif_read(struct file *file, char __user * buf, size_t size,
 	return 0;
 }
 
+static u32 x2a_sif_poll(struct file *file, struct poll_table_struct *wait)
+{
+	struct sif_video_ctx *sif_ctx;
+
+	sif_ctx = file->private_data;
+
+	poll_wait(file, &sif_ctx->done_wq, wait);
+
+	return POLLIN;
+}
+
 static int x2a_sif_close(struct inode *inode, struct file *file)
 {
 	struct sif_video_ctx *sif_ctx;
-	struct sif_group *group;
+	struct vio_group *group;
 	struct x2a_sif_dev *sif;
 
 	sif_ctx = file->private_data;
@@ -335,7 +236,7 @@ static int x2a_sif_close(struct inode *inode, struct file *file)
 	sif = sif_ctx->sif_dev;
 
 	if (group)
-		clear_bit(SIF_GROUP_OPEN, &group->state);
+		clear_bit(VIO_GROUP_INIT, &group->state);
 
 	if (sif_ctx->id == 0) {
 		vio_group_task_stop(&sif->sifout_task[sif_ctx->mux_index]);
@@ -362,11 +263,12 @@ int sif_mux_init(struct sif_video_ctx *sif_ctx, unsigned long arg)
 {
 	int ret = 0;
 	u32 mux_index = 0;
-	u32 isp_flyby = 0, ipu_flyby = 0;
+	u32 ddr_enable = 0;
+	u32 dol_exp_num = 0;
 	sif_cfg_t sif_config;
-	struct sif_group *group;
 	struct x2a_sif_dev *sif;
 	struct vio_group_task *gtask;
+	struct vio_group *group;
 
 	ret = copy_from_user((char *) &sif_config, (u32 __user *) arg,
 			   sizeof(sif_cfg_t));
@@ -374,20 +276,10 @@ int sif_mux_init(struct sif_video_ctx *sif_ctx, unsigned long arg)
 		return -EFAULT;
 
 	sif = sif_ctx->sif_dev;
+	group = sif_ctx->group;
 
 	mux_index = sif_config.input.mipi.func.set_mux_out_index;
 	sif_ctx->mux_index = mux_index;
-	group = sif_get_mux_group(sif, mux_index);
-	if (group == NULL) {
-		vio_err("can get free group\n");
-		return -EFAULT;
-	}
-
-	isp_flyby = sif_config.output.isp.enable;
-	ipu_flyby = sif_config.output.ipu.enable_flyby;
-
-	if (isp_flyby == 1 || ipu_flyby == 1)
-		set_bit(SIF_OTF_OUTPUT, &sif->state);
 
 	if (sif_config.input.mipi.data.format == SIF_YUV_INPUT) {
 		if (mux_index % 2 == 0) {
@@ -401,16 +293,33 @@ int sif_mux_init(struct sif_video_ctx *sif_ctx, unsigned long arg)
 			     mux_index);
 	}
 
-	group->id = sif_ctx->id;
-	group->sub_ctx = sif_ctx;
-	sif_ctx->group = group;
-	gtask = &sif->sifout_task[mux_index];
+	dol_exp_num = sif_config.output.isp.dol_exp_num;
+	sif_ctx->dol_num = dol_exp_num;
+	if(dol_exp_num == 2){
+		set_bit(SIF_DOL2_MODE + mux_index + 1, &sif->state);
+		vio_info("DOL2 mode, current mux = %d\n", mux_index);
+	}else if(dol_exp_num == 3){
+		set_bit(SIF_DOL2_MODE + mux_index + 1, &sif->state);
+		set_bit(SIF_DOL2_MODE + mux_index + 2, &sif->state);
+		vio_info("DOL3 mode, current mux = %d\n", mux_index);
+	}
 
+	ddr_enable =  sif_config.output.ddr.enable;
+	if(ddr_enable == 0)
+		set_bit(VIO_GROUP_OTF_OUTPUT, &group->state);
+	else
+		set_bit(VIO_GROUP_DMA_OUTPUT, &group->state);
+
+	sif_ctx->rx_num = sif_config.input.mipi.mipi_rx_index;
+	sif_ctx->initial_frameid = true;
+
+	sif->sif_mux[mux_index] = group;
+	gtask = &sif->sifout_task[mux_index];
 	vio_group_task_start(gtask);
 	sema_init(&gtask->hw_resource, 4);
 
-	//if (test_bit(SIF_OTF_OUTPUT, &sif->state))
-	//	sif_disable_wdma(sif->base_reg);
+	group->gtask = gtask;
+	group->frame_work = sif_write_frame_work;
 
 	sif_hw_config(sif->base_reg, &sif_config);
 
@@ -424,21 +333,27 @@ int sif_video_init(struct sif_video_ctx *sif_ctx, unsigned long arg)
 {
 	int ret = 0;
 	struct x2a_sif_dev *sif;
+	struct vio_group *group;
 
-	if (!(sif_ctx->state & (BIT(VIO_VIDEO_OPEN) | BIT(VIO_VIDEO_REBUFS)))) {
-		vio_err("[%s][V%02d] invalid INIT is requested(%lX)", __func__,
-			sif_ctx->id, sif_ctx->state);
+	group = sif_ctx->group;
+	if (!(sif_ctx->state & (BIT(VIO_VIDEO_S_INPUT) | BIT(VIO_VIDEO_REBUFS)))) {
+		vio_err("[%d][%s][V%02d] invalid INIT is requested(%lX)", group->instance,
+			__func__, sif_ctx->id, sif_ctx->state);
 		return -EINVAL;
 	}
 
 	sif = sif_ctx->sif_dev;
 
+	//sif_bind_chain_group(sif_ctx, 0);
+
 	if (sif_ctx->id == 0) {
 		sif_mux_init(sif_ctx, arg);
 	} else if (sif_ctx->id == 1) {
 		vio_group_task_start(&sif->sifin_task);
-		set_bit(SIF_DMA_IN_ENABLE, &sif->state);
 		sif_set_isp_performance(sif->base_reg, 1);
+		set_bit(SIF_DMA_IN_ENABLE, &sif->state);
+		set_bit(VIO_GROUP_DMA_INPUT, &group->state);
+		set_bit(VIO_GROUP_OTF_OUTPUT, &group->state);
 	}
 
 	vio_info("V[%d]%s ret(%d)\n", sif_ctx->id, __func__, ret);
@@ -446,6 +361,50 @@ int sif_video_init(struct sif_video_ctx *sif_ctx, unsigned long arg)
 	sif_ctx->state = BIT(VIO_VIDEO_INIT);
 
 	return ret;
+}
+
+int sif_bind_chain_group(struct sif_video_ctx *sif_ctx, int instance)
+{
+	int ret = 0;
+	int group_id = 0;
+	struct vio_group *group;
+	struct x2a_sif_dev *sif;
+	struct vio_chain *chain;
+
+	if (!(sif_ctx->state & BIT(VIO_VIDEO_OPEN))) {
+		vio_err("[%s]invalid BIND is requested(%lX)",
+			__func__, sif_ctx->state);
+		return -EINVAL;
+	}
+
+	if(instance < 0 && instance >= VIO_MAX_STREAM){
+		vio_err("wrong instance id(%d)\n", instance);
+		return -EFAULT;
+	}
+
+	sif = sif_ctx->sif_dev;
+
+	if(sif_ctx->id == 0)
+		group_id = GROUP_ID_SIF_OUT;
+	else
+		group_id = GROUP_ID_SIF_IN;
+
+	group = vio_get_chain_group(instance, group_id);
+	group->sub_ctx[0] = sif_ctx;
+	sif_ctx->group = group;
+
+	chain = group->chain;
+
+	if(sif_ctx->id == 1){
+		sif->sif_input[instance] = group;
+		group->frame_work = sif_read_frame_work;
+		group->gtask = &sif->sifin_task;
+	}
+
+	vio_info("[%s]instance = %d\n", __func__, instance);
+	sif_ctx->state = BIT(VIO_VIDEO_S_INPUT);
+
+	return 0;
 }
 
 int sif_video_streamon(struct sif_video_ctx *sif_ctx)
@@ -470,7 +429,6 @@ int sif_video_streamon(struct sif_video_ctx *sif_ctx)
 	sif_hw_enable(sif_dev->base_reg);
 	spin_unlock_irqrestore(&sif_dev->shared_slock, flag);
 
-	//sif_hw_dump(sif_dev->base_reg);
 p_inc:
 	atomic_inc(&sif_dev->rsccount);
 
@@ -517,7 +475,6 @@ int sif_video_streamoff(struct sif_video_ctx *sif_ctx)
 	spin_lock_irqsave(&sif_dev->shared_slock, flag);
 
 	sif_hw_disable(sif_dev->base_reg);
-	//sif_hw_dump(sif_dev->base_reg);
 	spin_unlock_irqrestore(&sif_dev->shared_slock, flag);
 
 p_dec:
@@ -550,12 +507,12 @@ int sif_video_s_stream(struct sif_video_ctx *sif_ctx, bool enable)
 int sif_video_reqbufs(struct sif_video_ctx *sif_ctx, u32 buffers)
 {
 	int ret = 0;
+	int i = 0;
 	struct vio_framemgr *framemgr;
-	struct sif_group *group;
-	int i;
+	struct vio_group *group;
 
 	if (!(sif_ctx->state & (BIT(VIO_VIDEO_STOP) | BIT(VIO_VIDEO_REBUFS) |
-		      BIT(VIO_VIDEO_INIT)))) {
+		      BIT(VIO_VIDEO_INIT) | BIT(VIO_VIDEO_S_INPUT)))) {
 		vio_err("[%s][V%02d] invalid REQBUFS is requested(%lX)",
 			__func__, sif_ctx->id, sif_ctx->state);
 		return -EINVAL;
@@ -571,12 +528,6 @@ int sif_video_reqbufs(struct sif_video_ctx *sif_ctx, u32 buffers)
 
 	group = sif_ctx->group;
 	for (i = 0; i < buffers; i++) {
-		if (group->id == 1)
-			kthread_init_work(&framemgr->frames[i].work,
-					  sif_read_work_function);
-		else
-			kthread_init_work(&framemgr->frames[i].work,
-					  sif_write_work_function);
 		framemgr->frames[i].data = sif_ctx->group;
 	}
 
@@ -591,7 +542,7 @@ int sif_video_qbuf(struct sif_video_ctx *sif_ctx, struct frame_info *frameinfo)
 	struct vio_framemgr *framemgr;
 	struct vio_frame *frame;
 	unsigned long flags;
-	struct vio_group_task *sif_task;
+	struct vio_group *group;
 	int index = 0;
 
 	index = frameinfo->bufferindex;
@@ -611,12 +562,9 @@ int sif_video_qbuf(struct sif_video_ctx *sif_ctx, struct frame_info *frameinfo)
 	}
 
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
-	if (sif_ctx->group->id == 0)
-		sif_task = &sif_ctx->sif_dev->sifout_task[sif_ctx->mux_index];
-	else
-		sif_task = &sif_ctx->sif_dev->sifin_task;
+	group = sif_ctx->group;
 
-	vio_group_start_trigger(sif_task, frame);
+	vio_group_start_trigger(group->gtask, frame);
 
 	return ret;
 
@@ -652,9 +600,10 @@ static long x2a_sif_ioctl(struct file *file, unsigned int cmd,
 	int ret = 0;
 	int buffers = 0;
 	int enable = 0;
+	int instance = 0;
 	struct sif_video_ctx *sif_ctx;
 	struct frame_info frameinfo;
-	struct sif_group *group;
+	struct vio_group *group;
 
 	sif_ctx = file->private_data;
 	BUG_ON(!sif_ctx);
@@ -701,6 +650,19 @@ static long x2a_sif_ioctl(struct file *file, unsigned int cmd,
 			return -EFAULT;
 		sif_video_reqbufs(sif_ctx, buffers);
 		break;
+	case SIF_IOC_BIND_GROUP:
+		ret = get_user(instance, (u32 __user *) arg);
+		if (ret)
+			return -EFAULT;
+
+		sif_bind_chain_group(sif_ctx, instance);
+		break;
+	case SIF_IOC_END_OF_STREAM:
+		ret = get_user(instance, (u32 __user *) arg);
+		if (ret)
+			return -EFAULT;
+		vio_bind_group_done(instance);
+		break;
 	default:
 		vio_err("wrong ioctl command\n");
 		ret = -EFAULT;
@@ -716,27 +678,40 @@ static struct file_operations x2a_sif_fops = {
 	.write = x2a_sif_write,
 	.read = x2a_sif_read,
 	.release = x2a_sif_close,
+	.poll = x2a_sif_poll,
 	.unlocked_ioctl = x2a_sif_ioctl,
 	.compat_ioctl = x2a_sif_ioctl,
 };
+
+void sif_get_timestamps(struct vio_group *group, struct frame_id *info){
+	struct sif_video_ctx *sif_ctx;
+
+	sif_ctx = group->sub_ctx[0];
+
+	info = &sif_ctx->info;
+}
+
 
 void sif_frame_done(struct sif_video_ctx *sif_ctx)
 {
 	struct vio_framemgr *framemgr;
 	struct vio_frame *frame;
+	struct vio_group *group;
 	unsigned long flags;
 
+	group = sif_ctx->group;
 	framemgr = &sif_ctx->framemgr;
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	frame = peek_frame(framemgr, FS_PROCESS);
 	if (frame) {
-		if (sif_ctx->info.update) {
-			frame->frameinfo.frame_id = sif_ctx->info.frame_id;
+		if(group->get_timestamps){
+			frame->frameinfo.frame_id = group->frameid.frame_id;
 			frame->frameinfo.timestamp_l =
-			    sif_ctx->info.timestamp_l;
+			    group->frameid.timestamp_l;
 			frame->frameinfo.timestamp_m =
-			    sif_ctx->info.timestamp_m;
+			    group->frameid.timestamp_m;
 		}
+
 		trans_frame(framemgr, frame, FS_COMPLETE);
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
@@ -749,6 +724,7 @@ static irqreturn_t sif_isr(int irq, void *data)
 	struct sif_irq_src irq_src;
 	struct x2a_sif_dev *sif;
 	struct sif_video_ctx *sif_ctx;
+	struct vio_group *group;
 	struct vio_group_task *gtask;
 	u32 mux_index = 0;
 	u32 instance;
@@ -762,25 +738,33 @@ static irqreturn_t sif_isr(int irq, void *data)
 	intr_en = sif_get_frame_intr(sif->base_reg);
 	status = intr_en & irq_src.sif_frm_int;
 
-	vio_dbg("%s: sif_frm_int = 0x%x,sif_out_int =0x%x, status  = 0x%x\n", __func__, irq_src.sif_frm_int, irq_src.sif_out_int, status);
+	vio_info("%s: sif_frm_int = 0x%x,sif_out_int =0x%x, status  = 0x%x\n", __func__, irq_src.sif_frm_int, irq_src.sif_out_int, status);
 	if (status) {
 		for (mux_index = 0; mux_index <= 7; mux_index++) {
 			if (test_bit(mux_index, &sif->state)
 			    && (mux_index % 2 == 1))
 				continue;
 
+			if (test_bit(mux_index + SIF_DOL2_MODE, &sif->state))
+				continue;
+
 			//Frame start processing
-			sif_ctx = sif->sif_mux[mux_index].sub_ctx;
 			if ((status & 1 << mux_index)) {
+				group = sif->sif_mux[mux_index];
+				sif_ctx = group->sub_ctx[0];
+				if(sif_ctx->initial_frameid){
+					sif_enable_init_frameid(sif->base_reg, sif_ctx->rx_num, 0);
+					sif_ctx->initial_frameid = false;
+				}
 				sif_get_frameid_timestamps(sif->base_reg,
-							   mux_index, &sif_ctx->info);
+							   mux_index, &group->frameid);
 				gtask = &sif->sifout_task[mux_index];
 				up(&gtask->hw_resource);
 			}
 
 			if (status & 1 <<
 			    (mux_index + INTR_SIF_MUX0_FRAME_DONE)) {
-				sif_ctx->info.update = 1;
+			    sif_ctx = sif->sif_mux[mux_index]->sub_ctx[0];
 				sif_frame_done(sif_ctx);
 			}
 		}
@@ -790,7 +774,7 @@ static irqreturn_t sif_isr(int irq, void *data)
 	    && (irq_src.sif_out_int & 1 << SIF_ISP_OUT_FE)) {
 		gtask = &sif->sifin_task;
 		instance = atomic_read(&sif->instance);
-		sif_ctx = sif->sif_input[instance].sub_ctx;
+		sif_ctx = sif->sif_input[instance]->sub_ctx[0];
 		sif_frame_done(sif_ctx);
 
 		up(&gtask->hw_resource);
@@ -851,11 +835,25 @@ err_req_cdev:
 	return ret;
 }
 
+static ssize_t sif_reg_dump(struct device *dev,struct device_attribute *attr, char* buf)
+{
+	struct x2a_sif_dev *sif;
+
+	sif = dev_get_platdata(dev);
+
+	sif_hw_dump(sif->base_reg);
+
+	return 0;
+}
+
+static DEVICE_ATTR(regdump, 0444, sif_reg_dump, NULL);
+
 static int x2a_sif_probe(struct platform_device *pdev)
 {
 	int ret = 0;
 	struct x2a_sif_dev *sif;
 	struct resource *mem_res;
+	struct device *dev = NULL;
 
 	sif = kzalloc(sizeof(struct x2a_sif_dev), GFP_KERNEL);
 	if (!sif) {
@@ -903,6 +901,14 @@ static int x2a_sif_probe(struct platform_device *pdev)
 	spin_lock_init(&sif->shared_slock);
 
 	x2a_sif_device_node_init(sif);
+
+	dev = &pdev->dev;
+	ret = device_create_file(dev, &dev_attr_regdump);
+	if(ret < 0) {
+		vio_err("create regdump failed (%d)\n",ret);
+		goto p_err;
+	}
+	dev->platform_data = sif;
 
 	vio_info("[FRT:D] %s(%d)\n", __func__, ret);
 
@@ -995,8 +1001,8 @@ static void sif_timer(unsigned long data)
 		for (mux_index = 0; mux_index <= 7; mux_index++) {
 			//Frame start processing
 			if (sif_get_wdma_enable(sif->base_reg, mux_index)) {
-				sif_ctx = sif->sif_mux[mux_index].sub_ctx;
 				if ((irq_src.sif_frm_int & 1 << mux_index)) {
+					sif_ctx = sif->sif_mux[mux_index]->sub_ctx[0];
 					gtask = &sif->sifout_task[mux_index];
 					up(&gtask->hw_resource);
 					vio_info
@@ -1006,6 +1012,7 @@ static void sif_timer(unsigned long data)
 
 				mdelay(10);
 				if (irq_src.sif_frm_int & 1 << (mux_index + 8)) {
+					sif_ctx = sif->sif_mux[mux_index]->sub_ctx[0];
 					sif_frame_done(sif_ctx);
 					vio_info
 					    ("current FE interrupt mux = %d\n",
@@ -1020,7 +1027,7 @@ static void sif_timer(unsigned long data)
 	if ((irq_src.sif_out_int & 1 << SIF_ISP_OUT_FE)) {
 		gtask = &sif->sifin_task;
 		instance = atomic_read(&sif->instance);
-		sif_ctx = sif->sif_input[instance].sub_ctx;
+		sif_ctx = sif->sif_input[instance]->sub_ctx[0];
 		sif_frame_done(sif_ctx);
 
 		up(&gtask->hw_resource);

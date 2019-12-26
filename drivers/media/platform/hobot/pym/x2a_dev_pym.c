@@ -17,6 +17,7 @@
 #include <linux/uaccess.h>
 #include <asm/cacheflush.h>
 #include <linux/io.h>
+#include <linux/poll.h>
 
 #include "x2a_dev_pym.h"
 #include "pym_hw_api.h"
@@ -30,25 +31,10 @@ static int g_int_test = -1;
 static int timer_init(struct x2a_pym_dev *pym, int index);
 #endif
 
-struct pym_group *pym_get_group(struct x2a_pym_dev *pym)
-{
-	u32 stream;
-	struct pym_group *group;
-	for (stream = 0; stream < VIO_MAX_STREAM; ++stream) {
-		group = &pym->group[stream];
-		if (!test_bit(PYM_GROUP_OPEN, &group->state)) {
-			group->instance = stream;
-			return group;
-		}
-	}
-	return NULL;
-}
-
 static int x2a_pym_open(struct inode *inode, struct file *file)
 {
 	struct pym_video_ctx *pym_ctx;
 	struct x2a_pym_dev *pym;
-	struct pym_group *group;
 	int ret = 0;
 	int minor;
 
@@ -61,17 +47,6 @@ static int x2a_pym_open(struct inode *inode, struct file *file)
 		ret = -ENOMEM;
 		goto p_err;
 	}
-
-	group = pym_get_group(pym);
-	if (group == NULL) {
-		ret = -EBUSY;
-		vio_err("can get free group\n");
-		goto p_err;
-	}
-
-	group->sub_ctx[minor] = pym_ctx;
-	pym_ctx->group = group;
-	set_bit(PYM_GROUP_OPEN, &group->state);	//only one node,so group has only one member
 
 	init_waitqueue_head(&pym_ctx->done_wq);
 
@@ -96,18 +71,29 @@ static ssize_t x2a_pym_read(struct file *file, char __user *buf, size_t size,
 
 }
 
+static u32 x2a_pym_poll(struct file *file, struct poll_table_struct *wait)
+{
+	struct pym_video_ctx *pym_ctx;
+
+	pym_ctx = file->private_data;
+
+	poll_wait(file, &pym_ctx->done_wq, wait);
+
+	return POLLIN;
+}
+
 static int x2a_pym_close(struct inode *inode, struct file *file)
 {
 
 	struct pym_video_ctx *pym_ctx;
-	struct pym_group *group;
+	struct vio_group *group;
 	struct x2a_pym_dev *pym;
 
 	pym_ctx = file->private_data;
 	group = pym_ctx->group;
 	pym = pym_ctx->pym_dev;
 
-	clear_bit(PYM_GROUP_OPEN, &group->state);
+	clear_bit(VIO_GROUP_INIT, &group->state);
 
 	vio_group_task_stop(&pym->gtask);
 
@@ -138,47 +124,20 @@ void pym_set_buffers(struct x2a_pym_dev *pym, struct vio_frame *frame)
 	}
 }
 
-static void frame_work_function(struct kthread_work *work)
+static void pym_frame_work(struct vio_group *group)
 {
 	struct pym_video_ctx *ctx;
 	struct x2a_pym_dev *pym;
 	struct vio_framemgr *framemgr;
 	struct vio_frame *frame;
-	struct pym_group *group;
-	struct vio_group_task *gtask;
 	unsigned long flags;
-	bool try_rdown = false;
 	u32 instance = 0;
 	u8 shadow_index = 0;
-	int ret = 0;
 
-	frame = container_of(work, struct vio_frame, work);
-	group = (struct pym_group *) frame->data;
 	instance = group->instance;
 	ctx = group->sub_ctx[0];
 	pym = ctx->pym_dev;
 	shadow_index = instance % MAX_SHADOW_NUM;
-	gtask = &pym->gtask;
-
-	set_bit(VIO_GTASK_SHOT, &gtask->state);
-
-	if (unlikely(test_bit(VIO_GTASK_REQUEST_STOP, &gtask->state))) {
-		vio_err(" cancel by gstop0");
-		goto p_err_ignore;
-	}
-
-	ret = down_interruptible(&gtask->hw_resource);
-	if (ret) {
-		vio_err(" down fail(%d)", ret);
-		goto p_err_ignore;
-	}
-
-	try_rdown = true;
-
-	if (unlikely(test_bit(VIO_GTASK_SHOT_STOP, &gtask->state))) {
-		vio_err(" cancel by gstop1");
-		goto p_err_ignore;
-	}
 
 	pym_set_shd_rdy(pym->base_reg, shadow_index, 0);
 	pym_set_shd_select(pym->base_reg, shadow_index);
@@ -203,31 +162,9 @@ static void frame_work_function(struct kthread_work *work)
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 	//pym_hw_dump(pym->base_reg);
 	pym_set_shd_rdy(pym->base_reg, shadow_index, 1);
-
-	clear_bit(VIO_GTASK_SHOT, &gtask->state);
 	//msleep(10000);
 
 	return;
-
-p_err_ignore:
-	if (try_rdown)
-		up(&gtask->hw_resource);
-
-	clear_bit(VIO_GTASK_SHOT, &gtask->state);
-
-	return;
-}
-
-void pym_set_group_leader(struct pym_group *group, enum group_id id)
-{
-	if (id > GROUP_ID_MAX && id < GROUP_ID_SRC)
-		vio_err("wrong id");
-	else {
-		if (!test_bit(PYM_GROUP_LEADER, &group->state)) {
-			group->sub_ctx[id]->leader = true;
-			set_bit(PYM_GROUP_LEADER, &group->state);
-		}
-	}
 }
 
 void pym_update_param(struct pym_video_ctx *pym_ctx, pym_cfg_t *pym_config)
@@ -236,7 +173,7 @@ void pym_update_param(struct pym_video_ctx *pym_ctx, pym_cfg_t *pym_config)
 	u32 shadow_index;
 	int i = 0;
 	u32 base_layer_nums = 0;
-	struct pym_group *group;
+	struct vio_group *group;
 	struct x2a_pym_dev *pym;
 	struct roi_rect rect;
 
@@ -292,35 +229,81 @@ void pym_update_param(struct pym_video_ctx *pym_ctx, pym_cfg_t *pym_config)
 
 }
 
+int pym_bind_chain_group(struct pym_video_ctx *pym_ctx, int instance)
+{
+	int ret = 0;
+	struct vio_group *group;
+	struct x2a_pym_dev *pym;
+	struct vio_chain *chain;
+
+	if (!(pym_ctx->state & BIT(VIO_VIDEO_OPEN))) {
+		vio_err("[%s]invalid BIND is requested(%lX)",
+			__func__, pym_ctx->state);
+		return -EINVAL;
+	}
+
+	if(instance < 0 && instance >= VIO_MAX_STREAM){
+		vio_err("wrong instance id(%d)\n", instance);
+		return -EFAULT;
+	}
+
+	pym = pym_ctx->pym_dev;
+
+	group = vio_get_chain_group(instance, GROUP_ID_PYM);
+	group->sub_ctx[0] = pym_ctx;
+	pym->group[instance] = group;
+	pym_ctx->group = group;
+
+	group->frame_work = pym_frame_work;
+	group->gtask = &pym->gtask;
+
+	chain = group->chain;
+
+	vio_info("[%s]instance = %d\n", __func__, instance);
+	pym_ctx->state = BIT(VIO_VIDEO_S_INPUT);
+
+	return ret;
+}
+
 int pym_video_init(struct pym_video_ctx *pym_ctx, unsigned long arg)
 {
 	pym_cfg_t pym_config;
-	struct pym_group *group;
+	struct vio_group *group;
 	struct x2a_pym_dev *pym_dev;
 	int ret = 0;
 
 	group = pym_ctx->group;
 	pym_dev = pym_ctx->pym_dev;
 
-	if (!(pym_ctx->state & (BIT(VIO_VIDEO_OPEN) | BIT(VIO_VIDEO_REBUFS)))) {
+	if (!(pym_ctx->state & (BIT(VIO_VIDEO_S_INPUT) | BIT(VIO_VIDEO_REBUFS)))) {
 		vio_err("[V%02d] invalid INIT is requested(%lX)",
 			group->instance, pym_ctx->state);
 		return -EINVAL;
 	}
 
-	vio_info("pym_cfg_t length = %d\n", sizeof(pym_cfg_t));
 	ret = copy_from_user((char *) &pym_config,
 				(u32 __user *) arg, sizeof(pym_cfg_t));
 	if (ret)
 		return -EFAULT;
 
-	if (test_bit(PYM_OTF_INPUT, &pym_dev->state)
-	    && (pym_config.img_scr != 1)) {
-		vio_err("PYM otf input already,can't set dma input\n");
-		return -EINVAL;
-	} else if (pym_config.img_scr == 1)
-		set_bit(PYM_OTF_INPUT, &pym_dev->state);
-
+	if(pym_config.img_scr == 1){
+		if (test_bit(PYM_DMA_INPUT, &pym_dev->state)){
+		 	vio_err("PYM DMA input already,can't set otf input\n");
+			return -EINVAL;
+		}else{
+			set_bit(PYM_OTF_INPUT, &pym_dev->state);
+			set_bit(VIO_GROUP_OTF_INPUT, &group->state);
+		}
+	}else{
+		if (test_bit(PYM_OTF_INPUT, &pym_dev->state)) {
+			vio_err("PYM otf input already,can't set dma input\n");
+			return -EINVAL;
+		} else {
+			set_bit(PYM_DMA_INPUT, &pym_dev->state);
+			set_bit(VIO_GROUP_DMA_INPUT, &group->state);
+		}
+	}
+		
 	pym_update_param(pym_ctx, &pym_config);
 
 	vio_group_task_start(&pym_dev->gtask);	//TODO:move to open function;
@@ -333,8 +316,9 @@ int pym_video_init(struct pym_video_ctx *pym_ctx, unsigned long arg)
 int pym_video_streamon(struct pym_video_ctx *pym_ctx)
 {
 	struct x2a_pym_dev *pym_dev;
+	unsigned long flags;
+
 	pym_dev = pym_ctx->pym_dev;
-	unsigned long flag;
 
 	if (!(pym_ctx->state & (BIT(VIO_VIDEO_STOP) | BIT(VIO_VIDEO_REBUFS)))) {
 		vio_err("[V%02d] invalid STREAM ON is requested(%lX)",
@@ -345,7 +329,7 @@ int pym_video_streamon(struct pym_video_ctx *pym_ctx)
 	if (atomic_read(&pym_dev->rsccount) > 0)
 		goto p_inc;
 
-	spin_lock_irqsave(&pym_dev->shared_slock, flag);
+	spin_lock_irqsave(&pym_dev->shared_slock, flags);
 
 	pym_set_common_rdy(pym_dev->base_reg, 0);
 
@@ -357,7 +341,7 @@ int pym_video_streamon(struct pym_video_ctx *pym_ctx)
 	timer_init(pym_dev, 0);
 #endif
 
-	spin_unlock_irqrestore(&pym_dev->shared_slock, flag);
+	spin_unlock_irqrestore(&pym_dev->shared_slock, flags);
 
 p_inc:
 #if CONFIG_QEMU_TEST
@@ -427,10 +411,8 @@ int pym_video_reqbufs(struct pym_video_ctx *pym_ctx, u32 buffers)
 	struct vio_framemgr *framemgr;
 	int i = 0;
 
-	if (!
-	    (pym_ctx->
-	     state & (BIT(VIO_VIDEO_STOP) | BIT(VIO_VIDEO_REBUFS) |
-		      BIT(VIO_VIDEO_INIT)))) {
+	if (!(pym_ctx->state & (BIT(VIO_VIDEO_STOP) | BIT(VIO_VIDEO_REBUFS) |
+		      BIT(VIO_VIDEO_INIT)| BIT(VIO_VIDEO_S_INPUT)))) {
 		vio_err("[V%02d] invalid REQBUFS is requested(%lX)",
 			pym_ctx->group->instance, pym_ctx->state);
 		return -EINVAL;
@@ -444,8 +426,6 @@ int pym_video_reqbufs(struct pym_video_ctx *pym_ctx, u32 buffers)
 	}
 
 	for (i = 0; i < buffers; i++) {
-		kthread_init_work(&framemgr->frames[i].work,
-				  frame_work_function);
 		framemgr->frames[i].data = pym_ctx->group;
 	}
 
@@ -459,6 +439,7 @@ int pym_video_qbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 	int ret = 0;
 	struct vio_framemgr *framemgr;
 	struct vio_frame *frame;
+	struct vio_group *group;
 	unsigned long flags;
 	int index;
 
@@ -478,7 +459,9 @@ int pym_video_qbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
-	vio_group_start_trigger(&pym_ctx->pym_dev->gtask, frame);
+	group = pym_ctx->group;
+	if(group->leader == true)
+		vio_group_start_trigger(&pym_ctx->pym_dev->gtask, frame);
 
 	return ret;
 
@@ -508,7 +491,7 @@ int pym_video_dqbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 	return ret;
 }
 
-void pym_group_set_state(struct pym_group *group, unsigned long state)
+void pym_group_set_state(struct vio_group *group, unsigned long state)
 {
 	set_bit(state, &group->state);
 }
@@ -519,9 +502,10 @@ static long x2a_pym_ioctl(struct file *file, unsigned int cmd,
 	int ret = 0;
 	int buffers = 0;
 	int enable = 0;
+	int instance = 0;
 	struct pym_video_ctx *pym_ctx;
 	struct frame_info frameinfo;
-	struct pym_group *group;
+	struct vio_group *group;
 
 	pym_ctx = file->private_data;
 	BUG_ON(!pym_ctx);
@@ -568,8 +552,17 @@ static long x2a_pym_ioctl(struct file *file, unsigned int cmd,
 			return -EFAULT;
 		pym_video_reqbufs(pym_ctx, buffers);
 		break;
-	case PYM_IOC_EOS:
-		pym_group_set_state(group, PYM_GROUP_OPEN);
+	case PYM_IOC_END_OF_STREAM:
+		ret = get_user(instance, (u32 __user *) arg);
+		if (ret)
+			return -EFAULT;
+		vio_bind_group_done(instance);
+		break;
+	case PYM_IOC_BIND_GROUP:
+		ret = get_user(instance, (u32 __user *) arg);
+		if (ret)
+			return -EFAULT;
+		ret = pym_bind_chain_group(pym_ctx, instance);
 		break;
 	default:
 		vio_err("wrong ioctl command\n");
@@ -601,18 +594,18 @@ static irqreturn_t pym_isr(int irq, void *data)
 	u32 status;
 	struct x2a_pym_dev *pym;
 	u32 instance;
-	struct pym_group *group;
+	struct vio_group *group;
 	struct vio_group_task *gtask;
 
 	pym = data;
 	gtask = &pym->gtask;
 	instance = atomic_read(&pym->instance);
-	group = &pym->group[instance];
+	group = pym->group[instance];
 	pym_get_intr_status(pym->base_reg, &status, true);
 	vio_info("%s:status = 0x%x\n", __func__, status);
 
 	if (status & (1 << INTR_PYM_FRAME_DONE)) {
-		if (!test_bit(PYM_OTF_INPUT, &pym->state)) {
+		if (test_bit(PYM_DMA_INPUT, &pym->state)) {
 			up(&gtask->hw_resource);
 		}
 		pym_frame_done(group->sub_ctx[GROUP_ID_SRC]);
@@ -637,6 +630,7 @@ static struct file_operations x2a_pym_fops = {
 	.open = x2a_pym_open,
 	.write = x2a_pym_write,
 	.read = x2a_pym_read,
+	.poll = x2a_pym_poll,
 	.release = x2a_pym_close,
 	.unlocked_ioctl = x2a_pym_ioctl,
 	.compat_ioctl = x2a_pym_ioctl,
@@ -724,11 +718,25 @@ err_req_cdev:
 	return ret;
 }
 
+static ssize_t pym_reg_dump(struct device *dev,struct device_attribute *attr, char* buf)
+{
+	struct x2a_pym_dev *pym;
+
+	pym = dev_get_platdata(dev);
+
+	pym_hw_dump(pym->base_reg);
+
+	return 0;
+}
+
+static DEVICE_ATTR(regdump, 0444, pym_reg_dump, NULL);
+
 static int x2a_pym_probe(struct platform_device *pdev)
 {
 	int ret = 0;
 	struct x2a_pym_dev *pym;
 	struct resource *mem_res;
+	struct device *dev = NULL;
 
 	pym = kzalloc(sizeof(struct x2a_pym_dev), GFP_KERNEL);
 	if (!pym) {
@@ -769,6 +777,15 @@ static int x2a_pym_probe(struct platform_device *pdev)
 	}
 
 	x2a_pym_device_node_init(pym);
+
+	dev = &pdev->dev;
+	ret = device_create_file(dev, &dev_attr_regdump);
+	if(ret < 0) {
+		vio_err("create regdump failed (%d)\n",ret);
+		goto p_err;
+	}
+	dev->platform_data = pym;
+
 	atomic_set(&pym->gtask.refcount, 0);
 	spin_lock_init(&pym->shared_slock);
 	sema_init(&pym->gtask.hw_resource, 1);
@@ -847,13 +864,13 @@ static void pym_timer(unsigned long data)
 	u32 status;
 	struct x2a_pym_dev *pym;
 	u32 instance;
-	struct pym_group *group;
+	struct vio_group *group;
 	struct vio_group_task *gtask;
 
 	pym = (struct x2a_pym_dev *) data;
 	gtask = &pym->gtask;
 	instance = atomic_read(&pym->instance);
-	group = &pym->group[instance];
+	group = pym->group[instance];
 	pym_get_intr_status(pym->base_reg, &status, true);
 	status = g_test_bit;
 	mod_timer(&tm[0], jiffies + HZ / 25);

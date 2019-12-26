@@ -29,7 +29,7 @@ void ipu_set_input_img_size(void __iomem * base_addr, u8 shadow_index,
 		vio_hw_set_reg(base_addr, &ipu_regs[IPU_3_SRC_HEIGHT], height);
 		break;
 	default:
-		vio_err("invalid shadow index(%d) for ipu\n", shadow_index);
+		vio_err("[%s]invalid shadow index(%d) for ipu\n", __func__, shadow_index);
 		break;
 	}
 }
@@ -63,7 +63,7 @@ void ipu_set_rdma_stride(void __iomem * base_addr, u8 shadow_index,
 			       uv_stride);
 		break;
 	default:
-		vio_err("invalid shadow index(%d) for ipu\n", shadow_index);
+		vio_err("[%s]invalid shadow index(%d) for ipu\n", __func__, shadow_index);
 		break;
 	}
 }
@@ -97,7 +97,7 @@ void ipu_set_us_wdma_stride(void __iomem * base_addr, u8 shadow_index,
 			       uv_stride);
 		break;
 	default:
-		vio_err("invalid shadow index(%d) for ipu\n", shadow_index);
+		vio_err("[%s]invalid shadow index(%d) for ipu\n", __func__, shadow_index);
 		break;
 	}
 
@@ -140,7 +140,7 @@ void ipu_set_ds_wdma_stride(void __iomem * base_addr, u8 shadow_index, u8 ds_ch,
 					 2 * ds_ch], uv_stride);
 		break;
 	default:
-		vio_err("invalid shadow index(%d) for ipu\n", shadow_index);
+		vio_err("[%s]invalid shadow index(%d) for ipu\n", __func__, shadow_index);
 		break;
 	}
 
@@ -171,7 +171,7 @@ void ipu_set_ds_roi_enable(void __iomem * base_addr, u8 shadow_index, u8 ds_ch,
 				 &ipu_fields[IPU_F_US_ROI_EN], enable);
 		break;
 	default:
-		vio_err("invalid shadow index(%d) for ipu\n", shadow_index);
+		vio_err("[%s]invalid shadow index(%d) for ipu\n", __func__, shadow_index);
 		break;
 	}
 
@@ -238,7 +238,7 @@ void ipu_set_ds_roi_rect(void __iomem * base_addr, u8 shadow_index, u8 ds_ch,
 				 &ipu_fields[IPU_F_US_ROI_START_X], start_x);
 		break;
 	default:
-		vio_err("invalid shadow index(%d) for ipu\n", shadow_index);
+		vio_err("[%s]invalid shadow index(%d) for ipu\n", __func__, shadow_index);
 		break;
 	}
 	
@@ -269,7 +269,7 @@ void ipu_set_ds_enable(void __iomem * base_addr, u8 shadow_index, u8 ds_ch,
 				 &ipu_fields[IPU_F_DS_0_EN], enable);
 		break;
 	default:
-		vio_err("invalid shadow index(%d) for ipu\n", shadow_index);
+		vio_err("[%s]invalid shadow index(%d) for ipu\n", __func__, shadow_index);
 		break;
 	}
 }
@@ -295,7 +295,7 @@ void ipu_set_ds2_wdma_enable(void __iomem * base_addr, u8 shadow_index,
 				 &ipu_fields[IPU_F_DS_2_DDR_ENABLE], enable);
 		break;
 	default:
-		vio_err("invalid shadow index(%d) for ipu\n", shadow_index);
+		vio_err("[%s]invalid shadow index(%d) for ipu\n", __func__, shadow_index);
 		break;
 	}
 
@@ -342,7 +342,7 @@ void ipu_set_ds_target_size(void __iomem * base_addr, u8 shadow_index, u8 ds_ch,
 				 &ipu_fields[IPU_F_DS_0_TGT_WIDTH], tgt_width);
 		break;
 	default:
-		vio_err("invalid shadow index(%d) for ipu\n", shadow_index);
+		vio_err("[%s]invalid shadow index(%d) for ipu\n", __func__, shadow_index);
 		break;
 	}
 
@@ -409,7 +409,7 @@ void ipu_set_ds_step(void __iomem * base_addr, u8 shadow_index, u8 ds_ch,
 				 &ipu_fields[IPU_F_DS_0_STEP_X], step_x);
 		break;
 	default:
-		vio_err("invalid shadow index(%d) for ipu\n", shadow_index);
+		vio_err("[%s]invalid shadow index(%d) for ipu\n", __func__, shadow_index);
 		break;
 	}
 
@@ -435,7 +435,7 @@ void ipu_set_us_roi_enable(void __iomem * base_addr, u8 shadow_index, u8 enable)
 				 &ipu_fields[IPU_F_US_ROI_EN], enable);
 		break;
 	default:
-		vio_err("invalid shadow index(%d) for ipu\n", shadow_index);
+		vio_err("[%s]invalid shadow index(%d) for ipu\n", __func__, shadow_index);
 		break;
 	}
 }
@@ -485,7 +485,7 @@ void ipu_set_us_roi_rect(void __iomem * base_addr, u8 shadow_index, u16 start_x,
 				 &ipu_fields[IPU_F_US_ROI_WIDTH], width);
 		break;
 	default:
-		vio_err("invalid shadow index(%d) for ipu\n", shadow_index);
+		vio_err("[%s]invalid shadow index(%d) for ipu\n", __func__, shadow_index);
 		break;
 	}
 
@@ -511,7 +511,7 @@ void ipu_set_us_enable(void __iomem * base_addr, u8 shadow_index, bool enable)
 				 &ipu_fields[IPU_F_US_EN], enable);
 		break;
 	default:
-		vio_err("invalid shadow index(%d) for ipu\n", shadow_index);
+		vio_err("[%s]invalid shadow index(%d) for ipu\n", __func__, shadow_index);
 		break;
 	}
 }
@@ -561,7 +561,7 @@ void ipu_set_us_target(void __iomem * base_addr, u8 shadow_index, u16 step_x,
 				 &ipu_fields[IPU_F_US_STEP_X], step_x);
 		break;
 	default:
-		vio_err("invalid shadow index(%d) for ipu\n", shadow_index);
+		vio_err("[%s]invalid shadow index(%d) for ipu\n", __func__, shadow_index);
 		break;
 	}
 
@@ -591,7 +591,7 @@ void ipu_set_osd_enable(void __iomem * base_addr, u8 shadow_index, u32 osd_num,
 				 &ipu_fields[IPU_F_OSD_EN], enable << shift);
 		break;
 	default:
-		vio_err("invalid shadow index(%d) for ipu\n", shadow_index);
+		vio_err("[%s]invalid shadow index(%d) for ipu\n", __func__, shadow_index);
 		break;
 	}
 
@@ -625,7 +625,7 @@ void ipu_set_osd_overlay_mode(void __iomem * base_addr, u8 shadow_index,
 				 enable << shift);
 		break;
 	default:
-		vio_err("invalid shadow index(%d) for ipu\n", shadow_index);
+		vio_err("[%s]invalid shadow index(%d) for ipu\n", __func__, shadow_index);
 		break;
 	}
 
@@ -674,7 +674,7 @@ void ipu_set_osd_roi(void __iomem * base_addr, u8 shadow_index, u32 osd_num,
 			       rect);
 		break;
 	default:
-		vio_err("invalid shadow index(%d) for ipu\n", shadow_index);
+		vio_err("[%s]invalid shadow index(%d) for ipu\n", __func__, shadow_index);
 		break;
 	}
 
@@ -705,7 +705,7 @@ void ipu_set_osd_sta_enable(void __iomem * base_addr, u8 shadow_index,
 				 enable << osd_layer);
 		break;
 	default:
-		vio_err("invalid shadow index(%d) for ipu\n", shadow_index);
+		vio_err("[%s]invalid shadow index(%d) for ipu\n", __func__, shadow_index);
 		break;
 	}
 }
@@ -753,7 +753,7 @@ void ipu_set_osd_sta_roi(void __iomem * base_addr, u8 shadow_index, u32 osd_num,
 					 shift * 2], rect);
 		break;
 	default:
-		vio_err("invalid shadow index(%d) for ipu\n", shadow_index);
+		vio_err("[%s]invalid shadow index(%d) for ipu\n", __func__, shadow_index);
 		break;
 	}
 
@@ -784,7 +784,7 @@ void ipu_set_osd_sta_level(void __iomem * base_addr, u8 shadow_index,
 				 level);
 		break;
 	default:
-		vio_err("invalid shadow index(%d) for ipu\n", shadow_index);
+		vio_err("[%s]invalid shadow index(%d) for ipu\n", __func__, shadow_index);
 		break;
 	}
 }
@@ -813,7 +813,7 @@ void ipu_set_osd_addr(void __iomem * base_addr, u8 shadow_index, u32 osd_num,
 			       &ipu_regs[IPU_3_OSD_0_ROI_0_ADDR + shift], addr);
 		break;
 	default:
-		vio_err("invalid shadow index(%d) for ipu\n", shadow_index);
+		vio_err("[%s]invalid shadow index(%d) for ipu\n", __func__, shadow_index);
 		break;
 	}
 
@@ -893,40 +893,25 @@ void ipu_set_ds_wdma_addr(void __iomem * base_addr, u8 ds_ch, u32 y_addr,
 void ipu_get_osd_sta_bin(void __iomem * base_addr, u8 osd_num, u8 osd_layer,
 			 u16 * bin)
 {
-	switch (osd_layer) {
-	case 0:
-		*bin =
-		    vio_hw_get_field(base_addr,
-				     &ipu_regs[IPU_OSD_0_STA_0_BIN01 +
-					       2 * osd_num],
-				     &ipu_fields[IPU_F_OSD_0_STA_0_BIN_0_NUM]);
-		break;
-	case 1:
-		*bin =
-		    vio_hw_get_field(base_addr,
-				     &ipu_regs[IPU_OSD_0_STA_0_BIN01 +
-					       2 * osd_num],
-				     &ipu_fields[IPU_F_OSD_0_STA_0_BIN_1_NUM]);
-		break;
-	case 2:
-		*bin =
-		    vio_hw_get_field(base_addr,
-				     &ipu_regs[IPU_OSD_0_STA_0_BIN23 +
-					       2 * osd_num],
-				     &ipu_fields[IPU_F_OSD_0_STA_0_BIN_2_NUM]);
-		break;
-	case 3:
-		*bin =
-		    vio_hw_get_field(base_addr,
-				     &ipu_regs[IPU_OSD_0_STA_0_BIN23 +
-					       2 * osd_num],
-				     &ipu_fields[IPU_F_OSD_0_STA_0_BIN_3_NUM]);
-		break;
-	default:
-		vio_err("invalid shadow index(%d) for ipu\n", osd_layer);
-		break;
-	}
+	int shift;
 
+	if(osd_num < 3 && osd_layer < 8){
+		shift = osd_num * 16 + osd_layer * 2;
+
+		bin[0] = vio_hw_get_field(base_addr,
+				     &ipu_regs[IPU_OSD_0_STA_0_BIN01 + shift],
+				     &ipu_fields[IPU_F_OSD_STA_BIN_0_NUM]);
+		bin[1] = vio_hw_get_field(base_addr,
+				     &ipu_regs[IPU_OSD_0_STA_0_BIN01 + shift],
+				     &ipu_fields[IPU_F_OSD_STA_BIN_1_NUM]);
+		bin[2] = vio_hw_get_field(base_addr,
+				     &ipu_regs[IPU_OSD_0_STA_0_BIN23 + shift],
+				     &ipu_fields[IPU_F_OSD_STA_BIN_2_NUM]);
+		bin[3] = vio_hw_get_field(base_addr,
+				     &ipu_regs[IPU_OSD_0_STA_0_BIN23 + shift],
+				     &ipu_fields[IPU_F_OSD_STA_BIN_3_NUM]);
+	}else
+		vio_err("invalid osd_num (%d) osd_layer (%d) for ipu\n", osd_num, osd_layer);
 }
 
 void ipu_set_rdma_start(void __iomem * base_addr)

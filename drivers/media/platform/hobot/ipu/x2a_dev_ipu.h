@@ -18,6 +18,8 @@
 #define MAX_DEVICE  8
 #define IPU_IOC_MAGIC 'v'
 
+//#define X3_IAR_INTERFACE
+
 #define IPU_IOC_INIT             _IOW(IPU_IOC_MAGIC, 0, int)
 #define IPU_IOC_STREAM           _IOW(IPU_IOC_MAGIC, 1, int)
 #define IPU_IOC_QBUF        	 _IOW(IPU_IOC_MAGIC, 2, int)
@@ -29,6 +31,7 @@
 #define IPU_IOC_OSD_STA_LEVEL    _IOW(IPU_IOC_MAGIC, 8, int)
 #define IPU_IOC_OSD_STA_BIN      _IOR(IPU_IOC_MAGIC, 9, int)
 #define IPU_IOC_OSD_ADDR         _IOW(IPU_IOC_MAGIC, 10, int)
+#define IPU_IOC_BIND_GROUP       _IOW(IPU_IOC_MAGIC, 11, int)
 
 struct ipu_osd_cfg{
 	bool osd_box_update;
@@ -47,7 +50,7 @@ struct ipu_video_ctx {
 	struct x2a_ipu_dev *ipu_dev;
 
 	struct vio_framemgr framemgr;
-	struct ipu_group *group;
+	struct vio_group *group;
 	struct ipu_osd_cfg osd_cfg;
 	u32 group_id;
 	unsigned long state;
@@ -106,12 +109,6 @@ enum ipu_status {
 	IPU_DS2_DMA_OUTPUT,
 };
 
-struct ipu_group {
-	struct ipu_video_ctx *sub_ctx[MAX_DEVICE];
-	unsigned long state;
-	u32 instance;
-};
-
 struct x2a_ipu_dev {
 	/* channel information */
 	u32 __iomem *base_reg;
@@ -126,7 +123,7 @@ struct x2a_ipu_dev {
 	atomic_t instance;
 	atomic_t rsccount;
 
-	struct ipu_group group[VIO_MAX_STREAM];
+	struct vio_group *group[VIO_MAX_STREAM];
 	struct vio_group_task gtask;
 };
 

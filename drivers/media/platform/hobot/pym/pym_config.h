@@ -24,6 +24,7 @@ typedef struct pym_cfg_s {
  u16 ds_layer_en;
  u8  us_layer_en;
  u8  us_uv_bypass;
+ int timeout;
  pym_scale_box_t stds_box[MAX_PYM_DS_COUNT];
  pym_scale_box_t stus_box[MAX_PYM_US_COUNT];
 } pym_cfg_t;

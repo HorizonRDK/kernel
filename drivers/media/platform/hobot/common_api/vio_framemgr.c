@@ -13,6 +13,8 @@
 #include <linux/bug.h>
 
 #include "vio_framemgr.h"
+#include "vio_group_api.h"
+
 int frame_fcount(struct vio_frame *frame, void *data)
 {
 	return frame->fcount - (u32)(ulong)data;
@@ -151,6 +153,61 @@ void print_frame_info_queue(struct vio_framemgr *this,
 	vio_cont("X\n");
 }
 
+void frame_work_function(struct kthread_work *work)
+{
+	struct vio_frame *frame;
+	struct vio_group *group;
+	struct vio_group *leader;
+	struct vio_group_task *gtask;
+	bool try_rdown = false;
+	int ret = 0;
+
+	frame = container_of(work, struct vio_frame, work);
+	leader = (struct vio_group *) frame->data;
+	gtask = leader->gtask;
+
+	set_bit(VIO_GTASK_SHOT, &gtask->state);
+
+	if (unlikely(test_bit(VIO_GTASK_REQUEST_STOP, &gtask->state))) {
+		vio_err(" cancel by gstop0");
+		goto p_err_ignore;
+	}
+
+	ret = down_interruptible(&gtask->hw_resource);
+	if (ret) {
+		vio_err(" down fail(%d)", ret);
+		goto p_err_ignore;
+	}
+
+	try_rdown = true;
+
+	if (unlikely(test_bit(VIO_GTASK_SHOT_STOP, &gtask->state))) {
+		vio_err(" cancel by gstop1");
+		goto p_err_ignore;
+	}
+
+	group = leader;
+	while(group->next){
+		group = group->next;
+		vio_info("%s 1111111\n", __func__);
+		if(group->frame_work)
+			group->frame_work(group);
+	}
+
+	leader->frame_work(leader);
+	clear_bit(VIO_GTASK_SHOT, &gtask->state);
+
+	return;
+
+p_err_ignore:
+	if (try_rdown)
+		up(&gtask->hw_resource);
+
+	clear_bit(VIO_GTASK_SHOT, &gtask->state);
+
+	return;
+}
+
 int frame_manager_open(struct vio_framemgr *this, u32 buffers)
 {
 	u32 i;
@@ -177,7 +234,9 @@ int frame_manager_open(struct vio_framemgr *this, u32 buffers)
 	for (i = 0; i < buffers; ++i) {
 		this->frames[i].index = i;
 		put_frame(this, &this->frames[i], FS_FREE);
+		kthread_init_work(&this->frames[i].work, frame_work_function);
 	}
+
 	spin_unlock_irqrestore(&this->slock, flag);
 	return 0;
 }

@@ -71,13 +71,8 @@ static void sif_enable_mux_out(u32 __iomem *base_reg, u32 mux_index, u32 ipi_ind
 		vio_hw_set_field(base_reg, &sif_regs[SIF_MUX_OUT_SEL],
 				&sif_fields[SW_SIF_MUX0_OUT_SELECT - mux_index], ipi_index);
 	}
-
+	vio_info("mux_index = %d, ipi_index = %d\n", mux_index, ipi_index);
 	if (lines == 2) {
-		if (mux_index % 2 != 0) {
-			vio_err("Mux Out must be even while lines == 2: %d", mux_index);
-			return;
-		}
-
 		switch (mux_index) {
 			case 0:
 				vio_hw_set_field(base_reg, &sif_regs[SIF_MUX_OUT_MODE],
@@ -441,6 +436,49 @@ void sif_config_mipi_rx(u32 __iomem *base_reg, u32 index, sif_data_desc_t *data)
 	}
 
 }
+
+void sif_enable_ipi_init_frameid(u32 __iomem *base_reg, u32 index, u32 vc_channel, bool enable)
+{
+	switch(index){
+		case 0:
+			vio_hw_set_field(base_reg, &sif_regs[SIF_FRM_ID_RX0_IPI0_CFG + vc_channel],
+						&sif_fields[SW_RX0_IPI0_FRAME_ID_SET_EN + 3 * vc_channel], enable);
+			break;
+		case 1:
+			vio_hw_set_field(base_reg, &sif_regs[SIF_FRM_ID_RX1_IPI0_CFG + vc_channel],
+						&sif_fields[SW_RX1_IPI0_FRAME_ID_SET_EN + 3 * vc_channel], enable);
+			break;
+		case 2:
+			vio_hw_set_field(base_reg, &sif_regs[SIF_FRM_ID_RX2_IPI0_CFG + vc_channel],
+						&sif_fields[SW_RX2_IPI0_FRAME_ID_SET_EN + 3 * vc_channel], enable);
+			break;
+		case 3:
+			vio_hw_set_field(base_reg, &sif_regs[SIF_FRM_ID_RX3_IPI0_CFG + vc_channel],
+						&sif_fields[SW_RX3_IPI0_FRAME_ID_SET_EN + 3 * vc_channel], enable);
+			break;
+		default:
+			vio_err("wrong mipi rx index(%d)\n", index);
+			break;
+	}
+}
+
+void sif_enable_init_frameid(u32 __iomem *base_reg, u32 index, bool enable)
+{
+	int ipi_channels = 0;
+	int  i = 0;
+
+	if(index == 0 || index == 1)
+		ipi_channels = 4;
+	else if(index == 2 || index == 3)
+		ipi_channels = 2;
+
+	for(i =0; i < ipi_channels; i++)
+		sif_enable_ipi_init_frameid(base_reg, index, i, enable);
+
+	// Shadow Update: IPI + DVP
+	vio_hw_set_reg(base_reg, &sif_regs[SIF_SHD_UP_RDY], 0xFFFFFFFF);
+}
+
 void sif_config_rx_ipi(u32 __iomem *base_reg, u32 index, u32 vc_channel, sif_input_mipi_t* p_mipi)
 {
 	u32 enable_frame_id   = p_mipi->func.enable_frame_id;
@@ -449,11 +487,11 @@ void sif_config_rx_ipi(u32 __iomem *base_reg, u32 index, u32 vc_channel, sif_inp
 
 	switch(index){
 		case 0:
-			vio_hw_set_field(base_reg, &sif_regs[SIF_MIPI_RX0_CFG0],
+			vio_hw_set_field(base_reg, &sif_regs[SIF_MIPI_RX0_CFG0 + vc_channel],
 					&sif_fields[SW_MIPI_RX0_IPI0_ENABLE + 3 * vc_channel], p_mipi->enable);
-			vio_hw_set_field(base_reg, &sif_regs[SIF_MIPI_RX0_CFG0],
+			vio_hw_set_field(base_reg, &sif_regs[SIF_MIPI_RX0_CFG0 + vc_channel],
 					&sif_fields[SW_MIPI_RX0_IPI0_HEIGHT + 3 * vc_channel], p_mipi->data.height);
-			vio_hw_set_field(base_reg, &sif_regs[SIF_MIPI_RX0_CFG0],
+			vio_hw_set_field(base_reg, &sif_regs[SIF_MIPI_RX0_CFG0 + vc_channel],
 					&sif_fields[SW_MIPI_RX0_IPI0_WIDTH + 3 * vc_channel], p_mipi->data.width);
 			vio_hw_set_field(base_reg, &sif_regs[SIF_FRM_ID_RX0_IPI0_CFG + vc_channel],
 					&sif_fields[SW_RX0_IPI0_FRAME_ID_ENABLE + 3 * vc_channel], enable_frame_id);
@@ -472,11 +510,11 @@ void sif_config_rx_ipi(u32 __iomem *base_reg, u32 index, u32 vc_channel, sif_inp
 						&sif_fields[SW_SIF_RX0_IPI0_V_ERROR_MASK - vc_channel], 0);
 			break;
 		case 1:
-			vio_hw_set_field(base_reg, &sif_regs[SIF_MIPI_RX1_CFG0],
+			vio_hw_set_field(base_reg, &sif_regs[SIF_MIPI_RX1_CFG0 + vc_channel],
 					&sif_fields[SW_MIPI_RX1_IPI0_ENABLE + 3 * vc_channel], p_mipi->enable);
-			vio_hw_set_field(base_reg, &sif_regs[SIF_MIPI_RX1_CFG0],
+			vio_hw_set_field(base_reg, &sif_regs[SIF_MIPI_RX1_CFG0 + vc_channel],
 					&sif_fields[SW_MIPI_RX1_IPI0_HEIGHT + 3 * vc_channel], p_mipi->data.height);
-			vio_hw_set_field(base_reg, &sif_regs[SIF_MIPI_RX1_CFG0],
+			vio_hw_set_field(base_reg, &sif_regs[SIF_MIPI_RX1_CFG0 + vc_channel],
 					&sif_fields[SW_MIPI_RX1_IPI0_WIDTH + 3 * vc_channel], p_mipi->data.width);
 			vio_hw_set_field(base_reg, &sif_regs[SIF_FRM_ID_RX1_IPI0_CFG + vc_channel],
 					&sif_fields[SW_RX1_IPI0_FRAME_ID_ENABLE + 3 * vc_channel], enable_frame_id);
@@ -496,11 +534,11 @@ void sif_config_rx_ipi(u32 __iomem *base_reg, u32 index, u32 vc_channel, sif_inp
 
 			break;
 		case 2:
-			vio_hw_set_field(base_reg, &sif_regs[SIF_MIPI_RX2_CFG0],
+			vio_hw_set_field(base_reg, &sif_regs[SIF_MIPI_RX2_CFG0 + vc_channel],
 					&sif_fields[SW_MIPI_RX2_IPI0_ENABLE + 3 * vc_channel], p_mipi->enable);
-			vio_hw_set_field(base_reg, &sif_regs[SIF_MIPI_RX2_CFG0],
+			vio_hw_set_field(base_reg, &sif_regs[SIF_MIPI_RX2_CFG0 + vc_channel],
 					&sif_fields[SW_MIPI_RX2_IPI0_HEIGHT + 3 * vc_channel], p_mipi->data.height);
-			vio_hw_set_field(base_reg, &sif_regs[SIF_MIPI_RX2_CFG0],
+			vio_hw_set_field(base_reg, &sif_regs[SIF_MIPI_RX2_CFG0 + vc_channel],
 					&sif_fields[SW_MIPI_RX2_IPI0_WIDTH + 3 * vc_channel], p_mipi->data.width);
 			vio_hw_set_field(base_reg, &sif_regs[SIF_FRM_ID_RX2_IPI0_CFG + vc_channel],
 					&sif_fields[SW_RX2_IPI0_FRAME_ID_ENABLE + 3 * vc_channel], enable_frame_id);
@@ -520,11 +558,11 @@ void sif_config_rx_ipi(u32 __iomem *base_reg, u32 index, u32 vc_channel, sif_inp
 
 			break;
 		case 3:
-			vio_hw_set_field(base_reg, &sif_regs[SIF_MIPI_RX3_CFG0],
+			vio_hw_set_field(base_reg, &sif_regs[SIF_MIPI_RX3_CFG0 + vc_channel],
 					&sif_fields[SW_MIPI_RX3_IPI0_ENABLE + 3 * vc_channel], p_mipi->enable);
-			vio_hw_set_field(base_reg, &sif_regs[SIF_MIPI_RX3_CFG0],
+			vio_hw_set_field(base_reg, &sif_regs[SIF_MIPI_RX3_CFG0 + vc_channel],
 					&sif_fields[SW_MIPI_RX3_IPI0_HEIGHT + 3 * vc_channel], p_mipi->data.height);
-			vio_hw_set_field(base_reg, &sif_regs[SIF_MIPI_RX3_CFG0],
+			vio_hw_set_field(base_reg, &sif_regs[SIF_MIPI_RX3_CFG0 + vc_channel],
 					&sif_fields[SW_MIPI_RX3_IPI0_WIDTH + 3 * vc_channel], p_mipi->data.width);
 			vio_hw_set_field(base_reg, &sif_regs[SIF_FRM_ID_RX3_IPI0_CFG + vc_channel],
 					&sif_fields[SW_RX3_IPI0_FRAME_ID_ENABLE + 3 * vc_channel], enable_frame_id);
@@ -622,11 +660,11 @@ static void sif_set_mipi_rx(u32 __iomem *base_reg, sif_input_mipi_t* p_mipi)
 			mux_out_index = p_mipi->func.set_mux_out_index + i;
 			if ((p_mipi->channels > 1) /*&& (p_mipi->func.enable_mux_reverse)*/) {
 				if (p_mipi->channels == 3) {
-					const u32 reorder[3] = {2, 1, 0};
+					const u32 reorder[3] = {0, 1, 2};
 					mux_out_index = p_mipi->func.set_mux_out_index + reorder[i];
 				}
 				else if (p_mipi->channels == 2) {
-					const u32 reorder[2] = {1, 0};
+					const u32 reorder[2] = {0, 1};
 					mux_out_index = p_mipi->func.set_mux_out_index + reorder[i];
 				}
 			}
@@ -720,7 +758,7 @@ void sif_transfer_ddr_owner(u32 __iomem *base_reg, u32 mux_out_index, u32 buf_in
  * @param buf_index index of buffer on the specific mux ou
  *
  */
-static u32 sif_get_ddr_addr(u32 __iomem *base_reg, u32 mux_out_index, u32 buf_index)
+u32 sif_get_ddr_addr(u32 __iomem *base_reg, u32 mux_out_index, u32 buf_index)
 {
 	u32 phyaddr = 0;
 
@@ -850,8 +888,9 @@ static void sif_set_ipu_output(u32 __iomem *base_reg, sif_output_ipu_t* p_ipu)
 	if (p_ipu->enable_flyby) {
 
 		// The format to IPU must be YUV422
-		vio_hw_set_field(base_reg, &sif_regs[SIF_YUV422_TRANS],
-				&sif_fields[SW_YUV422TO420SP_MUX01_ENABLE], 0);
+		vio_hw_set_reg(base_reg, &sif_regs[SIF_YUV422_TRANS], 0);
+		// otf to ipu doesn't pass axi/iram
+		sif_disable_wdma(base_reg);
 	}
 
 }
@@ -870,8 +909,10 @@ void sif_hw_config(u32 __iomem *base_reg, sif_cfg_t* c)
 {
 	u32 enable_output_ddr = 0;
 	u32 yuv_format = 0;
+	u32 dol_exp_num = 0;
 	sif_output_ddr_t ddr;
 	//vio_hw_set_reg(base_reg, &sif_regs[SIF_MUX_OUT_MODE], 0);
+	sif_disable_wdma(base_reg);
 
 	// Input: IAR
 	sif_set_iar_input(base_reg, &c->input.iar);
@@ -885,13 +926,22 @@ void sif_hw_config(u32 __iomem *base_reg, sif_cfg_t* c)
 	// output: ddr
 	sif_set_ddr_output(base_reg, &c->output.ddr, &enable_output_ddr);
 
-	yuv_format = !!c->input.mipi.data.format;
-	if(yuv_format){
-		memcpy(&ddr, &c->output.ddr, sizeof(sif_output_ddr_t));
-		ddr.mux_index += 1;
-		sif_set_ddr_output(base_reg, &ddr, &enable_output_ddr);
+	if(enable_output_ddr){
+		yuv_format = !!c->input.mipi.data.format;
+		dol_exp_num = c->output.isp.dol_exp_num;
+		if(yuv_format || dol_exp_num > 1){
+			memcpy(&ddr, &c->output.ddr, sizeof(sif_output_ddr_t));
+			ddr.mux_index += 1;
+			sif_set_ddr_output(base_reg, &ddr, &enable_output_ddr);
+		}
+
+		if(dol_exp_num > 2){
+			memcpy(&ddr, &c->output.ddr, sizeof(sif_output_ddr_t));
+			ddr.mux_index += 2;
+			sif_set_ddr_output(base_reg, &ddr, &enable_output_ddr);
+		}
 	}
-		
+
 	if (enable_output_ddr) {
 		vio_hw_set_field(base_reg, &sif_regs[SIF_SETTING],
 				&sif_fields[SW_SIF_OWNBIT_UNDERRUN_SKIP_FRM_ENABLE], 1);
@@ -952,6 +1002,22 @@ static void sif_disable_input_and_output(u32 __iomem *base_reg)
 	sif_stop_pattern_gen(base_reg);
 	// Clear: YUV Transform
 	vio_hw_set_reg(base_reg, &sif_regs[SIF_YUV422_TRANS], 0);
+
+	//clear frame id
+	vio_hw_set_reg(base_reg, &sif_regs[SIF_FRM_ID_RX0_IPI0_CFG], 0);
+	vio_hw_set_reg(base_reg, &sif_regs[SIF_FRM_ID_RX0_IPI1_CFG], 0);
+	vio_hw_set_reg(base_reg, &sif_regs[SIF_FRM_ID_RX0_IPI2_CFG], 0);
+	vio_hw_set_reg(base_reg, &sif_regs[SIF_FRM_ID_RX0_IPI3_CFG], 0);
+
+	vio_hw_set_reg(base_reg, &sif_regs[SIF_FRM_ID_RX1_IPI0_CFG], 0);
+	vio_hw_set_reg(base_reg, &sif_regs[SIF_FRM_ID_RX1_IPI1_CFG], 0);
+	vio_hw_set_reg(base_reg, &sif_regs[SIF_FRM_ID_RX1_IPI2_CFG], 0);
+	vio_hw_set_reg(base_reg, &sif_regs[SIF_FRM_ID_RX1_IPI3_CFG], 0);
+
+	vio_hw_set_reg(base_reg, &sif_regs[SIF_FRM_ID_RX2_IPI0_CFG], 0);
+	vio_hw_set_reg(base_reg, &sif_regs[SIF_FRM_ID_RX2_IPI1_CFG], 0);
+	vio_hw_set_reg(base_reg, &sif_regs[SIF_FRM_ID_RX3_IPI0_CFG], 0);
+	vio_hw_set_reg(base_reg, &sif_regs[SIF_FRM_ID_RX3_IPI1_CFG], 0);
 
 	// Clear: All IPI
 	vio_hw_set_field(base_reg, &sif_regs[SIF_MIPI_RX0_CFG0],
@@ -1105,6 +1171,7 @@ void sif_get_frameid_timestamps(u32 __iomem *base_reg, u32 mux, struct frame_id 
 
 	info->timestamp_l = vio_hw_get_reg(base_reg, &sif_regs[SIF_TIMESTAMP0_LSB + mux*2]);
 	info->timestamp_m = vio_hw_get_reg(base_reg, &sif_regs[SIF_TIMESTAMP0_MSB + mux*2]);
+	vio_info("frame id = %d\n", info->frame_id);
 }
 
 u32 sif_get_current_bufindex(u32 __iomem *base_reg, u32 mux)

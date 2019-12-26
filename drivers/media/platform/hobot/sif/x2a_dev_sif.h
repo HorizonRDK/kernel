@@ -17,11 +17,14 @@
 
 #define SIF_IOC_MAGIC 'x'
 
-#define SIF_IOC_INIT             _IOW(SIF_IOC_MAGIC, 5, sif_cfg_t)
+#define SIF_IOC_INIT             _IOW(SIF_IOC_MAGIC, 0, sif_cfg_t)
 #define SIF_IOC_STREAM           _IOW(SIF_IOC_MAGIC, 1, int)
 #define SIF_IOC_QBUF        	 _IOW(SIF_IOC_MAGIC, 2, int)
 #define SIF_IOC_DQBUF       	 _IOR(SIF_IOC_MAGIC, 3, int)
 #define SIF_IOC_REQBUFS       	 _IOW(SIF_IOC_MAGIC, 4, int)
+#define SIF_IOC_BIND_GROUP       _IOW(SIF_IOC_MAGIC, 5, int)
+#define SIF_IOC_END_OF_STREAM    _IOW(SIF_IOC_MAGIC, 6, int)
+
 
 #define SIF_YUV_INPUT	8
 
@@ -85,34 +88,21 @@ enum sif_group_state {
 	SIF_GROUP_LEADER,
 };
 
-struct frame_id{
-	bool update;
-	u32 frame_id;
-	u32 timestamp_m;
-	u32 timestamp_l;
-};
-
 struct sif_video_ctx{
 	wait_queue_head_t		done_wq;
-	struct x2a_sif_dev 		*sif_dev;
-
 	struct vio_framemgr 	framemgr;
-	struct sif_group		*group;
+	struct vio_group		*group;
+	unsigned long			state;
 
 	u32 mux_index;
+	u32 dol_num;
 	u32 id;
+	u32 rx_num;
+	bool initial_frameid;
 	u64 bufcount;
 	struct frame_id			info;
-
-	unsigned long			state;
+	struct x2a_sif_dev 		*sif_dev;
 	struct semaphore 		smp_resource;
-};
-
-struct sif_group{
-	struct sif_video_ctx *sub_ctx;
-	unsigned long				state;
-	u32 instance;
-	u32 id;
 };
 
 enum sif_state {
@@ -120,6 +110,7 @@ enum sif_state {
 	SIF_OTF_OUTPUT = 10,
 	/* WDMA flag */
 	SIF_DMA_IN_ENABLE,
+	SIF_DOL2_MODE,
 };
 
 struct x2a_sif_dev {
@@ -136,8 +127,8 @@ struct x2a_sif_dev {
 	atomic_t			rsccount;
 	spinlock_t			shared_slock;
 
-	struct sif_group		sif_input[VIO_MAX_STREAM];
-	struct sif_group		sif_mux[SIF_MUX_MAX];
+	struct vio_group		*sif_input[VIO_MAX_STREAM];
+	struct vio_group		*sif_mux[SIF_MUX_MAX];
 
 	struct vio_group_task	sifin_task;
 	struct vio_group_task	sifout_task[SIF_MUX_MAX];

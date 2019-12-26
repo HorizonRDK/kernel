@@ -100,6 +100,7 @@ typedef struct ipu_src_ctrl_s {
 	uint8_t us_frame_id_en;
 	uint8_t ds_frame_id_en[MAX_DS_NUM];
 	uint8_t ds2_to_pym_en;
+	int timeout;
 } ipu_src_ctrl_t;
 
 typedef struct ipu_cfg_s {

@@ -21,7 +21,8 @@
 #define PYM_IOC_QBUF        	 _IOW(PYM_IOC_MAGIC, 2, int)
 #define PYM_IOC_DQBUF       	 _IOR(PYM_IOC_MAGIC, 3, int)
 #define PYM_IOC_REQBUFS       	 _IOW(PYM_IOC_MAGIC, 4, int)
-#define PYM_IOC_EOS       	 	 _IOW(PYM_IOC_MAGIC, 5, int)
+#define PYM_IOC_END_OF_STREAM    _IOW(PYM_IOC_MAGIC, 5, int)
+#define PYM_IOC_BIND_GROUP       _IOW(PYM_IOC_MAGIC, 6, int)
 
 struct roi_rect {
 	u16 roi_x;
@@ -32,13 +33,11 @@ struct roi_rect {
 
 struct pym_video_ctx {
 	wait_queue_head_t done_wq;
-	struct x2a_pym_dev *pym_dev;
-
 	struct vio_framemgr framemgr;
-	struct pym_group *group;
-
+	struct vio_group *group;
 	unsigned long state;
 
+	struct x2a_pym_dev *pym_dev;
 	bool leader;
 };
 
@@ -68,11 +67,7 @@ enum pym_status {
 	PYM_OTF_INPUT,
 	PYM_DMA_INPUT,
 };
-struct pym_group {
-	struct pym_video_ctx *sub_ctx[MAX_DEVICE];
-	unsigned long state;
-	u32 instance;
-};
+
 
 struct x2a_pym_dev {
 	/* channel information */
@@ -89,7 +84,7 @@ struct x2a_pym_dev {
 	atomic_t rsccount;
 	spinlock_t shared_slock;
 
-	struct pym_group group[VIO_MAX_STREAM];
+	struct vio_group *group[VIO_MAX_STREAM];
 	struct vio_group_task gtask;
 };
 
