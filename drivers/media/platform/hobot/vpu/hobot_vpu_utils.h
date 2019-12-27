@@ -1,3 +1,8 @@
+/***************************************************************************
+ *                      COPYRIGHT NOTICE
+ *             Copyright 2019 Horizon Robotics, Inc.
+ *                     All rights reserved.
+ ***************************************************************************/
 #ifndef __HOBOT_VPU_UTILS_H__
 #define __HOBOT_VPU_UTILS_H__
 
@@ -22,6 +27,13 @@
 
 #define VPU_PLATFORM_DEVICE_NAME "hb_vpu"
 #define VPU_CLK_NAME "vcodec"
+
+typedef enum _hb_vpu_event_e {
+	VPU_EVENT_NONE = 0,
+	VPU_ENC_PIC_DONE = 1,
+	VPU_DEC_PIC_DONE = 2,
+	VPU_INST_CLOSED = 3,
+} hb_vpu_event_t;
 
 typedef struct _hb_vpu_driver_data {
 	char *fw_name;
@@ -73,6 +85,9 @@ typedef struct _hb_vpu_dev {
 #endif
 
 #ifdef SUPPORT_MULTI_INST_INTR
+	wait_queue_head_t poll_wait_q[MAX_NUM_VPU_INSTANCE];
+	hb_vpu_event_t poll_event[MAX_NUM_VPU_INSTANCE];
+	spinlock_t poll_spinlock;
 	wait_queue_head_t interrupt_wait_q[MAX_NUM_VPU_INSTANCE];
 	int interrupt_flag[MAX_NUM_VPU_INSTANCE];
 	struct kfifo interrupt_pending_q[MAX_NUM_VPU_INSTANCE];
@@ -100,5 +115,10 @@ typedef struct _hb_vpu_dev {
 	hb_vpu_drv_buffer_t instance_pool;
 	hb_vpu_drv_buffer_t common_memory;
 } hb_vpu_dev_t;
+
+typedef struct _hb_vpu_priv {
+	hb_vpu_dev_t *vpu_dev;
+	u32 inst_index;
+} hb_vpu_priv_t;
 
 #endif /* __HOBOT_VPU_UTILS_H__ */

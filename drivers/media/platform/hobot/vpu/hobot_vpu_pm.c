@@ -1,3 +1,8 @@
+/***************************************************************************
+ *                      COPYRIGHT NOTICE
+ *             Copyright 2019 Horizon Robotics, Inc.
+ *                     All rights reserved.
+ ***************************************************************************/
 #include <linux/platform_device.h>
 #include "hobot_vpu_pm.h"
 #include "hobot_vpu_debug.h"

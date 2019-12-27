@@ -1,3 +1,8 @@
+/***************************************************************************
+ *                      COPYRIGHT NOTICE
+ *             Copyright 2019 Horizon Robotics, Inc.
+ *                     All rights reserved.
+ ***************************************************************************/
 #ifndef __HOBOT_VPU_USER_H_
 #define __HOBOT_VPU_USER_H_
 
@@ -74,4 +79,6 @@ typedef struct _hb_vpu_drv_intr {
 	_IOR(VDI_IOCTL_MAGIC, 14, int)
 #define VDI_IOCTL_FREE_INSTANCE_ID				\
 	_IOW(VDI_IOCTL_MAGIC, 15, int)
+#define VDI_IOCTL_POLL_WAIT_INSTANCE				\
+	_IOW(VDI_IOCTL_MAGIC, 16, hb_vpu_drv_intr_t)
 #endif /* HOBOT_VPU_USER_H_ */

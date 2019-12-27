@@ -1,4 +1,9 @@
 #ifndef __HOBOT_VPU_CONFIG_H_
+/***************************************************************************
+ *                      COPYRIGHT NOTICE
+ *             Copyright 2019 Horizon Robotics, Inc.
+ *                     All rights reserved.
+ ***************************************************************************/
 #define __HOBOT_VPU_CONFIG_H_
 
 /* definitions to be changed as customer  configuration */

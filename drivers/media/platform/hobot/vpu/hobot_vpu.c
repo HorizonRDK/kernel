@@ -1,3 +1,8 @@
+/***************************************************************************
+ *                      COPYRIGHT NOTICE
+ *             Copyright 2019 Horizon Robotics, Inc.
+ *                     All rights reserved.
+ ***************************************************************************/
 #include <linux/kernel.h>
 #include <linux/mm.h>
 #include <linux/interrupt.h>
@@ -12,6 +17,8 @@
 #include <linux/slab.h>
 #include <linux/sched.h>
 #include <linux/version.h>
+#include <linux/poll.h>
+#include <linux/eventpoll.h>
 
 #include "hobot_vpu_buf.h"
 #include "hobot_vpu_ctl.h"
@@ -126,14 +133,15 @@ static int vpu_free_instances(struct file *filp)
 	void *vdi_mutexes_base;
 	const int PTHREAD_MUTEX_T_DESTROY_VALUE = 0xdead10cc;
 	hb_vpu_dev_t *dev;
+	hb_vpu_priv_t *priv;
 
 	vpu_debug_enter();
 	if (!filp) {
 		vpu_err("failed to free instances, filp is null.");
 		return -1;
 	}
-	dev = filp->private_data;
-
+	priv = filp->private_data;
+	dev = priv->vpu_dev;
 	if (!dev) {
 		vpu_err("failed to free instances, dev is null.");
 		return -1;
@@ -194,12 +202,14 @@ static int vpu_free_buffers(struct file *filp)
 	hb_vpu_drv_buffer_pool_t *pool, *n;
 	hb_vpu_drv_buffer_t vb;
 	hb_vpu_dev_t *dev;
+	hb_vpu_priv_t *priv;
 	vpu_debug_enter();
 	if (!filp) {
 		vpu_err("failed to free vpu buffers, filp is null.");
 		return -1;
 	}
-	dev = filp->private_data;
+	priv = filp->private_data;
+	dev = priv->vpu_dev;
 
 	if (!dev) {
 		vpu_err("failed to free vpu buffers, dev is null.");
@@ -515,6 +525,15 @@ static irqreturn_t vpu_irq_handler(int irq, void *dev_id)
 	if (intr_inst_index >= 0 && intr_inst_index < MAX_NUM_VPU_INSTANCE) {
 		dev->interrupt_flag[intr_inst_index] = 1;
 		wake_up_interruptible(&dev->interrupt_wait_q[intr_inst_index]);
+		if ((intr_reason == (1 << INT_WAVE5_DEC_PIC))
+			|| (intr_reason == (1 << INT_WAVE5_ENC_PIC))) {
+			spin_lock(&dev->poll_spinlock);
+			dev->poll_event[intr_inst_index] =
+				(intr_reason == (1 << INT_WAVE5_ENC_PIC)) ? VPU_ENC_PIC_DONE
+				:VPU_DEC_PIC_DONE;
+			spin_unlock(&dev->poll_spinlock);
+			wake_up_interruptible(&dev->poll_wait_q[intr_inst_index]);
+		}
 	}
 #else
 	dev->interrupt_flag = 1;
@@ -570,7 +589,12 @@ static void *vpu_get_drv_data(struct platform_device *pdev)
 static int vpu_open(struct inode *inode, struct file *filp)
 {
 	hb_vpu_dev_t *dev;
+	hb_vpu_priv_t *priv;
 	vpu_debug_enter();
+
+	priv = kzalloc(sizeof(hb_vpu_priv_t), GFP_KERNEL);
+	if (!priv)
+		return -ENOMEM;
 
 	dev = container_of(inode->i_cdev, hb_vpu_dev_t, cdev);
 	if (!dev) {
@@ -580,7 +604,9 @@ static int vpu_open(struct inode *inode, struct file *filp)
 
 	spin_lock(&dev->vpu_spinlock);
 	dev->open_count++;
-	filp->private_data = (void *)dev;
+	priv->vpu_dev = dev;
+	priv->inst_index = -1;
+	filp->private_data = (void *)priv;
 	spin_unlock(&dev->vpu_spinlock);
 
 	vpu_debug_leave();
@@ -593,8 +619,12 @@ static long vpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 {
 	int ret = 0;
 	int inst_index;
-	hb_vpu_dev_t *dev = (hb_vpu_dev_t *) filp->private_data;
+	hb_vpu_dev_t *dev;
+	hb_vpu_priv_t *priv;
+
 	vpu_debug_enter();
+	priv = filp->private_data;
+	dev = priv->vpu_dev;
 	if (!dev) {
 		vpu_err("failed to get vpu dev data");
 		return -1;
@@ -1066,6 +1096,11 @@ INTERRUPT_REMAIN_IN_QUEUE:
 #endif
 			spin_unlock(&dev->vpu_spinlock);
 
+			spin_lock(&dev->poll_spinlock);
+			dev->poll_event[inst_info.inst_idx] = VPU_INST_CLOSED;
+			spin_unlock(&dev->poll_spinlock);
+			wake_up_interruptible(&dev->poll_wait_q[inst_info.inst_idx]);
+
 			/* flag just for that vpu is in opened or closed */
 			dev->vpu_open_ref_count--;
 
@@ -1183,11 +1218,37 @@ INTERRUPT_REMAIN_IN_QUEUE:
 			spin_unlock(&dev->vpu_spinlock);
 
 			vpu_debug(5,
-				  "[-]VDI_IOCTL_FREE_INSTANCE_ID clear id = %d\n",
-				  inst_index);
+				"[-]VDI_IOCTL_FREE_INSTANCE_ID clear id = %d\n",
+				inst_index);
 		}
 		break;
 
+		case VDI_IOCTL_POLL_WAIT_INSTANCE: {
+			hb_vpu_drv_intr_t info;
+			hb_vpu_priv_t *priv;
+#ifdef SUPPORT_MULTI_INST_INTR
+			u32 intr_inst_index;
+#endif
+			vpu_debug(5, "[+]VDI_IOCTL_POLL_WAIT_INSTANCE\n");
+
+			ret = copy_from_user(&info, (hb_vpu_drv_intr_t *) arg,
+						 sizeof(hb_vpu_drv_intr_t));
+			if (ret != 0) {
+				return -EFAULT;
+			}
+#ifdef SUPPORT_MULTI_INST_INTR
+			intr_inst_index = info.intr_inst_index;
+			priv = filp->private_data;
+			if (intr_inst_index >= 0 &&
+				intr_inst_index < MAX_NUM_VPU_INSTANCE) {
+				priv->inst_index = intr_inst_index;
+			} else {
+				return -EINVAL;
+			}
+#endif
+			vpu_debug(5, "[-]VDI_IOCTL_WAIT_INTERRUPT\n");
+		}
+		break;
 	default:
 		{
 			vpu_err("No such IOCTL, cmd is %d\n", cmd);
@@ -1210,8 +1271,13 @@ static ssize_t vpu_read(struct file *filp, char __user * buf, size_t len,
 static ssize_t vpu_write(struct file *filp, const char __user * buf, size_t len,
 			 loff_t * ppos)
 {
-	hb_vpu_dev_t *dev = (hb_vpu_dev_t *) filp->private_data;
+	hb_vpu_dev_t *dev;
+	hb_vpu_priv_t *priv;
+
 	vpu_debug_enter();
+	priv = filp->private_data;
+	dev = priv->vpu_dev;
+
 	if (!dev) {
 		vpu_err("failed to get vpu dev data");
 		return -1;
@@ -1282,16 +1348,19 @@ static int vpu_release(struct inode *inode, struct file *filp)
 	int i, j;
 #endif
 	hb_vpu_dev_t *dev;
+	hb_vpu_priv_t *priv;
 	vpu_debug_enter();
 	dev = container_of(inode->i_cdev, hb_vpu_dev_t, cdev);
 	if (!dev) {
 		vpu_err("failed to get vpu dev data");
 		return -1;
 	}
+	priv = filp->private_data;
 
 	if ((ret = down_interruptible(&dev->vpu_sem)) == 0) {
 		/* found and free the not handled buffer by user applications */
 		spin_lock(&dev->vpu_spinlock);	//check this place
+
 		vpu_free_buffers(filp);
 
 		/* found and free the not closed instance by user applications */
@@ -1324,6 +1393,7 @@ static int vpu_release(struct inode *inode, struct file *filp)
 				test_and_clear_bit(j, vpu_inst_bitmap);	// TODO should clear bit during every close
 		}
 	}
+	kfree(priv);
 	up(&dev->vpu_sem);
 	vpu_debug_leave();
 	return 0;
@@ -1333,8 +1403,10 @@ static int vpu_fasync(int fd, struct file *filp, int mode)
 {
 	int ret = 0;
 	hb_vpu_dev_t *dev;
+	hb_vpu_priv_t *priv;
 	vpu_debug_enter();
-	dev = filp->private_data;
+	priv = filp->private_data;
+	dev = priv->vpu_dev;
 	if (!dev) {
 		vpu_err("failed to get vpu dev data");
 		return -1;
@@ -1349,6 +1421,7 @@ static int vpu_map_to_register(struct file *filp, struct vm_area_struct *vm)
 {
 	unsigned long pfn;
 	hb_vpu_dev_t *dev;
+	hb_vpu_priv_t *priv;
 	int ret;
 	vpu_debug_enter();
 
@@ -1357,7 +1430,8 @@ static int vpu_map_to_register(struct file *filp, struct vm_area_struct *vm)
 		return -1;
 	}
 
-	dev = filp->private_data;
+	priv = filp->private_data;
+	dev = priv->vpu_dev;
 
 	if (!dev) {
 		vpu_err("failed to map register, dev is null.");
@@ -1377,6 +1451,7 @@ static int vpu_map_to_physical_memory(struct file *filp,
 				      struct vm_area_struct *vm)
 {
 	hb_vpu_dev_t *dev;
+	hb_vpu_priv_t *priv;
 	int ret;
 	vpu_debug_enter();
 
@@ -1385,7 +1460,8 @@ static int vpu_map_to_physical_memory(struct file *filp,
 		return -1;
 	}
 
-	dev = filp->private_data;
+	priv = filp->private_data;
+	dev = priv->vpu_dev;
 
 	if (!dev) {
 		vpu_err("failed to map register, dev is null.");
@@ -1411,6 +1487,7 @@ static int vpu_map_to_instance_pool_memory(struct file *filp,
 	char *vmalloc_area_ptr;
 	unsigned long pfn;
 	hb_vpu_dev_t *dev;
+	hb_vpu_priv_t *priv;
 
 	vpu_debug_enter();
 
@@ -1419,7 +1496,8 @@ static int vpu_map_to_instance_pool_memory(struct file *filp,
 		return -1;
 	}
 
-	dev = filp->private_data;
+	priv = filp->private_data;
+	dev = priv->vpu_dev;
 
 	if (!dev) {
 		vpu_err("failed to map  instances, dev is null.");
@@ -1466,8 +1544,10 @@ static int vpu_map_to_instance_pool_memory(struct file *filp,
 static int vpu_mmap(struct file *filp, struct vm_area_struct *vm)
 {
 	hb_vpu_dev_t *dev;
+	hb_vpu_priv_t *priv;
 	vpu_debug_enter();
-	dev = filp->private_data;
+	priv = filp->private_data;
+	dev = priv->vpu_dev;
 
 #ifdef USE_VMALLOC_FOR_INSTANCE_POOL_MEMORY
 	if (vm->vm_pgoff == 0)
@@ -1490,6 +1570,34 @@ static int vpu_mmap(struct file *filp, struct vm_area_struct *vm)
 #endif
 }
 
+static unsigned int vpu_poll(struct file *filp, struct poll_table_struct *wait)
+{
+	hb_vpu_dev_t *dev;
+	hb_vpu_priv_t *priv;
+	unsigned int mask = 0;
+
+	priv = filp->private_data;
+	dev = priv->vpu_dev;
+	if (priv->inst_index < 0 || priv->inst_index >= MAX_NUM_VPU_INSTANCE) {
+		return EPOLLERR;
+	}
+	poll_wait(filp, &dev->poll_wait_q[priv->inst_index], wait);
+	spin_lock(&dev->poll_spinlock);
+	if (VPU_ENC_PIC_DONE == dev->poll_event[priv->inst_index]
+		|| VPU_DEC_PIC_DONE == dev->poll_event[priv->inst_index]) {
+		mask = EPOLLIN | EPOLLET;
+	} else if (VPU_INST_CLOSED == dev->poll_event[priv->inst_index]) {
+		mask = EPOLLHUP;
+	} else if (VPU_EVENT_NONE == dev->poll_event[priv->inst_index]) {
+		mask = 0;
+	} else {
+		mask = EPOLLERR;
+	}
+	dev->poll_event[priv->inst_index] = VPU_EVENT_NONE;
+	spin_unlock(&dev->poll_spinlock);
+	return mask;
+}
+
 static struct file_operations vpu_fops = {
 	.owner = THIS_MODULE,
 	.open = vpu_open,
@@ -1500,6 +1608,7 @@ static struct file_operations vpu_fops = {
 	.release = vpu_release,
 	.fasync = vpu_fasync,
 	.mmap = vpu_mmap,
+	.poll = vpu_poll,
 };
 
 static int vpu_probe(struct platform_device *pdev)
@@ -1681,6 +1790,10 @@ static int vpu_probe(struct platform_device *pdev)
 #endif
 
 #ifdef SUPPORT_MULTI_INST_INTR
+	for (i = 0; i < MAX_NUM_VPU_INSTANCE; i++) {
+		init_waitqueue_head(&dev->poll_wait_q[i]);
+	}
+	dev->poll_spinlock = __SPIN_LOCK_UNLOCKED(poll_spinlock);
 	for (i = 0; i < MAX_NUM_VPU_INSTANCE; i++) {
 		init_waitqueue_head(&dev->interrupt_wait_q[i]);
 	}
