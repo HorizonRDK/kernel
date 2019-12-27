@@ -97,8 +97,6 @@ static void register_device(const char *name, int id,
       .dma_mask = 0xffffffff,
    };
 
-   pr_info("%s : name :%s , res[0]:start:0x%08x\n", __func__, name, res[0].start);
-
    if (dev_id >= MAX_DEV) {
       pr_err("Too many devices; increase MAX_DEV.\n");
       return;
@@ -311,8 +309,6 @@ static int __init pdu_vex_mod_init(void)
          };
 
          pdu_io_write32(pdu_mem, pdu_io_read32(pdu_mem) | PDU_IRQ_EN_RNG);
-         pr_info("%s: %d register clp800, res[0].start=0x%08x\n",
-                __func__, __LINE__, res[0].start);
          register_device("clp800", -1, res, 2, &info);
       }
 
@@ -362,8 +358,6 @@ static int __init pdu_vex_mod_init(void)
             .flags = IORESOURCE_IRQ,
 	 };
          pdu_io_write32(pdu_mem, pdu_io_read32(pdu_mem) | PDU_IRQ_EN_RNG);
-		 pr_err("%s: %d register clp800, res[0].start=0x%08x\n",
-		 		__func__, __LINE__, res[0].start);
          register_device("clp800", -1, res, 2, &info);
 
 	 /////////////////////////////////////////////////////////////////////////////////////////

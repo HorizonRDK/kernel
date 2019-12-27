@@ -400,6 +400,8 @@ static const struct pka_class_ops pka_class_ops = {
    .pka_wait = pka_ioc_wait,
 };
 
+
+#if 0
 static struct shash_desc *alloc_shash_desc(const char *name)
 {
    struct crypto_shash *tfm;
@@ -424,6 +426,7 @@ static void free_shash_desc(struct shash_desc *desc)
    crypto_free_shash(desc->tfm);
    kfree(desc);
 }
+
 
 /*
  * Calculate the MD5 hash of a region in the PKA firmware memory, starting
@@ -567,6 +570,7 @@ static int verify_firmware(struct device *dev, const struct pka_fw *fw)
 
    return 0;
 }
+#endif
 
 static void pka_describe_firmware(struct device *dev, const struct pka_fw *fw)
 {
@@ -1004,8 +1008,8 @@ static int pka_probe(struct platform_device *pdev)
    if (!irq_resource)
       return -EINVAL;
 
-   pr_err("%s : mem:%pR\m", __func__, mem_resource);
-   pr_err("%s : irq:%pR\m", __func__, irq_resource);
+   dev_info(&pdev->dev, "%s : mem:%pR\n", __func__, mem_resource);
+   dev_info(&pdev->dev, "%s : irq:%pR\n", __func__, irq_resource);
 
    priv = devm_kzalloc(&pdev->dev, sizeof *priv, GFP_KERNEL);
    if (!priv)

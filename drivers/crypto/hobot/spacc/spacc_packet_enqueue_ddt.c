@@ -49,8 +49,7 @@ static int debug_dump;
 
 static void hexdump(unsigned char *buf, unsigned int len)
 {
-	print_hex_dump(KERN_CONT, "", DUMP_PREFIX_OFFSET,
-			16, 1, buf, len, false);
+	print_hex_dump_debug("", DUMP_PREFIX_OFFSET, 16, 1, buf, len, false);
 }
 
 static int _spacc_fifo_full(spacc_device *spacc, uint32_t prio)
@@ -64,37 +63,41 @@ static int _spacc_fifo_full(spacc_device *spacc, uint32_t prio)
 
 void dump_regs(spacc_device *spacc)
 {
-	printk("--- dump regs ------\n");
-	printk("SPACC_REG_PROC_LEN:     0x%08x\n", pdu_io_read32(spacc->regmap + SPACC_REG_PROC_LEN)      );
-	printk("SPACC_REG_ICV_LEN:      0x%08x\n", pdu_io_read32(spacc->regmap + SPACC_REG_ICV_LEN)       );
-	printk("SPACC_REG_ICV_OFFSET:   0x%08x\n", pdu_io_read32(spacc->regmap + SPACC_REG_ICV_OFFSET)    );
-	printk("SPACC_REG_PRE_AAD_LEN:  0x%08x\n", pdu_io_read32(spacc->regmap + SPACC_REG_PRE_AAD_LEN)   );
-	printk("SPACC_REG_POST_AAD_LEN: 0x%08x\n", pdu_io_read32(spacc->regmap + SPACC_REG_POST_AAD_LEN)  );
-	printk("SPACC_REG_IV_OFFSET:    0x%08x\n", pdu_io_read32(spacc->regmap + SPACC_REG_IV_OFFSET)     );
-	printk("SPACC_REG_OFFSET:       0x%08x\n", pdu_io_read32(spacc->regmap + SPACC_REG_OFFSET)        );
-	printk("SPACC_REG_AUX_INFO:     0x%08x\n", pdu_io_read32(spacc->regmap + SPACC_REG_AUX_INFO)      );
-	printk("SPACC_REG_SW_CTRL:      0x%08x\n", pdu_io_read32(spacc->regmap + SPACC_REG_SW_CTRL)       );
+   pr_debug("--- dump regs ------\n");
+   pr_debug("SPACC_REG_PROC_LEN:     0x%lx\n", pdu_io_read32(spacc->regmap + SPACC_REG_PROC_LEN)      );
+   pr_debug("SPACC_REG_ICV_LEN:      0x%lx\n", pdu_io_read32(spacc->regmap + SPACC_REG_ICV_LEN)       );
+   pr_debug("SPACC_REG_ICV_OFFSET:   0x%lx\n", pdu_io_read32(spacc->regmap + SPACC_REG_ICV_OFFSET)    );
+   pr_debug("SPACC_REG_PRE_AAD_LEN:  0x%lx\n", pdu_io_read32(spacc->regmap + SPACC_REG_PRE_AAD_LEN)   );
+   pr_debug("SPACC_REG_POST_AAD_LEN: 0x%lx\n", pdu_io_read32(spacc->regmap + SPACC_REG_POST_AAD_LEN)  );
+   pr_debug("SPACC_REG_IV_OFFSET:    0x%lx\n", pdu_io_read32(spacc->regmap + SPACC_REG_IV_OFFSET)     );
+   pr_debug("SPACC_REG_OFFSET:       0x%lx\n", pdu_io_read32(spacc->regmap + SPACC_REG_OFFSET)        );
+   pr_debug("SPACC_REG_AUX_INFO:     0x%lx\n", pdu_io_read32(spacc->regmap + SPACC_REG_AUX_INFO)      );
+   pr_debug("SPACC_REG_SW_CTRL:      0x%lx\n", pdu_io_read32(spacc->regmap + SPACC_REG_SW_CTRL)       );
 }
 
 void dump_job(spacc_job *job)
 {
-	printk("--- dump job -------\n");
-	printk("enc_mode: %d, hash_mode: %d, icv_len:%d, icv_offset: %d\n", job->enc_mode, job->hash_mode, job->icv_len, job->icv_offset);
-	printk("op:%08x, ctrl:%08x, first_use:%d, pre_aad_sz:%d, post_aad_sz:%d\n", job->op, job->ctrl, job->first_use, job->pre_aad_sz, job->post_aad_sz);
-	printk("hkey_sz: %d, ckey_sz: 0x%08x, ctx_idx:%d\n", job->hkey_sz, job->ckey_sz, job->ctx_idx);
-	printk("job_used: %d, job_swid: %d, job_done: %d, job_err: %d, job_secure: %d\n", job->job_used, job->job_swid, job->job_err, job->job_secure);
+   pr_debug("--- dump job -------\n");
+   pr_debug("enc_mode: %lu, hash_mode: %lu, icv_len:%lu, icv_offset: %lu\n",
+         job->enc_mode, job->hash_mode, job->icv_len, job->icv_offset);
+   pr_debug("op:%lx, ctrl:%lx, first_use:%lu, pre_aad_sz:%lu, post_aad_sz:%lu\n",
+         job->op, job->ctrl, job->first_use, job->pre_aad_sz, job->post_aad_sz);
+   pr_debug("hkey_sz: %lu, ckey_sz: 0x%lx, ctx_idx:%u\n",
+         job->hkey_sz, job->ckey_sz, job->ctx_idx);
+   pr_debug("job_used: %u, job_swid: %u, job_done: %u, job_err: %u, job_secure: %u\n",
+         job->job_used, job->job_swid, job->job_done, job->job_err, job->job_secure);
 }
 
 void dump_ctx(spacc_ctx *ctx)
 {
-	char aes_ctx[64];
+   char aes_ctx[64];
 
-	memset(aes_ctx, 0, sizeof(aes_ctx));
-	pdu_from_dev32_s(aes_ctx,  ctx->ciph_key, 64>>2, spacc_endian);
-	printk(" dump key:\n");
-	hexdump(aes_ctx, 16);
-	printk(" dump iv\n");
-	hexdump(aes_ctx+0x20, 16);
+   memset(aes_ctx, 0, sizeof(aes_ctx));
+   pdu_from_dev32_s(aes_ctx,  ctx->ciph_key, 64>>2, spacc_endian);
+   pr_debug(" dump key:\n");
+   hexdump(aes_ctx, 16);
+   pr_debug(" dump iv\n");
+   hexdump(aes_ctx+0x20, 16);
 }
 
 // When proc_sz != 0 it overrides the ddt_len value defined in the context referenced by 'job_idx'
@@ -222,7 +225,8 @@ int spacc_packet_enqueue_ddt_ex (spacc_device * spacc, int use_jb, int job_idx, 
       spacc->job_lookup[job->job_swid] = job_idx;
 
 	  //printk("Crypto Engine is working ...");
-	  if (debug_dump) dump_regs(spacc);
+	  if (debug_dump)
+	     dump_regs(spacc);
 
 
 #ifdef MAKEAVECTOR
@@ -278,8 +282,10 @@ int spacc_packet_enqueue_ddt_ex (spacc_device * spacc, int use_jb, int job_idx, 
 
    }
 
-   if (debug_dump) dump_job(job);
-   if (debug_dump) dump_ctx(ctx);
+   if (debug_dump) {
+      dump_job(job);
+      dump_ctx(ctx);
+   }
 
    return ret;
 fifo_full:

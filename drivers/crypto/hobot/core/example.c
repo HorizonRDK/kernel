@@ -339,7 +339,7 @@ static void run_hash(spacc_device *spacc, int mode, int len)
    unsigned char buf[64];
 
    // EXAMPLE 1, HMAC-MD5 processing a message
-   err = spacc_hash(spacc, msg, buf, strlen(msg), len, mode, NULL, NULL);
+   err = spacc_hash(spacc, msg, buf, strlen(msg), len, mode, NULL, 0);
    for (x = 0; x < len; x++) {
       printk(KERN_CONT "%02x ", buf[x]);
    }
@@ -380,9 +380,11 @@ static void run_cipher(spacc_device *spacc, int mode, unsigned keylen)
    unsigned char *str = {
    "I could stay awake just to hear you breathing Watch you smile while you are sleeping While you're far away dreaming I could spend my life in this sweet surrender I could stay lost in this moment forever Every moment spent with you is a moment I treasure Don't want to close my eyes I don't want to fall asleep 'Cause I'd miss you baby And I don't want to miss a thing 'Cause even when I dream of you The sweetest dream will never do I'd still miss you baby And I don't want to miss a thing And I don't want to mi"
    };
-   int err, x;
-
+   int err, x, i;
+   unsigned char *key;
    unsigned char ret_buf[MSG_SZ];
+   /* A 128 bit IV */
+   unsigned char *iv = (unsigned char *)"0123456789012345";
 
    strncpy(&buf[0][0], str,MSG_SZ);
 
@@ -390,7 +392,6 @@ static void run_cipher(spacc_device *spacc, int mode, unsigned keylen)
    //unsigned char iv[32] = {0x9,0x8,0xB,0xF,0xC,0x4,0x0,0x2,0x0,0xB,0x2,0x3,0x1,0x2,0x8,0x5,0xA,0xC,0xA,0x2,0x1,0x2,0x7,0xD,0x4,0x1,0x6,0x5,0x4,0x6,0x2,0x7};
    //unsigned char key[32] = {0x1,0x2};
    //unsigned char key[32] = {0xA,0x8,0x9,0x2,0x9,0x3,0xC,0x1,0x0,0x0,0xF,0xD,0x6,0xF,0x9,0x4,0x5,0x7,0x5,0x0,0x8,0x8,0x3,0x7,0x2,0x7,0xA,0x7,0xB,0xC,0xD,0xB};
-   unsigned char *key;
 
    if (keylen == SPACC_128BIT) {
        /* A 128 bit key */
@@ -409,8 +410,6 @@ static void run_cipher(spacc_device *spacc, int mode, unsigned keylen)
        return;
    }
 
-   /* A 128 bit IV */
-   unsigned char *iv = (unsigned char *)"0123456789012345";
    //unsigned char *plaintext = (unsigned char *)"I could stay awake just to hear you breathing Watch you smile while you are sleeping While you're far away dreaming I could spend my life in this sweet surrender I could stay lost in this moment forever Every moment spent with you is a moment I treasure Don't want to close my eyes I don't want to fall asleep 'Cause I'd miss you baby And I don't want to miss a thing 'Cause even when I dream of you The sweetest dream will never do I'd still miss you baby And I don't want to miss a thing aaa";
 
    // EXAMPLE 1, encrypt in AES-128-CBC mode
@@ -432,7 +431,6 @@ static void run_cipher(spacc_device *spacc, int mode, unsigned keylen)
    err = spacc_cipher(spacc, &buf[1][0], &ret_buf[0], MSG_SZ, mode, 0, key, keylen, iv, SPACC_IVLEN);
    printk("decrypt demo cmd #1, %d\n", err);
 
-   int i = 0;
    for (i = 0;i < MSG_SZ; i++) {
       if (i % 80 == 0)
          printk(KERN_CONT "\n");

@@ -376,7 +376,7 @@ static int spacc_hash_setkey(struct crypto_ahash *tfm, const u8 *key, unsigned k
 		return rc;
 	}
 
-	rc = spacc_hash_set_context(tfm, key, keylen);
+	rc = spacc_hash_set_context(tfm, (u8 *)key, keylen);
 	if (rc < 0) {
 		pr_err("%s: set context failed, rc:%d\n", __func__, rc);
 		return rc;
@@ -842,7 +842,7 @@ static int spacc_hash_import(struct ahash_request *req, const void *in)
 
 	ctx->hashlen = crypto_ahash_digestsize(crypto_ahash_reqtfm(req));
 
-	spacc_hash_copy_state(tctx, ctx, in, true);
+	spacc_hash_copy_state(tctx, ctx, (void *)in, true);
 
 	ctx->hashlen = crypto_ahash_digestsize(crypto_ahash_reqtfm(req));
 
