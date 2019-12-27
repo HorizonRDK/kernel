@@ -13,8 +13,8 @@ static void __init _of_hobot_fixed_factor_clk_setup(struct device_node *node)
 	const char* parent_name;
 	unsigned int div, mult;
 	unsigned int flags = 0;
-	unsigned int offset;
-	unsigned int field;
+	unsigned int offset = 0x0;
+	unsigned int field = 0;
 	void __iomem *reg_base;
 	void __iomem *reg;
 	unsigned int val;
@@ -45,7 +45,7 @@ static void __init _of_hobot_fixed_factor_clk_setup(struct device_node *node)
 	ret = of_property_read_u32(node, "clk-div", &div);
 	if (ret || div < 1) {
 		pr_err("%s: %s missing clk-div property or div is invalid!\n",
-								node->name);
+						__func__, node->name);
 		return;
 	}
 

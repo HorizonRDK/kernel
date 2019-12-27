@@ -163,7 +163,7 @@ static long laintpll_round_rate(struct clk_hw *hw, unsigned long rate,
 {
 	struct clk_laintpll *clk;
 	unsigned int refdiv, fbdiv, postdiv1, postdiv2;
-	unsigned int refdiv_pre, fbdiv_pre, postdiv1_pre, postdiv2_pre;
+	unsigned int refdiv_pre = 0, fbdiv_pre = 0, postdiv1_pre = 0, postdiv2_pre = 0;
 	unsigned int refdiv_post, fbdiv_post, postdiv1_post, postdiv2_post;
 	unsigned int found = 0;
 	unsigned long prate;
@@ -316,7 +316,7 @@ static int laintpll_set_rate(struct clk_hw *hw,
 int laintpll_clk_enable(struct clk_hw *hw)
 {
 	struct clk_laintpll *clk;
-	unsigned int pd, foutpostdivpd;
+	unsigned int pd;
 	unsigned long flags;
 	unsigned int val;
 

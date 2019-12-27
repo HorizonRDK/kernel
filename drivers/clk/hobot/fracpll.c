@@ -151,7 +151,7 @@ static long fracpll_round_rate(struct clk_hw *hw, unsigned long rate, unsigned l
 {
 	struct clk_fracpll *clk;
 	unsigned int refdiv, fbdiv, postdiv1, postdiv2;
-	unsigned int refdiv_pre, fbdiv_pre, postdiv1_pre, postdiv2_pre;
+	unsigned int refdiv_pre = 0, fbdiv_pre = 0, postdiv1_pre = 0, postdiv2_pre = 0;
 	unsigned int refdiv_post, fbdiv_post, postdiv1_post, postdiv2_post;
 	unsigned int found = 0;
 	unsigned long prate;

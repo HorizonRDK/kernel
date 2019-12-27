@@ -17,7 +17,7 @@ void __iomem * clk_get_register_base(struct device_node *np)
 		clk_reg_base = of_iomap(pnode, 0);
 		if(!clk_reg_base){
 			pr_err("%s: %s faield to remap!\n", __func__, np->name);
-			return -ENOMEM;
+			return ERR_PTR(-ENOMEM);
 		}
 		of_node_put(pnode);
 	}

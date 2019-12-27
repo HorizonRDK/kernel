@@ -262,7 +262,7 @@ static void __iomem * clk_get_ipsregister_base(struct device_node *np)
 		clk_ipsreg_base = of_iomap(pnode, 1);
 		if(!clk_ipsreg_base) {
 			pr_err("%s: %s faield to remap!\n", __func__, np->name);
-			return NULL;
+			return ERR_PTR(-ENOMEM);
 		}
 		of_node_put(pnode);
 	}

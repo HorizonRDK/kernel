@@ -41,6 +41,7 @@ static u32 i2s1_clk_ctrl;
 
 extern void __iomem *clk_reg_base;
 
+#if 0
 static u32 reg_read(char *string, int offset)
 {
 	u32 value;
@@ -113,6 +114,7 @@ static void dump_sysctrl_regs(void)
 	reg_read("PERISYS_SW_RSTEN", 0x450);
 
 }
+#endif
 
 #ifdef CONFIG_PM_SLEEP
 static int x2_clk_suspend(void)
