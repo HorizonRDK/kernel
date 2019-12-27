@@ -12,13 +12,10 @@
 #include "vio_framemgr.h"
 #include "vio_group_api.h"
 
-#define MAX_SHADOW_NUM 4
 #define X2A_IPU_NAME  "x2a-ipu"
 
 #define MAX_DEVICE  8
 #define IPU_IOC_MAGIC 'v'
-
-//#define X3_IAR_INTERFACE
 
 #define IPU_IOC_INIT             _IOW(IPU_IOC_MAGIC, 0, int)
 #define IPU_IOC_STREAM           _IOW(IPU_IOC_MAGIC, 1, int)
@@ -47,13 +44,14 @@ struct ipu_osd_cfg{
 
 struct ipu_video_ctx {
 	wait_queue_head_t done_wq;
-	struct x2a_ipu_dev *ipu_dev;
-
 	struct vio_framemgr framemgr;
 	struct vio_group *group;
+
+	struct x2a_ipu_dev *ipu_dev;
 	struct ipu_osd_cfg osd_cfg;
 	u32 group_id;
 	unsigned long state;
+	u32 event;
 	bool leader;
 };
 

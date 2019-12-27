@@ -8,15 +8,13 @@
 #include "vio_framemgr.h"
 
 #define MAX_SUB_DEVICE  8
+#define MAX_SHADOW_NUM 4
 
 #define GROUP_ID_SIF_OUT	0
 #define GROUP_ID_SIF_IN		1
 #define GROUP_ID_IPU		2
 #define GROUP_ID_PYM		3
 #define GROUP_ID_NUMBER		4
-
-#define GROUP_OUTPUT_OTF	1
-#define GROUP_OUTPUT_DMA	2
 
 enum vio_group_task_state {
 	VIO_GTASK_START,
@@ -94,5 +92,10 @@ int vio_bind_chain_groups(struct vio_group *src_group, struct vio_group *dts_gro
 int vio_init_chain(int instance);
 void vio_bind_group_done(int instance);
 void vio_get_frame_id(struct vio_group *group);
+
+#ifdef X3_IAR_INTERFACE
+extern u32 ipu_get_iar_display_type(void);
+extern int32_t ipu_set_display_addr(u32 yaddr, u32 caddr);
+#endif
 
 #endif

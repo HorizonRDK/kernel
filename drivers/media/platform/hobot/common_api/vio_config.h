@@ -19,6 +19,11 @@ enum vio_video_state {
 	VIO_VIDEO_START, 
 };
 
+enum FrameErrorType{
+	VIO_FRAME_DONE = 1,
+	VIO_FRAME_NDONE = 2,
+};
+
 enum RST_id{
 	SIF_RST,
 	DWE1_RST,

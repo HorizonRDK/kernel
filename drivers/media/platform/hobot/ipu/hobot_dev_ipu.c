@@ -34,11 +34,6 @@ static int g_int_test = -1;
 static int timer_init(struct x2a_ipu_dev *ipu, int index);
 #endif
 
-#ifdef X3_IAR_INTERFACE
-extern u32 ipu_get_iar_display_type(void);
-extern int32_t ipu_set_display_addr(u32 yaddr, u32 caddr);
-#endif
-
 void ipu_hw_set_osd_cfg(struct ipu_video_ctx *ipu_ctx);
 
 static u32 color[MAX_OSD_COLOR_NUM] =
@@ -120,13 +115,20 @@ static ssize_t x2a_ipu_read(struct file *file, char __user * buf, size_t size,
 
 static u32 x2a_ipu_poll(struct file *file, struct poll_table_struct *wait)
 {
+	int ret = 0;
 	struct ipu_video_ctx *ipu_ctx;
 
 	ipu_ctx = file->private_data;
 
 	poll_wait(file, &ipu_ctx->done_wq, wait);
+	if(ipu_ctx->event == VIO_FRAME_DONE)
+		ret = POLLIN;
+	else if(ipu_ctx->event == VIO_FRAME_NDONE)
+		ret = POLLERR;
 
-	return POLLIN;
+	ipu_ctx->event = 0;
+
+	return ret;
 }
 
 void ipu_frame_work(struct vio_group *group)
@@ -899,11 +901,6 @@ int ipu_video_dqbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 	return ret;
 }
 
-void ipu_group_set_state(struct vio_group *group, unsigned long state)
-{
-	set_bit(state, &group->state);
-}
-
 static long x2a_ipu_ioctl(struct file *file, unsigned int cmd,
 			  unsigned long arg)
 {
@@ -1027,9 +1024,12 @@ void ipu_frame_done(struct ipu_video_ctx *ipu_ctx)
 			    group->frameid.timestamp_m;
 		}
 		ipu_set_iar_output(ipu_ctx, frame);
+		ipu_ctx->event = VIO_FRAME_DONE;
 		trans_frame(framemgr, frame, FS_COMPLETE);
-	} else
+	} else{
+		ipu_ctx->event = VIO_FRAME_NDONE;
 		vio_err("PROCESS queue has no member;\n");
+	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 	wake_up(&ipu_ctx->done_wq);
 }
@@ -1085,7 +1085,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		if (test_bit(IPU_OTF_INPUT, &ipu->state))
 			up(&gtask->hw_resource);
 
-		if(group->get_timestamps)
+		if(group && group->get_timestamps)
 			vio_get_frame_id(group);
 	}
 
@@ -1211,7 +1211,7 @@ static ssize_t ipu_reg_dump(struct device *dev,struct device_attribute *attr, ch
 {
 	struct x2a_ipu_dev *ipu;
 
-	ipu = dev_get_platdata(dev);
+	ipu = dev_get_drvdata(dev);
 
 	ipu_hw_dump(ipu->base_reg);
 
@@ -1275,7 +1275,7 @@ static int x2a_ipu_probe(struct platform_device *pdev)
 		vio_err("create regdump failed (%d)\n",ret);
 		goto p_err;
 	}
-	dev->platform_data = ipu;
+	platform_set_drvdata(pdev, ipu);
 
 	sema_init(&ipu->gtask.hw_resource, 1);
 	atomic_set(&ipu->gtask.refcount, 0);
@@ -1415,7 +1415,37 @@ static int timer_init(struct x2a_ipu_dev *ipu, int index)
 	add_timer(&tm[index]);
 }
 
-#endif
+static int __init x2a_ipu_init(void)
+{
+	int ret = 0;
+	struct x2a_ipu_dev *ipu;
+
+	ipu = kzalloc(sizeof(struct x2a_ipu_dev), GFP_KERNEL);
+	if (!ipu) {
+		vio_err("ipu is NULL");
+		ret = -ENOMEM;
+		goto p_err;
+	}
+
+	ipu->base_reg = kzalloc(0x1000, GFP_KERNEL);
+
+	x2a_ipu_device_node_init(ipu);
+	atomic_set(&ipu->gtask.refcount, 0);
+	spin_lock_init(&ipu->shared_slock);
+	sema_init(&ipu->gtask.hw_resource, 1);
+
+	vio_info("[FRT:D] %s(%d)\n", __func__, ret);
+	atomic_set(&ipu->rsccount, 0);
+
+	return 0;
+
+p_err:
+	vio_err("[FRT:D] %s(%d)\n", __func__, ret);
+	return ret;
+}
+
+#else
+
 static int __init x2a_ipu_init(void)
 {
 	int ret = platform_driver_register(&x2a_ipu_driver);
@@ -1424,6 +1454,8 @@ static int __init x2a_ipu_init(void)
 
 	return ret;
 }
+#endif
+
 
 late_initcall(x2a_ipu_init);
 

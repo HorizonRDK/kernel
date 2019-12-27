@@ -10,10 +10,9 @@
 #include "vio_framemgr.h"
 #include "vio_group_api.h"
 
-#define MAX_SHADOW_NUM 4
+#define MAX_DEVICE  1
 #define X2A_PYM_NAME  "x2a-pym"
 
-#define MAX_DEVICE  1
 #define PYM_IOC_MAGIC 'p'
 
 #define PYM_IOC_INIT             _IOW(PYM_IOC_MAGIC, 0, pym_cfg_t)
@@ -38,17 +37,8 @@ struct pym_video_ctx {
 	unsigned long state;
 
 	struct x2a_pym_dev *pym_dev;
+	u32 event;
 	bool leader;
-};
-
-enum pym_group_state {
-	PYM_GROUP_OPEN,
-	PYM_GROUP_INIT,
-	PYM_GROUP_START,
-	PYM_GROUP_SHOT,
-	PYM_GROUP_REQUEST_FSTOP,
-	PYM_GROUP_FORCE_STOP,
-	PYM_GROUP_LEADER,
 };
 
 enum group_id {

@@ -483,6 +483,19 @@ err_req_cdev:
 	return ret;
 }
 
+static ssize_t gdc_reg_dump(struct device *dev,struct device_attribute *attr, char* buf)
+{
+	struct x2a_gdc_dev *gdc;
+
+	gdc = dev_get_drvdata(dev);
+
+	gdc_hw_dump(gdc->base_reg);
+
+	return 0;
+}
+
+static DEVICE_ATTR(regdump, 0444, gdc_reg_dump, NULL);
+
 static int x2a_gdc_probe(struct platform_device *pdev)
 {
 	int ret = 0;
@@ -542,6 +555,13 @@ static int x2a_gdc_probe(struct platform_device *pdev)
 #endif
 
 	x2a_gdc_device_node_init(gdc);
+
+	ret = device_create_file(dev, &dev_attr_regdump);
+	if(ret < 0) {
+		vio_err("create regdump failed (%d)\n",ret);
+		goto p_err;
+	}
+
 	platform_set_drvdata(pdev, gdc);
 
 	sema_init(&gdc->smp_gdc_enable, 1);

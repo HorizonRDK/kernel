@@ -103,6 +103,7 @@ struct sif_video_ctx{
 	struct frame_id			info;
 	struct x2a_sif_dev 		*sif_dev;
 	struct semaphore 		smp_resource;
+	u32 event;
 };
 
 enum sif_state {
@@ -121,6 +122,7 @@ struct x2a_sif_dev {
 
 	struct cdev cdev;
 	struct class *class;
+	dev_t devno;
 
 	unsigned long		state;	
 	atomic_t			instance;

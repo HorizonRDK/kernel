@@ -73,13 +73,20 @@ static ssize_t x2a_pym_read(struct file *file, char __user *buf, size_t size,
 
 static u32 x2a_pym_poll(struct file *file, struct poll_table_struct *wait)
 {
+	int ret = 0;
 	struct pym_video_ctx *pym_ctx;
 
 	pym_ctx = file->private_data;
 
 	poll_wait(file, &pym_ctx->done_wq, wait);
+	if(pym_ctx->event == VIO_FRAME_DONE)
+		ret = POLLIN;
+	else if(pym_ctx->event == VIO_FRAME_NDONE)
+		ret = POLLERR;
 
-	return POLLIN;
+	pym_ctx->event = 0;
+
+	return ret;
 }
 
 static int x2a_pym_close(struct inode *inode, struct file *file)
@@ -577,19 +584,52 @@ static long x2a_pym_ioctl(struct file *file, unsigned int cmd,
 	return ret;
 }
 
+void pym_set_iar_output(struct pym_video_ctx *pym_ctx, struct vio_frame *frame)
+{
+#ifdef X3_IAR_INTERFACE
+	struct special_buffer *spec;
+	u32 display_layer = 0;
+
+	display_layer = ipu_get_iar_display_type();
+	spec = &frame->frameinfo.spec;
+	if(display_layer >= 31)
+		ipu_set_display_addr(spec->ds_y_addr[display_layer - 31],
+			spec->ds_uv_addr[display_layer - 31]);
+	else if(display_layer >= 7)
+		ipu_set_display_addr(spec->ds_y_addr[display_layer - 7],
+			spec->ds_uv_addr[display_layer - 7]);
+#endif
+}
+
 void pym_frame_done(struct pym_video_ctx *pym_ctx)
 {
 	struct vio_framemgr *framemgr;
 	struct vio_frame *frame;
+	struct vio_group *group;
 	unsigned long flags;
 
+	group = pym_ctx->group;
 	framemgr = &pym_ctx->framemgr;
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	frame = peek_frame(framemgr, FS_PROCESS);
 	if (frame) {
+		if(group->get_timestamps){
+			frame->frameinfo.frame_id = group->frameid.frame_id;
+			frame->frameinfo.timestamp_l =
+			    group->frameid.timestamp_l;
+			frame->frameinfo.timestamp_m =
+			    group->frameid.timestamp_m;
+		}
+
+		pym_set_iar_output(pym_ctx, frame);
+		pym_ctx->event = VIO_FRAME_DONE;
 		trans_frame(framemgr, frame, FS_COMPLETE);
+	}else {
+		pym_ctx->event = VIO_FRAME_NDONE;
+		vio_err("%s PROCESS queue has no member;\n", __func__);
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
+
 	wake_up(&pym_ctx->done_wq);
 }
 
@@ -618,6 +658,9 @@ static irqreturn_t pym_isr(int irq, void *data)
 	if (status & (1 << INTR_PYM_FRAME_START)) {
 		if (test_bit(PYM_OTF_INPUT, &pym->state))
 			up(&gtask->hw_resource);
+
+		if (group && group->get_timestamps)
+			vio_get_frame_id(group);
 	}
 
 	if (status & (1 << INTR_PYM_DS_FRAME_DROP))
@@ -726,7 +769,7 @@ static ssize_t pym_reg_dump(struct device *dev,struct device_attribute *attr, ch
 {
 	struct x2a_pym_dev *pym;
 
-	pym = dev_get_platdata(dev);
+	pym = dev_get_drvdata(dev);
 
 	pym_hw_dump(pym->base_reg);
 
@@ -788,7 +831,7 @@ static int x2a_pym_probe(struct platform_device *pdev)
 		vio_err("create regdump failed (%d)\n",ret);
 		goto p_err;
 	}
-	dev->platform_data = pym;
+	platform_set_drvdata(pdev, pym);
 
 	atomic_set(&pym->gtask.refcount, 0);
 	spin_lock_init(&pym->shared_slock);

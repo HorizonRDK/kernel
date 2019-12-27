@@ -216,13 +216,21 @@ static ssize_t x2a_sif_read(struct file *file, char __user * buf, size_t size,
 
 static u32 x2a_sif_poll(struct file *file, struct poll_table_struct *wait)
 {
+	int ret = 0;
 	struct sif_video_ctx *sif_ctx;
 
 	sif_ctx = file->private_data;
 
 	poll_wait(file, &sif_ctx->done_wq, wait);
 
-	return POLLIN;
+	if(sif_ctx->event == VIO_FRAME_DONE)
+		ret = POLLIN;
+	else if(sif_ctx->event == VIO_FRAME_NDONE)
+		ret = POLLERR;
+
+	sif_ctx->event = 0;
+
+	return ret;
 }
 
 static int x2a_sif_close(struct inode *inode, struct file *file)
@@ -404,7 +412,7 @@ int sif_bind_chain_group(struct sif_video_ctx *sif_ctx, int instance)
 	vio_info("[%s]instance = %d\n", __func__, instance);
 	sif_ctx->state = BIT(VIO_VIDEO_S_INPUT);
 
-	return 0;
+	return ret;
 }
 
 int sif_video_streamon(struct sif_video_ctx *sif_ctx)
@@ -412,9 +420,9 @@ int sif_video_streamon(struct sif_video_ctx *sif_ctx)
 	struct x2a_sif_dev *sif_dev;
 	unsigned long flag;
 
-	if (!(sif_ctx->state &
-			(BIT(VIO_VIDEO_STOP) | BIT(VIO_VIDEO_REBUFS) |
-		      BIT(VIO_VIDEO_INIT)))) {
+	if (!(sif_ctx->state & (BIT(VIO_VIDEO_STOP)
+			| BIT(VIO_VIDEO_REBUFS)
+			| BIT(VIO_VIDEO_INIT)))) {
 		vio_err("[%s][V%02d] invalid STREAM ON is requested(%lX)",
 			__func__, sif_ctx->id, sif_ctx->state);
 		return -EINVAL;
@@ -714,6 +722,10 @@ void sif_frame_done(struct sif_video_ctx *sif_ctx)
 		}
 
 		trans_frame(framemgr, frame, FS_COMPLETE);
+		sif_ctx->event = VIO_FRAME_DONE;
+	} else {
+		sif_ctx->event = VIO_FRAME_NDONE;
+		vio_err("%s PROCESS queue has no member;\n", __func__);
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
@@ -793,10 +805,9 @@ static irqreturn_t sif_isr(int irq, void *data)
 int x2a_sif_device_node_init(struct x2a_sif_dev *sif)
 {
 	int ret = 0;
-	dev_t devno;
 	struct device *dev = NULL;
 
-	ret = alloc_chrdev_region(&devno, 0, MAX_DEVICE, "x2a_sif");
+	ret = alloc_chrdev_region(&sif->devno, 0, MAX_DEVICE, "x2a_sif");
 	if (ret < 0) {
 		vio_err("Error %d while alloc chrdev sif", ret);
 		goto err_req_cdev;
@@ -804,7 +815,7 @@ int x2a_sif_device_node_init(struct x2a_sif_dev *sif)
 
 	cdev_init(&sif->cdev, &x2a_sif_fops);
 	sif->cdev.owner = THIS_MODULE;
-	ret = cdev_add(&sif->cdev, devno, MAX_DEVICE);
+	ret = cdev_add(&sif->cdev, sif->devno, MAX_DEVICE);
 	if (ret) {
 		vio_err("Error %d while adding x2 sif cdev", ret);
 		goto err;
@@ -812,7 +823,7 @@ int x2a_sif_device_node_init(struct x2a_sif_dev *sif)
 
 	sif->class = class_create(THIS_MODULE, X2A_SIF_NAME);
 
-	dev = device_create(sif->class, NULL, MKDEV(MAJOR(devno), 0),
+	dev = device_create(sif->class, NULL, MKDEV(MAJOR(sif->devno), 0),
 				NULL, "sif_capture");
 	if (IS_ERR(dev)) {
 		ret = -EINVAL;
@@ -820,7 +831,7 @@ int x2a_sif_device_node_init(struct x2a_sif_dev *sif)
 		goto err;
 	}
 
-	dev = device_create(sif->class, NULL, MKDEV(MAJOR(devno), 1),
+	dev = device_create(sif->class, NULL, MKDEV(MAJOR(sif->devno), 1),
 	    		NULL, "sif_ddr_input");
 	if (IS_ERR(dev)) {
 		ret = -EINVAL;
@@ -832,7 +843,7 @@ int x2a_sif_device_node_init(struct x2a_sif_dev *sif)
 err:
 	class_destroy(sif->class);
 err_req_cdev:
-	unregister_chrdev_region(devno, MAX_DEVICE);
+	unregister_chrdev_region(sif->devno, MAX_DEVICE);
 	return ret;
 }
 
@@ -840,7 +851,7 @@ static ssize_t sif_reg_dump(struct device *dev,struct device_attribute *attr, ch
 {
 	struct x2a_sif_dev *sif;
 
-	sif = dev_get_platdata(dev);
+	sif = dev_get_drvdata(dev);
 
 	sif_hw_dump(sif->base_reg);
 
@@ -909,7 +920,8 @@ static int x2a_sif_probe(struct platform_device *pdev)
 		vio_err("create regdump failed (%d)\n",ret);
 		goto p_err;
 	}
-	dev->platform_data = sif;
+
+	platform_set_drvdata(pdev, sif);
 
 	vio_info("[FRT:D] %s(%d)\n", __func__, ret);
 
@@ -929,6 +941,21 @@ p_err:
 static int x2a_sif_remove(struct platform_device *pdev)
 {
 	int ret = 0;
+	int i = 0;
+	struct x2a_sif_dev *sif;
+
+	BUG_ON(!pdev);
+
+	sif = platform_get_drvdata(pdev);
+
+	free_irq(sif->irq, sif);
+	for(i = 0; i < MAX_DEVICE; i++)
+		device_destroy(sif->class, MKDEV(MAJOR(sif->devno), i));
+
+	class_destroy(sif->class);
+	cdev_del(&sif->cdev);
+	unregister_chrdev_region(sif->devno, MAX_DEVICE);
+	kfree(sif);
 
 	vio_info("%s\n", __func__);
 
