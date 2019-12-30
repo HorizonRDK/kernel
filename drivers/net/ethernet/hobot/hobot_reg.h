@@ -174,8 +174,8 @@ enum packets_types {
 
 #define DWCEQOS_TX_TIMEOUT 5 
 
-#define DMA_TX_SIZE 64
-#define DMA_RX_SIZE 16
+#define DMA_TX_SIZE 512
+#define DMA_RX_SIZE 512
 
 
 #define BUF_SIZE_16KiB 16384
