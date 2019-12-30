@@ -29,8 +29,8 @@
 #include <linux/slab.h>
 #include <linux/interrupt.h>
 #include <linux/irq.h>
-#include "pinctrl-utils.h"
-#include "core.h"
+#include "../pinctrl-utils.h"
+#include "../core.h"
 
 #define X2_NUM_IOS	118
 

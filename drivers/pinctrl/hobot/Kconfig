@@ -1,0 +1,13 @@
+config PINCTRL_HOBOT_X2
+	bool
+	depends on ARCH_HOBOT
+	select PINMUX
+	select GENERIC_PINCONF
+	select GPIOLIB_IRQCHIP
+
+config PINCTRL_HOBOT_X3
+	bool
+	depends on ARCH_HOBOT
+	select PINMUX
+	select GENERIC_PINCONF
+	select GPIOLIB_IRQCHIP
