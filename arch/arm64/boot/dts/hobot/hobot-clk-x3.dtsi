@@ -638,7 +638,7 @@
 			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
-		mipi_rhobot_ipi_1stdiv_clk: mipi_rhobot_ipi_1stdiv_clk {
+		mipi_rx3_ipi_1stdiv_clk: mipi_rx3_ipi_1stdiv_clk {
 			#clock-cells = <0>;
 			compatible = "hobot,div-clk";
 			clocks = <&vio_pllmux_clk>;
@@ -648,10 +648,10 @@
 			clk-divider-flags = <CLK_DIVIDER_ROUND_DOWN>;
 		};
 
-		mipi_rhobot_ipi_mclk: mipi_rhobot_ipi_mclk {
+		mipi_rx3_ipi_mclk: mipi_rx3_ipi_mclk {
 			#clock-cells = <0>;
 			compatible = "hobot,endiv-clk";
-			clocks = <&mipi_rhobot_ipi_1stdiv_clk>;
+			clocks = <&mipi_rx3_ipi_1stdiv_clk>;
 			offset = <0x24C 0x140 0x144 0x148 0x248 0x0>;
 			bits = <29 11 11 11 10 32>;
 			field = <3 1 1 1 1>;
@@ -852,7 +852,7 @@
 			#clock-cells = <0>;
 			compatible = "hobot,endiv-clk";
 			clocks = <&vio_pllmux_clk>;
-			offset = <0x260 0x160 0x164 0x168 0x248 0x0>;
+			offset = <0x260 0x160 0x164 0x168 0x268 0x0>;
 			bits = <4 1 1 1 1 32>;
 			field = <3 1 1 1 1>;
 		};
