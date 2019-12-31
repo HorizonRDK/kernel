@@ -801,6 +801,11 @@ static struct attribute_group attr_group = {
 	.attrs = attributes,
 };
 
+static const struct attribute_group *x2_sif_attr_groups[] = {
+	&attr_group,
+	NULL,
+};
+
 #ifdef CONFIG_PM_SLEEP
 int x2_sif_dev_suspend(struct device *dev)
 {
@@ -842,11 +847,6 @@ static int x2_sif_dev_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, pack_dev);
 	g_sif_dev = pack_dev;
 
-	x2_sif_kobj = kobject_create_and_add("x2_sif", NULL);
-	if (!x2_sif_kobj)
-		return -ENOMEM;
-	return sysfs_create_group(x2_sif_kobj, &attr_group);
-
 	dev_info(&pdev->dev, "X2 sif dev prop OK\n");
 	return ret;
 }
@@ -875,6 +875,7 @@ static struct platform_driver x2_sif_dev_driver = {
 		.name = "x2_sif_dev",
 		.of_match_table = x2_sif_dev_match,
 		.pm = &x2_sif_dev_pm_ops,
+		.groups = x2_sif_attr_groups,
 	},
 };
 

@@ -36,14 +36,17 @@ typedef struct _cmdinfo_t {
 	unsigned int region;
 	unsigned int value;
 } cmdinfo_t;
+
 struct ips_cdev_s {
 	const char *name;
 	int major;
 	int minor;
 	struct cdev cdev;
 	dev_t dev_num;
-	struct class *ips_classes;
+	struct class *ips_class;
 };
+
+extern struct class *vps_class;
 
 struct ips_cdev_s g_ipscdev = {
 	.name = "ips_cdev",
@@ -121,9 +124,7 @@ int __init ips_cdev_init(void)
 
 	ipsdev = &g_ipscdev;
 
-	ipsdev->ips_classes = class_create(THIS_MODULE, ipsdev->name);
-	if (IS_ERR(ipsdev->ips_classes))
-		return PTR_ERR(ipsdev->ips_classes);
+	ipsdev->ips_class = vps_class;
 
 	error = alloc_chrdev_region(&ipsdev->dev_num, 0, 1, ipsdev->name);
 	if (!error) {
@@ -139,7 +140,7 @@ int __init ips_cdev_init(void)
 		return error;
 	}
 
-	dev = device_create(ipsdev->ips_classes, NULL, ipsdev->dev_num, NULL, ipsdev->name);
+	dev = device_create(ipsdev->ips_class, NULL, ipsdev->dev_num, NULL, ipsdev->name);
 	if (IS_ERR(dev))
 		return PTR_ERR(dev);
 
@@ -148,8 +149,7 @@ int __init ips_cdev_init(void)
 
 void __exit ips_cdev_exit(void)
 {
-	device_destroy(g_ipscdev.ips_classes, g_ipscdev.dev_num);
-	class_destroy(g_ipscdev.ips_classes);
+	device_destroy(g_ipscdev.ips_class, g_ipscdev.dev_num);
 	cdev_del(&g_ipscdev.cdev);
 	unregister_chrdev_region(g_ipscdev.dev_num, 1);
 }

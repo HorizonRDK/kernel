@@ -71,6 +71,7 @@ struct ipu_single_cdev {
 
 struct ipu_single_cdev *g_ipu_s_cdev;
 extern struct x2_ipu_data *g_ipu;
+extern struct class *vps_class;
 static int64_t g_ipu_time;
 #if 1
 unsigned int frequency_ipu = 0;
@@ -888,11 +889,13 @@ static int __init x2_ipu_init(void)
 	g_ipu_s_cdev->name = X2_IPU_NAME;
 	g_ipu_s_cdev->err_status = 0;
 	g_ipu_s_cdev->ipu = g_ipu;
-	g_ipu_s_cdev->class = class_create(THIS_MODULE, X2_IPU_NAME);
 	alloc_chrdev_region(&g_ipu_s_cdev->dev_num, 0, 1, "ipu");
 	cdev_init(&g_ipu_s_cdev->cdev, &ipu_single_fops);
 	cdev_add(&g_ipu_s_cdev->cdev, g_ipu_s_cdev->dev_num, 1);
-	dev = device_create(g_ipu_s_cdev->class, NULL, g_ipu_s_cdev->dev_num, NULL, "ipu");
+
+	g_ipu_s_cdev->class = vps_class;
+	dev = device_create(g_ipu_s_cdev->class,
+			NULL, g_ipu_s_cdev->dev_num, NULL, "ipu");
 	if (IS_ERR(dev)) {
 		ret = -EINVAL;
 		ipu_err("ipu device create fail\n");
@@ -909,7 +912,6 @@ static void __exit x2_ipu_exit(void)
 {
 	device_destroy(g_ipu_s_cdev->class, g_ipu_s_cdev->dev_num);
 	unregister_chrdev_region(g_ipu_s_cdev->dev_num, 1);
-	class_destroy(g_ipu_s_cdev->class);
 	kfree(g_ipu_s_cdev);
 }
 

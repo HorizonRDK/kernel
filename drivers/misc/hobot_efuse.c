@@ -119,8 +119,7 @@ X2_EFUSE_WRAP_DATA_LEN, X2_EFUSE_WRAP_DATA_LEN-1);
 	return 0;
 }
 
-static ssize_t apb_show(struct class *class,
-			struct class_attribute *attr, char *buf)
+static ssize_t apb_show(struct device_driver *drv, char *buf)
 {
 	unsigned int i, ret, val, word = 0;
 	char temp[50];
@@ -144,16 +143,15 @@ static ssize_t apb_show(struct class *class,
 	return strlen(buf);
 }
 
-static ssize_t apb_store(struct class *class, struct class_attribute *attr,
+static ssize_t apb_store(struct device_driver *drv,
 				const char *buf, size_t count)
 {
 	return count;
 }
 
-static ssize_t wrap_show(struct class *class,
-			struct class_attribute *attr, char *buf)
+static ssize_t wrap_show(struct device_driver *drv, char *buf)
 {
-	unsigned int i, ret, val, word = 0;
+	unsigned int i, ret, val = 0, word = 0;
 	char temp[50];
 
 	for (i = 0; i < 32; i++, word++) {
@@ -175,16 +173,16 @@ static ssize_t wrap_show(struct class *class,
 	return strlen(buf);
 }
 
-static ssize_t wrap_store(struct class *class, struct class_attribute *attr,
+static ssize_t wrap_store(struct device_driver *drv,
 				const char *buf, size_t count)
 {
 	return count;
 }
 
-static struct class_attribute apb_attribute =
+static struct driver_attribute apb_attribute =
 	__ATTR(apb_efuse, 0644, apb_show, apb_store);
 
-static struct class_attribute wrap_attribute =
+static struct driver_attribute wrap_attribute =
 	__ATTR(wrap_efuse, 0644, wrap_show, wrap_store);
 
 static struct attribute *efuse_attributes[] = {
@@ -200,11 +198,6 @@ static const struct attribute_group efuse_group = {
 static const struct attribute_group *efuse_attr_group[] = {
 	&efuse_group,
 	NULL,
-};
-
-static struct class efuse_class = {
-	.name = "x2_efuse",
-	.class_groups = efuse_attr_group,
 };
 
 /* Match table for of_platform binding */
@@ -272,8 +265,8 @@ static struct platform_driver x2_efuse_platform_driver = {
 	.driver  = {
 		.name = X2_EFUSE_NAME,
 		.of_match_table = x2_efuse_of_match,
-		//.pm = &x2_efuse_dev_pm_ops,
-		},
+		.groups = efuse_attr_group,
+	},
 };
 
 static int __init x2_efuse_init(void)
@@ -285,10 +278,6 @@ static int __init x2_efuse_init(void)
 	if (retval)
 		pr_err("Unable to register platform driver\n");
 
-	retval = class_register(&efuse_class);
-	if (retval < 0)
-		return retval;
-
 	return retval;
 }
 
@@ -296,7 +285,6 @@ static void __exit x2_efuse_exit(void)
 {
 	/* Unregister the platform driver */
 	platform_driver_unregister(&x2_efuse_platform_driver);
-	class_unregister(&efuse_class);
 }
 
 module_init(x2_efuse_init);

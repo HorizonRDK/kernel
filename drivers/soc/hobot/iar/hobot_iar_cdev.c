@@ -20,6 +20,7 @@
 #include <linux/cdev.h>
 #include <linux/workqueue.h>
 #include <linux/fs.h>
+#include <linux/fb.h>
 #include <asm/io.h>
 #include <linux/mutex.h>
 #include <asm/cacheflush.h>
@@ -56,6 +57,7 @@ struct iar_cdev_s {
 	int major;
 	int minor;
 	struct cdev cdev;
+	struct device *dev;
 	dev_t dev_num;
 	struct class *iar_classes;
 	struct completion completion;
@@ -450,6 +452,7 @@ static struct attribute_group attr_group = {
 int __init iar_cdev_init(void)
 {
 	int error;
+	struct device *dev;
 
 	g_iar_cdev = kmalloc(sizeof(struct iar_cdev_s), GFP_KERNEL);
 	if (!g_iar_cdev) {
@@ -459,9 +462,8 @@ int __init iar_cdev_init(void)
 	g_iar_cdev->name = "iar_cdev";
 	mutex_init(&g_iar_cdev->iar_mutex);
 	init_completion(&g_iar_cdev->completion);
-	g_iar_cdev->iar_classes = class_create(THIS_MODULE, g_iar_cdev->name);
-	if (IS_ERR(g_iar_cdev->iar_classes))
-		return PTR_ERR(g_iar_cdev->iar_classes);
+
+	g_iar_cdev->iar_classes = fb_class;
 
 	error = alloc_chrdev_region(&g_iar_cdev->dev_num, 0, 1, g_iar_cdev->name);
 	if (!error) {
@@ -477,30 +479,21 @@ int __init iar_cdev_init(void)
 		return error;
 	}
 
-	device_create(g_iar_cdev->iar_classes, NULL, g_iar_cdev->dev_num, NULL, g_iar_cdev->name);
+	g_iar_cdev->dev = device_create(g_iar_cdev->iar_classes, NULL, g_iar_cdev->dev_num, NULL, g_iar_cdev->name);
 
 	g_iar_cdev->framebuf_user[IAR_CHANNEL_1] = x2_iar_get_framebuf_addr(IAR_CHANNEL_1);
 	g_iar_cdev->framebuf_user[IAR_CHANNEL_3] = x2_iar_get_framebuf_addr(IAR_CHANNEL_3);
 
-	x2_iar_kobj = kobject_create_and_add("x2_iar", NULL);
-	if (!x2_iar_kobj)
-		return -ENOMEM;
-	return sysfs_create_group(x2_iar_kobj, &attr_group);
-
-	return 0;
+	return sysfs_create_group(&g_iar_cdev->dev->kobj, &attr_group);
 }
 
 void __exit iar_cdev_exit(void)
 {
 	device_destroy(g_iar_cdev->iar_classes, g_iar_cdev->dev_num);
-	class_destroy(g_iar_cdev->iar_classes);
 	cdev_del(&g_iar_cdev->cdev);
 	unregister_chrdev_region(g_iar_cdev->dev_num, 1);
 
-	if (x2_iar_kobj) {
-		sysfs_remove_group(x2_iar_kobj, &attr_group);
-		kobject_del(x2_iar_kobj);
-	}
+	sysfs_remove_group(&g_iar_cdev->dev->kobj, &attr_group);
 }
 
 module_init(iar_cdev_init);

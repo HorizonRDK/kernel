@@ -440,7 +440,7 @@ static int bif_alloc_chardev(struct bifspi_t *pbif, const char *name)
 		goto failed_cdev;
 	}
 
-	pbif->class = class_create(THIS_MODULE, name);
+	pbif->class = class_create(THIS_MODULE, "bifspi");
 	if (!pbif->class) {
 		pr_err("Failed  class create\n");
 		goto failed_class;

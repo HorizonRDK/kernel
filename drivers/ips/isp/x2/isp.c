@@ -61,6 +61,7 @@ static struct device *g_isp_dev;
 //static struct fasync_struct *pisp_async;
 static u64 frame_count;
 static struct timeval tv;
+extern struct class *vps_class;
 
 static void x2_isp_diag_process(u32 errsta, u32 envdata)
 {
@@ -950,17 +951,11 @@ static int __init isp_dev_init(void)
 		goto fail_malloc;
 	}
 
-	isp_mod->class = class_create(THIS_MODULE, "x2_isp");
-	if (IS_ERR(isp_mod->class)) {
-		dev_err(g_isp_dev, "[%s] class_create is failed!\n", __func__);
-		ret = PTR_ERR(isp_mod->class);
-		goto fail_malloc;
-	}
-	g_isp_dev =
-	    device_create(isp_mod->class, NULL, isp_mod->dev_num,
+	isp_mod->class = vps_class;
+	g_isp_dev = device_create(isp_mod->class, NULL, isp_mod->dev_num,
 			  (void *)isp_mod, "x2_isp");
 	if (IS_ERR(g_isp_dev)) {
-		dev_err(g_isp_dev, "[%s] device_create is failed!\n", __func__);
+		pr_err("[%s] device_create is failed!\n", __func__);
 		ret = PTR_ERR(g_isp_dev);
 		goto fail_malloc;
 	}
@@ -1012,7 +1007,6 @@ static int __init isp_dev_init(void)
 
 fail_malloc:
 	isp_3adata_fifo_free(&isp_mod->isp_3adata_fifo);
-	class_destroy(isp_mod->class);
 	cdev_del(&isp_mod->mcdev);
 	unregister_chrdev_region(isp_mod->dev_num, 1);
 	kzfree(isp_mod);
@@ -1027,7 +1021,6 @@ static void __exit isp_dev_exit(void)
 	dev_info(g_isp_dev, "[%s] is success!\n", __func__);
 	isp_3adata_fifo_free(&isp_mod->isp_3adata_fifo);
 	device_destroy(isp_mod->class, isp_mod->dev_num);
-	class_destroy(isp_mod->class);
 	unregister_chrdev_region(isp_mod->dev_num, 1);
 	kzfree(isp_mod);
 }

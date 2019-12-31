@@ -971,6 +971,7 @@ static const struct of_device_id x2_ipu_of_match[] = {
 
 MODULE_DEVICE_TABLE(of, x2_ipu_of_match);
 
+static const struct attribute_group *ipu_attr_groups[];
 static struct platform_driver x2_ipu_platform_driver = {
 	.probe	 = x2_ipu_probe,
 	.remove  = x2_ipu_remove,
@@ -978,6 +979,7 @@ static struct platform_driver x2_ipu_platform_driver = {
 		.name = X2_IPU_NAME,
 		.of_match_table = x2_ipu_of_match,
 		.pm = &ipu_dev_pm_ops,
+		.groups = ipu_attr_groups,
 	},
 };
 
@@ -1188,11 +1190,7 @@ static int __init x2_ipu_init(void)
 
 	/* Register the platform driver */
 	ret = platform_driver_register(&x2_ipu_platform_driver);
-	x2_ipu_kobj = kobject_create_and_add("x2_ipu", NULL);
-	if (!x2_ipu_kobj)
-		return -ENOMEM;
-	sysfs_create_groups(x2_ipu_kobj, ipu_attr_groups);
-	//sysfs_create_group(x2_ipu_kobj, &attr_group);
+
 	return ret;
 }
 

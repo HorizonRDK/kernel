@@ -62,6 +62,7 @@ struct ipu_f_cdev {
 static struct ipu_f_cdev *g_ipu_f_cdev;
 static uint32_t g_ipu_status;
 static struct img_info_t g_img_info;
+extern struct class *vps_class;
 
 void ipu_feed_back_mode_process(uint32_t status)
 {
@@ -424,10 +425,11 @@ static int __init x2_ipu_feed_back_init(void)
 	g_ipu_f_cdev->ipu = g_ipu;
 	g_ipu_f_cdev->err_status = 0;
 	g_ipu_f_cdev->stop = 0;
-	g_ipu_f_cdev->class = class_create(THIS_MODULE, X2_IPU_FEED_BACK_NAME);
 	alloc_chrdev_region(&g_ipu_f_cdev->dev_num, 0, 1, "ipu-feedback");
 	cdev_init(&g_ipu_f_cdev->cdev, &ipu_feed_back_fops);
 	cdev_add(&g_ipu_f_cdev->cdev, g_ipu_f_cdev->dev_num, 1);
+
+	g_ipu_f_cdev->class = vps_class;
 	dev = device_create(g_ipu_f_cdev->class,
 			NULL, g_ipu_f_cdev->dev_num, NULL, "ipu-feedback");
 	if (IS_ERR(dev)) {
@@ -444,7 +446,6 @@ static void __exit x2_ipu_feed_back_exit(void)
 {
 	device_destroy(g_ipu_f_cdev->class, g_ipu_f_cdev->dev_num);
 	unregister_chrdev_region(g_ipu_f_cdev->dev_num, 1);
-	class_destroy(g_ipu_f_cdev->class);
 }
 
 module_init(x2_ipu_feed_back_init);

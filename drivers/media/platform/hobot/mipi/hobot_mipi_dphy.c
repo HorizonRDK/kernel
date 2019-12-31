@@ -616,8 +616,8 @@ static const struct file_operations x2_mipi_dphy_regs_fops = {
 
 static int    mipi_dphy_major = 0;
 struct cdev   mipi_dphy_cdev;
-static struct class  *x2_mipi_dphy_class;
 static struct device *g_mipi_dphy_dev;
+extern struct class  *vps_class;
 
 static int x2_mipi_dphy_probe(struct platform_device *pdev)
 {
@@ -646,13 +646,8 @@ static int x2_mipi_dphy_probe(struct platform_device *pdev)
 		printk(KERN_ERR "Error %d while adding x2 mipi_dphy cdev", ret);
 		goto err;
 	}
-	x2_mipi_dphy_class = class_create(THIS_MODULE, "x2_mipi_dphy");
-	if (IS_ERR(x2_mipi_dphy_class)) {
-		printk(KERN_INFO "[%s:%d] class_create error\n", __func__, __LINE__);
-		ret = PTR_ERR(x2_mipi_dphy_class);
-		goto err;
-	}
-	g_mipi_dphy_dev = device_create(x2_mipi_dphy_class, NULL, MKDEV(mipi_dphy_major, 0), (void *)pack_dev, "x2_mipi_dphy");
+
+	g_mipi_dphy_dev = device_create(vps_class, NULL, MKDEV(mipi_dphy_major, 0), (void *)pack_dev, "x2_mipi_dphy");
 	if (IS_ERR(g_mipi_dphy_dev)) {
 		printk(KERN_ERR "[%s] deivce create error\n", __func__);
 		ret = PTR_ERR(g_mipi_dphy_dev);
@@ -669,7 +664,6 @@ static int x2_mipi_dphy_probe(struct platform_device *pdev)
 	dev_info(&pdev->dev, "X2 mipi dev prop OK\n");
 	return 0;
 err:
-	class_destroy(x2_mipi_dphy_class);
 	cdev_del(&mipi_dphy_cdev);
 	unregister_chrdev_region(MKDEV(mipi_dphy_major, 0), 1);
 	if (pack_dev) {
@@ -681,7 +675,6 @@ err:
 static int x2_mipi_dphy_remove(struct platform_device *pdev)
 {
 	mipi_dphy_t *pack_dev = platform_get_drvdata(pdev);
-	class_destroy(x2_mipi_dphy_class);
 	cdev_del(&mipi_dphy_cdev);
 	unregister_chrdev_region(MKDEV(mipi_dphy_major, 0), 1);
 	devm_kfree(&pdev->dev, pack_dev);

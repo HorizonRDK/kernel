@@ -28,6 +28,7 @@ enum {
 };
 
 extern uint8_t g_slot_num;
+extern struct class *ipu_class;
 
 typedef void (*ipu_handle_t)(uint32_t status);
 

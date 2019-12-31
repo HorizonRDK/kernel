@@ -56,7 +56,7 @@ typedef struct sif_s {
 	int users;
 } sif_t;
 
-static struct class  *g_sif_class;
+extern struct class  *vps_class;
 static struct device *g_sif_dev;
 unsigned int sif_debug_level = 0;
 module_param(sif_debug_level, uint, 0644);
@@ -691,13 +691,8 @@ static int __init sif_module_init(void)
 		siferr("Error %d while adding x2 sif cdev", ret);
 		goto err;
 	}
-	g_sif_class = class_create(THIS_MODULE, "x2_sif");
-	if (IS_ERR(g_sif_class)) {
-		siferr("[%s:%d] class_create error", __func__, __LINE__);
-		ret = PTR_ERR(g_sif_class);
-		goto err;
-	}
-	g_sif_dev = device_create(g_sif_class, NULL, MKDEV(sif_major, 0), (void *)sif, "x2_sif");
+
+	g_sif_dev = device_create(vps_class, NULL, MKDEV(sif_major, 0), (void *)sif, "x2_sif");
 	if (IS_ERR(g_sif_dev)) {
 		siferr("[%s] deivce create error", __func__);
 		ret = PTR_ERR(g_sif_dev);
@@ -713,7 +708,6 @@ static int __init sif_module_init(void)
 	sifinfo("sif driver init done");
 	return 0;
 err:
-	class_destroy(g_sif_class);
 	cdev_del(&sif_cdev);
 	unregister_chrdev_region(MKDEV(sif_major, 0), 1);
 	kzfree(sif);
@@ -724,8 +718,7 @@ static void __exit sif_module_exit(void)
 {
 	sif_t *sif = dev_get_drvdata(g_sif_dev);
 	sifinfo("[%s:%d] sif_exit\n", __func__, __LINE__);
-	device_destroy(g_sif_class, MKDEV(sif_major, 0));
-	class_destroy(g_sif_class);
+	device_destroy(vps_class, MKDEV(sif_major, 0));
 	cdev_del(&sif_cdev);
 	unregister_chrdev_region(MKDEV(sif_major, 0), 1);
 	kzfree(sif);

@@ -2692,7 +2692,7 @@ static int slave_cdev_init(void)
 
 	slave_cdev_m_p->name = "w1_ds28e1x";
 	slave_cdev_m_p->slave_classes =
-	    class_create(THIS_MODULE, slave_cdev_m_p->name);
+	    class_create(THIS_MODULE, "w1_secchip");
 	if (IS_ERR(slave_cdev_m_p->slave_classes))
 		return PTR_ERR(slave_cdev_m_p->slave_classes);
 

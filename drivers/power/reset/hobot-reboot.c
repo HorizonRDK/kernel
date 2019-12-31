@@ -452,6 +452,11 @@ static const struct attribute_group x2_swinfo_attr_group = {
 	.attrs = x2_swinfo_attributes,
 };
 
+static const struct attribute_group *x2_swinfo_attr_groups[] = {
+	&x2_swinfo_attr_group,
+	NULL,
+};
+
 static void x2_swinfo_bit2mask(int bs, int be, u32 *mask, u32 *offset)
 {
 	int bt;
@@ -586,26 +591,11 @@ npm = of_parse_phandle(np, "memory-region", 0);
 			(swi_boot[0] == -1) ? "" : " boot",
 			(swi_dump[0] == -1) ? "" : " dump");
 
-	k_obj = kobject_create_and_add("x2_swinfo", NULL);
-	if (k_obj) {
-		if (sysfs_create_group(k_obj, &x2_swinfo_attr_group)) {
-			pr_warn("x2-swinfo sys group create error\n");
-			kobject_put(k_obj);
-			k_obj = NULL;
-		}
-	} else {
-		pr_warn("x2-swinfo sys node create error\n");
-	}
-
 	return err;
 }
 
 static int x2_reboot_remove(struct platform_device *pdev)
 {
-	if (k_obj) {
-		sysfs_remove_group(k_obj, &x2_swinfo_attr_group);
-		kobject_put(k_obj);
-	}
 	return 0;
 }
 
@@ -620,6 +610,7 @@ static struct platform_driver x2_reboot_driver = {
 	.driver = {
 		.name = "x2-reboot",
 		.of_match_table = x2_reboot_of_match,
+		.groups = x2_swinfo_attr_groups,
 	},
 };
 module_platform_driver(x2_reboot_driver);

@@ -128,8 +128,8 @@ typedef struct _mipi_host_s {
 mipi_host_t  *g_mipi_host = NULL;
 static int	  mipi_host_major = 0;
 struct cdev   mipi_host_cdev;
-static struct class  *x2_mipi_host_class;
 static struct device *g_mipi_host_dev;
+extern struct class  *vps_class;
 
 #if MIPI_HOST_INT_DBG
 #define MIPI_HOST_IRQ_CNT 2
@@ -1048,13 +1048,8 @@ static int x2_mipi_host_probe(struct platform_device *pdev)
 		printk(KERN_ERR "Error %d while adding x2 mipi_host cdev", ret);
 		goto err;
 	}
-	x2_mipi_host_class = class_create(THIS_MODULE, "x2_mipi_host");
-	if (IS_ERR(x2_mipi_host_class)) {
-		printk(KERN_INFO "[%s:%d] class_create error\n", __func__, __LINE__);
-		ret = PTR_ERR(x2_mipi_host_class);
-		goto err;
-	}
-	g_mipi_host_dev = device_create(x2_mipi_host_class, NULL, MKDEV(mipi_host_major, 0), (void *)mipi_host, "x2_mipi_host");
+
+	g_mipi_host_dev = device_create(vps_class, NULL, MKDEV(mipi_host_major, 0), (void *)mipi_host, "x2_mipi_host");
 	if (IS_ERR(g_mipi_host_dev)) {
 		printk(KERN_ERR "[%s] deivce create error\n", __func__);
 		ret = PTR_ERR(g_mipi_host_dev);
@@ -1113,7 +1108,6 @@ static int x2_mipi_host_probe(struct platform_device *pdev)
 	dev_info(&pdev->dev, "X2 mipi host prop done\n");
 	return 0;
 err:
-	class_destroy(x2_mipi_host_class);
 	cdev_del(&mipi_host_cdev);
 	unregister_chrdev_region(MKDEV(mipi_host_major, 0), 1);
 	kzfree(mipi_host);
@@ -1123,7 +1117,6 @@ err:
 static int x2_mipi_host_remove(struct platform_device *pdev)
 {
 	mipi_host_t *mipi_host = platform_get_drvdata(pdev);
-	class_destroy(x2_mipi_host_class);
 	cdev_del(&mipi_host_cdev);
 	unregister_chrdev_region(MKDEV(mipi_host_major, 0), 1);
 	kzfree(mipi_host);

@@ -447,7 +447,7 @@ static const struct file_operations x2_camera_fops = {
 
 static int    x2_camera_major = 0;
 struct cdev   x2_camera_cdev;
-static struct class  *x2_camera_class;
+extern struct class  *vps_class;
 static struct device *x2_camera_dev;
 
 static int x2_camera_probe(struct i2c_client *client, const struct i2c_device_id *id)
@@ -479,13 +479,8 @@ static int x2_camera_probe(struct i2c_client *client, const struct i2c_device_id
 		printk(KERN_ERR "Error %d while adding x2 fpgactrl cdev", ret);
 		goto err;
 	}
-	x2_camera_class = class_create(THIS_MODULE, "x2_camera");
-	if (IS_ERR(x2_camera_class)) {
-		printk(KERN_ERR "[%s:%d] class_create error\n", __func__, __LINE__);
-		ret = PTR_ERR(x2_camera_class);
-		goto err;
-	}
-	x2_camera_dev = device_create(x2_camera_class, NULL, MKDEV(x2_camera_major, 0), NULL, "x2_camera");
+
+	x2_camera_dev = device_create(vps_class, NULL, MKDEV(x2_camera_major, 0), NULL, "x2_camera");
 	if (IS_ERR(x2_camera_dev)) {
 		printk(KERN_ERR "[%s] deivce create error\n", __func__);
 		ret = PTR_ERR(x2_camera_dev);
@@ -502,7 +497,6 @@ static int x2_camera_probe(struct i2c_client *client, const struct i2c_device_id
 	printk(KERN_INFO "!!!!x2_camera probe OK!!!\n");
 	return 0;
 err:
-	class_destroy(x2_camera_class);
 	cdev_del(&x2_camera_cdev);
 	unregister_chrdev_region(MKDEV(x2_camera_major, 0), 1);
 	if (x2_camera) {
@@ -514,7 +508,6 @@ err:
 static int x2_camera_remove(struct i2c_client *client)
 {
 	x2_camera_t *x2_camera = i2c_get_clientdata(client);
-	class_destroy(x2_camera_class);
 	cdev_del(&x2_camera_cdev);
 	unregister_chrdev_region(MKDEV(x2_camera_major, 0), 1);
 	if (x2_camera) {

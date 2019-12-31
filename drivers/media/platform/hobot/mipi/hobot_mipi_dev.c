@@ -147,8 +147,8 @@ typedef struct _mipi_dev_s {
 static mipi_dev_t *g_mipi_dev = NULL;
 static int	  mipi_dev_major = 0;
 struct cdev   mipi_dev_cdev;
-static struct class  *x2_mipi_dev_class;
 static struct device *g_mipi_dev_dev;
+extern struct class  *vps_class;
 
 #if MIPI_DEV_INT_DBG
 #define MIPI_DEV_IRQ_CNT 2
@@ -932,13 +932,8 @@ static int x2_mipi_dev_probe(struct platform_device *pdev)
 		printk(KERN_ERR "Error %d while adding x2 mipi_dev cdev", ret);
 		goto err;
 	}
-	x2_mipi_dev_class = class_create(THIS_MODULE, "x2_mipi_dev");
-	if (IS_ERR(x2_mipi_dev_class)) {
-		printk(KERN_INFO "[%s:%d] class_create error\n", __func__, __LINE__);
-		ret = PTR_ERR(x2_mipi_dev_class);
-		goto err;
-	}
-	g_mipi_dev_dev = device_create(x2_mipi_dev_class, NULL, MKDEV(mipi_dev_major, 0), (void *)mipi_dev, "x2_mipi_dev");
+
+	g_mipi_dev_dev = device_create(vps_class, NULL, MKDEV(mipi_dev_major, 0), (void *)mipi_dev, "x2_mipi_dev");
 	if (IS_ERR(g_mipi_dev_dev)) {
 		printk(KERN_ERR "[%s] deivce create error\n", __func__);
 		ret = PTR_ERR(g_mipi_dev_dev);
@@ -996,7 +991,6 @@ static int x2_mipi_dev_probe(struct platform_device *pdev)
 	dev_info(&pdev->dev, "X2 mipi dev prop done\n");
 	return 0;
 err:
-	class_destroy(x2_mipi_dev_class);
 	cdev_del(&mipi_dev_cdev);
 	unregister_chrdev_region(MKDEV(mipi_dev_major, 0), 1);
 	kzfree(mipi_dev);
@@ -1006,7 +1000,6 @@ err:
 static int x2_mipi_dev_remove(struct platform_device *pdev)
 {
 	mipi_dev_t *mipi_dev = platform_get_drvdata(pdev);
-	class_destroy(x2_mipi_dev_class);
 	cdev_del(&mipi_dev_cdev);
 	unregister_chrdev_region(MKDEV(mipi_dev_major, 0), 1);
 	kzfree(mipi_dev);

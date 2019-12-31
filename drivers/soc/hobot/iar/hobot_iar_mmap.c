@@ -20,6 +20,7 @@
 #include <linux/cdev.h>
 #include <linux/workqueue.h>
 #include <linux/fs.h>
+#include <linux/fb.h>
 #include <asm/io.h>
 #include <linux/mutex.h>
 #include <soc/hobot/hobot_iar.h>
@@ -30,7 +31,7 @@ struct iar_mmap_s {
 	int minor;
 	struct cdev cdev;
 	dev_t dev_num;
-	struct class *iar_classes;
+	struct class *iar_class;
 	frame_buf_t *framebuf_user[IAR_CHANNEL_4];
 };
 struct iar_mmap_s *g_iar_mmap;
@@ -115,10 +116,7 @@ int __init iar_mmap_init(void)
 		printk(KERN_ERR "Unable to alloc IAR DEV\n");
 		return -ENOMEM;
 	}
-	g_iar_mmap->name = "iar_mmap";
-	g_iar_mmap->iar_classes = class_create(THIS_MODULE, g_iar_mmap->name);
-	if (IS_ERR(g_iar_mmap->iar_classes))
-		return PTR_ERR(g_iar_mmap->iar_classes);
+	g_iar_mmap->iar_class = fb_class;
 
 	error = alloc_chrdev_region(&g_iar_mmap->dev_num, 0, IAR_CHANNEL_MAX, g_iar_mmap->name);
 	if (!error) {
@@ -134,13 +132,13 @@ int __init iar_mmap_init(void)
 		return error;
 	}
 
-	//device_create(g_iar_mmap->iar_classes, NULL, g_iar_mmap->dev_num, NULL, g_iar_mmap->name);
+	//device_create(g_iar_mmap->iar_class, NULL, g_iar_mmap->dev_num, NULL, g_iar_mmap->name);
 
 	for (index = 0; index < IAR_CHANNEL_MAX; index++) {
 		char name[64];
 		dev_t dev = MKDEV(g_iar_mmap->major, g_iar_mmap->minor) + index;
 		sprintf(name, "iar_channel_%d", index);
-		device_create(g_iar_mmap->iar_classes, NULL, dev, NULL, name);
+		device_create(g_iar_mmap->iar_class, NULL, dev, NULL, name);
 	}
 
 	return 0;
@@ -148,8 +146,7 @@ int __init iar_mmap_init(void)
 
 void __exit iar_mmap_exit(void)
 {
-	device_destroy(g_iar_mmap->iar_classes, g_iar_mmap->dev_num);
-	class_destroy(g_iar_mmap->iar_classes);
+	device_destroy(g_iar_mmap->iar_class, g_iar_mmap->dev_num);
 	cdev_del(&g_iar_mmap->cdev);
 	unregister_chrdev_region(g_iar_mmap->dev_num, 1);
 }

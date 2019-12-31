@@ -59,6 +59,7 @@
 #define X2_IPU_DUAL_NAME	"x2-ipu-dual"
 
 extern struct x2_ipu_data *g_ipu;
+extern struct class *vps_class;
 static struct ipu_dual_cdev *g_ipu_d_cdev = NULL;
 static int64_t g_ipu_time;
 
@@ -1118,11 +1119,13 @@ static int __init x2_ipu_dual_init(void)
 	}
 	g_ipu_d_cdev->name = X2_IPU_DUAL_NAME;
 	g_ipu_d_cdev->ipu = g_ipu;
-	g_ipu_d_cdev->class = class_create(THIS_MODULE, X2_IPU_DUAL_NAME);
 	alloc_chrdev_region(&g_ipu_d_cdev->dev_num, 0, 1, "ipu-dual");
 	cdev_init(&g_ipu_d_cdev->cdev, &ipu_dual_fops);
 	cdev_add(&g_ipu_d_cdev->cdev, g_ipu_d_cdev->dev_num, 1);
-	dev = device_create(g_ipu_d_cdev->class, NULL, g_ipu_d_cdev->dev_num, NULL, "ipu-dual");
+
+	g_ipu_d_cdev->class = vps_class;
+	dev = device_create(g_ipu_d_cdev->class,
+			NULL, g_ipu_d_cdev->dev_num, NULL, "ipu-dual");
 	if (IS_ERR(dev)) {
 		ret  = -EINVAL;
 		ipu_err("ipu device create fail\n");
@@ -1144,7 +1147,6 @@ static void __exit x2_ipu_dual_exit(void)
 	ipu_pym_exit();
 	device_destroy(g_ipu_d_cdev->class, g_ipu_d_cdev->dev_num);
 	unregister_chrdev_region(g_ipu_d_cdev->dev_num, 1);
-	class_destroy(g_ipu_d_cdev->class);
 }
 
 module_init(x2_ipu_dual_init);

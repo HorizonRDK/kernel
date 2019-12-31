@@ -65,6 +65,8 @@ static unsigned long  runflags;
 static unsigned long  pym_runflags;
 static int started;
 
+extern struct class *vps_class;
+
 struct ipu_ddr_cdev {
 	const char *name;
 	struct x2_ipu_data *ipu;
@@ -1115,16 +1117,19 @@ static int __init x2_ipu_ddr_init(void)
 	g_ipu_ddr_cdev->name = X2_IPU_DDR_NAME;
 	g_ipu_ddr_cdev->err_status = 0;
 	g_ipu_ddr_cdev->ipu = g_ipu;
-	g_ipu_ddr_cdev->class = class_create(THIS_MODULE, X2_IPU_DDR_NAME);
+
 	alloc_chrdev_region(&g_ipu_ddr_cdev->dev_num, 0, 1, "ipu-ddr");
 	cdev_init(&g_ipu_ddr_cdev->cdev, &ipu_ddr_fops);
 	cdev_add(&g_ipu_ddr_cdev->cdev, g_ipu_ddr_cdev->dev_num, 1);
+
+	g_ipu_ddr_cdev->class = vps_class;
 	dev = device_create(g_ipu_ddr_cdev->class,
 				NULL, g_ipu_ddr_cdev->dev_num, NULL, "ipu-ddr");
 	if (IS_ERR(dev)) {
 		ret = -EINVAL;
 		ipu_err("ipu device create fail\n");
 	}
+
 	g_ipu->ipu_handle[IPU_DDR_SIGNLE] = ipu_ddr_mode_process;
 	if (diag_register(ModuleDiag_VIO, EventIdVioIpuDDRErr,
 					8, 350, 7000, NULL) < 0)
@@ -1139,7 +1144,6 @@ static void __exit x2_ipu_ddr_exit(void)
 	ipu_pym_exit();
 	device_destroy(g_ipu_ddr_cdev->class, g_ipu_ddr_cdev->dev_num);
 	unregister_chrdev_region(g_ipu_ddr_cdev->dev_num, 1);
-	class_destroy(g_ipu_ddr_cdev->class);
 	kfree(g_ipu_ddr_cdev);
 }
 

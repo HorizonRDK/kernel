@@ -785,10 +785,16 @@ static struct attribute_group attr_group = {
 	.attrs = attributes,
 };
 
+static const struct attribute_group *hdmi_sii_attr_groups[] = {
+	&attr_group,
+	NULL,
+};
+
 static struct i2c_driver hdmi_sii_i2c_driver = {
 	.driver = {
 		.name = DEVICE_NAME,
 		.owner = THIS_MODULE,
+		.groups = hdmi_sii_attr_groups,
 	},
 	.probe = hdmi_sii_probe,
 	.remove =  hdmi_sii_remove,
@@ -806,11 +812,7 @@ static int __init hdmi_sii_init(void)
 		pr_err("%s: failed to add sii902xA i2c driver\n",
 				__func__);
 
-	sii902x_kobj = kobject_create_and_add(DEVICE_NAME, NULL);
-	if (!sii902x_kobj)
-		return -ENOMEM;
-
-	return sysfs_create_group(sii902x_kobj, &attr_group);
+	return ret;
 }
 
 static void __exit hdmi_sii_exit(void)

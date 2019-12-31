@@ -233,6 +233,11 @@ struct video_device *video_devdata(struct file *file)
 }
 EXPORT_SYMBOL(video_devdata);
 
+#ifdef CONFIG_ARCH_HOBOT
+struct class *vps_class;
+EXPORT_SYMBOL(vps_class);
+#endif
+
 
 /* Priority handling */
 
@@ -1052,6 +1057,14 @@ static int __init videodev_init(void)
 		return -EIO;
 	}
 
+#ifdef CONFIG_ARCH_HOBOT
+	vps_class = class_create(THIS_MODULE, "vps");
+	if (IS_ERR(vps_class)) {
+		ret = PTR_ERR(vps_class);
+		return ret;
+	}
+#endif
+
 	return 0;
 }
 
@@ -1061,6 +1074,9 @@ static void __exit videodev_exit(void)
 
 	class_unregister(&video_class);
 	unregister_chrdev_region(dev, VIDEO_NUM_DEVICES);
+#ifdef CONFIG_ARCH_HOBOT
+	class_destroy(vps_class);
+#endif
 }
 
 subsys_initcall(videodev_init);
