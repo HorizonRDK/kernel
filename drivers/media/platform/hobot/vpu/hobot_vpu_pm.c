@@ -16,54 +16,68 @@ void hb_vpu_final_pm(struct device *dev)
 {
 }
 
-struct clk *hb_vpu_clk_get(struct device *dev)
+int hb_vpu_clk_get(hb_vpu_dev_t *dev)
 {
-	// TODO get the clock name from dts
-	return clk_get(dev, VPU_CLK_NAME);
+	int rate = 0;
+	if (!dev) {
+		return -1;
+	}
+
+	dev->vpu_bclk = devm_clk_get(dev->device, VPU_VCPU_BPU_CLK_NAME);
+	if ((!dev->vpu_bclk) || clk_prepare_enable(dev->vpu_bclk)) {
+		dev_err(dev->device, "failed to get clk(%s).\n", VPU_VCPU_BPU_CLK_NAME);
+		dev->vpu_bclk = NULL;
+		dev->vpu_cclk = NULL;
+		return -1;
+	}
+
+	rate = clk_get_rate(dev->vpu_bclk);
+	dev_info(dev->device, "%s clock is %d\n", VPU_VCPU_BPU_CLK_NAME, rate);
+
+	dev->vpu_cclk = devm_clk_get(dev->device, VPU_VCE_CLK_NAME);
+	if ((!dev->vpu_cclk) || clk_prepare_enable(dev->vpu_cclk)) {
+		dev_err(dev->device, "failed to get clk(%s).\n", VPU_VCE_CLK_NAME);
+		clk_disable_unprepare(dev->vpu_bclk);
+		dev->vpu_bclk = NULL;
+		dev->vpu_cclk = NULL;
+		return -1;
+	}
+
+	rate = clk_get_rate(dev->vpu_cclk);
+	dev_info(dev->device, "%s clock is %d\n", VPU_VCE_CLK_NAME, rate);
+
+	return 0;
 }
 
-void hb_vpu_clk_put(struct clk *clk)
+void hb_vpu_clk_put(hb_vpu_dev_t *dev)
 {
-	if (!(clk == NULL || IS_ERR(clk)))
-		clk_put(clk);
+	// Do nothing
 }
 
-int hb_vpu_clk_enable(struct clk *clk)
+int hb_vpu_clk_enable(hb_vpu_dev_t *dev)
 {
-	if (!(clk == NULL || IS_ERR(clk))) {
-		/* the bellow is for C&M EVB. */
-		/*
-		   {
-		   struct clk *s_vpuext_clk = NULL;
-		   s_vpuext_clk = clk_get(NULL, "vcore");
-		   if (s_vpuext_clk)
-		   {
-		   DPRINTK("[VPUDRV] vcore clk=%p\n", s_vpuext_clk);
-		   clk_enable(s_vpuext_clk);
-		   }
-
-		   DPRINTK("[VPUDRV] vbus clk=%p\n", s_vpuext_clk);
-		   if (s_vpuext_clk)
-		   {
-		   s_vpuext_clk = clk_get(NULL, "vbus");
-		   clk_enable(s_vpuext_clk);
-		   }
-		   }
-		 */
-		/* for C&M EVB. */
-
-		vpu_debug(5, "vpu_clk_enable\n");
-		//customers needs implementation to turn on clock like clk_enable(clk)
-		return 1;
+	int ret = 0;
+	if (!dev)
+		return -1;
+	ret = clk_prepare_enable(dev->vpu_bclk);
+	if (ret) {
+		dev_err(dev->device, "failed to enable clk(%s).\n", VPU_VCPU_BPU_CLK_NAME);
+		return -1;
+	}
+	ret = clk_prepare_enable(dev->vpu_cclk);
+	if (ret) {
+		clk_disable_unprepare(dev->vpu_bclk);
+		dev_err(dev->device, "failed to enable clk(%s).\n", VPU_VCE_CLK_NAME);
+		return -1;
 	}
 
 	return 0;
 }
 
-void hb_vpu_clk_disable(struct clk *clk)
+void hb_vpu_clk_disable(hb_vpu_dev_t *dev)
 {
-	if (!(clk == NULL || IS_ERR(clk))) {
-		vpu_debug(5, "vpu_clk_disable\n");
-		//customers needs implementation to turn off clock like clk_disable(clk)
-	}
+	if (!dev)
+		return;
+	clk_disable_unprepare(dev->vpu_bclk);
+	clk_disable_unprepare(dev->vpu_cclk);
 }

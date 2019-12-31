@@ -1,3 +1,8 @@
+/***************************************************************************
+ *                      COPYRIGHT NOTICE
+ *             Copyright 2019 Horizon Robotics, Inc.
+ *                     All rights reserved.
+ ***************************************************************************/
 #ifndef __HOBOT_VPU_PM_H__
 #define __HOBOT_VPU_PM_H__
 
@@ -12,9 +17,9 @@ void hb_vpu_clock_off(void);
 int hb_vpu_power_on(void);
 int hb_vpu_power_off(void);
 
-struct clk *hb_vpu_clk_get(struct device *dev);
-void hb_vpu_clk_put(struct clk *clk);
-int hb_vpu_clk_enable(struct clk *clk);
-void hb_vpu_clk_disable(struct clk *clk);
+int hb_vpu_clk_get(hb_vpu_dev_t *dev);
+void hb_vpu_clk_put(hb_vpu_dev_t *dev);
+int hb_vpu_clk_enable(hb_vpu_dev_t *dev);
+void hb_vpu_clk_disable(hb_vpu_dev_t *dev);
 
 #endif /* __HOBOT_VPU_PM_H__ */

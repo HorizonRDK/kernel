@@ -867,9 +867,9 @@ INTERRUPT_REMAIN_IN_QUEUE:
 				return -EFAULT;
 #ifdef VPU_SUPPORT_CLOCK_CONTROL
 			if (clkgate)
-				hb_vpu_clk_enable(dev->vpu_clk);
+				hb_vpu_clk_enable(dev);
 			else
-				hb_vpu_clk_disable(dev->vpu_clk);
+				hb_vpu_clk_disable(dev);
 #endif
 			vpu_debug(5, "[-]VDI_IOCTL_SET_CLOCK_GATE\n");
 		}
@@ -1739,14 +1739,10 @@ static int vpu_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, dev);
 
-	dev->vpu_clk = hb_vpu_clk_get(&pdev->dev);
-	if (!dev->vpu_clk) {
-		dev_err(&pdev->dev, "not support clock controller.\n");
-	} else {
-		dev_err(&pdev->dev, "get clock controller s_vpu_clk = %p\n",
-			dev->vpu_clk);
+	err = hb_vpu_clk_get(dev);
+	if (err < 0) {
+		goto ERR_GET_CLK;
 	}
-	hb_vpu_clk_enable(dev->vpu_clk);
 
 #ifdef CONFIG_ION_HOBOT
 	dev->vpu_ion_client = ion_client_create(ion_exynos, "vpu");
@@ -1836,8 +1832,8 @@ ERR_RESERVED_MEM:
 	ion_client_destroy(dev->vpu_ion_client);
 ERR_ION_CLIENT:
 #endif
-	hb_vpu_clk_enable(dev->vpu_clk);
-	hb_vpu_clk_put(dev->vpu_clk);
+	hb_vpu_clk_put(dev);
+ERR_GET_CLK:
 	sysfs_remove_group(dev->vpu_kobj, &attr_group);
 ERR_CREATE_SYSFS:
 	kobject_del(dev->vpu_kobj);
@@ -1906,8 +1902,8 @@ static int vpu_remove(struct platform_device *pdev)
 	ion_client_destroy(dev->vpu_ion_client);
 #endif
 
-	hb_vpu_clk_disable(dev->vpu_clk);
-	hb_vpu_clk_put(dev->vpu_clk);
+	hb_vpu_clk_disable(dev);
+	hb_vpu_clk_put(dev);
 	sysfs_remove_group(dev->vpu_kobj, &attr_group);
 	kobject_del(dev->vpu_kobj);
 	device_destroy(dev->vpu_class, dev->vpu_dev_num);
@@ -1934,7 +1930,7 @@ static int vpu_suspend(struct platform_device *pdev, pm_message_t state)
 
 	vpu_debug_enter();
 	dev = (hb_vpu_dev_t *) platform_get_drvdata(pdev);
-	hb_vpu_clk_enable(dev->vpu_clk);
+	hb_vpu_clk_enable(dev);
 
 	if (dev->vpu_open_ref_count > 0) {
 		for (core = 0; core < MAX_NUM_VPU_CORE; core++) {
@@ -1986,11 +1982,11 @@ static int vpu_suspend(struct platform_device *pdev, pm_message_t state)
 		}
 	}
 
-	hb_vpu_clk_disable(dev->vpu_clk);
+	hb_vpu_clk_disable(dev);
 	return 0;
 
 DONE_SUSPEND:
-	hb_vpu_clk_disable(dev->vpu_clk);
+	hb_vpu_clk_disable(dev);
 	return -EAGAIN;
 }
 
@@ -2011,7 +2007,7 @@ static int vpu_resume(struct platform_device *pdev)
 
 	vpu_debug_enter();
 	dev = (hb_vpu_dev_t *) platform_get_drvdata(pdev);
-	hb_vpu_clk_enable(dev->vpu_clk);
+	hb_vpu_clk_enable(dev);
 
 	for (core = 0; core < MAX_NUM_VPU_CORE; core++) {
 		if (dev->bit_fm_info[core].size == 0) {
@@ -2116,11 +2112,11 @@ static int vpu_resume(struct platform_device *pdev)
 	}
 
 	if (dev->vpu_open_ref_count == 0)
-		hb_vpu_clk_disable(dev->vpu_clk);
+		hb_vpu_clk_disable(dev);
 
 DONE_WAKEUP:
 	if (dev->vpu_open_ref_count > 0)
-		hb_vpu_clk_enable(dev->vpu_clk);
+		hb_vpu_clk_enable(dev);
 
 	return 0;
 }

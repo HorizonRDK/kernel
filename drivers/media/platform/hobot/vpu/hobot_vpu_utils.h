@@ -26,7 +26,8 @@
 #endif
 
 #define VPU_PLATFORM_DEVICE_NAME "hb_vpu"
-#define VPU_CLK_NAME "vcodec"
+#define VPU_VCPU_BPU_CLK_NAME "vpu_bclk"
+#define VPU_VCE_CLK_NAME "vpu_cclk"
 
 typedef enum _hb_vpu_event_e {
 	VPU_EVENT_NONE = 0,
@@ -79,7 +80,8 @@ typedef struct _hb_vpu_dev {
 	struct cdev cdev;
 	struct device *vpu_dev;
 	struct kobject *vpu_kobj;
-	struct clk *vpu_clk;
+	struct clk *vpu_bclk;
+	struct clk *vpu_cclk;
 #ifdef CONFIG_ION_HOBOT
 	struct ion_client *vpu_ion_client;
 #endif
