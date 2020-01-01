@@ -21,15 +21,14 @@ struct x2a_ips_dev {
 	spinlock_t			shared_slock;
 };
 
+struct vio_clk {
+	const char *name;
+	struct clk *clk;
+};
+
 int ips_set_clk_ctrl(unsigned long module, bool enable);
 int vio_clk_enable(const char *name);
 int vio_clk_disable(const char *name);
 int vio_set_clk_rate(const char *name, ulong frequency);
 ulong vio_get_clk_rate(const char *name);
-
-
-struct vio_clk {
-	const char *name;
-	struct clk *clk;
-};
 #endif

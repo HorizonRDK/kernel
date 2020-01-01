@@ -1,3 +1,9 @@
+/***************************************************************************
+ *                      COPYRIGHT NOTICE
+ *             Copyright 2019 Horizon Robotics, Inc.
+ *                     All rights reserved.
+ ***************************************************************************/
+
 #ifndef __HOBOT_SIF_H__
 #define __HOBOT_SIF_H__
 
@@ -93,17 +99,16 @@ struct sif_video_ctx{
 	struct vio_framemgr 	framemgr;
 	struct vio_group		*group;
 	unsigned long			state;
+	u32 event;
+	u32 id;
 
 	u32 mux_index;
 	u32 dol_num;
-	u32 id;
 	u32 rx_num;
 	bool initial_frameid;
 	u64 bufcount;
 	struct frame_id			info;
 	struct x2a_sif_dev 		*sif_dev;
-	struct semaphore 		smp_resource;
-	u32 event;
 };
 
 enum sif_state {

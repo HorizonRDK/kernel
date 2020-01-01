@@ -1,3 +1,9 @@
+/***************************************************************************
+ *                      COPYRIGHT NOTICE
+ *             Copyright 2019 Horizon Robotics, Inc.
+ *                     All rights reserved.
+ ***************************************************************************/
+
 #include <linux/module.h>
 #include <linux/delay.h>
 #include <linux/kernel.h>
@@ -91,22 +97,17 @@ static u32 x2a_pym_poll(struct file *file, struct poll_table_struct *wait)
 
 static int x2a_pym_close(struct inode *inode, struct file *file)
 {
-
 	struct pym_video_ctx *pym_ctx;
 	struct vio_group *group;
-	struct x2a_pym_dev *pym;
 
 	pym_ctx = file->private_data;
 	group = pym_ctx->group;
-	pym = pym_ctx->pym_dev;
 
 	clear_bit(VIO_GROUP_INIT, &group->state);
-
-	vio_group_task_stop(&pym->gtask);
+	vio_group_task_stop(group->gtask);
+	frame_manager_close(&pym_ctx->framemgr);
 
 	pym_ctx->state = BIT(VIO_VIDEO_CLOSE);
-
-	frame_manager_close(&pym_ctx->framemgr);
 
 	kfree(pym_ctx);
 
@@ -313,7 +314,7 @@ int pym_video_init(struct pym_video_ctx *pym_ctx, unsigned long arg)
 		
 	pym_update_param(pym_ctx, &pym_config);
 
-	vio_group_task_start(&pym_dev->gtask);	//TODO:move to open function;
+	vio_group_task_start(group->gtask);
 
 	pym_ctx->state = BIT(VIO_VIDEO_INIT);
 
@@ -396,7 +397,6 @@ int pym_video_streamoff(struct pym_video_ctx *pym_ctx)
 	clear_bit(PYM_DMA_INPUT, &pym_dev->state);
 
 	spin_unlock_irqrestore(&pym_dev->shared_slock, flag);
-	vio_info("%s timer del\n", __func__);
 p_dec:
 
 	frame_manager_flush(&pym_ctx->framemgr);
@@ -408,19 +408,21 @@ p_dec:
 
 int pym_video_s_stream(struct pym_video_ctx *pym_ctx, bool enable)
 {
-	if (enable)
-		pym_video_streamon(pym_ctx);
-	else
-		pym_video_streamoff(pym_ctx);
+	int ret = 0;
 
-	return 0;
+	if (enable)
+		ret = pym_video_streamon(pym_ctx);
+	else
+		ret = pym_video_streamoff(pym_ctx);
+
+	return ret;
 }
 
 int pym_video_reqbufs(struct pym_video_ctx *pym_ctx, u32 buffers)
 {
 	int ret = 0;
-	struct vio_framemgr *framemgr;
 	int i = 0;
+	struct vio_framemgr *framemgr;
 
 	if (!(pym_ctx->state & (BIT(VIO_VIDEO_STOP) | BIT(VIO_VIDEO_REBUFS) |
 		      BIT(VIO_VIDEO_INIT)| BIT(VIO_VIDEO_S_INPUT)))) {
@@ -472,7 +474,7 @@ int pym_video_qbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 
 	group = pym_ctx->group;
 	if(group->leader == true)
-		vio_group_start_trigger(&pym_ctx->pym_dev->gtask, frame);
+		vio_group_start_trigger(group->gtask, frame);
 
 	return ret;
 
@@ -500,11 +502,6 @@ int pym_video_dqbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
 	return ret;
-}
-
-void pym_group_set_state(struct vio_group *group, unsigned long state)
-{
-	set_bit(state, &group->state);
 }
 
 static long x2a_pym_ioctl(struct file *file, unsigned int cmd,
@@ -636,8 +633,8 @@ void pym_frame_done(struct pym_video_ctx *pym_ctx)
 static irqreturn_t pym_isr(int irq, void *data)
 {
 	u32 status;
-	struct x2a_pym_dev *pym;
 	u32 instance;
+	struct x2a_pym_dev *pym;
 	struct vio_group *group;
 	struct vio_group_task *gtask;
 

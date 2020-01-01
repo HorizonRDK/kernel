@@ -1,3 +1,9 @@
+/***************************************************************************
+ *                      COPYRIGHT NOTICE
+ *             Copyright 2019 Horizon Robotics, Inc.
+ *                     All rights reserved.
+ ***************************************************************************/
+
 #include <linux/delay.h>
 #include "hobot_sif_hw_reg.h"
 #include "hobot_dev_sif.h"
@@ -823,8 +829,6 @@ static void sif_set_isp_output(u32 __iomem *base_reg, sif_output_isp_t* p_isp)
 				&sif_fields[SW_SIF_ISP0_DOL_EXP_NUM], p_isp->dol_exp_num);
 		// Expected: At least one frame to ISP if flyby mode
 		if (p_isp->func.enable_flyby) {
-			//sif_add_expected_interrupt(SIF_ISP0_OUT_FE_INT, 1, RULE_GE);
-			//sif_add_expected_interrupt(SIF_ISP0_OUT_FS_INT, 1, RULE_GE);
 			// For DOL 2/3
 			if (p_isp->dol_exp_num > 1) {
 				vio_hw_set_reg(base_reg, &sif_regs[SIF_AXI_FRM0_W_ADDR0], iram_addr_range[0][0]);
@@ -886,7 +890,6 @@ static void sif_set_ipu_output(u32 __iomem *base_reg, sif_output_ipu_t* p_ipu)
 	vio_hw_set_field(base_reg, &sif_regs[SIF_OUT_EN_INT],
 			&sif_fields[SIF_IPU0_OUT_FS_INT_EN], p_ipu->enable_flyby);
 	if (p_ipu->enable_flyby) {
-
 		// The format to IPU must be YUV422
 		vio_hw_set_reg(base_reg, &sif_regs[SIF_YUV422_TRANS], 0);
 		// otf to ipu doesn't pass axi/iram
@@ -912,7 +915,6 @@ void sif_hw_config(u32 __iomem *base_reg, sif_cfg_t* c)
 	u32 dol_exp_num = 0;
 	sif_output_ddr_t ddr;
 	//vio_hw_set_reg(base_reg, &sif_regs[SIF_MUX_OUT_MODE], 0);
-	sif_disable_wdma(base_reg);
 
 	// Input: IAR
 	sif_set_iar_input(base_reg, &c->input.iar);
@@ -1079,6 +1081,10 @@ static void sif_disable_input_and_output(u32 __iomem *base_reg)
 
 void sif_hw_disable(u32 __iomem *base_reg)
 {
+	/*4 ddr in channel can not be 0 together*/
+	sif_disable_wdma(base_reg);
+	sif_set_rdma_enable(base_reg, 0, true);
+
 	/* Disable all inputs and wait until drained */
 	sif_disable_input_and_output(base_reg);
 

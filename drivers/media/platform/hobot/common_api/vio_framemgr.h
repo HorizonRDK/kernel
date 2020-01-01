@@ -1,3 +1,9 @@
+/***************************************************************************
+ *                      COPYRIGHT NOTICE
+ *             Copyright 2019 Horizon Robotics, Inc.
+ *                     All rights reserved.
+ ***************************************************************************/
+
 #ifndef VIO_FRAME_MGR_H
 #define VIO_FRAME_MGR_H
 
@@ -75,6 +81,12 @@ struct vio_frame_info {
 	int			cpu;
 	int			pid;
 	unsigned long long	when;
+};
+
+struct frame_id{
+	u32 frame_id;
+	u32 timestamp_m;
+	u32 timestamp_l;
 };
 
 struct special_buffer{

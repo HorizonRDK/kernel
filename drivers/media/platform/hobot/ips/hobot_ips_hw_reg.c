@@ -7,13 +7,6 @@
 #include "hobot_ips_hw_reg.h"
 #include "vio_config.h"
 
-struct roi_rect{
-    u16 roi_x;
-    u16 roi_y;
-    u16 roi_width;
-    u16 roi_height;
-};
-
 void ips_module_reset(void __iomem *base_addr, unsigned int module)
 {
 	int field_index = 0;

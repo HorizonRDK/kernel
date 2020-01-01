@@ -1,3 +1,9 @@
+/***************************************************************************
+ *                      COPYRIGHT NOTICE
+ *             Copyright 2019 Horizon Robotics, Inc.
+ *                     All rights reserved.
+ ***************************************************************************/
+
 #ifndef __HOBOT_IPU_DEV_H__
 #define __HOBOT_IPU_DEV_H__
 
@@ -46,13 +52,13 @@ struct ipu_video_ctx {
 	wait_queue_head_t done_wq;
 	struct vio_framemgr framemgr;
 	struct vio_group *group;
+	u32 event;
+	bool leader;
+	u32 id;
+	unsigned long state;
 
 	struct x2a_ipu_dev *ipu_dev;
 	struct ipu_osd_cfg osd_cfg;
-	u32 group_id;
-	unsigned long state;
-	u32 event;
-	bool leader;
 };
 
 enum ipu_group_state {

@@ -1,3 +1,9 @@
+/***************************************************************************
+ *                      COPYRIGHT NOTICE
+ *             Copyright 2019 Horizon Robotics, Inc.
+ *                     All rights reserved.
+ ***************************************************************************/
+
 #ifndef __HOBOT_SIF_CONFIG__
 #define __HOBOT_SIF_CONFIG__
 

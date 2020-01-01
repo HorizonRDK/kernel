@@ -1,3 +1,9 @@
+/***************************************************************************
+ *                      COPYRIGHT NOTICE
+ *             Copyright 2019 Horizon Robotics, Inc.
+ *                     All rights reserved.
+ ***************************************************************************/
+
 #include <linux/module.h>
 #include <linux/delay.h>
 #include <linux/kernel.h>
@@ -87,13 +93,13 @@ static const struct dev_pm_ops x2a_sif_pm_ops = {
 
 void sif_read_frame_work(struct vio_group *group)
 {
+	unsigned long flags;
+	u32 instance = 0;
 	struct sif_video_ctx *ctx;
 	struct x2a_sif_dev *sif;
 	struct vio_framemgr *framemgr;
 	struct vio_frame *frame;
 	struct frame_info *frameinfo;
-	unsigned long flags;
-	u32 instance = 0;
 
 	instance = group->instance;
 	ctx = group->sub_ctx[0];
@@ -102,16 +108,16 @@ void sif_read_frame_work(struct vio_group *group)
 	atomic_set(&sif->instance, instance);
 
 	if (sif_isp_ctx_sync != NULL) {
-		printk("SIF->ISP: %s tell isp ctx id\n", __func__);
+		vio_info("SIF->ISP: %s tell isp ctx id\n", __func__);
 		(*sif_isp_ctx_sync)(instance);
 	}
-	printk("SIF->ISP: %s isp config done, starting to feed\n", __func__);
+	vio_info("SIF->ISP: %s isp config done, starting to feed\n", __func__);
 
 	framemgr = &ctx->framemgr;
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	frame = peek_frame(framemgr, FS_REQUEST);
 	if (frame) {
-		// TODO:add the dol mode
+		// TODO:add the dol mode @kaikai.sun
 		frameinfo = &frame->frameinfo;
 		sif_config_rdma_fmt(sif->base_reg, frameinfo->format,
 				    frameinfo->width, frameinfo->height);
@@ -129,14 +135,14 @@ void sif_read_frame_work(struct vio_group *group)
 
 void sif_write_frame_work(struct vio_group *group)
 {
+	u32 instance = 0;
+	u32 buf_index, mux_index;
+	u32 yuv_format = 0;
+	unsigned long flags;
 	struct sif_video_ctx *ctx;
 	struct x2a_sif_dev *sif;
 	struct vio_framemgr *framemgr;
 	struct vio_frame *frame;
-	unsigned long flags;
-	u32 instance = 0;
-	u32 buf_index, mux_index;
-	u32 yuv_format = 0;
 
 	instance = group->instance;
 	ctx = group->sub_ctx[0];
@@ -177,10 +183,10 @@ void sif_write_frame_work(struct vio_group *group)
 
 static int x2a_sif_open(struct inode *inode, struct file *file)
 {
-	struct sif_video_ctx *sif_ctx;
-	struct x2a_sif_dev *sif;
 	int ret = 0;
 	int minor = 0;
+	struct sif_video_ctx *sif_ctx;
+	struct x2a_sif_dev *sif;
 
 	minor = MINOR(inode->i_rdev);
 
@@ -246,11 +252,8 @@ static int x2a_sif_close(struct inode *inode, struct file *file)
 	if (group)
 		clear_bit(VIO_GROUP_INIT, &group->state);
 
-	if (sif_ctx->id == 0) {
-		vio_group_task_stop(&sif->sifout_task[sif_ctx->mux_index]);
-	} else if (sif_ctx->id == 1) {
-		vio_group_task_stop(&sif->sifin_task);
-	}
+	if (group->gtask)
+		vio_group_task_stop(group->gtask);
 
 	frame_manager_close(&sif_ctx->framemgr);
 
@@ -259,11 +262,6 @@ static int x2a_sif_close(struct inode *inode, struct file *file)
 	kfree(sif_ctx);
 
 	vio_info("SIF close node %d\n", sif_ctx->id);
-	return 0;
-}
-
-int sif_send_isp_signal(void)
-{
 	return 0;
 }
 
@@ -323,7 +321,7 @@ int sif_mux_init(struct sif_video_ctx *sif_ctx, unsigned long arg)
 
 	sif->sif_mux[mux_index] = group;
 	gtask = &sif->sifout_task[mux_index];
-	vio_group_task_start(gtask);
+
 	sema_init(&gtask->hw_resource, 4);
 
 	group->gtask = gtask;
@@ -354,19 +352,20 @@ int sif_video_init(struct sif_video_ctx *sif_ctx, unsigned long arg)
 
 	//sif_bind_chain_group(sif_ctx, 0);
 
+	vio_group_task_start(group->gtask);
+
 	if (sif_ctx->id == 0) {
-		sif_mux_init(sif_ctx, arg);
+		ret = sif_mux_init(sif_ctx, arg);
 	} else if (sif_ctx->id == 1) {
-		vio_group_task_start(&sif->sifin_task);
 		sif_set_isp_performance(sif->base_reg, 1);
 		set_bit(SIF_DMA_IN_ENABLE, &sif->state);
 		set_bit(VIO_GROUP_DMA_INPUT, &group->state);
 		set_bit(VIO_GROUP_OTF_OUTPUT, &group->state);
 	}
 
-	vio_info("V[%d]%s ret(%d)\n", sif_ctx->id, __func__, ret);
-
 	sif_ctx->state = BIT(VIO_VIDEO_INIT);
+
+	vio_info("V[%d]%s ret(%d)\n", sif_ctx->id, __func__, ret);
 
 	return ret;
 }
@@ -417,8 +416,8 @@ int sif_bind_chain_group(struct sif_video_ctx *sif_ctx, int instance)
 
 int sif_video_streamon(struct sif_video_ctx *sif_ctx)
 {
-	struct x2a_sif_dev *sif_dev;
 	unsigned long flag;
+	struct x2a_sif_dev *sif_dev;
 
 	if (!(sif_ctx->state & (BIT(VIO_VIDEO_STOP)
 			| BIT(VIO_VIDEO_REBUFS)
@@ -537,7 +536,7 @@ int sif_video_reqbufs(struct sif_video_ctx *sif_ctx, u32 buffers)
 
 	group = sif_ctx->group;
 	for (i = 0; i < buffers; i++) {
-		framemgr->frames[i].data = sif_ctx->group;
+		framemgr->frames[i].data = group;
 	}
 
 	sif_ctx->state = BIT(VIO_VIDEO_REBUFS);
@@ -548,11 +547,11 @@ int sif_video_reqbufs(struct sif_video_ctx *sif_ctx, u32 buffers)
 int sif_video_qbuf(struct sif_video_ctx *sif_ctx, struct frame_info *frameinfo)
 {
 	int ret = 0;
+	int index = 0;
 	struct vio_framemgr *framemgr;
 	struct vio_frame *frame;
 	unsigned long flags;
 	struct vio_group *group;
-	int index = 0;
 
 	index = frameinfo->bufferindex;
 	framemgr = &sif_ctx->framemgr;
@@ -561,7 +560,7 @@ int sif_video_qbuf(struct sif_video_ctx *sif_ctx, struct frame_info *frameinfo)
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	frame = &framemgr->frames[index];
 	if (frame->state == FS_FREE) {
-		/*TODO: get the phy address from ion handle */
+		/*TODO: get the phy address from ion handle @kaikai */
 		memcpy(&frame->frameinfo, frameinfo, sizeof(struct frame_info));
 		trans_frame(framemgr, frame, FS_REQUEST);
 	} else {
@@ -571,8 +570,8 @@ int sif_video_qbuf(struct sif_video_ctx *sif_ctx, struct frame_info *frameinfo)
 	}
 
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
-	group = sif_ctx->group;
 
+	group = sif_ctx->group;
 	vio_group_start_trigger(group->gtask, frame);
 
 	return ret;
@@ -734,16 +733,16 @@ void sif_frame_done(struct sif_video_ctx *sif_ctx)
 
 static irqreturn_t sif_isr(int irq, void *data)
 {
+	int ret = 0;
+	u32 mux_index = 0;
+	u32 instance;
+	u32 status = 0;
+	u32 intr_en = 0;
 	struct sif_irq_src irq_src;
 	struct x2a_sif_dev *sif;
 	struct sif_video_ctx *sif_ctx;
 	struct vio_group *group;
 	struct vio_group_task *gtask;
-	u32 mux_index = 0;
-	u32 instance;
-	int ret = 0;
-	u32 status = 0;
-	u32 intr_en = 0;
 
 	sif = (struct x2a_sif_dev *) data;
 	memset(&irq_src, 0x0, sizeof(struct sif_irq_src));
@@ -771,13 +770,14 @@ static irqreturn_t sif_isr(int irq, void *data)
 				}
 				sif_get_frameid_timestamps(sif->base_reg,
 							   mux_index, &group->frameid);
-				gtask = &sif->sifout_task[mux_index];
+				gtask = group->gtask;
 				up(&gtask->hw_resource);
 			}
 
 			if (status & 1 <<
 			    (mux_index + INTR_SIF_MUX0_FRAME_DONE)) {
-			    sif_ctx = sif->sif_mux[mux_index]->sub_ctx[0];
+			    group = sif->sif_mux[mux_index];
+				sif_ctx = group->sub_ctx[0];
 				sif_frame_done(sif_ctx);
 			}
 		}
@@ -785,9 +785,11 @@ static irqreturn_t sif_isr(int irq, void *data)
 
 	if (test_bit(SIF_DMA_IN_ENABLE, &sif->state)
 	    && (irq_src.sif_out_int & 1 << SIF_ISP_OUT_FE)) {
-		gtask = &sif->sifin_task;
 		instance = atomic_read(&sif->instance);
-		sif_ctx = sif->sif_input[instance]->sub_ctx[0];
+		group = sif->sif_input[instance];
+		gtask = group->gtask;
+
+		sif_ctx = group->sub_ctx[0];
 		sif_frame_done(sif_ctx);
 
 		up(&gtask->hw_resource);
@@ -897,7 +899,6 @@ static int x2a_sif_probe(struct platform_device *pdev)
 		ret = -EBUSY;
 		goto err_get_irq;
 	}
-	vio_info("sif->irq = %d\n", sif->irq);
 
 	ret = request_threaded_irq(sif->irq, sif_isr, NULL,
 			IRQF_TRIGGER_HIGH, "sif", sif);

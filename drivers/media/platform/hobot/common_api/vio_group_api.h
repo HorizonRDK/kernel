@@ -1,3 +1,9 @@
+/***************************************************************************
+ *                      COPYRIGHT NOTICE
+ *             Copyright 2019 Horizon Robotics, Inc.
+ *                     All rights reserved.
+ ***************************************************************************/
+
 #ifndef __VIO_GROUP_API_H__
 #define __VIO_GROUP_API_H__
 
@@ -35,13 +41,6 @@ enum vio_group_state {
 	VIO_GROUP_LEADER,
 };
 
-struct frame_id{
-	bool update;
-	u32 frame_id;
-	u32 timestamp_m;
-	u32 timestamp_l;
-};
-
 struct vio_group_task{
 	struct task_struct		*task;
 	struct kthread_worker	worker;
@@ -72,10 +71,10 @@ struct vio_video_ctx{
 	wait_queue_head_t		done_wq;
 	struct vio_framemgr 	framemgr;
 	struct vio_group		*group;
-	struct semaphore 		smp_resource;
+	unsigned long			state;
 
 	u32 id;
-	unsigned long			state;
+	u32 event;
 	bool leader;
 };
 

@@ -1,3 +1,9 @@
+/***************************************************************************
+ *                      COPYRIGHT NOTICE
+ *             Copyright 2019 Horizon Robotics, Inc.
+ *                     All rights reserved.
+ ***************************************************************************/
+
 #ifndef __HOBOT_VIO_CONFIG_H__
 #define __HOBOT_VIO_CONFIG_H__
 
@@ -58,4 +64,10 @@ enum intr_ip{
 	AXI0_INTR,
 };
 
+struct roi_rect{
+    u16 roi_x;
+    u16 roi_y;
+    u16 roi_width;
+    u16 roi_height;
+};
 #endif	/*  */

@@ -1,3 +1,9 @@
+/***************************************************************************
+ *                      COPYRIGHT NOTICE
+ *             Copyright 2019 Horizon Robotics, Inc.
+ *                     All rights reserved.
+ ***************************************************************************/
+
 #ifndef __HOBOT_PYM_H__
 #define __HOBOT_PYM_H__
 
@@ -22,13 +28,6 @@
 #define PYM_IOC_REQBUFS       	 _IOW(PYM_IOC_MAGIC, 4, int)
 #define PYM_IOC_END_OF_STREAM    _IOW(PYM_IOC_MAGIC, 5, int)
 #define PYM_IOC_BIND_GROUP       _IOW(PYM_IOC_MAGIC, 6, int)
-
-struct roi_rect {
-	u16 roi_x;
-	u16 roi_y;
-	u16 roi_width;
-	u16 roi_height;
-};
 
 struct pym_video_ctx {
 	wait_queue_head_t done_wq;
