@@ -322,10 +322,11 @@ int sif_mux_init(struct sif_video_ctx *sif_ctx, unsigned long arg)
 	sif->sif_mux[mux_index] = group;
 	gtask = &sif->sifout_task[mux_index];
 
-	sema_init(&gtask->hw_resource, 4);
-
 	group->gtask = gtask;
 	group->frame_work = sif_write_frame_work;
+
+	vio_group_task_start(gtask);
+	sema_init(&gtask->hw_resource, 4);
 
 	sif_hw_config(sif->base_reg, &sif_config);
 
@@ -352,8 +353,6 @@ int sif_video_init(struct sif_video_ctx *sif_ctx, unsigned long arg)
 
 	//sif_bind_chain_group(sif_ctx, 0);
 
-	vio_group_task_start(group->gtask);
-
 	if (sif_ctx->id == 0) {
 		ret = sif_mux_init(sif_ctx, arg);
 	} else if (sif_ctx->id == 1) {
@@ -361,6 +360,7 @@ int sif_video_init(struct sif_video_ctx *sif_ctx, unsigned long arg)
 		set_bit(SIF_DMA_IN_ENABLE, &sif->state);
 		set_bit(VIO_GROUP_DMA_INPUT, &group->state);
 		set_bit(VIO_GROUP_OTF_OUTPUT, &group->state);
+		vio_group_task_start(group->gtask);
 	}
 
 	sif_ctx->state = BIT(VIO_VIDEO_INIT);
