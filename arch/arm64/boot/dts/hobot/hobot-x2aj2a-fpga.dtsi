@@ -385,6 +385,15 @@
 			reg = <0 0xA4000000 0 0x200>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 85 4>;
+			clocks = <&sif_mclk>, <&mipi_rx0_ipi_mclk>,
+			<&mipi_rx1_ipi_mclk>, <&mipi_rx2_ipi_mclk>,
+			<&mipi_rx3_ipi_mclk>, <&mipi_tx_ipi_mclk>,
+			<&mipi_cfg_host_mclk>, <&pym_mclk>,
+			<&mipi_dev_ref_clk>, <&mipi_host_ref_clk>;
+			clock-names = "sif_mclk", "mipi_rx0_ipi",
+			"mipi_rx1_ipi", "mipi_rx2_ipi", "mipi_rx3_ipi",
+			"mipi_tx_ipi", "mipi_cfg_host", "pym_mclk",
+			"mipi_dev_ref", "mipi_host_ref";
 			status = "disabled";
 		};
 

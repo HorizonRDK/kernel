@@ -1,3 +1,9 @@
+/***************************************************************************
+ *                      COPYRIGHT NOTICE
+ *             Copyright 2019 Horizon Robotics, Inc.
+ *                     All rights reserved.
+ ***************************************************************************/
+
 #ifndef __HOBOT_DEV_IPS_H__
 #define __HOBOT_DEV_IPS_H__
 
@@ -16,6 +22,14 @@ struct x2a_ips_dev {
 };
 
 int ips_set_clk_ctrl(unsigned long module, bool enable);
+int vio_clk_enable(const char *name);
+int vio_clk_disable(const char *name);
+int vio_set_clk_rate(const char *name, ulong frequency);
+ulong vio_get_clk_rate(const char *name);
 
 
+struct vio_clk {
+	const char *name;
+	struct clk *clk;
+};
 #endif

@@ -1,3 +1,9 @@
+/***************************************************************************
+ *                      COPYRIGHT NOTICE
+ *             Copyright 2019 Horizon Robotics, Inc.
+ *                     All rights reserved.
+ ***************************************************************************/
+
 #include <linux/delay.h>
 #include <linux/slab.h>
 #include <linux/clk.h>
@@ -23,8 +29,22 @@
 #include "hobot_dev_ips.h"
 
 #define MODULE_NAME "X2A IPS"
+#define REGISTER_CLK(name) {name, NULL}
 
 struct x2a_ips_dev *g_ips_dev;
+
+struct vio_clk vio_clk_list[] = {
+	REGISTER_CLK("sif_mclk"),
+	REGISTER_CLK("mipi_rx0_ipi"),
+	REGISTER_CLK("mipi_rx1_ipi"),
+	REGISTER_CLK("mipi_rx2_ipi"),
+	REGISTER_CLK("mipi_rx3_ipi"),
+	REGISTER_CLK("mipi_tx_ipi"),
+	REGISTER_CLK("mipi_cfg_host"),
+	REGISTER_CLK("pym_mclk"),
+	REGISTER_CLK("mipi_dev_ref"),
+	REGISTER_CLK("mipi_host_ref"),
+};
 
 int ips_set_clk_ctrl(unsigned long module, bool enable)
 {
@@ -36,6 +56,131 @@ int ips_set_clk_ctrl(unsigned long module, bool enable)
 	return ret;
 }
 EXPORT_SYMBOL_GPL(ips_set_clk_ctrl);
+
+int vio_clk_enable(const char *name)
+{
+	int ret = 0;
+	size_t index;
+	struct clk *clk = NULL;
+
+	for (index = 0; index < ARRAY_SIZE(vio_clk_list); index++) {
+		if (!strcmp(name, vio_clk_list[index].name))
+			clk = vio_clk_list[index].clk;
+	}
+
+	if (IS_ERR_OR_NULL(clk)) {
+		vio_err("[@][ERR] %s: clk_target_list is NULL : %s\n", __func__, name);
+		return -EINVAL;
+	}
+
+#ifdef DBG_DUMPCMU
+	vio_info("[@][ENABLE] %s : (enable_count : %d)\n",
+			name, __clk_get_enable_count(clk));
+#endif
+	ret = clk_prepare_enable(clk);
+	if (ret) {
+		vio_err("[@][ERR] %s: clk_prepare_enable is fail(%s)\n", __func__, name);
+		return ret;
+	}
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(vio_clk_enable);
+
+int vio_clk_disable(const char *name)
+{
+	size_t index;
+	struct clk *clk = NULL;
+
+	for (index = 0; index < ARRAY_SIZE(vio_clk_list); index++) {
+		if (!strcmp(name, vio_clk_list[index].name))
+			clk = vio_clk_list[index].clk;
+	}
+
+	if (IS_ERR_OR_NULL(clk)) {
+		vio_err("[@][ERR] %s: clk_target_list is NULL : %s\n", __func__, name);
+		return -EINVAL;
+	}
+
+	clk_disable_unprepare(clk);
+
+#ifdef DBG_DUMPCMU
+	vio_info("[@][DISABLE] %s : (enable_count : %d)\n",
+			name, __clk_get_enable_count(clk));
+#endif
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(vio_clk_disable);
+
+int vio_set_clk_rate(const char *name, ulong frequency)
+{
+	int ret = 0;
+	size_t index;
+	struct clk *clk = NULL;
+
+	for (index = 0; index < ARRAY_SIZE(vio_clk_list); index++) {
+		if (!strcmp(name, vio_clk_list[index].name))
+			clk = vio_clk_list[index].clk;
+	}
+
+	if (IS_ERR_OR_NULL(clk)) {
+		vio_err("[@][ERR] %s: clk_target_list is NULL : %s\n", __func__, name);
+		return -EINVAL;
+	}
+
+	ret = clk_set_rate(clk, frequency);
+	if (ret) {
+		vio_err("[@][ERR] %s: clk_set_rate is fail(%s)\n", __func__, name);
+		return ret;
+	}
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(vio_set_clk_rate);
+
+ulong vio_get_clk_rate(const char *name)
+{
+	ulong frequency;
+	size_t index;
+	struct clk *clk = NULL;
+
+	for (index = 0; index < ARRAY_SIZE(vio_clk_list); index++) {
+		if (!strcmp(name, vio_clk_list[index].name))
+			clk = vio_clk_list[index].clk;
+	}
+
+	if (IS_ERR_OR_NULL(clk)) {
+		vio_err("[@][ERR] %s: clk_target_list is NULL : %s\n", __func__, name);
+		return -EINVAL;
+	}
+
+	frequency = clk_get_rate(clk);
+
+	return frequency;
+}
+EXPORT_SYMBOL_GPL(vio_get_clk_rate);
+
+int vio_get_clk(struct device *dev)
+{
+	struct clk *clk;
+	int i = 0;
+
+	for (i = 0; i < ARRAY_SIZE(vio_clk_list); i++) {
+		clk = devm_clk_get(dev, vio_clk_list[i].name);
+		if (IS_ERR_OR_NULL(clk)) {
+			vio_err("[@][ERR] %s: could not lookup clock : %s\n",
+				__func__, vio_clk_list[i].name);
+			return -EINVAL;
+		}
+		vio_clk_list[i].clk = clk;
+		//vio_clk_enable(vio_clk_list[i].name);
+		vio_info("%s clock frequence is %ld\n",
+			vio_clk_list[i].name, vio_get_clk_rate(vio_clk_list[i].name));
+	}
+
+	return 0;
+}
 
 static int x2a_ips_suspend(struct device *dev)
 {
@@ -126,6 +271,8 @@ static int x2a_ips_probe(struct platform_device *pdev)
 		vio_err("request_irq(IRQ_SIF %d) is fail(%d)", ips->irq, ret);
 		goto err_get_irq;
 	}
+
+	ret = vio_get_clk(&pdev->dev);
 
 	g_ips_dev = ips;
 
