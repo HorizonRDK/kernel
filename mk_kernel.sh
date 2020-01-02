@@ -103,7 +103,7 @@ helper()
 ####################################
 
 #"uh" > "u:h:" if need args
-while getopts "Mmjcheroid" opt; do
+while getopts "MCmjcheroid" opt; do
   case $opt in
        m)
 			mk_cfg
@@ -111,6 +111,12 @@ while getopts "Mmjcheroid" opt; do
 			;;
        M)
 			cfg=x2aj2a_soc_defconfig
+			echo $cfg
+			mk_cfg
+			exit
+			;;
+       C)
+			cfg=xj3_soc_cv_defconfig
 			echo $cfg
 			mk_cfg
 			exit
