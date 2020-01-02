@@ -650,7 +650,7 @@ static inline void x2_pinctrl_fsel_set(struct x2_pinctrl *pctrl,
 	int index, value;
 	void __iomem *regaddr;
 
-	if (IS_ENABLED(CONFIG_PINCTRL_HOBOT)) {
+	if (IS_ENABLED(CONFIG_PINCTRL_HOBOT_X3)) {
 		regaddr = pctrl->regbase + (pin << 2);
 		value = readl(regaddr);
 		value &= ~(0x3);
