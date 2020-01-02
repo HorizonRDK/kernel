@@ -30,7 +30,8 @@
 #include "linux/ion.h"
 
 #define USE_ION_MEM
-#ifdef CONFIG_X3
+//#ifdef CONFIG_X3
+#ifdef CONFIG_HOBOT_XJ3
 #define IAR_MEM_SIZE 0x4000000	//64MB
 #else
 #define IAR_MEM_SIZE 0x2000000        //32MB
@@ -802,10 +803,13 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 
 	if (cfg->out_sel == OUTPUT_BT1120) {
 		//output config
-		//ips_pinmux_bt();
+#ifdef CONFIG_HOBOT_XJ2
+		ips_pinmux_bt();
+#else
 		ret = disp_pinmux_bt1120();
 		if (ret)
 			return -1;
+#endif
 #ifdef CONFIG_HOBOT_XJ2
 		ips_set_btout_clksrc(IAR_CLK, true);//clk invert
 #endif
@@ -821,7 +825,7 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 		value = IAR_REG_SET_FILED(IAR_BT601_709_SEL, 1, value);
 		writel(value, g_iar_dev->regaddr + REG_IAR_FORMAT_ORGANIZATION);
 	} else if (cfg->out_sel == OUTPUT_MIPI_DSI) {
-#ifdef CONFIG_X3
+#ifdef CONFIG_HOBOT_XJ3
 		ret = disp_pinmux_mipi_dsi();
 		if (ret)
 			return -1;
@@ -846,7 +850,7 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 		writel(0x0, g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
 		//rgb panel
 	} else if (cfg->out_sel == OUTPUT_BT656) {
-#ifdef CONFIG_X3
+#ifdef CONFIG_HOBOT_XJ3
 		ret = disp_pinmux_bt656();
 		if (ret)
 			return -1;
@@ -1599,7 +1603,7 @@ static int x2_iar_probe(struct platform_device *pdev)
 	g_iar_dev->regaddr = devm_ioremap_resource(&pdev->dev, res);
 	if (IS_ERR(g_iar_dev->regaddr))
 		return PTR_ERR(g_iar_dev->regaddr);
-#ifdef CONFIG_X3
+#ifdef CONFIG_HOBOT_XJ3
 	res_mipi = platform_get_resource(pdev, IORESOURCE_MEM, 1);
 	g_iar_dev->mipi_dsi_regaddr =
 		devm_ioremap_resource(&pdev->dev, res_mipi);
@@ -1765,7 +1769,7 @@ static int x2_iar_probe(struct platform_device *pdev)
 		goto err2;
 	}
 #else
-	#ifdef CONFIG_X3
+	#ifdef CONFIG_HOBOT_XJ3
 	if (resource_size(&r) < MAX_FRAME_BUF_SIZE*8) {
                 pr_info("iar memory size is not large enough!(<3buffer)\n");
                 goto err1;
@@ -1792,7 +1796,7 @@ static int x2_iar_probe(struct platform_device *pdev)
 #endif
 
 #ifdef USE_ION_MEM
-#ifdef CONFIG_X3
+#ifdef CONFIG_HOBOT_XJ3
 	g_iar_dev->frambuf[IAR_CHANNEL_3].paddr = mem_paddr;
 	g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr = vaddr;
 	g_iar_dev->frambuf[IAR_CHANNEL_4].paddr =
@@ -1892,7 +1896,7 @@ static int x2_iar_probe(struct platform_device *pdev)
 		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].vaddr);
 #endif
 #else
-#ifdef CONFIG_X3
+#ifdef CONFIG_HOBOT_XJ3
 	g_iar_dev->frambuf[IAR_CHANNEL_3].paddr = mem_paddr;
 	g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr = vaddr;
 	g_iar_dev->frambuf[IAR_CHANNEL_4].paddr =
@@ -2000,7 +2004,7 @@ static int x2_iar_probe(struct platform_device *pdev)
 	ret = fb_get_options("hobot", &type);
 	pr_debug("%s: fb get options display type is %s\n", __func__, type);
 	if (type != NULL) {
-#ifdef CONFIG_X3
+#ifdef CONFIG_HOBOT_XJ3
 		if (strncmp(type, "mipi1080p", 9) == 0)
 			display_type = MIPI_1080P;
 #else

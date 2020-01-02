@@ -30,6 +30,7 @@
 
 #include "siHdmiTx_902x_TPI.h"
 #include "soc/hobot/hobot_ips_x2.h"
+#include "soc/hobot/hobot_iar.h"
 
 
 SIHDMITX_CONFIG	siHdmiTx;
@@ -3800,8 +3801,11 @@ void OnHdmiCableConnected(void)
 
 	g_sys.hdmiCableConnected = TRUE;
 	TPI_INFO_PRINT("pinmux bt1120 output!\n");
+#ifdef CONFIG_HOBOT_XJ2
 	ips_pinmux_bt();
-	//disp_pinmux_bt1120();
+#else
+	disp_pinmux_bt1120();
+#endif
 
 	if ((Sii9024A_HDCP_supported)
 		&& (g_hdcp.HDCP_TxSupports == TRUE)

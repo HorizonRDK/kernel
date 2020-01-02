@@ -217,6 +217,10 @@
         status = "okay";
 };
 
+&fb {
+	status = "okay";
+};
+
 &bifspi {
 	status = "okay";
 };

@@ -607,7 +607,7 @@
 
 		iar: iar@0xA4001000 {
 			compatible = "hobot,x2-iar";
-			reg = <0 0xA4001000 0 0x400>;
+			reg = <0 0xA4301000 0 0x1000>;
 			memory-region = <&iar_reserved>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 69 4>;
