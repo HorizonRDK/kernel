@@ -18,6 +18,7 @@
 */
 
 #include "acamera_sbus_api.h"
+#ifdef BUILD_MODULE
 #include "acamera_logger.h"
 #include "system_sw_io.h"
 
@@ -72,3 +73,4 @@ void acamera_sbus_isp_sw_init( acamera_sbus_t *p_bus )
     p_bus->read_sample = isp_io_read_sample;
     p_bus->write_sample = isp_io_write_sample;
 }
+#endif

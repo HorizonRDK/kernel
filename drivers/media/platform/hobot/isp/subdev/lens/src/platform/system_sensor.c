@@ -18,8 +18,10 @@
 */
 
 #include "system_sensor.h"
+#ifdef BUILD_MODULE
 
 
 void system_reset_sensor( uint32_t mask )
 {
 }
+#endif

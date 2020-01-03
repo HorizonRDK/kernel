@@ -27,6 +27,8 @@
 #include "acamera_logger.h"
 #include "system_timer.h"
 
+#ifdef BUILD_MODULE
+
 
 #define PCIE_SPI_BAR_SIZE ( 1 << 19 )
 #define PCIE_SPI_BAR ( 2 )
@@ -257,3 +259,4 @@ uint32_t system_spi_rw32( uint32_t sel_mask, uint32_t control, uint32_t data, ui
     }
     return (uint32_t)ctrl;
 }
+#endif

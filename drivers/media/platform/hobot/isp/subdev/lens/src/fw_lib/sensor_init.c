@@ -18,6 +18,7 @@
 */
 
 #include "acamera_types.h"
+#ifdef BUILD_MODULE
 #include "sensor_init.h"
 #include "system_timer.h"
 #include "acamera_logger.h"
@@ -303,3 +304,4 @@ void acamera_sensor_load_array_sequence( acamera_sbus_ptr_t p_sbus, char size, c
 {
     acamera_load_array_sequence( p_sbus, 0, size, sequence, group );
 }
+#endif

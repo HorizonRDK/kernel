@@ -18,6 +18,7 @@
 */
 
 #include "acamera_types.h"
+#ifdef BUILD_MODULE
 #include "acamera_sbus_i2c.h"
 #if ISP_FW_BUILD
 #include "acamera_fw.h"
@@ -137,3 +138,4 @@ void i2c_init_access( void )
 {
     LOG( LOG_ERR, "I2C INIT ACCESS IS DISABLED" );
 }
+#endif

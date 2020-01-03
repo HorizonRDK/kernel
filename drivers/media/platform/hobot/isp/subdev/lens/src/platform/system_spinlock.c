@@ -18,6 +18,7 @@
 */
 
 #include "acamera_types.h"
+#ifdef BUILD_MODULE
 #include "system_spinlock.h"
 #include <linux/spinlock.h>
 #include <linux/slab.h>
@@ -58,3 +59,4 @@ void system_spinlock_destroy( sys_spinlock lock )
     if ( slock )
         kfree( slock );
 }
+#endif

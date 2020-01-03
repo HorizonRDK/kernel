@@ -23,6 +23,7 @@
 #include "acamera_logger.h"
 #include <linux/jiffies.h>
 
+#ifdef BUILD_MODULE
 
 #define FPGA_IIC_MEM_SIZE 0x1000
 #define FPGA_IIC_TX_FIFO 0x108
@@ -344,3 +345,4 @@ uint32_t IORD( uint32_t BASE, uint32_t REGNUM )
 void IOWR( uint32_t BASE, uint32_t REGNUM, uint32_t DATA )
 {
 }
+#endif

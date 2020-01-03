@@ -24,8 +24,6 @@
 #include "acamera_calibrations.h"
 #include "acamera_command_api.h"
 #include "matrix_yuv_fsm.h"
-#include "string.h"
-
 
 #if defined( CUR_MOD_NAME)
 #undef CUR_MOD_NAME 

@@ -17,7 +17,6 @@
 *
 */
 
-#include "string.h"
 #include "acamera_fw.h"
 #include "af_manual_fsm.h"
 #include "sbuf.h"

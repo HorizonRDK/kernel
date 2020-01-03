@@ -15,62 +15,9 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 #
 
-CONFIG_MODULE_SIG=n
+log_list_dir := $(src_subdev)/log_list
+srcfiles := $(subst $(log_list_dir)/,,$(wildcard $(log_list_dir)/*.c))
+log_list-objs += $(patsubst %.c,%.o,$(srcfiles))
+obj-$(CONFIG_VIDEO_HOBOT_ISP) += log_list.o
 
-
-#redefine ARCH
-ifeq ($(ARCH),)    
-    _ARCH=arm64
-    $(info "set default ARCH=${_ARCH}")
-else
-    _ARCH=${ARCH}
-endif
-
-
-#redefine CROSS_COMPILE
-ifeq ($(CROSS_COMPILE),)   
-    _CROSS_COMPILE=aarch64-linux-gnu-
-    $(info "set default toolachains ${_CROSS_COMPILE}") 
-else
-    _CROSS_COMPILE=${CROSS_COMPILE}
-endif
-
-#redefine KDIR
-ifeq ($(KDIR),)    
-    _KDIR= $(PWD)/../../../../../../../
-#    _KDIR= $(PWD)/../../../kernel-4.14-proto-x2a
-    #_KDIR=/exports/kernels/juno/out/juno-oe/mobile_oe
-    $(info "set default kernel path ${_KDIR}")
-#    $(error "Please export KDIR variable before build")
-else
-    _KDIR=${KDIR}
-endif
-
-
-
-obj-m += iv009_log.o
-
-ifeq ($(FW_SRC_OBJ),)
-	FW_SRC := $(wildcard ./*.c)
-	export FW_SRC_OBJ := $(FW_SRC:.c=.o)
-
-	ifneq ($(wildcard src/fw_lib/libacamera_isp.a),) 
-		export FW_SRC_OBJ := $(FW_SRC_OBJ) src/fw_lib/libacamera_isp.a
-	endif
-endif
-
-
-iv009_log-objs += $(FW_SRC_OBJ) 
-
-INCLUDE_DIRS := $(addprefix -I,$(shell find ../ -type d ))
-
-ccflags-y:= -I$(_KDIR)/include/linux/
-
-ccflags-y += -Wno-declaration-after-statement
-
-all:
-		CROSS_COMPILE=${_CROSS_COMPILE} make ARCH=${_ARCH} -C $(_KDIR) M=$(PWD) modules
-
-clean:
-		CROSS_COMPILE=${_CROSS_COMPILE} make ARCH=${_ARCH} -C $(_KDIR) M=$(PWD) clean
-
+EXTRA_CFLAGS += $(addprefix -I,$(shell find $(log_list_dir) -type d))

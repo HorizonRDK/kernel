@@ -17,7 +17,8 @@
 *
 */
 
-//#include "acamera_isp_config.h"
+#include "acamera_types.h"
+#ifdef BUILD_MODULE
 #include "acamera_logger.h"
 #include <linux/gfp.h>
 
@@ -102,3 +103,4 @@ void system_sw_write_8( uintptr_t addr, uint8_t data )
         LOG( LOG_ERR, "Failed to write %d to memory 0x%x. Base pointer is null ", data, addr );
     }
 }
+#endif

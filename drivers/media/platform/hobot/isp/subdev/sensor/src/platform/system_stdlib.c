@@ -20,6 +20,7 @@
 #include "system_stdlib.h"
 #include <linux/slab.h>
 
+#ifdef BUILD_MODULE
 int32_t system_memcpy( void *dst, const void *src, uint32_t size )
 {
     int32_t result = 0;
@@ -46,3 +47,4 @@ void *system_malloc( uint32_t size )
 void system_free( void *ptr )
 {
 }
+#endif

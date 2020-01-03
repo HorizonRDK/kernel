@@ -17,9 +17,11 @@
 *
 */
 
+#include "acamera_types.h"
 #include "acamera_logger.h"
 #include "system_spinlock.h"
 #include <asm/io.h>
+#ifdef BUILD_MODULE
 
 
 #if defined( CUR_MOD_NAME)
@@ -154,3 +156,4 @@ void system_hw_write_8( uintptr_t addr, uint8_t data )
         LOG( LOG_ERR, "Failed to write value %d to memory with offset %d. Base pointer is null ", data, addr );
     }
 }
+#endif

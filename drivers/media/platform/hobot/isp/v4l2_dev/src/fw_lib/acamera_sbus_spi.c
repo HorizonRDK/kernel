@@ -22,6 +22,8 @@
 #if ISP_FW_BUILD
 #include "acamera_fw.h"
 #endif
+
+#ifdef BUILD_MODULE
 static void spi_io_write_sample( acamera_sbus_t *p_sbus, uintptr_t addr, uint32_t sample, uint8_t sample_size )
 {
     uint32_t mask = p_sbus->mask;
@@ -223,3 +225,4 @@ void acamera_sbus_spi_init( acamera_sbus_ptr_t p_sbus )
     p_sbus->write_sample = spi_io_write_sample;
     system_spi_init();
 }
+#endif

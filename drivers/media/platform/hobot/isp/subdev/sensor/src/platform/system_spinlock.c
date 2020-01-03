@@ -21,6 +21,7 @@
 #include "system_spinlock.h"
 #include <linux/spinlock.h>
 #include <linux/slab.h>
+#ifdef BUILD_MODULE
 
 int system_spinlock_init( sys_spinlock *lock )
 {
@@ -58,3 +59,4 @@ void system_spinlock_destroy( sys_spinlock lock )
     if ( slock )
         kfree( slock );
 }
+#endif

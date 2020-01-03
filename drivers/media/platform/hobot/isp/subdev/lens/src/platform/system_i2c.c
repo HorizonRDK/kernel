@@ -22,6 +22,7 @@
 #include "system_i2c.h"
 #include "acamera_logger.h"
 #include <linux/jiffies.h>
+#ifdef BUILD_MODULE
 
 
 #if defined( CUR_MOD_NAME)
@@ -349,3 +350,4 @@ uint32_t IORD( uint32_t BASE, uint32_t REGNUM )
 void IOWR( uint32_t BASE, uint32_t REGNUM, uint32_t DATA )
 {
 }
+#endif

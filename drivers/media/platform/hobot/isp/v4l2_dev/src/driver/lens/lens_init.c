@@ -21,6 +21,7 @@
 #include "acamera_lens_api.h"
 #include "acamera_types.h"
 
+#ifdef BUILD_MODULE
 #include "sensor_bus_config.h"
 /*    - Test the driver in this file                            */
 /*                                                              */
@@ -176,3 +177,4 @@ void lens_deinit( void *ctx )
 #endif
     reset_lens_bus_counter();
 }
+#endif

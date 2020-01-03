@@ -17,7 +17,6 @@
 *
 */
 
-#include "string.h"
 #include "acamera_types.h"
 #include "acamera_fw.h"
 #include "acamera_metering_stats_mem_config.h"

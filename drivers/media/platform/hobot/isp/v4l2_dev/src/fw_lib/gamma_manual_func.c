@@ -17,7 +17,6 @@
 *
 */
 
-#include "string.h"
 #include "acamera_fw.h"
 #include "acamera_math.h"
 #include "acamera_logger.h"

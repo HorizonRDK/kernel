@@ -26,6 +26,8 @@
 
 #include "acamera_logger.h"
 
+#ifdef BUILD_MODULE
+
 static uint32_t fill_address( uint8_t *buf, uint32_t mask, uintptr_t addr )
 {
     uint32_t i, size;
@@ -128,3 +130,4 @@ void i2c_init_access( void )
 {
     LOG( LOG_ERR, "I2C INIT ACCESS IS DISABLED" );
 }
+#endif

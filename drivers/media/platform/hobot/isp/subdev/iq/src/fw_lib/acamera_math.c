@@ -19,6 +19,7 @@
 
 #include "acamera_logger.h"
 #include "acamera_math.h"
+#ifdef BUILD_MODULE
 
 
 #if defined( CUR_MOD_NAME)
@@ -546,3 +547,4 @@ uint32_t acamera_calc_inv_equidistant_modulation_u32( uint32_t x, const uint32_t
     uint32_t alpha = ( x - p_table[i - 1] ) * 256 / ( p_table[i] - p_table[i - 1] ); // division by zero is checked
     return ( d * i * alpha + d * ( i - 1 ) * ( 256 - alpha ) ) / 256;                // division by zero is checked
 }
+#endif

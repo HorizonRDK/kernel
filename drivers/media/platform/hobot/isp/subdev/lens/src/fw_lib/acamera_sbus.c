@@ -18,6 +18,7 @@
 */
 
 #include "acamera_sbus_api.h"
+#ifdef BUILD_MODULE
 #if ISP_FW_BUILD
 #include "acamera_fw.h"
 #endif
@@ -544,3 +545,4 @@ void acamera_sbus_reset( sbus_type_t interface_type )
         break;
     };
 }
+#endif

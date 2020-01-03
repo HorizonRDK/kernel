@@ -21,6 +21,7 @@
 
 #include "acamera_sbus_api.h"
 
+#ifdef BUILD_MODULE
 
 void init_sensor_interface( sensor_ACameraDefault_iface_ptr_t p_iface )
 {
@@ -33,3 +34,4 @@ void reset_sensor_interface( sensor_ACameraDefault_iface_ptr_t p_iface )
 void load_sensor_interface( sensor_ACameraDefault_iface_ptr_t p_iface, uint8_t mode )
 {
 }
+#endif

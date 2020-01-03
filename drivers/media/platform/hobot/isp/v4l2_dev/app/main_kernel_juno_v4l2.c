@@ -51,8 +51,6 @@ extern int32_t close_hw_io( void );
 static struct v4l2_device v4l2_dev;
 static int initialized = 0;
 
-int otp_enable = 0;
-
 static const struct of_device_id isp_dt_match[] = {
     {.compatible = "hobot,x2a-isp"},
     {}};

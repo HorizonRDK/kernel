@@ -30,6 +30,7 @@
 //-------------------------------------------------------------------------------------
 
 #include "acamera_types.h"
+#ifdef BUILD_MODULE
 #include "acamera_logger.h"
 #include "sensor_init.h"
 #include "acamera_command_api.h"
@@ -205,5 +206,6 @@ void sensor_init_dummy(uint32_t ctx_id, void **ctx, sensor_control_t *ctrl )
         *ctx = NULL;
     }
 }
+#endif
 
 //*************************************************************************************

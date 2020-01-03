@@ -24,6 +24,7 @@
 #include <asm/io.h>
 
 #include "system_spi.h"
+#ifdef BUILD_MODULE
 #include "acamera_logger.h"
 #include "system_timer.h"
 
@@ -257,3 +258,4 @@ uint32_t system_spi_rw32( uint32_t sel_mask, uint32_t control, uint32_t data, ui
 
     return (uint32_t)data;
 }
+#endif

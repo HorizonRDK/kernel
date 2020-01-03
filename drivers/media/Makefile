@@ -33,4 +33,3 @@ obj-$(CONFIG_CEC_CORE) += cec/
 
 obj-y += common/ platform/ pci/ usb/ mmc/ firewire/ spi/
 obj-$(CONFIG_VIDEO_DEV) += radio/
-

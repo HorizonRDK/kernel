@@ -68,7 +68,7 @@ static acamera_firmware_t g_firmware;
 
 typedef int (*isp_callback)(int);
 extern void isp_register_callback(isp_callback func);
-int sif_isp_ctx_sync(int ctx_id);
+int sif_isp_ctx_sync_func(int ctx_id);
 static int sif_isp_offline = 0;
 
 static DECLARE_WAIT_QUEUE_HEAD(wq);
@@ -434,7 +434,7 @@ int32_t acamera_init( acamera_settings *settings, uint32_t ctx_num )
         result = -1;
     }
 
-    isp_register_callback(sif_isp_ctx_sync);
+    isp_register_callback(sif_isp_ctx_sync_func);
 
     acamera_isp_isp_global_mcu_override_config_select_write( 0, 1 ); //put ping pong in slave mode
     g_firmware.dma_flag_isp_config_completed = 1;
@@ -795,7 +795,7 @@ static void set_dma_cmd_queue(dma_cmd *cmd, uint32_t ping_pong_sel)
 }
 #endif /* FW_USE_HOBOT_DMA*/
 
-int sif_isp_ctx_sync(int ctx_id)
+int sif_isp_ctx_sync_func(int ctx_id)
 {
 	dma_cmd cmd[2];
 	acamera_context_ptr_t p_ctx;

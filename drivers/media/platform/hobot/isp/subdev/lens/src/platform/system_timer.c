@@ -18,6 +18,7 @@
 */
 
 #include "acamera_types.h"
+#ifdef BUILD_MODULE
 #include <linux/jiffies.h>
 #include <linux/delay.h>
 
@@ -47,5 +48,6 @@ int32_t system_timer_usleep( uint32_t usec )
     usleep_range( usec, usec + 100 );
     return 0;
 }
+#endif
 
 //================================================================================

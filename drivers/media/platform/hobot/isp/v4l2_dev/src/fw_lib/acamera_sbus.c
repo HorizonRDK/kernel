@@ -484,12 +484,14 @@ void acamera_sbus_init( acamera_sbus_t *p_bus, sbus_type_t interface_type )
     if ( p_bus != NULL ) {
         p_bus->p_control = NULL;
         switch ( interface_type ) {
+#ifdef BUILD_MODULE
         case sbus_i2c:
             acamera_sbus_i2c_init( p_bus );
             break;
         case sbus_spi:
             acamera_sbus_spi_init( p_bus );
             break;
+#endif
         case sbus_isp:
             acamera_sbus_isp_init( p_bus );
             break;
@@ -509,9 +511,11 @@ void acamera_sbus_deinit( acamera_sbus_t *p_bus, sbus_type_t interface_type )
 {
     if ( p_bus != NULL ) {
         switch ( interface_type ) {
+#ifdef BUILD_MODULE
         case sbus_i2c:
             acamera_sbus_i2c_deinit( p_bus );
             break;
+#endif
         default:
             LOG( LOG_ERR, "Invalid sbus protocol" );
             break;
@@ -524,11 +528,13 @@ void acamera_sbus_deinit( acamera_sbus_t *p_bus, sbus_type_t interface_type )
 void acamera_sbus_reset( sbus_type_t interface_type )
 {
     switch ( interface_type ) {
+#ifdef BUILD_MODULE
     case sbus_i2c:
         i2c_init_access();
         break;
     case sbus_spi:
         break;
+#endif
     case sbus_isp:
         break;
     default:

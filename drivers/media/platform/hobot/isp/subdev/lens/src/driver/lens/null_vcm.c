@@ -21,8 +21,6 @@
 #include "system_sensor.h"
 #include "acamera_logger.h"
 #include "acamera_sbus_api.h"
-#include <string.h>
-
 
 #if defined( CUR_MOD_NAME)
 #undef CUR_MOD_NAME 

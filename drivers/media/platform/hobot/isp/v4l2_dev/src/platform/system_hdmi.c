@@ -23,10 +23,10 @@
 #include "system_timer.h"
 #include "acamera_sbus_api.h"
 
+#if FPGA_HAS_HDMI
 
 //#define JUNO_HDMI_TX_IIC_MASTER 0x68004000
 #define JUNO_HDMI_TX_IIC_MASTER 0x64204000
-
 
 void hdmi_write( acamera_sbus_t *pbus, unsigned char raddr, unsigned char dout )
 {
@@ -222,3 +222,4 @@ int32_t hdmi_init( void )
 
     return result;
 }
+#endif

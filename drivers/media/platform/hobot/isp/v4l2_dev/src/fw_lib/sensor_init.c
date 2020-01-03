@@ -230,7 +230,7 @@ void acamera_load_array_sequence( acamera_sbus_ptr_t p_sbus, uintptr_t isp_offse
 {
     const acam_reg_t *seq = sequence[group];
     uint32_t end_seq = 0;
-    LOG( LOG_ERR, "Dumping sequence %d", group );
+
     while ( end_seq == 0 ) {
         uint32_t cmd = seq->address;
         uint32_t val = seq->value;

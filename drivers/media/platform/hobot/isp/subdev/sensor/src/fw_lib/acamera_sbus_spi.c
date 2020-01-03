@@ -18,6 +18,7 @@
 */
 
 #include "acamera_sbus_spi.h"
+#ifdef BUILD_MODULE
 #include "system_spi.h"
 #if ISP_FW_BUILD
 #include "acamera_fw.h"
@@ -223,3 +224,4 @@ void acamera_sbus_spi_init( acamera_sbus_ptr_t p_sbus )
     p_sbus->write_sample = spi_io_write_sample;
     system_spi_init();
 }
+#endif

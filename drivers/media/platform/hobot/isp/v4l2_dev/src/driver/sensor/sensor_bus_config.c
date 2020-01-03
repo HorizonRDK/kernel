@@ -21,6 +21,7 @@
 #include "acamera_firmware_config.h"
 #include "acamera_logger.h"
 #include "acamera_types.h"
+#ifdef BUILD_MODULE
 
 
 uint32_t bus_addr[] = { 
@@ -73,4 +74,4 @@ void reset_sensor_bus_counter(void) {
 void reset_lens_bus_counter(void) {
     lens_counter = 0 ;
 }
-
+#endif

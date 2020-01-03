@@ -14,6 +14,7 @@ vio-objs := common_api/vio_framemgr.o \
 obj-y += vio.o
 obj-$(CONFIG_HOBOT_VIO) += ips/
 obj-$(CONFIG_HOBOT_VIO) += sif/
+obj-$(CONFIG_HOBOT_VIO) += isp/
 obj-$(CONFIG_HOBOT_VIO) += ipu/
 obj-$(CONFIG_HOBOT_VIO) += pym/
 #obj-$(CONFIG_HOBOT_VIO) += gdc/

@@ -15,62 +15,10 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 #
 
-CONFIG_MODULE_SIG=n
+common_dir := $(src_subdev)/common
 
+srcfiles := $(subst $(common_dir)/,,$(wildcard $(common_dir)/src/*.c))
+common-objs += $(patsubst %.c,%.o,$(srcfiles))
+obj-$(CONFIG_VIDEO_HOBOT_ISP) += common.o
 
-#redefine ARCH
-ifeq ($(ARCH),)    
-    _ARCH=arm64
-    $(info "set default ARCH=${_ARCH}")
-else
-    _ARCH=${ARCH}
-endif
-
-KBUILD_EXTRA_SYMBOLS += $(PWD)/../sensor/Module.symvers
-export KBUILD_EXTRA_SYMBOLS
-
-
-
-#redefine CROSS_COMPILE
-ifeq ($(CROSS_COMPILE),)    
-    _CROSS_COMPILE=aarch64-linux-gnu-
-    $(info "set default toolachains ${_CROSS_COMPILE}") 
-else
-    _CROSS_COMPILE=${CROSS_COMPILE}
-endif
-
-#redefine KDIR
-ifeq ($(KDIR),)    
-    _KDIR= $(PWD)/../../../../../../../
-    $(info "set default kernel path ${_KDIR}")
-else
-    _KDIR=${KDIR}
-endif
-
-obj-m += camera_common.o
-
-ifeq ($(FW_SRC_OBJ),)
-	FW_SRC := $(wildcard src/*.c )
-	export FW_SRC_OBJ := $(FW_SRC:.c=.o)
-
-	ifneq ($(wildcard src/fw_lib/libacamera_isp.a),) 
-		export FW_SRC_OBJ := $(FW_SRC_OBJ) src/fw_lib/libacamera_isp.a
-	endif
-##$(info ### FW_SRC_OBJ is: $(FW_SRC_OBJ))	
-endif
-
-
-camera_common-objs += $(FW_SRC_OBJ) 
-
-INCLUDE_DIRS := $(addprefix -I,$(shell find ../ -type d ))
-
-ccflags-y:=-I$(PWD)/ -I$(PWD)/src/ -I$(pwd)/../sensor/src/driver/sensor/ -I$(_KDIR)/include/linux/
-
-ccflags-y += -Wno-declaration-after-statement
-
-all:
-		CROSS_COMPILE=${_CROSS_COMPILE} make ARCH=${_ARCH} -C $(_KDIR) M=$(PWD) modules
-
-clean:
-		CROSS_COMPILE=${_CROSS_COMPILE} make ARCH=${_ARCH} -C $(_KDIR) M=$(PWD) clean
-
+EXTRA_CFLAGS += $(addprefix -I,$(shell find $(common_dir) -type d))

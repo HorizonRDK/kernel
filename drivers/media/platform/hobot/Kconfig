@@ -11,6 +11,8 @@ config HOBOT_VIO
 
 endmenu
 
+source "drivers/media/platform/hobot/isp/Kconfig"
+
 menu "MIPI Configuration"
 config HOBOT_MIPI_HOST
     tristate "HOBOT MIPI Host Driver"

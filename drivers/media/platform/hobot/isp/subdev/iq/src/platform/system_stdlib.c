@@ -18,6 +18,7 @@
 */
 
 #include "system_stdlib.h"
+#ifdef BUILD_MODULE
 
 int32_t system_memcpy( void *dst, const void *src, uint32_t size )
 {
@@ -33,3 +34,4 @@ int32_t system_memset( void *ptr, uint8_t value, uint32_t size )
     memset( ptr, value, size );
     return result;
 }
+#endif

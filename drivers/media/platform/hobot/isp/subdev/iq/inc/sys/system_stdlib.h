@@ -20,7 +20,7 @@
 #ifndef __SYSTEM_STDLIB_H__
 #define __SYSTEM_STDLIB_H__
 
-//#include "acamera_types.h"
+#include "acamera_types.h"
 #include <linux/types.h>
 #include <asm/string.h>
 

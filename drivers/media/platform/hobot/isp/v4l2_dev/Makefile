@@ -15,66 +15,8 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 #
 
-CONFIG_MODULE_SIG=n
+srcfiles := $(subst $(src_v4l2)/,,$(wildcard $(src_v4l2)/src/*/*.c $(src_v4l2)/src/*/*/*.c $(src_v4l2)/app/*.c $(src_v4l2)/app/*/*.c))
+isp-objs += $(patsubst %.c,%.o,$(srcfiles))
+obj-$(CONFIG_VIDEO_HOBOT_ISP) += isp.o
 
-
-#redefine ARCH
-ifeq ($(ARCH),)    
-    _ARCH=arm64
-    $(info "set default ARCH=${_ARCH}")
-else
-    _ARCH=${ARCH}
-endif
-
-KBUILD_EXTRA_SYMBOLS += $(PWD)/../subdev/log_list/Module.symvers
-export KBUILD_EXTRA_SYMBOLS
-
-#redefine CROSS_COMPILE
-ifeq ($(CROSS_COMPILE),)   
-    _CROSS_COMPILE=aarch64-linux-gnu-
-    $(info "set default toolachains ${_CROSS_COMPILE}") 
-else
-    _CROSS_COMPILE=${CROSS_COMPILE}
-endif
-
-#redefine KDIR
-ifeq ($(KDIR),)    
-    _KDIR= $(PWD)/../../../../../../
-    #_KDIR=/exports/kernels/juno/out/juno-oe/mobile_oe
-    $(info "set default kernel path ${_KDIR}")
-#    $(error "Please export KDIR variable before build")
-else
-    _KDIR=${KDIR}
-endif
-
-
-
-obj-m += iv009_isp.o
-
-ifeq ($(FW_SRC_OBJ),)
-	FW_SRC := $(wildcard src/*.c src/*/*.c src/*/*/*.c app/*.c app/*/*.c)
-	export FW_SRC_OBJ := $(FW_SRC:.c=.o)
-
-	ifneq ($(wildcard src/fw_lib/libacamera_isp.a),) 
-		export FW_SRC_OBJ := $(FW_SRC_OBJ) src/fw_lib/libacamera_isp.a
-	endif
-endif
-
-
-iv009_isp-objs += $(FW_SRC_OBJ) 
-
-INCLUDE_DIRS := $(addprefix -I,$(shell find ../ -type d ))
-
-ccflags-y:=-I$(PWD)/app -I$(PWD)/inc -I$(PWD)/app/control -I$(PWD)/inc/api -I$(PWD)/inc/isp \
-		-I$(PWD)/inc/sys -I$(PWD)/src/platform -I$(PWD)/src/fw  -I$(PWD)/src/fw_lib \
-		-I$(PWD)/src/calibration -I$(PWD)/src/driver/sensor -I$(PWD)/src/driver/lens \
-		-I$(_KDIR)/include/linux/
-
-ccflags-y += -Wno-declaration-after-statement
-
-all:
-		CROSS_COMPILE=${_CROSS_COMPILE} make ARCH=${_ARCH} -C $(_KDIR) M=$(PWD) modules
-
-clean:
-		CROSS_COMPILE=${_CROSS_COMPILE} make ARCH=${_ARCH} -C $(_KDIR) M=$(PWD) clean
-
+EXTRA_CFLAGS += $(addprefix -I,$(shell find $(src_v4l2) -type d))
