@@ -25,6 +25,8 @@ config HOBOT_CNN_MM
         help
           Add hobot cnn memory heap management driver
 
+source "drivers/soc/hobot/bpu/Kconfig"
+
 config HOBOT_DIAG
         bool "hobot diag driver, based on netlink"
         default y

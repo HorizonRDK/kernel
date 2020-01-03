@@ -1,0 +1,44 @@
+#
+# HOBOT BPU drivers
+#
+menuconfig HOBOT_BPU
+	bool "HOBOT BPU subsystem support"
+
+if HOBOT_BPU 
+
+config BPU
+	bool "BPU framework driver"
+	default y
+	help
+	  Say y here to support the hobot BPU(Brain Processing Unit)
+
+	  If unsure, say N.
+
+config BPU_CORE
+	tristate "BPU Cores driver"
+	depends on BPU
+	default n
+	help
+	  Say y here to support the hobot BPU(Brain Processing Unit)
+
+	  If unsure, say N.
+
+if BPU_CORE
+
+choice
+	bool "BPU core type"
+	default X2_BPU if (SOC_X2_MP)
+
+config X2_BPU
+	bool "HOBOT X2 SOC BPU support"
+	depends on BPU
+	help
+	  Say y here to support bpu on hobot x2/j2 soc
+
+	  If unsure, say N.
+
+endchoice
+
+endif # BPU_CORE
+
+endif # HOBOT_BPU 
