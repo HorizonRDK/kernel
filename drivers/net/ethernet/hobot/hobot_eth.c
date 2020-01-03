@@ -4135,7 +4135,6 @@ static int x2_open(struct net_device *ndev)
 
 	x2_enable_all_queues(priv);
 	x2_start_all_queues(priv);
-    x2_dump_rx_des3(priv, 0);
 	printk("%s: successfully\n",__func__);
 	return 0;
 
