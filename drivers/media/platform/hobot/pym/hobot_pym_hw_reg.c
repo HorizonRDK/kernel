@@ -113,41 +113,24 @@ void pym_set_shd_select(void __iomem *base_addr, u8 cfg)
 	vio_hw_set_reg(base_addr, &pym_regs[PYM_CONFIG_ID], cfg);
 }
 
-void pym_ds_uv_bypass(void __iomem *base_addr, u8 shadow_index, u32 port_num)
+void pym_ds_uv_bypass(void __iomem *base_addr, u8 shadow_index, u32 cfg)
 {	
-	u32 shift = 0;
-
-	if(port_num < 4)
-		shift = port_num - 1;
-	else if(port_num < 8)
-		shift = port_num - 2;
-	else if(port_num < 12)
-		shift = port_num - 3;
-	else if(port_num < 16)
-		shift = port_num - 4;
-	else if(port_num < 20)
-		shift = port_num - 5;
-	else if(port_num < 24)
-		shift = port_num - 6;
-	else
-		vio_err("wrong port number(%d)", port_num);
-
 	switch(shadow_index){
 		case SDW_ID_0:
 			vio_hw_set_field(base_addr, &pym_regs[PYM_0_PYRAMIDE_DS_CTRL], 
-				&pym_fields[PYM_F_DS_UV_BYPASS], 1 << shift);
+				&pym_fields[PYM_F_DS_UV_BYPASS], cfg);
 			break;
 		case SDW_ID_1:
 			vio_hw_set_field(base_addr, &pym_regs[PYM_1_PYRAMIDE_DS_CTRL], 
-				&pym_fields[PYM_F_DS_UV_BYPASS], 1 << shift);
+				&pym_fields[PYM_F_DS_UV_BYPASS], cfg);
 			break;
 		case SDW_ID_2:
 			vio_hw_set_field(base_addr, &pym_regs[PYM_2_PYRAMIDE_DS_CTRL], 
-				&pym_fields[PYM_F_DS_UV_BYPASS], 1 << shift);
+				&pym_fields[PYM_F_DS_UV_BYPASS], cfg);
 			break;
 		case SDW_ID_3:
 			vio_hw_set_field(base_addr, &pym_regs[PYM_3_PYRAMIDE_DS_CTRL], 
-				&pym_fields[PYM_F_DS_UV_BYPASS], 1 << shift);
+				&pym_fields[PYM_F_DS_UV_BYPASS], cfg);
 			break;
 		default:
 			vio_err("invalid shadow index(%d) for ipu\n",shadow_index);
@@ -160,7 +143,7 @@ void pym_ds_enabe_base_layer(void __iomem *base_addr, u8 shadow_index, u32 layer
 {
 	u32 cfg = 0;
 
-	cfg = (1 << (layer_nums - 1))  - 1;
+	cfg = (1 << (layer_nums))  - 1;
 	switch(shadow_index){
 		case SDW_ID_0:
 			vio_hw_set_field(base_addr, &pym_regs[PYM_0_PYRAMIDE_DS_CTRL], 
@@ -218,24 +201,24 @@ void pym_us_clk_gate(void __iomem *base_addr, u8 shadow_index, bool uv_gate, boo
 }
 
 
-void pym_us_uv_bypass(void __iomem *base_addr, u8 shadow_index, u32 layer_index)
+void pym_us_uv_bypass(void __iomem *base_addr, u8 shadow_index, u32 cfg)
 {
 	switch(shadow_index){
 		case SDW_ID_0:
 			vio_hw_set_field(base_addr, &pym_regs[PYM_0_PYRAMIDE_US_CTRL], 
-				&pym_fields[PYM_F_US_UV_BYPASS], 1 << layer_index);
+				&pym_fields[PYM_F_US_UV_BYPASS], cfg);
 			break;
 		case SDW_ID_1:
 			vio_hw_set_field(base_addr, &pym_regs[PYM_1_PYRAMIDE_US_CTRL], 
-				&pym_fields[PYM_F_US_UV_BYPASS], 1 << layer_index);
+				&pym_fields[PYM_F_US_UV_BYPASS], cfg);
 			break;
 		case SDW_ID_2:
 			vio_hw_set_field(base_addr, &pym_regs[PYM_2_PYRAMIDE_US_CTRL], 
-				&pym_fields[PYM_F_US_UV_BYPASS], 1 << layer_index);
+				&pym_fields[PYM_F_US_UV_BYPASS], cfg);
 			break;
 		case SDW_ID_3:
 			vio_hw_set_field(base_addr, &pym_regs[PYM_3_PYRAMIDE_US_CTRL], 
-				&pym_fields[PYM_F_US_UV_BYPASS], 1 << layer_index);
+				&pym_fields[PYM_F_US_UV_BYPASS], cfg);
 			break;
 		default:
 			vio_err("invalid shadow index(%d) for ipu\n", shadow_index);
@@ -243,24 +226,24 @@ void pym_us_uv_bypass(void __iomem *base_addr, u8 shadow_index, u32 layer_index)
 		}
 }
 
-void pym_us_enabe_layer(void __iomem *base_addr, u8 shadow_index, u32 layer_index)
+void pym_us_enabe_layer(void __iomem *base_addr, u8 shadow_index, u32 cfg)
 {
 	switch(shadow_index){
 		case SDW_ID_0:
 			vio_hw_set_field(base_addr, &pym_regs[PYM_0_PYRAMIDE_US_CTRL], 
-				&pym_fields[PYM_F_US_LAYER_EN], 1 << layer_index);
+				&pym_fields[PYM_F_US_LAYER_EN], cfg);
 			break;
 		case SDW_ID_1:
 			vio_hw_set_field(base_addr, &pym_regs[PYM_1_PYRAMIDE_US_CTRL], 
-				&pym_fields[PYM_F_US_LAYER_EN], 1 << layer_index);
+				&pym_fields[PYM_F_US_LAYER_EN], cfg);
 			break;
 		case SDW_ID_2:
 			vio_hw_set_field(base_addr, &pym_regs[PYM_2_PYRAMIDE_US_CTRL], 
-				&pym_fields[PYM_F_US_LAYER_EN], 1 << layer_index);
+				&pym_fields[PYM_F_US_LAYER_EN], cfg);
 			break;
 		case SDW_ID_3:
 			vio_hw_set_field(base_addr, &pym_regs[PYM_3_PYRAMIDE_US_CTRL], 
-				&pym_fields[PYM_F_US_LAYER_EN], 1 << layer_index);
+				&pym_fields[PYM_F_US_LAYER_EN], cfg);
 			break;
 		default:
 			vio_err("invalid shadow index(%d) for ipu\n", shadow_index);

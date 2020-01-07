@@ -71,6 +71,7 @@ struct x2a_pym_dev {
 
 	atomic_t instance;
 	atomic_t rsccount;
+	atomic_t open_cnt;
 	spinlock_t shared_slock;
 
 	struct vio_group *group[VIO_MAX_STREAM];

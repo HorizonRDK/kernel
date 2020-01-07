@@ -126,6 +126,7 @@ struct x2a_ipu_dev {
 
 	atomic_t instance;
 	atomic_t rsccount;
+	atomic_t open_cnt;
 
 	struct vio_group *group[VIO_MAX_STREAM];
 	struct vio_group_task gtask;

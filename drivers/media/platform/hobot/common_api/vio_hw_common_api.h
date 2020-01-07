@@ -1,3 +1,9 @@
+/***************************************************************************
+ *                      COPYRIGHT NOTICE
+ *             Copyright 2019 Horizon Robotics, Inc.
+ *                     All rights reserved.
+ ***************************************************************************/
+
 #ifndef VIO_HW_API_COMMON_H
 #define VIO_HW_API_COMMON_H
 
@@ -13,6 +19,8 @@ typedef signed int s32;
 typedef signed short s16;
 typedef signed char s8;
 typedef float f32;
+typedef signed long long s64;
+typedef unsigned long long u64;
 
 enum regdata_type { 
 	/* read write */ 

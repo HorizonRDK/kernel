@@ -60,6 +60,8 @@ static int x2a_pym_open(struct inode *inode, struct file *file)
 	file->private_data = pym_ctx;
 	pym_ctx->state = BIT(VIO_VIDEO_OPEN);
 
+	atomic_inc(&pym->open_cnt);
+
 p_err:
 	return ret;
 }
@@ -70,8 +72,8 @@ static ssize_t x2a_pym_write(struct file *file, const char __user *buf,
 	return 0;
 }
 
-static ssize_t x2a_pym_read(struct file *file, char __user *buf, size_t size,
-			    loff_t * ppos)
+static ssize_t x2a_pym_read(struct file *file, char __user *buf,
+				size_t size, loff_t * ppos)
 {
 	return 0;
 
@@ -99,15 +101,22 @@ static int x2a_pym_close(struct inode *inode, struct file *file)
 {
 	struct pym_video_ctx *pym_ctx;
 	struct vio_group *group;
+	struct x2a_pym_dev *pym;
 
 	pym_ctx = file->private_data;
 	group = pym_ctx->group;
+	pym = pym_ctx->pym_dev;
 
 	clear_bit(VIO_GROUP_INIT, &group->state);
 	vio_group_task_stop(group->gtask);
 	frame_manager_close(&pym_ctx->framemgr);
 
 	pym_ctx->state = BIT(VIO_VIDEO_CLOSE);
+
+	if (atomic_dec_return(&pym->open_cnt) == 0) {
+		clear_bit(PYM_OTF_INPUT, &pym->state);
+		clear_bit(PYM_DMA_INPUT, &pym->state);
+	}
 
 	kfree(pym_ctx);
 
@@ -147,30 +156,30 @@ static void pym_frame_work(struct vio_group *group)
 	pym = ctx->pym_dev;
 	shadow_index = instance % MAX_SHADOW_NUM;
 
-	pym_set_shd_rdy(pym->base_reg, shadow_index, 0);
-	pym_set_shd_select(pym->base_reg, shadow_index);
-
 	atomic_set(&pym->instance, instance);
 
 	framemgr = &ctx->framemgr;
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	frame = peek_frame(framemgr, FS_REQUEST);
 	if (frame) {
+		pym_set_common_rdy(pym->base_reg, 0);
+		pym_set_shd_select(pym->base_reg, shadow_index);
+
 		pym_set_buffers(pym, frame);
 
 		if (test_bit(PYM_DMA_INPUT, &pym->state)) {
 			pym_rdma_set_addr(pym->base_reg,
 					  frame->frameinfo.addr[0],
 					  frame->frameinfo.addr[1]);
-			pym_set_rdma_start(pym->base_reg);
 		}
+		pym_set_common_rdy(pym->base_reg, 1);
+
+		if (test_bit(PYM_DMA_INPUT, &pym->state))
+			pym_set_rdma_start(pym->base_reg);
 
 		trans_frame(framemgr, frame, FS_PROCESS);
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
-	//pym_hw_dump(pym->base_reg);
-	pym_set_shd_rdy(pym->base_reg, shadow_index, 1);
-	//msleep(10000);
 
 	return;
 }
@@ -181,6 +190,7 @@ void pym_update_param(struct pym_video_ctx *pym_ctx, pym_cfg_t *pym_config)
 	u32 shadow_index;
 	int i = 0;
 	u32 base_layer_nums = 0;
+	u32 ds_bapass_uv = 0;
 	struct vio_group *group;
 	struct x2a_pym_dev *pym;
 	struct roi_rect rect;
@@ -197,7 +207,7 @@ void pym_update_param(struct pym_video_ctx *pym_ctx, pym_cfg_t *pym_config)
 	pym_config_src_size(pym->base_reg, shadow_index, src_width, src_height);
 
 	// config ds roi and factor
-	for (i = 0; i < MAX_PYM_DS_COUNT; i++) {
+	for (i = 0; i < pym_config->ds_layer_en; i++) {
 		rect.roi_x = pym_config->stds_box[i].roi_x;
 		rect.roi_y = pym_config->stds_box[i].roi_y;
 		rect.roi_width = pym_config->stds_box[i].tgt_width;
@@ -209,21 +219,40 @@ void pym_update_param(struct pym_video_ctx *pym_ctx, pym_cfg_t *pym_config)
 		pym_ds_set_src_width(pym->base_reg, shadow_index, i, roi_width);
 	}
 
-	base_layer_nums = pym_config->ds_layer_en / 4;
-	pym_ds_enabe_base_layer(pym->base_reg, shadow_index, base_layer_nums);
+	if(pym_config->ds_uv_bypass > 0) {
+		for(i = MAX_PYM_DS_COUNT; i >= 1; --i)
+			if (i % 4 != 0) {
+				ds_bapass_uv  <<= 1;
+				if (pym_config->ds_uv_bypass >> i & 0x1) {
+					ds_bapass_uv |= 1;
+				}
+			}
+	}
 
+	pym_ds_uv_bypass(pym->base_reg, shadow_index, ds_bapass_uv);
+	vio_info("%s: %d\n", __func__, ds_bapass_uv);
+
+	if(pym_config->ds_layer_en > 4) {
+		base_layer_nums = (pym_config->ds_layer_en - 1) / 4;
+		pym_ds_enabe_base_layer(pym->base_reg, shadow_index, base_layer_nums);
+	}
 	//config us roi and factor
 	for (i = 0; i < MAX_PYM_US_COUNT; i++) {
-		rect.roi_x = pym_config->stus_box[i].roi_x;
-		rect.roi_y = pym_config->stus_box[i].roi_y;
-		rect.roi_width = pym_config->stus_box[i].tgt_width;
-		rect.roi_height = pym_config->stus_box[i].tgt_height;
-		pym_us_config_factor(pym->base_reg, shadow_index, i,
-				     pym_config->stus_box[i].factor);
-		pym_us_config_roi(pym->base_reg, shadow_index, i, &rect);
-		roi_width = pym_config->stus_box[i].roi_width;
-		pym_us_set_src_width(pym->base_reg, shadow_index, i, roi_width);
+		if (pym_config->us_layer_en & 1 << i) {
+			rect.roi_x = pym_config->stus_box[i].roi_x;
+			rect.roi_y = pym_config->stus_box[i].roi_y;
+			rect.roi_width = pym_config->stus_box[i].tgt_width;
+			rect.roi_height = pym_config->stus_box[i].tgt_height;
+			pym_us_config_factor(pym->base_reg, shadow_index, i,
+					     pym_config->stus_box[i].factor);
+			pym_us_config_roi(pym->base_reg, shadow_index, i, &rect);
+			roi_width = pym_config->stus_box[i].roi_width;
+			pym_us_set_src_width(pym->base_reg, shadow_index, i, roi_width);
+		}
 	}
+
+	pym_us_uv_bypass(pym->base_reg, shadow_index, pym_config->us_uv_bypass);
+	pym_us_enabe_layer(pym->base_reg, shadow_index, pym_config->us_layer_en);
 	pym_set_shd_rdy(pym->base_reg, shadow_index, 1);
 
 	//config common register
@@ -283,7 +312,8 @@ int pym_video_init(struct pym_video_ctx *pym_ctx, unsigned long arg)
 	group = pym_ctx->group;
 	pym_dev = pym_ctx->pym_dev;
 
-	if (!(pym_ctx->state & (BIT(VIO_VIDEO_S_INPUT) | BIT(VIO_VIDEO_REBUFS)))) {
+	if (!(pym_ctx->state & (BIT(VIO_VIDEO_S_INPUT)
+							| BIT(VIO_VIDEO_REBUFS)))) {
 		vio_err("[V%02d] invalid INIT is requested(%lX)",
 			group->instance, pym_ctx->state);
 		return -EINVAL;
@@ -313,6 +343,8 @@ int pym_video_init(struct pym_video_ctx *pym_ctx, unsigned long arg)
 	}
 		
 	pym_update_param(pym_ctx, &pym_config);
+
+	set_bit(VIO_GROUP_DMA_OUTPUT, &group->state);
 
 	vio_group_task_start(group->gtask);
 
@@ -392,10 +424,6 @@ int pym_video_streamoff(struct pym_video_ctx *pym_ctx)
 	del_timer_sync(&tm[0]);
 	g_test_bit = 0;
 #endif
-
-	clear_bit(PYM_OTF_INPUT, &pym_dev->state);
-	clear_bit(PYM_DMA_INPUT, &pym_dev->state);
-
 	spin_unlock_irqrestore(&pym_dev->shared_slock, flag);
 p_dec:
 
@@ -590,8 +618,8 @@ void pym_set_iar_output(struct pym_video_ctx *pym_ctx, struct vio_frame *frame)
 	display_layer = ipu_get_iar_display_type();
 	spec = &frame->frameinfo.spec;
 	if(display_layer >= 31)
-		ipu_set_display_addr(spec->ds_y_addr[display_layer - 31],
-			spec->ds_uv_addr[display_layer - 31]);
+		ipu_set_display_addr(spec->us_y_addr[display_layer - 31],
+			spec->us_uv_addr[display_layer - 31]);
 	else if(display_layer >= 7)
 		ipu_set_display_addr(spec->ds_y_addr[display_layer - 7],
 			spec->ds_uv_addr[display_layer - 7]);
@@ -612,10 +640,9 @@ void pym_frame_done(struct pym_video_ctx *pym_ctx)
 	if (frame) {
 		if(group->get_timestamps){
 			frame->frameinfo.frame_id = group->frameid.frame_id;
-			frame->frameinfo.timestamp_l =
-			    group->frameid.timestamp_l;
-			frame->frameinfo.timestamp_m =
-			    group->frameid.timestamp_m;
+			frame->frameinfo.timestamps =
+			    group->frameid.timestamps;
+			do_gettimeofday(&frame->frameinfo.tv);
 		}
 
 		pym_set_iar_output(pym_ctx, frame);
@@ -745,9 +772,8 @@ int x2a_pym_device_node_init(struct x2a_pym_dev *pym)
 
 	pym->class = class_create(THIS_MODULE, X2A_PYM_NAME);
 
-	dev =
-	    device_create(pym->class, NULL, MKDEV(MAJOR(devno), 0), NULL,
-			  "pym");
+	dev = device_create(pym->class, NULL, MKDEV(MAJOR(devno), 0),
+					NULL, "pym");
 	if (IS_ERR(dev)) {
 		ret = -EINVAL;
 		vio_err("pym device create fail\n");
@@ -762,7 +788,8 @@ err_req_cdev:
 	return ret;
 }
 
-static ssize_t pym_reg_dump(struct device *dev,struct device_attribute *attr, char* buf)
+static ssize_t pym_reg_dump(struct device *dev,
+				struct device_attribute *attr, char* buf)
 {
 	struct x2a_pym_dev *pym;
 
@@ -797,9 +824,9 @@ static int x2a_pym_probe(struct platform_device *pdev)
 
 	pym->regs_start = mem_res->start;
 	pym->regs_end = mem_res->end;
-	pym->base_reg =
-	    devm_ioremap_nocache(&pdev->dev, mem_res->start,
-				 resource_size(mem_res));
+	pym->base_reg = devm_ioremap_nocache(&pdev->dev,
+					mem_res->start,
+					resource_size(mem_res));
 	if (!pym->base_reg) {
 		vio_err("Failed to remap io region(%p)", pym->base_reg);
 		ret = -ENOMEM;
@@ -830,9 +857,11 @@ static int x2a_pym_probe(struct platform_device *pdev)
 	}
 	platform_set_drvdata(pdev, pym);
 
-	atomic_set(&pym->gtask.refcount, 0);
 	spin_lock_init(&pym->shared_slock);
 	sema_init(&pym->gtask.hw_resource, 1);
+	atomic_set(&pym->gtask.refcount, 0);
+	atomic_set(&pym->rsccount, 0);
+	atomic_set(&pym->open_cnt, 0);
 
 	vio_info("[FRT:D] %s(%d)\n", __func__, ret);
 

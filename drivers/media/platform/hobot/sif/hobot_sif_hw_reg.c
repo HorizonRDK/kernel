@@ -11,7 +11,8 @@
 
 static uint32_t s_enable_pattern_gen = 0;
 
-void sif_enable_frame_intr(void __iomem *base_reg, u32 mux_index, bool enable)
+void sif_enable_frame_intr(void __iomem *base_reg, u32 mux_index,
+				bool enable)
 {
 	vio_hw_set_field(base_reg, &sif_regs[SIF_FRM_EN_INT],
 			&sif_fields[SW_SIF_FRM0_DONE_INT_EN - mux_index], enable);
@@ -67,13 +68,15 @@ static void sif_enable_drop_frame(u32 __iomem *base_reg, bool enable)
  * @param ipi_index the index of 13 ipi/dvp input
  * @param lines the number of line buffers to use
  */
-static void sif_enable_mux_out(u32 __iomem *base_reg, u32 mux_index, u32 ipi_index, u32 lines)
+static void sif_enable_mux_out(u32 __iomem *base_reg, u32 mux_index,
+				u32 ipi_index, u32 lines)
 {
-	if(mux_index < 8){
+	if (mux_index < 8) {
 		vio_hw_set_field(base_reg, &sif_regs[SIF_MUX_OUT_MODE],
 				&sif_fields[SW_SIF_MUX0_OUT_ENABLE - mux_index], 1);
 		vio_hw_set_field(base_reg, &sif_regs[SIF_IN_BUF_OVERFLOW_MASK],
-				&sif_fields[SW_SIF_BUF0_CTRL_OVERFLOW_ERROR_MASK - mux_index], 0);
+				&sif_fields[SW_SIF_BUF0_CTRL_OVERFLOW_ERROR_MASK - mux_index],
+				0);
 		vio_hw_set_field(base_reg, &sif_regs[SIF_MUX_OUT_SEL],
 				&sif_fields[SW_SIF_MUX0_OUT_SELECT - mux_index], ipi_index);
 	}
@@ -102,8 +105,9 @@ static void sif_enable_mux_out(u32 __iomem *base_reg, u32 mux_index, u32 ipi_ind
 	} else if (lines == 4) {
 		vio_hw_set_field(base_reg, &sif_regs[SIF_MUX_OUT_MODE],
 				&sif_fields[SW_SIF_BUF_CTRL_F0TO3_DVP20BIT], 1);
-	}else if(lines == 3 || lines > 4)
+	} else if (lines == 3 || lines > 4) {
 		vio_err("unsupport lines(%d)\n", lines);
+	}
 
 }
 
@@ -114,7 +118,8 @@ static void sif_enable_mux_out(u32 __iomem *base_reg, u32 mux_index, u32 ipi_ind
  * @param bypass_channels the number of bypass channels from the MIPI Rx
  * @return check whether valid to config or not
  */
-static void sif_enable_bypass(u32 __iomem *base_reg, u32 rx_index, u32 bypass_channels)
+static void sif_enable_bypass(u32 __iomem *base_reg, u32 rx_index,
+				u32 bypass_channels)
 {
 	int i = 0;
 	u32 bypass_index_start = 0;
@@ -152,7 +157,8 @@ static void sif_enable_bypass(u32 __iomem *base_reg, u32 rx_index, u32 bypass_ch
  *
  * @param pat_index 0:DVP, 1:IPI0, 2:IPI1, 3:IPI2, 4:IPI3
  */
-static void sif_set_pattern_gen(u32 __iomem *base_reg, u32 pat_index, sif_data_desc_t* p_data)
+static void sif_set_pattern_gen(u32 __iomem *base_reg, u32 pat_index,
+				sif_data_desc_t* p_data)
 {
 	u32 is_raw = (p_data->format == 0);
 
@@ -190,10 +196,12 @@ static void sif_set_pattern_gen(u32 __iomem *base_reg, u32 pat_index, sif_data_d
 			&sif_fields[SW_PAT_GEN0_VTOTAL_LINE + pat_index*10], v_line);
 
 	vio_hw_set_field(base_reg, &sif_regs[SIF_PAT_GEN0_IMG + pat_index*6],
-			&sif_fields[SW_PAT_GEN0_HACTIVE_PIX + pat_index*10], p_data->width);
+			&sif_fields[SW_PAT_GEN0_HACTIVE_PIX + pat_index*10],
+			p_data->width);
 
 	vio_hw_set_field(base_reg, &sif_regs[SIF_PAT_GEN0_IMG + pat_index*6],
-			&sif_fields[SW_PAT_GEN0_VACTIVE_LINE + pat_index*10], p_data->height);
+			&sif_fields[SW_PAT_GEN0_VACTIVE_LINE + pat_index*10],
+			p_data->height);
 
 	vio_hw_set_field(base_reg, &sif_regs[SIF_PAT_GEN0_CFG + pat_index*6],
 			&sif_fields[SW_PAT_GEN0_VBP + pat_index*10], padding);
@@ -202,15 +210,19 @@ static void sif_set_pattern_gen(u32 __iomem *base_reg, u32 pat_index, sif_data_d
 			&sif_fields[SW_PAT_GEN0_YUV_OUT + pat_index*10], !is_raw);
 
 	vio_hw_set_field(base_reg, &sif_regs[SIF_PAT_GEN0_CFG + pat_index*6],
-			&sif_fields[SW_PAT_GEN0_MODE + pat_index*10], is_raw ? ((pat_index % 2) + 4) : 0);
+			&sif_fields[SW_PAT_GEN0_MODE + pat_index*10],
+			is_raw ? ((pat_index % 2) + 4) : 0);
 
 	vio_hw_set_field(base_reg, &sif_regs[SIF_PAT_GEN0_COL0 + pat_index*6],
-			&sif_fields[SW_PAT_GEN0_R_VAL + pat_index*10], is_raw ? 2 + pat_index * 2 : y * 256);
+			&sif_fields[SW_PAT_GEN0_R_VAL + pat_index*10],
+			is_raw ? 2 + pat_index * 2 : y * 256);
 
 	vio_hw_set_field(base_reg, &sif_regs[SIF_PAT_GEN0_COL1 + pat_index*6],
-			&sif_fields[SW_PAT_GEN0_G_VAL + pat_index*10], is_raw ? 0 : cr * 256);
+			&sif_fields[SW_PAT_GEN0_G_VAL + pat_index*10],
+			is_raw ? 0 : cr * 256);
 	vio_hw_set_field(base_reg, &sif_regs[SIF_PAT_GEN0_COL2 + pat_index*6],
-			&sif_fields[SW_PAT_GEN0_B_VAL + pat_index*10], is_raw ? 0 : cb * 256);
+			&sif_fields[SW_PAT_GEN0_B_VAL + pat_index*10],
+			is_raw ? 0 : cb * 256);
 
 	s_enable_pattern_gen |= (0x1 << pat_index);
 
@@ -339,7 +351,7 @@ static void sif_set_dvp_input(u32 __iomem *base_reg, sif_input_dvp_t* p_dvp)
 
 		if (yuv_format) {
 			if (mux_out_index % 1) {
-				vio_err("The index of mux-out should be even if using YUV format");
+				vio_err("The mux_out_index should be even if using YUV format");
 				return;
 			} else {
 				switch (mux_out_index / 2) {
@@ -399,7 +411,8 @@ static void sif_set_iar_input(u32 __iomem *base_reg, sif_input_iar_t* p_iar)
 	}
 
 	vio_hw_set_field(base_reg, &sif_regs[SIF_FRAME_ID_IAR_CFG],
-			&sif_fields[SW_SIF_IAR_MIPI_FRAME_ID_ENABLE], p_iar->func.enable_frame_id);
+				&sif_fields[SW_SIF_IAR_MIPI_FRAME_ID_ENABLE],
+				p_iar->func.enable_frame_id);
 	if(init_frame_id != 0){
 		vio_hw_set_field(base_reg, &sif_regs[SIF_FRAME_ID_IAR_CFG],
 				&sif_fields[SW_SIF_IAR_MIPI_FRAME_ID_SET_EN], 1);
@@ -409,7 +422,8 @@ static void sif_set_iar_input(u32 __iomem *base_reg, sif_input_iar_t* p_iar)
 	
 }
 
-void sif_config_mipi_rx(u32 __iomem *base_reg, u32 index, sif_data_desc_t *data)
+void sif_config_mipi_rx(u32 __iomem *base_reg, u32 index,
+	sif_data_desc_t *data)
 {	
 	switch(index){
 		case 0:
@@ -443,24 +457,33 @@ void sif_config_mipi_rx(u32 __iomem *base_reg, u32 index, sif_data_desc_t *data)
 
 }
 
-void sif_enable_ipi_init_frameid(u32 __iomem *base_reg, u32 index, u32 vc_channel, bool enable)
+void sif_enable_ipi_init_frameid(u32 __iomem *base_reg, u32 index,
+				u32 vc_channel, bool enable)
 {
 	switch(index){
 		case 0:
-			vio_hw_set_field(base_reg, &sif_regs[SIF_FRM_ID_RX0_IPI0_CFG + vc_channel],
-						&sif_fields[SW_RX0_IPI0_FRAME_ID_SET_EN + 3 * vc_channel], enable);
+			vio_hw_set_field(base_reg,
+					&sif_regs[SIF_FRM_ID_RX0_IPI0_CFG + vc_channel],
+					&sif_fields[SW_RX0_IPI0_FRAME_ID_SET_EN + 3 * vc_channel],
+					enable);
 			break;
 		case 1:
-			vio_hw_set_field(base_reg, &sif_regs[SIF_FRM_ID_RX1_IPI0_CFG + vc_channel],
-						&sif_fields[SW_RX1_IPI0_FRAME_ID_SET_EN + 3 * vc_channel], enable);
+			vio_hw_set_field(base_reg,
+					&sif_regs[SIF_FRM_ID_RX1_IPI0_CFG + vc_channel],
+					&sif_fields[SW_RX1_IPI0_FRAME_ID_SET_EN + 3 * vc_channel],
+					enable);
 			break;
 		case 2:
-			vio_hw_set_field(base_reg, &sif_regs[SIF_FRM_ID_RX2_IPI0_CFG + vc_channel],
-						&sif_fields[SW_RX2_IPI0_FRAME_ID_SET_EN + 3 * vc_channel], enable);
+			vio_hw_set_field(base_reg,
+					&sif_regs[SIF_FRM_ID_RX2_IPI0_CFG + vc_channel],
+					&sif_fields[SW_RX2_IPI0_FRAME_ID_SET_EN + 3 * vc_channel],
+					enable);
 			break;
 		case 3:
-			vio_hw_set_field(base_reg, &sif_regs[SIF_FRM_ID_RX3_IPI0_CFG + vc_channel],
-						&sif_fields[SW_RX3_IPI0_FRAME_ID_SET_EN + 3 * vc_channel], enable);
+			vio_hw_set_field(base_reg,
+					&sif_regs[SIF_FRM_ID_RX3_IPI0_CFG + vc_channel],
+					&sif_fields[SW_RX3_IPI0_FRAME_ID_SET_EN + 3 * vc_channel],
+					enable);
 			break;
 		default:
 			vio_err("wrong mipi rx index(%d)\n", index);
@@ -485,7 +508,8 @@ void sif_enable_init_frameid(u32 __iomem *base_reg, u32 index, bool enable)
 	vio_hw_set_reg(base_reg, &sif_regs[SIF_SHD_UP_RDY], 0xFFFFFFFF);
 }
 
-void sif_config_rx_ipi(u32 __iomem *base_reg, u32 index, u32 vc_channel, sif_input_mipi_t* p_mipi)
+void sif_config_rx_ipi(u32 __iomem *base_reg, u32 index, u32 vc_channel,
+	sif_input_mipi_t* p_mipi)
 {
 	u32 enable_frame_id   = p_mipi->func.enable_frame_id;
 	u32 enable_pattern    = p_mipi->func.enable_pattern;
@@ -493,98 +517,161 @@ void sif_config_rx_ipi(u32 __iomem *base_reg, u32 index, u32 vc_channel, sif_inp
 
 	switch(index){
 		case 0:
-			vio_hw_set_field(base_reg, &sif_regs[SIF_MIPI_RX0_CFG0 + vc_channel],
-					&sif_fields[SW_MIPI_RX0_IPI0_ENABLE + 3 * vc_channel], p_mipi->enable);
-			vio_hw_set_field(base_reg, &sif_regs[SIF_MIPI_RX0_CFG0 + vc_channel],
-					&sif_fields[SW_MIPI_RX0_IPI0_HEIGHT + 3 * vc_channel], p_mipi->data.height);
-			vio_hw_set_field(base_reg, &sif_regs[SIF_MIPI_RX0_CFG0 + vc_channel],
-					&sif_fields[SW_MIPI_RX0_IPI0_WIDTH + 3 * vc_channel], p_mipi->data.width);
-			vio_hw_set_field(base_reg, &sif_regs[SIF_FRM_ID_RX0_IPI0_CFG + vc_channel],
-					&sif_fields[SW_RX0_IPI0_FRAME_ID_ENABLE + 3 * vc_channel], enable_frame_id);
+			vio_hw_set_field(base_reg,
+					&sif_regs[SIF_MIPI_RX0_CFG0 + vc_channel],
+					&sif_fields[SW_MIPI_RX0_IPI0_ENABLE + 3 * vc_channel],
+					p_mipi->enable);
+			vio_hw_set_field(base_reg,
+					&sif_regs[SIF_MIPI_RX0_CFG0 + vc_channel],
+					&sif_fields[SW_MIPI_RX0_IPI0_HEIGHT + 3 * vc_channel],
+					p_mipi->data.height);
+			vio_hw_set_field(base_reg,
+					&sif_regs[SIF_MIPI_RX0_CFG0 + vc_channel],
+					&sif_fields[SW_MIPI_RX0_IPI0_WIDTH + 3 * vc_channel],
+					p_mipi->data.width);
+			vio_hw_set_field(base_reg,
+					&sif_regs[SIF_FRM_ID_RX0_IPI0_CFG + vc_channel],
+					&sif_fields[SW_RX0_IPI0_FRAME_ID_ENABLE + 3 * vc_channel],
+					enable_frame_id);
 			if(init_frame_id != 0){
-				vio_hw_set_field(base_reg, &sif_regs[SIF_FRM_ID_RX0_IPI0_CFG + vc_channel],
-						&sif_fields[SW_RX0_IPI0_FRAME_ID_SET_EN + 3 * vc_channel], 1);				
-				vio_hw_set_field(base_reg, &sif_regs[SIF_FRM_ID_RX0_IPI0_CFG + vc_channel],
-						&sif_fields[SW_RX0_IPI0_FRAME_ID_INIT + 3 * vc_channel], init_frame_id);
+				vio_hw_set_field(base_reg,
+					&sif_regs[SIF_FRM_ID_RX0_IPI0_CFG + vc_channel],
+					&sif_fields[SW_RX0_IPI0_FRAME_ID_SET_EN + 3 * vc_channel],
+					1);
+				vio_hw_set_field(base_reg,
+					&sif_regs[SIF_FRM_ID_RX0_IPI0_CFG + vc_channel],
+					&sif_fields[SW_RX0_IPI0_FRAME_ID_INIT + 3 * vc_channel],
+					init_frame_id);
 			}
 
-			vio_hw_set_field(base_reg, &sif_regs[SIF_PAT_GEN_IPI_EN],
-						&sif_fields[SW_RX0_IPI0_PAT_GEN_OUT - vc_channel], enable_pattern);
+			vio_hw_set_field(base_reg,
+					&sif_regs[SIF_PAT_GEN_IPI_EN],
+					&sif_fields[SW_RX0_IPI0_PAT_GEN_OUT - vc_channel],
+					enable_pattern);
+			vio_hw_set_field(base_reg,
+					&sif_regs[SIF_ERR_STATUS_MASK],
+					&sif_fields[SW_SIF_RX0_IPI0_H_ERROR_MASK - vc_channel], 0);
 			vio_hw_set_field(base_reg, &sif_regs[SIF_ERR_STATUS_MASK],
-						&sif_fields[SW_SIF_RX0_IPI0_H_ERROR_MASK - vc_channel], 0);
-			vio_hw_set_field(base_reg, &sif_regs[SIF_ERR_STATUS_MASK],
-						&sif_fields[SW_SIF_RX0_IPI0_V_ERROR_MASK - vc_channel], 0);
+					&sif_fields[SW_SIF_RX0_IPI0_V_ERROR_MASK - vc_channel], 0);
 			break;
 		case 1:
-			vio_hw_set_field(base_reg, &sif_regs[SIF_MIPI_RX1_CFG0 + vc_channel],
-					&sif_fields[SW_MIPI_RX1_IPI0_ENABLE + 3 * vc_channel], p_mipi->enable);
-			vio_hw_set_field(base_reg, &sif_regs[SIF_MIPI_RX1_CFG0 + vc_channel],
-					&sif_fields[SW_MIPI_RX1_IPI0_HEIGHT + 3 * vc_channel], p_mipi->data.height);
-			vio_hw_set_field(base_reg, &sif_regs[SIF_MIPI_RX1_CFG0 + vc_channel],
-					&sif_fields[SW_MIPI_RX1_IPI0_WIDTH + 3 * vc_channel], p_mipi->data.width);
-			vio_hw_set_field(base_reg, &sif_regs[SIF_FRM_ID_RX1_IPI0_CFG + vc_channel],
-					&sif_fields[SW_RX1_IPI0_FRAME_ID_ENABLE + 3 * vc_channel], enable_frame_id);
+			vio_hw_set_field(base_reg,
+					&sif_regs[SIF_MIPI_RX1_CFG0 + vc_channel],
+					&sif_fields[SW_MIPI_RX1_IPI0_ENABLE + 3 * vc_channel],
+					p_mipi->enable);
+			vio_hw_set_field(base_reg,
+					&sif_regs[SIF_MIPI_RX1_CFG0 + vc_channel],
+					&sif_fields[SW_MIPI_RX1_IPI0_HEIGHT + 3 * vc_channel],
+					p_mipi->data.height);
+			vio_hw_set_field(base_reg,
+					&sif_regs[SIF_MIPI_RX1_CFG0 + vc_channel],
+					&sif_fields[SW_MIPI_RX1_IPI0_WIDTH + 3 * vc_channel],
+					p_mipi->data.width);
+			vio_hw_set_field(base_reg,
+					&sif_regs[SIF_FRM_ID_RX1_IPI0_CFG + vc_channel],
+					&sif_fields[SW_RX1_IPI0_FRAME_ID_ENABLE + 3 * vc_channel],
+					enable_frame_id);
 			if(init_frame_id != 0){
-				vio_hw_set_field(base_reg, &sif_regs[SIF_FRM_ID_RX1_IPI0_CFG + vc_channel],
-						&sif_fields[SW_RX1_IPI0_FRAME_ID_SET_EN + 3 * vc_channel], 1);				
-				vio_hw_set_field(base_reg, &sif_regs[SIF_FRM_ID_RX1_IPI0_CFG + vc_channel],
-						&sif_fields[SW_RX1_IPI0_FRAME_ID_INIT + 3 * vc_channel], init_frame_id);
+				vio_hw_set_field(base_reg,
+					&sif_regs[SIF_FRM_ID_RX1_IPI0_CFG + vc_channel],
+					&sif_fields[SW_RX1_IPI0_FRAME_ID_SET_EN + 3 * vc_channel],
+					1);
+				vio_hw_set_field(base_reg,
+					&sif_regs[SIF_FRM_ID_RX1_IPI0_CFG + vc_channel],
+					&sif_fields[SW_RX1_IPI0_FRAME_ID_INIT + 3 * vc_channel],
+					init_frame_id);
 			}
 
-			vio_hw_set_field(base_reg, &sif_regs[SIF_PAT_GEN_IPI_EN],
-						&sif_fields[SW_RX1_IPI0_PAT_GEN_OUT - vc_channel], enable_pattern);
-			vio_hw_set_field(base_reg, &sif_regs[SIF_ERR_STATUS_MASK],
-						&sif_fields[SW_SIF_RX1_IPI0_H_ERROR_MASK - vc_channel], 0);
-			vio_hw_set_field(base_reg, &sif_regs[SIF_ERR_STATUS_MASK],
-						&sif_fields[SW_SIF_RX1_IPI0_V_ERROR_MASK - vc_channel], 0);
+			vio_hw_set_field(base_reg,
+					&sif_regs[SIF_PAT_GEN_IPI_EN],
+					&sif_fields[SW_RX1_IPI0_PAT_GEN_OUT - vc_channel],
+					enable_pattern);
+			vio_hw_set_field(base_reg,
+					&sif_regs[SIF_ERR_STATUS_MASK],
+					&sif_fields[SW_SIF_RX1_IPI0_H_ERROR_MASK - vc_channel],
+					0);
+			vio_hw_set_field(base_reg,
+					&sif_regs[SIF_ERR_STATUS_MASK],
+					&sif_fields[SW_SIF_RX1_IPI0_V_ERROR_MASK - vc_channel], 0);
 
 			break;
 		case 2:
-			vio_hw_set_field(base_reg, &sif_regs[SIF_MIPI_RX2_CFG0 + vc_channel],
-					&sif_fields[SW_MIPI_RX2_IPI0_ENABLE + 3 * vc_channel], p_mipi->enable);
-			vio_hw_set_field(base_reg, &sif_regs[SIF_MIPI_RX2_CFG0 + vc_channel],
-					&sif_fields[SW_MIPI_RX2_IPI0_HEIGHT + 3 * vc_channel], p_mipi->data.height);
-			vio_hw_set_field(base_reg, &sif_regs[SIF_MIPI_RX2_CFG0 + vc_channel],
-					&sif_fields[SW_MIPI_RX2_IPI0_WIDTH + 3 * vc_channel], p_mipi->data.width);
-			vio_hw_set_field(base_reg, &sif_regs[SIF_FRM_ID_RX2_IPI0_CFG + vc_channel],
-					&sif_fields[SW_RX2_IPI0_FRAME_ID_ENABLE + 3 * vc_channel], enable_frame_id);
+			vio_hw_set_field(base_reg,
+					&sif_regs[SIF_MIPI_RX2_CFG0 + vc_channel],
+					&sif_fields[SW_MIPI_RX2_IPI0_ENABLE + 3 * vc_channel],
+					p_mipi->enable);
+			vio_hw_set_field(base_reg,
+					&sif_regs[SIF_MIPI_RX2_CFG0 + vc_channel],
+					&sif_fields[SW_MIPI_RX2_IPI0_HEIGHT + 3 * vc_channel],
+					p_mipi->data.height);
+			vio_hw_set_field(base_reg,
+					&sif_regs[SIF_MIPI_RX2_CFG0 + vc_channel],
+					&sif_fields[SW_MIPI_RX2_IPI0_WIDTH + 3 * vc_channel],
+					p_mipi->data.width);
+			vio_hw_set_field(base_reg,
+					&sif_regs[SIF_FRM_ID_RX2_IPI0_CFG + vc_channel],
+					&sif_fields[SW_RX2_IPI0_FRAME_ID_ENABLE + 3 * vc_channel],
+					enable_frame_id);
 			if(init_frame_id != 0){
-				vio_hw_set_field(base_reg, &sif_regs[SIF_FRM_ID_RX2_IPI0_CFG + vc_channel],
-						&sif_fields[SW_RX2_IPI0_FRAME_ID_SET_EN + 3 * vc_channel], 1);				
-				vio_hw_set_field(base_reg, &sif_regs[SIF_FRM_ID_RX2_IPI0_CFG + vc_channel],
-						&sif_fields[SW_RX2_IPI0_FRAME_ID_INIT + 3 * vc_channel], init_frame_id);
+				vio_hw_set_field(base_reg,
+					&sif_regs[SIF_FRM_ID_RX2_IPI0_CFG + vc_channel],
+					&sif_fields[SW_RX2_IPI0_FRAME_ID_SET_EN + 3 * vc_channel],
+					1);
+				vio_hw_set_field(base_reg,
+					&sif_regs[SIF_FRM_ID_RX2_IPI0_CFG + vc_channel],
+					&sif_fields[SW_RX2_IPI0_FRAME_ID_INIT + 3 * vc_channel],
+					init_frame_id);
 			}
 
 			vio_hw_set_field(base_reg, &sif_regs[SIF_PAT_GEN_IPI_EN],
-						&sif_fields[SW_RX2_IPI0_PAT_GEN_OUT - vc_channel], enable_pattern);
+					&sif_fields[SW_RX2_IPI0_PAT_GEN_OUT - vc_channel],
+					enable_pattern);
 			vio_hw_set_field(base_reg, &sif_regs[SIF_ERR_STATUS_MASK],
-						&sif_fields[SW_SIF_RX2_IPI0_H_ERROR_MASK - vc_channel], 0);
+					&sif_fields[SW_SIF_RX2_IPI0_H_ERROR_MASK - vc_channel], 0);
 			vio_hw_set_field(base_reg, &sif_regs[SIF_ERR_STATUS_MASK],
-						&sif_fields[SW_SIF_RX2_IPI0_V_ERROR_MASK - vc_channel], 0);
+					&sif_fields[SW_SIF_RX2_IPI0_V_ERROR_MASK - vc_channel], 0);
 
 			break;
 		case 3:
-			vio_hw_set_field(base_reg, &sif_regs[SIF_MIPI_RX3_CFG0 + vc_channel],
-					&sif_fields[SW_MIPI_RX3_IPI0_ENABLE + 3 * vc_channel], p_mipi->enable);
-			vio_hw_set_field(base_reg, &sif_regs[SIF_MIPI_RX3_CFG0 + vc_channel],
-					&sif_fields[SW_MIPI_RX3_IPI0_HEIGHT + 3 * vc_channel], p_mipi->data.height);
-			vio_hw_set_field(base_reg, &sif_regs[SIF_MIPI_RX3_CFG0 + vc_channel],
-					&sif_fields[SW_MIPI_RX3_IPI0_WIDTH + 3 * vc_channel], p_mipi->data.width);
-			vio_hw_set_field(base_reg, &sif_regs[SIF_FRM_ID_RX3_IPI0_CFG + vc_channel],
-					&sif_fields[SW_RX3_IPI0_FRAME_ID_ENABLE + 3 * vc_channel], enable_frame_id);
+			vio_hw_set_field(base_reg,
+					&sif_regs[SIF_MIPI_RX3_CFG0 + vc_channel],
+					&sif_fields[SW_MIPI_RX3_IPI0_ENABLE + 3 * vc_channel],
+					p_mipi->enable);
+			vio_hw_set_field(base_reg,
+					&sif_regs[SIF_MIPI_RX3_CFG0 + vc_channel],
+					&sif_fields[SW_MIPI_RX3_IPI0_HEIGHT + 3 * vc_channel],
+					p_mipi->data.height);
+			vio_hw_set_field(base_reg,
+					&sif_regs[SIF_MIPI_RX3_CFG0 + vc_channel],
+					&sif_fields[SW_MIPI_RX3_IPI0_WIDTH + 3 * vc_channel],
+					p_mipi->data.width);
+			vio_hw_set_field(base_reg,
+					&sif_regs[SIF_FRM_ID_RX3_IPI0_CFG + vc_channel],
+					&sif_fields[SW_RX3_IPI0_FRAME_ID_ENABLE + 3 * vc_channel],
+					enable_frame_id);
 			if(init_frame_id != 0){
-				vio_hw_set_field(base_reg, &sif_regs[SIF_FRM_ID_RX3_IPI0_CFG + vc_channel],
-						&sif_fields[SW_RX3_IPI0_FRAME_ID_SET_EN + 3 * vc_channel], 1);				
-				vio_hw_set_field(base_reg, &sif_regs[SIF_FRM_ID_RX3_IPI0_CFG + vc_channel],
-						&sif_fields[SW_RX3_IPI0_FRAME_ID_INIT + 3 * vc_channel], init_frame_id);
+				vio_hw_set_field(base_reg,
+					&sif_regs[SIF_FRM_ID_RX3_IPI0_CFG + vc_channel],
+					&sif_fields[SW_RX3_IPI0_FRAME_ID_SET_EN + 3 * vc_channel],
+					1);
+				vio_hw_set_field(base_reg,
+					&sif_regs[SIF_FRM_ID_RX3_IPI0_CFG + vc_channel],
+					&sif_fields[SW_RX3_IPI0_FRAME_ID_INIT + 3 * vc_channel],
+					init_frame_id);
 			}
 
-			vio_hw_set_field(base_reg, &sif_regs[SIF_PAT_GEN_IPI_EN],
-						&sif_fields[SW_RX3_IPI0_PAT_GEN_OUT - vc_channel], enable_pattern);
-			vio_hw_set_field(base_reg, &sif_regs[SIF_ERR_STATUS_MASK],
-						&sif_fields[SW_SIF_RX3_IPI0_H_ERROR_MASK - vc_channel], 0);
-			vio_hw_set_field(base_reg, &sif_regs[SIF_ERR_STATUS_MASK],
-						&sif_fields[SW_SIF_RX3_IPI0_V_ERROR_MASK - vc_channel], 0);
+			vio_hw_set_field(base_reg,
+					&sif_regs[SIF_PAT_GEN_IPI_EN],
+					&sif_fields[SW_RX3_IPI0_PAT_GEN_OUT - vc_channel],
+					enable_pattern);
+			vio_hw_set_field(base_reg,
+					&sif_regs[SIF_ERR_STATUS_MASK],
+					&sif_fields[SW_SIF_RX3_IPI0_H_ERROR_MASK - vc_channel],
+					0);
+			vio_hw_set_field(base_reg,
+					&sif_regs[SIF_ERR_STATUS_MASK],
+					&sif_fields[SW_SIF_RX3_IPI0_V_ERROR_MASK - vc_channel],
+					0);
 
 			break;
 		default:
@@ -700,7 +787,8 @@ static void sif_set_mipi_rx(u32 __iomem *base_reg, sif_input_mipi_t* p_mipi)
 
 	/*bypass enable*/
 	if (p_mipi->func.enable_bypass) {
-		sif_enable_bypass(base_reg, p_mipi->mipi_rx_index, p_mipi->func.set_bypass_channels);
+		sif_enable_bypass(base_reg, p_mipi->mipi_rx_index,
+								p_mipi->func.set_bypass_channels);
 	}
 
 	// FIXME: Workaround
@@ -748,13 +836,19 @@ void sif_set_ddr_input(u32 __iomem *base_reg, sif_input_ddr_t* p_ddr)
  * @param buf_index index of buffer on the specific mux ou
  *
  */
-void sif_transfer_ddr_owner(u32 __iomem *base_reg, u32 mux_out_index, u32 buf_index)
+void sif_transfer_ddr_owner(u32 __iomem *base_reg, u32 mux_out_index,
+	u32 buf_index)
 {
-	if(mux_out_index < 8 && buf_index < 4)
+	u32 shift = 0;
+
+	if (mux_out_index < 8 && buf_index < 4) {
+		shift = mux_out_index*4 + buf_index;
 		vio_hw_set_field(base_reg, &sif_regs[SIF_AXI_BUS_OWNER], 
-				&sif_fields[SW_SIF_OUT_FRM0_W_DDR0_OWNER - (mux_out_index*4 + buf_index)], 1);
-	else
-		vio_err("sif_transfer_ddr_owner wrong index[%d,%d]\n", mux_out_index, buf_index);
+				&sif_fields[SW_SIF_OUT_FRM0_W_DDR0_OWNER - shift], 1);
+	} else {
+		vio_err("sif_transfer_ddr_owner wrong index[%d,%d]\n",
+				mux_out_index, buf_index);
+	}
 }
 
 /*
@@ -768,7 +862,8 @@ u32 sif_get_ddr_addr(u32 __iomem *base_reg, u32 mux_out_index, u32 buf_index)
 {
 	u32 phyaddr = 0;
 
-	phyaddr = vio_hw_get_reg(base_reg, &sif_regs[SIF_AXI_FRM0_W_ADDR0 + mux_out_index*4 + buf_index]);
+	phyaddr = vio_hw_get_reg(base_reg,
+			&sif_regs[SIF_AXI_FRM0_W_ADDR0 + mux_out_index * 4 + buf_index]);
 
 	return phyaddr;
 }
@@ -783,13 +878,15 @@ u32 sif_get_ddr_addr(u32 __iomem *base_reg, u32 mux_out_index, u32 buf_index)
  * @param p_ddr the pointer of sif_output_ddr_t
  *
  */
-void sif_set_ddr_output(u32 __iomem *base_reg, sif_output_ddr_t* p_ddr, u32 *enbale)
+void sif_set_ddr_output(u32 __iomem *base_reg, sif_output_ddr_t* p_ddr,
+	u32 *enbale)
 {
 	if(!p_ddr->enable)
 		return;
 
 	if(p_ddr->stride)
-		vio_hw_set_reg(base_reg, &sif_regs[SIF_AXI_FRM0_W_STRIDE + p_ddr->mux_index], p_ddr->stride);
+		vio_hw_set_reg(base_reg,
+			&sif_regs[SIF_AXI_FRM0_W_STRIDE + p_ddr->mux_index], p_ddr->stride);
 
 	sif_set_wdma_enable(base_reg, p_ddr->mux_index, true);
 
@@ -804,7 +901,8 @@ void sif_set_ddr_output(u32 __iomem *base_reg, sif_output_ddr_t* p_ddr, u32 *enb
  * @param p_isp the pointer of sif_output_isp_t
  *
  */
-static void sif_set_isp_output(u32 __iomem *base_reg, sif_output_isp_t* p_isp)
+static void sif_set_isp_output(u32 __iomem *base_reg,
+				sif_output_isp_t* p_isp)
 {
 
 	const u32 iram_addr_range[3][2] =
@@ -824,27 +922,37 @@ static void sif_set_isp_output(u32 __iomem *base_reg, sif_output_isp_t* p_isp)
 				&sif_fields[SIF_ISP0_OUT_FS_INT_EN], 1);
 
 		vio_hw_set_field(base_reg, &sif_regs[SIF_OUT_BUF_CTRL],
-				&sif_fields[SW_SIF_ISP0_FLYBY_ENABLE], p_isp->func.enable_flyby);
+				&sif_fields[SW_SIF_ISP0_FLYBY_ENABLE],
+				p_isp->func.enable_flyby);
 		vio_hw_set_field(base_reg, &sif_regs[SIF_ISP_EXP_CFG],
 				&sif_fields[SW_SIF_ISP0_DOL_EXP_NUM], p_isp->dol_exp_num);
 		// Expected: At least one frame to ISP if flyby mode
 		if (p_isp->func.enable_flyby) {
 			// For DOL 2/3
 			if (p_isp->dol_exp_num > 1) {
-				vio_hw_set_reg(base_reg, &sif_regs[SIF_AXI_FRM0_W_ADDR0], iram_addr_range[0][0]);
-				vio_hw_set_reg(base_reg, &sif_regs[SIF_AXI_FRM0_W_ADDR3], iram_addr_range[0][1]);
-				vio_hw_set_reg(base_reg, &sif_regs[SIF_AXI_FRM0_W_STRIDE], iram_stride);
+				vio_hw_set_reg(base_reg,
+					&sif_regs[SIF_AXI_FRM0_W_ADDR0], iram_addr_range[0][0]);
+				vio_hw_set_reg(base_reg,
+					&sif_regs[SIF_AXI_FRM0_W_ADDR3], iram_addr_range[0][1]);
+				vio_hw_set_reg(base_reg,
+					&sif_regs[SIF_AXI_FRM0_W_STRIDE], iram_stride);
 
-				vio_hw_set_reg(base_reg, &sif_regs[SIF_AXI_FRM1_W_ADDR0], iram_addr_range[1][0]);
-				vio_hw_set_reg(base_reg, &sif_regs[SIF_AXI_FRM1_W_ADDR3], iram_addr_range[1][1]);
-				vio_hw_set_reg(base_reg, &sif_regs[SIF_AXI_FRM1_W_STRIDE], iram_stride);
+				vio_hw_set_reg(base_reg,
+					&sif_regs[SIF_AXI_FRM1_W_ADDR0], iram_addr_range[1][0]);
+				vio_hw_set_reg(base_reg,
+					&sif_regs[SIF_AXI_FRM1_W_ADDR3], iram_addr_range[1][1]);
+				vio_hw_set_reg(base_reg,
+					&sif_regs[SIF_AXI_FRM1_W_STRIDE], iram_stride);
 			}
 
 			// For DOL 3
 			if (p_isp->dol_exp_num > 2) {
-				vio_hw_set_reg(base_reg, &sif_regs[SIF_AXI_FRM2_W_ADDR0], iram_addr_range[2][0]);
-				vio_hw_set_reg(base_reg, &sif_regs[SIF_AXI_FRM2_W_ADDR3], iram_addr_range[2][1]);
-				vio_hw_set_reg(base_reg, &sif_regs[SIF_AXI_FRM2_W_STRIDE], iram_stride);
+				vio_hw_set_reg(base_reg,
+					&sif_regs[SIF_AXI_FRM2_W_ADDR0], iram_addr_range[2][0]);
+				vio_hw_set_reg(base_reg,
+					&sif_regs[SIF_AXI_FRM2_W_ADDR3], iram_addr_range[2][1]);
+				vio_hw_set_reg(base_reg,
+					&sif_regs[SIF_AXI_FRM2_W_STRIDE], iram_stride);
 			}
 		}
 	} else {
@@ -860,9 +968,10 @@ static void sif_set_isp_output(u32 __iomem *base_reg, sif_output_isp_t* p_isp)
 	}
 
 	if (p_isp->func.enable_dgain) {
-		gain = p_isp->func.set_dgain_short << 24|p_isp->func.set_dgain_medium << 16 |p_isp->func.set_dgain_long <<8;
+		gain = p_isp->func.set_dgain_short << 24
+				| p_isp->func.set_dgain_medium << 16
+				| p_isp->func.set_dgain_long << 8;
 		vio_hw_set_reg(base_reg, &sif_regs[SIF_VC_GAIN_ISP0], gain);
-
 	} else {
 		vio_hw_set_reg(base_reg, &sif_regs[SIF_VC_GAIN_ISP0], 0);
 	}
@@ -881,7 +990,8 @@ static void sif_set_isp_output(u32 __iomem *base_reg, sif_output_isp_t* p_isp)
  * @param p_ipu the pointer of sif_output_ipu_t
  *
  */
-static void sif_set_ipu_output(u32 __iomem *base_reg, sif_output_ipu_t* p_ipu)
+static void sif_set_ipu_output(u32 __iomem *base_reg,
+	sif_output_ipu_t* p_ipu)
 {
 	vio_hw_set_field(base_reg, &sif_regs[SIF_OUT_BUF_CTRL],
 			&sif_fields[SW_SIF_IPU0_OUT_ENABLE], p_ipu->enable_flyby);
@@ -893,7 +1003,7 @@ static void sif_set_ipu_output(u32 __iomem *base_reg, sif_output_ipu_t* p_ipu)
 		// The format to IPU must be YUV422
 		vio_hw_set_reg(base_reg, &sif_regs[SIF_YUV422_TRANS], 0);
 		// otf to ipu doesn't pass axi/iram
-		sif_disable_wdma(base_reg);
+		sif_enable_dma(base_reg, 0);
 	}
 
 }
@@ -914,7 +1024,9 @@ void sif_hw_config(u32 __iomem *base_reg, sif_cfg_t* c)
 	u32 yuv_format = 0;
 	u32 dol_exp_num = 0;
 	sif_output_ddr_t ddr;
-	//vio_hw_set_reg(base_reg, &sif_regs[SIF_MUX_OUT_MODE], 0);
+
+	/*4 ddr in channel can not be 0 together*/
+	sif_enable_dma(base_reg, 0x10000);
 
 	// Input: IAR
 	sif_set_iar_input(base_reg, &c->input.iar);
@@ -1081,10 +1193,6 @@ static void sif_disable_input_and_output(u32 __iomem *base_reg)
 
 void sif_hw_disable(u32 __iomem *base_reg)
 {
-	/*4 ddr in channel can not be 0 together*/
-	sif_disable_wdma(base_reg);
-	sif_set_rdma_enable(base_reg, 0, true);
-
 	/* Disable all inputs and wait until drained */
 	sif_disable_input_and_output(base_reg);
 
@@ -1166,18 +1274,26 @@ void sif_hw_enable(u32 __iomem *base_reg)
 
 }
 
-void sif_get_frameid_timestamps(u32 __iomem *base_reg, u32 mux, struct frame_id *info)
+void sif_get_frameid_timestamps(u32 __iomem *base_reg, u32 mux,
+				struct frame_id *info)
 {
 	u32 value;
-	value = vio_hw_get_reg(base_reg, &sif_regs[SIF_FRAME_ID_IN_BUF_0_1 + mux/2]);
+	u64 timestamp_l, timestamp_m;
+
+	value = vio_hw_get_reg(base_reg,
+					&sif_regs[SIF_FRAME_ID_IN_BUF_0_1 + mux / 2]);
 	if(mux % 2 == 0)
 		info->frame_id = value & 0xffff;
 	else
 		info->frame_id = value >> 16;
 
-	info->timestamp_l = vio_hw_get_reg(base_reg, &sif_regs[SIF_TIMESTAMP0_LSB + mux*2]);
-	info->timestamp_m = vio_hw_get_reg(base_reg, &sif_regs[SIF_TIMESTAMP0_MSB + mux*2]);
-	vio_info("frame id = %d\n", info->frame_id);
+	timestamp_l = vio_hw_get_reg(base_reg,
+						&sif_regs[SIF_TIMESTAMP0_LSB + mux * 2]);
+	timestamp_m = vio_hw_get_reg(base_reg,
+						&sif_regs[SIF_TIMESTAMP0_MSB + mux * 2]);
+	info->timestamps = timestamp_l | timestamp_m << 32;
+	vio_info("frame id = %d, timestamps = %lld\n",
+					info->frame_id, info->timestamps);
 }
 
 u32 sif_get_current_bufindex(u32 __iomem *base_reg, u32 mux)
@@ -1198,9 +1314,11 @@ bool sif_get_wdma_enable(u32 __iomem *base_reg, u32 mux)
 		return false;
 }
 
-void sif_set_wdma_buf_addr(u32 __iomem *base_reg, u32 mux_index, u32 number, u32 addr)
+void sif_set_wdma_buf_addr(u32 __iomem *base_reg, u32 mux_index,
+				u32 number, u32 addr)
 {
-	vio_hw_set_reg(base_reg, &sif_regs[SIF_AXI_FRM0_W_ADDR0 + (mux_index * 4) + number], addr);
+	vio_hw_set_reg(base_reg,
+		&sif_regs[SIF_AXI_FRM0_W_ADDR0 + (mux_index * 4) + number], addr);
 }
 
 void sif_set_wdma_enable(u32 __iomem *base_reg, u32 mux_index, bool enable)
@@ -1217,13 +1335,13 @@ void sif_set_rdma_enable(u32 __iomem *base_reg, u32 mux_index, bool enable)
 
 }
 
-void sif_disable_wdma(u32 __iomem *base_reg)
+void sif_enable_dma(u32 __iomem *base_reg, u32 cfg)
 {
-	vio_hw_set_reg(base_reg, &sif_regs[SIF_OUT_FRM_CTRL], 0);
-
+	vio_hw_set_reg(base_reg, &sif_regs[SIF_OUT_FRM_CTRL], cfg);
 }
 
-void sif_config_rdma_fmt(u32 __iomem *base_reg, u32 format, u32 width, u32 height)
+void sif_config_rdma_fmt(u32 __iomem *base_reg, u32 format, u32 width,
+				u32 height)
 {
 	u32 pix_length;
 	u32 value = 0;
@@ -1243,7 +1361,8 @@ void sif_set_rdma_buf_addr(u32 __iomem *base_reg, u32 index, u32 addr)
 
 void sif_set_rdma_buf_stride(u32 __iomem *base_reg, u32 index, u32 stride)
 {
-	vio_hw_set_reg(base_reg, &sif_regs[SIF_AXI_FRM0_R_STRIDE + (index)], stride);
+	vio_hw_set_reg(base_reg, &sif_regs[SIF_AXI_FRM0_R_STRIDE + (index)],
+				stride);
 }
 
 void sif_set_rdma_trigger(u32 __iomem *base_reg, u32 enable)
@@ -1251,7 +1370,8 @@ void sif_set_rdma_trigger(u32 __iomem *base_reg, u32 enable)
 	vio_hw_set_reg(base_reg, &sif_regs[SIF_AXI_FRM_R1_START], enable);
 }
 
-int sif_get_irq_src(u32 __iomem *base_reg, struct sif_irq_src *src, bool clear)
+int sif_get_irq_src(u32 __iomem *base_reg, struct sif_irq_src *src,
+				bool clear)
 {
 	src->sif_frm_int = vio_hw_get_reg(base_reg, &sif_regs[SIF_FRM_INT]);
 	src->sif_out_int = vio_hw_get_reg(base_reg, &sif_regs[SIF_OUT_INT]);
@@ -1262,7 +1382,8 @@ int sif_get_irq_src(u32 __iomem *base_reg, struct sif_irq_src *src, bool clear)
 	}
 
 	src->sif_err_status = vio_hw_get_reg(base_reg, &sif_regs[SIF_ERR_STATUS]);
-	src->sif_in_buf_overflow = vio_hw_get_reg(base_reg, &sif_regs[SIF_ERR_STATUS]);
+	src->sif_in_buf_overflow =
+			vio_hw_get_reg(base_reg, &sif_regs[SIF_ERR_STATUS]);
 
 	return 0;
 }

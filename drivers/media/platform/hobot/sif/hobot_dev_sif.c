@@ -290,12 +290,10 @@ int sif_mux_init(struct sif_video_ctx *sif_ctx, unsigned long arg)
 	if (sif_config.input.mipi.data.format == SIF_YUV_INPUT) {
 		if (mux_index % 2 == 0) {
 			set_bit(mux_index + 1, &sif->state);
-			vio_info
-			    ("sif input format is yuv, and current mux = %d\n",
+			vio_info("sif input format is yuv, and current mux = %d\n",
 			     mux_index);
 		} else
-			vio_err
-			    ("sif input format is yuv, but mux is wrong = %d\n",
+			vio_err("sif input format is yuv, but mux is wrong = %d\n",
 			     mux_index);
 	}
 
@@ -344,8 +342,8 @@ int sif_video_init(struct sif_video_ctx *sif_ctx, unsigned long arg)
 
 	group = sif_ctx->group;
 	if (!(sif_ctx->state & (BIT(VIO_VIDEO_S_INPUT) | BIT(VIO_VIDEO_REBUFS)))) {
-		vio_err("[%d][%s][V%02d] invalid INIT is requested(%lX)", group->instance,
-			__func__, sif_ctx->id, sif_ctx->state);
+		vio_err("[%d][%s][V%02d] invalid INIT is requested(%lX)",
+			group->instance, __func__, sif_ctx->id, sif_ctx->state);
 		return -EINVAL;
 	}
 
@@ -356,7 +354,7 @@ int sif_video_init(struct sif_video_ctx *sif_ctx, unsigned long arg)
 	if (sif_ctx->id == 0) {
 		ret = sif_mux_init(sif_ctx, arg);
 	} else if (sif_ctx->id == 1) {
-		sif_set_isp_performance(sif->base_reg, 1);
+		sif_set_isp_performance(sif->base_reg, 60);
 		set_bit(SIF_DMA_IN_ENABLE, &sif->state);
 		set_bit(VIO_GROUP_DMA_INPUT, &group->state);
 		set_bit(VIO_GROUP_OTF_OUTPUT, &group->state);
@@ -544,7 +542,8 @@ int sif_video_reqbufs(struct sif_video_ctx *sif_ctx, u32 buffers)
 	return ret;
 }
 
-int sif_video_qbuf(struct sif_video_ctx *sif_ctx, struct frame_info *frameinfo)
+int sif_video_qbuf(struct sif_video_ctx *sif_ctx,
+			struct frame_info *frameinfo)
 {
 	int ret = 0;
 	int index = 0;
@@ -578,7 +577,8 @@ int sif_video_qbuf(struct sif_video_ctx *sif_ctx, struct frame_info *frameinfo)
 
 }
 
-int sif_video_dqbuf(struct sif_video_ctx *sif_ctx, struct frame_info *frameinfo)
+int sif_video_dqbuf(struct sif_video_ctx *sif_ctx,
+			struct frame_info *frameinfo)
 {
 	int ret = 0;
 	struct list_head *done_list;
@@ -714,10 +714,9 @@ void sif_frame_done(struct sif_video_ctx *sif_ctx)
 	if (frame) {
 		if(group->get_timestamps){
 			frame->frameinfo.frame_id = group->frameid.frame_id;
-			frame->frameinfo.timestamp_l =
-			    group->frameid.timestamp_l;
-			frame->frameinfo.timestamp_m =
-			    group->frameid.timestamp_m;
+			frame->frameinfo.timestamps =
+			    group->frameid.timestamps;
+			do_gettimeofday(&frame->frameinfo.tv);
 		}
 
 		trans_frame(framemgr, frame, FS_COMPLETE);
@@ -750,7 +749,8 @@ static irqreturn_t sif_isr(int irq, void *data)
 	intr_en = sif_get_frame_intr(sif->base_reg);
 	status = intr_en & irq_src.sif_frm_int;
 
-	vio_info("%s: sif_frm_int = 0x%x,sif_out_int =0x%x, status  = 0x%x\n", __func__, irq_src.sif_frm_int, irq_src.sif_out_int, status);
+	vio_info("%s: sif_frm_int = 0x%x,sif_out_int =0x%x, status  = 0x%x\n",
+		__func__, irq_src.sif_frm_int, irq_src.sif_out_int, status);
 	if (status) {
 		for (mux_index = 0; mux_index <= 7; mux_index++) {
 			if (test_bit(mux_index, &sif->state)
@@ -760,6 +760,12 @@ static irqreturn_t sif_isr(int irq, void *data)
 			if (test_bit(mux_index + SIF_DOL2_MODE, &sif->state))
 				continue;
 
+			if (status & 1 <<
+			    (mux_index + INTR_SIF_MUX0_FRAME_DONE)) {
+			    group = sif->sif_mux[mux_index];
+				sif_ctx = group->sub_ctx[0];
+				sif_frame_done(sif_ctx);
+			}
 			//Frame start processing
 			if ((status & 1 << mux_index)) {
 				group = sif->sif_mux[mux_index];
@@ -772,13 +778,6 @@ static irqreturn_t sif_isr(int irq, void *data)
 							   mux_index, &group->frameid);
 				gtask = group->gtask;
 				up(&gtask->hw_resource);
-			}
-
-			if (status & 1 <<
-			    (mux_index + INTR_SIF_MUX0_FRAME_DONE)) {
-			    group = sif->sif_mux[mux_index];
-				sif_ctx = group->sub_ctx[0];
-				sif_frame_done(sif_ctx);
 			}
 		}
 	}
@@ -849,7 +848,8 @@ err_req_cdev:
 	return ret;
 }
 
-static ssize_t sif_reg_dump(struct device *dev,struct device_attribute *attr, char* buf)
+static ssize_t sif_reg_dump(struct device *dev,
+				struct device_attribute *attr, char* buf)
 {
 	struct x2a_sif_dev *sif;
 
