@@ -559,8 +559,7 @@ static void __init psci_0_2_set_functions(void)
 
 	psci_ops.migrate_info_type = psci_migrate_info_type;
 
-	/* psci_sys_reset doesn't work on X2, use x2_pm_restart instead */
-	//arm_pm_restart = psci_sys_reset;
+	arm_pm_restart = psci_sys_reset;
 
 	pm_power_off = psci_sys_poweroff;
 }

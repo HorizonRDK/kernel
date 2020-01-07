@@ -480,7 +480,6 @@ static int x2_restart_handler(struct notifier_block *this,
 static void x2_pm_restart(enum reboot_mode mode, const char *cmd)
 {
 	writel_relaxed(X2_REBOOT_OPT, base + reboot_offset);
-
 }
 
 static struct notifier_block x2_restart_nb = {
@@ -496,10 +495,6 @@ static int x2_reboot_probe(struct platform_device *pdev)
 	u32 swreg_offset, swmem_magic, swinfo_sel, b = 0, d = 0;
 	u32 swi[3], i;
 	int err;
-
-#ifdef CONFIG_HOBOT_FPGA_X3
-	return -ENODEV;
-#endif
 
 	base = of_iomap(np, 0);
 	if (!base) {
@@ -520,7 +515,8 @@ static int x2_reboot_probe(struct platform_device *pdev)
 		iounmap(base);
 	}
 
-	arm_pm_restart = x2_pm_restart;
+	if (IS_ENABLED(CONFIG_HOBOT_XJ2))
+		arm_pm_restart = x2_pm_restart;
 
 	mutex_init(&swinfo_lock);
 	if (of_property_read_u32(np, "swinfo-size", &swinfo_size) < 0 ||
