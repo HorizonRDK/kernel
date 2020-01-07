@@ -285,7 +285,7 @@ static struct i2c_client *mpq7920_i2c_client;
 static void mpq7920_power_off(void)
 {
 	struct mpq7920 *mpq7920;
-#ifdef CONFIG_X2A_FPGA
+#if defined(CONFIG_HOBOT_FPGA_X3) || defined(CONFIG_HOBOT_XJ3)
 	return;
 #endif
 	mpq7920 = i2c_get_clientdata(mpq7920_i2c_client);

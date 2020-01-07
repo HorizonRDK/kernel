@@ -3614,7 +3614,7 @@ int dw_mci_system_resume(struct device *dev)
 	struct dw_mci *host = dev_get_drvdata(dev);
 	int ret;
 	pr_info("%s:%s, enter resume...\n", __FILE__, __func__);
-#ifdef CONFIG_X2A_FPGA
+#if defined(CONFIG_HOBOT_FPGA_X3) || defined(CONFIG_HOBOT_XJ3)
 	return 0;
 #endif
 

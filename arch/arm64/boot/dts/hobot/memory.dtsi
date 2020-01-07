@@ -17,12 +17,6 @@
 			no-map;
 		};
 
-		/*Reserved 2MB memory for BL31*/
-		bl31_reserved: bl31_reserved@0x3FE00000 {
-			reg = <0x0 0x3FE00000 0x0 0x200000>;
-			no-map;
-		};
-		
 		/*Reserved 256K memory pstore */
 		ramoops@0x02080000 {
 			compatible = "ramoops";
