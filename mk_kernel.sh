@@ -4,7 +4,7 @@
 export PATH=~/codes/testbench-master/hbtdisk/toolchain/aarch64-gcc-linaro-7.2.1-2017.11/bin/:$PATH
 cross=aarch64-linux-gnu-
 arch=arm64
-cfg=x2aj2a_fpga_defconfig
+cfg=xj3_fpga_defconfig
 fs_tmp="rootfs"
 mod_path="mod_dir"
 
@@ -110,7 +110,7 @@ while getopts "MCmjcheroid" opt; do
 			exit
 			;;
        M)
-			cfg=x2aj2a_soc_defconfig
+			cfg=xj3_debug_defconfig
 			echo $cfg
 			mk_cfg
 			exit
@@ -126,7 +126,7 @@ while getopts "MCmjcheroid" opt; do
 			exit
 			;;
        j)
-           j="-j64"
+           j="-j4"
 			echo burst build !
            ;;
        c)

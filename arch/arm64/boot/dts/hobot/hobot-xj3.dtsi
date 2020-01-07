@@ -1,5 +1,5 @@
 /*
- * dts file for Hobot X2A FPGA
+ * dts file for Hobot XJ3
  *
  * (C) Copyright 2018, Horizon, Inc.
  *
@@ -15,7 +15,7 @@
 #include <dt-bindings/thermal/thermal.h>
 
  / {
-	compatible = "hobot,x2a";
+	compatible = "hobot,x3";
 	#address-cells = <2>;
 	#size-cells = <2>;
 
@@ -126,7 +126,7 @@
 					 <GIC_PPI 10 (GIC_CPU_MASK_SIMPLE(2)
 					 | IRQ_TYPE_LEVEL_LOW)>;
 		interrupt-parent = <&gic>;
-		clock-frequency = <20000000>;
+		clock-frequency = <24000000>;
 	};
 
 	rst: reset-controller {
@@ -231,6 +231,21 @@
 			interrupt-parent = <&gic>;
 			interrupts = <0 32 4>;
 			status = "disabled";
+		};
+
+
+		usb: usb@0xB2000000 {
+			compatible = "hobot,usb";
+			reg = <0 0xB2000000 0 0x10000>,
+			  <0 0xA1000000 0 0x1000>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 26 4>;
+			/* dr_mode: {gadget, host, otg} */
+			dr_mode = "host";
+			/* phy_type: {utmi, utmi_wide, ulpi, serial, hsic} */
+			phy_type = "utmi_wide";
+			/*snps,dis_u2_susphy_quirk; */
+			status = "okay";
 		};
 
 		i2s0: i2s@0xA5007000 {

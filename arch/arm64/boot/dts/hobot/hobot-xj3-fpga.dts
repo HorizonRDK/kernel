@@ -1,5 +1,5 @@
 /*
- * dts file for Hobot X2A FPGA
+ * dts file for Hobot XJ3 FPGA
  *
  * (C) Copyright 2018, Horizon, Inc.
  *
@@ -11,15 +11,15 @@
  */
 
 /dts-v1/;
-#include "hobot-x2aj2a.dtsi"
-#include "hobot-pinctrl-x2aj2a.dtsi"
-#include "hobot-clk-x3.dtsi"
+#include "hobot-xj3.dtsi"
+#include "hobot-pinctrl-xj3.dtsi"
+#include "hobot-clk-xj3.dtsi"
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/phy/phy.h>
 
 / {
-	model = "Hobot X2AJ2A FPGA MP";
-	compatible = "hobot,x2a-fpga";
+	model = "Hobot XJ3 FPGA MP";
+	compatible = "hobot,xj3-fpga";
 
 	aliases {
 		serial0 = &uart0;
@@ -30,6 +30,7 @@
 		i2c1	= &i2c1;
 		i2c2	= &i2c2;
 		i2c3	= &i2c3;
+		i2c4	= &i2c4;
 		i2s0	= &i2s0;
 		i2s1	= &i2s1;
 		pwm0	= &pwm_0;
@@ -38,6 +39,8 @@
 		bifspi	= &bifspi;
 		bifsd   = &bifsd;
 		mmc0	= &sdio0;
+		dma	= &dma;
+		x2dmatest = &x2dmatest;
 	};
 
 	chosen {
@@ -76,7 +79,8 @@
 		};
 
 		/* Reserved 512MB memory for cnn subsystem */
-		cnn_reserved: cnn_reserved@0x40000000 {
+		ion_reserved: ion_reserved@0x40000000 {
+			compatible = "ion-pool";
 			reg = <0x0 0x40000000 0x0 0x20000000>;
 		};
 
@@ -87,7 +91,7 @@
 		};
 
 	};
-
+/*
 	cnn_mm {
 		compatible = "hobot,cnn-mm";
 		#address-cells = <1>;
@@ -119,26 +123,15 @@
 			type = <1>;
 		};
 	};
-
-
-	usb: usb@0xB2000000 {
-		compatible = "hobot,usb";
-		reg = <0 0xB2000000 0 0x10000>,
-			  <0 0xA1000000 0 0x1000>;
-		interrupt-parent = <&gic>;
-		interrupts = <0 26 4>;
-		/* dr_mode: {gadget, host, otg} */
-		dr_mode = "gadget";
-		/* phy_type: {utmi, utmi_wide, ulpi, serial, hsic} */
-		phy_type = "utmi_wide";
-		snps,dis_u2_susphy_quirk;
-		status = "okay";
-	};
+*/
 };
-
 &i2c0 {
 	status = "okay";
 };
+&i2c1 {
+	status = "okay";
+};
+
 
 &pinctrl {
 	status = "okay";
@@ -180,7 +173,7 @@
 };
 
 &x2dmatest {
-	status = "disabled";
+	status = "disable";
 };
 
 &rtc {
@@ -220,6 +213,10 @@
 };
 
 &iar {
+        status = "okay";
+};
+
+&fb {
 	status = "okay";
 };
 
@@ -237,17 +234,18 @@
 	bifbase_tri_pin = <84>;
 };
 
-&qspi {
-	status = "okay";
+&nor_flash {
+	status = "disabled";
 	#address-cells = <1>;
 	#size-cells = <0>;
+	qspi-mode = <4>;
 
 	flash@0 {
-		compatible = "gd256q256c";
+		compatible = "gd256lq256d";
 		#address-cells = <1>;
 		#size-cells = <1>;
 		reg = <0x0>;
-			spi-tx-bus-width = <4>;
+		spi-tx-bus-width = <4>;
 		spi-rx-bus-width = <4>;
 		spi-max-frequency = <20000000>; /* For FPGA max clk is 20Mhz */
 
@@ -270,6 +268,36 @@
 	};
 };
 
+&nand_flash {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	qspi-mode = <4>;
+
+	spi-nand@0 {
+		compatible = "spi-nand";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		reg = <0x0>;
+		spi-tx-bus-width = <4>;
+		spi-rx-bus-width = <4>;
+		spi-max-frequency = <10000000>; /* For FPGA max clk is 20Mhz */
+
+		bootloader@0 {
+			label = "bootloader";
+			reg = <0 0x300000>;
+		};
+		sys@300000 {
+			label = "sys";
+			reg = <0x300000 0xA00000>;
+		};
+		rootfs@D00000 {
+			label = "rootfs";
+			reg = <0xD00000 0>;
+		};
+	};
+};
+
 &sdio0 {
 	status = "okay";
 };
@@ -283,13 +311,13 @@
 };
 
 &i2s0 {
-	status = "disabled";
+	status = "okay";
 	clocks = <&i2s0_mclk>, <&i2s0_bclk>;
 	clock-names = "i2s_mclk", "i2s_bclk";
 };
 
 &i2s1 {
-	status = "disabled";
+	status = "okay";
 	clocks = <&i2s1_mclk>, <&i2s1_bclk>;
 	clock-names = "i2s_mclk", "i2s_bclk";
 };
@@ -300,4 +328,20 @@
 
 &vpu {
 	status = "okay";
+};
+
+&timer0 {
+	timer-freq = <20000000>;
+};
+
+&timer1 {
+	timer-freq = <20000000>;
+};
+
+&timer2 {
+	timer-freq = <20000000>;
+};
+
+&arch_timer {
+	clock-frequency = <20000000>;
 };

@@ -3,7 +3,7 @@
 #
 config QUAD_J2ID
 	tristate "matrix v2.0 quad j2 identify"
-	default y
+	default n
 	help
 	  Say Y here if you need to identify each j2 on board.
 

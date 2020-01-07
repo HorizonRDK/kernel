@@ -1,5 +1,5 @@
 /dts-v1/;
-#include "hobot-x2aj2a-fpga.dts"
+#include "hobot-xj3-fpga.dts"
 
 
 &arch_timer {

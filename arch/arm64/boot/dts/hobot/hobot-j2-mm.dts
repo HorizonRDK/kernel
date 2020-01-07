@@ -11,9 +11,9 @@
  */
 
 /dts-v1/;
-#include "hobot.dtsi"
-#include "hobot-pinctrl.dtsi"
-#include "hobot-clk-x2.dtsi"
+#include "hobot-xj2.dtsi"
+#include "hobot-pinctrl-xj2.dtsi"
+#include "hobot-clk-xj2.dtsi"
 #include "memory.dtsi"
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/phy/phy.h>
