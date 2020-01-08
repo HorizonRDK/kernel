@@ -39,6 +39,7 @@
 #define ISPIOC_REG_RW   _IOWR('P', 0, struct metadata_t)
 #define ISPIOC_LUT_RW   _IOWR('P', 1, struct metadata_t)
 #define ISPIOC_COMMAND  _IOWR('P', 2, struct metadata_t)
+#define ISPIOC_BUF_PACTET  _IOWR('P', 3, isp_packet_s)
 
 #define CHECK_CODE	0xeeff
 
@@ -69,8 +70,6 @@ typedef struct _isp_packet_s {
         void *pdata;
 } isp_packet_s;
 
-#define DISP_IOC_MAGIC    'k'
-#define DISP_BUF_PACTET   _IOWR(DISP_IOC_MAGIC, 0, isp_packet_s)
 #define BUF_LENGTH  1024
 
 struct isp_dev_context {
@@ -248,6 +247,8 @@ static ssize_t isp_fops_read( struct file *file, char __user *buf, size_t count,
     return rc ? rc : copied;
 }
 
+#if 0
+/** move to isp_fops_ioctl*/
 static long isp_fops_ioctl_bak(struct file *pfile, unsigned int cmd,
 	unsigned long arg)
 {
@@ -316,6 +317,7 @@ err_flag:
 
 	return ret;
 }
+#endif
 
 static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
@@ -327,6 +329,11 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 	struct regs_t *rg;
 	long ret = 0;
 
+	/** used in tuning*/
+	isp_packet_s packet;
+	uint32_t buf[BUF_LENGTH];
+	uint32_t *buf_m = NULL;
+
 	if (!isp_dev_ctx.dev_inited) {
 		LOG(LOG_ERR, "dev is not inited, failed to ioctl.");
 		return -1;
@@ -334,13 +341,13 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 
 	mutex_lock(&isp_dev_ctx.fops_lock);
 
-	if (copy_from_user(&md, (void __user *)arg, sizeof(md)))
-		return -EFAULT;
 
 	acamera_set_api_context(md.chn);
 
 	switch (cmd) {
 	case ISPIOC_REG_RW:
+		if (copy_from_user(&md, (void __user *)arg, sizeof(md)))
+			return -EFAULT;
 		s = md.elem * sizeof(struct regs_t);
 		md.ptr = kzalloc(s, GFP_KERNEL);
 
@@ -365,9 +372,12 @@ printk("[%d] reg %x\n", i, rg[i].v);
 			}
 		}
 
+		kfree(md.ptr);
 		break;
 
 	case ISPIOC_LUT_RW:
+		if (copy_from_user(&md, (void __user *)arg, sizeof(md)))
+			return -EFAULT;
 		s = md.elem * sizeof(uint16_t);
 		md.ptr = kzalloc(s, GFP_KERNEL);
 
@@ -391,9 +401,12 @@ printk("[%d] chn:%d, dir:%d, id:%x, v:%x\n", i, md.chn, md.dir, md.id, ((uint16_
 			}
 		}
 
+		kfree(md.ptr);
 		break;
 
 	case ISPIOC_COMMAND:
+		if (copy_from_user(&md, (void __user *)arg, sizeof(md)))
+			return -EFAULT;
 		s = md.elem * sizeof(struct kv_t);
 		md.ptr = kzalloc(s, GFP_KERNEL);
 
@@ -426,14 +439,62 @@ printk("[%d] chn:%d, dir:%d, id:%x, v:%x\n", i, md.chn, md.dir, kv[i].k, kv[i].v
 			}
 		}
 
+		kfree(md.ptr);
 		break;
+
+	case ISPIOC_BUF_PACTET: {
+		if (arg == 0) {
+			LOG(LOG_ERR, "arg is null !\n");
+			return -1;
+		}
+		if (copy_from_user((void *)&packet, (void __user *)arg,
+			sizeof(isp_packet_s))) {
+			LOG(LOG_ERR, "copy is err !\n");
+			return -EINVAL;
+		}
+		if (packet.buf[0] < BUF_LENGTH * 4) {
+			buf_m = buf;
+		} else {
+			buf_m = kzalloc(sizeof(uint32_t) * packet.buf[0], GFP_KERNEL);
+			if (buf_m == NULL) {
+				LOG(LOG_ERR, "kzalloc is failed!\n");
+				return -EINVAL;
+			}
+		}
+		memcpy(buf_m, packet.buf, sizeof(packet.buf));
+		if (packet.pdata != NULL) {
+			if (copy_from_user((void *)(buf_m + (sizeof(packet.buf)
+				/ sizeof(uint32_t))), (void __user *)packet.pdata, packet.buf[4])) {
+				LOG(LOG_ERR, "copy is err !\n");
+				ret = -EINVAL;
+				goto err_flag;
+			}
+		}
+		process_ioctl_buf(buf_m);
+		if (packet.pdata != NULL) {
+			if (copy_to_user((void __user *)packet.pdata,
+				(void *)(buf_m + (sizeof(packet.buf)
+				/ sizeof(uint32_t))), packet.buf[4])) {
+				LOG(LOG_ERR, "copy is err !\n");
+				ret = -EINVAL;
+				goto err_flag;
+			}
+		}
+		if (copy_to_user((void __user *)arg, (void *)buf_m, sizeof(isp_packet_s))) {
+			LOG(LOG_ERR, "copy is err !\n");
+			ret = -EINVAL;
+		}
+err_flag:
+		if (packet.buf[0] >= (BUF_LENGTH * 4)) {
+			kzfree(buf_m);
+		}
+	}
+	break;
 
 	default:
 		LOG(LOG_ERR, "command %d not support.\n", cmd);
 		break;
 	}
-
-	kfree(md.ptr);
 
 	mutex_unlock(&isp_dev_ctx.fops_lock);
 
