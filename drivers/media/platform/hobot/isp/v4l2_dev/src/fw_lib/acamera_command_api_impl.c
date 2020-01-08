@@ -3336,6 +3336,31 @@ uint8_t sensor_lines_per_second(acamera_fsm_mgr_t *instance,
 }
 #endif
 
+// --------------------------------------------------- //
+//  sensor_limit_inter_time
+// --------------------------------------------------- //
+#ifdef SENSOR_DECOMP_BITS
+uint8_t sensor_set_decomp_bits(acamera_fsm_mgr_t *instance,
+	uint32_t value, uint8_t direction, uint32_t *ret_value)
+{
+    uint32_t result = SUCCESS;
+    *ret_value = 0;
+
+    if (direction == COMMAND_GET) {
+	uint32_t temp_data = 0;
+        acamera_fsm_mgr_get_param(instance, FSM_PARAM_GET_SENSOR_DECOMP_BITS, NULL, 0, &temp_data, sizeof(temp_data));
+        *ret_value = temp_data;
+        result = SUCCESS;
+    } else {
+            acamera_fsm_mgr_set_param(instance,
+		FSM_PARAM_SET_SENSOR_DECOMP_BITS, &value, sizeof(value));
+
+            result = SUCCESS;
+    }
+    return result;
+}
+#endif
+
 // ------------------------------------------------------------------------------ //
 //        TSCENE_MODES
 // ------------------------------------------------------------------------------ //

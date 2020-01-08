@@ -192,32 +192,85 @@ void sensor_update_black( sensor_fsm_ptr_t p_fsm )
 
     p_fsm->black_level = r;
 
+	//IE&E edit blc shift
+	/**
+	 * support linear 8/10/12/14/16/20
+	 * support native 12/14/ -> 14/16/18/20
+	 * note native 8/10 -> 14/16/18 is not support
+	 */
+	const sensor_param_t *sensor_param = p_fsm->ctrl.get_parameters(p_fsm->sensor_ctx);
+	uint8_t sensor_bits = sensor_param->modes_table[sensor_param->mode].bits;
+	uint8_t sensor_decomp_bits = p_fsm->sensor_decomp_bits;
+	uint8_t sensor_blc_shfit_wb = BLACK_LEVEL_SHIFT_WB;
+	uint8_t sensor_blc_shfit_dg = BLACK_LEVEL_SHIFT_DG;
+	const uint8_t sensor_bits_max = 20;
+
+	if (wdr_mode == WDR_MODE_NATIVE) {
+		if (sensor_bits >= 12) {
+			//shift = (20 - sensor_decomp_bits - (12 - sensor_bits))
+			sensor_blc_shfit_wb = 8 + sensor_bits - sensor_decomp_bits;
+			sensor_blc_shfit_dg = 8 + sensor_bits - sensor_decomp_bits;
+		}
+	} else {
+	//WDR_MODE_LINEAR & WDR_MODE_FS_LIN
+		if (sensor_bits > 12) {
+			sensor_blc_shfit_wb = sensor_bits_max - sensor_bits;
+			sensor_blc_shfit_dg = sensor_bits_max - sensor_bits;
+		}
+	}
+        LOG(LOG_INFO, "blc shift: %d.", sensor_blc_shfit_dg);
+
     if ( wdr_mode == WDR_MODE_FS_LIN ) {
         if ( ACAMERA_FSM2CTX_PTR( p_fsm )->stab.global_manual_frame_stitch == 0 ) {
             acamera_isp_frame_stitch_black_level_long_write( p_fsm->cmn.isp_base, p_fsm->black_level );
             acamera_isp_frame_stitch_black_level_medium_write( p_fsm->cmn.isp_base, p_fsm->black_level );
             acamera_isp_frame_stitch_black_level_short_write( p_fsm->cmn.isp_base, p_fsm->black_level );
             acamera_isp_frame_stitch_black_level_very_short_write( p_fsm->cmn.isp_base, p_fsm->black_level );
-            acamera_isp_frame_stitch_black_level_out_write( p_fsm->cmn.isp_base, p_fsm->black_level << BLACK_LEVEL_SHIFT_DG );
+            //acamera_isp_frame_stitch_black_level_out_write( p_fsm->cmn.isp_base, p_fsm->black_level << BLACK_LEVEL_SHIFT_DG );
+            acamera_isp_frame_stitch_black_level_out_write(p_fsm->cmn.isp_base, p_fsm->black_level << sensor_blc_shfit_dg);
         }
 
         if ( ACAMERA_FSM2CTX_PTR( p_fsm )->stab.global_manual_black_level == 0 ) {
+#if 0 //edit blc shift
             acamera_isp_sensor_offset_pre_shading_offset_00_write( p_fsm->cmn.isp_base, (uint32_t)_GET_MOD_ENTRY16_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), idx_r )->y << BLACK_LEVEL_SHIFT_WB );
             acamera_isp_sensor_offset_pre_shading_offset_01_write( p_fsm->cmn.isp_base, (uint32_t)_GET_MOD_ENTRY16_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), idx_gr )->y << BLACK_LEVEL_SHIFT_WB );
             acamera_isp_sensor_offset_pre_shading_offset_10_write( p_fsm->cmn.isp_base, (uint32_t)_GET_MOD_ENTRY16_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), idx_gb )->y << BLACK_LEVEL_SHIFT_WB );
             acamera_isp_sensor_offset_pre_shading_offset_11_write( p_fsm->cmn.isp_base, (uint32_t)_GET_MOD_ENTRY16_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), idx_b )->y << BLACK_LEVEL_SHIFT_WB );
-        }
+#endif
+            acamera_isp_sensor_offset_pre_shading_offset_00_write(p_fsm->cmn.isp_base,
+		(uint32_t)_GET_MOD_ENTRY16_PTR(ACAMERA_FSM2CTX_PTR(p_fsm),
+		idx_r )->y << sensor_blc_shfit_wb);
+            acamera_isp_sensor_offset_pre_shading_offset_01_write(p_fsm->cmn.isp_base,
+		(uint32_t)_GET_MOD_ENTRY16_PTR(ACAMERA_FSM2CTX_PTR(p_fsm),
+		idx_gr )->y << sensor_blc_shfit_wb);
+            acamera_isp_sensor_offset_pre_shading_offset_10_write(p_fsm->cmn.isp_base,
+		(uint32_t)_GET_MOD_ENTRY16_PTR(ACAMERA_FSM2CTX_PTR(p_fsm),
+		idx_gb )->y << sensor_blc_shfit_wb);
+            acamera_isp_sensor_offset_pre_shading_offset_11_write(p_fsm->cmn.isp_base,
+		(uint32_t)_GET_MOD_ENTRY16_PTR(ACAMERA_FSM2CTX_PTR(p_fsm),
+		idx_b )->y << sensor_blc_shfit_wb);
+	 }
 
-        acamera_isp_digital_gain_offset_write( p_fsm->cmn.isp_base, (uint32_t)_GET_MOD_ENTRY16_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), idx_gr )->y << BLACK_LEVEL_SHIFT_DG );
+        //acamera_isp_digital_gain_offset_write( p_fsm->cmn.isp_base, (uint32_t)_GET_MOD_ENTRY16_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), idx_gr )->y << BLACK_LEVEL_SHIFT_DG );
+        acamera_isp_digital_gain_offset_write(p_fsm->cmn.isp_base,
+		(uint32_t)_GET_MOD_ENTRY16_PTR(ACAMERA_FSM2CTX_PTR(p_fsm), idx_gr)->y << sensor_blc_shfit_dg);
     } else {
         if ( ACAMERA_FSM2CTX_PTR( p_fsm )->stab.global_manual_black_level == 0 ) {
+#if 0
             acamera_isp_sensor_offset_pre_shading_offset_00_write( p_fsm->cmn.isp_base, r << BLACK_LEVEL_SHIFT_WB );
             acamera_isp_sensor_offset_pre_shading_offset_01_write( p_fsm->cmn.isp_base, gr << BLACK_LEVEL_SHIFT_WB );
             acamera_isp_sensor_offset_pre_shading_offset_10_write( p_fsm->cmn.isp_base, gb << BLACK_LEVEL_SHIFT_WB );
             acamera_isp_sensor_offset_pre_shading_offset_11_write( p_fsm->cmn.isp_base, b << BLACK_LEVEL_SHIFT_WB );
+#endif
+            acamera_isp_sensor_offset_pre_shading_offset_00_write(p_fsm->cmn.isp_base, r << sensor_blc_shfit_wb);
+            acamera_isp_sensor_offset_pre_shading_offset_01_write(p_fsm->cmn.isp_base, gr << sensor_blc_shfit_wb);
+            acamera_isp_sensor_offset_pre_shading_offset_10_write(p_fsm->cmn.isp_base, gb << sensor_blc_shfit_wb);
+            acamera_isp_sensor_offset_pre_shading_offset_11_write(p_fsm->cmn.isp_base, b << sensor_blc_shfit_wb);
+
         }
 
-        acamera_isp_digital_gain_offset_write( p_fsm->cmn.isp_base, (uint32_t)p_fsm->black_level << BLACK_LEVEL_SHIFT_DG );
+        //acamera_isp_digital_gain_offset_write( p_fsm->cmn.isp_base, (uint32_t)p_fsm->black_level << BLACK_LEVEL_SHIFT_DG );
+        acamera_isp_digital_gain_offset_write(p_fsm->cmn.isp_base, (uint32_t)p_fsm->black_level << sensor_blc_shfit_dg);
     }
 }
 

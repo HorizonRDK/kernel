@@ -462,7 +462,7 @@ static int sbuf_calibration_init( struct sbuf_context *p_ctx )
 
     if ( wdr_mode == p_ctx->sbuf_mgr.cur_wdr_mode ) {
         LOG( LOG_INFO, "same wdr_mode, already inited, return." );
-        return 0;
+        //return 0;
     }
 
     p_ctx->p_fsm->is_paused = 1;

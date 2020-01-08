@@ -417,6 +417,9 @@ case  MSENSOR:
 		case  SENSOR_LINES_PER_SECOND:
 			ret = sensor_lines_per_second(instance, value, direction, ret_value);
 			break;
+		case  SENSOR_DECOMP_BITS:
+			ret = sensor_set_decomp_bits(instance, value, direction, ret_value);
+			break;
 	}//switch (command)
 	break;
 case  LOG_LIST:

@@ -67,8 +67,9 @@ typedef struct _sensor_param_t {
     uint32_t modes_num;                      // The number of predefined modes
     uint8_t mode;                            // Current mode. This value is from the range [ 0 : modes_num - 1 ]
     void *sensor_ctx;                        // Conext to a sensor structure. This structure is not available to firmware
-    uint8_t sensor_type;
-    uint8_t sensor_i2c_channel;
+    uint8_t sensor_type;                     // IE&E add, change sensor_type
+    uint8_t sensor_i2c_channel;              // IE&E add, change i2c channel
+    uint8_t sensor_decomp_bits;              // IE&E add, change decomp bits in pwl mode
 } sensor_param_t;
 
 //add ie&e

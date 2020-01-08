@@ -145,6 +145,8 @@ uint8_t sensor_limit_intertime(acamera_fsm_mgr_t *instance,
 	uint32_t value, uint8_t direction, uint32_t *ret_value);
 uint8_t sensor_lines_per_second(acamera_fsm_mgr_t *instance,
 	uint32_t value, uint8_t direction, uint32_t *ret_value);
+uint8_t sensor_set_decomp_bits(acamera_fsm_mgr_t *instance,
+	uint32_t value, uint8_t direction, uint32_t *ret_value);
 
 uint8_t system_loglist_mask( acamera_fsm_mgr_t *instance, uint32_t model, uint32_t value, uint8_t direction, uint32_t *ret_value );
 #endif//_ACAMERA_COMMAND_API_IMPL_H_

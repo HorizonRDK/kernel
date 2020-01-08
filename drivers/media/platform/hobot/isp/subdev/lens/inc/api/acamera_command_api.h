@@ -318,6 +318,7 @@
 #define SENSOR_MAX_LONGTIME                               0x0000006e//add
 #define SENSOR_LIMIT_INTERTIME                            0x0000006f//add
 #define SENSOR_LINES_PER_SECOND                           0x00000070//add
+#define SENSOR_DECOMP_BITS                                0x00000071//ie&e add
 
 
 

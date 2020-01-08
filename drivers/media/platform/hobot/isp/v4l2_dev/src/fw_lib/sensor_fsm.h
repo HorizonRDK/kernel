@@ -55,6 +55,7 @@ struct _sensor_fsm_t {
     uint32_t boot_status;
     uint8_t sensor_type;//IE&E ADD
     uint8_t sensor_i2c_channel;//IE&E ADD
+    uint8_t sensor_decomp_bits;//IE&E add
     uint8_t set_param_enable;
 };
 

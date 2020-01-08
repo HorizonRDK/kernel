@@ -32,8 +32,9 @@
 void sensor_fsm_clear( sensor_fsm_t *p_fsm )
 {
     p_fsm->mode = ( 0 );
-    p_fsm->sensor_type = ( 0 );
-    p_fsm->sensor_i2c_channel = ( 0 );
+    p_fsm->sensor_type = ( 0 );//IE&E add
+    p_fsm->sensor_i2c_channel = ( 0 );//IE&E add
+    p_fsm->sensor_decomp_bits = ( 20 );//IE&E add
     p_fsm->preset_mode = SENSOR_DEFAULT_PRESET_MODE;
     p_fsm->isp_output_mode = ( ISP_DISPLAY_MODE );
     p_fsm->is_streaming = ( 0 );
@@ -77,6 +78,17 @@ int sensor_fsm_get_param( void *fsm, uint32_t param_id, void *input, uint32_t in
         }
 
         *(uint32_t *)output = p_fsm->is_streaming;
+
+        break;
+
+    case FSM_PARAM_GET_SENSOR_DECOMP_BITS://IE&E add
+        if ( !output || output_size != sizeof( uint32_t ) ) {
+            LOG( LOG_ERR, "Invalid param, param_id: %d.", param_id );
+            rc = -1;
+            break;
+        }
+
+        *(uint32_t *)output = p_fsm->sensor_decomp_bits;
 
         break;
 
@@ -341,6 +353,15 @@ int sensor_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_t in
         }
 
         //p_fsm->lines_per_second = *(uint32_t *)input;
+        break;
+    case FSM_PARAM_SET_SENSOR_DECOMP_BITS://IE&E ADD
+        if (!input || input_size != sizeof(uint32_t)) {
+            LOG(LOG_ERR, "Invalid param, param_id: %d.", param_id);
+            rc = -1;
+            break;
+        }
+
+        p_fsm->sensor_decomp_bits = *(uint32_t *)input;
         break;
 
     case FSM_PARAM_SET_SENSOR_INFO_PRESET_NUM:
