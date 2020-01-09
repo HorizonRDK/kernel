@@ -29,6 +29,10 @@ int	camera_sys_alloc_again(uint32_t port, uint32_t *a_gain);
 int camera_sys_alloc_dgain(uint32_t port, uint32_t *a_gain);
 int camera_sys_alloc_intergration_time(uint32_t port,
 		uint32_t *intergration_time);
+int camera_sys_sensor_write(uint32_t port, uint32_t address, uint32_t w_data);
+int camera_sys_sensor_read(uint32_t port, uint32_t address, uint32_t *r_data);
+int camera_sys_stream_on(uint32_t port);
+int camera_sys_stream_off(uint32_t port);
 
 
 #endif // DRIVERS_MEDIA_PLATFORM_HOBOT_ISP_SUBDEV_COMMON_INC_CAMERA_SYS_API_H_

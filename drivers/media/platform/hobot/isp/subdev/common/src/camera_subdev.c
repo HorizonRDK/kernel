@@ -71,6 +71,22 @@ static long camera_subdev_ioctl(struct v4l2_subdev *sd,
 		camera_sys_get_param(ARGS_TO_PTR(arg)->port,
 				ARGS_TO_PTR(arg)->sensor_data);
 		break;
+	case SENSOR_STREAM_ON:
+		camera_sys_stream_on(ARGS_TO_PTR(arg)->port);
+		break;
+	case SENSOR_STREAM_OFF:
+		camera_sys_stream_off(ARGS_TO_PTR(arg)->port);
+		break;
+	case SENSOR_WRITE:
+		camera_sys_sensor_write(ARGS_TO_PTR(arg)->port,
+                        ARGS_TO_PTR(arg)->address,
+                        ARGS_TO_PTR(arg)->w_data);
+		break;
+	case SENSOR_READ:
+		camera_sys_sensor_read(ARGS_TO_PTR(arg)->port,
+                        ARGS_TO_PTR(arg)->address,
+                        ARGS_TO_PTR(arg)->r_data);
+		break;
 	case SENSOR_ALLOC_ANALOG_GAIN:
 		pr_err("analog gain error port %p\n", ARGS_TO_PTR(arg)->a_gain);
 	//	camera_sys_alloc_again(ARGS_TO_PTR(arg)->port, ARGS_TO_PTR(arg)->a_gain);

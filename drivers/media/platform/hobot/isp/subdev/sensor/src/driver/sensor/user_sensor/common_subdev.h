@@ -56,6 +56,9 @@ struct sensor_arg {
 	 sensor_data_t *sensor_data;
 	 uint32_t *a_gain;
 	 uint32_t *d_gain;
+	 uint32_t  address;
+	 uint32_t  w_data;
+	 uint32_t  *r_data;
 	 uint32_t *integration_time;
 };
 
@@ -69,7 +72,11 @@ enum SENSOR_MODE {
 
 enum camera_IOCTL {
 	SENSOR_UPDATE = 0,
+	SENSOR_WRITE,
+	SENSOR_READ,
 	SENSOR_GET_PARAM,
+	SENSOR_STREAM_ON,
+	SENSOR_STREAM_OFF,
 	SENSOR_ALLOC_ANALOG_GAIN,
 	SENSOR_ALLOC_DIGITAL_GAIN,
 	SENSOR_ALLOC_INTEGRATION_TIME

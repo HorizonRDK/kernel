@@ -36,7 +36,7 @@ static void common_control_deinit(void)
 static int32_t common_alloc_analog_gain(uint8_t chn, int32_t gain)
 {
 	int ret = 0;
-	uint32_t analog_gain = gain;
+	int analog_gain = gain;
 	struct sensor_arg settings;
 
 	if (common_subdev != NULL && chn < FIRMWARE_CONTEXT_NUMBER) {
@@ -80,14 +80,12 @@ static int32_t common_alloc_analog_gain(uint8_t chn, int32_t gain)
 static int32_t common_alloc_digital_gain(uint8_t chn, int32_t gain)
 {
 	int ret = 0;
-	uint32_t digital_gain = gain;
+	int digital_gain = gain;
 	struct sensor_arg settings;
 
 	if (common_subdev != NULL && chn < FIRMWARE_CONTEXT_NUMBER) {
 		settings.port = chn;
 		settings.d_gain = &digital_gain;
-		LOG(LOG_ERR, "d_gain %p", settings.d_gain);
-		LOG(LOG_ERR, "d_gain %d", digital_gain);
 		// Initial local parameters
 		ret = v4l2_subdev_call(common_subdev, core, ioctl,
 			SENSOR_ALLOC_DIGITAL_GAIN, &settings);
@@ -247,22 +245,67 @@ static void common_disable_isp(uint8_t chn)
 
 static uint32_t common_read_register(uint8_t chn, uint32_t address)
 {
-	return 0;
+	int ret = 0;
+	uint32_t value;
+	struct sensor_arg settings;
+
+	if (common_subdev != NULL && chn < FIRMWARE_CONTEXT_NUMBER) {
+		settings.port = chn;
+		settings.address = address;
+		settings.r_data = &value;
+		// Initial local parameters
+		ret = v4l2_subdev_call(common_subdev, core, ioctl,
+			SENSOR_READ, &settings);
+	} else {
+		LOG(LOG_ERR, "common subdev pointer is NULL");
+	}
+
+	return value;
 }
 
 static void common_write_register(uint8_t chn, uint32_t address, uint32_t data)
 {
-	//
+	int ret = 0;
+	struct sensor_arg settings;
+
+	if (common_subdev != NULL && chn < FIRMWARE_CONTEXT_NUMBER) {
+		settings.port = chn;
+		settings.address = address;
+		settings.w_data = data;
+		// Initial local parameters
+		ret = v4l2_subdev_call(common_subdev, core, ioctl,
+			SENSOR_WRITE, &settings);
+	} else {
+		LOG(LOG_ERR, "common subdev pointer is NULL");
+	}
 }
 
 static void common_stop_streaming(uint8_t chn)
 {
-	//
+	int ret = 0;
+	struct sensor_arg settings;
+	if (common_subdev != NULL && chn < FIRMWARE_CONTEXT_NUMBER) {
+		settings.port = chn;
+		// Initial local parameters
+		ret = v4l2_subdev_call(common_subdev, core, ioctl,
+			SENSOR_STREAM_OFF, &settings);
+	} else {
+		LOG(LOG_ERR, "common subdev pointer is NULL");
+	}
 }
 
 static void common_start_streaming(uint8_t chn)
 {
-	//0x3000, 0x00
+	int ret = 0;
+	struct sensor_arg settings;
+	if (common_subdev != NULL && chn < FIRMWARE_CONTEXT_NUMBER) {
+		settings.port = chn;
+		// Initial local parameters
+		ret = v4l2_subdev_call(common_subdev, core, ioctl,
+			SENSOR_STREAM_ON, &settings);
+	} else {
+		LOG(LOG_ERR, "common subdev pointer is NULL");
+	}
 }
 
 void common_get_param(uint8_t chn, struct _setting_param_t *user_para)
