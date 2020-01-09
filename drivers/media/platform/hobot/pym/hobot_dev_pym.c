@@ -37,6 +37,7 @@ static int g_int_test = -1;
 static int timer_init(struct x2a_pym_dev *pym, int index);
 #endif
 
+extern struct class *vps_class;
 static int x2a_pym_open(struct inode *inode, struct file *file)
 {
 	struct pym_video_ctx *pym_ctx;
@@ -770,7 +771,10 @@ int x2a_pym_device_node_init(struct x2a_pym_dev *pym)
 		goto err;
 	}
 
-	pym->class = class_create(THIS_MODULE, X2A_PYM_NAME);
+	if (vps_class)
+		pym->class = vps_class;
+	else
+		pym->class = class_create(THIS_MODULE, X2A_PYM_NAME);
 
 	dev = device_create(pym->class, NULL, MKDEV(MAJOR(devno), 0),
 					NULL, "pym");

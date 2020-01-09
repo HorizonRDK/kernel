@@ -6,6 +6,7 @@
 
 #include "hobot_ips_hw_reg.h"
 #include "vio_config.h"
+#include "ips_hw_api.h"
 
 void ips_module_reset(void __iomem *base_addr, unsigned int module)
 {

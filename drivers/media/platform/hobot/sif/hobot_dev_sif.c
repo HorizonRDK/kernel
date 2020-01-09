@@ -36,12 +36,13 @@ struct timer_list tm[4];
 int g_test_bit = 0;
 int g_test_input = 0;
 int g_test = -1;
-#endif
 static int timer_init(struct x2a_sif_dev *sif, int index);
-int sif_bind_chain_group(struct sif_video_ctx *sif_ctx, int instance);
+#endif
 
+extern struct class *vps_class;
 typedef int (*isp_callback)(int);
 isp_callback sif_isp_ctx_sync;
+
 void isp_register_callback(isp_callback func)
 {
 	sif_isp_ctx_sync = func;
@@ -130,6 +131,7 @@ void sif_read_frame_work(struct vio_group *group)
 		trans_frame(framemgr, frame, FS_PROCESS);
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
+	vio_info("%s: %d\n", __func__, instance);
 }
 
 
@@ -822,7 +824,10 @@ int x2a_sif_device_node_init(struct x2a_sif_dev *sif)
 		goto err;
 	}
 
-	sif->class = class_create(THIS_MODULE, X2A_SIF_NAME);
+	if (vps_class)
+		sif->class = vps_class;
+	else
+		sif->class = class_create(THIS_MODULE, X2A_SIF_NAME);
 
 	dev = device_create(sif->class, NULL, MKDEV(MAJOR(sif->devno), 0),
 				NULL, "sif_capture");

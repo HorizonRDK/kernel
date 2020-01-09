@@ -189,39 +189,39 @@ static void sif_set_pattern_gen(u32 __iomem *base_reg, u32 pat_index,
 	if (v_line < p_data->height)
 		vio_err("Wrong argument: v_line:%d height%d", v_line, p_data->height);
 
-	vio_hw_set_field(base_reg, &sif_regs[SIF_PAT_GEN0_SIZE + pat_index*6],
-			&sif_fields[SW_PAT_GEN0_HLINE_TIME + pat_index*10], h_time);
+	vio_hw_set_field(base_reg, &sif_regs[SIF_PAT_GEN0_SIZE + pat_index * 6],
+			&sif_fields[SW_PAT_GEN0_HLINE_TIME + pat_index * 10], h_time);
 
-	vio_hw_set_field(base_reg, &sif_regs[SIF_PAT_GEN0_SIZE + pat_index*6],
-			&sif_fields[SW_PAT_GEN0_VTOTAL_LINE + pat_index*10], v_line);
+	vio_hw_set_field(base_reg, &sif_regs[SIF_PAT_GEN0_SIZE + pat_index * 6],
+			&sif_fields[SW_PAT_GEN0_VTOTAL_LINE + pat_index * 10], v_line);
 
-	vio_hw_set_field(base_reg, &sif_regs[SIF_PAT_GEN0_IMG + pat_index*6],
-			&sif_fields[SW_PAT_GEN0_HACTIVE_PIX + pat_index*10],
+	vio_hw_set_field(base_reg, &sif_regs[SIF_PAT_GEN0_IMG + pat_index * 6],
+			&sif_fields[SW_PAT_GEN0_HACTIVE_PIX + pat_index * 10],
 			p_data->width);
 
-	vio_hw_set_field(base_reg, &sif_regs[SIF_PAT_GEN0_IMG + pat_index*6],
-			&sif_fields[SW_PAT_GEN0_VACTIVE_LINE + pat_index*10],
+	vio_hw_set_field(base_reg, &sif_regs[SIF_PAT_GEN0_IMG + pat_index * 6],
+			&sif_fields[SW_PAT_GEN0_VACTIVE_LINE + pat_index * 10],
 			p_data->height);
 
-	vio_hw_set_field(base_reg, &sif_regs[SIF_PAT_GEN0_CFG + pat_index*6],
-			&sif_fields[SW_PAT_GEN0_VBP + pat_index*10], padding);
+	vio_hw_set_field(base_reg, &sif_regs[SIF_PAT_GEN0_CFG + pat_index * 6],
+			&sif_fields[SW_PAT_GEN0_VBP + pat_index * 10], padding);
 
-	vio_hw_set_field(base_reg, &sif_regs[SIF_PAT_GEN0_CFG + pat_index*6],
-			&sif_fields[SW_PAT_GEN0_YUV_OUT + pat_index*10], !is_raw);
+	vio_hw_set_field(base_reg, &sif_regs[SIF_PAT_GEN0_CFG + pat_index * 6],
+			&sif_fields[SW_PAT_GEN0_YUV_OUT + pat_index * 10], !is_raw);
 
-	vio_hw_set_field(base_reg, &sif_regs[SIF_PAT_GEN0_CFG + pat_index*6],
-			&sif_fields[SW_PAT_GEN0_MODE + pat_index*10],
+	vio_hw_set_field(base_reg, &sif_regs[SIF_PAT_GEN0_CFG + pat_index * 6],
+			&sif_fields[SW_PAT_GEN0_MODE + pat_index * 10],
 			is_raw ? ((pat_index % 2) + 4) : 0);
 
-	vio_hw_set_field(base_reg, &sif_regs[SIF_PAT_GEN0_COL0 + pat_index*6],
-			&sif_fields[SW_PAT_GEN0_R_VAL + pat_index*10],
+	vio_hw_set_field(base_reg, &sif_regs[SIF_PAT_GEN0_COL0 + pat_index * 6],
+			&sif_fields[SW_PAT_GEN0_R_VAL + pat_index * 10],
 			is_raw ? 2 + pat_index * 2 : y * 256);
 
-	vio_hw_set_field(base_reg, &sif_regs[SIF_PAT_GEN0_COL1 + pat_index*6],
-			&sif_fields[SW_PAT_GEN0_G_VAL + pat_index*10],
+	vio_hw_set_field(base_reg, &sif_regs[SIF_PAT_GEN0_COL1 + pat_index * 6],
+			&sif_fields[SW_PAT_GEN0_G_VAL + pat_index * 10],
 			is_raw ? 0 : cr * 256);
-	vio_hw_set_field(base_reg, &sif_regs[SIF_PAT_GEN0_COL2 + pat_index*6],
-			&sif_fields[SW_PAT_GEN0_B_VAL + pat_index*10],
+	vio_hw_set_field(base_reg, &sif_regs[SIF_PAT_GEN0_COL2 + pat_index * 6],
+			&sif_fields[SW_PAT_GEN0_B_VAL + pat_index * 10],
 			is_raw ? 0 : cb * 256);
 
 	s_enable_pattern_gen |= (0x1 << pat_index);
@@ -1025,9 +1025,6 @@ void sif_hw_config(u32 __iomem *base_reg, sif_cfg_t* c)
 	u32 dol_exp_num = 0;
 	sif_output_ddr_t ddr;
 
-	/*4 ddr in channel can not be 0 together*/
-	sif_enable_dma(base_reg, 0x10000);
-
 	// Input: IAR
 	sif_set_iar_input(base_reg, &c->input.iar);
 
@@ -1195,6 +1192,9 @@ void sif_hw_disable(u32 __iomem *base_reg)
 {
 	/* Disable all inputs and wait until drained */
 	sif_disable_input_and_output(base_reg);
+
+	/*4 ddr in channel can not be 0 together*/
+	sif_enable_dma(base_reg, 0x10000);
 
 	/* Disable & Clear all interrupts */
 

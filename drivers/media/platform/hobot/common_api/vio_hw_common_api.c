@@ -9,7 +9,7 @@
 #include "vio_config.h"
 
 //#define DEBUG_HW_SFR
-u32 vio_hw_get_reg(void __iomem * base_addr, const struct vio_reg_def *reg) 
+u32 vio_hw_get_reg(void __iomem *base_addr, const struct vio_reg_def *reg)
 {
 	u32 reg_value;
 
@@ -27,7 +27,7 @@ u32 vio_hw_get_reg(void __iomem * base_addr, const struct vio_reg_def *reg)
 	return reg_value;
 }
 
-void vio_hw_set_reg(void __iomem * base_addr, const struct vio_reg_def *reg,
+void vio_hw_set_reg(void __iomem *base_addr, const struct vio_reg_def *reg,
 		u32 val) 
 {
 
@@ -43,7 +43,7 @@ void vio_hw_set_reg(void __iomem * base_addr, const struct vio_reg_def *reg,
 #endif
 }
 
-u32 vio_hw_get_field(void __iomem * base_addr,
+u32 vio_hw_get_field(void __iomem *base_addr,
 		const struct vio_reg_def *reg,
 		const struct vio_field_def *field) 
 {
@@ -65,12 +65,13 @@ u32 vio_hw_get_field(void __iomem * base_addr,
 	return field_value;
 }
 
-void vio_hw_set_field(void __iomem * base_addr,
+void vio_hw_set_field(void __iomem *base_addr,
 		const struct vio_reg_def *reg,
 		const struct vio_field_def *field, u32 val) 
 {
 	u32 reg_value;
 	u32 pre_value;
+
 	/* previous value reading */ 
 #if CONFIG_QEMU_TEST
 	reg_value = *(u32 *) ((u8 *) base_addr + reg->sfr_offset);
@@ -101,26 +102,33 @@ u32 vio_hw_get_field_value(u32 reg_value,
 {
 	u32 field_mask = 0;
 	u32 field_value = 0;
-	field_mask = (field->bit_width >= 32) ? 0xFFFFFFFF : ((1 << field->bit_width) - 1);
+
+	field_mask = (field->bit_width >= 32) ?
+		0xFFFFFFFF : ((1 << field->bit_width) - 1);
 	field_value = (reg_value >> (field->bit_start)) & (field_mask);
+
 	return field_value;
 }
 
-u32 vio_hw_set_field_value(u32 reg_value, const struct vio_field_def * field,
+u32 vio_hw_set_field_value(u32 reg_value, const struct vio_field_def *field,
 		u32 val)
 {
 	u32 field_mask = 0;
-	field_mask =(field->bit_width >= 32) ? 0xFFFFFFFF : ((1 << field->bit_width) - 1);
+
+	field_mask =(field->bit_width >= 32) ?
+		0xFFFFFFFF : ((1 << field->bit_width) - 1);
 
 	/* bit clear */ 
 	reg_value &= ~(field_mask << field->bit_start);
 
 	/* setting value */ 
 	reg_value |= (val & field_mask) << (field->bit_start);
+
 	return reg_value;
 }
 
-void vio_hw_dump_regs(void __iomem *base_addr, const struct vio_reg_def *regs, u32 total_cnt)
+void vio_hw_dump_regs(void __iomem *base_addr,
+		const struct vio_reg_def *regs, u32 total_cnt)
 {
 	u32 i = 0;
 	u32 reg_value = 0;

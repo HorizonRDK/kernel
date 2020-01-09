@@ -41,6 +41,7 @@ static int timer_init(struct x2a_ipu_dev *ipu, int index);
 #endif
 
 void ipu_hw_set_osd_cfg(struct ipu_video_ctx *ipu_ctx);
+extern struct class *vps_class;
 
 static u32 color[MAX_OSD_COLOR_NUM] = {
 	0x601010, 0x606010, 0x60B010, 0x60F010, 0x60F060, 0x60F0B0, 0x60F0F0,
@@ -208,6 +209,7 @@ void ipu_frame_work(struct vio_group *group)
 	rdy = rdy | (1 << 4);
 	ipu_set_shd_rdy(ipu->base_reg, rdy);
 
+	vio_info("%s: %d\n", __func__, instance);
 	if (test_bit(IPU_DMA_INPUT, &ipu->state))
 		ipu_set_rdma_start(ipu->base_reg);
 }
@@ -480,8 +482,8 @@ int ipu_update_ds_ch_param(struct ipu_video_ctx *ipu_ctx, u8 ds_ch,
 	ipu_set_shd_rdy(ipu->base_reg, rdy);
 
 	//ipu_set_intr_mask(ipu->base_reg, 0);
-	vio_info("roi_x = %d, roi_y = %d, roi_width = %d, roi_height = %d\n",
-		 roi_x, roi_y, roi_width, roi_height);
+	vio_info("[%d][ds%d]roi_x = %d, roi_y = %d, roi_width = %d, roi_height = %d\n",
+		 shadow_index, ds_ch, roi_x, roi_y, roi_width, roi_height);
 	return ret;
 }
 
@@ -1049,8 +1051,8 @@ void ipu_frame_done(struct ipu_video_ctx *ipu_ctx)
 
 static irqreturn_t ipu_isr(int irq, void *data)
 {
-	u32 status;
-	u32 instance;
+	u32 status = 0;
+	u32 instance = 0;
 	struct x2a_ipu_dev *ipu;
 	struct vio_group *group;
 	struct vio_group_task *gtask;
@@ -1061,6 +1063,30 @@ static irqreturn_t ipu_isr(int irq, void *data)
 	group = ipu->group[instance];
 	ipu_get_intr_status(ipu->base_reg, &status, true);
 	vio_info("%s status = 0x%x\n", __func__, status);
+
+	if (status & (1 << INTR_IPU_US_FRAME_DROP)) {
+		vio_err("US Frame drop\n");
+	}
+
+	if (status & (1 << INTR_IPU_DS0_FRAME_DROP)) {
+		vio_err("DS0 Frame drop\n");
+	}
+
+	if (status & (1 << INTR_IPU_DS1_FRAME_DROP)) {
+		vio_err("DS1 Frame drop\n");
+	}
+
+	if (status & (1 << INTR_IPU_DS2_FRAME_DROP)) {
+		vio_err("DS2 Frame drop\n");
+	}
+
+	if (status & (1 << INTR_IPU_DS3_FRAME_DROP)) {
+		vio_err("DS3 Frame drop\n");
+	}
+
+	if (status & (1 << INTR_IPU_DS4_FRAME_DROP)) {
+		vio_err("DS4 Frame drop\n");
+	}
 
 	if (status & (1 << INTR_IPU_FRAME_DONE)) {
 		if (test_bit(IPU_DMA_INPUT, &ipu->state)) {
@@ -1101,9 +1127,6 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		if(group && group->get_timestamps)
 			vio_get_frame_id(group);
 	}
-
-	if (status & (1 << INTR_IPU_US_FRAME_DROP))
-		vio_err("US Frame drop\n");
 
 	return 0;
 }
@@ -1184,7 +1207,10 @@ int x2a_ipu_device_node_init(struct x2a_ipu_dev *ipu)
 		goto err;
 	}
 
-	ipu->class = class_create(THIS_MODULE, X2A_IPU_NAME);
+	if (vps_class)
+		ipu->class = vps_class;
+	else
+		ipu->class = class_create(THIS_MODULE, X2A_IPU_NAME);
 
 	dev = device_create(ipu->class, NULL, MKDEV(MAJOR(devno), 0), NULL,
 			  "ipu_s0");

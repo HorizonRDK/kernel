@@ -1,3 +1,9 @@
+/***************************************************************************
+ *                      COPYRIGHT NOTICE
+ *             Copyright 2019 Horizon Robotics, Inc.
+ *                     All rights reserved.
+ ***************************************************************************/
+
 #include <linux/module.h>
 #include <linux/delay.h>
 #include <linux/kernel.h>
@@ -95,8 +101,8 @@ struct vio_frame *peek_frame_tail(struct vio_framemgr *this,
 }
 
 struct vio_frame *find_frame(struct vio_framemgr *this,
-		enum vio_frame_state state,
-		int (*fn)(struct vio_frame *, void *), void *data)
+			     enum vio_frame_state state,
+			     int (*fn)(struct vio_frame *, void *), void *data)
 {
 	struct vio_frame *frame;
 	if (state == FS_INVALID)

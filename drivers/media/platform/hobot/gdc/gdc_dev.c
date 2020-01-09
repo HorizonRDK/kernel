@@ -1,3 +1,9 @@
+/***************************************************************************
+ *                      COPYRIGHT NOTICE
+ *             Copyright 2019 Horizon Robotics, Inc.
+ *                     All rights reserved.
+ ***************************************************************************/
+
 #include <linux/module.h>
 #include <linux/delay.h>
 #include <linux/kernel.h>
@@ -26,6 +32,8 @@
 extern void write_gdc0_mask(uint32_t model, uint32_t *enable);
 extern int ips_set_clk_ctrl(unsigned long module, bool enable);
 extern void write_gdc0_status(uint32_t model, uint32_t *enable);
+extern struct class *vps_class;
+
 struct gdc_group *gdc_get_group(struct x2a_gdc_dev *gdc)
 {
 	u32 stream;
@@ -465,7 +473,10 @@ int x2a_gdc_device_node_init(struct x2a_gdc_dev *gdc)
 		goto err;
 	}
 
-	gdc->class = class_create(THIS_MODULE, name);
+	if (vps_class)
+		gdc->class = vps_class;
+	else
+		gdc->class = class_create(THIS_MODULE, name);
 
 	dev = device_create(gdc->class, NULL, MKDEV(MAJOR(gdc->devno), 0),
 		NULL, name);

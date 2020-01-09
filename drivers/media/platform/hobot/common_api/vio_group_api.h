@@ -63,7 +63,6 @@ struct vio_group{
 	struct vio_group		*head;
 	struct vio_chain		*chain;
 	struct vio_group_task *gtask;
-
 	void (*frame_work)(struct vio_group *group);
 };
 

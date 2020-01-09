@@ -70,4 +70,4 @@ struct roi_rect{
     u16 roi_width;
     u16 roi_height;
 };
-#endif	/*  */
+#endif /* __HOBOT_VIO_CONFIG_H__ */

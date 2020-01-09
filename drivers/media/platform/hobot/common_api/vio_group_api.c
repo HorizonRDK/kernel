@@ -169,8 +169,9 @@ void vio_bind_group_done(int instance)
 		group = &ischain->group[i];
 		if(test_bit(VIO_GROUP_DMA_INPUT, &group->state)){
 			group->leader = true;
-		}else if(test_bit(VIO_GROUP_OTF_INPUT, &group->state))
-			vio_bind_chain_groups(&ischain->group[i-1], group);
+		} else if (test_bit(VIO_GROUP_OTF_INPUT, &group->state)) {
+			vio_bind_chain_groups(&ischain->group[i - 1], group);
+		}
 	}
 
 	for(i = 0; i < GROUP_ID_NUMBER; i++){
