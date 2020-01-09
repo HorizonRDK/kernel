@@ -8,6 +8,12 @@ menuconfig VIDEO_HOBOTC_JPU
 	---help---
 	  Say Y here to enable support for HOBOT C-series JPEG driver.
 
+menuconfig VIDEO_HOBOTC_JPU_CV
+	bool "HOBOT C-series JPEG encoder & decoder driver for CV"
+	default n
+	---help---
+	  Say Y here to enable support for HOBOT C-series JPEG driver for CV.
+
 menuconfig VIDEO_HOBOTC_VPU
 	bool "HOBOT C-series VPU encoder & decoder driver"
 	default n
