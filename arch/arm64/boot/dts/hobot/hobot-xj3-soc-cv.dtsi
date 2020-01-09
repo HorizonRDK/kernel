@@ -638,7 +638,7 @@
 			status = "disabled";
 			reg = <0x0 0xB0000000 0x0 0x1000>;
 			interrupt-parent = <&gic>;
-			interrupts = <0 19 4>;
+			interrupts = <0 25 4>;
 			clocks = <&sys_qspi_aclk>;
 			clock-names = "qspi_aclk";
 		};
@@ -648,7 +648,7 @@
 			reg = <0 0xA5014000 0 0x2000>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 50 4>,<0 51 4>, <0 52 4>;
-			interrupt-names = "rx-irq", "tx-irq", "mac-irq"; 
+			interrupt-names = "rx-irq", "tx-irq", "mac-irq";
 
 			interrupt_mode = <1>;
             use_riwt = <0>;
