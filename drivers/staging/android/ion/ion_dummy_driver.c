@@ -311,7 +311,7 @@ err:
 	}
 	return err;
 }
-device_initcall(ion_dummy_init);
+subsys_initcall(ion_dummy_init);
 
 static void __exit ion_dummy_exit(void)
 {

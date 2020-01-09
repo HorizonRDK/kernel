@@ -935,7 +935,7 @@ static void __exit x2_dma_exit(void)
 	platform_driver_unregister(&x2_dma_driver);
 }
 
-module_init(x2_dma_init);
+arch_initcall(x2_dma_init);
 module_exit(x2_dma_exit);
 
 MODULE_AUTHOR("hobot, Inc.");
