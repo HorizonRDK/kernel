@@ -63,7 +63,7 @@ static uint32_t ctx_counter = 0;
 
 static sensor_mode_t dummy_drv_supported_modes[] = {
     {
-        .wdr_mode = WDR_MODE_LINEAR,
+        .wdr_mode = WDR_MODE_COUNT,
         .fps = 10 * 256,
         .resolution.width = 4096,
         .resolution.height = 3000,
