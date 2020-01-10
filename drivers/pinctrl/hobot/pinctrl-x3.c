@@ -32,7 +32,7 @@
 #include "../pinctrl-utils.h"
 #include "../core.h"
 
-#define X2_NUM_IOS	118
+#define X2_NUM_IOS	121
 
 struct x2_pctrl_group {
 	const char *name;
@@ -68,6 +68,7 @@ struct x2_pinctrl {
 	struct mutex mutex;
 	struct gpio_chip *gpio_chip;
 	struct pinctrl_gpio_range *gpio_range;
+	void __iomem *pinbase;
 	void __iomem *regbase;
 	unsigned int ngroups;
 	unsigned int nfuncs;
@@ -90,20 +91,18 @@ enum {
 	GPIO_HIGH = 1
 };
 
-#define X2_IO_MIN 1
-#define X2_IO_MAX 118
+#define X2_IO_MIN 0
+#define X2_IO_MAX 120
 
-#define GROUP0_MAX	14
-#define GROUP1_MAX	30
-#define GROUP2_MAX	45
-#define GROUP3_MAX	61
-#define GROUP4_MAX	77
-#define GROUP5_MAX	93
-#define GROUP6_MAX	109
-#define GROUP7_MAX	118
+#define GROUP0_MAX	15
+#define GROUP1_MAX	31
+#define GROUP2_MAX	47
+#define GROUP3_MAX	63
+#define GROUP4_MAX	79
+#define GROUP5_MAX	95
+#define GROUP6_MAX	111
+#define GROUP7_MAX	120
 
-#define X2_IO_CFG	0x0
-#define X2_IO_PE	0x4
 #define X2_IO_CTL	0x8
 #define X2_IO_IN_VALUE	0xc
 #define X2_IO_DIR_SHIFT	16
@@ -203,7 +202,7 @@ int find_irqbank(struct x2_pinctrl *x2_pctrl, unsigned int gpio)
 }
 
 static const struct pinctrl_pin_desc x2_pins[] = {
-	//PINCTRL_PIN(0,  "IO0"),
+	PINCTRL_PIN(0, "IO0"),
 	PINCTRL_PIN(1, "IO1"),
 	PINCTRL_PIN(2, "IO2"),
 	PINCTRL_PIN(3, "IO3"),
@@ -322,6 +321,8 @@ static const struct pinctrl_pin_desc x2_pins[] = {
 	PINCTRL_PIN(116, "IO116"),
 	PINCTRL_PIN(117, "IO117"),
 	PINCTRL_PIN(118, "IO118"),
+	PINCTRL_PIN(119, "IO119"),
+	PINCTRL_PIN(120, "IO120"),
 };
 
 static int x2_pinctrl_get_groups_count(struct pinctrl_dev *pctldev)
@@ -647,30 +648,16 @@ static inline void x2_pinctrl_fsel_set(struct x2_pinctrl *pctrl,
 									   unsigned pin,
 									   unsigned int fsel)
 {
-	int index, value;
+	int value;
 	void __iomem *regaddr;
 
 	if (IS_ENABLED(CONFIG_PINCTRL_HOBOT_X3)) {
-		regaddr = pctrl->regbase + (pin << 2);
+		regaddr = pctrl->pinbase + (pin << 2);
 		value = readl(regaddr);
 		value &= ~(0x3);
-#ifndef	CONFIG_HOBOT_FPGA_X3
-		if (pin>=16 && pin<=19)
-			value |= (0x1);//Set as I2C4/I2C5 function
-#endif
 		value |= fsel;
 		writel(value, regaddr);
-		printk("pin:%d fsel:%d add:0x%p value:0x%x\n", pin, fsel, regaddr + X2_IO_CFG, value);
-	} else {
-		index = find_io_group_index(pin);
-		if (index < 0)
-			return;
-		regaddr = pctrl->regbase + io_groups[index].regoffset;
-		value = readl(regaddr + X2_IO_CFG);
-		value &= ~(0x3 << (pin - io_groups[index].start) * 2);
-		value |= (fsel << (pin - io_groups[index].start) * 2);
-		writel(value, regaddr + X2_IO_CFG);
-		pr_debug("pin:%d fsel:%d add:0x%p value:0x%x\n", pin, fsel, regaddr + X2_IO_CFG, value);
+		printk("pin:%d fsel:%d add:0x%p value:0x%x\n", pin, fsel, regaddr, value);
 	}
 }
 
@@ -702,7 +689,7 @@ static int x2_pinconf_cfg_get(struct pinctrl_dev *pctldev,
 							  unsigned pin,
 							  unsigned long *config)
 {
-	u32 index, value;
+	u32 value;
 	unsigned int arg = 0;
 	void __iomem *regaddr;
 
@@ -712,17 +699,14 @@ static int x2_pinconf_cfg_get(struct pinctrl_dev *pctldev,
 	if (pin >= X2_NUM_IOS)
 		return -ENOTSUPP;
 
-	index = find_io_group_index(pin);
-	regaddr = pctrl->regbase + io_groups[index].regoffset;
+	regaddr = pctrl->pinbase + (pin << 2);
 
 	switch (param) {
 	case PIN_CONFIG_DRIVE_PUSH_PULL:
 		{
-			value = readl(regaddr + X2_IO_CTL);
-			value &= (0x1 << (pin - io_groups[index].start + X2_IO_DIR_SHIFT));
-			if (!value)
-				return -EINVAL;
+			value = readl(regaddr);
 			arg = 1;
+				return -EINVAL;
 		}
 		break;
 	default:
@@ -738,28 +722,22 @@ static int x2_pinconf_cfg_set(struct pinctrl_dev *pctldev,
 							  unsigned long *configs,
 							  unsigned num_configs)
 {
-	int i, index, value;
+	int i, value;
 	void __iomem *regaddr;
 	struct x2_pinctrl *pctrl = pinctrl_dev_get_drvdata(pctldev);
 
 	if (pin >= X2_NUM_IOS)
 		return -ENOTSUPP;
-	index = find_io_group_index(pin);
-	regaddr = pctrl->regbase + io_groups[index].regoffset;
+	regaddr = pctrl->pinbase + (pin << 2);
 
 	for (i = 0; i < num_configs; i++) {
 		unsigned int param = pinconf_to_config_param(configs[i]);
-		unsigned int arg = pinconf_to_config_argument(configs[i]);
 
 		switch (param) {
 		case PIN_CONFIG_DRIVE_PUSH_PULL:
 			{
-				value = readl(regaddr + X2_IO_CTL);
-				if (arg)
-					value |= (0x1 << (pin - io_groups[index].start + X2_IO_DIR_SHIFT));
-				else
-					value &= ~(0x1 << (pin - io_groups[index].start + X2_IO_DIR_SHIFT));
-				writel(value, regaddr + X2_IO_CTL);
+				value = readl(regaddr);
+				return -EINVAL;
 			}
 			break;
 		default:
@@ -1062,6 +1040,12 @@ static int x2_pinctrl_probe(struct platform_device *pdev)
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!res) {
 		dev_err(&pdev->dev, "missing IO resource\n");
+		return -ENODEV;
+	}
+	x2_pctrl->pinbase = devm_ioremap_resource(&pdev->dev, res);
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 1);
+	if (!res) {
+		dev_err(&pdev->dev, "missing GPIO IO resource\n");
 		return -ENODEV;
 	}
 	x2_pctrl->regbase = devm_ioremap_resource(&pdev->dev, res);
