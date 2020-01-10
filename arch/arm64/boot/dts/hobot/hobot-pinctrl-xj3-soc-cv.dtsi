@@ -16,7 +16,7 @@
 			compatible = "hobot,x2-pinctrl";
 			reg = <0 0xA6004000 0 0x100>;
 			interrupt-parent = <&gic>;
-			interrupts = <0 45 4>;
+			interrupts = <0 54 4>;
 			/*specific the gpio of each irq banck, 0 is invalid*/
 			gpioirq-bank-cfg = <12 0 0 0>;
 
@@ -49,46 +49,46 @@
 			};
 			i2c4_func: i2c4_func {
 				pinctrl-x2,pins-muxs = <
-					16       0 /*i2c4 SCL*/
-					17       0 /*i2c4 SDA*/
+					16       1 /*SPI0_CSN - i2c4 SDA*/
+					17       1 /*SPI0_SCLK - i2c4 SCL*/
 				>;
 			};
 			i2c5_func: i2c5_func {
 				pinctrl-x2,pins-muxs = <
-					18       0 /*i2c5 SCL*/
-					19       0 /*i2c5 SDA*/
+					18       1 /*SPI0_MOSI - i2c5 SDA*/
+					19       1 /*SPI0_MISO - i2c5 SCL*/
 				>;
 			};
 			uart0_func: uart0_func {
 				pinctrl-x2,pins-muxs = <
-					59	0 /*uart0 TXD*/
-					60	0 /*uart0 RXD*/
+					95	0 /*uart0 TXD*/
+					96	0 /*uart0 RXD*/
 				>;
 			};
 			uart1_func: uart1_func {
 				pinctrl-x2,pins-muxs = <
-					84	0 /*uart1 TXD*/
-					85	0 /*uart1 RXD*/
-					86	0 /*uart1 RTSN*/
-					87	0 /*uart1 GTSN*/
+					97	0 /*uart1 TXD*/
+					98	0 /*uart1 RXD*/
 				>;
 			};
-			uart2_func_a: uart2_func_a {
+			uart1_func_rtscts: uart1_func_rtscts {
 				pinctrl-x2,pins-muxs = <
-					86	1 /*uart2 TXD*/
-					87	1 /*uart2 RXD*/
+					97	0 /*uart1 TXD*/
+					98	0 /*uart1 RXD*/
+					99	0 /*uart1 RTSN*/
+					100	0 /*uart1 CTSN*/
 				>;
 			};
-			uart2_func_b: uart2_func_b {
+			uart2_func: uart2_func {
 				pinctrl-x2,pins-muxs = <
-					13	1 /*uart2 TXD*/
-					14	1 /*uart2 RXD*/
+					99	1 /*uart1 RTSN - uart2 TXD*/
+					100	1 /*uart1 CTSN - uart2 RXD*/
 				>;
 			};
 			uart3_func: uart3_func {
 				pinctrl-x2,pins-muxs = <
-					64	2 /*uart3 TXD*/
-					65	2 /*uart3 RXD*/
+					111	1 /*Sensor2 MCLK - uart3 TXD*/
+					112	1 /*Sensor3 MCLK - uart3 RXD*/
 				>;
 			};
 			i2s0_func: i2s0_func {
@@ -99,7 +99,7 @@
 					104 0 /*i2s0 SDIO*/
 				>;
 			};
-			i2s1_func: i2s1_func_a {
+			i2s1_func: i2s1_func {
 				pinctrl-x2,pins-muxs = <
 					105 0 /*i2s1 MCLK*/
 					106 0
@@ -107,134 +107,103 @@
 					108 0
 				>;
 			};
-			i2s1_func_b: i2s1_func_b {
-				pinctrl-x2,pins-muxs = <
-					116 1 /*i2s1 MCLK*/
-					61 2
-					62 2
-					63 2
-				>;
-			};
-			btin_func:btin_func {
-				pinctrl-x2,pins-muxs = <
-					61	0
-					62	0
-					63	0
-					64	0
-					65	0
-					66	0
-					67	0
-					68	0
-					69	0
-					70	0
-					71	0
-					72	0
-					73	0
-					74	0
-					75	0
-					76	0
-					77	0
-				>;
-			};
 			btout_func: btout_func {
 				pinctrl-x2,pins-muxs = <
+					78	0 /*BT1120_OUT_CLK*/
+					79	0 /*BT1120_OUT_DAT0*/
+					80	0
+					81	0
+					82	0
+					83	0
+					84	0
+					85	0
+					86	0 /*BT1120_OUT_DAT7*/
+					87	0 /*BT1120_OUT_DAT8*/
+					88	0
+					89	0
+					90	0
+					91	0
+					92	0
 					93	0
-					94	0
-					95	0
-					96	0
-					97	0
-					98	0
-					99	0
-					100	0
-					101	0
-					102	0
-					103	0
-					104	0
-					105	0
-					106	0
-					107	0
-					108	0
-					109	0
+					94	0 /*BT1120_OUT_DAT15*/
 				>;
 			};
 			dvpin_func: dvpin_func {
 				pinctrl-x2,pins-muxs = <
-					61	1
-					62	1
-					63	1
-					64	1
-					65	1
-					66	1
-					67	1
-					68	1
-					69	1
-					70	1
-					71	1
-					72	1
-					73	1
-					74	1
-					75	1
-				>;
-			};
-			dvpout_func:dvpout_func {
-				pinctrl-x2,pins-muxs = <
-					93	1
-					94	1
-					95	1
-					96	1
-					97	1
-					98	1
-					99	1
-					100	1
-					101	1
-					102	1
-					103	1
-					104	1
-					105	1
-					106	1
-					107	1
+					78	1 /*DVPIN_PCLK*/
+					79	1 /*DVPIN_VSYNC*/
+					80	1 /*DVPIN_HSYNC*/
+					81	1 /*DVPIN_DATA0*/
+					82	1
+					83	1
+					84	1
+					85	1
+					86	1
+					87	1
+					88	1 /*DVPIN_DATA7*/
+					89	1 /*DVPIN_DATA8*/
+					90	1
+					91	1
+					92	1 /*DVPIN_DATA11*/
 				>;
 			};
 			bifsd_func:bifsd_func {
 				pinctrl-x2,pins-muxs = <
-					15	0
-					16	0
-					17	0
-					18	0
-					19	0
-					20	0
-					21	0
-					22	0
+					20	0 /*BIFSD_CLK*/
+					21	0 /*BIFSD_CMD*/
+					22	0 /*BIFSD_DATA0*/
 					23	0
 					24	0
-					25	0
+					25	0 /*BIFSD_DATA3*/
+					26	0 /*BIFSD_RSTN*/
+					116	0 /*BIFSD_DATA4*/
+					117	0
+					118	0
+					119	0 /*BIFSD_DATA7*/
 				>;
 			};
 			bifspi_func:bifspi_func {
 				pinctrl-x2,pins-muxs = <
-					26	0
-					27	0
-					28	0
-					29	0
-					30	0
+					27	0 /*BIFSPI_CSN*/
+					28	0 /*BIFSPI_SCLK*/
+					29	0 /*BIFSPI_MOSI*/
+					30	0 /*BIFSPI_MISO*/
+					31	0 /*BIFSPI_RSTN*/
 				>;
 			};
 			spi0_func:spi0_func {
 				pinctrl-x2,pins-muxs = <
-					11	0
-					12	0
-					13	0
-					14	0
+					16	0 /*SPI0_CSN*/
+					17	0 /*SPI0_SCLK*/
+					18	0 /*SPI0_MOSI*/
+					19	0 /*SPI0_MISO*/
+				>;
+			};
+			spi1_func:spi1_func {
+				pinctrl-x2,pins-muxs = <
+					3	1 /*SPI1_SCLK*/
+					5	1 /*SPI1_CSN*/
+					6	1 /*SPI1_MISO*/
+					7	1 /*SPI1_MOSI*/
+				>;
+			};
+			spi2_func:spi2_func {
+				pinctrl-x2,pins-muxs = <
+					12	1 /*SPI2_MOSI*/
+					13	1 /*SPI2_MISO*/
+					14	1 /*SPI2_SCLK*/
+					15	1 /*SPI2_CSN*/
 				>;
 			};
 			qspi_func:qspi_func {
 				pinctrl-x2,pins-muxs = <
-					110	0
-					111	0
-					112	0
-					113	0
-					114	0
-					115	0
+					32	0 /*QSPI_CSN*/
+					33	0 /*QSPI_SCLK*/
+					34	0 /*QSPI_MOSI_IO0*/
+					35	0 /*QSPI_MOSI_IO1*/
+					36	0 /*QSPI_MOSI_IO2*/
+					37	0 /*QSPI_MOSI_IO3*/
+					120	0 /*QSPI_CSN*/
 				>;
 			};
 			sdio0_func:sdio0_func {
@@ -256,12 +225,22 @@
 			};
 			sdio1_func:sdio1_func {
 				pinctrl-x2,pins-muxs = <
-					78	0
-					79	0
-					80	0
-					81	0
-					82	0
-					83	0
+					66	0 /*SD1_CLK*/
+					67	0 /*SD1_CMD*/
+					68	0 /*SD1_DATA0*/
+					69	0 /*SD1_DATA1*/
+					70	0 /*SD1_DATA2*/
+					71	0 /*SD1_DATA3*/
+				>;
+			};
+			sdio2_func:sdio2_func {
+				pinctrl-x2,pins-muxs = <
+					72	0 /*SD2_CLK*/
+					73	0 /*SD2_CMD*/
+					74	0 /*SD2_DATA0*/
+					75	0 /*SD2_DATA1*/
+					76	0 /*SD2_DATA2*/
+					77	0 /*SD2_DATA3*/
 				>;
 			};
 			eth_func:eth_func {
@@ -290,42 +269,62 @@
 			};
 			pwm1:pwm1_func {
 				pinctrl-x2,pins-muxs = <
-					5	2
+					22	1
 				>;
 			};
 			pwm2:pwm2_func {
 				pinctrl-x2,pins-muxs = <
-					6	2
+					23	1
 				>;
 			};
 			pwm3:pwm3_func {
 				pinctrl-x2,pins-muxs = <
-					7	2
+					24	1
 				>;
 			};
 			pwm4:pwm4_func {
 				pinctrl-x2,pins-muxs = <
-					8	2
+					25	1
 				>;
 			};
 			pwm5:pwm5_func {
 				pinctrl-x2,pins-muxs = <
-					72	2
+					18	2
 				>;
 			};
 			pwm6:pwm6_func {
 				pinctrl-x2,pins-muxs = <
-					73	2
+					19	2
 				>;
 			};
 			pwm7:pwm7_func {
 				pinctrl-x2,pins-muxs = <
-					74	2
+					12	2
 				>;
 			};
 			pwm8:pwm8_func {
 				pinctrl-x2,pins-muxs = <
-					75	2
+					13	2
+				>;
+			};
+			sensor0_func: sensor_func@0 {
+				pinctrl-x2,pins-muxs = <
+					109      0 /*Sensor0 MCLK*/
+				>;
+			};
+			sensor1_func: sensor_func@1 {
+				pinctrl-x2,pins-muxs = <
+					110      0 /*Sensor1 MCLK*/
+				>;
+			};
+			sensor2_func: sensor_func@2 {
+				pinctrl-x2,pins-muxs = <
+					111      0 /*Sensor2 MCLK*/
+				>;
+			};
+			sensor3_func: sensor_func@3 {
+				pinctrl-x2,pins-muxs = <
+					112      0 /*Sensor3 MCLK*/
 				>;
 			};
 		};
