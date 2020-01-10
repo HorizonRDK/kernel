@@ -901,40 +901,55 @@
 			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
+		uart_div_mclk: uart_div_mclk {
+			#clock-cells = <0>;
+			compatible = "hobot,fixed-factor-clk";
+			clocks = <&peri_pllmux_clk>;
+			offset = <0x250>;
+			bits = <4>;
+			field = <4>;
+			clk-div = <8>;
+			clk-mult = <1>;
+		};
+
 		uart0_mclk: uart0_mclk {
 			#clock-cells = <0>;
-			compatible = "hobot,div-gate-clk";
-			clocks = <&peri_pllmux_clk>;
-			offset = <0x250 0x150 0x154 0x158>;
-			bits = <4 1 1 1>;
-			field = <4 1 1 1>;
+			compatible = "hobot,gate-clk";
+			clocks = <&uart_div_mclk>;
+			offset = <0x150 0x154 0x158 0x0>;
+			bits = <1 1 1 32>;
+			field = <1 1 1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		uart1_mclk: uart1_mclk {
 			#clock-cells = <0>;
-			compatible = "hobot,div-gate-clk";
-			clocks = <&peri_pllmux_clk>;
-			offset = <0x250 0x150 0x154 0x158>;
-			bits = <4 2 2 2>;
-			field = <4 1 1 1>;
+			compatible = "hobot,gate-clk";
+			clocks = <&uart_div_mclk>;
+			offset = <0x150 0x154 0x158 0x0>;
+			bits = <2 2 2 32>;
+			field = <1 1 1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		uart2_mclk: uart2_mclk {
 			#clock-cells = <0>;
-			compatible = "hobot,div-gate-clk";
-			clocks = <&peri_pllmux_clk>;
-			offset = <0x250 0x150 0x154 0x158>;
-			bits = <4 3 3 3>;
-			field = <4 1 1 1>;
+			compatible = "hobot,gate-clk";
+			clocks = <&uart_div_mclk>;
+			offset = <0x150 0x154 0x158 0x0>;
+			bits = <3 3 3 32>;
+			field = <1 1 1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		uart3_mclk: uart3_mclk {
 			#clock-cells = <0>;
-			compatible = "hobot,div-gate-clk";
-			clocks = <&peri_pllmux_clk>;
-			offset = <0x250 0x150 0x154 0x158>;
-			bits = <4 4 4 4>;
-			field = <4 1 1 1>;
+			compatible = "hobot,gate-clk";
+			clocks = <&uart_div_mclk>;
+			offset = <0x150 0x154 0x158 0x0>;
+			bits = <4 4 4 32>;
+			field = <1 1 1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		spi0_mclk: spi0_mclk {
@@ -991,58 +1006,75 @@
 			field = <4 1 1 1>;
 		};
 
+		i2c_div_mclk: i2c_div_mclk {
+			#clock-cells = <0>;
+			compatible = "hobot,fixed-factor-clk";
+			clocks = <&peri_pllmux_clk>;
+			offset = <0x250>;
+			bits = <16>;
+			field = <4>;
+			clk-div = <8>;
+			clk-mult = <1>;
+		};
+
 		i2c0_mclk: i2c0_mclk {
 			#clock-cells = <0>;
-			compatible = "hobot,div-gate-clk";
-			clocks = <&peri_pllmux_clk>;
-			offset = <0x250 0x150 0x154 0x158>;
-			bits = <16 11 11 11>;
-			field = <4 1 1 1>;
+			compatible = "hobot,gate-clk";
+			clocks = <&i2c_div_mclk>;
+			offset = <0x150 0x154 0x158 0x0>;
+			bits = <11 11 11 32>;
+			field = <1 1 1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		i2c1_mclk: i2c1_mclk {
 			#clock-cells = <0>;
-			compatible = "hobot,div-gate-clk";
-			clocks = <&peri_pllmux_clk>;
-			offset = <0x250 0x150 0x154 0x158>;
-			bits = <16 12 12 12>;
-			field = <4 1 1 1>;
+			compatible = "hobot,gate-clk";
+			clocks = <&i2c_div_mclk>;
+			offset = <0x150 0x154 0x158 0x0>;
+			bits = <12 12 12 32>;
+			field = <1 1 1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		i2c2_mclk: i2c2_mclk {
 			#clock-cells = <0>;
-			compatible = "hobot,div-gate-clk";
-			clocks = <&peri_pllmux_clk>;
-			offset = <0x250 0x150 0x154 0x158>;
-			bits = <16 13 13 13>;
-			field = <4 1 1 1>;
+			compatible = "hobot,gate-clk";
+			clocks = <&i2c_div_mclk>;
+			offset = <0x150 0x154 0x158 0x0>;
+			bits = <13 13 13 32>;
+			field = <1 1 1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		i2c3_mclk: i2c3_mclk {
 			#clock-cells = <0>;
-			compatible = "hobot,div-gate-clk";
-			clocks = <&peri_pllmux_clk>;
-			offset = <0x250 0x150 0x154 0x158>;
-			bits = <16 14 14 14>;
-			field = <4 1 1 1>;
+			compatible = "hobot,gate-clk";
+			clocks = <&i2c_div_mclk>;
+			offset = <0x150 0x154 0x158 0x0>;
+			bits = <14 14 14 32>;
+			field = <1 1 1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		i2c4_mclk: i2c4_mclk {
 			#clock-cells = <0>;
-			compatible = "hobot,div-gate-clk";
-			clocks = <&peri_pllmux_clk>;
-			offset = <0x250 0x150 0x154 0x158>;
-			bits = <16 23 23 23>;
-			field = <4 1 1 1>;
+			compatible = "hobot,gate-clk";
+			clocks = <&i2c_div_mclk>;
+			offset = <0x150 0x154 0x158 0x0>;
+			bits = <23 23 23 32>;
+			field = <1 1 1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		i2c5_mclk: i2c5_mclk {
 			#clock-cells = <0>;
-			compatible = "hobot,div-gate-clk";
-			clocks = <&peri_pllmux_clk>;
-			offset = <0x250 0x150 0x154 0x158>;
-			bits = <16 24 24 24>;
-			field = <4 1 1 1>;
+			compatible = "hobot,gate-clk";
+			clocks = <&i2c_div_mclk>;
+			offset = <0x150 0x154 0x158 0x0>;
+			bits = <24 24 24 32>;
+			field = <1 1 1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		sd0_div_clk: sd0_div_clk {
