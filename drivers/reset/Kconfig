@@ -134,10 +134,10 @@ config RESET_ZYNQ
 	  This enables the reset controller driver for Xilinx Zynq SoCs.
 
 config HOBOT_RESET_CONTROLLER
-	bool "Hobot X2 Reset Controller Support"
+	bool "Hobot Reset Controller Support"
 	depends on ARCH_HOBOT
 	help
-	  X2 Reset Controller support.
+	  Reset Controller support.
 
 	  This framework is designed to abstract reset handling of devices
 	  via SoC-internal reset controller modules.

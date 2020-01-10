@@ -2505,4 +2505,4 @@ config FB_HOBOT_X2
 	select FB_CFB_COPYAREA
 	select FB_CFB_IMAGEBLIT
 	help
-	  This driver implements support for the Horizon Robitcs X2 IAR display
+	  This driver implements support for the Horizon Robitcs IAR display

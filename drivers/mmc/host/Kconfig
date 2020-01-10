@@ -747,7 +747,7 @@ config MMC_DW_HOBOT
 	help
 	  This selects support for Hobot SoC specific extensions to the
 	  Synopsys DesignWare Memory Card Interface driver. Select this option
-	  for platforms based on X2 SoC's.
+	  for platforms based on HOBOT SoC's.
 
 
 

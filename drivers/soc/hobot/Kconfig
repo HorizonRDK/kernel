@@ -2,31 +2,31 @@
 # Hobot MPSoC configuration
 #
 menuconfig HOBOT_SOC_DRIVERS
-        bool "X2 MPSoC driver support"
+        bool "HOBOT SOC drivers support"
         depends on ARCH_HOBOT
 
 config HOBOT_SOCINFO
-        tristate "Enable x2 socinfo driver "
+        tristate "Enable hobot socinfo driver "
         default y
         help
-          Say yes to enable x2 socinfo driver In doubt, say N
+          Say yes to enable hobot socinfo driver In doubt, say N
 
 if HOBOT_SOC_DRIVERS
 
 config HOBOT_CNN_HOST
-        tristate "Enable X2 CNN HOST Drivers"
+        tristate "Enable hobot CNN HOST Drivers"
         default n
         help
-          Say yes to enable x2 cnn driver In doubt, say N
+          Say yes to enable hobot cnn driver In doubt, say N
 
 config HOBOT_CNN_MM
-        bool "X2 CNN Memory Heap Drivers"
+        bool "hobot CNN Memory Heap Drivers"
         default y
         help
-          Add x2 cnn memory heap management driver
+          Add hobot cnn memory heap management driver
 
 config HOBOT_DIAG
-        bool "x2 diag driver, based on netlink"
+        bool "hobot diag driver, based on netlink"
         default y
         help
           Kernel modules(drivers) can send diag msgs to userspace
@@ -113,22 +113,22 @@ config HOBOT_BIFSD_DEV
 endif
 
 config HOBOT_DDR_MON
-	bool "Enable X2 DDR Monitor"
+	bool "Enable HOBOT DDR Monitor"
 	default n
 	help
-	  say yes to enable x2 ddr monitor
+	  say yes to enable hobot ddr monitor
 
 config HOBOT_PM
-	bool "Enable X2 suspend"
+	bool "Enable HOBOT suspend"
 	default y
 	help
-	  say yes to enable x2 suspend
+	  say yes to enable hobot suspend
 
 config HOBOT_IAR
-	tristate "X2 IAR Drivers"
+	tristate "HOBOT IAR Drivers"
 	default n
 	---help---
-	   Drivers for the X2 IAR
+	   Drivers for the HOBOT IAR
 
 config HOBOT_VCAM
         tristate "Enable HOBOT VCAM Drivers"

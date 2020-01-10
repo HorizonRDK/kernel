@@ -507,9 +507,9 @@ config PCI_ENDPOINT_TEST
            for PCI Endpoint.
 
 config HOBOT_EFUSE
-	tristate "X2 efuse driver"
+	tristate "HOBOT efuse driver"
 	---help---
-           Enable this configuration option to enable the X2 efuse driver.
+           Enable this configuration option to enable the HOBOT efuse driver.
 
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"

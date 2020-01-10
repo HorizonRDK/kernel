@@ -2,7 +2,7 @@
 # BT2HDMI device configuration
 #
 config HOBOT_HDMI
-	tristate "X2 HDMI Drivers"
+	tristate "HDMI Drivers"
 	default y
 	---help---
-	Drivers for the X2 Sii9022A BT2HDMI chip
+	Drivers for the Sii9022A BT2HDMI chip

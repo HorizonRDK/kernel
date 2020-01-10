@@ -1774,14 +1774,14 @@ config RTC_DRV_RTD119X
 	  Real Time Clock.
 
 config RTC_DRV_HOBOT
-	tristate "Hobot X2 RTC controller support"
+	tristate "Hobot RTC controller support"
 	depends on ARCH_HOBOT
 	help
-	  Enable hobot X2 RTC controller driver.
+	  Enable hobot RTC controller driver.
 
 	  If you have one of the devices above enable this driver to use
 	  the hardware RTC. This driver can also be built as a module. If
-	  so, the module will be called rtc-x2.
+	  so, the module will be called rtc-hobot.
 
 comment "HID Sensor RTC drivers"
 

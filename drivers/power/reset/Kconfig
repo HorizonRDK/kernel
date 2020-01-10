@@ -228,9 +228,9 @@ config SYSCON_REBOOT_MODE
 	  action according to the mode.
 
 config POWER_RESET_HOBOT
-	bool "hobot x2 power-off driver"
+	bool "hobot power-off driver"
 	help
-	  Reboot support for x2 boards.
+	  Reboot support for HOBOT SoCs.
 
 endif
 

@@ -767,16 +767,16 @@ config SPI_ZYNQMP_GQSPI
 	  Enables Xilinx GQSPI controller driver for Zynq UltraScale+ MPSoC.
 
 config SPI_HOBOT
-	tristate "X2 SPI controller"
+	tristate "HOBOT SPI controller"
 	depends on SPI_MASTER
 	help
-	  This selects the X2 SPI controller master driver
+	  This selects the hobot SPI controller master driver
 
 config SPI_HOBOT_QSPI
-	tristate "X2 QSPI SPI controller"
+	tristate "HOBOT QSPI SPI controller"
 	depends on SPI_MASTER
 	help
-	  This selects the X2 QSPI SPI controller master driver
+	  This selects the HOBOT QSPI SPI controller master driver
 
 #
 # Add new SPI master controllers in alphabetical order above this line

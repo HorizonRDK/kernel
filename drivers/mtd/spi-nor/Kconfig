@@ -130,22 +130,22 @@ config SPI_STM32_QUADSPI
 	  We only connect the NOR to this controller.
 
 config SPI_HOBOT_QUADSPI
-	tristate "X2 Quad SPI controller"
+	tristate "HOBOT Quad SPI controller"
 	depends on OF && (ARM64 || COMPILE_TEST)
 	help
-	  Enable support for the X2 Quad SPI Flash controller.
+	  Enable support for the HOBOT Quad SPI Flash controller.
 
 config HOBOT_QSPI_REF_CLK
-        int "X2 qspi ref_clk"
+        int "HOBOT qspi ref_clk"
         depends on SPI_HOBOT_QUADSPI
         help
-          x2 qspi reference clock set
+          HOBOT qspi reference clock set
 
 config HOBOT_QSPI_CLK
-        int "X2 qspi clk set"
+        int "HOBOT qspi clk set"
         depends on SPI_HOBOT_QUADSPI
         help
-          x2 qspi clock set
+          HOBOT qspi clock set
 
 
 endif # MTD_SPI_NOR
