@@ -1,3 +1,18 @@
+/*********************************************************************
+ *                      COPYRIGHT NOTICE
+ *             Copyright 2018 Horizon Robotics, Inc.
+ *                     All rights reserved.
+ *
+ *    This program is free software; you can redistribute it and/or modify
+ *    it under the terms of the GNU General Public License as published by
+ *    the Free Software Foundation; either version 2 of the License, or
+ *    (at your option) any later version.
+ *
+ *    This program is distributed in the hope that it will be useful,
+ *    but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *    GNU General Public License for more details.
+ *********************************************************************/
 #include <media/v4l2-device.h>
 #include <media/v4l2-subdev.h>
 #include <media/v4l2-async.h>
@@ -36,21 +51,22 @@ static void common_control_deinit(void)
 static int32_t common_alloc_analog_gain(uint8_t chn, int32_t gain)
 {
 	int ret = 0;
-	int analog_gain = gain;
+	uint32_t analog_gain = gain;
 	struct sensor_arg settings;
 
 	if (common_subdev != NULL && chn < FIRMWARE_CONTEXT_NUMBER) {
 		settings.port = chn;
-		settings.a_gain = &analog_gain;
+		settings.a_gain = (uint32_t *)&analog_gain;
 		// Initial local parameters
 		ret = v4l2_subdev_call(common_subdev, core, ioctl,
-			SENSOR_ALLOC_DIGITAL_GAIN, &settings);
+			SENSOR_ALLOC_ANALOG_GAIN, &settings);
 
 		switch (sensor_ctl[chn].mode) {
 		case SENSOR_LINEAR:
 		case SENSOR_PWL:
 			sensor_ctl[chn].gain_buf[0] = analog_gain;
 			sensor_ctl[chn].gain_num = 1;
+			LOG(LOG_ERR, "linera gain is %d", analog_gain);
 		break;
 		case SENSOR_DOL2:
 			sensor_ctl[chn].gain_buf[0] = analog_gain;
@@ -80,12 +96,12 @@ static int32_t common_alloc_analog_gain(uint8_t chn, int32_t gain)
 static int32_t common_alloc_digital_gain(uint8_t chn, int32_t gain)
 {
 	int ret = 0;
-	int digital_gain = gain;
+	uint32_t digital_gain = gain;
 	struct sensor_arg settings;
 
 	if (common_subdev != NULL && chn < FIRMWARE_CONTEXT_NUMBER) {
 		settings.port = chn;
-		settings.d_gain = &digital_gain;
+		settings.d_gain = (uint32_t *)&digital_gain;
 		// Initial local parameters
 		ret = v4l2_subdev_call(common_subdev, core, ioctl,
 			SENSOR_ALLOC_DIGITAL_GAIN, &settings);
@@ -147,6 +163,7 @@ static void common_alloc_integration_time(uint8_t chn, uint16_t *int_time,
 		case SENSOR_PWL:
 			sensor_ctl[chn].line_buf[0] = time_L;
 			sensor_ctl[chn].line_num = 1;
+			LOG(LOG_ERR, "lineer gain is %d", time_L);
 		break;
 		case SENSOR_DOL2:
 			sensor_ctl[chn].line_buf[0] = time_L;
@@ -183,6 +200,7 @@ static void common_update(uint8_t chn, struct sensor_priv_old updata)
 	if (common_subdev != NULL && chn < FIRMWARE_CONTEXT_NUMBER) {
 		settings.port = chn;
 		settings.sensor_priv = &sensor_ctl[chn];
+		LOG(LOG_ERR, "chn is %d", chn);
 		// Initial local parameters
 		ret = v4l2_subdev_call(common_subdev, core, ioctl,
 			SENSOR_UPDATE, &settings);
@@ -217,10 +235,6 @@ static int common_init(uint8_t chn, uint8_t mode)
 	get_common_info(chn);
 
 	return ret;
-}
-
-static void common_switch_mode(uint8_t chn, uint32_t type)
-{
 }
 
 static int common_hw_reset_enable(void)
