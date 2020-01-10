@@ -814,7 +814,7 @@
 			compatible = "hobot,endiv-clk";
 			clocks = <&sensor_1stdiv_clk>;
 			offset = <0x240 0x140 0x144 0x148 0x248 0x0>;
-			bits = <5 13 13 13 3 32>;
+			bits = <8 13 13 13 3 32>;
 			field = <3 1 1 1 1>;
 			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
@@ -824,7 +824,7 @@
 			compatible = "hobot,endiv-clk";
 			clocks = <&sensor_1stdiv_clk>;
 			offset = <0x240 0x140 0x144 0x148 0x248 0x0>;
-			bits = <5 14 14 14 4 32>;
+			bits = <24 14 14 14 4 32>;
 			field = <3 1 1 1 1>;
 			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
@@ -834,7 +834,7 @@
 			compatible = "hobot,endiv-clk";
 			clocks = <&sensor_1stdiv_clk>;
 			offset = <0x240 0x140 0x144 0x148 0x248 0x0>;
-			bits = <5 15 15 15 5 32>;
+			bits = <28 15 15 15 5 32>;
 			field = <3 1 1 1 1>;
 			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
