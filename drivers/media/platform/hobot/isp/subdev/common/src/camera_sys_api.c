@@ -43,8 +43,21 @@ void camera_sys_printk_disturing(sensor_turning_data_t *turing_param)
 	turing_param->sensor_addr, turing_param->bus_type, turing_param->reg_width);
 	pr_info("s_gain 0x%x  s_gain_length %d \n", turing_param->normal.s_gain,
 		turing_param->normal.s_gain_length);
+	pr_info("sensor_mode %d \n", turing_param->mode);
 	pr_info("s_line 0x%x s_line_length %d \n", turing_param->normal.s_line,
 		turing_param->normal.s_line_length);
+	pr_info("sensor_addr 0x%x, bus_type %d, reg_width %d",
+	turing_param->sensor_addr, turing_param->bus_type, turing_param->reg_width);
+	pr_info("min_gain_time 0x%x  max_gain_time %d \n",
+			turing_param->pwl.min_gain_time,
+		turing_param->pwl.max_gain_time);
+	pr_info("line 0x%x line_length %d \n", turing_param->pwl.line,
+		turing_param->pwl.line_length);
+	pr_info("gain 0x%x gain_length %d \n", turing_param->pwl.gain,
+		turing_param->pwl.gain_length);
+	pr_info("active_height %d active_width %d \n",
+			turing_param->sensor_data.active_height,
+		turing_param->sensor_data.active_width);
 }
 int camera_sys_write(uint32_t port, uint32_t reg_addr,
 		uint32_t reg_width, char *buf, uint32_t length)
@@ -352,9 +365,12 @@ void camera_sys_ar0233_turning_control(sensor_priv_t *priv_param,
 	for(i = 0; i < priv_param->gain_num; i++) {
 		a_gain[i] = sensor_date(priv_param->gain_buf[i]);
 		a_gain[i] = a_gain[i] >> 1;
+		pr_info("gain_num %d a_gain[i] 0x%x\n", a_gain[i], priv_param->gain_num);
 	}
 	for(i = 0; i < priv_param->line_num; i++) {
 		 a_line[i] = priv_param->line_buf[i];
+		 pr_info("priv_param->line_num %d a_line[i] 0x%x\n",
+				 priv_param->line_num, a_line[i]);
 	}
 	return;
 }
@@ -471,6 +487,8 @@ static int camera_sys_set_pwl_line(uint32_t port, uint32_t line_num,
 		case 1:
 			line_data[0] = (char)((input_line[0] >> 8) & 0xff);
 			line_data[1] = (char)(input_line[0] & 0xff);
+			pr_info("input_line[0] 0x%x input_line[1] 0x%x\n",
+					line_data[0], line_data[1]);
 			ret = camera_sys_write(port, line_addr, reg_width, line_data, line_length);
 		default:
 			break;
@@ -491,7 +509,7 @@ static int camera_sys_set_pwl_gain(uint32_t port, uint32_t gain_num,
 	gain_length = camera_mod[port]->camera_param.pwl.gain_length;
 	min_gain_time = camera_mod[port]->camera_param.pwl.min_gain_time;
 	max_gain_time = camera_mod[port]->camera_param.pwl.max_gain_time;
-	switch (gain_num) {
+	switch(gain_num) {
 		case 1:
 			if(input_gain[0] < min_gain_time)
 				input_gain[0] = min_gain_time; //128==0x80 1 time
@@ -499,7 +517,10 @@ static int camera_sys_set_pwl_gain(uint32_t port, uint32_t gain_num,
 				input_gain[0] = max_gain_time;
 			gain_data[0] = (char)((input_gain[0] >> 8 )& 0xff);
 			gain_data[1] = (char)(input_gain[0] & 0xff);
+			pr_info("gain_data[0] 0x%x, gain_data[1] 0x%x\n",
+					gain_data[0], gain_data[1]);
 			ret = camera_sys_write(port, gain_addr, reg_width, gain_data, gain_length);
+			break;
 		default:
 			break;
 	}
@@ -519,8 +540,8 @@ int camera_sys_set_ex_gain_control(uint32_t port, sensor_priv_t *priv_param,
 	buf[0] = 0x00;
 	buf[1] = 0x01;
 	ret = camera_sys_write(port, param_hold, reg_width, buf, param_hold_length);
-	camera_sys_set_pwl_gain(port, priv_param->gain_num, input_gain);
 	camera_sys_set_pwl_line(port, priv_param->line_num, input_line);
+	camera_sys_set_pwl_gain(port, priv_param->gain_num, input_gain);
 	buf[0] = 0x00;
 	buf[1] = 0x00;
 	ret = camera_sys_write(port, param_hold, reg_width, buf, param_hold_length);
@@ -552,7 +573,8 @@ int  camera_sys_set_gain_line_control(uint32_t port, sensor_priv_t *priv_param)
 			camera_sys_set_ex_gain_control(port, priv_param, a_gain, a_line);
 			break;
 		default:
-			pr_err("[%s -- %d ] mode is err !", __func__, __LINE__);
+			pr_err("[%s -- %d ] mode is err %d !", __func__, __LINE__,
+					camera_mod[port]->camera_param.mode);
 			ret = -1;
 			break;
 	}
