@@ -148,6 +148,38 @@
 					92	1 /*DVPIN_DATA11*/
 				>;
 			};
+			rgb_func: rgb_func {
+				pinctrl-x2,pins-muxs = <
+					20	2 /*VSYNC*/
+					21	2 /*HSYNC*/
+					26	2 /*DE*/
+					78	2 /*CLK*/
+					79	2 /*DAT0*/
+					80	2
+					81	2
+					82	2
+					83	2
+					84	2
+					85	2
+					86	2 /*DAT7*/
+					87	2 /*DAT8*/
+					88	2
+					89	2
+					90	2
+					91	2
+					92	2
+					93	2
+					94	2 /*DAT15*/
+					22	2 /*DATA16*/
+					23	2
+					24	2
+					25	2 /*DATA19*/
+					116	2 /*DATA20*/
+					117	2
+					118	2
+					119	2 /*DATA23*/
+				>;
+			};
 			bifsd_func:bifsd_func {
 				pinctrl-x2,pins-muxs = <
 					20	0 /*BIFSD_CLK*/
