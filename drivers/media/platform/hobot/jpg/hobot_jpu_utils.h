@@ -1,3 +1,8 @@
+/***************************************************************************
+ *                      COPYRIGHT NOTICE
+ *             Copyright 2019 Horizon Robotics, Inc.
+ *                     All rights reserved.
+ ***************************************************************************/
 #ifndef __HOBOT_JPU_UTILS_H__
 #define __HOBOT_JPU_UTILS_H__
 
@@ -18,7 +23,7 @@
 #define JPU_SUPPORT_PLATFORM_DRIVER_REGISTER
 
 /* if this driver knows the dedicated video memory address */
-#define JPU_SUPPORT_RESERVED_VIDEO_MEMORY
+//#define JPU_SUPPORT_RESERVED_VIDEO_MEMORY
 
 #define JPU_PLATFORM_DEVICE_NAME    "hb_jpu"
 #define JPU_CLK_NAME                "jpeg"

@@ -1,3 +1,8 @@
+/***************************************************************************
+ *                      COPYRIGHT NOTICE
+ *             Copyright 2019 Horizon Robotics, Inc.
+ *                     All rights reserved.
+ ***************************************************************************/
 #include <linux/kernel.h>
 #include <linux/mm.h>
 #include <linux/interrupt.h>
@@ -77,9 +82,10 @@ static struct attribute_group attr_group = {
 	.attrs = attributes,
 };
 
-static int jpu_alloc_dma_buffer(hb_jpu_drv_buffer_t * jb)
+static int jpu_alloc_dma_buffer(hb_jpu_dev_t *dev,
+			hb_jpu_drv_buffer_t * jb)
 {
-	if (!jb)
+	if (!jb || !dev)
 		return -1;
 #ifdef JPU_SUPPORT_RESERVED_VIDEO_MEMORY
 	jb->phys_addr = (unsigned long long)jmem_alloc(&s_jmem, jb->size, 0);
@@ -93,7 +99,7 @@ static int jpu_alloc_dma_buffer(hb_jpu_drv_buffer_t * jb)
 							  -
 							  s_video_memory.phys_addr));
 #else
-	jb->base = (unsigned long)dma_alloc_coherent(NULL, PAGE_ALIGN(jb->size),
+	jb->base = (unsigned long)dma_alloc_coherent(dev->device, PAGE_ALIGN(jb->size),
 						     (dma_addr_t
 						      *) (&jb->phys_addr),
 						     GFP_DMA | GFP_KERNEL);
@@ -106,9 +112,10 @@ static int jpu_alloc_dma_buffer(hb_jpu_drv_buffer_t * jb)
 	return 0;
 }
 
-static void jpu_free_dma_buffer(hb_jpu_drv_buffer_t * jb)
+static void jpu_free_dma_buffer(hb_jpu_dev_t *dev,
+				hb_jpu_drv_buffer_t * jb)
 {
-	if (!jb) {
+	if (!jb || !dev) {
 		return;
 	}
 
@@ -116,7 +123,7 @@ static void jpu_free_dma_buffer(hb_jpu_drv_buffer_t * jb)
 #ifdef JPU_SUPPORT_RESERVED_VIDEO_MEMORY
 		jmem_free(&s_jmem, jb->phys_addr, 0);
 #else
-		dma_free_coherent(0, PAGE_ALIGN(jb->size), (void *)jb->base,
+		dma_free_coherent(dev->device, PAGE_ALIGN(jb->size), (void *)jb->base,
 				  jb->phys_addr);
 #endif /* JPUR_SUPPORT_RESERVED_VIDEO_MEMORY */
 }
@@ -214,7 +221,7 @@ static int jpu_free_buffers(struct file *filp)
 		if (pool->filp == filp) {
 			jb = pool->jb;
 			if (jb.base) {
-				jpu_free_dma_buffer(&jb);
+				jpu_free_dma_buffer(dev, &jb);
 				list_del(&pool->list);
 				kfree(pool);
 			}
@@ -328,7 +335,7 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 					return -EFAULT;
 				}
 
-				ret = jpu_alloc_dma_buffer(&(jbp->jb));
+				ret = jpu_alloc_dma_buffer(dev, &(jbp->jb));
 				if (ret == -1) {
 					ret = -ENOMEM;
 					kfree(jbp);
@@ -373,7 +380,7 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 				}
 
 				if (jb.base)
-					jpu_free_dma_buffer(&jb);
+					jpu_free_dma_buffer(dev, &jb);
 
 				spin_lock(&dev->jpu_spinlock);
 				list_for_each_entry_safe(jbp, n, &dev->jbp_head,

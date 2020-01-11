@@ -19,7 +19,7 @@
 
 // TODO remove this
 /* if this driver knows the dedicated video memory address */
-#define VPU_SUPPORT_RESERVED_VIDEO_MEMORY
+//#define VPU_SUPPORT_RESERVED_VIDEO_MEMORY
 
 #if defined(linux) || defined(__linux) || defined(ANDROID) || defined(CNM_FPGA_HAPS_INTERFACE)
 #define SUPPORT_MULTI_INST_INTR

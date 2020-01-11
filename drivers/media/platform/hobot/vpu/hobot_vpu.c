@@ -82,9 +82,9 @@ static struct attribute_group attr_group = {
 	.attrs = attributes,
 };
 
-static int vpu_alloc_dma_buffer(hb_vpu_drv_buffer_t * vb)
+static int vpu_alloc_dma_buffer(hb_vpu_dev_t *dev, hb_vpu_drv_buffer_t * vb)
 {
-	if (!vb)
+	if (!vb || !dev)
 		return -1;
 
 #ifdef VPU_SUPPORT_RESERVED_VIDEO_MEMORY
@@ -97,7 +97,7 @@ static int vpu_alloc_dma_buffer(hb_vpu_drv_buffer_t * vb)
 	vb->base = (unsigned long)(s_video_memory.base +
 				   (vb->phys_addr - s_video_memory.phys_addr));
 #else
-	vb->base = (unsigned long)dma_alloc_coherent(NULL, PAGE_ALIGN(vb->size),
+	vb->base = (unsigned long)dma_alloc_coherent(dev->device, PAGE_ALIGN(vb->size),
 						     (dma_addr_t
 						      *) (&vb->phys_addr),
 						     GFP_DMA | GFP_KERNEL);
@@ -109,9 +109,9 @@ static int vpu_alloc_dma_buffer(hb_vpu_drv_buffer_t * vb)
 	return 0;
 }
 
-static void vpu_free_dma_buffer(hb_vpu_drv_buffer_t * vb)
+static void vpu_free_dma_buffer(hb_vpu_dev_t *dev, hb_vpu_drv_buffer_t * vb)
 {
-	if (!vb)
+	if (!vb || !dev)
 		return;
 
 #ifdef VPU_SUPPORT_RESERVED_VIDEO_MEMORY
@@ -119,7 +119,7 @@ static void vpu_free_dma_buffer(hb_vpu_drv_buffer_t * vb)
 		vmem_free(&s_vmem, vb->phys_addr, 0);
 #else
 	if (vb->base)
-		dma_free_coherent(0, PAGE_ALIGN(vb->size), (void *)vb->base,
+		dma_free_coherent(dev->device, PAGE_ALIGN(vb->size), (void *)vb->base,
 				  vb->phys_addr);
 #endif
 }
@@ -220,7 +220,7 @@ static int vpu_free_buffers(struct file *filp)
 		if (pool->filp == filp) {
 			vb = pool->vb;
 			if (vb.base) {
-				vpu_free_dma_buffer(&vb);
+				vpu_free_dma_buffer(dev, &vb);
 				list_del(&pool->list);
 				kfree(pool);
 			}
@@ -653,7 +653,7 @@ static long vpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 					return -EFAULT;
 				}
 
-				ret = vpu_alloc_dma_buffer(&(vbp->vb));
+				ret = vpu_alloc_dma_buffer(dev, &(vbp->vb));
 				if (ret == -1) {
 					ret = -ENOMEM;
 					kfree(vbp);
@@ -697,7 +697,7 @@ static long vpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 				}
 
 				if (vb.base)
-					vpu_free_dma_buffer(&vb);
+					vpu_free_dma_buffer(dev, &vb);
 
 				spin_lock(&dev->vpu_spinlock);
 				list_for_each_entry_safe(vbp, n, &dev->vbp_head,
@@ -910,7 +910,7 @@ INTERRUPT_REMAIN_IN_QUEUE:
 						    0)
 #else
 						if (vpu_alloc_dma_buffer
-						    (&dev->instance_pool,
+						    (dev, &dev->instance_pool,
 						     dev) != -1)
 #endif
 						{
@@ -962,7 +962,7 @@ INTERRUPT_REMAIN_IN_QUEUE:
 						     (hb_vpu_drv_buffer_t));
 				if (ret == 0) {
 					if (vpu_alloc_dma_buffer
-					    (&dev->common_memory) != -1) {
+					    (dev, &dev->common_memory) != -1) {
 						ret =
 						    copy_to_user((void __user *)
 								 arg,
@@ -1379,14 +1379,14 @@ static int vpu_release(struct inode *inode, struct file *filp)
 #ifdef USE_VMALLOC_FOR_INSTANCE_POOL_MEMORY
 				vfree((const void *)dev->instance_pool.base);
 #else
-				vpu_free_dma_buffer(&dev->instance_pool);
+				vpu_free_dma_buffer(dev, &dev->instance_pool);
 #endif
 				dev->instance_pool.base = 0;
 			}
 
 			if (dev->common_memory.base) {
 				vpu_debug(5, "free common memory\n");
-				vpu_free_dma_buffer(&dev->common_memory);
+				vpu_free_dma_buffer(dev, &dev->common_memory);
 				dev->common_memory.base = 0;
 			}
 			for (j = 0; j < MAX_NUM_VPU_INSTANCE; j++)
@@ -1875,13 +1875,13 @@ static int vpu_remove(struct platform_device *pdev)
 #ifdef USE_VMALLOC_FOR_INSTANCE_POOL_MEMORY
 		vfree((const void *)dev->instance_pool.base);
 #else
-		vpu_free_dma_buffer(&dev->instance_pool);
+		vpu_free_dma_buffer(dev, &dev->instance_pool);
 #endif
 		dev->instance_pool.base = 0;
 	}
 
 	if (dev->common_memory.base) {
-		vpu_free_dma_buffer(&dev->common_memory);
+		vpu_free_dma_buffer(dev, &dev->common_memory);
 		dev->common_memory.base = 0;
 	}
 #ifdef SUPPORT_MULTI_INST_INTR
