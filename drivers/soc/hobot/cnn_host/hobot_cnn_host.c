@@ -75,7 +75,7 @@ static struct x2_cnn_dev *cnn0_dev;
 static struct x2_cnn_dev *cnn1_dev;
 static int profiler_frequency;
 static int profiler_enable;
-static int brust_length = 0x80;
+static int burst_length = 0x80;
 static int fc_time_enable;
 static int ratio0;
 static int ratio1;
@@ -149,7 +149,6 @@ int fc_fifo_stat_info(struct seq_file *m, void *data)
 		   fc_tail_flag,
 		   inst_num,
 		   atomic_read(&dev->wait_fc_cnt));
-
 
 	return 0;
 }
@@ -317,7 +316,7 @@ static int x2_cnn_hw_init(struct x2_cnn_dev *dev)
 {
 
 	/* Config axi write master */
-	x2_cnnbus_wm_set(dev, X2_CNNBUS_CTRL_WM_0, brust_length, 0xf, 0x1);
+	x2_cnnbus_wm_set(dev, X2_CNNBUS_CTRL_WM_0, burst_length, 0xf, 0x1);
 	x2_cnnbus_wm_set(dev, X2_CNNBUS_CTRL_WM_1, 0x80, 0xf, 0x2);
 	x2_cnnbus_wm_set(dev, X2_CNNBUS_CTRL_WM_2, 0x8, 0x0, 0x3);
 	x2_cnnbus_wm_set(dev, X2_CNNBUS_CTRL_WM_3, 0x80, 0x0, 0x4);
@@ -1058,6 +1057,10 @@ static int x2_cnn_open(struct inode *inode, struct file *filp)
 
 	if (!(devdata->ref_cnt++)) {
 		devdata->zero_int_cnt = 0;
+		devdata->time_head = 0;
+		devdata->time_tail = 0;
+		memset(devdata->fc_time, 0 ,
+		       FC_TIME_CNT * sizeof(struct x2_fc_time));
 #ifdef CHECK_IRQ_LOST
 		if ((devdata->core_index && checkirq1_enable) ||
 			(devdata->core_index == 0 && checkirq0_enable)) {
@@ -1382,12 +1385,15 @@ static void x2_cnn_do_tasklet(unsigned long data)
 	int_cnt = dev->real_int_cnt;
 	dev->real_int_cnt = 0;
 	spin_unlock_irqrestore(&dev->cnn_spin_lock, flags);
-
 	if (fc_time_enable) {
 		int head_tmp;
 
-		do {
+		while (int_cnt--) {
 			spin_lock(&dev->set_time_lock);
+			if (dev->time_head == dev->time_tail) {
+				spin_unlock(&dev->set_time_lock);
+				break;
+			}
 			do_gettimeofday(&dev->fc_time[dev->time_head].end_time);
 			head_tmp = dev->time_head + 1;
 			head_tmp %= FC_TIME_CNT;
@@ -1404,7 +1410,7 @@ static void x2_cnn_do_tasklet(unsigned long data)
 			dev->time_head++;
 			dev->time_head %= FC_TIME_CNT;
 			spin_unlock(&dev->set_time_lock);
-		} while (--int_cnt);
+		}
 	}
 	if (atomic_read(&dev->wait_fc_cnt) == 0 &&
 	    atomic_read(&dev->hw_flg))
@@ -2417,13 +2423,13 @@ static ssize_t fre_store(struct kobject *kobj, struct kobj_attribute *attr,
 	return count;
 }
 
-static ssize_t brust_len_show(struct kobject *kobj,
+static ssize_t burst_len_show(struct kobject *kobj,
 		struct kobj_attribute *attr, char *buf)
 {
-	return snprintf(buf, PAGE_SIZE, "%d\n", brust_length * 16);
+	return snprintf(buf, PAGE_SIZE, "%d\n", burst_length * 16);
 }
 
-static ssize_t brust_len_store(struct kobject *kobj,
+static ssize_t burst_len_store(struct kobject *kobj,
 		struct kobj_attribute *attr,
 		const char *buf, size_t count)
 {
@@ -2437,17 +2443,17 @@ static ssize_t brust_len_store(struct kobject *kobj,
 	}
 
 	if (tmp_val % 16 > 0) {
-		pr_err("brust len must align 16");
+		pr_err("burst len must align 16");
 	}
 
-	brust_length = tmp_val / 16;
+	burst_length = tmp_val / 16;
 
-	if (brust_length <= 0)
-		brust_length = 1;
-	else if (brust_length > 0x80)
-		brust_length = 0x80;
+	if (burst_length <= 0)
+		burst_length = 1;
+	else if (burst_length > 0x80)
+		burst_length = 0x80;
 
-	pr_info("func:%s, set brust len:%d\n", __func__, brust_length);
+	pr_info("func:%s, set burst len:%d\n", __func__, burst_length);
 
 	return count;
 }
@@ -2470,7 +2476,12 @@ static ssize_t fc_time_enable_store(struct kobject *kobj,
 				    const char *buf, size_t count)
 {
 	int ret;
+	int tmp = 0;
 
+
+	sscanf(buf, "%du", &tmp);
+	if (tmp == fc_time_enable)
+		return count;
 	lock_bpu(cnn0_dev);
 	lock_bpu(cnn1_dev);
 
@@ -2478,8 +2489,11 @@ static ssize_t fc_time_enable_store(struct kobject *kobj,
 		   sizeof(struct x2_fc_time) * FC_TIME_CNT);
 	memset(cnn1_dev->fc_time, 0,
 		   sizeof(struct x2_fc_time) * FC_TIME_CNT);
-
-	ret = sscanf(buf, "%du", &fc_time_enable);
+	cnn0_dev->time_head = 0;
+	cnn0_dev->time_tail = 0;
+	cnn1_dev->time_head = 0;
+	cnn1_dev->time_tail = 0;
+	fc_time_enable = tmp;
 	unlock_bpu(cnn0_dev);
 	unlock_bpu(cnn1_dev);
 	return count;
@@ -2561,13 +2575,17 @@ static ssize_t fc_time_show(struct x2_cnn_dev *dev, char *buf)
 	int elapse_time = 0;
 	char buf_start[24] = {0};
 	char buf_end[24] = {0};
+	int cnt = 0;
+
+	if (!fc_time_enable)
+		return sprintf(buf, "Please enable get fc time feature\n");
 
 	spin_lock_irqsave(&dev->set_time_lock, flags);
 	memcpy(tmp, dev->fc_time, sizeof(struct x2_fc_time) * FC_TIME_CNT);
 	tail = dev->time_head;
 	spin_unlock_irqrestore(&dev->set_time_lock, flags);
 
-	if (tmp[tail].start_time.tv_sec == 0)
+	if (tmp[FC_TIME_CNT - 1].start_time.tv_sec == 0)
 		head = 0;
 	else {
 		head = tail + 3;
@@ -2604,7 +2622,7 @@ static ssize_t fc_time_show(struct x2_cnn_dev *dev, char *buf)
 		sum += ret;
 		head++;
 		head %= FC_TIME_CNT;
-	} while (head != tail);
+	} while (head != tail && (++cnt < 50));
 	return sum;
 }
 
@@ -2781,8 +2799,8 @@ static struct kobj_attribute pro_frequency = __ATTR(profiler_frequency, 0664,
 						    fre_show, fre_store);
 static struct kobj_attribute pro_enable    = __ATTR(profiler_enable, 0664,
 						    enable_show, enable_store);
-static struct kobj_attribute brust_len = __ATTR(brust_len, 0664,
-						    brust_len_show, brust_len_store);
+static struct kobj_attribute burst_len = __ATTR(burst_len, 0664,
+						    burst_len_show, burst_len_store);
 static struct kobj_attribute fc_enable    = __ATTR(fc_time_enable, 0664,
 						    fc_time_enable_show,
 						    fc_time_enable_store);
@@ -2823,7 +2841,7 @@ static struct attribute *bpu_attrs[] = {
 	&pro_frequency.attr,
 	&pro_enable.attr,
 	&fc_enable.attr,
-	&brust_len.attr,
+	&burst_len.attr,
 	NULL,
 };
 static struct attribute *bpu0_attrs[] = {
