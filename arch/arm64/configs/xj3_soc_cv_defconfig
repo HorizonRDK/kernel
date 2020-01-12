@@ -380,8 +380,7 @@ CONFIG_ARCH_HOBOT=y
 # Select hobot platform configuration
 #
 # CONFIG_HOBOT_FPGA_X2 is not set
-CONFIG_HOBOT_FPGA_X3=y
-# CONFIG_HOBOT_FPGA_HAPS_X3 is not set
+# CONFIG_HOBOT_FPGA_X3 is not set
 # CONFIG_HOBOT_XJ2 is not set
 CONFIG_HOBOT_XJ3=y
 # CONFIG_HOBOT_X3 is not set
@@ -2005,11 +2004,7 @@ CONFIG_MMC_TEST=y
 # CONFIG_MMC_ARMMMCI is not set
 # CONFIG_MMC_SDHCI is not set
 CONFIG_MMC_SPI=y
-CONFIG_MMC_DW=y
-CONFIG_MMC_DW_PLTFM=y
-# CONFIG_MMC_DW_EXYNOS is not set
-# CONFIG_MMC_DW_K3 is not set
-CONFIG_MMC_DW_HOBOT=y
+# CONFIG_MMC_DW is not set
 # CONFIG_MMC_USDHI6ROL0 is not set
 # CONFIG_MMC_MTK is not set
 # CONFIG_MEMSTICK is not set
