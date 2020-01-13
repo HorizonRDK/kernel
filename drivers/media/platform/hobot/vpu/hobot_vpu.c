@@ -622,7 +622,6 @@ static long vpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 	hb_vpu_dev_t *dev;
 	hb_vpu_priv_t *priv;
 
-	vpu_debug_enter();
 	priv = filp->private_data;
 	dev = priv->vpu_dev;
 	if (!dev) {
@@ -744,7 +743,7 @@ static long vpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 			u32 intr_reason_in_q;
 			u32 interrupt_flag_in_q;
 #endif
-			vpu_debug(5, "[+]VDI_IOCTL_WAIT_INTERRUPT\n");
+			//vpu_debug(5, "[+]VDI_IOCTL_WAIT_INTERRUPT\n");
 
 			ret = copy_from_user(&info, (hb_vpu_drv_intr_t *) arg,
 					     sizeof(hb_vpu_drv_intr_t));
@@ -825,13 +824,13 @@ static long vpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 			}
 #endif
 #ifdef SUPPORT_MULTI_INST_INTR
-			vpu_debug(5, "inst_index(%d), s_interrupt_flag(%d),"
-				  "reason(0x%08lx)\n", intr_inst_index,
-				  dev->interrupt_flag[intr_inst_index],
-				  dev->interrupt_reason[intr_inst_index]);
+			//vpu_debug(5, "inst_index(%d), s_interrupt_flag(%d),"
+			//	  "reason(0x%08lx)\n", intr_inst_index,
+			//	  dev->interrupt_flag[intr_inst_index],
+			//	  dev->interrupt_reason[intr_inst_index]);
 #else
-			vpu_debug(5, "s_interrupt_flag(%d), reason(0x%08lx)\n",
-				  dev->interrupt_flag, dev->interrupt_reason);
+			//vpu_debug(5, "s_interrupt_flag(%d), reason(0x%08lx)\n",
+			//	  dev->interrupt_flag, dev->interrupt_reason);
 #endif
 
 #ifdef SUPPORT_MULTI_INST_INTR
@@ -851,7 +850,7 @@ INTERRUPT_REMAIN_IN_QUEUE:
 #endif
 			ret = copy_to_user((void __user *)arg, &info,
 					   sizeof(hb_vpu_drv_intr_t));
-			vpu_debug(5, "[-]VDI_IOCTL_WAIT_INTERRUPT\n");
+			//vpu_debug(5, "[-]VDI_IOCTL_WAIT_INTERRUPT\n");
 			if (ret != 0) {
 				return -EFAULT;
 			}
@@ -1246,7 +1245,7 @@ INTERRUPT_REMAIN_IN_QUEUE:
 				return -EINVAL;
 			}
 #endif
-			vpu_debug(5, "[-]VDI_IOCTL_WAIT_INTERRUPT\n");
+			vpu_debug(5, "[-]VDI_IOCTL_POLL_WAIT_INSTANCE\n");
 		}
 		break;
 	default:
@@ -1256,7 +1255,6 @@ INTERRUPT_REMAIN_IN_QUEUE:
 		break;
 	}
 
-	vpu_debug_leave();
 	return ret;
 }
 
@@ -1384,11 +1382,6 @@ static int vpu_release(struct inode *inode, struct file *filp)
 				dev->instance_pool.base = 0;
 			}
 
-			if (dev->common_memory.base) {
-				vpu_debug(5, "free common memory\n");
-				vpu_free_dma_buffer(dev, &dev->common_memory);
-				dev->common_memory.base = 0;
-			}
 			for (j = 0; j < MAX_NUM_VPU_INSTANCE; j++)
 				test_and_clear_bit(j, vpu_inst_bitmap);	// TODO should clear bit during every close
 		}
