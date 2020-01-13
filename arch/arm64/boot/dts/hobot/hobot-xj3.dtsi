@@ -255,7 +255,7 @@
 				<0 0xA1000000 0 0x500>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 36 4>;
-			resets = <&rst 0x50 18>;
+			resets = <&rst 0x50 20>;
 			reset-names = "i2s";
 			pinctrl-names = "default";
 			pinctrl-0 = <&i2s0_func>;
@@ -275,7 +275,7 @@
 				<0 0xA1000000 0 0x500>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 37 4>;
-			resets = <&rst 0x50 19>;
+			resets = <&rst 0x50 21>;
 			reset-names = "i2s";
 			pinctrl-names = "default";
 			pinctrl-0 = <&i2s1_func>;
@@ -310,9 +310,9 @@
 			interrupts = <0 38 4>;
 			clocks = <&i2c0_mclk>;
 			clock-names = "i2c_mclk";
-			resets = <&rst 0x50 11>;
+			resets = <&rst 0x50 10>;
 			reset-names = "i2c0";
-			#status = "disabled";
+			status = "disabled";
 			pinctrl-names = "default";
 			pinctrl-0 = <&i2c0_func>;
 		};
@@ -324,9 +324,9 @@
 			interrupts = <0 39 4>;
 			clocks = <&i2c1_mclk>;
 			clock-names = "i2c_mclk";
-			resets = <&rst 0x50 12>;
+			resets = <&rst 0x50 11>;
 			reset-names = "i2c1";
-			#status = "disabled";
+			status = "disabled";
 			pinctrl-names = "default";
 			pinctrl-0 = <&i2c1_func>;
 		};
@@ -338,9 +338,9 @@
 			interrupts = <0 40 4>;
 			clocks = <&i2c2_mclk>;
 			clock-names = "i2c_mclk";
-			resets = <&rst 0x50 13>;
+			resets = <&rst 0x50 12>;
 			reset-names = "i2c2";
-			#status = "disabled";
+			status = "disabled";
 			pinctrl-names = "default";
 			pinctrl-0 = <&i2c2_func>;
 		};
@@ -352,9 +352,9 @@
 			interrupts = <0 41 4>;
 			clocks = <&i2c3_mclk>;
 			clock-names = "i2c_mclk";
-			resets = <&rst 0x50 14>;
+			resets = <&rst 0x50 13>;
 			reset-names = "i2c3";
-			#status = "disabled";
+			status = "disabled";
 			pinctrl-names = "default";
 			pinctrl-0 = <&i2c3_func>;
 		};
@@ -366,9 +366,9 @@
 			interrupts = <0 42 4>;
 			clocks = <&i2c4_mclk>;
 			clock-names = "i2c_mclk";
-			resets = <&rst 0x50 15>;
+			resets = <&rst 0x50 14>;
 			reset-names = "i2c4";
-			#status = "disabled";
+			status = "disabled";
 			pinctrl-names = "default";
 			pinctrl-0 = <&i2c4_func>;
 		};
@@ -380,9 +380,9 @@
 			interrupts = <0 43 4>;
 			clocks = <&i2c5_mclk>;
 			clock-names = "i2c_mclk";
-			resets = <&rst 0x50 16>;
+			resets = <&rst 0x50 15>;
 			reset-names = "i2c5";
-			#status = "disabled";
+			status = "disabled";
 			pinctrl-names = "default";
 			pinctrl-0 = <&i2c5_func>;
 		};
@@ -478,7 +478,7 @@
                         memory-region = <&iar_reserved>;
                         interrupt-parent = <&gic>;
                         interrupts = <0 69 4>;
-                        resets = <&rst 0x40 6>;
+                        resets = <&rst 0x40 12>;
                         reset-names = "iar";
                         status = "disabled";
                 };
@@ -603,7 +603,7 @@
 			reg = <0 0xA5004000 0 0x1000>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 33 4>;
-			resets = <&rst 0x50 5>;
+			resets = <&rst 0x50 4>;
 			reset-names = "spi0";
 			status = "disabled";
 			pinctrl-names = "default";
@@ -883,7 +883,7 @@
 			interrupt-parent = <&gic>;
 			interrupts = <0 47 4>;
 			status = "disabled";
-			reset = <&rst 0x50 15>;
+			reset = <&rst 0x50 16>;
 			reset-names = "reset";
 			pinctrl-names = "default";
 			pinctrl-0 = <&sdio0_func>;
@@ -901,7 +901,7 @@
 			interrupt-parent = <&gic>;
 			interrupts = <0 48 4>;
 			status = "disabled";
-			reset = <&rst 0x50 16>;
+			reset = <&rst 0x50 17>;
 			reset-names = "reset";
 			pinctrl-names = "default";
 			pinctrl-0 = <&sdio1_func>;

@@ -136,11 +136,23 @@
 
 &i2c0 {
 	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	tmp75c@48 {
+		compatible = "ti,tmp75c";
+		reg = <0x48>;
+        };
 };
 &i2c1 {
 	status = "okay";
 };
 
+&i2c4 {
+	status = "okay";
+};
+&i2c5 {
+	status = "okay";
+};
 
 &pinctrl {
 	status = "okay";
