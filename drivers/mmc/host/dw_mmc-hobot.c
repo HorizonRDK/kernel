@@ -600,9 +600,9 @@ static int dw_mci_x2_switch_voltage(struct mmc_host *mmc, struct mmc_ios *ios)
 
 	if (priv->ctrl_id != DWMMC_MMC_ID) {
 		if (ios->signal_voltage == MMC_SIGNAL_VOLTAGE_330) {
-			ret = dw_mci_set_sel18(host, 0);
-		} else if (ios->signal_voltage == MMC_SIGNAL_VOLTAGE_180) {
 			ret = dw_mci_set_sel18(host, 1);
+		} else if (ios->signal_voltage == MMC_SIGNAL_VOLTAGE_180) {
+			ret = dw_mci_set_sel18(host, 0);
 		} else {
 			dev_dbg(host->dev, "voltage not supported\n");
 			return -EINVAL;

@@ -313,7 +313,7 @@
 };
 
 &sdio1 {
-	status = "disabled";
+	status = "okay";
 	bus-width = <4>;
 	no-mmc;
 	no-sdio;
@@ -322,6 +322,8 @@
 	sd-uhs-sdr25;
 	sd-uhs-sdr50;
 	sd-uhs-sdr104;
+	uhs-180v-gpio = <120>;
+	broken-cd;
 	disable-wp;
 };
 
