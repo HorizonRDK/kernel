@@ -1971,17 +1971,23 @@ int x2_cnn_probe(struct platform_device *pdev)
 		pr_err("init cnn%d debugfs failed\n", cnn_id);
 #ifndef CONFIG_HOBOT_FPGA_X3
 	/*get regulator*/
-	cnn_dev->cnn_regulator = regulator_get(cnn_dev->dev, "cnn");
-	if (IS_ERR(cnn_dev->cnn_regulator))
-		pr_info("get err1\n");
+	cnn_dev->cnn_regulator = devm_regulator_get(cnn_dev->dev, "cnn");
+	if (IS_ERR(cnn_dev->cnn_regulator)) {
+		pr_info("get regulator err\n");
+		goto err_out;
+	}
 
 	/*get cnn clock and prepare*/
 	cnn_dev->cnn_aclk = devm_clk_get(cnn_dev->dev, "cnn_aclk");
-	if (IS_ERR(cnn_dev->cnn_aclk))
+	if (IS_ERR(cnn_dev->cnn_aclk)) {
 		pr_info("get cnn0 aclock err\n");
+		goto err_out;
+	}
 	cnn_dev->cnn_mclk = devm_clk_get(cnn_dev->dev, "cnn_mclk");
-	if (IS_ERR(cnn_dev->cnn_mclk))
+	if (IS_ERR(cnn_dev->cnn_mclk)) {
 		pr_info("get cnn0 mclock err\n");
+		goto err_out;
+	}
 #endif
 	pmu = platform_get_resource(pdev, IORESOURCE_MEM, 1);
 	if (!pmu) {
@@ -2008,19 +2014,26 @@ int x2_cnn_probe(struct platform_device *pdev)
 #ifndef CONFIG_HOBOT_FPGA_X3
 	/*cnn power up*/
 	rc = regulator_enable(cnn_dev->cnn_regulator);
-	if (rc != 0)
+	if (rc != 0) {
 		dev_err(cnn_dev->dev, "regulator enalbe error\n");
+		goto err_out;
+	}
 	tmp = readl(cnn_dev->cnn_pmu);
 	tmp &= ~(1 << cnn_dev->iso_bit);
 	writel(tmp, cnn_dev->cnn_pmu);
 	udelay(5);
 	x2_cnn_reset_release(cnn_dev->cnn_rst);
 	rc = clk_prepare_enable(cnn_dev->cnn_aclk);
-	if (rc)
+	if (rc) {
 		pr_info("cnn aclock prepare error\n");
+		goto err_out;
+	}
 	rc = clk_prepare_enable(cnn_dev->cnn_mclk);
-	if (rc)
+	if (rc) {
 		pr_info("cnn mclock prepare error\n");
+		clk_unprepare(cnn_dev->cnn_aclk);
+		goto err_out;
+	}
 
 #endif
 	of_property_read_u32(np, "busy_check", &has_busy_status);
