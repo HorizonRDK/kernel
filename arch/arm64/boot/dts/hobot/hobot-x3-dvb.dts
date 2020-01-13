@@ -71,18 +71,18 @@
 		};
 
 		iar_reserved: iar_reserved@0x3D08A000 {
-			reg = <0x0 0x3D08A000 0x0 0x2F46000>;
+			reg = <0x0 0x3D08A000 0x0 0x2D46000>;
 			no-map;
 		};
 
 		/* Reserved 192K memory for function call */
 		fc_reserved: fc_reserved@0x3FDD0000 {
-			reg = <0x0 0x3FFD0000 0x0 0x00030000>;
+			reg = <0x0 0x3FDD0000 0x0 0x00030000>;
 		};
 
 		/*Reserved 2MB memory for BL31*/
 		bl31_reserved: bl31_reserved@0x40000000 {
-			reg = <0x0 0x40000000 0x0 0x200000>;
+			reg = <0x0 0x3FE00000 0x0 0x200000>;
 			no-map;
 		};
 

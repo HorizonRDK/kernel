@@ -70,7 +70,7 @@
 			no-map;
 		};
 		iar_reserved: iar_reserved@0x3D08A000 {
-			reg = <0x0 0x3D08A000 0x0 0x2F46000>;
+			reg = <0x0 0x3D08A000 0x0 0x2D46000>;
 			no-map;
 		};
 
