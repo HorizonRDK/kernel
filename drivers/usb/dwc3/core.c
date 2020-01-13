@@ -49,8 +49,8 @@
 
 #define DWC3_DEFAULT_AUTOSUSPEND_DELAY	5000 /* ms */
 
-#define HOBOT_TEST_REGISTER_RW
-#define HOBOT_FPGA_TEST_TIMING_FINETUNE
+// #define HOBOT_TEST_REGISTER_RW
+// #define HOBOT_FPGA_TEST_TIMING_FINETUNE
 /**
  * dwc3_get_dr_mode - Validates and sets dr_mode
  * @dwc: pointer to our context structure
@@ -620,6 +620,8 @@ static int dwc3_phy_setup(struct dwc3 *dwc)
 	default:
 		break;
 	}
+
+	printk("dwc->hsphy_mode = %d\n", dwc->hsphy_mode);
 
 	switch (dwc->hsphy_mode) {
 	case USBPHY_INTERFACE_MODE_UTMI:
@@ -1292,6 +1294,8 @@ static int dwc3_probe(struct platform_device *pdev)
 	void __iomem		*regs;
 	void __iomem		*regs_sys;
 
+	printk("dwc3_probe\n");
+
 	dwc = devm_kzalloc(dev, sizeof(*dwc), GFP_KERNEL);
 	if (!dwc)
 		return -ENOMEM;
@@ -1349,7 +1353,7 @@ static int dwc3_probe(struct platform_device *pdev)
 
 	hobot_usb_set_mode(dwc);
 
-	hobot_phy_reset(dwc);
+	// hobot_phy_reset(dwc);
 
 	dwc3_get_properties(dwc);
 
