@@ -20,6 +20,12 @@ menuconfig VIDEO_HOBOTC_VPU
 	---help---
 	  Say Y here to enable support for HOBOT C-series VSP driver.
 
+menuconfig VIDEO_HOBOTC_VPU_CV
+	bool "HOBOT C-series VPU encoder & decoder driver for CV"
+	default n
+	---help---
+	  Say Y here to enable support for HOBOT C-series VSP driver for CV.
+
 menuconfig V4L_PLATFORM_DRIVERS
 	bool "V4L platform devices"
 	depends on MEDIA_CAMERA_SUPPORT

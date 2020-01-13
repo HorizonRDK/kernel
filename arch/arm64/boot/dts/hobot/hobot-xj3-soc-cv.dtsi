@@ -531,7 +531,7 @@
 		};
 
 		vpu: vpu@0xA8000000 {
-			compatible = "hobot,x2a_vpu";
+			compatible = "hobot,cnm_vpu";
 			reg = <0 0xA8000000 0 0x10000>;
 			clocks = <&vpu_cclk>,<&vpu_bclk>;
 			clock-names = "vpu_cclk","vpu_bclk";
