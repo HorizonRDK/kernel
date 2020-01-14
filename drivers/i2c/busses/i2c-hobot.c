@@ -586,7 +586,7 @@ static int x2_i2c_probe(struct platform_device *pdev)
 	char i2c_name[20] = {0};
 	struct i2c_adapter *adap;
 
-	printk("x2_i2c_probe start\n");
+	printk("hobot i2c probe start\n");
 	dev = devm_kzalloc(&pdev->dev, sizeof(struct x2_i2c_dev), GFP_KERNEL);
 	if (!dev) {
 		ret = -ENOMEM;
@@ -696,17 +696,13 @@ static int x2_i2c_probe(struct platform_device *pdev)
 	 * diag ref init 
 	 */
 	dev->i2c_id = i2c_id;
-	if ((EventIdI2cController0Err + i2c_id) <= EventIdI2cController3Err) {
-		if (diag_register(ModuleDiag_i2c, EventIdI2cController0Err + i2c_id,
-				5, 300, 4000, NULL) < 0) {
-			dev_err(&pdev->dev, "i2c%d diag register fail\n",
-					EventIdI2cController0Err + i2c_id);
-		}
-	} else {
-			dev_err(&pdev->dev, "i2c event id overun:max 4,but now:%d\n",
-					EventIdI2cController0Err + i2c_id);
+	dev_info(&pdev->dev, "i2c%d diag register....\n", i2c_id);
+	if (diag_register(ModuleDiag_i2c, EventIdI2cController0Err + i2c_id,
+			5, 300, 4000, NULL) < 0) {
+		dev_err(&pdev->dev, "i2c%d diag register fail\n",
+				EventIdI2cController0Err + i2c_id);
 	}
-	printk("x2_i2c_probe done\n");
+	printk("hobot_i2c_%d probe done\n", i2c_id);
 	return 0;
 
 err_irq:
