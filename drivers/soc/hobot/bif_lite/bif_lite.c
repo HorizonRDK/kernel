@@ -163,7 +163,7 @@ void *dst, addr_t offset, int len)
 }
 
 // we can adjust this time when clear server scheme complete
-#define ERROR_SYNC_DELAY (8000)
+#define ERROR_SYNC_DELAY (1000)
 static inline int bif_tx_get_available_buffer(
 struct comm_channel *channel, int *index, int *count, int expect_count)
 {
