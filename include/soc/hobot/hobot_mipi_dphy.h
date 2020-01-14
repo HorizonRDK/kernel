@@ -35,6 +35,22 @@ typedef struct _mipi_phy_sub_s {
 	void          *param;
 } mipi_phy_sub_t;
 
+enum _mipi_dphy_type_e {
+	MIPI_DPHY_TYPE_HOST,
+	MIPI_DPHY_TYPE_DEV,
+};
+
+enum _mipi_dphy_freqrange_region_e {
+	MIPI_CFGCLKFREQRANGE,
+	MIPI_HSFREQRANGE,
+};
+
+enum _mipi_dphy_ctl_region_e {
+	MIPI_BYPASS_GEN_HSYNC_DLY_CNT,
+	MIPI_BYPASS_GEN_HSYNC_EN,
+	MIPI_DEV_SHADOW_CLEAR,
+};
+
 int32_t mipi_dphy_register(int type, int port, mipi_phy_sub_t *sub);
 int32_t mipi_dphy_unregister(int type, int port);
 
@@ -44,6 +60,13 @@ void    mipi_host_dphy_reset(void __iomem *iomem);
 int32_t mipi_dev_dphy_initialize(void __iomem *iomem, uint16_t mipiclk, uint16_t lane, uint16_t settle);
 void    mipi_dev_dphy_reset(void __iomem *iomem);
 
-struct class * mipi_dphy_class(void);
+int mipi_dphy_get_ctl(int type, int port, int region);
+int mipi_dphy_set_ctl(int type, int port, int region, int value);
+int mipi_dphy_get_freqrange(int type, int port, int region);
+int mipi_dphy_set_freqrange(int type, int port, int region, int value);
+int mipi_dphy_get_lanemode(int type, int port);
+int mipi_dphy_set_lanemode(int type, int port, int lanemode);
+
+struct class* mipi_dphy_class(void);
 
 #endif /*__HOBOT_MIPI_DPHY_H__*/

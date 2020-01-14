@@ -1,11 +1,12 @@
 /***************************************************************************
 * COPYRIGHT NOTICE
-* Copyright 2016 Horizon Robotics, Inc.
+* Copyright 2020 Horizon Robotics, Inc.
 * All rights reserved.
 ***************************************************************************/
+
 /**
- * @file     sif_utils.h
- * @brief    SIF Device head file
+ * @file     hobot_mipi_utils.h
+ * @brief    Mipi utils head file
  * @author   tarryzhang (tianyu.zhang@hobot.cc)
  * @date     2017/7/6
  * @version  V1.0
@@ -20,27 +21,26 @@
 
 #define CONFIG_MIPI_DEBUG
 
+/* should has: struct device *dev; */
 #ifdef CONFIG_MIPI_DEBUG
-#define mipiinfo(format, ...)   printk(KERN_INFO format "\n" , ##__VA_ARGS__)
-#define mipierr(format, ...)    printk(KERN_ERR format "\n" , ##__VA_ARGS__)
+#define mipiinfo(format, ...)   dev_info(dev, format "\n" , ##__VA_ARGS__)
+#define mipierr(format, ...)    dev_err(dev, format "\n" , ##__VA_ARGS__)
 #else
 #define mipiinfo(format, ...)
-#define mipierr(format, ...)    printk(KERN_ERR format "\n" , ##__VA_ARGS__)
+#define mipierr(format, ...)    dev_err(dev, format "\n" , ##__VA_ARGS__)
 #endif
 
-/* for mipi debug */
-extern unsigned int dbg_value;
+/* should has: param include dbg_value */
 #define mipidbg(format, ...)	\
 	do {						\
-		if ((dbg_value >= 1))	\
-			printk(KERN_INFO format "\n", ##__VA_ARGS__);	\
+		if (param->dbg_value > 0)	\
+			dev_dbg_ratelimited(dev, format "\n", ##__VA_ARGS__);	\
 	} while (0)
-/* for mipi debug */
 
 #define mipi_getreg(a)          readl(a)
 #define mipi_putreg(a,v)\
 	do {\
 		writel(v,a); \
-		/*mipiinfo("[mipi reg]: write %p: 0x%x", a, v);*/ \
 	} while(0)
-#endif //__X2_SIF_UTILS_H__
+
+#endif //__HOBOT_MIPI_UTILS_H__

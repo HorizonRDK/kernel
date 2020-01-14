@@ -1,10 +1,11 @@
 /***************************************************************************
 * COPYRIGHT NOTICE
-* Copyright 2016 Horizon Robotics, Inc.
+* Copyright 2020 Horizon Robotics, Inc.
 * All rights reserved.
 ***************************************************************************/
+
 /**
- * @file     mipi_dev.h
+ * @file     hobot_mipi_dev.h
  * @brief    MIPI DEV Common define
  * @author   tarryzhang (tianyu.zhang@hobot.cc)
  * @date     2017/7/6

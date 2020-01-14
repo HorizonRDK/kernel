@@ -13,25 +13,10 @@ endmenu
 
 source "drivers/media/platform/hobot/isp/Kconfig"
 
-menu "MIPI Configuration"
-config HOBOT_MIPI_HOST
-    tristate "HOBOT MIPI Host Driver"
-    help
-       Driver for the HOBOT MIPI Host
+config HOBOT_MIPI_CSI
+	bool "Hobot MIPI CSI Drivers"
+	depends on ARCH_HOBOT || ARCH_ZYNQMP
+	---help---
+	  Drivers for the Hobot MIPI CSI
 
-config HOBOT_MIPI_DEV
-    tristate "HOBOT MIPI Device Driver"
-    help
-       Driver for the HOBOT MIPI Device
-
-config HOBOT_MIPI_PHY
-    tristate "HOBOT MIPI DPHY Driver"
-    help
-       Driver for the HOBOT MIPI DPHY
-
-config HOBOT_MIPI_CLK_RECALCULATION
-    bool "ENABLE CLK ACCURACY IMPROVE"
-    default n
-    help
-       code for clk accuracy improve
-endmenu
+source "drivers/media/platform/hobot/mipi/Kconfig"

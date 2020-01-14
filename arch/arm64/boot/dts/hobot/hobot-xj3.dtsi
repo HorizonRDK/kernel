@@ -436,19 +436,49 @@
                         status = "disabled";
                 };
 
-		mipi_host: mipi_host@0xA4012000 {
-			compatible = "hobot,x2-mipi-host";
-			reg = <0 0xA4012000 0 0x1000>;
+		mipi_host0: mipi_host@0xA4350000 {
+			compatible = "hobot,mipi-host";
+			reg = <0 0xA4350000 0 0x800>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 57 4>;
 			status = "disabled";
 		};
 
-	        mipi_dev: mipi_dev@0xA4013000 {
-			compatible = "hobot,x2-mipi-dev";
-			reg = <0 0xA4013000 0 0x1000>;
+		mipi_host1: mipi_host@0xA4351000 {
+			compatible = "hobot,mipi-host";
+			reg = <0 0xA4351000 0 0x800>;
 			interrupt-parent = <&gic>;
-			interrupts = <0 49 4>;
+			interrupts = <0 58 4>;
+			status = "disabled";
+		};
+
+		mipi_host2: mipi_host@0xA4350800 {
+			compatible = "hobot,mipi-host";
+			reg = <0 0xA4350800 0 0x800>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 59 4>;
+			status = "disabled";
+		};
+
+		mipi_host3: mipi_host@0xA4351800 {
+			compatible = "hobot,mipi-host";
+			reg = <0 0xA4351800 0 0x800>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 60 4>;
+			status = "disabled";
+		};
+
+	    mipi_dev0: mipi_dev@0xA4354000 {
+			compatible = "hobot,mipi-dev";
+			reg = <0 0xA4354000 0 0x1000>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 62 4>;
+			status = "disabled";
+		};
+
+		mipi_dphy: mipi_dphy@0xA4300000 {
+			compatible = "hobot,mipi-dphy";
+			reg = <0 0xA4300000 0 0x0100>;
 			status = "disabled";
 		};
 
@@ -663,7 +693,7 @@
 			reg = <0 0xA5014000 0 0x2000>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 50 4>,<0 51 4>, <0 52 4>;
-			interrupt-names = "rx-irq", "tx-irq", "mac-irq"; 
+			interrupt-names = "rx-irq", "tx-irq", "mac-irq";
 
 			interrupt_mode = <1>;
             use_riwt = <0>;

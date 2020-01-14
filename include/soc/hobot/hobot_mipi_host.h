@@ -1,10 +1,11 @@
 /***************************************************************************
 * COPYRIGHT NOTICE
-* Copyright 2016 Horizon Robotics, Inc.
+* Copyright 2020 Horizon Robotics, Inc.
 * All rights reserved.
 ***************************************************************************/
+
 /**
- * @file     mipi_host.h
+ * @file     hobot mipi_host.h
  * @brief    MIPI HOST Common define
  * @author   tarryzhang (tianyu.zhang@hobot.cc)
  * @date     2017/7/6
@@ -16,9 +17,11 @@
 
 #include <linux/types.h>
 
-#define MIPIHOST_CHANNEL_NUM (2)
+#define MIPIHOST_CHANNEL_NUM (4)
 #define MIPIHOST_CHANNEL_0   (0)
 #define MIPIHOST_CHANNEL_1   (1)
+#define MIPIHOST_CHANNEL_2   (2)
+#define MIPIHOST_CHANNEL_3   (3)
 
 typedef struct _mipi_host_cfg_t {
 	uint16_t lane;

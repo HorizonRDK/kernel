@@ -1,21 +1,14 @@
 /***************************************************************************
 * COPYRIGHT NOTICE
-* Copyright 2016 Horizon Robotics, Inc.
+* Copyright 2020 Horizon Robotics, Inc.
 * All rights reserved.
 ***************************************************************************/
-/**
- * @file     mipi_host_control_regs.h
- * @brief    MIPI HOST controler regs addr
- * @author   tarryzhang (tianyu.zhang@hobot.cc)
- * @date     2017/7/6
- * @version  V1.0
- * @par      Horizon Robotics
- */
+
 #ifndef __HOBOT_MIPI_HOST_REGS_H__
 #define __HOBOT_MIPI_HOST_REGS_H__
 
 /*************************************************
-*  MIPI register offset
+*  MIPI host register offset
 **************************************************/
 #define REG_MIPI_HOST_VERSION                  (0x00)
 #define REG_MIPI_HOST_N_LANES                  (0x04)
@@ -69,6 +62,12 @@
 #define REG_MIPI_HOST_INT_ST_IPI2              (0x150)
 #define REG_MIPI_HOST_INT_MSK_IPI2             (0x154)
 #define REG_MIPI_HOST_INT_FORCE_IPI2           (0x158)
+#define REG_MIPI_HOST_INT_ST_IPI3              (0x160)
+#define REG_MIPI_HOST_INT_MSK_IPI3             (0x164)
+#define REG_MIPI_HOST_INT_FORCE_IPI3           (0x168)
+#define REG_MIPI_HOST_INT_ST_IPI4              (0x170)
+#define REG_MIPI_HOST_INT_MSK_IPI4             (0x174)
+#define REG_MIPI_HOST_INT_FORCE_IPI4           (0x178)
 #define REG_MIPI_HOST_IPI2_MODE                (0x200)
 #define REG_MIPI_HOST_IPI2_VCID                (0x204)
 #define REG_MIPI_HOST_IPI2_DATA_TYPE           (0x208)
@@ -77,5 +76,33 @@
 #define REG_MIPI_HOST_IPI2_HBP_TIME            (0x214)
 #define REG_MIPI_HOST_IPI2_HSD_TIME            (0x218)
 #define REG_MIPI_HOST_IPI2_ADV_FEATURES        (0x21c)
+#define REG_MIPI_HOST_IPI3_MODE                (0x220)
+#define REG_MIPI_HOST_IPI3_VCID                (0x224)
+#define REG_MIPI_HOST_IPI3_DATA_TYPE           (0x228)
+#define REG_MIPI_HOST_IPI3_MEM_FLUSH           (0x22c)
+#define REG_MIPI_HOST_IPI3_HSA_TIME            (0x230)
+#define REG_MIPI_HOST_IPI3_HBP_TIME            (0x234)
+#define REG_MIPI_HOST_IPI3_HSD_TIME            (0x238)
+#define REG_MIPI_HOST_IPI3_ADV_FEATURES        (0x23c)
+#define REG_MIPI_HOST_IPI4_MODE                (0x240)
+#define REG_MIPI_HOST_IPI4_VCID                (0x244)
+#define REG_MIPI_HOST_IPI4_DATA_TYPE           (0x248)
+#define REG_MIPI_HOST_IPI4_MEM_FLUSH           (0x24c)
+#define REG_MIPI_HOST_IPI4_HSA_TIME            (0x250)
+#define REG_MIPI_HOST_IPI4_HBP_TIME            (0x254)
+#define REG_MIPI_HOST_IPI4_HSD_TIME            (0x258)
+#define REG_MIPI_HOST_IPI4_ADV_FEATURES        (0x25c)
+#define REG_MIPI_HOST_INT_ST_BNDRY_FRAME_FATAL (0x280)
+#define REG_MIPI_HOST_INT_MSK_BNDRY_FRAME_FATAL (0x284)
+#define REG_MIPI_HOST_INT_ST_SEQ_FRAME_FATAL   (0x290)
+#define REG_MIPI_HOST_INT_MSK_SEQ_FRAME_FATAL  (0x294)
+#define REG_MIPI_HOST_INT_ST_CRC_FRAME_FATAL   (0x2A0)
+#define REG_MIPI_HOST_INT_MSK_CRC_FRAME_FATAL  (0x2A4)
+#define REG_MIPI_HOST_INT_ST_PLD_CRC_FATAL     (0x2B0)
+#define REG_MIPI_HOST_INT_MSK_PLD_CRC_FATAL    (0x2B4)
+#define REG_MIPI_HOST_INT_ST_DATA_ID           (0x2C0)
+#define REG_MIPI_HOST_INT_MSK_DATA_ID          (0x2C4)
+#define REG_MIPI_HOST_INT_ST_ECC_CORRECT       (0x2D0)
+#define REG_MIPI_HOST_INT_MSK_ECC_CORRECT      (0x2D4)
 
 #endif //__HOBOT_MIPI_HOST_REGS_H__

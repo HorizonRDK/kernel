@@ -19,4 +19,4 @@ obj-$(CONFIG_HOBOT_VIO) += ipu/
 obj-$(CONFIG_HOBOT_VIO) += pym/
 #obj-$(CONFIG_HOBOT_VIO) += gdc/
 
-obj-y += mipi/
+obj-$(CONFIG_HOBOT_MIPI_CSI) += mipi/

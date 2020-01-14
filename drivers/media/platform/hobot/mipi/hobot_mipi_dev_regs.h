@@ -1,3 +1,9 @@
+/***************************************************************************
+* COPYRIGHT NOTICE
+* Copyright 2020 Horizon Robotics, Inc.
+* All rights reserved.
+***************************************************************************/
+
 #ifndef __HOBOT_MIPI_DEV_REGS_H__
 #define __HOBOT_MIPI_DEV_REGS_H__
 
