@@ -1694,7 +1694,7 @@ static int x2_cnnfreq_register(struct x2_cnn_dev *cnn_dev)
 	data->volt = regulator_get_voltage(cnn_dev->cnn_regulator);
 
 	if (of_property_read_string(dev->of_node, "governor", &gov_name))
-		gov_name = "performance";
+		gov_name = "userspace";
 
 	data->devfreq = devm_devfreq_add_device(dev, devp, gov_name, NULL);
 	if (IS_ERR(data->devfreq))
