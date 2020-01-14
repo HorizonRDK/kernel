@@ -27,7 +27,7 @@
 #include "hobot_vpu_reg.h"
 #include "hobot_vpu_utils.h"
 
-int vpu_debug_flag = 7;
+int vpu_debug_flag = 5;
 
 #ifdef VPU_SUPPORT_RESERVED_VIDEO_MEMORY
 #define VPU_INIT_VIDEO_MEMORY_SIZE_IN_BYTE (62*1024*1024)
@@ -250,16 +250,16 @@ static u32 vpu_get_inst_idx(hb_vpu_dev_t * dev, u32 * reason,
 	u32 inst_idx;
 	u32 reg_val;
 	u32 int_reason;
-	vpu_debug_enter();
+
 	int_reason = *reason;
-	vpu_debug(5, "int_reason=0x%x, empty_inst=0x%x, done_inst=0x%x\n",
+	vpu_debug(7, "int_reason=0x%x, empty_inst=0x%x, done_inst=0x%x\n",
 		  int_reason, empty_inst, done_inst);
 
 	if (int_reason & (1 << INT_WAVE5_BSBUF_EMPTY)) {
 		reg_val = (empty_inst & 0xffff);
 		inst_idx = vpu_filter_inst_idx(reg_val);
 		*reason = (1 << INT_WAVE5_BSBUF_EMPTY);
-		vpu_debug(5, "W5_RET_BS_EMPTY_INST reg_val=0x%x, inst_idx=%d\n",
+		vpu_debug(7, "W5_RET_BS_EMPTY_INST reg_val=0x%x, inst_idx=%d\n",
 			  reg_val, inst_idx);
 		goto GET_VPU_INST_IDX_HANDLED;
 	}
@@ -268,7 +268,7 @@ static u32 vpu_get_inst_idx(hb_vpu_dev_t * dev, u32 * reason,
 		reg_val = (done_inst & 0xffff);
 		inst_idx = vpu_filter_inst_idx(reg_val);
 		*reason = (1 << INT_WAVE5_INIT_SEQ);
-		vpu_debug(5, "W5_RET_QUEUE_CMD_DONE_INST INIT_SEQ reg_val=0x%x,"
+		vpu_debug(7, "W5_RET_QUEUE_CMD_DONE_INST INIT_SEQ reg_val=0x%x,"
 			  "inst_idx=%d\n", reg_val, inst_idx);
 		goto GET_VPU_INST_IDX_HANDLED;
 	}
@@ -277,7 +277,7 @@ static u32 vpu_get_inst_idx(hb_vpu_dev_t * dev, u32 * reason,
 		reg_val = (done_inst & 0xffff);
 		inst_idx = vpu_filter_inst_idx(reg_val);
 		*reason = (1 << INT_WAVE5_DEC_PIC);
-		vpu_debug(5, "W5_RET_QUEUE_CMD_DONE_INST DEC_PIC reg_val=0x%x,"
+		vpu_debug(7, "W5_RET_QUEUE_CMD_DONE_INST DEC_PIC reg_val=0x%x,"
 			  "inst_idx=%d\n", reg_val, inst_idx);
 
 		if (int_reason & (1 << INT_WAVE5_ENC_LOW_LATENCY)) {
@@ -288,7 +288,7 @@ static u32 vpu_get_inst_idx(hb_vpu_dev_t * dev, u32 * reason,
 				*reason =
 				    ((1 << INT_WAVE5_DEC_PIC) |
 				     (1 << INT_WAVE5_ENC_LOW_LATENCY));
-			vpu_debug(5,
+			vpu_debug(7,
 				  "W5_RET_QUEUE_CMD_DONE_INST DEC_PIC and"
 				  "ENC_LOW_LATENCY reg_val=0x%x, inst_idx=%d, ll_inst_idx=%d\n",
 				  reg_val, inst_idx, ll_inst_idx);
@@ -300,7 +300,7 @@ static u32 vpu_get_inst_idx(hb_vpu_dev_t * dev, u32 * reason,
 		reg_val = (done_inst & 0xffff);
 		inst_idx = vpu_filter_inst_idx(reg_val);
 		*reason = (1 << INT_WAVE5_ENC_SET_PARAM);
-		vpu_debug(5,
+		vpu_debug(7,
 			  "W5_RET_QUEUE_CMD_DONE_INST ENC_SET_PARAM reg_val=0x%x,"
 			  "inst_idx=%d\n", reg_val, inst_idx);
 		goto GET_VPU_INST_IDX_HANDLED;
@@ -310,7 +310,7 @@ static u32 vpu_get_inst_idx(hb_vpu_dev_t * dev, u32 * reason,
 		reg_val = (done_inst & 0xffff);
 		inst_idx = vpu_filter_inst_idx(reg_val);
 		*reason = (1 << INT_WAVE5_ENC_SRC_RELEASE);
-		vpu_debug(5, "W5_RET_QUEUE_CMD_DONE_INST ENC_SET_PARAM "
+		vpu_debug(7, "W5_RET_QUEUE_CMD_DONE_INST ENC_SET_PARAM "
 			  "reg_val=0x%x, inst_idx=%d\n", reg_val, inst_idx);
 		goto GET_VPU_INST_IDX_HANDLED;
 	}
@@ -320,7 +320,7 @@ static u32 vpu_get_inst_idx(hb_vpu_dev_t * dev, u32 * reason,
 		reg_val = (done_inst >> 16);
 		inst_idx = vpu_filter_inst_idx(reg_val);
 		*reason = (1 << INT_WAVE5_ENC_LOW_LATENCY);
-		vpu_debug(5, "W5_RET_QUEUE_CMD_DONE_INST ENC_LOW_LATENCY"
+		vpu_debug(7, "W5_RET_QUEUE_CMD_DONE_INST ENC_LOW_LATENCY"
 			  "reg_val=0x%x, inst_idx=%d\n", reg_val, inst_idx);
 		goto GET_VPU_INST_IDX_HANDLED;
 	}
@@ -328,11 +328,10 @@ static u32 vpu_get_inst_idx(hb_vpu_dev_t * dev, u32 * reason,
 	reg_val = (other_inst & 0xFF);
 	inst_idx = reg_val;
 	*reason = int_reason;
-	vpu_debug(5, "W5_RET_DONE_INSTANCE_INFO reg_val=0x%x, inst_idx=%d\n",
+	vpu_debug(7, "W5_RET_DONE_INSTANCE_INFO reg_val=0x%x, inst_idx=%d\n",
 		  reg_val, inst_idx);
 
 GET_VPU_INST_IDX_HANDLED:
-	vpu_debug_leave();
 
 	return inst_idx;
 }
@@ -349,7 +348,6 @@ static irqreturn_t vpu_irq_handler(int irq, void *dev_id)
 	u32 intr_reason = 0;
 	u32 intr_inst_index = 0;
 #endif
-	vpu_debug_enter();
 
 #ifdef VPU_IRQ_CONTROL
 	disable_irq_nosync(dev->irq);
@@ -378,7 +376,7 @@ static irqreturn_t vpu_irq_handler(int irq, void *dev_id)
 				other_inst =
 				    VPU_READL(W5_RET_DONE_INSTANCE_INFO);
 
-				vpu_debug(5, "vpu_irq_handler reason=0x%x, "
+				vpu_debug(7, "vpu_irq_handler reason=0x%x, "
 					  "empty_inst=0x%x, done_inst=0x%x, other_inst=0x%x \n",
 					  intr_reason, empty_inst, done_inst,
 					  other_inst);
@@ -396,7 +394,7 @@ static irqreturn_t vpu_irq_handler(int irq, void *dev_id)
 								   intr_inst_index);
 						VPU_WRITEL(W5_RET_BS_EMPTY_INST,
 							   empty_inst);
-						vpu_debug(5,
+						vpu_debug(7,
 							  "W5_RET_BS_EMPTY_INST Clear "
 							  "empty_inst=0x%x, intr_inst_index=%d\n",
 							  empty_inst,
@@ -415,7 +413,7 @@ static irqreturn_t vpu_irq_handler(int irq, void *dev_id)
 						VPU_WRITEL
 						    (W5_RET_QUEUE_CMD_DONE_INST,
 						     done_inst);
-						vpu_debug(5,
+						vpu_debug(7,
 							  "W5_RET_QUEUE_CMD_DONE_INST "
 							  "Clear done_inst=0x%x, intr_inst_index=%d\n",
 							  done_inst,
@@ -432,7 +430,7 @@ static irqreturn_t vpu_irq_handler(int irq, void *dev_id)
 						VPU_WRITEL
 						    (W5_RET_QUEUE_CMD_DONE_INST,
 						     done_inst);
-						vpu_debug(5,
+						vpu_debug(7,
 							  "W5_RET_QUEUE_CMD_DONE_INST "
 							  "INT_WAVE5_ENC_LOW_LATENCY Clear "
 							  "done_inst=0x%x, intr_inst_index=%d\n",
@@ -504,15 +502,15 @@ static irqreturn_t vpu_irq_handler(int irq, void *dev_id)
 				VPU_WRITEL(BIT_INT_CLEAR, 0x1);
 			}
 		} else {
-			vpu_debug(5, "Unknown product id : %08x\n",
+			vpu_debug(7, "Unknown product id : %08x\n",
 				  product_code);
 			continue;
 		}
 #ifdef SUPPORT_MULTI_INST_INTR
-		vpu_debug(5, "product: 0x%08x intr_reason: 0x%08x\n\n",
+		vpu_debug(7, "product: 0x%08x intr_reason: 0x%08x\n\n",
 			  product_code, intr_reason);
 #else
-		vpu_debug(5, "product: 0x%08x intr_reason: 0x%08lx\n",
+		vpu_debug(7, "product: 0x%08x intr_reason: 0x%08lx\n",
 			  product_code, dev->interrupt_reason);
 #endif
 	}
@@ -539,7 +537,6 @@ static irqreturn_t vpu_irq_handler(int irq, void *dev_id)
 	dev->interrupt_flag = 1;
 	wake_up_interruptible(&dev->interrupt_wait_q);
 #endif
-	vpu_debug_leave();
 
 	return IRQ_HANDLED;
 }
