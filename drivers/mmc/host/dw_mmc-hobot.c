@@ -641,7 +641,7 @@ static int dw_mci_x2_switch_voltage(struct mmc_host *mmc, struct mmc_ios *ios)
 
 /* Common capabilities of X2 SoC */
 static unsigned long dw_mci_x2_dwmmc_caps[4] = {
-	MMC_CAP_8_BIT_DATA | MMC_CAP_CMD23,
+	MMC_CAP_CMD23,
 	MMC_CAP_CMD23,
 	MMC_CAP_CMD23,
 	MMC_CAP_CMD23,
