@@ -233,6 +233,20 @@
 			status = "disabled";
 		};
 
+		usb: usb@0xB2000000 {
+			compatible = "hobot,usb";
+			reg = <0 0xB2000000 0 0x10000>,
+			  <0 0xA1000000 0 0x1000>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 26 4>;
+			/* dr_mode: {gadget, host, otg} */
+			dr_mode = "host";
+			/* phy_type: {utmi, utmi_wide, ulpi, serial, hsic} */
+			phy_type = "utmi_wide";
+			/*snps,dis_u2_susphy_quirk; */
+			status = "okay";
+		};
+
 		i2s0: i2s@0xA5007000 {
 			compatible = "hobot,x2-i2s";
 			reg = <0 0xA5007000 0 0x100>,
