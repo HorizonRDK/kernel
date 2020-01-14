@@ -250,7 +250,7 @@ static int __devinit spacc_probe(struct platform_device *pdev)
    struct spacc_priv   *priv;
    pdu_info     info;
 
-   dev_info(&pdev->dev, "probe called!\n");
+   dev_dbg(&pdev->dev, "probe called!\n");
 
    /* Initialize DDT DMA pools based on this device's resources */
    if (pdu_mem_init(&pdev->dev)) {
@@ -271,8 +271,8 @@ static int __devinit spacc_probe(struct platform_device *pdev)
       return -ENOMEM;
    }
 
-   printk("spacc_probe: Device at %pR\n", mem);
-   printk("spacc_probe: Device at %pR\n", irq);
+   dev_dbg(&pdev->dev, "spacc_probe: Device at %pR\n", mem);
+   pr_debug("spacc_probe: Device at %pR\n", irq);
    baseaddr = pdu_linux_map_regs(&pdev->dev, mem);
    if (IS_ERR(baseaddr)) {
       dev_err(&pdev->dev, "unable to map iomem\n");
@@ -280,7 +280,7 @@ static int __devinit spacc_probe(struct platform_device *pdev)
    }
 
    x = pdev->id;
-   dev_info(&pdev->dev, "EPN %04X : virt [%d] \n", (x >> 16) & 0xFFFF, x & 0xF);
+   dev_dbg(&pdev->dev, "EPN %04X : virt [%d] \n", (x >> 16) & 0xFFFF, x & 0xF);
 
    pdu_get_version(baseaddr, &info);
    if (pdev->dev.platform_data) {
@@ -290,7 +290,7 @@ static int __devinit spacc_probe(struct platform_device *pdev)
 
    err = spacc_init (baseaddr, &priv->spacc, &info);
    if (err != CRYPTO_OK) {
-      printk("spacc_probe::Failed to initialize device %d...\n", x);
+      dev_err(&pdev->dev, "spacc_probe::Failed to initialize device %d...\n", x);
       return -ENXIO;
    }
 
@@ -299,7 +299,6 @@ static int __devinit spacc_probe(struct platform_device *pdev)
       spacc_fini(&priv->spacc);
       return -1;
    }
-
 
    spin_lock_init(&priv->hw_lock);
    spacc_irq_glbl_disable (&priv->spacc);
@@ -335,7 +334,7 @@ static int __devinit spacc_probe(struct platform_device *pdev)
       // used to set lower latency mode on newer SPAcc device v4.11 and up
       // set above during autodetect
       priv->spacc.op_mode     = SPACC_OP_MODE_IRQ;
-      printk("spacc:: Using low latency IRQ mode\n");
+      pr_debug("spacc:: Using low latency IRQ mode\n");
    } else {
       if (priv->spacc.op_mode == SPACC_OP_MODE_IRQ) {
          priv->spacc.irq_cb_stat = spacc_stat_process;

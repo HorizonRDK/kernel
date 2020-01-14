@@ -44,7 +44,7 @@
 # ------------------------------------------------------------------------
 
 
-EXTRA_CFLAGS += -I../pdu/ -I../core/ -DDEBUG
+EXTRA_CFLAGS += -I../pdu/ -I../core/
 
 elprsa-objs := pka.o class.o elppka.o firmware.o
 obj-$(CONFIG_CRYPTO_DEV_HOBOT_RSA)  += elprsa.o

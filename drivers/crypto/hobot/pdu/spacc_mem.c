@@ -66,7 +66,7 @@ static int spdu_init(unsigned long baseaddr, pdu_info *info)
 {
    void *pdu_mem;
 
-   pr_info("SPAcc-PDU base address: %.8lx\n", baseaddr);
+   pr_debug("SPAcc-PDU base address: %.8lx\n", baseaddr);
 
    pdu_mem = ioremap_nocache(baseaddr, 0x1000);
    if (!pdu_mem)
@@ -188,40 +188,39 @@ static int __init pdu_vex_mod_init(void)
    if (!pdu_mem)
       return -ENOMEM;
 
+   pr_debug("irq_num             = %d\n", irq_num);
+   pr_debug("info.spacc_config.num_ctx             = %d\n", info.spacc_config.num_ctx          );
+   pr_debug("info.spacc_config.num_rc4_ctx         = %d\n", info.spacc_config.num_rc4_ctx      );
+   pr_debug("info.spacc_config.num_vspacc          = %d\n", info.spacc_config.num_vspacc           );
+   pr_debug("info.spacc_config.ciph_ctx_page_size  = %d\n", info.spacc_config.ciph_ctx_page_size   );
+   pr_debug("info.spacc_config.hash_ctx_page_size  = %d\n", info.spacc_config.hash_ctx_page_size   );
+   pr_debug("info.spacc_config.dma_type            = %d\n", info.spacc_config.dma_type         );
+   pr_debug("info.spacc_config.cmd0_fifo_depth     = %d\n", info.spacc_config.cmd0_fifo_depth  );
+   pr_debug("info.spacc_config.cmd1_fifo_depth     = %d\n", info.spacc_config.cmd1_fifo_depth  );
+   pr_debug("info.spacc_config.cmd2_fifo_depth     = %d\n", info.spacc_config.cmd2_fifo_depth  );
+   pr_debug("info.spacc_config.stat_fifo_depth     = %d\n", info.spacc_config.stat_fifo_depth  );
 
-	pr_err("irq_num             = %d\n", irq_num);
-	pr_err("info.spacc_config.num_ctx             = %d\n", info.spacc_config.num_ctx          );
-	pr_err("info.spacc_config.num_rc4_ctx         = %d\n", info.spacc_config.num_rc4_ctx      );
-	pr_err("info.spacc_config.num_vspacc          = %d\n", info.spacc_config.num_vspacc           );
-	pr_err("info.spacc_config.ciph_ctx_page_size  = %d\n", info.spacc_config.ciph_ctx_page_size   );
-	pr_err("info.spacc_config.hash_ctx_page_size  = %d\n", info.spacc_config.hash_ctx_page_size   );
-	pr_err("info.spacc_config.dma_type            = %d\n", info.spacc_config.dma_type         );
-	pr_err("info.spacc_config.cmd0_fifo_depth     = %d\n", info.spacc_config.cmd0_fifo_depth  );
-	pr_err("info.spacc_config.cmd1_fifo_depth     = %d\n", info.spacc_config.cmd1_fifo_depth  );
-	pr_err("info.spacc_config.cmd2_fifo_depth     = %d\n", info.spacc_config.cmd2_fifo_depth  );
-	pr_err("info.spacc_config.stat_fifo_depth     = %d\n", info.spacc_config.stat_fifo_depth  );
-
-	pr_err("info.pdu_config.minor   = %d\n",  info.pdu_config.minor );
-	pr_err("info.pdu_config.major   = %d\n",  info.pdu_config.major );
-	pr_err("info.pdu_config.is_rng  = %d\n",  info.pdu_config.is_rng);
-	pr_err("info.pdu_config.is_pka  = %d\n",  info.pdu_config.is_pka);
-	pr_err("info.pdu_config.is_re   = %d\n",  info.pdu_config.is_re );
-	pr_err("info.pdu_config.is_kep  = %d\n",  info.pdu_config.is_kep);
-	pr_err("info.pdu_config.is_ea   = %d\n",  info.pdu_config.is_ea );
-	pr_err("info.pdu_config.is_mpm  = %d\n",  info.pdu_config.is_mpm);
+   pr_debug("info.pdu_config.minor   = %d\n",  info.pdu_config.minor );
+   pr_debug("info.pdu_config.major   = %d\n",  info.pdu_config.major );
+   pr_debug("info.pdu_config.is_rng  = %d\n",  info.pdu_config.is_rng);
+   pr_debug("info.pdu_config.is_pka  = %d\n",  info.pdu_config.is_pka);
+   pr_debug("info.pdu_config.is_re   = %d\n",  info.pdu_config.is_re );
+   pr_debug("info.pdu_config.is_kep  = %d\n",  info.pdu_config.is_kep);
+   pr_debug("info.pdu_config.is_ea   = %d\n",  info.pdu_config.is_ea );
+   pr_debug("info.pdu_config.is_mpm  = %d\n",  info.pdu_config.is_mpm);
 
 
-	pr_err("info.spacc_version.minor = %d\n",  	 info.spacc_version.minor );
-	pr_err("info.spacc_version.major = %d\n",  	 info.spacc_version.major );
-	pr_err("info.spacc_version.version= %d\n",   info.spacc_version.version);
-	pr_err("info.spacc_version.qos   = %d\n",  	 info.spacc_version.qos);
-	pr_err("info.spacc_version.is_spacc = %d\n", info.spacc_version.is_spacc );
-	pr_err("info.spacc_version.is_pdu = %d\n",  	info.spacc_version.is_pdu);
-	pr_err("info.spacc_version.is_hsm = %d\n",  info.spacc_version.is_hsm );
-	pr_err("info.spacc_version.idxidx = %d\n",  info.spacc_version.vspacc_idx);
-	pr_err("info.spacc_version.partial = %d\n",  info.spacc_version.partial);
-	pr_err("info.spacc_version.project = %d\n",  info.spacc_version.project);
-	pr_err("info.spacc_version.ivimport= %d\n", info.spacc_version.ivimport);
+   pr_debug("info.spacc_version.minor = %d\n",    info.spacc_version.minor );
+   pr_debug("info.spacc_version.major = %d\n",    info.spacc_version.major );
+   pr_debug("info.spacc_version.version= %d\n",   info.spacc_version.version);
+   pr_debug("info.spacc_version.qos   = %d\n",    info.spacc_version.qos);
+   pr_debug("info.spacc_version.is_spacc = %d\n", info.spacc_version.is_spacc );
+   pr_debug("info.spacc_version.is_pdu = %d\n",      info.spacc_version.is_pdu);
+   pr_debug("info.spacc_version.is_hsm = %d\n",  info.spacc_version.is_hsm );
+   pr_debug("info.spacc_version.idxidx = %d\n",  info.spacc_version.vspacc_idx);
+   pr_debug("info.spacc_version.partial = %d\n",  info.spacc_version.partial);
+   pr_debug("info.spacc_version.project = %d\n",  info.spacc_version.project);
+   pr_debug("info.spacc_version.ivimport= %d\n", info.spacc_version.ivimport);
 
 
    for (i = 0; i < info.spacc_config.num_vspacc; i++) {
@@ -318,7 +317,6 @@ static int __init pdu_vex_mod_init(void)
             .end   = 0xA1018000 + 131072-1,
             .flags = IORESOURCE_MEM,
          };
-         printk("pka register!!!!\n");
          pdu_io_write32(pdu_mem, pdu_io_read32(pdu_mem) | PDU_IRQ_EN_PKA);
          register_device("pka", -1, res, 2, &info);
       //}
@@ -341,7 +339,6 @@ static int __init pdu_vex_mod_init(void)
             pr_err("IRQ setup failed (error %d), not using IRQs\n", irq_num);
          }
       
-         printk("pka register!!!!\n");
          pdu_io_write32(pdu_mem, pdu_io_read32(pdu_mem) | PDU_IRQ_EN_PKA);
          register_device("pka", -1, res, 2, &info);
 

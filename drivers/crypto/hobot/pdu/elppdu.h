@@ -75,7 +75,7 @@
       #define __devinitconst
 #endif
 
-#if 1
+#if 0
 #define ELPHW_PRINT printk
 #else
 #define ELPHW_PRINT(...)

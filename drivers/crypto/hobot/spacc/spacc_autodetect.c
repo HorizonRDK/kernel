@@ -593,7 +593,7 @@ int spacc_autodetect(spacc_device *spacc)
    int proclen, aadlen, ivsize, x, y, h, err, enc, hash;
    unsigned char key[64];
 
-   printk("spacc->config.version: %04x,  spacc->config.project:0x%04x\n", 
+   pr_debug("spacc->config.version: %04x,  spacc->config.project:0x%04x\n",
    			spacc->config.version, spacc->config.project);
 
    if (spacc->config.version < 0x47) {
@@ -684,7 +684,7 @@ int spacc_autodetect(spacc_device *spacc)
              modes[CRYPTO_MODE_SSLMAC_SHA1]     = 128|4;          // 20
              return 0;
          default:
-             printk("spacc::This device does not support autodetect\n");
+             pr_info("spacc::This device does not support autodetect\n");
              return -1;
        }
    }
@@ -820,7 +820,6 @@ int spacc_autodetect(spacc_device *spacc)
 #endif
                } else {
                   pr_debug("spacc_kernel_autodetect::Detected %-20s with keysize %3d-bits\n", names[x], keysizes[template[x]>>7][y]*8);
-                  printk("spacc_kernel_autodetect::Detected %-20s with keysize %3d-bits\n", names[x], keysizes[template[x]>>7][y]*8);
                }
                spacc_close(spacc, h);
             }

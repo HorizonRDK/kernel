@@ -822,15 +822,15 @@ static void __devinit elpclp800_describe_device(struct device *dev)
 {
    struct elpclp800_priv *priv = dev_get_drvdata(dev);
 
-   dev_info(dev, "EPN-%.4hx Random Number Generator (stepping: %hx)\n",
+   dev_dbg(dev, "EPN-%.4hx Random Number Generator (stepping: %hx)\n",
                  priv->elpclp800.epn, priv->elpclp800.stepping);
 
    if (priv->elpclp800.output_len > 16)
-      dev_info(dev, "Supports %u-bit output mode\n", 8u*priv->elpclp800.output_len);
+      dev_dbg(dev, "Supports %u-bit output mode\n", 8u*priv->elpclp800.output_len);
    if (priv->elpclp800.rings_avail)
-      dev_info(dev, "Supports true random reseed function\n");
+      dev_dbg(dev, "Supports true random reseed function\n");
    if (priv->elpclp800.diag_level)
-      dev_info(dev, "Supports level %hu diagnostics\n", priv->elpclp800.diag_level);
+      dev_dbg(dev, "Supports level %hu diagnostics\n", priv->elpclp800.diag_level);
 }
 
 static int __devinit elpclp800_probe(struct platform_device *pdev)
@@ -839,8 +839,6 @@ static int __devinit elpclp800_probe(struct platform_device *pdev)
    struct elpclp800_priv *priv;
    void __iomem *regbase;
    int rc;
-
-   printk("%s\n", __func__);
 
    mem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
    if (!mem || resource_size(mem) < CLP800_REG_MAX)
