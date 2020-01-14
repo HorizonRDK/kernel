@@ -41,6 +41,11 @@
 		bifsd   = &bifsd;
 		mmc0	= &sdio0;
 		dma	= &dma;
+		mipihost0 = &mipi_host0;
+		mipihost1 = &mipi_host1;
+		mipihost2 = &mipi_host2;
+		mipihost3 = &mipi_host3;
+		mipidev0 = &mipi_dev0;
 		x2dmatest = &x2dmatest;
 	};
 
@@ -168,11 +173,27 @@
 	status = "okay";
 };
 
-&mipi_host {
+&mipi_host0 {
 	status = "okay";
 };
 
-&mipi_dev {
+&mipi_host1 {
+	status = "okay";
+};
+
+&mipi_host2 {
+	status = "okay";
+};
+
+&mipi_host3 {
+	status = "okay";
+};
+
+&mipi_dev0 {
+	status = "okay";
+};
+
+&mipi_dphy {
 	status = "okay";
 };
 
