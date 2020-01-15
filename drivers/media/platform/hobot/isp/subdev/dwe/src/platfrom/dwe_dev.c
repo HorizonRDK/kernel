@@ -77,12 +77,13 @@ static int dwe_register(struct platform_device *pdev, struct resource *pres, dwe
         }
 	//irq num
 	irqs = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
-        if (irqs < 0) {
+        if (irqs == NULL) {
 		LOG(LOG_ERR, "get irq source failed! \n");
-		ret = -ENODEV; 
-		goto irq_err;
-        }
-       	ptr->irq_num = irqs->start;
+		//ret = -ENODEV;
+		//goto irq_err;
+        } else {
+		ptr->irq_num = irqs->start;
+	}
 	
 	*psdev = ptr;
 	
@@ -133,12 +134,21 @@ static int dwe_dev_probe(struct platform_device *pdev)
 		if (ret < 0) {
 			LOG(LOG_ERR, "ldc register failed !\n");
 		}
-	} else if ( strstr(pres->name, "dis") != 0) {
+	} else if (strstr(pres->name, "dis0") != 0) {
 		if (dwe_dev.dis_dev != NULL) {
 			LOG(LOG_ERR, "dis_dev is not null, the addr is %p \n", dwe_dev.dis_dev);
 			dwe_unregister(dwe_dev.dis_dev);
 		}
 		ret = dwe_register(pdev, pres, &dwe_dev.dis_dev);
+		if (ret < 0) {
+			LOG(LOG_ERR, "dis register failed !\n");
+		}
+	} else if (strstr(pres->name, "dis1") != 0) {
+		if (dwe_dev.dis1_dev != NULL) {
+			LOG(LOG_ERR, "dis1_dev is not null, the addr is %p \n", dwe_dev.dis1_dev);
+			dwe_unregister(dwe_dev.dis1_dev);
+		}
+		ret = dwe_register(pdev, pres, &dwe_dev.dis1_dev);
 		if (ret < 0) {
 			LOG(LOG_ERR, "dis register failed !\n");
 		}
@@ -163,12 +173,17 @@ static int dwe_dev_remove(struct platform_device *pdev)
 	if (dwe_dev.dis_dev != NULL) {
 		dwe_unregister(dwe_dev.dis_dev);
 	}
+
+	if (dwe_dev.dis1_dev != NULL) {
+		dwe_unregister(dwe_dev.dis1_dev);
+	}
 	return ret;
 }
 
 static const struct of_device_id dwe_dev_match[] = {
 	{.compatible = X2A_LDC_NAME},
 	{.compatible = X2A_DIS_NAME},
+	{.compatible = X2A_DIS1_NAME},
 	{}
 };
 

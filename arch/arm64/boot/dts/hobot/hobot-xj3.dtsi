@@ -563,8 +563,8 @@
 		    status = "okay";
 		};
 
-		dis: dis@0xA4034000 {
-		    compatible = "hobot,x2a-dis";
+		dis0: dis0@0xA4034000 {
+		    compatible = "hobot,x2a-dis0";
 		    reg = <0 0xA4034000 0 0x1000>;
 		    interrupt-parent = <&gic>;
 		    interrupts = <0 73 4>;
