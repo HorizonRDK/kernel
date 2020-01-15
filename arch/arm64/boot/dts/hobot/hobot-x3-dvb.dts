@@ -237,9 +237,9 @@
 	mdio {
 		#address-cells = <0x1>;
 		#size-cells = <0x0>;
-		phy1: phy@3 {
+		phy1: phy@14 {
 			compatible = "marvell,88E1111","ethernet-phy-ieee802.3-c22";
-			reg = <0x3>;
+			reg = <0xe>;
 		};
 	};
 };
