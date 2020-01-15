@@ -166,8 +166,6 @@
 
 &uart0 {
 	status = "okay";
-	clocks = <&uart0_mclk>;
-	clock-names = "uart_mclk";
 };
 
 &ips {

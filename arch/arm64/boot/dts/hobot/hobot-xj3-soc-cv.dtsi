@@ -206,6 +206,9 @@
 			reg = <0 0xA5000000 0 0x1000>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 29 4>;
+			clocks = <&uart0_mclk>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&uart0_func>;
 			status = "disabled";
 		};
 
@@ -214,6 +217,9 @@
 			reg = <0 0xA5001000 0 0x1000>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 30 4>;
+			clocks = <&uart1_mclk>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&uart1_func>;
 			status = "disabled";
 		};
 
@@ -222,6 +228,9 @@
 			reg = <0 0xA5002000 0 0x1000>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 31 4>;
+			clocks = <&uart2_mclk>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&uart2_func>;
 			status = "disabled";
 		};
 
@@ -230,6 +239,9 @@
 			reg = <0 0xA5003000 0 0x1000>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 32 4>;
+			clocks = <&uart3_mclk>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&uart3_func>;
 			status = "disabled";
 		};
 

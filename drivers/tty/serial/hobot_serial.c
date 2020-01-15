@@ -1642,7 +1642,7 @@ static int x2_uart_probe(struct platform_device *pdev)
 		/* Nothing to do, maybe can be used in future */
 	}
 
-	x2_uart_data->uartclk = devm_clk_get(&pdev->dev, "uart_mclk");
+	x2_uart_data->uartclk = devm_clk_get(&pdev->dev, NULL);
 	if (IS_ERR(x2_uart_data->uartclk)) {
 		dev_err(&pdev->dev, "uart_clk clock not found.\n");
 		return PTR_ERR(x2_uart_data->uartclk);
