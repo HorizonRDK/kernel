@@ -494,7 +494,7 @@ int32_t mipi_host_dphy_initialize(uint16_t mipiclk, uint16_t lane, uint16_t sett
 	mipi_host_dphy_testdata(phy, iomem, REGS_RX_STARTUP_OVR_4, RX_CLK_SETTLE);
 	mipi_host_dphy_testdata(phy, iomem, REGS_RX_STARTUP_OVR_17, RX_HS_SETTLE(settle));
 	/*Configure the D-PHY frequency range*/
-	mipi_dphy_set_freqrange(MIPI_DPHY_TYPE_HOST, 0,
+	mipi_dphy_set_freqrange(MIPI_DPHY_TYPE_HOST, (phy) ? (phy->sub.port) : 0,
 		MIPI_HSFREQRANGE, mipi_dphy_clk_range(phy, mipiclk / lane, &osc_freq));
 	mipi_host_dphy_testdata(phy, iomem, REGS_RX_SYS_7, RX_SYSTEM_CONFIG);
 	mipi_host_dphy_testdata(phy, iomem, REGS_RX_LANE0_DDL_4, RX_OSCFREQ_LOW(osc_freq));
@@ -735,7 +735,7 @@ int32_t mipi_dev_dphy_initialize(void __iomem *iomem, uint16_t mipiclk, uint16_t
 		return -1;
 	}
 	/*Configure the D-PHY frequency range*/
-	mipi_dphy_set_freqrange(MIPI_DPHY_TYPE_DEV, 0,
+	mipi_dphy_set_freqrange(MIPI_DPHY_TYPE_DEV, (phy) ? (phy->sub.port) : 0,
 		MIPI_HSFREQRANGE, mipi_dphy_clk_range(phy, mipiclk / lane, NULL));
 	mipi_dev_dphy_testdata(phy, iomem, REGS_TX_SLEW_5, TX_SLEW_RATE_CAL);
 	mipi_dev_dphy_testdata(phy, iomem, REGS_TX_SLEW_7, TX_SLEW_RATE_CTL);
@@ -1106,9 +1106,9 @@ static int x3vio_mipi_set_freqrange(int type, int port, int region, int value)
 	mipi_dphy_param_t *param = &g_pdev.dphy.param;
 	unsigned long flags;
 	int ret = 0;
-	u32 reg, val;
+	u32 reg, val = 0;
 
-	if (!dphy->iomem || port > 0)
+	if (!dphy->iomem)
 		return -1;
 
 	if (type == MIPI_DPHY_TYPE_HOST && port < 4) {
@@ -1212,7 +1212,7 @@ static int x3vio_mipi_set_lanemode(int type, int port, int lanemode)
 	mipi_dphy_param_t *param = &g_pdev.dphy.param;
 	unsigned long flags;
 	int ret = 0;
-	u32 val;
+	u32 val = 0;
 
 	if (!dphy->iomem)
 		return -1;

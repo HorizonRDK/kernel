@@ -31,10 +31,11 @@
 #endif
 
 /* should has: param include dbg_value */
+			// dev_info_ratelimited(dev, format "\n", ##__VA_ARGS__);
 #define mipidbg(format, ...)	\
 	do {						\
 		if (param->dbg_value > 0)	\
-			dev_dbg_ratelimited(dev, format "\n", ##__VA_ARGS__);	\
+			dev_info(dev, format "\n", ##__VA_ARGS__);	\
 	} while (0)
 
 #define mipi_getreg(a)          readl(a)

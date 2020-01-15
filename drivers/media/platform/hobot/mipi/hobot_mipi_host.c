@@ -46,7 +46,7 @@
 #define MIPI_HOST_DNAME		"mipi_host"
 #define MIPI_HOST_MAX_NUM	CONFIG_HOBOT_MIPI_HOST_MAX_NUM
 #define MIPI_HOST_CFGCLK_NAME	"mipi_cfg_host"
-#define MIPI_HOST_CFGCLK_MHZ	24000000UL
+#define MIPI_HOST_CFGCLK_MHZ	25000000UL
 #define MIPI_HOST_REFCLK_NAME	"mipi_host_ref"
 #define MIPI_HOST_IPICLK_NAME	"mipi_rx%d_ipi"
 
@@ -119,14 +119,17 @@ module_param(init_num, uint, 0644);
 #define MIPI_HOST_BITWIDTH_OFFSET  (8)
 #define MIPI_HOST_MEMFLUSN_ENABLE  (0x01 << 8)
 #define MIPI_HOST_EMB_DATA		   (0x01 << 8)
+#define MIPI_HOST_CUT_THROUGH	   (0x01 << 16)
 #define MIPI_HOST_IPI_ENABLE	   (0x01 << 24)
 #define MIPI_HOST_LEGCYMODE_ENABLE (0x01 << 24)
 #define MIPI_HOST_HSATIME		   (0x04)
 #define MIPI_HOST_HBPTIME		   (0x04)
 #define MIPI_HOST_HSDTIME		   (0x5f4)
+// #define MIPI_HOST_CFGCLK_DEFAULT   (0x22) // 25.5
 #define MIPI_HOST_CFGCLK_DEFAULT   (0x1C)
 
 #define MIPI_HOST_ADV_DEFAULT      (0x3 << 16)
+#define MIPI_HOST_CUT_DEFAULT      (1)
 #define MIPI_HOST_IRQ_CNT          (2)
 
 #define HOST_DPHY_LANE_MAX         (4)
@@ -178,6 +181,7 @@ typedef struct _mipi_host_param_s {
 	uint32_t adv_value;
 	uint32_t need_stop_check;
 	uint32_t stop_check_instart;
+	uint32_t cut_through;
 #if MIPI_HOST_INT_DBG
 	uint32_t irq_cnt;
 	uint32_t irq_debug;
@@ -191,6 +195,7 @@ static const char *g_mh_param_names[] = {
 	"adv_value",
 	"need_stop_check",
 	"stop_check_instart",
+	"cut_through",
 #if MIPI_HOST_INT_DBG
 	"irq_cnt",
 	"irq_debug",
@@ -384,8 +389,15 @@ static int32_t mipi_host_configure_ipi(mipi_hdev_t *hdev, mipi_host_cfg_t *cfg)
 				cfg->channel_sel[3]);
 			mipi_putreg(iomem + REG_MIPI_HOST_IPI4_DATA_TYPE,
 				cfg->datatype);
-			mipi_putreg(iomem + REG_MIPI_HOST_IPI4_MODE,
-				MIPI_HOST_IPI_ENABLE | (MIPI_HOST_BITWIDTH_48 << MIPI_HOST_BITWIDTH_OFFSET));
+			if (param->cut_through)
+				mipi_putreg(iomem + REG_MIPI_HOST_IPI4_MODE,
+					MIPI_HOST_IPI_ENABLE |
+					(MIPI_HOST_BITWIDTH_48 << MIPI_HOST_BITWIDTH_OFFSET) |
+					MIPI_HOST_CUT_THROUGH);
+			else
+				mipi_putreg(iomem + REG_MIPI_HOST_IPI4_MODE,
+					MIPI_HOST_IPI_ENABLE |
+					(MIPI_HOST_BITWIDTH_48 << MIPI_HOST_BITWIDTH_OFFSET));
 			mipi_putreg(iomem + REG_MIPI_HOST_IPI4_HSA_TIME,
 				cfg->hsaTime);
 			mipi_putreg(iomem + REG_MIPI_HOST_IPI4_HBP_TIME,
@@ -408,8 +420,15 @@ static int32_t mipi_host_configure_ipi(mipi_hdev_t *hdev, mipi_host_cfg_t *cfg)
 				cfg->channel_sel[2]);
 			mipi_putreg(iomem + REG_MIPI_HOST_IPI3_DATA_TYPE,
 				cfg->datatype);
-			mipi_putreg(iomem + REG_MIPI_HOST_IPI3_MODE,
-				MIPI_HOST_IPI_ENABLE | (MIPI_HOST_BITWIDTH_48 << MIPI_HOST_BITWIDTH_OFFSET));
+			if (param->cut_through)
+				mipi_putreg(iomem + REG_MIPI_HOST_IPI3_MODE,
+					MIPI_HOST_IPI_ENABLE |
+					(MIPI_HOST_BITWIDTH_48 << MIPI_HOST_BITWIDTH_OFFSET) |
+					MIPI_HOST_CUT_THROUGH);
+			else
+				mipi_putreg(iomem + REG_MIPI_HOST_IPI3_MODE,
+					MIPI_HOST_IPI_ENABLE |
+					(MIPI_HOST_BITWIDTH_48 << MIPI_HOST_BITWIDTH_OFFSET));
 			mipi_putreg(iomem + REG_MIPI_HOST_IPI3_HSA_TIME,
 				cfg->hsaTime);
 			mipi_putreg(iomem + REG_MIPI_HOST_IPI3_HBP_TIME,
@@ -432,8 +451,15 @@ static int32_t mipi_host_configure_ipi(mipi_hdev_t *hdev, mipi_host_cfg_t *cfg)
 				cfg->channel_sel[1]);
 			mipi_putreg(iomem + REG_MIPI_HOST_IPI2_DATA_TYPE,
 				cfg->datatype);
-			mipi_putreg(iomem + REG_MIPI_HOST_IPI2_MODE,
-				MIPI_HOST_IPI_ENABLE | (MIPI_HOST_BITWIDTH_48 << MIPI_HOST_BITWIDTH_OFFSET));
+			if (param->cut_through)
+				mipi_putreg(iomem + REG_MIPI_HOST_IPI2_MODE,
+					MIPI_HOST_IPI_ENABLE |
+					(MIPI_HOST_BITWIDTH_48 << MIPI_HOST_BITWIDTH_OFFSET) |
+					MIPI_HOST_CUT_THROUGH);
+			else
+				mipi_putreg(iomem + REG_MIPI_HOST_IPI2_MODE,
+					MIPI_HOST_IPI_ENABLE |
+					(MIPI_HOST_BITWIDTH_48 << MIPI_HOST_BITWIDTH_OFFSET));
 			mipi_putreg(iomem + REG_MIPI_HOST_IPI2_HSA_TIME,
 				cfg->hsaTime);
 			mipi_putreg(iomem + REG_MIPI_HOST_IPI2_HBP_TIME,
@@ -456,8 +482,15 @@ static int32_t mipi_host_configure_ipi(mipi_hdev_t *hdev, mipi_host_cfg_t *cfg)
 				cfg->channel_sel[0]);
 			mipi_putreg(iomem + REG_MIPI_HOST_IPI_DATA_TYPE,
 				cfg->datatype);
-			mipi_putreg(iomem + REG_MIPI_HOST_IPI_MODE,
-				MIPI_HOST_IPI_ENABLE | (MIPI_HOST_BITWIDTH_48 << MIPI_HOST_BITWIDTH_OFFSET));
+			if (param->cut_through)
+				mipi_putreg(iomem + REG_MIPI_HOST_IPI_MODE,
+					MIPI_HOST_IPI_ENABLE |
+					(MIPI_HOST_BITWIDTH_48 << MIPI_HOST_BITWIDTH_OFFSET) |
+					MIPI_HOST_CUT_THROUGH);
+			else
+				mipi_putreg(iomem + REG_MIPI_HOST_IPI_MODE,
+					MIPI_HOST_IPI_ENABLE |
+					(MIPI_HOST_BITWIDTH_48 << MIPI_HOST_BITWIDTH_OFFSET));
 			mipi_putreg(iomem + REG_MIPI_HOST_IPI_HSA_TIME,
 				cfg->hsaTime);
 			mipi_putreg(iomem + REG_MIPI_HOST_IPI_HBP_TIME,
@@ -546,7 +579,9 @@ static unsigned long mipi_host_pixel_clk_select(mipi_hdev_t *hdev, mipi_host_cfg
 #else
 		pixclk = (pixclk + 2) / 3;
 #endif
-#ifdef CONFIG_HOBOT_XJ3
+	// pixclk = 554 * 1000000UL;
+	// mipiinfo("host fifo ofrce pixclk: %lu", pixclk);
+#if 0 //def CONFIG_HOBOT_XJ3
 	snprintf(ipi_clk_name, 32, MIPI_HOST_IPICLK_NAME, hdev->port);
 	if (mipi_host_configure_clk(hdev, ipi_clk_name, pixclk, 0) < 0)
 		mipiinfo("mipi_host_configure_clk error");
@@ -1462,6 +1497,7 @@ MIPI_HOST_PARAM_DEC(dbg_value);
 MIPI_HOST_PARAM_DEC(adv_value);
 MIPI_HOST_PARAM_DEC(need_stop_check);
 MIPI_HOST_PARAM_DEC(stop_check_instart);
+MIPI_HOST_PARAM_DEC(cut_through);
 #if MIPI_HOST_INT_DBG
 MIPI_HOST_PARAM_DEC(irq_cnt);
 MIPI_HOST_PARAM_DEC(irq_debug);
@@ -1474,6 +1510,7 @@ static struct attribute *param_attr[] = {
 	MIPI_HOST_PARAM_ADD(adv_value),
 	MIPI_HOST_PARAM_ADD(need_stop_check),
 	MIPI_HOST_PARAM_ADD(stop_check_instart),
+	MIPI_HOST_PARAM_ADD(cut_through),
 #if MIPI_HOST_INT_DBG
 	MIPI_HOST_PARAM_ADD(irq_cnt),
 	MIPI_HOST_PARAM_ADD(irq_debug),
@@ -1576,9 +1613,7 @@ static ssize_t mipi_host_status_show(struct device *dev,
 			}
 			MH_REG_SHOW(INT_MSK_PHY_FATAL);
 			MH_REG_SHOW(INT_MSK_PKT_FATAL);
-			MH_REG_SHOW(INT_MSK_FRAME_FATAL);
 			MH_REG_SHOW(INT_MSK_PHY);
-			MH_REG_SHOW(INT_MSK_PKT);
 			MH_REG_SHOW(INT_MSK_LINE);
 			MH_REG_SHOW(INT_MSK_IPI);
 			MH_REG_SHOW(INT_MSK_IPI2);
@@ -1818,6 +1853,7 @@ static int hobot_mipi_host_phy_register(mipi_hdev_t *hdev)
 	sub.iomem = hdev->host.iomem;
 	sub.dev = hdev->dev;
 	sub.param = NULL;
+	sub.port = hdev->port;
 	ret = mipi_dphy_register(MIPI_DPHY_TYPE_HOST, hdev->port, &sub);
 #else
 	struct device *dev = hdev->dev;
@@ -1919,6 +1955,7 @@ static int hobot_mipi_host_probe_param(void)
 		pr_info("[%s] no int timer\n", __func__);
 #endif
 		param->adv_value = MIPI_HOST_ADV_DEFAULT;
+		param->cut_through = MIPI_HOST_CUT_DEFAULT;
 
 		mipi_host_configure_clk(hdev, MIPI_HOST_CFGCLK_NAME, MIPI_HOST_CFGCLK_MHZ, 1);
 		hobot_mipi_host_phy_register(hdev);
@@ -2029,6 +2066,7 @@ static int hobot_mipi_host_probe(struct platform_device *pdev)
 	param->irq_cnt = MIPI_HOST_IRQ_CNT;
 #endif
 	param->adv_value = MIPI_HOST_ADV_DEFAULT;
+	param->cut_through = MIPI_HOST_CUT_DEFAULT;
 
 	platform_set_drvdata(pdev, hdev);
 
@@ -2040,7 +2078,7 @@ static int hobot_mipi_host_probe(struct platform_device *pdev)
 		goto err_cdev;
 	}
 
-	mipi_host_configure_clk(hdev, MIPI_HOST_CFGCLK_NAME, MIPI_HOST_CFGCLK_MHZ, 1);
+	// mipi_host_configure_clk(hdev, MIPI_HOST_CFGCLK_NAME, MIPI_HOST_CFGCLK_MHZ, 1);
 	hobot_mipi_host_phy_register(hdev);
 	g_hdev[port] = hdev;
 	port_num ++;

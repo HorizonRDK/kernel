@@ -33,6 +33,7 @@ typedef struct _mipi_phy_sub_s {
 	void __iomem  *iomem;
 	struct device *dev;
 	void          *param;
+	int            port;
 } mipi_phy_sub_t;
 
 enum _mipi_dphy_type_e {

@@ -93,6 +93,6 @@
 #define DP_RMASK(r, n)    (r##_MIPI_##n##_MASK)
 #define DP_VMASK(r, n)    (DP_RMASK(r, n) << DP_ROFFS(r, n))
 #define DP_REG2V(r, n, v) (((v) >> DP_ROFFS(r,n)) & DP_RMASK(r,n))
-#define DP_V2REG(r, n, v) (((v) << DP_ROFFS(r,n)) & DP_RMASK(r,n))
+#define DP_V2REG(r, n, v) (((v) & DP_RMASK(r,n)) << DP_ROFFS(r,n))
 
 #endif //__HOBOT_MIPI_DPHY_REGS_H__
