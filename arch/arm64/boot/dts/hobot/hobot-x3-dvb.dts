@@ -39,7 +39,9 @@
 		pwm2	= &pwm_2;
 		bifspi	= &bifspi;
 		bifsd   = &bifsd;
-		mmc0	= &sdio0;
+		mmc1	= &sdio0;
+		mmc2	= &sdio1;
+		mmc3	= &sdio2;
 		dma	= &dma;
 		x2dmatest = &x2dmatest;
 		mipihost0 = &mipi_host0;
@@ -316,13 +318,25 @@
 	status = "okay";
 	bus-width = <4>;
 	no-mmc;
-	no-sdio;
 	cap-sd-highspeed;
 	sd-uhs-sdr12;
 	sd-uhs-sdr25;
 	sd-uhs-sdr50;
 	sd-uhs-sdr104;
 	uhs-180v-gpio = <120>;
+	broken-cd;
+	disable-wp;
+};
+
+&sdio2 {
+	status = "okay";
+	bus-width = <4>;
+	no-mmc;
+	cap-sd-highspeed;
+	sd-uhs-sdr12;
+	sd-uhs-sdr25;
+	sd-uhs-sdr50;
+	sd-uhs-sdr104;
 	broken-cd;
 	disable-wp;
 };
