@@ -155,8 +155,6 @@
 			polling-delay = <1000>; /* milliseconds */
 			status = "disabled";
 
-			thermal-sensors = <&temp1>;
-
 			trips {
 				threshold: trip-point@0 {
 					temperature = <60000>;

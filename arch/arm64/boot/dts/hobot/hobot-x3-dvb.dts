@@ -357,4 +357,5 @@
 
 &soc_thermal {
 	status = "okay";
+	thermal-sensors = <&temp1>;
 };
