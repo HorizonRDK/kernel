@@ -70,6 +70,12 @@
 			no-map;
 		};
 
+		/* Reserved 4K memory for swinfo */
+		sw_reserved: sw_reserved@0x020ff000 {
+			reg = <0x0 0x020ff000 0x0 0x1000>;
+			no-map;
+		};
+
 		bifsd_reserved: bifsd_reserved@0x3D089000 {
 			reg = <0x0 0x3D089000 0x0 0x1000>;
 			no-map;
@@ -360,6 +366,10 @@
 
 &watchdog {
 	status = "disabled";
+};
+
+&timer1 {
+	status = "okay";
 };
 
 &i2s0 {
