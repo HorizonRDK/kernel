@@ -12,18 +12,18 @@ function choose()
 
     if ! $hascpio ;then
         sed -i "s#${rootfscpio}#${rootfsnone}#g" $conftmp
-    else
-        sed -i "s#${rootfscpio}#${rootfspre}#g" $conftmp
-        if [ "$BOOT_MODE" != "ap" ];then
-            rm -rf ${SRC_KERNEL_DIR}/usr/prerootfs/
-            mkdir -p ${SRC_KERNEL_DIR}/usr/prerootfs/
-            if [ "$BOOT_MODE" = "nor" ];then
-                manifest="$SRC_DEVICE_DIR/$TARGET_VENDOR/$TARGET_PROJECT/debug-kernel-rootfs.manifest"
-            fi
-            ${SRC_SCRIPTS_DIR}/build_root_manifest.sh $manifest \
-                ${TARGET_PREROOTFS_DIR} ${SRC_KERNEL_DIR}/usr/prerootfs/
-            sed -i "/AMA0/d" ${SRC_KERNEL_DIR}/usr/prerootfs/etc/inittab
-        fi
+#    else
+#        sed -i "s#${rootfscpio}#${rootfspre}#g" $conftmp
+#        if [ "$BOOT_MODE" != "ap" ];then
+#            rm -rf ${SRC_KERNEL_DIR}/usr/prerootfs/
+#            mkdir -p ${SRC_KERNEL_DIR}/usr/prerootfs/
+#            if [ "$BOOT_MODE" = "nor" ];then
+#                manifest="$SRC_DEVICE_DIR/$TARGET_VENDOR/$TARGET_PROJECT/debug-kernel-rootfs.manifest"
+#            fi
+#            ${SRC_SCRIPTS_DIR}/build_root_manifest.sh $manifest \
+#                ${TARGET_PREROOTFS_DIR} ${SRC_KERNEL_DIR}/usr/prerootfs/
+#            sed -i "/AMA0/d" ${SRC_KERNEL_DIR}/usr/prerootfs/etc/inittab
+#        fi
     fi
 
     cp $conftmp .config

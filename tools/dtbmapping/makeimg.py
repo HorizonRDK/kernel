@@ -101,7 +101,10 @@ if __name__ == '__main__':
         bootInfoPath = sys.argv[1]
         print ('len = 2')
 
-    bootInfoContent = bootInfoOutput()
+    # bootInfoContent = bootInfoOutput()
+    bootInfoContent = [0 for i in range(0, 512)]
+    bootInfoContent = np.asarray(bootInfoContent, dtype=np.int32)
+
     filePath = bootloaderInfoOutput()
 
     dtbPath = os.getenv('TARGET_KERNEL_DIR') + '/'
