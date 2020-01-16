@@ -466,7 +466,7 @@ static void mipi_host_dphy_testdata(mipi_phy_t *phy, void __iomem *iomem, uint16
 	mipi_putreg(iomem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_CLK);    /*set testclk to high*/
 	mipi_putreg(iomem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_RESETN); /*set testclk to low*/
 
-	mipidbg("mipi host dphy test code:0x%x, data: 0x%x", testcode, testdata);
+	mipidbg("host dphy test code:0x%x, data: 0x%x", testcode, testdata);
 }
 
 /**
@@ -577,7 +577,7 @@ static void mipi_dev_dphy_testdata(mipi_phy_t *phy, void __iomem *iomem, uint16_
 	mipi_putreg(iomem + REG_MIPI_DEV_PHY0_TST_CTRL1, testdata);         /*set test data*/
 	mipi_putreg(iomem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_CLK);    /*set testclk to high*/
 	mipi_putreg(iomem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_RESETN); /*set testclk to low*/
-	mipidbg("mipi dev dphy test code:0x%x, data: 0x%x", testcode, testdata);
+	mipidbg("dev dphy test code:0x%x, data: 0x%x", testcode, testdata);
 }
 
 static const pll_range_table_t g_vco_range_table[] = {
@@ -644,7 +644,7 @@ static int32_t mipi_tx_pll_div(mipi_phy_t *phy, uint16_t refsclk, uint16_t lanec
 		return 0;
 	}
 	if (s_txout_freq_autolarge_enbale) {
-		mipidbg("txout freq autolarge to %dMHz\n", fout_max);
+		mipidbg("txout freq autolarge to %dMHz", fout_max);
 		fout = fout_max;
 		laneclk = fout << 1;
 	}
@@ -848,7 +848,7 @@ static int x2ips_mipi_set_ctl(int type, int port, int region, int value)
 	writel(val, dphy->iomem + REG_X2IPS_MIPI_CTRL);
 	spin_unlock_irqrestore(&dphy->lock, flags);
 
-	mipidbg("set mipi%s%d ctl region %d value %d, regv 0x%x\n",
+	mipidbg("set mipi%s%d ctl region %d value %d, regv 0x%x",
 			(type == MIPI_DPHY_TYPE_HOST) ? "host" : "dev",
 			port, region, value, val);
 	return ret;
@@ -952,7 +952,7 @@ static int x2ips_mipi_set_freqrange(int type, int port, int region, int value)
 	}
 	spin_unlock_irqrestore(&dphy->lock, flags);
 
-	mipidbg("set mipi%s%d freq region %d range %d, regv 0x%x\n",
+	mipidbg("set mipi%s%d freq region %d range %d, regv 0x%x",
 			(type == MIPI_DPHY_TYPE_HOST) ? "host" : "dev",
 			port, region, value, val);
 	return ret;
@@ -1032,7 +1032,7 @@ static int x3vio_mipi_set_ctl(int type, int port, int region, int value)
 	writel(val, dphy->iomem + REG_X3VIO_MIPI_DEV_CTRL);
 	spin_unlock_irqrestore(&dphy->lock, flags);
 
-	mipidbg("set mipi%s%d ctl region %d value %d, regv 0x%x, %d\n",
+	mipidbg("set mipi%s%d ctl region %d value %d, regv 0x%x, %d",
 			(type == MIPI_DPHY_TYPE_HOST) ? "host" : "dev",
 			port, region, value, val, ret);
 	return ret;
@@ -1171,7 +1171,7 @@ static int x3vio_mipi_set_freqrange(int type, int port, int region, int value)
 		ret = -1;
 	}
 
-	mipidbg("set mipi%s%d freq region %d range %d, regv 0x%x, %d\n",
+	mipidbg("set mipi%s%d freq region %d range %d, regv 0x%x, %d",
 			(type == MIPI_DPHY_TYPE_HOST) ? "host" : "dev",
 			port, region, value, val, ret);
 	return ret;
@@ -1224,8 +1224,8 @@ static int x3vio_mipi_set_lanemode(int type, int port, int lanemode)
 			val &= ~DP_RMASK(X3VIO, RX_DPHY_MODE02);
 			val |= DP_V2REG(X3VIO, RX_DPHY_MODE02, lanemode);
 		} else {
-			val &= ~DP_RMASK(X3VIO, RX_DPHY_MODE02);
-			val |= DP_V2REG(X3VIO, RX_DPHY_MODE02, lanemode);
+			val &= ~DP_RMASK(X3VIO, RX_DPHY_MODE13);
+			val |= DP_V2REG(X3VIO, RX_DPHY_MODE13, lanemode);
 		}
 		writel(val, dphy->iomem + REG_X3VIO_MIPI_RX_DPHY_CTRL);
 		spin_unlock_irqrestore(&dphy->lock, flags);
@@ -1240,7 +1240,7 @@ static int x3vio_mipi_set_lanemode(int type, int port, int lanemode)
 		ret = -1;
 	}
 
-	mipidbg("set mipi%s%d lanemode %d, regv 0x%x, %d\n",
+	mipidbg("set mipi%s%d lanemode %d, regv 0x%x, %d",
 			(type == MIPI_DPHY_TYPE_HOST) ? "host" : "dev",
 			port, lanemode, val, ret);
 	return ret;
@@ -1267,7 +1267,7 @@ static int dummy_mipi_get_ctl(int type, int port, int region)
 		val = -1;
 	}
 
-	mipidbg("get mipi%s%d ctl region %d value %d, dummp\n",
+	mipidbg("get mipi%s%d ctl region %d value %d, dummp",
 			(type == MIPI_DPHY_TYPE_HOST) ? "host" : "dev",
 			port, region, val);
 	return val;
@@ -1287,7 +1287,7 @@ static int dummy_mipi_set_ctl(int type, int port, int region, int value)
 		ret = -1;
 	}
 
-	mipidbg("set mipi%s%d ctl region %d value %d, dummp %d\n",
+	mipidbg("set mipi%s%d ctl region %d value %d, dummp %d",
 			(type == MIPI_DPHY_TYPE_HOST) ? "host" : "dev",
 			port, region, value, ret);
 	return ret;
@@ -1307,7 +1307,7 @@ static int dummy_mipi_get_freqrange(int type, int port, int region)
 		val = -1;
 	}
 
-	mipidbg("get mipi%s%d freq region %d value %d, dummp\n",
+	mipidbg("get mipi%s%d freq region %d value %d, dummp",
 			(type == MIPI_DPHY_TYPE_HOST) ? "host" : "dev",
 			port, region, val);
 	return val;
@@ -1327,7 +1327,7 @@ static int dummy_mipi_set_freqrange(int type, int port, int region, int value)
 		ret = -1;
 	}
 
-	mipidbg("set mipi%s%d freq region %d value %d, dummp %d\n",
+	mipidbg("set mipi%s%d freq region %d value %d, dummp %d",
 			(type == MIPI_DPHY_TYPE_HOST) ? "host" : "dev",
 			port, region, value, ret);
 	return ret;
@@ -1347,7 +1347,7 @@ static int dummy_mipi_get_lanemode(int type, int port)
 		val = -1;
 	}
 
-	mipidbg("get mipi%s%d lanemode region %d value %d, dummp\n",
+	mipidbg("get mipi%s%d lanemode region %d value %d, dummp",
 			(type == MIPI_DPHY_TYPE_HOST) ? "host" : "dev",
 			port, 2, val);
 	return val;
@@ -1367,7 +1367,7 @@ static int dummy_mipi_set_lanemode(int type, int port, int lanemode)
 		ret = -1;
 	}
 
-	mipidbg("set mipi%s%d lanemode region %d value %d, dummp %d\n",
+	mipidbg("set mipi%s%d lanemode region %d value %d, dummp %d",
 			(type == MIPI_DPHY_TYPE_HOST) ? "host" : "dev",
 			port, 2, lanemode, ret);
 	return ret;

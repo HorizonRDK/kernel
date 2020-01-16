@@ -262,6 +262,8 @@ typedef struct _mipi_hdev_s {
 	dev_t             devno;
 	struct cdev       cdev;
 	struct device    *dev;
+	void             *ex_hdev;
+	int               is_ex;
 	mipi_host_t       host;
 #ifdef CONFIG_X2_DIAG
 	struct timer_list diag_timer;
@@ -315,17 +317,18 @@ static int32_t mipi_host_configure_lanemode(mipi_hdev_t *hdev, int lane)
 			break;
 		}
 	}
+
+	group = mipi_port_group(hdev->port);
+	index = mipi_port_index(hdev->port);
+	poth = (index) ? (hdev->port - 2) : (hdev->port + 2);
 	if (target_mode < 0) {
 		mipierr("port%d not support %dlane",
 				hdev->port, lane);
 		return -1;
 	} else if (target_mode == hdev->lane_mode) {
-		return 0;
+		goto match_ex_hdev;
 	}
 
-	group = mipi_port_group(hdev->port);
-	index = mipi_port_index(hdev->port);
-	poth = (index) ? (hdev->port - 2) : (hdev->port + 2);
 	mipiinfo("change group%d lane_mode to %d for %dlane",
 			group, target_mode, lane);
 	if (host->state != MIPI_STATE_DEFAULT) {
@@ -348,6 +351,20 @@ static int32_t mipi_host_configure_lanemode(mipi_hdev_t *hdev, int lane)
 	hdev->lane_mode = target_mode;
 	if (poth < MIPI_HOST_MAX_NUM && g_hdev[poth])
 		g_hdev[poth]->lane_mode = target_mode;
+
+match_ex_hdev:
+	if (lane > 2) {
+		if (poth < MIPI_HOST_MAX_NUM && g_hdev[poth] &&
+			g_hdev[poth]->host.state == MIPI_STATE_DEFAULT) {
+			/* match ex_hdev and mark it as ex */
+			hdev->ex_hdev = g_hdev[poth];
+			hdev->is_ex = 0;
+			(g_hdev[poth])->is_ex = 1;
+		}
+	} else {
+		hdev->ex_hdev = NULL;
+		hdev->is_ex = 0;
+	}
 
 	return 0;
 }
@@ -1106,7 +1123,7 @@ static int32_t mipi_host_start(mipi_hdev_t *hdev)
 	if (!hdev || !iomem)
 		return -1;
 
-	if (!param->need_stop_check && param->stop_check_instart) {
+	if (!hdev->is_ex && !param->need_stop_check && param->stop_check_instart) {
 		if (0 != mipi_host_dphy_wait_stop(hdev, &host->cfg)) {
 			/*Release DWC_mipi_csi2_host from reset*/
 			mipierr("wait phy stop state error!!!");
@@ -1121,7 +1138,9 @@ static int32_t mipi_host_start(mipi_hdev_t *hdev)
 	}
 
 #if MIPI_HOST_INT_DBG
-	mipi_host_irq_enable(hdev);
+	if(!hdev->is_ex) {
+		mipi_host_irq_enable(hdev);
+	}
 #endif
 
 	return 0;
@@ -1141,7 +1160,9 @@ static int32_t mipi_host_stop(mipi_hdev_t *hdev)
 
 	/*stop mipi host here?*/
 #if MIPI_HOST_INT_DBG
-	mipi_host_irq_disable(hdev);
+	if(!hdev->is_ex) {
+		mipi_host_irq_disable(hdev);
+	}
 #endif
 
 	return 0;
@@ -1197,10 +1218,6 @@ static int32_t mipi_host_init(mipi_hdev_t *hdev, mipi_host_cfg_t *cfg)
 	mipiinfo("%d lane %dx%d %dfps datatype 0x%x",
 			 cfg->lane, cfg->width, cfg->height, cfg->fps, cfg->datatype);
 	mipi_host_configure_clk(hdev, MIPI_HOST_REFCLK_NAME, cfg->mclk * 1000000UL, 1);
-	if (0 != mipi_host_configure_lanemode(hdev, cfg->lane)) {
-		mipierr("configure lane error!!!");
-		return -1;
-	}
 	pixclk = mipi_host_pixel_clk_select(hdev, cfg);
 	if (0 == pixclk) {
 		mipierr("pixel clk config error!");
@@ -1234,7 +1251,7 @@ static int32_t mipi_host_init(mipi_hdev_t *hdev, mipi_host_cfg_t *cfg)
 #if MIPI_HOST_INT_DBG
 	memset(&host->icnt, 0x0, sizeof(host->icnt));
 #endif
-	if (!param->need_stop_check && !param->stop_check_instart) {
+	if (!hdev->is_ex && !param->need_stop_check && !param->stop_check_instart) {
 		if (0 != mipi_host_dphy_wait_stop(hdev, cfg)) {
 			/*Release DWC_mipi_csi2_host from reset*/
 			mipierr("wait phy stop state error!!!");
@@ -1265,11 +1282,17 @@ static int hobot_mipi_host_open(struct inode *inode, struct file *file)
 static int hobot_mipi_host_close(struct inode *inode, struct file *file)
 {
 	mipi_hdev_t *hdev = file->private_data;
+	mipi_hdev_t *ex_hdev;
 	mipi_host_t *host = &hdev->host;
 
 	if (host->state != MIPI_STATE_DEFAULT) {
 		mipi_host_stop(hdev);
 		mipi_host_deinit(hdev);
+		if (hdev->ex_hdev) {
+			ex_hdev = (mipi_hdev_t *)(hdev->ex_hdev);
+			mipi_host_stop(ex_hdev);
+			mipi_host_deinit(ex_hdev);
+		}
 		host->state = MIPI_STATE_DEFAULT;
 	}
 	return 0;
@@ -1278,6 +1301,7 @@ static int hobot_mipi_host_close(struct inode *inode, struct file *file)
 static long hobot_mipi_host_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	mipi_hdev_t *hdev = file->private_data;
+	mipi_hdev_t *ex_hdev;
 	struct device *dev = hdev->dev;
 	mipi_host_t *host = &hdev->host;
 	int ret = 0;
@@ -1309,6 +1333,16 @@ static long hobot_mipi_host_ioctl(struct file *file, unsigned int cmd, unsigned 
 				mipierr("copy data from user failed");
 				return -EFAULT;
 			}
+			if (0 != mipi_host_configure_lanemode(hdev, mipi_host_cfg.lane)) {
+				mipierr("require %dlane error!!!", mipi_host_cfg.lane);
+				return -EACCES;
+			}
+			if (hdev->ex_hdev) {
+				ex_hdev = (mipi_hdev_t *)(hdev->ex_hdev);
+				if (0 != (ret = mipi_host_init(ex_hdev, &mipi_host_cfg))) {
+					return ret;
+				}
+			}
 			if (0 != (ret = mipi_host_init(hdev, &mipi_host_cfg))) {
 				mipierr("init error: %d", ret);
 				return ret;
@@ -1326,7 +1360,17 @@ static long hobot_mipi_host_ioctl(struct file *file, unsigned int cmd, unsigned 
 			if (MIPI_STATE_START == host->state) {
 				mipi_host_stop(hdev);
 			}
+			if (hdev->ex_hdev) {
+				ex_hdev = (mipi_hdev_t *)(hdev->ex_hdev);
+				mipi_host_stop(ex_hdev);
+			}
 			mipi_host_deinit(hdev);
+			if (hdev->ex_hdev) {
+				ex_hdev = (mipi_hdev_t *)(hdev->ex_hdev);
+				mipi_host_deinit(ex_hdev);
+				ex_hdev->is_ex = 0;
+				hdev->ex_hdev = NULL;
+			}
 			host->state = MIPI_STATE_DEFAULT;
 		}
 		break;
@@ -1341,6 +1385,12 @@ static long hobot_mipi_host_ioctl(struct file *file, unsigned int cmd, unsigned 
 				mipierr("state error, current state: %d(%s)",
 						host->state, g_mh_state[host->state]);
 				return -EBUSY;
+			}
+			if (hdev->ex_hdev) {
+				ex_hdev = (mipi_hdev_t *)(hdev->ex_hdev);
+				if (0 != (ret = mipi_host_start(ex_hdev))) {
+					return ret;
+				}
 			}
 			if (0 != (ret = mipi_host_start(hdev))) {
 				mipierr("start error: %d", ret);
@@ -1359,6 +1409,10 @@ static long hobot_mipi_host_ioctl(struct file *file, unsigned int cmd, unsigned 
 				mipierr("state error, current state: %d(%s)",
 						host->state, g_mh_state[host->state]);
 				return -EBUSY;
+			}
+			if (hdev->ex_hdev) {
+				ex_hdev = (mipi_hdev_t *)(hdev->ex_hdev);
+				mipi_host_stop(ex_hdev);
 			}
 			if (0 != (ret = mipi_host_stop(hdev))) {
 				mipierr("stop error: %d", ret);
