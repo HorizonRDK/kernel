@@ -64,6 +64,8 @@
 #include <linux/if_vlan.h>
 #include <linux/ip.h>
 #include <uapi/linux/if_arp.h>
+#include <linux/sysfs.h>
+
 
 #include "hobot_eth.h"
 #include "hobot_reg.h"
@@ -373,7 +375,7 @@ struct plat_config_data *x2_probe_config_dt(struct platform_device *pdev, const 
 	struct device_node *np = pdev->dev.of_node;
 	struct plat_config_data *plat;
 	struct x2_dma_cfg *dma_cfg;
-	//int ret;
+    int ret;
 	plat = devm_kzalloc(&pdev->dev, sizeof(*plat), GFP_KERNEL);
 	if (!plat)
 		return ERR_PTR(-ENOMEM);
@@ -461,9 +463,8 @@ struct plat_config_data *x2_probe_config_dt(struct platform_device *pdev, const 
 	plat->axi = x2_axi_setup(pdev);
 
 	x2_mtl_setup(pdev, plat);
-
-#if 0
-	plat->x2_mac_pre_div_clk = devm_clk_get(&pdev->dev, "mac_pre_div_clk");
+#if 1
+	plat->x2_mac_pre_div_clk = devm_clk_get(&pdev->dev, "eth0_pre_clk");
 	if (IS_ERR(plat->x2_mac_pre_div_clk)) {
 		printk("mac pre div clk clock not found\n");
 		goto err_out;
@@ -473,8 +474,9 @@ struct plat_config_data *x2_probe_config_dt(struct platform_device *pdev, const 
 		printk("unable to enable mac pre div clk\n");
 		goto err_out;
 	}
+#endif
 
-	plat->x2_mac_div_clk = devm_clk_get(&pdev->dev, "mac_div_clk");
+	plat->x2_mac_div_clk = devm_clk_get(&pdev->dev, "eth0_clk");
 	if (IS_ERR(plat->x2_mac_div_clk)) {
 		printk("mac div clk not found\n");
 		goto err_mac_div_clk;
@@ -486,14 +488,13 @@ struct plat_config_data *x2_probe_config_dt(struct platform_device *pdev, const 
 		goto err_mac_div_clk;
 	}
 
-
+#if 0
 	plat->x2_phy_ref_clk = devm_clk_get(&pdev->dev, "phy_ref_clk");
 	if (IS_ERR(plat->x2_phy_ref_clk)) {
 		printk("uanble to get phy ref clk\n");
 		goto err_clk;
 	}
 	ret = clk_prepare_enable(plat->x2_phy_ref_clk);
-
 #endif
 	//plat->clk_ptp_rate = 62500000;//58125000;//500000000;
 	plat->clk_ptp_rate = 50000000;
@@ -501,13 +502,13 @@ struct plat_config_data *x2_probe_config_dt(struct platform_device *pdev, const 
 	return plat;
 
 /*when in ASIC, this will be used, so be carefully*/
-//err_clk:
+err_clk:
 	clk_disable_unprepare(plat->x2_mac_div_clk);
-//err_mac_div_clk:
+err_mac_div_clk:
 
 	clk_disable_unprepare(plat->x2_mac_pre_div_clk);
 
-//err_out:
+err_out:
 	return ERR_PTR(-EPROBE_DEFER);
 		
 }
@@ -679,8 +680,9 @@ static int x2_hw_init(struct x2_priv *priv)
 
 static void x2_mdio_set_csr(struct x2_priv *priv)
 {
-	int rate = 20000000;//clk_get_rate(priv->plat->x2_mac_div_clk);
+//	int rate = 20000000;//clk_get_rate(priv->plat->x2_mac_div_clk);
 
+    int rate = clk_get_rate(priv->plat->x2_mac_div_clk);
 	if (rate <= 20000000)
 		priv->csr_val = DWCEQOS_MAC_MDIO_ADDR_CR_20;
 	else if (rate <= 35000000)
@@ -1417,7 +1419,7 @@ static void x2_set_speed(struct x2_priv *priv)
 	regval = x2_reg_read(priv, REG_DWCEQOS_MAC_CFG);
 	regval &= ~(DWCEQOS_MAC_CFG_PS | DWCEQOS_MAC_CFG_FES | DWCEQOS_MAC_CFG_DM);
 
-	//printk("%s: duplex: %d,speed: %d\n",__func__,phydev->duplex, phydev->speed);
+	printk("%s: duplex: %d,speed: %d\n",__func__,phydev->duplex, phydev->speed);
 	if (phydev->duplex)
 		regval |= DWCEQOS_MAC_CFG_DM;
 
@@ -1460,7 +1462,7 @@ static void x2_set_speed(struct x2_priv *priv)
 
 	x2_reg_write(priv, REG_DWCEQOS_MAC_CFG, regval);
 
-//	printk("%s, priv_speed;%d, phydev_speed:%d\n",__func__,priv->speed, phydev->speed);
+	printk("%s, after priv_speed;%d, phydev_speed:%d\n",__func__,priv->speed, phydev->speed);
 }
 
 static void x2_set_rx_flow_ctrl(struct x2_priv *priv, bool enable)
@@ -5752,7 +5754,8 @@ static void x2_clk_csr_set(struct x2_priv *priv)
 	}
 
 
-	priv->clk_csr = STMMAC_CSR_20_35M;
+	priv->clk_csr = STMMAC_CSR_150_250M;
+	//priv->clk_csr = STMMAC_CSR_20_35M;
 	
 }
 
@@ -5779,6 +5782,36 @@ static void x2_service_task(struct work_struct *work)
 }
 #endif
 
+static ssize_t phy_reg_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+    struct net_device *ndev = to_net_dev(dev);
+    struct x2_priv *priv = netdev_priv(ndev);
+
+    size_t ret = 0;
+
+   printk("%s, reg0: 0x%x\n",__func__, x2_mdio_read(priv->mii, 0xe, 0));
+   printk("%s, reg1: 0x%x\n",__func__, x2_mdio_read(priv->mii, 0xe, 1));
+   printk("%s, reg2: 0x%x\n",__func__, x2_mdio_read(priv->mii, 0xe, 2));
+   printk("%s, reg9: 0x%x\n",__func__, x2_mdio_read(priv->mii, 0xe, 9));
+   printk("%s, reg10: 0x%x\n",__func__, x2_mdio_read(priv->mii, 0xe, 10));
+
+   return ret;
+}
+
+
+static DEVICE_ATTR_RO(phy_reg);
+
+static struct attribute *phy_reg_attrs[] = {
+
+    &dev_attr_phy_reg.attr,
+    NULL,
+};
+
+static struct attribute_group phy_reg_group = {
+    .name = "phy_reg",
+    .attrs = phy_reg_attrs,
+
+};
 static int x2_dvr_probe(struct device *device, struct plat_config_data *plat_dat, struct x2_resource *x2_res)
 {
 	struct net_device *ndev = NULL;
@@ -5901,6 +5934,8 @@ static int x2_dvr_probe(struct device *device, struct plat_config_data *plat_dat
 		printk("%s: error allocating the IRQ\n",__func__);
 		goto irq_error;
 	}
+
+    ndev->sysfs_groups[0] = &phy_reg_group;
 
 	ret = register_netdev(ndev);
 	if (ret) {
@@ -6058,7 +6093,7 @@ static int hgb_remove(struct platform_device *pdev)
 	x2_set_mac(priv->ioaddr, false);
 	netif_carrier_off(ndev);
 	unregister_netdev(ndev);
-	clk_disable_unprepare(priv->plat->x2_phy_ref_clk);
+//	clk_disable_unprepare(priv->plat->x2_phy_ref_clk);
 	clk_disable_unprepare(priv->plat->x2_mac_div_clk);
 	clk_disable_unprepare(priv->plat->x2_mac_pre_div_clk);
 

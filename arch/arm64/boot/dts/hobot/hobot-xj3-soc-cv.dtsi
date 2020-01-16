@@ -685,6 +685,8 @@
 			snps,rxpbl = <16>;
 			snps,clk_csr = <2>;
 
+            clocks = <&eth0_clk>, <&eth0_prediv_clk>;
+            clock-names = "eth0_clk", "eth0_pre_clk";
 			snps,force_sf_dma_mode = <1>;
 
 			pinctrl-names = "eth_state";
