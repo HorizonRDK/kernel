@@ -272,7 +272,7 @@ void *system_sw_alloc_dma_sram( uint32_t size , uint32_t context_id, uint32_t *p
             g_hobot_dma_va = __va(HOBOT_DMA_SRAM_PA);
             return NULL;
         } else {
-            printk("%s SUCCESS: Hobot DMA map addr %x, size %d ok (va=%p)\n", __FUNCTION__, HOBOT_DMA_SRAM_PA, HOBOT_DMA_SRAM_SIZE,g_hobot_dma_va);
+            printk("%s SUCCESS: Hobot DMA map addr %x, size %d ok\n", __FUNCTION__, HOBOT_DMA_SRAM_PA, HOBOT_DMA_SRAM_SIZE);
         }
     }
     if(size > HOBOT_DMA_SRAM_ONE_ZONE) {
@@ -282,7 +282,7 @@ void *system_sw_alloc_dma_sram( uint32_t size , uint32_t context_id, uint32_t *p
 
     va = (void*) (g_hobot_dma_va + (context_id*HOBOT_DMA_SRAM_ONE_ZONE));
     *phy_addr = HOBOT_DMA_SRAM_PA+ (context_id*HOBOT_DMA_SRAM_ONE_ZONE);
-    printk("%s : callback va=%p, pa=0x%x, context_id=%d, offset=%d\n", __FUNCTION__, va, *phy_addr, context_id, (context_id*HOBOT_DMA_SRAM_ONE_ZONE));
+    printk("%s : pa=0x%x, context_id=%d, offset=%d\n", __FUNCTION__, *phy_addr, context_id, (context_id*HOBOT_DMA_SRAM_ONE_ZONE));
 
 #if HOBOT_REGISTER_MONITOR
     g_sw_isp_base[context_id].base = va;

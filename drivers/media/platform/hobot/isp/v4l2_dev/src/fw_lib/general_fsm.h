@@ -26,7 +26,7 @@
 #if GENERAL_TEMPER_ENABLED
 #define TEMPER_FRAMES_NO 2
 #define TEMPER_MODE_DEFAULT TEMPER3_MODE
-#define TEMPER_PIXEL_WIDTH 4
+#define TEMPER_PIXEL_WIDTH 2
 #endif
 
 typedef struct _general_fsm_t general_fsm_t;

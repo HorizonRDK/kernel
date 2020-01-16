@@ -213,10 +213,12 @@ static int32_t isp_platform_probe( struct platform_device *pdev )
         return -1;
     }
 
+/*
     rc = of_reserved_mem_device_init( &pdev->dev );
     if ( rc ) {
         LOG( LOG_ERR, "Error, Could not get reserved memory\n" );
     }
+*/
 
     isp_res = platform_get_resource( pdev,
                                      IORESOURCE_MEM, 0 );

@@ -166,7 +166,7 @@ int fw_intf_isp_get_sensor_info( uint32_t ctx_id, isp_v4l2_sensor_info *sensor_i
             if ( sensor_info->preset_num <= j )
                 sensor_info->preset_num++;
         } else {
-            LOG( LOG_ERR, "FPS number overflowed ! (preset#%d / index#%d)", i, j );
+            LOG( LOG_INFO, "FPS number overflowed ! (preset#%d / index#%d)", i, j );
         }
     }
     uint32_t spreset = 0, swidth = 0, sheight = 0;

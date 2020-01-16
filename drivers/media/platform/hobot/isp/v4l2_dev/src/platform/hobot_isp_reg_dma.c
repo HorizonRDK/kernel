@@ -191,9 +191,6 @@ void hobot_dma_init(hobot_dma_t *hobot_dma)
         printk(KERN_ERR "ERROR: %s entry not find\n", __FUNCTION__);
     }
     hobot_dma->irq_in_dts = irq_of_parse_and_map(np, HOBOT_DMA_IRQ_INDEX);  /* PTP2 IRQ */
-    printk("%s irq index=%d, request_irq: num=%d,handler=%p,flag=%x,name=%s,data=%p\n", __FUNCTION__,
-                    HOBOT_DMA_IRQ_INDEX, hobot_dma->irq_in_dts, hobot_dma_interrupt, IRQF_TRIGGER_HIGH,
-                    HOBOT_DMA_IRQ_NAME, hobot_dma);
     ret = request_irq(hobot_dma->irq_in_dts, hobot_dma_interrupt, IRQF_TRIGGER_HIGH, HOBOT_DMA_IRQ_NAME, hobot_dma);
     if(ret)
         printk(KERN_ERR "ERROR: %s request_irq() failed: %d\n", __FUNCTION__, ret);

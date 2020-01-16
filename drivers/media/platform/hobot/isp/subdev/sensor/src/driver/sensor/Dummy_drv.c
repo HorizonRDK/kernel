@@ -65,8 +65,8 @@ static sensor_mode_t dummy_drv_supported_modes[] = {
     {
         .wdr_mode = WDR_MODE_COUNT,
         .fps = 10 * 256,
-        .resolution.width = 4096,
-        .resolution.height = 3000,
+        .resolution.width = 3840,
+        .resolution.height = 2160,
         .bits = 12,
         .exposures = 1,
     },
@@ -483,7 +483,7 @@ static void sensor_set_mode( void *ctx, uint8_t mode )
 	}
     }
 #endif
-    printk("sensor set mode to %d, %dx%d raw%d, dol%d", mode, dummy_drv_supported_modes[mode].resolution.width,
+//    printk("sensor set mode to %d, %dx%d raw%d, dol%d", mode, dummy_drv_supported_modes[mode].resolution.width, \
         dummy_drv_supported_modes[mode].resolution.height, dummy_drv_supported_modes[mode].bits, dummy_drv_supported_modes[mode].exposures);
 }
 
