@@ -250,11 +250,11 @@
 			  <0 0xA1000000 0 0x1000>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 26 4>;
-			/* dr_mode: {gadget, host, otg} */
+			/* dr_mode: {peripheral, host, otg} */
 			dr_mode = "host";
 			/* phy_type: {utmi, utmi_wide, ulpi, serial, hsic} */
-			phy_type = "utmi_wide";
-			/*snps,dis_u2_susphy_quirk; */
+			snps,dis_u2_susphy_quirk;
+			/* snps,dis_u3_susphy_quirk; */
 			status = "okay";
 		};
 

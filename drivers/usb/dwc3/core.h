@@ -159,15 +159,21 @@
 #define DWC3_OEVTEN		0xcc0C
 #define DWC3_OSTS		0xcc10
 
-/* Hobot Registers 2 */
-#define USB3_CTRL_REG0				0x5B0
-#define BUS_FILTER_BYPASS_MASK		0xF
+/* Hobot Sysctl Register */
+#define USB3_CTRL_REG0			0x5b0
+#define BUS_FILTER_BYPASS_MASK		0xf
 #define BUS_FILTER_BYPASS_DEVICE	0x8
-#define BUS_FILTER_BYPASS_HOST		0xF
+#define BUS_FILTER_BYPASS_HOST		0xf
 
-#define USB3_PHY_REG2		0x5BC
-#define PHY_RESET			BIT(31)
+#define USB3_PHY_REG0		0x5b4
+#define RX_LOS_LFPSFILT		BIT(30)
+#define USB3_PHY_REG1		0x5b8
+#define USB3_PHY_REG2		0x5bc
+#define PHY_RESET		BIT(31)
 #define PHY_RESET_MASK		BIT(31)
+
+#define CPUSYS_SW_RSTEN		0x400
+#define SYS_USB_RSTEN		BIT(12)
 /* Bit fields */
 
 /* Global Debug Queue/FIFO Space Available Register */

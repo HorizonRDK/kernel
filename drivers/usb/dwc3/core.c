@@ -49,8 +49,16 @@
 
 #define DWC3_DEFAULT_AUTOSUSPEND_DELAY	5000 /* ms */
 
-// #define HOBOT_TEST_REGISTER_RW
-// #define HOBOT_FPGA_TEST_TIMING_FINETUNE
+// #define HOBOT_FPGA_TEST
+#ifdef HOBOT_FPGA_TEST
+#define HOBOT_TEST_REGISTER_RW
+#define HOBOT_FPGA_TEST_TIMING_FINETUNE
+#define HOBOT_FPGA_USING_M31_PHY
+#endif
+
+#define HOBOT_SOC_DWC3_SETTING
+// #define HOBOT_SOC_DWC3_DEBUG
+
 /**
  * dwc3_get_dr_mode - Validates and sets dr_mode
  * @dwc: pointer to our context structure
@@ -620,8 +628,6 @@ static int dwc3_phy_setup(struct dwc3 *dwc)
 	default:
 		break;
 	}
-
-	printk("dwc->hsphy_mode = %d\n", dwc->hsphy_mode);
 
 	switch (dwc->hsphy_mode) {
 	case USBPHY_INTERFACE_MODE_UTMI:
@@ -1253,6 +1259,7 @@ static void hobot_phy_finetune_timing(struct dwc3 *dwc)
 }
 #endif
 
+#ifdef HOBOT_FPGA_USING_M31_PHY
 static void hobot_usb_set_mode(struct dwc3 *dwc)
 {
 	volatile unsigned int	*reg_ptr;
@@ -1265,9 +1272,9 @@ static void hobot_usb_set_mode(struct dwc3 *dwc)
 		*reg_ptr = (*reg_ptr & ~BUS_FILTER_BYPASS_MASK) | BUS_FILTER_BYPASS_DEVICE;
 }
 
-static void hobot_phy_reset(struct dwc3 *dwc)
+static void hobot_m31_phy_reset(struct dwc3 *dwc)
 {
-#if 1 // For Phy Reset
+	// For Phy Reset
 	volatile unsigned int	*reg_ptr;
 
 	reg_ptr = dwc->regs_sys + USB3_PHY_REG2;
@@ -1279,8 +1286,107 @@ static void hobot_phy_reset(struct dwc3 *dwc)
 	printk(">>> Register PHY_REG2: Write to 0\n");
 	*reg_ptr = (*reg_ptr & ~PHY_RESET_MASK) | ~PHY_RESET;
 	printk(">>> Register PHY_REG2: 0x%x\n", *reg_ptr);
-#endif
 }
+#endif
+
+#ifdef HOBOT_SOC_DWC3_DEBUG
+static void hobot_dwc3_info_register(struct dwc3 *dwc)
+{
+	u32 reg;
+
+	/* dwc3 register */
+	reg = dwc3_readl(dwc->regs, DWC3_GSBUSCFG0);
+	dev_info(dwc->dev, "DWC3_GSBUSCFG0: 0x%x", reg);
+
+	reg = dwc3_readl(dwc->regs, DWC3_GSBUSCFG1);
+	dev_info(dwc->dev, "DWC3_GSBUSCFG1: 0x%x", reg);
+
+	reg = dwc3_readl(dwc->regs, DWC3_GTXTHRCFG);
+	dev_info(dwc->dev, "DWC3_GTXTHRCFG: 0x%x", reg);
+
+	reg = dwc3_readl(dwc->regs, DWC3_GRXTHRCFG);
+	dev_info(dwc->dev, "DWC3_GRXTHRCFG: 0x%x", reg);
+
+	reg = dwc3_readl(dwc->regs, DWC3_GSNPSID);
+	dev_info(dwc->dev, "DWC3_GSNPSID: 0x%x", reg);
+
+	reg = dwc3_readl(dwc->regs, DWC3_GUID);
+	dev_info(dwc->dev, "DWC3_GUID: 0x%x", reg);
+
+	reg = dwc3_readl(dwc->regs, DWC3_GUSB2PHYCFG(0));
+	dev_info(dwc->dev, "DWC3_GUSB2PHYCFG(0): 0x%x", reg);
+
+	reg = dwc3_readl(dwc->regs, DWC3_GUSB3PIPECTL(0));
+	dev_info(dwc->dev, "DWC3_GUSB3PIPECTL(0): 0x%x", reg);
+
+	reg = dwc3_readl(dwc->regs, DWC3_GCTL);
+	dev_info(dwc->dev, "DWC3_GCTL: 0x%x", reg);
+
+	reg = dwc3_readl(dwc->regs, DWC3_GUCTL);
+	dev_info(dwc->dev, "DWC3_GUCTL: 0x%x", reg);
+
+	reg = dwc3_readl(dwc->regs, DWC3_DCTL);
+	dev_info(dwc->dev, "DWC3_DCTL: 0x%x", reg);
+
+	/* sysctl register */
+	reg = readl(dwc->regs_sys + USB3_PHY_REG0);
+	dev_info(dwc->dev, "USB3_PHY_REG0: 0x%x", reg);
+
+	reg = readl(dwc->regs_sys + USB3_CTRL_REG0);
+	dev_info(dwc->dev, "USB3_CTRL_REG0: 0x%x", reg);
+
+	reg = readl(dwc->regs_sys + CPUSYS_SW_RSTEN);
+	dev_info(dwc->dev, "CPUSYS_SW_RSTEN: 0x%x", reg);
+}
+#endif
+
+#ifdef HOBOT_SOC_DWC3_SETTING
+static void hobot_usb_sw_reset(struct dwc3* dwc) {
+	u32 reg;
+
+	reg = readl(dwc->regs_sys + CPUSYS_SW_RSTEN);
+	reg |= SYS_USB_RSTEN;
+	writel(reg, dwc->regs_sys + CPUSYS_SW_RSTEN);
+	reg &= ~SYS_USB_RSTEN;
+	writel(reg, dwc->regs_sys + CPUSYS_SW_RSTEN);
+}
+
+static void hobot_usb_reset_register(struct dwc3 *dwc) {
+	u32 reg;
+
+	/* sysctl register */
+	reg = readl(dwc->regs_sys + USB3_CTRL_REG0);
+	reg = 0x200f;
+	writel(reg, dwc->regs_sys + USB3_CTRL_REG0);
+
+	reg = readl(dwc->regs_sys + USB3_PHY_REG0);
+	reg &= ~RX_LOS_LFPSFILT;
+	writel(reg, dwc->regs_sys + USB3_PHY_REG0);
+
+	/* dwc3 register */
+	reg = dwc3_readl(dwc->regs, DWC3_GUSB2PHYCFG(0));
+	// reg = 0x40105408;
+	reg = 0x40101400;
+	dwc3_writel(dwc->regs, DWC3_GUSB2PHYCFG(0),reg);
+
+	reg = dwc3_readl(dwc->regs, DWC3_GUSB3PIPECTL(0));
+	// reg = 0x01000002;
+	reg = 0x00000002;
+	dwc3_writel(dwc->regs, DWC3_GUSB3PIPECTL(0),reg);
+
+	reg = dwc3_readl(dwc->regs, DWC3_GCTL);
+	reg = 0x30c11004;
+	dwc3_writel(dwc->regs, DWC3_GCTL,reg);
+}
+
+static void hobot_usb_reset(struct dwc3 *dwc)
+{
+	hobot_usb_sw_reset(dwc);
+
+	/* reset some dwc3/sysctl registers */
+	hobot_usb_reset_register(dwc);
+}
+#endif
 
 static int dwc3_probe(struct platform_device *pdev)
 {
@@ -1293,8 +1399,6 @@ static int dwc3_probe(struct platform_device *pdev)
 
 	void __iomem		*regs;
 	void __iomem		*regs_sys;
-
-	printk("dwc3_probe\n");
 
 	dwc = devm_kzalloc(dev, sizeof(*dwc), GFP_KERNEL);
 	if (!dwc)
@@ -1340,8 +1444,8 @@ static int dwc3_probe(struct platform_device *pdev)
 	dwc->regs	= regs;
 	dwc->regs_size	= resource_size(res);
 
-	dwc->regs_sys	= regs;
-	dwc->regs_sys_size	= resource_size(res);
+	dwc->regs_sys	= regs_sys;
+	dwc->regs_sys_size	= resource_size(res_sys);
 
 #ifdef HOBOT_TEST_REGISTER_RW
 	hobot_usb_register_test(dwc);
@@ -1351,9 +1455,16 @@ static int dwc3_probe(struct platform_device *pdev)
 	hobot_phy_finetune_timing(dwc);
 #endif
 
+#ifdef HOBOT_FPGA_USING_M31_PHY
 	hobot_usb_set_mode(dwc);
+	hobot_m31_phy_reset(dwc);
+#endif
 
-	// hobot_phy_reset(dwc);
+#ifdef HOBOT_SOC_DWC3_SETTING
+	// hobot_dwc3_info_register(dwc);
+	hobot_usb_reset(dwc);
+	// hobot_dwc3_info_register(dwc);
+#endif
 
 	dwc3_get_properties(dwc);
 
