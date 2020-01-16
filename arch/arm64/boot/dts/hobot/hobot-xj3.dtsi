@@ -680,7 +680,7 @@
 		};
 
 		nand_flash: nand@0xB0000000 {
-			compatible = "hobot,x2-qspi-nand";
+			compatible = "hobot,hb-qspi-nand";
 			status = "disabled";
 			num-cs = <8>;
 			reg = <0x0 0xB0000000 0x0 0x1000>;
@@ -691,11 +691,11 @@
 		};
 
 		nor_flash: nor@0xB0000000 {
-			compatible = "hobot,x2-qspi-nor";
+			compatible = "hobot,hb-qspi-nor";
 			status = "disabled";
 			reg = <0x0 0xB0000000 0x0 0x1000>;
 			interrupt-parent = <&gic>;
-			interrupts = <0 19 4>;
+			interrupts = <0 25 4>;
 			clocks = <&sys_qspi_aclk>;
 			clock-names = "qspi_aclk";
 		};

@@ -1,5 +1,5 @@
 /*
- * Horizon X2 QuadSPI driver.
+ * Horizon HB QuadSPI driver.
  *
  * Copyright (C) 2018 Horizon, Inc.
  *
@@ -30,31 +30,32 @@
 #include <linux/mtd/partitions.h>
 #include <linux/slab.h>
 #include <soc/hobot/diag.h>
-#include "hobot-qspi.h"
+#include <linux/spi/spi-hobot-qspi.h>
+
+#define HB_QSPI_NAME                "hb_qspi_nor"
 
 static int first_time;
 static int last_err;
+/* #define HB_QSPI_WORK_POLL    1 */
 
-/* #define X2_QSPI_WORK_POLL    1 */
-
-struct x2qspi_pdata;
-struct x2qspi_flash_pdata {
+struct hbqspi_pdata;
+struct hbqspi_flash_pdata {
 	struct spi_nor nor;
-	struct x2qspi_pdata *x2qspi;
+	struct hbqspi_pdata *hbqspi;
 	u32 clk_rate;
 	u8  cs;
 	bool registered;
 };
 
 /**
- * struct x2_qspi_platdata - platform data for x2 QSPI
+ * struct hb_qspi_platdata - platform data for hb QSPI
  *
  * @regs: Point to the base address of QSPI registers
  * @freq: QSPI input clk frequency
  * @speed_hz: Default BUS sck frequency
  * @xfer_mode: 0-Byte 1-batch 2-dma, Default work in byte mode
  */
-struct x2qspi_pdata {
+struct hbqspi_pdata {
 	int irq;
 	u32 ref_clk;
 	u32 cur_cs;
@@ -63,26 +64,26 @@ struct x2qspi_pdata {
 	struct mutex lock;
 	struct platform_device *pdev;
 	struct completion xfer_complete;
-	struct x2qspi_flash_pdata f_pdata[X2_QSPI_MAX_CS];
+	struct hbqspi_flash_pdata f_pdata[HB_QSPI_MAX_CS];
 };
 
 
-#define x2qspi_rd(dev, reg)       ioread32((dev)->iobase + (reg))
-#define x2qspi_wr(dev, reg, val)  iowrite32((val), (dev)->iobase + (reg))
+#define hbqspi_rd(dev, reg)       ioread32((dev)->iobase + (reg))
+#define hbqspi_wr(dev, reg, val)  iowrite32((val), (dev)->iobase + (reg))
 
-static void x2_qspi_set_speed(struct spi_nor *nor)
+static void hb_qspi_set_speed(struct spi_nor *nor)
 {
 	int confr, prescaler, divisor;
 	unsigned int max_br, min_br, br_div;
-	struct x2qspi_flash_pdata *f_pdata = (struct x2qspi_flash_pdata *)nor->priv;
-	struct x2qspi_pdata *x2qspi   = f_pdata->x2qspi;
+	struct hbqspi_flash_pdata *f_pdata = (struct hbqspi_flash_pdata *)nor->priv;
+	struct hbqspi_pdata *hbqspi   = f_pdata->hbqspi;
 
-	if (x2qspi->cur_cs == f_pdata->cs)
+	if (hbqspi->cur_cs == f_pdata->cs)
 		return;
-	x2qspi->cur_cs = f_pdata->cs;
+	hbqspi->cur_cs = f_pdata->cs;
 
-	max_br = x2qspi->ref_clk / 2;
-	min_br = x2qspi->ref_clk / 1048576;
+	max_br = hbqspi->ref_clk / 2;
+	min_br = hbqspi->ref_clk / 1048576;
 	if (f_pdata->clk_rate > max_br) {
 		f_pdata->clk_rate = max_br;
 		pr_err("Warning:speed[%d] > max_br[%d],speed will be set to max_br\n", f_pdata->clk_rate, max_br);
@@ -95,9 +96,9 @@ static void x2_qspi_set_speed(struct spi_nor *nor)
 	for (prescaler = 15; prescaler >= 0; prescaler--) {
 		for (divisor = 15; divisor >= 0; divisor--) {
 			br_div = (prescaler + 1) * (2 << divisor);
-			if ((x2qspi->ref_clk / br_div) >= f_pdata->clk_rate) {
+			if ((hbqspi->ref_clk / br_div) >= f_pdata->clk_rate) {
 				confr = (prescaler | (divisor << 4)) & 0xFF;
-				x2qspi_wr(x2qspi, X2_QSPI_BDR_REG, confr);
+				hbqspi_wr(hbqspi, HB_QSPI_BDR_REG, confr);
 				return;
 			}
 		}
@@ -107,238 +108,238 @@ static void x2_qspi_set_speed(struct spi_nor *nor)
 }
 
 /* currend driver only support BYTE/DUAL/QUAD for both RX and TX */
-static int x2_qspi_set_wire(struct x2qspi_pdata *x2qspi, uint mode)
+static int hb_qspi_set_wire(struct hbqspi_pdata *hbqspi, uint mode)
 {
 	unsigned int val = 0;
 
 	switch (mode) {
-	case X2_QSPI_BUS_DUAL:
-		val = X2_QSPI_DUAL;
+	case HB_QSPI_BUS_DUAL:
+		val = HB_QSPI_INST_DUAL;
 		break;
-	case X2_QSPI_BUS_QUAD:
-		val = X2_QSPI_QUAD;
+	case HB_QSPI_BUS_QUAD:
+		val = HB_QSPI_INST_QUAD;
 		break;
-	case X2_QSPI_BUS_SINGLE:
+	case HB_QSPI_BUS_SINGLE:
 	default:
 		val = 0xFC;
 		break;
 	}
-	x2qspi_wr(x2qspi, X2_QSPI_DQM_REG, val);
+	hbqspi_wr(hbqspi, HB_QSPI_DQM_REG, val);
 
 	return 0;
 }
 
 
-static void x2_qspi_reset_fifo(struct x2qspi_pdata *x2qspi)
+static void hb_qspi_reset_fifo(struct hbqspi_pdata *hbqspi)
 {
 	u32 val;
 
-	val = x2qspi_rd(x2qspi, X2_QSPI_CTL3_REG);
-	val |= X2_QSPI_RST_ALL;
-	x2qspi_wr(x2qspi, X2_QSPI_CTL3_REG, val);
+	val = hbqspi_rd(hbqspi, HB_QSPI_CTL3_REG);
+	val |= HB_QSPI_RST_FIFO;
+	hbqspi_wr(hbqspi, HB_QSPI_CTL3_REG, val);
 	mdelay(1);
-	val = (~X2_QSPI_RST_ALL);
-	x2qspi_wr(x2qspi, X2_QSPI_CTL3_REG, val);
+	val = (~HB_QSPI_RST_FIFO);
+	hbqspi_wr(hbqspi, HB_QSPI_CTL3_REG, val);
 
 	return;
 }
 
 /* tx almost empty */
-static int x2_qspi_tx_ae(struct x2qspi_pdata *x2qspi)
+static int hb_qspi_tx_ae(struct hbqspi_pdata *hbqspi)
 {
 	u32 val, trys=0;
 
 	do {
 		ndelay(10);
-		val = x2qspi_rd(x2qspi, X2_QSPI_ST1_REG);
+		val = hbqspi_rd(hbqspi, HB_QSPI_ST1_REG);
 		trys ++;
-	} while ((!(val&X2_QSPI_TX_AE)) && (trys<TRYS_TOTAL_NUM));
+	} while ((!(val&HB_QSPI_TX_AE)) && (trys < TRYS_TOTAL_NUM));
 	if (trys >= TRYS_TOTAL_NUM)
 		pr_err("%s_%d:val=%x, trys=%d\n", __func__, __LINE__, val, trys);
 
-	return trys<TRYS_TOTAL_NUM ? 0 : -1;
+	return trys < TRYS_TOTAL_NUM ? 0 : -1;
 }
 
 /* rx almost full */
-static int x2_qspi_rx_af(struct x2qspi_pdata *x2qspi)
+static int hb_qspi_rx_af(struct hbqspi_pdata *hbqspi)
 {
 	u32 val, trys=0;
 
 	do {
 		ndelay(10);
-		val = x2qspi_rd(x2qspi, X2_QSPI_ST1_REG);
+		val = hbqspi_rd(hbqspi, HB_QSPI_ST1_REG);
 		trys ++;
-	} while ((!(val&X2_QSPI_RX_AF)) && (trys<TRYS_TOTAL_NUM));
+	} while ((!(val&HB_QSPI_RX_AF)) && (trys < TRYS_TOTAL_NUM));
 	if (trys >= TRYS_TOTAL_NUM)
 		pr_err("%s_%d:val=%x, trys=%d\n", __func__, __LINE__, val, trys);
 
-	return trys<TRYS_TOTAL_NUM ? 0 : -1;
+	return trys < TRYS_TOTAL_NUM ? 0 : -1;
 }
 
-static int __maybe_unused x2_qspi_tb_done(struct x2qspi_pdata *x2qspi)
+static int __maybe_unused hb_qspi_tb_done(struct hbqspi_pdata *hbqspi)
 {
 	u32 val, trys=0;
 
 	do {
 		ndelay(10);
-		val = x2qspi_rd(x2qspi, X2_QSPI_ST1_REG);
+		val = hbqspi_rd(hbqspi, HB_QSPI_ST1_REG);
 		trys ++;
-	} while ((!(val&X2_QSPI_TBD)) && (trys<TRYS_TOTAL_NUM));
+	} while ((!(val&HB_QSPI_TBD)) && (trys < TRYS_TOTAL_NUM));
 	if (trys >= TRYS_TOTAL_NUM)
 		pr_err("%s_%d:val=%x, trys=%d\n", __func__, __LINE__, val, trys);
-	x2qspi_wr(x2qspi, X2_QSPI_ST1_REG, (val|X2_QSPI_TBD));
+	hbqspi_wr(hbqspi, HB_QSPI_ST1_REG, (val|HB_QSPI_TBD));
 
 
-	return trys<TRYS_TOTAL_NUM ? 0 : -1;
+	return trys < TRYS_TOTAL_NUM ? 0 : -1;
 }
 
-static int __maybe_unused x2_qspi_rb_done(struct x2qspi_pdata *x2qspi)
+static int __maybe_unused hb_qspi_rb_done(struct hbqspi_pdata *hbqspi)
 {
 	u32 val, trys=0;
 
 	do {
 		ndelay(10);
-		val = x2qspi_rd(x2qspi, X2_QSPI_ST1_REG);
+		val = hbqspi_rd(hbqspi, HB_QSPI_ST1_REG);
 		trys ++;
-	} while ((!(val&X2_QSPI_RBD)) && (trys<TRYS_TOTAL_NUM));
+	} while ((!(val&HB_QSPI_RBD)) && (trys < TRYS_TOTAL_NUM));
 	if (trys >= TRYS_TOTAL_NUM)
 		pr_err("%s_%d:val=%x, trys=%d\n", __func__, __LINE__, val, trys);
-	x2qspi_wr(x2qspi, X2_QSPI_ST1_REG, (val|X2_QSPI_RBD));
+	hbqspi_wr(hbqspi, HB_QSPI_ST1_REG, (val|HB_QSPI_RBD));
 
 
-	return trys<TRYS_TOTAL_NUM ? 0 : -1;
+	return trys < TRYS_TOTAL_NUM ? 0 : -1;
 }
 
-static int x2_qspi_tx_full(struct x2qspi_pdata *x2qspi)
+static int hb_qspi_tx_full(struct hbqspi_pdata *hbqspi)
 {
 	u32 val, trys=0;
 
 	do {
 		ndelay(10);
-		val = x2qspi_rd(x2qspi, X2_QSPI_ST2_REG);
+		val = hbqspi_rd(hbqspi, HB_QSPI_ST2_REG);
 		trys ++;
-	} while ((val&X2_QSPI_TX_FULL) && (trys<TRYS_TOTAL_NUM));
+	} while ((val&HB_QSPI_TX_FULL) && (trys < TRYS_TOTAL_NUM));
 
 	if (trys >= TRYS_TOTAL_NUM)
 		pr_err("%s_%d:val=%x, trys=%d\n", __func__, __LINE__, val, trys);
 
-	return trys<TRYS_TOTAL_NUM ? 0 : -1;
+	return trys < TRYS_TOTAL_NUM ? 0 : -1;
 }
 
-static int x2_qspi_tx_empty(struct x2qspi_pdata *x2qspi)
+static int hb_qspi_tx_empty(struct hbqspi_pdata *hbqspi)
 {
 	u32 val, trys=0;
 
 	do {
 		ndelay(10);
-		val = x2qspi_rd(x2qspi, X2_QSPI_ST2_REG);
+		val = hbqspi_rd(hbqspi, HB_QSPI_ST2_REG);
 		trys ++;
-	} while ((!(val&X2_QSPI_TX_EP)) && (trys<TRYS_TOTAL_NUM));
+	} while ((!(val&HB_QSPI_TX_EP)) && (trys < TRYS_TOTAL_NUM));
 
 	if (trys >= TRYS_TOTAL_NUM)
 		pr_err("%s_%d:val=%x, trys=%d\n", __func__, __LINE__, val, trys);
 
-	return trys<TRYS_TOTAL_NUM ? 0 : -1;
+	return trys < TRYS_TOTAL_NUM ? 0 : -1;
 }
 
-static int x2_qspi_rx_empty(struct x2qspi_pdata *x2qspi)
+static int hb_qspi_rx_empty(struct hbqspi_pdata *hbqspi)
 {
 	u32 val, trys=0;
 
 	do {
 		ndelay(10);
-		val = x2qspi_rd(x2qspi, X2_QSPI_ST2_REG);
+		val = hbqspi_rd(hbqspi, HB_QSPI_ST2_REG);
 		trys ++;
-	} while ((val&X2_QSPI_RX_EP) && (trys<TRYS_TOTAL_NUM));
+	} while ((val&HB_QSPI_RX_EP) && (trys < TRYS_TOTAL_NUM));
 
 	if (trys >= TRYS_TOTAL_NUM)
 		pr_err("%s_%d:val=%x, trys=%d\n", __func__, __LINE__, val, trys);
 
-	return trys<TRYS_TOTAL_NUM ? 0 : -1;
+	return trys < TRYS_TOTAL_NUM ? 0 : -1;
 }
 
 /* config fifo width */
-static void x2_qspi_set_fw(struct x2qspi_pdata *x2qspi, u32 fifo_width)
+static void hb_qspi_set_fw(struct hbqspi_pdata *hbqspi, u32 fifo_width)
 {
 	u32 val;
 
-	val = x2qspi_rd(x2qspi, X2_QSPI_CTL1_REG);
+	val = hbqspi_rd(hbqspi, HB_QSPI_CTL1_REG);
 	val &= (~0x3);
 	val |= fifo_width;
-	x2qspi_wr(x2qspi, X2_QSPI_CTL1_REG, val);
+	hbqspi_wr(hbqspi, HB_QSPI_CTL1_REG, val);
 
 	return;
 }
 
 /*config xfer mode:enable/disable BATCH/RX/TX */
-static void x2_qspi_set_xfer(struct x2qspi_pdata *x2qspi, u32 op_flag)
+static void hb_qspi_set_xfer(struct hbqspi_pdata *hbqspi, u32 op_flag)
 {
 	u32 ctl1_val = 0, ctl3_val = 0;
 
-	ctl1_val = x2qspi_rd(x2qspi, X2_QSPI_CTL1_REG);
-	ctl3_val = x2qspi_rd(x2qspi, X2_QSPI_CTL3_REG);
+	ctl1_val = hbqspi_rd(hbqspi, HB_QSPI_CTL1_REG);
+	ctl3_val = hbqspi_rd(hbqspi, HB_QSPI_CTL3_REG);
 
 	switch (op_flag) {
-	case X2_QSPI_OP_RX_EN:
-		ctl1_val |= X2_QSPI_RX_EN;
+	case HB_QSPI_OP_RX_EN:
+		ctl1_val |= HB_QSPI_RX_EN;
 		break;
-	case X2_QSPI_OP_RX_DIS:
-		ctl1_val &= (~X2_QSPI_RX_EN);
+	case HB_QSPI_OP_RX_DIS:
+		ctl1_val &= (~HB_QSPI_RX_EN);
 		break;
-	case X2_QSPI_OP_TX_EN:
-		ctl1_val |= X2_QSPI_TX_EN;
+	case HB_QSPI_OP_TX_EN:
+		ctl1_val |= HB_QSPI_TX_EN;
 		break;
-	case X2_QSPI_OP_TX_DIS:
-		ctl1_val &= (~X2_QSPI_TX_EN);
+	case HB_QSPI_OP_TX_DIS:
+		ctl1_val &= (~HB_QSPI_TX_EN);
 		break;
-	case X2_QSPI_OP_BAT_EN:
-		ctl3_val &= (~X2_QSPI_BATCH_DIS);
+	case HB_QSPI_OP_BAT_EN:
+		ctl3_val &= (~HB_QSPI_BATCH_DIS);
 		break;
-	case X2_QSPI_OP_BAT_DIS:
-		ctl3_val |= X2_QSPI_BATCH_DIS;
+	case HB_QSPI_OP_BAT_DIS:
+		ctl3_val |= HB_QSPI_BATCH_DIS;
 		break;
 	default:
 		pr_err("Op(0x%x) if error, please check it!\n", op_flag);
 		break;
 	}
-	x2qspi_wr(x2qspi, X2_QSPI_CTL1_REG, ctl1_val);
-	x2qspi_wr(x2qspi, X2_QSPI_CTL3_REG, ctl3_val);
+	hbqspi_wr(hbqspi, HB_QSPI_CTL1_REG, ctl1_val);
+	hbqspi_wr(hbqspi, HB_QSPI_CTL3_REG, ctl3_val);
 
 	return;
 }
 
-static int x2qspi_rd_batch(struct x2qspi_pdata *x2qspi, void *pbuf, uint32_t len)
+static int hbqspi_rd_batch(struct hbqspi_pdata *hbqspi, void *pbuf, uint32_t len)
 {
 	u32 i, rx_len, offset = 0, tmp_len = len, ret = 0;
 	u32 *dbuf = (u32 *) pbuf;
 
 	/* Enable batch mode */
-	x2_qspi_set_fw(x2qspi, X2_QSPI_FW32);
-	x2_qspi_set_xfer(x2qspi, X2_QSPI_OP_BAT_EN);
+	hb_qspi_set_fw(hbqspi, HB_QSPI_FW32);
+	hb_qspi_set_xfer(hbqspi, HB_QSPI_OP_BAT_EN);
 
 	while (tmp_len > 0) {
-		reinit_completion(&x2qspi->xfer_complete);
+		reinit_completion(&hbqspi->xfer_complete);
 		rx_len = MIN(tmp_len, BATCH_MAX_CNT);
-		x2qspi_wr(x2qspi, X2_QSPI_RBC_REG, rx_len);
+		hbqspi_wr(hbqspi, HB_QSPI_RBC_REG, rx_len);
 		/* enbale rx */
-		x2_qspi_set_xfer(x2qspi, X2_QSPI_OP_RX_EN);
+		hb_qspi_set_xfer(hbqspi, HB_QSPI_OP_RX_EN);
 
 		for (i=0; i< rx_len; i+=8) {
-			if (x2_qspi_rx_af(x2qspi)) {
+			if (hb_qspi_rx_af(hbqspi)) {
 				ret = -1;
 				goto rb_err;
 			}
-			dbuf[offset++] = x2qspi_rd(x2qspi, X2_QSPI_DAT_REG);
-			dbuf[offset++] = x2qspi_rd(x2qspi, X2_QSPI_DAT_REG);
+			dbuf[offset++] = hbqspi_rd(hbqspi, HB_QSPI_DAT_REG);
+			dbuf[offset++] = hbqspi_rd(hbqspi, HB_QSPI_DAT_REG);
 		}
-#ifdef X2_QSPI_WORK_POLL
-		if (x2_qspi_rb_done(x2qspi)) {
+#ifdef HB_QSPI_WORK_POLL
+		if (hb_qspi_rb_done(hbqspi)) {
 			pr_err("%s_%d:rx failed! len=%d, received=%d, i=%d\n", __func__, __LINE__, len, offset, i);
 			ret = -EIO;
 			goto rb_err;
 		}
 #else
-		ret = wait_for_completion_timeout(&x2qspi->xfer_complete, msecs_to_jiffies(X2_QSPI_TIMEOUT_MS));
+		ret = wait_for_completion_timeout(&hbqspi->xfer_complete, msecs_to_jiffies(HB_QSPI_TIMEOUT_MS));
 		if (!ret) {
 			pr_err("%s_%d:rx failed! len=%d, received=%d, i=%d\n", __func__, __LINE__, len, offset, i);
 			ret = -EIO;
@@ -346,51 +347,51 @@ static int x2qspi_rd_batch(struct x2qspi_pdata *x2qspi, void *pbuf, uint32_t len
 		}
 		ret = 0;
 #endif
-		x2_qspi_set_xfer(x2qspi, X2_QSPI_OP_RX_DIS);
+		hb_qspi_set_xfer(hbqspi, HB_QSPI_OP_RX_DIS);
 		tmp_len = tmp_len - rx_len;
 	}
 
 rb_err:
 	/* Disable batch mode and rx link */
-	x2_qspi_set_fw(x2qspi, X2_QSPI_FW8);
-	x2_qspi_set_xfer(x2qspi, X2_QSPI_OP_BAT_DIS);
-	x2_qspi_set_xfer(x2qspi, X2_QSPI_OP_RX_DIS);
+	hb_qspi_set_fw(hbqspi, HB_QSPI_FW8);
+	hb_qspi_set_xfer(hbqspi, HB_QSPI_OP_BAT_DIS);
+	hb_qspi_set_xfer(hbqspi, HB_QSPI_OP_RX_DIS);
 
 	return ret;
 }
 
-static int x2qspi_wr_batch(struct x2qspi_pdata *x2qspi, const void *pbuf, uint32_t len)
+static int hbqspi_wr_batch(struct hbqspi_pdata *hbqspi, const void *pbuf, uint32_t len)
 {
 	u32 i, tx_len, offset = 0, tmp_len = len, ret = 0;
 	u32 *dbuf = (u32 *) pbuf;
 
-	x2_qspi_set_fw(x2qspi, X2_QSPI_FW32);
-	x2_qspi_set_xfer(x2qspi, X2_QSPI_OP_BAT_EN);
+	hb_qspi_set_fw(hbqspi, HB_QSPI_FW32);
+	hb_qspi_set_xfer(hbqspi, HB_QSPI_OP_BAT_EN);
 
 	while (tmp_len > 0) {
-		reinit_completion(&x2qspi->xfer_complete);
+		reinit_completion(&hbqspi->xfer_complete);
 		tx_len = MIN(tmp_len, BATCH_MAX_CNT);
-		x2qspi_wr(x2qspi, X2_QSPI_TBC_REG, tx_len);
+		hbqspi_wr(hbqspi, HB_QSPI_TBC_REG, tx_len);
 
 		/* enbale tx */
-		x2_qspi_set_xfer(x2qspi, X2_QSPI_OP_TX_EN);
+		hb_qspi_set_xfer(hbqspi, HB_QSPI_OP_TX_EN);
 
-		for (i=0; i<tx_len; i+=8) {
-			if (x2_qspi_tx_ae(x2qspi)) {
+		for (i = 0; i < tx_len; i += 8) {
+			if (hb_qspi_tx_ae(hbqspi)) {
 				ret = -1;
 				goto tb_err;
 			}
-			x2qspi_wr(x2qspi, X2_QSPI_DAT_REG, dbuf[offset++]);
-			x2qspi_wr(x2qspi, X2_QSPI_DAT_REG, dbuf[offset++]);
+			hbqspi_wr(hbqspi, HB_QSPI_DAT_REG, dbuf[offset++]);
+			hbqspi_wr(hbqspi, HB_QSPI_DAT_REG, dbuf[offset++]);
 		}
-#ifdef X2_QSPI_WORK_POLL
-		if (x2_qspi_tb_done(x2qspi)) {
+#ifdef HB_QSPI_WORK_POLL
+		if (hb_qspi_tb_done(hbqspi)) {
 			pr_err("%s_%d:tx failed! len=%d, received=%d, i=%d\n", __func__, __LINE__, len, offset, i);
 			ret = -EIO;
 			goto tb_err;
 		}
 #else
-		ret = wait_for_completion_timeout(&x2qspi->xfer_complete, msecs_to_jiffies(X2_QSPI_TIMEOUT_MS));
+		ret = wait_for_completion_timeout(&hbqspi->xfer_complete, msecs_to_jiffies(HB_QSPI_TIMEOUT_MS));
 		if (!ret) {
 			pr_err("%s_%d:rx failed! len=%d, received=%d, i=%d\n", __func__, __LINE__, len, offset, i);
 			ret = -EIO;
@@ -403,37 +404,37 @@ static int x2qspi_wr_batch(struct x2qspi_pdata *x2qspi, const void *pbuf, uint32
 
 tb_err:
 	/* Disable batch mode and tx link */
-	x2_qspi_set_fw(x2qspi, X2_QSPI_FW8);
-	x2_qspi_set_xfer(x2qspi, X2_QSPI_OP_BAT_DIS);
-	x2_qspi_set_xfer(x2qspi, X2_QSPI_OP_TX_DIS);
+	hb_qspi_set_fw(hbqspi, HB_QSPI_FW8);
+	hb_qspi_set_xfer(hbqspi, HB_QSPI_OP_BAT_DIS);
+	hb_qspi_set_xfer(hbqspi, HB_QSPI_OP_TX_DIS);
 
 	return ret;
 }
 
-static int x2qspi_rd_byte(struct x2qspi_pdata *x2qspi, void *pbuf, uint32_t len)
+static int hbqspi_rd_byte(struct hbqspi_pdata *hbqspi, void *pbuf, uint32_t len)
 {
 	u32 i, ret = 0;
 	u8 *dbuf = (u8 *) pbuf;
 
 	/* enbale rx */
-	x2_qspi_set_xfer(x2qspi, X2_QSPI_OP_RX_EN);
+	hb_qspi_set_xfer(hbqspi, HB_QSPI_OP_RX_EN);
 
-	for (i=0; i<len; i++)
+	for (i = 0; i < len; i++)
 	{
-		if (x2_qspi_tx_empty(x2qspi)) {
+		if (hb_qspi_tx_empty(hbqspi)) {
 			ret = -1;
 			goto rd_err;
 		}
-		x2qspi_wr(x2qspi, X2_QSPI_DAT_REG, 0x00);
-		if (x2_qspi_rx_empty(x2qspi)) {
+		hbqspi_wr(hbqspi, HB_QSPI_DAT_REG, 0x00);
+		if (hb_qspi_rx_empty(hbqspi)) {
 			ret = -1;
 			goto rd_err;
 		}
-		dbuf[i] = x2qspi_rd(x2qspi, X2_QSPI_DAT_REG) & 0xFF;
+		dbuf[i] = hbqspi_rd(hbqspi, HB_QSPI_DAT_REG) & 0xFF;
 	}
 
 rd_err:
-	x2_qspi_set_xfer(x2qspi, X2_QSPI_OP_RX_DIS);
+	hb_qspi_set_xfer(hbqspi, HB_QSPI_OP_RX_DIS);
 
 	if (0 != ret)
 		pr_err("%s_%d:read op failed! i=%d\n", __func__, __LINE__, i);
@@ -441,28 +442,28 @@ rd_err:
 	return ret;
 }
 
-static int x2qspi_wr_byte(struct x2qspi_pdata *x2qspi, const void *pbuf, uint32_t len)
+static int hbqspi_wr_byte(struct hbqspi_pdata *hbqspi, const void *pbuf, uint32_t len)
 {
 	u32 i, ret = 0;
 	u8 *dbuf = (u8 *) pbuf;
 
 	/* enbale tx */
-	x2_qspi_set_xfer(x2qspi, X2_QSPI_OP_TX_EN);
+	hb_qspi_set_xfer(hbqspi, HB_QSPI_OP_TX_EN);
 
-	for (i=0; i<len; i++)
+	for (i = 0; i < len; i++)
 	{
-		if (x2_qspi_tx_full(x2qspi)) {
+		if (hb_qspi_tx_full(hbqspi)) {
 			ret = -1;
 			goto wr_err;
 		}
-		x2qspi_wr(x2qspi, X2_QSPI_DAT_REG, dbuf[i]);
+		hbqspi_wr(hbqspi, HB_QSPI_DAT_REG, dbuf[i]);
 	}
 	/* Check tx complete */
-	if (x2_qspi_tx_empty(x2qspi))
+	if (hb_qspi_tx_empty(hbqspi))
 		ret = -1;
 
 wr_err:
-	x2_qspi_set_xfer(x2qspi, X2_QSPI_OP_TX_DIS);
+	hb_qspi_set_xfer(hbqspi, HB_QSPI_OP_TX_DIS);
 
 	if (0 != ret)
 		pr_err("%s_%d:write op failed! i=%d\n", __func__, __LINE__, i);
@@ -470,99 +471,99 @@ wr_err:
 	return ret;
 }
 
-static int x2_qspi_read(struct x2qspi_pdata *x2qspi, void *pbuf, uint32_t len)
+static int hb_qspi_read(struct hbqspi_pdata *hbqspi, void *pbuf, uint32_t len)
 {
 	u32 ret = 0;
-	u32 remainder = len % X2_QSPI_TRIG_LEVEL;
+	u32 remainder = len % HB_QSPI_TRIG_LEVEL;
 	u32 residue   = len - remainder;
 
 	if (residue > 0)
-		ret = x2qspi_rd_batch(x2qspi, pbuf, residue);
+		ret = hbqspi_rd_batch(hbqspi, pbuf, residue);
 	if (remainder > 0)
-		ret = x2qspi_rd_byte(x2qspi, (u8 *) pbuf + residue, remainder);
+		ret = hbqspi_rd_byte(hbqspi, (u8 *) pbuf + residue, remainder);
 	if (ret < 0)
-		pr_err("x2_qspi_read failed!\n");
+		pr_err("hb_qspi_read failed!\n");
 
 	return ret;
 }
 
-static int x2_qspi_write(struct x2qspi_pdata *x2qspi, const void *pbuf, uint32_t len)
+static int hb_qspi_write(struct hbqspi_pdata *hbqspi, const void *pbuf, uint32_t len)
 {
 	u32 ret = 0;
-	u32 remainder = len % X2_QSPI_TRIG_LEVEL;
+	u32 remainder = len % HB_QSPI_TRIG_LEVEL;
 	u32 residue   = len - remainder;
 
 	if (residue > 0)
-		ret = x2qspi_wr_batch(x2qspi, pbuf, residue);
+		ret = hbqspi_wr_batch(hbqspi, pbuf, residue);
 	if (remainder > 0)
-		ret = x2qspi_wr_byte(x2qspi, (u8 *) pbuf + residue, remainder);
+		ret = hbqspi_wr_byte(hbqspi, (u8 *) pbuf + residue, remainder);
 	if (ret < 0)
-		pr_err("x2qspi_write failed!\n");
+		pr_err("hbqspi_write failed!\n");
 
 	return ret;
 }
 
-int x2_qspi_xfer(struct spi_nor *nor, unsigned int len, const void *dout,
+int hb_qspi_xfer(struct spi_nor *nor, unsigned int len, const void *dout,
 		 void *din, unsigned long flags)
 {
 	int ret = 0;
-	struct x2qspi_flash_pdata *f_pdata = (struct x2qspi_flash_pdata *)nor->priv;
-	struct x2qspi_pdata *x2qspi   = f_pdata->x2qspi;
+	struct hbqspi_flash_pdata *f_pdata = (struct hbqspi_flash_pdata *)nor->priv;
+	struct hbqspi_pdata *hbqspi   = f_pdata->hbqspi;
 
 	if (len == 0) {
 		return 0;
 	}
 
-	if (flags & X2_QSPI_XFER_BEGIN)
-		x2qspi_wr(x2qspi, X2_QSPI_CS_REG, 1<<f_pdata->cs);  /* Assert CS before transfer */
+	if (flags & HB_QSPI_XFER_BEGIN)
+		hbqspi_wr(hbqspi, HB_QSPI_CS_REG, 1 << f_pdata->cs);  /* Assert CS before transfer */
 
 	if (dout) {
-		ret = x2_qspi_write(x2qspi, dout, len);
+		ret = hb_qspi_write(hbqspi, dout, len);
 	}
 	else if (din) {
-		ret = x2_qspi_read(x2qspi, din, len);
+		ret = hb_qspi_read(hbqspi, din, len);
 	}
 
-	if (flags & X2_QSPI_XFER_END) {
-		x2qspi_wr(x2qspi, X2_QSPI_CS_REG, 0);  /* Deassert CS after transfer */
+	if (flags & HB_QSPI_XFER_END) {
+		hbqspi_wr(hbqspi, HB_QSPI_CS_REG, 0);  /* Deassert CS after transfer */
 	}
 
-	if (flags & X2_QSPI_XFER_CMD) {
+	if (flags & HB_QSPI_XFER_CMD) {
 		switch (((u8 *) dout) [0]) {
 		case CMD_READ_QUAD_OUTPUT_FAST:
 		case CMD_QUAD_PAGE_PROGRAM:
-			x2_qspi_set_wire(x2qspi, X2_QSPI_BUS_QUAD);
+			hb_qspi_set_wire(hbqspi, HB_QSPI_BUS_QUAD);
 			break;
 		case CMD_READ_DUAL_OUTPUT_FAST:
-			x2_qspi_set_wire(x2qspi, X2_QSPI_BUS_DUAL);
+			hb_qspi_set_wire(hbqspi, HB_QSPI_BUS_DUAL);
 			break;
 		default:
-			x2_qspi_set_wire(x2qspi, X2_QSPI_BUS_SINGLE);
+			hb_qspi_set_wire(hbqspi, HB_QSPI_BUS_SINGLE);
 			break;
 		}
 	} else {
-		x2_qspi_set_wire(x2qspi, X2_QSPI_BUS_SINGLE);
+		hb_qspi_set_wire(hbqspi, HB_QSPI_BUS_SINGLE);
 	}
 
 	return ret;
 }
 
-static int x2_qspi_flash_rd_wr(struct spi_nor *nor, const u8 *cmd, size_t cmd_len,
+static int hb_qspi_flash_rd_wr(struct spi_nor *nor, const u8 *cmd, size_t cmd_len,
 				const u8 *data_out, u8 *data_in, size_t data_len)
 {
 	int ret;
-	unsigned long flags = X2_QSPI_XFER_BEGIN;
+	unsigned long flags = HB_QSPI_XFER_BEGIN;
 
-	x2_qspi_set_speed(nor);
+	hb_qspi_set_speed(nor);
 
 	if (data_len == 0)
-		flags |= X2_QSPI_XFER_END;
+		flags |= HB_QSPI_XFER_END;
 
-	ret = x2_qspi_xfer(nor, cmd_len, cmd, NULL, flags|X2_QSPI_XFER_CMD);
+	ret = hb_qspi_xfer(nor, cmd_len, cmd, NULL, flags|HB_QSPI_XFER_CMD);
 	if (ret) {
 		pr_err("SF: Failed to send command (%d bytes): %d\n", (int)cmd_len, ret);
 	} else if (data_len != 0) {
-		ret = x2_qspi_xfer(nor, data_len, data_out, data_in, X2_QSPI_XFER_END);
+		ret = hb_qspi_xfer(nor, data_len, data_out, data_in, HB_QSPI_XFER_END);
 		if (ret)
 			pr_err("SF: Failed to transfer %d bytes of data: %d\n", (int)data_len, ret);
 	}
@@ -570,7 +571,7 @@ static int x2_qspi_flash_rd_wr(struct spi_nor *nor, const u8 *cmd, size_t cmd_le
 	return ret;
 }
 
-static void x2_qspi_flash_addr(struct spi_nor *nor, u32 addr, u8 *cmd)
+static void hb_qspi_flash_addr(struct spi_nor *nor, u32 addr, u8 *cmd)
 {
         /* cmd[0] is actual command */
         if (nor->mtd.size > SPI_FLASH_16MB_BOUN) {
@@ -585,35 +586,35 @@ static void x2_qspi_flash_addr(struct spi_nor *nor, u32 addr, u8 *cmd)
         }
 }
 
-static int x2_qspi_flash_prep(struct spi_nor *nor, enum spi_nor_ops ops)
+static int hb_qspi_flash_prep(struct spi_nor *nor, enum spi_nor_ops ops)
 {
-	struct x2qspi_flash_pdata *f_pdata = (struct x2qspi_flash_pdata *)nor->priv;
-	struct x2qspi_pdata *x2qspi   = f_pdata->x2qspi;
+	struct hbqspi_flash_pdata *f_pdata = (struct hbqspi_flash_pdata *)nor->priv;
+	struct hbqspi_pdata *hbqspi   = f_pdata->hbqspi;
 
-	mutex_lock(&x2qspi->lock);
+	mutex_lock(&hbqspi->lock);
 
 	return 0;
 }
 
-static void x2_qspi_flash_unprep(struct spi_nor *nor, enum spi_nor_ops ops)
+static void hb_qspi_flash_unprep(struct spi_nor *nor, enum spi_nor_ops ops)
 {
-	struct x2qspi_flash_pdata *f_pdata = (struct x2qspi_flash_pdata *)nor->priv;
-	struct x2qspi_pdata *x2qspi   = f_pdata->x2qspi;
+	struct hbqspi_flash_pdata *f_pdata = (struct hbqspi_flash_pdata *)nor->priv;
+	struct hbqspi_pdata *hbqspi   = f_pdata->hbqspi;
 
-	mutex_unlock(&x2qspi->lock);
+	mutex_unlock(&hbqspi->lock);
 }
 
-static int x2_qspi_flash_rd_reg(struct spi_nor *nor, u8 opcode, u8 *buf, int len)
+static int hb_qspi_flash_rd_reg(struct spi_nor *nor, u8 opcode, u8 *buf, int len)
 {
-	return x2_qspi_flash_rd_wr(nor, &opcode, 1, NULL, buf, len);
+	return hb_qspi_flash_rd_wr(nor, &opcode, 1, NULL, buf, len);
 }
 
-static int x2_qspi_flash_wr_reg(struct spi_nor *nor, u8 opcode, u8 *buf, int len)
+static int hb_qspi_flash_wr_reg(struct spi_nor *nor, u8 opcode, u8 *buf, int len)
 {
-	return x2_qspi_flash_rd_wr(nor, &opcode, 1, buf, NULL, len);
+	return hb_qspi_flash_rd_wr(nor, &opcode, 1, buf, NULL, len);
 }
 
-static ssize_t x2_qspi_flash_read(struct spi_nor *nor, loff_t from,
+static ssize_t hb_qspi_flash_read(struct spi_nor *nor, loff_t from,
 				size_t len, u_char *read_buf)
 {
 	u8 cmdsz;
@@ -624,15 +625,15 @@ static ssize_t x2_qspi_flash_read(struct spi_nor *nor, loff_t from,
 		cmdsz = SPI_FLASH_CMD_LEN - 1 + nor->read_dummy/8;
 
 	nor->cmd_buf[0] = nor->read_opcode;
-	x2_qspi_flash_addr(nor, from, nor->cmd_buf);
+	hb_qspi_flash_addr(nor, from, nor->cmd_buf);
 
-	if (x2_qspi_flash_rd_wr(nor, nor->cmd_buf, cmdsz, NULL, read_buf, len))
+	if (hb_qspi_flash_rd_wr(nor, nor->cmd_buf, cmdsz, NULL, read_buf, len))
 		return -EIO;
 
 	return len;
 }
 
-static ssize_t x2_qspi_flash_write(struct spi_nor *nor, loff_t to,
+static ssize_t hb_qspi_flash_write(struct spi_nor *nor, loff_t to,
 				size_t len, const u_char *write_buf)
 {
 	u8 cmdsz = SPI_FLASH_CMD_LEN;
@@ -643,15 +644,15 @@ static ssize_t x2_qspi_flash_write(struct spi_nor *nor, loff_t to,
 		cmdsz = SPI_FLASH_CMD_LEN - 1;
 
 	nor->cmd_buf[0] = nor->program_opcode;
-	x2_qspi_flash_addr(nor, to, nor->cmd_buf);
+	hb_qspi_flash_addr(nor, to, nor->cmd_buf);
 
-	if (x2_qspi_flash_rd_wr(nor, nor->cmd_buf, cmdsz, write_buf, NULL, len))
+	if (hb_qspi_flash_rd_wr(nor, nor->cmd_buf, cmdsz, write_buf, NULL, len))
 		return -EIO;
 
 	return len;
 }
 
-static int x2_qspi_flash_erase(struct spi_nor *nor, loff_t offs)
+static int hb_qspi_flash_erase(struct spi_nor *nor, loff_t offs)
 {
 	u8 cmdsz = SPI_FLASH_CMD_LEN;
 
@@ -661,9 +662,9 @@ static int x2_qspi_flash_erase(struct spi_nor *nor, loff_t offs)
 		cmdsz = SPI_FLASH_CMD_LEN - 1;
 
 	nor->cmd_buf[0] = nor->erase_opcode;
-	x2_qspi_flash_addr(nor, offs, nor->cmd_buf);
+	hb_qspi_flash_addr(nor, offs, nor->cmd_buf);
 
-	return x2_qspi_flash_rd_wr(nor, nor->cmd_buf, cmdsz, NULL, NULL, 0);
+	return hb_qspi_flash_rd_wr(nor, nor->cmd_buf, cmdsz, NULL, NULL, 0);
 }
 
 static void qspinorflash_diag_report(uint8_t errsta, uint32_t sta_reg)
@@ -691,25 +692,25 @@ static void qspi_callback(void *p, size_t len)
 	first_time = 0;
 }
 
-static irqreturn_t x2_qspi_irq_handler(int irq, void *dev_id)
+static irqreturn_t hb_qspi_irq_handler(int irq, void *dev_id)
 {
 	unsigned int irq_status;
 	unsigned int err_status;
 	int err = 0;
-	struct x2qspi_pdata *x2qspi = dev_id;
+	struct hbqspi_pdata *hbqspi = dev_id;
 
 	/* Read interrupt status */
-	irq_status = x2qspi_rd(x2qspi, X2_QSPI_ST1_REG);
-	x2qspi_wr(x2qspi, X2_QSPI_ST1_REG, X2_QSPI_TBD | X2_QSPI_RBD);
+	irq_status = hbqspi_rd(hbqspi, HB_QSPI_ST1_REG);
+	hbqspi_wr(hbqspi, HB_QSPI_ST1_REG, HB_QSPI_TBD | HB_QSPI_RBD);
 
-	err_status = x2qspi_rd(x2qspi, X2_QSPI_ST2_REG);
-	x2qspi_wr(x2qspi, X2_QSPI_ST2_REG,
-			X2_QSPI_RXWR_FULL | X2_QSPI_TXRD_EMPTY);
+	err_status = hbqspi_rd(hbqspi, HB_QSPI_ST2_REG);
+	hbqspi_wr(hbqspi, HB_QSPI_ST2_REG,
+			HB_QSPI_RXWR_FULL | HB_QSPI_TXRD_EMPTY);
 
-	if (irq_status & (X2_QSPI_TBD | X2_QSPI_RBD))
-		complete(&x2qspi->xfer_complete);
+	if (irq_status & (HB_QSPI_TBD | HB_QSPI_RBD))
+		complete(&hbqspi->xfer_complete);
 
-	if (err_status & (X2_QSPI_RXWR_FULL | X2_QSPI_TXRD_EMPTY))
+	if (err_status & (HB_QSPI_RXWR_FULL | HB_QSPI_TXRD_EMPTY))
 		err = 1;
 
 	if (first_time == 0) {
@@ -723,61 +724,61 @@ static irqreturn_t x2_qspi_irq_handler(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
-static void x2_qspi_hw_init(struct x2qspi_pdata *x2qspi)
+static void hb_qspi_hw_init(struct hbqspi_pdata *hbqspi)
 {
 	uint32_t val;
 
 	/* disable batch operation and reset fifo */
-	val = x2qspi_rd(x2qspi, X2_QSPI_CTL3_REG);
-	val |= X2_QSPI_BATCH_DIS;
-	x2qspi_wr(x2qspi, X2_QSPI_CTL3_REG, val);
-	x2_qspi_reset_fifo(x2qspi);
+	val = hbqspi_rd(hbqspi, HB_QSPI_CTL3_REG);
+	val |= HB_QSPI_BATCH_DIS;
+	hbqspi_wr(hbqspi, HB_QSPI_CTL3_REG, val);
+	hb_qspi_reset_fifo(hbqspi);
 
 	/* clear status */
-	val = X2_QSPI_MODF | X2_QSPI_RBD | X2_QSPI_TBD;
-	x2qspi_wr(x2qspi, X2_QSPI_ST1_REG, val);
-	val = X2_QSPI_TXRD_EMPTY | X2_QSPI_RXWR_FULL;
-	x2qspi_wr(x2qspi, X2_QSPI_ST2_REG, val);
+	val = HB_QSPI_MODF_CLR | HB_QSPI_RBD | HB_QSPI_TBD;
+	hbqspi_wr(hbqspi, HB_QSPI_ST1_REG, val);
+	val = HB_QSPI_TXRD_EMPTY | HB_QSPI_RXWR_FULL;
+	hbqspi_wr(hbqspi, HB_QSPI_ST2_REG, val);
 
 	/* set qspi work mode */
-	val = x2qspi_rd(x2qspi, X2_QSPI_CTL1_REG);
-	val |= X2_QSPI_MST;
-	val &= (~X2_QSPI_FW_MASK);
-	val |= X2_QSPI_FW8;
-	x2qspi_wr(x2qspi, X2_QSPI_CTL1_REG, val);
+	val = hbqspi_rd(hbqspi, HB_QSPI_CTL1_REG);
+	val |= HB_QSPI_MST;
+	val &= (~HB_QSPI_FW_MASK);
+	val |= HB_QSPI_FW8;
+	hbqspi_wr(hbqspi, HB_QSPI_CTL1_REG, val);
 
 	/* init interrupt */
-	val = X2_QSPI_RBC_INT | X2_QSPI_TBC_INT |
-		X2_QSPI_ERR_INT;
-	x2qspi_wr(x2qspi, X2_QSPI_CTL2_REG, val);
+	val = HB_QSPI_RBC_INT | HB_QSPI_TBC_INT |
+		HB_QSPI_ERR_INT;
+	hbqspi_wr(hbqspi, HB_QSPI_CTL2_REG, val);
 
 	/* unselect chip */
-	x2qspi_wr(x2qspi, X2_QSPI_CS_REG, 0x0);
+	hbqspi_wr(hbqspi, HB_QSPI_CS_REG, 0x0);
 
 	/* Always set SPI to one line as init. */
-	val = x2qspi_rd(x2qspi, X2_QSPI_DQM_REG);
+	val = hbqspi_rd(hbqspi, HB_QSPI_DQM_REG);
 	val |= 0xfc;
-	x2qspi_wr(x2qspi, X2_QSPI_DQM_REG, val);
+	hbqspi_wr(hbqspi, HB_QSPI_DQM_REG, val);
 
 	/* Disable hardware xip mode */
-	val = x2qspi_rd(x2qspi, X2_QSPI_XIP_REG);
+	val = hbqspi_rd(hbqspi, HB_QSPI_XIP_REG);
 	val &= ~(1 << 1);
-	x2qspi_wr(x2qspi, X2_QSPI_XIP_REG, val);
+	hbqspi_wr(hbqspi, HB_QSPI_XIP_REG, val);
 
 	/* Set Rx/Tx fifo trig level  */
-	x2qspi_wr(x2qspi, X2_QSPI_RTL_REG, X2_QSPI_TRIG_LEVEL);
-	x2qspi_wr(x2qspi, X2_QSPI_TTL_REG, X2_QSPI_TRIG_LEVEL);
+	hbqspi_wr(hbqspi, HB_QSPI_RTL_REG, HB_QSPI_TRIG_LEVEL);
+	hbqspi_wr(hbqspi, HB_QSPI_TTL_REG, HB_QSPI_TRIG_LEVEL);
 
 	return;
 }
 
-static int x2_qspi_setup_flash(struct x2qspi_pdata *x2qspi, struct device_node *np)
+static int hb_qspi_setup_flash(struct hbqspi_pdata *hbqspi, struct device_node *np)
 {
 	int i, ret;
 	unsigned int cs;
-	struct platform_device *pdev = x2qspi->pdev;
+	struct platform_device *pdev = hbqspi->pdev;
 	struct device *dev = &pdev->dev;
-	struct x2qspi_flash_pdata *f_pdata;
+	struct hbqspi_flash_pdata *f_pdata;
 	struct spi_nor *nor;
 	struct mtd_info *mtd;
 	const struct spi_nor_hwcaps hwcaps = {
@@ -797,19 +798,19 @@ static int x2_qspi_setup_flash(struct x2qspi_pdata *x2qspi, struct device_node *
 			goto err;
 		}
 
-		if (cs >= X2_QSPI_MAX_CS) {
+		if (cs >= HB_QSPI_MAX_CS) {
 			ret = -EINVAL;
 			dev_err(dev, "Chip select %d out of range.\n", cs);
 			goto err;
 		}
 
-		f_pdata = &x2qspi->f_pdata[cs];
-		f_pdata->x2qspi = x2qspi;
+		f_pdata = &hbqspi->f_pdata[cs];
+		f_pdata->hbqspi = hbqspi;
 		f_pdata->cs = cs;
 
 		if (of_property_read_u32(np, "spi-max-frequency", &f_pdata->clk_rate)) {
 			dev_err(&pdev->dev, "couldn't determine spi-max-frequency\n");
-			f_pdata->clk_rate = X2_QSPI_DEF_BDR;
+			f_pdata->clk_rate = HB_QSPI_DEF_BDR;
 		}
 
 		nor = &f_pdata->nor;
@@ -821,13 +822,13 @@ static int x2_qspi_setup_flash(struct x2qspi_pdata *x2qspi, struct device_node *
 		spi_nor_set_flash_node(nor, np);
 		nor->priv = f_pdata;
 
-		nor->prepare   = x2_qspi_flash_prep;
-		nor->unprepare = x2_qspi_flash_unprep;
-		nor->read_reg  = x2_qspi_flash_rd_reg;
-		nor->write_reg = x2_qspi_flash_wr_reg;
-		nor->read      = x2_qspi_flash_read;
-		nor->write     = x2_qspi_flash_write;
-		nor->erase     = x2_qspi_flash_erase;
+		nor->prepare   = hb_qspi_flash_prep;
+		nor->unprepare = hb_qspi_flash_unprep;
+		nor->read_reg  = hb_qspi_flash_rd_reg;
+		nor->write_reg = hb_qspi_flash_wr_reg;
+		nor->read      = hb_qspi_flash_read;
+		nor->write     = hb_qspi_flash_write;
+		nor->erase     = hb_qspi_flash_erase;
 
 		mtd->name = devm_kasprintf(dev, GFP_KERNEL, "%s.%d", dev_name(dev), cs);
 		if (!mtd->name) {
@@ -848,69 +849,69 @@ static int x2_qspi_setup_flash(struct x2qspi_pdata *x2qspi, struct device_node *
 
 	return 0;
 err:
-	for (i = 0; i < X2_QSPI_MAX_CS; i++)
-		if (x2qspi->f_pdata[i].registered)
-			mtd_device_unregister(&x2qspi->f_pdata[i].nor.mtd);
+	for (i = 0; i < HB_QSPI_MAX_CS; i++)
+		if (hbqspi->f_pdata[i].registered)
+			mtd_device_unregister(&hbqspi->f_pdata[i].nor.mtd);
 	return ret;
 }
 
-static int x2_qspi_probe(struct platform_device *pdev)
+static int hb_qspi_probe(struct platform_device *pdev)
 {
 	int ret = 0;
 	struct device_node *np = pdev->dev.of_node;
 	struct device *dev = &pdev->dev;
-	struct x2qspi_pdata *x2qspi;
+	struct hbqspi_pdata *hbqspi;
 	struct resource *res;
 
-	x2qspi = devm_kzalloc(dev, sizeof(*x2qspi), GFP_KERNEL);
-	if (!x2qspi)
+	hbqspi = devm_kzalloc(dev, sizeof(*hbqspi), GFP_KERNEL);
+	if (!hbqspi)
 		return -ENOMEM;
-	mutex_init(&x2qspi->lock);
-	x2qspi->pdev = pdev;
-	platform_set_drvdata(pdev, x2qspi);
+	mutex_init(&hbqspi->lock);
+	hbqspi->pdev = pdev;
+	platform_set_drvdata(pdev, hbqspi);
 
 	/* get the module ref-clk and enabel it */
-	x2qspi->clk = devm_clk_get(&pdev->dev, "qspi_aclk");
-	if (IS_ERR(x2qspi->clk)) {
+	hbqspi->clk = devm_clk_get(&pdev->dev, "qspi_aclk");
+	if (IS_ERR(hbqspi->clk)) {
 		dev_err(&pdev->dev, "uart_clk clock not found.\n");
-		return PTR_ERR(x2qspi->clk);
+		return PTR_ERR(hbqspi->clk);
 	}
-	ret = clk_prepare_enable(x2qspi->clk);
+	ret = clk_prepare_enable(hbqspi->clk);
 	if (ret) {
 		dev_err(&pdev->dev, "Unable to enable device clock.\n");
 		goto probe_clk_failed;
 	}
-	x2qspi->ref_clk = clk_get_rate(x2qspi->clk);
+	hbqspi->ref_clk = clk_get_rate(hbqspi->clk);
 
 	/* Obtain and remap controller address. */
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	x2qspi->iobase = devm_ioremap_resource(dev, res);
-	if (IS_ERR(x2qspi->iobase)) {
-		return PTR_ERR(x2qspi->iobase);
+	hbqspi->iobase = devm_ioremap_resource(dev, res);
+	if (IS_ERR(hbqspi->iobase)) {
+		return PTR_ERR(hbqspi->iobase);
 	}
 
-	init_completion(&x2qspi->xfer_complete);
+	init_completion(&hbqspi->xfer_complete);
 
-	x2qspi->cur_cs = X2_QSPI_MAX_CS;
+	hbqspi->cur_cs = HB_QSPI_MAX_CS;
 
 	/* Obtain IRQ line */
-	x2qspi->irq = platform_get_irq(pdev, 0);
-	if (x2qspi->irq < 0) {
+	hbqspi->irq = platform_get_irq(pdev, 0);
+	if (hbqspi->irq < 0) {
 		dev_err(dev, "Cannot obtain IRQ.\n");
 		goto probe_setup_failed;
 	}
-	ret = devm_request_irq(dev, x2qspi->irq, x2_qspi_irq_handler, 0, pdev->name, x2qspi);
+	ret = devm_request_irq(dev, hbqspi->irq, hb_qspi_irq_handler, 0, pdev->name, hbqspi);
 	if (ret) {
 		dev_err(dev, "Cannot request IRQ.\n");
 		goto probe_setup_failed;
 	}
 
 	/* init hardware module */
-	x2_qspi_hw_init(x2qspi);
+	hb_qspi_hw_init(hbqspi);
 
-	ret = x2_qspi_setup_flash(x2qspi, np);
+	ret = hb_qspi_setup_flash(hbqspi, np);
 	if (ret) {
-		dev_err(dev, "X2 QSPI NOR probe failed %d\n", ret);
+		dev_err(dev, "HB QSPI NOR probe failed %d\n", ret);
 		goto probe_setup_failed;
 	}
 	if (diag_register(ModuleDiag_norflash, EventIdNorflashErr,
@@ -919,84 +920,84 @@ static int x2_qspi_probe(struct platform_device *pdev)
 
 	return ret;
 probe_setup_failed:
-	mutex_destroy(&x2qspi->lock);
+	mutex_destroy(&hbqspi->lock);
 probe_clk_failed:
-	clk_disable_unprepare(x2qspi->clk);
+	clk_disable_unprepare(hbqspi->clk);
 
-	dev_err(dev, "X2 QuadSPI probe failed\n");
+	dev_err(dev, "HB QuadSPI probe failed\n");
 	return ret;
 }
 
-static int x2_qspi_remove(struct platform_device *pdev)
+static int hb_qspi_remove(struct platform_device *pdev)
 {
 	int i;
-	struct x2qspi_pdata *x2qspi = platform_get_drvdata(pdev);
+	struct hbqspi_pdata *hbqspi = platform_get_drvdata(pdev);
 
-	for (i = 0; i < X2_QSPI_MAX_CS; i++)
-		if (x2qspi->f_pdata[i].registered)
-			mtd_device_unregister(&x2qspi->f_pdata[i].nor.mtd);
+	for (i = 0; i < HB_QSPI_MAX_CS; i++)
+		if (hbqspi->f_pdata[i].registered)
+			mtd_device_unregister(&hbqspi->f_pdata[i].nor.mtd);
 
-	clk_disable_unprepare(x2qspi->clk);
+	clk_disable_unprepare(hbqspi->clk);
 
 	return 0;
 }
 
 #ifdef CONFIG_PM_SLEEP
-int x2_qspi_nor_suspend(struct device *dev)
+int hb_qspi_nor_suspend(struct device *dev)
 {
-	struct x2qspi_pdata *x2qspi = dev_get_drvdata(dev);
+	struct hbqspi_pdata *hbqspi = dev_get_drvdata(dev);
 
 	pr_info("%s:%s, enter suspend...\n", __FILE__, __func__);
 
 	/* wait for idle */
-	//x2_qspi_tx_empty(x2qspi);
-	//x2_qspi_rx_empty(x2qspi);
+	//hb_qspi_tx_empty(hbqspi);
+	//hb_qspi_rx_empty(hbqspi);
 
-	x2_qspi_set_xfer(x2qspi, X2_QSPI_OP_TX_DIS);
-	x2_qspi_set_xfer(x2qspi, X2_QSPI_OP_RX_DIS);
+	hb_qspi_set_xfer(hbqspi, HB_QSPI_OP_TX_DIS);
+	hb_qspi_set_xfer(hbqspi, HB_QSPI_OP_RX_DIS);
 
-	clk_disable_unprepare(x2qspi->clk);
+	clk_disable_unprepare(hbqspi->clk);
 
 	return 0;
 }
 
-int x2_qspi_nor_resume(struct device *dev)
+int hb_qspi_nor_resume(struct device *dev)
 {
-	struct x2qspi_pdata *x2qspi = dev_get_drvdata(dev);
+	struct hbqspi_pdata *hbqspi = dev_get_drvdata(dev);
 
 	pr_info("%s:%s, enter resume...\n", __FILE__, __func__);
 
-	clk_prepare_enable(x2qspi->clk);
+	clk_prepare_enable(hbqspi->clk);
 
-	x2_qspi_hw_init(x2qspi);
+	hb_qspi_hw_init(hbqspi);
 
 	return 0;
 }
 #endif
 
-static const struct dev_pm_ops x2_qspi_nor_dev_pm_ops = {
-	SET_SYSTEM_SLEEP_PM_OPS(x2_qspi_nor_suspend,
-			x2_qspi_nor_resume)
+static const struct dev_pm_ops hb_qspi_nor_dev_pm_ops = {
+	SET_SYSTEM_SLEEP_PM_OPS(hb_qspi_nor_suspend,
+			hb_qspi_nor_resume)
 };
 
-static const struct of_device_id x2_qspi_of_match[] = {
-    { .compatible = "hobot,x2-qspi-nor" },
+static const struct of_device_id hb_qspi_of_match[] = {
+    { .compatible = "hobot,hb-qspi-nor" },
     { /* end of table */ }
 };
 
-MODULE_DEVICE_TABLE(of, x2_qspi_of_match);
+MODULE_DEVICE_TABLE(of, hb_qspi_of_match);
 
-static struct platform_driver x2_qspi_driver = {
-    .probe = x2_qspi_probe,
-    .remove = x2_qspi_remove,
+static struct platform_driver hb_qspi_driver = {
+    .probe = hb_qspi_probe,
+    .remove = hb_qspi_remove,
     .driver = {
-        .name = X2_QSPI_NAME,
-        .of_match_table = x2_qspi_of_match,
-		.pm = &x2_qspi_nor_dev_pm_ops,
+        .name = HB_QSPI_NAME,
+        .of_match_table = hb_qspi_of_match,
+		.pm = &hb_qspi_nor_dev_pm_ops,
     },
 };
-module_platform_driver(x2_qspi_driver);
+module_platform_driver(hb_qspi_driver);
 
 MODULE_AUTHOR("hobot, Inc.");
-MODULE_DESCRIPTION("X2 QSPI driver");
+MODULE_DESCRIPTION("HB QSPI driver");
 MODULE_LICENSE("GPL v2");
