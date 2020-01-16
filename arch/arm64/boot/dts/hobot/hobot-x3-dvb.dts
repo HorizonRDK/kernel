@@ -70,12 +70,6 @@
 			no-map;
 		};
 
-		/* Reserved 4K memory for swinfo */
-		sw_reserved: sw_reserved@0x020ff000 {
-			reg = <0x0 0x020ff000 0x0 0x1000>;
-			no-map;
-		};
-
 		bifsd_reserved: bifsd_reserved@0x3D089000 {
 			reg = <0x0 0x3D089000 0x0 0x1000>;
 			no-map;
@@ -92,7 +86,7 @@
 		};
 
 		/*Reserved 2MB memory for BL31*/
-		bl31_reserved: bl31_reserved@0x40000000 {
+		bl31_reserved: bl31_reserved@0x3FE00000 {
 			reg = <0x0 0x3FE00000 0x0 0x200000>;
 			no-map;
 		};
@@ -149,9 +143,10 @@
 	status = "okay";
 	#address-cells = <1>;
 	#size-cells = <0>;
-	tmp75c@48 {
+	temp1:tmp75c@48 {
 		compatible = "ti,tmp75c";
 		reg = <0x48>;
+		#thermal-sensor-cells = <0>;
         };
 };
 &i2c1 {
@@ -357,5 +352,9 @@
 };
 
 &vpu {
+	status = "okay";
+};
+
+&soc_thermal {
 	status = "okay";
 };

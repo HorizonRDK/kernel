@@ -41,17 +41,17 @@
 		bifsd   = &bifsd;
 		mmc0	= &sdio0;
 		dma	= &dma;
+		x2dmatest = &x2dmatest;
 		mipihost0 = &mipi_host0;
 		mipihost1 = &mipi_host1;
 		mipihost2 = &mipi_host2;
 		mipihost3 = &mipi_host3;
 		mipidev0 = &mipi_dev0;
-		x2dmatest = &x2dmatest;
 	};
 
 	chosen {
 		bootargs = "earlycon loglevel=8 console=ttyS0 clk_ignore_unused";
-		stdout-path = "serial0:115200n8";
+		stdout-path = "serial0:921600n8";
 	};
 
 	memory@0 {
@@ -74,8 +74,9 @@
 			reg = <0x0 0x3D089000 0x0 0x1000>;
 			no-map;
 		};
+
 		iar_reserved: iar_reserved@0x3D08A000 {
-			reg = <0x0 0x3D08A000 0x0 0x2F46000>;
+			reg = <0x0 0x3D08A000 0x0 0x2D46000>;
 			no-map;
 		};
 
@@ -90,15 +91,15 @@
 			no-map;
 		};
 
-		/* Reserved 512MB memory for cnn subsystem */
-		ion_reserved: ion_reserved@0x40000000 {
+		/* Reserved 256MB memory for cnn subsystem */
+		ion_reserved: ion_reserved@0x1D089000 {
 			compatible = "ion-pool";
-			reg = <0x0 0x40000000 0x0 0x20000000>;
+			reg = <0x0 0x1D089000 0x0 0x10000000>;
 		};
 
-		/* Reserved 512MB memory for ipu subsystem */
-		ipu_reserved: ipu_reserved@0x60000000 {
-			reg = <0x0 0x60000000 0x0 0x20000000>;
+		/* Reserved 256MB memory for ipu subsystem */
+		ipu_reserved: ipu_reserved@0x2D089000 {
+			reg = <0x0 0x2D089000 0x0 0x10000000>;
 			/*no-map;*/
 		};
 
@@ -140,11 +141,24 @@
 
 &i2c0 {
 	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	temp1:tmp75c@48 {
+		compatible = "ti,tmp75c";
+		reg = <0x48>;
+		#thermal-sensor-cells = <0>;
+        };
 };
 &i2c1 {
 	status = "okay";
 };
 
+&i2c4 {
+	status = "okay";
+};
+&i2c5 {
+	status = "okay";
+};
 
 &pinctrl {
 	status = "okay";
@@ -153,8 +167,6 @@
 
 &uart0 {
 	status = "okay";
-	clocks = <&uart0_mclk>;
-	clock-names = "uart_mclk";
 };
 
 &ips {
@@ -226,9 +238,9 @@
 	mdio {
 		#address-cells = <0x1>;
 		#size-cells = <0x0>;
-		phy1: phy@3 {
+		phy1: phy@e {
 			compatible = "marvell,88E1111","ethernet-phy-ieee802.3-c22";
-			reg = <0x3>;
+			reg = <0xe>;
 		};
 	};
 };
@@ -325,13 +337,33 @@
 
 &sdio0 {
 	status = "okay";
+	bus-width = <4>;
+	cap-mmc-highspeed;
+	mmc-hs200-1_8v;
+	non-removable;
+	disable-wp;
 };
 
 &sdio1 {
-	status = "disabled";
+	status = "okay";
+	bus-width = <4>;
+	no-mmc;
+	no-sdio;
+	cap-sd-highspeed;
+	sd-uhs-sdr12;
+	sd-uhs-sdr25;
+	sd-uhs-sdr50;
+	sd-uhs-sdr104;
+	uhs-180v-gpio = <120>;
+	broken-cd;
+	disable-wp;
 };
 
 &watchdog {
+	status = "disabled";
+};
+
+&timer1 {
 	status = "okay";
 };
 
@@ -352,5 +384,9 @@
 };
 
 &vpu {
+	status = "okay";
+};
+
+&soc_thermal {
 	status = "okay";
 };
