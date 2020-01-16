@@ -415,7 +415,7 @@ struct plat_config_data *x2_probe_config_dt(struct platform_device *pdev, const 
 		return PTR_ERR(pin_eth_mux);
 	}
 
-        pinctrl_select_state(pinctrl, pin_eth_mux);
+    pinctrl_select_state(pinctrl, pin_eth_mux);
 
 
 
@@ -1419,7 +1419,7 @@ static void x2_set_speed(struct x2_priv *priv)
 	regval = x2_reg_read(priv, REG_DWCEQOS_MAC_CFG);
 	regval &= ~(DWCEQOS_MAC_CFG_PS | DWCEQOS_MAC_CFG_FES | DWCEQOS_MAC_CFG_DM);
 
-	printk("%s: duplex: %d,speed: %d\n",__func__,phydev->duplex, phydev->speed);
+//	printk("%s: duplex: %d,speed: %d\n",__func__,phydev->duplex, phydev->speed);
 	if (phydev->duplex)
 		regval |= DWCEQOS_MAC_CFG_DM;
 
@@ -1462,7 +1462,7 @@ static void x2_set_speed(struct x2_priv *priv)
 
 	x2_reg_write(priv, REG_DWCEQOS_MAC_CFG, regval);
 
-	printk("%s, after priv_speed;%d, phydev_speed:%d\n",__func__,priv->speed, phydev->speed);
+	//printk("%s, after priv_speed;%d, phydev_speed:%d\n",__func__,priv->speed, phydev->speed);
 }
 
 static void x2_set_rx_flow_ctrl(struct x2_priv *priv, bool enable)
@@ -1548,6 +1548,7 @@ static void x2_adjust_link(struct net_device *ndev)
 			priv->duplex = phydev->duplex;
 			status_change = 1;
 			//printk("%s, priv_speed;%d, phydev_speed:%d\n",__func__,priv->speed, phydev->speed);
+			//printk("%s, priv_duplex;%d, phydev_duplex:%d\n",__func__,priv->duplex, phydev->duplex);
 		}
 
 		if (priv->pause) {
@@ -1591,7 +1592,7 @@ static void x2_adjust_link(struct net_device *ndev)
 		}
 
 	
-		printk("speed:%s, duplex:%s\n",phy_speed_to_str(phydev->speed),phy_duplex_to_str(phydev->duplex));
+		//printk("%s, speed:%s, duplex:%s\n",__func__,phy_speed_to_str(phydev->speed),phy_duplex_to_str(phydev->duplex));
 		phy_print_status(phydev);
 	}
 }
@@ -5782,6 +5783,38 @@ static void x2_service_task(struct work_struct *work)
 }
 #endif
 
+
+static ssize_t phy_addr_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t len)
+{
+    struct net_device *ndev = to_net_dev(dev);
+    struct x2_priv *priv = netdev_priv(ndev);
+
+    size_t ret = 0;
+
+
+    if (!strncmp(buf, "0", len - 1)) {
+        priv->sysfs_phy_addr = 0;
+    } else if (!strncmp(buf, "e", len -1 )) {
+        priv->sysfs_phy_addr = 0xe;
+    } else {
+        priv->sysfs_phy_addr = 0;
+    }
+    printk("%s, and sysfs_phy_addr:0x%x\n", __func__, priv->sysfs_phy_addr);
+    return len;
+}
+static ssize_t phy_addr_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+    struct net_device *ndev = to_net_dev(dev);
+    struct x2_priv *priv = netdev_priv(ndev);
+
+    size_t ret = 0;
+
+    ret = sprintf(buf,"%x\n",priv->sysfs_phy_addr);
+    return ret;
+
+}
+static DEVICE_ATTR_RW(phy_addr);
+
 static ssize_t phy_reg_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
     struct net_device *ndev = to_net_dev(dev);
@@ -5789,11 +5822,11 @@ static ssize_t phy_reg_show(struct device *dev, struct device_attribute *attr, c
 
     size_t ret = 0;
 
-   printk("%s, reg0: 0x%x\n",__func__, x2_mdio_read(priv->mii, 0xe, 0));
-   printk("%s, reg1: 0x%x\n",__func__, x2_mdio_read(priv->mii, 0xe, 1));
-   printk("%s, reg2: 0x%x\n",__func__, x2_mdio_read(priv->mii, 0xe, 2));
-   printk("%s, reg9: 0x%x\n",__func__, x2_mdio_read(priv->mii, 0xe, 9));
-   printk("%s, reg10: 0x%x\n",__func__, x2_mdio_read(priv->mii, 0xe, 10));
+   printk("%s, reg0: 0x%x\n",__func__, x2_mdio_read(priv->mii, priv->sysfs_phy_addr, 0));
+   printk("%s, reg1: 0x%x\n",__func__, x2_mdio_read(priv->mii, priv->sysfs_phy_addr, 1));
+   printk("%s, reg2: 0x%x\n",__func__, x2_mdio_read(priv->mii, priv->sysfs_phy_addr, 2));
+   printk("%s, reg9: 0x%x\n",__func__, x2_mdio_read(priv->mii, priv->sysfs_phy_addr, 9));
+   printk("%s, reg10: 0x%x\n",__func__, x2_mdio_read(priv->mii,priv->sysfs_phy_addr, 10));
 
    return ret;
 }
@@ -5804,6 +5837,7 @@ static DEVICE_ATTR_RO(phy_reg);
 static struct attribute *phy_reg_attrs[] = {
 
     &dev_attr_phy_reg.attr,
+    &dev_attr_phy_addr.attr,
     NULL,
 };
 

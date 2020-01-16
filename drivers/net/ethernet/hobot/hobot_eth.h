@@ -517,6 +517,7 @@ struct x2_priv {
 	unsigned int flow_current_tx;
 	unsigned int rx_csum;
 	int clk_csr;
+    char sysfs_phy_addr;
 
 	unsigned int dma_buf_sz;
 

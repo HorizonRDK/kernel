@@ -278,7 +278,7 @@
 			};
 			eth_func:eth_func {
 				pinctrl-x2,pins-muxs = <
-					38	0
+					38	3
 					39	0
 					40	0
 					41	0
