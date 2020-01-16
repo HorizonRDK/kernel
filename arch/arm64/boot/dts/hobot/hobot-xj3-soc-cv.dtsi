@@ -1,4 +1,5 @@
 /*
+/*
  * dts file for Hobot XJ3 SOC CV testing
  *
  * (C) Copyright 2018, Horizon, Inc.
@@ -881,7 +882,7 @@
 		sdio0: dwmmc@A5010000 {
 			compatible = "hobot,x2-dw-mshc";
 			reg = <0x0 0xA5010000 0x0 0x1000>;
-			clock-freq-min-max = <100000 200000000>;
+			clock-freq-min-max = <100000 50000000>;
 			clocks = <&sd0_cclk>;
 			clock-names = "sdio_mclk";
 			clock-frequency = <200000000>;
