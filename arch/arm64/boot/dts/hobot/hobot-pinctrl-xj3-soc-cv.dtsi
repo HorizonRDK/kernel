@@ -156,7 +156,7 @@
 					23	0
 					24	0
 					25	0 /*BIFSD_DATA3*/
-					26	0 /*BIFSD_RSTN*/
+					26	1 /*BIFSD_RSTN*/
 					116	0 /*BIFSD_DATA4*/
 					117	0
 					118	0
