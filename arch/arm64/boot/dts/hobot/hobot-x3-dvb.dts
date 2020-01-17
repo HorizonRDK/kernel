@@ -374,3 +374,7 @@
 	status = "okay";
 	thermal-sensors = <&temp1>;
 };
+
+&pvt {
+	status = "okay";
+};

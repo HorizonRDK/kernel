@@ -155,6 +155,8 @@
 			polling-delay = <1000>; /* milliseconds */
 			status = "disabled";
 
+			thermal-sensors = <&pvt>;
+
 			trips {
 				threshold: trip-point@0 {
 					temperature = <60000>;
@@ -1002,6 +1004,17 @@
 			compatible = "hobot,bif_lite_sd";
 		};
 */
+		pvt: pvt@0xA1009000 {
+			compatible = "hobot,hobot-pvt";
+			reg = <0 0xA1009000 0 0x1000>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 64 4>;
+			clocks = <&sys_div_pclk>;
+			clock-names = "sys_pclk";
+			#thermal-sensor-cells = <0>;
+			status = "disabled";
+		};
+
 		ddr_monitor: ddr_monitor@0xA2D10000 {
 			compatible = "hobot,x2-ddrmonitor";
 			reg = <0 0xA2D10000 0 0x1000>;

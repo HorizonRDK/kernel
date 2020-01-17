@@ -1261,15 +1261,6 @@
 			field = <4 1 1 1 1>;
 		};
 
-		pvt_dclk: pvt_dclk {
-			#clock-cells = <0>;
-			clocks = <&sys_pllmux_clk>;
-			compatible = "hobot,endiv-clk";
-			offset = <0x254 0x150 0x154 0x158 0x258 0x0>;
-			bits = <0 26 26 26 10 32>;
-			field = <4 1 1 1 1>;
-		};
-
 		sys_usb_aclk: sys_usb_aclk {
 			#clock-cells = <0>;
 			compatible = "hobot,gate-clk";
