@@ -19,7 +19,8 @@ void pym_set_frame_id(void __iomem *base_addr, u32 frame_id);
 int pym_get_frame_id(void __iomem *base_addr);
 void pym_get_intr_status(void __iomem *base_addr, u32 *status, bool clear);
 void pym_set_intr_mask(void __iomem *base_addr, u32 intr_mask);
-
+void pym_enable_otf_clk(void __iomem *base_addr, bool enable);
+void pym_enable_ddr_clk(void __iomem *base_addr, bool enable);
 void pym_set_rdma_start(void __iomem *base_addr);
 void pym_set_common_rdy(void __iomem *base_addr, bool enable);
 void pym_set_shd_select(void __iomem *base_addr, u8 cfg);

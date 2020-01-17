@@ -31,9 +31,6 @@
 #define SIF_IOC_BIND_GROUP       _IOW(SIF_IOC_MAGIC, 5, int)
 #define SIF_IOC_END_OF_STREAM    _IOW(SIF_IOC_MAGIC, 6, int)
 
-
-#define SIF_YUV_INPUT	8
-
 struct sif_irq_src {
 	u32 sif_frm_int;
 	u32 sif_out_int;
@@ -46,6 +43,24 @@ struct sif_multi_frame {
 	u8 mux_index;
 	u8 trigger_mode;
 	u8 enable;
+};
+
+enum sif_format{
+	HW_FORMAT_RAW8,
+	HW_FORMAT_RAW10,
+	HW_FORMAT_RAW12,
+	HW_FORMAT_RAW14,
+	HW_FORMAT_RAW16,
+
+	HW_FORMAT_YUV422 = 8
+};
+
+enum pixel_length{
+	PIXEL_LENGTH_8BIT = 0,
+	PIXEL_LENGTH_10BIT = 1,
+	PIXEL_LENGTH_12BIT = 2,
+	PIXEL_LENGTH_16BIT = 4,
+	PIXEL_LENGTH_20BIT = 5,
 };
 
 enum sif_out_interrupt_map{

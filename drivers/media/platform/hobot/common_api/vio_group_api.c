@@ -94,9 +94,14 @@ struct vio_group *vio_get_chain_group(int instance, u32 group_id)
 	struct vio_group *group = NULL;
 	struct vio_chain *ischain;
 
+	if (instance < 0 || instance >= VIO_MAX_STREAM) {
+		vio_err("can't support instance %d\n", instance);
+		return NULL;
+	}
+
 	vio_init_chain(instance);
 
-	if(group_id > GROUP_ID_NUMBER){
+	if (group_id > GROUP_ID_NUMBER) {
 		vio_err("[%s]wrong group id (%d)\n", __func__, group_id);
 	}
 

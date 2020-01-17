@@ -104,7 +104,7 @@ struct frame_info{
 	int width;
 	u32 addr[8];
 	int bufferindex;
-	int planes;
+	int pixel_length;
 	struct special_buffer spec;
 };
 

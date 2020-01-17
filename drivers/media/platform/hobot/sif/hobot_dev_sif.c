@@ -92,6 +92,47 @@ static const struct dev_pm_ops x2a_sif_pm_ops = {
 	.runtime_resume = x2a_sif_runtime_resume,
 };
 
+int sif_get_stride(u32 pixel_length, u32 width)
+{
+	u32 stride = 0;
+
+	switch (pixel_length) {
+	case PIXEL_LENGTH_8BIT:
+		stride = width;
+		break;
+	case PIXEL_LENGTH_10BIT:
+		stride = width * 5 / 4;
+		break;
+	case PIXEL_LENGTH_12BIT:
+		stride = width * 3 / 2;
+		break;
+	case PIXEL_LENGTH_16BIT:
+		stride = width * 2;
+		break;
+	case PIXEL_LENGTH_20BIT:
+		stride = width * 5 / 2;
+		break;
+	default:
+		vio_err("wrong pixel length is %d\n", pixel_length);
+		break;
+	}
+
+	return stride;
+}
+
+void sif_config_rdma_cfg(struct x2a_sif_dev *sif, u8 index,
+			struct frame_info *frameinfo)
+{
+	u32 stride = 0;
+
+	sif_config_rdma_fmt(sif->base_reg, frameinfo->pixel_length,
+				frameinfo->width, frameinfo->height);
+	sif_set_rdma_enable(sif->base_reg, index, true);
+	sif_set_rdma_buf_addr(sif->base_reg, index, frameinfo->addr[index]);
+	stride = sif_get_stride(frameinfo->pixel_length, frameinfo->width);
+	sif_set_rdma_buf_stride(sif->base_reg, index, stride);
+}
+
 void sif_read_frame_work(struct vio_group *group)
 {
 	unsigned long flags;
@@ -118,15 +159,16 @@ void sif_read_frame_work(struct vio_group *group)
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	frame = peek_frame(framemgr, FS_REQUEST);
 	if (frame) {
-		// TODO:add the dol mode @kaikai.sun
 		frameinfo = &frame->frameinfo;
-		sif_config_rdma_fmt(sif->base_reg, frameinfo->format,
-				    frameinfo->width, frameinfo->height);
-		sif_set_rdma_enable(sif->base_reg, 0, true);
-		sif_set_rdma_buf_addr(sif->base_reg, 0,
-				      frame->frameinfo.addr[0]);
-		sif_set_rdma_buf_stride(sif->base_reg, 0,
-				      frame->frameinfo.width);
+		sif_config_rdma_cfg(sif, 0, frameinfo);
+
+		if (ctx->dol_num > 1) {
+			sif_config_rdma_cfg(sif, 1, frameinfo);
+		}
+
+		if (ctx->dol_num > 2) {
+			sif_config_rdma_cfg(sif, 2, frameinfo);
+		}
 		sif_set_rdma_trigger(sif->base_reg, 1);
 		trans_frame(framemgr, frame, FS_PROCESS);
 	}
@@ -158,7 +200,7 @@ void sif_write_frame_work(struct vio_group *group)
 	frame = peek_frame(framemgr, FS_REQUEST);
 	if (frame) {
 		buf_index = ctx->bufcount % 4;
-		yuv_format = (frame->frameinfo.format == SIF_YUV_INPUT);
+		yuv_format = (frame->frameinfo.format == HW_FORMAT_YUV422);
 
 		sif_set_wdma_buf_addr(sif->base_reg, mux_index, buf_index,
 				      frame->frameinfo.addr[0]);
@@ -267,29 +309,23 @@ static int x2a_sif_close(struct inode *inode, struct file *file)
 	return 0;
 }
 
-int sif_mux_init(struct sif_video_ctx *sif_ctx, unsigned long arg)
+int sif_mux_init(struct sif_video_ctx *sif_ctx, sif_cfg_t *sif_config)
 {
 	int ret = 0;
 	u32 mux_index = 0;
 	u32 ddr_enable = 0;
 	u32 dol_exp_num = 0;
-	sif_cfg_t sif_config;
 	struct x2a_sif_dev *sif;
 	struct vio_group_task *gtask;
 	struct vio_group *group;
 
-	ret = copy_from_user((char *) &sif_config, (u32 __user *) arg,
-			   sizeof(sif_cfg_t));
-	if (ret)
-		return -EFAULT;
-
 	sif = sif_ctx->sif_dev;
 	group = sif_ctx->group;
 
-	mux_index = sif_config.input.mipi.func.set_mux_out_index;
+	mux_index = sif_config->input.mipi.func.set_mux_out_index;
 	sif_ctx->mux_index = mux_index;
 
-	if (sif_config.input.mipi.data.format == SIF_YUV_INPUT) {
+	if (sif_config->input.mipi.data.format == HW_FORMAT_YUV422) {
 		if (mux_index % 2 == 0) {
 			set_bit(mux_index + 1, &sif->state);
 			vio_info("sif input format is yuv, and current mux = %d\n",
@@ -299,7 +335,7 @@ int sif_mux_init(struct sif_video_ctx *sif_ctx, unsigned long arg)
 			     mux_index);
 	}
 
-	dol_exp_num = sif_config.output.isp.dol_exp_num;
+	dol_exp_num = sif_config->output.isp.dol_exp_num;
 	sif_ctx->dol_num = dol_exp_num;
 	if(dol_exp_num == 2){
 		set_bit(SIF_DOL2_MODE + mux_index + 1, &sif->state);
@@ -310,13 +346,13 @@ int sif_mux_init(struct sif_video_ctx *sif_ctx, unsigned long arg)
 		vio_info("DOL3 mode, current mux = %d\n", mux_index);
 	}
 
-	ddr_enable =  sif_config.output.ddr.enable;
+	ddr_enable =  sif_config->output.ddr.enable;
 	if(ddr_enable == 0)
 		set_bit(VIO_GROUP_OTF_OUTPUT, &group->state);
 	else
 		set_bit(VIO_GROUP_DMA_OUTPUT, &group->state);
 
-	sif_ctx->rx_num = sif_config.input.mipi.mipi_rx_index;
+	sif_ctx->rx_num = sif_config->input.mipi.mipi_rx_index;
 	sif_ctx->initial_frameid = true;
 
 	sif->sif_mux[mux_index] = group;
@@ -328,12 +364,12 @@ int sif_mux_init(struct sif_video_ctx *sif_ctx, unsigned long arg)
 	vio_group_task_start(gtask);
 	sema_init(&gtask->hw_resource, 4);
 
-	sif_hw_config(sif->base_reg, &sif_config);
+	sif_hw_config(sif->base_reg, sif_config);
 
 	sif_ctx->bufcount = 0;
 
 	vio_info("%s,mux index = %d\n", __func__, mux_index);
-	return 0;
+	return ret;
 }
 
 int sif_video_init(struct sif_video_ctx *sif_ctx, unsigned long arg)
@@ -341,6 +377,7 @@ int sif_video_init(struct sif_video_ctx *sif_ctx, unsigned long arg)
 	int ret = 0;
 	struct x2a_sif_dev *sif;
 	struct vio_group *group;
+	sif_cfg_t sif_config;
 
 	group = sif_ctx->group;
 	if (!(sif_ctx->state & (BIT(VIO_VIDEO_S_INPUT) | BIT(VIO_VIDEO_REBUFS)))) {
@@ -349,14 +386,18 @@ int sif_video_init(struct sif_video_ctx *sif_ctx, unsigned long arg)
 		return -EINVAL;
 	}
 
+	ret = copy_from_user((char *) &sif_config, (u32 __user *) arg,
+			   sizeof(sif_cfg_t));
+	if (ret)
+		return -EFAULT;
+
 	sif = sif_ctx->sif_dev;
 
-	//sif_bind_chain_group(sif_ctx, 0);
-
 	if (sif_ctx->id == 0) {
-		ret = sif_mux_init(sif_ctx, arg);
+		ret = sif_mux_init(sif_ctx, &sif_config);
 	} else if (sif_ctx->id == 1) {
-		sif_set_isp_performance(sif->base_reg, 60);
+		sif_ctx->dol_num = sif_config.output.isp.dol_exp_num;
+		sif_set_isp_performance(sif->base_reg, 2);
 		set_bit(SIF_DMA_IN_ENABLE, &sif->state);
 		set_bit(VIO_GROUP_DMA_INPUT, &group->state);
 		set_bit(VIO_GROUP_OTF_OUTPUT, &group->state);
@@ -384,7 +425,7 @@ int sif_bind_chain_group(struct sif_video_ctx *sif_ctx, int instance)
 		return -EINVAL;
 	}
 
-	if(instance < 0 && instance >= VIO_MAX_STREAM){
+	if (instance < 0 || instance >= VIO_MAX_STREAM) {
 		vio_err("wrong instance id(%d)\n", instance);
 		return -EFAULT;
 	}
@@ -397,6 +438,9 @@ int sif_bind_chain_group(struct sif_video_ctx *sif_ctx, int instance)
 		group_id = GROUP_ID_SIF_IN;
 
 	group = vio_get_chain_group(instance, group_id);
+	if (!group)
+		return -EFAULT;
+
 	group->sub_ctx[0] = sif_ctx;
 	sif_ctx->group = group;
 
@@ -664,7 +708,7 @@ static long x2a_sif_ioctl(struct file *file, unsigned int cmd,
 		ret = get_user(instance, (u32 __user *) arg);
 		if (ret)
 			return -EFAULT;
-
+		vio_info("instance %d\n", instance);
 		sif_bind_chain_group(sif_ctx, instance);
 		break;
 	case SIF_IOC_END_OF_STREAM:
@@ -718,8 +762,9 @@ void sif_frame_done(struct sif_video_ctx *sif_ctx)
 			frame->frameinfo.frame_id = group->frameid.frame_id;
 			frame->frameinfo.timestamps =
 			    group->frameid.timestamps;
-			do_gettimeofday(&frame->frameinfo.tv);
 		}
+
+		do_gettimeofday(&frame->frameinfo.tv);
 
 		trans_frame(framemgr, frame, FS_COMPLETE);
 		sif_ctx->event = VIO_FRAME_DONE;

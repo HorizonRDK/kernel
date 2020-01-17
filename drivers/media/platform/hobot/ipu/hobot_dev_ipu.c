@@ -90,13 +90,14 @@ static int x2a_ipu_close(struct inode *inode, struct file *file)
 	group = ipu_ctx->group;
 	ipu = ipu_ctx->ipu_dev;
 
-	if (ipu_ctx->leader)
+	if (group && ipu_ctx->leader)
 		clear_bit(VIO_GROUP_LEADER, &group->state);
 
-	if(group)
+	if (group)
 		clear_bit(VIO_GROUP_INIT, &group->state);
 
-	vio_group_task_stop(group->gtask);
+	if (group->gtask)
+		vio_group_task_stop(group->gtask);
 
 	frame_manager_close(&ipu_ctx->framemgr);
 
@@ -209,7 +210,6 @@ void ipu_frame_work(struct vio_group *group)
 	rdy = rdy | (1 << 4);
 	ipu_set_shd_rdy(ipu->base_reg, rdy);
 
-	vio_info("%s: %d\n", __func__, instance);
 	if (test_bit(IPU_DMA_INPUT, &ipu->state))
 		ipu_set_rdma_start(ipu->base_reg);
 }
@@ -218,7 +218,7 @@ void ipu_set_group_leader(struct vio_group *group, enum group_id id)
 {
 	struct ipu_video_ctx *ipu_ctx;
 
-	if (id >= GROUP_ID_MAX && id < GROUP_ID_SRC)
+	if (id >= GROUP_ID_MAX || id < GROUP_ID_SRC)
 		vio_err("wrong id");
 	else {
 		if (!test_bit(VIO_GROUP_LEADER, &group->state)) {
@@ -452,30 +452,28 @@ int ipu_update_ds_ch_param(struct ipu_video_ctx *ipu_ctx, u8 ds_ch,
 	ipu_set_ds_target_size(ipu->base_reg, shadow_index, ds_ch, dst_width,
 			       dst_height);
 
-	if (ds_config->ds_sc_en) {
-		dst_stepx = ds_config->ds_sc_info.step_x;
-		dst_stepy = ds_config->ds_sc_info.step_y;
-		dst_prex = ds_config->ds_sc_info.pre_scale_x;
-		dst_prey = ds_config->ds_sc_info.pre_scale_y;
-		ds_stride_y = ds_config->ds_stride_y;
-		ds_stride_uv = ds_config->ds_stride_uv;
-		ipu_set_ds_step(ipu->base_reg, shadow_index, ds_ch, dst_stepx,
-				dst_stepy, dst_prex, dst_prey);
-		ipu_set_ds_wdma_stride(ipu->base_reg, shadow_index, ds_ch,
-				       ds_stride_y, ds_stride_uv);
-		ipu_set_ds_enable(ipu->base_reg, shadow_index, ds_ch, true);
-	}
+	ds_stride_y = ds_config->ds_stride_y;
+	ds_stride_uv = ds_config->ds_stride_uv;
+	ipu_set_ds_wdma_stride(ipu->base_reg, shadow_index, ds_ch,
+				   ds_stride_y, ds_stride_uv);
 
-	if (ds_config->ds_roi_en) {
-		roi_x = ds_config->ds_roi_info.start_x;
-		roi_y = ds_config->ds_roi_info.start_y;
-		roi_width = ds_config->ds_roi_info.width;
-		roi_height = ds_config->ds_roi_info.height;
+	dst_stepx = ds_config->ds_sc_info.step_x;
+	dst_stepy = ds_config->ds_sc_info.step_y;
+	dst_prex = ds_config->ds_sc_info.pre_scale_x;
+	dst_prey = ds_config->ds_sc_info.pre_scale_y;
+	ipu_set_ds_step(ipu->base_reg, shadow_index, ds_ch, dst_stepx,
+				   dst_stepy, dst_prex, dst_prey);
+	ipu_set_ds_enable(ipu->base_reg, shadow_index, ds_ch, ds_config->ds_sc_en);
 
-		ipu_set_ds_roi_rect(ipu->base_reg, shadow_index, ds_ch, roi_x,
-				    roi_y, roi_width, roi_height);
-		ipu_set_ds_roi_enable(ipu->base_reg, shadow_index, ds_ch, true);
-	}
+
+	roi_x = ds_config->ds_roi_info.start_x;
+	roi_y = ds_config->ds_roi_info.start_y;
+	roi_width = ds_config->ds_roi_info.width;
+	roi_height = ds_config->ds_roi_info.height;
+	ipu_set_ds_roi_rect(ipu->base_reg, shadow_index, ds_ch, roi_x,
+			       roi_y, roi_width, roi_height);
+	ipu_set_ds_roi_enable(ipu->base_reg, shadow_index, ds_ch,
+				   ds_config->ds_roi_en);
 
 	rdy = ipu_get_shd_rdy(ipu->base_reg);
 	rdy = rdy | (1 << shadow_index);
@@ -535,25 +533,20 @@ int ipu_update_us_param(struct ipu_video_ctx *ipu_ctx,
 	ipu_set_us_target(ipu->base_reg, shadow_index, dst_stepx, dst_stepy,
 			  dst_width, dst_height);
 
-	if (us_config->us_sc_en) {
-		dst_stepx = us_config->us_sc_info.step_x;
-		dst_stepy = us_config->us_sc_info.step_y;
-		ipu_set_us_wdma_stride(ipu->base_reg, shadow_index,
-				       us_config->us_stride_y,
-				       us_config->us_stride_uv);
-		ipu_set_us_enable(ipu->base_reg, shadow_index, true);
-	}
+	dst_stepx = us_config->us_sc_info.step_x;
+	dst_stepy = us_config->us_sc_info.step_y;
+	ipu_set_us_wdma_stride(ipu->base_reg, shadow_index,
+			       us_config->us_stride_y,
+			       us_config->us_stride_uv);
+	ipu_set_us_enable(ipu->base_reg, shadow_index, us_config->us_sc_en);
 
-	if (us_config->us_roi_en) {
-		roi_x = us_config->us_roi_info.start_x;
-		roi_y = us_config->us_roi_info.start_y;
-		roi_width = us_config->us_roi_info.width;
-		roi_height = us_config->us_roi_info.height;
-
-		ipu_set_us_roi_rect(ipu->base_reg, shadow_index, roi_x, roi_y,
-				    roi_width, roi_height);
-		ipu_set_us_roi_enable(ipu->base_reg, shadow_index, true);
-	}
+	roi_x = us_config->us_roi_info.start_x;
+	roi_y = us_config->us_roi_info.start_y;
+	roi_width = us_config->us_roi_info.width;
+	roi_height = us_config->us_roi_info.height;
+	ipu_set_us_roi_rect(ipu->base_reg, shadow_index, roi_x, roi_y,
+			       roi_width, roi_height);
+	ipu_set_us_roi_enable(ipu->base_reg, shadow_index, us_config->us_roi_en);
 
 	if (us_config->us_roi_en || us_config->us_sc_en) {
 		ipu_set_group_leader(group, ipu_ctx->id);
@@ -713,7 +706,7 @@ int ipu_bind_chain_group(struct ipu_video_ctx *ipu_ctx, int instance)
 		return -EINVAL;
 	}
 
-	if(instance < 0 && instance >= VIO_MAX_STREAM){
+	if (instance < 0 || instance >= VIO_MAX_STREAM) {
 		vio_err("wrong instance id(%d)\n", instance);
 		return -EFAULT;
 	}
@@ -721,6 +714,9 @@ int ipu_bind_chain_group(struct ipu_video_ctx *ipu_ctx, int instance)
 	ipu = ipu_ctx->ipu_dev;
 
 	group = vio_get_chain_group(instance, GROUP_ID_IPU);
+	if (!group)
+		return -EFAULT;
+
 	id = ipu_ctx->id;
 	group->sub_ctx[id] = ipu_ctx;
 	ipu->group[instance] = group;
@@ -1036,8 +1032,10 @@ void ipu_frame_done(struct ipu_video_ctx *ipu_ctx)
 			frame->frameinfo.frame_id = group->frameid.frame_id;
 			frame->frameinfo.timestamps =
 			    group->frameid.timestamps;
-			do_gettimeofday(&frame->frameinfo.tv);
 		}
+
+		do_gettimeofday(&frame->frameinfo.tv);
+
 		ipu_set_iar_output(ipu_ctx, frame);
 		ipu_ctx->event = VIO_FRAME_DONE;
 		trans_frame(framemgr, frame, FS_COMPLETE);
@@ -1047,6 +1045,10 @@ void ipu_frame_done(struct ipu_video_ctx *ipu_ctx)
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 	wake_up(&ipu_ctx->done_wq);
+}
+
+void ipu_disable_dma(struct x2a_ipu_dev *ipu)
+{
 }
 
 static irqreturn_t ipu_isr(int irq, void *data)
@@ -1121,9 +1123,9 @@ static irqreturn_t ipu_isr(int irq, void *data)
 	}
 
 	if (status & (1 << INTR_IPU_FRAME_START)) {
-		if (test_bit(IPU_OTF_INPUT, &ipu->state))
+		if (test_bit(IPU_OTF_INPUT, &ipu->state)) {
 			up(&gtask->hw_resource);
-
+		}
 		if(group && group->get_timestamps)
 			vio_get_frame_id(group);
 	}
@@ -1253,7 +1255,13 @@ static ssize_t ipu_reg_dump(struct device *dev,
 
 	ipu = dev_get_drvdata(dev);
 
+	if (atomic_read(&ipu->rsccount) == 0)
+		ips_set_clk_ctrl(IPU0_CLOCK_GATE, true);
+
 	ipu_hw_dump(ipu->base_reg);
+
+	if (atomic_read(&ipu->rsccount) == 0)
+		ips_set_clk_ctrl(IPU0_CLOCK_GATE, false);
 
 	return 0;
 }

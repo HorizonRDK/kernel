@@ -30,6 +30,18 @@ void pym_enable_module(void __iomem *base_addr, bool enable)
 			 &pym_fields[PYM_F_ENABLE], enable);
 }
 
+void pym_enable_otf_clk(void __iomem *base_addr, bool enable)
+{
+	vio_hw_set_field(base_addr, &pym_regs[PYM_PYRAMID_CTRL],
+			 &pym_fields[PYM_F_IPUCLK_GATE_EN], enable);
+}
+
+void pym_enable_ddr_clk(void __iomem *base_addr, bool enable)
+{
+	vio_hw_set_field(base_addr, &pym_regs[PYM_PYRAMID_CTRL],
+			 &pym_fields[PYM_F_DDRCLK_GATE_EN], enable);
+}
+
 void pym_rdma_set_addr(void __iomem *base_addr, u32 y_addr, u32 uv_addr)
 {
 	vio_hw_set_reg(base_addr, &pym_regs[PYM_IMG_Y_ADDR_DDR], y_addr);

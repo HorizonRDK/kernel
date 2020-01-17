@@ -1292,8 +1292,6 @@ void sif_get_frameid_timestamps(u32 __iomem *base_reg, u32 mux,
 	timestamp_m = vio_hw_get_reg(base_reg,
 						&sif_regs[SIF_TIMESTAMP0_MSB + mux * 2]);
 	info->timestamps = timestamp_l | timestamp_m << 32;
-	vio_info("frame id = %d, timestamps = %lld\n",
-					info->frame_id, info->timestamps);
 }
 
 u32 sif_get_current_bufindex(u32 __iomem *base_reg, u32 mux)
@@ -1340,16 +1338,11 @@ void sif_enable_dma(u32 __iomem *base_reg, u32 cfg)
 	vio_hw_set_reg(base_reg, &sif_regs[SIF_OUT_FRM_CTRL], cfg);
 }
 
-void sif_config_rdma_fmt(u32 __iomem *base_reg, u32 format, u32 width,
+void sif_config_rdma_fmt(u32 __iomem *base_reg, u32 pix_length, u32 width,
 				u32 height)
 {
-	u32 pix_length;
 	u32 value = 0;
-	switch(format){
-		default:
-			pix_length = 0;
-			break;
-	}
+
 	value = pix_length << 29 | height << 16 | width;
 	vio_hw_set_reg(base_reg, &sif_regs[SIF_OUT_BUF_ISP0_CFG], value);
 }
@@ -1391,7 +1384,6 @@ int sif_get_irq_src(u32 __iomem *base_reg, struct sif_irq_src *src,
 void sif_set_isp_performance(u32 __iomem *base_reg, u8 value)
 {
 	vio_hw_set_reg(base_reg, &sif_regs[SIF_ISP_PERFORMANCE], value);
-
 }
 
 void sif_hw_dump(u32 __iomem *base_reg)
