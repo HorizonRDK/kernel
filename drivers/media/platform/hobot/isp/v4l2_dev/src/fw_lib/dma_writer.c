@@ -265,16 +265,16 @@ static int dma_writer_configure_frame_writer( dma_pipe *pipe,
 
     if ( acamera_isp_isp_global_ping_pong_config_select_read( 0 ) == ISP_CONFIG_PING ) {
 	    base = ISP_CONFIG_PING_SIZE;
-	    LOG(LOG_ERR, "%s current is ping, next pong", __func__);
+	    LOG(LOG_INFO, "%s current is ping, next pong", __func__);
     } else {
 	    base = 0;
-	    LOG(LOG_ERR, "%s current is pong, next ping", __func__);
+	    LOG(LOG_INFO, "%s current is pong, next ping", __func__);
     }
 
     /* config ping on first frame */
     if (p_ctx->isp_frame_counter == 0) {
 	base = 0;
-	LOG(LOG_ERR, "%s this is first frame, config to ping", __func__);
+	LOG(LOG_INFO, "%s this is first frame, config to ping", __func__);
     }
 
     if ( aframe->status != dma_buf_purge ) {
@@ -380,7 +380,7 @@ static int dma_writer_configure_pipe( dma_pipe *pipe )
     int rc;
     LOG(LOG_INFO,"+: curr_frame_id = %d",curr_frame->primary.frame_id);
     if ( !p_ctx ) {
-        LOG( LOG_ERR, "No context available." );
+        LOG( LOG_INFO, "No context available." );
         return -1;
     }
 

@@ -33,7 +33,7 @@
  * FW_GENERIC Disabled
 */
 //define initial printk model
-#define FW_LOG_MASK 0x7FFFFF
+#define FW_LOG_MASK 0x2FFFFF
 // define initial printk level
 #define FW_LOG_LEVEL LOG_ERR //Set Log level
 // used in isr

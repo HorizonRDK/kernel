@@ -817,7 +817,7 @@ retry:
 		if (acamera_isp_isp_global_ping_pong_config_select_read(0) == ISP_CONFIG_PONG || p_ctx->isp_frame_counter == 0) {
 			acamera_isp_isp_global_mcu_ping_pong_config_select_write(0, ISP_CONFIG_PING);
 
-			LOG(LOG_ERR, "next is ping, DMA config from ddr to ping");
+			LOG(LOG_INFO, "next is ping, DMA config from ddr to ping");
 #if FW_USE_HOBOT_DMA
 			set_dma_cmd_queue(cmd, ISP_CONFIG_PING);
 			system_dma_copy_multi_sg(cmd,2);
@@ -827,7 +827,7 @@ retry:
 #endif
 		} else {
 			acamera_isp_isp_global_mcu_ping_pong_config_select_write(0, ISP_CONFIG_PONG);
-			LOG(LOG_ERR, "next is pong, DMA config from ddr to pong");
+			LOG(LOG_INFO, "next is pong, DMA config from ddr to pong");
 #if FW_USE_HOBOT_DMA
 			set_dma_cmd_queue(cmd, ISP_CONFIG_PONG);
 			system_dma_copy_multi_sg(cmd,2);
@@ -846,9 +846,9 @@ retry:
 		g_firmware.dma_flag_dma_writer_config_completed)) {
 
 		wait_event_timeout(wq, g_firmware.dma_flag_dma_writer_config_completed, msecs_to_jiffies(1000));
-		LOG( LOG_ERR, "ISP->SIF: wake up sif feed thread");
+		LOG( LOG_INFO, "ISP->SIF: wake up sif feed thread");
 	} else
-		LOG( LOG_ERR, "ISP->SIF: do not need waiting, return to sif feed thread");
+		LOG( LOG_INFO, "ISP->SIF: do not need waiting, return to sif feed thread");
 
 	return 0;
 }
@@ -928,7 +928,7 @@ int32_t acamera_interrupt_handler()
                         g_firmware.dma_flag_isp_metering_completed = 0;
 
                         if ( acamera_isp_isp_global_ping_pong_config_select_read( 0 ) == ISP_CONFIG_PONG ) {
-                            LOG( LOG_ERR, "Current config is pong" );
+                            LOG( LOG_INFO, "Current config is pong" );
                             //            |^^^^^^^^^|
                             // next --->  |  PING   |
                             //            |_________|
@@ -953,7 +953,7 @@ int32_t acamera_interrupt_handler()
                             system_dma_copy_sg( g_firmware.dma_chan_isp_config, ISP_CONFIG_PING, SYS_DMA_TO_DEVICE, dma_complete_context_func, next_context_id );
 #endif
                         } else {
-                            LOG( LOG_ERR, "Current config is ping" );
+                            LOG( LOG_INFO, "Current config is ping" );
                             //            |^^^^^^^^^|
                             // next --->  |  PONG   |
                             //            |_________|
