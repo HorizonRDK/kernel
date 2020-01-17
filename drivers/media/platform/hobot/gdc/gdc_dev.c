@@ -29,9 +29,11 @@
 
 #define MODULE_NAME "X2A GDC"
 
-extern void write_gdc0_mask(uint32_t model, uint32_t *enable);
+extern void write_gdc_mask(uint32_t model, uint32_t *enable);
+extern void write_gdc_status(uint32_t model, uint32_t *enable);
+
 extern int ips_set_clk_ctrl(unsigned long module, bool enable);
-extern void write_gdc0_status(uint32_t model, uint32_t *enable);
+
 extern struct class *vps_class;
 
 struct gdc_group *gdc_get_group(struct x2a_gdc_dev *gdc)
@@ -73,15 +75,17 @@ static int x2a_gdc_open(struct inode *inode, struct file *file)
 
 	group->sub_ctx[0] = gdc_ctx;
 	gdc_ctx->group = group;
-	set_bit(GDC_GROUP_OPEN, &group->state);	//only one node,so group has only one member
+	set_bit(GDC_GROUP_OPEN, &group->state);
 
 	init_waitqueue_head(&gdc_ctx->done_wq);
 
 	gdc_ctx->gdc_dev = gdc;
 	file->private_data = gdc_ctx;
-	write_gdc0_mask(0, &enbale);
-	ips_set_clk_ctrl(GDC0_CLOCK_GATE, enbale);
 
+	write_gdc_mask(gdc->hw_id, &enbale);
+	ips_set_clk_ctrl(GDC0_CLOCK_GATE - gdc->hw_id, enbale);
+
+	vio_info("GDC%d open node\n", gdc->hw_id);
 p_err:
 	return ret;
 }
@@ -103,6 +107,7 @@ static int x2a_gdc_close(struct inode *inode, struct file *file)
 {
 	struct gdc_video_ctx *gdc_ctx;
 	struct gdc_group *group;
+	struct x2a_gdc_dev *gdc;
 	int enbale = 0;
 
 	gdc_ctx = file->private_data;
@@ -110,8 +115,10 @@ static int x2a_gdc_close(struct inode *inode, struct file *file)
 
 	clear_bit(GDC_GROUP_OPEN, &group->state);
 
-	write_gdc0_mask(0, &enbale);
-	ips_set_clk_ctrl(GDC0_CLOCK_GATE, enbale);
+	gdc = gdc_ctx->gdc_dev;
+
+	write_gdc_mask(gdc->hw_id, &enbale);
+	ips_set_clk_ctrl(GDC0_CLOCK_GATE - gdc->hw_id, enbale);
 
 	kfree(gdc_ctx);
 
@@ -362,7 +369,8 @@ static irqreturn_t gdc_isr(int irq, void *data)
 	gdc_ctx = gdc_group->sub_ctx[0];
 
 	status = gdc_get_intr_status(gdc->base_reg);
-	write_gdc0_status(0, &dwe_status);
+	write_gdc_status(gdc->hw_id, &dwe_status);
+
 	vio_info("%s:status = 0x%x, dwe_status = 0x%x\n", __func__, status,
 		 dwe_status);
 

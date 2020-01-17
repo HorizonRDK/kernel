@@ -17,6 +17,6 @@ obj-$(CONFIG_HOBOT_VIO) += sif/
 obj-$(CONFIG_HOBOT_VIO) += isp/
 obj-$(CONFIG_HOBOT_VIO) += ipu/
 obj-$(CONFIG_HOBOT_VIO) += pym/
-#obj-$(CONFIG_HOBOT_VIO) += gdc/
+obj-$(CONFIG_HOBOT_VIO) += gdc/
 
 obj-$(CONFIG_HOBOT_MIPI_CSI) += mipi/
