@@ -57,6 +57,39 @@ int ips_set_clk_ctrl(unsigned long module, bool enable)
 }
 EXPORT_SYMBOL_GPL(ips_set_clk_ctrl);
 
+int ips_set_bus_ctrl(unsigned int cfg)
+{
+	int ret = 0;
+	BUG_ON(!g_ips_dev);
+
+	ips_set_axi_bus_ctrl(g_ips_dev->base_reg, cfg);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(ips_set_bus_ctrl);
+
+int ips_get_bus_ctrl(void)
+{
+	int ret = 0;
+	BUG_ON(!g_ips_dev);
+
+	ret = ips_get_axi_bus_ctrl(g_ips_dev->base_reg);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(ips_get_bus_ctrl);
+
+int ips_get_bus_status(void)
+{
+	int ret = 0;
+	BUG_ON(!g_ips_dev);
+
+	ret = ipu_get_axi_statue(g_ips_dev->base_reg);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(ips_get_bus_status);
+
 int vio_clk_enable(const char *name)
 {
 	int ret = 0;

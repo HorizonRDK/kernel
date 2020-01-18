@@ -92,45 +92,11 @@ static const struct dev_pm_ops x2a_sif_pm_ops = {
 	.runtime_resume = x2a_sif_runtime_resume,
 };
 
-int sif_get_stride(u32 pixel_length, u32 width)
-{
-	u32 stride = 0;
-
-	switch (pixel_length) {
-	case PIXEL_LENGTH_8BIT:
-		stride = width;
-		break;
-	case PIXEL_LENGTH_10BIT:
-		stride = width * 5 / 4;
-		break;
-	case PIXEL_LENGTH_12BIT:
-		stride = width * 3 / 2;
-		break;
-	case PIXEL_LENGTH_16BIT:
-		stride = width * 2;
-		break;
-	case PIXEL_LENGTH_20BIT:
-		stride = width * 5 / 2;
-		break;
-	default:
-		vio_err("wrong pixel length is %d\n", pixel_length);
-		break;
-	}
-
-	return stride;
-}
-
 void sif_config_rdma_cfg(struct x2a_sif_dev *sif, u8 index,
 			struct frame_info *frameinfo)
 {
-	u32 stride = 0;
-
-	sif_config_rdma_fmt(sif->base_reg, frameinfo->pixel_length,
-				frameinfo->width, frameinfo->height);
 	sif_set_rdma_enable(sif->base_reg, index, true);
 	sif_set_rdma_buf_addr(sif->base_reg, index, frameinfo->addr[index]);
-	stride = sif_get_stride(frameinfo->pixel_length, frameinfo->width);
-	sif_set_rdma_buf_stride(sif->base_reg, index, stride);
 }
 
 void sif_read_frame_work(struct vio_group *group)
@@ -842,10 +808,10 @@ static irqreturn_t sif_isr(int irq, void *data)
 	}
 
 	if (irq_src.sif_err_status)
-		vio_err("input size mismatch\n");
+		vio_err("input size mismatch(0x%x)\n", irq_src.sif_err_status);
 
 	if (irq_src.sif_in_buf_overflow)
-		vio_err("input buffer overflow\n");
+		vio_err("input buffer overflow(0x%x)\n", irq_src.sif_in_buf_overflow);
 
 	return 0;
 }

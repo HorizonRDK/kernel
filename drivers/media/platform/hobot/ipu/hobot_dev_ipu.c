@@ -659,6 +659,8 @@ int ipu_video_init(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 
 	ipu = ipu_ctx->ipu_dev;
 
+	ips_set_clk_ctrl(IPU0_CLOCK_GATE, true);
+
 	if (!(ipu_ctx->state & (BIT(VIO_VIDEO_S_INPUT) | BIT(VIO_VIDEO_REBUFS)))) {
 		vio_err("[%s] invalid INIT is requested(%lX)", __func__, ipu_ctx->state);
 		return -EINVAL;
@@ -754,7 +756,7 @@ int ipu_video_streamon(struct ipu_video_ctx *ipu_ctx)
 #if CONFIG_QEMU_TEST
 	timer_init(ipu_dev, 0);
 #else
-	ips_set_clk_ctrl(IPU0_CLOCK_GATE, true);
+
 #endif
 p_inc:
 
@@ -778,6 +780,8 @@ p_inc:
 
 int ipu_video_streamoff(struct ipu_video_ctx *ipu_ctx)
 {
+	u32 value = 0;
+	u32 cnt = 20;
 	struct x2a_ipu_dev *ipu_dev;
 	struct vio_group *group;
 
@@ -801,6 +805,26 @@ int ipu_video_streamoff(struct ipu_video_ctx *ipu_ctx)
 	else
 		g_test_bit &= ~(1 << (ipu_ctx->id + 1));
 #else
+
+	value = ips_get_bus_ctrl() | 1 << 12 | 0xd21e << 16;
+	ips_set_bus_ctrl(value);
+
+	while(1) {
+		value = ips_get_bus_status();
+		if(value & 1 << 28)
+			break;
+
+		msleep(10);
+		cnt--;
+		if(cnt == 0) {
+			vio_info("%s timeout\n", __func__);
+			break;
+		}
+	}
+
+	value = ips_get_bus_ctrl() & ~(1 << 12);
+	ips_set_bus_ctrl(value);
+
 	ips_set_clk_ctrl(IPU0_CLOCK_GATE, false);
 #endif
 	vio_info("%s timer del\n", __func__);

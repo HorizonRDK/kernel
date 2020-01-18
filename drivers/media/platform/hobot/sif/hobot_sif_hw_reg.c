@@ -805,6 +805,34 @@ static void sif_set_mipi_rx(u32 __iomem *base_reg, sif_input_mipi_t* p_mipi)
 
 }
 
+int sif_get_stride(u32 pixel_length, u32 width)
+{
+	u32 stride = 0;
+
+	switch (pixel_length) {
+	case PIXEL_LENGTH_8BIT:
+		stride = width;
+		break;
+	case PIXEL_LENGTH_10BIT:
+		stride = width * 5 / 4;
+		break;
+	case PIXEL_LENGTH_12BIT:
+		stride = width * 3 / 2;
+		break;
+	case PIXEL_LENGTH_16BIT:
+		stride = width * 2;
+		break;
+	case PIXEL_LENGTH_20BIT:
+		stride = width * 5 / 2;
+		break;
+	default:
+		vio_err("wrong pixel length is %d\n", pixel_length);
+		break;
+	}
+
+	return stride;
+}
+
 
 /*
  * @brief config an input buffer
@@ -819,13 +847,21 @@ void sif_set_ddr_input(u32 __iomem *base_reg, sif_input_ddr_t* p_ddr)
 	u32 height = 0;
 	u32 width = 0;
 	u32 format = 0;
+	u32 pixel_length = 0;
+	u32 stride = 0;
+	int i = 0;
 	if(!p_ddr->enable)
 		return;
 
 	height = p_ddr->data.height;
 	width = p_ddr->data.width;
 	format  = p_ddr->data.format;
-	sif_config_rdma_fmt(base_reg, format, width, height);
+	pixel_length = p_ddr->data.pix_length;
+
+	sif_config_rdma_fmt(base_reg, pixel_length, width, height);
+	stride = sif_get_stride(pixel_length, width);
+	for(i = 0; i < 4; i++)
+		sif_set_rdma_buf_stride(base_reg, i, stride);
 }
 
 
@@ -1376,7 +1412,7 @@ int sif_get_irq_src(u32 __iomem *base_reg, struct sif_irq_src *src,
 
 	src->sif_err_status = vio_hw_get_reg(base_reg, &sif_regs[SIF_ERR_STATUS]);
 	src->sif_in_buf_overflow =
-			vio_hw_get_reg(base_reg, &sif_regs[SIF_ERR_STATUS]);
+			vio_hw_get_reg(base_reg, &sif_regs[SIF_IN_BUF_OVERFLOW]);
 
 	return 0;
 }

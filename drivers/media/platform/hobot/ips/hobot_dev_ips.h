@@ -27,6 +27,11 @@ struct vio_clk {
 };
 
 int ips_set_clk_ctrl(unsigned long module, bool enable);
+int ips_set_bus_ctrl(unsigned int cfg);
+int ips_get_bus_ctrl(void);
+
+int ips_get_bus_status(void);
+
 int vio_clk_enable(const char *name);
 int vio_clk_disable(const char *name);
 int vio_set_clk_rate(const char *name, ulong frequency);
