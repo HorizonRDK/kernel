@@ -120,6 +120,12 @@ function all()
         exit 1
     }
 
+    # make modules_install to INSTALL_MOD_PATH (default: /)
+    make INSTALL_MOD_PATH=$SRC_KERNEL_DIR/_install modules_install || {
+        echo "make modules_install to INSTALL_MOD_PATH failed"
+        exit 1
+    }
+
     # put binaries to dest directory
     cpfiles "$SRC_KERNEL_DIR/arch/$ARCH_KERNEL/boot/$KERNEL_IMAGE_NAME" "$prefix/"
     cd $SRC_KERNEL_DIR/arch/$ARCH_KERNEL/boot/dts/hobot/
@@ -131,6 +137,10 @@ function all()
     cpfiles "$SRC_KERNEL_DIR/drivers/staging/rtl8723bs/rtlwifi/rtl8723bs_nic.bin " "$TARGET_TMPROOTFS_DIR/lib/firmware/rtlwifi/"
     cpfiles "$SRC_KERNEL_DIR/drivers/soc/hobot/cnn_host/x2_cnn_host_total.ko " "$TARGET_TMPROOTFS_DIR/lib/modules/"
     cpfiles "$SRC_KERNEL_DIR/drivers/misc/x2_efuse.ko " "$TARGET_TMPROOTFS_DIR/lib/modules/"
+    cpfiles "$SRC_KERNEL_DIR/_install/lib/modules/*" "$TARGET_TMPROOTFS_DIR/lib/modules/"
+
+    rm $SRC_KERNEL_DIR/_install/ -rf
+
     # build dtb-mapping.conf
     build_dtbmapping
 }

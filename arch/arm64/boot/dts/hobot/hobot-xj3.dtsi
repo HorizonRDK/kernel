@@ -251,10 +251,11 @@
 			interrupt-parent = <&gic>;
 			interrupts = <0 26 4>;
 			/* dr_mode: {peripheral, host, otg} */
-			dr_mode = "host";
+			dr_mode = "otg";
 			/* phy_type: {utmi, utmi_wide, ulpi, serial, hsic} */
 			snps,dis_u2_susphy_quirk;
 			/* snps,dis_u3_susphy_quirk; */
+			/* extcon = <&usb_id>; */
 			status = "okay";
 		};
 
@@ -1060,5 +1061,13 @@
 			boot_mode = "0";
 			socuid = "00000000000000000000000000000000";
 		};
+	};
+
+	usb_id: usb-id {
+		compatible = "linux,extcon-usb-gpio";
+		/* id-gpio = <> */
+		/* vbus-gpio = <>; */
+		pinctrl-names = "default";
+		pinctrl-0 = <&usb_id_function>;
 	};
 };

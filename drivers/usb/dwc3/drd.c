@@ -32,6 +32,9 @@ static void dwc3_drd_update(struct dwc3 *dwc)
 	if (id < 0)
 		id = 0;
 
+	/* TODO- jianghe.xu: tmp solution - host default */
+	id = 1;
+
 	dwc3_set_mode(dwc, id ?
 		      DWC3_GCTL_PRTCAP_HOST :
 		      DWC3_GCTL_PRTCAP_DEVICE);
@@ -53,6 +56,8 @@ int dwc3_drd_init(struct dwc3 *dwc)
 {
 	int ret;
 
+/* TODO - jianghe.xu: tmp solution - host default */
+#if 0
 	if (dwc->dev->of_node) {
 		if (of_property_read_bool(dwc->dev->of_node, "extcon"))
 			dwc->edev = extcon_get_edev_by_phandle(dwc->dev, 0);
@@ -68,6 +73,7 @@ int dwc3_drd_init(struct dwc3 *dwc)
 			return ret;
 		}
 	}
+#endif
 
 	dwc3_drd_update(dwc);
 

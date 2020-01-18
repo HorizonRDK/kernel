@@ -109,6 +109,11 @@ static int usb_extcon_probe(struct platform_device *pdev)
 	struct device_node *np = dev->of_node;
 	struct usb_extcon_info *info;
 	int ret;
+	int no_gpio_node = 1;
+
+	/* TODO-jianghe.xu: tmp solution, gpio code not ready, ignore it */
+	if (no_gpio_node)
+		return 0;
 
 	if (!np)
 		return -EINVAL;
