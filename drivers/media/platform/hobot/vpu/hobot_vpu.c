@@ -73,15 +73,6 @@ static struct kobj_attribute vpu_debug_attr = {
 	.store = vpu_debug_store,
 };
 
-static struct attribute *attributes[] = {
-	&vpu_debug_attr.attr,
-	NULL,
-};
-
-static struct attribute_group attr_group = {
-	.attrs = attributes,
-};
-
 static int vpu_alloc_dma_buffer(hb_vpu_dev_t *dev, hb_vpu_drv_buffer_t * vb)
 {
 	if (!vb || !dev)
@@ -751,7 +742,7 @@ static long vpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 			intr_inst_index = info.intr_inst_index;
 
 			intr_reason_in_q = 0;
-			interrupt_flag_in_q =
+			/*interrupt_flag_in_q =
 			    kfifo_out_spinlocked(&dev->interrupt_pending_q
 						 [intr_inst_index],
 						 &intr_reason_in_q, sizeof(u32),
@@ -765,7 +756,7 @@ static long vpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 					  intr_inst_index, intr_reason_in_q,
 					  interrupt_flag_in_q);
 				goto INTERRUPT_REMAIN_IN_QUEUE;
-			}
+			}*/
 #endif
 #ifdef SUPPORT_MULTI_INST_INTR
 #ifdef SUPPORT_TIMEOUT_RESOLUTION
@@ -831,7 +822,7 @@ static long vpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 #endif
 
 #ifdef SUPPORT_MULTI_INST_INTR
-INTERRUPT_REMAIN_IN_QUEUE:
+//INTERRUPT_REMAIN_IN_QUEUE:
 			info.intr_reason =
 			    dev->interrupt_reason[intr_inst_index];
 			dev->interrupt_flag[intr_inst_index] = 0;
@@ -1679,7 +1670,7 @@ static int vpu_probe(struct platform_device *pdev)
 	}
 	dev_dbg(&pdev->dev, "vpu irq number: irq = %d\n", dev->irq);
 
-	dev->vpu_class = class_create(THIS_MODULE, pdev->name);
+	dev->vpu_class = class_create(THIS_MODULE, VPU_DEV_NAME);
 	if (IS_ERR(dev->vpu_class)) {
 		dev_err(&pdev->dev, "failed to create class\n");
 		err = PTR_ERR(dev->vpu_class);
@@ -1714,16 +1705,9 @@ static int vpu_probe(struct platform_device *pdev)
 		goto ERR_CREATE_DEV;
 	}
 
-	/* create sysfs interface */
-	dev->vpu_kobj = kobject_create_and_add(pdev->name, NULL);
-	if (!dev->vpu_kobj) {
-		dev_err(&pdev->dev, "failed to create kobj\n");
-		err = -ENOMEM;
-		goto ERR_CREATE_KOBJ;
-	}
-	err = sysfs_create_group(dev->vpu_kobj, &attr_group);
-	if (err < 0) {
-		dev_err(&pdev->dev, "failed to create sysfs group\n");
+	err = sysfs_create_file(&pdev->dev.kobj, &vpu_debug_attr.attr);
+	if(err < 0) {
+		dev_err(&pdev->dev, "failed to create sys!!");
 		goto ERR_CREATE_SYSFS;
 	}
 
@@ -1824,10 +1808,8 @@ ERR_ION_CLIENT:
 #endif
 	hb_vpu_clk_put(dev);
 ERR_GET_CLK:
-	sysfs_remove_group(dev->vpu_kobj, &attr_group);
+	sysfs_remove_file(&pdev->dev.kobj, &vpu_debug_attr.attr);
 ERR_CREATE_SYSFS:
-	kobject_del(dev->vpu_kobj);
-ERR_CREATE_KOBJ:
 	device_destroy(dev->vpu_class, dev->vpu_dev_num);
 ERR_CREATE_DEV:
 	cdev_del(&dev->cdev);
@@ -1894,8 +1876,7 @@ static int vpu_remove(struct platform_device *pdev)
 
 	hb_vpu_clk_disable(dev);
 	hb_vpu_clk_put(dev);
-	sysfs_remove_group(dev->vpu_kobj, &attr_group);
-	kobject_del(dev->vpu_kobj);
+	sysfs_remove_file(&pdev->dev.kobj, &vpu_debug_attr.attr);
 	device_destroy(dev->vpu_class, dev->vpu_dev_num);
 	cdev_del(&dev->cdev);
 	unregister_chrdev_region(dev->vpu_dev_num, 1);
@@ -2120,6 +2101,7 @@ DONE_WAKEUP:
 	SET_SYSTEM_SLEEP_PM_OPS(vpu_suspend, vpu_resume)
 };*/
 
+static const struct attribute_group *vpu_attr_groups[] = {};
 static struct platform_driver vpu_driver = {
 	.probe = vpu_probe,
 	.remove = vpu_remove,
@@ -2129,6 +2111,7 @@ static struct platform_driver vpu_driver = {
 		   .name = VPU_PLATFORM_DEVICE_NAME,
 		   .of_match_table = vpu_of_match,
 		   //.pm = &vpu_pm_ops
+		   .groups = vpu_attr_groups,
 		   },
 };
 

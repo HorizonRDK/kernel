@@ -73,15 +73,6 @@ static struct kobj_attribute jpu_debug_attr = {
 	.store = jpu_debug_store,
 };
 
-static struct attribute *attributes[] = {
-	&jpu_debug_attr.attr,
-	NULL,
-};
-
-static struct attribute_group attr_group = {
-	.attrs = attributes,
-};
-
 static int jpu_alloc_dma_buffer(hb_jpu_dev_t *dev,
 			hb_jpu_drv_buffer_t * jb)
 {
@@ -1054,7 +1045,7 @@ static int jpu_probe(struct platform_device *pdev)
 	}
 	dev_dbg(&pdev->dev, "jpu irq number: irq = %d\n", dev->irq);
 
-	dev->jpu_class = class_create(THIS_MODULE, pdev->name);
+	dev->jpu_class = class_create(THIS_MODULE, JPU_DEV_NAME);
 	if (IS_ERR(dev->jpu_class)) {
 		dev_err(&pdev->dev, "failed to create class\n");
 		err = PTR_ERR(dev->jpu_class);
@@ -1089,16 +1080,9 @@ static int jpu_probe(struct platform_device *pdev)
 		goto ERR_CREATE_DEV;
 	}
 
-	/* create sysfs interface */
-	dev->jpu_kobj = kobject_create_and_add(pdev->name, NULL);
-	if (!dev->jpu_kobj) {
-		dev_err(&pdev->dev, "failed to create kobj\n");
-		err = -ENOMEM;
-		goto ERR_CREATE_KOBJ;
-	}
-	err = sysfs_create_group(dev->jpu_kobj, &attr_group);
-	if (err < 0) {
-		dev_err(&pdev->dev, "failed to create sysfs group\n");
+	err = sysfs_create_file(&pdev->dev.kobj, &jpu_debug_attr.attr);
+	if(err < 0) {
+		dev_err(&pdev->dev, "failed to create sys!!");
 		goto ERR_CREATE_SYSFS;
 	}
 
@@ -1178,10 +1162,8 @@ ERR_ION_CLIENT:
 #endif
 	hb_jpu_clk_enable(dev->jpu_clk);
 	hb_jpu_clk_put(dev->jpu_clk);
-	sysfs_remove_group(dev->jpu_kobj, &attr_group);
+	sysfs_remove_file(&pdev->dev.kobj, &jpu_debug_attr.attr);
 ERR_CREATE_SYSFS:
-	kobject_del(dev->jpu_kobj);
-ERR_CREATE_KOBJ:
 	device_destroy(dev->jpu_class, dev->jpu_dev_num);
 ERR_CREATE_DEV:
 	cdev_del(&dev->cdev);
@@ -1230,8 +1212,7 @@ static int jpu_remove(struct platform_device *pdev)
 
 	hb_jpu_clk_disable(dev->jpu_clk);
 	hb_jpu_clk_put(dev->jpu_clk);
-	sysfs_remove_group(dev->jpu_kobj, &attr_group);
-	kobject_del(dev->jpu_kobj);
+	sysfs_remove_file(&pdev->dev.kobj, &jpu_debug_attr.attr);
 	device_destroy(dev->jpu_class, dev->jpu_dev_num);
 	cdev_del(&dev->cdev);
 	unregister_chrdev_region(dev->jpu_dev_num, 1);
@@ -1293,6 +1274,7 @@ static const struct of_device_id jpu_of_match[] = {
 	{},
 };
 
+static const struct attribute_group *jpu_attr_groups[] = {};
 static struct platform_driver jpu_driver = {
 	.probe = jpu_probe,
 	.remove = jpu_remove,
@@ -1302,6 +1284,7 @@ static struct platform_driver jpu_driver = {
 		   .name = JPU_PLATFORM_DEVICE_NAME,
 		   .of_match_table = jpu_of_match,
 		   //.pm = &jpu_pm_ops
+		   .groups = jpu_attr_groups,
 		   },
 };
 
