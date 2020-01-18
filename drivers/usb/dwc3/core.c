@@ -56,7 +56,8 @@
 #define HOBOT_FPGA_USING_M31_PHY
 #endif
 
-#define HOBOT_SOC_DWC3_SETTING
+#define HOBOT_SOC_USB_RESET
+// #define HOBOT_SOC_DWC3_SETTING
 // #define HOBOT_SOC_DWC3_DEBUG
 
 /**
@@ -1341,16 +1342,6 @@ static void hobot_dwc3_info_register(struct dwc3 *dwc)
 #endif
 
 #ifdef HOBOT_SOC_DWC3_SETTING
-static void hobot_usb_sw_reset(struct dwc3* dwc) {
-	u32 reg;
-
-	reg = readl(dwc->regs_sys + CPUSYS_SW_RSTEN);
-	reg |= SYS_USB_RSTEN;
-	writel(reg, dwc->regs_sys + CPUSYS_SW_RSTEN);
-	reg &= ~SYS_USB_RSTEN;
-	writel(reg, dwc->regs_sys + CPUSYS_SW_RSTEN);
-}
-
 static void hobot_usb_reset_register(struct dwc3 *dwc) {
 	u32 reg;
 
@@ -1378,13 +1369,27 @@ static void hobot_usb_reset_register(struct dwc3 *dwc) {
 	reg = 0x30c11004;
 	dwc3_writel(dwc->regs, DWC3_GCTL,reg);
 }
+#endif
+
+#ifdef HOBOT_SOC_USB_RESET
+static void hobot_usb_sw_reset(struct dwc3* dwc) {
+	u32 reg;
+
+	reg = readl(dwc->regs_sys + CPUSYS_SW_RSTEN);
+	reg |= SYS_USB_RSTEN;
+	writel(reg, dwc->regs_sys + CPUSYS_SW_RSTEN);
+	reg &= ~SYS_USB_RSTEN;
+	writel(reg, dwc->regs_sys + CPUSYS_SW_RSTEN);
+}
 
 static void hobot_usb_reset(struct dwc3 *dwc)
 {
 	hobot_usb_sw_reset(dwc);
 
+#ifdef HOBOT_SOC_DWC3_SETTING
 	/* reset some dwc3/sysctl registers */
 	hobot_usb_reset_register(dwc);
+#endif
 }
 #endif
 
@@ -1460,7 +1465,7 @@ static int dwc3_probe(struct platform_device *pdev)
 	hobot_m31_phy_reset(dwc);
 #endif
 
-#ifdef HOBOT_SOC_DWC3_SETTING
+#ifdef HOBOT_SOC_USB_RESET
 	// hobot_dwc3_info_register(dwc);
 	hobot_usb_reset(dwc);
 	// hobot_dwc3_info_register(dwc);
