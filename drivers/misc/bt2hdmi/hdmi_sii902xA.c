@@ -221,7 +221,9 @@ static int hdmi_sii_probe(struct i2c_client *client,
 			gpio_free(Si9022A_rst_pin);
 			return ret;
 		}
+#if defined CONFIG_HOBOT_IAR || defined CONFIG_X2_IAR
 		display_type = HDMI_TYPE;
+#endif
 		// init hotplug service.
 		sii902xAwork = kmalloc(sizeof(*sii902xAwork),
 				GFP_ATOMIC);
@@ -337,22 +339,24 @@ static ssize_t sii902x_hdmi_store(struct kobject *kobj,
 	if (strncmp(tmpx, "resolution800*480", 17) == 0) {
 		vmode = HDMI_800_480_60;
 		pr_info("ReConfig HDMI resolution 800*480");
+#if defined CONFIG_HOBOT_IAR || defined CONFIG_X2_IAR
 		iar_stop();
 		disp_set_pixel_clk(32000000);
 		disp_set_panel_timing(&video_800x480);
 		iar_start(1);
-
+#endif
 		siHdmiTx_ReConfig(vmode, vformat, afs);
 
 		return n;
 	} else if (strncmp(tmpx, "resolution1080p", 15) == 0) {
 		vmode = HDMI_1080P60;
 		pr_info("ReConfig HDMI resolution 1920*1080");
+#if defined CONFIG_HOBOT_IAR || defined CONFIG_X2_IAR
 		iar_stop();
 		disp_set_pixel_clk(163200000);
 		disp_set_panel_timing(&video_1920x1080);
 		iar_start(1);
-
+#endif
 		siHdmiTx_ReConfig(vmode, vformat, afs);
 
 		return n;

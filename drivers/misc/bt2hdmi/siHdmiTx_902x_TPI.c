@@ -3803,8 +3803,10 @@ void OnHdmiCableConnected(void)
 	TPI_INFO_PRINT("pinmux bt1120 output!\n");
 #ifdef CONFIG_HOBOT_XJ2
 	ips_pinmux_bt();
-#else
+#elif defined CONFIG_HOBOT_IAR
 	disp_pinmux_bt1120();
+#else
+	TPI_INFO_PRINT("warning: bt pins not config!\n");
 #endif
 
 	if ((Sii9024A_HDCP_supported)

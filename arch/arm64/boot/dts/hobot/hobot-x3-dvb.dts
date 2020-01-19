@@ -150,6 +150,20 @@
 		reg = <0x48>;
 		#thermal-sensor-cells = <0>;
         };
+	siiEDID@0x50 {
+		compatible = "siiEDID";
+		reg = <0x50>;
+	};
+	siiSegEDID@0x30 {
+		compatible = "siiSegEDID";
+		reg = <0x30>;
+	};
+	sii902xA@0x39 {
+		compatible = "sii902xA";
+		reg = <0x39>;
+		rst_pin = <28>;
+		irq_pin = <21>;
+	};
 };
 &i2c1 {
 	status = "okay";
@@ -260,11 +274,13 @@
 };
 
 &bifspi {
-	status = "okay";
+	/* pin conflict: BIFSPI_SCLK(gpio28) - see 902xAA rst_pin */
+	status = "disabled";
 };
 
 &bifsd {
-	status = "okay";
+	/* pin conflict: BIFSD_CMD(gpio21) - see 902xAA irq_pin */
+	status = "disabled";
 	/*cd-gpio = <77>;*/
 };
 
