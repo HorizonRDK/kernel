@@ -291,6 +291,14 @@ static sensor_mode_t dummy_drv_supported_modes[] = {
         .bits = 8,
         .exposures = 1,
     },
+    {//30 IMX290->SIF->ISP
+        .wdr_mode = WDR_MODE_FS_LIN,
+        .fps = 10 * 256,
+        .resolution.width = 1952,
+        .resolution.height = 1097,
+        .bits = 8,
+        .exposures = 1,
+    },
 
 };
 

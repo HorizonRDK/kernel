@@ -151,15 +151,15 @@
 	clocks = <&uart0_mclk>;
 	clock-names = "uart_mclk";
 };
-
+/*
 &ips {
 	status = "okay";
 };
-
+*/
 &isp {
 	status = "okay";
 };
-
+/*
 &ipu {
 	status = "okay";
 };
@@ -175,7 +175,7 @@
 &mipi_dev {
 	status = "okay";
 };
-
+*/
 &dma {
 	status = "okay";
 };

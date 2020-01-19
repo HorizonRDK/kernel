@@ -406,7 +406,7 @@
 			/* interrupt list : sif, ipu, pym, ldc, dwe*/
 			interrupts = <0 70 4>, <0 81 4>, <0 83 4>, <0 75 4>, <0 73 4>;
 		};
-
+/*
 		ips: ips@0xA4000000 {
 			compatible = "hobot,x2a-ips";
 			reg = <0 0xA4000000 0 0x200>;
@@ -463,7 +463,7 @@
 			interrupts = <0 49 4>;
 			status = "disabled";
 		};
-
+*/
 		/* gdc0 */
 		gdc0: gdc0@0xA4010000 {
 			compatible = "hobot,gdc0";
@@ -524,7 +524,7 @@
 		    //reg = <0 0xA4020000 0 0x10000>;
 		    status = "okay";
 		};
-
+/*
 		ldc: ldc@0xA4030000 {
 		    compatible = "hobot,x2a-ldc";
 		    reg = <0 0xA4030000 0 0x1000>;
@@ -532,7 +532,6 @@
 		    interrupts = <0 75 4>;
 		    status = "okay";
 		};
-
 		dis: dis@0xA4034000 {
 		    compatible = "hobot,x2a-dis";
 		    reg = <0 0xA4034000 0 0x1000>;
@@ -548,6 +547,7 @@
 		    //interrupts = <0 77 4>;
 		    status = "okay";
 		};
+*/
 
 		jpu: jpu@0xA8010000 {
 			compatible = "hobot,cnm_jpu";

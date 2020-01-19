@@ -439,6 +439,7 @@ CPUIDLE_METHOD_OF_DECLARE(psci, "psci", &psci_cpuidle_ops);
 
 static int psci_system_suspend(unsigned long unused)
 {
+    pr_info("psci_system_suspend enter\n");
 	return invoke_psci_fn(PSCI_FN_NATIVE(1_0, SYSTEM_SUSPEND),
 			      __pa_symbol(cpu_resume), 0, 0);
 }

@@ -39,7 +39,7 @@
 		pwm2	= &pwm_2;
 		bifspi	= &bifspi;
 		bifsd   = &bifsd;
-		mmc0	= &sdio0;
+		mmc1	= &sdio0;
 		dma	= &dma;
 		x2dmatest = &x2dmatest;
 	};
@@ -169,15 +169,15 @@
 &uart1 {
 	status = "okay";
 };
-
+/*
 &ips {
 	status = "okay";
 };
-
+*/
 &isp {
 	status = "okay";
 };
-
+/*
 &ipu {
 	status = "okay";
 };
@@ -193,7 +193,7 @@
 &mipi_dev {
 	status = "okay";
 };
-
+*/
 &dma {
 	status = "okay";
 };
