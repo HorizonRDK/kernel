@@ -41,7 +41,7 @@
 		bifsd   = &bifsd;
 		mmc1	= &sdio0;
 		mmc2	= &sdio1;
-		mmc3	= &sdio2;
+/*		mmc3	= &sdio2; */
 		dma	= &dma;
 		x2dmatest = &x2dmatest;
 	};
@@ -307,7 +307,7 @@
 	broken-cd;
 	disable-wp;
 };
-
+/*
 &sdio2 {
 	status = "okay";
 	bus-width = <4>;
@@ -320,7 +320,7 @@
 	broken-cd;
 	disable-wp;
 };
-
+*/
 &watchdog {
 	status = "okay";
 };
