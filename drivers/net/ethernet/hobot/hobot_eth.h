@@ -428,7 +428,8 @@ struct plat_config_data {
 
 	struct clk *x2_mac_pre_div_clk;
 	struct clk *x2_mac_div_clk;
-	struct clk *x2_phy_ref_clk;
+	//struct clk *x2_phy_ref_clk;
+    struct clk *clk_ptp_ref;
 
 	
 	u32 rx_queues_to_use;

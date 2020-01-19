@@ -496,13 +496,26 @@ struct plat_config_data *x2_probe_config_dt(struct platform_device *pdev, const 
 	}
 	ret = clk_prepare_enable(plat->x2_phy_ref_clk);
 #endif
-	//plat->clk_ptp_rate = 62500000;//58125000;//500000000;
-	plat->clk_ptp_rate = 50000000;
+
+    plat->clk_ptp_ref = devm_clk_get(&pdev->dev, "sys_div_pclk");
+    if (IS_ERR(plat->clk_ptp_ref)) {
+        printk("ethernet: ptp cloock not found\n");
+        goto err_ptp_ref;
+    }
+    ret = clk_prepare_enable(plat->clk_ptp_ref);
+	if (ret) {
+		printk("unable to enable ptp clk\n");
+        goto err_ptp_ref;
+	}
+
+
+	plat->clk_ptp_rate = clk_get_rate(plat->clk_ptp_ref);//clk_get_rate(plat->x2_mac_div_clk);
+    printk("%s, clk_ptp_rate:%d\n", __func__, plat->clk_ptp_rate);
 	plat->cdc_delay = 2 * ((1000000000ULL) /plat->clk_ptp_rate);
 	return plat;
 
 /*when in ASIC, this will be used, so be carefully*/
-err_clk:
+err_ptp_ref:
 	clk_disable_unprepare(plat->x2_mac_div_clk);
 err_mac_div_clk:
 
@@ -3045,7 +3058,7 @@ static int x2_adjust_freq(struct ptp_clock_info *ptp, s32 ppb)
 static struct ptp_clock_info x2_ptp_clock_ops = {
 	.owner = THIS_MODULE,
 	.name = "x2_ptp_clock",
-	.max_adj = 62500000,
+	.max_adj = 300000000, //62500000,
 	.n_alarm = 0,
 	.n_ext_ts = 0,
 	.n_per_out = 0,
@@ -3145,7 +3158,7 @@ static int x2_hw_setup(struct net_device *ndev, bool init_ptp)
 	x2_mmc_setup(priv);
 
 	if (init_ptp) {
-		#if 0
+		#if 1
 		ret = clk_prepare_enable(priv->plat->clk_ptp_ref);
 		if (ret < 0)
 			printk("failed to enable PTP reference clock\n");
@@ -4700,7 +4713,7 @@ static int x2_ptp_set_ts_config(struct net_device *ndev, struct ifreq *ifr)
 		value &= ~(1 << 17);
 		value |= 1<<1;
 
-		//printk("%s,and set value is 0x%x\n",__func__,value);
+		printk("%s,and set value is 0x%x\n",__func__,value);
 		x2_config_hw_tstamping(priv, value);
 
 
@@ -4710,7 +4723,7 @@ static int x2_ptp_set_ts_config(struct net_device *ndev, struct ifreq *ifr)
 		priv->systime_flags = value;
 		temp = (u64) (temp << 32);
 		priv->default_addend = div_u64(temp, priv->plat->clk_ptp_rate);
-		priv->default_addend = 0xCCCCB8CD;//div_u64(temp, priv->plat->clk_ptp_rate);
+		//priv->default_addend = 0xCCCCB8CD;//div_u64(temp, priv->plat->clk_ptp_rate);
 	
 		
 		x2_config_addend(priv,  priv->default_addend);
@@ -4728,7 +4741,7 @@ static int x2_ptp_set_ts_config(struct net_device *ndev, struct ifreq *ifr)
 
 
 
-#if 0
+#if 1
 	printk("%s, reg-0xb08:%d\n",__func__,readl(priv->ioaddr + 0xb08));
 	printk("%s, reg-0xb0c:%d\n",__func__,readl(priv->ioaddr + 0xb0c));
 	printk("%s, reg-0xb10:0x%x\n",__func__,readl(priv->ioaddr + 0xb10));
