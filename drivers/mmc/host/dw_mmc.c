@@ -293,7 +293,7 @@ static void dw_mci_wait_while_busy(struct dw_mci *host, u32 cmd_flags)
 static void dw_mci_wait_busy(struct dw_mci_slot *slot)
 {
 	struct dw_mci *host = slot->host;
-	u64 timeout = jiffies + msecs_to_jiffies(500);
+	unsigned long timeout = jiffies + msecs_to_jiffies(500);
 
 	while (time_before(jiffies, timeout)) {
 		if (!dw_mci_card_busy(slot->mmc))
@@ -1986,7 +1986,7 @@ static void dw_mci_set_drto(struct dw_mci *host)
 	unsigned int drto_clks;
 	unsigned int drto_div;
 	unsigned int drto_ms;
-	u64 irqflags;
+	unsigned long irqflags;
 
 	drto_clks = mci_readl(host, TMOUT) >> 8;
 	drto_div = (mci_readl(host, CLKDIV) & 0xff) * 2;
@@ -3162,7 +3162,7 @@ exit:
 static void dw_mci_dto_timer(unsigned long arg)
 {
 	struct dw_mci *host = (struct dw_mci *)arg;
-	u64 irqflags;
+	unsigned long irqflags;
 	u32 pending;
 
 	spin_lock_irqsave(&host->irq_lock, irqflags);
@@ -3314,7 +3314,7 @@ int dw_mci_probe(struct dw_mci *host)
 		}
 
 		if (host->pdata->bus_hz) {
-			pr_debug("set ciu clk to %lu\n", host->pdata->bus_hz);
+			pr_debug("set ciu clk to %u\n", host->pdata->bus_hz);
 
 			x2_mmc_disable_clk(host->priv);
 
@@ -3327,7 +3327,7 @@ int dw_mci_probe(struct dw_mci *host)
 		}
 
 		host->bus_hz = clk_get_rate(host->ciu_clk);
-		pr_debug("get ciu clk is %lu\n", host->bus_hz);
+		pr_debug("get ciu clk is %u\n", host->bus_hz);
 	}
 
 	if (!host->bus_hz) {
@@ -3590,8 +3590,11 @@ EXPORT_SYMBOL(dw_mci_runtime_resume);
 int dw_mci_system_suspend(struct device *dev)
 {
 	struct dw_mci *host = dev_get_drvdata(dev);
-	pr_info("%s:%s, enter suspend...\n", __FILE__, __func__);
 
+	pr_info("%s:%s, enter suspend...\n", __FILE__, __func__);
+#ifdef CONFIG_HOBOT_FPGA_X3
+	return 0;
+#endif
 	if (host->use_dma && host->dma_ops->exit)
 		host->dma_ops->exit(host);
 
@@ -3613,11 +3616,11 @@ int dw_mci_system_resume(struct device *dev)
 {
 	struct dw_mci *host = dev_get_drvdata(dev);
 	int ret;
+
 	pr_info("%s:%s, enter resume...\n", __FILE__, __func__);
-#if defined(CONFIG_HOBOT_FPGA_X3) || defined(CONFIG_HOBOT_XJ3)
+#ifdef CONFIG_HOBOT_FPGA_X3
 	return 0;
 #endif
-
 	x2_mmc_set_power(host->priv, 1);
 	if (host->slot &&
 	    (mmc_can_gpio_cd(host->slot->mmc) ||

@@ -324,12 +324,13 @@
 	sd-uhs-sdr50;
 	sd-uhs-sdr104;
 	uhs-180v-gpio = <120>;
+	uhs-180v-logic = <1>;
 	broken-cd;
 	disable-wp;
 };
 
 &sdio2 {
-	status = "okay";
+	status = "disabled";
 	bus-width = <4>;
 	no-mmc;
 	cap-sd-highspeed;

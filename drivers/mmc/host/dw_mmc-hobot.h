@@ -15,7 +15,9 @@ struct dw_mci_hobot_priv_data {
 	u32 clock_frequency;
 	int default_sample_phase;
 	u32 uhs_180v_gpio;
+	u32 uhs_180v_logic;
 	u32 powerup_gpio;
+	u32 powerup_logic;
 	u32 ctrl_id;
 	u8 current_drv_phase;
 	u8 current_sample_phase;
