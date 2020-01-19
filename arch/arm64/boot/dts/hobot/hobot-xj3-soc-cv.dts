@@ -39,9 +39,7 @@
 		pwm2	= &pwm_2;
 		bifspi	= &bifspi;
 		bifsd   = &bifsd;
-		mmc1	= &sdio0;
-		mmc2	= &sdio1;
-/*		mmc3	= &sdio2; */
+		mmc0	= &sdio0;
 		dma	= &dma;
 		x2dmatest = &x2dmatest;
 	};
@@ -295,9 +293,10 @@
 
 
 &sdio1 {
-	status = "okay";
-	bus-width = <4>;
+	status = "disabled";
+	bus-width = <1>;
 	no-mmc;
+	no-sdio;
 	cap-sd-highspeed;
 	sd-uhs-sdr12;
 	sd-uhs-sdr25;
@@ -307,20 +306,7 @@
 	broken-cd;
 	disable-wp;
 };
-/*
-&sdio2 {
-	status = "okay";
-	bus-width = <4>;
-	no-mmc;
-	cap-sd-highspeed;
-	sd-uhs-sdr12;
-	sd-uhs-sdr25;
-	sd-uhs-sdr50;
-	sd-uhs-sdr104;
-	broken-cd;
-	disable-wp;
-};
-*/
+
 &watchdog {
 	status = "okay";
 };
