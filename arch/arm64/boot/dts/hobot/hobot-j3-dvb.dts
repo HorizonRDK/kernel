@@ -261,6 +261,10 @@
 	status = "okay";
 };
 
+&fb {
+	status = "okay";
+};
+
 &bifsd {
 	status = "okay";
 	/*cd-gpio = <77>;*/

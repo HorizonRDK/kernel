@@ -336,8 +336,9 @@ typedef enum _iar_table_e {
 
 struct iar_dev_s *g_iar_dev;
 
-int display_type = MIPI_720P_TOUCH;
-
+//int display_type = MIPI_720P_TOUCH;
+//int display_type = MIPI_1080P;
+int display_type = LCD_7_TYPE;
 #ifdef CONFIG_PM
 
 uint32_t g_out_sel = 0;
@@ -1086,10 +1087,15 @@ EXPORT_SYMBOL_GPL(iar_set_video_buffer);
 
 int32_t ipu_set_display_addr(uint32_t yaddr, uint32_t caddr)
 {
+	pr_debug("iar: ipu set iar!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
+	pr_debug("yaddr is %llx, caddr is %llx\n", yaddr, caddr);
+	disp_user_config_done = 1;//for debug
+	disp_user_update = 0;//for debug
 	if (disp_user_config_done == 1 && disp_user_update == 0) {
 		g_disp_yaddr = yaddr;
 		g_disp_caddr = caddr;
                 ipu_process_done = 1;
+		pr_info("wake up iar!!!\n");
                 wake_up_interruptible(&g_iar_dev->wq_head);
         }
         return 0;
@@ -1098,10 +1104,12 @@ EXPORT_SYMBOL_GPL(ipu_set_display_addr);
 
 uint32_t ipu_get_iar_display_type(void)
 {
-	if (disp_user_config_done == 0 | disp_user_update == 1)
+/*	if (disp_user_config_done == 0 | disp_user_update == 1)
 		return 0;
 	else
 		return iar_display_addr_type;
+*/
+	return 2;
 }
 EXPORT_SYMBOL_GPL(ipu_get_iar_display_type);
 
@@ -1197,7 +1205,7 @@ int32_t iar_layer_disable(int32_t layer_no)
 	if (layer_no < 0 || layer_no > 3)
 		return -1;
 	enable_reg_addr = ioremap_nocache(0xA4001000 + 0x00, 4);
-	pr_info("disable channel %d\n", layer_no);
+	pr_debug("disable channel %d\n", layer_no);
 	reg_overlay_opt_value = readl(enable_reg_addr);
 	reg_overlay_opt_value = reg_overlay_opt_value &
 		(0xffffffff & ~(1 << (layer_no + 24)));
@@ -1370,6 +1378,7 @@ int enable_iar_irq(void)
 static int iar_thread(void *data)
 {
 	buf_addr_t display_addr;
+	void __iomem *remap_addr;
 
 	do {
 		if (kthread_should_stop())
@@ -1402,8 +1411,20 @@ static int iar_thread(void *data)
 			iar_rotate_video_buffer(display_addr.Yaddr,
 				display_addr.Uaddr, display_addr.Vaddr);
 		} else {
-			iar_set_bufaddr(0, &display_addr);
-			iar_update();
+			//iar_set_bufaddr(0, &display_addr);
+			//iar_update();
+                       pr_debug("iar: iar display refresh!!!!!\n");
+                       pr_debug("iar display yaddr is 0x%llx, caddr is 0x%llx\n", g_disp_yaddr, g_disp_caddr);
+                        remap_addr = ioremap_nocache(0xA4301000 + 0x114, 4);
+                        writel(g_disp_yaddr, remap_addr);//fbuf_addr_RD1_Y
+                        remap_addr = ioremap_nocache(0xA4301000 + 0x118, 4);
+                        writel(g_disp_caddr, remap_addr);
+                        remap_addr= ioremap_nocache(0xA4301000 + 0x98, 4);
+                        writel(0x1, remap_addr);
+                        remap_addr = ioremap_nocache(0xA4301000 + 0x340, 4);
+                        writel(0xc, remap_addr);
+                        remap_addr = ioremap_nocache(0xA4301000 + 0x318, 4);
+                        writel(0x1, remap_addr);
 		}
 	} while (!kthread_should_stop());
 }
@@ -1560,13 +1581,14 @@ static void x2_iar_draw_rect(char *frame, int x0, int y0, int x1, int y1,
 
 int panel_hardware_reset(void)
 {
-	gpio_direction_output(panel_reset_pin, 0);
+/*	gpio_direction_output(panel_reset_pin, 0);
 	pr_debug("panel reset pin output low!!!!!\n");
 	msleep(1000);
 	gpio_direction_output(panel_reset_pin, 1);
 	pr_debug("panel reset pin output high!!!!\n");
 	msleep(1000);
 	pr_debug("panel reset again success!\n");
+*/
 	return 0;
 }
 EXPORT_SYMBOL_GPL(panel_hardware_reset);
@@ -1585,8 +1607,11 @@ static int x2_iar_probe(struct platform_device *pdev)
 	int deta = 0;
 	uint64_t pixel_rate;
 	char *type;
+	void __iomem *hitm1_reg_addr;
+        uint32_t reg_val = 0;
+	uint32_t i = 0;
 
-	pr_debug("x2 iar probe begin!!!\n");
+	pr_info("x2 iar probe begin!!!\n");
 
 	g_iar_dev = devm_kzalloc(&pdev->dev, sizeof(struct iar_dev_s), GFP_KERNEL);
 	if (!g_iar_dev) {
@@ -1603,12 +1628,16 @@ static int x2_iar_probe(struct platform_device *pdev)
 	g_iar_dev->regaddr = devm_ioremap_resource(&pdev->dev, res);
 	if (IS_ERR(g_iar_dev->regaddr))
 		return PTR_ERR(g_iar_dev->regaddr);
+	pr_debug("@@@@@@@@@@@@iar: g_iar_dev->regaddr is 0x%llx\n", g_iar_dev->regaddr);
+
+	//return 0;
 #ifdef CONFIG_HOBOT_XJ3
 	res_mipi = platform_get_resource(pdev, IORESOURCE_MEM, 1);
 	g_iar_dev->mipi_dsi_regaddr =
 		devm_ioremap_resource(&pdev->dev, res_mipi);
 	if (IS_ERR(g_iar_dev->mipi_dsi_regaddr))
 		return PTR_ERR(g_iar_dev->mipi_dsi_regaddr);
+	pr_debug("@@@@@@@@@@@@iar: g_iar_dev->mipi_dsi_regaddr is 0x%llx\n", g_iar_dev->mipi_dsi_regaddr);
 
 	ret = of_property_read_u32(pdev->dev.of_node,
 		"disp_panel_reset_pin", &panel_reset_pin);
@@ -1619,10 +1648,11 @@ static int x2_iar_probe(struct platform_device *pdev)
 	if (ret) {
 		pr_err("%s() Err get trigger pin ret= %d\n",
 					__func__, ret);
-		return -ENODEV;
+		//return -ENODEV;
 	}
 	pr_debug("gpio request succeed!!!!\n");
 #endif
+	//return 0;
 	g_iar_dev->rst = devm_reset_control_get(&pdev->dev, "iar");
 	if (IS_ERR(g_iar_dev->rst)) {
 		dev_err(&pdev->dev, "missing controller reset\n");
@@ -1638,8 +1668,9 @@ static int x2_iar_probe(struct platform_device *pdev)
 		goto err1;
 	}
 	g_iar_dev->irq = irq->start;
-	pr_info("g_iar_dev->irq is %d\n", irq->start);
+	pr_debug("g_iar_dev->irq is %d\n", irq->start);
 
+	//return 0;
 	g_iar_dev->pinctrl = devm_pinctrl_get(&pdev->dev);
 	if (IS_ERR(g_iar_dev->pinctrl)) {
 		dev_warn(&pdev->dev, "pinctrl get none\n");
@@ -1679,6 +1710,7 @@ static int x2_iar_probe(struct platform_device *pdev)
 		}
 	}
 
+	//return 0;
 	g_iar_dev->iar_pixel_clk = devm_clk_get(&pdev->dev, "iar_pix_clk");
 	if (IS_ERR(g_iar_dev->iar_pixel_clk)) {
 		dev_err(&pdev->dev, "failed to get iar_pix_clk\n");
@@ -1722,6 +1754,7 @@ static int x2_iar_probe(struct platform_device *pdev)
 	}
 
 	pr_debug("iar reserved memory size is %lld\n", resource_size(&r));
+	//return 0;
 #ifdef USE_ION_MEM
 	if (resource_size(&r) < MAX_FRAME_BUF_SIZE) {
 		pr_debug("iar logo memory size is not large enough!(<1buffer)\n");
@@ -1771,7 +1804,7 @@ static int x2_iar_probe(struct platform_device *pdev)
 #else
 	#ifdef CONFIG_HOBOT_XJ3
 	if (resource_size(&r) < MAX_FRAME_BUF_SIZE*8) {
-                pr_info("iar memory size is not large enough!(<3buffer)\n");
+                pr_err("iar memory size is not large enough!(<3buffer)\n");
                 goto err1;
         }
         mem_paddr = r.start;
@@ -1782,7 +1815,7 @@ static int x2_iar_probe(struct platform_device *pdev)
         vaddr = ioremap_nocache(r.start, MAX_FRAME_BUF_SIZE * 8);
 	#else
 	if (resource_size(&r) < MAX_FRAME_BUF_SIZE*4) {
-		pr_info("iar memory size is not large enough!(<3buffer)\n");
+		pr_err("iar memory size is not large enough!(<3buffer)\n");
 		goto err1;
 	}
 	mem_paddr = r.start;
@@ -2015,21 +2048,357 @@ static int x2_iar_probe(struct platform_device *pdev)
 #endif
 	}
 
-	temp1 = g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr;
+	//return 0;
+/*	temp1 = g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr;
 	tempi = 0;
 	for (tempi = 0; tempi < MAX_FRAME_BUF_SIZE; tempi++)
 		*temp1++ = 0x00;
+*/
 	temp1 = g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr;
 	tempi = 0;
-	for (tempi = 0; tempi < MAX_FRAME_BUF_SIZE; tempi++)
-		*temp1++ = 0x00;
+	for (i = 0; i < 800*4*40; i++){
+		if (((i+4)%4) == 0) {
+			*temp1 = 0xff;//B
+		} else if(((i+4)%4) == 1) {
+			*temp1 = 0x00;
+		} else if(((i+4)%4) == 2) {
+			*temp1 = 0x00;
+		} else if(((i+4)%4) == 3) {
+			*temp1 = 0xff;
+		}
+		temp1++;
+	}
+	for (i = 0; i < 800*4*40; i++){
+		if (((i+4)%4) == 0) {
+			*temp1 = 0x00;
+		} else if(((i+4)%4) == 1) {
+			*temp1 = 0xff;//G
+		} else if(((i+4)%4) == 2) {
+			*temp1 = 0x00;
+		} else if(((i+4)%4) == 3) {
+			*temp1 = 0xff;
+		}
+		temp1++;
+	}
+	for (i = 0; i < 800*4*40; i++){
+		if (((i+4)%4) == 0) {
+			*temp1 = 0x00;
+		} else if(((i+4)%4) == 1) {
+			*temp1 = 0x00;
+		} else if(((i+4)%4) == 2) {
+			*temp1 = 0xff;//R
+		} else if(((i+4)%4) == 3) {
+			*temp1 = 0xff;
+		}
+		temp1++;
+	}
+	for (i = 0; i < 800*4*40; i++){
+		if (((i+4)%4) == 0) {
+			*temp1 = 0x00;
+		} else if(((i+4)%4) == 1) {
+			*temp1 = 0x00;
+		} else if(((i+4)%4) == 2) {
+			*temp1 = 0x00;
+		} else if(((i+4)%4) == 3) {
+			*temp1 = 0xff;//A
+		}
+		temp1++;
+	}
+	for (i = 0; i < 800*4*320; i++) {
+		*temp1 = 0x0;
+		temp1++;
+	}
+//	for (tempi = 0; tempi < MAX_FRAME_BUF_SIZE; tempi++)
+//		*temp1++ = 0xa0;
 
 	if (display_type == LCD_7_TYPE) {
 
-		pr_debug("%s: display_type is 7inch lcd panel!\n", __func__);
-		ret = disp_set_pixel_clk(32000000);
-		if (ret)
-			return ret;
+		pr_info("%s: display_type is 7inch lcd panel!\n", __func__);
+		//ret = disp_set_pixel_clk(32000000);
+		//if (ret)
+		//	return ret;
+/*		hitm1_reg_addr = ioremap_nocache(0xA1000000 + 0x40, 4);
+                reg_val = readl(hitm1_reg_addr);
+                reg_val = (reg_val & 0xfffff000) | 0x44;
+                writel(reg_val, hitm1_reg_addr);
+
+                hitm1_reg_addr = ioremap_nocache(0xA1000000 + 0x300, 4);
+                reg_val = readl(hitm1_reg_addr);
+                reg_val = (reg_val & 0xfffeffff) | 0x00010000;
+                writel(reg_val, hitm1_reg_addr);
+
+                hitm1_reg_addr = ioremap_nocache(0xA1000000 + 0x240, 4);
+                reg_val = readl(hitm1_reg_addr);
+                reg_val = (reg_val & 0x7f00ffff) | 0x00ae0000;
+                writel(reg_val, hitm1_reg_addr);
+
+                hitm1_reg_addr = ioremap_nocache(0xA1000000 + 0x140, 4);
+                reg_val = readl(hitm1_reg_addr);
+                reg_val = (reg_val & 0xfffffffb) | 0x4;
+                writel(reg_val, hitm1_reg_addr);
+
+		hitm1_reg_addr = ioremap_nocache(0xA1000000 + 0x310, 4);
+                reg_val = readl(hitm1_reg_addr);
+                reg_val = (reg_val & 0xfffeefff) | 0x11000;
+                writel(reg_val, hitm1_reg_addr);
+
+		//
+		hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x138, 4);
+                //reg_val = readl(hitm1_reg_addr);
+                //reg_val = (reg_val & 0xffffffc0) | 0x3c;
+                //writel(reg_val, hitm1_reg_addr);
+		writel(0x2bc, hitm1_reg_addr);
+
+		hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x68, 4);
+                //reg_val = readl(hitm1_reg_addr);
+                //reg_val = (reg_val & 0xfffffffc) | 0x2;
+                //writel(reg_val, hitm1_reg_addr);
+		writel(0x306, hitm1_reg_addr);
+
+		hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x50, 4);
+                //reg_val = readl(hitm1_reg_addr);
+                //reg_val = (reg_val & 0xfffffffc) | 0x2;
+                //writel(reg_val, hitm1_reg_addr);
+		writel(0x286, hitm1_reg_addr);
+
+		hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x54, 4);
+                //reg_val = readl(hitm1_reg_addr);
+                //reg_val = (reg_val & 0xfffffffc) | 0x2;
+                //writel(reg_val, hitm1_reg_addr);
+		writel(0x11a, hitm1_reg_addr);
+
+		hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x13c, 4);
+                //reg_val = readl(hitm1_reg_addr);
+                //reg_val = (reg_val & 0xfffffffc) | 0x2;
+                //writel(reg_val, hitm1_reg_addr);
+		writel(0x8e, hitm1_reg_addr);
+
+		hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x140, 4);
+                //reg_val = readl(hitm1_reg_addr);
+                //reg_val = (reg_val & 0xfffffffc) | 0x2;
+                //writel(reg_val, hitm1_reg_addr);
+		writel(0x8e, hitm1_reg_addr);
+
+		hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x144, 4);
+                //reg_val = readl(hitm1_reg_addr);
+                //reg_val = (reg_val & 0xfffffffc) | 0x2;
+                //writel(reg_val, hitm1_reg_addr);
+		writel(0x8e, hitm1_reg_addr);
+
+		hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x148, 4);
+                //reg_val = readl(hitm1_reg_addr);
+                //reg_val = (reg_val & 0xfffffffc) | 0x2;
+                //writel(reg_val, hitm1_reg_addr);
+		writel(0x8e, hitm1_reg_addr);
+
+		hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x14c, 4);
+                //reg_val = readl(hitm1_reg_addr);
+                //reg_val = (reg_val & 0xfffffffc) | 0x2;
+                //writel(reg_val, hitm1_reg_addr);
+		writel(0x8e, hitm1_reg_addr);
+
+		hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x150, 4);
+                //reg_val = readl(hitm1_reg_addr);
+                //reg_val = (reg_val & 0xfffffffc) | 0x2;
+                //writel(reg_val, hitm1_reg_addr);
+		writel(0x8e, hitm1_reg_addr);
+
+		hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x154, 4);
+                //reg_val = readl(hitm1_reg_addr);
+                //reg_val = (reg_val & 0xfffffffc) | 0x2;
+                //writel(reg_val, hitm1_reg_addr);
+		writel(0x8e, hitm1_reg_addr);
+
+		hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x158, 4);
+                //reg_val = readl(hitm1_reg_addr);
+                //reg_val = (reg_val & 0xfffffffc) | 0x2;
+                //writel(reg_val, hitm1_reg_addr);
+		writel(0x8e, hitm1_reg_addr);
+
+		hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x15c, 4);
+                //reg_val = readl(hitm1_reg_addr);
+                //reg_val = (reg_val & 0xfffffffc) | 0x2;
+                //writel(reg_val, hitm1_reg_addr);
+		writel(0x8e, hitm1_reg_addr);
+
+		hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x160, 4);
+                //reg_val = readl(hitm1_reg_addr);
+                //reg_val = (reg_val & 0xfffffffc) | 0x2;
+                //writel(reg_val, hitm1_reg_addr);
+		writel(0x8e, hitm1_reg_addr);
+
+		hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x164, 4);
+                //reg_val = readl(hitm1_reg_addr);
+                //reg_val = (reg_val & 0xfffffffc) | 0x2;
+                //writel(reg_val, hitm1_reg_addr);
+		writel(0x8e, hitm1_reg_addr);
+
+		hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x168, 4);
+                //reg_val = readl(hitm1_reg_addr);
+                //reg_val = (reg_val & 0xfffffffc) | 0x2;
+                //writel(reg_val, hitm1_reg_addr);
+		writel(0x8e, hitm1_reg_addr);
+
+		hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x16c, 4);
+                //reg_val = readl(hitm1_reg_addr);
+                //reg_val = (reg_val & 0xfffffffc) | 0x2;
+                //writel(reg_val, hitm1_reg_addr);
+		writel(0x8e, hitm1_reg_addr);
+
+		hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x170, 4);
+                //reg_val = readl(hitm1_reg_addr);
+                //reg_val = (reg_val & 0xfffffffc) | 0x2;
+                //writel(reg_val, hitm1_reg_addr);
+		writel(0x8e, hitm1_reg_addr);
+
+		hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x174, 4);
+                //reg_val = readl(hitm1_reg_addr);
+                //reg_val = (reg_val & 0xfffffffc) | 0x2;
+                //writel(reg_val, hitm1_reg_addr);
+		writel(0x8e, hitm1_reg_addr);
+
+		hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x178, 4);
+                //reg_val = readl(hitm1_reg_addr);
+                //reg_val = (reg_val & 0xfffffffc) | 0x2;
+                //writel(reg_val, hitm1_reg_addr);
+		writel(0x8e, hitm1_reg_addr);
+
+		hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x58, 4);
+                //reg_val = readl(hitm1_reg_addr);
+                //reg_val = (reg_val & 0xfffffffc) | 0x2;
+                //writel(reg_val, hitm1_reg_addr);
+		writel(0x11a, hitm1_reg_addr);
+
+		hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x5c, 4);
+                //reg_val = readl(hitm1_reg_addr);
+                //reg_val = (reg_val & 0xfffffffc) | 0x2;
+                //writel(reg_val, hitm1_reg_addr);
+		writel(0x11a, hitm1_reg_addr);
+
+		hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x60, 4);
+                //reg_val = readl(hitm1_reg_addr);
+                //reg_val = (reg_val & 0xfffffffc) | 0x2;
+                //writel(reg_val, hitm1_reg_addr);
+		writel(0x11a, hitm1_reg_addr);
+
+		hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x64, 4);
+                //reg_val = readl(hitm1_reg_addr);
+                //reg_val = (reg_val & 0xfffffffc) | 0x2;
+                //writel(reg_val, hitm1_reg_addr);
+		writel(0x11a, hitm1_reg_addr);
+
+		hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x1d0, 4);
+                //reg_val = readl(hitm1_reg_addr);
+                //reg_val = (reg_val & 0xfffffffc) | 0x2;
+                //writel(reg_val, hitm1_reg_addr);
+		writel(0x11a, hitm1_reg_addr);
+
+		hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x1d4, 4);
+                //reg_val = readl(hitm1_reg_addr);
+                //reg_val = (reg_val & 0xfffffffc) | 0x2;
+                //writel(reg_val, hitm1_reg_addr);
+		writel(0x11a, hitm1_reg_addr);
+
+		hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x1d8, 4);
+                //reg_val = readl(hitm1_reg_addr);
+                //reg_val = (reg_val & 0xfffffffc) | 0x2;
+                //writel(reg_val, hitm1_reg_addr);
+		writel(0x11a, hitm1_reg_addr);
+
+		hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x1dc, 4);
+                //reg_val = readl(hitm1_reg_addr);
+                //reg_val = (reg_val & 0xfffffffc) | 0x2;
+                //writel(reg_val, hitm1_reg_addr);
+		writel(0x11a, hitm1_reg_addr);
+*/
+		//
+/*		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x44, 4);
+		writel(800, hitm1_reg_addr);
+		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x48, 4);
+		writel(0x6, hitm1_reg_addr);
+		//channel1 display address
+		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x114, 4);
+		writel(0x1D089000, hitm1_reg_addr);//fbuf_addr_RD1_Y
+		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x118, 4);
+		writel(0x1D0E6C00, hitm1_reg_addr);
+		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x24, 4);
+		writel(0x01e00320, hitm1_reg_addr);
+		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x6c, 4);
+		writel(0x01e00320, hitm1_reg_addr);
+		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x70, 4);
+		writel(0x01e00320, hitm1_reg_addr);
+		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x74, 4);
+		writel(0, hitm1_reg_addr);
+		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x0, 4);
+		writel(0x01e41000, hitm1_reg_addr);
+		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x200, 4);
+		writel(0x01e00320, hitm1_reg_addr);
+		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x204, 4);
+		writel(0x0, hitm1_reg_addr);
+		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x208, 4);
+		writel(0x06419005, hitm1_reg_addr);
+		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x20c, 4);
+		writel(0x06419005, hitm1_reg_addr);
+		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x218, 4);
+		writel(0xa, hitm1_reg_addr);
+		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x98, 4);
+		writel(0x1, hitm1_reg_addr);
+		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x340, 4);
+		writel(0xc, hitm1_reg_addr);
+		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x318, 4);
+		writel(0x1, hitm1_reg_addr);
+		//hitm1_reg_addr = ioremap_nocache(0xA4300020, 4);
+		//writel(0x00020000, hitm1_reg_addr);
+
+*/
+		pr_info("fb_driver: enable overlay layer 1 and layer 3!!!!!!!!!!!!!!!!!1\n");
+		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x44, 4);
+		writel(800, hitm1_reg_addr);
+		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x3c, 4);
+		writel(800, hitm1_reg_addr);
+
+		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x48, 4);
+		writel(0x406, hitm1_reg_addr);
+		//channel1 display address
+		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x114, 4);
+		writel(0x1D089000, hitm1_reg_addr);//fbuf_addr_RD1_Y
+		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x118, 4);
+		writel(0x1D0E6C00, hitm1_reg_addr);
+		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x104, 4);
+		writel(0x1D089000, hitm1_reg_addr);//fbuf_addr_RD1_Y
+
+		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x24, 4);
+		writel(0x01e00320, hitm1_reg_addr);
+		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x1c, 4);
+		writel(0x01e00320, hitm1_reg_addr);
+
+		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x6c, 4);
+		writel(0x01e00320, hitm1_reg_addr);
+		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x70, 4);
+		writel(0x01e00320, hitm1_reg_addr);
+		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x74, 4);
+		writel(0, hitm1_reg_addr);
+		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x0, 4);
+		writel(0x0572300f, hitm1_reg_addr);
+		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x4, 4);
+		writel(0xffffffff, hitm1_reg_addr);
+		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x200, 4);
+		writel(0x01e00320, hitm1_reg_addr);
+		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x204, 4);
+		writel(0x0, hitm1_reg_addr);
+		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x208, 4);
+		writel(0x06419005, hitm1_reg_addr);
+		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x20c, 4);
+		writel(0x06419005, hitm1_reg_addr);
+		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x218, 4);
+		writel(0xa, hitm1_reg_addr);
+		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x98, 4);
+		writel(0x1, hitm1_reg_addr);
+		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x340, 4);
+		writel(0xc, hitm1_reg_addr);
+		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x318, 4);
+		writel(0x1, hitm1_reg_addr);
+
 	} else if (display_type == MIPI_720P) {
 		pr_debug("%s: display_type is mipi-720p-dsi panel!\n", __func__);
 		ret = disp_set_pixel_clk(68000000);
@@ -2065,10 +2434,37 @@ static int x2_iar_probe(struct platform_device *pdev)
 		x2_iar_draw_rect(temp1, IAR_DRAW_X(4, 10), IAR_DRAW_Y(4, 10),
 			IAR_DRAW_XL(6, 10), IAR_DRAW_YL(6, 10), deta, 1);
 #endif
+	} else if (display_type == MIPI_1080P) {
+		printk(KERN_ERR"iar_driver: disp set mipi 1080p!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
+/*		//set_mipi_display(0);
+		hitm1_reg_addr = ioremap_nocache(0xA1000000 + 0x40, 4);
+		reg_val = readl(hitm1_reg_addr);
+		reg_val = reg_val & 0xfffff000 | 0x44;
+                writel(reg_val, hitm1_reg_addr);
+
+		hitm1_reg_addr = ioremap_nocache(0xA1000000 + 0x300, 4);
+                reg_val = readl(hitm1_reg_addr);
+                reg_val = reg_val & 0xfffeffff | 0x00010000;
+                writel(reg_val, hitm1_reg_addr);
+
+		hitm1_reg_addr = ioremap_nocache(0xA1000000 + 0x240, 4);
+                reg_val = readl(hitm1_reg_addr);
+                reg_val = reg_val & 0xfffff000 | 0x44;
+                writel(reg_val, hitm1_reg_addr);
+
+		hitm1_reg_addr = ioremap_nocache(0xA1000000 + 0x40, 4);
+                reg_val = readl(hitm1_reg_addr);
+                reg_val = reg_val & 0xfffff000 | 0x44;
+                writel(reg_val, hitm1_reg_addr);
+*/
+
+
+		pr_info("set mipi 1080p done!\n");
 	}
+	return 0;
 	iar_pre_init();
 	iar_close();
-	pr_info("x2 iar probe end success!!!\n");
+	pr_debug("x2 iar probe end success!!!\n");
 	return 0;
 err1:
 	devm_kfree(&pdev->dev, g_iar_dev);
@@ -2146,6 +2542,19 @@ static struct platform_driver x2_iar_driver = {
 		//.pm = &x2_iar_pm,
 	},
 };
+/*
+static int __init x2_iar_init(void)
+{
+        int ret;
 
+    ret = platform_driver_register(&x2_iar_driver);
+    if (ret)
+        pr_err("register x2_ips_driver error\n");
+
+        return ret;
+}
+
+fs_initcall(x2_iar_init);
+*/
 module_platform_driver(x2_iar_driver);
 MODULE_LICENSE("GPL");
