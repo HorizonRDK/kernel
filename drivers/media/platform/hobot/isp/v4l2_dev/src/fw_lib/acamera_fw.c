@@ -45,6 +45,8 @@
 static const acam_reg_t **p_isp_data = SENSOR_ISP_SEQUENCE_DEFAULT;
 
 extern void acamera_notify_evt_data_avail( void );
+extern void acamera_update_cur_settings_to_isp( uint32_t fw_ctx_id );
+extern void *acamera_get_ctx_ptr(uint32_t ctx_id);
 
 void acamera_load_isp_sequence( uintptr_t isp_base, const acam_reg_t **sequence, uint8_t num )
 {
@@ -98,6 +100,47 @@ void acamera_fw_deinit( acamera_context_t *p_ctx )
 {
     p_ctx->fsm_mgr.p_ctx = p_ctx;
     acamera_fsm_mgr_deinit( &p_ctx->fsm_mgr );
+}
+
+int acamera_fw_isp_start(int ctx_id)
+{
+	acamera_context_t *p_ctx = (acamera_context_t *)acamera_get_ctx_ptr(ctx_id);
+	//return the interrupts
+	acamera_isp_isp_global_interrupt_mask_vector_write( 0, ISP_IRQ_MASK_VECTOR );
+
+	acamera_isp_input_port_mode_request_write( p_ctx->settings.isp_base, ACAMERA_ISP_INPUT_PORT_MODE_REQUEST_SAFE_START );
+
+	acamera_update_cur_settings_to_isp(ctx_id);
+
+	printk("%s done.\n", __func__);
+}
+
+int acamera_fw_isp_stop(int ctx_id)
+{
+	acamera_context_t *p_ctx = (acamera_context_t *)acamera_get_ctx_ptr(ctx_id);
+
+	//masked all interrupts
+	acamera_isp_isp_global_interrupt_mask_vector_write( 0, ISP_IRQ_DISABLE_ALL_IRQ );
+
+	//safe stop
+	acamera_isp_input_port_mode_request_write( p_ctx->settings.isp_base, ACAMERA_ISP_INPUT_PORT_MODE_REQUEST_SAFE_STOP );
+
+	// check whether the HW is stopped or not.
+	uint32_t count = 0;
+	while ( acamera_isp_input_port_mode_status_read( p_ctx->settings.isp_base ) != ACAMERA_ISP_INPUT_PORT_MODE_REQUEST_SAFE_STOP
+		|| acamera_isp_isp_global_monitor_fr_pipeline_busy_read( p_ctx->settings.isp_base ) ) {
+		//cannot sleep use this delay
+		do {
+			count++;
+		} while ( count % 32 != 0 );
+
+		if ( ( count >> 5 ) > 50 ) {
+			LOG( LOG_ERR, "stopping isp failed, timeout: %u.", (unsigned int)count * 1000 );
+			break;
+		}
+	}
+
+	printk("%s done.\n", __func__);
 }
 
 void acamera_fw_error_routine( acamera_context_t *p_ctx, uint32_t irq_mask )
