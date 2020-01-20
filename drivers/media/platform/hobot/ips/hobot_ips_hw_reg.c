@@ -182,14 +182,14 @@ u32 ipu_get_axi_statue(void __iomem *base_addr)
 
 void ips_set_axi_bus_ctrl(void __iomem *base_addr, u32 cfg)
 {
-	vio_hw_set_reg(base_addr, &ips_regs[AXI_BUS_CLR], cfg);
+	vio_hw_set_reg(base_addr, &ips_regs[AXI_BUS_CTRL], cfg);
 }
 
-int ips_get_axi_bus_ctrl(void __iomem *base_addr)
+u32 ips_get_axi_bus_ctrl(void __iomem *base_addr)
 {
 	u32 status = 0;
 
-	status = vio_hw_get_reg(base_addr, &ips_regs[AXI_BUS_CLR]);
+	status = vio_hw_get_reg(base_addr, &ips_regs[AXI_BUS_CTRL]);
 	return status;
 }
 

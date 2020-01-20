@@ -371,13 +371,10 @@ static int32_t sensor_alloc_analog_gain( void *ctx, int32_t gain )
 //-- TODO
 	sensor_context_t *p_ctx = ctx;
 	int32_t analog_gain = 0;
-        LOG( LOG_INFO, "IE&E %s, gain %d", __func__, analog_gain);
 
 	gain = gain >> (LOG2_GAIN_SHIFT - 5);		
 	if (sensor_ops[p_ctx->channel])
 		analog_gain = sensor_ops[p_ctx->channel]->sensor_alloc_analog_gain(p_ctx->channel, gain);
-	else
-		LOG( LOG_ERR, " sensor_ops is null !");
 
 	sensor_data[p_ctx->channel].analog_gain = analog_gain;
 
@@ -391,13 +388,10 @@ static int32_t sensor_alloc_digital_gain( void *ctx, int32_t gain )
 	int32_t digital_gain = 0;
 	sensor_context_t *p_ctx = ctx;
 
-	LOG( LOG_INFO, "IE&E %s, gain %d ", __func__, gain);
 
 	gain = gain >> (LOG2_GAIN_SHIFT - 5);
 	if (sensor_ops[p_ctx->channel])
 		digital_gain = sensor_ops[p_ctx->channel]->sensor_alloc_digital_gain(p_ctx->channel, gain);
-	else
-		LOG( LOG_ERR, " sensor_ops is null !");
 
 	sensor_data[p_ctx->channel].digital_gain = digital_gain;
 
@@ -413,8 +407,6 @@ static void sensor_alloc_integration_time( void *ctx, uint16_t *int_time, uint16
 	LOG(LOG_INFO, "init s_t %d, M_t %d, L_t %d", *int_time, *int_time_M, *int_time_L);
 	if (sensor_ops[p_ctx->channel])
 		sensor_ops[p_ctx->channel]->sensor_alloc_integration_time(p_ctx->channel, int_time, int_time_M, int_time_L);
-	else
-		LOG( LOG_ERR, " sensor_ops is null !");
 	sensor_data[p_ctx->channel].int_time = *int_time;
 	sensor_data[p_ctx->channel].int_time_M = *int_time_M;
 	sensor_data[p_ctx->channel].int_time_L = *int_time_L;
@@ -436,8 +428,6 @@ static void sensor_update( void *ctx )
 	LOG(LOG_INFO, "analog_gain %d, digital_gain %d, int_time %d ", sensor_data[p_ctx->channel].analog_gain, sensor_data[p_ctx->channel].digital_gain, sensor_data[p_ctx->channel].int_time);
 	if (sensor_ops[p_ctx->channel])
 		sensor_ops[p_ctx->channel]->sensor_update(p_ctx->channel, sensor_data[p_ctx->channel]);
-	else
-		LOG( LOG_ERR, " sensor_ops is null !");
 #endif
 }
 

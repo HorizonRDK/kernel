@@ -22,6 +22,7 @@
 #define GROUP_ID_PYM		3
 #define GROUP_ID_NUMBER		4
 
+#define X3_IAR_INTERFACE
 enum vio_group_task_state {
 	VIO_GTASK_START,
 	VIO_GTASK_REQUEST_STOP,

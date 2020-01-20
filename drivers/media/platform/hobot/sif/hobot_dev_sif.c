@@ -28,6 +28,7 @@
 
 #include "hobot_dev_sif.h"
 #include "sif_hw_api.h"
+#include "hobot_sif_hw_reg.h"
 
 #define MODULE_NAME "X2A SIF"
 
@@ -116,10 +117,8 @@ void sif_read_frame_work(struct vio_group *group)
 	atomic_set(&sif->instance, instance);
 
 	if (sif_isp_ctx_sync != NULL) {
-		vio_info("SIF->ISP: %s tell isp ctx id\n", __func__);
 		(*sif_isp_ctx_sync)(instance);
 	}
-	vio_info("SIF->ISP: %s isp config done, starting to feed\n", __func__);
 
 	framemgr = &ctx->framemgr;
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
@@ -640,12 +639,12 @@ static long x2a_sif_ioctl(struct file *file, unsigned int cmd,
 		ret = get_user(enable, (u32 __user *) arg);
 		if (ret)
 			return -EFAULT;
-		vio_info("G[%d]V[%d]SIF_IOC_STREAM enable %d\n",
+		vio_dbg("G[%d]V[%d]SIF_IOC_STREAM enable %d\n",
 		     group->instance, sif_ctx->id, enable);
 		ret = sif_video_s_stream(sif_ctx, ! !enable);
 		break;
 	case SIF_IOC_DQBUF:
-		vio_info("G[%d]V[%d]SIF_IOC_DQBUF\n",
+		vio_dbg("G[%d]V[%d]SIF_IOC_DQBUF\n",
 			 group->instance, sif_ctx->id);
 		sif_video_dqbuf(sif_ctx, &frameinfo);
 		ret = copy_to_user((void __user *) arg,
@@ -658,13 +657,13 @@ static long x2a_sif_ioctl(struct file *file, unsigned int cmd,
 				(u32 __user *) arg, sizeof(struct frame_info));
 		if (ret)
 			return -EFAULT;
-		vio_info("G[%d]V[%d]SIF_IOC_QBUF\n",
+		vio_dbg("G[%d]V[%d]SIF_IOC_QBUF\n",
 			 	group->instance, sif_ctx->id);
 		sif_video_qbuf(sif_ctx, &frameinfo);
 		break;
 	case SIF_IOC_REQBUFS:
 		ret = get_user(buffers, (u32 __user *) arg);
-		vio_info("G[%d]V[%d]SIF_IOC_REQBUFS\n",
+		vio_dbg("G[%d]V[%d]SIF_IOC_REQBUFS\n",
 			 	group->instance, sif_ctx->id);
 		if (ret)
 			return -EFAULT;
@@ -674,7 +673,7 @@ static long x2a_sif_ioctl(struct file *file, unsigned int cmd,
 		ret = get_user(instance, (u32 __user *) arg);
 		if (ret)
 			return -EFAULT;
-		vio_info("instance %d\n", instance);
+		vio_dbg("instance %d\n", instance);
 		sif_bind_chain_group(sif_ctx, instance);
 		break;
 	case SIF_IOC_END_OF_STREAM:
@@ -762,8 +761,10 @@ static irqreturn_t sif_isr(int irq, void *data)
 	intr_en = sif_get_frame_intr(sif->base_reg);
 	status = intr_en & irq_src.sif_frm_int;
 
-	vio_info("%s: sif_frm_int = 0x%x,sif_out_int =0x%x, status  = 0x%x\n",
+	vio_dbg("%s: sif_frm_int = 0x%x,sif_out_int =0x%x, status  = 0x%x\n",
 		__func__, irq_src.sif_frm_int, irq_src.sif_out_int, status);
+	vio_dbg("mipi rx status = %d\n", vio_hw_get_reg(sif->base_reg,
+		&sif_regs[SIF_MIPI_RX_STATUS0]));
 	if (status) {
 		for (mux_index = 0; mux_index <= 7; mux_index++) {
 			if (test_bit(mux_index, &sif->state)

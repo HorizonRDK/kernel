@@ -290,7 +290,7 @@ static int x2a_ips_probe(struct platform_device *pdev)
 		ret = -ENOMEM;
 		goto err_get_resource;
 	}
-
+#if 0
 	/* Get IRQ SPI number */
 	ips->irq = platform_get_irq(pdev, 0);
 	if (ips->irq < 0) {
@@ -304,7 +304,7 @@ static int x2a_ips_probe(struct platform_device *pdev)
 		vio_err("request_irq(IRQ_SIF %d) is fail(%d)", ips->irq, ret);
 		goto err_get_irq;
 	}
-
+#endif
 	ret = vio_get_clk(&pdev->dev);
 
 	g_ips_dev = ips;

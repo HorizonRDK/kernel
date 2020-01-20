@@ -834,6 +834,11 @@ u32 ipu_get_shd_rdy(void __iomem *base_addr)
 	return vio_hw_get_reg(base_addr, &ipu_regs[IPU_CFG_RDY]);
 }
 
+u32 ipu_get_size_err(void __iomem *base_addr)
+{
+	return vio_hw_get_reg(base_addr, &ipu_regs[IPU_SIZE_ERR]);
+}
+
 void ipu_set_shd_select(void __iomem *base_addr, u8 cfg)
 {
 	vio_hw_set_reg(base_addr, &ipu_regs[IPU_CFG_SEL], cfg);

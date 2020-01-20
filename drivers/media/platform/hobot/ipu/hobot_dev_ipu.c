@@ -651,6 +651,7 @@ int ipu_update_common_param(struct ipu_video_ctx *ipu_ctx,
 int ipu_video_init(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 {
 	int ret = 0;
+	u32 cfg = 0;
 	ipu_us_info_t us_config;
 	ipu_ds_info_t ds_config;
 	ipu_cfg_t ipu_cfg;
@@ -659,12 +660,15 @@ int ipu_video_init(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 
 	ipu = ipu_ctx->ipu_dev;
 
-	ips_set_clk_ctrl(IPU0_CLOCK_GATE, true);
-
 	if (!(ipu_ctx->state & (BIT(VIO_VIDEO_S_INPUT) | BIT(VIO_VIDEO_REBUFS)))) {
 		vio_err("[%s] invalid INIT is requested(%lX)", __func__, ipu_ctx->state);
 		return -EINVAL;
 	}
+
+	ips_set_clk_ctrl(IPU0_CLOCK_GATE, true);
+
+	cfg = ips_get_bus_ctrl() | 0xd21e << 16;
+	ips_set_bus_ctrl(cfg);
 
 	if (ipu_ctx->id == GROUP_ID_SRC) {
 		ret = copy_from_user((char *) &ipu_cfg, (u32 __user *) arg,
@@ -781,6 +785,7 @@ p_inc:
 int ipu_video_streamoff(struct ipu_video_ctx *ipu_ctx)
 {
 	u32 value = 0;
+	u32 cfg = 0;
 	u32 cnt = 20;
 	struct x2a_ipu_dev *ipu_dev;
 	struct vio_group *group;
@@ -806,8 +811,8 @@ int ipu_video_streamoff(struct ipu_video_ctx *ipu_ctx)
 		g_test_bit &= ~(1 << (ipu_ctx->id + 1));
 #else
 
-	value = ips_get_bus_ctrl() | 1 << 12 | 0xd21e << 16;
-	ips_set_bus_ctrl(value);
+	cfg = ips_get_bus_ctrl() | 1 << 12;
+	ips_set_bus_ctrl(cfg);
 
 	while(1) {
 		value = ips_get_bus_status();
@@ -822,8 +827,8 @@ int ipu_video_streamoff(struct ipu_video_ctx *ipu_ctx)
 		}
 	}
 
-	value = ips_get_bus_ctrl() & ~(1 << 12);
-	ips_set_bus_ctrl(value);
+	cfg = ips_get_bus_ctrl() & ~(1 << 12);
+	ips_set_bus_ctrl(cfg);
 
 	ips_set_clk_ctrl(IPU0_CLOCK_GATE, false);
 #endif
@@ -963,7 +968,7 @@ static long x2a_ipu_ioctl(struct file *file, unsigned int cmd,
 		ret = get_user(enable, (u32 __user *) arg);
 		if (ret)
 			return -EFAULT;
-		vio_info("V[%d]=====IPU_IOC_STREAM==enable %d===========\n",
+		vio_dbg("V[%d]=====IPU_IOC_STREAM==enable %d===========\n",
 			 group->instance, enable);
 		ipu_video_s_stream(ipu_ctx, ! !enable);
 		break;
@@ -971,7 +976,7 @@ static long x2a_ipu_ioctl(struct file *file, unsigned int cmd,
 		ipu_video_dqbuf(ipu_ctx, &frameinfo);
 		ret = copy_to_user((void __user *) arg, (char *) &frameinfo,
 				 sizeof(struct frame_info));
-		vio_info("V[%d]=====IPU_IOC_DQBUF==ret %d===========\n",
+		vio_dbg("V[%d]=====IPU_IOC_DQBUF==ret %d===========\n",
 			 group->instance, ret);
 		if (ret)
 			return -EFAULT;
@@ -979,14 +984,14 @@ static long x2a_ipu_ioctl(struct file *file, unsigned int cmd,
 	case IPU_IOC_QBUF:
 		ret = copy_from_user((char *) &frameinfo, (u32 __user *) arg,
 				   sizeof(struct frame_info));
-		vio_info("V[%d]=====IPU_IOC_QBUF==ret %d===========\n",
+		vio_dbg("V[%d]=====IPU_IOC_QBUF==ret %d===========\n",
 			 group->instance, ret);
 		if (ret)
 			return -EFAULT;
 		ipu_video_qbuf(ipu_ctx, &frameinfo);
 		break;
 	case IPU_IOC_REQBUFS:
-		vio_info("V[%d]=====IPU_IOC_REQBUFS==ret %d===========\n",
+		vio_dbg("V[%d]=====IPU_IOC_REQBUFS==ret %d===========\n",
 			 group->instance, ret);
 		ret = get_user(buffers, (u32 __user *) arg);
 		if (ret)
@@ -1088,7 +1093,8 @@ static irqreturn_t ipu_isr(int irq, void *data)
 	instance = atomic_read(&ipu->instance);
 	group = ipu->group[instance];
 	ipu_get_intr_status(ipu->base_reg, &status, true);
-	vio_info("%s status = 0x%x\n", __func__, status);
+	vio_dbg("%s status = 0x%x, size err 0x%x\n",
+			__func__, status, ipu_get_size_err(ipu->base_reg));
 
 	if (status & (1 << INTR_IPU_US_FRAME_DROP)) {
 		vio_err("US Frame drop\n");
@@ -1096,6 +1102,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 
 	if (status & (1 << INTR_IPU_DS0_FRAME_DROP)) {
 		vio_err("DS0 Frame drop\n");
+		ipu_hw_dump(ipu->base_reg);
 	}
 
 	if (status & (1 << INTR_IPU_DS1_FRAME_DROP)) {
