@@ -100,7 +100,7 @@
     },
 
     "3": {
-        "dtb_name"  :   "hobot-xj3-soc-cv.dtb",
+        "dtb_name"  :   "hobot-xj3-cvb.dtb",
         "gpio_id"   :   "0"
     },
 
