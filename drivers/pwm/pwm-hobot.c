@@ -1,3 +1,5 @@
+#define pr_fmt(fmt) "hobot-pwm: " fmt
+
 #include <linux/clk.h>
 #include <linux/err.h>
 #include <linux/io.h>
@@ -13,22 +15,22 @@
 #include <linux/slab.h>
 
 /* the offset of pwm registers */
-#define X2_PWM_EN             0x00
-#define X2_PWM_TIME_SLICE     0x04
-#define X2_PWM_FREQ           0x08
-#define X2_PWM_FREQ1          0x0C
-#define X2_PWM_RATIO          0x14
-#define X2_PWM_SRCPND         0x1C
-#define X2_PWM_INTMASK        0x20
-#define X2_PWM_SETMASK        0x24
-#define X2_PWM_UNMASK         0x28
+#define PWM_EN             0x00
+#define PWM_TIME_SLICE     0x04
+#define PWM_FREQ           0x08
+#define PWM_FREQ1          0x0C
+#define PWM_RATIO          0x14
+#define PWM_SRCPND         0x1C
+#define PWM_INTMASK        0x20
+#define PWM_SETMASK        0x24
+#define PWM_UNMASK         0x28
 
-#define X2_PWM_INT_EN         (1U<<3)
-#define X2_PWM_NPWM           3         /* number of channels per pwm chip(controller) */
-#define X2_PWM_CLK            192000000
-#define X2_PWM_NAME           "x2-pwm"
+#define PWM_INT_EN         (1U<<3)
+#define PWM_NPWM           3         /* number of channels per pwm chip(controller) */
+#define PWM_CLK            192000000
+#define PWM_NAME           "hobot-pwm"
 
-struct x2_pwm_chip {
+struct hobot_pwm_chip {
 	struct pwm_chip chip;
 	int irq;
 	char name[8];
@@ -38,111 +40,111 @@ struct x2_pwm_chip {
 #define PWM_ENABLE	BIT(31)
 #define PWM_PIN_LEVEL	BIT(30)
 
-#define to_x2_pwm_chip(_chip) \
-	container_of(_chip, struct x2_pwm_chip, chip)
+#define to_hobot_pwm_chip(_chip) \
+	container_of(_chip, struct hobot_pwm_chip, chip)
 
 /* IO accessors */
-static inline u32 x2_pwm_rd(struct x2_pwm_chip *x2_chip, u32 reg)
+static inline u32 hobot_pwm_rd(struct hobot_pwm_chip *hobot_chip, u32 reg)
 {
-	return ioread32(x2_chip->base + reg);
+	return ioread32(hobot_chip->base + reg);
 }
 
-static inline void x2_pwm_wr(struct x2_pwm_chip *x2_chip, u32 reg, u32 value)
+static inline void hobot_pwm_wr(struct hobot_pwm_chip *hobot_chip, u32 reg, u32 value)
 {
-	iowrite32(value, x2_chip->base + reg);
+	iowrite32(value, hobot_chip->base + reg);
 }
 
-static irqreturn_t x2_pwm_irq_handler(int irq, void *data)
+static irqreturn_t hobot_pwm_irq_handler(int irq, void *data)
 {
 	u32 status = 0;
-	struct x2_pwm_chip *x2 = (struct x2_pwm_chip *)data;
+	struct hobot_pwm_chip *hbpwm = (struct hobot_pwm_chip *)data;
 
-	status = x2_pwm_rd(x2, X2_PWM_SRCPND);
-	x2_pwm_wr(x2, X2_PWM_SRCPND, status);
-	//dev_info(x2->chip.dev, "pwm_irq_handler\n");
+	status = hobot_pwm_rd(hbpwm, PWM_SRCPND);
+	hobot_pwm_wr(hbpwm, PWM_SRCPND, status);
+	//dev_info(hbpwm->chip.dev, "pwm_irq_handler\n");
 
 	return IRQ_HANDLED;
 }
 
-static int x2_pwm_config(struct pwm_chip *chip, struct pwm_device *pwm, int duty_ns, int period_ns)
+static int hobot_pwm_config(struct pwm_chip *chip, struct pwm_device *pwm, int duty_ns, int period_ns)
 {
 	u32 val, reg, offset;
 	int pwm_freq, pwm_ratio;
-	struct x2_pwm_chip *x2 = to_x2_pwm_chip(chip);
+	struct hobot_pwm_chip *hbpwm = to_hobot_pwm_chip(chip);
 
 	/* config pwm freq */
-	pwm_freq = div64_u64((uint64_t)X2_PWM_CLK * (uint64_t)period_ns,
+	pwm_freq = div64_u64((uint64_t)PWM_CLK * (uint64_t)period_ns,
 			(unsigned long long)NSEC_PER_SEC);
 	if(0xFFF < pwm_freq) {
 		return -ERANGE;
 	}
-	reg = pwm->hwpwm == 2 ? X2_PWM_FREQ1 : X2_PWM_FREQ;
+	reg = pwm->hwpwm == 2 ? PWM_FREQ1 : PWM_FREQ;
 	offset = (pwm->hwpwm % 2) * 16;
-	val = x2_pwm_rd(x2, reg);
+	val = hobot_pwm_rd(hbpwm, reg);
 	val &= ~(0xFFF<<offset);
 	val |= pwm_freq<<offset;
-	x2_pwm_wr(x2, reg, val);
+	hobot_pwm_wr(hbpwm, reg, val);
 
 	/* config pwm duty */
 	pwm_ratio = div64_u64((unsigned long long)duty_ns * 256, period_ns);
-	val = x2_pwm_rd(x2, X2_PWM_RATIO);
+	val = hobot_pwm_rd(hbpwm, PWM_RATIO);
 	offset = pwm->hwpwm * 8;
 	val &= ~(0xFF<<offset);
 	val |= pwm_ratio << offset;
-	x2_pwm_wr(x2, X2_PWM_RATIO, val);
+	hobot_pwm_wr(hbpwm, PWM_RATIO, val);
 
 	return 0;
 }
 
-static int x2_pwm_enable(struct pwm_chip *chip, struct pwm_device *pwm)
+static int hobot_pwm_enable(struct pwm_chip *chip, struct pwm_device *pwm)
 {
 	u32 val;
-	struct x2_pwm_chip *x2 = to_x2_pwm_chip(chip);
+	struct hobot_pwm_chip *hbpwm = to_hobot_pwm_chip(chip);
 
-	val = x2_pwm_rd(x2, X2_PWM_EN);
+	val = hobot_pwm_rd(hbpwm, PWM_EN);
 	val |= (1<<pwm->hwpwm);
-	val |= X2_PWM_INT_EN;
-	x2_pwm_wr(x2, X2_PWM_EN, val);
+	val |= PWM_INT_EN;
+	hobot_pwm_wr(hbpwm, PWM_EN, val);
 
 	return 0;
 }
 
-static void x2_pwm_disable(struct pwm_chip *chip, struct pwm_device *pwm)
+static void hobot_pwm_disable(struct pwm_chip *chip, struct pwm_device *pwm)
 {
 	u32 val;
-	struct x2_pwm_chip *x2 = to_x2_pwm_chip(chip);
+	struct hobot_pwm_chip *hbpwm = to_hobot_pwm_chip(chip);
 
-	val = x2_pwm_rd(x2, X2_PWM_EN);
+	val = hobot_pwm_rd(hbpwm, PWM_EN);
 	val &= (~(1<<pwm->hwpwm));
 	if (!(val & 0x7))
-		val &= (~X2_PWM_INT_EN);
-	x2_pwm_wr(x2, X2_PWM_EN, val);
+		val &= (~PWM_INT_EN);
+	hobot_pwm_wr(hbpwm, PWM_EN, val);
 
 	return;
 }
 
-static const struct pwm_ops x2_pwm_ops = {
-	.config  = x2_pwm_config,
-	.enable  = x2_pwm_enable,
-	.disable = x2_pwm_disable,
+static const struct pwm_ops hobot_pwm_ops = {
+	.config  = hobot_pwm_config,
+	.enable  = hobot_pwm_enable,
+	.disable = hobot_pwm_disable,
 	.owner   = THIS_MODULE,
 };
 
-static int x2_pwm_probe(struct platform_device *pdev)
+static int hobot_pwm_probe(struct platform_device *pdev)
 {
 	int ret, id;
-	struct x2_pwm_chip *x2;
+	struct hobot_pwm_chip *hbpwm;
 	struct resource *res;
 	struct device_node *node = pdev->dev.of_node;
 
-	x2 = devm_kzalloc(&pdev->dev, sizeof(struct x2_pwm_chip), GFP_KERNEL);
-	if (!x2)
+	hbpwm = devm_kzalloc(&pdev->dev, sizeof(struct hobot_pwm_chip), GFP_KERNEL);
+	if (!hbpwm)
 		return -ENOMEM;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	x2->base = devm_ioremap_resource(&pdev->dev, res);
-	if (IS_ERR(x2->base))
-		return PTR_ERR(x2->base);
+	hbpwm->base = devm_ioremap_resource(&pdev->dev, res);
+	if (IS_ERR(hbpwm->base))
+		return PTR_ERR(hbpwm->base);
 
 	/* Look for a serialN alias */
 	id = of_alias_get_id(node, "pwm");
@@ -150,68 +152,67 @@ static int x2_pwm_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Get id of pwm:%d is err!\n", id);
 		id = 0;
 	}
-	sprintf(x2->name, "%s%d", X2_PWM_NAME, id);
+	sprintf(hbpwm->name, "%s%d", PWM_NAME, id);
 
-	x2->irq = irq_of_parse_and_map(node, 0);
-	if (0 == x2->irq) {
+	hbpwm->irq = irq_of_parse_and_map(node, 0);
+	if (0 == hbpwm->irq) {
 		dev_err(&pdev->dev, "IRQ map failed!\n");
 		return -EINVAL;
 	} else {
-		ret = request_irq(x2->irq, x2_pwm_irq_handler, IRQF_SHARED, x2->name, x2);
+		ret = request_irq(hbpwm->irq, hobot_pwm_irq_handler, IRQF_SHARED, hbpwm->name, hbpwm);
 		if (ret) {
-			dev_err(&pdev->dev, "unable to request IRQ %d\n", x2->irq);
+			dev_err(&pdev->dev, "unable to request IRQ %d\n", hbpwm->irq);
 			return ret;
 		} else {
-			x2_pwm_wr(x2, X2_PWM_SETMASK, 0);
-			x2_pwm_wr(x2, X2_PWM_UNMASK, 1);
+			hobot_pwm_wr(hbpwm, PWM_SETMASK, 0);
+			hobot_pwm_wr(hbpwm, PWM_UNMASK, 1);
 		}
 	}
 
-	x2->chip.dev  = &pdev->dev;
-	x2->chip.ops  = &x2_pwm_ops;
-	x2->chip.npwm = X2_PWM_NPWM;
-	x2->chip.base = -1;
-	//x2->chip.of_xlate = of_pwm_simple_xlate;
-	//x2->chip.of_pwm_n_cells = 2;
+	hbpwm->chip.dev  = &pdev->dev;
+	hbpwm->chip.ops  = &hobot_pwm_ops;
+	hbpwm->chip.npwm = PWM_NPWM;
+	hbpwm->chip.base = -1;
 
-	ret = pwmchip_add(&x2->chip);
+	ret = pwmchip_add(&hbpwm->chip);
 	if (ret < 0) {
 		dev_err(&pdev->dev, "failed to add PWM chip, error %d\n", ret);
 		return ret;
 	}
 
-	platform_set_drvdata(pdev, x2);
+	platform_set_drvdata(pdev, hbpwm);
+	pr_info("%s registered\n", hbpwm->name);
 
 	return 0;
 }
 
-static int x2_pwm_remove(struct platform_device *pdev)
+static int hobot_pwm_remove(struct platform_device *pdev)
 {
-	struct x2_pwm_chip *x2 = platform_get_drvdata(pdev);
+	struct hobot_pwm_chip *hbpwm = platform_get_drvdata(pdev);
 	unsigned int i;
 
-	for (i = 0; i < x2->chip.npwm; i++)
-		pwm_disable(&x2->chip.pwms[i]);
+	for (i = 0; i < hbpwm->chip.npwm; i++)
+		pwm_disable(&hbpwm->chip.pwms[i]);
 
-	return pwmchip_remove(&x2->chip);
+	return pwmchip_remove(&hbpwm->chip);
 }
 
-static const struct of_device_id x2_pwm_dt_ids[] = {
-	{ .compatible = "hobot,x2-pwm", },
+static const struct of_device_id hobot_pwm_dt_ids[] = {
+	{ .compatible = "hobot,hobot-pwm", },
 	{ /* sentinel */ }
 };
-MODULE_DEVICE_TABLE(of, x2_pwm_dt_ids);
+MODULE_DEVICE_TABLE(of, hobot_pwm_dt_ids);
 
-static struct platform_driver x2_pwm_driver = {
+static struct platform_driver hobot_pwm_driver = {
 	.driver = {
-		.name = "x2-pwm",
-		.of_match_table = x2_pwm_dt_ids,
+		.name = "hobot-pwm",
+		.of_match_table = hobot_pwm_dt_ids,
 	},
-	.probe = x2_pwm_probe,
-	.remove = x2_pwm_remove,
+	.probe = hobot_pwm_probe,
+	.remove = hobot_pwm_remove,
 };
-module_platform_driver(x2_pwm_driver);
+module_platform_driver(hobot_pwm_driver);
 
 MODULE_AUTHOR("hobot, Inc.");
-MODULE_DESCRIPTION("X2 PWM driver");
+MODULE_DESCRIPTION("HOBOT PWM driver");
 MODULE_LICENSE("GPL v2");

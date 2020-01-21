@@ -588,7 +588,7 @@
 		};
 
 		pwm_0: pwm@0xA500D000 {
-			compatible = "hobot,x2-pwm";
+			compatible = "hobot,hobot-pwm";
 			reg = <0 0xA500D000 0 0x1000>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 44 4>;
@@ -596,7 +596,7 @@
 		};
 
 		pwm_1: pwm@0xA500E000 {
-			compatible = "hobot,x2-pwm";
+			compatible = "hobot,hobot-pwm";
 			reg = <0 0xA500E000 0 0x1000>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 45 4>;
@@ -604,7 +604,7 @@
 		};
 
 		pwm_2: pwm@0xA500F000 {
-			compatible = "hobot,x2-pwm";
+			compatible = "hobot,hobot-pwm";
 			reg = <0 0xA500F000 0 0x1000>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 46 4>;
