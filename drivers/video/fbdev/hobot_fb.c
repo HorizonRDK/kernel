@@ -785,7 +785,6 @@ int user_set_fb(void)
 		disp_set_panel_timing(&video_1920x1080);
 	}
 	if (display_type == LCD_7_TYPE) {
-/*
 		disp_set_panel_timing(&video_800x480);
 		x2_fbi->memory_mode = 0;
 
@@ -821,7 +820,11 @@ int user_set_fb(void)
 		x2_fbi->channel_base_cfg[2].alpha_en = 1;
 		x2_fbi->channel_base_cfg[2].alpha = 128;
 
+#ifdef CONFIG_HOBOT_XJ2
 		x2_fbi->output_cfg.out_sel = 1;
+#else
+		x2_fbi->output_cfg.out_sel = 2;
+#endif
 		x2_fbi->output_cfg.width = 800;
 		x2_fbi->output_cfg.height = 480;
 		x2_fbi->output_cfg.bgcolor = 16744328;//white.
@@ -830,7 +833,7 @@ int user_set_fb(void)
 		iar_channel_base_cfg(&x2_fbi->channel_base_cfg[0]);
 		iar_channel_base_cfg(&x2_fbi->channel_base_cfg[2]);
 		iar_output_cfg(&x2_fbi->output_cfg);
-
+#ifdef CONFIG_HOBOT_XJ2
 		hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x00, 4);
 		writel(0x041bf00f, hitm1_reg_addr);
 
@@ -847,6 +850,18 @@ int user_set_fb(void)
 			memcpy(x2_fbi->fb.screen_base, logo_vaddr, 800*480*4);
 #endif
 #endif
+#else
+		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x00, 4);
+		writel(0x0572300f, hitm1_reg_addr);
+
+		//panel color type is yuv444, YCbCr conversion needed
+		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x204, 4);
+		writel(0, hitm1_reg_addr);
+
+		//select BT709 color domain
+		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x48, 4);
+		writel(FORMAT_ORGANIZATION_VAL, hitm1_reg_addr);
+#endif
 		iar_switch_buf(0);
 		iar_set_bufaddr(IAR_CHANNEL_3, &graphic_display_paddr);
 		iar_start(1);
@@ -854,176 +869,6 @@ int user_set_fb(void)
 		msleep(20);
 		set_lt9211_config(&x2_fbi->fb);
 #endif
-*/
-/*
-	        hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x138, 4);
-                //reg_val = readl(hitm1_reg_addr);
-                //reg_val = (reg_val & 0xffffffc0) | 0x3c;
-                //writel(reg_val, hitm1_reg_addr);
-                writel(0x2bc, hitm1_reg_addr);
-
-                hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x68, 4);
-                //reg_val = readl(hitm1_reg_addr);
-                //reg_val = (reg_val & 0xfffffffc) | 0x2;
-                //writel(reg_val, hitm1_reg_addr);
-                writel(0x306, hitm1_reg_addr);
-
-                hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x50, 4);
-                //reg_val = readl(hitm1_reg_addr);
-                //reg_val = (reg_val & 0xfffffffc) | 0x2;
-                //writel(reg_val, hitm1_reg_addr);
-                writel(0x286, hitm1_reg_addr);
-
-                hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x54, 4);
-                //reg_val = readl(hitm1_reg_addr);
-                //reg_val = (reg_val & 0xfffffffc) | 0x2;
-                //writel(reg_val, hitm1_reg_addr);
-                writel(0x11a, hitm1_reg_addr);
-
-                hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x13c, 4);
-                //reg_val = readl(hitm1_reg_addr);
-                //reg_val = (reg_val & 0xfffffffc) | 0x2;
-                //writel(reg_val, hitm1_reg_addr);
-                writel(0x8e, hitm1_reg_addr);
-
-                hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x140, 4);
-                //reg_val = readl(hitm1_reg_addr);
-                //reg_val = (reg_val & 0xfffffffc) | 0x2;
-                //writel(reg_val, hitm1_reg_addr);
-                writel(0x8e, hitm1_reg_addr);
-
-                hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x144, 4);
-                //reg_val = readl(hitm1_reg_addr);
-                //reg_val = (reg_val & 0xfffffffc) | 0x2;
-                //writel(reg_val, hitm1_reg_addr);
-                writel(0x8e, hitm1_reg_addr);
-
-                hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x148, 4);
-                //reg_val = readl(hitm1_reg_addr);
-                //reg_val = (reg_val & 0xfffffffc) | 0x2;
-                //writel(reg_val, hitm1_reg_addr);
-                writel(0x8e, hitm1_reg_addr);
-
-                hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x14c, 4);
-                //reg_val = readl(hitm1_reg_addr);
-                //reg_val = (reg_val & 0xfffffffc) | 0x2;
-                //writel(reg_val, hitm1_reg_addr);
-                writel(0x8e, hitm1_reg_addr);
-
-                hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x150, 4);
-                //reg_val = readl(hitm1_reg_addr);
-                //reg_val = (reg_val & 0xfffffffc) | 0x2;
-                //writel(reg_val, hitm1_reg_addr);
-                writel(0x8e, hitm1_reg_addr);
-
-                hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x154, 4);
-                //reg_val = readl(hitm1_reg_addr);
-                //reg_val = (reg_val & 0xfffffffc) | 0x2;
-                //writel(reg_val, hitm1_reg_addr);
-                writel(0x8e, hitm1_reg_addr);
-
-                hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x158, 4);
-                //reg_val = readl(hitm1_reg_addr);
-                //reg_val = (reg_val & 0xfffffffc) | 0x2;
-                //writel(reg_val, hitm1_reg_addr);
-                writel(0x8e, hitm1_reg_addr);
-
-                hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x15c, 4);
-                //reg_val = readl(hitm1_reg_addr);
-                //reg_val = (reg_val & 0xfffffffc) | 0x2;
-                //writel(reg_val, hitm1_reg_addr);
-                writel(0x8e, hitm1_reg_addr);
-
-                hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x160, 4);
-                //reg_val = readl(hitm1_reg_addr);
-                //reg_val = (reg_val & 0xfffffffc) | 0x2;
-                //writel(reg_val, hitm1_reg_addr);
-                writel(0x8e, hitm1_reg_addr);
-
-                hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x164, 4);
-                //reg_val = readl(hitm1_reg_addr);
-                //reg_val = (reg_val & 0xfffffffc) | 0x2;
-                //writel(reg_val, hitm1_reg_addr);
-                writel(0x8e, hitm1_reg_addr);
-
-                hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x168, 4);
-                //reg_val = readl(hitm1_reg_addr);
-                //reg_val = (reg_val & 0xfffffffc) | 0x2;
-                //writel(reg_val, hitm1_reg_addr);
-                writel(0x8e, hitm1_reg_addr);
-
-                hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x16c, 4);
-                //reg_val = readl(hitm1_reg_addr);
-                //reg_val = (reg_val & 0xfffffffc) | 0x2;
-                //writel(reg_val, hitm1_reg_addr);
-                writel(0x8e, hitm1_reg_addr);
-
-                hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x170, 4);
-                //reg_val = readl(hitm1_reg_addr);
-                //reg_val = (reg_val & 0xfffffffc) | 0x2;
-                //writel(reg_val, hitm1_reg_addr);
-                writel(0x8e, hitm1_reg_addr);
-
-                hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x174, 4);
-                //reg_val = readl(hitm1_reg_addr);
-                //reg_val = (reg_val & 0xfffffffc) | 0x2;
-                //writel(reg_val, hitm1_reg_addr);
-                writel(0x8e, hitm1_reg_addr);
-
-                hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x178, 4);
-                //reg_val = readl(hitm1_reg_addr);
-                //reg_val = (reg_val & 0xfffffffc) | 0x2;
-                //writel(reg_val, hitm1_reg_addr);
-                writel(0x8e, hitm1_reg_addr);
-
-                hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x58, 4);
-                //reg_val = readl(hitm1_reg_addr);
-                //reg_val = (reg_val & 0xfffffffc) | 0x2;
-                //writel(reg_val, hitm1_reg_addr);
-                writel(0x11a, hitm1_reg_addr);
-
-                hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x5c, 4);
-                //reg_val = readl(hitm1_reg_addr);
-                //reg_val = (reg_val & 0xfffffffc) | 0x2;
-                //writel(reg_val, hitm1_reg_addr);
-                writel(0x11a, hitm1_reg_addr);
-
-                hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x60, 4);
-                //reg_val = readl(hitm1_reg_addr);
-                //reg_val = (reg_val & 0xfffffffc) | 0x2;
-                //writel(reg_val, hitm1_reg_addr);
-                writel(0x11a, hitm1_reg_addr);
-
-                hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x64, 4);
-                //reg_val = readl(hitm1_reg_addr);
-                //reg_val = (reg_val & 0xfffffffc) | 0x2;
-                //writel(reg_val, hitm1_reg_addr);
-                writel(0x11a, hitm1_reg_addr);
-
-                hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x1d0, 4);
-                //reg_val = readl(hitm1_reg_addr);
-                //reg_val = (reg_val & 0xfffffffc) | 0x2;
-                //writel(reg_val, hitm1_reg_addr);
-                writel(0x11a, hitm1_reg_addr);
-
-                hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x1d4, 4);
-                //reg_val = readl(hitm1_reg_addr);
-                //reg_val = (reg_val & 0xfffffffc) | 0x2;
-                //writel(reg_val, hitm1_reg_addr);
-                writel(0x11a, hitm1_reg_addr);
-
-                hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x1d8, 4);
-                //reg_val = readl(hitm1_reg_addr);
-                //reg_val = (reg_val & 0xfffffffc) | 0x2;
-                //writel(reg_val, hitm1_reg_addr);
-                writel(0x11a, hitm1_reg_addr);
-
-                hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x1dc, 4);
-                //reg_val = readl(hitm1_reg_addr);
-                //reg_val = (reg_val & 0xfffffffc) | 0x2;
-                //writel(reg_val, hitm1_reg_addr);
-                writel(0x11a, hitm1_reg_addr);
-*/
 	} else if (display_type == MIPI_720P) {
 		disp_set_panel_timing(&video_720x1280);
 		x2_fbi->memory_mode = 0;

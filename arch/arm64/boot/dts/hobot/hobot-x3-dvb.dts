@@ -273,6 +273,10 @@
         status = "okay";
 };
 
+&fb {
+	status = "okay";
+};
+
 &bifspi {
 	/* pin conflict: BIFSPI_SCLK(gpio28) - see 902xAA rst_pin */
 	status = "disabled";
