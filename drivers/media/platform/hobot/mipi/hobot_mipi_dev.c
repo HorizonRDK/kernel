@@ -117,7 +117,6 @@ module_param(init_num, uint, 0644);
 #define MIPI_DEV_VPG_STEP_LINE		(0x00)
 #define MIPI_DEV_CHECK_MAX			(500)
 
-// #define MIPI_DEV_CFGCLK_DEFAULT		(0x22) // 25.5M
 #define MIPI_DEV_CFGCLK_DEFAULT		(0x1C)
 #define MIPI_DEV_VPG_DEF_MCLK		(24)
 #define MIPI_DEV_VPG_DEF_PCLK		(384)
@@ -125,7 +124,7 @@ module_param(init_num, uint, 0644);
 #define MIPI_DEV_VPG_DEF_FPS		(30)
 #define MIPI_DEV_VPG_DEF_BLANK		(0x5f4)
 
-#define MIPI_DEV_IRQ_CNT            (2)
+#define MIPI_DEV_IRQ_CNT            (10)
 
 #define DEV_DPHY_LANE_MAX			(4)
 #define DEV_DPHY_CHECK_MAX			(500)
@@ -1713,7 +1712,7 @@ static int hobot_mipi_dev_probe(struct platform_device *pdev)
 		goto err_cdev;
 	}
 
-	// mipi_dev_configure_clk(ddev, MIPI_DEV_CFGCLK_NAME, MIPI_DEV_CFGCLK_MHZ, 1);
+	mipi_dev_configure_clk(ddev, MIPI_DEV_CFGCLK_NAME, MIPI_DEV_CFGCLK_MHZ, 1);
 	hobot_mipi_dev_phy_register(ddev);
 	g_ddev[port] = ddev;
 	port_num ++;

@@ -46,7 +46,7 @@
 #define MIPI_HOST_DNAME		"mipi_host"
 #define MIPI_HOST_MAX_NUM	CONFIG_HOBOT_MIPI_HOST_MAX_NUM
 #define MIPI_HOST_CFGCLK_NAME	"mipi_cfg_host"
-#define MIPI_HOST_CFGCLK_MHZ	25000000UL
+#define MIPI_HOST_CFGCLK_MHZ	24000000UL
 #define MIPI_HOST_REFCLK_NAME	"mipi_host_ref"
 #define MIPI_HOST_IPICLK_NAME	"mipi_rx%d_ipi"
 
@@ -125,12 +125,12 @@ module_param(init_num, uint, 0644);
 #define MIPI_HOST_HSATIME		   (0x04)
 #define MIPI_HOST_HBPTIME		   (0x04)
 #define MIPI_HOST_HSDTIME		   (0x5f4)
-// #define MIPI_HOST_CFGCLK_DEFAULT   (0x22) // 25.5
 #define MIPI_HOST_CFGCLK_DEFAULT   (0x1C)
 
 #define MIPI_HOST_ADV_DEFAULT      (0x3 << 16)
 #define MIPI_HOST_CUT_DEFAULT      (1)
-#define MIPI_HOST_IRQ_CNT          (2)
+#define MIPI_HOST_IPILIMIT_DEFAULT (102000000)
+#define MIPI_HOST_IRQ_CNT          (10)
 
 #define HOST_DPHY_LANE_MAX         (4)
 #define HOST_DPHY_CHECK_MAX        (3000)
@@ -182,6 +182,8 @@ typedef struct _mipi_host_param_s {
 	uint32_t need_stop_check;
 	uint32_t stop_check_instart;
 	uint32_t cut_through;
+	uint32_t ipi_force;
+	uint32_t ipi_limit;
 #if MIPI_HOST_INT_DBG
 	uint32_t irq_cnt;
 	uint32_t irq_debug;
@@ -196,6 +198,8 @@ static const char *g_mh_param_names[] = {
 	"need_stop_check",
 	"stop_check_instart",
 	"cut_through",
+	"ipi_force",
+	"ipi_limit",
 #if MIPI_HOST_INT_DBG
 	"irq_cnt",
 	"irq_debug",
@@ -566,6 +570,8 @@ static int32_t mipi_host_configure_clk(mipi_hdev_t *hdev, const char *name,
 static unsigned long mipi_host_pixel_clk_select(mipi_hdev_t *hdev, mipi_host_cfg_t *cfg)
 {
 	struct device *dev = hdev->dev;
+	mipi_host_t *host = &hdev->host;
+	mipi_host_param_t *param = &host->param;
 	unsigned long pixclk = cfg->linelenth * cfg->framelenth * cfg->fps;
 	unsigned long pixclk_act = pixclk;
 	unsigned long linelenth = cfg->linelenth;
@@ -582,23 +588,23 @@ static unsigned long mipi_host_pixel_clk_select(mipi_hdev_t *hdev, mipi_host_cfg
 		linelenth = cfg->width;
 	if (!cfg->framelenth)
 		framelenth = cfg->height;
-	pixclk = linelenth * framelenth * cfg->fps;
-	//pixclk = 1000000 * cfg->mipiclk / cfg->lane;
-#ifdef ADJUST_CLK_RECALCULATION
-	//no need, otherwise 10635 frame will be partially error
-	//pixclk = (cfg->width + 16) * (cfg->height + 8) * cfg->fps;
-#endif
-	if (cfg->datatype < MIPI_CSI2_DT_RAW_8)
-		pixclk = pixclk;
-	else
-#ifndef ADJUST_CLK_RECALCULATION
-		pixclk = pixclk / 3;
-#else
-		pixclk = (pixclk + 2) / 3;
-#endif
-	// pixclk = 554 * 1000000UL;
-	// mipiinfo("host fifo ofrce pixclk: %lu", pixclk);
-#if 0 //def CONFIG_HOBOT_XJ3
+
+	if (param->ipi_force >= 10000000) {
+		pixclk = param->ipi_force;
+		mipiinfo("ipi clk force as %lu", pixclk);
+	} else {
+		pixclk = linelenth * framelenth * cfg->fps;
+		if (cfg->datatype < MIPI_CSI2_DT_RAW_8)
+			pixclk = pixclk;
+		else
+			pixclk = (pixclk + 2) / 3;
+
+		if (param->ipi_limit && pixclk < param->ipi_limit) {
+			mipiinfo("ipi clk limit %lu up to %lu", pixclk, param->ipi_limit);
+			pixclk = param->ipi_limit;
+		}
+	}
+#ifdef CONFIG_HOBOT_XJ3
 	snprintf(ipi_clk_name, 32, MIPI_HOST_IPICLK_NAME, hdev->port);
 	if (mipi_host_configure_clk(hdev, ipi_clk_name, pixclk, 0) < 0)
 		mipiinfo("mipi_host_configure_clk error");
@@ -1262,10 +1268,12 @@ static int32_t mipi_host_init(mipi_hdev_t *hdev, mipi_host_cfg_t *cfg)
 	cfg->hsaTime = cfg->hsaTime ? cfg->hsaTime : MIPI_HOST_HSATIME;
 	cfg->hbpTime = cfg->hbpTime ? cfg->hbpTime : MIPI_HOST_HBPTIME;
 	cfg->hsdTime = cfg->hsdTime ? cfg->hsdTime : mipi_host_get_hsd(hdev, cfg, pixclk);
-	if (0 != mipi_host_configure_ipi(hdev, cfg)) {
-		mipierr("configure ipi error!!!");
-		mipi_host_deinit(hdev);
-		return -1;
+	if (!hdev->is_ex) {
+		if (0 != mipi_host_configure_ipi(hdev, cfg)) {
+			mipierr("configure ipi error!!!");
+			mipi_host_deinit(hdev);
+			return -1;
+		}
 	}
 	memcpy(&host->cfg, cfg, sizeof(mipi_host_cfg_t));
 	mipiinfo("init end");
@@ -1338,8 +1346,10 @@ static long hobot_mipi_host_ioctl(struct file *file, unsigned int cmd, unsigned 
 				return -EACCES;
 			}
 			if (hdev->ex_hdev) {
+				mipi_host_cfg_t mipi_exth_cfg;
+				memcpy(&mipi_exth_cfg, &mipi_host_cfg, sizeof(mipi_host_cfg_t));
 				ex_hdev = (mipi_hdev_t *)(hdev->ex_hdev);
-				if (0 != (ret = mipi_host_init(ex_hdev, &mipi_host_cfg))) {
+				if (0 != (ret = mipi_host_init(ex_hdev, &mipi_exth_cfg))) {
 					return ret;
 				}
 			}
@@ -1552,6 +1562,8 @@ MIPI_HOST_PARAM_DEC(adv_value);
 MIPI_HOST_PARAM_DEC(need_stop_check);
 MIPI_HOST_PARAM_DEC(stop_check_instart);
 MIPI_HOST_PARAM_DEC(cut_through);
+MIPI_HOST_PARAM_DEC(ipi_force);
+MIPI_HOST_PARAM_DEC(ipi_limit);
 #if MIPI_HOST_INT_DBG
 MIPI_HOST_PARAM_DEC(irq_cnt);
 MIPI_HOST_PARAM_DEC(irq_debug);
@@ -1565,6 +1577,8 @@ static struct attribute *param_attr[] = {
 	MIPI_HOST_PARAM_ADD(need_stop_check),
 	MIPI_HOST_PARAM_ADD(stop_check_instart),
 	MIPI_HOST_PARAM_ADD(cut_through),
+	MIPI_HOST_PARAM_ADD(ipi_force),
+	MIPI_HOST_PARAM_ADD(ipi_limit),
 #if MIPI_HOST_INT_DBG
 	MIPI_HOST_PARAM_ADD(irq_cnt),
 	MIPI_HOST_PARAM_ADD(irq_debug),
@@ -1599,6 +1613,8 @@ static ssize_t mipi_host_status_show(struct device *dev,
 
 	if (strcmp(attr->attr.name, "info") == 0) {
 		MH_STA_SHOW(port, "%d", hdev->port);
+		MH_STA_SHOW(mode, "%s", (hdev->is_ex) ? "group_ext" :
+			((hdev->ex_hdev) ? "group_mst" : "alone"));
 		MH_STA_SHOW(lane_mode, "%d(%dlane)", hdev->lane_mode,
 			mipi_port_lane(hdev->port, hdev->lane_mode));
 		MH_STA_SHOW(iomem, "%p", host->iomem);
@@ -2010,6 +2026,7 @@ static int hobot_mipi_host_probe_param(void)
 #endif
 		param->adv_value = MIPI_HOST_ADV_DEFAULT;
 		param->cut_through = MIPI_HOST_CUT_DEFAULT;
+		param->ipi_limit = MIPI_HOST_IPILIMIT_DEFAULT;
 
 		mipi_host_configure_clk(hdev, MIPI_HOST_CFGCLK_NAME, MIPI_HOST_CFGCLK_MHZ, 1);
 		hobot_mipi_host_phy_register(hdev);
@@ -2121,6 +2138,7 @@ static int hobot_mipi_host_probe(struct platform_device *pdev)
 #endif
 	param->adv_value = MIPI_HOST_ADV_DEFAULT;
 	param->cut_through = MIPI_HOST_CUT_DEFAULT;
+	param->ipi_limit = MIPI_HOST_IPILIMIT_DEFAULT;
 
 	platform_set_drvdata(pdev, hdev);
 
@@ -2132,7 +2150,7 @@ static int hobot_mipi_host_probe(struct platform_device *pdev)
 		goto err_cdev;
 	}
 
-	// mipi_host_configure_clk(hdev, MIPI_HOST_CFGCLK_NAME, MIPI_HOST_CFGCLK_MHZ, 1);
+	mipi_host_configure_clk(hdev, MIPI_HOST_CFGCLK_NAME, MIPI_HOST_CFGCLK_MHZ, 1);
 	hobot_mipi_host_phy_register(hdev);
 	g_hdev[port] = hdev;
 	port_num ++;
