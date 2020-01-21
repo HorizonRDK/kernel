@@ -221,7 +221,7 @@
 					62	0
 					63	0
 					64	0
-					65	0
+					/* 65	0 */ /* sd wprot - reused by usb id pin */
 				>;
 			};
 			sdio1_func:sdio1_func {
@@ -326,6 +326,11 @@
 			sensor3_func: sensor_func@3 {
 				pinctrl-x2,pins-muxs = <
 					112      0 /*Sensor3 MCLK*/
+				>;
+			};
+			usb_id_function: usb-id-function {
+				pinctrl-x2,pins-muxs = <
+					65	3 /* usb id pin */
 				>;
 			};
 		};

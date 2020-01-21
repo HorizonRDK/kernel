@@ -252,11 +252,12 @@
 			  <0 0xA1000000 0 0x1000>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 26 4>;
-			/* dr_mode: {gadget, host, otg} */
-			dr_mode = "host";
+			/* dr_mode: {peripheral, host, otg} */
+			dr_mode = "otg";
 			/* phy_type: {utmi, utmi_wide, ulpi, serial, hsic} */
-			phy_type = "utmi_wide";
-			/*snps,dis_u2_susphy_quirk; */
+			snps,dis_u2_susphy_quirk;
+			/* snps,dis_u3_susphy_quirk; */
+			/* extcon = <&usb_id>; */
 			status = "okay";
 		};
 
@@ -1013,5 +1014,13 @@
 		timesync: timesync {
 			compatible = "timesync";
 		};
+	};
+
+	usb_id: usb-id {
+		compatible = "linux,extcon-usb-gpio";
+		/* id-gpio = <> */
+		/* vbus-gpio = <>; */
+		pinctrl-names = "default";
+		pinctrl-0 = <&usb_id_function>;
 	};
 };
