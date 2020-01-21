@@ -1641,14 +1641,15 @@ static int x2_iar_probe(struct platform_device *pdev)
 
 	ret = of_property_read_u32(pdev->dev.of_node,
 		"disp_panel_reset_pin", &panel_reset_pin);
-	if (ret)
-		dev_err(&pdev->dev, "Filed to get panel_reset_pin\n");
-
-	ret = gpio_request(panel_reset_pin, "disp_panel_reset_pin");
 	if (ret) {
-		pr_err("%s() Err get trigger pin ret= %d\n",
-					__func__, ret);
-		//return -ENODEV;
+		dev_err(&pdev->dev, "Filed to get panel_reset_pin\n");
+	} else {
+		ret = gpio_request(panel_reset_pin, "disp_panel_reset_pin");
+		if (ret) {
+			pr_err("%s() Err get trigger pin ret= %d\n",
+						__func__, ret);
+			//return -ENODEV;
+		}
 	}
 	pr_debug("gpio request succeed!!!!\n");
 #endif
