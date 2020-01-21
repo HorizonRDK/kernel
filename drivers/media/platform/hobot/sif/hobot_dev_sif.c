@@ -28,7 +28,6 @@
 
 #include "hobot_dev_sif.h"
 #include "sif_hw_api.h"
-#include "hobot_sif_hw_reg.h"
 
 #define MODULE_NAME "X2A SIF"
 
@@ -138,7 +137,6 @@ void sif_read_frame_work(struct vio_group *group)
 		trans_frame(framemgr, frame, FS_PROCESS);
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
-	vio_info("%s: %d\n", __func__, instance);
 }
 
 
@@ -763,8 +761,7 @@ static irqreturn_t sif_isr(int irq, void *data)
 
 	vio_dbg("%s: sif_frm_int = 0x%x,sif_out_int =0x%x, status  = 0x%x\n",
 		__func__, irq_src.sif_frm_int, irq_src.sif_out_int, status);
-	vio_dbg("mipi rx status = %d\n", vio_hw_get_reg(sif->base_reg,
-		&sif_regs[SIF_MIPI_RX_STATUS0]));
+
 	if (status) {
 		for (mux_index = 0; mux_index <= 7; mux_index++) {
 			if (test_bit(mux_index, &sif->state)
@@ -808,8 +805,10 @@ static irqreturn_t sif_isr(int irq, void *data)
 		up(&gtask->hw_resource);
 	}
 
-	if (irq_src.sif_err_status)
+	if (irq_src.sif_err_status) {
 		vio_err("input size mismatch(0x%x)\n", irq_src.sif_err_status);
+		sif_print_rx_status(sif->base_reg, irq_src.sif_err_status);
+	}
 
 	if (irq_src.sif_in_buf_overflow)
 		vio_err("input buffer overflow(0x%x)\n", irq_src.sif_in_buf_overflow);

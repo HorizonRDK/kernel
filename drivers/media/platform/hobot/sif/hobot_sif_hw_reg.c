@@ -743,6 +743,20 @@ static void sif_set_mipi_rx(u32 __iomem *base_reg, sif_input_mipi_t* p_mipi)
 	for(i = 0; i < p_mipi->channels; i++)
 		sif_config_rx_ipi(base_reg, p_mipi->mipi_rx_index, i, p_mipi);
 
+	if (p_mipi->func.enable_line_shift) {
+		vio_hw_set_field(base_reg, &sif_regs[SIF_ISP_EXP_CFG],
+				&sif_fields[SW_RX0_DOL_HDR_MODE - p_mipi->mipi_rx_index], 1);
+		//TODO:SHITF
+	} else if (p_mipi->func.enable_id_decoder) {
+		vio_hw_set_field(base_reg, &sif_regs[SIF_ISP_EXP_CFG],
+				&sif_fields[SW_RX0_DOL_HDR_MODE - p_mipi->mipi_rx_index], 3);
+		vio_hw_set_field(base_reg, &sif_regs[SIF_ISP_EXP_CFG],
+				&sif_fields[SW_MIPI_RX0_IDCODE_EXP_NUM - p_mipi->mipi_rx_index],
+				p_mipi->channels);
+	} else {
+		vio_hw_set_field(base_reg, &sif_regs[SIF_ISP_EXP_CFG],
+				&sif_fields[SW_RX0_DOL_HDR_MODE - p_mipi->mipi_rx_index], 2);
+	}
 	// Output all virtual channels if enable mux output
 	if (p_mipi->func.enable_mux_out) {
 		// YUV Format: it'll occupy two paths of mux out
@@ -1232,6 +1246,8 @@ void sif_hw_disable(u32 __iomem *base_reg)
 	/*4 ddr in channel can not be 0 together*/
 	sif_enable_dma(base_reg, 0x10000);
 
+	sif_set_isp_performance(base_reg, 0);
+
 	/* Disable & Clear all interrupts */
 
 	vio_hw_set_reg(base_reg, &sif_regs[SIF_OUT_EN_INT], 0);
@@ -1328,8 +1344,22 @@ void sif_get_frameid_timestamps(u32 __iomem *base_reg, u32 mux,
 	timestamp_m = vio_hw_get_reg(base_reg,
 						&sif_regs[SIF_TIMESTAMP0_MSB + mux * 2]);
 	info->timestamps = timestamp_l | timestamp_m << 32;
+
+	vio_dbg("sif frame ID = %d\n", info->frame_id);
 }
 
+void sif_print_rx_status(u32 __iomem *base_reg, u32 err_status)
+{
+	int i = 0;
+	int value = 0;
+
+	for (i = 0; i < 13; i++) {
+		if ((err_status & 1 << i) || (err_status & 1 << (i + 16))) {
+			value = vio_hw_get_reg(base_reg, &sif_regs[SIF_MIPI_RX_STATUS0 + i]);
+			vio_err("ipi%d rx status = 0x%x\n", i, value);
+		}
+	}
+}
 u32 sif_get_current_bufindex(u32 __iomem *base_reg, u32 mux)
 {
 	u32 value = 0xffff;

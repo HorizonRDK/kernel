@@ -33,5 +33,6 @@ void sif_hw_dump(u32 __iomem *base_reg);
 u32 sif_get_frame_intr(void __iomem *base_reg);
 void sif_set_isp_performance(u32 __iomem *base_reg, u8 value);
 void sif_enable_init_frameid(u32 __iomem *base_reg, u32 index, bool enable);
+void sif_print_rx_status(u32 __iomem *base_reg, u32 err_status);
 
 #endif

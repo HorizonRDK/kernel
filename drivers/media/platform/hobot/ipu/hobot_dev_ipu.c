@@ -1157,8 +1157,10 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		if (test_bit(IPU_OTF_INPUT, &ipu->state)) {
 			up(&gtask->hw_resource);
 		}
-		if(group && group->get_timestamps)
+		if (group && group->get_timestamps){
 			vio_get_frame_id(group);
+			vio_dbg("IPU frame count = %d\n", group->frameid.frame_id);
+		}
 	}
 
 	return 0;
