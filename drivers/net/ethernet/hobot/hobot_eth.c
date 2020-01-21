@@ -1307,7 +1307,7 @@ int x2_tsn_link_configure(struct net_device *ndev, enum sr_class class, u16 fram
 	int err;
 	s32 bw;
 
-	//printk("%s,and into here\n", __func__);
+	printk("%s,and into here\n", __func__);
 
 	if (!x2_tsn_capable(ndev)) {
 		printk("%s: NIC not capable\n",__func__);
@@ -1334,7 +1334,10 @@ int x2_tsn_link_configure(struct net_device *ndev, enum sr_class class, u16 fram
 
 	}	
 
-	port_rate = PORT_RATE_SGMII;
+    if (priv->plat->interface == PHY_INTERFACE_MODE_SGMII)
+    	port_rate = PORT_RATE_SGMII;
+    else
+        port_rate = PORT_RATE_GMII;
 
 	switch (class) {
 	case SR_CLASS_A:
@@ -1356,12 +1359,24 @@ int x2_tsn_link_configure(struct net_device *ndev, enum sr_class class, u16 fram
 		return -EINVAL;
 	}
 
-	//if (priv->dma_cap.tsn_enh_sched_traffic)
-	//	x2_tsn_est_configure(priv);
+    if (priv->dma_cap.tsn) {
+       
+//        if (priv->dma_cap.estsel && priv->plat->est_en) {
+  //          x2_tsn_est_configure(priv);
+    //   }
+        
+       if (priv->dma_cap.fpesel && priv->plat->fp_en) {
+            x2_tsn_fp_configure(priv);
+        } 
+    }
+
+
+//	//if (priv->dma_cap.tsn_enh_sched_traffic)
+//	//	x2_tsn_est_configure(priv);
 	
 	//if (priv->dma_cap.tsn_frame_preemption)
-	if (priv->dma_cap.fpesel && priv->plat->fp_en)
-		x2_tsn_fp_configure(priv);
+//	if (priv->dma_cap.fpesel && priv->plat->fp_en)
+//		x2_tsn_fp_configure(priv);
 
 	return 0;
 }
@@ -1377,15 +1392,14 @@ u16 x2_tsn_select_queue(struct net_device *ndev, struct sk_buff *skb, void *acce
 	if (x2_tsn_capable(ndev)) {
 		switch (vlan_get_protocol(skb)) {
 		case htons(ETH_P_TSN):
-		//	printk("%s,and skb_prio:%d, pcp_hi:%d,pcp_lo:%d\n",__func__,skb->priority, priv->pcp_hi,priv->pcp_lo);
-	
+			printk("%s,and skb_prio:%d, pcp_hi:%d,pcp_lo:%d\n",__func__,skb->priority, priv->pcp_hi,priv->pcp_lo);
+#if 0	
 			if (skb->priority == 0x3)
 				return AVB_CLASSA_Q;
 
 			if (skb->priority == 0x2)
 				return AVB_CLASSB_Q;
-
-		#if 0	
+#endif
 			if (skb->priority == priv->pcp_hi)
 				return AVB_CLASSA_Q;
 			if (skb->priority == priv->pcp_lo)
@@ -1393,7 +1407,6 @@ u16 x2_tsn_select_queue(struct net_device *ndev, struct sk_buff *skb, void *acce
 			if (skb->priority == 0x1)
 				return AVB_PTPCP_Q;
 		
-		#endif
 			return AVB_BEST_EFF_Q;
 		case htons(ETH_P_1588):
 			return AVB_PTPCP_Q;
@@ -2708,7 +2721,7 @@ static void x2_dma_rx_chan_op_mode(void __iomem *ioaddr, int mode, u32 chan, int
 static void x2_dma_tx_chan_op_mode(void __iomem *ioaddr, int mode, u32 chan, int fifosz, u8 qmode)
 {
 	u32 mtl_tx_op = readl(ioaddr + MTL_CHAN_TX_OP_MODE(chan));//0xd00
-//	unsigned int tqs = fifosz / 256 - 1;
+	unsigned int tqs = fifosz / 256 - 1;
 
 	mtl_tx_op |= MTL_OP_MODE_TSF;
 	//mtl_tx_op |= MTL_OP_MODE_TXQEN | MTL_OP_MODE_TQS_MASK;
@@ -2720,8 +2733,8 @@ static void x2_dma_tx_chan_op_mode(void __iomem *ioaddr, int mode, u32 chan, int
 		mtl_tx_op |= MTL_OP_MODE_TXQEN_AV;
 
 	mtl_tx_op &= ~MTL_OP_MODE_TQS_MASK;
-	//mtl_tx_op |= tqs << MTL_OP_MODE_TQS_SHIFT;
-	mtl_tx_op |= 15 << MTL_OP_MODE_TQS_SHIFT;
+	mtl_tx_op |= tqs << MTL_OP_MODE_TQS_SHIFT;
+	//mtl_tx_op |= 15 << MTL_OP_MODE_TQS_SHIFT;
 	writel(mtl_tx_op, ioaddr + MTL_CHAN_TX_OP_MODE(chan));
 	
 
@@ -2851,6 +2864,7 @@ static int x2_set_time(struct ptp_clock_info *ptp, const struct timespec64 *ts)
 
 	spin_lock_irqsave(&priv->ptp_lock, flags);
 	
+    printk("%s, tv_sec:0x%lx, tv_nesc:0x%lx\n", __func__, ts->tv_sec, ts->tv_nsec);
 	x2_init_systime(priv, ts->tv_sec, ts->tv_nsec);
 	
 	spin_unlock_irqrestore(&priv->ptp_lock, flags);
@@ -2889,7 +2903,8 @@ static int x2_adjust_systime(struct x2_priv *priv, u32 sec, u32 nsec, int add_su
 	int limit;
 
 	if (add_sub) {
-		sec = (1000000000ULL - sec);
+//		sec = (1000000000ULL - sec);
+        sec = -sec;
 
 		value = readl(priv->ioaddr + PTP_TCR);
 		if (value & PTP_TCR_TSCTRLSSR)
@@ -2942,6 +2957,7 @@ static int x2_adjust_time(struct ptp_clock_info *ptp, s64 delta)
 
 	spin_lock_irqsave(&priv->ptp_lock, flags);
 
+  //  printk("%s, sec:%d, nsec:%d\n", __func__, sec, nsec);
 	x2_adjust_systime(priv, sec, nsec, neg_adj, 1);
 
 	spin_unlock_irqrestore(&priv->ptp_lock, flags);
@@ -3046,6 +3062,7 @@ static int x2_adjust_freq(struct ptp_clock_info *ptp, s32 ppb)
 	adj = addend;
 	adj *= ppb;
 
+    //printk("%s, default_addend:0x%lx, pps:0x%lx\n", __func__, priv->default_addend, ppb);
 	diff = div_u64(adj, 1000000000ULL);
 	addend = neg_adj ? (addend - diff) : (addend + diff);
 
@@ -4410,7 +4427,7 @@ static netdev_tx_t x2_xmit(struct sk_buff *skb, struct net_device *ndev)
 		}
 	}
 
-///	printk("%s,and queue:%d\n",__func__,queue);
+	printk("%s,and queue:%d\n",__func__,queue);
 //	printk("%s, and avali:%d, nfrags:%d, queue:%d\n",__func__, x2_tx_avail(priv, queue), nfrags,queue);
 	if ((x2_tx_avail(priv, queue) < nfrags + 1)) {
 		if (!netif_tx_queue_stopped(netdev_get_tx_queue(ndev, queue))) {
@@ -4707,17 +4724,17 @@ static int x2_ptp_set_ts_config(struct net_device *ndev, struct ifreq *ifr)
 	if (!priv->hwts_tx_en && !priv->hwts_rx_en)
 		x2_config_hw_tstamping(priv, 0);
 	else {
-	//	value = (PTP_TCR_TSENA|PTP_TCR_TSCFUPDT|PTP_TCR_TSCTRLSSR|tstamp_all|ptp_v2|ptp_over_ethernet|ptp_over_ipv6_udp|ptp_over_ipv4_udp|ts_event_en|ts_master_en|snap_type_sel);
-		value = (PTP_TCR_TSENA|PTP_TCR_TSCTRLSSR|tstamp_all|ptp_v2|ptp_over_ethernet|ptp_over_ipv6_udp|ptp_over_ipv4_udp|ts_event_en|ts_master_en|snap_type_sel);
+		value = (PTP_TCR_TSENA|PTP_TCR_TSCFUPDT|PTP_TCR_TSCTRLSSR|tstamp_all|ptp_v2|ptp_over_ethernet|ptp_over_ipv6_udp|ptp_over_ipv4_udp|ts_event_en|ts_master_en|snap_type_sel);
+		//value = (PTP_TCR_TSENA|PTP_TCR_TSCTRLSSR|tstamp_all|ptp_v2|ptp_over_ethernet|ptp_over_ipv6_udp|ptp_over_ipv4_udp|ts_event_en|ts_master_en|snap_type_sel);
 		value |= (1<<19) | (1<<14);
 		value &= ~(1 << 17);
-		value |= 1<<1;
+		//value |= 1<<1;
 
 		printk("%s,and set value is 0x%x\n",__func__,value);
 		x2_config_hw_tstamping(priv, value);
 
 
-		x2_config_sub_second_increment(priv,priv->plat->clk_ptp_rate, xmac);//, &sec_inc);
+		sec_inc = x2_config_sub_second_increment(priv,priv->plat->clk_ptp_rate, xmac);//, &sec_inc);
 		temp = div_u64(1000000000ULL, sec_inc);
 		priv->sub_second_inc = sec_inc;
 		priv->systime_flags = value;
@@ -4725,6 +4742,7 @@ static int x2_ptp_set_ts_config(struct net_device *ndev, struct ifreq *ifr)
 		priv->default_addend = div_u64(temp, priv->plat->clk_ptp_rate);
 		//priv->default_addend = 0xCCCCB8CD;//div_u64(temp, priv->plat->clk_ptp_rate);
 	
+        printk("%s, sec_inc:%d, temp:%d, default_addend:%x\n", __func__, sec_inc, temp, priv->default_addend);
 		
 		x2_config_addend(priv,  priv->default_addend);
 
@@ -4736,12 +4754,10 @@ static int x2_ptp_set_ts_config(struct net_device *ndev, struct ifreq *ifr)
 	}
 
 
-	//printk("%s, regb00:0x%x\n",__func__,readl(priv->ioaddr + 0xb00));
-	//printk("%s, regb04:0x%x\n",__func__,readl(priv->ioaddr + 0xb04));
-
-
 
 #if 1
+	printk("%s, regb00:0x%x\n",__func__,readl(priv->ioaddr + 0xb00));
+	printk("%s, regb04:0x%x\n",__func__,readl(priv->ioaddr + 0xb04));
 	printk("%s, reg-0xb08:%d\n",__func__,readl(priv->ioaddr + 0xb08));
 	printk("%s, reg-0xb0c:%d\n",__func__,readl(priv->ioaddr + 0xb0c));
 	printk("%s, reg-0xb10:0x%x\n",__func__,readl(priv->ioaddr + 0xb10));
@@ -5112,7 +5128,7 @@ static void x2_get_tx_hwstamp(struct x2_priv *priv, struct dma_desc *p, struct s
 		shhwtstamp.hwtstamp = ns_to_ktime(ns);
 
 	
-	//	printk("%s, and ns:%d, hwtstamp:0x%x\n", __func__,ns, shhwtstamp.hwtstamp);
+		//printk("%s, and ns:0x%lx, hwtstamp:0x%lx\n", __func__,ns, shhwtstamp.hwtstamp);
 		skb_tstamp_tx(skb, &shhwtstamp);
 	}
 
@@ -5465,7 +5481,7 @@ static void x2_get_rx_hwtstamp(struct x2_priv *priv, struct dma_desc *p, struct 
 		shhwtstamp = skb_hwtstamps(skb);
 		memset(shhwtstamp, 0, sizeof(struct skb_shared_hwtstamps));
 		shhwtstamp->hwtstamp = ns_to_ktime(ns);
-//		printk("%s:  second:%d, and ns:%d, hwtstamp:0x%x\n", __func__,le32_to_cpu(desc->des1), ns, shhwtstamp->hwtstamp);
+	//	printk("%s:  second:%d, and ns:%d, hwtstamp:0x%x\n", __func__,le32_to_cpu(desc->des1), ns, shhwtstamp->hwtstamp);
 	} else {
 		//printk("cannot get RX hw timestamp\n");
 	}
@@ -6063,8 +6079,8 @@ static int x2_eth_dwmac_config_dt(struct platform_device *pdev, struct plat_conf
 
 	plat_dat->has_gmac4 = 1;
 	plat_dat->dma_cfg->aal = 1;
-	plat_dat->tso_en = 1;
 	plat_dat->pmt = 1;
+    plat_dat->fp_en = true;
 	return 0;
 }
 
