@@ -487,7 +487,7 @@ static void sensor_set_type( void *ctx, uint8_t sensor_type, uint8_t sensor_i2c_
     if (param->sensor_type != sensor_type || param->sensor_i2c_channel != sensor_i2c_channel) {
     	param->sensor_type = sensor_type;
     	param->sensor_i2c_channel = sensor_i2c_channel;
-    	sensor_ops[p_ctx->channel] = sensor_chn_open(p_ctx->channel, 1, sensor_type);
+    	sensor_ops[p_ctx->channel] = sensor_chn_open(p_ctx->channel, sensor_i2c_channel, sensor_type);
     	printk("sensor set type is %d, i2c chn is %d, dol%d ", sensor_type, sensor_i2c_channel, param->sensor_exp_number );
 	if (sensor_ops[p_ctx->channel]) {
 		if (param->modes_table[param->mode].wdr_mode == WDR_MODE_LINEAR) {
@@ -625,7 +625,7 @@ void sensor_init_dummy(uint32_t ctx_id, void **ctx, sensor_control_t *ctrl )
 	//update sensor 
 #if 1
 	LOG( LOG_INFO, "[%s--%d]", __func__, __LINE__ );
-	sensor_ops[p_ctx->channel] = sensor_chn_open(ctx_counter,SENSOR_I2C, p_ctx->param.sensor_type);
+	sensor_ops[p_ctx->channel] = sensor_chn_open(ctx_counter, SENSOR_I2C, p_ctx->param.sensor_type);
 //	if (sensor_ops[p_ctx->channel])
 //		sensor_ops[p_ctx->channel]->sensor_init(ctx_counter, 0);
 #endif

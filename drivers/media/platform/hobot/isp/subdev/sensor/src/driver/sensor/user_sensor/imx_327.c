@@ -241,6 +241,7 @@ static int imx327_init(uint8_t chn, uint8_t mode)
 
 	switch(mode) {
 	case 0:
+#if 0
 		tmp_size = sizeof(imx327_raw12_normal_setting)/sizeof(uint16_t);
 		while(tmp_c < tmp_size) {
 			tmp_addr = imx327_raw12_normal_setting[tmp_c++];
@@ -248,22 +249,25 @@ static int imx327_init(uint8_t chn, uint8_t mode)
 			ret = sensor_i2c_write(chn, tmp_addr, 16, &tmp_data, 1);
 			LOG(LOG_DEBUG, "tmp_addr %x, data %x", tmp_addr, tmp_data);
 		}
+#endif
 		imx327_param[chn].imx327_mode_save = NORMAL_M;
-		imx327_param[chn].lines_per_second = 11250;
-		imx327_param[chn].exposure_time_max = imx327_param[chn].VMAX - 2;
+		imx327_param[chn].lines_per_second = 30000;
+		imx327_param[chn].exposure_time_max = 1200;
 		imx327_param[chn].exposure_time_min = 1;
-		imx327_param[chn].exposure_time_long_max = imx327_param[chn].FSC_DOL2 - 2;
+		imx327_param[chn].exposure_time_long_max = 1200;
 		LOG(LOG_CRIT, "imx327 raw12 normal init success ", __func__, __LINE__);
 		break;
 	case 1:
+#if 0
 		tmp_size = sizeof(imx327_raw12_dol2_setting)/sizeof(uint16_t);
 		while(tmp_c < tmp_size) {
 			tmp_addr = imx327_raw12_dol2_setting[tmp_c++];
 			tmp_data =(char)(imx327_raw12_dol2_setting[tmp_c++] & 0xff);
 			ret = sensor_i2c_write(chn, tmp_addr, 16, &tmp_data, 1);
 		}
+#endif
 		imx327_param[chn].imx327_mode_save = DOL2_M;
-		imx327_param[chn].lines_per_second = 11250;
+		imx327_param[chn].lines_per_second = 30000;
 		imx327_param[chn].exposure_time_max = imx327_param[chn].RHS1 - 2;
 		imx327_param[chn].exposure_time_min = 1;
 		imx327_param[chn].exposure_time_long_max = imx327_param[chn].FSC_DOL2 - 2;
@@ -275,7 +279,7 @@ static int imx327_init(uint8_t chn, uint8_t mode)
 		ret = -1;
 		break;
 	}
-	set_imx327_init(chn);
+	//set_imx327_init(chn);
 
 	return ret;
 }

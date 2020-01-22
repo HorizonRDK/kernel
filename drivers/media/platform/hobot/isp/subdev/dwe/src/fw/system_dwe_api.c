@@ -348,6 +348,8 @@ int dwe_init_api(dwe_context_t *ctx, struct dwe_dev_s *pdev, dwe_param_t **ppara
 	tmp = 0x7f;
 	set_ldc_int_mask(dev_ptr->ldc_dev->io_vaddr, &tmp);
 //------------------------------------------------------
+	tmp = 0x02;
+	set_ldc_soft_reset(dev_ptr->ldc_dev->io_vaddr, &tmp);
 //tmp
 	tmp = 0x80fc0000;
 	set_ldc_setting(dev_ptr->ldc_dev->io_vaddr, &tmp);

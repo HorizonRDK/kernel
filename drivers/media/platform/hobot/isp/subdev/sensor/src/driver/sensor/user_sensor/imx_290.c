@@ -239,12 +239,14 @@ static int imx290_init(uint8_t chn, uint8_t mode)
 	
 	switch (mode) {
 	case 0://normal
+#if 0
 		tmp_size = sizeof(imx290_raw12_normal_setting)/sizeof(uint16_t);
 		while (tmp_c < tmp_size) {
 			tmp_addr = imx290_raw12_normal_setting[tmp_c++];
 			tmp_data = (char)(imx290_raw12_normal_setting[tmp_c++] & 0xff);
 			ret = sensor_i2c_write(chn, tmp_addr, 16, &tmp_data, 1);
 		}
+#endif
 		imx290_param[chn].imx290_mode_save = imx290_NORMAL_M;
 		imx290_param[chn].lines_per_second = 10074;
 		imx290_param[chn].exposure_time_max = imx290_param[chn].VMAX - 2;
@@ -254,12 +256,14 @@ static int imx290_init(uint8_t chn, uint8_t mode)
 		LOG( LOG_CRIT, " imx290 raw12 normal init success ");
 		break;
 	case 1://dol2
+#if 0
 		tmp_size = sizeof(imx290_raw12_dol2_setting)/sizeof(uint16_t);
 		while (tmp_c < tmp_size) {
 			tmp_addr = imx290_raw12_dol2_setting[tmp_c++];
 			tmp_data = (char)(imx290_raw12_dol2_setting[tmp_c++] & 0xff);
 			ret = sensor_i2c_write(chn, tmp_addr, 16, &tmp_data, 1);
 		}
+#endif
 		imx290_param[chn].imx290_mode_save = imx290_DOL2_M;
 		imx290_param[chn].lines_per_second = 7183;
 		imx290_param[chn].exposure_time_max = imx290_param[chn].RHS1 - 2;
@@ -268,12 +272,14 @@ static int imx290_init(uint8_t chn, uint8_t mode)
 		LOG( LOG_CRIT, " imx290 raw12 dol2 init success");
 		break;
 	case 2://dol3
+#if 0
 		tmp_size = sizeof(imx290_raw12_dol3_setting)/sizeof(uint16_t);
 		while (tmp_c < tmp_size) {
 			tmp_addr = imx290_raw12_dol3_setting[tmp_c++];
 			tmp_data = (char)(imx290_raw12_dol3_setting[tmp_c++] & 0xff);
 			ret = sensor_i2c_write(chn, tmp_addr, 16, &tmp_data, 1);
 		}
+#endif
 		imx290_param[chn].imx290_mode_save = imx290_DOL3_M;
 		imx290_param[chn].lines_per_second = 7183;
 		imx290_param[chn].exposure_time_max = imx290_param[chn].RHS1 - 2;
@@ -286,7 +292,7 @@ static int imx290_init(uint8_t chn, uint8_t mode)
 		ret = -1;
 		break;
 	}
-	set_imx290_init(chn);
+	//set_imx290_init(chn);
 	
 	return ret;
 }

@@ -6,7 +6,7 @@
 #define IMX_290
 #define IMX_385
 
-#define SENSOR_I2C 1
+#define SENSOR_I2C 0
 #define SENSOR_NUM 0
 
 

@@ -171,6 +171,7 @@ static int os8a10_init(uint8_t chn, uint8_t mode)
 
 	switch(mode) {
 	case 0:
+#if 0
 		tmp_size = sizeof(os8a10_raw10_normal_setting)/sizeof(uint16_t);
 		while(tmp_c < tmp_size) {
 			tmp_addr = os8a10_raw10_normal_setting[tmp_c++];
@@ -178,6 +179,7 @@ static int os8a10_init(uint8_t chn, uint8_t mode)
 			ret = sensor_i2c_write(chn, tmp_addr, 16, &tmp_data, 1);
 			LOG(LOG_DEBUG, "tmp_addr %x, data %x", tmp_addr, tmp_data);
 		}
+#endif
 		os8a10_param[chn].os8a10_mode_save = OS8A10_NORMAL_M;
 		os8a10_param[chn].lines_per_second = 10074;
 		os8a10_param[chn].exposure_time_max = 3880;
@@ -190,12 +192,14 @@ static int os8a10_init(uint8_t chn, uint8_t mode)
 		LOG(LOG_CRIT, "os8a10 raw12 normal init success ", __func__, __LINE__);
 		break;
 	case 1:
+#if 0
 		tmp_size = sizeof(os8a10_raw10_hdr_setting)/sizeof(uint16_t);
 		while(tmp_c < tmp_size) {
 			tmp_addr = os8a10_raw10_hdr_setting[tmp_c++];
 			tmp_data =(char)(os8a10_raw10_hdr_setting[tmp_c++] & 0xff);
 			ret = sensor_i2c_write(chn, tmp_addr, 16, &tmp_data, 1);
 		}
+#endif
 		os8a10_param[chn].os8a10_mode_save = OS8A10_DOL2_M;
 		os8a10_param[chn].lines_per_second = 10074;
 		os8a10_param[chn].exposure_time_max = 3880;
@@ -208,7 +212,7 @@ static int os8a10_init(uint8_t chn, uint8_t mode)
 		ret = -1;
 		break;
 	}
-	set_os8a10_init(chn);
+	//set_os8a10_init(chn);
 
 	return ret;
 }

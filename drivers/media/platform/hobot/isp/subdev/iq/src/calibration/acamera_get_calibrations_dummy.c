@@ -91,12 +91,8 @@ uint32_t get_calibrations_dummy( uint32_t ctx_id, void *sensor_arg, ACameraCalib
     default:
         LOG( LOG_DEBUG, "calibration defaults to WDR_MODE_LINEAR %d ", (int)preset );
 	iret = unregister_calib( c, (uint8_t)(ctx_id & 0xff) );	
-	iret = register_calib( c, (uint8_t)(ctx_id & 0xff) );
-	if (iret < 0) {
-        	printk("IE&E register_calib is failed!\n");
-        	LOG( LOG_ERR, "register_calib of port %d if failed ", ctx_id );
-        	ret += ( get_calibrations_dynamic_linear_dummy( c ) + get_calibrations_static_linear_dummy( c ) );
-	}
+	//iret = register_calib( c, (uint8_t)(ctx_id & 0xff) );
+        ret += ( get_calibrations_dynamic_linear_dummy( c ) + get_calibrations_static_linear_dummy( c ) );
         break;
     }
 

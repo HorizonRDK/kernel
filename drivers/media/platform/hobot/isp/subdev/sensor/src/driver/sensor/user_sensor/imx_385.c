@@ -164,12 +164,14 @@ static int imx385_init(uint8_t chn, uint8_t mode)
 	
 	switch (mode) {
 	case 0:
+#if 0
 		tmp_size = sizeof(imx385_raw12_normal_setting)/sizeof(uint16_t);
 		while (tmp_c < tmp_size) {
 			tmp_addr = imx385_raw12_normal_setting[tmp_c++];
 			tmp_data = (char)(imx385_raw12_normal_setting[tmp_c++] & 0xff);
 			ret = sensor_i2c_write(chn, tmp_addr, 16, &tmp_data, 1);
 		}
+#endif
 		imx385_param[chn].imx385_mode_save = imx385_NORMAL_M;
 		imx385_param[chn].lines_per_second = 10074;
 		imx385_param[chn].exposure_time_max = imx385_param[chn].VMAX - 2;
@@ -178,13 +180,15 @@ static int imx385_init(uint8_t chn, uint8_t mode)
 
 		LOG( LOG_CRIT," imx385 raw12 normal init success ");
 		break;
-	case 1: 
+	case 1:
+#if 0
 		tmp_size = sizeof(imx385_raw12_dol2_setting)/sizeof(uint16_t);
 		while (tmp_c < tmp_size) {
 			tmp_addr = imx385_raw12_dol2_setting[tmp_c++];
 			tmp_data = (char)(imx385_raw12_dol2_setting[tmp_c++] & 0xff);
 			ret = sensor_i2c_write(chn, tmp_addr, 16, &tmp_data, 1);
 		}
+#endif
 		imx385_param[chn].imx385_mode_save = imx385_DOL2_M;
 		imx385_param[chn].lines_per_second = 7183;
 		imx385_param[chn].exposure_time_max = imx385_param[chn].RHS1 - 2;
@@ -197,7 +201,7 @@ static int imx385_init(uint8_t chn, uint8_t mode)
 		ret = -1;
 		break;
 	}
-	set_imx385_init(chn);
+	//set_imx385_init(chn);
 	
 	return ret;
 }

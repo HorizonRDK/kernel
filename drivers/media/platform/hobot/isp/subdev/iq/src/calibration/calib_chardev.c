@@ -41,10 +41,10 @@ static int calib_destory(uint8_t port)
 	uint32_t tmp = 0;
 	struct calib_data_s *calib_data = calib_param_ctx.plist[port];
 	
-	LOG( LOG_INFO, "%s is runing.", __func__ );
+	LOG( LOG_INFO, "calibration deinit is runing.");
 	
 	if ( (port >= FIRMWARE_CONTEXT_NUMBER) || (calib_data == NULL)) {
-		LOG( LOG_ERR, "%s port %d is not existance.", __func__, port );
+		LOG( LOG_ERR, "port %d is not existance.", port );
 		if (calib_data == NULL)
 			return -CALIB_NULL_ERR;
 		else 
@@ -60,7 +60,7 @@ static int calib_destory(uint8_t port)
 		if (calib_data->plut[tmp].ptr == NULL) {
 			LOG( LOG_ERR, "memory of port %d is not existance.", port );
 		} else {
-			LOG( LOG_DEBUG, "memory of port %d is free.", port );
+			LOG( LOG_DEBUG, "%d memory of port %d is free.", tmp, port );
 			kfree(calib_data->plut[tmp].ptr);
 			calib_data->plut[tmp].ptr = NULL;
 		}	
@@ -70,7 +70,7 @@ static int calib_destory(uint8_t port)
 	calib_param_ctx.plist[port] = NULL;
 	calib_param_ctx.p_num &= ~(1 << port);
 	
-	LOG( LOG_DEBUG, "%s calib destory is success.", __func__ );
+	LOG( LOG_DEBUG, "calib destory is success.");
 	
 	return 0;
 }
@@ -83,10 +83,10 @@ static int calib_create(camera_calib_t *ptr)
 	void *ptmp = NULL;
 	struct calib_data_s *calib_data = NULL;
 	
-	LOG( LOG_INFO, "%s is runing.", __func__ );
+	LOG( LOG_INFO, "calibration init is runing.");
 	
 	if ( ptr->port >= FIRMWARE_CONTEXT_NUMBER) {
-		LOG( LOG_ERR, "%s port %d is not existance.", __func__, ptr->port );
+		LOG( LOG_ERR, "port %d is not existance.", ptr->port );
 		return -CALIB_PORT_ERR;
 	}
 
@@ -95,11 +95,10 @@ static int calib_create(camera_calib_t *ptr)
 
 	calib_data = kzalloc(sizeof(struct calib_data_s), GFP_KERNEL);
 	if (!calib_data) {
-		LOG( LOG_ERR, "%s calib_data malloc is failed.", __func__ );
+		LOG( LOG_ERR, "calib_data malloc is failed.");
 		return -CALIB_MALLOC_ERR;
 	} else {
-		LOG( LOG_DEBUG, "%s malloc dev %p .",
-			__func__, calib_data );
+		LOG( LOG_DEBUG, "malloc dev %p.", calib_data );
 	}
 
 	memcpy(calib_data->name, ptr->name, CALIB_NUM_LENGTH);	
@@ -111,7 +110,7 @@ static int calib_create(camera_calib_t *ptr)
 	//copy_from_user should small 4096bits
 	if (copy_from_user((void *)calib_data->plut, (void __user *)ptr->plut,
 		sizeof(LookupTable) * CALIBRATION_TOTAL_SIZE)) {
-		LOG( LOG_ERR, "%s -- %d copy data is failed.", __func__, __LINE__);
+		LOG(LOG_ERR, "copy data is failed.");
 		ret = -CALIB_COPY_ERR;
 		goto copy_err;
 	}
@@ -132,19 +131,18 @@ static int calib_create(camera_calib_t *ptr)
 				if (copy_from_user((void *)ptmp, (void __user *)calib_data->plut[tmp].ptr, tmp_c)) {
 					kfree(ptmp);
 					calib_data->plut[tmp].ptr = NULL;
-					LOG( LOG_ERR, "%s -- %d copy data is failed.", __func__, __LINE__);
+					LOG( LOG_ERR, "num %d copy is failed.", tmp);
 					ret = -CALIB_COPY_ERR;
 					goto copy_err;
 				} else {
 					calib_data->plut[tmp].ptr = ptmp;	
-					LOG( LOG_DEBUG, "%s malloc dev %p .",
-						__func__, calib_data );
+					LOG( LOG_DEBUG, "malloc dev %p.", calib_data );
 				}
 				ptmp = NULL;
 			}
 
 		} else {
-			LOG( LOG_ERR, "%s -- %d copy data is failed.", __func__, __LINE__);
+			LOG( LOG_ERR, "num %d is null.", tmp);
 		}
 
 		LOG( LOG_DEBUG, "the num of %d calib data is in addr %p, rows %d, cols %d, width %d!", tmp, calib_data->plut[tmp].ptr, calib_data->plut[tmp].rows, calib_data->plut[tmp].cols, calib_data->plut[tmp].width);	
@@ -153,7 +151,7 @@ static int calib_create(camera_calib_t *ptr)
 	calib_param_ctx.plist[ptr->port] = calib_data; 
 	calib_param_ctx.p_num |= (1 << ptr->port);  			
 	
-	LOG( LOG_INFO, "%s is success.", __func__ );
+	LOG( LOG_INFO, "calibration is init success.");
 	
 	return ret;
 copy_err:
@@ -237,8 +235,7 @@ static int calib_getpart(camera_calib_t *ptr)
 			LOG( LOG_ERR, "%s  size is error.", __func__);
 			return -CALIB_SIZE_ERR;
 		} else {
-			LOG( LOG_DEBUG, "%s the num is %d, the size is %d .",
-				__func__, tmp, tmp_c );
+			LOG( LOG_DEBUG, "the num is %d, the size is %d.", tmp, tmp_c );
 		}
 	
 		if (copy_to_user((void __user *)ptr->pstr, (void *)ptmp, calib_data->tsize)) {
