@@ -4,6 +4,7 @@
  */
 
 //#define DEBUG
+#define pr_fmt(fmt) "hobot-pvt: %s: " fmt, __func__
 
 #include <linux/device.h>
 #include <linux/kernel.h>
@@ -23,6 +24,8 @@
 
 #define HOBOT_PVT_NAME "pvt"
 #define HOBOT_PVT_TEMP_NAME "pvt_ts"
+#define PVT_SAMPLE_INTERVAL_MS 20
+#define PVT_TS_MASK GENMASK(PVT_TS_NUM - 1, 0)
 
 /* TS0: CNN0 TS1:CPU TS2:CNN1 TS3: DDR */
 static char *ts_map[] = {
@@ -40,8 +43,10 @@ struct pvt_device {
 	u32 ref_clk;
 	struct device *dev;
 	struct clk *clk;
+	struct timer_list irq_unmask_timer;
 	void __iomem *reg_base;
 	int ts_mode;
+	int updated;
 };
 
 static inline u32 pvt_reg_rd(struct pvt_device *dev, u32 reg)
@@ -74,14 +79,22 @@ static int pvt_temp_read(struct device *dev, enum hwmon_sensor_types type,
 	u32 temp;
 	u32 sum = 0;
 
+	if (!pvt_dev->updated) {
+		*val = 30000;
+		return 0;
+	}
+
 	pr_debug("using ts calibration mode %d in [1, 2]\n", pvt_dev->ts_mode + 1);
 	for (i = 0; i < PVT_TS_NUM; i++) {
 		if (pvt_dev->ts_mode == 0) {
 			//ts mode 1
-			//temp = ((int)(pvt_dev->cur_smpl[i] * 204.4 - 43.14 * 4094) >> 12);
 			temp = ((pvt_dev->cur_smpl[i] * 220 - 67 * 4094) >> 12);
 		} else {
 			//ts mode 2
+			/*
+			 * use integer instead of float, the difference is less than 1C.
+			 * ((int)(pvt_dev->cur_smpl[i] * 204.4 - 43.14 * 4094) >> 12)
+			 */
 			temp = ((pvt_dev->cur_smpl[i] * 204 - 43 * 4094) >> 12);
 		}
 
@@ -93,7 +106,7 @@ static int pvt_temp_read(struct device *dev, enum hwmon_sensor_types type,
 
 	pvt_dev->cur_temp_avg = sum >> 2;
 
-	*val = pvt_dev->cur_temp_avg;
+	*val = pvt_dev->cur_temp_avg * 1000;
 
 	return  0;
 }
@@ -146,8 +159,11 @@ static const struct hwmon_chip_info pvt_chip_info = {
 static irqreturn_t pvt_irq_handler(int irq, void *dev_id)
 {
 	struct pvt_device *pvt_dev = dev_id;
-	u32 ts_status, val;
-	int i;
+	u32 ts_status = 0;
+	u32 val = 0;
+	u32 sample = 0;
+	u32 update_ts_bitmap = 0;
+	int i = 0;
 
 	ts_status = pvt_reg_rd(pvt_dev, IRQ_TS_STATUS_ADDR);
 
@@ -155,13 +171,25 @@ static irqreturn_t pvt_irq_handler(int irq, void *dev_id)
 		val = pvt_n_reg_rd(pvt_dev, i, TS_n_IRQ_STATUS_ADDR);
 
 		val = pvt_n_reg_rd(pvt_dev, i, TS_n_SDIF_DATA_ADDR);
-
-		pvt_dev->cur_smpl[i] = pvt_n_reg_rd(pvt_dev, i, TS_n_SDIF_RDATA_ADDR);
-
+		sample = pvt_n_reg_rd(pvt_dev, i, TS_n_SDIF_RDATA_ADDR);
 		val = pvt_n_reg_rd(pvt_dev, i, TS_n_SDIF_DONE_ADDR);
+
+		if (!(val & TP_IRQ_STS_FAULT_BIT)) {
+			pvt_dev->cur_smpl[i] = sample;
+			update_ts_bitmap |= BIT(i);
+		}
 
 		/* clear irq */
 		pvt_n_reg_wr(pvt_dev, i, TS_n_IRQ_CLEAR_ADDR, 0x1F);
+	}
+
+	if (update_ts_bitmap == PVT_TS_MASK) {
+		/*
+		 * mask irq in isr, and unmask it in timer handler to
+		 * reduce irq numbers per seconds from 488 to 10
+		 */
+		pvt_reg_wr(pvt_dev, IRQ_TS_MASK_ADDR, PVT_TS_MASK);
+		pvt_dev->updated = 1;
 	}
 
 	return IRQ_HANDLED;
@@ -179,7 +207,6 @@ static void pvt_init_hw(struct pvt_device *pvt_dev)
 
 	val = pvt_reg_rd(pvt_dev, PVT_IP_CFG_ADDR);
 	dev_dbg(pvt_dev->dev, "IP_CONFIG: %08x\n", val);
-
 
 	pvt_reg_wr(pvt_dev, PVT_TM_SCRATCH_ADDR, 0x1234ABCD);
 	val = pvt_reg_rd(pvt_dev, PVT_TM_SCRATCH_ADDR);
@@ -245,6 +272,17 @@ static void pvt_init_hw(struct pvt_device *pvt_dev)
 	return;
 }
 
+static void irq_unmask_timer_func(unsigned long data)
+{
+	struct pvt_device *pvt_dev = (struct pvt_device *)data;
+
+	/* unmake ts irq to get samples */
+	pvt_reg_wr(pvt_dev, IRQ_TS_MASK_ADDR, 0);
+
+	mod_timer(&pvt_dev->irq_unmask_timer,
+			jiffies + msecs_to_jiffies(PVT_SAMPLE_INTERVAL_MS));
+}
+
 static int pvt_probe(struct platform_device *pdev)
 {
 	int ret = 0;
@@ -296,6 +334,12 @@ static int pvt_probe(struct platform_device *pdev)
 	}
 
 	dev_dbg(pvt_dev->dev, "PVT input clk: %lu\n", clk_get_rate(pvt_dev->clk));
+
+	init_timer(&pvt_dev->irq_unmask_timer);
+	pvt_dev->irq_unmask_timer.data = (unsigned long)pvt_dev;
+	pvt_dev->irq_unmask_timer.function = irq_unmask_timer_func;
+	pvt_dev->irq_unmask_timer.expires = jiffies + msecs_to_jiffies(PVT_SAMPLE_INTERVAL_MS);
+	add_timer(&pvt_dev->irq_unmask_timer);
 
 	pvt_init_hw(pvt_dev);
 

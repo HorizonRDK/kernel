@@ -238,7 +238,7 @@
 };
 
 &pwm_0 {
-	status = "disabled";
+	status = "okay";
 };
 
 &spi0 {
@@ -392,7 +392,7 @@
 
 &soc_thermal {
 	status = "okay";
-	thermal-sensors = <&temp1>;
+	thermal-sensors = <&pvt>;
 };
 
 &pvt {
