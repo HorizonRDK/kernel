@@ -62,6 +62,9 @@ struct spacc_crypto_ctx {
 	struct list_head jobs;
 	int handle, mode, auth_size;
 
+	/* backup for hash update export/import */
+	struct spacc_hash_reqctx *reqctx;
+
 	/*
 	 * Indicates that the H/W context has been setup and can be used for
 	 * crypto; otherwise, the software fallback will be used.

@@ -70,6 +70,7 @@ static int spacc_hash_init_dma(struct device *dev, struct ahash_request *req)
 	if (req->base.flags & CRYPTO_TFM_REQ_MAY_SLEEP)
 		mflags = GFP_KERNEL;
 
+	/* digest_buf contains the digest result of hash */
 	ctx->digest_buf = dma_pool_alloc(spacc_digest_pool, mflags, &ctx->digest_dma);
 
 	if (!ctx->digest_buf)
@@ -122,6 +123,7 @@ static void spacc_hash_cb(void *spacc, void *data)
 	if (ctx->digest_mode) {
 		memcpy(req->result, ctx->digest_buf, ctx->hashlen);
 	} else {
+		/* update mode */
 		memcpy(ctx->digest, ctx->digest_buf, ctx->hashlen);
 		if (ctx->last_req) {
 			memcpy(req->result, ctx->digest_buf, ctx->hashlen);
@@ -179,7 +181,8 @@ static int spacc_hash_open(struct crypto_ahash *tfm)
 
 		tctx->handle = spacc_open(&priv->spacc, CRYPTO_MODE_NULL, salg->mode->id, -1, 0, spacc_hash_cb, tfm);
 
-		if (tctx->handle >= 0) { break; }
+		if (tctx->handle >= 0)
+			break;
 		put_device(salg->dev[x]);
 	}
 
@@ -244,6 +247,7 @@ static int spacc_hash_queue_req(struct ahash_request *req)
 
 	ctx->new_handle = spacc_clone_handle(&priv->spacc, tctx->handle, req);
 	if (ctx->new_handle < 0) {
+		dev_warn(tctx->dev, "clone handle failed\n");
 		spacc_hash_cleanup_dma(tctx->dev, req);
 		return -EBUSY;
 	}
@@ -270,6 +274,10 @@ static int spacc_hash_queue_req(struct ahash_request *req)
  * Do don't use update/final to implement digest, since updata/final mode have
  * to add digest due to partial mode not enabled on X3, which cause the digest
  * result is not standard
+ *
+ * For normal hash, context and handle need to be created in this function.
+ * For hmac hash, context and handle are created in setkey() which is called
+ * before spacc_hash_digest.
  */
 static int spacc_hash_digest(struct ahash_request *req)
 {
@@ -287,6 +295,10 @@ static int spacc_hash_digest(struct ahash_request *req)
 	}
 
 	if (tctx->keylen == 0) {
+		/*
+		 * set context for normal hash which keylen is 0.
+		 * for hmac, spacc_hash_setkey will be called to set context.
+		 */
 		rc = spacc_hash_open(reqtfm);
 		if (rc < 0) {
 			pr_err("%s: spacc open failed.\n", __func__);
@@ -302,8 +314,10 @@ static int spacc_hash_digest(struct ahash_request *req)
 
 	ctx->digest_mode = 1;
 
+	/* For hmac, tctx->handle should be created in setkey() before this function */
 	if (tctx->handle < 0 || !tctx->ctx_valid || req->nbytes > priv->max_msg_len) {
-		pr_info("fallback : tctx->handle :%d tctx->ctx_valid:%d\n", tctx->handle, tctx->ctx_valid);
+		pr_info("fallback : tctx->handle :%d tctx->ctx_valid:%d\n",
+			tctx->handle, tctx->ctx_valid);
 		goto fallback;
 	}
 
@@ -397,7 +411,7 @@ static int spacc_hash_cra_init(struct crypto_tfm *tfm)
 	tctx->ctx_valid = false;
 	tctx->dev       = get_device(salg->dev[0]);
 	tctx->mode   = salg->mode->id;
-	tctx->keylen = salg->mode->keylen[0];/* just for check if keylen is 0 */
+	tctx->keylen = salg->mode->keylen[0];/* just for checking if it is hmac */
 	priv = dev_get_drvdata(tctx->dev);
 
 	/* allocate an ahash for SW fallback */
@@ -447,7 +461,7 @@ static int spacc_hash_init(struct ahash_request *req)
 
 	ctx->hashlen = crypto_ahash_digestsize(crypto_ahash_reqtfm(req));
 
-	dev_dbg(tctx->dev, "%s\n", __func__);
+	pr_debug("req->nbytes:%d, alg name:%s\n", req->nbytes, crypto_ahash_alg_name(reqtfm));
 
 	memset(&ctx->digest, 0, sizeof(ctx->digest));
 	memset(&ctx->data, 0, sizeof(ctx->data));
@@ -510,13 +524,16 @@ static size_t spacc_sg_copy_to_buffer(struct scatterlist *sgl,
 	return offset;
 }
 
+/*
+ * append hash to data sg chain since X3 HW can't do this
+ */
 static int spacc_hash_add_digest(struct ahash_request *req)
 {
 	struct crypto_ahash *reqtfm = crypto_ahash_reqtfm(req);
 	struct spacc_crypto_ctx *tctx = crypto_ahash_ctx(reqtfm);
 	struct spacc_hash_reqctx *ctx = ahash_request_ctx(req);
 
-	dev_dbg(tctx->dev, "%s\n", __func__);
+	pr_debug("req->nbytes:%d, alg name:%s\n", req->nbytes, crypto_ahash_alg_name(reqtfm));
 
 	memset(ctx->sg_hash, 0, sizeof(ctx->sg_hash));
 	sg_set_buf(&ctx->sg_hash[0], ctx->digest, ctx->hashlen);
@@ -550,26 +567,31 @@ static int __spacc_hash_update(struct ahash_request *req)
 	int len;
 
 	dev_dbg(tctx->dev, "%s\n", __func__);
+	pr_debug("req->nbytes:%d, alg name:%s\n", req->nbytes, crypto_ahash_alg_name(reqtfm));
 
-	if (tctx->handle < 0 || !tctx->ctx_valid || req->nbytes > priv->max_msg_len) {
-		pr_info("fallback : tctx->handle :%d tctx->ctx_valid:%d\n", tctx->handle, tctx->ctx_valid);
-		if (req->result == NULL) {
-			pr_info("result pointer is NULL, set to ctx->digest");
-			req->result = ctx->digest;
-		}
+	if (tctx->handle < 0 || !tctx->ctx_valid) {
+		pr_debug("fallback : tctx->handle :%d tctx->ctx_valid:%d\n",
+			tctx->handle, tctx->ctx_valid);
+		goto fallback;
+	}
+
+	if (req->nbytes > priv->max_msg_len) {
+		pr_debug("%s: fallback when nbytes: %d, max_msg_len:%d\n",
+				__func__, req->nbytes, priv->max_msg_len);
 		goto fallback;
 	}
 
 	if (req->nbytes == 0) {
-		pr_info("%s: fallback when nbytes is 0\n", __func__);
-		return 0;
+		pr_debug("%s: fallback when nbytes is 0\n", __func__);
+		goto fallback;
 	}
 
-	datalen = ctx->datalen;
+	datalen = ctx->datalen; /* left data len in ctx->data[] buffer */
 	total = req->nbytes + datalen;
-	pdata = &ctx->data[0] + datalen;
 
+	/* only fill to ctx->data buffer if there is not enough data */
 	if (total <= blocksize) {
+		pdata = &ctx->data[0] + datalen;
 		nents = spacc_count_sg(req->src, req->nbytes);
 		spacc_sg_copy_to_buffer(req->src, nents, pdata, req->nbytes);
 		ctx->datalen = total;
@@ -577,11 +599,10 @@ static int __spacc_hash_update(struct ahash_request *req)
 		return 0;
 	}
 
-	/* backup and recover in callback */
+	/* backup and recover in callback when partial updating finished */
 	ctx->reqsrc = req->src;
 	ctx->nbytes = req->nbytes;
 
-	/* change to ALING(ctx->staging_dmabuf, blocksize) if needed */
 	staging = ctx->staging_dmabuf;
 
 	memcpy(staging, ctx->data, ctx->datalen);
@@ -591,6 +612,7 @@ static int __spacc_hash_update(struct ahash_request *req)
 	datalen = padlen > 0 ? blocksize - padlen : 0 ;
 	offset = req->nbytes - datalen;
 
+	/* copy the non-blocksize aligned part of data to ctx->data buffer */
 	if (offset != req->nbytes)
 		scatterwalk_map_and_copy(pdata, req->src, offset, datalen, 0);
 
@@ -621,9 +643,8 @@ static int __spacc_hash_update(struct ahash_request *req)
 	req->nbytes = nbytes;
 	ctx->datalen = datalen;
 
-	if (!ctx->first_blk) {
+	if (!ctx->first_blk)
 		spacc_hash_add_digest(req);
-	}
 	else
 		ctx->first_blk = false;
 
@@ -636,6 +657,11 @@ fallback:
 	/* For some unspported mode such as key longer than blocksize */
 	dev_info(tctx->dev, "%s: Using SW fallback\n", __func__);
 
+	if (req->result == NULL) {
+		pr_info("result pointer is NULL, set to ctx->digest");
+		req->result = ctx->digest;
+	}
+
 	/* Start from scratch as init is not called before digest. */
 	ctx->fb.hash_req.base = req->base;
 	ahash_request_set_tfm(&ctx->fb.hash_req, tctx->fb.hash);
@@ -644,8 +670,8 @@ fallback:
 	ctx->fb.hash_req.src	 = req->src;
 	ctx->fb.hash_req.result = req->result;
 
-	return crypto_ahash_digest(&ctx->fb.hash_req);
-
+	ret = crypto_ahash_digest(&ctx->fb.hash_req);
+	return ret;
 }
 
 static int spacc_hash_update(struct ahash_request *req)
@@ -661,19 +687,22 @@ static int spacc_hash_update(struct ahash_request *req)
 	struct scatterlist *sg_cur = NULL;
 	int len;
 
+	pr_debug("req->nbytes:%d, req:%p\n", req->nbytes, req);
+
 	/* backup and recover in callback */
 	ctx->reqsrc = req->src;
 	ctx->nbytes = req->nbytes;
 
 	ctx->digest_mode = 0;
 
-	if (req->nbytes <= priv->max_msg_len) {
+	if (total <= priv->max_msg_len) {
 		ret = __spacc_hash_update(req);
 		return  ret;
 	}
 
 	while(total >= max_size) {
 		ctx->partial_updating = true;
+
 		req->nbytes = max_size;
 		sg_cur = req->src;
 		ret = __spacc_hash_update(req);
@@ -683,6 +712,9 @@ static int spacc_hash_update(struct ahash_request *req)
 			pr_err("%s: partial updating failed %d\n", __func__, ret);
 			return ret;
 		}
+
+		wait_for_completion(&ctx->partial_completion);
+		reinit_completion(&ctx->partial_completion);
 
 		sg_last = req->src;
 		len = 0;
@@ -695,9 +727,6 @@ static int spacc_hash_update(struct ahash_request *req)
 		req->src = sg_last;
 
 		total -= max_size;
-
-		wait_for_completion(&ctx->partial_completion);
-		reinit_completion(&ctx->partial_completion);
 	}
 
 	ctx->partial_updating = false;
@@ -837,8 +866,15 @@ static int spacc_hash_import(struct ahash_request *req, const void *in)
 
 	dev_dbg(tctx->dev, "%s\n", __func__);
 
-	if (zero_buf == NULL)
+	if (!zero_buf)
 		return -ENOMEM;
+
+	if (tctx->reqctx) {
+		pr_debug("recover reqctx\n");
+		memcpy(ctx, tctx->reqctx, sizeof(*tctx->reqctx));
+		kfree(tctx->reqctx);
+		tctx->reqctx = NULL;
+	}
 
 	ctx->hashlen = crypto_ahash_digestsize(crypto_ahash_reqtfm(req));
 
@@ -850,6 +886,7 @@ static int spacc_hash_import(struct ahash_request *req, const void *in)
 		ctx->first_blk = true;
 	} else
 		ctx->first_blk = false;
+
 
 	kfree(zero_buf);
 
@@ -865,6 +902,12 @@ static int spacc_hash_export(struct ahash_request *req, void *out)
 	dev_dbg(tctx->dev, "%s\n", __func__);
 
 	spacc_hash_copy_state(tctx, ctx, out, false);
+	tctx->reqctx = kzalloc(sizeof(*tctx->reqctx), GFP_KERNEL);
+	if (!tctx->reqctx)
+		return -ENOMEM;
+
+	pr_debug("backup reqctx\n");
+	memcpy(tctx->reqctx, ctx, sizeof(*tctx->reqctx));
 
 	return 0;
 }
@@ -879,6 +922,7 @@ static int spacc_hash_final(struct ahash_request *req)
 	int ret = 0;
 
 	dev_dbg(tctx->dev, "%s\n", __func__);
+	pr_debug("req->nbytes: %d\n", req->nbytes);
 
 	if (tctx->handle < 0 || !tctx->ctx_valid || req->nbytes > priv->max_msg_len) {
 		pr_info("fallback : tctx->handle :%d tctx->ctx_valid:%d\n", tctx->handle, tctx->ctx_valid);
