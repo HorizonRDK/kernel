@@ -43,7 +43,41 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <linux/printk.h>
 #include "elpspacc.h"
+
+static void spacc_hexdump(unsigned char *buf, unsigned int len)
+{
+	print_hex_dump_debug("", DUMP_PREFIX_OFFSET, 16, 1, buf, len, false);
+}
+
+void spacc_dump_regs(spacc_device *spacc)
+{
+   pr_debug("--- dump regs ------\n");
+   pr_debug("SPACC_REG_PROC_LEN:     0x%lx\n", pdu_io_read32(spacc->regmap + SPACC_REG_PROC_LEN)      );
+   pr_debug("SPACC_REG_ICV_LEN:      0x%lx\n", pdu_io_read32(spacc->regmap + SPACC_REG_ICV_LEN)       );
+   pr_debug("SPACC_REG_ICV_OFFSET:   0x%lx\n", pdu_io_read32(spacc->regmap + SPACC_REG_ICV_OFFSET)    );
+   pr_debug("SPACC_REG_PRE_AAD_LEN:  0x%lx\n", pdu_io_read32(spacc->regmap + SPACC_REG_PRE_AAD_LEN)   );
+   pr_debug("SPACC_REG_POST_AAD_LEN: 0x%lx\n", pdu_io_read32(spacc->regmap + SPACC_REG_POST_AAD_LEN)  );
+   pr_debug("SPACC_REG_IV_OFFSET:    0x%lx\n", pdu_io_read32(spacc->regmap + SPACC_REG_IV_OFFSET)     );
+   pr_debug("SPACC_REG_OFFSET:       0x%lx\n", pdu_io_read32(spacc->regmap + SPACC_REG_OFFSET)        );
+   pr_debug("SPACC_REG_AUX_INFO:     0x%lx\n", pdu_io_read32(spacc->regmap + SPACC_REG_AUX_INFO)      );
+   pr_debug("SPACC_REG_SW_CTRL:      0x%lx\n", pdu_io_read32(spacc->regmap + SPACC_REG_SW_CTRL)       );
+}
+
+void spacc_dump_job(spacc_job *job)
+{
+   pr_debug("--- dump job -------\n");
+   pr_debug("enc_mode: %lu, hash_mode: %lu, icv_len:%lu, icv_offset: %lu\n",
+         job->enc_mode, job->hash_mode, job->icv_len, job->icv_offset);
+   pr_debug("op:%lx, ctrl:%lx, first_use:%lu, pre_aad_sz:%lu, post_aad_sz:%lu\n",
+         job->op, job->ctrl, job->first_use, job->pre_aad_sz, job->post_aad_sz);
+   pr_debug("hkey_sz: %lu, ckey_sz: 0x%lx, ctx_idx:%u\n",
+         job->hkey_sz, job->ckey_sz, job->ctx_idx);
+   pr_debug("job_used: %u, job_swid: %u, job_done: %u, job_err: %u, job_secure: %u\n",
+         job->job_used, job->job_swid, job->job_done, job->job_err, job->job_secure);
+}
+
 
 //common error message handling
 static unsigned char *elpcommon_error_msg (int err)
@@ -138,3 +172,15 @@ unsigned char *spacc_error_msg (int err)
    }
    return msg;
 }
+
+// The following function returns the current library version value.
+// XXXXVVRR
+// XXXX - Build Date
+// VV    - Version
+// RR    - Release
+#if defined(BDATE) && defined(VERSION) && defined(RELEASE) && 0
+uint32_t spacc_get_version (void)
+{
+   return (uint32_t) (BDATE << 16) | (((uint32_t) (0x000000FF) & (uint32_t) (VERSION)) << 8) | ((0x000000FF) & (uint32_t) (RELEASE));
+}
+#endif

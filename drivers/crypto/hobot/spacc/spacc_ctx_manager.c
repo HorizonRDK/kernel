@@ -44,30 +44,361 @@
  */
 #include "elpspacc.h"
 
-/* Context manager */
+#define MIN(x, y) ( ((x)<(y)) ? (x) : (y) )
 
-/* This will reset all reference counts, pointers, etc */
-void spacc_ctx_init_all (spacc_device *spacc)
+// prevent reading passed the end of the buffer
+static void read_from(unsigned char *dst, unsigned char *src, int off, int n, int max)
 {
-   int x;
-   spacc_ctx * ctx;
-   unsigned long lock_flag;
+   if (!dst)
+      return;
+   while (off < max && n) {
+      *dst++ = src[off++];
+      --n;
+   }
+}
 
-   PDU_LOCK(&spacc->ctx_lock, lock_flag);
-   /* initialize contexts */
-   for (x = 0; x < spacc->config.num_ctx; x++) {
-      ctx = &spacc->ctx[x];
+int spacc_read_context (spacc_device * spacc, int job_idx, int op, unsigned char * key, int ksz, unsigned char * iv, int ivsz)
+{
+   int ret = CRYPTO_OK;
+   spacc_ctx *ctx = NULL;
+   spacc_job *job = NULL;
+   unsigned char buf[300];
+   int buflen;
 
-      /* sets everything including ref_cnt and ncontig to 0 */
-      memset (ctx, 0, sizeof (*ctx));
+   if (job_idx < 0 || job_idx > SPACC_MAX_JOBS) {
+      return CRYPTO_INVALID_HANDLE;
+   }
 
-      ctx->ciph_key = spacc->regmap + SPACC_CTX_CIPH_KEY + (x * spacc->config.ciph_page_size);
-      ctx->hash_key = spacc->regmap + SPACC_CTX_HASH_KEY + (x * spacc->config.hash_page_size);
-      if (x < spacc->config.num_rc4_ctx) {
-         ctx->rc4_key = spacc->regmap + SPACC_CTX_RC4_CTX + (x * 512);
+   job = &spacc->job[job_idx];
+   ctx = context_lookup_by_job(spacc, job_idx);
+
+   if (NULL == ctx) {
+      ret = CRYPTO_FAILED;
+   } else {
+       switch (op) {
+         case SPACC_CRYPTO_OPERATION:
+            buflen = MIN(sizeof(buf),(unsigned)spacc->config.ciph_page_size);
+            pdu_from_dev32_s(buf,  ctx->ciph_key, buflen>>2, spacc_endian);
+            switch (job->enc_mode) {
+               case CRYPTO_MODE_RC4_40:
+                  read_from(key, buf, 0, 8, buflen);
+                  break;
+               case CRYPTO_MODE_RC4_128:
+                  read_from(key, buf, 0, 16, buflen);
+                  break;
+               case CRYPTO_MODE_RC4_KS:
+                  if (key && ksz == 258) {
+                     ret = spacc_read_rc4_context (spacc, job_idx, &key[0], &key[1], key + 2);
+                  }
+                  break;
+               case CRYPTO_MODE_AES_ECB:
+               case CRYPTO_MODE_AES_CBC:
+               case CRYPTO_MODE_AES_CS1:
+               case CRYPTO_MODE_AES_CS2:
+               case CRYPTO_MODE_AES_CS3:
+               case CRYPTO_MODE_AES_CFB:
+               case CRYPTO_MODE_AES_OFB:
+               case CRYPTO_MODE_AES_CTR:
+               case CRYPTO_MODE_AES_CCM:
+               case CRYPTO_MODE_AES_GCM:
+                  read_from(key, buf, 0, ksz, buflen);
+                  read_from(iv, buf,  32, 16, buflen);
+                  break;
+               case CRYPTO_MODE_AES_F8:
+                  if (key) {
+                     read_from(key+ksz, buf, 0,  ksz, buflen);
+                     read_from(key,     buf, 48, ksz, buflen);
+                  }
+                  read_from(iv, buf, 32, 16, buflen);
+                  break;
+               case CRYPTO_MODE_AES_XTS:
+                  if (key) {
+                     read_from(key,            buf,  0, ksz>>1, buflen);
+                     read_from(key + (ksz>>1), buf, 48, ksz>>1, buflen);
+                  }
+                  read_from(iv, buf, 32, 16, buflen);
+                  break;
+               case CRYPTO_MODE_MULTI2_ECB:
+               case CRYPTO_MODE_MULTI2_CBC:
+               case CRYPTO_MODE_MULTI2_OFB:
+               case CRYPTO_MODE_MULTI2_CFB:
+                  read_from(key, buf, 0, ksz, buflen);
+                  // Number of rounds at the end of the IV
+                  read_from(iv, buf, 0x28, ivsz, buflen);
+                  break;
+               case CRYPTO_MODE_3DES_CBC:
+               case CRYPTO_MODE_3DES_ECB:
+                  read_from(iv,  buf, 0,  8, buflen);
+                  read_from(key, buf, 8, 24, buflen);
+                  break;
+               case CRYPTO_MODE_DES_CBC:
+               case CRYPTO_MODE_DES_ECB:
+                  read_from(iv,  buf, 0, 8, buflen);
+                  read_from(key, buf, 8, 8, buflen);
+                  break;
+
+               case CRYPTO_MODE_KASUMI_ECB:
+               case CRYPTO_MODE_KASUMI_F8:
+                  read_from(iv,  buf, 16,  8, buflen);
+                  read_from(key, buf, 0,  16, buflen);
+                  break;
+
+               case CRYPTO_MODE_SNOW3G_UEA2:
+               case CRYPTO_MODE_ZUC_UEA3:
+                  read_from(key, buf, 0, 32, buflen);
+                  break;
+
+               case CRYPTO_MODE_NULL:
+               default:
+                  break;
+            }
+
+            break;
+         case SPACC_HASH_OPERATION:
+            buflen = MIN(sizeof(buf),(unsigned)spacc->config.hash_page_size);
+            pdu_from_dev32_s(buf, ctx->hash_key, buflen>>2, spacc_endian);
+            switch (job->hash_mode) {
+               case CRYPTO_MODE_MAC_XCBC:
+                  if (key && ksz <= 64) {
+                     read_from(key + (ksz - 32), buf, 32, 32,       buflen);
+                     read_from(key,              buf, 0,  ksz - 32, buflen);
+                  }
+                  break;
+               case CRYPTO_MODE_HASH_CRC32:
+                  read_from(iv, buf, 0, ivsz, buflen);
+                  break;
+               case CRYPTO_MODE_MAC_SNOW3G_UIA2:
+               case CRYPTO_MODE_MAC_ZUC_UIA3:
+                  read_from(key, buf, 0,  32, buflen);
+                  break;
+               default:
+                  read_from(key, buf, 0, ksz, buflen);
+            }
+            break;
+         default:
+            ret = CRYPTO_INVALID_MODE;
+            break;
       }
    }
-   PDU_UNLOCK(&spacc->ctx_lock, lock_flag);
+   return ret;
+}
+
+#define MIN(x, y) ( ((x)<(y)) ? (x) : (y) )
+
+static void put_buf(unsigned char *dst, const unsigned char *src, int off, int n, int len)
+{
+   if (!src)
+      return;
+   while (n && (off < len)) {
+      dst[off++] = *src++;
+      --n;
+   }
+}
+
+/* Write appropriate context data which depends on operation and mode */
+int spacc_write_context (spacc_device * spacc, int job_idx, int op, const unsigned char * key, int ksz, const unsigned char * iv, int ivsz)
+{
+   int ret = CRYPTO_OK;
+   spacc_ctx *ctx = NULL;
+   spacc_job *job = NULL;
+   
+   unsigned char buf[300];
+   int buflen;
+
+   if (job_idx < 0 || job_idx > SPACC_MAX_JOBS) {
+      return CRYPTO_INVALID_HANDLE;
+   }
+
+   job = &spacc->job[job_idx];
+   ctx = context_lookup_by_job(spacc, job_idx);
+  
+   if ((NULL == job) || (NULL == ctx)) {
+      ret = CRYPTO_FAILED;
+   } else {
+      switch (op) {
+         case SPACC_CRYPTO_OPERATION:
+            // get page size and then read so we can do a read-modify-write cycle
+            buflen = MIN(sizeof(buf),(unsigned)spacc->config.ciph_page_size);
+            pdu_from_dev32_s(buf,  ctx->ciph_key, buflen>>2, spacc_endian);
+            switch (job->enc_mode) {
+               case CRYPTO_MODE_RC4_40:
+                  put_buf(buf, key, 0, 8, buflen);
+                  break;
+               case CRYPTO_MODE_RC4_128:
+                  put_buf(buf, key, 0, 16, buflen);
+                  break;
+               case CRYPTO_MODE_RC4_KS:
+                  if (key) {
+                     ret = spacc_write_rc4_context (spacc, job_idx, key[0], key[1], key + 2);
+                  }
+                  break;
+               case CRYPTO_MODE_AES_ECB:
+               case CRYPTO_MODE_AES_CBC:
+               case CRYPTO_MODE_AES_CS1:
+               case CRYPTO_MODE_AES_CS2:
+               case CRYPTO_MODE_AES_CS3:
+               case CRYPTO_MODE_AES_CFB:
+               case CRYPTO_MODE_AES_OFB:
+               case CRYPTO_MODE_AES_CTR:
+               case CRYPTO_MODE_AES_CCM:
+               case CRYPTO_MODE_AES_GCM:
+                  put_buf(buf, key, 0, ksz, buflen);
+                  if (iv) {
+                     unsigned char one[4] = { 0, 0, 0, 1 };
+                     put_buf(buf, iv, 32, ivsz, buflen);
+                     if (ivsz == 12 && job->enc_mode == CRYPTO_MODE_AES_GCM) {
+                        put_buf(buf, one, 11*4, 4, buflen);
+                     }
+                  }
+                  break;
+               case CRYPTO_MODE_AES_F8:
+                  if (key) {
+                     put_buf(buf, key + ksz, 0,  ksz, buflen);
+                     put_buf(buf, key,       48, ksz, buflen);
+                  }
+                  put_buf(buf, iv,        32,  16, buflen);
+                  break;
+               case CRYPTO_MODE_AES_XTS:
+                  if (key) {
+                     put_buf(buf, key,           0, ksz>>1, buflen);
+                     put_buf(buf, key+(ksz>>1), 48, ksz>>1, buflen);
+                     ksz = ksz >> 1;   // divide by two since that's what we program the hardware with
+                  }
+                  put_buf(buf, iv, 32, 16, buflen);
+                  break;
+               case CRYPTO_MODE_MULTI2_ECB:
+               case CRYPTO_MODE_MULTI2_CBC:
+               case CRYPTO_MODE_MULTI2_OFB:
+               case CRYPTO_MODE_MULTI2_CFB:
+                  put_buf(buf, key,   0, ksz,  buflen);
+                  put_buf(buf, iv, 0x28, ivsz, buflen);
+
+                  if (ivsz <= 8) {
+                     unsigned char rounds[4] = {0, 0, 0, 128}; // default to 128 rounds
+                     put_buf(buf, rounds, 0x30, 4, buflen);
+                  }
+                  break;
+               case CRYPTO_MODE_3DES_CBC:
+               case CRYPTO_MODE_3DES_ECB:
+               case CRYPTO_MODE_DES_CBC:
+               case CRYPTO_MODE_DES_ECB:
+                  put_buf(buf, iv, 0, 8, buflen);
+                  put_buf(buf, key, 8, ksz, buflen);
+                  break;
+
+               case CRYPTO_MODE_KASUMI_ECB:
+               case CRYPTO_MODE_KASUMI_F8:
+                  put_buf(buf, iv, 16, 8, buflen);
+                  put_buf(buf, key, 0, 16, buflen);
+                  break;
+
+               case CRYPTO_MODE_SNOW3G_UEA2:
+               case CRYPTO_MODE_ZUC_UEA3:
+                  put_buf(buf, key, 0, 32, buflen);
+                  break;
+
+               case CRYPTO_MODE_CHACHA20_STREAM:
+               case CRYPTO_MODE_CHACHA20_POLY1305:
+                  put_buf(buf, key, 0, ksz, buflen);
+                  put_buf(buf, iv, 32, ivsz, buflen);
+                  break;
+
+               case CRYPTO_MODE_NULL:
+               default:
+                  break;
+            }
+            if (key) {
+               job->ckey_sz = SPACC_SET_CIPHER_KEY_SZ (ksz);
+               job->first_use = 1;
+            }
+            pdu_to_dev32_s (ctx->ciph_key, buf, buflen >> 2, spacc_endian);
+            break;
+         case SPACC_HASH_OPERATION:
+            // get page size and then read so we can do a read-modify-write cycle
+            buflen = MIN(sizeof(buf),(unsigned)spacc->config.hash_page_size);
+            pdu_from_dev32_s(buf,  ctx->hash_key, buflen>>2, spacc_endian);
+            switch (job->hash_mode) {
+               case CRYPTO_MODE_MAC_XCBC:
+                  if (key) {
+                     put_buf(buf, key + (ksz - 32), 32,         32, buflen);
+                     put_buf(buf, key,               0, (ksz - 32), buflen);
+                     job->hkey_sz = SPACC_SET_HASH_KEY_SZ (ksz - 32);
+                  }
+                  break;
+               case CRYPTO_MODE_HASH_CRC32:
+               case CRYPTO_MODE_MAC_SNOW3G_UIA2:
+               case CRYPTO_MODE_MAC_ZUC_UIA3:
+                  if (key) {
+                     put_buf(buf, key, 0, ksz, buflen);
+                     job->hkey_sz = SPACC_SET_HASH_KEY_SZ (ksz);
+                  }
+                  break;
+               case CRYPTO_MODE_MAC_POLY1305:
+                  put_buf(buf, key, 0, ksz, buflen);
+                  put_buf(buf, iv, 32, ivsz, buflen);
+                  break;
+               case CRYPTO_MODE_HASH_CSHAKE128:
+               case CRYPTO_MODE_HASH_CSHAKE256:
+                  // use "iv" and "key" to pass s-string and n-string
+                  put_buf(buf, iv, 0, ivsz, buflen);
+                  put_buf(buf, key, spacc->config.string_size, ksz, buflen);
+                  break;
+               case CRYPTO_MODE_MAC_KMAC128:
+               case CRYPTO_MODE_MAC_KMAC256:
+               case CRYPTO_MODE_MAC_KMACXOF128:
+               case CRYPTO_MODE_MAC_KMACXOF256:
+                  // use "iv" and "key" to pass s-string and key
+                  put_buf(buf, iv, 0, ivsz, buflen);
+                  put_buf(buf, key, spacc->config.string_size, ksz, buflen);
+                  job->hkey_sz = SPACC_SET_HASH_KEY_SZ (ksz);
+                  break;
+
+               default:
+                  if (key) {
+                     job->hkey_sz = SPACC_SET_HASH_KEY_SZ (ksz);
+                     put_buf(buf, key, 0, ksz, buflen);
+                  }
+            }
+            pdu_to_dev32_s (ctx->hash_key, buf, buflen >> 2, spacc_endian);
+            break;
+         default:
+            ret = CRYPTO_INVALID_MODE;
+            break;
+      }
+   }
+   return ret;
+}
+
+/* Context manager */
+void spacc_dump_ctx(spacc_device *spacc, int ctx)
+{
+   uint32_t buf[256], x;
+
+   if (ctx < 0 || ctx > SPACC_MAX_JOBS) {
+      return;
+   }
+
+   ELPHW_PRINT("Dumping Cipher Context %d\n00000: ", ctx);
+   pdu_from_dev32(buf, spacc->regmap + SPACC_CTX_CIPH_KEY + (spacc->config.ciph_page_size>>2) * ctx, spacc->config.ciph_page_size>>2);
+
+   for (x = 0; x < spacc->config.ciph_page_size>>2;) {
+       ELPHW_PRINT("%08lx ", (unsigned long)buf[x]);
+       if (!(++x & 3) && x != (spacc->config.ciph_page_size>>2)) {
+          ELPHW_PRINT("\n%05d: ", x);
+       }
+   }
+   ELPHW_PRINT("\n");
+
+   ELPHW_PRINT("Dumping Hash Context %d\n00000: ", ctx);
+   pdu_from_dev32(buf, spacc->regmap + SPACC_CTX_HASH_KEY + (spacc->config.hash_page_size>>2) * ctx, spacc->config.hash_page_size>>2);
+
+   for (x = 0; x < spacc->config.hash_page_size>>2;) {
+       ELPHW_PRINT("%08lx ", (unsigned long)buf[x]);
+       if (!(++x & 3) && x != (spacc->config.hash_page_size>>2)) {
+          ELPHW_PRINT("\n%05d: ", x);
+       }
+   }
+   ELPHW_PRINT("\n");
 }
 
 /* ctx_id is requested */
@@ -228,3 +559,84 @@ int spacc_ctx_release(spacc_device *spacc, int ctx_id)
    return ret;
 }
 
+// Function to unload data from an RC4 context.
+int spacc_read_rc4_context (spacc_device * spacc, int job_idx, unsigned char * i, unsigned char * j, unsigned char * ctxdata)
+{
+   int ret = CRYPTO_OK;
+   spacc_ctx *ctx = NULL;
+   spacc_job *job = NULL;
+
+   if (job_idx < 0 || job_idx > SPACC_MAX_JOBS) {
+      return CRYPTO_INVALID_HANDLE;
+   }
+
+   job = &spacc->job[job_idx];
+   ctx = context_lookup_by_job (spacc, job_idx);
+   if (NULL == ctx) {
+      ret = CRYPTO_FAILED;
+   } else {
+      unsigned char ijbuf[4];
+
+      switch (job->enc_mode) {
+         case CRYPTO_MODE_RC4_40:
+         case CRYPTO_MODE_RC4_128:
+         case CRYPTO_MODE_RC4_KS: break;
+         default: return CRYPTO_FAILED;
+      }
+
+      pdu_from_dev32_s (ctxdata, ctx->rc4_key, SPACC_CTX_RC4_IJ >> 2, spacc_endian);
+      pdu_from_dev32_s (ijbuf, ctx->rc4_key + (SPACC_CTX_RC4_IJ >> 2), 1, spacc_endian);
+
+      *i = ijbuf[0];
+      *j = ijbuf[1];
+   }
+   return ret;
+}
+
+// Function to load data into an RC4 context.
+int spacc_write_rc4_context (spacc_device * spacc, int job_idx, unsigned char i, unsigned char j, const unsigned char * ctxdata)
+{
+   int ret = CRYPTO_OK;
+   spacc_ctx *ctx = NULL;
+
+
+   if (job_idx < 0 || job_idx > SPACC_MAX_JOBS) {
+      return CRYPTO_INVALID_HANDLE;
+   }
+
+   ctx = context_lookup_by_job (spacc, job_idx);
+
+   if (NULL == ctx) {
+      ret = CRYPTO_FAILED;
+   } else {
+      unsigned char ij[4] = { i, j, 0, 0 };
+
+      pdu_to_dev32_s (ctx->rc4_key, ctxdata, SPACC_CTX_RC4_IJ >> 2, spacc_endian);
+      pdu_to_dev32_s (ctx->rc4_key + (SPACC_CTX_RC4_IJ >> 2), ij, 1, spacc_endian);
+   }
+   return ret;
+}
+
+/* This will reset all reference counts, pointers, etc */
+void spacc_ctx_init_all (spacc_device *spacc)
+{
+   int x;
+   spacc_ctx * ctx;
+   unsigned long lock_flag;
+
+   PDU_LOCK(&spacc->ctx_lock, lock_flag);
+   /* initialize contexts */
+   for (x = 0; x < spacc->config.num_ctx; x++) {
+      ctx = &spacc->ctx[x];
+
+      /* sets everything including ref_cnt and ncontig to 0 */
+      memset (ctx, 0, sizeof (*ctx));
+
+      ctx->ciph_key = spacc->regmap + SPACC_CTX_CIPH_KEY + (x * spacc->config.ciph_page_size);
+      ctx->hash_key = spacc->regmap + SPACC_CTX_HASH_KEY + (x * spacc->config.hash_page_size);
+      if (x < spacc->config.num_rc4_ctx) {
+         ctx->rc4_key = spacc->regmap + SPACC_CTX_RC4_CTX + (x * 512);
+      }
+   }
+   PDU_UNLOCK(&spacc->ctx_lock, lock_flag);
+}
