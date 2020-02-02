@@ -42,8 +42,7 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-
-#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
+#define pr_fmt(fmt) KBUILD_MODNAME ": %s: " fmt, __func__
 
 #include <linux/module.h>
 #include <linux/platform_device.h>
@@ -290,7 +289,7 @@ static int spacc_hash_digest(struct ahash_request *req)
 	dev_dbg(tctx->dev, "%s (%u)\n", __func__, req->nbytes);
 
 	if (req->nbytes == 0) {
-		pr_info("%s: fallback for empty message\n", __func__);
+		pr_debug("%s: fallback for empty message\n", __func__);
 		goto fallback;
 	}
 
@@ -316,26 +315,27 @@ static int spacc_hash_digest(struct ahash_request *req)
 
 	/* For hmac, tctx->handle should be created in setkey() before this function */
 	if (tctx->handle < 0 || !tctx->ctx_valid || req->nbytes > priv->max_msg_len) {
-		pr_info("fallback : tctx->handle :%d tctx->ctx_valid:%d\n",
+		pr_debug("fallback : tctx->handle :%d tctx->ctx_valid:%d\n",
 			tctx->handle, tctx->ctx_valid);
 		goto fallback;
 	}
 
 	rc = spacc_hash_init_dma(tctx->dev, req);
 	if (rc < 0) {
-		pr_info("fallback: spacc_hash_init_dma rc :%d\n", rc);
+		pr_debug("fallback: spacc_hash_init_dma rc :%d\n", rc);
 		goto fallback;
 	}
 
 	ctx->new_handle = spacc_clone_handle(&priv->spacc, tctx->handle, req);
 	if (ctx->new_handle < 0) {
 		spacc_hash_cleanup_dma(tctx->dev, req);
-		pr_info("fallback:  ctx->new_handle < 0\n");
+		pr_debug("fallback:  ctx->new_handle < 0\n");
 		goto fallback;
 	}
 
 	ctx->hashlen = crypto_ahash_digestsize(reqtfm);
 
+	pr_debug("spacc_packet_enqueue_ddt nbytes: %d\n", req->nbytes);
 	rc = spacc_packet_enqueue_ddt(&priv->spacc, ctx->new_handle,
 								&ctx->src, &ctx->dst, req->nbytes,
 								0, req->nbytes, 0, 0, 0);
@@ -349,14 +349,14 @@ static int spacc_hash_digest(struct ahash_request *req)
 		} else if (!(req->base.flags & CRYPTO_TFM_REQ_MAY_BACKLOG))
 			return -EBUSY;
 
-		pr_info("fallback:  spacc_packet_enqueue_ddt failed, rc:%d\n", rc);
+		pr_debug("fallback:  spacc_packet_enqueue_ddt failed, rc:%d\n", rc);
 		goto fallback;
 	}
 
 	return -EINPROGRESS;
 
 fallback:
-	dev_info(tctx->dev, "%s: Using SW fallback\n", __func__);
+	dev_dbg(tctx->dev, "%s: Using SW fallback\n", __func__);
 
 	/* Start from scratch as init is not called before digest. */
 	ctx->fb.hash_req.base = req->base;
@@ -464,7 +464,6 @@ static int spacc_hash_init(struct ahash_request *req)
 	pr_debug("req->nbytes:%d, alg name:%s\n", req->nbytes, crypto_ahash_alg_name(reqtfm));
 
 	memset(&ctx->digest, 0, sizeof(ctx->digest));
-	memset(&ctx->data, 0, sizeof(ctx->data));
 	ctx->datalen = 0;
 	ctx->last_req = false;
 	ctx->first_blk = true;
@@ -492,6 +491,33 @@ static int spacc_hash_init(struct ahash_request *req)
 			return rc;
 		}
 	}
+
+	/*
+	 * We use a 4KB buffer to store the update hash data, this can reduce the
+	 * calling times of spacc_hash_add_digest which will cause different hash
+	 * result due to X3 HW limitation.
+	 *
+	 * This is only helpful with data less and equal than 4KB to generate standard
+	 * hash and hmac result.
+	 *
+	 * The reason of using 4KB buffer instead of a blocksize buffer is
+	 * for passing the crypto/testmgr test cases for long input data.
+	 */
+	ctx->data = kzalloc(SPACC_HASH_UPDATE_DATA_SIZE, GFP_KERNEL);
+	if (!ctx->data)
+		return -ENOMEM;
+
+	if ((long unsigned int)ctx->data & GENMASK(11, 0))
+		pr_warn("ctx->data:%p is not page aligned, GENMASK(11, 0):%lx\n",
+			ctx->data, GENMASK(11, 0));
+
+	ctx->staging_dmabuf = kzalloc(SPACC_HASH_UPDATE_DATA_SIZE, GFP_KERNEL);
+	if (!ctx->staging_dmabuf)
+		return -ENOMEM;
+
+	if ((long unsigned int)ctx->staging_dmabuf & GENMASK(11,0))
+		pr_warn("ctx->staging_dmabuf:%p is not page aligned, GENMASK(11, 0):%lx\n",
+			ctx->staging_dmabuf, GENMASK(11, 0));
 
 	return 0;
 }
@@ -552,7 +578,7 @@ static int __spacc_hash_update(struct ahash_request *req)
 	struct spacc_crypto_ctx *tctx = crypto_ahash_ctx(reqtfm);
 	struct spacc_hash_reqctx *ctx = ahash_request_ctx(req);
 	struct spacc_priv *priv = dev_get_drvdata(tctx->dev);
-	int blocksize = crypto_ahash_blocksize(reqtfm);
+	int blocksize = SPACC_HASH_UPDATE_DATA_SIZE;
 	uint8_t *pdata;
 	uint8_t *staging;
 	struct scatterlist *sg_last;
@@ -566,7 +592,6 @@ static int __spacc_hash_update(struct ahash_request *req)
 	int num_sg;
 	int len;
 
-	dev_dbg(tctx->dev, "%s\n", __func__);
 	pr_debug("req->nbytes:%d, alg name:%s\n", req->nbytes, crypto_ahash_alg_name(reqtfm));
 
 	if (tctx->handle < 0 || !tctx->ctx_valid) {
@@ -591,7 +616,7 @@ static int __spacc_hash_update(struct ahash_request *req)
 
 	/* only fill to ctx->data buffer if there is not enough data */
 	if (total <= blocksize) {
-		pdata = &ctx->data[0] + datalen;
+		pdata = ctx->data + datalen;
 		nents = spacc_count_sg(req->src, req->nbytes);
 		spacc_sg_copy_to_buffer(req->src, nents, pdata, req->nbytes);
 		ctx->datalen = total;
@@ -606,13 +631,13 @@ static int __spacc_hash_update(struct ahash_request *req)
 	staging = ctx->staging_dmabuf;
 
 	memcpy(staging, ctx->data, ctx->datalen);
-	pdata = &ctx->data[0];
+	pdata = ctx->data;
 
 	padlen = ALIGN(total, blocksize) - total;
 	datalen = padlen > 0 ? blocksize - padlen : 0 ;
 	offset = req->nbytes - datalen;
 
-	/* copy the non-blocksize aligned part of data to ctx->data buffer */
+	/* copy the non aligned part of data to ctx->data buffer */
 	if (offset != req->nbytes)
 		scatterwalk_map_and_copy(pdata, req->src, offset, datalen, 0);
 
@@ -655,10 +680,10 @@ static int __spacc_hash_update(struct ahash_request *req)
 
 fallback:
 	/* For some unspported mode such as key longer than blocksize */
-	dev_info(tctx->dev, "%s: Using SW fallback\n", __func__);
+	dev_dbg(tctx->dev, "%s: Using SW fallback\n", __func__);
 
 	if (req->result == NULL) {
-		pr_info("result pointer is NULL, set to ctx->digest");
+		pr_debug("result pointer is NULL, set to ctx->digest");
 		req->result = ctx->digest;
 	}
 
@@ -745,12 +770,12 @@ static int spacc_hash_copy_md5_state(struct spacc_hash_reqctx *ctx, void *state,
 
 	if (import) {
 		memcpy((uint32_t *)ctx->digest, st_md5->hash, MD5_HASH_WORDS);
-		memcpy((uint32_t *)ctx->data, st_md5->block, MD5_BLOCK_WORDS);
-		ctx->datalen = st_md5->byte_count <= MD5_BLOCK_WORDS ? st_md5->byte_count : MD5_BLOCK_WORDS<<2;
+		//memcpy((uint32_t *)ctx->data, st_md5->block, MD5_BLOCK_WORDS);
+		//ctx->datalen = st_md5->byte_count <= MD5_BLOCK_WORDS ? st_md5->byte_count : MD5_BLOCK_WORDS<<2;
 	} else {
 		memcpy(st_md5->hash, (uint32_t *)ctx->digest, MD5_HASH_WORDS);
-		memcpy(st_md5->block, (uint32_t *)ctx->data, MD5_BLOCK_WORDS);
-		st_md5->byte_count = ctx->datalen;
+		//memcpy(st_md5->block, (uint32_t *)ctx->data, MD5_BLOCK_WORDS);
+		//st_md5->byte_count = ctx->datalen;
 	}
 
 	return 0;
@@ -765,12 +790,12 @@ static int spacc_hash_copy_sha1_state(struct spacc_hash_reqctx *ctx, void *state
 
 	if (import) {
 		memcpy((uint32_t *)ctx->digest, st_sha1->state, SHA1_DIGEST_SIZE>>2);
-		memcpy(ctx->data, st_sha1->buffer, SHA1_BLOCK_SIZE);
-		ctx->datalen = st_sha1->count <= SHA1_BLOCK_SIZE ? st_sha1->count : SHA1_BLOCK_SIZE;
+		//memcpy(ctx->data, st_sha1->buffer, SHA1_BLOCK_SIZE);
+		//ctx->datalen = st_sha1->count <= SHA1_BLOCK_SIZE ? st_sha1->count : SHA1_BLOCK_SIZE;
 	} else {
 		memcpy(st_sha1->state, (uint32_t *)ctx->digest, SHA1_DIGEST_SIZE>>2);
-		memcpy(st_sha1->buffer, ctx->data, SHA1_BLOCK_SIZE);
-		st_sha1->count = ctx->datalen;
+		//memcpy(st_sha1->buffer, ctx->data, SHA1_BLOCK_SIZE);
+		//st_sha1->count = ctx->datalen;
 	}
 
 	return 0;
@@ -785,12 +810,12 @@ static int spacc_hash_copy_sha256_state(struct spacc_hash_reqctx *ctx, void *sta
 
 	if (import) {
 		memcpy((uint32_t *)ctx->digest, st_sha256->state, SHA256_DIGEST_SIZE>>2);
-		memcpy(ctx->data, st_sha256->buf, SHA256_BLOCK_SIZE);
-		ctx->datalen = st_sha256->count <= SHA256_BLOCK_SIZE ? st_sha256->count : SHA256_BLOCK_SIZE;
+	//	memcpy(ctx->data, st_sha256->buf, SHA256_BLOCK_SIZE);
+	//	ctx->datalen = st_sha256->count <= SHA256_BLOCK_SIZE ? st_sha256->count : SHA256_BLOCK_SIZE;
 	} else {
 		memcpy(st_sha256->state, (uint32_t *)ctx->digest, SHA256_DIGEST_SIZE>>2);
-		memcpy(st_sha256->buf, ctx->data, SHA256_BLOCK_SIZE);
-		st_sha256->count = ctx->datalen;
+	//	memcpy(st_sha256->buf, ctx->data, SHA256_BLOCK_SIZE);
+	//	st_sha256->count = ctx->datalen;
 	}
 
 	return 0;
@@ -805,12 +830,12 @@ static int spacc_hash_copy_sha512_state(struct spacc_hash_reqctx *ctx, void *sta
 
 	if (import) {
 		memcpy((uint32_t *)ctx->digest, st_sha512->state, SHA512_DIGEST_SIZE>>2);
-		memcpy(ctx->data, st_sha512->buf, SHA512_BLOCK_SIZE);
-		ctx->datalen = st_sha512->count[0] <= SHA512_BLOCK_SIZE ? st_sha512->count[0] : SHA512_BLOCK_SIZE;
+	//	memcpy(ctx->data, st_sha512->buf, SHA512_BLOCK_SIZE);
+	//	ctx->datalen = st_sha512->count[0] <= SHA512_BLOCK_SIZE ? st_sha512->count[0] : SHA512_BLOCK_SIZE;
 	} else {
 		memcpy(st_sha512->state, (uint32_t *)ctx->digest, SHA512_DIGEST_SIZE>>2);
-		memcpy(st_sha512->buf, ctx->data, SHA512_BLOCK_SIZE);
-		st_sha512->count[0] = ctx->datalen;
+	//	memcpy(st_sha512->buf, ctx->data, SHA512_BLOCK_SIZE);
+	//	st_sha512->count[0] = ctx->datalen;
 	}
 
 	return 0;
@@ -887,6 +912,7 @@ static int spacc_hash_import(struct ahash_request *req, const void *in)
 	} else
 		ctx->first_blk = false;
 
+	pr_debug("ctx->datalen: %d\n", ctx->datalen);
 
 	kfree(zero_buf);
 
@@ -907,7 +933,10 @@ static int spacc_hash_export(struct ahash_request *req, void *out)
 		return -ENOMEM;
 
 	pr_debug("backup reqctx\n");
+	/* Only support 1 export at the same time for an algorithm */
 	memcpy(tctx->reqctx, ctx, sizeof(*tctx->reqctx));
+
+	pr_debug("ctx->datalen: %d\n", ctx->datalen);
 
 	return 0;
 }
@@ -925,51 +954,53 @@ static int spacc_hash_final(struct ahash_request *req)
 	pr_debug("req->nbytes: %d\n", req->nbytes);
 
 	if (tctx->handle < 0 || !tctx->ctx_valid || req->nbytes > priv->max_msg_len) {
-		pr_info("fallback : tctx->handle :%d tctx->ctx_valid:%d\n", tctx->handle, tctx->ctx_valid);
+		pr_debug("fallback : tctx->handle :%d tctx->ctx_valid:%d\n",
+				tctx->handle, tctx->ctx_valid);
 		goto fallback;
 	}
 
 	ctx->last_req = true;
 
 	if (ctx->datalen == 0 && ctx->first_blk) {
-		pr_info("%s: fallback for empty plaintext\n", __func__);
+		pr_debug("%s: fallback for empty plaintext\n", __func__);
 		goto fallback;
 	}
 
 	if (ctx->datalen == 0) {
 		memcpy(req->result, ctx->digest, ctx->hashlen);
+		req->base.complete(&req->base, 0);
 		return 0;
 	}
 
+	pr_debug("ctx->datalen: %d\n", ctx->datalen);
 	ctx->hashlen = crypto_ahash_digestsize(crypto_ahash_reqtfm(req));
 
-	if (ctx->datalen) {
-		memset(ctx->sg, 0, sizeof(ctx->sg));
-		memcpy(ctx->staging_dmabuf, ctx->data, ctx->datalen);
-		sg_set_buf(&ctx->sg[0], ctx->staging_dmabuf, ctx->datalen);
-		sg_mark_end(&ctx->sg[1]);
-		req->src = ctx->sg;
-		req->nbytes = ctx->datalen;
+	memset(ctx->sg, 0, sizeof(ctx->sg));
+	memcpy(ctx->staging_dmabuf, ctx->data, ctx->datalen);
+	sg_set_buf(&ctx->sg[0], ctx->staging_dmabuf, ctx->datalen);
+	sg_mark_end(&ctx->sg[1]);
+	req->src = ctx->sg;
+	req->nbytes = ctx->datalen;
 
-		memset(ctx->data, 0, ARRAY_SIZE(ctx->data));
-		ctx->datalen = 0;
+	memset(ctx->data, 0, SPACC_HASH_UPDATE_DATA_SIZE);
+	ctx->datalen = 0;
 
-		if (!ctx->first_blk)
-		  spacc_hash_add_digest(req);
+	if (!ctx->first_blk)
+	  spacc_hash_add_digest(req);
 
-		ctx->src_nents = spacc_count_sg(req->src, req->nbytes);
+	ctx->src_nents = spacc_count_sg(req->src, req->nbytes);
 
-		ret = spacc_hash_queue_req(req);
-	} else {
-		memcpy(req->result, ctx->digest, ctx->hashlen);
-		req->base.complete(&req->base, 0);
-	}
+	ret = spacc_hash_queue_req(req);
+
+	kfree(ctx->data);
+	kfree(ctx->staging_dmabuf);
+	pr_debug("free ctx->data and ctx->staging_dmabuf\n");
 
 	return ret;
 
 fallback:
 	/* For some unspported mode such as key longer than blocksize */
-	dev_info(tctx->dev, "%s: Using SW fallback\n", __func__);
+	dev_dbg(tctx->dev, "%s: Using SW fallback\n", __func__);
 
 	/* Start from scratch as init is not called before digest. */
 	ctx->fb.hash_req.base = req->base;
@@ -978,6 +1009,10 @@ fallback:
 	ctx->fb.hash_req.nbytes = req->nbytes;
 	ctx->fb.hash_req.src    = req->src;
 	ctx->fb.hash_req.result = req->result;
+
+	kfree(ctx->data);
+	kfree(ctx->staging_dmabuf);
+	pr_debug("free ctx->data and ctx->staging_dmabuf in fallback\n");
 
 	return crypto_ahash_digest(&ctx->fb.hash_req);
 

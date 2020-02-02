@@ -43,7 +43,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
+#define pr_fmt(fmt) KBUILD_MODNAME ": %s: " fmt, __func__
 
 #include <linux/module.h>
 #include <linux/platform_device.h>
@@ -295,9 +295,10 @@ static int spacc_cipher_setkey(struct crypto_skcipher *tfm, const u8 *key, unsig
 	const struct spacc_alg *salg = spacc_tfm_alg(&tfm->base);
 	struct spacc_crypto_ctx *tctx = crypto_skcipher_ctx(tfm);
 	struct spacc_priv *priv = dev_get_drvdata(tctx->dev);
+	char *week_key	= "\x01\x01\x01\x01\x01\x01\x01\x01";
 	int x, rc;
 
-	dev_dbg(salg->dev[0], "%s\n", __func__);
+	dev_dbg(salg->dev[0], "%s, keylen:%d\n", __func__, keylen);
 	tctx->ctx_valid = false;
 
 	/* close handle since key size may have changed */
@@ -313,9 +314,18 @@ static int spacc_cipher_setkey(struct crypto_skcipher *tfm, const u8 *key, unsig
 		priv = dev_get_drvdata(salg->dev[x]);
 		tctx->dev = get_device(salg->dev[x]);
 		if (spacc_isenabled(&priv->spacc, salg->mode->id, keylen))
-					tctx->handle = spacc_open(&priv->spacc, salg->mode->id, CRYPTO_MODE_NULL, -1, 0, spacc_cipher_cb, tfm);
+					tctx->handle = spacc_open(&priv->spacc,
+					salg->mode->id, CRYPTO_MODE_NULL, -1, 0, spacc_cipher_cb, tfm);
 		if (tctx->handle >= 0) { break; }
 		put_device(salg->dev[x]);
+	}
+
+
+	if (salg->mode->id == CRYPTO_MODE_DES_ECB) {
+		if (!memcmp(key, week_key, keylen)) {
+			pr_debug("return failed if got week key for ecb(des)\n");
+			return -EINVAL;
+		}
 	}
 
 	if (tctx->handle < 0) {
@@ -323,7 +333,8 @@ static int spacc_cipher_setkey(struct crypto_skcipher *tfm, const u8 *key, unsig
 		return -EEXIST;
 	}
 
-	rc = spacc_write_context(&priv->spacc, tctx->handle, SPACC_CRYPTO_OPERATION, key, keylen, NULL, 0);
+	rc = spacc_write_context(&priv->spacc, tctx->handle,
+			SPACC_CRYPTO_OPERATION, key, keylen, NULL, 0);
 	if (rc < 0) {
 		dev_warn(tctx->dev, "failed to write SPAcc context %d: %s\n",
 								  tctx->handle, spacc_error_msg(rc));

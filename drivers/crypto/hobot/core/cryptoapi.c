@@ -43,6 +43,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#define pr_fmt(fmt) KBUILD_MODNAME ": %s: " fmt, __func__
+
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/ratelimit.h>
@@ -56,7 +58,6 @@
 #include "cryptoapi.h"
 
 static struct platform_device *spacc_pdev[ELP_CAPI_MAX_DEV+1];
-
 
 static LIST_HEAD(spacc_alg_list);
 static DEFINE_MUTEX(spacc_alg_mutex);
@@ -211,11 +212,11 @@ static void spacc_unregister_algs(struct device *dev)
 struct mode_tab possible_hashes[] = {
 /* { .keylen[0] = 16,						  MODE_TAB_HASH("cmac(aes)", MAC_CMAC, 16,  16),  }, */
 /* { .keylen[0] = 48|MODE_TAB_HASH_XCBC, MODE_TAB_HASH("xcbc(aes)", MAC_XCBC, 16,  16), }, */
-	{ MODE_TAB_HASH("md5",			HASH_MD5,		  16,  64), .keylen = { 0 } },
+//	{ MODE_TAB_HASH("md5",			HASH_MD5,		  16,  64), .keylen = { 0 } },
 	{ MODE_TAB_HASH("sha1",			HASH_SHA1,		  20,  64), .keylen = { 0 } },
 	{ MODE_TAB_HASH("sha256",		HASH_SHA256,	  32,  64), .keylen = { 0 } },
 	{ MODE_TAB_HASH("sha512",		HASH_SHA512,	  64, 128), .keylen = { 0 } },
-	{ MODE_TAB_HASH("hmac(md5)",	HMAC_MD5,		  16,  64), .keylen = { 16 } },
+//	{ MODE_TAB_HASH("hmac(md5)",	HMAC_MD5,		  16,  64), .keylen = { 16 } },
 	{ MODE_TAB_HASH("hmac(sha1)",	HMAC_SHA1,		  20,  64), .keylen = { 20 } },
 /* { MODE_TAB_HASH("hmac(sha224)",	HMAC_SHA224,	  28,  64), .keylen = { 28 } }, */
 	{ MODE_TAB_HASH("hmac(sha256)",	HMAC_SHA256,	  32,  64), .keylen = { 32 } },
@@ -228,11 +229,11 @@ struct mode_tab possible_hashes[] = {
 static struct mode_tab possible_ciphers[] = {
 	{ MODE_TAB_CIPH("ecb(aes)",			AES_ECB,  16, 16), .keylen = { 16, 24, 32 } },
 	{ MODE_TAB_CIPH("cbc(aes)",			AES_CBC,  16, 16), .keylen = { 16, 24, 32 } },
-	{ MODE_TAB_CIPH("ctr(aes)",			AES_CTR,  16, 16), .keylen = { 16, 24, 32 } },
 	{ MODE_TAB_CIPH("cbc(des3_ede)",	3DES_CBC, 8, 8), .keylen = { 24 } },
 	{ MODE_TAB_CIPH("ecb(des3_ede)",	3DES_ECB, 8, 8), .keylen = { 24 } },
 	{ MODE_TAB_CIPH("cbc(des)",			DES_CBC,  8, 8), .keylen = { 8 } },
 	{ MODE_TAB_CIPH("ecb(des)",			DES_ECB,  8, 8), .keylen = { 8 } },
+	{ MODE_TAB_CIPH("ctr(aes)",			AES_CTR,  16, 16), .keylen = { 16, 24, 32 } },
 };
 
 
@@ -268,9 +269,9 @@ static struct mode_tab possible_aeads[] = {
 	{ MODE_TAB_AEAD("authenc(cmac(aes), cbc(des3_ede))",	 CRYPTO_MODE_3DES_CBC, CRYPTO_MODE_MAC_CMAC,	 16, 8, 8), .keylen = { 24 } },
 	{ MODE_TAB_AEAD("authenc(xcbc(aes), cbc(des3_ede))",	 CRYPTO_MODE_3DES_CBC, CRYPTO_MODE_MAC_XCBC,	 16, 8, 8), .keylen = { 24 } },
 #endif
-	{ MODE_TAB_AEAD("authenc(hmac(md5), cbc(aes))",	 CRYPTO_MODE_AES_CBC, CRYPTO_MODE_HMAC_MD5,	 16, 16, 16), .keylen = { 16, 24, 32 } },
-	{ MODE_TAB_AEAD("authenc(hmac(sha1), cbc(aes))",	CRYPTO_MODE_AES_CBC, CRYPTO_MODE_HMAC_SHA1,	20, 16, 16), .keylen = { 16, 24, 32 } },
-	{ MODE_TAB_AEAD("authenc(hmac(sha256), cbc(aes))", CRYPTO_MODE_AES_CBC, CRYPTO_MODE_HMAC_SHA256, 32, 16, 16), .keylen = { 16, 24, 32 } },
+//	{ MODE_TAB_AEAD("authenc(hmac(md5), cbc(aes))",	 CRYPTO_MODE_AES_CBC, CRYPTO_MODE_HMAC_MD5,	 16, 16, 16), .keylen = { 16, 24, 32 } },
+//	{ MODE_TAB_AEAD("authenc(hmac(sha1), cbc(aes))",	CRYPTO_MODE_AES_CBC, CRYPTO_MODE_HMAC_SHA1,	20, 16, 16), .keylen = { 16, 24, 32 } },
+//	{ MODE_TAB_AEAD("authenc(hmac(sha256), cbc(aes))", CRYPTO_MODE_AES_CBC, CRYPTO_MODE_HMAC_SHA256, 32, 16, 16), .keylen = { 16, 24, 32 } },
 #if 0
 	{ MODE_TAB_AEAD("authenc(hmac(sha384), cbc(aes))", CRYPTO_MODE_AES_CBC, CRYPTO_MODE_HMAC_SHA384, 48, 16, 16), .keylen = { 16, 24, 32 } },
 	{ MODE_TAB_AEAD("authenc(hmac(sha512), cbc(aes))", CRYPTO_MODE_AES_CBC, CRYPTO_MODE_HMAC_SHA512, 64, 16, 16), .keylen = { 16, 24, 32 } },
@@ -349,7 +350,6 @@ static int __devinit probe_hashes(void)
 						continue;
 					}
 					dev_info(&spacc_pdev[j]->dev, "registered %s\n", possible_hashes[i].name);
-					printk("registered %s\n", possible_hashes[i].name);
 					registered++;
 					possible_hashes[i].valid = 1;
 				} else
@@ -432,7 +432,7 @@ static int __devinit probe_ciphers(void)
 					registered++;
 					possible_ciphers[i].valid = 1;
 				} else {
-					dbg(" %s is not enabled \n", possible_ciphers[i].name);	
+					dbg(" %s is not enabled \n", possible_ciphers[i].name);
 				}
 			}
 		}

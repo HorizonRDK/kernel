@@ -18,6 +18,7 @@
 #define SPACC_MAX_KEY_SIZE    32
 #define SPACC_MAX_IV_SIZE     16
 #define SPACC_MAX_HASH_BLOCK_SIZE 128
+#define SPACC_HASH_UPDATE_DATA_SIZE 0x1000 /* 1 Page */
 
 #define SPACC_HASH_STATE_SIZE (SPACC_MAX_DIGEST_SIZE + SPACC_MAX_HASH_BLOCK_SIZE + 64)
 
@@ -98,9 +99,9 @@ struct spacc_hash_reqctx {
 	/* below are state info for hash update */
 	uint8_t digest[SPACC_MAX_DIGEST_SIZE] __aligned(sizeof(u32));
 	int hashlen;
-	uint8_t data[SPACC_MAX_HASH_BLOCK_SIZE] __aligned(sizeof(u32));
+	uint8_t *data;
 	uint32_t datalen;
-	uint8_t staging_dmabuf[SPACC_MAX_HASH_BLOCK_SIZE] __aligned(sizeof(u32));
+	uint8_t *staging_dmabuf;
 
 	/* The fallback request must be the last member of this struct. */
 	union {
