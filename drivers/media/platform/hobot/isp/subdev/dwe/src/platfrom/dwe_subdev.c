@@ -197,7 +197,7 @@ static irqreturn_t x2a_dis_irq(int this_irq, void *data)
 
 	if (tmp_irq.status_b.int_frame_done == 1) {
 		//debug
-		LOG(LOG_INFO, "----ldc_irqstatus %x ----", dwe_ctx->dis_irqstatus);
+		LOG(LOG_INFO, "----dis_irqstatus %x ----", dwe_ctx->dis_irqstatus);
 		dwe_ctx->dis_irqstatus = tmp_irq.status_g;
 
 		dwe_ctx->ctx.dis_running = 0;
@@ -255,6 +255,7 @@ static irqreturn_t x2a_ldc_irq(int this_irq, void *data)
 
 	if (tmp_irq.status_b.frame_start == 1) {
 		//debug
+		printk("----ldc_irqstatus %x----", dwe_ctx->ldc_irqstatus);
 		LOG(LOG_INFO, "----ldc_irqstatus %x----", dwe_ctx->ldc_irqstatus);
 		dwe_ctx->ldc_irqstatus = tmp_irq.status_g;
 

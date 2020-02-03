@@ -394,6 +394,7 @@ void imx327_get_para(uint8_t chn, struct _setting_param_t *user_para)
 }
 
 static struct sensor_operations imx327_ops = {
+	.param_enable = 1,
 	.sensor_hw_reset_enable = imx327_hw_reset_enable,
 	.sensor_hw_reset_disable = imx327_hw_reset_disable,
 	.sensor_alloc_analog_gain = imx327_alloc_analog_gain,

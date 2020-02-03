@@ -418,6 +418,11 @@ static void sensor_set_type( void *ctx, uint8_t sensor_type, uint8_t sensor_i2c_
 static const sensor_param_t *sensor_get_parameters( void *ctx )
 {
     sensor_context_t *p_ctx = ctx;
+
+    //sensor_init_tuning_parameters(p_ctx);
+    sensor_update_parameters(p_ctx);
+    sensor_update_tuning_parameters(p_ctx);//add ie&e
+
     return (const sensor_param_t *)&p_ctx->param;
 }
 

@@ -373,9 +373,10 @@ static int32_t sensor_alloc_analog_gain( void *ctx, int32_t gain )
 	int32_t analog_gain = 0;
 
 	gain = gain >> (LOG2_GAIN_SHIFT - 5);		
-	if (sensor_ops[p_ctx->channel])
-		analog_gain = sensor_ops[p_ctx->channel]->sensor_alloc_analog_gain(p_ctx->channel, gain);
-
+	if (sensor_ops[p_ctx->channel]) {
+		if (sensor_ops[p_ctx->channel]->param_enable)
+			analog_gain = sensor_ops[p_ctx->channel]->sensor_alloc_analog_gain(p_ctx->channel, gain);
+	}
 	sensor_data[p_ctx->channel].analog_gain = analog_gain;
 
 	gain = gain << (LOG2_GAIN_SHIFT - 5);		
@@ -384,15 +385,39 @@ static int32_t sensor_alloc_analog_gain( void *ctx, int32_t gain )
 
 static int32_t sensor_alloc_digital_gain( void *ctx, int32_t gain )
 {
-//-- TODO
 	int32_t digital_gain = 0;
 	sensor_context_t *p_ctx = ctx;
+//get param
+    	sensor_param_t *param = &p_ctx->param;
+    	struct _setting_param_t sensor_param;
 
+	LOG(LOG_DEBUG, "sensor_type %d", param->sensor_type);
+	LOG(LOG_DEBUG, "lines_per_second %d", param->lines_per_second);
+	LOG(LOG_DEBUG, "integration_time_min %d", param->integration_time_min);
+	LOG(LOG_DEBUG, "intergration_time_max %d", param->integration_time_max);
+	LOG(LOG_DEBUG, "integration_time_limit %d", param->integration_time_limit);
+	LOG(LOG_DEBUG, "integration_time_long_max %d", param->integration_time_long_max);
+
+	if (sensor_ops[p_ctx->channel] != NULL) {
+		if (sensor_ops[p_ctx->channel]->param_enable == 0) {
+			sensor_ops[p_ctx->channel]->sesor_get_para(p_ctx->channel, &sensor_param);
+			if (sensor_param.lines_per_second && sensor_param.exposure_time_max) {
+				sensor_ops[p_ctx->channel]->param_enable = 1;
+				param->lines_per_second = sensor_param.lines_per_second;
+				param->integration_time_min = sensor_param.exposure_time_min;
+				param->integration_time_max = sensor_param.exposure_time_max;
+				param->integration_time_limit = sensor_param.exposure_time_max;
+				param->integration_time_long_max = sensor_param.exposure_time_long_max;
+			}
+		}
+	}
+//get param end
 
 	gain = gain >> (LOG2_GAIN_SHIFT - 5);
-	if (sensor_ops[p_ctx->channel])
-		digital_gain = sensor_ops[p_ctx->channel]->sensor_alloc_digital_gain(p_ctx->channel, gain);
-
+	if (sensor_ops[p_ctx->channel]) {
+		if (sensor_ops[p_ctx->channel]->param_enable)
+			digital_gain = sensor_ops[p_ctx->channel]->sensor_alloc_digital_gain(p_ctx->channel, gain);
+	}
 	sensor_data[p_ctx->channel].digital_gain = digital_gain;
 
 	gain = gain << (LOG2_GAIN_SHIFT - 5);		
@@ -405,8 +430,10 @@ static void sensor_alloc_integration_time( void *ctx, uint16_t *int_time, uint16
 	sensor_context_t *p_ctx = ctx;
 
 	LOG(LOG_INFO, "init s_t %d, M_t %d, L_t %d", *int_time, *int_time_M, *int_time_L);
-	if (sensor_ops[p_ctx->channel])
-		sensor_ops[p_ctx->channel]->sensor_alloc_integration_time(p_ctx->channel, int_time, int_time_M, int_time_L);
+	if (sensor_ops[p_ctx->channel]) {
+		if (sensor_ops[p_ctx->channel]->param_enable)
+			sensor_ops[p_ctx->channel]->sensor_alloc_integration_time(p_ctx->channel, int_time, int_time_M, int_time_L);
+	}
 	sensor_data[p_ctx->channel].int_time = *int_time;
 	sensor_data[p_ctx->channel].int_time_M = *int_time_M;
 	sensor_data[p_ctx->channel].int_time_L = *int_time_L;
@@ -426,55 +453,11 @@ static void sensor_update( void *ctx )
 //        uint16_t int_time_L; 
 #if 1
 	LOG(LOG_INFO, "analog_gain %d, digital_gain %d, int_time %d ", sensor_data[p_ctx->channel].analog_gain, sensor_data[p_ctx->channel].digital_gain, sensor_data[p_ctx->channel].int_time);
-	if (sensor_ops[p_ctx->channel])
-		sensor_ops[p_ctx->channel]->sensor_update(p_ctx->channel, sensor_data[p_ctx->channel]);
-#endif
-}
-
-static void sensor_set_mode( void *ctx, uint8_t mode )
-{
-    sensor_context_t *p_ctx = ctx;
-    sensor_param_t *param = &p_ctx->param;
-    if(mode>=array_size(dummy_drv_supported_modes))
-        mode = 0;
-//TODO	
-
-    p_ctx->param.sensor_exp_number = 1;
-    p_ctx->param.again_log2_max = 2088960;//0 255*2^13 = 255*8192
-    p_ctx->param.dgain_log2_max = 2088960;//0
-    p_ctx->param.integration_time_apply_delay = 2;
-    p_ctx->param.isp_exposure_channel_delay = 0;
-   
-    param->active.width = dummy_drv_supported_modes[mode].resolution.width;
-    param->active.height = dummy_drv_supported_modes[mode].resolution.height;
-    param->total.width = dummy_drv_supported_modes[mode].resolution.width;
-    param->total.height = dummy_drv_supported_modes[mode].resolution.height;
-    param->pixels_per_line = param->total.width;
-    //param->integration_time_max = 11;//3685;//TODO
-    param->integration_time_long_max = 3685 * 3; // (((uint32_t)(dummy_drv_supported_modes[mode].resolution.height)) << 2)-256;
-    //param->integration_time_limit = 11;//TODO
-    param->mode = mode;
-    //param->lines_per_second = 5993;//9212;//TODO
-    param->sensor_exp_number = param->modes_table[mode].exposures;
-    //sensor - init
-#if 0
-    if (sensor_ops[p_ctx->channel]) {
-	if (param->modes_table[mode].wdr_mode == WDR_MODE_LINEAR) {
-		//normal
-    		sensor_ops[p_ctx->channel]->sensor_init(p_ctx->channel, 0);
-	} else if (param->modes_table[mode].wdr_mode == WDR_MODE_FS_LIN) {
-		if (param->sensor_exp_number == 2)//dol2
-    			sensor_ops[p_ctx->channel]->sensor_init(p_ctx->channel, 1);
-		else if (param->sensor_exp_number == 3)//dol3
-    			sensor_ops[p_ctx->channel]->sensor_init(p_ctx->channel, 2);
-	} else if (param->modes_table[mode].wdr_mode == WDR_MODE_NATIVE) {
-		//pwl
-    		sensor_ops[p_ctx->channel]->sensor_init(p_ctx->channel, 4);
+	if (sensor_ops[p_ctx->channel]) {
+		if (sensor_ops[p_ctx->channel]->param_enable)
+			sensor_ops[p_ctx->channel]->sensor_update(p_ctx->channel, sensor_data[p_ctx->channel]);
 	}
-    }
 #endif
-//    printk("sensor set mode to %d, %dx%d raw%d, dol%d", mode, dummy_drv_supported_modes[mode].resolution.width, \
-        dummy_drv_supported_modes[mode].resolution.height, dummy_drv_supported_modes[mode].bits, dummy_drv_supported_modes[mode].exposures);
 }
 
 static void sensor_set_type( void *ctx, uint8_t sensor_type, uint8_t sensor_i2c_channel )
@@ -484,7 +467,8 @@ static void sensor_set_type( void *ctx, uint8_t sensor_type, uint8_t sensor_i2c_
     struct _setting_param_t sensor_param;
 
     LOG( LOG_INFO, "[%s--%d]", __func__, __LINE__ );
-    if (param->sensor_type != sensor_type || param->sensor_i2c_channel != sensor_i2c_channel) {
+    if ((sensor_ops[p_ctx->channel] == NULL) || (param->sensor_type != sensor_type) ||
+		(param->sensor_i2c_channel != sensor_i2c_channel)) {
     	param->sensor_type = sensor_type;
     	param->sensor_i2c_channel = sensor_i2c_channel;
     	sensor_ops[p_ctx->channel] = sensor_chn_open(p_ctx->channel, sensor_i2c_channel, sensor_type);
@@ -504,13 +488,59 @@ static void sensor_set_type( void *ctx, uint8_t sensor_type, uint8_t sensor_i2c_
     			sensor_ops[p_ctx->channel]->sensor_init(p_ctx->channel, 3);
 		}
 		sensor_ops[p_ctx->channel]->sesor_get_para(p_ctx->channel, &sensor_param);
-		param->lines_per_second = sensor_param.lines_per_second;
-		param->integration_time_min = sensor_param.exposure_time_min;
-		param->integration_time_max = sensor_param.exposure_time_max;
-		param->integration_time_limit = sensor_param.exposure_time_max;
-		param->integration_time_long_max = sensor_param.exposure_time_long_max;
+		if (sensor_param.lines_per_second && sensor_param.exposure_time_max) {
+			sensor_ops[p_ctx->channel]->param_enable = 1;
+			param->lines_per_second = sensor_param.lines_per_second;
+			param->integration_time_min = sensor_param.exposure_time_min;
+			param->integration_time_max = sensor_param.exposure_time_max;
+			param->integration_time_limit = sensor_param.exposure_time_max;
+			param->integration_time_long_max = sensor_param.exposure_time_long_max;
+		} else {
+			sensor_ops[p_ctx->channel]->param_enable = 1;
+		}
     	}
     }
+}
+
+static void sensor_set_mode(void *ctx, uint8_t mode)
+{
+    sensor_context_t *p_ctx = ctx;
+    sensor_param_t *param = &p_ctx->param;
+    struct _setting_param_t sensor_param;
+
+    if (mode >= array_size(dummy_drv_supported_modes))
+        mode = 0;
+
+    p_ctx->param.sensor_exp_number = 1;
+    p_ctx->param.again_log2_max = 2088960;//0 255*2^13 = 255*8192
+    p_ctx->param.dgain_log2_max = 2088960;//0
+    p_ctx->param.integration_time_apply_delay = 2;
+    p_ctx->param.isp_exposure_channel_delay = 0;
+
+    param->active.width = dummy_drv_supported_modes[mode].resolution.width;
+    param->active.height = dummy_drv_supported_modes[mode].resolution.height;
+    param->total.width = dummy_drv_supported_modes[mode].resolution.width;
+    param->total.height = dummy_drv_supported_modes[mode].resolution.height;
+    param->pixels_per_line = param->total.width;
+    param->integration_time_min = 5;
+    param->integration_time_max = 900;//TODO
+    param->integration_time_long_max = 900 * 3; // (((uint32_t)(dummy_drv_supported_modes[mode].resolution.height)) << 2)-256;
+    param->integration_time_limit = 900;//TODO
+    param->mode = mode;
+    param->lines_per_second = 10000;
+    param->sensor_exp_number = param->modes_table[mode].exposures;
+    //sensor param init
+#if 0
+    if (mode == 0) {
+    	sensor_set_type(ctx, SENSOR_NULL, param->sensor_i2c_channel);
+	printk("-------------sensor type 0-------------------");
+    } else {
+    	sensor_set_type(ctx, SENSOR_COMMON, param->sensor_i2c_channel);
+	printk("-------------sensor type 1-------------------");
+    }
+#endif
+//    printk("sensor set mode to %d, %dx%d raw%d, dol%d", mode, dummy_drv_supported_modes[mode].resolution.width, \
+        dummy_drv_supported_modes[mode].resolution.height, dummy_drv_supported_modes[mode].bits, dummy_drv_supported_modes[mode].exposures);
 }
 
 static uint16_t sensor_get_id( void *ctx )
@@ -520,8 +550,26 @@ static uint16_t sensor_get_id( void *ctx )
 
 static const sensor_param_t *sensor_get_parameters( void *ctx )
 {
-    sensor_context_t *p_ctx = ctx;
-    return (const sensor_param_t *)&p_ctx->param;
+	sensor_context_t *p_ctx = ctx;
+
+	sensor_param_t *param = &p_ctx->param;
+	struct _setting_param_t sensor_param;
+
+	if (sensor_ops[p_ctx->channel] != NULL) {
+		sensor_ops[p_ctx->channel]->sesor_get_para(p_ctx->channel, &sensor_param);
+		if (sensor_param.lines_per_second && sensor_param.exposure_time_max) {
+			sensor_ops[p_ctx->channel]->param_enable = 1;
+			param->lines_per_second = sensor_param.lines_per_second;
+			param->integration_time_min = sensor_param.exposure_time_min;
+			param->integration_time_max = sensor_param.exposure_time_max;
+			param->integration_time_limit = sensor_param.exposure_time_max;
+			param->integration_time_long_max = sensor_param.exposure_time_long_max;
+		} else {
+			sensor_ops[p_ctx->channel]->param_enable = 0;
+		}
+	}
+
+	return (const sensor_param_t *)&p_ctx->param;
 }
 
 static void sensor_disable_isp( void *ctx )
@@ -596,6 +644,7 @@ void sensor_init_dummy(uint32_t ctx_id, void **ctx, sensor_control_t *ctrl )
         p_ctx->param.dgain_log2_max = 2088960;//0
         p_ctx->param.integration_time_apply_delay = 2;
         p_ctx->param.isp_exposure_channel_delay = 0;
+	p_ctx->param.lines_per_second = 10000;
 
         p_ctx->param.modes_table = dummy_drv_supported_modes;
         p_ctx->param.modes_num = array_size( dummy_drv_supported_modes );
@@ -603,7 +652,7 @@ void sensor_init_dummy(uint32_t ctx_id, void **ctx, sensor_control_t *ctrl )
         sensor_set_mode(p_ctx, 0);          // init to mode 0
 
 //TODO 
-	p_ctx->param.sensor_type = SENSOR_IMX290;
+	p_ctx->param.sensor_type = SENSOR_NULL;
 
         *ctx = p_ctx;
 
@@ -620,21 +669,12 @@ void sensor_init_dummy(uint32_t ctx_id, void **ctx, sensor_control_t *ctrl )
         ctrl->write_sensor_register = write_register;
         ctrl->start_streaming = start_streaming;
         ctrl->stop_streaming = stop_streaming;
-//TODO
 
-	//update sensor 
-#if 1
-	LOG( LOG_INFO, "[%s--%d]", __func__, __LINE__ );
-	sensor_ops[p_ctx->channel] = sensor_chn_open(ctx_counter, SENSOR_I2C, p_ctx->param.sensor_type);
-//	if (sensor_ops[p_ctx->channel])
-//		sensor_ops[p_ctx->channel]->sensor_init(ctx_counter, 0);
-#endif
-        // Reset sensor during initialization
+	// Reset sensor during initialization
         sensor_hw_reset_enable();//TODO
         system_timer_usleep( 1000 ); // reset at least 1 ms
         sensor_hw_reset_disable();
         system_timer_usleep( 1000 );
-
     } else {
         LOG( LOG_ERR, "Attempt to initialize more sensor instances than was configured. Sensor initialization failed." );
         *ctx = NULL;

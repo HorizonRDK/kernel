@@ -294,6 +294,7 @@ void imx385_get_para(uint8_t chn, struct _setting_param_t *user_para)
 }
 
 static struct sensor_operations imx385_ops = {
+	.param_enable = 1,
 	.sensor_hw_reset_enable = imx385_hw_reset_enable,
 	.sensor_hw_reset_disable = imx385_hw_reset_disable,
 	.sensor_alloc_analog_gain = imx385_alloc_analog_gain,

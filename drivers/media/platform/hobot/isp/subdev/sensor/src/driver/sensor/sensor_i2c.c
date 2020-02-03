@@ -94,35 +94,39 @@ struct sensor_operations *sensor_ops_register(uint8_t sensor_sw)
 	struct sensor_operations *sensor_ctrl = NULL;
 
 	switch (sensor_sw) {
-#ifdef SENSOR_IMX290
+	case 0:
+		LOG(LOG_INFO, "sensor null !");
+		break;
 	case 1:
+		sensor_ctrl = common_ops_register();
+		LOG(LOG_INFO, "common_register !");
+		break;
+#ifdef SENSOR_IMX290
+	case 2:
 		sensor_ctrl = imx290_ops_register(); 
 		LOG(LOG_INFO, "IMX_290 register !");
 		break;
 #endif
 #ifdef SENSOR_IMX385
-	case 2:
+	case 3:
 		sensor_ctrl = imx385_ops_register();
 		break;
 		LOG(LOG_INFO, "IMX_385_register !");
 #endif
 #ifdef SENSOR_IMX327 
-	case 3:
+	case 4:
 		sensor_ctrl = imx327_ops_register();
 		LOG(LOG_INFO, "IMX_327_register !");
 		break;
 #endif
-	case 4:
+	case 5:
 		sensor_ctrl = ar0233_ops_register();
 		LOG(LOG_INFO, "ar0233_register !");
 		break;
-	case 5:
+	case 6:
 		sensor_ctrl = os8a10_ops_register();
 		LOG(LOG_INFO, "os8a10_register !");
 		break;
-	case 6:
-		sensor_ctrl = common_ops_register();
-		LOG(LOG_INFO, "common_register !");
 	default:
 		LOG(LOG_INFO, "sensor %d is not register !", sensor_sw);
 		break;
@@ -153,6 +157,10 @@ int sensor_i2c_open(uint8_t chn, uint32_t i2c_chn, uint32_t sensor_type)
 		sensor_chn_release(chn);
 	}	
 
+	if (sensor_type < 2) {
+		return ret;
+	}
+
 	minor = i2c_chn;
 
         adap = i2c_get_adapter(minor);
@@ -180,23 +188,14 @@ struct sensor_operations *sensor_chn_open(uint8_t chn,
 	int ret = 0;
 	struct sensor_operations *sensor_ctrl = NULL;
 
-	//todo
-	if (sensor_num < 6) {
-		ret = sensor_i2c_open(chn, i2c_chn, sensor_num);
-		if (ret < 0)
-			return NULL;
+	ret = sensor_i2c_open(chn, i2c_chn, sensor_num);
+	if (ret < 0)
+		return NULL;
 
-		sensor_ctrl = sensor_ops_register(sensor_num);
-		if (sensor_ctrl == NULL) {
-			LOG(LOG_ERR, " the sensor %d with i2c %d is failed ", sensor_num, i2c_chn);
-			ret = sensor_chn_release(chn);
-		}
-	} else {
-		sensor_ctrl = sensor_ops_register(sensor_num);
-		if (sensor_ctrl == NULL) {
-			LOG(LOG_ERR, " the sensor %d with i2c %d is failed ", sensor_num, i2c_chn);
-			ret = sensor_chn_release(chn);
-		}
+	sensor_ctrl = sensor_ops_register(sensor_num);
+	if (sensor_ctrl == NULL) {
+		LOG(LOG_ERR, " the sensor %d with i2c %d is failed ", sensor_num, i2c_chn);
+		ret = sensor_chn_release(chn);
 	}
 
         return sensor_ctrl;

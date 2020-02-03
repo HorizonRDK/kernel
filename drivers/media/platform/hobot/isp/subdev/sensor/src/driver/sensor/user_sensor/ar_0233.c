@@ -308,6 +308,7 @@ void ar0233_get_para(uint8_t chn, struct _setting_param_t *user_para)
 
 
 static struct sensor_operations ar0233_ops = {
+	.param_enable = 1,
 	.sensor_hw_reset_enable = ar0233_hw_reset_enable,
 	.sensor_hw_reset_disable = ar0233_hw_reset_disable,
 	.sensor_alloc_analog_gain = ar0233_alloc_analog_gain,

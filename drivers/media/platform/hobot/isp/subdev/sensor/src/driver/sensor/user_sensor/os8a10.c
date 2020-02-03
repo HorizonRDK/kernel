@@ -309,6 +309,7 @@ static void os8a10_get_para(uint8_t chn, struct _setting_param_t *user_para)
 }
 
 static struct sensor_operations os8a10_ops = {
+	.param_enable = 1,
 	.sensor_hw_reset_enable = os8a10_hw_reset_enable,
 	.sensor_hw_reset_disable = os8a10_hw_reset_disable,
 	.sensor_alloc_analog_gain = os8a10_alloc_analog_gain,

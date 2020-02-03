@@ -197,6 +197,9 @@ static void common_update(uint8_t chn, struct sensor_priv_old updata)
 	int ret = 0;
 	struct sensor_arg settings;
 
+	if (sensor_param[chn].pixels_per_line == 0)
+		return;
+
 	if (common_subdev != NULL && chn < FIRMWARE_CONTEXT_NUMBER) {
 		settings.port = chn;
 		settings.sensor_priv = &sensor_ctl[chn];
@@ -338,6 +341,7 @@ void common_get_param(uint8_t chn, struct _setting_param_t *user_para)
 }
 
 static struct sensor_operations common_ops = {
+	.param_enable = 0,
 	.sensor_hw_reset_enable = common_hw_reset_enable,
 	.sensor_hw_reset_disable = common_hw_reset_disable,
 	.sensor_alloc_analog_gain = common_alloc_analog_gain,

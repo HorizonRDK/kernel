@@ -670,6 +670,7 @@ int32_t acamera_interrupt_handler()
     uint32_t irq_mask = acamera_isp_isp_global_interrupt_status_vector_read( 0 );
 
     LOG( LOG_INFO, "IRQ MASK is 0x%x, last_ctx: %d, cur_ctx: %d, next_ctx: %d.", irq_mask, last_ctx, cur_ctx, next_ctx );
+    printk("IRQ MASK is 0x%x, last_ctx: %d, cur_ctx: %d, next_ctx: %d.", irq_mask, last_ctx, cur_ctx, next_ctx);
 
     // clear irq vector
     acamera_isp_isp_global_interrupt_clear_write( 0, 0 );
@@ -865,6 +866,7 @@ int32_t acamera_interrupt_handler()
     // read the irq vector from isp
     uint32_t irq_mask = acamera_isp_isp_global_interrupt_status_vector_read( 0 );
 
+    printk("IRQ MASK is 0x%x, context id is %d", irq_mask, current_context_id);
     LOG( LOG_ERR, "IRQ MASK is 0x%x, context id is %d", irq_mask, current_context_id );
     if(irq_mask&0x8) {
         printk("broken frame status = 0x%x", acamera_isp_isp_global_monitor_broken_frame_status_read(0));

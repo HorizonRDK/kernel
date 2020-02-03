@@ -33,6 +33,7 @@ struct _setting_param_t {
 
 
 struct sensor_operations {
+	uint8_t param_enable;
         int (* sensor_hw_reset_enable) (void);
         int (* sensor_hw_reset_disable) (void);
 	int32_t (* sensor_alloc_analog_gain) ( uint8_t chn, int32_t gain );
