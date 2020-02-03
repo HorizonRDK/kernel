@@ -327,7 +327,6 @@
 
 &sdio0 {
 	status = "okay";
-	bus-width = <4>;
 	cap-mmc-highspeed;
 	mmc-hs200-1_8v;
 	non-removable;
@@ -350,7 +349,7 @@
 };
 
 &sdio2 {
-	status = "disabled";
+	status = "okay";
 	bus-width = <4>;
 	no-mmc;
 	cap-sd-highspeed;
@@ -358,6 +357,7 @@
 	sd-uhs-sdr25;
 	sd-uhs-sdr50;
 	sd-uhs-sdr104;
+	powerup-gpio = <2>;
 	broken-cd;
 	disable-wp;
 };

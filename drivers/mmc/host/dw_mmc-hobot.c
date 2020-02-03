@@ -78,7 +78,7 @@
 #define SD_PIN_DRIVE			(0x120)
 #endif
 
-#define VER				"HOBOT-mmc_V20.200115"
+#define VER				"HOBOT-mmc_V20.200203"
 
 static int debug;
 module_param(debug, int, 0644);
