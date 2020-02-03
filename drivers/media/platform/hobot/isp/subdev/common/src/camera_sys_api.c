@@ -58,6 +58,12 @@ void camera_sys_printk_disturing(sensor_turning_data_t *turing_param)
 	pr_info("active_height %d active_width %d \n",
 			turing_param->sensor_data.active_height,
 		turing_param->sensor_data.active_width);
+	pr_info("normal param_hold 0x%x param_hold_length %d \n",
+			turing_param->normal.param_hold,
+		turing_param->normal.param_hold_length);
+	pr_info("dol2 param_hold 0x%x param_hold_length %d \n",
+			turing_param->dol2.param_hold,
+		turing_param->dol2.param_hold_length);
 }
 int camera_sys_write(uint32_t port, uint32_t reg_addr,
 		uint32_t reg_width, char *buf, uint32_t length)
@@ -548,6 +554,45 @@ int camera_sys_set_ex_gain_control(uint32_t port, sensor_priv_t *priv_param,
 
 	return ret;
 }
+
+int  camera_sys_set_param_hold(uint32_t port, uint32_t value)
+{
+	int ret = 0;
+	uint32_t param_hold = 0, param_hold_length = 0;
+	int  reg_width;
+	char buf[2];
+
+	reg_width = camera_mod[port]->camera_param.reg_width;
+	switch(camera_mod[port]->camera_param.mode) {
+		case NORMAL_M:
+			param_hold = camera_mod[port]->camera_param.normal.param_hold;
+			param_hold_length = camera_mod[port]->camera_param.normal.param_hold_length;
+			break;
+		case DOL2_M:
+			param_hold = camera_mod[port]->camera_param.dol2.param_hold;
+			param_hold_length = camera_mod[port]->camera_param.dol2.param_hold_length;
+			break;
+		case DOL3_M:
+			param_hold = camera_mod[port]->camera_param.dol3.param_hold;
+			param_hold_length = camera_mod[port]->camera_param.dol3.param_hold_length;
+			break;
+		default:
+			pr_err("[%s -- %d ] mode is err %d !", __func__, __LINE__,
+					camera_mod[port]->camera_param.mode);
+			ret = -1;
+			break;
+	}
+	if(param_hold != 0) {
+		if(value) {
+			buf[0] = 0x01;
+			ret = camera_sys_write(port, param_hold, reg_width, buf, param_hold_length);
+		} else {
+			buf[0] = 0x00;
+			ret = camera_sys_write(port, param_hold, reg_width, buf, param_hold_length);
+		}
+	}
+	return ret;
+}
 int  camera_sys_set_gain_line_control(uint32_t port, sensor_priv_t *priv_param)
 {
 	int ret = 0;
@@ -558,16 +603,22 @@ int  camera_sys_set_gain_line_control(uint32_t port, sensor_priv_t *priv_param)
 	camera_sys_gain_line_process(port, priv_param, a_gain, d_gain, a_line);
 	switch(camera_mod[port]->camera_param.mode) {
 		case NORMAL_M:
+			camera_sys_set_param_hold(port, 0x1);
 			camera_sys_set_normal_gain(port, a_gain, d_gain);
 			camera_sys_set_normal_line(port, a_line);
+			camera_sys_set_param_hold(port, 0x0);
 			break;
 		case DOL2_M:
+			camera_sys_set_param_hold(port, 0x1);
 			camera_sys_set_dol2_gain(port, priv_param->gain_num, a_gain, d_gain);
 			camera_sys_set_dol2_line(port, priv_param->line_num, a_line);
+			camera_sys_set_param_hold(port, 0x0);
 			break;
 		case DOL3_M:
+			camera_sys_set_param_hold(port, 0x1);
 			camera_sys_set_dol3_gain(port, priv_param->gain_num, a_gain, d_gain);
 			camera_sys_set_dol3_line(port, priv_param->line_num, a_line);
+			camera_sys_set_param_hold(port, 0x0);
 			break;
 		case PWL:
 			camera_sys_set_ex_gain_control(port, priv_param, a_gain, a_line);

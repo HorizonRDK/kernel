@@ -65,6 +65,8 @@ struct sensor_arg {
 };
 
 typedef struct dol3_s {
+	uint32_t param_hold;
+	uint32_t param_hold_length;
 	uint32_t s_gain;
 	uint32_t s_gain_length;
 	uint32_t sd_gain;
@@ -86,6 +88,8 @@ typedef struct dol3_s {
 } dol3_t;
 
 typedef struct dol2_s {
+	uint32_t param_hold;
+	uint32_t param_hold_length;
 	uint32_t s_gain;
     uint32_t s_gain_length;
 	uint32_t sd_gain;
@@ -101,6 +105,8 @@ typedef struct dol2_s {
 }dol2_t;
 
 typedef struct normal_s {
+	uint32_t param_hold;
+	uint32_t param_hold_length;
 	uint32_t s_gain;
 	uint32_t s_gain_length;
 	uint32_t sd_gain;
