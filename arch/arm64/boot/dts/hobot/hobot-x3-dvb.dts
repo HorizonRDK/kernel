@@ -349,7 +349,7 @@
 };
 
 &sdio2 {
-	status = "okay";
+/*	status = "okay"; */
 	bus-width = <4>;
 	no-mmc;
 	cap-sd-highspeed;
