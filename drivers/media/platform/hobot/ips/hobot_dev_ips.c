@@ -46,6 +46,14 @@ struct vio_clk vio_clk_list[] = {
 	REGISTER_CLK("mipi_host_ref"),
 };
 
+void ips_set_module_reset(unsigned long module)
+{
+	BUG_ON(!g_ips_dev);
+
+	ips_module_reset(g_ips_dev->base_reg, module);
+}
+EXPORT_SYMBOL_GPL(ips_set_module_reset);
+
 int ips_set_clk_ctrl(unsigned long module, bool enable)
 {
 	int ret = 0;
@@ -260,7 +268,7 @@ static const struct dev_pm_ops x2a_ips_pm_ops = {
 
 static irqreturn_t ips_isr(int this_irq, void *data)
 {
-	return 0;
+	return IRQ_HANDLED;
 }
 
 static int x2a_ips_probe(struct platform_device *pdev)

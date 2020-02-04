@@ -23,6 +23,8 @@
 #define GROUP_ID_NUMBER		4
 
 #define X3_IAR_INTERFACE
+#define SET_CPU_AFFINITY
+
 enum vio_group_task_state {
 	VIO_GTASK_START,
 	VIO_GTASK_REQUEST_STOP,
@@ -55,6 +57,7 @@ struct vio_group{
 	void *sub_ctx[MAX_SUB_DEVICE];
 	struct frame_id frameid;
 	unsigned long state;
+	u32 id;
 	u32 instance;
 	u32 output_flag;
 	bool get_timestamps;

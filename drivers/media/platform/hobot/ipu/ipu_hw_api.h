@@ -32,7 +32,7 @@ void ipu_set_osd_addr(void __iomem *base_addr, u8 shadow_index, u32 osd_num, u32
 void ipu_set_shd_rdy(void __iomem *base_addr, u8 cfg);
 u32 ipu_get_shd_rdy(void __iomem *base_addr);
 u32 ipu_get_size_err(void __iomem *base_addr);
-
+void ipu_clear_size_err(void __iomem *base_addr, u8 value);
 void ipu_set_shd_select(void __iomem *base_addr, u8 cfg);
 void ipu_set_osd_color(void __iomem *base_addr, u32 color_index, u32 color);
 

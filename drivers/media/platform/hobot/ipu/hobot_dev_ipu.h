@@ -18,7 +18,6 @@
 #include "vio_framemgr.h"
 #include "vio_group_api.h"
 
-#define X3_IAR_INTERFACE
 #define X2A_IPU_NAME  "x2a-ipu"
 
 #define MAX_DEVICE  8

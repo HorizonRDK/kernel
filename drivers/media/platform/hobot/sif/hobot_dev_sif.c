@@ -309,24 +309,24 @@ int sif_mux_init(struct sif_video_ctx *sif_ctx, sif_cfg_t *sif_config)
 		vio_info("DOL3 mode, current mux = %d\n", mux_index);
 	}
 
-	ddr_enable =  sif_config->output.ddr.enable;
-	if(ddr_enable == 0)
-		set_bit(VIO_GROUP_OTF_OUTPUT, &group->state);
-	else
-		set_bit(VIO_GROUP_DMA_OUTPUT, &group->state);
-
 	sif_ctx->rx_num = sif_config->input.mipi.mipi_rx_index;
 	sif_ctx->initial_frameid = true;
 
 	sif->sif_mux[mux_index] = group;
 	gtask = &sif->sifout_task[mux_index];
+	gtask->id = group->id;
 
 	group->gtask = gtask;
 	group->frame_work = sif_write_frame_work;
 
-	vio_group_task_start(gtask);
+	ddr_enable =  sif_config->output.ddr.enable;
+	if(ddr_enable == 0) {
+		set_bit(VIO_GROUP_OTF_OUTPUT, &group->state);
+	} else {
+		set_bit(VIO_GROUP_DMA_OUTPUT, &group->state);
+		vio_group_task_start(gtask);
+	}
 	sema_init(&gtask->hw_resource, 4);
-
 	sif_hw_config(sif->base_reg, sif_config);
 
 	sif_ctx->bufcount = 0;
@@ -813,7 +813,7 @@ static irqreturn_t sif_isr(int irq, void *data)
 	if (irq_src.sif_in_buf_overflow)
 		vio_err("input buffer overflow(0x%x)\n", irq_src.sif_in_buf_overflow);
 
-	return 0;
+	return IRQ_HANDLED;
 }
 
 int x2a_sif_device_node_init(struct x2a_sif_dev *sif)

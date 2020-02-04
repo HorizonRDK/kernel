@@ -403,7 +403,7 @@ static irqreturn_t gdc_isr(int irq, void *data)
 		wake_up(&gdc_ctx->done_wq);
 	}
 
-	return 0;
+	return IRQ_HANDLED;
 }
 
 static struct file_operations x2a_gdc_fops = {

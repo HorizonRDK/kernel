@@ -173,6 +173,7 @@ void frame_work_function(struct kthread_work *work)
 	gtask = leader->gtask;
 
 	set_bit(VIO_GTASK_SHOT, &gtask->state);
+	vio_dbg("%s #0\n", __func__);
 
 	if (unlikely(test_bit(VIO_GTASK_REQUEST_STOP, &gtask->state))) {
 		vio_err(" cancel by gstop0");

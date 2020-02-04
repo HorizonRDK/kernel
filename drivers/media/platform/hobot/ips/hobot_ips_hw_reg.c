@@ -4,11 +4,12 @@
  *                     All rights reserved.
  ***************************************************************************/
 
+#include <linux/delay.h>
 #include "hobot_ips_hw_reg.h"
 #include "vio_config.h"
 #include "ips_hw_api.h"
 
-void ips_module_reset(void __iomem *base_addr, unsigned int module)
+void ips_module_reset(void __iomem *base_addr, u32 module)
 {
 	int field_index = 0;
 
@@ -44,10 +45,12 @@ void ips_module_reset(void __iomem *base_addr, unsigned int module)
 
 	vio_hw_set_field(base_addr, &ips_regs[IPS_GENERAL_REG],
 		&ips_fields[field_index], 0);
-
+	msleep(1);
+	vio_hw_set_field(base_addr, &ips_regs[IPS_GENERAL_REG],
+		&ips_fields[field_index], 1);
 }
 
-void ips_enable_intr(void __iomem *base_addr, unsigned int module, bool enable)
+void ips_enable_intr(void __iomem *base_addr, u32 module, bool enable)
 {
 	int field_index = 0;
 
@@ -73,7 +76,7 @@ void ips_enable_intr(void __iomem *base_addr, unsigned int module, bool enable)
 		&ips_fields[field_index], enable);	
 }
 
-void ips_get_intr_status(void __iomem *base_addr, unsigned int module, u32 *status)
+void ips_get_intr_status(void __iomem *base_addr, u32 module, u32 *status)
 {
 	int field_index = 0;
 
@@ -100,7 +103,7 @@ void ips_get_intr_status(void __iomem *base_addr, unsigned int module, u32 *stat
 					&ips_fields[field_index]);	
 }
 
-int ips_clk_ctrl(void __iomem *base_addr, unsigned int module, bool enable)
+int ips_clk_ctrl(void __iomem *base_addr, u32 module, bool enable)
 {
 	int field_index = 0;
 	u32 value = 0;

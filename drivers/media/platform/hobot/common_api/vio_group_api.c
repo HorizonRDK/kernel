@@ -34,6 +34,9 @@ int vio_group_task_start(struct vio_group_task *group_task)
 		vio_err("sched_setscheduler_nocheck is fail(%d)", ret);
 		goto p_err;
 	}
+#ifdef SET_CPU_AFFINITY
+	ret = set_cpus_allowed_ptr(group_task->task, cpumask_of(1));
+#endif
 
 	sema_init(&group_task->hw_resource, 1);
 
@@ -113,6 +116,8 @@ struct vio_group *vio_get_chain_group(int instance, u32 group_id)
 
 void vio_group_init(struct vio_group *group)
 {
+	int i = 0;
+
 	BUG_ON(!group);
 
 	group->state = 0;
@@ -121,6 +126,8 @@ void vio_group_init(struct vio_group *group)
 	group->frame_work = NULL;
 	group->next = NULL;
 	group->prev = group;
+	for(i = 0; i < MAX_SUB_DEVICE; i++)
+		group->sub_ctx[i] = NULL;
 }
 
 int vio_init_chain(int instance)
@@ -137,6 +144,7 @@ int vio_init_chain(int instance)
 			vio_group_init(group);
 			group->chain = ischain;
 			group->instance= instance;
+			group->id = i;
 			set_bit(VIO_GROUP_INIT, &group->state);
 		}
 	}

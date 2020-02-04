@@ -161,6 +161,7 @@ static void pym_frame_work(struct vio_group *group)
 	ctx = group->sub_ctx[0];
 	pym = ctx->pym_dev;
 	shadow_index = instance % MAX_SHADOW_NUM;
+	vio_info("%s start\n", __func__);
 
 	atomic_set(&pym->instance, instance);
 
@@ -186,6 +187,7 @@ static void pym_frame_work(struct vio_group *group)
 		trans_frame(framemgr, frame, FS_PROCESS);
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
+	vio_info("%s done\n", __func__);
 
 	return;
 }
@@ -316,6 +318,7 @@ int pym_bind_chain_group(struct pym_video_ctx *pym_ctx, int instance)
 
 	group->frame_work = pym_frame_work;
 	group->gtask = &pym->gtask;
+	group->gtask->id = group->id;
 
 	chain = group->chain;
 
@@ -706,7 +709,7 @@ static irqreturn_t pym_isr(int irq, void *data)
 			vio_get_frame_id(group);
 	}
 
-	return 0;
+	return IRQ_HANDLED;
 }
 
 static struct file_operations x2a_pym_fops = {

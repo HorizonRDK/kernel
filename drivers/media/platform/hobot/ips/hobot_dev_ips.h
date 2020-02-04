@@ -26,6 +26,7 @@ struct vio_clk {
 	struct clk *clk;
 };
 
+void ips_set_module_reset(unsigned long module);
 int ips_set_clk_ctrl(unsigned long module, bool enable);
 int ips_set_bus_ctrl(unsigned int cfg);
 int ips_get_bus_ctrl(void);
