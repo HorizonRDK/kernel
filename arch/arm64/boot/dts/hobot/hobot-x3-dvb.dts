@@ -327,6 +327,7 @@
 
 &sdio0 {
 	status = "okay";
+	bus-width = <4>;
 	cap-mmc-highspeed;
 	mmc-hs200-1_8v;
 	non-removable;
