@@ -219,7 +219,9 @@ void cmos_alloc_integration_time( cmos_fsm_ptr_t p_fsm, int32_t int_time )
         new_integration_time_short = max_integration_time_short;
     }
 
+    LOG(LOG_INFO, "new_stime_short: %d", new_integration_time_short);
     LOG(LOG_INFO, "min_stime_short: %d, max_stime_short %d", min_integration_time_short, max_integration_time_short);
+    LOG(LOG_INFO, "new_stime_short: %d", new_integration_time_short);
 
 #if FILTER_SHORT_INT_TIME
     //rotate the FIFO
