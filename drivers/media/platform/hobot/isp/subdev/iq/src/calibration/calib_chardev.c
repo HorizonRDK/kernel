@@ -20,6 +20,7 @@
 #include "calib_chardev.h"
 #include <linux/vmalloc.h>
 #include <linux/slab.h>
+#include "system_timer.h"
 
 #define CHARDEV_CALIB_NAME "ac_calib"
 
@@ -49,6 +50,14 @@ static int calib_destory(uint8_t port)
 			return -CALIB_NULL_ERR;
 		else 
 			return -CALIB_PORT_ERR;
+	}
+
+	tmp = 5;
+	while (tmp > 0) {
+		if (calib_data->busy) {
+			system_timer_usleep(10);
+		}
+		tmp--;
 	}
 
 	if (calib_data->busy) {
