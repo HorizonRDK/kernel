@@ -89,28 +89,23 @@
         "gpio_id"   :   "0"
     },
 
-    "1001": {
+    "1": {
         "dtb_name"  :   "hobot-x3-dvb.dtb",
         "gpio_id"   :   "0"
     },
 
-    "1002": {
+    "2": {
         "dtb_name"  :   "hobot-x3-dvb.dtb",
         "gpio_id"   :   "0"
     },
 
-    "2001": {
+    "3": {
         "dtb_name"  :   "hobot-xj3-soc-cv.dtb",
         "gpio_id"   :   "0"
     },
 
-    "3001": {
+    "4": {
         "dtb_name"  :  "hobot-x3-dvb.dtb",
         "gpio_id"   :   "0"
-    },
-
-    "3002": {
-        "dtb_name"  :  "hobot-x3-dvb.dtb",
-        "gpio_id"   :  "0"
     }
 }
