@@ -1020,10 +1020,10 @@
 		};
 
 		ddr_monitor: ddr_monitor@0xA2D10000 {
-			compatible = "hobot,x2-ddrmonitor";
+			compatible = "hobot,ddrmonitor";
 			reg = <0 0xA2D10000 0 0x1000>;
 			interrupt-parent = <&gic>;
-			interrupts = <0 52 4>;
+			interrupts = <0 63 4>;
 			status = "disabled";
 		};
 

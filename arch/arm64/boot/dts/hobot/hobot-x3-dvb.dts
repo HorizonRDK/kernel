@@ -391,6 +391,10 @@
 	status = "okay";
 };
 
+&ddr_monitor {
+	status = "okay";
+};
+
 &soc_thermal {
 	status = "okay";
 	thermal-sensors = <&pvt>;

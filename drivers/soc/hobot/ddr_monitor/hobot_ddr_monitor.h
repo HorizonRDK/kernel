@@ -44,6 +44,14 @@ struct isp_mod_s {
 #define DDR_PORT_WRITE_QOS_CTRL 0x04
 #define DDR_PHY_DFI1_ENABLE_CTRL 0x08
 
+#ifdef CONFIG_HOBOT_XJ3
+#define DDR_MSG_RD	0x0c
+#define DDR_MSG_MRR_DATA_RD_0 0x10
+#define DDR_MSG_MRR_DATA_RD_1 0x14
+#define DDR_MSG_MRR_DATA_RD_2 0x18
+#define DDR_MSG_MRR_DATA_RD_3 0x1c
+#endif
+
 #define PERF_MONITOR_ENABLE 0x20
 #define PERF_MONITOR_PERIOD 0x24
 #define PERF_MONITOR_SRCPND 0x28
