@@ -1423,20 +1423,11 @@ static int iar_thread(void *data)
 			iar_rotate_video_buffer(display_addr.Yaddr,
 				display_addr.Uaddr, display_addr.Vaddr);
 		} else {
-			//iar_set_bufaddr(0, &display_addr);
-			//iar_update();
-                       pr_debug("iar: iar display refresh!!!!!\n");
-                       pr_debug("iar display yaddr is 0x%llx, caddr is 0x%llx\n", g_disp_yaddr, g_disp_caddr);
-                        remap_addr = ioremap_nocache(0xA4301000 + 0x114, 4);
-                        writel(g_disp_yaddr, remap_addr);//fbuf_addr_RD1_Y
-                        remap_addr = ioremap_nocache(0xA4301000 + 0x118, 4);
-                        writel(g_disp_caddr, remap_addr);
-                        remap_addr= ioremap_nocache(0xA4301000 + 0x98, 4);
-                        writel(0x1, remap_addr);
-                        remap_addr = ioremap_nocache(0xA4301000 + 0x340, 4);
-                        writel(0xc, remap_addr);
-                        remap_addr = ioremap_nocache(0xA4301000 + 0x318, 4);
-                        writel(0x1, remap_addr);
+			pr_debug("iar: iar display refresh!!!!!\n");
+			pr_debug("iar display yaddr is 0x%llx, caddr is 0x%llx\n",
+					g_disp_yaddr, g_disp_caddr);
+			iar_set_bufaddr(0, &display_addr);
+			iar_update();
 		}
 	} while (!kthread_should_stop());
 }
