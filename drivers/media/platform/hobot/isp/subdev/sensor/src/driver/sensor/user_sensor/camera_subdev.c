@@ -66,7 +66,7 @@ static int32_t common_alloc_analog_gain(uint8_t chn, int32_t gain)
 		case SENSOR_PWL:
 			sensor_ctl[chn].gain_buf[0] = analog_gain;
 			sensor_ctl[chn].gain_num = 1;
-			LOG(LOG_ERR, "linera gain is %d", analog_gain);
+			LOG(LOG_ERR, "liner gain is %d", analog_gain);
 		break;
 		case SENSOR_DOL2:
 			sensor_ctl[chn].gain_buf[0] = analog_gain;
@@ -163,7 +163,7 @@ static void common_alloc_integration_time(uint8_t chn, uint16_t *int_time,
 		case SENSOR_PWL:
 			sensor_ctl[chn].line_buf[0] = time_L;
 			sensor_ctl[chn].line_num = 1;
-			LOG(LOG_ERR, "lineer gain is %d", time_L);
+			LOG(LOG_ERR, "linear time is %d", time_L);
 		break;
 		case SENSOR_DOL2:
 			sensor_ctl[chn].line_buf[0] = time_L;

@@ -219,9 +219,9 @@ void cmos_alloc_integration_time( cmos_fsm_ptr_t p_fsm, int32_t int_time )
         new_integration_time_short = max_integration_time_short;
     }
 
+    LOG(LOG_INFO, "glbal_max_time: %d", param->global_max_integration_time);
     LOG(LOG_INFO, "new_stime_short: %d", new_integration_time_short);
     LOG(LOG_INFO, "min_stime_short: %d, max_stime_short %d", min_integration_time_short, max_integration_time_short);
-    LOG(LOG_INFO, "new_stime_short: %d", new_integration_time_short);
 
 #if FILTER_SHORT_INT_TIME
     //rotate the FIFO
@@ -425,12 +425,18 @@ static void cmos_store_frame_exposure_set( cmos_fsm_ptr_t p_fsm, exposure_set_t 
 void cmos_update_exposure_history( cmos_fsm_ptr_t p_fsm )
 {
     unsigned long irq_flags;
+    uint32_t tmp_lut = 0;
+    uint32_t tmp_data = 0;
+
+    fsm_param_sensor_info_t sensor_info;
+    acamera_fsm_mgr_get_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_GET_SENSOR_INFO, NULL, 0, &sensor_info, sizeof( sensor_info ) );
+
     cmos_control_param_t *param = (cmos_control_param_t *)_GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_CMOS_CONTROL );
     //uint32_t gain;
     if ( p_fsm->exposure_hist_pos < 0 ) {
         int pos;
-        fsm_param_sensor_info_t sensor_info;
-        acamera_fsm_mgr_get_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_GET_SENSOR_INFO, NULL, 0, &sensor_info, sizeof( sensor_info ) );
+        //fsm_param_sensor_info_t sensor_info;
+        //acamera_fsm_mgr_get_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_GET_SENSOR_INFO, NULL, 0, &sensor_info, sizeof( sensor_info ) );
 
         p_fsm->exposure_hist_pos = 0;
         // reset state
@@ -463,6 +469,13 @@ void cmos_update_exposure_history( cmos_fsm_ptr_t p_fsm )
     }
     if ( !param->global_manual_isp_digital_gain ) {
         param->global_isp_digital_gain = ( p_fsm->isp_dgain_log2 >> ( LOG2_GAIN_SHIFT - 5 ) );
+    }
+
+    //update lut
+    tmp_lut = p_fsm->exp_lut[0];
+    tmp_data = acamera_log2_fixed_to_fixed( sensor_info.integration_time_limit, 0, LOG2_GAIN_SHIFT );
+    if ((tmp_lut < (tmp_data - 100)) || (tmp_lut > (tmp_data + 100))) {
+	cmos_update_exposure_partitioning_lut(p_fsm);
     }
 }
 
@@ -1143,6 +1156,7 @@ void cmos_long_exposure_update( cmos_fsm_ptr_t p_fsm )
         } else {
             time.int_time = is_short_exposure_frame( p_fsm->cmn.isp_base ) ? p_fsm->integration_time_short : p_fsm->integration_time_long;
 
+            LOG(LOG_DEBUG, " short %d limit short %d", time.int_time, p_fsm->integration_time_short);
             acamera_fsm_mgr_set_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_SET_SENSOR_ALLOC_INTEGRATION_TIME, &time, sizeof( time ) );
 
             // time is updated in above function, save it.

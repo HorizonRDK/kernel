@@ -465,6 +465,7 @@ static void sensor_set_type( void *ctx, uint8_t sensor_type, uint8_t sensor_i2c_
     sensor_context_t *p_ctx = ctx;
     sensor_param_t *param = &p_ctx->param;
     struct _setting_param_t sensor_param;
+    uint32_t tmp = 0;
 
     LOG( LOG_INFO, "[%s--%d]", __func__, __LINE__ );
     if ((sensor_ops[p_ctx->channel] == NULL) || (param->sensor_type != sensor_type) ||
@@ -487,16 +488,23 @@ static void sensor_set_type( void *ctx, uint8_t sensor_type, uint8_t sensor_i2c_
 			//pwl
     			sensor_ops[p_ctx->channel]->sensor_init(p_ctx->channel, 3);
 		}
-		sensor_ops[p_ctx->channel]->sesor_get_para(p_ctx->channel, &sensor_param);
-		if (sensor_param.lines_per_second && sensor_param.exposure_time_max) {
-			sensor_ops[p_ctx->channel]->param_enable = 1;
-			param->lines_per_second = sensor_param.lines_per_second;
-			param->integration_time_min = sensor_param.exposure_time_min;
-			param->integration_time_max = sensor_param.exposure_time_max;
-			param->integration_time_limit = sensor_param.exposure_time_max;
-			param->integration_time_long_max = sensor_param.exposure_time_long_max;
-		} else {
-			sensor_ops[p_ctx->channel]->param_enable = 1;
+		tmp = 0;
+		while (tmp < 5) {
+			tmp++;
+			sensor_ops[p_ctx->channel]->sesor_get_para(p_ctx->channel, &sensor_param);
+			if (sensor_param.lines_per_second && sensor_param.exposure_time_max) {
+				sensor_ops[p_ctx->channel]->param_enable = 1;
+				param->lines_per_second = sensor_param.lines_per_second;
+				param->integration_time_min = sensor_param.exposure_time_min;
+				param->integration_time_max = sensor_param.exposure_time_max;
+				param->integration_time_limit = sensor_param.exposure_time_max;
+				param->integration_time_long_max = sensor_param.exposure_time_long_max;
+				break;
+			} else {
+				sensor_ops[p_ctx->channel]->param_enable = 0;
+				LOG( LOG_INFO, "num [%d]: get param failed!", tmp);
+				system_timer_usleep(5000); // reset at least 1 ms
+			}
 		}
     	}
     }
