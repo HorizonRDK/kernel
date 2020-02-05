@@ -969,7 +969,7 @@
 			compatible = "hobot,x2-dw-mshc";
 			reg = <0x0 0xA5012000 0x0 0x1000>;
 			clock-freq-min-max = <100000 200000000>;
-			clocks = <&sd1_cclk>;
+			clocks = <&sd2_cclk>;
 			clock-names = "sdio_mclk";
 			clock-frequency = <200000000>;
 			bus-width = <4>;
