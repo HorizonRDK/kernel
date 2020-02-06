@@ -600,7 +600,7 @@ static unsigned long mipi_host_pixel_clk_select(mipi_hdev_t *hdev, mipi_host_cfg
 			pixclk = (pixclk + 2) / 3;
 
 		if (param->ipi_limit && pixclk < param->ipi_limit) {
-			mipiinfo("ipi clk limit %lu up to %lu", pixclk, param->ipi_limit);
+			mipiinfo("ipi clk limit %lu up to %u", pixclk, param->ipi_limit);
 			pixclk = param->ipi_limit;
 		}
 	}
