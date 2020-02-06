@@ -24,7 +24,7 @@
 #include <linux/mutex.h>
 #include <asm/cacheflush.h>
 #include <soc/hobot/hobot_iar.h>
-
+#include <soc/hobot/hobot_mipi_dphy.h>
 
 extern struct iar_dev_s *g_iar_dev;
 //int panel_reset_pin;
@@ -376,12 +376,16 @@ static int mipi_dsi_core_pre_init(void)
 {
 	void __iomem *hitm1_reg_addr;
 
-	hitm1_reg_addr = ioremap_nocache(0xA4300000 + 0xe0, 4);
+/*	hitm1_reg_addr = ioremap_nocache(0xA4300000 + 0xe0, 4);
 	writel(0x1, hitm1_reg_addr);
 	hitm1_reg_addr = ioremap_nocache(0xA4300000 + 0x84, 4);
 	writel(0x08100000, hitm1_reg_addr);//20bit
 	hitm1_reg_addr = ioremap_nocache(0xA4300000 + 0x8c, 4);
 	writel(0x1c23, hitm1_reg_addr);
+*/
+	mipi_dphy_set_lanemode(MIPI_DPHY_TYPE_DSI, 0, 1);
+	mipi_dphy_set_freqrange(MIPI_DPHY_TYPE_DSI, 0, MIPI_CFGCLKFREQRANGE, 0x1c);
+	mipi_dphy_set_freqrange(MIPI_DPHY_TYPE_DSI, 0, MIPI_HSFREQRANGE, 0x23);
 
 	writel(0x0, g_iar_dev->mipi_dsi_regaddr + PHY_RSTZ);//0xa0
 	mipi_dsi_core_reset();
