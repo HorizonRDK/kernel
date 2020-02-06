@@ -46,7 +46,7 @@
 
 	chosen {
 		bootargs = "earlycon loglevel=8 console=ttyS0 clk_ignore_unused";
-		stdout-path = "serial0:115200n8";
+		stdout-path = "serial0:921600n8";
 	};
 
 	memory@0 {
@@ -257,7 +257,7 @@
 };
 
 &nor_flash {
-	status = "okay";
+	status = "disabled";
 	#address-cells = <1>;
 	#size-cells = <0>;
 
@@ -279,6 +279,23 @@
 			label = "qspi-uboot";
 			reg = <0x200000 0x200000>;
 		};
+	};
+};
+
+&nand_flash {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	qspi-mode = <4>;
+
+	spi-nand@0 {
+		compatible = "spi-nand";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		reg = <0x0>;
+		spi-tx-bus-width = <4>;
+		spi-rx-bus-width = <4>;
+		spi-max-frequency = <50000000>; /* For FPGA max clk is 20Mhz */
 	};
 };
 
