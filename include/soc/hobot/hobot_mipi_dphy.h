@@ -39,6 +39,7 @@ typedef struct _mipi_phy_sub_s {
 enum _mipi_dphy_type_e {
 	MIPI_DPHY_TYPE_HOST,
 	MIPI_DPHY_TYPE_DEV,
+	MIPI_DPHY_TYPE_DSI,
 };
 
 enum _mipi_dphy_freqrange_region_e {

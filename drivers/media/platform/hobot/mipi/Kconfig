@@ -31,7 +31,7 @@ config HOBOT_MIPI_DEV_MAX_NUM
 
 config HOBOT_MIPI_PHY
     tristate "Hobot MIPI DPHY Driver"
-	depends on HOBOT_MIPI_CSI
+	depends on HOBOT_MIPI_CSI || (HOBOT_XJ3 && HOBOT_IAR)
 	---help---
       Driver for the HOBOT MIPI DPHY
 
