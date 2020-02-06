@@ -133,7 +133,7 @@ int ldc_swparam_set(uint32_t port, ldc_param_s *pldc)
 	if (port >= FIRMWARE_CONTEXT_NUMBER) {
 		LOG(LOG_ERR, "---port %d param is error!---", port);
 		ret = -1;
-	} else {	
+	} else {
 		if (pldc) {
 			memcpy(&dwe_param[port].ldc_param, pldc, sizeof(ldc_param_s));
 		} else {
@@ -327,7 +327,7 @@ int dwe_init_api(dwe_context_t *ctx, struct dwe_dev_s *pdev, dwe_param_t **ppara
 
 	if (pdev != NULL)
 		dev_ptr = pdev;
-	
+
 	*pparam = dwe_param;
 
 	ptr = kzalloc(DIS_STAT_SIZE, GFP_KERNEL);
@@ -342,22 +342,8 @@ int dwe_init_api(dwe_context_t *ctx, struct dwe_dev_s *pdev, dwe_param_t **ppara
 	for (tmp = 0; tmp < HADRWARE_CONTEXT_MAX; tmp++) {
 		set_chn_dis_addr(dev_ptr->dis_dev->io_vaddr, &ctx->phy_mem, tmp);
 	}
-	//enable irq mask  ldc & dis
-	tmp = 0x1;
-	set_dwe_int_mask(dev_ptr->dis_dev->io_vaddr, &tmp);
-	tmp = 0x7f;
-	set_ldc_int_mask(dev_ptr->ldc_dev->io_vaddr, &tmp);
-//------------------------------------------------------
-	tmp = 0x02;
-	set_ldc_soft_reset(dev_ptr->ldc_dev->io_vaddr, &tmp);
-//tmp
-	tmp = 0x80fc0000;
-	set_ldc_setting(dev_ptr->ldc_dev->io_vaddr, &tmp);
-	tmp = 0x80fc0000;
-	set_dwe_setting(dev_ptr->dis_dev->io_vaddr, &tmp);
-//	tmp = 0x8;
-//	set_dwe_checktype(dev_ptr->dis_dev->io_vaddr, &tmp);
-//-------------------------------------------------------
+
+	dwe_sw_init();
 
 	ctx->ldc_running = 0;
 	ctx->ldc_dev_num = 0;
@@ -435,8 +421,88 @@ int dwe_reset_api(dwe_context_t *ctx)
 	return ret;
 }
 
+void dwe_sw_init(void)
+{
+	uint32_t tmp = 0;
+
+	//init ldc
+	tmp = 0x03;
+	set_ldc_soft_reset(dev_ptr->ldc_dev->io_vaddr, &tmp);
+
+	tmp = 0x80fc0000;
+	set_ldc_setting(dev_ptr->ldc_dev->io_vaddr, &tmp);
+
+	tmp = 0x7f;
+	set_ldc_int_status(dev_ptr->ldc_dev->io_vaddr, &tmp);
+
+	tmp = 0x7f;
+	set_ldc_int_mask(dev_ptr->ldc_dev->io_vaddr, &tmp);
+
+	tmp = 0x02;
+	set_ldc_soft_reset(dev_ptr->ldc_dev->io_vaddr, &tmp);
+
+	//init dis
+	get_dwe_checktype(dev_ptr->dis_dev->io_vaddr, &tmp);
+	tmp |= 0x4;
+	set_dwe_checktype(dev_ptr->dis_dev->io_vaddr, &tmp);
+
+	tmp = 0x80fc0000;
+	set_dwe_setting(dev_ptr->dis_dev->io_vaddr, &tmp);
+
+	tmp = 0xf;
+	set_dwe_int_status(dev_ptr->dis_dev->io_vaddr, &tmp);
+
+	tmp = 0x1;
+	set_dwe_int_mask(dev_ptr->dis_dev->io_vaddr, &tmp);
+
+	get_dwe_checktype(dev_ptr->dis_dev->io_vaddr, &tmp);
+	tmp &= 0xfb;
+	set_dwe_checktype(dev_ptr->dis_dev->io_vaddr, &tmp);
+}
+
+void dwe_sw_deinit(void)
+{
+	uint32_t tmp = 0;
+
+	//init ldc
+	tmp = 0x03;
+	set_ldc_soft_reset(dev_ptr->ldc_dev->io_vaddr, &tmp);
+
+	tmp = 0x0;
+	set_ldc_int_mask(dev_ptr->ldc_dev->io_vaddr, &tmp);
+
+	tmp = 0x7f;
+	set_ldc_int_status(dev_ptr->ldc_dev->io_vaddr, &tmp);
+
+	tmp = 0x80fc0000;
+	set_ldc_setting(dev_ptr->ldc_dev->io_vaddr, &tmp);
+
+	tmp = 0x02;
+	set_ldc_soft_reset(dev_ptr->ldc_dev->io_vaddr, &tmp);
+
+	//init dis
+	get_dwe_checktype(dev_ptr->dis_dev->io_vaddr, &tmp);
+	tmp |= 0x4;
+	set_dwe_checktype(dev_ptr->dis_dev->io_vaddr, &tmp);
+
+	tmp = 0x0;
+	set_dwe_int_mask(dev_ptr->dis_dev->io_vaddr, &tmp);
+
+	tmp = 0xf;
+	set_dwe_int_status(dev_ptr->dis_dev->io_vaddr, &tmp);
+
+	tmp = 0x80fc0000;
+	set_dwe_setting(dev_ptr->dis_dev->io_vaddr, &tmp);
+
+	get_dwe_checktype(dev_ptr->dis_dev->io_vaddr, &tmp);
+	tmp &= 0xfb;
+	set_dwe_checktype(dev_ptr->dis_dev->io_vaddr, &tmp);
+}
+
 void dwe_deinit_api(dwe_context_t *ctx)
 {
+	dwe_sw_deinit();
+
 	dev_ptr = NULL;
 	kfree(ctx->ptr_mem);
 	LOG(LOG_DEBUG, "dwe_deinit_api is success");
@@ -656,7 +722,6 @@ int dis_hwparam_set(dwe_context_t *ctx, uint32_t port)
 	return ret;
 }
 
-
 /*
  *  if ldc == bypass
  *     set lypas_ldc == 1
@@ -681,6 +746,9 @@ int ldc_hwpath_set(dwe_context_t *ctx, uint32_t port)
 	//get_ldc_cur_index(dev_ptr->ldc_dev->io_vaddr, &tmp_cur);
 	//ctx->ldc_cur_num = tmp_cur;
 
+	set_tmp = 0x03;
+	set_ldc_soft_reset(dev_ptr->ldc_dev->io_vaddr, &set_tmp);
+
 	get_ldc_setting(dev_ptr->ldc_dev->io_vaddr, &set_tmp);
 	set_tmp &= 0x80fc0000;
 	set_tmp |= ctx->ldc_dev_num << 16;
@@ -695,6 +763,9 @@ int ldc_hwpath_set(dwe_context_t *ctx, uint32_t port)
 		tmp_num = 1;
 	}
 	set_ldc_bypass(dev_ptr->ldc_dev->io_vaddr, &tmp_num);
+
+	set_tmp = 0x03;
+	set_ldc_soft_reset(dev_ptr->ldc_dev->io_vaddr, &set_tmp);
 
 	LOG(LOG_DEBUG, "ldc_hwpath_set success!");
 	return ret;
@@ -724,6 +795,10 @@ int dis_hwpath_set(dwe_context_t *ctx, uint32_t port)
 	//get_dwe_cur_index(dev_ptr->dis_dev->io_vaddr, &tmp_cur);
 	//ctx->dis_cur_num = tmp_cur;
 
+	get_dwe_checktype(dev_ptr->dis_dev->io_vaddr, &set_tmp);
+	set_tmp |= 0x4;
+	set_dwe_checktype(dev_ptr->dis_dev->io_vaddr, &set_tmp);
+
 	set_dwe_image_size(dev_ptr->dis_dev->io_vaddr, &size_tmp);
 
 	get_dwe_setting(dev_ptr->dis_dev->io_vaddr, &set_tmp);
@@ -732,7 +807,11 @@ int dis_hwpath_set(dwe_context_t *ctx, uint32_t port)
 	//set_tmp |= (tmp_cur << (16 + ctx->dis_dev_num * 2));
 	set_dwe_setting(dev_ptr->dis_dev->io_vaddr, &set_tmp);
 	LOG(LOG_DEBUG, "num %d,set_tmp %x", ctx->dis_dev_num, set_tmp);
-	
+
+	get_dwe_checktype(dev_ptr->dis_dev->io_vaddr, &set_tmp);
+	set_tmp &= 0xfb;
+	set_dwe_checktype(dev_ptr->dis_dev->io_vaddr, &set_tmp);
+
 	LOG(LOG_DEBUG, "dis_hwpath_set success!");
 	return ret;
 }

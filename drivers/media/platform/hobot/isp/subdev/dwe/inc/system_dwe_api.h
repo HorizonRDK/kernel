@@ -73,4 +73,7 @@ int dis_hwpath_set(dwe_context_t *ctx, uint32_t port);
 void ldc_printk_info(void);
 void dwe_printk_info(void);
 
+void dwe_sw_init(void);
+void dwe_sw_deinit(void);
+
 #endif /* __ACAMERA_DWE_API_H__ */
