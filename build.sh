@@ -84,14 +84,11 @@ function build_dtbmapping()
 function set_kernel_config()
 {
     if [ "$BOOT_MODE" = "nand"  ];then
-
-        sed -i 's/# CONFIG_MTD_CMDLINE_PARTS is not set/CONFIG_MTD_CMDLINE_PARTS=y/g' $TOPDIR/kernel/arch/arm64/configs/x2_debug_defconfig
-        sed -i 's/# CONFIG_MTD_UBI_FASTMAP is not set/CONFIG_MTD_UBI_FASTMAP=y/g' $TOPDIR/kernel/arch/arm64/configs/x2_debug_defconfig
-        sed -i 's/# CONFIG_MTD_UBI_FASTMAP_AUTOCONVERT is not set/CONFIG_MTD_UBI_FASTMAP_AUTOCONVERT=y/g' $TOPDIR/kernel/arch/arm64/configs/x2_debug_defconfig
+        sed -i 's/# CONFIG_MTD_UBI_FASTMAP is not set/CONFIG_MTD_UBI_FASTMAP=y/g' $TOPDIR/kernel/arch/arm64/configs/$KERNEL_DEFCONFIG
+        sed -i 's/# CONFIG_MTD_UBI_FASTMAP_AUTOCONVERT is not set/CONFIG_MTD_UBI_FASTMAP_AUTOCONVERT=1/g' $TOPDIR/kernel/arch/arm64/configs/$KERNEL_DEFCONFIG
     else
-        sed -i 's/CONFIG_MTD_CMDLINE_PARTS=y/# CONFIG_MTD_CMDLINE_PARTS is not set/g' $TOPDIR/kernel/arch/arm64/configs/x2_debug_defconfig
-        sed -i 's/CONFIG_MTD_UBI_FASTMAP=y/# CONFIG_MTD_UBI_FASTMAP is not set/g' $TOPDIR/kernel/arch/arm64/configs/x2_debug_defconfig
-        sed -i 's/CONFIG_MTD_UBI_FASTMAP_AUTOCONVERT=y/# CONFIG_MTD_UBI_FASTMAP_AUTOCONVERT is not set/g' $TOPDIR/kernel/arch/arm64/configs/x2_debug_defconfig
+        sed -i 's/CONFIG_MTD_UBI_FASTMAP=y/# CONFIG_MTD_UBI_FASTMAP is not set/g' $TOPDIR/kernel/arch/arm64/configs/$KERNEL_DEFCONFIG
+        sed -i 's/CONFIG_MTD_UBI_FASTMAP_AUTOCONVERT=1/# CONFIG_MTD_UBI_FASTMAP_AUTOCONVERT is not set/g' $TOPDIR/kernel/arch/arm64/configs/$KERNEL_DEFCONFIG
     fi
 }
 
