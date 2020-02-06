@@ -938,18 +938,19 @@ int user_set_fb(void)
 		set_lt9211_config(&x2_fbi->fb);
 #endif
 	} else if (display_type == MIPI_1080P) {
-		pr_info("fb_driver: disp set mipi 1080p!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
-		/*disp_set_panel_timing(&video_1080x1920);
+		pr_info("fb_driver: disp set mipi 1080p!\n");
+		disp_set_panel_timing(&video_1080x1920);
 		x2_fbi->memory_mode = 0;
 
 		x2_fbi->channel_base_cfg[0].enable = 1;
 		x2_fbi->channel_base_cfg[1].enable = 0;
-		x2_fbi->channel_base_cfg[2].enable = 0;
+		x2_fbi->channel_base_cfg[2].enable = 1;
 		x2_fbi->channel_base_cfg[3].enable = 0;
 		x2_fbi->channel_base_cfg[0].channel = IAR_CHANNEL_1;
+		x2_fbi->channel_base_cfg[0].enable = 1;
 		x2_fbi->update_cmd.enable_flag[0] = 1;
 		x2_fbi->update_cmd.enable_flag[2] = 1;
-		//x2_fbi->channel_base_cfg[0].pri = 3
+		x2_fbi->channel_base_cfg[0].pri = 3;
 		x2_fbi->channel_base_cfg[0].width = 1080;
 		x2_fbi->channel_base_cfg[0].height = 1920;
 		x2_fbi->channel_base_cfg[0].buf_width = 1080;
@@ -959,33 +960,40 @@ int user_set_fb(void)
 		x2_fbi->channel_base_cfg[0].ov_mode = 0;
 		x2_fbi->channel_base_cfg[0].alpha_en = 1;
 		x2_fbi->channel_base_cfg[0].alpha = 255;
+		x2_fbi->channel_base_cfg[2].channel = IAR_CHANNEL_3;
+		x2_fbi->channel_base_cfg[2].enable = 1;
+		x2_fbi->update_cmd.enable_flag[2] = 1;
+		x2_fbi->channel_base_cfg[2].pri = 1;
+		x2_fbi->channel_base_cfg[2].width = 1080;
+		x2_fbi->channel_base_cfg[2].height = 1920;
+		x2_fbi->channel_base_cfg[2].buf_width = 1080;
+		x2_fbi->channel_base_cfg[2].buf_height = 1920;
+		x2_fbi->channel_base_cfg[2].format = 4;//ARGB8888
+		x2_fbi->channel_base_cfg[2].alpha_sel = 0;
+		x2_fbi->channel_base_cfg[2].ov_mode = 0;
+		x2_fbi->channel_base_cfg[2].alpha_en = 1;
+		x2_fbi->channel_base_cfg[2].alpha = 128;
 
-		x2_fbi->output_cfg.out_sel = OUTPUT_MIPI_DSI;
+		x2_fbi->output_cfg.out_sel = 0;//mipi-dsi
 		x2_fbi->output_cfg.width = 1080;
 		x2_fbi->output_cfg.height = 1920;
 		x2_fbi->output_cfg.bgcolor = 16744328;//white.
 		//x2_fbi->output_cfg.bgcolor = 88888888;//green
 
 		iar_channel_base_cfg(&x2_fbi->channel_base_cfg[0]);
-		//iar_channel_base_cfg(&x2_fbi->channel_base_cfg[2]);
+		iar_channel_base_cfg(&x2_fbi->channel_base_cfg[2]);
 		iar_output_cfg(&x2_fbi->output_cfg);
 
-		hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x00, 4);
-		writel(0x01E41000, hitm1_reg_addr);
+		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x00, 4);
+		writel(0x0572300f, hitm1_reg_addr);
 
-		//panel color type is yuv444, YCbCr conversion needed
-		hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x204, 4);
-		writel(0x0, hitm1_reg_addr);
-
-		//select BT709 color domain
-		//hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x48, 4);
+		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x48, 4);
 		//writel(FORMAT_ORGANIZATION_VAL, hitm1_reg_addr);
+		writel(0x406, hitm1_reg_addr);
 
 		iar_switch_buf(0);
-		iar_set_bufaddr(2, &graphic_display_paddr);
-
+		iar_set_bufaddr(IAR_CHANNEL_3, &graphic_display_paddr);
 		iar_start(1);
-		*/
 		//set_mipi_display(0);
 	}
 	return regval;

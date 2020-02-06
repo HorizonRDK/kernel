@@ -266,6 +266,13 @@ enum _mipi_dsi_table_e {
 	TABLE_MAX,
 };
 
+#define REG_MIPI_DSI_PHY_TST_CTRL0  0xb4
+#define REG_MIPI_DSI_PHY_TST_CTRL1  0xb8
+
+#define DPHY_TEST_ENABLE    0x10000
+#define DPHY_TEST_CLK       0x2
+#define DPHY_TEST_RESETN    0x0
+
 #define VALUE_SET(value, mask, offset, regvalue)	\
 	((((value) & (mask)) << (offset)) | ((regvalue)&~((mask) << (offset))))
 #define VALUE_GET(mask, offset, regvalue) (((regvalue) >> (offset)) & (mask))
@@ -277,12 +284,82 @@ enum _mipi_dsi_table_e {
 	VALUE_GET(g_mipi_dsi_reg_cfg_table[key][TABLE_MASK], \
 		g_mipi_dsi_reg_cfg_table[key][TABLE_OFFSET], regvalue)
 
+static void mipi_dphy_write(uint16_t addr, uint8_t data)
+{
+	uint32_t regv = 0;
+
+	/*write test code*/
+	/*set testen to high*/
+	writel(DPHY_TEST_ENABLE,
+			g_iar_dev->mipi_dsi_regaddr + REG_MIPI_DSI_PHY_TST_CTRL1);
+	/*set testclk to high*/
+	writel(DPHY_TEST_CLK,
+			g_iar_dev->mipi_dsi_regaddr + REG_MIPI_DSI_PHY_TST_CTRL0);
+	/*set testclk to low*/
+	writel(DPHY_TEST_RESETN,
+			g_iar_dev->mipi_dsi_regaddr + REG_MIPI_DSI_PHY_TST_CTRL0);
+	/*set testen to low, set test code MSBS*/
+	writel(addr >> 8, g_iar_dev->mipi_dsi_regaddr + REG_MIPI_DSI_PHY_TST_CTRL1);
+	/*set testclk to high*/
+	writel(DPHY_TEST_CLK,
+		g_iar_dev->mipi_dsi_regaddr + REG_MIPI_DSI_PHY_TST_CTRL0);
+
+	/*set testclk to low*/
+	writel(DPHY_TEST_RESETN,
+		g_iar_dev->mipi_dsi_regaddr + REG_MIPI_DSI_PHY_TST_CTRL0);
+	regv = readl(g_iar_dev->mipi_dsi_regaddr + REG_MIPI_DSI_PHY_TST_CTRL1);
+	/*set testen to high*/
+	writel(DPHY_TEST_ENABLE | regv,
+		g_iar_dev->mipi_dsi_regaddr + REG_MIPI_DSI_PHY_TST_CTRL1);
+	/*set testclk to high*/
+	writel(DPHY_TEST_CLK,
+		g_iar_dev->mipi_dsi_regaddr + REG_MIPI_DSI_PHY_TST_CTRL0);
+	/*set test code LSBS*/
+	writel(DPHY_TEST_ENABLE | (addr & 0xff),
+		g_iar_dev->mipi_dsi_regaddr + REG_MIPI_DSI_PHY_TST_CTRL1);
+	/*set testclk to low*/
+	writel(DPHY_TEST_RESETN,
+		g_iar_dev->mipi_dsi_regaddr + REG_MIPI_DSI_PHY_TST_CTRL0);
+
+	/*set test data*/
+	writel(data, g_iar_dev->mipi_dsi_regaddr + REG_MIPI_DSI_PHY_TST_CTRL1);
+	/*set testclk to high*/
+	writel(DPHY_TEST_CLK,
+		g_iar_dev->mipi_dsi_regaddr + REG_MIPI_DSI_PHY_TST_CTRL0);
+	/*set testclk to low*/
+	writel(DPHY_TEST_RESETN,
+		g_iar_dev->mipi_dsi_regaddr + REG_MIPI_DSI_PHY_TST_CTRL0);
+}
+
+static void mipi_dphy_config(void)
+{
+	mipi_dphy_write(0x270, 0x5e);
+	mipi_dphy_write(0x272, 0x11);
+	mipi_dphy_write(0x179, 0xda);
+	mipi_dphy_write(0x17a, 0x0);
+	mipi_dphy_write(0x178, 0xda);
+	mipi_dphy_write(0x17b, 0xbf);
+	mipi_dphy_write(0x65, 0x80);
+	mipi_dphy_write(0x15e, 0x10);
+	mipi_dphy_write(0x162, 0x4);
+	mipi_dphy_write(0x16e, 0xc);
+	mipi_dphy_write(0x170, 0xff);
+	mipi_dphy_write(0x160, 0x6);
+	mipi_dphy_write(0x161, 0x1);
+	mipi_dphy_write(0x1ac, 0x10);
+	mipi_dphy_write(0x1d, 0x4);
+	mipi_dphy_write(0x8, 0x3);
+	mipi_dphy_write(0x72, 0x11);
+	mipi_dphy_write(0x1b, 0xaa);
+	mipi_dphy_write(0x1c, 0xaa);
+}
+
 static int mipi_dsi_core_reset(void)
 {
 	uint32_t value;
 
 	value = MIPI_DSI_REG_SET_FILED(SHUTDOWNZ_FILED, 0x0, 0x0);
-	writel(value, g_iar_dev->mipi_dsi_regaddr + PWR_UP);
+	writel(value, g_iar_dev->mipi_dsi_regaddr + PWR_UP);//0x4
 	return 0;
 }
 
@@ -291,48 +368,77 @@ static int mipi_dsi_core_start(void)
 	uint32_t value;
 
 	value = MIPI_DSI_REG_SET_FILED(SHUTDOWNZ_FILED, 0x1, 0x0);
-	writel(value, g_iar_dev->mipi_dsi_regaddr + PWR_UP);
+	writel(value, g_iar_dev->mipi_dsi_regaddr + PWR_UP);//0x4
 	return 0;
 }
 
+static int mipi_dsi_core_pre_init(void)
+{
+	void __iomem *hitm1_reg_addr;
+
+	hitm1_reg_addr = ioremap_nocache(0xA4300000 + 0xe0, 4);
+	writel(0x1, hitm1_reg_addr);
+	hitm1_reg_addr = ioremap_nocache(0xA4300000 + 0x84, 4);
+	writel(0x08100000, hitm1_reg_addr);//20bit
+	hitm1_reg_addr = ioremap_nocache(0xA4300000 + 0x8c, 4);
+	writel(0x1c23, hitm1_reg_addr);
+
+	writel(0x0, g_iar_dev->mipi_dsi_regaddr + PHY_RSTZ);//0xa0
+	mipi_dsi_core_reset();
+	writel(0x0, g_iar_dev->mipi_dsi_regaddr + MODE_CFG);//0X34
+	writel(0x1, g_iar_dev->mipi_dsi_regaddr + PHY_TST_CTRL0);//0xb4
+        usleep_range(900, 1000);
+	writel(0x0, g_iar_dev->mipi_dsi_regaddr + PHY_TST_CTRL0);//0xb4
+	writel(0x3203, g_iar_dev->mipi_dsi_regaddr + PHY_IF_CFG);//0XA4
+	writel(0x2, g_iar_dev->mipi_dsi_regaddr + CLKMGR_CFG);//0X8
+	writel(0x3, g_iar_dev->mipi_dsi_regaddr + LPCLK_CTRL);//0X94
+	usleep_range(900, 1000);
+	writel(0x0, g_iar_dev->mipi_dsi_regaddr + PHY_TST_CTRL0);//0XB4
+	mipi_dphy_config();
+
+	writel(0x7, g_iar_dev->mipi_dsi_regaddr + PHY_RSTZ);//0XA0
+	mipi_dsi_core_start();
+	return 0;
+}
+/*
 static int mipi_dsi_core_pre_init(void)
 {
 	uint32_t value;
 
 	value = readl(g_iar_dev->mipi_dsi_regaddr + CLKMGR_CFG);
 	value = MIPI_DSI_REG_SET_FILED(TX_ESC_CLK_DIVISION_FILED, 0x2, value);
-	writel(value, g_iar_dev->mipi_dsi_regaddr + CLKMGR_CFG);
+	writel(value, g_iar_dev->mipi_dsi_regaddr + CLKMGR_CFG);//0x8
 
 	value = readl(g_iar_dev->mipi_dsi_regaddr + LPCLK_CTRL);
 	value = MIPI_DSI_REG_SET_FILED(PHY_TX_REQUEST_CLK_HS_FILED, 0x1, value);
 	value = MIPI_DSI_REG_SET_FILED(AUTO_CLKLANE_CTRL_FILED, 0x1, value);
-	writel(value, g_iar_dev->mipi_dsi_regaddr + LPCLK_CTRL);
+	writel(value, g_iar_dev->mipi_dsi_regaddr + LPCLK_CTRL);//0x94
 
 	value = readl(g_iar_dev->mipi_dsi_regaddr + PHY_IF_CFG);
 	value = MIPI_DSI_REG_SET_FILED(N_LANES_FILED, 0x3, value);
 	value = MIPI_DSI_REG_SET_FILED(PHY_STOP_WAIT_TIME_FILED, 0x4, value);
-	writel(value, g_iar_dev->mipi_dsi_regaddr + PHY_IF_CFG);
+	writel(value, g_iar_dev->mipi_dsi_regaddr + PHY_IF_CFG);//0xa4
 
 	value = readl(g_iar_dev->mipi_dsi_regaddr + PHY_RSTZ);
 	value = MIPI_DSI_REG_SET_FILED(PHY_SHUTDOWNZ_FILED, 0x1, value);
 	value = MIPI_DSI_REG_SET_FILED(PHY_RSTZ_FILED, 0x1, value);
 	value = MIPI_DSI_REG_SET_FILED(PHY_ENABLE_CLK_FILED, 0x1, value);
 	value = MIPI_DSI_REG_SET_FILED(PHY_FORCE_PLL_FILED, 0x1, value);
-	writel(value, g_iar_dev->mipi_dsi_regaddr + PHY_RSTZ);
+	writel(value, g_iar_dev->mipi_dsi_regaddr + PHY_RSTZ);//0xa0
 	return 0;
 }
-
+*/
 static int mipi_dsi_dpi_config(void)
 {
 	uint32_t value;
 
 	value = readl(g_iar_dev->mipi_dsi_regaddr + DPI_VCID);
 	value = MIPI_DSI_REG_SET_FILED(DPI_VCID_FILED, 0x0, value);
-	writel(value, g_iar_dev->mipi_dsi_regaddr + DPI_VCID);
+	writel(value, g_iar_dev->mipi_dsi_regaddr + DPI_VCID);//0xc
 
 	value = readl(g_iar_dev->mipi_dsi_regaddr + DPI_COLOR_CODING);
 	value = MIPI_DSI_REG_SET_FILED(DPI_COLOR_CODING_FILED, 0x5, value);
-	writel(value, g_iar_dev->mipi_dsi_regaddr + DPI_COLOR_CODING);
+	writel(value, g_iar_dev->mipi_dsi_regaddr + DPI_COLOR_CODING);//0x10
 	return 0;
 }
 
@@ -379,62 +485,66 @@ struct video_timing {
 	uint32_t vid_vactive_line;
 };
 
+//struct video_timing video_1080_1920 = {
+//	1080, 0, 0, 16, 512, 1736, 4, 4, 100, 1920,
+//};
 struct video_timing video_1080_1920 = {
-	1080, 0, 0, 16, 512, 1736, 4, 4, 100, 1920,
+        1080, 0, 0, 16, 77, 1296, 4, 4, 100, 1920,
 };
+
 static int mipi_dsi_video_config(struct video_timing *video_timing_config)
 {
 	uint32_t value;
 
 	value = readl(g_iar_dev->mipi_dsi_regaddr + VID_PKT_SIZE);
 	value = MIPI_DSI_REG_SET_FILED(VID_PKT_SIZE_FILED,
-			video_timing_config->vid_pkt_size, value);
-	writel(value, g_iar_dev->mipi_dsi_regaddr + VID_PKT_SIZE);
+			video_timing_config->vid_pkt_size, value);//1080
+	writel(value, g_iar_dev->mipi_dsi_regaddr + VID_PKT_SIZE);//0x3c
 
 	value = readl(g_iar_dev->mipi_dsi_regaddr + VID_NUM_CHUNKS);
 	value = MIPI_DSI_REG_SET_FILED(VID_NUM_CHUNKS_FILED,
-			video_timing_config->vid_num_chunks, value);
-	writel(value, g_iar_dev->mipi_dsi_regaddr + VID_NUM_CHUNKS);
+			video_timing_config->vid_num_chunks, value);//0
+	writel(value, g_iar_dev->mipi_dsi_regaddr + VID_NUM_CHUNKS);//0x40
 
 	value = readl(g_iar_dev->mipi_dsi_regaddr + VID_NULL_SIZE);
 	value = MIPI_DSI_REG_SET_FILED(VID_NULL_SIZE_FILED,
-			video_timing_config->vid_null_size, value);
-	writel(value, g_iar_dev->mipi_dsi_regaddr + VID_NULL_SIZE);
+			video_timing_config->vid_null_size, value);//0
+	writel(value, g_iar_dev->mipi_dsi_regaddr + VID_NULL_SIZE);//0x44
 
 	value = readl(g_iar_dev->mipi_dsi_regaddr + VID_HSA_TIME);
 	value = MIPI_DSI_REG_SET_FILED(VID_HSA_TIME_FILED,
-			video_timing_config->vid_hsa, value);
-	writel(value, g_iar_dev->mipi_dsi_regaddr + VID_HSA_TIME);
+			video_timing_config->vid_hsa, value);//16
+	writel(value, g_iar_dev->mipi_dsi_regaddr + VID_HSA_TIME);//0x48
 
 	value = readl(g_iar_dev->mipi_dsi_regaddr + VID_HBP_TIME);
 	value = MIPI_DSI_REG_SET_FILED(VID_HBP_TIME_FILED,
-			video_timing_config->vid_hbp, value);
-	writel(value, g_iar_dev->mipi_dsi_regaddr + VID_HBP_TIME);
+			video_timing_config->vid_hbp, value);//512
+	writel(value, g_iar_dev->mipi_dsi_regaddr + VID_HBP_TIME);//0x4c
 
 	value = readl(g_iar_dev->mipi_dsi_regaddr + VID_HLINE_TIME);
 	value = MIPI_DSI_REG_SET_FILED(VID_HLINE_TIME_FILED,
-			video_timing_config->vid_hline_time, value);
-	writel(value, g_iar_dev->mipi_dsi_regaddr + VID_HLINE_TIME);
+			video_timing_config->vid_hline_time, value);//1736
+	writel(value, g_iar_dev->mipi_dsi_regaddr + VID_HLINE_TIME);//0x50
 
 	value = readl(g_iar_dev->mipi_dsi_regaddr + VID_VSA_LINES);
 	value = MIPI_DSI_REG_SET_FILED(VSA_LINES_FILED,
-			video_timing_config->vid_vsa, value);
-	writel(value, g_iar_dev->mipi_dsi_regaddr + VID_VSA_LINES);
+			video_timing_config->vid_vsa, value);//4
+	writel(value, g_iar_dev->mipi_dsi_regaddr + VID_VSA_LINES);//0x54
 
 	value = readl(g_iar_dev->mipi_dsi_regaddr + VID_VBP_LINES);
 	value = MIPI_DSI_REG_SET_FILED(VBP_LINES_FILED,
-			video_timing_config->vid_vbp, value);
-	writel(value, g_iar_dev->mipi_dsi_regaddr + VID_VBP_LINES);
+			video_timing_config->vid_vbp, value);//4
+	writel(value, g_iar_dev->mipi_dsi_regaddr + VID_VBP_LINES);//0x58
 
 	value = readl(g_iar_dev->mipi_dsi_regaddr + VID_VFP_LINES);
 	value = MIPI_DSI_REG_SET_FILED(VFP_LINES_FILED,
-			video_timing_config->vid_vfp, value);
-	writel(value, g_iar_dev->mipi_dsi_regaddr + VID_VFP_LINES);
+			video_timing_config->vid_vfp, value);//100
+	writel(value, g_iar_dev->mipi_dsi_regaddr + VID_VFP_LINES);//0x5c
 
 	value = readl(g_iar_dev->mipi_dsi_regaddr + VID_VACTIVE_LINES);
 	value = MIPI_DSI_REG_SET_FILED(V_ACTIVE_LINES_FILED,
-			video_timing_config->vid_vactive_line, value);
-	writel(value, g_iar_dev->mipi_dsi_regaddr + VID_VACTIVE_LINES);
+			video_timing_config->vid_vactive_line, value);//1920
+	writel(value, g_iar_dev->mipi_dsi_regaddr + VID_VACTIVE_LINES);//0x60
 
 	mipi_dsi_set_mode(0);//video mode
 	mipi_dsi_vid_mode_cfg(0);//normal mode
@@ -447,17 +557,15 @@ void dsi_panel_write_cmd(uint8_t cmd, uint8_t data, uint8_t header)
 
 	value = (uint32_t)header | (uint32_t)cmd << 8 | (uint32_t)data << 16;
 	writel(value, g_iar_dev->mipi_dsi_regaddr + GEN_HDR);
+	msleep(5);
 }
 
-static int mipi_dsi_panel_init(uint8_t panel_no)
+int mipi_dsi_panel_init(uint8_t panel_no)
 {
-	uint32_t value;
-
 	mipi_dsi_set_mode(1);//cmd mode
-	writel(0xfffffffc, g_iar_dev->mipi_dsi_regaddr + CMD_MODE_CFG);
-	//all cmds in lp mode
-	// TODO(panel hw reset)
+	writel(0xfffffffc, g_iar_dev->mipi_dsi_regaddr + CMD_MODE_CFG);// 0x68
 	panel_hardware_reset();
+	msleep(2000);
 
 	if (panel_no == 0) {
 		dsi_panel_write_cmd(0xff, 0x01, 0x15);//change to cmd2_page0
@@ -474,6 +582,7 @@ static int mipi_dsi_panel_init(uint8_t panel_no)
 		//VSOUT & HSOUT @CMD2_Page4 (LTPS Dsiplay Timing)
 		dsi_panel_write_cmd(0xd8, 0x7e, 0x15);
 		//VSOUT & HSOUT @CMD2_Page4 (LTPS Dsiplay Timing)
+		msleep(1000);
 
 		dsi_panel_write_cmd(0xff, 0x00, 0x15);//change to cmd1 [*]
 		dsi_panel_write_cmd(0xfb, 0x01, 0x15);//reload cmd1
@@ -1039,27 +1148,27 @@ static int mipi_dsi_panel_init(uint8_t panel_no)
 		dsi_panel_write_cmd(0x11, 0x00, 0x05);
 		msleep(120);
 		dsi_panel_write_cmd(0x29, 0x00, 0x05);
-		msleep(25);
+		msleep(100);
+
+		mipi_dsi_set_mode(0);//video mode
+                pr_info("mipi dsi panel config end!\n");
+		return 0;
 	}
 }
 
 int set_mipi_display(uint8_t panel_no)
 {
-	mipi_dsi_core_reset();
+	pr_info("mipi: set mipi display begin!\n");
 	mipi_dsi_core_pre_init();
-	usleep_range(900, 1000);
-	mipi_dsi_core_start();
-	usleep_range(900, 1000);
 	mipi_dsi_dpi_config();
 	mipi_dsi_video_config(&video_1080_1920);
+	msleep(2000);
 	//mipi_dsi_set_mode(0);//video mode
 	//mipi_dsi_vid_mode_cfg(0);//normal mode
-
-	//mipi_dsi_set_mode(1);//cmd mode
 	mipi_dsi_panel_init(panel_no);//0:1080*1920
-	mipi_dsi_set_mode(0);//video mode
-
-	mipi_dsi_vid_mode_cfg(1);//pattern mode
+	//mipi_dsi_set_mode(0);//video mode
+	//mipi_dsi_vid_mode_cfg(1);//pattern mode
+	pr_info("mipi: set mipi display end!\n");
 	return 0;
 }
 EXPORT_SYMBOL_GPL(set_mipi_display);

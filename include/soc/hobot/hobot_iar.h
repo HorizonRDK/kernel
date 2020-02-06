@@ -732,6 +732,7 @@ int disp_pinmux_bt656(void);
 int disp_pinmux_mipi_dsi(void);
 int disp_pinmux_rgb(void);
 int panel_hardware_reset(void);
+int mipi_dsi_panel_init(uint8_t panel_no);
 int set_mipi_display(uint8_t panel_no);
 //int iar_is_enabled(void);
 

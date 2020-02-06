@@ -390,6 +390,14 @@ static ssize_t x2_iar_store(struct kobject *kobj, struct kobj_attribute *attr, c
 		display_type = MIPI_720P;
 		disp_set_pixel_clk(69000000);
 		user_set_fb();
+	} else if (strncmp(tmp, "dsi1080", 7) == 0) {
+		pr_info("iar output lcd mipi 1080p panel config......\n");
+		display_type = MIPI_1080P;
+		disp_set_pixel_clk(32000000);
+		user_set_fb();
+		set_mipi_display(0);
+		//msleep(2000);
+		//mipi_dsi_panel_init(0);
 	} else if (strncmp(buf, "enable", 6) == 0) {
 		tmp = buf + 6;
 		ret = kstrtoul(tmp, 0, &tmp_value);

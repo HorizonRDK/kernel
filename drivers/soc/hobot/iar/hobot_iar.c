@@ -46,7 +46,7 @@ module_param(iar_debug_level, uint, 0644);
 #define DISPLAY_TYPE_TOTAL_SINGLE 33
 #define DISPLAY_TYPE_TOTAL_MULTI 63
 
-int panel_reset_pin;
+int panel_reset_pin = 28;
 uint32_t iar_display_ipu_addr_single[DISPLAY_TYPE_TOTAL_SINGLE][2];
 uint32_t iar_display_ipu_addr_dual[DISPLAY_TYPE_TOTAL_MULTI][2];
 uint32_t iar_display_ipu_addr_ddrmode[33][2];
@@ -79,8 +79,12 @@ struct disp_timing video_800x480 = {
 struct disp_timing video_720x1280 = {
 	36, 84, 24, 11, 13, 2
 };
+//timing for haps
+//struct disp_timing video_1080x1920 = {
+//	32, 300, 5, 4, 100, 5
+//};
 struct disp_timing video_1080x1920 = {
-	32, 300, 5, 4, 100, 5
+	100, 400, 5, 4, 400, 5
 };
 
 #ifdef CONFIG_PM
@@ -829,19 +833,12 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 		writel(value, g_iar_dev->regaddr + REG_IAR_FORMAT_ORGANIZATION);
 	} else if (cfg->out_sel == OUTPUT_MIPI_DSI) {
 #ifdef CONFIG_HOBOT_XJ3
-		ret = disp_pinmux_mipi_dsi();
-		if (ret)
-			return -1;
-		ret = disp_set_pixel_clk(162000);
-		if (ret)
-			return -1;
 		//output config
 		writel(0x8, g_iar_dev->regaddr + REG_IAR_DE_OUTPUT_SEL);
 		writel(0x13, g_iar_dev->regaddr + REG_DISP_LCDIF_CFG);
 		writel(0x3, g_iar_dev->regaddr + REG_DISP_LCDIF_PADC_RESET_N);
 		//color config
 		writel(0x0, g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
-		//rgb panel
 #else
 		pr_err("%s: error output mode!!!\n", __func__);
 #endif
@@ -1099,7 +1096,7 @@ EXPORT_SYMBOL_GPL(iar_set_video_buffer);
 
 int32_t ipu_set_display_addr(uint32_t yaddr, uint32_t caddr)
 {
-	pr_debug("iar: ipu set iar!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
+	pr_debug("iar: ipu set iar!!!!!!!!\n");
 	pr_debug("yaddr is %llx, caddr is %llx\n", yaddr, caddr);
 	disp_user_config_done = 1;//for debug
 	disp_user_update = 0;//for debug
@@ -1584,14 +1581,17 @@ static void x2_iar_draw_rect(char *frame, int x0, int y0, int x1, int y1,
 
 int panel_hardware_reset(void)
 {
-/*	gpio_direction_output(panel_reset_pin, 0);
-	pr_debug("panel reset pin output low!!!!!\n");
+	gpio_direction_output(panel_reset_pin, 1);
+	pr_debug("panel reset pin output high!\n");
+	msleep(1000);
+	gpio_direction_output(panel_reset_pin, 0);
+	pr_debug("panel reset pin output low!\n");
 	msleep(1000);
 	gpio_direction_output(panel_reset_pin, 1);
-	pr_debug("panel reset pin output high!!!!\n");
-	msleep(1000);
-	pr_debug("panel reset again success!\n");
-*/
+	pr_debug("panel reset pin output high!\n");
+	msleep(1500);
+	pr_info("panel reset success!\n");
+
 	return 0;
 }
 EXPORT_SYMBOL_GPL(panel_hardware_reset);
@@ -2135,36 +2135,82 @@ static int x2_iar_probe(struct platform_device *pdev)
 			IAR_DRAW_XL(6, 10), IAR_DRAW_YL(6, 10), deta, 1);
 #endif
 	} else if (display_type == MIPI_1080P) {
-		printk(KERN_ERR"iar_driver: disp set mipi 1080p!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
-/*		//set_mipi_display(0);
-		hitm1_reg_addr = ioremap_nocache(0xA1000000 + 0x40, 4);
-		reg_val = readl(hitm1_reg_addr);
-		reg_val = reg_val & 0xfffff000 | 0x44;
-                writel(reg_val, hitm1_reg_addr);
-
-		hitm1_reg_addr = ioremap_nocache(0xA1000000 + 0x300, 4);
-                reg_val = readl(hitm1_reg_addr);
-                reg_val = reg_val & 0xfffeffff | 0x00010000;
-                writel(reg_val, hitm1_reg_addr);
-
-		hitm1_reg_addr = ioremap_nocache(0xA1000000 + 0x240, 4);
-                reg_val = readl(hitm1_reg_addr);
-                reg_val = reg_val & 0xfffff000 | 0x44;
-                writel(reg_val, hitm1_reg_addr);
-
-		hitm1_reg_addr = ioremap_nocache(0xA1000000 + 0x40, 4);
-                reg_val = readl(hitm1_reg_addr);
-                reg_val = reg_val & 0xfffff000 | 0x44;
-                writel(reg_val, hitm1_reg_addr);
-*/
-
-
-		pr_info("set mipi 1080p done!\n");
+		pr_debug("iar_driver: disp set mipi 1080p!\n");
+		pr_debug("iar_driver: output 1080*1920 color bar bgr!\n");
+		disp_set_pixel_clk(32000000);
+		// actual output 27.2Mhz(need 27Mhz)
+		temp1 = g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr;
+		tempi = 0;
+		for (i = 0; i < 1080 * 4 * 100; i++) {
+			if (((i + 4) % 4) == 0) {
+				*temp1 = 0xff;//B
+			} else if (((i + 4) % 4) == 1) {
+				*temp1 = 0x00;
+			} else if (((i + 4) % 4) == 2) {
+				*temp1 = 0x00;
+			} else if (((i + 4) % 4) == 3) {
+				*temp1 = 0xff;
+			}
+			temp1++;
+		}
+		for (i = 0; i < 1080 * 4 * 100; i++) {
+			if (((i + 4) % 4) == 0) {
+				*temp1 = 0x00;
+			} else if (((i + 4) % 4) == 1) {
+				*temp1 = 0xff;//b
+			} else if (((i + 4) % 4) == 2) {
+				*temp1 = 0x00;
+			} else if (((i + 4) % 4) == 3) {
+				*temp1 = 0xff;
+			}
+			temp1++;
+		}
+		for (i = 0; i < 1080 * 4 * 100; i++) {
+			if (((i + 4) % 4) == 0) {
+				*temp1 = 0x00;
+			} else if (((i + 4) % 4) == 1) {
+				*temp1 = 0x00;
+			} else if (((i + 4) % 4) == 2) {
+				*temp1 = 0xff;//g
+			} else if (((i + 4) % 4) == 3) {
+				*temp1 = 0xff;
+			}
+			temp1++;
+		}
+		for (i = 0; i < 1080 * 4 * 100; i++) {
+			if (((i + 4) % 4) == 0) {
+				*temp1 = 0x00;
+			} else if (((i + 4) % 4) == 1) {
+				*temp1 = 0x00;
+			} else if (((i + 4) % 4) == 2) {
+				*temp1 = 0x00;
+			} else if (((i + 4) % 4) == 3) {
+				*temp1 = 0xff;//A
+			}
+			temp1++;
+		}
+		for (i = 0; i < 1080 * 4 * 100; i++) {
+			if (((i + 4) % 4) == 0) {
+				*temp1 = 0xff;
+			} else if (((i + 4) % 4) == 1) {
+				*temp1 = 0xff;
+			} else if (((i + 4) % 4) == 2) {
+				*temp1 = 0xff;
+			} else if (((i + 4) % 4) == 3) {
+				*temp1 = 0xff;//
+			}
+			temp1++;
+		}
+		for (i = 0; i < 1080 * 4 * 1420; i++) {
+			*temp1 = 0x0;
+			temp1++;
+		}
+		pr_debug("set mipi 1080p done!\n");
 	}
 	return 0;
-	iar_pre_init();
-	iar_close();
-	pr_debug("x2 iar probe end success!!!\n");
+	//iar_pre_init();
+	//iar_close();
+	pr_info("iar probe end success!!!\n");
 	return 0;
 err1:
 	devm_kfree(&pdev->dev, g_iar_dev);
