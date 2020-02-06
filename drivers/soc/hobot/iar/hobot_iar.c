@@ -1208,23 +1208,36 @@ EXPORT_SYMBOL_GPL(iar_open);
 
 int32_t iar_layer_disable(int32_t layer_no)
 {
-	void __iomem *enable_reg_addr;
 	uint32_t reg_overlay_opt_value = 0;
 
 	if (layer_no < 0 || layer_no > 3)
 		return -1;
-	enable_reg_addr = ioremap_nocache(0xA4001000 + 0x00, 4);
-	pr_debug("disable channel %d\n", layer_no);
-	reg_overlay_opt_value = readl(enable_reg_addr);
+	reg_overlay_opt_value = readl(g_iar_dev->regaddr + REG_IAR_OVERLAY_OPT);
 	reg_overlay_opt_value = reg_overlay_opt_value &
 		(0xffffffff & ~(1 << (layer_no + 24)));
 	reg_overlay_opt_value =
 		reg_overlay_opt_value | (0 << (layer_no + 24));
-	writel(reg_overlay_opt_value, enable_reg_addr);
-//	iar_start(1);
+	writel(reg_overlay_opt_value, g_iar_dev->regaddr + REG_IAR_OVERLAY_OPT);
 	iar_update();
 	return 0;
 }
+
+int32_t iar_layer_enable(int32_t layer_no)
+{
+	uint32_t reg_overlay_opt_value = 0;
+
+	if (layer_no < 0 || layer_no > 3)
+		return -1;
+	reg_overlay_opt_value = readl(g_iar_dev->regaddr + REG_IAR_OVERLAY_OPT);
+	reg_overlay_opt_value = reg_overlay_opt_value &
+		(0xffffffff & ~(1 << (layer_no + 24)));
+	reg_overlay_opt_value = reg_overlay_opt_value |
+		(1 << (layer_no + 24));
+	writel(reg_overlay_opt_value, g_iar_dev->regaddr + REG_IAR_OVERLAY_OPT);
+	iar_update();
+	return 0;
+}
+
 int32_t iar_close(void)
 {
 	if (NULL == g_iar_dev) {

@@ -357,11 +357,8 @@ static ssize_t x2_iar_store(struct kobject *kobj, struct kobj_attribute *attr, c
 	int error = -EINVAL;
 	int ret = 0;
 	unsigned long tmp_value = 0;
-	void __iomem *enable_reg_addr;
-	uint32_t reg_overlay_opt_value = 0;
 
 	tmp = (char *)buf;
-
 	if (strncmp(tmp, "start", 5) == 0) {
 		pr_info("iar start......\n");
 		iar_start(1);
@@ -401,15 +398,9 @@ static ssize_t x2_iar_store(struct kobject *kobj, struct kobj_attribute *attr, c
 	} else if (strncmp(buf, "enable", 6) == 0) {
 		tmp = buf + 6;
 		ret = kstrtoul(tmp, 0, &tmp_value);
-		enable_reg_addr = ioremap_nocache(0xA4001000 + 0x00, 4);
 		if (ret == 0) {
 			pr_info("enable channel %d\n", tmp_value);
-			reg_overlay_opt_value = readl(enable_reg_addr);
-			reg_overlay_opt_value = reg_overlay_opt_value &
-				(0xffffffff & ~(1 << (tmp_value + 24)));
-			reg_overlay_opt_value =
-				reg_overlay_opt_value | (1 << (tmp_value + 24));
-			writel(reg_overlay_opt_value, enable_reg_addr);
+			iar_layer_enable(tmp_value);
 			iar_start(1);
 		} else {
 			pr_info("error input, exit!!\n");
@@ -419,15 +410,9 @@ static ssize_t x2_iar_store(struct kobject *kobj, struct kobj_attribute *attr, c
 	} else if (strncmp(buf, "disable", 7) == 0) {
 		tmp = buf + 7;
 		ret = kstrtoul(tmp, 0, &tmp_value);
-		enable_reg_addr = ioremap_nocache(0xA4001000 + 0x00, 4);
 		if (ret == 0) {
 			pr_info("disable channel %d\n", tmp_value);
-			reg_overlay_opt_value = readl(enable_reg_addr);
-			reg_overlay_opt_value = reg_overlay_opt_value &
-				(0xffffffff & ~(1 << (tmp_value + 24)));
-			reg_overlay_opt_value =
-				reg_overlay_opt_value | (0 << (tmp_value + 24));
-			writel(reg_overlay_opt_value, enable_reg_addr);
+			iar_layer_disable(tmp_value);
 			iar_start(1);
 		} else {
 			pr_info("error input, exit!!\n");

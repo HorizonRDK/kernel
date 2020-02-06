@@ -734,6 +734,8 @@ int disp_pinmux_rgb(void);
 int panel_hardware_reset(void);
 int mipi_dsi_panel_init(uint8_t panel_no);
 int set_mipi_display(uint8_t panel_no);
+int32_t iar_layer_disable(int32_t layer_no);
+int32_t iar_layer_enable(int32_t layer_no);
 //int iar_is_enabled(void);
 
 
