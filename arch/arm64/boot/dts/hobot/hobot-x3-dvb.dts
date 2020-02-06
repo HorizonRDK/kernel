@@ -294,7 +294,7 @@
 };
 
 &nor_flash {
-	status = "okay";
+	status = "disabled";
 	#address-cells = <1>;
 	#size-cells = <0>;
 	qspi-mode = <4>;
