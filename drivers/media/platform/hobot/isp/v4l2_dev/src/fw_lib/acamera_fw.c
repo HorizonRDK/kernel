@@ -30,6 +30,7 @@
 #include "acamera_logger.h"
 #include "acamera_sbus_api.h"
 #include "sensor_init.h"
+#include "sensor_fsm.h"
 #include "isp_config_seq.h"
 #include "system_stdlib.h"
 
@@ -143,11 +144,16 @@ int acamera_fw_isp_stop(int ctx_id)
 	printk("%s done.\n", __func__);
 }
 
+extern void sensor_sw_init( sensor_fsm_ptr_t p_fsm );
 void acamera_fw_error_routine( acamera_context_t *p_ctx, uint32_t irq_mask )
 {
+    int abort_flag = 0;
+    int retry_time = 0;
+
     //masked all interrupts
     acamera_isp_isp_global_interrupt_mask_vector_write( 0, ISP_IRQ_DISABLE_ALL_IRQ );
 
+retry_1:
     //safe stop
     acamera_isp_input_port_mode_request_write( p_ctx->settings.isp_base, ACAMERA_ISP_INPUT_PORT_MODE_REQUEST_SAFE_STOP );
 
@@ -160,9 +166,20 @@ void acamera_fw_error_routine( acamera_context_t *p_ctx, uint32_t irq_mask )
         } while ( count % 32 != 0 );
 
         if ( ( count >> 5 ) > 50 ) {
+	    abort_flag = 1;
             LOG( LOG_ERR, "stopping isp failed, timeout: %u.", (unsigned int)count * 1000 );
             break;
         }
+    }
+    if (abort_flag && retry_time < 3) {
+	retry_time++;
+	abort_flag = 0;
+	goto retry_1;
+    }
+
+    if (retry_time >= 3) {
+	printk("ISP CRITICAL ERROR\n");
+	return;
     }
 
     acamera_isp_isp_global_global_fsm_reset_write( p_ctx->settings.isp_base, 1 );
@@ -171,28 +188,59 @@ void acamera_fw_error_routine( acamera_context_t *p_ctx, uint32_t irq_mask )
     //skip 4 isp_done irq
     //TODO:
 
+retry_2:
     //clear alarms
-    acamera_isp_isp_global_monitor_broken_frame_error_clear_write( p_ctx->settings.isp_base, 1 );
     count = 0;
-    while ( acamera_isp_isp_global_monitor_dma_alarms_read( p_ctx->settings.isp_base ) != ACAMERA_ISP_ISP_GLOBAL_MONITOR_DMA_ALARMS_DEFAULT ) {
+    retry_time = 0;
+    acamera_isp_isp_global_monitor_broken_frame_error_clear_write( p_ctx->settings.isp_base, 1 );
+    acamera_isp_isp_global_monitor_context_error_clr_write( p_ctx->settings.isp_base, 1 );
+    acamera_isp_isp_global_monitor_output_dma_clr_alarm_write( p_ctx->settings.isp_base, 1 );
+    acamera_isp_isp_global_monitor_temper_dma_clr_alarm_write( p_ctx->settings.isp_base, 1 );
+    while ( system_hw_read_32(0x54) != 0) {
         //cannot sleep use this delay
         do {
             count++;
         } while ( count % 32 != 0 );
 
         if ( ( count >> 5 ) > 50 ) {
-            LOG( LOG_ERR, "stopping isp failed, timeout: %u.", (unsigned int)count * 1000 );
+	    abort_flag = 1;
+            LOG( LOG_ERR, "alarm and error clear failed, timeout: %u.", (unsigned int)count * 1000 );
             break;
         }
     }
+    if (abort_flag && retry_time < 3) {
+	retry_time++;
+	abort_flag = 0;
+	goto retry_2;
+    }
+    if (retry_time >= 3) {
+	printk("ISP CRITICAL ERROR\n");
+	return;
+    }
     acamera_isp_isp_global_monitor_broken_frame_error_clear_write( p_ctx->settings.isp_base, 0 );
+    acamera_isp_isp_global_monitor_context_error_clr_write( p_ctx->settings.isp_base, 0 );
+    acamera_isp_isp_global_monitor_output_dma_clr_alarm_write( p_ctx->settings.isp_base, 0 );
+    acamera_isp_isp_global_monitor_temper_dma_clr_alarm_write( p_ctx->settings.isp_base, 0 );
+
+    //reconfig isp configuration space
+    acamera_load_isp_sequence( 0, p_ctx->isp_sequence, SENSOR_ISP_SEQUENCE_DEFAULT_SETTINGS );
+
+    //read ping/pong select state, sync up with software state
+    TODO:
+
+    //safe start
+    acamera_isp_input_port_mode_request_write( p_ctx->settings.isp_base, ACAMERA_ISP_INPUT_PORT_MODE_REQUEST_SAFE_START );
+
+    //config isp hw ping/pong space
+    acamera_update_cur_settings_to_isp(p_ctx->context_id);
+
+    //config input port
+    sensor_sw_init(p_ctx->fsm_mgr.fsm_arr[FSM_ID_SENSOR]->p_fsm);
 
     //return the interrupts
     acamera_isp_isp_global_interrupt_mask_vector_write( 0, ISP_IRQ_MASK_VECTOR );
 
-    acamera_isp_input_port_mode_request_write( p_ctx->settings.isp_base, ACAMERA_ISP_INPUT_PORT_MODE_REQUEST_SAFE_START );
-
-    LOG( LOG_NOTICE, "starting isp from error" );
+    LOG( LOG_ERR, "starting isp from error routine" );
 }
 
 

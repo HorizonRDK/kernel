@@ -541,7 +541,7 @@ static void dma_complete_context_func( void *arg )
     if ( g_firmware.dma_flag_isp_config_completed && g_firmware.dma_flag_isp_metering_completed ) {
         LOG( LOG_INFO, "START PROCESSING FROM CONTEXT CALLBACK" );
 
-	if (g_firmware.fw_ctx[ctx_id].fsm_mgr.reserved == 0) { // indicate dma writer is disabled
+	if (sif_isp_offline && g_firmware.fw_ctx[ctx_id].fsm_mgr.reserved == 0) { // indicate dma writer is disabled
 		g_firmware.dma_flag_dma_writer_config_completed = 1;
 		dma_writer_config_done();
 	}
@@ -567,7 +567,7 @@ static void dma_complete_metering_func( void *arg )
     if ( g_firmware.dma_flag_isp_config_completed && g_firmware.dma_flag_isp_metering_completed ) {
         LOG( LOG_INFO, "START PROCESSING FROM METERING CALLBACK" );
 
-	if (g_firmware.fw_ctx[ctx_id].fsm_mgr.reserved == 0) { // indicate dma writer is disabled
+	if (sif_isp_offline && g_firmware.fw_ctx[ctx_id].fsm_mgr.reserved == 0) { // indicate dma writer is disabled
 		g_firmware.dma_flag_dma_writer_config_completed = 1;
 		dma_writer_config_done();
 	}
@@ -867,7 +867,8 @@ int32_t acamera_interrupt_handler()
     uint32_t irq_mask = acamera_isp_isp_global_interrupt_status_vector_read( 0 );
 
     printk("IRQ MASK is 0x%x, context id is %d", irq_mask, current_context_id);
-    LOG( LOG_ERR, "IRQ MASK is 0x%x, context id is %d", irq_mask, current_context_id );
+    LOG( LOG_INFO, "IRQ MASK is 0x%x, context id is %d", irq_mask, current_context_id );
+
     if(irq_mask&0x8) {
         printk("broken frame status = 0x%x", acamera_isp_isp_global_monitor_broken_frame_status_read(0));
         printk("active width min/max/sum/num = %d/%d/%d/%d", system_hw_read_32(0xb4),system_hw_read_32(0xb8),system_hw_read_32(0xbc),system_hw_read_32(0xc0));
@@ -887,18 +888,18 @@ int32_t acamera_interrupt_handler()
         if ( ( irq_mask & 1 << ISP_INTERRUPT_EVENT_BROKEN_FRAME ) ||
              ( irq_mask & 1 << ISP_INTERRUPT_EVENT_MULTICTX_ERROR ) ||
              ( irq_mask & 1 << ISP_INTERRUPT_EVENT_WATCHDOG_EXP ) ||
+             ( irq_mask & 1 << ISP_INTERRUPT_EVENT_DMA_ERROR ) ||
              ( irq_mask & 1 << ISP_INTERRUPT_EVENT_FRAME_COLLISION ) ) {
 
-            //LOG( LOG_ERR, "Found error resetting ISP. MASK is 0x%x", irq_mask );
-            //acamera_fw_error_routine( p_ctx, irq_mask );
+            LOG( LOG_ERR, "Found error resetting ISP. MASK is 0x%x", irq_mask );
+            acamera_fw_error_routine( p_ctx, irq_mask );
+        }
+	if ( irq_mask & 1 << ISP_INTERRUPT_EVENT_DMA_ERROR ) {
+		acamera_fw_raise_event( p_ctx, event_id_frame_error );	//move node from busy to free list
+		acamera_fw_raise_event( p_ctx, event_id_frame_config );	//get a new buffer put to busy list
             return -1;
-        } else if ( irq_mask & 1 << ISP_INTERRUPT_EVENT_DMA_ERROR ) {
-			/* if ping/pong switch happen and error occur, we need to do below operation.
-			   if error occur but ping/pong switch not happen, we do not need to do this. */
-			//acamera_fw_raise_event( p_ctx, event_id_frame_error );	//move node from busy to free list
-			//acamera_fw_raise_event( p_ctx, event_id_frame_config );	//get a new buffer put to busy list
+	} else
             return -1;
-	}
 #endif
 
         while ( irq_mask > 0 && irq_bit >= 0 ) {
@@ -983,6 +984,7 @@ int32_t acamera_interrupt_handler()
                     } else {
                         LOG( LOG_ERR, "Attempt to start a new frame before processing is done for the prevous frame. Skip this frame" );
                     } //if ( acamera_event_queue_empty( &p_ctx->fsm_mgr.event_queue ) )
+                } else if ( irq_bit == ISP_INTERRUPT_EVENT_ISP_END_FRAME_END ) {
                 } else if ( irq_bit == ISP_INTERRUPT_EVENT_FR_Y_WRITE_DONE ) {
 					LOG( LOG_INFO, "frame write to ddr done" );
 					acamera_fw_raise_event( p_ctx, event_id_frame_done );
