@@ -118,6 +118,7 @@
 #define TS_n_SDIF_RDATA_ADDR      0x00d0
 #define TS_n_SDIF_DONE_ADDR       0x00d4
 #define TS_n_SDIF_DATA_ADDR       0x00d8
+#define TS_SDIF_DATA_FAULT_BIT    BIT(17)
 #define TS_n_RES0_ADDR            0x00dc
 #define TS_n_ALARMA_CFG_ADDR      0x00e0
 #define TS_n_ALARMB_CFG_ADDR      0x00e4

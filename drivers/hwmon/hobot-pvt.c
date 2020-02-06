@@ -3,7 +3,6 @@
  * including Temperature Sensor, Voltage Monitor and Process Detector
  */
 
-//#define DEBUG
 #define pr_fmt(fmt) "hobot-pvt: %s: " fmt, __func__
 
 #include <linux/device.h>
@@ -75,9 +74,9 @@ static int pvt_temp_read(struct device *dev, enum hwmon_sensor_types type,
 		     u32 attr, int channel, long *val)
 {
 	struct pvt_device *pvt_dev = dev_get_drvdata(dev);
-	int i;
-	u32 temp;
 	u32 sum = 0;
+	u32 temp = 0;
+	int i = 0;
 
 	if (!pvt_dev->updated) {
 		*val = 30000;
@@ -160,27 +159,38 @@ static irqreturn_t pvt_irq_handler(int irq, void *dev_id)
 {
 	struct pvt_device *pvt_dev = dev_id;
 	u32 ts_status = 0;
-	u32 val = 0;
-	u32 sample = 0;
+	u32 irq_status = 0;
+	u32 sdif_done = 0;
+	u32 sdif_data = 0;
 	u32 update_ts_bitmap = 0;
 	int i = 0;
 
 	ts_status = pvt_reg_rd(pvt_dev, IRQ_TS_STATUS_ADDR);
 
 	for (i = 0; i < PVT_TS_NUM; i++) {
-		val = pvt_n_reg_rd(pvt_dev, i, TS_n_IRQ_STATUS_ADDR);
+		irq_status = pvt_n_reg_rd(pvt_dev, i, TS_n_IRQ_STATUS_ADDR);
+		sdif_done = pvt_n_reg_rd(pvt_dev, i, TS_n_SDIF_DONE_ADDR);
+		sdif_data = pvt_n_reg_rd(pvt_dev, i, TS_n_SDIF_DATA_ADDR);
 
-		val = pvt_n_reg_rd(pvt_dev, i, TS_n_SDIF_DATA_ADDR);
-		sample = pvt_n_reg_rd(pvt_dev, i, TS_n_SDIF_RDATA_ADDR);
-		val = pvt_n_reg_rd(pvt_dev, i, TS_n_SDIF_DONE_ADDR);
+		if (irq_status & TP_IRQ_STS_DONE_BIT)
+			pvt_n_reg_wr(pvt_dev, i, TS_n_IRQ_CLEAR_ADDR, TP_IRQ_STS_DONE_BIT);
 
-		if (!(val & TP_IRQ_STS_FAULT_BIT)) {
-			pvt_dev->cur_smpl[i] = sample;
-			update_ts_bitmap |= BIT(i);
+		if (irq_status & TP_IRQ_STS_FAULT_BIT) {
+			pvt_n_reg_wr(pvt_dev, i, TS_n_IRQ_CLEAR_ADDR, TP_IRQ_STS_FAULT_BIT);
+			continue;
 		}
 
-		/* clear irq */
-		pvt_n_reg_wr(pvt_dev, i, TS_n_IRQ_CLEAR_ADDR, 0x1F);
+		if (sdif_data & TS_SDIF_DATA_FAULT_BIT)
+			continue;
+
+		if (sdif_done) {
+			pvt_dev->cur_smpl[i] = sdif_data;
+			if (sdif_data > 3000) {
+				pr_err("invalid cur_smpl[%d] : %d, SDIF_DATA:%08x\n",
+						i, pvt_dev->cur_smpl[i], sdif_data);
+			}
+			update_ts_bitmap |= BIT(i);
+		}
 	}
 
 	if (update_ts_bitmap == PVT_TS_MASK) {
@@ -317,7 +327,7 @@ static int pvt_probe(struct platform_device *pdev)
 
 	pvt_dev->clk = devm_clk_get(&pdev->dev, "sys_pclk");
 	if (IS_ERR(pvt_dev->clk)) {
-		dev_err(&pdev->dev, "uart_clk clock not found.\n");
+		dev_err(&pdev->dev, "sys_pclk clock not found.\n");
 		return PTR_ERR(pvt_dev->clk);
 	}
 
