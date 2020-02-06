@@ -864,7 +864,6 @@
 			pet-time = <6>;
 			bark-time = <11>;
 			bite-time = <15>;
-			panic-wait-time = <20>;
 			status = "disabled";
 		};
 

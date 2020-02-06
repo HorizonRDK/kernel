@@ -5,6 +5,8 @@
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  */
+#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
+
 #include <linux/clk.h>
 #include <linux/init.h>
 #include <linux/interrupt.h>
@@ -33,8 +35,7 @@
 static int wdt_timeout;
 static int nowayout = WATCHDOG_NOWAYOUT;
 static u64 timer_rate;
-static int trigger_bark;
-static int disabled;
+static int disabled = 1;
 static int panic_on_bark;
 static int on_panic;
 static spinlock_t on_panic_lock;
@@ -49,23 +50,10 @@ MODULE_PARM_DESC(nowayout,
 		 "Watchdog cannot be stopped once started (default="
 		 __MODULE_STRING(WATCHDOG_NOWAYOUT) ")");
 
-module_param(trigger_bark, int, 0644);
-MODULE_PARM_DESC(trigger_bark,
-		 "Trigger watchdog for test (default="
-		 __MODULE_STRING(WATCHDOG_TRIGGER_BARK) ")");
-
-module_param(disabled, int, 0644);
-MODULE_PARM_DESC(disabled,
-		 "disable watchdog for debugging purpose (default="
-		 __MODULE_STRING(WATCHDOG_DISABLE) ")");
-
 module_param(panic_on_bark, int, 0644);
 MODULE_PARM_DESC(panic_on_bark,
 		 "trigger panic in IPI on other CPU (default="
 		 __MODULE_STRING(WATCHDOG_PANIC) ")");
-
-#define x2_wdt_rd(dev, reg) 	  ioread32((dev)->regs_base + (reg))
-#define x2_wdt_wr(dev, reg, val)  iowrite32((val), (dev)->regs_base + (reg))
 
 struct x2_wdt {
 	void __iomem *regs_base;
@@ -82,16 +70,45 @@ struct x2_wdt {
 	u64 last_pet;
 
 	struct notifier_block panic_blk;
-	u32 panic_wait_time;
 
 	struct task_struct *watchdog_thread;
 	struct timer_list pet_timer;
-	wait_queue_head_t  pet_complete;
+	wait_queue_head_t  pet_wait;
 	bool timer_expired;
-	u64 timer_expired_time;
-	u64 thread_start_time;
+	u64 thread_wakeup_time;
 	bool barking;
+} *g_x2wdt;
+
+static int x2_wdt_start(struct watchdog_device *wdd);
+static int x2_wdt_stop(struct watchdog_device *wdd);
+
+static int wdt_disable_set(const char *val, const struct kernel_param *kp)
+{
+	int ret;
+
+	ret = param_set_ulong(val, kp);
+	if (ret < 0)
+		return ret;
+
+	if (disabled == 0 && !g_x2wdt->enabled) {
+		x2_wdt_start(&g_x2wdt->x2_wdd);
+	}
+	else if (disabled == 1 && g_x2wdt->enabled){
+		x2_wdt_stop(&g_x2wdt->x2_wdd);
+	}
+
+	return 0;
+}
+
+static const struct kernel_param_ops wdt_disable_param_ops = {
+	.set = wdt_disable_set,
+	.get = param_get_int,
 };
+
+module_param_cb(wdt_disable, &wdt_disable_param_ops, &disabled, 0644);
+
+#define x2_wdt_rd(dev, reg) 	  ioread32((dev)->regs_base + (reg))
+#define x2_wdt_wr(dev, reg, val)  iowrite32((val), (dev)->regs_base + (reg))
 
 static void x2_wdt_init_hw(struct x2_wdt *x2wdt)
 {
@@ -111,9 +128,14 @@ static int x2_wdt_stop(struct watchdog_device *wdd)
 	u32 val;
 	struct x2_wdt *x2wdt = watchdog_get_drvdata(wdd);
 
+	pr_debug("\n");
+	del_timer(&x2wdt->pet_timer);
+
 	spin_lock(&x2wdt->io_lock);
 
-	/* reset previos value */
+	x2wdt->enabled = false;
+
+	/* reset previous value */
 	x2_wdt_wr(x2wdt, X2_TIMER_WDCLR_REG, X2_TIMER_WDT_RESET);
 
 	val = x2_wdt_rd(x2wdt, X2_TIMER_TMREN_REG);
@@ -152,6 +174,7 @@ static int x2_wdt_start(struct watchdog_device *wdd)
 	u32 bite_count;
 	u32 val;
 
+	pr_debug("\n");
 	spin_lock(&x2wdt->io_lock);
 
 	/* reset previos value */
@@ -180,7 +203,10 @@ static int x2_wdt_start(struct watchdog_device *wdd)
 	val |= X2_TIMER_WDT_INTMASK;
 	x2_wdt_wr(x2wdt, X2_TIMER_TMR_UNMASK_REG, val);
 
+	x2wdt->enabled = true;
 	spin_unlock(&x2wdt->io_lock);
+
+	add_timer(&x2wdt->pet_timer);
 
 	return 0;
 }
@@ -197,7 +223,7 @@ static int x2_wdt_settimeout(struct watchdog_device *wdd, unsigned int new_time)
 		wdd->timeout = new_time;
 
 	x2wdt->bark_time = wdd->timeout;
-	x2wdt->bite_time =  x2wdt->bark_time + 5;
+	x2wdt->bite_time = x2wdt->bite_time;
 
 	return x2_wdt_start(wdd);
 }
@@ -303,62 +329,46 @@ static const struct watchdog_ops x2_wdt_ops = {
 	.restart = x2_wdt_restart,
 };
 
-static int panic_wdog_handler(struct notifier_block *this,
+static int x2_wdt_panic_handler(struct notifier_block *this,
 		unsigned long event, void *ptr)
 {
 	struct x2_wdt *x2wdt = container_of(this, struct x2_wdt, panic_blk);
 	u32 val;
-	u32 count;
 
-	if (panic_timeout != 0) {
-		/* Fill the count reg */
-		count = (panic_timeout + x2wdt->panic_wait_time) *
-		(u32)timer_rate;
-		x2_wdt_wr(x2wdt, X2_TIMER_WDTGT_REG, count);
-		x2_wdt_wr(x2wdt, X2_TIMER_WDWAIT_REG, count);
+	if (!x2wdt->enabled)
+		return 0;
 
-		/* reset previos value */
-		x2_wdt_wr(x2wdt, X2_TIMER_WDCLR_REG, X2_TIMER_WDT_RESET);
-	} else {
-		/* no need wdt here */
-		val = x2_wdt_rd(x2wdt, X2_TIMER_TMREN_REG);
-		val |= X2_TIMER_T2STOP;
-		x2_wdt_wr(x2wdt, X2_TIMER_TMRSTOP_REG, val);
+	/* no need wdt here since system will reboot immediately */
+	val = x2_wdt_rd(x2wdt, X2_TIMER_TMREN_REG);
+	val |= X2_TIMER_T2STOP;
+	x2_wdt_wr(x2wdt, X2_TIMER_TMRSTOP_REG, val);
 
-		/* make sure watchdog is stopped before proceeding */
-		mb();
-	}
+	/* make sure watchdog is stopped before proceeding */
+	mb();
+
 	return NOTIFY_DONE;
 }
 
 static void pet_watchdog(struct x2_wdt *x2wdt)
 {
-	if (x2wdt->barking) {
-		pr_err("bark irq trigger, still responsing irq\n");
-		dump_stack();
-	}
+	if (x2wdt->barking)
+		pr_info("bark irq trigger, timer is still running\n");
 
 	x2_wdt_reload(&x2wdt->x2_wdd);
 }
 
+/*
+ * This timer handler wakes up thread, then thread pet the watchdog
+ */
 static void pet_timer_wakeup(unsigned long data)
 {
 	struct x2_wdt *x2wdt = (struct x2_wdt *)data;
 
-	if (disabled) {
-		pr_info("watchdog is disabled, stop watchdog.");
-		x2wdt->enabled = 0;
-		x2_wdt_stop(&x2wdt->x2_wdd);
-	}
-
-	if (trigger_bark) {
-		pr_info("trigger bark for test.\n");
-		return;
-	}
+	pr_debug("\n");
 
 	x2wdt->timer_expired = true;
-	x2wdt->timer_expired_time = sched_clock();
-	wake_up(&x2wdt->pet_complete);
+	x2wdt->last_pet = sched_clock();
+	wake_up(&x2wdt->pet_wait);
 }
 
 static __ref int watchdog_kthread(void *arg)
@@ -369,24 +379,23 @@ static __ref int watchdog_kthread(void *arg)
 	int ret;
 
 	sched_setscheduler(current, SCHED_FIFO, &param);
+
 	while (!kthread_should_stop()) {
 		do {
-			ret = wait_event_interruptible(x2wdt->pet_complete,
+			ret = wait_event_interruptible(x2wdt->pet_wait,
 						x2wdt->timer_expired);
 		} while (ret != 0);
 
-		x2wdt->thread_start_time = sched_clock();
+		x2wdt->thread_wakeup_time = sched_clock();
+		pr_debug("thread_wakeup_time: %llu\n", x2wdt->thread_wakeup_time);
 
 		x2wdt->timer_expired = false;
 
 		if (x2wdt->enabled) {
 			expired_time = msecs_to_jiffies(x2wdt->pet_time * 1000);
 			pet_watchdog(x2wdt);
+			mod_timer(&x2wdt->pet_timer, jiffies + expired_time);
 		}
-		/* Check again before scheduling
-		 * Could have been changed on other cpu
-		 */
-		mod_timer(&x2wdt->pet_timer, jiffies + expired_time);
 	}
 
 	return 0;
@@ -432,13 +441,6 @@ static int x2_wdog_dt_to_pdata(struct platform_device *pdev,
 		return -ENXIO;
 	}
 
-	ret = of_property_read_u32(node, "panic-wait-time",
-	&x2wdt->panic_wait_time);
-	if (ret) {
-		dev_err(&pdev->dev, "reading panic wait time failed\n");
-		return -ENXIO;
-	}
-
 	dev_info(&pdev->dev, "watchdog setting [%ds %ds %ds]\n",
 		x2wdt->bark_time, x2wdt->bite_time, x2wdt->pet_time);
 
@@ -462,6 +464,8 @@ static int x2_wdt_probe(struct platform_device *pdev)
 	x2wdt = devm_kzalloc(&pdev->dev, sizeof(*x2wdt), GFP_KERNEL);
 	if (!x2wdt)
 		return -ENOMEM;
+
+	g_x2wdt = x2wdt;
 
 	ret = x2_wdog_dt_to_pdata(pdev, x2wdt);
 	if (ret)
@@ -539,12 +543,13 @@ static int x2_wdt_probe(struct platform_device *pdev)
 
 	expired_time = msecs_to_jiffies(x2wdt->pet_time * 1000);
 
-	x2wdt->panic_blk.notifier_call = panic_wdog_handler;
+	x2wdt->panic_blk.notifier_call = x2_wdt_panic_handler;
 	atomic_notifier_chain_register(&panic_notifier_list,
 				       &x2wdt->panic_blk);
 
-	init_waitqueue_head(&x2wdt->pet_complete);
+	init_waitqueue_head(&x2wdt->pet_wait);
 	x2wdt->timer_expired = false;
+
 
 	wake_up_process(x2wdt->watchdog_thread);
 	init_timer(&x2wdt->pet_timer);
@@ -553,9 +558,11 @@ static int x2_wdt_probe(struct platform_device *pdev)
 	x2wdt->pet_timer.expires = jiffies + expired_time;
 	add_timer(&x2wdt->pet_timer);
 
-	x2_wdt_start(&x2wdt->x2_wdd);
-	x2wdt->last_pet = sched_clock();
-	x2wdt->enabled = true;
+
+	if (!disabled) {
+		x2_wdt_start(&x2wdt->x2_wdd);
+		x2wdt->last_pet = sched_clock();
+	}
 
 	dev_info(&pdev->dev, "X2 Watchdog Timer at %p with timeout %ds%s\n",
 			x2wdt->regs_base, x2_wdd->timeout, nowayout?",nowayout":"");
