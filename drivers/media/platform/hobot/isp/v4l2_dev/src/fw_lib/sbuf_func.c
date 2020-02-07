@@ -944,6 +944,8 @@ static uint32_t sbuf_is_ready_to_send_data( struct sbuf_context *p_ctx )
         LOG( LOG_ERR, "is_paused: %d, is_fetched: %d.", p_ctx->p_fsm->is_paused, p_ctx->sbuf_mgr.sbuf_base->kf_info.cali_info.is_fetched );
 
         rc = 0;
+    } else {
+        LOG(LOG_INFO, "is_paused: %d, is_fetched: %d.", p_ctx->p_fsm->is_paused, p_ctx->sbuf_mgr.sbuf_base->kf_info.cali_info.is_fetched );
     }
 
     return rc;

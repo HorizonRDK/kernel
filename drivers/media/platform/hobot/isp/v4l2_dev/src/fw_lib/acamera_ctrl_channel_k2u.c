@@ -349,6 +349,18 @@ static uint8_t is_uf_needed_command( uint8_t command_type, uint8_t command, uint
         rc = 1;
         break;
 #endif
+
+#ifdef MSENSOR
+    case MSENSOR:
+        switch ( command ) {
+	case SENSOR_TYPE:
+            LOG( LOG_INFO, "MSENSOR is supported, cmd_type: %u, cmd: %u, direction: %u",
+                 command_type, command, direction );
+            rc = 1;
+            break;
+        }
+#endif
+
     }
 
     return rc;

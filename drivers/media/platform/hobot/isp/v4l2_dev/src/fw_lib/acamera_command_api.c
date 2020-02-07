@@ -469,7 +469,7 @@ if(ret!=SUCCESS)
 }
 else
 {
-	LOG( LOG_DEBUG, "API type %d, cmd %d, value %lu, direction %d, ret_value %lu, result %d",command_type, command, (unsigned long)value, direction, (unsigned long)*ret_value, ret); //TODO
+	LOG( LOG_INFO, "API type %d, cmd %d, value %lu, direction %d, ret_value %lu, result %d",command_type, command, (unsigned long)value, direction, (unsigned long)*ret_value, ret);
 }
 	return ret;
 }
