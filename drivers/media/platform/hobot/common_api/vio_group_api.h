@@ -54,6 +54,7 @@ struct vio_group_task{
 };
 
 struct vio_group{
+	spinlock_t 			slock;
 	void *sub_ctx[MAX_SUB_DEVICE];
 	struct frame_id frameid;
 	unsigned long state;
@@ -94,6 +95,7 @@ int vio_bind_chain_groups(struct vio_group *src_group, struct vio_group *dts_gro
 int vio_init_chain(int instance);
 void vio_bind_group_done(int instance);
 void vio_get_frame_id(struct vio_group *group);
+int vio_group_init_mp(u32 group_id);
 
 #ifdef X3_IAR_INTERFACE
 extern u32 ipu_get_iar_display_type(void);

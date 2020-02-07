@@ -282,6 +282,108 @@ int frame_manager_flush(struct vio_framemgr *this)
 	return 0;
 }
 
+/*
+ * Open frame manager for multi-process scenario
+ */
+int frame_manager_open_mp(struct vio_framemgr *this, u32 buffers,
+	u32 *index_start)
+{
+	u32 i;
+	unsigned long flag;
+	struct vio_frame *frames;
+	u32 ind_fst;
+	u32 proc_id;
+
+	frames = kzalloc(sizeof(struct vio_frame) * buffers, GFP_KERNEL);
+	if (!frames) {
+		vio_err("failed to allocate frames");
+		return -ENOMEM;
+	}
+	spin_lock_irqsave(&this->slock, flag);
+	if ((this->num_frames + buffers) > VIO_MP_MAX_FRAMES) {
+		spin_unlock_irqrestore(&this->slock, flag);
+		vio_err("apply for too much frames,max 128.");
+		return -ENOMEM;
+	}
+	ind_fst = this->num_frames;
+	for (i = 0; i < buffers; i++)
+		this->frames_mp[i + ind_fst] = &frames[i];
+	if (!ind_fst) {
+		for (i = 0; i < NR_FRAME_STATE; i++) {
+			this->queued_count[i] = 0;
+			INIT_LIST_HEAD(&this->queued_list[i]);
+		}
+	}
+	for (i = ind_fst; i < (buffers + ind_fst); ++i) {
+		this->frames_mp[i]->index = i;
+		put_frame(this, this->frames_mp[i], FS_FREE);
+		kthread_init_work(&this->frames_mp[i]->work,
+			frame_work_function);
+	}
+	*index_start = this->num_frames;
+	this->num_frames += buffers;
+	this->num_close += buffers;
+	this->num_flush += buffers;
+	proc_id = this->num_proc;
+	this->proc_fst_frm[proc_id] = ind_fst;
+	this->num_proc++;
+	spin_unlock_irqrestore(&this->slock, flag);
+	return 0;
+}
+
+int frame_manager_close_mp(struct vio_framemgr *this,
+	u32 index_start, u32 buffers)
+{
+	u32 i;
+	unsigned long flag;
+	u32 index;
+
+	if ((index_start + buffers) >= VIO_MP_MAX_FRAMES) {
+		vio_err("invalid index when closing frame manager.");
+		return -EFAULT;
+	}
+	spin_lock_irqsave(&this->slock, flag);
+	this->num_close -= buffers;
+	if(!this->num_close) {
+		for (i = 0; i < NR_FRAME_STATE; i++) {
+			this->queued_count[i] = 0;
+			INIT_LIST_HEAD(&this->queued_list[i]);
+		}
+		for (i = 0; i < this->num_proc; i++) {
+			index = this->proc_fst_frm[i];
+			kfree(this->frames_mp[index]);
+		}
+		memset(this->frames_mp, 0, sizeof(this->frames_mp));
+		this->num_frames = 0;
+	}
+	spin_unlock_irqrestore(&this->slock, flag);
+	return 0;
+}
+
+int frame_manager_flush_mp(struct vio_framemgr *this,
+	u32 index_start, u32 buffers)
+{
+	unsigned long flag;
+	struct vio_frame *frame;
+	enum vio_frame_state i;
+
+	if ((index_start + buffers) >= VIO_MP_MAX_FRAMES) {
+		vio_err("invalid index when flush frame manager.");
+		return -EFAULT;
+	}
+	spin_lock_irqsave(&this->slock, flag);
+	this->num_flush -= buffers;
+	if(!this->num_flush) {
+		for (i = 0; i < this->num_frames; i++) {
+			frame = this->frames_mp[i];
+			if (frame)
+				trans_frame(this, frame, FS_FREE);
+		}
+	}
+	spin_unlock_irqrestore(&this->slock, flag);
+	return 0;
+}
+
 void frame_manager_print_queues(struct vio_framemgr *this)
 {
 	int i;

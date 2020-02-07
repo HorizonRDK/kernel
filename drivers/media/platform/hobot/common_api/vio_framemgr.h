@@ -11,6 +11,9 @@
 #include "vio_config.h"
 
 #define VIO_MAX_PLANES 32
+#define VIO_MP_MAX_FRAMES 128
+#define VIO_MAX_SUB_PROCESS	16
+
 
 #define framemgr_e_barrier_irqs(this, index, flag)		\
 	do {							\
@@ -48,6 +51,7 @@ enum vio_frame_state {
 	FS_REQUEST,
 	FS_PROCESS,
 	FS_COMPLETE,
+	FS_USED,
 	FS_INVALID
 };
 
@@ -83,19 +87,19 @@ struct vio_frame_info {
 	unsigned long long	when;
 };
 
-struct frame_id{
+struct frame_id {
 	u32 frame_id;
 	u64 timestamps;
 };
 
-struct special_buffer{
+struct special_buffer {
 	u32 ds_y_addr[24];
 	u32 ds_uv_addr[24];
 	u32 us_y_addr[6];
 	u32 us_uv_addr[6];
 };
 
-struct frame_info{
+struct frame_info {
 	u32 frame_id;
 	u64 timestamps;
 	struct timeval tv;
@@ -132,6 +136,12 @@ struct vio_framemgr {
 
 	u32			num_frames;
 	struct vio_frame	*frames;
+	struct vio_frame	*frames_mp[VIO_MP_MAX_FRAMES];
+	u8			dispatch_cnt[VIO_MP_MAX_FRAMES];
+	u8			proc_fst_frm[VIO_MAX_SUB_PROCESS];
+	u32			num_proc;
+	u32			num_close;
+	u32			num_flush;
 
 	u32			queued_count[NR_FRAME_STATE];
 	struct list_head	queued_list[NR_FRAME_STATE];
@@ -148,7 +158,8 @@ static const char * const frame_state_name[NR_FRAME_STATE] = {
 	"Free",
 	"Request",
 	"Process",
-	"Complete"
+	"Complete",
+	"Used"
 };
 
 int frame_fcount(struct vio_frame *frame, void *data);
@@ -173,5 +184,11 @@ int frame_manager_close(struct vio_framemgr *this);
 int frame_manager_flush(struct vio_framemgr *this);
 void frame_manager_print_queues(struct vio_framemgr *this);
 void frame_manager_print_info_queues(struct vio_framemgr *this);
+int frame_manager_open_mp(struct vio_framemgr *this, u32 buffers,
+	u32 *index_start);
+int frame_manager_close_mp(struct vio_framemgr *this,
+	u32 index_start, u32 buffers);
+int frame_manager_flush_mp(struct vio_framemgr *this,
+	u32 index_start, u32 buffers);
 
 #endif

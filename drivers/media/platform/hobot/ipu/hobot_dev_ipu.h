@@ -35,6 +35,7 @@
 #define IPU_IOC_OSD_STA_BIN      _IOR(IPU_IOC_MAGIC, 9, int)
 #define IPU_IOC_OSD_ADDR         _IOW(IPU_IOC_MAGIC, 10, int)
 #define IPU_IOC_BIND_GROUP       _IOW(IPU_IOC_MAGIC, 11, int)
+#define IPU_IOC_GET_INDEX      	 _IOR(IPU_IOC_MAGIC, 12, int)
 
 struct ipu_osd_cfg{
 	bool osd_box_update;
@@ -50,7 +51,7 @@ struct ipu_osd_cfg{
 
 struct ipu_video_ctx {
 	wait_queue_head_t done_wq;
-	struct vio_framemgr framemgr;
+	struct vio_framemgr *framemgr;
 	struct vio_group *group;
 	u32 event;
 	bool leader;
@@ -59,6 +60,41 @@ struct ipu_video_ctx {
 
 	struct x2a_ipu_dev *ipu_dev;
 	struct ipu_osd_cfg osd_cfg;
+
+	u32			frm_fst_ind;
+	u32			frm_num;
+	u32			proc_id;
+	u32			ispoll;
+	struct ipu_sub_mp	*sub_mp;
+	struct list_head	list;
+	u32			in_list;
+	struct frame_info 	frameinfo;
+};
+
+enum ipu_sub_mp_state {
+	IPU_SUB_MP_CREATE,
+	IPU_SUB_MP_INIT,
+	IPU_SUB_MP_USER_INIT
+};
+
+struct ipu_sub_mp {
+	spinlock_t 		slock;
+	struct ipu_video_ctx	*dev[VIO_MAX_SUB_PROCESS];
+	u32			proc_count;
+	struct vio_framemgr	framemgr;
+	struct list_head	client_list;
+	u32			client_count;
+	unsigned long 		state;
+	struct vio_group 	*group;
+	struct x2a_ipu_dev 	*ipu_dev;
+	struct semaphore	hw_init_sem;
+};
+
+struct ipu_work {
+	struct work_struct work;
+	u32 work_sta;
+	atomic_t instance;
+	struct x2a_ipu_dev * ipu;
 };
 
 enum ipu_group_state {
@@ -130,6 +166,7 @@ struct x2a_ipu_dev {
 
 	struct vio_group *group[VIO_MAX_STREAM];
 	struct vio_group_task gtask;
+	struct ipu_work work[VIO_MAX_STREAM];
 };
 
 #endif

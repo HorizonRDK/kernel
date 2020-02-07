@@ -92,6 +92,23 @@ void vio_group_start_trigger(struct vio_group_task *group_task, struct vio_frame
 	kthread_queue_work(&group_task->worker, &frame->work);
 }
 
+int vio_group_init_mp(u32 group_id)
+{
+	struct vio_group *group = NULL;
+	u8 i;
+
+	if (group_id > GROUP_ID_NUMBER) {
+		vio_err("[%s]wrong group_id (%d)\n", __func__, group_id);
+		return -EINVAL;
+	}
+
+	for (i = 0; i < VIO_MAX_STREAM; i++) {
+		group = &chain[i].group[group_id];
+		spin_lock_init(&group->slock);
+	}
+	return 0;
+}
+
 struct vio_group *vio_get_chain_group(int instance, u32 group_id)
 {
 	struct vio_group *group = NULL;
@@ -138,15 +155,17 @@ int vio_init_chain(int instance)
 
 	ischain = &chain[instance];
 
-	for(i = 0; i < GROUP_ID_NUMBER; i++){
+	for (i = 0; i < GROUP_ID_NUMBER; i++) {
 		group = &ischain->group[i];
-		if(!test_bit(VIO_GROUP_INIT, &group->state)){
+		spin_lock(&group->slock);
+		if (!test_bit(VIO_GROUP_INIT, &group->state)) {
 			vio_group_init(group);
 			group->chain = ischain;
 			group->instance= instance;
 			group->id = i;
 			set_bit(VIO_GROUP_INIT, &group->state);
 		}
+		spin_unlock(&group->slock);
 	}
 
 	return 0;

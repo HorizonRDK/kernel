@@ -49,6 +49,11 @@ static u32 color[MAX_OSD_COLOR_NUM] = {
     0x000000
 };
 
+static void ipu_isr_bh(struct work_struct *data);
+int ipu_put_client(struct ipu_sub_mp *sub_mp,
+		struct ipu_video_ctx *ipu_sub_ctx);
+struct ipu_video_ctx *ipu_get_client(struct ipu_sub_mp *sub_mp);
+
 static int x2a_ipu_open(struct inode *inode, struct file *file)
 {
 	struct ipu_video_ctx *ipu_ctx;
@@ -85,6 +90,8 @@ static int x2a_ipu_close(struct inode *inode, struct file *file)
 	struct ipu_video_ctx *ipu_ctx;
 	struct x2a_ipu_dev *ipu;
 	struct vio_group *group;
+	u32 index;
+	u32 cnt;
 
 	ipu_ctx = file->private_data;
 	group = ipu_ctx->group;
@@ -99,7 +106,9 @@ static int x2a_ipu_close(struct inode *inode, struct file *file)
 	if (group->gtask)
 		vio_group_task_stop(group->gtask);
 
-	frame_manager_close(&ipu_ctx->framemgr);
+	index = ipu_ctx->frm_fst_ind;
+	cnt = ipu_ctx->frm_num;
+	frame_manager_close_mp(ipu_ctx->framemgr, index, cnt);
 
 	ipu_ctx->state = BIT(VIO_VIDEO_CLOSE);
 
@@ -130,24 +139,56 @@ static u32 x2a_ipu_poll(struct file *file, struct poll_table_struct *wait)
 {
 	int ret = 0;
 	struct ipu_video_ctx *ipu_ctx;
+	unsigned long flags;
+	struct list_head *done_list;
+	struct vio_framemgr *framemgr;
+	struct vio_frame *frame;
+	struct ipu_sub_mp *sub_mp;
 
 	ipu_ctx = file->private_data;
+	ipu_ctx->ispoll = 1;
+	framemgr = ipu_ctx->framemgr;
+	sub_mp = ipu_ctx->sub_mp;
 
 	poll_wait(file, &ipu_ctx->done_wq, wait);
 	if(ipu_ctx->event == VIO_FRAME_DONE)
-		ret = POLLIN;
+		return POLLIN;
 	else if(ipu_ctx->event == VIO_FRAME_NDONE)
-		ret = POLLERR;
+		return POLLERR;
 
-	ipu_ctx->event = 0;
+	framemgr_e_barrier_irqs(framemgr, 0, flags);
+	done_list = &framemgr->queued_list[FS_COMPLETE];
+	if (!list_empty(done_list)) {
+		frame = peek_frame(framemgr, FS_COMPLETE);
+		if (frame) {
+			ret = POLLIN;
+			vio_dbg("poll complete fid%d,bufinx%d ",
+				frame->frameinfo.frame_id,
+				frame->frameinfo.bufferindex);
+			framemgr_x_barrier_irqr(framemgr, 0, flags);
+			return	ret;
+		}
+	}
+	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
+	/* add to client list */
+	spin_lock(&sub_mp->slock);
+	if (!ipu_ctx->in_list) {
+		ret = ipu_put_client(sub_mp, ipu_ctx);
+		if (ret < 0) {
+			spin_unlock(&sub_mp->slock);
+			vio_err("ipu put client error.");
+			return ret;
+		}
+	}
+	spin_unlock(&sub_mp->slock);
 	return ret;
 }
 
 void ipu_frame_work(struct vio_group *group)
 {
 	struct ipu_video_ctx *back_ctx;
-	struct ipu_video_ctx *ipu_ctx;
+	struct ipu_sub_mp *sub_mp;
 	struct x2a_ipu_dev *ipu;
 	struct vio_framemgr *framemgr;
 	struct vio_frame *frame;
@@ -158,8 +199,13 @@ void ipu_frame_work(struct vio_group *group)
 	u8 shadow_index = 0;
 
 	instance = group->instance;
-	ipu_ctx = group->sub_ctx[0];
-	ipu = ipu_ctx->ipu_dev;
+	sub_mp = group->sub_ctx[0];
+	if (!sub_mp) {
+		vio_err("%s group%d sub mp 0 err.\n",
+			__func__, instance);
+		return;
+	}
+	ipu = sub_mp->ipu_dev;
 	shadow_index = instance % MAX_SHADOW_NUM;
 	vio_info("%s start\n", __func__);
 
@@ -171,9 +217,12 @@ void ipu_frame_work(struct vio_group *group)
 
 	atomic_set(&ipu->instance, instance);
 	for (i = MAX_DEVICE - 1; i >= 0; i--) {
-		back_ctx = group->sub_ctx[i];
+		sub_mp = group->sub_ctx[i];
+		if (!sub_mp)
+			continue;
+		back_ctx = sub_mp->dev[0];
 		if (back_ctx != NULL) {
-			framemgr = &back_ctx->framemgr;
+			framemgr = back_ctx->framemgr;
 			framemgr_e_barrier_irqs(framemgr, 0, flags);
 			frame = peek_frame(framemgr, FS_REQUEST);
 			if (frame) {
@@ -216,18 +265,42 @@ void ipu_frame_work(struct vio_group *group)
 	vio_info("%s done\n", __func__);
 }
 
-void ipu_set_group_leader(struct vio_group *group, enum group_id id)
+void ipu_set_group_leader(struct vio_group *group, enum group_id id,
+					u32 proc_id)
 {
-	struct ipu_video_ctx *ipu_ctx;
+	struct ipu_video_ctx *ipu_ctx, *ctx_mp;
+	struct ipu_sub_mp *sub_mp;
+	u32 i;
 
 	if (id >= GROUP_ID_MAX || id < GROUP_ID_SRC)
-		vio_err("wrong id");
+		vio_err("%s wrong id", __func__);
+	else if (proc_id >= VIO_MAX_SUB_PROCESS)
+		vio_err("%s wrong process id", __func__);
 	else {
+		sub_mp = group->sub_ctx[id];
+		if (!sub_mp) {
+			vio_err("%s wrong sub_mp", __func__);
+			return;
+		}
 		if (!test_bit(VIO_GROUP_LEADER, &group->state)) {
-			ipu_ctx = group->sub_ctx[id];
-			ipu_ctx->leader = true;
 			set_bit(VIO_GROUP_LEADER, &group->state);
+
+			ipu_ctx = sub_mp->dev[proc_id];
+			if (!ipu_ctx) {
+				vio_err("%s wrong ipu_ctx", __func__);
+				return;
+			}
+			ipu_ctx->leader = true;
 			vio_info("%s:%d\n", __func__, id);
+		} else {
+			for (i = 0; i < sub_mp->proc_count; i++) {
+				ctx_mp = sub_mp->dev[i];
+				if (ctx_mp->leader == true) {
+					ipu_ctx->leader = true;
+					vio_info("%s:%d\n", __func__, id);
+					break;
+				}
+			}
 		}
 	}
 }
@@ -235,12 +308,19 @@ void ipu_set_group_leader(struct vio_group *group, enum group_id id)
 void ipu_clear_group_leader(struct vio_group *group)
 {
 	int i = 0;
+	int j = 0;
 	struct ipu_video_ctx *ipu_ctx;
+	struct ipu_sub_mp *sub_mp;
 
 	for (i = 0; i < GROUP_ID_MAX; i++) {
-		ipu_ctx = group->sub_ctx[i];
-		if (ipu_ctx)
-			ipu_ctx->leader = false;
+		sub_mp = group->sub_ctx[i];
+		if (!sub_mp)
+			continue;
+		for (j = 0; j < sub_mp->proc_count; j++ ) {
+			ipu_ctx = sub_mp->dev[j];
+			if (ipu_ctx)
+				ipu_ctx->leader = false;
+		}
 	}
 
 	clear_bit(VIO_GROUP_LEADER, &group->state);
@@ -546,13 +626,33 @@ int ipu_update_ds_param(struct ipu_video_ctx *ipu_ctx,
 	ipu = ipu_ctx->ipu_dev;
 	group = ipu_ctx->group;
 	if (ds_config->ds_roi_en || ds_config->ds_sc_en) {
-		ipu_set_group_leader(group, ipu_ctx->id);
+		ipu_set_group_leader(group, ipu_ctx->id, ipu_ctx->proc_id);
 		set_bit(VIO_GROUP_DMA_OUTPUT, &group->state);
 		if (ipu_ctx->id == GROUP_ID_DS2) {
 			set_bit(IPU_DS2_DMA_OUTPUT, &ipu->state);
 		}
 	}
 	return ret;
+}
+
+int ipu_update_ds_param_mp(struct ipu_video_ctx *ipu_ctx,
+		ipu_ds_info_t * ds_config)
+{
+	struct vio_group *group;
+	u8 ds_ch = 0;
+	struct x2a_ipu_dev *ipu;
+
+	ipu = ipu_ctx->ipu_dev;
+	group = ipu_ctx->group;
+	ds_ch = ipu_ctx->id - GROUP_ID_DS0;
+	if (ds_config->ds_roi_en || ds_config->ds_sc_en) {
+		ipu_set_group_leader(group, ipu_ctx->id, ipu_ctx->proc_id);
+		set_bit(VIO_GROUP_DMA_OUTPUT, &group->state);
+		if (ipu_ctx->id == GROUP_ID_DS2) {
+			set_bit(IPU_DS2_DMA_OUTPUT, &ipu->state);
+		}
+	}
+	return 0;
 }
 
 int ipu_update_us_param(struct ipu_video_ctx *ipu_ctx,
@@ -596,7 +696,7 @@ int ipu_update_us_param(struct ipu_video_ctx *ipu_ctx,
 	ipu_set_us_roi_enable(ipu->base_reg, shadow_index, us_config->us_roi_en);
 
 	if (us_config->us_roi_en || us_config->us_sc_en) {
-		ipu_set_group_leader(group, ipu_ctx->id);
+		ipu_set_group_leader(group, ipu_ctx->id, ipu_ctx->proc_id);
 		set_bit(VIO_GROUP_DMA_OUTPUT, &group->state);
 	}
 
@@ -608,6 +708,20 @@ int ipu_update_us_param(struct ipu_video_ctx *ipu_ctx,
 	vio_info("step_x = %d, step_y = %d, tgt_width = %d, tgt_height = %d\n",
 		 dst_stepx, dst_stepy, dst_width, dst_height);
 	return ret;
+}
+
+int ipu_update_us_param_mp(struct ipu_video_ctx *ipu_ctx,
+		ipu_us_info_t * us_config)
+{
+	struct vio_group *group;
+
+	group = ipu_ctx->group;
+	if (us_config->us_roi_en || us_config->us_sc_en) {
+		ipu_set_group_leader(group, ipu_ctx->id, ipu_ctx->proc_id);
+		set_bit(VIO_GROUP_DMA_OUTPUT, &group->state);
+	}
+
+	return 0;
 }
 
 int ipu_update_common_param(struct ipu_video_ctx *ipu_ctx,
@@ -655,7 +769,7 @@ int ipu_update_common_param(struct ipu_video_ctx *ipu_ctx,
 
 	if (ipu_ctrl->source_sel == IPU_FROM_DDR_YUV420) {
 		ipu_clear_group_leader(group);
-		ipu_set_group_leader(group, GROUP_ID_SRC);
+		ipu_set_group_leader(group, GROUP_ID_SRC, ipu_ctx->proc_id);
 	}
 	// enable frameid
 	Id_en = ((ipu_ctrl->us_frame_id_en)
@@ -698,6 +812,21 @@ int ipu_update_common_param(struct ipu_video_ctx *ipu_ctx,
 	return ret;
 }
 
+int ipu_update_common_param_mp(struct ipu_video_ctx *ipu_ctx,
+			ipu_cfg_t *ipu_cfg)
+{
+	ipu_src_ctrl_t *ipu_ctrl;
+	struct vio_group *group;
+
+	group = ipu_ctx->group;
+	ipu_ctrl = &ipu_cfg->ctrl_info;
+	if (ipu_ctrl->source_sel == IPU_FROM_DDR_YUV420) {
+		clear_bit(VIO_GROUP_LEADER, &group->state);
+		ipu_set_group_leader(group, GROUP_ID_SRC, ipu_ctx->proc_id);
+	}
+	return 0;
+}
+
 int ipu_video_init(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 {
 	int ret = 0;
@@ -707,6 +836,19 @@ int ipu_video_init(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 	ipu_cfg_t ipu_cfg;
 	struct x2a_ipu_dev *ipu;
 	struct vio_group *group;
+	struct ipu_sub_mp *sub_mp;
+
+	sub_mp = ipu_ctx->sub_mp;
+	if (!sub_mp) {
+		vio_err("[%s] sub_mp null", __func__);
+		return -EFAULT;
+	}
+
+	ret = down_interruptible(&sub_mp->hw_init_sem);
+	if (ret < 0) {
+		vio_err("[%s] down_interruptible", __func__);
+		return -EFAULT;
+	}
 
 	ipu = ipu_ctx->ipu_dev;
 
@@ -724,27 +866,39 @@ int ipu_video_init(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 		ret = copy_from_user((char *) &ipu_cfg, (u32 __user *) arg,
 				   sizeof(ipu_cfg_t));
 		if (ret)
-			return -EFAULT;
-		ret = ipu_update_common_param(ipu_ctx, &ipu_cfg);
+			goto done;
+		if (!test_bit(IPU_SUB_MP_USER_INIT, &sub_mp->state))
+			ret = ipu_update_common_param(ipu_ctx, &ipu_cfg);
+		else
+			ret = ipu_update_common_param_mp(ipu_ctx, &ipu_cfg);
 	} else if (ipu_ctx->id == GROUP_ID_US) {
 		ret = copy_from_user((char *) &us_config, (u32 __user *) arg,
 				   sizeof(ipu_us_info_t));
 		if (ret)
-			return -EFAULT;
-		ret = ipu_update_us_param(ipu_ctx, &us_config);
+			goto done;
+		if (!test_bit(IPU_SUB_MP_USER_INIT, &sub_mp->state))
+			ret = ipu_update_us_param(ipu_ctx, &us_config);
+		else
+			ret = ipu_update_us_param_mp(ipu_ctx, &us_config);
 	} else if (ipu_ctx->id >= GROUP_ID_DS0) {
 		ret = copy_from_user((char *) &ds_config, (u32 __user *) arg,
 				   sizeof(ipu_ds_info_t));
 		if (ret)
-			return -EFAULT;
-		ret = ipu_update_ds_param(ipu_ctx, &ds_config);
+			goto done;
+		if (!test_bit(IPU_SUB_MP_USER_INIT, &sub_mp->state))
+			ret = ipu_update_ds_param(ipu_ctx, &ds_config);
+		else
+			ret = ipu_update_ds_param_mp(ipu_ctx, &ds_config);
 	}
 
 	group = ipu_ctx->group;
 	vio_group_task_start(group->gtask);
 
 	ipu_ctx->state = BIT(VIO_VIDEO_INIT);
+	set_bit(IPU_SUB_MP_USER_INIT, &sub_mp->state);
 
+done:
+	up(&sub_mp->hw_init_sem);
 	return ret;
 }
 
@@ -755,6 +909,9 @@ int ipu_bind_chain_group(struct ipu_video_ctx *ipu_ctx, int instance)
 	struct vio_group *group;
 	struct x2a_ipu_dev *ipu;
 	struct vio_chain *chain;
+	struct ipu_sub_mp *sub_mp_alloc, *sub_mp;
+	u32 proc_id;
+	u8 isfree;
 
 	if (!(ipu_ctx->state & BIT(VIO_VIDEO_OPEN))) {
 		vio_err("[%s]invalid BIND is requested(%lX)\n",
@@ -774,7 +931,55 @@ int ipu_bind_chain_group(struct ipu_video_ctx *ipu_ctx, int instance)
 		return -EFAULT;
 
 	id = ipu_ctx->id;
-	group->sub_ctx[id] = ipu_ctx;
+
+	isfree = 0;
+	sub_mp_alloc = NULL;
+	spin_lock(&group->slock);
+	if (!group->sub_ctx[id]) {
+		spin_unlock(&group->slock);
+		sub_mp_alloc = kzalloc(sizeof(struct ipu_sub_mp), GFP_KERNEL);
+		if (!sub_mp_alloc) {
+			vio_err("%s:%d alloc sub_mp err.", __func__, __LINE__);
+			return -ENOMEM;
+		}
+		spin_lock(&group->slock);
+	}
+	if (!group->sub_ctx[id]) {
+		group->sub_ctx[id] = sub_mp_alloc;
+		sub_mp = sub_mp_alloc;
+	} else {
+		sub_mp = group->sub_ctx[id];
+		if (sub_mp_alloc)
+			isfree = 1;
+	}
+	if (!test_bit(IPU_SUB_MP_INIT, &sub_mp->state)) {
+		spin_lock_init(&sub_mp->slock);
+		INIT_LIST_HEAD(&sub_mp->client_list);
+		set_bit(IPU_SUB_MP_INIT, &sub_mp->state);
+	}
+
+	proc_id = sub_mp->proc_count;
+	if (proc_id >= VIO_MAX_SUB_PROCESS) {
+		spin_unlock(&group->slock);
+		vio_err("IPU bind too many files on ins%d minor%d",
+			instance, id);
+		return -EMFILE;
+	}
+	sub_mp->dev[proc_id] = ipu_ctx;
+	sub_mp->proc_count++;
+	sub_mp->group = group;
+	sub_mp->ipu_dev = ipu;
+	sema_init(&sub_mp->hw_init_sem, 1);
+	ipu_ctx->proc_id = proc_id;
+	ipu_ctx->sub_mp = sub_mp;
+	ipu_ctx->framemgr = &sub_mp->framemgr;
+	if (!group->sub_ctx[id])
+		group->sub_ctx[id] = sub_mp;
+	spin_unlock(&group->slock);
+
+	if (isfree)
+		kfree(sub_mp_alloc);
+
 	ipu->group[instance] = group;
 	ipu_ctx->group = group;
 
@@ -888,8 +1093,9 @@ int ipu_video_streamoff(struct ipu_video_ctx *ipu_ctx)
 #endif
 
 p_dec:
-	if (ipu_ctx->framemgr.frames != NULL)
-		frame_manager_flush(&ipu_ctx->framemgr);
+	if (ipu_ctx->framemgr->frames_mp != NULL)
+		frame_manager_flush_mp(ipu_ctx->framemgr, ipu_ctx->frm_fst_ind,
+			ipu_ctx->frm_num);
 
 	ipu_ctx->state = BIT(VIO_VIDEO_STOP);
 
@@ -914,6 +1120,7 @@ int ipu_video_reqbufs(struct ipu_video_ctx *ipu_ctx, u32 buffers)
 	int ret = 0;
 	int i = 0;
 	struct vio_framemgr *framemgr;
+	u32 buf_index;
 
 	if (!(ipu_ctx->state & (BIT(VIO_VIDEO_STOP) | BIT(VIO_VIDEO_REBUFS) |
 		      BIT(VIO_VIDEO_INIT) | BIT(VIO_VIDEO_S_INPUT)))) {
@@ -922,20 +1129,42 @@ int ipu_video_reqbufs(struct ipu_video_ctx *ipu_ctx, u32 buffers)
 		return -EINVAL;
 	}
 
-	framemgr = &ipu_ctx->framemgr;
-	ret = frame_manager_open(framemgr, buffers);
+	framemgr = ipu_ctx->framemgr;
+	ret = frame_manager_open_mp(framemgr, buffers, &buf_index);
 	if (ret) {
 		vio_err("frame manage open failed, ret(%d)", ret);
 		return ret;
 	}
-
-	for (i = 0; i < buffers; i++) {
-		framemgr->frames[i].data = ipu_ctx->group;
+	ipu_ctx->frm_fst_ind = buf_index;
+	ipu_ctx->frm_num = buffers;
+	vio_info("ipu_ctx->frm_fst_ind %d", ipu_ctx->frm_fst_ind);
+	for (i = buf_index; i < (buf_index + buffers); i++) {
+		framemgr->frames_mp[i]->data = ipu_ctx->group;
 	}
 
 	ipu_ctx->state = BIT(VIO_VIDEO_REBUFS);
 
 	return ret;
+}
+
+int ipu_video_getindex(struct ipu_video_ctx *ipu_ctx)
+{
+	u32 buf_index;
+
+	if (!(ipu_ctx->state & BIT(VIO_VIDEO_REBUFS))) {
+		vio_err("[%s][V%02d]state error when get buf index(%lX)\n",
+			__func__, ipu_ctx->group->instance, ipu_ctx->state);
+		return -EINVAL;
+	}
+
+	buf_index = ipu_ctx->frm_fst_ind;
+	if (buf_index >= VIO_MP_MAX_FRAMES) {
+		vio_err("[%s][V%02d]index too large(%d).\n",
+			__func__, ipu_ctx->group->instance, buf_index);
+		return -EFAULT;
+	}
+
+	return buf_index;
 }
 
 int ipu_video_qbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
@@ -946,20 +1175,44 @@ int ipu_video_qbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 	struct vio_framemgr *framemgr;
 	struct vio_frame *frame;
 	struct vio_group *group;
+	u8 dispatch_cnt;
 
 	index = frameinfo->bufferindex;
-	framemgr = &ipu_ctx->framemgr;
+	framemgr = ipu_ctx->framemgr;
 	BUG_ON(index >= framemgr->num_frames);
 
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
-	frame = &framemgr->frames[index];
+	frame = framemgr->frames_mp[index];
 	if (frame->state == FS_FREE) {
+		vio_dbg("q:FREE->REQ,proc%d bidx%d", ipu_ctx->proc_id, index);
 		memcpy(&frame->frameinfo, frameinfo, sizeof(struct frame_info));
 		trans_frame(framemgr, frame, FS_REQUEST);
+	} else if (frame->state == FS_USED) {
+		dispatch_cnt = framemgr->dispatch_cnt[index] - 1;
+		if (dispatch_cnt >= VIO_MAX_SUB_PROCESS) {
+			vio_err("frame(%d) dispatch count(%d) err\n", index,
+				dispatch_cnt);
+			ret = -EINVAL;
+			goto err;
+		} else if (dispatch_cnt == 0) {
+			vio_dbg("q:USED->REQ,proc%d bidx%d", ipu_ctx->proc_id,
+				index);
+			framemgr->dispatch_cnt[index] = dispatch_cnt;
+			memcpy(&frame->frameinfo, frameinfo,
+				sizeof(struct frame_info));
+			trans_frame(framemgr, frame, FS_REQUEST);
+		} else {
+			vio_dbg("q:disp cnt%d,proc%d bidx%d", dispatch_cnt,
+				ipu_ctx->proc_id, index);
+			framemgr->dispatch_cnt[index] = dispatch_cnt;
+			ret = 0;
+			goto err;
+		}
 	} else {
 		vio_err("frame(%d) is invalid state(%d)\n", index,
 			frame->state);
 		ret = -EINVAL;
+		goto err;
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
@@ -969,6 +1222,9 @@ int ipu_video_qbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 	}
 	return ret;
 
+err:
+	framemgr_x_barrier_irqr(framemgr, 0, flags);
+	return ret;
 }
 
 int ipu_video_dqbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
@@ -978,19 +1234,57 @@ int ipu_video_dqbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 	struct list_head *done_list;
 	struct vio_framemgr *framemgr;
 	struct vio_frame *frame;
+	struct ipu_sub_mp *sub_mp;
 
-	framemgr = &ipu_ctx->framemgr;
-
+	framemgr = ipu_ctx->framemgr;
+	sub_mp = ipu_ctx->sub_mp;
 	done_list = &framemgr->queued_list[FS_COMPLETE];
-	wait_event_interruptible(ipu_ctx->done_wq, !list_empty(done_list));
-
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
-	frame = peek_frame(framemgr, FS_COMPLETE);
-	if (frame) {
-		memcpy(frameinfo, &frame->frameinfo, sizeof(struct frame_info));
-		trans_frame(framemgr, frame, FS_FREE);
+	if (!list_empty(done_list)) {
+		frame = peek_frame(framemgr, FS_COMPLETE);
+		if (frame) {
+			memcpy(frameinfo, &frame->frameinfo,
+				sizeof(struct frame_info));
+			trans_frame(framemgr, frame, FS_FREE);
+			vio_dbg("ipu minor:%d dqbuf(f%d b%d) from FS_COMPLETE.",
+				ipu_ctx->id, frame->frameinfo.frame_id,
+				frame->frameinfo.bufferindex);
+		}
+		framemgr_x_barrier_irqr(framemgr, 0, flags);
+
+		return ret;
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
+
+	/* add to client list */
+	if (!ipu_ctx->ispoll) {
+		spin_lock(&sub_mp->slock);
+		ret = ipu_put_client(sub_mp, ipu_ctx);
+		if (ret < 0) {
+			spin_unlock(&sub_mp->slock);
+			vio_err("ipu put client error.");
+			return ret;
+		} else {
+			vio_dbg("dq(%d):put client ok.", ipu_ctx->id);
+		}
+		spin_unlock(&sub_mp->slock);
+		wait_event_interruptible(ipu_ctx->done_wq,
+				ipu_ctx->event == VIO_FRAME_DONE);
+	}
+
+	/* copy frameinfo */
+	if (ipu_ctx->event == VIO_FRAME_DONE) {
+		spin_lock(&sub_mp->slock);
+		memcpy(frameinfo, &ipu_ctx->frameinfo,
+			sizeof(struct frame_info));
+		spin_unlock(&sub_mp->slock);
+		vio_dbg("dq proc%d bidx%d fid%d", ipu_ctx->proc_id,
+			frameinfo->bufferindex, frameinfo->frame_id);
+		ipu_ctx->event = 0;
+	} else {
+		ret = -EFAULT;
+		ipu_ctx->event = 0;
+	}
 
 	return ret;
 }
@@ -1005,6 +1299,7 @@ static long x2a_ipu_ioctl(struct file *file, unsigned int cmd,
 	struct ipu_video_ctx *ipu_ctx;
 	struct frame_info frameinfo;
 	struct vio_group *group;
+	u32 buf_index;
 
 	ipu_ctx = file->private_data;
 	BUG_ON(!ipu_ctx);
@@ -1029,16 +1324,18 @@ static long x2a_ipu_ioctl(struct file *file, unsigned int cmd,
 		ipu_video_dqbuf(ipu_ctx, &frameinfo);
 		ret = copy_to_user((void __user *) arg, (char *) &frameinfo,
 				 sizeof(struct frame_info));
-		vio_dbg("V[%d][%d]=====IPU_IOC_DQBUF==ret %d===========\n",
-			 group->instance, ipu_ctx->id, ret);
+		vio_dbg("V[%d][%d]=====IPU_IOC_DQBUF(p%d b%d f%d)==ret %d====\n",
+			 group->instance, ipu_ctx->id, ipu_ctx->proc_id,
+			 frameinfo.bufferindex, frameinfo.frame_id, ret);
 		if (ret)
 			return -EFAULT;
 		break;
 	case IPU_IOC_QBUF:
 		ret = copy_from_user((char *) &frameinfo, (u32 __user *) arg,
 				   sizeof(struct frame_info));
-		vio_dbg("V[%d][%d]=====IPU_IOC_QBUF==ret %d===========\n",
-			 group->instance, ipu_ctx->id, ret);
+		vio_dbg("V[%d][%d]=====IPU_IOC_QBUF(p%d b%d)==ret %d===========\n",
+			 group->instance, ipu_ctx->id, ipu_ctx->proc_id,
+			 frameinfo.bufferindex, ret);
 		if (ret)
 			return -EFAULT;
 		ipu_video_qbuf(ipu_ctx, &frameinfo);
@@ -1050,6 +1347,16 @@ static long x2a_ipu_ioctl(struct file *file, unsigned int cmd,
 		if (ret)
 			return -EFAULT;
 		ipu_video_reqbufs(ipu_ctx, buffers);
+		break;
+	case IPU_IOC_GET_INDEX:
+		buf_index = ipu_video_getindex(ipu_ctx);
+		if (buf_index < 0)
+			return -EFAULT;
+		ret = put_user(buf_index, (u32 __user *) arg);
+		if (ret)
+			return -EFAULT;
+		vio_dbg("V[%d][%d]=====IPU_IOC_GET_INDEX==%d=============\n",
+			 group->instance, ipu_ctx->id, buf_index);
 		break;
 	case IPU_IOC_OSD_ROI:
 		ret = ipu_update_osd_roi(ipu_ctx, arg);
@@ -1098,15 +1405,25 @@ void ipu_set_iar_output(struct ipu_video_ctx *ipu_ctx, struct vio_frame *frame)
 #endif
 }
 
-void ipu_frame_done(struct ipu_video_ctx *ipu_ctx)
+void ipu_frame_done(struct ipu_sub_mp *sub_mp)
 {
 	struct vio_framemgr *framemgr;
 	struct vio_frame *frame;
 	struct vio_group *group;
+	struct ipu_video_ctx *ipu_ctx;
 	unsigned long flags;
 
-	group = ipu_ctx->group;
-	framemgr = &ipu_ctx->framemgr;
+	if(!sub_mp) {
+		vio_err("%s:%d sub_mp not init.\n", __func__, __LINE__);
+		return;
+	}
+	group = sub_mp->group;
+	framemgr = &sub_mp->framemgr;
+	ipu_ctx = sub_mp->dev[0];
+	if(!ipu_ctx) {
+		vio_err("%s:%d sub_mp.dev[0] is null .\n", __func__, __LINE__);
+		return;
+	}
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	frame = peek_frame(framemgr, FS_PROCESS);
 	if (frame) {
@@ -1118,17 +1435,137 @@ void ipu_frame_done(struct ipu_video_ctx *ipu_ctx)
 
 		do_gettimeofday(&frame->frameinfo.tv);
 
+		vio_dbg("done bidx%d fid%d ",
+			frame->frameinfo.bufferindex,
+			frame->frameinfo.frame_id);
 		ipu_set_iar_output(ipu_ctx, frame);
-		ipu_ctx->event = VIO_FRAME_DONE;
 		trans_frame(framemgr, frame, FS_COMPLETE);
 	} else {
-		ipu_ctx->event = VIO_FRAME_NDONE;
 		vio_err("PROCESS queue has no member;\n");
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
-	wake_up(&ipu_ctx->done_wq);
 }
 
+int ipu_put_client(struct ipu_sub_mp *sub_mp,
+		struct ipu_video_ctx *ipu_sub_ctx)
+{
+	if (!ipu_sub_ctx) {
+		vio_err("[%s]invalid client device.", __func__);
+		return -EFAULT;
+	}
+	if (sub_mp->client_count > VIO_MAX_SUB_PROCESS) {
+		vio_err("[%s]client count %d err.", __func__,
+			sub_mp->client_count);
+		return -EFAULT;
+	}
+	list_add_tail(&ipu_sub_ctx->list, &sub_mp->client_list);
+	sub_mp->client_count++;
+	ipu_sub_ctx->in_list = 1;
+
+	return 0;
+}
+
+struct ipu_video_ctx *ipu_get_client(struct ipu_sub_mp *sub_mp)
+
+{
+	struct ipu_video_ctx *ipu_sub_ctx;
+
+	if (!sub_mp->client_count)
+		return NULL;
+	ipu_sub_ctx = list_first_entry(&sub_mp->client_list,
+			struct ipu_video_ctx, list);
+	list_del(&ipu_sub_ctx->list);
+	sub_mp->client_count--;
+	ipu_sub_ctx->in_list = 0;
+	return ipu_sub_ctx;
+}
+
+void ipu_dispatch_frm(struct ipu_work *ipu_work)
+{
+	unsigned long flags;
+	struct vio_framemgr *framemgr;
+	struct vio_frame *frame;
+	u32 i;
+	struct ipu_video_ctx *ipu_ctx;
+	struct frame_info *frame_info;
+	u32 client_count;
+	u32 bufindex;
+	struct ipu_sub_mp *sub_mp;
+	u32 id;
+	u32 instance = 0;
+	struct vio_group *group;
+	struct x2a_ipu_dev *ipu;
+
+	ipu = ipu_work->ipu;
+	instance = atomic_read(&ipu_work->instance);
+	group = ipu->group[instance];
+	for (id = 0; id < MAX_SUB_DEVICE; id++) {
+		if (!(ipu_work->work_sta & (1 << id)))
+			continue;
+		sub_mp = group->sub_ctx[id];
+		framemgr = &sub_mp->framemgr;
+		spin_lock(&sub_mp->slock);
+		client_count = sub_mp->client_count;
+		if (!client_count) {
+			vio_dbg("disp:warn,client count %d", client_count);
+		} else {
+			framemgr_e_barrier_irqs(framemgr, 0, flags);
+			frame = peek_frame(framemgr, FS_COMPLETE);
+			if (frame)
+				trans_frame(framemgr, frame, FS_USED);
+			framemgr_x_barrier_irqr(framemgr, 0, flags);
+			if (!frame)
+				vio_dbg("no frame in FS_COMPLETE when dispatching");
+			else
+				bufindex = frame->frameinfo.bufferindex;
+		}
+		for (i = 0; i < client_count; i++) {
+			ipu_ctx = ipu_get_client(sub_mp);
+			if (!ipu_ctx) {
+				spin_unlock(&sub_mp->slock);
+				vio_dbg("ipu:client not enough when dispatching.");
+				break;
+			}
+			if (frame) {
+				frame_info = &ipu_ctx->frameinfo;
+				memcpy(frame_info, &frame->frameinfo,
+					sizeof(struct frame_info));
+				vio_dbg("disp%d ,bidx%d fid%d", i,
+					frame_info->bufferindex,
+					frame_info->frame_id);
+				framemgr_e_barrier_irqs(framemgr, 0, flags);
+				framemgr->dispatch_cnt[bufindex]++;
+				framemgr_x_barrier_irqr(framemgr, 0, flags);
+				ipu_ctx->event = VIO_FRAME_DONE;
+
+			} else {
+				ipu_ctx->event = VIO_FRAME_NDONE;
+			}
+			wake_up(&ipu_ctx->done_wq);
+		}
+		spin_unlock(&sub_mp->slock);
+	}
+}
+
+static void ipu_isr_bh(struct work_struct *data)
+{
+	struct ipu_work *ipu_work;
+
+	ipu_work = container_of(data, struct ipu_work, work);
+	ipu_dispatch_frm(ipu_work);
+}
+
+void ipu_work_init(struct x2a_ipu_dev *ipu)
+{
+	u32 i;
+
+	for (i = 0; i < VIO_MAX_STREAM; i++) {
+		INIT_WORK(&ipu->work[i].work, ipu_isr_bh);
+		ipu->work[i].work_sta = 0;
+		atomic_set(&ipu->work[i].instance, i);
+		ipu->work[i].ipu = ipu;
+	}
+}
 static irqreturn_t ipu_isr(int irq, void *data)
 {
 	u32 status = 0;
@@ -1137,6 +1574,8 @@ static irqreturn_t ipu_isr(int irq, void *data)
 	struct x2a_ipu_dev *ipu;
 	struct vio_group *group;
 	struct vio_group_task *gtask;
+	struct ipu_work	*ipu_work;
+	struct ipu_sub_mp	*sub_mp;
 
 	ipu = data;
 	gtask = &ipu->gtask;
@@ -1176,36 +1615,69 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		vio_err("DS4 Frame drop\n");
 	}
 
+	ipu_work = &ipu->work[instance];
+	ipu_work->work_sta = 0;
 	if (status & (1 << INTR_IPU_FRAME_DONE)) {
 		if (test_bit(IPU_DMA_INPUT, &ipu->state)) {
 			up(&gtask->hw_resource);
-			ipu_frame_done(group->sub_ctx[GROUP_ID_SRC]);
+			sub_mp = group->sub_ctx[GROUP_ID_SRC];
+			if (sub_mp) {
+				ipu_frame_done(sub_mp);
+				ipu_work->work_sta |= (1 << GROUP_ID_SRC);
+			}
 		}
 	}
 
 	if (status & (1 << INTR_IPU_US_FRAME_DONE)) {
-		ipu_frame_done(group->sub_ctx[GROUP_ID_US]);
+		sub_mp = group->sub_ctx[GROUP_ID_US];
+		if (sub_mp) {
+			ipu_frame_done(sub_mp);
+			ipu_work->work_sta |= (1 << GROUP_ID_US);
+		}
 	}
 
 	if (status & (1 << INTR_IPU_DS0_FRAME_DONE)) {
-		ipu_frame_done(group->sub_ctx[GROUP_ID_DS0]);
+		sub_mp = group->sub_ctx[GROUP_ID_DS0];
+		if (sub_mp) {
+			ipu_frame_done(sub_mp);
+			ipu_work->work_sta |= (1 << GROUP_ID_DS0);
+		}
 	}
 
 	if (status & (1 << INTR_IPU_DS1_FRAME_DONE)) {
-		ipu_frame_done(group->sub_ctx[GROUP_ID_DS1]);
+		sub_mp = group->sub_ctx[GROUP_ID_DS1];
+		if (sub_mp) {
+			ipu_frame_done(sub_mp);
+			ipu_work->work_sta |= (1 << GROUP_ID_DS1);
+		}
 	}
 
 	if (status & (1 << INTR_IPU_DS2_FRAME_DONE)
 	    && test_bit(IPU_DS2_DMA_OUTPUT, &ipu->state)) {
-		ipu_frame_done(group->sub_ctx[GROUP_ID_DS2]);
+		sub_mp = group->sub_ctx[GROUP_ID_DS2];
+		if (sub_mp) {
+			ipu_frame_done(sub_mp);
+			ipu_work->work_sta |= (1 << GROUP_ID_DS2);
+		}
 	}
 
 	if (status & (1 << INTR_IPU_DS3_FRAME_DONE)) {
-		ipu_frame_done(group->sub_ctx[GROUP_ID_DS3]);
+		sub_mp = group->sub_ctx[GROUP_ID_DS3];
+		if (sub_mp) {
+			ipu_frame_done(sub_mp);
+			ipu_work->work_sta |= (1 << GROUP_ID_DS3);
+		}
 	}
 
 	if (status & (1 << INTR_IPU_DS4_FRAME_DONE)) {
-		ipu_frame_done(group->sub_ctx[GROUP_ID_DS4]);
+		sub_mp = group->sub_ctx[GROUP_ID_DS4];
+		if (sub_mp) {
+			ipu_frame_done(sub_mp);
+			ipu_work->work_sta |= (1 << GROUP_ID_DS4);
+		}
+	}
+	if (ipu_work->work_sta) {
+		queue_work(system_highpri_wq, &ipu_work->work);
 	}
 
 	if (status & (1 << INTR_IPU_FRAME_START)) {
@@ -1397,6 +1869,13 @@ static int x2a_ipu_probe(struct platform_device *pdev)
 		goto err_get_irq;
 	}
 
+	ret = vio_group_init_mp(GROUP_ID_IPU);
+	if (ret < 0) {
+		vio_err("init chain group(IPU) multi-process error.");
+		goto err_init_group_mp;
+	}
+	ipu_work_init(ipu);
+
 	ret = request_irq(ipu->irq, ipu_isr, IRQF_TRIGGER_HIGH, "ipu", ipu);
 	if (ret) {
 		vio_err("request_irq(IRQ_IPU %d) is fail(%d)", ipu->irq, ret);
@@ -1421,6 +1900,7 @@ static int x2a_ipu_probe(struct platform_device *pdev)
 
 	return 0;
 
+err_init_group_mp:
 err_get_irq:
 	iounmap(ipu->base_reg);
 
