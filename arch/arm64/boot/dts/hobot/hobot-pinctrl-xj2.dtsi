@@ -229,6 +229,22 @@
 					14	0
 				>;
 			};
+			spi1_func:spi1_func {
+				pinctrl-x2,pins-muxs = <
+					4	1
+					6	1
+					7	1
+					8	1
+				>;
+			};
+			spi2_func:spi2_func {
+				pinctrl-x2,pins-muxs = <
+					68	2
+					69	2
+					70	2
+					71	2
+				>;
+			};
 			qspi_func:qspi_func {
 				pinctrl-x2,pins-muxs = <
 					110	0

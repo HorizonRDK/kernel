@@ -34,6 +34,9 @@
 		i2c5	= &i2c5;
 		i2s0	= &i2s0;
 		i2s1	= &i2s1;
+		spi0	= &spi0;
+		spi1	= &spi1;
+		spi2	= &spi2;
 		pwm0	= &pwm_0;
 		pwm1	= &pwm_1;
 		pwm2	= &pwm_2;
@@ -242,9 +245,14 @@
 };
 
 &spi0 {
-	status = "okay";
+	status = "disabled";
 };
-
+&spi1 {
+	status = "disabled";
+};
+&spi2 {
+	status = "disabled";
+};
 &ethernet {
 	status = "okay";
 

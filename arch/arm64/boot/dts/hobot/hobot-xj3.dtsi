@@ -648,13 +648,15 @@
 		spi0: spi@0xA5004000 {
 			compatible = "hobot,x2-spi";
 			reg = <0 0xA5004000 0 0x1000>;
+			clocks = <&spi0_mclk>;
+			clock-names = "spi_mclk";
 			interrupt-parent = <&gic>;
 			interrupts = <0 33 4>;
 			resets = <&rst 0x50 4>;
 			reset-names = "spi0";
-			status = "disabled";
 			pinctrl-names = "default";
 			pinctrl-0 = <&spi0_func>;
+			status = "disabled";
 			#address-cells = <1>;
 			#size-cells = <0>;
 			spidev@0x00 {
@@ -665,20 +667,32 @@
 		};
 
 		spi1: spi@0xA5005000 {
-			compatible = "hobot,x2-spi";
+			compatible = "hobot,hobot-spi";
 			reg = <0 0xA5005000 0 0x1000>;
+			clocks = <&spi1_mclk>;
+			clock-names = "spi_mclk";
 			interrupt-parent = <&gic>;
 			interrupts = <0 34 4>;
+			resets = <&rst 0x50 5>;
+			reset-names = "spi1";
+			pinctrl-names = "default";
+			pinctrl-0 = <&spi1_func>;
 			status = "disabled";
 			#address-cells = <1>;
 			#size-cells = <0>;
 		};
 
 		spi2: spi@0xA5006000 {
-			compatible = "hobot,x2-spi";
+			compatible = "hobot,hobot-spi";
 			reg = <0 0xA5006000 0 0x1000>;
+			clocks = <&spi2_mclk>;
+			clock-names = "spi_mclk";
 			interrupt-parent = <&gic>;
 			interrupts = <0 35 4>;
+			resets = <&rst 0x50 6>;
+			reset-names = "spi2";
+			pinctrl-names = "default";
+			pinctrl-0 = <&spi2_func>;
 			status = "disabled";
 			#address-cells = <1>;
 			#size-cells = <0>;

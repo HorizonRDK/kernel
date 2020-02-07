@@ -1,9 +1,15 @@
-/*
- * X2 SPI controller driver (master mode only)
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
+/*************************************************************
+ ****			 COPYRIGHT NOTICE
+ ****		 Copyright 2019 Horizon Robotics, Inc.
+ ****			 All rights reserved.
+ *************************************************************/
+/**
+ * @file	spi-hobot.c
+ * @brief	X2 SPI controller driver (master/slave)
+ * @version	V2.0
+ * @author	Horizon
+ * @date
+ * @history	20191128 haibo.guo slave mode
  */
 
 #include <linux/module.h>
@@ -21,8 +27,13 @@
 #include <linux/timer.h>
 #include <linux/clk.h>
 
-#define X2_SPI_MAX_CS          3
-#define X2_SPI_NAME            "x2_spi"
+#define VER			"HOBOT-spi_V20.200206"
+/* x2 spi master or slave mode select*/
+#define MASTER_MODE		(0)
+#define SLAVE_MODE		(1)
+
+#define X2_SPI_MAX_CS		(3)
+#define X2_SPI_NAME            "hobot_spi"
 /* X2 SPI register offsets */
 #define X2_SPI_TXD_REG         0x00	/* data transmit register */
 #define X2_SPI_RXD_REG         0x04	/* data receive register */
@@ -131,7 +142,7 @@
 #define X2_SPI_OP_TX_DIS       BIT(1)
 #define X2_SPI_OP_TR_DIS       (X2_SPI_OP_RX_DIS | X2_SPI_OP_TX_DIS)
 
-#define X2_SPI_DMA_BUFSIZE     (2048)
+#define X2_SPI_DMA_BUFSIZE     (10240)
 
 //#define CONFIG_X2_SPI_FIFO_MODE       /* no dma, fifo mode */
 #define CONFIG_X2_SPI_DMA_SINGLE	/* dma signal buffer mode */
@@ -142,6 +153,16 @@
 
 struct timer_list spi_diag_timer;
 static uint32_t spi_last_err_tm_ms;
+
+static int debug;
+static int slave_tout = 10;
+static int master_tout = 2;
+module_param(debug, int, 0644);
+MODULE_PARM_DESC(debug, "spi: 0 close debug, other open debug");
+module_param(slave_tout, int, 0644);
+MODULE_PARM_DESC(slave_tout, "spi: slave timeout(sec), default 10 s");
+module_param(master_tout, int, 0644);
+MODULE_PARM_DESC(master_tout, "spi: master timeout(sec), default 2 s");
 
 struct x2_spi {
 	struct device *dev;	/* parent device */
@@ -163,7 +184,44 @@ struct x2_spi {
 	u8 *rx_dma_buf;
 	dma_addr_t tx_dma_phys;
 	dma_addr_t rx_dma_phys;
+
+	int isslave;
+	bool slave_aborted;
 };
+
+static void x2_spi_dump(struct x2_spi *x2spi, char *str, unchar *buf,
+	int len)
+{
+	int i = 0, j = 0, mul = 0, remain = 0;
+	int m = 32;
+
+	mul = len / m;
+	remain = len % m;
+
+	if (str)
+		dev_err(x2spi->dev, "%s %d %d %d\n", str, len, mul, remain);
+
+	for (i = 0; i < mul; i++) {
+		printk("0x%04x:%02X %02X %02X %02X %02X %02X %02X %02X "
+			"%02X %02X %02X %02X %02X %02X %02X %02X "
+			"%02X %02X %02X %02X %02X %02X %02X %02X "
+			"%02X %02X %02X %02X %02X %02X %02X %02X\n", i*m,
+		buf[i*m + 0], buf[i*m + 1], buf[i*m + 2], buf[i*m + 3],
+		buf[i*m + 4], buf[i*m + 5], buf[i*m + 6], buf[i*m + 7],
+		buf[i*m + 8], buf[i*m + 9], buf[i*m + 10], buf[i*m + 11],
+		buf[i*m + 12], buf[i*m + 13], buf[i*m + 14], buf[i*m + 15],
+		buf[i*m + 16], buf[i*m + 17], buf[i*m + 18], buf[i*m + 19],
+		buf[i*m + 20], buf[i*m + 21], buf[i*m + 22], buf[i*m + 23],
+		buf[i*m + 24], buf[i*m + 25], buf[i*m + 26], buf[i*m + 27],
+		buf[i*m + 28], buf[i*m + 29], buf[i*m + 30], buf[i*m + 31]);
+	}
+
+	for (j = 0; j < remain; j++)
+		printk("%02X", buf[mul*m + j]);
+	printk("\n");
+
+	return;
+}
 
 /* spi enable with: tx/rx fifo enable? tx/rx check disable? */
 static int x2_spi_en_ctrl(struct x2_spi *x2spi, int en_flag,
@@ -197,8 +255,10 @@ static int x2_spi_en_ctrl(struct x2_spi *x2spi, int en_flag,
 	else
 		val &= (~X2_SPI_CORE_EN);
 
-	//pr_debug("%s X2_SPI_CTRL_REG=0x%X\n", __func__, val);
 	x2_spi_wr(x2spi, X2_SPI_CTRL_REG, val);
+
+	if (debug)
+		pr_info("%s CTRL=%08X\n", __func__, val);
 
 	return 0;
 }
@@ -233,7 +293,8 @@ static int x2_spi_fill_txfifo(struct x2_spi *x2spi)
 	}
 
 	x2_spi_wr(x2spi, X2_SPI_FIFO_RESET_REG, X2_SPI_FRST_TXDIS);
-	//pr_debug("%s cnt=%d\n", __func__, cnt);
+	if (debug > 1)
+		pr_info("%s cnt=%d\n", __func__, cnt);
 	return cnt;
 }
 
@@ -263,14 +324,15 @@ static int x2_spi_drain_rxfifo(struct x2_spi *x2spi)
 		}
 		x2_spi_wr(x2spi, X2_SPI_FIFO_RESET_REG, X2_SPI_FRST_RXDIS);
 	}
-	//pr_debug("%s cnt=%d\n", __func__, cnt);
+	if (debug > 1)
+		pr_info("%s cnt=%d\n", __func__, cnt);
 	return cnt;
 }
 #endif
 
 #ifdef CONFIG_X2_SPI_DMA_SINGLE
 /* spi tx fifo fill from txbuf with txcnt */
-static int x2_spi_tx_dma(struct x2_spi *x2spi)
+static int x2_spi_fill_txdma(struct x2_spi *x2spi)
 {
 	int cnt = 0;
 	u32 dma_ctrl1 = 0;
@@ -286,6 +348,9 @@ static int x2_spi_tx_dma(struct x2_spi *x2spi)
 		complete(&x2spi->completion);
 		return 0;
 	}
+
+	if (debug > 1)
+		x2_spi_dump(x2spi, "fill_txdma", x2spi->txbuf, x2spi->txcnt);
 
 	dma_sync_single_for_cpu(x2spi->dev, x2spi->tx_dma_phys,
 				X2_SPI_DMA_BUFSIZE, DMA_TO_DEVICE);
@@ -330,6 +395,10 @@ static int x2_spi_drain_rxdma(struct x2_spi *x2spi)
 	dma_sync_single_for_device(x2spi->dev, x2spi->rx_dma_phys,
 				   X2_SPI_DMA_BUFSIZE, DMA_FROM_DEVICE);
 	x2_spi_wr(x2spi, X2_SPI_FIFO_RESET_REG, X2_SPI_FRST_RXDIS);
+
+	if (debug > 1)
+		x2_spi_dump(x2spi, "drain_rxdma", x2spi->rx_dma_buf, cnt);
+
 	return 0;
 }
 #endif
@@ -374,7 +443,8 @@ static irqreturn_t x2_spi_int_handle(int irq, void *data)
 	struct x2_spi *x2spi = (struct x2_spi *)data;
 
 	pnd = x2_spi_rd(x2spi, X2_SPI_SRCPND_REG);
-	//pr_err("handle = %x\n", pnd);
+	if (debug)
+		dev_err(x2spi->dev, "irq=%d SRCPND=%08X\n", irq, pnd);
 	if (pnd & (X2_SPI_INT_RX_FULL | X2_SPI_INT_DMA_TRDONE)) {
 #ifdef	CONFIG_X2_SPI_FIFO_MODE
 		x2_spi_drain_rxfifo(x2spi);
@@ -388,12 +458,12 @@ static irqreturn_t x2_spi_int_handle(int irq, void *data)
 #endif
 	}
 	if (pnd & X2_SPI_INT_RX_DMAERR) {
-		pr_err("rx dma err\n");
+		dev_err(x2spi->dev, "INT_RX_DMAERR\n");
 		errflg = 1;
 	}
 
 	if (pnd & X2_SPI_INT_OE) {
-		pr_err("oe\n");
+		dev_err(x2spi->dev, "INT_OE\n");
 		errflg = 1;
 	}
 
@@ -405,7 +475,7 @@ static irqreturn_t x2_spi_int_handle(int irq, void *data)
 		x2_spi_wr(x2spi, X2_SPI_FIFO_RESET_REG, X2_SPI_FRST_ABORT);
 		complete(&x2spi->completion);
 #elif defined CONFIG_X2_SPI_DMA_SINGLE
-		x2_spi_tx_dma(x2spi);
+		x2_spi_fill_txdma(x2spi);
 #endif
 	}
 	if (errflg)
@@ -423,7 +493,7 @@ static int x2_spi_config(struct x2_spi *x2spi)
 	val = x2_spi_rd(x2spi, X2_SPI_CTRL_REG);
 	/* bit width */
 	val &= ~(X2_SPI_DW_SEL | X2_SPI_POLARITY | X2_SPI_PHASE |
-		 SPI_LSB_FIRST | X2_SPI_SSAL);
+		 X2_SPI_LSB | X2_SPI_SSAL);
 	if (x2spi->word_width == 16)
 		val |= X2_SPI_DW_SEL;
 	/* spi mode */
@@ -457,6 +527,10 @@ static int x2_spi_setup(struct spi_device *spi)
 	x2spi->mode = spi->mode;
 	x2spi->speed = spi->max_speed_hz;
 
+	if (debug > 2)
+		dev_err(x2spi->dev, "%s mode=%d speed=%d\n",
+			__func__, x2spi->mode, x2spi->speed);
+
 	return x2_spi_config(x2spi);
 }
 
@@ -489,9 +563,17 @@ static void x2_spi_init_hw(struct x2_spi *x2spi)
 	x2_spi_wr(x2spi, X2_SPI_INST_MASK_REG, 0xFFFFFFFF);
 	/* spi master mode */
 	val = x2_spi_rd(x2spi, X2_SPI_CTRL_REG);
-	val &= (~X2_SPI_SLAVE_MODE);
+	if (x2spi->isslave == SLAVE_MODE)
+		val |= X2_SPI_SLAVE_MODE;
+	else
+		val &= (~X2_SPI_SLAVE_MODE);
 	val &= (~X2_SPI_SAMP_SEL);
 	x2_spi_wr(x2spi, X2_SPI_CTRL_REG, val);
+
+	if (debug)
+		dev_err(x2spi->dev, "%s CTRL=%08X\n",
+			__func__, x2_spi_rd(x2spi, X2_SPI_CTRL_REG));
+
 	x2_spi_config(x2spi);
 	x2_spi_en_ctrl(x2spi, X2_SPI_OP_CORE_EN, 0, 0);
 
@@ -535,8 +617,11 @@ static void x2_spi_chipselect(struct spi_device *spi, bool is_high)
 		val &= (~X2_SPI_SS_MASK);
 		val |= (spi->chip_select << X2_SPI_SS_OFFSET);
 	}
-	//pr_debug("%s X2_SPI_CTRL_REG=0x%X\n", __func__, val);
 	x2_spi_wr(x2spi, X2_SPI_CTRL_REG, val);
+
+	if (debug > 2)
+		dev_err(x2spi->dev, "%s CTRL=%08X\n",
+			__func__, x2_spi_rd(x2spi, X2_SPI_CTRL_REG));
 }
 
 /* spi wait for tpi before xfer: return 0 timeout */
@@ -554,8 +639,41 @@ static u32 x2_spi_wait_for_tpi(struct x2_spi *x2spi, int timeout_ms)
 	if (loop == 0 && ((status & X2_SPI_TIP_MASK) == 0))
 		loop = 1;
 
-	//pr_debug("%s X2_SPI_SFSR_REG=0x%X\n", __func__, status);
+	if (debug > 2)
+		dev_err(x2spi->dev, "%s SFSR=0x%08X\n", __func__, status);
+
 	return loop;
+}
+
+static int x2_spi_wait_for_completion(struct x2_spi *x2spi)
+{
+	uint64_t t_out;
+	int ret = 0;
+
+	if (x2spi->isslave == MASTER_MODE) {
+		t_out = min(max(master_tout, 1), 10);
+		t_out = t_out * 1000;
+		t_out = msecs_to_jiffies(t_out);
+		if (!wait_for_completion_timeout(&x2spi->completion, t_out)) {
+			dev_err(x2spi->dev, "master: timeout\n");
+			ret = -ETIMEDOUT;
+			goto exit_1;
+		}
+	}
+
+	if (x2spi->isslave == SLAVE_MODE) {
+		t_out = min(max(slave_tout, 1), 100);
+		t_out = t_out * 1000;
+		t_out = msecs_to_jiffies(t_out);
+		if (!wait_for_completion_timeout(&x2spi->completion, t_out)
+			|| x2spi->slave_aborted) {
+			dev_err(x2spi->dev, "slave: timeout or aborted\n");
+			ret = -ETIMEDOUT;
+			goto exit_1;
+		}
+	}
+exit_1:
+	return ret;
 }
 
 /* spi xfer one */
@@ -563,22 +681,39 @@ static int x2_spi_transfer_one(struct spi_master *master,
 			       struct spi_device *spi,
 			       struct spi_transfer *xfer)
 {
-	u32 time_left;
+	u32 ret;
 	u32 fifo_flag = 0, tr_flag = 0;
 	u32 int_umask = 0, dma_ctrl0 = 0, dma_ctrl1 = 0, fifo_reset = 0;
 	struct x2_spi *x2spi = spi_master_get_devdata(master);
 	int ms;
 	u32 tlen;
 
+	x2spi->txbuf = (u8 *) xfer->tx_buf;
+	x2spi->rxbuf = (u8 *) xfer->rx_buf;
+	x2spi->len = xfer->len;
+
+	if (debug > 1)
+		dev_err(x2spi->dev, "%s len=%d\n", __func__, x2spi->len);
+#ifdef CONFIG_X2_SPI_DMA_SINGLE
+	if (x2spi->len > X2_SPI_DMA_BUFSIZE) {
+		ret = -ENOMEM;
+		dev_err(x2spi->dev, "Data is larger than DMA space(%d)\n",
+			X2_SPI_DMA_BUFSIZE);
+		goto exit_1;
+	}
+#endif
 	/* millisecs to xfer 'len' bytes @ 'cur_speed' */
 	ms = xfer->len * 8 * 1000 / x2spi->speed;
 	ms += 10;		/* some tolerance */
 
-	if (x2_spi_wait_for_tpi(x2spi, ms) == 0) {
-		pr_err("%s\n", __func__);
-		return -EAGAIN;
+	if (x2spi->isslave == MASTER_MODE) {
+		if (x2_spi_wait_for_tpi(x2spi, ms) == 0) {
+			dev_err(x2spi->dev, "%s %d\n", __func__, __LINE__);
+			return -EAGAIN;
+		}
 	}
 	reinit_completion(&x2spi->completion);
+	x2spi->slave_aborted = false;	//slave
 
 	if (x2spi->word_width != xfer->bits_per_word ||
 	    x2spi->speed != xfer->speed_hz) {
@@ -589,9 +724,6 @@ static int x2_spi_transfer_one(struct spi_master *master,
 	}
 #ifdef	CONFIG_X2_SPI_FIFO_MODE
 	/* prepare transfer with FIFO no-DMA */
-	x2spi->txbuf = (u8 *) xfer->tx_buf;
-	x2spi->rxbuf = (u8 *) xfer->rx_buf;
-	x2spi->len = xfer->len;
 	if (x2spi->txbuf) {
 		x2spi->txcnt = x2spi->len;
 		fifo_flag |= X2_SPI_OP_TX_FIFOE;
@@ -619,15 +751,10 @@ static int x2_spi_transfer_one(struct spi_master *master,
 	tlen = xfer->len * 8;
 
 #elif defined CONFIG_X2_SPI_DMA_SINGLE
-
 	if (x2spi->tx_dma_buf == NULL || x2spi->rx_dma_buf == NULL) {
-		pr_err("%s\n", __func__);
+		dev_err(x2spi->dev, "%s %d\n", __func__, __LINE__);
 		return -EAGAIN;
 	}
-
-	x2spi->txbuf = (u8 *) xfer->tx_buf;
-	x2spi->rxbuf = (u8 *) xfer->rx_buf;
-	x2spi->len = xfer->len;
 
 	x2_spi_wr(x2spi, X2_SPI_TDMA_ADDR0_REG, x2spi->tx_dma_phys);
 	x2_spi_wr(x2spi, X2_SPI_RDMA_ADDR0_REG, x2spi->rx_dma_phys);
@@ -677,22 +804,24 @@ static int x2_spi_transfer_one(struct spi_master *master,
 	x2_spi_fill_txfifo(x2spi);
 	x2_spi_wr(x2spi, X2_SPI_DMA_CTRL1_REG, dma_ctrl1);
 #elif defined CONFIG_X2_SPI_DMA_SINGLE
-	x2_spi_tx_dma(x2spi);
+	x2_spi_fill_txdma(x2spi);
 #endif
 
-	time_left = wait_for_completion_timeout(&x2spi->completion,
-						X2_SPI_TIMEOUT);
+	ret = x2_spi_wait_for_completion(x2spi);
 	if (x2_spi_wait_for_tpi(x2spi, ms) == 0) {
-		pr_err("reset err ...%d len=%d\n", x2spi->txcnt, x2spi->len);
+		dev_err(x2spi->dev, "Err txcnt=%d len=%d\n",
+			x2spi->txcnt, x2spi->len);
 		x2_spi_wr(x2spi, X2_SPI_FIFO_RESET_REG, X2_SPI_FRST_ABORT);
 	}
 	x2_spi_wr(x2spi, X2_SPI_INTSETMASK_REG, X2_SPI_INT_ALL);
-	if (time_left == 0) {
+	if (ret) {
 		x2_spi_wr(x2spi, X2_SPI_FIFO_RESET_REG, X2_SPI_FRST_ABORT);
-		return -EAGAIN;
+		if (debug > 1)
+			dev_err(x2spi->dev, "Err wait for completion\n");
+		//return -EAGAIN;
 	}
 	spi_finalize_current_transfer(master);
-
+exit_1:
 	return xfer->len;
 }
 
@@ -745,103 +874,180 @@ static void x2_spi_release_dma(struct x2_spi *x2spi)
 }
 #endif
 
+static int x2_spi_slave_setup(struct spi_device *spi)
+{
+	return x2_spi_setup(spi);
+}
+
+static int x2_spi_slave_prepare_message(
+	struct spi_controller *ctlr,
+	struct spi_message *msg)
+{
+	struct spi_device *spi = msg->spi;
+	struct x2_spi *x2spi = spi_controller_get_devdata(ctlr);
+
+	//x2_spi_wr(x2spi, X2_SPI_SRCPND_REG, X2_SPI_INT_ALL);
+	x2_spi_en_ctrl(x2spi, X2_SPI_OP_CORE_EN, X2_SPI_OP_NONE,
+	       X2_SPI_OP_NONE);
+
+       if (debug > 1)
+	       dev_err(x2spi->dev, "%s X2_SPI_OP_CORE_EN\n", __func__);
+
+	return 0;
+}
+static int x2_spi_slave_transfer_one(struct spi_controller *ctlr,
+	struct spi_device *spi,
+	struct spi_transfer *xfer)
+{
+	return x2_spi_transfer_one(ctlr, spi, xfer);
+}
+static int x2_spi_slave_abort(struct spi_controller *ctlr)
+{
+	struct x2_spi *x2spi = spi_controller_get_devdata(ctlr);
+
+	if (debug > 1)
+		dev_err(x2spi->dev, "%s X2_SPI_OP_CORE_DIS\n", __func__);
+
+	x2_spi_en_ctrl(x2spi, X2_SPI_OP_CORE_DIS, X2_SPI_OP_NONE,
+			       X2_SPI_OP_NONE);
+
+	x2spi->slave_aborted = true;
+	complete(&x2spi->completion);
+
+	return 0;
+}
+
 static int x2_spi_probe(struct platform_device *pdev)
 {
-	int err, spi_id;
-	struct x2_spi *x2spi;
-	struct spi_master *master;
-	struct resource *res;
+	struct x2_spi *x2spi = NULL;
+	struct spi_controller *ctlr = NULL;
+	struct resource *res = NULL;
 	char spi_name[20];
-	int ret = -ENXIO;
-	int rate = 0;
+	char ctrl_mode[16];
+	int ret, spi_id, rate, isslave = MASTER_MODE;
 
-	dev_info(&pdev->dev, "enter %s\n", __func__);
-	x2spi = devm_kzalloc(&pdev->dev, sizeof(*x2spi), GFP_KERNEL);
-	if (!x2spi)
-		return -ENOMEM;
+	/* master or slave mode select */
+	of_property_read_u32(pdev->dev.of_node, "isslave", &isslave);
+	if (isslave == SLAVE_MODE) {
+		ctlr = spi_alloc_slave(&pdev->dev, sizeof(*x2spi));
+		if (!ctlr) {
+			dev_err(&pdev->dev,
+				"failed to alloc spi slave, try master\n");
+			isslave = MASTER_MODE;
+		}
+	} else {
+		isslave = MASTER_MODE;
+	}
 
-	x2spi->dev = &pdev->dev;
+	if (isslave == MASTER_MODE) {
+		ctlr = spi_alloc_master(&pdev->dev, sizeof(*x2spi));
+		if (!ctlr) {
+			dev_err(&pdev->dev, "failed to alloc spi master\n");
+			return -ENOMEM;
+		}
+	}
+
+	x2spi = spi_controller_get_devdata(ctlr);
+	ctlr->dev.of_node = pdev->dev.of_node;
+	platform_set_drvdata(pdev, ctlr);
+
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	x2spi->regs_base = devm_ioremap_resource(&pdev->dev, res);
-	if (IS_ERR(x2spi->regs_base))
-		return PTR_ERR(x2spi->regs_base);
+	if (IS_ERR(x2spi->regs_base)) {
+		ret = PTR_ERR(x2spi->regs_base);
+		dev_err(&pdev->dev, "failed to determine base address\n");
+		goto err_put_ctlr;
+	}
+
+	x2spi->dev = &pdev->dev;
 
 	spi_id = of_alias_get_id(pdev->dev.of_node, "spi");
 	sprintf(spi_name, "spi%d", spi_id);
 	x2spi->rst = devm_reset_control_get(&pdev->dev, spi_name);
 	if (IS_ERR(x2spi->rst)) {
+		ret = PTR_ERR(x2spi->rst);
 		dev_err(&pdev->dev, "missing controller reset %s\n", spi_name);
-		return PTR_ERR(x2spi->rst);
+		goto err_put_ctlr;
+	}
+
+	x2spi->irq = platform_get_irq(pdev, 0);
+	if (x2spi->irq < 0) {
+		ret = x2spi->irq;
+		dev_err(&pdev->dev, "failed to get irq (%d)\n", x2spi->irq);
+		goto err_put_ctlr;
+	}
+	if (debug)
+		dev_err(&pdev->dev, "Suc to get irq (%d)\n", x2spi->irq);
+
+	ret = devm_request_irq(&pdev->dev, x2spi->irq, x2_spi_int_handle,
+			       0, pdev->name, x2spi);
+	if (ret < 0) {
+		dev_err(&pdev->dev, "failed to register irq (%d)\n", ret);
+		goto err_put_ctlr;
 	}
 
 	x2spi->spi_mclk = devm_clk_get(&pdev->dev, "spi_mclk");
 	if (IS_ERR(x2spi->spi_mclk)) {
-		dev_err(&pdev->dev, "spi_mclk clock not found.\n");
 		ret = PTR_ERR(x2spi->spi_mclk);
-		return ret;
+		dev_err(&pdev->dev, "failed to get spi_mclk: %d\n", ret);
+		goto err_put_ctlr;
 	}
 
 	ret = clk_prepare_enable(x2spi->spi_mclk);
-	if (ret) {
-		dev_err(&pdev->dev, "Unable to enable gate clock.\n");
-		goto err_clk;
+	if (ret < 0) {
+		dev_err(&pdev->dev, "failed to enable spi_mclk (%d)\n", ret);
+		goto err_put_ctlr;
 	}
 
 	rate = clk_get_rate(x2spi->spi_mclk);
-	dev_info(&pdev->dev, "spi clock is %d\n", rate);
+	if (debug)
+		dev_err(&pdev->dev, "spi clock is %d\n", rate);
+
+	init_completion(&x2spi->completion);
+
+	if (isslave == MASTER_MODE) {
+		x2spi->isslave = MASTER_MODE;
+		snprintf(ctrl_mode, sizeof(ctrl_mode), "%s", "master");
+		ctlr->bus_num = pdev->id;
+		ctlr->num_chipselect = X2_SPI_MAX_CS;
+		ctlr->mode_bits = SPI_CPOL | SPI_CPHA | SPI_LSB_FIRST | SPI_CS_HIGH;
+		ctlr->setup = x2_spi_setup;
+		ctlr->prepare_transfer_hardware = x2_spi_prepare_xfer_hardware;
+		ctlr->transfer_one = x2_spi_transfer_one;
+		ctlr->unprepare_transfer_hardware = x2_spi_unprepare_xfer_hardware;
+		ctlr->set_cs = x2_spi_chipselect;
+		ctlr->dev.of_node = pdev->dev.of_node;
+	} else {
+		x2spi->isslave = SLAVE_MODE;
+		snprintf(ctrl_mode, sizeof(ctrl_mode), "%s", "slave");
+		ctlr->mode_bits = SPI_CPOL | SPI_CPHA | SPI_LSB_FIRST;
+		ctlr->setup = x2_spi_slave_setup;
+		ctlr->prepare_message = x2_spi_slave_prepare_message;
+		ctlr->transfer_one = x2_spi_slave_transfer_one;
+		ctlr->slave_abort = x2_spi_slave_abort;
+	}
+
+	/* register spi controller */
+	ret = devm_spi_register_controller(&pdev->dev, ctlr);
+	if (ret) {
+		dev_err(&pdev->dev, "failed to register %s controller(%d)\n",
+			ctrl_mode, ret);
+		goto clk_dis_mclk;
+	}
 
 	x2_spi_init_hw(x2spi);
 
-	x2spi->irq = platform_get_irq(pdev, 0);
-	if (x2spi->irq < 0) {
-		dev_err(&pdev->dev, "Can't get interrupt resource!\n");
-		return x2spi->irq;
-	}
-	init_completion(&x2spi->completion);
-	err = devm_request_irq(&pdev->dev, x2spi->irq, x2_spi_int_handle,
-			       0, pdev->name, x2spi);
-	if (err < 0) {
-		dev_err(&pdev->dev, "can't request interrupt\n");
-		return err;
-	}
-
-	master = spi_alloc_master(&pdev->dev, sizeof(*x2spi));
-	if (master == NULL) {
-		dev_err(&pdev->dev, "Unable to allocate SPI Master!\n");
-		return -ENOMEM;
-	}
-	spi_master_set_devdata(master, x2spi);
-
-	master->bus_num = pdev->id;
-	master->num_chipselect = X2_SPI_MAX_CS;
-	master->mode_bits = SPI_CPOL | SPI_CPHA | SPI_LSB_FIRST | SPI_CS_HIGH;
-	master->setup = x2_spi_setup;
-	master->prepare_transfer_hardware = x2_spi_prepare_xfer_hardware;
-	master->transfer_one = x2_spi_transfer_one;
-	master->unprepare_transfer_hardware = x2_spi_unprepare_xfer_hardware;
-	master->set_cs = x2_spi_chipselect;
-	master->dev.of_node = pdev->dev.of_node;
-	platform_set_drvdata(pdev, master);
-
-	/* register spi controller */
-	err = devm_spi_register_master(&pdev->dev, master);
-	if (err) {
-		dev_err(&pdev->dev, "spi register master failed!\n");
-		spi_master_put(master);
-		return err;
-	}
 #ifdef CONFIG_X2_SPI_DMA_SINGLE
-	err = x2_spi_request_dma(x2spi);
-	if (err < 0) {
-		dev_err(&pdev->dev, "x2 spi request dma failed!\n");
-		spi_master_put(master);
-		return err;
+	ret = x2_spi_request_dma(x2spi);
+	if (ret < 0) {
+		dev_err(&pdev->dev, "failed to x2 spi request dma(%d)\n", ret);
+		goto clk_dis_mclk;
 	}
 #endif
 	/* diag */
 	if (diag_register(ModuleDiag_spi, EventIdSpiErr,
 						4, 300, 6000, NULL) < 0)
-		pr_err("spi diag register fail\n");
+		dev_err(x2spi->dev, "spi diag register fail\n");
 	else {
 		spi_last_err_tm_ms = 0;
 		init_timer(&spi_diag_timer);
@@ -851,16 +1057,23 @@ static int x2_spi_probe(struct platform_device *pdev)
 		spi_diag_timer.function = spi_diag_timer_func;
 		add_timer(&spi_diag_timer);
 	}
+
+	dev_err(&pdev->dev, "ver: %s %s\n", VER, ctrl_mode);
+
 	return 0;
-err_clk:
+
+clk_dis_mclk:
 	clk_disable_unprepare(x2spi->spi_mclk);
+err_put_ctlr:
+	spi_controller_put(ctlr);
+
 	return ret;
 }
 
 static int x2_spi_remove(struct platform_device *pdev)
 {
-	struct spi_master *master = platform_get_drvdata(pdev);
-	struct x2_spi *x2spi = spi_master_get_devdata(master);
+	struct spi_controller *ctlr = platform_get_drvdata(pdev);
+	struct x2_spi *x2spi = spi_controller_get_devdata(ctlr);
 
 	x2_spi_en_ctrl(x2spi, X2_SPI_OP_CORE_DIS, X2_SPI_OP_NONE,
 		       X2_SPI_OP_NONE);
@@ -874,10 +1087,10 @@ static int x2_spi_remove(struct platform_device *pdev)
 #ifdef CONFIG_PM_SLEEP
 int x2_spi_suspend(struct device *dev)
 {
-	struct spi_master *master = dev_get_drvdata(dev);
-	struct x2_spi *x2spi = spi_master_get_devdata(master);
+	struct spi_controller *ctlr = dev_get_drvdata(dev);
+	struct x2_spi *x2spi = spi_controller_get_devdata(ctlr);
 
-	pr_info("%s:%s, enter suspend...\n", __FILE__, __func__);
+	dev_err(x2spi->dev, "enter suspend...\n");
 
 	/* Transfer in process flag, wait SPI to be idle */
 	x2_spi_wait_for_tpi(x2spi, 1);
@@ -894,10 +1107,10 @@ int x2_spi_suspend(struct device *dev)
 
 int x2_spi_resume(struct device *dev)
 {
-	struct spi_master *master = dev_get_drvdata(dev);
-	struct x2_spi *x2spi = spi_master_get_devdata(master);
+	struct spi_controller *ctlr = dev_get_drvdata(dev);
+	struct x2_spi *x2spi = spi_controller_get_devdata(ctlr);
 
-	pr_info("%s:%s, enter resume...\n", __FILE__, __func__);
+	dev_err(x2spi->dev, "enter resume...\n");
 
 	//enable clk to work
 	clk_prepare_enable(x2spi->spi_mclk);
@@ -915,6 +1128,7 @@ static const struct dev_pm_ops x2_spi_dev_pm_ops = {
 
 static const struct of_device_id x2_spi_of_match[] = {
 	{.compatible = "hobot,x2-spi"},
+	{.compatible = "hobot,hobot-spi"},
 	{ /* end of table */ }
 };
 
@@ -933,5 +1147,5 @@ static struct platform_driver x2_spi_driver = {
 module_platform_driver(x2_spi_driver);
 
 MODULE_AUTHOR("hobot, Inc.");
-MODULE_DESCRIPTION("X2 SPI driver");
+MODULE_DESCRIPTION("HOOT SPI driver");
 MODULE_LICENSE("GPL v2");
