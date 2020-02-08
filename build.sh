@@ -92,6 +92,21 @@ function set_kernel_config()
     fi
 }
 
+function build_wifi()
+{
+    echo "begin build wifi...................."
+    echo "SRC_KERNEL_DIR=$SRC_KERNEL_DIR"
+    echo "TARGET_TMPROOTFS_DIR=$TARGET_TMPROOTFS_DIR"
+
+    cd $SRC_KERNEL_DIR/drivers/staging/marvell/
+    #make clean
+    make
+    cd $SRC_KERNEL_DIR
+    cpfiles "$SRC_KERNEL_DIR/drivers/staging/marvell/ko/*.ko" "$TARGET_TMPROOTFS_DIR/lib/modules/"
+    cpfiles "$SRC_KERNEL_DIR/drivers/staging/marvell/FwImage/sd8801_uapsta.bin" "$TARGET_TMPROOTFS_DIR/lib/firmware/mrvl/"
+    echo "end build wifi...................."
+}
+
 function all()
 {
     if [ "x$KERNEL_WITH_RECOVERY" = "xtrue" ];then
@@ -122,6 +137,8 @@ function all()
         echo "make modules_install to INSTALL_MOD_PATH failed"
         exit 1
     }
+    # x3 wifi
+    build_wifi
 
     # put binaries to dest directory
     cpfiles "$SRC_KERNEL_DIR/arch/$ARCH_KERNEL/boot/$KERNEL_IMAGE_NAME" "$prefix/"
