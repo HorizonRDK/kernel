@@ -232,6 +232,20 @@ void ipu_set_group_leader(struct vio_group *group, enum group_id id)
 	}
 }
 
+void ipu_clear_group_leader(struct vio_group *group)
+{
+	int i = 0;
+	struct ipu_video_ctx *ipu_ctx;
+
+	for (i = 0; i < GROUP_ID_MAX; i++) {
+		ipu_ctx = group->sub_ctx[i];
+		if (ipu_ctx)
+			ipu_ctx->leader = false;
+	}
+
+	clear_bit(VIO_GROUP_LEADER, &group->state);
+}
+
 int ipu_update_osd_addr(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 {
 	int ret = 0;
@@ -640,7 +654,7 @@ int ipu_update_common_param(struct ipu_video_ctx *ipu_ctx,
 	}
 
 	if (ipu_ctrl->source_sel == IPU_FROM_DDR_YUV420) {
-		clear_bit(VIO_GROUP_LEADER, &group->state);
+		ipu_clear_group_leader(group);
 		ipu_set_group_leader(group, GROUP_ID_SRC);
 	}
 	// enable frameid
@@ -868,8 +882,9 @@ int ipu_video_streamoff(struct ipu_video_ctx *ipu_ctx)
 	cfg = ips_get_bus_ctrl() & ~(1 << 12);
 	ips_set_bus_ctrl(cfg);
 
-	ips_set_clk_ctrl(IPU0_CLOCK_GATE, false);
 	ips_set_module_reset(IPU0_RST);
+
+	ips_set_clk_ctrl(IPU0_CLOCK_GATE, false);
 #endif
 
 p_dec:
