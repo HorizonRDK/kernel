@@ -42,14 +42,6 @@ void AE_fsm_clear( AE_fsm_t *p_fsm )
     p_fsm->exposure_ratio_avg = 64;
     p_fsm->ae_roi_api = AE_CENTER_ZONES;
     p_fsm->roi = AE_CENTER_ZONES;
-    p_fsm->save_hist_api = 0x0;
-#if FW_ZONE_AE
-    p_fsm->smart_zone_enable = 1;
-    p_fsm->x1 = ( (AE_CENTER_ZONES)&0xFF );
-    p_fsm->y1 = ( ( AE_CENTER_ZONES >> 8 ) & 0xFF );
-    p_fsm->x2 = ( ( AE_CENTER_ZONES >> 16 ) & 0xFF );
-    p_fsm->y2 = ( ( AE_CENTER_ZONES >> 24 ) & 0xFF );
-#endif
     p_fsm->frame_id_tracking = 0;
 }
 
@@ -168,6 +160,18 @@ int AE_fsm_get_param( void *fsm, uint32_t param_id, void *input, uint32_t input_
         fsm_param_roi_t *p_current = (fsm_param_roi_t *)output;
         p_current->roi_api = p_fsm->ae_roi_api;
         p_current->roi = p_fsm->roi;
+
+        break;
+    }
+
+    case FSM_PARAM_GET_AE_STATE: {
+        if ( !output || output_size != sizeof( ae_state_t ) ) {
+            LOG( LOG_ERR, "Invalid param, param_id: %d.", param_id );
+            rc = -1;
+            break;
+        }
+
+        *(ae_state_t *)output = p_fsm->state;
 
         break;
     }

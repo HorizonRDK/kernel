@@ -122,19 +122,15 @@ void ae_roi_update( AE_fsm_ptr_t p_fsm )
 
 void ae_initialize( AE_fsm_ptr_t p_fsm )
 {
+    acamera_isp_metering_aexp_hist_thresh_0_1_write( p_fsm->cmn.isp_base, 0 );
+    acamera_isp_metering_aexp_hist_thresh_1_2_write( p_fsm->cmn.isp_base, 0 );
+    acamera_isp_metering_aexp_hist_thresh_3_4_write( p_fsm->cmn.isp_base, 0 );
+    acamera_isp_metering_aexp_hist_thresh_4_5_write( p_fsm->cmn.isp_base, 224 );
 
-#if FW_ZONE_AE
-    acamera_isp_metering_hist_thresh_0_1_write( p_fsm->cmn.isp_base, 0 );
-    acamera_isp_metering_hist_thresh_1_2_write( p_fsm->cmn.isp_base, 0 );
-    acamera_isp_metering_hist_thresh_3_4_write( p_fsm->cmn.isp_base, 0 );
-    acamera_isp_metering_hist_thresh_4_5_write( p_fsm->cmn.isp_base, 224 );
-    p_fsm->zone_weight[0] = 15;
-#else
     int i, j;
     for ( i = 0; i < ACAMERA_ISP_METERING_HIST_AEXP_NODES_USED_VERT_DEFAULT; i++ )
         for ( j = 0; j < ACAMERA_ISP_METERING_HIST_AEXP_NODES_USED_HORIZ_DEFAULT; j++ )
             acamera_isp_metering_hist_aexp_zones_weight_write( p_fsm->cmn.isp_base, ISP_METERING_ZONES_MAX_H * i + j, 15 );
-#endif
     ae_roi_update( p_fsm );
 
 
@@ -195,6 +191,13 @@ void ae_read_full_histogram_data( AE_fsm_ptr_t p_fsm )
     p_sbuf_ae->histogram_sum = sum;
     LOG( LOG_DEBUG, "histsum: histogram_sum: %u.", p_sbuf_ae->histogram_sum );
 
+    int j;
+    for ( i = 0; i < ACAMERA_ISP_METERING_HIST_AEXP_NODES_USED_VERT_DEFAULT; i++ ) {
+        for ( j = 0; j < ACAMERA_ISP_METERING_HIST_AEXP_NODES_USED_HORIZ_DEFAULT; j++ ) {
+            p_sbuf_ae->hist4[i * ACAMERA_ISP_METERING_HIST_AEXP_NODES_USED_HORIZ_DEFAULT + j] = ( uint16_t )( acamera_metering_stats_mem_array_data_read( p_fsm->cmn.isp_base, ( i * ACAMERA_ISP_METERING_HIST_AEXP_NODES_USED_HORIZ_DEFAULT + j ) * 2 + 1 ) >> 16 );
+        }
+    }
+
     /* read done, set the buffer back for future using */
     sbuf.buf_status = SBUF_STATUS_DATA_DONE;
 
@@ -209,15 +212,6 @@ void ae_read_full_histogram_data( AE_fsm_ptr_t p_fsm )
     acamera_fsm_mgr_set_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_SET_MON_AE_FLOW, &ae_flow, sizeof( ae_flow ) );
 
     LOG( LOG_INFO, "AE flow: INPUT_READY: frame_id_tracking: %d, cur frame_id: %u.", ae_flow.frame_id_tracking, ae_flow.frame_id_current );
-
-#if FW_ZONE_AE
-    int j;
-    for ( i = 0; i < ACAMERA_ISP_METERING_HIST_AEXP_NODES_USED_VERT_DEFAULT; i++ ) {
-        for ( j = 0; j < ACAMERA_ISP_METERING_HIST_AEXP_NODES_USED_HORIZ_DEFAULT; j++ ) {
-            p_fsm->hist4[i * ACAMERA_ISP_METERING_HIST_AEXP_NODES_USED_HORIZ_DEFAULT + j] = ( uint16_t )( acamera_metering_mem_array_data_read( p_fsm->cmn.isp_base, ( i * ACAMERA_ISP_METERING_HIST_AEXP_NODES_USED_HORIZ_DEFAULT + j ) * 2 + 1 ) >> 16 );
-        }
-    }
-#endif
 }
 
 void AE_fsm_process_interrupt( AE_fsm_const_ptr_t p_fsm, uint8_t irq_event )
@@ -243,6 +237,7 @@ void ae_set_new_param( AE_fsm_ptr_t p_fsm, sbuf_ae_t *p_sbuf_ae )
     p_fsm->new_exposure_log2 = p_sbuf_ae->ae_exposure;
     p_fsm->new_exposure_ratio = p_sbuf_ae->ae_exposure_ratio;
     p_fsm->frame_id_tracking = p_sbuf_ae->frame_id;
+    p_fsm->state = p_sbuf_ae->state;
 
     if ( p_fsm->frame_id_tracking ) {
         fsm_param_mon_alg_flow_t ae_flow;

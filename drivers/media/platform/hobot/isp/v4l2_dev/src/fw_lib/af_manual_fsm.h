@@ -112,6 +112,8 @@ struct _AF_fsm_t {
     lens_control_t lens_ctrl;
     uint8_t frame_skip_cnt;
     uint8_t frame_skip_start;
+
+    af_state_t state;
 };
 
 

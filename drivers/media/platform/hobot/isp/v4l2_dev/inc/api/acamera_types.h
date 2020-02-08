@@ -28,6 +28,25 @@
 #include <stdint.h>
 #endif
 
+typedef enum af_state {
+    AF_STATE_INACTIVE,
+    AF_STATE_SCAN,
+    AF_STATE_FOCUSED,
+    AF_STATE_UNFOCUSED
+} af_state_t;
+
+typedef enum ae_state {
+    AE_STATE_INACTIVE,
+    AE_STATE_SEARCHING,
+    AE_STATE_CONVERGED,
+} ae_state_t;
+
+typedef enum awb_state {
+    AWB_STATE_INACTIVE,
+    AWB_STATE_SEARCHING,
+    AWB_STATE_CONVERGED,
+} awb_state_t;
+
 typedef enum acamera_stream_type {
     ACAMERA_STREAM_META,
     ACAMERA_STREAM_RAW,

@@ -102,6 +102,8 @@ struct _AWB_fsm_t {
 
     uint32_t pre_result_gain_frame_id;
     uint32_t cur_result_gain_frame_id;
+
+    awb_state_t state;
 };
 
 

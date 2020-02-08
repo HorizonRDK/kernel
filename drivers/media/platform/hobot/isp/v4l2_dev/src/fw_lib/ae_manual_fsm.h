@@ -59,17 +59,8 @@ struct _AE_fsm_t {
     uint32_t fullhist_sum;
     uint32_t ae_roi_api;
     uint32_t roi;
-    uint8_t save_hist_api;
-#if FW_ZONE_AE
-    uint8_t smart_zone_enable;
-    uint16_t hist4[ACAMERA_ISP_METERING_AEXP_NODES_USED_HORIZ_DEFAULT * ACAMERA_ISP_METERING_AEXP_NODES_USED_VERT_DEFAULT];
-    uint8_t zone_weight[ACAMERA_ISP_METERING_AEXP_NODES_USED_HORIZ_DEFAULT * ACAMERA_ISP_METERING_AEXP_NODES_USED_VERT_DEFAULT];
-    uint8_t x1;
-    uint8_t y1;
-    uint8_t x2;
-    uint8_t y2;
-#endif
     uint32_t frame_id_tracking;
+    ae_state_t state;
 };
 
 

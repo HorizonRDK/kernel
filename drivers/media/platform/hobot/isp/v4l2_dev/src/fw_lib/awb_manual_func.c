@@ -389,6 +389,10 @@ void awb_set_new_param( AWB_fsm_ptr_t p_fsm, sbuf_awb_t *p_sbuf_awb )
     ACAMERA_FSM2CTX_PTR( p_fsm )
         ->stab.global_awb_red_gain = p_sbuf_awb->awb_red_gain;
     ACAMERA_FSM2CTX_PTR( p_fsm )
+        ->stab.global_awb_green_even_gain = p_sbuf_awb->awb_green_even_gain;
+    ACAMERA_FSM2CTX_PTR( p_fsm )
+        ->stab.global_awb_green_odd_gain = p_sbuf_awb->awb_green_odd_gain;
+    ACAMERA_FSM2CTX_PTR( p_fsm )
         ->stab.global_awb_blue_gain = p_sbuf_awb->awb_blue_gain;
 
     p_fsm->temperature_detected = p_sbuf_awb->temperature_detected;
@@ -397,6 +401,8 @@ void awb_set_new_param( AWB_fsm_ptr_t p_fsm, sbuf_awb_t *p_sbuf_awb )
     system_memcpy( p_fsm->awb_warming, p_sbuf_awb->awb_warming, sizeof( p_fsm->awb_warming ) );
 
     p_fsm->cur_result_gain_frame_id = p_sbuf_awb->frame_id;
+
+    p_fsm->state = p_sbuf_awb->state;
 
     if ( p_fsm->cur_result_gain_frame_id && ( p_fsm->pre_result_gain_frame_id != p_fsm->cur_result_gain_frame_id ) ) {
         fsm_param_mon_alg_flow_t awb_flow;

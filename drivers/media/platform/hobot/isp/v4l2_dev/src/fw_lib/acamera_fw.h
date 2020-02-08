@@ -97,6 +97,8 @@ typedef struct _sytem_tab {
     uint8_t global_sinter_threshold_target;
     uint8_t global_temper_threshold_target;
     uint16_t global_awb_red_gain;
+    uint16_t global_awb_green_even_gain;
+    uint16_t global_awb_green_odd_gain;
     uint16_t global_awb_blue_gain;
     uint8_t global_saturation_target;
 
