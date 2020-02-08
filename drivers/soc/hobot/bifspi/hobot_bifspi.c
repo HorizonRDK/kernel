@@ -1,10 +1,16 @@
-/*************************************************************************
- *	> File Name: x2-bifspi.c
- *	> Author: baiy
- *	> Mail: yang01.bai@hobot.cc
- *	> Created Time: 2018-07-27-16:56:21
- *	> Func: x2 bif spi driver: r/w register
- ************************************************************************/
+/*************************************************************
+ ****			 COPYRIGHT NOTICE
+ ****		 Copyright 2020 Horizon Robotics, Inc.
+ ****			 All rights reserved.
+ *************************************************************/
+/**
+ * @FileName	hobot-bifspi.c
+ * @version	2.0
+ * @author	yang01.bai@hobot.cc
+ * @CreatedTime 2018-07-27-16:56:21
+ * @Log		2020-02 support xj3
+ */
+
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/fs.h>
@@ -29,17 +35,19 @@
 #include <soc/hobot/diag.h>
 #include <soc/hobot/hobot_bifspi.h>
 
-#define BIF_BASE_ADDRESS  (0x00000000)
-#define BIF_ACCESS_FIRST  (0x00000110)
-#define BIF_ACCESS_LAST   (0x00000114)
-#define BIF_EN_CLEAR	  (0x00000104)
-#define BIF_INT_STATE     (0x00000108)
-#define MEM_MAX_ACCESS	  (0xfffffffc)
-#define BIF_CLR_INT	  (0x0FC0)
-#define BIF_RST_NAME	  "bifspi"
+#define BIF_ACCESS_FIRST	(0x00000110)
+#define BIF_ACCESS_LAST		(0x00000114)
+#define BIF_EN_CLEAR		(0x00000104)
+#define BIF_INT_STATE		(0x00000108)
+#define MEM_MAX_ACCESS		(0xfffffffc)
+#define BIF_CLR_INT		(0x0FC0)
+#define BIF_RST_NAME		"bifspi"
 
-#define PIN_MUX_BASE    0xA6003000
-#define GPIO1_CFG (PIN_MUX_BASE + 0x10)
+#define pr_fmt(fmt)	KBUILD_MODNAME ": " fmt
+/*
+#define pr_fmt(fmt)	KBUILD_MODNAME ":%s:%d: " fmt, __func__, __LINE__
+ */
+#define VER		"HOBOT-bifspi_V20.200208"
 
 static int ap_access_first;
 module_param(ap_access_first, uint, 0644);
@@ -440,7 +448,7 @@ static int bif_alloc_chardev(struct bifspi_t *pbif, const char *name)
 		goto failed_cdev;
 	}
 
-	pbif->class = class_create(THIS_MODULE, "bifspi");
+	pbif->class = class_create(THIS_MODULE, name);
 	if (!pbif->class) {
 		pr_err("Failed  class create\n");
 		goto failed_class;
@@ -641,7 +649,7 @@ static int bifspi_probe(struct platform_device *pdev)
 	writel(STAGE_KERNEL,
 	      (void *)(bif_info->regs_base + 4 * SYS_STATUS_REG));
 
-	ret = bif_alloc_chardev(bif_info, "x2-bifspi");
+	ret = bif_alloc_chardev(bif_info, "bifspi");
 	if (ret != 0) {
 		ret = -EINVAL;
 		dev_err(&pdev->dev, "alloc char device failed\n");
@@ -674,7 +682,7 @@ static int bifspi_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "sysfs_create_group failed\n");
 
 	bif_recover_reset_func();
-	pr_info("BIF_INIT FINISHED\n");
+	dev_err(&pdev->dev, "Suc %s\n", VER);
 	return 0;
 
 failed_chardev:
@@ -685,6 +693,7 @@ bif_iounmap:
 		devm_iounmap(&pdev->dev, bif_info->regs_base);
 bif_free:
 	kfree(bif_info);
+	dev_err(&pdev->dev, "Err %s\n", VER);
 	return -EINVAL;
 }
 
@@ -744,13 +753,14 @@ static const struct dev_pm_ops x2_bif_spi_dev_pm_ops = {
 
 static const struct of_device_id bifspi_hobot_of_match[] = {
 	/* SoC-specific compatible strings w/ soc_ctl_map */
-	{.compatible = "hobot,x2-bifspi",},
+	{.compatible = "hobot,x2-bifspi"},
+	{.compatible = "hobot,hobot-bifspi"},
 	{ /* end of table */ }
 };
 
 static struct platform_driver bifspi_hobot_driver = {
 	.driver = {
-		   .name = "x2-bifspi",
+		   .name = "bifspi",
 		   .of_match_table = bifspi_hobot_of_match,
 		   .pm = &x2_bif_spi_dev_pm_ops,
 		   },
@@ -765,7 +775,7 @@ static int __init x2_bifspi_init(void)
 	/* Register the platform driver */
 	retval = platform_driver_register(&bifspi_hobot_driver);
 	if (retval)
-		pr_err("x2 bifspi driver register failed\n");
+		pr_err("hobot bifspi driver register failed\n");
 
 	return retval;
 }
@@ -779,8 +789,7 @@ static void __exit x2_bifspi_exit(void)
 module_init(x2_bifspi_init);
 module_exit(x2_bifspi_exit);
 
-
 MODULE_LICENSE("GPL");
-MODULE_AUTHOR("baiy <yang01.bai@horizon,ai>");
+MODULE_AUTHOR("Hobot Inc.");
 MODULE_DESCRIPTION("Driver for the HobotRobotics Bifspi Controller");
-MODULE_VERSION("1.0.0.0");
+MODULE_VERSION("2.0");

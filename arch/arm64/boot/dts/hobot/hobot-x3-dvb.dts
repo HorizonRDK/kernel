@@ -297,8 +297,13 @@
 };
 
 &bifbase {
+	status = "disabled";
 	bifbase_irq_pin = <85>;
 	bifbase_tri_pin = <84>;
+};
+
+&bifeth {
+	status = "disabled";
 };
 
 &nor_flash {

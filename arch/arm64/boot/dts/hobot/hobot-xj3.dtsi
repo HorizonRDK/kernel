@@ -911,15 +911,18 @@
 		};
 
 		bifspi: bifspi@0xA1006000 {
-			compatible = "hobot,x2-bifspi";
+			compatible = "hobot,hobot-bifspi";
 			reg = <0 0xA1006000 0 0x1000>;
 			interrupt-parent = <&gic>;
-			interrupts = <0 16 4>;
+			interrupts = <0 22 4>;
 			status = "disabled";
 			resets = <&rst 0x00 3>;
 			reset-names = "bifspi";
-			pinctrl-names = "default";
+			pinctrl-names = "default","reset";
 			pinctrl-0 = <&bifspi_func>;
+			pinctrl-1 = <&bifspi_func_reset>;
+			ap_access_first = <0x0>;
+			ap_access_last = <0xfffffffc>;
 		};
 
 		bifsd: bifsd@A1007000 {

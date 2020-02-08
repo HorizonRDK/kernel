@@ -7,12 +7,6 @@ menu "Character devices"
 
 source "drivers/tty/Kconfig"
 
-config HOBOT_BIF_SPI
-	bool "HOBOT BIF-SPI CHRDEV"
-	default y
-	help
-		Say Y here if you want to support  read/write bif share register
-
 config DEVMEM
 	bool "/dev/mem virtual device support"
 	default y

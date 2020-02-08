@@ -201,6 +201,15 @@
 					28	0 /*BIFSPI_SCLK*/
 					29	0 /*BIFSPI_MOSI*/
 					30	0 /*BIFSPI_MISO*/
+					31	3 /*BIFSPI_RSTN*/
+				>;
+			};
+			bifspi_func_reset:bifspi_func_reset {
+				pinctrl-x2,pins-muxs = <
+					27	0 /*BIFSPI_CSN*/
+					28	0 /*BIFSPI_SCLK*/
+					29	0 /*BIFSPI_MOSI*/
+					30	0 /*BIFSPI_MISO*/
 					31	0 /*BIFSPI_RSTN*/
 				>;
 			};

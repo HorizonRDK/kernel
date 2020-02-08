@@ -46,6 +46,21 @@ menuconfig HOBOT_BIF_CP
           Enable when BIF driver built in CP side
 
 if HOBOT_BIF_CP
+config HOBOT_BIFSPI_DEV
+        bool "Bif SPI device driver support"
+        default y
+	help
+	    Say Y here if you want to support read/write bif share register
+
+config HOBOT_BIFSD_DEV
+	bool "Bif SD device driver support"
+	default y
+        help
+          This supports Bif SD Card protocol drivers.
+
+          Note that this application programming interface is EXPERIMENTAL
+          and hence SUBJECT TO CHANGE WITHOUT NOTICE while it stabilizes.
+
 config HOBOT_BIF_BASE
         tristate "Enable HOBOT BIF Base Drivers"
         default y
@@ -102,14 +117,6 @@ config HOBOT_HBIPC_ETH
         help
           Say yes to enable bif_lite_sd driver
 
-config HOBOT_BIFSD_DEV
-	bool "Bif SD device driver support"
-	default y
-        help
-          This supports Bif SD Card protocol drivers.
-
-          Note that this application programming interface is EXPERIMENTAL
-          and hence SUBJECT TO CHANGE WITHOUT NOTICE while it stabilizes.
 endif
 
 config HOBOT_DDR_MON
