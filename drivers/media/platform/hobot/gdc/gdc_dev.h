@@ -71,7 +71,7 @@ enum gdc_group_state {
 	GDC_GROUP_LEADER,
 };
 
-enum gdc_interrupt_map{
+enum gdc_interrupt_map {
 	INTR_GDC_BUSY,
 	INTR_GDC_ERROR,
 	INTR_GDC_CONF_ERROR = 8,
@@ -95,6 +95,7 @@ struct x2a_gdc_dev {
 	resource_size_t			regs_end;
 	int				irq;
 	unsigned long			state;
+	spinlock_t shared_slock;
 
 	struct class *class;
 	struct cdev cdev;

@@ -160,6 +160,9 @@ int vio_bind_chain_groups(struct vio_group *src_group, struct vio_group *dts_gro
 	src_group->next = dts_group;
 	dts_group->prev = src_group;
 
+	if (src_group->id == GROUP_ID_IPU && src_group->get_timestamps)
+		dts_group->get_timestamps = true;
+
 	return 0;
 }
 

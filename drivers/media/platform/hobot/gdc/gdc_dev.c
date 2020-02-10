@@ -33,8 +33,10 @@ extern void write_gdc_mask(uint32_t model, uint32_t *enable);
 extern void write_gdc_status(uint32_t model, uint32_t *enable);
 
 extern int ips_set_clk_ctrl(unsigned long module, bool enable);
+extern void ips_set_module_reset(unsigned long module);
 
 extern struct class *vps_class;
+struct x2a_gdc_dev *g_gdc_dev = NULL;
 
 struct gdc_group *gdc_get_group(struct x2a_gdc_dev *gdc)
 {
@@ -124,6 +126,16 @@ static int x2a_gdc_close(struct inode *inode, struct file *file)
 
 	return 0;
 }
+
+void dwe0_reset_control(void)
+{
+	unsigned long flag;
+
+	spin_lock_irqsave(&g_gdc_dev->shared_slock, flag);
+	ips_set_module_reset(DWE0_RST);
+	spin_unlock_irqrestore(&g_gdc_dev->shared_slock, flag);
+}
+EXPORT_SYMBOL_GPL(dwe0_reset_control);
 
 /**
  *   This function starts the gdc block
@@ -297,6 +309,7 @@ int gdc_process(struct x2a_gdc_dev *gdc_dev, gdc_settings_t *gdc_settings)
 int gdc_video_process(struct gdc_video_ctx *gdc_ctx, unsigned long arg)
 {
 	int ret = 0;
+	unsigned long flag;
 	gdc_settings_t gdc_settings;
 	struct x2a_gdc_dev *gdc_dev;
 
@@ -316,6 +329,8 @@ int gdc_video_process(struct gdc_video_ctx *gdc_ctx, unsigned long arg)
 		goto p_err_ignore;
 	}
 
+	spin_lock_irqsave(&gdc_dev->shared_slock, flag);
+
 	gdc_init(gdc_dev, &gdc_settings);
 	ret = gdc_process(gdc_dev, &gdc_settings);
 	//gdc_hw_dump(gdc_dev->base_reg);
@@ -324,6 +339,8 @@ int gdc_video_process(struct gdc_video_ctx *gdc_ctx, unsigned long arg)
 	gdc_start(gdc_dev);
 
 	wait_event_interruptible(gdc_ctx->done_wq, !gdc_ctx->is_waiting_gdc);
+
+	spin_unlock_irqrestore(&gdc_dev->shared_slock, flag);
 
 p_err_ignore:
 	return ret;
@@ -584,7 +601,10 @@ static int x2a_gdc_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, gdc);
 
 	sema_init(&gdc->smp_gdc_enable, 1);
+	spin_lock_init(&gdc->shared_slock);
 
+	if (gdc->hw_id == 0)
+		g_gdc_dev = gdc;
 	vio_info("[FRT:D] %s(%d)\n", __func__, ret);
 
 	return 0;
@@ -674,7 +694,6 @@ static int __init x2a_gdc_init(void)
 
 	return ret;
 }
-
 
 late_initcall(x2a_gdc_init);
 
