@@ -92,12 +92,22 @@
 		opp-shared;
 		opp00 {
 			opp-hz = /bits/ 64 <1200000000>;
-			opp-microvolt = <1000000>;
+			opp-microvolt = <800000>;
 			clock-latency-ns = <500000>;
 		};
 		opp01 {
-			opp-hz = /bits/ 64 <600000000>;
-			opp-microvolt = <1000000>;
+			opp-hz = /bits/ 64 <1000000000>;
+			opp-microvolt = <800000>;
+			clock-latency-ns = <500000>;
+		};
+		opp02 {
+			opp-hz = /bits/ 64 <800000000>;
+			opp-microvolt = <800000>;
+			clock-latency-ns = <500000>;
+		};
+		opp03 {
+			opp-hz = /bits/ 64 <500000000>;
+			opp-microvolt = <800000>;
 			clock-latency-ns = <500000>;
 		};
 	};
@@ -883,7 +893,7 @@
 			iso-bit = <1>;
 			#cooling-cells = <2>;
 			cooling-min-level = <0>;
-			cooling-max-level = <4>;
+			cooling-max-level = <3>;
 			operating-points-v2 = <&cnn_opp_table>;
 			busy_check = <1>;
 			status = "disabled";
@@ -904,7 +914,7 @@
 			iso-bit = <5>;
 			#cooling-cells = <2>;
 			cooling-min-level = <0>;
-			cooling-max-level = <4>;
+			cooling-max-level = <3>;
 			operating-points-v2 = <&cnn_opp_table>;
 			busy_check = <1>;
 			status = "disabled";

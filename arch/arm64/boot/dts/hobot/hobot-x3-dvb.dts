@@ -359,12 +359,34 @@
 	};
 };
 
+&cpu0 {
+	status = "okay";
+	cpu-supply = <&cpu_pd_reg>;
+};
+
+&cpu1 {
+	status = "okay";
+	cpu-supply = <&cpu_pd_reg>;
+};
+
+&cpu2 {
+	status = "okay";
+	cpu-supply = <&cpu_pd_reg>;
+};
+
+&cpu3 {
+	status = "okay";
+	cpu-supply = <&cpu_pd_reg>;
+};
+
 &cnn0 {
 	status = "okay";
+	cnn-supply = <&cnn0_pd_reg>;
 };
 
 &cnn1 {
 	status = "okay";
+	cnn-supply = <&cnn1_pd_reg>;
 };
 
 &iar {
