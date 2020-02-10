@@ -109,6 +109,8 @@ vb2_failed:
 	return ret;
 }
 
+extern void dwe0_reset_control(void);
+
 static int dwe_fop_release(struct inode *pinode, struct file *pfile)
 {
 	dwe_charmod_s *dwe_cdev = pfile->private_data;
@@ -133,6 +135,7 @@ static int dwe_fop_release(struct inode *pinode, struct file *pfile)
 	dwe_cdev->user_num--;
 	if (dwe_cdev->user_num == 0) {
 		dwe_sw_deinit();
+		dwe0_reset_control();
 	}
 	spin_unlock(&dwe_cdev->slock);
 	pfile->private_data = NULL;

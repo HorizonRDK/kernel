@@ -45,7 +45,7 @@ void ips_module_reset(void __iomem *base_addr, u32 module)
 
 	vio_hw_set_field(base_addr, &ips_regs[IPS_GENERAL_REG],
 		&ips_fields[field_index], 0);
-	msleep(1);
+	mdelay(1);
 	vio_hw_set_field(base_addr, &ips_regs[IPS_GENERAL_REG],
 		&ips_fields[field_index], 1);
 }
