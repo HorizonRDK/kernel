@@ -82,6 +82,9 @@ static int dwe_fop_open(struct inode *pinode, struct file *pfile)
 	}
 
 	spin_lock(&dwe_cdev->slock);
+	if (dwe_cdev->user_num == 0) {
+		dwe_sw_init();
+	}
 	dwe_cdev->user_num++;
 	pfile->private_data = dwe_cdev;
 	spin_unlock(&dwe_cdev->slock);
@@ -128,6 +131,9 @@ static int dwe_fop_release(struct inode *pinode, struct file *pfile)
 
 	spin_lock(&dwe_cdev->slock);
 	dwe_cdev->user_num--;
+	if (dwe_cdev->user_num == 0) {
+		dwe_sw_deinit();
+	}
 	spin_unlock(&dwe_cdev->slock);
 	pfile->private_data = NULL;
 
