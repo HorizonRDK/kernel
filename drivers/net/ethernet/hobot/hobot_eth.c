@@ -1307,7 +1307,7 @@ int x2_tsn_link_configure(struct net_device *ndev, enum sr_class class, u16 fram
 	int err;
 	s32 bw;
 
-	printk("%s,and into here\n", __func__);
+//	printk("%s,and into here\n", __func__);
 
 	if (!x2_tsn_capable(ndev)) {
 		printk("%s: NIC not capable\n",__func__);
@@ -1392,7 +1392,7 @@ u16 x2_tsn_select_queue(struct net_device *ndev, struct sk_buff *skb, void *acce
 	if (x2_tsn_capable(ndev)) {
 		switch (vlan_get_protocol(skb)) {
 		case htons(ETH_P_TSN):
-			printk("%s,and skb_prio:%d, pcp_hi:%d,pcp_lo:%d\n",__func__,skb->priority, priv->pcp_hi,priv->pcp_lo);
+		//	printk("%s,and skb_prio:%d, pcp_hi:%d,pcp_lo:%d\n",__func__,skb->priority, priv->pcp_hi,priv->pcp_lo);
 #if 0	
 			if (skb->priority == 0x3)
 				return AVB_CLASSA_Q;
@@ -4427,7 +4427,7 @@ static netdev_tx_t x2_xmit(struct sk_buff *skb, struct net_device *ndev)
 		}
 	}
 
-	printk("%s,and queue:%d\n",__func__,queue);
+	//printk("%s,and queue:%d\n",__func__,queue);
 //	printk("%s, and avali:%d, nfrags:%d, queue:%d\n",__func__, x2_tx_avail(priv, queue), nfrags,queue);
 	if ((x2_tx_avail(priv, queue) < nfrags + 1)) {
 		if (!netif_tx_queue_stopped(netdev_get_tx_queue(ndev, queue))) {
@@ -6081,6 +6081,7 @@ static int x2_eth_dwmac_config_dt(struct platform_device *pdev, struct plat_conf
 	plat_dat->dma_cfg->aal = 1;
 	plat_dat->pmt = 1;
     plat_dat->fp_en = true;
+//    plat_dat->est_en = false;
 	return 0;
 }
 
