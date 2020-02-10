@@ -337,10 +337,9 @@ int gdc_video_process(struct gdc_video_ctx *gdc_ctx, unsigned long arg)
 	gdc_ctx->is_waiting_gdc = 1;
 	atomic_set(&gdc_dev->instance, gdc_ctx->group->instance);
 	gdc_start(gdc_dev);
+	spin_unlock_irqrestore(&gdc_dev->shared_slock, flag);
 
 	wait_event_interruptible(gdc_ctx->done_wq, !gdc_ctx->is_waiting_gdc);
-
-	spin_unlock_irqrestore(&gdc_dev->shared_slock, flag);
 
 p_err_ignore:
 	return ret;

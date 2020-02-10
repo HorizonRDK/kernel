@@ -811,7 +811,7 @@ int ipu_video_streamon(struct ipu_video_ctx *ipu_ctx)
 #if CONFIG_QEMU_TEST
 	timer_init(ipu_dev, 0);
 #endif
-
+	msleep(10);
 p_inc:
 #if CONFIG_QEMU_TEST
 	if (ipu_ctx->id == GROUP_ID_SRC)
