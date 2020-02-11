@@ -147,6 +147,7 @@ enum ipu_status {
 	IPU_DMA_INPUT,
 	IPU_OTF_OUTPUT,
 	IPU_DS2_DMA_OUTPUT,
+	IPU_HW_CONFIG,
 };
 
 struct x2a_ipu_dev {

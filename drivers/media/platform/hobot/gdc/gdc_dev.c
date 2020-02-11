@@ -129,10 +129,23 @@ static int x2a_gdc_close(struct inode *inode, struct file *file)
 
 void dwe0_reset_control(void)
 {
+	u32 cnt = 20;
 	unsigned long flag;
 
 	spin_lock_irqsave(&g_gdc_dev->shared_slock, flag);
-	ips_set_module_reset(DWE0_RST);
+	while (1) {
+		if (g_gdc_dev->state != GDC_DEV_PROCESS) {
+			ips_set_module_reset(DWE0_RST);
+			break;
+		}
+
+		mdelay(1);
+		cnt--;
+		if (cnt == 0) {
+			vio_err("%s timeout\n", __func__);
+			break;
+		}
+	}
 	spin_unlock_irqrestore(&g_gdc_dev->shared_slock, flag);
 }
 EXPORT_SYMBOL_GPL(dwe0_reset_control);
@@ -330,7 +343,7 @@ int gdc_video_process(struct gdc_video_ctx *gdc_ctx, unsigned long arg)
 	}
 
 	spin_lock_irqsave(&gdc_dev->shared_slock, flag);
-
+	gdc_dev->state = GDC_DEV_PROCESS;
 	gdc_init(gdc_dev, &gdc_settings);
 	ret = gdc_process(gdc_dev, &gdc_settings);
 	//gdc_hw_dump(gdc_dev->base_reg);
@@ -340,6 +353,7 @@ int gdc_video_process(struct gdc_video_ctx *gdc_ctx, unsigned long arg)
 	spin_unlock_irqrestore(&gdc_dev->shared_slock, flag);
 
 	wait_event_interruptible(gdc_ctx->done_wq, !gdc_ctx->is_waiting_gdc);
+	gdc_dev->state = GDC_DEV_FREE;
 
 p_err_ignore:
 	return ret;

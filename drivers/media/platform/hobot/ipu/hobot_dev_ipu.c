@@ -32,14 +32,6 @@
 
 #define MODULE_NAME "X2A IPU"
 
-#if CONFIG_QEMU_TEST
-static struct timer_list tm[4];
-static int g_test_bit = 0;
-static int g_int_test = -1;
-
-static int timer_init(struct x2a_ipu_dev *ipu, int index);
-#endif
-
 void ipu_hw_set_osd_cfg(struct ipu_video_ctx *ipu_ctx);
 extern struct class *vps_class;
 
@@ -97,11 +89,10 @@ static int x2a_ipu_close(struct inode *inode, struct file *file)
 	group = ipu_ctx->group;
 	ipu = ipu_ctx->ipu_dev;
 
-	if (group && ipu_ctx->leader)
+	if (group) {
 		clear_bit(VIO_GROUP_LEADER, &group->state);
-
-	if (group)
 		clear_bit(VIO_GROUP_INIT, &group->state);
+	}
 
 	if (group->gtask)
 		vio_group_task_stop(group->gtask);
@@ -116,6 +107,7 @@ static int x2a_ipu_close(struct inode *inode, struct file *file)
 		clear_bit(IPU_OTF_INPUT, &ipu->state);
 		clear_bit(IPU_DMA_INPUT, &ipu->state);
 		clear_bit(IPU_DS2_DMA_OUTPUT, &ipu->state);
+		clear_bit(IPU_HW_CONFIG, &ipu->state);
 	}
 
 	kfree(ipu_ctx);
@@ -262,6 +254,9 @@ void ipu_frame_work(struct vio_group *group)
 
 	if (test_bit(IPU_DMA_INPUT, &ipu->state))
 		ipu_set_rdma_start(ipu->base_reg);
+
+	if (!test_bit(IPU_HW_CONFIG, &ipu->state))
+		set_bit(IPU_HW_CONFIG, &ipu->state);
 	vio_info("%s done\n", __func__);
 }
 
@@ -997,10 +992,11 @@ int ipu_bind_chain_group(struct ipu_video_ctx *ipu_ctx, int instance)
 
 int ipu_video_streamon(struct ipu_video_ctx *ipu_ctx)
 {
-	struct x2a_ipu_dev *ipu_dev;
+	u32 cnt = 20;
+	struct x2a_ipu_dev *ipu;
 	struct vio_group *group;
 
-	ipu_dev = ipu_ctx->ipu_dev;
+	ipu = ipu_ctx->ipu_dev;
 	group = ipu_ctx->group;
 
 	if (!(ipu_ctx->state & (BIT(VIO_VIDEO_STOP) | BIT(VIO_VIDEO_REBUFS)
@@ -1010,22 +1006,25 @@ int ipu_video_streamon(struct ipu_video_ctx *ipu_ctx)
 		return -EINVAL;
 	}
 
-	if (atomic_read(&ipu_dev->rsccount) > 0)
+	if (atomic_read(&ipu->rsccount) > 0)
 		goto p_inc;
 
-#if CONFIG_QEMU_TEST
-	timer_init(ipu_dev, 0);
-#endif
-	msleep(10);
+	if (group->leader && test_bit(IPU_OTF_INPUT, &ipu->state)) {
+		while(1) {
+			if (test_bit(IPU_HW_CONFIG, &ipu->state))
+				break;
+
+			msleep(5);
+			cnt--;
+			if (cnt == 0) {
+				vio_info("%s timeout\n", __func__);
+				break;
+			}
+		}
+	}
+
 p_inc:
-#if CONFIG_QEMU_TEST
-	if (ipu_ctx->id == GROUP_ID_SRC)
-		g_test_bit |=
-		    1 << INTR_IPU_FRAME_START | 1 << INTR_IPU_FRAME_DONE;
-	else
-		g_test_bit |= 1 << (ipu_ctx->id + 1);
-#endif
-	atomic_inc(&ipu_dev->rsccount);
+	atomic_inc(&ipu->rsccount);
 
 	ipu_ctx->state = BIT(VIO_VIDEO_START);
 
@@ -1057,28 +1056,17 @@ int ipu_video_streamoff(struct ipu_video_ctx *ipu_ctx)
 	if (atomic_dec_return(&ipu_dev->rsccount) > 0)
 		goto p_dec;
 
-#if CONFIG_QEMU_TEST
-	del_timer_sync(&tm[0]);
-	if (ipu_ctx->id == GROUP_ID_SRC)
-		g_test_bit &= ~(1 << INTR_IPU_FRAME_START)
-		& ~(1 << INTR_IPU_FRAME_DONE);
-	else
-		g_test_bit &= ~(1 << (ipu_ctx->id + 1));
-
-	vio_info("%s timer del\n", __func__);
-#else
-
 	cfg = ips_get_bus_ctrl() | 1 << 12;
 	ips_set_bus_ctrl(cfg);
 
 	while(1) {
 		value = ips_get_bus_status();
-		if(value & 1 << 28)
+		if (value & 1 << 28)
 			break;
 
 		msleep(10);
 		cnt--;
-		if(cnt == 0) {
+		if (cnt == 0) {
 			vio_info("%s timeout\n", __func__);
 			break;
 		}
@@ -1090,7 +1078,6 @@ int ipu_video_streamoff(struct ipu_video_ctx *ipu_ctx)
 	ips_set_module_reset(IPU0_RST);
 
 	ips_set_clk_ctrl(IPU0_CLOCK_GATE, false);
-#endif
 
 p_dec:
 	if (ipu_ctx->framemgr->frames_mp != NULL)
@@ -1858,9 +1845,6 @@ static int x2a_ipu_probe(struct platform_device *pdev)
 		goto err_get_resource;
 	}
 
-#if CONFIG_QEMU_TEST
-	ipu->base_reg = kzalloc(0x1000, GFP_KERNEL);
-#endif
 	/* Get IRQ SPI number */
 	ipu->irq = platform_get_irq(pdev, 0);
 	if (ipu->irq < 0) {
@@ -1965,103 +1949,6 @@ static struct platform_driver x2a_ipu_driver = {
 };
 #endif
 
-#if CONFIG_QEMU_TEST
-static void ipu_timer(unsigned long data)
-{
-	u32 status;
-	u32 instance;
-	struct x2a_ipu_dev *ipu;
-	struct vio_group *group;
-	struct vio_group_task *gtask;
-
-	ipu = (struct x2a_ipu_dev *) data;
-	gtask = &ipu->gtask;
-	instance = atomic_read(&ipu->instance);
-	group = ipu->group[instance];
-	ipu_get_intr_status(ipu->base_reg, &status, true);
-
-	status = g_test_bit;
-	vio_info("%s status = %x\n", __func__, status);
-	mod_timer(&tm[0], jiffies + HZ / 25);
-	if (status & (1 << INTR_IPU_FRAME_DONE)) {
-		if (test_bit(IPU_DMA_INPUT, &ipu->state)) {
-			up(&gtask->hw_resource);
-			ipu_frame_done(group->sub_ctx[GROUP_ID_SRC]);
-			vio_info("%s ipu_frame_done\n", __func__);
-		}
-	}
-
-	if (status & (1 << INTR_IPU_US_FRAME_DONE)) {
-		ipu_frame_done(group->sub_ctx[GROUP_ID_US]);
-	}
-
-	if (status & (1 << INTR_IPU_DS0_FRAME_DONE)) {
-		ipu_frame_done(group->sub_ctx[GROUP_ID_DS0]);
-	}
-
-	if (status & (1 << INTR_IPU_DS1_FRAME_DONE)) {
-		ipu_frame_done(group->sub_ctx[GROUP_ID_DS1]);
-	}
-
-	if (status & (1 << INTR_IPU_DS2_FRAME_DONE)) {
-		ipu_frame_done(group->sub_ctx[GROUP_ID_DS2]);
-	}
-
-	if (status & (1 << INTR_IPU_DS3_FRAME_DONE)) {
-		ipu_frame_done(group->sub_ctx[GROUP_ID_DS3]);
-	}
-
-	if (status & (1 << INTR_IPU_DS4_FRAME_DONE)) {
-		ipu_frame_done(group->sub_ctx[GROUP_ID_DS4]);
-	}
-
-	if (status & (1 << INTR_IPU_FRAME_START)) {
-		if (test_bit(IPU_OTF_INPUT, &ipu->state))
-			up(&gtask->hw_resource);
-	}
-
-}
-
-static int timer_init(struct x2a_ipu_dev *ipu, int index)
-{
-	init_timer(&tm[index]);
-	tm[index].expires = jiffies + HZ / 10;
-	tm[index].function = ipu_timer;
-	tm[index].data = (unsigned long) ipu;
-	add_timer(&tm[index]);
-}
-
-static int __init x2a_ipu_init(void)
-{
-	int ret = 0;
-	struct x2a_ipu_dev *ipu;
-
-	ipu = kzalloc(sizeof(struct x2a_ipu_dev), GFP_KERNEL);
-	if (!ipu) {
-		vio_err("ipu is NULL");
-		ret = -ENOMEM;
-		goto p_err;
-	}
-
-	ipu->base_reg = kzalloc(0x1000, GFP_KERNEL);
-
-	x2a_ipu_device_node_init(ipu);
-	atomic_set(&ipu->gtask.refcount, 0);
-	spin_lock_init(&ipu->shared_slock);
-	sema_init(&ipu->gtask.hw_resource, 1);
-
-	vio_info("[FRT:D] %s(%d)\n", __func__, ret);
-	atomic_set(&ipu->rsccount, 0);
-
-	return 0;
-
-p_err:
-	vio_err("[FRT:D] %s(%d)\n", __func__, ret);
-	return ret;
-}
-
-#else
-
 static int __init x2a_ipu_init(void)
 {
 	int ret = platform_driver_register(&x2a_ipu_driver);
@@ -2070,8 +1957,6 @@ static int __init x2a_ipu_init(void)
 
 	return ret;
 }
-#endif
-
 
 late_initcall(x2a_ipu_init);
 

@@ -82,6 +82,12 @@ enum gdc_interrupt_map {
 	INTR_GDC_INCOMPATIBLE_CONF,
 };
 
+enum gdc_dev_state {
+	GDC_DEV_NONE,
+	GDC_DEV_PROCESS,
+	GDC_DEV_FREE,
+};
+
 struct gdc_group{
 	struct gdc_video_ctx *sub_ctx[GDC_MAX_DEVICE];
 	unsigned long				state;
