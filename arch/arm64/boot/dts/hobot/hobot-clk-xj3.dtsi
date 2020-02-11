@@ -434,6 +434,12 @@
 			field = <1>;
 		};
 
+		cnn_clk: cnn_clk {
+			#clock-cells = <0>;
+			compatible = "hobot,cnn-clk-x3";
+			clocks = <&cnn_pllmux_clk>;
+		};
+
 		cnn0_aclk: cnn0_aclk {
 			#clock-cells = <0>;
 			compatible = "hobot,gate-clk";
@@ -447,10 +453,11 @@
 		cnn0_mclk: cnn0_mclk {
 			#clock-cells = <0>;
 			compatible = "hobot,endiv-clk";
-			clocks = <&cnn_pllmux_clk>;
+			clocks = <&cnn_clk>;
 			offset = <0x220 0x120 0x124 0x128 0x228 0x0>;
 			bits = <4 1 1 1 1 32>;
 			field = <3 1 1 1 1>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		cnn1_aclk: cnn1_aclk {
@@ -466,7 +473,7 @@
 		cnn1_mclk: cnn1_mclk {
 			#clock-cells = <0>;
 			compatible = "hobot,endiv-clk";
-			clocks = <&cnn_pllmux_clk>;
+			clocks = <&cnn_clk>;
 			offset = <0x220 0x120 0x124 0x128 0x228 0x0>;
 			bits = <12 5 5 5 3 32>;
 			field = <3 1 1 1 1>;

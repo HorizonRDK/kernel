@@ -57,8 +57,10 @@ struct laintpll_bestdiv {
  * Only support 1.6GHz, 2GHz and 2.4G for ARMPLL,
  * add more if there are new pll freq use case for other plls
  */
-#define PLL_BESTDIV_TABLE_LEN 3
+#define PLL_BESTDIV_TABLE_LEN 5
 static struct laintpll_bestdiv pll_bestdiv_table[PLL_BESTDIV_TABLE_LEN] = {
+	{1000000000, 1, 125, 3, 1},
+	{1200000000, 1, 100, 2, 1},
 	{1600000000, 1, 200, 3, 1},
 	{2000000000, 1, 250, 3, 1},
 	{2400000000, 1, 100, 1, 1}
