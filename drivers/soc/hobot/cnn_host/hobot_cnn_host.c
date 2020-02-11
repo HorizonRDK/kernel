@@ -807,6 +807,10 @@ static void x2_cnn_power_up(struct x2_cnn_dev *dev)
 	int ret;
 	unsigned int tmp;
 
+	if (!dev->has_regulator) {
+		pr_info("no regulator support\n");
+		return;
+	}
 	lock_bpu(dev);
 	if (!dev->disable_bpu) {
 		unlock_bpu(dev);
@@ -844,6 +848,10 @@ static void x2_cnn_power_down(struct x2_cnn_dev *dev)
 {
 	unsigned int tmp;
 
+	if (!dev->has_regulator) {
+		pr_info("no regulator support\n");
+		return;
+	}
 	lock_bpu(dev);
 	if (dev->disable_bpu == (BPU_CLOCK_DIS | BPU_REGU_DIS)) {
 		unlock_bpu(dev);
@@ -1020,9 +1028,7 @@ static int x2_cnn_open(struct inode *inode, struct file *filp)
 
 	user_info->cnn_dev = devdata;
 #ifndef CONFIG_HOBOT_FPGA_X3
-	if (!regulator_is_enabled(devdata->cnn_regulator) ||
-	    !__clk_is_enabled(devdata->cnn_aclk) ||
-	    !__clk_is_enabled(devdata->cnn_mclk)) {
+	if (devdata->disable_bpu) {
 		mutex_unlock(&x2_cnn_mutex);
 
 		kfree(filp->private_data);
@@ -1575,6 +1581,10 @@ static int cnnfreq_target(struct device *dev, unsigned long *freq,
 		return err;
 	}
 
+	if (!cnn_dev->has_regulator) {
+		pr_info("no regulator support\n");
+		return 1;
+	}
 	lock_bpu(cnn_dev);
 
 	opp = devfreq_recommended_opp(dev, freq, flags);
@@ -1973,8 +1983,10 @@ int x2_cnn_probe(struct platform_device *pdev)
 	/*get regulator*/
 	cnn_dev->cnn_regulator = devm_regulator_get(cnn_dev->dev, "cnn");
 	if (IS_ERR(cnn_dev->cnn_regulator)) {
-		pr_info("get regulator err\n");
-		goto err_out;
+		pr_info("get regulator error, no regulator support\n");
+		cnn_dev->has_regulator = 0;
+	} else {
+		cnn_dev->has_regulator = 1;
 	}
 
 	/*get cnn clock and prepare*/
@@ -2013,10 +2025,12 @@ int x2_cnn_probe(struct platform_device *pdev)
 	}
 #ifndef CONFIG_HOBOT_FPGA_X3
 	/*cnn power up*/
-	rc = regulator_enable(cnn_dev->cnn_regulator);
-	if (rc != 0) {
-		dev_err(cnn_dev->dev, "regulator enalbe error\n");
-		goto err_out;
+	if (cnn_dev->has_regulator) {
+		rc = regulator_enable(cnn_dev->cnn_regulator);
+		if (rc != 0) {
+			dev_err(cnn_dev->dev, "regulator enalbe error\n");
+			goto err_out;
+		}
 	}
 	tmp = readl(cnn_dev->cnn_pmu);
 	tmp &= ~(1 << cnn_dev->iso_bit);
@@ -2164,7 +2178,8 @@ int x2_cnn_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "bpu%d freq notify register fail\n", cnn_id);
 	pr_info("x2 cnn%d probe OK!!\n", cnn_id);
 #ifdef CONFIG_HOBOT_CNN_DEVFREQ
-	x2_cnnfreq_register(cnn_dev);
+	if (cnn_dev->has_regulator)
+		x2_cnnfreq_register(cnn_dev);
 #endif
 
 #ifdef CHECK_IRQ_LOST
