@@ -19,6 +19,7 @@
 #include <linux/dmi.h>
 #include <linux/firmware.h>
 #include <linux/gpio/consumer.h>
+#include <linux/gpio.h>
 #include <linux/i2c.h>
 #include <linux/input.h>
 #include <linux/input/mt.h>
@@ -51,6 +52,7 @@ struct goodix_ts_data {
 	unsigned long irq_flags;
 };
 
+struct goodix_ts_data *ts;
 #define GOODIX_GPIO_INT_NAME		"irq"
 #define GOODIX_GPIO_RST_NAME		"reset"
 
@@ -86,6 +88,15 @@ static const unsigned long goodix_irq_flags[] = {
 	IRQ_TYPE_LEVEL_HIGH,
 };
 
+int tp_rst_pin = 28;
+int tp_irq_pin = 29;
+int hotpoll_ms = 500;
+int hotpoll_flag = 1;
+static struct work_struct       *tpwork;
+
+//static void goodix_process_events(struct goodix_ts_data *ts);
+static void goodix_process_events(void);
+int get_iar_module_rst_pin(void);
 /*
  * Those tablets have their coordinates origin at the bottom right
  * of the tablet, as if rotated 180 degrees
@@ -110,6 +121,10 @@ static const struct dmi_system_id rotated_screen[] = {
 	{}
 };
 
+static void x3_tp_timer(unsigned long dontcare);
+
+static DEFINE_TIMER(x3tptimer, x3_tp_timer, 0, 0);
+
 /**
  * goodix_i2c_read - read data from a register of the i2c slave device.
  *
@@ -119,7 +134,7 @@ static const struct dmi_system_id rotated_screen[] = {
  * @len: length of the buffer to write
  */
 static int goodix_i2c_read(struct i2c_client *client,
-			   u16 reg, u8 *buf, int len)
+		u16 reg, u8 *buf, int len)
 {
 	struct i2c_msg msgs[2];
 	u16 wbuf = cpu_to_be16(reg);
@@ -177,6 +192,26 @@ static int goodix_i2c_write_u8(struct i2c_client *client, u16 reg, u8 value)
 	return goodix_i2c_write(client, reg, &value, sizeof(value));
 }
 
+static void work_queue(struct work_struct *work)
+{
+	goodix_process_events();
+
+	if (goodix_i2c_write_u8(ts->client, GOODIX_READ_COOR_ADDR, 0) < 0)
+		dev_err(&ts->client->dev, "I2C write end_cmd error\n");
+
+	if (hotpoll_flag == 0) {
+		enable_irq(ts->client->irq);
+	} else {
+		mod_timer(&x3tptimer, jiffies + msecs_to_jiffies(hotpoll_ms));
+	}
+}
+
+static void x3_tp_timer(unsigned long dontcare)
+{
+	schedule_work(tpwork);
+}
+
+
 static int goodix_get_cfg_len(u16 id)
 {
 	switch (id) {
@@ -196,10 +231,10 @@ static int goodix_get_cfg_len(u16 id)
 	}
 }
 
-static int goodix_ts_read_input_report(struct goodix_ts_data *ts, u8 *data)
+static int goodix_ts_read_input_report(u8 *data)
 {
 	unsigned long max_timeout;
-	int touch_num;
+	int touch_num = -1;
 	int error;
 
 	/*
@@ -207,47 +242,40 @@ static int goodix_ts_read_input_report(struct goodix_ts_data *ts, u8 *data)
 	 * not set as soon as the interrupt is raised, but slightly after.
 	 * This takes around 10 ms to happen, so we poll for 20 ms.
 	 */
-	max_timeout = jiffies + msecs_to_jiffies(GOODIX_BUFFER_STATUS_TIMEOUT);
-	do {
-		error = goodix_i2c_read(ts->client, GOODIX_READ_COOR_ADDR,
-					data, GOODIX_CONTACT_SIZE + 1);
-		if (error) {
-			dev_err(&ts->client->dev, "I2C transfer error: %d\n",
-					error);
-			return error;
+	error = goodix_i2c_read(ts->client, GOODIX_READ_COOR_ADDR,
+			data, GOODIX_CONTACT_SIZE + 1);
+	if (error) {
+		dev_err(&ts->client->dev, "I2C transfer error: %d\n",
+				error);
+		return error;
+	}
+
+	if (data[0] & GOODIX_BUFFER_STATUS_READY) {
+		dev_info(&ts->client->dev, "touch int!!\n");
+		touch_num = data[0] & 0x0f;
+		dev_info(&ts->client->dev, "touch num is %d!!\n", touch_num);
+		if (touch_num > ts->max_touch_num)
+			return -EPROTO;
+
+		if (touch_num > 1) {
+			data += 1 + GOODIX_CONTACT_SIZE;
+			error = goodix_i2c_read(ts->client,
+				GOODIX_READ_COOR_ADDR + 1 + GOODIX_CONTACT_SIZE,
+				data, GOODIX_CONTACT_SIZE * (touch_num - 1));
+			if (error)
+				return error;
 		}
 
-		if (data[0] & GOODIX_BUFFER_STATUS_READY) {
-			touch_num = data[0] & 0x0f;
-			if (touch_num > ts->max_touch_num)
-				return -EPROTO;
-
-			if (touch_num > 1) {
-				data += 1 + GOODIX_CONTACT_SIZE;
-				error = goodix_i2c_read(ts->client,
-						GOODIX_READ_COOR_ADDR +
-							1 + GOODIX_CONTACT_SIZE,
-						data,
-						GOODIX_CONTACT_SIZE *
-							(touch_num - 1));
-				if (error)
-					return error;
-			}
-
-			return touch_num;
-		}
-
-		usleep_range(1000, 2000); /* Poll every 1 - 2 ms */
-	} while (time_before(jiffies, max_timeout));
-
+		return touch_num;
+	}
 	/*
 	 * The Goodix panel will send spurious interrupts after a
 	 * 'finger up' event, which will always cause a timeout.
 	 */
-	return 0;
+	return touch_num;
 }
 
-static void goodix_ts_report_touch(struct goodix_ts_data *ts, u8 *coor_data)
+static void goodix_ts_report_touch(u8 *coor_data)
 {
 	int id = coor_data[0] & 0x0F;
 	int input_x = get_unaligned_le16(&coor_data[1]);
@@ -278,27 +306,27 @@ static void goodix_ts_report_touch(struct goodix_ts_data *ts, u8 *coor_data)
  * Called when the IRQ is triggered. Read the current device state, and push
  * the input events to the user space.
  */
-static void goodix_process_events(struct goodix_ts_data *ts)
+static void goodix_process_events(void)
 {
-	u8  point_data[1 + GOODIX_CONTACT_SIZE * GOODIX_MAX_CONTACTS];
+	u8  point_data[1 + GOODIX_CONTACT_SIZE * GOODIX_MAX_CONTACTS];//1+8*10
 	int touch_num;
 	int i;
 
-	touch_num = goodix_ts_read_input_report(ts, point_data);
-	if (touch_num < 0)
+	touch_num = goodix_ts_read_input_report(point_data);
+	if (touch_num <= 0)
 		return;
 
 	/*
-	 * Bit 4 of the first byte reports the status of the capacitive
-	 * Windows/Home button.
-	 */
+	* Bit 4 of the first byte reports the status of the capacitive
+	* Windows/Home button.
+	*/
 	input_report_key(ts->input_dev, KEY_LEFTMETA, point_data[0] & BIT(4));
 
 	for (i = 0; i < touch_num; i++)
-		goodix_ts_report_touch(ts,
-				&point_data[1 + GOODIX_CONTACT_SIZE * i]);
+		goodix_ts_report_touch(&point_data[1 + GOODIX_CONTACT_SIZE * i]);
 
 	input_mt_sync_frame(ts->input_dev);
+
 	input_sync(ts->input_dev);
 }
 
@@ -310,12 +338,12 @@ static void goodix_process_events(struct goodix_ts_data *ts)
  */
 static irqreturn_t goodix_ts_irq_handler(int irq, void *dev_id)
 {
-	struct goodix_ts_data *ts = dev_id;
+	int ret;
 
-	goodix_process_events(ts);
+	pr_debug("irq begin!\n");
 
-	if (goodix_i2c_write_u8(ts->client, GOODIX_READ_COOR_ADDR, 0) < 0)
-		dev_err(&ts->client->dev, "I2C write end_cmd error\n");
+	disable_irq_nosync(irq);
+	schedule_work(tpwork);
 
 	return IRQ_HANDLED;
 }
@@ -325,11 +353,28 @@ static void goodix_free_irq(struct goodix_ts_data *ts)
 	devm_free_irq(&ts->client->dev, ts->client->irq, ts);
 }
 
-static int goodix_request_irq(struct goodix_ts_data *ts)
+static int goodix_request_irq(void)
 {
-	return devm_request_threaded_irq(&ts->client->dev, ts->client->irq,
-					 NULL, goodix_ts_irq_handler,
-					 ts->irq_flags, ts->client->name, ts);
+        int ret;
+
+	ret = gpio_to_irq(tp_irq_pin);
+	if (ret < 0) {
+		dev_err(&ts->client->dev,
+			"irq gpio to irq number is not correct");
+	}
+	dev_info(&ts->client->dev, "%s: irq number is %d\n",
+			__func__, ret);
+
+	ts->client->irq = ret;
+	ret = request_irq(ts->client->irq, goodix_ts_irq_handler,
+			ts->irq_flags, ts->client->name, ts->client);
+	if (ret < 0) {
+		dev_err(&ts->client->dev,
+			"request irq is not correct");
+	}
+	enable_irq_wake(ts->client->irq);
+
+	return 0;
 }
 
 /**
@@ -338,8 +383,7 @@ static int goodix_request_irq(struct goodix_ts_data *ts)
  * @ts: goodix_ts_data pointer
  * @cfg: firmware config data
  */
-static int goodix_check_cfg(struct goodix_ts_data *ts,
-			    const struct firmware *cfg)
+static int goodix_check_cfg(const struct firmware *cfg)
 {
 	int i, raw_cfg_len;
 	u8 check_sum = 0;
@@ -375,20 +419,19 @@ static int goodix_check_cfg(struct goodix_ts_data *ts,
  * @ts: goodix_ts_data pointer
  * @cfg: config firmware to write to device
  */
-static int goodix_send_cfg(struct goodix_ts_data *ts,
-			   const struct firmware *cfg)
+static int goodix_send_cfg(const struct firmware *cfg)
 {
 	int error;
 
-	error = goodix_check_cfg(ts, cfg);
+	error = goodix_check_cfg(cfg);
 	if (error)
 		return error;
 
-	error = goodix_i2c_write(ts->client, GOODIX_REG_CONFIG_DATA, cfg->data,
-				 cfg->size);
+	error = goodix_i2c_write(ts->client, GOODIX_REG_CONFIG_DATA,
+			cfg->data, cfg->size);
 	if (error) {
 		dev_err(&ts->client->dev, "Failed to write config data: %d",
-			error);
+				error);
 		return error;
 	}
 	dev_dbg(&ts->client->dev, "Config sent successfully.");
@@ -399,17 +442,17 @@ static int goodix_send_cfg(struct goodix_ts_data *ts,
 	return 0;
 }
 
-static int goodix_int_sync(struct goodix_ts_data *ts)
+static int goodix_int_sync(void)
 {
 	int error;
 
-	error = gpiod_direction_output(ts->gpiod_int, 0);
+	error = gpio_direction_output(tp_irq_pin, 0);
 	if (error)
 		return error;
 
-	msleep(50);				/* T5: 50ms */
+	msleep(50);/* T5: 50ms */
 
-	error = gpiod_direction_input(ts->gpiod_int);
+	error = gpio_direction_input(tp_irq_pin);
 	if (error)
 		return error;
 
@@ -421,80 +464,38 @@ static int goodix_int_sync(struct goodix_ts_data *ts)
  *
  * @ts: goodix_ts_data pointer
  */
-static int goodix_reset(struct goodix_ts_data *ts)
+static int goodix_reset(void)
 {
 	int error;
 
 	/* begin select I2C slave addr */
-	error = gpiod_direction_output(ts->gpiod_rst, 0);
+	error = gpio_direction_output(tp_rst_pin, 0);
 	if (error)
 		return error;
 
-	msleep(20);				/* T2: > 10ms */
-
+	msleep(20);/* T2: > 10ms */
 	/* HIGH: 0x28/0x29, LOW: 0xBA/0xBB */
-	error = gpiod_direction_output(ts->gpiod_int, ts->client->addr == 0x14);
+	//error = gpio_direction_output(tp_irq_pin, 1);
+	error = gpio_direction_output(tp_irq_pin, ts->client->addr == 0x14);
 	if (error)
 		return error;
 
-	usleep_range(100, 2000);		/* T3: > 100us */
+	usleep_range(100, 2000);/* T3: > 100us */
 
-	error = gpiod_direction_output(ts->gpiod_rst, 1);
+	error = gpio_direction_output(tp_rst_pin, 1);
 	if (error)
 		return error;
 
-	usleep_range(6000, 10000);		/* T4: > 5ms */
+	usleep_range(6000, 10000);/* T4: > 5ms */
 
 	/* end select I2C slave addr */
-	error = gpiod_direction_input(ts->gpiod_rst);
+	error = gpio_direction_input(tp_rst_pin);
 	if (error)
 		return error;
 
-	error = goodix_int_sync(ts);
+	error = goodix_int_sync();
 	if (error)
 		return error;
-
-	return 0;
-}
-
-/**
- * goodix_get_gpio_config - Get GPIO config from ACPI/DT
- *
- * @ts: goodix_ts_data pointer
- */
-static int goodix_get_gpio_config(struct goodix_ts_data *ts)
-{
-	int error;
-	struct device *dev;
-	struct gpio_desc *gpiod;
-
-	if (!ts->client)
-		return -EINVAL;
-	dev = &ts->client->dev;
-
-	/* Get the interrupt GPIO pin number */
-	gpiod = devm_gpiod_get_optional(dev, GOODIX_GPIO_INT_NAME, GPIOD_IN);
-	if (IS_ERR(gpiod)) {
-		error = PTR_ERR(gpiod);
-		if (error != -EPROBE_DEFER)
-			dev_dbg(dev, "Failed to get %s GPIO: %d\n",
-				GOODIX_GPIO_INT_NAME, error);
-		return error;
-	}
-
-	ts->gpiod_int = gpiod;
-
-	/* Get the reset line GPIO pin number */
-	gpiod = devm_gpiod_get_optional(dev, GOODIX_GPIO_RST_NAME, GPIOD_IN);
-	if (IS_ERR(gpiod)) {
-		error = PTR_ERR(gpiod);
-		if (error != -EPROBE_DEFER)
-			dev_dbg(dev, "Failed to get %s GPIO: %d\n",
-				GOODIX_GPIO_RST_NAME, error);
-		return error;
-	}
-
-	ts->gpiod_rst = gpiod;
 
 	return 0;
 }
@@ -506,7 +507,7 @@ static int goodix_get_gpio_config(struct goodix_ts_data *ts)
  *
  * Must be called during probe
  */
-static void goodix_read_config(struct goodix_ts_data *ts)
+static void goodix_read_config(void)
 {
 	u8 config[GOODIX_CONFIG_MAX_LENGTH];
 	int error;
@@ -515,8 +516,8 @@ static void goodix_read_config(struct goodix_ts_data *ts)
 				config, ts->cfg_len);
 	if (error) {
 		dev_warn(&ts->client->dev,
-			 "Error reading config (%d), using defaults\n",
-			 error);
+			"Error reading config (%d), using defaults\n",
+			error);
 		ts->abs_x_max = GOODIX_MAX_WIDTH;
 		ts->abs_y_max = GOODIX_MAX_HEIGHT;
 		if (ts->swapped_x_y)
@@ -525,7 +526,6 @@ static void goodix_read_config(struct goodix_ts_data *ts)
 		ts->max_touch_num = GOODIX_MAX_CONTACTS;
 		return;
 	}
-
 	ts->abs_x_max = get_unaligned_le16(&config[RESOLUTION_LOC]);
 	ts->abs_y_max = get_unaligned_le16(&config[RESOLUTION_LOC + 2]);
 	if (ts->swapped_x_y)
@@ -546,7 +546,7 @@ static void goodix_read_config(struct goodix_ts_data *ts)
 		ts->inverted_x = true;
 		ts->inverted_y = true;
 		dev_dbg(&ts->client->dev,
-			 "Applying '180 degrees rotated screen' quirk\n");
+			"Applying '180 degrees rotated screen' quirk\n");
 	}
 }
 
@@ -555,7 +555,7 @@ static void goodix_read_config(struct goodix_ts_data *ts)
  *
  * @ts: our goodix_ts_data pointer
  */
-static int goodix_read_version(struct goodix_ts_data *ts)
+static int goodix_read_version(void)
 {
 	int error;
 	u8 buf[6];
@@ -575,11 +575,10 @@ static int goodix_read_version(struct goodix_ts_data *ts)
 	ts->version = get_unaligned_le16(&buf[4]);
 
 	dev_info(&ts->client->dev, "ID %d, version: %04x\n", ts->id,
-		 ts->version);
+		ts->version);
 
 	return 0;
 }
-
 /**
  * goodix_i2c_test - I2C test function to check if the device answers.
  *
@@ -612,7 +611,7 @@ static int goodix_i2c_test(struct i2c_client *client)
  *
  * Must be called during probe
  */
-static int goodix_request_input_dev(struct goodix_ts_data *ts)
+static int goodix_request_input_dev(void)
 {
 	int error;
 
@@ -622,15 +621,13 @@ static int goodix_request_input_dev(struct goodix_ts_data *ts)
 		return -ENOMEM;
 	}
 
-	input_set_abs_params(ts->input_dev, ABS_MT_POSITION_X,
-			     0, ts->abs_x_max, 0, 0);
-	input_set_abs_params(ts->input_dev, ABS_MT_POSITION_Y,
-			     0, ts->abs_y_max, 0, 0);
+	input_set_abs_params(ts->input_dev, ABS_MT_POSITION_X, 0, ts->abs_x_max, 0, 0);
+	input_set_abs_params(ts->input_dev, ABS_MT_POSITION_Y, 0, ts->abs_y_max, 0, 0);
 	input_set_abs_params(ts->input_dev, ABS_MT_WIDTH_MAJOR, 0, 255, 0, 0);
 	input_set_abs_params(ts->input_dev, ABS_MT_TOUCH_MAJOR, 0, 255, 0, 0);
 
 	input_mt_init_slots(ts->input_dev, ts->max_touch_num,
-			    INPUT_MT_DIRECT | INPUT_MT_DROP_UNUSED);
+			INPUT_MT_DIRECT | INPUT_MT_DROP_UNUSED);
 
 	ts->input_dev->name = "Goodix Capacitive TouchScreen";
 	ts->input_dev->phys = "input/ts";
@@ -639,7 +636,7 @@ static int goodix_request_input_dev(struct goodix_ts_data *ts)
 	ts->input_dev->id.product = ts->id;
 	ts->input_dev->id.version = ts->version;
 
-	/* Capacitive Windows/Home button on some devices */
+	// Capacitive Windows/Home button on some devices
 	input_set_capability(ts->input_dev, EV_KEY, KEY_LEFTMETA);
 
 	error = input_register_device(ts->input_dev);
@@ -648,7 +645,7 @@ static int goodix_request_input_dev(struct goodix_ts_data *ts)
 			"Failed to register input device: %d", error);
 		return error;
 	}
-
+	pr_debug("%s: register input device success!\n", __func__);
 	return 0;
 }
 
@@ -662,30 +659,36 @@ static int goodix_request_input_dev(struct goodix_ts_data *ts)
  * declare gpio pins and devices that do not. It is either called
  * directly from probe or from request_firmware_wait callback.
  */
-static int goodix_configure_dev(struct goodix_ts_data *ts)
+static int goodix_configure_dev(void)
 {
 	int error;
 
 	ts->swapped_x_y = device_property_read_bool(&ts->client->dev,
-						    "touchscreen-swapped-x-y");
+					"touchscreen-swapped-x-y");
 	ts->inverted_x = device_property_read_bool(&ts->client->dev,
-						   "touchscreen-inverted-x");
+					"touchscreen-inverted-x");
 	ts->inverted_y = device_property_read_bool(&ts->client->dev,
-						   "touchscreen-inverted-y");
+					"touchscreen-inverted-y");
 
-	goodix_read_config(ts);
+	goodix_read_config();
 
-	error = goodix_request_input_dev(ts);
+	error = goodix_request_input_dev();
 	if (error)
 		return error;
 
 	ts->irq_flags = goodix_irq_flags[ts->int_trigger_type] | IRQF_ONESHOT;
-	error = goodix_request_irq(ts);
-	if (error) {
-		dev_err(&ts->client->dev, "request IRQ failed: %d\n", error);
-		return error;
+	pr_debug("%s: irq flags is 0x%x\n", __func__, ts->irq_flags);
+	tpwork = kmalloc(sizeof(*tpwork), GFP_ATOMIC);
+	INIT_WORK(tpwork, work_queue);
+	if(hotpoll_flag == 0) {
+		error = goodix_request_irq();
+		if (error) {
+			dev_err(&ts->client->dev, "request IRQ failed: %d\n", error);
+			return error;
+		}
+	} else {
+		mod_timer(&x3tptimer, jiffies + msecs_to_jiffies(hotpoll_ms));
 	}
-
 	return 0;
 }
 
@@ -699,29 +702,29 @@ static int goodix_configure_dev(struct goodix_ts_data *ts)
  */
 static void goodix_config_cb(const struct firmware *cfg, void *ctx)
 {
-	struct goodix_ts_data *ts = ctx;
-	int error;
+        int error;
 
 	if (cfg) {
 		/* send device configuration to the firmware */
-		error = goodix_send_cfg(ts, cfg);
+		error = goodix_send_cfg(cfg);
 		if (error)
 			goto err_release_cfg;
 	}
-
-	goodix_configure_dev(ts);
-
+        goodix_configure_dev();
+        pr_info("%s: end success!\n", __func__);
 err_release_cfg:
-	release_firmware(cfg);
-	complete_all(&ts->firmware_loading_complete);
+        release_firmware(cfg);
+        complete_all(&ts->firmware_loading_complete);
 }
+
 
 static int goodix_ts_probe(struct i2c_client *client,
 			   const struct i2c_device_id *id)
 {
-	struct goodix_ts_data *ts;
 	int error;
+	int ret;
 
+	pr_info("=========goodix: touch probe begin=============\n");
 	dev_dbg(&client->dev, "I2C Address: 0x%02x\n", client->addr);
 
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
@@ -737,17 +740,41 @@ static int goodix_ts_probe(struct i2c_client *client,
 	i2c_set_clientdata(client, ts);
 	init_completion(&ts->firmware_loading_complete);
 
-	error = goodix_get_gpio_config(ts);
-	if (error)
+	ret = of_property_read_u32(client->dev.of_node, "irq_pin", &tp_irq_pin);
+	if (ret) {
+		dev_err(&client->dev, "Filed to get irq_pin %d\n", ret);
+		return ret;
+	}
+	ret = gpio_request(tp_irq_pin, "irq_pin");
+	if (ret < 0) {
+		dev_err(&client->dev, "Filed to request irq_pin-%d %d\n",
+				tp_irq_pin, ret);
+		return ret;
+	}
+#ifdef CONFIG_HOBOT_IAR
+	ret = get_iar_module_rst_pin();
+	if (ret < 0) {
+		dev_err(&client->dev, "Failed to get rst pin from iar module!\n");
+		return ret;
+	}
+	tp_rst_pin = ret;
+#else
+	ret = of_property_read_u32(client->dev.of_node, "rst_pin", &tp_rst_pin);
+	if (ret) {
+		dev_err(&client->dev, "Filed to get rst_pin %d\n", ret);
+		return ret;
+	}
+	ret = gpio_request(tp_rst_pin, "rst_pin");
+	if (ret < 0) {
+		dev_err(&client->dev, "Filed to request rst_pin-%d %d\n",
+				tp_irq_pin, ret);
+		return ret;
+	}
+#endif
+	error = goodix_reset();
+	if (error) {
+		dev_err(&client->dev, "Controller reset failed.\n");
 		return error;
-
-	if (ts->gpiod_int && ts->gpiod_rst) {
-		/* reset the controller */
-		error = goodix_reset(ts);
-		if (error) {
-			dev_err(&client->dev, "Controller reset failed.\n");
-			return error;
-		}
 	}
 
 	error = goodix_i2c_test(client);
@@ -756,7 +783,7 @@ static int goodix_ts_probe(struct i2c_client *client,
 		return error;
 	}
 
-	error = goodix_read_version(ts);
+	error = goodix_read_version();
 	if (error) {
 		dev_err(&client->dev, "Read version failed.\n");
 		return error;
@@ -764,7 +791,7 @@ static int goodix_ts_probe(struct i2c_client *client,
 
 	ts->cfg_len = goodix_get_cfg_len(ts->id);
 
-	if (ts->gpiod_int && ts->gpiod_rst) {
+	if (tp_irq_pin && tp_rst_pin) {
 		/* update device config */
 		ts->cfg_name = devm_kasprintf(&client->dev, GFP_KERNEL,
 					      "goodix_%d_cfg.bin", ts->id);
@@ -780,14 +807,12 @@ static int goodix_ts_probe(struct i2c_client *client,
 				error);
 			return error;
 		}
-
-		return 0;
 	} else {
-		error = goodix_configure_dev(ts);
+		error = goodix_configure_dev();
 		if (error)
 			return error;
 	}
-
+	pr_info("%s: goodix probe success!\n", __func__);
 	return 0;
 }
 
@@ -821,7 +846,7 @@ static int __maybe_unused goodix_suspend(struct device *dev)
 	/* Output LOW on the INT pin for 5 ms */
 	error = gpiod_direction_output(ts->gpiod_int, 0);
 	if (error) {
-		goodix_request_irq(ts);
+		goodix_request_irq();
 		return error;
 	}
 
@@ -832,7 +857,7 @@ static int __maybe_unused goodix_suspend(struct device *dev)
 	if (error) {
 		dev_err(&ts->client->dev, "Screen off command failed\n");
 		gpiod_direction_input(ts->gpiod_int);
-		goodix_request_irq(ts);
+		goodix_request_irq();
 		return -EAGAIN;
 	}
 
@@ -866,11 +891,11 @@ static int __maybe_unused goodix_resume(struct device *dev)
 
 	usleep_range(2000, 5000);
 
-	error = goodix_int_sync(ts);
+	error = goodix_int_sync();
 	if (error)
 		return error;
 
-	error = goodix_request_irq(ts);
+	error = goodix_request_irq();
 	if (error)
 		return error;
 

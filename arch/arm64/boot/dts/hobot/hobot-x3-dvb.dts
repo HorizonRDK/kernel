@@ -257,6 +257,12 @@
 		rst_pin = <28>;
 		irq_pin = <21>;
 	};
+        Goodix-TS@0x14 {
+		compatible = "goodix,gt911";
+		reg = <0x14>;
+		irq_pin = <29>;
+        };
+
 };
 &i2c1 {
 	status = "okay";
@@ -271,7 +277,7 @@
 
 &pinctrl {
 	status = "okay";
-	gpioirq-bank-cfg = <85 0 0 0>;
+	gpioirq-bank-cfg = <85 29 0 0>;
 };
 
 &uart0 {

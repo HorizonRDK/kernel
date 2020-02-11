@@ -66,6 +66,7 @@ uint8_t ipu_process_done;
 uint8_t disp_user_update;
 //uint8_t pingpong_config = 0;
 uint8_t frame_count;
+uint8_t rst_request_flag;
 
 phys_addr_t logo_paddr;
 void *logo_vaddr;
@@ -1609,6 +1610,14 @@ int panel_hardware_reset(void)
 }
 EXPORT_SYMBOL_GPL(panel_hardware_reset);
 
+int get_iar_module_rst_pin(void)
+{
+	if (rst_request_flag == 0)
+		return -1;
+	return panel_reset_pin;
+}
+EXPORT_SYMBOL_GPL(get_iar_module_rst_pin);
+
 static int x2_iar_probe(struct platform_device *pdev)
 {
 	struct resource *res, *irq, *res_mipi;
@@ -1660,6 +1669,8 @@ static int x2_iar_probe(struct platform_device *pdev)
 			pr_err("%s() Err get trigger pin ret= %d\n",
 						__func__, ret);
 			//return -ENODEV;
+		} else {
+			rst_request_flag = 1;
 		}
 	}
 	pr_debug("gpio request succeed!!!!\n");
