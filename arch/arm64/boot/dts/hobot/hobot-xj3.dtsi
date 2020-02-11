@@ -263,8 +263,7 @@
 			interrupt-parent = <&gic>;
 			interrupts = <0 26 4>;
 			/* dr_mode: {peripheral, host, otg} */
-			//dr_mode = "otg";
-			dr_mode = "host";
+			dr_mode = "otg";
 			/* phy_type: {utmi, utmi_wide, ulpi, serial, hsic} */
 			snps,dis_u2_susphy_quirk;
 			/* snps,dis_u3_susphy_quirk; */
