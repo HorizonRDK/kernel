@@ -4236,7 +4236,7 @@ static netdev_tx_t x2_tso_xmit(struct sk_buff *skb, struct net_device *ndev)
 
 	tx_q = &priv->tx_queue[queue];
 
-//	printk("%s: here\n",__func__);
+	printk("%s: here\n",__func__);
 	proto_hdr_len = skb_transport_offset(skb) + tcp_hdrlen(skb);
 	//printk("%s, and transport offset:%d, tcphdrlen:%d\n", __func__, skb_transport_offset(skb), tcp_hdrlen(skb));
 	if (unlikely(x2_tx_avail(priv, queue) < (((skb->len - proto_hdr_len) / TSO_MAX_BUFF_SIZE + 1)))) {
@@ -6182,11 +6182,119 @@ static const struct of_device_id hgb_of_match[] = {
 
 MODULE_DEVICE_TABLE(of, hgb_of_match);
 
+
+#ifdef CONFIG_PM_SLEEP
+
+static int hobot_eth_suspend(struct device *dev)
+{
+    struct net_device *ndev = dev_get_drvdata(dev);
+    struct x2_priv *priv = netdev_priv(ndev);
+    u32 rx_cnt = priv->plat->rx_queues_to_use;
+    u32 queue;
+
+    if (!ndev) {
+        printk("%s, and ndev is NULL\n", __func__);
+        return 0;
+    }
+
+    if (!netif_running(ndev)) {
+        return 0;
+    }
+
+    
+    if (ndev->phydev)
+        phy_stop(ndev->phydev);
+
+    netif_device_detach(ndev);
+    netif_carrier_off(ndev);
+
+    for (queue = 0; queue < rx_cnt; queue++) {
+        struct x2_rx_queue *rx_q = &priv->rx_queue[queue];
+        napi_synchronize(&rx_q->napi);
+    }
+
+    x2_stop_all_queues(priv);
+    x2_disable_all_queues(priv);
+    
+    x2_stop_all_dma(priv);
+    x2_link_down(priv);
+
+    x2_set_mac(priv->ioaddr, false);
+    
+    clk_disable_unprepare(priv->plat->x2_mac_div_clk);
+    clk_disable_unprepare(priv->plat->clk_ptp_ref);
+    
+    priv->link = 0;
+    priv->speed = 0;
+    priv->duplex = DUPLEX_UNKNOWN;
+
+    return 0;
+            
+
+}
+
+static void hobot_reset_queues_param(struct x2_priv *priv)
+{
+    u32 rx_cnt = priv->plat->rx_queues_to_use;
+    u32 tx_cnt = priv->plat->tx_queues_to_use;
+    u32 queue;
+
+    for (queue = 0; queue < rx_cnt; queue++) {
+        struct x2_rx_queue *rx_q = &priv->rx_queue[queue];
+        
+        rx_q->cur_rx = 0;
+        rx_q->dirty_rx = 0;
+    }
+
+    for (queue = 0; queue < tx_cnt; queue++) {
+        struct x2_tx_queue *tx_q = &priv->tx_queue[queue];
+       
+        tx_q->cur_tx = 0;
+        tx_q->dirty_tx = 0;
+    }
+}
+static int hobot_eth_resume(struct device *dev)
+{
+    struct net_device *ndev = dev_get_drvdata(dev);
+    struct x2_priv *priv = netdev_priv(ndev);
+    
+     if (!netif_running(ndev)) {
+        return 0;
+    }
+
+    rtnl_lock();
+    clk_prepare_enable(priv->plat->x2_mac_div_clk);
+    clk_prepare_enable(priv->plat->clk_ptp_ref);
+    hobot_reset_queues_param(priv);
+    
+
+    priv->mss = 0;
+    x2_clear_descriptors(priv);
+    x2_hw_setup(ndev,false);
+    x2_set_rx_mode(ndev);
+    x2_enable_all_queues(priv);
+    x2_start_all_queues(priv);
+    
+    rtnl_unlock();
+    netif_device_attach(ndev);
+
+    if (ndev->phydev)
+        phy_start(ndev->phydev);
+
+    return 0;
+
+}
+static SIMPLE_DEV_PM_OPS(hobot_pm_ops, hobot_eth_suspend, hobot_eth_resume);
+
+#endif
 static struct platform_driver hgb_driver = {
 	.probe = hobot_eth_probe,
 	.remove = hgb_remove,
 	.driver = {
 		.name = DRIVER_NAME,
+#ifdef CONFIG_PM_SLEEP
+        .pm = &hobot_pm_ops,
+#endif
 		.of_match_table = hgb_of_match,
 	},
 
