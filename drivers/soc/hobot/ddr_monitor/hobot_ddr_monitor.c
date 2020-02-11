@@ -16,6 +16,7 @@
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/slab.h>
+#include <linux/delay.h>
 
 #include "hobot_ddr_monitor.h"
 static DEFINE_MUTEX(ddr_mo_mutex);
@@ -36,10 +37,18 @@ struct ddr_monitor_dev_s {
 	spinlock_t lock;
 };
 
+#define PORT_NUM_X2 6
+
 #ifdef CONFIG_HOBOT_XJ3
 #define PORT_NUM 8
+#define SYS_PCLK_HZ 300000000
+#define uMCTL2_BASE 0xA2D00000
+#define uMCTL2_MRCTRL0 0x10
+#define uMCTL2_MRCTRL1 0x14
+#define uMCTL2_MRSTAT  0x18
 #else
 #define PORT_NUM 6
+#define SYS_PCLK_HZ 333333333
 #endif
 
 struct ddr_monitor_dev_s* g_ddr_monitor_dev = NULL;
@@ -53,6 +62,17 @@ struct ddr_portdata_s {
 	unsigned int rdata_num;
 	unsigned int raddr_cyc;
 	unsigned int raddr_latency;
+#ifdef CONFIG_HOBOT_XJ3
+	unsigned int max_rtrans_cnt;
+	unsigned int max_rvalid_cnt;
+	unsigned int acc_rtrans_cnt;
+	unsigned int min_rtrans_cnt;
+
+	unsigned int max_wtrans_cnt;
+	unsigned int max_wready_cnt;
+	unsigned int acc_wtrans_cnt;
+	unsigned int min_wtrans_cnt;
+#endif
 };
 
 struct ddr_monitor_result_s {
@@ -69,13 +89,6 @@ struct ddr_monitor_result_s {
 	unsigned int act_cmd_rd_num;
 	unsigned int per_cmd_num;
 	unsigned int per_cmd_rdwr_num;
-#ifdef CONFIG_HOBOT_XJ3
-	unsigned int rd_mrr_data_0;
-	unsigned int rd_mrr_data_1;
-	unsigned int rd_mrr_data_2;
-	unsigned int rd_mrr_data_3;
-	unsigned int dfi_error_info;
-#endif
 
 };
 
@@ -92,12 +105,14 @@ struct ddr_monitor_result_s* ddr_info = NULL;
 char * result_buf = NULL;
 unsigned int g_current_index = 0;
 volatile unsigned int g_record_num = 0;
-unsigned int g_monitor_poriod = 1000;
+unsigned int g_monitor_period = 10000;//unit is us, use 10ms by default
 unsigned int g_sample_number = 0;
+unsigned int g_extra_rd_info = 0;
 
 module_param(g_current_index, uint, 0644);
 //module_param(g_record_num, uint, 0644);
-module_param(g_monitor_poriod, uint, 0644);
+module_param(g_monitor_period, uint, 0644);
+module_param(g_extra_rd_info, uint, 0644);
 
 static int dbg_ddr_monitor_show(struct seq_file *s, void *unused)
 {
@@ -129,27 +144,27 @@ static int dbg_ddr_monitor_show(struct seq_file *s, void *unused)
 			{
 				if (ddr_info[cur].portdata[i].raddr_num) {
 					seq_printf(s, "p[%d](bw:%u stall:%u delay:%u) ", i, \
-						(ddr_info[cur].portdata[i].rdata_num * 16 * (1000/g_monitor_poriod)) >> 20, \
+						(ddr_info[cur].portdata[i].rdata_num * 16 * (1000/g_monitor_period)) >> 20, \
 						ddr_info[cur].portdata[i].raddr_cyc / ddr_info[cur].portdata[i].rdata_num, \
 						ddr_info[cur].portdata[i].raddr_latency / ddr_info[cur].portdata[i].rdata_num);
 				} else {
 					seq_printf(s, "p[%d](bw:%u stall:%u delay:%u) ", i, 0, 0, 0);
 				}
 			}
-			seq_printf(s, "ddrc:%u MB/s; ", (ddr_info[cur].rd_cmd_num * 64 * (1000/g_monitor_poriod)) >> 20);
+			seq_printf(s, "ddrc:%u MB/s; ", (ddr_info[cur].rd_cmd_num * 64 * (1000/g_monitor_period)) >> 20);
 			seq_printf(s, "Write: ");
 			for (i = 0; i < 6; i++)
 			{
 				if (ddr_info[cur].portdata[i].waddr_num) {
 					seq_printf(s, "p[%d](bw:%u stall:%u delay:%u) ", i, \
-						(ddr_info[cur].portdata[i].wdata_num * 16 * (1000/g_monitor_poriod)) >> 20, \
+						(ddr_info[cur].portdata[i].wdata_num * 16 * (1000/g_monitor_period)) >> 20, \
 						ddr_info[cur].portdata[i].waddr_cyc / ddr_info[cur].portdata[i].wdata_num, \
 						ddr_info[cur].portdata[i].waddr_latency / ddr_info[cur].portdata[i].wdata_num);
 				} else {
 					seq_printf(s, "p[%d](bw:%u stall:%u delay:%u) ", i, 0, 0, 0);
 				}
 			}
-			seq_printf(s, "ddrc %u MB/s, mask %u MB/s\n", (ddr_info[cur].wr_cmd_num * 64 * (1000/g_monitor_poriod)) >> 20, (ddr_info[cur].mwr_cmd_num * 64 * (1000/g_monitor_poriod)) >> 20);
+			seq_printf(s, "ddrc %u MB/s, mask %u MB/s\n", (ddr_info[cur].wr_cmd_num * 64 * (1000/g_monitor_period)) >> 20, (ddr_info[cur].mwr_cmd_num * 64 * (1000/g_monitor_poriod)) >> 20);
 		}
 		seq_printf(s, "The ddr_monitor module status end: g_record_num:%d\n", g_record_num);
 	}
@@ -203,48 +218,61 @@ static int get_monitor_data(char* buf)
 		for (j = 0; j < num; j++) {
 			cur = (start + j) % TOTAL_RECORD_NUM;
 			length += sprintf(buf + length, "Time %llu ", ddr_info[cur].curtime);
-			length += sprintf(buf + length, "Read : ");
+			length += sprintf(buf + length, "\nRead : ");
 			for (i = 0; i < PORT_NUM; i++)
 			{
 				if (ddr_info[cur].portdata[i].raddr_num) {
 					read_bw = ((unsigned long) ddr_info[cur].portdata[i].rdata_num) *
-						  16 * (1000000 / g_monitor_poriod) >> 20;
+						  16 * (1000000 / g_monitor_period) >> 20;
 					length += sprintf(buf + length, "p[%d](bw:%lu stall:%u delay:%u) ", i, \
 						read_bw,\
 						ddr_info[cur].portdata[i].raddr_cyc / ddr_info[cur].portdata[i].raddr_num, \
 						ddr_info[cur].portdata[i].raddr_latency / ddr_info[cur].portdata[i].raddr_num);
+#ifdef CONFIG_HOBOT_XJ3
+					if (g_extra_rd_info) {
+						length += sprintf(buf + length, "(maxRTrans:%u maxRvalid:%u accRtrans:%u minRtrans:%u) ", \
+							ddr_info[cur].portdata[i].max_rtrans_cnt, \
+							ddr_info[cur].portdata[i].max_rvalid_cnt, \
+							ddr_info[cur].portdata[i].acc_rtrans_cnt / ddr_info[cur].portdata[i].waddr_num, \
+							ddr_info[cur].portdata[i].min_rtrans_cnt);
+					}
+#endif
 				} else {
 					length += sprintf(buf + length, "p[%d](bw:%u stall:%u delay:%u) ", i, 0, 0, 0);
 				}
 			}
 			read_bw = ((unsigned long) ddr_info[cur].rd_cmd_num) *
-				  64 * (1000000/g_monitor_poriod) >> 20;
+				  64 * (1000000/g_monitor_period) >> 20;
 			length += sprintf(buf + length, "ddrc:%lu MB/s;\n", read_bw);
 			length += sprintf(buf + length, "Write: ");
 			for (i = 0; i < PORT_NUM; i++) {
 				if (ddr_info[cur].portdata[i].waddr_num) {
 					write_bw = ((unsigned long) ddr_info[cur].portdata[i].wdata_num) *
-						    16 * (1000000 / g_monitor_poriod) >> 20;
+						    16 * (1000000 / g_monitor_period) >> 20;
 					length += sprintf(buf + length, "p[%d](bw:%lu stall:%u delay:%u) ", i, \
 							write_bw, \
 						ddr_info[cur].portdata[i].waddr_cyc / ddr_info[cur].portdata[i].waddr_num, \
 						ddr_info[cur].portdata[i].waddr_latency / ddr_info[cur].portdata[i].waddr_num);
+#ifdef CONFIG_HOBOT_XJ3
+					if (g_extra_rd_info) {
+						length += sprintf(buf + length, "(maxWTrans:%u maxWready:%u accWtrans:%u minWtrans:%u) ", \
+							ddr_info[cur].portdata[i].max_wtrans_cnt, \
+							ddr_info[cur].portdata[i].max_wready_cnt, \
+							ddr_info[cur].portdata[i].acc_wtrans_cnt / ddr_info[cur].portdata[i].waddr_num, \
+							ddr_info[cur].portdata[i].min_wtrans_cnt);
+					}
+#endif
 				} else {
 					length += sprintf(buf + length, "p[%d](bw:%u stall:%u delay:%u) ", i, 0, 0, 0);
 				}
 			}
 			write_bw = ((unsigned long) ddr_info[cur].wr_cmd_num) *
-				    64 * (1000000 / g_monitor_poriod) >> 20;
+				    64 * (1000000 / g_monitor_period) >> 20;
 			mask_bw = ((unsigned int) ddr_info[cur].mwr_cmd_num) *
-				   64 * (1000000 / g_monitor_poriod) >> 20;
+				   64 * (1000000 / g_monitor_period) >> 20;
 			length += sprintf(buf + length, "ddrc %lu MB/s, mask %lu MB/s\n", write_bw, mask_bw);
-#ifdef CONFIG_HOBOT_XJ3
-			length += sprintf(buf + length, "mrr0:0x%08x, mrr1:0x%08x, mrr2:0x%08x, mrr3:0x%08x, dfi_err_info:0x%08x\n",
-				ddr_info[cur].rd_mrr_data_0, ddr_info[cur].rd_mrr_data_1, ddr_info[cur].rd_mrr_data_2,
-				ddr_info[cur].rd_mrr_data_3, ddr_info[cur].dfi_error_info);
-#endif
 			length += sprintf(buf + length, "\n");
- 
+
 		}
 	}
 	return length;
@@ -273,6 +301,7 @@ static int __init ddr_monitor_debuginit(void)
 
 	return 0;
 }
+
 
 typedef struct _reg_s {
 	uint32_t offset;
@@ -395,12 +424,15 @@ static long ddr_monitor_mod_ioctl(struct file *pfile, unsigned int cmd, unsigned
 					"sampletime set copy_from_user failed\n");
 			return -EINVAL;
 		}
+		/* sample_period's unit is ms */
 		temp = sample_config.sample_period;
 		g_sample_number = sample_config.sample_number;
-		writel(temp * 1000 * 1000 / 3,
+		writel(temp * (SYS_PCLK_HZ / 1000),
 			g_ddr_monitor_dev->regaddr + PERF_MONITOR_PERIOD);
+		g_monitor_period = temp * 1000;
+
 		writel(0x1, g_ddr_monitor_dev->regaddr + PERF_MONITOR_ENABLE_UNMASK);
-		writel(0xff, g_ddr_monitor_dev->regaddr + PERF_MONITOR_ENABLE);
+		writel(0xfff, g_ddr_monitor_dev->regaddr + PERF_MONITOR_ENABLE);
 		g_ktime_start = ktime_get();
 		break;
 	default:
@@ -481,13 +513,16 @@ int ddr_monitor_start(void)
 	pr_debug("\n");
 
 	if (g_ddr_monitor_dev && !ddr_info) {
+
 		writel(0xFFF, g_ddr_monitor_dev->regaddr + PERF_MONITOR_ENABLE);
 		writel(0x1, g_ddr_monitor_dev->regaddr + PERF_MONITOR_ENABLE_UNMASK);
 		ddr_info = vmalloc(sizeof(struct ddr_monitor_result_s) * TOTAL_RECORD_NUM);
-		result_buf = g_ddr_monitor_dev->res_vaddr;//vmalloc(1024*80);
+		result_buf = g_ddr_monitor_dev->res_vaddr;
 		g_current_index = 0;
 		g_record_num = 0;
-		writel(0x51616 * g_monitor_poriod, g_ddr_monitor_dev->regaddr + PERF_MONITOR_PERIOD);
+		pr_info("PERF_MONITOR_PERIOD is %dms\n", g_monitor_period/1000);
+		writel((SYS_PCLK_HZ /1000000) * g_monitor_period, g_ddr_monitor_dev->regaddr + PERF_MONITOR_PERIOD);
+
 	}
 
 	return 0;
@@ -510,21 +545,43 @@ int ddr_get_port_status(void)
 {
 	int i = 0;
 	ktime_t ktime;
+	int step;
 
 
 	ktime = ktime_sub(ktime_get(), g_ktime_start);
 	ddr_info[g_current_index].curtime = ktime_to_us(ktime);
 
 	for (i = 0; i < PORT_NUM; i++) {
-		ddr_info[g_current_index].portdata[i].raddr_num = readl(g_ddr_monitor_dev->regaddr + MP_BASE_RADDR_TX_NUM + i * MP_REG_OFFSET);
-		ddr_info[g_current_index].portdata[i].rdata_num = readl(g_ddr_monitor_dev->regaddr + MP_BASE_RDATA_TX_NUM + i * MP_REG_OFFSET);
-		ddr_info[g_current_index].portdata[i].raddr_cyc = readl(g_ddr_monitor_dev->regaddr + MP_BASE_RADDR_ST_CYC + i * MP_REG_OFFSET);
-		ddr_info[g_current_index].portdata[i].raddr_latency = readl(g_ddr_monitor_dev->regaddr + MP_BASE_RA2LSTRD_LATENCY + i * MP_REG_OFFSET);
+		step = i * MP_REG_OFFSET;
+#ifdef CONFIG_HOBOT_XJ3
+		if (i >= 6) {
+			pr_debug("i:%d step: %08x\n", i, step);
+			step += MP_REG_OFFSET;
+		}
+#endif
 
-		ddr_info[g_current_index].portdata[i].waddr_num = readl(g_ddr_monitor_dev->regaddr + MP_BASE_WADDR_TX_NUM + i * MP_REG_OFFSET);
-		ddr_info[g_current_index].portdata[i].wdata_num = readl(g_ddr_monitor_dev->regaddr + MP_BASE_WDATA_TX_NUM + i * MP_REG_OFFSET);
-		ddr_info[g_current_index].portdata[i].waddr_cyc = readl(g_ddr_monitor_dev->regaddr + MP_BASE_WADDR_ST_CYC + i * MP_REG_OFFSET);
-		ddr_info[g_current_index].portdata[i].waddr_latency = readl(g_ddr_monitor_dev->regaddr + MP_BASE_WA2BRESP_LATENCY + i * MP_REG_OFFSET);
+		ddr_info[g_current_index].portdata[i].raddr_num = readl(g_ddr_monitor_dev->regaddr + MP_BASE_RADDR_TX_NUM + step);
+		ddr_info[g_current_index].portdata[i].rdata_num = readl(g_ddr_monitor_dev->regaddr + MP_BASE_RDATA_TX_NUM + step);
+		ddr_info[g_current_index].portdata[i].raddr_cyc = readl(g_ddr_monitor_dev->regaddr + MP_BASE_RADDR_ST_CYC + step);
+		ddr_info[g_current_index].portdata[i].raddr_latency = readl(g_ddr_monitor_dev->regaddr + MP_BASE_RA2LSTRD_LATENCY + step);
+
+#ifdef CONFIG_HOBOT_XJ3
+		if (g_extra_rd_info) {
+			ddr_info[g_current_index].portdata[i].max_rtrans_cnt = readl(g_ddr_monitor_dev->regaddr + MP_BASE_MAX_RTRANS_CNT + step);
+			ddr_info[g_current_index].portdata[i].max_rvalid_cnt = readl(g_ddr_monitor_dev->regaddr + MP_BASE_MAX_RVALID_CNT + step);
+			ddr_info[g_current_index].portdata[i].acc_rtrans_cnt = readl(g_ddr_monitor_dev->regaddr + MP_BASE_ACC_RTRANS_CNT + step);
+			ddr_info[g_current_index].portdata[i].min_rtrans_cnt = readl(g_ddr_monitor_dev->regaddr + MP_BASE_MIN_RTRANS_CNT + step);
+
+			ddr_info[g_current_index].portdata[i].max_wtrans_cnt = readl(g_ddr_monitor_dev->regaddr + MP_BASE_MAX_WTRANS_CNT + step);
+			ddr_info[g_current_index].portdata[i].max_wready_cnt = readl(g_ddr_monitor_dev->regaddr + MP_BASE_MAX_WREADY_CNT + step);
+			ddr_info[g_current_index].portdata[i].acc_wtrans_cnt = readl(g_ddr_monitor_dev->regaddr + MP_BASE_ACC_WTRANS_CNT + step);
+			ddr_info[g_current_index].portdata[i].min_wtrans_cnt = readl(g_ddr_monitor_dev->regaddr + MP_BASE_MIN_WTRANS_CNT + step);
+		}
+#endif
+		ddr_info[g_current_index].portdata[i].waddr_num = readl(g_ddr_monitor_dev->regaddr + MP_BASE_WADDR_TX_NUM + step);
+		ddr_info[g_current_index].portdata[i].wdata_num = readl(g_ddr_monitor_dev->regaddr + MP_BASE_WDATA_TX_NUM + step);
+		ddr_info[g_current_index].portdata[i].waddr_cyc = readl(g_ddr_monitor_dev->regaddr + MP_BASE_WADDR_ST_CYC + step);
+		ddr_info[g_current_index].portdata[i].waddr_latency = readl(g_ddr_monitor_dev->regaddr + MP_BASE_WA2BRESP_LATENCY + step);
 	}
 
 	ddr_info[g_current_index].rd_cmd_num = readl(g_ddr_monitor_dev->regaddr + RD_CMD_TX_NUM);
@@ -539,13 +596,6 @@ int ddr_get_port_status(void)
 	ddr_info[g_current_index].per_cmd_num = readl(g_ddr_monitor_dev->regaddr + PERCHARGE_CMD_TX_NUM);
 	ddr_info[g_current_index].per_cmd_rdwr_num = readl(g_ddr_monitor_dev->regaddr + PERCHARGE_CMD_FOR_RDWR_TX_NUM);
 
-#ifdef CONFIG_HOBOT_XJ3
-	ddr_info[g_current_index].rd_mrr_data_0 = readl(g_ddr_monitor_dev->regaddr + DDR_MSG_MRR_DATA_RD_0);
-	ddr_info[g_current_index].rd_mrr_data_1 = readl(g_ddr_monitor_dev->regaddr + DDR_MSG_MRR_DATA_RD_1);
-	ddr_info[g_current_index].rd_mrr_data_2 = readl(g_ddr_monitor_dev->regaddr + DDR_MSG_MRR_DATA_RD_2);
-	ddr_info[g_current_index].rd_mrr_data_3 = readl(g_ddr_monitor_dev->regaddr + DDR_MSG_MRR_DATA_RD_3);
-	ddr_info[g_current_index].dfi_error_info = readl(g_ddr_monitor_dev->regaddr + DDR_MSG_RD);
-#endif
 
 	//ddr_info[g_current_index].curtime = jiffies;
 	g_current_index = (g_current_index + 1) % TOTAL_RECORD_NUM;
