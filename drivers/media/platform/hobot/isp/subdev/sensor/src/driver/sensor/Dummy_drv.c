@@ -534,19 +534,11 @@ static void sensor_set_mode(void *ctx, uint8_t mode)
     param->integration_time_max = 900;//TODO
     param->integration_time_long_max = 900 * 3; // (((uint32_t)(dummy_drv_supported_modes[mode].resolution.height)) << 2)-256;
     param->integration_time_limit = 900;//TODO
-    param->mode = mode;
     param->lines_per_second = 10000;
     param->sensor_exp_number = param->modes_table[mode].exposures;
     //sensor param init
-#if 0
-    if (mode == 0) {
-    	sensor_set_type(ctx, SENSOR_NULL, param->sensor_i2c_channel);
-	printk("-------------sensor type 0-------------------");
-    } else {
-    	sensor_set_type(ctx, SENSOR_COMMON, param->sensor_i2c_channel);
-	printk("-------------sensor type 1-------------------");
-    }
-#endif
+    dummy_drv_supported_modes[param->mode].fps = 2560;
+    param->mode = mode;
 //    printk("sensor set mode to %d, %dx%d raw%d, dol%d", mode, dummy_drv_supported_modes[mode].resolution.width, \
         dummy_drv_supported_modes[mode].resolution.height, dummy_drv_supported_modes[mode].bits, dummy_drv_supported_modes[mode].exposures);
 }
@@ -572,6 +564,11 @@ static const sensor_param_t *sensor_get_parameters( void *ctx )
 			param->integration_time_max = sensor_param.exposure_time_max;
 			param->integration_time_limit = sensor_param.exposure_time_max;
 			param->integration_time_long_max = sensor_param.exposure_time_long_max;
+			if (sensor_param.fps) {
+				dummy_drv_supported_modes[param->mode].fps = sensor_param.fps;
+			} else {
+				dummy_drv_supported_modes[param->mode].fps = 2560;
+			}
 		} else {
 			sensor_ops[p_ctx->channel]->param_enable = 0;
 		}

@@ -28,6 +28,7 @@ struct _setting_param_t {
 	uint32_t exposure_time_long_max;
         uint16_t active_width;
         uint16_t active_height;
+	uint32_t fps;
 };
 
 

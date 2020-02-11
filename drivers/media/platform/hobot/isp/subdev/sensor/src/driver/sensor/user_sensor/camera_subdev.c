@@ -338,6 +338,7 @@ void common_get_param(uint8_t chn, struct _setting_param_t *user_para)
 	user_para->exposure_time_long_max = sensor_param[chn].exposure_time_long_max;
 	user_para->active_width = sensor_param[chn].active_width;
 	user_para->active_height = sensor_param[chn].active_height;
+	user_para->fps = sensor_param[chn].fps;
 }
 
 static struct sensor_operations common_ops = {
