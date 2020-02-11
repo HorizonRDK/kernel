@@ -936,7 +936,7 @@
 		};
 
 		bifsd: bifsd@A1007000 {
-			compatible = "hobot,bifsd";
+			compatible = "hobot,hobot-bifsd";
 			reg = <0x0 0xA1007000 0x0 0x1000>,
 				  <0x0 0xA1000590 0x0 0x10>;
 			interrupt-parent = <&gic>;

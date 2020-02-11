@@ -1,36 +1,8 @@
-/*****************************************************************************/
-/*                                                                           */
-/*                     HozironRobtics MMC MAC SOFTWARE                       */
-/*                                                                           */
-/*                  Horizon Robtics SYSTEMS LTD                              */
-/*                           COPYRIGHT(C) 2018                               */
-/*                                                                           */
-/*  This program  is  proprietary to  Ittiam  Systems  Private  Limited  and */
-/*  is protected under china Copyright Law as an unpublished work. Its use   */
-/*  and  disclosure  is  limited by  the terms  and  conditions of a license */
-/*  agreement. It may not be copied or otherwise  reproduced or disclosed to */
-/*  persons outside the licensee's organization except in accordance with the*/
-/*  terms  and  conditions   of  such  an  agreement.  All  copies  and      */
-/*  reproductions shall be the property of HorizonRobtics Systems Private    */
-/*    Limited and must bear this notice in its entirety.                     */
-/*                                                                           */
-/*****************************************************************************/
-
-/*****************************************************************************/
-/*                                                                           */
-/*  File Name         : x2_bifsd.h                                        */
-/*                                                                           */
-/*  Description       : This file contains all the declarations related to   */
-/*                      MMC host interface.                                  */
-/*                                                                           */
-/*  Issues / Problems : None                                                 */
-/*                                                                           */
-/*  Revision History  :                                                      */
-/*                                                                           */
-/*         DD MM YYYY   Author(s)       Changes                              */
-/*         10 24 2018   shaochuan.zhang@horizon.ai  Draft                                */
-/*                                                                           */
-/*****************************************************************************/
+/*************************************************************
+ ****			 COPYRIGHT NOTICE
+ ****		 Copyright 2018-2019 Horizon Robotics, Inc.
+ ****			 All rights reserved.
+ *************************************************************/
 
 #ifndef __HOBOT_BIFSD_DEV_H__
 #define __HOBOT_BIFSD_DEV_H__
@@ -46,11 +18,11 @@
 /*****************************************************************************/
 /* Constants                                                                 */
 /*****************************************************************************/
-#ifdef CONFIG_HOBOT_FPGA_X3
+#if defined(CONFIG_HOBOT_FPGA_X2) || defined(CONFIG_HOBOT_FPGA_X3)
 #define HUGO_PLM
 #endif
 /* MMC AHB related Registers */
-#define EMMC_AHB_BASE    0xA1007000
+#define EMMC_AHB_BASE    (0xA1007000)
 
 #define EMMC_PROGRAM_REG          (0x00)
 #define EMMC_OCR                  (0x04)
@@ -92,9 +64,8 @@
 #define EMMC_BLOCK_COUNT_SECURITY (0x250)
 #define EMMC_ACC_CONFIG           (0x590)
 
-#define OUT_RANGE_ADDR 0xFFFFFFFF
-#define EMMC_BLK_CNT 32
-#define EMMC_SECURITY_INT_ENABLE_VAL 0x00000FFF
+#define EMMC_BLK_CNT			(32)
+#define EMMC_SECURITY_INT_ENABLE_VAL	(0x00000FFF)
 
 /* Interrupt status register_1 */
 #define MMC_CSD_UPDATE			(1<<0)
@@ -105,8 +76,8 @@
 #define MMC_INACTIVE_CMD		(1<<5)
 #define MMC_SET_BLOCK_LEN		(1<<6)
 #define MMC_CMD6_ALWAYS			(1<<7)
-#define MMC_CMD_61      		(1<<8)
-#define MMC_CMD_40      		(1<<9)
+#define MMC_CMD_61			(1<<8)
+#define MMC_CMD_40			(1<<9)
 #define MMC_BLK_READ			(1<<10)
 #define MMC_BLK_WRITE			(1<<11)
 #define MMC_WRITE_BLOCK_CNT		(1<<12)
@@ -163,16 +134,16 @@
 #define MMC_CMD46			(1<<30)
 #define MMC_FIFO_NOT_EMPTY		(1<<31)
 
-#define NAC_NON_HS_200_400_VAL (2)
-#define NAC_HS_200_400_VAL (5)
-#define NCR_VALUE (0)
-#define NCRC_VALUE (3)
+#define NAC_NON_HS_200_400_VAL		(2)
+#define NAC_HS_200_400_VAL		(5)
+#define NCR_VALUE			(0)
+#define NCRC_VALUE			(3)
 
-#define MMC_CPU_CLOCK 40000000
-#define HR_TIMER_BASE 0xA1002000
+//#define MMC_CPU_CLOCK 40000000
+//#define HR_TIMER_BASE 0xA1002000
 
 /* Events from the bifsd core */
-#define BIFSD_DATA_RX_COMP		0x0001
+//#define BIFSD_DATA_RX_COMP		0x0001
 
 /* Register access macros */
 #define sd_readl(dev, reg, offset)                     \
@@ -180,14 +151,7 @@
 #define sd_writel(dev, reg, value, offset)                             \
 	writel_relaxed((value), (dev)->regs + EMMC_##reg + offset)
 
-#define WAKE_RX_WORK(rx_info) \
-	do { \
-		queue_work((sd)->bifsd_rxwq, &sd->BifsdRxWork); \
-	} while (0)
-
 #define MMC_MODE mmc_card_5_0
-
-//#define BIFSD_TX_RX_TEST_MODE
 /*****************************************************************************/
 /* Data Types                                                                */
 /*****************************************************************************/
@@ -196,9 +160,14 @@
 /* Enums                                                                     */
 /*****************************************************************************/
 typedef enum {
-	MEDIA_CONNECTED = 0x1,	/* First chunk */
-	MEDIA_DISCONNECTED = 0x2	/* Last chunk  */
-} ASYNC_EVENT;
+	WORK_MODE_ACC = 0,	/* acc */
+	WORK_MODE_BYPASS	/* bypass */
+} WORK_MODE;
+
+typedef enum {
+	OPT_MODE_BYTE = 0,	/* byte */
+	OPT_MODE_SECTOR		/* sector */
+} OPT_MODE;
 
 typedef enum {
 	sd_card,
@@ -219,17 +188,7 @@ enum bifsd_state {
 /*****************************************************************************/
 /* Structures                                                                */
 /******************************************************************************/
-struct bifsd_req {
-	struct list_head list;
-	struct bifsd *sd;
-	void *buf;
-	u32 blk_cnt;
-	u32 len;
-};
-
 struct bif_sd {
-	spinlock_t lock;
-	spinlock_t irq_lock;
 	u32 cd_gpio;
 	void __iomem *regs;
 	void __iomem *sysctrl_reg;
@@ -237,8 +196,6 @@ struct bif_sd {
 	void __iomem *fifo_reg;
 	void __iomem *paddr;
 	void __iomem *vaddr;
-	struct tasklet_struct tasklet;
-	/* Registers's physical base address */
 	resource_size_t phy_regs;
 	const struct bifsd_drv_data *drv_data;
 	struct device *dev;
@@ -253,19 +210,10 @@ struct bif_sd {
 	u32 wr_buf;
 	u32 cmd_argu;
 	u32 range_addr_max; /* access max addr */
-
-	struct bifsd_req *bifsd_rx_reqs;
-	struct list_head bifsd_rx_freeq;
-	int bifsd_rx_freecount;
-	spinlock_t bifsd_rx_freeq_lock;
-	struct list_head bifsd_rx_postq;
-	int bifsd_rx_postcount;
-	spinlock_t bifsd_rx_postq_lock;
-
-	struct workqueue_struct *bifsd_rxwq;
-	struct work_struct BifsdRxWork;
-	atomic_t bifsd_rx_dpc_tskcnt;
-	spinlock_t bifsd_rxqlock;
+	u32 addr_offset;	/* bifsd zero addr can't read/write */
+	u32 capacity;		/* bifsd capacity */
+	u32 work_mode;		/* acc or bypass */
+	u32 opt_mode;		/* byte or sector*/
 };
 
 struct bifsd_drv_data {
@@ -297,6 +245,10 @@ static inline void mmc_set_power_up(struct bif_sd *sd)
 	    || (mmc_type == sdxc_card)) {
 		reg_val |= BIT(0);
 	} else {
+		if (sd->opt_mode == OPT_MODE_BYTE)
+			reg_val |= BIT(1);	// byte mode
+		else
+			reg_val &= ~BIT(1);	// sector mode
 		reg_val |= BIT(2);
 	}
 	sd_writel(sd, POWER_UP, reg_val, 0);
@@ -304,7 +256,6 @@ static inline void mmc_set_power_up(struct bif_sd *sd)
 
 /* This function Set hardware reset count
    that the number of AHB clock cycles equivalent to 1Microseconds */
-
 static inline void mmc_set_hard_reset_cnt(struct bif_sd *sd)
 {
 	u32 pwr_cnt_val = 0x1F4;
@@ -324,7 +275,10 @@ static inline void mmc_config_ocr_reg(struct bif_sd *sd)
 	    || (mmc_type == sdxc_card)) {
 		reg_val = 0x40ff8000;
 	} else {
-		reg_val = 0x40000080;
+		if (sd->opt_mode == OPT_MODE_BYTE)
+			reg_val = 0x00000080;	// byte mode
+		else
+			reg_val = 0x40000080;	// sector mode
 	}
 
 	sd_writel(sd, OCR, reg_val, 0);
