@@ -123,7 +123,11 @@ static int isp_fops_open( struct inode *inode, struct file *f )
         goto lock_failure;
     }
 
-	f->private_data = p_ctx;
+    f->private_data = p_ctx;
+    p_ctx->dev_opened++;
+
+    LOG( LOG_INFO, "open(%s) succeed.", p_ctx->dev_name );
+
 #if 0
     if ( p_ctx->dev_opened ) {
         LOG( LOG_ERR, "open(%s) failed, already opened.", p_ctx->dev_name );
@@ -160,14 +164,15 @@ static int isp_fops_release( struct inode *inode, struct file *f )
         return rc;
     }
 
-    if ( p_ctx->dev_opened ) {
+    p_ctx->dev_opened--;
+
+    if ( p_ctx->dev_opened <= 0 ) {
         p_ctx->dev_opened = 0;
         f->private_data = NULL;
         kfifo_reset( &p_ctx->isp_kfifo_in );
         kfifo_reset( &p_ctx->isp_kfifo_out );
     } else {
-        LOG( LOG_ERR, "Fatal error: wrong state of dev: %s, dev_opened: %d.", p_ctx->dev_name, p_ctx->dev_opened );
-        rc = -EINVAL;
+        pr_info("device name is %s, dev_opened reference count: %d.\n", p_ctx->dev_name, p_ctx->dev_opened);
     }
 
     mutex_unlock( &p_ctx->fops_lock );
@@ -360,9 +365,6 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 
 		for (i = 0; i < md.elem; i++) {
 			system_reg_rw(&rg[i], md.dir);
-//test
-printk("[%d] reg %x\n", i, rg[i].v);
-//end
 		}
 
 		if (md.dir == COMMAND_GET) {
@@ -378,22 +380,15 @@ printk("[%d] reg %x\n", i, rg[i].v);
 	case ISPIOC_LUT_RW:
 		if (copy_from_user(&md, (void __user *)arg, sizeof(md)))
 			return -EFAULT;
-		s = md.elem * sizeof(uint16_t);
+		s = md.elem & 0xffff;
 		md.ptr = kzalloc(s, GFP_KERNEL);
 
 		if (copy_from_user(md.ptr, pmd->ptr, s)) {
 			ret = -EFAULT;
 			break;
 		}
-//test
-{
-int i;
-for (i = 0; i < md.elem / sizeof(uint16_t); i++)
-printk("[%d] chn:%d, dir:%d, id:%x, v:%x\n", i, md.chn, md.dir, md.id, ((uint16_t *)(md.ptr))[i]);
-}
-//end
-		ret = acamera_api_calibration(md.chn, 0, md.id, md.dir, md.ptr, md.elem, &ret_value);
 
+		ret = acamera_api_calibration(md.chn, 0, md.id, md.dir, md.ptr, s, &ret_value);
 		if (ret == SUCCESS && md.dir == COMMAND_GET) {
 			if (copy_to_user(pmd->ptr, md.ptr, s)) {
 				ret = -EFAULT;
@@ -418,16 +413,12 @@ printk("[%d] chn:%d, dir:%d, id:%x, v:%x\n", i, md.chn, md.dir, md.id, ((uint16_
 		kv = md.ptr;
 
 		for (i = 0; i < md.elem; i++) {
-//test
-printk("[%d] chn:%d, dir:%d, id:%x, v:%x\n", i, md.chn, md.dir, kv[i].k, kv[i].v);
-//end
 			if (kv[i].v == CHECK_CODE) {
 				type = kv[i].k;
 				continue;
 			}
 
 			ret = acamera_command(md.chn, type, kv[i].k, kv[i].v, md.dir, &ret_value);
-
 			if (ret == SUCCESS && md.dir == COMMAND_GET)
 				kv[i].v = ret_value;
 		}
