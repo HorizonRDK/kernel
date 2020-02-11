@@ -297,6 +297,13 @@ static int dma_writer_configure_frame_writer( dma_pipe *pipe,
             line_offset = -aframe->line_offset;
         }
 
+        reg_ops->format_write( pipe->settings.isp_base, aframe->type );
+        reg_ops->active_width_write( pipe->settings.isp_base, aframe->width );
+        reg_ops->active_height_write( pipe->settings.isp_base, aframe->height );
+        reg_ops->line_offset_write( pipe->settings.isp_base, line_offset );
+        reg_ops->bank0_base_write( pipe->settings.isp_base, addr );
+        reg_ops->write_on_write( pipe->settings.isp_base, 1 );
+
         reg_ops->format_write_hw( base, aframe->type );
         reg_ops->active_width_write_hw( base, aframe->width );
         reg_ops->active_height_write_hw( base, aframe->height );
