@@ -28,6 +28,7 @@
 #include "hobot_vpu_utils.h"
 
 int vpu_debug_flag = 5;
+int vpu_pf_bw_debug_flag = 0;
 
 #ifdef VPU_SUPPORT_RESERVED_VIDEO_MEMORY
 #define VPU_INIT_VIDEO_MEMORY_SIZE_IN_BYTE (62*1024*1024)
@@ -46,31 +47,29 @@ static hb_vpu_drv_buffer_t s_video_memory = { 0 };
 
 DECLARE_BITMAP(vpu_inst_bitmap, MAX_NUM_VPU_INSTANCE);
 
-static ssize_t vpu_debug_show(struct kobject *kobj,
+static ssize_t vpu_performance_bandwidth_show(struct kobject *kobj,
 			      struct kobj_attribute *attr, char *buf)
 {
-	char *s = buf;
-
-	// TODO add dump interface.
-
-	return (s - buf);
+	return snprintf(buf, 5, "%d\n", vpu_pf_bw_debug_flag ? 1 : 0);
 }
 
-static ssize_t vpu_debug_store(struct kobject *kobj,
+static ssize_t vpu_performance_bandwidth_store(struct kobject *kobj,
 			       struct kobj_attribute *attr, const char *buf,
 			       size_t n)
 {
-	int error = -EINVAL;
-	return error ? error : n;
+	int ret;
+
+	ret = sscanf(buf, "%d", &vpu_pf_bw_debug_flag);
+	return n;
 }
 
 static struct kobj_attribute vpu_debug_attr = {
 	.attr = {
-		 .name = __stringify(vpu_debug_attr),
+		 .name = __stringify(performance_bandwidth),
 		 .mode = 0644,
 		 },
-	.show = vpu_debug_show,
-	.store = vpu_debug_store,
+	.show = vpu_performance_bandwidth_show,
+	.store = vpu_performance_bandwidth_store,
 };
 
 static int vpu_alloc_dma_buffer(hb_vpu_dev_t *dev, hb_vpu_drv_buffer_t * vb)
@@ -760,6 +759,7 @@ static long vpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 #endif
 #ifdef SUPPORT_MULTI_INST_INTR
 #ifdef SUPPORT_TIMEOUT_RESOLUTION
+			ktime_t kt;
 			kt = ktime_set(0, info.timeout * 1000 * 1000);
 			ret =
 			    wait_event_interruptible_hrtimeout
@@ -785,11 +785,12 @@ static long vpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 				//info.timeout);
 				break;
 			}
-#endif
+#else
 			if (!ret) {
 				ret = -ETIME;
 				break;
 			}
+#endif
 #if 0
 			if (signal_pending(current)) {
 				ret = -ERESTARTSYS;
