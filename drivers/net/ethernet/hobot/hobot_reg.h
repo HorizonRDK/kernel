@@ -595,19 +595,6 @@ enum packets_types {
 
 
 
-#define MMC_CNTRL		0x00	/* MMC Control */
-#define MMC_RX_INTR		0x04	/* MMC RX Interrupt */
-#define MMC_TX_INTR		0x08	/* MMC TX Interrupt */
-#define MMC_RX_INTR_MASK	0x0c	/* MMC Interrupt Mask */
-#define MMC_TX_INTR_MASK	0x10	/* MMC Interrupt Mask */
-#define MMC_DEFAULT_MASK	0xffffffff
-
-
-/* IPC*/
-#define MMC_RX_IPC_INTR_MASK		0x100
-#define MMC_RX_IPC_INTR			0x108
-
-
 /* MMC control register */
 /* When set, all counter are reset */
 #define MMC_CNTRL_COUNTER_RESET		0x1
@@ -909,7 +896,7 @@ enum packets_types {
 
 
 
-#define REG_SPACE_SIZE	0x1368
+#define REG_SPACE_SIZE	0x1060
 
 #define NUM_MAC_REGS	0xbd0
 

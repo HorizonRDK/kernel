@@ -9,6 +9,8 @@
 #include <linux/ptp_clock_kernel.h>
 
 #include <linux/pinctrl/consumer.h>
+#include "hobot_mmc.h"
+
 #define X2_MAX_RX_QUEUES 8
 #define X2_MAX_TX_QUEUES 8
 
@@ -503,6 +505,7 @@ struct x2_priv {
 
 	int hw_cap_support;
 	struct dma_features dma_cap;
+    struct hobot_counters mmc;
 
 	u32 csr_val;
 
@@ -807,4 +810,92 @@ static const struct stmmac_stats stmmac_gstrings_stats[] = {
 
 #define STMMAC_STATS_LEN ARRAY_SIZE(stmmac_gstrings_stats)
 
+
+#define HOBOT_MMC_STAT(m) \
+    { #m, FIELD_SIZEOF(struct hobot_counters, m), \
+    offsetof(struct x2_priv, mmc.m)}
+
+static const struct stmmac_stats hobot_mmc[] = {
+    HOBOT_MMC_STAT(mmc_tx_octetcount_gb),
+    HOBOT_MMC_STAT(mmc_tx_framecount_gb),
+    HOBOT_MMC_STAT(mmc_tx_broadcastframe_g),
+    HOBOT_MMC_STAT(mmc_tx_multicastframe_g),
+    HOBOT_MMC_STAT(mmc_tx_64_octets_gb),
+    HOBOT_MMC_STAT(mmc_tx_65_to_127_octets_gb),
+    HOBOT_MMC_STAT(mmc_tx_128_to_255_octets_gb),
+    HOBOT_MMC_STAT(mmc_tx_256_to_511_octets_gb),
+    HOBOT_MMC_STAT(mmc_tx_512_to_1023_octets_gb),
+    HOBOT_MMC_STAT(mmc_tx_1024_to_max_octets_gb),
+    HOBOT_MMC_STAT(mmc_tx_unicast_gb),
+    HOBOT_MMC_STAT(mmc_tx_multicast_gb),
+    HOBOT_MMC_STAT(mmc_tx_broadcast_gb),
+    HOBOT_MMC_STAT(mmc_tx_underflow_error),
+    HOBOT_MMC_STAT(mmc_tx_singlecol_g),
+    HOBOT_MMC_STAT(mmc_tx_multicol_g),
+    HOBOT_MMC_STAT(mmc_tx_deferred),
+    HOBOT_MMC_STAT(mmc_tx_latecol),
+    HOBOT_MMC_STAT(mmc_tx_exesscol),
+    HOBOT_MMC_STAT(mmc_tx_carrier_error),
+    HOBOT_MMC_STAT(mmc_tx_octetcount_g),
+    HOBOT_MMC_STAT(mmc_tx_framecount_g),
+    HOBOT_MMC_STAT(mmc_tx_excessdef),
+    HOBOT_MMC_STAT(mmc_tx_pause_frame),
+    HOBOT_MMC_STAT(mmc_tx_vlan_frame_g),
+    HOBOT_MMC_STAT(mmc_rx_framecount_gb),
+    HOBOT_MMC_STAT(mmc_rx_octetcount_gb),
+    HOBOT_MMC_STAT(mmc_rx_octetcount_g),
+    HOBOT_MMC_STAT(mmc_rx_broadcastframe_g),
+    HOBOT_MMC_STAT(mmc_rx_multicastframe_g),
+    HOBOT_MMC_STAT(mmc_rx_crc_error),
+    HOBOT_MMC_STAT(mmc_rx_align_error),
+    HOBOT_MMC_STAT(mmc_rx_run_error),
+    HOBOT_MMC_STAT(mmc_rx_jabber_error),
+    HOBOT_MMC_STAT(mmc_rx_undersize_g),
+    HOBOT_MMC_STAT(mmc_rx_oversize_g),
+    HOBOT_MMC_STAT(mmc_rx_64_octets_gb),
+    HOBOT_MMC_STAT(mmc_rx_65_to_127_octets_gb),
+    HOBOT_MMC_STAT(mmc_rx_128_to_255_octets_gb),
+    HOBOT_MMC_STAT(mmc_rx_256_to_511_octets_gb),
+    HOBOT_MMC_STAT(mmc_rx_512_to_1023_octets_gb),
+    HOBOT_MMC_STAT(mmc_rx_1024_to_max_octets_gb),
+    HOBOT_MMC_STAT(mmc_rx_unicast_g),
+    HOBOT_MMC_STAT(mmc_rx_length_error),
+    HOBOT_MMC_STAT(mmc_rx_autofrangetype),
+    HOBOT_MMC_STAT(mmc_rx_pause_frames),
+    HOBOT_MMC_STAT(mmc_rx_fifo_overflow),
+    HOBOT_MMC_STAT(mmc_rx_vlan_frames_gb),
+    HOBOT_MMC_STAT(mmc_rx_watchdog_error),
+    HOBOT_MMC_STAT(mmc_rx_ipc_intr_mask),
+    HOBOT_MMC_STAT(mmc_rx_ipc_intr),
+    HOBOT_MMC_STAT(mmc_rx_ipv4_gd),
+    HOBOT_MMC_STAT(mmc_rx_ipv4_hderr),
+    HOBOT_MMC_STAT(mmc_rx_ipv4_nopay),
+    HOBOT_MMC_STAT(mmc_rx_ipv4_frag),
+    HOBOT_MMC_STAT(mmc_rx_ipv4_udsbl),
+    HOBOT_MMC_STAT(mmc_rx_ipv4_gd_octets),
+    HOBOT_MMC_STAT(mmc_rx_ipv4_hderr_octets),
+    HOBOT_MMC_STAT(mmc_rx_ipv4_nopay_octets),
+    HOBOT_MMC_STAT(mmc_rx_ipv4_frag_octets),
+    HOBOT_MMC_STAT(mmc_rx_ipv4_udsbl_octets),
+    HOBOT_MMC_STAT(mmc_rx_ipv6_gd_octets),
+    HOBOT_MMC_STAT(mmc_rx_ipv6_hderr_octets),
+    HOBOT_MMC_STAT(mmc_rx_ipv6_nopay_octets),
+    HOBOT_MMC_STAT(mmc_rx_ipv6_gd),
+    HOBOT_MMC_STAT(mmc_rx_ipv6_hderr),
+    HOBOT_MMC_STAT(mmc_rx_ipv6_nopay),
+    HOBOT_MMC_STAT(mmc_rx_udp_gd),
+    HOBOT_MMC_STAT(mmc_rx_udp_err),
+    HOBOT_MMC_STAT(mmc_rx_tcp_gd),
+    HOBOT_MMC_STAT(mmc_rx_tcp_err),
+    HOBOT_MMC_STAT(mmc_rx_icmp_gd),
+    HOBOT_MMC_STAT(mmc_rx_icmp_err),
+    HOBOT_MMC_STAT(mmc_rx_udp_gd_octets),
+    HOBOT_MMC_STAT(mmc_rx_udp_err_octets),
+    HOBOT_MMC_STAT(mmc_rx_tcp_gd_octets),
+    HOBOT_MMC_STAT(mmc_rx_tcp_err_octets),
+    HOBOT_MMC_STAT(mmc_rx_icmp_gd_octets),
+    HOBOT_MMC_STAT(mmc_rx_icmp_err_octets),
+};
+
+#define STMMAC_MMC_STATS_LEN ARRAY_SIZE(hobot_mmc)
 #endif

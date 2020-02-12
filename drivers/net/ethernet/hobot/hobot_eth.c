@@ -2777,21 +2777,29 @@ static void x2_dma_operation_mode(struct x2_priv *priv)
 
 
 }
+#if 0
 static void x2_mmc_intr_all_mask(void __iomem *mmcaddr)
 {
 	writel(MMC_DEFAULT_MASK, mmcaddr + MMC_RX_INTR_MASK);
 	writel(MMC_DEFAULT_MASK, mmcaddr + MMC_TX_INTR_MASK);
 	writel(MMC_DEFAULT_MASK, mmcaddr + MMC_RX_IPC_INTR_MASK);
 }
-
+#endif
 static void x2_mmc_setup(struct x2_priv *priv)
 {
-	//unsigned int mode = MMC_CNTRL_RESET_ON_READ | MMC_CNTRL_COUNTER_RESET |MMC_CNTRL_PRESET | MMC_CNTRL_FULL_HALF_PRESET;
+	unsigned int mode = MMC_CNTRL_RESET_ON_READ | MMC_CNTRL_COUNTER_RESET |MMC_CNTRL_PRESET | MMC_CNTRL_FULL_HALF_PRESET;
 	
 	priv->ptpaddr = priv->ioaddr + PTP_GMAC4_OFFSET;
 	priv->mmcaddr = priv->ioaddr + MMC_GMAC4_OFFSET;
 
-	x2_mmc_intr_all_mask(priv->mmcaddr);
+	hobot_mmc_intr_all_mask(priv->mmcaddr);
+    
+    if (priv->dma_cap.rmon) {
+        hobot_mmc_ctrl(priv->mmcaddr, mode);
+        memset(&priv->mmc, 0, sizeof(struct hobot_counters));
+    } else {
+        netdev_info(priv->dev, "No MAC Management Counters available\n");
+    }
 }
 
 static void x2_start_rx_dma(struct x2_priv *priv, u32 chan)
@@ -4881,19 +4889,53 @@ static void x2_get_drv_info(struct net_device *ndev, struct ethtool_drvinfo *ed)
 	strcpy(ed->version, DRIVER_VERSION);
 }
 
-
 static void x2_get_strings(struct net_device *ndev, u32 stringset, u8 *data)
 {
 	size_t i;
-	if (stringset != ETH_SS_STATS)
-		return;
+    u8 *p = data;
+    struct x2_priv *priv = netdev_priv(ndev);
 
-	for (i = 0; i < STMMAC_STATS_LEN; ++i) {
-		memcpy(data, stmmac_gstrings_stats[i].stat_name, ETH_GSTRING_LEN);
-		data += ETH_GSTRING_LEN;
-	}
+    switch (stringset) {
+    case ETH_SS_STATS:
+#if 1
+        if (priv->dma_cap.rmon)
+            for (i = 0; i < STMMAC_MMC_STATS_LEN; i++) {
+                memcpy(p, hobot_mmc[i].stat_name, ETH_GSTRING_LEN);
+                p += ETH_GSTRING_LEN;
+            }
+#endif
+        for (i = 0; i < STMMAC_STATS_LEN; i++) {
+            memcpy(p, stmmac_gstrings_stats[i].stat_name, ETH_GSTRING_LEN);
+            p += ETH_GSTRING_LEN;
+        }
+
+        break;
+
+    default:
+        WARN_ON(1);
+        break;
+    }
 }
 
+
+static int x2_get_sset_count(struct net_device *ndev, int sset)
+{
+    struct x2_priv *priv = netdev_priv(ndev);
+    int len;
+
+    switch (sset) {
+    case ETH_SS_STATS:
+        len = STMMAC_STATS_LEN;
+#if 1
+        if (priv->dma_cap.rmon)
+           len += STMMAC_MMC_STATS_LEN;
+#endif
+        printk("%s, stats_len:%d, mmc_len:%d, len:%d\n", __func__, STMMAC_STATS_LEN, STMMAC_MMC_STATS_LEN, len);
+        return len;
+     default:
+        return -EOPNOTSUPP;
+     }
+}
 
 static void x2_get_ethtool_stats(struct net_device *ndev, struct ethtool_stats *dummy, u64 *data)
 {
@@ -4902,6 +4944,15 @@ static void x2_get_ethtool_stats(struct net_device *ndev, struct ethtool_stats *
 	//u32 tx_cnt = priv->plat->tx_queues_to_use;
 	int i, j = 0;
 
+    if (priv->dma_cap.rmon) {
+        hobot_mmc_read(priv->mmcaddr, &priv->mmc);
+        
+        for (i = 0; i < STMMAC_MMC_STATS_LEN; i++) {
+            char *p;
+            p = (char *)priv + hobot_mmc[i].stat_offset;
+            data[j++] = (hobot_mmc[i].sizeof_stat == sizeof(u64)) ? (*(u64 *)p): (*(u32 *)p);
+        }
+    }
 	for (i = 0; i < STMMAC_STATS_LEN; i++) {
 		char *p = (char *)priv + stmmac_gstrings_stats[i].stat_offset;
 		data[j++] = (stmmac_gstrings_stats[i].sizeof_stat == sizeof(u64)) ? (*(u64*)p) : (*(u32*)p);
@@ -4970,10 +5021,11 @@ static void x2_ethtool_gregs(struct net_device *ndev, struct ethtool_regs *regs,
 
 	memset(reg_space, 0x0, REG_SPACE_SIZE);
 
+#if 0
 	//for (i = 0; i < GMAC_REG_NUM; i++)
 	for (i = 0; i < 0x1368 / 4; i++)
 		reg_space[i] = readl(priv->ioaddr + i * 4);
-
+#endif
 	x2_dump_mac_regs(priv->ioaddr, reg_space);
 	x2_dump_dma_regs(priv->ioaddr, reg_space);
 	memcpy(&reg_space[ETHTOOL_DMA_OFFSET], &reg_space[DMA_BUS_MODE/4], NUM_DWMAC1000_DMA_REGS * 4);
@@ -5015,6 +5067,7 @@ static const struct ethtool_ops x2_ethtool_ops = {
 	.set_link_ksettings = phy_ethtool_set_link_ksettings,
 	.get_strings = x2_get_strings,
 	.get_ethtool_stats = x2_get_ethtool_stats,
+    .get_sset_count = x2_get_sset_count,
 	.get_regs_len = x2_ethtool_get_regs_len,
 	.get_regs = x2_ethtool_gregs,
 	.get_ts_info = x2_get_ts_info,
@@ -5193,9 +5246,10 @@ static void x2_tx_clean(struct x2_priv *priv, u32 queue)
 		if (!(status & tx_not_ls)) {
 			if (status & tx_err) {
 				priv->dev->stats.tx_errors++;
-			} else 
+			} else {
 				priv->dev->stats.tx_packets++;
-
+                priv->xstats.tx_pkt_n++;
+            }
 			x2_get_tx_hwstamp(priv, p, skb);
 		}
 
