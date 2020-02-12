@@ -272,7 +272,7 @@
 		};
 
 		i2s0: i2s@0xA5007000 {
-			compatible = "hobot,x2-i2s";
+			compatible = "hobot, x2-i2s0";
 			reg = <0 0xA5007000 0 0x100>,
 				<0 0xA5007500 0 0x100>,
 				<0 0xA1000000 0 0x500>;
@@ -292,7 +292,7 @@
 		};
 
 		i2s1: i2s@0xA5008000 {
-			compatible = "hobot,x2-i2s";
+			compatible = "hobot, x2-i2s1";
 			reg = <0 0xA5008000 0 0x100>,
 				<0 0xA5008500 0 0x100>,
 				<0 0xA1000000 0 0x500>;
@@ -316,7 +316,16 @@
 				<0 0xA5007500 0 0x100>,
 				<0 0xA1000000 0 0x1000>;
 			interrupt-parent = <&gic>;
-			interrupts = <0 30 4>;
+			interrupts = <0 36 4>;
+		};
+
+		i2sidma1: idma@1 {
+			compatible = "x2-i2s1-idma";
+			reg = <0 0xA5008000 0 0x100>,
+				<0 0xA5008500 0 0x100>,
+				<0 0xA1000000 0 0x1000>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 37 4>;
 		};
 
 		snd0: sndcard@0{
@@ -325,6 +334,13 @@
 			master = <1>;/*1:master; 4:slave*/
 			channel_max = <8>;
 		};
+
+		snd1: sndcard@1 {
+                        compatible = "hobot, x2-snd1";
+                        i2s_mode = <4>;
+                        master = <1>;
+                        channel_max = <2>;
+                };
 
 		i2c0: i2c@0xA5009000 {
 			compatible = "hobot,x2-i2c";
