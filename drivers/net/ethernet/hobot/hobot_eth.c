@@ -1406,7 +1406,6 @@ u16 x2_tsn_select_queue(struct net_device *ndev, struct sk_buff *skb, void *acce
 				return AVB_CLASSB_Q;
 			if (skb->priority == 0x1)
 				return AVB_PTPCP_Q;
-		
 			return AVB_BEST_EFF_Q;
 		case htons(ETH_P_1588):
 			return AVB_PTPCP_Q;
@@ -3686,6 +3685,8 @@ static int x2_set_est(struct x2_priv *priv, void __user *data)
 	ret = x2_est_configuration(priv);
 	if (!est->enabled)
 		ret = 0;
+
+//	x2_tsn_fp_configure(priv);
 //	else {
 	//	printk("%s, dma_cap.fpesel:%d, plat->fp_en:%d\n", __func__, priv->dma_cap.fpesel, priv->plat->fp_en);
 //		if (priv->dma_cap.fpesel && priv->plat->fp_en)
@@ -4236,7 +4237,7 @@ static netdev_tx_t x2_tso_xmit(struct sk_buff *skb, struct net_device *ndev)
 
 	tx_q = &priv->tx_queue[queue];
 
-	printk("%s: here\n",__func__);
+	//printk("%s: here\n",__func__);
 	proto_hdr_len = skb_transport_offset(skb) + tcp_hdrlen(skb);
 	//printk("%s, and transport offset:%d, tcphdrlen:%d\n", __func__, skb_transport_offset(skb), tcp_hdrlen(skb));
 	if (unlikely(x2_tx_avail(priv, queue) < (((skb->len - proto_hdr_len) / TSO_MAX_BUFF_SIZE + 1)))) {
