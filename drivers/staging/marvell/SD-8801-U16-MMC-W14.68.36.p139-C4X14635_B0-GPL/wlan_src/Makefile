@@ -22,6 +22,7 @@
  KERNELDIR ?= ../../../../../
 #KERNELDIR ?= $(SRC_KERNEL_DIR)
 COMPATDIR ?= $(KERNELDIR)/include
+BINDIR = ../../bin_sd8801
 CC=		$(CROSS_COMPILE)gcc -I$(COMPATDIR)
 LD=		$(CROSS_COMPILE)ld
 BACKUP=		/root/backup
@@ -123,9 +124,10 @@ ccflags-y += -DLINUX
 KERNELVERSION_X86 := 	$(shell uname -r)
 KERNELDIR ?= /lib/modules/$(KERNELVERSION_X86)/build
 LD += -S
-
-BINDIR = ../bin_sd8801
-APPDIR= $(shell if test -d "mapp"; then echo mapp; fi)
+###haibo.guo 20200212 modify 
+#BINDIR = ../bin_sd8801
+BINDIR ?= ../bin_sd8801
+#APPDIR= $(shell if test -d "mapp"; then echo mapp; fi)
 
 #############################################################################
 # Compiler Flags

@@ -102,7 +102,8 @@ function build_wifi()
     #make clean
     make
     cd $SRC_KERNEL_DIR
-    cpfiles "$SRC_KERNEL_DIR/drivers/staging/marvell/ko/*.ko" "$TARGET_TMPROOTFS_DIR/lib/modules/"
+    cpfiles "$SRC_KERNEL_DIR/drivers/staging/marvell/bin_sd8801/*.ko" "$TARGET_TMPROOTFS_DIR/lib/modules/"
+    rm -fr $SRC_KERNEL_DIR/drivers/staging/marvell/bin_sd8801
     cpfiles "$SRC_KERNEL_DIR/drivers/staging/marvell/FwImage/sd8801_uapsta.bin" "$TARGET_TMPROOTFS_DIR/lib/firmware/mrvl/"
     echo "end build wifi...................."
 }

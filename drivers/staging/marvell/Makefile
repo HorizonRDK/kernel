@@ -12,16 +12,15 @@ SRCDIR		=$(PACKDIR)/wlan_src
 .PHONY:clean all
 
 all:
-	mkdir -p ko
 	@echo "ARCH=$(ARCH)"
 	@echo "CROSS_COMPILE=$(CROSS_COMPILE)"
 	@echo "KERNELDIR=$(KERNELDIR)"
 	cd $(SRCDIR); make build; cd -;	
-	cp $(PACKDIR)/bin_sd8801/*ko ko;
-	${CROSS_COMPILE}strip -g ko/*.ko
+#	cp $(PACKDIR)/bin_sd8801/*ko ko;
+	${CROSS_COMPILE}strip -g bin_sd8801/*.ko
 clean:
 	cd $(SRCDIR); make clean; cd -;
-	rm -fr $(PACKDIR)/bin_sd8801
-	rm -fr ko
+#	rm -fr $(PACKDIR)/bin_sd8801
+	rm -fr bin_sd8801
 
 
