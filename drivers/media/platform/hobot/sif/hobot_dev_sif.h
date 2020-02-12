@@ -16,7 +16,7 @@
 #include "vio_framemgr.h"
 #include "vio_group_api.h"
 
-#define SIF_MUX_MAX	8 
+#define SIF_MUX_MAX	8
 #define X2A_SIF_NAME  "x2a-sif"
 
 #define MAX_DEVICE  2
@@ -143,8 +143,9 @@ struct x2a_sif_dev {
 	struct cdev cdev;
 	struct class *class;
 	dev_t devno;
+	u32 mismatch_cnt;
 
-	unsigned long		state;	
+	unsigned long		state;
 	atomic_t			instance;
 	atomic_t			rsccount;
 	spinlock_t			shared_slock;

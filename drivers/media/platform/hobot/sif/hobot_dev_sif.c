@@ -39,6 +39,9 @@ int g_test = -1;
 static int timer_init(struct x2a_sif_dev *sif, int index);
 #endif
 
+static int mismatch_limit = 1;
+module_param(mismatch_limit, int, 0644);
+
 extern struct class *vps_class;
 typedef int (*isp_callback)(int);
 isp_callback sif_isp_ctx_sync;
@@ -330,6 +333,7 @@ int sif_mux_init(struct sif_video_ctx *sif_ctx, sif_cfg_t *sif_config)
 	sif_hw_config(sif->base_reg, sif_config);
 
 	sif_ctx->bufcount = 0;
+	sif->mismatch_cnt = 0;
 
 	vio_info("%s,mux index = %d\n", __func__, mux_index);
 	return ret;
@@ -806,8 +810,11 @@ static irqreturn_t sif_isr(int irq, void *data)
 	}
 
 	if (irq_src.sif_err_status) {
-		vio_err("input size mismatch(0x%x)\n", irq_src.sif_err_status);
-		sif_print_rx_status(sif->base_reg, irq_src.sif_err_status);
+		if (mismatch_limit < 0 || sif->mismatch_cnt < mismatch_limit) {
+			vio_err("input size mismatch(0x%x)\n", irq_src.sif_err_status);
+			sif_print_rx_status(sif->base_reg, irq_src.sif_err_status);
+		}
+		sif->mismatch_cnt++;
 	}
 
 	if (irq_src.sif_in_buf_overflow)
