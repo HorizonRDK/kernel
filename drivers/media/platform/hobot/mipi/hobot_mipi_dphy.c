@@ -108,7 +108,12 @@ module_param(txout_freq_force, uint, 0644);
 #define REGS_RX_LANE3_DDL_5      (0xC0B)
 #define REGS_RX_LANE3_DDL_6      (0xC0C)
 
+#define REGS_TX_TESECODE_08      (0x08)
+#define REGS_TX_PLL_TH_DELAY     (0x1B)
+#define REGS_TX_PLL_CPBIAS_CNTRL (0x1C)
+#define REGS_TX_PLL_LOCK_DETMODE (0x1D)
 #define REGS_TX_SYSTIMERS_23     (0x65)
+#define REGS_TX_HSTXTHSZERO_OVR  (0x72)
 #define REGS_TX_PLL_2            (0x160)
 #define REGS_TX_PLL_1            (0x15E)
 #define REGS_TX_PLL_2            (0x160)
@@ -148,6 +153,10 @@ module_param(txout_freq_force, uint, 0644);
 #define TX_PLL_GEAR_SHIFT_H      (0x1)
 #define TX_PLL_CLKDIV_CLK_LMT    (450)
 #define TX_PLL_CLKDIV_CLK_EN     (0x10)
+#define TX_PLL_FORCE_LOCK        (0x4)
+#define TX_HSTXTHSZERO_DATALANES (0x11)
+#define TX_PLL_TH_DELAY          (0xaa)
+#define TX_PLL_CPBIAS_CNTRL      (0xaa)
 
 #ifdef CONFIG_HOBOT_MIPI_REG_OPERATE
 typedef struct _reg_s {
@@ -758,6 +767,13 @@ int32_t mipi_dev_dphy_initialize(void __iomem *iomem, uint16_t mipiclk, uint16_t
 	mipi_dev_dphy_testdata(phy, iomem, REGS_TX_PLL_3,  TX_PLL_GEAR_SHIFT_H);
 	if (outclk < TX_PLL_CLKDIV_CLK_LMT)
 		mipi_dev_dphy_testdata(phy, iomem, REGS_TX_CB_2, TX_PLL_CLKDIV_CLK_EN);
+#ifdef CONFIG_HOBOT_XJ3
+	mipi_dev_dphy_testdata(phy, iomem, REGS_TX_PLL_LOCK_DETMODE, TX_PLL_FORCE_LOCK);
+	mipi_dev_dphy_testdata(phy, iomem, REGS_TX_TESECODE_08, 3);
+	mipi_dev_dphy_testdata(phy, iomem, REGS_TX_HSTXTHSZERO_OVR, TX_HSTXTHSZERO_DATALANES);
+	mipi_dev_dphy_testdata(phy, iomem, REGS_TX_PLL_TH_DELAY, TX_PLL_TH_DELAY);
+	mipi_dev_dphy_testdata(phy, iomem, REGS_TX_PLL_CPBIAS_CNTRL, TX_PLL_CPBIAS_CNTRL);
+#endif
 
 	/* record host */
 	if (phy) {
