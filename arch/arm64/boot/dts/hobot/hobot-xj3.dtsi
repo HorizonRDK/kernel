@@ -678,7 +678,7 @@
 		};
 
 		spi0: spi@0xA5004000 {
-			compatible = "hobot,x2-spi";
+			compatible = "hobot,hobot-spi";
 			reg = <0 0xA5004000 0 0x1000>;
 			clocks = <&spi0_mclk>;
 			clock-names = "spi_mclk";

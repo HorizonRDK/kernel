@@ -215,10 +215,15 @@
 			};
 			spi0_func:spi0_func {
 				pinctrl-x2,pins-muxs = <
-					16	0 /*SPI0_CSN*/
+					16	0 /*SPI0_CSN0*/
 					17	0 /*SPI0_SCLK*/
 					18	0 /*SPI0_MOSI*/
 					19	0 /*SPI0_MISO*/
+				>;
+			};
+			spi0_csn1_func:spi0_csn1_func {
+				pinctrl-x2,pins-muxs = <
+					120	1 /*QSPI_CSN1/SPI0_CSN1/GPIO7[8]*/
 				>;
 			};
 			spi1_func:spi1_func {
