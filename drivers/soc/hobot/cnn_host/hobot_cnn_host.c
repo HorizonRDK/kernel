@@ -806,10 +806,6 @@ static void x2_cnn_power_up(struct x2_cnn_dev *dev)
 	int ret;
 	unsigned int tmp;
 
-	if (!dev->has_regulator) {
-		pr_info("no regulator support\n");
-		return;
-	}
 	lock_bpu(dev);
 	if (!dev->disable_bpu) {
 		unlock_bpu(dev);
@@ -847,10 +843,6 @@ static void x2_cnn_power_down(struct x2_cnn_dev *dev)
 {
 	unsigned int tmp;
 
-	if (!dev->has_regulator) {
-		pr_info("no regulator support\n");
-		return;
-	}
 	lock_bpu(dev);
 	if (dev->disable_bpu == (BPU_CLOCK_DIS | BPU_REGU_DIS)) {
 		unlock_bpu(dev);
@@ -2694,7 +2686,14 @@ static ssize_t bpu0_power_show(struct kobject *kobj,
 			       struct kobj_attribute *attr,
 			       char *buf)
 {
-	int ret = regulator_is_enabled(cnn0_dev->cnn_regulator);
+	int ret;
+
+	if (!cnn0_dev->has_regulator) {
+		pr_info("no regulator support\n");
+		ret = -1;
+		return sprintf(buf, "%d\n", ret);
+	}
+	ret = regulator_is_enabled(cnn0_dev->cnn_regulator);
 
 	return sprintf(buf, "%d\n", ret);
 
@@ -2705,6 +2704,10 @@ static ssize_t bpu0_power_store(struct kobject *kobj,
 {
 	int ret;
 
+	if (!cnn0_dev->has_regulator) {
+		pr_info("no regulator support\n");
+		return count;
+	}
 	ret = sscanf(buf, "%du", &bpu0_power);
 	if (bpu0_power)
 		x2_cnn_power_up(cnn0_dev);
@@ -2715,7 +2718,14 @@ static ssize_t bpu0_power_store(struct kobject *kobj,
 static ssize_t bpu1_power_show(struct kobject *kobj,
 			       struct kobj_attribute *attr, char *buf)
 {
-	int ret = regulator_is_enabled(cnn1_dev->cnn_regulator);
+	int ret;
+
+	if (!cnn1_dev->has_regulator) {
+		pr_info("no regulator support\n");
+		ret = -1;
+		return sprintf(buf, "%d\n", ret);
+	}
+	ret = regulator_is_enabled(cnn1_dev->cnn_regulator);
 
 	return sprintf(buf, "%d\n", ret);
 
@@ -2726,6 +2736,10 @@ static ssize_t bpu1_power_store(struct kobject *kobj,
 {
 	int ret;
 
+	if (!cnn1_dev->has_regulator) {
+		pr_info("no regulator support\n");
+		return count;
+	}
 	ret = sscanf(buf, "%du", &bpu1_power);
 	if (bpu1_power)
 		x2_cnn_power_up(cnn1_dev);
