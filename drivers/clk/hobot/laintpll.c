@@ -28,16 +28,16 @@
 #define PLL_LAINT_MODE 0x0
 
 #define PLL_LAINT_REFDIV_MIN 1
-#define PLL_LAINT_REFDIV_MAX 4
+#define PLL_LAINT_REFDIV_MAX 63
 #define PLL_LAINT_FBDIV_MIN 16
-#define PLL_LAINT_FBDIV_MAX 320
+#define PLL_LAINT_FBDIV_MAX 640
 #define PLL_LAINT_POSTDIV1_MIN 1
 #define PLL_LAINT_POSTDIV1_MAX 7
 #define PLL_LAINT_POSTDIV2_MIN 1
 #define PLL_LAINT_POSTDIV2_MAX 7
 
-#define PLL_LAINT_MIN_FREQ 625000000
-#define PLL_LAINT_MAX_FREQ 2500000000
+#define PLL_LAINT_MIN_FREQ 800000000
+#define PLL_LAINT_MAX_FREQ 3200000000
 
 struct clk_laintpll_reg {
 	void __iomem *freq_reg;
@@ -57,13 +57,14 @@ struct laintpll_bestdiv {
  * Only support 1.6GHz, 2GHz and 2.4G for ARMPLL,
  * add more if there are new pll freq use case for other plls
  */
-#define PLL_BESTDIV_TABLE_LEN 5
+#define PLL_BESTDIV_TABLE_LEN 6
 static struct laintpll_bestdiv pll_bestdiv_table[PLL_BESTDIV_TABLE_LEN] = {
 	{1000000000, 1, 125, 3, 1},
 	{1200000000, 1, 100, 2, 1},
+	{1500000000, 1, 125, 2, 1},
 	{1600000000, 1, 200, 3, 1},
 	{2000000000, 1, 250, 3, 1},
-	{2400000000, 1, 100, 1, 1}
+	{2400000000, 1, 100, 1, 1},
 };
 
 #define to_clk_laintpll(_hw) container_of(_hw, struct clk_laintpll, hw)

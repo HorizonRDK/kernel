@@ -28,7 +28,7 @@
 			device_type = "cpu";
 			enable-method = "psci";
 			operating-points-v2 = <&cpu_opp_table>;
-			clocks = <&cpu_mux_clk>;
+			clocks = <&cpu_clk>;
 			#cooling-cells = <2>;
 			cooling-min-level = <0>;
 			cooling-max-level = <2>;
@@ -43,7 +43,7 @@
 			enable-method = "psci";
 			cpu-release-addr = <0 0xA6000278>;
 			operating-points-v2 = <&cpu_opp_table>;
-			clocks = <&cpu_mux_clk>;
+			clocks = <&cpu_clk>;
 			reg = <0x1>;
 			cpu-idle-states = <&CPU_SLEEP_0>;
 		};
@@ -54,7 +54,7 @@
 			enable-method = "psci";
 			cpu-release-addr = <0 0xA6000278>;
 			operating-points-v2 = <&cpu_opp_table>;
-			clocks = <&cpu_mux_clk>;
+			clocks = <&cpu_clk>;
 			reg = <0x2>;
 			cpu-idle-states = <&CPU_SLEEP_0>;
 		};
@@ -65,7 +65,7 @@
 			enable-method = "psci";
 			cpu-release-addr = <0 0xA6000278>;
 			operating-points-v2 = <&cpu_opp_table>;
-			clocks = <&cpu_mux_clk>;
+			clocks = <&cpu_clk>;
 			reg = <0x3>;
 			cpu-idle-states = <&CPU_SLEEP_0>;
 		};

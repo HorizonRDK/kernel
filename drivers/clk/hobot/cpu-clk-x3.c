@@ -45,13 +45,14 @@ struct cpu_pll_table {
 	unsigned long pll_freq;
 };
 
-#define CPU_FREQ_NUM 5
+#define CPU_FREQ_NUM 6
 struct cpu_pll_table pll_table[CPU_FREQ_NUM] = {
 	{250000000,  2000000000},
-	{500000000,  2000000000},
+	{500000000,  1500000000},
 	{800000000,  1600000000},
 	{1000000000, 2000000000},
 	{1200000000, 2400000000},
+	{1500000000, 1500000000},
 };
 
 static int __set_armpll_clk(struct clk_hw *hw, unsigned long cpu_freq)

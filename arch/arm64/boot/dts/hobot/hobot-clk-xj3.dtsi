@@ -122,7 +122,7 @@
 			clocks = <&arm_pllmux_clk>;
 			offset = <0x204>;
 			bits = <0>;
-			field = <3>;
+			field = <4>;
 		};
 
 		cpu_mux_clk: cpu_mux_clk {
