@@ -78,6 +78,8 @@
 //#define DRIVER_NAME "hobot-x2-ethernet driver"
 #define DRIVER_NAME "st_gmac"
 
+#define HOBOT_COAL_TIMER(x) (jiffies + usecs_to_jiffies(x))
+
 #define x2_reg_read(priv, reg) readl_relaxed(((void __iomem*)((priv)->ioaddr)) + (reg))
 
 #define x2_reg_write(priv,reg,val) writel_relaxed((val), ((void __iomem*)((priv)->ioaddr)) + (reg))
@@ -3145,10 +3147,19 @@ static int x2_init_ptp(struct x2_priv *priv)
 	return 0;
 }
 
+static void hobot_dma_rx_watchdog(struct x2_priv *priv, u32 riwt, u32 number)
+{
+    u32 chan;
+
+    for (chan = 0; chan < number; chan++) {
+        writel(riwt, priv->ioaddr + DMA_CHAN_RX_WATCHDOG(chan));
+    }
+}
+
 static int x2_hw_setup(struct net_device *ndev, bool init_ptp)
 {
 	struct x2_priv *priv = netdev_priv(ndev);
-	//u32 rx_cnt = priv->plat->rx_queues_to_use;
+	u32 rx_cnt = priv->plat->rx_queues_to_use;
 	u32 tx_cnt = priv->plat->tx_queues_to_use;
 	int ret;
 	u32 chan;
@@ -3194,6 +3205,11 @@ static int x2_hw_setup(struct net_device *ndev, bool init_ptp)
 			printk("PTP init failed\n");
 	}
 
+
+    if (priv->use_riwt) {
+        priv->rx_riwt = MAX_DMA_RIWT;
+        hobot_dma_rx_watchdog(priv, MAX_DMA_RIWT, rx_cnt);
+    }
     x2_est_configuration(priv);
 	x2_set_rings_length(priv);
 	x2_start_all_dma(priv);
@@ -3253,7 +3269,7 @@ static int x2_dma_interrupt(void __iomem *ioaddr, struct x2_extra_stats *x, u32 
 	int ret = 0;
 	u32 intr_status = readl(ioaddr + DMA_CHAN_STATUS(chan)); //0x1160
 
-	//printk("%s, chan:%d, intr_status:0x%x\n",__func__, chan, intr_status);
+//	printk("%s, chan:%d, intr_status:0x%x\n",__func__, chan, intr_status);
 	if (intr_status & DMA_CHAN_STATUS_AIS) {
 		if (intr_status & DMA_CHAN_STATUS_RBU) {
 			printk("%s, rx_buf_unavailble\n",__func__);
@@ -3599,7 +3615,7 @@ static irqreturn_t x2_interrupt(int irq, void *dev_id)
 		struct x2_rx_queue *rx_q = &priv->rx_queue[chan];
 		status = x2_dma_interrupt(priv->ioaddr, &priv->xstats, chan);
 	
-		//printk("%s, and status:0x%x, handler_rx:0x%x, handle_tx:0x%x\n",__func__,status, handle_rx, handle_tx);	
+	//	printk("%s, and status:0x%x, handler_rx:0x%x, handle_tx:0x%x\n",__func__,status, handle_rx, handle_tx);	
 		if (likely((status & handle_rx)) || (status & handle_tx) || (mtl_status & CORE_IRQ_MTL_RX_OVERFLOW)) {
 			if (napi_schedule_prep(&rx_q->napi)) {
 				x2_disable_dma_irq(priv, chan);
@@ -3957,7 +3973,260 @@ static int x2_extension_ioctl(struct x2_priv *priv, void __user *data)
 	return 0;
 }
 
+static int x2_tx_status(struct net_device_stats *data, struct x2_extra_stats *x, struct dma_desc *p, void __iomem *ioaddr)
+{
+	struct net_device_stats *stats = (struct net_device_stats *)data;
+	unsigned int tdes3;
+	int ret = tx_done;
+	
+	tdes3 = le32_to_cpu(p->des3);
 
+	if (tdes3 & TDES3_OWN)
+		return tx_dma_own;
+
+	if (!(tdes3 & TDES3_LAST_DESCRIPTOR)) {
+	//	printk("%s, and 1...\n",__func__);
+		return tx_not_ls;	
+	}
+	if (tdes3 & TDES3_ERROR_SUMMARY) {
+		if (tdes3 & TDES3_JABBER_TIMEOUT){
+	
+			printk("%s, and 2...\n",__func__);
+			x->tx_jabber++;
+		}
+		if (tdes3 & TDES3_PACKET_FLUSHED) {
+
+			printk("%s, and 3...\n",__func__);
+			x->tx_frame_flushed++;
+		}
+
+		if (tdes3 & TDES3_LOSS_CARRIER) {
+			
+			printk("%s, and 4...\n",__func__);
+			x->tx_losscarrier++;
+			stats->tx_carrier_errors++;
+		}
+
+		if (tdes3 & TDES3_NO_CARRIER) {
+			
+			printk("%s, and 5...\n",__func__);
+			x->tx_carrier++;
+			stats->tx_carrier_errors++;
+		}
+
+		if ((tdes3 & TDES3_LATE_COLLISION) || (tdes3 & TDES3_EXCESSIVE_COLLISION)) {
+
+			printk("%s, and 6...\n",__func__);
+			stats->collisions += (tdes3 & TDES3_COLLISION_COUNT_MASK) >> TDES3_COLLISION_COUNT_SHIFT;
+		}
+
+		if (tdes3 & TDES3_UNDERFLOW_ERROR) {
+
+			printk("%s, and 7...\n",__func__);
+			x->tx_underflow++;
+		}
+
+		if (tdes3 & TDES3_IP_HDR_ERROR) {
+			
+			printk("%s, and 8...\n",__func__);
+			x->tx_ip_header_error++;
+		}
+
+		if (tdes3 & TDES3_PAYLOAD_ERROR) {
+			
+			printk("%s, and 9...\n",__func__);
+			x->tx_payload_error++;
+		}
+
+		ret = tx_err;
+	}
+
+	if (tdes3 & TDES3_DEFERRED) {
+
+		//printk("%s, and 10...\n",__func__);
+		x->tx_deferred++;
+	}
+
+	return ret;
+}
+
+static int x2_get_tx_timestamp_status(struct dma_desc *p)
+{
+	if (le32_to_cpu(p->des3) & TDES3_CONTEXT_TYPE)
+		return 0;
+
+	if (le32_to_cpu(p->des3) & TDES3_TIMESTAMP_STATUS)
+		return 1;
+
+	return 0;
+}
+
+static void x2_get_tx_hwstamp(struct x2_priv *priv, struct dma_desc *p, struct sk_buff *skb)
+{
+	struct skb_shared_hwtstamps shhwtstamp;
+	u64 ns;
+	int status;
+
+	if (!priv->hwts_tx_en)
+		return;
+
+	if (!skb || !((skb_shinfo(skb)->tx_flags & SKBTX_IN_PROGRESS)))
+		return;
+
+	status = x2_get_tx_timestamp_status(p);	
+	if (status) {
+		ns = le32_to_cpu(p->des0);// x2_get_timestamp(p, priv->adv_ts);
+		ns += le32_to_cpu(p->des1) * 1000000000ULL;
+		
+		memset(&shhwtstamp, 0, sizeof(struct skb_shared_hwtstamps));
+		shhwtstamp.hwtstamp = ns_to_ktime(ns);
+
+	
+		//printk("%s, and ns:0x%lx, hwtstamp:0x%lx\n", __func__,ns, shhwtstamp.hwtstamp);
+		skb_tstamp_tx(skb, &shhwtstamp);
+	}
+
+	return;
+}
+
+static inline u32 x2_tx_avail(struct x2_priv *priv, u32 queue)
+{
+	struct x2_tx_queue *tx_q = &priv->tx_queue[queue];
+	u32 avail;
+
+	if (tx_q->dirty_tx > tx_q->cur_tx)
+		avail = tx_q->dirty_tx - tx_q->cur_tx - 1;
+	else
+		avail = DMA_TX_SIZE - tx_q->cur_tx + tx_q->dirty_tx - 1;
+	return avail;
+}
+static void x2_tx_clean(struct x2_priv *priv, u32 queue)
+{
+	struct x2_tx_queue *tx_q = &priv->tx_queue[queue];
+	unsigned int bytes_compl = 0, pkts_compl = 0;
+	unsigned int entry;
+
+	netif_tx_lock(priv->dev);
+
+	priv->xstats.tx_clean++;
+	entry = tx_q->dirty_tx;
+
+//	printk("%s and queue:%d, dirty_tx:%d\n",__func__,queue,entry);
+	while(entry != tx_q->cur_tx) {
+		struct sk_buff *skb = tx_q->tx_skbuff[entry];
+		struct dma_desc *p;
+		int status;
+
+		if (priv->extend_desc) {
+			p = (struct dma_desc*)(tx_q->dma_etx + entry);
+		} else 
+			p = tx_q->dma_tx + entry;
+
+	
+#if 0		
+		printk("%s, entry:%d, queue: %d, tx_q->cur_tx:%d, p->des3:0x%x\n",__func__,entry,queue,tx_q->cur_tx,p->des3);
+	
+		printk("%s,dma_debug0:0x%llx\n",__func__, readl(priv->ioaddr + 0x100c));
+		printk("%s,dma_debug1:0x%llx\n",__func__, readl(priv->ioaddr + 0x1010));
+		printk("%s,dma_debug2:0x%llx\n",__func__, readl(priv->ioaddr + 0x1014));
+		printk("%s,MTL_tx0_debug:0x%llx\n",__func__, readl(priv->ioaddr + 0xd08));
+#endif
+
+		status = x2_tx_status(&priv->dev->stats, &priv->xstats, p, priv->ioaddr);
+	//	printk("%s, queue:%d\n",__func__,queue);
+
+		if (status & tx_dma_own) {
+		//	printk("%s,queue:%d, status: 0x%x, and hw own tx dma\n",__func__,queue,status);
+		//	printk("%s, and queue is stopped ?,  val:%d\n",__func__,netif_queue_stopped(priv->dev));
+			break;
+		}
+#if 0	
+		cnt_tx++;
+		
+		if (cnt_tx > 50) {
+		//	printk("%s, mtl fpe ctrl sts:0x%x\n", __func__, readl(priv->ioaddr + 0xc90));
+		//	printk("%s, frg cntr:%d, hlod:%d\n", __func__, readl(priv->ioaddr + MMC_TX_FPE_Frg_Cntr),readl(priv->ioaddr + MMC_TX_HOLD_Req_Cntr));	
+			cnt_tx = 0;
+		}
+#endif
+		dma_rmb();
+
+		if (!(status & tx_not_ls)) {
+			if (status & tx_err) {
+				priv->dev->stats.tx_errors++;
+			} else {
+				priv->dev->stats.tx_packets++;
+                priv->xstats.tx_pkt_n++;
+            }
+			x2_get_tx_hwstamp(priv, p, skb);
+		}
+
+		if (tx_q->tx_skbuff_dma[entry].buf) {
+			if (tx_q->tx_skbuff_dma[entry].map_as_page) 
+				dma_unmap_page(priv->device, tx_q->tx_skbuff_dma[entry].buf, tx_q->tx_skbuff_dma[entry].len, DMA_TO_DEVICE);
+			else
+				dma_unmap_single(priv->device, tx_q->tx_skbuff_dma[entry].buf, tx_q->tx_skbuff_dma[entry].len, DMA_TO_DEVICE);
+
+			tx_q->tx_skbuff_dma[entry].buf = 0;
+			tx_q->tx_skbuff_dma[entry].len = 0;
+			tx_q->tx_skbuff_dma[entry].map_as_page = false;
+		}
+
+		tx_q->tx_skbuff_dma[entry].last_segment = false;
+		tx_q->tx_skbuff_dma[entry].is_jumbo = false;
+
+		if (skb != NULL) {
+			pkts_compl++;
+			bytes_compl += skb->len;
+			dev_consume_skb_any(skb);
+			tx_q->tx_skbuff[entry] = NULL;
+		}
+
+		p->des2 = 0;
+		p->des3 = 0;//	x2_release_tx_desc(p);
+		entry = X2_GET_ENTRY(entry, DMA_TX_SIZE);
+	}
+
+	tx_q->dirty_tx = entry;
+
+	netdev_tx_completed_queue(netdev_get_tx_queue(priv->dev, queue),pkts_compl, bytes_compl);
+
+	if (netif_tx_queue_stopped(netdev_get_tx_queue(priv->dev,queue)) && x2_tx_avail(priv, queue) > STMMAC_TX_THRESH) {
+		printk("%s: restart transmit\n",__func__);
+		netif_tx_wake_queue(netdev_get_tx_queue(priv->dev, queue));
+	}
+
+    if (tx_q->dirty_tx != tx_q->cur_tx)
+        mod_timer(&priv->txtimer, HOBOT_COAL_TIMER(priv->tx_coal_timer));
+
+	netif_tx_unlock(priv->dev);
+}
+
+
+static void hobot_tx_timer_arm(struct x2_priv *priv)
+{
+    mod_timer(&priv->txtimer, HOBOT_COAL_TIMER(priv->tx_coal_timer));
+}
+
+static void hobot_tx_timer(unsigned long data)
+{
+    struct x2_priv *priv = (struct x2_priv *)data;
+    u32 tx_queues_count = priv->plat->tx_queues_to_use;
+    u32 queue;
+
+    for (queue = 0; queue < tx_queues_count; queue++)
+        x2_tx_clean(priv, queue);
+}
+static void hobot_init_tx_coalesce(struct x2_priv *priv)
+{
+    priv->tx_coal_frames = HOBOT_TX_FRAMES;
+    priv->tx_coal_timer = HOBOT_COAL_TX_TIMER;
+    init_timer(&priv->txtimer);
+    priv->txtimer.expires = HOBOT_COAL_TIMER(priv->tx_coal_timer);
+    priv->txtimer.data = (unsigned long)priv;
+    priv->txtimer.function = hobot_tx_timer;
+    add_timer(&priv->txtimer);
+}
 static int x2_open(struct net_device *ndev)
 {
 	struct x2_priv *priv = netdev_priv(ndev);
@@ -3993,6 +4262,8 @@ static int x2_open(struct net_device *ndev)
 		goto init_error;
 	}
 
+
+    hobot_init_tx_coalesce(priv);
 	//if (ndev->phydev)
 	phy_start(ndev->phydev);
 
@@ -4108,17 +4379,6 @@ static int x2_release(struct net_device *ndev)
 	return 0;
 }
 
-static inline u32 x2_tx_avail(struct x2_priv *priv, u32 queue)
-{
-	struct x2_tx_queue *tx_q = &priv->tx_queue[queue];
-	u32 avail;
-
-	if (tx_q->dirty_tx > tx_q->cur_tx)
-		avail = tx_q->dirty_tx - tx_q->cur_tx - 1;
-	else
-		avail = DMA_TX_SIZE - tx_q->cur_tx + tx_q->dirty_tx - 1;
-	return avail;
-}
 
 
 static void x2_prepare_tx_desc(struct dma_desc *p, int is_fs, int len, bool csum_flags, int tx_own, bool ls, unsigned int tot_pkt_len)
@@ -4230,6 +4490,7 @@ static void x2_tso_allocator(struct x2_priv *priv, unsigned int des, int total_l
 
 //static int flags = 0;
 
+
 static netdev_tx_t x2_tso_xmit(struct sk_buff *skb, struct net_device *ndev)
 {
 	struct dma_desc *desc, *first, *mss_desc = NULL;
@@ -4317,9 +4578,14 @@ static netdev_tx_t x2_tso_xmit(struct sk_buff *skb, struct net_device *ndev)
 	priv->xstats.tx_tso_frames++;
 	priv->xstats.tx_tso_nfrags += nfrags;
 
-	desc->des2 |= cpu_to_le32(TDES2_INTERRUPT_ON_COMPLETION);
-	priv->xstats.tx_set_ic_bit++;
-
+    priv->tx_count_frames += nfrags + 1;
+    if (likely(priv->tx_coal_frames > priv->tx_count_frames)) {
+        mod_timer(&priv->txtimer, HOBOT_COAL_TIMER(priv->tx_coal_timer));
+    } else {
+        priv->tx_count_frames = 0; 
+    	desc->des2 |= cpu_to_le32(TDES2_INTERRUPT_ON_COMPLETION);
+	    priv->xstats.tx_set_ic_bit++;
+    }
 
 	skb_tx_timestamp(skb);
 
@@ -4345,7 +4611,7 @@ static netdev_tx_t x2_tso_xmit(struct sk_buff *skb, struct net_device *ndev)
 
 	x2_set_tx_tail_ptr(priv->ioaddr, tx_q->tx_tail_addr, queue);
 
-
+    hobot_tx_timer_arm(priv);
 //	printk("%s, tso return\n",__func__);
 	return NETDEV_TX_OK;
 
@@ -4523,9 +4789,17 @@ static netdev_tx_t x2_xmit(struct sk_buff *skb, struct net_device *ndev)
 	ndev->stats.tx_bytes += skb->len;
 	priv->tx_count_frames += nfrags + 1;
 
-	priv->tx_count_frames = 0;
-		
-	desc->des2 |= cpu_to_le32(TDES2_INTERRUPT_ON_COMPLETION);
+    if (likely(priv->tx_coal_frames > priv->tx_count_frames)) {
+        //printk("%s, mod_timer, tx_coal_frames:%d, tx_count_frames:%d\n", __func__, priv->tx_coal_frames, priv->tx_count_frames);
+        mod_timer(&priv->txtimer, HOBOT_COAL_TIMER(priv->tx_coal_timer));
+    } else {
+       // printk("%s, set tx ic bit\n", __func__);
+       	priv->tx_count_frames = 0;
+        desc->des2 |= cpu_to_le32(TDES2_INTERRUPT_ON_COMPLETION);
+        priv->xstats.tx_set_ic_bit++;
+    }
+
+	//desc->des2 |= cpu_to_le32(TDES2_INTERRUPT_ON_COMPLETION);
 
 	
 	skb_tx_timestamp(skb);
@@ -4561,6 +4835,7 @@ static netdev_tx_t x2_xmit(struct sk_buff *skb, struct net_device *ndev)
 
 	x2_set_tx_tail_ptr(priv->ioaddr, tx_q->tx_tail_addr, queue);
 
+    hobot_tx_timer_arm(priv);
 	netif_trans_update(ndev);
 //	printk("%s, and after cur_tx:%d\n",__func__,tx_q->cur_tx);
 
@@ -5059,6 +5334,88 @@ static int x2_get_ts_info(struct net_device *dev, struct ethtool_ts_info *info)
 		return ethtool_op_get_ts_info(dev, info);
 }
 
+static u32 hobot_riwt2usec(u32 riwt, struct x2_priv *priv)
+{
+    unsigned long clk = clk_get_rate(priv->plat->x2_mac_div_clk);
+    
+    if (!clk)
+        return 0;
+
+    return (riwt * 256) / (clk / 1000000);
+}
+
+static int hobot_get_coalesce(struct net_device *dev, struct ethtool_coalesce *ec)
+{
+    struct x2_priv *priv = netdev_priv(dev);
+    
+    ec->tx_coalesce_usecs = priv->tx_coal_timer;
+    ec->tx_max_coalesced_frames = priv->tx_coal_frames;
+
+    if (priv->use_riwt)
+        ec->rx_coalesce_usecs = hobot_riwt2usec(priv->rx_riwt, priv);
+
+    return 0;
+}
+
+static u32 hobot_usec2riwt(u32 usec, struct x2_priv *priv)
+{
+    unsigned long clk = clk_get_rate(priv->plat->x2_mac_div_clk);
+    
+    if (!clk)
+        return 0;
+
+    return (usec * (clk / 1000000)) / 256; 
+}
+
+static int hobot_set_coalesce(struct net_device *dev, struct ethtool_coalesce *ec)
+{
+    struct x2_priv *priv = netdev_priv(dev);
+    u32 rx_cnt = priv->plat->rx_queues_to_use;
+    unsigned int rx_riwt;
+
+
+    printk("%s, into\n", __func__);
+        /* Check not supported parameters  */
+    if ((ec->rx_max_coalesced_frames) || (ec->rx_coalesce_usecs_irq) ||
+        (ec->rx_max_coalesced_frames_irq) || (ec->tx_coalesce_usecs_irq) ||
+        (ec->use_adaptive_rx_coalesce) || (ec->use_adaptive_tx_coalesce) ||
+        (ec->pkt_rate_low) || (ec->rx_coalesce_usecs_low) ||
+        (ec->rx_max_coalesced_frames_low) || (ec->tx_coalesce_usecs_high) ||
+        (ec->tx_max_coalesced_frames_low) || (ec->pkt_rate_high) ||
+        (ec->tx_coalesce_usecs_low) || (ec->rx_coalesce_usecs_high) ||
+        (ec->rx_max_coalesced_frames_high) ||
+        (ec->tx_max_coalesced_frames_irq) ||
+        (ec->stats_block_coalesce_usecs) ||
+        (ec->tx_max_coalesced_frames_high) || (ec->rate_sample_interval))
+        return -EOPNOTSUPP;
+
+    printk("%s, 1...\n", __func__);
+    if (ec->rx_coalesce_usecs == 0)
+        return -EINVAL;
+
+    printk("%s, 2...\n", __func__);
+    if ((ec->tx_coalesce_usecs == 0) && (ec->tx_max_coalesced_frames == 0))
+        return -EINVAL;
+
+    printk("%s, 3..., priv->use_riwt:%d\n", __func__,priv->use_riwt);
+    if ((ec->tx_coalesce_usecs > HOBOT_MAX_COAL_TX_TICK) || (ec->tx_max_coalesced_frames > HOBOT_TX_MAX_FRAMES))
+        return -EINVAL;
+
+    rx_riwt = hobot_usec2riwt(ec->rx_coalesce_usecs, priv);
+    
+    if ((rx_riwt > MAX_DMA_RIWT) || (rx_riwt < MIN_DMA_RIWT))
+        return -EINVAL;
+    else if (!priv->use_riwt)
+        return -EOPNOTSUPP;
+
+    printk("%s, 4...\n", __func__);
+    priv->tx_coal_frames = ec->tx_max_coalesced_frames;
+    priv->tx_coal_timer = ec->tx_coalesce_usecs;
+    priv->rx_riwt = rx_riwt;
+    
+    hobot_dma_rx_watchdog(priv, priv->rx_riwt, rx_cnt);
+    return 0;
+}
 
 static const struct ethtool_ops x2_ethtool_ops = {
 	.get_drvinfo = x2_get_drv_info,
@@ -5071,225 +5428,13 @@ static const struct ethtool_ops x2_ethtool_ops = {
 	.get_regs_len = x2_ethtool_get_regs_len,
 	.get_regs = x2_ethtool_gregs,
 	.get_ts_info = x2_get_ts_info,
+    .get_coalesce = hobot_get_coalesce,
+    .set_coalesce = hobot_set_coalesce,
 
 };
 
-static int x2_tx_status(struct net_device_stats *data, struct x2_extra_stats *x, struct dma_desc *p, void __iomem *ioaddr)
-{
-	struct net_device_stats *stats = (struct net_device_stats *)data;
-	unsigned int tdes3;
-	int ret = tx_done;
-	
-	tdes3 = le32_to_cpu(p->des3);
-
-	if (tdes3 & TDES3_OWN)
-		return tx_dma_own;
-
-	if (!(tdes3 & TDES3_LAST_DESCRIPTOR)) {
-	//	printk("%s, and 1...\n",__func__);
-		return tx_not_ls;	
-	}
-	if (tdes3 & TDES3_ERROR_SUMMARY) {
-		if (tdes3 & TDES3_JABBER_TIMEOUT){
-	
-			printk("%s, and 2...\n",__func__);
-			x->tx_jabber++;
-		}
-		if (tdes3 & TDES3_PACKET_FLUSHED) {
-
-			printk("%s, and 3...\n",__func__);
-			x->tx_frame_flushed++;
-		}
-
-		if (tdes3 & TDES3_LOSS_CARRIER) {
-			
-			printk("%s, and 4...\n",__func__);
-			x->tx_losscarrier++;
-			stats->tx_carrier_errors++;
-		}
-
-		if (tdes3 & TDES3_NO_CARRIER) {
-			
-			printk("%s, and 5...\n",__func__);
-			x->tx_carrier++;
-			stats->tx_carrier_errors++;
-		}
-
-		if ((tdes3 & TDES3_LATE_COLLISION) || (tdes3 & TDES3_EXCESSIVE_COLLISION)) {
-
-			printk("%s, and 6...\n",__func__);
-			stats->collisions += (tdes3 & TDES3_COLLISION_COUNT_MASK) >> TDES3_COLLISION_COUNT_SHIFT;
-		}
-
-		if (tdes3 & TDES3_UNDERFLOW_ERROR) {
-
-			printk("%s, and 7...\n",__func__);
-			x->tx_underflow++;
-		}
-
-		if (tdes3 & TDES3_IP_HDR_ERROR) {
-			
-			printk("%s, and 8...\n",__func__);
-			x->tx_ip_header_error++;
-		}
-
-		if (tdes3 & TDES3_PAYLOAD_ERROR) {
-			
-			printk("%s, and 9...\n",__func__);
-			x->tx_payload_error++;
-		}
-
-		ret = tx_err;
-	}
-
-	if (tdes3 & TDES3_DEFERRED) {
-
-		//printk("%s, and 10...\n",__func__);
-		x->tx_deferred++;
-	}
-
-	return ret;
-}
-
-static int x2_get_tx_timestamp_status(struct dma_desc *p)
-{
-	if (le32_to_cpu(p->des3) & TDES3_CONTEXT_TYPE)
-		return 0;
-
-	if (le32_to_cpu(p->des3) & TDES3_TIMESTAMP_STATUS)
-		return 1;
-
-	return 0;
-}
-
-static void x2_get_tx_hwstamp(struct x2_priv *priv, struct dma_desc *p, struct sk_buff *skb)
-{
-	struct skb_shared_hwtstamps shhwtstamp;
-	u64 ns;
-	int status;
-
-	if (!priv->hwts_tx_en)
-		return;
-
-	if (!skb || !((skb_shinfo(skb)->tx_flags & SKBTX_IN_PROGRESS)))
-		return;
-
-	status = x2_get_tx_timestamp_status(p);	
-	if (status) {
-		ns = le32_to_cpu(p->des0);// x2_get_timestamp(p, priv->adv_ts);
-		ns += le32_to_cpu(p->des1) * 1000000000ULL;
-		
-		memset(&shhwtstamp, 0, sizeof(struct skb_shared_hwtstamps));
-		shhwtstamp.hwtstamp = ns_to_ktime(ns);
-
-	
-		//printk("%s, and ns:0x%lx, hwtstamp:0x%lx\n", __func__,ns, shhwtstamp.hwtstamp);
-		skb_tstamp_tx(skb, &shhwtstamp);
-	}
-
-	return;
-}
-
 //static int cnt_tx = 0;
 
-static void x2_tx_clean(struct x2_priv *priv, u32 queue)
-{
-	struct x2_tx_queue *tx_q = &priv->tx_queue[queue];
-	unsigned int bytes_compl = 0, pkts_compl = 0;
-	unsigned int entry;
-
-	netif_tx_lock(priv->dev);
-
-	priv->xstats.tx_clean++;
-	entry = tx_q->dirty_tx;
-
-//	printk("%s and queue:%d, dirty_tx:%d\n",__func__,queue,entry);
-	while(entry != tx_q->cur_tx) {
-		struct sk_buff *skb = tx_q->tx_skbuff[entry];
-		struct dma_desc *p;
-		int status;
-
-		if (priv->extend_desc) {
-			p = (struct dma_desc*)(tx_q->dma_etx + entry);
-		} else 
-			p = tx_q->dma_tx + entry;
-
-	
-#if 0		
-		printk("%s, entry:%d, queue: %d, tx_q->cur_tx:%d, p->des3:0x%x\n",__func__,entry,queue,tx_q->cur_tx,p->des3);
-	
-		printk("%s,dma_debug0:0x%llx\n",__func__, readl(priv->ioaddr + 0x100c));
-		printk("%s,dma_debug1:0x%llx\n",__func__, readl(priv->ioaddr + 0x1010));
-		printk("%s,dma_debug2:0x%llx\n",__func__, readl(priv->ioaddr + 0x1014));
-		printk("%s,MTL_tx0_debug:0x%llx\n",__func__, readl(priv->ioaddr + 0xd08));
-#endif
-
-		status = x2_tx_status(&priv->dev->stats, &priv->xstats, p, priv->ioaddr);
-	//	printk("%s, queue:%d\n",__func__,queue);
-
-		if (status & tx_dma_own) {
-		//	printk("%s,queue:%d, status: 0x%x, and hw own tx dma\n",__func__,queue,status);
-		//	printk("%s, and queue is stopped ?,  val:%d\n",__func__,netif_queue_stopped(priv->dev));
-			break;
-		}
-#if 0	
-		cnt_tx++;
-		
-		if (cnt_tx > 50) {
-		//	printk("%s, mtl fpe ctrl sts:0x%x\n", __func__, readl(priv->ioaddr + 0xc90));
-		//	printk("%s, frg cntr:%d, hlod:%d\n", __func__, readl(priv->ioaddr + MMC_TX_FPE_Frg_Cntr),readl(priv->ioaddr + MMC_TX_HOLD_Req_Cntr));	
-			cnt_tx = 0;
-		}
-#endif
-		dma_rmb();
-
-		if (!(status & tx_not_ls)) {
-			if (status & tx_err) {
-				priv->dev->stats.tx_errors++;
-			} else {
-				priv->dev->stats.tx_packets++;
-                priv->xstats.tx_pkt_n++;
-            }
-			x2_get_tx_hwstamp(priv, p, skb);
-		}
-
-		if (tx_q->tx_skbuff_dma[entry].buf) {
-			if (tx_q->tx_skbuff_dma[entry].map_as_page) 
-				dma_unmap_page(priv->device, tx_q->tx_skbuff_dma[entry].buf, tx_q->tx_skbuff_dma[entry].len, DMA_TO_DEVICE);
-			else
-				dma_unmap_single(priv->device, tx_q->tx_skbuff_dma[entry].buf, tx_q->tx_skbuff_dma[entry].len, DMA_TO_DEVICE);
-
-			tx_q->tx_skbuff_dma[entry].buf = 0;
-			tx_q->tx_skbuff_dma[entry].len = 0;
-			tx_q->tx_skbuff_dma[entry].map_as_page = false;
-		}
-
-		tx_q->tx_skbuff_dma[entry].last_segment = false;
-		tx_q->tx_skbuff_dma[entry].is_jumbo = false;
-
-		if (skb != NULL) {
-			pkts_compl++;
-			bytes_compl += skb->len;
-			dev_consume_skb_any(skb);
-			tx_q->tx_skbuff[entry] = NULL;
-		}
-
-		p->des2 = 0;
-		p->des3 = 0;//	x2_release_tx_desc(p);
-		entry = X2_GET_ENTRY(entry, DMA_TX_SIZE);
-	}
-
-	tx_q->dirty_tx = entry;
-
-	netdev_tx_completed_queue(netdev_get_tx_queue(priv->dev, queue),pkts_compl, bytes_compl);
-
-	if (netif_tx_queue_stopped(netdev_get_tx_queue(priv->dev,queue)) && x2_tx_avail(priv, queue) > STMMAC_TX_THRESH) {
-		printk("%s: restart transmit\n",__func__);
-		netif_tx_wake_queue(netdev_get_tx_queue(priv->dev, queue));
-	}
-
-	netif_tx_unlock(priv->dev);
-}
 
 
 static int x2_get_rx_status(void *data, struct x2_extra_stats *x, struct dma_desc *p)
@@ -5582,6 +5727,8 @@ static inline void x2_rx_refill(struct x2_priv *priv, u32 queue)
 //	printk("%s, and bfsize:%d\n",__func__,bfsize);
 	while (dirty-- > 0) {
 		struct dma_desc *p;
+        bool use_rx_wd;
+
 		if (priv->extend_desc)
 			p = (struct dma_desc *)(rx_q->dma_erx + entry);
 		else 
@@ -5616,13 +5763,23 @@ static inline void x2_rx_refill(struct x2_priv *priv, u32 queue)
 			//printk("%s: refill entry: #%d\n",__func__,entry);
 		}
 
-		dma_wmb();
 
+        rx_q->rx_count_frames++;
+        rx_q->rx_count_frames %= priv->rx_coal_frames;
+//        if (rx_q->rx_count_frames > priv->rx_coal_frames)
+  //          rx_q->rx_count_frames = 0;
+
+//        use_rx_wd = !priv->rx_coal_frames;
+        use_rx_wd = rx_q->rx_count_frames > 0;
+        if (!priv->use_riwt)
+            use_rx_wd = false;
+
+        dma_wmb();
 		p->des3 = cpu_to_le32(RDES3_OWN | RDES3_BUFFER1_VALID_ADDR);//x2_init_rx_desc(p, priv->use_riwt, 0,0);
-		p->des3 |= cpu_to_le32(RDES3_INT_ON_COMPLETION_EN);
-
-		dma_wmb();
-		entry = X2_GET_ENTRY(entry, DMA_RX_SIZE);
+		if (!use_rx_wd)
+           p->des3 |= cpu_to_le32(RDES3_INT_ON_COMPLETION_EN);
+	
+    	entry = X2_GET_ENTRY(entry, DMA_RX_SIZE);
 	}
 
 
@@ -6028,6 +6185,8 @@ static int x2_dvr_probe(struct device *device, struct plat_config_data *plat_dat
 		printk("waring: maxmtu having invalid value by Network\n");
 
 
+    priv->use_riwt = 1;
+    dev_info(priv->device, "Enable Rx Mitigation via HW Watchdog Timer\n");
 	
 	for (queue = 0; queue < priv->plat->rx_queues_to_use; queue++) {
 		struct x2_rx_queue *rx_q = &priv->rx_queue[queue];
@@ -6326,6 +6485,7 @@ static int hobot_eth_resume(struct device *dev)
     priv->mss = 0;
     x2_clear_descriptors(priv);
     x2_hw_setup(ndev,false);
+    hobot_init_tx_coalesce(priv);
     x2_set_rx_mode(ndev);
     x2_enable_all_queues(priv);
     x2_start_all_queues(priv);
