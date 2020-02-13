@@ -143,8 +143,8 @@ config HOBOT_VCAM
         help
           Say yes to enable vcam driver
 
-config USRDRV
-    tristate "USRDRV Driver"
+config HOBOT_XJ3_CV_USRDRV
+    tristate "CV XJ3 USRDRV Driver"
     help
        Driver for the user mode drive
 
