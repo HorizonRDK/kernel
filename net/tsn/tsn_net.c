@@ -152,7 +152,7 @@ int tsn_net_prepare_tx(struct tsn_list *tlist)
 
 		dev = nic->dev->dev.parent;
 		nic->dma_mem = dma_alloc_coherent(dev, nic->dma_size,
-						  &nic->dma_handle, GFP_KERNEL);
+						  &nic->dma_handle, GFP_ATOMIC);
 		if (!nic->dma_mem) {
 			nic->capable = 0;
 			nic->dma_size = 0;
