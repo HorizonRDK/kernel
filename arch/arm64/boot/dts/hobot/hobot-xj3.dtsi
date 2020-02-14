@@ -773,7 +773,7 @@
 
             change_pin_mode = <1>;
 			interrupt_mode = <1>;
-            use_riwt = <0>;
+            use_riwt = <1>;
             snps,tso = <0>;
 
 			snps,write-requests = <8>;
@@ -781,6 +781,7 @@
 			snps,txpbl = <32>;
 			snps,rxpbl = <16>;
 			snps,clk_csr = <2>;
+            snps,burst-map = <6>;
 
 			snps,force_sf_dma_mode = <1>;
 

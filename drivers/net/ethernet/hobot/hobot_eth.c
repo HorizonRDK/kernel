@@ -84,6 +84,9 @@
 
 #define x2_reg_write(priv,reg,val) writel_relaxed((val), ((void __iomem*)((priv)->ioaddr)) + (reg))
 
+#define HOBOT_USE_IRQ_SPLIT 1
+
+
 static int x2_mdio_read(struct mii_bus *bus, int mii_id, int phyreg)
 {
 	struct net_device *ndev = bus->priv;
@@ -408,13 +411,13 @@ struct plat_config_data *x2_probe_config_dt(struct platform_device *pdev, const 
 	pinctrl = devm_pinctrl_get(&pdev->dev);
 	if ( IS_ERR(pinctrl) ) {
 		dev_err(&pdev->dev, "pinctrl get error\n");
-		return PTR_ERR(pinctrl);
+		return ERR_PTR(-EIO);
 	}
 
 	pin_eth_mux = pinctrl_lookup_state(pinctrl, "eth_state");
 	if ( IS_ERR(pin_eth_mux) ) {
 		dev_err(&pdev->dev, "pins_eth_mux in pinctrl state error\n");
-		return PTR_ERR(pin_eth_mux);
+		return ERR_PTR(-EIO);
 	}
 
     pinctrl_select_state(pinctrl, pin_eth_mux);
@@ -1105,13 +1108,14 @@ write_fail:
 	return -ETIMEDOUT;
 }
 
-
+#if 0
 static void x2_est_intr_config(struct x2_priv *priv)
 {
 
 	writel(0x1F,priv->ioaddr + 0xc70);
 }
 
+#endif
 
 static int x2_est_configuration(struct x2_priv *priv)
 {
@@ -1336,10 +1340,11 @@ int x2_tsn_link_configure(struct net_device *ndev, enum sr_class class, u16 fram
 
 	}	
 
-    if (priv->plat->interface == PHY_INTERFACE_MODE_SGMII)
+    if (priv->plat->interface == PHY_INTERFACE_MODE_SGMII) {
     	port_rate = PORT_RATE_SGMII;
-    else
+    } else {
         port_rate = PORT_RATE_GMII;
+    }
 
 	switch (class) {
 	case SR_CLASS_A:
@@ -2095,6 +2100,8 @@ static void x2_init_chan(void __iomem *ioaddr, struct x2_dma_cfg *dma_cfg, u32 c
 
 	writel(value, ioaddr + DMA_CHAN_CONTROL(chan));
 
+//    writel(DMA_CHAN_INTR_NORMAL, ioaddr + DMA_CHAN_INTR_ENA(chan));
+
 	writel(DMA_CHAN_INTR_DEFAULT_MASK, ioaddr + DMA_CHAN_INTR_ENA(chan));
 
 }
@@ -2748,6 +2755,10 @@ static void x2_dma_operation_mode(struct x2_priv *priv)
 	int txfifosz = priv->plat->tx_fifo_size;
 	//void __iomem *ioaddr = priv->ioaddr;
 	//u32 txmode = 0;
+#ifdef HOBOT_USE_IRQ_SPLIT
+	u32 value = readl(priv->ioaddr + DMA_BUS_MODE);
+#endif
+
 	u32 rxmode = 0;
 	u32 chan;
 	u8 qmode;
@@ -2777,6 +2788,10 @@ static void x2_dma_operation_mode(struct x2_priv *priv)
 			
 	}
 
+#ifdef HOBOT_USE_IRQ_SPLIT
+    value |= 0x1 << 16;
+    writel(value, priv->ioaddr + DMA_BUS_MODE);
+#endif
 
 }
 #if 0
@@ -3264,23 +3279,32 @@ static void x2_start_all_queues(struct x2_priv *priv)
 		netif_tx_start_queue(netdev_get_tx_queue(priv->dev, queue));
 }
 
-static int x2_dma_interrupt(void __iomem *ioaddr, struct x2_extra_stats *x, u32 chan)
+static int x2_dma_interrupt(struct x2_priv *priv, \
+             struct x2_extra_stats *x, u32 chan)
 {
 	int ret = 0;
+    void __iomem *ioaddr = priv->ioaddr;
 	u32 intr_status = readl(ioaddr + DMA_CHAN_STATUS(chan)); //0x1160
 
-//	printk("%s, chan:%d, intr_status:0x%x\n",__func__, chan, intr_status);
-	if (intr_status & DMA_CHAN_STATUS_AIS) {
+#if 0
+    u32 intr_en = readl(ioaddr + DMA_CHAN_INTR_ENA(chan));
+    if (intr_status)
+    	printk("%s, chan:%d, intr_en:0x%x, intr_status:0x%x\n", \
+            __func__, chan, intr_en, intr_status);
+#endif
+	if ((intr_status & DMA_CHAN_STATUS_AIS) || priv->use_riwt) {
 		if (intr_status & DMA_CHAN_STATUS_RBU) {
-			printk("%s, rx_buf_unavailble\n",__func__);
+		//	printk("%s, rx_buf_unavailble\n",__func__);
 			x->rx_buf_unav_irq++;
+			ret |= handle_rx;
 		}
 		if (intr_status & DMA_CHAN_STATUS_RPS)
 			x->rx_process_stopped_irq++;
 
-		if (intr_status & DMA_CHAN_STATUS_RWT)
+		if (intr_status & DMA_CHAN_STATUS_RWT) {
+            printk("rx watchdog irq\n");
 			x->rx_watchdog_irq++;
-
+        }
 		if (intr_status & DMA_CHAN_STATUS_ETI)
 			x->tx_early_irq++;
 
@@ -3297,7 +3321,7 @@ static int x2_dma_interrupt(void __iomem *ioaddr, struct x2_extra_stats *x, u32 
 	}
 
 
-	if (intr_status & DMA_CHAN_STATUS_NIS) {
+	if ((intr_status & DMA_CHAN_STATUS_NIS) || priv->use_riwt) {
 		x->normal_irq_n++;
 		if (intr_status & DMA_CHAN_STATUS_RI) {
 			x->rx_normal_irq_n++;
@@ -3313,7 +3337,9 @@ static int x2_dma_interrupt(void __iomem *ioaddr, struct x2_extra_stats *x, u32 
 			x->rx_early_irq++;
 	}
 
-	writel((intr_status & 0x3fffc7), ioaddr + DMA_CHAN_STATUS(chan));
+
+	//writel((intr_status & intr_en), ioaddr + DMA_CHAN_STATUS(chan));
+	writel((intr_status), ioaddr + DMA_CHAN_STATUS(chan));
 	return ret;
 }
 
@@ -3538,6 +3564,7 @@ static int x2_host_mtl_irq_status(struct x2_priv *priv, u32 chan)
 		writel(status, ioaddr + 0xc58);
 	}
 
+    writel(mtl_irq_status, ioaddr + MTL_INT_STATUS);
 	return ret;
 }
 
@@ -3582,6 +3609,14 @@ static irqreturn_t x2_interrupt(int irq, void *dev_id)
 	
 	queues_count = (rx_cnt > tx_cnt) ? rx_cnt : tx_cnt;
 
+#if 0
+    status = readl(priv->ioaddr + 0x1008);
+    printk("%s, dma interrupt status(0x1008):0x%x\n", __func__, status);
+    status = readl(priv->ioaddr + 0xc20);
+    printk("%s, mtl interrupt_status(0xc20):0x%x\n", __func__, status);
+    status = readl(priv->ioaddr + 0xb0);
+    printk("%s, mac interrupt status(0xb0):0x%x\n", __func__, status);
+#endif
 //	printk("%s\n",__func__);	
 	status = x2_host_irq_status(priv, &priv->xstats);
 
@@ -3598,7 +3633,6 @@ static irqreturn_t x2_interrupt(int irq, void *dev_id)
 		//status |= x2_host_mtl_irq_status(priv, queue);
 		mtl_status = status | x2_host_mtl_irq_status(priv, queue);
 
-		//if (status & CORE_IRQ_MTL_RX_OVERFLOW) {
 		if (mtl_status & CORE_IRQ_MTL_RX_OVERFLOW) {
 			x2_set_rx_tail_ptr(priv->ioaddr, rx_q->rx_tail_addr, queue);
 		}
@@ -3613,10 +3647,15 @@ static irqreturn_t x2_interrupt(int irq, void *dev_id)
 
 	for (chan = 0; chan < tx_cnt; chan++) {
 		struct x2_rx_queue *rx_q = &priv->rx_queue[chan];
-		status = x2_dma_interrupt(priv->ioaddr, &priv->xstats, chan);
+		status = x2_dma_interrupt(priv, &priv->xstats, chan);
 	
-	//	printk("%s, and status:0x%x, handler_rx:0x%x, handle_tx:0x%x\n",__func__,status, handle_rx, handle_tx);	
-		if (likely((status & handle_rx)) || (status & handle_tx) || (mtl_status & CORE_IRQ_MTL_RX_OVERFLOW)) {
+#if 0
+        if (status)
+    	    printk("%s, and status:0x%x, handler_rx:0x%x, handle_tx:0x%x\n", \
+                __func__, status, handle_rx, handle_tx);
+#endif
+    	if (likely((status & handle_rx)) || (status & handle_tx) || \
+                 (mtl_status & CORE_IRQ_MTL_RX_OVERFLOW)) {
 			if (napi_schedule_prep(&rx_q->napi)) {
 				x2_disable_dma_irq(priv, chan);
 				__napi_schedule(&rx_q->napi);
@@ -4196,8 +4235,9 @@ static void x2_tx_clean(struct x2_priv *priv, u32 queue)
 		netif_tx_wake_queue(netdev_get_tx_queue(priv->dev, queue));
 	}
 
-    if (tx_q->dirty_tx != tx_q->cur_tx)
+    if (tx_q->dirty_tx != tx_q->cur_tx) {
         mod_timer(&priv->txtimer, HOBOT_COAL_TIMER(priv->tx_coal_timer));
+    }
 
 	netif_tx_unlock(priv->dev);
 }
@@ -4221,6 +4261,8 @@ static void hobot_init_tx_coalesce(struct x2_priv *priv)
 {
     priv->tx_coal_frames = HOBOT_TX_FRAMES;
     priv->tx_coal_timer = HOBOT_COAL_TX_TIMER;
+    priv->rx_coal_frames = HOBOT_RX_FRAMES;
+
     init_timer(&priv->txtimer);
     priv->txtimer.expires = HOBOT_COAL_TIMER(priv->tx_coal_timer);
     priv->txtimer.data = (unsigned long)priv;
@@ -5027,12 +5069,14 @@ static int x2_ptp_set_ts_config(struct net_device *ndev, struct ifreq *ifr)
 		priv->default_addend = div_u64(temp, priv->plat->clk_ptp_rate);
 		//priv->default_addend = 0xCCCCB8CD;//div_u64(temp, priv->plat->clk_ptp_rate);
 	
-        printk("%s, sec_inc:%d, temp:%d, default_addend:%x\n", __func__, sec_inc, temp, priv->default_addend);
+        //printk("%s, sec_inc:%d, temp:%d, default_addend:%x\n", \
+            __func__, sec_inc, temp, priv->default_addend);
 		
 		x2_config_addend(priv,  priv->default_addend);
 
 		ktime_get_real_ts64(&now);
-		//printk("%s,and now secod: %d, and nsec:%d\n", __func__, now.tv_sec, now.tv_nsec);
+		//printk("%s,and now secod: %d, and nsec:%d\n", \
+            __func__, now.tv_sec, now.tv_nsec);
 		x2_init_systime(priv,  (u32)now.tv_sec, now.tv_nsec);
 
 	
@@ -5205,7 +5249,8 @@ static int x2_get_sset_count(struct net_device *ndev, int sset)
         if (priv->dma_cap.rmon)
            len += STMMAC_MMC_STATS_LEN;
 #endif
-        printk("%s, stats_len:%d, mmc_len:%d, len:%d\n", __func__, STMMAC_STATS_LEN, STMMAC_MMC_STATS_LEN, len);
+        //printk("%s, stats_len:%d, mmc_len:%d, len:%d\n", \
+            __func__, STMMAC_STATS_LEN, STMMAC_MMC_STATS_LEN, len);
         return len;
      default:
         return -EOPNOTSUPP;
@@ -5292,7 +5337,7 @@ static void x2_ethtool_gregs(struct net_device *ndev, struct ethtool_regs *regs,
 {
 	u32 *reg_space = (u32 *)space;
 	struct x2_priv *priv = netdev_priv(ndev);
-	int i;
+	//int i;
 
 	memset(reg_space, 0x0, REG_SPACE_SIZE);
 
@@ -5351,9 +5396,10 @@ static int hobot_get_coalesce(struct net_device *dev, struct ethtool_coalesce *e
     ec->tx_coalesce_usecs = priv->tx_coal_timer;
     ec->tx_max_coalesced_frames = priv->tx_coal_frames;
 
-    if (priv->use_riwt)
+    if (priv->use_riwt) {
         ec->rx_coalesce_usecs = hobot_riwt2usec(priv->rx_riwt, priv);
-
+        ec->rx_max_coalesced_frames = priv->rx_coal_frames;
+    }
     return 0;
 }
 
@@ -5374,9 +5420,9 @@ static int hobot_set_coalesce(struct net_device *dev, struct ethtool_coalesce *e
     unsigned int rx_riwt;
 
 
-    printk("%s, into\n", __func__);
+//    printk("%s, into\n", __func__);
         /* Check not supported parameters  */
-    if ((ec->rx_max_coalesced_frames) || (ec->rx_coalesce_usecs_irq) ||
+    if ((ec->rx_coalesce_usecs_irq) ||
         (ec->rx_max_coalesced_frames_irq) || (ec->tx_coalesce_usecs_irq) ||
         (ec->use_adaptive_rx_coalesce) || (ec->use_adaptive_tx_coalesce) ||
         (ec->pkt_rate_low) || (ec->rx_coalesce_usecs_low) ||
@@ -5389,31 +5435,28 @@ static int hobot_set_coalesce(struct net_device *dev, struct ethtool_coalesce *e
         (ec->tx_max_coalesced_frames_high) || (ec->rate_sample_interval))
         return -EOPNOTSUPP;
 
-    printk("%s, 1...\n", __func__);
-    if (ec->rx_coalesce_usecs == 0)
-        return -EINVAL;
 
-    printk("%s, 2...\n", __func__);
+    if (priv->use_riwt && (ec->rx_coalesce_usecs > 0)) {
+        rx_riwt = hobot_usec2riwt(ec->rx_coalesce_usecs, priv);
+
+        if ((rx_riwt > MAX_DMA_RIWT) || (rx_riwt < MIN_DMA_RIWT))
+            return -EINVAL;
+
+        priv->rx_riwt = rx_riwt;
+        hobot_dma_rx_watchdog(priv, priv->rx_riwt, rx_cnt);
+     }
+
     if ((ec->tx_coalesce_usecs == 0) && (ec->tx_max_coalesced_frames == 0))
         return -EINVAL;
 
-    printk("%s, 3..., priv->use_riwt:%d\n", __func__,priv->use_riwt);
+  //  printk("%s, 3..., priv->use_riwt:%d\n", __func__,priv->use_riwt);
     if ((ec->tx_coalesce_usecs > HOBOT_MAX_COAL_TX_TICK) || (ec->tx_max_coalesced_frames > HOBOT_TX_MAX_FRAMES))
         return -EINVAL;
 
-    rx_riwt = hobot_usec2riwt(ec->rx_coalesce_usecs, priv);
-    
-    if ((rx_riwt > MAX_DMA_RIWT) || (rx_riwt < MIN_DMA_RIWT))
-        return -EINVAL;
-    else if (!priv->use_riwt)
-        return -EOPNOTSUPP;
 
-    printk("%s, 4...\n", __func__);
     priv->tx_coal_frames = ec->tx_max_coalesced_frames;
     priv->tx_coal_timer = ec->tx_coalesce_usecs;
-    priv->rx_riwt = rx_riwt;
-    
-    hobot_dma_rx_watchdog(priv, priv->rx_riwt, rx_cnt);
+    priv->rx_coal_frames = ec->rx_max_coalesced_frames;
     return 0;
 }
 
@@ -5774,8 +5817,10 @@ static inline void x2_rx_refill(struct x2_priv *priv, u32 queue)
         if (!priv->use_riwt)
             use_rx_wd = false;
 
+        //printk("%s, use_rx_wd:%d, rx_count:%d, rx_coal:%d\n", \
+            __func__, use_rx_wd, rx_q->rx_count_frames, priv->rx_coal_frames);
         dma_wmb();
-		p->des3 = cpu_to_le32(RDES3_OWN | RDES3_BUFFER1_VALID_ADDR);//x2_init_rx_desc(p, priv->use_riwt, 0,0);
+		p->des3 = cpu_to_le32(RDES3_OWN | RDES3_BUFFER1_VALID_ADDR);
 		if (!use_rx_wd)
            p->des3 |= cpu_to_le32(RDES3_INT_ON_COMPLETION_EN);
 	
@@ -5935,6 +5980,8 @@ static int x2_rx_packet(struct x2_priv *priv, int limit, u32 queue)
 		entry = next_entry;
 	}
 
+
+//    printk("%s, count:%d, cur_rx:%d\n", __func__, count, rx_q->cur_rx);
 	x2_rx_refill(priv, queue);
 	priv->xstats.rx_pkt_n += count;
 
@@ -5944,6 +5991,7 @@ static int x2_rx_packet(struct x2_priv *priv, int limit, u32 queue)
 
 static inline void x2_enable_dma_irq(struct x2_priv *priv, u32 chan)
 {
+//  writel(DMA_CHAN_INTR_NORMAL, priv->ioaddr + DMA_CHAN_INTR_ENA(chan));
 	writel(DMA_CHAN_INTR_DEFAULT_MASK, priv->ioaddr + DMA_CHAN_INTR_ENA(chan));
 }
 
@@ -6031,7 +6079,7 @@ static ssize_t phy_addr_store(struct device *dev, struct device_attribute *attr,
     struct net_device *ndev = to_net_dev(dev);
     struct x2_priv *priv = netdev_priv(ndev);
 
-    size_t ret = 0;
+    //size_t ret = 0;
 
 
     if (!strncmp(buf, "0", len - 1)) {
@@ -6072,14 +6120,38 @@ static ssize_t phy_reg_show(struct device *dev, struct device_attribute *attr, c
 
    return ret;
 }
-
-
 static DEVICE_ATTR_RO(phy_reg);
+
+static ssize_t dump_rx_desc_show(struct device *dev, \
+        struct device_attribute *attr, char *buf)
+{
+    struct net_device *ndev = to_net_dev(dev);
+    struct x2_priv *priv = netdev_priv(ndev);
+    u32 queue;
+    int i;
+
+    for (queue = 0; queue < 1; queue++) {
+        struct x2_rx_queue *rx_q = &priv->rx_queue[queue];
+
+        printk("%s, cur_rx:%d\n", __func__, rx_q->cur_rx);
+
+        for (i = 0; i < DMA_RX_SIZE; i++) {
+            struct dma_desc *p;
+
+            p = rx_q->dma_rx + i;
+            printk("%d, des3:0x%x\n", i, p->des3);
+        }
+    }
+
+    return 0;
+}
+static DEVICE_ATTR_RO(dump_rx_desc);
 
 static struct attribute *phy_reg_attrs[] = {
 
     &dev_attr_phy_reg.attr,
     &dev_attr_phy_addr.attr,
+    &dev_attr_dump_rx_desc.attr,
     NULL,
 };
 
@@ -6111,6 +6183,12 @@ static int x2_dvr_probe(struct device *device, struct plat_config_data *plat_dat
 
 	priv->dev->irq = x2_res->irq;
 	
+#ifdef HOBOT_USE_IRQ_SPLIT
+    priv->tx_irq = x2_res->tx_irq;
+    priv->rx_irq = x2_res->rx_irq;
+    strncpy(priv->txirq_name, "eth-tx", 6);
+    strncpy(priv->rxirq_name, "eth-rx", 6);
+#endif
 	if (x2_res->mac) {
 		ether_addr_copy(ndev->dev_addr, x2_res->mac);
 		dev_info(device,"set mac address %02x:%02x:%02x:%02x:%02x:%02x (using dtb adress)\n",ndev->dev_addr[0],ndev->dev_addr[1], ndev->dev_addr[2],ndev->dev_addr[3],ndev->dev_addr[4],ndev->dev_addr[5]);
@@ -6191,7 +6269,8 @@ static int x2_dvr_probe(struct device *device, struct plat_config_data *plat_dat
 	for (queue = 0; queue < priv->plat->rx_queues_to_use; queue++) {
 		struct x2_rx_queue *rx_q = &priv->rx_queue[queue];
 		
-		netif_napi_add(ndev, &rx_q->napi, x2_poll, (8 * priv->plat->rx_queues_to_use));
+		netif_napi_add(ndev, &rx_q->napi, x2_poll, \
+            (12 * priv->plat->rx_queues_to_use));
 	}
 
 	spin_lock_init(&priv->lock);
@@ -6207,11 +6286,27 @@ static int x2_dvr_probe(struct device *device, struct plat_config_data *plat_dat
 		goto err_mdio_reg;
 	}
 	
-	ret = devm_request_irq(priv->device, ndev->irq, &x2_interrupt, 0, ndev->name, ndev);
+	ret = devm_request_irq(priv->device, ndev->irq, \
+            &x2_interrupt, 0, ndev->name, ndev);
 	if (ret < 0) {
-		printk("%s: error allocating the IRQ\n",__func__);
+		printk("%s: error allocating the IRQ\n", __func__);
 		goto irq_error;
 	}
+
+#ifdef HOBOT_USE_IRQ_SPLIT
+	ret = devm_request_irq(priv->device, priv->tx_irq, \
+            &x2_interrupt, 0, priv->txirq_name, ndev);
+	if (ret < 0) {
+		printk("%s: error allocating the IRQ\n", __func__);
+		goto irq_error;
+	}
+	ret = devm_request_irq(priv->device, priv->rx_irq, \
+            &x2_interrupt, 0, priv->rxirq_name, ndev);
+	if (ret < 0) {
+		printk("%s: error allocating the IRQ\n", __func__);
+		goto irq_error;
+	}
+#endif
 
     ndev->sysfs_groups[0] = &phy_reg_group;
 
@@ -6317,6 +6412,10 @@ static int hobot_eth_probe(struct platform_device *pdev)
 	memset(&x2_res, 0, sizeof(struct x2_resource));
     x2_res.irq = platform_get_irq_byname(pdev, "mac-irq");
 
+#ifdef HOBOT_USE_IRQ_SPLIT
+    x2_res.tx_irq = platform_get_irq_byname(pdev, "tx-irq");
+    x2_res.rx_irq = platform_get_irq_byname(pdev, "rx-irq");
+#endif
 //	x2_res.irq = platform_get_irq(pdev, 0);
 
 	

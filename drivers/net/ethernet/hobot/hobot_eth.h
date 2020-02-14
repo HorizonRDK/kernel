@@ -1,3 +1,7 @@
+/*************************************
+***    COPYRIGHT NOTICE
+***    Copyright 2020 Horizon Robotics, Inc.
+*/
 #ifndef __HOBOT_ETH_H_
 #define __HOBOT_ETH_H_
 
@@ -14,14 +18,14 @@
 #define X2_MAX_RX_QUEUES 8
 #define X2_MAX_TX_QUEUES 8
 
-#define HOBOT_RX_FRAMES 4
-#define MAX_DMA_RIWT 0x7ff
+#define HOBOT_RX_FRAMES 64
+#define MAX_DMA_RIWT 0x300ff
 #define MIN_DMA_RIWT 0x1
 
 #define HOBOT_COAL_TX_TIMER 1000
 #define HOBOT_MAX_COAL_TX_TICK 100000
 #define HOBOT_TX_MAX_FRAMES 250
-#define HOBOT_TX_FRAMES 32
+#define HOBOT_TX_FRAMES 64
 
 #define X2_GET_ENTRY(x, size) ((x + 1) & (size - 1))
 #define DRIVER_VERSION			"0.9"
@@ -479,13 +483,15 @@ struct plat_config_data {
 };
 
 #define X2_MAX_DMA_CH 4
-
+#define IRQ_MAX_NAME 10
 struct x2_priv {
 	
 	u32 tx_count_frames;
 	u32 rx_coal_frames;
 	u32 tx_coal_frames;
 
+    char txirq_name[IRQ_MAX_NAME];
+    char rxirq_name[IRQ_MAX_NAME];
     struct timer_list txtimer;
 	u32 tx_coal_timer;
 	u32 use_riwt;
