@@ -5067,16 +5067,15 @@ static int x2_ptp_set_ts_config(struct net_device *ndev, struct ifreq *ifr)
 		priv->systime_flags = value;
 		temp = (u64) (temp << 32);
 		priv->default_addend = div_u64(temp, priv->plat->clk_ptp_rate);
-		//priv->default_addend = 0xCCCCB8CD;//div_u64(temp, priv->plat->clk_ptp_rate);
+#if 0		
+        priv->default_addend = 0xCCCCB8CD;//div_u64(temp, priv->plat->clk_ptp_rate);
 	
-        //printk("%s, sec_inc:%d, temp:%d, default_addend:%x\n", \
+        printk("%s, sec_inc:%d, temp:%d, default_addend:%x\n", \
             __func__, sec_inc, temp, priv->default_addend);
-		
+#endif		
 		x2_config_addend(priv,  priv->default_addend);
 
 		ktime_get_real_ts64(&now);
-		//printk("%s,and now secod: %d, and nsec:%d\n", \
-            __func__, now.tv_sec, now.tv_nsec);
 		x2_init_systime(priv,  (u32)now.tv_sec, now.tv_nsec);
 
 	
@@ -5084,7 +5083,7 @@ static int x2_ptp_set_ts_config(struct net_device *ndev, struct ifreq *ifr)
 
 
 
-#if 1
+#if 0
 	printk("%s, regb00:0x%x\n",__func__,readl(priv->ioaddr + 0xb00));
 	printk("%s, regb04:0x%x\n",__func__,readl(priv->ioaddr + 0xb04));
 	printk("%s, reg-0xb08:%d\n",__func__,readl(priv->ioaddr + 0xb08));
@@ -5249,8 +5248,6 @@ static int x2_get_sset_count(struct net_device *ndev, int sset)
         if (priv->dma_cap.rmon)
            len += STMMAC_MMC_STATS_LEN;
 #endif
-        //printk("%s, stats_len:%d, mmc_len:%d, len:%d\n", \
-            __func__, STMMAC_STATS_LEN, STMMAC_MMC_STATS_LEN, len);
         return len;
      default:
         return -EOPNOTSUPP;
@@ -5817,10 +5814,13 @@ static inline void x2_rx_refill(struct x2_priv *priv, u32 queue)
         if (!priv->use_riwt)
             use_rx_wd = false;
 
-        //printk("%s, use_rx_wd:%d, rx_count:%d, rx_coal:%d\n", \
+#if 0
+        printk("%s, use_rx_wd:%d, rx_count:%d, rx_coal:%d\n", \
             __func__, use_rx_wd, rx_q->rx_count_frames, priv->rx_coal_frames);
+#endif     
+
         dma_wmb();
-		p->des3 = cpu_to_le32(RDES3_OWN | RDES3_BUFFER1_VALID_ADDR);
+        p->des3 = cpu_to_le32(RDES3_OWN | RDES3_BUFFER1_VALID_ADDR);
 		if (!use_rx_wd)
            p->des3 |= cpu_to_le32(RDES3_INT_ON_COMPLETION_EN);
 	
@@ -6292,6 +6292,21 @@ static int x2_dvr_probe(struct device *device, struct plat_config_data *plat_dat
 		printk("%s: error allocating the IRQ\n", __func__);
 		goto irq_error;
 	}
+
+#ifdef HOBOT_USE_IRQ_SPLIT
+	ret = devm_request_irq(priv->device, priv->tx_irq, \
+            &x2_interrupt, 0, priv->txirq_name, ndev);
+	if (ret < 0) {
+		printk("%s: error allocating the IRQ\n", __func__);
+		goto irq_error;
+	}
+	ret = devm_request_irq(priv->device, priv->rx_irq, \
+            &x2_interrupt, 0, priv->rxirq_name, ndev);
+	if (ret < 0) {
+		printk("%s: error allocating the IRQ\n", __func__);
+		goto irq_error;
+	}
+#endif
 
 #ifdef HOBOT_USE_IRQ_SPLIT
 	ret = devm_request_irq(priv->device, priv->tx_irq, \
