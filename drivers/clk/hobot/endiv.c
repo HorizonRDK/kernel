@@ -362,7 +362,8 @@ static void __init _of_hobot_endiv_clk_setup(struct device_node *node,
 		clk_divider_flags, lock, ops);
 	if (!IS_ERR(clk))
 		of_clk_add_provider(node, of_clk_src_simple_get, clk);
-	pr_info("%s: %s endiv clock set up.\n", __func__, node->name);
+
+	pr_debug("%s: %s endiv clock set up.\n", __func__, node->name);
 }
 
 static void __init of_hobot_endiv_clk_setup(struct device_node *node)

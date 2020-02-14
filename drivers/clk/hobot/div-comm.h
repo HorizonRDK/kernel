@@ -8,7 +8,6 @@
 #ifndef DRIVERS_CLK_HOBOT_DIV_COMM_H_
 #define DRIVERS_CLK_HOBOT_DIV_COMM_H_
 
-#define DEBUG
 #include <linux/clkdev.h>
 #include <linux/clk.h>
 #include <linux/clk-provider.h>

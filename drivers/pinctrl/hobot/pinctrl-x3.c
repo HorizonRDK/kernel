@@ -657,7 +657,6 @@ static inline void x2_pinctrl_fsel_set(struct x2_pinctrl *pctrl,
 		value &= ~(0x3);
 		value |= fsel;
 		writel(value, regaddr);
-		printk("pin:%d fsel:%d add:0x%p value:0x%x\n", pin, fsel, regaddr, value);
 	}
 }
 
