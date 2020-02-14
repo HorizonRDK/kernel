@@ -1124,7 +1124,10 @@ uint32_t ipu_get_iar_display_type(void)
 	else
 		return iar_display_addr_type;
 */
-	return 2;
+	if (disp_user_update == 1)
+		return 0;
+	if (display_type == LCD_7_TYPE)
+		return 2;
 }
 EXPORT_SYMBOL_GPL(ipu_get_iar_display_type);
 
