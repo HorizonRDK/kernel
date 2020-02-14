@@ -363,6 +363,10 @@
 	status = "okay";
 };
 
+&lpwm {
+	status = "okay";
+};
+
 &spi0 {
 	status = "disabled";
 };

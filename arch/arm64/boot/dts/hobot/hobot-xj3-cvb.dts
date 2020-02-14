@@ -241,6 +241,10 @@
 	status = "disabled";
 };
 
+&lpwm {
+	status = "disabled";
+};
+
 &spi0 {
 	status = "okay";
 };

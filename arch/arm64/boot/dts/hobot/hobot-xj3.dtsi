@@ -653,6 +653,16 @@
 			status = "disabled";
 		};
 
+		lpwm: lpwm@0xA500D000 {
+			compatible = "hobot,hobot-lpwm";
+			reg = <0 0xA5018000 0 0x1000>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 68 4>;
+			clocks = <&lpwm_mclk>;
+			clock-names = "lpwm_mclk";
+			status = "disabled";
+		};
+
 		pwm_0: pwm@0xA500D000 {
 			compatible = "hobot,hobot-pwm";
 			reg = <0 0xA500D000 0 0x1000>;

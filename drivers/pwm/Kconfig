@@ -525,4 +525,10 @@ config PWM_HOBOT
 	help
 	  Enable hobot PWM controller driver.
 
+config PWM_HOBOT_LITE
+	tristate "Hobot lite PWM controller support"
+	depends on ARCH_HOBOT
+	help
+	  Enable hobot lite PWM controller driver.
+
 endif
