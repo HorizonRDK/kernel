@@ -77,6 +77,11 @@ static int x2_snd_probe(struct platform_device *pdev)
 	if (ret < 0)
 		return ret;
 
+	if (!card->name) {
+		pr_err("Error: sound card name is NULL!\n");
+		return -EINVAL;
+	}
+
 	pr_info("Create sound card: %s\n", card->name);
 	if (node && of_get_child_by_name(node, "dai-link"))
 		num = of_get_child_count(node);
