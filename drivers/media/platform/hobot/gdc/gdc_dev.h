@@ -16,7 +16,7 @@
 #include "vio_config.h"
 #include "vio_framemgr.h"
 
-#define X2A_GDC_NAME  "x2a-gdc"
+#define X3_GDC_NAME  "x3-gdc"
 
 #define GDC_MAX_DEVICE  1
 #define GDC_IOC_MAGIC 'g'
@@ -54,7 +54,7 @@ typedef struct gdc_settings {
 
 struct gdc_video_ctx{
 	wait_queue_head_t		done_wq;
-	struct x2a_gdc_dev 		*gdc_dev;
+	struct x3_gdc_dev 		*gdc_dev;
 	struct gdc_group		*group;
 	bool is_waiting_gdc;
 };
@@ -94,7 +94,7 @@ struct gdc_group{
 	u32 instance;
 };
 
-struct x2a_gdc_dev {
+struct x3_gdc_dev {
 	/* channel information */
 	u32 __iomem			*base_reg;
 	resource_size_t			regs_start;

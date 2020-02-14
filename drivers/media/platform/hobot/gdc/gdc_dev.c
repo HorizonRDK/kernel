@@ -36,9 +36,9 @@ extern int ips_set_clk_ctrl(unsigned long module, bool enable);
 extern void ips_set_module_reset(unsigned long module);
 
 extern struct class *vps_class;
-struct x2a_gdc_dev *g_gdc_dev = NULL;
+struct x3_gdc_dev *g_gdc_dev = NULL;
 
-struct gdc_group *gdc_get_group(struct x2a_gdc_dev *gdc)
+struct gdc_group *gdc_get_group(struct x3_gdc_dev *gdc)
 {
 	u32 stream;
 	struct gdc_group *group;
@@ -52,15 +52,15 @@ struct gdc_group *gdc_get_group(struct x2a_gdc_dev *gdc)
 	return NULL;
 }
 
-static int x2a_gdc_open(struct inode *inode, struct file *file)
+static int x3_gdc_open(struct inode *inode, struct file *file)
 {
 	struct gdc_video_ctx *gdc_ctx;
-	struct x2a_gdc_dev *gdc;
+	struct x3_gdc_dev *gdc;
 	struct gdc_group *group;
 	int ret = 0;
 	int enbale = 1;
 
-	gdc = container_of(inode->i_cdev, struct x2a_gdc_dev, cdev);
+	gdc = container_of(inode->i_cdev, struct x3_gdc_dev, cdev);
 	gdc_ctx = kzalloc(sizeof(struct gdc_video_ctx), GFP_KERNEL);
 	if (gdc_ctx == NULL) {
 		vio_err("kzalloc is fail");
@@ -92,24 +92,24 @@ p_err:
 	return ret;
 }
 
-static ssize_t x2a_gdc_write(struct file *file, const char __user * buf,
+static ssize_t x3_gdc_write(struct file *file, const char __user * buf,
 			     size_t count, loff_t * ppos)
 {
 	return 0;
 }
 
-static ssize_t x2a_gdc_read(struct file *file, char __user * buf, size_t size,
+static ssize_t x3_gdc_read(struct file *file, char __user * buf, size_t size,
 			    loff_t * ppos)
 {
 	return 0;
 
 }
 
-static int x2a_gdc_close(struct inode *inode, struct file *file)
+static int x3_gdc_close(struct inode *inode, struct file *file)
 {
 	struct gdc_video_ctx *gdc_ctx;
 	struct gdc_group *group;
-	struct x2a_gdc_dev *gdc;
+	struct x3_gdc_dev *gdc;
 	int enbale = 0;
 
 	gdc_ctx = file->private_data;
@@ -158,7 +158,7 @@ EXPORT_SYMBOL_GPL(dwe0_reset_control);
  *   @param  gdc_settings - overall gdc settings and state
  *
  */
-void gdc_start(struct x2a_gdc_dev *gdc_dev)
+void gdc_start(struct x3_gdc_dev *gdc_dev)
 {
 	gdc_process_enable(gdc_dev->base_reg, 0);
 	gdc_process_enable(gdc_dev->base_reg, 1);
@@ -173,7 +173,7 @@ void gdc_start(struct x2a_gdc_dev *gdc_dev)
  *           -1
  */
 
-void gdc_init(struct x2a_gdc_dev *gdc_dev, gdc_settings_t *gdc_settings)
+void gdc_init(struct x3_gdc_dev *gdc_dev, gdc_settings_t *gdc_settings)
 {
 	void __iomem *base_addr;
 
@@ -209,7 +209,7 @@ void gdc_init(struct x2a_gdc_dev *gdc_dev, gdc_settings_t *gdc_settings)
  *           -1 - no interrupt from GDC.
  */
 
-int gdc_process(struct x2a_gdc_dev *gdc_dev, gdc_settings_t *gdc_settings)
+int gdc_process(struct x3_gdc_dev *gdc_dev, gdc_settings_t *gdc_settings)
 {
 	void __iomem *base_addr;
 
@@ -324,7 +324,7 @@ int gdc_video_process(struct gdc_video_ctx *gdc_ctx, unsigned long arg)
 	int ret = 0;
 	unsigned long flag;
 	gdc_settings_t gdc_settings;
-	struct x2a_gdc_dev *gdc_dev;
+	struct x3_gdc_dev *gdc_dev;
 
 	ret = copy_from_user(&gdc_settings, (gdc_settings_t *) arg,
 			   sizeof(gdc_settings_t));
@@ -359,7 +359,7 @@ p_err_ignore:
 	return ret;
 }
 
-static long x2a_gdc_ioctl(struct file *file, unsigned int cmd,
+static long x3_gdc_ioctl(struct file *file, unsigned int cmd,
 			  unsigned long arg)
 {
 	struct gdc_video_ctx *gdc_ctx;
@@ -389,7 +389,7 @@ static irqreturn_t gdc_isr(int irq, void *data)
 	u32 status;
 	u32 dwe_status = 1;
 	u32 instance;
-	struct x2a_gdc_dev *gdc;
+	struct x3_gdc_dev *gdc;
 	struct gdc_group *gdc_group;
 	struct gdc_video_ctx *gdc_ctx;
 
@@ -436,17 +436,17 @@ static irqreturn_t gdc_isr(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
-static struct file_operations x2a_gdc_fops = {
+static struct file_operations x3_gdc_fops = {
 	.owner = THIS_MODULE,
-	.open = x2a_gdc_open,
-	.write = x2a_gdc_write,
-	.read = x2a_gdc_read,
-	.release = x2a_gdc_close,
-	.unlocked_ioctl = x2a_gdc_ioctl,
-	.compat_ioctl = x2a_gdc_ioctl,
+	.open = x3_gdc_open,
+	.write = x3_gdc_write,
+	.read = x3_gdc_read,
+	.release = x3_gdc_close,
+	.unlocked_ioctl = x3_gdc_ioctl,
+	.compat_ioctl = x3_gdc_ioctl,
 };
 
-static int x2a_gdc_suspend(struct device *dev)
+static int x3_gdc_suspend(struct device *dev)
 {
 	int ret = 0;
 
@@ -455,7 +455,7 @@ static int x2a_gdc_suspend(struct device *dev)
 	return ret;
 }
 
-static int x2a_gdc_resume(struct device *dev)
+static int x3_gdc_resume(struct device *dev)
 {
 	int ret = 0;
 
@@ -464,7 +464,7 @@ static int x2a_gdc_resume(struct device *dev)
 	return ret;
 }
 
-static int x2a_gdc_runtime_suspend(struct device *dev)
+static int x3_gdc_runtime_suspend(struct device *dev)
 {
 	int ret = 0;
 
@@ -473,7 +473,7 @@ static int x2a_gdc_runtime_suspend(struct device *dev)
 	return ret;
 }
 
-static int x2a_gdc_runtime_resume(struct device *dev)
+static int x3_gdc_runtime_resume(struct device *dev)
 {
 	int ret = 0;
 
@@ -482,14 +482,14 @@ static int x2a_gdc_runtime_resume(struct device *dev)
 	return ret;
 }
 
-static const struct dev_pm_ops x2a_gdc_pm_ops = {
-	.suspend = x2a_gdc_suspend,
-	.resume = x2a_gdc_resume,
-	.runtime_suspend = x2a_gdc_runtime_suspend,
-	.runtime_resume = x2a_gdc_runtime_resume,
+static const struct dev_pm_ops x3_gdc_pm_ops = {
+	.suspend = x3_gdc_suspend,
+	.resume = x3_gdc_resume,
+	.runtime_suspend = x3_gdc_runtime_suspend,
+	.runtime_resume = x3_gdc_runtime_resume,
 };
 
-int x2a_gdc_device_node_init(struct x2a_gdc_dev *gdc)
+int x3_gdc_device_node_init(struct x3_gdc_dev *gdc)
 {
 	int ret = 0;
 	struct device *dev = NULL;
@@ -503,7 +503,7 @@ int x2a_gdc_device_node_init(struct x2a_gdc_dev *gdc)
 		goto err_req_cdev;
 	}
 
-	cdev_init(&gdc->cdev, &x2a_gdc_fops);
+	cdev_init(&gdc->cdev, &x3_gdc_fops);
 	gdc->cdev.owner = THIS_MODULE;
 	ret = cdev_add(&gdc->cdev, gdc->devno, GDC_MAX_DEVICE);
 	if (ret){
@@ -534,7 +534,7 @@ err_req_cdev:
 
 static ssize_t gdc_reg_dump(struct device *dev,struct device_attribute *attr, char* buf)
 {
-	struct x2a_gdc_dev *gdc;
+	struct x3_gdc_dev *gdc;
 
 	gdc = dev_get_drvdata(dev);
 
@@ -545,10 +545,10 @@ static ssize_t gdc_reg_dump(struct device *dev,struct device_attribute *attr, ch
 
 static DEVICE_ATTR(regdump, 0444, gdc_reg_dump, NULL);
 
-static int x2a_gdc_probe(struct platform_device *pdev)
+static int x3_gdc_probe(struct platform_device *pdev)
 {
 	int ret = 0;
-	struct x2a_gdc_dev *gdc;
+	struct x3_gdc_dev *gdc;
 	struct resource *mem_res;
 	struct device_node *dnode;
 	struct device *dev;
@@ -558,7 +558,7 @@ static int x2a_gdc_probe(struct platform_device *pdev)
 	dev = &pdev->dev;
 	dnode = dev->of_node;
 
-	gdc = kzalloc(sizeof(struct x2a_gdc_dev), GFP_KERNEL);
+	gdc = kzalloc(sizeof(struct x3_gdc_dev), GFP_KERNEL);
 	if (!gdc) {
 		vio_err("gdc is NULL");
 		ret = -ENOMEM;
@@ -603,7 +603,7 @@ static int x2a_gdc_probe(struct platform_device *pdev)
 	}
 #endif
 
-	x2a_gdc_device_node_init(gdc);
+	x3_gdc_device_node_init(gdc);
 
 	ret = device_create_file(dev, &dev_attr_regdump);
 	if(ret < 0) {
@@ -633,10 +633,10 @@ p_err:
 
 }
 
-static int x2a_gdc_remove(struct platform_device *pdev)
+static int x3_gdc_remove(struct platform_device *pdev)
 {
 	int ret = 0;
-	struct x2a_gdc_dev *gdc;
+	struct x3_gdc_dev *gdc;
 
 	BUG_ON(!pdev);
 
@@ -656,28 +656,28 @@ static int x2a_gdc_remove(struct platform_device *pdev)
 }
 
 #ifdef CONFIG_OF
-static const struct of_device_id x2a_gdc_match[] = {
+static const struct of_device_id x3_gdc_match[] = {
 	{
 	 .compatible = "hobot,gdc",
 	 },
 	{},
 };
 
-MODULE_DEVICE_TABLE(of, x2a_gdc_match);
+MODULE_DEVICE_TABLE(of, x3_gdc_match);
 
-static struct platform_driver x2a_gdc_driver = {
-	.probe = x2a_gdc_probe,
-	.remove = x2a_gdc_remove,
+static struct platform_driver x3_gdc_driver = {
+	.probe = x3_gdc_probe,
+	.remove = x3_gdc_remove,
 	.driver = {
 		   .name = MODULE_NAME,
 		   .owner = THIS_MODULE,
-		   .pm = &x2a_gdc_pm_ops,
-		   .of_match_table = x2a_gdc_match,
+		   .pm = &x3_gdc_pm_ops,
+		   .of_match_table = x3_gdc_match,
 		   }
 };
 
 #else
-static struct platform_device_id x2a_gdc_driver_ids[] = {
+static struct platform_device_id x3_gdc_driver_ids[] = {
 	{
 	 .name = MODULE_NAME,
 	 .driver_data = 0,
@@ -685,37 +685,37 @@ static struct platform_device_id x2a_gdc_driver_ids[] = {
 	{},
 };
 
-MODULE_DEVICE_TABLE(platform, x2a_gdc_driver_ids);
+MODULE_DEVICE_TABLE(platform, x3_gdc_driver_ids);
 
-static struct platform_driver x2a_gdc_driver = {
-	.probe = x2a_gdc_probe,
-	.remove = __devexit_p(x2a_gdc_remove),
-	.id_table = x2a_gdc_driver_ids,
+static struct platform_driver x3_gdc_driver = {
+	.probe = x3_gdc_probe,
+	.remove = __devexit_p(x3_gdc_remove),
+	.id_table = x3_gdc_driver_ids,
 	.driver = {
 		   .name = MODULE_NAME,
 		   .owner = THIS_MODULE,
-		   .pm = &x2a_gdc_pm_ops,
+		   .pm = &x3_gdc_pm_ops,
 		   }
 };
 #endif
 
-static int __init x2a_gdc_init(void)
+static int __init x3_gdc_init(void)
 {
-	int ret = platform_driver_register(&x2a_gdc_driver);
+	int ret = platform_driver_register(&x3_gdc_driver);
 	if (ret)
 		vio_err("platform_driver_register failed: %d\n", ret);
 
 	return ret;
 }
 
-late_initcall(x2a_gdc_init);
+late_initcall(x3_gdc_init);
 
-static void __exit x2a_gdc_exit(void)
+static void __exit x3_gdc_exit(void)
 {
-	platform_driver_unregister(&x2a_gdc_driver);
+	platform_driver_unregister(&x3_gdc_driver);
 }
 
-module_exit(x2a_gdc_exit);
+module_exit(x3_gdc_exit);
 
 MODULE_AUTHOR("Sun Kaikai<kaikai.sun@horizon.com>");
 MODULE_DESCRIPTION("X2A GDC driver");

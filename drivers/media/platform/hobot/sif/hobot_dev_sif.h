@@ -17,7 +17,7 @@
 #include "vio_group_api.h"
 
 #define SIF_MUX_MAX	8
-#define X2A_SIF_NAME  "x2a-sif"
+#define X3_SIF_NAME  "x3-sif"
 
 #define MAX_DEVICE  2
 
@@ -123,7 +123,7 @@ struct sif_video_ctx{
 	bool initial_frameid;
 	u64 bufcount;
 	struct frame_id			info;
-	struct x2a_sif_dev 		*sif_dev;
+	struct x3_sif_dev 		*sif_dev;
 };
 
 enum sif_state {
@@ -134,7 +134,7 @@ enum sif_state {
 	SIF_DOL2_MODE,
 };
 
-struct x2a_sif_dev {
+struct x3_sif_dev {
 	u32 __iomem			*base_reg;
 	resource_size_t			regs_start;
 	resource_size_t			regs_end;

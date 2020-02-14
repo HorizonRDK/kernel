@@ -29,15 +29,7 @@
 #include "hobot_dev_sif.h"
 #include "sif_hw_api.h"
 
-#define MODULE_NAME "X2A SIF"
-
-#if CONFIG_QEMU_TEST
-struct timer_list tm[4];
-int g_test_bit = 0;
-int g_test_input = 0;
-int g_test = -1;
-static int timer_init(struct x2a_sif_dev *sif, int index);
-#endif
+#define MODULE_NAME "X3 SIF"
 
 static int mismatch_limit = 1;
 module_param(mismatch_limit, int, 0644);
@@ -52,7 +44,7 @@ void isp_register_callback(isp_callback func)
 }
 EXPORT_SYMBOL(isp_register_callback);
 
-static int x2a_sif_suspend(struct device *dev)
+static int x3_sif_suspend(struct device *dev)
 {
 	int ret = 0;
 
@@ -61,7 +53,7 @@ static int x2a_sif_suspend(struct device *dev)
 	return ret;
 }
 
-static int x2a_sif_resume(struct device *dev)
+static int x3_sif_resume(struct device *dev)
 {
 	int ret = 0;
 
@@ -70,7 +62,7 @@ static int x2a_sif_resume(struct device *dev)
 	return ret;
 }
 
-static int x2a_sif_runtime_suspend(struct device *dev)
+static int x3_sif_runtime_suspend(struct device *dev)
 {
 	int ret = 0;
 
@@ -79,7 +71,7 @@ static int x2a_sif_runtime_suspend(struct device *dev)
 	return ret;
 }
 
-static int x2a_sif_runtime_resume(struct device *dev)
+static int x3_sif_runtime_resume(struct device *dev)
 {
 	int ret = 0;
 
@@ -88,14 +80,14 @@ static int x2a_sif_runtime_resume(struct device *dev)
 	return ret;
 }
 
-static const struct dev_pm_ops x2a_sif_pm_ops = {
-	.suspend = x2a_sif_suspend,
-	.resume = x2a_sif_resume,
-	.runtime_suspend = x2a_sif_runtime_suspend,
-	.runtime_resume = x2a_sif_runtime_resume,
+static const struct dev_pm_ops x3_sif_pm_ops = {
+	.suspend = x3_sif_suspend,
+	.resume = x3_sif_resume,
+	.runtime_suspend = x3_sif_runtime_suspend,
+	.runtime_resume = x3_sif_runtime_resume,
 };
 
-void sif_config_rdma_cfg(struct x2a_sif_dev *sif, u8 index,
+void sif_config_rdma_cfg(struct x3_sif_dev *sif, u8 index,
 			struct frame_info *frameinfo)
 {
 	sif_set_rdma_enable(sif->base_reg, index, true);
@@ -107,7 +99,7 @@ void sif_read_frame_work(struct vio_group *group)
 	unsigned long flags;
 	u32 instance = 0;
 	struct sif_video_ctx *ctx;
-	struct x2a_sif_dev *sif;
+	struct x3_sif_dev *sif;
 	struct vio_framemgr *framemgr;
 	struct vio_frame *frame;
 	struct frame_info *frameinfo;
@@ -150,7 +142,7 @@ void sif_write_frame_work(struct vio_group *group)
 	u32 yuv_format = 0;
 	unsigned long flags;
 	struct sif_video_ctx *ctx;
-	struct x2a_sif_dev *sif;
+	struct x3_sif_dev *sif;
 	struct vio_framemgr *framemgr;
 	struct vio_frame *frame;
 
@@ -191,16 +183,16 @@ void sif_write_frame_work(struct vio_group *group)
 }
 
 
-static int x2a_sif_open(struct inode *inode, struct file *file)
+static int x3_sif_open(struct inode *inode, struct file *file)
 {
 	int ret = 0;
 	int minor = 0;
 	struct sif_video_ctx *sif_ctx;
-	struct x2a_sif_dev *sif;
+	struct x3_sif_dev *sif;
 
 	minor = MINOR(inode->i_rdev);
 
-	sif = container_of(inode->i_cdev, struct x2a_sif_dev, cdev);
+	sif = container_of(inode->i_cdev, struct x3_sif_dev, cdev);
 	sif_ctx = kzalloc(sizeof(struct sif_video_ctx), GFP_KERNEL);
 	if (sif_ctx == NULL) {
 		vio_err("kzalloc is fail");
@@ -218,19 +210,19 @@ p_err:
 	return ret;
 }
 
-static ssize_t x2a_sif_write(struct file *file, const char __user * buf,
+static ssize_t x3_sif_write(struct file *file, const char __user * buf,
 			     size_t count, loff_t * ppos)
 {
 	return 0;
 }
 
-static ssize_t x2a_sif_read(struct file *file, char __user * buf, size_t size,
+static ssize_t x3_sif_read(struct file *file, char __user * buf, size_t size,
 			    loff_t * ppos)
 {
 	return 0;
 }
 
-static u32 x2a_sif_poll(struct file *file, struct poll_table_struct *wait)
+static u32 x3_sif_poll(struct file *file, struct poll_table_struct *wait)
 {
 	int ret = 0;
 	struct sif_video_ctx *sif_ctx;
@@ -249,11 +241,11 @@ static u32 x2a_sif_poll(struct file *file, struct poll_table_struct *wait)
 	return ret;
 }
 
-static int x2a_sif_close(struct inode *inode, struct file *file)
+static int x3_sif_close(struct inode *inode, struct file *file)
 {
 	struct sif_video_ctx *sif_ctx;
 	struct vio_group *group;
-	struct x2a_sif_dev *sif;
+	struct x3_sif_dev *sif;
 
 	sif_ctx = file->private_data;
 	group = sif_ctx->group;
@@ -281,7 +273,7 @@ int sif_mux_init(struct sif_video_ctx *sif_ctx, sif_cfg_t *sif_config)
 	u32 mux_index = 0;
 	u32 ddr_enable = 0;
 	u32 dol_exp_num = 0;
-	struct x2a_sif_dev *sif;
+	struct x3_sif_dev *sif;
 	struct vio_group_task *gtask;
 	struct vio_group *group;
 
@@ -342,7 +334,7 @@ int sif_mux_init(struct sif_video_ctx *sif_ctx, sif_cfg_t *sif_config)
 int sif_video_init(struct sif_video_ctx *sif_ctx, unsigned long arg)
 {
 	int ret = 0;
-	struct x2a_sif_dev *sif;
+	struct x3_sif_dev *sif;
 	struct vio_group *group;
 	sif_cfg_t sif_config;
 
@@ -383,7 +375,7 @@ int sif_bind_chain_group(struct sif_video_ctx *sif_ctx, int instance)
 	int ret = 0;
 	int group_id = 0;
 	struct vio_group *group;
-	struct x2a_sif_dev *sif;
+	struct x3_sif_dev *sif;
 	struct vio_chain *chain;
 
 	if (!(sif_ctx->state & BIT(VIO_VIDEO_OPEN))) {
@@ -428,7 +420,7 @@ int sif_bind_chain_group(struct sif_video_ctx *sif_ctx, int instance)
 int sif_video_streamon(struct sif_video_ctx *sif_ctx)
 {
 	unsigned long flag;
-	struct x2a_sif_dev *sif_dev;
+	struct x3_sif_dev *sif_dev;
 
 	if (!(sif_ctx->state & (BIT(VIO_VIDEO_STOP)
 			| BIT(VIO_VIDEO_REBUFS)
@@ -466,7 +458,7 @@ p_inc:
 
 int sif_video_streamoff(struct sif_video_ctx *sif_ctx)
 {
-	struct x2a_sif_dev *sif_dev;
+	struct x3_sif_dev *sif_dev;
 	struct vio_framemgr *framemgr;
 	unsigned long flag;
 
@@ -615,7 +607,7 @@ int sif_video_dqbuf(struct sif_video_ctx *sif_ctx,
 	return ret;
 }
 
-static long x2a_sif_ioctl(struct file *file, unsigned int cmd,
+static long x3_sif_ioctl(struct file *file, unsigned int cmd,
 			  unsigned long arg)
 {
 	int ret = 0;
@@ -693,15 +685,15 @@ static long x2a_sif_ioctl(struct file *file, unsigned int cmd,
 	return ret;
 }
 
-static struct file_operations x2a_sif_fops = {
+static struct file_operations x3_sif_fops = {
 	.owner = THIS_MODULE,
-	.open = x2a_sif_open,
-	.write = x2a_sif_write,
-	.read = x2a_sif_read,
-	.release = x2a_sif_close,
-	.poll = x2a_sif_poll,
-	.unlocked_ioctl = x2a_sif_ioctl,
-	.compat_ioctl = x2a_sif_ioctl,
+	.open = x3_sif_open,
+	.write = x3_sif_write,
+	.read = x3_sif_read,
+	.release = x3_sif_close,
+	.poll = x3_sif_poll,
+	.unlocked_ioctl = x3_sif_ioctl,
+	.compat_ioctl = x3_sif_ioctl,
 };
 
 void sif_get_timestamps(struct vio_group *group, struct frame_id *info){
@@ -752,12 +744,12 @@ static irqreturn_t sif_isr(int irq, void *data)
 	u32 status = 0;
 	u32 intr_en = 0;
 	struct sif_irq_src irq_src;
-	struct x2a_sif_dev *sif;
+	struct x3_sif_dev *sif;
 	struct sif_video_ctx *sif_ctx;
 	struct vio_group *group;
 	struct vio_group_task *gtask;
 
-	sif = (struct x2a_sif_dev *) data;
+	sif = (struct x3_sif_dev *) data;
 	memset(&irq_src, 0x0, sizeof(struct sif_irq_src));
 	ret = sif_get_irq_src(sif->base_reg, &irq_src, true);
 	intr_en = sif_get_frame_intr(sif->base_reg);
@@ -823,18 +815,18 @@ static irqreturn_t sif_isr(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
-int x2a_sif_device_node_init(struct x2a_sif_dev *sif)
+int x3_sif_device_node_init(struct x3_sif_dev *sif)
 {
 	int ret = 0;
 	struct device *dev = NULL;
 
-	ret = alloc_chrdev_region(&sif->devno, 0, MAX_DEVICE, "x2a_sif");
+	ret = alloc_chrdev_region(&sif->devno, 0, MAX_DEVICE, "x3_sif");
 	if (ret < 0) {
 		vio_err("Error %d while alloc chrdev sif", ret);
 		goto err_req_cdev;
 	}
 
-	cdev_init(&sif->cdev, &x2a_sif_fops);
+	cdev_init(&sif->cdev, &x3_sif_fops);
 	sif->cdev.owner = THIS_MODULE;
 	ret = cdev_add(&sif->cdev, sif->devno, MAX_DEVICE);
 	if (ret) {
@@ -845,7 +837,7 @@ int x2a_sif_device_node_init(struct x2a_sif_dev *sif)
 	if (vps_class)
 		sif->class = vps_class;
 	else
-		sif->class = class_create(THIS_MODULE, X2A_SIF_NAME);
+		sif->class = class_create(THIS_MODULE, X3_SIF_NAME);
 
 	dev = device_create(sif->class, NULL, MKDEV(MAJOR(sif->devno), 0),
 				NULL, "sif_capture");
@@ -874,7 +866,7 @@ err_req_cdev:
 static ssize_t sif_reg_dump(struct device *dev,
 				struct device_attribute *attr, char* buf)
 {
-	struct x2a_sif_dev *sif;
+	struct x3_sif_dev *sif;
 
 	sif = dev_get_drvdata(dev);
 
@@ -885,14 +877,14 @@ static ssize_t sif_reg_dump(struct device *dev,
 
 static DEVICE_ATTR(regdump, 0444, sif_reg_dump, NULL);
 
-static int x2a_sif_probe(struct platform_device *pdev)
+static int x3_sif_probe(struct platform_device *pdev)
 {
 	int ret = 0;
-	struct x2a_sif_dev *sif;
+	struct x3_sif_dev *sif;
 	struct resource *mem_res;
 	struct device *dev = NULL;
 
-	sif = kzalloc(sizeof(struct x2a_sif_dev), GFP_KERNEL);
+	sif = kzalloc(sizeof(struct x3_sif_dev), GFP_KERNEL);
 	if (!sif) {
 		vio_err("sif is NULL");
 		ret = -ENOMEM;
@@ -936,7 +928,7 @@ static int x2a_sif_probe(struct platform_device *pdev)
 
 	spin_lock_init(&sif->shared_slock);
 
-	x2a_sif_device_node_init(sif);
+	x3_sif_device_node_init(sif);
 
 	dev = &pdev->dev;
 	ret = device_create_file(dev, &dev_attr_regdump);
@@ -962,11 +954,11 @@ p_err:
 
 }
 
-static int x2a_sif_remove(struct platform_device *pdev)
+static int x3_sif_remove(struct platform_device *pdev)
 {
 	int ret = 0;
 	int i = 0;
-	struct x2a_sif_dev *sif;
+	struct x3_sif_dev *sif;
 
 	BUG_ON(!pdev);
 
@@ -987,28 +979,28 @@ static int x2a_sif_remove(struct platform_device *pdev)
 }
 
 #ifdef CONFIG_OF
-static const struct of_device_id x2a_sif_match[] = {
+static const struct of_device_id x3_sif_match[] = {
 	{
-	 .compatible = "hobot,x2a-sif",
+	 .compatible = "hobot,x3-sif",
 	 },
 	{},
 };
 
-MODULE_DEVICE_TABLE(of, x2a_sif_match);
+MODULE_DEVICE_TABLE(of, x3_sif_match);
 
-static struct platform_driver x2a_sif_driver = {
-	.probe = x2a_sif_probe,
-	.remove = x2a_sif_remove,
+static struct platform_driver x3_sif_driver = {
+	.probe = x3_sif_probe,
+	.remove = x3_sif_remove,
 	.driver = {
 		   .name = MODULE_NAME,
 		   .owner = THIS_MODULE,
-		   .pm = &x2a_sif_pm_ops,
-		   .of_match_table = x2a_sif_match,
+		   .pm = &x3_sif_pm_ops,
+		   .of_match_table = x3_sif_match,
 		   }
 };
 
 #else
-static struct platform_device_id x2a_sif_driver_ids[] = {
+static struct platform_device_id x3_sif_driver_ids[] = {
 	{
 	 .name = MODULE_NAME,
 	 .driver_data = 0,
@@ -1016,136 +1008,38 @@ static struct platform_device_id x2a_sif_driver_ids[] = {
 	{},
 };
 
-MODULE_DEVICE_TABLE(platform, x2a_sif_driver_ids);
+MODULE_DEVICE_TABLE(platform, x3_sif_driver_ids);
 
-static struct platform_driver x2a_sif_driver = {
-	.probe = x2a_sif_probe,
-	.remove = __devexit_p(x2a_sif_remove),
-	.id_table = x2a_sif_driver_ids,
+static struct platform_driver x3_sif_driver = {
+	.probe = x3_sif_probe,
+	.remove = __devexit_p(x3_sif_remove),
+	.id_table = x3_sif_driver_ids,
 	.driver = {
 		   .name = MODULE_NAME,
 		   .owner = THIS_MODULE,
-		   .pm = &x2a_sif_pm_ops,
+		   .pm = &x3_sif_pm_ops,
 		   }
 };
 #endif
 
-#if CONFIG_QEMU_TEST
-static void sif_timer(unsigned long data)
+static int __init x3_sif_init(void)
 {
-	struct sif_irq_src irq_src;
-	struct x2a_sif_dev *sif;
-	struct sif_video_ctx *sif_ctx;
-	struct vio_group_task *gtask;
-	u32 mux_index = 0;
-	u32 instance;
-	int ret = 0;
-
-	mod_timer(&tm[0], jiffies + HZ / 25);
-
-	sif = (struct x2a_sif_dev *) data;
-	memset(&irq_src, 0x0, sizeof(struct sif_irq_src));
-	ret = sif_get_irq_src(sif->base_reg, &irq_src, true);
-
-	irq_src.sif_frm_int = g_test_bit;
-
-	if (irq_src.sif_frm_int)
-		for (mux_index = 0; mux_index <= 7; mux_index++) {
-			//Frame start processing
-			if (sif_get_wdma_enable(sif->base_reg, mux_index)) {
-				if ((irq_src.sif_frm_int & 1 << mux_index)) {
-					sif_ctx = sif->sif_mux[mux_index]->sub_ctx[0];
-					gtask = &sif->sifout_task[mux_index];
-					up(&gtask->hw_resource);
-					vio_info
-					    ("current FS interrupt mux = %d\n",
-					     mux_index);
-				}
-
-				mdelay(10);
-				if (irq_src.sif_frm_int & 1 << (mux_index + 8)) {
-					sif_ctx = sif->sif_mux[mux_index]->sub_ctx[0];
-					sif_frame_done(sif_ctx);
-					vio_info
-					    ("current FE interrupt mux = %d\n",
-					     mux_index);
-				}
-			}
-		}
-
-	if (g_test_input)
-		irq_src.sif_out_int = 1 << SIF_ISP_OUT_FE;
-
-	if ((irq_src.sif_out_int & 1 << SIF_ISP_OUT_FE)) {
-		gtask = &sif->sifin_task;
-		instance = atomic_read(&sif->instance);
-		sif_ctx = sif->sif_input[instance]->sub_ctx[0];
-		sif_frame_done(sif_ctx);
-
-		up(&gtask->hw_resource);
-	}
-}
-
-static int timer_init(struct x2a_sif_dev *sif, int index)
-{
-	if (g_test == index)
-		return 0;
-	g_test = index;
-	init_timer(&tm[index]);
-	tm[index].expires = jiffies + HZ / 10;
-	tm[index].function = sif_timer;
-	tm[index].data = (unsigned long) sif;
-	add_timer(&tm[index]);
-}
-
-static int __init x2a_sif_init(void)
-{
-	int ret = 0;
-	struct x2a_sif_dev *sif;
-
-	sif = kzalloc(sizeof(struct x2a_sif_dev), GFP_KERNEL);
-	if (!sif) {
-		vio_err("sif is NULL");
-		ret = -ENOMEM;
-		goto p_err;
-	}
-
-	sif->base_reg = kzalloc(0x1000, GFP_KERNEL);
-	x2a_sif_device_node_init(sif);
-	atomic_set(&sif->sifin_task.refcount, 0);
-	sema_init(&sif->sifin_task.hw_resource, 1);
-	spin_lock_init(&sif->shared_slock);
-
-	vio_info("[FRT:D] %s(%d)\n", __func__, ret);
-
-	return 0;
-
-p_err:
-	vio_err("[FRT:D] %s(%d)\n", __func__, ret);
-	return ret;
-}
-
-#else
-
-static int __init x2a_sif_init(void)
-{
-	int ret = platform_driver_register(&x2a_sif_driver);
+	int ret = platform_driver_register(&x3_sif_driver);
 	if (ret)
 		vio_err("platform_driver_register failed: %d\n", ret);
 
 	return ret;
 }
-#endif
 
-late_initcall(x2a_sif_init);
+late_initcall(x3_sif_init);
 
-static void __exit x2a_sif_exit(void)
+static void __exit x3_sif_exit(void)
 {
-	platform_driver_unregister(&x2a_sif_driver);
+	platform_driver_unregister(&x3_sif_driver);
 }
 
-module_exit(x2a_sif_exit);
+module_exit(x3_sif_exit);
 
 MODULE_AUTHOR("Sun Kaikai<kaikai.sun@horizon.com>");
-MODULE_DESCRIPTION("X2A SIF driver");
+MODULE_DESCRIPTION("X3 SIF driver");
 MODULE_LICENSE("GPL");

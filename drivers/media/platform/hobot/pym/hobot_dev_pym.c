@@ -28,26 +28,19 @@
 #include "hobot_dev_pym.h"
 #include "pym_hw_api.h"
 
-#define MODULE_NAME "X2A PYM"
-
-#if CONFIG_QEMU_TEST
-static struct timer_list tm[4];
-static int g_test_bit = 0;
-static int g_int_test = -1;
-static int timer_init(struct x2a_pym_dev *pym, int index);
-#endif
+#define MODULE_NAME "X3 PYM"
 
 extern struct class *vps_class;
-static int x2a_pym_open(struct inode *inode, struct file *file)
+static int x3_pym_open(struct inode *inode, struct file *file)
 {
 	struct pym_video_ctx *pym_ctx;
-	struct x2a_pym_dev *pym;
+	struct x3_pym_dev *pym;
 	int ret = 0;
 	int minor;
 
 	minor = MINOR(inode->i_rdev);
 
-	pym = container_of(inode->i_cdev, struct x2a_pym_dev, cdev);
+	pym = container_of(inode->i_cdev, struct x3_pym_dev, cdev);
 	pym_ctx = kzalloc(sizeof(struct pym_video_ctx), GFP_KERNEL);
 	if (pym_ctx == NULL) {
 		vio_err("kzalloc is fail");
@@ -67,20 +60,20 @@ p_err:
 	return ret;
 }
 
-static ssize_t x2a_pym_write(struct file *file, const char __user *buf,
+static ssize_t x3_pym_write(struct file *file, const char __user *buf,
 			     size_t count, loff_t * ppos)
 {
 	return 0;
 }
 
-static ssize_t x2a_pym_read(struct file *file, char __user *buf,
+static ssize_t x3_pym_read(struct file *file, char __user *buf,
 				size_t size, loff_t * ppos)
 {
 	return 0;
 
 }
 
-static u32 x2a_pym_poll(struct file *file, struct poll_table_struct *wait)
+static u32 x3_pym_poll(struct file *file, struct poll_table_struct *wait)
 {
 	int ret = 0;
 	struct pym_video_ctx *pym_ctx;
@@ -98,11 +91,11 @@ static u32 x2a_pym_poll(struct file *file, struct poll_table_struct *wait)
 	return ret;
 }
 
-static int x2a_pym_close(struct inode *inode, struct file *file)
+static int x3_pym_close(struct inode *inode, struct file *file)
 {
 	struct pym_video_ctx *pym_ctx;
 	struct vio_group *group;
-	struct x2a_pym_dev *pym;
+	struct x3_pym_dev *pym;
 
 	pym_ctx = file->private_data;
 	group = pym_ctx->group;
@@ -129,7 +122,7 @@ static int x2a_pym_close(struct inode *inode, struct file *file)
 	return 0;
 }
 
-void pym_set_buffers(struct x2a_pym_dev *pym, struct vio_frame *frame)
+void pym_set_buffers(struct x3_pym_dev *pym, struct vio_frame *frame)
 {
 	int i = 0;
 	u32 y_addr, uv_addr;
@@ -150,7 +143,7 @@ void pym_set_buffers(struct x2a_pym_dev *pym, struct vio_frame *frame)
 static void pym_frame_work(struct vio_group *group)
 {
 	struct pym_video_ctx *ctx;
-	struct x2a_pym_dev *pym;
+	struct x3_pym_dev *pym;
 	struct vio_framemgr *framemgr;
 	struct vio_frame *frame;
 	unsigned long flags;
@@ -160,8 +153,11 @@ static void pym_frame_work(struct vio_group *group)
 	instance = group->instance;
 	ctx = group->sub_ctx[0];
 	pym = ctx->pym_dev;
-	shadow_index = instance % MAX_SHADOW_NUM;
+
 	vio_info("%s start\n", __func__);
+
+	if (group->instance < MAX_SHADOW_NUM)
+		shadow_index = group->instance;
 
 	atomic_set(&pym->instance, instance);
 
@@ -191,7 +187,7 @@ static void pym_frame_work(struct vio_group *group)
 
 	return;
 }
-void pym_hw_enable(struct x2a_pym_dev *pym, bool enable)
+void pym_hw_enable(struct x3_pym_dev *pym, bool enable)
 {
 	pym_set_common_rdy(pym->base_reg, 0);
 
@@ -210,20 +206,23 @@ void pym_hw_enable(struct x2a_pym_dev *pym, bool enable)
 	pym_set_common_rdy(pym->base_reg, 1);
 
 }
-void pym_update_param(struct pym_video_ctx *pym_ctx, pym_cfg_t *pym_config)
+void pym_update_param(struct pym_video_ctx *pym_ctx)
 {
 	u16 src_width, src_height, roi_width;
-	u32 shadow_index;
+	u32 shadow_index = 0;
 	int i = 0;
 	u32 base_layer_nums = 0;
 	u32 ds_bapass_uv = 0;
+	pym_cfg_t *pym_config;
 	struct vio_group *group;
-	struct x2a_pym_dev *pym;
+	struct x3_pym_dev *pym;
 	struct roi_rect rect;
 
 	group = pym_ctx->group;
-	shadow_index = group->instance % MAX_SHADOW_NUM;
 	pym = pym_ctx->pym_dev;
+	pym_config = &pym_ctx->pym_cfg;
+	if (group->instance < MAX_SHADOW_NUM)
+		shadow_index = group->instance;
 
 	pym_set_shd_rdy(pym->base_reg, shadow_index, 0);
 
@@ -292,7 +291,7 @@ int pym_bind_chain_group(struct pym_video_ctx *pym_ctx, int instance)
 {
 	int ret = 0;
 	struct vio_group *group;
-	struct x2a_pym_dev *pym;
+	struct x3_pym_dev *pym;
 	struct vio_chain *chain;
 
 	if (!(pym_ctx->state & BIT(VIO_VIDEO_OPEN))) {
@@ -331,12 +330,13 @@ int pym_bind_chain_group(struct pym_video_ctx *pym_ctx, int instance)
 int pym_video_init(struct pym_video_ctx *pym_ctx, unsigned long arg)
 {
 	int ret = 0;
-	pym_cfg_t pym_config;
+	pym_cfg_t *pym_config;
 	struct vio_group *group;
-	struct x2a_pym_dev *pym_dev;
+	struct x3_pym_dev *pym_dev;
 
 	group = pym_ctx->group;
 	pym_dev = pym_ctx->pym_dev;
+	pym_config = &pym_ctx->pym_cfg;
 
 	if (!(pym_ctx->state & (BIT(VIO_VIDEO_S_INPUT)
 							| BIT(VIO_VIDEO_REBUFS)))) {
@@ -345,12 +345,12 @@ int pym_video_init(struct pym_video_ctx *pym_ctx, unsigned long arg)
 		return -EINVAL;
 	}
 
-	ret = copy_from_user((char *) &pym_config,
+	ret = copy_from_user((char *)pym_config,
 				(u32 __user *) arg, sizeof(pym_cfg_t));
 	if (ret)
 		return -EFAULT;
 
-	if (pym_config.img_scr == 1) {
+	if (pym_config->img_scr == 1) {
 		if (test_bit(PYM_DMA_INPUT, &pym_dev->state)){
 		 	vio_err("PYM DMA input already,can't set otf input\n");
 			return -EINVAL;
@@ -368,7 +368,7 @@ int pym_video_init(struct pym_video_ctx *pym_ctx, unsigned long arg)
 		}
 	}
 		
-	pym_update_param(pym_ctx, &pym_config);
+	pym_update_param(pym_ctx);
 
 	set_bit(VIO_GROUP_DMA_OUTPUT, &group->state);
 
@@ -381,7 +381,7 @@ int pym_video_init(struct pym_video_ctx *pym_ctx, unsigned long arg)
 
 int pym_video_streamon(struct pym_video_ctx *pym_ctx)
 {
-	struct x2a_pym_dev *pym_dev;
+	struct x3_pym_dev *pym_dev;
 	unsigned long flags;
 
 	pym_dev = pym_ctx->pym_dev;
@@ -400,17 +400,9 @@ int pym_video_streamon(struct pym_video_ctx *pym_ctx)
 
 	pym_hw_enable(pym_dev, true);
 
-#if CONFIG_QEMU_TEST
-	timer_init(pym_dev, 0);
-#endif
-
 	spin_unlock_irqrestore(&pym_dev->shared_slock, flags);
 
 p_inc:
-#if CONFIG_QEMU_TEST
-	g_test_bit |= 1 << INTR_PYM_FRAME_START | 1 << INTR_PYM_FRAME_DONE;
-#endif
-
 	atomic_inc(&pym_dev->rsccount);
 	pym_ctx->state = BIT(VIO_VIDEO_START);
 
@@ -419,7 +411,7 @@ p_inc:
 
 int pym_video_streamoff(struct pym_video_ctx *pym_ctx)
 {
-	struct x2a_pym_dev *pym_dev;
+	struct x3_pym_dev *pym_dev;
 	unsigned long flag;
 
 	if (!(pym_ctx->state & BIT(VIO_VIDEO_START))) {
@@ -435,10 +427,6 @@ int pym_video_streamoff(struct pym_video_ctx *pym_ctx)
 	spin_lock_irqsave(&pym_dev->shared_slock, flag);
 	pym_hw_enable(pym_dev, false);
 
-#if CONFIG_QEMU_TEST
-	del_timer_sync(&tm[0]);
-	g_test_bit = 0;
-#endif
 	spin_unlock_irqrestore(&pym_dev->shared_slock, flag);
 p_dec:
 
@@ -547,7 +535,7 @@ int pym_video_dqbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 	return ret;
 }
 
-static long x2a_pym_ioctl(struct file *file, unsigned int cmd,
+static long x3_pym_ioctl(struct file *file, unsigned int cmd,
 			  unsigned long arg)
 {
 	int ret = 0;
@@ -677,7 +665,7 @@ static irqreturn_t pym_isr(int irq, void *data)
 {
 	u32 status;
 	u32 instance;
-	struct x2a_pym_dev *pym;
+	struct x3_pym_dev *pym;
 	struct vio_group *group;
 	struct vio_group_task *gtask;
 
@@ -712,18 +700,18 @@ static irqreturn_t pym_isr(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
-static struct file_operations x2a_pym_fops = {
+static struct file_operations x3_pym_fops = {
 	.owner = THIS_MODULE,
-	.open = x2a_pym_open,
-	.write = x2a_pym_write,
-	.read = x2a_pym_read,
-	.poll = x2a_pym_poll,
-	.release = x2a_pym_close,
-	.unlocked_ioctl = x2a_pym_ioctl,
-	.compat_ioctl = x2a_pym_ioctl,
+	.open = x3_pym_open,
+	.write = x3_pym_write,
+	.read = x3_pym_read,
+	.poll = x3_pym_poll,
+	.release = x3_pym_close,
+	.unlocked_ioctl = x3_pym_ioctl,
+	.compat_ioctl = x3_pym_ioctl,
 };
 
-static int x2a_pym_suspend(struct device *dev)
+static int x3_pym_suspend(struct device *dev)
 {
 	int ret = 0;
 
@@ -732,7 +720,7 @@ static int x2a_pym_suspend(struct device *dev)
 	return ret;
 }
 
-static int x2a_pym_resume(struct device *dev)
+static int x3_pym_resume(struct device *dev)
 {
 	int ret = 0;
 
@@ -741,7 +729,7 @@ static int x2a_pym_resume(struct device *dev)
 	return ret;
 }
 
-static int x2a_pym_runtime_suspend(struct device *dev)
+static int x3_pym_runtime_suspend(struct device *dev)
 {
 	int ret = 0;
 
@@ -750,7 +738,7 @@ static int x2a_pym_runtime_suspend(struct device *dev)
 	return ret;
 }
 
-static int x2a_pym_runtime_resume(struct device *dev)
+static int x3_pym_runtime_resume(struct device *dev)
 {
 	int ret = 0;
 
@@ -759,26 +747,26 @@ static int x2a_pym_runtime_resume(struct device *dev)
 	return ret;
 }
 
-static const struct dev_pm_ops x2a_pym_pm_ops = {
-	.suspend = x2a_pym_suspend,
-	.resume = x2a_pym_resume,
-	.runtime_suspend = x2a_pym_runtime_suspend,
-	.runtime_resume = x2a_pym_runtime_resume,
+static const struct dev_pm_ops x3_pym_pm_ops = {
+	.suspend = x3_pym_suspend,
+	.resume = x3_pym_resume,
+	.runtime_suspend = x3_pym_runtime_suspend,
+	.runtime_resume = x3_pym_runtime_resume,
 };
 
-int x2a_pym_device_node_init(struct x2a_pym_dev *pym)
+int x3_pym_device_node_init(struct x3_pym_dev *pym)
 {
 	int ret = 0;
 	dev_t devno;
 	struct device *dev = NULL;
 
-	ret = alloc_chrdev_region(&devno, 0, MAX_DEVICE, "x2a_pym");
+	ret = alloc_chrdev_region(&devno, 0, MAX_DEVICE, "x3_pym");
 	if (ret < 0) {
 		vio_err("Error %d while alloc chrdev pym", ret);
 		goto err_req_cdev;
 	}
 
-	cdev_init(&pym->cdev, &x2a_pym_fops);
+	cdev_init(&pym->cdev, &x3_pym_fops);
 	pym->cdev.owner = THIS_MODULE;
 	ret = cdev_add(&pym->cdev, devno, MAX_DEVICE);
 	if (ret) {
@@ -789,7 +777,7 @@ int x2a_pym_device_node_init(struct x2a_pym_dev *pym)
 	if (vps_class)
 		pym->class = vps_class;
 	else
-		pym->class = class_create(THIS_MODULE, X2A_PYM_NAME);
+		pym->class = class_create(THIS_MODULE, X3_PYM_NAME);
 
 	dev = device_create(pym->class, NULL, MKDEV(MAJOR(devno), 0),
 					NULL, "pym");
@@ -810,7 +798,7 @@ err_req_cdev:
 static ssize_t pym_reg_dump(struct device *dev,
 				struct device_attribute *attr, char* buf)
 {
-	struct x2a_pym_dev *pym;
+	struct x3_pym_dev *pym;
 
 	pym = dev_get_drvdata(dev);
 
@@ -821,14 +809,14 @@ static ssize_t pym_reg_dump(struct device *dev,
 
 static DEVICE_ATTR(regdump, 0444, pym_reg_dump, NULL);
 
-static int x2a_pym_probe(struct platform_device *pdev)
+static int x3_pym_probe(struct platform_device *pdev)
 {
 	int ret = 0;
-	struct x2a_pym_dev *pym;
+	struct x3_pym_dev *pym;
 	struct resource *mem_res;
 	struct device *dev = NULL;
 
-	pym = kzalloc(sizeof(struct x2a_pym_dev), GFP_KERNEL);
+	pym = kzalloc(sizeof(struct x3_pym_dev), GFP_KERNEL);
 	if (!pym) {
 		vio_err("pym is NULL");
 		ret = -ENOMEM;
@@ -866,7 +854,7 @@ static int x2a_pym_probe(struct platform_device *pdev)
 		goto err_get_irq;
 	}
 
-	x2a_pym_device_node_init(pym);
+	x3_pym_device_node_init(pym);
 
 	dev = &pdev->dev;
 	ret = device_create_file(dev, &dev_attr_regdump);
@@ -897,7 +885,7 @@ p_err:
 
 }
 
-static int x2a_pym_remove(struct platform_device *pdev)
+static int x3_pym_remove(struct platform_device *pdev)
 {
 	int ret = 0;
 
@@ -907,28 +895,28 @@ static int x2a_pym_remove(struct platform_device *pdev)
 }
 
 #ifdef CONFIG_OF
-static const struct of_device_id x2a_pym_match[] = {
+static const struct of_device_id x3_pym_match[] = {
 	{
-	 .compatible = "hobot,x2a-pym",
+	 .compatible = "hobot,x3-pym",
 	 },
 	{},
 };
 
-MODULE_DEVICE_TABLE(of, x2a_pym_match);
+MODULE_DEVICE_TABLE(of, x3_pym_match);
 
-static struct platform_driver x2a_pym_driver = {
-	.probe = x2a_pym_probe,
-	.remove = x2a_pym_remove,
+static struct platform_driver x3_pym_driver = {
+	.probe = x3_pym_probe,
+	.remove = x3_pym_remove,
 	.driver = {
 		   .name = MODULE_NAME,
 		   .owner = THIS_MODULE,
-		   .pm = &x2a_pym_pm_ops,
-		   .of_match_table = x2a_pym_match,
+		   .pm = &x3_pym_pm_ops,
+		   .of_match_table = x3_pym_match,
 		   }
 };
 
 #else
-static struct platform_device_id x2a_pym_driver_ids[] = {
+static struct platform_device_id x3_pym_driver_ids[] = {
 	{
 	 .name = MODULE_NAME,
 	 .driver_data = 0,
@@ -936,110 +924,38 @@ static struct platform_device_id x2a_pym_driver_ids[] = {
 	{},
 };
 
-MODULE_DEVICE_TABLE(platform, x2a_pym_driver_ids);
+MODULE_DEVICE_TABLE(platform, x3_pym_driver_ids);
 
-static struct platform_driver x2a_pym_driver = {
-	.probe = x2a_pym_probe,
-	.remove = __devexit_p(x2a_pym_remove),
-	.id_table = x2a_pym_driver_ids,
+static struct platform_driver x3_pym_driver = {
+	.probe = x3_pym_probe,
+	.remove = __devexit_p(x3_pym_remove),
+	.id_table = x3_pym_driver_ids,
 	.driver = {
 		   .name = MODULE_NAME,
 		   .owner = THIS_MODULE,
-		   .pm = &x2a_pym_pm_ops,
+		   .pm = &x3_pym_pm_ops,
 		   }
 };
 #endif
 
-#if CONFIG_QEMU_TEST
-static void pym_timer(unsigned long data)
+static int __init x3_pym_init(void)
 {
-	u32 status;
-	struct x2a_pym_dev *pym;
-	u32 instance;
-	struct vio_group *group;
-	struct vio_group_task *gtask;
-
-	pym = (struct x2a_pym_dev *) data;
-	gtask = &pym->gtask;
-	instance = atomic_read(&pym->instance);
-	group = pym->group[instance];
-	pym_get_intr_status(pym->base_reg, &status, true);
-	status = g_test_bit;
-	mod_timer(&tm[0], jiffies + HZ / 25);
-
-	vio_info("%s:%d\n", __func__, status);
-	if (status & (1 << INTR_PYM_FRAME_DONE)) {
-		if (!test_bit(PYM_OTF_INPUT, &pym->state)) {
-			up(&gtask->hw_resource);
-		}
-		pym_frame_done(group->sub_ctx[GROUP_ID_SRC]);
-	}
-
-	if (status & (1 << INTR_PYM_FRAME_START)) {
-		if (test_bit(PYM_OTF_INPUT, &pym->state))
-			up(&gtask->hw_resource);
-	}
-}
-
-static int timer_init(struct x2a_pym_dev *pym, int index)
-{
-	init_timer(&tm[index]);
-	tm[index].expires = jiffies + HZ / 10;
-	tm[index].function = pym_timer;
-	tm[index].data = (unsigned long) pym;
-	add_timer(&tm[index]);
-}
-
-static int __init x2a_pym_init(void)
-{
-	int ret = 0;
-	struct x2a_pym_dev *pym;
-
-	pym = kzalloc(sizeof(struct x2a_pym_dev), GFP_KERNEL);
-	if (!pym) {
-		vio_err("pym is NULL");
-		ret = -ENOMEM;
-		goto p_err;
-	}
-
-	pym->base_reg = kzalloc(0x1000, GFP_KERNEL);
-
-	x2a_pym_device_node_init(pym);
-	atomic_set(&pym->gtask.refcount, 0);
-	spin_lock_init(&pym->shared_slock);
-	sema_init(&pym->gtask.hw_resource, 1);
-
-	vio_info("[FRT:D] %s(%d)\n", __func__, ret);
-	atomic_set(&pym->rsccount, 0);
-
-	return 0;
-
-p_err:
-	vio_err("[FRT:D] %s(%d)\n", __func__, ret);
-	return ret;
-}
-
-#else
-
-static int __init x2a_pym_init(void)
-{
-	int ret = platform_driver_register(&x2a_pym_driver);
+	int ret = platform_driver_register(&x3_pym_driver);
 	if (ret)
 		vio_err("platform_driver_register failed: %d\n", ret);
 
 	return ret;
 }
-#endif
 
-late_initcall(x2a_pym_init);
+late_initcall(x3_pym_init);
 
-static void __exit x2a_pym_exit(void)
+static void __exit x3_pym_exit(void)
 {
-	platform_driver_unregister(&x2a_pym_driver);
+	platform_driver_unregister(&x3_pym_driver);
 }
 
-module_exit(x2a_pym_exit);
+module_exit(x3_pym_exit);
 
 MODULE_AUTHOR("Sun Kaikai<kaikai.sun@horizon.com>");
-MODULE_DESCRIPTION("X2A PYM driver");
+MODULE_DESCRIPTION("X3 PYM driver");
 MODULE_LICENSE("GPL");

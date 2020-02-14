@@ -17,7 +17,7 @@
 #include "vio_group_api.h"
 
 #define MAX_DEVICE  1
-#define X2A_PYM_NAME  "x2a-pym"
+#define X3_PYM_NAME  "x3-pym"
 
 #define PYM_IOC_MAGIC 'p'
 
@@ -35,7 +35,8 @@ struct pym_video_ctx {
 	struct vio_group *group;
 	unsigned long state;
 
-	struct x2a_pym_dev *pym_dev;
+	struct x3_pym_dev *pym_dev;
+	pym_cfg_t pym_cfg;
 	u32 event;
 	bool leader;
 };
@@ -58,7 +59,7 @@ enum pym_status {
 };
 
 
-struct x2a_pym_dev {
+struct x3_pym_dev {
 	/* channel information */
 	u32 __iomem *base_reg;
 	resource_size_t regs_start;

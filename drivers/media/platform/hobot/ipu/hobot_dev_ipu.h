@@ -18,7 +18,7 @@
 #include "vio_framemgr.h"
 #include "vio_group_api.h"
 
-#define X2A_IPU_NAME  "x2a-ipu"
+#define X3_IPU_NAME  "x3-ipu"
 
 #define MAX_DEVICE  8
 #define IPU_IOC_MAGIC 'v'
@@ -58,7 +58,7 @@ struct ipu_video_ctx {
 	u32 id;
 	unsigned long state;
 
-	struct x2a_ipu_dev *ipu_dev;
+	struct x3_ipu_dev *ipu_dev;
 	struct ipu_osd_cfg osd_cfg;
 
 	u32			frm_fst_ind;
@@ -86,7 +86,7 @@ struct ipu_sub_mp {
 	u32			client_count;
 	unsigned long 		state;
 	struct vio_group 	*group;
-	struct x2a_ipu_dev 	*ipu_dev;
+	struct x3_ipu_dev 	*ipu_dev;
 	struct semaphore	hw_init_sem;
 };
 
@@ -94,7 +94,7 @@ struct ipu_work {
 	struct work_struct work;
 	u32 work_sta;
 	atomic_t instance;
-	struct x2a_ipu_dev * ipu;
+	struct x3_ipu_dev *ipu;
 };
 
 enum ipu_group_state {
@@ -150,7 +150,7 @@ enum ipu_status {
 	IPU_HW_CONFIG,
 };
 
-struct x2a_ipu_dev {
+struct x3_ipu_dev {
 	/* channel information */
 	u32 __iomem *base_reg;
 	resource_size_t regs_start;

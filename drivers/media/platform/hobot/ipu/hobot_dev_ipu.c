@@ -30,7 +30,7 @@
 
 #include "ipu_hw_api.h"
 
-#define MODULE_NAME "X2A IPU"
+#define MODULE_NAME "X3 IPU"
 
 void ipu_hw_set_osd_cfg(struct ipu_video_ctx *ipu_ctx);
 extern struct class *vps_class;
@@ -46,16 +46,16 @@ int ipu_put_client(struct ipu_sub_mp *sub_mp,
 		struct ipu_video_ctx *ipu_sub_ctx);
 struct ipu_video_ctx *ipu_get_client(struct ipu_sub_mp *sub_mp);
 
-static int x2a_ipu_open(struct inode *inode, struct file *file)
+static int x3_ipu_open(struct inode *inode, struct file *file)
 {
 	struct ipu_video_ctx *ipu_ctx;
-	struct x2a_ipu_dev *ipu;
+	struct x3_ipu_dev *ipu;
 	int ret = 0;
 	int minor;
 
 	minor = MINOR(inode->i_rdev);
 
-	ipu = container_of(inode->i_cdev, struct x2a_ipu_dev, cdev);
+	ipu = container_of(inode->i_cdev, struct x3_ipu_dev, cdev);
 	ipu_ctx = kzalloc(sizeof(struct ipu_video_ctx), GFP_KERNEL);
 	if (ipu_ctx == NULL) {
 		vio_err("kzalloc is fail");
@@ -77,10 +77,10 @@ p_err:
 	return 0;
 }
 
-static int x2a_ipu_close(struct inode *inode, struct file *file)
+static int x3_ipu_close(struct inode *inode, struct file *file)
 {
 	struct ipu_video_ctx *ipu_ctx;
-	struct x2a_ipu_dev *ipu;
+	struct x3_ipu_dev *ipu;
 	struct vio_group *group;
 	u32 index;
 	u32 cnt;
@@ -115,19 +115,19 @@ static int x2a_ipu_close(struct inode *inode, struct file *file)
 	return 0;
 }
 
-static ssize_t x2a_ipu_write(struct file *file, const char __user * buf,
+static ssize_t x3_ipu_write(struct file *file, const char __user * buf,
 				size_t count, loff_t * ppos)
 {
 	return 0;
 }
 
-static ssize_t x2a_ipu_read(struct file *file, char __user * buf, size_t size,
+static ssize_t x3_ipu_read(struct file *file, char __user * buf, size_t size,
 				loff_t * ppos)
 {
 	return 0;
 }
 
-static u32 x2a_ipu_poll(struct file *file, struct poll_table_struct *wait)
+static u32 x3_ipu_poll(struct file *file, struct poll_table_struct *wait)
 {
 	int ret = 0;
 	struct ipu_video_ctx *ipu_ctx;
@@ -181,7 +181,7 @@ void ipu_frame_work(struct vio_group *group)
 {
 	struct ipu_video_ctx *back_ctx;
 	struct ipu_sub_mp *sub_mp;
-	struct x2a_ipu_dev *ipu;
+	struct x3_ipu_dev *ipu;
 	struct vio_framemgr *framemgr;
 	struct vio_frame *frame;
 	unsigned long flags;
@@ -525,7 +525,7 @@ int ipu_channel_wdma_disable(struct ipu_video_ctx *ipu_ctx)
 	u32 shadow_index = 0;
 	u8 ds_ch = 0;
 	struct vio_group *group;
-	struct x2a_ipu_dev *ipu;
+	struct x3_ipu_dev *ipu;
 
 	id = ipu_ctx->id;
 	group = ipu_ctx->group;
@@ -559,7 +559,7 @@ int ipu_update_ds_ch_param(struct ipu_video_ctx *ipu_ctx, u8 ds_ch,
 	u16 ds_stride_y = 0, ds_stride_uv = 0;
 	u16 roi_x = 0, roi_y = 0, roi_width = 0, roi_height = 0;
 	struct vio_group *group;
-	struct x2a_ipu_dev *ipu;
+	struct x3_ipu_dev *ipu;
 
 	group = ipu_ctx->group;
 	ipu = ipu_ctx->ipu_dev;
@@ -613,7 +613,7 @@ int ipu_update_ds_param(struct ipu_video_ctx *ipu_ctx,
 	int ret = 0;
 	u8 ds_ch = 0;
 	struct vio_group *group;
-	struct x2a_ipu_dev *ipu;
+	struct x3_ipu_dev *ipu;
 
 	ds_ch = ipu_ctx->id - GROUP_ID_DS0;
 	ret = ipu_update_ds_ch_param(ipu_ctx, ds_ch, ds_config);
@@ -635,7 +635,7 @@ int ipu_update_ds_param_mp(struct ipu_video_ctx *ipu_ctx,
 {
 	struct vio_group *group;
 	u8 ds_ch = 0;
-	struct x2a_ipu_dev *ipu;
+	struct x3_ipu_dev *ipu;
 
 	ipu = ipu_ctx->ipu_dev;
 	group = ipu_ctx->group;
@@ -660,7 +660,7 @@ int ipu_update_us_param(struct ipu_video_ctx *ipu_ctx,
 	u32 rdy = 0;
 	u32 shadow_index = 0;
 	struct vio_group *group;
-	struct x2a_ipu_dev *ipu;
+	struct x3_ipu_dev *ipu;
 
 	group = ipu_ctx->group;
 	shadow_index = group->instance % MAX_SHADOW_NUM;
@@ -728,7 +728,7 @@ int ipu_update_common_param(struct ipu_video_ctx *ipu_ctx,
 	u32 rdy = 0;
 	u32 shadow_index = 0;
 	struct vio_group *group;
-	struct x2a_ipu_dev *ipu;
+	struct x3_ipu_dev *ipu;
 	ipu_src_ctrl_t *ipu_ctrl;
 	u16 src_width, src_height, src_stride_uv, src_stride_y;
 
@@ -829,7 +829,7 @@ int ipu_video_init(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 	ipu_us_info_t us_config;
 	ipu_ds_info_t ds_config;
 	ipu_cfg_t ipu_cfg;
-	struct x2a_ipu_dev *ipu;
+	struct x3_ipu_dev *ipu;
 	struct vio_group *group;
 	struct ipu_sub_mp *sub_mp;
 
@@ -902,7 +902,7 @@ int ipu_bind_chain_group(struct ipu_video_ctx *ipu_ctx, int instance)
 	int ret = 0;
 	int id = 0;
 	struct vio_group *group;
-	struct x2a_ipu_dev *ipu;
+	struct x3_ipu_dev *ipu;
 	struct vio_chain *chain;
 	struct ipu_sub_mp *sub_mp_alloc, *sub_mp;
 	u32 proc_id;
@@ -993,7 +993,7 @@ int ipu_bind_chain_group(struct ipu_video_ctx *ipu_ctx, int instance)
 int ipu_video_streamon(struct ipu_video_ctx *ipu_ctx)
 {
 	u32 cnt = 20;
-	struct x2a_ipu_dev *ipu;
+	struct x3_ipu_dev *ipu;
 	struct vio_group *group;
 
 	ipu = ipu_ctx->ipu_dev;
@@ -1039,7 +1039,7 @@ int ipu_video_streamoff(struct ipu_video_ctx *ipu_ctx)
 	u32 value = 0;
 	u32 cfg = 0;
 	u32 cnt = 20;
-	struct x2a_ipu_dev *ipu_dev;
+	struct x3_ipu_dev *ipu_dev;
 	struct vio_group *group;
 
 	ipu_dev = ipu_ctx->ipu_dev;
@@ -1276,7 +1276,7 @@ int ipu_video_dqbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 	return ret;
 }
 
-static long x2a_ipu_ioctl(struct file *file, unsigned int cmd,
+static long x3_ipu_ioctl(struct file *file, unsigned int cmd,
 			  unsigned long arg)
 {
 	int ret = 0;
@@ -1481,7 +1481,7 @@ void ipu_dispatch_frm(struct ipu_work *ipu_work)
 	u32 id;
 	u32 instance = 0;
 	struct vio_group *group;
-	struct x2a_ipu_dev *ipu;
+	struct x3_ipu_dev *ipu;
 
 	ipu = ipu_work->ipu;
 	instance = atomic_read(&ipu_work->instance);
@@ -1542,7 +1542,7 @@ static void ipu_isr_bh(struct work_struct *data)
 	ipu_dispatch_frm(ipu_work);
 }
 
-void ipu_work_init(struct x2a_ipu_dev *ipu)
+void ipu_work_init(struct x3_ipu_dev *ipu)
 {
 	u32 i;
 
@@ -1558,7 +1558,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 	u32 status = 0;
 	u32 instance = 0;
 	u32 size_err = 0;
-	struct x2a_ipu_dev *ipu;
+	struct x3_ipu_dev *ipu;
 	struct vio_group *group;
 	struct vio_group_task *gtask;
 	struct ipu_work	*ipu_work;
@@ -1680,18 +1680,18 @@ static irqreturn_t ipu_isr(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
-static struct file_operations x2a_ipu_fops = {
+static struct file_operations x3_ipu_fops = {
 	.owner = THIS_MODULE,
-	.open = x2a_ipu_open,
-	.write = x2a_ipu_write,
-	.read = x2a_ipu_read,
-	.poll = x2a_ipu_poll,
-	.release = x2a_ipu_close,
-	.unlocked_ioctl = x2a_ipu_ioctl,
-	.compat_ioctl = x2a_ipu_ioctl,
+	.open = x3_ipu_open,
+	.write = x3_ipu_write,
+	.read = x3_ipu_read,
+	.poll = x3_ipu_poll,
+	.release = x3_ipu_close,
+	.unlocked_ioctl = x3_ipu_ioctl,
+	.compat_ioctl = x3_ipu_ioctl,
 };
 
-static int x2a_ipu_suspend(struct device *dev)
+static int x3_ipu_suspend(struct device *dev)
 {
 	int ret = 0;
 
@@ -1700,7 +1700,7 @@ static int x2a_ipu_suspend(struct device *dev)
 	return ret;
 }
 
-static int x2a_ipu_resume(struct device *dev)
+static int x3_ipu_resume(struct device *dev)
 {
 	int ret = 0;
 
@@ -1709,7 +1709,7 @@ static int x2a_ipu_resume(struct device *dev)
 	return ret;
 }
 
-static int x2a_ipu_runtime_suspend(struct device *dev)
+static int x3_ipu_runtime_suspend(struct device *dev)
 {
 	int ret = 0;
 
@@ -1718,7 +1718,7 @@ static int x2a_ipu_runtime_suspend(struct device *dev)
 	return ret;
 }
 
-static int x2a_ipu_runtime_resume(struct device *dev)
+static int x3_ipu_runtime_resume(struct device *dev)
 {
 	int ret = 0;
 
@@ -1727,14 +1727,14 @@ static int x2a_ipu_runtime_resume(struct device *dev)
 	return ret;
 }
 
-static const struct dev_pm_ops x2a_ipu_pm_ops = {
-	.suspend = x2a_ipu_suspend,
-	.resume = x2a_ipu_resume,
-	.runtime_suspend = x2a_ipu_runtime_suspend,
-	.runtime_resume = x2a_ipu_runtime_resume,
+static const struct dev_pm_ops x3_ipu_pm_ops = {
+	.suspend = x3_ipu_suspend,
+	.resume = x3_ipu_resume,
+	.runtime_suspend = x3_ipu_runtime_suspend,
+	.runtime_resume = x3_ipu_runtime_resume,
 };
 
-int x2a_ipu_device_node_init(struct x2a_ipu_dev *ipu)
+int x3_ipu_device_node_init(struct x3_ipu_dev *ipu)
 {
 	int ret = 0;
 	dev_t devno;
@@ -1742,13 +1742,13 @@ int x2a_ipu_device_node_init(struct x2a_ipu_dev *ipu)
 	int i = 0;
 	char name[32];
 
-	ret = alloc_chrdev_region(&devno, 0, MAX_DEVICE, "x2a_ipu");
+	ret = alloc_chrdev_region(&devno, 0, MAX_DEVICE, "x3_ipu");
 	if (ret < 0) {
 		vio_err("Error %d while alloc chrdev ipu", ret);
 		goto err_req_cdev;
 	}
 
-	cdev_init(&ipu->cdev, &x2a_ipu_fops);
+	cdev_init(&ipu->cdev, &x3_ipu_fops);
 	ipu->cdev.owner = THIS_MODULE;
 	ret = cdev_add(&ipu->cdev, devno, MAX_DEVICE);
 	if (ret) {
@@ -1759,7 +1759,7 @@ int x2a_ipu_device_node_init(struct x2a_ipu_dev *ipu)
 	if (vps_class)
 		ipu->class = vps_class;
 	else
-		ipu->class = class_create(THIS_MODULE, X2A_IPU_NAME);
+		ipu->class = class_create(THIS_MODULE, X3_IPU_NAME);
 
 	dev = device_create(ipu->class, NULL, MKDEV(MAJOR(devno), 0), NULL,
 			  "ipu_s0");
@@ -1798,7 +1798,7 @@ err_req_cdev:
 static ssize_t ipu_reg_dump(struct device *dev,
 				struct device_attribute *attr, char* buf)
 {
-	struct x2a_ipu_dev *ipu;
+	struct x3_ipu_dev *ipu;
 
 	ipu = dev_get_drvdata(dev);
 
@@ -1815,14 +1815,14 @@ static ssize_t ipu_reg_dump(struct device *dev,
 
 static DEVICE_ATTR(regdump, 0444, ipu_reg_dump, NULL);
 
-static int x2a_ipu_probe(struct platform_device *pdev)
+static int x3_ipu_probe(struct platform_device *pdev)
 {
 	int ret = 0;
-	struct x2a_ipu_dev *ipu;
+	struct x3_ipu_dev *ipu;
 	struct device *dev = NULL;
 	struct resource *mem_res;
 
-	ipu = kzalloc(sizeof(struct x2a_ipu_dev), GFP_KERNEL);
+	ipu = kzalloc(sizeof(struct x3_ipu_dev), GFP_KERNEL);
 	if (!ipu) {
 		vio_err("ipu is NULL");
 		ret = -ENOMEM;
@@ -1866,7 +1866,7 @@ static int x2a_ipu_probe(struct platform_device *pdev)
 		goto err_get_irq;
 	}
 
-	x2a_ipu_device_node_init(ipu);
+	x3_ipu_device_node_init(ipu);
 
 	dev = &pdev->dev;
 	ret = device_create_file(dev, &dev_attr_regdump);
@@ -1896,7 +1896,7 @@ p_err:
 
 }
 
-static int x2a_ipu_remove(struct platform_device *pdev)
+static int x3_ipu_remove(struct platform_device *pdev)
 {
 	int ret = 0;
 
@@ -1906,28 +1906,28 @@ static int x2a_ipu_remove(struct platform_device *pdev)
 }
 
 #ifdef CONFIG_OF
-static const struct of_device_id x2a_ipu_match[] = {
+static const struct of_device_id x3_ipu_match[] = {
 	{
-	 .compatible = "hobot,x2a-ipu",
+	 .compatible = "hobot,x3-ipu",
 	 },
 	{},
 };
 
-MODULE_DEVICE_TABLE(of, x2a_ipu_match);
+MODULE_DEVICE_TABLE(of, x3_ipu_match);
 
-static struct platform_driver x2a_ipu_driver = {
-	.probe = x2a_ipu_probe,
-	.remove = x2a_ipu_remove,
+static struct platform_driver x3_ipu_driver = {
+	.probe = x3_ipu_probe,
+	.remove = x3_ipu_remove,
 	.driver = {
 		   .name = MODULE_NAME,
 		   .owner = THIS_MODULE,
-		   .pm = &x2a_ipu_pm_ops,
-		   .of_match_table = x2a_ipu_match,
+		   .pm = &x3_ipu_pm_ops,
+		   .of_match_table = x3_ipu_match,
 		   }
 };
 
 #else
-static struct platform_device_id x2a_ipu_driver_ids[] = {
+static struct platform_device_id x3_ipu_driver_ids[] = {
 	{
 	 .name = MODULE_NAME,
 	 .driver_data = 0,
@@ -1935,38 +1935,38 @@ static struct platform_device_id x2a_ipu_driver_ids[] = {
 	{},
 };
 
-MODULE_DEVICE_TABLE(platform, x2a_ipu_driver_ids);
+MODULE_DEVICE_TABLE(platform, x3_ipu_driver_ids);
 
-static struct platform_driver x2a_ipu_driver = {
-	.probe = x2a_ipu_probe,
-	.remove = x2a_ipu_remove,
-	.id_table = x2a_ipu_driver_ids,
+static struct platform_driver x3_ipu_driver = {
+	.probe = x3_ipu_probe,
+	.remove = x3_ipu_remove,
+	.id_table = x3_ipu_driver_ids,
 	.driver = {
 		   .name = MODULE_NAME,
 		   .owner = THIS_MODULE,
-		   .pm = &x2a_ipu_pm_ops,
+		   .pm = &x3_ipu_pm_ops,
 		   }
 };
 #endif
 
-static int __init x2a_ipu_init(void)
+static int __init x3_ipu_init(void)
 {
-	int ret = platform_driver_register(&x2a_ipu_driver);
+	int ret = platform_driver_register(&x3_ipu_driver);
 	if (ret)
 		vio_err("platform_driver_register failed: %d\n", ret);
 
 	return ret;
 }
 
-late_initcall(x2a_ipu_init);
+late_initcall(x3_ipu_init);
 
-static void __exit x2a_ipu_exit(void)
+static void __exit x3_ipu_exit(void)
 {
-	platform_driver_unregister(&x2a_ipu_driver);
+	platform_driver_unregister(&x3_ipu_driver);
 }
 
-module_exit(x2a_ipu_exit);
+module_exit(x3_ipu_exit);
 
 MODULE_AUTHOR("Sun Kaikai<kaikai.sun@horizon.com>");
-MODULE_DESCRIPTION("X2A IPU driver");
+MODULE_DESCRIPTION("X3 IPU driver");
 MODULE_LICENSE("GPL");

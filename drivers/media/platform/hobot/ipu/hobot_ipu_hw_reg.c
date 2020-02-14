@@ -11,7 +11,7 @@
 #include <linux/platform_device.h>
 #include <linux/io.h>
 
-#include "ipu_hw_reg.h"
+#include "hobot_ipu_hw_reg.h"
 #include "ipu_hw_api.h"
 
 void ipu_set_input_img_size(void __iomem *base_addr, u8 shadow_index,

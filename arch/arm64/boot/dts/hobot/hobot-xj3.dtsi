@@ -441,7 +441,7 @@
 		};
 
 		ips: ips@0xA4000000 {
-			compatible = "hobot,x2a-ips";
+			compatible = "hobot,x3-ips";
 			reg = <0 0xA4000000 0 0x200>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 85 4>;
@@ -458,7 +458,7 @@
 		};
 
 		ipu: ipu@0xA4040000 {
-			compatible = "hobot,x2a-ipu";
+			compatible = "hobot,x3-ipu";
 			reg = <0 0xA4040000 0 0x1000>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 81 4>;
@@ -466,7 +466,7 @@
 		};
 
                 pym: pym@0xA4042000 {
-                        compatible = "hobot,x2a-pym";
+                        compatible = "hobot,x3-pym";
                         reg = <0 0xA4042000 0 0x1000>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 83 4>;
@@ -474,7 +474,7 @@
                 };
 
                 sif: sif@0xA4001000 {
-                        compatible = "hobot,x2a-sif";
+                        compatible = "hobot,x3-sif";
                         reg = <0 0xA4001000 0 0x1000>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 70 4>;

@@ -28,10 +28,10 @@
 #include "ips_hw_api.h"
 #include "hobot_dev_ips.h"
 
-#define MODULE_NAME "X2A IPS"
+#define MODULE_NAME "X3 IPS"
 #define REGISTER_CLK(name) {name, NULL}
 
-struct x2a_ips_dev *g_ips_dev;
+struct x3_ips_dev *g_ips_dev;
 
 struct vio_clk vio_clk_list[] = {
 	REGISTER_CLK("sif_mclk"),
@@ -223,7 +223,7 @@ int vio_get_clk(struct device *dev)
 	return 0;
 }
 
-static int x2a_ips_suspend(struct device *dev)
+static int x3_ips_suspend(struct device *dev)
 {
 	int ret = 0;
 
@@ -232,7 +232,7 @@ static int x2a_ips_suspend(struct device *dev)
 	return ret;
 }
 
-static int x2a_ips_resume(struct device *dev)
+static int x3_ips_resume(struct device *dev)
 {
 	int ret = 0;
 
@@ -241,7 +241,7 @@ static int x2a_ips_resume(struct device *dev)
 	return ret;
 }
 
-static int x2a_ips_runtime_suspend(struct device *dev)
+static int x3_ips_runtime_suspend(struct device *dev)
 {
 	int ret = 0;
 
@@ -250,7 +250,7 @@ static int x2a_ips_runtime_suspend(struct device *dev)
 	return ret;
 }
 
-static int x2a_ips_runtime_resume(struct device *dev)
+static int x3_ips_runtime_resume(struct device *dev)
 {
 	int ret = 0;
 
@@ -259,11 +259,11 @@ static int x2a_ips_runtime_resume(struct device *dev)
 	return ret;
 }
 
-static const struct dev_pm_ops x2a_ips_pm_ops = {
-	.suspend		= x2a_ips_suspend,
-	.resume			= x2a_ips_resume,
-	.runtime_suspend	= x2a_ips_runtime_suspend,
-	.runtime_resume		= x2a_ips_runtime_resume,
+static const struct dev_pm_ops x3_ips_pm_ops = {
+	.suspend		= x3_ips_suspend,
+	.resume			= x3_ips_resume,
+	.runtime_suspend	= x3_ips_runtime_suspend,
+	.runtime_resume		= x3_ips_runtime_resume,
 };
 
 static irqreturn_t ips_isr(int this_irq, void *data)
@@ -271,13 +271,13 @@ static irqreturn_t ips_isr(int this_irq, void *data)
 	return IRQ_HANDLED;
 }
 
-static int x2a_ips_probe(struct platform_device *pdev)
+static int x3_ips_probe(struct platform_device *pdev)
 {
 	int ret = 0;
-	struct x2a_ips_dev *ips;
+	struct x3_ips_dev *ips;
 	struct resource *mem_res;
 
-	ips = kzalloc(sizeof(struct x2a_ips_dev), GFP_KERNEL);
+	ips = kzalloc(sizeof(struct x3_ips_dev), GFP_KERNEL);
 	if (!ips) {
 		vio_err("ips is NULL");
 		ret = -ENOMEM;
@@ -332,7 +332,7 @@ p_err:
 
 }
 
-static int x2a_ips_remove(struct platform_device *pdev)
+static int x3_ips_remove(struct platform_device *pdev)
 {
 	int ret = 0;
 
@@ -342,64 +342,64 @@ static int x2a_ips_remove(struct platform_device *pdev)
 }
 
 #ifdef CONFIG_OF
-static const struct of_device_id x2a_ips_match[] = {
+static const struct of_device_id x3_ips_match[] = {
 	{
-		.compatible = "hobot,x2a-ips",
+		.compatible = "hobot,x3-ips",
 	},
 	{},
 };
-MODULE_DEVICE_TABLE(of, x2a_ips_match);
+MODULE_DEVICE_TABLE(of, x3_ips_match);
 
-static struct platform_driver x2a_ips_driver = {
-	.probe		= x2a_ips_probe,
-	.remove 	= x2a_ips_remove,
+static struct platform_driver x3_ips_driver = {
+	.probe		= x3_ips_probe,
+	.remove 	= x3_ips_remove,
 	.driver = {
 		.name	= MODULE_NAME,
 		.owner	= THIS_MODULE,
-		.pm	= &x2a_ips_pm_ops,
-		.of_match_table = x2a_ips_match,
+		.pm	= &x3_ips_pm_ops,
+		.of_match_table = x3_ips_match,
 	}
 };
 
 #else
-static struct platform_device_id x2a_ips_driver_ids[] = {
+static struct platform_device_id x3_ips_driver_ids[] = {
 	{
 		.name		= MODULE_NAME,
 		.driver_data	= 0,
 	},
 	{},
 };
-MODULE_DEVICE_TABLE(platform, x2a_ips_driver_ids);
+MODULE_DEVICE_TABLE(platform, x3_ips_driver_ids);
 
-static struct platform_driver x2a_ips_driver = {
-	.probe		= x2a_ips_probe,
-	.remove		= __devexit_p(x2a_ips_remove),
-	.id_table	= x2a_ips_driver_ids,
+static struct platform_driver x3_ips_driver = {
+	.probe		= x3_ips_probe,
+	.remove		= __devexit_p(x3_ips_remove),
+	.id_table	= x3_ips_driver_ids,
 	.driver	  = {
 		.name	= MODULE_NAME,
 		.owner	= THIS_MODULE,
-		.pm	= &x2a_ips_pm_ops,
+		.pm	= &x3_ips_pm_ops,
 	}
 };
 #endif
 
-static int __init x2a_ips_init(void)
+static int __init x3_ips_init(void)
 {
-	int ret = platform_driver_register(&x2a_ips_driver);
+	int ret = platform_driver_register(&x3_ips_driver);
 	if (ret)
 		vio_err("platform_driver_register failed: %d\n", ret);
 
 	return ret;
 }
 
-late_initcall(x2a_ips_init);
+late_initcall(x3_ips_init);
 
-static void __exit x2a_ips_exit(void)
+static void __exit x3_ips_exit(void)
 {
-	platform_driver_unregister(&x2a_ips_driver);
+	platform_driver_unregister(&x3_ips_driver);
 }
-module_exit(x2a_ips_exit);
+module_exit(x3_ips_exit);
 
 MODULE_AUTHOR("Sun Kaikai<kaikai.sun@horizon.com>");
-MODULE_DESCRIPTION("X2A IPS driver");
+MODULE_DESCRIPTION("X3 IPS driver");
 MODULE_LICENSE("GPL");
