@@ -263,6 +263,7 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 
 			pr_debug("iar_cdev: %s: disp set video0&1 addr\n",
 					__func__);
+			disp_copy_done = 0;
 			if (copy_from_user(&disp_vaddr, arg,
 						sizeof(disp_vaddr)))
 				return -EFAULT;
@@ -282,8 +283,9 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 			uint8_t display_done;
 
 			//display_done = disp_get_display_done();
-			display_done = (uint8_t)((readl(g_iar_dev->regaddr +
-				REG_IAR_DE_SRCPNDREG) & 0x00400000) >> 22);
+			//display_done = (uint8_t)((readl(g_iar_dev->regaddr +
+			//	REG_IAR_DE_SRCPNDREG) & 0x00400000) >> 22);
+			display_done = disp_copy_done;
 			if (copy_to_user(arg, &display_done,
 						sizeof(uint8_t)))
 				return -EFAULT;
@@ -393,6 +395,14 @@ static ssize_t x2_iar_store(struct kobject *kobj, struct kobj_attribute *attr, c
 		disp_set_pixel_clk(32000000);
 		user_set_fb();
 		set_mipi_display(0);
+		//msleep(2000);
+		//mipi_dsi_panel_init(0);
+	} else if (strncmp(tmp, "dsi720p", 7) == 0) {
+		pr_info("iar output lcd mipi 720p touch panel config......\n");
+		display_type = MIPI_720P_TOUCH;
+		disp_set_pixel_clk(54000000);
+		user_set_fb();
+		set_mipi_display(1);
 		//msleep(2000);
 		//mipi_dsi_panel_init(0);
 	} else if (strncmp(buf, "enable", 6) == 0) {

@@ -67,6 +67,7 @@ uint8_t disp_user_update;
 //uint8_t pingpong_config = 0;
 uint8_t frame_count;
 uint8_t rst_request_flag;
+uint8_t disp_copy_done = 0;
 
 phys_addr_t logo_paddr;
 void *logo_vaddr;
@@ -86,6 +87,9 @@ struct disp_timing video_720x1280 = {
 //};
 struct disp_timing video_1080x1920 = {
 	100, 400, 5, 4, 400, 5
+};
+struct disp_timing video_720x1280_touch = {
+	100, 100, 10, 20, 10, 10
 };
 
 #ifdef CONFIG_PM
@@ -605,7 +609,7 @@ int32_t iar_channel_base_cfg(channel_base_cfg_t *cfg)
 		reg_overlay_opt_value & (0xffffffff & ~(1 << (channelid + 24)));
 	reg_overlay_opt_value =
 		reg_overlay_opt_value | (cfg->enable << (channelid + 24));
-	pr_debug("channel id is %d, enable is %d, reg value is 0x%x.\n",
+	pr_info("channel id is %d, enable is %d, reg value is 0x%x.\n",
 			channelid, cfg->enable, reg_overlay_opt_value);
 
 	writel(reg_overlay_opt_value, g_iar_dev->regaddr + REG_IAR_OVERLAY_OPT);
@@ -650,7 +654,7 @@ int32_t iar_channel_base_cfg(channel_base_cfg_t *cfg)
 	value = IAR_REG_SET_FILED(target_filed, cfg->ov_mode, value);
 	target_filed = IAR_EN_ALPHA_PRI1 - pri; //set alpha en
 	value = IAR_REG_SET_FILED(target_filed, cfg->alpha_en, value);
-	writel(value, g_iar_dev->regaddr + REG_IAR_OVERLAY_OPT);
+	//writel(value, g_iar_dev->regaddr + REG_IAR_OVERLAY_OPT);
 
 	g_iar_dev->buf_w_h[channelid][0] = cfg->buf_width;
 	g_iar_dev->buf_w_h[channelid][1] = cfg->buf_height;
@@ -835,11 +839,11 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 	} else if (cfg->out_sel == OUTPUT_MIPI_DSI) {
 #ifdef CONFIG_HOBOT_XJ3
 		//output config
-		writel(0x8, g_iar_dev->regaddr + REG_IAR_DE_OUTPUT_SEL);
-		writel(0x13, g_iar_dev->regaddr + REG_DISP_LCDIF_CFG);
-		writel(0x3, g_iar_dev->regaddr + REG_DISP_LCDIF_PADC_RESET_N);
+		writel(0x8, g_iar_dev->regaddr + REG_IAR_DE_OUTPUT_SEL);//0x340
+		writel(0x13, g_iar_dev->regaddr + REG_DISP_LCDIF_CFG);//0x800
+		writel(0x3, g_iar_dev->regaddr + REG_DISP_LCDIF_PADC_RESET_N);//0x804
 		//color config
-		writel(0x0, g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
+		writel(0x1, g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);//0x318
 #else
 		pr_err("%s: error output mode!!!\n", __func__);
 #endif
@@ -859,6 +863,7 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 
 		writel(0xc, g_iar_dev->regaddr + REG_IAR_DE_OUTPUT_SEL);
 		writel(0x0, g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
+		writel(0x00000008, g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
 		//rgb panel
 	} else if (cfg->out_sel == OUTPUT_BT656) {
 #ifdef CONFIG_HOBOT_XJ3
@@ -885,7 +890,7 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 	value = IAR_REG_SET_FILED(IAR_PANEL_HEIGHT, cfg->height, value);
 	writel(value, g_iar_dev->regaddr + REG_IAR_PANEL_SIZE);
 
-	writel(0x00000008, g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
+	//writel(0x00000008, g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
 
 	iar_display_cam_no = cfg->display_cam_no;
 	iar_display_addr_type = cfg->display_addr_type;
@@ -937,12 +942,12 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 					__func__);
 		}
 	}
-
+#ifdef CONFIG_HOBOT_XJ2
 	value = readl(g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
 	value = IAR_REG_SET_FILED(IAR_PANEL_COLOR_TYPE, 2, value);
 	value = IAR_REG_SET_FILED(IAR_YCBCR_OUTPUT, 1, value);
 	writel(value, g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
-
+#endif
 	value = IAR_REG_SET_FILED(IAR_CONTRAST, cfg->ppcon1.contrast, 0);
 	value = IAR_REG_SET_FILED(IAR_THETA_SIGN, cfg->ppcon1.theta_sign, value);
 	value = IAR_REG_SET_FILED(IAR_BRIGHT_EN, cfg->ppcon1.bright_en, value);
@@ -1246,8 +1251,8 @@ int32_t iar_close(void)
 		return -1;
 	}
 	disp_user_config_done = 0;
-	iar_layer_disable(0);
-	iar_layer_disable(2);
+	//iar_layer_disable(0);
+	//iar_layer_disable(2);
 	//iar_stop();
 	//value = readl(g_iar_dev->sysctrl + 0x148);
 	//value |= (0x1<<2);
@@ -1460,6 +1465,7 @@ int disp_set_ppbuf_addr(uint8_t layer_no, void *yaddr, void *caddr)
 		g_iar_dev->pingpong_buf[layer_no].framebuf[!video_index].vaddr;
 	memcpy(video_to_display_vaddr, yaddr, y_size);
 	memcpy(video_to_display_vaddr + y_size, caddr, y_size >> 1);
+	disp_copy_done = 1;
 
 	display_addr.Yaddr =
 	g_iar_dev->pingpong_buf[layer_no].framebuf[!video_index].paddr;
@@ -2128,6 +2134,78 @@ static int x2_iar_probe(struct platform_device *pdev)
 		ret = disp_set_pixel_clk(68000000);
 		if (ret)
 			return ret;
+	} else if (display_type == MIPI_720P_TOUCH) {
+		pr_info("%s: display_type is mipi-720p-dsi panel!\n", __func__);
+		ret = disp_set_pixel_clk(54000000);
+		if (ret)
+			return ret;
+		temp1 = g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr;
+		tempi = 0;
+		for (i = 0; i < 720 * 4 * 100; i++) {
+			if (((i + 4) % 4) == 0) {
+				*temp1 = 0xff;//B
+			} else if (((i + 4) % 4) == 1) {
+				*temp1 = 0x00;
+			} else if (((i + 4) % 4) == 2) {
+				*temp1 = 0x00;
+			} else if (((i + 4) % 4) == 3) {
+				*temp1 = 0xff;
+			}
+			temp1++;
+		}
+		for (i = 0; i < 720 * 4 * 100; i++) {
+			if (((i + 4) % 4) == 0) {
+				*temp1 = 0x00;
+			} else if (((i + 4) % 4) == 1) {
+				*temp1 = 0xff;//g
+			} else if (((i + 4) % 4) == 2) {
+				*temp1 = 0x00;
+			} else if (((i + 4) % 4) == 3) {
+				*temp1 = 0xff;
+			}
+			temp1++;
+		}
+		for (i = 0; i < 720 * 4 * 100; i++) {
+			if (((i + 4) % 4) == 0) {
+				*temp1 = 0x00;
+			} else if (((i + 4) % 4) == 1) {
+				*temp1 = 0x00;
+			} else if (((i + 4) % 4) == 2) {
+				*temp1 = 0xff;//r
+			} else if (((i + 4) % 4) == 3) {
+				*temp1 = 0xff;
+			}
+			temp1++;
+		}
+		for (i = 0; i < 720 * 4 * 100; i++) {
+			if (((i + 4) % 4) == 0) {
+				*temp1 = 0x00;
+			} else if (((i + 4) % 4) == 1) {
+				*temp1 = 0x00;
+			} else if (((i + 4) % 4) == 2) {
+				*temp1 = 0x00;
+			} else if (((i + 4) % 4) == 3) {
+				*temp1 = 0xff;//A
+			}
+			temp1++;
+		}
+		for (i = 0; i < 720 * 4 * 100; i++) {
+			if (((i + 4) % 4) == 0) {
+				*temp1 = 0xff;
+			} else if (((i + 4) % 4) == 1) {
+				*temp1 = 0xff;
+			} else if (((i + 4) % 4) == 2) {
+				*temp1 = 0xff;
+			} else if (((i + 4) % 4) == 3) {
+				*temp1 = 0xff;//
+			}
+			temp1++;
+		}
+		for (i = 0; i < 720 * 4 * 780; i++) {
+			*temp1 = 0x0;
+			temp1++;
+		}
+		pr_debug("set mipi 720p touch done!\n");
 	} else if (display_type == HDMI_TYPE) {
 		pr_debug("%s: display_type is HDMI panel!\n", __func__);
 #if 0

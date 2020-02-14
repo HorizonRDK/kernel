@@ -27,5 +27,6 @@ extern struct disp_timing video_1920x1080;
 extern struct disp_timing video_800x480;
 extern struct disp_timing video_720x1280;
 extern struct disp_timing video_1080x1920;
+extern struct disp_timing video_720x1280_touch;
 
 #endif
