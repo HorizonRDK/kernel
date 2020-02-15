@@ -31,6 +31,8 @@
 #define MODULE_NAME "X3 PYM"
 
 extern struct class *vps_class;
+
+void pym_update_param(struct pym_video_ctx *pym_ctx);
 static int x3_pym_open(struct inode *inode, struct file *file)
 {
 	struct pym_video_ctx *pym_ctx;
@@ -114,6 +116,7 @@ static int x3_pym_close(struct inode *inode, struct file *file)
 	if (atomic_dec_return(&pym->open_cnt) == 0) {
 		clear_bit(PYM_OTF_INPUT, &pym->state);
 		clear_bit(PYM_DMA_INPUT, &pym->state);
+		clear_bit(PYM_REUSE_SHADOW0, &pym->state);
 	}
 
 	kfree(pym_ctx);
@@ -142,7 +145,7 @@ void pym_set_buffers(struct x3_pym_dev *pym, struct vio_frame *frame)
 
 static void pym_frame_work(struct vio_group *group)
 {
-	struct pym_video_ctx *ctx;
+	struct pym_video_ctx *pym_ctx;
 	struct x3_pym_dev *pym;
 	struct vio_framemgr *framemgr;
 	struct vio_frame *frame;
@@ -151,20 +154,23 @@ static void pym_frame_work(struct vio_group *group)
 	u8 shadow_index = 0;
 
 	instance = group->instance;
-	ctx = group->sub_ctx[0];
-	pym = ctx->pym_dev;
+	pym_ctx = group->sub_ctx[0];
+	pym = pym_ctx->pym_dev;
 
 	vio_info("%s start\n", __func__);
 
-	if (group->instance < MAX_SHADOW_NUM)
-		shadow_index = group->instance;
+	if (instance < MAX_SHADOW_NUM)
+		shadow_index = instance;
 
 	atomic_set(&pym->instance, instance);
 
-	framemgr = &ctx->framemgr;
+	framemgr = &pym_ctx->framemgr;
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	frame = peek_frame(framemgr, FS_REQUEST);
 	if (frame) {
+		if (test_bit(PYM_REUSE_SHADOW0, &pym->state))
+			pym_update_param(pym_ctx);
+
 		pym_set_common_rdy(pym->base_reg, 0);
 		pym_set_shd_select(pym->base_reg, shadow_index);
 
@@ -223,6 +229,8 @@ void pym_update_param(struct pym_video_ctx *pym_ctx)
 	pym_config = &pym_ctx->pym_cfg;
 	if (group->instance < MAX_SHADOW_NUM)
 		shadow_index = group->instance;
+	else
+		set_bit(PYM_REUSE_SHADOW0, &pym->state);
 
 	pym_set_shd_rdy(pym->base_reg, shadow_index, 0);
 
@@ -255,7 +263,6 @@ void pym_update_param(struct pym_video_ctx *pym_ctx)
 	}
 
 	pym_ds_uv_bypass(pym->base_reg, shadow_index, ds_bapass_uv);
-	vio_info("%s: %d\n", __func__, ds_bapass_uv);
 
 	if (pym_config->ds_layer_en > 4) {
 		base_layer_nums = (pym_config->ds_layer_en - 1) / 4;
@@ -284,7 +291,6 @@ void pym_update_param(struct pym_video_ctx *pym_ctx)
 	pym_select_input_path(pym->base_reg, pym_config->img_scr);
 
 	pym_set_common_rdy(pym->base_reg, 1);
-
 }
 
 int pym_bind_chain_group(struct pym_video_ctx *pym_ctx, int instance)

@@ -56,6 +56,7 @@ enum pym_interrupt_map {
 enum pym_status {
 	PYM_OTF_INPUT,
 	PYM_DMA_INPUT,
+	PYM_REUSE_SHADOW0,
 };
 
 

@@ -60,6 +60,7 @@ struct ipu_video_ctx {
 
 	struct x3_ipu_dev *ipu_dev;
 	struct ipu_osd_cfg osd_cfg;
+	ipu_cfg_t ipu_cfg;
 
 	u32			frm_fst_ind;
 	u32			frm_num;
@@ -148,6 +149,7 @@ enum ipu_status {
 	IPU_OTF_OUTPUT,
 	IPU_DS2_DMA_OUTPUT,
 	IPU_HW_CONFIG,
+	IPU_REUSE_SHADOW0,
 };
 
 struct x3_ipu_dev {

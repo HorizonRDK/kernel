@@ -45,6 +45,7 @@ static void ipu_isr_bh(struct work_struct *data);
 int ipu_put_client(struct ipu_sub_mp *sub_mp,
 		struct ipu_video_ctx *ipu_sub_ctx);
 struct ipu_video_ctx *ipu_get_client(struct ipu_sub_mp *sub_mp);
+void ipu_update_hw_param(struct ipu_video_ctx *ipu_ctx);
 
 static int x3_ipu_open(struct inode *inode, struct file *file)
 {
@@ -108,6 +109,7 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 		clear_bit(IPU_DMA_INPUT, &ipu->state);
 		clear_bit(IPU_DS2_DMA_OUTPUT, &ipu->state);
 		clear_bit(IPU_HW_CONFIG, &ipu->state);
+		clear_bit(IPU_REUSE_SHADOW0, &ipu->state);
 	}
 
 	kfree(ipu_ctx);
@@ -198,7 +200,8 @@ void ipu_frame_work(struct vio_group *group)
 		return;
 	}
 	ipu = sub_mp->ipu_dev;
-	shadow_index = instance % MAX_SHADOW_NUM;
+	if (instance < MAX_SHADOW_NUM)
+		shadow_index = instance;
 	vio_info("%s start\n", __func__);
 
 	rdy = ipu_get_shd_rdy(ipu->base_reg);
@@ -223,6 +226,8 @@ void ipu_frame_work(struct vio_group *group)
 					ipu_set_rdma_addr(ipu->base_reg,
 							  frame->frameinfo.addr[0],
 							  frame->frameinfo.addr[1]);
+					if (test_bit(IPU_REUSE_SHADOW0, &ipu->state))
+						ipu_update_hw_param(back_ctx);
 					break;
 				case GROUP_ID_US:
 					ipu_set_us_wdma_addr(ipu->base_reg,
@@ -379,6 +384,7 @@ void ipu_hw_set_osd_cfg(struct ipu_video_ctx *ipu_ctx)
 	u32 *osd_buf;
 	osd_color_map_t *color_map;
 	struct ipu_osd_cfg *osd_cfg;
+	struct vio_group *group;
 
 	id = ipu_ctx->id;
 	if (id < GROUP_ID_US || id > GROUP_ID_DS1) {
@@ -390,7 +396,10 @@ void ipu_hw_set_osd_cfg(struct ipu_video_ctx *ipu_ctx)
 	else
 		osd_index = id - GROUP_ID_DS0;
 
-	shadow_index = ipu_ctx->group->instance % MAX_SHADOW_NUM;
+	group = ipu_ctx->group;
+	if (group->instance < MAX_SHADOW_NUM)
+		shadow_index = group->instance;
+
 	base_reg = ipu_ctx->ipu_dev->base_reg;
 
 	osd_cfg = &ipu_ctx->osd_cfg;
@@ -530,9 +539,11 @@ int ipu_channel_wdma_disable(struct ipu_video_ctx *ipu_ctx)
 	id = ipu_ctx->id;
 	group = ipu_ctx->group;
 	ipu = ipu_ctx->ipu_dev;
-	shadow_index = group->instance % MAX_SHADOW_NUM;
-	ds_ch = id - GROUP_ID_DS0;
 
+	if (group->instance < MAX_SHADOW_NUM)
+		shadow_index = group->instance;
+
+	ds_ch = id - GROUP_ID_DS0;
 	rdy = ipu_get_shd_rdy(ipu->base_reg);
 	rdy = rdy & ~(1 << shadow_index);
 	ipu_set_shd_rdy(ipu->base_reg, rdy);
@@ -563,7 +574,9 @@ int ipu_update_ds_ch_param(struct ipu_video_ctx *ipu_ctx, u8 ds_ch,
 
 	group = ipu_ctx->group;
 	ipu = ipu_ctx->ipu_dev;
-	shadow_index = group->instance % MAX_SHADOW_NUM;
+
+	if (group->instance < MAX_SHADOW_NUM)
+		shadow_index = group->instance;
 
 	rdy = ipu_get_shd_rdy(ipu->base_reg);
 	rdy = rdy & ~(1 << shadow_index);
@@ -663,8 +676,10 @@ int ipu_update_us_param(struct ipu_video_ctx *ipu_ctx,
 	struct x3_ipu_dev *ipu;
 
 	group = ipu_ctx->group;
-	shadow_index = group->instance % MAX_SHADOW_NUM;
 	ipu = ipu_ctx->ipu_dev;
+
+	if (group->instance < MAX_SHADOW_NUM)
+		shadow_index = group->instance;
 
 	rdy = ipu_get_shd_rdy(ipu->base_reg);
 	rdy = rdy & ~(1 << shadow_index);
@@ -690,11 +705,6 @@ int ipu_update_us_param(struct ipu_video_ctx *ipu_ctx,
 			       roi_width, roi_height);
 	ipu_set_us_roi_enable(ipu->base_reg, shadow_index, us_config->us_roi_en);
 
-	if (us_config->us_roi_en || us_config->us_sc_en) {
-		ipu_set_group_leader(group, ipu_ctx->id, ipu_ctx->proc_id);
-		set_bit(VIO_GROUP_DMA_OUTPUT, &group->state);
-	}
-
 	rdy = ipu_get_shd_rdy(ipu->base_reg);
 	rdy = rdy | (1 << shadow_index);
 	ipu_set_shd_rdy(ipu->base_reg, rdy);
@@ -719,6 +729,40 @@ int ipu_update_us_param_mp(struct ipu_video_ctx *ipu_ctx,
 	return 0;
 }
 
+int ipu_set_path_attr(struct ipu_video_ctx *ipu_ctx,
+			ipu_cfg_t *ipu_cfg)
+{
+	struct vio_group *group;
+	struct x3_ipu_dev *ipu;
+	ipu_src_ctrl_t *ipu_ctrl;
+
+	group = ipu_ctx->group;
+	ipu = ipu_ctx->ipu_dev;
+	ipu_ctrl = &ipu_cfg->ctrl_info;
+
+	if (ipu_cfg->ctrl_info.source_sel != IPU_FROM_DDR_YUV420) {
+		if (test_bit(IPU_DMA_INPUT, &ipu->state)){
+			vio_err("IPU DMA input already,can't set otf input\n");
+			return -EINVAL;
+		}else{
+			set_bit(IPU_OTF_INPUT, &ipu->state);
+			set_bit(VIO_GROUP_OTF_INPUT, &group->state);
+		}
+	} else {
+		ipu_clear_group_leader(group);
+		ipu_set_group_leader(group, GROUP_ID_SRC, ipu_ctx->proc_id);
+		if (test_bit(IPU_OTF_INPUT, &ipu->state)) {
+			vio_err("IPU otf input already,can't set dma input\n");
+			return -EINVAL;
+		} else {
+			set_bit(IPU_DMA_INPUT, &ipu->state);
+			set_bit(VIO_GROUP_DMA_INPUT, &group->state);
+		}
+	}
+
+	return 0;
+}
+
 int ipu_update_common_param(struct ipu_video_ctx *ipu_ctx,
 			ipu_cfg_t *ipu_cfg)
 {
@@ -735,7 +779,9 @@ int ipu_update_common_param(struct ipu_video_ctx *ipu_ctx,
 	group = ipu_ctx->group;
 	ipu = ipu_ctx->ipu_dev;
 	ipu_ctrl = &ipu_cfg->ctrl_info;
-	shadow_index = group->instance % MAX_SHADOW_NUM;
+
+	if (group->instance < MAX_SHADOW_NUM)
+		shadow_index = group->instance;
 
 	rdy = ipu_get_shd_rdy(ipu->base_reg);
 	rdy = rdy & ~(1 << shadow_index) & ~(1 << 4);
@@ -744,28 +790,6 @@ int ipu_update_common_param(struct ipu_video_ctx *ipu_ctx,
 	// SRC select
 	ipu_src_select(ipu->base_reg, ipu_ctrl->source_sel);
 
-	if (ipu_ctrl->source_sel != IPU_FROM_DDR_YUV420) {
-		if (test_bit(IPU_DMA_INPUT, &ipu->state)){
-			vio_err("IPU DMA input already,can't set otf input\n");
-			return -EINVAL;
-		}else{
-			set_bit(IPU_OTF_INPUT, &ipu->state);
-			set_bit(VIO_GROUP_OTF_INPUT, &group->state);
-		}
-	} else {
-		if (test_bit(IPU_OTF_INPUT, &ipu->state)) {
-			vio_err("IPU otf input already,can't set dma input\n");
-			return -EINVAL;
-		} else {
-			set_bit(IPU_DMA_INPUT, &ipu->state);
-			set_bit(VIO_GROUP_DMA_INPUT, &group->state);
-		}
-	}
-
-	if (ipu_ctrl->source_sel == IPU_FROM_DDR_YUV420) {
-		ipu_clear_group_leader(group);
-		ipu_set_group_leader(group, GROUP_ID_SRC, ipu_ctx->proc_id);
-	}
 	// enable frameid
 	Id_en = ((ipu_ctrl->us_frame_id_en)
 			| (ipu_ctrl->ds_frame_id_en[0] << 1)
@@ -816,10 +840,47 @@ int ipu_update_common_param_mp(struct ipu_video_ctx *ipu_ctx,
 	group = ipu_ctx->group;
 	ipu_ctrl = &ipu_cfg->ctrl_info;
 	if (ipu_ctrl->source_sel == IPU_FROM_DDR_YUV420) {
-		clear_bit(VIO_GROUP_LEADER, &group->state);
+		ipu_clear_group_leader(group);
 		ipu_set_group_leader(group, GROUP_ID_SRC, ipu_ctx->proc_id);
 	}
 	return 0;
+}
+
+void ipu_update_hw_param(struct ipu_video_ctx *ipu_ctx)
+{
+	int i = 0;
+	ipu_cfg_t *ipu_cfg;
+	ipu_us_info_t *us_info;
+	ipu_ds_info_t *ds_info;
+	struct vio_group *group;
+
+	ipu_cfg = &ipu_ctx->ipu_cfg;
+	group = ipu_ctx->group;
+
+	for (i = 0; i < MAX_DEVICE; i++) {
+		ipu_ctx = group->sub_ctx[i];
+		if (ipu_ctx) {
+			switch (i) {
+			case GROUP_ID_SRC:
+				ipu_update_common_param(ipu_ctx, ipu_cfg);
+				break;
+			case GROUP_ID_US:
+				us_info = &ipu_cfg->us_info;
+				ipu_update_us_param(ipu_ctx, us_info);
+				break;
+			case GROUP_ID_DS0:
+			case GROUP_ID_DS1:
+			case GROUP_ID_DS2:
+			case GROUP_ID_DS3:
+			case GROUP_ID_DS4:
+				ds_info = &ipu_cfg->ds_info[i-2];
+				ipu_update_ds_param(ipu_ctx, ds_info);
+				break;
+			default:
+				break;
+			}
+		}
+	}
 }
 
 int ipu_video_init(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
@@ -828,7 +889,7 @@ int ipu_video_init(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 	u32 cfg = 0;
 	ipu_us_info_t us_config;
 	ipu_ds_info_t ds_config;
-	ipu_cfg_t ipu_cfg;
+	ipu_cfg_t *ipu_cfg;
 	struct x3_ipu_dev *ipu;
 	struct vio_group *group;
 	struct ipu_sub_mp *sub_mp;
@@ -846,6 +907,7 @@ int ipu_video_init(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 	}
 
 	ipu = ipu_ctx->ipu_dev;
+	group = ipu_ctx->group;
 
 	if (!(ipu_ctx->state & (BIT(VIO_VIDEO_S_INPUT) | BIT(VIO_VIDEO_REBUFS)))) {
 		vio_err("[%s] invalid INIT is requested(%lX)", __func__, ipu_ctx->state);
@@ -858,14 +920,18 @@ int ipu_video_init(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 	ips_set_bus_ctrl(cfg);
 
 	if (ipu_ctx->id == GROUP_ID_SRC) {
-		ret = copy_from_user((char *) &ipu_cfg, (u32 __user *) arg,
+		ipu_cfg = &ipu_ctx->ipu_cfg;
+		ret = copy_from_user((char *)ipu_cfg, (u32 __user *) arg,
 				   sizeof(ipu_cfg_t));
 		if (ret)
 			goto done;
+
 		if (!test_bit(IPU_SUB_MP_USER_INIT, &sub_mp->state))
-			ret = ipu_update_common_param(ipu_ctx, &ipu_cfg);
+			ret = ipu_update_common_param(ipu_ctx, ipu_cfg);
 		else
-			ret = ipu_update_common_param_mp(ipu_ctx, &ipu_cfg);
+			ret = ipu_update_common_param_mp(ipu_ctx, ipu_cfg);
+
+		ret = ipu_set_path_attr(ipu_ctx, ipu_cfg);
 	} else if (ipu_ctx->id == GROUP_ID_US) {
 		ret = copy_from_user((char *) &us_config, (u32 __user *) arg,
 				   sizeof(ipu_us_info_t));
@@ -875,6 +941,11 @@ int ipu_video_init(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 			ret = ipu_update_us_param(ipu_ctx, &us_config);
 		else
 			ret = ipu_update_us_param_mp(ipu_ctx, &us_config);
+
+		if (us_config.us_roi_en || us_config.us_sc_en) {
+			ipu_set_group_leader(group, ipu_ctx->id, ipu_ctx->proc_id);
+			set_bit(VIO_GROUP_DMA_OUTPUT, &group->state);
+		}
 	} else if (ipu_ctx->id >= GROUP_ID_DS0) {
 		ret = copy_from_user((char *) &ds_config, (u32 __user *) arg,
 				   sizeof(ipu_ds_info_t));
@@ -886,7 +957,10 @@ int ipu_video_init(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 			ret = ipu_update_ds_param_mp(ipu_ctx, &ds_config);
 	}
 
-	group = ipu_ctx->group;
+	if(!test_bit(IPU_REUSE_SHADOW0, &ipu->state)
+		&& group->instance >= MAX_SHADOW_NUM)
+		set_bit(IPU_REUSE_SHADOW0, &ipu->state);
+
 	vio_group_task_start(group->gtask);
 
 	ipu_ctx->state = BIT(VIO_VIDEO_INIT);
