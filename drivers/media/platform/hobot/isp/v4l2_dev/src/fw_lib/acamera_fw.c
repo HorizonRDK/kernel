@@ -114,6 +114,8 @@ int acamera_fw_isp_start(int ctx_id)
 	acamera_update_cur_settings_to_isp(ctx_id);
 
 	printk("%s done.\n", __func__);
+
+	return 0;
 }
 
 int acamera_fw_isp_stop(int ctx_id)
@@ -142,6 +144,8 @@ int acamera_fw_isp_stop(int ctx_id)
 	}
 
 	printk("%s done.\n", __func__);
+
+	return 0;
 }
 
 extern void sensor_sw_init( sensor_fsm_ptr_t p_fsm );
@@ -226,7 +230,6 @@ retry_2:
     acamera_load_isp_sequence( 0, p_ctx->isp_sequence, SENSOR_ISP_SEQUENCE_DEFAULT_SETTINGS );
 
     //read ping/pong select state, sync up with software state
-    TODO:
 
     //safe start
     acamera_isp_input_port_mode_request_write( p_ctx->settings.isp_base, ACAMERA_ISP_INPUT_PORT_MODE_REQUEST_SAFE_START );
@@ -568,6 +571,7 @@ int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settin
         // reset frame counters
         p_ctx->isp_frame_counter_raw = 0;
         p_ctx->isp_frame_counter = 0;
+	p_ctx->isp_ctxsv_on = 0;
 
         acamera_fw_init( p_ctx );
 

@@ -17,8 +17,11 @@
 *
 */
 
+#define pr_fmt(fmt) "[isp_drv]: %s: " fmt, __func__
+
 #include <linux/module.h>
 #include <linux/semaphore.h>
+#include <linux/crc16.h>
 #include "acamera_fw.h"
 #include "acamera_firmware_api.h"
 #include "acamera_firmware_config.h"
@@ -63,6 +66,7 @@
 #include "fsm_param.h"
 #include "system_dma.h"
 #include "hobot_isp_reg_dma.h"
+#include "isp_ctxsv.h"
 
 static acamera_firmware_t g_firmware;
 
@@ -70,9 +74,7 @@ typedef int (*isp_callback)(int);
 extern void isp_register_callback(isp_callback func);
 int sif_isp_ctx_sync_func(int ctx_id);
 static int sif_isp_offline = 0;
-
 static DECLARE_WAIT_QUEUE_HEAD(wq);
-static DEFINE_SEMAPHORE(sem_event_process_done);
 
 int32_t acamera_set_api_context( uint32_t ctx_num )
 {
@@ -335,6 +337,7 @@ int32_t acamera_init( acamera_settings *settings, uint32_t ctx_num )
 
             g_firmware.api_context = 0;
 
+	    system_semaphore_init(&g_firmware.sem_event_process_done);
             system_semaphore_init( &g_firmware.sem_evt_avail );
 
             if ( ctx_num <= FIRMWARE_CONTEXT_NUMBER ) {
@@ -485,6 +488,7 @@ int32_t acamera_terminate()
     acamera_logger_empty(); //empty the logger buffer and print remaining logs
     acamera_deinit();
     system_semaphore_destroy( g_firmware.sem_evt_avail );
+    system_semaphore_destroy(g_firmware.sem_event_process_done);
 
     return 0;
 }
@@ -539,9 +543,26 @@ static void dma_complete_context_func( void *arg )
 	ctx_id = system_dma_device->cur_fw_ctx_id;
 
     if ( g_firmware.dma_flag_isp_config_completed && g_firmware.dma_flag_isp_metering_completed ) {
-        LOG( LOG_INFO, "START PROCESSING FROM CONTEXT CALLBACK" );
+	isp_ctx_node_t *cn;
+	volatile void *offset;
+	acamera_context_t *p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[ctx_id];
 
-	if (sif_isp_offline && g_firmware.fw_ctx[ctx_id].fsm_mgr.reserved == 0) { // indicate dma writer is disabled
+	pr_debug("START PROCESSING FROM CONTEXT CALLBACK, ctx_id %d\n", ctx_id);
+
+	if (p_ctx->isp_ctxsv_on) {
+		cn = isp_ctx_get_node(ctx_id, FREEQ);
+		if (!cn)
+			cn = isp_ctx_get_node(ctx_id, DONEQ);
+		if (cn) {
+			cn->ctx.frame_id = p_ctx->isp_frame_counter;
+			offset = p_ctx->sw_reg_map.isp_sw_config_map + ACAMERA_DECOMPANDER0_MEM_BASE_ADDR;
+			memcpy_fromio(cn->base, offset, CTX_SIZE);
+			cn->ctx.crc16 = crc16(~0, cn->base, CTX_SIZE);
+			isp_ctx_put_node(ctx_id, cn, DONEQ);
+		}
+	}
+
+	if (sif_isp_offline && p_ctx->fsm_mgr.reserved == 0) { // indicate dma writer is disabled
 		g_firmware.dma_flag_dma_writer_config_completed = 1;
 		dma_writer_config_done();
 	}
@@ -565,9 +586,26 @@ static void dma_complete_metering_func( void *arg )
 	ctx_id = system_dma_device->cur_fw_ctx_id;
 
     if ( g_firmware.dma_flag_isp_config_completed && g_firmware.dma_flag_isp_metering_completed ) {
-        LOG( LOG_INFO, "START PROCESSING FROM METERING CALLBACK" );
+	isp_ctx_node_t *cn;
+	volatile void *offset;
+	acamera_context_t *p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[ctx_id];
 
-	if (sif_isp_offline && g_firmware.fw_ctx[ctx_id].fsm_mgr.reserved == 0) { // indicate dma writer is disabled
+	pr_debug("START PROCESSING FROM METERING CALLBACK, ctx_id %d\n", ctx_id);
+
+	if (p_ctx->isp_ctxsv_on) {
+		cn = isp_ctx_get_node(ctx_id, FREEQ);
+		if (!cn)
+			cn = isp_ctx_get_node(ctx_id, DONEQ);
+		if (cn) {
+			cn->ctx.frame_id = p_ctx->isp_frame_counter;
+			offset = p_ctx->sw_reg_map.isp_sw_config_map + ACAMERA_DECOMPANDER0_MEM_BASE_ADDR;
+			memcpy_fromio(cn->base, offset, CTX_SIZE);
+			cn->ctx.crc16 = crc16(~0, cn->base, CTX_SIZE);
+			isp_ctx_put_node(ctx_id, cn, DONEQ);
+		}
+	}
+
+	if (sif_isp_offline && p_ctx->fsm_mgr.reserved == 0) { // indicate dma writer is disabled
 		g_firmware.dma_flag_dma_writer_config_completed = 1;
 		dma_writer_config_done();
 	}
@@ -838,7 +876,7 @@ retry:
 #endif
 		}
 	} else {
-		down_interruptible(&sem_event_process_done);
+		system_semaphore_wait(g_firmware.sem_event_process_done, 0);
 		goto retry;
 	}
 
@@ -847,9 +885,9 @@ retry:
 		g_firmware.dma_flag_dma_writer_config_completed)) {
 
 		wait_event_timeout(wq, g_firmware.dma_flag_dma_writer_config_completed, msecs_to_jiffies(1000));
-		LOG( LOG_INFO, "ISP->SIF: wake up sif feed thread");
+		pr_debug("ISP->SIF: wake up sif feed thread\n");
 	} else
-		LOG( LOG_INFO, "ISP->SIF: do not need waiting, return to sif feed thread");
+		pr_debug("ISP->SIF: do not need waiting, return to sif feed thread\n");
 
 	return 0;
 }
@@ -859,15 +897,13 @@ int32_t acamera_interrupt_handler()
 {
     int32_t result = 0;
     int32_t irq_bit = ISP_INTERRUPT_EVENT_NONES_COUNT - 1;
-    LOG( LOG_DEBUG, "Interrupt handler called" );
 
     acamera_context_ptr_t p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[current_context_id];
 
     // read the irq vector from isp
     uint32_t irq_mask = acamera_isp_isp_global_interrupt_status_vector_read( 0 );
 
-    printk("IRQ MASK is 0x%x, context id is %d", irq_mask, current_context_id);
-    LOG( LOG_INFO, "IRQ MASK is 0x%x, context id is %d", irq_mask, current_context_id );
+    pr_info("IRQ MASK is 0x%x, ctx_id %d", irq_mask, current_context_id);
 
     if(irq_mask&0x8) {
         printk("broken frame status = 0x%x", acamera_isp_isp_global_monitor_broken_frame_status_read(0));
@@ -1025,7 +1061,7 @@ int32_t acamera_process( void )
     ctrl_channel_process();
 #endif
 
-    up(&sem_event_process_done);
+    system_semaphore_raise(g_firmware.sem_event_process_done);
 
     system_semaphore_wait( g_firmware.sem_evt_avail, FW_EVT_QUEUE_TIMEOUT_MS );
 

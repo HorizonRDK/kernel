@@ -28,10 +28,14 @@
 #include <linux/string.h>
 #include <linux/ioctl.h>
 #include <linux/uaccess.h>
+#include <linux/ion.h>
+#include <linux/crc16.h>
 #include "system_chardev.h"
 #include "acamera_logger.h"
 #include "acamera_tuning.h"
+#include "acamera_fw.h"
 #include "acamera_command_api.h"
+#include "isp_ctxsv.h"
 
 #define SYSTEM_CHARDEV_FIFO_SIZE 4096
 #define SYSTEM_CHARDEV_NAME "ac_isp"
@@ -40,6 +44,9 @@
 #define ISPIOC_LUT_RW   _IOWR('P', 1, struct metadata_t)
 #define ISPIOC_COMMAND  _IOWR('P', 2, struct metadata_t)
 #define ISPIOC_BUF_PACTET  _IOWR('P', 3, isp_packet_s)
+#define ISPIOC_GET_CTX _IOWR('P', 4, isp_ctx_r_t)
+#define ISPIOC_PUT_CTX _IOWR('P', 5, isp_ctx_r_t)
+#define ISPIOC_FILL_CTX _IOWR('P', 6, isp_ctx_w_t)
 
 #define CHECK_CODE	0xeeff
 
@@ -78,6 +85,13 @@ struct isp_dev_context {
     char *dev_name;
     int dev_opened;
 
+    // for ctx dump
+    struct ion_client *client;
+    struct ion_handle *handle;
+    void *vir_addr;
+    phys_addr_t phy_addr;
+    size_t mem_size;
+
     struct miscdevice isp_dev;
     struct mutex fops_lock;
 
@@ -88,6 +102,7 @@ struct isp_dev_context {
     wait_queue_head_t kfifo_out_queue;
 };
 
+extern struct ion_device *hb_ion_dev;
 extern int32_t acamera_set_api_context(uint32_t ctx_num);
 extern void system_reg_rw(struct regs_t *rg, uint8_t dir);
 
@@ -324,20 +339,13 @@ err_flag:
 }
 #endif
 
+extern void *acamera_get_ctx_ptr(uint32_t ctx_id);
 static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
-	uint32_t ret_value = 0, s = 0;
-        uint8_t i = 0, type = 0xff;
+	long ret = 0;
+	uint32_t ret_value = 0;
 	struct metadata_t md;
 	struct metadata_t *pmd = (struct metadata_t *)arg;
-	struct kv_t *kv;
-	struct regs_t *rg;
-	long ret = 0;
-
-	/** used in tuning*/
-	isp_packet_s packet;
-	uint32_t buf[BUF_LENGTH];
-	uint32_t *buf_m = NULL;
 
 	if (!isp_dev_ctx.dev_inited) {
 		LOG(LOG_ERR, "dev is not inited, failed to ioctl.");
@@ -346,13 +354,18 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 
 	mutex_lock(&isp_dev_ctx.fops_lock);
 
-
 	acamera_set_api_context(md.chn);
 
 	switch (cmd) {
 	case ISPIOC_REG_RW:
-		if (copy_from_user(&md, (void __user *)arg, sizeof(md)))
-			return -EFAULT;
+	{
+        	uint8_t i = 0;
+		uint32_t s = 0;
+		struct regs_t *rg;
+		if (copy_from_user(&md, (void __user *)arg, sizeof(md))) {
+			ret = -EFAULT;
+			break;
+		}
 		s = md.elem * sizeof(struct regs_t);
 		md.ptr = kzalloc(s, GFP_KERNEL);
 
@@ -375,11 +388,17 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 		}
 
 		kfree(md.ptr);
+	}
 		break;
 
 	case ISPIOC_LUT_RW:
-		if (copy_from_user(&md, (void __user *)arg, sizeof(md)))
-			return -EFAULT;
+	{
+		uint32_t s = 0;
+
+		if (copy_from_user(&md, (void __user *)arg, sizeof(md))) {
+			ret = -EFAULT;
+			break;
+		}
 		s = md.elem & 0xffff;
 		md.ptr = kzalloc(s, GFP_KERNEL);
 
@@ -397,11 +416,19 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 		}
 
 		kfree(md.ptr);
+	}
 		break;
 
 	case ISPIOC_COMMAND:
-		if (copy_from_user(&md, (void __user *)arg, sizeof(md)))
-			return -EFAULT;
+	{
+        	uint8_t i = 0;
+		uint8_t type = 0xff;
+		uint32_t s = 0;
+		struct kv_t *kv;
+		if (copy_from_user(&md, (void __user *)arg, sizeof(md))) {
+			ret = -EFAULT;
+			break;
+		}
 		s = md.elem * sizeof(struct kv_t);
 		md.ptr = kzalloc(s, GFP_KERNEL);
 
@@ -431,17 +458,81 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 		}
 
 		kfree(md.ptr);
+	}
+		break;
+
+	case ISPIOC_GET_CTX:
+	{
+		isp_ctx_r_t ctx;
+		isp_ctx_node_t *cn = NULL;
+		acamera_context_t *p_ctx;
+
+		if (copy_from_user(&ctx, (void __user *)arg, sizeof(ctx))) {
+			ret = -EFAULT;
+			break;
+		}
+
+		// isp context save on
+		p_ctx = (acamera_context_t *)acamera_get_ctx_ptr(ctx.ctx_id);
+		p_ctx->isp_ctxsv_on = 1;
+
+		cn = isp_ctx_get_node(ctx.ctx_id, DONEQ);
+		if (cn && copy_to_user((void __user *)arg, (void *)&cn->ctx, sizeof(ctx)))
+			ret = -EFAULT;
+	}
+		break;
+
+	case ISPIOC_PUT_CTX:
+	{
+		isp_ctx_r_t ctx;
+		if (copy_from_user(&ctx, (void __user *)arg, sizeof(ctx))) {
+			ret = -EFAULT;
+			break;
+		}
+		isp_ctx_put(ctx.ctx_id, ctx.idx);
+	}
+		break;
+
+	case ISPIOC_FILL_CTX:
+	{
+		volatile void *ptr;
+		uint32_t crc = 0;
+		isp_ctx_w_t ctx;
+		acamera_context_t *p_ctx;
+
+		if (copy_from_user(&ctx, (void __user *)arg, sizeof(ctx))) {
+			ret = -EFAULT;
+			break;
+		}
+
+		crc = crc16(~0, ctx.ptr, CTX_SIZE);
+		if (crc != ctx.crc16) {
+			LOG(LOG_ERR, "isp context set failed.");
+			ret = -EFAULT;
+			break;
+		}
+
+		p_ctx = (acamera_context_t *)acamera_get_ctx_ptr(ctx.ctx_id);
+		ptr = p_ctx->sw_reg_map.isp_sw_config_map + CTX_OFFSET;
+		memcpy_toio(ptr, ctx.ptr, CTX_SIZE);
+	}
 		break;
 
 	case ISPIOC_BUF_PACTET: {
+		isp_packet_s packet;
+		uint32_t buf[BUF_LENGTH];
+		uint32_t *buf_m = NULL;
+
 		if (arg == 0) {
 			LOG(LOG_ERR, "arg is null !\n");
-			return -1;
+			ret = -1;
+			break;
 		}
 		if (copy_from_user((void *)&packet, (void __user *)arg,
 			sizeof(isp_packet_s))) {
 			LOG(LOG_ERR, "copy is err !\n");
-			return -EINVAL;
+			ret = -EINVAL;
+			break;
 		}
 		if (packet.buf[0] < BUF_LENGTH * 4) {
 			buf_m = buf;
@@ -449,7 +540,8 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 			buf_m = kzalloc(sizeof(uint32_t) * packet.buf[0], GFP_KERNEL);
 			if (buf_m == NULL) {
 				LOG(LOG_ERR, "kzalloc is failed!\n");
-				return -EINVAL;
+				ret = -EINVAL;
+				break;
 			}
 		}
 		memcpy(buf_m, packet.buf, sizeof(packet.buf));
@@ -492,6 +584,26 @@ err_flag:
 	return ret;
 }
 
+int isp_fops_mmap(struct file *file, struct vm_area_struct *vma)
+{
+	struct isp_dev_context *p_ctx = (struct isp_dev_context *)file->private_data;
+
+	if ((vma->vm_end - vma->vm_start) > p_ctx->mem_size) {
+		LOG(LOG_ERR, "mmap size exceed valid range %d.", p_ctx->mem_size);
+		return -ENOMEM;
+	}
+	vma->vm_flags |= VM_IO;
+	vma->vm_flags |= VM_LOCKED;
+	vma->vm_pgoff = p_ctx->phy_addr >> PAGE_SHIFT;
+	if (remap_pfn_range(vma, vma->vm_start, vma->vm_pgoff,
+			vma->vm_end - vma->vm_start, vma->vm_page_prot)) {
+		LOG(LOG_ERR, "mmap phy addr %d failed.", p_ctx->phy_addr);
+		return -EAGAIN;
+	}
+
+	return 0;
+}
+
 static struct file_operations isp_fops = {
 	.owner = THIS_MODULE,
 	.open = isp_fops_open,
@@ -501,7 +613,64 @@ static struct file_operations isp_fops = {
 	.llseek = noop_llseek,
 	.unlocked_ioctl = isp_fops_ioctl,
 	.compat_ioctl = isp_fops_ioctl,
+	.mmap = isp_fops_mmap,
 };
+
+void *isp_dev_get_vir_addr(void)
+{
+	return isp_dev_ctx.vir_addr;
+}
+EXPORT_SYMBOL(isp_dev_get_vir_addr);
+
+int isp_dev_mem_alloc(void)
+{
+	int ret;
+	struct isp_dev_context *p_ctx = NULL;
+
+	p_ctx = &isp_dev_ctx;
+
+	p_ctx->client = ion_client_create(hb_ion_dev, "ac_isp");
+	if (!p_ctx->client) {
+		LOG(LOG_ERR, "ac_isp ion client create failed.");
+		ret = -ENOMEM;
+		goto out1;
+	}
+
+	p_ctx->handle = ion_alloc(p_ctx->client,
+			MEM_SIZE, 0, ION_HEAP_CARVEOUT_MASK, 0);
+	if (!p_ctx->handle) {
+		LOG(LOG_ERR, "ac_isp ion handle create failed.");
+		ret = -ENOMEM;
+		goto out2;
+	}
+
+	ret = ion_phys(p_ctx->client, p_ctx->handle->id,
+			&p_ctx->phy_addr, &p_ctx->mem_size);
+	if (ret) {
+		LOG(LOG_ERR, "ion_phys get phy address failed.");
+		goto out3;
+	}
+	p_ctx->vir_addr = ion_map_kernel(p_ctx->client, p_ctx->handle);
+	if (!p_ctx->vir_addr) {
+		LOG(LOG_ERR, "ion_map failed.");
+		ret = -ENOMEM;
+		goto out4;
+	}
+
+	return 0;
+
+out4:
+	ion_unmap_kernel(p_ctx->client, p_ctx->handle);
+out3:
+	ion_free(p_ctx->client, p_ctx->handle);
+	p_ctx->phy_addr = 0;
+	p_ctx->mem_size = 0;
+out2:
+	ion_client_destroy(p_ctx->client);
+out1:
+
+	return ret;
+}
 
 static int isp_dev_context_init( struct isp_dev_context *p_ctx )
 {
@@ -533,6 +702,12 @@ static int isp_dev_context_init( struct isp_dev_context *p_ctx )
     mutex_init( &p_ctx->fops_lock );
     init_waitqueue_head( &p_ctx->kfifo_in_queue );
     init_waitqueue_head( &p_ctx->kfifo_out_queue );
+
+    rc = isp_dev_mem_alloc();
+    if (rc)
+	goto failed_kfifo_out_alloc;
+
+    isp_ctx_queue_init();
 
     p_ctx->dev_inited = 1;
 
@@ -630,6 +805,14 @@ int system_chardev_destroy( void )
         kfifo_free( &isp_dev_ctx.isp_kfifo_out );
 
         misc_deregister( &isp_dev_ctx.isp_dev );
+
+	if (isp_dev_ctx.client) {
+		if (isp_dev_ctx.handle) {
+			ion_unmap_kernel(isp_dev_ctx.client, isp_dev_ctx.handle);
+			ion_free(isp_dev_ctx.client, isp_dev_ctx.handle);
+		}
+		ion_client_destroy(isp_dev_ctx.client);
+	}
 
         LOG( LOG_INFO, "misc_deregister dev: %s.", isp_dev_ctx.dev_name );
     } else {

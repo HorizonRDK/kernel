@@ -280,6 +280,7 @@ static int isp_v4l2_stream_get_plane( struct vb2_buffer *vb,
     return 0;
 }
 
+#ifndef HOBOT_DMA_WRITER_FRAME
 static void isp_v4l2_stream_put_plane( struct vb2_buffer *vb,
                                        aframe_t *aframe, uint32_t plane_no )
 {
@@ -300,6 +301,7 @@ static void isp_v4l2_stream_put_plane( struct vb2_buffer *vb,
 
     aframe->status = dma_buf_purge;
 }
+#endif
 
 #if ISP_V4L2_DMA_COHERENT_DUMMY_ALLOC == 0
 void *callback_dma_alloc_coherent( uint32_t ctx_id, uint64_t size, uint64_t *dma_addr )
@@ -476,7 +478,6 @@ int callback_stream_put_frame( uint32_t ctx_id, acamera_stream_type_t type, afra
     struct vb2_v4l2_buffer *vvb;
 #endif
     struct vb2_buffer *vb;
-    int i;
 
     v4l2_type = fw_to_isp_v4l2_stream_type( type );
     if ( v4l2_type == V4L2_STREAM_TYPE_MAX )
@@ -534,6 +535,7 @@ int callback_stream_put_frame( uint32_t ctx_id, acamera_stream_type_t type, afra
     }
 
 #ifndef HOBOT_DMA_WRITER_FRAME
+    int i;
     for ( i = 0; i < vb->num_planes; i++ ) {
         if ( aframes[i].status == dma_buf_busy )
             isp_v4l2_stream_put_plane( vb, &aframes[i], i );
@@ -562,11 +564,12 @@ int callback_stream_release_frame( uint32_t ctx_id, acamera_stream_type_t type, 
     isp_v4l2_stream_t *pstream;
     isp_v4l2_buffer_t *pbuf = NULL;
     struct list_head *p, *n;
+#if 0
 #if ( LINUX_VERSION_CODE >= KERNEL_VERSION( 4, 4, 0 ) )
     struct vb2_v4l2_buffer *vvb;
 #endif
     struct vb2_buffer *vb;
-    int i;
+#endif
 
     v4l2_type = fw_to_isp_v4l2_stream_type( type );
     if ( v4l2_type == V4L2_STREAM_TYPE_MAX )
@@ -790,8 +793,11 @@ int isp_v4l2_stream_on( isp_v4l2_stream_t *pstream )
     return 0;
 }
 
+extern void *acamera_get_ctx_ptr(uint32_t ctx_id);
 void isp_v4l2_stream_off( isp_v4l2_stream_t *pstream )
 {
+    acamera_context_t *p_ctx = (acamera_context_t *)acamera_get_ctx_ptr(pstream->ctx_id);
+
     if ( !pstream ) {
         LOG( LOG_ERR, "Null stream passed" );
         return;
@@ -801,6 +807,10 @@ void isp_v4l2_stream_off( isp_v4l2_stream_t *pstream )
 
     // control fields update
     pstream->stream_started = 0;
+
+    // isp context save off
+    if (p_ctx)
+	p_ctx->isp_ctxsv_on = 0;
 
     fw_intf_stream_stop( pstream->ctx_id, pstream->stream_type );
 
