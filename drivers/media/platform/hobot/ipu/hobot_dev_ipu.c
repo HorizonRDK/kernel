@@ -46,6 +46,7 @@ int ipu_put_client(struct ipu_sub_mp *sub_mp,
 		struct ipu_video_ctx *ipu_sub_ctx);
 struct ipu_video_ctx *ipu_get_client(struct ipu_sub_mp *sub_mp);
 void ipu_update_hw_param(struct ipu_video_ctx *ipu_ctx);
+int ipu_video_streamoff(struct ipu_video_ctx *ipu_ctx);
 
 static int x3_ipu_open(struct inode *inode, struct file *file)
 {
@@ -102,15 +103,23 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 	cnt = ipu_ctx->frm_num;
 	frame_manager_close_mp(ipu_ctx->framemgr, index, cnt);
 
-	ipu_ctx->state = BIT(VIO_VIDEO_CLOSE);
-
 	if (atomic_dec_return(&ipu->open_cnt) == 0) {
 		clear_bit(IPU_OTF_INPUT, &ipu->state);
 		clear_bit(IPU_DMA_INPUT, &ipu->state);
 		clear_bit(IPU_DS2_DMA_OUTPUT, &ipu->state);
 		clear_bit(IPU_HW_CONFIG, &ipu->state);
 		clear_bit(IPU_REUSE_SHADOW0, &ipu->state);
+
+		if (test_bit(IPU_HW_RUN, &ipu->state)) {
+			set_bit(IPU_HW_FORCE_STOP, &ipu->state);
+			ipu_video_streamoff(ipu_ctx);
+			clear_bit(IPU_HW_FORCE_STOP, &ipu->state);
+			atomic_set(&ipu->rsccount, 0);
+			vio_info("ipu force stream off\n");
+		}
 	}
+
+	ipu_ctx->state = BIT(VIO_VIDEO_CLOSE);
 
 	kfree(ipu_ctx);
 
@@ -1097,6 +1106,7 @@ int ipu_video_streamon(struct ipu_video_ctx *ipu_ctx)
 		}
 	}
 
+	set_bit(IPU_HW_RUN, &ipu->state);
 p_inc:
 	atomic_inc(&ipu->rsccount);
 
@@ -1127,7 +1137,8 @@ int ipu_video_streamoff(struct ipu_video_ctx *ipu_ctx)
 
 	ipu_channel_wdma_disable(ipu_ctx);
 
-	if (atomic_dec_return(&ipu_dev->rsccount) > 0)
+	if (atomic_dec_return(&ipu_dev->rsccount) > 0
+		&& !test_bit(IPU_HW_FORCE_STOP, &ipu_dev->state))
 		goto p_dec;
 
 	cfg = ips_get_bus_ctrl() | 1 << 12;
@@ -1153,6 +1164,7 @@ int ipu_video_streamoff(struct ipu_video_ctx *ipu_ctx)
 
 	ips_set_clk_ctrl(IPU0_CLOCK_GATE, false);
 
+	clear_bit(IPU_HW_RUN, &ipu_dev->state);
 p_dec:
 	if (ipu_ctx->framemgr->frames_mp != NULL)
 		frame_manager_flush_mp(ipu_ctx->framemgr, ipu_ctx->frm_fst_ind,
@@ -1953,6 +1965,7 @@ static int x3_ipu_probe(struct platform_device *pdev)
 	sema_init(&ipu->gtask.hw_resource, 1);
 	atomic_set(&ipu->gtask.refcount, 0);
 	atomic_set(&ipu->rsccount, 0);
+	atomic_set(&ipu->open_cnt, 0);
 
 	vio_info("[FRT:D] %s(%d)\n", __func__, ret);
 

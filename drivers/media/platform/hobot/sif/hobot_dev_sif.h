@@ -132,6 +132,8 @@ enum sif_state {
 	/* WDMA flag */
 	SIF_DMA_IN_ENABLE,
 	SIF_DOL2_MODE,
+	SIF_HW_RUN,
+	SIF_HW_FORCE_STOP,
 };
 
 struct x3_sif_dev {
@@ -148,6 +150,7 @@ struct x3_sif_dev {
 	unsigned long		state;
 	atomic_t			instance;
 	atomic_t			rsccount;
+	atomic_t			open_cnt;
 	spinlock_t			shared_slock;
 
 	struct vio_group		*sif_input[VIO_MAX_STREAM];

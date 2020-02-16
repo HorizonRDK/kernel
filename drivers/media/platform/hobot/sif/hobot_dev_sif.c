@@ -27,6 +27,7 @@
 #include <linux/poll.h>
 
 #include "hobot_dev_sif.h"
+#include "hobot_dev_ips.h"
 #include "sif_hw_api.h"
 
 #define MODULE_NAME "X3 SIF"
@@ -37,6 +38,7 @@ module_param(mismatch_limit, int, 0644);
 extern struct class *vps_class;
 typedef int (*isp_callback)(int);
 isp_callback sif_isp_ctx_sync;
+int sif_video_streamoff(struct sif_video_ctx *sif_ctx);
 
 void isp_register_callback(isp_callback func)
 {
@@ -205,6 +207,12 @@ static int x3_sif_open(struct inode *inode, struct file *file)
 	sif_ctx->sif_dev = sif;
 	file->private_data = sif_ctx;
 	sif_ctx->state = BIT(VIO_VIDEO_OPEN);
+
+	if (atomic_read(&sif->open_cnt) == 0) {
+		vio_clk_enable("sif_mclk");
+	}
+
+	atomic_inc(&sif->open_cnt);
 	vio_info("SIF open node %d\n", minor);
 p_err:
 	return ret;
@@ -259,6 +267,17 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 
 	frame_manager_close(&sif_ctx->framemgr);
 
+	if (atomic_dec_return(&sif->open_cnt) == 0) {
+		if (test_bit(SIF_HW_RUN, &sif->state)) {
+			set_bit(SIF_HW_FORCE_STOP, &sif->state);
+			sif_video_streamoff(sif_ctx);
+			clear_bit(SIF_HW_FORCE_STOP, &sif->state);
+			atomic_set(&sif->rsccount, 0);
+			vio_info("sif force stream off\n");
+		}
+		//it should disable after ipu stream off because it maybe contain ipu/sif clk
+		//vio_clk_disable("sif_mclk");
+	}
 	sif_ctx->state = BIT(VIO_VIDEO_CLOSE);
 
 	kfree(sif_ctx);
@@ -437,19 +456,11 @@ int sif_video_streamon(struct sif_video_ctx *sif_ctx)
 
 	spin_lock_irqsave(&sif_dev->shared_slock, flag);
 	sif_hw_enable(sif_dev->base_reg);
+	set_bit(SIF_HW_RUN, &sif_dev->state);
 	spin_unlock_irqrestore(&sif_dev->shared_slock, flag);
 
 p_inc:
 	atomic_inc(&sif_dev->rsccount);
-
-#if CONFIG_QEMU_TEST
-	if (sif_ctx->id == 0)
-		g_test_bit |=
-		    1 << sif_ctx->mux_index | 1 << (sif_ctx->mux_index + 8);
-	else
-		g_test_input = 1;
-	timer_init(sif_dev, 0);
-#endif
 	sif_ctx->state = BIT(VIO_VIDEO_START);
 
 	vio_dbg("%s\n", __func__);
@@ -471,25 +482,18 @@ int sif_video_streamoff(struct sif_video_ctx *sif_ctx)
 	sif_dev = sif_ctx->sif_dev;
 	framemgr = &sif_ctx->framemgr;
 
-	if (atomic_dec_return(&sif_dev->rsccount) > 0)
+	if (atomic_dec_return(&sif_dev->rsccount) > 0
+		&& !test_bit(SIF_HW_FORCE_STOP, &sif_dev->state))
 		goto p_dec;
-
-#if CONFIG_QEMU_TEST
-	g_test_input = 0;
-	g_test_bit = 0;
-	g_test = -1;
-
-	del_timer_sync(&tm[0]);
-#endif
 
 	spin_lock_irqsave(&sif_dev->shared_slock, flag);
 
 	sif_hw_disable(sif_dev->base_reg);
+	clear_bit(SIF_HW_RUN, &sif_dev->state);
 
 	if (sif_ctx->id == 1)
 		clear_bit(SIF_DMA_IN_ENABLE, &sif_dev->state);
 	spin_unlock_irqrestore(&sif_dev->shared_slock, flag);
-
 p_dec:
 
 	if (sif_ctx->id == 0)
@@ -923,8 +927,8 @@ static int x3_sif_probe(struct platform_device *pdev)
 	}
 
 	sema_init(&sif->sifin_task.hw_resource, 1);
-
 	atomic_set(&sif->rsccount, 0);
+	atomic_set(&sif->open_cnt, 0);
 
 	spin_lock_init(&sif->shared_slock);
 

@@ -26,6 +26,7 @@
 #include <linux/poll.h>
 
 #include "hobot_dev_pym.h"
+#include "hobot_dev_ips.h"
 #include "pym_hw_api.h"
 
 #define MODULE_NAME "X3 PYM"
@@ -33,6 +34,8 @@
 extern struct class *vps_class;
 
 void pym_update_param(struct pym_video_ctx *pym_ctx);
+int pym_video_streamoff(struct pym_video_ctx *pym_ctx);
+
 static int x3_pym_open(struct inode *inode, struct file *file)
 {
 	struct pym_video_ctx *pym_ctx;
@@ -56,8 +59,11 @@ static int x3_pym_open(struct inode *inode, struct file *file)
 	file->private_data = pym_ctx;
 	pym_ctx->state = BIT(VIO_VIDEO_OPEN);
 
-	atomic_inc(&pym->open_cnt);
+	if (atomic_read(&pym->open_cnt) == 0) {
+		vio_clk_enable("pym_mclk");
+	}
 
+	atomic_inc(&pym->open_cnt);
 p_err:
 	return ret;
 }
@@ -111,13 +117,22 @@ static int x3_pym_close(struct inode *inode, struct file *file)
 
 	frame_manager_close(&pym_ctx->framemgr);
 
-	pym_ctx->state = BIT(VIO_VIDEO_CLOSE);
-
 	if (atomic_dec_return(&pym->open_cnt) == 0) {
 		clear_bit(PYM_OTF_INPUT, &pym->state);
 		clear_bit(PYM_DMA_INPUT, &pym->state);
 		clear_bit(PYM_REUSE_SHADOW0, &pym->state);
+
+		if (test_bit(PYM_HW_RUN, &pym->state)) {
+			set_bit(PYM_HW_FORCE_STOP, &pym->state);
+			pym_video_streamoff(pym_ctx);
+			clear_bit(PYM_HW_FORCE_STOP, &pym->state);
+			atomic_set(&pym->rsccount, 0);
+			vio_info("pym force stream off\n");
+		}
+		vio_clk_disable("pym_mclk");
 	}
+
+	pym_ctx->state = BIT(VIO_VIDEO_CLOSE);
 
 	kfree(pym_ctx);
 
@@ -189,6 +204,10 @@ static void pym_frame_work(struct vio_group *group)
 		trans_frame(framemgr, frame, FS_PROCESS);
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
+
+	if (!test_bit(PYM_HW_CONFIG, &pym->state))
+		set_bit(PYM_HW_CONFIG, &pym->state);
+
 	vio_info("%s done\n", __func__);
 
 	return;
@@ -387,10 +406,13 @@ int pym_video_init(struct pym_video_ctx *pym_ctx, unsigned long arg)
 
 int pym_video_streamon(struct pym_video_ctx *pym_ctx)
 {
-	struct x3_pym_dev *pym_dev;
+	u32 cnt = 20;
 	unsigned long flags;
+	struct x3_pym_dev *pym_dev;
+	struct vio_group *group;
 
 	pym_dev = pym_ctx->pym_dev;
+	group = pym_ctx->group;
 
 	if (!(pym_ctx->state & (BIT(VIO_VIDEO_STOP) | BIT(VIO_VIDEO_REBUFS)
 			| BIT(VIO_VIDEO_INIT)))) {
@@ -402,9 +424,24 @@ int pym_video_streamon(struct pym_video_ctx *pym_ctx)
 	if (atomic_read(&pym_dev->rsccount) > 0)
 		goto p_inc;
 
+	if (group->leader && test_bit(PYM_OTF_INPUT, &pym_dev->state)) {
+		while(1) {
+			if (test_bit(PYM_HW_CONFIG, &pym_dev->state))
+				break;
+
+			msleep(5);
+			cnt--;
+			if (cnt == 0) {
+				vio_info("%s timeout\n", __func__);
+				break;
+			}
+		}
+	}
+
 	spin_lock_irqsave(&pym_dev->shared_slock, flags);
 
 	pym_hw_enable(pym_dev, true);
+	set_bit(PYM_HW_RUN, &pym_dev->state);
 
 	spin_unlock_irqrestore(&pym_dev->shared_slock, flags);
 
@@ -427,13 +464,15 @@ int pym_video_streamoff(struct pym_video_ctx *pym_ctx)
 	}
 	pym_dev = pym_ctx->pym_dev;
 
-	if (atomic_dec_return(&pym_dev->rsccount) > 0)
+	if (atomic_dec_return(&pym_dev->rsccount) > 0
+		&& !test_bit(PYM_HW_FORCE_STOP, &pym_dev->state))
 		goto p_dec;
 
 	spin_lock_irqsave(&pym_dev->shared_slock, flag);
 	pym_hw_enable(pym_dev, false);
-
+	clear_bit(PYM_HW_RUN, &pym_dev->state);
 	spin_unlock_irqrestore(&pym_dev->shared_slock, flag);
+
 p_dec:
 
 	frame_manager_flush(&pym_ctx->framemgr);
