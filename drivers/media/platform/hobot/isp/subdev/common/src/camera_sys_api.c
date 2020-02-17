@@ -465,6 +465,43 @@ void camera_sys_os8a10_turning_data(uint32_t port, sensor_priv_t *priv_param,
 		return;
 }
 
+
+void camera_sys_ar0144_turning_control(uint32_t port, sensor_priv_t *priv_param,
+                uint32_t *a_gain, uint32_t *d_gain, uint32_t *a_line)
+{
+	uint32_t tmp, tmp1;
+	uint32_t coarse = 0;
+	uint32_t fine = 0;
+	uint32_t analog_gain;
+	analog_gain = sensor_date(priv_param->gain_buf[0]);
+	if (analog_gain == 0)
+		analog_gain = 256;
+	tmp = analog_gain >> 8;
+	if (tmp == 1) {
+		tmp1 = 0;
+		coarse = 0 << 4;
+	} else if (tmp >= 2 && tmp < 4) {
+		tmp1 = 1;
+		coarse = 1 << 4;
+	} else if (tmp >= 4 && tmp < 8) {
+		tmp1 = 2;
+		coarse = 2 << 4;
+	} else if (tmp >= 8 && tmp < 16) {
+		tmp1 = 3;
+		coarse = 3 << 4;
+	} else if (tmp == 16) {
+		tmp1 = 4;
+		coarse = 4 << 4;
+	}
+	tmp = (analog_gain * 10000) >> (tmp1 + 8);
+	fine = 32 - (320000 + tmp - 1) / tmp;
+	a_gain[0] = (uint16_t)(coarse | fine);
+	a_line[0] = priv_param->line_buf[0];
+	a_gain[0] = (uint16_t)(a_gain[0] << 8 | a_gain[0] >> 8);
+	a_line[0] = (uint16_t)(a_line[0] << 8 | a_line[0] >> 8);
+	return;
+}
+
 int camera_sys_gain_line_process(uint32_t port, sensor_priv_t *priv_param,
 				uint32_t *a_gain, uint32_t *d_gain, uint32_t *a_line)
 {
@@ -474,6 +511,8 @@ int camera_sys_gain_line_process(uint32_t port, sensor_priv_t *priv_param,
 		camera_sys_os8a10_turning_data(port, priv_param, a_gain, d_gain, a_line);
 	} else if (camera_mod[port]->camera_param.sensor_data.turning_type == 3) {
 		camera_sys_ar0233_turning_control(priv_param, a_gain, a_line);
+	} else if (camera_mod[port]->camera_param.sensor_data.turning_type == 4) {
+		camera_sys_ar0144_turning_control(port, priv_param, a_gain, d_gain, a_line);
 	}
 	return 0;
 }
