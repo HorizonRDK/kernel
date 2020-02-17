@@ -110,6 +110,7 @@ struct frame_info {
 	int bufferindex;
 	int pixel_length;
 	struct special_buffer spec;
+	int ion_share_fd[3];
 };
 
 struct vio_frame {
