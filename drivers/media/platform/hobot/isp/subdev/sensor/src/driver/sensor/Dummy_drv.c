@@ -65,9 +65,9 @@ static sensor_mode_t dummy_drv_supported_modes[] = {
     {
         .wdr_mode = WDR_MODE_COUNT,
         .fps = 10 * 256,
-        .resolution.width = 3840,
-        .resolution.height = 2160,
-        .bits = 12,
+        .resolution.width = 4960,
+        .resolution.height = 3112,
+        .bits = 16,
         .exposures = 1,
     },
     {
@@ -79,12 +79,12 @@ static sensor_mode_t dummy_drv_supported_modes[] = {
         .exposures = 1,
     },
     {
-        .wdr_mode = WDR_MODE_LINEAR,
+        .wdr_mode = WDR_MODE_FS_LIN,
         .fps = 10 * 256,
         .resolution.width = 3840,
         .resolution.height = 2160,
-        .bits = 8,
-        .exposures = 1,
+        .bits = 10,
+        .exposures = 2,
     },
     {//3
         .wdr_mode = WDR_MODE_LINEAR,
