@@ -29,6 +29,7 @@
 #include <linux/mutex.h>
 #include <linux/device.h>
 #include <linux/module.h>
+#include <linux/delay.h>
 #include <media/v4l2-subdev.h>
 #include <media/v4l2-async.h>
 #include "acamera_logger.h"
@@ -460,9 +461,24 @@ void dwe_sw_init(void)
 	set_dwe_checktype(dev_ptr->dis_dev->io_vaddr, &tmp);
 }
 
+extern void dwe0_reset_control(void);
+
 void dwe_sw_deinit(void)
 {
 	uint32_t tmp = 0;
+	uint32_t tmp_dis = 0;
+	uint32_t count = 0;
+
+	while (count < 5) {
+		get_ldc_int_status(dev_ptr->ldc_dev->io_vaddr, &tmp);
+		get_dwe_int_status(dev_ptr->dis_dev->io_vaddr, &tmp_dis);
+		if ((tmp == 0) && (tmp_dis == 0)) {
+			break;
+		} else {
+			msleep(10);
+		}
+		count++;
+	}
 
 	//init ldc
 	tmp = 0x03;
@@ -497,6 +513,8 @@ void dwe_sw_deinit(void)
 	get_dwe_checktype(dev_ptr->dis_dev->io_vaddr, &tmp);
 	tmp &= 0xfb;
 	set_dwe_checktype(dev_ptr->dis_dev->io_vaddr, &tmp);
+
+	dwe0_reset_control();
 }
 
 void dwe_deinit_api(dwe_context_t *ctx)
@@ -764,7 +782,7 @@ int ldc_hwpath_set(dwe_context_t *ctx, uint32_t port)
 	}
 	set_ldc_bypass(dev_ptr->ldc_dev->io_vaddr, &tmp_num);
 
-	set_tmp = 0x03;
+	set_tmp = 0x02;
 	set_ldc_soft_reset(dev_ptr->ldc_dev->io_vaddr, &set_tmp);
 
 	LOG(LOG_DEBUG, "ldc_hwpath_set success!");

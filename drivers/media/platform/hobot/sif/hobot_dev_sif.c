@@ -486,6 +486,8 @@ int sif_video_streamoff(struct sif_video_ctx *sif_ctx)
 		&& !test_bit(SIF_HW_FORCE_STOP, &sif_dev->state))
 		goto p_dec;
 
+	msleep(100);
+
 	spin_lock_irqsave(&sif_dev->shared_slock, flag);
 
 	sif_hw_disable(sif_dev->base_reg);

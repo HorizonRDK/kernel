@@ -52,10 +52,10 @@ static int calib_destory(uint8_t port)
 			return -CALIB_PORT_ERR;
 	}
 
-	tmp = 5;
+	tmp = 10;
 	while (tmp > 0) {
 		if (calib_data->busy) {
-			system_timer_usleep(10);
+			system_timer_usleep(100);
 		}
 		tmp--;
 	}
