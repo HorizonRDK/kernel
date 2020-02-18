@@ -596,13 +596,15 @@ enum XJ3_DISPLAY_TYPE {
 	DS20 = 27,
 	DS21 = 28,
 	DS22 = 29,
-	DS23 = 20,
-	US0 = 21,
-	US1 = 22,
-	US2 = 23,
-	US3 = 24,
-	US4 = 25,
-	US5 = 26,
+	DS23 = 30,
+	US0 = 31,
+	US1 = 32,
+	US2 = 33,
+	US3 = 34,
+	US4 = 35,
+	US5 = 36,
+	GDC0 = 37,
+	GDC1 = 38,
 };
 #else
 enum DISPLAY_ADDR_TYPE {

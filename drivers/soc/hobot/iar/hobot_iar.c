@@ -948,7 +948,8 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 	value = IAR_REG_SET_FILED(IAR_YCBCR_OUTPUT, 1, value);
 	writel(value, g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
 #endif
-	value = IAR_REG_SET_FILED(IAR_CONTRAST, cfg->ppcon1.contrast, 0);
+	value = readl(g_iar_dev->regaddr + REG_IAR_PP_CON_1);
+	value = IAR_REG_SET_FILED(IAR_CONTRAST, cfg->ppcon1.contrast, value);
 	value = IAR_REG_SET_FILED(IAR_THETA_SIGN, cfg->ppcon1.theta_sign, value);
 	value = IAR_REG_SET_FILED(IAR_BRIGHT_EN, cfg->ppcon1.bright_en, value);
 	value = IAR_REG_SET_FILED(IAR_CON_EN, cfg->ppcon1.con_en, value);
@@ -1128,6 +1129,8 @@ uint32_t ipu_get_iar_display_type(void)
 		return 0;
 	if (display_type == LCD_7_TYPE)
 		return 2;
+	else if (display_type == MIPI_720P_TOUCH)
+		return 37;
 }
 EXPORT_SYMBOL_GPL(ipu_get_iar_display_type);
 

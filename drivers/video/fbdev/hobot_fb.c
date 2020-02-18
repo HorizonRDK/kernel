@@ -772,6 +772,7 @@ int user_set_fb(void)
 	void __iomem *hitm1_reg_addr;
 	uint32_t regval = 0;
 	buf_addr_t graphic_display_paddr;
+	buf_addr_t graphic1_display_paddr;
 //	uint8_t *mem_src = logo_addr - x2_fbi->fb.fix.smem_start
 //		+ x2_fbi->fb.screen_base;
 	if (x2_fbi == NULL) {
@@ -780,6 +781,7 @@ int user_set_fb(void)
 	}
 	iar_stop();
 	graphic_display_paddr.addr = x2_iar_get_framebuf_addr(2)->paddr;
+	graphic1_display_paddr.addr = x2_iar_get_framebuf_addr(3)->paddr;
 
 	if (display_type == HDMI_TYPE) {
 		disp_set_panel_timing(&video_1920x1080);
@@ -864,6 +866,7 @@ int user_set_fb(void)
 #endif
 		iar_switch_buf(0);
 		iar_set_bufaddr(IAR_CHANNEL_3, &graphic_display_paddr);
+		iar_set_bufaddr(IAR_CHANNEL_4, &graphic1_display_paddr);
 		iar_start(1);
 #ifdef CONFIG_HOBOT_XJ2
 		msleep(20);
