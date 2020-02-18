@@ -319,6 +319,19 @@ int gdc_process(struct x3_gdc_dev *gdc_dev, gdc_settings_t *gdc_settings)
 
 }
 
+void gdc_set_iar_output(struct x3_gdc_dev *gdc_dev,
+		gdc_settings_t *gdc_settings)
+{
+#ifdef X3_IAR_INTERFACE
+	u32 display_layer = 0;
+
+	display_layer = ipu_get_iar_display_type();
+	if ((display_layer - 37) == gdc_dev->hw_id)
+		ipu_set_display_addr(gdc_settings->Out_buffer_addr[0],
+			gdc_settings->Out_buffer_addr[1]);
+#endif
+}
+
 int gdc_video_process(struct gdc_video_ctx *gdc_ctx, unsigned long arg)
 {
 	int ret = 0;
@@ -353,6 +366,8 @@ int gdc_video_process(struct gdc_video_ctx *gdc_ctx, unsigned long arg)
 	spin_unlock_irqrestore(&gdc_dev->shared_slock, flag);
 
 	wait_event_interruptible(gdc_ctx->done_wq, !gdc_ctx->is_waiting_gdc);
+
+	gdc_set_iar_output(gdc_dev, &gdc_settings);
 	gdc_dev->state = GDC_DEV_FREE;
 
 p_err_ignore:
