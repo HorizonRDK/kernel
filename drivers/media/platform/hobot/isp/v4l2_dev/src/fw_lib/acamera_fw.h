@@ -154,6 +154,9 @@ struct _acamera_context_t {
     // isp context save on/off
     uint8_t isp_ctxsv_on;
 
+    // sif offline isp on/off
+    uint8_t sif_isp_offline;
+
     acamera_isp_sw_regs_map sw_reg_map;
 };
 

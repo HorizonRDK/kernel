@@ -73,7 +73,6 @@ static acamera_firmware_t g_firmware;
 typedef int (*isp_callback)(int);
 extern void isp_register_callback(isp_callback func);
 int sif_isp_ctx_sync_func(int ctx_id);
-static int sif_isp_offline = 0;
 static DECLARE_WAIT_QUEUE_HEAD(wq);
 
 int32_t acamera_set_api_context( uint32_t ctx_num )
@@ -462,8 +461,6 @@ static void acamera_deinit( void )
     ctrl_channel_deinit();
 #endif
 
-    sif_isp_offline = 0;
-
     system_dma_destroy( g_firmware.dma_chan_isp_config );
     system_dma_destroy( g_firmware.dma_chan_isp_metering );
     for ( idx = 0; idx < g_firmware.context_number; idx++ ) {
@@ -562,7 +559,7 @@ static void dma_complete_context_func( void *arg )
 		}
 	}
 
-	if (sif_isp_offline && p_ctx->fsm_mgr.reserved == 0) { // indicate dma writer is disabled
+	if (p_ctx->sif_isp_offline && p_ctx->fsm_mgr.reserved == 0) { // indicate dma writer is disabled
 		g_firmware.dma_flag_dma_writer_config_completed = 1;
 		dma_writer_config_done();
 	}
@@ -605,7 +602,7 @@ static void dma_complete_metering_func( void *arg )
 		}
 	}
 
-	if (sif_isp_offline && p_ctx->fsm_mgr.reserved == 0) { // indicate dma writer is disabled
+	if (p_ctx->sif_isp_offline && p_ctx->fsm_mgr.reserved == 0) { // indicate dma writer is disabled
 		g_firmware.dma_flag_dma_writer_config_completed = 1;
 		dma_writer_config_done();
 	}
@@ -839,11 +836,11 @@ int sif_isp_ctx_sync_func(int ctx_id)
 	dma_cmd cmd[2];
 	acamera_context_ptr_t p_ctx;
 
-	sif_isp_offline = 1;
 	last_context_id = current_context_id;
 	current_context_id = ctx_id;
 	next_context_id = ctx_id;
 	p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[current_context_id];
+	p_ctx->sif_isp_offline = 1;
 
 retry:
 	if (acamera_event_queue_empty(&p_ctx->fsm_mgr.event_queue)) {
@@ -943,7 +940,7 @@ int32_t acamera_interrupt_handler()
             irq_mask &= ~( 1 << irq_bit );
             if ( irq_is_1 ) {
                 // process interrupts
-                if ( sif_isp_offline == 0 && irq_bit == ISP_INTERRUPT_EVENT_ISP_START_FRAME_START ) {
+                if ( p_ctx->sif_isp_offline == 0 && irq_bit == ISP_INTERRUPT_EVENT_ISP_START_FRAME_START ) {
                     static uint32_t fs_cnt = 0;
                     if ( fs_cnt < 10 ) {
                         LOG( LOG_INFO, "[KeyMsg]: FS interrupt: %d", fs_cnt++ );

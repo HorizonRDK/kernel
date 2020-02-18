@@ -794,6 +794,7 @@ int isp_v4l2_stream_on( isp_v4l2_stream_t *pstream )
 }
 
 extern void *acamera_get_ctx_ptr(uint32_t ctx_id);
+extern void sif_isp_flag_clear(void);
 void isp_v4l2_stream_off( isp_v4l2_stream_t *pstream )
 {
     acamera_context_t *p_ctx = (acamera_context_t *)acamera_get_ctx_ptr(pstream->ctx_id);
@@ -809,8 +810,11 @@ void isp_v4l2_stream_off( isp_v4l2_stream_t *pstream )
     pstream->stream_started = 0;
 
     // isp context save off
-    if (p_ctx)
+    // sif offline isp off
+    if (p_ctx) {
 	p_ctx->isp_ctxsv_on = 0;
+	p_ctx->sif_isp_offline = 0;
+    }
 
     fw_intf_stream_stop( pstream->ctx_id, pstream->stream_type );
 
