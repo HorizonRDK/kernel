@@ -15,6 +15,7 @@
 #include "gdc_config.h"
 #include "vio_config.h"
 #include "vio_framemgr.h"
+#include "vio_group_api.h"
 
 #define X3_GDC_NAME  "x3-gdc"
 
