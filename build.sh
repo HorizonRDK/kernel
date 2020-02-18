@@ -134,7 +134,7 @@ function all()
     }
 
     # make modules_install to INSTALL_MOD_PATH (default: /)
-    make INSTALL_MOD_PATH=$SRC_KERNEL_DIR/_install modules_install || {
+    make INSTALL_MOD_PATH=$SRC_KERNEL_DIR/_install INSTALL_MOD_STRIP=1  modules_install || {
         echo "make modules_install to INSTALL_MOD_PATH failed"
         exit 1
     }
