@@ -37,8 +37,6 @@ struct ddr_monitor_dev_s {
 	spinlock_t lock;
 };
 
-#define PORT_NUM_X2 6
-
 #ifdef CONFIG_HOBOT_XJ3
 #define PORT_NUM 8
 #define SYS_PCLK_HZ 300000000
@@ -626,10 +624,10 @@ static ssize_t cpu_read_ctl_store(struct device_driver *drv,
 
 	mutex_lock(&ddr_mo_mutex);
 	ret = sscanf(buf, "%du", &read_ctl_value);
-	if (read_ctl_value > 15) {
-		pr_err("set value error,you should set 0~15\n");
+	if (read_ctl_value > 15 || read_ctl_value < 0) {
+		pr_err("set value %d error,you should set 0~15\n", read_ctl_value);
 		mutex_unlock(&ddr_mo_mutex);
-		return 0;
+		return count;
 	}
 	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_READ_QOS_CTRL);
 	tmp &= ~0x0f;
@@ -657,10 +655,10 @@ static ssize_t bifdma_read_ctl_store(struct device_driver *drv,
 
 	mutex_lock(&ddr_mo_mutex);
 	ret = sscanf(buf, "%du", &read_ctl_value);
-	if (read_ctl_value > 15) {
-		pr_err("set value error,you should set 0~15\n");
+	if (read_ctl_value > 15 || read_ctl_value < 0) {
+		pr_err("set value %d error,you should set 0~15\n", read_ctl_value);
 		mutex_unlock(&ddr_mo_mutex);
-		return 0;
+		return count;
 	}
 	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_READ_QOS_CTRL);
 	tmp &= ~(0x0f << 4);
@@ -689,10 +687,10 @@ static ssize_t bpu0_read_ctl_store(struct device_driver *drv,
 
 	mutex_lock(&ddr_mo_mutex);
 	ret = sscanf(buf, "%du", &read_ctl_value);
-	if (read_ctl_value > 15) {
-		pr_err("set value error,you should set 0~15\n");
+	if (read_ctl_value > 15 || read_ctl_value < 0) {
+		pr_err("set value %d error,you should set 0~15\n", read_ctl_value);
 		mutex_unlock(&ddr_mo_mutex);
-		return 0;
+		return count;
 	}
 	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_READ_QOS_CTRL);
 	tmp &= ~(0x0f << 8);
@@ -722,10 +720,10 @@ static ssize_t bpu1_read_ctl_store(struct device_driver *drv,
 
 	mutex_lock(&ddr_mo_mutex);
 	ret = sscanf(buf, "%du", &read_ctl_value);
-	if (read_ctl_value > 15) {
-		pr_err("set value error,you should set 0~15\n");
+	if (read_ctl_value > 15 || read_ctl_value < 0) {
+		pr_err("set value %d error,you should set 0~15\n", read_ctl_value);
 		mutex_unlock(&ddr_mo_mutex);
-		return 0;
+		return count;
 	}
 	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_READ_QOS_CTRL);
 	tmp &= ~(0x0f << 12);
@@ -754,10 +752,10 @@ static ssize_t vio_read_ctl_store(struct device_driver *drv,
 
 	mutex_lock(&ddr_mo_mutex);
 	ret = sscanf(buf, "%du", &read_ctl_value);
-	if (read_ctl_value > 15) {
-		pr_err("set value error,you should set 0~15\n");
+	if (read_ctl_value > 15 || read_ctl_value < 0) {
+		pr_err("set value %d error,you should set 0~15\n", read_ctl_value);
 		mutex_unlock(&ddr_mo_mutex);
-		return 0;
+		return count;
 	}
 	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_READ_QOS_CTRL);
 	tmp &= ~(0x0f << 16);
@@ -788,10 +786,10 @@ static ssize_t vpu_read_ctl_store(struct device_driver *drv,
 
 	mutex_lock(&ddr_mo_mutex);
 	ret = sscanf(buf, "%du", &read_ctl_value);
-	if (read_ctl_value > 15) {
-		pr_err("set value error,you should set 0~15\n");
+	if (read_ctl_value > 15 || read_ctl_value < 0) {
+		pr_err("set value %d error,you should set 0~15\n", read_ctl_value);
 		mutex_unlock(&ddr_mo_mutex);
-		return 0;
+		return count;
 	}
 	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_READ_QOS_CTRL);
 	tmp &= ~(0x0f << 20);
@@ -821,10 +819,10 @@ static ssize_t iar_read_ctl_store(struct device_driver *drv,
 
 	mutex_lock(&ddr_mo_mutex);
 	ret = sscanf(buf, "%du", &read_ctl_value);
-	if (read_ctl_value > 15) {
-		pr_err("set value error,you should set 0~15\n");
+	if (read_ctl_value > 15 || read_ctl_value < 0) {
+		pr_err("set value %d error,you should set 0~15\n", read_ctl_value);
 		mutex_unlock(&ddr_mo_mutex);
-		return 0;
+		return count;
 	}
 	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_READ_QOS_CTRL);
 	tmp &= ~(0x0f << 24);
@@ -859,10 +857,10 @@ static ssize_t periph_read_ctl_store(struct device_driver *drv,
 
 	mutex_lock(&ddr_mo_mutex);
 	ret = sscanf(buf, "%du", &read_ctl_value);
-	if (read_ctl_value > 15) {
-		pr_err("set value error,you should set 0~15\n");
+	if (read_ctl_value > 15 || read_ctl_value < 0) {
+		pr_err("set value %d error,you should set 0~15\n", read_ctl_value);
 		mutex_unlock(&ddr_mo_mutex);
-		return 0;
+		return count;
 	}
 	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_READ_QOS_CTRL);
 	tmp &= ~(0x0f << shift);
@@ -889,35 +887,37 @@ static ssize_t periph_read_ctl_show(struct device_driver *drv, char *buf)
 static ssize_t all_read_ctl_store(struct device_driver *drv,
 				  const char *buf, size_t count)
 {
-	int ret;
-	unsigned int tmp;
-
 	mutex_lock(&ddr_mo_mutex);
-	ret = sscanf(buf, "%du", &read_ctl_value);
-	if (read_ctl_value > 15) {
-		pr_err("set value error,you should set 0~15\n");
-		mutex_unlock(&ddr_mo_mutex);
-		return 0;
-	}
-	tmp = 0;
-	tmp = read_ctl_value | (read_ctl_value << 4) |
-		(read_ctl_value << 8) | (read_ctl_value << 12) |
-#ifdef CONFIG_HOBOT_XJ3
-		(read_ctl_value << 24) | (read_ctl_value << 28) |
-#endif
-		(read_ctl_value << 16) | (read_ctl_value << 20);
-	writel(tmp, g_ddr_monitor_dev->regaddr + DDR_PORT_READ_QOS_CTRL);
-	mutex_unlock(&ddr_mo_mutex);
-	return count;
 
+	sscanf(buf, "%x", &read_ctl_value);
+	writel(read_ctl_value, g_ddr_monitor_dev->regaddr + DDR_PORT_READ_QOS_CTRL);
+
+	mutex_unlock(&ddr_mo_mutex);
+
+	return count;
 }
 
 static ssize_t all_read_ctl_show(struct device_driver *drv, char *buf)
 {
 	unsigned int tmp;
+	int len = 0;
 
 	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_READ_QOS_CTRL);
-	return sprintf(buf, "%x\n", tmp);
+	len = sprintf(buf, "%08x:\n", tmp);
+	len += sprintf(buf + len, "P0_CPU:    %d\n", tmp & 0xF);
+	len += sprintf(buf + len, "P1_BIFDMA: %d\n", (tmp >> 4) & 0xF);
+	len += sprintf(buf + len, "P2_CNN0:   %d\n", (tmp >> 8) & 0xF);
+	len += sprintf(buf + len, "P3_CNN1:   %d\n", (tmp >> 12) & 0xF);
+	len += sprintf(buf + len, "P4_VIO:    %d\n", (tmp >> 16) & 0xF);
+#ifdef CONFIG_HOBOT_XJ2
+	len += sprintf(buf + len, "P5_PERI:   %d\n", (tmp >> 20) & 0xF);
+#else
+	len += sprintf(buf + len, "P5_VPU:    %d\n", (tmp >> 20) & 0xF);
+	len += sprintf(buf + len, "P6_IAR:    %d\n", (tmp >> 24) & 0xF);
+	len += sprintf(buf + len, "P7_PERI:   %d\n", (tmp >> 28) & 0xF);
+#endif
+
+	return len;
 }
 
 
@@ -975,9 +975,10 @@ static ssize_t cpu_write_ctl_store(struct device_driver *drv,
 
 	mutex_lock(&ddr_mo_mutex);
 	ret = sscanf(buf, "%du", &write_ctl_value);
-	if (write_ctl_value > 15) {
-		pr_err("set value error,you should set 0~15\n");
-		return 0;
+	if (write_ctl_value > 15 || write_ctl_value < 0) {
+		pr_err("set value %d error,you should set 0~15\n", write_ctl_value);
+		mutex_unlock(&ddr_mo_mutex);
+		return count;
 	}
 	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_WRITE_QOS_CTRL);
 	tmp &= ~0x0f;
@@ -1003,10 +1004,12 @@ static ssize_t bifdma_write_ctl_store(struct device_driver *drv,
 
 	mutex_lock(&ddr_mo_mutex);
 	ret = sscanf(buf, "%du", &write_ctl_value);
-	if (write_ctl_value > 15) {
-		pr_err("set value error,you should set 0~15\n");
-		return 0;
+	if (write_ctl_value > 15 || write_ctl_value < 0) {
+		pr_err("set value %d error,you should set 0~15\n", write_ctl_value);
+		mutex_unlock(&ddr_mo_mutex);
+		return count;
 	}
+
 	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_WRITE_QOS_CTRL);
 	tmp &= ~(0x0f << 4);
 	tmp |= (write_ctl_value << 4);
@@ -1032,9 +1035,10 @@ static ssize_t bpu0_write_ctl_store(struct device_driver *drv,
 
 	mutex_lock(&ddr_mo_mutex);
 	ret = sscanf(buf, "%du", &write_ctl_value);
-	if (write_ctl_value > 15) {
-		pr_err("set value error,you should set 0~15\n");
-		return 0;
+	if (write_ctl_value > 15 || write_ctl_value < 0) {
+		pr_err("set value %d error,you should set 0~15\n", write_ctl_value);
+		mutex_unlock(&ddr_mo_mutex);
+		return count;
 	}
 	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_WRITE_QOS_CTRL);
 	tmp &= ~(0x0f << 8);
@@ -1062,9 +1066,10 @@ static ssize_t bpu1_write_ctl_store(struct device_driver *drv,
 
 	mutex_lock(&ddr_mo_mutex);
 	ret = sscanf(buf, "%du", &write_ctl_value);
-	if (write_ctl_value > 15) {
-		pr_err("set value error,you should set 0~15\n");
-		return 0;
+	if (write_ctl_value > 15 || write_ctl_value < 0) {
+		pr_err("set value %d error,you should set 0~15\n", write_ctl_value);
+		mutex_unlock(&ddr_mo_mutex);
+		return count;
 	}
 	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_WRITE_QOS_CTRL);
 	tmp &= ~(0x0f << 12);
@@ -1091,9 +1096,10 @@ static ssize_t vio_write_ctl_store(struct device_driver *drv,
 
 	mutex_lock(&ddr_mo_mutex);
 	ret = sscanf(buf, "%du", &write_ctl_value);
-	if (write_ctl_value > 15) {
-		pr_err("set value error,you should set 0~15\n");
-		return 0;
+	if (write_ctl_value > 15 || write_ctl_value < 0) {
+		pr_err("set value %d error,you should set 0~15\n", write_ctl_value);
+		mutex_unlock(&ddr_mo_mutex);
+		return count;
 	}
 	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_WRITE_QOS_CTRL);
 	tmp &= ~(0x0f << 16);
@@ -1123,9 +1129,10 @@ static ssize_t vpu_write_ctl_store(struct device_driver *drv,
 
 	mutex_lock(&ddr_mo_mutex);
 	ret = sscanf(buf, "%du", &write_ctl_value);
-	if (write_ctl_value > 15) {
-		pr_err("set value error,you should set 0~15\n");
-		return 0;
+	if (write_ctl_value > 15 || write_ctl_value < 0) {
+		pr_err("set value %d error,you should set 0~15\n", write_ctl_value);
+		mutex_unlock(&ddr_mo_mutex);
+		return count;
 	}
 	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_WRITE_QOS_CTRL);
 	tmp &= ~(0x0f << 20);
@@ -1154,9 +1161,10 @@ static ssize_t iar_write_ctl_store(struct device_driver *drv,
 
 	mutex_lock(&ddr_mo_mutex);
 	ret = sscanf(buf, "%du", &write_ctl_value);
-	if (write_ctl_value > 15) {
-		pr_err("set value error,you should set 0~15\n");
-		return 0;
+	if (write_ctl_value > 15 || write_ctl_value < 0) {
+		pr_err("set value %d error,you should set 0~15\n", write_ctl_value);
+		mutex_unlock(&ddr_mo_mutex);
+		return count;
 	}
 	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_WRITE_QOS_CTRL);
 	tmp &= ~(0x0f << 24);
@@ -1191,9 +1199,10 @@ static ssize_t periph_write_ctl_store(struct device_driver *drv,
 
 	mutex_lock(&ddr_mo_mutex);
 	ret = sscanf(buf, "%du", &write_ctl_value);
-	if (write_ctl_value > 15) {
-		pr_err("set value error,you should set 0~15\n");
-		return 0;
+	if (write_ctl_value > 15 || write_ctl_value < 0) {
+		pr_err("set value %d error,you should set 0~15\n", write_ctl_value);
+		mutex_unlock(&ddr_mo_mutex);
+		return count;
 	}
 	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_WRITE_QOS_CTRL);
 	tmp &= ~(0x0f << shift);
@@ -1220,34 +1229,36 @@ static ssize_t periph_write_ctl_show(struct device_driver *drv, char *buf)
 static ssize_t all_write_ctl_store(struct device_driver *drv,
 		const char *buf, size_t count)
 {
-	int ret;
-	unsigned int tmp;
-
 	mutex_lock(&ddr_mo_mutex);
-	ret = sscanf(buf, "%du", &write_ctl_value);
-	if (write_ctl_value > 15) {
-		pr_err("set value error,you should set 0~15\n");
-		return 0;
-	}
-	tmp = 0;
-	tmp = write_ctl_value | (write_ctl_value << 4) |
-		(write_ctl_value << 8) | (write_ctl_value << 12) |
-#ifdef CONFIG_HOBOT_XJ3
-		(write_ctl_value << 24) | (write_ctl_value << 28) |
-#endif
-		(write_ctl_value << 16) | (write_ctl_value << 20);
-	writel(tmp, g_ddr_monitor_dev->regaddr + DDR_PORT_WRITE_QOS_CTRL);
+
+	sscanf(buf, "%x", &write_ctl_value);
+	writel(write_ctl_value, g_ddr_monitor_dev->regaddr + DDR_PORT_WRITE_QOS_CTRL);
+
 	mutex_unlock(&ddr_mo_mutex);
 	return count;
-
 }
 
 static ssize_t all_write_ctl_show(struct device_driver *drv, char *buf)
 {
 	unsigned int tmp;
+	int len = 0;
 
 	tmp = readl(g_ddr_monitor_dev->regaddr + DDR_PORT_WRITE_QOS_CTRL);
-	return sprintf(buf, "%x\n", tmp);
+	len = sprintf(buf, "%08x:\n", tmp);
+	len += sprintf(buf + len, "P0_CPU:    %d\n", tmp & 0xF);
+	len += sprintf(buf + len, "P1_BIFDMA: %d\n", (tmp >> 4) & 0xF);
+	len += sprintf(buf + len, "P2_CNN0:   %d\n", (tmp >> 8) & 0xF);
+	len += sprintf(buf + len, "P3_CNN1:   %d\n", (tmp >> 12) & 0xF);
+	len += sprintf(buf + len, "P4_VIO:    %d\n", (tmp >> 16) & 0xF);
+#ifdef CONFIG_HOBOT_XJ2
+	len += sprintf(buf + len, "P5_PERI:   %d\n", (tmp >> 20) & 0xF);
+#else
+	len += sprintf(buf + len, "P5_VPU:    %d\n", (tmp >> 20) & 0xF);
+	len += sprintf(buf + len, "P6_IAR:    %d\n", (tmp >> 24) & 0xF);
+	len += sprintf(buf + len, "P7_PERI:   %d\n", (tmp >> 28) & 0xF);
+#endif
+
+	return len;
 }
 
 
@@ -1356,10 +1367,8 @@ static int ddr_monitor_probe(struct platform_device *pdev)
 	init_waitqueue_head(&g_ddr_monitor_dev->wq_head);
 	spin_lock_init(&g_ddr_monitor_dev->lock);
 
-#ifdef CONFIG_HOBOT_XJ2
 	writel(0x21100, g_ddr_monitor_dev->regaddr + DDR_PORT_READ_QOS_CTRL);
 	writel(0x21100, g_ddr_monitor_dev->regaddr + DDR_PORT_WRITE_QOS_CTRL);
-#endif
 
 	pr_info("ddr monitor init finished.");
 
