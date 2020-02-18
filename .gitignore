@@ -39,6 +39,7 @@
 *.symtypes
 *.tar
 *.xz
+*.img
 Module.symvers
 modules.builtin
 

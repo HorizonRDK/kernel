@@ -88,7 +88,7 @@ def str2hex(s):
 
 bootInfoPath   = r"bootinfo.json"
 bootLoaderPath = r"bootfile.json"
-bootDtb     = r"bootdtb.json"
+bootDtb     = r"bootdtb_x3.json"
 
 if __name__ == '__main__':
 
@@ -113,6 +113,7 @@ if __name__ == '__main__':
     if (imageType == "nor" or imageType == "nand"):
         filePath[6] = dtbPath + filePath[6]
         filePath[7] = dtbPath + filePath[7]
+        filePath[8] = dtbPath + filePath[8]
         file_produced1 = open(filePath[6], "wb")
 
     file = open(bootLoaderPath, "rb")
@@ -132,12 +133,17 @@ if __name__ == '__main__':
     board_id = resolveJsonKey(bootDtb)
     bootInfoContent[4] = np.asarray(len(board_id), dtype=np.int32)
     for key in board_id:
+        dict_key = hjson[key]['dtb_name']
+        dtb_file = dtbPath + dict_key
+        file_object = open(dtb_file, 'rb')
+        file_size = getFileSize(dtb_file)
+
         bootInfoContent[j] = np.asarray(str2hex(key), dtype=np.int32)
         bootInfoContent[j+1] = np.asarray(str2hex(hjson[key]['gpio_id']), dtype=np.int32)
-        bootInfoContent[j+3] = 64*1024
+        bootInfoContent[j+3] = file_size
         dtbNameTranfer(bootInfoContent, hjson[key]['dtb_name'], j+4)
 
-        dict_key = hjson[key]['dtb_name']
+        # dict_key = hjson[key]['dtb_name']
         if dict_key in dict:
             value = dict[dict_key]
             bootInfoContent[j+2] = value
@@ -147,23 +153,37 @@ if __name__ == '__main__':
             addr = addr + 64*1024
 
             if (imageType == "nor" or imageType== "nand"):
-                dtb_file = dtbPath + dict_key
-                file_object = open(dtb_file, 'rb')
+                # dtb_file = dtbPath + dict_key
+                # file_object = open(dtb_file, 'rb')
                 file_content = file_object.read()
                 file_produced1.write(file_content)
 
-                file_size = getFileSize(dtb_file)
+                # file_size = getFileSize(dtb_file)
                 zero0 = 64*1024 - file_size
                 file_produced1.write('\x00' * zero0)
+        file_object.close()
         j = j + 12
 
     dtbname = resolveJson(bootLoaderPath)
     listname = list(dtbname[0])
 
-    file_produced0  = open(filePath[5], 'wb')
+    file_produced0 = open(filePath[5], 'wb')
     file_produced0.write(bootInfoContent)
 
     file_produced0.close()
+
+    if (imageType == "nor" or imageType == "nand"):
+        # get hobot_x2a_dtb.img: dtb_mapping + dtb file
+        file_produced2 = open(filePath[8], 'wb')
+        file_produced2.write(bootInfoContent)
+
+        file_object2 = open(filePath[6], 'rb')
+        file_content2 = file_object2.read()
+        file_produced2.write(file_content2)
+
+        file_object2.close()
+        file_produced2.close()
+
     if (imageType == "nor" or imageType == "nand"):
         file_produced1.close()
 
