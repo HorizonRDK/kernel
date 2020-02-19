@@ -10,6 +10,8 @@
 #include <linux/of_address.h>
 #include <linux/fb.h>
 #include <linux/slab.h>
+#include "../../../drivers/media/platform/hobot/common_api/vio_framemgr.h"
+#include "../../../drivers/media/platform/hobot/common_api/vio_config.h"
 
 #define MAX_FRAME_BUF_SIZE	(1920*1080*4)
 #define VIDEO_FRAME_BUF_SIZE    (800*480*2)
@@ -362,6 +364,13 @@ enum iar_Reg_cfg_e {
 	IAR_AR_CLASS2_WEIGHT,
 };
 
+enum iar_wb_state {
+	IAR_WB_INIT,
+	IAR_WB_REBUFS,
+	IAR_WB_STOP,
+	IAR_WB_START,
+};
+
 typedef struct _frame_buf_t {
 	void __iomem *vaddr;
 	phys_addr_t 	paddr;
@@ -509,6 +518,13 @@ struct iar_dev_s {
 	struct pinctrl_state *pins_mipi_dsi;
 	struct pinctrl_state *pins_rgb;
 	struct clk *iar_pixel_clk;
+
+	struct vio_framemgr framemgr;
+	unsigned long state;
+	unsigned long capture_state;
+	wait_queue_head_t done_wq;
+	int wb_sel;
+	int wb_format;
 };
 extern struct iar_dev_s *g_iar_dev;
 
@@ -740,7 +756,15 @@ int set_mipi_display(uint8_t panel_no);
 int32_t iar_layer_disable(int32_t layer_no);
 int32_t iar_layer_enable(int32_t layer_no);
 //int iar_is_enabled(void);
-
+int iar_wb_dqbuf(struct frame_info *frameinfo);
+int iar_wb_qbuf(struct frame_info *frameinfo);
+int iar_wb_reqbufs(u32 buffers);
+int iar_wb_start(void);
+int iar_wb_done(void);
+int iar_wb_stream_on(void);
+int iar_wb_stream_off(void);
+void iar_wb_setcfg(int value);
+int iar_wb_getcfg(void);
 
 // Supported rotation.
 enum RotationMode {

@@ -45,6 +45,12 @@
 #define GET_DISP_DONE     _IOR(IAR_CDEV_MAGIC, 0x24, unsigned int)
 #define DISP_SET_TIMING	_IOW(IAR_CDEV_MAGIC, 0x25, struct disp_timing)
 
+#define IAR_WB_QBUF  	_IOW(IAR_CDEV_MAGIC, 0x26, unsigned int)
+#define IAR_WB_DQBUF 	_IOW(IAR_CDEV_MAGIC, 0x27, unsigned int)
+#define IAR_WB_REQBUFS 	_IOW(IAR_CDEV_MAGIC, 0x28, unsigned int)
+#define IAR_WB_STREAM 	_IOW(IAR_CDEV_MAGIC, 0x29, unsigned int)
+#define IAR_WB_GET_CFG 	_IOW(IAR_CDEV_MAGIC, 0x2a, unsigned int)
+#define IAR_WB_SET_CFG 	_IOW(IAR_CDEV_MAGIC, 0x2b, unsigned int)
 
 typedef struct _update_cmd_t {
 	unsigned int enable_flag[IAR_CHANNEL_MAX];
@@ -304,6 +310,82 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 			if (ret)
 				pr_err("error user set video timing!\n");
 			iar_update();
+		}
+		break;
+	case IAR_WB_SET_CFG:
+		 {
+			int value = 0;
+			ret = get_user(value, (u32 __user *) arg);
+			if (ret)
+				return -EFAULT;
+
+			iar_wb_setcfg(value);
+		}
+		break;
+	case IAR_WB_GET_CFG:
+		 {
+			int value = iar_wb_getcfg();
+			ret = copy_to_user((void __user *) arg, (char *) &value,
+				 sizeof(int));
+			// pr_info("=====IAR_WB_DQBUF==ret %d===========\n", ret);
+			if (ret)
+				return -EFAULT;
+		}
+		break;
+	case IAR_WB_STREAM:
+		 {
+			int on = 0;
+
+			pr_err("iar_wb_stream.\n");
+			ret = get_user(on, (u32 __user *) arg);
+			if (ret)
+				return -EFAULT;
+
+			if (on) {
+				iar_wb_stream_on();
+			} else {
+				iar_wb_stream_off();
+			}
+		}
+		break;
+	case IAR_WB_REQBUFS:
+		 {
+			int buffers = 0;
+
+			pr_err("iar_wb_reqbufs.\n");
+			ret = get_user(buffers, (u32 __user *) arg);
+			if (ret)
+				return -EFAULT;
+			iar_wb_reqbufs(buffers);
+		}
+		break;
+	case IAR_WB_QBUF:
+		 {
+			struct frame_info frameinfo;
+
+			// pr_err("iar_wb_qbuf.\n");
+			ret = copy_from_user((char *) &frameinfo, (u32 __user *) arg,
+				   sizeof(struct frame_info));
+			// pr_info("=====IAR_WB_QBUF==ret %d===========\n", ret);
+			if (ret) {
+				pr_err("IAR_WB_QBUF, copy failed\n");
+				return -EFAULT;
+			}
+
+			iar_wb_qbuf(&frameinfo);
+		}
+		break;
+	case IAR_WB_DQBUF:
+		 {
+			struct frame_info frameinfo;
+
+			// pr_err("iar_wb_qbuf.\n");
+			iar_wb_dqbuf(&frameinfo);
+			ret = copy_to_user((void __user *) arg, (char *) &frameinfo,
+				 sizeof(struct frame_info));
+			// pr_info("=====IAR_WB_DQBUF==ret %d===========\n", ret);
+			if (ret)
+				return -EFAULT;
 		}
 		break;
 	default:

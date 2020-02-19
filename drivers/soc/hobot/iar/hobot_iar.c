@@ -28,6 +28,7 @@
 #include <soc/hobot/hobot_ips_x2.h>
 #include <soc/hobot/hobot_iar.h>
 #include "linux/ion.h"
+#include "../../../media/platform/hobot/common_api/vio_framemgr.h"
 
 #define USE_ION_MEM
 //#ifdef CONFIG_X3
@@ -1214,6 +1215,9 @@ int32_t iar_open(void)
 	//value |= (0x1<<2);
 	//writel(value, g_iar_dev->sysctrl + 0x144);
 	//iar_pre_init();
+
+	init_waitqueue_head(&g_iar_dev->done_wq);
+
 	return 0;
 }
 EXPORT_SYMBOL_GPL(iar_open);
@@ -1298,6 +1302,8 @@ int32_t iar_start(int update)
 	//mod_timer(&iartimer,jiffies + msecs_to_jiffies( MSEC_PER_SEC));
 	writel(0x1, g_iar_dev->regaddr + REG_IAR_UPDATE);
 
+	g_iar_dev->state = BIT(IAR_WB_INIT);
+
 	return 0;
 }
 EXPORT_SYMBOL_GPL(iar_start);
@@ -1368,7 +1374,278 @@ frame_buf_t* x2_iar_get_framebuf_addr(int channel)
 	return &g_iar_dev->frambuf[channel];
 }
 
+/////////////iar wb
 
+int iar_wb_stream_on(void)
+{
+	//
+	if (!(g_iar_dev->state & (BIT(IAR_WB_STOP) | BIT(IAR_WB_REBUFS)
+			| BIT(IAR_WB_INIT)))) {
+		pr_err("invalid STREAM ON is requested(%lX)", g_iar_dev->state);
+		return -EINVAL;
+	}
+
+	g_iar_dev->capture_state = 1;
+	g_iar_dev->state = BIT(IAR_WB_START);
+
+	return 0;
+}
+
+int iar_wb_stream_off(void)
+{
+	if (!(g_iar_dev->state & BIT(IAR_WB_START))) {
+		pr_err("invalid STREAMOFF is requested(%lX)", g_iar_dev->state);
+		return -EINVAL;
+	}
+
+	g_iar_dev->capture_state = 0;
+	frame_manager_flush(&g_iar_dev->framemgr);
+	frame_manager_close(&g_iar_dev->framemgr);
+
+	g_iar_dev->state = BIT(IAR_WB_STOP);
+
+	return 0;
+}
+
+int iar_wb_reqbufs(u32 buffers)
+{
+	int ret = 0;
+	int i = 0;
+	struct vio_framemgr *framemgr;
+
+	if (!(g_iar_dev->state & (BIT(IAR_WB_STOP) | BIT(IAR_WB_INIT)))) {
+		pr_err("invalid REQBUFS is requested(%lX)",
+			g_iar_dev->state);
+		return -EINVAL;
+	}
+	// if (!(g_iar_dev->state & ( BIT(VIO_VIDEO_REBUFS) ))) {
+	// 	pr_err("invalid REQBUFS.\n");
+	// 	return -EINVAL;
+	// }
+
+	framemgr = &g_iar_dev->framemgr;
+	ret = frame_manager_open(framemgr, buffers);
+	if (ret) {
+		pr_err("frame manage open failed, ret(%d)", ret);
+		return ret;
+	}
+
+	//	for (i = 0; i < buffers; i++) {
+	//		framemgr->frames[i].data = pym_ctx->group;
+	//	}
+
+	// g_iar_dev->capture_state = 0;
+	g_iar_dev->state = BIT(IAR_WB_REBUFS);
+
+	return ret;
+}
+
+int iar_wb_qbuf(struct frame_info *frameinfo)
+{
+	int ret = 0;
+	struct vio_framemgr *framemgr;
+	struct vio_frame *frame;
+	struct vio_group *group;
+	unsigned long flags;
+	int index;
+
+	index = frameinfo->bufferindex;
+	framemgr = &g_iar_dev->framemgr;
+	BUG_ON(index >= framemgr->num_frames);
+
+	framemgr_e_barrier_irqs(framemgr, 0, flags);
+	frame = &framemgr->frames[index];
+	if (frame->state == FS_FREE) {
+		memcpy(&frame->frameinfo, frameinfo, sizeof(struct frame_info));
+		trans_frame(framemgr, frame, FS_REQUEST);
+	} else {
+		pr_err("frame(%d) is invalid state(%d)\n", index,
+			frame->state);
+		ret = -EINVAL;
+	}
+	framemgr_x_barrier_irqr(framemgr, 0, flags);
+
+	// group = pym_ctx->group;
+	// if(group->leader == true)
+	// 	vio_group_start_trigger(group->gtask, frame);
+
+	return ret;
+}
+
+int iar_wb_dqbuf(struct frame_info *frameinfo)
+{
+	int ret = 0;
+	struct list_head *done_list;
+	struct vio_framemgr *framemgr;
+	struct vio_frame *frame;
+	unsigned long flags;
+
+	framemgr = &g_iar_dev->framemgr;
+
+	done_list = &framemgr->queued_list[FS_COMPLETE];
+	wait_event_interruptible(g_iar_dev->done_wq, !list_empty(done_list));
+
+	framemgr_e_barrier_irqs(framemgr, 0, flags);
+	frame = peek_frame(framemgr, FS_COMPLETE);
+	if (frame) {
+		memcpy(frameinfo, &frame->frameinfo, sizeof(struct frame_info));
+		trans_frame(framemgr, frame, FS_FREE);
+	}
+	framemgr_x_barrier_irqr(framemgr, 0, flags);
+
+	return ret;
+}
+
+void iar_wb_setcfg(int value)
+{
+	g_iar_dev->wb_sel = (value>>8) & 0xff;
+	if (g_iar_dev->wb_sel < 0) {
+		g_iar_dev->wb_sel = 0;
+	} else if (g_iar_dev->wb_sel > 2) {
+		g_iar_dev->wb_sel = 0;
+	}
+
+	g_iar_dev->wb_format = value & 0xff;
+	if (g_iar_dev->wb_format < 0) {
+		g_iar_dev->wb_format = 4;
+	} else if (g_iar_dev->wb_format > 6) {
+		g_iar_dev->wb_format = 4;
+	}
+
+	// printk("cfg: %x, sel: %d, format: %d, wbcon: %x\n", value,
+	// 	g_iar_dev->wb_sel, g_iar_dev->wb_format,
+	// 	((g_iar_dev->wb_sel&0x3) << 3) + (g_iar_dev->wb_format & 0x7));
+}
+
+int iar_wb_getcfg()
+{
+	int value = g_iar_dev->wb_format;
+	value += (g_iar_dev->wb_sel << 8);
+	return value;
+}
+
+EXPORT_SYMBOL_GPL(iar_wb_reqbufs);
+EXPORT_SYMBOL_GPL(iar_wb_qbuf);
+EXPORT_SYMBOL_GPL(iar_wb_dqbuf);
+EXPORT_SYMBOL_GPL(iar_wb_stream_off);
+EXPORT_SYMBOL_GPL(iar_wb_stream_on);
+EXPORT_SYMBOL_GPL(iar_wb_setcfg);
+
+int iar_wb_capture_start(void)
+{
+	//
+	int ret = 0;
+	//
+	// REG_IAR_CURRENT_CBUF_ADDR_WR_Y  0x140
+	// REG_IAR_CURRENT_CBUF_ADDR_WR_UV 0x144
+	// REG_IAR_CAPTURE_CON             0x8c
+	//   #[4:3] SOURCE_SEL 0:Overlay 1:UP-Scale, 2: DE_PUT(*)
+    //   #[2:0] OUTPUT_FMT: 100b:NV12 110b:Unpacked RGB888
+	// REG_IAR_UPDATE                  0x98
+	// REG_IAR_DE_CONTROL_WO           0x31c
+	struct vio_framemgr *framemgr;
+	struct vio_frame *frame;
+	unsigned long flags;
+	int regval = 0;
+	int wbcon = ((g_iar_dev->wb_sel&0x3) << 3) + (g_iar_dev->wb_format&0x7);
+
+	framemgr = &g_iar_dev->framemgr;
+	framemgr_e_barrier_irqs(framemgr, 0, flags);
+	frame = peek_frame(framemgr, FS_REQUEST);
+
+	if (frame) {
+		// printk("iar_wb_capture from request: %d\n",
+		// frame->frameinfo.bufferindex);
+
+		writel(frame->frameinfo.addr[0],
+			g_iar_dev->regaddr + REG_IAR_CURRENT_CBUF_ADDR_WR_Y);
+		if(frame->frameinfo.addr[1] == NULL) {
+			frame->frameinfo.addr[1] = frame->frameinfo.addr[0] +
+				frame->frameinfo.width * frame->frameinfo.height;
+		}
+		writel(frame->frameinfo.addr[1],
+			g_iar_dev->regaddr + REG_IAR_CURRENT_CBUF_ADDR_WR_UV);
+		// printk("Y: %x, UV: %x\n", frame->frameinfo.addr[0],
+		// frame->frameinfo.addr[1]);
+		writel(wbcon, g_iar_dev->regaddr + REG_IAR_CAPTURE_CON);
+		regval = readl(g_iar_dev->regaddr + REG_IAR_UPDATE);
+		regval |= 0x1;
+		writel(regval, g_iar_dev->regaddr + REG_IAR_UPDATE);
+		// printk("REG_IAR_UPDATE: %x\n", regval);
+		regval = readl(g_iar_dev->regaddr + REG_IAR_DE_CONTROL_WO);
+		regval |= 0x1;
+		// printk("REG_IAR_DE_CONTROL_WO: %x\n", regval);
+		writel(regval, g_iar_dev->regaddr + REG_IAR_DE_CONTROL_WO);
+
+		trans_frame(framemgr, frame, FS_PROCESS);
+	} else {
+		#if 1
+		frame = peek_frame(framemgr, FS_COMPLETE);
+		if(frame) {
+			// printk("iar_wb_capture from complete: %x\n", frame);
+
+			writel(frame->frameinfo.addr[0],
+				g_iar_dev->regaddr + REG_IAR_CURRENT_CBUF_ADDR_WR_Y);
+			if(frame->frameinfo.addr[1] == NULL) {
+				frame->frameinfo.addr[1] = frame->frameinfo.addr[0] +
+					frame->frameinfo.width * frame->frameinfo.height;
+			}
+			writel(frame->frameinfo.addr[1],
+				g_iar_dev->regaddr + REG_IAR_CURRENT_CBUF_ADDR_WR_UV);
+			// printk("Y: %x, UV: %x\n", frame->frameinfo.addr[0],
+			// frame->frameinfo.addr[1]);
+			writel(wbcon, g_iar_dev->regaddr + REG_IAR_CAPTURE_CON);
+			regval = readl(g_iar_dev->regaddr + REG_IAR_UPDATE);
+			regval |= 0x1;
+			writel(regval, g_iar_dev->regaddr + REG_IAR_UPDATE);
+			// printk("REG_IAR_UPDATE: %x\n", regval);
+			regval = readl(g_iar_dev->regaddr + REG_IAR_DE_CONTROL_WO);
+			regval |= 0x1;
+			// printk("REG_IAR_DE_CONTROL_WO: %x\n", regval);
+			writel(regval, g_iar_dev->regaddr + REG_IAR_DE_CONTROL_WO);
+
+			trans_frame(framemgr, frame, FS_PROCESS);
+		}
+		#else
+			ret = -1;
+		#endif
+	}
+	framemgr_x_barrier_irqr(framemgr, 0, flags);
+
+	return ret;
+}
+
+int iar_wb_capture_done(void)
+{
+	struct vio_framemgr *framemgr;
+	struct vio_frame *frame;
+	struct vio_group *group;
+	unsigned long flags;
+
+	// group = pym_ctx->group;
+	framemgr = &g_iar_dev->framemgr;
+	framemgr_e_barrier_irqs(framemgr, 0, flags);
+	frame = peek_frame(framemgr, FS_PROCESS);
+	if (frame) {
+		// if(group->get_timestamps){
+		// 	frame->frameinfo.frame_id = group->frameid.frame_id;
+		// 	frame->frameinfo.timestamps =
+		// 	    group->frameid.timestamps;
+		// }
+		// printk("iar_wb_done: %d\n", frame->frameinfo.bufferindex);
+		do_gettimeofday(&frame->frameinfo.tv);
+
+		// pym_set_iar_output(pym_ctx, frame);
+		// pym_ctx->event = VIO_FRAME_DONE;
+		trans_frame(framemgr, frame, FS_COMPLETE);
+	} else {
+		// pym_ctx->event = VIO_FRAME_NDONE;
+		// pr_err("%s PROCESS queue has no member;\n", __func__);
+	}
+	framemgr_x_barrier_irqr(framemgr, 0, flags);
+
+	wake_up(&g_iar_dev->done_wq);
+}
 
 static irqreturn_t x2_iar_irq(int this_irq, void *data)
 {
@@ -1377,11 +1654,29 @@ static irqreturn_t x2_iar_irq(int this_irq, void *data)
 	disable_irq_nosync(this_irq);
 	//TODO
 	regval = readl(g_iar_dev->regaddr + REG_IAR_DE_SRCPNDREG);
+	//printk("x2_iar_irq: %x\n", regval);
+
 	if (regval & BIT(22)) {
-		writel(0xffffffff, g_iar_dev->regaddr + REG_IAR_DE_SRCPNDREG);
+		writel(BIT(22), g_iar_dev->regaddr + REG_IAR_DE_SRCPNDREG);
 		//frequency_iar++;
-		//printk("FD\n");
+		//printk("isr 22\n");
+		if(g_iar_dev->capture_state == 1) {
+			//printk("wb_start\n");
+			int ret = iar_wb_capture_start();
+			if (ret == 0) {
+				g_iar_dev->capture_state = 2;
+			}
+		}
 	}
+
+	if (regval & BIT(23)) {
+		//printk("isr 23");
+		writel(BIT(23), g_iar_dev->regaddr + REG_IAR_DE_SRCPNDREG);
+		// cbuf done
+		iar_wb_capture_done();
+		g_iar_dev->capture_state = 1;
+	}
+
 	IAR_DEBUG_PRINT("IAR int:0x%x", regval);
 	enable_irq(this_irq);
 	return IRQ_HANDLED;
@@ -1401,8 +1696,8 @@ int disable_iar_irq(void)
 int enable_iar_irq(void)
 {
 	int regval = 0;
-	//FBUF_END: bit22
-	regval = 0x00400000;
+	//FBUF_END: bit22, CBUF_END: bit23
+	regval = 0x00c00000;
 	writel(regval, g_iar_dev->regaddr + REG_IAR_DE_UNMASK);
 	IAR_DEBUG_PRINT("x2_iar driver: unmask FBUF end interrupt!\n");
 
@@ -2315,6 +2610,9 @@ static int x2_iar_probe(struct platform_device *pdev)
 		}
 		pr_debug("set mipi 1080p done!\n");
 	}
+
+	enable_iar_irq();
+	enable_irq(g_iar_dev->irq);
 	return 0;
 	//iar_pre_init();
 	//iar_close();
