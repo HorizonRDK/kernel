@@ -752,7 +752,7 @@
 		};
 
 		nor_flash: nor@0xB0000000 {
-			compatible = "hobot,hb-qspi";
+			compatible = "hobot,hb-qspi-nor";
 			status = "disabled";
 			reg = <0x0 0xB0000000 0x0 0x1000>;
 			interrupt-parent = <&gic>;

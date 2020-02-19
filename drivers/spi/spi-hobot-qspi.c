@@ -693,6 +693,12 @@ static bool hb_supports_op(struct spi_mem *mem, const struct spi_mem_op *op)
 
 	//program operate - for spinand_select_op_variant
 	switch (op->cmd.opcode) {
+	case SPINAND_CMD_PROG_LOAD:
+	case SPINAND_CMD_PROG_LOAD_RDM_DATA:
+		if (mode == SPI_NBITS_DUAL || mode == SPI_NBITS_SINGLE)
+			return true;
+		else
+			return false;
 	case SPINAND_CMD_PROG_LOAD_X4:
 	case SPINAND_CMD_PROG_LOAD_RDM_DATA_X4:
 		if (mode == SPI_NBITS_QUAD)
@@ -893,7 +899,7 @@ static const struct dev_pm_ops hb_qspi_dev_pm_ops = {
 };
 
 static const struct of_device_id hb_qspi_of_match[] = {
-	{.compatible = "hobot,hb-qspi",},
+	{.compatible = "hobot,hb-qspi-nand",},
 	{ /* End of table */ }
 };
 

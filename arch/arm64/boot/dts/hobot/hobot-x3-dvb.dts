@@ -457,8 +457,8 @@
 	#size-cells = <0>;
 	qspi-mode = <4>;
 
-	spi-nor@0 {
-		compatible = "jedec,spi-nor";
+	flash@0 {
+		compatible = "is25wp512";
 		#address-cells = <1>;
 		#size-cells = <1>;
 		reg = <0x0>;

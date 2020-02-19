@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2014 Ezequiel Garcia
  * Copyright (c) 2011 Free Electrons
@@ -7,6 +6,15 @@
  *   Copyright (c) International Business Machines Corp., 2006
  *   Copyright (c) Nokia Corporation, 2007
  *   Authors: Artem Bityutskiy, Frank Haverkamp
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, version 2.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See
+ * the GNU General Public License for more details.
  */
 
 /*
@@ -345,36 +353,15 @@ static const struct blk_mq_ops ubiblock_mq_ops = {
 	.init_request	= ubiblock_init_request,
 };
 
-static int calc_disk_capacity(struct ubi_volume_info *vi, u64 *disk_capacity)
-{
-	u64 size = vi->used_bytes >> 9;
-
-	if (vi->used_bytes % 512) {
-		pr_warn("UBI: block: volume size is not a multiple of 512, "
-			"last %llu bytes are ignored!\n",
-			vi->used_bytes - (size << 9));
-	}
-
-	if ((sector_t)size != size)
-		return -EFBIG;
-
-	*disk_capacity = size;
-
-	return 0;
-}
-
 int ubiblock_create(struct ubi_volume_info *vi)
 {
 	struct ubiblock *dev;
 	struct gendisk *gd;
-	u64 disk_capacity;
+	u64 disk_capacity = vi->used_bytes >> 9;
 	int ret;
 
-	ret = calc_disk_capacity(vi, &disk_capacity);
-	if (ret) {
-		return ret;
-	}
-
+	if ((sector_t)disk_capacity != disk_capacity)
+		return -EFBIG;
 	/* Check that the volume isn't already handled */
 	mutex_lock(&devices_mutex);
 	if (find_dev_nolock(vi->ubi_num, vi->vol_id)) {
@@ -528,8 +515,7 @@ out_unlock:
 static int ubiblock_resize(struct ubi_volume_info *vi)
 {
 	struct ubiblock *dev;
-	u64 disk_capacity;
-	int ret;
+	u64 disk_capacity = vi->used_bytes >> 9;
 
 	/*
 	 * Need to lock the device list until we stop using the device,
@@ -542,16 +528,11 @@ static int ubiblock_resize(struct ubi_volume_info *vi)
 		mutex_unlock(&devices_mutex);
 		return -ENODEV;
 	}
-
-	ret = calc_disk_capacity(vi, &disk_capacity);
-	if (ret) {
+	if ((sector_t)disk_capacity != disk_capacity) {
 		mutex_unlock(&devices_mutex);
-		if (ret == -EFBIG) {
-			dev_warn(disk_to_dev(dev->gd),
-				 "the volume is too big (%d LEBs), cannot resize",
-				 vi->size);
-		}
-		return ret;
+		dev_warn(disk_to_dev(dev->gd), "the volume is too big (%d LEBs), cannot resize",
+			 vi->size);
+		return -EFBIG;
 	}
 
 	mutex_lock(&dev->dev_mutex);

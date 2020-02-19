@@ -158,7 +158,7 @@ static const struct mtd_ooblayout_ops gd5f1gq4u_ooblayout = {
 
 static const struct spinand_info gigadevice_spinand_table[] = {
 	SPINAND_INFO("GD5F1GQ4UC", 0xA1,
-		     NAND_MEMORG(1, 2048, 64, 64, 1024, 20, 1, 1, 1),
+		     NAND_MEMORG(1, 2048, 64, 64, 1024, 1, 1, 1),
 		     NAND_ECCREQ(8, 528),
 		     // Use special read_cache_variants
 		     SPINAND_INFO_OP_VARIANTS(&gd5f1gq4uc_read_cache_variants,
@@ -168,7 +168,7 @@ static const struct spinand_info gigadevice_spinand_table[] = {
 		     SPINAND_ECCINFO(&gd5f1gq4u_ooblayout,
 						gd5f1gq4u_ecc_get_status)),
 	SPINAND_INFO("GD5F4GQ4UA", 0xF4,
-		     NAND_MEMORG(1, 2048, 64, 64, 4096, 20, 1, 1, 1),
+		     NAND_MEMORG(1, 2048, 64, 64, 4096, 1, 1, 1),
 		     NAND_ECCREQ(8, 512),
 		     SPINAND_INFO_OP_VARIANTS(&read_cache_variants,
 									&write_cache_variants,
