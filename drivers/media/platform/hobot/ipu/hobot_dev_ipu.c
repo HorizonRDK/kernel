@@ -895,7 +895,6 @@ void ipu_update_hw_param(struct ipu_video_ctx *ipu_ctx)
 int ipu_video_init(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 {
 	int ret = 0;
-	u32 cfg = 0;
 	ipu_us_info_t us_config;
 	ipu_ds_info_t ds_config;
 	ipu_cfg_t *ipu_cfg;
@@ -924,9 +923,6 @@ int ipu_video_init(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 	}
 
 	ips_set_clk_ctrl(IPU0_CLOCK_GATE, true);
-
-	cfg = ips_get_bus_ctrl() | 0xd21e << 16;
-	ips_set_bus_ctrl(cfg);
 
 	if (ipu_ctx->id == GROUP_ID_SRC) {
 		ipu_cfg = &ipu_ctx->ipu_cfg;

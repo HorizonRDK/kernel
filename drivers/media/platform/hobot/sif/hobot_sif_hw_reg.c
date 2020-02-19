@@ -1348,6 +1348,15 @@ void sif_get_frameid_timestamps(u32 __iomem *base_reg, u32 mux,
 	vio_dbg("sif frame ID = %d\n", info->frame_id);
 }
 
+u32 sif_get_current_bufindex(u32 __iomem *base_reg, u32 mux)
+{
+	u32 value = 0xffff;
+	value = vio_hw_get_field(base_reg, &sif_regs[SIF_AXI_BUF_STATUS],
+			&sif_fields[SIF_OUT_FRM0_BUF_IDX_REPORT - mux]);
+
+	return value;
+}
+
 void sif_print_rx_status(u32 __iomem *base_reg, u32 err_status)
 {
 	int i = 0;
@@ -1360,12 +1369,16 @@ void sif_print_rx_status(u32 __iomem *base_reg, u32 err_status)
 		}
 	}
 }
-u32 sif_get_current_bufindex(u32 __iomem *base_reg, u32 mux)
+void sif_print_buffer_status(u32 __iomem *base_reg)
 {
-	u32 value = 0xffff;
-	value = vio_hw_get_field(base_reg, &sif_regs[SIF_AXI_BUF_STATUS],
-			&sif_fields[SIF_OUT_FRM0_BUF_IDX_REPORT - mux]);
-	return value;
+	int cur_index = 0;
+	int value = 0;
+
+	cur_index = vio_hw_get_reg(base_reg, &sif_regs[SIF_AXI_BUF_STATUS]);
+	value = vio_hw_get_reg(base_reg, &sif_regs[SIF_AXI_BUS_OWNER]);
+
+	vio_err("current buffer index = 0x%x, buffer owner = 0x%x\n\n",
+			cur_index, value);
 }
 
 bool sif_get_wdma_enable(u32 __iomem *base_reg, u32 mux)

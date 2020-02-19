@@ -140,7 +140,8 @@ void sif_read_frame_work(struct vio_group *group)
 void sif_write_frame_work(struct vio_group *group)
 {
 	u32 instance = 0;
-	u32 buf_index, mux_index;
+	u32 buf_index = 0;
+	u32 mux_index = 0;
 	u32 yuv_format = 0;
 	unsigned long flags;
 	struct sif_video_ctx *ctx;
@@ -161,10 +162,10 @@ void sif_write_frame_work(struct vio_group *group)
 	if (frame) {
 		buf_index = ctx->bufcount % 4;
 		yuv_format = (frame->frameinfo.format == HW_FORMAT_YUV422);
-
 		sif_set_wdma_buf_addr(sif->base_reg, mux_index, buf_index,
 				      frame->frameinfo.addr[0]);
 		sif_transfer_ddr_owner(sif->base_reg, mux_index, buf_index);
+
 		if (yuv_format || ctx->dol_num > 1) {
 			sif_set_wdma_buf_addr(sif->base_reg, mux_index + 1,
 					      buf_index, frame->frameinfo.addr[1]);
@@ -289,6 +290,7 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 int sif_mux_init(struct sif_video_ctx *sif_ctx, sif_cfg_t *sif_config)
 {
 	int ret = 0;
+	u32 cfg = 0;
 	u32 mux_index = 0;
 	u32 ddr_enable = 0;
 	u32 dol_exp_num = 0;
@@ -330,20 +332,23 @@ int sif_mux_init(struct sif_video_ctx *sif_ctx, sif_cfg_t *sif_config)
 	gtask = &sif->sifout_task[mux_index];
 	gtask->id = group->id;
 
-	group->gtask = gtask;
-	group->frame_work = sif_write_frame_work;
-
 	ddr_enable =  sif_config->output.ddr.enable;
 	if(ddr_enable == 0) {
 		set_bit(VIO_GROUP_OTF_OUTPUT, &group->state);
+		cfg = ips_get_bus_ctrl() | 0xd21e << 16;
 	} else {
 		set_bit(VIO_GROUP_DMA_OUTPUT, &group->state);
+		cfg = ips_get_bus_ctrl() | 0xc002 << 16;
+		group->gtask = gtask;
+		group->frame_work = sif_write_frame_work;
 		vio_group_task_start(gtask);
 	}
+
+	ips_set_bus_ctrl(cfg);
 	sema_init(&gtask->hw_resource, 4);
 	sif_hw_config(sif->base_reg, sif_config);
 
-	sif_ctx->bufcount = 0;
+	sif_ctx->bufcount = sif_get_current_bufindex(sif->base_reg, mux_index);
 	sif->mismatch_cnt = 0;
 
 	vio_info("%s,mux index = %d\n", __func__, mux_index);
@@ -455,6 +460,7 @@ int sif_video_streamon(struct sif_video_ctx *sif_ctx)
 		goto p_inc;
 
 	spin_lock_irqsave(&sif_dev->shared_slock, flag);
+	sif_dev->error_count = 0;
 	sif_hw_enable(sif_dev->base_reg);
 	set_bit(SIF_HW_RUN, &sif_dev->state);
 	spin_unlock_irqrestore(&sif_dev->shared_slock, flag);
@@ -807,7 +813,7 @@ static irqreturn_t sif_isr(int irq, void *data)
 		up(&gtask->hw_resource);
 	}
 
-	if (irq_src.sif_err_status) {
+	if (irq_src.sif_frm_int & 1 << INTR_SIF_IN_SIZE_MISMATCH) {
 		if (mismatch_limit < 0 || sif->mismatch_cnt < mismatch_limit) {
 			vio_err("input size mismatch(0x%x)\n", irq_src.sif_err_status);
 			sif_print_rx_status(sif->base_reg, irq_src.sif_err_status);
@@ -815,8 +821,21 @@ static irqreturn_t sif_isr(int irq, void *data)
 		sif->mismatch_cnt++;
 	}
 
-	if (irq_src.sif_in_buf_overflow)
+	if (irq_src.sif_frm_int & 1 << INTR_SIF_IN_OVERFLOW) {
+		sif->error_count++;
 		vio_err("input buffer overflow(0x%x)\n", irq_src.sif_in_buf_overflow);
+		sif_print_buffer_status(sif->base_reg);
+	}
+
+	if (irq_src.sif_frm_int & 1 << INTR_SIF_OUT_BUF_ERROR) {
+		sif->error_count++;
+		vio_err("Out buffer error\n");
+	}
+
+	if (sif->error_count >= SIF_ERR_COUNT) {
+		sif_hw_dump(sif->base_reg);
+		sif->error_count = 0;
+	}
 
 	return IRQ_HANDLED;
 }

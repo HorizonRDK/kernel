@@ -20,6 +20,7 @@
 #define X3_SIF_NAME  "x3-sif"
 
 #define MAX_DEVICE  2
+#define SIF_ERR_COUNT  10
 
 #define SIF_IOC_MAGIC 'x'
 
@@ -152,6 +153,7 @@ struct x3_sif_dev {
 	atomic_t			rsccount;
 	atomic_t			open_cnt;
 	spinlock_t			shared_slock;
+	u32 				error_count;
 
 	struct vio_group		*sif_input[VIO_MAX_STREAM];
 	struct vio_group		*sif_mux[SIF_MUX_MAX];
