@@ -1,0 +1,472 @@
+/*
+ * dtsi file for Hobot XJ3 XVB
+ *
+ * (C) Copyright 2018, Horizon, Inc.
+ *
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
+ */
+
+/dts-v1/;
+#include "hobot-xj3.dtsi"
+#include "hobot-pinctrl-xj3.dtsi"
+#include "hobot-clk-xj3.dtsi"
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/phy/phy.h>
+
+/ {
+	model = "Hobot XJ3 SOC MP XVB";
+	compatible = "hobot,x3-soc";
+
+	aliases {
+		serial0 = &uart0;
+		serial1 = &uart1;
+		serial2 = &uart2;
+		serial3 = &uart3;
+		i2c0	= &i2c0;
+		i2c1	= &i2c1;
+		i2c2	= &i2c2;
+		i2c3	= &i2c3;
+		i2c4	= &i2c4;
+		i2c5	= &i2c5;
+		i2s0	= &i2s0;
+		i2s1	= &i2s1;
+		spi0	= &spi0;
+		spi1	= &spi1;
+		spi2	= &spi2;
+		pwm0	= &pwm_0;
+		pwm1	= &pwm_1;
+		pwm2	= &pwm_2;
+		bifspi	= &bifspi;
+		bifsd   = &bifsd;
+		mmc1	= &sdio0;
+		mmc2	= &sdio1;
+		mmc3	= &sdio2;
+		dma	= &dma;
+		x2dmatest = &x2dmatest;
+		mipihost0 = &mipi_host0;
+		mipihost1 = &mipi_host1;
+		mipihost2 = &mipi_host2;
+		mipihost3 = &mipi_host3;
+		mipidev0 = &mipi_dev0;
+
+		sndcard0 = &snd0;
+		sndcard1 = &snd1;
+		idma0 = &i2sidma0;
+		idma1 = &i2sidma1;
+	};
+
+	chosen {
+		bootargs = "earlycon loglevel=8 console=ttyS0 clk_ignore_unused";
+		stdout-path = "serial0:921600n8";
+	};
+
+	memory@0 {
+		device_type = "memory";
+		reg = <0x0 0x0 0x0 0x40000000>;
+	};
+
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		/*Reserved 1M memory for bifbase*/
+		bifbase_reserved: bifbase_reserved@0x02000000 {
+			reg = <0x0 0x02000000 0x0 0x00100000>;
+			no-map;
+		};
+
+		bifsd_reserved: bifsd_reserved@0x3D089000 {
+			reg = <0x0 0x3D089000 0x0 0x1000>;
+			no-map;
+		};
+
+		iar_reserved: iar_reserved@0x3D08A000 {
+			reg = <0x0 0x3D08A000 0x0 0x2D46000>;
+			no-map;
+		};
+
+		/* Reserved 192K memory for function call */
+		fc_reserved: fc_reserved@0x3FDD0000 {
+			reg = <0x0 0x3FDD0000 0x0 0x00030000>;
+		};
+
+		/*Reserved 2MB memory for BL31*/
+		bl31_reserved: bl31_reserved@0x3FE00000 {
+			reg = <0x0 0x3FE00000 0x0 0x200000>;
+			no-map;
+		};
+
+		/* Reserved 256MB memory for cnn subsystem */
+		ion_reserved: ion_reserved@0x1D089000 {
+			compatible = "ion-pool";
+			reg = <0x0 0x1D089000 0x0 0x10000000>;
+		};
+
+		/* Reserved 256MB memory for ipu subsystem */
+		ipu_reserved: ipu_reserved@0x2D089000 {
+			reg = <0x0 0x2D089000 0x0 0x10000000>;
+			/*no-map;*/
+		};
+
+	};
+};
+
+&i2c0 {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	tmp75c@48 {
+		compatible = "ti,tmp75c";
+		reg = <0x48>;
+		#thermal-sensor-cells = <0>;
+	};
+
+	siiEDID@0x50 {
+		compatible = "siiEDID";
+		reg = <0x50>;
+	};
+	siiSegEDID@0x30 {
+		compatible = "siiSegEDID";
+		reg = <0x30>;
+	};
+	sii902xA@0x39 {
+		compatible = "sii902xA";
+		reg = <0x39>;
+		rst_pin = <28>;
+		irq_pin = <21>;
+	};
+        Goodix-TS@0x14 {
+		compatible = "goodix,gt911";
+		reg = <0x14>;
+		irq_pin = <29>;
+        };
+
+	ac108_0: ac108_0@0x3b {
+                compatible = "ac108_ic_0";
+                reg = <0x3b>;
+                #sound-dai-cells = <1>;
+        };
+
+        ac108_1@0x35 {
+                compatible = "ac108_ic_1";
+                reg = <0x35>;
+        };
+
+        ac101: ac101@0x1a {
+                compatible = "ac101";
+                spk-amp-switch = <71>;
+                switch-irq = <72>;
+                reg = <0x1a>;
+                #sound-dai-cells = <0>;
+        };
+};
+&i2c1 {
+	status = "okay";
+};
+
+&i2c4 {
+	status = "okay";
+};
+&i2c5 {
+	status = "okay";
+};
+
+&pinctrl {
+	status = "okay";
+	gpioirq-bank-cfg = <85 29 0 0>;
+};
+
+&uart0 {
+	status = "okay";
+};
+
+&ips {
+	status = "okay";
+};
+
+&isp {
+	status = "okay";
+};
+
+&ipu {
+	status = "okay";
+};
+
+&sif {
+	status = "okay";
+};
+
+&mipi_host0 {
+	status = "okay";
+};
+
+&mipi_host1 {
+	status = "okay";
+};
+
+&mipi_host2 {
+	status = "okay";
+};
+
+&mipi_host3 {
+	status = "okay";
+};
+
+&mipi_dev0 {
+	status = "okay";
+};
+
+&mipi_dphy {
+	status = "okay";
+};
+
+&dma {
+	status = "okay";
+};
+
+&rtc {
+	status = "okay";
+};
+
+&pwm_0 {
+	status = "okay";
+};
+
+&lpwm {
+	status = "okay";
+};
+
+&ethernet {
+	status = "okay";
+
+	/* local-mac-address = [ 00 11 22 33 44 55 ]; */
+	phy-handle = <&phy1>;
+	phy-mode = "rgmii-id";
+	mdio {
+		#address-cells = <0x1>;
+		#size-cells = <0x0>;
+		phy1: phy@e {
+			compatible = "marvell,88E1111","ethernet-phy-ieee802.3-c22";
+			reg = <0xe>;
+		};
+	};
+};
+
+
+&iar {
+        status = "okay";
+};
+
+&fb {
+	status = "okay";
+};
+
+&bifspi {
+	/* pin conflict: BIFSPI_SCLK(gpio28) - see 902xAA rst_pin */
+	status = "disabled";
+};
+
+&bifsd {
+	/* pin conflict: BIFSD_CMD(gpio21) - see 902xAA irq_pin */
+	status = "disabled";
+	/*cd-gpio = <77>;*/
+};
+
+&bifbase {
+	status = "disabled";
+	bifbase_irq_pin = <85>;
+	bifbase_tri_pin = <84>;
+};
+
+&bifeth {
+	status = "disabled";
+};
+
+&nor_flash {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	qspi-mode = <4>;
+
+	flash@0 {
+		compatible = "is25wp512";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		reg = <0x0>;
+		spi-max-frequency = <50000000>; /* For FPGA max clk is 20Mhz */
+
+		partition@qspi-system {
+			label = "qspi-system";
+			reg = <0x1700000 0x2000000>;
+		};
+
+		partition@qspi-app {
+			label = "qspi-app";
+			reg = <0x3700000 0x900000>;
+		};
+
+		partition@qspi-boot {
+			label = "qspi-boot";
+			reg = <0x0 0x4000000>;
+		};
+	};
+};
+
+&nand_flash {
+	status = "disabled";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	qspi-mode = <4>;
+
+	spi-nand@0 {
+		compatible = "spi-nand";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		reg = <0x0>;
+		spi-tx-bus-width = <4>;
+		spi-rx-bus-width = <4>;
+		spi-max-frequency = <50000000>; /* For FPGA max clk is 20Mhz */
+	};
+};
+
+&sdio0 {
+	status = "okay";
+	bus-width = <4>;
+	cap-mmc-highspeed;
+	mmc-hs200-1_8v;
+	non-removable;
+	disable-wp;
+};
+
+&sdio1 {
+	status = "okay";
+	bus-width = <4>;
+	no-mmc;
+	cap-sd-highspeed;
+	sd-uhs-sdr12;
+	sd-uhs-sdr25;
+	sd-uhs-sdr50;
+	sd-uhs-sdr104;
+	uhs-180v-gpio = <120>;
+	uhs-180v-logic = <1>;
+	broken-cd;
+	disable-wp;
+};
+
+&sdio2 {
+/*	status = "okay"; */
+	bus-width = <4>;
+	no-mmc;
+	cap-sd-highspeed;
+	sd-uhs-sdr12;
+	sd-uhs-sdr25;
+	sd-uhs-sdr50;
+	sd-uhs-sdr104;
+	powerup-gpio = <2>;
+	broken-cd;
+	disable-wp;
+};
+
+&watchdog {
+	status = "okay";
+};
+
+&timer1 {
+	status = "okay";
+};
+
+&i2s0 {
+	status = "okay";
+	#sound-dai-cells = <0>;
+	clocks = <&i2s0_mclk>, <&i2s0_bclk>;
+	clock-names = "i2s-mclk", "i2s-bclk";
+	//bclk_set = <1536000>; //duplex
+};
+
+&i2s1 {
+	status = "okay";
+	#sound-dai-cells = <0>;
+	clocks = <&i2s1_mclk>, <&i2s1_bclk>;
+	clock-names = "i2s-mclk", "i2s-bclk";
+	//ms = <4>; //duplex
+	bclk_set = <1536000>;
+};
+
+&jpu {
+	status = "okay";
+};
+
+&vpu {
+	status = "okay";
+};
+
+&ddr_monitor {
+	status = "okay";
+};
+
+&soc_thermal {
+	status = "okay";
+};
+
+&snd0 {
+        model = "x2snd0";
+        dai-link@0 {
+                dai-format = "dsp_a";
+                //dai-format = "i2s";   //duplex
+                bitclock-master;
+                frame-master;
+                frame-inversion;
+                link-name = "x2dailink0";
+                cpu {
+                        sound-dai = <&i2s0>;
+                };
+                codec {
+                        //sound-dai = <&ac101>;
+                        sound-dai = <&ac108_0 0>;  //simplex
+                };
+                platform {
+                        sound-dai = <&i2sidma0>;
+                };
+        };
+        /*dai-link@1 {   //duplex
+                dai-format = "i2s";
+                //bitclock-master;
+                //frame-master;
+                frame-inversion;
+                link-name = "x2dailink1";
+                cpu {
+                        sound-dai = <&i2s1>;
+                };
+                codec {
+                        sound-dai = <&ac101>;
+                };
+                platform {
+                        sound-dai = <&i2sidma1>;
+                };
+        };*/
+};
+&snd1 { //simplex
+        model = "x2snd1";
+        dai-link@1 {
+                dai-format = "i2s";
+                bitclock-master;
+                frame-master;
+                frame-inversion;
+                link-name = "x2dailink1";
+                cpu {
+                        sound-dai = <&i2s1>;
+                };
+                codec {
+                        sound-dai = <&ac101>;
+                };
+                platform {
+                        sound-dai = <&i2sidma1>;
+                };
+        };
+};

@@ -643,6 +643,7 @@
 
 		x2dmatest: x2dmatest {
 			compatible = "hobot,x2-dma-test";
+			status = "disabled";
 		};
 
 		rtc: rtc@0xA6002000 {
@@ -929,7 +930,6 @@
 			cooling-max-level = <3>;
 			operating-points-v2 = <&cnn_opp_table>;
 			busy_check = <1>;
-			status = "disabled";
 		};
 
 		cnn1: cnn@0xA3001000 {
@@ -950,7 +950,6 @@
 			cooling-max-level = <3>;
 			operating-points-v2 = <&cnn_opp_table>;
 			busy_check = <1>;
-			status = "disabled";
 		};
 
 		bifspi: bifspi@0xA1006000 {
@@ -1076,7 +1075,6 @@
 			clocks = <&sys_div_pclk>;
 			clock-names = "sys_pclk";
 			#thermal-sensor-cells = <0>;
-			status = "disabled";
 		};
 
 		ddr_monitor: ddr_monitor@0xA2D10000 {
