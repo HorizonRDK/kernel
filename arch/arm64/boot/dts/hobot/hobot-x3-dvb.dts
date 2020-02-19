@@ -19,23 +19,92 @@
 
 &i2c0 {
 
+	axp15060@37 {
+		compatible = "X-Powers,axp15060";
+		reg = <0x37>;
+		regulators {
+			sys_pd1_3v3_reg: DCDC1 {
+				regulator-name = "VDD_3V3";
+				regulator-min-microvolt = <3300000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-always-on;
+			};
+
+			cnn0_pd_reg: DCDC2 {
+				regulator-name = "VCC_CNN0";
+				regulator-min-microvolt = <800000>;
+				regulator-max-microvolt = <1000000>;
+				regulator-enable-ramp-delay = <3000>;
+			};
+
+			cnn1_pd_reg: DCDC3 {
+				regulator-name = "VCC_CNN1";
+				regulator-min-microvolt = <800000>;
+				regulator-max-microvolt = <1000000>;
+				regulator-enable-ramp-delay = <3000>;
+			};
+
+			cpu_pd_reg: DCDC4 {
+				regulator-name = "VCC_CPU";
+				regulator-min-microvolt = <800000>;
+				regulator-max-microvolt = <1000000>;
+				regulator-always-on;
+			};
+
+			ddr_ao_1v1: DCDC5 {
+				regulator-name = "DDR_AO_1V1";
+				regulator-min-microvolt = <1100000>;
+				regulator-max-microvolt = <1100000>;
+				regulator-always-on;
+			};
+
+			ddr_pd_reg: DCDC6 {
+				regulator-name = "VDD_DDR_PD";
+				regulator-min-microvolt = <800000>;
+				regulator-max-microvolt = <800000>;
+				regulator-always-on;
+			};
+
+			core_ao_reg: BLDO1 {
+				regulator-name = "VDD_CORE_AO";
+				regulator-min-microvolt = <800000>;
+				regulator-max-microvolt = <800000>;
+				regulator-always-on;
+			};
+
+			sys_pd_1v8_reg: CLDO2 {
+				regulator-name = "VDD_1V8";
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <1800000>;
+				regulator-always-on;
+			};
+
+		};
+	};
+
 };
 
 &cpu0 {
+	cpu-supply = <&cpu_pd_reg>;
 };
 
 &cpu1 {
+	cpu-supply = <&cpu_pd_reg>;
 };
 
 &cpu2 {
+	cpu-supply = <&cpu_pd_reg>;
 };
 
 &cpu3 {
+	cpu-supply = <&cpu_pd_reg>;
 };
 
 &cnn0 {
+	cnn-supply = <&cnn0_pd_reg>;
 };
 
 &cnn1 {
+	cnn-supply = <&cnn1_pd_reg>;
 };
 
