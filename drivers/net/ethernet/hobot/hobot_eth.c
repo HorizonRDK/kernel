@@ -493,15 +493,6 @@ struct plat_config_data *x2_probe_config_dt(struct platform_device *pdev, const 
 		goto err_mac_div_clk;
 	}
 
-#if 0
-	plat->x2_phy_ref_clk = devm_clk_get(&pdev->dev, "phy_ref_clk");
-	if (IS_ERR(plat->x2_phy_ref_clk)) {
-		printk("uanble to get phy ref clk\n");
-		goto err_clk;
-	}
-	ret = clk_prepare_enable(plat->x2_phy_ref_clk);
-#endif
-
     plat->clk_ptp_ref = devm_clk_get(&pdev->dev, "sys_div_pclk");
     if (IS_ERR(plat->clk_ptp_ref)) {
         printk("ethernet: ptp cloock not found\n");
@@ -5067,12 +5058,12 @@ static int x2_ptp_set_ts_config(struct net_device *ndev, struct ifreq *ifr)
 		priv->systime_flags = value;
 		temp = (u64) (temp << 32);
 		priv->default_addend = div_u64(temp, priv->plat->clk_ptp_rate);
-#if 0		
+#if 0
         priv->default_addend = 0xCCCCB8CD;//div_u64(temp, priv->plat->clk_ptp_rate);
 	
         printk("%s, sec_inc:%d, temp:%d, default_addend:%x\n", \
             __func__, sec_inc, temp, priv->default_addend);
-#endif		
+#endif
 		x2_config_addend(priv,  priv->default_addend);
 
 		ktime_get_real_ts64(&now);
@@ -6186,8 +6177,8 @@ static int x2_dvr_probe(struct device *device, struct plat_config_data *plat_dat
 #ifdef HOBOT_USE_IRQ_SPLIT
     priv->tx_irq = x2_res->tx_irq;
     priv->rx_irq = x2_res->rx_irq;
-    strncpy(priv->txirq_name, "eth-tx", 6);
-    strncpy(priv->rxirq_name, "eth-rx", 6);
+    strcpy(priv->txirq_name, "eth-tx");
+    strcpy(priv->rxirq_name, "eth-rx");
 #endif
 	if (x2_res->mac) {
 		ether_addr_copy(ndev->dev_addr, x2_res->mac);
@@ -6297,28 +6288,15 @@ static int x2_dvr_probe(struct device *device, struct plat_config_data *plat_dat
 	ret = devm_request_irq(priv->device, priv->tx_irq, \
             &x2_interrupt, 0, priv->txirq_name, ndev);
 	if (ret < 0) {
-		printk("%s: error allocating the IRQ\n", __func__);
+		printk("%s: error allocating the IRQ(%s):%d\n", __func__, \
+            priv->txirq_name, priv->tx_irq);
 		goto irq_error;
 	}
 	ret = devm_request_irq(priv->device, priv->rx_irq, \
             &x2_interrupt, 0, priv->rxirq_name, ndev);
 	if (ret < 0) {
-		printk("%s: error allocating the IRQ\n", __func__);
-		goto irq_error;
-	}
-#endif
-
-#ifdef HOBOT_USE_IRQ_SPLIT
-	ret = devm_request_irq(priv->device, priv->tx_irq, \
-            &x2_interrupt, 0, priv->txirq_name, ndev);
-	if (ret < 0) {
-		printk("%s: error allocating the IRQ\n", __func__);
-		goto irq_error;
-	}
-	ret = devm_request_irq(priv->device, priv->rx_irq, \
-            &x2_interrupt, 0, priv->rxirq_name, ndev);
-	if (ret < 0) {
-		printk("%s: error allocating the IRQ\n", __func__);
+		printk("%s: error allocating the IRQ(%s):%d\n", __func__, \
+            priv->rxirq_name, priv->rx_irq);
 		goto irq_error;
 	}
 #endif
@@ -6486,9 +6464,9 @@ static int hgb_remove(struct platform_device *pdev)
 	x2_set_mac(priv->ioaddr, false);
 	netif_carrier_off(ndev);
 	unregister_netdev(ndev);
-//	clk_disable_unprepare(priv->plat->x2_phy_ref_clk);
 	clk_disable_unprepare(priv->plat->x2_mac_div_clk);
 	clk_disable_unprepare(priv->plat->x2_mac_pre_div_clk);
+	clk_disable_unprepare(priv->plat->clk_ptp_ref);
 
 	if (priv->mii) {
 		mdiobus_unregister(priv->mii);
@@ -6550,6 +6528,7 @@ static int hobot_eth_suspend(struct device *dev)
     x2_set_mac(priv->ioaddr, false);
     
     clk_disable_unprepare(priv->plat->x2_mac_div_clk);
+	clk_disable_unprepare(priv->plat->x2_mac_pre_div_clk);
     clk_disable_unprepare(priv->plat->clk_ptp_ref);
     
     priv->link = 0;
@@ -6591,6 +6570,7 @@ static int hobot_eth_resume(struct device *dev)
     }
 
     rtnl_lock();
+	clk_prepare_enable(priv->plat->x2_mac_pre_div_clk);
     clk_prepare_enable(priv->plat->x2_mac_div_clk);
     clk_prepare_enable(priv->plat->clk_ptp_ref);
     hobot_reset_queues_param(priv);
