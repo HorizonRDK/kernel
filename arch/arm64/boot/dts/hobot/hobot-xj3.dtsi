@@ -742,7 +742,7 @@
 		};
 
 		nand_flash: nand@0xB0000000 {
-			compatible = "hobot,hb-qspi-nand";
+			compatible = "hobot,hb-qspi";
 			status = "disabled";
 			num-cs = <8>;
 			reg = <0x0 0xB0000000 0x0 0x1000>;
@@ -753,7 +753,7 @@
 		};
 
 		nor_flash: nor@0xB0000000 {
-			compatible = "hobot,hb-qspi-nor";
+			compatible = "hobot,hb-qspi";
 			status = "disabled";
 			reg = <0x0 0xB0000000 0x0 0x1000>;
 			interrupt-parent = <&gic>;
