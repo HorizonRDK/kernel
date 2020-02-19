@@ -17,7 +17,11 @@
 *
 */
 
+#define pr_fmt(fmt) "[isp_drv]: %s: " fmt, __func__
+
 #include "acamera_event_queue.h"
+#include "acamera_fw.h"
+#include "acamera_fsm_mgr.h"
 #include "acamera_logger.h"
 #include "system_spinlock.h"
 
@@ -112,4 +116,39 @@ int32_t acamera_event_queue_empty( acamera_event_queue_ptr_t p_queue )
     }
     system_spinlock_unlock( p_queue->lock, flags );
     return result;
+}
+
+extern const char * const event_name[];
+int32_t acamera_event_queue_view( acamera_event_queue_ptr_t p_queue )
+{
+	int rc = 0;
+	int pos, event;
+	unsigned long flags;
+	event_id_t event_id;
+	acamera_loop_buf_ptr_t p_buf = &( p_queue->buf );
+
+	flags = system_spinlock_lock( p_queue->lock );
+
+	pos = p_buf->tail;
+
+	while (p_buf->head != pos) {
+
+		if ( pos >= p_buf->data_buf_size ) {
+			pos -= p_buf->data_buf_size;
+		}
+
+		event = p_buf->p_data_buf[pos];
+		event_id=(event_id_t)(event);
+
+		pr_info("Processing event: %d %s\n",event_id,event_name[event_id]);
+
+		pos++;
+	}
+
+	if (pos == p_buf->tail)
+		pr_info("event queue empty.\n");
+
+	system_spinlock_unlock( p_queue->lock, flags );
+
+	return rc;
 }

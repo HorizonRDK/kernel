@@ -118,7 +118,7 @@ void acamera_fsm_mgr_process_interrupt(acamera_fsm_mgr_t *p_fsm_mgr,uint8_t irq_
     }
 }
 
-static const char * const event_name[] = {
+const char * const event_name[] = {
     "event_id_WB_matrix_ready",
     "event_id_acamera_reset_sensor_hw",
     "event_id_ae_result_ready",

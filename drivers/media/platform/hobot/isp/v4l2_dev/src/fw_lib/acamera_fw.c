@@ -48,6 +48,7 @@ static const acam_reg_t **p_isp_data = SENSOR_ISP_SEQUENCE_DEFAULT;
 extern void acamera_notify_evt_data_avail( void );
 extern void acamera_update_cur_settings_to_isp( uint32_t fw_ctx_id );
 extern void *acamera_get_ctx_ptr(uint32_t ctx_id);
+static void init_stab( acamera_context_ptr_t p_ctx );
 
 void acamera_load_isp_sequence( uintptr_t isp_base, const acam_reg_t **sequence, uint8_t num )
 {
@@ -105,22 +106,57 @@ void acamera_fw_deinit( acamera_context_t *p_ctx )
 
 int acamera_fw_isp_start(int ctx_id)
 {
+	uint8_t rc = 0;
+	uint8_t count = 0;
+	uint16_t sleep_in_us = 2 * 1000;
 	acamera_context_t *p_ctx = (acamera_context_t *)acamera_get_ctx_ptr(ctx_id);
-	//return the interrupts
-	acamera_isp_isp_global_interrupt_mask_vector_write( 0, ISP_IRQ_MASK_VECTOR );
 
-	acamera_isp_input_port_mode_request_write( p_ctx->settings.isp_base, ACAMERA_ISP_INPUT_PORT_MODE_REQUEST_SAFE_START );
+	init_stab( p_ctx );
+
+	//reconfig isp configuration space
+	acamera_load_isp_sequence( 0, p_ctx->isp_sequence, SENSOR_ISP_SEQUENCE_DEFAULT_SETTINGS );
+
+	//config input port
+	sensor_sw_init(p_ctx->fsm_mgr.fsm_arr[FSM_ID_SENSOR]->p_fsm);
 
 	acamera_update_cur_settings_to_isp(ctx_id);
 
-	printk("%s done.\n", __func__);
+	acamera_isp_input_port_mode_request_write( p_ctx->settings.isp_base, ACAMERA_ISP_INPUT_PORT_MODE_REQUEST_SAFE_START );
+
+	while ( acamera_isp_input_port_mode_status_read( p_ctx->settings.isp_base )
+		!= ACAMERA_ISP_INPUT_PORT_MODE_REQUEST_SAFE_START) {
+
+		system_timer_usleep( sleep_in_us );
+
+		// it should be stopped within 1 frame, normally is 33ms for 30 fps.
+		// we set the timeout as 100 ms here in case the system_timer is not implemented correctly.
+		count++;
+		if ( count > 50 ) {
+			LOG( LOG_ERR, "start isp failed, timeout: %u.", (unsigned int)count * sleep_in_us );
+			rc = 1;
+			break;
+		}
+	}
+
+	//return the interrupts
+	acamera_isp_isp_global_interrupt_mask_vector_write( 0, ISP_IRQ_MASK_VECTOR );
+
+	acamera_fw_interrupts_enable( p_ctx );
+
+	if (!rc)
+		printk("%s done.\n", __func__);
 
 	return 0;
 }
 
 int acamera_fw_isp_stop(int ctx_id)
 {
+	uint8_t rc = 0;
+	uint8_t count = 0;
+	uint16_t sleep_in_us = 2 * 1000;
 	acamera_context_t *p_ctx = (acamera_context_t *)acamera_get_ctx_ptr(ctx_id);
+
+	acamera_fw_interrupts_disable( p_ctx );
 
 	//masked all interrupts
 	acamera_isp_isp_global_interrupt_mask_vector_write( 0, ISP_IRQ_DISABLE_ALL_IRQ );
@@ -129,21 +165,24 @@ int acamera_fw_isp_stop(int ctx_id)
 	acamera_isp_input_port_mode_request_write( p_ctx->settings.isp_base, ACAMERA_ISP_INPUT_PORT_MODE_REQUEST_SAFE_STOP );
 
 	// check whether the HW is stopped or not.
-	uint32_t count = 0;
-	while ( acamera_isp_input_port_mode_status_read( p_ctx->settings.isp_base ) != ACAMERA_ISP_INPUT_PORT_MODE_REQUEST_SAFE_STOP
+	while ( acamera_isp_input_port_mode_status_read( p_ctx->settings.isp_base )
+		!= ACAMERA_ISP_INPUT_PORT_MODE_REQUEST_SAFE_STOP
 		|| acamera_isp_isp_global_monitor_fr_pipeline_busy_read( p_ctx->settings.isp_base ) ) {
-		//cannot sleep use this delay
-		do {
-			count++;
-		} while ( count % 32 != 0 );
 
-		if ( ( count >> 5 ) > 50 ) {
-			LOG( LOG_ERR, "stopping isp failed, timeout: %u.", (unsigned int)count * 1000 );
+		system_timer_usleep( sleep_in_us );
+
+		// it should be stopped within 1 frame, normally is 33ms for 30 fps.
+		// we set the timeout as 100 ms here in case the system_timer is not implemented correctly.
+		count++;
+		if ( count > 50 ) {
+			LOG( LOG_ERR, "stop isp failed, timeout: %u.", (unsigned int)count * sleep_in_us );
+			rc = 1;
 			break;
 		}
 	}
 
-	printk("%s done.\n", __func__);
+	if (!rc)
+		printk("%s done.\n", __func__);
 
 	return 0;
 }
