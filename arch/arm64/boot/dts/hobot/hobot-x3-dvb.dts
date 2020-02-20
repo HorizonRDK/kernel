@@ -1,5 +1,5 @@
 /*
- * dts file for Hobot J3 DVB
+ * dts file for Hobot X3 DVB
  *
  * (C) Copyright 2018, Horizon, Inc.
  *
@@ -14,7 +14,7 @@
 #include "hobot-xj3-xvb.dtsi"
 
 / {
-	model = "Hobot J3 SOC MP DVB";
+	model = "Hobot X3 SOC MP DVB";
 };
 
 &i2c0 {
