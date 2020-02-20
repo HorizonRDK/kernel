@@ -573,27 +573,25 @@ void ipu_set_us_target(void __iomem *base_addr, u8 shadow_index, u16 step_x,
 }
 
 void ipu_set_osd_enable(void __iomem *base_addr, u8 shadow_index, u32 osd_num,
-			u32 osd_layer, u8 enable)
+			u32 cfg)
 {
-	int shift;
 
-	shift = osd_num * 3 + osd_layer;
 	switch (shadow_index) {
 	case SDW_ID_0:
 		vio_hw_set_field(base_addr, &ipu_regs[IPU_0_OSD_EN],
-				 &ipu_fields[IPU_F_OSD_EN], enable << shift);
+				 &ipu_fields[IPU_F_OSD_0_EN - osd_num], cfg);
 		break;
 	case SDW_ID_1:
 		vio_hw_set_field(base_addr, &ipu_regs[IPU_1_OSD_EN],
-				 &ipu_fields[IPU_F_OSD_EN], enable << shift);
+				 &ipu_fields[IPU_F_OSD_0_EN - osd_num], cfg);
 		break;
 	case SDW_ID_2:
 		vio_hw_set_field(base_addr, &ipu_regs[IPU_2_OSD_EN],
-				 &ipu_fields[IPU_F_OSD_EN], enable << shift);
+				 &ipu_fields[IPU_F_OSD_0_EN - osd_num], cfg);
 		break;
 	case SDW_ID_3:
 		vio_hw_set_field(base_addr, &ipu_regs[IPU_3_OSD_EN],
-				 &ipu_fields[IPU_F_OSD_EN], enable << shift);
+				 &ipu_fields[IPU_F_OSD_0_EN - osd_num], cfg);
 		break;
 	default:
 		vio_err("[%s]invalid shadow index(%d) for ipu\n", __func__, shadow_index);
@@ -686,28 +684,28 @@ void ipu_set_osd_roi(void __iomem *base_addr, u8 shadow_index, u32 osd_num,
 }
 
 void ipu_set_osd_sta_enable(void __iomem *base_addr, u8 shadow_index,
-			    u32 osd_num, u32 osd_layer, u8 enable)
+			    u32 osd_num, u32 cfg)
 {
 	switch (shadow_index) {
 	case SDW_ID_0:
 		vio_hw_set_field(base_addr, &ipu_regs[IPU_0_OSD_STA_ENABLE],
 				 &ipu_fields[IPU_F_OSD_0_STA_ENABLE - osd_num],
-				 enable << osd_layer);
+				 cfg);
 		break;
 	case SDW_ID_1:
 		vio_hw_set_field(base_addr, &ipu_regs[IPU_1_OSD_STA_ENABLE],
 				 &ipu_fields[IPU_F_OSD_0_STA_ENABLE - osd_num],
-				 enable << osd_layer);
+				 cfg);
 		break;
 	case SDW_ID_2:
 		vio_hw_set_field(base_addr, &ipu_regs[IPU_2_OSD_STA_ENABLE],
 				 &ipu_fields[IPU_F_OSD_0_STA_ENABLE - osd_num],
-				 enable << osd_layer);
+				 cfg);
 		break;
 	case SDW_ID_3:
 		vio_hw_set_field(base_addr, &ipu_regs[IPU_3_OSD_STA_ENABLE],
 				 &ipu_fields[IPU_F_OSD_0_STA_ENABLE - osd_num],
-				 enable << osd_layer);
+				 cfg);
 		break;
 	default:
 		vio_err("[%s]invalid shadow index(%d) for ipu\n", __func__, shadow_index);
@@ -721,41 +719,33 @@ void ipu_set_osd_sta_roi(void __iomem *base_addr, u8 shadow_index, u32 osd_num,
 {
 	int shift, start_xy, rect;
 
-	shift = osd_num * 3 + osd_layer;
+	shift = (osd_num * MAX_STA_NUM + osd_layer) * 2;
 	start_xy = start_y << 12 | start_x;
-	rect = height << 12 | width;
+	rect = height << 8 | width;
 	switch (shadow_index) {
 	case SDW_ID_0:
 		vio_hw_set_reg(base_addr,
-			       &ipu_regs[IPU_0_OSD_0_STA_ROI_0_START +
-					 shift * 2], start_xy);
+			       &ipu_regs[IPU_0_OSD_0_STA_ROI_0_START + shift], start_xy);
 		vio_hw_set_reg(base_addr,
-			       &ipu_regs[IPU_0_OSD_0_STA_ROI_0_SIZE +
-					 shift * 2], rect);
+			       &ipu_regs[IPU_0_OSD_0_STA_ROI_0_SIZE + shift], rect);
 		break;
 	case SDW_ID_1:
 		vio_hw_set_reg(base_addr,
-			       &ipu_regs[IPU_1_OSD_0_STA_ROI_0_START +
-					 shift * 2], start_xy);
+			       &ipu_regs[IPU_1_OSD_0_STA_ROI_0_START + shift], start_xy);
 		vio_hw_set_reg(base_addr,
-			       &ipu_regs[IPU_1_OSD_0_STA_ROI_0_SIZE +
-					 shift * 2], rect);
+			       &ipu_regs[IPU_1_OSD_0_STA_ROI_0_SIZE + shift], rect);
 		break;
 	case SDW_ID_2:
 		vio_hw_set_reg(base_addr,
-			       &ipu_regs[IPU_2_OSD_0_STA_ROI_0_START +
-					 shift * 2], start_xy);
+			       &ipu_regs[IPU_2_OSD_0_STA_ROI_0_START + shift], start_xy);
 		vio_hw_set_reg(base_addr,
-			       &ipu_regs[IPU_2_OSD_0_STA_ROI_0_SIZE +
-					 shift * 2], rect);
+			       &ipu_regs[IPU_2_OSD_0_STA_ROI_0_SIZE + shift], rect);
 		break;
 	case SDW_ID_3:
 		vio_hw_set_reg(base_addr,
-			       &ipu_regs[IPU_3_OSD_0_STA_ROI_0_START +
-					 shift * 2], start_xy);
+			       &ipu_regs[IPU_3_OSD_0_STA_ROI_0_START + shift], start_xy);
 		vio_hw_set_reg(base_addr,
-			       &ipu_regs[IPU_3_OSD_0_STA_ROI_0_SIZE +
-					 shift * 2], rect);
+			       &ipu_regs[IPU_3_OSD_0_STA_ROI_0_SIZE + shift], rect);
 		break;
 	default:
 		vio_err("[%s]invalid shadow index(%d) for ipu\n", __func__, shadow_index);
@@ -926,6 +916,7 @@ void ipu_get_osd_sta_bin(void __iomem *base_addr, u8 osd_num, u8 osd_layer,
 		bin[3] = vio_hw_get_field(base_addr,
 				     &ipu_regs[IPU_OSD_0_STA_0_BIN23 + shift],
 				     &ipu_fields[IPU_F_OSD_STA_BIN_3_NUM]);
+		vio_info("%s: %d %d %d %d\n", __func__, bin[0], bin[1], bin[2], bin[3]);
 	}else
 		vio_err("invalid osd_num (%d) osd_layer (%d) for ipu\n", osd_num, osd_layer);
 }

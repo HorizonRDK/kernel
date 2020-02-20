@@ -385,7 +385,9 @@ void ipu_hw_set_osd_cfg(struct ipu_video_ctx *ipu_ctx)
 	u32 osd_index = 0;
 	u32 id = 0;
 	u32 i = 0;
-	u8 sta_en = 0;
+	u32 rdy = 0;
+	u8 osd_enable = 0;
+	u32 sta_enable = 0;
 	u16 start_x, start_y, width, height;
 	u32 __iomem *base_reg;
 	osd_box_t *osd_box;
@@ -411,65 +413,71 @@ void ipu_hw_set_osd_cfg(struct ipu_video_ctx *ipu_ctx)
 
 	base_reg = ipu_ctx->ipu_dev->base_reg;
 
+	rdy = ipu_get_shd_rdy(base_reg);
+	rdy = rdy & ~(1 << shadow_index);
+	ipu_set_shd_rdy(base_reg, rdy);
+
 	osd_cfg = &ipu_ctx->osd_cfg;
 	osd_box = osd_cfg->osd_box;
 	osd_buf = osd_cfg->osd_buf;
-	for (i = 0; i < MAX_OSD_LAYER; i++) {
-		if(osd_cfg->osd_box_update){
-			if(osd_box[i].osd_en){
-				start_x = osd_box[i].start_x;
-				start_y = osd_box[i].start_y;
-				width = osd_box[i].width;
-				height = osd_box[i].height;
-				ipu_set_osd_roi(base_reg, shadow_index, osd_index, i, start_x,
-						start_y, width, height);
-				ipu_set_osd_overlay_mode(base_reg, shadow_index, osd_index, i,
-						osd_box->overlay_mode);
 
-				ipu_set_osd_enable(base_reg, shadow_index, osd_index, i, true);
-
-				osd_cfg->osd_box_update = 0;
-			}else
-				ipu_set_osd_enable(base_reg, shadow_index, osd_index, i, false);
-			}
-			if(osd_cfg->osd_buf_update){
-				ipu_set_osd_addr(base_reg, shadow_index, osd_index,
-						i, osd_buf[i]);
-				osd_cfg->osd_buf_update = 0;
+	if (osd_cfg->osd_box_update) {
+		for (i = 0; i < MAX_OSD_LAYER; i++) {
+			osd_enable |= osd_box[i].osd_en << i;
+			start_x = osd_box[i].start_x;
+			start_y = osd_box[i].start_y;
+			width = osd_box[i].width;
+			height = osd_box[i].height;
+			ipu_set_osd_roi(base_reg, shadow_index, osd_index, i, start_x,
+					start_y, width, height);
+			ipu_set_osd_overlay_mode(base_reg, shadow_index, osd_index, i,
+					osd_box->overlay_mode);
 		}
-
+		ipu_set_osd_enable(base_reg, shadow_index, osd_index, osd_enable);
 	}
+	osd_cfg->osd_box_update = 0;
+
+	if(osd_cfg->osd_buf_update) {
+		for (i = 0; i < MAX_OSD_LAYER; i++) {
+			ipu_set_osd_addr(base_reg, shadow_index, osd_index,
+					i, osd_buf[i]);
+		}
+	}
+	osd_cfg->osd_buf_update = 0;
 
 	color_map = &ipu_ctx->osd_cfg.color_map;
 	if(color_map->color_map_update){
 		for (i = 0; i < MAX_OSD_COLOR_NUM; i++) {
 			ipu_set_osd_color(base_reg, i, color_map->color_map[i]);
 		}
-		color_map->color_map_update = 0;
 	}
+	color_map->color_map_update = 0;
 
 	sta_box = osd_cfg->osd_sta;
-	for (i = 0; i < MAX_STA_NUM; i++) {
-		sta_en = sta_box[i].sta_en;
-		if (sta_en && osd_cfg->osd_sta_update) {
+	if (osd_cfg->osd_sta_update) {
+		for (i = 0; i < MAX_STA_NUM; i++) {
+			sta_enable |= sta_box[i].sta_en << i;
 			start_x = sta_box[i].start_x;
 			start_y = sta_box[i].start_y;
 			width = sta_box[i].width;
 			height = sta_box[i].height;
-			ipu_set_osd_sta_enable(base_reg, shadow_index, osd_index, i,
-							sta_en);
 			ipu_set_osd_sta_roi(base_reg, shadow_index, osd_index, i,
 							start_x, start_y, width, height);
-			osd_cfg->osd_sta_update = 0;
 		}
+		ipu_set_osd_sta_enable(base_reg, shadow_index, osd_index, sta_enable);
+		vio_info("sta enable = 0x%x", sta_enable);
 	}
+	osd_cfg->osd_sta_update = 0;
 
 	if(osd_cfg->osd_sta_level_update){
 		ipu_set_osd_sta_level(base_reg, shadow_index, i,
 			      osd_cfg->osd_sta_level[osd_index]);
-		osd_cfg->osd_sta_level_update = 0;
 	}
+	osd_cfg->osd_sta_level_update = 0;
 
+	rdy = ipu_get_shd_rdy(base_reg);
+	rdy = rdy | (1 << shadow_index);
+	ipu_set_shd_rdy(base_reg, rdy);
 }
 
 int ipu_update_osd_sta_roi(struct ipu_video_ctx *ipu_ctx, unsigned long arg)	//osd_sta_box_t (*sta_box)[MAX_STA_NUM], u8 *osd_sta_level)
