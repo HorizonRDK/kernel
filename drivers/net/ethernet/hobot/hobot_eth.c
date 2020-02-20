@@ -1527,6 +1527,9 @@ static void x2_link_up(struct x2_priv *priv)
 	regval |= DWCEQOS_MAC_LPI_CTRL_STATUS_PLS;
 	x2_reg_write(priv, REG_DWCEQOS_MAC_LPI_CTRL_STATUS, regval);
 
+    clear_bit(HOBOT_DOWN, &priv->state);
+
+
 #if 0
 	x2_mdio_write(priv->mii,0, 22,2);
 	phy_value = x2_mdio_read(priv->mii,0,21);
@@ -1550,6 +1553,7 @@ static void x2_link_down(struct x2_priv *priv)
 	regval = x2_reg_read(priv, REG_DWCEQOS_MAC_LPI_CTRL_STATUS);
 	regval &= ~DWCEQOS_MAC_LPI_CTRL_STATUS_PLS;
 	x2_reg_write(priv, REG_DWCEQOS_MAC_LPI_CTRL_STATUS, regval);
+    set_bit(HOBOT_DOWN, &priv->state);
 }
 
 static void x2_adjust_link(struct net_device *ndev)
@@ -1764,6 +1768,12 @@ static void dma_free_tx_skbufs(struct x2_priv *priv, u32 queue)
 		x2_free_tx_buffer(priv, queue, i);
 	}
 }
+static void x2_set_tx_tail_ptr(void __iomem *ioaddr, u32 tail_ptr, u32 chan)
+{
+	writel(tail_ptr, ioaddr + DMA_CHAN_TX_END_ADDR(chan));
+}
+
+
 static void free_dma_tx_desc_resources(struct x2_priv *priv)
 {
 	u32 tx_count = priv->plat->tx_queues_to_use;
@@ -1778,6 +1788,11 @@ static void free_dma_tx_desc_resources(struct x2_priv *priv)
 			dma_free_coherent(priv->device, DMA_TX_SIZE * sizeof(struct dma_desc), tx_q->dma_tx, tx_q->dma_tx_phy);
 		else
 			dma_free_coherent(priv->device, DMA_TX_SIZE * sizeof(struct dma_ext_desc), tx_q->dma_etx, tx_q->dma_tx_phy);
+
+        tx_q->dma_tx_phy = 0;
+        tx_q->tx_tail_addr = 0;
+        writel(tx_q->dma_tx_phy, priv->ioaddr + DMA_CHAN_TX_BASE_ADDR(queue));
+	    x2_set_tx_tail_ptr(priv->ioaddr, tx_q->tx_tail_addr, queue);
 		kfree(tx_q->tx_skbuff_dma);
 		kfree(tx_q->tx_skbuff);
 	} 
@@ -1805,12 +1820,15 @@ static int alloc_dma_tx_desc_resources(struct x2_priv *priv)
 			goto err_dma;
 
 		if (priv->extend_desc) {
-			tx_q->dma_etx = dma_zalloc_coherent(priv->device, DMA_TX_SIZE * sizeof(struct dma_ext_desc),&tx_q->dma_tx_phy,GFP_KERNEL);
+			tx_q->dma_etx = dma_zalloc_coherent(priv->device, \
+                DMA_TX_SIZE * sizeof(struct dma_ext_desc), \
+                &tx_q->dma_tx_phy, GFP_KERNEL);
 			if (!tx_q->dma_etx)
 				goto err_dma;
 		} else {
-			tx_q->dma_tx = dma_zalloc_coherent(priv->device, DMA_TX_SIZE * sizeof(struct dma_desc),&tx_q->dma_tx_phy,GFP_KERNEL);
-
+            tx_q->dma_tx = dma_zalloc_coherent(priv->device, \
+                DMA_TX_SIZE * sizeof(struct dma_desc), \
+                &tx_q->dma_tx_phy, GFP_KERNEL);
 			if (!tx_q->dma_tx)
 				goto err_dma;
 		}
@@ -2075,10 +2093,6 @@ static void x2_init_rx_chan(void __iomem *ioaddr, struct x2_dma_cfg *dma_cfg, u3
 static void x2_set_rx_tail_ptr(void __iomem *ioaddr, u32 tail_ptr, u32 chan)
 {
 	writel(tail_ptr, ioaddr + DMA_CHAN_RX_END_ADDR(chan));
-}
-static void x2_set_tx_tail_ptr(void __iomem *ioaddr, u32 tail_ptr, u32 chan)
-{
-	writel(tail_ptr, ioaddr + DMA_CHAN_TX_END_ADDR(chan));
 }
 
 static void x2_init_chan(void __iomem *ioaddr, struct x2_dma_cfg *dma_cfg, u32 chan)
@@ -3600,6 +3614,9 @@ static irqreturn_t x2_interrupt(int irq, void *dev_id)
 	
 	queues_count = (rx_cnt > tx_cnt) ? rx_cnt : tx_cnt;
 
+    if (test_bit(HOBOT_DOWN, &priv->state)) {
+        return IRQ_HANDLED;
+    }
 #if 0
     status = readl(priv->ioaddr + 0x1008);
     printk("%s, dma interrupt status(0x1008):0x%x\n", __func__, status);
@@ -4308,6 +4325,7 @@ static int x2_open(struct net_device *ndev)
 	}
 #endif
 
+    clear_bit(HOBOT_DOWN, &priv->state);
 	x2_enable_all_queues(priv);
 	x2_start_all_queues(priv);
 
@@ -4389,6 +4407,22 @@ static void x2_stop_all_dma(struct x2_priv *priv)
 		x2_stop_tx_dma(priv, chan);
 }
 
+
+
+static void hobot_ptp_unregister(struct x2_priv *priv)
+{
+    if (priv->ptp_clock) {
+        ptp_clock_unregister(priv->ptp_clock);
+        priv->ptp_clock = NULL;
+    }
+}
+static void hobot_release_ptp(struct x2_priv *priv)
+{
+    if (priv->plat->clk_ptp_ref)
+        clk_disable_unprepare(priv->plat->clk_ptp_ref);
+
+    hobot_ptp_unregister(priv);
+}
 static int x2_release(struct net_device *ndev)
 {
 	struct x2_priv *priv = netdev_priv(ndev);
@@ -4401,13 +4435,15 @@ static int x2_release(struct net_device *ndev)
 	x2_stop_all_queues(priv);
 	x2_disable_all_queues(priv);
 
+    del_timer_sync(&priv->txtimer);
+
 //	free_irq(ndev->irq, ndev);
 //	printk("%s, and free irq by dhw\n",__func__);
 	x2_stop_all_dma(priv);
 	free_dma_desc_resources(priv);
-
 	x2_set_mac(priv->ioaddr, false);
 	netif_carrier_off(ndev);
+    hobot_release_ptp(priv);
 
 	return 0;
 }
@@ -4736,8 +4772,11 @@ static netdev_tx_t x2_xmit(struct sk_buff *skb, struct net_device *ndev)
 		}
 	}
 
-//	printk("%s,and queue:%d\n",__func__,queue);
-//	printk("%s, and avali:%d, nfrags:%d, queue:%d\n",__func__, x2_tx_avail(priv, queue), nfrags,queue);
+#if 0
+	printk("%s,and queue:%d\n", __func__, queue);
+	printk("%s, and avali:%d, nfrags:%d, queue:%d\n", __func__, \
+        x2_tx_avail(priv, queue), nfrags, queue);
+#endif
 	if ((x2_tx_avail(priv, queue) < nfrags + 1)) {
 		if (!netif_tx_queue_stopped(netdev_get_tx_queue(ndev, queue))) {
 			netif_tx_stop_queue(netdev_get_tx_queue(priv->dev, queue));
@@ -4832,9 +4871,6 @@ static netdev_tx_t x2_xmit(struct sk_buff *skb, struct net_device *ndev)
         priv->xstats.tx_set_ic_bit++;
     }
 
-	//desc->des2 |= cpu_to_le32(TDES2_INTERRUPT_ON_COMPLETION);
-
-	
 	skb_tx_timestamp(skb);
 
 	if (!is_jumbo) {
@@ -4870,9 +4906,7 @@ static netdev_tx_t x2_xmit(struct sk_buff *skb, struct net_device *ndev)
 
     hobot_tx_timer_arm(priv);
 	netif_trans_update(ndev);
-//	printk("%s, and after cur_tx:%d\n",__func__,tx_q->cur_tx);
 
-//	printk("%s, sucessfuly\n",__func__);
 	return NETDEV_TX_OK;
 
 
@@ -6137,6 +6171,8 @@ static ssize_t dump_rx_desc_show(struct device *dev, \
     return 0;
 }
 static DEVICE_ATTR_RO(dump_rx_desc);
+
+
 
 static struct attribute *phy_reg_attrs[] = {
 

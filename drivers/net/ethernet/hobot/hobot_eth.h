@@ -18,14 +18,14 @@
 #define X2_MAX_RX_QUEUES 8
 #define X2_MAX_TX_QUEUES 8
 
-#define HOBOT_RX_FRAMES 64
+#define HOBOT_RX_FRAMES 2
 #define MAX_DMA_RIWT 0x300ff
 #define MIN_DMA_RIWT 0x1
 
 #define HOBOT_COAL_TX_TIMER 1000
 #define HOBOT_MAX_COAL_TX_TICK 100000
 #define HOBOT_TX_MAX_FRAMES 250
-#define HOBOT_TX_FRAMES 64
+#define HOBOT_TX_FRAMES 2
 
 #define X2_GET_ENTRY(x, size) ((x + 1) & (size - 1))
 #define DRIVER_VERSION			"0.9"
@@ -905,4 +905,9 @@ static const struct stmmac_stats hobot_mmc[] = {
 };
 
 #define STMMAC_MMC_STATS_LEN ARRAY_SIZE(hobot_mmc)
+
+enum hobot_state {
+    HOBOT_DOWN,
+};
+
 #endif
