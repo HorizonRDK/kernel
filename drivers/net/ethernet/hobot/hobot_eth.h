@@ -517,6 +517,7 @@ struct x2_priv {
 	u32 csr_val;
 
 	spinlock_t lock;
+	spinlock_t state_lock;
 
 	bool link;
 	int speed;

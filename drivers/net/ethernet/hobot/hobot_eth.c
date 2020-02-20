@@ -1527,7 +1527,7 @@ static void x2_link_up(struct x2_priv *priv)
 	regval |= DWCEQOS_MAC_LPI_CTRL_STATUS_PLS;
 	x2_reg_write(priv, REG_DWCEQOS_MAC_LPI_CTRL_STATUS, regval);
 
-    clear_bit(HOBOT_DOWN, &priv->state);
+
 
 
 #if 0
@@ -1553,7 +1553,6 @@ static void x2_link_down(struct x2_priv *priv)
 	regval = x2_reg_read(priv, REG_DWCEQOS_MAC_LPI_CTRL_STATUS);
 	regval &= ~DWCEQOS_MAC_LPI_CTRL_STATUS_PLS;
 	x2_reg_write(priv, REG_DWCEQOS_MAC_LPI_CTRL_STATUS, regval);
-    set_bit(HOBOT_DOWN, &priv->state);
 }
 
 static void x2_adjust_link(struct net_device *ndev)
@@ -3382,8 +3381,16 @@ static void x2_tx_err(struct x2_priv *priv, u32 chan)
 {
 	struct x2_tx_queue *tx_q = &priv->tx_queue[chan];
 	int i;
+    unsigned long flags;
 
-	netif_tx_stop_queue(netdev_get_tx_queue(priv->dev, chan));
+    spin_lock_irqsave(&priv->state_lock, flags);
+    if (test_bit(HOBOT_DOWN, &priv->state)) {
+        spin_unlock_irqrestore(&priv->state_lock, flags);
+        return;
+    }
+    spin_unlock_irqrestore(&priv->state_lock, flags);
+
+    netif_tx_stop_queue(netdev_get_tx_queue(priv->dev, chan));
 	x2_stop_tx_dma(priv, chan);
 	dma_free_tx_skbufs(priv, chan);
 
@@ -3428,9 +3435,11 @@ static inline void x2_pcs_isr(void __iomem *ioaddr, u32 reg, unsigned int intr_s
 }
 
 
-static void x2_phystatus(void __iomem *ioaddr, struct x2_extra_stats *x)
+static void x2_phystatus(struct x2_priv *priv, struct x2_extra_stats *x)
 {
 	u32 status;
+    void __iomem *ioaddr = priv->ioaddr;
+    unsigned long flags;
 
 	status = readl(ioaddr + GMAC_PHYIF_CONTROL_STATUS);
 	x->irq_rgmii_n++;
@@ -3449,11 +3458,18 @@ static void x2_phystatus(void __iomem *ioaddr, struct x2_extra_stats *x)
 		else
 			x->pcs_speed = SPEED_10;
 
+        spin_lock_irqsave(&priv->state_lock, flags);
+        clear_bit(HOBOT_DOWN, &priv->state);
+
+        spin_unlock_irqrestore(&priv->state_lock, flags);
 		x->pcs_duplex = ((status & GMAC_PHYIF_CTRLSTATUS_LNKMOD ) >> GMAC_PHYIF_CTRLSTATUS_LNKMOD_MASK);
 		printk("Link is Up - %d/%s \n",(int)x->pcs_speed, x->pcs_duplex ? "Full": "Half");
 	} else {
 		x->pcs_link = 0;
-		printk("Link is Down \n");
+        spin_lock_irqsave(&priv->state_lock, flags);
+        set_bit(HOBOT_DOWN, &priv->state);
+        spin_unlock_irqrestore(&priv->state_lock, flags);
+		printk("Link is Down by Hobot\n");
 	}
 	//printk("%s, and mac_phy_status_reg-0xf8: 0x%x\n",__func__, readl(ioaddr + 0xf8));
 	//printk("%s, and mac_AN_stauts_reg-0xe4: 0x%x\n",__func__, readl(ioaddr + 0xe4));
@@ -3498,7 +3514,7 @@ static int x2_host_irq_status(struct x2_priv *priv, struct x2_extra_stats *x)
 	if (intr_status & PCS_RGSMIIIS_IRQ) {
 	//	printk("%s, and phy status\n", __func__);
 		
-		x2_phystatus(ioaddr, x);
+		x2_phystatus(priv, x);
 
 	}
 
@@ -3614,9 +3630,6 @@ static irqreturn_t x2_interrupt(int irq, void *dev_id)
 	
 	queues_count = (rx_cnt > tx_cnt) ? rx_cnt : tx_cnt;
 
-    if (test_bit(HOBOT_DOWN, &priv->state)) {
-        return IRQ_HANDLED;
-    }
 #if 0
     status = readl(priv->ioaddr + 0x1008);
     printk("%s, dma interrupt status(0x1008):0x%x\n", __func__, status);
@@ -3671,7 +3684,7 @@ static irqreturn_t x2_interrupt(int irq, void *dev_id)
 		}
 		
 		if (status & tx_hard_error) {
-			x2_tx_err(priv, chan);
+            x2_tx_err(priv, chan);
 		}
 	}
 
@@ -4141,6 +4154,8 @@ static inline u32 x2_tx_avail(struct x2_priv *priv, u32 queue)
 	struct x2_tx_queue *tx_q = &priv->tx_queue[queue];
 	u32 avail;
 
+//  printk("%s, dirty_tx:0x%x, cur_tx:0x%x\n", __func__, \
+        tx_q->dirty_tx, tx_q->cur_tx);
 	if (tx_q->dirty_tx > tx_q->cur_tx)
 		avail = tx_q->dirty_tx - tx_q->cur_tx - 1;
 	else
@@ -4325,7 +4340,6 @@ static int x2_open(struct net_device *ndev)
 	}
 #endif
 
-    clear_bit(HOBOT_DOWN, &priv->state);
 	x2_enable_all_queues(priv);
 	x2_start_all_queues(priv);
 
@@ -4440,11 +4454,12 @@ static int x2_release(struct net_device *ndev)
 //	free_irq(ndev->irq, ndev);
 //	printk("%s, and free irq by dhw\n",__func__);
 	x2_stop_all_dma(priv);
-	free_dma_desc_resources(priv);
+
 	x2_set_mac(priv->ioaddr, false);
+	free_dma_desc_resources(priv);
+
 	netif_carrier_off(ndev);
     hobot_release_ptp(priv);
-
 	return 0;
 }
 
@@ -4907,6 +4922,7 @@ static netdev_tx_t x2_xmit(struct sk_buff *skb, struct net_device *ndev)
     hobot_tx_timer_arm(priv);
 	netif_trans_update(ndev);
 
+    //printk("%s, xmit susseccfuly\n", __func__);
 	return NETDEV_TX_OK;
 
 
@@ -6173,12 +6189,41 @@ static ssize_t dump_rx_desc_show(struct device *dev, \
 static DEVICE_ATTR_RO(dump_rx_desc);
 
 
+static ssize_t tx_desc_show(struct device *dev, \
+        struct device_attribute *attr, char *buf)
+{
+    struct net_device *ndev = to_net_dev(dev);
+    struct x2_priv *priv = netdev_priv(ndev);
+    u32 queue;
+    int i;
+
+    for (queue = 0; queue < 1; queue++) {
+        struct x2_tx_queue *tx_q = &priv->tx_queue[queue];
+
+        printk("%s, cur_rx:%d\n", __func__, tx_q->cur_tx);
+
+        for (i = 0; i < DMA_RX_SIZE; i++) {
+            struct dma_desc *p;
+
+            p = tx_q->dma_tx + i;
+            if (p)
+              printk("%d, des0:0x%x, des1: 0x%x, des2:0x%x, des3:0x%x\n", i, \
+                p->des0, p->des1, p->des2, p->des3);
+        }
+    }
+
+    return 0;
+}
+static DEVICE_ATTR_RO(tx_desc);
+
+
 
 static struct attribute *phy_reg_attrs[] = {
 
     &dev_attr_phy_reg.attr,
     &dev_attr_phy_addr.attr,
     &dev_attr_dump_rx_desc.attr,
+    &dev_attr_tx_desc.attr,
     NULL,
 };
 
@@ -6301,6 +6346,7 @@ static int x2_dvr_probe(struct device *device, struct plat_config_data *plat_dat
 	}
 
 	spin_lock_init(&priv->lock);
+    spin_lock_init(&priv->state_lock);
 
 	if (!priv->plat->clk_csr)
 		x2_clk_csr_set(priv);
