@@ -1825,7 +1825,7 @@ int ac101_i2c_probe(struct i2c_client *i2c, const struct i2c_device_id *id)
 
 	static_ac10x = ac10x;
 
-	int gpiod_spk_amp_gate = 0;
+	/*int gpiod_spk_amp_gate = 0;
 	gpiod_spk_amp_gate = devm_gpio_request(&i2c->dev, 71, "spk-amp-switch");
 	if (IS_ERR(ac10x->gpiod_spk_amp_gate)) {
 		ac10x->gpiod_spk_amp_gate = NULL;
@@ -1833,7 +1833,7 @@ int ac101_i2c_probe(struct i2c_client *i2c, const struct i2c_device_id *id)
 		return gpiod_spk_amp_gate;
 	}
 	gpio_direction_output(71, 0);
-	ac10x->gpiod_spk_amp_gate = gpio_to_desc(gpiod_spk_amp_gate);
+	ac10x->gpiod_spk_amp_gate = gpio_to_desc(gpiod_spk_amp_gate);*/
 
 	ac10x_init(ac10x->codec);
 	pr_debug("%s register success\n", __func__);
