@@ -1,21 +1,31 @@
 {
-    "1": {
+    "101": {
         "dtb_name"  :   "hobot-x3-dvb.dtb",
         "gpio_id"   :   "0"
     },
 
-    "2": {
+    "102": {
         "dtb_name"  :   "hobot-x3-dvb.dtb",
         "gpio_id"   :   "0"
     },
 
-    "3": {
+    "103": {
         "dtb_name"  :   "hobot-xj3-cvb.dtb",
         "gpio_id"   :   "0"
     },
 
-    "4": {
-        "dtb_name"  :  "hobot-x3-dvb.dtb",
+    "201": {
+        "dtb_name"  :  "hobot-j3-dvb.dtb",
+        "gpio_id"   :   "0"
+    },
+
+    "202": {
+        "dtb_name"  :  "hobot-j3-dvb.dtb",
+        "gpio_id"   :   "0"
+    },
+
+    "203": {
+        "dtb_name"  :  "hobot-xj3-cvb.dtb",
         "gpio_id"   :   "0"
     }
 }
