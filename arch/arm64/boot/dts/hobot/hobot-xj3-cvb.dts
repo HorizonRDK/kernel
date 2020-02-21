@@ -23,3 +23,18 @@
 	};
 };
 
+&ethernet {
+	   status = "okay";
+
+	   /* local-mac-address = [ 00 11 22 33 44 55 ]; */
+	   phy-handle = <&phy0>;
+	   phy-mode = "rgmii-id";
+	   mdio {
+			   #address-cells = <0x1>;
+			   #size-cells = <0x0>;
+			   phy0: phy@0 {
+					   compatible = "marvell,88E1510","ethernet-phy-ieee802.3-c22";
+					   reg = <0x0>;
+			   };
+	   };
+};
