@@ -472,6 +472,7 @@ typedef struct _output_cfg_t {
 	uint32_t out_sel;
 	uint32_t width;
 	uint32_t height;
+	uint32_t big_endian;
 	uint32_t display_addr_type;
 	uint32_t display_cam_no;
 	ppcon1_cfg_t ppcon1;

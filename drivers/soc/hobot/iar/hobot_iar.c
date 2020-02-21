@@ -844,7 +844,7 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 		writel(0x13, g_iar_dev->regaddr + REG_DISP_LCDIF_CFG);//0x800
 		writel(0x3, g_iar_dev->regaddr + REG_DISP_LCDIF_PADC_RESET_N);//0x804
 		//color config
-		writel(0x1, g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);//0x318
+		writel(0x0, g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);//0x204
 #else
 		pr_err("%s: error output mode!!!\n", __func__);
 #endif
@@ -925,6 +925,7 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 
 	config_rotate = cfg->rotate;
 	disp_user_update = cfg->user_control_disp;
+#ifdef CONFIG_HOBOT_XJ2
 	if (cfg->panel_type == 2) {
 		if (display_type == HDMI_TYPE) {
 			pr_err("%s: wrong json file or convert hw!\n",
@@ -943,7 +944,7 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 					__func__);
 		}
 	}
-#ifdef CONFIG_HOBOT_XJ2
+
 	value = readl(g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
 	value = IAR_REG_SET_FILED(IAR_PANEL_COLOR_TYPE, 2, value);
 	value = IAR_REG_SET_FILED(IAR_YCBCR_OUTPUT, 1, value);
@@ -966,6 +967,16 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 	value = IAR_REG_SET_FILED(IAR_SATURATION, cfg->ppcon2.saturation, value);
 	value = IAR_REG_SET_FILED(IAR_THETA_ABS, cfg->ppcon2.theta_abs, value);
 	writel(value, g_iar_dev->regaddr + REG_IAR_PP_CON_2);
+
+#ifdef CONFIG_HOBOT_XJ3
+	value = readl(g_iar_dev->regaddr + REG_IAR_FORMAT_ORGANIZATION);
+	if (cfg->big_endian == 0x1) {
+		value = 0x00010000 | value;
+	} else if (cfg->big_endian == 0x0) {
+		value = 0xfffeffff & value;
+	}
+	writel(value, g_iar_dev->regaddr + REG_IAR_FORMAT_ORGANIZATION);
+#endif
 #if 0
 	value = IAR_REG_SET_FILED(IAR_DBI_REFRESH_MODE, cfg->refresh_cfg.dbi_refresh_mode, 0);
 	value = IAR_REG_SET_FILED(IAR_PANEL_COLOR_TYPE, cfg->refresh_cfg.panel_corlor_type, value);
