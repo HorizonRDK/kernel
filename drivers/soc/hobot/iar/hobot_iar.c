@@ -864,7 +864,7 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 
 		writel(0xc, g_iar_dev->regaddr + REG_IAR_DE_OUTPUT_SEL);
 		writel(0x0, g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
-		writel(0x00000008, g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
+		writel(0x00000000, g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
 		//rgb panel
 	} else if (cfg->out_sel == OUTPUT_BT656) {
 #ifdef CONFIG_HOBOT_XJ3
