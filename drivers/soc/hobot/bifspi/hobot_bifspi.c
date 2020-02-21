@@ -47,7 +47,7 @@
 /*
 #define pr_fmt(fmt)	KBUILD_MODNAME ":%s:%d: " fmt, __func__, __LINE__
  */
-#define VER		"HOBOT-bifspi_V20.200208"
+#define VER		"HOBOT-bifspi_V20.200221"
 
 static int ap_access_first;
 module_param(ap_access_first, uint, 0644);
@@ -132,7 +132,7 @@ ssize_t bifspi_show_ap_first(struct kobject *driver,
 			     struct kobj_attribute *attr, char *buf)
 {
 	if (bif_info == NULL) {
-		pr_err("%s bif_info == null\n", __func__);
+		pr_err("%s bifspi is not enabled\n", __func__);
 		return 0;
 	}
 	return snprintf(buf, PAGE_SIZE, "0x%08x\n", bif_info->first);
@@ -145,7 +145,7 @@ ssize_t bifspi_store_ap_first(struct kobject *driver,
 	long out;
 
 	if (bif_info == NULL) {
-		pr_err("%s bif_info == null\n", __func__);
+		pr_err("%s bifspi is not enabled\n", __func__);
 		return 0;
 	}
 	ret = (kstrtol(buf, 0, &out));
@@ -162,7 +162,7 @@ ssize_t bifspi_show_ap_last(struct kobject *driver,
 			     struct kobj_attribute *attr, char *buf)
 {
 	if (bif_info == NULL) {
-		pr_err("%s bif_info == null\n", __func__);
+		pr_err("%s bifspi is not enabled\n", __func__);
 		return 0;
 	}
 	return snprintf(buf, PAGE_SIZE, "0x%08x\n", bif_info->last);
@@ -175,7 +175,7 @@ ssize_t bifspi_store_ap_last(struct kobject *driver,
 	long out;
 
 	if (bif_info == NULL) {
-		pr_err("%s bif_info == null\n", __func__);
+		pr_err("%s bifspi is not enabled\n", __func__);
 		return 0;
 	}
 	ret = (kstrtol(buf, 0, &out));
@@ -399,7 +399,7 @@ static long bif_unlocked_ioctl(struct file *filp, unsigned int cmd,
 int bifspi_read_share_reg(unsigned int num, unsigned int *value)
 {
 	if (bif_info == NULL) {
-		pr_err("%s bif_info == null\n", __func__);
+		pr_err("%s bifspi is not enabled\n", __func__);
 		return -1;
 	}
 	bif_change_reset2gpio();
@@ -412,7 +412,7 @@ EXPORT_SYMBOL(bifspi_read_share_reg);
 int bifspi_write_share_reg(unsigned int num, unsigned int value)
 {
 	if (bif_info == NULL) {
-		pr_err("%s bif_info == null\n", __func__);
+		pr_err("%s bifspi is not enabled\n", __func__);
 		return -1;
 	}
 	bif_change_reset2gpio();
