@@ -87,8 +87,12 @@ p_err:
 
 }
 
-void vio_group_start_trigger(struct vio_group_task *group_task, struct vio_frame *frame)
+void vio_group_start_trigger(struct vio_group *group, struct vio_frame *frame)
 {
+	struct vio_group_task *group_task;
+
+	group_task = group->gtask;
+	atomic_inc(&group->rcount);
 	kthread_queue_work(&group_task->worker, &frame->work);
 }
 
@@ -143,6 +147,7 @@ void vio_group_init(struct vio_group *group)
 	group->frame_work = NULL;
 	group->next = NULL;
 	group->prev = group;
+	atomic_set(&group->rcount, 0);
 	for(i = 0; i < MAX_SUB_DEVICE; i++)
 		group->sub_ctx[i] = NULL;
 }

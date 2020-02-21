@@ -58,6 +58,7 @@ struct vio_group{
 	void *sub_ctx[MAX_SUB_DEVICE];
 	struct frame_id frameid;
 	unsigned long state;
+	atomic_t rcount; /* request count */
 	u32 id;
 	u32 instance;
 	u32 output_flag;
@@ -89,7 +90,7 @@ struct vio_chain{
 
 int vio_group_task_start(struct vio_group_task *group_task);
 int vio_group_task_stop(struct vio_group_task *group_task);
-void vio_group_start_trigger(struct vio_group_task *group_task, struct vio_frame *frame);
+void vio_group_start_trigger(struct vio_group *group, struct vio_frame *frame);
 struct vio_group *vio_get_chain_group(int instance, u32 group_id);
 int vio_bind_chain_groups(struct vio_group *src_group, struct vio_group *dts_group);
 int vio_init_chain(int instance);

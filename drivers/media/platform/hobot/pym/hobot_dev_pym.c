@@ -60,6 +60,8 @@ static int x3_pym_open(struct inode *inode, struct file *file)
 	pym_ctx->state = BIT(VIO_VIDEO_OPEN);
 
 	if (atomic_read(&pym->open_cnt) == 0) {
+		atomic_set(&pym->backup_fcount, 0);
+		atomic_set(&pym->sensor_fcount, 0);
 		vio_clk_enable("pym_mclk");
 	}
 
@@ -172,10 +174,10 @@ static void pym_frame_work(struct vio_group *group)
 	pym_ctx = group->sub_ctx[0];
 	pym = pym_ctx->pym_dev;
 
-	vio_info("%s start\n", __func__);
-
 	if (instance < MAX_SHADOW_NUM)
 		shadow_index = instance;
+
+	atomic_inc(&pym->backup_fcount);
 
 	atomic_set(&pym->instance, instance);
 
@@ -207,8 +209,6 @@ static void pym_frame_work(struct vio_group *group)
 
 	if (!test_bit(PYM_HW_CONFIG, &pym->state))
 		set_bit(PYM_HW_CONFIG, &pym->state);
-
-	vio_info("%s done\n", __func__);
 
 	return;
 }
@@ -449,6 +449,8 @@ p_inc:
 	atomic_inc(&pym_dev->rsccount);
 	pym_ctx->state = BIT(VIO_VIDEO_START);
 
+	vio_info("[S%d] %s\n", group->instance, __func__);
+
 	return 0;
 }
 
@@ -476,8 +478,9 @@ int pym_video_streamoff(struct pym_video_ctx *pym_ctx)
 p_dec:
 
 	frame_manager_flush(&pym_ctx->framemgr);
-
 	pym_ctx->state = BIT(VIO_VIDEO_STOP);
+
+	vio_info("[S%d] %s\n", pym_ctx->group->instance, __func__);
 
 	return 0;
 }
@@ -519,6 +522,8 @@ int pym_video_reqbufs(struct pym_video_ctx *pym_ctx, u32 buffers)
 	}
 
 	pym_ctx->state = BIT(VIO_VIDEO_REBUFS);
+	vio_dbg("[S%d]%s reqbuf number %d\n",
+		pym_ctx->group->instance, buffers);
 
 	return ret;
 }
@@ -550,7 +555,10 @@ int pym_video_qbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 
 	group = pym_ctx->group;
 	if(group->leader == true)
-		vio_group_start_trigger(group->gtask, frame);
+		vio_group_start_trigger(group, frame);
+
+	vio_info("S%d %s index %d\n", group->instance,
+		__func__, frameinfo->bufferindex);
 
 	return ret;
 
@@ -576,6 +584,9 @@ int pym_video_dqbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 		trans_frame(framemgr, frame, FS_FREE);
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
+
+	vio_info("S%d %s index %d\n", pym_ctx->group->instance,
+		__func__, frameinfo->bufferindex);
 
 	return ret;
 }
@@ -606,32 +617,24 @@ static long x3_pym_ioctl(struct file *file, unsigned int cmd,
 		ret = get_user(enable, (u32 __user *) arg);
 		if (ret)
 			return -EFAULT;
-		vio_info("V[%d]=====PYM_IOC_STREAM==enable %d===========\n",
-			 group->instance, enable);
 		pym_video_s_stream(pym_ctx, ! !enable);
 		break;
 	case PYM_IOC_DQBUF:
 		pym_video_dqbuf(pym_ctx, &frameinfo);
 		ret = copy_to_user((void __user *) arg, (char *) &frameinfo,
 				 sizeof(struct frame_info));
-		vio_info("V[%d]=====PYM_IOC_DQBUF==ret %d===========\n",
-			 group->instance, ret);
 		if (ret)
 			return -EFAULT;
 		break;
 	case PYM_IOC_QBUF:
 		ret = copy_from_user((char *) &frameinfo, (u32 __user *) arg,
 				   sizeof(struct frame_info));
-		vio_info("V[%d]=====PYM_IOC_QBUF==ret %d===========\n",
-			 group->instance, ret);
 		if (ret)
 			return -EFAULT;
 		pym_video_qbuf(pym_ctx, &frameinfo);
 		break;
 	case PYM_IOC_REQBUFS:
 		ret = get_user(buffers, (u32 __user *) arg);
-		vio_info("V[%d]=====PYM_IOC_REQBUFS==ret %d===========\n",
-			 group->instance, ret);
 		if (ret)
 			return -EFAULT;
 		pym_video_reqbufs(pym_ctx, buffers);
@@ -735,8 +738,19 @@ static irqreturn_t pym_isr(int irq, void *data)
 	}
 
 	if (status & (1 << INTR_PYM_FRAME_START)) {
+		atomic_inc(&pym->sensor_fcount);
 		if (test_bit(PYM_OTF_INPUT, &pym->state)) {
-			up(&gtask->hw_resource);
+			if (unlikely(list_empty(&gtask->hw_resource.wait_list))) {
+				vio_err("[S%d]GP%d(res %d, rcnt %d, bcnt %d, scnt %d)\n",
+					group->instance,
+					gtask->id,
+					gtask->hw_resource.count,
+					atomic_read(&group->rcount),
+					atomic_read(&pym->backup_fcount),
+					atomic_read(&pym->sensor_fcount));
+			} else {
+				up(&gtask->hw_resource);
+			}
 		}
 		if (group && group->get_timestamps)
 			vio_get_frame_id(group);

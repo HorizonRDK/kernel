@@ -156,8 +156,6 @@ int ips_clk_ctrl(void __iomem *base_addr, u32 module, bool enable)
 	vio_hw_set_field(base_addr, &ips_regs[IPS_CLK_CTRL],
 		&ips_fields[field_index], enable);
 
-	value = vio_hw_get_reg(base_addr, &ips_regs[IPS_CLK_CTRL]);
-	vio_info("%s: value = %d\n", __func__, value);
 	return 0;
 }
 

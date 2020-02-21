@@ -168,6 +168,8 @@ struct x3_ipu_dev {
 	atomic_t instance;
 	atomic_t rsccount;
 	atomic_t open_cnt;
+	atomic_t sensor_fcount;
+	atomic_t backup_fcount;
 
 	struct vio_group *group[VIO_MAX_STREAM];
 	struct vio_group_task gtask;

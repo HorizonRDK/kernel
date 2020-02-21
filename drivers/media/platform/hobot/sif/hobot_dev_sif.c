@@ -351,7 +351,8 @@ int sif_mux_init(struct sif_video_ctx *sif_ctx, sif_cfg_t *sif_config)
 	sif_ctx->bufcount = sif_get_current_bufindex(sif->base_reg, mux_index);
 	sif->mismatch_cnt = 0;
 
-	vio_info("%s,mux index = %d\n", __func__, mux_index);
+	vio_info("[S%d][V%d] %s mux_index %d\n", group->instance,
+		sif_ctx->id, __func__, mux_index);
 	return ret;
 }
 
@@ -389,7 +390,8 @@ int sif_video_init(struct sif_video_ctx *sif_ctx, unsigned long arg)
 
 	sif_ctx->state = BIT(VIO_VIDEO_INIT);
 
-	vio_info("V[%d]%s ret(%d)\n", sif_ctx->id, __func__, ret);
+	vio_info("[S%d][V%d] %s done\n", group->instance,
+		sif_ctx->id, __func__);
 
 	return ret;
 }
@@ -434,9 +436,10 @@ int sif_bind_chain_group(struct sif_video_ctx *sif_ctx, int instance)
 		group->frame_work = sif_read_frame_work;
 		group->gtask = &sif->sifin_task;
 	}
-
-	vio_info("[%s]instance = %d\n", __func__, instance);
 	sif_ctx->state = BIT(VIO_VIDEO_S_INPUT);
+
+	vio_info("[S%d][V%d] %s done\n", group->instance,
+		sif_ctx->id, __func__);
 
 	return ret;
 }
@@ -469,7 +472,9 @@ p_inc:
 	atomic_inc(&sif_dev->rsccount);
 	sif_ctx->state = BIT(VIO_VIDEO_START);
 
-	vio_dbg("%s\n", __func__);
+	vio_info("[S%d][V%d] %s\n", sif_ctx->group->instance,
+		sif_ctx->id, __func__);
+
 	return 0;
 }
 
@@ -512,7 +517,8 @@ p_dec:
 
 	sif_ctx->state = BIT(VIO_VIDEO_STOP);
 
-	vio_dbg("%s\n", __func__);
+	vio_info("[S%d][V%d] %s\n", sif_ctx->group->instance,
+		sif_ctx->id, __func__);
 
 	return 0;
 }
@@ -556,6 +562,9 @@ int sif_video_reqbufs(struct sif_video_ctx *sif_ctx, u32 buffers)
 
 	sif_ctx->state = BIT(VIO_VIDEO_REBUFS);
 
+	vio_info("[S%d][V%d] %s reqbuf num %d\n", group->instance,
+		sif_ctx->id, __func__, buffers);
+
 	return ret;
 }
 
@@ -588,7 +597,10 @@ int sif_video_qbuf(struct sif_video_ctx *sif_ctx,
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
 	group = sif_ctx->group;
-	vio_group_start_trigger(group->gtask, frame);
+	vio_group_start_trigger(group, frame);
+
+	vio_dbg("[S%d][V%d] %s index %d\n", sif_ctx->group->instance,
+		sif_ctx->id, __func__, frameinfo->bufferindex);
 
 	return ret;
 
@@ -615,6 +627,9 @@ int sif_video_dqbuf(struct sif_video_ctx *sif_ctx,
 		trans_frame(framemgr, frame, FS_FREE);
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
+
+	vio_dbg("[S%d][V%d] %s index %d\n", sif_ctx->group->instance,
+		sif_ctx->id, __func__, frameinfo->bufferindex);
 
 	return ret;
 }
@@ -645,13 +660,9 @@ static long x3_sif_ioctl(struct file *file, unsigned int cmd,
 		ret = get_user(enable, (u32 __user *) arg);
 		if (ret)
 			return -EFAULT;
-		vio_dbg("G[%d]V[%d]SIF_IOC_STREAM enable %d\n",
-		     group->instance, sif_ctx->id, enable);
 		ret = sif_video_s_stream(sif_ctx, ! !enable);
 		break;
 	case SIF_IOC_DQBUF:
-		vio_dbg("G[%d]V[%d]SIF_IOC_DQBUF\n",
-			 group->instance, sif_ctx->id);
 		sif_video_dqbuf(sif_ctx, &frameinfo);
 		ret = copy_to_user((void __user *) arg,
 				(char *) &frameinfo, sizeof(struct frame_info));
@@ -663,14 +674,10 @@ static long x3_sif_ioctl(struct file *file, unsigned int cmd,
 				(u32 __user *) arg, sizeof(struct frame_info));
 		if (ret)
 			return -EFAULT;
-		vio_dbg("G[%d]V[%d]SIF_IOC_QBUF\n",
-			 	group->instance, sif_ctx->id);
 		sif_video_qbuf(sif_ctx, &frameinfo);
 		break;
 	case SIF_IOC_REQBUFS:
 		ret = get_user(buffers, (u32 __user *) arg);
-		vio_dbg("G[%d]V[%d]SIF_IOC_REQBUFS\n",
-			 	group->instance, sif_ctx->id);
 		if (ret)
 			return -EFAULT;
 		sif_video_reqbufs(sif_ctx, buffers);
@@ -679,7 +686,6 @@ static long x3_sif_ioctl(struct file *file, unsigned int cmd,
 		ret = get_user(instance, (u32 __user *) arg);
 		if (ret)
 			return -EFAULT;
-		vio_dbg("instance %d\n", instance);
 		sif_bind_chain_group(sif_ctx, instance);
 		break;
 	case SIF_IOC_END_OF_STREAM:
@@ -798,7 +804,14 @@ static irqreturn_t sif_isr(int irq, void *data)
 
 				if (test_bit(VIO_GROUP_DMA_OUTPUT, &group->state)) {
 					gtask = group->gtask;
-					up(&gtask->hw_resource);
+					if (unlikely(list_empty(&gtask->hw_resource.wait_list))) {
+						vio_err("[S%d]GP%d(res %d, rcnt %d)\n", mux_index,
+							gtask->id,
+							gtask->hw_resource.count,
+							atomic_read(&group->rcount));
+					} else {
+						up(&gtask->hw_resource);
+					}
 				}
 			}
 		}

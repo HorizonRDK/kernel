@@ -74,6 +74,11 @@ static int x3_ipu_open(struct inode *inode, struct file *file)
 
 	ipu_ctx->state = BIT(VIO_VIDEO_OPEN);
 
+	if (atomic_read(&ipu->open_cnt) == 0) {
+		atomic_set(&ipu->backup_fcount, 0);
+		atomic_set(&ipu->sensor_fcount, 0);
+	}
+
 	atomic_inc(&ipu->open_cnt);
 p_err:
 	return 0;
@@ -122,6 +127,7 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 	ipu_ctx->state = BIT(VIO_VIDEO_CLOSE);
 
 	kfree(ipu_ctx);
+	vio_info("IPU close node %d\n", ipu_ctx->id);
 
 	return 0;
 }
@@ -211,7 +217,7 @@ void ipu_frame_work(struct vio_group *group)
 	ipu = sub_mp->ipu_dev;
 	if (instance < MAX_SHADOW_NUM)
 		shadow_index = instance;
-	vio_info("%s start\n", __func__);
+	vio_dbg("%s start\n", __func__);
 
 	rdy = ipu_get_shd_rdy(ipu->base_reg);
 	rdy = rdy & ~(1 << 4);
@@ -265,13 +271,15 @@ void ipu_frame_work(struct vio_group *group)
 	rdy = ipu_get_shd_rdy(ipu->base_reg);
 	rdy = rdy | (1 << 4);
 	ipu_set_shd_rdy(ipu->base_reg, rdy);
+	atomic_inc(&ipu->backup_fcount);
+	vio_info("backup_fcount count = %d\n", atomic_read(&ipu->backup_fcount));
 
 	if (test_bit(IPU_DMA_INPUT, &ipu->state))
 		ipu_set_rdma_start(ipu->base_reg);
 
 	if (!test_bit(IPU_HW_CONFIG, &ipu->state))
 		set_bit(IPU_HW_CONFIG, &ipu->state);
-	vio_info("%s done\n", __func__);
+	vio_dbg("%s done\n", __func__);
 }
 
 void ipu_set_group_leader(struct vio_group *group, enum group_id id,
@@ -632,7 +640,7 @@ int ipu_update_ds_ch_param(struct ipu_video_ctx *ipu_ctx, u8 ds_ch,
 	ipu_set_shd_rdy(ipu->base_reg, rdy);
 
 	//ipu_set_intr_mask(ipu->base_reg, 0);
-	vio_info("[%d][ds%d]roi_x = %d, roi_y = %d, roi_width = %d, roi_height = %d\n",
+	vio_dbg("[%d][ds%d]roi_x = %d, roi_y = %d, roi_width = %d, roi_height = %d\n",
 		 shadow_index, ds_ch, roi_x, roi_y, roi_width, roi_height);
 	return ret;
 }
@@ -725,9 +733,9 @@ int ipu_update_us_param(struct ipu_video_ctx *ipu_ctx,
 	rdy = ipu_get_shd_rdy(ipu->base_reg);
 	rdy = rdy | (1 << shadow_index);
 	ipu_set_shd_rdy(ipu->base_reg, rdy);
-	vio_info("roi_x = %d, roi_y = %d, roi_width = %d, roi_height = %d\n",
+	vio_dbg("roi_x = %d, roi_y = %d, roi_width = %d, roi_height = %d\n",
 		 roi_x, roi_y, roi_width, roi_height);
-	vio_info("step_x = %d, step_y = %d, tgt_width = %d, tgt_height = %d\n",
+	vio_dbg("step_x = %d, step_y = %d, tgt_width = %d, tgt_height = %d\n",
 		 dst_stepx, dst_stepy, dst_width, dst_height);
 	return ret;
 }
@@ -981,6 +989,9 @@ int ipu_video_init(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 
 done:
 	up(&sub_mp->hw_init_sem);
+
+	vio_info("[S%d][V%d]%s done\n", group->instance, ipu_ctx->id, __func__);
+
 	return ret;
 }
 
@@ -1116,7 +1127,7 @@ p_inc:
 
 	ipu_ctx->state = BIT(VIO_VIDEO_START);
 
-	vio_info("[S%d][ID %d]%s\n", group->instance, ipu_ctx->id,
+	vio_info("[S%d][V%d] %s\n", group->instance, ipu_ctx->id,
 		 __func__);
 
 	return 0;
@@ -1176,8 +1187,7 @@ p_dec:
 
 	ipu_ctx->state = BIT(VIO_VIDEO_STOP);
 
-	vio_info("[S%d][ID %d]%s\n", group->instance, ipu_ctx->id,
-		 __func__);
+	vio_info("[S%d][V%d]%s\n", group->instance, ipu_ctx->id, __func__);
 
 	return 0;
 }
@@ -1220,6 +1230,9 @@ int ipu_video_reqbufs(struct ipu_video_ctx *ipu_ctx, u32 buffers)
 	}
 
 	ipu_ctx->state = BIT(VIO_VIDEO_REBUFS);
+
+	vio_info("[S%d][V%d]%s buffer number %d\n",
+		ipu_ctx->group->instance, ipu_ctx->id, __func__, buffers);
 
 	return ret;
 }
@@ -1295,10 +1308,12 @@ int ipu_video_qbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 
 	group = ipu_ctx->group;
 	if (ipu_ctx->leader == true && group->leader) {
-		vio_group_start_trigger(group->gtask, frame);
+		vio_group_start_trigger(group, frame);
 	}
-	return ret;
 
+	vio_dbg("[S%d][V%d] %s index %d\n", group->instance, ipu_ctx->id,
+		__func__, frameinfo->bufferindex);
+	return ret;
 err:
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 	return ret;
@@ -1363,6 +1378,10 @@ int ipu_video_dqbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 		ipu_ctx->event = 0;
 	}
 
+	vio_dbg("[S%d][V%d] %s (p%d b%d f%d)\n", ipu_ctx->group->instance,
+		 ipu_ctx->id, __func__, ipu_ctx->proc_id,
+		 frameinfo->bufferindex, frameinfo->frame_id);
+
 	return ret;
 }
 
@@ -1393,33 +1412,23 @@ static long x3_ipu_ioctl(struct file *file, unsigned int cmd,
 		ret = get_user(enable, (u32 __user *) arg);
 		if (ret)
 			return -EFAULT;
-		vio_dbg("V[%d][%d]=====IPU_IOC_STREAM==enable %d===========\n",
-			 group->instance, ipu_ctx->id, enable);
 		ipu_video_s_stream(ipu_ctx, ! !enable);
 		break;
 	case IPU_IOC_DQBUF:
 		ipu_video_dqbuf(ipu_ctx, &frameinfo);
 		ret = copy_to_user((void __user *) arg, (char *) &frameinfo,
 				 sizeof(struct frame_info));
-		vio_dbg("V[%d][%d]=====IPU_IOC_DQBUF(p%d b%d f%d)==ret %d====\n",
-			 group->instance, ipu_ctx->id, ipu_ctx->proc_id,
-			 frameinfo.bufferindex, frameinfo.frame_id, ret);
 		if (ret)
 			return -EFAULT;
 		break;
 	case IPU_IOC_QBUF:
 		ret = copy_from_user((char *) &frameinfo, (u32 __user *) arg,
 				   sizeof(struct frame_info));
-		vio_dbg("V[%d][%d]=====IPU_IOC_QBUF(p%d b%d)==ret %d===========\n",
-			 group->instance, ipu_ctx->id, ipu_ctx->proc_id,
-			 frameinfo.bufferindex, ret);
 		if (ret)
 			return -EFAULT;
 		ipu_video_qbuf(ipu_ctx, &frameinfo);
 		break;
 	case IPU_IOC_REQBUFS:
-		vio_dbg("V[%d][%d]=====IPU_IOC_REQBUFS==ret %d===========\n",
-			 group->instance, ipu_ctx->id, ret);
 		ret = get_user(buffers, (u32 __user *) arg);
 		if (ret)
 			return -EFAULT;
@@ -1660,7 +1669,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 	group = ipu->group[instance];
 	ipu_get_intr_status(ipu->base_reg, &status, true);
 	size_err = ipu_get_size_err(ipu->base_reg);
-	vio_dbg("%s status = 0x%x\n", __func__, status);
+	vio_info("%s status = 0x%x\n", __func__, status);
 
 	if (size_err) {
 		ipu_clear_size_err(ipu->base_reg, 1);
@@ -1758,9 +1767,21 @@ static irqreturn_t ipu_isr(int irq, void *data)
 	}
 
 	if (status & (1 << INTR_IPU_FRAME_START)) {
+		atomic_inc(&ipu->sensor_fcount);
 		if (test_bit(IPU_OTF_INPUT, &ipu->state)) {
-			up(&gtask->hw_resource);
+			if (unlikely(list_empty(&gtask->hw_resource.wait_list))) {
+				vio_err("[S%d]GP%d(res %d, rcnt %d, bcnt %d, scnt %d)\n",
+					group->instance,
+					gtask->id,
+					gtask->hw_resource.count,
+					atomic_read(&group->rcount),
+					atomic_read(&ipu->backup_fcount),
+					atomic_read(&ipu->sensor_fcount));
+			} else {
+				up(&gtask->hw_resource);
+			}
 		}
+
 		if (group && group->get_timestamps) {
 			vio_get_frame_id(group);
 			vio_dbg("IPU frame count = %d\n", group->frameid.frame_id);

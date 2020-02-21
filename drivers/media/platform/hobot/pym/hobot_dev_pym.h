@@ -78,6 +78,8 @@ struct x3_pym_dev {
 	atomic_t rsccount;
 	atomic_t open_cnt;
 	spinlock_t shared_slock;
+	atomic_t sensor_fcount;
+	atomic_t backup_fcount;
 
 	struct vio_group *group[VIO_MAX_STREAM];
 	struct vio_group_task gtask;
