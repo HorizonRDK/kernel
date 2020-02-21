@@ -234,10 +234,10 @@ static inline u32 vpu_filter_inst_idx(u32 reg_val)
 	return inst_idx;
 }
 
-static u32 vpu_get_inst_idx(hb_vpu_dev_t * dev, u32 * reason,
-			    u32 empty_inst, u32 done_inst, u32 other_inst)
+static s32 vpu_get_inst_idx(hb_vpu_dev_t * dev, u32 * reason,
+			    u32 empty_inst, u32 done_inst, u32 seq_inst)
 {
-	u32 inst_idx;
+	s32 inst_idx;
 	u32 reg_val;
 	u32 int_reason;
 
@@ -255,10 +255,10 @@ static u32 vpu_get_inst_idx(hb_vpu_dev_t * dev, u32 * reason,
 	}
 
 	if (int_reason & (1 << INT_WAVE5_INIT_SEQ)) {
-		reg_val = (done_inst & 0xffff);
+		reg_val = (seq_inst & 0xffff);
 		inst_idx = vpu_filter_inst_idx(reg_val);
 		*reason = (1 << INT_WAVE5_INIT_SEQ);
-		vpu_debug(7, "W5_RET_QUEUE_CMD_DONE_INST INIT_SEQ reg_val=0x%x,"
+		vpu_debug(7, "RET_SEQ_DONE_INSTANCE_INFO INIT_SEQ reg_val=0x%x,"
 			  "inst_idx=%d\n", reg_val, inst_idx);
 		goto GET_VPU_INST_IDX_HANDLED;
 	}
@@ -287,14 +287,15 @@ static u32 vpu_get_inst_idx(hb_vpu_dev_t * dev, u32 * reason,
 	}
 
 	if (int_reason & (1 << INT_WAVE5_ENC_SET_PARAM)) {
-		reg_val = (done_inst & 0xffff);
+		reg_val = (seq_inst & 0xffff);
 		inst_idx = vpu_filter_inst_idx(reg_val);
 		*reason = (1 << INT_WAVE5_ENC_SET_PARAM);
 		vpu_debug(7,
-			  "W5_RET_QUEUE_CMD_DONE_INST ENC_SET_PARAM reg_val=0x%x,"
+			  "RET_SEQ_DONE_INSTANCE_INFO ENC_SET_PARAM reg_val=0x%x,"
 			  "inst_idx=%d\n", reg_val, inst_idx);
 		goto GET_VPU_INST_IDX_HANDLED;
 	}
+
 #ifdef SUPPORT_SOURCE_RELEASE_INTERRUPT
 	if (int_reason & (1 << INT_WAVE5_ENC_SRC_RELEASE)) {
 		reg_val = (done_inst & 0xffff);
@@ -314,14 +315,13 @@ static u32 vpu_get_inst_idx(hb_vpu_dev_t * dev, u32 * reason,
 			  "reg_val=0x%x, inst_idx=%d\n", reg_val, inst_idx);
 		goto GET_VPU_INST_IDX_HANDLED;
 	}
-	// if interrupt is not for empty and dec_pic and init_seq.
-	reg_val = (other_inst & 0xFF);
-	inst_idx = reg_val;
-	*reason = int_reason;
-	vpu_debug(7, "W5_RET_DONE_INSTANCE_INFO reg_val=0x%x, inst_idx=%d\n",
-		  reg_val, inst_idx);
+
+	inst_idx = -1;
+	*reason = 0;
+	vpu_debug(7, "UNKNOWN INTERRUPT REASON: %08x\n", int_reason);
 
 GET_VPU_INST_IDX_HANDLED:
+	vpu_debug(7, "inst_idx=%d. *reason=0x%x\n", inst_idx, *reason);
 
 	return inst_idx;
 }
@@ -336,7 +336,7 @@ static irqreturn_t vpu_irq_handler(int irq, void *dev_id)
 	int product_code;
 #ifdef SUPPORT_MULTI_INST_INTR
 	u32 intr_reason = 0;
-	u32 intr_inst_index = 0;
+	s32 intr_inst_index = 0;
 #endif
 
 #ifdef VPU_IRQ_CONTROL
@@ -357,115 +357,134 @@ static irqreturn_t vpu_irq_handler(int irq, void *dev_id)
 #ifdef SUPPORT_MULTI_INST_INTR
 				u32 empty_inst;
 				u32 done_inst;
-				u32 other_inst;
+				u32 seq_inst;
+				u32 i, reason, reason_clr;
 
-				intr_reason = VPU_READL(W5_VPU_INT_REASON);
+				reason = VPU_READL(W5_VPU_INT_REASON);
 				empty_inst = VPU_READL(W5_RET_BS_EMPTY_INST);
 				done_inst =
 				    VPU_READL(W5_RET_QUEUE_CMD_DONE_INST);
-				other_inst =
-				    VPU_READL(W5_RET_DONE_INSTANCE_INFO);
+				seq_inst =
+				    VPU_READL(W5_RET_SEQ_DONE_INSTANCE_INFO);
+				reason_clr	= reason;
 
 				vpu_debug(7, "vpu_irq_handler reason=0x%x, "
 					  "empty_inst=0x%x, done_inst=0x%x, other_inst=0x%x \n",
-					  intr_reason, empty_inst, done_inst,
-					  other_inst);
+					  reason, empty_inst, done_inst,
+					  seq_inst);
 
-				intr_inst_index =
-				    vpu_get_inst_idx(dev, &intr_reason,
-						     empty_inst, done_inst,
-						     other_inst);
-				if (intr_inst_index >= 0
-				    && intr_inst_index < MAX_NUM_VPU_INSTANCE) {
-					if (intr_reason ==
-					    (1 << INT_WAVE5_BSBUF_EMPTY)) {
-						empty_inst =
-						    empty_inst & ~(1 <<
-								   intr_inst_index);
-						VPU_WRITEL(W5_RET_BS_EMPTY_INST,
-							   empty_inst);
-						vpu_debug(7,
-							  "W5_RET_BS_EMPTY_INST Clear "
-							  "empty_inst=0x%x, intr_inst_index=%d\n",
-							  empty_inst,
-							  intr_inst_index);
-					}
-					if ((intr_reason ==
-					     (1 << INT_WAVE5_DEC_PIC))
-					    || (intr_reason ==
-						(1 << INT_WAVE5_INIT_SEQ))
-					    || (intr_reason ==
-						(1 << INT_WAVE5_ENC_SET_PARAM)))
-					{
-						done_inst =
-						    done_inst & ~(1 <<
-								  intr_inst_index);
-						VPU_WRITEL
-						    (W5_RET_QUEUE_CMD_DONE_INST,
-						     done_inst);
-						vpu_debug(7,
-							  "W5_RET_QUEUE_CMD_DONE_INST "
-							  "Clear done_inst=0x%x, intr_inst_index=%d\n",
-							  done_inst,
-							  intr_inst_index);
-					}
-					if ((intr_reason ==
-					     (1 << INT_WAVE5_ENC_LOW_LATENCY)))
-					{
-						done_inst = (done_inst >> 16);
-						done_inst =
-						    done_inst & ~(1 <<
-								  intr_inst_index);
-						done_inst = (done_inst << 16);
-						VPU_WRITEL
-						    (W5_RET_QUEUE_CMD_DONE_INST,
-						     done_inst);
-						vpu_debug(7,
-							  "W5_RET_QUEUE_CMD_DONE_INST "
-							  "INT_WAVE5_ENC_LOW_LATENCY Clear "
-							  "done_inst=0x%x, intr_inst_index=%d\n",
-							  done_inst,
-							  intr_inst_index);
-					}
-					if (!kfifo_is_full
-					    (&dev->interrupt_pending_q
-					     [intr_inst_index])) {
+				for (i=0; i < MAX_NUM_VPU_CORE; i++) {
+					if (0 == empty_inst && 0 == done_inst && 0 == seq_inst)
+						break;
+					intr_reason = reason;
+					intr_inst_index =
+						vpu_get_inst_idx(dev, &intr_reason,
+							empty_inst, done_inst,
+							seq_inst);
+					if (intr_inst_index >= 0
+					    && intr_inst_index < MAX_NUM_VPU_INSTANCE) {
 						if (intr_reason ==
-						    ((1 << INT_WAVE5_DEC_PIC) |
-						     (1 <<
-						      INT_WAVE5_ENC_LOW_LATENCY)))
+						    (1 << INT_WAVE5_BSBUF_EMPTY)) {
+							empty_inst =
+							    empty_inst & ~(1 <<
+									   intr_inst_index);
+							VPU_WRITEL(W5_RET_BS_EMPTY_INST,
+								   empty_inst);
+							if (0 == empty_inst) {
+								reason &= ~(1 << INT_WAVE5_BSBUF_EMPTY);
+							}
+							vpu_debug(7,
+								  "W5_RET_BS_EMPTY_INST Clear "
+								  "empty_inst=0x%x, intr_inst_index=%d\n",
+								  empty_inst,
+								  intr_inst_index);
+						}
+						if (intr_reason == (1 << INT_WAVE5_DEC_PIC)) {
+							done_inst = done_inst & ~(1 << intr_inst_index);
+							VPU_WRITEL(W5_RET_QUEUE_CMD_DONE_INST, done_inst);
+							if (0 == done_inst) {
+								reason &= ~(1 << INT_WAVE5_DEC_PIC);
+							}
+							vpu_debug(7, "W5_RET_QUEUE_CMD_DONE_INST Clear "
+								"done_inst=0x%x, intr_inst_index=%d\n",
+								done_inst, intr_inst_index);
+						}
+						if ((intr_reason == (1 << INT_WAVE5_INIT_SEQ))
+							|| (intr_reason ==
+							(1 << INT_WAVE5_ENC_SET_PARAM))) {
+							seq_inst = seq_inst & ~(1 << intr_inst_index);
+							VPU_WRITEL(W5_RET_SEQ_DONE_INSTANCE_INFO, seq_inst);
+							if (0 == seq_inst) {
+								reason &= ~(1 << INT_WAVE5_INIT_SEQ
+									| 1 << INT_WAVE5_ENC_SET_PARAM);
+							}
+							vpu_debug(7,
+								  "W5_RET_QUEUE_CMD_DONE_INST "
+								  "Clear done_inst=0x%x, intr_inst_index=%d\n",
+								  done_inst,
+								  intr_inst_index);
+						}
+						if ((intr_reason ==
+						     (1 << INT_WAVE5_ENC_LOW_LATENCY)))
 						{
-							u32 ll_intr_reason =
-							    (1 <<
-							     INT_WAVE5_DEC_PIC);
-							kfifo_in_spinlocked
-							    (&dev->interrupt_pending_q
-							     [intr_inst_index],
-							     &ll_intr_reason,
-							     sizeof(u32),
-							     &dev->vpu_kfifo_lock);
-						} else
-							kfifo_in_spinlocked
-							    (&dev->interrupt_pending_q
-							     [intr_inst_index],
-							     &intr_reason,
-							     sizeof(u32),
-							     &dev->vpu_kfifo_lock);
+							done_inst = (done_inst >> 16);
+							done_inst =
+							    done_inst & ~(1 <<
+									  intr_inst_index);
+							done_inst = (done_inst << 16);
+							VPU_WRITEL
+							    (W5_RET_QUEUE_CMD_DONE_INST,
+							     done_inst);
+							if (0 == done_inst) {
+								reason &= ~(1 << INT_WAVE5_ENC_LOW_LATENCY);
+							}
+							vpu_debug(7,
+								  "W5_RET_QUEUE_CMD_DONE_INST "
+								  "INT_WAVE5_ENC_LOW_LATENCY Clear "
+								  "done_inst=0x%x, intr_inst_index=%d\n",
+								  done_inst,
+								  intr_inst_index);
+						}
+						if (!kfifo_is_full
+						    (&dev->interrupt_pending_q
+						     [intr_inst_index])) {
+							if (intr_reason ==
+							    ((1 << INT_WAVE5_ENC_PIC) |
+							     (1 <<
+							      INT_WAVE5_ENC_LOW_LATENCY))) {
+								u32 ll_intr_reason =
+								    (1 <<
+								     INT_WAVE5_ENC_PIC);
+								kfifo_in_spinlocked
+								    (&dev->interrupt_pending_q
+								     [intr_inst_index],
+								     &ll_intr_reason,
+								     sizeof(u32),
+								     &dev->vpu_kfifo_lock);
+							} else {
+								kfifo_in_spinlocked
+								    (&dev->interrupt_pending_q
+								     [intr_inst_index],
+								     &intr_reason,
+								     sizeof(u32),
+								     &dev->vpu_kfifo_lock);
+							}
+						} else {
+							vpu_err
+							    ("kfifo_is_full kfifo_count=%d \n",
+							     kfifo_len
+							     (&dev->interrupt_pending_q
+							      [intr_inst_index]));
+						}
 					} else {
-						vpu_err
-						    ("kfifo_is_full kfifo_count=%d \n",
-						     kfifo_len
-						     (&dev->interrupt_pending_q
-						      [intr_inst_index]));
+						vpu_err("intr_inst_index is wrong "
+							"intr_inst_index=%d \n",
+							intr_inst_index);
 					}
-				} else {
-					vpu_err("intr_inst_index is wrong "
-						"intr_inst_index=%d \n",
-						intr_inst_index);
 				}
-
-				VPU_WRITEL(W5_VPU_INT_REASON_CLEAR,
-					   intr_reason);
+				if (0 != reason)
+					vpu_err("INTERRUPT REASON REMAINED: %08x\n", reason);
+				VPU_WRITEL(W5_VPU_INT_REASON_CLEAR, reason_clr);
 #else
 				dev->interrupt_reason =
 				    VPU_READL(W5_VPU_INT_REASON);
@@ -1050,6 +1069,7 @@ static long vpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 		{
 			hb_vpu_drv_inst_t inst_info;
 			hb_vpu_instance_list_t *vil, *n;
+			u32 found = 0;
 
 			vpu_debug(5, "[+]VDI_IOCTL_CLOSE_INSTANCE\n");
 			if (copy_from_user
@@ -1067,9 +1087,16 @@ static long vpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 				    && vil->core_idx == inst_info.core_idx) {
 					list_del(&vil->list);
 					kfree(vil);
+					found = 1;
 					break;
 				}
 			}
+
+			if (0 == found) {
+				spin_unlock(&dev->vpu_spinlock);
+				return -EINVAL;
+			}
+
 			// TODO can't find inst_idex, return false?
 			/* counting the current open instance number */
 			inst_info.inst_open_count = 0;
@@ -1290,6 +1317,7 @@ static ssize_t vpu_write(struct file *filp, const char __user * buf, size_t len,
 		if (copy_from_user(bit_firmware_info, buf, len)) {
 			vpu_err("vpu_write copy_from_user error "
 				"for bit_firmware_info\n");
+			kfree(bit_firmware_info);
 			return -EFAULT;
 		}
 
@@ -1733,9 +1761,9 @@ static int vpu_probe(struct platform_device *pdev)
 		/// *6 For test FHD and UHD stream,
 		s_video_memory.size = VPU_INIT_VIDEO_MEMORY_SIZE_IN_BYTE * 6;
 		s_video_memory.phys_addr = VPU_DRAM_PHYSICAL_BASE;
-		//s_video_memory.base = (unsigned long)ioremap_nocache(s_video_memory.phys_addr, PAGE_ALIGN(s_video_memory.size));
 		s_video_memory.base =
-		    (unsigned long)__va(s_video_memory.phys_addr);
+			(unsigned long)ioremap_nocache(s_video_memory.phys_addr,
+			PAGE_ALIGN(s_video_memory.size));
 		if (!s_video_memory.base) {
 			dev_err(&pdev->dev,
 				"fail to remap video memory physical phys_addr=0x%lx,"
@@ -1999,7 +2027,7 @@ static int vpu_resume(struct platform_device *pdev)
 			VPU_WRITEL(W5_PO_CONF, regVal);
 
 			/* Reset All blocks */
-			regVal = 0x7ffffff;
+			regVal = W5_RST_BLOCK_ALL;
 			VPU_WRITEL(W5_VPU_RESET_REQ, regVal);
 
 			/* Waiting reset done */
@@ -2026,16 +2054,16 @@ static int vpu_resume(struct platform_device *pdev)
 			VPU_WRITEL(W5_HW_OPTION, hwOption);
 
 			/* Interrupt */
-			if (product_code == WAVE521_CODE
-			    || product_code == WAVE521C_CODE) {
-				regVal = (1 << INT_WAVE5_ENC_SET_PARAM);
+			if (product_code == WAVE521_CODE ||
+				product_code == WAVE521C_CODE) {
+				regVal  = (1 << INT_WAVE5_ENC_SET_PARAM);
 				regVal |= (1 << INT_WAVE5_ENC_PIC);
 				regVal |= (1 << INT_WAVE5_INIT_SEQ);
 				regVal |= (1 << INT_WAVE5_DEC_PIC);
 				regVal |= (1 << INT_WAVE5_BSBUF_EMPTY);
 			} else {
 				// decoder
-				regVal = (1 << INT_WAVE5_INIT_SEQ);
+				regVal  = (1 << INT_WAVE5_INIT_SEQ);
 				regVal |= (1 << INT_WAVE5_DEC_PIC);
 				regVal |= (1 << INT_WAVE5_BSBUF_EMPTY);
 			}
