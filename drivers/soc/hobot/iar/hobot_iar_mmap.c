@@ -118,6 +118,7 @@ int __init iar_mmap_init(void)
 	}
 	g_iar_mmap->iar_class = fb_class;
 
+	g_iar_mmap->name = "iar_mmap";
 	error = alloc_chrdev_region(&g_iar_mmap->dev_num, 0, IAR_CHANNEL_MAX, g_iar_mmap->name);
 	if (!error) {
 		g_iar_mmap->major = MAJOR(g_iar_mmap->dev_num);
