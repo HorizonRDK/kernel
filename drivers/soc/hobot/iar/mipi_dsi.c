@@ -573,7 +573,7 @@ void dsi_panel_write_cmd(uint8_t cmd, uint8_t data, uint8_t header)
 
 	value = (uint32_t)header | (uint32_t)cmd << 8 | (uint32_t)data << 16;
 	writel(value, g_iar_dev->mipi_dsi_regaddr + GEN_HDR);
-	msleep(5);
+	usleep_range(900, 1000);
 }
 
 int mipi_dsi_panel_init(uint8_t panel_no)
@@ -581,7 +581,6 @@ int mipi_dsi_panel_init(uint8_t panel_no)
 	mipi_dsi_set_mode(1);//cmd mode
 	writel(0xfffffffc, g_iar_dev->mipi_dsi_regaddr + CMD_MODE_CFG);// 0x68
 	panel_hardware_reset();
-	msleep(2000);
 
 	if (panel_no == 0) {
 		dsi_panel_write_cmd(0xff, 0x01, 0x15);//change to cmd2_page0
@@ -1386,7 +1385,7 @@ int set_mipi_display(uint8_t panel_no)
 		mipi_dsi_video_config(&video_1080_1920);
 	else if (panel_no == 1)
 		mipi_dsi_video_config(&video_720_1280);
-	msleep(2000);
+	msleep(100);
 	//mipi_dsi_set_mode(0);//video mode
 	//mipi_dsi_vid_mode_cfg(0);//normal mode
 	mipi_dsi_panel_init(panel_no);//0:1080*1920

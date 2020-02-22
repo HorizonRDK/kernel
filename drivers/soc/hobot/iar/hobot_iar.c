@@ -1915,13 +1915,13 @@ int panel_hardware_reset(void)
 {
 	gpio_direction_output(panel_reset_pin, 1);
 	pr_debug("panel reset pin output high!\n");
-	msleep(1000);
+	msleep(100);
 	gpio_direction_output(panel_reset_pin, 0);
 	pr_debug("panel reset pin output low!\n");
-	msleep(1000);
+	msleep(120);
 	gpio_direction_output(panel_reset_pin, 1);
 	pr_debug("panel reset pin output high!\n");
-	msleep(1500);
+	msleep(120);
 	pr_info("panel reset success!\n");
 
 	return 0;
