@@ -127,7 +127,7 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 	ipu_ctx->state = BIT(VIO_VIDEO_CLOSE);
 
 	kfree(ipu_ctx);
-	vio_info("IPU close node %d\n", ipu_ctx->id);
+	vio_info("[S%d]IPU close node V%d\n", group->instance, ipu_ctx->id);
 
 	return 0;
 }
@@ -272,7 +272,7 @@ void ipu_frame_work(struct vio_group *group)
 	rdy = rdy | (1 << 4);
 	ipu_set_shd_rdy(ipu->base_reg, rdy);
 	atomic_inc(&ipu->backup_fcount);
-	vio_info("backup_fcount count = %d\n", atomic_read(&ipu->backup_fcount));
+	vio_dbg("backup_fcount count = %d\n", atomic_read(&ipu->backup_fcount));
 
 	if (test_bit(IPU_DMA_INPUT, &ipu->state))
 		ipu_set_rdma_start(ipu->base_reg);
@@ -361,6 +361,8 @@ int ipu_update_osd_addr(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 		return -EFAULT;
 
 	ipu_ctx->osd_cfg.osd_buf_update = 1;
+	vio_dbg("[S%d][V%d] %s\n", ipu_ctx->group->instance, ipu_ctx->id,
+		 __func__);
 
 	return ret;
 }
@@ -383,6 +385,9 @@ int ipu_update_osd_roi(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 		return -EFAULT;
 
 	ipu_ctx->osd_cfg.osd_box_update = 1;
+
+	vio_dbg("[S%d][V%d] %s\n", ipu_ctx->group->instance, ipu_ctx->id,
+		 __func__);
 
 	return ret;
 }
@@ -442,6 +447,7 @@ void ipu_hw_set_osd_cfg(struct ipu_video_ctx *ipu_ctx)
 					osd_box->overlay_mode);
 		}
 		ipu_set_osd_enable(base_reg, shadow_index, osd_index, osd_enable);
+		vio_dbg("OSD[%d]osd enable = 0x%x", osd_index, osd_enable);
 	}
 	osd_cfg->osd_box_update = 0;
 
@@ -473,7 +479,7 @@ void ipu_hw_set_osd_cfg(struct ipu_video_ctx *ipu_ctx)
 							start_x, start_y, width, height);
 		}
 		ipu_set_osd_sta_enable(base_reg, shadow_index, osd_index, sta_enable);
-		vio_info("sta enable = 0x%x", sta_enable);
+		vio_dbg("OSD[%d]sta enable = 0x%x", osd_index, sta_enable);
 	}
 	osd_cfg->osd_sta_update = 0;
 
@@ -501,6 +507,9 @@ int ipu_update_osd_sta_roi(struct ipu_video_ctx *ipu_ctx, unsigned long arg)	//o
 
 	ipu_ctx->osd_cfg.osd_sta_update = 1;
 
+	vio_dbg("[S%d][V%d] %s\n", ipu_ctx->group->instance, ipu_ctx->id,
+		 __func__);
+
 	return ret;
 }
 
@@ -516,6 +525,9 @@ int ipu_update_osd_sta_level(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 		return -EFAULT;
 
 	ipu_ctx->osd_cfg.osd_sta_level_update = 1;
+
+	vio_dbg("[S%d][V%d] %s\n", ipu_ctx->group->instance, ipu_ctx->id,
+		 __func__);
 
 	return ret;
 }
@@ -548,6 +560,10 @@ int ipu_get_osd_bin(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 			 sizeof(u16) * MAX_STA_NUM * MAX_STA_BIN_NUM);
 	if (ret)
 		return -EFAULT;
+
+	vio_dbg("[S%d][V%d] %s\n", ipu_ctx->group->instance, ipu_ctx->id,
+		 __func__);
+
 	return ret;
 }
 
@@ -580,6 +596,10 @@ int ipu_channel_wdma_disable(struct ipu_video_ctx *ipu_ctx)
 		ipu_set_ds_enable(ipu->base_reg, shadow_index, ds_ch, false);
 		ipu_set_ds_roi_enable(ipu->base_reg, shadow_index, ds_ch, false);
 	}
+
+	rdy = ipu_get_shd_rdy(ipu->base_reg);
+	rdy = rdy | (1 << shadow_index);
+	ipu_set_shd_rdy(ipu->base_reg, rdy);
 
 	return ret;
 }
@@ -1135,9 +1155,6 @@ p_inc:
 
 int ipu_video_streamoff(struct ipu_video_ctx *ipu_ctx)
 {
-	u32 value = 0;
-	u32 cfg = 0;
-	u32 cnt = 20;
 	struct x3_ipu_dev *ipu_dev;
 	struct vio_group *group;
 
@@ -1156,28 +1173,7 @@ int ipu_video_streamoff(struct ipu_video_ctx *ipu_ctx)
 		&& !test_bit(IPU_HW_FORCE_STOP, &ipu_dev->state))
 		goto p_dec;
 
-	cfg = ips_get_bus_ctrl() | 1 << 12;
-	ips_set_bus_ctrl(cfg);
-
-	while(1) {
-		value = ips_get_bus_status();
-		if (value & 1 << 28)
-			break;
-
-		msleep(10);
-		cnt--;
-		if (cnt == 0) {
-			vio_info("%s timeout\n", __func__);
-			break;
-		}
-	}
-
-	cfg = ips_get_bus_ctrl() & ~(1 << 12);
-	ips_set_bus_ctrl(cfg);
-
-	ips_set_module_reset(IPU0_RST);
-
-	ips_set_clk_ctrl(IPU0_CLOCK_GATE, false);
+	vio_reset_module(group->id);
 
 	clear_bit(IPU_HW_RUN, &ipu_dev->state);
 p_dec:
@@ -1441,8 +1437,6 @@ static long x3_ipu_ioctl(struct file *file, unsigned int cmd,
 		ret = put_user(buf_index, (u32 __user *) arg);
 		if (ret)
 			return -EFAULT;
-		vio_dbg("V[%d][%d]=====IPU_IOC_GET_INDEX==%d=============\n",
-			 group->instance, ipu_ctx->id, buf_index);
 		break;
 	case IPU_IOC_OSD_ROI:
 		ret = ipu_update_osd_roi(ipu_ctx, arg);

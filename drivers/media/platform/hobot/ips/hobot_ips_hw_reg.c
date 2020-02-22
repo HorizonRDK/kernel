@@ -6,7 +6,6 @@
 
 #include <linux/delay.h>
 #include "hobot_ips_hw_reg.h"
-#include "vio_config.h"
 #include "ips_hw_api.h"
 
 void ips_module_reset(void __iomem *base_addr, u32 module)
@@ -106,7 +105,6 @@ void ips_get_intr_status(void __iomem *base_addr, u32 module, u32 *status)
 int ips_clk_ctrl(void __iomem *base_addr, u32 module, bool enable)
 {
 	int field_index = 0;
-	u32 value = 0;
 	switch(module){
 		case IRAM_CLOCK_GATE:
 			field_index = IPS_F_IRAM_CG_EN;

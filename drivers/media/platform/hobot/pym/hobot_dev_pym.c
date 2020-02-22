@@ -138,7 +138,7 @@ static int x3_pym_close(struct inode *inode, struct file *file)
 
 	kfree(pym_ctx);
 
-	vio_info("PYM close node %d\n", group->instance);
+	vio_info("[S%d] PYM close node\n", group->instance);
 	return 0;
 }
 
@@ -457,6 +457,7 @@ p_inc:
 int pym_video_streamoff(struct pym_video_ctx *pym_ctx)
 {
 	struct x3_pym_dev *pym_dev;
+	struct vio_group *group;
 	unsigned long flag;
 
 	if (!(pym_ctx->state & BIT(VIO_VIDEO_START))) {
@@ -465,6 +466,7 @@ int pym_video_streamoff(struct pym_video_ctx *pym_ctx)
 		return -EINVAL;
 	}
 	pym_dev = pym_ctx->pym_dev;
+	group = pym_ctx->group;
 
 	if (atomic_dec_return(&pym_dev->rsccount) > 0
 		&& !test_bit(PYM_HW_FORCE_STOP, &pym_dev->state))
@@ -475,12 +477,13 @@ int pym_video_streamoff(struct pym_video_ctx *pym_ctx)
 	clear_bit(PYM_HW_RUN, &pym_dev->state);
 	spin_unlock_irqrestore(&pym_dev->shared_slock, flag);
 
-p_dec:
+	vio_reset_module(group->id);
 
+p_dec:
 	frame_manager_flush(&pym_ctx->framemgr);
 	pym_ctx->state = BIT(VIO_VIDEO_STOP);
 
-	vio_info("[S%d] %s\n", pym_ctx->group->instance, __func__);
+	vio_info("[S%d] %s\n", group->instance, __func__);
 
 	return 0;
 }
@@ -523,7 +526,7 @@ int pym_video_reqbufs(struct pym_video_ctx *pym_ctx, u32 buffers)
 
 	pym_ctx->state = BIT(VIO_VIDEO_REBUFS);
 	vio_dbg("[S%d]%s reqbuf number %d\n",
-		pym_ctx->group->instance, buffers);
+		pym_ctx->group->instance, __func__, buffers);
 
 	return ret;
 }

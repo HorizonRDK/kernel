@@ -20,3 +20,6 @@ obj-$(CONFIG_HOBOT_VIO) += pym/
 obj-$(CONFIG_HOBOT_VIO) += gdc/
 
 obj-$(CONFIG_HOBOT_MIPI_CSI) += mipi/
+
+EXTRA_CFLAGS += -Idrivers/media/platform/hobot/ips/
+

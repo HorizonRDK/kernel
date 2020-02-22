@@ -4,9 +4,11 @@
  *                     All rights reserved.
  ***************************************************************************/
 
+#include <linux/delay.h>
 #include <linux/sched.h>
 #include <uapi/linux/sched/types.h>
 #include "vio_group_api.h"
+#include "hobot_dev_ips.h"
 
 static struct vio_chain chain[VIO_MAX_STREAM];
 int vio_group_task_start(struct vio_group_task *group_task)
@@ -237,4 +239,42 @@ void vio_get_frame_id(struct vio_group *group)
 
 	memcpy(&group->frameid, &sif_group->frameid, sizeof(struct frame_id));
 
+}
+
+void vio_reset_module(u32 module)
+{
+	u32 cfg = 0;
+	u32 cnt = 20;
+	u32 value = 0;
+	u32 bit = 0;
+	u32 reset = 0;
+
+	if (module == GROUP_ID_IPU) {
+		bit = IPU0_IDLE;
+		reset = IPU0_RST;
+	} else if (module == GROUP_ID_PYM) {
+		bit = PYM_IDLE;
+		reset = PYM_RST;
+	}
+
+	cfg = ips_get_bus_ctrl() | bit;
+	ips_set_bus_ctrl(cfg);
+
+	while(1) {
+		value = ips_get_bus_status();
+		if (value & bit << 16)
+			break;
+
+		msleep(5);
+		cnt--;
+		if (cnt == 0) {
+			vio_info("%s timeout\n", __func__);
+			break;
+		}
+	}
+
+	cfg = ips_get_bus_ctrl() & ~bit;
+	ips_set_bus_ctrl(cfg);
+
+	//ips_set_module_reset(reset);
 }

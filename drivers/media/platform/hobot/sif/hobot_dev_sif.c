@@ -773,7 +773,7 @@ static irqreturn_t sif_isr(int irq, void *data)
 	intr_en = sif_get_frame_intr(sif->base_reg);
 	status = intr_en & irq_src.sif_frm_int;
 
-	vio_dbg("%s: sif_frm_int = 0x%x,sif_out_int =0x%x, status  = 0x%x\n",
+	vio_info("%s: sif_frm_int = 0x%x,sif_out_int =0x%x, status  = 0x%x\n",
 		__func__, irq_src.sif_frm_int, irq_src.sif_out_int, status);
 
 	if (status) {
@@ -805,7 +805,7 @@ static irqreturn_t sif_isr(int irq, void *data)
 				if (test_bit(VIO_GROUP_DMA_OUTPUT, &group->state)) {
 					gtask = group->gtask;
 					if (unlikely(list_empty(&gtask->hw_resource.wait_list))) {
-						vio_err("[S%d]GP%d(res %d, rcnt %d)\n", mux_index,
+						vio_err("[mux %d]GP%d(res %d, rcnt %d)\n", mux_index,
 							gtask->id,
 							gtask->hw_resource.count,
 							atomic_read(&group->rcount));

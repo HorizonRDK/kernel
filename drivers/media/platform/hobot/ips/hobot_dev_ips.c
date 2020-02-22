@@ -27,6 +27,7 @@
 
 #include "ips_hw_api.h"
 #include "hobot_dev_ips.h"
+#include "vio_config.h"
 
 #define MODULE_NAME "X3 IPS"
 #define REGISTER_CLK(name) {name, NULL}
@@ -50,7 +51,9 @@ void ips_set_module_reset(unsigned long module)
 {
 	BUG_ON(!g_ips_dev);
 
+	spin_lock(&g_ips_dev->shared_slock);
 	ips_module_reset(g_ips_dev->base_reg, module);
+	spin_unlock(&g_ips_dev->shared_slock);
 }
 EXPORT_SYMBOL_GPL(ips_set_module_reset);
 
@@ -59,7 +62,9 @@ int ips_set_clk_ctrl(unsigned long module, bool enable)
 	int ret = 0;
 	BUG_ON(!g_ips_dev);
 
+	spin_lock(&g_ips_dev->shared_slock);
 	ret = ips_clk_ctrl(g_ips_dev->base_reg, module, enable);
+	spin_unlock(&g_ips_dev->shared_slock);
 
 	return ret;
 }
@@ -70,7 +75,9 @@ int ips_set_bus_ctrl(unsigned int cfg)
 	int ret = 0;
 	BUG_ON(!g_ips_dev);
 
+	spin_lock(&g_ips_dev->shared_slock);
 	ips_set_axi_bus_ctrl(g_ips_dev->base_reg, cfg);
+	spin_unlock(&g_ips_dev->shared_slock);
 
 	return ret;
 }
@@ -81,7 +88,9 @@ int ips_get_bus_ctrl(void)
 	int ret = 0;
 	BUG_ON(!g_ips_dev);
 
+	spin_lock(&g_ips_dev->shared_slock);
 	ret = ips_get_axi_bus_ctrl(g_ips_dev->base_reg);
+	spin_unlock(&g_ips_dev->shared_slock);
 
 	return ret;
 }
@@ -92,7 +101,9 @@ int ips_get_bus_status(void)
 	int ret = 0;
 	BUG_ON(!g_ips_dev);
 
+	spin_lock(&g_ips_dev->shared_slock);
 	ret = ipu_get_axi_statue(g_ips_dev->base_reg);
+	spin_unlock(&g_ips_dev->shared_slock);
 
 	return ret;
 }
@@ -298,7 +309,7 @@ static int x3_ips_probe(struct platform_device *pdev)
 		ret = -ENOMEM;
 		goto err_get_resource;
 	}
-#if 0
+
 	/* Get IRQ SPI number */
 	ips->irq = platform_get_irq(pdev, 0);
 	if (ips->irq < 0) {
@@ -307,6 +318,7 @@ static int x3_ips_probe(struct platform_device *pdev)
 		goto err_get_irq;
 	}
 
+#if 0
 	ret = request_threaded_irq(ips->irq, ips_isr, NULL, IRQF_TRIGGER_HIGH, "ips", ips);
 	if (ret) {
 		vio_err("request_irq(IRQ_SIF %d) is fail(%d)", ips->irq, ret);
@@ -316,7 +328,7 @@ static int x3_ips_probe(struct platform_device *pdev)
 	ret = vio_get_clk(&pdev->dev);
 
 	g_ips_dev = ips;
-
+	spin_lock_init(&ips->shared_slock);
 	vio_info("[FRT:D] %s(%d)\n", __func__, ret);
 
 	return 0;

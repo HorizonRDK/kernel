@@ -11,8 +11,6 @@
 #include <linux/cdev.h>
 #include <linux/wait.h>
 
-#include "vio_config.h"
-
 struct x3_ips_dev {
 	u32 __iomem			*base_reg;
 	resource_size_t			regs_start;

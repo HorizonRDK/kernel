@@ -7,6 +7,8 @@
 #ifndef __HOBOT_IPS_HW_API__
 #define __HOBOT_IPS_HW_API__
 
+#include "vio_config.h"
+
 void ips_module_reset(void __iomem *base_addr, u32 module);
 void ips_enable_intr(void __iomem *base_addr, u32 module, bool enable);
 void ips_get_intr_status(void __iomem *base_addr, u32 module, u32 *status);

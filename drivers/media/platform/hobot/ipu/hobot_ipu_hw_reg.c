@@ -916,7 +916,6 @@ void ipu_get_osd_sta_bin(void __iomem *base_addr, u8 osd_num, u8 osd_layer,
 		bin[3] = vio_hw_get_field(base_addr,
 				     &ipu_regs[IPU_OSD_0_STA_0_BIN23 + shift],
 				     &ipu_fields[IPU_F_OSD_STA_BIN_3_NUM]);
-		vio_info("%s: %d %d %d %d\n", __func__, bin[0], bin[1], bin[2], bin[3]);
 	}else
 		vio_err("invalid osd_num (%d) osd_layer (%d) for ipu\n", osd_num, osd_layer);
 }

@@ -25,6 +25,9 @@
 #define X3_IAR_INTERFACE
 #define SET_CPU_AFFINITY
 
+#define IPU0_IDLE    BIT(12)
+#define PYM_IDLE	BIT(14)
+
 enum vio_group_task_state {
 	VIO_GTASK_START,
 	VIO_GTASK_REQUEST_STOP,
@@ -97,6 +100,7 @@ int vio_init_chain(int instance);
 void vio_bind_group_done(int instance);
 void vio_get_frame_id(struct vio_group *group);
 int vio_group_init_mp(u32 group_id);
+void vio_reset_module(u32 module);
 
 #ifdef X3_IAR_INTERFACE
 extern u32 ipu_get_iar_display_type(void);
