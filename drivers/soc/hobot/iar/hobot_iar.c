@@ -1118,7 +1118,7 @@ int32_t ipu_set_display_addr(uint32_t yaddr, uint32_t caddr)
 	pr_debug("iar: ipu set iar!!!!!!!!\n");
 	pr_debug("yaddr is %llx, caddr is %llx\n", yaddr, caddr);
 	disp_user_config_done = 1;//for debug
-	disp_user_update = 0;//for debug
+	//disp_user_update = 0;//for debug
 	if (disp_user_config_done == 1 && disp_user_update == 0) {
 		g_disp_yaddr = yaddr;
 		g_disp_caddr = caddr;
