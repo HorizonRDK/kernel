@@ -269,6 +269,7 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 	frame_manager_close(&sif_ctx->framemgr);
 
 	if (atomic_dec_return(&sif->open_cnt) == 0) {
+		clear_bit(SIF_DMA_IN_ENABLE, &sif->state);
 		if (test_bit(SIF_HW_RUN, &sif->state)) {
 			set_bit(SIF_HW_FORCE_STOP, &sif->state);
 			sif_video_streamoff(sif_ctx);
@@ -504,8 +505,6 @@ int sif_video_streamoff(struct sif_video_ctx *sif_ctx)
 	sif_hw_disable(sif_dev->base_reg);
 	clear_bit(SIF_HW_RUN, &sif_dev->state);
 
-	if (sif_ctx->id == 1)
-		clear_bit(SIF_DMA_IN_ENABLE, &sif_dev->state);
 	spin_unlock_irqrestore(&sif_dev->shared_slock, flag);
 p_dec:
 
