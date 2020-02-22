@@ -23,6 +23,8 @@
 #define GDC_IOC_MAGIC 'g'
 
 #define GDC_IOC_PROCESS          _IOW(GDC_IOC_MAGIC, 0, int)
+#define GDC_PROCESS_TIMEOUT		(30) /* ms */
+
 
 #define ACAMERA_GDC_MAX_INPUT 3
 
@@ -57,7 +59,7 @@ struct gdc_video_ctx{
 	wait_queue_head_t		done_wq;
 	struct x3_gdc_dev 		*gdc_dev;
 	struct gdc_group		*group;
-	bool is_waiting_gdc;
+	u32 event;
 };
 
 enum gdc_group_state {

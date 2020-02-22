@@ -217,7 +217,7 @@ void ipu_frame_work(struct vio_group *group)
 	ipu = sub_mp->ipu_dev;
 	if (instance < MAX_SHADOW_NUM)
 		shadow_index = instance;
-	vio_dbg("%s start\n", __func__);
+	vio_dbg("[S%d] %s start\n", instance, __func__);
 
 	rdy = ipu_get_shd_rdy(ipu->base_reg);
 	rdy = rdy & ~(1 << 4);
@@ -279,7 +279,7 @@ void ipu_frame_work(struct vio_group *group)
 
 	if (!test_bit(IPU_HW_CONFIG, &ipu->state))
 		set_bit(IPU_HW_CONFIG, &ipu->state);
-	vio_dbg("%s done\n", __func__);
+	vio_dbg("[S%d] %s done; rdy = %d\n", instance, __func__, rdy);
 }
 
 void ipu_set_group_leader(struct vio_group *group, enum group_id id,
@@ -1762,7 +1762,8 @@ static irqreturn_t ipu_isr(int irq, void *data)
 
 	if (status & (1 << INTR_IPU_FRAME_START)) {
 		atomic_inc(&ipu->sensor_fcount);
-		if (test_bit(IPU_OTF_INPUT, &ipu->state)) {
+		if (test_bit(IPU_OTF_INPUT, &ipu->state)
+				&& group->leader) {
 			if (unlikely(list_empty(&gtask->hw_resource.wait_list))) {
 				vio_err("[S%d]GP%d(res %d, rcnt %d, bcnt %d, scnt %d)\n",
 					group->instance,

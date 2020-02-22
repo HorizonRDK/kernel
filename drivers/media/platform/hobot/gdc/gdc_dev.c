@@ -162,6 +162,7 @@ void gdc_start(struct x3_gdc_dev *gdc_dev)
 {
 	gdc_process_enable(gdc_dev->base_reg, 0);
 	gdc_process_enable(gdc_dev->base_reg, 1);
+	vio_dbg("%s\n", __func__);
 }
 
 /**
@@ -190,12 +191,12 @@ void gdc_init(struct x3_gdc_dev *gdc_dev, gdc_settings_t *gdc_settings)
 			       gdc_settings->gdc_config.output_width);
 	gdc_set_wdma_img_height(base_addr,
 				gdc_settings->gdc_config.output_height);
-	vio_info("config_addr:%x,config_size:%x\n",
+	vio_dbg("GDC config_addr:%x,config_size:%x\n",
 		 gdc_settings->gdc_config.config_addr,
 		 gdc_settings->gdc_config.config_size);
-	vio_info("gdc in w:%d, h:%d\n", gdc_settings->gdc_config.input_width,
+	vio_dbg("gdc in w:%d, h:%d\n", gdc_settings->gdc_config.input_width,
 		 gdc_settings->gdc_config.input_height);
-	vio_info("gdc out w:%d, h:%d\n", gdc_settings->gdc_config.output_width,
+	vio_dbg("gdc out w:%d, h:%d\n", gdc_settings->gdc_config.output_width,
 		 gdc_settings->gdc_config.output_height);
 }
 
@@ -236,14 +237,14 @@ int gdc_process(struct x3_gdc_dev *gdc_dev, gdc_settings_t *gdc_settings)
 			}
 		} else{
 			gdc_set_rdma0_img_addr(base_addr, input_addr[0]);
-			vio_info("input1 addr:%x\n", input_addr[0]);
+			vio_dbg("GDC input1 addr:%x\n", input_addr[0]);
 		}
 		gdc_set_rdma0_line_offset(base_addr, lineoffset);
-		vio_info("data1in lineoffset:%d, height:%d\n", lineoffset,
+		vio_dbg("GDC data1in lineoffset:%d, height:%d\n", lineoffset,
 			 height);
 	}
 	if (num_input >= 2 && gdc_settings->gdc_config.sequential_mode == 0) {			//only processed if not in toggle mode
-		vio_info("plain_num:%d case\n", num_input);
+		vio_dbg("GDC plain_num:%d case\n", num_input);
 		lineoffset = gdc_settings->gdc_config.input_stride
 			>> gdc_settings->gdc_config.div_width;
 		height = gdc_settings->gdc_config.input_height
@@ -251,8 +252,8 @@ int gdc_process(struct x3_gdc_dev *gdc_dev, gdc_settings_t *gdc_settings)
 
 		gdc_set_rdma1_img_addr(base_addr, input_addr[1]);
 		gdc_set_rdma1_line_offset(base_addr, lineoffset);
-		vio_info("input2 addr:%x\n", input_addr[1]);
-		vio_info("data2in lineoffset:%d, height:%d\n", lineoffset,
+		vio_dbg("GDC input2 addr:%x\n", input_addr[1]);
+		vio_dbg("GDC data2in lineoffset:%d, height:%d\n", lineoffset,
 			 height);
 	}
 	if (num_input >= 3 && gdc_settings->gdc_config.sequential_mode == 0) {			//only processed if not in toggle mode
@@ -267,7 +268,7 @@ int gdc_process(struct x3_gdc_dev *gdc_dev, gdc_settings_t *gdc_settings)
 	if (num_input >= 1) {
 		lineoffset = gdc_settings->gdc_config.output_stride;
 		height = gdc_settings->gdc_config.output_height;
-		vio_info("out1: plain_num:%d case, lineoffset:%d, height:%d\n",
+		vio_dbg("GDC out1: plain_num:%d case, lineoffset:%d, height:%d\n",
 			 num_input, lineoffset, height);
 		if (gdc_settings->gdc_config.sequential_mode == 1
 		    && gdc_settings->seq_planes_pos > 0){		//UV planes
@@ -279,7 +280,7 @@ int gdc_process(struct x3_gdc_dev *gdc_dev, gdc_settings_t *gdc_settings)
 		gdc_set_wdma0_img_addr(base_addr,
 				       gdc_settings->Out_buffer_addr[0]);
 		gdc_set_wdma0_line_offset(base_addr, lineoffset);
-		vio_info("out1: data1out_addr_write:%x\n",
+		vio_dbg("GDC out1: data1out_addr_write:%x\n",
 			 gdc_settings->Out_buffer_addr[0]);
 	}
 
@@ -288,12 +289,12 @@ int gdc_process(struct x3_gdc_dev *gdc_dev, gdc_settings_t *gdc_settings)
 			>> gdc_settings->gdc_config.div_width;
 		height = gdc_settings->gdc_config.output_height
 			>> gdc_settings->gdc_config.div_height;
-		vio_info("out2: plain_num:%d case, lineoffset:%d, height:%d\n",
+		vio_dbg("GDC out2: plain_num:%d case, lineoffset:%d, height:%d\n",
 			 num_input, lineoffset, height);
 		gdc_set_wdma1_img_addr(base_addr,
 				       gdc_settings->Out_buffer_addr[1]);
 		gdc_set_wdma1_line_offset(base_addr, lineoffset);
-		vio_info("out2: data2out_addr_write:%x\n",
+		vio_dbg("GDC out2: data2out_addr_write:%x\n",
 			 gdc_settings->Out_buffer_addr[1]);
 	}
 
@@ -305,7 +306,7 @@ int gdc_process(struct x3_gdc_dev *gdc_dev, gdc_settings_t *gdc_settings)
 		gdc_set_wdma2_img_addr(base_addr,
 				       gdc_settings->Out_buffer_addr[1]);
 		gdc_set_wdma2_line_offset(base_addr, lineoffset);
-		vio_info("out2: data2out_addr_write:%x\n",
+		vio_dbg("out2: data2out_addr_write:%x\n",
 			 gdc_settings->Out_buffer_addr[1]);
 	}
 
@@ -335,6 +336,7 @@ void gdc_set_iar_output(struct x3_gdc_dev *gdc_dev,
 int gdc_video_process(struct gdc_video_ctx *gdc_ctx, unsigned long arg)
 {
 	int ret = 0;
+	int timeout = 0;
 	unsigned long flag;
 	gdc_settings_t gdc_settings;
 	struct x3_gdc_dev *gdc_dev;
@@ -342,7 +344,7 @@ int gdc_video_process(struct gdc_video_ctx *gdc_ctx, unsigned long arg)
 	ret = copy_from_user(&gdc_settings, (gdc_settings_t *) arg,
 			   sizeof(gdc_settings_t));
 	if (ret) {
-		vio_info("GDC_IOCTL_PROCESS copy from user failed (ret=%d)\n",
+		vio_err("GDC_IOCTL_PROCESS copy from user failed (ret=%d)\n",
 			 ret);
 		return -EFAULT;
 	}
@@ -351,25 +353,37 @@ int gdc_video_process(struct gdc_video_ctx *gdc_ctx, unsigned long arg)
 
 	ret = down_interruptible(&gdc_dev->smp_gdc_enable);
 	if (ret) {
-		vio_err(" down fail(%d)", ret);
+		vio_err("%s down fail(%d)", __func__, ret);
 		goto p_err_ignore;
 	}
 
 	spin_lock_irqsave(&gdc_dev->shared_slock, flag);
 	gdc_dev->state = GDC_DEV_PROCESS;
+	gdc_ctx->event = 0;
+	atomic_set(&gdc_dev->instance, gdc_ctx->group->instance);
+
 	gdc_init(gdc_dev, &gdc_settings);
 	ret = gdc_process(gdc_dev, &gdc_settings);
-	//gdc_hw_dump(gdc_dev->base_reg);
-	gdc_ctx->is_waiting_gdc = 1;
-	atomic_set(&gdc_dev->instance, gdc_ctx->group->instance);
 	gdc_start(gdc_dev);
 	spin_unlock_irqrestore(&gdc_dev->shared_slock, flag);
 
-	wait_event_interruptible(gdc_ctx->done_wq, !gdc_ctx->is_waiting_gdc);
-
-	gdc_set_iar_output(gdc_dev, &gdc_settings);
+	timeout = wait_event_interruptible_timeout(gdc_ctx->done_wq,
+				gdc_ctx->event,
+				msecs_to_jiffies(GDC_PROCESS_TIMEOUT));
+	if (timeout == 0) {
+		vio_err("GDC process timeout;\n");
+		return -ETIMEDOUT;
+	}
 	gdc_dev->state = GDC_DEV_FREE;
 
+	if (gdc_ctx->event == VIO_FRAME_DONE) {
+		gdc_set_iar_output(gdc_dev, &gdc_settings);
+	} else {
+		vio_err("GDC process failed\n");
+		ret = -VIO_FRAME_NDONE;
+	}
+
+	vio_dbg("%s done: ret(%d), timeout %d\n", __func__, ret, timeout);
 p_err_ignore:
 	return ret;
 }
@@ -438,13 +452,16 @@ static irqreturn_t gdc_isr(int irq, void *data)
 		if (status & 1 << INTR_GDC_INCOMPATIBLE_CONF)
 			vio_err("incopatible configuration\n");
 
+		gdc_ctx->event = VIO_FRAME_NDONE;
 	}
 
 	if (status & 1 << INTR_GDC_BUSY)
-		vio_dbg("current frame is processing\n");
-	else {
+		vio_info("current frame is processing\n");
+	else
+		gdc_ctx->event = VIO_FRAME_DONE;
+
+	if (gdc_ctx->event) {
 		up(&gdc->smp_gdc_enable);
-		gdc_ctx->is_waiting_gdc = 0;
 		wake_up(&gdc_ctx->done_wq);
 	}
 
