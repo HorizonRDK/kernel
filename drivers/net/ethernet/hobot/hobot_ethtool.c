@@ -1,241 +1,320 @@
-#include "hobot_mmc.h"
+/*************************************
+***    COPYRIGHT NOTICE
+***    Copyright 2020 Horizon Robotics, Inc.
+*/
 #include <linux/kernel.h>
 #include <linux/io.h>
+#include <linux/ethtool.h>
+#include <linux/netdevice.h>
+#include <linux/stat.h>
+#include <linux/net_tstamp.h>
+#include <linux/phy.h>
 
+#include "hobot_reg.h"
+#include "hobot_eth.h"
 
-#define MMC_CNTRL 0x00
-#define MMC_RX_INTR 0x04
-#define MMC_TX_INTR 0x08
-#define MMC_RX_INTR_MASK 0x0c
-#define MMC_TX_INTR_MASK 0x10
-#define MMC_DEFAULT_MASK 0xFFFFFFFF
+#define MAX_DRIVER_NAME_SIZE 20
+#define MAX_VERSION_SIZE 20
 
-/*MMC TX COUNTER register*/
-/*_GB register  stands for good and bad frames
-* _G is for good only
-*/
-
-#define MMC_TX_OCTETCOUNT_GB        0x14
-#define MMC_TX_FRAMECOUNT_GB        0x18
-#define MMC_TX_BROADCASTFRAME_G     0x1c
-#define MMC_TX_MULTICASTFRAME_G     0x20
-#define MMC_TX_64_OCTETS_GB     0x24
-#define MMC_TX_65_TO_127_OCTETS_GB  0x28
-#define MMC_TX_128_TO_255_OCTETS_GB 0x2c
-#define MMC_TX_256_TO_511_OCTETS_GB 0x30
-#define MMC_TX_512_TO_1023_OCTETS_GB    0x34
-#define MMC_TX_1024_TO_MAX_OCTETS_GB    0x38
-#define MMC_TX_UNICAST_GB       0x3c
-#define MMC_TX_MULTICAST_GB     0x40
-#define MMC_TX_BROADCAST_GB     0x44
-#define MMC_TX_UNDERFLOW_ERROR      0x48
-#define MMC_TX_SINGLECOL_G      0x4c
-#define MMC_TX_MULTICOL_G       0x50
-#define MMC_TX_DEFERRED         0x54
-#define MMC_TX_LATECOL          0x58
-#define MMC_TX_EXESSCOL         0x5c
-#define MMC_TX_CARRIER_ERROR        0x60
-#define MMC_TX_OCTETCOUNT_G     0x64
-#define MMC_TX_FRAMECOUNT_G     0x68
-#define MMC_TX_EXCESSDEF        0x6c
-#define MMC_TX_PAUSE_FRAME      0x70
-#define MMC_TX_VLAN_FRAME_G     0x74
-
-/* MMC RX counter registers */
-#define MMC_RX_FRAMECOUNT_GB        0x80
-#define MMC_RX_OCTETCOUNT_GB        0x84
-#define MMC_RX_OCTETCOUNT_G     0x88
-#define MMC_RX_BROADCASTFRAME_G     0x8c
-#define MMC_RX_MULTICASTFRAME_G     0x90
-#define MMC_RX_CRC_ERROR        0x94
-#define MMC_RX_ALIGN_ERROR      0x98
-#define MMC_RX_RUN_ERROR        0x9C
-#define MMC_RX_JABBER_ERROR     0xA0
-#define MMC_RX_UNDERSIZE_G      0xA4
-#define MMC_RX_OVERSIZE_G       0xA8
-#define MMC_RX_64_OCTETS_GB     0xAC
-#define MMC_RX_65_TO_127_OCTETS_GB  0xb0
-#define MMC_RX_128_TO_255_OCTETS_GB 0xb4
-#define MMC_RX_256_TO_511_OCTETS_GB 0xb8
-#define MMC_RX_512_TO_1023_OCTETS_GB    0xbc
-#define MMC_RX_1024_TO_MAX_OCTETS_GB    0xc0
-#define MMC_RX_UNICAST_G        0xc4
-#define MMC_RX_LENGTH_ERROR     0xc8
-#define MMC_RX_AUTOFRANGETYPE       0xcc
-#define MMC_RX_PAUSE_FRAMES     0xd0
-#define MMC_RX_FIFO_OVERFLOW        0xd4
-#define MMC_RX_VLAN_FRAMES_GB       0xd8
-#define MMC_RX_WATCHDOG_ERROR       0xdc
-
-/* IPC*/
-#define MMC_RX_IPC_INTR_MASK        0x100
-#define MMC_RX_IPC_INTR         0x108
-/* IPv4*/
-#define MMC_RX_IPV4_GD          0x110
-#define MMC_RX_IPV4_HDERR       0x114
-#define MMC_RX_IPV4_NOPAY       0x118
-#define MMC_RX_IPV4_FRAG        0x11C
-#define MMC_RX_IPV4_UDSBL       0x120
-
-#define MMC_RX_IPV4_GD_OCTETS       0x150
-#define MMC_RX_IPV4_HDERR_OCTETS    0x154
-#define MMC_RX_IPV4_NOPAY_OCTETS    0x158
-#define MMC_RX_IPV4_FRAG_OCTETS     0x15c
-#define MMC_RX_IPV4_UDSBL_OCTETS    0x160
-
-/* IPV6*/
-#define MMC_RX_IPV6_GD_OCTETS       0x164
-#define MMC_RX_IPV6_HDERR_OCTETS    0x168
-#define MMC_RX_IPV6_NOPAY_OCTETS    0x16c
-
-#define MMC_RX_IPV6_GD          0x124
-#define MMC_RX_IPV6_HDERR       0x128
-#define MMC_RX_IPV6_NOPAY       0x12c
-
-/* Protocols*/
-#define MMC_RX_UDP_GD           0x130
-#define MMC_RX_UDP_ERR          0x134
-#define MMC_RX_TCP_GD           0x138
-#define MMC_RX_TCP_ERR          0x13c
-#define MMC_RX_ICMP_GD          0x140
-#define MMC_RX_ICMP_ERR         0x144
-
-#define MMC_RX_UDP_GD_OCTETS        0x170
-#define MMC_RX_UDP_ERR_OCTETS       0x174
-#define MMC_RX_TCP_GD_OCTETS        0x178
-#define MMC_RX_TCP_ERR_OCTETS       0x17c
-#define MMC_RX_ICMP_GD_OCTETS       0x180
-#define MMC_RX_ICMP_ERR_OCTETS      0x184
-
-void hobot_mmc_ctrl(void __iomem *mmcaddr, unsigned int mode)
+static void x2_get_drv_info(struct net_device *ndev, struct ethtool_drvinfo *ed)
 {
-    u32 value = readl(mmcaddr + MMC_CNTRL);
+	const struct x2_priv *priv = netdev_priv(ndev);
+
+    snprintf(ed->driver, MAX_DRIVER_NAME_SIZE, "%s", \
+        priv->device->driver->name);
+    snprintf(ed->version, MAX_VERSION_SIZE, "%s", \
+        DRIVER_VERSION);
+}
+
+static void x2_get_strings(struct net_device *ndev, u32 stringset, u8 *data)
+{
+	size_t i;
+    u8 *p = data;
+    struct x2_priv *priv = netdev_priv(ndev);
+
+    switch (stringset) {
+    case ETH_SS_STATS:
+#if 1
+        if (priv->dma_cap.rmon) {
+            for (i = 0; i < STMMAC_MMC_STATS_LEN; i++) {
+                memcpy(p, hobot_mmc[i].stat_name, ETH_GSTRING_LEN);
+                p += ETH_GSTRING_LEN;
+            }
+        }
+#endif
+        for (i = 0; i < STMMAC_STATS_LEN; i++) {
+            memcpy(p, stmmac_gstrings_stats[i].stat_name, ETH_GSTRING_LEN);
+            p += ETH_GSTRING_LEN;
+        }
+
+        break;
+
+    default:
+        WARN_ON(1);
+        break;
+    }
+}
+
+static int x2_get_sset_count(struct net_device *ndev, int sset)
+{
+    struct x2_priv *priv = netdev_priv(ndev);
+    int len;
+
+    switch (sset) {
+    case ETH_SS_STATS:
+        len = STMMAC_STATS_LEN;
+#if 1
+        if (priv->dma_cap.rmon)
+           len += STMMAC_MMC_STATS_LEN;
+#endif
+        return len;
+     default:
+        return -EOPNOTSUPP;
+     }
+}
+
+static void x2_get_ethtool_stats(struct net_device *ndev, \
+    struct ethtool_stats *dummy, u64 *data)
+{
+	struct x2_priv *priv = netdev_priv(ndev);
+	int i, j = 0;
+
+    if (priv->dma_cap.rmon) {
+        hobot_mmc_read(priv->mmcaddr, &priv->mmc);
+
+        for (i = 0; i < STMMAC_MMC_STATS_LEN; i++) {
+            char *p;
+            p = (char *)priv + hobot_mmc[i].stat_offset;
+            data[j++] = (hobot_mmc[i].sizeof_stat == \
+                sizeof(u64)) ? (*(u64 *)p): (*(u32 *)p);
+        }
+    }
+	for (i = 0; i < STMMAC_STATS_LEN; i++) {
+		char *p = (char *)priv + stmmac_gstrings_stats[i].stat_offset;
+		data[j++] = (stmmac_gstrings_stats[i].sizeof_stat == \
+            sizeof(u64)) ? (*(u64*)p) : (*(u32*)p);
+	}
+}
+
+static int x2_ethtool_get_regs_len(struct net_device *ndev)
+{
+	return REG_SPACE_SIZE;
+}
+
+static void x2_dump_mac_regs(void __iomem *ioaddr, u32 *reg_space)
+{
+	int i;
+
+	for (i = 0; i < GMAC_REG_NUM; i++)
+		reg_space[i] = readl(ioaddr + i * 4);
+}
+
+static void __x2_dump_dma_regs(void __iomem *ioaddr, \
+    u32 channel, u32 *reg_space)
+{
+	reg_space[DMA_CHAN_CONTROL(channel) / 4] = \
+        readl(ioaddr + DMA_CHAN_CONTROL(channel));
+	reg_space[DMA_CHAN_TX_CONTROL(channel) / 4] = \
+        readl(ioaddr + DMA_CHAN_TX_CONTROL(channel));
+
+	reg_space[DMA_CHAN_RX_CONTROL(channel) / 4]= \
+        readl(ioaddr + DMA_CHAN_RX_CONTROL(channel));
+
+	reg_space[DMA_CHAN_TX_BASE_ADDR(channel) / 4] = \
+        readl(ioaddr + DMA_CHAN_TX_BASE_ADDR(channel));
+	reg_space[DMA_CHAN_RX_BASE_ADDR(channel) / 4] = \
+        readl(ioaddr + DMA_CHAN_RX_BASE_ADDR(channel));
+
+	reg_space[DMA_CHAN_TX_END_ADDR(channel) / 4] = \
+        readl(ioaddr + DMA_CHAN_TX_END_ADDR(channel));
+	reg_space[DMA_CHAN_RX_END_ADDR(channel) / 4] = \
+        readl(ioaddr + DMA_CHAN_RX_END_ADDR(channel));
+
+	reg_space[DMA_CHAN_TX_RING_LEN(channel) / 4] = \
+        readl(ioaddr + DMA_CHAN_TX_RING_LEN(channel));
+	reg_space[DMA_CHAN_RX_RING_LEN(channel) / 4] = \
+        readl(ioaddr + DMA_CHAN_RX_RING_LEN(channel));
+
+	reg_space[DMA_CHAN_INTR_ENA(channel) / 4] = \
+        readl(ioaddr + DMA_CHAN_INTR_ENA(channel));
+
+	reg_space[DMA_CHAN_RX_WATCHDOG(channel) / 4] = \
+        readl(ioaddr + DMA_CHAN_RX_WATCHDOG(channel));
+
+	reg_space[DMA_CHAN_SLOT_CTRL_STATUS(channel) / 4] = \
+        readl(ioaddr + DMA_CHAN_SLOT_CTRL_STATUS(channel));
+
+	reg_space[DMA_CHAN_CUR_TX_DESC(channel) / 4] = \
+        readl(ioaddr + DMA_CHAN_CUR_TX_DESC(channel));
+	reg_space[DMA_CHAN_CUR_RX_DESC(channel) / 4] = \
+        readl(ioaddr + DMA_CHAN_CUR_RX_DESC(channel));
+
+	reg_space[DMA_CHAN_CUR_TX_BUF_ADDR(channel) / 4] = \
+        readl(ioaddr + DMA_CHAN_CUR_TX_BUF_ADDR(channel));
+	reg_space[DMA_CHAN_CUR_RX_BUF_ADDR(channel) / 4] = \
+        readl(ioaddr + DMA_CHAN_CUR_RX_BUF_ADDR(channel));
+
+	reg_space[DMA_CHAN_STATUS(channel) / 4] = \
+        readl(ioaddr + DMA_CHAN_STATUS(channel));
+}
+
+static void  x2_dump_dma_regs(void __iomem *ioaddr, u32 *reg_space)
+{
+	int i;
+
+	for (i = 0; i < DMA_CHANNEL_NB_MAX; i++)
+		__x2_dump_dma_regs(ioaddr, i, reg_space);
+}
+
+static void x2_ethtool_gregs(struct net_device *ndev, \
+    struct ethtool_regs *regs, void *space)
+{
+	u32 *reg_space = (u32 *)space;
+	struct x2_priv *priv = netdev_priv(ndev);
+
+	memset(reg_space, 0x0, REG_SPACE_SIZE);
+	x2_dump_mac_regs(priv->ioaddr, reg_space);
+	x2_dump_dma_regs(priv->ioaddr, reg_space);
+	memcpy(&reg_space[ETHTOOL_DMA_OFFSET], &reg_space[DMA_BUS_MODE/4], \
+        NUM_DWMAC1000_DMA_REGS * 4);
+}
+
+static int x2_get_ts_info(struct net_device *dev, struct ethtool_ts_info *info)
+{
+	struct x2_priv *priv = netdev_priv(dev);
+
+	if ((priv->dma_cap.time_stamp || priv->dma_cap.atime_stamp)) {
+		info->so_timestamping = \
+                    SOF_TIMESTAMPING_TX_SOFTWARE | \
+                    SOF_TIMESTAMPING_TX_HARDWARE |
+					SOF_TIMESTAMPING_RX_SOFTWARE | \
+                    SOF_TIMESTAMPING_RX_HARDWARE|
+					SOF_TIMESTAMPING_SOFTWARE | SOF_TIMESTAMPING_RAW_HARDWARE;
+
+		if (priv->ptp_clock)
+			info->phc_index = ptp_clock_index(priv->ptp_clock);
+		info->tx_types = (1 << HWTSTAMP_TX_OFF) | (1 << HWTSTAMP_TX_ON);
+		info->rx_filters = ((1 << HWTSTAMP_FILTER_NONE) | \
+                 (1 << HWTSTAMP_FILTER_PTP_V1_L4_EVENT)|
+				 (1 << HWTSTAMP_FILTER_PTP_V1_L4_SYNC)|
+				 (1 << HWTSTAMP_FILTER_PTP_V1_L4_DELAY_REQ)|
+				 (1 << HWTSTAMP_FILTER_PTP_V2_L4_EVENT)|
+				 (1 << HWTSTAMP_FILTER_PTP_V2_L4_SYNC)|
+				 (1 << HWTSTAMP_FILTER_PTP_V2_L4_DELAY_REQ)|
+				 (1 << HWTSTAMP_FILTER_PTP_V2_EVENT)|
+				 (1 << HWTSTAMP_FILTER_PTP_V2_SYNC)|
+				 (1 << HWTSTAMP_FILTER_PTP_V2_DELAY_REQ)|
+				 (1 << HWTSTAMP_FILTER_ALL));
+		return 0;
+	} else {
+		return ethtool_op_get_ts_info(dev, info);
+    }
+}
+
+static u32 hobot_riwt2usec(u32 riwt, struct x2_priv *priv)
+{
+    unsigned long clk = clk_get_rate(priv->plat->x2_mac_div_clk);
     
-    value |= (mode & 0x3F);
-    writel(value, mmcaddr + MMC_CNTRL);
+    if (!clk)
+        return 0;
 
+    return (riwt * 256) / (clk / 1000000);
 }
 
-void hobot_mmc_intr_all_mask(void __iomem *mmcaddr)
+static int hobot_get_coalesce(struct net_device *dev, \
+    struct ethtool_coalesce *ec)
 {
-    writel(MMC_DEFAULT_MASK, mmcaddr + MMC_RX_INTR_MASK);
-    writel(MMC_DEFAULT_MASK, mmcaddr + MMC_TX_INTR_MASK);
-    writel(MMC_DEFAULT_MASK, mmcaddr + MMC_RX_IPC_INTR_MASK);
+    struct x2_priv *priv = netdev_priv(dev);
+
+    ec->tx_coalesce_usecs = priv->tx_coal_timer;
+    ec->tx_max_coalesced_frames = priv->tx_coal_frames;
+
+    if (priv->use_riwt) {
+        ec->rx_coalesce_usecs = hobot_riwt2usec(priv->rx_riwt, priv);
+        ec->rx_max_coalesced_frames = priv->rx_coal_frames;
+    }
+    return 0;
 }
 
-void hobot_mmc_read(void __iomem *mmcaddr, struct hobot_counters *mmc)
+static u32 hobot_usec2riwt(u32 usec, struct x2_priv *priv)
 {
-    mmc->mmc_tx_octetcount_gb += readl(mmcaddr + MMC_TX_OCTETCOUNT_GB);
-     mmc->mmc_tx_framecount_gb += readl(mmcaddr + MMC_TX_FRAMECOUNT_GB);
-    mmc->mmc_tx_broadcastframe_g += readl(mmcaddr +
-                          MMC_TX_BROADCASTFRAME_G);
-    mmc->mmc_tx_multicastframe_g += readl(mmcaddr +
-                          MMC_TX_MULTICASTFRAME_G);
-    mmc->mmc_tx_64_octets_gb += readl(mmcaddr + MMC_TX_64_OCTETS_GB);
-    mmc->mmc_tx_65_to_127_octets_gb +=
-        readl(mmcaddr + MMC_TX_65_TO_127_OCTETS_GB);
-    mmc->mmc_tx_128_to_255_octets_gb +=
-        readl(mmcaddr + MMC_TX_128_TO_255_OCTETS_GB);
-    mmc->mmc_tx_256_to_511_octets_gb +=
-        readl(mmcaddr + MMC_TX_256_TO_511_OCTETS_GB);
-    mmc->mmc_tx_512_to_1023_octets_gb +=
-        readl(mmcaddr + MMC_TX_512_TO_1023_OCTETS_GB);
-    mmc->mmc_tx_1024_to_max_octets_gb +=
-        readl(mmcaddr + MMC_TX_1024_TO_MAX_OCTETS_GB);
-    mmc->mmc_tx_unicast_gb += readl(mmcaddr + MMC_TX_UNICAST_GB);
-    mmc->mmc_tx_multicast_gb += readl(mmcaddr + MMC_TX_MULTICAST_GB);
-    mmc->mmc_tx_broadcast_gb += readl(mmcaddr + MMC_TX_BROADCAST_GB);
-    mmc->mmc_tx_underflow_error += readl(mmcaddr + MMC_TX_UNDERFLOW_ERROR);
- mmc->mmc_tx_singlecol_g += readl(mmcaddr + MMC_TX_SINGLECOL_G);
-    mmc->mmc_tx_multicol_g += readl(mmcaddr + MMC_TX_MULTICOL_G);
-    mmc->mmc_tx_deferred += readl(mmcaddr + MMC_TX_DEFERRED);
-    mmc->mmc_tx_latecol += readl(mmcaddr + MMC_TX_LATECOL);
-    mmc->mmc_tx_exesscol += readl(mmcaddr + MMC_TX_EXESSCOL);
-    mmc->mmc_tx_carrier_error += readl(mmcaddr + MMC_TX_CARRIER_ERROR);
-    mmc->mmc_tx_octetcount_g += readl(mmcaddr + MMC_TX_OCTETCOUNT_G);
-    mmc->mmc_tx_framecount_g += readl(mmcaddr + MMC_TX_FRAMECOUNT_G);
-    mmc->mmc_tx_excessdef += readl(mmcaddr + MMC_TX_EXCESSDEF);
-    mmc->mmc_tx_pause_frame += readl(mmcaddr + MMC_TX_PAUSE_FRAME);
-    mmc->mmc_tx_vlan_frame_g += readl(mmcaddr + MMC_TX_VLAN_FRAME_G);
+    unsigned long clk = clk_get_rate(priv->plat->x2_mac_div_clk);
 
+    if (!clk)
+        return 0;
 
- /* MMC RX counter registers */
-    mmc->mmc_rx_framecount_gb += readl(mmcaddr + MMC_RX_FRAMECOUNT_GB);
-    mmc->mmc_rx_octetcount_gb += readl(mmcaddr + MMC_RX_OCTETCOUNT_GB);
-    mmc->mmc_rx_octetcount_g += readl(mmcaddr + MMC_RX_OCTETCOUNT_G);
-    mmc->mmc_rx_broadcastframe_g += readl(mmcaddr +
-                          MMC_RX_BROADCASTFRAME_G);
-    mmc->mmc_rx_multicastframe_g += readl(mmcaddr +
-                          MMC_RX_MULTICASTFRAME_G);
-    mmc->mmc_rx_crc_error += readl(mmcaddr + MMC_RX_CRC_ERROR);
-    mmc->mmc_rx_align_error += readl(mmcaddr + MMC_RX_ALIGN_ERROR);
-    mmc->mmc_rx_run_error += readl(mmcaddr + MMC_RX_RUN_ERROR);
-    mmc->mmc_rx_jabber_error += readl(mmcaddr + MMC_RX_JABBER_ERROR);
-    mmc->mmc_rx_undersize_g += readl(mmcaddr + MMC_RX_UNDERSIZE_G);
-    mmc->mmc_rx_oversize_g += readl(mmcaddr + MMC_RX_OVERSIZE_G);
-    mmc->mmc_rx_64_octets_gb += readl(mmcaddr + MMC_RX_64_OCTETS_GB);
-    mmc->mmc_rx_65_to_127_octets_gb +=
-        readl(mmcaddr + MMC_RX_65_TO_127_OCTETS_GB);
-    mmc->mmc_rx_128_to_255_octets_gb +=
-        readl(mmcaddr + MMC_RX_128_TO_255_OCTETS_GB);
-    mmc->mmc_rx_256_to_511_octets_gb +=
-        readl(mmcaddr + MMC_RX_256_TO_511_OCTETS_GB);
-    mmc->mmc_rx_512_to_1023_octets_gb +=
-        readl(mmcaddr + MMC_RX_512_TO_1023_OCTETS_GB);
-    mmc->mmc_rx_1024_to_max_octets_gb +=
-        readl(mmcaddr + MMC_RX_1024_TO_MAX_OCTETS_GB);
- mmc->mmc_rx_unicast_g += readl(mmcaddr + MMC_RX_UNICAST_G);
-    mmc->mmc_rx_length_error += readl(mmcaddr + MMC_RX_LENGTH_ERROR);
-    mmc->mmc_rx_autofrangetype += readl(mmcaddr + MMC_RX_AUTOFRANGETYPE);
-    mmc->mmc_rx_pause_frames += readl(mmcaddr + MMC_RX_PAUSE_FRAMES);
-    mmc->mmc_rx_fifo_overflow += readl(mmcaddr + MMC_RX_FIFO_OVERFLOW);
-    mmc->mmc_rx_vlan_frames_gb += readl(mmcaddr + MMC_RX_VLAN_FRAMES_GB);
-    mmc->mmc_rx_watchdog_error += readl(mmcaddr + MMC_RX_WATCHDOG_ERROR);
-    /* IPC */
-    mmc->mmc_rx_ipc_intr_mask += readl(mmcaddr + MMC_RX_IPC_INTR_MASK);
-    mmc->mmc_rx_ipc_intr += readl(mmcaddr + MMC_RX_IPC_INTR);
-    /* IPv4 */
-    mmc->mmc_rx_ipv4_gd += readl(mmcaddr + MMC_RX_IPV4_GD);
-    mmc->mmc_rx_ipv4_hderr += readl(mmcaddr + MMC_RX_IPV4_HDERR);
-    mmc->mmc_rx_ipv4_nopay += readl(mmcaddr + MMC_RX_IPV4_NOPAY);
-    mmc->mmc_rx_ipv4_frag += readl(mmcaddr + MMC_RX_IPV4_FRAG);
-    mmc->mmc_rx_ipv4_udsbl += readl(mmcaddr + MMC_RX_IPV4_UDSBL);
-
-    mmc->mmc_rx_ipv4_gd_octets += readl(mmcaddr + MMC_RX_IPV4_GD_OCTETS);
-    mmc->mmc_rx_ipv4_hderr_octets +=
-        readl(mmcaddr + MMC_RX_IPV4_HDERR_OCTETS);
-    mmc->mmc_rx_ipv4_nopay_octets +=
-        readl(mmcaddr + MMC_RX_IPV4_NOPAY_OCTETS);
-mmc->mmc_rx_ipv4_frag_octets += readl(mmcaddr +
-                          MMC_RX_IPV4_FRAG_OCTETS);
-    mmc->mmc_rx_ipv4_udsbl_octets +=
-        readl(mmcaddr + MMC_RX_IPV4_UDSBL_OCTETS);
-
-    /* IPV6 */
-    mmc->mmc_rx_ipv6_gd_octets += readl(mmcaddr + MMC_RX_IPV6_GD_OCTETS);
-    mmc->mmc_rx_ipv6_hderr_octets +=
-        readl(mmcaddr + MMC_RX_IPV6_HDERR_OCTETS);
-    mmc->mmc_rx_ipv6_nopay_octets +=
-        readl(mmcaddr + MMC_RX_IPV6_NOPAY_OCTETS);
-
-    mmc->mmc_rx_ipv6_gd += readl(mmcaddr + MMC_RX_IPV6_GD);
-    mmc->mmc_rx_ipv6_hderr += readl(mmcaddr + MMC_RX_IPV6_HDERR);
-    mmc->mmc_rx_ipv6_nopay += readl(mmcaddr + MMC_RX_IPV6_NOPAY);
- /* Protocols */
-    mmc->mmc_rx_udp_gd += readl(mmcaddr + MMC_RX_UDP_GD);
-    mmc->mmc_rx_udp_err += readl(mmcaddr + MMC_RX_UDP_ERR);
-    mmc->mmc_rx_tcp_gd += readl(mmcaddr + MMC_RX_TCP_GD);
-    mmc->mmc_rx_tcp_err += readl(mmcaddr + MMC_RX_TCP_ERR);
-    mmc->mmc_rx_icmp_gd += readl(mmcaddr + MMC_RX_ICMP_GD);
-    mmc->mmc_rx_icmp_err += readl(mmcaddr + MMC_RX_ICMP_ERR);
-
-    mmc->mmc_rx_udp_gd_octets += readl(mmcaddr + MMC_RX_UDP_GD_OCTETS);
-    mmc->mmc_rx_udp_err_octets += readl(mmcaddr + MMC_RX_UDP_ERR_OCTETS);
-    mmc->mmc_rx_tcp_gd_octets += readl(mmcaddr + MMC_RX_TCP_GD_OCTETS);
-    mmc->mmc_rx_tcp_err_octets += readl(mmcaddr + MMC_RX_TCP_ERR_OCTETS);
-    mmc->mmc_rx_icmp_gd_octets += readl(mmcaddr + MMC_RX_ICMP_GD_OCTETS);
-    mmc->mmc_rx_icmp_err_octets += readl(mmcaddr + MMC_RX_ICMP_ERR_OCTETS);
-
-
+    return (usec * (clk / 1000000)) / 256;
 }
 
+void hobot_dma_rx_watchdog(struct x2_priv *priv, u32 riwt, u32 number)
+{
+    u32 chan;
+
+    for (chan = 0; chan < number; chan++) {
+        writel(riwt, priv->ioaddr + DMA_CHAN_RX_WATCHDOG(chan));
+    }
+}
+
+static int hobot_set_coalesce(struct net_device *dev, \
+    struct ethtool_coalesce *ec)
+{
+    struct x2_priv *priv = netdev_priv(dev);
+    u32 rx_cnt = priv->plat->rx_queues_to_use;
+    unsigned int rx_riwt;
+
+    /* Check not supported parameters  */
+    if ((ec->rx_coalesce_usecs_irq) ||
+        (ec->rx_max_coalesced_frames_irq) || (ec->tx_coalesce_usecs_irq) ||
+        (ec->use_adaptive_rx_coalesce) || (ec->use_adaptive_tx_coalesce) ||
+        (ec->pkt_rate_low) || (ec->rx_coalesce_usecs_low) ||
+        (ec->rx_max_coalesced_frames_low) || (ec->tx_coalesce_usecs_high) ||
+        (ec->tx_max_coalesced_frames_low) || (ec->pkt_rate_high) ||
+        (ec->tx_coalesce_usecs_low) || (ec->rx_coalesce_usecs_high) ||
+        (ec->rx_max_coalesced_frames_high) ||
+        (ec->tx_max_coalesced_frames_irq) ||
+        (ec->stats_block_coalesce_usecs) ||
+        (ec->tx_max_coalesced_frames_high) || (ec->rate_sample_interval))
+        return -EOPNOTSUPP;
+
+    if (priv->use_riwt && (ec->rx_coalesce_usecs > 0)) {
+        rx_riwt = hobot_usec2riwt(ec->rx_coalesce_usecs, priv);
+
+        if ((rx_riwt > MAX_DMA_RIWT) || (rx_riwt < MIN_DMA_RIWT))
+            return -EINVAL;
+
+        priv->rx_riwt = rx_riwt;
+        hobot_dma_rx_watchdog(priv, priv->rx_riwt, rx_cnt);
+     }
+
+    if ((ec->tx_coalesce_usecs == 0) && (ec->tx_max_coalesced_frames == 0))
+        return -EINVAL;
+
+    if ((ec->tx_coalesce_usecs > HOBOT_MAX_COAL_TX_TICK) || \
+        (ec->tx_max_coalesced_frames > HOBOT_TX_MAX_FRAMES))
+        return -EINVAL;
+
+    priv->tx_coal_frames = ec->tx_max_coalesced_frames;
+    priv->tx_coal_timer = ec->tx_coalesce_usecs;
+    priv->rx_coal_frames = ec->rx_max_coalesced_frames;
+    return 0;
+}
+
+static const struct ethtool_ops hobot_ethtool_ops = {
+    .get_drvinfo = x2_get_drv_info,
+    .get_link = ethtool_op_get_link,
+    .get_link_ksettings = phy_ethtool_get_link_ksettings,
+    .set_link_ksettings = phy_ethtool_set_link_ksettings,
+    .get_strings = x2_get_strings,
+    .get_ethtool_stats = x2_get_ethtool_stats,
+    .get_sset_count = x2_get_sset_count,
+    .get_regs_len = x2_ethtool_get_regs_len,
+    .get_regs = x2_ethtool_gregs,
+    .get_ts_info = x2_get_ts_info,
+    .get_coalesce = hobot_get_coalesce,
+    .set_coalesce = hobot_set_coalesce,
+};
+
+void hobot_set_ethtool_ops(struct x2_priv *priv)
+{
+    priv->dev->ethtool_ops = &hobot_ethtool_ops;
+}

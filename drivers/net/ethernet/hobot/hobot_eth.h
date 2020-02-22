@@ -29,10 +29,6 @@
 
 #define X2_GET_ENTRY(x, size) ((x + 1) & (size - 1))
 #define DRIVER_VERSION			"0.9"
-
-struct pinctrl *pinctrl;
-struct pinctrl_state *pin_eth_mux;
-
 struct x2_rx_routing {
 	u32 reg_mask;
 	u32 reg_shift;
@@ -424,7 +420,8 @@ struct plat_config_data {
 	struct x2_axi *axi;
 
 	u32 use_riwt;
-
+    struct pinctrl *pinctrl;
+    struct pinctrl_state *pin_eth_mux;
 	
 	struct x2_mdio_bus_data *mdio_bus_data;
 
@@ -508,7 +505,6 @@ struct x2_priv {
 
 
 	struct plat_config_data *plat;
-
 
 	int hw_cap_support;
 	struct dma_features dma_cap;
@@ -911,4 +907,6 @@ enum hobot_state {
     HOBOT_DOWN,
 };
 
+void hobot_set_ethtool_ops(struct x2_priv *priv);
+void hobot_dma_rx_watchdog(struct x2_priv *priv, u32 riwt, u32 number);
 #endif
