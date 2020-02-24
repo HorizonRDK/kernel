@@ -195,38 +195,48 @@ int vio_bind_chain_groups(struct vio_group *src_group, struct vio_group *dts_gro
 void vio_bind_group_done(int instance)
 {
 	int i = 0;
+	char stream[64];
+	int offset = 0;
 	struct vio_chain *ischain;
 	struct vio_group *group;
 
 	ischain = &chain[instance];
-	for(i = 0; i < GROUP_ID_NUMBER; i++){
+	for (i = 0; i < GROUP_ID_NUMBER; i++) {
 		group = &ischain->group[i];
-		if(test_bit(VIO_GROUP_DMA_OUTPUT, &group->state)){
+		if (test_bit(VIO_GROUP_DMA_OUTPUT, &group->state)) {
 			group->get_timestamps = true;
 			break;
 		}
 	}
 
-	for(i = 0; i < GROUP_ID_NUMBER; i++){
+	for (i = 0; i < GROUP_ID_NUMBER; i++) {
 		group = &ischain->group[i];
-		if(test_bit(VIO_GROUP_DMA_INPUT, &group->state)){
+		if (test_bit(VIO_GROUP_DMA_INPUT, &group->state)) {
 			group->leader = true;
+			snprintf(&stream[offset], sizeof(stream) - offset,
+					"=>G%d", group->id);
+			offset += strlen(stream);
 		} else if (test_bit(VIO_GROUP_OTF_INPUT, &group->state)) {
 			vio_bind_chain_groups(&ischain->group[i - 1], group);
+			snprintf(&stream[offset], sizeof(stream) - offset,
+					"->G%d", group->id);
+			offset += strlen(stream);
 		}
 	}
 
-	for(i = 0; i < GROUP_ID_NUMBER; i++){
+	for (i = 0; i < GROUP_ID_NUMBER; i++) {
 		group = &ischain->group[i];
-		if(group->leader){
+		if (group->leader) {
 			break;
-		}else if(i >= GROUP_ID_IPU){
-			if(test_bit(VIO_GROUP_DMA_OUTPUT, &group->state)){
+		} else if (i >= GROUP_ID_IPU) {
+			if (test_bit(VIO_GROUP_DMA_OUTPUT, &group->state)) {
 				group->leader = true;
 				break;
 			}
 		}
 	}
+
+	vio_info("Stream%d path: G0%s\n", group->instance, stream);
 }
 
 void vio_get_frame_id(struct vio_group *group)

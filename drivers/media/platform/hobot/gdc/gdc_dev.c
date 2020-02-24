@@ -426,6 +426,7 @@ static irqreturn_t gdc_isr(int irq, void *data)
 	instance = atomic_read(&gdc->instance);
 	gdc_group = &gdc->group[instance];
 	gdc_ctx = gdc_group->sub_ctx[0];
+	gdc_ctx->event = VIO_FRAME_DONE;
 
 	status = gdc_get_intr_status(gdc->base_reg);
 	write_gdc_status(gdc->hw_id, &dwe_status);
@@ -433,32 +434,29 @@ static irqreturn_t gdc_isr(int irq, void *data)
 	vio_info("%s:status = 0x%x, dwe_status = 0x%x\n", __func__, status,
 		 dwe_status);
 
-	if (status & 1 << INTR_GDC_ERROR) {
+	if (status & 1 << INTR_GDC_BUSY) {
+		vio_info("GDC current frame is processing\n");
+	} else if (status & 1 << INTR_GDC_ERROR) {
 		if (status & 1 << INTR_GDC_CONF_ERROR)
-			vio_err("configuration error\n");
+			vio_err("GDC configuration error\n");
 
 		if (status & 1 << INTR_GDC_USER_ABORT)
-			vio_err("user abort(stop/reset command)\n");
+			vio_err("GDC user abort(stop/reset command)\n");
 
 		if (status & 1 << INTR_GDC_AXI_READER_ERROR)
-			vio_err("AXI reader error\n");
+			vio_err("GDC AXI reader error\n");
 
 		if (status & 1 << INTR_GDC_AXI_WRITER_ERROR)
-			vio_err("AXI writer error\n");
+			vio_err("GDC AXI writer error\n");
 
 		if (status & 1 << INTR_GDC_UNALIGNED_ACCESS)
-			vio_err("address pionter is not aligned\n");
+			vio_err("GDC address pionter is not aligned\n");
 
 		if (status & 1 << INTR_GDC_INCOMPATIBLE_CONF)
-			vio_err("incopatible configuration\n");
+			vio_err("GDC incopatible configuration\n");
 
 		gdc_ctx->event = VIO_FRAME_NDONE;
 	}
-
-	if (status & 1 << INTR_GDC_BUSY)
-		vio_info("current frame is processing\n");
-	else
-		gdc_ctx->event = VIO_FRAME_DONE;
 
 	if (gdc_ctx->event) {
 		up(&gdc->smp_gdc_enable);

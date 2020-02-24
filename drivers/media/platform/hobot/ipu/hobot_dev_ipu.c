@@ -1102,7 +1102,7 @@ int ipu_bind_chain_group(struct ipu_video_ctx *ipu_ctx, int instance)
 
 	chain = group->chain;
 
-	vio_info("[%s][%d]instance = %d\n", __func__, id, instance);
+	vio_info("[S%d][V%d] %s done\n", instance, id, __func__);
 	ipu_ctx->state = BIT(VIO_VIDEO_S_INPUT);
 
 	return ret;
