@@ -15,8 +15,7 @@
  *  it supports:
  *  - TSO
  *  - Checksum offload for RX and TX.
- *  - Energy efficient ethernet.
- *  - GMII phy interface.
+ *  - RGMII phy interface.
  *  - The statistics module.
  *  - Single RX and TX queue.
  *
@@ -640,10 +639,9 @@ static int x2_hw_init(struct x2_priv *priv)
 
 static void x2_mdio_set_csr(struct x2_priv *priv)
 {
-    int rate = clk_get_rate(priv->plat->x2_mac_div_clk);
-	if (rate <= 20000000)
-		priv->csr_val = DWCEQOS_MAC_MDIO_ADDR_CR_20;
-	else if (rate <= 35000000)
+    int rate = clk_get_rate(priv->plat->clk_ptp_ref);
+
+	if (rate <= 35000000)
 		priv->csr_val = DWCEQOS_MAC_MDIO_ADDR_CR_35;
 	else if (rate <= 60000000)
 		priv->csr_val = DWCEQOS_MAC_MDIO_ADDR_CR_60;
@@ -653,7 +651,12 @@ static void x2_mdio_set_csr(struct x2_priv *priv)
 		priv->csr_val = DWCEQOS_MAC_MDIO_ADDR_CR_150;
 	else if (rate <= 250000000)
 		priv->csr_val = DWCEQOS_MAC_MDIO_ADDR_CR_250;
-
+    else if (rate <= 300000000)
+        priv->csr_val = 0x5;
+    else if (rate <= 500000000)
+        priv->csr_val = 6;
+    else if (rate <= 800000000)
+        priv->csr_val = 7;
 }
 
 static int x2_mdio_register(struct x2_priv *priv)
@@ -4985,30 +4988,6 @@ static int x2_poll(struct napi_struct *napi, int budget)
 	return work_done;
 }
 
-static void x2_clk_csr_set(struct x2_priv *priv)
-{
-	u32 clk_rate;
-
-	clk_rate = clk_get_rate(priv->plat->x2_clk);
-
-	if (!(priv->clk_csr & MAC_CSR_H_FRQ_MASK)) {
-		if (clk_rate < CSR_F_35M)
-			priv->clk_csr = STMMAC_CSR_20_35M;
-		else if ((clk_rate >= CSR_F_35M) && (clk_rate < CSR_F_60M))
-			priv->clk_csr = STMMAC_CSR_35_60M;
-		else if ((clk_rate >= CSR_F_60M) && (clk_rate < CSR_F_100M))
-			priv->clk_csr = STMMAC_CSR_60_100M;
-		else if ((clk_rate >= CSR_F_100M) && (clk_rate < CSR_F_150M))
-			priv->clk_csr = STMMAC_CSR_100_150M;
-		else if ((clk_rate >= CSR_F_150M) && (clk_rate < CSR_F_250M))
-			priv->clk_csr = STMMAC_CSR_150_250M;
-		else if ((clk_rate >= CSR_F_250M) && (clk_rate < CSR_F_300M))
-			priv->clk_csr = STMMAC_CSR_250_300M;
-	}
-
-	priv->clk_csr = STMMAC_CSR_150_250M;
-}
-
 static ssize_t phy_addr_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t len)
 {
     struct net_device *ndev = to_net_dev(dev);
@@ -5159,23 +5138,22 @@ static int x2_dvr_probe(struct device *device, struct plat_config_data *plat_dat
 #endif
 	if (x2_res->mac) {
 		ether_addr_copy(ndev->dev_addr, x2_res->mac);
-		pr_info("set mac address %02x:%02x:", \
-            ndev->dev_addr[0], ndev->dev_addr[1]);
-        pr_info("%02x:%02x:", ndev->dev_addr[2], ndev->dev_addr[3]);
-        pr_info("%02x:%02x:", ndev->dev_addr[4], ndev->dev_addr[5]);
-        pr_info("(using dtb adress)\n");
+        printk("set mac address %02x:%02x:%02x:%02x:%02x:%02x:", \
+            ndev->dev_addr[0], ndev->dev_addr[1], \
+            ndev->dev_addr[2], ndev->dev_addr[3], \
+            ndev->dev_addr[4], ndev->dev_addr[5]);
+        printk("(using dtb adress)\n");
     } else {
 		get_random_bytes(ndev->dev_addr, ndev->addr_len);
 		ndev->dev_addr[0] = 0x00;
 		ndev->dev_addr[1] = 0x11;
 		ndev->dev_addr[2] = 0x22;
 
-        pr_info("set mac address %02x:%02x:", \
-            ndev->dev_addr[0], ndev->dev_addr[1]);
-        pr_info("%02x:%02x:", ndev->dev_addr[2], ndev->dev_addr[3]);
-        pr_info("%02x:%02x:", ndev->dev_addr[4], ndev->dev_addr[5]);
-        pr_info("(using random mac adress)\n");
-
+        printk("set mac address %02x:%02x:%02x:%02x:%02x:%02x:", \
+            ndev->dev_addr[0], ndev->dev_addr[1], \
+            ndev->dev_addr[2], ndev->dev_addr[3], \
+            ndev->dev_addr[4], ndev->dev_addr[5]);
+        printk("(using random mac adress)\n");
 	}
 
 	x2_set_umac_addr(priv->ioaddr, ndev->dev_addr, 0);
@@ -5241,11 +5219,6 @@ static int x2_dvr_probe(struct device *device, struct plat_config_data *plat_dat
 
 	spin_lock_init(&priv->lock);
     spin_lock_init(&priv->state_lock);
-
-	if (!priv->plat->clk_csr)
-		x2_clk_csr_set(priv);
-	else
-		priv->clk_csr = priv->plat->clk_csr;
 
 	ret = x2_mdio_register(priv);
 	if (ret < 0) {
