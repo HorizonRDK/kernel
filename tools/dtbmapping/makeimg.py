@@ -110,11 +110,11 @@ if __name__ == '__main__':
     dtbPath = os.getenv('TARGET_KERNEL_DIR') + '/'
     imageType = os.getenv('IMAGE_TYPE')
 
-    if (imageType == "nor" or imageType == "nand"):
-        filePath[6] = dtbPath + filePath[6]
-        filePath[7] = dtbPath + filePath[7]
-        filePath[8] = dtbPath + filePath[8]
-        file_produced1 = open(filePath[6], "wb")
+    # if (imageType == "nor" or imageType == "nand"):
+    filePath[6] = dtbPath + filePath[6]
+    filePath[7] = dtbPath + filePath[7]
+    filePath[8] = dtbPath + filePath[8]
+    file_produced1 = open(filePath[6], "wb")
 
     file = open(bootLoaderPath, "rb")
     fjson = json.load(file, object_pairs_hook=OrderedDict)
@@ -152,15 +152,15 @@ if __name__ == '__main__':
             dict[dict_key] = addr
             addr = addr + 64*1024
 
-            if (imageType == "nor" or imageType== "nand"):
-                # dtb_file = dtbPath + dict_key
-                # file_object = open(dtb_file, 'rb')
-                file_content = file_object.read()
-                file_produced1.write(file_content)
+            # if (imageType == "nor" or imageType== "nand"):
+            # dtb_file = dtbPath + dict_key
+            # file_object = open(dtb_file, 'rb')
+            file_content = file_object.read()
+            file_produced1.write(file_content)
 
-                # file_size = getFileSize(dtb_file)
-                zero0 = 64*1024 - file_size
-                file_produced1.write('\x00' * zero0)
+            # file_size = getFileSize(dtb_file)
+            zero0 = 64*1024 - file_size
+            file_produced1.write('\x00' * zero0)
         file_object.close()
         j = j + 12
 
@@ -172,20 +172,20 @@ if __name__ == '__main__':
 
     file_produced0.close()
 
-    if (imageType == "nor" or imageType == "nand"):
-        # get hobot_x2a_dtb.img: dtb_mapping + dtb file
-        file_produced2 = open(filePath[8], 'wb')
-        file_produced2.write(bootInfoContent)
+    # if (imageType == "nor" or imageType == "nand"):
+    # get hobot_x2a_dtb.img: dtb_mapping + dtb file
+    file_produced2 = open(filePath[8], 'wb')
+    file_produced2.write(bootInfoContent)
 
-        file_object2 = open(filePath[6], 'rb')
-        file_content2 = file_object2.read()
-        file_produced2.write(file_content2)
+    file_object2 = open(filePath[6], 'rb')
+    file_content2 = file_object2.read()
+    file_produced2.write(file_content2)
 
-        file_object2.close()
-        file_produced2.close()
+    file_object2.close()
+    file_produced2.close()
 
-    if (imageType == "nor" or imageType == "nand"):
-        file_produced1.close()
+    # if (imageType == "nor" or imageType == "nand"):
+    file_produced1.close()
 
-        with open(filePath[6], 'rb') as f_in, gzip.open(filePath[7], 'wb') as f_out:
-                shutil.copyfileobj(f_in, f_out)
+    with open(filePath[6], 'rb') as f_in, gzip.open(filePath[7], 'wb') as f_out:
+            shutil.copyfileobj(f_in, f_out)
