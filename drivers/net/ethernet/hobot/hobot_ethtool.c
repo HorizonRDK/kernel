@@ -109,7 +109,7 @@ static void x2_dump_mac_regs(void __iomem *ioaddr, u32 *reg_space)
 		reg_space[i] = readl(ioaddr + i * 4);
 }
 
-static void __x2_dump_dma_regs(void __iomem *ioaddr, \
+static void __x2_dump_dma_ch_regs(void __iomem *ioaddr, \
     u32 channel, u32 *reg_space)
 {
 	reg_space[DMA_CHAN_CONTROL(channel) / 4] = \
@@ -158,12 +158,12 @@ static void __x2_dump_dma_regs(void __iomem *ioaddr, \
         readl(ioaddr + DMA_CHAN_STATUS(channel));
 }
 
-static void  x2_dump_dma_regs(void __iomem *ioaddr, u32 *reg_space)
+static void  x2_dump_dma_ch_regs(void __iomem *ioaddr, u32 *reg_space)
 {
 	int i;
 
 	for (i = 0; i < DMA_CHANNEL_NB_MAX; i++)
-		__x2_dump_dma_regs(ioaddr, i, reg_space);
+		__x2_dump_dma_ch_regs(ioaddr, i, reg_space);
 }
 
 static void x2_ethtool_gregs(struct net_device *ndev, \
@@ -171,12 +171,17 @@ static void x2_ethtool_gregs(struct net_device *ndev, \
 {
 	u32 *reg_space = (u32 *)space;
 	struct x2_priv *priv = netdev_priv(ndev);
+    int i;
 
 	memset(reg_space, 0x0, REG_SPACE_SIZE);
 	x2_dump_mac_regs(priv->ioaddr, reg_space);
-	x2_dump_dma_regs(priv->ioaddr, reg_space);
-	memcpy(&reg_space[ETHTOOL_DMA_OFFSET], &reg_space[DMA_BUS_MODE/4], \
-        NUM_DWMAC1000_DMA_REGS * 4);
+
+    for (i = 0; i < 14; i++) {
+        reg_space[ETHTOOL_DMA_OFFSET + i] = \
+            readl(priv->ioaddr + DMA_BUS_MODE + i * 4);
+    }
+
+	x2_dump_dma_ch_regs(priv->ioaddr, reg_space);
 }
 
 static int x2_get_ts_info(struct net_device *dev, struct ethtool_ts_info *info)

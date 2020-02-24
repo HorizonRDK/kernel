@@ -901,7 +901,7 @@ enum packets_types {
 
 
 
-#define REG_SPACE_SIZE	0x1060
+#define REG_SPACE_SIZE	0x1168
 
 #define NUM_MAC_REGS	0xbd0
 
@@ -911,7 +911,7 @@ enum packets_types {
 #define NUM_DWMAC1000_DMA_REGS	23
 
 /* To dump the core regs excluding  the Address Registers */
-#define	GMAC_REG_NUM	 132
+#define	GMAC_REG_NUM	 55
 #define DMA_CHANNEL_NB_MAX 1
 
 
