@@ -2376,8 +2376,18 @@ static int x2_iar_probe(struct platform_device *pdev)
 	pr_debug("%s: fb get options display type is %s\n", __func__, type);
 	if (type != NULL) {
 #ifdef CONFIG_HOBOT_XJ3
-		if (strncmp(type, "mipi1080p", 9) == 0)
+		if (strncmp(type, "1080p", 5) == 0) {
 			display_type = MIPI_1080P;
+			pr_info("%s: panel type is MIPI_1080P\n", __func__);
+		} else if (strncmp(type, "720p", 4) == 0) {
+			display_type = MIPI_720P_TOUCH;
+			pr_info("%s: panel type is MIPI_720P_TOUCH\n", __func__);
+		} else if (strncmp(type, "lcd", 3) == 0) {
+			display_type = LCD_7_TYPE;
+			pr_info("%s: panel type is LCD_7_TYPE\n", __func__);
+		} else {
+			pr_err("wrong panel type!!!\n");
+		}
 #else
 		if (display_type == LCD_7_TYPE) {
 			if (strncmp(type, "mipi", 4) == 0)

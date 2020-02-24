@@ -465,6 +465,8 @@ static ssize_t x2_iar_store(struct kobject *kobj, struct kobj_attribute *attr, c
 		}
 	} else if (strncmp(tmp, "lcd", 3) == 0) {
 		pr_info("iar output lcd rgb panel config......\n");
+		display_type = LCD_7_TYPE;
+		disp_set_pixel_clk(32000000);
 		user_set_fb();
 	} else if (strncmp(tmp, "mipi", 4) == 0) {
 		pr_info("iar output lcd mipi 720p panel config......\n");
