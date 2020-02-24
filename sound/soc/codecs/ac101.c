@@ -1466,7 +1466,7 @@ int ac101_codec_probe(struct snd_soc_codec *codec)
 	}
 
 	#ifdef CONFIG_AC101_SWITCH_DETECT
-	ret = ac101_switch_probe(ac10x);
+	//ret = ac101_switch_probe(ac10x);
 	if (ret) {
 		// not care the switch return value
 	}

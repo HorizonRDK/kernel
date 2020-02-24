@@ -160,8 +160,8 @@
 
         ac101: ac101@0x1a {
                 compatible = "ac101";
-                spk-amp-switch = <71>;
-                switch-irq = <72>;
+                //spk-amp-switch = <71>;
+                //switch-irq = <72>;
                 reg = <0x1a>;
                 #sound-dai-cells = <0>;
         };
