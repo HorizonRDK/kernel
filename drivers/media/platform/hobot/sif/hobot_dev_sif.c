@@ -134,6 +134,7 @@ void sif_read_frame_work(struct vio_group *group)
 		trans_frame(framemgr, frame, FS_PROCESS);
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
+	vio_dbg("[S%d]%s:done", group->instance, __func__);
 }
 
 
@@ -153,8 +154,6 @@ void sif_write_frame_work(struct vio_group *group)
 	ctx = group->sub_ctx[0];
 	sif = ctx->sif_dev;
 	mux_index = ctx->mux_index;
-
-	atomic_set(&sif->instance, instance);
 
 	framemgr = &ctx->framemgr;
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
@@ -183,6 +182,7 @@ void sif_write_frame_work(struct vio_group *group)
 		ctx->bufcount++;
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
+	vio_dbg("[S%d]%s:done", group->instance, __func__);
 }
 
 
@@ -386,7 +386,6 @@ int sif_video_init(struct sif_video_ctx *sif_ctx, unsigned long arg)
 		set_bit(SIF_DMA_IN_ENABLE, &sif->state);
 		set_bit(VIO_GROUP_DMA_INPUT, &group->state);
 		set_bit(VIO_GROUP_OTF_OUTPUT, &group->state);
-		vio_group_task_start(group->gtask);
 	}
 
 	sif_ctx->state = BIT(VIO_VIDEO_INIT);
@@ -436,6 +435,7 @@ int sif_bind_chain_group(struct sif_video_ctx *sif_ctx, int instance)
 		sif->sif_input[instance] = group;
 		group->frame_work = sif_read_frame_work;
 		group->gtask = &sif->sifin_task;
+		vio_group_task_start(group->gtask);
 	}
 	sif_ctx->state = BIT(VIO_VIDEO_S_INPUT);
 
@@ -746,7 +746,8 @@ void sif_frame_done(struct sif_video_ctx *sif_ctx)
 		sif_ctx->event = VIO_FRAME_DONE;
 	} else {
 		sif_ctx->event = VIO_FRAME_NDONE;
-		vio_err("%s PROCESS queue has no member;\n", __func__);
+		vio_err("[S%d][V%d]SIF PROCESS queue has no member;\n",
+			group->instance, sif_ctx->id);
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
@@ -804,7 +805,8 @@ static irqreturn_t sif_isr(int irq, void *data)
 				if (test_bit(VIO_GROUP_DMA_OUTPUT, &group->state)) {
 					gtask = group->gtask;
 					if (unlikely(list_empty(&gtask->hw_resource.wait_list))) {
-						vio_err("[mux %d]GP%d(res %d, rcnt %d)\n", mux_index,
+						vio_err("[S%d]GP%d(res %d, rcnt %d)\n",
+							group->instance,
 							gtask->id,
 							gtask->hw_resource.count,
 							atomic_read(&group->rcount));
