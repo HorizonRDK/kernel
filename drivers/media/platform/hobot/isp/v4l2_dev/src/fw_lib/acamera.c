@@ -62,6 +62,7 @@
 #define CHECK_STACK_SIZE_START 512
 #endif
 
+#include "sensor_fsm.h"
 #include "acamera_logger.h"
 #include "fsm_param.h"
 #include "system_dma.h"
@@ -831,6 +832,8 @@ static void set_dma_cmd_queue(dma_cmd *cmd, uint32_t ping_pong_sel)
 }
 #endif /* FW_USE_HOBOT_DMA*/
 
+extern int ldc_set_ioctl(uint32_t port, uint32_t online);
+extern void isp_input_port_size_config(sensor_fsm_ptr_t p_fsm);
 int sif_isp_ctx_sync_func(int ctx_id)
 {
 	dma_cmd cmd[2];
@@ -841,6 +844,9 @@ int sif_isp_ctx_sync_func(int ctx_id)
 	next_context_id = ctx_id;
 	p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[current_context_id];
 	p_ctx->sif_isp_offline = 1;
+
+	isp_input_port_size_config(p_ctx->fsm_mgr.fsm_arr[FSM_ID_SENSOR]->p_fsm);
+	ldc_set_ioctl(ctx_id, 0);
 
 retry:
 	if (acamera_event_queue_empty(&p_ctx->fsm_mgr.event_queue)) {
@@ -896,6 +902,25 @@ int32_t acamera_interrupt_handler()
     int32_t irq_bit = ISP_INTERRUPT_EVENT_NONES_COUNT - 1;
 
     acamera_context_ptr_t p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[current_context_id];
+
+#if 0
+uint32_t hcs1 = acamera_isp_input_port_hc_size0_read(0);
+uint32_t hcs2 = acamera_isp_input_port_hc_size1_read(0);
+uint32_t vc = acamera_isp_input_port_vc_size_read(0);
+pr_info("hcs1 %d, hcs2 %d, vc %d\n", hcs1, hcs2, vc);
+
+    if (acamera_isp_isp_global_ping_pong_config_select_read(0) == ISP_CONFIG_PONG) {
+	printk("pong\n");
+	printk("top w/h %x\n", system_hw_read_32(0x30e48));
+	printk("metering af w/h %x\n", system_hw_read_32(0x336e8));
+	printk("lumvar w/h %x\n", system_hw_read_32(0x33234));
+    } else {
+	printk("ping\n");
+	printk("top w/h %x\n", system_hw_read_32(0x18e88));
+	printk("metering af w/h %x\n", system_hw_read_32(0x1b728));
+	printk("lumvar w/h %x\n", system_hw_read_32(0x1b274));
+    }
+#endif
 
     // read the irq vector from isp
     uint32_t irq_mask = acamera_isp_isp_global_interrupt_status_vector_read( 0 );

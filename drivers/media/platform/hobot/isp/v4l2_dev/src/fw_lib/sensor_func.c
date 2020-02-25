@@ -17,6 +17,8 @@
 *
 */
 
+#define pr_fmt(fmt) "[isp_drv]: %s: " fmt, __func__
+
 #include "acamera_fw.h"
 #include "acamera_math.h"
 #include "acamera_math.h"
@@ -168,6 +170,18 @@ void sensor_sw_init( sensor_fsm_ptr_t p_fsm )
     sensor_update_black( p_fsm );
 
     LOG( LOG_NOTICE, "Sensor initialization is complete, ID 0x%04X resolution %dx%d", p_fsm->ctrl.get_id( p_fsm->sensor_ctx ), param->active.width, param->active.height );
+}
+
+void isp_input_port_size_config(sensor_fsm_ptr_t p_fsm)
+{
+	const sensor_param_t *param = p_fsm->ctrl.get_parameters(p_fsm->sensor_ctx);
+
+	pr_debug("w %d, h %d\n", param->active.width, param->active.height);
+	acamera_isp_input_port_freeze_config_write(p_fsm->cmn.isp_base, 1);
+	acamera_isp_input_port_hc_size0_write(p_fsm->cmn.isp_base, param->active.width);
+	acamera_isp_input_port_hc_size1_write(p_fsm->cmn.isp_base, param->active.width);
+	acamera_isp_input_port_vc_size_write(p_fsm->cmn.isp_base, param->active.height);
+	acamera_isp_input_port_freeze_config_write(p_fsm->cmn.isp_base, 0);
 }
 
 void sensor_update_black( sensor_fsm_ptr_t p_fsm )

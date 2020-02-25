@@ -109,6 +109,7 @@ static int isp_v4l2_fh_release( struct file *file )
 /* ----------------------------------------------------------------
  * V4L2 file operations
  */
+static uint32_t stream_on = 0;
 static int isp_v4l2_fop_open( struct file *file )
 {
     int rc = 0;
@@ -117,7 +118,6 @@ static int isp_v4l2_fop_open( struct file *file )
 
     acamera_fw_isp_prepare(dev->ctx_id);
 
-    static uint32_t stream_on = 0;
     if (!stream_on) {
 	acamera_fw_isp_start(dev->ctx_id);
 	stream_on = 1;
@@ -180,6 +180,7 @@ static int isp_v4l2_fop_close( struct file *file )
     isp_v4l2_stream_t *pstream = dev->pstreams[sp->stream_id];
     int open_counter;
 
+    stream_on = 0;
     LOG( LOG_INFO, "isp_v4l2 close: ctx_id: %d, called for sid:%d.", dev->ctx_id, sp->stream_id );
 
     dev->stream_mask &= ~( 1 << sp->stream_id );
