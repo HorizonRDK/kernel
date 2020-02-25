@@ -17,6 +17,8 @@
 *
 */
 
+#define pr_fmt(fmt) "[isp_drv]: %s: " fmt, __func__
+
 #include "acamera_fw.h"
 #if ACAMERA_ISP_PROFILING
 #include "acamera_profiler.h"
@@ -104,6 +106,18 @@ void acamera_fw_deinit( acamera_context_t *p_ctx )
     acamera_fsm_mgr_deinit( &p_ctx->fsm_mgr );
 }
 
+int acamera_fw_isp_prepare(int ctx_id)
+{
+	acamera_context_t *p_ctx = (acamera_context_t *)acamera_get_ctx_ptr(ctx_id);
+
+	init_stab( p_ctx );
+
+	//config input port
+	sensor_sw_init(p_ctx->fsm_mgr.fsm_arr[FSM_ID_SENSOR]->p_fsm);
+
+	return 0;
+}
+
 int acamera_fw_isp_start(int ctx_id)
 {
 	uint8_t rc = 0;
@@ -111,15 +125,8 @@ int acamera_fw_isp_start(int ctx_id)
 	uint16_t sleep_in_us = 2 * 1000;
 	acamera_context_t *p_ctx = (acamera_context_t *)acamera_get_ctx_ptr(ctx_id);
 
-	init_stab( p_ctx );
-
 	//reconfig isp configuration space
 	acamera_load_isp_sequence( 0, p_ctx->isp_sequence, SENSOR_ISP_SEQUENCE_DEFAULT_SETTINGS );
-
-	//config input port
-	sensor_sw_init(p_ctx->fsm_mgr.fsm_arr[FSM_ID_SENSOR]->p_fsm);
-
-	acamera_update_cur_settings_to_isp(ctx_id);
 
 	acamera_isp_input_port_mode_request_write( p_ctx->settings.isp_base, ACAMERA_ISP_INPUT_PORT_MODE_REQUEST_SAFE_START );
 

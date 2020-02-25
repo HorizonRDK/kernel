@@ -87,7 +87,7 @@ int32_t close_hw_io( void )
 
 #if FW_USE_HOBOT_DMA
 #define REG_ACCESS_WARNING        \
-    if(dma_isp_reg_dma_sram_ch_en_read()) {  \
+    if(0 && dma_isp_reg_dma_sram_ch_en_read()) {  \
         printk("%s: warning : access isp_reg when dma enable\n", __FUNCTION__);    \
     }
 #else

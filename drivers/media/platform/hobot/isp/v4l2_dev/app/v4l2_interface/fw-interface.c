@@ -374,6 +374,32 @@ int fw_intf_stream_set_resolution( uint32_t ctx_id, const isp_v4l2_sensor_info *
             LOG( LOG_INFO, "Leaving same sensor settings resolution : width = %d, height = %d (preset idx = %d)", w, h, idx );
         }
 #endif
+#if 0
+#if defined( TIMAGE ) && defined( IMAGE_RESIZE_TYPE_ID ) && defined( IMAGE_RESIZE_WIDTH_ID )
+        {
+            result = acamera_command( ctx_id, TIMAGE, IMAGE_RESIZE_WIDTH_ID, w, COMMAND_SET, &ret_val );
+            if ( result ) {
+                LOG( LOG_ERR, "Failed to set resize_width, ret_value: %d.", result );
+                return result;
+            }
+            acamera_command( ctx_id, TIMAGE, IMAGE_RESIZE_HEIGHT_ID, h, COMMAND_SET, &ret_val );
+            if ( result ) {
+                LOG( LOG_ERR, "Failed to set resize_height, ret_value: %d.", result );
+                return result;
+            }
+            acamera_command( ctx_id, TIMAGE, IMAGE_RESIZE_TYPE_ID, CROP_FR, COMMAND_SET, &ret_val );
+            if ( result ) {
+                LOG( LOG_ERR, "Failed to set resize_type, ret_value: %d.", result );
+                return result;
+            }
+            acamera_command( ctx_id, TIMAGE, IMAGE_RESIZE_ENABLE_ID, RUN, COMMAND_SET, &ret_val );
+            if ( result ) {
+                LOG( LOG_ERR, "Failed to set resize_enable, ret_value: %d.", result );
+                return result;
+            }
+        }
+#endif
+#endif
     }
 #if ISP_HAS_DS1
     else if ( streamType == V4L2_STREAM_TYPE_DS1 ) {

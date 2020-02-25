@@ -42,6 +42,7 @@
 /* isp_v4l2_dev_t to destroy video device */
 static isp_v4l2_dev_t *g_isp_v4l2_devs[FIRMWARE_CONTEXT_NUMBER];
 
+extern int acamera_fw_isp_prepare(int ctx_id);
 extern int acamera_fw_isp_start(int ctx_id);
 extern int acamera_fw_isp_stop(int ctx_id);
 
@@ -114,7 +115,13 @@ static int isp_v4l2_fop_open( struct file *file )
     isp_v4l2_dev_t *dev = video_drvdata( file );
     struct isp_v4l2_fh *sp;
 
-    acamera_fw_isp_start(dev->ctx_id);
+    acamera_fw_isp_prepare(dev->ctx_id);
+
+    static uint32_t stream_on = 0;
+    if (!stream_on) {
+	acamera_fw_isp_start(dev->ctx_id);
+	stream_on = 1;
+    }
 
     /* open file header */
     rc = isp_v4l2_fh_open( file );
@@ -175,10 +182,18 @@ static int isp_v4l2_fop_close( struct file *file )
 
     LOG( LOG_INFO, "isp_v4l2 close: ctx_id: %d, called for sid:%d.", dev->ctx_id, sp->stream_id );
 
-    acamera_fw_isp_stop(dev->ctx_id);
-
     dev->stream_mask &= ~( 1 << sp->stream_id );
     open_counter = atomic_sub_return( 1, &dev->opened );
+
+    int i;
+    uint32_t opened = 0;
+    for (i = 0; i < FIRMWARE_CONTEXT_NUMBER; i++) {
+	isp_v4l2_dev_t *d = isp_v4l2_get_dev(i);
+	opened += atomic_read( &d->opened );
+    }
+
+    if (!opened)
+	acamera_fw_isp_stop(dev->ctx_id);
 
     /* deinit fh_ptr */
     if ( mutex_lock_interruptible( &dev->notify_lock ) )

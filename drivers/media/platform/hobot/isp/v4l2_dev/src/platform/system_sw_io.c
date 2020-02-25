@@ -17,6 +17,8 @@
 *
 */
 
+#define pr_fmt(fmt) "[isp_drv]: %s: " fmt, __func__
+
 #include "acamera_logger.h"
 #include <linux/gfp.h>
 #include <linux/slab.h>
@@ -305,17 +307,26 @@ void system_sw_free_dma_sram( void *ptr ,uint32_t context_id)
 #endif
 
 #if FW_USE_HOBOT_DMA
-#define SRAM_ACCESS_ERROR        \
-    if(dma_isp_reg_dma_sram_ch_en_read()) {  \
-        printk("%s: ERROR : access sw_reg when dma enable\n", __FUNCTION__);    \
-    }
+void system_sram_access_assert(uintptr_t addr)
+{
+	uint32_t ctx_id = dma_isp_reg_dma_sram_ch_sel_read();
+	uintptr_t start = (uintptr_t)g_hobot_dma_va + ctx_id * HOBOT_DMA_SRAM_ONE_ZONE;
+	uintptr_t end = start + HOBOT_DMA_SRAM_ONE_ZONE;
+
+	if (start <= addr && addr <= end && dma_isp_reg_dma_sram_ch_en_read()) { 
+		pr_debug("ctx id %d, start %p, end %p, addr %p\n",
+			ctx_id, (uint32_t *)start, (uint32_t *)end, (uint32_t *)addr);
+		pr_err("access sw_reg when dma enable\n");
+	}
+}
 #else
-#define SRAM_ACCESS_ERROR
+void system_sram_access_assert(uintptr_t addr)
+{}
 #endif
 
 uint32_t system_sw_read_32( uintptr_t addr )
 {
-    SRAM_ACCESS_ERROR;
+    system_sram_access_assert(addr);
     uint32_t result = 0;
     if ( (void *)addr != NULL ) {
         volatile uint32_t *p_addr = (volatile uint32_t *)( addr );
@@ -328,7 +339,7 @@ uint32_t system_sw_read_32( uintptr_t addr )
 
 uint16_t system_sw_read_16( uintptr_t addr )
 {
-    SRAM_ACCESS_ERROR;
+    system_sram_access_assert(addr);
     uint16_t result = 0;
     if ( (void *)addr != NULL ) {
         volatile uint16_t *p_addr = (volatile uint16_t *)( addr );
@@ -341,7 +352,7 @@ uint16_t system_sw_read_16( uintptr_t addr )
 
 uint8_t system_sw_read_8( uintptr_t addr )
 {
-    SRAM_ACCESS_ERROR;
+    system_sram_access_assert(addr);
     uint8_t result = 0;
     if ( (void *)addr != NULL ) {
         volatile uint8_t *p_addr = (volatile uint8_t *)( addr );
@@ -358,7 +369,7 @@ void system_sw_write_32( uintptr_t addr, uint32_t data )
 #if HOBOT_REGISTER_MONITOR
     hobot_rm_check_n_record((uint32_t)(((uint8_t*)addr) - g_sw_isp_base[0].base + HRM_RC_SW_BASE) ,data);
 #endif
-    SRAM_ACCESS_ERROR;
+    system_sram_access_assert(addr);
 
     if ( (void *)addr != NULL ) {
         volatile uint32_t *p_addr = (volatile uint32_t *)( addr );
@@ -373,7 +384,7 @@ void system_sw_write_16( uintptr_t addr, uint16_t data )
 #if HOBOT_REGISTER_MONITOR
         hobot_rm_check_n_record((uint32_t)(((uint8_t*)addr) - g_sw_isp_base[0].base + HRM_RC_SW_BASE) ,data);
 #endif
-    SRAM_ACCESS_ERROR;
+    system_sram_access_assert(addr);
 
     if ( (void *)addr != NULL ) {
         volatile uint16_t *p_addr = (volatile uint16_t *)( addr );
@@ -388,7 +399,7 @@ void system_sw_write_8( uintptr_t addr, uint8_t data )
 #if HOBOT_REGISTER_MONITOR
         hobot_rm_check_n_record((uint32_t)(((uint8_t*)addr) - g_sw_isp_base[0].base + HRM_RC_SW_BASE) ,data);
 #endif
-    SRAM_ACCESS_ERROR;
+    system_sram_access_assert(addr);
 
     if ( (void *)addr != NULL ) {
         volatile uint8_t *p_addr = (volatile uint8_t *)( addr );
