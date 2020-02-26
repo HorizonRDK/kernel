@@ -784,7 +784,67 @@ int user_set_fb(void)
 	graphic1_display_paddr.addr = x2_iar_get_framebuf_addr(3)->paddr;
 
 	if (display_type == HDMI_TYPE) {
+#ifdef CONFIG_HOBOT_XJ2
 		disp_set_panel_timing(&video_1920x1080);
+#else
+		disp_set_panel_timing(&video_800x480);
+		x2_fbi->channel_base_cfg[0].enable = 1;
+		x2_fbi->channel_base_cfg[1].enable = 0;
+		x2_fbi->channel_base_cfg[2].enable = 1;
+		x2_fbi->channel_base_cfg[3].enable = 0;
+		x2_fbi->channel_base_cfg[0].channel = IAR_CHANNEL_1;
+		x2_fbi->channel_base_cfg[0].enable = 1;
+		x2_fbi->update_cmd.enable_flag[0] = 1;
+		x2_fbi->update_cmd.enable_flag[2] = 1;
+		x2_fbi->channel_base_cfg[0].pri = 3;
+		x2_fbi->channel_base_cfg[0].width = 800;
+		x2_fbi->channel_base_cfg[0].height = 480;
+		x2_fbi->channel_base_cfg[0].buf_width = 800;
+		x2_fbi->channel_base_cfg[0].buf_height = 480;
+		x2_fbi->channel_base_cfg[0].format = FORMAT_YUV420SP_UV;
+		x2_fbi->channel_base_cfg[0].alpha_sel = 0;
+		x2_fbi->channel_base_cfg[0].ov_mode = 0;
+		x2_fbi->channel_base_cfg[0].alpha_en = 1;
+		x2_fbi->channel_base_cfg[0].alpha = 255;
+		x2_fbi->channel_base_cfg[2].channel = IAR_CHANNEL_3;
+		x2_fbi->channel_base_cfg[2].enable = 1;
+		x2_fbi->update_cmd.enable_flag[2] = 1;
+		x2_fbi->channel_base_cfg[2].pri = 1;
+		x2_fbi->channel_base_cfg[2].width = 800;
+		x2_fbi->channel_base_cfg[2].height = 480;
+		x2_fbi->channel_base_cfg[2].buf_width = 800;
+		x2_fbi->channel_base_cfg[2].buf_height = 480;
+		x2_fbi->channel_base_cfg[2].format = 4;//ARGB8888
+		x2_fbi->channel_base_cfg[2].alpha_sel = 0;
+		x2_fbi->channel_base_cfg[2].ov_mode = 0;
+		x2_fbi->channel_base_cfg[2].alpha_en = 1;
+		x2_fbi->channel_base_cfg[2].alpha = 128;
+
+		x2_fbi->output_cfg.out_sel = 1;
+		x2_fbi->output_cfg.width = 800;
+		x2_fbi->output_cfg.height = 480;
+		x2_fbi->output_cfg.bgcolor = 16744328;//white.
+		//x2_fbi->output_cfg.bgcolor = 88888888;//green
+
+		iar_channel_base_cfg(&x2_fbi->channel_base_cfg[0]);
+		iar_channel_base_cfg(&x2_fbi->channel_base_cfg[2]);
+		iar_output_cfg(&x2_fbi->output_cfg);
+
+		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x00, 4);
+		writel(0x0572300f, hitm1_reg_addr);
+
+		//panel color type is yuv444, YCbCr conversion needed
+		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x204, 4);
+		writel(0, hitm1_reg_addr);
+
+		//select BT709 color domain
+		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x48, 4);
+		writel(FORMAT_ORGANIZATION_VAL, hitm1_reg_addr);
+		iar_switch_buf(0);
+		iar_set_bufaddr(IAR_CHANNEL_3, &graphic_display_paddr);
+		iar_set_bufaddr(IAR_CHANNEL_4, &graphic1_display_paddr);
+		iar_start(1);
+#endif
 	}
 	if (display_type == LCD_7_TYPE) {
 		disp_set_panel_timing(&video_800x480);

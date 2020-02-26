@@ -767,10 +767,19 @@ int8_t disp_set_pixel_clk(uint64_t pixel_clk)
 
 int disp_pinmux_bt1120(void)
 {
+	int ret = 0;
+	void __iomem *pinctl_reg_addr;
+        uint32_t reg_val = 0;
+
 	if (!g_iar_dev->pins_bt1120)
 		return -ENODEV;
-	return pinctrl_select_state(g_iar_dev->pinctrl,
+	ret = pinctrl_select_state(g_iar_dev->pinctrl,
 			g_iar_dev->pins_bt1120);
+	pinctl_reg_addr = ioremap_nocache(0xa6004000 + 0x138, 4);
+	reg_val = readl(pinctl_reg_addr);
+	reg_val = (reg_val & 0xfffffffc) | 0x0000003c;
+	writel(reg_val, pinctl_reg_addr);
+	return ret;
 }
 
 int disp_pinmux_bt656(void)
@@ -819,6 +828,9 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 #ifdef CONFIG_HOBOT_XJ2
 		ips_pinmux_bt();
 #else
+		ret = disp_set_pixel_clk(32000000);
+                if (ret)
+                        return ret;
 		ret = disp_pinmux_bt1120();
 		if (ret)
 			return -1;
@@ -2385,6 +2397,9 @@ static int x2_iar_probe(struct platform_device *pdev)
 		} else if (strncmp(type, "lcd", 3) == 0) {
 			display_type = LCD_7_TYPE;
 			pr_info("%s: panel type is LCD_7_TYPE\n", __func__);
+		} else if (strncmp(type, "hdmi", 4) == 0) {
+			display_type = HDMI_TYPE;
+			pr_info("%s: panel type is HDMI_TYPE\n", __func__);
 		} else {
 			pr_err("wrong panel type!!!\n");
 		}
