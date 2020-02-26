@@ -38,3 +38,13 @@
 			   };
 	   };
 };
+
+&sdio1 {
+	powerup-gpio = <100>;	/* xj3-cvb UART1_CTSN/GPIO6[4] */
+	powerup-logic = <0>;
+	/* broken-cd; */
+};
+
+&sdio2 {
+	powerup-gpio = <98>;	/* xj3-cvb UART1_RXD/GPIO6[2] */
+};

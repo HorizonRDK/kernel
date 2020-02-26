@@ -353,9 +353,9 @@
 	sd-uhs-sdr25;
 	sd-uhs-sdr50;
 	sd-uhs-sdr104;
-	uhs-180v-gpio = <120>;
+	uhs-180v-gpio = <120>; /* QSPI_CSN1/GPIO7[8] */
 	uhs-180v-logic = <1>;
-	broken-cd;
+	gpio-cd = <64>;	/* SD0_DET_N /GPIO4[0] */
 	disable-wp;
 };
 
@@ -368,7 +368,6 @@
 	sd-uhs-sdr25;
 	sd-uhs-sdr50;
 	sd-uhs-sdr104;
-	powerup-gpio = <2>;
 	broken-cd;
 	disable-wp;
 };

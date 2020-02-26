@@ -292,6 +292,7 @@ static void dw_mci_wait_while_busy(struct dw_mci *host, u32 cmd_flags)
 // hobot
 static void dw_mci_wait_busy(struct dw_mci_slot *slot)
 {
+#if 0
 	struct dw_mci *host = slot->host;
 	unsigned long timeout = jiffies + msecs_to_jiffies(500);
 
@@ -308,6 +309,7 @@ static void dw_mci_wait_busy(struct dw_mci_slot *slot)
 	* should reset controller to avoid getting "Timeout sending command".
 	*/
 	dw_mci_ctrl_reset(host, SDMMC_CTRL_ALL_RESET_FLAGS);
+#endif
 }
 
 static void mci_send_cmd(struct dw_mci_slot *slot, u32 cmd, u32 arg)
@@ -2696,7 +2698,7 @@ static void dw_mci_handle_cd(struct dw_mci *host)
 		msecs_to_jiffies(host->pdata->detect_delay_ms));
 }
 
-static void x2_emmc_diag_process(u32 errsta, u32 envdata)
+static void hb_emmc_diag_process(u32 errsta, u32 envdata)
 {
 	u8 sta;
 	u8 envgen_timing;
@@ -2822,10 +2824,10 @@ static irqreturn_t dw_mci_interrupt(int irq, void *dev_id)
 	if ((first_time == 0) && (slot->mmc->index == INDEX_ID_EMMC)) {
 		first_time = 1;
 		last_err = err;
-		x2_emmc_diag_process(err, pending);
+		hb_emmc_diag_process(err, pending);
 	} else if ((last_err != err) && (slot->mmc->index == INDEX_ID_EMMC)) {
 		last_err = err;
-		x2_emmc_diag_process(err, pending);
+		hb_emmc_diag_process(err, pending);
 	}
 	if (host->use_dma != TRANS_MODE_IDMAC)
 		return IRQ_HANDLED;
@@ -2906,6 +2908,7 @@ static int dw_mci_init_slot(struct dw_mci *host)
 	struct dw_mci_slot *slot;
 	int ret;
 	u32 freq[2];
+	u32 of_val = 0;
 
 	mmc = mmc_alloc_host(sizeof(struct dw_mci_slot), host->dev);
 	if (!mmc)
@@ -2968,6 +2971,14 @@ static int dw_mci_init_slot(struct dw_mci *host)
 		mmc->max_req_size = mmc->max_blk_size *
 					mmc->max_blk_count;
 		mmc->max_seg_size = mmc->max_req_size;
+	}
+
+	// hobot gpio-cd
+	if (!device_property_read_u32(host->dev, "gpio-cd", &of_val)) {
+		if (gpio_is_valid(of_val)) {
+			ret = mmc_gpio_request_cd(mmc, of_val, 0);
+			dev_info(host->dev, "gpio-cd=%d ret=%d\n", of_val, ret);
+		}
 	}
 
 	dw_mci_get_cd(mmc);
@@ -3316,18 +3327,18 @@ int dw_mci_probe(struct dw_mci *host)
 		if (host->pdata->bus_hz) {
 			pr_debug("set ciu clk to %u\n", host->pdata->bus_hz);
 
-			x2_mmc_disable_clk(host->priv);
+			hb_mmc_disable_clk(host->priv);
 
 			ret = clk_set_rate(host->ciu_clk, host->pdata->bus_hz);
 			if (ret)
 				dev_warn(host->dev,
 					 "Unable to set bus rate to %uHz\n",
 					 host->pdata->bus_hz);
-			x2_mmc_enable_clk(host->priv);
+			hb_mmc_enable_clk(host->priv);
 		}
 
 		host->bus_hz = clk_get_rate(host->ciu_clk);
-		pr_debug("get ciu clk is %u\n", host->bus_hz);
+		dev_dbg(host->dev, "get ciu clk is %u\n", host->bus_hz);
 	}
 
 	if (!host->bus_hz) {
@@ -3605,8 +3616,8 @@ int dw_mci_system_suspend(struct device *dev)
 		 !mmc_card_is_removable(host->slot->mmc)))
 		clk_disable_unprepare(host->biu_clk);
 
-	x2_mmc_disable_clk(host->priv);
-	x2_mmc_set_power(host->priv, 0);
+	hb_mmc_disable_clk(host->priv);
+	hb_mmc_set_power(host->priv, 0);
 
 	return 0;
 }
@@ -3621,7 +3632,7 @@ int dw_mci_system_resume(struct device *dev)
 #ifdef CONFIG_HOBOT_FPGA_X3
 	return 0;
 #endif
-	x2_mmc_set_power(host->priv, 1);
+	hb_mmc_set_power(host->priv, 1);
 	if (host->slot &&
 	    (mmc_can_gpio_cd(host->slot->mmc) ||
 	     !mmc_card_is_removable(host->slot->mmc))) {
@@ -3633,7 +3644,7 @@ int dw_mci_system_resume(struct device *dev)
 	if (ret)
 		goto err;
 
-	x2_mmc_enable_clk(host->priv);
+	hb_mmc_enable_clk(host->priv);
 
 	/* reset control */
 	if (!IS_ERR(host->pdata->rstc)) {
@@ -3656,7 +3667,7 @@ int dw_mci_system_resume(struct device *dev)
 	//}
 	if (!dw_mci_ctrl_reset(host, SDMMC_CTRL_ALL_RESET_FLAGS)) {
 		clk_disable_unprepare(host->ciu_clk);
-		x2_mmc_disable_clk(host->priv);
+		hb_mmc_disable_clk(host->priv);
 		ret = -ENODEV;
 		goto err;
 	}

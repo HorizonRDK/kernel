@@ -78,13 +78,14 @@
 #define SD_PIN_DRIVE			(0x120)
 #endif
 
-#define VER				"HOBOT-mmc_V20.200203"
+#define pr_fmt(fmt)	KBUILD_MODNAME ": " fmt
+#define VER		"HOBOT-mmc_V20.200224"
 
 static int debug;
 module_param(debug, int, 0644);
 MODULE_PARM_DESC(debug, "mmc: 0 close debug, 1 open debug");
 
-static int x2_mmc_set_sd_padcctrl(struct dw_mci_hobot_priv_data *priv)
+static int hb_mmc_set_sd_padcctrl(struct dw_mci_hobot_priv_data *priv)
 {
 #ifdef CONFIG_HOBOT_XJ2
 	u32 reg_value;
@@ -128,7 +129,7 @@ static int x2_mmc_set_sd_padcctrl(struct dw_mci_hobot_priv_data *priv)
 	return 0;
 }
 
-int x2_mmc_disable_clk(struct dw_mci_hobot_priv_data *priv)
+int hb_mmc_disable_clk(struct dw_mci_hobot_priv_data *priv)
 {
 	u64 timeout = jiffies + msecs_to_jiffies(10);
 	u32 clken_clr_shift = 0, clkoff_sta_shift = 0;
@@ -163,15 +164,15 @@ int x2_mmc_disable_clk(struct dw_mci_hobot_priv_data *priv)
 
 		timeout = jiffies + msecs_to_jiffies(10);
 		if (debug)
-			pr_warn("dwmmc_hobot: Warn disable mmc clk failed %d times\n", retry);
+			pr_warn("Warn disable mmc clk failed %d times\n", retry);
 	}
 
-	pr_err("dwmmc_hobot: Err disable mmc clk, ctrl_id:%d!\n", priv->ctrl_id);
+	pr_err("Err disable mmc clk, ctrl_id:%d!\n", priv->ctrl_id);
 
 	return -1;
 }
 
-int x2_mmc_enable_clk(struct dw_mci_hobot_priv_data *priv)
+int hb_mmc_enable_clk(struct dw_mci_hobot_priv_data *priv)
 {
 	u64 timeout = jiffies + msecs_to_jiffies(10);
 	u32 clken_set_shift = 0, clkoff_sta_shift = 0;
@@ -209,15 +210,15 @@ int x2_mmc_enable_clk(struct dw_mci_hobot_priv_data *priv)
 
 		timeout = jiffies + msecs_to_jiffies(10);
 		if (debug)
-			pr_warn("dwmmc_hobot: Warn enable mmc clk failed %d times\n", retry);
+			pr_warn("Warn enable mmc clk failed %d times\n", retry);
 	}
 
-	pr_err("dwmmc_hobot: Err enable mmc clk, ctrl_id:%d!\n", priv->ctrl_id);
+	pr_err("Err enable mmc clk, ctrl_id:%d!\n", priv->ctrl_id);
 
 	return -1;
 }
 
-void x2_mmc_set_power(struct dw_mci_hobot_priv_data *priv, bool val)
+void hb_mmc_set_power(struct dw_mci_hobot_priv_data *priv, bool val)
 {
 	bool logic_val = val;
 
@@ -235,14 +236,14 @@ void x2_mmc_set_power(struct dw_mci_hobot_priv_data *priv, bool val)
 	}
 }
 
-static int x2_mmc_set_sample_phase(struct dw_mci_hobot_priv_data *priv,
+static int hb_mmc_set_sample_phase(struct dw_mci_hobot_priv_data *priv,
 				   int degrees)
 {
 	u32 reg_value;
 
 	priv->current_sample_phase = degrees;
 
-	x2_mmc_disable_clk(priv);
+	hb_mmc_disable_clk(priv);
 	if (priv->ctrl_id == DWMMC_MMC_ID) {
 		reg_value = readl(priv->sysctrl_reg + HOBOT_SD0_PHASE_REG);
 		reg_value &= 0xFFFF0FFF;
@@ -263,21 +264,21 @@ static int x2_mmc_set_sample_phase(struct dw_mci_hobot_priv_data *priv,
 	}
 #endif
 	usleep_range(1, 2);
-	x2_mmc_enable_clk(priv);
+	hb_mmc_enable_clk(priv);
 
 	/* We should delay 1us wait for timing setting finished. */
 	usleep_range(1, 2);
 	return 0;
 }
 
-static int x2_mmc_set_drv_phase(struct dw_mci_hobot_priv_data *priv,
+static int hb_mmc_set_drv_phase(struct dw_mci_hobot_priv_data *priv,
 				int degrees)
 {
 	u32 reg_value;
 
 	priv->current_drv_phase = degrees;
 
-	x2_mmc_disable_clk(priv);
+	hb_mmc_disable_clk(priv);
 	if (priv->ctrl_id == DWMMC_MMC_ID) {
 		reg_value = readl(priv->sysctrl_reg + HOBOT_SD0_PHASE_REG);
 		reg_value &= 0xFFFFF0FF;
@@ -298,14 +299,14 @@ static int x2_mmc_set_drv_phase(struct dw_mci_hobot_priv_data *priv,
 	}
 #endif
 	usleep_range(1, 2);
-	x2_mmc_enable_clk(priv);
+	hb_mmc_enable_clk(priv);
 
 	/* We should delay 1us wait for timing setting finished. */
 	usleep_range(1, 2);
 	return 0;
 }
 
-static int dw_mci_x2_sample_tuning(struct dw_mci_slot *slot, u32 opcode)
+static int dw_mci_hb_sample_tuning(struct dw_mci_slot *slot, u32 opcode)
 {
 	struct dw_mci *host = slot->host;
 	struct dw_mci_hobot_priv_data *priv = host->priv;
@@ -329,7 +330,7 @@ static int dw_mci_x2_sample_tuning(struct dw_mci_slot *slot, u32 opcode)
 
 	/* Try each phase and extract good ranges */
 	for (i = 0; i < NUM_PHASES;) {
-		x2_mmc_set_sample_phase(priv, TUNING_ITERATION_TO_PHASE(i));
+		hb_mmc_set_sample_phase(priv, TUNING_ITERATION_TO_PHASE(i));
 
 		v = !mmc_send_tuning(mmc, opcode, NULL);
 
@@ -376,7 +377,7 @@ static int dw_mci_x2_sample_tuning(struct dw_mci_slot *slot, u32 opcode)
 	}
 
 	if (ranges[0].start == 0 && ranges[0].end == NUM_PHASES - 1) {
-		x2_mmc_set_sample_phase(priv, priv->default_sample_phase);
+		hb_mmc_set_sample_phase(priv, priv->default_sample_phase);
 		dev_dbg(host->dev,
 			"All sample phases work, using default phase %d.",
 			priv->default_sample_phase);
@@ -416,22 +417,22 @@ static int dw_mci_x2_sample_tuning(struct dw_mci_slot *slot, u32 opcode)
 		priv->current_drv_phase,
 		TUNING_ITERATION_TO_PHASE(middle_phase));
 
-	x2_mmc_set_sample_phase(priv, TUNING_ITERATION_TO_PHASE(middle_phase));
+	hb_mmc_set_sample_phase(priv, TUNING_ITERATION_TO_PHASE(middle_phase));
 
 free:
 	kfree(ranges);
 	return ret;
 }
 
-static int dw_mci_x2_execute_tuning(struct dw_mci_slot *slot, u32 opcode)
+static int dw_mci_hb_execute_tuning(struct dw_mci_slot *slot, u32 opcode)
 {
 	int ret = -EIO;
 
-	ret = dw_mci_x2_sample_tuning(slot, opcode);
+	ret = dw_mci_hb_sample_tuning(slot, opcode);
 	return ret;
 }
 
-static void dw_mci_x2_set_ios(struct dw_mci *host, struct mmc_ios *ios)
+static void dw_mci_hb_set_ios(struct dw_mci *host, struct mmc_ios *ios)
 {
 	struct dw_mci_hobot_priv_data *priv = host->priv;
 	int ret;
@@ -460,13 +461,13 @@ static void dw_mci_x2_set_ios(struct dw_mci *host, struct mmc_ios *ios)
 	else
 		cclkin = ios->clock;
 
-	x2_mmc_disable_clk(priv);
+	hb_mmc_disable_clk(priv);
 
 	ret = clk_set_rate(host->ciu_clk, cclkin);
 	if (ret)
 		dev_warn(host->dev, "failed to set rate %uHz\n", ios->clock);
 
-	x2_mmc_enable_clk(priv);
+	hb_mmc_enable_clk(priv);
 	usleep_range(1, 2);
 	bus_hz = clk_get_rate(host->ciu_clk);
 	if (bus_hz != host->bus_hz) {
@@ -476,7 +477,7 @@ static void dw_mci_x2_set_ios(struct dw_mci *host, struct mmc_ios *ios)
 	}
 
 	/* Make sure we use phases which we can enumerate with */
-	x2_mmc_set_sample_phase(priv, priv->default_sample_phase);
+	hb_mmc_set_sample_phase(priv, priv->default_sample_phase);
 
 	/*
 	 * Set the drive phase offset based on speed mode to achieve hold times.
@@ -537,9 +538,9 @@ static void dw_mci_x2_set_ios(struct dw_mci *host, struct mmc_ios *ios)
 		break;
 	}
 
-	x2_mmc_set_drv_phase(priv, phase);
+	hb_mmc_set_drv_phase(priv, phase);
 	if (debug) {
-		pr_err("dwmmc_hobot: %s ctrl_id=%d sample_phase=%d phase=%d"
+		pr_err("%s ctrl_id=%d sample_phase=%d phase=%d"
 			" ios->timing=%d ios->signal_voltage=%d ios->clock=%d"
 			" cclkin=%d bus_hz=%lu host->bus_hz=%d\n",
 			__func__, priv->ctrl_id, priv->default_sample_phase,
@@ -549,13 +550,13 @@ static void dw_mci_x2_set_ios(struct dw_mci *host, struct mmc_ios *ios)
 	return;
 }
 
-static int dw_mci_x2_prepare_hs400_tuning(struct dw_mci *host,
+static int dw_mci_hb_prepare_hs400_tuning(struct dw_mci *host,
 					  struct mmc_ios *ios)
 {
 	return 0;
 }
 
-static int dw_mci_x2_parse_dt(struct dw_mci *host)
+static int dw_mci_hb_parse_dt(struct dw_mci *host)
 {
 	struct device_node *np = host->dev->of_node;
 	struct dw_mci_hobot_priv_data *priv;
@@ -596,9 +597,9 @@ static int dw_mci_x2_parse_dt(struct dw_mci *host)
 	if (!device_property_read_u32(host->dev, "powerup-gpio", &of_val)) {
 		priv->powerup_gpio = of_val;
 		gpio_request(priv->powerup_gpio, NULL);
-		x2_mmc_set_power(priv, 0);
+		hb_mmc_set_power(priv, 0);
 		usleep_range(20000, 30000);
-		x2_mmc_set_power(priv, 1);
+		hb_mmc_set_power(priv, 1);
 	}
 	of_val = 0;
 	if (!device_property_read_u32(host->dev, "uhs-180v-logic", &of_val)) {
@@ -624,7 +625,7 @@ static int dw_mci_hobot_init(struct dw_mci *host)
 
 	mci_writel(host, CDTHRCTL, SDMMC_SET_THLD(SDCARD_RD_THRESHOLD,
 						  SDMMC_CARD_RD_THR_EN));
-	x2_mmc_set_sd_padcctrl(priv);
+	hb_mmc_set_sd_padcctrl(priv);
 
 	return 0;
 }
@@ -645,8 +646,8 @@ static int dw_mci_set_sel18(struct dw_mci *host, bool val)
 	}
 
 	if (debug)
-		pr_err("mmc: %s ctrl_id=%d uhs_180v_gpio=%d val=%d lval=%d\n",
-		__func__, priv->ctrl_id, priv->uhs_180v_gpio, val, logic_val);
+		dev_err(host->dev, "ctrl_id=%d uhs_180v_gpio=%d val=%d lval=%d\n",
+			priv->ctrl_id, priv->uhs_180v_gpio, val, logic_val);
 	if (priv->uhs_180v_gpio) {
 		ret = gpio_direction_output(priv->uhs_180v_gpio, logic_val);
 		usleep_range(5000, 10000);
@@ -660,7 +661,7 @@ static int dw_mci_set_sel18(struct dw_mci *host, bool val)
 	return 0;
 }
 
-static int dw_mci_x2_switch_voltage(struct mmc_host *mmc, struct mmc_ios *ios)
+static int dw_mci_hb_switch_voltage(struct mmc_host *mmc, struct mmc_ios *ios)
 {
 	struct dw_mci_slot *slot = mmc_priv(mmc);
 	struct dw_mci *host = slot->host;
@@ -714,27 +715,27 @@ static int dw_mci_x2_switch_voltage(struct mmc_host *mmc, struct mmc_ios *ios)
 }
 
 /* Common capabilities of X2 SoC */
-static unsigned long dw_mci_x2_dwmmc_caps[4] = {
+static unsigned long dw_mci_hb_dwmmc_caps[4] = {
 	MMC_CAP_CMD23,
 	MMC_CAP_CMD23,
 	MMC_CAP_CMD23,
 	MMC_CAP_CMD23,
 };
 
-static const struct dw_mci_drv_data x2_drv_data = {
-	.caps = dw_mci_x2_dwmmc_caps,
-	.num_caps = ARRAY_SIZE(dw_mci_x2_dwmmc_caps),
+static const struct dw_mci_drv_data hb_drv_data = {
+	.caps = dw_mci_hb_dwmmc_caps,
+	.num_caps = ARRAY_SIZE(dw_mci_hb_dwmmc_caps),
 	.init = dw_mci_hobot_init,
-	.set_ios = dw_mci_x2_set_ios,
-	.parse_dt = dw_mci_x2_parse_dt,
-	.execute_tuning = dw_mci_x2_execute_tuning,
-	.prepare_hs400_tuning = dw_mci_x2_prepare_hs400_tuning,
-	.switch_voltage = dw_mci_x2_switch_voltage,
+	.set_ios = dw_mci_hb_set_ios,
+	.parse_dt = dw_mci_hb_parse_dt,
+	.execute_tuning = dw_mci_hb_execute_tuning,
+	.prepare_hs400_tuning = dw_mci_hb_prepare_hs400_tuning,
+	.switch_voltage = dw_mci_hb_switch_voltage,
 };
 
 static const struct of_device_id dw_mci_hobot_match[] = {
-	{.compatible = "hobot,x2-dw-mshc",
-	 .data = &x2_drv_data},
+	{.compatible = "hobot,x2-dw-mshc", .data = &hb_drv_data},
+	{.compatible = "hobot,hb-dw-mmc", .data = &hb_drv_data},
 	{},
 };
 
@@ -772,7 +773,7 @@ static int dw_mci_hobot_remove(struct platform_device *pdev)
 	if (priv->uhs_180v_gpio)
 		gpio_free(priv->uhs_180v_gpio);
 	if (priv->powerup_gpio) {
-		x2_mmc_set_power(priv, 0);
+		hb_mmc_set_power(priv, 0);
 		gpio_free(priv->powerup_gpio);
 	}
 

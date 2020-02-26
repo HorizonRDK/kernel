@@ -24,8 +24,8 @@ struct dw_mci_hobot_priv_data {
 	u8 current_phase_cnt;
 };
 
-int x2_mmc_disable_clk(struct dw_mci_hobot_priv_data *priv);
-int x2_mmc_enable_clk(struct dw_mci_hobot_priv_data *priv);
-void x2_mmc_set_power(struct dw_mci_hobot_priv_data *priv, bool val);
+int hb_mmc_disable_clk(struct dw_mci_hobot_priv_data *priv);
+int hb_mmc_enable_clk(struct dw_mci_hobot_priv_data *priv);
+void hb_mmc_set_power(struct dw_mci_hobot_priv_data *priv, bool val);
 
 #endif

@@ -255,19 +255,19 @@
 			};
 			sdio0_func:sdio0_func {
 				pinctrl-x2,pins-muxs = <
-					53	0
-					54	0
-					55	0
-					56	0
-					57	0
-					58	0
-					59	0
-					60	0
-					61	0
-					62	0
-					63	0
-					64	0
-					/* 65	0 */ /* sd wprot - reused by usb id pin */
+					53	0 /*SD0_CLK*/
+					54	0 /*SD0_CMD*/
+					55	0 /*SD0_DATA0*/
+					56	0 /*SD0_DATA1*/
+					57	0 /*SD0_DATA2*/
+					58	0 /*SD0_DATA3*/
+					59	0 /*SD0_DATA4*/
+					60	0 /*SD0_DATA5*/
+					61	0 /*SD0_DATA6*/
+					62	0 /*SD0_DATA7*/
+					63	0 /*SD0_DATA_STRB*/
+					/* 64	0 */ /*SD0_DET_N*/
+					/* 65	0 */ /* SD0_WPROT - reused by usb id pin */
 				>;
 			};
 			sdio1_func:sdio1_func {
