@@ -4585,7 +4585,8 @@ static int x2_get_rx_status(void *data, struct x2_extra_stats *x, struct dma_des
 
 	if (!(rdes3 & RDES3_LAST_DESCRIPTOR)) {
 		return discard_frame;
-	}
+    }
+
 	if (rdes3 &  RDES3_ERROR_SUMMARY) {
 		if (rdes3 & RDES3_GIANT_PACKET) {
 			stats->rx_length_errors++;
@@ -4609,6 +4610,7 @@ static int x2_get_rx_status(void *data, struct x2_extra_stats *x, struct dma_des
 		if (rdes3 & RDES3_DRIBBLE_ERROR) {
 			x->dribbling_bit++;
 		}
+        stats->rx_errors++;
 		ret = discard_frame;
 	}
 
@@ -4896,7 +4898,6 @@ static int x2_rx_packet(struct x2_priv *priv, int limit, u32 queue)
 		}
 
 		if (status == discard_frame) {
-			priv->dev->stats.rx_errors++;
 			if (priv->hwts_rx_en && !priv->extend_desc) {
 				dev_kfree_skb_any(rx_q->rx_skbuff[entry]);
 				rx_q->rx_skbuff[entry] = NULL;
