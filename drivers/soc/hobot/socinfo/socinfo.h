@@ -7,6 +7,41 @@
 #ifndef SOCINFO_H
 #define SOCINFO_H
 
+/* ddr manufacture */
+#define DDR_MANU_HYNIX		0x1
+#define DDR_MANU_MICRON		0x2
+#define PIN_DDR_TYPE_SEL(x)	((x) & 0x1)
+
+/* som type */
+#define SOM_TYPE_X3		0x1
+#define SOM_TYPE_J3		0x2
+
+/* base board type */
+#define BASE_BOARD_X3_DVB		0x1
+#define BASE_BOARD_J3_DVB		0x2
+#define BASE_BOARD_CVB			0x3
+#define BASE_BOARD_CUSTOMER_BOARD	0x4
+
+/* ddr type */
+#define DDR_TYPE_LPDDR4		0x1
+#define DDR_TYPE_LPDDR4X	0x2
+#define DDR_TYPE_DDR4		0x3
+#define DDR_TYPE_DDR3L		0x4
+
+/* ddr frequency */
+#define DDR_FREQC_667	0x1
+#define DDR_FREQC_1600	0x2
+#define DDR_FREQC_2133	0x3
+#define DDR_FREQC_2666	0x4
+#define DDR_FREQC_3200	0x5
+#define DDR_FREQC_3733	0x6
+#define DDR_FREQC_4266	0x7
+
+/* ddr capacity */
+#define DDR_CAPACITY_1G		0x1
+#define DDR_CAPACITY_2G		0x2
+#define DDR_CAPACITY_4G		0x3
+
 enum hobot_board {
 	X2_SVB = 100,
 	J2_SVB = 200,

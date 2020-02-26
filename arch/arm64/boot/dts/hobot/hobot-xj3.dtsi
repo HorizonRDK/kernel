@@ -1140,8 +1140,16 @@
 		};
 
 		socinfo: socinfo{
-			compatible = "hobot,x2-socinfo";
-			board_id = "0";
+			compatible = "hobot,x3-socinfo";
+			board_name = "0";
+			board_id = "00000000";
+			origin_board_id = "00000000";
+			ddr_vender = "0";
+			ddr_type = "0";
+			ddr_freq = "0";
+			ddr_size = "0";
+			som_name = "0";
+			base_board_name = "0";
 			boot_mode = "0";
 			socuid = "00000000000000000000000000000000";
 		};

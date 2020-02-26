@@ -18,12 +18,23 @@
 
 #include "socinfo.h"
 
-#define SOCINFO_NAME		"x2-socinfo"
+#define SOCINFO_NAME		"x3-socinfo"
+#define BUF_LEN		128
 
 const char *soc_id;
 const char *bootmode;
 const char *socuid;
+const char *origin_board_id;
+const char *board_id;
+const char *ddr_vender;
+const char *ddr_type;
+const char *ddr_freq;
+const char *ddr_size;
+const char *som_name;
+const char *base_board_name;
+const char *board_name;
 
+#if 0
 unsigned int x2_board_id[] = {
 	0x100, 0x101, 0x102, 0x103, 0x200, 0x201, 0x202, 0x203, 0x204, 0x205,
 	0x300, 0x301, 0x302, 0x303, 0x304, 0x400, 0x401, 0x104, 0x105, 0x106,
@@ -68,47 +79,133 @@ static int parse_boardid(uint32_t board_id)
 		i = ARRAY_SIZE(x2_board_id);
 	return i;
 }
+#endif
 
 ssize_t id_show(struct class *class,
 			struct class_attribute *attr, char *buf)
 {
-	if (soc_id == NULL)
+	if (board_id == NULL)
 		return 0;
 
-	strcpy(buf, soc_id);
+	snprintf(buf, BUF_LEN, "%s", board_id);
 	strcat(buf, "\n");
 
 	return strlen(buf);
 }
 
-ssize_t id_store(struct class *class, struct class_attribute *attr,
-				const char *buf, size_t count)
+ssize_t origin_id_show(struct class *class,
+			struct class_attribute *attr, char *buf)
 {
-	return count;
+	if (origin_board_id == NULL)
+		return 0;
+
+	snprintf(buf, BUF_LEN, "%s\n", origin_board_id);
+
+	return strlen(buf);
 }
+
 
 ssize_t name_show(struct class *class,
 			struct class_attribute *attr, char *buf)
 {
 	int index;
-	uint32_t board_id;
+	char name[128] = { 0 };
 
-	if (!soc_id)
-		return 0;
+	/* add base board name */
+	index = simple_strtoul(base_board_name, NULL, 16);
+	switch (index) {
+	case BASE_BOARD_X3_DVB:
+		snprintf(name, sizeof(name), "x3dvb");
+		break;
+	case BASE_BOARD_J3_DVB:
+		snprintf(name, sizeof(name), "j3dvb");
+		break;
+	case BASE_BOARD_CVB:
+		snprintf(name, sizeof(name), "cvb");
+		break;
+	default:
+		snprintf(name, sizeof(name), "x3dvb");
+		break;
+	}
 
-	board_id = simple_strtoul(soc_id, NULL, 16);
-	index = parse_boardid(board_id);
+	/* add som name */
+	index = simple_strtoul(som_name, NULL, 16);
+	switch (index) {
+	case SOM_TYPE_X3:
+		snprintf(name, sizeof(name), "%sx3", name);
+		break;
+	case SOM_TYPE_J3:
+		snprintf(name, sizeof(name), "%sj3", name);
+		break;
+	default:
+		snprintf(name, sizeof(name), "%sx3", name);
+		break;
+	}
 
-	strcpy(buf, board_of_id[index].board_id_string);
-	strcat(buf, "\n");
+	/* add ddr vender */
+	index = simple_strtoul(ddr_vender, NULL, 16);
+	switch (index) {
+	case DDR_MANU_HYNIX:
+		snprintf(name, sizeof(name), "%s-hynix", name);
+		break;
+	case DDR_MANU_MICRON:
+		snprintf(name, sizeof(name), "%s-micron", name);
+		break;
+	default:
+		snprintf(name, sizeof(name), "%s-hynix", name);
+		break;
+	}
+
+	/* add ddr size */
+	index = simple_strtoul(ddr_size, NULL, 16);
+	switch (index) {
+	case DDR_CAPACITY_1G:
+		snprintf(name, sizeof(name), "%s1G", name);
+		break;
+	case DDR_CAPACITY_2G:
+		snprintf(name, sizeof(name), "%s2G", name);
+		break;
+	case DDR_CAPACITY_4G:
+		snprintf(name, sizeof(name), "%s4G", name);
+		break;
+	default:
+		snprintf(name, sizeof(name), "%s1G", name);
+		break;
+	}
+
+	/* add ddr freq */
+	index = simple_strtoul(ddr_freq, NULL, 16);
+	switch (index) {
+	case DDR_FREQC_667:
+		snprintf(name, sizeof(name), "%s-667", name);
+		break;
+	case DDR_FREQC_1600:
+		snprintf(name, sizeof(name), "%s-1600", name);
+		break;
+	case DDR_FREQC_2133:
+		snprintf(name, sizeof(name), "%s-2133", name);
+		break;
+	case DDR_FREQC_2666:
+		snprintf(name, sizeof(name), "%s-2666", name);
+		break;
+	case DDR_FREQC_3200:
+		snprintf(name, sizeof(name), "%s-3200", name);
+		break;
+	case DDR_FREQC_3733:
+		snprintf(name, sizeof(name), "%s-3733", name);
+		break;
+	case DDR_FREQC_4266:
+		snprintf(name, sizeof(name), "%s-4266", name);
+		break;
+
+	default:
+		snprintf(name, sizeof(name), "%s-2666", name);
+		break;
+	}
+
+	snprintf(buf, BUF_LEN, "%s\n", name);
 
 	return strlen(buf);
-}
-
-ssize_t name_store(struct class *class,
-		struct class_attribute *attr, const char *buf, size_t count)
-{
-	return count;
 }
 
 ssize_t boot_show(struct class *class,
@@ -116,16 +213,9 @@ ssize_t boot_show(struct class *class,
 {
 	if (!buf || !bootmode)
 		return 0;
-	strcpy(buf, bootmode);
-	strcat(buf, "\n");
+	snprintf(buf, BUF_LEN, "%s\n", bootmode);
 
 	return strlen(buf);
-}
-
-ssize_t boot_store(struct class *class,
-		struct class_attribute *attr, const char *buf, size_t count)
-{
-	return count;
 }
 
 ssize_t socuid_show(struct class *class,
@@ -133,33 +223,120 @@ ssize_t socuid_show(struct class *class,
 {
 	if (!buf)
 		return 0;
-	strcpy(buf, socuid);
-	strcat(buf, "\n");
+	snprintf(buf, BUF_LEN, "%s\n", socuid);
 
 	return strlen(buf);
 }
 
-ssize_t socuid_store(struct class *class, struct class_attribute *attr,
+ssize_t ddr_vender_show(struct class *class,
+			struct class_attribute *attr, char *buf)
+{
+	if (!buf)
+		return 0;
+	snprintf(buf, BUF_LEN, "%s\n", ddr_vender);
+
+	return strlen(buf);
+}
+
+ssize_t ddr_name_show(struct class *class,
+			struct class_attribute *attr, char *buf)
+{
+	if (!buf)
+		return 0;
+	snprintf(buf, BUF_LEN, "%s\n", ddr_type);
+
+	return strlen(buf);
+}
+
+ssize_t ddr_freq_show(struct class *class,
+			struct class_attribute *attr, char *buf)
+{
+	if (!buf)
+		return 0;
+	snprintf(buf, BUF_LEN, "%s\n", ddr_freq);
+
+	return strlen(buf);
+}
+
+ssize_t ddr_size_show(struct class *class,
+			struct class_attribute *attr, char *buf)
+{
+	if (!buf)
+		return 0;
+	snprintf(buf, BUF_LEN, "%s\n", ddr_size);
+
+	return strlen(buf);
+}
+
+ssize_t som_name_show(struct class *class,
+			struct class_attribute *attr, char *buf)
+{
+	if (!buf)
+		return 0;
+	snprintf(buf, BUF_LEN, "%s\n", som_name);
+
+	return strlen(buf);
+}
+
+ssize_t base_board_name_show(struct class *class,
+			struct class_attribute *attr, char *buf)
+{
+	if (!buf)
+		return 0;
+	snprintf(buf, BUF_LEN, "%s\n", base_board_name);
+
+	return strlen(buf);
+}
+
+ssize_t soc_store(struct class *class, struct class_attribute *attr,
 				const char *buf, size_t count)
 {
 	return count;
 }
 
-static struct class_attribute id_attribute =
-	__ATTR(board_id, 0644, id_show, id_store);
-
 static struct class_attribute name_attribute =
-	__ATTR(board_name, 0644, name_show, name_store);
+	__ATTR(board_name, 0644, name_show, soc_store);
+
+static struct class_attribute id_attribute =
+	__ATTR(board_id, 0644, id_show, soc_store);
+
+static struct class_attribute origin_id_attribute =
+	__ATTR(origin_board_id, 0644, origin_id_show, soc_store);
+
+static struct class_attribute ddr_vender_attribute =
+	__ATTR(ddr_vender, 0644, ddr_vender_show, soc_store);
+
+static struct class_attribute ddr_name_attribute =
+	__ATTR(ddr_type, 0644, ddr_name_show, soc_store);
+
+static struct class_attribute ddr_freq_attribute =
+	__ATTR(ddr_freq, 0644, ddr_freq_show, soc_store);
+
+static struct class_attribute ddr_size_attribute =
+	__ATTR(ddr_size, 0644, ddr_size_show, soc_store);
+
+static struct class_attribute som_name_attribute =
+	__ATTR(som_name, 0644, som_name_show, soc_store);
+
+static struct class_attribute base_board_name_attribute =
+	__ATTR(base_board_name, 0644, base_board_name_show, soc_store);
 
 static struct class_attribute boot_attribute =
-	__ATTR(boot_mode, 0644, boot_show, boot_store);
+	__ATTR(boot_mode, 0644, boot_show, soc_store);
 
 static struct class_attribute socuid_attribute =
-	__ATTR(socuid, 0644, socuid_show, socuid_store);
+	__ATTR(socuid, 0644, socuid_show, soc_store);
 
 static struct attribute *socinfo_attributes[] = {
-	&id_attribute.attr,
 	&name_attribute.attr,
+	&id_attribute.attr,
+	&origin_id_attribute.attr,
+	&ddr_vender_attribute.attr,
+	&ddr_name_attribute.attr,
+	&ddr_freq_attribute.attr,
+	&ddr_size_attribute.attr,
+	&som_name_attribute.attr,
+	&base_board_name_attribute.attr,
 	&boot_attribute.attr,
 	&socuid_attribute.attr,
 	NULL
@@ -181,7 +358,7 @@ static struct class socinfo_class = {
 
 /* Match table for of_platform binding */
 static const struct of_device_id socinfo_of_match[] = {
-	{ .compatible = "hobot,x2-socinfo", },
+	{ .compatible = "hobot,x3-socinfo", },
 	{}
 };
 MODULE_DEVICE_TABLE(of, socinfo_of_match);
@@ -190,7 +367,64 @@ static int socinfo_probe(struct platform_device *pdev)
 {
 	int ret;
 
-	ret = of_property_read_string(pdev->dev.of_node, "board_id", &soc_id);
+	ret = of_property_read_string(pdev->dev.of_node, "board_name",
+		&board_name);
+	if (ret != 0) {
+		pr_err("of_property_read_string error\n");
+		return ret;
+	}
+
+	ret = of_property_read_string(pdev->dev.of_node, "board_id",
+		&board_id);
+	if (ret != 0) {
+		pr_err("of_property_read_string error\n");
+		return ret;
+	}
+
+	ret = of_property_read_string(pdev->dev.of_node, "origin_board_id",
+		&origin_board_id);
+	if (ret != 0) {
+		pr_err("of_property_read_string error\n");
+		return ret;
+	}
+
+	ret = of_property_read_string(pdev->dev.of_node, "ddr_vender",
+		&ddr_vender);
+	if (ret != 0) {
+		pr_err("of_property_read_string error\n");
+		return ret;
+	}
+
+	ret = of_property_read_string(pdev->dev.of_node, "ddr_type",
+		&ddr_type);
+	if (ret != 0) {
+		pr_err("of_property_read_string error\n");
+		return ret;
+	}
+
+	ret = of_property_read_string(pdev->dev.of_node, "ddr_freq",
+		&ddr_freq);
+	if (ret != 0) {
+		pr_err("of_property_read_string error\n");
+		return ret;
+	}
+
+	ret = of_property_read_string(pdev->dev.of_node, "ddr_size",
+		&ddr_size);
+	if (ret != 0) {
+		pr_err("of_property_read_string error\n");
+		return ret;
+	}
+
+	ret = of_property_read_string(pdev->dev.of_node, "som_name",
+		&som_name);
+	if (ret != 0) {
+		pr_err("of_property_read_string error\n");
+		return ret;
+	}
+
+	ret = of_property_read_string(pdev->dev.of_node, "base_board_name",
+		&base_board_name);
 	if (ret != 0) {
 		pr_err("of_property_read_string error\n");
 		return ret;
@@ -208,6 +442,7 @@ static int socinfo_probe(struct platform_device *pdev)
 		pr_err("of_property_read_string error\n");
 		return ret;
 	}
+
 	return 0;
 }
 
