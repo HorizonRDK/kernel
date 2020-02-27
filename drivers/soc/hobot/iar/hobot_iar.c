@@ -828,7 +828,7 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 #ifdef CONFIG_HOBOT_XJ2
 		ips_pinmux_bt();
 #else
-		ret = disp_set_pixel_clk(32000000);
+		ret = disp_set_pixel_clk(163000000);
                 if (ret)
                         return ret;
 		ret = disp_pinmux_bt1120();
