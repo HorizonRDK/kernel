@@ -58,6 +58,9 @@ static struct work_struct	*sii902xAwork;
 
 // hotplug service with timer poll.
 static void x2_hdmi_timer(unsigned long dontcare);
+#ifdef CONFIG_HOBOT_IAR
+extern int get_iar_module_rst_pin(void);
+#endif
 
 static DEFINE_TIMER(x2hdmitimer, x2_hdmi_timer, 0, 0);
 static void x2_hdmi_timer(unsigned long dontcare)
@@ -163,6 +166,14 @@ static int hdmi_sii_probe(struct i2c_client *client,
 		}
 
 		// dts: rst_pin - reset pin number.
+#ifdef CONFIG_HOBOT_IAR
+		ret = get_iar_module_rst_pin();
+		if (ret < 0) {
+			dev_err(&client->dev, "Failed to get rst pin from iar module!\n");
+			return ret;
+		}
+		Si9022A_rst_pin = ret;
+#else
 		ret = of_property_read_u32(client->dev.of_node, "rst_pin",
 				&Si9022A_rst_pin);
 		if (ret) {
@@ -175,6 +186,7 @@ static int hdmi_sii_probe(struct i2c_client *client,
 					Si9022A_rst_pin, ret);
 			return ret;
 		}
+#endif
 		dev_dbg(&client->dev, "rst_pin=%d, init out 1\n",
 				 Si9022A_rst_pin);
 		gpio_direction_output(Si9022A_rst_pin, 1);
@@ -291,8 +303,7 @@ static int hdmi_sii_remove(struct i2c_client *client)
 }
 
 extern SIHDMITX_CONFIG siHdmiTx;
-static ssize_t sii902x_hdmi_show(struct kobject *kobj,
-				 struct kobj_attribute *attr, char *buf)
+static ssize_t hdmi_show(struct device_driver *driver, char *buf)
 {
 	int l;
 	char *s = buf;
@@ -302,7 +313,7 @@ static ssize_t sii902x_hdmi_show(struct kobject *kobj,
 			s += l; \
 		} while (0)
 
-	s += sprintf(s, "sii902x %s:\n", attr->attr.name);
+	s += sprintf(s, "sii902x hdmi:\n");
 	SHOW_HDMI_ATTR("%d", HDMIVideoFormat);
 	SHOW_HDMI_ATTR("%d", VIC);
 	SHOW_HDMI_ATTR("%d", HbVIC);
@@ -322,9 +333,9 @@ static ssize_t sii902x_hdmi_show(struct kobject *kobj,
 
 	return (s - buf);
 }
-static ssize_t sii902x_hdmi_store(struct kobject *kobj,
-				struct kobj_attribute *attr,
-				const char *buf, size_t n)
+
+static ssize_t hdmi_store(struct device_driver *driver,
+		const char *buf, size_t n)
 {
 	int error = -EINVAL;
 	char *tmpx, *tmpv, *tmpy;
@@ -408,10 +419,10 @@ static ssize_t sii902x_hdmi_store(struct kobject *kobj,
 	error = (err) ? error : 0;
 	return error ? error : n;
 }
+static DRIVER_ATTR_RW(hdmi);
 
 extern GLOBAL_SYSTEM g_sys;
-static ssize_t sii902x_sys_show(struct kobject *kobj,
-				struct kobj_attribute *attr, char *buf)
+static ssize_t sys_show(struct device_driver *driver, char *buf)
 {
 	int l;
 	char *s = buf;
@@ -421,7 +432,7 @@ static ssize_t sii902x_sys_show(struct kobject *kobj,
 			s += l; \
 		} while (0)
 
-	s += sprintf(s, "sii902x %s:\n", attr->attr.name);
+	s += sprintf(s, "sii902x sys:\n");
 	SHOW_SYS_ATTR("%d", txPowerState);
 	SHOW_SYS_ATTR("%d", tmdsPoweredUp);
 	SHOW_SYS_ATTR("%d", hdmiCableConnected);
@@ -429,10 +440,10 @@ static ssize_t sii902x_sys_show(struct kobject *kobj,
 
 	return (s - buf);
 }
+static DRIVER_ATTR_RO(sys);
 
 extern GLOBAL_HDCP g_hdcp;
-static ssize_t sii902x_hdcp_show(struct kobject *kobj,
-				struct kobj_attribute *attr, char *buf)
+static ssize_t hdcp_show(struct device_driver *driver, char *buf)
 {
 	int l;
 	char *s = buf;
@@ -442,7 +453,7 @@ static ssize_t sii902x_hdcp_show(struct kobject *kobj,
 			s += l; \
 		} while (0)
 
-	s += sprintf(s, "sii902x %s:\n", attr->attr.name);
+	s += sprintf(s, "sii902x hdcp:\n");
 	SHOW_DHCP_ATTR("%d", HDCP_TxSupports);
 	SHOW_DHCP_ATTR("%d", HDCP_AksvValid);
 	SHOW_DHCP_ATTR("%d", HDCP_Started);
@@ -452,10 +463,10 @@ static ssize_t sii902x_hdcp_show(struct kobject *kobj,
 
 	return (s - buf);
 }
+static DRIVER_ATTR_RO(hdcp);
 
 extern GLOBAL_EDID g_edid;
-static ssize_t sii902x_edid_show(struct kobject *kobj,
-				struct kobj_attribute *attr, char *buf)
+static ssize_t edid_show(struct device_driver *driver, char *buf)
 {
 	int i, l;
 	char *s = buf;
@@ -473,7 +484,7 @@ static ssize_t sii902x_edid_show(struct kobject *kobj,
 			s += sprintf(s, "\n"); \
 		} while (0)
 
-	s += sprintf(s, "sii902x %s:\n", attr->attr.name);
+	s += sprintf(s, "sii902x edid:\n");
 	if (g_edid.edidDataValid) {
 		s += sprintf(s, " %-20s:\n", "EDID-data");
 		for (i = 0; i < EDID_BLOCK_SIZE; i++) {
@@ -512,23 +523,23 @@ static ssize_t sii902x_edid_show(struct kobject *kobj,
 
 	return (s - buf);
 }
-static ssize_t sii902x_edid_store(struct kobject *kobj,
-				struct kobj_attribute *attr,
-				const char *buf, size_t n)
+
+static ssize_t edid_store(struct device_driver *driver,
+		const char *buf, size_t n)
 {
 	int error = -EINVAL;
 
-	#ifdef DEV_SUPPORT_EDID
+#ifdef DEV_SUPPORT_EDID
 	extern byte DoEdidRead(void);
 	g_edid.edidDataValid = FALSE;
-	DoEdidRead();
-	#endif
+	error = DoEdidRead();
+#endif
 
 	return error ? error : n;
 }
+static DRIVER_ATTR_RW(edid);
 
-static ssize_t sii902x_regs_show(struct kobject *kobj,
-				 struct kobj_attribute *attr, char *buf)
+static ssize_t regs_show(struct device_driver *driver, char *buf)
 {
 	int i;
 	char *s = buf;
@@ -546,7 +557,7 @@ static ssize_t sii902x_regs_show(struct kobject *kobj,
 	for (i = 0; i < 256; i += 16)
 		ReadBlockTPI(i, 16, &regs[i]);
 
-	s += sprintf(s, "sii902x %s:\n", attr->attr.name);
+	s += sprintf(s, "sii902x regs:\n");
 	for (i = 0; i < 256; i++) {
 		if (i % 16 == 0)
 			s += sprintf(s, " %02X:", i);
@@ -655,33 +666,22 @@ static ssize_t sii902x_regs_show(struct kobject *kobj,
 
 	return (s - buf);
 }
+static DRIVER_ATTR_RO(regs);
 
-static struct kobj_attribute hdmi_attr =
-	__ATTR(hdmi, 0644, sii902x_hdmi_show, sii902x_hdmi_store);
-static struct kobj_attribute sys_attr =
-	__ATTR(sys, 0444, sii902x_sys_show, NULL);
-static struct kobj_attribute hdcp_attr =
-	__ATTR(hdcp, 0444, sii902x_hdcp_show, NULL);
-static struct kobj_attribute edid_attr =
-	__ATTR(edid, 0644, sii902x_edid_show, sii902x_edid_store);
-static struct kobj_attribute regs_attr =
-	__ATTR(regs, 0444, sii902x_regs_show, NULL);
-
-static ssize_t sii902x_cfgs_show(struct kobject *kobj,
-				struct kobj_attribute *attr, char *buf)
+static ssize_t cfgs_show(struct device_driver *driver, char *buf)
 {
 	char *s = buf;
 
-	s += sii902x_hdmi_show(kobj, &hdmi_attr, s);
+	s += hdmi_show(driver, s);
 	s += sprintf(s, "\n");
-	s += sii902x_sys_show(kobj, &sys_attr, s);
+	s += sys_show(driver, s);
 	s += sprintf(s, "\n");
-	s += sii902x_hdcp_show(kobj, &hdcp_attr, s);
+	s += hdcp_show(driver, s);
 	s += sprintf(s, "\n");
-	s += sii902x_edid_show(kobj, &edid_attr, s);
+	s += edid_show(driver, s);
 	s += sprintf(s, "\n");
 
-	s += sprintf(s, "sii902x %s:\n", attr->attr.name);
+	s += sprintf(s, "sii902x cfgs:\n");
 	s += sprintf(s, " %-20s: %02X %02X %02X\n", "tpivmode",
 				 tpivmode[0], tpivmode[1], tpivmode[2]);
 	s += sprintf(s, " %-20s: %d\n", "hotpoll_en", hotpoll_en);
@@ -697,9 +697,9 @@ static ssize_t sii902x_cfgs_show(struct kobject *kobj,
 
 	return (s - buf);
 }
-static ssize_t sii902x_cfgs_store(struct kobject *kobj,
-				struct kobj_attribute *attr,
-				const char *buf, size_t n)
+
+static ssize_t cfgs_store(struct device_driver *driver,
+		const char *buf, size_t n)
 {
 	int error = -EINVAL;
 	char *tmpv, *tmpx, *tmpy;
@@ -772,17 +772,15 @@ static ssize_t sii902x_cfgs_store(struct kobject *kobj,
 	error = (err) ? error : 0;
 	return error ? error : n;
 }
-
-static struct kobj_attribute cfgs_attr =
-	__ATTR(cfgs, 0644, sii902x_cfgs_show, sii902x_cfgs_store);
+static DRIVER_ATTR_RW(cfgs);
 
 static struct attribute *attributes[] = {
-	&hdmi_attr.attr,
-	&sys_attr.attr,
-	&hdcp_attr.attr,
-	&edid_attr.attr,
-	&regs_attr.attr,
-	&cfgs_attr.attr,
+	&driver_attr_hdmi.attr,
+	&driver_attr_sys.attr,
+	&driver_attr_hdcp.attr,
+	&driver_attr_edid.attr,
+	&driver_attr_regs.attr,
+	&driver_attr_cfgs.attr,
 	NULL,
 };
 
@@ -806,7 +804,6 @@ static struct i2c_driver hdmi_sii_i2c_driver = {
 	.id_table = hmdi_sii_id,
 };
 
-struct kobject *sii902x_kobj;
 static int __init hdmi_sii_init(void)
 {
 	int ret;
@@ -824,13 +821,7 @@ static void __exit hdmi_sii_exit(void)
 {
 	i2c_del_driver(&hdmi_sii_i2c_driver);
 
-	if (sii902x_kobj) {
-		sysfs_remove_group(sii902x_kobj, &attr_group);
-		kobject_del(sii902x_kobj);
-	}
-
 	pr_info("Module is leaving..\n");
-
 }
 
 module_init(hdmi_sii_init);
