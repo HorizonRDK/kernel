@@ -671,12 +671,14 @@ void pym_set_iar_output(struct pym_video_ctx *pym_ctx, struct vio_frame *frame)
 
 	display_layer = ipu_get_iar_display_type();
 	spec = &frame->frameinfo.spec;
-	if (display_layer >= 31 && display_layer < 37)
-		ipu_set_display_addr(spec->us_y_addr[display_layer - 31],
-			spec->us_uv_addr[display_layer - 31]);
-	else if (display_layer >= 7)
-		ipu_set_display_addr(spec->ds_y_addr[display_layer - 7],
-			spec->ds_uv_addr[display_layer - 7]);
+	if (display_layer < 37) {
+		if (display_layer >= 31)
+			ipu_set_display_addr(spec->us_y_addr[display_layer - 31],
+				spec->us_uv_addr[display_layer - 31]);
+		else if (display_layer >= 7)
+			ipu_set_display_addr(spec->ds_y_addr[display_layer - 7],
+				spec->ds_uv_addr[display_layer - 7]);
+	}
 #endif
 }
 
