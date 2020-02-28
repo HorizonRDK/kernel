@@ -337,6 +337,7 @@ int32_t acamera_init( acamera_settings *settings, uint32_t ctx_num )
 
             g_firmware.api_context = 0;
 
+	    system_semaphore_init(&g_firmware.sem_fe);
 	    system_semaphore_init(&g_firmware.sem_event_process_done);
             system_semaphore_init( &g_firmware.sem_evt_avail );
 
@@ -487,6 +488,7 @@ int32_t acamera_terminate()
     acamera_deinit();
     system_semaphore_destroy( g_firmware.sem_evt_avail );
     system_semaphore_destroy(g_firmware.sem_event_process_done);
+    system_semaphore_destroy(g_firmware.sem_fe);
 
     return 0;
 }
@@ -845,6 +847,13 @@ int sif_isp_ctx_sync_func(int ctx_id)
 	p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[current_context_id];
 	p_ctx->sif_isp_offline = 1;
 
+	if (atomic_read(&g_firmware.frame_done) == 0) {
+		pr_debug("isp is working now.");
+		system_semaphore_wait(g_firmware.sem_fe, 200);
+	}
+
+	atomic_set(&g_firmware.frame_done, 0);
+
 	isp_input_port_size_config(p_ctx->fsm_mgr.fsm_arr[FSM_ID_SENSOR]->p_fsm);
 	ldc_set_ioctl(ctx_id, 0);
 
@@ -1043,6 +1052,8 @@ pr_info("hcs1 %d, hcs2 %d, vc %d\n", hcs1, hcs2, vc);
                         LOG( LOG_ERR, "Attempt to start a new frame before processing is done for the prevous frame. Skip this frame" );
                     } //if ( acamera_event_queue_empty( &p_ctx->fsm_mgr.event_queue ) )
                 } else if ( irq_bit == ISP_INTERRUPT_EVENT_ISP_END_FRAME_END ) {
+			system_semaphore_raise(g_firmware.sem_fe);
+			atomic_set(&g_firmware.frame_done, 1);
                 } else if ( irq_bit == ISP_INTERRUPT_EVENT_FR_Y_WRITE_DONE ) {
 					LOG( LOG_INFO, "frame write to ddr done" );
 					acamera_fw_raise_event( p_ctx, event_id_frame_done );
