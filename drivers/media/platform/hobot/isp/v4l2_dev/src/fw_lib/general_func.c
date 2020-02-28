@@ -17,6 +17,8 @@
 *
 */
 
+#define pr_fmt(fmt) "[isp_drv]: %s: " fmt, __func__
+
 #include "acamera_fw.h"
 #include "acamera.h"
 #include "acamera_command_api.h"
@@ -525,17 +527,25 @@ void general_initialize( general_fsm_ptr_t p_fsm )
     // Finally request interrupts
     general_request_interrupt( p_fsm, p_fsm->mask.repeat_irq_mask );
 
+}
+
+void isp_temper_prepare(general_fsm_ptr_t p_fsm)
+{
 #if GENERAL_TEMPER_ENABLED
     general_temper_init( p_fsm );
     general_temper_configure( p_fsm );
 #endif
 }
 
-void general_deinitialize( general_fsm_ptr_t p_fsm )
+void isp_temper_free(general_fsm_ptr_t p_fsm)
 {
 #if GENERAL_TEMPER_ENABLED
     general_temper_exit( p_fsm );
 #endif
+}
+
+void general_deinitialize( general_fsm_ptr_t p_fsm )
+{
 }
 
 #if ISP_WDR_SWITCH
@@ -564,6 +574,8 @@ static void adjust_exposure( general_fsm_ptr_t p_fsm, int32_t corr )
 
 #endif
 
+static int temper_enable = 1;
+module_param(temper_enable, int, 0644);
 void general_frame_start( general_fsm_ptr_t p_fsm )
 {
 #if ISP_WDR_SWITCH
@@ -615,10 +627,22 @@ void general_frame_start( general_fsm_ptr_t p_fsm )
     }
 #endif
 
-#if GENERAL_TEMPER_ENABLED   // disable temper (need to fixed)
+#if GENERAL_TEMPER_ENABLED
     /* Enable temper after second frame to avoid broken frame */
     if ( p_fsm->cnt_for_temper++ == 2 ) {
-        acamera_isp_temper_enable_write( p_fsm->cmn.isp_base, 1 );
+
+	pr_debug("temper_enable is %d\n", temper_enable);
+
+	if (temper_enable == 0) {
+		acamera_isp_temper_enable_write( p_fsm->cmn.isp_base, 0 );
+	} else {
+		if (temper_enable == 2) {
+			acamera_isp_temper_temper2_mode_write(p_fsm->cmn.isp_base, 1);
+		} else if (temper_enable == 3) {
+			acamera_isp_temper_temper2_mode_write(p_fsm->cmn.isp_base, 0);
+		}
+		acamera_isp_temper_enable_write( p_fsm->cmn.isp_base, 1 );
+	}
     }
 #endif
 }
@@ -707,7 +731,7 @@ static int general_temper_init( general_fsm_ptr_t p_fsm )
         temper_frame->address = (uint32_t)dma_addr;
         temper_frame->virt_addr = virt_addr;
 
-        LOG( LOG_INFO, "alloc temper_frame[%d] w: %d h: %d size: %d dma_addr: 0x%x",
+        pr_debug("alloc temper_frame[%d] w: %d h: %d size: %d dma_addr: 0x%x",
              i, temper_frame->width, temper_frame->height,
              temper_frame->size, temper_frame->address );
     }
@@ -733,7 +757,7 @@ static int general_temper_exit( general_fsm_ptr_t p_fsm )
 
         p_settings->callback_dma_free_coherent( p_fsm->cmn.ctx_id, size, virt_addr, dma_addr );
 
-        LOG( LOG_INFO, "free temper_frame[%d] w: %d h: %d size: %d dma_addr: 0x%x",
+        pr_debug("free temper_frame[%d] w: %d h: %d size: %d dma_addr: 0x%x",
              i, temper_frame->width, temper_frame->height,
              temper_frame->size, temper_frame->address );
     }

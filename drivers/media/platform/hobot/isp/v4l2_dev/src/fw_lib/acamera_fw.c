@@ -35,6 +35,7 @@
 #include "sensor_fsm.h"
 #include "isp_config_seq.h"
 #include "system_stdlib.h"
+#include "general_fsm.h"
 
 #if ISP_HAS_FPGA_WRAPPER
 #include "acamera_fpga_config.h"
@@ -543,6 +544,8 @@ static void init_stab( acamera_context_ptr_t p_ctx )
     p_ctx->stab.global_saturation_target = 0;
     p_ctx->stab.global_ae_compensation = SYSTEM_AE_COMPENSATION_DEFAULT;
     p_ctx->stab.global_calibrate_bad_pixels = 0;
+
+    ((general_fsm_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_GENERAL]->p_fsm))->cnt_for_temper = 0;
 }
 
 

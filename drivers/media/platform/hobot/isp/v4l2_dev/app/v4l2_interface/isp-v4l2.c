@@ -35,6 +35,8 @@
 #include "isp-v4l2-stream.h"
 #include "isp-vb2.h"
 #include "fw-interface.h"
+#include "acamera_fw.h"
+#include "general_fsm.h"
 
 #define ISP_V4L2_NUM_INPUTS 1
 
@@ -110,11 +112,17 @@ static int isp_v4l2_fh_release( struct file *file )
  * V4L2 file operations
  */
 static uint32_t stream_on = 0;
+void isp_temper_prepare(general_fsm_ptr_t p_fsm);
+extern void *acamera_get_ctx_ptr(uint32_t ctx_id);
 static int isp_v4l2_fop_open( struct file *file )
 {
     int rc = 0;
     isp_v4l2_dev_t *dev = video_drvdata( file );
     struct isp_v4l2_fh *sp;
+    acamera_context_t *p_ctx;
+
+    p_ctx = (acamera_context_t *)acamera_get_ctx_ptr(dev->ctx_id);
+    isp_temper_prepare((general_fsm_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_GENERAL]->p_fsm));
 
     acamera_fw_isp_prepare(dev->ctx_id);
 
@@ -173,12 +181,16 @@ fh_open_fail:
     return rc;
 }
 
+void isp_temper_free(general_fsm_ptr_t p_fsm);
 static int isp_v4l2_fop_close( struct file *file )
 {
+    int i;
+    int open_counter;
+    uint32_t opened = 0;
+    acamera_context_t *p_ctx;
     isp_v4l2_dev_t *dev = video_drvdata( file );
     struct isp_v4l2_fh *sp = fh_to_private( file->private_data );
     isp_v4l2_stream_t *pstream = dev->pstreams[sp->stream_id];
-    int open_counter;
 
     stream_on = 0;
     LOG( LOG_INFO, "isp_v4l2 close: ctx_id: %d, called for sid:%d.", dev->ctx_id, sp->stream_id );
@@ -186,8 +198,6 @@ static int isp_v4l2_fop_close( struct file *file )
     dev->stream_mask &= ~( 1 << sp->stream_id );
     open_counter = atomic_sub_return( 1, &dev->opened );
 
-    int i;
-    uint32_t opened = 0;
     for (i = 0; i < FIRMWARE_CONTEXT_NUMBER; i++) {
 	isp_v4l2_dev_t *d = isp_v4l2_get_dev(i);
 	opened += atomic_read( &d->opened );
@@ -195,6 +205,9 @@ static int isp_v4l2_fop_close( struct file *file )
 
     if (!opened)
 	acamera_fw_isp_stop(dev->ctx_id);
+
+    p_ctx = (acamera_context_t *)acamera_get_ctx_ptr(dev->ctx_id);
+    isp_temper_free((general_fsm_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_GENERAL]->p_fsm));
 
     /* deinit fh_ptr */
     if ( mutex_lock_interruptible( &dev->notify_lock ) )
