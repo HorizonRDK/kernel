@@ -1672,32 +1672,35 @@ static irqreturn_t ipu_isr(int irq, void *data)
 	}
 
 	if (status & (1 << INTR_IPU_US_FRAME_DROP)) {
-		vio_err("US Frame drop\n");
+		vio_err("[S%d]US Frame drop\n", instance);
 	}
 
 	if (status & (1 << INTR_IPU_DS0_FRAME_DROP)) {
-		vio_err("DS0 Frame drop\n");
+		vio_err("[S%d]DS0 Frame drop\n", instance);
 	}
 
 	if (status & (1 << INTR_IPU_DS1_FRAME_DROP)) {
-		vio_err("DS1 Frame drop\n");
+		vio_err("[S%d]DS1 Frame drop\n", instance);
 	}
 
 	if (status & (1 << INTR_IPU_DS2_FRAME_DROP)) {
-		vio_err("DS2 Frame drop\n");
+		vio_err("[S%d]DS2 Frame drop\n", instance);
 	}
 
 	if (status & (1 << INTR_IPU_DS3_FRAME_DROP)) {
-		vio_err("DS3 Frame drop\n");
+		vio_err("[S%d]DS3 Frame drop\n", instance);
 	}
 
 	if (status & (1 << INTR_IPU_DS4_FRAME_DROP)) {
-		vio_err("DS4 Frame drop\n");
+		vio_err("[S%d]DS4 Frame drop\n", instance);
 	}
 
 	ipu_work = &ipu->work[instance];
 	ipu_work->work_sta = 0;
 	if (status & (1 << INTR_IPU_FRAME_DONE)) {
+		if (!group->leader)
+			vio_group_done(group);
+
 		if (test_bit(IPU_DMA_INPUT, &ipu->state)) {
 			up(&gtask->hw_resource);
 			sub_mp = group->sub_ctx[GROUP_ID_SRC];
@@ -1779,7 +1782,8 @@ static irqreturn_t ipu_isr(int irq, void *data)
 
 		if (group && group->get_timestamps) {
 			vio_get_frame_id(group);
-			vio_dbg("IPU frame count = %d\n", group->frameid.frame_id);
+			vio_dbg("[S%d]IPU frame count = %d\n",
+					group->frameid.frame_id, instance);
 		}
 	}
 

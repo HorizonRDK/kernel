@@ -149,6 +149,7 @@ void vio_group_init(struct vio_group *group)
 	group->frame_work = NULL;
 	group->next = NULL;
 	group->prev = group;
+	group->head = group;
 	atomic_set(&group->rcount, 0);
 	for(i = 0; i < MAX_SUB_DEVICE; i++)
 		group->sub_ctx[i] = NULL;
@@ -180,11 +181,19 @@ int vio_init_chain(int instance)
 
 int vio_bind_chain_groups(struct vio_group *src_group, struct vio_group *dts_group)
 {
+	struct vio_group *group;
+
 	BUG_ON(!src_group);
 	BUG_ON(!dts_group);
 
 	src_group->next = dts_group;
 	dts_group->prev = src_group;
+
+	group = src_group;
+	while (group != group->prev) {
+		group = group->prev;
+	}
+	dts_group->head = group;
 
 	if (src_group->id == GROUP_ID_IPU && src_group->get_timestamps)
 		dts_group->get_timestamps = true;
@@ -199,6 +208,7 @@ void vio_bind_group_done(int instance)
 	int offset = 0;
 	struct vio_chain *ischain;
 	struct vio_group *group;
+	struct vio_group *leader_group;
 
 	ischain = &chain[instance];
 	for (i = 0; i < GROUP_ID_NUMBER; i++) {
@@ -231,6 +241,12 @@ void vio_bind_group_done(int instance)
 		} else if (i >= GROUP_ID_IPU) {
 			if (test_bit(VIO_GROUP_DMA_OUTPUT, &group->state)) {
 				group->leader = true;
+				group->head = group;
+				leader_group = group;
+				while (group->next) {
+					group = group->next;
+					group->head = leader_group;
+				}
 				break;
 			}
 		}
@@ -287,4 +303,18 @@ void vio_reset_module(u32 module)
 	ips_set_bus_ctrl(cfg);
 
 	//ips_set_module_reset(reset);
+}
+
+void vio_group_done(struct vio_group *group)
+{
+	struct vio_group_task *group_task;
+	struct vio_group *group_leader;
+
+	if (group->next == NULL) {
+		group_leader = group->head;
+		group_task = group_leader->gtask;
+		up(&group_task->hw_resource);
+		vio_info("[S%d][G%d]up hw_resource G%d\n", group->instance, group->id,
+		group_leader->id);
+	}
 }

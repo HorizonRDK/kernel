@@ -121,6 +121,7 @@ struct sif_video_ctx{
 	u32 mux_index;
 	u32 dol_num;
 	u32 rx_num;
+	u32 ddrin_stride;
 	bool initial_frameid;
 	u64 bufcount;
 	struct frame_id			info;
@@ -161,5 +162,7 @@ struct x3_sif_dev {
 	struct vio_group_task	sifin_task;
 	struct vio_group_task	sifout_task[SIF_MUX_MAX];
 };
+
+int sif_get_stride(u32 pixel_length, u32 width);
 
 #endif

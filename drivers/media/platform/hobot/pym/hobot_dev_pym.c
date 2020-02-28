@@ -736,6 +736,9 @@ static irqreturn_t pym_isr(int irq, void *data)
 		vio_err("US drop frame\n");
 
 	if (status & (1 << INTR_PYM_FRAME_DONE)) {
+		if (!group->leader)
+			vio_group_done(group);
+
 		if (test_bit(PYM_DMA_INPUT, &pym->state)) {
 			up(&gtask->hw_resource);
 		}

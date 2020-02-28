@@ -92,6 +92,7 @@ typedef struct sif_input_mipi {
 	sif_func_desc_t   func;
 	uint32_t		  enable;
 	uint32_t		  channels;
+	uint32_t		  vc_index;
 	uint32_t		  mipi_rx_index;
 } sif_input_mipi_t;
 

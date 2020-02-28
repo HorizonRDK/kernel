@@ -708,6 +708,7 @@ static void sif_set_mipi_rx(u32 __iomem *base_reg, sif_input_mipi_t* p_mipi)
 	const static u32 map_mux_input[] = {0, 4, 8, 10};
 	u32 input_index_start = map_mux_input[p_mipi->mipi_rx_index];
 	u32 i_step , mux_out_index, lines;
+	u32 vc_index = 0, ipi_index = 0;
 
 	if (!p_mipi->enable)
 		return;
@@ -739,10 +740,12 @@ static void sif_set_mipi_rx(u32 __iomem *base_reg, sif_input_mipi_t* p_mipi)
 		}
 	}
 	sif_config_mipi_rx(base_reg, p_mipi->mipi_rx_index, &p_mipi->data);
-
-	for(i = 0; i < p_mipi->channels; i++)
-		sif_config_rx_ipi(base_reg, p_mipi->mipi_rx_index, i, p_mipi);
-
+	vc_index = p_mipi->vc_index;
+	vio_info("%s: %d\n", __func__, vc_index);
+	for (i = 0; i < p_mipi->channels; i++) {
+		ipi_index = i + vc_index;
+		sif_config_rx_ipi(base_reg, p_mipi->mipi_rx_index, ipi_index, p_mipi);
+	}
 	if (p_mipi->func.enable_line_shift) {
 		vio_hw_set_field(base_reg, &sif_regs[SIF_ISP_EXP_CFG],
 				&sif_fields[SW_RX0_DOL_HDR_MODE - p_mipi->mipi_rx_index], 1);
@@ -777,9 +780,10 @@ static void sif_set_mipi_rx(u32 __iomem *base_reg, sif_input_mipi_t* p_mipi)
 			}
 
 			lines = (p_mipi->data.width / LINE_BUFFER_SIZE) + 1;
+			ipi_index = i + vc_index;
 			sif_enable_mux_out(base_reg,
 					mux_out_index,
-					input_index_start + i,
+					input_index_start + ipi_index,
 					lines);
 
 			// Frame Done Interrupt
@@ -791,7 +795,7 @@ static void sif_set_mipi_rx(u32 __iomem *base_reg, sif_input_mipi_t* p_mipi)
 				else {
 					sif_enable_mux_out(base_reg,
 							mux_out_index + 1,
-							input_index_start + i + 1,
+							input_index_start + ipi_index + 1,
 							lines);
 					sif_enable_frame_intr(base_reg, mux_out_index + 1, true);
 				}
@@ -818,35 +822,6 @@ static void sif_set_mipi_rx(u32 __iomem *base_reg, sif_input_mipi_t* p_mipi)
 	}
 
 }
-
-int sif_get_stride(u32 pixel_length, u32 width)
-{
-	u32 stride = 0;
-
-	switch (pixel_length) {
-	case PIXEL_LENGTH_8BIT:
-		stride = width;
-		break;
-	case PIXEL_LENGTH_10BIT:
-		stride = width * 5 / 4;
-		break;
-	case PIXEL_LENGTH_12BIT:
-		stride = width * 3 / 2;
-		break;
-	case PIXEL_LENGTH_16BIT:
-		stride = width * 2;
-		break;
-	case PIXEL_LENGTH_20BIT:
-		stride = width * 5 / 2;
-		break;
-	default:
-		vio_err("wrong pixel length is %d\n", pixel_length);
-		break;
-	}
-
-	return stride;
-}
-
 
 /*
  * @brief config an input buffer
@@ -1075,6 +1050,9 @@ void sif_hw_config(u32 __iomem *base_reg, sif_cfg_t* c)
 	u32 dol_exp_num = 0;
 	sif_output_ddr_t ddr;
 
+	/*4 ddr in channel can not be 0 together*/
+	sif_enable_dma(base_reg, 0x10000);
+
 	// Input: IAR
 	sif_set_iar_input(base_reg, &c->input.iar);
 
@@ -1242,9 +1220,6 @@ void sif_hw_disable(u32 __iomem *base_reg)
 {
 	/* Disable all inputs and wait until drained */
 	sif_disable_input_and_output(base_reg);
-
-	/*4 ddr in channel can not be 0 together*/
-	sif_enable_dma(base_reg, 0x10000);
 
 	sif_set_isp_performance(base_reg, 0);
 

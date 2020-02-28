@@ -94,6 +94,8 @@ void sif_config_rdma_cfg(struct x3_sif_dev *sif, u8 index,
 {
 	sif_set_rdma_enable(sif->base_reg, index, true);
 	sif_set_rdma_buf_addr(sif->base_reg, index, frameinfo->addr[index]);
+	sif_set_rdma_buf_stride(sif->base_reg, index, frameinfo->pixel_length);
+	vio_info("ddr in stride = %d\n", frameinfo->pixel_length);
 }
 
 void sif_read_frame_work(struct vio_group *group)
@@ -121,6 +123,7 @@ void sif_read_frame_work(struct vio_group *group)
 	frame = peek_frame(framemgr, FS_REQUEST);
 	if (frame) {
 		frameinfo = &frame->frameinfo;
+		frameinfo->pixel_length = ctx->ddrin_stride;
 		sif_config_rdma_cfg(sif, 0, frameinfo);
 
 		if (ctx->dol_num > 1) {
@@ -288,6 +291,34 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 	return 0;
 }
 
+int sif_get_stride(u32 pixel_length, u32 width)
+{
+	u32 stride = 0;
+
+	switch (pixel_length) {
+	case PIXEL_LENGTH_8BIT:
+		stride = width;
+		break;
+	case PIXEL_LENGTH_10BIT:
+		stride = width * 5 / 4;
+		break;
+	case PIXEL_LENGTH_12BIT:
+		stride = width * 3 / 2;
+		break;
+	case PIXEL_LENGTH_16BIT:
+		stride = width * 2;
+		break;
+	case PIXEL_LENGTH_20BIT:
+		stride = width * 5 / 2;
+		break;
+	default:
+		vio_err("wrong pixel length is %d\n", pixel_length);
+		break;
+	}
+
+	return stride;
+}
+
 int sif_mux_init(struct sif_video_ctx *sif_ctx, sif_cfg_t *sif_config)
 {
 	int ret = 0;
@@ -382,7 +413,10 @@ int sif_video_init(struct sif_video_ctx *sif_ctx, unsigned long arg)
 		ret = sif_mux_init(sif_ctx, &sif_config);
 	} else if (sif_ctx->id == 1) {
 		sif_ctx->dol_num = sif_config.output.isp.dol_exp_num;
-		sif_set_isp_performance(sif->base_reg, 2);
+		sif_ctx->ddrin_stride =
+			sif_get_stride(sif_config.input.ddr.data.pix_length
+			, sif_config.input.ddr.data.width);
+		sif_set_isp_performance(sif->base_reg, 10);
 		set_bit(SIF_DMA_IN_ENABLE, &sif->state);
 		set_bit(VIO_GROUP_DMA_INPUT, &group->state);
 		set_bit(VIO_GROUP_OTF_OUTPUT, &group->state);
@@ -824,10 +858,9 @@ static irqreturn_t sif_isr(int irq, void *data)
 		group = sif->sif_input[instance];
 		gtask = group->gtask;
 
+		vio_group_done(group);
 		sif_ctx = group->sub_ctx[0];
 		sif_frame_done(sif_ctx);
-
-		up(&gtask->hw_resource);
 	}
 
 	if (irq_src.sif_frm_int & 1 << INTR_SIF_IN_SIZE_MISMATCH) {
