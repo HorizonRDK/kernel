@@ -74,6 +74,7 @@ static char *g_chrdev_name = "cnn";
 static struct x2_cnn_dev *cnn0_dev;
 static struct x2_cnn_dev *cnn1_dev;
 static int profiler_frequency;
+static int profiler_n_seconds = 1;
 static int profiler_enable;
 static int burst_length = 0x80;
 static int fc_time_enable;
@@ -2343,6 +2344,7 @@ static void x2_cnn_check_func(unsigned long arg)
 	static int cnn1_busy;
 	static int fre;
 	static int fre_tmp;
+	static int nseconds_tmp = 1;
 	int bpu0_status = 0;
 	int bpu1_status = 0;
 	int cnn0_head = 0;
@@ -2351,8 +2353,9 @@ static void x2_cnn_check_func(unsigned long arg)
 	int cnn1_tail = 0;
 
 	fre_tmp = profiler_frequency;
-	if (fre != fre_tmp) {
+	if (fre != fre_tmp || nseconds_tmp != profiler_n_seconds) {
 		/* frequency changed*/
+		nseconds_tmp = profiler_n_seconds;
 		fre = fre_tmp;
 		cnn0_busy = 0;
 		cnn1_busy = 0;
@@ -2378,16 +2381,17 @@ static void x2_cnn_check_func(unsigned long arg)
 		    (atomic_read(&cnn1_dev->wait_fc_cnt) > 0))
 			cnn1_busy++;
 	}
-	if (++time == fre) {
+	if (++time == fre * nseconds_tmp) {
 		time = 0;
-		ratio0 = cnn0_busy * 100 / fre;
-		ratio1 = cnn1_busy * 100 / fre;
+		ratio0 = cnn0_busy * 100 / fre / nseconds_tmp;
+		ratio1 = cnn1_busy * 100 / fre / nseconds_tmp;
 		cnn0_busy = 0;
 		cnn1_busy = 0;
 	}
 	check_timer.expires = jiffies + HZ / fre;
 	add_timer(&check_timer);
 }
+
 static ssize_t fre_show(struct kobject *kobj, struct kobj_attribute *attr,
 			char *buf)
 {
@@ -2419,6 +2423,25 @@ static ssize_t burst_len_show(struct kobject *kobj,
 		struct kobj_attribute *attr, char *buf)
 {
 	return snprintf(buf, PAGE_SIZE, "%d\n", burst_length * 16);
+}
+
+static ssize_t nseconds_show(struct kobject *kobj, struct kobj_attribute *attr,
+			char *buf)
+{
+	return sprintf(buf, "%d\n", profiler_n_seconds);
+}
+
+static ssize_t nseconds_store(struct kobject *kobj, struct kobj_attribute *attr,
+			 const char *buf, size_t count)
+{
+	int ret;
+
+	ret = sscanf(buf, "%du", &profiler_n_seconds);
+	if (ret < 0) {
+		pr_info("%s sscanf error\n", __func__);
+		return 0;
+	}
+	return count;
 }
 
 static ssize_t burst_len_store(struct kobject *kobj,
@@ -2818,6 +2841,8 @@ static struct kobj_attribute burst_len = __ATTR(burst_len, 0664,
 static struct kobj_attribute fc_enable    = __ATTR(fc_time_enable, 0664,
 						    fc_time_enable_show,
 						    fc_time_enable_store);
+static struct kobj_attribute pro_nseconds   = __ATTR(profiler_n_seconds, 0664,
+						    nseconds_show, nseconds_store);
 static struct kobj_attribute pro_ratio0    = __ATTR(ratio, 0444,
 						    ratio0_show, NULL);
 static struct kobj_attribute pro_ratio1    = __ATTR(ratio, 0444,
@@ -2854,6 +2879,7 @@ static struct kobj_attribute bpu1_check_irq  = __ATTR(check_irq, 0644,
 static struct attribute *bpu_attrs[] = {
 	&pro_frequency.attr,
 	&pro_enable.attr,
+	&pro_nseconds.attr,
 	&fc_enable.attr,
 	&burst_len.attr,
 	NULL,
