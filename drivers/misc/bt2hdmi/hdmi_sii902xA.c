@@ -231,7 +231,10 @@ static int hdmi_sii_probe(struct i2c_client *client,
 		ret = siHdmiTx_ReConfig(vmode, vformat, afs);
 		if (ret < 0) {
 			pr_err("bt1120 to HDMI device:sii9022a is not exist!\n");
+#ifndef CONFIG_HOBOT_IAR
 			gpio_free(Si9022A_rst_pin);
+#endif
+			gpio_free(Si9022A_irq_pin);
 			return ret;
 		}
 #if defined CONFIG_HOBOT_IAR || defined CONFIG_X2_IAR
@@ -295,7 +298,9 @@ static int hdmi_sii_remove(struct i2c_client *client)
 		free_irq(sii902xA->irq, &sii902xA);
 	del_timer(&x2hdmitimer);
 	gpio_free(Si9022A_irq_pin);
+#ifndef CONFIG_HOBOT_IAR
 	gpio_free(Si9022A_rst_pin);
+#endif
 	kfree(sii902xAwork);
 	dev_info(&client->dev, "detached successfully\n");
 
