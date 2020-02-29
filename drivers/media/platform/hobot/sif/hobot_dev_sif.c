@@ -89,13 +89,31 @@ static const struct dev_pm_ops x3_sif_pm_ops = {
 	.runtime_resume = x3_sif_runtime_resume,
 };
 
-void sif_config_rdma_cfg(struct x3_sif_dev *sif, u8 index,
+void sif_config_rdma_cfg(struct sif_video_ctx *ctx, u8 index,
 			struct frame_info *frameinfo)
 {
+	u32 height = 0;
+	u32 width = 0;
+	u32 format = 0;
+	u32 pixel_length = 0;
+	u32 stride = 0;
+	struct x3_sif_dev *sif;
+	struct vio_group *group;
+
+	sif = ctx->sif_dev;
+	group = ctx->group;
+	height = ctx->ddrin_fmt.height;
+	width = ctx->ddrin_fmt.width;
+	format  = ctx->ddrin_fmt.format;
+	pixel_length = ctx->ddrin_fmt.pix_length;
+	sif_config_rdma_fmt(sif->base_reg, pixel_length, width, height);
+	stride = sif_get_stride(pixel_length, width);
+	sif_set_rdma_buf_stride(sif->base_reg, index, stride);
+
 	sif_set_rdma_enable(sif->base_reg, index, true);
 	sif_set_rdma_buf_addr(sif->base_reg, index, frameinfo->addr[index]);
-	sif_set_rdma_buf_stride(sif->base_reg, index, frameinfo->pixel_length);
-	vio_info("ddr in stride = %d\n", frameinfo->pixel_length);
+	vio_info("[S%d]ddr in width = %d, height = %d, stride = %d\n",
+			group->instance, width, height, stride);
 }
 
 void sif_read_frame_work(struct vio_group *group)
@@ -112,26 +130,25 @@ void sif_read_frame_work(struct vio_group *group)
 	ctx = group->sub_ctx[0];
 	sif = ctx->sif_dev;
 
-	atomic_set(&sif->instance, instance);
-
 	if (sif_isp_ctx_sync != NULL) {
 		(*sif_isp_ctx_sync)(instance);
 	}
+
+	atomic_set(&sif->instance, instance);
 
 	framemgr = &ctx->framemgr;
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	frame = peek_frame(framemgr, FS_REQUEST);
 	if (frame) {
 		frameinfo = &frame->frameinfo;
-		frameinfo->pixel_length = ctx->ddrin_stride;
-		sif_config_rdma_cfg(sif, 0, frameinfo);
+		sif_config_rdma_cfg(ctx, 0, frameinfo);
 
 		if (ctx->dol_num > 1) {
-			sif_config_rdma_cfg(sif, 1, frameinfo);
+			sif_config_rdma_cfg(ctx, 1, frameinfo);
 		}
 
 		if (ctx->dol_num > 2) {
-			sif_config_rdma_cfg(sif, 2, frameinfo);
+			sif_config_rdma_cfg(ctx, 2, frameinfo);
 		}
 		sif_set_rdma_trigger(sif->base_reg, 1);
 		trans_frame(framemgr, frame, FS_PROCESS);
@@ -413,9 +430,8 @@ int sif_video_init(struct sif_video_ctx *sif_ctx, unsigned long arg)
 		ret = sif_mux_init(sif_ctx, &sif_config);
 	} else if (sif_ctx->id == 1) {
 		sif_ctx->dol_num = sif_config.output.isp.dol_exp_num;
-		sif_ctx->ddrin_stride =
-			sif_get_stride(sif_config.input.ddr.data.pix_length
-			, sif_config.input.ddr.data.width);
+		memcpy(&sif_ctx->ddrin_fmt, &sif_config.input.ddr.data,
+			sizeof(sif_data_desc_t));
 		sif_set_isp_performance(sif->base_reg, 10);
 		set_bit(SIF_DMA_IN_ENABLE, &sif->state);
 		set_bit(VIO_GROUP_DMA_INPUT, &group->state);

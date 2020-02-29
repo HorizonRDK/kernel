@@ -121,7 +121,7 @@ struct sif_video_ctx{
 	u32 mux_index;
 	u32 dol_num;
 	u32 rx_num;
-	u32 ddrin_stride;
+	sif_data_desc_t ddrin_fmt;
 	bool initial_frameid;
 	u64 bufcount;
 	struct frame_id			info;
