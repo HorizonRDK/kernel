@@ -433,10 +433,10 @@ void dwe_sw_init(void)
 	tmp = 0x80fc0000;
 	set_ldc_setting(dev_ptr->ldc_dev->io_vaddr, &tmp);
 
-	tmp = 0x7f;
+	tmp = 0xff;
 	set_ldc_int_status(dev_ptr->ldc_dev->io_vaddr, &tmp);
 
-	tmp = 0x7f;
+	tmp = 0xff;
 	set_ldc_int_mask(dev_ptr->ldc_dev->io_vaddr, &tmp);
 
 	tmp = 0x02;
@@ -487,7 +487,7 @@ void dwe_sw_deinit(void)
 	tmp = 0x0;
 	set_ldc_int_mask(dev_ptr->ldc_dev->io_vaddr, &tmp);
 
-	tmp = 0x7f;
+	tmp = 0xff;
 	set_ldc_int_status(dev_ptr->ldc_dev->io_vaddr, &tmp);
 
 	tmp = 0x80fc0000;

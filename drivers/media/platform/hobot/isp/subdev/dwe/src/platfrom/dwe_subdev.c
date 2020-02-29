@@ -13,6 +13,8 @@
  *    GNU General Public License for more details.
  */
 
+#define pr_fmt(fmt) "[ldc_drv]: %s: " fmt, __func__
+
 #include <linux/platform_device.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
@@ -72,26 +74,46 @@ void dis_printk(void)
 {
 }
 
-static void ldc_task_work(struct work_struct *work)
+void update_ldc_param(void)
 {
-	unsigned long flags;
-	int ret = 0;
-
-	LOG(LOG_INFO, "run %d , port %d, ldc_irq %d !\n", dwe_ctx->ctx.ldc_running, dwe_ctx->ctx.ldc_next_port, dwe_ctx->ldc_irqstatus);
-
-	spin_lock_irqsave(&dwe_ctx->ldclock, flags);
 	//set param when next port is setting
 	if ((dwe_ctx->ctx.ldc_next_port >= 0) && (dwe_ctx->ctx.ldc_next_port < 0xff)) {
-		ret = ldc_hwparam_set(&dwe_ctx->ctx, dwe_ctx->ctx.ldc_next_port);
+		ldc_hwparam_set(&dwe_ctx->ctx, dwe_ctx->ctx.ldc_next_port);
 		dwe_ctx->ctx.ldc_next_port = dwe_ctx->ctx.ldc_next_port + 0x100;
 	}
 
 	//set setting when ldc is not running
 	if (dwe_ctx->ctx.ldc_running == 0) {
 		if (dwe_ctx->ctx.ldc_next_port >= 0) {
-			ret = ldc_hwpath_set(&dwe_ctx->ctx, (dwe_ctx->ctx.ldc_next_port - 0x100));
+			ldc_hwpath_set(&dwe_ctx->ctx, (dwe_ctx->ctx.ldc_next_port - 0x100));
 		}
 	}
+}
+
+void update_dis_param(void)
+{
+	//set param when next port is setting
+	if ((dwe_ctx->ctx.dis_next_port >= 0) && (dwe_ctx->ctx.dis_next_port < 0xff)) {
+		dis_hwparam_set(&dwe_ctx->ctx, dwe_ctx->ctx.dis_next_port);
+		dwe_ctx->ctx.dis_next_port = dwe_ctx->ctx.dis_next_port + 0x100;
+	}
+
+	//set setting when dis is not running
+	if (dwe_ctx->ctx.dis_running == 0) {
+		if (dwe_ctx->ctx.dis_next_port >= 0) {
+			dis_hwpath_set(&dwe_ctx->ctx, (dwe_ctx->ctx.dis_next_port - 0x100));
+		}
+	}
+}
+
+static void ldc_task_work(struct work_struct *work)
+{
+	unsigned long flags;
+
+	LOG(LOG_INFO, "run %d , port %d, ldc_irq 0x%x !\n", dwe_ctx->ctx.ldc_running, dwe_ctx->ctx.ldc_next_port, dwe_ctx->ldc_irqstatus);
+
+	spin_lock_irqsave(&dwe_ctx->ldclock, flags);
+	update_ldc_param();
 	spin_unlock_irqrestore(&dwe_ctx->ldclock, flags);
 	//debug
 	ldc_printk_info();
@@ -100,23 +122,11 @@ static void ldc_task_work(struct work_struct *work)
 static void dis_task_work(struct work_struct *work)
 {
 	unsigned long flags;
-	int ret = 0;
 
-	LOG(LOG_INFO, "run %d , port %d, dis_irq %d !\n", dwe_ctx->ctx.dis_running, dwe_ctx->ctx.dis_next_port, dwe_ctx->dis_irqstatus);
+	LOG(LOG_INFO, "run %d , port %d, dis_irq 0x%x !\n", dwe_ctx->ctx.dis_running, dwe_ctx->ctx.dis_next_port, dwe_ctx->dis_irqstatus);
 
 	spin_lock_irqsave(&dwe_ctx->dislock, flags);
-	//set param when next port is setting
-	if ((dwe_ctx->ctx.dis_next_port >= 0) && (dwe_ctx->ctx.dis_next_port < 0xff)) {
-		ret = dis_hwparam_set(&dwe_ctx->ctx, dwe_ctx->ctx.dis_next_port);
-		dwe_ctx->ctx.dis_next_port = dwe_ctx->ctx.dis_next_port + 0x100;
-	}
-
-	//set setting when dis is not running
-	if (dwe_ctx->ctx.dis_running == 0) {
-		if (dwe_ctx->ctx.dis_next_port >= 0) {
-			ret = dis_hwpath_set(&dwe_ctx->ctx, (dwe_ctx->ctx.dis_next_port - 0x100));
-		}
-	}
+	update_dis_param();
 	spin_unlock_irqrestore(&dwe_ctx->dislock, flags);
 	//debug info
 	dwe_printk_info();
@@ -137,9 +147,11 @@ int ldc_set_ioctl(uint32_t port, uint32_t online)
 
 	spin_lock_irqsave(&dwe_ctx->ldclock, flags);
 	dwe_ctx->ctx.ldc_next_port = port;
+	update_ldc_param();
 	spin_unlock_irqrestore(&dwe_ctx->ldclock, flags);
-	schedule_work(&dwe_ctx->ldc_work);
+	// schedule_work(&dwe_ctx->ldc_work);
 
+	pr_debug("----set port 0x%x----", port);
 	return ret;
 }
 EXPORT_SYMBOL(ldc_set_ioctl);
@@ -158,8 +170,9 @@ int dis_set_ioctl(uint32_t port, uint32_t online)
 
 	spin_lock_irqsave(&dwe_ctx->dislock, flags);
 	dwe_ctx->ctx.dis_next_port = port;
+	update_dis_param();
 	spin_unlock_irqrestore(&dwe_ctx->dislock, flags);
-	schedule_work(&dwe_ctx->dis_work);
+	// schedule_work(&dwe_ctx->dis_work);
 
 	return ret;
 }
@@ -255,11 +268,28 @@ static irqreturn_t x2a_ldc_irq(int this_irq, void *data)
 
 	if (tmp_irq.status_b.frame_start == 1) {
 		//debug
-		printk("----ldc_irqstatus %x----", dwe_ctx->ldc_irqstatus);
+		uint32_t addr;
+		uint32_t tmp;
+		pr_debug("----next port 0x%x----", dwe_ctx->ctx.ldc_next_port);
+		pr_debug("----ldc_irqstatus 0x%x----", dwe_ctx->ldc_irqstatus);
+		addr = 0x44;
+		ldc_debug_info(dwe_ctx->dev_ctx->ldc_dev->io_vaddr, addr, &tmp);
+		pr_debug("[dump] addr 0x%x, data 0x%x", addr, tmp);
+		addr = 0x140;
+		ldc_debug_info(dwe_ctx->dev_ctx->ldc_dev->io_vaddr, addr, &tmp);
+		pr_debug("[dump] addr 0x%x, data 0x%x", addr, tmp);
+		addr = 0x240;
+		ldc_debug_info(dwe_ctx->dev_ctx->ldc_dev->io_vaddr, addr, &tmp);
+		pr_debug("[dump] addr 0x%x, data 0x%x", addr, tmp);
+		//
 		LOG(LOG_INFO, "----ldc_irqstatus %x----", dwe_ctx->ldc_irqstatus);
 		dwe_ctx->ldc_irqstatus = tmp_irq.status_g;
 
-		dwe_ctx->ctx.ldc_running = 1;
+		if (dwe_ctx->ctx.ldc_running == 0) {
+			dwe_ctx->ctx.ldc_running = 1;
+		} else {
+			dwe_ctx->ctx.ldc_running = 0;
+		}
 		dwe_ctx->ctx.dis_running = 1;
 		if ( dwe_ctx->ctx.dis_next_port > 0)
 			dwe_ctx->ctx.dis_next_port = -1;
@@ -278,7 +308,17 @@ static irqreturn_t x2a_ldc_irq(int this_irq, void *data)
 		flags = 1;
 		schedule_work(&dwe_ctx->ldc_work);
 	}
-	if (tmp_irq.status_b.overflow == 1) {
+
+	if (tmp_irq.status_b.input_frame_done == 1) {
+		dwe_ctx->ldc_irqstatus |= tmp_irq.status_g;
+		//LOG(LOG_DEBUG, "----over_flow!----");
+	}
+
+	if ((tmp_irq.status_b.overflow == 1) ||
+		(tmp_irq.status_b.frame_overwrite == 1) ||
+		(tmp_irq.status_b.line_overwrite == 1) ||
+		(tmp_irq.status_b.isp_in_overwrite == 1) ||
+		(tmp_irq.status_b.line_buf_woi_error == 1)) {
 		dwe_ctx->ldc_irqstatus |= tmp_irq.status_g;
 		dwe_ctx->ctx.ldc_running = 0;
 		//LOG(LOG_DEBUG, "----over_flow!----");
