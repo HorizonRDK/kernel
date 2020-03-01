@@ -182,11 +182,10 @@ struct _acamera_firmware_t {
     uint32_t dma_flag_isp_metering_completed;
 
     uint32_t dma_flag_dma_writer_config_completed;
+    uint32_t frame_done;
 
     uint32_t initialized;
 
-    atomic_t frame_done;
-    semaphore_t sem_fe;
     semaphore_t sem_event_process_done;
     semaphore_t sem_evt_avail;
 };
