@@ -2230,7 +2230,7 @@ CONFIG_VIDEO_HOBOT_ISP=y
 #
 # CONFIG_VIDEO_THS7303 is not set
 # CONFIG_VIDEO_M52790 is not set
-CONFIG_VIDEO_HOBOT_CAMERA_X2=y
+CONFIG_VIDEO_HOBOT_CAMERA_X2 is not set
 
 #
 # Sensors used on soc_camera driver
