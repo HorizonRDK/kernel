@@ -462,6 +462,7 @@ void dwe_sw_init(void)
 }
 
 extern void dwe0_reset_control(void);
+extern void reset_dwe_ctx(void);
 
 void dwe_sw_deinit(void)
 {
@@ -515,6 +516,7 @@ void dwe_sw_deinit(void)
 	set_dwe_checktype(dev_ptr->dis_dev->io_vaddr, &tmp);
 
 	dwe0_reset_control();
+	reset_dwe_ctx();
 }
 
 void dwe_deinit_api(dwe_context_t *ctx)

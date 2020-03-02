@@ -132,7 +132,22 @@ static void dis_task_work(struct work_struct *work)
 	dwe_printk_info();
 }
 
-//
+void reset_dwe_ctx(void)
+{
+	dwe_ctx->ctx.dis_running = 0;
+	dwe_ctx->ctx.ldc_running = 0;
+	dwe_ctx->ctx.ldc_curr_port = 0;
+	dwe_ctx->ctx.ldc_next_port = 0;
+	dwe_ctx->ctx.dis_curr_port = 0;
+	dwe_ctx->ctx.dis_next_port = 0;
+	dwe_ctx->ctx.online_enable = 1;
+	dwe_ctx->ctx.online_port = 0;
+	dwe_ctx->dis_irqstatus = 0;
+	dwe_ctx->ldc_irqstatus = 0;
+}
+EXPORT_SYMBOL(reset_dwe_ctx);
+
+//switch dwe port
 int ldc_set_ioctl(uint32_t port, uint32_t online)
 {
 	unsigned long flags;
