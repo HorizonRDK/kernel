@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014, Fuzhou Rockchip Electronics Co., Ltd
+ * Copyright (c) 2020, Horizon Robotics, Ltd
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -802,7 +802,7 @@ static struct platform_driver dw_mci_hobot_pltfm_driver = {
 
 module_platform_driver(dw_mci_hobot_pltfm_driver);
 
-MODULE_AUTHOR("shaochuanzhang <shaochuan.zhang@hobot.ai>");
-MODULE_DESCRIPTION("HobotRobotics Specific DW-MSHC Driver Extension");
-MODULE_ALIAS("platform:dwmmc_hobot");
+MODULE_AUTHOR("Horizon Robotics, Ltd");
+MODULE_DESCRIPTION("Horizon Robotics Specific DW-MSHC Driver Extension");
+MODULE_ALIAS("platform: dwmmc_hobot");
 MODULE_LICENSE("GPL v2");
