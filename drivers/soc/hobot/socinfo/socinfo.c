@@ -158,20 +158,9 @@ ssize_t name_show(struct class *class,
 
 	/* add ddr size */
 	index = simple_strtoul(ddr_size, NULL, 16);
-	switch (index) {
-	case DDR_CAPACITY_1G:
-		snprintf(name, sizeof(name), "%s1G", name);
-		break;
-	case DDR_CAPACITY_2G:
-		snprintf(name, sizeof(name), "%s2G", name);
-		break;
-	case DDR_CAPACITY_4G:
-		snprintf(name, sizeof(name), "%s4G", name);
-		break;
-	default:
-		snprintf(name, sizeof(name), "%s1G", name);
-		break;
-	}
+	if (index == 0 || index > 4)
+		index = 1;
+	snprintf(name, sizeof(name), "%s%dG", name, index);
 
 	/* add ddr freq */
 	index = simple_strtoul(ddr_freq, NULL, 16);
