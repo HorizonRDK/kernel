@@ -64,7 +64,7 @@ struct vio_group{
 	atomic_t rcount; /* request count */
 	u32 id;
 	u32 instance;
-	u32 output_flag;
+	u32 sema_flag;
 	bool get_timestamps;
 	bool leader;
 	struct vio_group		*next;

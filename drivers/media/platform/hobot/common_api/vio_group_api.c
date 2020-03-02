@@ -310,10 +310,18 @@ void vio_group_done(struct vio_group *group)
 	struct vio_group_task *group_task;
 	struct vio_group *group_leader;
 
-	if (group->next == NULL) {
-		group_leader = group->head;
-		group_task = group_leader->gtask;
+	group_leader = group->head;
+	group_task = group_leader->gtask;
+
+	if (group->next == NULL)
+		group_leader->sema_flag |= 1 << 0;
+
+	if (group->head == group)
+		group_leader->sema_flag |= 1 << 1;
+
+	if(group_leader->sema_flag == 0x3) {
 		up(&group_task->hw_resource);
+		group_leader->sema_flag = 0;
 		vio_info("[S%d][G%d]up hw_resource G%d\n", group->instance, group->id,
 		group_leader->id);
 	}
