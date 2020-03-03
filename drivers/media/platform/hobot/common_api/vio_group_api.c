@@ -225,12 +225,12 @@ void vio_bind_group_done(int instance)
 			group->leader = true;
 			snprintf(&stream[offset], sizeof(stream) - offset,
 					"=>G%d", group->id);
-			offset += strlen(stream);
+			offset = strlen(stream);
 		} else if (test_bit(VIO_GROUP_OTF_INPUT, &group->state)) {
 			vio_bind_chain_groups(&ischain->group[i - 1], group);
 			snprintf(&stream[offset], sizeof(stream) - offset,
 					"->G%d", group->id);
-			offset += strlen(stream);
+			offset = strlen(stream);
 		}
 	}
 
@@ -302,7 +302,9 @@ void vio_reset_module(u32 module)
 	cfg = ips_get_bus_ctrl() & ~bit;
 	ips_set_bus_ctrl(cfg);
 
-	//ips_set_module_reset(reset);
+	ips_set_module_reset(reset);
+	if (module == GROUP_ID_PYM)
+		ips_set_module_reset(IPU_PYM_RST);
 }
 
 void vio_group_done(struct vio_group *group)
@@ -322,7 +324,7 @@ void vio_group_done(struct vio_group *group)
 	if(group_leader->sema_flag == 0x3) {
 		up(&group_task->hw_resource);
 		group_leader->sema_flag = 0;
-		vio_info("[S%d][G%d]up hw_resource G%d\n", group->instance, group->id,
+		vio_dbg("[S%d][G%d]up hw_resource G%d\n", group->instance, group->id,
 		group_leader->id);
 	}
 }

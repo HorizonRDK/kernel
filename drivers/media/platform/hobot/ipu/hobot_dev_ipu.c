@@ -226,7 +226,7 @@ void ipu_frame_work(struct vio_group *group)
 	ipu = sub_mp->ipu_dev;
 	if (instance < MAX_SHADOW_NUM)
 		shadow_index = instance;
-	vio_dbg("[S%d] %s start\n", instance, __func__);
+	vio_dbg("[S%d]%s start\n", instance, __func__);
 
 	rdy = ipu_get_shd_rdy(ipu->base_reg);
 	rdy = rdy & ~(1 << 4);
@@ -290,14 +290,13 @@ void ipu_frame_work(struct vio_group *group)
 	rdy = rdy | (1 << 4);
 	ipu_set_shd_rdy(ipu->base_reg, rdy);
 	atomic_inc(&ipu->backup_fcount);
-	vio_dbg("backup_fcount count = %d\n", atomic_read(&ipu->backup_fcount));
 
 	if (test_bit(IPU_DMA_INPUT, &ipu->state))
 		ipu_set_rdma_start(ipu->base_reg);
 
 	if (!test_bit(IPU_HW_CONFIG, &ipu->state))
 		set_bit(IPU_HW_CONFIG, &ipu->state);
-	vio_dbg("[S%d] %s done; rdy = %d\n", instance, __func__, rdy);
+	vio_dbg("[S%d]%s done; rdy = %d\n", instance, __func__, rdy);
 }
 
 void ipu_set_group_leader(struct vio_group *group, enum group_id id,
@@ -1757,6 +1756,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		ipu_clear_size_err(ipu->base_reg, 1);
 		ipu_clear_size_err(ipu->base_reg, 0);
 		vio_err("IPU size error detection(0x%x)\n", size_err);
+		//vio_group_done(group);
 	}
 
 	if (status & (1 << INTR_IPU_US_FRAME_DROP)) {

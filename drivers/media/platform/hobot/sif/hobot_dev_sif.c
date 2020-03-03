@@ -523,7 +523,7 @@ p_inc:
 	atomic_inc(&sif_dev->rsccount);
 	sif_ctx->state = BIT(VIO_VIDEO_START);
 
-	vio_info("[S%d][V%d] %s\n", sif_ctx->group->instance,
+	vio_info("[S%d][V%d]%s\n", sif_ctx->group->instance,
 		sif_ctx->id, __func__);
 
 	return 0;
@@ -566,7 +566,7 @@ p_dec:
 
 	sif_ctx->state = BIT(VIO_VIDEO_STOP);
 
-	vio_info("[S%d][V%d] %s\n", sif_ctx->group->instance,
+	vio_info("[S%d][V%d]%s\n", sif_ctx->group->instance,
 		sif_ctx->id, __func__);
 
 	return 0;
@@ -611,7 +611,7 @@ int sif_video_reqbufs(struct sif_video_ctx *sif_ctx, u32 buffers)
 
 	sif_ctx->state = BIT(VIO_VIDEO_REBUFS);
 
-	vio_info("[S%d][V%d] %s reqbuf num %d\n", group->instance,
+	vio_info("[S%d][V%d]%s reqbuf num %d\n", group->instance,
 		sif_ctx->id, __func__, buffers);
 
 	return ret;
@@ -648,7 +648,7 @@ int sif_video_qbuf(struct sif_video_ctx *sif_ctx,
 	group = sif_ctx->group;
 	vio_group_start_trigger(group, frame);
 
-	vio_dbg("[S%d][V%d] %s index %d\n", sif_ctx->group->instance,
+	vio_dbg("[S%d][V%d]%s index %d\n", sif_ctx->group->instance,
 		sif_ctx->id, __func__, frameinfo->bufferindex);
 
 	return ret;
@@ -677,7 +677,7 @@ int sif_video_dqbuf(struct sif_video_ctx *sif_ctx,
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
-	vio_dbg("[S%d][V%d] %s index %d\n", sif_ctx->group->instance,
+	vio_dbg("[S%d][V%d]%s index %d\n", sif_ctx->group->instance,
 		sif_ctx->id, __func__, frameinfo->bufferindex);
 
 	return ret;

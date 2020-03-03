@@ -307,6 +307,7 @@ void pym_update_param(struct pym_video_ctx *pym_ctx)
 	//config common register
 	pym_set_common_rdy(pym->base_reg, 0);
 
+	pym_set_frame_id(pym->base_reg, 0);
 	pym_select_input_path(pym->base_reg, pym_config->img_scr);
 
 	pym_set_common_rdy(pym->base_reg, 1);
@@ -449,7 +450,7 @@ p_inc:
 	atomic_inc(&pym_dev->rsccount);
 	pym_ctx->state = BIT(VIO_VIDEO_START);
 
-	vio_info("[S%d] %s\n", group->instance, __func__);
+	vio_info("[S%d]%s\n", group->instance, __func__);
 
 	return 0;
 }
@@ -483,7 +484,7 @@ p_dec:
 	frame_manager_flush(&pym_ctx->framemgr);
 	pym_ctx->state = BIT(VIO_VIDEO_STOP);
 
-	vio_info("[S%d] %s\n", group->instance, __func__);
+	vio_info("[S%d]%s\n", group->instance, __func__);
 
 	return 0;
 }
@@ -560,7 +561,7 @@ int pym_video_qbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 	if(group->leader == true)
 		vio_group_start_trigger(group, frame);
 
-	vio_info("S%d %s index %d\n", group->instance,
+	vio_dbg("[S%d] %s index %d\n", group->instance,
 		__func__, frameinfo->bufferindex);
 
 	return ret;
@@ -588,7 +589,7 @@ int pym_video_dqbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
-	vio_info("S%d %s index %d\n", pym_ctx->group->instance,
+	vio_dbg("[S%d] %s index %d\n", pym_ctx->group->instance,
 		__func__, frameinfo->bufferindex);
 
 	return ret;
@@ -761,6 +762,8 @@ static irqreturn_t pym_isr(int irq, void *data)
 				up(&gtask->hw_resource);
 			}
 		}
+
+		group->frameid.frame_id = atomic_read(&pym->sensor_fcount);
 		if (group && group->get_timestamps)
 			vio_get_frame_id(group);
 	}
@@ -870,7 +873,9 @@ static ssize_t pym_reg_dump(struct device *dev,
 
 	pym = dev_get_drvdata(dev);
 
+	vio_clk_enable("pym_mclk");
 	pym_hw_dump(pym->base_reg);
+	vio_clk_disable("pym_mclk");
 
 	return 0;
 }
