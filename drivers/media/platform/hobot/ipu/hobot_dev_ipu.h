@@ -81,6 +81,7 @@ enum ipu_sub_mp_state {
 struct ipu_sub_mp {
 	spinlock_t 		slock;
 	struct ipu_video_ctx	*dev[VIO_MAX_SUB_PROCESS];
+	unsigned long		val_dev_mask;
 	u32			proc_count;
 	struct vio_framemgr	framemgr;
 	struct list_head	client_list;

@@ -55,12 +55,24 @@ enum vio_frame_state {
 	FS_INVALID
 };
 
+enum vio_frame_ctl {
+	FRAME_INVALID = 0,
+	FRAME_VALID,
+	FRAME_STREAMOFF
+};
+
 enum vio_hw_frame_state {
 	FS_HW_FREE,
 	FS_HW_REQUEST,
 	FS_HW_CONFIGURE,
 	FS_HW_WAIT_DONE,
 	FS_HW_INVALID
+};
+
+enum buffer_owner {
+	VIO_BUFFER_OTHER = 0,
+	VIO_BUFFER_THIS = 1,
+	VIO_BUFFER_OWN_INVALID = -1,
 };
 
 #define NR_FRAME_STATE FS_INVALID
@@ -138,7 +150,8 @@ struct vio_framemgr {
 	u32			num_frames;
 	struct vio_frame	*frames;
 	struct vio_frame	*frames_mp[VIO_MP_MAX_FRAMES];
-	u8			dispatch_cnt[VIO_MP_MAX_FRAMES];
+	u8			dispatch_mask[VIO_MP_MAX_FRAMES];
+	enum vio_frame_ctl	ctr_state[VIO_MP_MAX_FRAMES];
 	u8			proc_fst_frm[VIO_MAX_SUB_PROCESS];
 	u32			num_proc;
 	u32			num_close;
@@ -191,5 +204,7 @@ int frame_manager_close_mp(struct vio_framemgr *this,
 	u32 index_start, u32 buffers);
 int frame_manager_flush_mp(struct vio_framemgr *this,
 	u32 index_start, u32 buffers);
+int frame_manager_flush_mp_prepare(struct vio_framemgr *this,
+	u32 index_start, u32 buffers, u8 proc_id);
 
 #endif

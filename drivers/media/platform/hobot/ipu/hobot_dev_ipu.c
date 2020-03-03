@@ -47,6 +47,7 @@ int ipu_put_client(struct ipu_sub_mp *sub_mp,
 struct ipu_video_ctx *ipu_get_client(struct ipu_sub_mp *sub_mp);
 void ipu_update_hw_param(struct ipu_video_ctx *ipu_ctx);
 int ipu_video_streamoff(struct ipu_video_ctx *ipu_ctx);
+enum buffer_owner ipu_index_owner(struct ipu_video_ctx *ipu_ctx, u32 index);
 
 static int x3_ipu_open(struct inode *inode, struct file *file)
 {
@@ -89,24 +90,29 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 	struct ipu_video_ctx *ipu_ctx;
 	struct x3_ipu_dev *ipu;
 	struct vio_group *group;
+	struct ipu_sub_mp *sub_mp;
 	u32 index;
 	u32 cnt;
 
 	ipu_ctx = file->private_data;
 	group = ipu_ctx->group;
 	ipu = ipu_ctx->ipu_dev;
+	sub_mp = ipu_ctx->sub_mp;
 
-	if (group) {
-		clear_bit(VIO_GROUP_LEADER, &group->state);
-		clear_bit(VIO_GROUP_INIT, &group->state);
+	if (!sub_mp->proc_count) {
+		if (group) {
+			clear_bit(VIO_GROUP_LEADER, &group->state);
+			clear_bit(VIO_GROUP_INIT, &group->state);
+		}
+
+		if (group->gtask)
+			vio_group_task_stop(group->gtask);
 	}
-
-	if (group->gtask)
-		vio_group_task_stop(group->gtask);
 
 	index = ipu_ctx->frm_fst_ind;
 	cnt = ipu_ctx->frm_num;
-	frame_manager_close_mp(ipu_ctx->framemgr, index, cnt);
+	if (ipu_ctx->framemgr->frames_mp[ipu_ctx->frm_fst_ind] != NULL)
+		frame_manager_close_mp(ipu_ctx->framemgr, index, cnt);
 
 	if (atomic_dec_return(&ipu->open_cnt) == 0) {
 		clear_bit(IPU_OTF_INPUT, &ipu->state);
@@ -126,6 +132,10 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 
 	ipu_ctx->state = BIT(VIO_VIDEO_CLOSE);
 
+	spin_lock(&sub_mp->slock);
+	clear_bit(ipu_ctx->proc_id, &sub_mp->val_dev_mask);
+	sub_mp->dev[ipu_ctx->proc_id] = NULL;
+	spin_unlock(&sub_mp->slock);
 	kfree(ipu_ctx);
 	vio_info("[S%d]IPU close node V%d\n", group->instance, ipu_ctx->id);
 
@@ -202,7 +212,7 @@ void ipu_frame_work(struct vio_group *group)
 	struct vio_framemgr *framemgr;
 	struct vio_frame *frame;
 	unsigned long flags;
-	int i = 0;
+	int i = 0, j = 0;
 	u32 instance = 0;
 	u32 rdy = 0;
 	u8 shadow_index = 0;
@@ -230,7 +240,13 @@ void ipu_frame_work(struct vio_group *group)
 		sub_mp = group->sub_ctx[i];
 		if (!sub_mp)
 			continue;
-		back_ctx = sub_mp->dev[0];
+		back_ctx = NULL;
+		spin_lock(&sub_mp->slock);
+		back_ctx = NULL;
+		for (j = 0; j < VIO_MAX_SUB_PROCESS; j++) {
+			if(test_bit(j, &sub_mp->val_dev_mask))
+				back_ctx = sub_mp->dev[j];
+		}
 		if (back_ctx != NULL) {
 			framemgr = back_ctx->framemgr;
 			framemgr_e_barrier_irqs(framemgr, 0, flags);
@@ -266,7 +282,10 @@ void ipu_frame_work(struct vio_group *group)
 				trans_frame(framemgr, frame, FS_PROCESS);
 			}
 			framemgr_x_barrier_irqr(framemgr, 0, flags);
+		} else {
+			vio_err("%s ctx err, sub_mp %d", __func__, i);
 		}
+		spin_unlock(&sub_mp->slock);
 	}
 	rdy = ipu_get_shd_rdy(ipu->base_reg);
 	rdy = rdy | (1 << 4);
@@ -302,22 +321,32 @@ void ipu_set_group_leader(struct vio_group *group, enum group_id id,
 		if (!test_bit(VIO_GROUP_LEADER, &group->state)) {
 			set_bit(VIO_GROUP_LEADER, &group->state);
 
+			spin_lock(&sub_mp->slock);
 			ipu_ctx = sub_mp->dev[proc_id];
 			if (!ipu_ctx) {
+				spin_unlock(&sub_mp->slock);
 				vio_err("%s wrong ipu_ctx", __func__);
 				return;
 			}
 			ipu_ctx->leader = true;
-			vio_info("%s:%d\n", __func__, id);
+			spin_unlock(&sub_mp->slock);
+			vio_info("[S%d][V%d] %s proc%d\n", group->instance,
+				id, __func__, proc_id);
 		} else {
+			spin_lock(&sub_mp->slock);
 			for (i = 0; i < sub_mp->proc_count; i++) {
 				ctx_mp = sub_mp->dev[i];
+				if (!ctx_mp)
+					continue;
 				if (ctx_mp->leader == true) {
-					ipu_ctx->leader = true;
-					vio_info("%s:%d\n", __func__, id);
+					sub_mp->dev[proc_id]->leader = true;
+					vio_info("[S%d][V%d] %s proc%d(m%d)\n",
+						group->instance, id,  __func__,
+						proc_id, i);
 					break;
 				}
 			}
+			spin_unlock(&sub_mp->slock);
 		}
 	}
 }
@@ -334,9 +363,11 @@ void ipu_clear_group_leader(struct vio_group *group)
 		if (!sub_mp)
 			continue;
 		for (j = 0; j < sub_mp->proc_count; j++ ) {
+			spin_lock(&sub_mp->slock);
 			ipu_ctx = sub_mp->dev[j];
 			if (ipu_ctx)
 				ipu_ctx->leader = false;
+			spin_unlock(&sub_mp->slock);
 		}
 	}
 
@@ -1060,6 +1091,7 @@ int ipu_bind_chain_group(struct ipu_video_ctx *ipu_ctx, int instance)
 	if (!group->sub_ctx[id]) {
 		group->sub_ctx[id] = sub_mp_alloc;
 		sub_mp = sub_mp_alloc;
+		spin_lock_init(&sub_mp->framemgr.slock);
 	} else {
 		sub_mp = group->sub_ctx[id];
 		if (sub_mp_alloc)
@@ -1080,6 +1112,7 @@ int ipu_bind_chain_group(struct ipu_video_ctx *ipu_ctx, int instance)
 	}
 	sub_mp->dev[proc_id] = ipu_ctx;
 	sub_mp->proc_count++;
+	set_bit(proc_id, &sub_mp->val_dev_mask);
 	sub_mp->group = group;
 	sub_mp->ipu_dev = ipu;
 	sema_init(&sub_mp->hw_init_sem, 1);
@@ -1157,9 +1190,11 @@ int ipu_video_streamoff(struct ipu_video_ctx *ipu_ctx)
 {
 	struct x3_ipu_dev *ipu_dev;
 	struct vio_group *group;
+	struct ipu_sub_mp *sub_mp;
 
 	ipu_dev = ipu_ctx->ipu_dev;
 	group = ipu_ctx->group;
+	sub_mp = ipu_ctx->sub_mp;
 
 	if (!(ipu_ctx->state & BIT(VIO_VIDEO_START))) {
 		vio_err("[%s][V%02d] invalid STREAM_OFF is requested(%lX)\n",
@@ -1167,7 +1202,12 @@ int ipu_video_streamoff(struct ipu_video_ctx *ipu_ctx)
 		return -EINVAL;
 	}
 
-	ipu_channel_wdma_disable(ipu_ctx);
+	spin_lock(&sub_mp->slock);
+	sub_mp->proc_count -= 1;
+	spin_unlock(&sub_mp->slock);
+
+	if (!sub_mp->proc_count)
+		ipu_channel_wdma_disable(ipu_ctx);
 
 	if (atomic_dec_return(&ipu_dev->rsccount) > 0
 		&& !test_bit(IPU_HW_FORCE_STOP, &ipu_dev->state))
@@ -1177,9 +1217,15 @@ int ipu_video_streamoff(struct ipu_video_ctx *ipu_ctx)
 
 	clear_bit(IPU_HW_RUN, &ipu_dev->state);
 p_dec:
-	if (ipu_ctx->framemgr->frames_mp != NULL)
+	if (ipu_ctx->framemgr->frames_mp[ipu_ctx->frm_fst_ind] != NULL) {
+		/* wait for frame to be transfered to USED or FREE */
+		if (sub_mp->proc_count)
+			frame_manager_flush_mp_prepare(ipu_ctx->framemgr,
+				ipu_ctx->frm_fst_ind, ipu_ctx->frm_num,
+				ipu_ctx->proc_id);
 		frame_manager_flush_mp(ipu_ctx->framemgr, ipu_ctx->frm_fst_ind,
 			ipu_ctx->frm_num);
+	}
 
 	ipu_ctx->state = BIT(VIO_VIDEO_STOP);
 
@@ -1261,7 +1307,6 @@ int ipu_video_qbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 	struct vio_framemgr *framemgr;
 	struct vio_frame *frame;
 	struct vio_group *group;
-	u8 dispatch_cnt;
 
 	index = frameinfo->bufferindex;
 	framemgr = ipu_ctx->framemgr;
@@ -1270,29 +1315,48 @@ int ipu_video_qbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	frame = framemgr->frames_mp[index];
 	if (frame->state == FS_FREE) {
+		framemgr->dispatch_mask[index] &= ~(1 << ipu_ctx->proc_id);
+		if (framemgr->ctr_state[index] == FRAME_STREAMOFF) {
+			vio_dbg("q fail:FREE proc%d bidx%d is streaming off",
+				ipu_ctx->proc_id, index);
+			ret = 0;
+			goto err;
+		}
 		vio_dbg("q:FREE->REQ,proc%d bidx%d", ipu_ctx->proc_id, index);
 		memcpy(&frame->frameinfo, frameinfo, sizeof(struct frame_info));
 		trans_frame(framemgr, frame, FS_REQUEST);
 	} else if (frame->state == FS_USED) {
-		dispatch_cnt = framemgr->dispatch_cnt[index] - 1;
-		if (dispatch_cnt >= VIO_MAX_SUB_PROCESS) {
-			vio_err("frame(%d) dispatch count(%d) err\n", index,
-				dispatch_cnt);
-			ret = -EINVAL;
-			goto err;
-		} else if (dispatch_cnt == 0) {
+		framemgr->dispatch_mask[index] &= ~(1 << ipu_ctx->proc_id);
+		if (framemgr->dispatch_mask[index] == 0) {
+			if (framemgr->ctr_state[index] == FRAME_STREAMOFF) {
+				vio_dbg("q fail:USED proc%d bidx%d is streaming off",
+					ipu_ctx->proc_id, index);
+				ret = 0;
+				goto err;
+			}
 			vio_dbg("q:USED->REQ,proc%d bidx%d", ipu_ctx->proc_id,
 				index);
-			framemgr->dispatch_cnt[index] = dispatch_cnt;
 			memcpy(&frame->frameinfo, frameinfo,
 				sizeof(struct frame_info));
 			trans_frame(framemgr, frame, FS_REQUEST);
 		} else {
-			vio_dbg("q:disp cnt%d,proc%d bidx%d", dispatch_cnt,
-				ipu_ctx->proc_id, index);
-			framemgr->dispatch_cnt[index] = dispatch_cnt;
-			ret = 0;
-			goto err;
+			if ((framemgr->queued_count[FS_REQUEST] <= 2)
+			&& (ipu_index_owner(ipu_ctx, index)
+				== VIO_BUFFER_THIS)) {
+				vio_info("q:force proc%d bidx%d to req,mask %x",
+					ipu_ctx->proc_id, index,
+					framemgr->dispatch_mask[index]);
+				framemgr->dispatch_mask[index] = 0;
+				memcpy(&frame->frameinfo, frameinfo,
+					sizeof(struct frame_info));
+				trans_frame(framemgr, frame, FS_REQUEST);
+			} else {
+				vio_dbg("q:disp mask%d,proc%d bidx%d",
+					framemgr->dispatch_mask[index],
+					ipu_ctx->proc_id, index);
+				ret = 0;
+				goto err;
+			}
 		}
 	} else {
 		vio_err("frame(%d) is invalid state(%d)\n", index,
@@ -1474,6 +1538,18 @@ static long x3_ipu_ioctl(struct file *file, unsigned int cmd,
 	return ret;
 }
 
+enum buffer_owner ipu_index_owner(struct ipu_video_ctx *ipu_ctx,
+	u32 index)
+{
+	if (index >= VIO_MP_MAX_FRAMES)
+		return VIO_BUFFER_OWN_INVALID;
+	else if ((index >= ipu_ctx->frm_fst_ind)
+		&&(index < (ipu_ctx->frm_fst_ind + ipu_ctx->frm_num)))
+		return VIO_BUFFER_THIS;
+	else
+		return VIO_BUFFER_OTHER;
+}
+
 void ipu_set_iar_output(struct ipu_video_ctx *ipu_ctx, struct vio_frame *frame)
 {
 #ifdef X3_IAR_INTERFACE
@@ -1492,6 +1568,7 @@ void ipu_frame_done(struct ipu_sub_mp *sub_mp)
 	struct vio_group *group;
 	struct ipu_video_ctx *ipu_ctx;
 	unsigned long flags;
+	u32 i;
 
 	if(!sub_mp) {
 		vio_err("%s:%d sub_mp not init.\n", __func__, __LINE__);
@@ -1499,8 +1576,14 @@ void ipu_frame_done(struct ipu_sub_mp *sub_mp)
 	}
 	group = sub_mp->group;
 	framemgr = &sub_mp->framemgr;
-	ipu_ctx = sub_mp->dev[0];
+	spin_lock(&sub_mp->slock);
+	ipu_ctx = NULL;
+	for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
+		if (test_bit(i, &sub_mp->val_dev_mask))
+			ipu_ctx = sub_mp->dev[i];
+	}
 	if(!ipu_ctx) {
+		spin_unlock(&sub_mp->slock);
 		vio_err("%s:%d sub_mp.dev[0] is null .\n", __func__, __LINE__);
 		return;
 	}
@@ -1524,6 +1607,7 @@ void ipu_frame_done(struct ipu_sub_mp *sub_mp)
 		vio_err("PROCESS queue has no member;\n");
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
+	spin_unlock(&sub_mp->slock);
 }
 
 int ipu_put_client(struct ipu_sub_mp *sub_mp,
@@ -1602,10 +1686,14 @@ void ipu_dispatch_frm(struct ipu_work *ipu_work)
 		for (i = 0; i < client_count; i++) {
 			ipu_ctx = ipu_get_client(sub_mp);
 			if (!ipu_ctx) {
-				spin_unlock(&sub_mp->slock);
 				vio_dbg("ipu:client not enough when dispatching.");
 				break;
 			}
+			if (!test_bit(ipu_ctx->proc_id, &sub_mp->val_dev_mask)) {
+				vio_dbg("ipu:client ctx is invalid.");
+				break;
+			}
+
 			if (frame) {
 				frame_info = &ipu_ctx->frameinfo;
 				memcpy(frame_info, &frame->frameinfo,
@@ -1614,7 +1702,8 @@ void ipu_dispatch_frm(struct ipu_work *ipu_work)
 					frame_info->bufferindex,
 					frame_info->frame_id);
 				framemgr_e_barrier_irqs(framemgr, 0, flags);
-				framemgr->dispatch_cnt[bufindex]++;
+				framemgr->dispatch_mask[bufindex] |=
+					1 << ipu_ctx->proc_id;
 				framemgr_x_barrier_irqr(framemgr, 0, flags);
 				ipu_ctx->event = VIO_FRAME_DONE;
 

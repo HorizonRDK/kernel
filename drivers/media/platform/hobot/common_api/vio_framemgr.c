@@ -174,7 +174,7 @@ void frame_work_function(struct kthread_work *work)
 
 	set_bit(VIO_GTASK_SHOT, &gtask->state);
 	atomic_dec(&leader->rcount);
-	vio_dbg("%s #0\n", __func__);
+	vio_dbg("%s index%d #0\n", __func__, frame->index);
 
 	if (unlikely(test_bit(VIO_GTASK_REQUEST_STOP, &gtask->state))) {
 		vio_err(" cancel by gstop0");
@@ -201,7 +201,7 @@ void frame_work_function(struct kthread_work *work)
 		if(group->frame_work)
 			group->frame_work(group);
 	}
-	vio_dbg("%s #2\n", __func__);
+	vio_dbg("%s index%d #2\n", __func__, frame->index);
 
 	leader->frame_work(leader);
 	clear_bit(VIO_GTASK_SHOT, &gtask->state);
@@ -320,6 +320,7 @@ int frame_manager_open_mp(struct vio_framemgr *this, u32 buffers,
 		put_frame(this, this->frames_mp[i], FS_FREE);
 		kthread_init_work(&this->frames_mp[i]->work,
 			frame_work_function);
+		this->ctr_state[i] = FRAME_VALID;
 	}
 	*index_start = this->num_frames;
 	this->num_frames += buffers;
@@ -374,13 +375,102 @@ int frame_manager_flush_mp(struct vio_framemgr *this,
 	}
 	spin_lock_irqsave(&this->slock, flag);
 	this->num_flush -= buffers;
-	if(!this->num_flush) {
-		for (i = 0; i < this->num_frames; i++) {
-			frame = this->frames_mp[i];
-			if (frame)
-				trans_frame(this, frame, FS_FREE);
-		}
+	for (i = index_start; i < (buffers + index_start); i++) {
+		frame = this->frames_mp[i];
+		if (frame)
+			trans_frame(this, frame, FS_FREE);
+		this->ctr_state[i] = FRAME_INVALID;
 	}
+	spin_unlock_irqrestore(&this->slock, flag);
+
+	return 0;
+}
+
+/*
+ * Set the streaming off mask of the frame
+ * Wait for frame state to become UESD or FREE
+ * Wait for frame to be qbuf by other process, which means other process free
+ * this frame
+ */
+int frame_manager_flush_mp_prepare(struct vio_framemgr *this,
+	u32 index_start, u32 buffers, u8 proc_id)
+{
+	unsigned long flag;
+	struct vio_frame *frame;
+	enum vio_frame_state i;
+	u32 delay_cnt;
+	u32 used_free_cnt = 0;
+	u32 other_proc_free;
+	u8 dispatch_mask;
+	const u8 one_frame_delay = 33;
+
+	if ((index_start + buffers) >= VIO_MP_MAX_FRAMES) {
+		vio_err("invalid index when flush frame manager.");
+		return -EFAULT;
+	}
+	spin_lock_irqsave(&this->slock, flag);
+	for (i = index_start; i < (buffers + index_start); i++) {
+		this->ctr_state[i] = FRAME_STREAMOFF;
+	}
+
+	for (i = 0; i < this->num_frames; i++) {
+		vio_dbg("%s(self%d):index%d,state%d.",
+			__func__, index_start, i, this->frames_mp[i]->state);
+	}
+
+	/* to USED or FREE*/
+	delay_cnt = buffers;
+	while (delay_cnt) {
+		used_free_cnt = 0;
+		for (i = index_start; i < (buffers + index_start); i++) {
+			frame = this->frames_mp[i];
+			if ((frame->state == FS_USED)
+				|| (frame->state == FS_FREE))
+				used_free_cnt++;
+		}
+		if (used_free_cnt == buffers)
+			break;
+
+		delay_cnt--;
+		spin_unlock_irqrestore(&this->slock, flag);
+		msleep(one_frame_delay);
+		spin_lock_irqsave(&this->slock, flag);
+	}
+	if (delay_cnt)
+		vio_dbg("%s:use %dms, all index %d-%d in USED or FREE.",
+			__func__, one_frame_delay * (buffers - delay_cnt),
+			index_start, index_start + buffers -1);
+	else
+		vio_dbg("%s:timeout %dms,%d buffers in USED or FREE, %d not.",
+			__func__, one_frame_delay * buffers, used_free_cnt,
+			buffers - used_free_cnt);
+
+	/* release by other proc */
+	delay_cnt = buffers;
+	while (delay_cnt) {
+		other_proc_free = 0;
+		for (i = index_start; i < (buffers + index_start); i++) {
+			dispatch_mask = this->dispatch_mask[i];
+			if ((!dispatch_mask) || (dispatch_mask == (1 << proc_id)))
+				other_proc_free++;
+		}
+		if (other_proc_free == buffers)
+			break;
+
+		delay_cnt--;
+		spin_unlock_irqrestore(&this->slock, flag);
+		msleep(one_frame_delay);
+		spin_lock_irqsave(&this->slock, flag);
+	}
+	if (delay_cnt)
+		vio_dbg("%s:use %dms, all index %d-%d free by other proc.",
+			__func__, one_frame_delay * (buffers - delay_cnt),
+			index_start, index_start + buffers -1);
+	else
+		vio_dbg("%s:timeout %dms, %d buffers free, %d not.",
+			__func__, one_frame_delay * buffers,
+			used_free_cnt, buffers - used_free_cnt);
+
 	spin_unlock_irqrestore(&this->slock, flag);
 	return 0;
 }
