@@ -104,10 +104,9 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 			clear_bit(VIO_GROUP_LEADER, &group->state);
 			clear_bit(VIO_GROUP_INIT, &group->state);
 		}
-
-		if (group->gtask)
-			vio_group_task_stop(group->gtask);
 	}
+	if (group->gtask)
+		vio_group_task_stop(group->gtask);
 
 	index = ipu_ctx->frm_fst_ind;
 	cnt = ipu_ctx->frm_num;
