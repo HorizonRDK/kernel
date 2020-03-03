@@ -91,7 +91,7 @@ static const unsigned long goodix_irq_flags[] = {
 int tp_rst_pin = 28;
 int tp_irq_pin = 29;
 int hotpoll_ms = 500;
-int hotpoll_flag = 1;
+int hotpoll_flag = 0;
 static struct work_struct       *tpwork;
 
 //static void goodix_process_events(struct goodix_ts_data *ts);
@@ -200,7 +200,7 @@ static void work_queue(struct work_struct *work)
 		dev_err(&ts->client->dev, "I2C write end_cmd error\n");
 
 	if (hotpoll_flag == 0) {
-		enable_irq(ts->client->irq);
+		//enable_irq(ts->client->irq);
 	} else {
 		mod_timer(&x3tptimer, jiffies + msecs_to_jiffies(hotpoll_ms));
 	}
@@ -251,9 +251,9 @@ static int goodix_ts_read_input_report(u8 *data)
 	}
 
 	if (data[0] & GOODIX_BUFFER_STATUS_READY) {
-		dev_info(&ts->client->dev, "touch int!!\n");
+		pr_debug("touch int!!\n");
 		touch_num = data[0] & 0x0f;
-		dev_info(&ts->client->dev, "touch num is %d!!\n", touch_num);
+		pr_debug("touch num is %d!!\n", touch_num);
 		if (touch_num > ts->max_touch_num)
 			return -EPROTO;
 
@@ -340,9 +340,8 @@ static irqreturn_t goodix_ts_irq_handler(int irq, void *dev_id)
 {
 	int ret;
 
-	pr_debug("irq begin!\n");
-
-	disable_irq_nosync(irq);
+	pr_debug("touch screen irq!!!\n");
+	//disable_irq_nosync(irq);
 	schedule_work(tpwork);
 
 	return IRQ_HANDLED;
@@ -676,7 +675,8 @@ static int goodix_configure_dev(void)
 	if (error)
 		return error;
 
-	ts->irq_flags = goodix_irq_flags[ts->int_trigger_type] | IRQF_ONESHOT;
+	//ts->irq_flags = goodix_irq_flags[ts->int_trigger_type] | IRQF_ONESHOT;
+	ts->irq_flags = IRQ_TYPE_EDGE_RISING | IRQF_ONESHOT;
 	pr_debug("%s: irq flags is 0x%x\n", __func__, ts->irq_flags);
 	tpwork = kmalloc(sizeof(*tpwork), GFP_ATOMIC);
 	INIT_WORK(tpwork, work_queue);
