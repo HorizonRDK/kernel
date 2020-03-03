@@ -120,10 +120,14 @@ typedef struct pwl_s {
 	uint32_t param_hold_length;
 	uint32_t gain;
 	uint32_t gain_length;
+	uint32_t sd_gain;
+	uint32_t sd_gain_length;
 	uint32_t line;
 	uint32_t line_length;
 	uint32_t min_gain_time;
 	uint32_t max_gain_time;
+	uint32_t min_dgain_time;
+	uint32_t max_dgain_time;
 }pwl_t;
 
 typedef struct stream_ctrl_s {
