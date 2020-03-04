@@ -740,6 +740,12 @@ static int goodix_ts_probe(struct i2c_client *client,
 	i2c_set_clientdata(client, ts);
 	init_completion(&ts->firmware_loading_complete);
 
+	error = goodix_i2c_test(client);
+	if (error) {
+		dev_err(&client->dev, "I2C communication failure: %d\n", error);
+		return error;
+	}
+
 	ret = of_property_read_u32(client->dev.of_node, "irq_pin", &tp_irq_pin);
 	if (ret) {
 		dev_err(&client->dev, "Filed to get irq_pin %d\n", ret);
