@@ -744,7 +744,7 @@ static ssize_t bpu1_read_ctl_show(struct device_driver *drv, char *buf)
 
 	return sprintf(buf, "%x\n", tmp);
 }
-static ssize_t vio_read_ctl_store(struct device_driver *drv,
+static ssize_t vio0_read_ctl_store(struct device_driver *drv,
 				  const char *buf, size_t count)
 {
 	int ret;
@@ -766,7 +766,7 @@ static ssize_t vio_read_ctl_store(struct device_driver *drv,
 	return count;
 }
 
-static ssize_t vio_read_ctl_show(struct device_driver *drv, char *buf)
+static ssize_t vio0_read_ctl_show(struct device_driver *drv, char *buf)
 {
 	unsigned int tmp;
 
@@ -811,7 +811,7 @@ static ssize_t vpu_read_ctl_show(struct device_driver *drv, char *buf)
 	return sprintf(buf, "%x\n", tmp);
 }
 
-static ssize_t iar_read_ctl_store(struct device_driver *drv,
+static ssize_t vio1_read_ctl_store(struct device_driver *drv,
 				  const char *buf, size_t count)
 {
 	int ret;
@@ -833,7 +833,7 @@ static ssize_t iar_read_ctl_store(struct device_driver *drv,
 	return count;
 }
 
-static ssize_t iar_read_ctl_show(struct device_driver *drv, char *buf)
+static ssize_t vio1_read_ctl_show(struct device_driver *drv, char *buf)
 {
 	unsigned int tmp;
 
@@ -908,12 +908,12 @@ static ssize_t all_read_ctl_show(struct device_driver *drv, char *buf)
 	len += sprintf(buf + len, "P1_BIFDMA: %d\n", (tmp >> 4) & 0xF);
 	len += sprintf(buf + len, "P2_CNN0:   %d\n", (tmp >> 8) & 0xF);
 	len += sprintf(buf + len, "P3_CNN1:   %d\n", (tmp >> 12) & 0xF);
-	len += sprintf(buf + len, "P4_VIO:    %d\n", (tmp >> 16) & 0xF);
+	len += sprintf(buf + len, "P4_VIO0:   %d\n", (tmp >> 16) & 0xF);
 #ifdef CONFIG_HOBOT_XJ2
 	len += sprintf(buf + len, "P5_PERI:   %d\n", (tmp >> 20) & 0xF);
 #else
 	len += sprintf(buf + len, "P5_VPU:    %d\n", (tmp >> 20) & 0xF);
-	len += sprintf(buf + len, "P6_IAR:    %d\n", (tmp >> 24) & 0xF);
+	len += sprintf(buf + len, "P6_VIO1:   %d\n", (tmp >> 24) & 0xF);
 	len += sprintf(buf + len, "P7_PERI:   %d\n", (tmp >> 28) & 0xF);
 #endif
 
@@ -933,16 +933,16 @@ static struct driver_attribute bpu0_read_ctl = __ATTR(bpu0, 0664,
 static struct driver_attribute bpu1_read_ctl = __ATTR(bpu1, 0664,
 						    bpu1_read_ctl_show,
 						    bpu1_read_ctl_store);
-static struct driver_attribute vio_read_ctl    = __ATTR(vio, 0664,
-						      vio_read_ctl_show,
-						      vio_read_ctl_store);
+static struct driver_attribute vio0_read_ctl    = __ATTR(vio0, 0664,
+						      vio0_read_ctl_show,
+						      vio0_read_ctl_store);
 #ifdef CONFIG_HOBOT_XJ3
 static struct driver_attribute vpu_read_ctl    = __ATTR(vpu, 0664,
 						      vpu_read_ctl_show,
 						      vpu_read_ctl_store);
-static struct driver_attribute iar_read_ctl    = __ATTR(iar, 0664,
-						      iar_read_ctl_show,
-						      iar_read_ctl_store);
+static struct driver_attribute vio1_read_ctl    = __ATTR(vio1, 0664,
+						      vio1_read_ctl_show,
+						      vio1_read_ctl_store);
 #endif
 static struct driver_attribute periph_read_ctl = __ATTR(peri, 0664,
 						      periph_read_ctl_show,
@@ -956,10 +956,10 @@ static struct attribute *read_qctrl_attrs[] = {
 	&bifdma_read_ctl.attr,
 	&bpu0_read_ctl.attr,
 	&bpu1_read_ctl.attr,
-	&vio_read_ctl.attr,
+	&vio0_read_ctl.attr,
 #ifdef CONFIG_HOBOT_XJ3
 	&vpu_read_ctl.attr,
-	&iar_read_ctl.attr,
+	&vio1_read_ctl.attr,
 #endif
 	&periph_read_ctl.attr,
 	&all_read_ctl.attr,
@@ -1088,7 +1088,7 @@ static ssize_t bpu1_write_ctl_show(struct device_driver *drv, char *buf)
 	tmp &= 0x0f;
 	return sprintf(buf, "%x\n", tmp);
 }
-static ssize_t vio_write_ctl_store(struct device_driver *drv,
+static ssize_t vio0_write_ctl_store(struct device_driver *drv,
 				   const char *buf, size_t count)
 {
 	int ret;
@@ -1110,7 +1110,7 @@ static ssize_t vio_write_ctl_store(struct device_driver *drv,
 
 }
 
-static ssize_t vio_write_ctl_show(struct device_driver *drv, char *buf)
+static ssize_t vio0_write_ctl_show(struct device_driver *drv, char *buf)
 {
 	unsigned int tmp;
 
@@ -1153,7 +1153,7 @@ static ssize_t vpu_write_ctl_show(struct device_driver *drv, char *buf)
 	return sprintf(buf, "%x\n", tmp);
 }
 
-static ssize_t iar_write_ctl_store(struct device_driver *drv,
+static ssize_t vio1_write_ctl_store(struct device_driver *drv,
 				   const char *buf, size_t count)
 {
 	int ret;
@@ -1175,7 +1175,7 @@ static ssize_t iar_write_ctl_store(struct device_driver *drv,
 
 }
 
-static ssize_t iar_write_ctl_show(struct device_driver *drv, char *buf)
+static ssize_t vio1_write_ctl_show(struct device_driver *drv, char *buf)
 {
 	unsigned int tmp;
 
@@ -1249,12 +1249,12 @@ static ssize_t all_write_ctl_show(struct device_driver *drv, char *buf)
 	len += sprintf(buf + len, "P1_BIFDMA: %d\n", (tmp >> 4) & 0xF);
 	len += sprintf(buf + len, "P2_CNN0:   %d\n", (tmp >> 8) & 0xF);
 	len += sprintf(buf + len, "P3_CNN1:   %d\n", (tmp >> 12) & 0xF);
-	len += sprintf(buf + len, "P4_VIO:    %d\n", (tmp >> 16) & 0xF);
+	len += sprintf(buf + len, "P4_VIO0:   %d\n", (tmp >> 16) & 0xF);
 #ifdef CONFIG_HOBOT_XJ2
 	len += sprintf(buf + len, "P5_PERI:   %d\n", (tmp >> 20) & 0xF);
 #else
 	len += sprintf(buf + len, "P5_VPU:    %d\n", (tmp >> 20) & 0xF);
-	len += sprintf(buf + len, "P6_IAR:    %d\n", (tmp >> 24) & 0xF);
+	len += sprintf(buf + len, "P6_VIO1:   %d\n", (tmp >> 24) & 0xF);
 	len += sprintf(buf + len, "P7_PERI:   %d\n", (tmp >> 28) & 0xF);
 #endif
 
@@ -1274,16 +1274,16 @@ static struct driver_attribute bpu0_write_ctl = __ATTR(bpu0, 0664,
 static struct driver_attribute bpu1_write_ctl = __ATTR(bpu1, 0664,
 						     bpu1_write_ctl_show,
 						     bpu1_write_ctl_store);
-static struct driver_attribute vio_write_ctl    = __ATTR(vio, 0664,
-						       vio_write_ctl_show,
-						       vio_write_ctl_store);
+static struct driver_attribute vio0_write_ctl    = __ATTR(vio0, 0664,
+						       vio0_write_ctl_show,
+						       vio0_write_ctl_store);
 #ifdef CONFIG_HOBOT_XJ3
 static struct driver_attribute vpu_write_ctl    = __ATTR(vpu, 0664,
 						       vpu_write_ctl_show,
 						       vpu_write_ctl_store);
-static struct driver_attribute iar_write_ctl    = __ATTR(iar, 0664,
-						       iar_write_ctl_show,
-						       iar_write_ctl_store);
+static struct driver_attribute vio1_write_ctl    = __ATTR(vio1, 0664,
+						       vio1_write_ctl_show,
+						       vio1_write_ctl_store);
 #endif
 
 static struct driver_attribute periph_write_ctl = __ATTR(peri, 0664,
@@ -1298,10 +1298,10 @@ static struct attribute *write_qctl_attrs[] = {
 	&bifdma_write_ctl.attr,
 	&bpu0_write_ctl.attr,
 	&bpu1_write_ctl.attr,
-	&vio_write_ctl.attr,
+	&vio0_write_ctl.attr,
 #ifdef CONFIG_HOBOT_XJ3
 	&vpu_write_ctl.attr,
-	&iar_write_ctl.attr,
+	&vio1_write_ctl.attr,
 #endif
 	&periph_write_ctl.attr,
 	&all_write_ctl.attr,
