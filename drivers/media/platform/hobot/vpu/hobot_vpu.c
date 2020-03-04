@@ -373,7 +373,7 @@ static irqreturn_t vpu_irq_handler(int irq, void *dev_id)
 					  reason, empty_inst, done_inst,
 					  seq_inst);
 
-				for (i=0; i < MAX_NUM_VPU_CORE; i++) {
+				for (i=0; i < MAX_NUM_VPU_INSTANCE; i++) {
 					if (0 == empty_inst && 0 == done_inst && 0 == seq_inst)
 						break;
 					intr_reason = reason;
@@ -760,7 +760,7 @@ static long vpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 			intr_inst_index = info.intr_inst_index;
 
 			intr_reason_in_q = 0;
-			/*interrupt_flag_in_q =
+			interrupt_flag_in_q =
 			    kfifo_out_spinlocked(&dev->interrupt_pending_q
 						 [intr_inst_index],
 						 &intr_reason_in_q, sizeof(u32),
@@ -774,7 +774,7 @@ static long vpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 					  intr_inst_index, intr_reason_in_q,
 					  interrupt_flag_in_q);
 				goto INTERRUPT_REMAIN_IN_QUEUE;
-			}*/
+			}
 #endif
 #ifdef SUPPORT_MULTI_INST_INTR
 #ifdef SUPPORT_TIMEOUT_RESOLUTION
@@ -842,7 +842,7 @@ static long vpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 #endif
 
 #ifdef SUPPORT_MULTI_INST_INTR
-//INTERRUPT_REMAIN_IN_QUEUE:
+INTERRUPT_REMAIN_IN_QUEUE:
 			info.intr_reason =
 			    dev->interrupt_reason[intr_inst_index];
 			dev->interrupt_flag[intr_inst_index] = 0;
