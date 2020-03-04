@@ -1,6 +1,7 @@
 /*
  * ac108.h --  ac108 ALSA Soc Audio driver
  *
+ * (C) Copyright 2017-2018
  * Version: 2.0
  *
  * Author: panjunwen
@@ -18,6 +19,7 @@
 
 //Chip Reset
 #define CHIP_AUDIO_RST		0x00
+#define AC108_CHIP_ID		0x4a
 
 //Power Control
 #define PWR_CTRL1			0x01

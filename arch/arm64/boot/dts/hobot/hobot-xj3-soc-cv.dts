@@ -158,6 +158,12 @@
                 reg = <0x1a>;
                 #sound-dai-cells = <0>;
         };
+
+	adau1977: adau1977@0x11 {
+		compatible = "adau1977";
+		reg = <0x11>;
+		#sound-dai-cells = <0>;
+	};
 };
 
 &i2c1 {
@@ -396,26 +402,7 @@
                         sound-dai = <&i2sidma0>;
                 };
         };
-        /*dai-link@1 {   //duplex
-                dai-format = "i2s";
-                //bitclock-master;
-                //frame-master;
-                frame-inversion;
-                link-name = "x2dailink1";
-                cpu {
-                        sound-dai = <&i2s1>;
-                };
-                codec {
-                        sound-dai = <&ac101>;
-                };
-                platform {
-                        sound-dai = <&i2sidma1>;
-                };
-        };*/
-};
-&snd1 { //simplex
-        model = "x2snd1";
-        dai-link@1 {
+        dai-link@1 {   //duplex
                 dai-format = "i2s";
                 bitclock-master;
                 frame-master;
@@ -429,6 +416,25 @@
                 };
                 platform {
                         sound-dai = <&i2sidma1>;
+                };
+        };
+};
+&snd1 { //simplex
+        model = "x2snd1";
+        dai-link@1 {
+                dai-format = "i2s";
+                bitclock-master;
+                frame-master;
+                frame-inversion;
+                link-name = "x2dailink1";
+                cpu {
+                        sound-dai = <&i2s0>;
+                };
+                codec {
+                        sound-dai = <&adau1977>;
+                };
+                platform {
+                        sound-dai = <&i2sidma0>;
                 };
         };
 };

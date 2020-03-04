@@ -1445,6 +1445,7 @@ static int ac108_i2c_probe(struct i2c_client *i2c, const struct i2c_device_id *i
 	struct device_node *np = i2c->dev.of_node;
 	char *regulator_name = NULL;
 	int ret = 0;
+	u8 v;
 	
 	ac108 = devm_kzalloc(&i2c->dev, sizeof(struct ac108_priv), GFP_KERNEL);
 	if (ac108 == NULL) {
@@ -1455,6 +1456,18 @@ static int ac108_i2c_probe(struct i2c_client *i2c, const struct i2c_device_id *i
 	
 	ac108->i2c = i2c;
 	dev_set_drvdata(&i2c->dev, ac108);
+
+	ret = ac108_read(CHIP_AUDIO_RST, &v, i2c);
+	if (ret < 0) {
+		dev_err(&i2c->dev, "failed to read vendor ID: %d\n", ret);
+		return ret;
+	}
+
+	if (v != AC108_CHIP_ID) {
+		dev_dbg(&i2c->dev, "chip is not AC108 (%X)\n", v);
+		dev_dbg(&i2c->dev, "Expected %X\n", AC108_CHIP_ID);
+		return -ENODEV;
+	}
 
 #if AC108_MATCH_DTS_EN
 	if (!regulator_driver_en) {

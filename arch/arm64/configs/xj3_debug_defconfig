@@ -384,6 +384,15 @@ CONFIG_HOBOT_XJ3=y
 # CONFIG_HOBOT_XJ3_CV_ADDITION is not set
 
 CONFIG_HOBOT_SOC=y
+
+#
+# Select audio codec type
+#
+# CONFIG_SND_SOC_ADAU1977 is not set
+CONFIG_SND_SOC_ADAU1977=y
+# CONFIG_SND_SOC_ADAU1977_I2C is not set
+CONFIG_SND_SOC_ADAU1977_I2C=y
+
 #
 # Bus support
 #

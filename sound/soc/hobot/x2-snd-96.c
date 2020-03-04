@@ -13,6 +13,10 @@
 #define AC101_BCLK2 4
 
 static int mclk;
+enum adau1977_sysclk_src {
+        ADAU1977_SYSCLK_SRC_MCLK,
+        ADAU1977_SYSCLK_SRC_LRCLK,
+};
 
 static int x2_snd_hw_params(struct snd_pcm_substream *substream,
 			     struct snd_pcm_hw_params *params)
@@ -44,13 +48,24 @@ static int x2_snd_hw_params(struct snd_pcm_substream *substream,
 			}
 		}
 	}
-
-	ret = snd_soc_dai_set_sysclk(rtd->codec_dai, AC101_MCLK1, mclk,
+	if (!strcmp(rtd->codec_dai->name, "ac101-ic-pcm0")) {
+		ret = snd_soc_dai_set_sysclk(rtd->codec_dai, AC101_MCLK1, mclk,
 			SND_SOC_CLOCK_IN);
-	if (ret < 0) {
-		pr_err("%s, line:%d\n", __func__, __LINE__);
-		return ret;
+		if (ret < 0) {
+			pr_err("%s, line:%d\n", __func__, __LINE__);
+			return ret;
+		}
 	}
+
+	if (!strcmp(rtd->codec_dai->name, "adau1977-hifi")) {
+		ret = snd_soc_component_set_sysclk(rtd->codec_dai->component, 0,
+			ADAU1977_SYSCLK_SRC_LRCLK, 48000, SND_SOC_CLOCK_IN);
+		if (ret < 0) {
+			pr_err("%s, line:%d\n", __func__, __LINE__);
+			return ret;
+		}
+	}
+
 	return ret;
 }
 

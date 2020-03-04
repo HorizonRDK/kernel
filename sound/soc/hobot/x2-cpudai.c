@@ -405,15 +405,14 @@ static struct snd_soc_dai_driver x2_i2s_dai_drv[2] = {
 	{
 		.probe = x2_i2s_dai_probe,
 		.remove = x2_i2s_dai_remove,
-		/*
+
 		.playback = {
-			     .stream_name = "Playback",
-			     .channels_min = 1,
-			     .channels_max = 2,
-			     .rates = X2_I2S_RATES,
-			     .formats = X2_I2S_FMTS,
-			     },
-		*/
+			    .stream_name = "Playback",
+			    .channels_min = 1,
+			    .channels_max = 2,
+			    .rates = X2_I2S_RATES,
+			    .formats = X2_I2S_FMTS,
+			    },
 		.capture = {
 			    .stream_name = "Capture",
 			    .channels_min = 1,
