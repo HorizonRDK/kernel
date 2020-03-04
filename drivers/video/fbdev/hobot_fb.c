@@ -807,6 +807,8 @@ int user_set_fb(void)
 		x2_fbi->channel_base_cfg[0].ov_mode = 0;
 		x2_fbi->channel_base_cfg[0].alpha_en = 1;
 		x2_fbi->channel_base_cfg[0].alpha = 255;
+		x2_fbi->channel_base_cfg[0].crop_width = 1920;
+		x2_fbi->channel_base_cfg[0].crop_height = 1080;
 		x2_fbi->channel_base_cfg[2].channel = IAR_CHANNEL_3;
 		x2_fbi->channel_base_cfg[2].enable = 1;
 		x2_fbi->update_cmd.enable_flag[2] = 1;
@@ -820,6 +822,8 @@ int user_set_fb(void)
 		x2_fbi->channel_base_cfg[2].ov_mode = 0;
 		x2_fbi->channel_base_cfg[2].alpha_en = 1;
 		x2_fbi->channel_base_cfg[2].alpha = 128;
+		x2_fbi->channel_base_cfg[2].crop_width = 1920;
+		x2_fbi->channel_base_cfg[2].crop_height = 1080;
 
 		x2_fbi->output_cfg.out_sel = 1;
 		x2_fbi->output_cfg.width = 1920;
@@ -869,6 +873,8 @@ int user_set_fb(void)
 		x2_fbi->channel_base_cfg[0].ov_mode = 0;
 		x2_fbi->channel_base_cfg[0].alpha_en = 1;
 		x2_fbi->channel_base_cfg[0].alpha = 255;
+		x2_fbi->channel_base_cfg[0].crop_width = 800;
+		x2_fbi->channel_base_cfg[0].crop_height = 480;
 		x2_fbi->channel_base_cfg[2].channel = IAR_CHANNEL_3;
 		x2_fbi->channel_base_cfg[2].enable = 1;
 		x2_fbi->update_cmd.enable_flag[2] = 1;
@@ -882,6 +888,8 @@ int user_set_fb(void)
 		x2_fbi->channel_base_cfg[2].ov_mode = 0;
 		x2_fbi->channel_base_cfg[2].alpha_en = 1;
 		x2_fbi->channel_base_cfg[2].alpha = 128;
+		x2_fbi->channel_base_cfg[2].crop_width = 800;
+		x2_fbi->channel_base_cfg[2].crop_height = 480;
 
 #ifdef CONFIG_HOBOT_XJ2
 		x2_fbi->output_cfg.out_sel = 1;
@@ -955,6 +963,8 @@ int user_set_fb(void)
 		x2_fbi->channel_base_cfg[0].ov_mode = 0;
 		x2_fbi->channel_base_cfg[0].alpha_en = 1;
 		x2_fbi->channel_base_cfg[0].alpha = 255;
+		x2_fbi->channel_base_cfg[0].crop_width = 720;
+		x2_fbi->channel_base_cfg[0].crop_height = 1280;
 		x2_fbi->channel_base_cfg[2].channel = IAR_CHANNEL_3;
 		//x2_fbi->channel_base_cfg[2].enable = 1;
 		x2_fbi->update_cmd.enable_flag[2] = 1;
@@ -968,6 +978,8 @@ int user_set_fb(void)
 		x2_fbi->channel_base_cfg[2].ov_mode = 0;
 		x2_fbi->channel_base_cfg[2].alpha_en = 1;
 		x2_fbi->channel_base_cfg[2].alpha = 128;
+		x2_fbi->channel_base_cfg[2].crop_width = 720;
+		x2_fbi->channel_base_cfg[2].crop_height = 1280;
 
 		x2_fbi->output_cfg.out_sel = 1;
 		x2_fbi->output_cfg.width = 720;
@@ -1024,6 +1036,8 @@ int user_set_fb(void)
 		x2_fbi->channel_base_cfg[0].ov_mode = 0;
 		x2_fbi->channel_base_cfg[0].alpha_en = 1;
 		x2_fbi->channel_base_cfg[0].alpha = 255;
+		x2_fbi->channel_base_cfg[0].crop_width = 1080;
+		x2_fbi->channel_base_cfg[0].crop_height = 1920;
 		x2_fbi->channel_base_cfg[2].channel = IAR_CHANNEL_3;
 		x2_fbi->channel_base_cfg[2].enable = 1;
 		x2_fbi->update_cmd.enable_flag[2] = 1;
@@ -1037,6 +1051,8 @@ int user_set_fb(void)
 		x2_fbi->channel_base_cfg[2].ov_mode = 0;
 		x2_fbi->channel_base_cfg[2].alpha_en = 1;
 		x2_fbi->channel_base_cfg[2].alpha = 128;
+		x2_fbi->channel_base_cfg[2].crop_width = 1080;
+		x2_fbi->channel_base_cfg[2].crop_height = 1920;
 
 		x2_fbi->output_cfg.out_sel = 0;//mipi-dsi
 		x2_fbi->output_cfg.width = 1080;
@@ -1082,6 +1098,8 @@ int user_set_fb(void)
 		x2_fbi->channel_base_cfg[0].ov_mode = 0;
 		x2_fbi->channel_base_cfg[0].alpha_en = 1;
 		x2_fbi->channel_base_cfg[0].alpha = 255;
+		x2_fbi->channel_base_cfg[0].crop_width = 720;
+		x2_fbi->channel_base_cfg[0].crop_height = 1280;
 		x2_fbi->channel_base_cfg[2].channel = IAR_CHANNEL_3;
 		x2_fbi->channel_base_cfg[2].enable = 1;
 		x2_fbi->update_cmd.enable_flag[2] = 1;
@@ -1095,6 +1113,8 @@ int user_set_fb(void)
 		x2_fbi->channel_base_cfg[2].ov_mode = 0;
 		x2_fbi->channel_base_cfg[2].alpha_en = 1;
 		x2_fbi->channel_base_cfg[2].alpha = 128;
+		x2_fbi->channel_base_cfg[2].crop_width = 720;
+		x2_fbi->channel_base_cfg[2].crop_height = 1280;
 
 		x2_fbi->output_cfg.out_sel = 0;//mipi-dsi
 		x2_fbi->output_cfg.width = 720;

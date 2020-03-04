@@ -659,8 +659,10 @@ int32_t iar_channel_base_cfg(channel_base_cfg_t *cfg)
 
 	g_iar_dev->buf_w_h[channelid][0] = cfg->buf_width;
 	g_iar_dev->buf_w_h[channelid][1] = cfg->buf_height;
-	writel(cfg->buf_height << 16 | cfg->buf_width,
-		g_iar_dev->regaddr + REG_IAR_CROPPED_WINDOW_RD1 - channelid*4);
+	//writel(cfg->buf_height << 16 | cfg->buf_width,
+	//	g_iar_dev->regaddr + REG_IAR_CROPPED_WINDOW_RD1 - channelid*4);
+	writel(cfg->crop_height << 16 | cfg->crop_width,
+                g_iar_dev->regaddr + REG_IAR_CROPPED_WINDOW_RD1 - channelid*4);
 //	iar_config_pixeladdr();
 
 	return 0;
