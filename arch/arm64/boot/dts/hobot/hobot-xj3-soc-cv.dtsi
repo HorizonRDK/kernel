@@ -203,7 +203,7 @@
 		ranges;
 
 		uart0: serial@0xA5000000 {
-			compatible = "hobot,x2-uart";
+			compatible = "hobot,hobot-uart";
 			reg = <0 0xA5000000 0 0x1000>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 29 4>;
@@ -214,7 +214,7 @@
 		};
 
 		uart1: serial@0xA5001000 {
-			compatible = "hobot,x2-uart";
+			compatible = "hobot,hobot-uart";
 			reg = <0 0xA5001000 0 0x1000>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 30 4>;
@@ -225,7 +225,7 @@
 		};
 
 		uart2: serial@0xA5002000 {
-			compatible = "hobot,x2-uart";
+			compatible = "hobot,hobot-uart";
 			reg = <0 0xA5002000 0 0x1000>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 31 4>;
@@ -236,7 +236,7 @@
 		};
 
 		uart3: serial@0xA5003000 {
-			compatible = "hobot,x2-uart";
+			compatible = "hobot,hobot-uart";
 			reg = <0 0xA5003000 0 0x1000>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 32 4>;
@@ -262,7 +262,7 @@
 		};
 
 		i2s0: i2s@0xA5007000 {
-			compatible = "hobot,x2-i2s";
+			compatible = "hobot,hobot-i2s";
 			reg = <0 0xA5007000 0 0x100>,
 				<0 0xA5007500 0 0x100>,
 				<0 0xA1000000 0 0x500>;
@@ -282,7 +282,7 @@
 		};
 
 		i2s1: i2s@0xA5008000 {
-			compatible = "hobot,x2-i2s";
+			compatible = "hobot,hobot-i2s";
 			reg = <0 0xA5008000 0 0x100>,
 				<0 0xA5008500 0 0x100>,
 				<0 0xA1000000 0 0x500>;
@@ -301,7 +301,7 @@
 		};
 
 		i2sidma0: idma@0 {
-			compatible = "x2-i2s0-idma";
+			compatible = "hobot-i2s0-idma";
 			reg = <0 0xA5007000 0 0x100>,
 				<0 0xA5007500 0 0x100>,
 				<0 0xA1000000 0 0x1000>;
@@ -310,14 +310,14 @@
 		};
 
 		snd0: sndcard@0{
-			compatible = "hobot, x2-snd0";
+			compatible = "hobot, hobot-snd0";
 			i2s_mode = <4>;/*1:i2s mode; 4:dsp mode*/
 			master = <1>;/*1:master; 4:slave*/
 			channel_max = <8>;
 		};
 
 		i2c0: i2c@0xA5009000 {
-			compatible = "hobot,x2-i2c";
+			compatible = "hobot,hobot-i2c";
 			reg = <0 0xA5009000 0 0x100>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 38 4>;
@@ -331,7 +331,7 @@
 		};
 
 		i2c1: i2c@0xA500A000 {
-			compatible = "hobot,x2-i2c";
+			compatible = "hobot,hobot-i2c";
 			reg = <0 0xA500A000 0 0x100>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 39 4>;
@@ -345,7 +345,7 @@
 		};
 
 		i2c2: i2c@0xA500B000 {
-			compatible = "hobot,x2-i2c";
+			compatible = "hobot,hobot-i2c";
 			reg = <0 0xA500B000 0 0x100>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 40 4>;
@@ -359,7 +359,7 @@
 		};
 
 		i2c3: i2c@0xA500C000 {
-			compatible = "hobot,x2-i2c";
+			compatible = "hobot,hobot-i2c";
 			reg = <0 0xA500C000 0 0x100>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 41 4>;
@@ -373,7 +373,7 @@
 		};
 
 		i2c4: i2c@0xA5016000 {
-			compatible = "hobot,x2-i2c";
+			compatible = "hobot,hobot-i2c";
 			reg = <0 0xA5016000 0 0x100>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 42 4>;
@@ -387,7 +387,7 @@
 		};
 
 		i2c5: i2c@0xA5017000 {
-			compatible = "hobot,x2-i2c";
+			compatible = "hobot,hobot-i2c";
 			reg = <0 0xA5017000 0 0x100>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 43 4>;
@@ -486,7 +486,7 @@
 		};
 
                 iar: iar@0xA4001000 {
-                        compatible = "hobot,x2-iar";
+                        compatible = "hobot,hobot-iar";
                         reg = <0 0xA4001000 0 0x400>;
                         memory-region = <&iar_reserved>;
                         interrupt-parent = <&gic>;
@@ -498,7 +498,7 @@
 
 		/* isp0 */
 		isp: isp@0xB3000000 {
-			compatible = "hobot,x2a-isp";
+			compatible = "hobot,x3-isp";
 			reg = <0x0 0xB3000000 0x0 0x00040000>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 71 4>, <0 88 4>;
@@ -569,18 +569,18 @@
 		};
 
 		dma: dma@0xA1005000 {
-			compatible = "hobot,x2-dma";
+			compatible = "hobot,hobot-dma";
 			reg = <0 0xA1005000 0 0x1000>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 24 4>;
 		};
 
-		x2dmatest: x2dmatest {
-			compatible = "hobot,x2-dma-test";
+		dmatest: dmatest {
+			compatible = "hobot,hobot-dma-test";
 		};
 
 		rtc: rtc@0xA6002000 {
-			compatible = "hobot,x2-rtc";
+			compatible = "hobot,hobot-rtc";
 			reg = <0 0xA6002000 0 0x1000>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 53 4>;
@@ -755,7 +755,7 @@
 
 
 		fb: fb {
-			compatible = "hobot,x2-fb";
+			compatible = "hobot,hobot-fb";
 			status = "enabled";
 		};
 
@@ -802,7 +802,7 @@
 		};
 
 		watchdog: watchdog@0xA1002000 {
-			compatible = "hobot,x2-wdt";
+			compatible = "hobot,hobot-wdt";
 			reg = <0 0xA1002000 0 0x1000>;
 			clocks = <&timer0_mclk>;
 			clock-names = "watchdog_mclk";
@@ -970,7 +970,7 @@
 		};
 
 		power: power_management@0xA6000000 {
-			compatible = "hobot,x2-power";
+			compatible = "hobot,hobot-power";
 			reg = <0x0 0xA6000000 0x0 0x1000>;
 			reboot-offset = <0x20>;
 		};
@@ -1006,7 +1006,7 @@
 		};
 
 		efuse: efuse@0xA1001000{
-			compatible = "hobot,x2-efuse";
+			compatible = "hobot,hobot-efuse";
 			reg = <0x0 0xA1001000 0x0 0x1000>,
 				<0x0 0xA1000400 0x0 0x4>;
 		};

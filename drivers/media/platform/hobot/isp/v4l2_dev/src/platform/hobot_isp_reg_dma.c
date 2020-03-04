@@ -254,7 +254,7 @@ void hobot_dma_init(hobot_dma_t *hobot_dma)
     tasklet_init(&hobot_dma->tasklet, isp_idma_tasklet, (unsigned long)hobot_dma);
 
     // 3. if first time init, mapping interrupt here
-    np = of_find_compatible_node(NULL, NULL, "hobot,x2a-isp");
+    np = of_find_compatible_node(NULL, NULL, "hobot,x3-isp");
     if (!np) {
         printk(KERN_ERR "ERROR: %s entry not find\n", __FUNCTION__);
     }

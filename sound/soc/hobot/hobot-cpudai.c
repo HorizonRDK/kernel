@@ -20,7 +20,7 @@
 #include <sound/dmaengine_pcm.h>
 #include <linux/reset.h>
 
-#include "x2-i2s.h"
+#include "hobot-i2s.h"
 
 #define msecs_to_loops(t) (loops_per_jiffy / 1000 * HZ * t)
 
@@ -422,7 +422,7 @@ static struct snd_soc_dai_driver x2_i2s_dai_drv[2] = {
 			    },
 		.ops = &x2_i2s_dai_ops,
 		.symmetric_rates = 1,
-		.name = "x2-i2s0",
+		.name = "hobot-i2s0",
 	},
 	{
 		.probe = x2_i2s_dai_probe,/* the same as i2s0 dai param */
@@ -445,7 +445,7 @@ static struct snd_soc_dai_driver x2_i2s_dai_drv[2] = {
 		*/
 		.ops = &x2_i2s_dai_ops,/* the same as i2s0 dai param */
 		.symmetric_rates = 1,
-		.name = "x2-i2s1",
+		.name = "hobot-i2s1",
 	}
 };
 static const struct snd_soc_component_driver x2_i2s_component_drv[2];
@@ -719,8 +719,8 @@ static int x2_i2s_remove(struct platform_device *pdev)
 
 #ifdef CONFIG_OF
 static const struct of_device_id x2_i2s_of_match[] = {
-	{.compatible = "hobot, x2-i2s0",},
-	{.compatible = "hobot, x2-i2s1",},
+	{.compatible = "hobot, hobot-i2s0",},
+	{.compatible = "hobot, hobot-i2s1",},
 	{}
 };
 
@@ -731,7 +731,7 @@ static struct platform_driver x2_i2s_driver = {
 	.probe = x2_i2s_probe,
 	.remove = x2_i2s_remove,
 	.driver = {
-		   .name = "x2-i2s",
+		   .name = "hobot-i2s",
 		   .of_match_table = x2_i2s_of_match,
 		   },
 };
@@ -740,6 +740,6 @@ module_platform_driver(x2_i2s_driver);
 
 /* Module information */
 MODULE_AUTHOR("Jxy");
-MODULE_DESCRIPTION("X2 I2S Soc Interface");
-MODULE_ALIAS("cpu dai driver:x2-i2s");
+MODULE_DESCRIPTION("Hobot I2S Soc Interface");
+MODULE_ALIAS("cpu dai driver:hobot-i2s");
 MODULE_LICENSE("GPL");

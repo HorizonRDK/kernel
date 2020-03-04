@@ -4,7 +4,7 @@
 #include <asm/ioctl.h>
 #include <linux/kfifo.h>
 
-#define X2_CNN_DRV_NAME		"x2_cnn"
+#define X2_CNN_DRV_NAME		"hobot_cnn"
 #define CNN_INT_NUM 6
 
 /*************************************************************

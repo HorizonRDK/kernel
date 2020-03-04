@@ -25,7 +25,7 @@
 #include <uapi/linux/sched/types.h>
 #include <soc/hobot/hobot_timer.h>
 
-#define X2_WDT_NAME				"x2_wdt"
+#define X2_WDT_NAME				"hobot_wdt"
 
 /* timeout value (in seconds) */
 #define X2_WDT_DEFAULT_TIMEOUT	10
@@ -283,7 +283,7 @@ static irqreturn_t x2_wdt_bark_irq_handler(int irq, void *data)
 }
 
 static const struct watchdog_info x2_wdt_info = {
-	.identity = "x2_wdt_watchdog",
+	.identity = "hobot_wdt_watchdog",
 	.options  = WDIOF_SETTIMEOUT | WDIOF_KEEPALIVEPING | WDIOF_MAGICCLOSE,
 };
 
@@ -535,7 +535,7 @@ static int x2_wdt_probe(struct platform_device *pdev)
 
 	/* attach x2_watchdog on CPU0 */
 	x2wdt->watchdog_thread = kthread_create_on_cpu(watchdog_kthread,
-		x2wdt, 0, "x2_watchdog");
+		x2wdt, 0, "hw_watchdog");
 	if (IS_ERR(x2wdt->watchdog_thread)) {
 		ret = PTR_ERR(x2wdt->watchdog_thread);
 		goto err;
@@ -638,7 +638,7 @@ static const struct dev_pm_ops x2_wdt_dev_pm_ops = {
 };
 
 static const struct of_device_id x2_wdt_of_match[] = {
-	{ .compatible = "hobot,x2-wdt", },
+	{ .compatible = "hobot,hobot-wdt", },
 	{ /* end of table */ }
 };
 MODULE_DEVICE_TABLE(of, x2_wdt_of_match);
@@ -658,5 +658,5 @@ static struct platform_driver x2_wdt_driver = {
 module_platform_driver(x2_wdt_driver);
 
 MODULE_AUTHOR("hobot, Inc.");
-MODULE_DESCRIPTION("Watchdog driver for X2 WDT");
+MODULE_DESCRIPTION("Hobot Watchdog driver");
 MODULE_LICENSE("GPL v2");

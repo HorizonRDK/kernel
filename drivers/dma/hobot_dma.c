@@ -741,7 +741,7 @@ static int x2_dma_chan_probe(struct x2_dma_device *xdev, struct device_node *nod
 
 	/* Request the interrupt */
 	chan->irq = irq_of_parse_and_map(node, 0);
-	err = request_irq(chan->irq, x2_dma_irq_handler, IRQF_SHARED, "x2-dma-controller", chan);
+	err = request_irq(chan->irq, x2_dma_irq_handler, IRQF_SHARED, "hobot-dma-controller", chan);
 	if (err) {
 		dev_err(xdev->dev, "unable to request IRQ %d\n", chan->irq);
 		return err;
@@ -766,7 +766,7 @@ static int x2_dma_chan_probe(struct x2_dma_device *xdev, struct device_node *nod
 		dev_err(xdev->dev, "x2_dma_desc_pool already existed\n");
 		return -1;
 	}
-	chan->desc_pool = dma_pool_create("x2_dma_desc_pool",
+	chan->desc_pool = dma_pool_create("hobot_dma_desc_pool",
 				   chan->dev,
 				   sizeof(struct x2_dma_tx_segment),
 				   __alignof__(struct x2_dma_tx_segment),
@@ -806,7 +806,7 @@ static struct dma_chan *of_dma_x2_xlate(struct of_phandle_args *dma_spec,
 }
 
 static const struct of_device_id x2_dma_of_ids[] = {
-	{ .compatible = "hobot,x2-dma", },
+	{ .compatible = "hobot,hobot-dma", },
 	{}
 };
 MODULE_DEVICE_TABLE(of, x2_dma_of_ids);
@@ -913,7 +913,7 @@ static struct platform_driver x2_dma_driver = {
 	.probe = x2_dma_probe,
 	.remove = x2_dma_remove,
 	.driver = {
-		.name = "x2_dma",
+		.name = "hobot_dma",
 		.of_match_table = x2_dma_of_ids,
 	},
 };

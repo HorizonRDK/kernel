@@ -2959,6 +2959,6 @@ static void __exit x2_cnn_exit(void)
 module_init(x2_cnn_init);
 module_exit(x2_cnn_exit);
 
-MODULE_DESCRIPTION("Driver for X2 CNN");
+MODULE_DESCRIPTION("Driver for HOBOT CNN");
 MODULE_AUTHOR("Hobot Inc.");
 MODULE_LICENSE("GPL");

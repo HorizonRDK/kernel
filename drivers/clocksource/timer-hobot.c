@@ -162,7 +162,7 @@ static int __init x2_timer_ce_setup(struct x2timer_pdata *x2timer)
 		return -ENOMEM;
 
 	x2_tce->x2timer     = x2timer;
-	x2_tce->ce.name     = "x2_clockevent";
+	x2_tce->ce.name     = "hobot_clockevent";
 	x2_tce->ce.features = CLOCK_EVT_FEAT_PERIODIC | CLOCK_EVT_FEAT_ONESHOT;
 	x2_tce->ce.set_next_event     = x2_timer_set_ne;
 	x2_tce->ce.set_state_shutdown = x2_timer_shutdown;
@@ -259,7 +259,7 @@ static int __init x2_timer_cs_setup(struct x2timer_pdata *x2timer)
 		return -ENOMEM;
 
 	x2_tcs->x2timer   = x2timer;
-	x2_tcs->cs.name   = "x2_clocksource";
+	x2_tcs->cs.name   = "hobot_clocksource";
 	x2_tcs->cs.rating = 200;
 	x2_tcs->cs.read   = x2_timer_cs_rd;
 	x2_tcs->cs.mask   = CLOCKSOURCE_MASK (X2_TIMER_T0_WIDTH);

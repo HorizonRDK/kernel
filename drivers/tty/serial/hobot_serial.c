@@ -37,7 +37,7 @@
 #include "hobot_serial.h"
 
 #define X2_UART_TTY_NAME	"ttyS"
-#define X2_UART_NAME		"x2-uart"
+#define X2_UART_NAME		"hobot-uart"
 #define X2_UART_MAJOR		0	/* use dynamic node allocation */
 #define X2_UART_MINOR		0	/* works best with devtmpfs */
 #define X2_UART_NR_PORTS	CONFIG_SERIAL_HOBOT_NR_UARTS
@@ -1307,7 +1307,7 @@ static int __init x2_early_console_setup(struct earlycon_device *device,
 	return 0;
 }
 
-OF_EARLYCON_DECLARE(x2, "hobot,x2-uart", x2_early_console_setup);
+OF_EARLYCON_DECLARE(hobot, "hobot,hobot-uart", x2_early_console_setup);
 
 /**
  * x2_uart_console_write - perform write operation
@@ -1493,7 +1493,7 @@ static const struct dev_pm_ops x2_uart_dev_pm_ops = {
 
 /* Match table for of_platform binding */
 static const struct of_device_id x2_uart_of_match[] = {
-	{.compatible = "hobot,x2-uart", },
+	{.compatible = "hobot,hobot-uart", },
 	{}
 };
 
@@ -1585,7 +1585,7 @@ static const struct file_operations x2_serial_status_fops = {
 
 static void x2_uart_debugfs_init(struct platform_device *pdev)
 {
-	dentry_root = debugfs_create_dir("x2_serial", NULL);
+	dentry_root = debugfs_create_dir("hobot_serial", NULL);
 	if (!dentry_root) {
 		dev_warn(&pdev->dev, "Failed to create debugfs root directory\n");
 		return;
@@ -1769,6 +1769,6 @@ static void __exit x2_uart_exit(void)
 module_init(x2_uart_init);
 module_exit(x2_uart_exit);
 
-MODULE_DESCRIPTION("Driver for X2 UART");
+MODULE_DESCRIPTION("Driver for HOBOT UART");
 MODULE_AUTHOR("Horizon Inc.");
 MODULE_LICENSE("GPL");

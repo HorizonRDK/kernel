@@ -46,7 +46,7 @@
 		mmc2	= &sdio1;
 		mmc3	= &sdio2;
 		dma	= &dma;
-		x2dmatest = &x2dmatest;
+		dmatest = &dmatest;
 		mipihost0 = &mipi_host0;
 		mipihost1 = &mipi_host1;
 		mipihost2 = &mipi_host2;

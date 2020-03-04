@@ -2695,7 +2695,7 @@ static int x2_iar_remove(struct platform_device *pdev)
 
 #ifdef CONFIG_OF
 static const struct of_device_id x2_iar_of_match[] = {
-	{.compatible = "hobot,x2-iar"},
+	{.compatible = "hobot,hobot-iar"},
 	{},
 };
 MODULE_DEVICE_TABLE(of, x2_iar_of_match);
@@ -2730,7 +2730,7 @@ static struct platform_driver x2_iar_driver = {
 	.probe = x2_iar_probe,
 	.remove = x2_iar_remove,
 	.driver = {
-		.name = "x2-iar",
+		.name = "hobot-iar",
 		.of_match_table = of_match_ptr(x2_iar_of_match),
 		//.pm = &x2_iar_pm,
 	},

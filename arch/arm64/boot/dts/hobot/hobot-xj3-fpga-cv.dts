@@ -41,7 +41,7 @@
 		bifsd   = &bifsd;
 		mmc0	= &sdio0;
 		dma	= &dma;
-		x2dmatest = &x2dmatest;
+		dmatest = &dmatest;
 	};
 
 	chosen {
@@ -180,7 +180,7 @@
 	status = "okay";
 };
 
-&x2dmatest {
+&dmatest {
 	status = "disable";
 };
 

@@ -438,7 +438,7 @@ static int power_mon_remove(struct platform_device *pdev)
 
 #ifdef CONFIG_OF
 static const struct of_device_id power_mon_of_match[] = {
-	{.compatible = "hobot,x2-power"},
+	{.compatible = "hobot,hobot-power"},
 	{},
 };
 MODULE_DEVICE_TABLE(of, power_mon_of_match);
@@ -448,7 +448,7 @@ static struct platform_driver power_mon_driver = {
 	.probe = power_mon_probe,
 	.remove = power_mon_remove,
 	.driver = {
-		.name = "x2-power",
+		.name = "hobot-power",
 		.of_match_table = of_match_ptr(power_mon_of_match),
 	},
 };

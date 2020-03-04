@@ -197,8 +197,8 @@ static int x2_snd_remove(struct platform_device *pdev)
 
 #ifdef CONFIG_OF
 static const struct of_device_id x2_snd_of_match[] = {
-	{.compatible = "hobot, x2-snd0", },
-	{.compatible = "hobot, x2-snd1", },
+	{.compatible = "hobot, hobot-snd0", },
+	{.compatible = "hobot, hobot-snd1", },
 	{}
 };
 
@@ -210,7 +210,7 @@ static struct platform_driver x2_snd_driver = {
 	.probe = x2_snd_probe,
 	.remove = x2_snd_remove,
 	.driver = {
-	   .name = "x2-snd",
+	   .name = "hobot-snd",
 #ifdef CONFIG_OF
 	   .of_match_table = x2_snd_of_match,
 #endif

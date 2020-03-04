@@ -39,7 +39,7 @@
 
 #include "hobot_fb.h"
 
-#define DRIVER_NAME "x2-fb"
+#define DRIVER_NAME "hobot-fb"
 #define IAR_DMA_MODE
 //#define CONFIG_LOGO_FROM_KERNEL
 
@@ -202,7 +202,7 @@ struct fb_var_screeninfo RGB500_var_default = {
 };
 
 struct fb_fix_screeninfo RGB500_fix_default = {
-	.id = "x2-fb",
+	.id = "hobot-fb",
 	.smem_start = 0x0,
 	.smem_len = MAX_FRAME_BUF_SIZE,
 	.type = FB_TYPE_PACKED_PIXELS,
@@ -284,7 +284,7 @@ struct fb_var_screeninfo RGB700_var_default = {
 };
 
 struct fb_fix_screeninfo RGB700_fix_default = {
-	.id = "x2-fb",
+	.id = "hobot-fb",
 	.smem_start = 0x0,
 	.smem_len = MAX_FRAME_BUF_SIZE,
 	.type = FB_TYPE_PACKED_PIXELS,
@@ -380,7 +380,7 @@ struct fb_var_screeninfo RGB700_var_default = {
 };
 
 struct fb_fix_screeninfo RGB700_fix_default = {
-	.id = "x2-fb",
+	.id = "hobot-fb",
 	.smem_start = 0x0,
 	.smem_len = MAX_FRAME_BUF_SIZE,
 	.type = FB_TYPE_PACKED_PIXELS,
@@ -1384,7 +1384,7 @@ static int x2fb_probe(struct platform_device *pdev)
 	int ret;
 	frame_buf_t framebuf_user;
 	frame_buf_t framebuf_user1;
-	char *fb1_id = "x2-fb1";
+	char *fb1_id = "hobot-fb1";
 
 	pr_info("x2fb probe!!!\n");
 
@@ -1454,7 +1454,7 @@ static int x2fb_probe(struct platform_device *pdev)
 		x2_fbi->fb1 = x2_fbi->fb;
 		x2_fbi->fb1.fix.smem_start = framebuf_user1.paddr;
 		snprintf(x2_fbi->fb1.fix.id, sizeof(x2_fbi->fb1.fix.id),
-				"x2-fb1");
+				"hobot-fb1");
 		x2_fbi->fb1.screen_base = framebuf_user1.vaddr;
 		if (fb_alloc_cmap(&x2_fbi->fb1.cmap, 256, 0))
 			return -ENOMEM;
@@ -1513,7 +1513,7 @@ static int x2fb_remove(struct platform_device *pdev)
 }
 
 static const struct of_device_id x2_dt_ids[] = {
-	{ .compatible = "hobot,x2-fb", },
+	{ .compatible = "hobot,hobot-fb", },
 	{}
 };
 

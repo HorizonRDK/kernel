@@ -41,7 +41,7 @@
 		bifsd   = &bifsd;
 		mmc1	= &sdio0;
 		dma	= &dma;
-		x2dmatest = &x2dmatest;
+		dmatest = &dmatest;
 
 		sndcard0 = &snd0;
 		sndcard1 = &snd1;
@@ -227,7 +227,7 @@
 	status = "okay";
 };
 
-&x2dmatest {
+&dmatest {
 	status = "disable";
 };
 

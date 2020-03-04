@@ -680,7 +680,7 @@ static int x2_i2c_probe(struct platform_device *pdev)
 	i2c_set_adapdata(adap, dev);
 	adap->owner = THIS_MODULE;
 	adap->class = I2C_CLASS_DEPRECATED;
-	strlcpy(adap->name, "x2 I2C adapter", sizeof(adap->name));
+	strlcpy(adap->name, "Hobot I2C adapter", sizeof(adap->name));
 	adap->algo = &x2_i2c_algo;
 	adap->algo_data = (void*)client_req;
 	adap->dev.parent = &pdev->dev;
@@ -788,7 +788,7 @@ static const struct dev_pm_ops x2_i2c_pm = {
 };
 
 static const struct of_device_id x2_i2c_of_match[] = {
-	{.compatible = "hobot,x2-i2c"},
+	{.compatible = "hobot,hobot-i2c"},
 	{},
 };
 
@@ -798,7 +798,7 @@ static struct platform_driver x2_i2c_driver = {
 	.probe = x2_i2c_probe,
 	.remove = x2_i2c_remove,
 	.driver = {
-		   .name = "i2c-x2",
+		   .name = "hobot-i2c",
 		   .of_match_table = x2_i2c_of_match,
 		   .pm = &x2_i2c_pm,
 		   },
@@ -819,6 +819,6 @@ module_exit(x2_i2c_exit);
 
 MODULE_AUTHOR("Taochao");
 MODULE_AUTHOR("qiang.yu@horizon.ai");
-MODULE_DESCRIPTION("x2 I2C bus adapter");
+MODULE_DESCRIPTION("Hobot I2C bus adapter");
 MODULE_LICENSE("GPL v2");
-MODULE_ALIAS("platform:i2c-x2");
+MODULE_ALIAS("platform:hobot-i2c");

@@ -600,7 +600,7 @@ static int x2_reboot_remove(struct platform_device *pdev)
 }
 
 static const struct of_device_id x2_reboot_of_match[] = {
-	{ .compatible = "hobot,x2-power" },
+	{ .compatible = "hobot,hobot-power" },
 	{}
 };
 
@@ -608,7 +608,7 @@ static struct platform_driver x2_reboot_driver = {
 	.probe = x2_reboot_probe,
 	.remove = x2_reboot_remove,
 	.driver = {
-		.name = "x2-reboot",
+		.name = "hobot-reboot",
 		.of_match_table = x2_reboot_of_match,
 		.groups = x2_swinfo_attr_groups,
 	},
@@ -616,5 +616,5 @@ static struct platform_driver x2_reboot_driver = {
 module_platform_driver(x2_reboot_driver);
 
 MODULE_AUTHOR("hobot, Inc.");
-MODULE_DESCRIPTION("X2 Reboot driver");
+MODULE_DESCRIPTION("Hobot Reboot driver");
 MODULE_LICENSE("GPL v2");

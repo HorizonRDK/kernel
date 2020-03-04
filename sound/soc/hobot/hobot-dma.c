@@ -31,7 +31,7 @@
 #include <sound/soc.h>
 #include <sound/dmaengine_pcm.h>
 
-#include "x2-i2s.h"
+#include "hobot-i2s.h"
 
 #define ST_RUNNING      (1<<0)
 #define ST_OPENED       (1<<1)
@@ -891,8 +891,8 @@ static int asoc_i2sidma_platform_probe(struct platform_device *pdev)
 
 #ifdef CONFIG_OF
 static const struct of_device_id x2_i2sidma_of_match[] = {
-	{.compatible = "x2-i2s0-idma",},
-	{.compatible = "x2-i2s1-idma",},
+	{.compatible = "hobot-i2s0-idma",},
+	{.compatible = "hobot-i2s1-idma",},
 	{}
 };
 
@@ -901,7 +901,7 @@ MODULE_DEVICE_TABLE(of, x2_i2sidma_of_match);
 
 static struct platform_driver i2s_idma_driver = {
 	.driver = {
-		   .name = "x2-i2s-idma",
+		   .name = "hobot-i2s-idma",
 		   .of_match_table = x2_i2sidma_of_match,
 		   },
 
@@ -910,5 +910,5 @@ static struct platform_driver i2s_idma_driver = {
 
 module_platform_driver(i2s_idma_driver);
 
-MODULE_DESCRIPTION("X2 ASoC I2SDMA Driver");
+MODULE_DESCRIPTION("Hobot ASoC I2SDMA Driver");
 MODULE_LICENSE("GPL");

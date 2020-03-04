@@ -54,7 +54,7 @@ static int initialized = 0;
 int otp_enable = 0;
 
 static const struct of_device_id isp_dt_match[] = {
-    {.compatible = "hobot,x2a-isp"},
+    {.compatible = "hobot,x3-isp"},
     {}};
 
 MODULE_DEVICE_TABLE( of, isp_dt_match );
@@ -312,7 +312,7 @@ static int isp_platform_remove( struct platform_device *pdev )
 
 static struct platform_driver isp_platform_driver = {
     .driver = {
-        .name = "hobot,x2a-isp",
+        .name = "hobot,x3-isp",
         .owner = THIS_MODULE,
         .of_match_table = isp_dt_match,
     },

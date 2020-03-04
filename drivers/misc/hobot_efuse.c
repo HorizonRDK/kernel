@@ -15,7 +15,7 @@
 #include <linux/string.h>
 #include <linux/delay.h>
 
-#define X2_EFUSE_NAME		"x2-efuse"
+#define X2_EFUSE_NAME		"hobot-efuse"
 
 /* define reg offset */
 #define X2_EFUSE_APB_DATA_BASE   0x00
@@ -202,7 +202,7 @@ static const struct attribute_group *efuse_attr_group[] = {
 
 /* Match table for of_platform binding */
 static const struct of_device_id x2_efuse_of_match[] = {
-	{ .compatible = "hobot,x2-efuse", },
+	{ .compatible = "hobot,hobot-efuse", },
 	{}
 };
 MODULE_DEVICE_TABLE(of, x2_efuse_of_match);
@@ -224,7 +224,7 @@ static int x2_efuse_probe(struct platform_device *pdev)
 	}
 
 	if (!request_mem_region(reg->start, resource_size(reg),
-					 "x2_efuse")) {
+					 "hobot_efuse")) {
 		return -ENOMEM;
 	}
 
@@ -290,6 +290,6 @@ static void __exit x2_efuse_exit(void)
 module_init(x2_efuse_init);
 module_exit(x2_efuse_exit);
 
-MODULE_DESCRIPTION("Driver for X2 EFUSE");
+MODULE_DESCRIPTION("Driver for HOBOT EFUSE");
 MODULE_AUTHOR("Horizon Inc.");
 MODULE_LICENSE("GPL");

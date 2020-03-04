@@ -26,7 +26,7 @@
 #include <sound/pcm_params.h>
 #include <sound/dmaengine_pcm.h>
 
-#include "x2-i2s.h"
+#include "hobot-i2s.h"
 
 struct s2_snd_config_s {
 	u32 i2s_mode;
@@ -66,7 +66,7 @@ static int x2_snd_hw_params(struct snd_pcm_substream *substream,
 	struct snd_soc_card *snd_card = rtd->card;
 	int id = 0;
 
-	if (!strcmp(snd_card->name, "x2snd0"))
+	if (!strcmp(snd_card->name, "snd0"))
 		id = 0;
 	else
 		id = 1;
@@ -125,9 +125,9 @@ static struct snd_soc_ops x2_snd_ops = {
 
 
 static struct snd_soc_dai_link x2_snd0_dai_link = {
-	.name = "x2dailink0",
-	.stream_name = "x2-stream",
-	.cpu_dai_name = "x2-i2s0",
+	.name = "dailink0",
+	.stream_name = "stream",
+	.cpu_dai_name = "hobot-i2s0",
 
 	//.codec_dai_name = "ac108-pcm0",
 	 //.codec_name   = "ac108.0-0035",
@@ -141,9 +141,9 @@ static struct snd_soc_dai_link x2_snd0_dai_link = {
 };
 
 static struct snd_soc_dai_link x2_snd1_dai_link = {
-	.name = "x2dailink1",
-	.stream_name = "x2-stream",
-	.cpu_dai_name = "x2-i2s1",
+	.name = "dailink1",
+	.stream_name = "stream",
+	.cpu_dai_name = "hobot-i2s1",
 
 	 .codec_dai_name = "snd-soc-dummy-dai",
 	 .codec_name   = "snd-soc-dummy",
@@ -155,13 +155,13 @@ static struct snd_soc_dai_link x2_snd1_dai_link = {
 static struct snd_soc_card x2_soc_snd[2] = {
 
 	{
-		.name = "x2snd0",
+		.name = "snd0",
 		.owner = THIS_MODULE,
 		.dai_link = &x2_snd0_dai_link,
 		.num_links = 1,
 	},
 	{
-		.name = "x2snd1",
+		.name = "snd1",
 		.owner = THIS_MODULE,
 		.dai_link = &x2_snd1_dai_link,
 		.num_links = 1,
@@ -242,8 +242,8 @@ static int x2_snd_remove(struct platform_device *pdev)
 
 #ifdef CONFIG_OF
 static const struct of_device_id x2_snd_of_match[] = {
-	{.compatible = "hobot, x2-snd0",},
-	{.compatible = "hobot, x2-snd1",},
+	{.compatible = "hobot, hobot-snd0",},
+	{.compatible = "hobot, hobot-snd1",},
 	{}
 };
 
@@ -255,7 +255,7 @@ static struct platform_driver x2_snd_driver = {
 	.probe = x2_snd_probe,
 	.remove = x2_snd_remove,
 	.driver = {
-		   .name = "x2-snd",
+		   .name = "hobot-snd",
 		   .of_match_table = x2_snd_of_match,
 		   },
 };
@@ -264,6 +264,6 @@ module_platform_driver(x2_snd_driver);
 
 /* Module information */
 MODULE_AUTHOR("Jxy");
-MODULE_DESCRIPTION("X2 snd Interface");
-MODULE_ALIAS("platform:x2-snd");
+MODULE_DESCRIPTION("Hobot snd Interface");
+MODULE_ALIAS("platform:hobot-snd");
 MODULE_LICENSE("GPL");

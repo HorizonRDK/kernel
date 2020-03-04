@@ -292,7 +292,7 @@ static int x2_rtc_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	rtc->rtc = devm_rtc_device_register(&pdev->dev, "x2-rtc", &x2_rtc_ops, THIS_MODULE);
+	rtc->rtc = devm_rtc_device_register(&pdev->dev, "hobot-rtc", &x2_rtc_ops, THIS_MODULE);
 	if (IS_ERR(rtc->rtc)) {
 		dev_err(&pdev->dev, "can't register rtc device\n");
 		ret = PTR_ERR(rtc->rtc);
@@ -363,7 +363,7 @@ static const struct dev_pm_ops x2_rtc_dev_pm_ops = {
 };
 
 static const struct of_device_id x2_rtc_match[] = {
-	{ .compatible = "hobot,x2-rtc" },
+	{ .compatible = "hobot,hobot-rtc" },
 	{ }
 };
 MODULE_DEVICE_TABLE(of, x2_rtc_match);
@@ -372,7 +372,7 @@ static struct platform_driver x2_rtc_driver = {
 	.probe	= x2_rtc_probe,
 	.remove	= x2_rtc_remove,
 	.driver	= {
-		.name = "x2-rtc",
+		.name = "hobot-rtc",
 		.of_match_table	= x2_rtc_match,
 		//.pm = &x2_rtc_dev_pm_ops,
 	},
@@ -380,5 +380,5 @@ static struct platform_driver x2_rtc_driver = {
 module_platform_driver(x2_rtc_driver);
 
 MODULE_AUTHOR("hobot, Inc.");
-MODULE_DESCRIPTION("X2 RTC driver");
+MODULE_DESCRIPTION("Hobot RTC driver");
 MODULE_LICENSE("GPL v2");

@@ -260,7 +260,7 @@
 	status = "okay";
 };
 
-&x2dmatest {
+&dmatest {
 	status = "disabled";
 };
 

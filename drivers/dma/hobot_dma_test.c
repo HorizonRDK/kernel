@@ -125,7 +125,7 @@ static const struct file_operations mem_dma_fops = {
 
 static struct miscdevice mem_dma_miscdev = {
 	.minor	= MISC_DYNAMIC_MINOR,
-	.name	= "x2_dmatest",
+	.name	= "hobot_dmatest",
 	.fops	= &mem_dma_fops,
 };
 
@@ -228,7 +228,7 @@ static struct platform_driver x2_dmatest_driver = {
 	.probe  = mem_dma_probe,
 	.remove = mem_dma_remove,
 	.driver = {
-		.name  = "x2_dmatest",
+		.name  = "hobot_dmatest",
 		.owner = THIS_MODULE,
 		.of_match_table = of_match_ptr(x2_dmatest_dt_ids),
 	},
