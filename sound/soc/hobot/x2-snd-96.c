@@ -97,12 +97,12 @@ static int x2_snd_probe(struct platform_device *pdev)
 		return -EINVAL;
 	}
 
-	pr_info("Create sound card: %s\n", card->name);
+	pr_debug("Create sound card: %s\n", card->name);
 	if (node && of_get_child_by_name(node, "dai-link"))
 		num = of_get_child_count(node);
 	else
 		num = 1;
-	pr_info("Number dai_link: %d\n", num);
+	pr_debug("Number dai_link: %d\n", num);
 
 	links = devm_kzalloc(dev, sizeof(*link) * num, GFP_KERNEL);
 	if (!links) {
@@ -112,7 +112,7 @@ static int x2_snd_probe(struct platform_device *pdev)
 	card->dai_link = links;
 	id = of_alias_get_id(pdev->dev.of_node, "sndcard");
 	if (id < 0) {
-		pr_err("id: %d\n", id);
+		pr_debug("id: %d\n", id);
 		if (!strcmp(card->name, "x2snd0"))
 			id = 0;
 		else
@@ -136,9 +136,13 @@ static int x2_snd_probe(struct platform_device *pdev)
 
 		ret = of_property_read_u32(link->cpu_of_node,
 				"mclk_set", &mclk);
-		pr_info("Name of link->cpu_of_node : %s\n", link->cpu_of_node->name);
+		pr_debug("Name of link->cpu_of_node : %s\n", link->cpu_of_node->name);
 		
 		ret = snd_soc_of_get_dai_link_codecs(dev, codec, link);
+		if (!link->codecs) {
+			dev_err(dev, "error getting codec\n");
+			return -EINVAL;
+		}
 		if (ret < 0) {
 			dev_err(dev, "error getting codec dai name(%d)\n", ret);
 			return ret;
@@ -151,7 +155,8 @@ static int x2_snd_probe(struct platform_device *pdev)
 				dev_err(dev, "error getting platform phandle\n");
 				return ret;
 			}
-			pr_info("Name of link->platform_of_node : %s\n", link->platform_of_node->name);
+			pr_debug("Name of link->platform_of_node : %s\n",
+				link->platform_of_node->name);
 		}
 
 		ret = of_property_read_string(np, "link-name", &link->name);
@@ -160,7 +165,7 @@ static int x2_snd_probe(struct platform_device *pdev)
 			return ret;
 		}
 		link->dai_fmt = snd_soc_of_parse_daifmt(np, NULL, NULL, NULL);
-		pr_info("Data of link->dai_fmt: 0x%08X\n", link->dai_fmt);
+		pr_debug("Data of link->dai_fmt: 0x%08X\n", link->dai_fmt);
 		card->num_links++;
 		idx++;
 	}

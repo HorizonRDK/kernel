@@ -1807,11 +1807,11 @@ int ac101_i2c_probe(struct i2c_client *i2c, const struct i2c_device_id *id)
 		return ret;
 	}
 
-	/*if (v != AC101_CHIP_ID) {
+	if (v != AC101_CHIP_ID) {
 		dev_dbg(&i2c->dev, "chip is not AC101 (%X)\n", v);
 		dev_dbg(&i2c->dev, "Expected %X\n", AC101_CHIP_ID);
 		return -ENODEV;
-	}*/
+	}
 
 	ret = snd_soc_register_codec(&ac10x->i2c101->dev, &ac101_soc_codec_driver, &ac101_dai, 1);
 	if(ret) {
