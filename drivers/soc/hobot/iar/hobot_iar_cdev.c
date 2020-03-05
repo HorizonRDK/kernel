@@ -52,6 +52,14 @@
 #define IAR_WB_GET_CFG 	_IOW(IAR_CDEV_MAGIC, 0x2a, unsigned int)
 #define IAR_WB_SET_CFG 	_IOW(IAR_CDEV_MAGIC, 0x2b, unsigned int)
 
+#define IAR_OUTPUT_LAYER0_QBUF _IOW(IAR_CDEV_MAGIC, 0x30, unsigned int)
+#define IAR_OUTPUT_LAYER0_DQBUF _IOW(IAR_CDEV_MAGIC, 0x31, unsigned int)
+#define IAR_OUTPUT_LAYER0_REQBUFS _IOW(IAR_CDEV_MAGIC, 0x32, unsigned int)
+#define IAR_OUTPUT_LAYER1_QBUF _IOW(IAR_CDEV_MAGIC, 0x33, unsigned int)
+#define IAR_OUTPUT_LAYER1_DQBUF _IOW(IAR_CDEV_MAGIC, 0x34, unsigned int)
+#define IAR_OUTPUT_LAYER1_REQBUFS _IOW(IAR_CDEV_MAGIC, 0x35, unsigned int)
+#define IAR_OUTPUT_STREAM _IOW(IAR_CDEV_MAGIC, 0x36, unsigned int)
+
 typedef struct _update_cmd_t {
 	unsigned int enable_flag[IAR_CHANNEL_MAX];
 	unsigned int frame_size[IAR_CHANNEL_MAX];
@@ -386,6 +394,100 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 			// pr_info("=====IAR_WB_DQBUF==ret %d===========\n", ret);
 			if (ret)
 				return -EFAULT;
+		}
+		break;
+    case IAR_OUTPUT_LAYER0_DQBUF:
+		 {
+      		struct frame_info frameinfo;
+
+      		// pr_err("iar_wb_qbuf.\n");
+      		iar_output_dqbuf(0, &frameinfo);
+      		ret = copy_to_user((void __user *)arg, (char *)&frameinfo,
+                         sizeof(struct frame_info));
+      		// pr_info("=====IAR_WB_DQBUF==ret %d===========\n", ret);
+      		if (ret) return -EFAULT;
+    	}
+		break;
+    case IAR_OUTPUT_LAYER0_REQBUFS:
+		 {
+      		int buffers = 0;
+
+      		pr_err("iar_output_reqbufs.\n");
+      		ret = get_user(buffers, (u32 __user *)arg);
+      		if (ret)
+			  	return -EFAULT;
+      		iar_output_reqbufs(0, buffers);
+    	}
+		break;
+    case IAR_OUTPUT_LAYER0_QBUF:
+		 {
+			struct frame_info frameinfo;
+
+			// pr_err("iar_wb_qbuf.\n");
+			ret = copy_from_user((char *)&frameinfo, (u32 __user *)arg,
+							sizeof(struct frame_info));
+			// pr_info("=====IAR_WB_QBUF==ret %d===========\n", ret);
+			if (ret) {
+				pr_err("IAR_OUTPUT_QBUF, copy failed\n");
+				return -EFAULT;
+			}
+
+			iar_output_qbuf(0, &frameinfo);
+		}
+		break;
+    case IAR_OUTPUT_LAYER1_DQBUF:
+		 {
+			struct frame_info frameinfo;
+
+			// pr_err("iar_wb_qbuf.\n");
+			iar_output_dqbuf(1, &frameinfo);
+			ret = copy_to_user((void __user *)arg, (char *)&frameinfo,
+								sizeof(struct frame_info));
+			// pr_info("=====IAR_WB_DQBUF==ret %d===========\n", ret);
+			if (ret)
+				return -EFAULT;
+		}
+		break;
+    case IAR_OUTPUT_LAYER1_REQBUFS:
+		 {
+			int buffers = 0;
+
+			pr_err("iar_output1_reqbufs.\n");
+			ret = get_user(buffers, (u32 __user *)arg);
+			if (ret)
+				return -EFAULT;
+			iar_output_reqbufs(1, buffers);
+		}
+		break;
+    case IAR_OUTPUT_LAYER1_QBUF:
+		 {
+			struct frame_info frameinfo;
+
+			// pr_err("iar_wb_qbuf.\n");
+			ret = copy_from_user((char *)&frameinfo, (u32 __user *)arg,
+								sizeof(struct frame_info));
+			// pr_info("=====IAR_WB_QBUF==ret %d===========\n", ret);
+			if (ret) {
+				pr_err("IAR_WB_QBUF, copy failed\n");
+				return -EFAULT;
+			}
+
+			iar_output_qbuf(1, &frameinfo);
+		}
+		break;
+    case IAR_OUTPUT_STREAM:
+		 {
+			int on = 0;
+
+			pr_err("iar_output_stream.\n");
+			ret = get_user(on, (u32 __user *)arg);
+			if (ret) return -EFAULT;
+
+			if (on) {
+				iar_output_stream_on();
+			} else {
+				iar_output_stream_off();
+			}
 		}
 		break;
 	default:

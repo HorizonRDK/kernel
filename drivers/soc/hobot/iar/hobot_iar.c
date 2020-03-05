@@ -1240,8 +1240,12 @@ int32_t iar_open(void)
 	//value |= (0x1<<2);
 	//writel(value, g_iar_dev->sysctrl + 0x144);
 	//iar_pre_init();
+	enable_iar_irq();
+	enable_irq(g_iar_dev->irq);
 
 	init_waitqueue_head(&g_iar_dev->done_wq);
+	init_waitqueue_head(&g_iar_dev->output_done_wq[0]);
+	init_waitqueue_head(&g_iar_dev->output_done_wq[1]);
 
 	return 0;
 }
@@ -1292,6 +1296,10 @@ int32_t iar_close(void)
 	//value = readl(g_iar_dev->sysctrl + 0x148);
 	//value |= (0x1<<2);
 	//writel(value, g_iar_dev->sysctrl + 0x148);
+	disable_irq(g_iar_dev->irq);
+	frame_manager_close(&g_iar_dev->framemgr);
+	frame_manager_close(&g_iar_dev->framemgr_layer[0]);
+	frame_manager_close(&g_iar_dev->framemgr_layer[1]);
 
 	return 0;
 }
@@ -1672,6 +1680,199 @@ int iar_wb_capture_done(void)
 	wake_up(&g_iar_dev->done_wq);
 }
 
+int iar_output_stream_on(void)
+{
+	//
+	// if (!(g_iar_dev->state & (BIT(IAR_WB_STOP) | BIT(IAR_WB_REBUFS)
+	// 		| BIT(IAR_WB_INIT)))) {
+	// 	pr_err("invalid STREAM ON is requested(%lX)", g_iar_dev->state);
+	// 	return -EINVAL;
+	// }
+
+	g_iar_dev->output_state = 1;
+	// g_iar_dev->state = BIT(IAR_WB_START);
+
+	return 0;
+}
+
+int iar_output_stream_off(void)
+{
+	// if (!(g_iar_dev->state & BIT(IAR_WB_START))) {
+	// 	pr_err("invalid STREAMOFF is requested(%lX)", g_iar_dev->state);
+	// 	return -EINVAL;
+	// }
+
+	g_iar_dev->output_state = 0;
+	frame_manager_flush(&g_iar_dev->framemgr_layer[0]);
+	//frame_manager_flush(&g_iar_dev->framemgr_layer[1]);
+	// frame_manager_close(&g_iar_dev->framemgr);
+
+	// g_iar_dev->state = BIT(IAR_WB_STOP);
+
+	return 0;
+}
+
+int iar_output_dqbuf(int layer_no, struct frame_info *frameinfo)
+{
+	int ret = 0;
+	struct list_head *done_list;
+	struct vio_framemgr *framemgr;
+	struct vio_frame *frame;
+	unsigned long flags;
+
+	framemgr = &g_iar_dev->framemgr_layer[layer_no];
+
+	done_list = &framemgr->queued_list[FS_COMPLETE];
+	wait_event_interruptible(
+		g_iar_dev->output_done_wq[layer_no], !list_empty(done_list));
+
+	framemgr_e_barrier_irqs(framemgr, 0, flags);
+	frame = peek_frame(framemgr, FS_COMPLETE);
+	if (frame) {
+		memcpy(frameinfo, &frame->frameinfo, sizeof(struct frame_info));
+		trans_frame(framemgr, frame, FS_FREE);
+	}
+	framemgr_x_barrier_irqr(framemgr, 0, flags);
+
+	return ret;
+}
+
+int iar_output_qbuf(int layer_no, struct frame_info *frameinfo)
+{
+	int ret = 0;
+	struct vio_framemgr *framemgr;
+	struct vio_frame *frame;
+	unsigned long flags;
+	int index;
+
+	index = frameinfo->bufferindex;
+	framemgr = &g_iar_dev->framemgr_layer[layer_no];
+	BUG_ON(index >= framemgr->num_frames);
+
+	framemgr_e_barrier_irqs(framemgr, 0, flags);
+	frame = &framemgr->frames[index];
+	if (frame->state == FS_FREE) {
+		memcpy(&frame->frameinfo, frameinfo, sizeof(struct frame_info));
+		trans_frame(framemgr, frame, FS_REQUEST);
+	} else {
+		pr_err("frame(%d) is invalid state(%d)\n", index,
+			frame->state);
+		ret = -EINVAL;
+	}
+	framemgr_x_barrier_irqr(framemgr, 0, flags);
+
+	return ret;
+}
+
+int iar_output_buf_init(int layer_no, struct frame_info *frameinfo)
+{
+	int ret = 0;
+	struct vio_framemgr *framemgr;
+	struct vio_frame *frame;
+	unsigned long flags;
+	int index;
+
+	index = frameinfo->bufferindex;
+	framemgr = &g_iar_dev->framemgr_layer[layer_no];
+	BUG_ON(index >= framemgr->num_frames);
+
+	framemgr_e_barrier_irqs(framemgr, 0, flags);
+	frame = &framemgr->frames[index];
+	if (frame->state == FS_FREE) {
+		memcpy(&frame->frameinfo, frameinfo, sizeof(struct frame_info));
+		trans_frame(framemgr, frame, FS_COMPLETE);
+	} else {
+		pr_err("frame(%d) is invalid state(%d)\n", index,
+			frame->state);
+		ret = -EINVAL;
+	}
+	framemgr_x_barrier_irqr(framemgr, 0, flags);
+
+	return ret;
+}
+
+int iar_output_reqbufs(int layer_no, u32 buffers)
+{
+	int ret = 0;
+	int i = 0;
+	struct vio_framemgr *framemgr;
+
+	framemgr = &g_iar_dev->framemgr_layer[layer_no];
+	ret = frame_manager_open(framemgr, buffers);
+	if (ret) {
+		pr_err("frame manage open failed, ret(%d)", ret);
+		return ret;
+	}
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(iar_output_buf_init);
+EXPORT_SYMBOL_GPL(iar_output_dqbuf);
+EXPORT_SYMBOL_GPL(iar_output_qbuf);
+EXPORT_SYMBOL_GPL(iar_output_reqbufs);
+
+int iar_output_done(int layer_no)
+{
+	struct vio_framemgr *framemgr;
+	struct vio_frame *frame;
+	unsigned long flags;
+	int ret = -1;
+
+	// group = pym_ctx->group;
+	framemgr = &g_iar_dev->framemgr_layer[layer_no];
+	framemgr_e_barrier_irqs(framemgr, 0, flags);
+	frame = peek_frame(framemgr, FS_PROCESS);
+	if (frame) {
+		// printk("iar_output_done: %d\n", frame->frameinfo.bufferindex);
+		do_gettimeofday(&frame->frameinfo.tv);
+		trans_frame(framemgr, frame, FS_COMPLETE);
+		ret = 0;
+	} else {
+		// pym_ctx->event = VIO_FRAME_NDONE;
+		// pr_err("%s PROCESS queue has no member;\n", __func__);
+		ret = -1;
+	}
+	framemgr_x_barrier_irqr(framemgr, 0, flags);
+	if (ret == 0) {
+		wake_up(&g_iar_dev->output_done_wq[layer_no]);
+		// printk("wake up\n");
+	}
+	return ret;
+}
+
+int iar_output_start(int layer_no)
+{
+	int ret = 0;
+	struct vio_framemgr *framemgr;
+	struct vio_frame *frame;
+	unsigned long flags;
+	// int regval = 0;
+	buf_addr_t display_addr;
+
+	framemgr = &g_iar_dev->framemgr_layer[layer_no];
+	framemgr_e_barrier_irqs(framemgr, 0, flags);
+	frame = peek_frame(framemgr, FS_REQUEST);
+
+	if (frame) {
+		// printk("iar_wb_capture from request: %d\n",
+		// frame->frameinfo.bufferindex);
+		int size = frame->frameinfo.width * frame->frameinfo.height;
+		display_addr.Yaddr = frame->frameinfo.addr[0];
+		display_addr.Uaddr = frame->frameinfo.addr[0] + size;
+		display_addr.Vaddr = 0;
+		iar_set_bufaddr(layer_no, &display_addr);
+		iar_update();
+		trans_frame(framemgr, frame, FS_PROCESS);
+		// printk("output start: %dx%d, %x",
+		// frame->frameinfo.width, frame->frameinfo.height, display_addr.Yaddr);
+	} else {
+		// printk
+	}
+	framemgr_x_barrier_irqr(framemgr, 0, flags);
+
+	return ret;
+}
+
 static irqreturn_t x2_iar_irq(int this_irq, void *data)
 {
 	//struct iar_dev_s *iar = data;
@@ -1680,6 +1881,14 @@ static irqreturn_t x2_iar_irq(int this_irq, void *data)
 	//TODO
 	regval = readl(g_iar_dev->regaddr + REG_IAR_DE_SRCPNDREG);
 	//printk("x2_iar_irq: %x\n", regval);
+
+	if (regval & BIT(0)) {
+		writel(BIT(0), g_iar_dev->regaddr + REG_IAR_DE_SRCPNDREG);
+		//frequency_iar++;
+		//printk("isr 22\n");
+		if (g_iar_dev->output_state == 1)
+			iar_output_start(0);
+	}
 
 	if (regval & BIT(22)) {
 		writel(BIT(22), g_iar_dev->regaddr + REG_IAR_DE_SRCPNDREG);
@@ -1691,6 +1900,9 @@ static irqreturn_t x2_iar_irq(int this_irq, void *data)
 			if (ret == 0) {
 				g_iar_dev->capture_state = 2;
 			}
+		}
+		if (g_iar_dev->output_state == 1) {
+			iar_output_done(0);
 		}
 	}
 
@@ -2652,8 +2864,6 @@ static int x2_iar_probe(struct platform_device *pdev)
 		pr_debug("set mipi 1080p done!\n");
 	}
 
-	enable_iar_irq();
-	enable_irq(g_iar_dev->irq);
 	return 0;
 	//iar_pre_init();
 	//iar_close();

@@ -520,12 +520,16 @@ struct iar_dev_s {
 	struct pinctrl_state *pins_rgb;
 	struct clk *iar_pixel_clk;
 
-	struct vio_framemgr framemgr;
-	unsigned long state;
-	unsigned long capture_state;
-	wait_queue_head_t done_wq;
-	int wb_sel;
-	int wb_format;
+    struct vio_framemgr framemgr_layer[IAR_CHANNEL_MAX];
+    wait_queue_head_t output_done_wq[IAR_CHANNEL_MAX];
+    unsigned long output_state;
+
+    struct vio_framemgr framemgr;
+    unsigned long state;
+    unsigned long capture_state;
+    wait_queue_head_t done_wq;
+    int wb_sel;
+    int wb_format;
 };
 extern struct iar_dev_s *g_iar_dev;
 
@@ -766,6 +770,13 @@ int iar_wb_stream_on(void);
 int iar_wb_stream_off(void);
 void iar_wb_setcfg(int value);
 int iar_wb_getcfg(void);
+
+int iar_output_dqbuf(int layer_no, struct frame_info *frameinfo);
+int iar_output_qbuf(int layer_no, struct frame_info *frameinfo);
+int iar_output_buf_init(int layer_no, struct frame_info *frameinfo);
+int iar_output_reqbufs(int layer_no, unsigned int buffers);
+int iar_output_stream_on(void);
+int iar_output_stream_off(void);
 
 // Supported rotation.
 enum RotationMode {
