@@ -8,6 +8,7 @@
 #define __LENS_DRIVER_H__
 
 #include <linux/types.h>
+#include <lens_char.h>
 
 enum lens_type {
 	PWM_TYPE = 0,
@@ -33,5 +34,8 @@ void lens_driver_write_reg(uint16_t port, uint32_t param_id,
 	uint32_t addr, uint32_t data);
 uint32_t lens_driver_read_reg(uint16_t port, uint32_t param_id, uint32_t addr);
 void lens_driver_stop(uint16_t port, uint32_t param_id);
+int set_af_param(uint16_t port, struct chardev_port_param *ctx);
+int set_zoom_param(uint16_t port, struct chardev_port_param *ctx);
+
 
 #endif /* __X3_LENS_DRIVER_H__ */

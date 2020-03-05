@@ -31,9 +31,9 @@
 
 #if defined(CUR_MOD_NAME)
 #undef CUR_MOD_NAME
-#define CUR_MOD_NAME LOG_MODULE_SOC_SENSOR
+#define CUR_MOD_NAME LOG_MODULE_SOC_LENS
 #else
-#define CUR_MOD_NAME LOG_MODULE_SOC_SENSOR
+#define CUR_MOD_NAME LOG_MODULE_SOC_LENS
 #endif
 
 static struct i2c_client *lens_i2c_open(uint32_t i2c_chn,

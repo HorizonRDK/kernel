@@ -10,6 +10,7 @@
 #include <linux/types.h>
 #include <linux/mutex.h>
 
+#define LENS_CHARDEV_NAME "ac_lens"
 #define CHARDEVNAME_LEN  20
 
 struct chardev_port_param {
@@ -48,7 +49,8 @@ struct motor_i2c_param {
 };
 
 #define LENS_IOC_MAGIC    'l'
-#define LENS_SET_PORT_PARAM        _IOW(LNES_IOC_MAGIC, 0, struct chardev_port_param)
-#define LENS_SET_I2C_PARAM         _IOW(LNES_IOC_MAGIC, 1, struct motor_i2c_param)
+#define LENS_SET_AF_PARAM          _IOW(LENS_IOC_MAGIC, 0, struct chardev_port_param)
+#define LENS_SET_ZOOM_PARAM        _IOW(LENS_IOC_MAGIC, 1, struct chardev_port_param)
+#define LENS_SET_I2C_PARAM         _IOW(LENS_IOC_MAGIC, 2, struct motor_i2c_param)
 
 #endif /* __X3_LENS_CHAR_H__ */

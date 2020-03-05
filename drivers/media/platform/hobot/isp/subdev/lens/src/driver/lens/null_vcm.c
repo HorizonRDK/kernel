@@ -21,6 +21,7 @@
 #include "system_sensor.h"
 #include "acamera_logger.h"
 #include "acamera_sbus_api.h"
+#include "./af_driver/lens_api.h"
 
 #if defined( CUR_MOD_NAME)
 #undef CUR_MOD_NAME 
@@ -52,8 +53,10 @@ uint8_t lens_null_test( uint32_t lens_bus )
 
 static void vcm_null_drv_move( void *ctx, uint16_t position )
 {
-    LOG( LOG_WARNING, "Null VCM driver use attempted: no lens movement can be performed with the null driver" );
-    LOG( LOG_INFO, "IE&E %s, position %d ", __func__, position );
+	int ret = 0;
+	LOG( LOG_WARNING, "Null VCM driver use attempted: no lens movement can be performed with the null driver" );
+	LOG( LOG_INFO, "IE&E %s, position %d ", __func__, position );
+	ret = lens_api_af_move(0, position);
 }
 
 static uint8_t vcm_null_drv_is_moving( void *ctx )

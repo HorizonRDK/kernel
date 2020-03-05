@@ -30,9 +30,9 @@
 
 #if defined(CUR_MOD_NAME)
 #undef CUR_MOD_NAME
-#define CUR_MOD_NAME LOG_MODULE_SOC_SENSOR
+#define CUR_MOD_NAME LOG_MODULE_SOC_LENS
 #else
-#define CUR_MOD_NAME LOG_MODULE_SOC_SENSOR
+#define CUR_MOD_NAME LOG_MODULE_SOC_LENS
 #endif
 
 void motor_calculate_param(void *ctx, uint32_t *param)

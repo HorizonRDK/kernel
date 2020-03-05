@@ -476,7 +476,7 @@ void dwe_sw_deinit(void)
 		if ((tmp == 0) && (tmp_dis == 0)) {
 			break;
 		} else {
-			msleep(10);
+			mdelay(10);
 		}
 		count++;
 	}
@@ -803,7 +803,6 @@ int dis_hwpath_set(dwe_context_t *ctx, uint32_t port)
 {
 	int ret = 0;
 	//uint32_t tmp_cur = 0;
-	uint32_t tmp_num = 0;
 	uint32_t set_tmp = 0;
 	uint32_t size_tmp = dwe_param[port].dis_param.picsize.psize_g;
 

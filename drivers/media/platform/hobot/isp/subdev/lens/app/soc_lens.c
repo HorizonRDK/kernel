@@ -215,6 +215,8 @@ static struct platform_driver soc_lens_driver = {
     },
 };
 
+extern int __init lens_dev_init(void);
+extern void __exit lens_dev_exit(void);
 
 int __init acamera_soc_lens_init( void )
 {
@@ -224,6 +226,8 @@ int __init acamera_soc_lens_init( void )
     soc_lens_dev = platform_device_register_simple(
         "soc_lens_v4l2", -1, NULL, 0 );
     rc = platform_driver_register( &soc_lens_driver );
+    if (rc >= 0)
+	lens_dev_init();
 
     LOG( LOG_INFO, "[KeyMsg] Lens subdevice init done: %d", rc );
     return rc;
@@ -233,6 +237,7 @@ int __init acamera_soc_lens_init( void )
 void __exit acamera_soc_lens_exit( void )
 {
     LOG( LOG_INFO, "[KeyMsg] Lens subdevice exit" );
+    lens_dev_exit();
     platform_driver_unregister( &soc_lens_driver );
     platform_device_unregister( soc_lens_dev );
     LOG( LOG_INFO, "[KeyMsg] Lens subdevice exit done" );

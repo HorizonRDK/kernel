@@ -225,6 +225,7 @@ static irqreturn_t x2a_dis_irq(int this_irq, void *data)
 
 	if (tmp_irq.status_b.int_frame_done == 1) {
 		//debug
+		pr_debug("----dis done----");
 		LOG(LOG_INFO, "----dis_irqstatus %x ----", dwe_ctx->dis_irqstatus);
 		dwe_ctx->dis_irqstatus = tmp_irq.status_g;
 
@@ -285,6 +286,7 @@ static irqreturn_t x2a_ldc_irq(int this_irq, void *data)
 		//debug
 		uint32_t addr;
 		uint32_t tmp;
+		pr_debug("----ldc start----");
 		pr_debug("----next port 0x%x----", dwe_ctx->ctx.ldc_next_port);
 		pr_debug("----ldc_irqstatus 0x%x----", dwe_ctx->ldc_irqstatus);
 		addr = 0x44;
@@ -316,6 +318,7 @@ static irqreturn_t x2a_ldc_irq(int this_irq, void *data)
 	if (tmp_irq.status_b.output_frame_done == 1) {
 		dwe_ctx->ldc_irqstatus |= tmp_irq.status_g;
 		dwe_ctx->ctx.ldc_running = 0;
+		pr_debug("----ldc done----");
 		//if online
 		if (dwe_ctx->ctx.online_enable == 1) {
 			dwe_ctx->ctx.ldc_next_port = dwe_ctx->ctx.online_port;

@@ -53,12 +53,13 @@
 #include <linux/delay.h>
 #include "lens_char.h"
 #include "acamera_logger.h"
+#include "lens_driver.h"
 
 #if defined(CUR_MOD_NAME)
 #undef CUR_MOD_NAME
-#define CUR_MOD_NAME LOG_MODULE_SOC_DWE
+#define CUR_MOD_NAME LOG_MODULE_SOC_LENS
 #else
-#define CUR_MOD_NAME LOG_MODULE_SOC_DWE
+#define CUR_MOD_NAME LOG_MODULE_SOC_LENS
 #endif
 
 struct lens_charmod_s {
@@ -75,13 +76,11 @@ static int lens_fop_open(struct inode *pinode, struct file *pfile)
 	int ret = 0;
 	struct lens_charmod_s *lens_cdev = NULL;
 
-	LOG(LOG_DEBUG, "---[%s-%d]---\n", __func__, __LINE__);
-
-	spin_lock(&lens_cdev->slock);
+	//spin_lock(&lens_cdev->slock);
 	pfile->private_data = lens_cdev;
-	spin_unlock(&lens_cdev->slock);
+	//spin_unlock(&lens_cdev->slock);
 
-	LOG(LOG_INFO, "open is success !\n");
+	LOG(LOG_INFO, "open is success!");
 
 	return ret;
 }
@@ -91,8 +90,7 @@ static int lens_fop_release(struct inode *pinode, struct file *pfile)
 	/* deinit stream */
 	pfile->private_data = NULL;
 
-	LOG(LOG_DEBUG, "---[%s-%d]--- close is success!\n",
-		__func__, __LINE__);
+	LOG(LOG_DEBUG, "close is success!");
 	return 0;
 }
 
@@ -103,28 +101,52 @@ static long lens_fop_ioctl(struct file *pfile, unsigned int cmd,
 
 	//struct lens_charmod_s *lens_cdev = pfile->private_data;
 
-	LOG(LOG_DEBUG, "---[%s-%d]---\n", __func__, __LINE__);
+	struct chardev_port_param lens_param;
 
 	switch (cmd) {
-#if 0
-	case DWEC_SET_DIS_PARAM: {
+	case LENS_SET_AF_PARAM: {
 		if (arg == 0) {
 			LOG(LOG_ERR, "arg is null !\n");
 			return -1;
 		}
-		if (copy_from_user((void *)&tmp_dis, (void __user *)arg,
-			sizeof(dis_param_s))) {
+		if (copy_from_user((void *)&lens_param, (void __user *)arg,
+			sizeof(struct chardev_port_param))) {
+			LOG(LOG_ERR, "copy is err !\n");
+			return -EINVAL;
+		}
+		ret = set_af_param(lens_param.port, &lens_param);
+	}
+	break;
+	case LENS_SET_ZOOM_PARAM: {
+		if (arg == 0) {
+			LOG(LOG_ERR, "arg is null !\n");
+			return -1;
+		}
+		if (copy_from_user((void *)&lens_param, (void __user *)arg,
+			sizeof(struct chardev_port_param))) {
+			LOG(LOG_ERR, "copy is err !\n");
+			return -EINVAL;
+		}
+		ret = set_zoom_param(lens_param.port, &lens_param);
+	}
+	break;
+	case LENS_SET_I2C_PARAM: {
+		if (arg == 0) {
+			LOG(LOG_ERR, "arg is null !\n");
+			return -1;
+		}
+		if (copy_from_user((void *)&lens_param, (void __user *)arg,
+			sizeof(struct motor_i2c_param))) {
 			LOG(LOG_ERR, "copy is err !\n");
 			return -EINVAL;
 		}
 	}
-		break;
-#endif
+	break;
 	default: {
 		LOG(LOG_ERR, "---cmd is err---\n");
 		ret = -1;
 	}
-		break;
+	break;
 	}
 
 	return ret;
@@ -143,14 +165,13 @@ int __init lens_dev_init(void)
 {
 	int ret = 0;
 
-	LOG(LOG_DEBUG, "---[%s-%d]---\n", __func__, __LINE__);
-
 	lens_mod = kzalloc(sizeof(struct lens_charmod_s), GFP_KERNEL);
 	if (lens_mod == NULL) {
 		LOG(LOG_ERR, "char dev kzalloc failed !\n");
 		return -ENOMEM;
 	}
 
+	snprintf(lens_mod->name, CHARDEVNAME_LEN, LENS_CHARDEV_NAME);
 //misc_device
 	lens_mod->lens_chardev.name = lens_mod->name;
 	lens_mod->lens_chardev.minor = MISC_DYNAMIC_MINOR;
@@ -162,7 +183,7 @@ int __init lens_dev_init(void)
 		goto register_err;
 	}
 	lens_mod->dev_minor_id = lens_mod->lens_chardev.minor;
-	spin_lock_init(&(lens_mod->slock));
+	spin_lock_init(&lens_mod->slock);
 
 	return ret;
 register_err:
@@ -173,8 +194,6 @@ EXPORT_SYMBOL(lens_dev_init);
 
 void __exit lens_dev_exit(void)
 {
-	LOG(LOG_DEBUG, "---lens dev exit---");
-
 	if (lens_mod != NULL) {
 		misc_deregister(&lens_mod->lens_chardev);
 		kzfree(lens_mod);
