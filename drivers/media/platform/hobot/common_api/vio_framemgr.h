@@ -55,10 +55,10 @@ enum vio_frame_state {
 	FS_INVALID
 };
 
-enum vio_frame_ctl {
-	FRAME_INVALID = 0,
-	FRAME_VALID,
-	FRAME_STREAMOFF
+enum vio_frame_index_state {
+	FRAME_IND_FREE = 0,
+	FRAME_IND_USING,
+	FRAME_IND_STREAMOFF
 };
 
 enum vio_hw_frame_state {
@@ -74,6 +74,12 @@ enum buffer_owner {
 	VIO_BUFFER_THIS = 1,
 	VIO_BUFFER_OWN_INVALID = -1,
 };
+
+enum vio_framemgr_state {
+	FRAMEMGR_CREAT = 0,
+	FRAMEMGR_INIT,
+};
+
 
 #define NR_FRAME_STATE FS_INVALID
 
@@ -151,11 +157,8 @@ struct vio_framemgr {
 	struct vio_frame	*frames;
 	struct vio_frame	*frames_mp[VIO_MP_MAX_FRAMES];
 	u8			dispatch_mask[VIO_MP_MAX_FRAMES];
-	enum vio_frame_ctl	ctr_state[VIO_MP_MAX_FRAMES];
-	u8			proc_fst_frm[VIO_MAX_SUB_PROCESS];
-	u32			num_proc;
-	u32			num_close;
-	u32			num_flush;
+	enum vio_frame_index_state	index_state[VIO_MP_MAX_FRAMES];
+	enum vio_framemgr_state	state;
 
 	u32			queued_count[NR_FRAME_STATE];
 	struct list_head	queued_list[NR_FRAME_STATE];

@@ -289,11 +289,10 @@ int frame_manager_flush(struct vio_framemgr *this)
 int frame_manager_open_mp(struct vio_framemgr *this, u32 buffers,
 	u32 *index_start)
 {
-	u32 i;
+	u32 i, j;
 	unsigned long flag;
 	struct vio_frame *frames;
 	u32 ind_fst;
-	u32 proc_id;
 
 	frames = kzalloc(sizeof(struct vio_frame) * buffers, GFP_KERNEL);
 	if (!frames) {
@@ -303,13 +302,38 @@ int frame_manager_open_mp(struct vio_framemgr *this, u32 buffers,
 	spin_lock_irqsave(&this->slock, flag);
 	if ((this->num_frames + buffers) > VIO_MP_MAX_FRAMES) {
 		spin_unlock_irqrestore(&this->slock, flag);
-		vio_err("apply for too much frames,max 128.");
+		vio_err("%s:apply for too much frames,max 128.", __func__);
 		return -ENOMEM;
 	}
-	ind_fst = this->num_frames;
+
+	ind_fst = 0;
+	for (i = 0; i < VIO_MP_MAX_FRAMES; i++) {
+		if (this->index_state[i] == FRAME_IND_FREE) {
+			for (j = i; j < (i + buffers); j++) {
+				if (this->index_state[j] != FRAME_IND_FREE)
+					break;
+			}
+			if (j == (i + buffers)) {
+				ind_fst = i;
+				break;
+			}
+		}
+	}
+	if (i == VIO_MP_MAX_FRAMES) {
+		spin_unlock_irqrestore(&this->slock, flag);
+		vio_err("%s no enough AVALABLE frames.", __func__);
+		for (i = 0; i < VIO_MP_MAX_FRAMES; i++) {
+			if ((i&0xF) == 0)
+				vio_dbg("\nindex state %d-%d:", i, i+15);
+			vio_dbg("%d ", this->index_state[i]);
+		}
+		return -ENOMEM;
+	}
+
 	for (i = 0; i < buffers; i++)
 		this->frames_mp[i + ind_fst] = &frames[i];
-	if (!ind_fst) {
+
+	if (this->state != FRAMEMGR_INIT) {
 		for (i = 0; i < NR_FRAME_STATE; i++) {
 			this->queued_count[i] = 0;
 			INIT_LIST_HEAD(&this->queued_list[i]);
@@ -320,16 +344,15 @@ int frame_manager_open_mp(struct vio_framemgr *this, u32 buffers,
 		put_frame(this, this->frames_mp[i], FS_FREE);
 		kthread_init_work(&this->frames_mp[i]->work,
 			frame_work_function);
-		this->ctr_state[i] = FRAME_VALID;
+		this->index_state[i] = FRAME_IND_USING;
 	}
-	*index_start = this->num_frames;
+	*index_start = ind_fst;
 	this->num_frames += buffers;
-	this->num_close += buffers;
-	this->num_flush += buffers;
-	proc_id = this->num_proc;
-	this->proc_fst_frm[proc_id] = ind_fst;
-	this->num_proc++;
+	this->state = FRAMEMGR_INIT;
 	spin_unlock_irqrestore(&this->slock, flag);
+
+	vio_dbg("%s first index %d, num %d, this->num_frames %d.", __func__,
+		ind_fst, buffers, this->num_frames);
 	return 0;
 }
 
@@ -338,26 +361,39 @@ int frame_manager_close_mp(struct vio_framemgr *this,
 {
 	u32 i;
 	unsigned long flag;
-	u32 index;
+	struct vio_frame *frame;
+	struct vio_frame *free_addr;
 
 	if ((index_start + buffers) >= VIO_MP_MAX_FRAMES) {
 		vio_err("invalid index when closing frame manager.");
 		return -EFAULT;
 	}
 	spin_lock_irqsave(&this->slock, flag);
-	this->num_close -= buffers;
-	if(!this->num_close) {
-		for (i = 0; i < NR_FRAME_STATE; i++) {
-			this->queued_count[i] = 0;
-			INIT_LIST_HEAD(&this->queued_list[i]);
+	free_addr = this->frames_mp[index_start];
+	for (i = index_start; i < (index_start
++ buffers); i++) {
+		frame = this->frames_mp[i];
+		if (!frame) {
+			vio_err("%s:frame%d null", __func__, i);
+			continue;
 		}
-		for (i = 0; i < this->num_proc; i++) {
-			index = this->proc_fst_frm[i];
-			kfree(this->frames_mp[index]);
+		if ((frame->state >= FS_INVALID)) {
+			vio_err("%s:frame%d state%d err", __func__, i,
+				frame->state);
+			continue;
 		}
-		memset(this->frames_mp, 0, sizeof(this->frames_mp));
-		this->num_frames = 0;
+		if (!this->queued_count[frame->state]) {
+			vio_err("%s frame queue is empty (0x%08x)",
+				frame_state_name[frame->state], this->id);
+			continue;
+		}
+		list_del(&frame->list);
+		this->queued_count[frame->state]--;
+		this->index_state[i] = FRAME_IND_FREE;
+		this->frames_mp[i] = NULL;
 	}
+	this->num_frames -= buffers;
+	kfree(free_addr);
 	spin_unlock_irqrestore(&this->slock, flag);
 	return 0;
 }
@@ -367,19 +403,17 @@ int frame_manager_flush_mp(struct vio_framemgr *this,
 {
 	unsigned long flag;
 	struct vio_frame *frame;
-	enum vio_frame_state i;
+	u32 i;
 
 	if ((index_start + buffers) >= VIO_MP_MAX_FRAMES) {
 		vio_err("invalid index when flush frame manager.");
 		return -EFAULT;
 	}
 	spin_lock_irqsave(&this->slock, flag);
-	this->num_flush -= buffers;
 	for (i = index_start; i < (buffers + index_start); i++) {
 		frame = this->frames_mp[i];
 		if (frame)
 			trans_frame(this, frame, FS_FREE);
-		this->ctr_state[i] = FRAME_INVALID;
 	}
 	spin_unlock_irqrestore(&this->slock, flag);
 
@@ -397,7 +431,7 @@ int frame_manager_flush_mp_prepare(struct vio_framemgr *this,
 {
 	unsigned long flag;
 	struct vio_frame *frame;
-	enum vio_frame_state i;
+	int i;
 	u32 delay_cnt;
 	u32 used_free_cnt = 0;
 	u32 other_proc_free;
@@ -409,13 +443,14 @@ int frame_manager_flush_mp_prepare(struct vio_framemgr *this,
 		return -EFAULT;
 	}
 	spin_lock_irqsave(&this->slock, flag);
-	for (i = index_start; i < (buffers + index_start); i++) {
-		this->ctr_state[i] = FRAME_STREAMOFF;
-	}
 
-	for (i = 0; i < this->num_frames; i++) {
-		vio_dbg("%s(self%d):index%d,state%d.",
-			__func__, index_start, i, this->frames_mp[i]->state);
+	for (i = 0; i < VIO_MP_MAX_FRAMES; i++) {
+		if (this->index_state[i] == FRAME_IND_USING)
+			vio_dbg("%s(self%d):index%d,state%d.", __func__,
+				index_start, i, this->frames_mp[i]->state);
+	}
+	for (i = index_start; i < (buffers + index_start); i++) {
+		this->index_state[i] = FRAME_IND_STREAMOFF;
 	}
 
 	/* to USED or FREE*/
