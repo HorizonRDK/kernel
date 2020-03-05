@@ -17,6 +17,7 @@
 *
 */
 
+#define pr_fmt(fmt) "[isp_drv]: %s: " fmt, __func__
 #include <linux/kernel.h> /* //printk() */
 #include <asm/uaccess.h>
 #include <linux/gfp.h>
@@ -25,21 +26,16 @@
 #include <linux/of.h>
 #include <linux/of_irq.h>
 #include <asm/types.h>
-#include <linux/interrupt.h>
 #include <asm/io.h>
 #include <linux/time.h>
+#include <linux/list.h>
 #include "system_dma.h"
 #include "hobot_isp_reg_dma.h"
 
 #if FW_USE_HOBOT_DMA
 
 #define HOBOT_DMA_RESULT_CHK     0
-#define HOBOT_DMA_DEBUG          0
-#if HOBOT_DMA_DEBUG
-    #define HOBOT_DMA_LOG(...)   printk(__VA_ARGS__)
-#else
-    #define HOBOT_DMA_LOG(...)
-#endif
+#define HOBOT_DMA_LOG(...)   pr_debug(__VA_ARGS__)
 
 #define ISP_AREA1       0x1AAF8
 #define ISP_AREA2       0x32AB8
@@ -121,38 +117,106 @@ void cmp_result( hobot_dma_t *hobot_dma      )
         dump_dma();
 }
 
+int list_count(struct list_head *list)
+{
+	int k = 0;
+	struct list_head *this, *next;
+
+	if (list_empty(list))
+		return 0;
+
+	list_for_each_safe(this, next, list)
+		k++;
+
+	return k;
+}
+
+void isp_idma_start_transfer(hobot_dma_t *hobot_dma)
+{
+	unsigned long flags;
+	idma_descriptor_t *desc = NULL;
+
+	pr_debug("start\n");
+	spin_lock_irqsave( hobot_dma->dma_ctrl_lock, flags );
+	if (list_empty(&hobot_dma->pending_list)) {
+		pr_debug("pending list empty.\n");
+		spin_unlock_irqrestore(hobot_dma->dma_ctrl_lock, flags);
+		return;
+	}
+
+	desc = list_first_entry(&hobot_dma->pending_list, idma_descriptor_t, node);
+	if (desc)
+		hobot_dma_submit_cmd(hobot_dma, desc, 1);
+	spin_unlock_irqrestore(hobot_dma->dma_ctrl_lock, flags);
+	pr_debug("end\n");
+}
+
+static void isp_idma_tasklet(unsigned long data)
+{
+	unsigned long flags;
+	idma_descriptor_t *desc, *next;
+	hobot_dma_t *hobot_dma = (hobot_dma_t*) data;
+
+	pr_debug("start\n");
+
+	spin_lock_irqsave( hobot_dma->dma_ctrl_lock, flags );
+	// process each callback
+	if (!list_empty(&hobot_dma->done_list)) {
+		list_for_each_entry_safe(desc, next, &hobot_dma->done_list, node) {
+			list_del(&desc->node);
+			desc->callback.cb(desc->callback.cb_data);
+			kfree(desc);
+		}
+	}
+	spin_unlock_irqrestore(hobot_dma->dma_ctrl_lock, flags);
+
+	isp_idma_start_transfer(hobot_dma);
+	pr_debug("end\n");
+}
+
 //Hobot DMA internal functions
 irqreturn_t hobot_dma_interrupt(int irq, void *data)
 {
     hobot_dma_t *hobot_dma = (hobot_dma_t*) data;
-    uint32_t i;
+    idma_descriptor_t *desc, *next;
     static uint32_t count = 0;
+    unsigned long flags;
 
+    dma_isp_reg_start_dma_write(0);         // disable dma
+    dma_isp_reg_dma_sram_ch_en_write(0);    // cpu can control sram now
+
+    spin_lock_irqsave( hobot_dma->dma_ctrl_lock, flags );
     // check int status
     if(dma_isp_dma_int_read()) {
         HOBOT_DMA_LOG("%s: receive dma done int (cnt=%d)\n", __FUNCTION__, count);
         count++;
         dma_isp_reg_clr_int_write(1);           // clear dma int
         dma_isp_reg_clr_int_write(0);           // clear dma int
+
+	pr_debug("active list count %d\n", list_count(&hobot_dma->active_list));
+
+	if (!list_empty(&hobot_dma->active_list))
+		list_splice_tail_init(&hobot_dma->active_list, &hobot_dma->done_list);
     }
-    dma_isp_reg_start_dma_write(0);         // disable dma
-    dma_isp_reg_dma_sram_ch_en_write(0);    // cpu can control sram now
+
+    // dma is not done, clear active_list
+    if (!list_empty(&hobot_dma->active_list)) {
+	    list_for_each_entry_safe(desc, next, &hobot_dma->active_list, node) {
+                list_del(&desc->node);
+	    }
+    }
+
+    hobot_dma->nents_total = 0;
+    hobot_dma->is_busy = 0;
+    spin_unlock_irqrestore(hobot_dma->dma_ctrl_lock, flags);
+
 #if HOBOT_DMA_RESULT_CHK
     cmp_result(hobot_dma);
 #endif
+    pr_debug("end.\n");
 
-    // process each callback
-    for(i=0; i<hobot_dma->call_back_num; i++) {
-        if (NULL != hobot_dma->call_back_obj[i].cb) {
-            hobot_dma->call_back_obj[i].cb(hobot_dma->call_back_obj[i].cb_data);
-            HOBOT_DMA_LOG("%s : cb (%d/%d) done\n", __FUNCTION__,i,hobot_dma->call_back_num);
-        }
-        else
-            printk("%s ERROR: cb is NULL\n", __FUNCTION__);
-    }
-    hobot_dma->call_back_num = 0;
-    hobot_dma->nents_total = 0;
-    hobot_dma->is_busy = 0;
+    tasklet_schedule(&hobot_dma->tasklet);
+
     return IRQ_HANDLED;
 }
 
@@ -179,11 +243,15 @@ void hobot_dma_init(hobot_dma_t *hobot_dma)
     }
     hobot_dma->is_busy = 0;
     // clean callback record
-    hobot_dma->call_back_num = hobot_dma->nents_total = 0;
-    memset(hobot_dma->call_back_obj, 0, sizeof(hobot_dma_callback_t)*HOBOT_DMA_MAX_CALLBACK);
     memset(hobot_dma->hobot_dma_cmds, 0, sizeof(hobot_dma_cmd_t)*HOBOT_DMA_MAX_CMD);
     hobot_dma->init_cnt++;
     system_spinlock_unlock( hobot_dma->dma_ctrl_lock, flags );
+
+    INIT_LIST_HEAD(&hobot_dma->pending_list);
+    INIT_LIST_HEAD(&hobot_dma->done_list);
+    INIT_LIST_HEAD(&hobot_dma->active_list);
+
+    tasklet_init(&hobot_dma->tasklet, isp_idma_tasklet, (unsigned long)hobot_dma);
 
     // 3. if first time init, mapping interrupt here
     np = of_find_compatible_node(NULL, NULL, "hobot,x2a-isp");
@@ -226,6 +294,8 @@ void hobot_dma_deinit(hobot_dma_t *hobot_dma)
         system_spinlock_unlock( hobot_dma->dma_ctrl_lock, flags );
         return;
     }
+
+    tasklet_kill(&hobot_dma->tasklet);
 
     // 3. start to process deinit dma
     if(hobot_dma->enable_irq_cnt>0) {
@@ -360,40 +430,36 @@ static void hobot_dma_start(        hobot_dma_cmd_t *hobot_dma_cmds,
     count++;
 }
 
-void hobot_dma_submit_cmd(hobot_dma_t *hobot_dma,
-                                    uint32_t fw_ctx_id,
-                                    struct scatterlist *isp_sram_sg,
-                                    struct scatterlist *dma_sram_sg,
-                                    unsigned int nents,
-                                    uint32_t direction,
-                                    dma_completion_callback cb,
-                                    void *cb_data,
-                                    uint8_t last_cmd)
+void hobot_dma_submit_cmd(hobot_dma_t *hobot_dma, idma_descriptor_t *desc, int last_cmd)
 {
     int i;
-    unsigned long flags;
+    struct scatterlist *isp_sram_sg, *dma_sram_sg;
+    int nents = desc->isp_sram_nents;
+    int fw_ctx_id;
+    int direction;
+
+    pr_debug("start\n");
     // 1. check lock init
     if(hobot_dma->dma_ctrl_lock==NULL) {
         printk(KERN_ERR "ERROR: %s dma_ctrl_lock = NULL\n", __FUNCTION__);
         return;
     }
 
-    flags = system_spinlock_lock( hobot_dma->dma_ctrl_lock );
     uint32_t nents_total = hobot_dma->nents_total;
     if(hobot_dma->is_busy) {
         printk(KERN_ERR "ERROR: %s dma is still busy now\n", __FUNCTION__);
-        system_spinlock_unlock( hobot_dma->dma_ctrl_lock, flags );
         return;
     }
     if((hobot_dma->nents_total+nents) > HOBOT_DMA_MAX_CMD) {
         printk(KERN_ERR "ERROR: %s can not process too many memory blocks (nents_total=%d,cur_nents=%d)\n",
             __FUNCTION__, hobot_dma->nents_total, nents);
-        system_spinlock_unlock( hobot_dma->dma_ctrl_lock, flags );
         return;
     }
-    hobot_dma->call_back_obj[hobot_dma->call_back_num].cb = cb;
-    hobot_dma->call_back_obj[hobot_dma->call_back_num].cb_data = cb_data;
-    hobot_dma->call_back_num++;
+
+    fw_ctx_id = desc->ctx_id;	
+    direction = desc->direction;
+    isp_sram_sg = desc->isp_sram_sg;
+    dma_sram_sg = desc->dma_sram_sg;
 
     for ( i = 0; i < nents; i++ ) {
         hobot_dma->hobot_dma_cmds[i+nents_total].isp_sram_addr = sg_dma_address( isp_sram_sg );
@@ -415,13 +481,12 @@ void hobot_dma_submit_cmd(hobot_dma_t *hobot_dma,
     // to process callback
     hobot_dma_interrupt(hobot_dma->irq_in_dts, hobot_dma);
 #else
-    // Trigger dma start in last command
     if(last_cmd) {
-        hobot_dma->is_busy = 1;
+	hobot_dma->is_busy = 1;
         hobot_dma_start(hobot_dma->hobot_dma_cmds, fw_ctx_id, hobot_dma->nents_total);
+	list_move_tail(&desc->node, &hobot_dma->active_list);
     }
 #endif
-    system_spinlock_unlock( hobot_dma->dma_ctrl_lock, flags );
 }
 
 

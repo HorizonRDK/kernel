@@ -17,6 +17,7 @@
 *
 */
 
+#define pr_fmt(fmt) "[isp_drv]: %s: " fmt, __func__
 #include <linux/kernel.h> /* //printk() */
 #include <asm/uaccess.h>
 #include <linux/gfp.h>
@@ -32,96 +33,22 @@
 #include "acamera_logger.h"
 #include "system_dma.h"
 
-
+#if FW_USE_HOBOT_DMA
+hobot_dma_t g_hobot_dma = {
+    .init_cnt = 0,
+    .enable_irq_cnt = 0,
+    .irq_in_dts = 0,
+    .is_busy = 0,
+    .nents_total = 0,
+    .dma_ctrl_lock = NULL
+};
+#endif
 
 #if HOBOT_REGISTER_MONITOR
 #define HRM_RC_DMA_START 0x33310000
 #define HRM_RC_DMA_END   0x33320000
 void hobot_rm_check_n_record(uint32_t offset, uint32_t value);
 #endif//HOBOT_REGISTER_MONITOR
-
-
-#if FW_USE_SYSTEM_DMA
-#include <linux/dma-mapping.h>
-#include <linux/dmaengine.h>
-#include <asm/dma-mapping.h>
-#include <asm/cacheflush.h>
-
-typedef struct {
-    //in case scatter and gather is not supported, need more than one channel
-    struct dma_chan *dma_channel[SYSTEM_DMA_MAX_CHANNEL];
-    //for sg
-    struct sg_table sg_device_table[FIRMWARE_CONTEXT_NUMBER][SYSTEM_DMA_TOGGLE_COUNT];
-    unsigned int sg_device_nents[FIRMWARE_CONTEXT_NUMBER][SYSTEM_DMA_TOGGLE_COUNT];
-
-    struct sg_table sg_fwmem_table[FIRMWARE_CONTEXT_NUMBER][SYSTEM_DMA_TOGGLE_COUNT];
-    unsigned int sg_fwmem_nents[FIRMWARE_CONTEXT_NUMBER][SYSTEM_DMA_TOGGLE_COUNT];
-
-    //for flushing
-    fwmem_addr_pair_t *fwmem_pair_flush[FIRMWARE_CONTEXT_NUMBER][SYSTEM_DMA_TOGGLE_COUNT];
-    //for callback unmapping
-    int32_t buff_loc;
-    uint32_t direction;
-    uint32_t cur_fw_ctx_id;
-
-    //conf synchronization and completion
-    dma_completion_callback complete_func;
-    atomic_t nents_done;
-    struct completion comp;
-
-} system_dma_device_t;
-
-#elif FW_USE_HOBOT_DMA
-#include "hobot_isp_reg_dma.h"
-hobot_dma_t g_hobot_dma = {
-    .init_cnt = 0,
-    .enable_irq_cnt = 0,
-    .irq_in_dts = 0,
-    .is_busy = 0,
-    .call_back_num = 0,
-    .nents_total = 0,
-    .dma_ctrl_lock = NULL
-};
-
-#else
-#include <linux/interrupt.h>
-
-typedef struct {
-    void *dev_addr;
-    void *fw_addr;
-    size_t size;
-    void *sys_back_ptr;
-} mem_addr_pair_t;
-
-typedef struct {
-    struct tasklet_struct m_task;
-    mem_addr_pair_t *mem_data;
-} mem_tasklet_t;
-
-
-typedef struct {
-    char *name;
-    unsigned int sg_device_nents[FIRMWARE_CONTEXT_NUMBER][SYSTEM_DMA_TOGGLE_COUNT];
-
-    unsigned int sg_fwmem_nents[FIRMWARE_CONTEXT_NUMBER][SYSTEM_DMA_TOGGLE_COUNT];
-
-    mem_addr_pair_t *mem_addrs[FIRMWARE_CONTEXT_NUMBER][SYSTEM_DMA_TOGGLE_COUNT];
-
-    mem_tasklet_t task_list[FIRMWARE_CONTEXT_NUMBER][SYSTEM_DMA_TOGGLE_COUNT][SYSTEM_DMA_MAX_CHANNEL];
-
-    int32_t buff_loc;
-    uint32_t direction;
-    uint32_t cur_fw_ctx_id;
-
-    //conf synchronization and completion
-    dma_completion_callback complete_func;
-    atomic_t nents_done;
-    struct completion comp;
-
-} system_dma_device_t;
-
-#endif
-
 
 int32_t system_dma_init( void **ctx )
 {
@@ -257,12 +184,9 @@ int32_t system_dma_destroy( void *ctx )
 
 static void dma_complete_func( void *ctx )
 {
-    LOG( LOG_DEBUG, "\nIRQ completion called" );
     system_dma_device_t *system_dma_device = (system_dma_device_t *)ctx;
 
-//	    printk( "%s: IRQ completion called (nents_done=%d, sg_device_nents[%d][%d]=%d)\n",__FUNCTION__,
-//	        nents_done, system_dma_device->cur_fw_ctx_id, system_dma_device->buff_loc,
-//	        system_dma_device->sg_device_nents[system_dma_device->cur_fw_ctx_id][system_dma_device->buff_loc]);
+    pr_debug("IRQ completion called\n");
 #if (FW_USE_HOBOT_DMA==0)
     unsigned int nents_done = atomic_inc_return( &system_dma_device->nents_done );
     if ( nents_done >= system_dma_device->sg_device_nents[system_dma_device->cur_fw_ctx_id][system_dma_device->buff_loc] )
@@ -270,12 +194,10 @@ static void dma_complete_func( void *ctx )
     {
         if ( system_dma_device->complete_func ) {
             system_dma_device->complete_func( ctx );
-            LOG( LOG_DEBUG, "async completed on buff:%d dir:%d", system_dma_device->buff_loc, system_dma_device->direction );
-//	            printk( "%s: async completed on buff:%d dir:%d\n",__FUNCTION__,system_dma_device->buff_loc, system_dma_device->direction );
+            pr_debug("async completed on buff:%d dir:%d", system_dma_device->buff_loc, system_dma_device->direction );
         } else {
             complete( &system_dma_device->comp );
-            LOG( LOG_DEBUG, "sync completed on buff:%d dir:%d", system_dma_device->buff_loc, system_dma_device->direction );
-//	            printk( "%s: sync completed on buff:%d dir:%d\n",__FUNCTION__, system_dma_device->buff_loc, system_dma_device->direction );
+            pr_debug("sync completed on buff:%d dir:%d", system_dma_device->buff_loc, system_dma_device->direction );
         }
     }
 }
@@ -366,6 +288,7 @@ void system_dma_unmap_sg( void *ctx )
     }
 }
 
+//FW_USE_SYSTEM_DMA
 int32_t system_dma_copy_sg( void *ctx, int32_t buff_loc, uint32_t direction, dma_completion_callback complete_func, uint32_t fw_ctx_id )
 {
     int32_t i, result = 0;
@@ -622,6 +545,8 @@ int32_t system_dma_copy_sg( void *ctx,
         return -1;
     }
 
+    pr_debug("start\n");
+
     int32_t async_dma = 0;
     if ( complete_func != NULL ) {
         async_dma = 1;
@@ -678,13 +603,31 @@ int32_t system_dma_copy_sg( void *ctx,
     system_dma_device->direction = direction;
     system_dma_device->buff_loc = buff_loc;
 
-    hobot_dma_submit_cmd(&g_hobot_dma, fw_ctx_id, isp_sram_sg, dma_sram_sg, isp_sram_nents,
-                        (direction == SYS_DMA_TO_DEVICE) ? HOBOT_DMA_DIR_WRITE_ISP: HOBOT_DMA_DIR_READ_ISP,
-                        dma_complete_func, ctx, 1);
+    unsigned long flags;
+    idma_descriptor_t *desc;
+    desc = kcalloc(1, sizeof(idma_descriptor_t), GFP_KERNEL);
+    if (!desc) {
+	pr_err("alloc memory for idma_descriptor_t failed.\n");
+	return result;
+    }
+    desc->ctx_id = fw_ctx_id;
+    desc->isp_sram_sg = isp_sram_sg;
+    desc->dma_sram_sg = dma_sram_sg;
+    desc->isp_sram_nents = isp_sram_nents;
+    desc->direction = (direction == SYS_DMA_TO_DEVICE) ? HOBOT_DMA_DIR_WRITE_ISP: HOBOT_DMA_DIR_READ_ISP;
+    desc->callback.cb = dma_complete_func;
+    desc->callback.cb_data = ctx;
+
+    flags = system_spinlock_lock( g_hobot_dma.dma_ctrl_lock );
+    list_add_tail(&desc->node, &g_hobot_dma.pending_list);
+    system_spinlock_unlock( g_hobot_dma.dma_ctrl_lock, flags );
+
+    pr_debug("ctx id %d, isp_sram_nents %d, direction %d one node add to pending_list\n",
+		desc->ctx_id, desc->isp_sram_nents, desc->direction);
 
     if ( async_dma == 0 ) {
         LOG( LOG_DEBUG, "scatterlist DMA waiting completion\n" );
-        wait_for_completion( &system_dma_device->comp );
+//        wait_for_completion( &system_dma_device->comp );
 #if (HOBOT_DMA_SRAM_PA == HOBOT_DMA_SRAM_DEBUG_DRAM_MODE)
         dma_unmap_sg( NULL, system_dma_device->sg_fwmem_table[fw_ctx_id][buff_loc].sgl, system_dma_device->sg_fwmem_nents[fw_ctx_id][buff_loc], direction );
 #endif
@@ -695,6 +638,13 @@ int32_t system_dma_copy_sg( void *ctx,
 
     LOG( LOG_DEBUG, "scatterlist DMA success\n" );
     return result;
+}
+
+void system_dma_wait_done(void *ctx)
+{
+	system_dma_device_t *system_dma_device = (system_dma_device_t *)ctx;
+
+	wait_for_completion( &system_dma_device->comp );
 }
 
 int32_t system_dma_copy_multi_sg( dma_cmd* cmd, uint32_t cmd_num)
@@ -760,9 +710,28 @@ int32_t system_dma_copy_multi_sg( dma_cmd* cmd, uint32_t cmd_num)
         system_dma_device->direction = direction;
         system_dma_device->buff_loc = buff_loc;
 
-        hobot_dma_submit_cmd(&g_hobot_dma, fw_ctx_id, isp_sram_sg, dma_sram_sg, isp_sram_nents,
-                            (direction == SYS_DMA_TO_DEVICE) ? HOBOT_DMA_DIR_WRITE_ISP: HOBOT_DMA_DIR_READ_ISP,
-                            dma_complete_func, ctx, last_cmd);
+	unsigned long flags;
+	idma_descriptor_t *desc;
+	desc = kcalloc(1, sizeof(idma_descriptor_t), GFP_KERNEL);
+	if (!desc) {
+		pr_err("alloc memory for idma_descriptor_t failed.\n");
+		return result;
+	}
+	desc->ctx_id = fw_ctx_id;
+	desc->isp_sram_sg = isp_sram_sg;
+	desc->dma_sram_sg = dma_sram_sg;
+	desc->isp_sram_nents = isp_sram_nents;
+	desc->direction = (direction == SYS_DMA_TO_DEVICE) ? HOBOT_DMA_DIR_WRITE_ISP: HOBOT_DMA_DIR_READ_ISP;
+	desc->callback.cb = dma_complete_func;
+	desc->callback.cb_data = ctx;
+
+	flags = system_spinlock_lock( g_hobot_dma.dma_ctrl_lock );
+	if (last_cmd)
+		list_add_tail(&desc->node, &g_hobot_dma.pending_list);
+	else
+		list_add_tail(&desc->node, &g_hobot_dma.active_list);
+	hobot_dma_submit_cmd(&g_hobot_dma, desc, last_cmd);
+	system_spinlock_unlock( g_hobot_dma.dma_ctrl_lock, flags );
 
 #if(HOBOT_REGISTER_MONITOR)
         hobot_rm_check_n_record(HRM_RC_DMA_END,buff_loc);

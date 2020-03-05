@@ -138,7 +138,7 @@ int isp_fw_init( uint32_t hw_isp_addr )
 {
     int result = 0;
     uint32_t i;
-
+    struct sched_param param = { .sched_priority = MAX_RT_PRIO - 1 };
 
     LOG( LOG_INFO, "fw_init start" );
 
@@ -192,6 +192,9 @@ int isp_fw_init( uint32_t hw_isp_addr )
 
         LOG( LOG_INFO, "start fw thread %d", result );
         isp_fw_process_thread = kthread_run( isp_fw_process, NULL, "isp_process" );
+        result = sched_setscheduler_nocheck(isp_fw_process_thread, SCHED_FIFO, &param);
+        if (result)
+                pr_err("sched_setscheduler_nocheck is fail(%d)", result);
     }
 
     return PTR_RET( isp_fw_process_thread );

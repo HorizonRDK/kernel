@@ -22,6 +22,7 @@
 #include <linux/dma-mapping.h>
 #include <linux/dmaengine.h>
 #include <linux/irqreturn.h>
+#include <linux/interrupt.h>
 #include <asm/dma-mapping.h>
 #include <asm/cacheflush.h>
 #include "acamera_types.h"
@@ -56,16 +57,27 @@ typedef struct hobot_dma_s {
     uint32_t irq_in_dts;
     uint32_t is_busy;
 
-    hobot_dma_callback_t call_back_obj[HOBOT_DMA_MAX_CALLBACK];
-    uint32_t call_back_num;
-
-	hobot_dma_cmd_t hobot_dma_cmds[HOBOT_DMA_MAX_CMD];
+    hobot_dma_cmd_t hobot_dma_cmds[HOBOT_DMA_MAX_CMD];
     uint32_t nents_total;
 
     sys_spinlock dma_ctrl_lock;
+
+    struct tasklet_struct tasklet;
+    struct list_head pending_list;
+    struct list_head active_list;
+    struct list_head done_list;
 }hobot_dma_t;
 
-
+typedef struct {
+	struct list_head node;
+	u32 ctx_id;
+	u32 direction;
+	u32 isp_sram_nents;
+	u32 dma_sram_nents;
+	struct scatterlist *isp_sram_sg;
+	struct scatterlist *dma_sram_sg;
+	hobot_dma_callback_t callback;
+} idma_descriptor_t;
 
 typedef struct {
     //for sg
@@ -89,20 +101,12 @@ typedef struct {
 //		hobot_dma_t hobot_dma;
 } system_dma_device_t;
 
-irqreturn_t hobot_dma_interrupt(int irq, void *data);
 void hobot_dma_init(hobot_dma_t *hobot_dma);
 void hobot_dma_deinit(hobot_dma_t *hobot_dma);
 void hobot_dma_enable_irq(hobot_dma_t *hobot_dma);
 void hobot_dma_disable_irq(hobot_dma_t *hobot_dma);
-void hobot_dma_submit_cmd(hobot_dma_t *hobot_dma,
-                                    uint32_t fw_ctx_id,
-                                    struct scatterlist *isp_sram_sg,
-                                    struct scatterlist *dma_sram_sg,
-                                    unsigned int nents,
-                                    uint32_t direction,
-                                    dma_completion_callback cb,
-                                    void *cb_data,
-                                    uint8_t last_cmd);
+void hobot_dma_submit_cmd(hobot_dma_t *hobot_dma, idma_descriptor_t *desc, int last_cmd);
+void isp_idma_start_transfer(hobot_dma_t *hobot_dma);
 #endif      /* FW_USE_HOBOT_DMA */
 
 #endif      /*_HOBOT_ISP_REG_DMA_H_ */

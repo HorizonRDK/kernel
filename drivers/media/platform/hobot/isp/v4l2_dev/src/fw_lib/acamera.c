@@ -65,9 +65,8 @@
 #include "sensor_fsm.h"
 #include "acamera_logger.h"
 #include "fsm_param.h"
-#include "system_dma.h"
-#include "hobot_isp_reg_dma.h"
 #include "isp_ctxsv.h"
+#include "hobot_isp_reg_dma.h"
 
 static acamera_firmware_t g_firmware;
 
@@ -77,6 +76,7 @@ int sif_isp_ctx_sync_func(int ctx_id);
 static DECLARE_WAIT_QUEUE_HEAD(wq);
 static DECLARE_WAIT_QUEUE_HEAD(wq_fe);
 
+extern hobot_dma_t g_hobot_dma;
 int32_t acamera_set_api_context( uint32_t ctx_num )
 {
     int32_t result = 0;
@@ -380,6 +380,8 @@ int32_t acamera_init( acamera_settings *settings, uint32_t ctx_num )
                             break;
 
                         system_dma_copy_sg( g_firmware.dma_chan_isp_config, ISP_CONFIG_PING, SYS_DMA_FROM_DEVICE, 0, idx );
+    			isp_idma_start_transfer(&g_hobot_dma);
+			system_dma_wait_done(g_firmware.dma_chan_isp_config);
                         // init context
                         result = acamera_init_context( p_ctx, &settings[idx], &g_firmware );
                         if ( result == 0 ) {
@@ -387,7 +389,12 @@ int32_t acamera_init( acamera_settings *settings, uint32_t ctx_num )
                             LOG( LOG_INFO, "DMA config from DDR to ping and pong of size %d", ACAMERA_ISP1_SIZE );
                             // system_dma_copy current software context to the ping and pong
                             system_dma_copy_sg( g_firmware.dma_chan_isp_config, ISP_CONFIG_PING, SYS_DMA_TO_DEVICE, 0, idx );
+			    isp_idma_start_transfer(&g_hobot_dma);
+			    system_dma_wait_done(g_firmware.dma_chan_isp_config);
+
                             system_dma_copy_sg( g_firmware.dma_chan_isp_config, ISP_CONFIG_PONG, SYS_DMA_TO_DEVICE, 0, idx );
+			    isp_idma_start_transfer(&g_hobot_dma);
+			    system_dma_wait_done(g_firmware.dma_chan_isp_config);
                             if ( result == 0 ) {
 #if ISP_SENSOR_DRIVER_MODEL != 1
                                 // avoid interrupt status check against the model
@@ -449,7 +456,12 @@ int32_t acamera_init( acamera_settings *settings, uint32_t ctx_num )
 void acamera_update_cur_settings_to_isp( uint32_t fw_ctx_id )
 {
     system_dma_copy_sg( g_firmware.dma_chan_isp_config, ISP_CONFIG_PING, SYS_DMA_TO_DEVICE, NULL, fw_ctx_id );
+    isp_idma_start_transfer(&g_hobot_dma);
+    system_dma_wait_done(g_firmware.dma_chan_isp_config);
+
     system_dma_copy_sg( g_firmware.dma_chan_isp_config, ISP_CONFIG_PONG, SYS_DMA_TO_DEVICE, NULL, fw_ctx_id );
+    isp_idma_start_transfer(&g_hobot_dma);
+    system_dma_wait_done(g_firmware.dma_chan_isp_config);
 }
 
 #endif /* #if USER_MODULE */
@@ -501,12 +513,12 @@ int32_t acamera_interrupt_handler()
 }
 #else
 
-static int current_context_id;
-module_param(current_context_id, int, 0644);
-static int last_context_id;
-module_param(last_context_id, int, 0644);
-static int next_context_id;
-module_param(next_context_id, int, 0644);
+static int cur_ctx_id;
+module_param(cur_ctx_id, int, 0644);
+static int last_ctx_id;
+module_param(last_ctx_id, int, 0644);
+static int next_ctx_id;
+module_param(next_ctx_id, int, 0644);
 
 static void start_processing_frame( void )
 {
@@ -515,8 +527,7 @@ static void start_processing_frame( void )
     acamera_context_ptr_t p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[cur_ctx];
     LOG( LOG_INFO, "new frame for ctx_num#%d.", cur_ctx );
 #else
-    acamera_context_ptr_t p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[current_context_id];
-    //acamera_context_ptr_t p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[0];
+    acamera_context_ptr_t p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[cur_ctx_id];
 #endif
 
     // new_frame event to start reading metering memory and run 3A
@@ -534,7 +545,7 @@ static void dma_complete_context_func( void *arg )
     int ctx_id = 0;
     system_dma_device_t *system_dma_device = (system_dma_device_t *)arg;
 
-    LOG( LOG_INFO, "DMA COMPLETION FOR CONTEXT" );
+    pr_debug("DMA COMPLETION FOR CONTEXT\n");
 
     g_firmware.dma_flag_isp_config_completed = 1;
 
@@ -577,7 +588,7 @@ static void dma_complete_metering_func( void *arg )
     int ctx_id = 0;
     system_dma_device_t *system_dma_device = (system_dma_device_t *)arg;
 
-    LOG( LOG_INFO, "DMA COMPLETION FOR METERING" );
+    pr_debug("DMA COMPLETION FOR METERING\n");
 
     g_firmware.dma_flag_isp_metering_completed = 1;
 
@@ -823,21 +834,38 @@ static void set_dma_cmd_queue(dma_cmd *cmd, uint32_t ping_pong_sel)
     cmd[0].buff_loc = ping_pong_sel;
     cmd[0].direction = SYS_DMA_FROM_DEVICE;
     cmd[0].complete_func = dma_complete_metering_func;
-    cmd[0].fw_ctx_id = last_context_id;
+    cmd[0].fw_ctx_id = last_ctx_id;
 
     cmd[1].ctx = g_firmware.dma_chan_isp_config;
     cmd[1].buff_loc = ping_pong_sel;
     cmd[1].direction = SYS_DMA_TO_DEVICE;
     cmd[1].complete_func = dma_complete_context_func;
-    cmd[1].fw_ctx_id = next_context_id;
+    cmd[1].fw_ctx_id = next_ctx_id;
 }
 #endif /* FW_USE_HOBOT_DMA*/
+
+void isp_ctx_prepare(int ctx_pre, int ctx_next, int ppf)
+{
+#if FW_USE_HOBOT_DMA
+	dma_cmd cmd[2];
+	if (ctx_pre == ctx_next) {
+		set_dma_cmd_queue(cmd, ppf);
+		system_dma_copy_multi_sg(cmd, 2);
+	} else {
+		system_dma_copy_sg(g_firmware.dma_chan_isp_metering, ppf, SYS_DMA_FROM_DEVICE, dma_complete_metering_func, ctx_pre);
+		system_dma_copy_sg(g_firmware.dma_chan_isp_config, ppf, SYS_DMA_TO_DEVICE, dma_complete_context_func, ctx_next);
+		isp_idma_start_transfer(&g_hobot_dma);
+	}
+#else
+	system_dma_copy_sg(g_firmware.dma_chan_isp_metering, ppf, SYS_DMA_FROM_DEVICE, dma_complete_metering_func, ctx_pre);
+	system_dma_copy_sg(g_firmware.dma_chan_isp_config, ppf, SYS_DMA_TO_DEVICE, dma_complete_context_func, ctx_next);
+#endif
+}
 
 extern int ldc_set_ioctl(uint32_t port, uint32_t online);
 extern void isp_input_port_size_config(sensor_fsm_ptr_t p_fsm);
 int sif_isp_ctx_sync_func(int ctx_id)
 {
-	dma_cmd cmd[2];
 	acamera_context_ptr_t p_ctx;
 
 	p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[ctx_id];
@@ -848,9 +876,9 @@ int sif_isp_ctx_sync_func(int ctx_id)
 
 	pr_debug("start isp ctx switch\n");
 
-	last_context_id = current_context_id;
-	current_context_id = ctx_id;
-	next_context_id = ctx_id;
+	last_ctx_id = cur_ctx_id;
+	cur_ctx_id = ctx_id;
+	next_ctx_id = ctx_id;
 	p_ctx->sif_isp_offline = 1;
 	g_firmware.frame_done = 0;
 
@@ -867,25 +895,12 @@ retry:
 		// switch to ping/pong contexts for the next frame
 		if (acamera_isp_isp_global_ping_pong_config_select_read(0) == ISP_CONFIG_PONG || p_ctx->isp_frame_counter == 0) {
 			acamera_isp_isp_global_mcu_ping_pong_config_select_write(0, ISP_CONFIG_PING);
-
-			LOG(LOG_INFO, "next is ping, DMA config from ddr to ping");
-#if FW_USE_HOBOT_DMA
-			set_dma_cmd_queue(cmd, ISP_CONFIG_PING);
-			system_dma_copy_multi_sg(cmd,2);
-#else
-			system_dma_copy_sg( g_firmware.dma_chan_isp_metering, ISP_CONFIG_PING, SYS_DMA_FROM_DEVICE, dma_complete_metering_func, last_context_id );
-			system_dma_copy_sg( g_firmware.dma_chan_isp_config, ISP_CONFIG_PING, SYS_DMA_TO_DEVICE, dma_complete_context_func, next_context_id );
-#endif
+			pr_debug("next is ping, DMA sram -> ping\n");
+			isp_ctx_prepare(last_ctx_id, next_ctx_id, ISP_CONFIG_PING);
 		} else {
 			acamera_isp_isp_global_mcu_ping_pong_config_select_write(0, ISP_CONFIG_PONG);
-			LOG(LOG_INFO, "next is pong, DMA config from ddr to pong");
-#if FW_USE_HOBOT_DMA
-			set_dma_cmd_queue(cmd, ISP_CONFIG_PONG);
-			system_dma_copy_multi_sg(cmd,2);
-#else
-			system_dma_copy_sg( g_firmware.dma_chan_isp_metering, ISP_CONFIG_PONG, SYS_DMA_FROM_DEVICE, dma_complete_metering_func, last_context_id );
-			system_dma_copy_sg( g_firmware.dma_chan_isp_config, ISP_CONFIG_PONG, SYS_DMA_TO_DEVICE, dma_complete_context_func, next_context_id );
-#endif
+			pr_debug("next is pong, DMA sram -> pong\n");
+			isp_ctx_prepare(last_ctx_id, next_ctx_id, ISP_CONFIG_PONG);
 		}
 	} else {
 		system_semaphore_wait(g_firmware.sem_event_process_done, 0);
@@ -910,7 +925,7 @@ int32_t acamera_interrupt_handler()
     int32_t result = 0;
     int32_t irq_bit = ISP_INTERRUPT_EVENT_NONES_COUNT - 1;
 
-    acamera_context_ptr_t p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[current_context_id];
+    acamera_context_ptr_t p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[cur_ctx_id];
 
 #if 0
 uint32_t hcs1 = acamera_isp_input_port_hc_size0_read(0);
@@ -934,7 +949,7 @@ pr_info("hcs1 %d, hcs2 %d, vc %d\n", hcs1, hcs2, vc);
     // read the irq vector from isp
     uint32_t irq_mask = acamera_isp_isp_global_interrupt_status_vector_read( 0 );
 
-    pr_info("IRQ MASK is 0x%x, ctx_id %d", irq_mask, current_context_id);
+    pr_info("IRQ MASK is 0x%x, ctx_id %d", irq_mask, cur_ctx_id);
 
     if(irq_mask&0x8) {
         printk("broken frame status = 0x%x", acamera_isp_isp_global_monitor_broken_frame_status_read(0));
@@ -1009,19 +1024,7 @@ pr_info("hcs1 %d, hcs2 %d, vc %d\n", hcs1, hcs2, vc);
                             //            |^^^^^^^^^|
                             // conf --->  |  PONG   |
                             //            |_________|
-#if FW_USE_HOBOT_DMA
-                            dma_cmd cmd[2];
-                            LOG( LOG_INFO, "DMA metering from pong to DDR of size %d, config from pong to DDR of size %d",
-                                ACAMERA_METERING_STATS_MEM_SIZE, ACAMERA_ISP1_SIZE);
-                            set_dma_cmd_queue(cmd, ISP_CONFIG_PING);
-                            system_dma_copy_multi_sg(cmd,2);
-#else
-                            LOG( LOG_INFO, "DMA metering from pong to DDR of size %d", ACAMERA_METERING_STATS_MEM_SIZE );
-                            // dma all stat memory only to the software context
-                            system_dma_copy_sg( g_firmware.dma_chan_isp_metering, ISP_CONFIG_PING, SYS_DMA_FROM_DEVICE, dma_complete_metering_func, last_context_id );
-                            LOG( LOG_INFO, "DMA config from DDR to pong of size %d", ACAMERA_ISP1_SIZE );
-                            system_dma_copy_sg( g_firmware.dma_chan_isp_config, ISP_CONFIG_PING, SYS_DMA_TO_DEVICE, dma_complete_context_func, next_context_id );
-#endif
+			    isp_ctx_prepare(0, 0, ISP_CONFIG_PING);
                         } else {
                             LOG( LOG_INFO, "Current config is ping" );
                             //            |^^^^^^^^^|
@@ -1034,25 +1037,13 @@ pr_info("hcs1 %d, hcs2 %d, vc %d\n", hcs1, hcs2, vc);
                             //            |^^^^^^^^^|
                             // conf --->  |  PING   |
                             //            |_________|
-#if FW_USE_HOBOT_DMA
-                            dma_cmd cmd[2];
-                            LOG( LOG_INFO, "DMA metering from ping to DDR of size %d, config from ping to DDR of size %d",
-                                ACAMERA_METERING_STATS_MEM_SIZE, ACAMERA_ISP1_SIZE);
-                            set_dma_cmd_queue(cmd, ISP_CONFIG_PONG);
-                            system_dma_copy_multi_sg(cmd,2);
-#else
-                            LOG( LOG_INFO, "DMA metering from ping to DDR of size %d", ACAMERA_METERING_STATS_MEM_SIZE );
-                            // dma all stat memory only to the software context
-                            system_dma_copy_sg( g_firmware.dma_chan_isp_metering, ISP_CONFIG_PONG, SYS_DMA_FROM_DEVICE, dma_complete_metering_func, last_context_id );
-                            LOG( LOG_INFO, "DMA config from DDR to ping of size %d", ACAMERA_ISP1_SIZE );
-                            system_dma_copy_sg( g_firmware.dma_chan_isp_config, ISP_CONFIG_PONG, SYS_DMA_TO_DEVICE, dma_complete_context_func, next_context_id );
-#endif
+			    isp_ctx_prepare(0, 0, ISP_CONFIG_PONG);
                         }
                     } else {
                         LOG( LOG_ERR, "Attempt to start a new frame before processing is done for the prevous frame. Skip this frame" );
                     } //if ( acamera_event_queue_empty( &p_ctx->fsm_mgr.event_queue ) )
                 } else if ( irq_bit == ISP_INTERRUPT_EVENT_ISP_END_FRAME_END ) {
-			pr_debug("frame done, ctx id %d\n", current_context_id);
+			pr_debug("frame done, ctx id %d\n", cur_ctx_id);
 			g_firmware.frame_done = 1;
 			wake_up(&wq_fe);
                 } else if ( irq_bit == ISP_INTERRUPT_EVENT_FR_Y_WRITE_DONE ) {

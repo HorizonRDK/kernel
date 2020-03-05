@@ -50,6 +50,77 @@ typedef struct {
     uint32_t fw_ctx_id;
 } dma_cmd;
 
+#if FW_USE_SYSTEM_DMA
+#include <linux/dma-mapping.h>
+#include <linux/dmaengine.h>
+#include <asm/dma-mapping.h>
+#include <asm/cacheflush.h>
+
+typedef struct {
+    //in case scatter and gather is not supported, need more than one channel
+    struct dma_chan *dma_channel[SYSTEM_DMA_MAX_CHANNEL];
+    //for sg
+    struct sg_table sg_device_table[FIRMWARE_CONTEXT_NUMBER][SYSTEM_DMA_TOGGLE_COUNT];
+    unsigned int sg_device_nents[FIRMWARE_CONTEXT_NUMBER][SYSTEM_DMA_TOGGLE_COUNT];
+
+    struct sg_table sg_fwmem_table[FIRMWARE_CONTEXT_NUMBER][SYSTEM_DMA_TOGGLE_COUNT];
+    unsigned int sg_fwmem_nents[FIRMWARE_CONTEXT_NUMBER][SYSTEM_DMA_TOGGLE_COUNT];
+
+    //for flushing
+    fwmem_addr_pair_t *fwmem_pair_flush[FIRMWARE_CONTEXT_NUMBER][SYSTEM_DMA_TOGGLE_COUNT];
+    //for callback unmapping
+    int32_t buff_loc;
+    uint32_t direction;
+    uint32_t cur_fw_ctx_id;
+
+    //conf synchronization and completion
+    dma_completion_callback complete_func;
+    atomic_t nents_done;
+    struct completion comp;
+
+} system_dma_device_t;
+
+#elif FW_USE_HOBOT_DMA
+#include "hobot_isp_reg_dma.h"
+#else
+#include <linux/interrupt.h>
+
+typedef struct {
+    void *dev_addr;
+    void *fw_addr;
+    size_t size;
+    void *sys_back_ptr;
+} mem_addr_pair_t;
+
+typedef struct {
+    struct tasklet_struct m_task;
+    mem_addr_pair_t *mem_data;
+} mem_tasklet_t;
+
+
+typedef struct {
+    char *name;
+    unsigned int sg_device_nents[FIRMWARE_CONTEXT_NUMBER][SYSTEM_DMA_TOGGLE_COUNT];
+
+    unsigned int sg_fwmem_nents[FIRMWARE_CONTEXT_NUMBER][SYSTEM_DMA_TOGGLE_COUNT];
+
+    mem_addr_pair_t *mem_addrs[FIRMWARE_CONTEXT_NUMBER][SYSTEM_DMA_TOGGLE_COUNT];
+
+    mem_tasklet_t task_list[FIRMWARE_CONTEXT_NUMBER][SYSTEM_DMA_TOGGLE_COUNT][SYSTEM_DMA_MAX_CHANNEL];
+
+    int32_t buff_loc;
+    uint32_t direction;
+    uint32_t cur_fw_ctx_id;
+
+    //conf synchronization and completion
+    dma_completion_callback complete_func;
+    atomic_t nents_done;
+    struct completion comp;
+
+} system_dma_device_t;
+
+#endif
+
 /**
  *   Initialize dma channel
  *
@@ -185,6 +256,7 @@ int32_t system_dma_copy_sg( void *ctx, int32_t buff_loc, uint32_t direction, dma
 #if FW_USE_HOBOT_DMA
 int32_t system_dma_copy_multi_sg( dma_cmd* cmd,
                                             uint32_t cmd_num);
+void system_dma_wait_done(void *ctx);
 #endif
 
 #endif // __SYSTEM_DMA_H__
