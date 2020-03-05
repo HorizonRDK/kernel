@@ -830,9 +830,9 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 #ifdef CONFIG_HOBOT_XJ2
 		ips_pinmux_bt();
 #else
-		ret = disp_set_pixel_clk(163000000);
-                if (ret)
-                        return ret;
+		//ret = disp_set_pixel_clk(163000000);
+                //if (ret)
+                //        return ret;
 		ret = disp_pinmux_bt1120();
 		if (ret)
 			return -1;
@@ -2547,6 +2547,9 @@ static int x2_iar_probe(struct platform_device *pdev)
 		pr_debug("set mipi 720p touch done!\n");
 	} else if (display_type == HDMI_TYPE) {
 		pr_debug("%s: display_type is HDMI panel!\n", __func__);
+		ret = disp_set_pixel_clk(163000000);
+		if (ret)
+			return ret;
 #if 0
 		temp1 = g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr;
 		#define IAR_DRAW_X(c, p)	(IAR_DRAW_WIDTH * c / p)
