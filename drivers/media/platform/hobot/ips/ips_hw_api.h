@@ -19,5 +19,8 @@ void ips_set_axi_bus_ctrl(void __iomem *base_addr, u32 cfg);
 u32 ips_get_axi_bus_ctrl(void __iomem *base_addr);
 void ips_enable_isp0_intr(void __iomem *base_addr, bool enable);
 u16 ips_get_isp_frame_id(void __iomem *base_addr);
+void isp_vcke_ctrl(void __iomem *base_addr, bool en);
+void isp_vcke_th0(void __iomem *base_addr, u32 cfg);
+void isp_vcke_th1(void __iomem *base_addr, u32 cfg);
 
 #endif

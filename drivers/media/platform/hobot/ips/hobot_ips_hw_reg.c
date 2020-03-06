@@ -205,6 +205,22 @@ u16 ips_get_isp_frame_id(void __iomem *base_addr)
 
 	return frame_id;
 }
+
+void isp_vcke_ctrl(void __iomem *base_addr, bool en)
+{
+	vio_hw_set_reg(base_addr, &ips_regs[ISP0_VCKE_CTRL], en);
+}
+
+void isp_vcke_th0(void __iomem *base_addr, u32 cfg)
+{
+	vio_hw_set_reg(base_addr, &ips_regs[ISP0_VCKE_TH0], cfg);
+}
+
+void isp_vcke_th1(void __iomem *base_addr, u32 cfg)
+{
+	vio_hw_set_reg(base_addr, &ips_regs[ISP0_VCKE_TH1], cfg);
+}
+
 u32 ips_get_bw_cnt(void __iomem *base_addr, u32 ch)
 {	
 	u32 count = 0;
@@ -212,4 +228,3 @@ u32 ips_get_bw_cnt(void __iomem *base_addr, u32 ch)
 	count = vio_hw_get_reg(base_addr, &ips_regs[IPS_BW_CNT_CH0 + ch]);
 	return count;
 }
-

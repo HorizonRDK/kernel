@@ -835,6 +835,12 @@ void ipu_clear_size_err(void __iomem *base_addr, u8 value)
 		&ipu_fields[IPU_F_ERR_CLR], value);
 }
 
+void ipu_set_line_delay(void __iomem *base_addr, u8 value)
+{
+	vio_hw_set_field(base_addr, &ipu_regs[IPU_ERR_CLR],
+		&ipu_fields[IPU_F_LINE_DELAY_SET], value);
+}
+
 void ipu_set_shd_select(void __iomem *base_addr, u8 cfg)
 {
 	vio_hw_set_reg(base_addr, &ipu_regs[IPU_CFG_SEL], cfg);

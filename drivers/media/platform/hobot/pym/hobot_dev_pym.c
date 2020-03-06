@@ -724,6 +724,7 @@ static irqreturn_t pym_isr(int irq, void *data)
 {
 	u32 status;
 	u32 instance;
+	bool drop_flag = 0;
 	struct x3_pym_dev *pym;
 	struct vio_group *group;
 	struct vio_group_task *gtask;
@@ -737,12 +738,12 @@ static irqreturn_t pym_isr(int irq, void *data)
 
 	if (status & (1 << INTR_PYM_DS_FRAME_DROP)) {
 		vio_err("[%d]DS drop frame\n", instance);
-		pym_frame_ndone(group->sub_ctx[GROUP_ID_SRC]);
+		drop_flag = true;
 	}
 
 	if (status & (1 << INTR_PYM_US_FRAME_DROP)) {
 		vio_err("[%d]US drop frame\n", instance);
-		pym_frame_ndone(group->sub_ctx[GROUP_ID_SRC]);
+		drop_flag = true;
 	}
 
 	if (status & (1 << INTR_PYM_FRAME_DONE)) {
@@ -776,6 +777,9 @@ static irqreturn_t pym_isr(int irq, void *data)
 		if (group && group->get_timestamps)
 			vio_get_frame_id(group);
 	}
+
+	if (drop_flag)
+		pym_frame_ndone(group->sub_ctx[GROUP_ID_SRC]);
 
 	return IRQ_HANDLED;
 }

@@ -109,6 +109,59 @@ int ips_get_bus_status(void)
 }
 EXPORT_SYMBOL_GPL(ips_get_bus_status);
 
+int ips_get_isp_frameid(void)
+{
+	int ret = 0;
+	BUG_ON(!g_ips_dev);
+
+	spin_lock(&g_ips_dev->shared_slock);
+	ret = ips_get_isp_frame_id(g_ips_dev->base_reg);
+	spin_unlock(&g_ips_dev->shared_slock);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(ips_get_isp_frameid);
+
+void ips_set_isp_interrupt(bool enable)
+{
+	BUG_ON(!g_ips_dev);
+
+	spin_lock(&g_ips_dev->shared_slock);
+	ips_enable_isp0_intr(g_ips_dev->base_reg, enable);
+	spin_unlock(&g_ips_dev->shared_slock);
+}
+EXPORT_SYMBOL_GPL(ips_set_isp_interrupt);
+
+void ips_set_isp_vcke_ctrl(bool enable)
+{
+	BUG_ON(!g_ips_dev);
+
+	spin_lock(&g_ips_dev->shared_slock);
+	isp_vcke_ctrl(g_ips_dev->base_reg, enable);
+	spin_unlock(&g_ips_dev->shared_slock);
+}
+EXPORT_SYMBOL_GPL(ips_set_isp_vcke_ctrl);
+
+void ips_set_isp_vcke_th0(u32 cfg)
+{
+	BUG_ON(!g_ips_dev);
+
+	spin_lock(&g_ips_dev->shared_slock);
+	isp_vcke_th0(g_ips_dev->base_reg, cfg);
+	spin_unlock(&g_ips_dev->shared_slock);
+}
+EXPORT_SYMBOL_GPL(ips_set_isp_vcke_th0);
+
+void ips_set_isp_vcke_th1(u32 cfg)
+{
+	BUG_ON(!g_ips_dev);
+
+	spin_lock(&g_ips_dev->shared_slock);
+	isp_vcke_th1(g_ips_dev->base_reg, cfg);
+	spin_unlock(&g_ips_dev->shared_slock);
+}
+EXPORT_SYMBOL_GPL(ips_set_isp_vcke_th1);
+
 int vio_clk_enable(const char *name)
 {
 	int ret = 0;
