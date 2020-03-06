@@ -4,108 +4,108 @@
 #include <asm/ioctl.h>
 #include <linux/kfifo.h>
 
-#define X2_CNN_DRV_NAME		"hobot_cnn"
+#define CNN_DRV_NAME		"hobot_cnn"
 #define CNN_INT_NUM 6
 
 /*************************************************************
- * x2 cnn register offset list
+ * bpu register offset list
  *************************************************************/
-#define   X2_CNNBUS_CTRL_WM_0		    (0x0)
-#define   X2_CNNBUS_CTRL_WM_1		    (0x4)
-#define   X2_CNNBUS_CTRL_WM_2		    (0x8)
-#define   X2_CNNBUS_CTRL_WM_3		    (0xC)
-#define   X2_CNNBUS_CTRL_RM_0		    (0x40)
-#define   X2_CNNBUS_CTRL_RM_1		    (0x44)
-#define   X2_CNNBUS_CTRL_RM_2		    (0x48)
-#define   X2_CNNBUS_CTRL_RM_3		    (0x4C)
-#define   X2_CNNBUS_CTRL_RM_4		    (0x50)
-#define   X2_CNNBUS_CTRL_RM_5		    (0x54)
-#define   X2_CNNBUS_AXIID		    (0x80)
-#define   X2_CNNINT_MASK		    (0x84)
-#define   X2_CNNINT_STATUS		    (0x88)
-#define   X2_CNNINT_NUM			    (0x8C)
-#define   X2_CNNINT_ERR_NUM		    (0x90)
-#define   X2_CNN_FC_BASE		    (0x94)
-#define   X2_CNN_FC_HEAD		    (0x98)
-#define   X2_CNN_FC_TAIL		    (0x9C)
-#define   X2_CNN_FC_LEN			    (0xA0)
-#define   X2_CNNINT_INST_NUM		    (0xA4)
-#define   X2_CNN_BUSY_STATUS		    (0xB0)
+#define   CNNBUS_CTRL_WM_0		    (0x0)
+#define   CNNBUS_CTRL_WM_1		    (0x4)
+#define   CNNBUS_CTRL_WM_2		    (0x8)
+#define   CNNBUS_CTRL_WM_3		    (0xC)
+#define   CNNBUS_CTRL_RM_0		    (0x40)
+#define   CNNBUS_CTRL_RM_1		    (0x44)
+#define   CNNBUS_CTRL_RM_2		    (0x48)
+#define   CNNBUS_CTRL_RM_3		    (0x4C)
+#define   CNNBUS_CTRL_RM_4		    (0x50)
+#define   CNNBUS_CTRL_RM_5		    (0x54)
+#define   CNNBUS_AXIID		    (0x80)
+#define   CNNINT_MASK		    (0x84)
+#define   CNNINT_STATUS		    (0x88)
+#define   CNNINT_NUM			    (0x8C)
+#define   CNNINT_ERR_NUM		    (0x90)
+#define   CNN_FC_BASE		    (0x94)
+#define   CNN_FC_HEAD		    (0x98)
+#define   CNN_FC_TAIL		    (0x9C)
+#define   CNN_FC_LEN			    (0xA0)
+#define   CNNINT_INST_NUM		    (0xA4)
+#define   CNN_BUSY_STATUS		    (0xB0)
 
 /*************************************************************
  * register bit
  *************************************************************/
 
-/*    X2_CNNBUS_CTRL_WM_0    */
-#define   X2_CNN_WD_MAXLEN_M(n)			(((n) & 0xff) << 0x8)
-#define   X2_CNN_WD_MAXLEN_M_MASK		(0xff << 0x8)
-#define   X2_CNN_WD_MAXLEN_M_SHIT(n)		(((n) & 0xff) >> 0x8)
-#define   X2_CNN_WD_ENDIAN_M(n)			(((n) & 0xf) << 0x4)
-#define   X2_CNN_WD_ENDIAN_M_MASK		(0xf << 0x4)
-#define   X2_CNN_WD_ENDIAN_M_SHIT(n)		(((n) & 0xf) >> 0x4)
-#define   X2_CNN_WD_PRIORITY_M(n)		(((n) & 0xf) << 0x0)
-#define   X2_CNN_WD_PRIORITY_M_MASK		(0xf << 0x0)
-#define   X2_CNN_WD_PRIORITY_M_SHIT(n)		(((n) & 0xf) >> 0x0)
+/*    CNNBUS_CTRL_WM_0    */
+#define   CNN_WD_MAXLEN_M(n)			(((n) & 0xff) << 0x8)
+#define   CNN_WD_MAXLEN_M_MASK		(0xff << 0x8)
+#define   CNN_WD_MAXLEN_M_SHIT(n)		(((n) & 0xff) >> 0x8)
+#define   CNN_WD_ENDIAN_M(n)			(((n) & 0xf) << 0x4)
+#define   CNN_WD_ENDIAN_M_MASK		(0xf << 0x4)
+#define   CNN_WD_ENDIAN_M_SHIT(n)		(((n) & 0xf) >> 0x4)
+#define   CNN_WD_PRIORITY_M(n)		(((n) & 0xf) << 0x0)
+#define   CNN_WD_PRIORITY_M_MASK		(0xf << 0x0)
+#define   CNN_WD_PRIORITY_M_SHIT(n)		(((n) & 0xf) >> 0x0)
 
-/*    X2_CNN_CNNBUS_CTRL_RM_0	 */
-#define   X2_CNN_RD_MAXLEN_M(n)			(((n) & 0xff) << 0x8)
-#define   X2_CNN_RD_MAXLEN_M_MASK		(0xff << 0x8)
-#define   X2_CNN_RD_MAXLEN_M_SHIT(n)		(((n) & 0xff) >> 0x8)
-#define   X2_CNN_RD_ENDIAN_M(n)			(((n) & 0xf) << 0x4)
-#define   X2_CNN_RD_ENDIAN_M_MASK		(0xf << 0x4)
-#define   X2_CNN_RD_ENDIAN_M_SHIT(n)		(((n) & 0xf) >> 0x4)
-#define   X2_CNN_RD_PRIORITY_M(n)		(((n) & 0xf) << 0x0)
-#define   X2_CNN_RD_PRIORITY_M_MASK		(0xf << 0x0)
-#define   X2_CNN_RD_PRIORITY_M_SHIT(n)		(((n) & 0xf) >> 0x0)
+/*    CNN_CNNBUS_CTRL_RM_0	 */
+#define   CNN_RD_MAXLEN_M(n)			(((n) & 0xff) << 0x8)
+#define   CNN_RD_MAXLEN_M_MASK		(0xff << 0x8)
+#define   CNN_RD_MAXLEN_M_SHIT(n)		(((n) & 0xff) >> 0x8)
+#define   CNN_RD_ENDIAN_M(n)			(((n) & 0xf) << 0x4)
+#define   CNN_RD_ENDIAN_M_MASK		(0xf << 0x4)
+#define   CNN_RD_ENDIAN_M_SHIT(n)		(((n) & 0xf) >> 0x4)
+#define   CNN_RD_PRIORITY_M(n)		(((n) & 0xf) << 0x0)
+#define   CNN_RD_PRIORITY_M_MASK		(0xf << 0x0)
+#define   CNN_RD_PRIORITY_M_SHIT(n)		(((n) & 0xf) >> 0x0)
 
-/*    X2_CNN_CNNBUS_AXIID    */
-#define   X2_CNN_AXIID(n)			(((n) & 0xf) << 0x0)
-#define   X2_CNN_AXIID_MASK			(0xf << 0x0)
-#define   X2_CNN_AXIID_SHIT(n)			(((n) & 0xf) >> 0x0)
+/*    CNN_CNNBUS_AXIID    */
+#define   CNN_AXIID(n)			(((n) & 0xf) << 0x0)
+#define   CNN_AXIID_MASK			(0xf << 0x0)
+#define   CNN_AXIID_SHIT(n)			(((n) & 0xf) >> 0x0)
 
-/*    X2_CNN_CNNINT_MASK    */
-#define   X2_CNN_PE0_INT_MASK(n)		(((n) & 0x1) << 0x0)
-#define   X2_CNN_PE0_INT_MASK_MASK		(0x1 << 0x0)
-#define   X2_CNN_PE0_INT_MASK_SHIT(n)		(((n) & 0x1) >> 0x0)
+/*    CNN_CNNINT_MASK    */
+#define   CNN_PE0_INT_MASK(n)		(((n) & 0x1) << 0x0)
+#define   CNN_PE0_INT_MASK_MASK		(0x1 << 0x0)
+#define   CNN_PE0_INT_MASK_SHIT(n)		(((n) & 0x1) >> 0x0)
 
-/*    X2_CNN_CNNINT_STATUS    */
-#define   X2_CNN_PE0_INT_STATUS_RO		(0x1 << 0x0)
-#define   X2_CNN_PE0_INT_STATUS_RO_SHIT(n)	(((n) & 0x1) >> 0x0)
+/*    CNN_CNNINT_STATUS    */
+#define   CNN_PE0_INT_STATUS_RO		(0x1 << 0x0)
+#define   CNN_PE0_INT_STATUS_RO_SHIT(n)	(((n) & 0x1) >> 0x0)
 
-/*    X2_CNN_CNNINT_NUM    */
-#define   X2_CNN_INT_NUM_RO			(0xffff << 0x0)
-#define   X2_CNN_INT_NUM_RO_SHIT(n)		(((n) & 0xffff) >> 0x0)
+/*    CNN_CNNINT_NUM    */
+#define   CNN_INT_NUM_RO			(0xffff << 0x0)
+#define   CNN_INT_NUM_RO_SHIT(n)		(((n) & 0xffff) >> 0x0)
 
-/*    X2_CNN_CNNINT_ERR_NUM    */
-#define   X2_CNN_INT_ERR_NUM_RO			(0xffff << 0x0)
-#define   X2_CNN_INT_ERR_NUM_RO_SHIT(n)		(((n) & 0xffff) >> 0x0)
+/*    CNN_CNNINT_ERR_NUM    */
+#define   CNN_INT_ERR_NUM_RO			(0xffff << 0x0)
+#define   CNN_INT_ERR_NUM_RO_SHIT(n)		(((n) & 0xffff) >> 0x0)
 
-/*    X2_CNN_CNNINT_FC_BASE    */
-#define   X2_CNN_PE0_FC_BASE(n)			(((n) & 0xffffffff) << 0x0)
-#define   X2_CNN_PE0_FC_BASE_MASK		(0xffffffff << 0x0)
-#define   X2_CNN_PE0_FC_BASE_SHIT(n)		(((n) & 0xffffffff) >> 0x0)
+/*    CNN_CNNINT_FC_BASE    */
+#define   CNN_PE0_FC_BASE(n)			(((n) & 0xffffffff) << 0x0)
+#define   CNN_PE0_FC_BASE_MASK		(0xffffffff << 0x0)
+#define   CNN_PE0_FC_BASE_SHIT(n)		(((n) & 0xffffffff) >> 0x0)
 
-/*    X2_CNN_CNNINT_FC_HEAD    */
-#define   X2_CNN_PE0_FC_HEAD_RO			(0x7ff << 0x0)
-#define   X2_CNN_PE0_FC_HEAD_RO_SHIT(n)		(((n) & 0x7ff) >> 0x0)
+/*    CNN_CNNINT_FC_HEAD    */
+#define   CNN_PE0_FC_HEAD_RO			(0x7ff << 0x0)
+#define   CNN_PE0_FC_HEAD_RO_SHIT(n)		(((n) & 0x7ff) >> 0x0)
 
-/*    X2_CNN_CNNINT_FC_TAIL    */
-#define   X2_CNN_PE0_FC_TAIL(n)			(((n) & 0x7ff) << 0x0)
-#define   X2_CNN_PE0_FC_TAIL_MASK		(0x7ff << 0x0)
-#define   X2_CNN_PE0_FC_TAIL_SHIT(n)		(((n) & 0x7ff) >> 0x0)
+/*    CNN_CNNINT_FC_TAIL    */
+#define   CNN_PE0_FC_TAIL(n)			(((n) & 0x7ff) << 0x0)
+#define   CNN_PE0_FC_TAIL_MASK		(0x7ff << 0x0)
+#define   CNN_PE0_FC_TAIL_SHIT(n)		(((n) & 0x7ff) >> 0x0)
 
-/*    X2_CNN_CNNINT_FC_LEN    */
-#define   X2_CNN_PE0_FC_LENGTH(n)		(((n) & 0x3ff) << 0x0)
-#define   X2_CNN_PE0_FC_LENGTH_MASK		(0x3ff << 0x0)
-#define   X2_CNN_PE0_FC_LENGTH_SHIT(n)		(((n) & 0x3ff) >> 0x0)
+/*    CNN_CNNINT_FC_LEN    */
+#define   CNN_PE0_FC_LENGTH(n)		(((n) & 0x3ff) << 0x0)
+#define   CNN_PE0_FC_LENGTH_MASK		(0x3ff << 0x0)
+#define   CNN_PE0_FC_LENGTH_SHIT(n)		(((n) & 0x3ff) >> 0x0)
 
-/*    X2_CNN_CNNINT_INST_NUM	*/
-#define   X2_CNN_INST_NUMBER_RO			(0xffffffff << 0x0)
-#define   X2_CNN_INST_NUMBER_RO_SHIT(n)		(((n) & 0xffffffff) >> 0x0)
+/*    CNN_CNNINT_INST_NUM	*/
+#define   CNN_INST_NUMBER_RO			(0xffffffff << 0x0)
+#define   CNN_INST_NUMBER_RO_SHIT(n)		(((n) & 0xffffffff) >> 0x0)
 
-#define X2_CNN_MAX_FC_LEN_MASK	0x3ff
-#define X2_CNN_FC_IDX_FLAG	0x400
-#define X2_CNN_FC_SIZE		0x40
+#define CNN_MAX_FC_LEN_MASK	0x3ff
+#define CNN_FC_IDX_FLAG	0x400
+#define CNN_FC_SIZE		0x40
 
 // Default minor number for the device
 #define MINOR_NUMBER		    0
@@ -115,7 +115,7 @@
 #define CNN_FC_GAP_LEN 0x1000
 #define CNN_FC_SPACE_LEN (0x400 * 0x40)
 
-struct x2_fc_time {
+struct hobot_fc_time {
 	unsigned int fc_count;
 	unsigned int int_num;
 	int time_flag;
@@ -123,20 +123,20 @@ struct x2_fc_time {
 	struct timeval end_time;
 };
 
-struct x2_cnn_int_num {
+struct hobot_bpu_int_num {
 	u32 cnn_int_num[CNN_INT_NUM];
 	u64 cnn_int_interval[CNN_INT_NUM];
 	u32 cnn_int_count;
 };
 
 struct cnn_user_info {
-	struct x2_cnn_dev *cnn_dev;
+	struct hobot_bpu_dev *cnn_dev;
 	wait_queue_head_t cnn_int_wait;
 	int irq_triggered;
-	struct x2_cnn_int_num cnn_int_num;
+	struct hobot_bpu_int_num cnn_int_num;
 };
 
-struct x2_int_info {
+struct bpu_int_info {
 	struct cnn_user_info **p_user_info;
 	unsigned int fc_total;
 	unsigned int int_num;
@@ -146,7 +146,7 @@ struct x2_int_info {
 };
 
 #ifdef CONFIG_HOBOT_CNN_DEVFREQ
-struct x2_cnnfreq {
+struct hobot_bpufreq {
 	struct devfreq *devfreq;
 	struct mutex lock;
 
@@ -157,7 +157,7 @@ struct x2_cnnfreq {
 };
 #endif
 
-struct x2_cnn_dev {
+struct hobot_bpu_dev {
 	void __iomem	*cnn_base;
 	u32		irq;
 	void *fc_base;
@@ -194,7 +194,7 @@ struct x2_cnn_dev {
 	struct dentry *debugfs_root;
 	struct list_head debugfs_list;
 	struct mutex debugfs_lock; /* Protects debugfs_list. */
-	struct x2_fc_time *fc_time;
+	struct hobot_fc_time *fc_time;
 	unsigned int time_head;
 	unsigned int time_tail;
 	struct kfifo int_info_fifo;
@@ -210,7 +210,7 @@ struct x2_cnn_dev {
 	unsigned int real_int_cnt;
 	unsigned int wait_nega_flag;
 #ifdef CONFIG_HOBOT_CNN_DEVFREQ
-	struct x2_cnnfreq *cnnfreq;
+	struct hobot_bpufreq *cnnfreq;
 #endif
 	struct timer_list cnn_timer;
 	unsigned int head_value;
@@ -228,28 +228,28 @@ struct cnn_debugfs_info {
 
 struct cnn_info_node {
 	struct list_head list;
-	struct x2_cnn_dev *cnn_dev;
+	struct hobot_bpu_dev *cnn_dev;
 	const struct cnn_debugfs_info *info_ent;
 	struct dentry *dent;
 };
 
-struct x2_cnn_allocation {
+struct hobot_bpu_allocation {
 	size_t size;		    // Size of the buffer
 	void *user_addr;	    // User virtual address of the buffer
 	void *kern_addr;	    // Kernel virtual address of the buffer
 	dma_addr_t dma_addr;	    // DMA bus address of the buffer
 };
 
-struct	x2_cnn_fc_info {
+struct	hobot_bpu_fc_info {
 	void *fc_info;
 	int fc_cnt;
 };
 
-struct x2_cnn_fc_status {
+struct hobot_bpu_fc_status {
 	u32 free_fc_fifo_cnt;
 };
 
-struct x2_cnn_rst_data {
+struct hobot_bpu_rst_data {
 	u32 cnn_rst_id;
 };
 
@@ -288,10 +288,10 @@ struct hbrt_x2_funccall_s {
 };
 
 union cnn_ioctl_arg {
-	struct x2_cnn_fc_info fc_data;
-	struct x2_cnn_fc_status fc_status;
-	struct x2_cnn_rst_data rst_data;
-	struct x2_cnn_int_num int_num_data;
+	struct hobot_bpu_fc_info fc_data;
+	struct hobot_bpu_fc_status fc_status;
+	struct hobot_bpu_rst_data rst_data;
+	struct hobot_bpu_int_num int_num_data;
 	int pid_fc_mask;
 	uint64_t core_run_time;
 };
@@ -304,13 +304,13 @@ union cnn_ioctl_arg {
 #define CNN_IOCTL_MAGIC 'C'
 #define CNN_NUM_IOCTLS	6
 #define CNN_IOC_GET_FC_STA	(_IOR(CNN_IOCTL_MAGIC, \
-					0, struct x2_cnn_fc_status))
+					0, struct hobot_bpu_fc_status))
 #define CNN_IOC_FC_ENQUEUE	(_IOW(CNN_IOCTL_MAGIC, \
-					1, struct x2_cnn_fc_info))
+					1, struct hobot_bpu_fc_info))
 #define CNN_IOC_RST		(_IOW(CNN_IOCTL_MAGIC, \
-					2, struct x2_cnn_rst_data))
+					2, struct hobot_bpu_rst_data))
 #define CNN_IOC_GET_INT_NUM	(_IOR(CNN_IOCTL_MAGIC, \
-					3, struct x2_cnn_int_num))
+					3, struct hobot_bpu_int_num))
 #define CNN_IOC_GET_ID_MASK	(_IOR(CNN_IOCTL_MAGIC, 4, int))
 #define CNN_IOC_GET_CORE_RUNTIME	(_IOR(CNN_IOCTL_MAGIC, 5, uint64_t))
 #endif	/* __HOBOT_CNN_H__ */

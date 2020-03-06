@@ -65,14 +65,14 @@
 #define HW_ID_MAX				0xFFF
 
 #ifdef CHECK_IRQ_LOST
-static void x2_check_cnn(unsigned long arg);
+static void hobot_check_cnn(unsigned long arg);
 #endif
 
 #define FC_TIME_CNT 53
-static DEFINE_MUTEX(x2_cnn_mutex);
+static DEFINE_MUTEX(hobot_bpu_mutex);
 static char *g_chrdev_name = "cnn";
-static struct x2_cnn_dev *cnn0_dev;
-static struct x2_cnn_dev *cnn1_dev;
+static struct hobot_bpu_dev *cnn0_dev;
+static struct hobot_bpu_dev *cnn1_dev;
 static int profiler_frequency;
 static int profiler_n_seconds = 1;
 static int profiler_enable;
@@ -103,14 +103,14 @@ static bool recovery = 0;
 module_param(recovery, bool, S_IRUSR);
 static int maintain_pre_time;
 static uint64_t max_check_interval;
-static int x2_cnn_maintain_thread(void *data);
+static int hobot_bpu_maintain_thread(void *data);
 
-static inline u32 x2_cnn_reg_read(struct x2_cnn_dev *dev, u32 off)
+static inline u32 hobot_bpu_reg_read(struct hobot_bpu_dev *dev, u32 off)
 {
 	return readl(dev->cnn_base + off);
 }
 
-static inline void x2_cnn_reg_write(struct x2_cnn_dev *dev,
+static inline void hobot_bpu_reg_write(struct hobot_bpu_dev *dev,
 	u32 off, u32 val)
 {
 	writel(val, dev->cnn_base + off);
@@ -119,21 +119,21 @@ static inline void x2_cnn_reg_write(struct x2_cnn_dev *dev,
 int fc_fifo_stat_info(struct seq_file *m, void *data)
 {
 	struct cnn_info_node *node = (struct cnn_info_node *)m->private;
-	struct x2_cnn_dev *dev = node->cnn_dev;
+	struct hobot_bpu_dev *dev = node->cnn_dev;
 	u32 fc_head_idx, fc_tail_idx,
 	    fc_head_flag, fc_tail_flag,
 	    fc_depth, inst_num;
 
-	fc_head_idx = x2_cnn_reg_read(dev, X2_CNN_FC_HEAD);
-	fc_head_flag = fc_head_idx & X2_CNN_FC_IDX_FLAG;
-	fc_head_idx &= X2_CNN_MAX_FC_LEN_MASK;
+	fc_head_idx = hobot_bpu_reg_read(dev, CNN_FC_HEAD);
+	fc_head_flag = fc_head_idx & CNN_FC_IDX_FLAG;
+	fc_head_idx &= CNN_MAX_FC_LEN_MASK;
 
-	fc_tail_idx = x2_cnn_reg_read(dev, X2_CNN_FC_TAIL);
-	fc_tail_flag = fc_tail_idx & X2_CNN_FC_IDX_FLAG;
-	fc_tail_idx &= X2_CNN_MAX_FC_LEN_MASK;
+	fc_tail_idx = hobot_bpu_reg_read(dev, CNN_FC_TAIL);
+	fc_tail_flag = fc_tail_idx & CNN_FC_IDX_FLAG;
+	fc_tail_idx &= CNN_MAX_FC_LEN_MASK;
 
-	fc_depth = x2_cnn_reg_read(dev, X2_CNN_FC_LEN);
-	inst_num = x2_cnn_reg_read(dev, X2_CNNINT_INST_NUM);
+	fc_depth = hobot_bpu_reg_read(dev, CNN_FC_LEN);
+	inst_num = hobot_bpu_reg_read(dev, CNNINT_INST_NUM);
 	seq_printf(m, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t\n",
 			"fc_len",
 			"fc_head",
@@ -158,7 +158,7 @@ int fc_dump_info(struct seq_file *m, void *data)
 {
 	int i;
 	struct cnn_info_node *node = (struct cnn_info_node *)m->private;
-	struct x2_cnn_dev *dev = node->cnn_dev;
+	struct hobot_bpu_dev *dev = node->cnn_dev;
 	unsigned char *fc_buf = kmalloc(CNN_FC_SPACE_LEN, GFP_KERNEL);
 
 	memset(fc_buf, 0, CNN_FC_SPACE_LEN);
@@ -197,11 +197,11 @@ static const struct file_operations cnn_debugfs_fops = {
 };
 
 /*
- * x2_cnn_fc_gap_mem_init - init memory pattern for
+ * hobot_bpu_fc_gap_mem_init - init memory pattern for
  * function call gap(only for debug)
  *
  */
-void x2_cnn_fc_gap_mem_init(struct x2_cnn_dev *dev)
+void hobot_bpu_fc_gap_mem_init(struct hobot_bpu_dev *dev)
 {
 	int mem_pattern = 0x5a;
 	void *cnn_fc_start_gap_virt, *cnn_fc_end_gap_virt;
@@ -217,12 +217,12 @@ void x2_cnn_fc_gap_mem_init(struct x2_cnn_dev *dev)
 
 
 /**
- * x2_cnn_reset_assert - asserts reset using reset framework
+ * hobot_bpu_reset_assert - asserts reset using reset framework
  * @rstc: pointer to reset_control
  *
  * Return: 0 on success or error on failure
  */
-static int x2_cnn_reset_assert(struct reset_control *rstc)
+static int hobot_bpu_reset_assert(struct reset_control *rstc)
 {
 	int rc = 0;
 
@@ -236,12 +236,12 @@ static int x2_cnn_reset_assert(struct reset_control *rstc)
 }
 
 /**
- * x2_cnn_reset_release - de-asserts reset using reset framework
+ * hobot_bpu_reset_release - de-asserts reset using reset framework
  * @rstc: pointer to reset_control
  *
  * Return: 0 on success or error on failure
  */
-static int x2_cnn_reset_release(struct reset_control *rstc)
+static int hobot_bpu_reset_release(struct reset_control *rstc)
 {
 	int rc = 0;
 
@@ -254,98 +254,98 @@ static int x2_cnn_reset_release(struct reset_control *rstc)
 	return rc;
 }
 
-static void x2_cnnbus_wm_set(struct x2_cnn_dev *dev, u32 reg_off,
+static void hobot_bpubus_wm_set(struct hobot_bpu_dev *dev, u32 reg_off,
 	u32 wd_maxlen, u32 wd_endian, u32 wd_priority)
 {
 	u32 reg_val;
 
-	reg_val = x2_cnn_reg_read(dev, reg_off);
-	reg_val &= ~(X2_CNN_WD_MAXLEN_M_MASK |
-		X2_CNN_WD_ENDIAN_M_MASK |
-		X2_CNN_WD_PRIORITY_M_MASK);
+	reg_val = hobot_bpu_reg_read(dev, reg_off);
+	reg_val &= ~(CNN_WD_MAXLEN_M_MASK |
+		CNN_WD_ENDIAN_M_MASK |
+		CNN_WD_PRIORITY_M_MASK);
 
-	reg_val |= X2_CNN_WD_MAXLEN_M(wd_maxlen) |
-		X2_CNN_WD_ENDIAN_M(wd_endian) |
-		X2_CNN_WD_PRIORITY_M(wd_priority);
+	reg_val |= CNN_WD_MAXLEN_M(wd_maxlen) |
+		CNN_WD_ENDIAN_M(wd_endian) |
+		CNN_WD_PRIORITY_M(wd_priority);
 
-	x2_cnn_reg_write(dev, reg_off, reg_val);
+	hobot_bpu_reg_write(dev, reg_off, reg_val);
 }
 
-static void x2_cnnbus_rm_set(struct x2_cnn_dev *dev, u32 reg_off,
+static void hobot_bpubus_rm_set(struct hobot_bpu_dev *dev, u32 reg_off,
 	u32 rd_maxlen, u32 rd_endian, u32 rd_priority)
 {
 	u32 reg_val;
 
-	reg_val = x2_cnn_reg_read(dev, reg_off);
-	reg_val &= ~(X2_CNN_RD_MAXLEN_M_MASK |
-		X2_CNN_RD_ENDIAN_M_MASK |
-		X2_CNN_RD_PRIORITY_M_MASK);
+	reg_val = hobot_bpu_reg_read(dev, reg_off);
+	reg_val &= ~(CNN_RD_MAXLEN_M_MASK |
+		CNN_RD_ENDIAN_M_MASK |
+		CNN_RD_PRIORITY_M_MASK);
 
-	reg_val |= X2_CNN_RD_MAXLEN_M(rd_maxlen) |
-		X2_CNN_RD_ENDIAN_M(rd_endian) |
-		X2_CNN_RD_PRIORITY_M(rd_priority);
+	reg_val |= CNN_RD_MAXLEN_M(rd_maxlen) |
+		CNN_RD_ENDIAN_M(rd_endian) |
+		CNN_RD_PRIORITY_M(rd_priority);
 
-	x2_cnn_reg_write(dev, reg_off, reg_val);
+	hobot_bpu_reg_write(dev, reg_off, reg_val);
 }
 
-static void x2_cnn_set_default_fc_depth(struct x2_cnn_dev *dev, int fc_depth)
+static void hobot_bpu_set_default_fc_depth(struct hobot_bpu_dev *dev, int fc_depth)
 {
 	u32 reg_val;
 
 	if (fc_depth >= 1023)
 		fc_depth = 1023;
 
-	reg_val = x2_cnn_reg_read(dev, X2_CNN_FC_LEN);
-	reg_val &=  ~(X2_CNN_PE0_FC_LENGTH_MASK);
+	reg_val = hobot_bpu_reg_read(dev, CNN_FC_LEN);
+	reg_val &=  ~(CNN_PE0_FC_LENGTH_MASK);
 
-	reg_val |= X2_CNN_PE0_FC_LENGTH(fc_depth);
-	x2_cnn_reg_write(dev, X2_CNN_FC_LEN, reg_val);
+	reg_val |= CNN_PE0_FC_LENGTH(fc_depth);
+	hobot_bpu_reg_write(dev, CNN_FC_LEN, reg_val);
 }
 
-static void x2_cnn_set_fc_base(struct x2_cnn_dev *dev)
+static void hobot_bpu_set_fc_base(struct hobot_bpu_dev *dev)
 {
 	u32 reg_val;
 
-	reg_val = x2_cnn_reg_read(dev, X2_CNN_FC_BASE);
-	reg_val &=  ~(X2_CNN_PE0_FC_BASE_MASK);
+	reg_val = hobot_bpu_reg_read(dev, CNN_FC_BASE);
+	reg_val &=  ~(CNN_PE0_FC_BASE_MASK);
 
-	reg_val |= X2_CNN_PE0_FC_BASE(dev->fc_phys_base);
-	x2_cnn_reg_write(dev, X2_CNN_FC_BASE, reg_val);
+	reg_val |= CNN_PE0_FC_BASE(dev->fc_phys_base);
+	hobot_bpu_reg_write(dev, CNN_FC_BASE, reg_val);
 }
 
-static int x2_cnn_hw_init(struct x2_cnn_dev *dev)
+static int hobot_bpu_hw_init(struct hobot_bpu_dev *dev)
 {
 
 	/* Config axi write master */
-	x2_cnnbus_wm_set(dev, X2_CNNBUS_CTRL_WM_0, burst_length, 0xf, 0x1);
-	x2_cnnbus_wm_set(dev, X2_CNNBUS_CTRL_WM_1, 0x80, 0xf, 0x2);
-	x2_cnnbus_wm_set(dev, X2_CNNBUS_CTRL_WM_2, 0x8, 0x0, 0x3);
-	x2_cnnbus_wm_set(dev, X2_CNNBUS_CTRL_WM_3, 0x80, 0x0, 0x4);
+	hobot_bpubus_wm_set(dev, CNNBUS_CTRL_WM_0, burst_length, 0xf, 0x1);
+	hobot_bpubus_wm_set(dev, CNNBUS_CTRL_WM_1, 0x80, 0xf, 0x2);
+	hobot_bpubus_wm_set(dev, CNNBUS_CTRL_WM_2, 0x8, 0x0, 0x3);
+	hobot_bpubus_wm_set(dev, CNNBUS_CTRL_WM_3, 0x80, 0x0, 0x4);
 
 	/* Config axi read master */
-	x2_cnnbus_rm_set(dev, X2_CNNBUS_CTRL_RM_0, 0x80, 0xf, 0x4);
-	x2_cnnbus_rm_set(dev, X2_CNNBUS_CTRL_RM_1, 0x80, 0xf, 0x4);
-	x2_cnnbus_rm_set(dev, X2_CNNBUS_CTRL_RM_2, 0x8, 0xf, 0x4);
-	x2_cnnbus_rm_set(dev, X2_CNNBUS_CTRL_RM_3, 0x80, 0x8, 0x5);
-	x2_cnnbus_rm_set(dev, X2_CNNBUS_CTRL_RM_4, 0x80, 0xf, 0x4);
-	x2_cnnbus_rm_set(dev, X2_CNNBUS_CTRL_RM_5, 0x80, 0x0, 0x6);
+	hobot_bpubus_rm_set(dev, CNNBUS_CTRL_RM_0, 0x80, 0xf, 0x4);
+	hobot_bpubus_rm_set(dev, CNNBUS_CTRL_RM_1, 0x80, 0xf, 0x4);
+	hobot_bpubus_rm_set(dev, CNNBUS_CTRL_RM_2, 0x8, 0xf, 0x4);
+	hobot_bpubus_rm_set(dev, CNNBUS_CTRL_RM_3, 0x80, 0x8, 0x5);
+	hobot_bpubus_rm_set(dev, CNNBUS_CTRL_RM_4, 0x80, 0xf, 0x4);
+	hobot_bpubus_rm_set(dev, CNNBUS_CTRL_RM_5, 0x80, 0x0, 0x6);
 
 	/* Set axibus id */
-	x2_cnn_reg_write(dev, X2_CNNBUS_AXIID, 0x0);
+	hobot_bpu_reg_write(dev, CNNBUS_AXIID, 0x0);
 
 	return 0;
 }
 
 
 /**
- * x2_cnn_get_resets - sw reset cnn controller
+ * hobot_bpu_get_resets - sw reset cnn controller
  * @cnn_dev: pointer cnn dev struct
  * @cnn_id:  cnn id (0/1)
  *
  * Return: 0 on success or error on failure
  */
 
-static int x2_cnn_get_resets(struct x2_cnn_dev *cnn_dev)
+static int hobot_bpu_get_resets(struct hobot_bpu_dev *cnn_dev)
 {
 	char *name;
 	struct reset_control *rst_temp;
@@ -387,25 +387,25 @@ static void report_bpu_diagnose_msg(u32 err, int core_index)
 							bpu_event, DiagEventStaSuccess);
 }
 /**
- * x2_cnn_hw_reset_reinit - sw reset cnn controller
+ * hobot_bpu_hw_reset_reinit - sw reset cnn controller
  * @cnn_dev: pointer cnn dev struct
  * @cnn_id:  cnn id (0/1)
  *
  * Return: 0 on success or error on failure
  */
-static int x2_cnn_hw_reset_reinit(struct x2_cnn_dev *cnn_dev, int cnn_id)
+static int hobot_bpu_hw_reset_reinit(struct hobot_bpu_dev *cnn_dev, int cnn_id)
 {
 	int ret = 0;
-	x2_cnn_reset_assert(cnn_dev->cnn_rst);
+	hobot_bpu_reset_assert(cnn_dev->cnn_rst);
 	udelay(1);
-	x2_cnn_reset_release(cnn_dev->cnn_rst);
+	hobot_bpu_reset_release(cnn_dev->cnn_rst);
 
-	x2_cnn_hw_init(cnn_dev);
-	x2_cnn_set_fc_base(cnn_dev);
-	x2_cnn_set_default_fc_depth(cnn_dev, 1023);
+	hobot_bpu_hw_init(cnn_dev);
+	hobot_bpu_set_fc_base(cnn_dev);
+	hobot_bpu_set_default_fc_depth(cnn_dev, 1023);
 	return ret;
 }
-static void lock_bpu(struct x2_cnn_dev *dev)
+static void lock_bpu(struct hobot_bpu_dev *dev)
 {
 	mutex_lock(&dev->cnn_lock);
 	while (dev->zero_int_cnt > 0) {
@@ -427,32 +427,32 @@ static void lock_bpu(struct x2_cnn_dev *dev)
 	}
 }
 
-static void unlock_bpu(struct x2_cnn_dev *dev)
+static void unlock_bpu(struct hobot_bpu_dev *dev)
 {
 
 	atomic_set(&dev->hw_flg, MOD_FRQ_DONE);
 	mutex_unlock(&dev->cnn_lock);
 }
 
-static irqreturn_t x2_cnn_interrupt_handler(int irq, void *dev_id)
+static irqreturn_t hobot_bpu_interrupt_handler(int irq, void *dev_id)
 {
 	int ret;
-	struct x2_cnn_dev *dev = (struct x2_cnn_dev *)dev_id;
+	struct hobot_bpu_dev *dev = (struct hobot_bpu_dev *)dev_id;
 	unsigned long flags;
 	u32 irq_status;
 	u32 tmp_irq;
 	u32 irq_err;
-	struct x2_int_info tmp;
+	struct bpu_int_info tmp;
 	struct cnn_user_info **p_user_info;
 	int lost_report = 0;
 
 	spin_lock_irqsave(&dev->cnn_spin_lock, flags);
 
-	irq_status = x2_cnn_reg_read(dev, X2_CNNINT_STATUS);
-	x2_cnn_reg_write(dev, X2_CNNINT_MASK, 0x1);
-	tmp_irq = x2_cnn_reg_read(dev, X2_CNNINT_NUM);
+	irq_status = hobot_bpu_reg_read(dev, CNNINT_STATUS);
+	hobot_bpu_reg_write(dev, CNNINT_MASK, 0x1);
+	tmp_irq = hobot_bpu_reg_read(dev, CNNINT_NUM);
 
-	x2_cnn_reg_write(dev, X2_CNNINT_MASK, 0x0);
+	hobot_bpu_reg_write(dev, CNNINT_MASK, 0x0);
 	irq_err = tmp_irq & 0xf000;
 	report_bpu_diagnose_msg(irq_err, dev->core_index);
 	spin_unlock_irqrestore(&dev->cnn_spin_lock, flags);
@@ -462,7 +462,7 @@ static irqreturn_t x2_cnn_interrupt_handler(int irq, void *dev_id)
 	do {
 		lost_report = 0;
 		if (tmp_irq & 0xf000) {
-			ret = kfifo_out_peek(&dev->int_info_fifo, &tmp, sizeof(struct x2_int_info));
+			ret = kfifo_out_peek(&dev->int_info_fifo, &tmp, sizeof(struct bpu_int_info));
 			if (ret) {
 				spin_lock_irqsave(&dev->cnn_spin_lock, flags);
 				p_user_info = tmp.p_user_info;
@@ -482,7 +482,7 @@ static irqreturn_t x2_cnn_interrupt_handler(int irq, void *dev_id)
 		}
 
 		ret = kfifo_out_spinlocked(&dev->int_info_fifo, &tmp,
-						sizeof(struct x2_int_info),
+						sizeof(struct bpu_int_info),
 						&dev->kfifo_lock);
 
 		if (!ret) {
@@ -542,42 +542,42 @@ static irqreturn_t x2_cnn_interrupt_handler(int irq, void *dev_id)
 
 	} while (lost_report);
 
-	pr_debug("!!!!!!xxxx x2 cnn interrupt\n");
+	pr_debug("hobot bpu interrupt\n");
 	tasklet_schedule(&dev->tasklet);
 	return IRQ_HANDLED;
 }
 
-static ssize_t x2_cnn_read(struct file *filp, char __user *userbuf,
+static ssize_t hobot_bpu_read(struct file *filp, char __user *userbuf,
 	size_t count, loff_t *f_pos)
 {
 	return 0;
 }
 
-static ssize_t x2_cnn_write(struct file *filp,
+static ssize_t hobot_bpu_write(struct file *filp,
 	const char __user *userbuf, size_t count, loff_t *f_pos)
 {
 	return 0;
 }
 
-static void x2_cnn_set_fc_tail_idx(struct x2_cnn_dev *dev, u32 fc_tail_idx)
+static void hobot_bpu_set_fc_tail_idx(struct hobot_bpu_dev *dev, u32 fc_tail_idx)
 {
 	u32 reg_val;
 
-	reg_val = x2_cnn_reg_read(dev, X2_CNN_FC_TAIL);
-	reg_val &=  ~(X2_CNN_PE0_FC_TAIL_MASK);
+	reg_val = hobot_bpu_reg_read(dev, CNN_FC_TAIL);
+	reg_val &=  ~(CNN_PE0_FC_TAIL_MASK);
 
-	reg_val |= X2_CNN_PE0_FC_TAIL(fc_tail_idx);
-	x2_cnn_reg_write(dev, X2_CNN_FC_TAIL, reg_val);
+	reg_val |= CNN_PE0_FC_TAIL(fc_tail_idx);
+	hobot_bpu_reg_write(dev, CNN_FC_TAIL, reg_val);
 }
 
-static void x2_cnn_set_fc_start_time(struct x2_cnn_dev *dev,
+static void hobot_bpu_set_fc_start_time(struct hobot_bpu_dev *dev,
 					int int_num, int hw_id,
 				    int count, struct cnn_user_info **p_user_info)
 {
 	int ret;
-	struct x2_int_info x2_int;
+	struct bpu_int_info bpu_int;
 
-	count &= X2_CNN_MAX_FC_LEN_MASK;
+	count &= CNN_MAX_FC_LEN_MASK;
 	if (fc_time_enable) {
 		dev->fc_time[dev->time_tail].fc_count = count;
 		dev->fc_time[dev->time_tail].int_num = int_num;
@@ -596,20 +596,20 @@ static void x2_cnn_set_fc_start_time(struct x2_cnn_dev *dev,
 			}
 			if ((dev->zero_int_start_time.tv_sec == 0)
 					&& (dev->zero_int_start_time.tv_usec == 0)) {
-				do_gettimeofday(&x2_int.start_time);
+				do_gettimeofday(&bpu_int.start_time);
 			} else {
-				x2_int.start_time = dev->zero_int_start_time;
+				bpu_int.start_time = dev->zero_int_start_time;
 				dev->zero_int_start_time.tv_sec = 0;
 				dev->zero_int_start_time.tv_usec = 0;
 			}
-			x2_int.fc_total = dev->zero_int_cnt + 1;
-			x2_int.int_num = int_num;
-			x2_int.hw_id = hw_id;
-			x2_int.p_user_info = p_user_info;
-			ret = kfifo_in(&dev->int_info_fifo, &x2_int,
-				       sizeof(struct x2_int_info));
-			if (ret < sizeof(struct x2_int_info))
-				pr_err("%s[%d]:x2 interrupt info fifo no space\n",
+			bpu_int.fc_total = dev->zero_int_cnt + 1;
+			bpu_int.int_num = int_num;
+			bpu_int.hw_id = hw_id;
+			bpu_int.p_user_info = p_user_info;
+			ret = kfifo_in(&dev->int_info_fifo, &bpu_int,
+				       sizeof(struct bpu_int_info));
+			if (ret < sizeof(struct bpu_int_info))
+				pr_err("%s[%d]:hobot bpu interrupt info fifo no space\n",
 					__func__, __LINE__);
 			dev->zero_int_cnt = 0;
 			if (dev->wait_nega_flag) {
@@ -637,25 +637,25 @@ static void x2_cnn_set_fc_start_time(struct x2_cnn_dev *dev,
 			}
 			if ((dev->zero_int_start_time.tv_sec == 0)
 					&& (dev->zero_int_start_time.tv_usec == 0)) {
-				do_gettimeofday(&x2_int.start_time);
+				do_gettimeofday(&bpu_int.start_time);
 			} else {
-				x2_int.start_time = dev->zero_int_start_time;
+				bpu_int.start_time = dev->zero_int_start_time;
 				dev->zero_int_start_time.tv_sec = 0;
 				dev->zero_int_start_time.tv_usec = 0;
 			}
-			x2_int.fc_total = dev->zero_int_cnt + 1;
-			x2_int.int_num = int_num;
-			x2_int.hw_id = hw_id;
+			bpu_int.fc_total = dev->zero_int_cnt + 1;
+			bpu_int.int_num = int_num;
+			bpu_int.hw_id = hw_id;
 			dev->zero_int_cnt = 0;
 			if (dev->wait_nega_flag) {
 				complete(&dev->nega_completion);
 				dev->wait_nega_flag = 0;
 			}
-			x2_int.p_user_info = p_user_info;
-			ret = kfifo_in(&dev->int_info_fifo, &x2_int,
-					sizeof(struct x2_int_info));
-			if (ret < sizeof(struct x2_int_info))
-				pr_err("%s[%d]:x2 interrupt info fifo no space\n",
+			bpu_int.p_user_info = p_user_info;
+			ret = kfifo_in(&dev->int_info_fifo, &bpu_int,
+					sizeof(struct bpu_int_info));
+			if (ret < sizeof(struct bpu_int_info))
+				pr_err("%s[%d]:hobot bpu interrupt info fifo no space\n",
 					__func__, __LINE__);
 
 		} else {
@@ -669,21 +669,21 @@ static void x2_cnn_set_fc_start_time(struct x2_cnn_dev *dev,
 }
 
 #ifdef CNN_DEBUG
-static void dump_fc_fifo_status(struct x2_cnn_dev *dev)
+static void dump_fc_fifo_status(struct hobot_bpu_dev *dev)
 {
 	u32 fc_head_idx, fc_tail_idx,
 	    fc_head_flag, fc_tail_flag,
 	    fc_depth;
 
-	fc_head_idx = x2_cnn_reg_read(dev, X2_CNN_FC_HEAD);
-	fc_head_flag = fc_head_idx & X2_CNN_FC_IDX_FLAG;
-	fc_head_idx &= X2_CNN_MAX_FC_LEN_MASK;
+	fc_head_idx = hobot_bpu_reg_read(dev, CNN_FC_HEAD);
+	fc_head_flag = fc_head_idx & CNN_FC_IDX_FLAG;
+	fc_head_idx &= CNN_MAX_FC_LEN_MASK;
 
-	fc_tail_idx = x2_cnn_reg_read(dev, X2_CNN_FC_TAIL);
-	fc_tail_flag = fc_tail_idx & X2_CNN_FC_IDX_FLAG;
-	fc_tail_idx &= X2_CNN_MAX_FC_LEN_MASK;
+	fc_tail_idx = hobot_bpu_reg_read(dev, CNN_FC_TAIL);
+	fc_tail_flag = fc_tail_idx & CNN_FC_IDX_FLAG;
+	fc_tail_idx &= CNN_MAX_FC_LEN_MASK;
 
-	fc_depth = x2_cnn_reg_read(dev, X2_CNN_FC_LEN);
+	fc_depth = hobot_bpu_reg_read(dev, CNN_FC_LEN);
 
 	pr_info("X2-CNN function call fifo status:\n");
 	pr_info("current function call length:%d\n", fc_depth);
@@ -694,31 +694,31 @@ static void dump_fc_fifo_status(struct x2_cnn_dev *dev)
 #endif
 
 /**
- * x2_cnn_get_fc_fifo_spaces - get available spaces from cnn fc fifo queue
- * @dev: pointer to struct x2_cnn_dev
+ * hobot_bpu_get_fc_fifo_spaces - get available spaces from cnn fc fifo queue
+ * @dev: pointer to struct hobot_bpu_dev
  *
  * Return: free_fc_fifo = 0 indicate no spaces
  *	   free_fc_fifo > 0 indicate have free_fc_fifo spaces can used
  *	   others failed
  */
 
-static u32 x2_cnn_get_fc_fifo_spaces(struct x2_cnn_dev *dev)
+static u32 hobot_bpu_get_fc_fifo_spaces(struct hobot_bpu_dev *dev)
 {
 	u32 free_fc_fifo = 0;
 	u32 fc_head_idx, fc_tail_idx,
 	    fc_head_flag, fc_tail_flag;
 	u32 fc_depth;
 
-	fc_depth = x2_cnn_reg_read(dev, X2_CNN_FC_LEN);
+	fc_depth = hobot_bpu_reg_read(dev, CNN_FC_LEN);
 
-	fc_head_idx = x2_cnn_reg_read(dev, X2_CNN_FC_HEAD);
-	fc_head_flag = fc_head_idx & X2_CNN_FC_IDX_FLAG;
+	fc_head_idx = hobot_bpu_reg_read(dev, CNN_FC_HEAD);
+	fc_head_flag = fc_head_idx & CNN_FC_IDX_FLAG;
 
-	fc_tail_idx = x2_cnn_reg_read(dev, X2_CNN_FC_TAIL);
-	fc_tail_flag = fc_tail_idx & X2_CNN_FC_IDX_FLAG;
+	fc_tail_idx = hobot_bpu_reg_read(dev, CNN_FC_TAIL);
+	fc_tail_flag = fc_tail_idx & CNN_FC_IDX_FLAG;
 
-	fc_head_idx &= X2_CNN_MAX_FC_LEN_MASK;
-	fc_tail_idx &= X2_CNN_MAX_FC_LEN_MASK;
+	fc_head_idx &= CNN_MAX_FC_LEN_MASK;
+	fc_tail_idx &= CNN_MAX_FC_LEN_MASK;
 
 	if (fc_head_flag != fc_tail_flag)
 		free_fc_fifo = fc_head_idx - fc_tail_idx;
@@ -730,10 +730,10 @@ static u32 x2_cnn_get_fc_fifo_spaces(struct x2_cnn_dev *dev)
 	return free_fc_fifo;
 }
 /**
- * x2_cnn_clock_up - start cnn
- * @dev: pointer to struct x2_cnn_dev
+ * hobot_bpu_clock_up - start cnn
+ * @dev: pointer to struct hobot_bpu_dev
  */
-static void x2_cnn_clock_up(struct x2_cnn_dev *dev)
+static void hobot_bpu_clock_up(struct hobot_bpu_dev *dev)
 {
 	unsigned int tmp;
 
@@ -753,22 +753,22 @@ static void x2_cnn_clock_up(struct x2_cnn_dev *dev)
 	writel(tmp, dev->cnn_pmu);
 	udelay(5);
 
-	x2_cnn_reset_release(dev->cnn_rst);
+	hobot_bpu_reset_release(dev->cnn_rst);
 	if (!__clk_is_enabled(dev->cnn_aclk))
 		clk_enable(dev->cnn_aclk);
 	if (!__clk_is_enabled(dev->cnn_mclk))
 		clk_enable(dev->cnn_mclk);
-	x2_cnn_hw_init(dev);
-	x2_cnn_set_fc_base(dev);
-	x2_cnn_set_default_fc_depth(dev, 1023);
+	hobot_bpu_hw_init(dev);
+	hobot_bpu_set_fc_base(dev);
+	hobot_bpu_set_default_fc_depth(dev, 1023);
 	dev->disable_bpu &= ~BPU_CLOCK_DIS;
 	unlock_bpu(dev);
 }
 /**
- * x2_cnn_clock_down - stop cnn
- * @dev: pointer to struct x2_cnn_dev
+ * hobot_bpu_clock_down - stop cnn
+ * @dev: pointer to struct hobot_bpu_dev
  */
-static void x2_cnn_clock_down(struct x2_cnn_dev *dev)
+static void hobot_bpu_clock_down(struct hobot_bpu_dev *dev)
 {
 	unsigned int tmp;
 
@@ -793,16 +793,16 @@ static void x2_cnn_clock_down(struct x2_cnn_dev *dev)
 	writel(tmp, dev->cnn_pmu);
 	udelay(5);
 
-	x2_cnn_reset_assert(dev->cnn_rst);
+	hobot_bpu_reset_assert(dev->cnn_rst);
 	dev->disable_bpu |= BPU_CLOCK_DIS;
 	unlock_bpu(dev);
 }
 
 /**
- * x2_cnn_power_up - start cnn
- * @dev: pointer to struct x2_cnn_dev
+ * hobot_bpu_power_up - start cnn
+ * @dev: pointer to struct hobot_bpu_dev
  */
-static void x2_cnn_power_up(struct x2_cnn_dev *dev)
+static void hobot_bpu_power_up(struct hobot_bpu_dev *dev)
 {
 	int ret;
 	unsigned int tmp;
@@ -825,22 +825,22 @@ static void x2_cnn_power_up(struct x2_cnn_dev *dev)
 	writel(tmp, dev->cnn_pmu);
 	udelay(5);
 
-	x2_cnn_reset_release(dev->cnn_rst);
+	hobot_bpu_reset_release(dev->cnn_rst);
 	if (!__clk_is_enabled(dev->cnn_aclk))
 		clk_enable(dev->cnn_aclk);
 	if (!__clk_is_enabled(dev->cnn_mclk))
 		clk_enable(dev->cnn_mclk);
-	x2_cnn_hw_init(dev);
-	x2_cnn_set_fc_base(dev);
-	x2_cnn_set_default_fc_depth(dev, 1023);
+	hobot_bpu_hw_init(dev);
+	hobot_bpu_set_fc_base(dev);
+	hobot_bpu_set_default_fc_depth(dev, 1023);
 	dev->disable_bpu &= ~BPU_CLOCK_DIS;
 	unlock_bpu(dev);
 }
 /**
- * x2_cnn_power_down - stop cnn
- * @dev: pointer to struct x2_cnn_dev
+ * hobot_bpu_power_down - stop cnn
+ * @dev: pointer to struct hobot_bpu_dev
  */
-static void x2_cnn_power_down(struct x2_cnn_dev *dev)
+static void hobot_bpu_power_down(struct hobot_bpu_dev *dev)
 {
 	unsigned int tmp;
 
@@ -861,14 +861,14 @@ static void x2_cnn_power_down(struct x2_cnn_dev *dev)
 	writel(tmp, dev->cnn_pmu);
 	udelay(5);
 
-	x2_cnn_reset_assert(dev->cnn_rst);
+	hobot_bpu_reset_assert(dev->cnn_rst);
 	if (regulator_is_enabled(dev->cnn_regulator))
 		regulator_disable(dev->cnn_regulator);
 	dev->disable_bpu |= BPU_CLOCK_DIS;
 	unlock_bpu(dev);
 }
 
-static int x2_cnn_replace_hw_id(struct x2_cnn_dev *dev, void *data)
+static int hobot_bpu_replace_hw_id(struct hobot_bpu_dev *dev, void *data)
 {
 	struct hbrt_x2_funccall_s *fc = data;
 	int tmp_id;
@@ -890,14 +890,14 @@ static int x2_cnn_replace_hw_id(struct x2_cnn_dev *dev, void *data)
 	return tmp_id;
 }
 /**
- * x2_cnn_fc_fifo_enqueue - fill the function call into the reserved memory
- * @dev: pointer to struct x2_cnn_dev
+ * hobot_bpu_fc_fifo_enqueue - fill the function call into the reserved memory
+ * @dev: pointer to struct hobot_bpu_dev
  * fc_buf: function call buf struct
  *
  * Return: 0 success, others failed
  */
-static int x2_cnn_fc_fifo_enqueue(struct x2_cnn_dev *dev,
-		struct x2_cnn_fc_info *fc_buf, struct cnn_user_info **p_user_info)
+static int hobot_bpu_fc_fifo_enqueue(struct hobot_bpu_dev *dev,
+		struct hobot_bpu_fc_info *fc_buf, struct cnn_user_info **p_user_info)
 {
 	u32 rc = 0;
 	u32 i;
@@ -912,16 +912,16 @@ static int x2_cnn_fc_fifo_enqueue(struct x2_cnn_dev *dev,
 	if (dev->disable_bpu)
 		return -1;
 #endif
-	fc_depth = x2_cnn_reg_read(dev, X2_CNN_FC_LEN);
-	fc_head_idx = x2_cnn_reg_read(dev, X2_CNN_FC_HEAD);
-	fc_head_flag = fc_head_idx & X2_CNN_FC_IDX_FLAG;
+	fc_depth = hobot_bpu_reg_read(dev, CNN_FC_LEN);
+	fc_head_idx = hobot_bpu_reg_read(dev, CNN_FC_HEAD);
+	fc_head_flag = fc_head_idx & CNN_FC_IDX_FLAG;
 
-	fc_tail_idx = x2_cnn_reg_read(dev, X2_CNN_FC_TAIL);
-	fc_tail_flag = fc_tail_idx & X2_CNN_FC_IDX_FLAG;
+	fc_tail_idx = hobot_bpu_reg_read(dev, CNN_FC_TAIL);
+	fc_tail_flag = fc_tail_idx & CNN_FC_IDX_FLAG;
 	tmp_ptr = (struct hbrt_x2_funccall_s *)fc_buf->fc_info;
 
-	fc_head_idx &= X2_CNN_MAX_FC_LEN_MASK;
-	fc_tail_idx &= X2_CNN_MAX_FC_LEN_MASK;
+	fc_head_idx &= CNN_MAX_FC_LEN_MASK;
+	fc_tail_idx &= CNN_MAX_FC_LEN_MASK;
 	if (fc_head_flag != fc_tail_flag)
 		free_fc_fifo = fc_head_idx - fc_tail_idx;
 	else
@@ -943,53 +943,53 @@ static int x2_cnn_fc_fifo_enqueue(struct x2_cnn_dev *dev,
 
 		for (i = 0; i < insert_fc_cnt; i++) {
 			tmp_orgin_id = tmp_ptr->interrupt_num;
-			x2_cnn_set_fc_start_time(dev,
+			hobot_bpu_set_fc_start_time(dev,
 						 tmp_orgin_id,
-						 x2_cnn_replace_hw_id(dev, tmp_ptr),
+						 hobot_bpu_replace_hw_id(dev, tmp_ptr),
 						 count, p_user_info);
 			tmp_ptr++;
 			count++;
 		}
 
-		memcpy(dev->fc_base + fc_tail_idx * X2_CNN_FC_SIZE,
-			fc_buf->fc_info, insert_fc_cnt * X2_CNN_FC_SIZE);
+		memcpy(dev->fc_base + fc_tail_idx * CNN_FC_SIZE,
+			fc_buf->fc_info, insert_fc_cnt * CNN_FC_SIZE);
 
 		if (fc_tail_flag)
 			fc_tail_flag = 0;
 		else
-			fc_tail_flag = X2_CNN_FC_IDX_FLAG;
+			fc_tail_flag = CNN_FC_IDX_FLAG;
 
 		residue_fc_cnt = fc_buf->fc_cnt - insert_fc_cnt;
 		if (residue_fc_cnt > 0) {
 			for (i = 0; i < residue_fc_cnt; i++) {
 				tmp_orgin_id = tmp_ptr->interrupt_num;
-				x2_cnn_set_fc_start_time(dev,
+				hobot_bpu_set_fc_start_time(dev,
 							tmp_orgin_id,
-							x2_cnn_replace_hw_id(dev, tmp_ptr),
+							hobot_bpu_replace_hw_id(dev, tmp_ptr),
 							count, p_user_info);
 				tmp_ptr++;
 				count++;
 			}
 			memcpy(dev->fc_base,
-			fc_buf->fc_info + (insert_fc_cnt * X2_CNN_FC_SIZE),
-			residue_fc_cnt * X2_CNN_FC_SIZE);
+			fc_buf->fc_info + (insert_fc_cnt * CNN_FC_SIZE),
+			residue_fc_cnt * CNN_FC_SIZE);
 		}
 
-		x2_cnn_set_fc_tail_idx(dev, residue_fc_cnt | fc_tail_flag);
+		hobot_bpu_set_fc_tail_idx(dev, residue_fc_cnt | fc_tail_flag);
 	} else {
 		for (i = 0; i < fc_buf->fc_cnt; i++) {
 			tmp_orgin_id = tmp_ptr->interrupt_num;
-			x2_cnn_set_fc_start_time(dev,
+			hobot_bpu_set_fc_start_time(dev,
 						 tmp_orgin_id,
-						 x2_cnn_replace_hw_id(dev, tmp_ptr),
+						 hobot_bpu_replace_hw_id(dev, tmp_ptr),
 						 count, p_user_info);
 			tmp_ptr++;
 			count++;
 		}
-		memcpy(dev->fc_base + (fc_tail_idx * X2_CNN_FC_SIZE),
-			fc_buf->fc_info, fc_buf->fc_cnt * X2_CNN_FC_SIZE);
+		memcpy(dev->fc_base + (fc_tail_idx * CNN_FC_SIZE),
+			fc_buf->fc_info, fc_buf->fc_cnt * CNN_FC_SIZE);
 
-		x2_cnn_set_fc_tail_idx(dev,
+		hobot_bpu_set_fc_tail_idx(dev,
 				fc_tail_flag | (fc_tail_idx + fc_buf->fc_cnt));
 	}
 
@@ -999,10 +999,10 @@ static int x2_cnn_fc_fifo_enqueue(struct x2_cnn_dev *dev,
 	return rc;
 }
 
-static int x2_cnn_open(struct inode *inode, struct file *filp)
+static int hobot_bpu_open(struct inode *inode, struct file *filp)
 {
 	int rc = 0;
-	struct x2_cnn_dev *devdata;
+	struct hobot_bpu_dev *devdata;
 	struct cnn_user_info *user_info;
 	int i;
 
@@ -1014,14 +1014,14 @@ static int x2_cnn_open(struct inode *inode, struct file *filp)
 
 	user_info = filp->private_data;
 
-	mutex_lock(&x2_cnn_mutex);
+	mutex_lock(&hobot_bpu_mutex);
 
-	devdata = container_of(inode->i_cdev, struct x2_cnn_dev, i_cdev);
+	devdata = container_of(inode->i_cdev, struct hobot_bpu_dev, i_cdev);
 
 	user_info->cnn_dev = devdata;
 #ifndef CONFIG_HOBOT_FPGA_X3
 	if (devdata->disable_bpu) {
-		mutex_unlock(&x2_cnn_mutex);
+		mutex_unlock(&hobot_bpu_mutex);
 
 		kfree(filp->private_data);
 		filp->private_data = NULL;
@@ -1038,7 +1038,7 @@ static int x2_cnn_open(struct inode *inode, struct file *filp)
 	}
 
 	if (i == MAX_PID_NUM) {
-		mutex_unlock(&x2_cnn_mutex);
+		mutex_unlock(&hobot_bpu_mutex);
 		kfree(filp->private_data);
 		filp->private_data = NULL;
 		pr_err("Too many processes, BPU now support max %d processes\n", MAX_PID_NUM);
@@ -1053,7 +1053,7 @@ static int x2_cnn_open(struct inode *inode, struct file *filp)
 		devdata->time_head = 0;
 		devdata->time_tail = 0;
 		memset(devdata->fc_time, 0 ,
-		       FC_TIME_CNT * sizeof(struct x2_fc_time));
+		       FC_TIME_CNT * sizeof(struct hobot_fc_time));
 #ifdef CHECK_IRQ_LOST
 		if ((devdata->core_index && checkirq1_enable) ||
 			(devdata->core_index == 0 && checkirq0_enable)) {
@@ -1064,24 +1064,24 @@ static int x2_cnn_open(struct inode *inode, struct file *filp)
 		if (recovery) {
 			maintain_pre_time = 0;
 			devdata->maintain_task = kthread_run(
-					x2_cnn_maintain_thread,
+					hobot_bpu_maintain_thread,
 					devdata, devdata->chrdev_name);
 		}
 	}
-	mutex_unlock(&x2_cnn_mutex);
-	x2_cnn_reg_read(devdata, X2_CNN_FC_LEN);
+	mutex_unlock(&hobot_bpu_mutex);
+	hobot_bpu_reg_read(devdata, CNN_FC_LEN);
 
 	return rc;
 }
 
-static int x2_cnn_release(struct inode *inode, struct file *filp)
+static int hobot_bpu_release(struct inode *inode, struct file *filp)
 {
-	struct x2_cnn_dev *devdata;
+	struct hobot_bpu_dev *devdata;
 	struct cnn_user_info *user_info;
 	unsigned long flags;
 	int i;
 
-	mutex_lock(&x2_cnn_mutex);
+	mutex_lock(&hobot_bpu_mutex);
 	user_info = filp->private_data;
 	devdata = user_info->cnn_dev;
 	if (!(--devdata->ref_cnt)) {
@@ -1104,7 +1104,7 @@ static int x2_cnn_release(struct inode *inode, struct file *filp)
 		devdata->inst_num = 0;
 		devdata->head_value = 0;
 	}
-	mutex_unlock(&x2_cnn_mutex);
+	mutex_unlock(&hobot_bpu_mutex);
 
 	for (i = 0; i < MAX_PID_NUM; i++) {
 		if (pid_fc_id_mask[i] == task_pid_nr(current->group_leader)) {
@@ -1136,10 +1136,10 @@ static unsigned int cnn_ioctl_dir(unsigned int cmd)
 	}
 }
 
-static long x2_cnn_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+static long hobot_bpu_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	int  rc = 0;
-	struct x2_cnn_dev *dev;
+	struct hobot_bpu_dev *dev;
 	u32 dir;
 	union cnn_ioctl_arg data;
 	void *kernel_fc_data;
@@ -1177,7 +1177,7 @@ static long x2_cnn_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	case CNN_IOC_GET_FC_STA:
 		mutex_lock(&dev->cnn_lock);
 		data.fc_status.free_fc_fifo_cnt =
-			x2_cnn_get_fc_fifo_spaces(dev);
+			hobot_bpu_get_fc_fifo_spaces(dev);
 		mutex_unlock(&dev->cnn_lock);
 		break;
 	case CNN_IOC_GET_ID_MASK:
@@ -1198,8 +1198,8 @@ static long x2_cnn_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		mutex_unlock(&dev->cnn_lock);
 		break;
 	case CNN_IOC_FC_ENQUEUE:
-		//size_t size_tmp = data.fc_data.fc_cnt * X2_CNN_FC_SIZE;
-		kernel_fc_data = kmalloc(data.fc_data.fc_cnt * X2_CNN_FC_SIZE,
+		//size_t size_tmp = data.fc_data.fc_cnt * CNN_FC_SIZE;
+		kernel_fc_data = kmalloc(data.fc_data.fc_cnt * CNN_FC_SIZE,
 					GFP_KERNEL);
 		if (!kernel_fc_data) {
 			pr_err("kmalloc kernel_fc_data failed\n");
@@ -1207,7 +1207,7 @@ static long x2_cnn_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		}
 		if (copy_from_user(kernel_fc_data,
 				(void __user *)data.fc_data.fc_info,
-				data.fc_data.fc_cnt * X2_CNN_FC_SIZE)) {
+				data.fc_data.fc_cnt * CNN_FC_SIZE)) {
 			pr_err("%s: copy fc data failed from userspace\n",
 				__func__);
 			kfree(kernel_fc_data);
@@ -1237,7 +1237,7 @@ static long x2_cnn_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				tmp_ptr->dyn_base_addr3);
 
 		mutex_lock(&dev->cnn_lock);
-		rc = x2_cnn_fc_fifo_enqueue(dev, &data.fc_data,
+		rc = hobot_bpu_fc_fifo_enqueue(dev, &data.fc_data,
 				(struct cnn_user_info **)&file->private_data);
 		if (rc < 0) {
 			mutex_unlock(&dev->cnn_lock);
@@ -1255,7 +1255,7 @@ static long x2_cnn_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			rc = 0;
 			break;
 		}
-		rc = x2_cnn_hw_reset_reinit(dev, data.rst_data.cnn_rst_id);
+		rc = hobot_bpu_hw_reset_reinit(dev, data.rst_data.cnn_rst_id);
 		if (rc < 0) {
 			mutex_unlock(&dev->cnn_lock);
 			pr_err("%s: failed to reset cnn%d\n",
@@ -1287,13 +1287,13 @@ static long x2_cnn_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	return rc;
 }
 
-static u32 x2_cnn_poll(struct file *filp, poll_table *wait)
+static u32 hobot_bpu_poll(struct file *filp, poll_table *wait)
 {
 	struct cnn_user_info *user_info = filp->private_data;
 	unsigned int mask = 0;
 	unsigned long flags;
 
-	struct x2_cnn_dev *dev = user_info->cnn_dev;
+	struct hobot_bpu_dev *dev = user_info->cnn_dev;
 
 	poll_wait(filp, &user_info->cnn_int_wait, wait);
 	spin_lock_irqsave(&dev->cnn_spin_lock, flags);
@@ -1308,18 +1308,18 @@ static u32 x2_cnn_poll(struct file *filp, poll_table *wait)
 
 static const struct file_operations cnn_fops = {
 	.owner		= THIS_MODULE,
-	.read		= x2_cnn_read,
-	.poll		= x2_cnn_poll,
-	.write		= x2_cnn_write,
-	.open		= x2_cnn_open,
-	.release	= x2_cnn_release,
-	.unlocked_ioctl = x2_cnn_ioctl,
+	.read		= hobot_bpu_read,
+	.poll		= hobot_bpu_poll,
+	.write		= hobot_bpu_write,
+	.open		= hobot_bpu_open,
+	.release	= hobot_bpu_release,
+	.unlocked_ioctl = hobot_bpu_ioctl,
 #ifdef CONFIG_COMPAT
-	.compat_ioctl	= x2_cnn_ioctl,
+	.compat_ioctl	= hobot_bpu_ioctl,
 #endif
 };
 
-static int x2_cnn_init_chrdev(struct x2_cnn_dev *dev)
+static int hobot_bpu_init_chrdev(struct hobot_bpu_dev *dev)
 {
 	int rc;
 
@@ -1364,12 +1364,12 @@ ret:
 }
 
 /**
- * x2_cnn_do_tasklet - Schedule wake up tasklet
+ * hobot_bpu_do_tasklet - Schedule wake up tasklet
  * @data: Pointer to cnn_dev structure
  */
-static void x2_cnn_do_tasklet(unsigned long data)
+static void hobot_bpu_do_tasklet(unsigned long data)
 {
-	struct x2_cnn_dev *dev = (struct x2_cnn_dev *)data;
+	struct hobot_bpu_dev *dev = (struct hobot_bpu_dev *)data;
 	unsigned long flags;
 	int ret;
 	int int_cnt;
@@ -1462,7 +1462,7 @@ static void *cnn_ram_vmap(phys_addr_t start, size_t size,
 }
 
 int cnn_debugfs_remove_files(const struct cnn_debugfs_info *files, int count,
-			     struct x2_cnn_dev *dev)
+			     struct hobot_bpu_dev *dev)
 {
 	struct list_head *pos, *q;
 	struct cnn_info_node *tmp;
@@ -1483,7 +1483,7 @@ int cnn_debugfs_remove_files(const struct cnn_debugfs_info *files, int count,
 	return 0;
 }
 
-int cnn_debugfs_cleanup(struct x2_cnn_dev *dev)
+int cnn_debugfs_cleanup(struct hobot_bpu_dev *dev)
 {
 
 	if (!dev->debugfs_root)
@@ -1498,7 +1498,7 @@ int cnn_debugfs_cleanup(struct x2_cnn_dev *dev)
 
 
 int cnn_debugfs_create_files(const struct cnn_debugfs_info *files, int count,
-			     struct dentry *root, struct x2_cnn_dev *dev)
+			     struct dentry *root, struct hobot_bpu_dev *dev)
 {
 	struct dentry *ent;
 	struct cnn_info_node *tmp;
@@ -1536,7 +1536,7 @@ fail:
 
 }
 
-int cnn_debugfs_init(struct x2_cnn_dev *dev, int cnn_id, struct dentry *root)
+int cnn_debugfs_init(struct hobot_bpu_dev *dev, int cnn_id, struct dentry *root)
 {
 	char name[8];
 	int ret;
@@ -1569,8 +1569,8 @@ struct bus_type bpu_subsys = {
 static int cnnfreq_target(struct device *dev, unsigned long *freq,
 				   u32 flags)
 {
-	struct x2_cnn_dev *cnn_dev = dev_get_drvdata(dev);
-	struct x2_cnnfreq *cnnfreq = cnn_dev->cnnfreq;
+	struct hobot_bpu_dev *cnn_dev = dev_get_drvdata(dev);
+	struct hobot_bpufreq *cnnfreq = cnn_dev->cnnfreq;
 	struct dev_pm_opp *opp;
 	unsigned long old_clk_rate = cnnfreq->rate;
 	unsigned long rate, target_volt, target_rate;
@@ -1665,17 +1665,17 @@ opp_err:
 static int cnnfreq_get_cur_freq(struct device *dev,
 					 unsigned long *freq)
 {
-	struct x2_cnn_dev *cnn_dev = dev_get_drvdata(dev);
+	struct hobot_bpu_dev *cnn_dev = dev_get_drvdata(dev);
 
 	*freq = cnn_dev->cnnfreq->rate;
 
 	return 0;
 }
 
-static int x2_cnnfreq_register(struct x2_cnn_dev *cnn_dev)
+static int hobot_bpufreq_register(struct hobot_bpu_dev *cnn_dev)
 {
 	struct device *dev = cnn_dev->dev;
-	struct x2_cnnfreq *data;
+	struct hobot_bpufreq *data;
 	struct devfreq_dev_profile *devp;
 	const char *gov_name;
 	char bpu_name[10];
@@ -1683,7 +1683,7 @@ static int x2_cnnfreq_register(struct x2_cnn_dev *cnn_dev)
 
 	dev_err(dev, "%s probe\n", __func__);
 
-	data = devm_kzalloc(dev, sizeof(struct x2_cnnfreq), GFP_KERNEL);
+	data = devm_kzalloc(dev, sizeof(struct hobot_bpufreq), GFP_KERNEL);
 	if (!data)
 		return -ENOMEM;
 
@@ -1730,17 +1730,17 @@ static int x2_cnnfreq_register(struct x2_cnn_dev *cnn_dev)
 }
 #endif
 #ifdef CHECK_IRQ_LOST
-static void x2_simu_irq(struct x2_cnn_dev *dev)
+static void hobot_bpu_simu_irq(struct hobot_bpu_dev *dev)
 {
 	int ret = 0;
-	struct x2_int_info tmp;
+	struct bpu_int_info tmp;
 	struct cnn_user_info **p_user_info;
 	unsigned long flags;
 
 	ret = kfifo_out_spinlocked(&dev->int_info_fifo, &tmp,
-					sizeof(struct x2_int_info),
+					sizeof(struct bpu_int_info),
 					&dev->kfifo_lock);
-	if (ret == sizeof(struct x2_int_info)) {
+	if (ret == sizeof(struct bpu_int_info)) {
 		spin_lock_irqsave(&dev->cnn_spin_lock, flags);
 		p_user_info = tmp.p_user_info;
 		if (!(*p_user_info) || !p_user_info) {
@@ -1766,7 +1766,7 @@ static void x2_simu_irq(struct x2_cnn_dev *dev)
 		pr_err("%s:interrupt info fifo is empty\n", __func__);
 }
 
-static int x2_cnn_recover(struct x2_cnn_dev *dev, int head, int tail)
+static int hobot_bpu_recover(struct hobot_bpu_dev *dev, int head, int tail)
 {
 	int head_tmp = 0;
 	int tail_tmp = 0;
@@ -1774,10 +1774,10 @@ static int x2_cnn_recover(struct x2_cnn_dev *dev, int head, int tail)
 	void *tmp_trans_buf;
 	int tmp_trans_fc_num;
 
-	head_tmp = head & X2_CNN_MAX_FC_LEN_MASK;
-	tail_tmp = tail & X2_CNN_MAX_FC_LEN_MASK;
+	head_tmp = head & CNN_MAX_FC_LEN_MASK;
+	tail_tmp = tail & CNN_MAX_FC_LEN_MASK;
 
-	fc_depth = x2_cnn_reg_read(dev, X2_CNN_FC_LEN);
+	fc_depth = hobot_bpu_reg_read(dev, CNN_FC_LEN);
 
 	if (tail_tmp > head_tmp) {
 		tmp_trans_fc_num = tail_tmp - head_tmp;
@@ -1791,39 +1791,39 @@ static int x2_cnn_recover(struct x2_cnn_dev *dev, int head, int tail)
 	if (!tmp_trans_fc_num)
 		return 0;
 
-	tmp_trans_buf = kzalloc(tmp_trans_fc_num * X2_CNN_FC_SIZE, GFP_KERNEL);
+	tmp_trans_buf = kzalloc(tmp_trans_fc_num * CNN_FC_SIZE, GFP_KERNEL);
 	if (!tmp_trans_buf) {
 		pr_err("cnn core(%d), recover error\n", dev->core_index);
 		return -ENOMEM;
 	}
 
 	if (tail_tmp >= head_tmp)
-		memcpy(tmp_trans_buf, dev->fc_base + head_tmp* X2_CNN_FC_SIZE,
-			tmp_trans_fc_num * X2_CNN_FC_SIZE);
+		memcpy(tmp_trans_buf, dev->fc_base + head_tmp* CNN_FC_SIZE,
+			tmp_trans_fc_num * CNN_FC_SIZE);
 	else {
-		memcpy(tmp_trans_buf, dev->fc_base + head_tmp* X2_CNN_FC_SIZE,
-			(fc_depth + 1 - head_tmp) * X2_CNN_FC_SIZE);
-		memcpy(tmp_trans_buf + (fc_depth + 1 - head_tmp) * X2_CNN_FC_SIZE,
+		memcpy(tmp_trans_buf, dev->fc_base + head_tmp* CNN_FC_SIZE,
+			(fc_depth + 1 - head_tmp) * CNN_FC_SIZE);
+		memcpy(tmp_trans_buf + (fc_depth + 1 - head_tmp) * CNN_FC_SIZE,
 				dev->fc_base,
-			(tail_tmp + 1) * X2_CNN_FC_SIZE);
+			(tail_tmp + 1) * CNN_FC_SIZE);
 	}
 
-	x2_cnn_hw_reset_reinit(dev, dev->core_index);
+	hobot_bpu_hw_reset_reinit(dev, dev->core_index);
 
 	memcpy(dev->fc_base, tmp_trans_buf,
-			tmp_trans_fc_num * X2_CNN_FC_SIZE);
+			tmp_trans_fc_num * CNN_FC_SIZE);
 
-	x2_cnn_set_fc_tail_idx(dev, tmp_trans_fc_num);
+	hobot_bpu_set_fc_tail_idx(dev, tmp_trans_fc_num);
 
 	kfree(tmp_trans_buf);
 
 	return 0;
 }
 
-static int x2_cnn_maintain_thread(void *data)
+static int hobot_bpu_maintain_thread(void *data)
 {
-	struct x2_cnn_dev *dev = (struct x2_cnn_dev *)data;
-	struct x2_int_info tmp;
+	struct hobot_bpu_dev *dev = (struct hobot_bpu_dev *)data;
+	struct bpu_int_info tmp;
 	int head_tmp, tail_tmp;
 	int last_peek_hw_id = -1;
 	int fifo_len;
@@ -1832,7 +1832,7 @@ static int x2_cnn_maintain_thread(void *data)
 	int check_time = 1000;
 	int ret;
 
-	fc_depth = x2_cnn_reg_read(dev, X2_CNN_FC_LEN);
+	fc_depth = hobot_bpu_reg_read(dev, CNN_FC_LEN);
 	while (!kthread_should_stop()) {
 		if (maintain_pre_time >= MAINT_PREP_START_TIMES)
 			/* use the 5 * max fc process time to check if bpu hung */
@@ -1845,7 +1845,7 @@ static int x2_cnn_maintain_thread(void *data)
 		msleep(check_time);
 
 		mutex_lock(&dev->cnn_lock);
-		ret = kfifo_out_peek(&dev->int_info_fifo, &tmp, sizeof(struct x2_int_info));
+		ret = kfifo_out_peek(&dev->int_info_fifo, &tmp, sizeof(struct bpu_int_info));
 		if (ret) {
 			if (last_peek_hw_id < 0) {
 				last_peek_hw_id = tmp.hw_id;
@@ -1854,9 +1854,9 @@ static int x2_cnn_maintain_thread(void *data)
 			}
 		}
 		/* check wether bpu hung */
-		head_tmp = x2_cnn_reg_read(dev, X2_CNN_FC_HEAD);
-		tail_tmp = x2_cnn_reg_read(dev, X2_CNN_FC_TAIL);
-		fifo_len = kfifo_len(&dev->int_info_fifo) / sizeof(struct x2_int_info);
+		head_tmp = hobot_bpu_reg_read(dev, CNN_FC_HEAD);
+		tail_tmp = hobot_bpu_reg_read(dev, CNN_FC_TAIL);
+		fifo_len = kfifo_len(&dev->int_info_fifo) / sizeof(struct bpu_int_info);
 		if ((dev->maintain_head == head_tmp) && (last_peek_hw_id == tmp.hw_id)) {
 			/* check debug reg */
 			if ((head_tmp == tail_tmp) && (!fifo_len)) {
@@ -1887,7 +1887,7 @@ static int x2_cnn_maintain_thread(void *data)
 				dev->core_index, head_tmp, tail_tmp);
 		if (maintain_pre_time < MAINT_PREP_START_TIMES)
 			maintain_pre_time = MAINT_PREP_START_TIMES;
-		ret = x2_cnn_recover(dev, head_tmp, tail_tmp);
+		ret = hobot_bpu_recover(dev, head_tmp, tail_tmp);
 		if (ret < 0) {
 			pr_err("cnn core %d recover failed\n", dev->core_index);
 		}
@@ -1897,16 +1897,16 @@ static int x2_cnn_maintain_thread(void *data)
 	return 0;
 }
 
-static void x2_check_cnn(unsigned long arg)
+static void hobot_check_cnn(unsigned long arg)
 {
-	struct x2_cnn_dev *dev = (struct x2_cnn_dev *)arg;
+	struct hobot_bpu_dev *dev = (struct hobot_bpu_dev *)arg;
 	int head_tmp = 0;
 	int inst_num_tmp = 0;
 	int ret = 0;
 
 	pr_debug("%s:[%d]\n", __func__, __LINE__);
-	head_tmp = x2_cnn_reg_read(dev, X2_CNN_FC_HEAD);
-	inst_num_tmp = x2_cnn_reg_read(dev, X2_CNNINT_INST_NUM);
+	head_tmp = hobot_bpu_reg_read(dev, CNN_FC_HEAD);
+	inst_num_tmp = hobot_bpu_reg_read(dev, CNNINT_INST_NUM);
 	ret = kfifo_len(&dev->int_info_fifo);
 	if (ret) {
 		if (dev->head_value == head_tmp &&
@@ -1919,9 +1919,9 @@ static void x2_check_cnn(unsigned long arg)
 				head_tmp,
 				inst_num_tmp,
 				dev->core_index,
-				x2_cnn_reg_read(dev, X2_CNN_FC_TAIL),
+				hobot_bpu_reg_read(dev, CNN_FC_TAIL),
 				ret);
-			x2_simu_irq(dev);
+			hobot_bpu_simu_irq(dev);
 		}
 	}
 	dev->head_value = head_tmp;
@@ -1932,11 +1932,11 @@ static void x2_check_cnn(unsigned long arg)
 }
 #endif
 
-int x2_cnn_probe(struct platform_device *pdev)
+int hobot_bpu_probe(struct platform_device *pdev)
 {
 
 	int rc;
-	struct x2_cnn_dev *cnn_dev;
+	struct hobot_bpu_dev *cnn_dev;
 	struct device_node *np = pdev->dev.of_node;
 	struct resource *res;
 	struct resource *pmu;
@@ -1951,13 +1951,13 @@ int x2_cnn_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	cnn_dev->dev = &pdev->dev;
 	cnn_dev->fc_time = devm_kzalloc(&pdev->dev,
-					sizeof(struct x2_fc_time) * FC_TIME_CNT,
+					sizeof(struct hobot_fc_time) * FC_TIME_CNT,
 					GFP_KERNEL);
 	if (!cnn_dev->fc_time)
 		return -ENOMEM;
 	cnn_dev->time_head = 0;
 	cnn_dev->time_tail = 0;
-	memset(cnn_dev->fc_time, 0, sizeof(struct x2_fc_time) * FC_TIME_CNT);
+	memset(cnn_dev->fc_time, 0, sizeof(struct hobot_fc_time) * FC_TIME_CNT);
 	rc = of_property_read_u32(np, "cnn-id", &cnn_id);
 	if (rc < 0) {
 		dev_err(cnn_dev->dev, "missing cnn-id property\n");
@@ -2017,7 +2017,7 @@ int x2_cnn_probe(struct platform_device *pdev)
 		dev_err(cnn_dev->dev, "missing iso-bit property\n");
 		goto err_out;
 	}
-	rc = x2_cnn_get_resets(cnn_dev);
+	rc = hobot_bpu_get_resets(cnn_dev);
 	if (rc < 0) {
 		pr_err("failed get cnn%d resets\n", cnn_id);
 		goto err_out;
@@ -2035,7 +2035,7 @@ int x2_cnn_probe(struct platform_device *pdev)
 	tmp &= ~(1 << cnn_dev->iso_bit);
 	writel(tmp, cnn_dev->cnn_pmu);
 	udelay(5);
-	x2_cnn_reset_release(cnn_dev->cnn_rst);
+	hobot_bpu_reset_release(cnn_dev->cnn_rst);
 	rc = clk_prepare_enable(cnn_dev->cnn_aclk);
 	if (rc) {
 		pr_info("cnn aclock prepare error\n");
@@ -2071,8 +2071,8 @@ int x2_cnn_probe(struct platform_device *pdev)
 		goto err_out;
 	}
 
-	rc = request_irq(cnn_dev->irq, x2_cnn_interrupt_handler, 0,
-			X2_CNN_DRV_NAME, cnn_dev);
+	rc = request_irq(cnn_dev->irq, hobot_bpu_interrupt_handler, 0,
+			CNN_DRV_NAME, cnn_dev);
 	if (rc) {
 		dev_err(cnn_dev->dev, "request_irq '%d' failed with %d\n",
 			cnn_dev->irq, rc);
@@ -2114,24 +2114,25 @@ int x2_cnn_probe(struct platform_device *pdev)
 	cnn_dev->zero_int_cnt = 0;
 	cnn_dev->real_int_cnt = 0;
 	cnn_dev->wait_nega_flag = 0;
-	x2_cnn_reg_write(cnn_dev,
-			X2_CNN_FC_LEN, (cnn_dev->fc_mem_size / 64) - 1);
-	pr_info("Cnn fc phy base = 0x%x, len = 0x%x, default fc len = 0x%x\n",
+	hobot_bpu_reg_write(cnn_dev,
+			CNN_FC_LEN, (cnn_dev->fc_mem_size / 64) - 1);
+	pr_info("bpu%d fc phy base = 0x%x, len = 0x%x, default fc len = 0x%x\n",
+			cnn_dev->core_index,
 			cnn_dev->fc_phys_base,
 			cnn_dev->fc_mem_size,
 			(cnn_dev->fc_mem_size / 64) - 1);
 
-	x2_cnn_reg_write(cnn_dev, X2_CNN_FC_BASE,
+	hobot_bpu_reg_write(cnn_dev, CNN_FC_BASE,
 			cnn_dev->fc_phys_base);
 
-	x2_cnn_fc_gap_mem_init(cnn_dev);
+	hobot_bpu_fc_gap_mem_init(cnn_dev);
 
 	mutex_init(&cnn_dev->cnn_lock);
 	spin_lock_init(&cnn_dev->set_time_lock);
 	spin_lock_init(&cnn_dev->cnn_spin_lock);
 	spin_lock_init(&cnn_dev->kfifo_lock);
 	rc = kfifo_alloc(&cnn_dev->int_info_fifo,
-		    sizeof(struct x2_int_info) * x2_cnn_reg_read(cnn_dev, X2_CNN_FC_LEN), GFP_KERNEL);
+		    sizeof(struct bpu_int_info) * hobot_bpu_reg_read(cnn_dev, CNN_FC_LEN), GFP_KERNEL);
 	if (rc < 0) {
 		pr_err("kfifo alloc error\n");
 		goto err_out;
@@ -2142,7 +2143,7 @@ int x2_cnn_probe(struct platform_device *pdev)
 			"%s%d", g_chrdev_name, cnn_id);
 	cnn_dev->minor_num = MINOR_NUMBER;
 	cnn_dev->num_devices = NUM_DEVICES;
-	rc = x2_cnn_init_chrdev(cnn_dev);
+	rc = hobot_bpu_init_chrdev(cnn_dev);
 
 	if (rc < 0) {
 		dev_err(&pdev->dev,
@@ -2151,7 +2152,7 @@ int x2_cnn_probe(struct platform_device *pdev)
 	}
 
 	/* Initialize the tasklet */
-	tasklet_init(&cnn_dev->tasklet, x2_cnn_do_tasklet,
+	tasklet_init(&cnn_dev->tasklet, hobot_bpu_do_tasklet,
 			(unsigned long)cnn_dev);
 
 	platform_set_drvdata(pdev, cnn_dev);
@@ -2163,7 +2164,7 @@ int x2_cnn_probe(struct platform_device *pdev)
 	init_completion(&cnn_dev->bpu_completion);
 	init_completion(&cnn_dev->nega_completion);
 
-	x2_cnn_reg_write(cnn_dev, X2_CNNINT_MASK, 0x0);
+	hobot_bpu_reg_write(cnn_dev, CNNINT_MASK, 0x0);
 	/* diag ref init */
 	if ((EventIdBpu0Err + cnn_id) <= EventIdBpu1Err) {
 		if (diag_register(ModuleDiag_bpu, EventIdBpu0Err + cnn_id, 5, 300, 7000, NULL) < 0)
@@ -2175,15 +2176,15 @@ int x2_cnn_probe(struct platform_device *pdev)
 	if (diag_register(ModuleDiag_bpu,
 			  CNN_FREQ_CHANGE(cnn_id), 16, 300, 5000, NULL) < 0)
 		dev_err(&pdev->dev, "bpu%d freq notify register fail\n", cnn_id);
-	pr_info("x2 cnn%d probe OK!!\n", cnn_id);
+	pr_info("hobot bpu%d probe OK!!\n", cnn_id);
 #ifdef CONFIG_HOBOT_CNN_DEVFREQ
 	if (cnn_dev->has_regulator)
-		x2_cnnfreq_register(cnn_dev);
+		hobot_bpufreq_register(cnn_dev);
 #endif
 
 #ifdef CHECK_IRQ_LOST
 	init_timer(&cnn_dev->cnn_timer);
-	cnn_dev->cnn_timer.function = &x2_check_cnn;
+	cnn_dev->cnn_timer.function = &hobot_check_cnn;
 	cnn_dev->cnn_timer.data = (unsigned long)cnn_dev;
 #endif
 	return rc;
@@ -2193,21 +2194,21 @@ err_out:
 	return rc;
 return 0;
 }
-void cnn_fc_time_kfifo_clean(struct x2_cnn_dev *dev)
+void cnn_fc_time_kfifo_clean(struct hobot_bpu_dev *dev)
 {
 	kfifo_free(&dev->int_info_fifo);
 }
-static void cnn_regulator_remove(struct x2_cnn_dev *dev)
+static void cnn_regulator_remove(struct hobot_bpu_dev *dev)
 {
 	if (regulator_is_enabled(dev->cnn_regulator))
-		x2_cnn_power_down(dev);
+		hobot_bpu_power_down(dev);
 	clk_unprepare(dev->cnn_mclk);
 	clk_unprepare(dev->cnn_aclk);
 	regulator_put(dev->cnn_regulator);
 
 }
 #ifdef CONFIG_HOBOT_CNN_DEVFREQ
-static void cnn_devfreq_remove(struct x2_cnn_dev *dev)
+static void cnn_devfreq_remove(struct hobot_bpu_dev *dev)
 {
 	devfreq_cooling_unregister(dev->cnnfreq->cooling);
 	//devm_devfreq_dev_release(dev->dev, dev->cnnfreq->devfreq);
@@ -2215,7 +2216,7 @@ static void cnn_devfreq_remove(struct x2_cnn_dev *dev)
 	dev_pm_opp_of_remove_table(dev->dev);
 }
 #endif
-static void cnn_dev_remove(struct x2_cnn_dev *dev)
+static void cnn_dev_remove(struct hobot_bpu_dev *dev)
 {
 	cdev_del(&dev->i_cdev);
 	device_destroy(dev->dev_class, dev->dev_num);
@@ -2223,14 +2224,14 @@ static void cnn_dev_remove(struct x2_cnn_dev *dev)
 	unregister_chrdev_region(dev->dev_num, dev->num_devices);
 }
 
-static int x2_cnn_remove(struct platform_device *pdev)
+static int hobot_bpu_remove(struct platform_device *pdev)
 {
 
 	u32 cnn_int_mask;
-	struct x2_cnn_dev *dev = platform_get_drvdata(pdev);
-	cnn_int_mask = x2_cnn_reg_read(dev, X2_CNNINT_MASK);
-	cnn_int_mask |= X2_CNN_PE0_INT_MASK(1);
-	x2_cnn_reg_write(dev, X2_CNNINT_MASK, cnn_int_mask);
+	struct hobot_bpu_dev *dev = platform_get_drvdata(pdev);
+	cnn_int_mask = hobot_bpu_reg_read(dev, CNNINT_MASK);
+	cnn_int_mask |= CNN_PE0_INT_MASK(1);
+	hobot_bpu_reg_write(dev, CNNINT_MASK, cnn_int_mask);
 	if (profiler_enable)
 		del_timer(&check_timer);
 
@@ -2252,13 +2253,13 @@ static int x2_cnn_remove(struct platform_device *pdev)
 	return 0;
 }
 
-static const struct of_device_id x2_cnn_of_match[] = {
+static const struct of_device_id hobot_bpu_of_match[] = {
 	{ .compatible = "hobot,x2-cnn-host",},
 	{}
 };
-static int x2_cnn_drvsuspend(struct device *dev)
+static int hobot_bpu_drvsuspend(struct device *dev)
 {
-	struct x2_cnn_dev *cnn_dev = dev_get_drvdata(dev);
+	struct hobot_bpu_dev *cnn_dev = dev_get_drvdata(dev);
 	unsigned int tmp;
 	pr_info("%s!!\n", __func__);
 	lock_bpu(cnn_dev);
@@ -2272,16 +2273,16 @@ static int x2_cnn_drvsuspend(struct device *dev)
 	writel(tmp, cnn_dev->cnn_pmu);
 	udelay(5);
 
-	x2_cnn_reset_assert(cnn_dev->cnn_rst);
+	hobot_bpu_reset_assert(cnn_dev->cnn_rst);
 	if (regulator_is_enabled(cnn_dev->cnn_regulator))
 		regulator_disable(cnn_dev->cnn_regulator);
 	unlock_bpu(cnn_dev);
 	return 0;
 }
 
-static int x2_cnn_drvresume(struct device *dev)
+static int hobot_bpu_drvresume(struct device *dev)
 {
-	struct x2_cnn_dev *cnn_dev = dev_get_drvdata(dev);
+	struct hobot_bpu_dev *cnn_dev = dev_get_drvdata(dev);
 	int ret;
 	unsigned int tmp;
 
@@ -2293,7 +2294,7 @@ static int x2_cnn_drvresume(struct device *dev)
 	writel(tmp, cnn_dev->cnn_pmu);
 	udelay(5);
 
-	x2_cnn_reset_assert(cnn_dev->cnn_rst);
+	hobot_bpu_reset_assert(cnn_dev->cnn_rst);
 	if (!(cnn_dev->disable_bpu & BPU_REGU_DIS)) {
 		ret = regulator_enable(cnn_dev->cnn_regulator);
 		if (ret != 0)
@@ -2304,40 +2305,40 @@ static int x2_cnn_drvresume(struct device *dev)
 		writel(tmp, cnn_dev->cnn_pmu);
 		udelay(5);
 
-		x2_cnn_reset_release(cnn_dev->cnn_rst);
+		hobot_bpu_reset_release(cnn_dev->cnn_rst);
 		if (!__clk_is_enabled(cnn_dev->cnn_aclk))
 			clk_enable(cnn_dev->cnn_aclk);
 		if (!__clk_is_enabled(cnn_dev->cnn_mclk))
 			clk_enable(cnn_dev->cnn_mclk);
-		x2_cnn_hw_init(cnn_dev);
-		x2_cnn_set_fc_base(cnn_dev);
-		x2_cnn_set_default_fc_depth(cnn_dev, 1023);
+		hobot_bpu_hw_init(cnn_dev);
+		hobot_bpu_set_fc_base(cnn_dev);
+		hobot_bpu_set_default_fc_depth(cnn_dev, 1023);
 
 		if (cnn_dev->disable_bpu & BPU_CLOCK_DIS)
-			x2_cnn_clock_down(cnn_dev);
+			hobot_bpu_clock_down(cnn_dev);
 	} else {
 		if (!(cnn_dev->disable_bpu & BPU_CLOCK_DIS))
-			x2_cnn_clock_up(cnn_dev);
+			hobot_bpu_clock_up(cnn_dev);
 	}
 	return 0;
 }
 
-static const struct dev_pm_ops x2_cnn_pmops = {
-	.suspend        = x2_cnn_drvsuspend,
-	.resume         = x2_cnn_drvresume,
+static const struct dev_pm_ops hobot_bpu_pmops = {
+	.suspend        = hobot_bpu_drvsuspend,
+	.resume         = hobot_bpu_drvresume,
 };
-#define X2_CNN_PMOPS (&x2_cnn_pmops)
+#define CNN_PMOPS (&hobot_bpu_pmops)
 
-static struct platform_driver x2_cnn_platform_driver = {
-	.probe	 = x2_cnn_probe,
-	.remove  = x2_cnn_remove,
+static struct platform_driver hobot_bpu_platform_driver = {
+	.probe	 = hobot_bpu_probe,
+	.remove  = hobot_bpu_remove,
 	.driver  = {
-		.name = X2_CNN_DRV_NAME,
-		.of_match_table = x2_cnn_of_match,
-		.pm     = X2_CNN_PMOPS,
+		.name = CNN_DRV_NAME,
+		.of_match_table = hobot_bpu_of_match,
+		.pm     = CNN_PMOPS,
 	},
 };
-static void x2_cnn_check_func(unsigned long arg)
+static void hobot_bpu_check_func(unsigned long arg)
 {
 	static int time;
 	static int cnn0_busy;
@@ -2363,17 +2364,17 @@ static void x2_cnn_check_func(unsigned long arg)
 
 	}
 	if (has_busy_status) {
-		bpu0_status = x2_cnn_reg_read(cnn0_dev, X2_CNN_BUSY_STATUS);
-		bpu1_status = x2_cnn_reg_read(cnn1_dev, X2_CNN_BUSY_STATUS);
+		bpu0_status = hobot_bpu_reg_read(cnn0_dev, CNN_BUSY_STATUS);
+		bpu1_status = hobot_bpu_reg_read(cnn1_dev, CNN_BUSY_STATUS);
 		if (bpu0_status)
 			cnn0_busy++;
 		if (bpu1_status)
 			cnn1_busy++;
 	} else {
-		cnn0_head = x2_cnn_reg_read(cnn0_dev, X2_CNN_FC_HEAD);
-		cnn0_tail = x2_cnn_reg_read(cnn0_dev, X2_CNN_FC_TAIL);
-		cnn1_head = x2_cnn_reg_read(cnn1_dev, X2_CNN_FC_HEAD);
-		cnn1_tail = x2_cnn_reg_read(cnn1_dev, X2_CNN_FC_TAIL);
+		cnn0_head = hobot_bpu_reg_read(cnn0_dev, CNN_FC_HEAD);
+		cnn0_tail = hobot_bpu_reg_read(cnn0_dev, CNN_FC_TAIL);
+		cnn1_head = hobot_bpu_reg_read(cnn1_dev, CNN_FC_HEAD);
+		cnn1_tail = hobot_bpu_reg_read(cnn1_dev, CNN_FC_TAIL);
 		if (cnn0_head != cnn0_tail ||
 		    (atomic_read(&cnn0_dev->wait_fc_cnt) > 0))
 			cnn0_busy++;
@@ -2501,9 +2502,9 @@ static ssize_t fc_time_enable_store(struct kobject *kobj,
 	lock_bpu(cnn1_dev);
 
 	memset(cnn0_dev->fc_time, 0,
-		   sizeof(struct x2_fc_time) * FC_TIME_CNT);
+		   sizeof(struct hobot_fc_time) * FC_TIME_CNT);
 	memset(cnn1_dev->fc_time, 0,
-		   sizeof(struct x2_fc_time) * FC_TIME_CNT);
+		   sizeof(struct hobot_fc_time) * FC_TIME_CNT);
 	cnn0_dev->time_head = 0;
 	cnn0_dev->time_tail = 0;
 	cnn1_dev->time_head = 0;
@@ -2567,7 +2568,7 @@ static ssize_t queue0_show(struct kobject *kobj, struct kobj_attribute *attr,
 						 char *buf)
 {
 	mutex_lock(&cnn0_dev->cnn_lock);
-	queue0 = x2_cnn_get_fc_fifo_spaces(cnn0_dev);
+	queue0 = hobot_bpu_get_fc_fifo_spaces(cnn0_dev);
 	mutex_unlock(&cnn0_dev->cnn_lock);
 	return sprintf(buf, "%d\n", queue0);
 }
@@ -2575,18 +2576,18 @@ static ssize_t queue1_show(struct kobject *kobj, struct kobj_attribute *attr,
 						 char *buf)
 {
 	mutex_lock(&cnn1_dev->cnn_lock);
-	queue1 = x2_cnn_get_fc_fifo_spaces(cnn1_dev);
+	queue1 = hobot_bpu_get_fc_fifo_spaces(cnn1_dev);
 	mutex_unlock(&cnn1_dev->cnn_lock);
 	return sprintf(buf, "%d\n", queue1);
 }
 
-static ssize_t fc_time_show(struct x2_cnn_dev *dev, char *buf)
+static ssize_t fc_time_show(struct hobot_bpu_dev *dev, char *buf)
 {
 	int ret = 0;
 	int sum = 0;
 	int head, tail;
 	unsigned long flags;
-	struct x2_fc_time tmp[FC_TIME_CNT];
+	struct hobot_fc_time tmp[FC_TIME_CNT];
 	int elapse_time = 0;
 	char buf_start[24] = {0};
 	char buf_end[24] = {0};
@@ -2596,7 +2597,7 @@ static ssize_t fc_time_show(struct x2_cnn_dev *dev, char *buf)
 		return sprintf(buf, "Please enable get fc time feature\n");
 
 	spin_lock_irqsave(&dev->set_time_lock, flags);
-	memcpy(tmp, dev->fc_time, sizeof(struct x2_fc_time) * FC_TIME_CNT);
+	memcpy(tmp, dev->fc_time, sizeof(struct hobot_fc_time) * FC_TIME_CNT);
 	tail = dev->time_head;
 	spin_unlock_irqrestore(&dev->set_time_lock, flags);
 
@@ -2675,9 +2676,9 @@ static ssize_t bpu0_clock_store(struct kobject *kobj,
 
 	ret = sscanf(buf, "%du", &bpu0_clk);
 	if (bpu0_clk) {
-		x2_cnn_clock_up(cnn0_dev);
+		hobot_bpu_clock_up(cnn0_dev);
 	} else {
-		x2_cnn_clock_down(cnn0_dev);
+		hobot_bpu_clock_down(cnn0_dev);
 	}
 	return count;
 
@@ -2699,9 +2700,9 @@ static ssize_t bpu1_clock_store(struct kobject *kobj,
 
 	ret = sscanf(buf, "%du", &bpu1_clk);
 	if (bpu1_clk) {
-		x2_cnn_clock_up(cnn1_dev);
+		hobot_bpu_clock_up(cnn1_dev);
 	} else {
-		x2_cnn_clock_down(cnn1_dev);
+		hobot_bpu_clock_down(cnn1_dev);
 	}
 	return count;
 }
@@ -2733,9 +2734,9 @@ static ssize_t bpu0_power_store(struct kobject *kobj,
 	}
 	ret = sscanf(buf, "%du", &bpu0_power);
 	if (bpu0_power)
-		x2_cnn_power_up(cnn0_dev);
+		hobot_bpu_power_up(cnn0_dev);
 	else
-		x2_cnn_power_down(cnn0_dev);
+		hobot_bpu_power_down(cnn0_dev);
 	return count;
 }
 static ssize_t bpu1_power_show(struct kobject *kobj,
@@ -2765,9 +2766,9 @@ static ssize_t bpu1_power_store(struct kobject *kobj,
 	}
 	ret = sscanf(buf, "%du", &bpu1_power);
 	if (bpu1_power)
-		x2_cnn_power_up(cnn1_dev);
+		hobot_bpu_power_up(cnn1_dev);
 	else
-		x2_cnn_power_down(cnn1_dev);
+		hobot_bpu_power_down(cnn1_dev);
 	return count;
 }
 #ifdef CHECK_IRQ_LOST
@@ -2927,7 +2928,7 @@ static const struct attribute_group *bpu_attr_groups[] = {
 	&bpu1_attr_group,
 	NULL,
 };
-static int __init x2_cnn_init(void)
+static int __init hobot_bpu_init(void)
 {
 	int retval = 0;
 	pr_info("%s\n", __func__);
@@ -2936,28 +2937,28 @@ static int __init x2_cnn_init(void)
 	if (subsys_system_register(&bpu_subsys, bpu_attr_groups))
 		pr_err("fialed to register bpu subsystem");
 	/* Register the platform driver */
-	retval = platform_driver_register(&x2_cnn_platform_driver);
+	retval = platform_driver_register(&hobot_bpu_platform_driver);
 	if (retval)
-		pr_err("x2 cnn driver register failed\n");
+		pr_err("hobot bpu driver register failed\n");
 
 	/*set bpu profiler timer*/
 	init_timer(&check_timer);
-	check_timer.function = &x2_cnn_check_func;
+	check_timer.function = &hobot_bpu_check_func;
 	mutex_init(&enable_lock);
 	fc_time_enable = 0;
 	return retval;
 
 }
 
-static void __exit x2_cnn_exit(void)
+static void __exit hobot_bpu_exit(void)
 {
 	bus_unregister(&bpu_subsys);
 	/* Unregister the platform driver */
-	platform_driver_unregister(&x2_cnn_platform_driver);
+	platform_driver_unregister(&hobot_bpu_platform_driver);
 }
 
-module_init(x2_cnn_init);
-module_exit(x2_cnn_exit);
+module_init(hobot_bpu_init);
+module_exit(hobot_bpu_exit);
 
 MODULE_DESCRIPTION("Driver for HOBOT CNN");
 MODULE_AUTHOR("Hobot Inc.");
