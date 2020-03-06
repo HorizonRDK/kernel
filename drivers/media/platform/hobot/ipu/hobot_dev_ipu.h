@@ -86,6 +86,7 @@ struct ipu_sub_mp {
 	struct vio_framemgr	framemgr;
 	struct list_head	client_list;
 	u32			client_count;
+	spinlock_t 		dispatch_lock;
 	unsigned long 		state;
 	struct vio_group 	*group;
 	struct x3_ipu_dev 	*ipu_dev;

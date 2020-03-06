@@ -112,7 +112,7 @@ enum sif_group_state {
 
 struct sif_video_ctx{
 	wait_queue_head_t		done_wq;
-	struct vio_framemgr 	framemgr;
+	struct vio_framemgr 		*framemgr;
 	struct vio_group		*group;
 	unsigned long			state;
 	u32 event;
@@ -126,6 +126,10 @@ struct sif_video_ctx{
 	u64 bufcount;
 	struct frame_id			info;
 	struct x3_sif_dev 		*sif_dev;
+
+	u32			proc_id;
+	u32			is_master;
+	struct sif_sub_mp	*sub_mp;
 };
 
 enum sif_state {
@@ -137,6 +141,27 @@ enum sif_state {
 	SIF_HW_RUN,
 	SIF_HW_FORCE_STOP,
 };
+
+enum sif_sub_mp_state {
+	SIF_SUB_MP_CREATE,
+	SIF_SUB_MP_INIT,
+	SIF_SUB_MP_USER_INIT,
+	SIF_SUB_MP_MASTER_INIT,
+};
+
+struct sif_sub_mp {
+	spinlock_t 		slock;
+	struct sif_video_ctx	*dev[VIO_MAX_SUB_PROCESS];
+	unsigned long		val_dev_mask;
+	atomic_t		proc_count;
+	u32			proc_master;
+	struct vio_framemgr	framemgr;
+	unsigned long 		state;
+	struct vio_group 	*group;
+	struct x3_sif_dev 	*sif_dev;
+	struct semaphore	hw_init_sem;
+};
+
 
 struct x3_sif_dev {
 	u32 __iomem			*base_reg;

@@ -95,6 +95,7 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 	u32 index;
 	u32 cnt;
 	int ret = 0;
+	unsigned long flags_mp;
 
 	ret = 0;
 	ipu_ctx = file->private_data;
@@ -146,12 +147,12 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 
 	ipu_ctx->state = BIT(VIO_VIDEO_CLOSE);
 
-	spin_lock(&sub_mp->slock);
+	spin_lock_irqsave(&sub_mp->slock, flags_mp);
 	clear_bit(ipu_ctx->proc_id, &sub_mp->val_dev_mask);
 	sub_mp->dev[ipu_ctx->proc_id] = NULL;
 	atomic_dec(&sub_mp->proc_count);
 	kfree(ipu_ctx);
-	spin_unlock(&sub_mp->slock);
+	spin_unlock_irqrestore(&sub_mp->slock, flags_mp);
 
 	vio_info("[S%d]IPU close node V%d\n", group->instance, ipu_ctx->id);
 p_err:
@@ -212,16 +213,16 @@ static u32 x3_ipu_poll(struct file *file, struct poll_table_struct *wait)
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
 	/* add to client list */
-	spin_lock(&sub_mp->slock);
+	spin_lock(&sub_mp->dispatch_lock);
 	if (!ipu_ctx->in_list) {
 		ret = ipu_put_client(sub_mp, ipu_ctx);
 		if (ret < 0) {
-			spin_unlock(&sub_mp->slock);
+			spin_unlock(&sub_mp->dispatch_lock);
 			vio_err("ipu put client error.");
 			return ret;
 		}
 	}
-	spin_unlock(&sub_mp->slock);
+	spin_unlock(&sub_mp->dispatch_lock);
 	return ret;
 }
 
@@ -232,7 +233,7 @@ void ipu_frame_work(struct vio_group *group)
 	struct x3_ipu_dev *ipu;
 	struct vio_framemgr *framemgr;
 	struct vio_frame *frame;
-	unsigned long flags;
+	unsigned long flags, flags_mp;
 	int i = 0, j = 0;
 	u32 instance = 0;
 	u32 rdy = 0;
@@ -262,7 +263,7 @@ void ipu_frame_work(struct vio_group *group)
 		if (!sub_mp)
 			continue;
 		back_ctx = NULL;
-		spin_lock(&sub_mp->slock);
+		spin_lock_irqsave(&sub_mp->slock, flags_mp);
 		back_ctx = NULL;
 		for (j = 0; j < VIO_MAX_SUB_PROCESS; j++) {
 			if(test_bit(j, &sub_mp->val_dev_mask))
@@ -306,7 +307,7 @@ void ipu_frame_work(struct vio_group *group)
 		} else {
 			vio_err("%s ctx err, sub_mp %d", __func__, i);
 		}
-		spin_unlock(&sub_mp->slock);
+		spin_unlock_irqrestore(&sub_mp->slock, flags_mp);
 	}
 	rdy = ipu_get_shd_rdy(ipu->base_reg);
 	rdy = rdy | (1 << 4);
@@ -327,6 +328,7 @@ void ipu_set_group_leader(struct vio_group *group, enum group_id id,
 	struct ipu_video_ctx *ipu_ctx, *ctx_mp;
 	struct ipu_sub_mp *sub_mp;
 	u32 i;
+	unsigned long flags_mp;
 
 	if (id >= GROUP_ID_MAX || id < GROUP_ID_SRC)
 		vio_err("%s wrong id", __func__);
@@ -341,7 +343,7 @@ void ipu_set_group_leader(struct vio_group *group, enum group_id id,
 		if (!test_bit(VIO_GROUP_LEADER, &group->state)) {
 			set_bit(VIO_GROUP_LEADER, &group->state);
 
-			spin_lock(&sub_mp->slock);
+			spin_lock_irqsave(&sub_mp->slock, flags_mp);
 			ipu_ctx = sub_mp->dev[proc_id];
 			if (!ipu_ctx) {
 				spin_unlock(&sub_mp->slock);
@@ -349,11 +351,11 @@ void ipu_set_group_leader(struct vio_group *group, enum group_id id,
 				return;
 			}
 			ipu_ctx->leader = true;
-			spin_unlock(&sub_mp->slock);
+			spin_unlock_irqrestore(&sub_mp->slock, flags_mp);
 			vio_info("[S%d][V%d] %s proc%d\n", group->instance,
 				id, __func__, proc_id);
 		} else {
-			spin_lock(&sub_mp->slock);
+			spin_lock_irqsave(&sub_mp->slock, flags_mp);
 			for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
 				if (!test_bit(i, &sub_mp->val_dev_mask))
 					continue;
@@ -368,7 +370,7 @@ void ipu_set_group_leader(struct vio_group *group, enum group_id id,
 					break;
 				}
 			}
-			spin_unlock(&sub_mp->slock);
+			spin_unlock_irqrestore(&sub_mp->slock, flags_mp);
 		}
 	}
 }
@@ -379,12 +381,13 @@ void ipu_clear_group_leader(struct vio_group *group)
 	int j = 0;
 	struct ipu_video_ctx *ipu_ctx;
 	struct ipu_sub_mp *sub_mp;
+	unsigned long flags_mp;
 
 	for (i = 0; i < GROUP_ID_MAX; i++) {
 		sub_mp = group->sub_ctx[i];
 		if (!sub_mp)
 			continue;
-		spin_lock(&sub_mp->slock);
+		spin_lock_irqsave(&sub_mp->slock, flags_mp);
 		for (j = 0; j < VIO_MAX_SUB_PROCESS; j++) {
 			if (!test_bit(j, &sub_mp->val_dev_mask))
 				continue;
@@ -392,7 +395,7 @@ void ipu_clear_group_leader(struct vio_group *group)
 			if (ipu_ctx)
 				ipu_ctx->leader = false;
 		}
-		spin_unlock(&sub_mp->slock);
+		spin_unlock_irqrestore(&sub_mp->slock, flags_mp);
 	}
 
 	clear_bit(VIO_GROUP_LEADER, &group->state);
@@ -1171,6 +1174,7 @@ int ipu_bind_chain_group(struct ipu_video_ctx *ipu_ctx, int instance)
 	}
 	if (!test_bit(IPU_SUB_MP_INIT, &sub_mp->state)) {
 		spin_lock_init(&sub_mp->slock);
+		spin_lock_init(&sub_mp->dispatch_lock);
 		INIT_LIST_HEAD(&sub_mp->client_list);
 		set_bit(IPU_SUB_MP_INIT, &sub_mp->state);
 	}
@@ -1507,26 +1511,26 @@ int ipu_video_dqbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 
 	/* add to client list */
 	if (!ipu_ctx->ispoll) {
-		spin_lock(&sub_mp->slock);
+		spin_lock(&sub_mp->dispatch_lock);
 		ret = ipu_put_client(sub_mp, ipu_ctx);
 		if (ret < 0) {
-			spin_unlock(&sub_mp->slock);
+			spin_unlock(&sub_mp->dispatch_lock);
 			vio_err("ipu put client error.");
 			return ret;
 		} else {
 			vio_dbg("dq(%d):put client ok.", ipu_ctx->id);
 		}
-		spin_unlock(&sub_mp->slock);
+		spin_unlock(&sub_mp->dispatch_lock);
 		wait_event_interruptible(ipu_ctx->done_wq,
 				ipu_ctx->event == VIO_FRAME_DONE);
 	}
 
 	/* copy frameinfo */
 	if (ipu_ctx->event == VIO_FRAME_DONE) {
-		spin_lock(&sub_mp->slock);
+		spin_lock(&sub_mp->dispatch_lock);
 		memcpy(frameinfo, &ipu_ctx->frameinfo,
 			sizeof(struct frame_info));
-		spin_unlock(&sub_mp->slock);
+		spin_unlock(&sub_mp->dispatch_lock);
 		vio_dbg("dq proc%d bidx%d fid%d", ipu_ctx->proc_id,
 			frameinfo->bufferindex, frameinfo->frame_id);
 		ipu_ctx->event = 0;
@@ -1787,7 +1791,7 @@ void ipu_dispatch_frm(struct ipu_work *ipu_work)
 			continue;
 		sub_mp = group->sub_ctx[id];
 		framemgr = &sub_mp->framemgr;
-		spin_lock(&sub_mp->slock);
+		spin_lock(&sub_mp->dispatch_lock);
 		client_count = sub_mp->client_count;
 		if (!client_count) {
 			vio_dbg("disp:warn,client count %d", client_count);
@@ -1831,7 +1835,7 @@ void ipu_dispatch_frm(struct ipu_work *ipu_work)
 			}
 			wake_up(&ipu_ctx->done_wq);
 		}
-		spin_unlock(&sub_mp->slock);
+		spin_unlock(&sub_mp->dispatch_lock);
 	}
 }
 
