@@ -408,7 +408,7 @@
 	#sound-dai-cells = <0>;
 	clocks = <&i2s0_mclk>, <&i2s0_bclk>;
 	clock-names = "i2s-mclk", "i2s-bclk";
-	//bclk_set = <1536000>; //duplex or adau1977 codec set
+	//bclk_set = <1536000>; //duplex
 };
 
 &i2s1 {
@@ -449,17 +449,17 @@
                         sound-dai = <&i2s0>;
                 };
                 codec {
-                        //sound-dai = <&ac101>;
-                        sound-dai = <&ac108_0 0>;  //simplex
+                        //sound-dai = <&ac101>;    //duplex
+                        sound-dai = <&ac108_0 0>;
                 };
                 platform {
                         sound-dai = <&i2sidma0>;
                 };
         };
-        dai-link@1 {   //duplex
+        dai-link@1 {
                 dai-format = "i2s";
-                bitclock-master;
-                frame-master;
+                bitclock-master;   //not need setting in duplex
+                frame-master;      //not need setting in duplex
                 frame-inversion;
                 link-name = "x2dailink1";
                 cpu {
@@ -473,7 +473,7 @@
                 };
         };
 };
-&snd1 { //simplex
+&snd1 {
         model = "x2snd1";
         dai-link@1 {
                 dai-format = "i2s";
