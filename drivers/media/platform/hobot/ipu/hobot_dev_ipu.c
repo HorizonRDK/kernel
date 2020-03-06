@@ -1707,6 +1707,28 @@ void ipu_frame_done(struct ipu_sub_mp *sub_mp)
 	spin_unlock(&sub_mp->slock);
 }
 
+void ipu_frame_ndone(struct ipu_sub_mp *sub_mp)
+{
+	struct ipu_video_ctx *ipu_ctx = NULL;
+	int i = 0;
+
+	spin_lock(&sub_mp->slock);
+	for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
+		if (test_bit(i, &sub_mp->val_dev_mask))
+			ipu_ctx = sub_mp->dev[i];
+	}
+	if(!ipu_ctx) {
+		spin_unlock(&sub_mp->slock);
+		vio_err("%s:%d sub_mp.dev[0] is null .\n", __func__, __LINE__);
+		return;
+	}
+	spin_unlock(&sub_mp->slock);
+
+	ipu_frame_done(sub_mp);
+	ipu_ctx->event = VIO_FRAME_DONE;
+	wake_up(&ipu_ctx->done_wq);
+}
+
 int ipu_put_client(struct ipu_sub_mp *sub_mp,
 		struct ipu_video_ctx *ipu_sub_ctx)
 {
@@ -1860,26 +1882,44 @@ static irqreturn_t ipu_isr(int irq, void *data)
 
 	if (status & (1 << INTR_IPU_US_FRAME_DROP)) {
 		vio_err("[S%d]US Frame drop\n", instance);
+		sub_mp = group->sub_ctx[GROUP_ID_US];
+		if (sub_mp)
+			ipu_frame_ndone(sub_mp);
 	}
 
 	if (status & (1 << INTR_IPU_DS0_FRAME_DROP)) {
 		vio_err("[S%d]DS0 Frame drop\n", instance);
+		sub_mp = group->sub_ctx[GROUP_ID_DS0];
+		if (sub_mp)
+			ipu_frame_ndone(sub_mp);
 	}
 
 	if (status & (1 << INTR_IPU_DS1_FRAME_DROP)) {
 		vio_err("[S%d]DS1 Frame drop\n", instance);
+		sub_mp = group->sub_ctx[GROUP_ID_DS1];
+		if (sub_mp)
+			ipu_frame_ndone(sub_mp);
 	}
 
 	if (status & (1 << INTR_IPU_DS2_FRAME_DROP)) {
 		vio_err("[S%d]DS2 Frame drop\n", instance);
+		sub_mp = group->sub_ctx[GROUP_ID_DS2];
+		if (sub_mp)
+			ipu_frame_ndone(sub_mp);
 	}
 
 	if (status & (1 << INTR_IPU_DS3_FRAME_DROP)) {
 		vio_err("[S%d]DS3 Frame drop\n", instance);
+		sub_mp = group->sub_ctx[GROUP_ID_DS3];
+		if (sub_mp)
+			ipu_frame_ndone(sub_mp);
 	}
 
 	if (status & (1 << INTR_IPU_DS4_FRAME_DROP)) {
 		vio_err("[S%d]DS4 Frame drop\n", instance);
+		sub_mp = group->sub_ctx[GROUP_ID_DS4];
+		if (sub_mp)
+			ipu_frame_ndone(sub_mp);
 	}
 
 	ipu_work = &ipu->work[instance];

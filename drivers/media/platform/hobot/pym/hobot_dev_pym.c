@@ -715,6 +715,11 @@ void pym_frame_done(struct pym_video_ctx *pym_ctx)
 	wake_up(&pym_ctx->done_wq);
 }
 
+void pym_frame_ndone(struct pym_video_ctx *pym_ctx)
+{
+	pym_frame_done(pym_ctx);
+}
+
 static irqreturn_t pym_isr(int irq, void *data)
 {
 	u32 status;
@@ -730,11 +735,15 @@ static irqreturn_t pym_isr(int irq, void *data)
 	pym_get_intr_status(pym->base_reg, &status, true);
 	vio_info("%s:status = 0x%x\n", __func__, status);
 
-	if (status & (1 << INTR_PYM_DS_FRAME_DROP))
-		vio_err("DS drop frame\n");
+	if (status & (1 << INTR_PYM_DS_FRAME_DROP)) {
+		vio_err("[%d]DS drop frame\n", instance);
+		pym_frame_ndone(group->sub_ctx[GROUP_ID_SRC]);
+	}
 
-	if (status & (1 << INTR_PYM_US_FRAME_DROP))
-		vio_err("US drop frame\n");
+	if (status & (1 << INTR_PYM_US_FRAME_DROP)) {
+		vio_err("[%d]US drop frame\n", instance);
+		pym_frame_ndone(group->sub_ctx[GROUP_ID_SRC]);
+	}
 
 	if (status & (1 << INTR_PYM_FRAME_DONE)) {
 		if (!group->leader)
