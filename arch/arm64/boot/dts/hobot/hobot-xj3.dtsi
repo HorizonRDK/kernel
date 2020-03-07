@@ -12,6 +12,7 @@
 
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 #include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/thermal/thermal.h>
 
  / {
@@ -273,8 +274,14 @@
 			/* phy_type: {utmi, utmi_wide, ulpi, serial, hsic} */
 			snps,dis_u2_susphy_quirk;
 			/* snps,dis_u3_susphy_quirk; */
-			/* extcon = <&usb_id>; */
+			extcon = <&usb_id>;
 			status = "okay";
+		};
+
+		usb_id: usb-id {
+			compatible = "linux,extcon-usb-gpio";
+			id-gpio = <&pinctrl 65 GPIO_ACTIVE_HIGH>;
+			/* vbus-gpio = <>; */
 		};
 
 		i2s0: i2s@0xA5007000 {
@@ -1153,13 +1160,5 @@
 			boot_mode = "0";
 			socuid = "00000000000000000000000000000000";
 		};
-	};
-
-	usb_id: usb-id {
-		compatible = "linux,extcon-usb-gpio";
-		/* id-gpio = <> */
-		/* vbus-gpio = <>; */
-		pinctrl-names = "default";
-		pinctrl-0 = <&usb_id_function>;
 	};
 };

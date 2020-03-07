@@ -16,6 +16,8 @@
 			compatible = "hobot,x2-pinctrl";
 			reg = <0 0xA6004000 0 0x100>,
 				<0 0xA6003000 0 0x100>;
+			gpio-controller;
+			#gpio-cells = <2>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 54 4>;
 			/*specific the gpio of each irq banck, 0 is invalid*/

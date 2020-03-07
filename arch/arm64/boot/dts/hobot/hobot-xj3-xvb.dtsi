@@ -179,7 +179,7 @@
 
 &pinctrl {
 	status = "okay";
-	gpioirq-bank-cfg = <85 29 0 0>;
+	gpioirq-bank-cfg = <85 29 65 0>;
 };
 
 &uart0 {
