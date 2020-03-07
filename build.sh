@@ -108,10 +108,10 @@ function build_wifi()
     echo "end build wifi...................."
 }
 
-function change_dts_nor_config()
+function change_dts_flash_config()
 {
     local dts_file="arch/arm64/boot/dts/hobot/hobot-xj3-xvb.dtsi"
-    local key_value="nor_flash {"
+    local key_value="$1_flash {"
 
     declare -i nline
 
@@ -125,12 +125,17 @@ function change_dts_nor_config()
         awk "BEGIN{a=`getline`;b="1";c=(a+b);print c}";
     }
 
-    nline=`getlinenum`
 
-    if [ x"$BOOT_MODE" = x"nor" ];then
-        sed -i "${nline}s#disabled#okay#g" $dts_file
+    if [ x"$BOOT_MODE" = x"nor" ] || [ x"$BOOT_MODE" = x"nand" ];then
+        flashline=`getlinenum`
+        sed -i "${flashline}s#disabled#okay#g" $dts_file
     else
-        sed -i "${nline}s#okay#disabled#g" $dts_file
+        key_value="nor_flash {"
+        local norline=`getlinenum`
+        sed -i "${norline}s#okay#disabled#g" $dts_file
+        key_value="nand_flash {"
+        local nandline=`getlinenum`
+        sed -i "${nandline}s#okay#disabled#g" $dts_file
     fi
 }
 
@@ -207,7 +212,7 @@ function clean()
 
 cd $(dirname $0)
 # config dts
-change_dts_nor_config
+change_dts_flash_config $BOOT_MODE
 
 set_kernel_config
 buildopt $1
