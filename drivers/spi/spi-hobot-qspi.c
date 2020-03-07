@@ -15,6 +15,11 @@
 #include <linux/dmaengine.h>
 #include <linux/interrupt.h>
 #include <linux/io.h>
+#include <linux/err.h>
+#include <linux/of.h>
+#include <linux/of_device.h>
+#include <linux/timer.h>
+#include <linux/jiffies.h>
 #include <linux/module.h>
 #include <linux/of_irq.h>
 #include <linux/of_address.h>
@@ -24,11 +29,17 @@
 #include <linux/spi/spi-mem.h>
 #include <linux/spinlock.h>
 #include <linux/workqueue.h>
+#include <linux/mutex.h>
 #include <linux/mtd/spinand.h>
 #include <linux/completion.h>
+#include <soc/hobot/diag.h>
 #include <linux/spi/spi-hobot-qspi.h>
 
 #define HB_QSPI_NAME                "hb_qspi_nand"
+
+static int first_time;
+static int last_err;
+/* #define HB_QSPI_WORK_POLL    1 */
 
 /* Uncomment the following macro definition to turn on debugging */
 // #define QSPI_DEBUG
@@ -51,7 +62,7 @@ struct hb_qspi_flash_pdata {
 struct hb_qspi {
 	void __iomem *regs;
 	struct platform_device *pdev;
-	struct completion transfer_complete;
+	struct completion xfer_complete;
 
 #ifndef CONFIG_HOBOT_FPGA_X3
 	u32 ref_clk;
@@ -227,18 +238,6 @@ void qspi_batch_mode_set(struct hb_qspi *hbqspi, bool enable)
 	hb_qspi_write(hbqspi, HB_QSPI_CTL3_REG, val);
 }
 
-void qspi_batch_tx_rx_flag_clr(struct hb_qspi *hbqspi, bool is_tx)
-{
-	uint32_t val;
-
-	val = hb_qspi_read(hbqspi, HB_QSPI_ST1_REG);
-	if (is_tx)
-		val |= HB_QSPI_TBD;
-	else
-		val |= HB_QSPI_RBD;
-	hb_qspi_write(hbqspi, HB_QSPI_ST1_REG, val);
-}
-
 void qspi_reset_fifo(struct hb_qspi *hbqspi)
 {
 	uint32_t val;
@@ -369,17 +368,25 @@ static void hb_qspi_hw_init(struct hb_qspi *hbqspi)
 	qspi_div = caculate_qspi_divider(hbqspi->ref_clk, hbqspi->qspi_clk);
 	hb_qspi_write(hbqspi, HB_QSPI_BDR_REG, qspi_div);
 #endif
+	/* clear status */
+	reg_val = HB_QSPI_MODF_CLR | HB_QSPI_RBD | HB_QSPI_TBD;
+	hb_qspi_write(hbqspi, HB_QSPI_ST1_REG, reg_val);
+	reg_val = HB_QSPI_TXRD_EMPTY | HB_QSPI_RXWR_FULL;
+	hb_qspi_write(hbqspi, HB_QSPI_ST2_REG, reg_val);
 
 	/* set qspi work mode */
 	reg_val = hb_qspi_read(hbqspi, HB_QSPI_CTL1_REG);
 	reg_val |= ((SPI_MODE0 & 0x30) | HB_QSPI_MST | HB_QSPI_FW8 | MSB);
 	hb_qspi_write(hbqspi, HB_QSPI_CTL1_REG, reg_val);
 
+	/* Set Rx/Tx fifo trig level  */
 	hb_qspi_write(hbqspi, HB_QSPI_TTL_REG, HB_QSPI_TRIG_LEVEL);
 	hb_qspi_write(hbqspi, HB_QSPI_RTL_REG, HB_QSPI_TRIG_LEVEL);
 
-	/* Disable all interrupt */
-	hb_qspi_write(hbqspi, HB_QSPI_CTL2_REG, 0x0);
+	/* init interrupt */
+	reg_val = HB_QSPI_RBC_INT | HB_QSPI_TBC_INT |
+			HB_QSPI_ERR_INT;
+	hb_qspi_write(hbqspi, HB_QSPI_CTL2_REG, reg_val);
 
 	/* unselect chip */
 	reg_val = hb_qspi_read(hbqspi, HB_QSPI_CS_REG);
@@ -443,8 +450,7 @@ int hb_qspi_write_data(struct hb_qspi *hbqspi, const void *txbuf, uint32_t len)
 	while (remain_len > 0) {
 		tx_len = MIN(remain_len, BATCH_MAX_CNT);
 		if (hbqspi->batch_mode) {
-			/* clear HB_QSPI_TBD bit */
-			qspi_batch_tx_rx_flag_clr(hbqspi, 1);
+			reinit_completion(&hbqspi->xfer_complete);
 			/* set batch cnt */
 			hb_qspi_write(hbqspi, HB_QSPI_TBC_REG, tx_len);
 		}
@@ -468,7 +474,6 @@ int hb_qspi_write_data(struct hb_qspi *hbqspi, const void *txbuf, uint32_t len)
 		ptr += tmp_txlen;
 	}
 	if(hbqspi->batch_mode) {
-		qspi_batch_tx_rx_flag_clr(hbqspi, 1);
 		qspi_batch_mode_set(hbqspi, 0);
 	}
 	return len;
@@ -501,8 +506,7 @@ static int hb_qspi_read_data(struct hb_qspi *hbqspi, uint8_t *rxbuf,
 		rx_len = MIN(rx_remain, BATCH_MAX_CNT);
 		rx_remain -= rx_len;
 		if(hbqspi->batch_mode) {
-		/* clear HB_QSPI_RBD bit */
-			qspi_batch_tx_rx_flag_clr(hbqspi, 0);
+			reinit_completion(&hbqspi->xfer_complete);
 			hb_qspi_write(hbqspi, HB_QSPI_RBC_REG, rx_len);
 		}
 		qspi_enable_rx(hbqspi);
@@ -532,14 +536,14 @@ static int hb_qspi_read_data(struct hb_qspi *hbqspi, uint8_t *rxbuf,
 			current_receive_len += tmp_rxlen;
 		}
 		if (hbqspi->batch_mode) {
-			if (qspi_check_status(hbqspi, HB_QSPI_ST1_REG, HB_QSPI_RBD, timeout)) {
+			if (!wait_for_completion_timeout(&hbqspi->xfer_complete,
+			 msecs_to_jiffies(HB_QSPI_TIMEOUT_MS))) {
 				pr_err("%s:%d timeout loop batch rx done\n", __func__, __LINE__);
 #ifdef QSPI_DEBUG
 				qspi_dump_reg(hbqspi);
 #endif
 				goto SPI_ERROR;
 			}
-			qspi_batch_tx_rx_flag_clr(hbqspi, 0);
 		}
 		qspi_disable_rx(hbqspi);
 	} while (rx_remain != 0);
@@ -719,6 +723,62 @@ static const struct spi_controller_mem_ops hb_mem_ops = {
 	.supports_op = hb_supports_op,
 };
 
+static void qspiflash_diag_report(uint8_t errsta, uint32_t sta_reg)
+{
+	if (errsta) {
+		diag_send_event_stat_and_env_data(
+				DiagMsgPrioHigh,
+				ModuleDiag_qspi,
+				EventIdqspiErr,
+				DiagEventStaFail,
+				DiagGenEnvdataWhenErr,
+				(uint8_t *)&sta_reg,
+				4);
+	} else {
+		diag_send_event_stat(
+				DiagMsgPrioMid,
+				ModuleDiag_qspi,
+				EventIdqspiErr,
+				DiagEventStaSuccess);
+	}
+}
+
+static void qspiflash_callback(void *p, size_t len)
+{
+	first_time = 0;
+}
+
+static irqreturn_t hb_qspi_irq_handler(int irq, void *dev_id)
+{
+	unsigned int irq_status;
+	unsigned int err_status;
+	int err = 0;
+	struct hb_qspi *hbqspi = dev_id;
+	/* Read interrupt status */
+	irq_status = hb_qspi_read(hbqspi, HB_QSPI_ST1_REG);
+	hb_qspi_write(hbqspi, HB_QSPI_ST1_REG, HB_QSPI_TBD | HB_QSPI_RBD);
+
+	err_status = hb_qspi_read(hbqspi, HB_QSPI_ST2_REG);
+	hb_qspi_write(hbqspi, HB_QSPI_ST2_REG,
+			HB_QSPI_RXWR_FULL | HB_QSPI_TXRD_EMPTY);
+
+	if (irq_status & (HB_QSPI_TBD | HB_QSPI_RBD))
+		complete(&hbqspi->xfer_complete);
+
+	if (err_status & (HB_QSPI_RXWR_FULL | HB_QSPI_TXRD_EMPTY))
+		err = 1;
+
+	if (first_time == 0) {
+		first_time = 1;
+		last_err = err;
+		qspiflash_diag_report(err, err_status);
+	} else if (last_err != err) {
+		last_err = err;
+		qspiflash_diag_report(err, err_status);
+	}
+	return IRQ_HANDLED;
+}
+
 /**
  * hb_qspi_probe:	Probe method for the QSPI driver
  * @pdev:	Pointer to the platform_device structure
@@ -801,6 +861,23 @@ static int hb_qspi_probe(struct platform_device *pdev)
 		master->num_chipselect = HB_QSPI_DEF_CS;
 	else
 		master->num_chipselect = num_cs;
+
+	init_completion(&hbqspi->xfer_complete);
+	/* Obtain IRQ line */
+	hbqspi->irq = platform_get_irq(pdev, 0);
+	if (hbqspi->irq < 0) {
+		dev_err(dev, "Cannot obtain IRQ.\n");
+		goto remove_master;
+	}
+	ret = devm_request_irq(dev, hbqspi->irq, hb_qspi_irq_handler,
+							0, pdev->name, hbqspi);
+	if (ret) {
+		dev_err(dev, "Cannot request IRQ.\n");
+		goto remove_master;
+	}
+	if (diag_register(ModuleDiag_qspi, EventIdqspiErr,
+						4, 10, 5000, qspiflash_callback) < 0)
+		pr_err("qspi flash diag register fail\n");
 
 	master->setup = hb_qspi_setup;
 	master->set_cs = hb_qspi_chipselect;

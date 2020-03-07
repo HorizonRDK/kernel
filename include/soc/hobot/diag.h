@@ -45,7 +45,7 @@ enum diag_module_id {
 	ModuleDiag_eth,
 	ModuleDiag_spi,
 	ModuleDiag_emmc,
-	ModuleDiag_norflash,
+	ModuleDiag_qspi,
 	ModuleIdMax = 1000,
 };
 
@@ -134,9 +134,9 @@ enum diag_eth_module_eventid {
 	EventIdEthDmaBusErr = 1,
 };
 
-/* norflash module event id */
-enum diag_norflash_module_eventid {
-	EventIdNorflashErr = 1,
+/* qspi module event id */
+enum diag_qspi_module_eventid {
+	EventIdqspiErr = 1,
 };
 
 /* spi module event id */
