@@ -70,16 +70,9 @@
 #define SD1_PADC_VAL_CLR0		(0xF8F8F8E8)
 #define SD1_PADC_VAL_CLR1		(0xF8F8F8F8)
 #define SD1_PADC_VAL			(0x04040404)
-#ifdef CONFIG_HOBOT_XJ3
-#define HOBOT_PINCTRL_REG		(0xA6004000)
-#define SD0_BASE_SHIFT			(0xD4)
-#define SD1_BASE_SHIFT			(0x108)
-#define SD2_BASE_SHIFT			(0x120)
-#define SD_PIN_DRIVE			(0x120)
-#endif
 
 #define pr_fmt(fmt)	KBUILD_MODNAME ": " fmt
-#define VER		"HOBOT-mmc_V20.200224"
+#define VER		"HOBOT-mmc_V20.200308"
 
 static int debug;
 module_param(debug, int, 0644);
@@ -131,6 +124,7 @@ static int hb_mmc_set_sd_padcctrl(struct dw_mci_hobot_priv_data *priv)
 
 int hb_mmc_disable_clk(struct dw_mci_hobot_priv_data *priv)
 {
+#ifdef CONFIG_HOBOT_XJ2
 	u64 timeout = jiffies + msecs_to_jiffies(10);
 	u32 clken_clr_shift = 0, clkoff_sta_shift = 0;
 	u32 reg_value;
@@ -143,12 +137,7 @@ int hb_mmc_disable_clk(struct dw_mci_hobot_priv_data *priv)
 		clken_clr_shift = HOBOT_SD1_CLKEN_CLR_SHIFT;
 		clkoff_sta_shift = HOBOT_SD1_CLKOFF_STA_SHIFT;
 	}
-#ifdef CONFIG_HOBOT_XJ3
-	else if (priv->ctrl_id == DWMMC_SD2_ID) {
-		clken_clr_shift = HOBOT_SD2_CLKEN_CLR_SHIFT;
-		clkoff_sta_shift = HOBOT_SD2_CLKOFF_STA_SHIFT;
-	}
-#endif
+
 	while (retry++ < 5) {
 		reg_value = 1 << clken_clr_shift;
 		writel(reg_value, priv->sysctrl_reg + HOBOT_CLKEN_CLR);
@@ -170,10 +159,18 @@ int hb_mmc_disable_clk(struct dw_mci_hobot_priv_data *priv)
 	pr_err("Err disable mmc clk, ctrl_id:%d!\n", priv->ctrl_id);
 
 	return -1;
+#else
+	if (priv->ctrl_id == DWMMC_MMC_ID)
+		usleep_range(10, 20);
+	else
+		usleep_range(20000, 25000);
+	return 0;
+#endif
 }
 
 int hb_mmc_enable_clk(struct dw_mci_hobot_priv_data *priv)
 {
+#ifdef CONFIG_HOBOT_XJ2
 	u64 timeout = jiffies + msecs_to_jiffies(10);
 	u32 clken_set_shift = 0, clkoff_sta_shift = 0;
 	u32 reg_value;
@@ -186,12 +183,7 @@ int hb_mmc_enable_clk(struct dw_mci_hobot_priv_data *priv)
 		clken_set_shift = HOBOT_SD1_CLKEN_SET_SHIFT;
 		clkoff_sta_shift = HOBOT_SD1_CLKOFF_STA_SHIFT;
 	}
-#ifdef CONFIG_HOBOT_XJ3
-	else if (priv->ctrl_id == DWMMC_SD2_ID) {
-		clken_set_shift = HOBOT_SD2_CLKEN_SET_SHIFT;
-		clkoff_sta_shift = HOBOT_SD2_CLKOFF_STA_SHIFT;
-	}
-#endif
+
 	while (retry++ < 5) {
 		reg_value = 1 << clken_set_shift;
 		writel(reg_value, priv->sysctrl_reg + HOBOT_CLKEN_SET);
@@ -216,6 +208,13 @@ int hb_mmc_enable_clk(struct dw_mci_hobot_priv_data *priv)
 	pr_err("Err enable mmc clk, ctrl_id:%d!\n", priv->ctrl_id);
 
 	return -1;
+#else
+	if (priv->ctrl_id == DWMMC_MMC_ID)
+		usleep_range(10, 20);
+	else
+		usleep_range(20000, 25000);
+	return 0;
+#endif
 }
 
 void hb_mmc_set_power(struct dw_mci_hobot_priv_data *priv, bool val)
