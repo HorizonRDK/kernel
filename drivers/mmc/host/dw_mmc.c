@@ -2973,14 +2973,6 @@ static int dw_mci_init_slot(struct dw_mci *host)
 		mmc->max_seg_size = mmc->max_req_size;
 	}
 
-	// hobot gpio-cd
-	if (!device_property_read_u32(host->dev, "gpio-cd", &of_val)) {
-		if (gpio_is_valid(of_val)) {
-			ret = mmc_gpio_request_cd(mmc, of_val, 0);
-			dev_info(host->dev, "gpio-cd=%d ret=%d\n", of_val, ret);
-		}
-	}
-
 	dw_mci_get_cd(mmc);
 
 	/* Now that slots are all setup, we can enable card detect */
