@@ -80,6 +80,12 @@
 			no-map;
 		};
 
+		/* Reserved 512MB memory for ion */
+		ion_reserved: ion_reserved@0x1D089000 {
+			compatible = "ion-pool";
+			reg = <0x0 0x1D089000 0x0 0x20000000>;
+		};
+
 		bifsd_reserved: bifsd_reserved@0x3D089000 {
 			reg = <0x0 0x3D089000 0x0 0x1000>;
 			no-map;
@@ -99,18 +105,6 @@
 		bl31_reserved: bl31_reserved@0x3FE00000 {
 			reg = <0x0 0x3FE00000 0x0 0x200000>;
 			no-map;
-		};
-
-		/* Reserved 256MB memory for cnn subsystem */
-		ion_reserved: ion_reserved@0x1D089000 {
-			compatible = "ion-pool";
-			reg = <0x0 0x1D089000 0x0 0x10000000>;
-		};
-
-		/* Reserved 256MB memory for ipu subsystem */
-		ipu_reserved: ipu_reserved@0x2D089000 {
-			reg = <0x0 0x2D089000 0x0 0x10000000>;
-			/*no-map;*/
 		};
 
 	};
