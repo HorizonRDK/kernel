@@ -102,7 +102,7 @@ if __name__ == '__main__':
         print ('len = 2')
 
     # bootInfoContent = bootInfoOutput()
-    bootInfoContent = [0 for i in range(0, 512)]
+    bootInfoContent = [0 for i in range(0, 256)]
     bootInfoContent = np.asarray(bootInfoContent, dtype=np.int32)
 
     filePath = bootloaderInfoOutput()
