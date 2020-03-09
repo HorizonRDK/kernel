@@ -280,6 +280,10 @@ static void x2_uart_dma_rxdone(void *dev_id, unsigned int irqstatus)
 				continue;
 		}
 		rx_bytes = readl(port->membase + X2_UART_RXSIZE);
+		if ((irqstatus & UART_RXTO) && (rx_bytes == X2_UART_DMA_SIZE)) {
+			irqstatus &= ~UART_RXTO;
+			continue;
+		}
 		dma_sync_single_for_cpu(port->dev, x2_port->rx_dma_buf,
 					X2_UART_DMA_SIZE, DMA_FROM_DEVICE);
 		data = *(char *)(x2_port->rx_buf + x2_port->rx_off);
