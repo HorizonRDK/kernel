@@ -402,7 +402,7 @@ static void j5_bpu_set_update_tail(struct bpu_core *core, u32 tail_index)
 {
 	u32 tmp_reg;
 
-	tmp_reg = J5_bpu_reg_read(core, CNN_FC_TAIL);
+	tmp_reg = j5_bpu_reg_read(core, CNN_FC_TAIL);
 	tmp_reg &= ~(J5_CNN_PE0_FC_TAIL_MASK);
 
 	tmp_reg |= J5_CNN_PE0_FC_TAIL(tail_index);
@@ -418,12 +418,12 @@ static int j5_bpu_fc_equeue(struct bpu_core *core, void *fc_data, int *fc_num)
 	u32 ret = 0;
 	u32 count;
 
-	fc_depth = J5_bpu_reg_read(core, CNN_FC_LEN);
+	fc_depth = j5_bpu_reg_read(core, CNN_FC_LEN);
 
-	head_index = J5_bpu_reg_read(core, CNN_FC_HEAD);
+	head_index = j5_bpu_reg_read(core, CNN_FC_HEAD);
 	fc_head_flag = head_index & J5_CNN_FC_IDX_FLAG;
 
-	tail_index = J5_bpu_reg_read(core, CNN_FC_TAIL);
+	tail_index = j5_bpu_reg_read(core, CNN_FC_TAIL);
 	fc_tail_flag = tail_index & J5_CNN_FC_IDX_FLAG;
 
 	head_index &= J5_CNN_MAX_FC_LEN_MASK;
@@ -508,7 +508,7 @@ static int j5_bpu_write_fc(struct bpu_core *core,
 			+ ((fc_num - 1) * FC_SIZE  + FC_ID_OFFSET));
 	*tmp_fc_id = fc->hw_id;
 
-	update_tail = J5_bpu_fc_equeue(core,
+	update_tail = j5_bpu_fc_equeue(core,
 			fc->fc_data + (offpos * J5_CNN_FC_SIZE), &fc_num);
 	if (update_tail < 0) {
 		return update_tail;
@@ -521,7 +521,7 @@ static int j5_bpu_write_fc(struct bpu_core *core,
 	return fc_num;
 }
 
-static int64_t j5_bpu_read_fc(struct bpu_core *core,
+static int j5_bpu_read_fc(struct bpu_core *core,
 		u32 *tmp_id, u32 *err)
 {
 	u32 irq_status;
@@ -554,19 +554,7 @@ static int64_t j5_bpu_read_fc(struct bpu_core *core,
 
 static int j5_bpu_status(struct bpu_core *core, int cmd)
 {
-	u32 busy_status = 0;
-
-	if (!core) {
-		pr_err("Get Status from invalid bpu core!\n");
-		return CORE_UNKNOWN;
-	}
-
-	busy_status = x2_bpu_reg_read(core, CNN_BPU_BUSY);
-
-	if (!busy_status)
-		return CORE_IDLE;
-
-	return CORE_BUSY;
+	return 0;
 }
 
 /* J5 use core reserved[0] to store burst_len set */

@@ -35,7 +35,7 @@ static inline int bpu_core_dvfs_register(struct bpu_core *core,
 	return 0;
 }
 
-static inline void bpu_core_dvfs_register(struct bpu_core *core)
+static inline void bpu_core_dvfs_unregister(struct bpu_core *core)
 {
 	return;
 }

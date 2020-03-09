@@ -5,6 +5,6 @@ bpu_framework-objs		:=  bpu.o bpu_ctrl.o \
 
 bpu_cores-y := bpu_core.o
 bpu_cores-$(CONFIG_X2_BPU) += x2_bpu.o
-bpu_cores-$(CONFIG_J2_BPU) += J5_bpu.o
+bpu_cores-$(CONFIG_J5_BPU) += j5_bpu.o
 
 obj-$(CONFIG_BPU_CORE)	+= bpu_cores.o
