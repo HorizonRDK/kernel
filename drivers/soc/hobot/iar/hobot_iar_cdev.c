@@ -59,6 +59,8 @@
 #define IAR_OUTPUT_LAYER1_DQBUF _IOW(IAR_CDEV_MAGIC, 0x34, unsigned int)
 #define IAR_OUTPUT_LAYER1_REQBUFS _IOW(IAR_CDEV_MAGIC, 0x35, unsigned int)
 #define IAR_OUTPUT_STREAM _IOW(IAR_CDEV_MAGIC, 0x36, unsigned int)
+#define DISP_SET_VIO_CHN_PIPE \
+        _IOW(IAR_CDEV_MAGIC, 0x37, struct display_vio_channel_pipe)
 
 typedef struct _update_cmd_t {
 	unsigned int enable_flag[IAR_CHANNEL_MAX];
@@ -255,7 +257,11 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 				return -EFAULT;
 			//pr_info("\niar_cdev_driver: camera channel
 			//number is %d!!\n", channel_number);
+#ifdef CONFIG_HOBOT_XJ2
 			ret = set_video_display_channel(channel_number);
+#else
+			iar_display_cam_no = channel_number;
+#endif
 		}
 		break;
 	case IAR_SET_VIDEO_DDR_LAYER:
@@ -268,7 +274,11 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 				return -EFAULT;
 			//pr_info("\niar_cdev_driver: display ddr layer
 			//number is %d!!\n", ddr_layer_number);
+#ifdef CONFIG_HOBOT_XJ2
 			ret = set_video_display_ddr_layer(ddr_layer_number);
+#else
+			iar_display_addr_type = ddr_layer_number;
+#endif
 		}
 		break;
 	case DISP_SET_VIDEO_ADDR:
@@ -290,6 +300,24 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 			if (ret)
 				pr_err("%s: channel 1 not display\n", __func__);
 			iar_update();
+		}
+		break;
+	case DISP_SET_VIO_CHN_PIPE:
+		 {
+			struct display_vio_channel_pipe disp_vio_cfg;
+			if (copy_from_user(&disp_vio_cfg, arg,
+						sizeof(disp_vio_cfg)))
+				return -EFAULT;
+			if (disp_vio_cfg.disp_layer_no == 0) {
+				iar_display_cam_no = disp_vio_cfg.vio_pipeline;
+				iar_display_addr_type = disp_vio_cfg.vio_channel;
+			} else if (disp_vio_cfg.disp_layer_no == 1) {
+				iar_display_cam_no_video1 = disp_vio_cfg.vio_pipeline;
+				iar_display_addr_type_video1 = disp_vio_cfg.vio_channel;
+			} else {
+				pr_err("%s: error set display layer!!\n", __func__);
+				ret = -1;
+			}
 		}
 		break;
 	case GET_DISP_DONE:

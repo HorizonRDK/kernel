@@ -104,7 +104,7 @@ void vio_reset_module(u32 module);
 void vio_group_done(struct vio_group *group);
 
 #ifdef X3_IAR_INTERFACE
-extern u32 ipu_get_iar_display_type(void);
+extern u32 ipu_get_iar_display_type(u8 *pipeline, u8 *channel);
 extern int32_t ipu_set_display_addr(u32 yaddr, u32 caddr);
 #endif
 

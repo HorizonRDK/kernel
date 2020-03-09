@@ -1654,11 +1654,20 @@ enum buffer_owner ipu_index_owner(struct ipu_video_ctx *ipu_ctx,
 void ipu_set_iar_output(struct ipu_video_ctx *ipu_ctx, struct vio_frame *frame)
 {
 #ifdef X3_IAR_INTERFACE
-	u32 display_layer = 0;
+	int ret = 0;
+	u8 dis_instance = 0;
+	u8 display_layer = 0;
+	struct vio_group *group;
 
-	display_layer = ipu_get_iar_display_type();
-	if(ipu_ctx->id == display_layer)
-		ipu_set_display_addr(frame->frameinfo.addr[0], frame->frameinfo.addr[1]);
+	group = ipu_ctx->group;
+	ret = ipu_get_iar_display_type(&dis_instance, &display_layer);
+	if (!ret && group->instance == dis_instance) {
+		if(ipu_ctx->id == display_layer)
+			ipu_set_display_addr(frame->frameinfo.addr[0], frame->frameinfo.addr[1]);
+	}
+
+	vio_dbg("IPU display_layer = %d, dis_instance = %d, ret(%d)",
+		display_layer, dis_instance, ret);
 #endif
 }
 
@@ -1705,7 +1714,8 @@ void ipu_frame_done(struct ipu_sub_mp *sub_mp)
 		ipu_set_iar_output(ipu_ctx, frame);
 		trans_frame(framemgr, frame, FS_COMPLETE);
 	} else {
-		vio_err("PROCESS queue has no member;\n");
+		vio_err("[S%d][V%d]IPU PROCESS queue has no member;\n",
+				group->instance, ipu_ctx->id);
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 	spin_unlock(&sub_mp->slock);
@@ -1880,8 +1890,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 	if (size_err) {
 		ipu_clear_size_err(ipu->base_reg, 1);
 		ipu_clear_size_err(ipu->base_reg, 0);
-		vio_err("IPU size error detection(0x%x)\n", size_err);
-		//vio_group_done(group);
+		vio_warn("IPU size error detection(0x%x)\n", size_err);
 	}
 
 	if (status & (1 << INTR_IPU_US_FRAME_DROP)) {

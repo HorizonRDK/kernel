@@ -324,12 +324,18 @@ void gdc_set_iar_output(struct x3_gdc_dev *gdc_dev,
 		gdc_settings_t *gdc_settings)
 {
 #ifdef X3_IAR_INTERFACE
-	u32 display_layer = 0;
+	u8 display_layer = 0;
+	u8 dis_instance = 0;
+	int ret = 0;
 
-	display_layer = ipu_get_iar_display_type();
-	if ((display_layer - 37) == gdc_dev->hw_id)
-		ipu_set_display_addr(gdc_settings->Out_buffer_addr[0],
-			gdc_settings->Out_buffer_addr[1]);
+	ret = ipu_get_iar_display_type(&dis_instance, &display_layer);
+	if (!ret) {
+		if ((display_layer - 37) == gdc_dev->hw_id)
+			ipu_set_display_addr(gdc_settings->Out_buffer_addr[0],
+				gdc_settings->Out_buffer_addr[1]);
+	}
+	vio_dbg("GDC display_layer = %d, dis_instance = %d, ret(%d)",
+		display_layer, dis_instance, ret);
 #endif
 }
 

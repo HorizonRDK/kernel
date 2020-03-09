@@ -53,18 +53,28 @@ uint32_t iar_display_ipu_addr_dual[DISPLAY_TYPE_TOTAL_MULTI][2];
 uint32_t iar_display_ipu_addr_ddrmode[33][2];
 uint32_t iar_display_yaddr_offset;
 uint32_t iar_display_caddr_offset;
+#ifdef CONFIG_HOBOT_XJ2
 uint8_t iar_display_addr_type = DS5;
 uint8_t iar_display_cam_no;
+#else
+uint8_t iar_display_addr_type = DISPLAY_CHANNEL1;
+uint8_t iar_display_cam_no = PIPELINE0;
+uint8_t iar_display_addr_type_video1 = DISPLAY_CHANNEL1;
+uint8_t iar_display_cam_no_video1 = PIPELINE0;
+#endif
 uint32_t iar_display_ipu_slot_size = 0x1000000;
 uint8_t ch1_en;
 uint8_t disp_user_config_done;
 uint32_t ipu_display_slot_id;
 uint32_t g_disp_yaddr;
 uint32_t g_disp_caddr;
+uint32_t g_disp_yaddr_video1;
+uint32_t g_disp_caddr_video1;
 
 uint8_t config_rotate;
 uint8_t ipu_process_done;
 uint8_t disp_user_update;
+uint8_t disp_user_update_video1;
 //uint8_t pingpong_config = 0;
 uint8_t frame_count;
 uint8_t rst_request_flag;
@@ -906,9 +916,13 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 	writel(value, g_iar_dev->regaddr + REG_IAR_PANEL_SIZE);
 
 	//writel(0x00000008, g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
-
+	config_rotate = cfg->rotate;
+        disp_user_update = cfg->user_control_disp;
+	disp_user_update_video1 = cfg->user_control_disp_layer1;
 	iar_display_cam_no = cfg->display_cam_no;
 	iar_display_addr_type = cfg->display_addr_type;
+	iar_display_cam_no_video1 = cfg->display_cam_no_layer1;
+	iar_display_addr_type_video1 = cfg->display_addr_type_layer1;
 
 #ifdef CONFIG_HOBOT_XJ2
 	if (iar_display_cam_no == 0) {
@@ -935,11 +949,7 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 		iar_display_ipu_slot_size = iar_display_ipu_addr_ddrmode[0][1];
 
 	}
-#endif
 
-	config_rotate = cfg->rotate;
-	disp_user_update = cfg->user_control_disp;
-#ifdef CONFIG_HOBOT_XJ2
 	if (cfg->panel_type == 2) {
 		if (display_type == HDMI_TYPE) {
 			pr_err("%s: wrong json file or convert hw!\n",
@@ -1144,19 +1154,15 @@ int32_t ipu_set_display_addr(uint32_t yaddr, uint32_t caddr)
 }
 EXPORT_SYMBOL_GPL(ipu_set_display_addr);
 
-uint32_t ipu_get_iar_display_type(void)
+u32 ipu_get_iar_display_type(u8 *pipeline, u8 *channel)
 {
-/*	if (disp_user_config_done == 0 | disp_user_update == 1)
-		return 0;
-	else
-		return iar_display_addr_type;
-*/
-	if (disp_user_update == 1)
-		return 0;
-	if (display_type == LCD_7_TYPE)
-		return 2;
-	else if (display_type == MIPI_720P_TOUCH)
-		return 37;
+	if (disp_user_update == 1) {
+		return -1;
+	} else {
+		*pipeline = iar_display_cam_no;
+		*channel = iar_display_addr_type;
+	}
+	return 0;
 }
 EXPORT_SYMBOL_GPL(ipu_get_iar_display_type);
 
@@ -1944,6 +1950,7 @@ int enable_iar_irq(void)
 static int iar_thread(void *data)
 {
 	buf_addr_t display_addr;
+	buf_addr_t display_addr_video1;
 	void __iomem *remap_addr;
 
 	do {
@@ -1955,6 +1962,9 @@ static int iar_thread(void *data)
 		display_addr.Yaddr = g_disp_yaddr;
 		display_addr.Uaddr = g_disp_caddr;
 		display_addr.Vaddr = 0;
+		display_addr_video1.Yaddr = g_disp_yaddr_video1;
+		display_addr_video1.Uaddr = g_disp_yaddr_video1;
+		display_addr_video1.Vaddr = 0;
 #else
 		display_addr.Yaddr =
 			ipu_display_slot_id * iar_display_ipu_slot_size
@@ -1978,9 +1988,12 @@ static int iar_thread(void *data)
 				display_addr.Uaddr, display_addr.Vaddr);
 		} else {
 			pr_debug("iar: iar display refresh!!!!!\n");
-			pr_debug("iar display yaddr is 0x%llx, caddr is 0x%llx\n",
+			pr_debug("iar display video 0 yaddr is 0x%llx, caddr is 0x%llx\n",
 					g_disp_yaddr, g_disp_caddr);
+			pr_debug("iar display video 1 yaddr is 0x%llx, caddr is 0x%llx\n",
+					g_disp_yaddr_video1, g_disp_caddr_video1);
 			iar_set_bufaddr(0, &display_addr);
+			iar_set_bufaddr(1, &display_addr_video1);
 			iar_update();
 		}
 	} while (!kthread_should_stop());
@@ -2626,6 +2639,8 @@ static int x2_iar_probe(struct platform_device *pdev)
 	}
 
 	if (display_type == LCD_7_TYPE) {
+		iar_display_cam_no = PIPELINE0;
+		iar_display_addr_type = DISPLAY_CHANNEL1;
 		temp1 = g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr;
 		tempi = 0;
 		for (i = 0; i < 800 * 4 * 40; i++) {
@@ -2690,6 +2705,8 @@ static int x2_iar_probe(struct platform_device *pdev)
 		ret = disp_set_pixel_clk(54000000);
 		if (ret)
 			return ret;
+		iar_display_cam_no = PIPELINE0;
+                iar_display_addr_type = GDC0;
 		temp1 = g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr;
 		tempi = 0;
 		for (i = 0; i < 720 * 4 * 100; i++) {
@@ -2760,6 +2777,8 @@ static int x2_iar_probe(struct platform_device *pdev)
 	} else if (display_type == HDMI_TYPE) {
 		pr_debug("%s: display_type is HDMI panel!\n", __func__);
 		ret = disp_set_pixel_clk(163000000);
+		iar_display_cam_no = PIPELINE0;
+                iar_display_addr_type = DISPLAY_CHANNEL1;
 		if (ret)
 			return ret;
 #if 0
@@ -2794,6 +2813,8 @@ static int x2_iar_probe(struct platform_device *pdev)
 		pr_debug("iar_driver: disp set mipi 1080p!\n");
 		pr_debug("iar_driver: output 1080*1920 color bar bgr!\n");
 		disp_set_pixel_clk(32000000);
+		iar_display_cam_no = PIPELINE0;
+		iar_display_addr_type = GDC1;
 		// actual output 27.2Mhz(need 27Mhz)
 		temp1 = g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr;
 		tempi = 0;

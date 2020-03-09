@@ -668,18 +668,27 @@ void pym_set_iar_output(struct pym_video_ctx *pym_ctx, struct vio_frame *frame)
 {
 #ifdef X3_IAR_INTERFACE
 	struct special_buffer *spec;
-	u32 display_layer = 0;
+	struct vio_group *group;
+	u8 display_layer = 0;
+	u8 dis_instance = 0;
+	int ret = 0;
 
-	display_layer = ipu_get_iar_display_type();
+	ret = ipu_get_iar_display_type(&dis_instance, &display_layer);
 	spec = &frame->frameinfo.spec;
-	if (display_layer < 37) {
-		if (display_layer >= 31)
-			ipu_set_display_addr(spec->us_y_addr[display_layer - 31],
-				spec->us_uv_addr[display_layer - 31]);
-		else if (display_layer >= 7)
-			ipu_set_display_addr(spec->ds_y_addr[display_layer - 7],
-				spec->ds_uv_addr[display_layer - 7]);
+	group = pym_ctx->group;
+	if (!ret && dis_instance == group->instance) {
+		if (display_layer < 37) {
+			if (display_layer >= 31)
+				ipu_set_display_addr(spec->us_y_addr[display_layer - 31],
+					spec->us_uv_addr[display_layer - 31]);
+			else if (display_layer >= 7)
+				ipu_set_display_addr(spec->ds_y_addr[display_layer - 7],
+					spec->ds_uv_addr[display_layer - 7]);
+		}
 	}
+	vio_dbg("PYM display_layer = %d, dis_instance = %d, ret(%d)",
+		display_layer, dis_instance, ret);
+
 #endif
 }
 
@@ -708,7 +717,7 @@ void pym_frame_done(struct pym_video_ctx *pym_ctx)
 		trans_frame(framemgr, frame, FS_COMPLETE);
 	} else {
 		pym_ctx->event = VIO_FRAME_NDONE;
-		vio_err("%s PROCESS queue has no member;\n", __func__);
+		vio_err("[S%d]PYM PROCESS queue has no member;\n", group->instance);
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 

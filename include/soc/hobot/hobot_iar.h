@@ -475,12 +475,15 @@ typedef struct _output_cfg_t {
 	uint32_t big_endian;
 	uint32_t display_addr_type;
 	uint32_t display_cam_no;
+	uint32_t display_addr_type_layer1;
+        uint32_t display_cam_no_layer1;
 	ppcon1_cfg_t ppcon1;
 	ppcon2_cfg_t ppcon2;
 	refresh_cfg_t refresh_cfg;
 	uint32_t panel_type;
 	uint32_t rotate;
 	uint32_t user_control_disp;
+	uint32_t user_control_disp_layer1;
 } output_cfg_t;
 
 typedef struct _upscaling_cfg_t {
@@ -548,6 +551,12 @@ struct display_video_vaddr {
 	void *channel0_c_addr;
 	void *channel1_y_addr;
 	void *channel1_c_addr;
+};
+
+struct display_vio_channel_pipe {
+	uint8_t disp_layer_no;
+	uint8_t vio_pipeline;
+	uint8_t vio_channel;
 };
 
 enum {
@@ -626,6 +635,12 @@ enum XJ3_DISPLAY_TYPE {
 	US5 = 36,
 	GDC0 = 37,
 	GDC1 = 38,
+};
+enum DISPLAY_PIPELINE {
+	PIPELINE0 = 0,
+	PIPELINE1 = 1,
+	PIPELINE2 = 2,
+	PIPELINE3 = 3,
 };
 #else
 enum DISPLAY_ADDR_TYPE {
@@ -707,6 +722,12 @@ extern unsigned int iar_debug_level;
 extern uint8_t disp_user_config_done;
 extern struct ion_device *hb_ion_dev;
 extern uint8_t disp_copy_done;
+#ifdef CONFIG_HOBOT_XJ3
+extern uint8_t iar_display_addr_type;
+extern uint8_t iar_display_cam_no;
+extern uint8_t iar_display_addr_type_video1;
+extern uint8_t iar_display_cam_no_video1;
+#endif
 #define IAR_DEBUG_PRINT(format, args...)	\
 	do {									\
 		if(iar_debug_level)					\
