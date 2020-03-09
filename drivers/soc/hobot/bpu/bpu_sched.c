@@ -20,14 +20,15 @@ void bpu_sched_seed_update(void)
 	struct bpu_core *tmp_core;
 	struct list_head *pos, *pos_n;
 	int run_fc_num = 0;
+	int i;
 
-	mutex_lock(&g_bpu->mutex_lock);
 	list_for_each_safe(pos, pos_n, &g_bpu->core_list) {
 		tmp_core = (struct bpu_core *)pos;
-		if (tmp_core)
-			run_fc_num += kfifo_len(&tmp_core->run_fc_fifo);
+		if (tmp_core) {
+			for (i = 0; i < BPU_PRIO_NUM; i++)
+				run_fc_num += kfifo_len(&tmp_core->run_fc_fifo[i]);
+		}
 	}
-	mutex_unlock(&g_bpu->mutex_lock);
 
 	if (run_fc_num) {
 		if (g_bpu->sched_seed < HZ)
@@ -40,27 +41,6 @@ void bpu_sched_seed_update(void)
 	}
 }
 EXPORT_SYMBOL(bpu_sched_seed_update);
-
-struct bpu_core *bpu_sched_suit_core(struct bpu *bpu, uint64_t core_mask)
-{
-	struct bpu_core *tmp_core, *min_ratio_core = NULL;
-	struct list_head *pos, *pos_n;
-	int min_ratio = 100;
-
-	list_for_each_safe(pos, pos_n, &bpu->core_list) {
-		tmp_core = (struct bpu_core *)pos;
-		if (tmp_core) {
-			if ((core_mask >> tmp_core->index) & 0x1) {
-				if (min_ratio > tmp_core->ratio) {
-					min_ratio_core = tmp_core;
-					min_ratio = tmp_core->ratio;
-				}
-			}
-		}
-	}
-
-	return min_ratio_core;
-}
 
 static void bpu_sched_worker(unsigned long arg)
 {
@@ -104,7 +84,7 @@ int bpu_sched_start(struct bpu *bpu)
 
 	init_timer(bpu->sched_timer);
 	bpu->sched_timer->function = &bpu_sched_worker;
-	bpu->sched_timer->data= (unsigned long)bpu;
+	bpu->sched_timer->data = (unsigned long)bpu;
 	bpu->sched_seed = HZ;
 	bpu->stat_reset_count = 0;
 

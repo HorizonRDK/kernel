@@ -35,9 +35,12 @@ struct bpu_core;
 
 union bpu_ioctl_arg {
 	struct bpu_group group;
-	__u32 ratio;
-	__u16 cap;
-	__u16 reset;
+	uint32_t ratio;
+	uint64_t core;
+	uint16_t cap;
+	uint16_t reset;
+	int16_t level;
+	uint32_t limit;
 };
 
 struct bpu_fc {
@@ -83,6 +86,8 @@ struct bpu_fc_group {
 struct bpu_user {
 	struct list_head node;
 	unsigned int id;
+	uint16_t is_alive;
+	int running_task_num;
 
 	wait_queue_head_t poll_wait;
 	/* to protect in fifo*/
@@ -90,6 +95,7 @@ struct bpu_user {
 
 	/* to protect out fifo*/
 	struct mutex mutex_lock;
+	struct completion no_task_comp;
 
 	/* which fifo will report to user */
 	DECLARE_KFIFO_PTR(done_fcs, struct user_bpu_fc);
@@ -114,6 +120,7 @@ struct bpu {
 	struct timer_list *sched_timer;
 	
 	struct mutex mutex_lock;
+	spinlock_t spin_lock;
 
 	wait_queue_head_t poll_wait;
 
@@ -176,7 +183,8 @@ static inline struct bpu_fc_group *bpu_get_fc_group(struct bpu_fc *fc)
 /* register core apis */
 int bpu_core_register(struct bpu_core *core);
 void bpu_core_unregister(struct bpu_core *core);
-int bpu_write_fc_to_core(struct bpu_core *core, struct bpu_fc *bpu_fc);
+int bpu_write_fc_to_core(struct bpu_core *core,
+		struct bpu_fc *bpu_fc, unsigned int offpos);
 
 /* fc group apis */
 struct bpu_fc_group *bpu_create_group(uint32_t group_id);
@@ -190,7 +198,6 @@ int bpu_user_ratio(struct bpu_user *user);
 /* sched apis*/
 int bpu_sched_start(struct bpu *bpu);
 int bpu_sched_stop(struct bpu *bpu);
-struct bpu_core *bpu_sched_suit_core(struct bpu *bpu, uint64_t core_mask);
 int bpu_core_update(struct bpu_core *core, struct bpu_fc *fc);
 void bpu_sched_seed_update(void);
 int bpu_ratio(struct bpu *bpu);
@@ -198,8 +205,6 @@ int bpu_core_ratio(struct bpu_core *core);
 
 /* ctrl apis */
 int bpu_stat_reset(struct bpu *bpu);
-int bpu_core_reset(struct bpu_core *core);
-void flush_fc_area(void *start, size_t size);
 
 /* sys apis */
 int bpu_sys_system_init(struct bpu *bpu);

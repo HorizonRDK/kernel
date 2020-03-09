@@ -11,6 +11,7 @@
 #include <linux/device.h>
 #include "bpu.h"
 #include "bpu_core.h"
+#include "bpu_ctrl.h"
 
 extern struct bpu *g_bpu;
 
@@ -27,7 +28,7 @@ static ssize_t bpu_core_queue_show(struct device *dev,
 {
 	struct bpu_core *core = dev_get_drvdata(dev);
 
-	return sprintf(buf, "%d\n", bpu_core_ratio(core));
+	return sprintf(buf, "%d\n", kfifo_avail(&core->run_fc_fifo[0]));
 }
 
 static ssize_t bpu_core_fc_time_show(struct device *dev,
@@ -38,9 +39,11 @@ static ssize_t bpu_core_fc_time_show(struct device *dev,
 	int i, len;
 	int ret;
 
-	ret = sprintf(buf, "%-6s%-10s\t%-10s\t%-10s\t%s\n",
+	ret = sprintf(buf, "%-6s%-10s\t%-6s\t%-6s\t%-10s\t%-10s\t%s\n",
 					"index",
 					"id:hwid",
+					"group",
+					"prio",
 					"start_time",
 					"end_time",
 					"exe_time");
@@ -51,8 +54,11 @@ static ssize_t bpu_core_fc_time_show(struct device *dev,
 
 	len = kfifo_out_peek(&core->done_fc_fifo, tmp_fcs, len);
 	for(i = 0; i < len; i++) {
-		ret += sprintf(buf + ret, "%-6d%d:%-10d\t%-10ld\t%-10ld\t%ldus\n",
+		ret += sprintf(buf + ret,
+				"%-6d%d:%-10d\t%d:%-6d%-6d\t%-10ld\t%-10ld\t%ldus\n",
 				tmp_fcs[i].index, tmp_fcs[i].info.id, tmp_fcs[i].hw_id,
+				tmp_fcs[i].info.g_id & 0xFFFF, tmp_fcs[i].info.g_id >> 16,
+				tmp_fcs[i].info.priority,
 				tmp_fcs[i].start_point.tv_sec * 1000
 				+ tmp_fcs[i].start_point.tv_usec / 1000,
 				tmp_fcs[i].end_point.tv_sec * 1000
@@ -103,8 +109,41 @@ static ssize_t bpu_core_power_store(struct device *dev,
 				  const char *buf, size_t len)
 {
 	struct bpu_core *core = dev_get_drvdata(dev);
+	int power_level;
+	int ret;
 
-	printk("%d\n", core->power_level);
+	ret = sscanf(buf, "%du", &power_level);
+	if (ret < 0)
+		return 0;
+
+	ret = bpu_core_set_freq_level(core, power_level);
+	if (ret < 0)
+		return 0;
+
+	return len;
+}
+
+static ssize_t bpu_core_limit_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct bpu_core *core = dev_get_drvdata(dev);
+
+	return sprintf(buf, "%d\n", core->fc_buf_limit);
+}
+
+static ssize_t bpu_core_limit_store(struct device *dev,
+				  struct device_attribute *attr,
+				  const char *buf, size_t len)
+{
+	struct bpu_core *core = dev_get_drvdata(dev);
+	int fc_buf_limit;
+	int ret;
+
+	ret = sscanf(buf, "%du", &fc_buf_limit);
+	if (ret < 0)
+		return 0;
+
+	bpu_core_set_limit(core, fc_buf_limit);
 
 	return len;
 }
@@ -114,9 +153,14 @@ static DEVICE_ATTR(queue, S_IRUGO, bpu_core_queue_show, NULL);
 static DEVICE_ATTR(fc_time, S_IRUGO, bpu_core_fc_time_show, NULL);
 static DEVICE_ATTR(users, S_IRUGO, bpu_core_users_show, NULL);
 
-/* core power level 0:disable; 1,2...: different work power level */
+/*
+ * core power level >0: kernel dvfs;
+ * 0:highest; -1,-2...: different work power level */
 static DEVICE_ATTR(power_level, S_IRUGO | S_IWUSR,
 		bpu_core_power_show, bpu_core_power_store);
+
+static DEVICE_ATTR(limit, S_IRUGO | S_IWUSR,
+		bpu_core_limit_show, bpu_core_limit_store);
 
 static struct attribute *bpu_core_attrs[] = {
 	&dev_attr_ratio.attr,
@@ -124,6 +168,7 @@ static struct attribute *bpu_core_attrs[] = {
 	&dev_attr_fc_time.attr,
 	&dev_attr_power_level.attr,
 	&dev_attr_users.attr,
+	&dev_attr_limit.attr,
 	NULL,
 };
 
@@ -263,7 +308,7 @@ static const struct attribute_group *bpu_attr_groups[] = {
 };
 
 struct bus_type bpu_subsys = {
-	.name = "bbpu",
+	.name = "bpu",
 };
 
 int bpu_core_create_sys(struct bpu_core *core)
@@ -291,9 +336,20 @@ int bpu_core_create_sys(struct bpu_core *core)
 		goto err;
 	}
 
+	if (core->hw_ops->debug) {
+		ret = core->hw_ops->debug(core, 1);
+		if (ret < 0) {
+			device_remove_group(core->dev, &bpu_core_attr_group);
+			dev_err(core->dev, "Create bpu core hw debug failed\n");
+			goto err;
+		}
+	}
+
 	ret = sysfs_add_link_to_group(&bpu_subsys.dev_root->kobj, "cores",
 				      &core->dev->kobj, core_name);
 	if (ret) {
+		if (core->hw_ops->debug)
+			ret = core->hw_ops->debug(core, 0);
 		device_remove_group(core->dev, &bpu_core_attr_group);
 		dev_err(core->dev, "Create link to bpu bus failed\n");
 		goto err;
@@ -318,6 +374,8 @@ int bpu_core_discard_sys(struct bpu_core *core)
 	sysfs_remove_link_from_group(&bpu_subsys.dev_root->kobj, "cores",
 						core_name);
 	device_remove_group(core->dev, &bpu_core_attr_group);
+	if (core->hw_ops->debug)
+		core->hw_ops->debug(core, 0);
 
 	return 0;
 }

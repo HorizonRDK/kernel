@@ -37,7 +37,26 @@ config X2_BPU
 
 	  If unsure, say N.
 
+config J5_BPU
+	bool "HOBOT J5 SOC BPU support"
+	depends on BPU
+	help
+	  Say y here to support bpu on hobot j5 soc
+
+	  If unsure, say N.
+
 endchoice
+
+config BPU_PRIO_NUM
+	int "priority level number supported by BPU"
+	depends on BPU
+	range 1 8
+	default 8
+	depends on BPU_CORE
+	help
+	  Number of prioritys BPU support
+	  if larger than soc default, use software
+	  Priority mechanism, else by soc support.
 
 endif # BPU_CORE
 

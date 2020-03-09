@@ -114,8 +114,6 @@ int bpu_stat_reset(struct bpu *bpu)
 	unsigned long user_flags;
 	int ret;
 
-	mutex_lock(&bpu->mutex_lock);
-
 	/* reset the bpu core */
 	list_for_each_safe(pos, pos_n, &bpu->core_list) {
 		tmp_core = list_entry(pos, struct bpu_core, node);
@@ -148,8 +146,6 @@ int bpu_stat_reset(struct bpu *bpu)
 			spin_unlock_irqrestore(&tmp_user->spin_lock, user_flags);
 		}
 	}
-
-	mutex_unlock(&bpu->mutex_lock);
 
 	return 0;
 }

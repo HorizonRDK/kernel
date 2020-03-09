@@ -17,6 +17,10 @@
 #define FC_MAX_DEPTH			1024
 #define FC_DEPTH				FC_MAX_DEPTH
 #define HW_ID_MAX				0xFFF
+#define BPU_PRIO_NUM			0x1
+#define FC_PRIO_ID(prio, id)	((id) & 0x1FF) | ((prio & 0x7) << 9)
+#define FC_ID(id)				((id) & 0x1FF)
+#define FC_PRIO(id)				(0)
 
 /*************************************************************
  * x2 cnn register offset list
@@ -126,5 +130,7 @@
 #define BPU_MAX_CORE_NUM		2
 #define BPU_ERR_IRQ_MASK		0xF000
 #define BPU_IRQ_MASK			0x0FFF
+
+extern struct bpu_core_hw_ops x2_hw_ops;
 
 #endif
