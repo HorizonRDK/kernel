@@ -310,11 +310,12 @@ int pg_mode_enable(uint32_t input)
 
 	get_dwe_checktype(dev_ptr->dis_dev->io_vaddr, &tmp.type_g);
 
-	tmp.type_b.rg_pg_enable = (input & 0xff);
-	tmp.type_b.rg_pg_mode = (input & 0xff00) >> 8;
+	//tmp.type_b.rg_pg_enable = (input & 0xff);
+	//tmp.type_b.rg_pg_mode = (input & 0xff00) >> 8;
+	tmp.type_g = input;
 
 	set_dwe_checktype(dev_ptr->dis_dev->io_vaddr, &tmp.type_g);
-	LOG(LOG_DEBUG, "--pg_pulse--");
+	LOG(LOG_DEBUG, "--pg_mode 0x%x--", tmp.type_g);
 
 	return ret;
 }

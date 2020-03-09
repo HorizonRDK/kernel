@@ -34,6 +34,7 @@
 typedef struct _lens_context_t {
     acamera_sbus_t p_bus;
 
+    uint32_t port;
     uint16_t pos;
     uint16_t prev_pos;
     uint16_t move_pos;
@@ -54,31 +55,34 @@ uint8_t lens_null_test( uint32_t lens_bus )
 static void vcm_null_drv_move( void *ctx, uint16_t position )
 {
 	int ret = 0;
-	LOG( LOG_WARNING, "Null VCM driver use attempted: no lens movement can be performed with the null driver" );
+	lens_context_t *p_ctx = (lens_context_t *)ctx;
+
 	LOG( LOG_INFO, "IE&E %s, position %d ", __func__, position );
-	ret = lens_api_af_move(0, position);
+	ret = lens_api_af_move(p_ctx->port, position);
 }
 
 static uint8_t vcm_null_drv_is_moving( void *ctx )
 {
-    LOG( LOG_WARNING, "Null VCM driver use attempted: no lens movement can be performed with the null driver" );
-    LOG( LOG_INFO, "IE&E %s  ", __func__ );
-    return 0;
+	lens_context_t *p_ctx = (lens_context_t *)ctx;
+	LOG( LOG_INFO, "IE&E %s  ", __func__ );
+	return 0;
 }
 
 static void vcm_null_write_register( void *ctx, uint32_t address, uint32_t data )
 {
+	lens_context_t *p_ctx = (lens_context_t *)ctx;
 }
 
 static uint32_t vcm_null_read_register( void *ctx, uint32_t address )
 {
-    return 0;
+	lens_context_t *p_ctx = (lens_context_t *)ctx;
+	return 0;
 }
 
 static const lens_param_t *lens_get_parameters( void *ctx )
 {
-    lens_context_t *p_ctx = ctx;
-    return (const lens_param_t *)&p_ctx->param;
+	lens_context_t *p_ctx = ctx;
+	return (const lens_param_t *)&p_ctx->param;
 }
 
 void lens_null_deinit( void *ctx )
@@ -100,5 +104,5 @@ void lens_null_init( void **ctx, lens_control_t *ctrl, uint32_t lens_bus )
 
     memset( &p_ctx->param, 0, sizeof( lens_param_t ) );
     p_ctx->param.min_step = 1 << 6;
-    p_ctx->param.lens_type = LENS_VCM_DRIVER_NULL;
+    p_ctx->param.lens_type = LENS_VCM_DRIVER_COMMON;
 }

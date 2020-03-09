@@ -218,17 +218,19 @@ int lens_i2c_release(struct i2c_client *client)
 }
 
 struct i2c_client *lens_i2c_request(uint32_t i2c_chn, uint32_t i2c_addr,
-	const char *name, void *ops)
+	const char *name, struct basic_control_ops **ops)
 {
 	struct i2c_board_info temp_info;
 	struct i2c_client *client;
+
+	LOG(LOG_DEBUG, "start request i2c driver!");
 
 	snprintf(temp_info.type, I2C_NAME_SIZE, "%s", name);
 	temp_info.addr = i2c_addr;
 	client = lens_i2c_open(i2c_chn, &temp_info);
 
 	if (client != NULL) {
-		ops = (void *)&basic_i2c_ops;
+		*ops = &basic_i2c_ops;
 	}
 	return client;
 }

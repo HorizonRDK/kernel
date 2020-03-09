@@ -176,18 +176,19 @@ static struct basic_control_ops basic_pulse_ops = {
 };
 
 struct pwm_device *lens_pwm_request(uint32_t chn, const char *name,
-	uint16_t dev_type, void *ops)
+	uint16_t dev_type, struct basic_control_ops **ops)
 {
 	struct pwm_device *pwm_dev = NULL;
 
+	LOG(LOG_DEBUG, "start request pwm driver!");
 	pwm_dev = pwm_request(chn, name);
 	if (pwm_dev == NULL) {
 		LOG(LOG_ERR, "can not get pwm device");
 	} else {
 		if (dev_type == PWM_TYPE) {
-			ops = (void *)&basic_pwm_ops;
+			*ops = &basic_pwm_ops;
 		} else if (dev_type == PULSE_TYPE) {
-			ops = (void *)&basic_pulse_ops;
+			*ops = &basic_pulse_ops;
 		}
 	}
 

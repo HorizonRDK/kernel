@@ -57,7 +57,7 @@
 #if ISP_SENSOR_DRIVER_AN41908A
 #include "an41908a_vcm.h"
 #endif
-#if ISP_SENSOR_DRIVER_NULL
+#if ISP_SENSOR_DRIVER_COMMON
 #include "null_vcm.h"
 #endif
 #if ISP_SENSOR_DRIVER_V4L2
@@ -66,7 +66,7 @@
 
 #include "acamera_logger.h"
 
-int32_t lens_init( void **ctx, lens_control_t *ctrl )
+int32_t lens_init(void **ctx, lens_control_t *ctrl, uint32_t port)
 {
 
     uint32_t lens_bus = get_next_lens_bus_address();
@@ -140,11 +140,11 @@ int32_t lens_init( void **ctx, lens_control_t *ctrl )
         return 0;
     }
 #endif
-#if ISP_SENSOR_DRIVER_NULL
+#if ISP_SENSOR_DRIVER_COMMON
     // Null should always be tested last
     if ( lens_null_test( lens_bus ) ) {
-        lens_null_init( ctx, ctrl, lens_bus );
-        LOG( LOG_NOTICE, "Lens VCM driver is NULL" );
+        lens_null_init( ctx, ctrl, port);
+        LOG( LOG_NOTICE, "Lens VCM driver is COMMON" );
         return 0;
     }
 #endif

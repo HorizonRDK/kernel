@@ -15,6 +15,7 @@ enum lens_type {
 	PULSE_TYPE,
 	I2C_TYPE,
 	SPI_TYPE,
+	GPIO_TYPE,
 };
 
 enum lens_param_type {

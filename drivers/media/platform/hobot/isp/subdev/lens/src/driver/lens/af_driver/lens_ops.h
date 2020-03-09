@@ -9,6 +9,15 @@
 
 #include <linux/types.h>
 
+struct motor_info {
+	uint16_t max_step;
+	uint32_t curr_pos;
+	uint32_t next_pos;
+	uint32_t init_pos;
+	uint32_t min_pos;
+	uint32_t max_pos;
+};
+
 struct motor_control_ops {
 	void (*init)(void *ctx);
 	void (*move)(void *ctx, uint32_t pos);

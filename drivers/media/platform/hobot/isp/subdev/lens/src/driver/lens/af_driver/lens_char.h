@@ -36,6 +36,12 @@ struct chardev_port_param {
 			uint16_t i2c_num;
 			uint32_t i2c_addr;
 		} i2c_param;
+		struct {
+			uint16_t gpio_a1;  // A+
+			uint16_t gpio_a2;  // A-
+			uint16_t gpio_b1;  // B+
+			uint16_t gpio_b2;  // B-
+		} gpio_param;
 	};
 };
 

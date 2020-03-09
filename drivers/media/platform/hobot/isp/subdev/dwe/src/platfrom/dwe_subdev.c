@@ -209,6 +209,8 @@ static irqreturn_t x2a_dis_irq(int this_irq, void *data)
 {
 	unsigned long flags = 0;
 	int ret = 0;
+	uint32_t addr = 0;
+	uint32_t tmp = 0;
 	dis_irqstatus_u tmp_irq;
 
 	disable_irq_nosync(this_irq);
@@ -220,7 +222,17 @@ static irqreturn_t x2a_dis_irq(int this_irq, void *data)
 	set_dwe_int_status(dwe_ctx->dev_ctx->dis_dev->io_vaddr, &tmp_irq.status_g);
 
 	if (tmp_irq.status_b.int_pg_done == 1) {
-		LOG(LOG_DEBUG, "dis pg_done  !\n");
+		pr_debug("dis pg_done");
+		addr = 0x00;
+		ldc_debug_info(dwe_ctx->dev_ctx->dis_dev->io_vaddr, addr, &tmp);
+		pr_debug("[dump] addr 0x%x, data 0x%x", addr, tmp);
+		addr = 0x10;
+		ldc_debug_info(dwe_ctx->dev_ctx->dis_dev->io_vaddr, addr, &tmp);
+		pr_debug("[dump] addr 0x%x, data 0x%x", addr, tmp);
+		addr = 0x14;
+		ldc_debug_info(dwe_ctx->dev_ctx->dis_dev->io_vaddr, addr, &tmp);
+		pr_debug("[dump] addr 0x%x, data 0x%x", addr, tmp);
+		LOG(LOG_DEBUG, "dis pg_done!");
 	}
 
 	if (tmp_irq.status_b.int_frame_done == 1) {

@@ -460,7 +460,7 @@ static long dwe_fop_ioctl(struct file *pfile, unsigned int cmd,
 		//tmp_port_save = tmp_port_save ^ 1;
 		//ret = dis_set_ioctl(tmp_port_save, 0);
 		//ret = ldc_set_ioctl(tmp_port_save, 0);
-		msleep(1000);
+		//msleep(1000);
 		ret = start_pg_pulse(dwe_cdev->port);
 	}
 		break;

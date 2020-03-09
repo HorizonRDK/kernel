@@ -50,7 +50,7 @@
 #if ISP_SENSOR_DRIVER_AN41908A
 #include "an41908a_vcm.h"
 #endif
-#if ISP_SENSOR_DRIVER_NULL
+#if ISP_SENSOR_DRIVER_COMMON
 #include "null_vcm.h"
 #endif
 #if ISP_SENSOR_DRIVER_V4L2
@@ -133,7 +133,7 @@ int32_t lens_init( void **ctx, lens_control_t *ctrl )
         return 0;
     }
 #endif
-#if ISP_SENSOR_DRIVER_NULL
+#if ISP_SENSOR_DRIVER_COMMON
     // Null should always be tested last
     if ( lens_null_test( lens_bus ) ) {
         lens_null_init( ctx, ctrl, lens_bus );
