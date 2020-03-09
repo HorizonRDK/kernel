@@ -1050,9 +1050,6 @@ void sif_hw_config(u32 __iomem *base_reg, sif_cfg_t* c)
 	u32 dol_exp_num = 0;
 	sif_output_ddr_t ddr;
 
-	/*4 ddr in channel can not be 0 together*/
-	sif_enable_dma(base_reg, 0x10000);
-
 	// Input: IAR
 	sif_set_iar_input(base_reg, &c->input.iar);
 

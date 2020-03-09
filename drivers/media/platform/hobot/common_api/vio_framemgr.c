@@ -174,7 +174,7 @@ void frame_work_function(struct kthread_work *work)
 
 	set_bit(VIO_GTASK_SHOT, &gtask->state);
 	atomic_dec(&leader->rcount);
-	vio_dbg("%s index%d #0\n", __func__, frame->index);
+	vio_dbg("[S%d][G%d]%s #0\n", leader->instance, leader->id, __func__);
 
 	if (unlikely(test_bit(VIO_GTASK_REQUEST_STOP, &gtask->state))) {
 		vio_err(" cancel by gstop0");
@@ -195,13 +195,13 @@ void frame_work_function(struct kthread_work *work)
 	}
 
 	group = leader;
-	while(group->next){
+	while (group->next) {
 		group = group->next;
-		vio_dbg("%s #1\n", __func__);
+		vio_dbg("[S%d][G%d]%s #1\n", leader->instance, leader->id, __func__);
 		if(group->frame_work)
 			group->frame_work(group);
 	}
-	vio_dbg("%s index%d #2\n", __func__, frame->index);
+	vio_dbg("[S%d][G%d]%s #2\n", leader->instance, leader->id, __func__);
 
 	leader->frame_work(leader);
 	clear_bit(VIO_GTASK_SHOT, &gtask->state);

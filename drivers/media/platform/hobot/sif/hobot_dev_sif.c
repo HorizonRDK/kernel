@@ -942,6 +942,14 @@ void sif_frame_done(struct sif_video_ctx *sif_ctx)
 		sif_ctx->event = VIO_FRAME_NDONE;
 		vio_err("[S%d][V%d]SIF PROCESS queue has no member;\n",
 			group->instance, sif_ctx->id);
+		vio_err("[S%d][V%d][FRM](%d %d %d %d %d)\n",
+			group->instance,
+			sif_ctx->id,
+			framemgr->queued_count[0],
+			framemgr->queued_count[1],
+			framemgr->queued_count[2],
+			framemgr->queued_count[3],
+			framemgr->queued_count[4]);
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
@@ -1214,6 +1222,8 @@ static int x3_sif_probe(struct platform_device *pdev)
 	}
 
 	platform_set_drvdata(pdev, sif);
+	/*4 ddr in channel can not be 0 together*/
+	sif_enable_dma(sif->base_reg, 0x10000);
 
 	vio_info("[FRT:D] %s(%d)\n", __func__, ret);
 
