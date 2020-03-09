@@ -569,6 +569,8 @@ static void dma_complete_context_func( void *arg )
 			memcpy_fromio(cn->base, offset, CTX_SIZE);
 			cn->ctx.crc16 = crc16(~0, cn->base, CTX_SIZE);
 			isp_ctx_put_node(ctx_id, cn, DONEQ);
+
+			pr_debug("ctx dump frame id %d\n", cn->ctx.frame_id);
 		}
 	}
 
@@ -596,24 +598,9 @@ static void dma_complete_metering_func( void *arg )
 	ctx_id = system_dma_device->cur_fw_ctx_id;
 
     if ( g_firmware.dma_flag_isp_config_completed && g_firmware.dma_flag_isp_metering_completed ) {
-	isp_ctx_node_t *cn;
-	volatile void *offset;
 	acamera_context_t *p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[ctx_id];
 
 	pr_debug("START PROCESSING FROM METERING CALLBACK, ctx_id %d\n", ctx_id);
-
-	if (p_ctx->isp_ctxsv_on) {
-		cn = isp_ctx_get_node(ctx_id, FREEQ);
-		if (!cn)
-			cn = isp_ctx_get_node(ctx_id, DONEQ);
-		if (cn) {
-			cn->ctx.frame_id = p_ctx->isp_frame_counter;
-			offset = p_ctx->sw_reg_map.isp_sw_config_map + ACAMERA_DECOMPANDER0_MEM_BASE_ADDR;
-			memcpy_fromio(cn->base, offset, CTX_SIZE);
-			cn->ctx.crc16 = crc16(~0, cn->base, CTX_SIZE);
-			isp_ctx_put_node(ctx_id, cn, DONEQ);
-		}
-	}
 
 	if (p_ctx->sif_isp_offline && p_ctx->fsm_mgr.reserved == 0) { // indicate dma writer is disabled
 		g_firmware.dma_flag_dma_writer_config_completed = 1;
@@ -864,6 +851,7 @@ void isp_ctx_prepare(int ctx_pre, int ctx_next, int ppf)
 
 extern int ldc_set_ioctl(uint32_t port, uint32_t online);
 extern void isp_input_port_size_config(sensor_fsm_ptr_t p_fsm);
+extern int ips_get_isp_frameid(void);
 int sif_isp_ctx_sync_func(int ctx_id)
 {
 	acamera_context_ptr_t p_ctx;
@@ -884,7 +872,6 @@ int sif_isp_ctx_sync_func(int ctx_id)
 
 	isp_input_port_size_config(p_ctx->fsm_mgr.fsm_arr[FSM_ID_SENSOR]->p_fsm);
 	ldc_set_ioctl(ctx_id, 0);
-
 retry:
 	if (acamera_event_queue_empty(&p_ctx->fsm_mgr.event_queue)) {
 		// these flags are used for sync of callbacks
@@ -893,7 +880,8 @@ retry:
 		g_firmware.dma_flag_dma_writer_config_completed = 0;
 
 		// switch to ping/pong contexts for the next frame
-		if (acamera_isp_isp_global_ping_pong_config_select_read(0) == ISP_CONFIG_PONG || p_ctx->isp_frame_counter == 0) {
+		if (acamera_isp_isp_global_ping_pong_config_select_read(0) == ISP_CONFIG_PONG
+			|| p_ctx->isp_frame_counter == 0) {
 			acamera_isp_isp_global_mcu_ping_pong_config_select_write(0, ISP_CONFIG_PING);
 			pr_debug("next is ping, DMA sram -> ping\n");
 			isp_ctx_prepare(last_ctx_id, next_ctx_id, ISP_CONFIG_PING);
@@ -949,7 +937,9 @@ pr_info("hcs1 %d, hcs2 %d, vc %d\n", hcs1, hcs2, vc);
     // read the irq vector from isp
     uint32_t irq_mask = acamera_isp_isp_global_interrupt_status_vector_read( 0 );
 
-    pr_info("IRQ MASK is 0x%x, ctx_id %d", irq_mask, cur_ctx_id);
+    // Update frame counter
+    p_ctx->isp_frame_counter = ips_get_isp_frameid();
+    pr_debug("IRQ MASK is 0x%x, ctx_id %d, frame id %d\n", irq_mask, cur_ctx_id, p_ctx->isp_frame_counter);
 
     if(irq_mask&0x8) {
         printk("broken frame status = 0x%x", acamera_isp_isp_global_monitor_broken_frame_status_read(0));

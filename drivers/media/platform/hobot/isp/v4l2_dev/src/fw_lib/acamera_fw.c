@@ -545,6 +545,10 @@ static void init_stab( acamera_context_ptr_t p_ctx )
     p_ctx->stab.global_ae_compensation = SYSTEM_AE_COMPENSATION_DEFAULT;
     p_ctx->stab.global_calibrate_bad_pixels = 0;
 
+    p_ctx->isp_ctxsv_on = 0;
+    p_ctx->sif_isp_offline = 0;
+    p_ctx->isp_frame_counter = 0;
+
     ((general_fsm_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_GENERAL]->p_fsm))->cnt_for_temper = 0;
 }
 
@@ -619,8 +623,6 @@ int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settin
 
         // reset frame counters
         p_ctx->isp_frame_counter_raw = 0;
-        p_ctx->isp_frame_counter = 0;
-	p_ctx->isp_ctxsv_on = 0;
 
         acamera_fw_init( p_ctx );
 
@@ -668,14 +670,6 @@ void acamera_general_interrupt_hanlder( acamera_context_ptr_t p_ctx, uint8_t eve
     }
 
     if ( event == ACAMERA_IRQ_FRAME_END ) {
-        // Update frame counter
-#if 1
-        p_ctx->isp_frame_counter++;
-#else
-        p_ctx->isp_frame_counter = x2a_isp_frame_id_read();
-#endif
-        LOG( LOG_INFO, "Meta frame counter = %d", (int)p_ctx->isp_frame_counter );
-
 #if ISP_DMA_RAW_CAPTURE
         p_ctx->isp_frame_counter_raw++;
 #endif
