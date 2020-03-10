@@ -26,6 +26,9 @@
 #define PVT_SAMPLE_INTERVAL_MS 20
 #define PVT_TS_MASK GENMASK(PVT_TS_NUM - 1, 0)
 
+unsigned int test_gain = 0;
+module_param(test_gain, uint, 0644);
+
 /* TS0: CNN0 TS1:CPU TS2:CNN1 TS3: DDR */
 static char *ts_map[] = {
 	"CNN0",
@@ -36,10 +39,10 @@ static char *ts_map[] = {
 
 struct pvt_device {
 	int irq;
-	u32 cur_temp[PVT_TS_NUM];
+	long cur_temp[PVT_TS_NUM];
 	u32 cur_smpl[PVT_TS_NUM];
-	u32 cur_temp_avg;
-	u32 ref_clk;
+	long cur_temp_avg;
+	long ref_clk;
 	struct device *dev;
 	struct clk *clk;
 	struct timer_list irq_unmask_timer;
@@ -74,8 +77,11 @@ static int pvt_temp_read(struct device *dev, enum hwmon_sensor_types type,
 		     u32 attr, int channel, long *val)
 {
 	struct pvt_device *pvt_dev = dev_get_drvdata(dev);
-	u32 sum = 0;
-	u32 temp = 0;
+	long sum = 0;
+	long temp = 0;
+	long temp_min = 0;
+	long temp_max = 0;
+	long diff;
 	int i = 0;
 
 	if (!pvt_dev->updated) {
@@ -99,13 +105,40 @@ static int pvt_temp_read(struct device *dev, enum hwmon_sensor_types type,
 
 		pvt_dev->cur_temp[i] = temp;
 		pr_debug("%s cur_smpl[%d] = %d\n", ts_map[i], i, pvt_dev->cur_smpl[i]);
-		pr_debug("%s cur_temp[%d] = %d\n", ts_map[i], i, pvt_dev->cur_temp[i]);
+		pr_debug("%s cur_temp[%d] = %ld\n", ts_map[i], i, pvt_dev->cur_temp[i]);
 		sum += temp;
 	}
 
 	pvt_dev->cur_temp_avg = sum >> 2;
+	*val = pvt_dev->cur_temp_avg * 1000 + test_gain;
 
-	*val = pvt_dev->cur_temp_avg * 1000;
+	temp_min = temp_max = pvt_dev->cur_temp[0];
+	for (i = 0; i < PVT_TS_NUM; i++) {
+		if (pvt_dev->cur_temp[i] < temp_min ) {
+			temp_min = pvt_dev->cur_temp[i];
+			continue;
+		}
+
+		if (pvt_dev->cur_temp[i] > temp_max ) {
+			temp_max = pvt_dev->cur_temp[i];
+		}
+	}
+
+	diff = temp_max - temp_min;
+	if (diff > 2)
+		pr_info("avg:%ld, min:%ld, max:%ld, diff:%ld\n",
+			pvt_dev->cur_temp_avg, temp_min, temp_max, diff);
+	else
+		pr_debug("avg:%ld, min:%ld, max:%ld, diff:%ld\n",
+			pvt_dev->cur_temp_avg, temp_min, temp_max, diff);
+
+	if ( *val < 10000 || *val > 100000 ) {
+		pr_err("abnormal temp %dmC\n", *val);
+		for (i = 0; i < PVT_TS_NUM; i++) {
+			pr_err("%s cur_smpl[%d] = %d\n", ts_map[i], i, pvt_dev->cur_smpl[i]);
+			pr_err("%s cur_temp[%d] = %ldC\n", ts_map[i], i, pvt_dev->cur_temp[i]);
+		}
+	}
 
 	return  0;
 }
@@ -185,7 +218,7 @@ static irqreturn_t pvt_irq_handler(int irq, void *dev_id)
 
 		if (sdif_done) {
 			pvt_dev->cur_smpl[i] = sdif_data;
-			if (sdif_data > 3000) {
+			if (sdif_data > 3000 || sdif_data < 1000) {
 				pr_err("invalid cur_smpl[%d] : %d, SDIF_DATA:%08x\n",
 						i, pvt_dev->cur_smpl[i], sdif_data);
 			}
