@@ -16,14 +16,14 @@
 extern struct bpu *g_bpu;
 
 /* bpu time statistics mainly trigger by fc event*/
-int bpu_core_update(struct bpu_core *core, struct bpu_fc *fc)
+int32_t bpu_core_update(struct bpu_core *core, struct bpu_fc *fc)
 {
 	struct bpu_fc_group *tmp_fc_group;
 	struct bpu_user *tmp_user;
 	uint64_t tmp_time;
 	unsigned long flags;
 
-	if (!core || !fc)
+	if ((core == NULL) || (fc == NULL))
 		return -EINVAL;
 
 	spin_lock_irqsave(&core->spin_lock, flags);
@@ -61,7 +61,7 @@ int bpu_core_update(struct bpu_core *core, struct bpu_fc *fc)
 }
 EXPORT_SYMBOL(bpu_core_update);
 
-static int bpu_core_stat_reset(struct bpu_core *core)
+static int32_t bpu_core_stat_reset(struct bpu_core *core)
 {
 	struct timeval tmp_start_point;
 	struct list_head *pos, *pos_n;
@@ -70,7 +70,7 @@ static int bpu_core_stat_reset(struct bpu_core *core)
 	unsigned long flags;
 	unsigned long user_flags;
 
-	if (!core)
+	if (core == NULL)
 		return -EINVAL;
 
 	spin_lock_irqsave(&core->spin_lock, flags);
@@ -81,7 +81,7 @@ static int bpu_core_stat_reset(struct bpu_core *core)
 	/* reset the core user p_run_time */
 	list_for_each_safe(pos, pos_n, &core->user_list) {
 		tmp_user = list_entry(pos, struct bpu_user, node);
-		if (tmp_user) {
+		if (tmp_user != NULL) {
 			spin_lock_irqsave(&tmp_user->spin_lock, user_flags);
 			tmp_user->p_run_time /= P_RESET_COEF;
 			spin_unlock_irqrestore(&tmp_user->spin_lock, user_flags);
@@ -104,7 +104,7 @@ static int bpu_core_stat_reset(struct bpu_core *core)
 	return 0;
 }
 
-int bpu_stat_reset(struct bpu *bpu)
+int32_t bpu_stat_reset(struct bpu *bpu)
 {
 	struct list_head *pos, *pos_n;
 	struct bpu_core *tmp_core;
@@ -112,12 +112,12 @@ int bpu_stat_reset(struct bpu *bpu)
 	struct bpu_user *tmp_user;
 	unsigned long group_flags;
 	unsigned long user_flags;
-	int ret;
+	int32_t ret;
 
 	/* reset the bpu core */
 	list_for_each_safe(pos, pos_n, &bpu->core_list) {
 		tmp_core = list_entry(pos, struct bpu_core, node);
-		if (tmp_core) {
+		if (tmp_core != NULL) {
 			ret = bpu_core_stat_reset(tmp_core);
 			if (ret) {
 				mutex_unlock(&bpu->mutex_lock);
@@ -130,7 +130,7 @@ int bpu_stat_reset(struct bpu *bpu)
 	/* reset the bpu group p_run_time */
 	list_for_each_safe(pos, pos_n, &bpu->group_list) {
 		tmp_fc_group = list_entry(pos, struct bpu_fc_group, node);
-		if (tmp_fc_group) {
+		if (tmp_fc_group != NULL) {
 			spin_lock_irqsave(&tmp_fc_group->spin_lock, group_flags);
 			tmp_fc_group->p_run_time /= P_RESET_COEF;
 			spin_unlock_irqrestore(&tmp_fc_group->spin_lock, group_flags);
@@ -140,7 +140,7 @@ int bpu_stat_reset(struct bpu *bpu)
 	/* reset the bpu user p_run_time */
 	list_for_each_safe(pos, pos_n, &bpu->user_list) {
 		tmp_user = list_entry(pos, struct bpu_user, node);
-		if (tmp_user) {
+		if (tmp_user != NULL) {
 			spin_lock_irqsave(&tmp_user->spin_lock, user_flags);
 			tmp_user->p_run_time /= P_RESET_COEF;
 			spin_unlock_irqrestore(&tmp_user->spin_lock, user_flags);
@@ -150,12 +150,12 @@ int bpu_stat_reset(struct bpu *bpu)
 	return 0;
 }
 
-int bpu_core_ratio(struct bpu_core *core)
+int32_t bpu_core_ratio(struct bpu_core *core)
 {
 	struct timeval tmp_point;
 	uint64_t pass_time;
 	unsigned long flags;
-	int ratio;
+	int32_t ratio;
 
 	spin_lock_irqsave(&core->spin_lock, flags);
 	do_gettimeofday(&tmp_point);
@@ -173,16 +173,16 @@ int bpu_core_ratio(struct bpu_core *core)
 }
 EXPORT_SYMBOL(bpu_core_ratio);
 
-int bpu_fc_group_ratio(struct bpu_fc_group *group)
+int32_t bpu_fc_group_ratio(struct bpu_fc_group *group)
 {
 	struct list_head *pos, *pos_n;
 	struct timeval tmp_point;
 	struct bpu_core *tmp_core;
 	uint64_t pass_time = 0;
 	unsigned long flags;
-	int ratio = 0;
+	int32_t ratio = 0;
 
-	if (!group)
+	if (group == NULL)
 		return 0;
 
 	spin_lock_irqsave(&group->spin_lock, flags);
@@ -205,16 +205,16 @@ int bpu_fc_group_ratio(struct bpu_fc_group *group)
 	return ratio;
 }
 
-int bpu_user_ratio(struct bpu_user *user)
+int32_t bpu_user_ratio(struct bpu_user *user)
 {
 	struct list_head *pos, *pos_n;
 	struct timeval tmp_point;
 	struct bpu_core *tmp_core;
 	uint64_t pass_time = 0;
 	unsigned long flags;
-	int ratio = 0;
+	int32_t ratio = 0;
 
-	if (!user)
+	if (user == NULL)
 		return 0;
 
 	spin_lock_irqsave(&user->spin_lock, flags);
@@ -222,7 +222,7 @@ int bpu_user_ratio(struct bpu_user *user)
 
 	list_for_each_safe(pos, pos_n, &g_bpu->core_list) {
 		tmp_core = list_entry(pos, struct bpu_core, node);
-		if (tmp_core)
+		if (tmp_core != NULL)
 			pass_time += TIME_INTERVAL(&tmp_core->p_start_point, &tmp_point);
 	}
 
@@ -237,25 +237,25 @@ int bpu_user_ratio(struct bpu_user *user)
 	return ratio;
 }
 
-int bpu_ratio(struct bpu *bpu)
+int32_t bpu_ratio(struct bpu *bpu)
 {
 	struct list_head *pos, *pos_n;
 	struct bpu_core *tmp_core;
-	int ratio = 0;
-	int core_num = 0;
+	int32_t ratio = 0;
+	int32_t core_num = 0;
 
 	list_for_each_safe(pos, pos_n, &bpu->core_list) {
 		tmp_core = list_entry(pos, struct bpu_core, node);
-		if (tmp_core) {
+		if (tmp_core != NULL) {
 			ratio += bpu_core_ratio(tmp_core);
 			core_num++;
 		}
 	}
 
-	if (!core_num)
+	if (core_num == 0)
 		return 0;
 
-	bpu->ratio = ratio /core_num;
+	bpu->ratio = ratio / core_num;
 
 	return bpu->ratio;
 }

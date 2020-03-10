@@ -42,9 +42,9 @@ static irqreturn_t bpu_core_irq_handler(int irq, void *dev_id)
 	struct bpu_core *core = (struct bpu_core *)dev_id;
 	struct bpu_user *tmp_user;
 	struct bpu_fc tmp_bpu_fc;
-	u32 tmp_hw_id, err;
-	int lost_report = 0;
-	int ret;
+	uint32_t tmp_hw_id, err;
+	int32_t lost_report = 0;
+	int32_t ret;
 
 	if (atomic_read(&core->host->open_counter) == 0)
 		return IRQ_HANDLED;
@@ -139,7 +139,7 @@ static long bpu_core_ioctl(struct file *filp,
 	struct bpu_user *user = (struct bpu_user *)filp->private_data;
 	struct bpu_core *core = (struct bpu_core *)user->host;
 	union bpu_ioctl_arg data;
-	int ret, i;
+	int32_t ret, i;
 
 	switch (cmd) {
 	case BPU_GET_RATIO:
@@ -237,7 +237,7 @@ static long bpu_core_ioctl(struct file *filp,
 static unsigned int bpu_core_poll(struct file *filp, poll_table *wait)
 {
 	struct bpu_user *user = (struct bpu_user *)filp->private_data;
-	unsigned int mask = 0;
+	uint32_t mask = 0;
 
 	poll_wait(filp, &user->poll_wait, wait);
 	mutex_lock(&user->mutex_lock);
@@ -271,10 +271,11 @@ static ssize_t bpu_core_write(struct file *filp,
 
 static int bpu_core_open(struct inode *inode, struct file *filp)
 {
-	int ret, i;
+	struct bpu_core *core =
+		(struct bpu_core *)container_of(filp->private_data,
+				struct bpu_core, miscdev);
 	struct bpu_user *user;
-	struct bpu_core *core = container_of(filp->private_data,
-					      struct bpu_core, miscdev);
+	int32_t ret, i;
 
 	if (atomic_read(&core->open_counter) == 0) {
 		/* first open init something files */
@@ -339,7 +340,7 @@ static int bpu_core_release(struct inode *inode, struct file *filp)
 	struct bpu_user *user = (struct bpu_user *)filp->private_data;
 	struct bpu_core *core = (struct bpu_core *)user->host;
 	unsigned long flags;
-	int i;
+	int32_t i;
 
 	user->is_alive = 0;
 	/* wait user running fc done */
@@ -389,8 +390,8 @@ static const struct file_operations bpu_core_fops = {
 static int bpu_core_suspend(struct device *dev)
 {
 	struct bpu_core *core = dev_get_drvdata(dev);
-	int tmp_hw_state;
-	int ret;
+	uint32_t tmp_hw_state;
+	int32_t ret;
 
 	mutex_lock(&core->mutex_lock);
 	tmp_hw_state = core->hw_enabled;
@@ -409,7 +410,7 @@ static int bpu_core_suspend(struct device *dev)
 static int bpu_core_resume(struct device *dev)
 {
 	struct bpu_core *core = dev_get_drvdata(dev);
-	int ret;
+	int32_t ret;
 
 	mutex_lock(&core->mutex_lock);
 	if (!core->hw_enabled) {
@@ -445,8 +446,8 @@ static int bpu_core_probe(struct platform_device *pdev)
 	struct resource *resource;
 	char name[10];
 	struct bpu_core *core;
-	int ret = 0;
-	int i, j;
+	int32_t ret;
+	int32_t i, j;
 
 	core = devm_kzalloc(&pdev->dev, sizeof(struct bpu_core), GFP_KERNEL);
 	if (!core) {
@@ -603,7 +604,7 @@ err0:
 static int bpu_core_remove(struct platform_device *pdev)
 {
 	struct bpu_core *core = dev_get_drvdata(&pdev->dev);
-	int i;
+	int32_t i;
 
 	bpu_core_dvfs_unregister(core);
 	bpu_core_discard_sys(core);

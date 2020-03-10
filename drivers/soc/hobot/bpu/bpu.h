@@ -53,13 +53,13 @@ struct bpu_fc {
 	void *fc_data;
 
 	/* group id */
-	unsigned int *g_id;
+	uint32_t *g_id;
 
 	/* identifier for diff file user */
 	void **user;
 
 	/* index in hw core buffer */
-	unsigned int index;
+	uint32_t index;
 
 	/*
 	 * start: time set to hw buffer
@@ -71,8 +71,8 @@ struct bpu_fc {
 
 struct bpu_fc_group {
 	struct list_head node;
-	unsigned int id;
-	int proportion;
+	uint32_t id;
+	int32_t proportion;
 
 	/* when group is busy, firt to buffer fc fifo */
 	DECLARE_KFIFO_PTR(buffer_fc_fifo, struct bpu_fc);
@@ -85,9 +85,9 @@ struct bpu_fc_group {
 
 struct bpu_user {
 	struct list_head node;
-	unsigned int id;
+	uint32_t id;
 	uint16_t is_alive;
-	int running_task_num;
+	int32_t running_task_num;
 
 	wait_queue_head_t poll_wait;
 	/* to protect in fifo*/
@@ -131,39 +131,39 @@ struct bpu {
 	struct list_head user_list;
 	/* list to store user */
 	struct list_head group_list;
-	int busy_thres;
+	int32_t busy_thres;
 
 	/* use the value to adjust sched time */
-	int sched_seed;
-	int stat_reset_count;
+	int32_t sched_seed;
+	int32_t stat_reset_count;
 
 	struct bus_type *bus;
 
-	int ratio;
+	uint32_t ratio;
 };
 
 /* create bpu_fc from user fc info*/
-int bpu_fc_create_from_user(struct bpu_fc *fc,
+int32_t bpu_fc_create_from_user(struct bpu_fc *fc,
 		struct user_bpu_fc *user_fc, const void *data);
 /* mainly clear fc data in bpu_fc*/
 void bpu_fc_clear(struct bpu_fc *fc);
 
-int bpu_write_with_user(struct bpu_core *core,
+int32_t bpu_write_with_user(struct bpu_core *core,
 			struct bpu_user *user,
 			const char __user *buf, size_t len);
-int bpu_read_with_user(struct bpu_core *core,
+int32_t bpu_read_with_user(struct bpu_core *core,
 			struct bpu_user *user,
 			char __user *buf, size_t len);
 
-int bpu_fc_bind_user(struct bpu_fc *fc, struct bpu_user *user);
-int bpu_fc_bind_group(struct bpu_fc *fc, uint32_t group_id);
+int32_t bpu_fc_bind_user(struct bpu_fc *fc, struct bpu_user *user);
+int32_t bpu_fc_bind_group(struct bpu_fc *fc, uint32_t group_id);
 
 static inline struct bpu_user *bpu_get_user(struct bpu_fc *fc)
 {
-	if (!fc)
+	if (fc == NULL)
 		return NULL;
 
-	if (!fc->user)
+	if (fc->user == NULL)
 		return NULL;
 
 	return (struct bpu_user *)(*(fc->user));
@@ -171,44 +171,44 @@ static inline struct bpu_user *bpu_get_user(struct bpu_fc *fc)
 
 static inline struct bpu_fc_group *bpu_get_fc_group(struct bpu_fc *fc)
 {
-	if (!fc)
+	if (fc == NULL)
 		return NULL;
 
-	if (!fc->g_id)
+	if (fc->g_id == NULL)
 		return NULL;
 
-	return container_of(fc->g_id, struct bpu_fc_group, id);
+	return (struct bpu_fc_group *)container_of(fc->g_id, struct bpu_fc_group, id);
 }
 
 /* register core apis */
-int bpu_core_register(struct bpu_core *core);
+int32_t bpu_core_register(struct bpu_core *core);
 void bpu_core_unregister(struct bpu_core *core);
-int bpu_write_fc_to_core(struct bpu_core *core,
-		struct bpu_fc *bpu_fc, unsigned int offpos);
+int32_t bpu_write_fc_to_core(struct bpu_core *core,
+		struct bpu_fc *bpu_fc, uint32_t offpos);
 
 /* fc group apis */
 struct bpu_fc_group *bpu_create_group(uint32_t group_id);
 void bpu_delete_group(uint32_t group_id);
 
 /* statusis apis */
-int bpu_ratio(struct bpu *bpu);
-int bpu_fc_group_ratio(struct bpu_fc_group *group);
-int bpu_user_ratio(struct bpu_user *user);
+int32_t bpu_ratio(struct bpu *bpu);
+int32_t bpu_fc_group_ratio(struct bpu_fc_group *group);
+int32_t bpu_user_ratio(struct bpu_user *user);
 
 /* sched apis*/
-int bpu_sched_start(struct bpu *bpu);
-int bpu_sched_stop(struct bpu *bpu);
-int bpu_core_update(struct bpu_core *core, struct bpu_fc *fc);
+int32_t bpu_sched_start(struct bpu *bpu);
+int32_t bpu_sched_stop(struct bpu *bpu);
+int32_t bpu_core_update(struct bpu_core *core, struct bpu_fc *fc);
 void bpu_sched_seed_update(void);
-int bpu_ratio(struct bpu *bpu);
-int bpu_core_ratio(struct bpu_core *core);
+int32_t bpu_ratio(struct bpu *bpu);
+int32_t bpu_core_ratio(struct bpu_core *core);
 
 /* ctrl apis */
-int bpu_stat_reset(struct bpu *bpu);
+int32_t bpu_stat_reset(struct bpu *bpu);
 
 /* sys apis */
-int bpu_sys_system_init(struct bpu *bpu);
-int bpu_core_create_sys(struct bpu_core *core);
-int bpu_core_discard_sys(struct bpu_core *core);
+int32_t bpu_sys_system_init(struct bpu *bpu);
+int32_t bpu_core_create_sys(struct bpu_core *core);
+int32_t bpu_core_discard_sys(struct bpu_core *core);
 
 #endif

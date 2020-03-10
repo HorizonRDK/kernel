@@ -26,19 +26,19 @@ static void bpu_prio_tasklet(unsigned long data)
 	struct bpu_prio *prio = (struct bpu_prio *)data;
 	struct bpu_core *core;
 	struct bpu_prio_node *tmp_prio_node;
-	int running_fc_num = 0;
-	int ret, i;
+	int32_t running_fc_num = 0;
+	int32_t ret, i;
 
-	if (!prio)
+	if (prio == NULL)
 		return;
 
-	if (!prio->inited) {
+	if (prio->inited == 0) {
 		return;
 	}
 
 	core = prio->bind_core;
 
-	if (!core) {
+	if (core == NULL) {
 		pr_err("BPU Prio has not bind bpu core\n");
 		return;
 	}
@@ -62,7 +62,7 @@ static void bpu_prio_tasklet(unsigned long data)
 				tmp_prio_node->left_slice_num -= ret;
 
 		} else {
-			if (!kfifo_len(&tmp_prio_node->buf_fc_fifo))
+			if (kfifo_len(&tmp_prio_node->buf_fc_fifo) == 0)
 				continue;
 			ret = kfifo_get(&tmp_prio_node->buf_fc_fifo,
 					&tmp_prio_node->residue_bpu_fc);
@@ -81,13 +81,13 @@ static void bpu_prio_tasklet(unsigned long data)
 	}
 }
 
-struct bpu_prio *bpu_prio_init(struct bpu_core *core, int levels)
+struct bpu_prio *bpu_prio_init(struct bpu_core *core, uint32_t levels)
 {
 	struct bpu_prio *prio;
-	int i, j, ret;
+	int32_t i, j, ret;
 
 	prio = kzalloc(sizeof(struct bpu_prio), GFP_KERNEL);
-	if (!prio) {
+	if (prio == NULL) {
 		pr_err("can't create bpu prio for mem failed\n");
 		return NULL;
 	}
@@ -130,9 +130,9 @@ EXPORT_SYMBOL(bpu_prio_init);
 
 void bpu_prio_exit(struct bpu_prio *prio)
 {
-	int i;
+	int32_t i;
 
-	if(!prio)
+	if(prio == NULL)
 		return;
 
 	mutex_lock(&prio->mutex_lock);
@@ -149,12 +149,12 @@ void bpu_prio_exit(struct bpu_prio *prio)
 }
 EXPORT_SYMBOL(bpu_prio_exit);
 
-int bpu_prio_in(struct bpu_prio *prio, struct bpu_fc *bpu_fc)
+int32_t bpu_prio_in(struct bpu_prio *prio, struct bpu_fc *bpu_fc)
 {
 	uint32_t level;
-	int ret;
+	int32_t ret;
 
-	if (!prio)
+	if (prio == NULL)
 		return -EINVAL;
 
 	level = bpu_fc->info.priority;
@@ -163,7 +163,7 @@ int bpu_prio_in(struct bpu_prio *prio, struct bpu_fc *bpu_fc)
 		level = prio->level_num - 1;
 
 	mutex_lock(&prio->mutex_lock);
-	if (!prio->inited) {
+	if (prio->inited == 0) {
 		mutex_unlock(&prio->mutex_lock);
 		return -EINVAL;
 	}
@@ -186,12 +186,12 @@ int bpu_prio_in(struct bpu_prio *prio, struct bpu_fc *bpu_fc)
 }
 EXPORT_SYMBOL(bpu_prio_in);
 
-int bpu_prio_trig_out(struct bpu_prio *prio)
+int32_t bpu_prio_trig_out(struct bpu_prio *prio)
 {
-	if (!prio)
+	if (prio == NULL)
 		return -EINVAL;
 
-	if (!prio->inited) {
+	if (prio->inited == 0) {
 		return -EINVAL;
 	}
 

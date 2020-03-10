@@ -19,8 +19,8 @@ void bpu_sched_seed_update(void)
 {
 	struct bpu_core *tmp_core;
 	struct list_head *pos, *pos_n;
-	int run_fc_num = 0;
-	int i;
+	int32_t run_fc_num = 0;
+	int32_t i;
 
 	list_for_each_safe(pos, pos_n, &g_bpu->core_list) {
 		tmp_core = (struct bpu_core *)pos;
@@ -45,9 +45,9 @@ EXPORT_SYMBOL(bpu_sched_seed_update);
 static void bpu_sched_worker(unsigned long arg)
 {
 	struct bpu *bpu = (struct bpu *)arg;
-	int ret;
+	int32_t ret;
 
-	if (!bpu) {
+	if (bpu == NULL) {
 		pr_err("No bpu to sched!\n");
 		return;
 	}
@@ -71,13 +71,13 @@ static void bpu_sched_worker(unsigned long arg)
 		bpu->sched_seed = HZ;
 }
 
-int bpu_sched_start(struct bpu *bpu)
+int32_t bpu_sched_start(struct bpu *bpu)
 {
-	if (!bpu)
+	if (bpu == NULL)
 		return -EINVAL;
 
 	bpu->sched_timer = kmalloc(sizeof(struct timer_list), GFP_KERNEL);
-	if (!bpu->sched_timer) {
+	if (bpu->sched_timer == NULL) {
 		pr_err("bpu sched timer create failed\n");
 		return -ENOMEM;
 	}
@@ -94,12 +94,12 @@ int bpu_sched_start(struct bpu *bpu)
 	return 0;
 }
 
-int bpu_sched_stop(struct bpu *bpu)
+int32_t bpu_sched_stop(struct bpu *bpu)
 {
-	if (!bpu)
+	if (bpu == NULL)
 		return -EINVAL;
 
-	if (!bpu->sched_timer) {
+	if (bpu->sched_timer == NULL) {
 		pr_err("Try to stop uninited bpu sched\n");
 		return -EINVAL;
 	}

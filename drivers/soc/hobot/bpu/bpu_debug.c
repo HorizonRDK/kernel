@@ -36,8 +36,8 @@ static ssize_t bpu_core_fc_time_show(struct device *dev,
 {
 	struct bpu_core *core = dev_get_drvdata(dev);
 	struct bpu_fc tmp_fcs[BPU_CORE_RECORE_NUM];
-	int i, len;
-	int ret;
+	int32_t i, len;
+	int32_t ret;
 
 	ret = sprintf(buf, "%-6s%-10s\t%-6s\t%-6s\t%-10s\t%-10s\t%s\n",
 					"index",
@@ -78,9 +78,9 @@ static ssize_t bpu_core_users_show(struct device *dev,
 	struct bpu_core *core = dev_get_drvdata(dev);
 	struct bpu_user *tmp_user;
 	struct list_head *pos, *pos_n;
-	int ret = 0;
+	int32_t ret = 0;
 
-	if (!core)
+	if (core == NULL)
 		return sprintf(buf, "core not inited!\n");
 
 	ret += sprintf(buf, "*User via BPU Core(%d)*\n", core->index);
@@ -109,8 +109,8 @@ static ssize_t bpu_core_power_store(struct device *dev,
 				  const char *buf, size_t len)
 {
 	struct bpu_core *core = dev_get_drvdata(dev);
-	int power_level;
-	int ret;
+	int32_t power_level;
+	int32_t ret;
 
 	ret = sscanf(buf, "%du", &power_level);
 	if (ret < 0)
@@ -136,8 +136,8 @@ static ssize_t bpu_core_limit_store(struct device *dev,
 				  const char *buf, size_t len)
 {
 	struct bpu_core *core = dev_get_drvdata(dev);
-	int fc_buf_limit;
-	int ret;
+	int32_t fc_buf_limit;
+	int32_t ret;
 
 	ret = sscanf(buf, "%du", &fc_buf_limit);
 	if (ret < 0)
@@ -180,7 +180,7 @@ static ssize_t bpu_ratio_show(struct kobject *kobj,
 				  struct kobj_attribute *attr,
 				  char *buf)
 {
-	if (!g_bpu)
+	if (g_bpu == NULL)
 		return sprintf(buf, "bpu not inited!\n");
 
 	return sprintf(buf, "%d\n", bpu_ratio(g_bpu));
@@ -191,9 +191,9 @@ static ssize_t bpu_core_num_show(struct kobject *kobj,
 				  char *buf)
 {
 	struct list_head *pos, *pos_n;
-	int core_num = 0;
+	int32_t core_num = 0;
 
-	if (!g_bpu)
+	if (g_bpu == NULL)
 		return sprintf(buf, "bpu not inited!\n");
 
 	list_for_each_safe(pos, pos_n, &g_bpu->core_list)
@@ -208,9 +208,9 @@ static ssize_t bpu_group_show(struct kobject *kobj,
 {
 	struct bpu_fc_group *tmp_group;
 	struct list_head *pos, *pos_n;
-	int ret = 0;
+	int32_t ret = 0;
 
-	if (!g_bpu)
+	if (g_bpu == NULL)
 		return sprintf(buf, "bpu not inited!\n");
 
 	ret += sprintf(buf, "%s\t\t%s\t%s\n", "group", "prop", "ratio");
@@ -236,9 +236,9 @@ static ssize_t bpu_users_show(struct kobject *kobj,
 	struct bpu_core *tmp_core;
 	struct list_head *pos, *pos_n;
 	struct list_head *bpos, *bpos_n;
-	int ret = 0;
+	int32_t ret = 0;
 
-	if (!g_bpu)
+	if (g_bpu == NULL)
 		return sprintf(buf, "bpu not inited!\n");
 
 	ret += sprintf(buf, "*User via BPU Bus*\n");
@@ -272,13 +272,13 @@ static ssize_t bpu_users_show(struct kobject *kobj,
 }
 
 static struct kobj_attribute ratio_info = __ATTR(ratio,
-						       S_IRUGO, bpu_ratio_show, NULL);
+		S_IRUGO, bpu_ratio_show, NULL);
 static struct kobj_attribute core_num_info = __ATTR(core_num,
-						       S_IRUGO, bpu_core_num_show, NULL);
+		S_IRUGO, bpu_core_num_show, NULL);
 static struct kobj_attribute group_info = __ATTR(group,
-						       S_IRUGO, bpu_group_show, NULL);
+		S_IRUGO, bpu_group_show, NULL);
 static struct kobj_attribute users_info = __ATTR(users,
-						       S_IRUGO, bpu_users_show, NULL);
+		S_IRUGO, bpu_users_show, NULL);
 
 static struct attribute *bpu_attrs[] = {
 	&ratio_info.attr,
@@ -311,15 +311,15 @@ struct bus_type bpu_subsys = {
 	.name = "bpu",
 };
 
-int bpu_core_create_sys(struct bpu_core *core)
+int32_t bpu_core_create_sys(struct bpu_core *core)
 {
 	char core_name[10];
-	int ret;
+	int32_t ret;
 
-	if (!core)
+	if (core == NULL)
 		return -ENODEV;
 
-	if (!g_bpu->bus) {
+	if (g_bpu->bus == NULL) {
 		dev_err(core->dev, "BPU not register bus for sys\n");
 		return -ENODEV;
 	}
@@ -362,11 +362,11 @@ err:
 }
 EXPORT_SYMBOL(bpu_core_create_sys);
 
-int bpu_core_discard_sys(struct bpu_core *core)
+int32_t bpu_core_discard_sys(struct bpu_core *core)
 {
 	char core_name[10];
 
-	if (!core)
+	if (core == NULL)
 		return 0;
 
 	sprintf(core_name, "%d", core->index);
@@ -382,11 +382,11 @@ int bpu_core_discard_sys(struct bpu_core *core)
 EXPORT_SYMBOL(bpu_core_discard_sys);
 
 /* create bus sub system in /sys/devices/system/ */
-int bpu_sys_system_init(struct bpu *bpu)
+int32_t bpu_sys_system_init(struct bpu *bpu)
 {
-	int ret = 0;
+	int32_t ret = 0;
 
-	if (!bpu) {
+	if (bpu == NULL) {
 		pr_err("no device for bpu subsystem\n");
 		return -ENODEV;
 	}

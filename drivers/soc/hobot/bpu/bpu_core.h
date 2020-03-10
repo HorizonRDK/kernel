@@ -45,10 +45,10 @@ struct bpu_core_dvfs {
 	struct devfreq *devfreq;
 	struct thermal_cooling_device *cooling;
 	struct devfreq_dev_profile profile;
-	u64 rate;
-	u64 volt;
+	uint64_t rate;
+	uint64_t volt;
 	/* store freq level num */
-	u32 level_num;
+	uint32_t level_num;
 };
 #endif
 
@@ -70,9 +70,9 @@ struct bpu_core {
 	 * hw fifo at the same time, which can
 	 * influence prio sched max time.
 	 */
-	int fc_buf_limit;
+	int32_t fc_buf_limit;
 
-	int irq;
+	int32_t irq;
 	void __iomem *base;
 	/*
 	 * which store bpu read fc base
@@ -100,7 +100,7 @@ struct bpu_core {
 	struct timeval k_point;
 
 	struct bpu_core_hw_ops *hw_ops;
-	int index;
+	int32_t index;
 
 #if defined(CONFIG_PM_DEVFREQ) && defined(CONFIG_DEVFREQ_THERMAL)
 	struct bpu_core_dvfs *dvfs;
@@ -108,12 +108,12 @@ struct bpu_core {
 	void *dvfs;
 #endif
 	/* bpu core ctrl */
-	int running_task_num;
+	int32_t running_task_num;
 	struct completion no_task_comp;
 	/* > 0; auto change by governor; <=0: manual levle, 0 is highest */
-	int power_level;
+	int32_t power_level;
 
-	int hw_enabled;
+	uint16_t hw_enabled;
 
 	struct tasklet_struct tasklet;
 	/* the flowing for statistics */
@@ -129,24 +129,24 @@ struct bpu_core {
 };
 
 struct bpu_core_hw_ops {
-	int (*enable) (struct bpu_core *);
-	int (*disable) (struct bpu_core *);
-	int (*reset) (struct bpu_core *);
-	int (*set_clk) (struct bpu_core *, unsigned long);
-	int (*set_volt) (struct bpu_core *, int);
+	int32_t (*enable) (struct bpu_core *);
+	int32_t (*disable) (struct bpu_core *);
+	int32_t (*reset) (struct bpu_core *);
+	int32_t (*set_clk) (struct bpu_core *, uint64_t);
+	int32_t (*set_volt) (struct bpu_core *, int32_t);
 	/*
 	 * write real fc to hw, return > 0: actual write fc num
 	 * param include the offset pos in the bpu_fc raw slices
 	 */
-	int (*write_fc) (struct bpu_core *, struct bpu_fc *fc, unsigned int);
+	int32_t (*write_fc) (struct bpu_core *, struct bpu_fc *fc, uint32_t);
 	/* get the fc process return */
-	int (*read_fc) (struct bpu_core *, u32 *, u32 *);
+	int32_t (*read_fc) (struct bpu_core *, uint32_t *, uint32_t *);
 
 	/* get bpu hw core running status */
-	int (*status) (struct bpu_core *, int);
+	int32_t (*status) (struct bpu_core *, uint32_t);
 
 	/* debug info for hw info */
-	int (*debug) (struct bpu_core *, int);
+	int32_t (*debug) (struct bpu_core *, int32_t);
 };
 
 #endif

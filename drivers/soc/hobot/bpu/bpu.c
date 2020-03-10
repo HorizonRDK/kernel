@@ -21,15 +21,16 @@
 struct bpu *g_bpu;
 
 /* create bpu_fc from user fc info*/
-int bpu_fc_create_from_user(struct bpu_fc *fc,
+int32_t bpu_fc_create_from_user(struct bpu_fc *fc,
 		struct user_bpu_fc *user_fc, const void *data)
 {
-	int ret;
+	int32_t ret;
 
-	if (!user_fc)
+	if (user_fc == NULL) {
 		return -EINVAL;
+	}
 
-	if (!fc) {
+	if (fc == NULL) {
 		pr_err("bpu user fc need have space to place\n");
 		return -EINVAL;
 	}
@@ -37,14 +38,14 @@ int bpu_fc_create_from_user(struct bpu_fc *fc,
 	fc->info = *user_fc;
 	fc->fc_data = NULL;
 	ret = bpu_fc_bind_group(fc, user_fc->g_id);
-	if (ret) {
+	if (ret != 0) {
 		pr_err("bpu fc bind group failed\n");
 		return ret;
 	}
 	
-	if (data && (user_fc->length > 0)) {
+	if ((data != NULL) && (user_fc->length > 0)) {
 		fc->fc_data = kmalloc(user_fc->length, GFP_KERNEL);
-		if (!fc->fc_data) {
+		if (fc->fc_data == NULL) {
 			pr_err("create bpu fc mem failed\n");
 			return -ENOMEM;
 		}
@@ -58,25 +59,25 @@ int bpu_fc_create_from_user(struct bpu_fc *fc,
 		}
 	}
 
-	return user_fc->length;
+	return (int32_t)user_fc->length;
 }
 
 /* mainly clear fc data in bpu_fc*/
 void bpu_fc_clear(struct bpu_fc *fc)
 {
-	if (!fc)
+	if (fc == NULL)
 		return;
 
-	if (fc->fc_data) {
+	if (fc->fc_data != NULL) {
 		kfree(fc->fc_data);
 		fc->fc_data = NULL;
 		fc->info.length = 0;
 	}
 }
 
-int bpu_fc_bind_user(struct bpu_fc *fc, struct bpu_user *user)
+int32_t bpu_fc_bind_user(struct bpu_fc *fc, struct bpu_user *user)
 {
-	if (!fc || !user) {
+	if ((fc == NULL) || (user == NULL)) {
 		pr_err("%s[%d]:bpu bind invalid fc or user\n", __func__, __LINE__);
 		return -EINVAL;
 	}
@@ -98,7 +99,7 @@ struct bpu_fc_group *bpu_find_group(uint32_t group_id)
 
 	list_for_each_safe(pos, pos_n, &g_bpu->group_list) {
 		tmp_group = (struct bpu_fc_group *)pos;
-		if (tmp_group) {
+		if (tmp_group != NULL) {
 			if (tmp_group->id == group_id) {
 				group = tmp_group;
 				break;
@@ -111,21 +112,21 @@ struct bpu_fc_group *bpu_find_group(uint32_t group_id)
 
 struct bpu_fc_group *bpu_create_group(uint32_t group_id)
 {
-	struct bpu_fc_group *tmp_group = NULL;
+	struct bpu_fc_group *tmp_group;
 
 	tmp_group = bpu_find_group(group_id);
-	if (!tmp_group) {
+	if (tmp_group == NULL) {
 		tmp_group = kzalloc(sizeof(struct bpu_fc_group), GFP_KERNEL);
-		if (!tmp_group) {
+		if (tmp_group == NULL) {
 			pr_err("BPU create group[%d] failed\n", group_id);
 			return tmp_group;
 		}
 		tmp_group->id = group_id;
 
-		if(kfifo_alloc(&tmp_group->buffer_fc_fifo, 50, GFP_KERNEL)) {
+		if(kfifo_alloc(&tmp_group->buffer_fc_fifo, 50, GFP_KERNEL) != 0) {
 			kfree(tmp_group);
 			pr_err("BPU create group[%d] fc buffer failed\n", group_id);
-			return tmp_group;
+			return NULL;
 		}
 
 		spin_lock_init(&tmp_group->spin_lock);
@@ -141,7 +142,7 @@ void bpu_delete_group(uint32_t group_id)
 	struct bpu_fc_group *tmp_group;
 
 	tmp_group = bpu_find_group(group_id);
-	if (tmp_group) {
+	if (tmp_group != NULL) {
 		kfifo_free(&tmp_group->buffer_fc_fifo);
 		list_del((struct list_head *)tmp_group);
 		kfree(tmp_group);
@@ -150,22 +151,22 @@ void bpu_delete_group(uint32_t group_id)
 
 int bpu_fc_bind_group(struct bpu_fc *fc, uint32_t group_id)
 {
-	struct bpu_fc_group *group = NULL;
+	struct bpu_fc_group *group;
 
-	if (!g_bpu) {
+	if (g_bpu == NULL) {
 		pr_err("%s[%d]:bpu not inited\n", __func__, __LINE__);
 		return -ENODEV;
 	}
 
-	if (!fc) {
+	if (fc == NULL) {
 		pr_err("%s[%d]:bpu bind invalid fc\n", __func__, __LINE__);
 		return -EINVAL;
 	}
 
 	group = bpu_find_group(group_id);
-	if (group)
+	if (group != NULL) {
 		fc->g_id = &group->id;
-	else {
+	} else {
 		pr_err("bpu fc find no correspond group\n");
 		return -ENODEV;
 	}
@@ -173,14 +174,14 @@ int bpu_fc_bind_group(struct bpu_fc *fc, uint32_t group_id)
 	return 0;
 }
 
-int bpu_write_prepare(struct bpu_user *user,
+int32_t bpu_write_prepare(struct bpu_user *user,
 			const char __user *buf, size_t len,
 			struct bpu_fc *bpu_fc)
 {
-	int tmp_raw_fc_len;
-	int ret = 0;
+	int32_t tmp_raw_fc_len;
+	int32_t ret;
 
-	if (!user || !buf || !len) {
+	if ((user == NULL) || (buf == NULL) || (len == 0)) {
 		pr_err("Write bpu buffer error\n");
 		return -EINVAL;
 	}
@@ -207,35 +208,35 @@ int bpu_write_prepare(struct bpu_user *user,
 		return ret;
 	}
 
-	return tmp_raw_fc_len + sizeof(struct user_bpu_fc);
+	return (int32_t)(tmp_raw_fc_len + sizeof(struct user_bpu_fc));
 }
 
 /*
  * write the user fc buffer to real core and bind user
  */
-int bpu_write_fc_to_core(struct bpu_core *core,
-		struct bpu_fc *bpu_fc, unsigned int offpos)
+int32_t bpu_write_fc_to_core(struct bpu_core *core,
+		struct bpu_fc *bpu_fc, uint32_t offpos)
 {
 	struct bpu_user *tmp_user;
 	unsigned long flags;
-	int ret = 0;
-	int write_fc_num;
-	int prio = 0;
+	int32_t ret;
+	int32_t write_fc_num;
+	int32_t prio;
 
-	if (!core || !bpu_fc) {
+	if ((core == NULL) || (bpu_fc == NULL)) {
 		dev_err(core->dev, "Write bpu buffer error\n");
 		return -EINVAL;
 	}
 
 	tmp_user = bpu_get_user(bpu_fc);
-	if (!tmp_user) {
+	if (tmp_user == NULL) {
 		/* no user, so report fake complete */
 		ret = bpu_fc->info.slice_num - offpos;
 		bpu_fc_clear(bpu_fc);
 		return ret;
 	}
 
-	if (!tmp_user->is_alive) {
+	if (tmp_user->is_alive == 0) {
 		ret = bpu_fc->info.slice_num - offpos;
 		bpu_fc_clear(bpu_fc);
 		dev_err(core->dev, "bpu user now is not alive\n");
@@ -296,18 +297,18 @@ static struct bpu_core *bpu_opt_core(struct bpu *bpu, uint64_t core_mask)
 {
 	struct bpu_core *tmp_core, *tmp_opt_core = NULL;
 	struct list_head *pos, *pos_n;
-	int tmp_val, tmp_last_val = -1;
+	int32_t tmp_val, tmp_last_val = -1;
 
-	if (!bpu)
+	if (bpu == NULL)
 		return NULL;
 
 	list_for_each_safe(pos, pos_n, &bpu->core_list) {
 		tmp_core = (struct bpu_core*)pos;
-		if (tmp_core) {
+		if (tmp_core != NULL) {
 			if (core_mask & (0x1 << tmp_core->index)) {
 				mutex_lock(&tmp_core->mutex_lock);
 				if ((atomic_read(&tmp_core->open_counter) != 0) &&
-						tmp_core->hw_enabled) {
+						(tmp_core->hw_enabled != 0)) {
 					tmp_val = kfifo_avail(&tmp_core->run_fc_fifo[0]);
 					if (tmp_val > tmp_last_val) {
 						tmp_opt_core = tmp_core;
@@ -322,7 +323,7 @@ static struct bpu_core *bpu_opt_core(struct bpu *bpu, uint64_t core_mask)
 	return tmp_opt_core;
 }
 
-int bpu_write_with_user(struct bpu_core *core,
+int32_t  bpu_write_with_user(struct bpu_core *core,
 			struct bpu_user *user,
 			const char __user *buf, size_t len)
 {
@@ -330,11 +331,11 @@ int bpu_write_with_user(struct bpu_core *core,
 	uint64_t tmp_run_c_mask = ((struct user_bpu_fc *)buf)->run_c_mask;
 	struct bpu_core *tmp_core;
 	struct bpu_fc tmp_bpu_fc;
-	int use_len = 0;
-	int prepare_len = 0;
-	int ret;
+	int32_t use_len = 0;
+	int32_t prepare_len = 0;
+	int32_t ret;
 
-	if (!user || !buf || !len) {
+	if ((user == NULL) || (buf == NULL) || (len == 0)) {
 		dev_err(core->dev, "Write bpu buffer error\n");
 		return -EINVAL;
 	}
@@ -352,7 +353,7 @@ int bpu_write_with_user(struct bpu_core *core,
 			return -EINVAL;
 		}
 
-		if (!core) {
+		if (core == NULL) {
 			/*
 			* choose optimal core according to core stauts
 			* FIXME: need find core according core_mask flag
@@ -362,7 +363,7 @@ int bpu_write_with_user(struct bpu_core *core,
 				tmp_core = bpu_opt_core(g_bpu, tmp_core_mask & tmp_run_c_mask);
 			else
 				tmp_core = bpu_opt_core(g_bpu, tmp_core_mask);
-			if (!tmp_core) {
+			if (tmp_core == NULL) {
 				mutex_unlock(&g_bpu->mutex_lock);
 				pr_err("BPU has no suitable core, 0x%llx!", tmp_run_c_mask);
 				return -ENODEV;
@@ -389,17 +390,17 @@ EXPORT_SYMBOL(bpu_write_with_user);
 /*
  * user read fc done fifo to userspace 
  */
-int bpu_read_with_user(struct bpu_core *core,
+int32_t bpu_read_with_user(struct bpu_core *core,
 			struct bpu_user *user,
 			char __user *buf, size_t len)
 {
-	int ret, copied;
+	int32_t ret, copied;
 
-	if (!user || !buf || !len) {
+	if ((user == NULL) || (buf == NULL) || (len == 0)) {
 		return 0;
 	}
 
-	if (!kfifo_initialized(&user->done_fcs)) {
+	if (kfifo_initialized(&user->done_fcs) == 0) {
 		return -EINVAL;
 	}
 
@@ -433,7 +434,7 @@ static long bpu_ioctl(struct file *filp,
 		}
 
 		group = bpu_find_group(data.group.group_id);
-		if (group) {
+		if (group != NULL) {
 			if (data.group.prop <= 0) {
 				bpu_delete_group(data.group.group_id);
 				break;
@@ -443,7 +444,7 @@ static long bpu_ioctl(struct file *filp,
 			if (data.group.prop <= 0)
 				break;
 			group = bpu_create_group(data.group.group_id);
-			if (group)
+			if (group != NULL)
 				group->proportion = data.group.prop;
 			else {
 				pr_err("BPU create group(%d)(%d) prop(%d) error\n",
@@ -459,25 +460,25 @@ static long bpu_ioctl(struct file *filp,
 				data.group.prop);
 		break;
 	case BPU_GET_GROUP:
-		if (copy_from_user(&data, (void __user *)arg, _IOC_SIZE(cmd))) {
+		if (copy_from_user(&data, (void __user *)arg, _IOC_SIZE(cmd)) != 0) {
 			pr_err("%s: copy data failed from userspace\n", __func__);
 			return -EFAULT;
 		}
 
 		group = bpu_find_group(data.group.group_id);
-		if (group) {
+		if (group != NULL) {
 			data.group.prop = group->proportion;
 			data.group.ratio = bpu_fc_group_ratio(group);
 		}
 
-		if (copy_to_user((void __user *)arg, &data, _IOC_SIZE(cmd))) {
+		if (copy_to_user((void __user *)arg, &data, _IOC_SIZE(cmd)) != 0) {
 			pr_err("copy data to userspace failed\n");
 			return -EFAULT;
 		}
 		break;
 	case BPU_GET_RATIO:
 		data.ratio = bpu_ratio(g_bpu);
-		if (copy_to_user((void __user *)arg, &data, _IOC_SIZE(cmd))) {
+		if (copy_to_user((void __user *)arg, &data, _IOC_SIZE(cmd)) != 0) {
 			pr_err("copy data to userspace failed\n");
 			return -EFAULT;
 		}
@@ -487,24 +488,25 @@ static long bpu_ioctl(struct file *filp,
 		mutex_lock(&g_bpu->mutex_lock);
 		list_for_each_safe(pos, pos_n, &g_bpu->core_list) {
 			tmp_core = (struct bpu_core*)pos;
-			if (tmp_core)
+			if (tmp_core != NULL) {
 				data.cap = max((int)kfifo_avail(&tmp_core->run_fc_fifo[0]),
 						(int)data.cap);
+			}
 		}
 		mutex_unlock(&g_bpu->mutex_lock);
-		if (copy_to_user((void __user *)arg, &data, _IOC_SIZE(cmd))) {
+		if (copy_to_user((void __user *)arg, &data, _IOC_SIZE(cmd)) != 0) {
 			pr_err("copy data to userspace failed\n");
 			return -EFAULT;
 		}
 		break;
 	case BPU_OPT_CORE:
-		if (copy_from_user(&data, (void __user *)arg, _IOC_SIZE(cmd))) {
+		if (copy_from_user(&data, (void __user *)arg, _IOC_SIZE(cmd)) != 0) {
 			pr_err("%s: copy data failed from userspace\n", __func__);
 			return -EFAULT;
 		}
 		mutex_lock(&g_bpu->mutex_lock);
 		tmp_core = bpu_opt_core(g_bpu, data.core);
-		if (!tmp_core) {
+		if (tmp_core == NULL) {
 			mutex_unlock(&g_bpu->mutex_lock);
 			pr_err("Can't find an optimal BPU Core\n");
 			return -EFAULT;
@@ -512,7 +514,7 @@ static long bpu_ioctl(struct file *filp,
 		data.core = tmp_core->index;
 		mutex_unlock(&g_bpu->mutex_lock);
 
-		if (copy_to_user((void __user *)arg, &data, _IOC_SIZE(cmd))) {
+		if (copy_to_user((void __user *)arg, &data, _IOC_SIZE(cmd)) != 0) {
 			pr_err("copy data to userspace failed\n");
 			return -EFAULT;
 		}
@@ -520,18 +522,18 @@ static long bpu_ioctl(struct file *filp,
 	case BPU_RESET:
 		list_for_each_safe(pos, pos_n, &g_bpu->core_list) {
 			tmp_core = (struct bpu_core*)pos;
-			if (tmp_core)
+			if (tmp_core != NULL)
 				bpu_core_reset(tmp_core);
 		}
 		break;
 	case BPU_SET_LIMIT:
-		if (copy_from_user(&data, (void __user *)arg, _IOC_SIZE(cmd))) {
+		if (copy_from_user(&data, (void __user *)arg, _IOC_SIZE(cmd)) != 0) {
 			pr_err("%s: copy data failed from userspace\n", __func__);
 			return -EFAULT;
 		}
 		list_for_each_safe(pos, pos_n, &g_bpu->core_list) {
 			tmp_core = (struct bpu_core*)pos;
-			if (tmp_core)
+			if (tmp_core != NULL)
 				bpu_core_set_limit(tmp_core, data.limit);
 		}
 		break;
@@ -546,12 +548,12 @@ static long bpu_ioctl(struct file *filp,
 static unsigned int bpu_poll(struct file *filp, poll_table *wait)
 {
 	struct bpu_user *user = (struct bpu_user *)filp->private_data;
-	unsigned int mask = 0;
+	uint32_t mask = 0;
 
 	poll_wait(filp, &user->poll_wait, wait);
 	mutex_lock(&user->mutex_lock);
 
-	if (kfifo_len(&user->done_fcs))
+	if (kfifo_len(&user->done_fcs) != 0)
 		mask |= POLLIN | POLLRDNORM;
 
 	mutex_unlock(&user->mutex_lock);
@@ -577,10 +579,10 @@ static ssize_t bpu_write(struct file *filp,
 
 static int bpu_open(struct inode *inode, struct file *filp)
 {
-	struct bpu *bpu = container_of(filp->private_data,
+	struct bpu *bpu = (struct bpu *)container_of(filp->private_data,
 					      struct bpu, miscdev);
 	struct bpu_user *user;
-	int ret;
+	int32_t ret;
 
 	if (atomic_read(&bpu->open_counter) == 0) {
 		/* first open init something files */
@@ -588,7 +590,7 @@ static int bpu_open(struct inode *inode, struct file *filp)
 	}
 
 	user = kzalloc(sizeof(struct bpu_user), GFP_KERNEL);
-	if (!user) {
+	if (user == NULL) {
 		pr_err("Can't alloc user mem");
 		return -ENOMEM;
 	}
@@ -597,10 +599,10 @@ static int bpu_open(struct inode *inode, struct file *filp)
 
 	/* init fifo which report to userspace */
 	ret = kfifo_alloc(&user->done_fcs, BPU_CORE_RECORE_NUM, GFP_KERNEL);
-	if (ret) {
+	if (ret != 0) {
 		kfree(user);
 		pr_err("Can't alloc user fifo dev mem");
-		return -ret;
+		return ret;
 	}
 
 	init_waitqueue_head(&user->poll_wait);
@@ -632,7 +634,7 @@ static int bpu_release(struct inode *inode, struct file *filp)
 	/* wait user running fc done */
 	while(user->running_task_num > 0) {
 		/* timeout to prevent bpu hung make system hung*/
-		if(!wait_for_completion_timeout(&user->no_task_comp, HZ))
+		if(wait_for_completion_timeout(&user->no_task_comp, HZ) == 0)
 			user->running_task_num--;
 	}
 
@@ -672,14 +674,14 @@ static const struct file_operations bpu_fops = {
 	.compat_ioctl = bpu_ioctl,
 };
 
-int bpu_core_register(struct bpu_core *core)
+int32_t bpu_core_register(struct bpu_core *core)
 {
-	if (!g_bpu) {
+	if (g_bpu == NULL) {
 		pr_err("bpu not inited!\n");
 		return -ENODEV;
 	}
 
-	if (!core) {
+	if (core == NULL) {
 		pr_err("Register Invalid core!\n");
 		return -EINVAL;
 	}
@@ -696,12 +698,12 @@ EXPORT_SYMBOL(bpu_core_register);
 
 void bpu_core_unregister(struct bpu_core *core)
 {
-	if (!g_bpu) {
+	if (g_bpu == NULL) {
 		pr_err("bpu not inited!\n");
 		return;
 	}
 
-	if (!core) {
+	if (core == NULL) {
 		pr_err("Unregister Invalid core!\n");
 		return;
 	}
@@ -717,10 +719,10 @@ EXPORT_SYMBOL(bpu_core_unregister);
 static int __init bpu_init(void)
 {
 	struct bpu *bpu;
-	int ret;
+	int32_t ret;
 
 	bpu = kzalloc(sizeof(struct bpu_user), GFP_KERNEL);
-	if (!bpu) {
+	if (bpu == NULL) {
 		pr_err("Can't alloc bpu mem\n");
 		return -ENOMEM;
 	}
@@ -766,7 +768,7 @@ static void __exit bpu_exit(void)
 {
 	struct bpu *bpu = g_bpu;
 
-	if (!bpu)
+	if (bpu == NULL)
 		return;
 
 	misc_deregister(&bpu->miscdev);

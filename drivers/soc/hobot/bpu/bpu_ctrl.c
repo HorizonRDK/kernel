@@ -18,9 +18,9 @@
 #endif
 #include "bpu_ctrl.h"
 
-int bpu_core_pend_on(struct bpu_core *core)
+int32_t bpu_core_pend_on(struct bpu_core *core)
 {
-	if (!core) {
+	if (core == NULL) {
 		pr_err("Pend on invalid core!\n");
 		return -EINVAL;
 	}
@@ -30,9 +30,9 @@ int bpu_core_pend_on(struct bpu_core *core)
 	return 0;
 }
 
-int bpu_core_pend_off(struct bpu_core *core)
+int32_t bpu_core_pend_off(struct bpu_core *core)
 {
-	if (!core) {
+	if (core == NULL) {
 		pr_err("Pend off invalid core!\n");
 		return -EINVAL;
 	}
@@ -47,9 +47,9 @@ int bpu_core_pend_off(struct bpu_core *core)
  * check if bpu core is pending by pend func, wait
  * timeout(jiffes) for release pending.
  */
-int bpu_core_is_pending(struct bpu_core *core)
+int32_t bpu_core_is_pending(struct bpu_core *core)
 {
-	if (!core) {
+	if (core == NULL) {
 		pr_err("Check invalid core!\n");
 		return -EINVAL;
 	}
@@ -61,11 +61,11 @@ int bpu_core_is_pending(struct bpu_core *core)
  * and pending new task to hwfifo, if can wait to
  * leisure, timeout is jiffes)
  */
-int bpu_core_pend_to_leisure(struct bpu_core *core, int timeout)
+int32_t bpu_core_pend_to_leisure(struct bpu_core *core, int32_t timeout)
 {
-	int ret;
+	int32_t ret;
 
-	if (!core) {
+	if (core == NULL) {
 		pr_err("Pend to leisure invalid core!\n");
 		return -EINVAL;
 	}
@@ -88,11 +88,11 @@ int bpu_core_pend_to_leisure(struct bpu_core *core, int timeout)
 	return ret;
 }
 
-int bpu_core_enable(struct bpu_core *core)
+int32_t bpu_core_enable(struct bpu_core *core)
 {
-	int err, ret = 0;
+	int32_t err, ret = 0;
 
-	if (!core) {
+	if (core == NULL) {
 		pr_err("Enable invalid core!\n");
 		return -EINVAL;
 	}
@@ -149,15 +149,15 @@ int bpu_core_enable(struct bpu_core *core)
 }
 EXPORT_SYMBOL(bpu_core_enable);
 
-int bpu_core_disable(struct bpu_core *core)
+int32_t bpu_core_disable(struct bpu_core *core)
 {
-	int err, ret = 0;
+	int32_t err, ret = 0;
 
-	if (!core) {
+	if (core == NULL) {
 		pr_err("Disable invalid core!\n");
 		return -EINVAL;
 	}
-	if (!core->hw_enabled)
+	if (core->hw_enabled == 0)
 		return 0;
 
 	core->hw_enabled = 0;
@@ -203,12 +203,12 @@ int bpu_core_disable(struct bpu_core *core)
 }
 EXPORT_SYMBOL(bpu_core_disable);
 
-int bpu_core_reset(struct bpu_core *core)
+int32_t bpu_core_reset(struct bpu_core *core)
 {
-	int ret;
-	int i;
+	int32_t ret;
+	int32_t i;
 
-	if (!core) {
+	if (core == NULL) {
 		pr_err("Reset invalid core!\n");
 		return -EINVAL;
 	}
@@ -241,14 +241,14 @@ int bpu_core_reset(struct bpu_core *core)
 }
 EXPORT_SYMBOL(bpu_core_reset);
 
-int bpu_core_process_recover(struct bpu_core *core)
+int32_t bpu_core_process_recover(struct bpu_core *core)
 {
 	struct bpu_fc tmp_bpu_fc;
 	struct kfifo recovery_kfifo[BPU_PRIO_NUM];
 	unsigned long flags;
-	int ret, i;
+	int32_t ret, i;
 
-	if (!core) {
+	if (core == NULL) {
 		dev_err(core->dev, "TO recovery no bpu core\n");
 		return -ENODEV;
 	}
@@ -285,11 +285,11 @@ int bpu_core_process_recover(struct bpu_core *core)
 }
 EXPORT_SYMBOL(bpu_core_process_recover);
 
-int bpu_core_set_volt(struct bpu_core *core, int volt)
+int32_t bpu_core_set_volt(struct bpu_core *core, int32_t volt)
 {
-	int err, ret = 0;
+	int32_t err, ret = 0;
 
-	if (!core) {
+	if (core == NULL) {
 		pr_err("Invalid core set volt!\n");
 		return -EINVAL;
 	}
@@ -324,11 +324,11 @@ int bpu_core_set_volt(struct bpu_core *core, int volt)
 }
 EXPORT_SYMBOL(bpu_core_set_volt);
 
-int bpu_core_set_clk(struct bpu_core *core, unsigned long rate)
+int32_t bpu_core_set_clk(struct bpu_core *core, uint64_t rate)
 {
-	int err, ret = 0;
+	int32_t err, ret = 0;
 
-	if (!core) {
+	if (core == NULL) {
 		pr_err("Invalid core set volt!\n");
 		return -EINVAL;
 	}
@@ -342,7 +342,7 @@ int bpu_core_set_clk(struct bpu_core *core, unsigned long rate)
 
 		ret = core->hw_ops->set_clk(core, rate);
 		if (ret)
-			dev_err(core->dev, "BPU Core set clk to %ld failed!\n", rate);
+			dev_err(core->dev, "BPU Core set clk to %lld failed!\n", rate);
 
 		err = bpu_core_pend_off(core);
 		if (err) {
@@ -361,8 +361,8 @@ static int bpu_core_set_freq(struct device *dev,
 {
 	struct bpu_core *core = (struct bpu_core *)dev_get_drvdata(dev);
 	struct dev_pm_opp *opp;
-	unsigned long rate, target_volt, target_rate;
-	int err = 0;
+	int64_t rate, target_volt, target_rate;
+	int32_t err = 0;
 
 	/* FIXME: when change freq, bpu should not set fc */
 
@@ -375,14 +375,14 @@ static int bpu_core_set_freq(struct device *dev,
 	target_volt = dev_pm_opp_get_voltage(opp);
 
 	target_rate = clk_round_rate(core->mclk, rate);
-	if ((long)target_rate <= 0)
+	if (target_rate <= 0)
 		target_rate = rate;
 
 	if (core->dvfs->rate == target_rate) {
 		if (core->dvfs->volt != target_volt) {
 			err = bpu_core_set_volt(core, target_volt);
 			if (err) {
-				dev_err(dev, "Cannot set voltage %lu uV\n",
+				dev_err(dev, "Cannot set voltage %llu uV\n",
 						target_volt);
 				goto out;
 			}
@@ -397,7 +397,7 @@ static int bpu_core_set_freq(struct device *dev,
 		if (core->dvfs->rate < target_rate) {
 			err = bpu_core_set_volt(core, target_volt);
 			if (err) {
-				dev_err(dev, "Cannot set voltage %lu uV\n",
+				dev_err(dev, "Cannot set voltage %llu uV\n",
 						target_volt);
 				goto out;
 			}
@@ -405,7 +405,7 @@ static int bpu_core_set_freq(struct device *dev,
 
 		err = bpu_core_set_clk(core, target_rate);
 		if (err) {
-			dev_err(dev, "Cannot set frequency %lu (%d)\n",
+			dev_err(dev, "Cannot set frequency %llu (%d)\n",
 					target_rate, err);
 			bpu_core_set_volt(core, core->dvfs->rate);
 			goto out;
@@ -414,7 +414,7 @@ static int bpu_core_set_freq(struct device *dev,
 		if (core->dvfs->rate > target_rate) {
 			err = bpu_core_set_volt(core, target_volt);
 			if (err) {
-				dev_err(dev, "Cannot set vol %lu uV\n", target_volt);
+				dev_err(dev, "Cannot set vol %llu uV\n", target_volt);
 				goto out;
 			}
 		}
@@ -429,28 +429,28 @@ opp_err:
 }
 
 static int bpu_core_get_freq(struct device *dev,
-					 unsigned long *freq)
+		unsigned long *freq)
 {
 	struct bpu_core *core = (struct bpu_core *)dev_get_drvdata(dev);
 
-	if (core->dvfs && core)
+	if ((core->dvfs != NULL) && (core != NULL))
 		*freq = core->dvfs->rate;
 
 	return 0;
 }
 
-int bpu_core_dvfs_register(struct bpu_core *core, const char *name)
+int32_t bpu_core_dvfs_register(struct bpu_core *core, const char *name)
 {
 	const char *gov_name;
 
-	if (!core) {
+	if (core == NULL) {
 		pr_err("NO BPU Core!!\n");
 		return -EINVAL;
 	}
 
 	core->dvfs = devm_kzalloc(core->dev,
 			sizeof(struct bpu_core_dvfs), GFP_KERNEL);
-	if (!core->dvfs) {
+	if (core->dvfs == NULL) {
 		dev_err(core->dev, "Can't alloc BPU dvfs.\n");
 		return -ENOMEM;
 	}
@@ -501,7 +501,7 @@ EXPORT_SYMBOL(bpu_core_dvfs_register);
 
 void bpu_core_dvfs_unregister(struct bpu_core *core)
 {
-	if (!core)
+	if (core == NULL)
 		return;
 
 	devfreq_cooling_unregister(core->dvfs->cooling);
@@ -514,20 +514,20 @@ void bpu_core_dvfs_unregister(struct bpu_core *core)
 }
 EXPORT_SYMBOL(bpu_core_dvfs_unregister);
 
-int bpu_core_set_freq_level(struct bpu_core *core, int level)
+int32_t bpu_core_set_freq_level(struct bpu_core *core, int32_t level)
 {
-	unsigned long wanted;
-	int ret = 0;
-	int i;
+	uint64_t wanted;
+	int32_t ret = 0;
+	int32_t i;
 
-	if (!core) {
+	if (core == NULL) {
 		pr_err("Invalid core set freq level!\n");
 		return -EINVAL;
 	}
 
 	if (level > 0) {
 		/* if level > 0, make the governor to default gover*/
-		if (!core->dvfs->cooling) {
+		if (core->dvfs->cooling == NULL) {
 			for (i = 0; i < core->dvfs->profile.max_state; i++)
 				dev_pm_opp_enable(core->dev,
 						core->dvfs->profile.freq_table[i]);
@@ -538,7 +538,7 @@ int bpu_core_set_freq_level(struct bpu_core *core, int level)
 		core->power_level = 1;
 	} else {
 		/* if level <= 0, user freq set*/
-		if (core->dvfs->cooling) {
+		if (core->dvfs->cooling != NULL) {
 			devfreq_cooling_unregister(core->dvfs->cooling);
 			core->dvfs->cooling = NULL;
 		}
@@ -562,10 +562,10 @@ int bpu_core_set_freq_level(struct bpu_core *core, int level)
 
 		mutex_lock(&core->dvfs->devfreq->lock);
 		if (wanted < core->dvfs->rate)
-			ret = bpu_core_set_freq(core->dev, &wanted, 0);
+			ret = bpu_core_set_freq(core->dev, (unsigned long *)&wanted, 0);
 		else
 			ret = bpu_core_set_freq(core->dev,
-					&wanted, DEVFREQ_FLAG_LEAST_UPPER_BOUND);
+					(unsigned long *)&wanted, DEVFREQ_FLAG_LEAST_UPPER_BOUND);
 		if (ret) {
 			mutex_unlock(&core->dvfs->devfreq->lock);
 			dev_err(core->dev,
@@ -583,9 +583,9 @@ int bpu_core_set_freq_level(struct bpu_core *core, int level)
 EXPORT_SYMBOL(bpu_core_set_freq_level);
 #endif
 
-int bpu_core_set_limit(struct bpu_core *core, int limit)
+int32_t bpu_core_set_limit(struct bpu_core *core, int32_t limit)
 {
-	if (!core) {
+	if (core == NULL) {
 		pr_err("Invalid core set freq level!\n");
 		return -EINVAL;
 	}
