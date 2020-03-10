@@ -596,7 +596,7 @@ static ssize_t x2_iar_store(struct kobject *kobj, struct kobj_attribute *attr, c
 	} else if (strncmp(tmp, "lcd", 3) == 0) {
 		pr_info("iar output lcd rgb panel config......\n");
 		display_type = LCD_7_TYPE;
-		disp_set_pixel_clk(32000000);
+		iar_start(1);
 		user_set_fb();
 	} else if (strncmp(tmp, "mipi", 4) == 0) {
 		pr_info("iar output lcd mipi 720p panel config......\n");
@@ -606,7 +606,7 @@ static ssize_t x2_iar_store(struct kobject *kobj, struct kobj_attribute *attr, c
 	} else if (strncmp(tmp, "dsi1080", 7) == 0) {
 		pr_info("iar output lcd mipi 1080p panel config......\n");
 		display_type = MIPI_1080P;
-		disp_set_pixel_clk(32000000);
+		iar_start(1);
 		user_set_fb();
 		set_mipi_display(0);
 		//msleep(2000);
@@ -614,7 +614,7 @@ static ssize_t x2_iar_store(struct kobject *kobj, struct kobj_attribute *attr, c
 	} else if (strncmp(tmp, "dsi720p", 7) == 0) {
 		pr_info("iar output lcd mipi 720p touch panel config......\n");
 		display_type = MIPI_720P_TOUCH;
-		disp_set_pixel_clk(54000000);
+		iar_start(1);
 		user_set_fb();
 		set_mipi_display(1);
 		//msleep(2000);

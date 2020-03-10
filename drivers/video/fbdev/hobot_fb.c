@@ -758,9 +758,9 @@ static int x2fb_set_par(struct fb_info *fb)
 	uint32_t regval = 0;
 
 	if (start_flag == 0) {
-		pr_info("start_flag = %d\n", start_flag);
+		pr_debug("start_flag = %d\n", start_flag);
 		start_flag = 1;
-		iar_stop();
+		//iar_stop();
 		user_set_fb();
 	}
 
@@ -779,7 +779,7 @@ int user_set_fb(void)
 		pr_info("x2_fb is not initialize, exit!\n");
 		return -1;
 	}
-	iar_stop();
+	//iar_stop();
 	graphic_display_paddr.addr = x2_iar_get_framebuf_addr(2)->paddr;
 	graphic1_display_paddr.addr = x2_iar_get_framebuf_addr(3)->paddr;
 
@@ -848,10 +848,11 @@ int user_set_fb(void)
 		iar_switch_buf(0);
 		iar_set_bufaddr(IAR_CHANNEL_3, &graphic_display_paddr);
 		iar_set_bufaddr(IAR_CHANNEL_4, &graphic1_display_paddr);
-		iar_start(1);
+		iar_update();
 #endif
 	}
 	if (display_type == LCD_7_TYPE) {
+		pr_info("FrameBuffer:display type is LCD 7 TYPE!\n");
 		disp_set_panel_timing(&video_800x480);
 		x2_fbi->memory_mode = 0;
 
@@ -936,7 +937,7 @@ int user_set_fb(void)
 		iar_switch_buf(0);
 		iar_set_bufaddr(IAR_CHANNEL_3, &graphic_display_paddr);
 		iar_set_bufaddr(IAR_CHANNEL_4, &graphic1_display_paddr);
-		iar_start(1);
+		iar_update();
 #ifdef CONFIG_HOBOT_XJ2
 		msleep(20);
 		set_lt9211_config(&x2_fbi->fb);
@@ -1073,7 +1074,7 @@ int user_set_fb(void)
 
 		iar_switch_buf(0);
 		iar_set_bufaddr(IAR_CHANNEL_3, &graphic_display_paddr);
-		iar_start(1);
+		iar_update();
 		//set_mipi_display(0);
 	} else if (display_type == MIPI_720P_TOUCH) {
 		pr_info("fb_driver: disp set mipi 720p touch!\n");
@@ -1135,7 +1136,7 @@ int user_set_fb(void)
 
 		iar_switch_buf(0);
 		iar_set_bufaddr(IAR_CHANNEL_3, &graphic_display_paddr);
-		iar_start(1);
+		iar_update();
 		//set_mipi_display(0);
 	}
 	return regval;

@@ -79,6 +79,7 @@ uint8_t disp_user_update_video1;
 uint8_t frame_count;
 uint8_t rst_request_flag;
 uint8_t disp_copy_done = 0;
+uint8_t iar_enable = 1;
 
 phys_addr_t logo_paddr;
 void *logo_vaddr;
@@ -777,6 +778,47 @@ int8_t disp_set_pixel_clk(uint64_t pixel_clk)
 	return 0;
 }
 
+int disp_clk_disable(void)
+{
+	//int ret = 0;
+
+	if (g_iar_dev->iar_pixel_clk == NULL)
+		return -1;
+	clk_disable_unprepare(g_iar_dev->iar_pixel_clk);
+	//if (ret)
+	//	pr_err("%s: error disable iar pixel clock!\n", __func__);
+	return 0;
+}
+
+int disp_clk_enable(void)
+{
+	uint64_t pixel_clock;
+	int ret = 0;
+
+	if (g_iar_dev->iar_pixel_clk == NULL)
+		return -1;
+	ret = clk_prepare_enable(g_iar_dev->iar_pixel_clk);
+	if (ret) {
+		pr_err("%s: err enable iar pixel clock!!\n", __func__);
+		return -1;
+	}
+	if (display_type == LCD_7_TYPE || display_type == MIPI_1080P)
+		pixel_clock = 32000000;
+	else if (display_type == MIPI_720P_TOUCH)
+		pixel_clock = 54000000;
+	else
+		pixel_clock = 163000000;
+	pixel_clock = clk_round_rate(g_iar_dev->iar_pixel_clk, pixel_clock);
+	ret = clk_set_rate(g_iar_dev->iar_pixel_clk, pixel_clock);
+	if (ret) {
+		pr_err("%s: err checkout iar pixel clock rate!!\n", __func__);
+		return -1;
+	}
+	pixel_clock = clk_get_rate(g_iar_dev->iar_pixel_clk);
+	pr_err("%s: iar pixel rate is %ld\n", __func__, pixel_clock);
+	return 0;
+}
+
 int disp_pinmux_bt1120(void)
 {
 	int ret = 0;
@@ -873,9 +915,6 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 		pr_err("%s: error output mode!!!\n", __func__);
 #endif
 	} else if (cfg->out_sel == OUTPUT_RGB) {
-		ret = disp_set_pixel_clk(32000000);
-		if (ret)
-			return ret;
 		ret = disp_pinmux_rgb();
 		if (ret) {
 			pr_debug("err config RGB output pinmux!\n");
@@ -1330,11 +1369,16 @@ static void iar_timer(unsigned long dontcare)
 int32_t iar_start(int update)
 {
 	uint32_t value;
+	int ret = 0;
+
 	if (NULL == g_iar_dev) {
 		printk(KERN_ERR "IAR dev not inited!");
 		return -1;
 	}
 
+	ret = disp_clk_enable();
+	if (ret)
+		return -1;
 	value = readl(g_iar_dev->regaddr + REG_IAR_DE_REFRESH_EN);
 	value = IAR_REG_SET_FILED(IAR_DPI_TV_START, 0x1, value);
 	writel(value, g_iar_dev->regaddr + REG_IAR_DE_REFRESH_EN);
@@ -1350,6 +1394,8 @@ EXPORT_SYMBOL_GPL(iar_start);
 int32_t iar_stop(void)
 {
 	uint32_t value;
+	int ret = 0;
+
 	if (NULL == g_iar_dev) {
 		printk(KERN_ERR "IAR dev not inited!");
 		return -1;
@@ -1359,8 +1405,9 @@ int32_t iar_stop(void)
 	writel(value, g_iar_dev->regaddr + REG_IAR_DE_REFRESH_EN);
 
 	writel(0x1, g_iar_dev->regaddr + REG_IAR_UPDATE);
+	ret = disp_clk_disable();
 	//del_timer(&iartimer);
-	return 0;
+	return ret;
 }
 EXPORT_SYMBOL_GPL(iar_stop);
 
@@ -2295,7 +2342,7 @@ static int x2_iar_probe(struct platform_device *pdev)
 		return PTR_ERR(g_iar_dev->iar_pixel_clk);
 	}
 
-	ret = clk_prepare(g_iar_dev->iar_pixel_clk);
+	ret = clk_prepare_enable(g_iar_dev->iar_pixel_clk);
 	if (ret != 0) {
 		dev_err(&pdev->dev, "failed to prepare iar_pix_clk\n");
 		return ret;
@@ -2627,6 +2674,9 @@ static int x2_iar_probe(struct platform_device *pdev)
 		} else if (strncmp(type, "hdmi", 4) == 0) {
 			display_type = HDMI_TYPE;
 			pr_info("%s: panel type is HDMI_TYPE\n", __func__);
+		} else if (strncmp(type, "disable", 7) == 0) {
+			pr_info("%s: iar disable\n", __func__);
+			iar_enable = 0;
 		} else {
 			pr_err("wrong panel type!!!\n");
 		}
@@ -2884,9 +2934,14 @@ static int x2_iar_probe(struct platform_device *pdev)
 		}
 		pr_debug("set mipi 1080p done!\n");
 	}
-
-	return 0;
-	//iar_pre_init();
+	if (iar_enable == 1) {
+		ret = iar_start(1);
+		if (ret) {
+			pr_err("%s: error start iar display!\n", __func__);
+			return -1;
+		}
+		pr_debug("%s: iar display enable!!\n", __func__);
+	}
 	//iar_close();
 	pr_info("iar probe end success!!!\n");
 	return 0;
