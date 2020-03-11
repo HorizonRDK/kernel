@@ -814,11 +814,10 @@ int ipu_update_us_param(struct ipu_video_ctx *ipu_ctx,
 
 	dst_width = us_config->us_sc_info.tgt_width;
 	dst_height = us_config->us_sc_info.tgt_height;
-	ipu_set_us_target(ipu->base_reg, shadow_index, dst_stepx, dst_stepy,
-			  dst_width, dst_height);
-
 	dst_stepx = us_config->us_sc_info.step_x;
 	dst_stepy = us_config->us_sc_info.step_y;
+	ipu_set_us_target(ipu->base_reg, shadow_index, dst_stepx, dst_stepy,
+			  dst_width, dst_height);
 	ipu_set_us_wdma_stride(ipu->base_reg, shadow_index,
 			       us_config->us_stride_y,
 			       us_config->us_stride_uv);
