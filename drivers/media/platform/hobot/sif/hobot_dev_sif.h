@@ -112,24 +112,15 @@ enum sif_group_state {
 
 struct sif_video_ctx{
 	wait_queue_head_t		done_wq;
-	struct vio_framemgr 		*framemgr;
+	struct vio_framemgr 	*framemgr;
 	struct vio_group		*group;
 	unsigned long			state;
 	u32 event;
 	u32 id;
+	u32 ctx_index;
 
-	u32 mux_index;
-	u32 dol_num;
-	u32 rx_num;
-	sif_data_desc_t ddrin_fmt;
-	bool initial_frameid;
-	u64 bufcount;
-	struct frame_id			info;
-	struct x3_sif_dev 		*sif_dev;
-
-	u32			proc_id;
-	u32			is_master;
-	struct sif_sub_mp	*sub_mp;
+	struct x3_sif_dev 	*sif_dev;
+	struct sif_subdev	*subdev;
 };
 
 enum sif_state {
@@ -142,24 +133,31 @@ enum sif_state {
 	SIF_HW_FORCE_STOP,
 };
 
-enum sif_sub_mp_state {
-	SIF_SUB_MP_CREATE,
-	SIF_SUB_MP_INIT,
-	SIF_SUB_MP_USER_INIT,
-	SIF_SUB_MP_MASTER_INIT,
+enum sif_subdev_state {
+	SIF_SUBDEV_INIT,
+	SIF_SUBDEV_REQBUF,
+	SIF_SUBDEV_STREAM_ON,
+	SIF_SUBDEV_STREAM_OFF,
 };
 
-struct sif_sub_mp {
+struct sif_subdev {
 	spinlock_t 		slock;
-	struct sif_video_ctx	*dev[VIO_MAX_SUB_PROCESS];
-	unsigned long		val_dev_mask;
-	atomic_t		proc_count;
-	u32			proc_master;
+	unsigned long 	val_ctx_mask;
+	struct sif_video_ctx	*ctx[VIO_MAX_SUB_PROCESS];
+	atomic_t		refcount;
 	struct vio_framemgr	framemgr;
 	unsigned long 		state;
 	struct vio_group 	*group;
 	struct x3_sif_dev 	*sif_dev;
-	struct semaphore	hw_init_sem;
+
+	u32 mux_index;
+	u32 dol_num;
+	u32 rx_num;
+	sif_data_desc_t ddrin_fmt;
+	struct frame_id 		info;
+	bool initial_frameid;
+	u64 bufcount;
+	u32 id;
 };
 
 
@@ -183,6 +181,9 @@ struct x3_sif_dev {
 
 	struct vio_group		*sif_input[VIO_MAX_STREAM];
 	struct vio_group		*sif_mux[SIF_MUX_MAX];
+
+	struct sif_subdev		sif_in_subdev[VIO_MAX_STREAM];
+	struct sif_subdev		sif_mux_subdev[VIO_MAX_STREAM];
 
 	struct vio_group_task	sifin_task;
 	struct vio_group_task	sifout_task[SIF_MUX_MAX];

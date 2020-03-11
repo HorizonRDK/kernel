@@ -89,7 +89,7 @@ static const struct dev_pm_ops x3_sif_pm_ops = {
 	.runtime_resume = x3_sif_runtime_resume,
 };
 
-void sif_config_rdma_cfg(struct sif_video_ctx *ctx, u8 index,
+void sif_config_rdma_cfg(struct sif_subdev *subdev, u8 index,
 			struct frame_info *frameinfo)
 {
 	u32 height = 0;
@@ -100,12 +100,12 @@ void sif_config_rdma_cfg(struct sif_video_ctx *ctx, u8 index,
 	struct x3_sif_dev *sif;
 	struct vio_group *group;
 
-	sif = ctx->sif_dev;
-	group = ctx->group;
-	height = ctx->ddrin_fmt.height;
-	width = ctx->ddrin_fmt.width;
-	format  = ctx->ddrin_fmt.format;
-	pixel_length = ctx->ddrin_fmt.pix_length;
+	sif = subdev->sif_dev;
+	group = subdev->group;
+	height = subdev->ddrin_fmt.height;
+	width = subdev->ddrin_fmt.width;
+	format  = subdev->ddrin_fmt.format;
+	pixel_length = subdev->ddrin_fmt.pix_length;
 	sif_config_rdma_fmt(sif->base_reg, pixel_length, width, height);
 	stride = sif_get_stride(pixel_length, width);
 	sif_set_rdma_buf_stride(sif->base_reg, index, stride);
@@ -120,14 +120,11 @@ void sif_read_frame_work(struct vio_group *group)
 {
 	unsigned long flags;
 	u32 instance = 0;
-	struct sif_video_ctx *ctx;
 	struct x3_sif_dev *sif;
 	struct vio_framemgr *framemgr;
 	struct vio_frame *frame;
 	struct frame_info *frameinfo;
-	struct sif_sub_mp * sub_mp;
-	u32 proc_master;
-	unsigned long flags_mp;
+	struct sif_subdev * subdev;
 
 	instance = group->instance;
 
@@ -135,43 +132,34 @@ void sif_read_frame_work(struct vio_group *group)
 		(*sif_isp_ctx_sync)(instance);
 	}
 
-	sub_mp = group->sub_ctx[0];
-	if (unlikely(!sub_mp)) {
-		vio_err("%s error sub_mp null,instance %d", __func__, instance);
+	subdev = group->sub_ctx[0];
+	if (unlikely(!subdev)) {
+		vio_err("%s error subdev null,instance %d", __func__, instance);
 		return;
 	}
 
-	spin_lock_irqsave(&sub_mp->slock, flags_mp);
-	proc_master = sub_mp->proc_master;
-	ctx = sub_mp->dev[proc_master];
-	if (unlikely(!ctx)) {
-		spin_unlock_irqrestore(&sub_mp->slock, flags_mp);
-		vio_err("%s ctx null,instance %d", __func__, instance);
-		return;
-	}
-	sif = ctx->sif_dev;
+	sif = subdev->sif_dev;
 
 	atomic_set(&sif->instance, instance);
 
-	framemgr = ctx->framemgr;
+	framemgr = &subdev->framemgr;
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	frame = peek_frame(framemgr, FS_REQUEST);
 	if (frame) {
 		frameinfo = &frame->frameinfo;
-		sif_config_rdma_cfg(ctx, 0, frameinfo);
+		sif_config_rdma_cfg(subdev, 0, frameinfo);
 
-		if (ctx->dol_num > 1) {
-			sif_config_rdma_cfg(ctx, 1, frameinfo);
+		if (subdev->dol_num > 1) {
+			sif_config_rdma_cfg(subdev, 1, frameinfo);
 		}
 
-		if (ctx->dol_num > 2) {
-			sif_config_rdma_cfg(ctx, 2, frameinfo);
+		if (subdev->dol_num > 2) {
+			sif_config_rdma_cfg(subdev, 2, frameinfo);
 		}
 		sif_set_rdma_trigger(sif->base_reg, 1);
 		trans_frame(framemgr, frame, FS_PROCESS);
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
-	spin_unlock_irqrestore(&sub_mp->slock, flags_mp);
 	vio_dbg("[S%d]%s:done", group->instance, __func__);
 }
 
@@ -183,59 +171,48 @@ void sif_write_frame_work(struct vio_group *group)
 	u32 mux_index = 0;
 	u32 yuv_format = 0;
 	unsigned long flags;
-	struct sif_video_ctx *ctx;
 	struct x3_sif_dev *sif;
 	struct vio_framemgr *framemgr;
 	struct vio_frame *frame;
-	struct sif_sub_mp * sub_mp;
-	u32 proc_master;
-	unsigned long flags_mp;
+	struct sif_subdev *subdev;
 
 	instance = group->instance;
-	sub_mp = group->sub_ctx[0];
-	if (!sub_mp) {
-		vio_err("%s sub_mp null,instance %d", __func__, instance);
+	subdev = group->sub_ctx[0];
+	if (unlikely(!subdev)) {
+		vio_err("%s subdev null,instance %d", __func__, instance);
 		return;
 	}
-	spin_lock_irqsave(&sub_mp->slock, flags_mp);
-	proc_master = sub_mp->proc_master;
-	ctx = sub_mp->dev[proc_master];
-	if (unlikely(!ctx)) {
-		spin_unlock_irqrestore(&sub_mp->slock, flags_mp);
-		vio_err("%s ctx null,instance %d", __func__, instance);
-		return;
-	}
-	sif = ctx->sif_dev;
-	mux_index = ctx->mux_index;
 
-	framemgr = ctx->framemgr;
+	sif = subdev->sif_dev;
+	mux_index = subdev->mux_index;
+
+	framemgr = &subdev->framemgr;
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	frame = peek_frame(framemgr, FS_REQUEST);
 	if (frame) {
-		buf_index = ctx->bufcount % 4;
+		buf_index = subdev->bufcount % 4;
 		yuv_format = (frame->frameinfo.format == HW_FORMAT_YUV422);
 		sif_set_wdma_buf_addr(sif->base_reg, mux_index, buf_index,
 				      frame->frameinfo.addr[0]);
 		sif_transfer_ddr_owner(sif->base_reg, mux_index, buf_index);
 
-		if (yuv_format || ctx->dol_num > 1) {
+		if (yuv_format || subdev->dol_num > 1) {
 			sif_set_wdma_buf_addr(sif->base_reg, mux_index + 1,
 					      buf_index, frame->frameinfo.addr[1]);
 			sif_transfer_ddr_owner(sif->base_reg, mux_index + 1,
 					       buf_index);
 		}
 
-		if(ctx->dol_num > 2){
+		if (subdev->dol_num > 2) {
 			sif_set_wdma_buf_addr(sif->base_reg, mux_index + 2,
 					      buf_index, frame->frameinfo.addr[2]);
 			sif_transfer_ddr_owner(sif->base_reg, mux_index + 2,
 					       buf_index);
 		}
 		trans_frame(framemgr, frame, FS_PROCESS);
-		ctx->bufcount++;
+		subdev->bufcount++;
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
-	spin_unlock_irqrestore(&sub_mp->slock, flags_mp);
 	vio_dbg("[S%d]%s:done", group->instance, __func__);
 }
 
@@ -309,22 +286,27 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 	struct sif_video_ctx *sif_ctx;
 	struct vio_group *group;
 	struct x3_sif_dev *sif;
-	struct sif_sub_mp *sub_mp;
-	unsigned long flag_mp;
-	int i;
+	struct sif_subdev *subdev;
 
 	sif_ctx = file->private_data;
-	group = sif_ctx->group;
 	sif = sif_ctx->sif_dev;
-	sub_mp = sif_ctx->sub_mp;
+	subdev = sif_ctx->subdev;
+	group = subdev->group;
 
-	if ((atomic_read(&sub_mp->proc_count) == 1) && (group))
+	if ((group) && atomic_dec_return(&subdev->refcount) == 0) {
+		subdev->state = 0;
 		clear_bit(VIO_GROUP_INIT, &group->state);
+		clear_bit(subdev->mux_index + 1, &sif->state);
+		if (subdev->dol_num > 1)
+			clear_bit(SIF_DOL2_MODE + subdev->mux_index + 1, &sif->state);
+		if (subdev->dol_num > 2)
+			clear_bit(SIF_DOL2_MODE + subdev->mux_index + 2, &sif->state);
 
-	if (group->gtask)
-		vio_group_task_stop(group->gtask);
+		if (group->gtask)
+			vio_group_task_stop(group->gtask);
 
-	frame_manager_close(sif_ctx->framemgr);
+		frame_manager_close(sif_ctx->framemgr);
+	}
 
 	if (atomic_dec_return(&sif->open_cnt) == 0) {
 		clear_bit(SIF_DMA_IN_ENABLE, &sif->state);
@@ -340,26 +322,10 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 	}
 	sif_ctx->state = BIT(VIO_VIDEO_CLOSE);
 
-	spin_lock_irqsave(&sub_mp->slock, flag_mp);
-	clear_bit(sif_ctx->proc_id, &sub_mp->val_dev_mask);
-	sub_mp->dev[sif_ctx->proc_id] = NULL;
-	for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
-		if(test_bit(i, &sub_mp->val_dev_mask))
-			break;
-	}
-	if (i == VIO_MAX_SUB_PROCESS) {
-		sub_mp->proc_master = 0;
-		clear_bit(SIF_SUB_MP_MASTER_INIT, &sub_mp->state);
-		vio_dbg("SIF close last node %d of the sub\n", sif_ctx->id);
-	} else {
-		sub_mp->proc_master = i;
-		vio_dbg("SIF close %d, switch master to proc %d\n",
-			sif_ctx->id, i);
-	}
-
-	atomic_dec(&sub_mp->proc_count);
+	spin_lock(&subdev->slock);
+	clear_bit(sif_ctx->ctx_index, &subdev->val_ctx_mask);
 	kfree(sif_ctx);
-	spin_unlock_irqrestore(&sub_mp->slock, flag_mp);
+	spin_unlock(&subdev->slock);
 
 	vio_info("SIF close node %d\n", sif_ctx->id);
 	return 0;
@@ -393,7 +359,7 @@ int sif_get_stride(u32 pixel_length, u32 width)
 	return stride;
 }
 
-int sif_mux_init(struct sif_video_ctx *sif_ctx, sif_cfg_t *sif_config)
+int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 {
 	int ret = 0;
 	u32 cfg = 0;
@@ -404,11 +370,11 @@ int sif_mux_init(struct sif_video_ctx *sif_ctx, sif_cfg_t *sif_config)
 	struct vio_group_task *gtask;
 	struct vio_group *group;
 
-	sif = sif_ctx->sif_dev;
-	group = sif_ctx->group;
+	sif = subdev->sif_dev;
+	group = subdev->group;
 
 	mux_index = sif_config->input.mipi.func.set_mux_out_index;
-	sif_ctx->mux_index = mux_index;
+	subdev->mux_index = mux_index;
 
 	if (sif_config->input.mipi.data.format == HW_FORMAT_YUV422) {
 		if (mux_index % 2 == 0) {
@@ -421,7 +387,7 @@ int sif_mux_init(struct sif_video_ctx *sif_ctx, sif_cfg_t *sif_config)
 	}
 
 	dol_exp_num = sif_config->output.isp.dol_exp_num;
-	sif_ctx->dol_num = dol_exp_num;
+	subdev->dol_num = dol_exp_num;
 	if(dol_exp_num == 2){
 		set_bit(SIF_DOL2_MODE + mux_index + 1, &sif->state);
 		vio_info("DOL2 mode, current mux = %d\n", mux_index);
@@ -431,44 +397,35 @@ int sif_mux_init(struct sif_video_ctx *sif_ctx, sif_cfg_t *sif_config)
 		vio_info("DOL3 mode, current mux = %d\n", mux_index);
 	}
 
-	sif_ctx->rx_num = sif_config->input.mipi.mipi_rx_index;
-	if (sif_ctx->is_master)
-		sif_ctx->initial_frameid = true;
+	subdev->rx_num = sif_config->input.mipi.mipi_rx_index;
+	subdev->initial_frameid = true;
 	sif->sif_mux[mux_index] = group;
 
 	ddr_enable =  sif_config->output.ddr.enable;
 	if(ddr_enable == 0) {
 		set_bit(VIO_GROUP_OTF_OUTPUT, &group->state);
-		if (sif_ctx->is_master)
-			cfg = ips_get_bus_ctrl() | 0xd21e << 16;
+		cfg = ips_get_bus_ctrl() | 0xd21e << 16;
 	} else {
 		set_bit(VIO_GROUP_DMA_OUTPUT, &group->state);
-		if (sif_ctx->is_master)
-			cfg = ips_get_bus_ctrl() | 0xc002 << 16;
+		cfg = ips_get_bus_ctrl() | 0xc002 << 16;
 
 		gtask = &sif->sifout_task[mux_index];
 		gtask->id = group->id;
 		group->gtask = gtask;
 		group->frame_work = sif_write_frame_work;
 		vio_group_task_start(gtask);
-		if (sif_ctx->is_master)
-			sema_init(&gtask->hw_resource, 4);
+		sema_init(&gtask->hw_resource, 4);
 	}
 
-	if (sif_ctx->is_master) {
-		ips_set_bus_ctrl(cfg);
-		sif_hw_config(sif->base_reg, sif_config);
-	}
+	ips_set_bus_ctrl(cfg);
+	sif_hw_config(sif->base_reg, sif_config);
 
-	sif_ctx->bufcount = sif_get_current_bufindex(sif->base_reg, mux_index);
+	subdev->bufcount = sif_get_current_bufindex(sif->base_reg, mux_index);
 	sif->mismatch_cnt = 0;
 
-	if (sif_ctx->is_master)
-		vio_info("[S%d][V%d] %s master mux_index %d\n", group->instance,
-		sif_ctx->id, __func__, mux_index);
-	else
-		vio_info("[S%d][V%d] %s slave mux_index %d\n", group->instance,
-		sif_ctx->id, __func__, mux_index);
+	vio_info("[S%d] %s mux_index %d\n", group->instance,
+			__func__, mux_index);
+
 	return ret;
 }
 
@@ -477,6 +434,7 @@ int sif_video_init(struct sif_video_ctx *sif_ctx, unsigned long arg)
 	int ret = 0;
 	struct x3_sif_dev *sif;
 	struct vio_group *group;
+	struct sif_subdev *subdev;
 	sif_cfg_t sif_config;
 
 	group = sif_ctx->group;
@@ -486,18 +444,25 @@ int sif_video_init(struct sif_video_ctx *sif_ctx, unsigned long arg)
 		return -EINVAL;
 	}
 
+	subdev = sif_ctx->subdev;
+	if (test_bit(SIF_SUBDEV_INIT, &subdev->state)) {
+		vio_info("subdev already init, current refcount(%d)\n",
+				atomic_read(&subdev->refcount));
+		return ret;
+	}
+
 	ret = copy_from_user((char *) &sif_config, (u32 __user *) arg,
 			   sizeof(sif_cfg_t));
 	if (ret)
 		return -EFAULT;
 
-	sif = sif_ctx->sif_dev;
+	sif = subdev->sif_dev;
 
 	if (sif_ctx->id == 0) {
-		ret = sif_mux_init(sif_ctx, &sif_config);
+		ret = sif_mux_init(subdev, &sif_config);
 	} else if (sif_ctx->id == 1) {
-		sif_ctx->dol_num = sif_config.output.isp.dol_exp_num;
-		memcpy(&sif_ctx->ddrin_fmt, &sif_config.input.ddr.data,
+		subdev->dol_num = sif_config.output.isp.dol_exp_num;
+		memcpy(&subdev->ddrin_fmt, &sif_config.input.ddr.data,
 			sizeof(sif_data_desc_t));
 		sif_set_isp_performance(sif->base_reg, 10);
 		set_bit(SIF_DMA_IN_ENABLE, &sif->state);
@@ -506,6 +471,7 @@ int sif_video_init(struct sif_video_ctx *sif_ctx, unsigned long arg)
 	}
 
 	sif_ctx->state = BIT(VIO_VIDEO_INIT);
+	set_bit(SIF_SUBDEV_INIT, &subdev->state);
 
 	vio_info("[S%d][V%d] %s done\n", group->instance,
 		sif_ctx->id, __func__);
@@ -517,14 +483,10 @@ int sif_bind_chain_group(struct sif_video_ctx *sif_ctx, int instance)
 {
 	int ret = 0;
 	int group_id = 0;
+	int i = 0;
 	struct vio_group *group;
 	struct x3_sif_dev *sif;
-	struct vio_chain *chain;
-	struct sif_sub_mp *sub_mp_alloc, *sub_mp;
-	u32 proc_id;
-	u32 mst_id;
-	u8 isfree;
-	unsigned long flag_mp;
+	struct sif_subdev *subdev;
 
 	if (!(sif_ctx->state & BIT(VIO_VIDEO_OPEN))) {
 		vio_err("[%s]invalid BIND is requested(%lX)",
@@ -539,72 +501,41 @@ int sif_bind_chain_group(struct sif_video_ctx *sif_ctx, int instance)
 
 	sif = sif_ctx->sif_dev;
 
-	if(sif_ctx->id == 0)
+	if (sif_ctx->id == 0) {
+		subdev = &sif->sif_mux_subdev[instance];
 		group_id = GROUP_ID_SIF_OUT;
-	else
+		subdev->id = sif_ctx->id;
+	} else {
+		subdev = &sif->sif_in_subdev[instance];
 		group_id = GROUP_ID_SIF_IN;
-
+		subdev->id = sif_ctx->id;
+	}
 	group = vio_get_chain_group(instance, group_id);
 	if (!group)
 		return -EFAULT;
 
-	isfree = 0;
-	sub_mp_alloc = NULL;
-	spin_lock(&group->slock);
-	if (!group->sub_ctx[0]) {
-		spin_unlock(&group->slock);
-		sub_mp_alloc = kzalloc(sizeof(struct sif_sub_mp), GFP_KERNEL);
-		if (!sub_mp_alloc) {
-			vio_err("%s:%d alloc sub_mp err.", __func__, __LINE__);
-			return -ENOMEM;
-		}
-		spin_lock(&group->slock);
-	}
-	if (!group->sub_ctx[0]) {
-		group->sub_ctx[0] = sub_mp_alloc;
-		sub_mp = sub_mp_alloc;
-	} else {
-		sub_mp = group->sub_ctx[0];
-		if (sub_mp_alloc)
-			isfree = 1;
-	}
-	if (!test_bit(SIF_SUB_MP_INIT, &sub_mp->state)) {
-		spin_lock_init(&sub_mp->slock);
-		set_bit(SIF_SUB_MP_INIT, &sub_mp->state);
-	}
-	spin_unlock(&group->slock);
+	group->sub_ctx[0] = subdev;
+	sif_ctx->group = group;
+	sif_ctx->subdev = subdev;
+	sif_ctx->framemgr = &subdev->framemgr;
+	subdev->sif_dev = sif;
+	subdev->group = group;
 
-	spin_lock_irqsave(&sub_mp->slock, flag_mp);
-	for (proc_id = 0; proc_id < VIO_MAX_SUB_PROCESS; proc_id++) {
-		if(!test_bit(proc_id, &sub_mp->val_dev_mask))
+	spin_lock(&subdev->slock);
+	for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
+		if(!test_bit(i, &subdev->val_ctx_mask)) {
+			subdev->ctx[i] = sif_ctx;
+			sif_ctx->ctx_index = i;
+			set_bit(i, &subdev->val_ctx_mask);
 			break;
-	}
-	if (proc_id == VIO_MAX_SUB_PROCESS) {
-		spin_unlock(&sub_mp->slock);
-		vio_err("SIF bind too many files on ins%d minor%d",
-			instance, sif_ctx->id);
-		return -EMFILE;
-	}
-	sub_mp->dev[proc_id] = sif_ctx;
-	atomic_inc(&sub_mp->proc_count);
-	set_bit(proc_id, &sub_mp->val_dev_mask);
-	if (!test_bit(SIF_SUB_MP_MASTER_INIT, &sub_mp->state)) {
-		for (mst_id = 0; mst_id < VIO_MAX_SUB_PROCESS; mst_id++) {
-			if(test_bit(mst_id, &sub_mp->val_dev_mask))
-				break;
 		}
-		if (mst_id == VIO_MAX_SUB_PROCESS)
-			sub_mp->proc_master = 0;
-		else
-			sub_mp->proc_master = mst_id;
-		set_bit(SIF_SUB_MP_MASTER_INIT, &sub_mp->state);
 	}
-	sub_mp->group = group;
-	sub_mp->sif_dev = sif;
-	sema_init(&sub_mp->hw_init_sem, 1);
-
-	chain = group->chain;
-	spin_unlock_irqrestore(&sub_mp->slock, flag_mp);
+	spin_unlock(&subdev->slock);
+	if (i == VIO_MAX_SUB_PROCESS) {
+		vio_err("alreay open too much for one pipeline\n");
+		return -EFAULT;
+	}
+	atomic_inc(&subdev->refcount);
 
 	if(sif_ctx->id == 1){
 		sif->sif_input[instance] = group;
@@ -612,27 +543,22 @@ int sif_bind_chain_group(struct sif_video_ctx *sif_ctx, int instance)
 		group->gtask = &sif->sifin_task;
 		vio_group_task_start(group->gtask);
 	}
-	sif_ctx->group = group;
-	sif_ctx->proc_id = proc_id;
-	sif_ctx->sub_mp = sub_mp;
-	sif_ctx->framemgr = &sub_mp->framemgr;
-	if (proc_id == sub_mp->proc_master)
-		sif_ctx->is_master = 1;
+
 	sif_ctx->state = BIT(VIO_VIDEO_S_INPUT);
 
-	if (isfree)
-		kfree(sub_mp_alloc);
-
-	vio_info("[S%d][V%d] %s done\n", group->instance,
-		sif_ctx->id, __func__);
+	vio_info("[S%d][V%d] %s done, ctx_index(%d) refcount(%d)\n",
+		group->instance, sif_ctx->id, __func__,
+		i, atomic_read(&subdev->refcount));
 
 	return ret;
 }
 
 int sif_video_streamon(struct sif_video_ctx *sif_ctx)
 {
+	int ret = 0;
 	unsigned long flag;
 	struct x3_sif_dev *sif_dev;
+	struct sif_subdev *subdev;
 
 	if (!(sif_ctx->state & (BIT(VIO_VIDEO_STOP)
 			| BIT(VIO_VIDEO_REBUFS)
@@ -642,11 +568,16 @@ int sif_video_streamon(struct sif_video_ctx *sif_ctx)
 		return -EINVAL;
 	}
 
+	subdev = sif_ctx->subdev;
+	if (test_bit(SIF_SUBDEV_STREAM_ON, &subdev->state))
+		return ret;
+
 	sif_dev = sif_ctx->sif_dev;
 
 	if (atomic_read(&sif_dev->rsccount) > 0)
 		goto p_inc;
 
+	msleep(500);
 	spin_lock_irqsave(&sif_dev->shared_slock, flag);
 	sif_dev->error_count = 0;
 	sif_hw_enable(sif_dev->base_reg);
@@ -656,17 +587,20 @@ int sif_video_streamon(struct sif_video_ctx *sif_ctx)
 p_inc:
 	atomic_inc(&sif_dev->rsccount);
 	sif_ctx->state = BIT(VIO_VIDEO_START);
+	set_bit(SIF_SUBDEV_STREAM_ON, &subdev->state);
 
 	vio_info("[S%d][V%d]%s\n", sif_ctx->group->instance,
 		sif_ctx->id, __func__);
 
-	return 0;
+	return ret;
 }
 
 int sif_video_streamoff(struct sif_video_ctx *sif_ctx)
 {
+	int ret = 0;
 	struct x3_sif_dev *sif_dev;
 	struct vio_framemgr *framemgr;
+	struct sif_subdev *subdev;
 	unsigned long flag;
 
 	if (!(sif_ctx->state & BIT(VIO_VIDEO_START))) {
@@ -674,6 +608,10 @@ int sif_video_streamoff(struct sif_video_ctx *sif_ctx)
 			__func__, sif_ctx->id, sif_ctx->state);
 		return -EINVAL;
 	}
+
+	subdev = sif_ctx->subdev;
+	if (test_bit(SIF_SUBDEV_STREAM_OFF, &subdev->state))
+		return ret;
 
 	sif_dev = sif_ctx->sif_dev;
 	framemgr = sif_ctx->framemgr;
@@ -692,28 +630,28 @@ int sif_video_streamoff(struct sif_video_ctx *sif_ctx)
 	spin_unlock_irqrestore(&sif_dev->shared_slock, flag);
 p_dec:
 
-	if (sif_ctx->id == 0)
-		clear_bit(sif_ctx->mux_index + 1, &sif_dev->state);
-
 	if (framemgr->frames != NULL)
 		frame_manager_flush(framemgr);
 
 	sif_ctx->state = BIT(VIO_VIDEO_STOP);
+	set_bit(SIF_SUBDEV_STREAM_OFF, &subdev->state);
 
 	vio_info("[S%d][V%d]%s\n", sif_ctx->group->instance,
 		sif_ctx->id, __func__);
 
-	return 0;
+	return ret;
 }
 
 int sif_video_s_stream(struct sif_video_ctx *sif_ctx, bool enable)
 {
-	if (enable)
-		sif_video_streamon(sif_ctx);
-	else
-		sif_video_streamoff(sif_ctx);
+	int ret = 0;
 
-	return 0;
+	if (enable)
+		ret = sif_video_streamon(sif_ctx);
+	else
+		ret = sif_video_streamoff(sif_ctx);
+
+	return ret;
 }
 
 int sif_video_reqbufs(struct sif_video_ctx *sif_ctx, u32 buffers)
@@ -722,6 +660,7 @@ int sif_video_reqbufs(struct sif_video_ctx *sif_ctx, u32 buffers)
 	int i = 0;
 	struct vio_framemgr *framemgr;
 	struct vio_group *group;
+	struct sif_subdev *subdev;
 
 	if (!(sif_ctx->state & (BIT(VIO_VIDEO_STOP) | BIT(VIO_VIDEO_REBUFS) |
 		      BIT(VIO_VIDEO_INIT) | BIT(VIO_VIDEO_S_INPUT)))) {
@@ -730,7 +669,10 @@ int sif_video_reqbufs(struct sif_video_ctx *sif_ctx, u32 buffers)
 		return -EINVAL;
 	}
 
-	vio_info("%s: buffers = %d\n", __func__, buffers);
+	subdev = sif_ctx->subdev;
+	if (test_bit(SIF_SUBDEV_REQBUF, &subdev->state))
+		return ret;
+
 	framemgr = sif_ctx->framemgr;
 	ret = frame_manager_open(framemgr, buffers);
 	if (ret) {
@@ -744,6 +686,8 @@ int sif_video_reqbufs(struct sif_video_ctx *sif_ctx, u32 buffers)
 	}
 
 	sif_ctx->state = BIT(VIO_VIDEO_REBUFS);
+
+	set_bit(SIF_SUBDEV_REQBUF, &subdev->state);
 
 	vio_info("[S%d][V%d]%s reqbuf num %d\n", group->instance,
 		sif_ctx->id, __func__, buffers);
@@ -760,11 +704,6 @@ int sif_video_qbuf(struct sif_video_ctx *sif_ctx,
 	struct vio_frame *frame;
 	unsigned long flags;
 	struct vio_group *group;
-
-	if (unlikely(!sif_ctx->is_master)) {
-		vio_err("%s slave can not qbuf.", __func__);
-		return -EFAULT;
-	}
 
 	index = frameinfo->bufferindex;
 	framemgr = sif_ctx->framemgr;
@@ -802,11 +741,6 @@ int sif_video_dqbuf(struct sif_video_ctx *sif_ctx,
 	struct vio_framemgr *framemgr;
 	struct vio_frame *frame;
 	unsigned long flags;
-
-	if (unlikely(!sif_ctx->is_master)) {
-		vio_err("%s slave can not dqbuf.", __func__);
-		return -EFAULT;
-	}
 
 	framemgr = sif_ctx->framemgr;
 
@@ -908,23 +842,28 @@ static struct file_operations x3_sif_fops = {
 };
 
 void sif_get_timestamps(struct vio_group *group, struct frame_id *info){
-	struct sif_video_ctx *sif_ctx;
+	struct sif_subdev *subdev;
 
-	sif_ctx = group->sub_ctx[0];
+	subdev = group->sub_ctx[0];
 
-	info = &sif_ctx->info;
+	info = &subdev->info;
 }
 
 
-void sif_frame_done(struct sif_video_ctx *sif_ctx)
+void sif_frame_done(struct sif_subdev *subdev)
 {
 	struct vio_framemgr *framemgr;
 	struct vio_frame *frame;
 	struct vio_group *group;
+	struct sif_video_ctx *sif_ctx;
 	unsigned long flags;
+	u32 event = 0;
+	int i = 0;
 
-	group = sif_ctx->group;
-	framemgr = sif_ctx->framemgr;
+	BUG_ON(!subdev);
+
+	group = subdev->group;
+	framemgr = &subdev->framemgr;
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	frame = peek_frame(framemgr, FS_PROCESS);
 	if (frame) {
@@ -937,14 +876,14 @@ void sif_frame_done(struct sif_video_ctx *sif_ctx)
 		do_gettimeofday(&frame->frameinfo.tv);
 
 		trans_frame(framemgr, frame, FS_COMPLETE);
-		sif_ctx->event = VIO_FRAME_DONE;
+		event = VIO_FRAME_DONE;
 	} else {
-		sif_ctx->event = VIO_FRAME_NDONE;
+		event = VIO_FRAME_NDONE;
 		vio_err("[S%d][V%d]SIF PROCESS queue has no member;\n",
-			group->instance, sif_ctx->id);
+			group->instance, subdev->id);
 		vio_err("[S%d][V%d][FRM](%d %d %d %d %d)\n",
 			group->instance,
-			sif_ctx->id,
+			subdev->id,
 			framemgr->queued_count[0],
 			framemgr->queued_count[1],
 			framemgr->queued_count[2],
@@ -953,7 +892,15 @@ void sif_frame_done(struct sif_video_ctx *sif_ctx)
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
-	wake_up(&sif_ctx->done_wq);
+	spin_lock(&subdev->slock);
+	for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
+		if (test_bit(i, &subdev->val_ctx_mask)) {
+			sif_ctx = subdev->ctx[i];
+			sif_ctx->event = event;
+			wake_up(&sif_ctx->done_wq);
+		}
+	}
+	spin_unlock(&subdev->slock);
 }
 
 static irqreturn_t sif_isr(int irq, void *data)
@@ -965,11 +912,9 @@ static irqreturn_t sif_isr(int irq, void *data)
 	u32 intr_en = 0;
 	struct sif_irq_src irq_src;
 	struct x3_sif_dev *sif;
-	struct sif_video_ctx *sif_ctx;
 	struct vio_group *group;
 	struct vio_group_task *gtask;
-	struct sif_sub_mp *sub_mp;
-	u32 proc_master;
+	struct sif_subdev *subdev;
 
 	sif = (struct x3_sif_dev *) data;
 	memset(&irq_src, 0x0, sizeof(struct sif_irq_src));
@@ -992,35 +937,17 @@ static irqreturn_t sif_isr(int irq, void *data)
 			if (status & 1 <<
 			    (mux_index + INTR_SIF_MUX0_FRAME_DONE)) {
 				group = sif->sif_mux[mux_index];
-				sub_mp = group->sub_ctx[0];
-				if (!sub_mp) {
-					vio_err("%s(%d) sub_mp null",
-						__func__, __LINE__);
-					continue;
-				}
-				spin_lock(&sub_mp->slock);
-				proc_master = sub_mp->proc_master;
-				sif_ctx = sub_mp->dev[proc_master];
-				sif_frame_done(sif_ctx);
-				spin_unlock(&sub_mp->slock);
+				subdev = group->sub_ctx[0];
+				sif_frame_done(subdev);
 			}
 			//Frame start processing
 			if ((status & 1 << mux_index)) {
 				group = sif->sif_mux[mux_index];
-				sub_mp = group->sub_ctx[0];
-				if (!sub_mp) {
-					vio_err("%s(%d) sub_mp null",
-						__func__, __LINE__);
-					continue;
+				subdev = group->sub_ctx[0];
+				if (subdev->initial_frameid) {
+					sif_enable_init_frameid(sif->base_reg, subdev->rx_num, 0);
+					subdev->initial_frameid = false;
 				}
-				spin_lock(&sub_mp->slock);
-				proc_master = sub_mp->proc_master;
-				sif_ctx = sub_mp->dev[proc_master];
-				if(sif_ctx->initial_frameid){
-					sif_enable_init_frameid(sif->base_reg, sif_ctx->rx_num, 0);
-					sif_ctx->initial_frameid = false;
-				}
-				spin_unlock(&sub_mp->slock);
 				sif_get_frameid_timestamps(sif->base_reg,
 							   mux_index, &group->frameid);
 
@@ -1048,17 +975,8 @@ static irqreturn_t sif_isr(int irq, void *data)
 
 		vio_group_done(group);
 
-		sub_mp = group->sub_ctx[0];
-		if (unlikely(!sub_mp)) {
-			vio_err("%s(%d) err sub_mp null",
-				__func__, __LINE__);
-		} else {
-			spin_lock(&sub_mp->slock);
-			proc_master = sub_mp->proc_master;
-			sif_ctx = sub_mp->dev[proc_master];
-			sif_frame_done(sif_ctx);
-			spin_unlock(&sub_mp->slock);
-		}
+		subdev = group->sub_ctx[0];
+		sif_frame_done(subdev);
 	}
 
 	if (irq_src.sif_frm_int & 1 << INTR_SIF_IN_SIZE_MISMATCH) {
@@ -1088,6 +1006,32 @@ static irqreturn_t sif_isr(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
+int sif_subdev_init(struct sif_subdev *subdev)
+{
+	int ret = 0;
+
+	spin_lock_init(&subdev->slock);
+	atomic_set(&subdev->refcount, 0);
+
+	return ret;
+}
+
+int x3_sif_subdev_init(struct x3_sif_dev *sif)
+{
+	int i = 0;
+	int ret = 0;
+	struct sif_subdev *subdev;
+
+	for (i = 0; i < VIO_MAX_STREAM; i++) {
+		subdev = &sif->sif_in_subdev[i];
+		ret = sif_subdev_init(subdev);
+
+		subdev = &sif->sif_mux_subdev[i];
+		ret = sif_subdev_init(subdev);
+	}
+
+	return ret;
+}
 int x3_sif_device_node_init(struct x3_sif_dev *sif)
 {
 	int ret = 0;
@@ -1224,6 +1168,7 @@ static int x3_sif_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, sif);
 	/*4 ddr in channel can not be 0 together*/
 	sif_enable_dma(sif->base_reg, 0x10000);
+	ret = x3_sif_subdev_init(sif);
 
 	vio_info("[FRT:D] %s(%d)\n", __func__, ret);
 
