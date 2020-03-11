@@ -15,6 +15,8 @@
 #include <linux/uaccess.h>
 #include <linux/sched.h>
 #include <linux/version.h>
+#include <linux/poll.h>
+#include <linux/eventpoll.h>
 
 #include "hobot_jpu_buf.h"
 #include "hobot_jpu_ctl.h"
@@ -253,6 +255,9 @@ static irqreturn_t jpu_irq_handler(int irq, void *dev_id)
 
 	wake_up_interruptible(&dev->interrupt_wait_q[i]);
 
+  //spin_lock(&dev->poll_spinlock);
+  wake_up_interruptible(&dev->poll_wait_q[i]);
+
 	jpu_debug_leave();
 
 	return IRQ_HANDLED;
@@ -283,6 +288,7 @@ static int jpu_open(struct inode *inode, struct file *filp)
 
 	spin_lock(&dev->jpu_spinlock);
 	dev->open_count++;
+  dev->inst_index = -1;
 	filp->private_data = (void *)dev;
 	spin_unlock(&dev->jpu_spinlock);
 
@@ -745,7 +751,28 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 				  inst_index);
 		}
 		break;
+  case JDI_IOCTL_POLL_WAIT_INSTANCE:
+    {
+      hb_jpu_drv_intr_t info;
+      u32 inst_no;
 
+      jpu_debug(5, "[+]JDI_IOCTL_POLL_WAIT_INSTANCE\n");
+      ret = copy_from_user(&info, (hb_jpu_drv_intr_t*)arg,
+              sizeof(hb_jpu_drv_intr_t));
+      if (ret != 0) {
+        jpu_err
+          ("JDI_IOCTL_FREE_INSTANCE_ID invalid instance id.");
+        return -EFAULT;
+      }
+      inst_no = info.inst_idx;
+      if (inst_no >= 0 && inst_no < MAX_NUM_JPU_INSTANCE) {
+        dev->inst_index = inst_no;
+      } else {
+        return  -EINVAL;
+      }
+      jpu_debug(5, "[-]JDI_IOCTL_POLL_WAIT_INSTANCE\n");
+    }
+    break;
 	default:
 		{
 			jpu_err("No such IOCTL, cmd is %d\n", cmd);
@@ -958,6 +985,22 @@ static int jpu_mmap(struct file *filp, struct vm_area_struct *vm)
 	return jpu_map_to_physical_memory(filp, vm);
 }
 
+static unsigned int jpu_poll(struct file *filp, struct poll_table_struct *wait)
+{
+	hb_jpu_dev_t *dev;
+  unsigned int mask;
+  jpu_debug_enter();
+	dev = (hb_jpu_dev_t *) filp->private_data;
+  if (dev->inst_index < 0 || dev->inst_index >= MAX_NUM_JPU_INSTANCE) {
+    return EPOLLERR;
+  }
+  poll_wait(filp, &dev->poll_wait_q[dev->inst_index], wait);
+  mask = EPOLLIN | EPOLLET;
+	jpu_debug(5, "POLL MASK:%08x\n", mask);
+  jpu_debug_leave();
+  return mask;
+};
+
 struct file_operations jpu_fops = {
 	.owner = THIS_MODULE,
 	.open = jpu_open,
@@ -967,6 +1010,7 @@ struct file_operations jpu_fops = {
 	.release = jpu_release,
 	.fasync = jpu_fasync,
 	.mmap = jpu_mmap,
+  .poll = jpu_poll,
 };
 
 static int jpu_probe(struct platform_device *pdev)
@@ -1138,6 +1182,7 @@ static int jpu_probe(struct platform_device *pdev)
 #endif
 	for (i = 0; i < MAX_NUM_JPU_INSTANCE; i++) {
 		init_waitqueue_head(&dev->interrupt_wait_q[i]);
+		init_waitqueue_head(&dev->poll_wait_q[i]);
 	}
 
 	dev->async_queue = NULL;
@@ -1145,6 +1190,7 @@ static int jpu_probe(struct platform_device *pdev)
 	mutex_init(&dev->jpu_mutex);
 	sema_init(&dev->jpu_sem, 1);
 	dev->jpu_spinlock = __SPIN_LOCK_UNLOCKED(jpu_spinlock);
+  dev->poll_spinlock = __SPIN_LOCK_UNLOCKED(poll_spinlock);
 
 	INIT_LIST_HEAD(&dev->jbp_head);
 	INIT_LIST_HEAD(&dev->inst_list_head);

@@ -79,6 +79,8 @@ typedef struct _hb_jpu_dev {
 	wait_queue_head_t interrupt_wait_q[MAX_NUM_JPU_INSTANCE];
 	int interrupt_flag[MAX_NUM_JPU_INSTANCE];
 	u32 interrupt_reason[MAX_NUM_JPU_INSTANCE];
+  wait_queue_head_t poll_wait_q[MAX_NUM_JPU_INSTANCE];
+  spinlock_t poll_spinlock;
 
 	struct fasync_struct *async_queue;
 	u32 open_count;		/*!<< device reference count. Not instance count */
@@ -92,6 +94,7 @@ typedef struct _hb_jpu_dev {
 
 	hb_jpu_drv_buffer_t instance_pool;
 	hb_jpu_drv_buffer_t common_memory;
+  u32 inst_index;
 } hb_jpu_dev_t;
 
 #endif /* __HOBOT_JPU_UTILS_H__ */

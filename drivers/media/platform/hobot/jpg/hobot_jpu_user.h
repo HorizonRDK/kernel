@@ -34,7 +34,7 @@ typedef struct _hb_jpu_drv_intr {
 
 #define JDI_IOCTL_ALLOCATE_PHYSICAL_MEMORY          \
     _IOWR(JDI_IOCTL_MAGIC, 0, hb_jpu_drv_buffer_t)
-#define JDI_IOCTL_FREE_PHYSICAL_MEMORY               \
+#define JDI_IOCTL_FREE_PHYSICAL_MEMORY              \
     _IOWR(JDI_IOCTL_MAGIC, 1, hb_jpu_drv_buffer_t)
 #define JDI_IOCTL_WAIT_INTERRUPT                    \
     _IOWR(JDI_IOCTL_MAGIC, 2, hb_jpu_drv_intr_t)
@@ -54,9 +54,11 @@ typedef struct _hb_jpu_drv_intr {
     _IOWR(JDI_IOCTL_MAGIC, 9, hb_jpu_drv_inst_t)
 #define JDI_IOCTL_GET_INSTANCE_NUM                  \
     _IOWR(JDI_IOCTL_MAGIC, 10, hb_jpu_drv_inst_t)
-#define JDI_IOCTL_ALLOCATE_INSTANCE_ID		\
+#define JDI_IOCTL_ALLOCATE_INSTANCE_ID              \
     _IOR(JDI_IOCTL_MAGIC, 14, int)
-#define JDI_IOCTL_FREE_INSTANCE_ID		\
+#define JDI_IOCTL_FREE_INSTANCE_ID                  \
     _IOW(JDI_IOCTL_MAGIC, 15, int)
+#define JDI_IOCTL_POLL_WAIT_INSTANCE                \
+    _IOW(JDI_IOCTL_MAGIC, 16, hb_jpu_drv_intr_t)
 
 #endif /* __HOBOT_JPU_USER_H__ */
