@@ -401,6 +401,29 @@ void ipu_clear_group_leader(struct vio_group *group)
 	clear_bit(VIO_GROUP_LEADER, &group->state);
 }
 
+int ipu_update_osd_color_map(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
+{
+	int ret = 0;
+	u32 id = 0;
+	osd_color_map_t *color_map;
+
+	id = ipu_ctx->id;
+	if (id < GROUP_ID_US || id > GROUP_ID_DS1) {
+		vio_err("%s wrong ctx id %d\n", __func__, id);
+		return -EFAULT;
+	}
+	color_map = &ipu_ctx->osd_cfg.color_map;
+	ret = copy_from_user((char *) color_map, (u32 __user *) arg,
+			   sizeof(osd_color_map_t));
+	if (ret)
+		return -EFAULT;
+
+	vio_dbg("[S%d][V%d] %s\n", ipu_ctx->group->instance, ipu_ctx->id,
+		 __func__);
+
+	return ret;
+}
+
 int ipu_update_osd_addr(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 {
 	int ret = 0;
@@ -1616,6 +1639,9 @@ static long x3_ipu_ioctl(struct file *file, unsigned int cmd,
 		break;
 	case IPU_IOC_OSD_STA_BIN:
 		ret = ipu_get_osd_bin(ipu_ctx, arg);
+		break;
+	case IPU_IOC_OSD_COLOR_MAP:
+		ret = ipu_update_osd_color_map(ipu_ctx, arg);
 		break;
 	case IPU_IOC_BIND_GROUP:
 		ret = get_user(instance, (u32 __user *) arg);

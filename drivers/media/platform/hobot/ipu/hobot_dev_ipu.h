@@ -36,6 +36,7 @@
 #define IPU_IOC_OSD_ADDR         _IOW(IPU_IOC_MAGIC, 10, int)
 #define IPU_IOC_BIND_GROUP       _IOW(IPU_IOC_MAGIC, 11, int)
 #define IPU_IOC_GET_INDEX      	 _IOR(IPU_IOC_MAGIC, 12, int)
+#define IPU_IOC_OSD_COLOR_MAP    _IOW(IPU_IOC_MAGIC, 13, int)
 
 struct ipu_osd_cfg{
 	bool osd_box_update;
