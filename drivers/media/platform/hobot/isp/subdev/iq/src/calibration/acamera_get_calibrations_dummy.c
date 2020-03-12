@@ -63,8 +63,7 @@ uint32_t get_calibrations_dummy( uint32_t ctx_id, void *sensor_arg, ACameraCalib
 	iret = unregister_calib( c, (uint8_t)(ctx_id & 0xff) );	
 	iret = register_calib( c, (uint8_t)(ctx_id & 0xff) );
 	if (iret < 0) {
-        	printk("IE&E register_calib is failed!\n");
-		LOG( LOG_ERR, "register_calib of port %d if failed ", ctx_id );
+		LOG(LOG_DEBUG, "get default calib of port %d", ctx_id);
         	ret += ( get_calibrations_dynamic_linear_dummy( c ) + get_calibrations_static_linear_dummy( c ) );
 	}
 	break;
@@ -73,8 +72,7 @@ uint32_t get_calibrations_dummy( uint32_t ctx_id, void *sensor_arg, ACameraCalib
 	iret = unregister_calib( c, (uint8_t)(ctx_id & 0xff) );	
 	iret = register_calib( c, (uint8_t)(ctx_id & 0xff) );
 	if (iret < 0) {
-        	printk("IE&E register_calib is failed!\n");
-        	LOG( LOG_ERR, "register_calib of port %d if failed ", ctx_id );
+		LOG(LOG_DEBUG, "get default calib of port %d", ctx_id);
         	ret += ( get_calibrations_dynamic_linear_dummy( c ) + get_calibrations_static_linear_dummy( c ) );
 	}
         break;
@@ -83,8 +81,7 @@ uint32_t get_calibrations_dummy( uint32_t ctx_id, void *sensor_arg, ACameraCalib
 	iret = unregister_calib( c, (uint8_t)(ctx_id & 0xff) );	
 	iret = register_calib( c, (uint8_t)(ctx_id & 0xff) );
 	if (iret < 0) {
-        	printk("IE&E register_calib is failed!\n");
-        	LOG( LOG_ERR, "register_calib of port %d if failed ", ctx_id );
+		LOG(LOG_DEBUG, "get default calib of port %d", ctx_id);
         	ret += ( get_calibrations_dynamic_fs_lin_dummy( c ) + get_calibrations_static_fs_lin_dummy( c ) );
 	}
         break;

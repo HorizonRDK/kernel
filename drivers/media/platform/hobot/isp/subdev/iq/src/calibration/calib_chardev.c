@@ -20,6 +20,7 @@
 #include "calib_chardev.h"
 #include <linux/vmalloc.h>
 #include <linux/slab.h>
+#include <linux/delay.h>
 #include "system_timer.h"
 
 #define CHARDEV_CALIB_NAME "ac_calib"
@@ -55,13 +56,14 @@ static int calib_destory(uint8_t port)
 	tmp = 10;
 	while (tmp > 0) {
 		if (calib_data->busy) {
-			system_timer_usleep(100);
+			udelay(1000);
+			//system_timer_usleep(3*1000);
 		}
 		tmp--;
 	}
 
 	if (calib_data->busy) {
-		LOG( LOG_ERR, "calib of port %d is busy.", port );
+		LOG(LOG_ERR, "calib of port %d is busy, free failed.", port);
 		return -CALIB_BUSY_ERR;
 	}
 
@@ -269,7 +271,7 @@ int register_calib( ACameraCalibrations *c, uint8_t port )
 	LOG( LOG_INFO, "%s is runing.", __func__ );
 	
 	if ( (port >= FIRMWARE_CONTEXT_NUMBER) || (calib_data == NULL)) {
-		LOG( LOG_ERR, "%s port %d is not existance.", __func__, port );
+		LOG(LOG_WARNING, "%s port %d is not existance.", __func__, port);
 		if (calib_data == NULL)
 			return -CALIB_NULL_ERR;
 		else 
@@ -302,7 +304,7 @@ int unregister_calib( ACameraCalibrations *c, uint8_t port )
 	LOG( LOG_INFO, "%s is runing.", __func__ );
 	
 	if ( (port >= FIRMWARE_CONTEXT_NUMBER) || (calib_data == NULL )) {
-		LOG( LOG_ERR, "%s port %d is not existance.", __func__, port );
+		LOG(LOG_WARNING, "%s port %d is not existance.", __func__, port);
 		if (calib_data == NULL)
 			return -CALIB_NULL_ERR;
 		else 
