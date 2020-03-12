@@ -26,8 +26,8 @@
 #define PVT_SAMPLE_INTERVAL_MS 20
 #define PVT_TS_MASK GENMASK(PVT_TS_NUM - 1, 0)
 
-unsigned int test_gain = 0;
-module_param(test_gain, uint, 0644);
+int test_gain = 0;
+module_param(test_gain, int, 0644);
 
 /* TS0: CNN0 TS1:CPU TS2:CNN1 TS3: DDR */
 static char *ts_map[] = {
@@ -49,6 +49,7 @@ struct pvt_device {
 	void __iomem *reg_base;
 	int ts_mode;
 	int updated;
+	spinlock_t lock;
 };
 
 static inline u32 pvt_reg_rd(struct pvt_device *dev, u32 reg)
@@ -82,6 +83,7 @@ static int pvt_temp_read(struct device *dev, enum hwmon_sensor_types type,
 	long temp_min = 0;
 	long temp_max = 0;
 	long diff;
+	unsigned long flags;
 	int i = 0;
 
 	if (!pvt_dev->updated) {
@@ -90,6 +92,9 @@ static int pvt_temp_read(struct device *dev, enum hwmon_sensor_types type,
 	}
 
 	pr_debug("using ts calibration mode %d in [1, 2]\n", pvt_dev->ts_mode + 1);
+
+	spin_lock_irqsave(&pvt_dev->lock, flags);
+
 	for (i = 0; i < PVT_TS_NUM; i++) {
 		if (pvt_dev->ts_mode == 0) {
 			//ts mode 1
@@ -139,6 +144,7 @@ static int pvt_temp_read(struct device *dev, enum hwmon_sensor_types type,
 			pr_err("%s cur_temp[%d] = %ldC\n", ts_map[i], i, pvt_dev->cur_temp[i]);
 		}
 	}
+	spin_unlock_irqrestore(&pvt_dev->lock, flags);
 
 	return  0;
 }
@@ -200,6 +206,7 @@ static irqreturn_t pvt_irq_handler(int irq, void *dev_id)
 
 	ts_status = pvt_reg_rd(pvt_dev, IRQ_TS_STATUS_ADDR);
 
+	spin_lock(&pvt_dev->lock);
 	for (i = 0; i < PVT_TS_NUM; i++) {
 		irq_status = pvt_n_reg_rd(pvt_dev, i, TS_n_IRQ_STATUS_ADDR);
 		sdif_done = pvt_n_reg_rd(pvt_dev, i, TS_n_SDIF_DONE_ADDR);
@@ -210,21 +217,28 @@ static irqreturn_t pvt_irq_handler(int irq, void *dev_id)
 
 		if (irq_status & TP_IRQ_STS_FAULT_BIT) {
 			pvt_n_reg_wr(pvt_dev, i, TS_n_IRQ_CLEAR_ADDR, TP_IRQ_STS_FAULT_BIT);
+			pr_warn("smp[%d] TP_IRQ_STS_FAULT_BIT fault\n", i);
 			continue;
 		}
 
-		if (sdif_data & TS_SDIF_DATA_FAULT_BIT)
+		if (sdif_data & TS_SDIF_DATA_FAULT_BIT) {
+			pr_warn("smp[%d] TS_SDIF_DATA_FAULT_BIT fault\n", i);
 			continue;
+		}
 
 		if (sdif_done) {
-			pvt_dev->cur_smpl[i] = sdif_data;
 			if (sdif_data > 3000 || sdif_data < 1000) {
 				pr_err("invalid cur_smpl[%d] : %d, SDIF_DATA:%08x\n",
 						i, pvt_dev->cur_smpl[i], sdif_data);
 			}
+			if (sdif_data < 864)
+				continue;
+
+			pvt_dev->cur_smpl[i] = sdif_data;
 			update_ts_bitmap |= BIT(i);
 		}
 	}
+	spin_unlock(&pvt_dev->lock);
 
 	if (update_ts_bitmap == PVT_TS_MASK) {
 		/*
@@ -339,6 +353,8 @@ static int pvt_probe(struct platform_device *pdev)
 
 	pvt_dev->ts_mode = 1;
 	pvt_dev->dev = &pdev->dev;
+
+	spin_lock_init(&pvt_dev->lock);
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	pvt_dev->reg_base = devm_ioremap_resource(&pdev->dev, res);
