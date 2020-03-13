@@ -61,23 +61,21 @@ static int dwe_fop_open(struct inode *pinode, struct file *pfile)
 	dwe_charmod_s *dwe_cdev = NULL;
 	int minor = iminor(pinode);
 
-	LOG(LOG_DEBUG, "---[%s-%d]---\n", __func__, __LINE__);
-
 	for (tmp = 0; tmp < FIRMWARE_CONTEXT_NUMBER; tmp++) {
 		if (dwe_mod[tmp]->dev_minor_id == minor) {
 			dwe_cdev = dwe_mod[tmp];
-			printk(KERN_INFO " tmp %d is open !\n", tmp);
+			LOG(LOG_DEBUG, " tmp %d is open !\n", tmp);
 			break;
 		}
 	}
 
 	if (dwe_cdev == NULL) {
-		printk(KERN_INFO " minor is error !\n");
+		LOG(LOG_ERR, " minor is error !\n");
 		return -EINVAL;
 	}
 
 	if (dwe_cdev->user_num > 0) {
-		printk(KERN_INFO " more than one pthred use !\n");
+		LOG(LOG_ERR, " more than one pthred use !\n");
 		return -ENXIO;
 	}
 
@@ -137,8 +135,7 @@ static int dwe_fop_release(struct inode *pinode, struct file *pfile)
 	spin_unlock(&dwe_cdev->slock);
 	pfile->private_data = NULL;
 
-	LOG(LOG_DEBUG, "---[%s-%d]--- close is success!\n",
-		__func__, __LINE__);
+	LOG(LOG_DEBUG, "close is success!\n");
 	return 0;
 }
 
@@ -147,7 +144,6 @@ static ssize_t dwe_fop_read(struct file *pfile, char *puser_buf,
 {
 	int ret = 0;
 
-	LOG(LOG_DEBUG, "---[%s-%d]---\n", __func__, __LINE__);
 	dwe_charmod_s *dwe_cdev = pfile->private_data;
 
 	ret = vb2_read(&dwe_cdev->vb2_q, puser_buf, len, poff,
@@ -163,13 +159,12 @@ static ssize_t dwe_fop_write(struct file *pfile, const char *puser_buf,
 	dwe_charmod_s *dwe_cdev = pfile->private_data;
 	dframe_t tmp;
 
-	LOG(LOG_DEBUG, "---[%s-%d]---\n", __func__, __LINE__);
 	ret = dwe_stream_get_frame(dwe_cdev->port, &tmp);
 	if (ret == 0) {
-		printk(KERN_INFO "dwe_strea_get_frame is success !\n");
+		LOG(LOG_DEBUG, "dwe_strea_get_frame is success !\n");
 		ret = dwe_stream_put_frame(dwe_cdev->port, &tmp);
 		if (ret == 0) {
-			printk(KERN_INFO "dwe_strea_put_frame is success !\n");
+			LOG(LOG_DEBUG, "dwe_strea_put_frame is success !\n");
 		}
 	}
 
@@ -201,7 +196,6 @@ static int dwe_fop_mmap(struct file *pfile, struct vm_area_struct *vma)
 	dwe_charmod_s *dwe_cdev = pfile->private_data;
 	int ret = 0;
 
-	LOG(LOG_DEBUG, "---[%s-%d]---\n", __func__, __LINE__);
 	ret = vb2_mmap(&dwe_cdev->vb2_q, vma);
 	return ret;
 }
@@ -218,7 +212,6 @@ static int dwe_v4l2_streamon(void *priv, enum v4l2_buf_type i)
 	int rc = 0;
 	dwe_charmod_s *sp = priv;
 
-	LOG(LOG_DEBUG, "---[%s-%d]---\n", __func__, __LINE__);
 	if (dwe_v4l2_is_q_busy(&sp->vb2_q))
 		return -EBUSY;
 
@@ -238,7 +231,6 @@ static int dwe_v4l2_streamoff(void *priv, enum v4l2_buf_type i)
 	int rc = 0;
 	dwe_charmod_s *sp = priv;
 
-	LOG(LOG_DEBUG, "---[%s-%d]---\n", __func__, __LINE__);
 	if (dwe_v4l2_is_q_busy(&sp->vb2_q))
 		return -EBUSY;
 	/* vb streamoff */
@@ -253,7 +245,6 @@ static int dwe_v4l2_reqbufs(void *priv, struct v4l2_requestbuffers *p)
 	int ret = 0;
 	dwe_charmod_s *sp = priv;
 
-	LOG(LOG_DEBUG, "---[%s-%d]---\n", __func__, __LINE__);
 	if (dwe_v4l2_is_q_busy(&sp->vb2_q))
 		return -EBUSY;
 
@@ -262,8 +253,7 @@ static int dwe_v4l2_reqbufs(void *priv, struct v4l2_requestbuffers *p)
 
 	ret = vb2_reqbufs(&sp->vb2_q, p);
 	if (ret < 0) {
-		LOG(LOG_INFO, "%s -- %d, ret = %d !\n",
-			__func__, __LINE__, ret);
+		LOG(LOG_INFO, "ret = %d !\n", ret);
 		return ret;
 	}
 	dwe_v4l2_streamon(priv, p->type);
@@ -291,10 +281,8 @@ static int dwe_v4l2_querybuf(void *priv, struct v4l2_buffer *p)
 	dwe_charmod_s *sp = priv;
 
 	rc = vb2_querybuf(&sp->vb2_q, p);
-	LOG(LOG_DEBUG, "querybuf p->type:%d p->index:%d , rc %d",
-		p->type, p->index, rc);
-	LOG(LOG_INFO, "index %d, type %d, length %d !\n",
-		p->index, p->type, p->length);
+	LOG(LOG_DEBUG, "querybuf p->type:%d p->index:%d p->length , rc %d",
+		p->type, p->index, p->length, rc);
 	return rc;
 }
 
@@ -325,7 +313,6 @@ static int dwe_v4l2_dqbuf(void *priv, struct v4l2_buffer *p)
 	int rc = 0;
 	dwe_charmod_s *sp = priv;
 
-	LOG(LOG_DEBUG, "---[%s-%d]---\n", __func__, __LINE__);
 	LOG(LOG_DEBUG, "(ownermatch=%d)", dwe_v4l2_is_q_busy(&sp->vb2_q));
 	if (dwe_v4l2_is_q_busy(&sp->vb2_q))
 		return -EBUSY;
@@ -340,8 +327,6 @@ static int dwe_v4l2_format(void *priv, struct v4l2_format *p)
 	int rc = 0;
 	dwe_charmod_s *sp = priv;
 	dwe_v4l2_stream_t *pstream = sp->pstream;
-
-	LOG(LOG_DEBUG, "---[%s-%d]---\n", __func__, __LINE__);
 
 	memcpy(&pstream->cur_v4l2_fmt, p, sizeof(struct v4l2_format));
 
@@ -368,8 +353,6 @@ static long dwe_fop_ioctl(struct file *pfile, unsigned int cmd,
 	struct v4l2_buffer tmp_b;
 	struct v4l2_requestbuffers tmp_p;
 	struct v4l2_format tmp_f;
-
-	LOG(LOG_DEBUG, "---[%s-%d]---\n", __func__, __LINE__);
 
 	switch (cmd) {
 	case DWEC_SET_DIS_PARAM: {
@@ -598,14 +581,13 @@ int __init dwe_dev_init(uint32_t port)
 	int ret = 0;
 	int rc = 0;
 
-	LOG(LOG_DEBUG, "---[%s-%d]---\n", __func__, __LINE__);
 	if (port >= FIRMWARE_CONTEXT_NUMBER) {
 		return -ENXIO;
 	}
 
 	dwe_mod[port] = kzalloc(sizeof(dwe_charmod_s), GFP_KERNEL);
 	if (dwe_mod[port] == NULL) {
-		printk(KERN_INFO "%s --%d kzalloc !\n", __func__, __LINE__);
+		LOG(LOG_ERR, " kzalloc is failed !\n");
 		return -ENOMEM;
 	}
 
@@ -618,7 +600,7 @@ int __init dwe_dev_init(uint32_t port)
 
 	ret = misc_register(&dwe_mod[port]->dwe_chardev);
 	if (ret) {
-		printk(KERN_INFO "%s --%d, register failed, err %d !\n", __func__, __LINE__, ret);
+		LOG(LOG_ERR, " register failed, err %d !\n", ret);
 		goto register_err;
 	}
 	dwe_mod[port]->dev_minor_id = dwe_mod[port]->dwe_chardev.minor;
@@ -637,7 +619,6 @@ EXPORT_SYMBOL(dwe_dev_init);
 
 void __exit dwe_dev_exit(int port)
 {
-	LOG(LOG_DEBUG, "---[%s-%d]---\n", __func__, __LINE__);
 	if ((port < FIRMWARE_CONTEXT_NUMBER) && (dwe_mod[port] != NULL)) {
 		misc_deregister(&dwe_mod[port]->dwe_chardev);
 		kzfree(dwe_mod[port]);
@@ -663,7 +644,7 @@ static int tmpdevs_init(void)
 	for (tmp = 0; tmp < 4; tmp++) {
 		ret = dwe_dev_init(tmp);
 		if (ret < 0) {
-			printk(KERN_INFO "dwe_dev_init %d is failed\n", tmp);
+			LOG(LOG_ERR, "dwe_dev_init %d is failed\n", tmp);
 			goto devinit_err;
 		}
 	}

@@ -13,6 +13,8 @@
  *    GNU General Public License for more details.
  */
 
+#define pr_fmt(fmt) "[ldc_drv]: %s: " fmt, __func__
+
 #include <linux/platform_device.h>
 #include <linux/of.h>
 #include <linux/of_address.h>

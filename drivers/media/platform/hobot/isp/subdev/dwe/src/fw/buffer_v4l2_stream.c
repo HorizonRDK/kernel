@@ -31,6 +31,8 @@
 #include "acamera_dwe_config.h"
 #include "buffer_v4l2_stream.h"
 
+#define pr_fmt(fmt) "[ldc_drv]: %s: " fmt, __func__
+
 #if defined(CUR_MOD_NAME)
 #undef CUR_MOD_NAME
 #define CUR_MOD_NAME LOG_MODULE_SOC_DWE
@@ -48,10 +50,10 @@ int dwe_stream_get_frame(uint32_t ctx_id, dframe_t *dframes)
 	struct v4l2_format *v4l2_fmt;
 	struct vb2_buffer *vb;
 
-	LOG(LOG_DEBUG, "---[%s-%d]---: ctx_id = %d!\n", __func__, __LINE__, ctx_id);
+	LOG(LOG_DEBUG, " ctx_id = %d!\n", ctx_id);
 	if ((ctx_id >= FIRMWARE_CONTEXT_NUMBER) || (dwe_buf[ctx_id] == NULL)
 		|| (dframes == NULL)) {
-		printk(KERN_INFO "dwe_buf[%d] = %p !\n", ctx_id, dwe_buf[ctx_id]);
+		pr_debug("dwe_buf[%d] = %p !\n", ctx_id, dwe_buf[ctx_id]);
 		return -1;
 	}
 
@@ -68,7 +70,7 @@ int dwe_stream_get_frame(uint32_t ctx_id, dframe_t *dframes)
 	spin_unlock(&pstream->slock);
 
 	if (!pbuf) {
-		printk(KERN_INFO " [%s--%d] pbuf is null !\n", __func__, __LINE__);
+		pr_debug("pbuf is null !\n");
 		return -1;
 	}
 
@@ -77,14 +79,13 @@ int dwe_stream_get_frame(uint32_t ctx_id, dframe_t *dframes)
 	dframes->type = vb->type;  // frame type.
 	dframes->virt_addr = vb2_plane_vaddr(vb, 0);
 #if (BUFFER_DMA)
-	printk(KERN_INFO "virt_addr%p, addr memory %p !\n",
+	pr_debug(KERN_INFO "virt_addr%p, addr memory %p !\n",
 		dframes->virt_addr, vb2_plane_cookie(vb, 0));
 	dframes->address = *((uint32_t *)vb2_plane_cookie(vb, 0));
 #else
 	dframes->address = (uint32_t)__virt_to_phys(dframes->virt_addr);
 #endif
-	printk(KERN_INFO " type %d -- addr memory %d !\n", vb->type,
-		dframes->address);
+	pr_debug(" type %d -- addr memory %d !\n", vb->type, dframes->address);
 	return rc;
 }
 EXPORT_SYMBOL(dwe_stream_get_frame);
@@ -97,11 +98,11 @@ int dwe_stream_put_frame(uint32_t ctx_id, dframe_t *dframes)
 
 	if ((ctx_id >= FIRMWARE_CONTEXT_NUMBER) || (dwe_buf[ctx_id] == NULL)
 		|| (dframes == NULL)) {
-		printk(KERN_INFO "dwe_buf[%d] = %p !\n", ctx_id, dwe_buf[ctx_id]);
+		pr_debug("dwe_buf[%d] = %p !\n", ctx_id, dwe_buf[ctx_id]);
 		return -1;
 	}
 
-	LOG(LOG_DEBUG, "---[%s-%d]---: ctx_id = %d!\n", __func__, __LINE__, ctx_id);
+	LOG(LOG_DEBUG, "ctx_id = %d!\n", ctx_id);
 
 	pstream = dwe_buf[ctx_id];
 
@@ -115,15 +116,15 @@ int dwe_stream_put_frame(uint32_t ctx_id, dframe_t *dframes)
 	spin_unlock(&pstream->slock);
 
 	if (!pbuf) {
-		printk(KERN_INFO " [%s--%d] pbuf is null !\n", __func__, __LINE__);
+		pr_debug("pbuf is null !\n");
 		return -1;
 	}
 
 	vb = &pbuf->vb;
 	vb->timestamp = ktime_get_ns();
-	*(uint64_t *)dframes->virt_addr = vb->timestamp;
+	//*(uint64_t *)dframes->virt_addr = vb->timestamp;
 
-	printk(KERN_INFO " timestamp %lld!\n", vb->timestamp);
+	pr_debug(" timestamp %lld!\n", vb->timestamp);
 	/* Put buffer back to vb2 queue */
 	vb2_buffer_done(vb, VB2_BUF_STATE_DONE);
 
@@ -135,7 +136,7 @@ int dwe_v4l2_stream_init(dwe_v4l2_stream_t **ppstream, int ctx_id)
 {
 	dwe_v4l2_stream_t *new_stream = NULL;
 
-	LOG(LOG_DEBUG, "---[%s-%d]---: ctx_id = %d!\n", __func__, __LINE__, ctx_id);
+	LOG(LOG_DEBUG, "ctx_id = %d!\n", ctx_id);
 	/* allocate dwe_v4l2_stream_t */
 	new_stream = kzalloc(sizeof(dwe_v4l2_stream_t), GFP_KERNEL);
 	if (new_stream == NULL) {
@@ -169,7 +170,6 @@ int dwe_v4l2_stream_init(dwe_v4l2_stream_t **ppstream, int ctx_id)
 
 void dwe_v4l2_stream_deinit(dwe_v4l2_stream_t *pstream)
 {
-	LOG(LOG_DEBUG, "---[%s-%d]---\n", __func__, __LINE__);
 	if (!pstream) {
 		LOG(LOG_ERR, "Null stream passed");
 		return;
@@ -191,7 +191,6 @@ static void dwe_v4l2_stream_buffer_list_release(dwe_v4l2_stream_t *pstream,
 	dwe_v4l2_buffer_t *buf;
 	struct vb2_buffer *vb;
 
-	LOG(LOG_DEBUG, "---[%s-%d]---\n", __func__, __LINE__);
 	while (!list_empty(stream_buffer_list)) {
 		buf = list_entry(stream_buffer_list->next,
 			dwe_v4l2_buffer_t, list);
@@ -211,7 +210,6 @@ int dwe_v4l2_stream_on(dwe_v4l2_stream_t *pstream)
 		LOG(LOG_ERR, "Null stream passed");
 		return -EINVAL;
 	}
-	LOG(LOG_DEBUG, "---[%s-%d]---\n", __func__, __LINE__);
 
 	/* Resets frame counters */
 	pstream->fw_frame_seq_count = 0;
@@ -224,7 +222,6 @@ int dwe_v4l2_stream_on(dwe_v4l2_stream_t *pstream)
 
 void dwe_v4l2_stream_off(dwe_v4l2_stream_t *pstream)
 {
-	LOG(LOG_DEBUG, "---[%s-%d]---\n", __func__, __LINE__);
 	if (!pstream) {
 		LOG(LOG_ERR, "Null stream passed");
 		return;

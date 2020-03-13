@@ -238,6 +238,18 @@ static irqreturn_t x2a_dis_irq(int this_irq, void *data)
 	if (tmp_irq.status_b.int_frame_done == 1) {
 		//debug
 		pr_debug("----dis done----");
+		addr = 0x4;
+		ldc_debug_info(dwe_ctx->dev_ctx->dis_dev->io_vaddr, addr, &tmp);
+		pr_debug("[dump] addr 0x%x, data 0x%x", addr, tmp);
+		addr = 0x44;
+		ldc_debug_info(dwe_ctx->dev_ctx->dis_dev->io_vaddr, addr, &tmp);
+		pr_debug("[dump] addr 0x%x, data 0x%x", addr, tmp);
+		addr = 0x114;
+		ldc_debug_info(dwe_ctx->dev_ctx->dis_dev->io_vaddr, addr, &tmp);
+		pr_debug("[dump] addr 0x%x, data 0x%x", addr, tmp);
+		addr = 0x214;
+		ldc_debug_info(dwe_ctx->dev_ctx->dis_dev->io_vaddr, addr, &tmp);
+		pr_debug("[dump] addr 0x%x, data 0x%x", addr, tmp);
 		LOG(LOG_INFO, "----dis_irqstatus %x ----", dwe_ctx->dis_irqstatus);
 		dwe_ctx->dis_irqstatus = tmp_irq.status_g;
 
