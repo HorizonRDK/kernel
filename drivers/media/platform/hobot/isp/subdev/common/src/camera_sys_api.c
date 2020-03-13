@@ -111,7 +111,7 @@ static void camera_trans_value(uint32_t *input, char *output)
 {
 	output[0] = (char)(input[0] & 0xff);
 	output[1] = (char)((input[0] >> 8) & 0xff);
-	output[2] = (char)((input[0] >> 16) & 0xff);
+	output[2] = (char)((input[0] >> 16) & 0x03);
 	return;
 }
 static int camera_sys_set_normal_gain(uint32_t port, uint32_t *input_gain,
@@ -208,6 +208,7 @@ static int camera_sys_set_dol2_line(uint32_t port, uint32_t gain_num,
 		uint32_t *input_line)
 {
 	char line_d[3] = {0};
+	char rev_d[3] = {0};
 	int ret = 0;
 	uint32_t reg_width, s_line_length, m_line_length, s_line, m_line;
 
@@ -216,6 +217,7 @@ static int camera_sys_set_dol2_line(uint32_t port, uint32_t gain_num,
 	m_line = camera_mod[port]->camera_param.dol2.m_line;
 	s_line_length = camera_mod[port]->camera_param.dol2.s_line_length;
 	m_line_length = camera_mod[port]->camera_param.dol2.m_line_length;
+
 	switch (gain_num) {
 		case 2:  // m_line
 			camera_trans_value(&input_line[1], line_d);
@@ -347,18 +349,18 @@ void camera_sys_imxsensor_turning_control(uint32_t port,
 		if (line_buf1 >= camera_mod[port]->camera_param.sensor_data.FSC_DOL2)
 				line_buf1 = camera_mod[port]->camera_param.sensor_data.FSC_DOL2 - 1;
 		 a_line[1] = camera_mod[port]->camera_param.sensor_data.FSC_DOL2
-			 - 1 - priv_param->line_buf[1];
+			 - 1 - line_buf1;
 		if (line_buf0 >= camera_mod[port]->camera_param.sensor_data.RHS1)
 				line_buf0 = camera_mod[port]->camera_param.sensor_data.RHS1 - 1;
 		 a_line[0] = camera_mod[port]->camera_param.sensor_data.RHS1
-			 - 1 - priv_param->line_buf[0];
+			 - 1 - line_buf0;
 	} else if (priv_param->line_num == 3) {
 		 a_line[2] = camera_mod[port]->camera_param.sensor_data.FSC_DOL3
-			- 1 - priv_param->line_buf[2];
+			- 1 - line_buf2;
 		 a_line[1] = camera_mod[port]->camera_param.sensor_data.RHS2
-			 - 1 - priv_param->line_buf[1];
+			 - 1 - line_buf1;
 		 a_line[0] = camera_mod[port]->camera_param.sensor_data.RHS1
-			 - 1 - priv_param->line_buf[0];
+			 - 1 - line_buf0;
 	}
 	return;
 }
