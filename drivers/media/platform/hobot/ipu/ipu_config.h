@@ -41,7 +41,7 @@ typedef struct osd_box_s {
 
 typedef struct osd_color_map_s {
 	u8 color_map_update;
-	char color_map[MAX_OSD_COLOR_NUM];	//colour map buffer addr
+	u32 color_map[MAX_OSD_COLOR_NUM];	//colour map buffer addr
 } osd_color_map_t;
 
 //for osd draw, Y info sta
