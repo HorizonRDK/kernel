@@ -32,5 +32,6 @@
 #define MAX_INST_HANDLE_SIZE            48	/* DO NOT CHANGE THIS VALUE */
 #define PRODUCT_CODE_W_SERIES(x)	(x == WAVE521_CODE || x == WAVE521C_CODE \
 									|| x == WAVE521C_DUAL_CODE)
+#define SIZE_COMMON 				(2*1024*1024)
 
 #endif /* HOBOT_VPU_CONFIG_H_ */

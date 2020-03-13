@@ -318,7 +318,7 @@ static s32 vpu_get_inst_idx(hb_vpu_dev_t * dev, u32 * reason,
 
 	inst_idx = -1;
 	*reason = 0;
-	vpu_debug(7, "UNKNOWN INTERRUPT REASON: %08x\n", int_reason);
+	vpu_err("UNKNOWN INTERRUPT REASON: %08x\n", int_reason);
 
 GET_VPU_INST_IDX_HANDLED:
 	vpu_debug(7, "inst_idx=%d. *reason=0x%x\n", inst_idx, *reason);
@@ -337,10 +337,14 @@ static irqreturn_t vpu_irq_handler(int irq, void *dev_id)
 #ifdef SUPPORT_MULTI_INST_INTR
 	u32 intr_reason = 0;
 	s32 intr_inst_index = 0;
+	unsigned long flags_mp;
 #endif
 
 #ifdef VPU_IRQ_CONTROL
+	spin_lock_irqsave(&dev->irq_spinlock, flags_mp);
 	disable_irq_nosync(dev->irq);
+	dev->irq_trigger = 1;
+	spin_unlock_irqrestore(&dev->irq_spinlock, flags_mp);
 #endif
 
 	for (core = 0; core < MAX_NUM_VPU_CORE; core++) {
@@ -511,7 +515,7 @@ static irqreturn_t vpu_irq_handler(int irq, void *dev_id)
 				VPU_WRITEL(BIT_INT_CLEAR, 0x1);
 			}
 		} else {
-			vpu_debug(7, "Unknown product id : %08x\n",
+			vpu_err("Unknown product id : %08x\n",
 				  product_code);
 			continue;
 		}
@@ -748,6 +752,7 @@ static long vpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 			u32 intr_inst_index;
 			u32 intr_reason_in_q;
 			u32 interrupt_flag_in_q;
+			unsigned long flags_mp;
 #endif
 			//vpu_debug(5, "[+]VDI_IOCTL_WAIT_INTERRUPT\n");
 
@@ -768,7 +773,7 @@ static long vpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 			if (interrupt_flag_in_q > 0) {
 				dev->interrupt_reason[intr_inst_index] =
 				    intr_reason_in_q;
-				vpu_debug(5,
+				vpu_debug(7,
 					  "Interrupt Remain : intr_inst_index=%d, "
 					  "intr_reason_in_q=0x%x, interrupt_flag_in_q=%d\n",
 					  intr_inst_index, intr_reason_in_q,
@@ -854,7 +859,12 @@ INTERRUPT_REMAIN_IN_QUEUE:
 #endif
 
 #ifdef VPU_IRQ_CONTROL
-			enable_irq(dev->irq);
+			spin_lock_irqsave(&dev->irq_spinlock, flags_mp);
+			if (dev->irq_trigger == 1) {
+				enable_irq(dev->irq);
+				dev->irq_trigger = 0;
+			}
+			spin_unlock_irqrestore(&dev->irq_spinlock, flags_mp);
 #endif
 			ret = copy_to_user((void __user *)arg, &info,
 					   sizeof(hb_vpu_drv_intr_t));
@@ -1808,6 +1818,8 @@ static int vpu_probe(struct platform_device *pdev)
 		}
 	}
 	dev->vpu_kfifo_lock = __SPIN_LOCK_UNLOCKED(vpu_kfifo_lock);
+	dev->irq_spinlock = __SPIN_LOCK_UNLOCKED(irq_spinlock);
+	dev->irq_trigger = 0;
 #else
 	init_waitqueue_head(&dev->interrupt_wait_q);
 #endif
@@ -1820,6 +1832,15 @@ static int vpu_probe(struct platform_device *pdev)
 
 	INIT_LIST_HEAD(&dev->vbp_head);
 	INIT_LIST_HEAD(&dev->inst_list_head);
+
+	dev->common_memory.size = SIZE_COMMON;
+	err = vpu_alloc_dma_buffer(dev, &dev->common_memory);
+	if (err) {
+		dev->common_memory.size = 0;
+		dev_err(&pdev->dev,
+			"failed to allocate common memory 0x%x\n", err);
+		goto ERR_ALLOC_FIFO;
+	}
 
 	return 0;
 

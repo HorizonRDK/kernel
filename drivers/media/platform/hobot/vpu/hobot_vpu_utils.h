@@ -95,6 +95,8 @@ typedef struct _hb_vpu_dev {
 	struct kfifo interrupt_pending_q[MAX_NUM_VPU_INSTANCE];
 	spinlock_t vpu_kfifo_lock;
 	unsigned long interrupt_reason[MAX_NUM_VPU_INSTANCE];
+	spinlock_t irq_spinlock;
+	int irq_trigger;
 #else
 	wait_queue_head_t interrupt_wait_q;
 	int interrupt_flag;
