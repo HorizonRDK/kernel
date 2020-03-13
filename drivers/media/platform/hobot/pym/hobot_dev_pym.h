@@ -29,16 +29,17 @@
 #define PYM_IOC_END_OF_STREAM    _IOW(PYM_IOC_MAGIC, 5, int)
 #define PYM_IOC_BIND_GROUP       _IOW(PYM_IOC_MAGIC, 6, int)
 
-struct pym_video_ctx {
-	wait_queue_head_t done_wq;
-	struct vio_framemgr framemgr;
-	struct vio_group *group;
-	unsigned long state;
-
-	struct x3_pym_dev *pym_dev;
-	pym_cfg_t pym_cfg;
+struct pym_video_ctx{
+	wait_queue_head_t		done_wq;
+	struct vio_framemgr 	*framemgr;
+	struct vio_group		*group;
+	unsigned long			state;
 	u32 event;
-	bool leader;
+	u32 id;
+	u32 ctx_index;
+
+	struct x3_pym_dev 	*pym_dev;
+	struct pym_subdev	*subdev;
 };
 
 enum group_id {
@@ -62,6 +63,27 @@ enum pym_status {
 	PYM_HW_FORCE_STOP,
 };
 
+enum pym_subdev_state {
+	PYM_SUBDEV_INIT,
+	PYM_SUBDEV_REQBUF,
+	PYM_SUBDEV_STREAM_ON,
+	PYM_SUBDEV_STREAM_OFF,
+};
+
+struct pym_subdev {
+	spinlock_t 		slock;
+	unsigned long 	val_ctx_mask;
+	struct pym_video_ctx	*ctx[VIO_MAX_SUB_PROCESS];
+	atomic_t		refcount;
+	struct vio_framemgr	framemgr;
+	unsigned long 		state;
+	struct vio_group 	*group;
+	struct x3_pym_dev 	*pym_dev;
+
+	pym_cfg_t pym_cfg;
+	u32 id;
+};
+
 
 struct x3_pym_dev {
 	/* channel information */
@@ -81,6 +103,7 @@ struct x3_pym_dev {
 	atomic_t sensor_fcount;
 	atomic_t backup_fcount;
 
+	struct pym_subdev subdev[VIO_MAX_STREAM];
 	struct vio_group *group[VIO_MAX_STREAM];
 	struct vio_group_task gtask;
 };

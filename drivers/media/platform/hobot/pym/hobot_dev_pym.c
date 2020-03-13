@@ -33,7 +33,7 @@
 
 extern struct class *vps_class;
 
-void pym_update_param(struct pym_video_ctx *pym_ctx);
+void pym_update_param(struct pym_subdev *subdev);
 int pym_video_streamoff(struct pym_video_ctx *pym_ctx);
 
 static int x3_pym_open(struct inode *inode, struct file *file)
@@ -106,18 +106,21 @@ static int x3_pym_close(struct inode *inode, struct file *file)
 	struct pym_video_ctx *pym_ctx;
 	struct vio_group *group;
 	struct x3_pym_dev *pym;
+	struct pym_subdev *subdev;
 
 	pym_ctx = file->private_data;
 	group = pym_ctx->group;
 	pym = pym_ctx->pym_dev;
+	subdev = pym_ctx->subdev;
 
-	if (group)
+	if ((group) && atomic_dec_return(&subdev->refcount) == 0) {
+		subdev->state = 0;
 		clear_bit(VIO_GROUP_INIT, &group->state);
+		if (group->gtask)
+			vio_group_task_stop(group->gtask);
 
-	if (group->gtask)
-		vio_group_task_stop(group->gtask);
-
-	frame_manager_close(&pym_ctx->framemgr);
+		frame_manager_close(pym_ctx->framemgr);
+	}
 
 	if (atomic_dec_return(&pym->open_cnt) == 0) {
 		clear_bit(PYM_OTF_INPUT, &pym->state);
@@ -136,6 +139,7 @@ static int x3_pym_close(struct inode *inode, struct file *file)
 
 	pym_ctx->state = BIT(VIO_VIDEO_CLOSE);
 
+	clear_bit(pym_ctx->ctx_index, &subdev->val_ctx_mask);
 	kfree(pym_ctx);
 
 	vio_info("[S%d] PYM close node\n", group->instance);
@@ -162,17 +166,23 @@ void pym_set_buffers(struct x3_pym_dev *pym, struct vio_frame *frame)
 
 static void pym_frame_work(struct vio_group *group)
 {
-	struct pym_video_ctx *pym_ctx;
 	struct x3_pym_dev *pym;
 	struct vio_framemgr *framemgr;
 	struct vio_frame *frame;
+	struct pym_subdev * subdev;
 	unsigned long flags;
 	u32 instance = 0;
 	u8 shadow_index = 0;
 
+	subdev = group->sub_ctx[0];
+	if (unlikely(!subdev)) {
+		vio_err("%s error subdev null,instance %d", __func__, instance);
+		return;
+	}
+
 	instance = group->instance;
-	pym_ctx = group->sub_ctx[0];
-	pym = pym_ctx->pym_dev;
+	subdev = group->sub_ctx[0];
+	pym = subdev->pym_dev;
 
 	if (instance < MAX_SHADOW_NUM)
 		shadow_index = instance;
@@ -181,12 +191,12 @@ static void pym_frame_work(struct vio_group *group)
 
 	atomic_set(&pym->instance, instance);
 
-	framemgr = &pym_ctx->framemgr;
+	framemgr = &subdev->framemgr;
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	frame = peek_frame(framemgr, FS_REQUEST);
 	if (frame) {
 		if (test_bit(PYM_REUSE_SHADOW0, &pym->state))
-			pym_update_param(pym_ctx);
+			pym_update_param(subdev);
 
 		pym_set_common_rdy(pym->base_reg, 0);
 		pym_set_shd_select(pym->base_reg, shadow_index);
@@ -231,7 +241,7 @@ void pym_hw_enable(struct x3_pym_dev *pym, bool enable)
 	pym_set_common_rdy(pym->base_reg, 1);
 
 }
-void pym_update_param(struct pym_video_ctx *pym_ctx)
+void pym_update_param(struct pym_subdev *subdev)
 {
 	u16 src_width, src_height, roi_width;
 	u32 shadow_index = 0;
@@ -243,9 +253,9 @@ void pym_update_param(struct pym_video_ctx *pym_ctx)
 	struct x3_pym_dev *pym;
 	struct roi_rect rect;
 
-	group = pym_ctx->group;
-	pym = pym_ctx->pym_dev;
-	pym_config = &pym_ctx->pym_cfg;
+	group = subdev->group;
+	pym = subdev->pym_dev;
+	pym_config = &subdev->pym_cfg;
 	if (group->instance < MAX_SHADOW_NUM)
 		shadow_index = group->instance;
 	else
@@ -316,9 +326,10 @@ void pym_update_param(struct pym_video_ctx *pym_ctx)
 int pym_bind_chain_group(struct pym_video_ctx *pym_ctx, int instance)
 {
 	int ret = 0;
+	int i = 0;
 	struct vio_group *group;
 	struct x3_pym_dev *pym;
-	struct vio_chain *chain;
+	struct pym_subdev *subdev;
 
 	if (!(pym_ctx->state & BIT(VIO_VIDEO_OPEN))) {
 		vio_err("[%s]invalid BIND is requested(%lX)",
@@ -337,17 +348,40 @@ int pym_bind_chain_group(struct pym_video_ctx *pym_ctx, int instance)
 	if (!group)
 		return -EFAULT;
 
-	group->sub_ctx[0] = pym_ctx;
+	subdev = &pym->subdev[instance];
 	pym->group[instance] = group;
+
+	group->sub_ctx[GROUP_ID_SRC] = subdev;
 	pym_ctx->group = group;
+	pym_ctx->subdev = subdev;
+	pym_ctx->framemgr = &subdev->framemgr;
+	subdev->pym_dev = pym;
+	subdev->group = group;
+
+	spin_lock(&subdev->slock);
+	for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
+		if(!test_bit(i, &subdev->val_ctx_mask)) {
+			subdev->ctx[i] = pym_ctx;
+			pym_ctx->ctx_index = i;
+			set_bit(i, &subdev->val_ctx_mask);
+			break;
+		}
+	}
+	spin_unlock(&subdev->slock);
+	if (i == VIO_MAX_SUB_PROCESS) {
+		vio_err("alreay open too much for one pipeline\n");
+		return -EFAULT;
+	}
+	atomic_inc(&subdev->refcount);
+
 
 	group->frame_work = pym_frame_work;
 	group->gtask = &pym->gtask;
 	group->gtask->id = group->id;
 
-	chain = group->chain;
-
-	vio_info("[%s]instance = %d\n", __func__, instance);
+	vio_info("[S%d][V%d] %s done, ctx_index(%d) refcount(%d)\n",
+		group->instance, pym_ctx->id, __func__,
+		i, atomic_read(&subdev->refcount));
 	pym_ctx->state = BIT(VIO_VIDEO_S_INPUT);
 
 	return ret;
@@ -359,16 +393,25 @@ int pym_video_init(struct pym_video_ctx *pym_ctx, unsigned long arg)
 	pym_cfg_t *pym_config;
 	struct vio_group *group;
 	struct x3_pym_dev *pym_dev;
+	struct pym_subdev *subdev;
 
 	group = pym_ctx->group;
 	pym_dev = pym_ctx->pym_dev;
-	pym_config = &pym_ctx->pym_cfg;
+	subdev = pym_ctx->subdev;
+	pym_config = &subdev->pym_cfg;
 
 	if (!(pym_ctx->state & (BIT(VIO_VIDEO_S_INPUT)
 							| BIT(VIO_VIDEO_REBUFS)))) {
 		vio_err("[V%02d] invalid INIT is requested(%lX)",
 			group->instance, pym_ctx->state);
 		return -EINVAL;
+	}
+
+	subdev = pym_ctx->subdev;
+	if (test_bit(PYM_SUBDEV_INIT, &subdev->state)) {
+		vio_info("subdev already init, current refcount(%d)\n",
+				atomic_read(&subdev->refcount));
+		return ret;
 	}
 
 	ret = copy_from_user((char *)pym_config,
@@ -394,11 +437,11 @@ int pym_video_init(struct pym_video_ctx *pym_ctx, unsigned long arg)
 		}
 	}
 		
-	pym_update_param(pym_ctx);
+	pym_update_param(subdev);
 
 	set_bit(VIO_GROUP_DMA_OUTPUT, &group->state);
-
 	vio_group_task_start(group->gtask);
+	set_bit(PYM_SUBDEV_INIT, &subdev->state);
 
 	pym_ctx->state = BIT(VIO_VIDEO_INIT);
 
@@ -407,10 +450,12 @@ int pym_video_init(struct pym_video_ctx *pym_ctx, unsigned long arg)
 
 int pym_video_streamon(struct pym_video_ctx *pym_ctx)
 {
+	int ret = 0;
 	u32 cnt = 20;
 	unsigned long flags;
 	struct x3_pym_dev *pym_dev;
 	struct vio_group *group;
+	struct pym_subdev *subdev;
 
 	pym_dev = pym_ctx->pym_dev;
 	group = pym_ctx->group;
@@ -420,6 +465,13 @@ int pym_video_streamon(struct pym_video_ctx *pym_ctx)
 		vio_err("[V%02d] invalid STREAM ON is requested(%lX)",
 			pym_ctx->group->instance, pym_ctx->state);
 		return -EINVAL;
+	}
+
+	subdev = pym_ctx->subdev;
+	if (test_bit(PYM_SUBDEV_STREAM_ON, &subdev->state)) {
+		vio_info("subdev already Stream on, current refcount(%d)\n",
+				atomic_read(&subdev->refcount));
+		return ret;
 	}
 
 	if (atomic_read(&pym_dev->rsccount) > 0)
@@ -449,23 +501,34 @@ int pym_video_streamon(struct pym_video_ctx *pym_ctx)
 p_inc:
 	atomic_inc(&pym_dev->rsccount);
 	pym_ctx->state = BIT(VIO_VIDEO_START);
+	set_bit(PYM_SUBDEV_STREAM_ON, &subdev->state);
 
 	vio_info("[S%d]%s\n", group->instance, __func__);
 
-	return 0;
+	return ret;
 }
 
 int pym_video_streamoff(struct pym_video_ctx *pym_ctx)
 {
-	struct x3_pym_dev *pym_dev;
-	struct vio_group *group;
+	int ret = 0;
 	unsigned long flag;
+	struct x3_pym_dev *pym_dev;
+	struct pym_subdev *subdev;
+	struct vio_group *group;
 
 	if (!(pym_ctx->state & BIT(VIO_VIDEO_START))) {
 		vio_err("[V%02d] invalid STREAMOFF is requested(%lX)",
 			pym_ctx->group->instance, pym_ctx->state);
 		return -EINVAL;
 	}
+
+	subdev = pym_ctx->subdev;
+	if (test_bit(PYM_SUBDEV_STREAM_OFF, &subdev->state)) {
+		vio_info("subdev already Stream off, current refcount(%d)\n",
+				atomic_read(&subdev->refcount));
+		return ret;
+	}
+
 	pym_dev = pym_ctx->pym_dev;
 	group = pym_ctx->group;
 
@@ -481,12 +544,13 @@ int pym_video_streamoff(struct pym_video_ctx *pym_ctx)
 	vio_reset_module(group->id);
 
 p_dec:
-	frame_manager_flush(&pym_ctx->framemgr);
+	frame_manager_flush(pym_ctx->framemgr);
 	pym_ctx->state = BIT(VIO_VIDEO_STOP);
+	set_bit(PYM_SUBDEV_STREAM_OFF, &subdev->state);
 
 	vio_info("[S%d]%s\n", group->instance, __func__);
 
-	return 0;
+	return ret;
 }
 
 int pym_video_s_stream(struct pym_video_ctx *pym_ctx, bool enable)
@@ -506,6 +570,7 @@ int pym_video_reqbufs(struct pym_video_ctx *pym_ctx, u32 buffers)
 	int ret = 0;
 	int i = 0;
 	struct vio_framemgr *framemgr;
+	struct pym_subdev *subdev;
 
 	if (!(pym_ctx->state & (BIT(VIO_VIDEO_STOP) | BIT(VIO_VIDEO_REBUFS) |
 		      BIT(VIO_VIDEO_INIT)| BIT(VIO_VIDEO_S_INPUT)))) {
@@ -514,7 +579,14 @@ int pym_video_reqbufs(struct pym_video_ctx *pym_ctx, u32 buffers)
 		return -EINVAL;
 	}
 
-	framemgr = &pym_ctx->framemgr;
+	subdev = pym_ctx->subdev;
+	if (test_bit(PYM_SUBDEV_REQBUF, &subdev->state)) {
+		vio_info("subdev already reqbufs, current refcount(%d)\n",
+				atomic_read(&subdev->refcount));
+		return ret;
+	}
+
+	framemgr = pym_ctx->framemgr;
 	ret = frame_manager_open(framemgr, buffers);
 	if (ret) {
 		vio_err("frame manage open failed, ret(%d)", ret);
@@ -526,7 +598,8 @@ int pym_video_reqbufs(struct pym_video_ctx *pym_ctx, u32 buffers)
 	}
 
 	pym_ctx->state = BIT(VIO_VIDEO_REBUFS);
-	vio_dbg("[S%d]%s reqbuf number %d\n",
+	set_bit(PYM_SUBDEV_REQBUF, &subdev->state);
+	vio_info("[S%d]%s reqbuf number %d\n",
 		pym_ctx->group->instance, __func__, buffers);
 
 	return ret;
@@ -542,7 +615,7 @@ int pym_video_qbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 	int index;
 
 	index = frameinfo->bufferindex;
-	framemgr = &pym_ctx->framemgr;
+	framemgr = pym_ctx->framemgr;
 	BUG_ON(index >= framemgr->num_frames);
 
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
@@ -576,7 +649,7 @@ int pym_video_dqbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 	struct vio_frame *frame;
 	unsigned long flags;
 
-	framemgr = &pym_ctx->framemgr;
+	framemgr = pym_ctx->framemgr;
 
 	done_list = &framemgr->queued_list[FS_COMPLETE];
 	wait_event_interruptible(pym_ctx->done_wq, !list_empty(done_list));
@@ -664,7 +737,7 @@ static long x3_pym_ioctl(struct file *file, unsigned int cmd,
 	return ret;
 }
 
-void pym_set_iar_output(struct pym_video_ctx *pym_ctx, struct vio_frame *frame)
+void pym_set_iar_output(struct pym_subdev *subdev, struct vio_frame *frame)
 {
 #ifdef X3_IAR_INTERFACE
 	struct special_buffer *spec;
@@ -675,7 +748,7 @@ void pym_set_iar_output(struct pym_video_ctx *pym_ctx, struct vio_frame *frame)
 
 	ret = ipu_get_iar_display_type(&dis_instance, &display_layer);
 	spec = &frame->frameinfo.spec;
-	group = pym_ctx->group;
+	group = subdev->group;
 	if (!ret && dis_instance == group->instance) {
 		if (display_layer < 37) {
 			if (display_layer >= 31)
@@ -692,15 +765,18 @@ void pym_set_iar_output(struct pym_video_ctx *pym_ctx, struct vio_frame *frame)
 #endif
 }
 
-void pym_frame_done(struct pym_video_ctx *pym_ctx)
+void pym_frame_done(struct pym_subdev *subdev)
 {
 	struct vio_framemgr *framemgr;
 	struct vio_frame *frame;
 	struct vio_group *group;
+	struct pym_video_ctx *pym_ctx;
 	unsigned long flags;
+	u32 event = 0;
+	int i = 0;
 
-	group = pym_ctx->group;
-	framemgr = &pym_ctx->framemgr;
+	group = subdev->group;
+	framemgr = &subdev->framemgr;
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	frame = peek_frame(framemgr, FS_PROCESS);
 	if (frame) {
@@ -712,21 +788,37 @@ void pym_frame_done(struct pym_video_ctx *pym_ctx)
 
 		do_gettimeofday(&frame->frameinfo.tv);
 
-		pym_set_iar_output(pym_ctx, frame);
-		pym_ctx->event = VIO_FRAME_DONE;
+		pym_set_iar_output(subdev, frame);
+		event = VIO_FRAME_DONE;
 		trans_frame(framemgr, frame, FS_COMPLETE);
 	} else {
-		pym_ctx->event = VIO_FRAME_NDONE;
+		event = VIO_FRAME_NDONE;
 		vio_err("[S%d]PYM PROCESS queue has no member;\n", group->instance);
+		vio_err("[S%d][V%d][FRM](%d %d %d %d %d)\n",
+			group->instance,
+			subdev->id,
+			framemgr->queued_count[FS_FREE],
+			framemgr->queued_count[FS_REQUEST],
+			framemgr->queued_count[FS_PROCESS],
+			framemgr->queued_count[FS_COMPLETE],
+			framemgr->queued_count[FS_USED]);
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
-	wake_up(&pym_ctx->done_wq);
+	spin_lock(&subdev->slock);
+	for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
+		if (test_bit(i, &subdev->val_ctx_mask)) {
+			pym_ctx = subdev->ctx[i];
+			pym_ctx->event = event;
+			wake_up(&pym_ctx->done_wq);
+		}
+	}
+	spin_unlock(&subdev->slock);
 }
 
-void pym_frame_ndone(struct pym_video_ctx *pym_ctx)
+void pym_frame_ndone(struct pym_subdev *subdev)
 {
-	pym_frame_done(pym_ctx);
+	pym_frame_done(subdev);
 }
 
 static irqreturn_t pym_isr(int irq, void *data)
@@ -847,6 +939,30 @@ static const struct dev_pm_ops x3_pym_pm_ops = {
 	.runtime_resume = x3_pym_runtime_resume,
 };
 
+int pym_subdev_init(struct pym_subdev *subdev)
+{
+	int ret = 0;
+
+	spin_lock_init(&subdev->slock);
+	atomic_set(&subdev->refcount, 0);
+
+	return ret;
+}
+
+int x3_pym_subdev_init(struct x3_pym_dev *pym)
+{
+	int i = 0;
+	int ret = 0;
+	struct pym_subdev *subdev;
+
+	for (i = 0; i < VIO_MAX_STREAM; i++) {
+		subdev = &pym->subdev[i];
+		ret = pym_subdev_init(subdev);
+	}
+
+	return ret;
+}
+
 int x3_pym_device_node_init(struct x3_pym_dev *pym)
 {
 	int ret = 0;
@@ -964,6 +1080,8 @@ static int x3_pym_probe(struct platform_device *pdev)
 	atomic_set(&pym->gtask.refcount, 0);
 	atomic_set(&pym->rsccount, 0);
 	atomic_set(&pym->open_cnt, 0);
+
+	x3_pym_subdev_init(pym);
 
 	vio_info("[FRT:D] %s(%d)\n", __func__, ret);
 
