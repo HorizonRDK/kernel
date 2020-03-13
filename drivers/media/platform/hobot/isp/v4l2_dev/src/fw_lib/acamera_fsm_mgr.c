@@ -17,6 +17,7 @@
 *
 */
 
+#define pr_fmt(fmt) "[isp_drv]: %s: " fmt, __func__
 #include "acamera_fw.h"
 #if ACAMERA_ISP_PROFILING
 #include "system_profiler.h"
@@ -174,7 +175,7 @@ void acamera_fsm_mgr_process_events(acamera_fsm_mgr_t *p_fsm_mgr,int n_max_event
             event_id_t event_id=(event_id_t)(event);
             uint8_t b_event_processed=0,b_processed;
             uint8_t idx;
-            LOG(LOG_INFO,"Processing event: %d %s",event_id,event_name[event_id]);
+            pr_debug("Processing event: %d %s",event_id,event_name[event_id]);
 
             for(idx = 0; idx < FSM_ID_MAX; idx++) {
                 if(p_fsm_mgr->fsm_arr[idx]->ops.proc_event) {

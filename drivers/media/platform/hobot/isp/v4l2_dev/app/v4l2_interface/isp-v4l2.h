@@ -24,6 +24,7 @@
 #include <media/videobuf2-core.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-dev.h>
+#include <linux/ion.h>
 
 #include "isp-v4l2-common.h"
 #include "isp-v4l2-ctrl.h"
@@ -49,6 +50,11 @@ typedef struct _isp_v4l2_dev {
 
     /* controls */
     isp_v4l2_ctrl_t isp_v4l2_ctrl;
+
+    /* ion memory */
+    struct ion_client *client;
+    struct ion_handle *handle;
+    size_t mem_size;
 
     /* open counter for stream id */
     atomic_t opened;

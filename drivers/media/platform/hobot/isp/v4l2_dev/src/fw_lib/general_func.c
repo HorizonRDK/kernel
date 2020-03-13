@@ -720,16 +720,20 @@ static int general_temper_init( general_fsm_ptr_t p_fsm )
         temper_frame->line_offset = acamera_line_offset( temper_frame->width, TEMPER_PIXEL_WIDTH );
         temper_frame->size = temper_frame->height * temper_frame->line_offset;
 
-        virt_addr = p_settings->callback_dma_alloc_coherent( p_fsm->cmn.ctx_id,
-                                                             temper_frame->size, &dma_addr );
-        if ( !virt_addr ) {
-            LOG( LOG_ERR, "unable to alloc temper_frame[%d] ctx_id: %d size: %d",
-                 i, p_fsm->cmn.ctx_id, temper_frame->size );
-            return -1;
-        }
+    }
 
-        temper_frame->address = (uint32_t)dma_addr;
-        temper_frame->virt_addr = virt_addr;
+    virt_addr = p_settings->callback_dma_alloc_coherent( p_fsm->cmn.ctx_id,
+		    temper_frame->size * TEMPER_FRAMES_NO, &dma_addr );
+    if ( !virt_addr ) {
+	    LOG( LOG_ERR, "unable to alloc temper_frame[%d] ctx_id: %d size: %d",
+			    i, p_fsm->cmn.ctx_id, temper_frame->size );
+	    return -1;
+    }
+
+    for ( i = 0; i < TEMPER_FRAMES_NO; i++ ) {
+        temper_frame = &p_fsm->temper_frames[i];
+        temper_frame->address = (uint32_t)dma_addr + i * temper_frame->size;
+        temper_frame->virt_addr = virt_addr + i * temper_frame->size;
 
         pr_debug("alloc temper_frame[%d] w: %d h: %d size: %d dma_addr: 0x%x",
              i, temper_frame->width, temper_frame->height,
@@ -746,21 +750,18 @@ static int general_temper_exit( general_fsm_ptr_t p_fsm )
     void *virt_addr;
     uint64_t dma_addr;
     uint32_t size;
-    int i;
 
-    for ( i = 0; i < TEMPER_FRAMES_NO; i++ ) {
-        temper_frame = &p_fsm->temper_frames[i];
+    temper_frame = &p_fsm->temper_frames[0];
 
-        virt_addr = temper_frame->virt_addr;
-        dma_addr = temper_frame->address;
-        size = temper_frame->size;
+    virt_addr = temper_frame->virt_addr;
+    dma_addr = temper_frame->address;
+    size = temper_frame->size * TEMPER_FRAMES_NO;
 
-        p_settings->callback_dma_free_coherent( p_fsm->cmn.ctx_id, size, virt_addr, dma_addr );
+    p_settings->callback_dma_free_coherent( p_fsm->cmn.ctx_id, size, virt_addr, dma_addr );
 
-        pr_debug("free temper_frame[%d] w: %d h: %d size: %d dma_addr: 0x%x",
-             i, temper_frame->width, temper_frame->height,
-             temper_frame->size, temper_frame->address );
-    }
+    pr_debug("free temper_frame w: %d h: %d size: %d dma_addr: 0x%x",
+		    temper_frame->width, temper_frame->height,
+		    size, temper_frame->address );
 
     return 0;
 }

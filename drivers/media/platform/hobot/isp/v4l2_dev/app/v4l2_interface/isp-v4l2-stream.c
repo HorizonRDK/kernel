@@ -304,25 +304,62 @@ static void isp_v4l2_stream_put_plane( struct vb2_buffer *vb,
 #endif
 
 #if ISP_V4L2_DMA_COHERENT_DUMMY_ALLOC == 0
+extern struct ion_device *hb_ion_dev;
 void *callback_dma_alloc_coherent( uint32_t ctx_id, uint64_t size, uint64_t *dma_addr )
 {
+    int ret = 0;
+    void *virt_addr = NULL;
     isp_v4l2_dev_t *isp_v4l2_dev = isp_v4l2_get_dev( ctx_id );
-    struct device *dev = isp_v4l2_dev->v4l2_dev->dev;
-    void *virt_addr = dma_alloc_coherent( dev, size, dma_addr, GFP_KERNEL );
 
-    *dma_addr -= ISP_SOC_DMA_BUS_OFFSET;
+	isp_v4l2_dev->client = ion_client_create(hb_ion_dev, "isp_temper");
+	if (!isp_v4l2_dev->client) {
+		LOG(LOG_ERR, "isp_temper ion client create failed.");
+		goto out1;
+	}
 
-    return virt_addr;
+	isp_v4l2_dev->handle = ion_alloc(isp_v4l2_dev->client,
+			size, 0, ION_HEAP_CARVEOUT_MASK, 0);
+	if (!isp_v4l2_dev->handle) {
+		LOG(LOG_ERR, "isp_temper ion handle create failed.");
+		goto out2;
+	}
+
+	ret = ion_phys(isp_v4l2_dev->client, isp_v4l2_dev->handle->id,
+			dma_addr, &isp_v4l2_dev->mem_size);
+	if (ret) {
+		LOG(LOG_ERR, "ion_phys get phy address failed.");
+		goto out3;
+	}
+	virt_addr = ion_map_kernel(isp_v4l2_dev->client, isp_v4l2_dev->handle);
+	if (!virt_addr) {
+		LOG(LOG_ERR, "ion_map failed.");
+		goto out4;
+	}
+
+	return virt_addr;
+
+out4:
+	ion_unmap_kernel(isp_v4l2_dev->client, isp_v4l2_dev->handle);
+out3:
+	ion_free(isp_v4l2_dev->client, isp_v4l2_dev->handle);
+	isp_v4l2_dev->mem_size = 0;
+out2:
+	ion_client_destroy(isp_v4l2_dev->client);
+out1:
+	return NULL;
 }
 
 void callback_dma_free_coherent( uint32_t ctx_id, uint64_t size, void *virt_addr, uint64_t dma_addr )
 {
     isp_v4l2_dev_t *isp_v4l2_dev = isp_v4l2_get_dev( ctx_id );
-    struct device *dev = isp_v4l2_dev->v4l2_dev->dev;
 
-    dma_addr += ISP_SOC_DMA_BUS_OFFSET;
-
-    dma_free_coherent( dev, size, virt_addr, dma_addr );
+    if (isp_v4l2_dev->client) {
+	    if (isp_v4l2_dev->handle) {
+		    ion_unmap_kernel(isp_v4l2_dev->client, isp_v4l2_dev->handle);
+		    ion_free(isp_v4l2_dev->client, isp_v4l2_dev->handle);
+	    }
+	    ion_client_destroy(isp_v4l2_dev->client);
+    }
 }
 #else
 /*
