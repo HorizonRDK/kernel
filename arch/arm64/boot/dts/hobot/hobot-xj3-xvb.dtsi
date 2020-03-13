@@ -177,7 +177,7 @@
 &pinctrl {
 	status = "okay";
 	/* 29:lcd;64:sdio1cd;65:usb */
-	gpioirq-bank-cfg = <29 64 65 0>; 	
+	gpioirq-bank-cfg = <29 64 65 0>;
 };
 
 &uart0 {
@@ -333,19 +333,19 @@
 
 		bootloader@0 {
 			label = "bootloader";
-			reg = <0 0x580000>;
+			reg = <0 0x680000>;
 		};
-		sys@580000 {
+		sys@680000 {
 			label = "sys";
-			reg = <0x580000 0x1400000>;
+			reg = <0x680000 0x1400000>;
 		};
-		rootfs@1980000 {
+		rootfs@1A80000 {
 			label = "rootfs";
-			reg = <0x1980000 0x3C00000>;
+			reg = <0x1A80000 0x3C00000>;
 		};
-		userdata@5580000 {
+		userdata@5680000 {
 			label = "userdata";
-			reg = <0x5580000 0>;
+			reg = <0x5680000 0>;
 		};
 	};
 };
