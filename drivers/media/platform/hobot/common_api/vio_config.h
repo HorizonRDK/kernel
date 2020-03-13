@@ -10,7 +10,7 @@
 #define vio_err(fmt, ...)	printk( fmt, ##__VA_ARGS__)
 #define vio_warn(fmt, ...)	printk(KERN_DEBUG fmt, ##__VA_ARGS__)
 #define vio_dbg(fmt, ...)	pr_debug(fmt, ##__VA_ARGS__)
-#define vio_info(fmt, ...)	printk( fmt, ##__VA_ARGS__)
+#define vio_info(fmt, ...)	printk(KERN_DEBUG fmt, ##__VA_ARGS__)
 #define vio_cont(fmt, ...)	printk(KERN_DEBUG fmt, ##__VA_ARGS__)
     
 #define VIO_MAX_STREAM	6 

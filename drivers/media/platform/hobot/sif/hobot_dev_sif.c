@@ -922,7 +922,7 @@ static irqreturn_t sif_isr(int irq, void *data)
 	intr_en = sif_get_frame_intr(sif->base_reg);
 	status = intr_en & irq_src.sif_frm_int;
 
-	vio_info("%s: sif_frm_int = 0x%x,sif_out_int =0x%x, status  = 0x%x\n",
+	vio_dbg("%s: sif_frm_int = 0x%x,sif_out_int =0x%x, status  = 0x%x\n",
 		__func__, irq_src.sif_frm_int, irq_src.sif_out_int, status);
 
 	if (status) {

@@ -743,7 +743,7 @@ static irqreturn_t pym_isr(int irq, void *data)
 	instance = atomic_read(&pym->instance);
 	group = pym->group[instance];
 	pym_get_intr_status(pym->base_reg, &status, true);
-	vio_info("%s:status = 0x%x\n", __func__, status);
+	vio_dbg("%s:status = 0x%x\n", __func__, status);
 
 	if (status & (1 << INTR_PYM_DS_FRAME_DROP)) {
 		vio_err("[%d]DS drop frame\n", instance);

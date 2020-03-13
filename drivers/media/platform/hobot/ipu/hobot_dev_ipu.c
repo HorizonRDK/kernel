@@ -1910,7 +1910,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 	group = ipu->group[instance];
 	ipu_get_intr_status(ipu->base_reg, &status, true);
 	size_err = ipu_get_size_err(ipu->base_reg);
-	vio_info("%s status = 0x%x\n", __func__, status);
+	vio_dbg("%s status = 0x%x\n", __func__, status);
 
 	if (size_err) {
 		ipu_clear_size_err(ipu->base_reg, 1);

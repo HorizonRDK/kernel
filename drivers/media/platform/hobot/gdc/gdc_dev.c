@@ -437,7 +437,7 @@ static irqreturn_t gdc_isr(int irq, void *data)
 	status = gdc_get_intr_status(gdc->base_reg);
 	write_gdc_status(gdc->hw_id, &dwe_status);
 
-	vio_info("%s:status = 0x%x, dwe_status = 0x%x\n", __func__, status,
+	vio_dbg("%s:status = 0x%x, dwe_status = 0x%x\n", __func__, status,
 		 dwe_status);
 
 	if (status & 1 << INTR_GDC_BUSY) {
