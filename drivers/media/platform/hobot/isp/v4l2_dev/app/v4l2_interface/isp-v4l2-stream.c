@@ -166,7 +166,7 @@ void callback_meta( uint32_t ctx_id, const void *fw_metadata )
 //debug start
     list_for_each_safe(p, n, &pstream->stream_buffer_list)
 	cnt++;
-    LOG( LOG_ERR, "stream_buffer_list count %d", cnt);
+    pr_debug("stream_buffer_list count %d", cnt);
 // debug end
     if ( !list_empty( &pstream->stream_buffer_list ) ) {
         pbuf = list_entry( pstream->stream_buffer_list.next, isp_v4l2_buffer_t, list );
@@ -449,12 +449,12 @@ int callback_stream_get_frame( uint32_t ctx_id, acamera_stream_type_t type, afra
 //debug start
     list_for_each_safe(p, n, &pstream->stream_buffer_list)
 	cnt++;
-    LOG(LOG_ERR, "stream_buffer_list count %d", cnt);
+    pr_debug("stream_buffer_list count %d", cnt);
 
     cnt = 0;
     list_for_each_safe(p, n, &pstream->stream_buffer_list_busy)
 	cnt++;
-    LOG(LOG_ERR, "stream_buffer_list_busy count %d", cnt);
+    pr_debug("stream_buffer_list_busy count %d", cnt);
 //debug end
 
     if ( !list_empty( &pstream->stream_buffer_list ) ) {
@@ -540,7 +540,7 @@ int callback_stream_put_frame( uint32_t ctx_id, acamera_stream_type_t type, afra
 // debug start
     list_for_each_safe(p, n, &pstream->stream_buffer_list_busy)
 	cnt++;
-    LOG( LOG_ERR, "stream_buffer_list_busy count %d", cnt );
+    pr_debug("stream_buffer_list_busy count %d", cnt);
 // debug end
     if ( !list_empty( &pstream->stream_buffer_list_busy ) ) {
         pbuf = list_entry( pstream->stream_buffer_list_busy.next, isp_v4l2_buffer_t, list );
@@ -632,7 +632,7 @@ int callback_stream_release_frame( uint32_t ctx_id, acamera_stream_type_t type, 
 // debug start
     list_for_each_safe(p, n, &pstream->stream_buffer_list_busy)
 	cnt++;
-    LOG( LOG_ERR, "stream_buffer_list_busy count %d", cnt );
+    pr_debug("stream_buffer_list_busy count %d", cnt);
 // debug end
     if ( !list_empty( &pstream->stream_buffer_list_busy ) ) {
         pbuf = list_entry( pstream->stream_buffer_list_busy.next, isp_v4l2_buffer_t, list );

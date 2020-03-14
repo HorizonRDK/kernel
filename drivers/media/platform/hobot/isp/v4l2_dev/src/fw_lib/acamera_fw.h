@@ -153,6 +153,8 @@ struct _acamera_context_t {
 
     // isp context save on/off
     uint8_t isp_ctxsv_on;
+    uint8_t isp_awb_stats_on;
+    uint8_t isp_ae_stats_on;
 
     // sif offline isp on/off
     uint8_t sif_isp_offline;

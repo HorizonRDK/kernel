@@ -554,21 +554,27 @@ static void dma_complete_context_func( void *arg )
 
     if ( g_firmware.dma_flag_isp_config_completed && g_firmware.dma_flag_isp_metering_completed ) {
 	isp_ctx_node_t *cn;
+	static int count = 0;
 	volatile void *offset;
 	acamera_context_t *p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[ctx_id];
 
 	pr_debug("START PROCESSING FROM CONTEXT CALLBACK, ctx_id %d\n", ctx_id);
 
 	if (p_ctx->isp_ctxsv_on) {
-		cn = isp_ctx_get_node(ctx_id, FREEQ);
-		if (!cn)
-			cn = isp_ctx_get_node(ctx_id, DONEQ);
+		cn = isp_ctx_get_node(ctx_id, ISP_CTX, FREEQ);
+		if (!cn) {
+			if (count++ >= 150) { //about 5s
+				count = 0;
+				p_ctx->isp_ctxsv_on = 0;
+			}
+			cn = isp_ctx_get_node(ctx_id, ISP_CTX, DONEQ);
+		}
 		if (cn) {
 			cn->ctx.frame_id = p_ctx->isp_frame_counter;
 			offset = p_ctx->sw_reg_map.isp_sw_config_map + ACAMERA_DECOMPANDER0_MEM_BASE_ADDR;
 			memcpy_fromio(cn->base, offset, CTX_SIZE);
 			cn->ctx.crc16 = crc16(~0, cn->base, CTX_SIZE);
-			isp_ctx_put_node(ctx_id, cn, DONEQ);
+			isp_ctx_put_node(ctx_id, cn, ISP_CTX, DONEQ);
 
 			pr_debug("ctx dump frame id %d\n", cn->ctx.frame_id);
 		}

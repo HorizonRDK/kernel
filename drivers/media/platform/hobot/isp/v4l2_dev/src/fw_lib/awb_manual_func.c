@@ -17,12 +17,14 @@
 *
 */
 
+#include <linux/crc16.h>
 #include "acamera_fw.h"
 #include "acamera_math.h"
 #include "acamera_metering_stats_mem_config.h"
 #include "system_stdlib.h"
 #include "awb_manual_fsm.h"
 #include "sbuf.h"
+#include "isp_ctxsv.h"
 
 
 #if defined( CUR_MOD_NAME)
@@ -205,6 +207,7 @@ void awb_read_statistics( AWB_fsm_t *p_fsm )
     sbuf_awb_t *p_sbuf_awb_stats = NULL;
     struct sbuf_item sbuf;
     int fw_id = p_fsm->cmn.ctx_id;
+    acamera_context_t *p_ctx = ACAMERA_FSM2CTX_PTR( p_fsm );
 
     // Only selected number of zones will contribute
     uint16_t _i;
@@ -250,6 +253,28 @@ void awb_read_statistics( AWB_fsm_t *p_fsm )
         p_sbuf_awb_stats->stats_data[_i].sum = acamera_awb_statistics_data_read( p_fsm, _i * 2 + 1 );
         p_fsm->sum += p_sbuf_awb_stats->stats_data[_i].sum;
     }
+
+    static int count = 0;
+    if (p_ctx->isp_awb_stats_on) {
+	    isp_ctx_node_t *cn;
+	    cn = isp_ctx_get_node(fw_id, ISP_AWB, FREEQ);
+	    if (!cn) {
+		    if (count++ >= 150) { //about 5s
+			    count = 0;
+			    p_ctx->isp_awb_stats_on = 0;
+		    }
+		    cn = isp_ctx_get_node(fw_id, ISP_AWB, DONEQ);
+	    }
+	    if (cn) {
+		    cn->ctx.frame_id = p_ctx->isp_frame_counter;
+		    memcpy(cn->base, p_sbuf_awb_stats->stats_data, sizeof(p_sbuf_awb_stats->stats_data));
+		    cn->ctx.crc16 = crc16(~0, cn->base, sizeof(p_sbuf_awb_stats->stats_data));
+		    isp_ctx_put_node(fw_id, cn, ISP_AWB, DONEQ);
+
+		    pr_debug("awb stats frame id %d\n", cn->ctx.frame_id);
+	    }
+    }
+
     p_sbuf_awb_stats->curr_AWB_ZONES = p_fsm->curr_AWB_ZONES;
 
     /* read done, set the buffer back for future using  */

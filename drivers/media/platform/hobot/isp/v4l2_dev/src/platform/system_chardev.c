@@ -474,9 +474,14 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 
 		// isp context save on
 		p_ctx = (acamera_context_t *)acamera_get_ctx_ptr(ctx.ctx_id);
-		p_ctx->isp_ctxsv_on = 1;
+		if (ctx.type == ISP_CTX)
+			p_ctx->isp_ctxsv_on = 1;
+		else if (ctx.type == ISP_AE)
+			p_ctx->isp_ae_stats_on = 1;
+		else if (ctx.type == ISP_AWB)
+			p_ctx->isp_awb_stats_on = 1;
 
-		cn = isp_ctx_get_node(ctx.ctx_id, DONEQ);
+		cn = isp_ctx_get_node(ctx.ctx_id, ctx.type, DONEQ);
 		if (cn && copy_to_user((void __user *)arg, (void *)&cn->ctx, sizeof(ctx)))
 			ret = -EFAULT;
 	}
@@ -489,7 +494,7 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 			ret = -EFAULT;
 			break;
 		}
-		isp_ctx_put(ctx.ctx_id, ctx.idx);
+		isp_ctx_put(ctx.ctx_id, ctx.type, ctx.idx);
 	}
 		break;
 
@@ -637,7 +642,7 @@ int isp_dev_mem_alloc(void)
 	}
 
 	p_ctx->handle = ion_alloc(p_ctx->client,
-			MEM_SIZE, 0, ION_HEAP_CARVEOUT_MASK, 0);
+			TOTAL_MEM_SIZE, 0, ION_HEAP_CARVEOUT_MASK, 0);
 	if (!p_ctx->handle) {
 		LOG(LOG_ERR, "ac_isp ion handle create failed.");
 		ret = -ENOMEM;

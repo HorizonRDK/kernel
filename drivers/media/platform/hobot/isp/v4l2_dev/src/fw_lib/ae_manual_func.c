@@ -17,6 +17,7 @@
 *
 */
 
+#include <linux/crc16.h>
 #include "acamera_firmware_api.h"
 #include "acamera_fw.h"
 #include "acamera_math.h"
@@ -30,6 +31,8 @@
 
 
 #include "sbuf.h"
+
+#include "isp_ctxsv.h"
 
 #define DEFAULT_AE_EXPOSURE_LOG2 3390000
 
@@ -153,6 +156,7 @@ void ae_read_full_histogram_data( AE_fsm_ptr_t p_fsm )
     struct sbuf_item sbuf;
     int fw_id = p_fsm->cmn.ctx_id;
     fsm_param_mon_alg_flow_t ae_flow;
+    acamera_context_t *p_ctx = ACAMERA_FSM2CTX_PTR( p_fsm );
 
     memset( &sbuf, 0, sizeof( sbuf ) );
     sbuf.buf_type = SBUF_TYPE_AE;
@@ -185,6 +189,27 @@ void ae_read_full_histogram_data( AE_fsm_ptr_t p_fsm )
     }
 
     p_fsm->fullhist_sum = sum;
+
+    static int count = 0;
+    if (p_ctx->isp_ae_stats_on) {
+	    isp_ctx_node_t *cn;
+	    cn = isp_ctx_get_node(fw_id, ISP_AE, FREEQ);
+	    if (!cn) {
+		    if (count++ >= 150) { //about 5s
+			    count = 0;
+			    p_ctx->isp_ae_stats_on = 0;
+		    }
+		    cn = isp_ctx_get_node(fw_id, ISP_AE, DONEQ);
+	    }
+	    if (cn) {
+		    cn->ctx.frame_id = p_ctx->isp_frame_counter;
+		    memcpy(cn->base, p_fsm->fullhist, sizeof(p_sbuf_ae->stats_data));
+		    cn->ctx.crc16 = crc16(~0, cn->base, sizeof(p_sbuf_ae->stats_data));
+		    isp_ctx_put_node(fw_id, cn, ISP_AE, DONEQ);
+
+		    pr_debug("ae stats frame id %d\n", cn->ctx.frame_id);
+	    }
+    }
 
     /* NOTE: the size should match */
     memcpy( p_sbuf_ae->stats_data, p_fsm->fullhist, sizeof( p_sbuf_ae->stats_data ) );

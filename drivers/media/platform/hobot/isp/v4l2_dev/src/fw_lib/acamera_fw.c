@@ -36,6 +36,7 @@
 #include "isp_config_seq.h"
 #include "system_stdlib.h"
 #include "general_fsm.h"
+#include "isp_ctxsv.h"
 
 #if ISP_HAS_FPGA_WRAPPER
 #include "acamera_fpga_config.h"
@@ -545,7 +546,10 @@ static void init_stab( acamera_context_ptr_t p_ctx )
     p_ctx->stab.global_ae_compensation = SYSTEM_AE_COMPENSATION_DEFAULT;
     p_ctx->stab.global_calibrate_bad_pixels = 0;
 
+    isp_ctx_done_queue_clear(p_ctx->context_id);
     p_ctx->isp_ctxsv_on = 0;
+    p_ctx->isp_ae_stats_on = 0;
+    p_ctx->isp_awb_stats_on = 0;
     p_ctx->sif_isp_offline = 0;
     p_ctx->isp_frame_counter = 0;
 
