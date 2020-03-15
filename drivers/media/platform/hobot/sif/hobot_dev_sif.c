@@ -1094,6 +1094,154 @@ static ssize_t sif_reg_dump(struct device *dev,
 
 static DEVICE_ATTR(regdump, 0444, sif_reg_dump, NULL);
 
+/*
+ * multi-process node
+ */
+static int x3_vio_mp_open(struct inode *inode, struct file *file)
+{
+	int ret = 0;
+	struct mp_ctx *mp_ctx;
+	struct x3_vio_mp_dev *vio_mp_dev;
+
+	vio_mp_dev = container_of(inode->i_cdev, struct x3_vio_mp_dev, cdev);
+	mp_ctx = kzalloc(sizeof(struct mp_ctx), GFP_KERNEL);
+	if (mp_ctx == NULL) {
+		vio_err("kzalloc is fail");
+		ret = -ENOMEM;
+		goto p_err;
+	}
+	mp_ctx->mp_dev = vio_mp_dev;
+	file->private_data = mp_ctx;
+
+	vio_info("vio mp dev open.\n");
+p_err:
+	return ret;
+}
+
+static int x3_vio_mp_close(struct inode *inode, struct file *file)
+{
+	struct mp_ctx *mp_ctx;
+	struct x3_vio_mp_dev *vio_mp_dev;
+
+	mp_ctx = file->private_data;
+	vio_mp_dev = mp_ctx->mp_dev;
+	if(mp_ctx->refcount)
+		atomic_dec(mp_ctx->refcount);
+	vio_info("vio mp close instance %d\n", mp_ctx->instance);
+	kfree(mp_ctx);
+
+	return 0;
+}
+
+
+int vio_mp_bind_chain_group(struct mp_ctx *mp_ctx, int instance)
+{
+	int ret = 0;
+	struct x3_vio_mp_dev *vio_mp_dev;
+
+	if (instance < 0 || instance >= VIO_MAX_STREAM) {
+		vio_err("wrong instance id(%d)\n", instance);
+		return -EFAULT;
+	}
+
+	vio_mp_dev = mp_ctx->mp_dev;
+	mp_ctx->refcount = &vio_mp_dev->refcount[instance];
+	mp_ctx->instance = instance;
+	atomic_inc(mp_ctx->refcount);
+
+	vio_info("%s mp %d bind done, refcount(%d)\n",
+		__func__, instance, atomic_read(mp_ctx->refcount));
+
+	return ret;
+}
+
+static long x3_vio_mp_ioctl(struct file *file, unsigned int cmd,
+			  unsigned long arg)
+{
+	int ret = 0;
+	int instance = 0;
+	struct mp_ctx *mp_ctx;
+
+	mp_ctx = file->private_data;
+	BUG_ON(!mp_ctx);
+
+	if (_IOC_TYPE(cmd) != VIO_MP_IOC_MAGIC)
+		return -ENOTTY;
+
+	switch (cmd) {
+	case VIO_MP_IOC_BIND_GROUP:
+		ret = get_user(instance, (u32 __user *) arg);
+		if (ret)
+			return -EFAULT;
+		ret = vio_mp_bind_chain_group(mp_ctx, instance);
+		if (ret)
+			return -EFAULT;
+		break;
+	case VIO_MP_IOC_GET_REFCOUNT:
+		ret = put_user(atomic_read(mp_ctx->refcount),
+			(u32 __user *) arg);
+		if (ret)
+			return -EFAULT;
+		break;
+	default:
+		vio_err("wrong ioctl command\n");
+		ret = -EFAULT;
+		break;
+	}
+
+	return ret;
+}
+
+
+static struct file_operations x3_vio_mp_fops = {
+	.owner = THIS_MODULE,
+	.open = x3_vio_mp_open,
+	.release = x3_vio_mp_close,
+	.unlocked_ioctl = x3_vio_mp_ioctl,
+	.compat_ioctl = x3_vio_mp_ioctl,
+};
+
+int x3_vio_mp_device_node_init(struct x3_vio_mp_dev *vio_mp)
+{
+	int ret = 0;
+	struct device *dev = NULL;
+
+	ret = alloc_chrdev_region(&vio_mp->devno, 0, 1, "x3_vio_mp");
+	if (ret < 0) {
+		vio_err("Error %d while alloc chrdev vio_mp", ret);
+		goto err_req_cdev;
+	}
+
+	cdev_init(&vio_mp->cdev, &x3_vio_mp_fops);
+	vio_mp->cdev.owner = THIS_MODULE;
+	ret = cdev_add(&vio_mp->cdev, vio_mp->devno, MAX_DEVICE_VIO_MP);
+	if (ret) {
+		vio_err("Error %d while adding x3 vio mp cdev", ret);
+		goto err;
+	}
+
+	if (vps_class)
+		vio_mp->class = vps_class;
+	else
+		vio_mp->class = class_create(THIS_MODULE, X3_VIO_MP_NAME);
+
+	dev = device_create(vio_mp->class, NULL, MKDEV(MAJOR(vio_mp->devno), 0),
+				NULL, "vio_mp");
+	if (IS_ERR(dev)) {
+		ret = -EINVAL;
+		vio_err("vio mp device create fail\n");
+		goto err;
+	}
+
+	return ret;
+err:
+	class_destroy(vio_mp->class);
+err_req_cdev:
+	unregister_chrdev_region(vio_mp->devno, MAX_DEVICE_VIO_MP);
+	return ret;
+}
+
+struct x3_vio_mp_dev *g_vio_mp_dev = NULL;
 static int x3_sif_probe(struct platform_device *pdev)
 {
 	int ret = 0;
@@ -1170,6 +1318,17 @@ static int x3_sif_probe(struct platform_device *pdev)
 	sif_enable_dma(sif->base_reg, 0x10000);
 	ret = x3_sif_subdev_init(sif);
 
+#if 1
+	/* vio mp dev node init*/
+	g_vio_mp_dev = kzalloc(sizeof(struct x3_vio_mp_dev), GFP_KERNEL);
+	if (!g_vio_mp_dev) {
+		vio_err("vio mp dev is NULL");
+		ret = -ENOMEM;
+		goto p_err;
+	}
+	x3_vio_mp_device_node_init(g_vio_mp_dev);
+#endif
+
 	vio_info("[FRT:D] %s(%d)\n", __func__, ret);
 
 	return 0;
@@ -1204,6 +1363,15 @@ static int x3_sif_remove(struct platform_device *pdev)
 	cdev_del(&sif->cdev);
 	unregister_chrdev_region(sif->devno, MAX_DEVICE);
 	kfree(sif);
+
+	for(i = 0; i < MAX_DEVICE_VIO_MP; i++)
+		device_destroy(g_vio_mp_dev->class,
+			MKDEV(MAJOR(g_vio_mp_dev->devno), i));
+
+	class_destroy(g_vio_mp_dev->class);
+	cdev_del(&g_vio_mp_dev->cdev);
+	unregister_chrdev_region(g_vio_mp_dev->devno, MAX_DEVICE);
+	kfree(g_vio_mp_dev);
 
 	vio_info("%s\n", __func__);
 

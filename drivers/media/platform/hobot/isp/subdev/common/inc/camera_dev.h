@@ -27,6 +27,11 @@
 
 #define CAMERA_IOC_MAGIC    'x'
 #define SENSOR_TURNING_PARAM  _IOW(CAMERA_IOC_MAGIC, 0, sensor_turning_data_t)
+#define SENSOR_OPEN_CNT       _IOR(CAMERA_IOC_MAGIC, 1, int)
+#define SENSOR_SET_START_CNT  _IOW(CAMERA_IOC_MAGIC, 2, int)
+#define SENSOR_GET_START_CNT  _IOR(CAMERA_IOC_MAGIC, 3, int)
+#define SENSOR_USER_LOCK      _IOW(CAMERA_IOC_MAGIC, 4, int)
+#define SENSOR_USER_UNLOCK    _IOW(CAMERA_IOC_MAGIC, 5, int)
 
 typedef struct _camera_charmod_s {
 	char name[CHAR_DEVNAME_LEN];
@@ -41,6 +46,9 @@ typedef struct _camera_charmod_s {
 	struct spi_device *spidev;
 	struct spi_board_info spi_board;
     sensor_turning_data_t camera_param;
+	struct file *mst_file;
+	struct mutex user_mutex;
+	uint32_t start_num;
 } camera_charmod_s;
 
 extern camera_charmod_s *camera_mod[CAMERA_TOTAL_NUMBER];

@@ -53,9 +53,12 @@ static int camera_fop_open(struct inode *pinode, struct file *pfile)
 	}
 	spin_lock(&camera_cdev->slock);
 	if (camera_cdev->user_num > 0) {
-		spin_unlock(&camera_cdev->slock);
 		pr_info("more than one pthred use !\n");
-		return -ENXIO;
+	} else {
+		camera_cdev->mst_file = pfile;
+		camera_cdev->start_num = 0;
+		mutex_init(&camera_cdev->user_mutex);
+		pr_info("user_mutex init !\n");
 	}
 	camera_cdev->user_num++;
 	spin_unlock(&camera_cdev->slock);
@@ -70,6 +73,7 @@ static int camera_fop_release(struct inode *pinode, struct file *pfile)
 
 	spin_lock(&camera_cdev->slock);
 	camera_cdev->user_num--;
+	camera_cdev->mst_file = NULL;
 	spin_unlock(&camera_cdev->slock);
 	pfile->private_data = NULL;
 
@@ -83,13 +87,30 @@ static long camera_fop_ioctl(struct file *pfile, unsigned int cmd,
 	int ret = 0;
 	camera_charmod_s *camera_cdev = pfile->private_data;
 	sensor_turning_data_t turning_data;
+	int mst_flg = 0;
 
 	pr_info("---[%s-%d]---\n", __func__, __LINE__);
+
+	spin_lock(&camera_cdev->slock);
+	if (camera_cdev->mst_file == NULL) {
+		camera_cdev->mst_file = pfile;
+		mst_flg = 1;
+	} else if (camera_cdev->mst_file != pfile) {
+		mst_flg = 0;
+	} else {
+		mst_flg = 1;
+	}
+	spin_unlock(&camera_cdev->slock);
+
 	switch(cmd) {
 		case SENSOR_TURNING_PARAM: {
 			if (arg == 0) {
 				pr_err("arg is null !\n");
 				return -EINVAL;
+			}
+			if (mst_flg == 0) {
+				pr_info("this file is not master,cmd tunning!\n");
+				return 0;
 			}
 			if (copy_from_user((void *)&turning_data, (void __user *)arg,
 				sizeof(sensor_turning_data_t))) {
@@ -106,7 +127,39 @@ static long camera_fop_ioctl(struct file *pfile, unsigned int cmd,
 			ret = camera_sys_turining_set(camera_cdev->port, &turning_data);
 		}
 			break;
-
+		case SENSOR_OPEN_CNT:
+			if (copy_to_user((void __user *)arg,
+				(void *)&camera_cdev->user_num,
+				sizeof(uint32_t))) {
+				pr_err("copy is error!\n");
+				return -EINVAL;
+			}
+			break;
+		case SENSOR_SET_START_CNT:
+			if (copy_from_user((void *)&camera_cdev->start_num,
+				(void __user *)arg, sizeof(int))) {
+				pr_err("set user start count err !\n");
+				spin_unlock(&camera_cdev->slock);
+				return -EINVAL;
+			}
+			break;
+		case SENSOR_GET_START_CNT:
+			if (copy_to_user((void __user *)arg,
+				(void *)&camera_cdev->start_num,
+				sizeof(int))) {
+				pr_err("get user start count err !\n");
+				return -EINVAL;
+			}
+			break;
+		case SENSOR_USER_LOCK:
+			if (mutex_lock_interruptible(&camera_cdev->user_mutex)) {
+				pr_err("user lock err !\n");
+				return -EINVAL;
+			}
+			break;
+		case SENSOR_USER_UNLOCK:
+			mutex_unlock(&camera_cdev->user_mutex);
+			break;
 		default: {
 			pr_err("---cmd is err---\n");
 			ret = -1;

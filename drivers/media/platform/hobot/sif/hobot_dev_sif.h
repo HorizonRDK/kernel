@@ -22,6 +22,9 @@
 #define MAX_DEVICE  2
 #define SIF_ERR_COUNT  10
 
+#define X3_VIO_MP_NAME  "vio-mp"
+#define MAX_DEVICE_VIO_MP  1
+
 #define SIF_IOC_MAGIC 'x'
 
 #define SIF_IOC_INIT             _IOW(SIF_IOC_MAGIC, 0, sif_cfg_t)
@@ -31,6 +34,11 @@
 #define SIF_IOC_REQBUFS       	 _IOW(SIF_IOC_MAGIC, 4, int)
 #define SIF_IOC_BIND_GROUP       _IOW(SIF_IOC_MAGIC, 5, int)
 #define SIF_IOC_END_OF_STREAM    _IOW(SIF_IOC_MAGIC, 6, int)
+
+#define VIO_MP_IOC_MAGIC 'm'
+#define VIO_MP_IOC_BIND_GROUP	 _IOW(VIO_MP_IOC_MAGIC, 0, int)
+#define VIO_MP_IOC_GET_REFCOUNT	 _IOR(VIO_MP_IOC_MAGIC, 1, int)
+
 
 struct sif_irq_src {
 	u32 sif_frm_int;
@@ -109,6 +117,22 @@ enum sif_group_state {
 	SIF_GROUP_OTF_OUTPUT,
 	SIF_GROUP_LEADER,
 };
+
+/* device node for multi process */
+struct mp_ctx {
+	atomic_t		*refcount;
+	int			instance;
+	struct x3_vio_mp_dev 	*mp_dev;
+};
+
+struct x3_vio_mp_dev {
+	struct cdev	cdev;
+	struct class 	*class;
+	dev_t 		devno;
+	atomic_t	refcount[VIO_MAX_STREAM];
+	spinlock_t	slock;
+};
+
 
 struct sif_video_ctx{
 	wait_queue_head_t		done_wq;
