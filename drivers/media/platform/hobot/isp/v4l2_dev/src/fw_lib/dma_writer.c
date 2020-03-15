@@ -730,9 +730,8 @@ dma_error dma_writer_process_interrupt( void *handle, uint32_t irq_event )
         return edma_fail;
     }
 
-    for ( idx = 0; idx < dma_max; idx++ ) {
-        dma_writer_pipe_process_interrupt( &p_dma->pipe[idx], irq_event );
-    }
+    dma_writer_pipe_process_interrupt( &p_dma->pipe[dma_fr], irq_event );
+
     return result;
 }
 
