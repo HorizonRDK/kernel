@@ -14,6 +14,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/thermal/thermal.h>
+#include <dt-bindings/soc/hobot,boot-mode.h>
 
  / {
 	compatible = "hobot,x3";
@@ -159,7 +160,7 @@
 		reboot-offset = <0x530>;
 	};
 
-	pmu {
+	arm-pmu {
 		compatible = "arm,cortex-a53-pmu", "arm,armv8-pmuv3";
 		interrupt-parent = <&gic>;
 		interrupts = <0 8 4>, <0 9 4>, <0 10 4>, <0 11 4>;
@@ -1097,16 +1098,30 @@
 			status = "disabled";
 		};
 
-		power: power_management@0xA6000000 {
-			compatible = "hobot,hobot-power";
+		pmu: syscon@0xA6000000 {
+			compatible = "syscon", "simple-mfd";
 			reg = <0x0 0xA6000000 0x0 0x1000>;
-			reboot-offset = <0x20>;
-			swreg-offset = <0x200>;
-			swinfo-size = <0x80>;
-			swinfo-ro = <0x1>;
-			swinfo-sel = <0x2>;
-			swi-boot = <1 0 3>;
-			swi-dump = <2 0 31>;
+
+			power: power-management {
+				compatible = "hobot,hobot-power";
+				reboot-offset = <0x20>;
+				swreg-offset = <0x200>;
+				swinfo-size = <0x10>;
+				swinfo-ro = <0x1>;
+				swinfo-sel = <0x2>;
+				swi-boot = <1 0 3>;
+				swi-dump = <2 0 31>;
+			};
+
+			reboot-mode {
+				compatible = "syscon-reboot-mode";
+				offset = <0x210>;
+				mode-normal = <BOOT_NORMAL>;
+				mode-recovery = <BOOT_RECOVERY>;
+				mode-fastboot = <BOOT_FASTBOOT>;
+				mode-loader = <BOOT_BL_DOWNLOAD>;
+				mode-ums = <BOOT_UMS>;
+			};
 		};
 
 		cnn_opp_table: cnn_opp_table {

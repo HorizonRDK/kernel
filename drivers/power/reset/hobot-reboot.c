@@ -25,7 +25,7 @@
 static void __iomem *base;
 static u32 reboot_offset;
 
-#define X2_SWINFO_SIZE_MAX   0x80
+#define X2_SWINFO_SIZE_MAX   0x10
 #define X2_SWINFO_MAGIC_MEMI 0
 #define X2_SWINFO_MAGIC_CODE 0x57534248
 static struct kobject *k_obj;
@@ -501,7 +501,7 @@ static int x2_reboot_probe(struct platform_device *pdev)
 	u32 swi[3], i;
 	int err;
 
-	base = of_iomap(np, 0);
+	base = of_iomap(of_get_parent(np), 0);
 	if (!base) {
 		WARN(1, "failed to map base address");
 		return -ENODEV;

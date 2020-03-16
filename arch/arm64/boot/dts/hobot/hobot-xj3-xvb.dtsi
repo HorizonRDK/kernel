@@ -425,6 +425,10 @@
 	status = "okay";
 };
 
+&power {
+	status = "okay";
+};
+
 &soc_thermal {
 	status = "okay";
 };
