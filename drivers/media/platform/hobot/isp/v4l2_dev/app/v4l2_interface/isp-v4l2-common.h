@@ -65,6 +65,7 @@ typedef struct _isp_v4l2_sensor_info {
 #define ISP_V4L2_CID_AF_ROI ( ISP_V4L2_CID_BASE + 4 )
 #define ISP_V4L2_CID_OUTPUT_FR_ON_OFF ( ISP_V4L2_CID_BASE + 5 )
 #define ISP_V4L2_CID_OUTPUT_DS1_ON_OFF ( ISP_V4L2_CID_BASE + 6 )
+#define ISP_V4L2_CID_RAW_BYPASS ( ISP_V4L2_CID_BASE + 7 )
 
 
 /* type of stream */

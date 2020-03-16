@@ -17,6 +17,7 @@
 *
 */
 
+#define pr_fmt(fmt) "[isp_drv]: %s: " fmt, __func__
 #include <linux/device.h>
 #include <linux/slab.h>
 #include <linux/random.h>
@@ -32,6 +33,7 @@
 #include "acamera_logger.h"
 #include "isp-v4l2-common.h"
 #include "fw-interface.h"
+#include "acamera_fw.h"
 
 //use main_firmware.c routines to initialize fw
 extern int isp_fw_init( uint32_t hw_isp_addr );
@@ -1340,4 +1342,15 @@ int fw_intf_set_output_ds1_on_off( uint32_t ctx_id, uint32_t ctrl_val )
 #else
     return 0;
 #endif
+}
+
+extern void *acamera_get_ctx_ptr(uint32_t ctx_id);
+int fw_intf_set_raw_bypass_on_off(uint32_t ctx_id, uint32_t ctrl_val)
+{
+	acamera_context_t *ptr = acamera_get_ctx_ptr(ctx_id);
+
+	pr_debug("set value %d\n", ctrl_val);
+	acamera_isp_top_isp_raw_bypass_write(ptr->settings.isp_base, ctrl_val);
+
+	return 0;
 }

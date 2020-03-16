@@ -157,6 +157,9 @@ static int isp_v4l2_ctrl_s_ctrl_custom( struct v4l2_ctrl *ctrl )
         LOG( LOG_INFO, "output DS1 on/off: 0x%x.\n", ctrl->val );
         ret = fw_intf_set_output_ds1_on_off( ctx_id, ctrl->val );
         break;
+    case ISP_V4L2_CID_RAW_BYPASS:
+        ret = fw_intf_set_raw_bypass_on_off( ctx_id, ctrl->val );
+        break;
     }
 
     return ret;
@@ -239,6 +242,17 @@ static const struct v4l2_ctrl_config isp_v4l2_ctrl_output_ds1_on_off = {
     .ops = &isp_v4l2_ctrl_ops_custom,
     .id = ISP_V4L2_CID_OUTPUT_DS1_ON_OFF,
     .name = "ISP DS1 ON/OFF",
+    .type = V4L2_CTRL_TYPE_INTEGER,
+    .min = 0,
+    .max = 0x7FFFFFFF,
+    .step = 1,
+    .def = 0,
+};
+
+static const struct v4l2_ctrl_config isp_v4l2_ctrl_raw_bypass_on_off = {
+    .ops = &isp_v4l2_ctrl_ops_custom,
+    .id = ISP_V4L2_CID_RAW_BYPASS,
+    .name = "ISP RAW BYPASS ON/OFF",
     .type = V4L2_CTRL_TYPE_INTEGER,
     .min = 0,
     .max = 0x7FFFFFFF,
@@ -340,6 +354,9 @@ int isp_v4l2_ctrl_init( uint32_t ctx_id, isp_v4l2_ctrl_t *ctrl )
                   &isp_v4l2_ctrl_output_fr_on_off, NULL );
     ADD_CTRL_CST( ISP_V4L2_CID_OUTPUT_DS1_ON_OFF,
                   &isp_v4l2_ctrl_output_ds1_on_off, NULL );
+    ADD_CTRL_CST( ISP_V4L2_CID_RAW_BYPASS,
+                  &isp_v4l2_ctrl_raw_bypass_on_off, NULL );
+
 
     /* Add control handler to v4l2 device */
     v4l2_ctrl_add_handler( hdl_std_ctrl, hdl_cst_ctrl, NULL );
