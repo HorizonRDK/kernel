@@ -27,6 +27,7 @@ void sif_set_rdma_trigger(u32 __iomem *base_reg, u32 enable);
 void sif_set_wdma_enable(u32 __iomem *base_reg, u32 mux_index, bool enable);
 void sif_set_rdma_enable(u32 __iomem *base_reg, u32 mux_index, bool enable);
 void sif_enable_dma(u32 __iomem *base_reg, u32 cfg);
+void sif_hw_enable_bypass(u32 __iomem *base_reg, u32 ch_index, bool enable);
 
 int sif_get_irq_src(u32 __iomem *base_reg, struct sif_irq_src *src, bool clear);
 void sif_hw_dump(u32 __iomem *base_reg);

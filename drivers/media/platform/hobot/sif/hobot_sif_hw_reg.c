@@ -111,6 +111,11 @@ static void sif_enable_mux_out(u32 __iomem *base_reg, u32 mux_index,
 
 }
 
+void sif_hw_enable_bypass(u32 __iomem *base_reg, u32 ch_index, bool enable)
+{
+	vio_hw_set_field(base_reg, &sif_regs[SIF_VIO_BYPASS_CFG],
+			&sif_fields[SW_MIPI_VIO_BYPASS_MUX0_ENABLE - ch_index], enable);
+}
 /*
  * @brief Enable a MIPI Rx to MIPI Tx
  *
@@ -118,7 +123,7 @@ static void sif_enable_mux_out(u32 __iomem *base_reg, u32 mux_index,
  * @param bypass_channels the number of bypass channels from the MIPI Rx
  * @return check whether valid to config or not
  */
-static void sif_enable_bypass(u32 __iomem *base_reg, u32 rx_index,
+static void sif_config_bypass(u32 __iomem *base_reg, u32 rx_index,
 				u32 bypass_channels)
 {
 	int i = 0;
@@ -146,8 +151,7 @@ static void sif_enable_bypass(u32 __iomem *base_reg, u32 rx_index,
 	}
 
 	for (i = 0; i < bypass_channels; i++) {
-		vio_hw_set_field(base_reg, &sif_regs[SIF_VIO_BYPASS_CFG],
-				&sif_fields[SW_MIPI_VIO_BYPASS_MUX0_ENABLE - i], 1); // Rx1
+		sif_hw_enable_bypass(base_reg, i, true); // Rx1
 	}
 
 }
@@ -805,7 +809,7 @@ static void sif_set_mipi_rx(u32 __iomem *base_reg, sif_input_mipi_t* p_mipi)
 
 	/*bypass enable*/
 	if (p_mipi->func.enable_bypass) {
-		sif_enable_bypass(base_reg, p_mipi->mipi_rx_index,
+		sif_config_bypass(base_reg, p_mipi->mipi_rx_index,
 								p_mipi->func.set_bypass_channels);
 	}
 

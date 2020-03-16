@@ -34,6 +34,7 @@
 #define SIF_IOC_REQBUFS       	 _IOW(SIF_IOC_MAGIC, 4, int)
 #define SIF_IOC_BIND_GROUP       _IOW(SIF_IOC_MAGIC, 5, int)
 #define SIF_IOC_END_OF_STREAM    _IOW(SIF_IOC_MAGIC, 6, int)
+#define SIF_IOC_BYPASS    		 _IOW(SIF_IOC_MAGIC, 7, int)
 
 #define VIO_MP_IOC_MAGIC 'm'
 #define VIO_MP_IOC_BIND_GROUP	 _IOW(VIO_MP_IOC_MAGIC, 0, int)

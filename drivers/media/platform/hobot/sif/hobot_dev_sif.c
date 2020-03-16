@@ -761,6 +761,19 @@ int sif_video_dqbuf(struct sif_video_ctx *sif_ctx,
 	return ret;
 }
 
+int sif_enable_bypass(struct sif_video_ctx *sif_ctx, u32 cfg)
+{
+	int i = 0;
+	struct x3_sif_dev *sif;
+
+	sif = sif_ctx->sif_dev;
+	for (i = 0; i < 4; i++) {
+		sif_hw_enable_bypass(sif->base_reg, i, cfg & (1 << i));
+	}
+
+	return 0;
+}
+
 static long x3_sif_ioctl(struct file *file, unsigned int cmd,
 			  unsigned long arg)
 {
@@ -768,6 +781,7 @@ static long x3_sif_ioctl(struct file *file, unsigned int cmd,
 	int buffers = 0;
 	int enable = 0;
 	int instance = 0;
+	u32 cfg = 0;
 	struct sif_video_ctx *sif_ctx;
 	struct frame_info frameinfo;
 	struct vio_group *group;
@@ -820,6 +834,12 @@ static long x3_sif_ioctl(struct file *file, unsigned int cmd,
 		if (ret)
 			return -EFAULT;
 		vio_bind_group_done(instance);
+		break;
+	case SIF_IOC_BYPASS:
+		ret = get_user(cfg, (u32 __user *) arg);
+		if (ret)
+			return -EFAULT;
+		ret = sif_enable_bypass(sif_ctx, cfg);
 		break;
 	default:
 		vio_err("wrong ioctl command\n");
