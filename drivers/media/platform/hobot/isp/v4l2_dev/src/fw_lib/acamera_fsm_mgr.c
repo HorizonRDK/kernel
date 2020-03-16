@@ -111,6 +111,7 @@ void acamera_fsm_mgr_process_interrupt(acamera_fsm_mgr_t *p_fsm_mgr,uint8_t irq_
 #endif
 		if (idx == FSM_ID_DMA_WRITER && p_fsm_mgr->reserved == 0) // indicate dma writer is disabled
 			continue;
+		pr_debug("FSM id %d, event %d\n", idx, irq_event);
             p_fsm_mgr->fsm_arr[idx]->ops.proc_interrupt(p_fsm_mgr->fsm_arr[idx]->p_fsm, irq_event);
 #if ACAMERA_ISP_PROFILING
             acamera_profiler_stop(idx+1,0);

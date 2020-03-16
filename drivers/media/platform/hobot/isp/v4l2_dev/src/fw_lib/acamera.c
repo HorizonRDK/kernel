@@ -527,7 +527,7 @@ static void start_processing_frame( void )
     acamera_context_ptr_t p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[cur_ctx];
     LOG( LOG_INFO, "new frame for ctx_num#%d.", cur_ctx );
 #else
-    acamera_context_ptr_t p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[cur_ctx_id];
+    acamera_context_ptr_t p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[last_ctx_id];
 #endif
 
     // new_frame event to start reading metering memory and run 3A
