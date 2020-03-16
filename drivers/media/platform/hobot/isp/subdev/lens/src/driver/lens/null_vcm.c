@@ -58,7 +58,7 @@ static void vcm_null_drv_move( void *ctx, uint16_t position )
 	lens_context_t *p_ctx = (lens_context_t *)ctx;
 
 	LOG( LOG_INFO, "IE&E %s, position %d ", __func__, position );
-	ret = lens_api_af_move(p_ctx->port, position);
+	//ret = lens_api_af_move(p_ctx->port, position);
 }
 
 static uint8_t vcm_null_drv_is_moving( void *ctx )

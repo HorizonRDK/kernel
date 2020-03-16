@@ -31,6 +31,7 @@ struct motor_control_ops {
 };
 
 struct basic_control_ops {
+	void (*init)(void *ctx, void *param);
 	void (*move)(void *ctx, void *param, uint32_t pos);
 	void (*stop)(void *ctx, void *param);
 	uint8_t (*is_moving)(void *ctx);

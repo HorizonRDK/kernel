@@ -37,6 +37,10 @@ uint32_t lens_driver_read_reg(uint16_t port, uint32_t param_id, uint32_t addr);
 void lens_driver_stop(uint16_t port, uint32_t param_id);
 int set_af_param(uint16_t port, struct chardev_port_param *ctx);
 int set_zoom_param(uint16_t port, struct chardev_port_param *ctx);
+int set_af_init(uint16_t port);
+int set_zoom_init(uint16_t port);
+int set_af_pos(uint16_t port, uint32_t pos);
+int set_zoom_pos(uint16_t port, uint32_t pos);
 
 
 #endif /* __X3_LENS_DRIVER_H__ */

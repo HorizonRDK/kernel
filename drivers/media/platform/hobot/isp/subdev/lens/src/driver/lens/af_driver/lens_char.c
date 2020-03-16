@@ -102,6 +102,8 @@ static long lens_fop_ioctl(struct file *pfile, unsigned int cmd,
 	//struct lens_charmod_s *lens_cdev = pfile->private_data;
 
 	struct chardev_port_param lens_param;
+	struct motor_pos_set pos_param;
+	uint32_t port = 0;
 
 	switch (cmd) {
 	case LENS_SET_AF_PARAM: {
@@ -115,6 +117,9 @@ static long lens_fop_ioctl(struct file *pfile, unsigned int cmd,
 			return -EINVAL;
 		}
 		ret = set_af_param(lens_param.port, &lens_param);
+		if (ret >= 0) {
+			ret = set_af_init(lens_param.port);
+		}
 	}
 	break;
 	case LENS_SET_ZOOM_PARAM: {
@@ -128,6 +133,59 @@ static long lens_fop_ioctl(struct file *pfile, unsigned int cmd,
 			return -EINVAL;
 		}
 		ret = set_zoom_param(lens_param.port, &lens_param);
+		if (ret >= 0) {
+			ret = set_zoom_init(lens_param.port);
+		}
+	}
+	break;
+	case LENS_SET_AF_INIT: {
+		if (arg == 0) {
+			LOG(LOG_ERR, "arg is null !\n");
+			return -1;
+		}
+		if (copy_from_user((void *)&port, (void __user *)arg,
+			sizeof(uint32_t))) {
+			LOG(LOG_ERR, "copy is err !\n");
+			return -EINVAL;
+		}
+		ret = set_af_init((uint16_t)port);
+	}
+	break;
+	case LENS_SET_ZOOM_INIT: {
+		if (arg == 0) {
+			LOG(LOG_ERR, "arg is null !\n");
+			return -1;
+		}
+		if (copy_from_user((void *)&port, (void __user *)arg,
+			sizeof(uint32_t))) {
+			LOG(LOG_ERR, "copy is err !\n");
+			return -EINVAL;
+		}
+		ret = set_zoom_init((uint16_t)port);
+	}
+	break;
+	case LENS_SET_AF_DEINIT: {
+		if (arg == 0) {
+			LOG(LOG_ERR, "arg is null !\n");
+			return -1;
+		}
+		if (copy_from_user((void *)&port, (void __user *)arg,
+			sizeof(uint32_t))) {
+			LOG(LOG_ERR, "copy is err !\n");
+			return -EINVAL;
+		}
+	}
+	break;
+	case LENS_SET_ZOOM_DEINIT: {
+		if (arg == 0) {
+			LOG(LOG_ERR, "arg is null !\n");
+			return -1;
+		}
+		if (copy_from_user((void *)&port, (void __user *)arg,
+			sizeof(uint32_t))) {
+			LOG(LOG_ERR, "copy is err !\n");
+			return -EINVAL;
+		}
 	}
 	break;
 	case LENS_SET_I2C_PARAM: {
@@ -140,6 +198,32 @@ static long lens_fop_ioctl(struct file *pfile, unsigned int cmd,
 			LOG(LOG_ERR, "copy is err !\n");
 			return -EINVAL;
 		}
+	}
+	break;
+	case LENS_SET_AF_POS: {
+		if (arg == 0) {
+			LOG(LOG_ERR, "arg is null !\n");
+			return -1;
+		}
+		if (copy_from_user((void *)&pos_param, (void __user *)arg,
+			sizeof(struct motor_pos_set))) {
+			LOG(LOG_ERR, "copy is err !\n");
+			return -EINVAL;
+		}
+		ret = set_af_pos(pos_param.port, pos_param.pos);
+	}
+	break;
+	case LENS_SET_ZOOM_POS: {
+		if (arg == 0) {
+			LOG(LOG_ERR, "arg is null !\n");
+			return -1;
+		}
+		if (copy_from_user((void *)&pos_param, (void __user *)arg,
+			sizeof(struct motor_pos_set))) {
+			LOG(LOG_ERR, "copy is err !\n");
+			return -EINVAL;
+		}
+		ret = set_zoom_pos(pos_param.port, pos_param.pos);
 	}
 	break;
 	default: {

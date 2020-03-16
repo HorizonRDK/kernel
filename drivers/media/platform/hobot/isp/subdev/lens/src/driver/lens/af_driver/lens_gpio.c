@@ -54,11 +54,11 @@ static void montor_standby(uint16_t A1, uint16_t A2, uint16_t B1, uint16_t B2)
 	uint32_t b1 = (uint32_t) B1;
 	uint32_t b2 = (uint32_t) B2;
 
-	LOG(LOG_DEBUG, "montor standy");
 	gpio_set_value(a1, 0);
 	gpio_set_value(a2, 0);
 	gpio_set_value(b1, 0);
 	gpio_set_value(b2, 0);
+	udelay(500);
 }
 
 static void montor_step_one(uint16_t A1, uint16_t A2, uint16_t B1, uint16_t B2)
@@ -68,7 +68,6 @@ static void montor_step_one(uint16_t A1, uint16_t A2, uint16_t B1, uint16_t B2)
 	uint32_t b1 = (uint32_t) B1;
 	uint32_t b2 = (uint32_t) B2;
 
-	LOG(LOG_DEBUG, "montor step one");
 	gpio_set_value(a1, 1);
 	gpio_set_value(a2, 0);
 	gpio_set_value(b1, 0);
@@ -82,7 +81,6 @@ static void montor_step_two(uint16_t A1, uint16_t A2, uint16_t B1, uint16_t B2)
 	uint32_t b1 = (uint32_t) B1;
 	uint32_t b2 = (uint32_t) B2;
 
-	LOG(LOG_DEBUG, "montor step two");
 	gpio_set_value(a1, 1);
 	gpio_set_value(a2, 0);
 	gpio_set_value(b1, 1);
@@ -96,7 +94,6 @@ static void montor_step_three(uint16_t A1, uint16_t A2, uint16_t B1, uint16_t B2
 	uint32_t b1 = (uint32_t) B1;
 	uint32_t b2 = (uint32_t) B2;
 
-	LOG(LOG_DEBUG, "montor step three");
 	gpio_set_value(a1, 0);
 	gpio_set_value(a2, 1);
 	gpio_set_value(b1, 1);
@@ -110,7 +107,6 @@ static void montor_step_four(uint16_t A1, uint16_t A2, uint16_t B1, uint16_t B2)
 	uint32_t b1 = (uint32_t) B1;
 	uint32_t b2 = (uint32_t) B2;
 
-	LOG(LOG_DEBUG, "montor step four");
 	gpio_set_value(a1, 0);
 	gpio_set_value(a2, 1);
 	gpio_set_value(b1, 0);
@@ -120,10 +116,11 @@ static void montor_step_four(uint16_t A1, uint16_t A2, uint16_t B1, uint16_t B2)
 static void montor_forward(uint16_t A1, uint16_t A2, uint16_t B1, uint16_t B2, uint32_t num)
 {
 	uint32_t count = 0;
+	uint32_t temp = num % 4;
 
 	montor_step_one(A1, A2, B1, B2);
 	udelay(2*1000);
-	for (count = 0; count < num; count++) {
+	for (count = 0; count < (num / 4); count++) {
 		montor_step_one(A1, A2, B1, B2);
 		udelay(m_delay_time);
 		montor_step_two(A1, A2, B1, B2);
@@ -131,6 +128,18 @@ static void montor_forward(uint16_t A1, uint16_t A2, uint16_t B1, uint16_t B2, u
 		montor_step_three(A1, A2, B1, B2);
 		udelay(m_delay_time);
 		montor_step_four(A1, A2, B1, B2);
+		udelay(m_delay_time);
+	}
+
+	switch (temp) {
+	case 3:
+		montor_step_one(A1, A2, B1, B2);
+		udelay(m_delay_time);
+	case 2:
+		montor_step_two(A1, A2, B1, B2);
+		udelay(m_delay_time);
+	case 1:
+		montor_step_three(A1, A2, B1, B2);
 		udelay(m_delay_time);
 	}
 }
@@ -138,10 +147,11 @@ static void montor_forward(uint16_t A1, uint16_t A2, uint16_t B1, uint16_t B2, u
 static void montor_back(uint16_t A1, uint16_t A2, uint16_t B1, uint16_t B2, uint32_t num)
 {
 	uint32_t count = 0;
+	uint32_t temp = num % 4;
 
 	montor_step_four(A1, A2, B1, B2);
 	udelay(2*1000);
-	for (count = 0; count < num; count++) {
+	for (count = 0; count < (num / 4); count++) {
 		montor_step_four(A1, A2, B1, B2);
 		udelay(m_delay_time);
 		montor_step_three(A1, A2, B1, B2);
@@ -151,9 +161,37 @@ static void montor_back(uint16_t A1, uint16_t A2, uint16_t B1, uint16_t B2, uint
 		montor_step_one(A1, A2, B1, B2);
 		udelay(m_delay_time);
 	}
+
+	switch (temp) {
+	case 3:
+		montor_step_four(A1, A2, B1, B2);
+		udelay(m_delay_time);
+	case 2:
+		montor_step_three(A1, A2, B1, B2);
+		udelay(m_delay_time);
+	case 1:
+		montor_step_two(A1, A2, B1, B2);
+		udelay(m_delay_time);
+	}
 }
 
 //basic_func
+void motor_gpio_init(void *ctx, void *param)
+{
+	struct gpio_group *dev = NULL;
+	struct motor_info *info = NULL;
+
+	if ((ctx == NULL) || (param == NULL))
+		return;
+
+	LOG(LOG_DEBUG, "montor init");
+	dev = ctx;
+	info = param;
+
+	montor_back(dev->a1, dev->a2, dev->b1, dev->b2, info->max_step);
+	montor_standby(dev->a1, dev->a2, dev->b1, dev->b2);
+}
+
 void motor_gpio_move(void *ctx, void *param, uint32_t pos)
 {
 	struct gpio_group *dev = NULL;
@@ -164,12 +202,13 @@ void motor_gpio_move(void *ctx, void *param, uint32_t pos)
 
 	dev = ctx;
 	info = param;
-	if (info->curr_pos < pos) {
-		LOG(LOG_DEBUG, "move forward %d", pos);
-		montor_forward(dev->a1, dev->a2, dev->b1, dev->b2, 15);
+
+	if (info->curr_pos <= pos) {
+		LOG(LOG_INFO, "move forward %d, curr_pos %d", pos, info->curr_pos);
+		montor_forward(dev->a1, dev->a2, dev->b1, dev->b2, pos);
 	} else {
-		LOG(LOG_DEBUG, "move back %d", pos);
-		montor_back(dev->a1, dev->a2, dev->b1, dev->b2, 15);
+		LOG(LOG_INFO, "move back %d, curr_pos %d", pos, info->curr_pos);
+		montor_back(dev->a1, dev->a2, dev->b1, dev->b2, pos);
 	}
 	montor_standby(dev->a1, dev->a2, dev->b1, dev->b2);
 }
@@ -193,6 +232,7 @@ uint8_t motor_gpio_is_moving(void *ctx)
 }
 
 static struct basic_control_ops basic_gpio_ops = {
+	.init = motor_gpio_init,
 	.move = motor_gpio_move,
 	.stop = motor_gpio_stop,
 	.is_moving = motor_gpio_is_moving,
@@ -221,8 +261,6 @@ static int local_gpio_request(uint16_t gpio_num, const char *name)
 		gpio_free(gpio);
 		goto err_set;
 	}
-
-	LOG(LOG_ERR, "gpio %d request success, name is %s !", gpio, gpio_name);
 
 	return ret;
 err_set:

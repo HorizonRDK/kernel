@@ -92,10 +92,15 @@ static int lens_pwm_get_pulsenum(const struct pwm_device *pwm_dev)
 }
 
 //pwm func
+void motor_pwm_init(void *ctx, void *param)
+{
+	//struct pwm_device *pwm_dev = (struct pwm_device *)ctx;
+	return;
+}
+
 void motor_pwm_move(void *ctx, void *param, uint32_t pos)
 {
 	int ret = 0;
-
 	struct pwm_device *pwm_dev = (struct pwm_device *)ctx;
 	lens_pwm_disable(pwm_dev);
 	lens_pwm_set_duty(pwm_dev, pos);
@@ -131,6 +136,7 @@ uint32_t motor_pwm_read_reg(void *ctx, void *param, uint32_t addr)
 }
 
 static struct basic_control_ops basic_pwm_ops = {
+	.init = motor_pwm_init,
 	.move = motor_pwm_move,
 	.stop = motor_pwm_stop,
 	.is_moving = motor_is_moving,
@@ -139,6 +145,11 @@ static struct basic_control_ops basic_pwm_ops = {
 };
 
 //pulse func
+void motor_pulse_init(void *ctx, void *param)
+{
+	return;
+}
+
 void motor_pulse_move(void *ctx, void *param, uint32_t pos)
 {
 	int ret = 0;
@@ -168,6 +179,7 @@ uint32_t motor_pulse_read_reg(void *ctx, void *param, uint32_t addr)
 }
 
 static struct basic_control_ops basic_pulse_ops = {
+	.init = motor_pulse_init,
 	.move = motor_pulse_move,
 	.stop = motor_pulse_stop,
 	.is_moving = motor_is_moving,

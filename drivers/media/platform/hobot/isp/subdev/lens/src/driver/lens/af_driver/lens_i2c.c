@@ -138,6 +138,12 @@ static int lens_i2c_write(const struct i2c_client *client, uint16_t reg_addr,
 
 
 //basic_func
+void motor_i2c_init(void *ctx, void *param)
+{
+	int ret = 0;
+	return;
+}
+
 void motor_i2c_move(void *ctx, void *param, uint32_t pos)
 {
 	int ret = 0;
@@ -199,6 +205,7 @@ uint8_t motor_i2c_is_moving(void *ctx)
 }
 
 static struct basic_control_ops basic_i2c_ops = {
+	.init = motor_i2c_init,
 	.move = motor_i2c_move,
 	.stop = motor_i2c_stop,
 	.is_moving = motor_i2c_is_moving,

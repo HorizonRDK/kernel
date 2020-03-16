@@ -25,7 +25,7 @@
  *    @copyright
  *********************************************************************/
 
-
+#include <linux/delay.h>
 #include "acamera_logger.h"
 #include "lens_driver.h"
 #include "lens_i2c.h"
@@ -111,9 +111,11 @@ struct motor_param_s {
 
 struct motor_context {
 	/** AF_PARAM */
+	uint32_t af_busy;
 	struct basic_control_ops *af_ops;
 	struct motor_param_s af_param;
 	/** ZOOM_PRAM */
+	uint32_t zoom_busy;
 	struct basic_control_ops *zoom_ops;
 	struct motor_param_s zoom_param;
 	/** IRIS_PARAM, add later*/
@@ -139,6 +141,7 @@ int fill_ctx_param(struct basic_control_ops **ops, struct motor_param_s *param,
 	struct chardev_port_param *ctx, const char *name)
 {
 	int ret = -1;
+	struct motor_info ctx_p;
 
 	param->motor_type = ctx->motor_type;
 	param->max_step = ctx->max_step;
@@ -209,38 +212,6 @@ int fill_ctx_param(struct basic_control_ops **ops, struct motor_param_s *param,
 	return ret;
 }
 
-int set_af_param(uint16_t port, struct chardev_port_param *ctx)
-{
-	int ret = 0;
-	char name[20];
-
-	if ((port >= FIRMWARE_CONTEXT_NUMBER) || (ctx == NULL)) {
-		return -1;
-	}
-
-	snprintf(name, LENS_MONTOR_NAME_LENS, "%s_%d", "afdev", port);
-	ret = fill_ctx_param(&motor_ctx[port].af_ops,
-		&motor_ctx[port].af_param, ctx, name);
-
-	return ret;
-}
-
-int set_zoom_param(uint16_t port, struct chardev_port_param *ctx)
-{
-	int ret = 0;
-	char name[20];
-
-	if ((port >= FIRMWARE_CONTEXT_NUMBER) || (ctx == NULL)) {
-		return -1;
-	}
-
-	snprintf(name, LENS_MONTOR_NAME_LENS, "%s_%d", "zoomdev", port);
-	ret = fill_ctx_param(&motor_ctx[port].zoom_ops,
-		&motor_ctx[port].zoom_param, ctx, name);
-
-	return ret;
-}
-
 void *get_driverdev_info(struct motor_param_s *param, uint32_t pos)
 {
 	void *dev_info = NULL;
@@ -270,6 +241,29 @@ void *get_driverdev_info(struct motor_param_s *param, uint32_t pos)
 	return dev_info;
 }
 
+static void lens_basic_init(struct motor_param_s *param,
+	struct basic_control_ops *ops)
+{
+	void *dev_info = NULL;
+	struct motor_info ctx_p;
+
+	if ((param == NULL) || (ops == NULL)) {
+		LOG(LOG_ERR, "param is null");
+		return;
+	}
+
+	dev_info = get_driverdev_info(param, 0);
+	if (dev_info != NULL) {
+		ctx_p.max_step = param->max_step;
+		ctx_p.curr_pos = 0;
+		ctx_p.next_pos = 0;
+		ctx_p.init_pos = 0;
+		ctx_p.min_pos = param->min_pos;
+		ctx_p.max_pos = param->max_pos;
+		ops->init(dev_info, &ctx_p);
+	}
+}
+
 static void lens_basic_move(struct motor_param_s *param,
 	struct basic_control_ops *ops, uint32_t pos)
 {
@@ -283,6 +277,7 @@ static void lens_basic_move(struct motor_param_s *param,
 
 	dev_info = get_driverdev_info(param, pos);
 	if (dev_info != NULL) {
+		param->curr_pos = param->next_pos;
 		ctx_p.max_step = param->max_step;
 		ctx_p.curr_pos = param->curr_pos;
 		ctx_p.next_pos = param->next_pos;
@@ -290,6 +285,7 @@ static void lens_basic_move(struct motor_param_s *param,
 		ctx_p.min_pos = param->min_pos;
 		ctx_p.max_pos = param->max_pos;
 		ops->move(dev_info, &ctx_p, pos);
+		param->next_pos = pos;
 	}
 }
 
@@ -375,20 +371,66 @@ int lens_basic_get_param(uint16_t port, uint32_t param_id,
 
 	if (param_id >= LENS_PARAM_MAX_ID || param_id <= LENS_PARAM_MIN_ID) {
 		LOG(LOG_ERR, "Invalid param: param_id: %d.", param_id);
-		return -1;
+		ret = -1;
 		goto err_param;
 	}
 
 	if (param_id == LENS_AF_PARAM_ID) {
 		LOG(LOG_DEBUG, "get %d af param.", port);
-		*param = &(motor_ctx[port].af_param);
-		*ops = motor_ctx[port].af_ops;
+		if (motor_ctx[port].af_ops) {
+			*param = &(motor_ctx[port].af_param);
+			*ops = motor_ctx[port].af_ops;
+			motor_ctx[port].af_busy = 1;
+		}
 	} else if (param_id == LENS_ZOOM_PARAM_ID) {
 		LOG(LOG_DEBUG, "get %d zoom param.", port);
-		*param = &(motor_ctx[port].zoom_param);
-		*ops = motor_ctx[port].zoom_ops;
+		if (motor_ctx[port].zoom_ops) {
+			*param = &(motor_ctx[port].zoom_param);
+			*ops = motor_ctx[port].zoom_ops;
+			motor_ctx[port].zoom_busy = 1;
+		}
 	} else if (param_id == LENS_IRIS_PARAM_ID) {
 		LOG(LOG_DEBUG, "get %d iris param.", port);
+		//add later
+	}
+
+	if (*param) {
+		if (param_id == LENS_AF_PARAM_ID) {
+			LOG(LOG_INFO, "af port: %d, curr_pos %d", port, motor_ctx[port].af_param.curr_pos);
+			LOG(LOG_INFO, "af port: %d, next_pos %d", port, motor_ctx[port].af_param.next_pos);
+		} else if (param_id == LENS_ZOOM_PARAM_ID) {
+			LOG(LOG_INFO, "zoom port: %d, curr_pos %d", port, motor_ctx[port].zoom_param.curr_pos);
+			LOG(LOG_INFO, "zoom port: %d, next_pos %d", port, motor_ctx[port].zoom_param.next_pos);
+		}
+	}
+err_param:
+	return ret;
+}
+
+int lens_basic_free_param(uint16_t port, uint32_t param_id)
+{
+	int ret = 0;
+
+	if (port >= FIRMWARE_CONTEXT_NUMBER) {
+		LOG(LOG_ERR, "Invalid param: port: %d.", port);
+		ret = -1;
+		goto err_param;
+	}
+
+	if (param_id >= LENS_PARAM_MAX_ID || param_id <= LENS_PARAM_MIN_ID) {
+		LOG(LOG_ERR, "Invalid param: param_id: %d.", param_id);
+		ret = -1;
+		goto err_param;
+	}
+
+	if (param_id == LENS_AF_PARAM_ID) {
+		LOG(LOG_DEBUG, "free %d af param.", port);
+		motor_ctx[port].af_busy = 0;
+	} else if (param_id == LENS_ZOOM_PARAM_ID) {
+		LOG(LOG_DEBUG, "free %d zoom param.", port);
+		motor_ctx[port].zoom_busy = 0;
+	} else if (param_id == LENS_IRIS_PARAM_ID) {
+		LOG(LOG_DEBUG, "free %d iris param.", port);
 		//add later
 	}
 err_param:
@@ -397,7 +439,15 @@ err_param:
 
 int lens_driver_init(uint16_t port, uint32_t param_id)
 {
-	return 0;
+	int ret = 0;
+	struct motor_param_s *param = NULL;
+	struct basic_control_ops *ops = NULL;
+
+	ret = lens_basic_get_param(port, param_id, &param, &ops);
+	lens_basic_init(param, ops);
+	lens_basic_free_param(port, param_id);
+
+	return ret;
 }
 
 int lens_driver_move(uint16_t port, uint32_t param_id, uint32_t pos)
@@ -408,6 +458,7 @@ int lens_driver_move(uint16_t port, uint32_t param_id, uint32_t pos)
 
 	ret = lens_basic_get_param(port, param_id, &param, &ops);
 	lens_basic_move(param, ops, pos);
+	lens_basic_free_param(port, param_id);
 
 	return ret;
 }
@@ -421,6 +472,7 @@ uint8_t lens_driver_get_status(uint16_t port, uint32_t param_id)
 
 	ret = lens_basic_get_param(port, param_id, &param, &ops);
 	status = lens_basic_is_moving(param, ops);
+	lens_basic_free_param(port, param_id);
 
 	return status;
 }
@@ -436,6 +488,7 @@ uint32_t lens_driver_get_pos(uint16_t port, uint32_t param_id)
 	if (param != NULL) {
 		pos = param->curr_pos;
 	}
+	lens_basic_free_param(port, param_id);
 
 	return pos;
 }
@@ -447,6 +500,7 @@ int lens_driver_get_param(uint16_t port, uint32_t param_id)
 	struct basic_control_ops *ops = NULL;
 
 	ret = lens_basic_get_param(port, param_id, &param, &ops);
+	lens_basic_free_param(port, param_id);
 
 	return 0;
 }
@@ -460,6 +514,7 @@ void lens_driver_write_reg(uint16_t port, uint32_t param_id,
 
 	ret = lens_basic_get_param(port, param_id, &param, &ops);
 	lens_basic_write_reg(param, ops, addr, data);
+	lens_basic_free_param(port, param_id);
 }
 
 uint32_t lens_driver_read_reg(uint16_t port, uint32_t param_id, uint32_t addr)
@@ -471,6 +526,7 @@ uint32_t lens_driver_read_reg(uint16_t port, uint32_t param_id, uint32_t addr)
 
 	ret = lens_basic_get_param(port, param_id, &param, &ops);
 	data = lens_basic_read_reg(param, ops, addr);
+	lens_basic_free_param(port, param_id);
 
 	return data;
 }
@@ -483,4 +539,92 @@ void lens_driver_stop(uint16_t port, uint32_t param_id)
 
 	ret = lens_basic_get_param(port, param_id, &param, &ops);
 	lens_basic_stop(param, ops);
+	lens_basic_free_param(port, param_id);
+}
+
+//CHAR_DEV
+int set_af_param(uint16_t port, struct chardev_port_param *ctx)
+{
+	int ret = 0;
+	char name[20];
+
+	if ((port >= FIRMWARE_CONTEXT_NUMBER) || (ctx == NULL)) {
+		return -1;
+	}
+
+	snprintf(name, LENS_MONTOR_NAME_LENS, "%s_%d", "afdev", port);
+	ret = fill_ctx_param(&motor_ctx[port].af_ops,
+		&motor_ctx[port].af_param, ctx, name);
+
+	return ret;
+}
+
+int set_zoom_param(uint16_t port, struct chardev_port_param *ctx)
+{
+	int ret = 0;
+	char name[20];
+
+	if ((port >= FIRMWARE_CONTEXT_NUMBER) || (ctx == NULL)) {
+		return -1;
+	}
+
+	snprintf(name, LENS_MONTOR_NAME_LENS, "%s_%d", "zoomdev", port);
+	ret = fill_ctx_param(&motor_ctx[port].zoom_ops,
+		&motor_ctx[port].zoom_param, ctx, name);
+
+	return ret;
+}
+
+int set_af_init(uint16_t port)
+{
+	int ret = 0;
+
+	if (port >= FIRMWARE_CONTEXT_NUMBER) {
+		return -1;
+	}
+
+	ret = lens_driver_init(port, LENS_AF_PARAM_ID);
+
+	return ret;
+}
+
+int set_zoom_init(uint16_t port)
+{
+	int ret = 0;
+
+	if (port >= FIRMWARE_CONTEXT_NUMBER) {
+		return -1;
+	}
+
+	ret = lens_driver_init(port, LENS_ZOOM_PARAM_ID);
+
+	return ret;
+}
+
+int set_af_pos(uint16_t port, uint32_t pos)
+{
+	int ret = 0;
+
+	if (port >= FIRMWARE_CONTEXT_NUMBER) {
+		return -1;
+	}
+	ret = set_af_init(port);
+	udelay(3*1000);
+	ret = lens_driver_move(port, LENS_AF_PARAM_ID, pos);
+
+	return ret;
+}
+
+int set_zoom_pos(uint16_t port, uint32_t pos)
+{
+	int ret = 0;
+
+	if (port >= FIRMWARE_CONTEXT_NUMBER) {
+		return -1;
+	}
+	ret = set_zoom_init(port);
+	udelay(3*1000);
+	ret = lens_driver_move(port, LENS_ZOOM_PARAM_ID, pos);
+
+	return ret;
 }
