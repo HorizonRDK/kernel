@@ -1,8 +1,6 @@
 /*
  * Copyright (C) 2019 Horizon Robotics
  *
- * Zhang Guoying <guoying.zhang@horizon.ai>
- *
  * This file is licensed under the terms of the GNU General Public
  * License version 2.  This program is licensed "as is" without any
  * warranty of any kind, whether express or implied.
@@ -28,20 +26,21 @@
  * fifo not support resizer fc.
  */
 
-#define DEFAULT_BURST_LEN 0x80
+#define DEFAULT_BURST_LEN (0x80u)
+#define HEXBITS (16u)
 
-static inline uint32_t j5_bpu_reg_read(struct bpu_core *core, uint32_t offset)
+static inline uint32_t j5_bpu_reg_read(const struct bpu_core *core, uint32_t offset)
 {
-	return readl(core->base + offset);
+	return readl(core->base + offset);/*PRQA S ALL*/
 }
 
-static inline void j5_bpu_reg_write(struct bpu_core *core,
+static inline void j5_bpu_reg_write(const struct bpu_core *core,
 		uint32_t offset, uint32_t val)
 {
-	writel(val, core->base + offset);
+	writel(val, core->base + offset);/*PRQA S ALL*/
 }
 
-static void j5_cnnbus_wm_set(struct bpu_core *core, uint32_t reg_off,
+static void j5_cnnbus_wm_set(const struct bpu_core *core, uint32_t reg_off,
 	uint32_t wd_maxlen, uint32_t wd_endian, uint32_t wd_priority)
 {
 	uint32_t reg_val;
@@ -58,7 +57,7 @@ static void j5_cnnbus_wm_set(struct bpu_core *core, uint32_t reg_off,
 	j5_bpu_reg_write(core, reg_off, reg_val);
 }
 
-static void j5_cnnbus_rm_set(struct bpu_core *core, uint32_t reg_off,
+static void j5_cnnbus_rm_set(const struct bpu_core *core, uint32_t reg_off,
 	uint32_t rd_maxlen, uint32_t rd_endian, uint32_t rd_priority)
 {
 	uint32_t reg_val;
@@ -78,8 +77,10 @@ static void j5_cnnbus_rm_set(struct bpu_core *core, uint32_t reg_off,
 static int32_t j5_bpu_hw_init(struct bpu_core *core)
 {
 
-	if (core->reserved[0] == 0)
+	if (core->reserved[0] == 0u) {
 		core->reserved[0] = DEFAULT_BURST_LEN;
+	}
+// PRQA S ALL ++
 	/* Config axi write master */
 	j5_cnnbus_wm_set(core, CNNBUS_CTRL_WM_0, core->reserved[0], 0xf, 0x1);
 	j5_cnnbus_wm_set(core, CNNBUS_CTRL_WM_1, 0x80, 0xf, 0x2);
@@ -93,91 +94,31 @@ static int32_t j5_bpu_hw_init(struct bpu_core *core)
 	j5_cnnbus_rm_set(core, CNNBUS_CTRL_RM_3, 0x80, 0x8, 0x5);
 	j5_cnnbus_rm_set(core, CNNBUS_CTRL_RM_4, 0x80, 0xf, 0x4);
 	j5_cnnbus_rm_set(core, CNNBUS_CTRL_RM_5, 0x80, 0x0, 0x6);
-
+// PRQA S ALL --
 	/* Set axibus id */
 	j5_bpu_reg_write(core, CNNBUS_AXIID, 0x0);
 
 	return 0;
 }
 
-static int32_t j5_bpu_iso_clear(struct bpu_core *core)
+static int32_t bpu_to_reset(struct reset_control *rst, uint32_t delay_time)
 {
-	void __iomem *bpu_pmu_base;
-	uint32_t reg_val;
-	int32_t ret = 0;
-
-	if (core == NULL)
-		return -ENODEV;
-
-	bpu_pmu_base = ioremap(BPU_PMU_REG, 4);
-	if (bpu_pmu_base == NULL)
-		return -ENOMEM;
-
-	reg_val = readl(bpu_pmu_base);
-	reg_val &= ~BPU_ISO_BIT(core->index);
-	writel(reg_val, bpu_pmu_base);
-
-	iounmap(bpu_pmu_base);
-
-	udelay(5);
-
-	if (core->rst) {
-		ret = reset_control_deassert(core->rst);
-		if (ret < 0)
-			dev_err(core->dev, "bpu core reset deassert failed\n");
-	}
-
-	return ret;
-}
-
-static int32_t j5_bpu_iso_set(struct bpu_core *core)
-{
-	void __iomem *bpu_pmu_base;
-	uint32_t reg_val;
-	int32_t ret = 0;
-
-	if (core == NULL)
-		return -ENODEV;
-
-	bpu_pmu_base = ioremap(BPU_PMU_REG, 4);
-	if (bpu_pmu_base == NULL)
-		return -ENOMEM;
-
-	reg_val = readl(bpu_pmu_base);
-	reg_val |= BPU_ISO_BIT(core->index);
-	writel(reg_val, bpu_pmu_base);
-
-	iounmap(bpu_pmu_base);
-
-	udelay(5);
-
-	if (core->rst) {
-		ret = reset_control_assert(core->rst);
-		if (ret < 0)
-			dev_err(core->dev, "bpu core reset deassert failed\n");
-	}
-
-	return ret;
-}
-
-static int32_t bpu_to_reset(struct reset_control *rst, uint32_t time)
-{
-	int32_t ret = 0;
+	int32_t ret;
 
 	if (rst == NULL) {
-		pr_err("No reset ctrl null\n");
+		pr_err("No reset ctrl null\n");/*PRQA S ALL*/
 		return -ENODEV;
 	}
 
 	ret = reset_control_assert(rst);
 	if (ret < 0) {
-		pr_err("reset assert failed\n");
+		pr_err("reset assert failed\n");/*PRQA S ALL*/
 		return ret;
 	}
-	udelay(time);
+	udelay(delay_time);/*PRQA S ALL*/
 	ret = reset_control_deassert(rst);
 	if (ret < 0) {
-		pr_err("reset deassert failed\n");
+		pr_err("reset deassert failed\n");/*PRQA S ALL*/
 		return ret;
 	}
 
@@ -189,12 +130,12 @@ static int32_t j5_bpu_reset(struct bpu_core *core)
 	int32_t ret;
 
 	if (core == NULL) {
-		pr_err("Reset invalid bpu core!\n");
+		pr_err("Reset invalid bpu core!\n");/*PRQA S ALL*/
 		return -ENODEV;
 	}
 
 	ret = bpu_to_reset(core->rst, 1);
-	if (ret) {
+	if (ret != 0) {
 		dev_err(core->dev, "bpu core reset failed\n");
 		return ret;
 	}
@@ -209,32 +150,35 @@ static int32_t j5_bpu_enable(struct bpu_core *core)
 	int32_t ret;
 
 	if (core == NULL) {
-		pr_err("Enable invalid bpu core!\n");
+		pr_err("Enable invalid bpu core!\n");/*PRQA S ALL*/
 		return -ENODEV;
 	}
 
-	if (core->fc_base) {
+	if (core->fc_base != NULL) {
 		dev_err(core->dev, "bpu core already enable\n");
 		return 0;
 	}
 
-	if (core->aclk) {
-		if (__clk_is_enabled(core->aclk))
+	if (core->aclk != NULL) {
+		if (__clk_is_enabled(core->aclk)) {
 			clk_disable_unprepare(core->aclk);
+		}
 	}
 
-	if (core->mclk) {
-		if (__clk_is_enabled(core->mclk))
+	if (core->mclk != NULL) {
+		if (__clk_is_enabled(core->mclk)) {
 			clk_disable_unprepare(core->mclk);
+		}
 	}
 
-	if (core->rst) {
+	if (core->rst != NULL) {
 		ret = reset_control_assert(core->rst);
-		if (ret < 0)
+		if (ret < 0) {
 			dev_err(core->dev, "bpu core reset assert failed\n");
+		}
 	}
 
-	if (core->regulator) {
+	if (core->regulator != NULL) {
 		ret = regulator_enable(core->regulator);
 		if (ret < 0) {
 			dev_err(core->dev, "bpu core power enable failed\n");
@@ -242,31 +186,35 @@ static int32_t j5_bpu_enable(struct bpu_core *core)
 		}
 	}
 
-	//j5_bpu_iso_clear(core);
+	/* j5_bpu_iso_clear */
 
-	if (core->aclk) {
+	if (core->aclk != NULL) {
 		if (!__clk_is_enabled(core->aclk)) {
 			ret = clk_prepare_enable(core->aclk);
-			if (ret)
-				pr_info("bpu core aclk prepare error\n");
+			if (ret != 0) {
+				pr_info("bpu core aclk prepare error\n");/*PRQA S ALL*/
+			}
 
 		}
 	}
 
-	if (core->mclk) {
+	if (core->mclk != NULL) {
 		if (!__clk_is_enabled(core->mclk)) {
 			ret = clk_prepare_enable(core->mclk);
-			if (ret)
-				pr_info("bpu core mclk prepare error\n");
-
+			if (ret != 0) {
+				pr_info("bpu core mclk prepare error\n");/*PRQA S ALL*/
+			}
 		}
 	}
 
-	j5_bpu_reset(core);
+	ret = j5_bpu_reset(core); 
+	if (ret != 0){
+		dev_err(core->dev, "bpu core hw reset failed\n");
+	}
 
 	/* The following to init fc info */
 
-	core->fc_base = dma_alloc_coherent(core->dev,
+	core->fc_base = dma_alloc_coherent(core->dev,/*PRQA S ALL*/
 			FC_SIZE * FC_DEPTH, &core->fc_base_addr, GFP_KERNEL);
 	if (core->fc_base == NULL) {
 		dev_err(core->dev, "bpu core alloc fc mem failed\n");
@@ -275,22 +223,17 @@ static int32_t j5_bpu_enable(struct bpu_core *core)
 
 	tmp_fc_depth = FC_DEPTH;
 
-	if (tmp_fc_depth > FC_MAX_DEPTH)
-		tmp_fc_depth = FC_MAX_DEPTH;
-
 	j5_bpu_reg_write(core, CNNINT_MASK, 0x0);
 
 	/* tell bpu fc depth */
 	reg_val = j5_bpu_reg_read(core, CNN_FC_LEN);
 	reg_val &=  ~(J5_CNN_PE0_FC_LENGTH_MASK);
 	/* hw depth start from 0 */
-	reg_val |= J5_CNN_PE0_FC_LENGTH(tmp_fc_depth - 1);
+	reg_val |= J5_CNN_PE0_FC_LENGTH(tmp_fc_depth - 1u);
 	j5_bpu_reg_write(core, CNN_FC_LEN, reg_val);
 
 	/* tell bpu fc base */
-	reg_val = j5_bpu_reg_read(core, CNN_FC_BASE);
-	reg_val &=  ~(J5_CNN_PE0_FC_BASE_MASK);
-	reg_val |= J5_CNN_PE0_FC_BASE((uint32_t)core->fc_base_addr);
+	reg_val = J5_CNN_PE0_FC_BASE((uint32_t)core->fc_base_addr);
 
 	j5_bpu_reg_write(core, CNN_FC_BASE, reg_val);
 
@@ -302,7 +245,7 @@ static int32_t j5_bpu_disable(struct bpu_core *core)
 	int32_t ret = 0;
 	
 	if (core == NULL) {
-		pr_err("Disable invalid bpu core!\n");
+		pr_err("Disable invalid bpu core!\n");/*PRQA S ALL*/
 		return -ENODEV;
 	}
 	if (core->fc_base == NULL) {
@@ -312,51 +255,53 @@ static int32_t j5_bpu_disable(struct bpu_core *core)
 
 	/*TODO: block write and wait run fifo process done */
 
-	if (core->aclk) {
-		if (__clk_is_enabled(core->aclk))
+	if (core->aclk != NULL) {
+		if (__clk_is_enabled(core->aclk)) {
 			clk_disable_unprepare(core->aclk);
+		}
 	}
 
-	if (core->mclk) {
-		if (__clk_is_enabled(core->mclk))
+	if (core->mclk != NULL) {
+		if (__clk_is_enabled(core->mclk)) {
 			clk_disable_unprepare(core->mclk);
+		}
 	}
 
-	//j5_bpu_iso_set(core);
+	/* j5_bpu_iso_set */
 
-	if (core->regulator)
-		regulator_disable(core->regulator);
-
-	/* free */
-	if (core->fc_base != NULL) {
-		dma_free_coherent(core->dev, FC_SIZE * FC_DEPTH,
-				core->fc_base, core->fc_base_addr);
-		core->fc_base = NULL;
+	if (core->regulator != NULL) {
+		ret = regulator_disable(core->regulator);
 	}
+
+	dma_free_coherent(core->dev, FC_SIZE * FC_DEPTH,
+			core->fc_base, core->fc_base_addr);/*PRQA S ALL*/
+	core->fc_base = NULL;
 
 	return ret;
 }
 
-static int32_t j5_bpu_set_clk(struct bpu_core *core, uint64_t rate)
+static int32_t j5_bpu_set_clk(const struct bpu_core *core, uint64_t rate)
 {
 	uint64_t last_rate;
 	int32_t ret = 0;
 
 	if (core == NULL) {
-		pr_err("Set invalid bpu core clk!\n");
+		pr_err("Set invalid bpu core clk!\n");/*PRQA S ALL*/
 		return -ENODEV;
 	}
 
-	if (core->mclk == NULL)
+	if (core->mclk == NULL) {
 		return ret;
+	}
 
 	last_rate = clk_get_rate(core->mclk);
 
-	if (last_rate == rate)
+	if (last_rate == rate) {
 		return 0;
+	}
 
 	ret = clk_set_rate(core->mclk, rate);
-	if (ret) {
+	if (ret != 0) {
 		dev_err(core->dev, "Cannot set frequency %llu (%d)\n",
 				rate, ret);
 		return ret;
@@ -373,24 +318,24 @@ static int32_t j5_bpu_set_clk(struct bpu_core *core, uint64_t rate)
 	return ret;
 }
 
-static int32_t j5_bpu_set_volt(struct bpu_core *core, int32_t volt)
+static int32_t j5_bpu_set_volt(const struct bpu_core *core, int32_t volt)
 {
 	int32_t ret = 0;
 
 	if (core == NULL) {
-		pr_err("Set invalid bpu core voltage!\n");
+		pr_err("Set invalid bpu core voltage!\n");/*PRQA S ALL*/
 		return -ENODEV;
 	}
 
 	if (volt <= 0) {
-		pr_err("Set invalid value bpu core voltage!\n");
+		pr_err("Set invalid value bpu core voltage!\n");/*PRQA S ALL*/
 		return -EINVAL;
 	}
 
-	if (core->regulator) {
+	if (core->regulator != NULL) {
 		ret = regulator_set_voltage(core->regulator,
 					volt, INT_MAX);
-		if (ret) {
+		if (ret != 0) {
 			dev_err(core->dev, "Cannot set voltage %u uV\n", volt);
 			return ret;
 		}
@@ -399,7 +344,7 @@ static int32_t j5_bpu_set_volt(struct bpu_core *core, int32_t volt)
 	return ret;
 }
 
-static void j5_bpu_set_update_tail(struct bpu_core *core, uint32_t tail_index)
+static void j5_bpu_set_update_tail(const struct bpu_core *core, uint32_t tail_index)
 {
 	uint32_t tmp_reg;
 
@@ -410,14 +355,14 @@ static void j5_bpu_set_update_tail(struct bpu_core *core, uint32_t tail_index)
 	j5_bpu_reg_write(core, CNN_FC_TAIL, tmp_reg);
 }
 
-static int32_t j5_bpu_fc_equeue(struct bpu_core *core, void *fc_data, int32_t *fc_num)
+static int32_t j5_bpu_fc_equeue(const struct bpu_core *core,
+		const struct bpu_hw_fc fc_data[], uint32_t *fc_num)
 {
-	uint32_t free_fc_fifo = 0;
+	uint32_t free_fc_fifo;
 	uint32_t head_index, tail_index,
 	    fc_head_flag, fc_tail_flag;
 	uint32_t fc_depth, insert_fc_cnt, residue_fc_cnt;
-	uint32_t ret = 0;
-	uint32_t count;
+	uint32_t ret;
 
 	fc_depth = j5_bpu_reg_read(core, CNN_FC_LEN);
 
@@ -429,61 +374,63 @@ static int32_t j5_bpu_fc_equeue(struct bpu_core *core, void *fc_data, int32_t *f
 
 	head_index &= J5_CNN_MAX_FC_LEN_MASK;
 	tail_index &= J5_CNN_MAX_FC_LEN_MASK;
-	if (fc_head_flag != fc_tail_flag)
+	if (fc_head_flag != fc_tail_flag) {
 		free_fc_fifo = head_index - tail_index;
-	else
-		free_fc_fifo = fc_depth - tail_index + head_index + 1;
+	} else {
+		free_fc_fifo = fc_depth - tail_index + head_index + 1u;
+	}
 
 	if (core->fc_buf_limit > 0) {
 		free_fc_fifo =
-			core->fc_buf_limit - (fc_depth + 1 - free_fc_fifo);
+			(uint32_t)core->fc_buf_limit - (fc_depth + 1u - free_fc_fifo);
 		/* running fc num need not larger then limit */
-		if(free_fc_fifo <= 0)
+		if (free_fc_fifo <= 0u) {
 			return -EBUSY;
+		}
 	}
 
-	if (*fc_num > free_fc_fifo)
+	if (*fc_num > free_fc_fifo) {
 		*fc_num = free_fc_fifo;
-
-	count = tail_index;
+	}
 
 	if ((tail_index + *fc_num) > fc_depth) {
-		insert_fc_cnt = fc_depth - tail_index + 1;
-		memcpy(core->fc_base + tail_index * J5_CNN_FC_SIZE,
-			fc_data, insert_fc_cnt * J5_CNN_FC_SIZE);
+		insert_fc_cnt = fc_depth - tail_index + 1u;
+		(void)memcpy(&core->fc_base[tail_index], fc_data,/*PRQA S ALL*/
+			((uint64_t)insert_fc_cnt * J5_CNN_FC_SIZE));
 
-		if (fc_tail_flag)
+		if (fc_tail_flag != 0u) {
 			fc_tail_flag = 0;
-		else
+		} else {
 			fc_tail_flag = J5_CNN_FC_IDX_FLAG;
+		}
 
 		residue_fc_cnt = *fc_num - insert_fc_cnt;
-		if (residue_fc_cnt > 0) {
-			memcpy(core->fc_base,
-			fc_data + (insert_fc_cnt * J5_CNN_FC_SIZE),
-			residue_fc_cnt * J5_CNN_FC_SIZE);
+		if (residue_fc_cnt > 0u) {
+			(void)memcpy(core->fc_base, &fc_data[insert_fc_cnt],/*PRQA S ALL*/
+				(uint64_t)residue_fc_cnt * J5_CNN_FC_SIZE);
 		}
 
 		ret = fc_tail_flag | residue_fc_cnt;
 	} else {
-		memcpy(core->fc_base + (tail_index * J5_CNN_FC_SIZE),
-			fc_data, *fc_num * J5_CNN_FC_SIZE);
+		(void)memcpy(&core->fc_base[tail_index], fc_data,/*PRQA S ALL*/
+			(uint64_t)*fc_num * J5_CNN_FC_SIZE);
 
 		ret = fc_tail_flag | (tail_index + *fc_num);
 	}
 
-	return ret;
+	return (int32_t)ret;
 }
 
-static int32_t j5_bpu_write_fc(struct bpu_core *core,
+static int32_t j5_bpu_write_fc(const struct bpu_core *core,
 		struct bpu_fc *fc, uint32_t offpos)
 {
 	uint16_t *tmp_fc_id;
-	int32_t update_tail;
-	int32_t fc_num;
+	uint32_t update_tail;
+	uint32_t fc_num;
+	int32_t ret;
 
 	if (core == NULL) {
-		pr_err("Write invalid bpu core!\n");
+		pr_err("Write invalid bpu core!\n");/*PRQA S ALL*/
 		return -ENODEV;
 	}
 
@@ -498,86 +445,81 @@ static int32_t j5_bpu_write_fc(struct bpu_core *core,
 	}
 
 	if (offpos >= fc->info.slice_num) {
-		dev_err(core->dev, "bpu fc write invalid offset\n");
+		dev_err(core->dev, "bpu fc write invalid offset, \
+				offpos = %d, slice_num = %d\n",
+				offpos, fc->info.slice_num);
 		return -EINVAL;
 	}
 
 	fc_num = fc->info.slice_num - offpos;
 
 	/* set the last hw fc id to upper set */
-	tmp_fc_id = (uint16_t *)(fc->fc_data + (offpos * J5_CNN_FC_SIZE)
-			+ ((fc_num - 1) * FC_SIZE  + FC_ID_OFFSET));
-	*tmp_fc_id = fc->hw_id;
+	tmp_fc_id = (uint16_t *)&fc->fc_data[offpos + fc_num - 1u].data[FC_ID_OFFSET];/*PRQA S ALL*/
+	*tmp_fc_id = (uint16_t)fc->hw_id;
 
-	update_tail = j5_bpu_fc_equeue(core,
-			fc->fc_data + (offpos * J5_CNN_FC_SIZE), &fc_num);
-	if (update_tail < 0) {
-		return update_tail;
+	ret = j5_bpu_fc_equeue(core, &fc->fc_data[offpos], &fc_num);
+	if (ret < 0) {
+		return ret;
+	} else {
+		update_tail = (uint32_t)ret;
 	}
 
-	fc->index = (update_tail & (~J5_CNN_FC_IDX_FLAG)) - 1;
+	fc->index = (update_tail & (~J5_CNN_FC_IDX_FLAG)) - 1u;
 
-	j5_bpu_set_update_tail(core, update_tail);
+	j5_bpu_set_update_tail(core, (uint32_t)update_tail);
 
-	return fc_num;
+	return (int32_t)fc_num;
 }
 
-static int j5_bpu_read_fc(struct bpu_core *core,
+static int32_t j5_bpu_read_fc(const struct bpu_core *core,
 		uint32_t *tmp_id, uint32_t *err)
 {
 	uint32_t irq_status;
-	int32_t ret_fc_num, ret;
+	uint32_t ret_fc_num;
 
 	if (core == NULL) {
-		pr_err("Read invalid bpu core!\n");
+		pr_err("Read invalid bpu core!\n");/*PRQA S ALL*/
 		return -ENODEV;
 	}
 
 	/* the status just need read on J5 */
 	irq_status = j5_bpu_reg_read(core, CNNINT_STATUS);
+	pr_debug("BPU Core irq status = 0x%x\n", irq_status);/*PRQA S ALL*/
 
 	j5_bpu_reg_write(core, CNNINT_MASK, 0x1);
 	*tmp_id = j5_bpu_reg_read(core, CNNINT_NUM);
 	j5_bpu_reg_write(core, CNNINT_MASK, 0x0);
 
 	ret_fc_num = j5_bpu_reg_read(core, CNN_ALL_INT_CNT);
-	if (ret_fc_num > 1) {
-		pr_debug("BPU Core%d postpone get %d fcs\n",
+	if (ret_fc_num > 1u) {
+		pr_debug("BPU Core%d postpone get %d fcs\n",/*PRQA S ALL*/
 				core->index, ret_fc_num);
 	}
 
 	*err = j5_bpu_reg_read(core, CNNINT_ERR_NUM);
 
-	ret = ret_fc_num;
-
-	return ret;
-}
-
-static int32_t j5_bpu_status(struct bpu_core *core, uint32_t cmd)
-{
-	return 0;
+	return (int32_t)ret_fc_num;
 }
 
 /* J5 use core reserved[0] to store burst_len set */
-static ssize_t bpu_core_burst_len_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
+static ssize_t bpu_core_burst_len_show(struct device *dev, struct device_attribute *attr, char *buf)/*PRQA S ALL*/
 {
-	struct bpu_core *core = dev_get_drvdata(dev);
+	struct bpu_core *core = (struct bpu_core *)dev_get_drvdata(dev);/*PRQA S ALL*/
 
-	if (core->reserved[0] == 0)
+	if (core->reserved[0] == 0u) {
 		core->reserved[0] = DEFAULT_BURST_LEN;
+	}
 
-	return snprintf(buf, PAGE_SIZE, "%d\n",
-			(int)(core->reserved[0] * 16));
+	return snprintf(buf, PAGE_SIZE, "%lld\n",
+			(core->reserved[0] * HEXBITS));
 }
 
-static ssize_t bpu_core_burst_len_store(struct device *dev,
-		struct device_attribute *attr,
+static ssize_t bpu_core_burst_len_store(struct device *dev, struct device_attribute *attr,/*PRQA S ALL*/
 		const char *buf, size_t len)
 {
-	struct bpu_core *core = dev_get_drvdata(dev);
+	struct bpu_core *core = (struct bpu_core *)dev_get_drvdata(dev);/*PRQA S ALL*/
 	int32_t ret;
-	int32_t tmp_val;
+	uint32_t tmp_val;
 
 	ret = sscanf(buf, "%du", &tmp_val);
 	if (ret < 0) {
@@ -586,23 +528,25 @@ static ssize_t bpu_core_burst_len_store(struct device *dev,
 		return 0;
 	}
 
-	if (tmp_val % 16 > 0) {
+	if ((tmp_val % HEXBITS) > 0u) {
 		dev_err(core->dev, "burst len must align 16");
 	}
 
-	core->reserved[0] = tmp_val / 16;
+	core->reserved[0] = (uint64_t)tmp_val / HEXBITS;
 
-	if (core->reserved[0] <= 0)
+	if (core->reserved[0] <= 0u) {
 		core->reserved[0] = 1;
-	else if (core->reserved[0] > 0x80)
-		core->reserved[0] = 0x80;
+	}
+	if (core->reserved[0] > DEFAULT_BURST_LEN) {
+		core->reserved[0] = DEFAULT_BURST_LEN;
+	}
 
-	dev_info(core->dev, "BPU core%d set burst len:%d\n",
-			core->index, (int)core->reserved[0]);
+	dev_info(core->dev, "BPU core%d set burst len:%lld\n",
+			core->index, core->reserved[0]);
 
-	return len;
+	return (ssize_t)len;
 }
-
+// PRQA S ALL ++
 static DEVICE_ATTR(burst_len, S_IRUGO | S_IWUSR,
 		bpu_core_burst_len_show, bpu_core_burst_len_store);
 
@@ -614,13 +558,13 @@ static struct attribute *bpu_core_hw_attrs[] = {
 static struct attribute_group bpu_core_hw_attr_group = {
 	.attrs = bpu_core_hw_attrs,
 };
-
-static int32_t j5_bpu_debug(struct bpu_core *core, int32_t state)
+// PRQA S ALL --
+static int32_t j5_bpu_debug(const struct bpu_core *core, int32_t state)
 {
 	int32_t ret;
 
 	if (core == NULL) {
-		pr_err("NO bpu core for debug!\n");
+		pr_err("NO bpu core for debug!\n");/*PRQA S ALL*/
 		return -ENODEV;
 	}
 
@@ -628,13 +572,13 @@ static int32_t j5_bpu_debug(struct bpu_core *core, int32_t state)
 		ret = device_add_group(core->dev, &bpu_core_hw_attr_group);
 		if (ret < 0) {
 			dev_err(core->dev, "Create bpu core%d hw debug group failed\n",
-					core->index);
-			return ret;
+				core->index);
 		}
 	}
 
-	if (state == 0)
+	if (state == 0) {
 		device_remove_group(core->dev, &bpu_core_hw_attr_group);
+	}
 
 	return 0;
 }
@@ -647,10 +591,12 @@ struct bpu_core_hw_ops j5_hw_ops = {
 	.set_volt	= j5_bpu_set_volt,
 	.write_fc	= j5_bpu_write_fc,
 	.read_fc	= j5_bpu_read_fc,
-	.status		= j5_bpu_status,
+	.status		= NULL,
 	.debug		= j5_bpu_debug,
 };
 
+// PRQA S ALL ++
 MODULE_DESCRIPTION("Driver for Horizon J5 SOC BPU");
 MODULE_AUTHOR("Zhang Guoying <guoying.zhang@horizon.ai>");
 MODULE_LICENSE("GPL v2");
+// PRQA S ALL --

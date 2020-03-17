@@ -19,29 +19,15 @@
 #include <linux/miscdevice.h>
 #include <uapi/hobot/bpu.h>
 
-#define TIME_VAL(ptimeval) ((ptimeval)->tv_sec * 1000000 \
-				+ (ptimeval)->tv_usec)
-
-#define TIME_INTERVAL(ptimeval_old, ptimeval_new)	\
-				(TIME_VAL(ptimeval_new) - TIME_VAL(ptimeval_old))
-
-#define GROUP_USER(id) (id >> 16)
-#define GROUP_ID(id) (id & 0xFFFF)
+#define PERSENT		(100u)
+#define SECTOMS		(1000)
+#define SECTOUS		(1000000)
 
 /* must be a power of 2 */
 #define BPU_CORE_RECORE_NUM		64
 
 struct bpu_core;
-
-union bpu_ioctl_arg {
-	struct bpu_group group;
-	uint32_t ratio;
-	uint64_t core;
-	uint16_t cap;
-	uint16_t reset;
-	int16_t level;
-	uint32_t limit;
-};
+struct bpu_hw_fc;
 
 struct bpu_fc {
 	struct user_bpu_fc info;
@@ -50,7 +36,7 @@ struct bpu_fc {
 	uint32_t hw_id;
 
 	/* real fc data*/
-	void *fc_data;
+	struct bpu_hw_fc *fc_data;
 
 	/* group id */
 	uint32_t *g_id;
@@ -134,26 +120,28 @@ struct bpu {
 	int32_t busy_thres;
 
 	/* use the value to adjust sched time */
-	int32_t sched_seed;
-	int32_t stat_reset_count;
+	uint32_t sched_seed;
+	uint32_t stat_reset_count;
 
 	struct bus_type *bus;
 
 	uint32_t ratio;
 };
 
+extern struct bpu *g_bpu;
+
 /* create bpu_fc from user fc info*/
 int32_t bpu_fc_create_from_user(struct bpu_fc *fc,
-		struct user_bpu_fc *user_fc, const void *data);
+		const struct user_bpu_fc *user_fc, const void *data);
 /* mainly clear fc data in bpu_fc*/
 void bpu_fc_clear(struct bpu_fc *fc);
 
-int32_t bpu_write_with_user(struct bpu_core *core,
+extern int32_t bpu_write_with_user(const struct bpu_core *core,
 			struct bpu_user *user,
 			const char __user *buf, size_t len);
-int32_t bpu_read_with_user(struct bpu_core *core,
+extern int32_t bpu_read_with_user(struct bpu_core *core,
 			struct bpu_user *user,
-			char __user *buf, size_t len);
+			const char __user *buf, size_t len);
 
 int32_t bpu_fc_bind_user(struct bpu_fc *fc, struct bpu_user *user);
 int32_t bpu_fc_bind_group(struct bpu_fc *fc, uint32_t group_id);
@@ -180,6 +168,17 @@ static inline struct bpu_fc_group *bpu_get_fc_group(struct bpu_fc *fc)
 	return (struct bpu_fc_group *)container_of(fc->g_id, struct bpu_fc_group, id);
 }
 
+static inline uint32_t bpu_group_id(uint32_t raw_id)
+{
+	return raw_id & 0xFFFFu;
+
+}
+
+static inline uint32_t bpu_group_user(uint32_t raw_id)
+{
+	return raw_id >> 16u;
+}
+
 /* register core apis */
 int32_t bpu_core_register(struct bpu_core *core);
 void bpu_core_unregister(struct bpu_core *core);
@@ -191,17 +190,16 @@ struct bpu_fc_group *bpu_create_group(uint32_t group_id);
 void bpu_delete_group(uint32_t group_id);
 
 /* statusis apis */
-int32_t bpu_ratio(struct bpu *bpu);
-int32_t bpu_fc_group_ratio(struct bpu_fc_group *group);
-int32_t bpu_user_ratio(struct bpu_user *user);
+uint32_t bpu_ratio(struct bpu *bpu);
+uint32_t bpu_fc_group_ratio(struct bpu_fc_group *group);
+uint32_t bpu_user_ratio(struct bpu_user *user);
 
 /* sched apis*/
 int32_t bpu_sched_start(struct bpu *bpu);
 int32_t bpu_sched_stop(struct bpu *bpu);
-int32_t bpu_core_update(struct bpu_core *core, struct bpu_fc *fc);
+void bpu_core_update(struct bpu_core *core, struct bpu_fc *fc);
+uint32_t bpu_core_ratio(struct bpu_core *core);
 void bpu_sched_seed_update(void);
-int32_t bpu_ratio(struct bpu *bpu);
-int32_t bpu_core_ratio(struct bpu_core *core);
 
 /* ctrl apis */
 int32_t bpu_stat_reset(struct bpu *bpu);
@@ -209,6 +207,6 @@ int32_t bpu_stat_reset(struct bpu *bpu);
 /* sys apis */
 int32_t bpu_sys_system_init(struct bpu *bpu);
 int32_t bpu_core_create_sys(struct bpu_core *core);
-int32_t bpu_core_discard_sys(struct bpu_core *core);
+void bpu_core_discard_sys(const struct bpu_core *core);
 
 #endif

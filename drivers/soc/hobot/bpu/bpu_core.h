@@ -52,6 +52,10 @@ struct bpu_core_dvfs {
 };
 #endif
 
+struct bpu_hw_fc {
+	uint8_t data[FC_SIZE];
+};
+
 struct bpu_core {
 	struct list_head node;
 	struct device *dev;
@@ -72,14 +76,15 @@ struct bpu_core {
 	 */
 	int32_t fc_buf_limit;
 
-	int32_t irq;
+	uint32_t irq;
 	void __iomem *base;
+
 	/*
 	 * which store bpu read fc base
 	 * alloc when core enable and
 	 * free when core disable
 	 */
-	void *fc_base;
+	struct bpu_hw_fc *fc_base;
 	dma_addr_t fc_base_addr;
 
 	struct regulator *regulator;
@@ -123,7 +128,7 @@ struct bpu_core {
 
 	uint64_t p_run_time;
 	/* running ratio */
-	uint8_t ratio;
+	uint32_t ratio;
 
 	uint64_t reserved[2];
 };
@@ -132,21 +137,21 @@ struct bpu_core_hw_ops {
 	int32_t (*enable) (struct bpu_core *);
 	int32_t (*disable) (struct bpu_core *);
 	int32_t (*reset) (struct bpu_core *);
-	int32_t (*set_clk) (struct bpu_core *, uint64_t);
-	int32_t (*set_volt) (struct bpu_core *, int32_t);
+	int32_t (*set_clk) (const struct bpu_core *, uint64_t);
+	int32_t (*set_volt) (const struct bpu_core *, int32_t);
 	/*
 	 * write real fc to hw, return > 0: actual write fc num
 	 * param include the offset pos in the bpu_fc raw slices
 	 */
-	int32_t (*write_fc) (struct bpu_core *, struct bpu_fc *fc, uint32_t);
+	int32_t (*write_fc) (const struct bpu_core *, struct bpu_fc *fc, uint32_t);
 	/* get the fc process return */
-	int32_t (*read_fc) (struct bpu_core *, uint32_t *, uint32_t *);
+	int32_t (*read_fc) (const struct bpu_core *, uint32_t *, uint32_t *);
 
 	/* get bpu hw core running status */
 	int32_t (*status) (struct bpu_core *, uint32_t);
 
 	/* debug info for hw info */
-	int32_t (*debug) (struct bpu_core *, int32_t);
+	int32_t (*debug) (const struct bpu_core *, int32_t);
 };
 
 #endif

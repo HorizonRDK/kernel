@@ -1,8 +1,6 @@
 /*
  * Copyright (C) 2019 Horizon Robotics
  *
- * Zhang Guoying <guoying.zhang@horizon.ai>
- *
  * This file is licensed under the terms of the GNU General Public
  * License version 2.  This program is licensed "as is" without any
  * warranty of any kind, whether express or implied.
@@ -13,50 +11,63 @@
 #include "bpu.h"
 #include "bpu_core.h"
 
-extern struct bpu *g_bpu;
+#define DEFAULT_SCHED_SEED (2u)
 
 void bpu_sched_seed_update(void)
 {
 	struct bpu_core *tmp_core;
 	struct list_head *pos, *pos_n;
 	int32_t run_fc_num = 0;
-	int32_t i;
+	uint32_t i;
+	int32_t ret;
 
-	list_for_each_safe(pos, pos_n, &g_bpu->core_list) {
-		tmp_core = (struct bpu_core *)pos;
-		if (tmp_core) {
-			for (i = 0; i < BPU_PRIO_NUM; i++)
-				run_fc_num += kfifo_len(&tmp_core->run_fc_fifo[i]);
+	list_for_each_safe(pos, pos_n, &g_bpu->core_list) { /*PRQA S ALL*/
+
+		tmp_core = (struct bpu_core *)pos;/*PRQA S ALL*/
+		if (tmp_core != NULL) {
+			for (i = 0; i < BPU_PRIO_NUM; i++) {
+				run_fc_num += kfifo_len(&tmp_core->run_fc_fifo[i]);/*PRQA S ALL*/
+			}
 		}
 	}
 
-	if (run_fc_num) {
-		if (g_bpu->sched_seed < HZ)
+	if (run_fc_num > 0) {
+		if (g_bpu->sched_seed < (uint32_t)HZ) {
 			g_bpu->sched_seed++;
-		if (g_bpu->sched_seed > HZ)
+		}
+		if (g_bpu->sched_seed > (uint32_t)HZ) {
 			g_bpu->sched_seed = HZ;
+		}
 	} else {
-		g_bpu->sched_seed = 2;
-		mod_timer(g_bpu->sched_timer, jiffies + g_bpu->sched_seed);
+		g_bpu->sched_seed = DEFAULT_SCHED_SEED;
+		ret = mod_timer(g_bpu->sched_timer, jiffies + g_bpu->sched_seed);
+		if (ret <= 0) {
+			pr_err("BPU sched update timer failed\n");/*PRQA S ALL*/
+		}
 	}
 }
+// PRQA S ALL ++
 EXPORT_SYMBOL(bpu_sched_seed_update);
+// PRQA S ALL --
 
-static void bpu_sched_worker(unsigned long arg)
+static void bpu_sched_worker(unsigned long arg) /*PRQA S ALL*/
 {
-	struct bpu *bpu = (struct bpu *)arg;
+	struct bpu *bpu = (struct bpu *)arg;  /*PRQA S ALL*/
+	uint32_t tmp_reset_count;
 	int32_t ret;
 
 	if (bpu == NULL) {
-		pr_err("No bpu to sched!\n");
+		pr_err("No bpu to sched!\n");/*PRQA S ALL*/
 		return;
 	}
 
 	bpu->stat_reset_count++;
-	if (bpu->stat_reset_count >= HZ / bpu->sched_seed) {
+	tmp_reset_count = (uint32_t)HZ / bpu->sched_seed;
+	if (bpu->stat_reset_count >= tmp_reset_count) {
 		ret = bpu_stat_reset(bpu);
-		if (ret)
-			pr_err("Bpu stat reset failed!\n");
+		if (ret != 0) {
+			pr_err("Bpu stat reset failed!\n");/*PRQA S ALL*/
+		}
 
 		/*TODO: judge wether bpu core dead, if dead, reset */
 		bpu->stat_reset_count = 0;
@@ -65,26 +76,29 @@ static void bpu_sched_worker(unsigned long arg)
 	bpu->sched_timer->expires = jiffies + bpu->sched_seed;
 	add_timer(bpu->sched_timer);
 
-	if (bpu->sched_seed < HZ)
+	if (bpu->sched_seed < (uint32_t)HZ) {
 		bpu->sched_seed++;
-	if (bpu->sched_seed > HZ)
+	}
+	if (bpu->sched_seed > (uint32_t)HZ) {
 		bpu->sched_seed = HZ;
+	}
 }
 
 int32_t bpu_sched_start(struct bpu *bpu)
 {
-	if (bpu == NULL)
+	if (bpu == NULL) {
 		return -EINVAL;
+	}
 
-	bpu->sched_timer = kmalloc(sizeof(struct timer_list), GFP_KERNEL);
+	bpu->sched_timer = (struct timer_list *)kmalloc(sizeof(struct timer_list), GFP_KERNEL);/*PRQA S ALL*/
 	if (bpu->sched_timer == NULL) {
-		pr_err("bpu sched timer create failed\n");
+		pr_err("bpu sched timer create failed\n");/*PRQA S ALL*/
 		return -ENOMEM;
 	}
 
-	init_timer(bpu->sched_timer);
+	init_timer(bpu->sched_timer);/*PRQA S ALL*/
 	bpu->sched_timer->function = &bpu_sched_worker;
-	bpu->sched_timer->data = (unsigned long)bpu;
+	bpu->sched_timer->data = (unsigned long)bpu;/*PRQA S ALL*/
 	bpu->sched_seed = HZ;
 	bpu->stat_reset_count = 0;
 
@@ -96,20 +110,28 @@ int32_t bpu_sched_start(struct bpu *bpu)
 
 int32_t bpu_sched_stop(struct bpu *bpu)
 {
-	if (bpu == NULL)
-		return -EINVAL;
+	int32_t ret;
 
-	if (bpu->sched_timer == NULL) {
-		pr_err("Try to stop uninited bpu sched\n");
+	if (bpu == NULL) {
 		return -EINVAL;
 	}
 
-	del_timer_sync(bpu->sched_timer);
-	kfree(bpu->sched_timer);
+	if (bpu->sched_timer == NULL) {
+		pr_err("Try to stop uninited bpu sched\n");/*PRQA S ALL*/
+		return -EINVAL;
+	}
+
+	ret = del_timer_sync(bpu->sched_timer);
+	if (ret == 0) {
+		pr_debug("del no sched timer\n");/*PRQA S ALL*/
+	}
+	kfree((void *)bpu->sched_timer);/*PRQA S ALL*/
 	bpu->sched_timer = NULL;
 	return 0;
 }
 
+// PRQA S ALL ++
 MODULE_DESCRIPTION("BPU and Cores sched for process");
 MODULE_AUTHOR("Zhang Guoying <guoying.zhang@horizon.ai>");
 MODULE_LICENSE("GPL v2");
+// PRQA S ALL --
