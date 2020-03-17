@@ -1022,15 +1022,6 @@ static int hobot_bpu_open(struct inode *inode, struct file *filp)
 	devdata = container_of(inode->i_cdev, struct hobot_bpu_dev, i_cdev);
 
 	user_info->cnn_dev = devdata;
-#ifndef CONFIG_HOBOT_FPGA_X3
-	if (devdata->disable_bpu) {
-		mutex_unlock(&hobot_bpu_mutex);
-
-		kfree(filp->private_data);
-		filp->private_data = NULL;
-		return -1;
-	}
-#endif
 
 	init_waitqueue_head(&user_info->cnn_int_wait);
 
@@ -1052,6 +1043,20 @@ static int hobot_bpu_open(struct inode *inode, struct file *filp)
 		pid_fc_id_mask[i] = task_pid_nr(current->group_leader);
 
 	if (!(devdata->ref_cnt++)) {
+		/*power up bpu first*/
+		unsigned int tmp;
+
+		if (devdata->has_regulator)
+			hobot_bpu_power_up(devdata);
+		else
+			hobot_bpu_clock_up(devdata);
+
+		hobot_bpu_reg_write(devdata,
+				CNN_FC_LEN, (devdata->fc_mem_size / 64) - 1);
+		hobot_bpu_reg_write(devdata, CNN_FC_BASE,
+				devdata->fc_phys_base);
+		hobot_bpu_reg_write(devdata, CNNINT_MASK, 0x0);
+
 		devdata->zero_int_cnt = 0;
 		devdata->time_head = 0;
 		devdata->time_tail = 0;
@@ -1083,11 +1088,17 @@ static int hobot_bpu_release(struct inode *inode, struct file *filp)
 	struct cnn_user_info *user_info;
 	unsigned long flags;
 	int i;
+	int rc;
 
 	mutex_lock(&hobot_bpu_mutex);
 	user_info = filp->private_data;
 	devdata = user_info->cnn_dev;
 	if (!(--devdata->ref_cnt)) {
+		if (devdata->has_regulator)
+			hobot_bpu_power_down(devdata);
+		 else
+			hobot_bpu_clock_down(devdata);
+
 		user_info->cnn_int_num.cnn_int_count = 0;
 		atomic_set(&devdata->wait_fc_cnt, 0);
 		kfifo_reset(&devdata->int_info_fifo);
@@ -1990,7 +2001,7 @@ int hobot_bpu_probe(struct platform_device *pdev)
 	} else {
 		cnn_dev->has_regulator = 1;
 	}
-
+	cnn_dev->disable_bpu = BPU_REGU_DIS | BPU_CLOCK_DIS;
 	/*get cnn clock and prepare*/
 	cnn_dev->cnn_aclk = devm_clk_get(cnn_dev->dev, "cnn_aclk");
 	if (IS_ERR(cnn_dev->cnn_aclk)) {
@@ -2000,6 +2011,17 @@ int hobot_bpu_probe(struct platform_device *pdev)
 	cnn_dev->cnn_mclk = devm_clk_get(cnn_dev->dev, "cnn_mclk");
 	if (IS_ERR(cnn_dev->cnn_mclk)) {
 		pr_info("get cnn0 mclock err\n");
+		goto err_out;
+	}
+	rc = clk_prepare(cnn_dev->cnn_aclk);
+	if(rc) {
+		pr_err("%s:%d prepare bpu aclk error\n");
+		goto err_out;
+	}
+
+	rc = clk_prepare(cnn_dev->cnn_mclk);
+	if(rc) {
+		pr_err("%s:%d prepare bpu mclk error\n");
 		goto err_out;
 	}
 #endif
@@ -2025,33 +2047,7 @@ int hobot_bpu_probe(struct platform_device *pdev)
 		pr_err("failed get cnn%d resets\n", cnn_id);
 		goto err_out;
 	}
-#ifndef CONFIG_HOBOT_FPGA_X3
-	/*cnn power up*/
-	if (cnn_dev->has_regulator) {
-		rc = regulator_enable(cnn_dev->cnn_regulator);
-		if (rc != 0) {
-			dev_err(cnn_dev->dev, "regulator enalbe error\n");
-			goto err_out;
-		}
-	}
-	tmp = readl(cnn_dev->cnn_pmu);
-	tmp &= ~(1 << cnn_dev->iso_bit);
-	writel(tmp, cnn_dev->cnn_pmu);
-	udelay(5);
-	hobot_bpu_reset_release(cnn_dev->cnn_rst);
-	rc = clk_prepare_enable(cnn_dev->cnn_aclk);
-	if (rc) {
-		pr_info("cnn aclock prepare error\n");
-		goto err_out;
-	}
-	rc = clk_prepare_enable(cnn_dev->cnn_mclk);
-	if (rc) {
-		pr_info("cnn mclock prepare error\n");
-		clk_unprepare(cnn_dev->cnn_aclk);
-		goto err_out;
-	}
 
-#endif
 	of_property_read_u32(np, "busy_check", &has_busy_status);
 	cnn_dev->irq = irq_of_parse_and_map(np, 0);
 	if (cnn_dev->irq < 0) {
@@ -2117,16 +2113,12 @@ int hobot_bpu_probe(struct platform_device *pdev)
 	cnn_dev->zero_int_cnt = 0;
 	cnn_dev->real_int_cnt = 0;
 	cnn_dev->wait_nega_flag = 0;
-	hobot_bpu_reg_write(cnn_dev,
-			CNN_FC_LEN, (cnn_dev->fc_mem_size / 64) - 1);
+
 	pr_info("bpu%d fc phy base = 0x%x, len = 0x%x, default fc len = 0x%x\n",
 			cnn_dev->core_index,
 			cnn_dev->fc_phys_base,
 			cnn_dev->fc_mem_size,
 			(cnn_dev->fc_mem_size / 64) - 1);
-
-	hobot_bpu_reg_write(cnn_dev, CNN_FC_BASE,
-			cnn_dev->fc_phys_base);
 
 	hobot_bpu_fc_gap_mem_init(cnn_dev);
 
@@ -2134,12 +2126,14 @@ int hobot_bpu_probe(struct platform_device *pdev)
 	spin_lock_init(&cnn_dev->set_time_lock);
 	spin_lock_init(&cnn_dev->cnn_spin_lock);
 	spin_lock_init(&cnn_dev->kfifo_lock);
+
 	rc = kfifo_alloc(&cnn_dev->int_info_fifo,
-		    sizeof(struct bpu_int_info) * hobot_bpu_reg_read(cnn_dev, CNN_FC_LEN), GFP_KERNEL);
+		    sizeof(struct bpu_int_info) * ((cnn_dev->fc_mem_size / 64) - 1), GFP_KERNEL);
 	if (rc < 0) {
 		pr_err("kfifo alloc error\n");
 		goto err_out;
 	}
+
 	/* Create the chardev for cnn0 and cnn1 */
 	cnn_dev->chrdev_name = dev_name;
 	snprintf(cnn_dev->chrdev_name, sizeof(dev_name),
@@ -2167,7 +2161,6 @@ int hobot_bpu_probe(struct platform_device *pdev)
 	init_completion(&cnn_dev->bpu_completion);
 	init_completion(&cnn_dev->nega_completion);
 
-	hobot_bpu_reg_write(cnn_dev, CNNINT_MASK, 0x0);
 	/* diag ref init */
 	if ((EventIdBpu0Err + cnn_id) <= EventIdBpu1Err) {
 		if (diag_register(ModuleDiag_bpu, EventIdBpu0Err + cnn_id, 5, 300, 7000, NULL) < 0)
@@ -2571,7 +2564,10 @@ static ssize_t queue0_show(struct kobject *kobj, struct kobj_attribute *attr,
 						 char *buf)
 {
 	mutex_lock(&cnn0_dev->cnn_lock);
-	queue0 = hobot_bpu_get_fc_fifo_spaces(cnn0_dev);
+	if (cnn0_dev->disable_bpu)
+		queue0 = 0;
+	else
+		queue0 = hobot_bpu_get_fc_fifo_spaces(cnn0_dev);
 	mutex_unlock(&cnn0_dev->cnn_lock);
 	return sprintf(buf, "%d\n", queue0);
 }
@@ -2579,7 +2575,10 @@ static ssize_t queue1_show(struct kobject *kobj, struct kobj_attribute *attr,
 						 char *buf)
 {
 	mutex_lock(&cnn1_dev->cnn_lock);
-	queue1 = hobot_bpu_get_fc_fifo_spaces(cnn1_dev);
+	if (cnn1_dev->disable_bpu)
+		queue1 = 0;
+	else
+		queue1 = hobot_bpu_get_fc_fifo_spaces(cnn1_dev);
 	mutex_unlock(&cnn1_dev->cnn_lock);
 	return sprintf(buf, "%d\n", queue1);
 }
