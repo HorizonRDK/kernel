@@ -160,6 +160,9 @@ static int isp_v4l2_ctrl_s_ctrl_custom( struct v4l2_ctrl *ctrl )
     case ISP_V4L2_CID_RAW_BYPASS:
         ret = fw_intf_set_raw_bypass_on_off( ctx_id, ctrl->val );
         break;
+    case ISP_V4L2_CID_TEMPER_BUF:
+        ret = fw_intf_temper_buf_ctrl( ctx_id, ctrl->val );
+        break;
     }
 
     return ret;
@@ -255,7 +258,18 @@ static const struct v4l2_ctrl_config isp_v4l2_ctrl_raw_bypass_on_off = {
     .name = "ISP RAW BYPASS ON/OFF",
     .type = V4L2_CTRL_TYPE_INTEGER,
     .min = 0,
-    .max = 0x7FFFFFFF,
+    .max = 1,
+    .step = 1,
+    .def = 0,
+};
+
+static const struct v4l2_ctrl_config isp_v4l2_ctrl_temper_buf_ctrl = {
+    .ops = &isp_v4l2_ctrl_ops_custom,
+    .id = ISP_V4L2_CID_TEMPER_BUF,
+    .name = "ISP TEMPER BUF CTRL",
+    .type = V4L2_CTRL_TYPE_INTEGER,
+    .min = 0,
+    .max = 1,
     .step = 1,
     .def = 0,
 };
@@ -356,6 +370,8 @@ int isp_v4l2_ctrl_init( uint32_t ctx_id, isp_v4l2_ctrl_t *ctrl )
                   &isp_v4l2_ctrl_output_ds1_on_off, NULL );
     ADD_CTRL_CST( ISP_V4L2_CID_RAW_BYPASS,
                   &isp_v4l2_ctrl_raw_bypass_on_off, NULL );
+    ADD_CTRL_CST( ISP_V4L2_CID_TEMPER_BUF,
+                  &isp_v4l2_ctrl_temper_buf_ctrl, NULL );
 
 
     /* Add control handler to v4l2 device */

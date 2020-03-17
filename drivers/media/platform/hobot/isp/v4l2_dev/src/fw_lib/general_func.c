@@ -37,6 +37,7 @@
 
 
 #include "general_fsm.h"
+#include "sensor_fsm.h"
 
 #include "acamera_ca_correction_filter_mem_config.h"
 #include "acamera_ca_correction_mesh_mem_config.h"
@@ -690,14 +691,15 @@ uint32_t general_calc_fe_lut_input( general_fsm_ptr_t p_fsm, uint16_t val )
 
 #if GENERAL_TEMPER_ENABLED
 
+extern void *acamera_get_ctx_ptr(uint32_t ctx_id);
 static int general_temper_init( general_fsm_ptr_t p_fsm )
 {
     acamera_settings *p_settings = &( ACAMERA_FSM2CTX_PTR( p_fsm )->settings );
+    acamera_context_t *p_ctx;
     aframe_t *temper_frame;
-    image_resolution_t max_res;
     void *virt_addr;
     uint64_t dma_addr;
-    int i, rc;
+    int i;
 
     p_fsm->temper_mode = TEMPER_MODE_DEFAULT;
 
@@ -705,17 +707,14 @@ static int general_temper_init( general_fsm_ptr_t p_fsm )
     p_fsm->cnt_for_temper = 0;
     acamera_isp_temper_enable_write( p_fsm->cmn.isp_base, 0 );
 
-    rc = acamera_fsm_mgr_get_param( p_fsm->p_fsm_mgr, FSM_PARAM_GET_SENSOR_MAX_RESOLUTION,
-                                    NULL, 0, &max_res, sizeof( max_res ) );
-    if ( rc ) {
-        LOG( LOG_ERR, "unable to get max resolution" );
-        return -1;
-    }
+    p_ctx = acamera_get_ctx_ptr(p_fsm->p_fsm_mgr->ctx_id);
+    sensor_fsm_ptr_t sensor_fsm = (sensor_fsm_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_SENSOR]->p_fsm);
+    const sensor_param_t *param = sensor_fsm->ctrl.get_parameters( sensor_fsm->sensor_ctx );
 
     for ( i = 0; i < TEMPER_FRAMES_NO; i++ ) {
         temper_frame = &p_fsm->temper_frames[i];
-        temper_frame->width = max_res.width;
-        temper_frame->height = max_res.height;
+        temper_frame->width = param->active.width;
+        temper_frame->height = param->active.height;
         temper_frame->type = acamera_isp_temper_dma_format_read( p_fsm->cmn.isp_base );
         temper_frame->line_offset = acamera_line_offset( temper_frame->width, TEMPER_PIXEL_WIDTH );
         temper_frame->size = temper_frame->height * temper_frame->line_offset;

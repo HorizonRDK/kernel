@@ -34,6 +34,7 @@
 #include "isp-v4l2-common.h"
 #include "fw-interface.h"
 #include "acamera_fw.h"
+#include "general_fsm.h"
 
 //use main_firmware.c routines to initialize fw
 extern int isp_fw_init( uint32_t hw_isp_addr );
@@ -1351,6 +1352,20 @@ int fw_intf_set_raw_bypass_on_off(uint32_t ctx_id, uint32_t ctrl_val)
 
 	pr_debug("set value %d\n", ctrl_val);
 	acamera_isp_top_isp_raw_bypass_write(ptr->settings.isp_base, ctrl_val);
+
+	return 0;
+}
+
+extern void isp_temper_free(general_fsm_ptr_t p_fsm);
+extern void isp_temper_prepare(general_fsm_ptr_t p_fsm);
+int fw_intf_temper_buf_ctrl(uint32_t ctx_id, uint32_t ctrl_val)
+{
+	acamera_context_t *p_ctx = acamera_get_ctx_ptr(ctx_id);
+
+	if (ctrl_val)
+		isp_temper_prepare((general_fsm_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_GENERAL]->p_fsm));
+	else
+		isp_temper_free((general_fsm_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_GENERAL]->p_fsm));
 
 	return 0;
 }
