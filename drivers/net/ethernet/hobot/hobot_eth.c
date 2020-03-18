@@ -1,4 +1,4 @@
-/* 
+/*
  * Copyright (C) 2015 Axis Communications AB.
  *
  * This code from  Synopsys DWC Ethernet Quality-of-Service v4.10a linux driver
@@ -64,10 +64,14 @@
 #include <linux/ip.h>
 #include <uapi/linux/if_arp.h>
 #include <linux/sysfs.h>
+#include <soc/hobot/diag.h>
 
 #include "hobot_eth.h"
 #include "hobot_reg.h"
 #include "hobot_tsn.h"
+
+static int last_err;
+static int first_time;
 
 #define TSO_MAX_BUFF_SIZE (SZ_16K - 1)
 
@@ -267,7 +271,7 @@ static void x2_mtl_setup(struct platform_device *pdev, struct plat_config_data *
 		plat->tx_sched_algorithm = MTL_TX_ALGORITHM_WRR;
 	else if (of_property_read_bool(tx_node, "snps,tx-sched-sp"))
 		plat->tx_sched_algorithm = MTL_TX_ALGORITHM_SP;
-	else 
+	else
 		plat->tx_sched_algorithm = 0x0;
 
 	queue = 0;
@@ -284,7 +288,7 @@ static void x2_mtl_setup(struct platform_device *pdev, struct plat_config_data *
 			plat->tx_queues_cfg[queue].mode_to_use = MTL_QUEUE_DCB;
 		} else if (of_property_read_bool(q_node, "snps,avb-algorithm")){
 			plat->tx_queues_cfg[queue].mode_to_use = MTL_QUEUE_AVB;
-			
+
 			if (of_property_read_u32(q_node, "snps,send_slope", \
                 &plat->tx_queues_cfg[queue].send_slope))
 				plat->tx_queues_cfg[queue].send_slope =0x0;
@@ -292,7 +296,7 @@ static void x2_mtl_setup(struct platform_device *pdev, struct plat_config_data *
 			if (of_property_read_u32(q_node, "snps,idle_slope", \
                 &plat->tx_queues_cfg[queue].idle_slope))
 				plat->tx_queues_cfg[queue].idle_slope = 0x0;
-		
+
 			if (of_property_read_u32(q_node, "snps,high_credit", \
                 &plat->tx_queues_cfg[queue].high_credit))
 				plat->tx_queues_cfg[queue].high_credit = 0x0;
@@ -301,8 +305,9 @@ static void x2_mtl_setup(struct platform_device *pdev, struct plat_config_data *
                 &plat->tx_queues_cfg[queue].low_credit))
 				plat->tx_queues_cfg[queue].low_credit = 0x0;
 
-		} else 
+		} else {
 			plat->tx_queues_cfg[queue].mode_to_use = MTL_QUEUE_DCB;
+		}
 
 		if (of_property_read_u32(q_node, "snps,priority", \
             &plat->tx_queues_cfg[queue].prio)) {
@@ -587,7 +592,7 @@ static int x2_get_hw_features(void __iomem *ioaddr, struct dma_features *dma_cap
 		break;
 	case 0x4:
 		dma_cap->estdep = 512;
-		break;	
+		break;
 	}
 
 	switch (dma_cap->frpes) {
@@ -612,7 +617,7 @@ static int x2_hw_init(struct x2_priv *priv)
 {
 	if (priv->plat->force_no_tx_coe)
 		priv->plat->tx_coe = 0;
-	else 
+	else
 		priv->plat->tx_coe = priv->dma_cap.tx_coe;
 
 	if (!priv->plat->force_no_rx_coe) {
@@ -671,7 +676,7 @@ static int x2_mdio_register(struct x2_priv *priv)
 
 	if (!mdio_bus_data)
 		return 0;
-	
+
     new_bus = mdiobus_alloc();
 	if (!new_bus)
 		return  -ENOMEM;
@@ -727,7 +732,7 @@ static int x2_est_write(struct x2_priv *priv, u32 reg, u32 val, bool is_gcla)
 		if (readl(priv->ioaddr + MTL_EST_GCL_CONTROL) & MTL_EST_SRWO)
 			continue;
 		break;
-	}	
+	}
 
     if (!timeout) {
 		pr_info("failed to write EST reg control 0x%x\n", control);
@@ -790,7 +795,7 @@ static u32 x2_config_sub_second_increment(struct x2_priv *priv, u32 ptp_clock, i
 	ns &= PTP_SSIR_SSINC_MASK;
 	subns &= PTP_SSIR_SNSINC_MASK;
 
-	value = ns;	
+	value = ns;
 	value <<= GMAC4_PTP_SSIR_SSINC_SHIFT;
 	value |= subns << GMAC4_PTP_SSIR_SNSINC_SHIFT;
 
@@ -824,7 +829,7 @@ static int x2_config_addend(struct x2_priv *priv, u32 addend)
 
 static int x2_init_systime(struct x2_priv *priv, u32 sec, u32 nsec)
 {
-	void __iomem *ioaddr = priv->ioaddr;	
+	void __iomem *ioaddr = priv->ioaddr;
 	int limit;
 	u32 value;
 
@@ -975,9 +980,10 @@ static int x2_est_configuration(struct x2_priv *priv)
 
 	if (ret) {
 		priv->est_enabled = false;
-		
-	 } else
-		 priv->est_enabled = true;
+
+	} else {
+		priv->est_enabled = true;
+	}
 
 	return ret;
 }
@@ -1068,7 +1074,7 @@ int x2_tsn_capable(struct net_device *ndev)
 {
 	struct x2_priv *priv = netdev_priv(ndev);
 	return priv->tsn_ready == 1;
-}	
+}
 
 int x2_tsn_link_configure(struct net_device *ndev, enum sr_class class, u16 framesize, u16 vid, u8 add_link, u8 pcp_hi, u8 pcp_lo)
 {
@@ -1105,7 +1111,7 @@ int x2_tsn_link_configure(struct net_device *ndev, enum sr_class class, u16 fram
 		priv->pcp_hi = pcp_hi & 0x7;
 		priv->pcp_lo = pcp_lo & 0x7;
 		priv->tsn_vlan_added = 1;
-	}	
+	}
 
     if (priv->plat->interface == PHY_INTERFACE_MODE_SGMII) {
     	port_rate = PORT_RATE_SGMII;
@@ -1136,7 +1142,7 @@ int x2_tsn_link_configure(struct net_device *ndev, enum sr_class class, u16 fram
     if (priv->dma_cap.tsn) {
         if (priv->dma_cap.fpesel && priv->plat->fp_en) {
             x2_tsn_fp_configure(priv);
-        } 
+        }
     }
 
 	return 0;
@@ -1169,7 +1175,7 @@ u16 x2_tsn_select_queue(struct net_device *ndev, struct sk_buff *skb, void *acce
 		default:
 			return AVB_BEST_EFF_Q;
 		}
-	}	
+	}
 
 	return fallback(ndev, skb);
 }
@@ -1235,7 +1241,7 @@ static void x2_set_rx_flow_ctrl(struct x2_priv *priv, bool enable)
 	regval = x2_reg_read(priv, REG_DWCEQOS_MAC_RX_FLOW_CTRL);
 	if (enable)
 		regval |= DWCEQOS_MAC_RX_FLOW_CTRL_RFE;
-	else 
+	else
 		regval &= ~DWCEQOS_MAC_RX_FLOW_CTRL_RFE;
 
 	x2_reg_write(priv, REG_DWCEQOS_MAC_RX_FLOW_CTRL, regval);
@@ -1248,7 +1254,7 @@ static void x2_set_tx_flow_ctrl(struct x2_priv *priv, bool enable)
 	regval = x2_reg_read(priv, REG_DWCEQOS_MTL_RXQ0_OPER);
       	if (enable)
 		regval |= DWCEQOS_MTL_RXQ_EHFC;
-	else 
+	else
 		regval &= ~DWCEQOS_MTL_RXQ_EHFC;
 
 	x2_reg_write(priv, REG_DWCEQOS_MTL_RXQ0_OPER, regval);
@@ -1454,7 +1460,7 @@ static void x2_free_tx_buffer(struct x2_priv *priv, u32 queue, int i)
 	struct x2_tx_queue *tx_q  = &priv->tx_queue[queue];
 
 	if (tx_q->tx_skbuff_dma[i].buf) {
-		if (tx_q->tx_skbuff_dma[i].map_as_page) 
+		if (tx_q->tx_skbuff_dma[i].map_as_page)
 			dma_unmap_page(priv->device, tx_q->tx_skbuff_dma[i].buf, tx_q->tx_skbuff_dma[i].len, DMA_TO_DEVICE);
 		else
 			dma_unmap_single(priv->device, tx_q->tx_skbuff_dma[i].buf, tx_q->tx_skbuff_dma[i].len, DMA_TO_DEVICE);
@@ -1503,7 +1509,7 @@ static void free_dma_tx_desc_resources(struct x2_priv *priv)
 	    x2_set_tx_tail_ptr(priv->ioaddr, tx_q->tx_tail_addr, queue);
 		kfree(tx_q->tx_skbuff_dma);
 		kfree(tx_q->tx_skbuff);
-	} 
+	}
 }
 
 static int alloc_dma_tx_desc_resources(struct x2_priv *priv)
@@ -1539,7 +1545,6 @@ static int alloc_dma_tx_desc_resources(struct x2_priv *priv)
 			if (!tx_q->dma_tx)
 				goto err_dma;
 		}
-	
 	}
 
 	return 0;
@@ -1595,12 +1600,12 @@ static void x2_clear_rx_descriptors(struct x2_priv *priv, u32 queue)
 
 		if (priv->extend_desc) {
 			p = &rx_q->dma_erx[i].basic;
-			
+
 		} else {
 
 			p = &rx_q->dma_rx[i];
 			p->des3 = cpu_to_le32(RDES3_OWN | RDES3_BUFFER1_VALID_ADDR);
-			p->des3 |= cpu_to_le32(RDES3_INT_ON_COMPLETION_EN);			
+			p->des3 |= cpu_to_le32(RDES3_INT_ON_COMPLETION_EN);
 		}
 	}
 
@@ -1622,7 +1627,7 @@ static void x2_clear_tx_descriptors(struct x2_priv *priv, u32 queue)
 			p->des3 = 0;
 
 		} else {
-			p = &tx_q->dma_tx[i];		
+			p = &tx_q->dma_tx[i];
 			p->des0 = 0;
 			p->des1 = 0;
 			p->des2 = 0;
@@ -1754,7 +1759,7 @@ static int x2_dma_reset(void __iomem *ioaddr)
 	while (limit--) {
 		if (!(readl(ioaddr + DMA_BUS_MODE) & DMA_BUS_MODE_SFT_RESET))
 			break;
-		
+
 		mdelay(10);
 	}
 	if (limit < 0)
@@ -1841,7 +1846,7 @@ static void x2_set_dma_axi(void __iomem *ioaddr, struct x2_axi *axi)
 			value |= DMA_AXI_BLEN256;break;
 		case 128:
 			value |= DMA_AXI_BLEN128;break;
-		case 64: 
+		case 64:
 			value |= DMA_AXI_BLEN64;break;
 		case 32:
 			value |= DMA_AXI_BLEN32;break;
@@ -1854,7 +1859,7 @@ static void x2_set_dma_axi(void __iomem *ioaddr, struct x2_axi *axi)
 		}
 	}
 
-	writel(value, ioaddr + DMA_SYS_BUS_MODE);	
+	writel(value, ioaddr + DMA_SYS_BUS_MODE);
 }
 
 static int x2_init_dma_engine(struct x2_priv *priv)
@@ -1946,7 +1951,7 @@ static void x2_set_tx_queue_weight(struct x2_priv *priv)
 
 	for (queue = 0; queue < tx_count; queue++) {
 		weight = priv->plat->tx_queues_cfg[queue].weight;
-		
+
 		value = readl(priv->ioaddr + MTL_TXQX_WEIGHT_BASE_ADDR(queue));
 		value &= ~MTL_TXQ_WEIGHT_ISCQW_MASK;
 		value |= weight & MTL_TXQ_WEIGHT_ISCQW_MASK;
@@ -2092,7 +2097,7 @@ static void x2_rx_queue_dma_chan_map(struct x2_priv *priv)
 	for (queue = 0; queue < rx_queues_count; queue++) {
 		chan = priv->plat->rx_queues_cfg[queue].chan;
 
-		if (queue < 4) 
+		if (queue < 4)
 			value = readl(ioaddr + MTL_RXQ_DMA_MAP0);
 		else
 			value = readl(ioaddr + MTL_RXQ_DMA_MAP1);
@@ -2153,7 +2158,7 @@ static void x2_mac_config_rx_queues_prio(struct x2_priv *priv)
 		value = readl(ioaddr + base_reg);
 		value &= ~GMAC_RXQCTRL_PSRQX_MASK(queue);
 		value |= (prio << GMAC_RXQCTRL_PSRQX_SHIFT(queue)) & GMAC_RXQCTRL_PSRQX_MASK(queue);
-		writel(value, ioaddr + base_reg);		
+		writel(value, ioaddr + base_reg);
 	}
 }
 
@@ -2257,10 +2262,10 @@ static void x2_mtl_config(struct x2_priv *priv)
 		x2_pro_tx_algo(priv, priv->plat->tx_sched_algorithm);
 	}
 
-	if (rx_queues_count > 1) 
+	if (rx_queues_count > 1)
 		x2_pro_rx_algo(priv, priv->plat->rx_sched_algorithm);
 
-//	if (tx_queues_count > 1) 
+//	if (tx_queues_count > 1)
 //		x2_config_cbs(priv);
 
 /*add by dhw*/
@@ -2303,14 +2308,14 @@ static void x2_set_mac(void __iomem *ioaddr, bool enable)
 
 	if (enable)
 		value |= MAC_ENABLE_RX | MAC_ENABLE_TX;
-	else 
+	else
 		value &= ~(MAC_ENABLE_TX | MAC_ENABLE_RX);
 	writel(value , ioaddr + MAC_CTRL_REG);
 }
 
 static void x2_dma_rx_chan_op_mode(void __iomem *ioaddr, int mode, u32 chan, int rxfifosz, u8 qmode)
 {
-	unsigned int rqs = (rxfifosz / 256) - 1;		
+	unsigned int rqs = (rxfifosz / 256) - 1;
 	u32 mtl_rx_op, mtl_rx_int;
 
 	mtl_rx_op = readl(ioaddr + MTL_CHAN_RX_OP_MODE(chan));
@@ -2357,7 +2362,7 @@ static void x2_dma_tx_chan_op_mode(void __iomem *ioaddr, int mode, u32 chan, int
 	unsigned int tqs = fifosz / 256 - 1;
 
 	mtl_tx_op |= MTL_OP_MODE_TSF;
-	
+
 	mtl_tx_op &= ~MTL_OP_MODE_TXQEN_MASK;
 	if (qmode != MTL_QUEUE_AVB)
 		mtl_tx_op |= MTL_OP_MODE_TXQEN;
@@ -2480,7 +2485,7 @@ static void x2_set_rings_length(struct x2_priv *priv)
 		writel(len, ioaddr + DMA_CHAN_TX_RING_LEN(chan));
 	}
 
-	for (chan = 0; chan < rx_count; chan++) {	
+	for (chan = 0; chan < rx_count; chan++) {
 		len = DMA_RX_SIZE - 1;
 		writel(len, ioaddr + DMA_CHAN_RX_RING_LEN(chan));
 	}
@@ -2516,13 +2521,13 @@ static int x2_get_time(struct ptp_clock_info *ptp, struct timespec64 *ts)
 	struct x2_priv *priv = container_of(ptp, struct x2_priv, ptp_clock_ops);
 	unsigned long flags;
 	u64 ns;
-	
+
 	spin_lock_irqsave(&priv->ptp_lock, flags);
 
 	ns = x2_get_systime(priv);
-	
+
 	spin_unlock_irqrestore(&priv->ptp_lock, flags);
-	
+
 	*ts = ns_to_timespec64(ns);
 	return 0;
 }
@@ -2574,7 +2579,7 @@ static int x2_adjust_time(struct ptp_clock_info *ptp, s64 delta)
 	if (delta < 0) {
 		neg_adj = 1;
 		delta = -delta;
-	} 
+	}
 
 	quotient = div_u64_rem(delta, 1000000000ULL, &reminder);
 	sec = quotient;
@@ -2634,7 +2639,7 @@ static int x2_flex_pps_config(struct x2_priv *priv, int index, struct x2_pps_cfg
 
 	writel(period - 1, priv->ioaddr + MAC_PPSx_WIDTH(index));
     writel(val, priv->ioaddr + MAC_PPS_CONTROL);
-	return 0;	
+	return 0;
 }
 
 
@@ -2646,7 +2651,7 @@ static int x2_ptp_enable(struct ptp_clock_info *ptp, struct ptp_clock_request *r
 
 	unsigned long flags;
 
-#if 1	
+#if 1
 	switch(rq->type) {
 	case PTP_CLK_REQ_PEROUT:
 		cfg = &priv->pps[rq->perout.index];
@@ -2707,7 +2712,6 @@ static struct ptp_clock_info x2_ptp_clock_ops = {
 	.gettime64 = x2_get_time,
 	.settime64 = x2_set_time,
 	.enable = x2_ptp_enable,
-	
 };
 
 static void x2_ptp_register(struct x2_priv *priv)
@@ -2722,7 +2726,7 @@ static void x2_ptp_register(struct x2_priv *priv)
 		priv->pps[i].available = true;
 	}
 
-	x2_ptp_clock_ops.n_per_out = priv->dma_cap.pps_out_num; 
+	x2_ptp_clock_ops.n_per_out = priv->dma_cap.pps_out_num;
 
 	spin_lock_init(&priv->ptp_lock);
 
@@ -2732,8 +2736,9 @@ static void x2_ptp_register(struct x2_priv *priv)
 	if (IS_ERR(priv->ptp_clock)) {
 		pr_info("ptp_clock_register failed by hobot\n");
 		priv->ptp_clock = NULL;
-	} else if (priv->ptp_clock) 
+	} else if (priv->ptp_clock) {
 		pr_info("registered PTP clock by hobot successfully\n");
+	}
 }
 
 static int x2_init_ptp(struct x2_priv *priv)
@@ -2774,11 +2779,11 @@ static int x2_hw_setup(struct net_device *ndev, bool init_ptp)
 	if (ret < 0) {
 		pr_info("%s, DMA engine initilization failed\n", __func__);
 		return ret;
-	}	
+	}
 
 	x2_set_umac_addr(priv->ioaddr, ndev->dev_addr, 0);
 
-	x2_core_init(priv, ndev->mtu);	
+	x2_core_init(priv, ndev->mtu);
 
 	x2_mtl_config(priv);
 
@@ -2787,7 +2792,7 @@ static int x2_hw_setup(struct net_device *ndev, bool init_ptp)
 		pr_info("RX IPC checksum offload disabled\n");
 		priv->plat->rx_coe = STMMAC_RX_COE_NONE;
 		priv->rx_csum = 0;
-	} 
+	}
 
 	x2_set_mac(priv->ioaddr, true);
 
@@ -2802,8 +2807,9 @@ static int x2_hw_setup(struct net_device *ndev, bool init_ptp)
 		ret = x2_init_ptp(priv);
 		if (ret == -EOPNOTSUPP) {
 			pr_info("PTP not supported by HW\n");
-		} else if(ret) 
+		} else if (ret) {
 			pr_info("PTP init failed\n");
+		}
 	}
 
     if (priv->use_riwt) {
@@ -2823,7 +2829,7 @@ static int x2_hw_setup(struct net_device *ndev, bool init_ptp)
 	}
 
 	return 0;
-}	
+}
 
 static void free_dma_desc_resources(struct x2_priv *priv)
 {
@@ -2851,10 +2857,36 @@ static void x2_start_all_queues(struct x2_priv *priv)
 		netif_tx_start_queue(netdev_get_tx_queue(priv->dev, queue));
 }
 
+static void dwceqos_diag_process(u32 errsta, uint32_t regval)
+{
+	u8 sta;
+	u8 envgen_timing;
+	u32 int_status;
+
+	int_status = regval;
+	if (errsta) {
+		sta = DiagEventStaFail;
+		envgen_timing = DiagGenEnvdataWhenErr;
+		if (diag_send_event_stat_and_env_data(DiagMsgPrioHigh,
+						ModuleDiag_eth, EventIdEthDmaBusErr, sta,
+						envgen_timing, (uint8_t *)&int_status, 4) < 0) {
+			printk("eth: event %d snd diag msg with env data error\n",
+						EventIdEthDmaBusErr);
+		}
+	} else {
+		sta = DiagEventStaSuccess;
+		if (diag_send_event_stat(DiagMsgPrioHigh, ModuleDiag_eth,
+								EventIdEthDmaBusErr, sta) < 0) {
+			printk("eth: event %d snd diag msg with env data error\n",
+						EventIdEthDmaBusErr);
+		}
+	}
+}
 static int x2_dma_interrupt(struct x2_priv *priv, \
              struct x2_extra_stats *x, u32 chan)
 {
 	int ret = 0;
+	int err = 0;
     void __iomem *ioaddr = priv->ioaddr;
 	u32 intr_status = readl(ioaddr + DMA_CHAN_STATUS(chan)); //0x1160
 
@@ -2882,11 +2914,13 @@ static int x2_dma_interrupt(struct x2_priv *priv, \
 		if (intr_status & DMA_CHAN_STATUS_TPS) {
 			x->tx_process_stopped_irq++;
 			ret = tx_hard_error;
+			err = 1;
 		}
 
 		if (intr_status & DMA_CHAN_STATUS_FBE) {
 			x->fatal_bus_error_irq++;
 			ret = tx_hard_error;
+			err = 1;
 		}
 	}
 
@@ -2902,10 +2936,20 @@ static int x2_dma_interrupt(struct x2_priv *priv, \
 			ret |= handle_tx;
 		}
 
-		if (intr_status & DMA_CHAN_STATUS_ERI) 
+		if (intr_status & DMA_CHAN_STATUS_ERI)
 			x->rx_early_irq++;
 	}
 	writel((intr_status), ioaddr + DMA_CHAN_STATUS(chan));
+
+	if (first_time == 0) {
+		first_time = 1;
+		last_err = err;
+		dwceqos_diag_process(err, intr_status);
+	} else if (last_err != err) {
+		last_err = err;
+		dwceqos_diag_process(err, intr_status);
+	}
+
 	return ret;
 }
 
@@ -2960,7 +3004,6 @@ static void x2_tx_err(struct x2_priv *priv, u32 chan)
 		if (priv->extend_desc) {
 			x2_init_tx_desc(&tx_q->dma_etx[i].basic, (i == DMA_TX_SIZE -1 ));
 		} else {
-		
 			x2_init_tx_desc(&tx_q->dma_tx[i], (i == DMA_TX_SIZE - 1));
 		}
 
@@ -2988,7 +3031,7 @@ static inline void x2_pcs_isr(void __iomem *ioaddr, u32 reg, unsigned int intr_s
 		x->irq_pcs_link_n++;
 		if (val & GMAC_AN_STATUS_LS)
 			pr_info("x2 pcs: link up\n");
-		else 
+		else
 			pr_info("x2 pcs: Link down\n");
 	}
 }
@@ -3040,7 +3083,6 @@ static void x2_phystatus(struct x2_priv *priv, struct x2_extra_stats *x)
 	pr_info("%s, and mac_AN_stauts_reg-0xe4: 0x%x\n", \
         __func__, readl(ioaddr + 0xe4));
 #endif
-	
 }
 
 static int x2_host_irq_status(struct x2_priv *priv, struct x2_extra_stats *x)
@@ -3138,7 +3180,7 @@ static int x2_host_mtl_irq_status(struct x2_priv *priv, u32 chan)
 		}
 		if (status & MTL_STATUS_HLBS)
 			pr_info("head of line blocking due scheduling\n");
-		
+
 		if (status & MTL_STATUS_HLBF) {
 			u32 queue = readl(ioaddr + MTL_EST_Frm_Size_Error);
 			u32 frame = readl(ioaddr + MTL_EST_Frm_Size_Capture);
@@ -3151,10 +3193,10 @@ static int x2_host_mtl_irq_status(struct x2_priv *priv, u32 chan)
 		}
 		if (status & MTL_STATUS_BTRE)
 			pr_info("BTR error\n");
-		
+
 		if (status & MTL_STATUS_SWLC)
 			pr_info("switch to S/W owned list complete\n");
-		
+
 		writel(status, ioaddr + 0xc58);
 	}
 
@@ -3578,7 +3620,7 @@ static int x2_tx_status(struct net_device_stats *data, struct x2_extra_stats *x,
 		return tx_dma_own;
 
 	if (!(tdes3 & TDES3_LAST_DESCRIPTOR)) {
-		return tx_not_ls;	
+		return tx_not_ls;
 	}
 	if (tdes3 & TDES3_ERROR_SUMMARY) {
 		if (tdes3 & TDES3_JABBER_TIMEOUT){
@@ -3611,7 +3653,6 @@ static int x2_tx_status(struct net_device_stats *data, struct x2_extra_stats *x,
 		}
 
 		if (tdes3 & TDES3_PAYLOAD_ERROR) {
-			
 			x->tx_payload_error++;
 		}
 		ret = tx_err;
@@ -3690,9 +3731,9 @@ static void x2_tx_clean(struct x2_priv *priv, u32 queue)
 		struct dma_desc *p;
 		int status;
 
-		if (priv->extend_desc) {
+		if (priv->extend_desc)
 			p = (struct dma_desc*)(tx_q->dma_etx + entry);
-		} else 
+		else
 			p = tx_q->dma_tx + entry;
 
         status = x2_tx_status(&priv->dev->stats, \
@@ -3714,7 +3755,7 @@ static void x2_tx_clean(struct x2_priv *priv, u32 queue)
 		}
 
 		if (tx_q->tx_skbuff_dma[entry].buf) {
-			if (tx_q->tx_skbuff_dma[entry].map_as_page) 
+			if (tx_q->tx_skbuff_dma[entry].map_as_page)
 				dma_unmap_page(priv->device, tx_q->tx_skbuff_dma[entry].buf, tx_q->tx_skbuff_dma[entry].len, DMA_TO_DEVICE);
 			else
 				dma_unmap_single(priv->device, tx_q->tx_skbuff_dma[entry].buf, tx_q->tx_skbuff_dma[entry].len, DMA_TO_DEVICE);
@@ -3831,7 +3872,7 @@ dma_desc_error:
 
 	if (ndev->phydev)
 		phy_disconnect(ndev->phydev);
-	
+
 	return ret;
 }
 
@@ -3851,7 +3892,7 @@ static void x2_disable_all_queues(struct x2_priv *priv)
 
 	for (queue = 0; queue < rx_cnt; queue++) {
 		struct x2_rx_queue *rx_q = &priv->rx_queue[queue];
-		
+
         napi_disable(&rx_q->napi);
 	}
 }
@@ -3876,7 +3917,7 @@ static void x2_stop_all_dma(struct x2_priv *priv)
 	u32 tx_cnt = priv->plat->tx_queues_to_use;
 	u32 chan = 0;
 
-	for (chan = 0; chan < rx_cnt; chan++) 
+	for (chan = 0; chan < rx_cnt; chan++)
 		x2_stop_rx_dma(priv, chan);
 
 	for (chan = 0; chan < tx_cnt; chan++)
@@ -3929,7 +3970,7 @@ static void x2_prepare_tx_desc(struct dma_desc *p, int is_fs, int len, bool csum
 	p->des2 |= cpu_to_le32(len & TDES2_BUFFER1_SIZE_MASK);
 
 	tdes3 |= tot_pkt_len & TDES3_PACKET_SIZE_MASK;
-	
+
 	if (is_fs)
 		tdes3 |= TDES3_FIRST_DESCRIPTOR;
 	else
@@ -3943,7 +3984,7 @@ static void x2_prepare_tx_desc(struct dma_desc *p, int is_fs, int len, bool csum
 
 	if (ls)
 		tdes3 |= (TDES3_LAST_DESCRIPTOR);
-	else 
+	else
 		tdes3 &= ~(TDES3_LAST_DESCRIPTOR);
 
 	if (tx_own)
@@ -4088,7 +4129,7 @@ static netdev_tx_t x2_tso_xmit(struct sk_buff *skb, struct net_device *ndev)
 
 	for(i = 0; i < nfrags; i++) {
 		const skb_frag_t *frag = &skb_shinfo(skb)->frags[i];
-		
+
 		des = skb_frag_dma_map(priv->device, frag, 0, skb_frag_size(frag), DMA_TO_DEVICE);
 		if (dma_mapping_error(priv->device, des))
 			goto dma_map_err;
@@ -4117,7 +4158,7 @@ static netdev_tx_t x2_tso_xmit(struct sk_buff *skb, struct net_device *ndev)
     if (likely(priv->tx_coal_frames > priv->tx_count_frames)) {
         mod_timer(&priv->txtimer, HOBOT_COAL_TIMER(priv->tx_coal_timer));
     } else {
-        priv->tx_count_frames = 0; 
+        priv->tx_count_frames = 0;
     	desc->des2 |= cpu_to_le32(TDES2_INTERRUPT_ON_COMPLETION);
 	    priv->xstats.tx_set_ic_bit++;
     }
@@ -4313,7 +4354,7 @@ static int x2_ptp_get_ts_config(struct net_device *ndev, struct ifreq *rq)
 
 	if (!(priv->dma_cap.time_stamp || priv->dma_cap.atime_stamp))
 		return -EOPNOTSUPP;
-	
+
 	return copy_to_user(rq->ifr_data, config, sizeof(*config)) ? -EFAULT : 0;
 }
 
@@ -4436,7 +4477,7 @@ static int x2_ptp_set_ts_config(struct net_device *ndev, struct ifreq *ifr)
 		default:
 			return -ERANGE;
 		}
-	
+
 	} else {
         switch (config.rx_filter) {
 		case HWTSTAMP_FILTER_NONE:
@@ -4558,7 +4599,7 @@ static const struct net_device_ops x2_netdev_ops = {
 	.ndo_do_ioctl = x2_ioctl,
 	.ndo_set_rx_mode = x2_set_rx_mode,
 	.ndo_set_mac_address = eth_mac_addr,
-	
+
 	.ndo_tsn_capable = x2_tsn_capable,
 	.ndo_tsn_link_configure = x2_tsn_link_configure,
 	.ndo_select_queue = x2_tsn_select_queue,
@@ -4740,7 +4781,7 @@ exit:
 
 static void x2_get_rx_hwtstamp(struct x2_priv *priv, struct dma_desc *p, struct dma_desc *np, struct sk_buff *skb)
 {
-	struct skb_shared_hwtstamps *shhwtstamp = NULL;	
+	struct skb_shared_hwtstamps *shhwtstamp = NULL;
 	struct dma_desc *desc = p;
 	u64 ns;
 
@@ -4749,7 +4790,7 @@ static void x2_get_rx_hwtstamp(struct x2_priv *priv, struct dma_desc *p, struct 
 
 	desc = np;
 
-	if (x2_get_rx_timestamp_status(p, np, priv->adv_ts)) {	
+	if (x2_get_rx_timestamp_status(p, np, priv->adv_ts)) {
 		pr_debug("get rx hwstamp: des0:0x%x, des1:0x%x\n", \
             desc->des0, desc->des1);
 		ns = le32_to_cpu(desc->des0);
@@ -4803,7 +4844,7 @@ static inline void x2_rx_refill(struct x2_priv *priv, u32 queue)
 
 		if (priv->extend_desc)
 			p = (struct dma_desc *)(rx_q->dma_erx + entry);
-		else 
+		else
 			p = rx_q->dma_rx + entry;
 
 		if (!rx_q->rx_skbuff[entry]) {
@@ -4848,7 +4889,7 @@ static inline void x2_rx_refill(struct x2_priv *priv, u32 queue)
         p->des3 = cpu_to_le32(RDES3_OWN | RDES3_BUFFER1_VALID_ADDR);
 		if (!use_rx_wd)
            p->des3 |= cpu_to_le32(RDES3_INT_ON_COMPLETION_EN);
-	
+
     	entry = X2_GET_ENTRY(entry, DMA_RX_SIZE);
 	}
 
@@ -4888,7 +4929,7 @@ static int x2_rx_packet(struct x2_priv *priv, int limit, u32 queue)
 		pr_debug("%s, cur_rx:%d\n", __func__, rx_q->cur_rx);
 		if (priv->extend_desc)
 			np = (struct dma_desc *)(rx_q->dma_erx + next_entry);
-		else 
+		else
 			np = rx_q->dma_rx + next_entry;
 
 		prefetch(np);
@@ -4940,7 +4981,7 @@ static int x2_rx_packet(struct x2_priv *priv, int limit, u32 queue)
 			x2_rx_vlan(priv->dev, skb);
 
 			skb->protocol = eth_type_trans(skb, priv->dev);
-	
+
 			if (!coe)
 				skb_checksum_none_assert(skb);
 			else
@@ -5130,7 +5171,7 @@ static int x2_dvr_probe(struct device *device, struct plat_config_data *plat_dat
 	priv->dev->base_addr = (unsigned long)x2_res->addr;
 
 	priv->dev->irq = x2_res->irq;
-	
+
 #ifdef HOBOT_USE_IRQ_SPLIT
     priv->tx_irq = x2_res->tx_irq;
     priv->rx_irq = x2_res->rx_irq;
@@ -5164,7 +5205,6 @@ static int x2_dvr_probe(struct device *device, struct plat_config_data *plat_dat
 		goto err_hw_init;
 
 	if (priv->dma_cap.tsn && priv->plat->tx_queues_to_use > 3) {
-	
 		x2_configure_tsn(priv);
 	}
 
@@ -5175,8 +5215,8 @@ static int x2_dvr_probe(struct device *device, struct plat_config_data *plat_dat
 
 	ndev->hw_features = NETIF_F_SG;
 
-#if 1 
-	if((priv->plat->tso_en) ) { 
+#if 1
+	if(priv->plat->tso_en) {
 		ndev->hw_features |= NETIF_F_TSO | NETIF_F_TSO6;
 		priv->tso = true;
 		pr_info("TSO feature enabled\n");
@@ -5201,7 +5241,7 @@ static int x2_dvr_probe(struct device *device, struct plat_config_data *plat_dat
 
 	ndev->min_mtu = ETH_ZLEN - ETH_HLEN;
 	ndev->max_mtu = JUMBO_LEN;
-	
+
 	if ((priv->plat->maxmtu < ndev->max_mtu) && (priv->plat->maxmtu >= ndev->min_mtu))
 		ndev->max_mtu = priv->plat->maxmtu;
 	else if (priv->plat->maxmtu < ndev->min_mtu)
@@ -5210,10 +5250,10 @@ static int x2_dvr_probe(struct device *device, struct plat_config_data *plat_dat
 
     priv->use_riwt = 1;
     dev_info(priv->device, "Enable Rx Mitigation via HW Watchdog Timer\n");
-	
+
 	for (queue = 0; queue < priv->plat->rx_queues_to_use; queue++) {
 		struct x2_rx_queue *rx_q = &priv->rx_queue[queue];
-		
+
 		netif_napi_add(ndev, &rx_q->napi, x2_poll, \
             (12 * priv->plat->rx_queues_to_use));
 	}
@@ -5226,7 +5266,7 @@ static int x2_dvr_probe(struct device *device, struct plat_config_data *plat_dat
 		pr_info("MDIO bus error register\n");
 		goto err_mdio_reg;
 	}
-	
+
 	ret = devm_request_irq(priv->device, ndev->irq, \
             &x2_interrupt, 0, ndev->name, ndev);
 	if (ret < 0) {
@@ -5259,9 +5299,9 @@ static int x2_dvr_probe(struct device *device, struct plat_config_data *plat_dat
 		goto err_netdev_reg;
 	}
 	return 0;
-	
+
 irq_error:
-err_netdev_reg:	
+err_netdev_reg:
 	mdiobus_unregister(priv->mii);
 	priv->mii->priv = NULL;
 	mdiobus_free(priv->mii);
@@ -5270,7 +5310,7 @@ err_mdio_reg:
 	for (queue = 0; queue < priv->plat->rx_queues_to_use; queue++) {
 		struct x2_rx_queue *rx_q = &priv->rx_queue[queue];
 		netif_napi_del(&rx_q->napi);
-	}	
+	}
 err_hw_init:
 	free_netdev(ndev);
 	return ret;
@@ -5301,7 +5341,7 @@ static int x2_eth_dwmac_config_dt(struct platform_device *pdev, struct plat_conf
 		plat_dat->axi->axi_rd_osr_lmt = 1;
 	else
 		plat_dat->axi->axi_rd_osr_lmt--;
-	
+
 	of_property_read_u32(np, "snps,burst-map", &burst_map);
 
 	for (bit_index = 0; bit_index < 7; bit_index++) {
@@ -5351,7 +5391,7 @@ static int hobot_eth_probe(struct platform_device *pdev)
     x2_res.tx_irq = platform_get_irq_byname(pdev, "tx-irq");
     x2_res.rx_irq = platform_get_irq_byname(pdev, "rx-irq");
 #endif
-	
+
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!res) {
 		pr_info("%s, get plat resouce failed\n", __func__);
@@ -5363,12 +5403,12 @@ static int hobot_eth_probe(struct platform_device *pdev)
 		pr_info("%s, error ioremap\n", __func__);
 		ret = PTR_ERR(x2_res.addr);
 		goto err_get_res;
-	}	
-	
+	}
+
 	plat_dat = x2_probe_config_dt(pdev, &x2_res.mac);
 	if (IS_ERR(plat_dat)) {
 		return PTR_ERR(plat_dat);
-	}	
+	}
 
 	ret = x2_eth_dwmac_config_dt(pdev, plat_dat);
 	if (ret)
@@ -5377,7 +5417,9 @@ static int hobot_eth_probe(struct platform_device *pdev)
 	ret = x2_dvr_probe(&pdev->dev, plat_dat, &x2_res);
 	if (ret)
 		goto remove;
-
+	if (diag_register(ModuleDiag_eth, EventIdEthDmaBusErr,
+				4, 300, 6000, NULL) < 0)
+			pr_err("eth diag register fail\n");
 	pr_info("%s: probe sucessfully\n", __func__);
 	return ret;
 remove:
@@ -5438,7 +5480,7 @@ static int hobot_eth_suspend(struct device *dev)
         return 0;
     }
 
-    
+
     if (ndev->phydev)
         phy_stop(ndev->phydev);
 
