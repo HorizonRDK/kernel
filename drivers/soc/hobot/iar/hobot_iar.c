@@ -1292,6 +1292,8 @@ int32_t iar_open(void)
 	init_waitqueue_head(&g_iar_dev->output_done_wq[0]);
 	init_waitqueue_head(&g_iar_dev->output_done_wq[1]);
 
+	g_iar_dev->state = BIT(IAR_WB_INIT);
+
 	return 0;
 }
 EXPORT_SYMBOL_GPL(iar_open);
@@ -1384,8 +1386,6 @@ int32_t iar_start(int update)
 	writel(value, g_iar_dev->regaddr + REG_IAR_DE_REFRESH_EN);
 	//mod_timer(&iartimer,jiffies + msecs_to_jiffies( MSEC_PER_SEC));
 	writel(0x1, g_iar_dev->regaddr + REG_IAR_UPDATE);
-
-	g_iar_dev->state = BIT(IAR_WB_INIT);
 
 	return 0;
 }

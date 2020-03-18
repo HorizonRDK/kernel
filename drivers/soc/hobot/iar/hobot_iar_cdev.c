@@ -217,6 +217,8 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 			if (copy_from_user(&channel_cfg, arg, sizeof(channel_base_cfg_t)))
 				return -EFAULT;
 			ret = iar_channel_base_cfg(&channel_cfg);
+			if (!ret)
+				iar_update();
 		}
 		break;
 	case IAR_GAMMA_CFG:
@@ -226,6 +228,8 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 			if (copy_from_user(&gamma_cfg, arg, sizeof(gamma_cfg_t)))
 				return -EFAULT;
 			ret = iar_gamma_cfg(&gamma_cfg);
+			if (!ret)
+				iar_update();
 		}
 		break;
 	case IAR_SCALE_CFG:
@@ -235,6 +239,8 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 			if (copy_from_user(&upscaling_cfg, arg, sizeof(upscaling_cfg_t)))
 				return -EFAULT;
 			ret = iar_upscaling_cfg(&upscaling_cfg);
+			if (!ret)
+				iar_update();
 		}
 		break;
 	case IAR_OUTPUT_CFG:
@@ -245,6 +251,8 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 				return -EFAULT;
 			ret = iar_output_cfg(&output_cfg);
 			disp_user_config_done = 1;
+			if (!ret)
+				iar_update();
 		}
 		break;
 	case IAR_SET_VIDEO_CHANNEL:
