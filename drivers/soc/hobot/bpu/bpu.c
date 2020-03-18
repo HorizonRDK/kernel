@@ -18,50 +18,8 @@
 
 struct bpu *g_bpu;
 
-/* create bpu_fc from user fc info*/
-int32_t bpu_fc_create_from_user(struct bpu_fc *fc,
-		const struct user_bpu_fc *user_fc, const void *data)
-{
-	int32_t ret;
-
-	if (user_fc == NULL) {
-		return -EINVAL;
-	}
-
-	if (fc == NULL) {
-		pr_err("bpu user fc need have space to place\n");/*PRQA S ALL*/
-		return -EINVAL;
-	}
-
-	fc->info = *user_fc;
-	fc->fc_data = NULL;
-	ret = bpu_fc_bind_group(fc, user_fc->g_id);
-	if (ret != 0) {
-		pr_err("bpu fc bind group failed\n");/*PRQA S ALL*/
-		return ret;
-	}
-	
-	if ((data != NULL) && (user_fc->length > 0u)) {
-		fc->fc_data = kmalloc(user_fc->length, GFP_KERNEL);/*PRQA S ALL*/
-		if (fc->fc_data == NULL) {
-			pr_err("create bpu fc mem failed\n");/*PRQA S ALL*/
-			return -ENOMEM;
-		}
-
-		if (copy_from_user(fc->fc_data, (void __user *)data,/*PRQA S ALL*/
-					user_fc->length) != 0u) {
-			kfree((void *)fc->fc_data);/*PRQA S ALL*/
-			fc->fc_data = NULL;
-			pr_err("%s: copy fc data failed from userspace\n", __func__);/*PRQA S ALL*/
-			return -EFAULT;
-		}
-	}
-
-	return (int32_t)user_fc->length;
-}
-
 /* mainly clear fc data in bpu_fc*/
-void bpu_fc_clear(struct bpu_fc *fc)
+static void bpu_fc_clear(struct bpu_fc *fc)
 {
 	if (fc != NULL) {
 		if (fc->fc_data != NULL) {
@@ -72,7 +30,7 @@ void bpu_fc_clear(struct bpu_fc *fc)
 	}
 }
 
-int32_t bpu_fc_bind_user(struct bpu_fc *fc, struct bpu_user *user)
+static int32_t bpu_fc_bind_user(struct bpu_fc *fc, struct bpu_user *user)
 {
 	int32_t ret;
 
@@ -111,7 +69,7 @@ static struct bpu_fc_group *bpu_find_group(uint32_t group_id)
 	return group;
 }
 
-struct bpu_fc_group *bpu_create_group(uint32_t group_id)
+static struct bpu_fc_group *bpu_create_group(uint32_t group_id)
 {
 	struct bpu_fc_group *tmp_group;
 
@@ -139,7 +97,7 @@ struct bpu_fc_group *bpu_create_group(uint32_t group_id)
 	return tmp_group;
 }
 
-void bpu_delete_group(uint32_t group_id)
+static void bpu_delete_group(uint32_t group_id)
 {
 	struct bpu_fc_group *tmp_group;
 
@@ -151,7 +109,7 @@ void bpu_delete_group(uint32_t group_id)
 	}
 }
 
-int32_t bpu_fc_bind_group(struct bpu_fc *fc, uint32_t group_id)
+static int32_t bpu_fc_bind_group(struct bpu_fc *fc, uint32_t group_id)
 {
 	struct bpu_fc_group *group;
 
@@ -174,6 +132,48 @@ int32_t bpu_fc_bind_group(struct bpu_fc *fc, uint32_t group_id)
 	}
 
 	return 0;
+}
+
+/* create bpu_fc from user fc info*/
+static int32_t bpu_fc_create_from_user(struct bpu_fc *fc,
+		const struct user_bpu_fc *user_fc, const void *data)
+{
+	int32_t ret;
+
+	if (user_fc == NULL) {
+		return -EINVAL;
+	}
+
+	if (fc == NULL) {
+		pr_err("bpu user fc need have space to place\n");/*PRQA S ALL*/
+		return -EINVAL;
+	}
+
+	fc->info = *user_fc;
+	fc->fc_data = NULL;
+	ret = bpu_fc_bind_group(fc, user_fc->g_id);
+	if (ret != 0) {
+		pr_err("bpu fc bind group failed\n");/*PRQA S ALL*/
+		return ret;
+	}
+	
+	if ((data != NULL) && (user_fc->length > 0u)) {
+		fc->fc_data = kmalloc(user_fc->length, GFP_KERNEL);/*PRQA S ALL*/
+		if (fc->fc_data == NULL) {
+			pr_err("create bpu fc mem failed\n");/*PRQA S ALL*/
+			return -ENOMEM;
+		}
+
+		if (copy_from_user(fc->fc_data, (void __user *)data,/*PRQA S ALL*/
+					user_fc->length) != 0u) {
+			kfree((void *)fc->fc_data);/*PRQA S ALL*/
+			fc->fc_data = NULL;
+			pr_err("%s: copy fc data failed from userspace\n", __func__);/*PRQA S ALL*/
+			return -EFAULT;
+		}
+	}
+
+	return (int32_t)user_fc->length;
 }
 
 static int32_t bpu_write_prepare(struct bpu_user *user,

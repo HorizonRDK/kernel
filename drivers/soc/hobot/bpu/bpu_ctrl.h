@@ -10,17 +10,16 @@
 #define __BPU_CTRL_H__
 #include "bpu_core.h"
 
-extern int32_t bpu_core_pend_on(const struct bpu_core *core);
-extern int32_t bpu_core_pend_off(const struct bpu_core *core);
-extern int32_t bpu_core_is_pending(const struct bpu_core *core);
-extern int32_t bpu_core_pend_to_leisure(struct bpu_core *core, int32_t timeout);
-extern int32_t bpu_core_enable(struct bpu_core *core);
-extern int32_t bpu_core_disable(struct bpu_core *core);
-extern int32_t bpu_core_reset(struct bpu_core *core);
-extern int32_t bpu_core_set_volt(struct bpu_core *core, int32_t volt);
-extern int32_t bpu_core_set_clk(struct bpu_core *core, uint64_t rate);
-extern int32_t bpu_core_process_recover(struct bpu_core *core);
-extern int32_t bpu_core_set_limit(struct bpu_core *core, int32_t limit);
+int32_t bpu_core_is_pending(const struct bpu_core *core);
+int32_t bpu_core_clk_on(const struct bpu_core *core);
+int32_t bpu_core_clk_off(const struct bpu_core *core);
+int32_t bpu_core_power_on(const struct bpu_core *core);
+int32_t bpu_core_power_off(const struct bpu_core *core);
+int32_t bpu_core_enable(struct bpu_core *core);
+int32_t bpu_core_disable(struct bpu_core *core);
+int32_t bpu_core_reset(struct bpu_core *core);
+int32_t bpu_core_process_recover(struct bpu_core *core);
+int32_t bpu_core_set_limit(struct bpu_core *core, int32_t limit);
 
 #if defined(CONFIG_PM_DEVFREQ) && defined(CONFIG_DEVFREQ_THERMAL)
 int32_t bpu_core_dvfs_register(struct bpu_core *core, const char *name);

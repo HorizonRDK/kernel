@@ -130,21 +130,12 @@ struct bpu {
 
 extern struct bpu *g_bpu;
 
-/* create bpu_fc from user fc info*/
-int32_t bpu_fc_create_from_user(struct bpu_fc *fc,
-		const struct user_bpu_fc *user_fc, const void *data);
-/* mainly clear fc data in bpu_fc*/
-void bpu_fc_clear(struct bpu_fc *fc);
-
-extern int32_t bpu_write_with_user(const struct bpu_core *core,
+int32_t bpu_write_with_user(const struct bpu_core *core,
 			struct bpu_user *user,
 			const char __user *buf, size_t len);
-extern int32_t bpu_read_with_user(struct bpu_core *core,
+int32_t bpu_read_with_user(struct bpu_core *core,
 			struct bpu_user *user,
 			const char __user *buf, size_t len);
-
-int32_t bpu_fc_bind_user(struct bpu_fc *fc, struct bpu_user *user);
-int32_t bpu_fc_bind_group(struct bpu_fc *fc, uint32_t group_id);
 
 static inline struct bpu_user *bpu_get_user(struct bpu_fc *fc)
 {
@@ -184,10 +175,6 @@ int32_t bpu_core_register(struct bpu_core *core);
 void bpu_core_unregister(struct bpu_core *core);
 int32_t bpu_write_fc_to_core(struct bpu_core *core,
 		struct bpu_fc *bpu_fc, uint32_t offpos);
-
-/* fc group apis */
-struct bpu_fc_group *bpu_create_group(uint32_t group_id);
-void bpu_delete_group(uint32_t group_id);
 
 /* statusis apis */
 uint32_t bpu_ratio(struct bpu *bpu);

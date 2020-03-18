@@ -40,9 +40,9 @@ struct bpu_prio {
 	uint32_t level_num;
 };
 
-extern struct bpu_prio *bpu_prio_init(struct bpu_core *core, uint32_t levels);
-extern void bpu_prio_exit(struct bpu_prio *prio);
-extern int32_t bpu_prio_in(struct bpu_prio *prio, const struct bpu_fc *bpu_fc);
+struct bpu_prio *bpu_prio_init(struct bpu_core *core, uint32_t levels);
+void bpu_prio_exit(struct bpu_prio *prio);
+int32_t bpu_prio_in(struct bpu_prio *prio, const struct bpu_fc *bpu_fc);
 void bpu_prio_trig_out(struct bpu_prio *prio);
 
 #endif

@@ -29,49 +29,38 @@
 #include "bpu_ctrl.h"
 
 #define NAME_LEN		10
-#define ID_LOOP_GAP	10
+#define ID_LOOP_GAP		10
+#define ID_MASK			(0xFFFFFFFFu)
+#define STATE_SHIFT		(32u)
 
 /* tasklet just to do statistics work */
 static void bpu_core_tasklet(unsigned long data)/*PRQA S ALL*/
 {
-	/* core ratio will be update by group check */
-	bpu_sched_seed_update();
-}
-
-static irqreturn_t bpu_core_irq_handler(int irq, void *dev_id)/*PRQA S ALL*/
-{
-	struct bpu_core *core = (struct bpu_core *)dev_id;/*PRQA S ALL*/
+	struct bpu_core *core = (struct bpu_core *)data;/*PRQA S ALL*/
 	struct bpu_user *tmp_user;
 	struct bpu_fc tmp_bpu_fc;
 	uint32_t tmp_hw_id, err;
 	int32_t lost_report;
 	int32_t ret;
 
-	if (atomic_read(&core->host->open_counter) == 0) {/*PRQA S ALL*/
-		return IRQ_HANDLED;
+	if (core == NULL) {
+		return;
 	}
 
-	bpu_prio_trig_out(core->prio_sched);
-
-	spin_lock(&core->spin_lock);/*PRQA S ALL*/
-	ret = core->hw_ops->read_fc(core, &tmp_hw_id, &err);
-	if (ret <= 0) {
-		dev_err(core->dev, "BPU read hardware core error\n");
-		return IRQ_HANDLED;
-	}
-	spin_unlock(&core->spin_lock);
-	pr_debug("BPU Core[%d] irq %d come\n", core->index, tmp_hw_id);/*PRQA S ALL*/
-	/* err irq report the the error to the right user */
+	tmp_hw_id = (uint32_t)(core->done_hw_id & ID_MASK);
+	err = (uint32_t)(core->done_hw_id >> STATE_SHIFT);
 
 	do {
 		lost_report = 0;
 		if (err == 0u) {
 			ret = kfifo_get(&core->run_fc_fifo[FC_PRIO(tmp_hw_id)], &tmp_bpu_fc);/*PRQA S ALL*/
 			if (ret < 1) {
+				core->done_hw_id = 0;
+				bpu_sched_seed_update();
 				dev_err(core->dev,
 						"bpu core no fc bufferd, when normal[%d], lost = %d\n",
 						tmp_hw_id, lost_report);
-				return IRQ_HANDLED;
+				return;
 			}
 
 			/* maybe lost a hw irq */
@@ -87,9 +76,11 @@ static irqreturn_t bpu_core_irq_handler(int irq, void *dev_id)/*PRQA S ALL*/
 		} else {
 			ret = kfifo_peek(&core->run_fc_fifo[FC_PRIO(tmp_hw_id)], &tmp_bpu_fc);/*PRQA S ALL*/
 			if (ret < 1) {
+				core->done_hw_id = 0;
+				bpu_sched_seed_update();
 				dev_err(core->dev,
 						"bpu core no fc bufferd, when error[%d]\n", ret);
-				return IRQ_HANDLED;
+				return;
 			}
 			tmp_bpu_fc.info.status = err;
 		}
@@ -109,8 +100,10 @@ static irqreturn_t bpu_core_irq_handler(int irq, void *dev_id)/*PRQA S ALL*/
 
 				ret = kfifo_in(&tmp_user->done_fcs, &tmp_bpu_fc.info, 1);/*PRQA S ALL*/
 				if (ret < 1) {
+					core->done_hw_id = 0;
+					bpu_sched_seed_update();
 					dev_err(core->dev, "bpu buffer bind user error\n");
-					return IRQ_HANDLED;
+					return;
 				}
 				wake_up_interruptible(&tmp_user->poll_wait);/*PRQA S ALL*/
 			}
@@ -132,11 +125,41 @@ static irqreturn_t bpu_core_irq_handler(int irq, void *dev_id)/*PRQA S ALL*/
 
 		ret = kfifo_in(&core->done_fc_fifo, &tmp_bpu_fc, 1);/*PRQA S ALL*/
 		if (ret < 1) {
+			core->done_hw_id = 0;
+			bpu_sched_seed_update();
 			dev_err(core->dev, "bpu buffer bind user error\n");
-			return IRQ_HANDLED;
+			return;
 		}
 
 	} while (lost_report != 0);
+
+	core->done_hw_id = 0;
+	/* core ratio will be update by group check */
+	bpu_sched_seed_update();
+}
+
+static irqreturn_t bpu_core_irq_handler(int irq, void *dev_id)/*PRQA S ALL*/
+{
+	struct bpu_core *core = (struct bpu_core *)dev_id;/*PRQA S ALL*/
+	uint32_t tmp_hw_id, err;
+	int32_t ret;
+
+	if (atomic_read(&core->host->open_counter) == 0) {/*PRQA S ALL*/
+		return IRQ_HANDLED;
+	}
+
+	bpu_prio_trig_out(core->prio_sched);
+
+	spin_lock(&core->spin_lock);/*PRQA S ALL*/
+	ret = core->hw_ops->read_fc(core, &tmp_hw_id, &err);
+	if (ret <= 0) {
+		dev_err(core->dev, "BPU read hardware core error\n");
+		return IRQ_HANDLED;
+	}
+	spin_unlock(&core->spin_lock);
+	pr_debug("BPU Core[%d] irq %d come\n", core->index, tmp_hw_id);/*PRQA S ALL*/
+
+	core->done_hw_id = ((uint64_t)err << STATE_SHIFT) | (uint64_t)tmp_hw_id;
 
 	tasklet_schedule(&core->tasklet);
 
@@ -148,10 +171,10 @@ static long bpu_core_ioctl(struct file *filp,/*PRQA S ALL*/
 {
 	struct bpu_user *user = (struct bpu_user *)filp->private_data;/*PRQA S ALL*/
 	struct bpu_core *core = (struct bpu_core *)user->host;/*PRQA S ALL*/
-        uint32_t ratio;
-        uint16_t cap;
-        int16_t level;
-        uint32_t limit;
+	uint32_t ratio;
+	uint16_t cap;
+	int16_t level;
+	uint32_t limit;
 
 	int32_t ret = 0;
 	int32_t i;
@@ -469,24 +492,24 @@ static SIMPLE_DEV_PM_OPS(bpu_core_pm_ops,/*PRQA S ALL*/
 			 bpu_core_suspend, bpu_core_resume);
 #endif
 
-static int bpu_core_probe(struct platform_device *pdev)/*PRQA S ALL*/
+static int32_t bpu_core_parse_dts(struct platform_device *pdev, struct bpu_core *core)
 {
-	struct device_node *np = pdev->dev.of_node;
+	struct device_node *np;
 	struct resource *resource;
-	char name[NAME_LEN];
-	struct bpu_core *core;
 	int32_t ret;
-	uint32_t i, j;
 
-	core = (struct bpu_core *)devm_kzalloc(&pdev->dev, sizeof(struct bpu_core), GFP_KERNEL);/*PRQA S ALL*/
 	if (core == NULL) {
-		dev_err(&pdev->dev, "Can't alloc bpu core mem\n");
-		return -ENOMEM;
+		pr_err("NO BPU Core parse DeviceTree\n");/*PRQA S ALL*/
+		return -ENODEV;
 	}
 
-	mutex_init(&core->mutex_lock);/*PRQA S ALL*/
-	spin_lock_init(&core->spin_lock);/*PRQA S ALL*/
-	INIT_LIST_HEAD(&core->user_list);
+	if (pdev == NULL) {
+		pr_err("BPU Core not Bind Device\n");/*PRQA S ALL*/
+		return -ENODEV;
+	}
+
+	np = pdev->dev.of_node;
+	core->dev = &pdev->dev;
 
 	resource = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (resource == NULL) {
@@ -530,13 +553,32 @@ static int bpu_core_probe(struct platform_device *pdev)/*PRQA S ALL*/
 		return PTR_ERR(core->rst);/*PRQA S ALL*/
 	}
 
+	core->irq = irq_of_parse_and_map(np, 0);
+	if (core->irq <= 0u) {
+		dev_err(&pdev->dev, "Can't find bpu core irq\n");
+		return -EFAULT;
+	}
+
+	return 0;
+}
+
+static int32_t bpu_core_alloc_fifos(const struct bpu_core *core)
+{
+	uint32_t i, j;
+	int32_t ret;
+
+	if (core == NULL) {
+		pr_err("NO BPU Core to alloc fifos\n");/*PRQA S ALL*/
+		return -ENODEV;
+	}
+
 	for (i = 0; i < BPU_PRIO_NUM; i++) {
 		ret = kfifo_alloc(&core->run_fc_fifo[i], FC_MAX_DEPTH, GFP_KERNEL);/*PRQA S ALL*/
 		if (ret != 0) {
 			for (j = 0; j < i; j++) {/*PRQA S ALL*/
 				kfifo_free(&core->run_fc_fifo[j]);/*PRQA S ALL*/
 			}
-			dev_err(&pdev->dev, "Can't bpu core run fifo buffer\n");
+			dev_err(core->dev, "Can't bpu core run fifo buffer\n");
 			return ret;
 		}
 	}
@@ -547,27 +589,61 @@ static int bpu_core_probe(struct platform_device *pdev)/*PRQA S ALL*/
 		for (i = 0; i < BPU_PRIO_NUM; i++) {
 			kfifo_free(&core->run_fc_fifo[i]);/*PRQA S ALL*/
 		}
-		dev_err(&pdev->dev, "Can't bpu core done fifo buffer\n");
+		dev_err(core->dev, "Can't bpu core done fifo buffer\n");
 		return ret;
 	}
 
-	core->irq = irq_of_parse_and_map(np, 0);
-	if (core->irq <= 0u) {
-		kfifo_free(&core->done_fc_fifo);/*PRQA S ALL*/
-		for (i = 0; i < BPU_PRIO_NUM; i++) {
-			kfifo_free(&core->run_fc_fifo[i]);/*PRQA S ALL*/
-		}
-		dev_err(&pdev->dev, "Can't find bpu core irq\n");
-		return -EFAULT;
+	return ret;
+}
+
+static void bpu_core_free_fifos(const struct bpu_core *core)
+{
+	uint32_t i;
+
+	if (core == NULL) {
+		return;
+	}
+
+	kfifo_free(&core->done_fc_fifo);/*PRQA S ALL*/
+	for (i = 0; i < BPU_PRIO_NUM; i++) {
+		kfifo_free(&core->run_fc_fifo[i]);/*PRQA S ALL*/
+	}
+}
+
+static int bpu_core_probe(struct platform_device *pdev)/*PRQA S ALL*/
+{
+	struct bpu_core *core;
+	char name[NAME_LEN];
+	int32_t ret;
+
+	core = (struct bpu_core *)devm_kzalloc(&pdev->dev, sizeof(struct bpu_core), GFP_KERNEL);/*PRQA S ALL*/
+	if (core == NULL) {
+		dev_err(&pdev->dev, "Can't alloc bpu core mem\n");
+		return -ENOMEM;
+	}
+
+	core->dev = &pdev->dev;
+
+	mutex_init(&core->mutex_lock);/*PRQA S ALL*/
+	spin_lock_init(&core->spin_lock);/*PRQA S ALL*/
+	INIT_LIST_HEAD(&core->user_list);
+
+	ret = bpu_core_parse_dts(pdev, core);
+	if (ret != 0) {
+		dev_err(&pdev->dev, "BPU Core parse dts failed\n");
+		return ret;
+	}
+
+	ret = bpu_core_alloc_fifos(core);
+	if (ret != 0) {
+		dev_err(&pdev->dev, "BPU Core alloc fifos failed\n");
+		return ret;
 	}
 
 	ret = devm_request_irq(&pdev->dev, core->irq, bpu_core_irq_handler,
 			0, NULL, core);/*PRQA S ALL*/
 	if (ret != 0) {
-		kfifo_free(&core->done_fc_fifo);/*PRQA S ALL*/
-		for (i = 0; i < BPU_PRIO_NUM; i++) {
-			kfifo_free(&core->run_fc_fifo[i]);/*PRQA S ALL*/
-		}
+		bpu_core_free_fifos(core);
 		dev_err(&pdev->dev, "request '%d' for bpu core failed with %d\n",
 			core->irq, ret);
 		return ret;
@@ -586,10 +662,7 @@ static int bpu_core_probe(struct platform_device *pdev)/*PRQA S ALL*/
 
 	ret = misc_register(&core->miscdev);
 	if (ret != 0) {
-		kfifo_free(&core->done_fc_fifo);/*PRQA S ALL*/
-		for (i = 0; i < BPU_PRIO_NUM; i++) {
-			kfifo_free(&core->run_fc_fifo[i]);/*PRQA S ALL*/
-		}
+		bpu_core_free_fifos(core);
 		dev_err(&pdev->dev, "Register bpu core device failed\n");
 		return ret;
 	}
@@ -605,10 +678,7 @@ static int bpu_core_probe(struct platform_device *pdev)/*PRQA S ALL*/
 	ret = bpu_core_register(core);
 	if (ret != 0) {
 		misc_deregister(&core->miscdev);
-		kfifo_free(&core->done_fc_fifo);/*PRQA S ALL*/
-		for (i = 0; i < BPU_PRIO_NUM; i++) {
-			kfifo_free(&core->run_fc_fifo[i]);/*PRQA S ALL*/
-		}
+		bpu_core_free_fifos(core);
 		dev_err(&pdev->dev, "Register bpu core to bpu failed\n");
 		return ret;
 	}
@@ -621,10 +691,7 @@ static int bpu_core_probe(struct platform_device *pdev)/*PRQA S ALL*/
 	if (core->hw_ops == NULL) {
 		bpu_core_unregister(core);
 		misc_deregister(&core->miscdev);
-		kfifo_free(&core->done_fc_fifo);/*PRQA S ALL*/
-		for (i = 0; i < BPU_PRIO_NUM; i++) {
-			kfifo_free(&core->run_fc_fifo[i]);/*PRQA S ALL*/
-		}
+		bpu_core_free_fifos(core);
 		dev_err(&pdev->dev, "No bpu core hardware ops\n");
 		return ret;
 	}
@@ -632,17 +699,13 @@ static int bpu_core_probe(struct platform_device *pdev)/*PRQA S ALL*/
 	if ((core->hw_ops->write_fc == NULL) || (core->hw_ops->read_fc == NULL)) {
 		bpu_core_unregister(core);
 		misc_deregister(&core->miscdev);
-		kfifo_free(&core->done_fc_fifo);/*PRQA S ALL*/
-		for (i = 0; i < BPU_PRIO_NUM; i++) {
-			kfifo_free(&core->run_fc_fifo[i]);/*PRQA S ALL*/
-		}
+		bpu_core_free_fifos(core);
 		dev_err(&pdev->dev, "No bpu core hardware fc ops\n");
 		return ret;
 	}
 
 	/* 0 is not limit, just by the max fifo length */
 	core->fc_buf_limit = 0;
-	core->dev = &pdev->dev;
 
 	ret = bpu_core_create_sys(core);
 	if (ret != 0) {
@@ -662,15 +725,11 @@ static int bpu_core_probe(struct platform_device *pdev)/*PRQA S ALL*/
 static int bpu_core_remove(struct platform_device *pdev)/*PRQA S ALL*/
 {
 	struct bpu_core *core = (struct bpu_core *)dev_get_drvdata(&pdev->dev);/*PRQA S ALL*/
-	uint32_t i;
 
 	bpu_core_dvfs_unregister(core);
 	bpu_core_discard_sys(core);
 
-	for (i = 0; i < BPU_PRIO_NUM; i++) {
-		kfifo_free(&core->run_fc_fifo[i]);/*PRQA S ALL*/
-	}
-	kfifo_free(&core->done_fc_fifo);/*PRQA S ALL*/
+	bpu_core_free_fifos(core);
 
 	misc_deregister(&core->miscdev);
 
@@ -701,7 +760,7 @@ static int __init bpu_core_init(void)/*PRQA S ALL*/
 {
 	int32_t ret;
 
-	ret = platform_driver_register(&bpu_core_platform_driver);  /* PRQA S ALL# Suppression due to Linux features */
+	ret = platform_driver_register(&bpu_core_platform_driver);  /* PRQA S ALL */
 	if (ret != 0) {
 		pr_err("BPU Core driver register failed\n");/*PRQA S ALL*/
 	}

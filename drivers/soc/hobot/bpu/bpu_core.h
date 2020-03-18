@@ -80,6 +80,13 @@ struct bpu_core {
 	void __iomem *base;
 
 	/*
+	 * use to store bpu last done id which not
+	 * report, if reported, the value set to 0
+	 * HIGH 32bit store error status
+	 */
+	uint64_t done_hw_id;
+
+	/*
 	 * which store bpu read fc base
 	 * alloc when core enable and
 	 * free when core disable

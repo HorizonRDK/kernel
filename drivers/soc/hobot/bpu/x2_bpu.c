@@ -20,6 +20,7 @@
 #include <linux/dma-mapping.h>
 #include "bpu.h"
 #include "bpu_core.h"
+#include "bpu_ctrl.h"
 #include "x2_bpu.h"
 
 #define DEFAULT_BURST_LEN (0x80u)
@@ -222,16 +223,9 @@ static int32_t x2_bpu_enable(struct bpu_core *core)
 		return 0;
 	}
 
-	if (core->aclk != NULL) {
-		if (__clk_is_enabled(core->aclk)) {
-			clk_disable_unprepare(core->aclk);
-		}
-	}
-
-	if (core->mclk != NULL) {
-		if (__clk_is_enabled(core->mclk)) {
-			clk_disable_unprepare(core->mclk);
-		}
+	ret = bpu_core_clk_off(core);
+	if (ret < 0) {
+		dev_err(core->dev, "bpu core clk disable failed\n");
 	}
 
 	if (core->rst != NULL) {
@@ -241,33 +235,16 @@ static int32_t x2_bpu_enable(struct bpu_core *core)
 		}
 	}
 
-	if (core->regulator != NULL) {
-		ret = regulator_enable(core->regulator);
-		if (ret < 0) {
-			dev_err(core->dev, "bpu core power enable failed\n");
-			return ret;
-		}
+	ret = bpu_core_power_on(core);
+	if (ret < 0) {
+		dev_err(core->dev, "bpu core power enable failed\n");
 	}
 
 	x2_bpu_iso_clear(core);
 
-	if (core->aclk != NULL) {
-		if (!__clk_is_enabled(core->aclk)) {
-			ret = clk_prepare_enable(core->aclk);
-			if (ret != 0) {
-				pr_info("bpu core aclk prepare error\n");/*PRQA S ALL*/
-			}
-
-		}
-	}
-
-	if (core->mclk != NULL) {
-		if (!__clk_is_enabled(core->mclk)) {
-			ret = clk_prepare_enable(core->mclk);
-			if (ret != 0) {
-				pr_info("bpu core mclk prepare error\n");/*PRQA S ALL*/
-			}
-		}
+	ret = bpu_core_clk_on(core);
+	if (ret < 0) {
+		dev_err(core->dev, "bpu core clk enable failed\n");
 	}
 
 	ret = x2_bpu_reset(core); 
@@ -305,7 +282,7 @@ static int32_t x2_bpu_enable(struct bpu_core *core)
 
 static int32_t x2_bpu_disable(struct bpu_core *core)
 {
-	int32_t ret = 0;
+	int32_t ret;
 	
 	if (core == NULL) {
 		pr_err("Disable invalid bpu core!\n");/*PRQA S ALL*/
@@ -318,22 +295,16 @@ static int32_t x2_bpu_disable(struct bpu_core *core)
 
 	/*TODO: block write and wait run fifo process done */
 
-	if (core->aclk != NULL) {
-		if (__clk_is_enabled(core->aclk)) {
-			clk_disable_unprepare(core->aclk);
-		}
-	}
-
-	if (core->mclk != NULL) {
-		if (__clk_is_enabled(core->mclk)) {
-			clk_disable_unprepare(core->mclk);
-		}
+	ret = bpu_core_clk_off(core);
+	if (ret < 0) {
+		dev_err(core->dev, "bpu core clk disable failed\n");
 	}
 
 	x2_bpu_iso_set(core);
 
-	if (core->regulator != NULL) {
-		ret = regulator_disable(core->regulator);
+	ret = bpu_core_power_off(core);
+	if (ret < 0) {
+		dev_err(core->dev, "bpu core power disable failed\n");
 	}
 
 	dma_free_coherent(core->dev, FC_SIZE * FC_DEPTH,

@@ -16,7 +16,7 @@
 #endif
 #include "bpu_ctrl.h"
 
-int32_t bpu_core_pend_on(const struct bpu_core *core)
+static int32_t bpu_core_pend_on(const struct bpu_core *core)
 {
 	if (core == NULL) {
 		pr_err("Pend on invalid core!\n");/*PRQA S ALL*/
@@ -28,7 +28,7 @@ int32_t bpu_core_pend_on(const struct bpu_core *core)
 	return 0;
 }
 
-int32_t bpu_core_pend_off(const struct bpu_core *core)
+static int32_t bpu_core_pend_off(const struct bpu_core *core)
 {
 	if (core == NULL) {
 		pr_err("Pend off invalid core!\n");/*PRQA S ALL*/
@@ -59,7 +59,7 @@ int32_t bpu_core_is_pending(const struct bpu_core *core)
  * and pending new task to hwfifo, if can wait to
  * leisure, timeout is jiffes)
  */
-int32_t bpu_core_pend_to_leisure(struct bpu_core *core, int32_t timeout)
+static int32_t bpu_core_pend_to_leisure(struct bpu_core *core, int32_t timeout)
 {
 	int32_t ret;
 
@@ -87,6 +87,106 @@ int32_t bpu_core_pend_to_leisure(struct bpu_core *core, int32_t timeout)
 
 	return ret;
 }
+int32_t bpu_core_clk_on(const struct bpu_core *core)
+{
+	int32_t ret = 0;
+
+	if (core == NULL) {
+		pr_err("To Clock on Invalid BPU Core\n");/*PRQA S ALL*/
+		return ret;
+	}
+
+	if (core->aclk != NULL) {
+		if (!__clk_is_enabled(core->aclk)) {
+			ret = clk_prepare_enable(core->aclk);
+			if (ret != 0) {
+				dev_err(core->dev,
+						"bpu core[%d] aclk enable failed\n",
+						core->index);
+			}
+		}
+	}
+
+	if (core->mclk != NULL) {
+		if (!__clk_is_enabled(core->mclk)) {
+			ret = clk_prepare_enable(core->mclk);
+			if (ret != 0) {
+				dev_err(core->dev,
+						"bpu core[%d] mclk enable failed\n",
+						core->index);
+			}
+		}
+	}
+
+	return ret;
+}
+EXPORT_SYMBOL(bpu_core_clk_on);/*PRQA S ALL*/
+
+int32_t bpu_core_clk_off(const struct bpu_core *core)
+{
+	int32_t ret = 0;
+
+	if (core == NULL) {
+		return ret;
+	}
+
+	if (core->aclk != NULL) {
+		if (__clk_is_enabled(core->aclk)) {
+			clk_disable_unprepare(core->aclk);
+		}
+	}
+
+	if (core->mclk != NULL) {
+		if (__clk_is_enabled(core->mclk)) {
+			clk_disable_unprepare(core->mclk);
+		}
+	}
+
+	return ret;
+}
+EXPORT_SYMBOL(bpu_core_clk_off);/*PRQA S ALL*/
+
+int32_t bpu_core_power_on(const struct bpu_core *core)
+{
+	int32_t ret = 0;
+
+	if (core == NULL) {
+		pr_err("To power on Invalid BPU Core\n");/*PRQA S ALL*/
+		return ret;
+	}
+
+	if (core->regulator != NULL) {
+		ret = regulator_enable(core->regulator);
+		if (ret != 0) {
+			dev_err(core->dev,
+					"bpu core[%d] enable error\n", core->index);
+		}
+	}
+
+	return ret;
+}
+EXPORT_SYMBOL(bpu_core_power_on);/*PRQA S ALL*/
+
+int32_t bpu_core_power_off(const struct bpu_core *core)
+{
+	int32_t ret = 0;
+
+	if (core == NULL) {
+		return ret;
+	}
+
+	if (core->regulator != NULL) {
+		ret = regulator_disable(core->regulator);
+		if (ret != 0) {
+			dev_err(core->dev,
+					"bpu core[%d] regulator disable failed\n",
+					core->index);
+		}
+	}
+
+	return ret;
+}
+EXPORT_SYMBOL(bpu_core_power_off);/*PRQA S ALL*/
 
 int32_t bpu_core_enable(struct bpu_core *core)
 {
@@ -110,33 +210,8 @@ int32_t bpu_core_enable(struct bpu_core *core)
 	if (core->hw_ops->enable != NULL) {
 		ret = core->hw_ops->enable(core);
 	} else {
-		if (core->regulator != NULL) {
-			ret = regulator_enable(core->regulator);
-			if (ret != 0) {
-				dev_err(core->dev,
-						"bpu core[%d] enable error\n", core->index);
-			}
-		}
-
-		if (core->aclk != NULL) {
-			if (!__clk_is_enabled(core->aclk)) {
-				ret = clk_prepare_enable(core->aclk);
-				if (ret != 0) {
-					dev_err(core->dev,
-							"bpu core[%d] enable aclk error\n", core->index);
-				}
-			}
-		}
-
-		if (core->mclk != NULL) {
-			if (!__clk_is_enabled(core->mclk)) {
-				ret = clk_prepare_enable(core->mclk);
-				if (ret != 0) {
-					dev_err(core->dev,
-							"bpu core[%d] enable mclk error\n", core->index);
-				}
-			}
-		}
+		ret = bpu_core_power_on(core);
+		ret += bpu_core_clk_on(core);
 	}
 
 	enable_irq(core->irq);
@@ -181,25 +256,8 @@ int32_t bpu_core_disable(struct bpu_core *core)
 	if (core->hw_ops->disable != NULL) {
 		ret = core->hw_ops->disable(core);
 	} else {
-		if (core->aclk != NULL) {
-			if (__clk_is_enabled(core->aclk)) {
-				clk_disable_unprepare(core->aclk);
-			}
-		}
-
-		if (core->mclk != NULL) {
-			if (!__clk_is_enabled(core->mclk)) {
-				clk_disable_unprepare(core->mclk);
-			}
-		}
-
-		if (core->regulator != NULL) {
-			ret = regulator_disable(core->regulator);
-			if (ret != 0) {
-				dev_err(core->dev,
-						"bpu core[%d] disable error\n", core->index);
-			}
-		}
+		ret = bpu_core_clk_off(core);
+		ret += bpu_core_power_off(core);
 	}
 
 	err = bpu_core_pend_off(core);
@@ -309,7 +367,7 @@ int32_t bpu_core_process_recover(struct bpu_core *core)
 EXPORT_SYMBOL(bpu_core_process_recover);
 // PRQA S ALL --
 
-int32_t bpu_core_set_volt(struct bpu_core *core, int32_t volt)
+static int32_t bpu_core_set_volt(struct bpu_core *core, int32_t volt)
 {
 	int32_t err, ret = 0;
 
@@ -351,7 +409,7 @@ int32_t bpu_core_set_volt(struct bpu_core *core, int32_t volt)
 EXPORT_SYMBOL(bpu_core_set_volt);
 // PRQA S ALL --
 
-int32_t bpu_core_set_clk(struct bpu_core *core, uint64_t rate)
+static int32_t bpu_core_set_clk(struct bpu_core *core, uint64_t rate)
 {
 	int32_t err, ret = 0;
 
@@ -646,7 +704,6 @@ int32_t bpu_core_set_freq_level(struct bpu_core *core, int32_t level)
 	}
 
 	return ret;
-
 }
 // PRQA S ALL ++
 EXPORT_SYMBOL(bpu_core_set_freq_level);
