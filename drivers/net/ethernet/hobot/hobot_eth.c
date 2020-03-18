@@ -70,9 +70,6 @@
 #include "hobot_reg.h"
 #include "hobot_tsn.h"
 
-static int last_err;
-static int first_time;
-
 #define TSO_MAX_BUFF_SIZE (SZ_16K - 1)
 
 #define DRIVER_NAME "st_gmac"
@@ -2870,14 +2867,14 @@ static void dwceqos_diag_process(u32 errsta, uint32_t regval)
 		if (diag_send_event_stat_and_env_data(DiagMsgPrioHigh,
 						ModuleDiag_eth, EventIdEthDmaBusErr, sta,
 						envgen_timing, (uint8_t *)&int_status, 4) < 0) {
-			printk("eth: event %d snd diag msg with env data error\n",
+			pr_debug("eth: event %d snd diag msg with env data error\n",
 						EventIdEthDmaBusErr);
 		}
 	} else {
 		sta = DiagEventStaSuccess;
 		if (diag_send_event_stat(DiagMsgPrioHigh, ModuleDiag_eth,
 								EventIdEthDmaBusErr, sta) < 0) {
-			printk("eth: event %d snd diag msg with env data error\n",
+			pr_debug("eth: event %d snd diag msg with env data error\n",
 						EventIdEthDmaBusErr);
 		}
 	}
@@ -2889,6 +2886,7 @@ static int x2_dma_interrupt(struct x2_priv *priv, \
 	int err = 0;
     void __iomem *ioaddr = priv->ioaddr;
 	u32 intr_status = readl(ioaddr + DMA_CHAN_STATUS(chan)); //0x1160
+	err = g_eth_error;
 
 #if 0
     u32 intr_en = readl(ioaddr + DMA_CHAN_INTR_ENA(chan));
@@ -2941,15 +2939,8 @@ static int x2_dma_interrupt(struct x2_priv *priv, \
 	}
 	writel((intr_status), ioaddr + DMA_CHAN_STATUS(chan));
 
-	if (first_time == 0) {
-		first_time = 1;
-		last_err = err;
-		dwceqos_diag_process(err, intr_status);
-	} else if (last_err != err) {
-		last_err = err;
-		dwceqos_diag_process(err, intr_status);
-	}
-
+	dwceqos_diag_process(err, intr_status);
+	g_eth_error = 0;
 	return ret;
 }
 
@@ -5418,7 +5409,7 @@ static int hobot_eth_probe(struct platform_device *pdev)
 	if (ret)
 		goto remove;
 	if (diag_register(ModuleDiag_eth, EventIdEthDmaBusErr,
-				4, 300, 6000, NULL) < 0)
+				4, 20, 8000, NULL) < 0)
 			pr_err("eth diag register fail\n");
 	pr_info("%s: probe sucessfully\n", __func__);
 	return ret;

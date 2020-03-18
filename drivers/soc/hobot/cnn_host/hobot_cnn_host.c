@@ -445,6 +445,7 @@ static irqreturn_t hobot_bpu_interrupt_handler(int irq, void *dev_id)
 	struct bpu_int_info tmp;
 	struct cnn_user_info **p_user_info;
 	int lost_report = 0;
+	irq_err = g_bpu_error;
 
 	spin_lock_irqsave(&dev->cnn_spin_lock, flags);
 
@@ -455,6 +456,7 @@ static irqreturn_t hobot_bpu_interrupt_handler(int irq, void *dev_id)
 	hobot_bpu_reg_write(dev, CNNINT_MASK, 0x0);
 	irq_err = tmp_irq & 0xf000;
 	report_bpu_diagnose_msg(irq_err, dev->core_index);
+	g_bpu_error = 0;
 	spin_unlock_irqrestore(&dev->cnn_spin_lock, flags);
 	dev->head_value = 0;
 	dev->inst_num = 0;

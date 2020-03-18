@@ -20,9 +20,61 @@
 
 //#define DEBUG
 
+uint32_t g_bpu_error;
+uint32_t g_eth_error;
 static struct class  *g_diag_dev_class;
 struct device *g_diag_dev;
 static int diag_dev_ver[2] __initdata = {1, 1};
+ssize_t bpu_test_show(struct class *class,
+		struct class_attribute *attr, char *buf)
+{
+	return strlen(buf);
+}
+
+ssize_t bpu_test_store(struct class *class, struct class_attribute *attr,
+		const char *buf, size_t count)
+{
+	int ret = kstrtouint(buf, 16, &g_bpu_error);
+	return count;
+}
+
+ssize_t eth_test_show(struct class *class,
+		struct class_attribute *attr, char *buf)
+{
+	return strlen(buf);
+}
+
+ssize_t eth_test_store(struct class *class,
+		struct class_attribute *attr, const char *buf, size_t count)
+{
+	int ret = kstrtouint(buf, 16, &g_eth_error);
+	return count;
+}
+static struct class_attribute bpu_attribute =
+	__ATTR(bpu_test, 0644, bpu_test_show, bpu_test_store);
+
+static struct class_attribute eth_attribute =
+	__ATTR(eth_test, 0644, eth_test_show, eth_test_store);
+static struct attribute *diag_attributes[] = {
+	&bpu_attribute.attr,
+	&eth_attribute.attr,
+	NULL
+};
+
+static const struct attribute_group diag_group = {
+	.attrs = diag_attributes,
+};
+
+static const struct attribute_group *diag_attr_group[] = {
+	&diag_group,
+	NULL,
+};
+
+static struct class diag_class = {
+	.name = "diag_test",
+	.class_groups = diag_attr_group,
+};
+
 static DEFINE_MUTEX(diag_dev_open_mutex);
 static int diag_dev_open(struct inode *inode, struct file *file)
 {
@@ -235,6 +287,10 @@ int  diag_dev_init(void)
 	pr_info("diag dev [ver:%d.%d] init done\n",
 			diag_dev_ver[0], diag_dev_ver[1]);
 
+	ret = class_register(&diag_class);
+	if(ret < 0)
+		pr_err("diag sys register error\n");
+	pr_err("after diag sys register success\n");
 	return 0;
 
 device_create_error:
