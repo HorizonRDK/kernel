@@ -252,6 +252,9 @@ static void lens_basic_init(struct motor_param_s *param,
 		return;
 	}
 
+	param->curr_pos = 0;
+	param->next_pos = 0;
+
 	dev_info = get_driverdev_info(param, 0);
 	if (dev_info != NULL) {
 		ctx_p.max_step = param->max_step;
@@ -609,7 +612,7 @@ int set_af_pos(uint16_t port, uint32_t pos)
 		return -1;
 	}
 	ret = set_af_init(port);
-	udelay(3*1000);
+	udelay(10*1000);
 	ret = lens_driver_move(port, LENS_AF_PARAM_ID, pos);
 
 	return ret;
@@ -623,7 +626,7 @@ int set_zoom_pos(uint16_t port, uint32_t pos)
 		return -1;
 	}
 	ret = set_zoom_init(port);
-	udelay(3*1000);
+	udelay(10*1000);
 	ret = lens_driver_move(port, LENS_ZOOM_PARAM_ID, pos);
 
 	return ret;

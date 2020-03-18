@@ -113,7 +113,8 @@ static void montor_step_four(uint16_t A1, uint16_t A2, uint16_t B1, uint16_t B2)
 	gpio_set_value(b2, 1);
 }
 
-static void montor_forward(uint16_t A1, uint16_t A2, uint16_t B1, uint16_t B2, uint32_t num)
+static void montor_back(uint16_t A1, uint16_t A2,
+	uint16_t B1, uint16_t B2, uint32_t num)
 {
 	uint32_t count = 0;
 	uint32_t temp = num % 4;
@@ -144,7 +145,8 @@ static void montor_forward(uint16_t A1, uint16_t A2, uint16_t B1, uint16_t B2, u
 	}
 }
 
-static void montor_back(uint16_t A1, uint16_t A2, uint16_t B1, uint16_t B2, uint32_t num)
+static void montor_forward(uint16_t A1, uint16_t A2,
+	uint16_t B1, uint16_t B2, uint32_t num)
 {
 	uint32_t count = 0;
 	uint32_t temp = num % 4;
@@ -205,10 +207,10 @@ void motor_gpio_move(void *ctx, void *param, uint32_t pos)
 
 	if (info->curr_pos <= pos) {
 		LOG(LOG_INFO, "move forward %d, curr_pos %d", pos, info->curr_pos);
-		montor_forward(dev->a1, dev->a2, dev->b1, dev->b2, pos);
+		montor_forward(dev->a1, dev->a2, dev->b1, dev->b2, (pos - info->curr_pos));
 	} else {
 		LOG(LOG_INFO, "move back %d, curr_pos %d", pos, info->curr_pos);
-		montor_back(dev->a1, dev->a2, dev->b1, dev->b2, pos);
+		montor_back(dev->a1, dev->a2, dev->b1, dev->b2, (info->curr_pos - pos));
 	}
 	montor_standby(dev->a1, dev->a2, dev->b1, dev->b2);
 }

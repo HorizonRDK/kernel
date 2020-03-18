@@ -159,7 +159,7 @@ void frame_buffer_initialize( dma_writer_fsm_ptr_t p_fsm )
 
         // initialize fr pipe
         system_memset( &set_pipe, 0, sizeof( set_pipe ) );
-        system_memset( api_ops, 0, sizeof( api_ops ) * 2 );
+        system_memset(api_ops, 0, sizeof( api_ops ));
         // api
         api_ops[0].p_acamera_isp_dma_writer_format_read = acamera_isp_fr_dma_writer_format_read;
         api_ops[0].p_acamera_isp_dma_writer_format_write = acamera_isp_fr_dma_writer_format_write;
