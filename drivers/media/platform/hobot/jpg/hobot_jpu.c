@@ -1320,7 +1320,7 @@ static const struct of_device_id jpu_of_match[] = {
 	{},
 };
 
-static const struct attribute_group *jpu_attr_groups[] = {};
+// static const struct attribute_group *jpu_attr_groups[] = {};
 static struct platform_driver jpu_driver = {
 	.probe = jpu_probe,
 	.remove = jpu_remove,
@@ -1330,7 +1330,7 @@ static struct platform_driver jpu_driver = {
 		   .name = JPU_PLATFORM_DEVICE_NAME,
 		   .of_match_table = jpu_of_match,
 		   //.pm = &jpu_pm_ops
-		   .groups = jpu_attr_groups,
+       // .groups = jpu_attr_groups,
 		   },
 };
 

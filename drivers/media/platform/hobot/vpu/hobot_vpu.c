@@ -2151,7 +2151,7 @@ DONE_WAKEUP:
 	SET_SYSTEM_SLEEP_PM_OPS(vpu_suspend, vpu_resume)
 };*/
 
-static const struct attribute_group *vpu_attr_groups[] = {};
+// static const struct attribute_group *vpu_attr_groups[] = {};
 static struct platform_driver vpu_driver = {
 	.probe = vpu_probe,
 	.remove = vpu_remove,
@@ -2161,7 +2161,7 @@ static struct platform_driver vpu_driver = {
 		   .name = VPU_PLATFORM_DEVICE_NAME,
 		   .of_match_table = vpu_of_match,
 		   //.pm = &vpu_pm_ops
-		   .groups = vpu_attr_groups,
+		   // .groups = vpu_attr_groups,
 		   },
 };
 
