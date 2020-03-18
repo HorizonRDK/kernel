@@ -40,6 +40,7 @@
 #define REG_MIPI_DEV_VPG_MAX_FRAME_NUM      (0xB0)
 #define REG_MIPI_DEV_VPG_START_LINE_NUM     (0xB4)
 #define REG_MIPI_DEV_VPG_STEP_LINE_NUM      (0xB8)
+#define REG_MIPI_DEV_VPG_BK_LINES           (0xBC)
 #define REG_MIPI_DEV_PHY_RSTZ               (0xE0)
 #define REG_MIPI_DEV_PHY_IF_CFG             (0xE4)
 #define REG_MIPI_DEV_LPCLK_CTRL             (0xE8)

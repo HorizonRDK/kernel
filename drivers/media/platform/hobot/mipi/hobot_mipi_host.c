@@ -131,6 +131,7 @@ module_param(init_num, uint, 0644);
 #define MIPI_HOST_CUT_DEFAULT      (1)
 #define MIPI_HOST_IPILIMIT_DEFAULT (102000000)
 #define MIPI_HOST_IRQ_CNT          (10)
+#define MIPI_HOST_IRQ_DEBUG        (1)
 
 #define HOST_DPHY_LANE_MAX         (4)
 #define HOST_DPHY_CHECK_MAX        (3000)
@@ -276,6 +277,7 @@ typedef struct _mipi_hdev_s {
 #if MIPI_HOST_INT_DBG && defined MIPI_HOST_INT_USE_TIMER
 	struct            timer_list irq_timer;
 	uint32_t          irq_timer_en;
+	uint32_t          irq_st_main;
 #endif
 } mipi_hdev_t;
 
@@ -745,7 +747,7 @@ static const uint32_t mipi_host_int_msk[] = {
 
 static const uint32_t mipi_host_1p4_int_msk[] = {
 	/* reg offset,                           mask,      */
-	REG_MIPI_HOST_INT_MSK_PHY_FATAL,         0x000000ff,
+	REG_MIPI_HOST_INT_MSK_PHY_FATAL,         0x000001ff,
 	REG_MIPI_HOST_INT_MSK_PKT_FATAL,         0x00000001,
 	REG_MIPI_HOST_INT_MSK_LINE,              0x00ff00ff,
 	REG_MIPI_HOST_INT_MSK_BNDRY_FRAME_FATAL, 0xffffffff,
@@ -924,14 +926,14 @@ static const uint32_t mipi_host_1p4_int_st[] = {
 	/* reg offset,                          mask,                              icnt */
 	REG_MIPI_HOST_INT_ST_PHY_FATAL,         MIPI_HOST_1P4_INT_PHY_FATAL,       1,
 	REG_MIPI_HOST_INT_ST_PKT_FATAL,         MIPI_HOST_1P4_INT_PKT_FATAL,       2,
-	REG_MIPI_HOST_INT_ST_LINE,              MIPI_HOST_1P4_INT_BNDRY_FRM_FATAL, 4,
-	REG_MIPI_HOST_INT_ST_BNDRY_FRAME_FATAL, MIPI_HOST_1P4_INT_SEQ_FRM_FATAL,   5,
-	REG_MIPI_HOST_INT_ST_SEQ_FRAME_FATAL,   MIPI_HOST_1P4_INT_CRC_FRM_FATAL,   6,
-	REG_MIPI_HOST_INT_ST_CRC_FRAME_FATAL,   MIPI_HOST_1P4_INT_PLD_CRC_FATAL,   7,
-	REG_MIPI_HOST_INT_ST_PLD_CRC_FATAL,     MIPI_HOST_1P4_INT_DATA_ID,         8,
-	REG_MIPI_HOST_INT_ST_DATA_ID,           MIPI_HOST_1P4_INT_ECC_CORRECTED,   9,
-    REG_MIPI_HOST_INT_ST_ECC_CORRECT,       MIPI_HOST_1P4_INT_PHY,             10,
-	REG_MIPI_HOST_INT_ST_PHY,               MIPI_HOST_1P4_INT_LINE,            12,
+	REG_MIPI_HOST_INT_ST_BNDRY_FRAME_FATAL, MIPI_HOST_1P4_INT_BNDRY_FRM_FATAL, 4,
+	REG_MIPI_HOST_INT_ST_SEQ_FRAME_FATAL,   MIPI_HOST_1P4_INT_SEQ_FRM_FATAL,   5,
+	REG_MIPI_HOST_INT_ST_CRC_FRAME_FATAL,   MIPI_HOST_1P4_INT_CRC_FRM_FATAL,   6,
+	REG_MIPI_HOST_INT_ST_PLD_CRC_FATAL,     MIPI_HOST_1P4_INT_PLD_CRC_FATAL,   7,
+	REG_MIPI_HOST_INT_ST_DATA_ID,           MIPI_HOST_1P4_INT_DATA_ID,         8,
+	REG_MIPI_HOST_INT_ST_ECC_CORRECT,       MIPI_HOST_1P4_INT_ECC_CORRECTED,   9,
+	REG_MIPI_HOST_INT_ST_PHY,               MIPI_HOST_1P4_INT_PHY,             10,
+	REG_MIPI_HOST_INT_ST_LINE,              MIPI_HOST_1P4_INT_LINE,            12,
 	REG_MIPI_HOST_INT_ST_IPI,               MIPI_HOST_1P4_INT_IPI,             13,
 	REG_MIPI_HOST_INT_ST_IPI2,              MIPI_HOST_1P4_INT_IPI2,            14,
 	REG_MIPI_HOST_INT_ST_IPI3,              MIPI_HOST_1P4_INT_IPI3,            15,
@@ -979,8 +981,14 @@ static irqreturn_t mipi_host_irq_func(int this_irq, void *data)
 		num = ARRAY_SIZE(mipi_host_int_st);
 	}
 
+#ifdef MIPI_HOST_INT_USE_TIMER
+	irq = hdev->irq_st_main;
+#else
 	irq = mipi_getreg(iomem + REG_MIPI_HOST_INT_ST_MAIN);
+#endif
 	if (param->irq_debug)
+		mipierr("irq status 0x%x", irq);
+	else
 		mipidbg("irq status 0x%x", irq);
 	if(irq) {
 		irq_do = irq;
@@ -994,6 +1002,9 @@ static irqreturn_t mipi_host_irq_func(int this_irq, void *data)
 			icnt_n = st[i + 2];
 			subirq = mipi_getreg(iomem + reg);
 			if (param->irq_debug)
+				mipierr("  %s: 0x%x",
+					g_mh_icnt_names[icnt_n], subirq);
+			else
 				mipidbg("  %s: 0x%x",
 					g_mh_icnt_names[icnt_n], subirq);
 			icnt_p[icnt_n]++;
@@ -1029,7 +1040,6 @@ static void mipi_host_irq_timer_func(unsigned long data)
 	mipi_hdev_t *hdev = (mipi_hdev_t *)data;
 	mipi_host_t *host = &hdev->host;
 	void __iomem *iomem = host->iomem;
-	uint32_t irq = 0;
 	unsigned long jiffi;
 
 	if (!hdev || !iomem)
@@ -1037,8 +1047,8 @@ static void mipi_host_irq_timer_func(unsigned long data)
 
 	if (hdev->irq_timer_en) {
 		if (iomem) {
-			irq = mipi_getreg(iomem + REG_MIPI_HOST_INT_ST_MAIN);
-			if (irq)
+			hdev->irq_st_main = mipi_getreg(iomem + REG_MIPI_HOST_INT_ST_MAIN);
+			if (hdev->irq_st_main)
 				mipi_host_irq_func(-1, hdev);
 		}
 		jiffi = get_jiffies_64() + msecs_to_jiffies(50);
@@ -2021,6 +2031,7 @@ static int hobot_mipi_host_probe_param(void)
 		hdev->irq_timer.function = mipi_host_irq_timer_func;
 		add_timer(&hdev->irq_timer);
 		param->irq_cnt = MIPI_HOST_IRQ_CNT;
+		param->irq_debug = MIPI_HOST_IRQ_DEBUG;
 #else
 		pr_info("[%s] no int timer\n", __func__);
 #endif
@@ -2135,6 +2146,7 @@ static int hobot_mipi_host_probe(struct platform_device *pdev)
 	}
 #endif
 	param->irq_cnt = MIPI_HOST_IRQ_CNT;
+	param->irq_debug = MIPI_HOST_IRQ_DEBUG;
 #endif
 	param->adv_value = MIPI_HOST_ADV_DEFAULT;
 	param->cut_through = MIPI_HOST_CUT_DEFAULT;
@@ -2166,8 +2178,8 @@ err_cdev:
 	del_timer_sync(&hdev->irq_timer);
 #else
 	free_irq(host->irq, hdev);
-#endif
 err_irq:
+#endif
 #endif
 	devm_iounmap(&pdev->dev, host->iomem);
 err_ioremap:

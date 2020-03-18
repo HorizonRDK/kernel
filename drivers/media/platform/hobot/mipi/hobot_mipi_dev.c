@@ -96,15 +96,16 @@ module_param(init_num, uint, 0644);
 #define MIPI_DEV_VPG_ENABLE			(0x01)
 #define MIPI_DEV_VPG_ORI_VERT		(0)
 #define MIPI_DEV_VPG_ORI_HOR		(1)
-#define MIPI_DEV_VPG_ORI			(MIPI_DEV_VPG_ORI_VERT << 16)
+#define MIPI_DEV_VPG_ORI(ori)		((ori)<< 16)
 #define MIPI_DEV_VPG_MODE_BER		(0x01)
 #define MIPI_DEV_VPG_MODE_BAR		(0x00)
-#define MIPI_DEV_VPG_MODE			(MIPI_DEV_VPG_MODE_BAR << 0)
+#define MIPI_DEV_VPG_MODE(mode)		((mode)<< 0)
 #define MIPI_DEV_VPG_LINENUM		(0x00 << 9)
 #define MIPI_DEV_VPG_HSYNC_DIS		(0x00)
 #define MIPI_DEV_VPG_HSYNC_EN		(0x01)
 #define MIPI_DEV_VPG_HSYNC			(MIPI_DEV_VPG_HSYNC_DIS << 8)
-#define MIPI_DEV_VPG_VC				(0x00 << 6)
+#define MIPI_DEV_VPG_VCX(vc)		(((vc) & 0x1C) << 10)
+#define MIPI_DEV_VPG_VC(vc)			(((vc) & 0x3) << 6)
 #define MIPI_DEV_VPG_HSA_TIME		(0x4e)
 #define MIPI_DEV_VPG_HBP_TIME		(0x04)
 #define MIPI_DEV_VPG_HFP_TIME		(0x5f4)
@@ -112,7 +113,9 @@ module_param(init_num, uint, 0644);
 #define MIPI_DEV_VPG_VSA_LINES		(0x02)
 #define MIPI_DEV_VPG_VBP_LINES		(0x01)
 #define MIPI_DEV_VPG_VFP_LINES		(0x01)
-#define MIPI_DEV_VPG_VLINE_TIME(h)	(MIPI_DEV_VPG_VSA_LINES+MIPI_DEV_VPG_VBP_LINES+MIPI_DEV_VPG_VFP_LINES+(h))
+#define MIPI_DEV_VPG_VFP_LINES_MAX	((0x01 << 10) - 1)
+#define MIPI_DEV_VPG_BK_LINES		(0x00)
+#define MIPI_DEV_VPG_BK_LINES_MAX	((0x01 << 10) - 1)
 #define MIPI_DEV_VPG_START_LINE		(0x00)
 #define MIPI_DEV_VPG_STEP_LINE		(0x00)
 #define MIPI_DEV_CHECK_MAX			(500)
@@ -125,6 +128,7 @@ module_param(init_num, uint, 0644);
 #define MIPI_DEV_VPG_DEF_BLANK		(0x5f4)
 
 #define MIPI_DEV_IRQ_CNT            (10)
+#define MIPI_DEV_IRQ_DEBUG          (1)
 
 #define DEV_DPHY_LANE_MAX			(4)
 #define DEV_DPHY_CHECK_MAX			(500)
@@ -246,6 +250,7 @@ typedef struct _mipi_ddev_s {
 #if MIPI_DEV_INT_DBG && defined MIPI_DEV_INT_USE_TIMER
 	struct timer_list irq_timer;
 	uint32_t          irq_timer_en;
+	uint32_t          irq_st_main;
 #endif
 } mipi_ddev_t;
 
@@ -403,6 +408,7 @@ static uint16_t mipi_dev_vpg_get_hline(mipi_ddev_t *ddev, mipi_dev_cfg_t *cfg)
 	if (cfg->linelenth == 0 || cfg->linelenth == cfg->width)
 		hline = MIPI_DEV_VPG_HLINE_TIME;
 
+	hline = hline / cfg->lane;
 	mipidbg("vpg hline: %d", hline);
 	return hline;
 }
@@ -426,29 +432,66 @@ static uint16_t mipi_dev_vpg_get_vfp(mipi_ddev_t *ddev, mipi_dev_cfg_t *cfg)
 	if (cfg->framelenth == 0 || cfg->framelenth == cfg->height)
 		vfp = MIPI_DEV_VPG_VFP_LINES;
 
+	if (vfp > MIPI_DEV_VPG_VFP_LINES_MAX) {
+		mipidbg("vpg vfp %d overflow as: %d", vfp, MIPI_DEV_VPG_VFP_LINES_MAX);
+		return MIPI_DEV_VPG_VFP_LINES_MAX;
+	}
+
 	mipidbg("vpg vfp: %d", vfp);
 	return vfp;
 }
 
 /**
- * @brief mipi_dev_initialize_vgp : initialize&enable dev vgp mode
+ * @brief mipi_dev_vpg_get_bk : get mipi dev bk in vpg mode
+ *
+ * @param [in] cfg : mipi dev config
+ *
+ * @return uint16_t bk
+ */
+static uint16_t mipi_dev_vpg_get_bk(mipi_ddev_t *ddev, mipi_dev_cfg_t *cfg)
+{
+	struct device *dev = ddev->dev;
+	mipi_dev_t *mdev = &ddev->mdev;
+	mipi_dev_param_t *param = &mdev->param;
+	uint16_t vfp, bk = 0;
+
+	vfp	= cfg->framelenth - MIPI_DEV_VPG_VSA_LINES -
+			MIPI_DEV_VPG_VBP_LINES - cfg->height;
+	if (cfg->framelenth == 0 || cfg->framelenth == cfg->height)
+		vfp = MIPI_DEV_VPG_VFP_LINES;
+
+	if (vfp > MIPI_DEV_VPG_VFP_LINES_MAX) {
+		bk = vfp - MIPI_DEV_VPG_VFP_LINES_MAX;
+		if (bk > MIPI_DEV_VPG_BK_LINES_MAX) {
+			mipiinfo("vpg bk %d overflow, set to %d", bk, MIPI_DEV_VPG_BK_LINES_MAX);
+			bk = MIPI_DEV_VPG_BK_LINES_MAX;
+		}
+		mipidbg("vpg bk: %d", bk);
+	}
+
+	return bk;
+}
+
+/**
+ * @brief mipi_dev_initialize_vpg : initialize&enable dev vpg mode
  *
  * @param [in] cfg : the dev cfgler's setting
  *
  * @return int32_t: 0/-1
  */
-static int32_t mipi_dev_initialize_vgp(mipi_ddev_t *ddev, mipi_dev_cfg_t *cfg)
+static int32_t mipi_dev_initialize_vpg(mipi_ddev_t *ddev, mipi_dev_cfg_t *cfg)
 {
 	struct device *dev = ddev->dev;
 	mipi_dev_t *mdev = &ddev->mdev;
 	void __iomem *iomem = mdev->iomem;
 	uint8_t    ncount = 0;
 	uint32_t   status = 0;
+	uint8_t	   vc, mode, ori;
 
 	if (!ddev || !iomem)
 		return -1;
 
-	mipiinfo("initialize vgp begin");
+	mipiinfo("initialize vpg begin");
 	/*Disable the Video Pattern Generator*/
 	mipi_putreg(iomem + REG_MIPI_DEV_VPG_CTRL, MIPI_DEV_VPG_DISABLE);
 
@@ -464,8 +507,14 @@ static int32_t mipi_dev_initialize_vgp(mipi_ddev_t *ddev, mipi_dev_cfg_t *cfg)
 	} while (MIPI_DEV_VPG_DISABLE != status);
 
 	/*Configure the VPG mode*/
-	mipi_putreg(iomem + REG_MIPI_DEV_VPG_MODE_CFG, MIPI_DEV_VPG_ORI | MIPI_DEV_VPG_MODE);
-	mipi_putreg(iomem + REG_MIPI_DEV_VPG_PKT_CFG, MIPI_DEV_VPG_LINENUM | MIPI_DEV_VPG_HSYNC | MIPI_DEV_VPG_VC | cfg->datatype);
+	/*cfg->vpg: bit0:enable, bit1:ori, bit2:mode, bit3~:vc*/
+	vc = (cfg->vpg >> 3) & 0x1F;
+	mode = (cfg->vpg >> 2) & 0x1;
+	ori = (cfg->vpg >> 1) & 0x1;
+	mipi_putreg(iomem + REG_MIPI_DEV_VPG_MODE_CFG, MIPI_DEV_VPG_ORI(ori) |
+		MIPI_DEV_VPG_MODE(mode));
+	mipi_putreg(iomem + REG_MIPI_DEV_VPG_PKT_CFG, MIPI_DEV_VPG_LINENUM | MIPI_DEV_VPG_HSYNC |
+		MIPI_DEV_VPG_VCX(vc) | MIPI_DEV_VPG_VC(vc) | cfg->datatype);
 	mipi_putreg(iomem + REG_MIPI_DEV_VPG_PKT_SIZE, cfg->width);
 	mipi_putreg(iomem + REG_MIPI_DEV_VPG_HSA_TIME, MIPI_DEV_VPG_HSA_TIME);
 	mipi_putreg(iomem + REG_MIPI_DEV_VPG_HBP_TIME, MIPI_DEV_VPG_HBP_TIME);
@@ -473,7 +522,7 @@ static int32_t mipi_dev_initialize_vgp(mipi_ddev_t *ddev, mipi_dev_cfg_t *cfg)
 	mipi_putreg(iomem + REG_MIPI_DEV_VPG_VSA_LINES, MIPI_DEV_VPG_VSA_LINES);
 	mipi_putreg(iomem + REG_MIPI_DEV_VPG_VBP_LINES, MIPI_DEV_VPG_VBP_LINES);
 	mipi_putreg(iomem + REG_MIPI_DEV_VPG_VFP_LINES, mipi_dev_vpg_get_vfp(ddev, cfg));
-	//mipi_putreg(iomem+REG_MIPI_DEV_VPG_HLINE_TIME, MIPI_DEV_VPG_VLINE_TIME(cfg->width));
+	mipi_putreg(iomem + REG_MIPI_DEV_VPG_BK_LINES, mipi_dev_vpg_get_bk(ddev, cfg));
 	mipi_putreg(iomem + REG_MIPI_DEV_VPG_ACT_LINES, cfg->height);
 	mipi_putreg(iomem + REG_MIPI_DEV_VPG_MAX_FRAME_NUM, MIPI_DEV_IPI_MAX_FRAME);
 	//mipi_putreg(iomem + REG_MIPI_DEV_VPG_START_LINE_NUM, MIPI_DEV_VPG_START_LINE);
@@ -482,7 +531,8 @@ static int32_t mipi_dev_initialize_vgp(mipi_ddev_t *ddev, mipi_dev_cfg_t *cfg)
 	/*Enalbe the Video Pattern Generator*/
 	mipi_putreg(iomem + REG_MIPI_DEV_VPG_CTRL, MIPI_DEV_VPG_ENABLE);
 
-	mipiinfo("initialize vgp end");
+	mipiinfo("initialize vpg 0x%02x vc%d %s %s end", cfg->datatype, vc,
+		(mode) ? "ber" : "bar", (ori) ? "horizontal" : "vertical");
 	return 0;
 }
 
@@ -674,8 +724,14 @@ static irqreturn_t mipi_dev_irq_func(int this_irq, void *data)
 	st = mipi_dev_int_st;
 	num = ARRAY_SIZE(mipi_dev_int_st);
 
+#ifdef MIPI_DEV_INT_USE_TIMER
+	irq = ddev->irq_st_main;
+#else
 	irq = mipi_getreg(iomem + REG_MIPI_DEV_INT_ST_MAIN);
+#endif
 	if (param->irq_debug)
+		mipierr("irq status 0x%x", irq);
+	else
 		mipidbg("irq status 0x%x", irq);
 	if(irq) {
 		irq_do = irq;
@@ -689,6 +745,9 @@ static irqreturn_t mipi_dev_irq_func(int this_irq, void *data)
 			icnt_n = st[i + 2];
 			subirq = mipi_getreg(iomem + reg);
 			if (param->irq_debug)
+				mipierr("  %s: 0x%x",
+					g_md_icnt_names[icnt_n], subirq);
+			else
 				mipidbg("  %s: 0x%x",
 					g_md_icnt_names[icnt_n], subirq);
 			icnt_p[icnt_n]++;
@@ -728,8 +787,8 @@ static void mipi_dev_irq_timer_func(unsigned long data)
 
 	if (ddev->irq_timer_en) {
 		if (iomem) {
-			irq = mipi_getreg(iomem + REG_MIPI_DEV_INT_ST_MAIN);
-			if (irq)
+			ddev->irq_st_main = mipi_getreg(iomem + REG_MIPI_DEV_INT_ST_MAIN);
+			if (ddev->irq_st_main)
 				mipi_dev_irq_func(-1, ddev);
 		}
 		jiffi = get_jiffies_64() + msecs_to_jiffies(50);
@@ -918,7 +977,7 @@ static int32_t mipi_dev_init(mipi_ddev_t *ddev, mipi_dev_cfg_t *cfg)
 			return -1;
 		}
 	} else {
-		if (0 != mipi_dev_initialize_vgp(ddev, cfg)) {
+		if (0 != mipi_dev_initialize_vpg(ddev, cfg)) {
 			mipi_dev_deinit(ddev);
 			mipierr("initialize vpg error!!!");
 			return -1;
@@ -1585,6 +1644,7 @@ static int hobot_mipi_dev_probe_param(void)
 		ddev->irq_timer.function = mipi_dev_irq_timer_func;
 		add_timer(&ddev->irq_timer);
 		param->irq_cnt = MIPI_DEV_IRQ_CNT;
+		param->irq_debug = MIPI_DEV_IRQ_DEBUG;
 #else
 		pr_info("[%s] no int timer\n", __func__);
 #endif
@@ -1697,6 +1757,7 @@ static int hobot_mipi_dev_probe(struct platform_device *pdev)
 	}
 #endif
 	param->irq_cnt = MIPI_DEV_IRQ_CNT;
+	param->irq_debug = MIPI_DEV_IRQ_DEBUG;
 #endif
 #ifdef ADJUST_CLK_RECALCULATION
 	param->power_instart = 1;
