@@ -180,6 +180,7 @@ struct x2_i2s {
 	struct reset_control *rst;
 	unsigned int i2sdsp;
 	int id;
+	int clk;
 	struct clk *mclk;
 	struct clk *bclk;
 	u32 div_ws;

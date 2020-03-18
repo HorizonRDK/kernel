@@ -28,6 +28,8 @@
 
 #define X2_I2S_FMTS (SNDRV_PCM_FMTBIT_S8 | SNDRV_PCM_FMTBIT_S16_LE)
 
+static inline int change_clk(struct device *dev,
+        const char *clk_name, unsigned long rate);
 
 static unsigned int x2_i2s_read_base_reg(struct x2_i2s *i2s, int offset)
 {
@@ -149,6 +151,12 @@ static void x2_i2s_sample_rate_set(struct snd_pcm_substream *substream,
 		} else {/* dsp mode */
 			ws_h = 0;
 			ws_l = i2s->slot_width - 2;
+			i2s->clk = i2s->samplerate * i2s->slot_width;
+			int ret = change_clk(i2s->dev, "i2s-bclk",
+				i2s->clk);
+			if (ret < 0)
+				pr_err("change i2s bclk failed\n");
+
 			writel(ws_l | (ws_h << 8), i2s->regaddr_rx +
 				I2S_DIV_WS);
 		}
@@ -156,6 +164,15 @@ static void x2_i2s_sample_rate_set(struct snd_pcm_substream *substream,
 	} else {/* play */
 
 		if (i2s->i2sdsp == 0) {	/* i2s mode */
+			int lrck_div = i2s->wordlength * i2s->channel_num;
+			i2s->clk = i2s->samplerate * lrck_div;
+			ws_l = ws_h = (lrck_div / 2) - 1;
+			int ret = change_clk(i2s->dev, "i2s-bclk",
+				i2s->clk);
+			if (ret < 0) {
+				pr_err("change i2s bclk failed\n");
+			}
+			i2s->div_ws = ws_l | (ws_h << 8);
 			writel(i2s->div_ws, i2s->regaddr_tx + I2S_DIV_WS);
 
 

@@ -66,9 +66,7 @@ static bool dmic_used		= 1;
 static int adc_digital_val	= 0xb0b0;
 static bool drc_used		= true;
 
-#define AC101_RATES  (SNDRV_PCM_RATE_8000_96000 &		\
-		~(SNDRV_PCM_RATE_32000 | SNDRV_PCM_RATE_64000 | \
-		SNDRV_PCM_RATE_88200))
+#define AC101_RATES SNDRV_PCM_RATE_8000_96000
 #define AC101_FORMATS (SNDRV_PCM_FMTBIT_S16_LE | \
                         SNDRV_PCM_FMTBIT_S24_LE |       \
                         SNDRV_PCM_FMTBIT_S32_LE | \
