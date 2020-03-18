@@ -36,7 +36,7 @@
 			cooling-max-level = <2>;
 			dynamic-power-coefficient = <120>;
 			reg = <0x0>;
-			cpu-idle-states = <&CPU_SLEEP_0>;
+			cpu-idle-states = <&CPU_SLEEP>;
 		};
 
 		cpu1: cpu@1 {
@@ -47,7 +47,7 @@
 			operating-points-v2 = <&cpu_opp_table>;
 			clocks = <&cpu_clk>;
 			reg = <0x1>;
-			cpu-idle-states = <&CPU_SLEEP_0>;
+			cpu-idle-states = <&CPU_SLEEP>;
 		};
 
 		cpu2: cpu@2 {
@@ -58,7 +58,7 @@
 			operating-points-v2 = <&cpu_opp_table>;
 			clocks = <&cpu_clk>;
 			reg = <0x2>;
-			cpu-idle-states = <&CPU_SLEEP_0>;
+			cpu-idle-states = <&CPU_SLEEP>;
 		};
 
 		cpu3: cpu@3 {
@@ -69,7 +69,7 @@
 			operating-points-v2 = <&cpu_opp_table>;
 			clocks = <&cpu_clk>;
 			reg = <0x3>;
-			cpu-idle-states = <&CPU_SLEEP_0>;
+			cpu-idle-states = <&CPU_SLEEP>;
 		};
 
 		/*TODO: maybe need to change */
@@ -77,9 +77,9 @@
 			/*entry-method = "arm,psci";*/
 			entry-method = "arm,psci";
 
-			CPU_SLEEP_0: cpu-sleep-0 {
+			CPU_SLEEP: cpu-sleep {
 				compatible = "arm,idle-state";
-				arm,psci-suspend-param = <0x0010000>;
+				arm,psci-suspend-param = <0x0000001>;
 				local-timer-stop;
 				entry-latency-us = <300>;
 				exit-latency-us = <600>;
