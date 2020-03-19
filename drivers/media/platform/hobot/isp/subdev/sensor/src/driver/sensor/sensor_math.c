@@ -45,8 +45,6 @@ uint32_t sensor_log10(uint32_t val)
 	uint32_t data_log2 = 0;
 	uint32_t data_log10 = 0;
 
-	if (val == 0)
-		return 0;
 	if (val > 255)
 		val = 255;
 //  y = log2(x)
@@ -66,9 +64,6 @@ EXPORT_SYMBOL(sensor_log10);
 uint32_t sensor_date(uint32_t val)
 {
 	uint32_t data = 0;
-
-	if (val == 0)
-		return 0;
 
 	if (val > 255)
 		val = 255;
