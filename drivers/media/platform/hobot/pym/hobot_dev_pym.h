@@ -28,10 +28,14 @@
 #define PYM_IOC_REQBUFS       	 _IOW(PYM_IOC_MAGIC, 4, int)
 #define PYM_IOC_END_OF_STREAM    _IOW(PYM_IOC_MAGIC, 5, int)
 #define PYM_IOC_BIND_GROUP       _IOW(PYM_IOC_MAGIC, 6, int)
+#define PYM_IOC_GET_INDEX	 _IOR(PYM_IOC_MAGIC, 7, int)
+
 
 struct pym_video_ctx{
 	wait_queue_head_t		done_wq;
 	struct vio_framemgr 	*framemgr;
+	u32			frm_fst_ind;
+	u32			frm_num;
 	struct vio_group		*group;
 	unsigned long			state;
 	u32 event;
@@ -76,6 +80,7 @@ struct pym_subdev {
 	struct pym_video_ctx	*ctx[VIO_MAX_SUB_PROCESS];
 	atomic_t		refcount;
 	struct vio_framemgr	framemgr;
+	struct frame_info 	frameinfo;
 	unsigned long 		state;
 	struct vio_group 	*group;
 	struct x3_pym_dev 	*pym_dev;

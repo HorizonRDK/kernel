@@ -157,6 +157,7 @@ struct vio_framemgr {
 	struct vio_frame	*frames;
 	struct vio_frame	*frames_mp[VIO_MP_MAX_FRAMES];
 	u8			dispatch_mask[VIO_MP_MAX_FRAMES];
+	u8			ctx_mask;
 	enum vio_frame_index_state	index_state[VIO_MP_MAX_FRAMES];
 	enum vio_framemgr_state	state;
 
@@ -204,7 +205,7 @@ void frame_manager_print_info_queues(struct vio_framemgr *this);
 int frame_manager_open_mp(struct vio_framemgr *this, u32 buffers,
 	u32 *index_start);
 int frame_manager_close_mp(struct vio_framemgr *this,
-	u32 index_start, u32 buffers);
+	u32 index_start, u32 buffers, u32 ctx_index);
 int frame_manager_flush_mp(struct vio_framemgr *this,
 	u32 index_start, u32 buffers);
 int frame_manager_flush_mp_prepare(struct vio_framemgr *this,

@@ -128,7 +128,8 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 	index = ipu_ctx->frm_fst_ind;
 	cnt = ipu_ctx->frm_num;
 	if (ipu_ctx->framemgr->frames_mp[ipu_ctx->frm_fst_ind] != NULL)
-		frame_manager_close_mp(ipu_ctx->framemgr, index, cnt);
+		frame_manager_close_mp(ipu_ctx->framemgr, index, cnt,
+			ipu_ctx->proc_id);
 
 	if (atomic_dec_return(&ipu->open_cnt) == 0) {
 		clear_bit(IPU_OTF_INPUT, &ipu->state);

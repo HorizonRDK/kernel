@@ -357,7 +357,7 @@ int frame_manager_open_mp(struct vio_framemgr *this, u32 buffers,
 }
 
 int frame_manager_close_mp(struct vio_framemgr *this,
-	u32 index_start, u32 buffers)
+	u32 index_start, u32 buffers, u32 ctx_index)
 {
 	u32 i;
 	unsigned long flag;
@@ -393,6 +393,7 @@ int frame_manager_close_mp(struct vio_framemgr *this,
 		this->frames_mp[i] = NULL;
 	}
 	this->num_frames -= buffers;
+	this->ctx_mask &= ~(1 << ctx_index);
 	kfree(free_addr);
 	spin_unlock_irqrestore(&this->slock, flag);
 	return 0;
