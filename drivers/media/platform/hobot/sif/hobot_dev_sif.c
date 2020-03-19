@@ -241,7 +241,8 @@ static int x3_sif_open(struct inode *inode, struct file *file)
 	sif_ctx->state = BIT(VIO_VIDEO_OPEN);
 
 	if (atomic_read(&sif->open_cnt) == 0) {
-		vio_clk_enable("sif_mclk");
+		//vio_clk_enable("sif_mclk");
+		ips_set_clk_ctrl(SIF_CLOCK_GATE, true);
 	}
 
 	atomic_inc(&sif->open_cnt);
@@ -319,6 +320,7 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 		}
 		//it should disable after ipu stream off because it maybe contain ipu/sif clk
 		//vio_clk_disable("sif_mclk");
+		ips_set_clk_ctrl(SIF_CLOCK_GATE, false);
 	}
 	sif_ctx->state = BIT(VIO_VIDEO_CLOSE);
 

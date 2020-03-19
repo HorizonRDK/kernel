@@ -32,7 +32,6 @@
 
 #define MODULE_NAME "X3 IPU"
 
-void ipu_hw_set_osd_cfg(struct ipu_video_ctx *ipu_ctx);
 extern struct class *vps_class;
 
 static u32 color[MAX_OSD_COLOR_NUM] = {
@@ -41,6 +40,7 @@ static u32 color[MAX_OSD_COLOR_NUM] = {
     0x000000
 };
 
+void ipu_hw_set_cfg(struct ipu_video_ctx *ipu_ctx);
 static void ipu_isr_bh(struct work_struct *data);
 int ipu_put_client(struct ipu_sub_mp *sub_mp,
 		struct ipu_video_ctx *ipu_sub_ctx);
@@ -79,6 +79,7 @@ static int x3_ipu_open(struct inode *inode, struct file *file)
 	if (atomic_read(&ipu->open_cnt) == 0) {
 		atomic_set(&ipu->backup_fcount, 0);
 		atomic_set(&ipu->sensor_fcount, 0);
+		ips_set_clk_ctrl(IPU0_CLOCK_GATE, true);
 	}
 
 	atomic_inc(&ipu->open_cnt);
@@ -143,6 +144,7 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 			atomic_set(&ipu->rsccount, 0);
 			vio_info("ipu force stream off\n");
 		}
+		ips_set_clk_ctrl(IPU0_CLOCK_GATE, false);
 	}
 
 	ipu_ctx->state = BIT(VIO_VIDEO_CLOSE);
@@ -300,7 +302,7 @@ void ipu_frame_work(struct vio_group *group)
 					break;
 				}
 
-				ipu_hw_set_osd_cfg(back_ctx);
+				ipu_hw_set_cfg(back_ctx);
 				trans_frame(framemgr, frame, FS_PROCESS);
 			}
 			framemgr_x_barrier_irqr(framemgr, 0, flags);
@@ -401,6 +403,24 @@ void ipu_clear_group_leader(struct vio_group *group)
 	clear_bit(VIO_GROUP_LEADER, &group->state);
 }
 
+int ipu_update_roi_info(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
+{
+	int ret = 0;
+	struct roi_rect *roi_rect;
+
+	roi_rect = &ipu_ctx->roi_cfg.roi;
+	ret = copy_from_user((char *) roi_rect, (u32 __user *) arg,
+			   sizeof(struct roi_rect));
+	if (ret)
+		return -EFAULT;
+
+	ipu_ctx->roi_cfg.roi_update = 1;
+	vio_dbg("[S%d][V%d] %s\n", ipu_ctx->group->instance, ipu_ctx->id,
+		 __func__);
+
+	return ret;
+}
+
 int ipu_update_osd_color_map(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 {
 	int ret = 0;
@@ -473,13 +493,11 @@ int ipu_update_osd_roi(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 	return ret;
 }
 
-void ipu_hw_set_osd_cfg(struct ipu_video_ctx *ipu_ctx)
+void ipu_hw_set_osd_cfg(struct ipu_video_ctx *ipu_ctx, u32 shadow_index)
 {
-	u32 shadow_index = 0;
 	u32 osd_index = 0;
 	u32 id = 0;
 	u32 i = 0;
-	u32 rdy = 0;
 	u8 osd_enable = 0;
 	u32 sta_enable = 0;
 	u16 start_x, start_y, width, height;
@@ -489,7 +507,6 @@ void ipu_hw_set_osd_cfg(struct ipu_video_ctx *ipu_ctx)
 	u32 *osd_buf;
 	osd_color_map_t *color_map;
 	struct ipu_osd_cfg *osd_cfg;
-	struct vio_group *group;
 
 	id = ipu_ctx->id;
 	if (id < GROUP_ID_US || id > GROUP_ID_DS1) {
@@ -501,19 +518,7 @@ void ipu_hw_set_osd_cfg(struct ipu_video_ctx *ipu_ctx)
 	else
 		osd_index = id - GROUP_ID_DS0;
 
-	group = ipu_ctx->group;
-	if (!group) {
-		vio_err("[%s] group null", __func__);
-		return;
-	}
-	if (group->instance < MAX_SHADOW_NUM)
-		shadow_index = group->instance;
-
 	base_reg = ipu_ctx->ipu_dev->base_reg;
-
-	rdy = ipu_get_shd_rdy(base_reg);
-	rdy = rdy & ~(1 << shadow_index);
-	ipu_set_shd_rdy(base_reg, rdy);
 
 	osd_cfg = &ipu_ctx->osd_cfg;
 	osd_box = osd_cfg->osd_box;
@@ -573,6 +578,60 @@ void ipu_hw_set_osd_cfg(struct ipu_video_ctx *ipu_ctx)
 			      osd_cfg->osd_sta_level[osd_index]);
 	}
 	osd_cfg->osd_sta_level_update = 0;
+}
+
+void ipu_hw_set_roi_cfg(struct ipu_video_ctx *ipu_ctx, u32 shadow_index)
+{
+	u32 __iomem *base_reg;
+	u32 id = 0;
+	struct ipu_roi_cfg *roi_cfg;
+	struct roi_rect *roi;
+
+	id = ipu_ctx->id;
+	if (id < GROUP_ID_US || id > GROUP_ID_DS4) {
+		return;
+	}
+
+	roi_cfg = &ipu_ctx->roi_cfg;
+	roi = &roi_cfg->roi;
+	base_reg = ipu_ctx->ipu_dev->base_reg;
+
+	if (roi_cfg->roi_update) {
+		if (id == GROUP_ID_US)
+			ipu_set_us_roi_rect(base_reg, shadow_index, roi->roi_x, roi->roi_y,
+						roi->roi_width, roi->roi_height);
+		else
+			ipu_set_ds_roi_rect(base_reg, shadow_index, id - GROUP_ID_DS0,
+						roi->roi_x, roi->roi_y,
+						roi->roi_width, roi->roi_height);
+		roi_cfg->roi_update = 0;
+	}
+
+}
+
+void ipu_hw_set_cfg(struct ipu_video_ctx *ipu_ctx)
+{
+	u32 rdy = 0;
+	u32 __iomem *base_reg;
+	u32 shadow_index = 0;
+	struct vio_group *group;
+
+	group = ipu_ctx->group;
+	if (!group) {
+		vio_err("[%s] group null", __func__);
+		return;
+	}
+	if (group->instance < MAX_SHADOW_NUM)
+		shadow_index = group->instance;
+
+	base_reg = ipu_ctx->ipu_dev->base_reg;
+
+	rdy = ipu_get_shd_rdy(base_reg);
+	rdy = rdy & ~(1 << shadow_index);
+	ipu_set_shd_rdy(base_reg, rdy);
+
+	ipu_hw_set_osd_cfg(ipu_ctx, shadow_index);
+	ipu_hw_set_roi_cfg(ipu_ctx, shadow_index);
 
 	rdy = ipu_get_shd_rdy(base_reg);
 	rdy = rdy | (1 << shadow_index);
@@ -1085,8 +1144,6 @@ int ipu_video_init(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 		vio_err("[%s] invalid INIT is requested(%lX)", __func__, ipu_ctx->state);
 		return -EINVAL;
 	}
-
-	ips_set_clk_ctrl(IPU0_CLOCK_GATE, true);
 
 	if (ipu_ctx->id == GROUP_ID_SRC) {
 		ipu_cfg = &ipu_ctx->ipu_cfg;
@@ -1641,6 +1698,9 @@ static long x3_ipu_ioctl(struct file *file, unsigned int cmd,
 		ret = ipu_get_osd_bin(ipu_ctx, arg);
 		break;
 	case IPU_IOC_OSD_COLOR_MAP:
+		ret = ipu_update_osd_color_map(ipu_ctx, arg);
+		break;
+	case IPU_IOC_ROI_INFO:
 		ret = ipu_update_osd_color_map(ipu_ctx, arg);
 		break;
 	case IPU_IOC_BIND_GROUP:

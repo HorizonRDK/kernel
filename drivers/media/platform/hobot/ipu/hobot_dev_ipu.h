@@ -37,6 +37,7 @@
 #define IPU_IOC_BIND_GROUP       _IOW(IPU_IOC_MAGIC, 11, int)
 #define IPU_IOC_GET_INDEX      	 _IOR(IPU_IOC_MAGIC, 12, int)
 #define IPU_IOC_OSD_COLOR_MAP    _IOW(IPU_IOC_MAGIC, 13, int)
+#define IPU_IOC_ROI_INFO    	 _IOW(IPU_IOC_MAGIC, 14, int)
 
 struct ipu_osd_cfg{
 	bool osd_box_update;
@@ -50,6 +51,11 @@ struct ipu_osd_cfg{
 	osd_color_map_t color_map;
 };
 
+struct ipu_roi_cfg {
+	struct roi_rect roi;
+	bool roi_update;
+};
+
 struct ipu_video_ctx {
 	wait_queue_head_t done_wq;
 	struct vio_framemgr *framemgr;
@@ -61,6 +67,7 @@ struct ipu_video_ctx {
 
 	struct x3_ipu_dev *ipu_dev;
 	struct ipu_osd_cfg osd_cfg;
+	struct ipu_roi_cfg roi_cfg;
 	ipu_cfg_t ipu_cfg;
 
 	u32			frm_fst_ind;

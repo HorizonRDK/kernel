@@ -26,14 +26,13 @@
 
 #include "gdc_dev.h"
 #include "gdc_hw_api.h"
+#include "hobot_dev_ips.h"
 
 #define MODULE_NAME "X2A GDC"
 
 extern void write_gdc_mask(uint32_t model, uint32_t *enable);
 extern void write_gdc_status(uint32_t model, uint32_t *enable);
 
-extern int ips_set_clk_ctrl(unsigned long module, bool enable);
-extern void ips_set_module_reset(unsigned long module);
 
 extern struct class *vps_class;
 struct x3_gdc_dev *g_gdc_dev = NULL;
