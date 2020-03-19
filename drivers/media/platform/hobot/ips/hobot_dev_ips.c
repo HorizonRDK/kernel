@@ -45,6 +45,10 @@ struct vio_clk vio_clk_list[] = {
 	REGISTER_CLK("pym_mclk"),
 	REGISTER_CLK("mipi_dev_ref"),
 	REGISTER_CLK("mipi_host_ref"),
+	REGISTER_CLK("sensor0_mclk"),
+	REGISTER_CLK("sensor1_mclk"),
+	REGISTER_CLK("sensor2_mclk"),
+	REGISTER_CLK("sensor3_mclk"),
 };
 
 void ips_set_module_reset(unsigned long module)

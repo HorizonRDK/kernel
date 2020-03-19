@@ -457,11 +457,14 @@
 			<&mipi_rx1_ipi_mclk>, <&mipi_rx2_ipi_mclk>,
 			<&mipi_rx3_ipi_mclk>, <&mipi_tx_ipi_mclk>,
 			<&mipi_cfg_host_mclk>, <&pym_mclk>,
-			<&mipi_dev_ref_clk>, <&mipi_host_ref_clk>;
+			<&mipi_dev_ref_clk>, <&mipi_host_ref_clk>,
+			<&sensor0_mclk>, <&sensor1_mclk>,
+			<&sensor2_mclk>, <&sensor3_mclk>;
 			clock-names = "sif_mclk", "mipi_rx0_ipi",
 			"mipi_rx1_ipi", "mipi_rx2_ipi", "mipi_rx3_ipi",
 			"mipi_tx_ipi", "mipi_cfg_host", "pym_mclk",
-			"mipi_dev_ref", "mipi_host_ref";
+			"mipi_dev_ref", "mipi_host_ref", "sensor0_mclk",
+			"sensor1_mclk", "sensor2_mclk", "sensor3_mclk";
 			status = "disabled";
 		};
 
@@ -494,6 +497,10 @@
 			reg = <0 0xA4350000 0 0x800>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 57 4>;
+			pinctrl-names = "enable", "disable";
+			pinctrl-0 = <&sensor1_func>;
+			pinctrl-1 = <&sensor1_gpio_func>;
+			snrclk-idx = <1>;
 			status = "disabled";
 		};
 
@@ -502,6 +509,10 @@
 			reg = <0 0xA4351000 0 0x800>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 58 4>;
+			pinctrl-names = "enable", "disable";
+			pinctrl-0 = <&sensor0_func>;
+			pinctrl-1 = <&sensor0_gpio_func>;
+			snrclk-idx = <0>;
 			status = "disabled";
 		};
 

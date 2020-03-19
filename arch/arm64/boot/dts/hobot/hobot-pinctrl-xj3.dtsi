@@ -356,24 +356,44 @@
 					13	2
 				>;
 			};
-			sensor0_func: sensor_func@0 {
+			sensor0_func: sensor0_func {
 				pinctrl-x2,pins-muxs = <
 					109      0 /*Sensor0 MCLK*/
 				>;
 			};
-			sensor1_func: sensor_func@1 {
+			sensor1_func: sensor1_func {
 				pinctrl-x2,pins-muxs = <
 					110      0 /*Sensor1 MCLK*/
 				>;
 			};
-			sensor2_func: sensor_func@2 {
+			sensor2_func: sensor2_func {
 				pinctrl-x2,pins-muxs = <
 					111      0 /*Sensor2 MCLK*/
 				>;
 			};
-			sensor3_func: sensor_func@3 {
+			sensor3_func: sensor3_func {
 				pinctrl-x2,pins-muxs = <
 					112      0 /*Sensor3 MCLK*/
+				>;
+			};
+			sensor0_gpio_func: sensor0_gpio_func {
+				pinctrl-x2,pins-muxs = <
+					109      3
+				>;
+			};
+			sensor1_gpio_func: sensor1_gpio_func {
+				pinctrl-x2,pins-muxs = <
+					110      3
+				>;
+			};
+			sensor2_gpio_func: sensor2_gpio_func {
+				pinctrl-x2,pins-muxs = <
+					111      3
+				>;
+			};
+			sensor3_gpio_func: sensor3_gpio_func {
+				pinctrl-x2,pins-muxs = <
+					112      3
 				>;
 			};
 			usb_id_function: usb-id-function {

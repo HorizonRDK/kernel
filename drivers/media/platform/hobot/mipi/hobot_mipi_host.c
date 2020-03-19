@@ -48,7 +48,8 @@
 #define MIPI_HOST_CFGCLK_NAME	"mipi_cfg_host"
 #define MIPI_HOST_CFGCLK_MHZ	24000000UL
 #define MIPI_HOST_REFCLK_NAME	"mipi_host_ref"
-#define MIPI_HOST_IPICLK_NAME	"mipi_rx%d_ipi"
+#define MIPI_HOST_IPICLK_NAME(x)	"mipi_rx" __stringify(x) "_ipi"
+#define MIPI_HOST_SNRCLK_NAME(x)	"sensor" __stringify(x) "_mclk"
 
 static unsigned int port_num;
 module_param(port_num, uint, 0444);
@@ -129,9 +130,10 @@ module_param(init_num, uint, 0644);
 
 #define MIPI_HOST_ADV_DEFAULT      (0x3 << 16)
 #define MIPI_HOST_CUT_DEFAULT      (1)
-#define MIPI_HOST_IPILIMIT_DEFAULT (102000000)
+#define MIPI_HOST_IPILIMIT_DEFAULT (102000000UL)
 #define MIPI_HOST_IRQ_CNT          (10)
 #define MIPI_HOST_IRQ_DEBUG        (1)
+#define MIPI_HOST_SNRCLK_FREQ_MIN  (9281250UL)
 
 #define HOST_DPHY_LANE_MAX         (4)
 #define HOST_DPHY_CHECK_MAX        (3000)
@@ -174,6 +176,27 @@ static const char *g_mh_state[MIPI_STATE_MAX] = {
 	"stop",
 };
 
+static const char *g_mh_ipiclk_name[] = {
+	MIPI_HOST_IPICLK_NAME(0),
+	MIPI_HOST_IPICLK_NAME(1),
+	MIPI_HOST_IPICLK_NAME(2),
+	MIPI_HOST_IPICLK_NAME(3),
+};
+
+static const char *g_mh_snrclk_name[] = {
+	MIPI_HOST_SNRCLK_NAME(0),
+	MIPI_HOST_SNRCLK_NAME(1),
+	MIPI_HOST_SNRCLK_NAME(2),
+	MIPI_HOST_SNRCLK_NAME(3),
+};
+
+typedef struct _mipi_host_snrclk_s {
+	int                   index;
+	struct pinctrl       *pinctrl;
+	struct pinctrl_state *enable;
+	struct pinctrl_state *disable;
+} mipi_host_snrclk_t;
+
 typedef struct _mipi_host_param_s {
 	/* type must be: uint32_t */
 	uint32_t nocheck;
@@ -185,6 +208,8 @@ typedef struct _mipi_host_param_s {
 	uint32_t cut_through;
 	uint32_t ipi_force;
 	uint32_t ipi_limit;
+	uint32_t snrclk_en;
+	uint32_t snrclk_freq;
 #if MIPI_HOST_INT_DBG
 	uint32_t irq_cnt;
 	uint32_t irq_debug;
@@ -201,6 +226,8 @@ static const char *g_mh_param_names[] = {
 	"cut_through",
 	"ipi_force",
 	"ipi_limit",
+	"snrclk_en",
+	"snrclk_freq",
 #if MIPI_HOST_INT_DBG
 	"irq_cnt",
 	"irq_debug",
@@ -256,6 +283,7 @@ typedef struct _mipi_host_s {
 	mipi_state_t      state;
 	mipi_host_cfg_t   cfg;
 	mipi_host_param_t param;
+	mipi_host_snrclk_t snrclk;
 #if MIPI_HOST_INT_DBG
 	mipi_host_icnt_t icnt;
 #endif
@@ -538,7 +566,7 @@ ulong vio_get_clk_rate(const char *name);
 /**
  * @brief mipi_host_configure_clk: configure clk of mipi host
  *
- * @param [in] cfg : mipi host cfgler's setting
+ * @param [in] name/freq/checkequ: mipi host clk's setting
  *
  * @return int32_t : 0/-1
  */
@@ -568,6 +596,104 @@ static int32_t mipi_host_configure_clk(mipi_hdev_t *hdev, const char *name,
 	return ret;
 }
 
+/**
+ * @brief mipi_host_get_clk: configure clk of mipi host
+ *
+ * @param [in] name: mipi host clk's getting
+ *
+ * @return int32_t : 0/-1
+ */
+static ulong mipi_host_get_clk(mipi_hdev_t *hdev, const char *name)
+{
+	ulong clk = 0;
+#ifdef CONFIG_HOBOT_XJ3
+	clk = vio_get_clk_rate(name);
+#endif
+	return clk;
+}
+
+/**
+ * @brief mipi_host_snrclk_set_freq: configure snrclk of mipi host
+ *
+ * @param [in] freq: mipi host snrclk's setting
+ *
+ * @return int32_t : 0/-1
+ */
+static int32_t mipi_host_snrclk_set_freq(mipi_hdev_t *hdev, uint32_t freq)
+{
+	int32_t ret = 0;
+	struct device *dev = hdev->dev;
+	mipi_host_snrclk_t *snrclk = &hdev->host.snrclk;
+	mipi_host_param_t *param = &hdev->host.param;
+	const char *name;
+	uint32_t diff;
+
+	if (snrclk->index < 0) {
+		mipierr("snrclk set freq not support");
+		return -1;
+	}
+	name = g_mh_snrclk_name[snrclk->index];
+	ret = mipi_host_configure_clk(hdev, name, freq, 0);
+	param->snrclk_freq = (uint32_t)(mipi_host_get_clk(hdev, name));
+	diff = (freq > param->snrclk_freq) ? (freq - param->snrclk_freq) :
+			param->snrclk_freq - freq;
+	if ((diff * 10) > freq) {
+		ret = -1;
+	}
+	if (ret)
+		mipierr("%s set %u but %u error", name, freq, param->snrclk_freq);
+	else
+		mipiinfo("%s set %u as %u", name, freq, param->snrclk_freq);
+
+	return ret;
+}
+
+/**
+ * @brief mipi_host_snrclk_set_en: enable/disable snrclk of mipi host
+ *
+ * @param [in] enable: mipi host snrclk's setting
+ *
+ * @return int32_t : 0/-1
+ */
+
+static int32_t mipi_host_snrclk_set_en(mipi_hdev_t *hdev, int enable)
+{
+	int32_t ret = 0;
+	struct device *dev = hdev->dev;
+	mipi_host_snrclk_t *snrclk = &hdev->host.snrclk;
+	mipi_host_param_t *param = &hdev->host.param;
+
+	if (!snrclk->pinctrl) {
+		mipierr("snrclk set en not support");
+		return -1;
+	}
+	if (enable) {
+		if (snrclk->enable) {
+			mipiinfo("snrclk set enable");
+			ret = pinctrl_select_state(snrclk->pinctrl,
+					snrclk->enable);
+			if (ret == 0)
+				param->snrclk_en = 1;
+		} else {
+			mipierr("snrclk set enable not support");
+			ret = -1;
+		}
+	} else {
+		if (snrclk->disable) {
+			mipiinfo("snrclk set disable");
+			ret = pinctrl_select_state(snrclk->pinctrl,
+					snrclk->disable);
+			if (ret == 0)
+				param->snrclk_en = 0;
+		} else {
+			mipierr("snrclk set disable not support");
+			ret = -1;
+		}
+	}
+
+	return ret;
+}
+
 /* mipi host functions */
 static unsigned long mipi_host_pixel_clk_select(mipi_hdev_t *hdev, mipi_host_cfg_t *cfg)
 {
@@ -578,9 +704,6 @@ static unsigned long mipi_host_pixel_clk_select(mipi_hdev_t *hdev, mipi_host_cfg
 	unsigned long pixclk_act = pixclk;
 	unsigned long linelenth = cfg->linelenth;
 	unsigned long framelenth = cfg->framelenth;
-#ifdef CONFIG_HOBOT_XJ3
-	char ipi_clk_name[32];
-#endif
 
 	if (!cfg->fps) {
 		mipiinfo("input FPS can't be zero!!!");
@@ -607,18 +730,22 @@ static unsigned long mipi_host_pixel_clk_select(mipi_hdev_t *hdev, mipi_host_cfg
 		}
 	}
 #ifdef CONFIG_HOBOT_XJ3
-	snprintf(ipi_clk_name, 32, MIPI_HOST_IPICLK_NAME, hdev->port);
-	if (mipi_host_configure_clk(hdev, ipi_clk_name, pixclk, 0) < 0)
-		mipiinfo("mipi_host_configure_clk error");
-	mipiinfo("host fifo clk pixclk: %lu", pixclk);
-	pixclk_act = vio_get_clk_rate(ipi_clk_name);
-	mipiinfo("host fifo clk pixclk: %lu", pixclk_act);
+	if (hdev->port >= ARRAY_SIZE(g_mh_ipiclk_name) ||
+		mipi_host_configure_clk(hdev, g_mh_ipiclk_name[hdev->port], pixclk, 0) < 0) {
+		mipierr("mipi_host_configure_clk %lu error", pixclk);
+	} else {
+		mipiinfo("host fifo clk pixclk: %lu", pixclk);
+		pixclk_act = mipi_host_get_clk(hdev, g_mh_ipiclk_name[hdev->port]);
+		mipiinfo("host fifo clk pixclk: %lu", pixclk_act);
+	}
 #elif defined CONFIG_X2_IPS
-	if (ips_set_mipi_ipi_clk(pixclk) < 0)
-		mipiinfo("ips_set_mipi_ipi_clk error");
-	mipiinfo("host fifo clk pixclk: %lu", pixclk);
-	pixclk_act = ips_get_mipi_ipi_clk();
-	mipiinfo("host fifo clk pixclk: %lu", pixclk_act);
+	if (ips_set_mipi_ipi_clk(pixclk) < 0) {
+		mipiinfo("ips_set_mipi_ipi_clk %lu error", pixclk);
+	} else {
+		mipiinfo("host fifo clk pixclk: %lu", pixclk);
+		pixclk_act = ips_get_mipi_ipi_clk();
+		mipiinfo("host fifo clk pixclk: %lu", pixclk_act);
+	}
 #else
 	mipiinfo("should: ips_set_mipi_ipi_clk(%lu)", pixclk);
 #endif
@@ -1233,7 +1360,31 @@ static int32_t mipi_host_init(mipi_hdev_t *hdev, mipi_host_cfg_t *cfg)
 	mipiinfo("init begin");
 	mipiinfo("%d lane %dx%d %dfps datatype 0x%x",
 			 cfg->lane, cfg->width, cfg->height, cfg->fps, cfg->datatype);
-	mipi_host_configure_clk(hdev, MIPI_HOST_REFCLK_NAME, cfg->mclk * 1000000UL, 1);
+	if (!hdev->is_ex) {
+		/* cfg->mclk:
+		 * 0      : disable only
+		 * 1      : enable only
+		 * 2~24   : invalid and drop
+		 * 25~9280: invalid and error
+		 * 9281~  : *10K = freq -> 92.81~655.35MHz
+		 */
+		if (cfg->mclk >= (MIPI_HOST_SNRCLK_FREQ_MIN / 10000UL)) {
+			if (mipi_host_snrclk_set_freq(hdev, cfg->mclk * 10000UL) ||
+					mipi_host_snrclk_set_en(hdev, 1)) {
+				return -1;
+			}
+		} else if (cfg->mclk > 24) {
+			mipiinfo("mclk %d should >= %lu(%luHz)", cfg->mclk,
+				(MIPI_HOST_SNRCLK_FREQ_MIN / 10000UL), MIPI_HOST_SNRCLK_FREQ_MIN);
+			return -1;
+		} else if (cfg->mclk > 1) {
+			mipiinfo("mclk %d drop", cfg->mclk);
+		} else if (cfg->mclk == 1) {
+			mipi_host_snrclk_set_en(hdev, 1);
+		} else {
+			mipi_host_snrclk_set_en(hdev, 0);
+		}
+	}
 	pixclk = mipi_host_pixel_clk_select(hdev, cfg);
 	if (0 == pixclk) {
 		mipierr("pixel clk config error!");
@@ -1441,6 +1592,32 @@ static long hobot_mipi_host_ioctl(struct file *file, unsigned int cmd, unsigned 
 			host->state = MIPI_STATE_STOP;
 		}
 		break;
+	case MIPIHOSTIOC_SNRCLK_SET_EN:
+		{
+			uint32_t enable;
+
+			mipiinfo("snrclk set en cmd");
+			if (get_user(enable, (uint32_t *)arg)) {
+				mipierr("get data from user failed");
+				return -EFAULT;
+			}
+			if (mipi_host_snrclk_set_en(hdev, enable))
+				return -EACCES;
+		}
+		break;
+	case MIPIHOSTIOC_SNRCLK_SET_FREQ:
+		{
+			uint32_t freq;
+
+			mipiinfo("snrclk set freq cmd");
+			if (get_user(freq, (uint32_t *)arg)) {
+				mipierr("get data from user failed");
+				return -EFAULT;
+			}
+			if (mipi_host_snrclk_set_freq(hdev, freq))
+				return -EACCES;
+		}
+		break;
 #ifdef CONFIG_HOBOT_MIPI_REG_OPERATE
 	case MIPIHOSTIOC_READ:
 		{
@@ -1532,6 +1709,13 @@ static ssize_t mipi_host_param_show(struct device *dev,
 
 	idx = mipi_host_param_idx(attr->attr.name);
 	if (idx >= 0) {
+		/* update the real value for snrclk_freq */
+		if(!strcmp(attr->attr.name, "snrclk_freq") &&
+			hdev->host.snrclk.index >= 0) {
+			hdev->host.param.snrclk_freq =
+				(uint32_t)(mipi_host_get_clk(hdev,
+				g_mh_snrclk_name[hdev->host.snrclk.index]));
+		}
 		s += sprintf(s, "%u\n", param[idx]);
 	}
 
@@ -1556,6 +1740,13 @@ static ssize_t mipi_host_param_store(struct device *dev,
 		}
 	}
 
+	if (error == 0) {
+		if(!strcmp(attr->attr.name, "snrclk_en"))
+			error = mipi_host_snrclk_set_en(hdev, val);
+		else if (!strcmp(attr->attr.name, "snrclk_freq"))
+			error = mipi_host_snrclk_set_freq(hdev, val);
+	}
+
 	return (error ? error : count);
 }
 
@@ -1574,6 +1765,8 @@ MIPI_HOST_PARAM_DEC(stop_check_instart);
 MIPI_HOST_PARAM_DEC(cut_through);
 MIPI_HOST_PARAM_DEC(ipi_force);
 MIPI_HOST_PARAM_DEC(ipi_limit);
+MIPI_HOST_PARAM_DEC(snrclk_en);
+MIPI_HOST_PARAM_DEC(snrclk_freq);
 #if MIPI_HOST_INT_DBG
 MIPI_HOST_PARAM_DEC(irq_cnt);
 MIPI_HOST_PARAM_DEC(irq_debug);
@@ -1589,6 +1782,8 @@ static struct attribute *param_attr[] = {
 	MIPI_HOST_PARAM_ADD(cut_through),
 	MIPI_HOST_PARAM_ADD(ipi_force),
 	MIPI_HOST_PARAM_ADD(ipi_limit),
+	MIPI_HOST_PARAM_ADD(snrclk_en),
+	MIPI_HOST_PARAM_ADD(snrclk_freq),
 #if MIPI_HOST_INT_DBG
 	MIPI_HOST_PARAM_ADD(irq_cnt),
 	MIPI_HOST_PARAM_ADD(irq_debug),
@@ -1608,6 +1803,8 @@ static ssize_t mipi_host_status_show(struct device *dev,
 	mipi_hdev_t *hdev = dev_get_drvdata(dev);
 	mipi_host_t *host = &hdev->host;
 	mipi_host_cfg_t *cfg = &host->cfg;
+	mipi_host_snrclk_t *snrclk = &host->snrclk;
+	mipi_host_param_t *param = &host->param;
 	void __iomem *iomem = host->iomem;
 	char *s = buf;
 	int i;
@@ -1758,6 +1955,19 @@ static ssize_t mipi_host_status_show(struct device *dev,
 		} else {
 			s += sprintf(s, "not ioremap\n" );
 		}
+	} else if (strcmp(attr->attr.name, "snrclk") == 0) {
+		if (snrclk->index >= 0)
+			MH_STA_SHOW(snrclk, "%s", g_mh_snrclk_name[snrclk->index]);
+		else
+			MH_STA_SHOW(snrclk, "%s", "none");
+		if (snrclk->pinctrl)
+			MH_STA_SHOW(support, "%s %s",
+				(snrclk->enable) ? "enable" : "",
+				(snrclk->disable) ? "disable" : "");
+		else
+			MH_STA_SHOW(support, "%s", "none");
+		MH_STA_SHOW(state, "%s", (param->snrclk_en ? "enable" : "disable"));
+		MH_STA_SHOW(freq, "%u", param->snrclk_freq);
 #if MIPI_HOST_INT_DBG
 	} else if (strcmp(attr->attr.name, "icnt") == 0) {
 		for (i = 0; i < sizeof(host->icnt)/sizeof(uint32_t); i++) {
@@ -1778,6 +1988,7 @@ static ssize_t mipi_host_status_show(struct device *dev,
 MIPI_HOST_STATUS_DEC(info);
 MIPI_HOST_STATUS_DEC(cfg);
 MIPI_HOST_STATUS_DEC(regs);
+MIPI_HOST_STATUS_DEC(snrclk);
 #if MIPI_HOST_INT_DBG
 MIPI_HOST_STATUS_DEC(icnt);
 #endif
@@ -1786,6 +1997,7 @@ static struct attribute *status_attr[] = {
 	MIPI_HOST_STATUS_ADD(info),
 	MIPI_HOST_STATUS_ADD(cfg),
 	MIPI_HOST_STATUS_ADD(regs),
+	MIPI_HOST_STATUS_ADD(snrclk),
 #if MIPI_HOST_INT_DBG
 	MIPI_HOST_STATUS_ADD(icnt),
 #endif
@@ -2088,6 +2300,7 @@ static int hobot_mipi_host_probe(struct platform_device *pdev)
 	mipi_host_t *host;
 	mipi_host_param_t *param;
 	int port, ret = 0;
+	uint32_t node_val;
 	struct resource *res;
 
 	port = of_alias_get_id(pdev->dev.of_node, "mipihost");
@@ -2148,6 +2361,7 @@ static int hobot_mipi_host_probe(struct platform_device *pdev)
 	param->irq_cnt = MIPI_HOST_IRQ_CNT;
 	param->irq_debug = MIPI_HOST_IRQ_DEBUG;
 #endif
+
 	param->adv_value = MIPI_HOST_ADV_DEFAULT;
 	param->cut_through = MIPI_HOST_CUT_DEFAULT;
 	param->ipi_limit = MIPI_HOST_IPILIMIT_DEFAULT;
@@ -2160,6 +2374,46 @@ static int hobot_mipi_host_probe(struct platform_device *pdev)
 	ret = hobot_mipi_host_probe_cdev(hdev);
 	if (ret) {
 		goto err_cdev;
+	}
+
+	host->snrclk.pinctrl = devm_pinctrl_get(&pdev->dev);
+	if (IS_ERR(host->snrclk.pinctrl)) {
+		host->snrclk.pinctrl = NULL;
+	} else {
+		host->snrclk.enable = pinctrl_lookup_state(host->snrclk.pinctrl,
+			"enable");
+		if (IS_ERR(host->snrclk.enable))
+			host->snrclk.enable = NULL;
+		host->snrclk.disable = pinctrl_lookup_state(host->snrclk.pinctrl,
+			"disable");
+		if (IS_ERR(host->snrclk.disable))
+			host->snrclk.disable = NULL;
+	}
+	ret = of_property_read_u32(pdev->dev.of_node,
+			"snrclk-idx", &node_val);
+	if (ret || node_val >= ARRAY_SIZE(g_mh_snrclk_name)) {
+		host->snrclk.index = -1;
+	} else {
+		host->snrclk.index = (int)node_val;
+	}
+	ret = of_property_read_u32(pdev->dev.of_node,
+			"clock-frequency", &node_val);
+	if (ret == 0) {
+		if (node_val <= 1) {
+			mipi_host_snrclk_set_en(hdev, node_val);
+			if (host->snrclk.index >= 0)
+				host->param.snrclk_freq = (uint32_t)(mipi_host_get_clk(hdev,
+					g_mh_snrclk_name[host->snrclk.index]));
+		} else {
+			mipi_host_snrclk_set_freq(hdev, node_val);
+			mipi_host_snrclk_set_en(hdev, 1);
+		}
+	} else {
+		if (host->snrclk.pinctrl)
+			host->param.snrclk_en = 2;
+		if (host->snrclk.index >= 0)
+			host->param.snrclk_freq = (uint32_t)(mipi_host_get_clk(hdev,
+						g_mh_snrclk_name[host->snrclk.index]));
 	}
 
 	mipi_host_configure_clk(hdev, MIPI_HOST_CFGCLK_NAME, MIPI_HOST_CFGCLK_MHZ, 1);

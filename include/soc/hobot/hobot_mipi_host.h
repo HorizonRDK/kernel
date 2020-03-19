@@ -46,5 +46,7 @@ typedef struct _mipi_host_cfg_t {
 #define MIPIHOSTIOC_DEINIT           _IO(MIPIHOSTIOC_MAGIC,  1)
 #define MIPIHOSTIOC_START            _IO(MIPIHOSTIOC_MAGIC,  2)
 #define MIPIHOSTIOC_STOP             _IO(MIPIHOSTIOC_MAGIC,  3)
+#define MIPIHOSTIOC_SNRCLK_SET_EN    _IOW(MIPIHOSTIOC_MAGIC, 4, uint32_t)
+#define MIPIHOSTIOC_SNRCLK_SET_FREQ  _IOW(MIPIHOSTIOC_MAGIC, 5, uint32_t)
 
 #endif /*__HOBOT_MIPI_HOST_H__*/
