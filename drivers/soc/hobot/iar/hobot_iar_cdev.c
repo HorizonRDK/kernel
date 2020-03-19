@@ -578,7 +578,8 @@ static ssize_t x2_iar_store(struct kobject *kobj, struct kobj_attribute *attr, c
 	char *tmp;
 	int error = -EINVAL;
 	int ret = 0;
-	unsigned long tmp_value = 0;
+	unsigned long tmp_value = 0, pipeline = 0, disp_layer = 0;
+	char value[2];
 
 	tmp = (char *)buf;
 	if (strncmp(tmp, "start", 5) == 0) {
@@ -600,6 +601,42 @@ static ssize_t x2_iar_store(struct kobject *kobj, struct kobj_attribute *attr, c
 		} else {
 			pr_info("error input, exit!!\n");
 			return error;
+		}
+	} else if (strncmp(tmp, "pipe", 4) == 0) {
+		tmp = tmp + 4;
+		memcpy((void *)(value), (void *)(tmp), 1);
+		value[1] = '\0';
+		ret = kstrtoul(value, 0, &pipeline);
+		if (ret == 0) {
+			if (pipeline > 3) {
+				pr_info("wrong pipeline number, exit!!\n");
+				return error;
+			} else {
+				pr_info("checkout pipeline %d display!!\n", pipeline);
+			}
+		} else {
+			pr_info("error input type, exit!!\n");
+			return error;
+		}
+		tmp = tmp + 1;
+		memcpy((void *)(value), (void *)(tmp), 1);
+                value[1] = '\0';
+		ret = kstrtoul(value, 0, &disp_layer);
+		if (ret == 0) {
+			if (disp_layer > 1) {
+				pr_info("wrong video layer number, exit!!\n");
+				return error;
+			} else {
+				pr_info("display layer is %d!!\n", disp_layer);
+			}
+		} else {
+			pr_info("error input type, exit!!\n");
+			return error;
+		}
+		if (disp_layer == 0) {
+				iar_display_cam_no = pipeline;
+		} else if (disp_layer == 1) {
+				iar_display_cam_no_video1 = pipeline;
 		}
 	} else if (strncmp(tmp, "lcd", 3) == 0) {
 		pr_info("iar output lcd rgb panel config......\n");
