@@ -206,7 +206,8 @@ static u32 x3_ipu_poll(struct file *file, struct poll_table_struct *wait)
 		frame = peek_frame(framemgr, FS_COMPLETE);
 		if (frame) {
 			ret = POLLIN;
-			vio_dbg("poll complete fid%d,bufinx%d ",
+			vio_dbg("[S%d][V%d]poll complete fid%d,bufinx%d ",
+				ipu_ctx->group->instance, ipu_ctx->id,
 				frame->frameinfo.frame_id,
 				frame->frameinfo.bufferindex);
 			framemgr_x_barrier_irqr(framemgr, 0, flags);
@@ -1890,7 +1891,8 @@ void ipu_dispatch_frm(struct ipu_work *ipu_work)
 		spin_lock(&sub_mp->dispatch_lock);
 		client_count = sub_mp->client_count;
 		if (!client_count) {
-			vio_dbg("disp:warn,client count %d", client_count);
+			vio_dbg("[S%d][V%d]disp:warn,client count %d",
+				instance, id, client_count);
 		} else {
 			framemgr_e_barrier_irqs(framemgr, 0, flags);
 			frame = peek_frame(framemgr, FS_COMPLETE);
@@ -1898,18 +1900,21 @@ void ipu_dispatch_frm(struct ipu_work *ipu_work)
 				trans_frame(framemgr, frame, FS_USED);
 			framemgr_x_barrier_irqr(framemgr, 0, flags);
 			if (!frame)
-				vio_dbg("no frame in FS_COMPLETE when dispatching");
+				vio_dbg("[S%d][V%d]no frame in FS_COMPLETE when dispatching",
+					instance, id);
 			else
 				bufindex = frame->frameinfo.bufferindex;
 		}
 		for (i = 0; i < client_count; i++) {
 			ipu_ctx = ipu_get_client(sub_mp);
 			if (!ipu_ctx) {
-				vio_dbg("ipu:client not enough when dispatching.");
+				vio_dbg("[S%d][V%d]ipu:client not enough when dispatching.",
+					instance, id);
 				break;
 			}
 			if (!test_bit(ipu_ctx->proc_id, &sub_mp->val_dev_mask)) {
-				vio_dbg("ipu:client ctx is invalid.");
+				vio_dbg("[S%d][V%d]ipu:client ctx is invalid.",
+					instance, id);
 				break;
 			}
 
@@ -1917,7 +1922,8 @@ void ipu_dispatch_frm(struct ipu_work *ipu_work)
 				frame_info = &ipu_ctx->frameinfo;
 				memcpy(frame_info, &frame->frameinfo,
 					sizeof(struct frame_info));
-				vio_dbg("disp%d ,bidx%d fid%d", i,
+				vio_dbg("[S%d][V%d]disp%d ,bidx%d fid%d",
+					instance, id, i,
 					frame_info->bufferindex,
 					frame_info->frame_id);
 				framemgr_e_barrier_irqs(framemgr, 0, flags);
@@ -2022,8 +2028,8 @@ static irqreturn_t ipu_isr(int irq, void *data)
 	}
 
 	ipu_work = &ipu->work[instance];
-	ipu_work->work_sta = 0;
 	if (status & (1 << INTR_IPU_FRAME_DONE)) {
+		ipu_work->work_sta = 0;
 		if (!group->leader)
 			vio_group_done(group);
 
@@ -2085,7 +2091,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 			ipu_work->work_sta |= (1 << GROUP_ID_DS4);
 		}
 	}
-	if (ipu_work->work_sta) {
+	if ((ipu_work->work_sta) && (status & (1 << INTR_IPU_FRAME_DONE)))  {
 		queue_work(system_highpri_wq, &ipu_work->work);
 	}
 
