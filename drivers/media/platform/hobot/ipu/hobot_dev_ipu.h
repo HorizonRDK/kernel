@@ -99,6 +99,8 @@ struct ipu_sub_mp {
 	struct vio_group 	*group;
 	struct x3_ipu_dev 	*ipu_dev;
 	struct semaphore	hw_init_sem;
+
+	struct frame_info 	frameinfo;
 };
 
 struct ipu_work {

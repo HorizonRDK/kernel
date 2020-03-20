@@ -178,10 +178,7 @@ static u32 x3_ipu_poll(struct file *file, struct poll_table_struct *wait)
 {
 	int ret = 0;
 	struct ipu_video_ctx *ipu_ctx;
-	unsigned long flags;
-	struct list_head *done_list;
 	struct vio_framemgr *framemgr;
-	struct vio_frame *frame;
 	struct ipu_sub_mp *sub_mp;
 
 	ipu_ctx = file->private_data;
@@ -196,37 +193,10 @@ static u32 x3_ipu_poll(struct file *file, struct poll_table_struct *wait)
 
 	poll_wait(file, &ipu_ctx->done_wq, wait);
 	if(ipu_ctx->event == VIO_FRAME_DONE)
-		return POLLIN;
+		ret = POLLIN;
 	else if(ipu_ctx->event == VIO_FRAME_NDONE)
-		return POLLERR;
+		ret =  POLLERR;
 
-	framemgr_e_barrier_irqs(framemgr, 0, flags);
-	done_list = &framemgr->queued_list[FS_COMPLETE];
-	if (!list_empty(done_list)) {
-		frame = peek_frame(framemgr, FS_COMPLETE);
-		if (frame) {
-			ret = POLLIN;
-			vio_dbg("[S%d][V%d]poll complete fid%d,bufinx%d ",
-				ipu_ctx->group->instance, ipu_ctx->id,
-				frame->frameinfo.frame_id,
-				frame->frameinfo.bufferindex);
-			framemgr_x_barrier_irqr(framemgr, 0, flags);
-			return	ret;
-		}
-	}
-	framemgr_x_barrier_irqr(framemgr, 0, flags);
-
-	/* add to client list */
-	spin_lock(&sub_mp->dispatch_lock);
-	if (!ipu_ctx->in_list) {
-		ret = ipu_put_client(sub_mp, ipu_ctx);
-		if (ret < 0) {
-			spin_unlock(&sub_mp->dispatch_lock);
-			vio_err("ipu put client error.");
-			return ret;
-		}
-	}
-	spin_unlock(&sub_mp->dispatch_lock);
 	return ret;
 }
 
@@ -1564,25 +1534,39 @@ int ipu_video_dqbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 	struct vio_framemgr *framemgr;
 	struct vio_frame *frame;
 	struct ipu_sub_mp *sub_mp;
+	u32 bufindex;
+	u32 ctx_index;
 
 	framemgr = ipu_ctx->framemgr;
 	sub_mp = ipu_ctx->sub_mp;
+	ctx_index = ipu_ctx->proc_id;
 	if (!framemgr || !sub_mp || !ipu_ctx->group) {
 		vio_err("[%s] sub_mp/framemgr/group null", __func__);
 		return -EFAULT;
 	}
 
-	done_list = &framemgr->queued_list[FS_COMPLETE];
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
+	framemgr->ctx_mask |= (1 << ipu_ctx->proc_id);
+	done_list = &framemgr->queued_list[FS_COMPLETE];
 	if (!list_empty(done_list)) {
 		frame = peek_frame(framemgr, FS_COMPLETE);
 		if (frame) {
 			memcpy(frameinfo, &frame->frameinfo,
 				sizeof(struct frame_info));
-			trans_frame(framemgr, frame, FS_FREE);
-			vio_dbg("ipu minor:%d dqbuf(f%d b%d) from FS_COMPLETE.",
-				ipu_ctx->id, frame->frameinfo.frame_id,
-				frame->frameinfo.bufferindex);
+			trans_frame(framemgr, frame, FS_USED);
+			bufindex = frame->frameinfo.bufferindex;
+			framemgr->dispatch_mask[bufindex] = framemgr->ctx_mask;
+			/* copy frame_info to subdev*/
+			if (atomic_read(&sub_mp->proc_count) > 1) {
+				memcpy(&sub_mp->frameinfo, &frame->frameinfo,
+					sizeof(struct frame_info));
+			}
+			ipu_ctx->event = 0;
+			vio_dbg("[S%d][V%d] %s (p%d b%d f%d) from FS_COMPLETE.",
+				ipu_ctx->group->instance, ipu_ctx->id, __func__,
+				ipu_ctx->proc_id,
+				frame->frameinfo.bufferindex,
+				frame->frameinfo.frame_id);
 		}
 		framemgr_x_barrier_irqr(framemgr, 0, flags);
 
@@ -1590,40 +1574,27 @@ int ipu_video_dqbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
-	/* add to client list */
-	if (!ipu_ctx->ispoll) {
-		spin_lock(&sub_mp->dispatch_lock);
-		ret = ipu_put_client(sub_mp, ipu_ctx);
-		if (ret < 0) {
-			spin_unlock(&sub_mp->dispatch_lock);
-			vio_err("ipu put client error.");
-			return ret;
-		} else {
-			vio_dbg("dq(%d):put client ok.", ipu_ctx->id);
-		}
-		spin_unlock(&sub_mp->dispatch_lock);
-		wait_event_interruptible(ipu_ctx->done_wq,
-				ipu_ctx->event == VIO_FRAME_DONE);
-	}
-
-	/* copy frameinfo */
+	/* copy frame_info from subdev */
+	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	if (ipu_ctx->event == VIO_FRAME_DONE) {
-		spin_lock(&sub_mp->dispatch_lock);
-		memcpy(frameinfo, &ipu_ctx->frameinfo,
-			sizeof(struct frame_info));
-		spin_unlock(&sub_mp->dispatch_lock);
-		vio_dbg("dq proc%d bidx%d fid%d", ipu_ctx->proc_id,
-			frameinfo->bufferindex, frameinfo->frame_id);
-		ipu_ctx->event = 0;
+		bufindex = sub_mp->frameinfo.bufferindex;
+		memcpy(frameinfo, &sub_mp->frameinfo, sizeof(struct frame_info));
 	} else {
 		ret = -EFAULT;
-		ipu_ctx->event = 0;
+		vio_dbg("[S%d] %s proc%d no frame, event %d.\n",
+			ipu_ctx->group->instance, __func__, ctx_index,
+			ipu_ctx->event);
+		framemgr_x_barrier_irqr(framemgr, 0, flags);
+		goto DONE;
 	}
+	ipu_ctx->event = 0;
+	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
-	vio_dbg("[S%d][V%d] %s (p%d b%d f%d)\n", ipu_ctx->group->instance,
-		 ipu_ctx->id, __func__, ipu_ctx->proc_id,
-		 frameinfo->bufferindex, frameinfo->frame_id);
-
+	vio_dbg("[S%d][V%d] %s (p%d b%d f%d) form Subdev\n",
+		ipu_ctx->group->instance,
+		ipu_ctx->id, __func__, ipu_ctx->proc_id,
+		frameinfo->bufferindex, frameinfo->frame_id);
+DONE:
 	return ret;
 }
 
@@ -1766,6 +1737,7 @@ void ipu_frame_done(struct ipu_sub_mp *sub_mp)
 	struct ipu_video_ctx *ipu_ctx;
 	unsigned long flags;
 	u32 i;
+	u32 event = 0;
 
 	if(!sub_mp) {
 		vio_err("%s:%d sub_mp not init.\n", __func__, __LINE__);
@@ -1799,12 +1771,22 @@ void ipu_frame_done(struct ipu_sub_mp *sub_mp)
 			frame->frameinfo.bufferindex,
 			frame->frameinfo.frame_id);
 		ipu_set_iar_output(ipu_ctx, frame);
+		event = VIO_FRAME_DONE;
 		trans_frame(framemgr, frame, FS_COMPLETE);
 	} else {
+		event = VIO_FRAME_NDONE;
 		vio_err("[S%d][V%d]IPU PROCESS queue has no member;\n",
 				group->instance, ipu_ctx->id);
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
+
+	for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
+		if (test_bit(i, &sub_mp->val_dev_mask)) {
+			ipu_ctx = sub_mp->dev[i];
+			ipu_ctx->event = event;
+			wake_up(&ipu_ctx->done_wq);
+		}
+	}
 	spin_unlock(&sub_mp->slock);
 }
 
@@ -1968,7 +1950,6 @@ static irqreturn_t ipu_isr(int irq, void *data)
 	struct x3_ipu_dev *ipu;
 	struct vio_group *group;
 	struct vio_group_task *gtask;
-	struct ipu_work	*ipu_work;
 	struct ipu_sub_mp	*sub_mp;
 
 	ipu = data;
@@ -2027,72 +2008,52 @@ static irqreturn_t ipu_isr(int irq, void *data)
 			ipu_frame_ndone(sub_mp);
 	}
 
-	ipu_work = &ipu->work[instance];
 	if (status & (1 << INTR_IPU_FRAME_DONE)) {
-		ipu_work->work_sta = 0;
 		if (!group->leader)
 			vio_group_done(group);
 
 		if (test_bit(IPU_DMA_INPUT, &ipu->state)) {
 			up(&gtask->hw_resource);
 			sub_mp = group->sub_ctx[GROUP_ID_SRC];
-			if (sub_mp) {
+			if (sub_mp)
 				ipu_frame_done(sub_mp);
-				ipu_work->work_sta |= (1 << GROUP_ID_SRC);
-			}
 		}
 	}
 
 	if (status & (1 << INTR_IPU_US_FRAME_DONE)) {
 		sub_mp = group->sub_ctx[GROUP_ID_US];
-		if (sub_mp) {
+		if (sub_mp)
 			ipu_frame_done(sub_mp);
-			ipu_work->work_sta |= (1 << GROUP_ID_US);
-		}
 	}
 
 	if (status & (1 << INTR_IPU_DS0_FRAME_DONE)) {
 		sub_mp = group->sub_ctx[GROUP_ID_DS0];
-		if (sub_mp) {
+		if (sub_mp)
 			ipu_frame_done(sub_mp);
-			ipu_work->work_sta |= (1 << GROUP_ID_DS0);
-		}
 	}
 
 	if (status & (1 << INTR_IPU_DS1_FRAME_DONE)) {
 		sub_mp = group->sub_ctx[GROUP_ID_DS1];
-		if (sub_mp) {
+		if (sub_mp)
 			ipu_frame_done(sub_mp);
-			ipu_work->work_sta |= (1 << GROUP_ID_DS1);
-		}
 	}
 
 	if (status & (1 << INTR_IPU_DS2_FRAME_DONE)
 	    && test_bit(IPU_DS2_DMA_OUTPUT, &ipu->state)) {
 		sub_mp = group->sub_ctx[GROUP_ID_DS2];
-		if (sub_mp) {
+		if (sub_mp)
 			ipu_frame_done(sub_mp);
-			ipu_work->work_sta |= (1 << GROUP_ID_DS2);
-		}
 	}
 
 	if (status & (1 << INTR_IPU_DS3_FRAME_DONE)) {
 		sub_mp = group->sub_ctx[GROUP_ID_DS3];
-		if (sub_mp) {
+		if (sub_mp)
 			ipu_frame_done(sub_mp);
-			ipu_work->work_sta |= (1 << GROUP_ID_DS3);
-		}
 	}
 
 	if (status & (1 << INTR_IPU_DS4_FRAME_DONE)) {
 		sub_mp = group->sub_ctx[GROUP_ID_DS4];
-		if (sub_mp) {
 			ipu_frame_done(sub_mp);
-			ipu_work->work_sta |= (1 << GROUP_ID_DS4);
-		}
-	}
-	if ((ipu_work->work_sta) && (status & (1 << INTR_IPU_FRAME_DONE)))  {
-		queue_work(system_highpri_wq, &ipu_work->work);
 	}
 
 	if (status & (1 << INTR_IPU_FRAME_START)) {
