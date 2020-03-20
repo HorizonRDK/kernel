@@ -1703,7 +1703,7 @@ static long x3_ipu_ioctl(struct file *file, unsigned int cmd,
 		ret = ipu_update_osd_color_map(ipu_ctx, arg);
 		break;
 	case IPU_IOC_ROI_INFO:
-		ret = ipu_update_osd_color_map(ipu_ctx, arg);
+		ret = ipu_update_osd_roi(ipu_ctx, arg);
 		break;
 	case IPU_IOC_BIND_GROUP:
 		ret = get_user(instance, (u32 __user *) arg);
