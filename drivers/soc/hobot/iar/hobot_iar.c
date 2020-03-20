@@ -1733,7 +1733,7 @@ int iar_wb_capture_done(void)
 	wake_up(&g_iar_dev->done_wq);
 }
 
-int iar_output_stream_on(void)
+int iar_output_stream_on(layer_no)
 {
 	//
 	// if (!(g_iar_dev->state & (BIT(IAR_WB_STOP) | BIT(IAR_WB_REBUFS)
@@ -1742,21 +1742,24 @@ int iar_output_stream_on(void)
 	// 	return -EINVAL;
 	// }
 
-	g_iar_dev->output_state = 1;
+	g_iar_dev->output_state[layer_no] = 1;
 	// g_iar_dev->state = BIT(IAR_WB_START);
 
 	return 0;
 }
 
-int iar_output_stream_off(void)
+int iar_output_stream_off(layer_no)
 {
 	// if (!(g_iar_dev->state & BIT(IAR_WB_START))) {
 	// 	pr_err("invalid STREAMOFF is requested(%lX)", g_iar_dev->state);
 	// 	return -EINVAL;
 	// }
 
-	g_iar_dev->output_state = 0;
-	frame_manager_flush(&g_iar_dev->framemgr_layer[0]);
+	if (g_iar_dev->output_state[layer_no] == 1) {
+		frame_manager_flush(&g_iar_dev->framemgr_layer[layer_no]);
+		frame_manager_close(&g_iar_dev->framemgr_layer[layer_no]);
+		g_iar_dev->output_state[layer_no] = 0;
+	}
 	//frame_manager_flush(&g_iar_dev->framemgr_layer[1]);
 	// frame_manager_close(&g_iar_dev->framemgr);
 
@@ -1939,8 +1942,10 @@ static irqreturn_t x2_iar_irq(int this_irq, void *data)
 		writel(BIT(0), g_iar_dev->regaddr + REG_IAR_DE_SRCPNDREG);
 		//frequency_iar++;
 		//printk("isr 22\n");
-		if (g_iar_dev->output_state == 1)
+		if (g_iar_dev->output_state[0] == 1)
 			iar_output_start(0);
+		if (g_iar_dev->output_state[1] == 1)
+			iar_output_start(1);
 	}
 
 	if (regval & BIT(22)) {
@@ -1954,8 +1959,11 @@ static irqreturn_t x2_iar_irq(int this_irq, void *data)
 				g_iar_dev->capture_state = 2;
 			}
 		}
-		if (g_iar_dev->output_state == 1) {
+		if (g_iar_dev->output_state[0] == 1) {
 			iar_output_done(0);
+		}
+		if (g_iar_dev->output_state[1] == 1) {
+			iar_output_done(1);
 		}
 	}
 

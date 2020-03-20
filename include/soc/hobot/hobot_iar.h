@@ -525,7 +525,7 @@ struct iar_dev_s {
 
     struct vio_framemgr framemgr_layer[IAR_CHANNEL_MAX];
     wait_queue_head_t output_done_wq[IAR_CHANNEL_MAX];
-    unsigned long output_state;
+    unsigned long output_state[IAR_CHANNEL_MAX];
 
     struct vio_framemgr framemgr;
     unsigned long state;
@@ -796,8 +796,8 @@ int iar_output_dqbuf(int layer_no, struct frame_info *frameinfo);
 int iar_output_qbuf(int layer_no, struct frame_info *frameinfo);
 int iar_output_buf_init(int layer_no, struct frame_info *frameinfo);
 int iar_output_reqbufs(int layer_no, unsigned int buffers);
-int iar_output_stream_on(void);
-int iar_output_stream_off(void);
+int iar_output_stream_on(int layer_no);
+int iar_output_stream_off(int layer_no);
 
 // Supported rotation.
 enum RotationMode {

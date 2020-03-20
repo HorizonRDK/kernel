@@ -58,9 +58,10 @@
 #define IAR_OUTPUT_LAYER1_QBUF _IOW(IAR_CDEV_MAGIC, 0x33, unsigned int)
 #define IAR_OUTPUT_LAYER1_DQBUF _IOW(IAR_CDEV_MAGIC, 0x34, unsigned int)
 #define IAR_OUTPUT_LAYER1_REQBUFS _IOW(IAR_CDEV_MAGIC, 0x35, unsigned int)
-#define IAR_OUTPUT_STREAM _IOW(IAR_CDEV_MAGIC, 0x36, unsigned int)
+#define IAR_OUTPUT_LAYER0_STREAM _IOW(IAR_CDEV_MAGIC, 0x36, unsigned int)
 #define DISP_SET_VIO_CHN_PIPE \
         _IOW(IAR_CDEV_MAGIC, 0x37, struct display_vio_channel_pipe)
+#define IAR_OUTPUT_LAYER1_STREAM _IOW(IAR_CDEV_MAGIC, 0x38, unsigned int)
 
 typedef struct _update_cmd_t {
 	unsigned int enable_flag[IAR_CHANNEL_MAX];
@@ -511,7 +512,7 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 			iar_output_qbuf(1, &frameinfo);
 		}
 		break;
-    case IAR_OUTPUT_STREAM:
+    case IAR_OUTPUT_LAYER0_STREAM:
 		 {
 			int on = 0;
 
@@ -520,9 +521,24 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 			if (ret) return -EFAULT;
 
 			if (on) {
-				iar_output_stream_on();
+				iar_output_stream_on(0);
 			} else {
-				iar_output_stream_off();
+				iar_output_stream_off(0);
+			}
+		}
+		break;
+	case IAR_OUTPUT_LAYER1_STREAM:
+		 {
+			int on = 0;
+
+			pr_err("iar_output_stream.\n");
+			ret = get_user(on, (u32 __user *)arg);
+			if (ret) return -EFAULT;
+
+			if (on) {
+				iar_output_stream_on(1);
+			} else {
+				iar_output_stream_off(1);
 			}
 		}
 		break;
