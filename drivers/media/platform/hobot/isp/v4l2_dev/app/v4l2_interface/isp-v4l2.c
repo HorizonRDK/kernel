@@ -110,7 +110,6 @@ static int isp_v4l2_fh_release( struct file *file )
 /* ----------------------------------------------------------------
  * V4L2 file operations
  */
-static uint32_t stream_on = 0;
 static int isp_v4l2_fop_open( struct file *file )
 {
     int rc = 0;
@@ -118,11 +117,6 @@ static int isp_v4l2_fop_open( struct file *file )
     struct isp_v4l2_fh *sp;
 
     acamera_fw_isp_prepare(dev->ctx_id);
-
-    if (!stream_on) {
-	acamera_fw_isp_start(dev->ctx_id);
-	stream_on = 1;
-    }
 
     /* open file header */
     rc = isp_v4l2_fh_open( file );
@@ -176,26 +170,15 @@ fh_open_fail:
 
 static int isp_v4l2_fop_close( struct file *file )
 {
-    int i;
     int open_counter;
-    uint32_t opened = 0;
     isp_v4l2_dev_t *dev = video_drvdata( file );
     struct isp_v4l2_fh *sp = fh_to_private( file->private_data );
     isp_v4l2_stream_t *pstream = dev->pstreams[sp->stream_id];
 
-    stream_on = 0;
     LOG( LOG_INFO, "isp_v4l2 close: ctx_id: %d, called for sid:%d.", dev->ctx_id, sp->stream_id );
 
     dev->stream_mask &= ~( 1 << sp->stream_id );
     open_counter = atomic_sub_return( 1, &dev->opened );
-
-    for (i = 0; i < FIRMWARE_CONTEXT_NUMBER; i++) {
-	isp_v4l2_dev_t *d = isp_v4l2_get_dev(i);
-	opened += atomic_read( &d->opened );
-    }
-
-    if (!opened)
-	acamera_fw_isp_stop(dev->ctx_id);
 
     /* deinit fh_ptr */
     if ( mutex_lock_interruptible( &dev->notify_lock ) )
@@ -378,7 +361,7 @@ static inline bool isp_v4l2_is_q_busy( struct vb2_queue *queue, struct file *fil
 {
     return queue->owner && queue->owner != file->private_data;
 }
-
+extern void *acamera_get_ctx_ptr( uint32_t ctx_id );
 static int isp_v4l2_streamon( struct file *file, void *priv, enum v4l2_buf_type i )
 {
     isp_v4l2_dev_t *dev = video_drvdata( file );
@@ -389,11 +372,22 @@ static int isp_v4l2_streamon( struct file *file, void *priv, enum v4l2_buf_type 
     if ( isp_v4l2_is_q_busy( &sp->vb2_q, file ) )
         return -EBUSY;
 
-    rc = vb2_streamon( &sp->vb2_q, i );
-    if ( rc != 0 ) {
-        LOG( LOG_ERR, "fail to vb2_streamon. (rc=%d)", rc );
-        return rc;
+    acamera_fsm_mgr_t *instance = &(((acamera_context_ptr_t)acamera_get_ctx_ptr(pstream->ctx_id))->fsm_mgr);
+    if (instance->reserved) { //dma writer on
+        rc = vb2_streamon( &sp->vb2_q, i );
+        if ( rc != 0 ) {
+            LOG( LOG_ERR, "fail to vb2_streamon. (rc=%d)", rc );
+            return rc;
+        }
     }
+
+    int total_stream_on = 0;
+    for (i = 0; i < FIRMWARE_CONTEXT_NUMBER; i++) {
+	    isp_v4l2_dev_t *d = isp_v4l2_get_dev(i);
+	    total_stream_on += atomic_read( &d->stream_on_cnt );
+    }
+    if (total_stream_on == 0)
+           acamera_fw_isp_start(dev->ctx_id);
 
     /* Start hardware */
     rc = isp_v4l2_stream_on( pstream );
@@ -422,9 +416,20 @@ static int isp_v4l2_streamoff( struct file *file, void *priv, enum v4l2_buf_type
     isp_v4l2_stream_off( pstream );
 
     /* vb streamoff */
-    rc = vb2_streamoff( &sp->vb2_q, i );
+    acamera_fsm_mgr_t *instance = &(((acamera_context_ptr_t)acamera_get_ctx_ptr(pstream->ctx_id))->fsm_mgr);
+    if (instance->reserved) { //dma writer on
+        rc = vb2_streamoff( &sp->vb2_q, i );
+    }
 
     atomic_sub_return( 1, &dev->stream_on_cnt );
+
+    int total_stream_on = 0;
+    for (i = 0; i < FIRMWARE_CONTEXT_NUMBER; i++) {
+	    isp_v4l2_dev_t *d = isp_v4l2_get_dev(i);
+	    total_stream_on += atomic_read( &d->stream_on_cnt );
+    }
+    if (total_stream_on == 0)
+        acamera_fw_isp_stop(dev->ctx_id);
 
     return rc;
 }

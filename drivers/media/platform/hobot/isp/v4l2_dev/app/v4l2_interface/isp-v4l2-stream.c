@@ -16,7 +16,7 @@
 * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 *
 */
-
+#define pr_fmt(fmt) "[isp_drv]: %s: " fmt, __func__
 #include <linux/device.h>
 #include <linux/slab.h>
 #include <linux/random.h>
@@ -800,7 +800,7 @@ int isp_v4l2_stream_on( isp_v4l2_stream_t *pstream )
         return -EINVAL;
     }
 
-    LOG( LOG_DEBUG, "[Stream#%d] called", pstream->stream_id );
+    pr_debug("[Stream#%d] called\n", pstream->stream_id );
 
 /* for now, we need memcpy */
 #if ISP_HAS_META_CB
@@ -825,7 +825,8 @@ int isp_v4l2_stream_on( isp_v4l2_stream_t *pstream )
 
     /* get one vb2 buffer config to dma writer */
     acamera_fsm_mgr_t *instance = &(((acamera_context_ptr_t)acamera_get_ctx_ptr(pstream->ctx_id))->fsm_mgr);
-    acamera_general_interrupt_hanlder(ACAMERA_MGR2CTX_PTR(instance), ACAMERA_IRQ_FRAME_WRITER_FR);
+    if (instance->reserved) //dma writer on
+        acamera_general_interrupt_hanlder(ACAMERA_MGR2CTX_PTR(instance), ACAMERA_IRQ_FRAME_WRITER_FR);
 
     return 0;
 }
@@ -855,10 +856,13 @@ void isp_v4l2_stream_off( isp_v4l2_stream_t *pstream )
 #endif
 
     /* Release all active buffers */
-    spin_lock( &pstream->slock );
-    isp_v4l2_stream_buffer_list_release( pstream, &pstream->stream_buffer_list );
-    isp_v4l2_stream_buffer_list_release( pstream, &pstream->stream_buffer_list_busy );
-    spin_unlock( &pstream->slock );
+    acamera_fsm_mgr_t *instance = &(((acamera_context_ptr_t)acamera_get_ctx_ptr(pstream->ctx_id))->fsm_mgr);
+    if (instance->reserved) { //dma writer on
+        spin_lock( &pstream->slock );
+        isp_v4l2_stream_buffer_list_release( pstream, &pstream->stream_buffer_list );
+        isp_v4l2_stream_buffer_list_release( pstream, &pstream->stream_buffer_list_busy );
+        spin_unlock( &pstream->slock );
+    }
 }
 
 

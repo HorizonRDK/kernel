@@ -56,7 +56,6 @@ typedef struct {
 #define CUR_MOD_NAME LOG_MODULE_SENSOR
 #endif
 
-
 void sensor_init_output( sensor_fsm_ptr_t p_fsm, int mode )
 {
     const sensor_param_t *param = p_fsm->ctrl.get_parameters( p_fsm->sensor_ctx );
@@ -111,7 +110,7 @@ void sensor_hw_init( sensor_fsm_ptr_t p_fsm )
 {
 
 #if FW_DO_INITIALIZATION
-    acamera_isp_input_port_mode_request_write( p_fsm->cmn.isp_base, ACAMERA_ISP_INPUT_PORT_MODE_REQUEST_SAFE_STOP ); // urgent stop
+    //acamera_isp_input_port_mode_request_write( p_fsm->cmn.isp_base, ACAMERA_ISP_INPUT_PORT_MODE_REQUEST_SAFE_STOP ); // urgent stop
 #endif                                                                                                               //FW_DO_INITIALIZATION
 
     // 1): set sensor to preset_mode as required.
@@ -132,7 +131,7 @@ void sensor_hw_init( sensor_fsm_ptr_t p_fsm )
     acamera_init_calibrations( ACAMERA_FSM2CTX_PTR( p_fsm ) );
 
     // 4). update new settings to ISP if necessary
-    acamera_update_cur_settings_to_isp( p_fsm->cmn.ctx_id );
+    //acamera_update_cur_settings_to_isp( p_fsm->cmn.ctx_id );
 }
 
 void sensor_sw_init( sensor_fsm_ptr_t p_fsm )
@@ -149,11 +148,11 @@ void sensor_sw_init( sensor_fsm_ptr_t p_fsm )
 
     acamera_isp_lumvar_active_width_write( p_fsm->cmn.isp_base, param->active.width );
     acamera_isp_lumvar_active_height_write( p_fsm->cmn.isp_base, param->active.height );
-
+/*
     acamera_isp_input_port_hc_size0_write( p_fsm->cmn.isp_base, param->active.width );
     acamera_isp_input_port_hc_size1_write( p_fsm->cmn.isp_base, param->active.width );
     acamera_isp_input_port_vc_size_write( p_fsm->cmn.isp_base, param->active.height );
-
+*/
     sensor_init_output( p_fsm, p_fsm->isp_output_mode );
 #endif //FW_DO_INITIALIZATION
 
@@ -165,7 +164,7 @@ void sensor_sw_init( sensor_fsm_ptr_t p_fsm )
     printk("HOBOT_NATIVE_WDR enabled");
 #endif
 
-    acamera_isp_input_port_mode_request_write( p_fsm->cmn.isp_base, ACAMERA_ISP_INPUT_PORT_MODE_REQUEST_SAFE_START );
+    //acamera_isp_input_port_mode_request_write( p_fsm->cmn.isp_base, ACAMERA_ISP_INPUT_PORT_MODE_REQUEST_SAFE_START );
 
     sensor_update_black( p_fsm );
 

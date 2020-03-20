@@ -250,7 +250,7 @@ void system_sw_free( void *ptr )
 {
     kfree( ptr );
 #if HOBOT_REGISTER_MONITOR
-        printk(KERN_ERR "%s HOBOT_REGISTER_MONITOR not support memory free\n", __FUNCTION__);
+        pr_err("%s HOBOT_REGISTER_MONITOR not support memory free\n", __FUNCTION__);
         g_count = 0;
 #endif//HOBOT_REGISTER_MONITOR
 }
@@ -269,22 +269,22 @@ void *system_sw_alloc_dma_sram( uint32_t size , uint32_t context_id, uint32_t *p
         g_hobot_dma_va = ioremap_nocache(HOBOT_DMA_SRAM_PA, HOBOT_DMA_SRAM_SIZE);   // map without cache
 #endif
         if(g_hobot_dma_va == NULL) {
-            printk(KERN_ERR "%s ERROR: Hobot DMA map addr %x, size %d fail, __va()=%p\n",
+            pr_err("%s ERROR: Hobot DMA map addr %x, size %d fail, __va()=%p\n",
                 __FUNCTION__, HOBOT_DMA_SRAM_PA, HOBOT_DMA_SRAM_SIZE, __va(HOBOT_DMA_SRAM_PA));
             g_hobot_dma_va = __va(HOBOT_DMA_SRAM_PA);
             return NULL;
         } else {
-            printk("%s SUCCESS: Hobot DMA map addr %x, size %d ok\n", __FUNCTION__, HOBOT_DMA_SRAM_PA, HOBOT_DMA_SRAM_SIZE);
+            pr_debug("%s SUCCESS: Hobot DMA map addr %x, size %d ok\n", __FUNCTION__, HOBOT_DMA_SRAM_PA, HOBOT_DMA_SRAM_SIZE);
         }
     }
     if(size > HOBOT_DMA_SRAM_ONE_ZONE) {
-        printk(KERN_ERR "%s ERROR: allocate size (%d) more than sram unit size (128 KBytes)\n", __FUNCTION__, size);
+        pr_err("%s ERROR: allocate size (%d) more than sram unit size (128 KBytes)\n", __FUNCTION__, size);
         return NULL;
     }
 
     va = (void*) (g_hobot_dma_va + (context_id*HOBOT_DMA_SRAM_ONE_ZONE));
     *phy_addr = HOBOT_DMA_SRAM_PA+ (context_id*HOBOT_DMA_SRAM_ONE_ZONE);
-    printk("%s : pa=0x%x, context_id=%d, offset=%d\n", __FUNCTION__, *phy_addr, context_id, (context_id*HOBOT_DMA_SRAM_ONE_ZONE));
+    pr_debug("%s : pa=0x%x, context_id=%d, offset=%d\n", __FUNCTION__, *phy_addr, context_id, (context_id*HOBOT_DMA_SRAM_ONE_ZONE));
 
 #if HOBOT_REGISTER_MONITOR
     g_sw_isp_base[context_id].base = va;
@@ -296,10 +296,10 @@ void *system_sw_alloc_dma_sram( uint32_t size , uint32_t context_id, uint32_t *p
 
 void system_sw_free_dma_sram( void *ptr ,uint32_t context_id)
 {
-    printk("%s WARNING: not support memory free dma sram (context_id=%d)\n", __FUNCTION__, context_id);
+    pr_debug("%s WARNING: not support memory free dma sram (context_id=%d)\n", __FUNCTION__, context_id);
 
 #if HOBOT_REGISTER_MONITOR
-    printk("%s WARNING: HOBOT_REGISTER_MONITOR not support memory free\n", __FUNCTION__, context_id);
+    pr_debug("%s WARNING: HOBOT_REGISTER_MONITOR not support memory free\n", __FUNCTION__, context_id);
     g_count = 0;
 #endif//HOBOT_REGISTER_MONITOR
 

@@ -76,7 +76,7 @@ extern int32_t acamera_get_context_number( void );
 extern void *acamera_get_api_ctx_ptr( void );
 extern void *acamera_get_ctx_ptr( uint32_t ctx_id );
 
-static uint8_t isp_safe_stop( uint32_t base )
+uint8_t isp_safe_stop( uint32_t base )
 {
     uint16_t sleep_in_us = 2 * 1000;
     uint8_t count = 0;
@@ -101,7 +101,7 @@ static uint8_t isp_safe_stop( uint32_t base )
     return rc;
 }
 
-static uint8_t isp_safe_start( uint32_t base )
+uint8_t isp_safe_start( uint32_t base )
 {
     uint16_t sleep_in_us = 2 * 1000;
     uint8_t count = 0;
@@ -199,7 +199,7 @@ uint8_t sensor_streaming( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t d
         acamera_fsm_mgr_get_param( instance, FSM_PARAM_GET_SENSOR_STREAMING, NULL, 0, &is_streaming, sizeof( is_streaming ) );
 
         if ( ( value == OFF ) && is_streaming ) {
-            isp_safe_stop( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base );
+            //isp_safe_stop( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base );
 
             uint32_t streaming = 0;
             acamera_fsm_mgr_set_param( instance, FSM_PARAM_SET_SENSOR_STREAMING, &streaming, sizeof( streaming ) );
@@ -208,7 +208,7 @@ uint8_t sensor_streaming( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t d
             uint32_t streaming = 1;
             acamera_fsm_mgr_set_param( instance, FSM_PARAM_SET_SENSOR_STREAMING, &streaming, sizeof( streaming ) );
 
-            isp_safe_start( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base );
+            //isp_safe_start( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base );
         } else {
             result = NOT_SUPPORTED;
         }
@@ -251,7 +251,7 @@ uint8_t sensor_preset( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t dire
         if ( value < param->modes_num ) {
             acamera_fsm_mgr_set_param( instance, FSM_PARAM_SET_SENSOR_PRESET_MODE, &value, sizeof( value ) );
 
-            isp_safe_stop( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base );
+            //isp_safe_stop( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base );
 
             acamera_fsm_mgr_raise_event( instance, event_id_acamera_reset_sensor_hw );
 
@@ -3095,7 +3095,7 @@ uint8_t sensor_type( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direct
         if ( value < SENSOR_NUM ) {
             acamera_fsm_mgr_set_param( instance, FSM_PARAM_SET_SENROR_TYPE, &value, sizeof( value ) );
 
-            isp_safe_stop( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base );
+            //isp_safe_stop( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base );
             acamera_fsm_mgr_raise_event( instance, event_id_acamera_reset_sensor_hw );
 
             result = SUCCESS;
@@ -3133,7 +3133,7 @@ uint8_t sensor_i2c_chnnel( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t 
         if ( value < X2A_I2C_NUM ) {
             acamera_fsm_mgr_set_param( instance, FSM_PARAM_SET_SENSOR_I2C_CHANNEL, &value, sizeof( value ) );
 
-            isp_safe_stop( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base );
+            //isp_safe_stop( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base );
             acamera_fsm_mgr_raise_event( instance, event_id_acamera_reset_sensor_hw );
 
             result = SUCCESS;
