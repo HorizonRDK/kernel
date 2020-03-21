@@ -298,16 +298,51 @@
 
 		partition@qspi-system {
 			label = "qspi-system";
-			reg = <0x1700000 0x2000000>;
+			reg = <0x1640000 0x2000000>;
 		};
 
-		partition@qspi-app {
-			label = "qspi-app";
-			reg = <0x3700000 0x900000>;
+		partition@qspi-sbl {
+			label = "qspi-sbl";
+			reg = <0x20000 0x60000>;
+		};
+
+		partition@qspi-bl31 {
+			label = "qspi-bl31";
+			reg = <0x80000 0x80000>;
+		};
+
+		partition@qspi-uboot {
+			label = "qspi-uboot";
+			reg = <0x100000 0x100000>;
+		};
+
+		partition@qspi-bpu {
+			label = "qspi-bpu";
+			reg = <0x200000 0x20000>;
+		};
+
+		partition@qspi-vbmeta {
+			label = "qspi-vbmeta";
+			reg = <0x220000 0x20000>;
 		};
 
 		partition@qspi-boot {
 			label = "qspi-boot";
+			reg = <0x240000 0xA00000>;
+		};
+
+		partition@qspi-recovery {
+			label = "qspi-recovery";
+			reg = <0xC40000 0xA00000>;
+		};
+
+		partition@qspi-app {
+			label = "qspi-app";
+			reg = <0x3640000 0x960000>;
+		};
+
+		partition@qspi-nor {
+			label = "qspi-nor";
 			reg = <0x0 0x4000000>;
 		};
 	};
