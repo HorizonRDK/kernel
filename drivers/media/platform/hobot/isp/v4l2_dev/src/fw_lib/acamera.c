@@ -527,6 +527,7 @@ static void start_processing_frame( void )
     acamera_context_ptr_t p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[cur_ctx];
     LOG( LOG_INFO, "new frame for ctx_num#%d.", cur_ctx );
 #else
+    pr_debug("last ctx id %d\n", last_ctx_id);
     acamera_context_ptr_t p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[last_ctx_id];
 #endif
 
@@ -868,9 +869,14 @@ int sif_isp_ctx_sync_func(int ctx_id)
 		wait_event_timeout(wq_fe, g_firmware.frame_done, msecs_to_jiffies(200));
 	}
 
-	pr_debug("start isp ctx switch\n");
+	pr_debug("start isp ctx switch, ctx_id %d\n", ctx_id);
 
-	last_ctx_id = cur_ctx_id;
+    //in case of non ctx-0 run first
+    if (p_ctx->isp_frame_counter == 0)
+        last_ctx_id = ctx_id;
+    else
+	    last_ctx_id = cur_ctx_id;
+
 	cur_ctx_id = ctx_id;
 	next_ctx_id = ctx_id;
 	p_ctx->sif_isp_offline = 1;

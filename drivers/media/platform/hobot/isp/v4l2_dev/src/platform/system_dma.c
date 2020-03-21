@@ -712,7 +712,7 @@ int32_t system_dma_copy_multi_sg( dma_cmd* cmd, uint32_t cmd_num)
 
 	unsigned long flags;
 	idma_descriptor_t *desc;
-	desc = kcalloc(1, sizeof(idma_descriptor_t), GFP_KERNEL);
+	desc = kcalloc(1, sizeof(idma_descriptor_t), GFP_ATOMIC);
 	if (!desc) {
 		pr_err("alloc memory for idma_descriptor_t failed.\n");
 		return result;
