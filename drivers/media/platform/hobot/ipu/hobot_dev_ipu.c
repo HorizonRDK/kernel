@@ -1713,19 +1713,25 @@ void ipu_set_iar_output(struct ipu_video_ctx *ipu_ctx, struct vio_frame *frame)
 {
 #ifdef X3_IAR_INTERFACE
 	int ret = 0;
-	u8 dis_instance = 0;
-	u8 display_layer = 0;
+	int i = 0;
+	u8 dis_instance[2] = {0, 0};
+	u8 display_layer[2] ={0, 0};
 	struct vio_group *group;
 
 	group = ipu_ctx->group;
-	ret = ipu_get_iar_display_type(&dis_instance, &display_layer);
-	if (!ret && group->instance == dis_instance) {
-		if(ipu_ctx->id == display_layer)
-			ipu_set_display_addr(frame->frameinfo.addr[0], frame->frameinfo.addr[1]);
+	ret = ipu_get_iar_display_type(dis_instance, display_layer);
+	if (!ret) {
+		for (i = 0; i < 2; i++) {
+			if(group->instance == dis_instance[i] &&
+					ipu_ctx->id == display_layer[i]) {
+				ipu_set_display_addr(i, frame->frameinfo.addr[0],
+						frame->frameinfo.addr[1]);
+			}
+			vio_dbg("[D%d]IPU display_layer = %d, dis_instance = %d", i,
+				display_layer[i], dis_instance[i]);
+		}
 	}
 
-	vio_dbg("IPU display_layer = %d, dis_instance = %d, ret(%d)",
-		display_layer, dis_instance, ret);
 #endif
 }
 

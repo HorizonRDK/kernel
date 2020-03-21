@@ -594,8 +594,9 @@ static ssize_t x2_iar_store(struct kobject *kobj, struct kobj_attribute *attr, c
 	char *tmp;
 	int error = -EINVAL;
 	int ret = 0;
-	unsigned long tmp_value = 0, pipeline = 0, disp_layer = 0;
-	char value[2];
+	unsigned long tmp_value = 0, pipeline = 0,
+		      disp_layer = 0, disp_vio_addr_type = 0;
+	char value[3];
 
 	tmp = (char *)buf;
 	if (strncmp(tmp, "start", 5) == 0) {
@@ -622,6 +623,21 @@ static ssize_t x2_iar_store(struct kobject *kobj, struct kobj_attribute *attr, c
 		tmp = tmp + 4;
 		memcpy((void *)(value), (void *)(tmp), 1);
 		value[1] = '\0';
+		ret = kstrtoul(value, 0, &disp_layer);
+		if (ret == 0) {
+			if (disp_layer > 1) {
+				pr_info("wrong video layer number, exit!!\n");
+				return error;
+			} else {
+				pr_info("display layer is %d!!\n", disp_layer);
+			}
+		} else {
+			pr_info("error input type, exit!!\n");
+			return error;
+		}
+		tmp = tmp + 1;
+		memcpy((void *)(value), (void *)(tmp), 1);
+                value[1] = '\0';
 		ret = kstrtoul(value, 0, &pipeline);
 		if (ret == 0) {
 			if (pipeline > 3) {
@@ -635,15 +651,15 @@ static ssize_t x2_iar_store(struct kobject *kobj, struct kobj_attribute *attr, c
 			return error;
 		}
 		tmp = tmp + 1;
-		memcpy((void *)(value), (void *)(tmp), 1);
-                value[1] = '\0';
-		ret = kstrtoul(value, 0, &disp_layer);
+		//memcpy((void *)(value), (void *)(tmp), 1);
+                //valuie[1] = '\0';
+		ret = kstrtoul(tmp, 0, &disp_vio_addr_type);
 		if (ret == 0) {
-			if (disp_layer > 1) {
-				pr_info("wrong video layer number, exit!!\n");
+			if (disp_vio_addr_type > 38) {
+				pr_info("wrong vio address type, exit!!\n");
 				return error;
 			} else {
-				pr_info("display layer is %d!!\n", disp_layer);
+				pr_info("display vio address type is %d!!\n", disp_vio_addr_type);
 			}
 		} else {
 			pr_info("error input type, exit!!\n");
@@ -651,8 +667,10 @@ static ssize_t x2_iar_store(struct kobject *kobj, struct kobj_attribute *attr, c
 		}
 		if (disp_layer == 0) {
 				iar_display_cam_no = pipeline;
+				iar_display_addr_type = disp_vio_addr_type;
 		} else if (disp_layer == 1) {
 				iar_display_cam_no_video1 = pipeline;
+				iar_display_addr_type_video1 = disp_vio_addr_type;
 		}
 	} else if (strncmp(tmp, "lcd", 3) == 0) {
 		pr_info("iar output lcd rgb panel config......\n");

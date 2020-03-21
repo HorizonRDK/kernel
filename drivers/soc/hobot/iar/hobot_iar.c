@@ -59,7 +59,7 @@ uint8_t iar_display_cam_no;
 #else
 uint8_t iar_display_addr_type = DISPLAY_CHANNEL1;
 uint8_t iar_display_cam_no = PIPELINE0;
-uint8_t iar_display_addr_type_video1 = DISPLAY_CHANNEL1;
+uint8_t iar_display_addr_type_video1 = 0;
 uint8_t iar_display_cam_no_video1 = PIPELINE0;
 #endif
 uint32_t iar_display_ipu_slot_size = 0x1000000;
@@ -1176,30 +1176,40 @@ int32_t iar_set_video_buffer(uint32_t slot_id)
 }
 EXPORT_SYMBOL_GPL(iar_set_video_buffer);
 
-int32_t ipu_set_display_addr(uint32_t yaddr, uint32_t caddr)
+int32_t ipu_set_display_addr(uint32_t disp_layer,
+		uint32_t yaddr, uint32_t caddr)
 {
 	pr_debug("iar: ipu set iar!!!!!!!!\n");
-	pr_debug("yaddr is %llx, caddr is %llx\n", yaddr, caddr);
+	pr_debug("layer is %d, yaddr is %llx, caddr is %llx\n",
+			disp_layer, yaddr, caddr);
 	disp_user_config_done = 1;//for debug
 	//disp_user_update = 0;//for debug
 	if (disp_user_config_done == 1 && disp_user_update == 0) {
-		g_disp_yaddr = yaddr;
-		g_disp_caddr = caddr;
+		if (disp_layer == 0) {
+			g_disp_yaddr = yaddr;
+			g_disp_caddr = caddr;
+		} else if (disp_layer == 1) {
+			g_disp_yaddr_video1 = yaddr;
+			g_disp_caddr_video1 = caddr;
+		}
                 ipu_process_done = 1;
-		pr_info("wake up iar!!!\n");
+		pr_debug("wake up iar!!!\n");
                 wake_up_interruptible(&g_iar_dev->wq_head);
         }
         return 0;
 }
+
 EXPORT_SYMBOL_GPL(ipu_set_display_addr);
 
-u32 ipu_get_iar_display_type(u8 *pipeline, u8 *channel)
+u32 ipu_get_iar_display_type(u8 pipeline[], u8 channel[])
 {
 	if (disp_user_update == 1) {
 		return -1;
 	} else {
-		*pipeline = iar_display_cam_no;
-		*channel = iar_display_addr_type;
+		pipeline[0] = iar_display_cam_no;
+		channel[0] = iar_display_addr_type;
+		pipeline[1] = iar_display_cam_no_video1;
+		channel[1] = iar_display_addr_type_video1;
 	}
 	return 0;
 }
@@ -2018,7 +2028,7 @@ static int iar_thread(void *data)
 		display_addr.Uaddr = g_disp_caddr;
 		display_addr.Vaddr = 0;
 		display_addr_video1.Yaddr = g_disp_yaddr_video1;
-		display_addr_video1.Uaddr = g_disp_yaddr_video1;
+		display_addr_video1.Uaddr = g_disp_caddr_video1;
 		display_addr_video1.Vaddr = 0;
 #else
 		display_addr.Yaddr =
@@ -2044,9 +2054,9 @@ static int iar_thread(void *data)
 		} else {
 			pr_debug("iar: iar display refresh!!!!!\n");
 			pr_debug("iar display video 0 yaddr is 0x%llx, caddr is 0x%llx\n",
-					g_disp_yaddr, g_disp_caddr);
+					display_addr.Yaddr, display_addr.Uaddr);
 			pr_debug("iar display video 1 yaddr is 0x%llx, caddr is 0x%llx\n",
-					g_disp_yaddr_video1, g_disp_caddr_video1);
+					display_addr_video1.Yaddr, display_addr_video1.Uaddr);
 			iar_set_bufaddr(0, &display_addr);
 			iar_set_bufaddr(1, &display_addr_video1);
 			iar_update();

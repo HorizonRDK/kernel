@@ -859,25 +859,28 @@ void pym_set_iar_output(struct pym_subdev *subdev, struct vio_frame *frame)
 #ifdef X3_IAR_INTERFACE
 	struct special_buffer *spec;
 	struct vio_group *group;
-	u8 display_layer = 0;
-	u8 dis_instance = 0;
+	u8 dis_instance[2] = {0, 0};
+	u8 display_layer[2] ={0, 0};
 	int ret = 0;
+	int i = 0;
 
-	ret = ipu_get_iar_display_type(&dis_instance, &display_layer);
+	ret = ipu_get_iar_display_type(dis_instance, display_layer);
 	spec = &frame->frameinfo.spec;
 	group = subdev->group;
-	if (!ret && dis_instance == group->instance) {
-		if (display_layer < 37) {
-			if (display_layer >= 31)
-				ipu_set_display_addr(spec->us_y_addr[display_layer - 31],
-					spec->us_uv_addr[display_layer - 31]);
-			else if (display_layer >= 7)
-				ipu_set_display_addr(spec->ds_y_addr[display_layer - 7],
-					spec->ds_uv_addr[display_layer - 7]);
+	if (!ret) {
+		for (i = 0; i < 2; i++) {
+			if (group->instance == dis_instance[i] && display_layer[i] < 37) {
+				if (display_layer[i] >= 31)
+					ipu_set_display_addr(i, spec->us_y_addr[display_layer[i] - 31],
+						spec->us_uv_addr[display_layer[i] - 31]);
+				else if (display_layer[i] >= 7)
+					ipu_set_display_addr(i, spec->ds_y_addr[display_layer[i] - 7],
+						spec->ds_uv_addr[display_layer[i] - 7]);
+			}
+			vio_dbg("[D%d]PYM display_layer = %d, dis_instance = %d", i,
+				display_layer[i], dis_instance[0]);
 		}
 	}
-	vio_dbg("PYM display_layer = %d, dis_instance = %d, ret(%d)",
-		display_layer, dis_instance, ret);
 
 #endif
 }
