@@ -57,57 +57,18 @@ struct ipu_roi_cfg {
 };
 
 struct ipu_video_ctx {
-	wait_queue_head_t done_wq;
-	struct vio_framemgr *framemgr;
-	struct vio_group *group;
-	u32 event;
-	bool leader;
-	u32 id;
-	unsigned long state;
-
-	struct x3_ipu_dev *ipu_dev;
-	struct ipu_osd_cfg osd_cfg;
-	struct ipu_roi_cfg roi_cfg;
-	ipu_cfg_t ipu_cfg;
-
+	wait_queue_head_t	done_wq;
+	struct vio_framemgr 	*framemgr;
 	u32			frm_fst_ind;
 	u32			frm_num;
-	u32			proc_id;
-	u32			ispoll;
-	struct ipu_sub_mp	*sub_mp;
-	struct list_head	list;
-	u32			in_list;
-	struct frame_info 	frameinfo;
-};
-
-enum ipu_sub_mp_state {
-	IPU_SUB_MP_CREATE,
-	IPU_SUB_MP_INIT,
-	IPU_SUB_MP_USER_INIT
-};
-
-struct ipu_sub_mp {
-	spinlock_t 		slock;
-	struct ipu_video_ctx	*dev[VIO_MAX_SUB_PROCESS];
-	unsigned long		val_dev_mask;
-	atomic_t		proc_count;
-	struct vio_framemgr	framemgr;
-	struct list_head	client_list;
-	u32			client_count;
-	spinlock_t 		dispatch_lock;
-	unsigned long 		state;
 	struct vio_group 	*group;
+	u32 			event;
+	u32	 		id;
+	unsigned long 		state;
+	u32 			ctx_index;
+
 	struct x3_ipu_dev 	*ipu_dev;
-	struct semaphore	hw_init_sem;
-
-	struct frame_info 	frameinfo;
-};
-
-struct ipu_work {
-	struct work_struct work;
-	u32 work_sta;
-	atomic_t instance;
-	struct x3_ipu_dev *ipu;
+	struct ipu_subdev	*subdev;
 };
 
 enum ipu_group_state {
@@ -166,6 +127,29 @@ enum ipu_status {
 	IPU_REUSE_SHADOW0,
 };
 
+enum ipu_subdev_state {
+	IPU_SUBDEV_INIT,
+	IPU_SUBDEV_REQBUF
+};
+
+struct ipu_subdev {
+	spinlock_t 		slock;
+	struct ipu_video_ctx	*ctx[VIO_MAX_SUB_PROCESS];
+	unsigned long		val_ctx_mask;
+	atomic_t		refcount;
+	struct vio_framemgr	framemgr;
+	struct frame_info 	frameinfo;
+	bool 			leader;
+	unsigned long 		state;
+	struct vio_group 	*group;
+	struct x3_ipu_dev 	*ipu_dev;
+	u32 			id;
+
+	struct ipu_osd_cfg osd_cfg;
+	struct ipu_roi_cfg roi_cfg;
+	ipu_cfg_t ipu_cfg;
+};
+
 struct x3_ipu_dev {
 	/* channel information */
 	u32 __iomem *base_reg;
@@ -183,9 +167,9 @@ struct x3_ipu_dev {
 	atomic_t sensor_fcount;
 	atomic_t backup_fcount;
 
+	struct ipu_subdev subdev[VIO_MAX_STREAM][MAX_DEVICE];
 	struct vio_group *group[VIO_MAX_STREAM];
 	struct vio_group_task gtask;
-	struct ipu_work work[VIO_MAX_STREAM];
 };
 
 #endif

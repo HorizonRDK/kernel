@@ -12,7 +12,7 @@
 
 #define VIO_MAX_PLANES 32
 #define VIO_MP_MAX_FRAMES 128
-#define VIO_MAX_SUB_PROCESS	16
+#define VIO_MAX_SUB_PROCESS	8
 
 
 #define framemgr_e_barrier_irqs(this, index, flag)		\

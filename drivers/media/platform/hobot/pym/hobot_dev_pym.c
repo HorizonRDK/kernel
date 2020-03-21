@@ -142,6 +142,7 @@ static int x3_pym_close(struct inode *inode, struct file *file)
 	pym_ctx->state = BIT(VIO_VIDEO_CLOSE);
 
 	clear_bit(pym_ctx->ctx_index, &subdev->val_ctx_mask);
+	subdev->ctx[pym_ctx->ctx_index] = NULL;
 	kfree(pym_ctx);
 
 	vio_info("[S%d] PYM close node\n", group->instance);

@@ -365,13 +365,17 @@ int frame_manager_close_mp(struct vio_framemgr *this,
 	struct vio_frame *free_addr;
 
 	if ((index_start + buffers) >= VIO_MP_MAX_FRAMES) {
-		vio_err("invalid index when closing frame manager.");
+		vio_err("%s invalid index", __func__);
 		return -EFAULT;
 	}
+	if (this->frames_mp[index_start] == NULL) {
+		vio_err("%s start index is null", __func__);
+		return -EFAULT;
+	}
+
 	spin_lock_irqsave(&this->slock, flag);
 	free_addr = this->frames_mp[index_start];
-	for (i = index_start; i < (index_start
-+ buffers); i++) {
+	for (i = index_start; i < (index_start + buffers); i++) {
 		frame = this->frames_mp[i];
 		if (!frame) {
 			vio_err("%s:frame%d null", __func__, i);
