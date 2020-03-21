@@ -98,6 +98,7 @@ function build_wifi()
     echo "SRC_KERNEL_DIR=$SRC_KERNEL_DIR"
     echo "TARGET_TMPROOTFS_DIR=$TARGET_TMPROOTFS_DIR"
 
+    echo "build wifi marvell 8801............."
     cd $SRC_KERNEL_DIR/drivers/staging/marvell/
     #make clean
     make
@@ -105,6 +106,13 @@ function build_wifi()
     cpfiles "$SRC_KERNEL_DIR/drivers/staging/marvell/bin_sd8801/*.ko" "$TARGET_TMPROOTFS_DIR/lib/modules/"
     rm -fr $SRC_KERNEL_DIR/drivers/staging/marvell/bin_sd8801
     cpfiles "$SRC_KERNEL_DIR/drivers/staging/marvell/FwImage/sd8801_uapsta.bin" "$TARGET_TMPROOTFS_DIR/lib/firmware/mrvl/"
+    
+    echo "build wifi rtl8819fs.............."
+    cd $SRC_KERNEL_DIR/drivers/staging/rtl8189fs/
+    make
+    cd $SRC_KERNEL_DIR
+    cpfiles "$SRC_KERNEL_DIR/drivers/staging/rtl8189fs/*.ko" "$TARGET_TMPROOTFS_DIR/lib/modules/"
+    rm -fr $SRC_KERNEL_DIR/drivers/staging/rtl8189fs/*.ko 
     echo "end build wifi...................."
 }
 
