@@ -15,12 +15,12 @@ static int avb_v4l2_probe(struct platform_device *pdev)
 
 	dev_dbg(dev, "%s\n", __func__);
 
-	if (dma_set_mask_and_coherent(dev, DMA_BIT_MASK(64))) {
+	/*if (dma_set_mask_and_coherent(dev, DMA_BIT_MASK(64))) {
 		if (dma_set_mask_and_coherent(dev, DMA_BIT_MASK(32))) {
 			dev_err(dev, "failed to setup DMA mask\n");
 			return -ENODEV;
 		}
-	}
+	}*/
 
 	avb_dev = devm_kzalloc(dev, sizeof(*avb_dev), GFP_KERNEL);
 	if (!avb_dev)
