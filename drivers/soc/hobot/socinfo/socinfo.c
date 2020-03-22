@@ -354,7 +354,7 @@ MODULE_DEVICE_TABLE(of, socinfo_of_match);
 
 static int socinfo_probe(struct platform_device *pdev)
 {
-	int ret;
+	int ret = 0;
 
 	ret = of_property_read_string(pdev->dev.of_node, "board_name",
 		&board_name);
@@ -432,11 +432,16 @@ static int socinfo_probe(struct platform_device *pdev)
 		return ret;
 	}
 
+	ret = class_register(&socinfo_class);
+	if (ret < 0)
+		return ret;
+
 	return 0;
 }
 
 static int socinfo_remove(struct platform_device *pdev)
 {
+	class_unregister(&socinfo_class);
 	return 0;
 }
 
@@ -457,10 +462,6 @@ static int __init socinfo_init(void)
 	if (retval)
 		pr_err("Unable to register platform driver\n");
 
-	retval = class_register(&socinfo_class);
-	if (retval < 0)
-		return retval;
-
 	return retval;
 }
 
@@ -468,7 +469,6 @@ static void __exit socinfo_exit(void)
 {
 	/* Unregister the platform driver */
 	platform_driver_unregister(&socinfo_platform_driver);
-	class_unregister(&socinfo_class);
 
 }
 
