@@ -60,6 +60,7 @@ int x2_swinfo_set(u32 sel, u32 index, u32 mask, u32 value)
 	mutex_lock(&swinfo_lock);
 	regv = readl_relaxed(sw_base + rega);
 	regv = (regv & ~mask) | (value & mask);
+
 	writel_relaxed(regv, sw_base + rega);
 
 	/* set magic code if mem */
@@ -255,7 +256,7 @@ static ssize_t x2_swinfo_store(struct kobject *kobj,
 static const char * const x2_swi_boot_desp[] = {
 	"normal", "splonce", "ubootonce",
 	"splwait", "ubootwait", "udumptf", "udumpemmc",
-	"unknown"
+	"udumpusb", "unknown"
 };
 static ssize_t x2_swinfo_boot_show(struct kobject *kobj,
 		struct kobj_attribute *attr, char *buf)
