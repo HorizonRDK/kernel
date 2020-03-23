@@ -244,10 +244,12 @@ static int i2s_hw_params(struct snd_pcm_substream *substream,
 		case SNDRV_PCM_FORMAT_S16_LE:
 			mod |= MOD_WORD_LEN;
 			i2s->wordlength = 16;
+			i2s->slot_width = 128;
 			break;
 		case SNDRV_PCM_FORMAT_S8:
 
 			i2s->wordlength  = 8;
+			i2s->slot_width = 64;
 			mod &= ~MOD_WORD_LEN;
 			break;
 		default:

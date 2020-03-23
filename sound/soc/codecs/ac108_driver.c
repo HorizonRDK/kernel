@@ -52,13 +52,15 @@
 
 //AC108 config
 #define AC108_CHANNELS_MAX		8		//range[1, 16]
-#define AC108_SLOT_WIDTH		16		//16bit or 32bit slot width, other value will be reserved
+//#define AC108_SLOT_WIDTH               16              //16bit or 32bit slot width, other value will be reserved
+static int AC108_SLOT_WIDTH = 16;
 #define AC108_DMIC_EN			0		//0:ADC	 1:DMIC
 #define AC108_ENCODING_EN		0		//TX Encoding mode enable
 #define AC108_ENCODING_CH_NUMS 	8		//TX Encoding channel numbers, must be dual, range[1, 16]
 #define AC108_PGA_GAIN			ADC_PGA_GAIN_28dB	//0dB/-6dB, 3~30dB
 #define AC108_PGA_GAIN_AEC		ADC_PGA_GAIN_18dB	//PGA config for MIC7 and MIC8
-#define AC108_LRCK_PERIOD		(AC108_SLOT_WIDTH*(AC108_ENCODING_EN ? 2 : AC108_CHANNELS_MAX))	//range[1, 1024], default PCM mode, I2S/LJ/RJ mode shall divide by 2
+//#define AC108_LRCK_PERIOD              (AC108_SLOT_WIDTH*(AC108_ENCODING_EN ? 2 : AC108_CHANNELS_MAX)) //range[1, 1024], default PCM mode, I2S/LJ/RJ mode shall divide by 2
+static int AC108_LRCK_PERIOD;
 
 #define AC108_I2C_BUS_NUM 		0		//the I2C BUS number which AC108 mount on
 #define AC108_SDO2_EN			0		//AC108 SDO2/TX2 Enable (SDO1 has be enabled default)
@@ -67,7 +69,7 @@
 
 #define AC108_REGULATOR_NAME	"voltage_enable"
 #define AC108_RATES 			(SNDRV_PCM_RATE_8000_96000 | SNDRV_PCM_RATE_KNOT)
-#define AC108_FORMATS			(SNDRV_PCM_FMTBIT_S16_LE | SNDRV_PCM_FMTBIT_S20_3LE | SNDRV_PCM_FMTBIT_S24_LE | SNDRV_PCM_FMTBIT_S32_LE)
+#define AC108_FORMATS			(SNDRV_PCM_FMTBIT_S8 | SNDRV_PCM_FMTBIT_S16_LE | SNDRV_PCM_FMTBIT_S20_3LE | SNDRV_PCM_FMTBIT_S24_LE | SNDRV_PCM_FMTBIT_S32_LE)
 
 
 struct i2c_client *i2c_driver_clt[(AC108_CHANNELS_MAX+3)/4];
@@ -775,6 +777,8 @@ static void ac108_hw_init(struct i2c_client *i2c)
 	/*Encoding mode enable, Turn to hi-z state (TDM) when not transferring slot*/
 	ac108_update_bits(I2S_FMT_CTRL1, 0x1<<ENCD_SEL | 0x1<<TX_SLOT_HIZ | 0x1<<TX_STATE, !!AC108_ENCODING_EN<<ENCD_SEL | 0x0<<TX_SLOT_HIZ | 0x1<<TX_STATE, i2c);
 	ac108_update_bits(I2S_FMT_CTRL2, 0x7<<SLOT_WIDTH_SEL, (AC108_SLOT_WIDTH == 16 ? 3 : AC108_SLOT_WIDTH == 32 ? 7 : 0)<<SLOT_WIDTH_SEL, i2c);	/*16bit or 32bit Slot Width*/
+	if (AC108_SLOT_WIDTH == 8)
+		ac108_update_bits(I2S_FMT_CTRL2, 0x7<<SLOT_WIDTH_SEL, 1<<SLOT_WIDTH_SEL, i2c);
 	/*0x36=0x70: TX MSB first, TX2 Mute, Transfer 0 after each sample in each slot(sample resolution < slot width), LRCK = 1 BCLK width (short frame), Linear PCM Data Mode*/
 	ac108_write(I2S_FMT_CTRL3, AC108_SDO2_EN ? 0x60 : 0x70, i2c);
 	if(i2c->addr == 0x3b){
@@ -1088,6 +1092,14 @@ static int ac108_hw_params(struct snd_pcm_substream *substream, struct snd_pcm_h
 {
 	AC108_DEBUG("\n--->%s\n",__FUNCTION__);
 	u16 i, channels, channels_en, sample_resolution;
+
+	if (params_format(params) == SNDRV_PCM_FORMAT_S8) {
+		AC108_SLOT_WIDTH = 8;
+	} else {
+		AC108_SLOT_WIDTH = 16;
+	}
+
+	AC108_LRCK_PERIOD = (AC108_SLOT_WIDTH*(AC108_ENCODING_EN ? 2 : AC108_CHANNELS_MAX));
 
 	//AC108 hw init
 	for(i=0; i<(AC108_CHANNELS_MAX+3)/4; i++){	//(params_channels(params)+3)/4
