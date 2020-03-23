@@ -1675,7 +1675,7 @@ int iar_wb_capture_start(void)
 
 		trans_frame(framemgr, frame, FS_PROCESS);
 	} else {
-		#if 1
+		#if 0
 		frame = peek_frame(framemgr, FS_COMPLETE);
 		if(frame) {
 			// printk("iar_wb_capture from complete: %x\n", frame);
