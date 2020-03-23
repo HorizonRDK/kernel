@@ -836,7 +836,7 @@ int user_set_fb(void)
 		iar_output_cfg(&x2_fbi->output_cfg);
 
 		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x00, 4);
-		writel(0x0572300f, hitm1_reg_addr);
+		writel(0x0472300f, hitm1_reg_addr);
 
 		//panel color type is yuv444, YCbCr conversion needed
 		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x204, 4);

@@ -2849,6 +2849,73 @@ static int x2_iar_probe(struct platform_device *pdev)
                 iar_display_addr_type = DISPLAY_CHANNEL1;
 		if (ret)
 			return ret;
+		temp1 = g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr;
+                tempi = 0;
+		for (i = 0; i < 1920 * 4 * 100; i++) {
+			if (((i + 4) % 4) == 0) {
+				*temp1 = 0xff;//B
+			} else if (((i + 4) % 4) == 1) {
+				*temp1 = 0x00;
+			} else if (((i + 4) % 4) == 2) {
+				*temp1 = 0x00;
+			} else if (((i + 4) % 4) == 3) {
+				*temp1 = 0xff;
+			}
+			temp1++;
+		}
+		for (i = 0; i < 1920 * 4 * 100; i++) {
+			if (((i + 4) % 4) == 0) {
+				*temp1 = 0x00;
+			} else if (((i + 4) % 4) == 1) {
+				*temp1 = 0xff;//g
+			} else if (((i + 4) % 4) == 2) {
+				*temp1 = 0x00;
+			} else if (((i + 4) % 4) == 3) {
+				*temp1 = 0xff;
+			}
+			temp1++;
+		}
+		for (i = 0; i < 1920 * 4 * 100; i++) {
+			if (((i + 4) % 4) == 0) {
+				*temp1 = 0x00;
+			} else if (((i + 4) % 4) == 1) {
+				*temp1 = 0x00;
+			} else if (((i + 4) % 4) == 2) {
+				*temp1 = 0xff;//r
+			} else if (((i + 4) % 4) == 3) {
+				*temp1 = 0xff;
+			}
+			temp1++;
+		}
+		for (i = 0; i < 1920 * 4 * 100; i++) {
+			if (((i + 4) % 4) == 0) {
+				*temp1 = 0x00;
+			} else if (((i + 4) % 4) == 1) {
+				*temp1 = 0x00;
+			} else if (((i + 4) % 4) == 2) {
+				*temp1 = 0x00;
+			} else if (((i + 4) % 4) == 3) {
+				*temp1 = 0xff;//A
+			}
+			temp1++;
+		}
+		for (i = 0; i < 1920 * 4 * 100; i++) {
+			if (((i + 4) % 4) == 0) {
+				*temp1 = 0xff;
+			} else if (((i + 4) % 4) == 1) {
+				*temp1 = 0xff;
+			} else if (((i + 4) % 4) == 2) {
+				*temp1 = 0xff;
+			} else if (((i + 4) % 4) == 3) {
+				*temp1 = 0xff;//
+			}
+			temp1++;
+		}
+		for (i = 0; i < 1920 * 4 * 580; i++) {
+			*temp1 = 0x0;
+			temp1++;
+		}
+		pr_debug("set HDMI done!\n");
 #if 0
 		temp1 = g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr;
 		#define IAR_DRAW_X(c, p)	(IAR_DRAW_WIDTH * c / p)

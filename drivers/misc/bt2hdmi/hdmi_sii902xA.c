@@ -48,6 +48,11 @@
 #define X2_HDMI_VFORMAT_DEF		(VMD_HDMIFORMAT_HB)
 #define X2_HDMI_AFS_DEF			(AFS_48K)
 
+#ifdef CONFIG_HOBOT_XJ3
+#define X3_GPIO_BASE	(0xA6003000)
+#define X3_GPIO0_VALUE_REG	(0xC)
+#endif
+
 static unsigned int hotpoll_en;
 static unsigned int hotpoll_ms;
 static unsigned int vmode;
@@ -121,7 +126,11 @@ static int hdmi_sii_probe(struct i2c_client *client,
 		const struct i2c_device_id *id)
 {
 	int ret = 0;
-
+#ifdef CONFIG_HOBOT_XJ3
+	void __iomem *regaddr;
+	uint32_t reg_value = 0;
+	uint32_t base_board_id = 0;
+#endif
 	dev_info(&client->adapter->dev, "hdmi %s i2c 0x%02X probe ...\n",
 			 id->name, client->addr);
 	if (!i2c_check_functionality(client->adapter,
@@ -164,15 +173,38 @@ static int hdmi_sii_probe(struct i2c_client *client,
 				hotpoll_en = 0;
 			}
 		}
-
-		// dts: rst_pin - reset pin number.
+#ifdef CONFIG_HOBOT_XJ3
+		regaddr = ioremap_nocache(X3_GPIO_BASE + X3_GPIO0_VALUE_REG, 4);
+		reg_value = readl(regaddr);
+		reg_value = (((reg_value >> 14) & 0x1) << 1) | ((reg_value >> 12) & 0x1);
+		base_board_id = reg_value + 1;
+		pr_info("hdmi: base board id is 0x%x\n", base_board_id);
+		if (base_board_id == 0x1) {	//x3_dvb
 #ifdef CONFIG_HOBOT_IAR
-		ret = get_iar_module_rst_pin();
-		if (ret < 0) {
-			dev_err(&client->dev, "Failed to get rst pin from iar module!\n");
-			return ret;
+			ret = get_iar_module_rst_pin();
+			if (ret < 0) {
+				dev_err(&client->dev,
+					"Failed to get rst pin from iar module!\n");
+				return ret;
+			}
+			Si9022A_rst_pin = ret;
+#endif
+		} else if (base_board_id == 0x2) {	//j3_dvb
+			ret = of_property_read_u32(client->dev.of_node, "rst_pin",
+							&Si9022A_rst_pin);
+			pr_debug("hdmi: reset pin is %d\n", Si9022A_rst_pin);
+			if (ret) {
+				dev_err(&client->dev, "Filed to get rst_pin %d\n",
+						ret);
+				return ret;
+			}
+			ret = gpio_request(Si9022A_rst_pin, "rst_pin");
+			if (ret < 0) {
+				dev_err(&client->dev, "Filed to request rst_pin-%d %d\n",
+						Si9022A_rst_pin, ret);
+				return ret;
+			}
 		}
-		Si9022A_rst_pin = ret;
 #else
 		ret = of_property_read_u32(client->dev.of_node, "rst_pin",
 				&Si9022A_rst_pin);

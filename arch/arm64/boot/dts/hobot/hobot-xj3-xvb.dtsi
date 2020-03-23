@@ -126,7 +126,7 @@
 	sii902xA@0x39 {
 		compatible = "sii902xA";
 		reg = <0x39>;
-		rst_pin = <28>;
+		rst_pin = <112>;
 		irq_pin = <21>;
 	};
         Goodix-TS@0x14 {
