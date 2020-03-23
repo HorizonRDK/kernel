@@ -703,7 +703,8 @@ void sif_config_rx_ipi(u32 __iomem *base_reg, u32 index, u32 vc_channel,
  *
  * @param p_mipi the pointer of sif_input_mipi_t
  */
-static void sif_set_mipi_rx(u32 __iomem *base_reg, sif_input_mipi_t* p_mipi)
+static void sif_set_mipi_rx(u32 __iomem *base_reg, sif_input_mipi_t* p_mipi,
+	sif_output_ddr_t *ddr_out)
 {
 	int i = 0;
 	u32 enable_mux_out    = p_mipi->func.enable_mux_out;
@@ -711,7 +712,7 @@ static void sif_set_mipi_rx(u32 __iomem *base_reg, sif_input_mipi_t* p_mipi)
 	u32 yuv_format        = !!p_mipi->data.format;
 	const static u32 map_mux_input[] = {0, 4, 8, 10};
 	u32 input_index_start = map_mux_input[p_mipi->mipi_rx_index];
-	u32 i_step , mux_out_index, lines;
+	u32 i_step , mux_out_index, lines, ddr_mux_out_index;
 	u32 vc_index = 0, ipi_index = 0;
 
 	if (!p_mipi->enable)
@@ -772,14 +773,17 @@ static void sif_set_mipi_rx(u32 __iomem *base_reg, sif_input_mipi_t* p_mipi)
 
 		for (i = 0; i < p_mipi->channels; i += i_step) {
 			mux_out_index = p_mipi->func.set_mux_out_index + i;
+			ddr_mux_out_index = ddr_out->mux_index + i;
 			if ((p_mipi->channels > 1) /*&& (p_mipi->func.enable_mux_reverse)*/) {
 				if (p_mipi->channels == 3) {
 					const u32 reorder[3] = {0, 1, 2};
 					mux_out_index = p_mipi->func.set_mux_out_index + reorder[i];
+					ddr_mux_out_index = ddr_out->mux_index + reorder[i];
 				}
 				else if (p_mipi->channels == 2) {
 					const u32 reorder[2] = {0, 1};
 					mux_out_index = p_mipi->func.set_mux_out_index + reorder[i];
+					ddr_mux_out_index = ddr_out->mux_index + reorder[i];
 				}
 			}
 
@@ -790,6 +794,12 @@ static void sif_set_mipi_rx(u32 __iomem *base_reg, sif_input_mipi_t* p_mipi)
 					input_index_start + ipi_index,
 					lines);
 
+			if(ddr_mux_out_index != mux_out_index) {
+				vio_hw_set_field(base_reg, &sif_regs[SIF_MUX_OUT_SEL],
+						&sif_fields[SW_SIF_MUX0_OUT_SELECT - ddr_mux_out_index],
+						input_index_start + ipi_index);
+				sif_enable_frame_intr(base_reg, ddr_mux_out_index, true);
+			}
 			// Frame Done Interrupt
 			sif_enable_frame_intr(base_reg, mux_out_index, true);
 
@@ -801,7 +811,7 @@ static void sif_set_mipi_rx(u32 __iomem *base_reg, sif_input_mipi_t* p_mipi)
 							mux_out_index + 1,
 							input_index_start + ipi_index + 1,
 							lines);
-					sif_enable_frame_intr(base_reg, mux_out_index + 1, true);
+					//sif_enable_frame_intr(base_reg, mux_out_index + 1, true);
 				}
 			}
 		}
@@ -1061,7 +1071,7 @@ void sif_hw_config(u32 __iomem *base_reg, sif_cfg_t* c)
 	sif_set_dvp_input(base_reg, &c->input.dvp);
 
 	// Input: SIF
-	sif_set_mipi_rx(base_reg, &c->input.mipi);
+	sif_set_mipi_rx(base_reg, &c->input.mipi, &c->output.ddr);
 
 	// output: ddr
 	sif_set_ddr_output(base_reg, &c->output.ddr, &enable_output_ddr);

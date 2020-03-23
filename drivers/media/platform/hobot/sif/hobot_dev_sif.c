@@ -184,7 +184,7 @@ void sif_write_frame_work(struct vio_group *group)
 	}
 
 	sif = subdev->sif_dev;
-	mux_index = subdev->mux_index;
+	mux_index = subdev->ddr_mux_index;
 
 	framemgr = &subdev->framemgr;
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
@@ -299,7 +299,7 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 		clear_bit(subdev->mux_index, &sif->mux_mask);
 		clear_bit(subdev->ddr_mux_index, &sif->mux_mask);
 		clear_bit(VIO_GROUP_INIT, &group->state);
-		clear_bit(subdev->mux_index + 1, &sif->state);
+		clear_bit(subdev->ddr_mux_index, &sif->state);
 		if (subdev->dol_num > 1)
 			clear_bit(SIF_DOL2_MODE + subdev->mux_index + 1, &sif->state);
 		if (subdev->dol_num > 2)
@@ -349,19 +349,19 @@ int sif_get_stride(u32 pixel_length, u32 width)
 
 	switch (pixel_length) {
 	case PIXEL_LENGTH_8BIT:
-		stride = width;
+		stride = ALIGN(width, 16);
 		break;
 	case PIXEL_LENGTH_10BIT:
-		stride = width * 5 / 4;
+		stride = ALIGN(width * 5 / 4, 16);
 		break;
 	case PIXEL_LENGTH_12BIT:
-		stride = width * 3 / 2;
+		stride = ALIGN(width * 3 / 2, 16);
 		break;
 	case PIXEL_LENGTH_16BIT:
-		stride = width * 2;
+		stride = ALIGN(width * 2, 16);
 		break;
 	case PIXEL_LENGTH_20BIT:
-		stride = width * 5 / 2;
+		stride = ALIGN(width * 5 / 2, 16);
 		break;
 	default:
 		vio_err("wrong pixel length is %d\n", pixel_length);
@@ -450,13 +450,13 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 		ddr_mux_index = get_free_mux(sif, 4, format, dol_exp_num, &mux_nums);
 		if (ddr_mux_index < 0)
 			return ddr_mux_index;
+		sif->sif_mux[ddr_mux_index] = group;
 	}
 	sif_config->output.ddr.mux_index = ddr_mux_index;
 	subdev->ddr_mux_index = ddr_mux_index;
 
 	if (format == HW_FORMAT_YUV422) {
 		if (mux_index % 2 == 0) {
-			set_bit(mux_index + 1, &sif->state);
 			vio_info("sif input format is yuv, and current mux = %d\n",
 			     mux_index);
 		} else
@@ -492,6 +492,7 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 		group->frame_work = sif_write_frame_work;
 		vio_group_task_start(gtask);
 		sema_init(&gtask->hw_resource, 4);
+		set_bit(ddr_mux_index, &sif->state);
 	}
 
 	ips_set_bus_ctrl(cfg);
@@ -1024,10 +1025,6 @@ static irqreturn_t sif_isr(int irq, void *data)
 
 	if (status) {
 		for (mux_index = 0; mux_index <= 7; mux_index++) {
-			if (test_bit(mux_index, &sif->state)
-			    && (mux_index % 2 == 1))
-				continue;
-
 			if (test_bit(mux_index + SIF_DOL2_MODE, &sif->state))
 				continue;
 
@@ -1048,7 +1045,7 @@ static irqreturn_t sif_isr(int irq, void *data)
 				sif_get_frameid_timestamps(sif->base_reg,
 							   mux_index, &group->frameid);
 
-				if (test_bit(VIO_GROUP_DMA_OUTPUT, &group->state)) {
+				if (test_bit(mux_index, &sif->state)) {
 					gtask = group->gtask;
 					if (unlikely(list_empty(&gtask->hw_resource.wait_list))) {
 						vio_err("[S%d]GP%d(res %d, rcnt %d)\n",
