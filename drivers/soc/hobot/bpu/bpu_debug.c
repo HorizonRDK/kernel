@@ -278,22 +278,12 @@ static struct attribute *bpu_attrs[] = {
 	NULL,
 };
 
-static struct attribute *bpu_cores_attrs[] = {
-	NULL,
-};
-
-static struct attribute_group bpu_cores_attr_group = {
-	.name = "cores",
-	.attrs = bpu_cores_attrs,
-};
-
 static struct attribute_group bpu_attr_group = {
 	.attrs = bpu_attrs,
 };
 
 static const struct attribute_group *bpu_attr_groups[] = {
 	&bpu_attr_group,
-	&bpu_cores_attr_group,
 	NULL,
 };
 
@@ -315,7 +305,7 @@ int32_t bpu_core_create_sys(struct bpu_core *core)
 		return -ENODEV;
 	}
 
-	ret = sprintf(core_name, "%d", core->index);
+	ret = sprintf(core_name, "bpu%d", core->index);
 	if (ret < 0) {
 		dev_err(core->dev, "Create debug name failed\n");
 		return ret;
@@ -336,8 +326,8 @@ int32_t bpu_core_create_sys(struct bpu_core *core)
 		}
 	}
 
-	ret = sysfs_add_link_to_group(&bpu_subsys.dev_root->kobj, "cores",
-				      &core->dev->kobj, core_name);
+	ret = sysfs_create_link(&bpu_subsys.dev_root->kobj,
+			&core->dev->kobj, core_name);
 	if (ret != 0) {
 		if (core->hw_ops->debug != NULL) {
 			ret = core->hw_ops->debug(core, 0);
@@ -363,10 +353,9 @@ void bpu_core_discard_sys(const struct bpu_core *core)
 		return;
 	}
 
-	ret = sprintf(core_name, "%d", core->index);
+	ret = sprintf(core_name, "bpu%d", core->index);
 	if (ret > 0) {
-		sysfs_remove_link_from_group(&bpu_subsys.dev_root->kobj, "cores",
-						core_name);
+		sysfs_remove_link(&bpu_subsys.dev_root->kobj, core_name);
 		device_remove_group(core->dev, &bpu_core_attr_group);
 		if (core->hw_ops->debug != NULL) {
 			core->hw_ops->debug(core, 0);
