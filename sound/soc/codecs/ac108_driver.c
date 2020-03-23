@@ -759,6 +759,9 @@ static void ac108_hw_init(struct i2c_client *i2c)
 	ac108_write(ANA_ADC3_CTRL7, 0x03, i2c);	/*Control bias current for DSM integrator opamps*/
 #endif
 
+	/*** I2S Pad Drive Control ***/
+	ac108_write(I2S_DAT_PADDRV_CTRL, 0x33, i2c);
+
 	/*** SYSCLK Config ***/
 	ac108_update_bits(SYSCLK_CTRL, 0x1<<SYSCLK_EN, 0x1<<SYSCLK_EN, i2c);	/*SYSCLK Enable*/
 	ac108_write(MOD_CLK_EN, 0x93, i2c);		/*0x21=0x93: Module clock enable<I2S, ADC digital, MIC offset Calibration, ADC analog>*/
