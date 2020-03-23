@@ -498,7 +498,7 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 	ips_set_bus_ctrl(cfg);
 	sif_hw_config(sif->base_reg, sif_config);
 
-	subdev->bufcount = sif_get_current_bufindex(sif->base_reg, mux_index);
+	subdev->bufcount = sif_get_current_bufindex(sif->base_reg, ddr_mux_index);
 	sif->mismatch_cnt = 0;
 
 	vio_info("[S%d] %s mux_index %d\n", group->instance,

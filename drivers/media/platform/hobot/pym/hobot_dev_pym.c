@@ -296,9 +296,11 @@ void pym_update_param(struct pym_subdev *subdev)
 
 	pym_ds_uv_bypass(pym->base_reg, shadow_index, ds_bapass_uv);
 
-	if (pym_config->ds_layer_en > 4) {
-		base_layer_nums = (pym_config->ds_layer_en - 1) / 4;
+	if (pym_config->ds_layer_en > 4 && pym_config->ds_layer_en < 23) {
+		base_layer_nums = pym_config->ds_layer_en / 4;
 		pym_ds_enabe_base_layer(pym->base_reg, shadow_index, base_layer_nums);
+	} else {
+		vio_err("wrong ds_layer_en(%d)\n", pym_config->ds_layer_en);
 	}
 	//config us roi and factor
 	for (i = 0; i < MAX_PYM_US_COUNT; i++) {

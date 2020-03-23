@@ -704,7 +704,7 @@ void sif_config_rx_ipi(u32 __iomem *base_reg, u32 index, u32 vc_channel,
  * @param p_mipi the pointer of sif_input_mipi_t
  */
 static void sif_set_mipi_rx(u32 __iomem *base_reg, sif_input_mipi_t* p_mipi,
-	sif_output_ddr_t *ddr_out)
+	sif_output_ddr_t *ddr_out, bool *online_ddr_enable)
 {
 	int i = 0;
 	u32 enable_mux_out    = p_mipi->func.enable_mux_out;
@@ -799,6 +799,7 @@ static void sif_set_mipi_rx(u32 __iomem *base_reg, sif_input_mipi_t* p_mipi,
 						&sif_fields[SW_SIF_MUX0_OUT_SELECT - ddr_mux_out_index],
 						input_index_start + ipi_index);
 				sif_enable_frame_intr(base_reg, ddr_mux_out_index, true);
+				*online_ddr_enable = true;
 			}
 			// Frame Done Interrupt
 			sif_enable_frame_intr(base_reg, mux_out_index, true);
@@ -1059,6 +1060,7 @@ static void sif_set_md_output(u32 __iomem *base_reg, sif_output_md_t* p_md)
 
 void sif_hw_config(u32 __iomem *base_reg, sif_cfg_t* c)
 {
+	bool online_ddr_enable = 0;
 	u32 enable_output_ddr = 0;
 	u32 yuv_format = 0;
 	u32 dol_exp_num = 0;
@@ -1071,7 +1073,7 @@ void sif_hw_config(u32 __iomem *base_reg, sif_cfg_t* c)
 	sif_set_dvp_input(base_reg, &c->input.dvp);
 
 	// Input: SIF
-	sif_set_mipi_rx(base_reg, &c->input.mipi, &c->output.ddr);
+	sif_set_mipi_rx(base_reg, &c->input.mipi, &c->output.ddr, &online_ddr_enable);
 
 	// output: ddr
 	sif_set_ddr_output(base_reg, &c->output.ddr, &enable_output_ddr);
@@ -1093,8 +1095,9 @@ void sif_hw_config(u32 __iomem *base_reg, sif_cfg_t* c)
 	}
 
 	if (enable_output_ddr) {
-		vio_hw_set_field(base_reg, &sif_regs[SIF_SETTING],
-				&sif_fields[SW_SIF_OWNBIT_UNDERRUN_SKIP_FRM_ENABLE], 1);
+		if (!online_ddr_enable)
+			vio_hw_set_field(base_reg, &sif_regs[SIF_SETTING],
+					&sif_fields[SW_SIF_OWNBIT_UNDERRUN_SKIP_FRM_ENABLE], 1);
 		vio_hw_set_field(base_reg, &sif_regs[SIF_FRM_EN_INT],
 				&sif_fields[SW_SIF_IN_BUF_OVERFLOW_INT_EN], 1);
 		vio_hw_set_field(base_reg, &sif_regs[SIF_FRM_EN_INT],
@@ -1231,8 +1234,6 @@ void sif_hw_disable(u32 __iomem *base_reg)
 {
 	/* Disable all inputs and wait until drained */
 	sif_disable_input_and_output(base_reg);
-
-	sif_set_isp_performance(base_reg, 0);
 
 	/* Disable & Clear all interrupts */
 
