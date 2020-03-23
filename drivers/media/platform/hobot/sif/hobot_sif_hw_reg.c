@@ -686,6 +686,43 @@ void sif_config_rx_ipi(u32 __iomem *base_reg, u32 index, u32 vc_channel,
 	if(enable_pattern)
 		sif_set_pattern_gen(base_reg, vc_channel + 1, &p_mipi->data);
 }
+
+void sif_set_dol_channels(sif_input_mipi_t* p_mipi, u32 *ch_index)
+{
+	u32 vc_short_seq = 0;
+	u32 vc_long_seq = 0;
+	u32 vc_medium_seq = 0;
+	u32 channels = 0;
+
+	vc_short_seq = p_mipi->func.vc_short_seq;
+	vc_medium_seq = p_mipi->func.vc_medium_seq;
+	vc_long_seq = p_mipi->func.vc_long_seq;
+	channels = p_mipi->channels;
+
+	vio_info("vc index for dol%d(%d, %d, %d)\n", channels,
+			vc_long_seq, vc_medium_seq, vc_short_seq);
+
+	if( vc_medium_seq >= channels ||
+		vc_short_seq >= channels ||
+		vc_long_seq >= channels) {
+		vio_err("wrong vc index for dol(%d, %d, %d)\n",
+				vc_long_seq, vc_medium_seq, vc_short_seq);
+	}
+
+	if (channels == 2) {
+		if (vc_short_seq != vc_long_seq) {
+			ch_index[0] = vc_long_seq;
+			ch_index[1] = vc_short_seq;
+		}
+	} else if (channels == 3) {
+		if (vc_short_seq != vc_long_seq &&
+			vc_medium_seq != vc_long_seq ) {
+			ch_index[0] = vc_long_seq;
+			ch_index[1] = vc_short_seq;
+			ch_index[2] = vc_medium_seq;
+		}
+	}
+}
 /*
  * @brief Set a MIPI Rx
  *
@@ -712,8 +749,9 @@ static void sif_set_mipi_rx(u32 __iomem *base_reg, sif_input_mipi_t* p_mipi,
 	u32 yuv_format        = !!p_mipi->data.format;
 	const static u32 map_mux_input[] = {0, 4, 8, 10};
 	u32 input_index_start = map_mux_input[p_mipi->mipi_rx_index];
-	u32 i_step , mux_out_index, lines, ddr_mux_out_index;
+	u32 i_step, mux_out_index, lines, ddr_mux_out_index;
 	u32 vc_index = 0, ipi_index = 0;
+	u32 ch_index[3] = {0, 1, 2};
 
 	if (!p_mipi->enable)
 		return;
@@ -770,22 +808,12 @@ static void sif_set_mipi_rx(u32 __iomem *base_reg, sif_input_mipi_t* p_mipi,
 		// YUV Format: it'll occupy two paths of mux out
 		// One for Y plane, and the other for UV plane
 		i_step = yuv_format ? 2 : 1;
+		if (p_mipi->channels > 1)
+			sif_set_dol_channels(p_mipi, ch_index);
 
 		for (i = 0; i < p_mipi->channels; i += i_step) {
-			mux_out_index = p_mipi->func.set_mux_out_index + i;
-			ddr_mux_out_index = ddr_out->mux_index + i;
-			if ((p_mipi->channels > 1) /*&& (p_mipi->func.enable_mux_reverse)*/) {
-				if (p_mipi->channels == 3) {
-					const u32 reorder[3] = {0, 1, 2};
-					mux_out_index = p_mipi->func.set_mux_out_index + reorder[i];
-					ddr_mux_out_index = ddr_out->mux_index + reorder[i];
-				}
-				else if (p_mipi->channels == 2) {
-					const u32 reorder[2] = {0, 1};
-					mux_out_index = p_mipi->func.set_mux_out_index + reorder[i];
-					ddr_mux_out_index = ddr_out->mux_index + reorder[i];
-				}
-			}
+			mux_out_index = p_mipi->func.set_mux_out_index + ch_index[i];
+			ddr_mux_out_index = ddr_out->mux_index + ch_index[i];
 
 			lines = (p_mipi->data.width / LINE_BUFFER_SIZE) + 1;
 			ipi_index = i + vc_index;
