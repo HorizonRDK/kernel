@@ -17,6 +17,9 @@
 *
 */
 
+#include <linux/proc_fs.h>
+#include <linux/seq_file.h>
+
 #include "acamera_fw.h"
 #include "acamera_command_api.h"
 #include "acamera_logger.h"
@@ -35,8 +38,117 @@
 #define CUR_MOD_NAME LOG_MODULE_METADATA
 #endif
 
-
 //#define DEBUG_METADATA_FSM
+#define MM_PROC_DIR   "hbmmst"
+
+firmware_metadata_t g_fw_md[FIRMWARE_CONTEXT_NUMBER];
+static int ctx_id;
+
+static struct proc_dir_entry *isp_entry;
+static struct proc_dir_entry *isp_proc_dir;
+
+static void isp_proc_gain( struct seq_file *seq, const char *name, int32_t gain_log2 )
+{
+    int32_t gain_log10 = gain_log2 * 6; // 1% error
+    uint16_t gain_dec = ( uint16_t )( ( ( ACAMERA_ABS( gain_log10 ) & ( ( 1 << LOG2_GAIN_SHIFT ) - 1 ) ) * 1000 ) >> LOG2_GAIN_SHIFT );
+    int32_t gain_ones = acamera_math_exp2( gain_log2, LOG2_GAIN_SHIFT, LOG2_GAIN_SHIFT ); // 1% error
+    uint16_t gain_ones_dec = ( uint16_t )( ( ( ACAMERA_ABS( gain_ones ) & ( ( 1 << LOG2_GAIN_SHIFT ) - 1 ) ) * 1000 ) >> LOG2_GAIN_SHIFT );
+    seq_printf(seq, "%s gain %d.%03d = %d.%03d dB\n", name, gain_ones >> LOG2_GAIN_SHIFT, gain_ones_dec, gain_log10 >> LOG2_GAIN_SHIFT, gain_dec );
+}
+
+static int isp_proc_show(struct seq_file *seq, void *v)
+{
+
+    firmware_metadata_t *md = &g_fw_md[ctx_id];
+    const char *modes[4] = {"Linear", "FS HDR", "Native HDR", "FS Linear"};
+
+    if (md->isp_mode > 3)
+        md->isp_mode = 0;
+    seq_printf(seq, "===ctx id %d===\n", ctx_id);
+    seq_printf(seq, "Format: %d\n", md->image_format );
+    seq_printf(seq, "Sensor bits: %d\n", md->sensor_bits );
+    seq_printf(seq, "RGGB start: %d\n", md->rggb_start );
+    seq_printf(seq, "ISP mode: %s\n", modes[md->isp_mode] );
+    seq_printf(seq, "FPS: %d.%02d\n", md->fps >> 8, ( ( md->fps & 0xFF ) * 100 ) >> 8 );
+
+    seq_printf(seq, "Integration time: %d lines %lld.%02lld ms\n", md->int_time, md->int_time_ms / 100, md->int_time_ms % 100 );
+    seq_printf(seq, "Integration time medium: %d\n", md->int_time_medium );
+    seq_printf(seq, "Integration time long: %d\n", md->int_time_long );
+    isp_proc_gain( seq, "A", md->again );
+    isp_proc_gain( seq, "D", md->dgain );
+    isp_proc_gain( seq, "ISP", md->isp_dgain );
+    seq_printf(seq, "Equivalent Exposure: %d lines\n", acamera_math_exp2( md->exposure, LOG2_GAIN_SHIFT, 0 ) );
+    seq_printf(seq, "Exposure_log2: %d\n", md->exposure );
+    seq_printf(seq, "Gain_log2: %d\n", md->gain_log2 );
+
+    seq_printf(seq, "Lens Position: %d\n", md->lens_pos );
+
+    seq_printf(seq, "Antiflicker: %s\n", md->anti_flicker ? "on" : "off" );
+
+    seq_printf(seq, "Gain 00: %d\n", md->gain_00 );
+    seq_printf(seq, "Gain 01: %d\n", md->gain_01 );
+    seq_printf(seq, "Gain 10: %d\n", md->gain_10 );
+    seq_printf(seq, "Gain 11: %d\n", md->gain_11 );
+    seq_printf(seq, "Black Level 00: %d\n", md->black_level_00 );
+    seq_printf(seq, "Black Level 01: %d\n", md->black_level_01 );
+    seq_printf(seq, "Black Level 10: %d\n", md->black_level_10 );
+    seq_printf(seq, "Black Level 11: %d\n", md->black_level_11 );
+
+    seq_printf(seq, "LSC table: %d\n", md->lsc_table );
+    seq_printf(seq, "LSC blend: %d\n", md->lsc_blend );
+    seq_printf(seq, "LSC Mesh strength: %d\n", md->lsc_mesh_strength );
+
+    seq_printf(seq, "AWB rg: %lld\n", md->awb_rgain );
+    seq_printf(seq, "AWB bg: %lld\n", md->awb_bgain );
+    seq_printf(seq, "AWB temperature: %lld\n", md->awb_cct );
+
+    seq_printf(seq, "Sinter strength: %d\n", md->sinter_strength );
+    seq_printf(seq, "Sinter strength1: %d\n", md->sinter_strength1 );
+    seq_printf(seq, "Sinter strength4: %d\n", md->sinter_strength4 );
+    seq_printf(seq, "Sinter thresh1h: %d\n", md->sinter_thresh_1h );
+    seq_printf(seq, "Sinter thresh4h: %d\n", md->sinter_thresh_4h );
+    seq_printf(seq, "Sinter SAD: %d\n", md->sinter_sad );
+
+    seq_printf(seq, "Temper strength: %d\n", md->temper_strength );
+
+    seq_printf(seq, "Iridix strength: %d\n", md->iridix_strength );
+
+    seq_printf(seq, "Dp threshold1: %d\n", md->dp_threash1 );
+    seq_printf(seq, "Dp slope1: %d\n", md->dp_slope1 );
+    seq_printf(seq, "Dp threshold2: %d\n", md->dp_threash2 );
+    seq_printf(seq, "Dp slope2: %d\n", md->dp_slope2 );
+
+    seq_printf(seq, "Sharpening directional: %d\n", md->sharpening_directional );
+    seq_printf(seq, "Sharpening unidirectional: %d\n", md->sharpening_unidirectional );
+    seq_printf(seq, "Demosaic NP offset: %d\n", md->demosaic_np_offset );
+
+    seq_printf(seq, "FR sharpen strength: %d\n", md->fr_sharpern_strength );
+    seq_printf(seq, "DS1 sharpen strength: %d\n", md->ds1_sharpen_strength );
+    seq_printf(seq, "DS2 sharpen strength: %d\n", md->ds2_sharpen_strength );
+
+    seq_printf(seq, "CCM R_R: 0x%X\n", md->ccm[CCM_R][CCM_R] );
+    seq_printf(seq, "CCM R_G: 0x%X\n", md->ccm[CCM_R][CCM_G] );
+    seq_printf(seq, "CCM R_B: 0x%X\n", md->ccm[CCM_R][CCM_B] );
+    seq_printf(seq, "CCM G_R: 0x%X\n", md->ccm[CCM_G][CCM_R] );
+    seq_printf(seq, "CCM G_G: 0x%X\n", md->ccm[CCM_G][CCM_G] );
+    seq_printf(seq, "CCM G_B: 0x%X\n", md->ccm[CCM_G][CCM_B] );
+    seq_printf(seq, "CCM B_R: 0x%X\n", md->ccm[CCM_B][CCM_R] );
+    seq_printf(seq, "CCM B_G: 0x%X\n", md->ccm[CCM_B][CCM_G] );
+    seq_printf(seq, "CCM B_B: 0x%X\n", md->ccm[CCM_B][CCM_B] );
+
+    return 0;
+}
+
+static int isp_proc_open(struct inode *inode, struct  file *file)
+{
+    return single_open(file, isp_proc_show, NULL);
+}
+
+static const struct file_operations isp_proc_ops = {
+    .open = isp_proc_open,
+    .read = seq_read,
+    .release = seq_release,
+};
 
 void metadata_initialize( metadata_fsm_t *p_fsm )
 {
@@ -44,6 +156,23 @@ void metadata_initialize( metadata_fsm_t *p_fsm )
     memset( &p_fsm->cur_metadata, 0x0, sizeof( firmware_metadata_t ) );
     p_fsm->callback_meta = NULL;
 
+    if (!isp_proc_dir) {
+        isp_proc_dir = proc_mkdir(MM_PROC_DIR, NULL);
+        if (!isp_proc_dir) {
+            pr_err("%s proc dir create failed\n", MM_PROC_DIR);
+            goto skip;
+        }
+    }
+
+    if (!isp_entry) {
+        isp_entry = proc_create("isp", 0444, isp_proc_dir, &isp_proc_ops);
+        if (!isp_entry) {
+            pr_err("isp proc file create failed\n");
+            remove_proc_entry(MM_PROC_DIR, NULL);
+        }
+    }
+
+skip:
     p_fsm->mask.repeat_irq_mask = ACAMERA_IRQ_MASK( ACAMERA_IRQ_FRAME_END );
     metadata_request_interrupt( p_fsm, p_fsm->mask.repeat_irq_mask );
 }
@@ -71,6 +200,7 @@ void metadata_update_meta( metadata_fsm_t *p_fsm )
     uint32_t avg_GB = -1;
     int32_t temperature_detected = -1;
 
+    ctx_id = p_ctx->context_id;
     fsm_param_sensor_info_t sensor_info;
     fsm_param_awb_info_t awb_info;
 
@@ -210,6 +340,8 @@ void metadata_update_meta( metadata_fsm_t *p_fsm )
     md->ccm[CCM_B][CCM_R] = acamera_isp_ccm_coefft_b_r_read( isp_base );
     md->ccm[CCM_B][CCM_G] = acamera_isp_ccm_coefft_b_g_read( isp_base );
     md->ccm[CCM_B][CCM_B] = acamera_isp_ccm_coefft_b_b_read( isp_base );
+
+    memcpy((void *)&g_fw_md[p_ctx->context_id], (void *)md, sizeof(g_fw_md));
 }
 
 #ifdef DEBUG_METADATA_FSM
