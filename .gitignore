@@ -134,5 +134,8 @@ dtb-mapping.conf
 # rootfs
 rootfs/
 
+# out
+out/
+
 # pka firmware
 !clp300.elf
