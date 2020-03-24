@@ -39,6 +39,10 @@
 
 #define TTY_BUF_SIZE	(512)
 
+static uint block = 0;
+module_param(block, uint, 0644);
+MODULE_PARM_DESC(block, "0: noblock, 1: block, default 0");
+
 /* cdev node private info */
 struct bif_tty_node {
 
@@ -185,7 +189,7 @@ static int bif_tty_set_ap_rwbuf(struct bif_tty_cdev *cdev)
 
 	addr = bif_query_address(BUFF_SMD);
 	if (addr == (void *)-1 || addr == NULL) {
-		tty_err_log("irq reset ap addr failed\n");
+		tty_debug_log("irq reset ap addr failed\n");
 		return 0;
 	}
 	for (i = 0; i < cdev->num_nodes; i++) {
@@ -208,7 +212,7 @@ static int bif_tty_set_otherbase(struct bif_tty_cdev *cdev)
 
 	tmp = bif_query_otherbase(BUFF_SMD);
 	if (tmp == (void *)-1 || tmp == NULL) {
-		tty_err_log("irq wait other address fail\n");
+		tty_debug_log("irq wait other address fail\n");
 		return -1;
 	}
 
@@ -231,7 +235,7 @@ static void tty_irq_work(struct work_struct *work)
 	}
 
 #ifdef CONFIG_HOBOT_BIF_AP
-	/*if cp reboot, 
+	/*if cp reboot,
 		and ap recv irq, check no crc
 		then sync ap to cp*/
 	rb_tmp = cdev->tb_node[0]->rb_other;
@@ -455,15 +459,19 @@ static ssize_t bif_tty_write(struct file *filp, const char __user *buf,
 	while (size > 0) {
 		count = bif_ringbuf_self_free(bt_node);
 		if (count == 0) {
-			tty_err_log("rest=%d < size=%d\n", count, (int)size);
-			rc = wait_event_interruptible(cdev->wq,
-						      bif_ringbuf_self_free
-						      (bt_node) > 0);
-			if (rc < 0) {
-				tty_err_log("wait_event_interruptible rc<0\n");
+			if (block) {
+				tty_err_log("rest=%d < size=%d\n", count, (int)size);
+				rc = wait_event_interruptible(cdev->wq,
+					bif_ringbuf_self_free(bt_node) > 0);
+				if (rc < 0) {
+					tty_err_log("wait_event_interruptible rc<0\n");
+					goto fail;
+				}
+				count = bif_ringbuf_self_free(bt_node);
+			} else {
+				rc = -ENOSPC;
 				goto fail;
 			}
-			count = bif_ringbuf_self_free(bt_node);
 		}
 		if (count >= size)
 			count = size;
