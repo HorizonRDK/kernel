@@ -258,6 +258,8 @@ int32_t bpu_write_fc_to_core(struct bpu_core *core,
 				atomic_set(&core->hw_id_counter[prio], 1);/*PRQA S ALL*/
 			} else
 				atomic_inc(&core->hw_id_counter[prio]);/*PRQA S ALL*/
+		} else {
+			bpu_fc->hw_id = 0;
 		}
 		/* use the hw_id to tell soc id and priority */
 		bpu_fc->hw_id = FC_PRIO_ID(prio, bpu_fc->hw_id);
