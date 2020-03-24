@@ -48,3 +48,156 @@
 &sdio2 {
 	powerup-gpio = <98>;	/* xj3-cvb UART1_RXD/GPIO6[2] */
 };
+
+/*TODO: maybe need to change or delete */
+&cpu_opp_table {
+	compatible = "operating-points-v2";
+	opp-shared;
+	opp00 {
+		opp-hz = /bits/ 64 <1200000000>;
+		opp-microvolt = <800730>;
+		clock-latency-ns = <500000>;
+	};
+	opp01 {
+		opp-hz = /bits/ 64 <1000000000>;
+		opp-microvolt = <800730>;
+		clock-latency-ns = <500000>;
+	};
+	opp02 {
+		opp-hz = /bits/ 64 <800000000>;
+		opp-microvolt = <800730>;
+		clock-latency-ns = <500000>;
+	};
+	opp03 {
+		opp-hz = /bits/ 64 <500000000>;
+		opp-microvolt = <800730>;
+		clock-latency-ns = <500000>;
+	};
+	opp04 {
+		opp-hz = /bits/ 64 <1500000000>;
+		opp-microvolt = <1003842>;
+		clock-latency-ns = <500000>;
+		turbo-mode;
+	};
+};
+
+&cnn_opp_table {
+	compatible = "operating-points-v2";
+	opp-shared;
+	opp00 {
+		opp-hz = /bits/ 64 <1000000000>;
+		opp-microvolt = <800730>;
+		clock-latency-ns = <500000>;
+	};
+	opp01 {
+		opp-hz = /bits/ 64 <800000000>;
+		opp-microvolt = <800730>;
+		clock-latency-ns = <500000>;
+	};
+	opp02 {
+		opp-hz = /bits/ 64 <400000000>;
+		opp-microvolt = <800730>;
+		clock-latency-ns = <500000>;
+	};
+	opp03 {
+		opp-hz = /bits/ 64 <1200000000>;
+		opp-microvolt = <1003842>;
+		clock-latency-ns = <500000>;
+		turbo-mode;
+	};
+};
+
+&i2c0 {
+	irps54010@43 {
+		compatible = "infineon,irps5401";
+		reg = <0x43>;
+		regulators {
+			cpu_pd_reg: DCDC1 {
+				regulator-name = "VCC_CPU";
+				regulator-min-microvolt = <800730>;
+				regulator-max-microvolt = <1003842>;
+				regulator-always-on;
+			};
+
+			cnn1_pd_reg: DCDC2 {
+				regulator-name = "VCC_CNN1";
+				regulator-min-microvolt = <800730>;
+				regulator-max-microvolt = <1003842>;
+				regulator-enable-ramp-delay = <3000>;
+			};
+
+			ddr_ao_1v1: DCDC3 {
+				regulator-name = "DDR_AO_1V1";
+				regulator-min-microvolt = <1096094>;
+				regulator-max-microvolt = <1101492>;
+				regulator-always-on;
+			};
+
+			cnn0_pd_reg: DCDC4 {
+				regulator-name = "VCC_CNN0";
+				regulator-min-microvolt = <800730>;
+				regulator-max-microvolt = <1003842>;
+				regulator-enable-ramp-delay = <3000>;
+			};
+		};
+	};
+
+	irps54011@46 {
+		compatible = "infineon,irps5401";
+		reg = <0x46>;
+		regulators {
+			sys_pd1_3v3_reg: DCDC1 {
+				regulator-name = "VDD_3V3";
+				regulator-min-microvolt = <3300570>;
+				regulator-max-microvolt = <3300570>;
+				regulator-always-on;
+			};
+
+			ddr_0v6_1v1: DCDC2 {
+				regulator-name = "DDR_0V6_1V1";
+				regulator-min-microvolt = <601524>;
+				regulator-max-microvolt = <1101492>;
+				regulator-always-on;
+			};
+
+			sys_pd_1v8_reg: DCDC3 {
+				regulator-name = "VDD_1V8";
+				regulator-min-microvolt = <1800666>;
+				regulator-max-microvolt = <1800666>;
+				regulator-always-on;
+			};
+
+			ddr_pd_reg: DCDC4 {
+				regulator-name = "VDD_DDR_PD";
+				regulator-min-microvolt = <800730>;
+				regulator-max-microvolt = <800730>;
+				regulator-always-on;
+			};
+		};
+	};
+
+};
+
+&cpu0 {
+	cpu-supply = <&cpu_pd_reg>;
+};
+
+&cpu1 {
+	cpu-supply = <&cpu_pd_reg>;
+};
+
+&cpu2 {
+	cpu-supply = <&cpu_pd_reg>;
+};
+
+&cpu3 {
+	cpu-supply = <&cpu_pd_reg>;
+};
+
+&cnn0 {
+	cnn-supply = <&cnn0_pd_reg>;
+};
+
+&cnn1 {
+	cnn-supply = <&cnn1_pd_reg>;
+};
