@@ -613,6 +613,9 @@ int x2_wdt_suspend(struct device *dev)
 {
 	struct x2_wdt *x2wdt = dev_get_drvdata(dev);
 
+	if (disabled)
+		return 0;
+
 	if (x2wdt->enabled)
 		x2_wdt_stop(&x2wdt->x2_wdd);
 
@@ -623,6 +626,9 @@ int x2_wdt_suspend(struct device *dev)
 int x2_wdt_resume(struct device *dev)
 {
 	struct x2_wdt *x2wdt = dev_get_drvdata(dev);
+
+	if (disabled)
+		return 0;
 
 	if (!x2wdt->enabled)
 		x2_wdt_start(&x2wdt->x2_wdd);
