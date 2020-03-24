@@ -80,6 +80,7 @@ typedef enum {
 #define W5_VPU_REMAP_VADDR			(W5_REG_BASE + 0x0064)
 #define W5_VPU_REMAP_PADDR			(W5_REG_BASE + 0x0068)
 #define W5_VPU_REMAP_CORE_START		(W5_REG_BASE + 0x006C)
+#define W5_CMD_INSTANCE_INFO		(W5_REG_BASE + 0x0110)
 #define W5_RST_BLOCK_ALL			(0x3fffffff)
 
 #define W5_REMAP_CODE_INDEX			0
@@ -107,5 +108,6 @@ static u32 s_vpu_reg_store[MAX_NUM_VPU_CORE][64];
 #define W5_CMD_INIT_VPU				(0x0001)
 #define W5_CMD_SLEEP_VPU			(0x0004)
 #define W5_CMD_WAKEUP_VPU			(0x0002)
+#define W5_DESTROY_INSTANCE			(0x0020)
 
 #endif /*__HOBOT_VPU_REG_H__*/

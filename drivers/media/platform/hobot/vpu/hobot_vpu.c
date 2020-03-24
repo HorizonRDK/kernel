@@ -124,6 +124,8 @@ static int vpu_free_instances(struct file *filp)
 	const int PTHREAD_MUTEX_T_DESTROY_VALUE = 0xdead10cc;
 	hb_vpu_dev_t *dev;
 	hb_vpu_priv_t *priv;
+	unsigned long timeout = jiffies + HZ;
+	int core;
 
 	vpu_debug_enter();
 	if (!filp) {
@@ -150,6 +152,22 @@ static int vpu_free_instances(struct file *filp)
 				  "coreIdx=%d, vip_base=%p, instance_pool_size_per_core=%d\n",
 				  (int)vil->inst_idx, (int)vil->core_idx,
 				  vip_base, (int)instance_pool_size_per_core);
+			core = vil->core_idx;
+			VPU_WRITEL(W5_CMD_INSTANCE_INFO, (-1 << 16)|(vil->inst_idx&0xffff));
+			VPU_ISSUE_COMMAND(vil->core_idx, W5_DESTROY_INSTANCE);
+			while (VPU_READL(W5_VPU_BUSY_STATUS)) {
+				if (time_after(jiffies, timeout)) {
+					vpu_err("Timeout to do command %d",
+						W5_DESTROY_INSTANCE);
+					break;
+				}
+			}
+
+			if (VPU_READL(W5_RET_SUCCESS) == 0) {
+				vpu_err("Command %d failed [0x%x]",
+					W5_DESTROY_INSTANCE, VPU_READL(W5_RET_FAIL_REASON));
+			}
+
 			vip = (hb_vpu_instance_pool_t *) vip_base;
 			if (vip) {
 				/* only first 4 byte is key point(inUse of CodecInst in vpuapi)
@@ -180,6 +198,10 @@ static int vpu_free_instances(struct file *filp)
 			list_del(&vil->list);
 			kfree(vil);
 			test_and_clear_bit(vil->inst_idx, vpu_inst_bitmap);
+			spin_lock(&dev->poll_spinlock);
+			dev->poll_event[vil->inst_idx] = VPU_INST_CLOSED;
+			spin_unlock(&dev->poll_spinlock);
+			wake_up_interruptible(&dev->poll_wait_q[vil->inst_idx]);
 		}
 	}
 	vpu_debug_leave();
