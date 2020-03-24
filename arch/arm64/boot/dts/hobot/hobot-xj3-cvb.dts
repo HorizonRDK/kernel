@@ -128,7 +128,7 @@
 
 			ddr_ao_1v1: DCDC3 {
 				regulator-name = "DDR_AO_1V1";
-				regulator-min-microvolt = <1096094>;
+				regulator-min-microvolt = <1101492>;
 				regulator-max-microvolt = <1101492>;
 				regulator-always-on;
 			};
