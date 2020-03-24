@@ -88,6 +88,7 @@ static int bpu0_power;
 static int bpu1_power;
 static struct timer_list check_timer;
 static struct mutex enable_lock;
+static int bpu_err_flag;
 
 #define MAX_PID_NUM 0x8
 static pid_t pid_fc_id_mask[MAX_PID_NUM];
@@ -454,10 +455,10 @@ static irqreturn_t hobot_bpu_interrupt_handler(int irq, void *dev_id)
 
 	hobot_bpu_reg_write(dev, CNNINT_MASK, 0x0);
 	irq_err = tmp_irq & 0xf000;
-	if (g_bpu_error != 0)
-		irq_err = g_bpu_error;
+	if (bpu_err_flag != 0)
+		irq_err = bpu_err_flag;
 	report_bpu_diagnose_msg(irq_err, dev->core_index);
-	g_bpu_error = 0;
+	bpu_err_flag = 0;
 	spin_unlock_irqrestore(&dev->cnn_spin_lock, flags);
 	dev->head_value = 0;
 	dev->inst_num = 0;
@@ -1044,8 +1045,6 @@ static int hobot_bpu_open(struct inode *inode, struct file *filp)
 
 	if (!(devdata->ref_cnt++)) {
 		/*power up bpu first*/
-		unsigned int tmp;
-
 		if (devdata->has_regulator)
 			hobot_bpu_power_up(devdata);
 		else
@@ -1088,7 +1087,6 @@ static int hobot_bpu_release(struct inode *inode, struct file *filp)
 	struct cnn_user_info *user_info;
 	unsigned long flags;
 	int i;
-	int rc;
 
 	mutex_lock(&hobot_bpu_mutex);
 	user_info = filp->private_data;
@@ -1385,7 +1383,6 @@ static void hobot_bpu_do_tasklet(unsigned long data)
 {
 	struct hobot_bpu_dev *dev = (struct hobot_bpu_dev *)data;
 	unsigned long flags;
-	int ret;
 	int int_cnt;
 
 	spin_lock_irqsave(&dev->cnn_spin_lock, flags);
@@ -1958,7 +1955,6 @@ int hobot_bpu_probe(struct platform_device *pdev)
 	struct resource mem_reserved;
 	int cnn_id;
 	char dev_name[8];
-	unsigned int tmp;
 
 	cnn_dev = devm_kzalloc(&pdev->dev, sizeof(*cnn_dev), GFP_KERNEL);
 	if (!cnn_dev)
@@ -2015,13 +2011,13 @@ int hobot_bpu_probe(struct platform_device *pdev)
 	}
 	rc = clk_prepare(cnn_dev->cnn_aclk);
 	if(rc) {
-		pr_err("%s:%d prepare bpu aclk error\n");
+		pr_err("%s:%d prepare bpu aclk error\n", __func__, __LINE__);
 		goto err_out;
 	}
 
 	rc = clk_prepare(cnn_dev->cnn_mclk);
 	if(rc) {
-		pr_err("%s:%d prepare bpu mclk error\n");
+		pr_err("%s:%d prepare bpu mclk error\n", __func__, __LINE__);
 		goto err_out;
 	}
 #endif
@@ -2441,6 +2437,25 @@ static ssize_t nseconds_store(struct kobject *kobj, struct kobj_attribute *attr,
 	return count;
 }
 
+static ssize_t bpu_err_flag_show(struct kobject *kobj, struct kobj_attribute *attr,
+			char *buf)
+{
+	return sprintf(buf, "%d\n", bpu_err_flag);
+}
+
+static ssize_t bpu_err_flag_store(struct kobject *kobj, struct kobj_attribute *attr,
+			 const char *buf, size_t count)
+{
+	int ret;
+
+	ret = sscanf(buf, "%du", &bpu_err_flag);
+	if (ret < 0) {
+		pr_info("%s sscanf error\n", __func__);
+		return 0;
+	}
+	return count;
+}
+
 static ssize_t burst_len_store(struct kobject *kobj,
 		struct kobj_attribute *attr,
 		const char *buf, size_t count)
@@ -2487,9 +2502,7 @@ static ssize_t fc_time_enable_store(struct kobject *kobj,
 				    struct kobj_attribute *attr,
 				    const char *buf, size_t count)
 {
-	int ret;
-	int tmp = 0;
-
+	int tmp;
 
 	sscanf(buf, "%du", &tmp);
 	if (tmp == fc_time_enable)
@@ -2846,6 +2859,8 @@ static struct kobj_attribute fc_enable    = __ATTR(fc_time_enable, 0664,
 						    fc_time_enable_store);
 static struct kobj_attribute pro_nseconds   = __ATTR(profiler_n_seconds, 0664,
 						    nseconds_show, nseconds_store);
+static struct kobj_attribute bpu_err   = __ATTR(bpu_err_flag, 0664,
+						    bpu_err_flag_show, bpu_err_flag_store);
 static struct kobj_attribute pro_ratio0    = __ATTR(ratio, 0444,
 						    ratio0_show, NULL);
 static struct kobj_attribute pro_ratio1    = __ATTR(ratio, 0444,
@@ -2885,6 +2900,7 @@ static struct attribute *bpu_attrs[] = {
 	&pro_nseconds.attr,
 	&fc_enable.attr,
 	&burst_len.attr,
+	&bpu_err.attr,
 	NULL,
 };
 static struct attribute *bpu0_attrs[] = {
