@@ -147,6 +147,72 @@ function change_dts_flash_config()
     fi
 }
 
+function get_system_partition_number()
+{
+    local config=$GPT_CONFIG
+
+    for line in $(cat $config)
+    do
+        arr=(${line//:/ })
+
+        local needparted=${arr[0]}
+        local _name=${arr[1]}
+        local dir=${_name%/*}
+
+	if [ x"$needparted" = x"1" ];then
+		system_id=$(($system_id + 1))
+	fi
+
+	if [ x"$dir" = x"system" ];then
+		return
+	fi
+    done
+}
+
+function build_boot_image()
+{
+    local path_avbtool="$SRC_BUILD_DIR/tools/avbtools"
+    local path_otatool="$SRC_BUILD_DIR/ota_tools/kernel_package_maker"
+    local path_mkbootimg="$SRC_BUILD_DIR/tools/mkbootimg"
+    local kernel_path=$SRC_KERNEL_DIR
+
+    # build boot.img
+    echo "begin to compile boot.img"
+    cd $path_mkbootimg
+    bash build_bootimg.sh || {
+	echo "$path_mkbootimg/build_bootimg.sh failed"
+	exit 1
+    }
+    cd -
+
+    # get system id
+    get_system_partition_number
+
+    # build vbmeta.img
+    echo "begin to compile vbmeta.img"
+    cd $path_avbtool
+
+    echo "**************************"
+    echo "bash build_boot_vbmeta.sh boot $system_id"
+    bash build_boot_vbmeta.sh boot $system_id
+
+    echo "*************************"
+    echo "bash build_vbmeta.sh boot $system_id"
+    bash build_vbmeta.sh boot $system_id
+    cd -
+
+    cpfiles "$path_avbtool/out/vbmeta.img" "$TARGET_DEPLOY_DIR"
+    cpfiles "$path_avbtool/images/boot.img" "$TARGET_DEPLOY_DIR"
+
+    # build boot.zip
+    cd $path_otatool
+    bash build_kernel_update_package.sh emmc
+    cd -
+
+    cpfiles "$path_otatool/boot.zip" "$TARGET_DEPLOY_DIR/ota"
+}
+
+
 function all()
 {
     if [ "x$KERNEL_WITH_RECOVERY" = "xtrue" ];then
@@ -201,6 +267,10 @@ function all()
 
     # build dtb-mapping.conf
     build_dtbmapping
+
+    if [ x"$build_boot_img" = x"true" ];then
+        build_boot_image
+    fi
 }
 
 function all_32()
@@ -208,6 +278,40 @@ function all_32()
     CROSS_COMPILE=$CROSS_COMPILE_64
     all
 }
+
+function usage()
+{
+    echo "Usage: build.sh [-p]"
+    echo "Options:"
+    echo "  -p  compile kernel, get vbmeta.img, boot.img and boot.zip"
+    echo "  -h  help info"
+    echo "Command:"
+    echo "  clean clean all the object files along with the executable"
+}
+
+build_boot_img="false"
+system_id=""
+
+while getopts "ph:" opt
+do
+    case $opt in
+        p)
+            build_boot_img="true"
+            ;;
+        h)
+            usage
+            exit 0
+            ;;
+        \?)
+            usage
+            exit 1
+            ;;
+    esac
+done
+
+shift $[ $OPTIND - 1 ]
+
+cmd=$1
 
 function clean()
 {
@@ -223,4 +327,5 @@ cd $(dirname $0)
 change_dts_flash_config $BOOT_MODE
 
 set_kernel_config
-buildopt $1
+buildopt $cmd
+
