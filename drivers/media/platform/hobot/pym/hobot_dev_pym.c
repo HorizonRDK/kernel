@@ -857,6 +857,73 @@ static long x3_pym_ioctl(struct file *file, unsigned int cmd,
 	return ret;
 }
 
+int x3_pym_mmap(struct file *file, struct vm_area_struct *vma)
+{
+	int ret = 0;
+	struct pym_video_ctx *pym_ctx;
+	struct vio_framemgr *framemgr;
+	struct vio_frame *frame;
+	int buffer_index;
+	u32 paddr = 0;
+	unsigned long flags;
+
+	pym_ctx = file->private_data;
+	if (!pym_ctx) {
+		vio_err("%s ipu_ctx is null.", __func__);
+		ret = -EFAULT;
+		goto err;
+	}
+
+	framemgr = pym_ctx->framemgr;
+	buffer_index = vma->vm_pgoff;
+	ret = pym_index_owner(pym_ctx, buffer_index);
+	if( ret != VIO_BUFFER_OTHER ) {
+		vio_err("[S%d][V%d] %s proc %d error,index %d not other's",
+			pym_ctx->group->instance, pym_ctx->id, __func__,
+			pym_ctx->ctx_index, buffer_index);
+		ret = -EFAULT;
+		goto err;
+	}
+
+	framemgr_e_barrier_irqs(framemgr, 0, flags);
+	frame = framemgr->frames_mp[buffer_index];
+	if (frame) {
+		paddr = frame->frameinfo.spec.ds_y_addr[0];
+	} else {
+		vio_err("[S%d][V%d] %s proc %d error,frame null",
+			pym_ctx->group->instance, pym_ctx->id, __func__,
+			pym_ctx->ctx_index);
+		framemgr_x_barrier_irqr(framemgr, 0, flags);
+		ret = -EFAULT;
+		goto err;
+	}
+	framemgr_x_barrier_irqr(framemgr, 0, flags);
+	if (paddr == 0) {
+		vio_err("[S%d][V%d] %s proc %d error,paddr %x.",
+			pym_ctx->group->instance, pym_ctx->id, __func__,
+			pym_ctx->ctx_index, paddr);
+		ret = -EAGAIN;
+		goto err;
+	}
+
+	vma->vm_flags |= VM_IO | VM_PFNMAP | VM_DONTEXPAND | VM_DONTDUMP;
+	if (remap_pfn_range(vma, vma->vm_start, paddr >> PAGE_SHIFT,
+		vma->vm_end - vma->vm_start, vma->vm_page_prot)) {
+		vio_err("[S%d][V%d] %s proc %d error,remap.",
+			pym_ctx->group->instance, pym_ctx->id, __func__,
+			pym_ctx->ctx_index);
+		ret = -EAGAIN;
+		goto err;
+	}
+
+	vio_dbg("[S%d][V%d] %s map success, proc %d index %d paddr %x.",
+		pym_ctx->group->instance, pym_ctx->id, __func__,
+		pym_ctx->ctx_index, buffer_index, paddr);
+	return 0;
+err:
+	return ret;
+}
+
 void pym_set_iar_output(struct pym_subdev *subdev, struct vio_frame *frame)
 {
 #ifdef X3_IAR_INTERFACE
@@ -1017,6 +1084,7 @@ static struct file_operations x3_pym_fops = {
 	.release = x3_pym_close,
 	.unlocked_ioctl = x3_pym_ioctl,
 	.compat_ioctl = x3_pym_ioctl,
+	.mmap = x3_pym_mmap,
 };
 
 static int x3_pym_suspend(struct device *dev)

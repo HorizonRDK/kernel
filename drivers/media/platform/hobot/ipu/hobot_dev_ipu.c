@@ -1476,6 +1476,77 @@ static long x3_ipu_ioctl(struct file *file, unsigned int cmd,
 	return ret;
 }
 
+int x3_ipu_mmap(struct file *file, struct vm_area_struct *vma)
+{
+	int ret = 0;
+	struct ipu_video_ctx *ipu_ctx;
+	struct vio_framemgr *framemgr;
+	struct vio_frame *frame;
+	int buffer_index;
+	u32 paddr;
+	u32 addr[2];
+	u32 size;
+	unsigned long flags;
+
+	ipu_ctx = file->private_data;
+	if (!ipu_ctx) {
+		vio_err("%s ipu_ctx is null.", __func__);
+		ret = -EFAULT;
+		goto err;
+	}
+
+	framemgr = ipu_ctx->framemgr;
+	buffer_index = vma->vm_pgoff >> 1;
+	ret = ipu_index_owner(ipu_ctx, buffer_index);
+	if( ret != VIO_BUFFER_OTHER ) {
+		vio_err("[S%d][V%d] %s proc %d error,index %d not other's",
+			ipu_ctx->group->instance, ipu_ctx->id, __func__,
+			ipu_ctx->ctx_index, buffer_index);
+		ret = -EFAULT;
+		goto err;
+	}
+
+	framemgr_e_barrier_irqs(framemgr, 0, flags);
+	frame = framemgr->frames_mp[buffer_index];
+	if (frame) {
+		addr[0] = frame->frameinfo.addr[0];
+		addr[1] = frame->frameinfo.addr[1];
+		size = frame->frameinfo.width * frame->frameinfo.height;
+	} else {
+		vio_err("[S%d][V%d] %s proc %d error,frame null",
+			ipu_ctx->group->instance, ipu_ctx->id, __func__,
+			ipu_ctx->ctx_index);
+		framemgr_x_barrier_irqr(framemgr, 0, flags);
+		ret = -EFAULT;
+		goto err;
+	}
+	framemgr_x_barrier_irqr(framemgr, 0, flags);
+
+	if ((vma->vm_pgoff&0x01) == 0) {
+		paddr = addr[0];	// y
+	} else {
+		paddr = addr[1];	// uv
+		size = (size >> 1);
+	}
+
+	vma->vm_flags |= VM_IO | VM_PFNMAP | VM_DONTEXPAND | VM_DONTDUMP;
+	if (remap_pfn_range(vma, vma->vm_start, paddr >> PAGE_SHIFT,
+		vma->vm_end - vma->vm_start, vma->vm_page_prot)) {
+		vio_err("[S%d][V%d] %s proc %d error,remap.",
+			ipu_ctx->group->instance, ipu_ctx->id, __func__,
+			ipu_ctx->ctx_index);
+		ret = -EAGAIN;
+		goto err;
+	}
+
+	vio_dbg("[S%d][V%d] %s map success, proc %d index %d size %d paddr %x.",
+		ipu_ctx->group->instance, ipu_ctx->id, __func__,
+		ipu_ctx->ctx_index, buffer_index, size, paddr);
+	return 0;
+err:
+	return ret;
+}
+
 enum buffer_owner ipu_index_owner(struct ipu_video_ctx *ipu_ctx,
 	u32 index)
 {
@@ -1741,6 +1812,7 @@ static struct file_operations x3_ipu_fops = {
 	.release = x3_ipu_close,
 	.unlocked_ioctl = x3_ipu_ioctl,
 	.compat_ioctl = x3_ipu_ioctl,
+	.mmap = x3_ipu_mmap,
 };
 
 static int x3_ipu_suspend(struct device *dev)
