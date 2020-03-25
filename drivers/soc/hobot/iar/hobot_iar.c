@@ -614,7 +614,49 @@ int32_t iar_channel_base_cfg(channel_base_cfg_t *cfg)
 		printk(KERN_ERR "IAR dev not inited!");
 		return -1;
 	}
+
 	channelid = cfg->channel;
+	if (cfg->enable > 0)
+		cfg->enable = 1;
+	if (cfg->pri > 3) {
+		pr_err("iar_drvier: error channel priority, exit!!\n");
+		return -1;
+	}
+        if (cfg->width > 1920 || cfg->buf_width > 1920 ||
+			cfg->xposition > 1920 || cfg->crop_width > 1920) {
+		pr_err("iar_driver: channel width exceed the max limit, exit!!\n");
+		return -1;
+	}
+	if (cfg->height > 1920 || cfg->buf_height > 1920 ||
+			cfg->yposition > 1920 || cfg->crop_height > 1920) {
+		pr_err("iar_driver: channel height exceed the max limit, exit!!\n");
+		return -1;
+	}
+	if (channelid < 2) {
+		if (cfg->format > 11) {
+			pr_err("iar_driver: error channel format, exit!!\n");
+			return -1;
+		}
+	} else {
+		if (cfg->format > 5) {
+			pr_err("iar_driver: error channel format, exit!!\n");
+			return -1;
+		}
+	}
+	if (cfg->alpha > 255) {
+		pr_err("iar_driver: error channel alpha value, exit!!\n");
+		return -1;
+	}
+	if (cfg->alpha_sel > 1) {
+		cfg->alpha_sel = 1;
+	}
+	if (cfg->alpha_en > 1) {
+		cfg->alpha_en = 1;
+	}
+	if (cfg->ov_mode > 3) {
+		pr_err("iar_driver: error channel ov mode, exit!!\n");
+		return -1;
+	}
 	pri = cfg->pri;
 	reg_overlay_opt_value = readl(g_iar_dev->regaddr + REG_IAR_OVERLAY_OPT);
 	reg_overlay_opt_value =
@@ -687,7 +729,11 @@ int32_t iar_upscaling_cfg(upscaling_cfg_t *cfg)
 		printk(KERN_ERR "IAR dev not inited!");
 		return -1;
 	}
-
+	if (cfg->src_height > 1920 || cfg->tgt_height > 1920 ||
+			cfg->src_width > 1920 || cfg->tgt_width > 1920) {
+		pr_err("iar_driver: channel width/height exceed limit, exit!!\n");
+		return -1;
+	}
 	value = IAR_REG_SET_FILED(IAR_SRC_HEIGTH, cfg->src_height, 0);
 	value = IAR_REG_SET_FILED(IAR_SRC_WIDTH, cfg->src_width, value);
 	writel(value, g_iar_dev->regaddr + REG_IAR_SRC_SIZE_UP);
@@ -871,7 +917,68 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 		printk(KERN_ERR "IAR dev not inited!");
 		return -1;
 	}
-
+	if (cfg->out_sel > 4) {
+		pr_err("%s: error output mode, exit!!\n", __func__);
+		return -1;
+	}
+	if (cfg->width > 1920 || cfg->height > 1920) {
+		pr_err("%s: panel width/height exceed limit, exit!!\n", __func__);
+		return -1;
+	}
+#ifdef CONFIG_HOBOT_XJ3
+	if (cfg->display_addr_type > 38 || cfg->display_addr_type_layer1 > 38) {
+		pr_err("%s: error display vio addr type, exit!!\n", __func__);
+		return -1;
+	}
+	if (cfg->display_cam_no > 3 || cfg->display_cam_no_layer1 > 3) {
+		pr_err("%s: error display vio pipeline no, exit!!\n", __func__);
+		return -1;
+	}
+#endif
+	if (cfg->big_endian > 1)
+		cfg->big_endian = 1;
+	if (cfg->rotate > 1)
+		cfg->rotate = 1;
+	if (cfg->user_control_disp > 1)
+		cfg->user_control_disp = 1;
+	if (cfg->user_control_disp_layer1 > 1)
+		cfg->user_control_disp_layer1 = 1;
+	if (cfg->ppcon1.dithering_flag > 1)
+		cfg->ppcon1.dithering_flag = 1; //0:rgb666;1:rgb565
+	if (cfg->ppcon1.dithering_en > 1)
+		cfg->ppcon1.dithering_en = 1;
+	if (cfg->ppcon1.gamma_en > 1)
+		cfg->ppcon1.gamma_en = 1;
+	if (cfg->ppcon1.hue_en > 1)
+		cfg->ppcon1.hue_en = 1;
+	if (cfg->ppcon1.sat_en > 1)
+		cfg->ppcon1.sat_en = 1;
+	if (cfg->ppcon1.con_en > 1)
+		cfg->ppcon1.con_en = 1;
+	if (cfg->ppcon1.bright_en > 1)
+		cfg->ppcon1.bright_en = 1;
+	if (cfg->ppcon1.theta_sign > 1)
+		cfg->ppcon1.theta_sign = 1; //negative
+	if (cfg->ppcon1.contrast > 63) {
+		pr_err("%s: ppcon1 contrast value exceed 63, exit!!\n", __func__);
+		return -1;
+	}
+	if (cfg->ppcon2.theta_abs > 255) {
+		pr_err("%s: theta abs exceed 255, exit!!\n", __func__);
+		return -1;
+	}
+	if (cfg->ppcon2.saturation > 255) {
+		pr_err("%s: saturation exceed 255, exit!!\n", __func__);
+		return -1;
+	}
+	if (cfg->ppcon2.off_contrast > 255) {
+		pr_err("%s: off contrast exceed 255, exit!!\n", __func__);
+		return -1;
+	}
+//	if (cfg->ppcon2.off_bright > 128 || cfg->ppcon2.off_bright < -127) {
+//		pr_err("%s: off bright value error, exit!!\n", __func__);
+//		return -1;
+//	}
 #ifdef CONFIG_PM
 	g_out_sel = cfg->out_sel;
 #endif
