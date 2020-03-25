@@ -1996,8 +1996,9 @@ int hobot_bpu_probe(struct platform_device *pdev)
 		cnn_dev->has_regulator = 0;
 	} else {
 		cnn_dev->has_regulator = 1;
+		cnn_dev->disable_bpu = BPU_REGU_DIS;
 	}
-	cnn_dev->disable_bpu = BPU_REGU_DIS | BPU_CLOCK_DIS;
+	cnn_dev->disable_bpu |= BPU_CLOCK_DIS;
 	/*get cnn clock and prepare*/
 	cnn_dev->cnn_aclk = devm_clk_get(cnn_dev->dev, "cnn_aclk");
 	if (IS_ERR(cnn_dev->cnn_aclk)) {
@@ -2192,11 +2193,10 @@ void cnn_fc_time_kfifo_clean(struct hobot_bpu_dev *dev)
 }
 static void cnn_regulator_remove(struct hobot_bpu_dev *dev)
 {
-	if (regulator_is_enabled(dev->cnn_regulator))
+	if (dev->has_regulator && !dev->disable_bpu)
 		hobot_bpu_power_down(dev);
 	clk_unprepare(dev->cnn_mclk);
 	clk_unprepare(dev->cnn_aclk);
-	regulator_put(dev->cnn_regulator);
 
 }
 #ifdef CONFIG_HOBOT_CNN_DEVFREQ
@@ -2226,7 +2226,6 @@ static int hobot_bpu_remove(struct platform_device *pdev)
 	hobot_bpu_reg_write(dev, CNNINT_MASK, cnn_int_mask);
 	if (profiler_enable)
 		del_timer(&check_timer);
-
 	tasklet_kill(&dev->tasklet);
 	vm_unmap_ram(dev->fc_base, dev->fc_mem_size / PAGE_SIZE);
 	dev->cnn_base = 0;
