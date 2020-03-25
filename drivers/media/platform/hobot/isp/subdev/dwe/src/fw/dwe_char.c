@@ -52,6 +52,7 @@
 #define CUR_MOD_NAME LOG_MODULE_SOC_DWE
 #endif
 
+extern struct class *vps_class;
 dwe_charmod_s *dwe_mod[FIRMWARE_CONTEXT_NUMBER];
 
 static int dwe_fop_open(struct inode *pinode, struct file *pfile)
@@ -59,7 +60,8 @@ static int dwe_fop_open(struct inode *pinode, struct file *pfile)
 	int ret = 0;
 	uint32_t tmp = 0;
 	dwe_charmod_s *dwe_cdev = NULL;
-	int minor = iminor(pinode);
+	//int minor = iminor(pinode);
+	int minor = imajor(pinode);
 
 	for (tmp = 0; tmp < FIRMWARE_CONTEXT_NUMBER; tmp++) {
 		if (dwe_mod[tmp]->dev_minor_id == minor) {
@@ -91,9 +93,19 @@ static int dwe_fop_open(struct inode *pinode, struct file *pfile)
 	ret = dwe_v4l2_stream_init(&dwe_mod[tmp]->pstream, tmp);
 
 	//init vb2-buffer
+//mis
+#if 0
 	ret = dwe_vb2_queue_init(&dwe_mod[tmp]->vb2_q,
 		&dwe_mod[tmp]->mlock, dwe_mod[tmp]->pstream,
 		dwe_mod[tmp]->dwe_chardev.this_device);
+#endif
+//platform
+#if 1
+	ret = dwe_vb2_queue_init(&dwe_mod[tmp]->vb2_q,
+		&dwe_mod[tmp]->mlock, dwe_mod[tmp]->pstream,
+		&dwe_mod[tmp]->g_dwe_dev->dev);
+#endif
+
 	if (ret < 0) {
 		goto vb2_failed;
 	}
@@ -334,12 +346,6 @@ static int dwe_v4l2_format(void *priv, struct v4l2_format *p)
 	return rc;
 }
 
-//temp
-extern int dis_set_ioctl(uint32_t port, uint32_t online);
-extern int ldc_set_ioctl(uint32_t port, uint32_t online);
-static uint32_t tmp_port_save = 0;
-//
-
 static long dwe_fop_ioctl(struct file *pfile, unsigned int cmd,
 			unsigned long arg)
 {
@@ -440,10 +446,6 @@ static long dwe_fop_ioctl(struct file *pfile, unsigned int cmd,
 	}
 		break;
 	case DWEC_START_PG: {
-		//tmp_port_save = tmp_port_save ^ 1;
-		//ret = dis_set_ioctl(tmp_port_save, 0);
-		//ret = ldc_set_ioctl(tmp_port_save, 0);
-		//msleep(1000);
 		ret = start_pg_pulse(dwe_cdev->port);
 	}
 		break;
@@ -576,10 +578,107 @@ const struct file_operations dwe_fops = {
 	.poll = dwe_fop_poll,
 };
 
+static int dwe_probe(struct platform_device *dev)
+{
+        int ret = 0;
+	uint32_t port = 0;
+
+	if (strstr(dev->name, "dwe_sbuf0") != 0) {
+		port = 0;
+	} else if (strstr(dev->name, "dwe_sbuf1") != 0) {
+		port = 1;
+	} else if (strstr(dev->name, "dwe_sbuf2") != 0) {
+		port = 2;
+	} else if (strstr(dev->name, "dwe_sbuf3") != 0) {
+		port = 3;
+	} else if (strstr(dev->name, "dwe_sbuf4") != 0) {
+		port = 4;
+	} else if (strstr(dev->name, "dwe_sbuf5") != 0) {
+		port = 5;
+	}
+
+	if (port < FIRMWARE_CONTEXT_NUMBER) {
+		ret = register_chrdev(0, dev->name, &dwe_fops);
+		if (ret < 0) {
+			return ret;
+		}
+
+		dwe_mod[port]->dev_minor_id = ret;
+		device_create(vps_class, NULL, MKDEV(dwe_mod[port]->dev_minor_id, 0),
+			NULL, "dwe_sbuf%d", port);
+		ret = of_dma_configure(&dev->dev, dev->dev.of_node);
+	} else {
+		ret = -EINVAL;
+	}
+
+        return 0;
+}
+
+static int dwe_remove(struct platform_device *dev)
+{
+        return 0;
+}
+
+static struct platform_driver dwe_device_driver[FIRMWARE_CONTEXT_NUMBER] = {
+#if FIRMWARE_CONTEXT_NUMBER > 0
+	{
+		.probe          = dwe_probe,
+		.remove         = dwe_remove,
+		.driver         = {
+			.name   = "dwe_sbuf0",
+		},
+	},
+#endif
+#if FIRMWARE_CONTEXT_NUMBER > 1
+	{
+		.probe          = dwe_probe,
+		.remove         = dwe_remove,
+		.driver         = {
+			.name   = "dwe_sbuf1",
+		},
+	},
+#endif
+#if FIRMWARE_CONTEXT_NUMBER > 2
+	{
+		.probe          = dwe_probe,
+		.remove         = dwe_remove,
+		.driver         = {
+			.name   = "dwe_sbuf3",
+		},
+	},
+#endif
+#if FIRMWARE_CONTEXT_NUMBER > 3
+	{
+		.probe          = dwe_probe,
+		.remove         = dwe_remove,
+		.driver         = {
+			.name   = "dwe_sbuf4",
+		},
+	},
+#endif
+#if FIRMWARE_CONTEXT_NUMBER > 4
+	{
+		.probe          = dwe_probe,
+		.remove         = dwe_remove,
+		.driver         = {
+			.name   = "dwe_sbuf5",
+		},
+	},
+#endif
+#if FIRMWARE_CONTEXT_NUMBER > 5
+	{
+		.probe          = dwe_probe,
+		.remove         = dwe_remove,
+		.driver         = {
+			.name   = "dwe_sbuf6",
+		},
+	},
+#endif
+};
+
 int __init dwe_dev_init(uint32_t port)
 {
 	int ret = 0;
-	int rc = 0;
 
 	if (port >= FIRMWARE_CONTEXT_NUMBER) {
 		return -ENXIO;
@@ -594,6 +693,7 @@ int __init dwe_dev_init(uint32_t port)
 	snprintf(dwe_mod[port]->name, CHARDEVNAME_LEN, "dwe_sbuf%d", port);
 	
 //misc_device
+#if 0
 	dwe_mod[port]->dwe_chardev.name = dwe_mod[port]->name;
 	dwe_mod[port]->dwe_chardev.minor = MISC_DYNAMIC_MINOR;
 	dwe_mod[port]->dwe_chardev.fops = &dwe_fops;
@@ -605,12 +705,38 @@ int __init dwe_dev_init(uint32_t port)
 	}
 	dwe_mod[port]->dev_minor_id = dwe_mod[port]->dwe_chardev.minor;
 	dwe_mod[port]->dwe_chardev.this_device->bus = &platform_bus_type;
-	rc = of_dma_configure(dwe_mod[port]->dwe_chardev.this_device,
+	ret = of_dma_configure(dwe_mod[port]->dwe_chardev.this_device,
 		dwe_mod[port]->dwe_chardev.this_device->of_node);
 	dwe_mod[port]->port = port;
 	spin_lock_init(&(dwe_mod[port]->slock));
+#endif
+//platform
+#if 1
+	dwe_mod[port]->g_dwe_dev = platform_device_alloc(dwe_mod[port]->name, -1);
+	if (!dwe_mod[port]->g_dwe_dev) {
+		ret = -ENOMEM;
+		goto register_err;
+	}
+
+	ret = platform_device_add(dwe_mod[port]->g_dwe_dev);
+	if (ret < 0) {
+		platform_device_put(dwe_mod[port]->g_dwe_dev);
+		goto register_err;
+	}
+
+	dwe_device_driver[port].driver.name = dwe_mod[port]->name;
+	ret = platform_driver_register(&dwe_device_driver[port]);
+	if (ret < 0) {
+		platform_device_unregister(dwe_mod[port]->g_dwe_dev);
+		goto register_err;
+	}
+
+	dwe_mod[port]->port = port;
+	spin_lock_init(&(dwe_mod[port]->slock));
+#endif
 	LOG(LOG_INFO, "%s register success !\n", dwe_mod[port]->name);
 	return ret;
+
 register_err:
 	kzfree(dwe_mod[port]);
 	return ret;
@@ -620,43 +746,20 @@ EXPORT_SYMBOL(dwe_dev_init);
 void __exit dwe_dev_exit(int port)
 {
 	if ((port < FIRMWARE_CONTEXT_NUMBER) && (dwe_mod[port] != NULL)) {
+//misc
+#if 0
 		misc_deregister(&dwe_mod[port]->dwe_chardev);
+#endif
+//platform
+#if 1
+		platform_driver_unregister(&dwe_device_driver[port]);
+		platform_device_unregister(dwe_mod[port]->g_dwe_dev);
+#endif
 		kzfree(dwe_mod[port]);
 		dwe_mod[port] = NULL;
 	}
 }
 EXPORT_SYMBOL(dwe_dev_exit);
-
-static void tmpdevs_exit(void)
-{
-	uint32_t tmp = 0;
-
-	for (tmp = 0; tmp < 4; tmp++) {
-		dwe_dev_exit(tmp);
-	}
-}
-
-static int tmpdevs_init(void)
-{
-	int ret = 0;
-	uint32_t tmp = 0;
-
-	for (tmp = 0; tmp < 4; tmp++) {
-		ret = dwe_dev_init(tmp);
-		if (ret < 0) {
-			LOG(LOG_ERR, "dwe_dev_init %d is failed\n", tmp);
-			goto devinit_err;
-		}
-	}
-
-	return ret;
-devinit_err:
-	tmpdevs_exit();
-	return ret;
-}
-
-//module_init(tmpdevs_init);
-//module_exit(tmpdevs_exit);
 
 MODULE_AUTHOR("Horizon Inc.");
 MODULE_DESCRIPTION("dwe_char dev of x2a");

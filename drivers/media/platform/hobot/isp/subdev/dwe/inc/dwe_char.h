@@ -44,8 +44,13 @@ typedef struct _dwe_charmod_s {
 	uint32_t devflag;
 	spinlock_t slock;
 	uint32_t user_num;
+
+//miscdevice
 	int dev_minor_id;
 	struct miscdevice dwe_chardev;
+//platform char dev
+	struct platform_device *g_dwe_dev;
+
 	uint32_t port;
 	//buffer
 	struct vb2_queue vb2_q;
