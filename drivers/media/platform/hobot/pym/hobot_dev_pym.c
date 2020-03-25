@@ -296,7 +296,7 @@ void pym_update_param(struct pym_subdev *subdev)
 
 	pym_ds_uv_bypass(pym->base_reg, shadow_index, ds_bapass_uv);
 
-	if (pym_config->ds_layer_en > 4 && pym_config->ds_layer_en < 23) {
+	if (pym_config->ds_layer_en > 3 && pym_config->ds_layer_en < 24) {
 		base_layer_nums = pym_config->ds_layer_en / 4;
 		pym_ds_enabe_base_layer(pym->base_reg, shadow_index, base_layer_nums);
 	} else {
