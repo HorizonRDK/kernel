@@ -62,6 +62,7 @@
 #define DISP_SET_VIO_CHN_PIPE \
         _IOW(IAR_CDEV_MAGIC, 0x37, struct display_vio_channel_pipe)
 #define IAR_OUTPUT_LAYER1_STREAM _IOW(IAR_CDEV_MAGIC, 0x38, unsigned int)
+#define SCREEN_BACKLIGHT_SET       _IOW(IAR_CDEV_MAGIC, 0x39, unsigned int)
 
 typedef struct _update_cmd_t {
 	unsigned int enable_flag[IAR_CHANNEL_MAX];
@@ -355,6 +356,18 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 			if (ret)
 				pr_err("error user set video timing!\n");
 			iar_update();
+		}
+		break;
+	case SCREEN_BACKLIGHT_SET:
+		 {
+			unsigned int duty_level;
+
+			pr_debug("%s: begin set screen backlight\n", __func__);
+			if (copy_from_user(&duty_level, arg,
+					sizeof(unsigned int)))
+				return -EFAULT;
+			pr_info("%s: level is %d!!\n", __func__, duty_level);
+			ret = set_screen_backlight(duty_level);
 		}
 		break;
 	case IAR_WB_SET_CFG:
@@ -717,6 +730,20 @@ static ssize_t x2_iar_store(struct kobject *kobj, struct kobj_attribute *attr, c
 			pr_info("disable channel %d\n", tmp_value);
 			iar_layer_disable(tmp_value);
 			iar_start(1);
+		} else {
+			pr_info("error input, exit!!\n");
+			return error;
+		}
+	} else if (strncmp(buf, "backlight", 9) == 0) {
+		tmp = buf + 9;
+		ret = kstrtoul(tmp, 0, &tmp_value);
+		if (ret == 0) {
+			if (tmp_value < 11) {
+				pr_info("set screen backlight level %d\n", tmp_value);
+				set_screen_backlight(tmp_value);
+			} else {
+				pr_info("error backlight level!!\n");
+			}
 		} else {
 			pr_info("error input, exit!!\n");
 			return error;

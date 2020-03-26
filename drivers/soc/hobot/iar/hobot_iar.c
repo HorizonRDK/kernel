@@ -25,6 +25,7 @@
 #include <linux/init.h>
 #include <linux/wait.h>
 #include <linux/kthread.h>
+#include <linux/pwm.h>
 #include <soc/hobot/hobot_ips_x2.h>
 #include <soc/hobot/hobot_iar.h>
 #include "linux/ion.h"
@@ -38,6 +39,8 @@
 #define IAR_MEM_SIZE 0x2000000        //32MB
 #endif
 
+#define PWM_PERIOD_DEFAULT 1000
+#define PWM_DUTY_DEFAULT 10
 unsigned int iar_debug_level = 0;
 module_param(iar_debug_level, uint, 0644);
 
@@ -356,7 +359,7 @@ typedef enum _iar_table_e {
 #define IAR_REG_GET_FILED(key, regvalue) VALUE_GET(g_iarReg_cfg_table[key][TABLE_MASK], g_iarReg_cfg_table[key][TABLE_OFFSET], regvalue)
 
 struct iar_dev_s *g_iar_dev;
-
+struct pwm_device *screen_backlight_pwm;
 //int display_type = MIPI_720P_TOUCH;
 //int display_type = MIPI_1080P;
 int display_type = LCD_7_TYPE;
@@ -864,6 +867,107 @@ int disp_clk_enable(void)
 	pr_err("%s: iar pixel rate is %ld\n", __func__, pixel_clock);
 	return 0;
 }
+
+static int screen_backlight_init(void)
+{
+	int ret = 0;
+
+	pr_debug("initialize lcd backligbt!!!\n");
+	screen_backlight_pwm = pwm_request(0, "lcd-pwm");
+	if (screen_backlight_pwm == NULL) {
+		pr_err("\nNo pwm device 0!!!!\n");
+		return -ENODEV;
+	}
+	pr_debug("pwm request 0 is okay!!!\n");
+	/**
+	 * pwm_config(struct pwm_device *pwm, int duty_ns,
+	 * int period_ns) - change a PWM device configuration
+	 * @pwm: PWM device
+	 * @duty_ns: "on" time (in nanoseconds)
+	 * @period_ns: duration (in nanoseconds) of one cycle
+	 *
+	 * Returns: 0 on success or a negative error code on failure.
+	 */
+	ret = pwm_config(screen_backlight_pwm, PWM_DUTY_DEFAULT,
+				PWM_PERIOD_DEFAULT);
+	// 50Mhz,20ns period, on = 20ns
+	if (ret) {
+		pr_err("\nError config pwm!!!!\n");
+		return ret;
+	}
+	pr_debug("pwm config is okay!!!\n");
+/*
+ *	ret = pwm_set_polarity(lcd_backlight_pwm,
+ *			PWM_POLARITY_NORMAL);
+ *	if (ret) {
+ *		pr_err("\nError set pwm polarity!!!!\n");
+ *		return ret;
+ *	}
+ *	pr_debug("pwm set polarity is okay!!!\n");
+ */
+	ret = pwm_enable(screen_backlight_pwm);
+	if (ret) {
+		pr_err("\nError enable pwm!!!!\n");
+		return ret;
+	}
+	pr_debug("pwm enable is okay!!!\n");
+
+	return 0;
+}
+
+int screen_backlight_change(unsigned int duty)
+{
+	int ret = 0;
+
+	if (screen_backlight_pwm == NULL) {
+		pr_err("pwm is not init!!\n");
+		return -1;
+	}
+
+	pwm_disable(screen_backlight_pwm);
+
+	ret = pwm_config(screen_backlight_pwm, duty, PWM_PERIOD_DEFAULT);
+
+	if (ret) {
+		pr_err("\nError config pwm!!!!\n");
+		return ret;
+	}
+
+	ret = pwm_enable(screen_backlight_pwm);
+	if (ret) {
+		pr_err("\nError enable pwm!!!!\n");
+		return ret;
+	}
+	pr_info("set screen backlight sucess!!\n");
+	return 0;
+}
+
+int set_screen_backlight(unsigned int backlight_level)
+{
+	int retval = 0;
+	unsigned int duty = 0;
+
+	if (display_type == LCD_7_TYPE || display_type == MIPI_720P_TOUCH ||
+			display_type == MIPI_1080P) {
+		if (backlight_level == 0) {
+			duty = PWM_PERIOD_DEFAULT - 1;
+		} else if (backlight_level <= 10 && backlight_level > 0) {
+			duty = PWM_PERIOD_DEFAULT -
+				PWM_PERIOD_DEFAULT / 10 * backlight_level;
+		} else {
+			pr_err("error backlight value, exit!!\n");
+			return -1;
+		}
+
+		retval = screen_backlight_change(duty);
+		if (retval) {
+			pr_err("error set lcd backlight!!\n");
+			return retval;
+		}
+	}
+	return 0;
+}
+
 
 int disp_pinmux_bt1120(void)
 {
@@ -2490,6 +2594,11 @@ static int x2_iar_probe(struct platform_device *pdev)
 			ret = PTR_ERR(g_iar_dev->iar_task);
 		}
 	}
+#ifdef CONFIG_HOBOT_XJ3
+	ret = screen_backlight_init();
+	if (ret)
+		pr_err("%s: error init pwm0!!\n", __func__);
+#endif
 	np = of_parse_phandle(pdev->dev.of_node, "memory-region", 0);
 	if (!np) {
 		dev_err(&g_iar_dev->pdev->dev, "No %s specified\n", "memory-region");

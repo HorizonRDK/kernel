@@ -783,6 +783,7 @@ int mipi_dsi_panel_init(uint8_t panel_no);
 int set_mipi_display(uint8_t panel_no);
 int32_t iar_layer_disable(int32_t layer_no);
 int32_t iar_layer_enable(int32_t layer_no);
+int set_screen_backlight(unsigned int backlight_level);
 //int iar_is_enabled(void);
 int iar_wb_dqbuf(struct frame_info *frameinfo);
 int iar_wb_qbuf(struct frame_info *frameinfo);
