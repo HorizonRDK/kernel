@@ -159,6 +159,10 @@ static irqreturn_t bpu_core_irq_handler(int irq, void *dev_id)/*PRQA S ALL*/
 	spin_unlock(&core->spin_lock);
 	pr_debug("BPU Core[%d] irq %d come\n", core->index, tmp_hw_id);/*PRQA S ALL*/
 
+	if (tmp_hw_id == (uint32_t)HW_ID_MAX) {
+		return IRQ_HANDLED;
+	}
+
 	core->done_hw_id = ((uint64_t)err << STATE_SHIFT) | (uint64_t)tmp_hw_id;
 
 	tasklet_schedule(&core->tasklet);

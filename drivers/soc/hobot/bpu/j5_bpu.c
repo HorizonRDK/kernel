@@ -424,9 +424,17 @@ static int32_t j5_bpu_write_fc(const struct bpu_core *core,
 
 	fc_num = fc->info.slice_num - offpos;
 
+	/* set the first hw fc id to special id for  trigger follow sched */
+	if ((fc_num > 1u) || ((fc_num == 1u) && (fc->hw_id == 0u))) {
+		tmp_fc_id = (uint16_t *)(&(fc->fc_data[offpos].data[FC_ID_OFFSET]));/*PRQA S ALL*/
+		*tmp_fc_id = (uint16_t)HW_ID_MAX;
+	}
+
 	/* set the last hw fc id to upper set */
-	tmp_fc_id = (uint16_t *)&fc->fc_data[offpos + fc_num - 1u].data[FC_ID_OFFSET];/*PRQA S ALL*/
-	*tmp_fc_id = (uint16_t)fc->hw_id;
+	if(fc->hw_id != 0u) {
+		tmp_fc_id = (uint16_t *)(&(fc->fc_data[offpos + fc_num - 1u].data[FC_ID_OFFSET]));/*PRQA S ALL*/
+		*tmp_fc_id = (uint16_t)fc->hw_id;
+	}
 
 	ret = j5_bpu_fc_equeue(core, &fc->fc_data[offpos], &fc_num);
 	if (ret < 0) {

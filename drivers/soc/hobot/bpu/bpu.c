@@ -254,7 +254,8 @@ int32_t bpu_write_fc_to_core(struct bpu_core *core,
 		prio = FC_PRIO(bpu_fc->info.priority);
 		if (bpu_fc->info.id != 0u) {
 			bpu_fc->hw_id = atomic_read(&core->hw_id_counter[prio]);/*PRQA S ALL*/
-			if (bpu_fc->hw_id >= FC_ID(HW_ID_MAX)) {
+			/* HW_ID_MAX for sched trig */
+			if (bpu_fc->hw_id >= FC_ID(HW_ID_MAX - 1)) {
 				atomic_set(&core->hw_id_counter[prio], 1);/*PRQA S ALL*/
 			} else
 				atomic_inc(&core->hw_id_counter[prio]);/*PRQA S ALL*/

@@ -30,6 +30,7 @@ void bpu_core_update(struct bpu_core *core, struct bpu_fc *fc)
 {
 	struct bpu_fc_group *tmp_fc_group;
 	struct bpu_user *tmp_user;
+	struct timeval tmp_start_point;
 	uint64_t tmp_time;
 	unsigned long flags;/*PRQA S ALL*/
 
@@ -40,31 +41,31 @@ void bpu_core_update(struct bpu_core *core, struct bpu_fc *fc)
 	spin_lock_irqsave(&core->spin_lock, flags);/*PRQA S ALL*/
 	do_gettimeofday(&fc->end_point);
 
-	if (time_val(&fc->start_point) < time_val(&core->last_done_point)) {
-		fc->start_point = core->last_done_point;
-	}
-
 	fc->info.process_time = time_interval(&fc->start_point, &fc->end_point);
 
 	tmp_fc_group = bpu_get_fc_group(fc);
 	tmp_user = bpu_get_user(fc);
-	if (time_val(&fc->start_point) >= time_val(&core->p_start_point)) {
-		core->p_run_time += fc->info.process_time;
-		if (tmp_fc_group != NULL) {
-			tmp_fc_group->p_run_time += fc->info.process_time;
-		}
-		if (tmp_user != NULL) {
-			tmp_user->p_run_time += fc->info.process_time;
-		}
+
+	/* update for start point for interval calc */
+	if (time_val(&fc->start_point) < time_val(&core->last_done_point)) {
+		tmp_start_point = core->last_done_point;
+	} else {
+		tmp_start_point = fc->start_point;
+
+	}
+
+	if (time_val(&tmp_start_point) >= time_val(&core->p_start_point)) {
+		tmp_time = time_interval(&tmp_start_point, &fc->end_point);
 	} else {
 		tmp_time = time_interval(&core->p_start_point, &fc->end_point);
-		core->p_run_time += tmp_time;
-		if (tmp_fc_group != NULL) {
-			tmp_fc_group->p_run_time += tmp_time;
-		}
-		if (tmp_user != NULL) {
-			tmp_user->p_run_time += tmp_time;
-		}
+	}
+
+	core->p_run_time += tmp_time;
+	if (tmp_fc_group != NULL) {
+		tmp_fc_group->p_run_time += tmp_time;
+	}
+	if (tmp_user != NULL) {
+		tmp_user->p_run_time += tmp_time;
 	}
 
 	core->last_done_point = fc->end_point;
