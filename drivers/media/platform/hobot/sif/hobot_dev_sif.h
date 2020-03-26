@@ -176,10 +176,8 @@ struct sif_subdev {
 	struct x3_sif_dev 	*sif_dev;
 
 	u32 mux_index;
-	u32 ddr_mux_index;
 	u32 dol_num;
 	u32 rx_num;
-	u32 mux_nums;
 	sif_data_desc_t ddrin_fmt;
 	struct frame_id 		info;
 	bool initial_frameid;
@@ -205,8 +203,6 @@ struct x3_sif_dev {
 	atomic_t			open_cnt;
 	spinlock_t			shared_slock;
 	u32 				error_count;
-
-	unsigned long	mux_mask;
 
 	struct vio_group		*sif_input[VIO_MAX_STREAM];
 	struct vio_group		*sif_mux[SIF_MUX_MAX];
