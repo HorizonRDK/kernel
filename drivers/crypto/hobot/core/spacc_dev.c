@@ -488,7 +488,7 @@ static int spacc_dev_open (struct inode *in, struct file *fp)
 {
    int x;
 
-   printk("spaccdev::open %p\n", fp);
+   pr_debug("spaccdev::open %p\n", fp);
 
    down(&dev_lock);
 

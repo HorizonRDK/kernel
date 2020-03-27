@@ -46,11 +46,6 @@
 #include <linux/printk.h>
 #include "elpspacc.h"
 
-static void spacc_hexdump(unsigned char *buf, unsigned int len)
-{
-	print_hex_dump_debug("", DUMP_PREFIX_OFFSET, 16, 1, buf, len, false);
-}
-
 void spacc_dump_regs(spacc_device *spacc)
 {
    pr_debug("--- dump regs ------\n");

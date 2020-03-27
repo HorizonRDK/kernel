@@ -138,7 +138,7 @@ static int pvt_temp_read(struct device *dev, enum hwmon_sensor_types type,
 			pvt_dev->cur_temp_avg, temp_min, temp_max, diff);
 
 	if ( *val < 10000 || *val > 100000 ) {
-		pr_err("abnormal temp %dmC\n", *val);
+		pr_err("abnormal temp %ldmC\n", *val);
 		for (i = 0; i < PVT_TS_NUM; i++) {
 			pr_err("%s cur_smpl[%d] = %d\n", ts_map[i], i, pvt_dev->cur_smpl[i]);
 			pr_err("%s cur_temp[%d] = %ldC\n", ts_map[i], i, pvt_dev->cur_temp[i]);
@@ -387,7 +387,7 @@ static int pvt_probe(struct platform_device *pdev)
 	pvt_dev->ref_clk = clk_round_rate(pvt_dev->clk, 240000000);
 	ret = clk_set_rate(pvt_dev->clk, pvt_dev->ref_clk);
 	if (ret) {
-		dev_err(&pdev->dev, "set pvt clk rate to %d failed.\n",
+		dev_err(&pdev->dev, "set pvt clk rate to %ld failed.\n",
 				pvt_dev->ref_clk);
 		goto probe_clk_failed;
 	}

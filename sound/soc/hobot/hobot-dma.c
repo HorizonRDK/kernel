@@ -95,13 +95,15 @@ static int x2_copy_usr(struct snd_pcm_substream *substream,
 	int channel_buf_offset, i, j;
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct idma_ctrl_s *dma_ctrl = substream->runtime->private_data;
+	char *tmp_buf;
 
 	dma_ptr = runtime->dma_area + hwoff;
 	channel_buf_offset = (dma_ctrl->periodsz) / (dma_ctrl->ch_num);
-	char *tmp_buf = kzalloc(bytes, GFP_KERNEL);
 
+	tmp_buf = kzalloc(bytes, GFP_KERNEL);
 	if (!tmp_buf)
-		return ERR_PTR(-ENOMEM);
+		return -ENOMEM;
+
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 		if (copy_from_user(tmp_buf, (void __user *)buf, bytes))
 			return -EFAULT;
@@ -285,7 +287,7 @@ static int i2sidma_hw_params(struct snd_pcm_substream *substream,
 
 	pr_debug("dma_ctrl->period is %llu, dma_ctrl->periodsz bytes is %llu,dma_ctrl->bytesnum is %lu\n", dma_ctrl->period,
 		dma_ctrl->periodsz, dma_ctrl->bytesnum);
-	pr_debug("dma_ctrl->start is 0x%x,dma_ctrl->end is 0x%x\n",
+	pr_debug("dma_ctrl->start is 0x%llx,dma_ctrl->end is 0x%llx\n",
 		dma_ctrl->start, dma_ctrl->end);
 	pr_debug("dma_ctrl->buffer_num is %d\n", dma_ctrl->buffer_num);
 
@@ -483,7 +485,7 @@ static irqreturn_t iis_irq0(int irqno, void *dev_id)
 	if (intstatus == 0x4) {
 
 		writel(0x4, x2_i2sidma[dma_ctrl->id].regaddr_rx + I2S_SRCPND);
-		pr_debug("intstatus = 0x4,dma_ctrl->lastset is 0x%x,buffer_int_index is %d,buffer_set_index is %d\n",
+		pr_debug("intstatus = 0x4,dma_ctrl->lastset is 0x%llx,buffer_int_index is %d,buffer_set_index is %d\n",
 			dma_ctrl->lastset, dma_ctrl->buffer_int_index,
 			dma_ctrl->buffer_set_index);
 
@@ -510,7 +512,7 @@ static irqreturn_t iis_irq0(int irqno, void *dev_id)
 	} else if (intstatus == 0x8) {
 
 		writel(0x8, x2_i2sidma[dma_ctrl->id].regaddr_rx + I2S_SRCPND);
-		pr_debug("intstatus = 0x8,dma_ctrl->lastset is 0x%x,buffer_int_index is %d,buffer_set_index is %d\n",
+		pr_debug("intstatus = 0x8,dma_ctrl->lastset is 0x%llx,buffer_int_index is %d,buffer_set_index is %d\n",
 			dma_ctrl->lastset, dma_ctrl->buffer_int_index,
 			dma_ctrl->buffer_set_index);
 
@@ -584,7 +586,7 @@ static irqreturn_t iis_irq1(int irqno, void *dev_id)
 		writel(0x1, x2_i2sidma[dma_ctrl->id].regaddr_tx +
 			I2S_BUF0_RDY);
 
-		pr_debug("intstatus = 0x%x, dma_ctrl->lastset is 0x%x, \
+		pr_debug("intstatus = 0x%x, dma_ctrl->lastset is 0x%llx, \
 			buffer_int_index is %d, buffer_set_index is %d\n",
 			intstatus, dma_ctrl->lastset, dma_ctrl->buffer_int_index,
 			dma_ctrl->buffer_set_index);
@@ -604,7 +606,7 @@ static irqreturn_t iis_irq1(int irqno, void *dev_id)
 			I2S_BUF1_ADDR);
 		writel(0x1, x2_i2sidma[dma_ctrl->id].regaddr_tx + I2S_BUF1_RDY);
 
-		pr_debug("intstatus = 0x%x, dma_ctrl->lastset is 0x%x, \
+		pr_debug("intstatus = 0x%x, dma_ctrl->lastset is 0x%llx, \
 			buffer_int_index is %d, buffer_set_index is %d\n",
 			intstatus, dma_ctrl->lastset, dma_ctrl->buffer_int_index,
 			dma_ctrl->buffer_set_index);
@@ -645,8 +647,6 @@ err:
 static int i2sidma_open(struct snd_pcm_substream *substream)
 {
 	struct snd_pcm_runtime *runtime = substream->runtime;
-	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_card *snd_card = rtd->card;
 
 	struct idma_ctrl_s *dma_ctrl;
 	struct snd_dmaengine_dai_dma_data *dma_data;

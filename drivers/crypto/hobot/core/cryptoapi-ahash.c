@@ -556,7 +556,6 @@ static size_t spacc_sg_copy_to_buffer(struct scatterlist *sgl,
 static int spacc_hash_add_digest(struct ahash_request *req)
 {
 	struct crypto_ahash *reqtfm = crypto_ahash_reqtfm(req);
-	struct spacc_crypto_ctx *tctx = crypto_ahash_ctx(reqtfm);
 	struct spacc_hash_reqctx *ctx = ahash_request_ctx(req);
 
 	pr_debug("req->nbytes:%d, alg name:%s\n", req->nbytes, crypto_ahash_alg_name(reqtfm));
@@ -601,7 +600,7 @@ static int __spacc_hash_update(struct ahash_request *req)
 	}
 
 	if (req->nbytes > priv->max_msg_len) {
-		pr_debug("%s: fallback when nbytes: %d, max_msg_len:%d\n",
+		pr_debug("%s: fallback when nbytes: %d, max_msg_len:%lu\n",
 				__func__, req->nbytes, priv->max_msg_len);
 		goto fallback;
 	}

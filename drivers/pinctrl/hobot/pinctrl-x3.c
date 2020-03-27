@@ -421,21 +421,6 @@ static void x2_remove_function(struct x2_pinctrl *x2_pctrl,
 	x2_pctrl->nfuncs--;
 	mutex_unlock(&x2_pctrl->mutex);
 }
-static void x2_remove_group(struct x2_pinctrl *x2_pctrl,
-							struct x2_pctrl_group *pingroup)
-{
-	int i;
-	mutex_lock(&x2_pctrl->mutex);
-	for (i = 0; i < x2_pctrl->ngroups; i++) {
-		struct x2_pctrl_group *found;
-		found = radix_tree_lookup(&x2_pctrl->pgtree, i);
-		if (found == pingroup)
-			radix_tree_delete(&x2_pctrl->pgtree, i);
-	}
-	list_del(&pingroup->node);
-	x2_pctrl->ngroups--;
-	mutex_unlock(&x2_pctrl->mutex);
-}
 
 static int x2_find_func_byname(struct x2_pinctrl *pctrl, const char *func_name)
 {
