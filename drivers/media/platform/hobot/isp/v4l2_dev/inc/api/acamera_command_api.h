@@ -44,9 +44,9 @@
 // ------------------------------------------------------------------------------ //
 #define SENSOR_NULL                                       0x00000000
 #define SENSOR_COMMON                                     0x00000001
-#define SENSOR_IMX290                                     0x00000002
-#define SENSOR_IMX385                                     0x00000003
-#define SENSOR_IMX327                                     0x00000004
+//#define SENSOR_IMX290                                     0x00000002
+//#define SENSOR_IMX385                                     0x00000003
+//#define SENSOR_IMX327                                     0x00000004
 
 
 // ------------------------------------------------------------------------------ //

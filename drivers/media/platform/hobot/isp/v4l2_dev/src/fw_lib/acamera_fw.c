@@ -122,8 +122,8 @@ extern void isp_input_port_size_config(sensor_fsm_ptr_t p_fsm);
 int acamera_fw_isp_start(int ctx_id)
 {
 	uint8_t rc = 0;
-	uint8_t count = 0;
-	uint16_t sleep_in_us = 2 * 1000;
+	//uint8_t count = 0;
+	//uint16_t sleep_in_us = 2000;
 	acamera_context_t *p_ctx = (acamera_context_t *)acamera_get_ctx_ptr(ctx_id);
 
     isp_input_port_size_config(p_ctx->fsm_mgr.fsm_arr[FSM_ID_SENSOR]->p_fsm);
@@ -144,8 +144,8 @@ int acamera_fw_isp_start(int ctx_id)
 int acamera_fw_isp_stop(int ctx_id)
 {
 	uint8_t rc = 0;
-	uint8_t count = 0;
-	uint16_t sleep_in_us = 2 * 1000;
+	//uint8_t count = 0;
+	//uint16_t sleep_in_us = 2000;
 	acamera_context_t *p_ctx = (acamera_context_t *)acamera_get_ctx_ptr(ctx_id);
 
 	acamera_fw_interrupts_disable( p_ctx );

@@ -10,6 +10,7 @@ imx327_param_t imx327_param[FIRMWARE_CONTEXT_NUMBER];
 
 //if check frame out, we could read 0x3491
 
+#if 0
 static int set_gain_mode(uint8_t chn, uint8_t g_mode)
 {
 	int ret = 0;
@@ -32,7 +33,9 @@ static int set_gain_mode(uint8_t chn, uint8_t g_mode)
 
 	return 0;
 }
+#endif
 
+#if 0
 static int set_imx327_init(uint8_t chn)
 {
 	char init_d[3];
@@ -91,6 +94,7 @@ static int set_imx327_init(uint8_t chn)
 
 	return ret;
 }
+#endif
 
 static int set_imx327_normal_exposure(uint8_t chn, uint32_t input_exp)
 {
@@ -172,6 +176,7 @@ static int set_normal_gain(uint8_t chn, uint32_t input_gain)
 	return ret;
 }
 
+#if 0
 static int set_dol2_gain(uint8_t chn, uint32_t gain1, uint32_t gain2)
 {
 	char gain_d[2];
@@ -199,6 +204,7 @@ static int set_dol3_gain(uint8_t chn, uint32_t gain1, uint32_t gain2)
 
 	return ret;
 }
+#endif
 
 static int set327_ex_gain_control(uint8_t chn, uint32_t expo_L,
 	uint32_t expo_M, uint32_t expo_S, uint32_t gain)
@@ -234,10 +240,10 @@ static int set327_ex_gain_control(uint8_t chn, uint32_t expo_L,
 static int imx327_init(uint8_t chn, uint8_t mode)
 {
 	int ret = 0;
-	uint32_t tmp_c = 0;
-	uint32_t tmp_size = 0;
-	uint16_t tmp_addr;
-	char tmp_data;
+	//uint32_t tmp_c = 0;
+	//uint32_t tmp_size = 0;
+	//uint16_t tmp_addr;
+	//char tmp_data;
 
 	switch(mode) {
 	case 0:
@@ -318,12 +324,14 @@ static void imx327_alloc_integration_time(uint8_t chn, uint16_t *int_time,
 	case NORMAL_M:
 		break;
 	case DOL2_M:
-		if (*int_time_L >= imx327_param[chn].FSC_DOL2)
+		if (*int_time_L >= imx327_param[chn].FSC_DOL2) {
 			*int_time_L = imx327_param[chn].FSC_DOL2 - 1;
+		}
 
-		if (*int_time >= imx327_param[chn].RHS1)
+		if (*int_time >= imx327_param[chn].RHS1) {
 			*int_time = imx327_param[chn].RHS1 - 1;
-			break;
+		}
+		break;
 	case DOL3_M:
 		break;
 	default:

@@ -514,7 +514,7 @@ static void sensor_set_mode(void *ctx, uint8_t mode)
 {
     sensor_context_t *p_ctx = ctx;
     sensor_param_t *param = &p_ctx->param;
-    struct _setting_param_t sensor_param;
+    //struct _setting_param_t sensor_param;
 
     if (mode >= array_size(dummy_drv_supported_modes))
         mode = 0;
@@ -539,8 +539,6 @@ static void sensor_set_mode(void *ctx, uint8_t mode)
     //sensor param init
     dummy_drv_supported_modes[param->mode].fps = 2560;
     param->mode = mode;
-//    printk("sensor set mode to %d, %dx%d raw%d, dol%d", mode, dummy_drv_supported_modes[mode].resolution.width, \
-        dummy_drv_supported_modes[mode].resolution.height, dummy_drv_supported_modes[mode].bits, dummy_drv_supported_modes[mode].exposures);
 }
 
 static uint16_t sensor_get_id( void *ctx )

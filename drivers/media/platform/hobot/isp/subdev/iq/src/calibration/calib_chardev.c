@@ -401,7 +401,7 @@ static int calib_fops_release( struct inode *inode, struct file *f )
 static ssize_t calib_fops_write( struct file *file, const char __user *buf, size_t count, loff_t *ppos )
 {
     int rc = 0;
-    struct calib_dev_s *p_ctx = (struct calib_dev_s *)file->private_data;
+    //struct calib_dev_s *p_ctx = (struct calib_dev_s *)file->private_data;
     
     return rc;
 }
@@ -409,7 +409,7 @@ static ssize_t calib_fops_write( struct file *file, const char __user *buf, size
 static ssize_t calib_fops_read( struct file *file, char __user *buf, size_t count, loff_t *ppos )
 {
     int rc = 0;
-    struct calib_dev_s *p_ctx = (struct calib_dev_s *)file->private_data;
+    //struct calib_dev_s *p_ctx = (struct calib_dev_s *)file->private_data;
 
     return rc;
 }

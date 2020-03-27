@@ -31,8 +31,6 @@
 #include "acamera_dwe_config.h"
 #include "buffer_v4l2_stream.h"
 
-#define pr_fmt(fmt) "[ldc_drv]: %s: " fmt, __func__
-
 #if defined(CUR_MOD_NAME)
 #undef CUR_MOD_NAME
 #define CUR_MOD_NAME LOG_MODULE_SOC_DWE

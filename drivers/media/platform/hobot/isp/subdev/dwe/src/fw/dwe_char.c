@@ -238,6 +238,7 @@ static int dwe_v4l2_streamon(void *priv, enum v4l2_buf_type i)
 	return rc;
 }
 
+#if 0
 static int dwe_v4l2_streamoff(void *priv, enum v4l2_buf_type i)
 {
 	int rc = 0;
@@ -250,6 +251,7 @@ static int dwe_v4l2_streamoff(void *priv, enum v4l2_buf_type i)
 
 	return rc;
 }
+#endif
 
 /* vb2 customization for multi-stream support */
 static int dwe_v4l2_reqbufs(void *priv, struct v4l2_requestbuffers *p)
@@ -272,6 +274,7 @@ static int dwe_v4l2_reqbufs(void *priv, struct v4l2_requestbuffers *p)
 	return ret;
 }
 
+#if 0
 static int dwe_v4l2_expbuf(void *priv, struct v4l2_exportbuffer *p)
 {
 	int ret = 0;
@@ -286,6 +289,7 @@ static int dwe_v4l2_expbuf(void *priv, struct v4l2_exportbuffer *p)
 		p->type, p->index, p->plane, ret);
 	return ret;
 }
+#endif
 
 static int dwe_v4l2_querybuf(void *priv, struct v4l2_buffer *p)
 {

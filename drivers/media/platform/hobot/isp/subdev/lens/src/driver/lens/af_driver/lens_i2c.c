@@ -40,7 +40,7 @@ static struct i2c_client *lens_i2c_open(uint32_t i2c_chn,
 	struct i2c_board_info *board_info)
 {
 	struct i2c_client *client = NULL;
-	struct i2c_adapter *adap;
+	struct i2c_adapter *adap = NULL;
 	int minor = 0;
 
 	minor = i2c_chn;
@@ -140,8 +140,6 @@ static int lens_i2c_write(const struct i2c_client *client, uint16_t reg_addr,
 //basic_func
 void motor_i2c_init(void *ctx, void *param)
 {
-	int ret = 0;
-	return;
 }
 
 void motor_i2c_move(void *ctx, void *param, uint32_t pos)

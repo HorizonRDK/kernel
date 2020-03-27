@@ -45,8 +45,14 @@
 #include "./user_sensor/imx_327.h"
 #endif
 
+#ifdef SENSOR_AR0233
 #include "./user_sensor/ar_0233.h"
+#endif
+
+#ifdef SENSOR_OS8A10
 #include "./user_sensor/os8a10.h"
+#endif
+
 #include "./user_sensor/camera_subdev.h"
 
 struct i2c_client *client[FIRMWARE_CONTEXT_NUMBER];
@@ -119,14 +125,18 @@ struct sensor_operations *sensor_ops_register(uint8_t sensor_sw)
 		LOG(LOG_INFO, "IMX_327_register !");
 		break;
 #endif
+#ifdef SENSOR_AR0233 
 	case 5:
 		sensor_ctrl = ar0233_ops_register();
 		LOG(LOG_INFO, "ar0233_register !");
 		break;
+#endif
+#ifdef SENSOR_OS8A10 
 	case 6:
 		sensor_ctrl = os8a10_ops_register();
 		LOG(LOG_INFO, "os8a10_register !");
 		break;
+#endif
 	default:
 		LOG(LOG_INFO, "sensor %d is not register !", sensor_sw);
 		break;

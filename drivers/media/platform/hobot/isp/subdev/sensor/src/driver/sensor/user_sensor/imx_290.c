@@ -20,6 +20,7 @@ imx290_param_t imx290_param[FIRMWARE_CONTEXT_NUMBER];
 //TODO 
 //if check frame out, we could read 0x3491
 
+#if 0
 static int set_gain_mode(uint8_t chn, uint8_t g_mode)
 {
 	int ret = 0;
@@ -96,7 +97,8 @@ static int set_imx290_init(uint8_t chn)
 	imx290_param[chn].active_height = (imx290_param[chn].active_height << 8) | init_d[0];
  
 	return ret;
-} 
+}
+#endif
 
 static int set_imx290_normal_exposure(uint8_t chn, uint32_t input_exp)
 {
@@ -169,6 +171,7 @@ static int set_normal_gain(uint8_t chn, uint32_t input_gain)
 	return ret;
 }
 
+#if 0
 static int set_dol2_gain(uint8_t chn, uint32_t gain1, uint32_t gain2)
 {
 	char gain_d[2];
@@ -196,6 +199,7 @@ static int set_dol3_gain(uint8_t chn, uint32_t gain1, uint32_t gain2)
 	
 	return ret;
 }
+#endif
 
 static int set290_ex_gain_control(uint8_t chn, uint32_t expo_L, uint32_t expo_M, uint32_t expo_S, uint32_t gain)
 {
@@ -230,10 +234,10 @@ static int set290_ex_gain_control(uint8_t chn, uint32_t expo_L, uint32_t expo_M,
 static int imx290_init(uint8_t chn, uint8_t mode)
 {
 	int ret = 0;
-	uint32_t tmp_c = 0;
-	uint32_t tmp_size = 0;
-	uint16_t tmp_addr;
-	char tmp_data;
+	//uint32_t tmp_c = 0;
+	//uint32_t tmp_size = 0;
+	//uint16_t tmp_addr;
+	//char tmp_data;
 
 	LOG( LOG_INFO, " mode = %d", mode);
 	

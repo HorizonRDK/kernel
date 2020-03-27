@@ -19,7 +19,7 @@ int set_ex_line_pwl_0233(uint8_t chn, uint32_t line)
 
 int set_ex_gain_pwl_0233(uint8_t chn, uint32_t gain)
 {
-	uint32_t gain_tmp;
+	//uint32_t gain_tmp;
 	int ret = 0;
 	char buf[2];
 
@@ -56,7 +56,7 @@ int set_ex_gain_control_0233(uint8_t chn, uint32_t exposure_setting,
 }
 
 //TODO ar0233 analog_gain
-
+#if 0
 static int ar0233_set_a_gain(uint8_t chn, uint32_t a_gain)
 {
 	int ret = 0;
@@ -142,15 +142,18 @@ static int ar0233_set_a_gain(uint8_t chn, uint32_t a_gain)
 		buf[1] = 0xff;
 		ret = sensor_i2c_write(chn, 0x336a, 16, buf, 2);
 	}
+
+	return ret;
 }
+#endif
 
 static int ar0233_init(uint8_t chn, uint8_t mode)
 {
 	int ret = 0;
-	uint32_t tmp_c = 0;
-	uint32_t tmp_size = 0;
-	uint16_t tmp_addr;
-	char tmp_data;
+	//uint32_t tmp_c = 0;
+	//uint32_t tmp_size = 0;
+	//uint16_t tmp_addr;
+	//char tmp_data;
 
 	LOG(LOG_INFO, "mode = %d", mode);
 

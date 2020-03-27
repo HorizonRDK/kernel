@@ -63,7 +63,7 @@
 #endif
 
 struct lens_charmod_s {
-        const char name[CHARDEVNAME_LEN];
+        char name[CHARDEVNAME_LEN];
         spinlock_t slock;
         int dev_minor_id;
         struct miscdevice lens_chardev;

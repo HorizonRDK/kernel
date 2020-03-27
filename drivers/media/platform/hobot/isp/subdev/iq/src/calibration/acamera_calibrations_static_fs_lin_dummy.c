@@ -92,12 +92,12 @@ static uint16_t _calibration_shading_radial_b[]
  = {4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096};
 
 // CALIBRATION_SHADING_RADIAL_IR
-static uint16_t _calibration_shading_radial_ir[]
- = {4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096};
+// static uint16_t _calibration_shading_radial_ir[]
+// = {4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096,4096};
 
 // RX RY MULTRX MULTRY GX GY MULTGX MULTGY BX BY MULTBX MULTBY IRX IRY MULTIRX MULTIRY
-static uint16_t _calibration_shading_radial_centre_and_mult[]
- = {960,540,1770,1770,960,540,1770,1770,960,540,1770,1770,960,540,1770,1770};
+//static uint16_t _calibration_shading_radial_centre_and_mult[]
+// = {960,540,1770,1770,960,540,1770,1770,960,540,1770,1770,960,540,1770,1770};
 
 // CALIBRATION_SHADING_LS_A_R
 static uint8_t _calibration_shading_ls_a_r[]
@@ -280,12 +280,12 @@ static uint16_t _calibration_awb_scene_presets[][2]
 };
 
 // 1.enable_ML 2.low_Lux_th, 3.high_Lux_th, 4.contrast_th, 5.bg_th, 6.bg_weight, 7.rg_high_lux_max, 8.rg_high_lux_min
-static uint16_t _awb_mixed_light_parameters[]
- = {0,600,2500,40000,500,0,300,256};
+// static uint16_t _awb_mixed_light_parameters[]
+// = {0,600,2500,40000,500,0,300,256};
 
 // AWB COLOUR PREFERENCE
-static uint16_t _calibration_awb_warming_cct[]
- = {7500,6000,4700,2800};
+//static uint16_t _calibration_awb_warming_cct[]
+// = {7500,6000,4700,2800};
 
 // R G B
 static uint16_t _calibration_awb_warming_ls_a[]
@@ -338,8 +338,8 @@ static LookupTable calibration_wdr_np_lut = { .ptr = _calibration_wdr_np_lut, .r
 static LookupTable calibration_shading_radial_r = { .ptr = _calibration_shading_radial_r, .rows = 1, .cols = sizeof(_calibration_shading_radial_r) / sizeof(_calibration_shading_radial_r[0]), .width = sizeof(_calibration_shading_radial_r[0] ) };
 static LookupTable calibration_shading_radial_g = { .ptr = _calibration_shading_radial_g, .rows = 1, .cols = sizeof(_calibration_shading_radial_g) / sizeof(_calibration_shading_radial_g[0]), .width = sizeof(_calibration_shading_radial_g[0] ) };
 static LookupTable calibration_shading_radial_b = { .ptr = _calibration_shading_radial_b, .rows = 1, .cols = sizeof(_calibration_shading_radial_b) / sizeof(_calibration_shading_radial_b[0]), .width = sizeof(_calibration_shading_radial_b[0] ) };
-static LookupTable calibration_shading_radial_ir = { .ptr = _calibration_shading_radial_ir, .rows = 1, .cols = sizeof(_calibration_shading_radial_ir) / sizeof(_calibration_shading_radial_ir[0]), .width = sizeof(_calibration_shading_radial_ir[0] ) };
-static LookupTable calibration_shading_radial_centre_and_mult = { .ptr = _calibration_shading_radial_centre_and_mult, .rows = 1, .cols = sizeof(_calibration_shading_radial_centre_and_mult) / sizeof(_calibration_shading_radial_centre_and_mult[0]), .width = sizeof(_calibration_shading_radial_centre_and_mult[0] ) };
+//static LookupTable calibration_shading_radial_ir = { .ptr = _calibration_shading_radial_ir, .rows = 1, .cols = sizeof(_calibration_shading_radial_ir) / sizeof(_calibration_shading_radial_ir[0]), .width = sizeof(_calibration_shading_radial_ir[0] ) };
+//static LookupTable calibration_shading_radial_centre_and_mult = { .ptr = _calibration_shading_radial_centre_and_mult, .rows = 1, .cols = sizeof(_calibration_shading_radial_centre_and_mult) / sizeof(_calibration_shading_radial_centre_and_mult[0]), .width = sizeof(_calibration_shading_radial_centre_and_mult[0] ) };
 static LookupTable calibration_shading_ls_a_r = { .ptr = _calibration_shading_ls_a_r, .rows = 1, .cols = sizeof(_calibration_shading_ls_a_r) / sizeof(_calibration_shading_ls_a_r[0]), .width = sizeof(_calibration_shading_ls_a_r[0] ) };
 static LookupTable calibration_shading_ls_a_g = { .ptr = _calibration_shading_ls_a_g, .rows = 1, .cols = sizeof(_calibration_shading_ls_a_g) / sizeof(_calibration_shading_ls_a_g[0]), .width = sizeof(_calibration_shading_ls_a_g[0] ) };
 static LookupTable calibration_shading_ls_a_b = { .ptr = _calibration_shading_ls_a_b, .rows = 1, .cols = sizeof(_calibration_shading_ls_a_b) / sizeof(_calibration_shading_ls_a_b[0]), .width = sizeof(_calibration_shading_ls_a_b[0] ) };
@@ -371,8 +371,8 @@ static LookupTable calibration_ct30pos = { .ptr = _calibration_ct30pos, .rows = 
 static LookupTable calibration_evtolux_ev_lut = { .ptr = _calibration_evtolux_ev_lut, .rows = 1, .cols = sizeof(_calibration_evtolux_ev_lut) / sizeof(_calibration_evtolux_ev_lut[0]), .width = sizeof(_calibration_evtolux_ev_lut[0] ) };
 static LookupTable calibration_evtolux_lux_lut = { .ptr = _calibration_evtolux_lux_lut, .rows = 1, .cols = sizeof(_calibration_evtolux_lux_lut) / sizeof(_calibration_evtolux_lux_lut[0]), .width = sizeof(_calibration_evtolux_lux_lut[0] ) };
 static LookupTable calibration_awb_scene_presets = { .ptr = _calibration_awb_scene_presets, .cols = 2, .rows = sizeof(_calibration_awb_scene_presets) / sizeof(_calibration_awb_scene_presets[0]), .width = sizeof(_calibration_awb_scene_presets[0][0] ) };
-static LookupTable awb_mixed_light_parameters = { .ptr = _awb_mixed_light_parameters, .rows = 1, .cols = sizeof(_awb_mixed_light_parameters) / sizeof(_awb_mixed_light_parameters[0]), .width = sizeof(_awb_mixed_light_parameters[0] ) };
-static LookupTable calibration_awb_warming_cct = { .ptr = _calibration_awb_warming_cct, .rows = 1, .cols = sizeof(_calibration_awb_warming_cct) / sizeof(_calibration_awb_warming_cct[0]), .width = sizeof(_calibration_awb_warming_cct[0] ) };
+//static LookupTable awb_mixed_light_parameters = { .ptr = _awb_mixed_light_parameters, .rows = 1, .cols = sizeof(_awb_mixed_light_parameters) / sizeof(_awb_mixed_light_parameters[0]), .width = sizeof(_awb_mixed_light_parameters[0] ) };
+//static LookupTable calibration_awb_warming_cct = { .ptr = _calibration_awb_warming_cct, .rows = 1, .cols = sizeof(_calibration_awb_warming_cct) / sizeof(_calibration_awb_warming_cct[0]), .width = sizeof(_calibration_awb_warming_cct[0] ) };
 static LookupTable calibration_awb_warming_ls_a = { .ptr = _calibration_awb_warming_ls_a, .rows = 1, .cols = sizeof(_calibration_awb_warming_ls_a) / sizeof(_calibration_awb_warming_ls_a[0]), .width = sizeof(_calibration_awb_warming_ls_a[0] ) };
 static LookupTable calibration_awb_warming_ls_d75 = { .ptr = _calibration_awb_warming_ls_d75, .rows = 1, .cols = sizeof(_calibration_awb_warming_ls_d75) / sizeof(_calibration_awb_warming_ls_d75[0]), .width = sizeof(_calibration_awb_warming_ls_d75[0] ) };
 static LookupTable calibration_awb_warming_ls_d50 = { .ptr = _calibration_awb_warming_ls_d50, .rows = 1, .cols = sizeof(_calibration_awb_warming_ls_d50) / sizeof(_calibration_awb_warming_ls_d50[0]), .width = sizeof(_calibration_awb_warming_ls_d50[0] ) };

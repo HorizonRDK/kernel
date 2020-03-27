@@ -141,7 +141,7 @@ int fill_ctx_param(struct basic_control_ops **ops, struct motor_param_s *param,
 	struct chardev_port_param *ctx, const char *name)
 {
 	int ret = -1;
-	struct motor_info ctx_p;
+	// struct motor_info ctx_p;
 
 	param->motor_type = ctx->motor_type;
 	param->max_step = ctx->max_step;
@@ -252,6 +252,7 @@ static void lens_basic_init(struct motor_param_s *param,
 		return;
 	}
 
+	memset(&ctx_p, 0, sizeof(struct motor_info));
 	param->curr_pos = 0;
 	param->next_pos = 0;
 

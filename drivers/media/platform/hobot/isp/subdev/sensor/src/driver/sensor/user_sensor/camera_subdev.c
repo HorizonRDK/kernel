@@ -43,10 +43,12 @@ static int common_control_init(void)
 	return ret;
 }
 
+#if 0
 static void common_control_deinit(void)
 {
 	common_subdev = NULL;
 }
+#endif
 
 static int32_t common_alloc_analog_gain(uint8_t chn, int32_t gain)
 {

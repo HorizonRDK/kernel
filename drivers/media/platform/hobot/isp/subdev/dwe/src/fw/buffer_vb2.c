@@ -42,7 +42,6 @@ static int dwe_vb2_queue_setup(struct vb2_queue *vq,
 	dwe_v4l2_stream_t *pstream = vb2_get_drv_priv(vq);
 	struct v4l2_format vfmt;
 	//unsigned int size;
-	int i;
 
 	LOG(LOG_DEBUG, "---[%s-%d]---\n", __func__, __LINE__);
 
@@ -75,13 +74,14 @@ static int dwe_vb2_queue_setup(struct vb2_queue *vq,
 static int dwe_vb2_buf_prepare(struct vb2_buffer *vb)
 {
 	unsigned long size;
-	dwe_v4l2_stream_t *pstream = vb2_get_drv_priv(vb->vb2_queue);
+	//dwe_v4l2_stream_t *pstream = vb2_get_drv_priv(vb->vb2_queue);
 	struct v4l2_format vfmt;
 	int i;
 
 	// get current format
 	LOG(LOG_DEBUG, "---[%s-%d]---\n", __func__, __LINE__);
 
+	memset(&vfmt, 0, sizeof(struct v4l2_format));
 	if (vfmt.type == V4L2_BUF_TYPE_VIDEO_CAPTURE) {
 		size = vfmt.fmt.pix.sizeimage;
 

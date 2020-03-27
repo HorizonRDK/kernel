@@ -9,6 +9,7 @@
 os8a10_param_t os8a10_param[FIRMWARE_CONTEXT_NUMBER];
 
 //if check frame out, we could read 0x3491
+#if 0
 static int set_os8a10_init(uint8_t chn)
 {
 	char init_d[3];
@@ -24,6 +25,7 @@ static int set_os8a10_init(uint8_t chn)
 
 	return ret;
 }
+#endif
 
 static int set_os8a10_normal_exposure(uint8_t chn, uint32_t input_exp)
 {
@@ -164,9 +166,9 @@ static int set_os8a10_ex_gain_control(uint8_t chn, uint32_t expo_L,
 static int os8a10_init(uint8_t chn, uint8_t mode)
 {
 	int ret = 0;
-	uint32_t tmp_c = 0;
-	uint32_t tmp_size = 0;
-	uint16_t tmp_addr;
+	//uint32_t tmp_c = 0;
+	//uint32_t tmp_size = 0;
+	//uint16_t tmp_addr;
 	char tmp_data;
 
 	switch(mode) {

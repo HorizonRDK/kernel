@@ -427,7 +427,7 @@ static const sensor_param_t *sensor_get_parameters( void *ctx )
 }
 
 //add ie&e
-static const void sensor_set_parameters(void *ctx, uint32_t cmd, uint32_t data)
+static void sensor_set_parameters(void *ctx, uint32_t cmd, uint32_t data)
 {
 	sensor_context_t *p_ctx = ctx;
 

@@ -290,7 +290,7 @@ int sensor_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_t in
         }
 
 	LOG(LOG_ERR, "set tuning max again.");
-	p_fsm->ctrl.set_parameters(p_fsm->sensor_ctx,
+	p_fsm->ctrl.set_parameters((void *)p_fsm->sensor_ctx,
 		SET_AGAIN_MAX, *(uint32_t *)input);
         //p_fsm->again_log2_max = (*(uint32_t *)input)*8196;
         break;
@@ -302,7 +302,7 @@ int sensor_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_t in
             break;
         }
 
-	p_fsm->ctrl.set_parameters(p_fsm->sensor_ctx,
+	p_fsm->ctrl.set_parameters((void *)p_fsm->sensor_ctx,
 		SET_DGAIN_MAX, *(uint32_t *)input);
         break;
 
@@ -313,7 +313,7 @@ int sensor_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_t in
             break;
         }
 
-	p_fsm->ctrl.set_parameters(p_fsm->sensor_ctx,
+	p_fsm->ctrl.set_parameters((void *)p_fsm->sensor_ctx,
 		SET_INTER_MIN, *(uint32_t *)input);
         break;
 
@@ -324,7 +324,7 @@ int sensor_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_t in
             break;
         }
 
-	p_fsm->ctrl.set_parameters(p_fsm->sensor_ctx,
+	p_fsm->ctrl.set_parameters((void *)p_fsm->sensor_ctx,
 		SET_INTER_MAX, *(uint32_t *)input);
         break;
 
@@ -335,7 +335,7 @@ int sensor_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_t in
             break;
         }
 
-	p_fsm->ctrl.set_parameters(p_fsm->sensor_ctx,
+	p_fsm->ctrl.set_parameters((void *)p_fsm->sensor_ctx,
 		SET_INTER_LONG_MAX, *(uint32_t *)input);
         break;
 
@@ -346,7 +346,7 @@ int sensor_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_t in
             break;
         }
 
-	p_fsm->ctrl.set_parameters(p_fsm->sensor_ctx,
+	p_fsm->ctrl.set_parameters((void *)p_fsm->sensor_ctx,
 		SET_INTER_LIMIT, *(uint32_t *)input);
         break;
 

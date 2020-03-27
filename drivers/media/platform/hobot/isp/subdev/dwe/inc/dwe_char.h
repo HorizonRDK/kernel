@@ -40,7 +40,7 @@
 #define DWEC_FORMAT     _IOW(DWE_IOC_MAGIC, 11, struct v4l2_format)
 
 typedef struct _dwe_charmod_s {
-	const char name[CHARDEVNAME_LEN];
+	char name[CHARDEVNAME_LEN];
 	uint32_t devflag;
 	spinlock_t slock;
 	uint32_t user_num;

@@ -235,7 +235,7 @@ typedef struct _sensor_control_t {
      *
      *   @param ctx - pointer to the sensor context
      */
-    const void ( *set_parameters )( void *ctx, uint32_t cmd, uint32_t data);
+    void ( *set_parameters )( void *ctx, uint32_t cmd, uint32_t data);
 
 
     /**

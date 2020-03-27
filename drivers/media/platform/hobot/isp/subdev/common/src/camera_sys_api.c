@@ -208,7 +208,7 @@ static int camera_sys_set_dol2_line(uint32_t port, uint32_t gain_num,
 		uint32_t *input_line)
 {
 	char line_d[3] = {0};
-	char rev_d[3] = {0};
+	//char rev_d[3] = {0};
 	int ret = 0;
 	uint32_t reg_width, s_line_length, m_line_length, s_line, m_line;
 
@@ -375,7 +375,7 @@ void camera_sys_ar0233_turning_control(sensor_priv_t *priv_param,
 		a_gain[i] = a_gain[i] >> 1;
 		if ((a_gain[i] >> 7) > 16)
 			d_gain[i] = a_gain[i] >> 2;
-			pr_info("gain_num %d a_gain[i] d_gain[i]0x%x\n", a_gain[i],
+			pr_info("gain_num %d, a_gain[i] %d, d_gain[i]0x%x\n", a_gain[i],
 					d_gain[i], priv_param->gain_num);
 	}
 	for(i = 0; i < priv_param->line_num; i++) {
@@ -501,7 +501,8 @@ void camera_sys_os8a10_turning_data(uint32_t port, sensor_priv_t *priv_param,
 void camera_sys_ar0144_turning_control(uint32_t port, sensor_priv_t *priv_param,
                 uint32_t *a_gain, uint32_t *d_gain, uint32_t *a_line)
 {
-	uint32_t tmp, tmp1;
+	uint32_t tmp = 0;
+	uint32_t tmp1 = 0;
 	uint32_t coarse = 0;
 	uint32_t fine = 0;
 	uint32_t analog_gain;

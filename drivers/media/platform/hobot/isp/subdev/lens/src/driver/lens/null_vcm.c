@@ -65,19 +65,19 @@ static void vcm_null_drv_move( void *ctx, uint16_t position )
 
 static uint8_t vcm_null_drv_is_moving( void *ctx )
 {
-	lens_context_t *p_ctx = (lens_context_t *)ctx;
+	//lens_context_t *p_ctx = (lens_context_t *)ctx;
 	LOG( LOG_INFO, "IE&E %s  ", __func__ );
 	return 0;
 }
 
 static void vcm_null_write_register( void *ctx, uint32_t address, uint32_t data )
 {
-	lens_context_t *p_ctx = (lens_context_t *)ctx;
+	//lens_context_t *p_ctx = (lens_context_t *)ctx;
 }
 
 static uint32_t vcm_null_read_register( void *ctx, uint32_t address )
 {
-	lens_context_t *p_ctx = (lens_context_t *)ctx;
+	//lens_context_t *p_ctx = (lens_context_t *)ctx;
 	return 0;
 }
 

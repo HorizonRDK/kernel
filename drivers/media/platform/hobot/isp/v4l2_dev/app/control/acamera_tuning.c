@@ -51,15 +51,17 @@ void process_ioctl_buf(uint32_t *buf)
 	uint32_t *rx_buf = (uint32_t *)buf;
 	uint32_t *tx_buf = (uint32_t *)buf;
 	uint16_t type = (*(rx_buf + 2)) & 0xFFFF;
+	uint32_t addr = 0;
+	uint32_t size = 0;
 	switch (type) {
 	case TransactionTypeRegRead:
 		if (buf[0] >= HEADER_SIZE + 8) {
-		uint32_t addr = rx_buf[3];
-		uint32_t size = rx_buf[4];
+		addr = rx_buf[3];
+		size = rx_buf[4];
 		if (size <= CONNECTION_BUFFER_SIZE - HEADER_SIZE - 4) {
 			tx_buf[0] = HEADER_SIZE + 4 + size;
 			tx_buf[3] = SUCCESS;
-			uint8_t *b = (uint8_t *)&buf[5];
+			//uint8_t *b = (uint8_t *)&buf[5];
 
 			while (size--) {
 				//*b++ = read_32(addr++); //system_sw_read_8(addr++);
@@ -76,12 +78,12 @@ void process_ioctl_buf(uint32_t *buf)
 	break;
 	case TransactionTypeRegWrite:
 		if (buf[0] >= HEADER_SIZE + 8) {
-			uint32_t addr = rx_buf[3];
-			uint32_t size = rx_buf[4];
+			addr = rx_buf[3];
+			size = rx_buf[4];
 			buf[0] = HEADER_SIZE + 4;
 			if (size <= buf[0] - HEADER_SIZE - 8) {
 				tx_buf[3] = SUCCESS;
-				uint8_t *b = (uint8_t *)&buf[5];
+				//uint8_t *b = (uint8_t *)&buf[5];
 				while (size--) {
 					//write_32(addr++, *b++, 0xFF);
 				}
@@ -96,16 +98,16 @@ void process_ioctl_buf(uint32_t *buf)
 	break;
 	case TransactionTypeRegMaskWrite:
 		if (buf[0] >= HEADER_SIZE + 8) {
-			uint32_t addr = rx_buf[3];
-			uint32_t size = rx_buf[4];
+			addr = rx_buf[3];
+			size = rx_buf[4];
 			buf[0] = HEADER_SIZE + 4;
 			if (2 * size <= buf[0] - HEADER_SIZE - 8) {
 				tx_buf[3] = SUCCESS;
-				uint8_t *b = (uint8_t *)&buf[5];
-				uint8_t *m = (uint8_t *)&buf[5 + size];
+				//uint8_t *b = (uint8_t *)&buf[5];
+				//uint8_t *m = (uint8_t *)&buf[5 + size];
 				while (size--) {
-					uint8_t mask = *m++;
-					uint8_t val = *b++;
+					//uint8_t mask = *m++;
+					//uint8_t val = *b++;
 					//write_32(addr, val, mask);
 					addr++;
 				}
@@ -120,8 +122,8 @@ void process_ioctl_buf(uint32_t *buf)
 	break;
 	case TransactionTypeLUTRead:
 		if (buf[0] == HEADER_SIZE + 8) {
-			uint32_t addr = rx_buf[3];
-			uint32_t size = rx_buf[4];
+			addr = rx_buf[3];
+			size = rx_buf[4];
 			if (size <= CONNECTION_BUFFER_SIZE - HEADER_SIZE - 4 && !(size & 3) && !(addr & 3)) {
 				buf[0] = HEADER_SIZE + 4 + size;
 				tx_buf[3] = SUCCESS;
@@ -143,8 +145,8 @@ void process_ioctl_buf(uint32_t *buf)
 	break;
 	case TransactionTypeLUTWrite:
 		if (buf[0] >= HEADER_SIZE + 8) {
-			uint32_t addr = rx_buf[3];
-			uint32_t size = rx_buf[4];
+			addr = rx_buf[3];
+			size = rx_buf[4];
 			port = (rx_buf[2] >> 16) & 0xFF;
 			buf[0] = HEADER_SIZE + 4;
 			if (size <= buf[0] - HEADER_SIZE - 8 && !(size & 3) && !(addr & 3)) {
@@ -192,7 +194,7 @@ void process_ioctl_buf(uint32_t *buf)
 			uint8_t id = rx_buf[3] & 0xFF;
 			uint8_t buf_class = (rx_buf[3] >> 8) & 0xFF;
 			port = (rx_buf[2] >> 16) & 0xFF;
-			uint32_t size = rx_buf[4];
+			size = rx_buf[4];
 			uint32_t value;
 			if (size <= CONNECTION_BUFFER_SIZE - HEADER_SIZE - 4) {
 				switch (buf_class) {
@@ -225,7 +227,7 @@ void process_ioctl_buf(uint32_t *buf)
 			uint8_t id = rx_buf[3] & 0xFF;
 			uint8_t buf_class = (rx_buf[3] >> 8) & 0xFF;
 			port = (rx_buf[2] >> 16) & 0xFF;
-			uint32_t size = rx_buf[4];
+			size = rx_buf[4];
 			uint32_t value;
 			buf[0] = HEADER_SIZE + 4;
 			if (size <= buf[0] - HEADER_SIZE - 8) {

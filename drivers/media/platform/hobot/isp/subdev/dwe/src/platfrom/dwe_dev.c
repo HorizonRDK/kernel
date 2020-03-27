@@ -48,7 +48,7 @@ static struct dwe_dev_s dwe_dev;
 static int dwe_register(struct platform_device *pdev, struct resource *pres, dwe_subdev_s **psdev)
 {
 	int ret = 0;
-	char dwe_name[25];
+	char dwe_name[25] = {0};
 	dwe_subdev_s *ptr;
 	struct resource *irqs;
 
@@ -90,8 +90,8 @@ static int dwe_register(struct platform_device *pdev, struct resource *pres, dwe
 	LOG(LOG_DEBUG, "%s,io_paddr %lld, io_vaddr %p, irq_num %d\n", pres->name, ptr->io_paddr, ptr->io_vaddr, ptr->irq_num);
 
 	return ret;
-irq_err:
-	iounmap(ptr->io_vaddr);
+//irq_err:
+//	iounmap(ptr->io_vaddr);
 map_err:
 	release_mem_region(ptr->io_paddr, ptr->io_memsize);
 reqregion_err:
@@ -112,9 +112,7 @@ static void dwe_unregister(dwe_subdev_s *ptr)
 static int dwe_dev_probe(struct platform_device *pdev)
 {
 	int ret = 0;
-
-	char dwe_name[25];
-	struct resource *pres;
+	struct resource *pres = NULL;
 
 	LOG(LOG_DEBUG, "dwe_dev_probe!!!\n");
 	

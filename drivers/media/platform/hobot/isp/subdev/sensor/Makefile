@@ -16,7 +16,7 @@
 #
 
 sensor_dir := $(src_subdev)/sensor
-srcfiles := $(subst $(sensor_dir)/,,$(wildcard $(sensor_dir)/src/*/*.c $(sensor_dir)/src/*/*/*.c $(sensor_dir)/src/*/*/*/*.c $(sensor_dir)/app/*.c))
+srcfiles := $(subst $(sensor_dir)/,,$(wildcard $(sensor_dir)/src/*/*.c $(sensor_dir)/src/*/*/*.c $(sensor_dir)/src/*/*/*/camera_subdev.c $(sensor_dir)/app/*.c))
 sensor-objs += $(patsubst %.c,%.o,$(srcfiles))
 obj-$(CONFIG_VIDEO_HOBOT_ISP) += sensor.o
 

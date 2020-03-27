@@ -38,6 +38,7 @@
 #endif
 
 
+#if 0
 static int lens_pwm_config(struct pwm_device *pwm_dev,
 	int duty_ns, int period_ns)
 {
@@ -55,6 +56,7 @@ static void lens_pwm_set_period(struct pwm_device *pwm_dev, uint32_t period)
 {
 	pwm_set_period(pwm_dev, period);
 }
+#endif
 
 static void lens_pwm_set_duty(struct pwm_device *pwm_dev, uint32_t duty)
 {
@@ -86,10 +88,12 @@ static int lens_pwm_set_pulsenum(const struct pwm_device *pwm_dev,
 	return 0;
 }
 
+#if 0
 static int lens_pwm_get_pulsenum(const struct pwm_device *pwm_dev)
 {
 	return 0;
 }
+#endif
 
 //pwm func
 void motor_pwm_init(void *ctx, void *param)
