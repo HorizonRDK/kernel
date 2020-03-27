@@ -955,7 +955,7 @@ static int tsn_nic_probe(void)
 			netdev->irq);
 		pr_info("MAC: %pM", netdev->dev_addr);
 		if (netdev->tx_queue_len)
-			pr_info("Tx queue length: %lu\n", netdev->tx_queue_len);
+			pr_info("Tx queue length: %u\n", netdev->tx_queue_len);
 
 		/* GFP_KERNEL is preferred, but we are in rcu_read_lock()-region */
 		nic = kzalloc(sizeof(*nic), GFP_ATOMIC);

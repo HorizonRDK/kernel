@@ -43,7 +43,7 @@ int tsnh_validate_du_header(struct tsn_link *link, struct avtp_ch *ch,
 	struct avtpdu_header *header = (struct avtpdu_header *)ch;
 	struct sockaddr_ll *sll;
 	u16 bytes;
-	u8 seqnr;
+	//u8 seqnr;
 
 	if  (ch->cd && !link->is_synced && tsn_lb(link)) {
 		pr_info("%s: link is now synced\n", __func__);
