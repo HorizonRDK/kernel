@@ -1645,7 +1645,7 @@ static int cnnfreq_target(struct device *dev, unsigned long *freq,
 	cnnfreq->rate = clk_get_rate(cnn_dev->cnn_mclk);
 
 	if (cnnfreq->rate != target_rate) {
-		dev_err(dev, "Get wrong frequency, Request %lu, Current %lu\n",
+		dev_err(dev, "Get wrong frequency, Request %lu, Current %llu\n",
 			target_rate, cnnfreq->rate);
 		regulator_set_voltage(cnn_dev->cnn_regulator,
 				cnnfreq->volt, INT_MAX);
@@ -1783,7 +1783,7 @@ static int hobot_bpu_recover(struct hobot_bpu_dev *dev, int head, int tail)
 	int tail_tmp = 0;
 	int fc_depth = 0;
 	void *tmp_trans_buf;
-	int tmp_trans_fc_num;
+	int tmp_trans_fc_num = 0;
 
 	head_tmp = head & CNN_MAX_FC_LEN_MASK;
 	tail_tmp = tail & CNN_MAX_FC_LEN_MASK;
@@ -2601,11 +2601,11 @@ static ssize_t fc_time_show(struct hobot_bpu_dev *dev, char *buf)
 	int sum = 0;
 	int head, tail;
 	unsigned long flags;
-	struct hobot_fc_time tmp[FC_TIME_CNT];
 	int elapse_time = 0;
 	char buf_start[24] = {0};
 	char buf_end[24] = {0};
 	int cnt = 0;
+	struct hobot_fc_time *tmp = vmalloc(sizeof(struct hobot_fc_time) * FC_TIME_CNT);
 
 	if (!fc_time_enable)
 		return sprintf(buf, "Please enable get fc time feature\n");
@@ -2653,6 +2653,7 @@ static ssize_t fc_time_show(struct hobot_bpu_dev *dev, char *buf)
 		head++;
 		head %= FC_TIME_CNT;
 	} while (head != tail && (++cnt < 50));
+	vfree(tmp);
 	return sum;
 }
 
