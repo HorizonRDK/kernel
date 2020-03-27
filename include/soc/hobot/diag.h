@@ -99,6 +99,8 @@ enum diag_i2c_driver_module_eventid {
 	EventIdI2cController1Err,
 	EventIdI2cController2Err,
 	EventIdI2cController3Err,
+	EventIdI2cController4Err,
+	EventIdI2cController5Err,
 };
 
 /* VIO module event id */
