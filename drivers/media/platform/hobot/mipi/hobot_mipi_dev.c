@@ -274,6 +274,9 @@ static int32_t mipi_dev_configure_lanemode(mipi_ddev_t *ddev, int lane)
 	if (!ddev)
 		return -1;
 
+	/* sync lane_mode */
+	ddev->lane_mode = mipi_dphy_get_lanemode(MIPI_DPHY_TYPE_DEV,
+							ddev->port);
 	if (ddev->lane_mode == 0)
 		return 0;
 
@@ -284,14 +287,10 @@ static int32_t mipi_dev_configure_lanemode(mipi_ddev_t *ddev, int lane)
 	}
 
 	ret = mipi_dphy_set_lanemode(MIPI_DPHY_TYPE_DEV, ddev->port, 0);
-	ret = 0;
 	if (ret) {
 		mipierr("error: vio dphy ctrl %d", ret);
 		return -1;
 	}
-
-	/* sync lane_mode */
-	ddev->lane_mode = 0;
 
 	return 0;
 }
@@ -929,6 +928,10 @@ static int32_t mipi_dev_init(mipi_ddev_t *ddev, mipi_dev_cfg_t *cfg)
 		return -1;
 
 	mipiinfo("init begin");
+	if (0 != mipi_dev_configure_lanemode(ddev, cfg->lane)) {
+		mipierr("configure lane error!!!");
+		return -1;
+	}
 #ifdef CONFIG_HOBOT_MIPI_PHY
 	mipi_dphy_set_freqrange(MIPI_DPHY_TYPE_DEV, ddev->port,
 				MIPI_CFGCLKFREQRANGE, MIPI_DEV_CFGCLK_DEFAULT);
