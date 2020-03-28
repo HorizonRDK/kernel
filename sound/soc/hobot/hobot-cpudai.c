@@ -138,6 +138,8 @@ static void x2_i2s_sample_rate_set(struct snd_pcm_substream *substream,
 {
 
 	int ws_l, ws_h;
+        int ret = 0;
+        int lrck_div = 0;
 
 	u32 reg_val = 0;
 
@@ -152,7 +154,7 @@ static void x2_i2s_sample_rate_set(struct snd_pcm_substream *substream,
 			ws_h = 0;
 			ws_l = i2s->slot_width - 2;
 			i2s->clk = i2s->samplerate * i2s->slot_width;
-			int ret = change_clk(i2s->dev, "i2s-bclk",
+			ret = change_clk(i2s->dev, "i2s-bclk",
 				i2s->clk);
 			if (ret < 0)
 				pr_err("change i2s bclk failed\n");
@@ -164,10 +166,10 @@ static void x2_i2s_sample_rate_set(struct snd_pcm_substream *substream,
 	} else {/* play */
 
 		if (i2s->i2sdsp == 0) {	/* i2s mode */
-			int lrck_div = i2s->wordlength * i2s->channel_num;
+			lrck_div = i2s->wordlength * i2s->channel_num;
 			i2s->clk = i2s->samplerate * lrck_div;
 			ws_l = ws_h = (lrck_div / 2) - 1;
-			int ret = change_clk(i2s->dev, "i2s-bclk",
+			ret = change_clk(i2s->dev, "i2s-bclk",
 				i2s->clk);
 			if (ret < 0) {
 				pr_err("change i2s bclk failed\n");

@@ -60,12 +60,13 @@
 
 struct i2c_adapter *i2c_adap = NULL;
 
+#if 0
 static void ac108_hw_init(struct i2c_client *i2c)
 {
 	/*** Chip reset ***/
 	int ret = 0;
 }
-
+#endif
 
 static int ac108_set_sysclk(struct snd_soc_dai *dai,
 	int clk_id, unsigned int freq, int dir)
@@ -102,12 +103,13 @@ static int ac108_trigger(struct snd_pcm_substream *substream,
 	return 0;
 }
 
+#if 0
 static int ac108_hw_free(struct snd_pcm_substream *substream,
 	struct snd_soc_dai *dai)
 {
 	return 0;
 }
-
+#endif
 
 /*** define  ac108  dai_ops  struct ***/
 static const struct snd_soc_dai_ops ac108_dai_ops = {
@@ -126,7 +128,7 @@ static const struct snd_soc_dai_ops ac108_dai_ops = {
 };
 
 /*** define  ac108  dai_driver struct ***/
-static const struct snd_soc_dai_driver ac108_dai = {
+static struct snd_soc_dai_driver ac108_dai = {
 	.name = "ti1864-pcm",
 	.capture = {
 		.stream_name = "Capture",
@@ -171,10 +173,10 @@ static int ti1864_i2c_write(unsigned char ucAddress, unsigned char ucReg,
 	unsigned char ucValue )
 {
 	int ret = 0;
-	size_t count;
+//	size_t count;
 	uint8_t out_buf[3];
 	struct i2c_msg msg;
-	unsigned int i;
+//	unsigned int i;
 	memset(out_buf, 0x00, 3);
 
   out_buf[0] = ucAddress;

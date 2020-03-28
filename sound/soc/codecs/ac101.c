@@ -157,6 +157,7 @@ static void switch_hw_config(struct snd_soc_codec *codec)
 	return;
 }
 
+#if 0
 /*
  * switch_status_update: update the switch state.
  */
@@ -168,7 +169,9 @@ static void switch_status_update(struct ac10x_priv *ac10x)
         input_sync(ac10x->inpdev);
         return;
 }
+#endif
 
+#if 0
 /*
  * work_cb_clear_irq: clear audiocodec pending and Record the interrupt.
  */
@@ -212,7 +215,9 @@ enum {
 	HBIAS_LEVEL_4 = 0x17,
 	HBIAS_LEVEL_5 = 0x19,
 };
+#endif
 
+#if 0
 static int __ac101_get_hmic_data(struct snd_soc_codec *codec) {
 	#ifdef AC101_DEBG
 	static long counter;
@@ -230,7 +235,9 @@ static int __ac101_get_hmic_data(struct snd_soc_codec *codec) {
 	AC101_DBG("HMIC_DATA(%3ld): %02X\n", counter++, d);
 	return d;
 }
+#endif
 
+#if 0
 /*
  * work_cb_earphone_switch: judge the status of the headphone
  */
@@ -344,7 +351,9 @@ static void work_cb_earphone_switch(struct work_struct *work)
 		}
 	}
 }
+#endif
 
+#if 0
 /*
  * audio_hmic_irq:  the interrupt handlers
  */
@@ -360,7 +369,9 @@ static irqreturn_t audio_hmic_irq(int irq, void *para)
 	}
 	return IRQ_HANDLED;
 }
+#endif
 
+#if 0
 static int ac101_switch_probe(struct ac10x_priv *ac10x) {
 	struct i2c_client *i2c = ac10x->i2c101;
 	long ret;
@@ -441,6 +452,7 @@ _err_input_allocate_device:
 _err_irq:
 	return ret;
 }
+#endif
 #endif
 
 void drc_config(struct snd_soc_codec *codec)
@@ -903,7 +915,6 @@ static void ac10x_work_aif_play(struct work_struct *work) {
 int ac101_aif_mute(struct snd_soc_dai *codec_dai, int mute)
 {
 	struct snd_soc_codec *codec = codec_dai->codec;
-	struct ac10x_priv *ac10x = static_ac10x;
 
 	ac101_write(codec, DAC_VOL_CTRL, mute? 0: 0xA0A0);
 #if 0
@@ -1035,6 +1046,7 @@ int ac101_hw_params(struct snd_pcm_substream *substream,
 	struct ac10x_priv *ac10x = static_ac10x;
 	int reg_val, freq_out;
 	unsigned channels;
+	unsigned bclkdiv;
 
 	if (_MASTER_MULTI_CODEC == _MASTER_AC101 && ac101_sysclk_started()) {
 		/* not configure hw_param twice if stream is playback, tell the caller it's started */
@@ -1100,7 +1112,6 @@ int ac101_hw_params(struct snd_pcm_substream *substream,
 
 	/* setting pll if it's master mode */
 	reg_val = ac101_read(codec, AIF_CLK_CTRL);
-	unsigned bclkdiv;
 	ac101_set_pll(codec_dai, ac10x->clk_id, 0, ac10x->sysclk, freq_out);
 	bclkdiv = freq_out / (aif1_lrck_div * params_rate(params));
 	for (i = 0; i < ARRAY_SIZE(ac101_bclkdivs) - 1; i++) {
@@ -1269,8 +1280,6 @@ static int ac101_set_clock(int y_start_n_stop) {
 int ac101_trigger(struct snd_pcm_substream *substream, int cmd,
 		struct snd_soc_dai *dai)
 {
-	struct snd_soc_codec *codec = dai->codec;
-	struct ac10x_priv *ac10x = static_ac10x;
 	int ret = 0;
 
 	AC101_DBG("stream=%s  cmd=%d\n",
@@ -1308,7 +1317,6 @@ int ac101_trigger(struct snd_pcm_substream *substream, int cmd,
 static int ac101_set_dai_sysclk(struct snd_soc_dai *codec_dai,
 				  int clk_id, unsigned int freq, int dir)
 {
-	struct snd_soc_codec *codec = codec_dai->codec;
 	struct ac10x_priv *ac10x = static_ac10x;
 
 	AC101_DBG("id=%d freq=%d, dir=%d\n",
@@ -1688,9 +1696,11 @@ static bool ac101_volatile_reg(struct device *dev, unsigned int reg)
 	return false;
 }
 
+#if 0
 static int ac101_set_sysclk(struct snd_soc_dai *dai, int clk_id, unsigned int freq, int dir) {
 	return 0;
 }
+#endif
 
 static const struct regmap_config ac101_regmap = {
 	.reg_bits = 8,
@@ -1725,7 +1735,7 @@ int ac10x_fill_regcache(struct device* dev, struct regmap* map) {
 
 	return 0;
 }
-
+#if 0
 static unsigned int ac101_codec_read(struct snd_soc_codec *codec, unsigned int reg) {
 	return 0;
 }
@@ -1738,6 +1748,7 @@ static int ac101_prepare(struct snd_pcm_substream *substream, struct snd_soc_dai
 	dev_dbg(dai->dev, "%s() stream = %s\n", __func__, snd_pcm_stream_str(substream));
 	return 0;
 }
+#endif
 
 void ac10x_init(struct snd_soc_codec *codec) {
 	ac101_write(codec, 0x01, 0x0141);

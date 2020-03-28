@@ -708,6 +708,7 @@ static int ac108_update_bits(u8 reg, u8 mask, u8 value, struct i2c_client *clien
 	return 0;
 }
 
+#if 0
 static int ac108_multi_chips_read(u8 reg, unsigned char *rt_value)
 {
 	u8 i;
@@ -715,11 +716,11 @@ static int ac108_multi_chips_read(u8 reg, unsigned char *rt_value)
 	for(i=0; i<(AC108_CHANNELS_MAX+3)/4; i++){
 		ac108_read(reg, rt_value++, i2c_driver_clt[i]);
 	}
-	pr_debug("%s(%02X(R), %02X(M), %02X(V))\n", __func__, reg, *rt_value);
+//	pr_debug("%s(%02X(R), %02X(M), %02X(V))\n", __func__, reg, *rt_value);
 
 	return 0;
 }
-
+#endif
 
 static int ac108_multi_chips_write(u8 reg, unsigned char value)
 {
@@ -878,9 +879,9 @@ static int ac108_set_sysclk(struct snd_soc_dai *dai, int clk_id, unsigned int fr
 
 static int ac108_set_pll(struct snd_soc_dai *dai, int pll_id, int source, unsigned int freq_in, unsigned int freq_out)
 {
-	AC108_DEBUG("\n--->%s\n",__FUNCTION__);
 	u32 i,m1,m2,n,k1,k2;
 
+	AC108_DEBUG("\n--->%s\n",__FUNCTION__);
 	if (!freq_out)	return 0;
 
 	if (freq_in < 128000 || freq_in > 24576000) {
@@ -956,8 +957,8 @@ static int ac108_set_pll(struct snd_soc_dai *dai, int pll_id, int source, unsign
 
 static int ac108_set_clkdiv(struct snd_soc_dai *dai, int div_id, int div)
 {
-	AC108_DEBUG("\n--->%s\n",__FUNCTION__);
 	u32 i,bclk_div,bclk_div_reg_val;
+	AC108_DEBUG("\n--->%s\n",__FUNCTION__);
 
 	if(!div_id){	//use div_id to judge Master/Slave mode,  0: Slave mode, 1: Master mode
 		AC108_DEBUG("AC108 work as Slave mode, don't need to config BCLK_DIV\n\n");
@@ -987,9 +988,9 @@ static int ac108_set_clkdiv(struct snd_soc_dai *dai, int div_id, int div)
 
 static int ac108_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 {
+	u8 tx_offset, i2s_mode, lrck_polarity, brck_polarity;
+
 	AC108_DEBUG("\n--->%s\n",__FUNCTION__);
-	u8 i, tx_offset, i2s_mode, lrck_polarity, brck_polarity;
-	struct ac108_priv *ac108 = dev_get_drvdata(dai->dev);
 
 	//AC108 config Master/Slave mode
 	switch (fmt & SND_SOC_DAIFMT_MASTER_MASK) {
@@ -1090,8 +1091,9 @@ static int ac108_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 
 static int ac108_hw_params(struct snd_pcm_substream *substream, struct snd_pcm_hw_params *params, struct snd_soc_dai *dai)
 {
-	AC108_DEBUG("\n--->%s\n",__FUNCTION__);
 	u16 i, channels, channels_en, sample_resolution;
+
+	AC108_DEBUG("\n--->%s\n",__FUNCTION__);
 
 	if (params_format(params) == SNDRV_PCM_FORMAT_S8) {
 		AC108_SLOT_WIDTH = 8;
@@ -1215,7 +1217,7 @@ static const struct snd_soc_dai_ops ac108_dai_ops = {
 };
 
 /*** define  ac108  dai_driver struct ***/
-static const struct snd_soc_dai_driver ac108_dai0 = {
+static struct snd_soc_dai_driver ac108_dai0 = {
 	.name = "ac108-ic-pcm0",
 	.capture = {
 		.stream_name = "Capture",
@@ -1227,7 +1229,7 @@ static const struct snd_soc_dai_driver ac108_dai0 = {
 	.ops = &ac108_dai_ops,
 };
 
-static const struct snd_soc_dai_driver ac108_dai1 = {
+static struct snd_soc_dai_driver ac108_dai1 = {
 	.name = "ac108-ic-pcm1",
 	.capture = {
 		.stream_name = "Capture",
@@ -1239,7 +1241,8 @@ static const struct snd_soc_dai_driver ac108_dai1 = {
 	.ops = &ac108_dai_ops,
 };
 
-static const struct snd_soc_dai_driver ac108_dai2 = {
+#if 0
+static struct snd_soc_dai_driver ac108_dai2 = {
 	.name = "ac108-ic-pcm2",
 	.capture = {
 		.stream_name = "Capture",
@@ -1251,7 +1254,7 @@ static const struct snd_soc_dai_driver ac108_dai2 = {
 	.ops = &ac108_dai_ops,
 };
 
-static const struct snd_soc_dai_driver ac108_dai3 = {
+static struct snd_soc_dai_driver ac108_dai3 = {
 	.name = "ac108-ic-pcm3",
 	.capture = {
 		.stream_name = "Capture",
@@ -1262,8 +1265,9 @@ static const struct snd_soc_dai_driver ac108_dai3 = {
 	},
 	.ops = &ac108_dai_ops,
 };
+#endif
 
-static const struct snd_soc_dai_driver *ac108_dai[] = {
+static struct snd_soc_dai_driver *ac108_dai[] = {
 #if AC108_CHANNELS_MAX > 0
 	&ac108_dai0,
 #endif
@@ -1311,8 +1315,6 @@ static int ac108_remove(struct snd_soc_codec *codec)
 #ifdef CONFIG_PM
 static int ac108_suspend(struct snd_soc_codec *codec)
 {
-	struct ac108_priv *ac108 = dev_get_drvdata(codec->dev);
-
 #if AC108_MATCH_DTS_EN
 	if (regulator_driver_en && !IS_ERR(ac108->vol_supply.vcc3v3)) {
 		regulator_disable(ac108->vol_supply.vcc3v3);
@@ -1325,10 +1327,6 @@ static int ac108_suspend(struct snd_soc_codec *codec)
 
 static int ac108_resume(struct snd_soc_codec *codec)
 {
-	struct ac108_priv *ac108 = dev_get_drvdata(codec->dev);
-	int ret;
-	u8 i;
-
 #if AC108_MATCH_DTS_EN
 	if (!regulator_driver_en && !IS_ERR(ac108->vol_supply.vcc3v3)) {
 		ret = regulator_driver_enable(ac108->vol_supply.vcc3v3);
@@ -1457,8 +1455,6 @@ static struct attribute_group ac108_debug_attr_group = {
 static int ac108_i2c_probe(struct i2c_client *i2c, const struct i2c_device_id *i2c_id)
 {
 	struct ac108_priv *ac108;
-	struct device_node *np = i2c->dev.of_node;
-	char *regulator_name = NULL;
 	int ret = 0;
 	u8 v;
 	
@@ -1467,7 +1463,7 @@ static int ac108_i2c_probe(struct i2c_client *i2c, const struct i2c_device_id *i
 		dev_err(&i2c->dev, "Unable to allocate ac108 private data\n");
 		return -ENOMEM;
 	}
-	printk("%s: id: %d\n", __func__, i2c_id->driver_data);
+	printk("%s: id: %ld\n", __func__, i2c_id->driver_data);
 	
 	ac108->i2c = i2c;
 	dev_set_drvdata(&i2c->dev, ac108);
@@ -1576,6 +1572,7 @@ static const unsigned short ac108_i2c_addr[] = {
 };
 
 
+#if 0
 //device tree source or i2c_board_info both use to transfer hardware information to linux kernel, use one of them wil be OK
 static struct i2c_board_info ac108_i2c_board_info[] = {
 #if AC108_CHANNELS_MAX > 0
@@ -1594,6 +1591,7 @@ static struct i2c_board_info ac108_i2c_board_info[] = {
 	{I2C_BOARD_INFO("MicArray_3", 0x36),},//ac108_3
 #endif
 };
+#endif
 
 static const struct i2c_device_id ac108_i2c_id[] = {
 #if AC108_CHANNELS_MAX > 0
