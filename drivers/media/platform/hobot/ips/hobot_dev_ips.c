@@ -334,10 +334,12 @@ static const struct dev_pm_ops x3_ips_pm_ops = {
 	.runtime_resume		= x3_ips_runtime_resume,
 };
 
+#if 0
 static irqreturn_t ips_isr(int this_irq, void *data)
 {
 	return IRQ_HANDLED;
 }
+#endif
 
 static int x3_ips_probe(struct platform_device *pdev)
 {

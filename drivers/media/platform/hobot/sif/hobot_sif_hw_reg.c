@@ -32,6 +32,7 @@ u32 sif_get_frame_intr(void __iomem *base_reg)
  * @brief Enable multi-frame interrupt
  *
  */
+#ifdef SIF_TEST_MULTI_FRAME_ID
 static void sif_enable_multi_frame_id(u32 __iomem *base_reg)
 {
 	vio_hw_set_field(base_reg, &sif_regs[SIF_FRM_EN_INT],
@@ -49,17 +50,19 @@ static void sif_enable_multi_frame_id(u32 __iomem *base_reg)
 	vio_hw_set_field(base_reg, &sif_regs[SIF_MULTI_FRAME_INT],
 			&sif_fields[SW_SIF_MULTI_FRAME_ID_INT_ENABLE], 1);
 }
+#endif
 
 /*
  * @brief Enable drop frame
  *
  */
+#ifdef SIF_TEST_DROP_FRAME
 static void sif_enable_drop_frame(u32 __iomem *base_reg, bool enable)
 {
 	vio_hw_set_field(base_reg, &sif_regs[SIF_SETTING],
 			&sif_fields[SW_DROP_FRAME], enable);
 }
-
+#endif
 
 /*
  * @brief Enable a frame interrupt
