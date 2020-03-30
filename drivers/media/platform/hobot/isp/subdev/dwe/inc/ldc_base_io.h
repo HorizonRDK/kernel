@@ -103,7 +103,7 @@
 //----------------------------------------------------------------//
 //register operation
 //----------------------------------------------------------------//
-static __inline void ldc_write_32reg(const char __iomem *regbase,
+static __inline void ldc_write_32reg(char __iomem *regbase,
 	uint32_t addr, uint32_t *buffer)
 {
 	sys_write_32reg(regbase, addr, buffer);
@@ -115,7 +115,7 @@ static __inline void ldc_read_32reg(const char __iomem *regbase,
 	sys_read_32reg(regbase, addr, buffer);
 }
 
-static __inline void ldc_write_buffer(const char __iomem *regbase,
+static __inline void ldc_write_buffer(char __iomem *regbase,
 	uint32_t addr, uint32_t *buffer, uint32_t len)
 {
 	sys_write_buffer(regbase, addr, buffer, len);
@@ -146,7 +146,7 @@ typedef union _ldc_setting_u {
 	ldc_setting_s set_b;
 } ldc_setting_u;
 
-static __inline void set_ldc_setting(const char __iomem *regbase,
+static __inline void set_ldc_setting(char __iomem *regbase,
 	uint32_t *pset)
 {
 	ldc_write_32reg(regbase, LDC_SET_SETTING, pset);
@@ -232,7 +232,7 @@ typedef struct _ldc_param_s {
 	ldc_woi_u woi_y;
 } ldc_param_s;
 
-static __inline void set_chn_ldc_param(const char __iomem *regbase,
+static __inline void set_chn_ldc_param(char __iomem *regbase,
 	ldc_param_s *param, uint32_t chn)
 {
 	uint32_t model_sw = chn * 0x100;
@@ -283,7 +283,7 @@ typedef union _ldc_irqstatus_u {
 	ldc_irqstatus_s status_b;
 } ldc_irqstatus_u;
 
-static __inline void set_ldc_int_mask(const char __iomem *regbase,
+static __inline void set_ldc_int_mask(char __iomem *regbase,
 	uint32_t *int_mask)
 {
 	ldc_write_32reg(regbase, LDC_INT_MASK, int_mask);
@@ -295,7 +295,7 @@ static __inline void get_ldc_int_status(const char __iomem *regbase,
 	ldc_read_32reg(regbase, LDC_INT_STATUS, int_status);
 }
 
-static __inline void set_ldc_int_status(const char __iomem *regbase,
+static __inline void set_ldc_int_status(char __iomem *regbase,
 	uint32_t *int_status)
 {
 	ldc_write_32reg(regbase, LDC_INT_STATUS, int_status);
@@ -303,7 +303,7 @@ static __inline void set_ldc_int_status(const char __iomem *regbase,
 //--------------------------------------------------------------------//
 //ldc bypass
 //--------------------------------------------------------------------//
-static __inline void set_ldc_bypass(const char __iomem *regbase,
+static __inline void set_ldc_bypass(char __iomem *regbase,
 	uint32_t *bypass)
 {
 	ldc_write_32reg(regbase, LDC_BYPASS, bypass);
@@ -312,13 +312,13 @@ static __inline void set_ldc_bypass(const char __iomem *regbase,
 //--------------------------------------------------------------------//
 //ldc_soft setting
 //--------------------------------------------------------------------//
-static __inline void set_ldc_soft_reset(const char __iomem *regbase,
+static __inline void set_ldc_soft_reset(char __iomem *regbase,
 	uint32_t *soft_reset_sw)
 {
 	ldc_write_32reg(regbase, LDC_SOFT_RESET, soft_reset_sw);
 }
 
-static __inline void set_ldc_sw_update(const char __iomem *regbase,
+static __inline void set_ldc_sw_update(char __iomem *regbase,
 	uint32_t *sw_update_sw)
 {
 	ldc_write_32reg(regbase, LDC_SW_UPDATE, sw_update_sw);

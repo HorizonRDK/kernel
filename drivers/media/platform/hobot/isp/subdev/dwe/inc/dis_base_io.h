@@ -78,7 +78,7 @@
 //------------------------------------------------------------//
 //register operation
 //------------------------------------------------------------//
-static __inline void dwe_write_32reg(const char __iomem *regbase,
+static __inline void dwe_write_32reg(char __iomem *regbase,
 	uint32_t addr, uint32_t *buffer)
 {
 	sys_write_32reg(regbase, addr, buffer);
@@ -90,7 +90,7 @@ static __inline void dwe_read_32reg(const char __iomem *regbase,
 	sys_read_32reg(regbase, addr, buffer);
 }
 
-static __inline void dwe_write_buffer(const char __iomem *regbase,
+static __inline void dwe_write_buffer(char __iomem *regbase,
 	uint32_t addr, uint32_t *buffer, uint32_t len)
 {
 	sys_write_buffer(regbase, addr, buffer, len);
@@ -120,7 +120,7 @@ typedef union _dis_checktype_u {
         dis_checktype_s type_b;
 } dis_checktype_u;
 
-static __inline void set_dwe_checktype(const char __iomem *regbase,
+static __inline void set_dwe_checktype(char __iomem *regbase,
 	uint32_t *type)
 {
         dwe_write_32reg(regbase, DWE_CHECK_SUM_TYPE, type);
@@ -145,7 +145,7 @@ typedef union _dis_picsieze_u {
         dis_picsize_s psize_b;
 } dis_picsize_u;
 
-static __inline void set_dwe_image_size(const char __iomem *regbase,
+static __inline void set_dwe_image_size(char __iomem *regbase,
 	uint32_t *picsize)
 {
         dwe_write_32reg(regbase, DWE_IMAGE_SIZE, picsize);
@@ -157,7 +157,7 @@ static __inline void get_dwe_image_size(const char __iomem *regbase,
         dwe_read_32reg(regbase, DWE_IMAGE_SIZE, picsize);
 }
 
-static __inline void set_dwe_pg_size(const char __iomem *regbase,
+static __inline void set_dwe_pg_size(char __iomem *regbase,
 	uint32_t *picsize)
 {
         dwe_write_32reg(regbase, DWE_PG_SIZE, picsize);
@@ -187,7 +187,7 @@ typedef struct _pg_param_s {
         pg_blanking_u blank;
 } pg_param_s; 
 
-static __inline void set_dwe_pg_blanking(const char __iomem *regbase,
+static __inline void set_dwe_pg_blanking(char __iomem *regbase,
 	uint32_t *pg_blank)
 {
         dwe_write_32reg(regbase, DWE_PG_BLANKING, pg_blank);
@@ -212,7 +212,7 @@ typedef union _dis_path_u {
         dis_setting_s set_b;
 } dis_setting_u;
 
-static __inline void set_dwe_setting(const char __iomem *regbase,
+static __inline void set_dwe_setting(char __iomem *regbase,
 	uint32_t *pset)
 {
         dwe_write_32reg(regbase, DWE_SET_SETTING, pset);
@@ -258,7 +258,7 @@ typedef struct _dis_param_s {
 	//uint32_t dis_buf_st_addr;
 } dis_param_s;
 
-static __inline void set_chn_dis_param(const char __iomem *regbase,
+static __inline void set_chn_dis_param(char __iomem *regbase,
 	dis_param_s *ptr, uint32_t model_sw)
 {
 	uint32_t chn = model_sw * 0x100;
@@ -268,7 +268,7 @@ static __inline void set_chn_dis_param(const char __iomem *regbase,
 	}
 }
 
-static __inline void set_chn_dis_addr(const char __iomem *regbase,
+static __inline void set_chn_dis_addr(char __iomem *regbase,
 	uint32_t *addr, uint32_t model_sw)
 {
 	uint32_t chn = model_sw * 0x100;
@@ -278,7 +278,7 @@ static __inline void set_chn_dis_addr(const char __iomem *regbase,
 	}
 }
 
-static __inline void set_chn_dis_setting(const char __iomem *regbase,
+static __inline void set_chn_dis_setting(char __iomem *regbase,
 	uint32_t *ptr, uint32_t model_sw)
 {
 	uint32_t chn = model_sw * 0x100;
@@ -316,7 +316,7 @@ typedef union _dis_irqmask_u {
 	dis_irqmask_s mask_b;
 } dis_irqmask_u;
 
-static __inline void set_dwe_int_mask(const char __iomem *regbase,
+static __inline void set_dwe_int_mask(char __iomem *regbase,
 	uint32_t *mask)
 {
 	dwe_write_32reg(regbase, DWE_INT_MASK, mask);
@@ -328,7 +328,7 @@ static __inline void get_dwe_int_status(const char __iomem *regbase,
 	dwe_read_32reg(regbase, DWE_INT_STATUS, status);
 }
 
-static __inline void set_dwe_int_status(const char __iomem *regbase,
+static __inline void set_dwe_int_status(char __iomem *regbase,
 	uint32_t *status)
 {
 	dwe_write_32reg(regbase, DWE_INT_STATUS, status);
@@ -336,13 +336,13 @@ static __inline void set_dwe_int_status(const char __iomem *regbase,
 //-----------------------------------------------------------------//
 //dwe_soft setting
 //-----------------------------------------------------------------//
-static __inline void set_dwe_pg_start(const char __iomem *regbase,
+static __inline void set_dwe_pg_start(char __iomem *regbase,
 	uint32_t *pg_start_sw)
 {
 	dwe_write_32reg(regbase, DWE_PG_START, pg_start_sw);
 }
 
-static __inline void set_dwe_sw_update(const char __iomem *regbase,
+static __inline void set_dwe_sw_update(char __iomem *regbase,
 	uint32_t *sw_update_sw)
 {
 	dwe_write_32reg(regbase, DWE_SW_UPDATE, sw_update_sw);
@@ -376,7 +376,7 @@ static __inline void get_dwe_check_sum(const char __iomem *regbase,
 //------------------------------------------------------------------//
 //gdc_status
 //------------------------------------------------------------------//
-static __inline void set_gdc_mask(const char __iomem *regbase,
+static __inline void set_gdc_mask(char __iomem *regbase,
 	uint32_t *gdc_mask)
 {
         dwe_write_32reg(regbase, DWE_INT_GDC_MASK, gdc_mask);
@@ -394,7 +394,7 @@ static __inline void get_gdc_status(const char __iomem *regbase,
         dwe_read_32reg(regbase, DWE_INT_GDC_STATUS, gdc_status);
 }
 
-static __inline void set_gdc_status(const char __iomem *regbase,
+static __inline void set_gdc_status(char __iomem *regbase,
 	uint32_t *gdc_status)
 {
         dwe_write_32reg(regbase, DWE_INT_GDC_STATUS, gdc_status);

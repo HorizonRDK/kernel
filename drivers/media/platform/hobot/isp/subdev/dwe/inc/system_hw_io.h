@@ -26,7 +26,7 @@
 //-------------------------------------------------------------------------------------------- //
 //register operation
 //-------------------------------------------------------------------------------------------- //
-static __inline void sys_write_32reg(const char __iomem *regbase,
+static __inline void sys_write_32reg(char __iomem *regbase,
 	uint32_t addr, uint32_t *buffer)
 {
 	writel(*buffer, regbase + addr);
@@ -38,7 +38,7 @@ static __inline void sys_read_32reg(const char __iomem *regbase,
         *buffer = readl(regbase + addr);
 }
 
-static __inline void sys_write_buffer(const char __iomem *regbase,
+static __inline void sys_write_buffer(char __iomem *regbase,
 	uint32_t addr, uint32_t *buffer, uint32_t len)
 {
 	uint32_t temp_i = 0;
