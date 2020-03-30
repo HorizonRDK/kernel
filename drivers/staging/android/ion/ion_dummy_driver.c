@@ -41,7 +41,6 @@ struct dma_chan *dma_ch;
 static struct mutex dma_lock;
 struct completion dma_completion;
 
-static void *carveout_ptr;
 static void *chunk_ptr;
 
 static struct ion_platform_heap dummy_heaps[] = {
@@ -114,7 +113,7 @@ static long ion_dummy_ioctl(struct ion_client *client,
 			return -EFAULT;
 		}
 
-		ret = ion_phys(client, phy_data.handle,
+		ret = ion_phys(client, (long)phy_data.handle,
 			       &phy_data.paddr, &phy_data.len);
 		if (copy_to_user((void __user *)arg, &phy_data,
 				 sizeof(struct ion_phy_data)))
@@ -134,7 +133,7 @@ static long ion_dummy_ioctl(struct ion_client *client,
 			       __func__);
 			return -EFAULT;
 		}
-		vaddr = phy_data.reserved;
+		vaddr = (void *)phy_data.reserved;
 
 		dma_sync_single_for_device(NULL, phy_data.paddr, phy_data.len, DMA_TO_DEVICE);
 		__flush_dcache_area(page_address(pfn_to_page(PHYS_PFN(phy_data.paddr))), phy_data.len);
@@ -225,7 +224,7 @@ static int __init ion_dummy_init(void)
 	struct device_node *node;
 	struct resource ion_pool_reserved;
 	dma_cap_mask_t mask;
-	int i, err;
+	int i, err = 0;
 
 	hb_ion_dev = ion_device_create(ion_dummy_ioctl);
 	heaps = kcalloc(dummy_ion_pdata.nr, sizeof(struct ion_heap *),
@@ -243,7 +242,7 @@ static int __init ion_dummy_init(void)
 					= ion_pool_reserved.start;
 				dummy_heaps[ION_HEAP_TYPE_CARVEOUT].size
 					= resource_size(&ion_pool_reserved);
-				pr_info("ION Carveout MEM start 0x%x, size 0x%x\n",
+				pr_info("ION Carveout MEM start 0x%llx, size 0x%lx\n",
 					dummy_heaps[ION_HEAP_TYPE_CARVEOUT].base,
 					dummy_heaps[ION_HEAP_TYPE_CARVEOUT].size);
 			} else {

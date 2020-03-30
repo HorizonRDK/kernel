@@ -55,7 +55,8 @@ static int ion_cma_allocate(struct ion_heap *heap, struct ion_buffer *buffer,
 		return -ENOMEM;
 
 	/* the page may used for instruction or data which still cached */
-	flush_icache_range(page_address(pages), page_address(pages) + size);
+	flush_icache_range((unsigned long)page_address(pages),
+			(unsigned long)(page_address(pages) + size));
 	__inval_dcache_area(page_address(pages), size);
 	if (PageHighMem(pages)) {
 		unsigned long nr_clear_pages = nr_pages;
