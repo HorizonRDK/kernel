@@ -687,16 +687,17 @@ void sif_config_rx_ipi(u32 __iomem *base_reg, u32 index, u32 vc_channel,
 		sif_set_pattern_gen(base_reg, vc_channel + 1, &p_mipi->data);
 }
 
-void sif_set_dol_channels(sif_input_mipi_t* p_mipi, u32 *ch_index)
+void sif_set_dol_channels(sif_input_mipi_t* p_mipi, sif_output_isp_t *p_isp,
+			u32 *ch_index)
 {
 	u32 vc_short_seq = 0;
 	u32 vc_long_seq = 0;
 	u32 vc_medium_seq = 0;
 	u32 channels = 0;
 
-	vc_short_seq = p_mipi->func.vc_short_seq;
-	vc_medium_seq = p_mipi->func.vc_medium_seq;
-	vc_long_seq = p_mipi->func.vc_long_seq;
+	vc_short_seq = p_isp->func.vc_short_seq;
+	vc_medium_seq = p_isp->func.vc_medium_seq;
+	vc_long_seq = p_isp->func.vc_long_seq;
 	channels = p_mipi->channels;
 
 	vio_info("vc index for dol%d(%d, %d, %d)\n", channels,
@@ -741,7 +742,7 @@ void sif_set_dol_channels(sif_input_mipi_t* p_mipi, u32 *ch_index)
  * @param p_mipi the pointer of sif_input_mipi_t
  */
 static void sif_set_mipi_rx(u32 __iomem *base_reg, sif_input_mipi_t* p_mipi,
-	sif_output_ddr_t *ddr_out, bool *online_ddr_enable)
+			sif_output_t *p_out, bool *online_ddr_enable)
 {
 	int i = 0;
 	u32 enable_mux_out    = p_mipi->func.enable_mux_out;
@@ -809,11 +810,11 @@ static void sif_set_mipi_rx(u32 __iomem *base_reg, sif_input_mipi_t* p_mipi,
 		// One for Y plane, and the other for UV plane
 		i_step = yuv_format ? 2 : 1;
 		if (p_mipi->channels > 1)
-			sif_set_dol_channels(p_mipi, ch_index);
+			sif_set_dol_channels(p_mipi, &p_out->isp, ch_index);
 
 		for (i = 0; i < p_mipi->channels; i += i_step) {
 			mux_out_index = p_mipi->func.set_mux_out_index + ch_index[i];
-			ddr_mux_out_index = ddr_out->mux_index + ch_index[i];
+			ddr_mux_out_index = p_out->ddr.mux_index + ch_index[i];
 
 			lines = (p_mipi->data.width / LINE_BUFFER_SIZE) + 1;
 			ipi_index = i + vc_index;
@@ -853,17 +854,14 @@ static void sif_set_mipi_rx(u32 __iomem *base_reg, sif_input_mipi_t* p_mipi,
 	}
 
 	// FIXME: Workaround
-	if (p_mipi->mipi_rx_index == 0) {
-		vio_hw_set_field(base_reg, &sif_regs[SIF_OUT_BUF_FIFO_SIZE],
-				&sif_fields[SW_SIF_ISP0_PIC_FORMAT], p_mipi->data.format);
-		vio_hw_set_field(base_reg, &sif_regs[SIF_OUT_BUF_ISP0_CFG],
-				&sif_fields[SW_SIF_ISP0_PIX_LENGTH], p_mipi->data.pix_length);
-		vio_hw_set_field(base_reg, &sif_regs[SIF_OUT_BUF_ISP0_CFG],
-				&sif_fields[SW_SIF_ISP0_WIDTH], p_mipi->data.width);
-		vio_hw_set_field(base_reg, &sif_regs[SIF_OUT_BUF_ISP0_CFG],
-				&sif_fields[SW_SIF_ISP0_HEIGHT], p_mipi->data.height);
-	}
-
+	vio_hw_set_field(base_reg, &sif_regs[SIF_OUT_BUF_FIFO_SIZE],
+			&sif_fields[SW_SIF_ISP0_PIC_FORMAT], p_mipi->data.format);
+	vio_hw_set_field(base_reg, &sif_regs[SIF_OUT_BUF_ISP0_CFG],
+			&sif_fields[SW_SIF_ISP0_PIX_LENGTH], p_mipi->data.pix_length);
+	vio_hw_set_field(base_reg, &sif_regs[SIF_OUT_BUF_ISP0_CFG],
+			&sif_fields[SW_SIF_ISP0_WIDTH], p_mipi->data.width);
+	vio_hw_set_field(base_reg, &sif_regs[SIF_OUT_BUF_ISP0_CFG],
+			&sif_fields[SW_SIF_ISP0_HEIGHT], p_mipi->data.height);
 }
 
 /*
@@ -970,8 +968,10 @@ void sif_set_ddr_output(u32 __iomem *base_reg, sif_output_ddr_t* p_ddr,
  *
  */
 static void sif_set_isp_output(u32 __iomem *base_reg,
-				sif_output_isp_t* p_isp)
+				sif_output_t *p_out)
 {
+
+	sif_output_isp_t *p_isp;
 
 	const u32 iram_addr_range[3][2] =
 	{
@@ -979,10 +979,14 @@ static void sif_set_isp_output(u32 __iomem *base_reg,
 		{0x10000, 0x80000},     // 448KB
 		{0x80000, 0x100000},    // 512KB
 	};
-	const u32 iram_stride = 4096;
+	u32 iram_stride = 0;
 	u32 gain = 0;
 	int i = 0;
 
+	p_isp = &p_out->isp;
+	iram_stride = p_out->ddr.stride;
+
+	vio_dbg("%s: iram_stride = %d\n", __func__, iram_stride);
 	if (p_isp->enable) {
 		vio_hw_set_field(base_reg, &sif_regs[SIF_OUT_EN_INT],
 				&sif_fields[SIF_ISP0_OUT_FE_INT_EN], 1);
@@ -1101,7 +1105,7 @@ void sif_hw_config(u32 __iomem *base_reg, sif_cfg_t* c)
 	sif_set_dvp_input(base_reg, &c->input.dvp);
 
 	// Input: SIF
-	sif_set_mipi_rx(base_reg, &c->input.mipi, &c->output.ddr, &online_ddr_enable);
+	sif_set_mipi_rx(base_reg, &c->input.mipi, &c->output, &online_ddr_enable);
 
 	// output: ddr
 	sif_set_ddr_output(base_reg, &c->output.ddr, &enable_output_ddr);
@@ -1145,7 +1149,7 @@ void sif_hw_config(u32 __iomem *base_reg, sif_cfg_t* c)
 #endif
 
 	// Output: ISP (from DDR / online)
-	sif_set_isp_output(base_reg, &c->output.isp);
+	sif_set_isp_output(base_reg, &c->output);
 
 	// Output: IPU (only from DDR)
 	sif_set_ipu_output(base_reg, &c->output.ipu);
