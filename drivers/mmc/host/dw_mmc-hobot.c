@@ -7,6 +7,8 @@
  * (at your option) any later version.
  */
 
+#define pr_fmt(fmt)	KBUILD_MODNAME ": " fmt
+
 #include <linux/module.h>
 #include <linux/platform_device.h>
 #include <linux/clk.h>
@@ -71,8 +73,7 @@
 #define SD1_PADC_VAL_CLR1		(0xF8F8F8F8)
 #define SD1_PADC_VAL			(0x04040404)
 
-#define pr_fmt(fmt)	KBUILD_MODNAME ": " fmt
-#define VER		"HOBOT-mmc_V20.200308"
+#define VER		"HOBOT-mmc_V20.200330"
 
 static int debug;
 module_param(debug, int, 0644);
