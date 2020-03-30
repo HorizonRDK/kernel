@@ -11,6 +11,8 @@
  * @Log		2020-02 support xj3
  */
 
+#define pr_fmt(fmt)	KBUILD_MODNAME ": " fmt
+
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/fs.h>
@@ -43,11 +45,7 @@
 #define BIF_CLR_INT		(0x0FC0)
 #define BIF_RST_NAME		"bifspi"
 
-#define pr_fmt(fmt)	KBUILD_MODNAME ": " fmt
-/*
-#define pr_fmt(fmt)	KBUILD_MODNAME ":%s:%d: " fmt, __func__, __LINE__
- */
-#define VER		"HOBOT-bifspi_V20.200221"
+#define VER		"HOBOT-bifspi_V20.200330"
 
 static int ap_access_first;
 module_param(ap_access_first, uint, 0644);

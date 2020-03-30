@@ -11,6 +11,8 @@
  * @2020-02-10   haibo.guo, acc/bypass and byte/sector dts config
  */
 
+#define pr_fmt(fmt)	KBUILD_MODNAME ": " fmt
+
 #include <linux/delay.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -26,10 +28,7 @@
 #include <linux/timer.h>
 #include <soc/hobot/diag.h>
 
-#define pr_fmt(fmt)	KBUILD_MODNAME ": " fmt
-// #define pr_fmt(fmt)	KBUILD_MODNAME ":%s:%d: " fmt, __func__, __LINE__
-
-#define VER			"HOBOT-bifsd_V20.200210"
+#define VER			"HOBOT-bifsd_V20.200330"
 #define OUT_RANGE_ADDR		(0xFFFFFFFF)
 #define CAPACITY_DEFAULT	(0x80000000)	/* 2G */
 #define ZERO_ADDR_OFFSET	(512)		/* when addr 0 ,offset to*/
