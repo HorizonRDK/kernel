@@ -264,7 +264,7 @@ static ssize_t x2_swinfo_boot_show(struct kobject *kobj,
 	char *s = buf;
 	u32 regv;
 	u32 *swi = swi_boot;
-	const char **srd = x2_swi_boot_desp;
+	const char * const *srd = x2_swi_boot_desp;
 	int srd_n = ARRAY_SIZE(x2_swi_boot_desp);
 
 	if (x2_swinfo_get(0, swi[0], -1, &regv) == 0) {
@@ -285,7 +285,7 @@ static ssize_t x2_swinfo_boot_store(struct kobject *kobj,
 {
 	int ret, i, error = -EINVAL;
 	u32 type = -1;
-	const char **srd = x2_swi_boot_desp;
+	const char * const *srd = x2_swi_boot_desp;
 	int srd_n = ARRAY_SIZE(x2_swi_boot_desp);
 
 	for (i = 0; i < (srd_n - 1); i++) {
@@ -347,7 +347,7 @@ static ssize_t x2_swinfo_panic_show(struct kobject *kobj,
 {
 	char *s = buf;
 	u32 regv;
-	const char **srd = x2_swi_boot_desp;
+	const char * const *srd = x2_swi_boot_desp;
 	int srd_n = ARRAY_SIZE(x2_swi_boot_desp);
 
 	regv = swinfo_preg;
@@ -374,7 +374,7 @@ static ssize_t x2_swinfo_panic_store(struct kobject *kobj,
 {
 	int i, ret, error = -EINVAL;
 	u32 *swi;
-	const char **srd = x2_swi_boot_desp;
+	const char * const *srd = x2_swi_boot_desp;
 	char *s;
 	int srd_n = ARRAY_SIZE(x2_swi_boot_desp);
 	int ipx[4];
