@@ -102,6 +102,7 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 		clear_bit(VIO_GROUP_INIT, &group->state);
 		if (group->gtask)
 			vio_group_task_stop(group->gtask);
+		subdev->leader = false;
 	}
 
 	index = ipu_ctx->frm_fst_ind;
@@ -249,7 +250,7 @@ void ipu_frame_work(struct vio_group *group)
 }
 
 
-void ipu_set_group_leader(struct vio_group *group, enum group_id id )
+void ipu_set_group_leader(struct vio_group *group, enum group_id id)
 {
 	struct ipu_subdev *subdev;
 
@@ -1796,7 +1797,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		if (group && group->get_timestamps) {
 			vio_get_frame_id(group);
 			vio_dbg("[S%d]IPU frame count = %d\n",
-					group->frameid.frame_id, instance);
+					instance, group->frameid.frame_id);
 		}
 	}
 

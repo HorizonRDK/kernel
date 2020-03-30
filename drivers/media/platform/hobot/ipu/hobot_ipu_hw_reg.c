@@ -900,6 +900,7 @@ void ipu_set_ds_wdma_addr(void __iomem *base_addr, u8 ds_ch, u32 y_addr,
 		       y_addr);
 	vio_hw_set_reg(base_addr, &ipu_regs[IPU_DS_0_DDR_UV + 2 * ds_ch],
 		       cb_addr);
+	vio_dbg("ipu_set_ds_wdma_addr : 0x%x, 0x%x\n", y_addr, cb_addr);
 }
 
 void ipu_get_osd_sta_bin(void __iomem *base_addr, u8 osd_num, u8 osd_layer,
