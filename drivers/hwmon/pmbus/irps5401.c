@@ -36,7 +36,7 @@
 			   PMBUS_HAVE_PIN | PMBUS_HAVE_POUT | \
 			   PMBUS_HAVE_TEMP | PMBUS_HAVE_STATUS_TEMP)
 
-#define IRPS5401_VOLTAGE_NUM 846
+#define IRPS5401_VOLTAGE_NUM 849
 #define IRPS5401_VSET_MASK   0x3FF
 
 enum {
@@ -48,8 +48,44 @@ enum {
 };
 
 static const struct regulator_linear_range irps5401_voltage_ranges[] = {
-	REGULATOR_LINEAR_RANGE(0, 0, 846, 3906),
+	REGULATOR_LINEAR_RANGE(0, 0, 849, 3906),
 };
+
+static int val_scale_from_reg(int value)
+{
+	int val = 0;
+
+	switch(value) {
+		case 0x96 ... 0x9e :
+			val = 0x9a;//601524uv
+		break;
+
+		case 0xc9 ... 0xd1 :
+			val = 0xcd;//80730uv
+		break;
+
+		case 0xfd ... 0x105 :
+			val = 0x101;//1003842uv
+		break;
+
+		case 0x15f ... 0x167 :
+			val = 0x163;//1101492uv
+		break;
+
+		case 0x1c9 ... 0x1d1 :
+			val = 0x1cd;//1800666uv
+		break;
+
+		case 0x349 ... 0x351 :
+			val = 0x34d;//3300570uv
+		break;
+
+		default:
+			val = value;
+		break;
+	}
+	return val;
+}
 
 
 static int pmbus_regulator_set_voltage(struct regulator_dev *rdev, unsigned sel)
@@ -62,6 +98,7 @@ static int pmbus_regulator_set_voltage(struct regulator_dev *rdev, unsigned sel)
 	dev_dbg(&client->dev, "pmbus set voltage sel: 0x%x", sel);
 
 	//sel <<= ffs(rdev->desc->vsel_mask) - 1;
+	sel = val_scale_from_reg(sel);
 	sel &= rdev->desc->vsel_mask;
 	dev_dbg(&client->dev, "pmbus set voltage sel: 0x%x", sel);
 
@@ -86,6 +123,7 @@ static int pmbus_regulator_get_voltage(struct regulator_dev *rdev)
 		return val;
 	}
 
+	val = val_scale_from_reg(val);
 	val &= rdev->desc->vsel_mask;
 	//val >>= ffs(rdev->desc->vsel_mask) - 1;
 	dev_dbg(&client->dev, "pmbus convent voltage value: 0x%x", val);
