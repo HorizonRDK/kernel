@@ -31,7 +31,7 @@
 #define _DEBUG_PRINTF_
 #include "debug.h"
 
-#define BIF_SIO_VER	"HOBOT-bifsio_V20.191122"
+#define BIF_SIO_VER	"HOBOT-bifsio_V20.200330"
 
 /* define how many bif serial port */
 //#define BIF_SIO_NR_PORTS      CONFIG_BIF_SIO_NR
@@ -226,8 +226,9 @@ static int bif_tty_set_otherbase(struct bif_tty_cdev *cdev)
 static void tty_irq_work(struct work_struct *work)
 {
 	struct bif_tty_cdev *cdev = bif_tty_get();
+#ifdef CONFIG_HOBOT_BIF_AP
 	struct ringbuf_t *rb_tmp;
-
+#endif
 	tty_debug_log("enter\n");
 	if (cdev->tb_node[0]->rb_other == NULL) {
 		bif_tty_set_otherbase(cdev);

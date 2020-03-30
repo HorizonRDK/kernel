@@ -75,7 +75,7 @@
 
 #define BIFBASE_APMAGIC		"BIFA"
 #define BIFBASE_CPMAGIC		"BIFC"
-#define BIFBASE_VER		"HOBOT-bifbase_V21.191206"
+#define BIFBASE_VER		"HOBOT-bifbase_V21.200330"
 #define BIFBASE_MAJOR		(123)
 #define BIFBASE_BLOCK		(1024)	//(512)
 #define BIFBASE_VER_SIZE	(32)
@@ -1274,7 +1274,7 @@ int bif_register_irq(enum BUFF_ID buffer_id, irq_handler_t irq_handler)
 		return -1;
 	pl->irq_func[buffer_id] = irq_handler;
 
-	pr_err("bifbase: %d register irq hander %x\n", buffer_id, irq_handler);
+	pr_err("bifbase: %d register irq hander\n", buffer_id);
 
 	return buffer_id;
 }

@@ -163,7 +163,7 @@ int bif_spi_read(void *addr, unsigned int count, unsigned char *buf)
 #ifdef CONFIG_HOBOT_BIF_TEST
 	return t_bif_spi_read(addr, len, buf);
 #else
-	return bifdev_get_cpchip_ddr((uint32_t)addr, len, (uint8_t *)buf);
+	return bifdev_get_cpchip_ddr((uint32_t)(ulong)addr, len, (uint8_t *)buf);
 #endif
 }
 EXPORT_SYMBOL(bif_spi_read);
@@ -179,7 +179,7 @@ int bif_spi_write(void *addr, unsigned int count, unsigned char *buf)
 #ifdef CONFIG_HOBOT_BIF_TEST
 	return t_bif_spi_write(addr, len, buf);
 #else
-	return bifdev_set_cpchip_ddr((uint32_t)addr, len, (uint8_t *)buf);
+	return bifdev_set_cpchip_ddr((uint32_t)(ulong)addr, len, (uint8_t *)buf);
 #endif
 }
 EXPORT_SYMBOL(bif_spi_write);
