@@ -136,6 +136,7 @@ void sensor_hw_init( sensor_fsm_ptr_t p_fsm )
 
 void sensor_sw_init( sensor_fsm_ptr_t p_fsm )
 {
+    uint8_t bitwidth;
     const sensor_param_t *param = p_fsm->ctrl.get_parameters( p_fsm->sensor_ctx );
 
 #if FW_DO_INITIALIZATION
@@ -148,6 +149,11 @@ void sensor_sw_init( sensor_fsm_ptr_t p_fsm )
 
     acamera_isp_lumvar_active_width_write( p_fsm->cmn.isp_base, param->active.width );
     acamera_isp_lumvar_active_height_write( p_fsm->cmn.isp_base, param->active.height );
+    bitwidth = (param->modes_table[param->mode].bits - 8) / 2;
+    if (bitwidth == 6)
+        bitwidth = 5;
+    if (0 <= bitwidth && bitwidth <= 5)
+        acamera_isp_input_formatter_input_bitwidth_select_write(p_fsm->cmn.isp_base, bitwidth);
 /*
     acamera_isp_input_port_hc_size0_write( p_fsm->cmn.isp_base, param->active.width );
     acamera_isp_input_port_hc_size1_write( p_fsm->cmn.isp_base, param->active.width );
@@ -155,14 +161,6 @@ void sensor_sw_init( sensor_fsm_ptr_t p_fsm )
 */
     sensor_init_output( p_fsm, p_fsm->isp_output_mode );
 #endif //FW_DO_INITIALIZATION
-
-#if HOBOT_NATIVE_WDR
-    acamera_isp_input_formatter_mode_in_write(p_fsm->cmn.isp_base, 0x3);
-    acamera_isp_top_linear_data_src_write(p_fsm->cmn.isp_base, 0x2);
-    acamera_isp_decompander0_enable_write(p_fsm->cmn.isp_base, 0x1);
-    acamera_isp_decompander1_enable_write(p_fsm->cmn.isp_base, 0x1);
-    printk("HOBOT_NATIVE_WDR enabled");
-#endif
 
     //acamera_isp_input_port_mode_request_write( p_fsm->cmn.isp_base, ACAMERA_ISP_INPUT_PORT_MODE_REQUEST_SAFE_START );
 

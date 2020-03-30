@@ -679,7 +679,7 @@ int isp_v4l2_stream_init_static_resources( uint32_t ctx_id )
 
     /* initialize stream common field */
     memset( sc, 0, sizeof( isp_v4l2_stream_common ) );
-    fw_intf_isp_get_sensor_info( ctx_id, &sc->sensor_info );
+    //fw_intf_isp_get_sensor_info( ctx_id, &sc->sensor_info );
     sc->snapshot_sizes.frmsize_num = sc->sensor_info.preset_num;
     for ( i = 0; i < sc->sensor_info.preset_num; i++ ) {
         sc->snapshot_sizes.frmsize[i].width = sc->sensor_info.preset[i].width;
@@ -1012,9 +1012,7 @@ int isp_v4l2_stream_try_format( isp_v4l2_stream_t *pstream, struct v4l2_format *
         if (i == 1 && f->fmt.pix_mp.pixelformat == V4L2_PIX_FMT_NV12)
 		f->fmt.pix_mp.plane_fmt[i].sizeimage = f->fmt.pix_mp.plane_fmt[i].sizeimage / 2;
         memset( f->fmt.pix_mp.plane_fmt[i].reserved, 0, sizeof( f->fmt.pix_mp.plane_fmt[i].reserved ) );
-        memset( f->fmt.pix_mp.reserved, 0, sizeof( f->fmt.pix_mp.reserved ) );
     }
-
 
     return 0;
 }
@@ -1041,6 +1039,9 @@ int isp_v4l2_stream_get_format( isp_v4l2_stream_t *pstream, struct v4l2_format *
     return 0;
 }
 
+extern int sensor_info_check_valid(uint32_t ctx_id, struct v4l2_format *f);
+extern int sensor_info_check_exist(uint32_t ctx_id, struct v4l2_format *f);
+extern void sensor_info_fill(uint32_t ctx_id, struct v4l2_format *f);
 int isp_v4l2_stream_set_format( isp_v4l2_stream_t *pstream, struct v4l2_format *f )
 {
     int rc = 0;
@@ -1050,14 +1051,13 @@ int isp_v4l2_stream_set_format( isp_v4l2_stream_t *pstream, struct v4l2_format *
         return -EINVAL;
     }
 
-    LOG( LOG_INFO, "[Stream#%d] VIDIOC_S_FMT operation", pstream->stream_id );
-
-    LOG( LOG_NOTICE, "[Stream#%d]   - SET fmt - width: %4u, height: %4u, format: 0x%x.",
+    pr_debug("[Stream#%d]   - SET fmt - width: %4u, height: %4u, exp %d, bits %d, format: 0x%x.",
          pstream->stream_id,
          f->fmt.pix_mp.width,
          f->fmt.pix_mp.height,
+         f->fmt.pix_mp.reserved[0],
+         f->fmt.pix_mp.reserved[1],
          f->fmt.pix_mp.pixelformat );
-
 
     /* try format first */
     isp_v4l2_stream_try_format( pstream, f );
@@ -1084,19 +1084,22 @@ int isp_v4l2_stream_set_format( isp_v4l2_stream_t *pstream, struct v4l2_format *
         return -EINVAL;
     }
 
+    if (sensor_info_check_valid(pstream->ctx_id, f) == 0) {
+        pr_err("exposures %d or bit_width %d invalid\n",
+            f->fmt.pix_mp.reserved[0], f->fmt.pix_mp.reserved[1]);
+        return -EINVAL;
+    }
+
+    if (sensor_info_check_exist(pstream->ctx_id, f) == 0)
+        sensor_info_fill(pstream->ctx_id, f);
+
     /* update resolution */
     rc = fw_intf_stream_set_resolution( pstream->ctx_id, &pstream->stream_common->sensor_info,
-                                        pstream->stream_type, &( f->fmt.pix_mp.width ), &( f->fmt.pix_mp.height ) );
+                                        pstream->stream_type, f );
     if ( rc < 0 ) {
         LOG( LOG_ERR, "set resolution failed ! (rc = %d)", rc );
         return rc;
     }
-
-    LOG( LOG_INFO, "[Stream#%d] Current preset:%d Exposures for this settings %d",
-         pstream->stream_id,
-         pstream->stream_common->sensor_info.preset_cur,
-         pstream->stream_common->sensor_info.preset[pstream->stream_common->sensor_info.preset_cur].exposures[pstream->stream_common->sensor_info.preset[pstream->stream_common->sensor_info.preset_cur].fps_cur] );
-
 
     /* update format */
     rc = fw_intf_stream_set_output_format( pstream->ctx_id, pstream->stream_type, f->fmt.pix_mp.pixelformat );

@@ -22,6 +22,7 @@
 #include <linux/slab.h>
 #include <linux/delay.h>
 #include "system_timer.h"
+#include "acamera_firmware_settings.h"
 
 #define CHARDEV_CALIB_NAME "ac_calib"
 
@@ -38,6 +39,11 @@
 static struct calib_dev_s calib_dev_ctx;
 static struct calib_param_s calib_param_ctx;
 
+extern uint32_t get_calibrations_static_fs_lin_dummy( ACameraCalibrations *c );
+extern uint32_t get_calibrations_dynamic_fs_lin_dummy( ACameraCalibrations *c );
+
+extern void *soc_iq_get_lut_data_ptr(uint8_t ctx_id);
+
 static int calib_destory(uint8_t port)
 {
 	uint32_t tmp = 0;
@@ -53,20 +59,6 @@ static int calib_destory(uint8_t port)
 			return -CALIB_PORT_ERR;
 	}
 
-	tmp = 10;
-	while (tmp > 0) {
-		if (calib_data->busy) {
-			udelay(1000);
-			//system_timer_usleep(3*1000);
-		}
-		tmp--;
-	}
-
-	if (calib_data->busy) {
-		LOG(LOG_ERR, "calib of port %d is busy, free failed.", port);
-		return -CALIB_BUSY_ERR;
-	}
-
 	for(tmp = 0; tmp < CALIBRATION_TOTAL_SIZE; tmp++) {
 		if (calib_data->plut[tmp].ptr == NULL) {
 			LOG( LOG_ERR, "memory of port %d is not existance.", port );
@@ -80,7 +72,13 @@ static int calib_destory(uint8_t port)
 	kfree(calib_data);
 	calib_param_ctx.plist[port] = NULL;
 	calib_param_ctx.p_num &= ~(1 << port);
-	
+
+	ACameraCalibrations *c = soc_iq_get_lut_data_ptr(port);
+	if (c != NULL) {
+		get_calibrations_dynamic_fs_lin_dummy(c);
+		get_calibrations_static_fs_lin_dummy(c);
+	}
+
 	LOG( LOG_DEBUG, "calib destory is success.");
 	
 	return 0;
@@ -288,8 +286,6 @@ int register_calib( ACameraCalibrations *c, uint8_t port )
 		ptmp++;	
 	}
 
-	calib_data->busy = 1;
-
 	LOG( LOG_INFO, "calibration of port %d is register success !", port );
 		
 	return ret;
@@ -314,7 +310,6 @@ int unregister_calib( ACameraCalibrations *c, uint8_t port )
 	for(tmp = 0; tmp < CALIBRATION_TOTAL_SIZE; tmp++) {
 		c->calibrations[tmp] = NULL;
 	}
-	calib_data->busy = 0;
 
 	LOG( LOG_INFO, "calibration of port %d is unregister success !", port );
 		

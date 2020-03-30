@@ -51,6 +51,13 @@ static subdev_cali_lut_t g_luts_arr[FIRMWARE_CONTEXT_NUMBER];
 
 int otp_enable = 0;
 
+void *soc_iq_get_lut_data_ptr(uint8_t ctx_id)
+{
+    if (ctx_id < FIRMWARE_CONTEXT_NUMBER)
+        return &g_luts_arr[ctx_id].cali_lut_data;
+
+    return NULL;
+}
 
 uint32_t ( *CALIBRATION_FUNC_ARR[] )( uint32_t ctx_id, void *sensor_arg, ACameraCalibrations *c, uint32_t sensor_type ) = CALIBRATION_SUBDEV_FUNCTIONS;
 
@@ -120,14 +127,7 @@ static long iq_ioctl( struct v4l2_subdev *sd, unsigned int cmd, void *arg )
         void *ptr = ARGS_TO_PTR( arg )->ioctl.request_data.ptr;
         if ( context < FIRMWARE_CONTEXT_NUMBER && id < CALIBRATION_TOTAL_SIZE ) {
 
-            if (( g_luts_arr[context].cur_preset != sensor_arg->wdr_mode ) ||
-		(g_luts_arr[context].cur_sensor_type != iq_sensor_type)) {
-		g_luts_arr[context].cur_sensor_type = iq_sensor_type;
-                g_luts_arr[context].cur_preset = sensor_arg->wdr_mode;
-                LOG( LOG_INFO, "Get calibration data for preset: %d, sensor_type %d .", g_luts_arr[context].cur_preset, iq_sensor_type );
-
-                CALIBRATION_FUNC_ARR[context]( context, sensor_arg, &g_luts_arr[context].cali_lut_data, sensor_type );
-            }
+            CALIBRATION_FUNC_ARR[context]( context, sensor_arg, &g_luts_arr[context].cali_lut_data, sensor_type );
 
             ACameraCalibrations *luts_ptr = &g_luts_arr[context].cali_lut_data;
             if ( ptr != NULL ) {

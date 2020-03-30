@@ -29,6 +29,9 @@
 //        DRIVER
 //-------------------------------------------------------------------------------------
 
+#define pr_fmt(fmt) "[isp_drv]: %s: " fmt, __func__
+
+#include <linux/videodev2.h>
 #include "acamera_types.h"
 #include "acamera_logger.h"
 #include "sensor_init.h"
@@ -49,301 +52,23 @@
 #define CUR_MOD_NAME LOG_MODULE_SOC_SENSOR
 #endif
 
+typedef enum {
+	NORMAL_M = 1,
+	DOL2_M,
+	DOL3_M,
+	DOL4_M,
+	PWL_M,
+} sensor_modes_e;
 
 typedef struct _sensor_context_t {
     uint8_t address; // Sensor address for direct write (not used currently)
     uint8_t channel;
     acamera_sbus_t sbus;
     sensor_param_t param;
-    //sensor_mode_t supported_modes[ISP_MAX_SENSOR_MODES];//TODO
+    sensor_mode_t supported_modes[ISP_MAX_SENSOR_MODES];
 } sensor_context_t;
 
 static sensor_context_t s_ctx[FIRMWARE_CONTEXT_NUMBER];
-static uint32_t ctx_counter = 0;
-
-static sensor_mode_t dummy_drv_supported_modes[] = {
-    {
-        .wdr_mode = WDR_MODE_COUNT,
-        .fps = 10 * 256,
-        .resolution.width = 4960,
-        .resolution.height = 3112,
-        .bits = 16,
-        .exposures = 1,
-    },
-    {
-        .wdr_mode = WDR_MODE_LINEAR,
-        .fps = 10 * 256,
-        .resolution.width = 3840,
-        .resolution.height = 2160,
-        .bits = 10,
-        .exposures = 1,
-    },
-    {
-        .wdr_mode = WDR_MODE_FS_LIN,
-        .fps = 10 * 256,
-        .resolution.width = 3840,
-        .resolution.height = 2160,
-        .bits = 10,
-        .exposures = 2,
-    },
-    {//3
-        .wdr_mode = WDR_MODE_LINEAR,
-        .fps = 10 * 256,
-        .resolution.width = 1920,
-        .resolution.height = 1080,
-        .bits = 12,
-        .exposures = 1,
-    },
-    {//4
-        .wdr_mode = WDR_MODE_LINEAR,
-        .fps = 10 * 256,
-        .resolution.width = 1920,
-        .resolution.height = 1080,
-        .bits = 10,
-        .exposures = 1,
-    },
-    {//5
-        .wdr_mode = WDR_MODE_LINEAR,
-        .fps = 10 * 256,
-        .resolution.width = 1920,
-        .resolution.height = 1080,
-        .bits = 8,
-        .exposures = 1,
-    },
-    {//6
-        .wdr_mode = WDR_MODE_LINEAR,
-        .fps = 10 * 256,
-        .resolution.width = 1280,
-        .resolution.height = 720,
-        .bits = 12,
-        .exposures = 1,
-    },
-    {//7
-        .wdr_mode = WDR_MODE_LINEAR,
-        .fps = 10 * 256,
-        .resolution.width = 1280,
-        .resolution.height = 720,
-        .bits = 10,
-        .exposures = 1,
-    },
-    {//8
-        .wdr_mode = WDR_MODE_LINEAR,
-        .fps = 10 * 256,
-        .resolution.width = 1280,
-        .resolution.height = 720,
-        .bits = 8,
-        .exposures = 1,
-    },
-    {//9
-        .wdr_mode = WDR_MODE_FS_LIN,
-        .fps = 10 * 256,
-        .resolution.width = 1920,
-        .resolution.height = 1080,
-        .bits = 10,
-        .exposures = 2,
-    },
-    {//10
-        .wdr_mode = WDR_MODE_FS_LIN,
-        .fps = 10 * 256,
-        .resolution.width = 1920,
-        .resolution.height = 1080,
-        .bits = 12,
-        .exposures = 3,
-    },
-    {//11, need modify json file::"sensor_mode": 11, and acamera_firmware_config.h::SENSOR_DEFAULT_PRESET_MODE 11
-        .wdr_mode = WDR_MODE_LINEAR,
-        .fps = 10 * 256,
-        .resolution.width = 1936,
-        .resolution.height = 1096,
-        .bits = 12,
-        .exposures = 1,
-    },
-    {//12 DDR DOL2
-        .wdr_mode = WDR_MODE_FS_LIN,
-        .fps = 10 * 256,
-        .resolution.width = 1952,
-        .resolution.height = 1097,
-        .bits = 8,
-        .exposures = 2,
-    },
-    {//13 DDR DOL2
-        .wdr_mode = WDR_MODE_FS_LIN,
-        .fps = 10 * 256,
-        .resolution.width = 1952,
-        .resolution.height = 1097,
-        .bits = 8,
-        .exposures = 3,
-    },
-    {//14 DDR DOL2 (DDR->SIF->ISP)
-        .wdr_mode = WDR_MODE_FS_LIN,
-        .fps = 10 * 256,
-        .resolution.width = 1952,
-        .resolution.height = 1097,
-        .bits = 12,
-        .exposures = 2,
-    },
-    {//15 DDR DOL2
-        .wdr_mode = WDR_MODE_FS_LIN,
-        .fps = 10 * 256,
-        .resolution.width = 1952,
-        .resolution.height = 1097,
-        .bits = 12,
-        .exposures = 3,
-    },
-    {//16 IMX290
-        .wdr_mode = WDR_MODE_LINEAR,
-        .fps = 10 * 256,
-        .resolution.width = 1308,
-        .resolution.height = 729,
-        .bits = 8,
-        .exposures = 1,
-    },
-    {//17 DDR DOL2 (IMX290->MIPI->SIF->ISP)
-        .wdr_mode = WDR_MODE_FS_LIN,
-        .fps = 10 * 256,
-        .resolution.width = 1920,
-        .resolution.height = 1080,
-        .bits = 12,
-        .exposures = 2,
-    },
-    {//18 DDR DOL3 (IMX290->MIPI->SIF->ISP)
-        .wdr_mode = WDR_MODE_FS_LIN,
-        .fps = 10 * 256,
-        .resolution.width = 1948,
-        .resolution.height = 1097,
-        .bits = 12,
-        .exposures = 3,
-    },
-    {//19 DVP 1920_1080_raw20.bin
-        .wdr_mode = WDR_MODE_LINEAR,
-        .fps = 10 * 256,
-        .resolution.width = 1920,
-        .resolution.height = 1080,
-        .bits = 20,
-        .exposures = 1,
-    },
-    {//20 IMX290->SIF->ISP
-        //.wdr_mode = WDR_MODE_FS_LIN,
-	.wdr_mode = WDR_MODE_LINEAR,
-        .fps = 10 * 256,
-        .resolution.width = 1952,
-        .resolution.height = 1097,
-        .bits = 10,
-        .exposures = 1,
-    },
-    {//21 IMX290->SIF->ISP
-        //.wdr_mode = WDR_MODE_FS_LIN,
-	.wdr_mode = WDR_MODE_LINEAR,
-        .fps = 25 * 256,//10 *256
-        .resolution.width = 1952,
-        .resolution.height = 1097,
-        .bits = 12,
-        .exposures = 1,
-    },
-    {//22 OV8865->SIF->ISP
-        //.wdr_mode = WDR_MODE_FS_LIN,
-	.wdr_mode = WDR_MODE_LINEAR,
-        .fps = 10 * 256,
-        .resolution.width = 3264,
-        .resolution.height = 2160,
-        .bits = 10,
-        .exposures = 1,
-    },
-    {//23 DDR->SIF->ISP
-        //.wdr_mode = WDR_MODE_FS_LIN,
-	.wdr_mode = WDR_MODE_LINEAR,
-        .fps = 10 * 256,
-        .resolution.width = 3264,
-        .resolution.height = 2160,
-        .bits = 12,
-        .exposures = 1,
-    },
-    {//24 DDR->SIF->ISP
-        //.wdr_mode = WDR_MODE_FS_LIN,
-	.wdr_mode = WDR_MODE_LINEAR,
-        .fps = 10 * 256,
-        .resolution.width = 3264,
-        .resolution.height = 2160,
-        .bits = 8,
-        .exposures = 1,
-    },
-    {//25 DVP 1920_1080_raw16.bin
-        //.wdr_mode = WDR_MODE_LINEAR,
-	.wdr_mode = WDR_MODE_LINEAR,
-        .fps = 10 * 256,
-        .resolution.width = 1920,
-        .resolution.height = 1080,
-        .bits = 16,
-        .exposures = 1,
-    },
-    {//26 DVP 1920_1080_raw12.bin
-        //.wdr_mode = WDR_MODE_LINEAR,
-	.wdr_mode = WDR_MODE_LINEAR,
-        .fps = 10 * 256,
-        .resolution.width = 1920,
-        .resolution.height = 1080,
-        .bits = 12,
-        .exposures = 1,
-    },
-    {//27 DDR->SIF->ISP
-        //.wdr_mode = WDR_MODE_FS_LIN,
-	.wdr_mode = WDR_MODE_LINEAR,
-        .fps = 10 * 256,
-        .resolution.width = 3264,
-        .resolution.height = 2448,
-        .bits = 12,
-        .exposures = 1,
-    },
-    {//28 DDR->SIF->ISP
-        //.wdr_mode = WDR_MODE_FS_LIN,
-	.wdr_mode = WDR_MODE_LINEAR,
-        .fps = 10 * 256,
-        .resolution.width = 3264,
-        .resolution.height = 2448,
-        .bits = 10,
-        .exposures = 1,
-    },
-    {//29 DDR->SIF->ISP
-        //.wdr_mode = WDR_MODE_FS_LIN,
-	.wdr_mode = WDR_MODE_LINEAR,
-        .fps = 10 * 256,
-        .resolution.width = 3264,
-        .resolution.height = 2448,
-        .bits = 8,
-        .exposures = 1,
-    },
-    {//30 
-        //.wdr_mode = WDR_MODE_FS_LIN,
-	.wdr_mode = WDR_MODE_NATIVE,
-        .fps = 10 * 256,
-        .resolution.width = 1920,
-        .resolution.height = 1080,
-        .bits = 12,
-        .exposures = 1,
-    },
-    {//31 
-        //.wdr_mode = WDR_MODE_FS_LIN,
-	.wdr_mode = WDR_MODE_NATIVE,
-        .fps = 10 * 256,
-        .resolution.width = 1920,
-        .resolution.height = 1080,
-        .bits = 20,
-        .exposures = 1,
-    },
-    {//32 
-        //.wdr_mode = WDR_MODE_FS_LIN,
-	.wdr_mode = WDR_MODE_NATIVE,
-        .fps = 10 * 256,
-        .resolution.width = 1920,
-        .resolution.height = 1080,
-        .bits = 12,
-        .exposures = 3,
-    },
-
-};
-
-//*************************************************************************************
-//--------------------DATA-------------------------------------------------------------
 struct sensor_operations *sensor_ops[FIRMWARE_CONTEXT_NUMBER];
 struct sensor_priv_old sensor_data[FIRMWARE_CONTEXT_NUMBER];
 
@@ -516,7 +241,7 @@ static void sensor_set_mode(void *ctx, uint8_t mode)
     sensor_param_t *param = &p_ctx->param;
     //struct _setting_param_t sensor_param;
 
-    if (mode >= array_size(dummy_drv_supported_modes))
+    if (mode >= array_size(p_ctx->supported_modes))
         mode = 0;
 
     p_ctx->param.sensor_exp_number = 1;
@@ -525,19 +250,20 @@ static void sensor_set_mode(void *ctx, uint8_t mode)
     p_ctx->param.integration_time_apply_delay = 2;
     p_ctx->param.isp_exposure_channel_delay = 0;
 
-    param->active.width = dummy_drv_supported_modes[mode].resolution.width;
-    param->active.height = dummy_drv_supported_modes[mode].resolution.height;
-    param->total.width = dummy_drv_supported_modes[mode].resolution.width;
-    param->total.height = dummy_drv_supported_modes[mode].resolution.height;
+    param->active.width = p_ctx->supported_modes[mode].resolution.width;
+    param->active.height = p_ctx->supported_modes[mode].resolution.height;
+    param->total.width = p_ctx->supported_modes[mode].resolution.width;
+    param->total.height = p_ctx->supported_modes[mode].resolution.height;
+
     param->pixels_per_line = param->total.width;
     param->integration_time_min = 5;
-    param->integration_time_max = 900;//TODO
-    param->integration_time_long_max = 900 * 3; // (((uint32_t)(dummy_drv_supported_modes[mode].resolution.height)) << 2)-256;
-    param->integration_time_limit = 900;//TODO
+    param->integration_time_max = 900;
+    param->integration_time_long_max = 900 * 3;
+    param->integration_time_limit = 900;
     param->lines_per_second = 10000;
     param->sensor_exp_number = param->modes_table[mode].exposures;
     //sensor param init
-    dummy_drv_supported_modes[param->mode].fps = 2560;
+    p_ctx->supported_modes[param->mode].fps = 2560;
     param->mode = mode;
 }
 
@@ -563,9 +289,9 @@ static const sensor_param_t *sensor_get_parameters( void *ctx )
 			param->integration_time_limit = sensor_param.exposure_time_max;
 			param->integration_time_long_max = sensor_param.exposure_time_long_max;
 			if (sensor_param.fps) {
-				dummy_drv_supported_modes[param->mode].fps = sensor_param.fps;
+				p_ctx->supported_modes[param->mode].fps = sensor_param.fps;
 			} else {
-				dummy_drv_supported_modes[param->mode].fps = 2560;
+				p_ctx->supported_modes[param->mode].fps = 2560;
 			}
 		} else {
 			sensor_ops[p_ctx->channel]->param_enable = 0;
@@ -630,33 +356,122 @@ static void start_streaming( void *ctx )
 void sensor_deinit_dummy(uint32_t ctx_id, void *ctx )
 {
 }
+
+int sensor_info_check_valid(uint32_t ctx_id, struct v4l2_format *f)
+{
+	uint8_t exposures;
+    uint8_t bits;
+
+	exposures = f->fmt.pix_mp.reserved[0];
+	bits = f->fmt.pix_mp.reserved[1];
+
+	if (exposures != NORMAL_M && exposures != DOL2_M &&
+		exposures != DOL3_M && exposures != DOL4_M && exposures != PWL_M)
+		return 0;
+
+	if (bits != 8 && bits != 10 && bits != 12 && bits != 14 && bits != 16 && bits != 20)
+		return 0;
+
+	return 1;
+}
+int sensor_info_check_exist(uint32_t ctx_id, struct v4l2_format *f)
+{
+	int i;
+	uint16_t w, h;
+	uint8_t exposures;
+	uint8_t bits;
+	sensor_context_t *p_ctx = &s_ctx[ctx_id];
+
+	for (i = 0; i < p_ctx->param.modes_num; i++) {
+		w = p_ctx->supported_modes[i].resolution.width;
+		h = p_ctx->supported_modes[i].resolution.height;
+		bits = p_ctx->supported_modes[i].bits;
+		exposures = p_ctx->supported_modes[i].exposures;
+		pr_debug("[%d/%d] w %d, h %d, bits %d, exposures %d\n", i+1, p_ctx->param.modes_num, w, h, bits, exposures);
+	}
+
+	for (i = 0; i < p_ctx->param.modes_num; i++) {
+		w = p_ctx->supported_modes[i].resolution.width;
+		h = p_ctx->supported_modes[i].resolution.height;
+		bits = p_ctx->supported_modes[i].bits;
+		exposures = p_ctx->supported_modes[i].exposures;
+		if (w == f->fmt.pix_mp.width && h == f->fmt.pix_mp.height
+			&& exposures == f->fmt.pix_mp.reserved[0] && bits == f->fmt.pix_mp.reserved[1])
+			return 1;
+	}
+
+	return 0;
+}
+
+void sensor_info_fill(uint32_t ctx_id, struct v4l2_format *f)
+{
+	int i;
+	uint8_t mode = 0;
+	sensor_context_t *p_ctx = &s_ctx[ctx_id];
+
+	if (f->fmt.pix_mp.reserved[0] == NORMAL_M)
+		mode = WDR_MODE_LINEAR;
+	else if (DOL2_M <= f->fmt.pix_mp.reserved[0] && f->fmt.pix_mp.reserved[0] <= DOL4_M)
+		mode = WDR_MODE_FS_LIN;
+	else if (f->fmt.pix_mp.reserved[0] == PWL_M)
+		mode = WDR_MODE_NATIVE;
+
+	i = p_ctx->param.modes_num;
+	p_ctx->supported_modes[i].wdr_mode = mode;
+	p_ctx->supported_modes[i].fps = 30 * 256;
+	p_ctx->supported_modes[i].resolution.width = f->fmt.pix_mp.width;
+	p_ctx->supported_modes[i].resolution.height = f->fmt.pix_mp.height;
+	p_ctx->supported_modes[i].exposures = f->fmt.pix_mp.reserved[0];
+	p_ctx->supported_modes[i].bits = f->fmt.pix_mp.reserved[1];	
+	p_ctx->param.modes_num++;
+}
+
+int sensor_info_get_idx(uint32_t ctx_id, struct v4l2_format *f)
+{
+	int i;
+	uint16_t w, h;
+    uint8_t exposures;
+    uint8_t bits;
+	sensor_context_t *p_ctx = &s_ctx[ctx_id];
+
+	for (i = 0; i < p_ctx->param.modes_num; i++) {
+		w = p_ctx->supported_modes[i].resolution.width;
+		h = p_ctx->supported_modes[i].resolution.height;
+		bits = p_ctx->supported_modes[i].bits;
+		exposures = p_ctx->supported_modes[i].exposures;
+		if (w == f->fmt.pix_mp.width && h == f->fmt.pix_mp.height
+			&& exposures == f->fmt.pix_mp.reserved[0] && bits == f->fmt.pix_mp.reserved[1])
+			return i;
+	}
+
+	return -1;
+}
 //--------------------Initialization------------------------------------------------------------
 void sensor_init_dummy(uint32_t ctx_id, void **ctx, sensor_control_t *ctrl )
 {
+    if ( ctx_id < FIRMWARE_CONTEXT_NUMBER ) {
+        sensor_context_t *p_ctx = &s_ctx[ctx_id];
+		sensor_ops[p_ctx->channel] = NULL;
 
-	ctx_counter = ctx_id;
-    if ( ctx_counter < FIRMWARE_CONTEXT_NUMBER ) {
-        sensor_context_t *p_ctx = &s_ctx[ctx_counter];
-        //ctx_counter++;
-	sensor_ops[p_ctx->channel] = NULL;
-
-	
-	p_ctx->channel = ctx_id;
+		p_ctx->channel = ctx_id;
         p_ctx->param.sensor_exp_number = 1;
         p_ctx->param.again_log2_max = 2088960;//0 255*2^13 = 255*8196
         p_ctx->param.dgain_log2_max = 2088960;//0
         p_ctx->param.integration_time_apply_delay = 2;
         p_ctx->param.isp_exposure_channel_delay = 0;
-	p_ctx->param.lines_per_second = 10000;
+		p_ctx->param.lines_per_second = 10000;
+        p_ctx->param.modes_table = p_ctx->supported_modes;
+        p_ctx->param.modes_num = 1;
 
-        p_ctx->param.modes_table = dummy_drv_supported_modes;
-        p_ctx->param.modes_num = array_size( dummy_drv_supported_modes );
+        p_ctx->supported_modes[0].wdr_mode = WDR_MODE_LINEAR;
+        p_ctx->supported_modes[0].fps = 30 * 256;
+        p_ctx->supported_modes[0].resolution.width = 1920;
+        p_ctx->supported_modes[0].resolution.height = 1080;
+        p_ctx->supported_modes[0].bits = 12;
+        p_ctx->supported_modes[0].exposures = 1;
+
         p_ctx->param.sensor_ctx = &s_ctx;
-        sensor_set_mode(p_ctx, 0);          // init to mode 0
-
-//TODO 
-	p_ctx->param.sensor_type = SENSOR_NULL;
-
+		p_ctx->param.sensor_type = SENSOR_NULL;
         *ctx = p_ctx;
 
         ctrl->alloc_analog_gain = sensor_alloc_analog_gain;
@@ -664,7 +479,7 @@ void sensor_init_dummy(uint32_t ctx_id, void **ctx, sensor_control_t *ctrl )
         ctrl->alloc_integration_time = sensor_alloc_integration_time;
         ctrl->sensor_update = sensor_update;
         ctrl->set_mode = sensor_set_mode;
-	ctrl->set_sensor_type = sensor_set_type; 
+		ctrl->set_sensor_type = sensor_set_type; 
         ctrl->get_id = sensor_get_id;
         ctrl->get_parameters = sensor_get_parameters;
         ctrl->disable_sensor_isp = sensor_disable_isp;

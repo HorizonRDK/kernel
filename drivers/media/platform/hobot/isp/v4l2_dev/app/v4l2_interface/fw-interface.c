@@ -193,20 +193,20 @@ int fw_intf_isp_get_sensor_info( uint32_t ctx_id, isp_v4l2_sensor_info *sensor_i
         }
     }
 
-    LOG( LOG_INFO, "Sensor info current preset:%d v4l2 preset:%d", sensor_info->preset[i].fps_cur, sensor_info->preset_cur );
+    pr_info("Sensor info current preset:%d v4l2 preset:%d", sensor_info->preset[i].fps_cur, sensor_info->preset_cur );
 
     //check current sensor settings
 
-    LOG( LOG_INFO, "/* dump sensor info -----------------" );
+    pr_info("/* dump sensor info -----------------" );
     for ( i = 0; i < sensor_info->preset_num; i++ ) {
-        LOG( LOG_INFO, "   Idx#%02d - W:%04d H:%04d",
+        pr_info("   Idx#%02d - W:%04d H:%04d",
              i, sensor_info->preset[i].width, sensor_info->preset[i].height );
         for ( j = 0; j < sensor_info->preset[i].fps_num; j++ )
-            LOG( LOG_INFO, "            FPS#%d: %d (preset index = %d) exposures:%d",
+            pr_info("            FPS#%d: %d (preset index = %d) exposures:%d",
                  j, sensor_info->preset[i].fps[j] / 256, sensor_info->preset[i].idx[j], sensor_info->preset[i].exposures[j] );
     }
 
-    LOG( LOG_INFO, "-----------------------------------*/" );
+    pr_info( "-----------------------------------*/" );
 
 #else
     /* returning default setting (1080p) */
@@ -303,10 +303,10 @@ int fw_intf_sensor_resume( uint32_t ctx_id )
     return rc;
 }
 
-
+extern int sensor_info_get_idx(uint32_t ctx_id, struct v4l2_format *f);
 /* fw-interface per-stream config interface */
 int fw_intf_stream_set_resolution( uint32_t ctx_id, const isp_v4l2_sensor_info *sensor_info,
-                                   isp_v4l2_stream_type_t streamType, uint32_t *width, uint32_t *height )
+                                   isp_v4l2_stream_type_t streamType, struct v4l2_format *f )
 {
     /*
      * StreamType
@@ -319,63 +319,30 @@ int fw_intf_stream_set_resolution( uint32_t ctx_id, const isp_v4l2_sensor_info *
         return -EBUSY;
     }
 
-    LOG( LOG_DEBUG, "streamtype:%d, w:%d h:%d\n", streamType, *width, *height );
     if ( streamType == V4L2_STREAM_TYPE_FR ) {
 #if defined( TSENSOR ) && defined( SENSOR_PRESET )
         int result;
         uint32_t ret_val = 0;
         uint32_t idx = 0x0;
-        uint32_t fps = 0x0;
-        uint32_t w, h;
-        uint32_t i, j;
 
-
-        w = *width;
-        h = *height;
-
-        uint32_t width_cur = 0, height_cur = 0;
-        //check if we need to change sensor preset
-        acamera_command( ctx_id, TSENSOR, SENSOR_WIDTH, 0, COMMAND_GET, &width_cur );
-        acamera_command( ctx_id, TSENSOR, SENSOR_HEIGHT, 0, COMMAND_GET, &height_cur );
-        LOG( LOG_INFO, "target (width = %d, height = %d) current (w=%d h=%d)", w, h, width_cur, height_cur );
-        if ( width_cur != w || height_cur != h ) {
-            /* search resolution from preset table
-             *   for now, use the highest fps.
-             *   this should be changed properly in the future to pick fps from application
-             */
-            for ( i = 0; i < sensor_info->preset_num; i++ ) {
-                if ( sensor_info->preset[i].width == w && sensor_info->preset[i].height == h ) {
-                    *( (char *)&sensor_info->preset[i].fps_cur ) = 0;
-                    for ( j = 0; j < sensor_info->preset[i].fps_num; j++ ) {
-                        if ( sensor_info->preset[i].fps[j] > fps ) {
-                            fps = sensor_info->preset[i].fps[j];
-                            idx = sensor_info->preset[i].idx[j];
-                            *( (char *)&sensor_info->preset[i].fps_cur ) = j;
-                        }
-                    }
-
-                    break;
-                }
-            }
-            if ( i >= sensor_info->preset_num ) {
-                LOG( LOG_ERR, "invalid resolution (width = %d, height = %d) reverting to current %dx%d", w, h, width_cur, height_cur );
-                *width = width_cur;
-                *height = height_cur;
-                return 0;
-            }
-
-            /* set sensor resolution preset */
-            LOG( LOG_NOTICE, "Setting new resolution : width = %d, height = %d (preset idx = %d, fps = %d)", w, h, idx, fps / 256 );
-            result = acamera_command( ctx_id, TSENSOR, SENSOR_PRESET, idx, COMMAND_SET, &ret_val );
-            *( (char *)&sensor_info->preset_cur ) = idx;
-            if ( result ) {
-                LOG( LOG_ERR, "Failed to set preset to %u, ret_value: %d.", idx, result );
-                return result;
-            }
-        } else {
-            acamera_command( ctx_id, TSENSOR, SENSOR_PRESET, 0, COMMAND_GET, &idx );
-            LOG( LOG_INFO, "Leaving same sensor settings resolution : width = %d, height = %d (preset idx = %d)", w, h, idx );
+        idx = sensor_info_get_idx(ctx_id, f);
+        if (idx < 0) {
+            pr_err("cannot find w %d, h %d, exposures %d, bits %d\n",
+                f->fmt.pix_mp.width, f->fmt.pix_mp.height,
+                f->fmt.pix_mp.reserved[0], f->fmt.pix_mp.reserved[1]);
+            return -EINVAL;
         }
+        /* set sensor resolution preset */
+        pr_info("w %d, h %d, exposures %d, bits %d, preset idx = %d",
+            f->fmt.pix_mp.width, f->fmt.pix_mp.height,
+            f->fmt.pix_mp.reserved[0], f->fmt.pix_mp.reserved[1], idx);
+        result = acamera_command( ctx_id, TSENSOR, SENSOR_PRESET, idx, COMMAND_SET, &ret_val );
+        // *( (char *)&sensor_info->preset_cur ) = idx;
+        if ( result ) {
+            LOG( LOG_ERR, "Failed to set preset to %u, ret_value: %d.", idx, result );
+            return result;
+        }
+
 #endif
 #if 0
 #if defined( TIMAGE ) && defined( IMAGE_RESIZE_TYPE_ID ) && defined( IMAGE_RESIZE_WIDTH_ID )

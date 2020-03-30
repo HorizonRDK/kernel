@@ -477,13 +477,13 @@ void general_set_wdr_mode( general_fsm_ptr_t p_fsm )
 #if defined( SENSOR_ISP_SEQUENCE_DEFAULT_FS_LIN_2EXP ) || defined( SENSOR_ISP_SEQUENCE_DEFAULT_FS_LIN_3EXP ) || defined( SENSOR_ISP_SEQUENCE_DEFAULT_FS_LIN_4EXP )
         if ( 2 == p_fsm->cur_exp_number ) {
             acamera_load_sw_sequence( p_fsm->cmn.isp_base, ACAMERA_FSM2CTX_PTR( p_fsm )->isp_sequence, SENSOR_ISP_SEQUENCE_DEFAULT_FS_LIN_2EXP );
-            LOG( LOG_INFO, "Setting FS_Lin_2Exp Binary Sequence." );
+            pr_debug("Setting FS_Lin_2Exp Binary Sequence." );
         } else if ( 3 == p_fsm->cur_exp_number ) {
             acamera_load_sw_sequence( p_fsm->cmn.isp_base, ACAMERA_FSM2CTX_PTR( p_fsm )->isp_sequence, SENSOR_ISP_SEQUENCE_DEFAULT_FS_LIN_3EXP );
-            LOG( LOG_INFO, "Setting FS_Lin_3Exp Binary Sequence." );
+            pr_debug("Setting FS_Lin_3Exp Binary Sequence." );
         } else if ( 4 == p_fsm->cur_exp_number ) {
             acamera_load_sw_sequence( p_fsm->cmn.isp_base, ACAMERA_FSM2CTX_PTR( p_fsm )->isp_sequence, SENSOR_ISP_SEQUENCE_DEFAULT_FS_LIN_4EXP );
-            LOG( LOG_INFO, "Setting FS_Lin_4Exp Binary Sequence." );
+            pr_debug("Setting FS_Lin_4Exp Binary Sequence." );
         }
 #endif
 
@@ -497,6 +497,7 @@ void general_set_wdr_mode( general_fsm_ptr_t p_fsm )
     case WDR_MODE_NATIVE:
 #ifdef SENSOR_ISP_SEQUENCE_DEFAULT_NATIVE
         acamera_load_sw_sequence( p_fsm->cmn.isp_base, ACAMERA_FSM2CTX_PTR( p_fsm )->isp_sequence, SENSOR_ISP_SEQUENCE_DEFAULT_NATIVE );
+        pr_debug("Setting WDR_MODE_NATIVE Binary Sequence." );
 #endif
         break;
     }

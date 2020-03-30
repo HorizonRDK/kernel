@@ -91,7 +91,6 @@ struct calib_data_s {
 	LookupTable plut[CALIBRATION_TOTAL_SIZE];
         uint32_t tsize;
 	uint8_t enable;
-	uint8_t busy;
 };
 
 struct calib_param_s {

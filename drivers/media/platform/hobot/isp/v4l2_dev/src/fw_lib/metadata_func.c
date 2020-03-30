@@ -341,7 +341,8 @@ void metadata_update_meta( metadata_fsm_t *p_fsm )
     md->ccm[CCM_B][CCM_G] = acamera_isp_ccm_coefft_b_g_read( isp_base );
     md->ccm[CCM_B][CCM_B] = acamera_isp_ccm_coefft_b_b_read( isp_base );
 
-    memcpy((void *)&g_fw_md[p_ctx->context_id], (void *)md, sizeof(g_fw_md));
+    if (p_ctx->context_id < FIRMWARE_CONTEXT_NUMBER)
+        memcpy((void *)&g_fw_md[p_ctx->context_id], (void *)md, sizeof(p_fsm->cur_metadata));
 }
 
 #ifdef DEBUG_METADATA_FSM

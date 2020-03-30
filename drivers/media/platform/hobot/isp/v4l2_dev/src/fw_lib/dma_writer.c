@@ -722,7 +722,6 @@ dma_error dma_writer_pipe_process_interrupt( dma_pipe *pipe, uint32_t irq_event 
 dma_error dma_writer_process_interrupt( void *handle, uint32_t irq_event )
 {
     dma_error result = edma_ok;
-    uint32_t idx = 0;
 
     dma_handle *p_dma = (dma_handle *)handle;
     if ( !p_dma ) {

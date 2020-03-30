@@ -53,8 +53,6 @@ uint32_t get_calibrations_dummy( uint32_t ctx_id, void *sensor_arg, ACameraCalib
 
     int32_t preset = ( (sensor_mode_t *)sensor_arg )->wdr_mode;
 
-    LOG( LOG_CRIT, "calibration switching to WDR_MODE_LINEAR %d, sensor_type %d ", (int)preset, sensor_type );
-
     //logic which calibration to apply
     switch ( preset ) {
     case WDR_MODE_LINEAR:

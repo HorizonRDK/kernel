@@ -46,7 +46,7 @@ int fw_intf_sensor_resume( uint32_t ctx_id );
 
 /* fw-interface per-stream config interface */
 int fw_intf_stream_set_resolution( uint32_t ctx_id, const isp_v4l2_sensor_info *sensor_info,
-                                   isp_v4l2_stream_type_t streamType, uint32_t *width, uint32_t *height );
+                                   isp_v4l2_stream_type_t streamType, struct v4l2_format *f );
 int fw_intf_stream_set_output_format( uint32_t ctx_id, isp_v4l2_stream_type_t streamType, uint32_t format );
 
 /* fw-interface isp config interface */
