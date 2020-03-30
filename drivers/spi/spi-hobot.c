@@ -12,6 +12,8 @@
  * @history	20191128 haibo.guo slave mode
  */
 
+#define pr_fmt(fmt)	KBUILD_MODNAME ": " fmt
+
 #include <linux/module.h>
 #include <linux/interrupt.h>
 #include <linux/of.h>
@@ -27,7 +29,7 @@
 #include <linux/timer.h>
 #include <linux/clk.h>
 
-#define VER			"HOBOT-spi_V20.200213"
+#define VER			"HOBOT-spi_V20.200330"
 /* x2 spi master or slave mode select*/
 #define MASTER_MODE		(0)
 #define SLAVE_MODE		(1)
@@ -919,7 +921,7 @@ static int hb_spi_slave_prepare_message(
 	struct spi_controller *ctlr,
 	struct spi_message *msg)
 {
-	struct spi_device *spi = msg->spi;
+	//struct spi_device *spi = msg->spi;
 	struct hb_spi *hbspi = spi_controller_get_devdata(ctlr);
 
 	//hb_spi_wr(hbspi, HB_SPI_SRCPND_REG, HB_SPI_INT_ALL);
