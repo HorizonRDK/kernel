@@ -126,8 +126,8 @@ static u32 x2fb_pseudo_palette[16];
 //		phys_addr_t srcaddr, uint32_t size);
 
 static int x2fb_set_par(struct fb_info *fb);
-static void x2fb_activate_par(void);
-static int iar_get_framesize(void);
+//static void x2fb_activate_par(void);
+//static int iar_get_framesize(void);
 static int x2fb_setcolreg(unsigned int regno, unsigned int red,
 		unsigned int green, unsigned int blue, unsigned int transp,
 		struct fb_info *info);
@@ -150,7 +150,7 @@ static inline void x2_fast_imageblit(const struct fb_image *image,
 
 static int flag;
 static int start_flag;
-static uint32_t logo_addr;
+//static uint32_t logo_addr;
 
 struct fb_var_screeninfo RGB500_var_default = {
 	.xres = 800,
@@ -425,7 +425,6 @@ static int x2fb_blank(int blank, struct fb_info *info)
 
 static int x2fb_mmap(struct fb_info *info, struct vm_area_struct *pvma)
 {
-	unsigned int frame_size = 0;
 	int ret = 0;
 
 	pr_debug("x2fb mmap begin!\n");
@@ -443,7 +442,7 @@ static int x2fb_mmap(struct fb_info *info, struct vm_area_struct *pvma)
 		pr_err("x2fb mmap fail\n");
 		return -EAGAIN;
 	}
-	pr_err("x2fb mmap end!:%llx\n", info->fix.smem_start);
+	pr_err("x2fb mmap end!:%lx\n", info->fix.smem_start);
 	return ret;
 }
 
@@ -680,6 +679,7 @@ static int x2fb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
 	return 0;
 }
 
+/*
 static int iar_get_framesize(void)
 {
 	int i = 0;
@@ -752,6 +752,7 @@ static int iar_get_framesize(void)
 	}
 	return 0;
 }
+*/
 
 static int x2fb_set_par(struct fb_info *fb)
 {
@@ -1143,11 +1144,12 @@ int user_set_fb(void)
 
 }
 EXPORT_SYMBOL(user_set_fb);
-
+/*
 static void x2fb_activate_par(void)
 {
 	iar_update();
 }
+*/
 
 static void x2fb_imageblit(struct fb_info *p, const struct fb_image *image)
 {
@@ -1201,11 +1203,12 @@ static inline void x2_color_imageblit(const struct fb_image *image,
 	u32 __iomem *dst, *dst2;
 	u32 color = 0, val, shift;
 	u32 color_r, color_g, color_b;
-	int i, n, bpp = p->var.bits_per_pixel;
-	u32 null_bits = 32 - bpp;
+	int i, n;
+	//int bpp = p->var.bits_per_pixel;
+	//u32 null_bits = 32 - bpp;
 	u32 *palette = (u32 *) p->pseudo_palette;
 	const u8 *src = image->data;
-	u32 bswapmask = fb_compute_bswapmask(p);
+	//u32 bswapmask = fb_compute_bswapmask(p);
 	const unsigned char *logo_lut = logo_linux_clut224.clut;
 
 	dst2 = (u32 __iomem *) dst1;
@@ -1385,7 +1388,6 @@ static int x2fb_probe(struct platform_device *pdev)
 	int ret;
 	frame_buf_t framebuf_user;
 	frame_buf_t framebuf_user1;
-	char *fb1_id = "hobot-fb1";
 
 	pr_info("x2fb probe!!!\n");
 

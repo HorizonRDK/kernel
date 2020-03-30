@@ -604,7 +604,7 @@ static ssize_t x2_iar_show(struct kobject *kobj, struct kobj_attribute *attr, ch
 }
 static ssize_t x2_iar_store(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t n)
 {
-	char *tmp;
+	const char *tmp;
 	int error = -EINVAL;
 	int ret = 0;
 	unsigned long tmp_value = 0, pipeline = 0,
@@ -622,7 +622,7 @@ static ssize_t x2_iar_store(struct kobject *kobj, struct kobj_attribute *attr, c
 		tmp = tmp + 3;
 		ret = kstrtoul(tmp, 0, &tmp_value);
 		if (ret == 0) {
-			pr_info("checkout camera %d display!!\n", tmp_value);
+			pr_info("checkout camera %ld display!!\n", tmp_value);
 			if (tmp_value > 1) {
 				pr_info("wrong camera channel, exit!!\n");
 				return error;
@@ -642,7 +642,7 @@ static ssize_t x2_iar_store(struct kobject *kobj, struct kobj_attribute *attr, c
 				pr_info("wrong video layer number, exit!!\n");
 				return error;
 			} else {
-				pr_info("display layer is %d!!\n", disp_layer);
+				pr_info("display layer is %ld!!\n", disp_layer);
 			}
 		} else {
 			pr_info("error input type, exit!!\n");
@@ -657,7 +657,7 @@ static ssize_t x2_iar_store(struct kobject *kobj, struct kobj_attribute *attr, c
 				pr_info("wrong pipeline number, exit!!\n");
 				return error;
 			} else {
-				pr_info("checkout pipeline %d display!!\n", pipeline);
+				pr_info("checkout pipeline %ld display!!\n", pipeline);
 			}
 		} else {
 			pr_info("error input type, exit!!\n");
@@ -672,7 +672,7 @@ static ssize_t x2_iar_store(struct kobject *kobj, struct kobj_attribute *attr, c
 				pr_info("wrong vio address type, exit!!\n");
 				return error;
 			} else {
-				pr_info("display vio address type is %d!!\n", disp_vio_addr_type);
+				pr_info("display vio address type is %ld!!\n", disp_vio_addr_type);
 			}
 		} else {
 			pr_info("error input type, exit!!\n");
@@ -715,7 +715,7 @@ static ssize_t x2_iar_store(struct kobject *kobj, struct kobj_attribute *attr, c
 		tmp = buf + 6;
 		ret = kstrtoul(tmp, 0, &tmp_value);
 		if (ret == 0) {
-			pr_info("enable channel %d\n", tmp_value);
+			pr_info("enable channel %ld\n", tmp_value);
 			iar_layer_enable(tmp_value);
 			iar_start(1);
 		} else {
@@ -727,7 +727,7 @@ static ssize_t x2_iar_store(struct kobject *kobj, struct kobj_attribute *attr, c
 		tmp = buf + 7;
 		ret = kstrtoul(tmp, 0, &tmp_value);
 		if (ret == 0) {
-			pr_info("disable channel %d\n", tmp_value);
+			pr_info("disable channel %ld\n", tmp_value);
 			iar_layer_disable(tmp_value);
 			iar_start(1);
 		} else {
@@ -739,7 +739,7 @@ static ssize_t x2_iar_store(struct kobject *kobj, struct kobj_attribute *attr, c
 		ret = kstrtoul(tmp, 0, &tmp_value);
 		if (ret == 0) {
 			if (tmp_value < 11) {
-				pr_info("set screen backlight level %d\n", tmp_value);
+				pr_info("set screen backlight level %ld\n", tmp_value);
 				set_screen_backlight(tmp_value);
 			} else {
 				pr_info("error backlight level!!\n");
@@ -775,7 +775,7 @@ static struct attribute_group attr_group = {
 int __init iar_cdev_init(void)
 {
 	int error;
-	struct device *dev;
+	//struct device *dev;
 
 	g_iar_cdev = kmalloc(sizeof(struct iar_cdev_s), GFP_KERNEL);
 	if (!g_iar_cdev) {

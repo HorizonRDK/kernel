@@ -827,7 +827,7 @@ int8_t disp_set_pixel_clk(uint64_t pixel_clk)
 		return -1;
 	}
 	pixel_rate = clk_get_rate(g_iar_dev->iar_pixel_clk);
-	pr_err("%s: iar pixel rate is %ld\n", __func__, pixel_rate);
+	pr_err("%s: iar pixel rate is %lld\n", __func__, pixel_rate);
 	return 0;
 }
 
@@ -868,7 +868,7 @@ int disp_clk_enable(void)
 		return -1;
 	}
 	pixel_clock = clk_get_rate(g_iar_dev->iar_pixel_clk);
-	pr_err("%s: iar pixel rate is %ld\n", __func__, pixel_clock);
+	pr_debug("%s: iar pixel rate is %lld\n", __func__, pixel_clock);
 	return 0;
 }
 
@@ -1395,7 +1395,7 @@ int32_t ipu_set_display_addr(uint32_t disp_layer,
 		uint32_t yaddr, uint32_t caddr)
 {
 	pr_debug("iar: ipu set iar!!!!!!!!\n");
-	pr_debug("layer is %d, yaddr is %llx, caddr is %llx\n",
+	pr_debug("layer is %d, yaddr is 0x%x, caddr is 0x%x\n",
 			disp_layer, yaddr, caddr);
 	disp_user_config_done = 1;//for debug
 	//disp_user_update = 0;//for debug
@@ -1721,7 +1721,6 @@ int iar_wb_stream_off(void)
 int iar_wb_reqbufs(u32 buffers)
 {
 	int ret = 0;
-	int i = 0;
 	struct vio_framemgr *framemgr;
 
 	if (!(g_iar_dev->state & (BIT(IAR_WB_STOP) | BIT(IAR_WB_INIT)))) {
@@ -1756,7 +1755,7 @@ int iar_wb_qbuf(struct frame_info *frameinfo)
 	int ret = 0;
 	struct vio_framemgr *framemgr;
 	struct vio_frame *frame;
-	struct vio_group *group;
+	//struct vio_group *group;
 	unsigned long flags;
 	int index;
 
@@ -1870,7 +1869,7 @@ int iar_wb_capture_start(void)
 
 		writel(frame->frameinfo.addr[0],
 			g_iar_dev->regaddr + REG_IAR_CURRENT_CBUF_ADDR_WR_Y);
-		if(frame->frameinfo.addr[1] == NULL) {
+		if(!frame->frameinfo.addr[1]) {
 			frame->frameinfo.addr[1] = frame->frameinfo.addr[0] +
 				frame->frameinfo.width * frame->frameinfo.height;
 		}
@@ -1930,7 +1929,7 @@ int iar_wb_capture_done(void)
 {
 	struct vio_framemgr *framemgr;
 	struct vio_frame *frame;
-	struct vio_group *group;
+	//struct vio_group *group;
 	unsigned long flags;
 
 	// group = pym_ctx->group;
@@ -1956,6 +1955,7 @@ int iar_wb_capture_done(void)
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
 	wake_up(&g_iar_dev->done_wq);
+	return 0;
 }
 
 int iar_output_stream_on(layer_no)
@@ -2075,7 +2075,6 @@ int iar_output_buf_init(int layer_no, struct frame_info *frameinfo)
 int iar_output_reqbufs(int layer_no, u32 buffers)
 {
 	int ret = 0;
-	int i = 0;
 	struct vio_framemgr *framemgr;
 
 	framemgr = &g_iar_dev->framemgr_layer[layer_no];
@@ -2231,7 +2230,6 @@ static int iar_thread(void *data)
 {
 	buf_addr_t display_addr;
 	buf_addr_t display_addr_video1;
-	void __iomem *remap_addr;
 
 	do {
 		if (kthread_should_stop())
@@ -2268,20 +2266,20 @@ static int iar_thread(void *data)
 				display_addr.Uaddr, display_addr.Vaddr);
 		} else {
 			pr_debug("iar: iar display refresh!!!!!\n");
-			pr_debug("iar display video 0 yaddr is 0x%llx, caddr is 0x%llx\n",
+			pr_debug("iar display video 0 yaddr is 0x%x, caddr is 0x%x\n",
 					display_addr.Yaddr, display_addr.Uaddr);
-			pr_debug("iar display video 1 yaddr is 0x%llx, caddr is 0x%llx\n",
+			pr_debug("iar display video 1 yaddr is 0x%x, caddr is 0x%x\n",
 					display_addr_video1.Yaddr, display_addr_video1.Uaddr);
 			iar_set_bufaddr(0, &display_addr);
 			iar_set_bufaddr(1, &display_addr_video1);
 			iar_update();
 		}
 	} while (!kthread_should_stop());
+	return 0;
 }
 
 int disp_set_ppbuf_addr(uint8_t layer_no, void *yaddr, void *caddr)
 {
-	int ret = 0;
 	buf_addr_t display_addr;
 	uint8_t video_index;
 	uint32_t y_size;
@@ -2367,6 +2365,7 @@ int iar_rotate_video_buffer(phys_addr_t yaddr,
 	return 0;
 }
 
+/*
 #define IAR_DRAW_WIDTH	(1920)
 #define IAR_DRAW_HEIGHT	(1080)
 #define IAR_DRAW_PBYTE	(4)
@@ -2429,7 +2428,7 @@ static void x2_iar_draw_rect(char *frame, int x0, int y0, int x1, int y1,
 		x2_iar_draw_vline(frame, xa, yi, ya, color);
 	}
 }
-
+*/
 int panel_hardware_reset(void)
 {
 	gpio_direction_output(panel_reset_pin, 1);
@@ -2466,7 +2465,6 @@ static int x2_iar_probe(struct platform_device *pdev)
 	char *temp1;
 	int tempi = 0;
 	void *vaddr;
-	int deta = 0;
 	uint64_t pixel_rate;
 	char *type;
 	void __iomem *hitm1_reg_addr;
@@ -2540,7 +2538,7 @@ static int x2_iar_probe(struct platform_device *pdev)
 		goto err1;
 	}
 	g_iar_dev->irq = irq->start;
-	pr_debug("g_iar_dev->irq is %d\n", irq->start);
+	pr_debug("g_iar_dev->irq is %lld\n", irq->start);
 
 	//return 0;
 	g_iar_dev->pinctrl = devm_pinctrl_get(&pdev->dev);
@@ -2594,7 +2592,7 @@ static int x2_iar_probe(struct platform_device *pdev)
 		return ret;
 	}
 	pixel_rate = clk_get_rate(g_iar_dev->iar_pixel_clk);
-	pr_debug("%s: iar pixel rate is %ld\n", __func__, pixel_rate);
+	pr_debug("%s: iar pixel rate is %lld\n", __func__, pixel_rate);
 
 	init_waitqueue_head(&g_iar_dev->wq_head);
 	ret = request_threaded_irq(g_iar_dev->irq, x2_iar_irq, NULL, IRQF_TRIGGER_HIGH,

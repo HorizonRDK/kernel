@@ -233,7 +233,6 @@ static int goodix_get_cfg_len(u16 id)
 
 static int goodix_ts_read_input_report(u8 *data)
 {
-	unsigned long max_timeout;
 	int touch_num = -1;
 	int error;
 
@@ -338,8 +337,6 @@ static void goodix_process_events(void)
  */
 static irqreturn_t goodix_ts_irq_handler(int irq, void *dev_id)
 {
-	int ret;
-
 	pr_debug("touch screen irq!!!\n");
 	//disable_irq_nosync(irq);
 	schedule_work(tpwork);
@@ -677,7 +674,7 @@ static int goodix_configure_dev(void)
 
 	//ts->irq_flags = goodix_irq_flags[ts->int_trigger_type] | IRQF_ONESHOT;
 	ts->irq_flags = IRQ_TYPE_EDGE_RISING | IRQF_ONESHOT;
-	pr_debug("%s: irq flags is 0x%x\n", __func__, ts->irq_flags);
+	pr_debug("%s: irq flags is 0x%lx\n", __func__, ts->irq_flags);
 	tpwork = kmalloc(sizeof(*tpwork), GFP_ATOMIC);
 	INIT_WORK(tpwork, work_queue);
 	if(hotpoll_flag == 0) {

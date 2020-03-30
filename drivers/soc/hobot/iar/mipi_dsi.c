@@ -27,7 +27,6 @@
 #include <soc/hobot/hobot_mipi_dphy.h>
 
 extern struct iar_dev_s *g_iar_dev;
-//int panel_reset_pin;
 
 #define VERSION	0x0
 #define PWR_UP	0x4
@@ -379,7 +378,7 @@ static int mipi_dsi_core_start(void)
 
 static int mipi_dsi_core_pre_init(uint8_t panel_no)
 {
-	void __iomem *hitm1_reg_addr;
+	//void __iomem *hitm1_reg_addr;
 
 /*	hitm1_reg_addr = ioremap_nocache(0xA4300000 + 0xe0, 4);
 	writel(0x1, hitm1_reg_addr);
@@ -1374,6 +1373,7 @@ int mipi_dsi_panel_init(uint8_t panel_no)
 		pr_info("mipi dsi panel config end!\n");
 		return 0;
 	}
+	return 0;
 }
 
 int set_mipi_display(uint8_t panel_no)
