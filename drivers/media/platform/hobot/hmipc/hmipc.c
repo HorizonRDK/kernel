@@ -23,7 +23,7 @@
 #define HMIPC_IOCTL_MAGIC	'N'
 #define HMIPC_SET_COUNT	(_IOW(HMIPC_IOCTL_MAGIC, 0, int))
 
-//#define POLL_DEBUG
+// #define POLL_DEBUG
 
 #undef PDEBUG_HMIPC
 #ifdef POLL_DEBUG
@@ -51,8 +51,17 @@ struct hmipc_channel *g_hmipc_channel = NULL;
 
 static int hmipc_open(struct inode *inode, struct file *filp)
 {
-	filp->private_data = g_hmipc_channel;
+	struct hmipc_channel *channel_ctx;
 
+	channel_ctx = kzalloc(sizeof(struct hmipc_channel), GFP_KERNEL);
+	if (channel_ctx == NULL) {
+		pr_err("struct hmipc_channel allocate fail\n");
+		return -ENOMEM;
+	}
+	mutex_init(&channel_ctx->hmipc_mutex);
+	init_waitqueue_head(&channel_ctx->wq_head);
+	filp->private_data = channel_ctx;
+	// filp->private_data = g_hmipc_channel;
 	PDEBUG_HMIPC("%s:%d\n", __func__, __LINE__);
 
 	return 0;
@@ -60,6 +69,8 @@ static int hmipc_open(struct inode *inode, struct file *filp)
 
 static int hmipc_close(struct inode *inode, struct file *filp)
 {
+	struct hmipc_channel *channel = filp->private_data;
+	kfree(channel);
 	return 0;
 }
 
@@ -79,7 +90,7 @@ static unsigned int hmipc_poll(struct file *filp,
 		mask |= POLLIN | POLLRDNORM;
 
 		/* decrease each time */
-		channel->count--;
+		// channel->count--;
 	}
 	mutex_unlock(&channel->hmipc_mutex);
 
@@ -108,6 +119,10 @@ static long hmipc_ioctl(struct file *filp, unsigned int cmd,
 
 			/* update count */
 			channel->count += cnt;
+			if (cnt == 0)
+				channel->count = 0;
+			if (channel->count < 0)
+				channel->count = 0;
 
 			PDEBUG_HMIPC("[%s]channel->count = %d\n", __func__, channel->count);
 
@@ -171,8 +186,8 @@ static int __init hmipc_init(void)
 		goto device_create_err;
 	}
 
-	mutex_init(&g_hmipc_channel->hmipc_mutex);
-	init_waitqueue_head(&g_hmipc_channel->wq_head);
+	// mutex_init(&g_hmipc_channel->hmipc_mutex);
+	// init_waitqueue_head(&g_hmipc_channel->wq_head);
 
 	PDEBUG_HMIPC("%s:%d\n", __func__, __LINE__);
 
