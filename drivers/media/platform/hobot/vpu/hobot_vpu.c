@@ -640,6 +640,7 @@ static int vpu_open(struct inode *inode, struct file *filp)
 	priv->inst_index = -1;
 	filp->private_data = (void *)priv;
 	spin_unlock(&dev->vpu_spinlock);
+	hb_vpu_clk_enable(dev);
 
 	vpu_debug_leave();
 	return 0;
@@ -1403,6 +1404,7 @@ static int vpu_release(struct inode *inode, struct file *filp)
 		return -1;
 	}
 	priv = filp->private_data;
+	hb_vpu_clk_disable(dev);
 
 	if ((ret = down_interruptible(&dev->vpu_sem)) == 0) {
 		/* found and free the not handled buffer by user applications */
@@ -1778,6 +1780,7 @@ static int vpu_probe(struct platform_device *pdev)
 	if (err < 0) {
 		goto ERR_GET_CLK;
 	}
+	hb_vpu_clk_put(dev);
 
 #ifdef CONFIG_ION_HOBOT
 	dev->vpu_ion_client = ion_client_create(ion_exynos, "vpu");
@@ -1946,8 +1949,8 @@ static int vpu_remove(struct platform_device *pdev)
 	ion_client_destroy(dev->vpu_ion_client);
 #endif
 
-	hb_vpu_clk_disable(dev);
-	hb_vpu_clk_put(dev);
+	//hb_vpu_clk_disable(dev);
+	//hb_vpu_clk_put(dev);
 	sysfs_remove_file(&pdev->dev.kobj, &vpu_debug_attr.attr);
 	device_destroy(dev->vpu_class, dev->vpu_dev_num);
 	cdev_del(&dev->cdev);

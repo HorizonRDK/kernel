@@ -51,7 +51,10 @@ int hb_vpu_clk_get(hb_vpu_dev_t *dev)
 
 void hb_vpu_clk_put(hb_vpu_dev_t *dev)
 {
-	// Do nothing
+	if (!dev)
+		return;
+	clk_disable_unprepare(dev->vpu_bclk);
+	clk_disable_unprepare(dev->vpu_cclk);
 }
 
 int hb_vpu_clk_enable(hb_vpu_dev_t *dev)
