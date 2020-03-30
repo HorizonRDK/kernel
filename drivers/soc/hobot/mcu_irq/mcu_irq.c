@@ -77,7 +77,7 @@ static ssize_t mcu_irq_read(struct file *filp, char __user *buf,
 {
 	return 0;
 }
-
+#ifdef MCU_IRQ_MODE
 static irqreturn_t mcu_data_ready_irq(int irq, void *devid)
 {
 	struct mcu_irq_cdev *info;
@@ -88,7 +88,7 @@ static irqreturn_t mcu_data_ready_irq(int irq, void *devid)
 	kill_fasync(&info->mcuirq_async, SIGIO, POLL_IN);
 	return IRQ_HANDLED;
 }
-
+#endif
 static ssize_t mcu_irq_write(struct file *filp, const char __user *buf,
 			     size_t size, loff_t *ppos)
 {
@@ -382,6 +382,7 @@ static int mcu_irq_remove(struct platform_device *pdev)
 	gpio_free(info->time_sync_gpio);
 	gpio_free(info->mcu_tx_data_gpio);
 	mcu_irq_free_chrdev(info);
+	return 0;
 }
 
 static const struct of_device_id mcu_irq_of_match[] = {
