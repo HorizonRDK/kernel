@@ -184,7 +184,7 @@ void sif_write_frame_work(struct vio_group *group)
 	}
 
 	sif = subdev->sif_dev;
-	mux_index = subdev->mux_index;
+	mux_index = subdev->ddr_mux_index;
 
 	framemgr = &subdev->framemgr;
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
@@ -296,13 +296,23 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 
 	if ((group) && atomic_dec_return(&subdev->refcount) == 0) {
 		subdev->state = 0;
+		clear_bit(subdev->mux_index, &sif->mux_mask);
+		clear_bit(subdev->ddr_mux_index, &sif->mux_mask);
 		clear_bit(VIO_GROUP_INIT, &group->state);
-		clear_bit(subdev->mux_index + 1, &sif->state);
+		clear_bit(subdev->ddr_mux_index, &sif->state);
 		if (subdev->dol_num > 1)
 			clear_bit(SIF_DOL2_MODE + subdev->mux_index + 1, &sif->state);
 		if (subdev->dol_num > 2)
 			clear_bit(SIF_DOL2_MODE + subdev->mux_index + 2, &sif->state);
 
+		if (subdev->mux_nums > 1) {
+			clear_bit(subdev->mux_index + 1, &sif->mux_mask);
+			clear_bit(subdev->ddr_mux_index + 1, &sif->mux_mask);
+		}
+		if (subdev->mux_nums > 2) {
+			clear_bit(subdev->mux_index + 2, &sif->mux_mask);
+			clear_bit(subdev->ddr_mux_index + 2, &sif->mux_mask);
+		}
 		if (group->gtask)
 			vio_group_task_stop(group->gtask);
 
@@ -361,13 +371,59 @@ int sif_get_stride(u32 pixel_length, u32 width)
 	return stride;
 }
 
+int get_free_mux(struct x3_sif_dev *sif, u32 index, int format, u32 dol_num,
+		u32 *mux_numbers)
+{
+	int ret = 0;
+	int i = 0;
+	int step = 1;
+	int mux_nums = 1;
+
+	mux_nums = dol_num;
+	if (format == HW_FORMAT_YUV422) {
+		step = 2;
+		mux_nums = 2;
+	}
+
+	*mux_numbers = mux_nums;
+
+	spin_lock(&sif->shared_slock);
+	for (i = index; i < SIF_MUX_MAX; i += step) {
+		if (!test_bit(i, &sif->mux_mask)) {
+			if (mux_nums > 1 && test_bit(i + 1, &sif->mux_mask))
+				continue;
+			if (mux_nums > 2 && test_bit(i + 2, &sif->mux_mask))
+				continue;
+
+			set_bit(i, &sif->mux_mask);
+			if (mux_nums > 1)
+				set_bit(i + 1, &sif->mux_mask);
+			if (mux_nums > 2)
+				set_bit(i + 2, &sif->mux_mask);
+			ret = i;
+			break;
+		}
+	}
+	spin_unlock(&sif->shared_slock);
+
+	if (i >= SIF_MUX_MAX) {
+		vio_err("can't get free mux\n");
+		ret = -EINVAL;
+	}
+
+	return ret;
+}
 int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 {
 	int ret = 0;
 	u32 cfg = 0;
-	u32 mux_index = 0;
+	int mux_index = 0;
+	int ddr_mux_index = 0;
+	u32 mux_nums = 0;
 	u32 ddr_enable = 0;
 	u32 dol_exp_num = 0;
+	int format = 0;
+	int isp_flyby = 0;
 	struct x3_sif_dev *sif;
 	struct vio_group_task *gtask;
 	struct vio_group *group;
@@ -375,12 +431,32 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 	sif = subdev->sif_dev;
 	group = subdev->group;
 
-	mux_index = sif_config->input.mipi.func.set_mux_out_index;
-	subdev->mux_index = mux_index;
+	format = sif_config->input.mipi.data.format;
+	dol_exp_num = sif_config->output.isp.dol_exp_num;
+	isp_flyby = sif_config->output.isp.func.enable_flyby;
+	ddr_enable =  sif_config->output.ddr.enable;
 
-	if (sif_config->input.mipi.data.format == HW_FORMAT_YUV422) {
+	mux_index = get_free_mux(sif, 0, format, dol_exp_num, &mux_nums);
+	if (mux_index < 0)
+		return mux_index;
+
+	subdev->mux_nums = mux_nums;
+	sif_config->input.mipi.func.set_mux_out_index = mux_index;
+	subdev->mux_index = mux_index;
+	ddr_mux_index = mux_index;
+
+	if (isp_flyby && ddr_enable) {
+		vio_info("ddr output enable in online mode\n");
+		ddr_mux_index = get_free_mux(sif, 4, format, dol_exp_num, &mux_nums);
+		if (ddr_mux_index < 0)
+			return ddr_mux_index;
+		sif->sif_mux[ddr_mux_index] = group;
+	}
+	sif_config->output.ddr.mux_index = ddr_mux_index;
+	subdev->ddr_mux_index = ddr_mux_index;
+
+	if (format == HW_FORMAT_YUV422) {
 		if (mux_index % 2 == 0) {
-			set_bit(mux_index + 1, &sif->state);
 			vio_info("sif input format is yuv, and current mux = %d\n",
 			     mux_index);
 		} else
@@ -388,7 +464,6 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 			     mux_index);
 	}
 
-	dol_exp_num = sif_config->output.isp.dol_exp_num;
 	subdev->dol_num = dol_exp_num;
 	if(dol_exp_num == 2){
 		set_bit(SIF_DOL2_MODE + mux_index + 1, &sif->state);
@@ -399,11 +474,11 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 		vio_info("DOL3 mode, current mux = %d\n", mux_index);
 	}
 
+
 	subdev->rx_num = sif_config->input.mipi.mipi_rx_index;
 	subdev->initial_frameid = true;
 	sif->sif_mux[mux_index] = group;
 
-	ddr_enable =  sif_config->output.ddr.enable;
 	if(ddr_enable == 0) {
 		set_bit(VIO_GROUP_OTF_OUTPUT, &group->state);
 		cfg = ips_get_bus_ctrl() | 0xd21e << 16;
@@ -417,16 +492,17 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 		group->frame_work = sif_write_frame_work;
 		vio_group_task_start(gtask);
 		sema_init(&gtask->hw_resource, 4);
+		set_bit(ddr_mux_index, &sif->state);
 	}
 
 	ips_set_bus_ctrl(cfg);
 	sif_hw_config(sif->base_reg, sif_config);
 
-	subdev->bufcount = sif_get_current_bufindex(sif->base_reg, mux_index);
+	subdev->bufcount = sif_get_current_bufindex(sif->base_reg, ddr_mux_index);
 	sif->mismatch_cnt = 0;
 
-	vio_info("[S%d] %s mux_index %d\n", group->instance,
-			__func__, mux_index);
+	vio_info("[S%d] %s mux_index %d ddr_mux_index = %d\n", group->instance,
+			__func__, mux_index, ddr_mux_index);
 
 	return ret;
 }
@@ -923,6 +999,7 @@ void sif_frame_done(struct sif_subdev *subdev)
 		}
 	}
 	spin_unlock(&subdev->slock);
+	vio_dbg("%s: mux_index = %d\n", __func__, subdev->ddr_mux_index);
 }
 
 static irqreturn_t sif_isr(int irq, void *data)
@@ -949,15 +1026,10 @@ static irqreturn_t sif_isr(int irq, void *data)
 
 	if (status) {
 		for (mux_index = 0; mux_index <= 7; mux_index++) {
-			if (test_bit(mux_index, &sif->state)
-			    && (mux_index % 2 == 1))
-				continue;
-
 			if (test_bit(mux_index + SIF_DOL2_MODE, &sif->state))
 				continue;
 
-			if (status & 1 <<
-			    (mux_index + INTR_SIF_MUX0_FRAME_DONE)) {
+			if (status & 1 << (mux_index + INTR_SIF_MUX0_FRAME_DONE)) {
 				group = sif->sif_mux[mux_index];
 				subdev = group->sub_ctx[0];
 				sif_frame_done(subdev);
@@ -973,7 +1045,7 @@ static irqreturn_t sif_isr(int irq, void *data)
 				sif_get_frameid_timestamps(sif->base_reg,
 							   mux_index, &group->frameid);
 
-				if (test_bit(VIO_GROUP_DMA_OUTPUT, &group->state)) {
+				if (test_bit(mux_index, &sif->state)) {
 					gtask = group->gtask;
 					if (unlikely(list_empty(&gtask->hw_resource.wait_list))) {
 						vio_err("[S%d]GP%d(res %d, rcnt %d)\n",
