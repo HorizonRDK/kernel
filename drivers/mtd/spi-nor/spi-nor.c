@@ -266,7 +266,7 @@ static ssize_t spi_nor_spimem_xfer_data(struct spi_nor *nor,
 	else
 		buf = op->data.buf.out;
 
-	if (object_is_on_stack(buf) || !virt_addr_valid(buf))
+	if (object_is_on_stack((void *) buf) || !virt_addr_valid(buf))
 		usebouncebuf = true;
 
 	if (usebouncebuf) {
