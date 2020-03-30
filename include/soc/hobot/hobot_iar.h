@@ -723,6 +723,7 @@ extern uint8_t disp_user_config_done;
 extern struct ion_device *hb_ion_dev;
 extern uint8_t disp_copy_done;
 #ifdef CONFIG_HOBOT_XJ3
+extern uint32_t hb_disp_base_board_id;
 extern uint8_t iar_display_addr_type;
 extern uint8_t iar_display_cam_no;
 extern uint8_t iar_display_addr_type_video1;

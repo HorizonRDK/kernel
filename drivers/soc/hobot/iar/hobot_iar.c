@@ -60,6 +60,10 @@ uint32_t iar_display_caddr_offset;
 uint8_t iar_display_addr_type = DS5;
 uint8_t iar_display_cam_no;
 #else
+#define X3_GPIO_BASE    (0xA6003000)
+#define X3_GPIO0_VALUE_REG      (0xC)
+#define X3_PWM0_PINMUX	(0xA6004010)
+uint32_t hb_disp_base_board_id;
 uint8_t iar_display_addr_type = DISPLAY_CHANNEL1;
 uint8_t iar_display_cam_no = PIPELINE0;
 uint8_t iar_display_addr_type_video1 = 0;
@@ -2492,21 +2496,34 @@ static int x2_iar_probe(struct platform_device *pdev)
 		devm_ioremap_resource(&pdev->dev, res_mipi);
 	if (IS_ERR(g_iar_dev->mipi_dsi_regaddr))
 		return PTR_ERR(g_iar_dev->mipi_dsi_regaddr);
-	ret = of_property_read_u32(pdev->dev.of_node,
-		"disp_panel_reset_pin", &panel_reset_pin);
-	if (ret) {
-		dev_err(&pdev->dev, "Filed to get panel_reset_pin\n");
-	} else {
-		ret = gpio_request(panel_reset_pin, "disp_panel_reset_pin");
+	hitm1_reg_addr = ioremap_nocache(X3_GPIO_BASE + X3_GPIO0_VALUE_REG, 4);
+	reg_val = readl(hitm1_reg_addr);
+	reg_val = (((reg_val >> 14) & 0x1) << 1) | ((reg_val >> 12) & 0x1);
+	hb_disp_base_board_id = reg_val + 1;
+	pr_debug("iar: base board id is 0x%x\n", hb_disp_base_board_id);
+	if (hb_disp_base_board_id == 0x1) {     //x3_dvb
+		ret = screen_backlight_init();
+		hitm1_reg_addr = ioremap_nocache(X3_PWM0_PINMUX, 4);
+		writel(0x2, hitm1_reg_addr);
+		if (ret)
+			pr_err("%s: error init pwm0!!\n", __func__);
+		pr_info("iar: pwm0 init success!!\n");
+		ret = of_property_read_u32(pdev->dev.of_node,
+			"disp_panel_reset_pin", &panel_reset_pin);
 		if (ret) {
-			pr_err("%s() Err get trigger pin ret= %d\n",
-						__func__, ret);
-			//return -ENODEV;
+			dev_err(&pdev->dev, "Filed to get panel_reset_pin\n");
 		} else {
-			rst_request_flag = 1;
+			ret = gpio_request(panel_reset_pin, "disp_panel_reset_pin");
+			if (ret) {
+				pr_err("%s() Err get trigger pin ret= %d\n",
+					__func__, ret);
+				//return -ENODEV;
+			} else {
+				rst_request_flag = 1;
+			}
 		}
+		pr_debug("gpio request succeed!!!!\n");
 	}
-	pr_debug("gpio request succeed!!!!\n");
 #endif
 	g_iar_dev->rst = devm_reset_control_get(&pdev->dev, "iar");
 	if (IS_ERR(g_iar_dev->rst)) {
@@ -2594,11 +2611,6 @@ static int x2_iar_probe(struct platform_device *pdev)
 			ret = PTR_ERR(g_iar_dev->iar_task);
 		}
 	}
-#ifdef CONFIG_HOBOT_XJ3
-	ret = screen_backlight_init();
-	if (ret)
-		pr_err("%s: error init pwm0!!\n", __func__);
-#endif
 	np = of_parse_phandle(pdev->dev.of_node, "memory-region", 0);
 	if (!np) {
 		dev_err(&g_iar_dev->pdev->dev, "No %s specified\n", "memory-region");
