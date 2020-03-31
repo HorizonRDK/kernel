@@ -87,6 +87,69 @@ int ips_set_bus_ctrl(unsigned int cfg)
 }
 EXPORT_SYMBOL_GPL(ips_set_bus_ctrl);
 
+int ips_set_md_cfg(sif_output_md_t *cfg)
+{
+	int ret = 0;
+	struct roi_rect rect;
+	BUG_ON(!g_ips_dev);
+
+	spin_lock(&g_ips_dev->shared_slock);
+	rect.roi_height = cfg->roi_height;
+	rect.roi_width = cfg->roi_width;
+	rect.roi_x = cfg->roi_left;
+	rect.roi_y = cfg->roi_top;
+	ips_mot_set_roi(g_ips_dev->base_reg, &rect);
+	ips_mot_set_diff_thd(g_ips_dev->base_reg, cfg->grid_tolerance);
+	ips_mot_set_thresh(g_ips_dev->base_reg, cfg->threshold);
+	ips_mot_set_step(g_ips_dev->base_reg, cfg->grid_step);
+	ips_mot_data_sel(g_ips_dev->base_reg, 0x1);
+	ips_mot_set_prec(g_ips_dev->base_reg, cfg->precision, cfg->weight_decay);
+	ips_mot_enable(g_ips_dev->base_reg, cfg->enable);
+	ips_enable_intr(g_ips_dev->base_reg, MOD_INTR, true);
+	spin_unlock(&g_ips_dev->shared_slock);
+
+	return ret;
+}
+
+int ips_set_md_refresh(bool enable)
+{
+	int ret = 0;
+	BUG_ON(!g_ips_dev);
+
+	ips_mot_set_refresh(g_ips_dev->base_reg, enable);
+
+	return ret;
+}
+
+int ips_set_md_resolution(u32 width, u32 height)
+{
+	int ret = 0;
+	BUG_ON(!g_ips_dev);
+
+	ips_mot_set_resolution(g_ips_dev->base_reg, width, height);
+
+	return ret;
+}
+
+int ips_get_md_event(void)
+{
+	int ret = 0;
+	BUG_ON(!g_ips_dev);
+
+	wait_event_interruptible(g_ips_dev->done_wq, g_ips_dev->event == 1);
+	g_ips_dev->event = 0;
+	return ret;
+}
+
+int ips_set_md_fmt(u32 fmt)
+{
+	int ret = 0;
+	BUG_ON(!g_ips_dev);
+
+	ips_mot_set_fmt(g_ips_dev->base_reg, fmt, 0x5);
+
+	return ret;
+}
 int ips_get_bus_ctrl(void)
 {
 	int ret = 0;
@@ -334,18 +397,41 @@ static const struct dev_pm_ops x3_ips_pm_ops = {
 	.runtime_resume		= x3_ips_runtime_resume,
 };
 
-#if 0
 static irqreturn_t ips_isr(int this_irq, void *data)
 {
+	struct x3_ips_dev *ips;
+	u32 status = 0;
+
+	ips = data;
+	ips_get_intr_status(ips->base_reg, MOD_INTR, &status, true);
+
+	ips->event = 1;
+	wake_up(&ips->done_wq);
+	vio_info("MD interrupt\n");
+
 	return IRQ_HANDLED;
 }
-#endif
+
+static ssize_t ips_reg_dump(struct device *dev,
+				struct device_attribute *attr, char* buf)
+{
+	struct x3_ips_dev *ips;
+
+	ips = dev_get_drvdata(dev);
+
+	ips_hw_dump(ips->base_reg);
+
+	return 0;
+}
+
+static DEVICE_ATTR(regdump, 0444, ips_reg_dump, NULL);
 
 static int x3_ips_probe(struct platform_device *pdev)
 {
 	int ret = 0;
 	struct x3_ips_dev *ips;
 	struct resource *mem_res;
+	struct device *dev = NULL;
 
 	ips = kzalloc(sizeof(struct x3_ips_dev), GFP_KERNEL);
 	if (!ips) {
@@ -377,17 +463,28 @@ static int x3_ips_probe(struct platform_device *pdev)
 		goto err_get_irq;
 	}
 
-#if 0
 	ret = request_threaded_irq(ips->irq, ips_isr, NULL, IRQF_TRIGGER_HIGH, "ips", ips);
 	if (ret) {
 		vio_err("request_irq(IRQ_SIF %d) is fail(%d)", ips->irq, ret);
 		goto err_get_irq;
 	}
-#endif
+
+	dev = &pdev->dev;
+	ret = device_create_file(dev, &dev_attr_regdump);
+	if (ret < 0) {
+		vio_err("create regdump failed (%d)\n", ret);
+		goto p_err;
+	}
+
 	ret = vio_get_clk(&pdev->dev);
+	/* mask all interrupt source */
+	ips_set_intr_mask(ips->base_reg, 0);
+
+	platform_set_drvdata(pdev, ips);
 
 	g_ips_dev = ips;
 	spin_lock_init(&ips->shared_slock);
+	init_waitqueue_head(&ips->done_wq);
 	vio_info("[FRT:D] %s(%d)\n", __func__, ret);
 
 	return 0;

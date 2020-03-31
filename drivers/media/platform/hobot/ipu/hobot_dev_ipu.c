@@ -1692,6 +1692,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		subdev = group->sub_ctx[GROUP_ID_US];
 		if (subdev)
 			ipu_frame_ndone(subdev);
+		ipu->frame_drop_count++;
 	}
 
 	if (status & (1 << INTR_IPU_DS0_FRAME_DROP)) {
@@ -1727,6 +1728,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		subdev = group->sub_ctx[GROUP_ID_DS4];
 		if (subdev)
 			ipu_frame_ndone(subdev);
+		ipu->frame_drop_count++;
 	}
 
 	if (status & (1 << INTR_IPU_FRAME_DONE)) {
@@ -1799,6 +1801,12 @@ static irqreturn_t ipu_isr(int irq, void *data)
 			vio_dbg("[S%d]IPU frame count = %d\n",
 					instance, group->frameid.frame_id);
 		}
+	}
+
+	if (ipu->frame_drop_count > 8) {
+		//ipu_hw_dump(ipu->base_reg);
+		vio_err("[S%d]too many Frame drop\n", instance);
+		ipu->frame_drop_count = 0;
 	}
 
 	return IRQ_HANDLED;

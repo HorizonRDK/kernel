@@ -27,7 +27,6 @@
 #include <linux/poll.h>
 
 #include "hobot_dev_sif.h"
-#include "hobot_dev_ips.h"
 #include "sif_hw_api.h"
 
 #define MODULE_NAME "X3 SIF"
@@ -417,6 +416,7 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 {
 	int ret = 0;
 	u32 cfg = 0;
+	u32 md_enable = 0;
 	int mux_index = 0;
 	int ddr_mux_index = 0;
 	u32 mux_nums = 0;
@@ -435,7 +435,9 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 	dol_exp_num = sif_config->output.isp.dol_exp_num;
 	isp_flyby = sif_config->output.isp.func.enable_flyby;
 	ddr_enable =  sif_config->output.ddr.enable;
+	md_enable = sif_config->output.md.enable;
 
+	/* mux initial*/
 	mux_index = get_free_mux(sif, 0, format, dol_exp_num, &mux_nums);
 	if (mux_index < 0)
 		return mux_index;
@@ -464,6 +466,7 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 			     mux_index);
 	}
 
+	/* DOL initial*/
 	subdev->dol_num = dol_exp_num;
 	if(dol_exp_num == 2){
 		set_bit(SIF_DOL2_MODE + mux_index + 1, &sif->state);
@@ -474,6 +477,9 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 		vio_info("DOL3 mode, current mux = %d\n", mux_index);
 	}
 
+	/* MD initial*/
+	if (md_enable)
+		subdev->md_refresh_count = 0;
 
 	subdev->rx_num = sif_config->input.mipi.mipi_rx_index;
 	subdev->initial_frameid = true;
@@ -918,6 +924,8 @@ static long x3_sif_ioctl(struct file *file, unsigned int cmd,
 		if (ret)
 			return -EFAULT;
 		ret = sif_enable_bypass(sif_ctx, cfg);
+	case SIF_IOC_MD_EVENT:
+		ret = ips_get_md_event();
 		break;
 	default:
 		vio_err("wrong ioctl command\n");
@@ -1045,6 +1053,10 @@ static irqreturn_t sif_isr(int irq, void *data)
 				sif_get_frameid_timestamps(sif->base_reg,
 							   mux_index, &group->frameid);
 
+				if (subdev->md_refresh_count == 1) {
+					ips_set_md_refresh(0);
+				}
+				subdev->md_refresh_count++;
 				if (test_bit(mux_index, &sif->state)) {
 					gtask = group->gtask;
 					if (unlikely(list_empty(&gtask->hw_resource.wait_list))) {

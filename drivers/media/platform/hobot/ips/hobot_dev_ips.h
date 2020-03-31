@@ -10,6 +10,7 @@
 #include <uapi/linux/types.h>
 #include <linux/cdev.h>
 #include <linux/wait.h>
+#include "sif_config.h"
 
 struct x3_ips_dev {
 	u32 __iomem			*base_reg;
@@ -17,6 +18,8 @@ struct x3_ips_dev {
 	resource_size_t			regs_end;
 	int				irq;
 	spinlock_t			shared_slock;
+	wait_queue_head_t		done_wq;
+	u32 event;
 };
 
 struct vio_clk {
@@ -30,6 +33,11 @@ int ips_set_bus_ctrl(unsigned int cfg);
 int ips_get_bus_ctrl(void);
 
 int ips_get_bus_status(void);
+int ips_set_md_cfg(sif_output_md_t *cfg);
+int ips_set_md_refresh(bool enable);
+int ips_set_md_resolution(u32 width, u32 height);
+int ips_get_md_event(void);
+int ips_set_md_fmt(u32 fmt);
 
 int vio_clk_enable(const char *name);
 int vio_clk_disable(const char *name);

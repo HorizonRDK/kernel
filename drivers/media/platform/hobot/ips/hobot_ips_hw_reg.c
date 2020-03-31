@@ -49,6 +49,11 @@ void ips_module_reset(void __iomem *base_addr, u32 module)
 		&ips_fields[field_index], 1);
 }
 
+void ips_set_intr_mask(void __iomem *base_addr, u32 cfg)
+{
+	vio_hw_set_reg(base_addr, &ips_regs[IPS_INT_ENABLE], cfg);
+}
+
 void ips_enable_intr(void __iomem *base_addr, u32 module, bool enable)
 {
 	int field_index = 0;
@@ -75,7 +80,8 @@ void ips_enable_intr(void __iomem *base_addr, u32 module, bool enable)
 		&ips_fields[field_index], enable);	
 }
 
-void ips_get_intr_status(void __iomem *base_addr, u32 module, u32 *status)
+void ips_get_intr_status(void __iomem *base_addr, u32 module, u32 *status,
+			bool clear)
 {
 	int field_index = 0;
 
@@ -99,7 +105,10 @@ void ips_get_intr_status(void __iomem *base_addr, u32 module, u32 *status)
 	}
 
 	*status = vio_hw_get_field(base_addr, &ips_regs[IPS_INT_STATUS],
-					&ips_fields[field_index]);	
+					&ips_fields[field_index]);
+	if (clear)
+		vio_hw_set_field(base_addr, &ips_regs[IPS_INT_STATUS],
+				&ips_fields[field_index], *status);
 }
 
 int ips_clk_ctrl(void __iomem *base_addr, u32 module, bool enable)
@@ -171,6 +180,66 @@ void ips_mot_set_roi(void __iomem *base_addr, struct roi_rect *rect)
 
 }
 
+void ips_mot_set_diff_thd(void __iomem *base_addr, u32 diff_thresh)
+{
+	vio_hw_set_field(base_addr, &ips_regs[MOT_DET_PARA1],
+		&ips_fields[IPS_F_MOT_DET_DIFF_THRESH], diff_thresh);
+}
+
+void ips_mot_set_thresh(void __iomem *base_addr, u32 thresh)
+{
+	vio_hw_set_field(base_addr, &ips_regs[MOT_DET_PARA1],
+		&ips_fields[IPS_F_MOT_DET_THRESH], thresh);
+}
+
+void ips_mot_set_step(void __iomem *base_addr, u32 step)
+{
+	vio_hw_set_field(base_addr, &ips_regs[MOT_DET_PARA1],
+		&ips_fields[IPS_F_MOT_DET_STEP], step);
+}
+
+void ips_mot_set_fmt(void __iomem *base_addr, u32 fmt, u32 pixel_lenght)
+{
+	vio_hw_set_field(base_addr, &ips_regs[MOT_DET_PARA2],
+		&ips_fields[IPS_F_MOT_DET_IMG_FMT], fmt);
+	vio_hw_set_field(base_addr, &ips_regs[MOT_DET_PARA2],
+		&ips_fields[IPS_F_MOT_DET_PIX_WIDTH], pixel_lenght);
+}
+
+void ips_mot_data_sel(void __iomem *base_addr, u8 data_sel)
+{
+	vio_hw_set_field(base_addr, &ips_regs[MOT_DET_PARA2],
+		&ips_fields[IPS_F_MOT_DET_DATA_SEL], data_sel);
+}
+
+void ips_mot_set_refresh(void __iomem *base_addr, bool enable)
+{
+	vio_hw_set_field(base_addr, &ips_regs[MOT_DET_PARA2],
+		&ips_fields[IPS_F_MOT_DET_REFRESH], enable);
+}
+
+void ips_mot_set_prec(void __iomem *base_addr, u32 prec, u32 decay)
+{
+	vio_hw_set_field(base_addr, &ips_regs[MOT_DET_PARA2],
+		&ips_fields[IPS_F_MOT_DET_DEC_PREC], prec);
+	vio_hw_set_field(base_addr, &ips_regs[MOT_DET_PARA2],
+		&ips_fields[IPS_F_MOT_DET_WGT_DECAY], decay);
+}
+
+void ips_mot_enable(void __iomem *base_addr, bool enable)
+{
+	vio_hw_set_field(base_addr, &ips_regs[MOT_DET_PARA2],
+		&ips_fields[IPS_F_MOT_DET_EN], enable);
+}
+
+void ips_mot_set_resolution(void __iomem *base_addr, u32 width, u32 height)
+{
+	vio_hw_set_field(base_addr, &ips_regs[MOT_DET_IMG],
+		&ips_fields[IPS_F_MOT_DET_IMG_WIDTH], width);
+	vio_hw_set_field(base_addr, &ips_regs[MOT_DET_IMG],
+		&ips_fields[IPS_F_MOT_DET_IMG_HEIGHT], height);
+}
+
 u32 ipu_get_axi_statue(void __iomem *base_addr)
 {
 	u32 status = 0;
@@ -227,4 +296,9 @@ u32 ips_get_bw_cnt(void __iomem *base_addr, u32 ch)
 
 	count = vio_hw_get_reg(base_addr, &ips_regs[IPS_BW_CNT_CH0 + ch]);
 	return count;
+}
+
+void ips_hw_dump(u32 __iomem *base_reg)
+{
+	vio_hw_dump_regs(base_reg, ips_regs, NUM_OF_IPS_REG);
 }

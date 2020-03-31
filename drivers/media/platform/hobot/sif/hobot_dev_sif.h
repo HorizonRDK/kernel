@@ -15,6 +15,7 @@
 #include "vio_config.h"
 #include "vio_framemgr.h"
 #include "vio_group_api.h"
+#include "hobot_dev_ips.h"
 
 #define SIF_MUX_MAX	8
 #define X3_SIF_NAME  "x3-sif"
@@ -35,6 +36,7 @@
 #define SIF_IOC_BIND_GROUP       _IOW(SIF_IOC_MAGIC, 5, int)
 #define SIF_IOC_END_OF_STREAM    _IOW(SIF_IOC_MAGIC, 6, int)
 #define SIF_IOC_BYPASS    		 _IOW(SIF_IOC_MAGIC, 7, int)
+#define SIF_IOC_MD_EVENT    	 _IOR(SIF_IOC_MAGIC, 8, int)
 
 #define VIO_MP_IOC_MAGIC 'm'
 #define VIO_MP_IOC_BIND_GROUP	 _IOW(VIO_MP_IOC_MAGIC, 0, int)
@@ -183,6 +185,7 @@ struct sif_subdev {
 	sif_data_desc_t ddrin_fmt;
 	struct frame_id 		info;
 	bool initial_frameid;
+	u32 md_refresh_count;
 	u64 bufcount;
 	u32 id;
 };

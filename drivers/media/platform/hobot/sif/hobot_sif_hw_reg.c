@@ -865,6 +865,8 @@ static void sif_set_mipi_rx(u32 __iomem *base_reg, sif_input_mipi_t* p_mipi,
 			&sif_fields[SW_SIF_ISP0_WIDTH], p_mipi->data.width);
 	vio_hw_set_field(base_reg, &sif_regs[SIF_OUT_BUF_ISP0_CFG],
 			&sif_fields[SW_SIF_ISP0_HEIGHT], p_mipi->data.height);
+
+	ips_set_md_resolution(p_mipi->data.width, p_mipi->data.height);
 }
 
 /*
@@ -1080,7 +1082,6 @@ static void sif_set_ipu_output(u32 __iomem *base_reg,
 		// otf to ipu doesn't pass axi/iram
 		sif_enable_dma(base_reg, 0);
 	}
-
 }
 
 /*
@@ -1089,8 +1090,23 @@ static void sif_set_ipu_output(u32 __iomem *base_reg,
  * @param p_md the pointer of sif_output_md_t
  *
  */
-static void sif_set_md_output(u32 __iomem *base_reg, sif_output_md_t* p_md)
+static void sif_set_md_output(u32 __iomem *base_reg, sif_output_md_t *p_md)
 {
+	if (!p_md->enable)
+        return;
+
+	ips_set_md_cfg(p_md);
+	ips_set_md_refresh(1);
+
+	if (p_md->path_sel == 1) {
+		ips_set_md_fmt(0x8);
+		vio_hw_set_field(base_reg, &sif_regs[SIF_MOT_DET_MODE],
+				&sif_fields[SW_SIF_IPU_MD_ENABLE], 1);
+	} else {
+		ips_set_md_fmt(0x0);
+		vio_hw_set_field(base_reg, &sif_regs[SIF_MOT_DET_MODE],
+				&sif_fields[SW_SIF_ISP_MD_ENABLE], 1);
+	}
 }
 
 void sif_hw_config(u32 __iomem *base_reg, sif_cfg_t* c)
@@ -1236,6 +1252,8 @@ static void sif_disable_input_and_output(u32 __iomem *base_reg)
 			&sif_fields[SW_MIPI_RX3_IPI0_ENABLE], 0);
 	vio_hw_set_field(base_reg, &sif_regs[SIF_MIPI_RX3_CFG1],
 			&sif_fields[SW_MIPI_RX3_IPI1_ENABLE], 0);
+
+	vio_hw_set_reg(base_reg, &sif_regs[SIF_MOT_DET_MODE], 0);
 
 	// Shadow Update: IPI + DVP
 	vio_hw_set_reg(base_reg, &sif_regs[SIF_SHD_UP_RDY], 0xFFFFFFFF);
