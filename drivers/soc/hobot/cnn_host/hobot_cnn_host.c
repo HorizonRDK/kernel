@@ -86,9 +86,13 @@ static int bpu0_clk;
 static int bpu1_clk;
 static int bpu0_power;
 static int bpu1_power;
+static int bpu0_hotplug;
+static int bpu1_hotplug;
+
 static struct timer_list check_timer;
 static struct mutex enable_lock;
 static int bpu_err_flag;
+static int hotplug_ext_flag;
 
 #define MAX_PID_NUM 0x8
 static pid_t pid_fc_id_mask[MAX_PID_NUM];
@@ -893,6 +897,35 @@ static int hobot_bpu_replace_hw_id(struct hobot_bpu_dev *dev, void *data)
 
 	return tmp_id;
 }
+
+static struct hobot_bpu_dev *hobot_check_power(struct hobot_bpu_dev *bpu_dev)
+{
+	struct hobot_bpu_dev * dev = NULL;
+
+	if ((bpu_dev->disable_bpu || bpu_dev->bpu_detached) && hotplug_ext_flag) {
+		mutex_unlock(&bpu_dev->cnn_lock);
+		if (bpu_dev->core_index)
+			dev = cnn0_dev;
+		else
+			dev = cnn1_dev;
+		/*power up dev if closed*/
+		mutex_lock(&dev->cnn_lock);
+
+		if (!dev->bpu_detached && dev->disable_bpu) {
+			mutex_unlock(&dev->cnn_lock);
+			if (bpu_dev->has_regulator)
+				hobot_bpu_power_up(dev);
+			else
+				hobot_bpu_clock_up(dev);
+			mutex_lock(&dev->cnn_lock);
+		}
+
+	} else {
+		dev = bpu_dev;
+	}
+	return dev;
+}
+
 /**
  * hobot_bpu_fc_fifo_enqueue - fill the function call into the reserved memory
  * @dev: pointer to struct hobot_bpu_dev
@@ -912,9 +945,13 @@ static int hobot_bpu_fc_fifo_enqueue(struct hobot_bpu_dev *dev,
 	u32 count;
 	struct hbrt_x2_funccall_s *tmp_ptr = NULL;
 	int tmp_orgin_id;
+
 #ifndef CONFIG_HOBOT_FPGA_X3
-	if (dev->disable_bpu)
+	if (dev->disable_bpu) {
+		pr_err("%s:line:%d bpu no power\n", __func__, __LINE__);
 		return -1;
+	}
+
 #endif
 	fc_depth = hobot_bpu_reg_read(dev, CNN_FC_LEN);
 	fc_head_idx = hobot_bpu_reg_read(dev, CNN_FC_HEAD);
@@ -1043,36 +1080,38 @@ static int hobot_bpu_open(struct inode *inode, struct file *filp)
 	if (pid_fc_id_mask[i] != task_pid_nr(current->group_leader))
 		pid_fc_id_mask[i] = task_pid_nr(current->group_leader);
 
-	if (!(devdata->ref_cnt++)) {
-		/*power up bpu first*/
-		if (devdata->has_regulator)
-			hobot_bpu_power_up(devdata);
-		else
-			hobot_bpu_clock_up(devdata);
+	if (!devdata->bpu_detached) {
+		if (!(devdata->ref_cnt++)) {
+			/*power up bpu first*/
+			if (devdata->has_regulator)
+				hobot_bpu_power_up(devdata);
+			else
+				hobot_bpu_clock_up(devdata);
 
-		hobot_bpu_reg_write(devdata,
-				CNN_FC_LEN, (devdata->fc_mem_size / 64) - 1);
-		hobot_bpu_reg_write(devdata, CNN_FC_BASE,
-				devdata->fc_phys_base);
-		hobot_bpu_reg_write(devdata, CNNINT_MASK, 0x0);
+			hobot_bpu_reg_write(devdata,
+					CNN_FC_LEN, (devdata->fc_mem_size / 64) - 1);
+			hobot_bpu_reg_write(devdata, CNN_FC_BASE,
+					devdata->fc_phys_base);
+			hobot_bpu_reg_write(devdata, CNNINT_MASK, 0x0);
 
-		devdata->zero_int_cnt = 0;
-		devdata->time_head = 0;
-		devdata->time_tail = 0;
-		memset(devdata->fc_time, 0 ,
-		       FC_TIME_CNT * sizeof(struct hobot_fc_time));
+			devdata->zero_int_cnt = 0;
+			devdata->time_head = 0;
+			devdata->time_tail = 0;
+			memset(devdata->fc_time, 0 ,
+			       FC_TIME_CNT * sizeof(struct hobot_fc_time));
 #ifdef CHECK_IRQ_LOST
-		if ((devdata->core_index && checkirq1_enable) ||
-			(devdata->core_index == 0 && checkirq0_enable)) {
-			devdata->cnn_timer.expires = jiffies + HZ * 5;
-			add_timer(&devdata->cnn_timer);
-		}
+			if ((devdata->core_index && checkirq1_enable) ||
+				(devdata->core_index == 0 && checkirq0_enable)) {
+				devdata->cnn_timer.expires = jiffies + HZ * 5;
+				add_timer(&devdata->cnn_timer);
+			}
 #endif
-		if (recovery) {
-			maintain_pre_time = 0;
-			devdata->maintain_task = kthread_run(
-					hobot_bpu_maintain_thread,
-					devdata, devdata->chrdev_name);
+			if (recovery) {
+				maintain_pre_time = 0;
+				devdata->maintain_task = kthread_run(
+						hobot_bpu_maintain_thread,
+						devdata, devdata->chrdev_name);
+			}
 		}
 	}
 	mutex_unlock(&hobot_bpu_mutex);
@@ -1091,31 +1130,38 @@ static int hobot_bpu_release(struct inode *inode, struct file *filp)
 	mutex_lock(&hobot_bpu_mutex);
 	user_info = filp->private_data;
 	devdata = user_info->cnn_dev;
-	if (!(--devdata->ref_cnt)) {
+	if (!devdata->bpu_detached) {
+		if (!(--devdata->ref_cnt)) {
+			if (devdata->has_regulator)
+				hobot_bpu_power_down(devdata);
+			else
+				hobot_bpu_clock_down(devdata);
+			user_info->cnn_int_num.cnn_int_count = 0;
+			atomic_set(&devdata->wait_fc_cnt, 0);
+			kfifo_reset(&devdata->int_info_fifo);
+#ifdef CHECK_IRQ_LOST
+			if ((devdata->core_index && checkirq1_enable) ||
+				(devdata->core_index == 0 && checkirq0_enable))
+				del_timer(&devdata->cnn_timer);
+#endif
+			if (recovery) {
+				if (devdata->maintain_task) {
+					kthread_stop(devdata->maintain_task);
+					devdata->maintain_head = 0;
+					devdata->maintain_task = NULL;
+				}
+			}
+
+			devdata->inst_num = 0;
+			devdata->head_value = 0;
+		}
+	} else {
 		if (devdata->has_regulator)
 			hobot_bpu_power_down(devdata);
-		 else
+		else
 			hobot_bpu_clock_down(devdata);
-
-		user_info->cnn_int_num.cnn_int_count = 0;
-		atomic_set(&devdata->wait_fc_cnt, 0);
-		kfifo_reset(&devdata->int_info_fifo);
-#ifdef CHECK_IRQ_LOST
-		if ((devdata->core_index && checkirq1_enable) ||
-			(devdata->core_index == 0 && checkirq0_enable))
-			del_timer(&devdata->cnn_timer);
-#endif
-		if (recovery) {
-			if (devdata->maintain_task) {
-				kthread_stop(devdata->maintain_task);
-				devdata->maintain_head = 0;
-				devdata->maintain_task = NULL;
-			}
-		}
-
-		devdata->inst_num = 0;
-		devdata->head_value = 0;
 	}
+
 	mutex_unlock(&hobot_bpu_mutex);
 
 	for (i = 0; i < MAX_PID_NUM; i++) {
@@ -1184,15 +1230,17 @@ static long hobot_bpu_ioctl(struct file *file, unsigned int cmd, unsigned long a
 		memset(&data, 0, sizeof(data));
 
 	dev = user_info->cnn_dev;
-
 	switch (cmd) {
 	case CNN_IOC_GET_FC_STA:
+
 		mutex_lock(&dev->cnn_lock);
+		dev = hobot_check_power(dev);
 		data.fc_status.free_fc_fifo_cnt =
 			hobot_bpu_get_fc_fifo_spaces(dev);
 		mutex_unlock(&dev->cnn_lock);
 		break;
 	case CNN_IOC_GET_ID_MASK:
+
 		mutex_lock(&dev->cnn_lock);
 		for (i = 0; i < MAX_PID_NUM; i++) {
 			if (pid_fc_id_mask[i] == task_pid_nr(current->group_leader))
@@ -1205,12 +1253,13 @@ static long hobot_bpu_ioctl(struct file *file, unsigned int cmd, unsigned long a
 		mutex_unlock(&dev->cnn_lock);
 		break;
 	case CNN_IOC_GET_CORE_RUNTIME:
+
 		mutex_lock(&dev->cnn_lock);
 		data.core_run_time = dev->run_time;
 		mutex_unlock(&dev->cnn_lock);
 		break;
 	case CNN_IOC_FC_ENQUEUE:
-		//size_t size_tmp = data.fc_data.fc_cnt * CNN_FC_SIZE;
+
 		kernel_fc_data = kmalloc(data.fc_data.fc_cnt * CNN_FC_SIZE,
 					GFP_KERNEL);
 		if (!kernel_fc_data) {
@@ -1247,8 +1296,8 @@ static long hobot_bpu_ioctl(struct file *file, unsigned int cmd, unsigned long a
 				tmp_ptr->dyn_base_addr0,
 				tmp_ptr->dyn_base_addr1,
 				tmp_ptr->dyn_base_addr3);
-
 		mutex_lock(&dev->cnn_lock);
+		dev = hobot_check_power(dev);
 		rc = hobot_bpu_fc_fifo_enqueue(dev, &data.fc_data,
 				(struct cnn_user_info **)&file->private_data);
 		if (rc < 0) {
@@ -1262,11 +1311,12 @@ static long hobot_bpu_ioctl(struct file *file, unsigned int cmd, unsigned long a
 		break;
 	case CNN_IOC_RST:
 		mutex_lock(&dev->cnn_lock);
-		if (dev->ref_cnt > 1) {
+		if (dev->ref_cnt > 1 || dev->disable_bpu) {
 			mutex_unlock(&dev->cnn_lock);
 			rc = 0;
 			break;
 		}
+
 		rc = hobot_bpu_hw_reset_reinit(dev, data.rst_data.cnn_rst_id);
 		if (rc < 0) {
 			mutex_unlock(&dev->cnn_lock);
@@ -1277,6 +1327,7 @@ static long hobot_bpu_ioctl(struct file *file, unsigned int cmd, unsigned long a
 		mutex_unlock(&dev->cnn_lock);
 		break;
 	case CNN_IOC_GET_INT_NUM:
+
 		mutex_lock(&dev->cnn_lock);
 		spin_lock_irqsave(&dev->cnn_spin_lock, flags);
 		data.int_num_data = user_info->cnn_int_num;
@@ -2443,11 +2494,30 @@ static ssize_t bpu_err_flag_show(struct kobject *kobj, struct kobj_attribute *at
 }
 
 static ssize_t bpu_err_flag_store(struct kobject *kobj, struct kobj_attribute *attr,
-			 const char *buf, size_t count)
+		 const char *buf, size_t count)
 {
 	int ret;
 
 	ret = sscanf(buf, "%du", &bpu_err_flag);
+	if (ret < 0) {
+		pr_info("%s sscanf error\n", __func__);
+		return 0;
+	}
+	return count;
+}
+
+static ssize_t hotplug_ext_flag_show(struct kobject *kobj, struct kobj_attribute *attr,
+ char *buf)
+{
+	return sprintf(buf, "%d\n", hotplug_ext_flag);
+}
+
+static ssize_t hotplug_ext_flag_store(struct kobject *kobj, struct kobj_attribute *attr,
+		  const char *buf, size_t count)
+{
+	int ret;
+
+	ret = sscanf(buf, "%du", &hotplug_ext_flag);
 	if (ret < 0) {
 		pr_info("%s sscanf error\n", __func__);
 		return 0;
@@ -2754,6 +2824,7 @@ static ssize_t bpu0_power_store(struct kobject *kobj,
 		hobot_bpu_power_down(cnn0_dev);
 	return count;
 }
+
 static ssize_t bpu1_power_show(struct kobject *kobj,
 			       struct kobj_attribute *attr, char *buf)
 {
@@ -2786,6 +2857,70 @@ static ssize_t bpu1_power_store(struct kobject *kobj,
 		hobot_bpu_power_down(cnn1_dev);
 	return count;
 }
+
+static ssize_t bpu0_hotplug_en_show(struct kobject *kobj,
+				   struct kobj_attribute *attr,
+				   char *buf)
+{
+	return sprintf(buf, "%d\n", bpu0_hotplug);
+}
+static ssize_t bpu0_hotplug_en_store(struct kobject *kobj,
+				struct kobj_attribute *attr,
+				const char *buf, size_t count)
+{
+	int ret;
+
+	if (!cnn0_dev->has_regulator) {
+		pr_info("no regulator support\n");
+		return count;
+	}
+	ret = sscanf(buf, "%du", &bpu0_hotplug);
+	if (bpu0_hotplug) {
+		mutex_lock(&cnn0_dev->cnn_lock);
+		cnn0_dev->bpu_detached = 0;
+		mutex_unlock(&cnn0_dev->cnn_lock);
+		hobot_bpu_power_up(cnn0_dev);
+	} else {
+		mutex_lock(&cnn0_dev->cnn_lock);
+		cnn0_dev->bpu_detached = 1;
+		mutex_unlock(&cnn0_dev->cnn_lock);
+		hobot_bpu_power_down(cnn0_dev);
+	}
+	return count;
+}
+
+static ssize_t bpu1_hotplug_en_show(struct kobject *kobj,
+				   struct kobj_attribute *attr,
+				   char *buf)
+{
+	return sprintf(buf, "%d\n", bpu1_hotplug);
+}
+static ssize_t bpu1_hotplug_en_store(struct kobject *kobj,
+				struct kobj_attribute *attr,
+				const char *buf, size_t count)
+{
+	int ret;
+
+	if (!cnn1_dev->has_regulator) {
+		pr_info("no regulator support\n");
+		return count;
+	}
+	ret = sscanf(buf, "%du", &bpu1_hotplug);
+	if (bpu1_hotplug) {
+		mutex_lock(&cnn1_dev->cnn_lock);
+		cnn1_dev->bpu_detached = 0;
+		mutex_unlock(&cnn1_dev->cnn_lock);
+		hobot_bpu_power_up(cnn1_dev);
+	} else {
+		mutex_lock(&cnn1_dev->cnn_lock);
+		cnn1_dev->bpu_detached = 1;
+		mutex_unlock(&cnn1_dev->cnn_lock);
+		hobot_bpu_power_down(cnn1_dev);
+	}
+	return count;
+}
+
+
 #ifdef CHECK_IRQ_LOST
 static ssize_t bpu0_checkirq_show(struct kobject *kobj,
 				struct kobj_attribute *attr, char *buf)
@@ -2861,6 +2996,9 @@ static struct kobj_attribute pro_nseconds   = __ATTR(profiler_n_seconds, 0664,
 						    nseconds_show, nseconds_store);
 static struct kobj_attribute bpu_err   = __ATTR(bpu_err_flag, 0664,
 						    bpu_err_flag_show, bpu_err_flag_store);
+static struct kobj_attribute hotplug_ext   = __ATTR(hotplug_ext_flag, 0664,
+						    hotplug_ext_flag_show, hotplug_ext_flag_store);
+
 static struct kobj_attribute pro_ratio0    = __ATTR(ratio, 0444,
 						    ratio0_show, NULL);
 static struct kobj_attribute pro_ratio1    = __ATTR(ratio, 0444,
@@ -2885,6 +3023,13 @@ static struct kobj_attribute bpu0_power_en = __ATTR(power_enable, 0644,
 static struct kobj_attribute bpu1_power_en  = __ATTR(power_enable, 0644,
 						     bpu1_power_show,
 						     bpu1_power_store);
+static struct kobj_attribute bpu0_hotplug_en = __ATTR(hotplug_enable, 0644,
+						    bpu0_hotplug_en_show,
+						    bpu0_hotplug_en_store);
+static struct kobj_attribute bpu1_hotplug_en  = __ATTR(hotplug_enable, 0644,
+						     bpu1_hotplug_en_show,
+						     bpu1_hotplug_en_store);
+
 #ifdef CHECK_IRQ_LOST
 static struct kobj_attribute bpu0_check_irq = __ATTR(check_irq, 0644,
 						    bpu0_checkirq_show,
@@ -2901,6 +3046,7 @@ static struct attribute *bpu_attrs[] = {
 	&fc_enable.attr,
 	&burst_len.attr,
 	&bpu_err.attr,
+	&hotplug_ext.attr,
 	NULL,
 };
 static struct attribute *bpu0_attrs[] = {
@@ -2910,6 +3056,7 @@ static struct attribute *bpu0_attrs[] = {
 	&bpu0_fc_time.attr,
 	&bpu0_clk_en.attr,
 	&bpu0_power_en.attr,
+	&bpu0_hotplug_en.attr,
 #ifdef CHECK_IRQ_LOST
 	&bpu0_check_irq.attr,
 #endif
@@ -2921,6 +3068,7 @@ static struct attribute *bpu1_attrs[] = {
 	&bpu1_fc_time.attr,
 	&bpu1_clk_en.attr,
 	&bpu1_power_en.attr,
+	&bpu1_hotplug_en.attr,
 #ifdef CHECK_IRQ_LOST
 	&bpu1_check_irq.attr,
 #endif

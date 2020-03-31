@@ -219,6 +219,7 @@ struct hobot_bpu_dev {
 	unsigned int disable_bpu;
 	struct dentry *cnn_debugfs_root;
 	unsigned int has_regulator;
+	unsigned int bpu_detached;
 };
 
 struct cnn_debugfs_info {
