@@ -405,7 +405,7 @@ int32_t acamera_init( acamera_settings *settings, uint32_t ctx_num )
                                     acamera_isp_isp_global_interrupt_clear_write( 0, 1 );
                                 }
 #endif // #if ISP_SENSOR_DRIVER_MODEL != 1
-                                acamera_isp_isp_global_interrupt_mask_vector_write( 0, ISP_IRQ_MASK_VECTOR );
+                                //acamera_isp_isp_global_interrupt_mask_vector_write( 0, ISP_IRQ_MASK_VECTOR );
                                 g_firmware.initialized = 1;
                             } else {
                                 LOG( LOG_CRIT, "One or more contexts were not initialized properly. " );
@@ -1068,15 +1068,16 @@ pr_info("hcs1 %d, hcs2 %d, vc %d\n", hcs1, hcs2, vc);
 
 #endif // USER_MODULE
 
-
+extern int isp_stream_onoff_check(void);
 int32_t acamera_process( void )
 {
     int32_t result = 0;
     int32_t idx = 0;
+    acamera_context_ptr_t p_ctx = NULL;
 
     if ( g_firmware.initialized == 1 ) {
         for ( idx = 0; idx < g_firmware.context_number; idx++ ) {
-            acamera_context_ptr_t p_ctx = ( acamera_context_ptr_t ) & ( g_firmware.fw_ctx[idx] );
+            p_ctx = ( acamera_context_ptr_t ) & ( g_firmware.fw_ctx[idx] );
             acamera_fw_process( p_ctx );
         }
     } else {
@@ -1090,7 +1091,13 @@ int32_t acamera_process( void )
 
     system_semaphore_raise(g_firmware.sem_event_process_done);
 
-    system_semaphore_wait( g_firmware.sem_evt_avail, FW_EVT_QUEUE_TIMEOUT_MS );
+    /* acamera_fsm_mgr_process_events will disable/enable irq each loop, 
+    that will causing exception when resume from suspend, disable irq when no stream on */
+    if (isp_stream_onoff_check() == 0)
+        acamera_isp_interrupts_disable(&p_ctx->fsm_mgr);
+
+    //system_semaphore_wait( g_firmware.sem_evt_avail, FW_EVT_QUEUE_TIMEOUT_MS );
+    system_semaphore_wait( g_firmware.sem_evt_avail, 0 );
 
     return result;
 }

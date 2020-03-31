@@ -97,7 +97,7 @@ void acamera_fw_init( acamera_context_t *p_ctx )
     acamera_fsm_mgr_init( &p_ctx->fsm_mgr );
 
     p_ctx->irq_flag = 0;
-    acamera_fw_interrupts_enable( p_ctx );
+    //acamera_fw_interrupts_enable( p_ctx );
     p_ctx->system_state = FW_RUN;
 }
 

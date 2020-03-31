@@ -165,7 +165,7 @@ static __inline uint32_t dma_isp_dma_int_read(void) {
 
 /// DMA_INT_CTRL        ///
 #define DMA_INT_ENABLE              0
-#define DMA_INT_DISABLE             BIT1
+#define DMA_INT_DISABLE             1
 static __inline void dma_isp_reg_mask_int_write(uint32_t data) {
     uint32_t curr = dma_isp_read_32(DMA_INT_CTRL);
     dma_isp_write_32(DMA_INT_CTRL, (((data & (BIT0))<<1) | (curr & ~(BIT1))));

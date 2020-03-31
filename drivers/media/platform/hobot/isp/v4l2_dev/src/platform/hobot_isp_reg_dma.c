@@ -183,6 +183,7 @@ irqreturn_t hobot_dma_interrupt(int irq, void *data)
     unsigned long flags;
 
     dma_isp_reg_start_dma_write(0);         // disable dma
+    dma_isp_reg_mask_int_write(DMA_INT_DISABLE);  //mask dma irq
     dma_isp_reg_dma_sram_ch_en_write(0);    // cpu can control sram now
 
     spin_lock_irqsave( hobot_dma->dma_ctrl_lock, flags );
@@ -263,8 +264,10 @@ void hobot_dma_init(hobot_dma_t *hobot_dma)
     if(ret)
         printk(KERN_ERR "ERROR: %s request_irq() failed: %d\n", __FUNCTION__, ret);
 
+    dma_isp_reg_mask_int_write(DMA_INT_DISABLE);  //mask dma irq
+
     // disable irq after request_irq, if not, it may cause "Unbalanced enable for IRQ" warning log
-    disable_irq(hobot_dma->irq_in_dts);
+    //disable_irq(hobot_dma->irq_in_dts);
 
     // register is mapping in system_hw_io.c : init_hw_io()
 }

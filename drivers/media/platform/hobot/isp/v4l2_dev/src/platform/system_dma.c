@@ -92,7 +92,7 @@ int32_t system_dma_init( void **ctx )
 
 #elif FW_USE_HOBOT_DMA
        hobot_dma_init(&g_hobot_dma);
-       hobot_dma_enable_irq(&g_hobot_dma);
+    //    hobot_dma_enable_irq(&g_hobot_dma);
 
         for ( idx = 0; idx < FIRMWARE_CONTEXT_NUMBER; idx++ ) {
             for ( i = 0; i < SYSTEM_DMA_TOGGLE_COUNT; i++ ) {
@@ -145,7 +145,7 @@ int32_t system_dma_destroy( void *ctx )
             }
         }
 #elif FW_USE_HOBOT_DMA
-        hobot_dma_disable_irq(&g_hobot_dma);
+        //hobot_dma_disable_irq(&g_hobot_dma);
         hobot_dma_deinit(&g_hobot_dma);
 
         for ( idx = 0; idx < FIRMWARE_CONTEXT_NUMBER; idx++ ) {

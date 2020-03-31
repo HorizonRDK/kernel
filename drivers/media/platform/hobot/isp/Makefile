@@ -5,7 +5,7 @@ ifeq ($(CONFIG_VIDEO_HOBOT_ISP), m)
 	subdir-ccflags-y += -DBUILD_MODULE
 endif
 
-subdir-ccflags-y += -Wno-declaration-after-statement
+subdir-ccflags-y += -Wno-declaration-after-statement -Idrivers/media/platform/hobot/common_api/
 
 obj-$(CONFIG_VIDEO_HOBOT_ISP) += subdev/log_list/
 obj-$(CONFIG_VIDEO_HOBOT_ISP) += subdev/iq/

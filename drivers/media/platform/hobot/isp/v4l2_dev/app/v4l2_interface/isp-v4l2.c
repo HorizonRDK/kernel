@@ -36,6 +36,7 @@
 #include "isp-vb2.h"
 #include "fw-interface.h"
 #include "acamera_fw.h"
+#include "vio_config.h"
 
 #define ISP_V4L2_NUM_INPUTS 1
 
@@ -361,7 +362,21 @@ static inline bool isp_v4l2_is_q_busy( struct vb2_queue *queue, struct file *fil
 {
     return queue->owner && queue->owner != file->private_data;
 }
+
+int isp_stream_onoff_check(void)
+{
+    int i;
+    int total_stream_on = 0;
+    for (i = 0; i < FIRMWARE_CONTEXT_NUMBER; i++) {
+	    isp_v4l2_dev_t *d = isp_v4l2_get_dev(i);
+	    total_stream_on += atomic_read( &d->stream_on_cnt );
+    }
+
+    return total_stream_on;
+}
+
 extern void *acamera_get_ctx_ptr( uint32_t ctx_id );
+extern int ips_set_clk_ctrl(unsigned long module, bool enable);
 static int isp_v4l2_streamon( struct file *file, void *priv, enum v4l2_buf_type i )
 {
     isp_v4l2_dev_t *dev = video_drvdata( file );
@@ -381,13 +396,10 @@ static int isp_v4l2_streamon( struct file *file, void *priv, enum v4l2_buf_type 
         }
     }
 
-    int total_stream_on = 0;
-    for (i = 0; i < FIRMWARE_CONTEXT_NUMBER; i++) {
-	    isp_v4l2_dev_t *d = isp_v4l2_get_dev(i);
-	    total_stream_on += atomic_read( &d->stream_on_cnt );
+    if (isp_stream_onoff_check() == 0) {
+            ips_set_clk_ctrl(ISP0_CLOCK_GATE, true);
+            acamera_fw_isp_start(dev->ctx_id);
     }
-    if (total_stream_on == 0)
-           acamera_fw_isp_start(dev->ctx_id);
 
     /* Start hardware */
     rc = isp_v4l2_stream_on( pstream );
@@ -423,13 +435,10 @@ static int isp_v4l2_streamoff( struct file *file, void *priv, enum v4l2_buf_type
 
     atomic_sub_return( 1, &dev->stream_on_cnt );
 
-    int total_stream_on = 0;
-    for (i = 0; i < FIRMWARE_CONTEXT_NUMBER; i++) {
-	    isp_v4l2_dev_t *d = isp_v4l2_get_dev(i);
-	    total_stream_on += atomic_read( &d->stream_on_cnt );
-    }
-    if (total_stream_on == 0)
+    if (isp_stream_onoff_check() == 0) {
         acamera_fw_isp_stop(dev->ctx_id);
+        ips_set_clk_ctrl(ISP0_CLOCK_GATE, false);
+    }
 
     return rc;
 }
