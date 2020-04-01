@@ -2921,6 +2921,9 @@ static int x2_iar_probe(struct platform_device *pdev)
 		} else if (strncmp(type, "disable", 7) == 0) {
 			pr_info("%s: iar disable\n", __func__);
 			iar_enable = 0;
+		} else if (strncmp(type, "ipi", 3) == 0) {
+			pr_info("%s: panel type is SIF IPI\n", __func__);
+			display_type = SIF_IPI;
 		} else {
 			pr_err("wrong panel type!!!\n");
 		}
@@ -3068,8 +3071,8 @@ static int x2_iar_probe(struct platform_device *pdev)
 			temp1++;
 		}
 		pr_debug("set mipi 720p touch done!\n");
-	} else if (display_type == HDMI_TYPE) {
-		pr_debug("%s: display_type is HDMI panel!\n", __func__);
+	} else if (display_type == HDMI_TYPE || display_type == SIF_IPI) {
+		pr_debug("%s: display_type is HDMI/SIF_IPI panel!\n", __func__);
 		ret = disp_set_pixel_clk(163000000);
 		iar_display_cam_no = PIPELINE0;
                 iar_display_addr_type = DISPLAY_CHANNEL1;

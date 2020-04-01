@@ -594,6 +594,7 @@ enum DISPLAY_TYPE {
 	MIPI_720P = 2,//mipi-dsi 720*1280
 	MIPI_720P_TOUCH = 3,//mipi-dsi 720*1280 touch
 	MIPI_1080P = 4,//1080*1920
+	SIF_IPI = 5,
 };
 #ifdef CONFIG_HOBOT_XJ3
 enum XJ3_DISPLAY_TYPE {
