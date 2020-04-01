@@ -44,7 +44,7 @@
 #define	PF5024_DCDC3_MODE		0x5a
 #define	PF5024_DCDC4_MODE		0x62
 #define PF5024_ENA_MASK			0x03
-#define	PF5024_ENA			0x02
+#define	PF5024_ENA			0x01
 #define	PF5024_DIS			0x0
 #define	PF5024_VSEL_MASK		0xFF	/* VSET - [7:0] */
 
