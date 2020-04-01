@@ -17,7 +17,7 @@
 #include "bpu.h"
 #include "bpu_prio.h"
 
-#ifdef CONFIG_X2_BPU
+#if defined(CONFIG_X2_BPU) || defined(CONFIG_X3_BPU)
 #include "x2_bpu.h"
 #elif defined CONFIG_J5_BPU
 #include "j5_bpu.h"
@@ -141,24 +141,24 @@ struct bpu_core {
 };
 
 struct bpu_core_hw_ops {
-	int32_t (*enable) (struct bpu_core *);
-	int32_t (*disable) (struct bpu_core *);
-	int32_t (*reset) (struct bpu_core *);
-	int32_t (*set_clk) (const struct bpu_core *, uint64_t);
-	int32_t (*set_volt) (const struct bpu_core *, int32_t);
+	int32_t (*enable)(struct bpu_core *);
+	int32_t (*disable)(struct bpu_core *);
+	int32_t (*reset)(struct bpu_core *);
+	int32_t (*set_clk)(const struct bpu_core *, uint64_t);
+	int32_t (*set_volt)(const struct bpu_core *, int32_t);
 	/*
 	 * write real fc to hw, return > 0: actual write fc num
 	 * param include the offset pos in the bpu_fc raw slices
 	 */
-	int32_t (*write_fc) (const struct bpu_core *, struct bpu_fc *fc, uint32_t);
+	int32_t (*write_fc)(const struct bpu_core *, struct bpu_fc *fc, uint32_t);
 	/* get the fc process return */
-	int32_t (*read_fc) (const struct bpu_core *, uint32_t *, uint32_t *);
+	int32_t (*read_fc)(const struct bpu_core *, uint32_t *, uint32_t *);
 
 	/* get bpu hw core running status */
-	int32_t (*status) (struct bpu_core *, uint32_t);
+	int32_t (*status)(struct bpu_core *, uint32_t);
 
 	/* debug info for hw info */
-	int32_t (*debug) (const struct bpu_core *, int32_t);
+	int32_t (*debug)(const struct bpu_core *, int32_t);
 };
 
 #endif

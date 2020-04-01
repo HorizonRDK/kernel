@@ -38,7 +38,6 @@ static int32_t bpu_fc_bind_user(struct bpu_fc *fc, struct bpu_user *user)
 		pr_err("%s[%d]:bpu bind invalid fc or user\n", __func__, __LINE__);/*PRQA S ALL*/
 		ret = -EINVAL;
 	} else {
-
 		/*
 		 * use the pointer's point to user for judging
 		 * whether valid of user after file released
@@ -156,7 +155,7 @@ static int32_t bpu_fc_create_from_user(struct bpu_fc *fc,
 		pr_err("bpu fc bind group failed\n");/*PRQA S ALL*/
 		return ret;
 	}
-	
+
 	if ((data != NULL) && (user_fc->length > 0u)) {
 		fc->fc_data = kmalloc(user_fc->length, GFP_KERNEL);/*PRQA S ALL*/
 		if (fc->fc_data == NULL) {
@@ -257,8 +256,9 @@ int32_t bpu_write_fc_to_core(struct bpu_core *core,
 			/* HW_ID_MAX for sched trig */
 			if (bpu_fc->hw_id >= FC_ID(HW_ID_MAX - 1)) {
 				atomic_set(&core->hw_id_counter[prio], 1);/*PRQA S ALL*/
-			} else
+			} else {
 				atomic_inc(&core->hw_id_counter[prio]);/*PRQA S ALL*/
+			}
 		} else {
 			bpu_fc->hw_id = 0;
 		}

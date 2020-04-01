@@ -90,6 +90,37 @@ static ssize_t bpu_core_users_show(struct device *dev, struct device_attribute *
 	return ret;
 }
 
+static ssize_t bpu_core_power_en_show(struct device *dev, struct device_attribute *attr, char *buf)/*PRQA S ALL*/
+{
+	struct bpu_core *core = (struct bpu_core *)dev_get_drvdata(dev);/*PRQA S ALL*/
+
+	return sprintf(buf, "%d\n", core->hw_enabled);
+}
+
+static ssize_t bpu_core_power_en_store(struct device *dev, struct device_attribute *attr,/*PRQA S ALL*/
+				  const char *buf, size_t len)
+{
+	struct bpu_core *core = (struct bpu_core *)dev_get_drvdata(dev);/*PRQA S ALL*/
+	int32_t power_en;
+	int32_t ret;
+
+	ret = sscanf(buf, "%du", &power_en);
+	if (ret < 0) {
+		return 0;
+	}
+
+	if (power_en <= 0) {
+		ret = bpu_core_disable(core);
+	} else {
+		ret = bpu_core_enable(core);
+	}
+	if (ret < 0) {
+		return 0;
+	}
+
+	return (ssize_t)len;
+}
+
 static ssize_t bpu_core_power_show(struct device *dev, struct device_attribute *attr, char *buf)/*PRQA S ALL*/
 {
 	struct bpu_core *core = (struct bpu_core *)dev_get_drvdata(dev);/*PRQA S ALL*/
@@ -155,6 +186,10 @@ static DEVICE_ATTR(users, S_IRUGO, bpu_core_users_show, NULL);
 static DEVICE_ATTR(power_level, S_IRUGO | S_IWUSR,
 		bpu_core_power_show, bpu_core_power_store);
 
+/* power on/off, > 0 power on; <= 0 power off*/
+static DEVICE_ATTR(power_enable, S_IRUGO | S_IWUSR,
+		bpu_core_power_en_show, bpu_core_power_en_store);
+
 static DEVICE_ATTR(limit, S_IRUGO | S_IWUSR,
 		bpu_core_limit_show, bpu_core_limit_store);
 // PRQA S ALL --
@@ -164,6 +199,7 @@ static struct attribute *bpu_core_attrs[] = {
 	&dev_attr_queue.attr,
 	&dev_attr_fc_time.attr,
 	&dev_attr_power_level.attr,
+	&dev_attr_power_enable.attr,
 	&dev_attr_users.attr,
 	&dev_attr_limit.attr,
 	NULL,

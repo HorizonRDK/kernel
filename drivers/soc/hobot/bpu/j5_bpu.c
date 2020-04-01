@@ -77,7 +77,6 @@ static void j5_cnnbus_rm_set(const struct bpu_core *core, uint32_t reg_off,
 
 static int32_t j5_bpu_hw_init(struct bpu_core *core)
 {
-
 	if (core->reserved[0] == 0u) {
 		core->reserved[0] = DEFAULT_BURST_LEN;
 	}
@@ -184,8 +183,8 @@ static int32_t j5_bpu_enable(struct bpu_core *core)
 		dev_err(core->dev, "bpu core clk enable failed\n");
 	}
 
-	ret = j5_bpu_reset(core); 
-	if (ret != 0){
+	ret = j5_bpu_reset(core);
+	if (ret != 0) {
 		dev_err(core->dev, "bpu core hw reset failed\n");
 	}
 
@@ -220,7 +219,7 @@ static int32_t j5_bpu_enable(struct bpu_core *core)
 static int32_t j5_bpu_disable(struct bpu_core *core)
 {
 	int32_t ret;
-	
+
 	if (core == NULL) {
 		pr_err("Disable invalid bpu core!\n");/*PRQA S ALL*/
 		return -ENODEV;

@@ -74,7 +74,6 @@ static void x2_cnnbus_rm_set(struct bpu_core *core, uint32_t reg_off,
 
 static int32_t x2_bpu_hw_init(struct bpu_core *core)
 {
-
 	if (core->reserved[0] == 0u) {
 		core->reserved[0] = DEFAULT_BURST_LEN;
 	}
@@ -247,8 +246,8 @@ static int32_t x2_bpu_enable(struct bpu_core *core)
 		dev_err(core->dev, "bpu core clk enable failed\n");
 	}
 
-	ret = x2_bpu_reset(core); 
-	if (ret != 0){
+	ret = x2_bpu_reset(core);
+	if (ret != 0) {
 		dev_err(core->dev, "bpu core hw reset failed\n");
 	}
 
@@ -283,7 +282,7 @@ static int32_t x2_bpu_enable(struct bpu_core *core)
 static int32_t x2_bpu_disable(struct bpu_core *core)
 {
 	int32_t ret;
-	
+
 	if (core == NULL) {
 		pr_err("Disable invalid bpu core!\n");/*PRQA S ALL*/
 		return -ENODEV;
@@ -325,6 +324,10 @@ static int32_t x2_bpu_set_clk(const struct bpu_core *core, uint64_t rate)
 	}
 
 	if (core->mclk == NULL) {
+		return ret;
+	}
+
+	if (!__clk_is_enabled(core->mclk)) {
 		return ret;
 	}
 

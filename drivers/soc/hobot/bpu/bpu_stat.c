@@ -51,7 +51,6 @@ void bpu_core_update(struct bpu_core *core, struct bpu_fc *fc)
 		tmp_start_point = core->last_done_point;
 	} else {
 		tmp_start_point = fc->start_point;
-
 	}
 
 	if (time_val(&tmp_start_point) >= time_val(&core->p_start_point)) {
@@ -73,7 +72,6 @@ void bpu_core_update(struct bpu_core *core, struct bpu_fc *fc)
 	core->k_point = fc->end_point;
 
 	spin_unlock_irqrestore(&core->spin_lock, flags);
-
 }
 // PRQA S ALL ++
 EXPORT_SYMBOL(bpu_core_update);

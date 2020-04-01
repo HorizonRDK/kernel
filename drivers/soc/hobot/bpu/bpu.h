@@ -104,7 +104,7 @@ struct bpu {
 	atomic_t open_counter;
 
 	struct timer_list *sched_timer;
-	
+
 	struct mutex mutex_lock;
 	spinlock_t spin_lock;
 
@@ -162,7 +162,6 @@ static inline struct bpu_fc_group *bpu_get_fc_group(struct bpu_fc *fc)
 static inline uint32_t bpu_group_id(uint32_t raw_id)
 {
 	return raw_id & 0xFFFFu;
-
 }
 
 static inline uint32_t bpu_group_user(uint32_t raw_id)

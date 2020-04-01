@@ -7,7 +7,7 @@ menuconfig HOBOT_BPU
 if HOBOT_BPU 
 
 config BPU
-	bool "BPU framework driver"
+	tristate "BPU framework driver"
 	default y
 	help
 	  Say y here to support the hobot BPU(Brain Processing Unit)
@@ -34,6 +34,14 @@ config X2_BPU
 	depends on BPU
 	help
 	  Say y here to support bpu on hobot x2/j2 soc
+
+	  If unsure, say N.
+
+config X3_BPU
+	bool "HOBOT X3 SOC BPU support"
+	depends on BPU
+	help
+	  Say y here to support bpu on hobot x3/j3 soc
 
 	  If unsure, say N.
 

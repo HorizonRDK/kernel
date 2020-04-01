@@ -360,7 +360,7 @@ int32_t bpu_core_process_recover(struct bpu_core *core)
 			}
 		}
 	}
-	
+
 	return 0;
 }
 // PRQA S ALL ++
@@ -405,9 +405,6 @@ static int32_t bpu_core_set_volt(struct bpu_core *core, int32_t volt)
 
 	return ret;
 }
-// PRQA S ALL ++
-EXPORT_SYMBOL(bpu_core_set_volt);
-// PRQA S ALL --
 
 static int32_t bpu_core_set_clk(struct bpu_core *core, uint64_t rate)
 {
@@ -439,9 +436,6 @@ static int32_t bpu_core_set_clk(struct bpu_core *core, uint64_t rate)
 
 	return ret;
 }
-// PRQA S ALL ++
-EXPORT_SYMBOL(bpu_core_set_clk);
-// PRQA S ALL --
 
 #if defined(CONFIG_PM_DEVFREQ) && defined(CONFIG_DEVFREQ_THERMAL)
 static int bpu_core_set_freq(struct device *dev, unsigned long *freq, u32 flags)/*PRQA S ALL*/
@@ -588,7 +582,7 @@ int32_t bpu_core_dvfs_register(struct bpu_core *core, const char *name)
 	}
 	core->dvfs->devfreq->min_freq = core->dvfs->profile.freq_table[0];
 	core->dvfs->devfreq->max_freq =
-		core->dvfs->profile.freq_table[tmp_state]; 
+		core->dvfs->profile.freq_table[tmp_state];
 	core->dvfs->level_num = core->dvfs->profile.max_state;
 
 	ret = devm_devfreq_register_opp_notifier(core->dev, core->dvfs->devfreq);

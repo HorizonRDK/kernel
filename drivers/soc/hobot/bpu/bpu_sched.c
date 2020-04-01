@@ -22,7 +22,6 @@ void bpu_sched_seed_update(void)
 	int32_t ret;
 
 	list_for_each_safe(pos, pos_n, &g_bpu->core_list) { /*PRQA S ALL*/
-
 		tmp_core = (struct bpu_core *)pos;/*PRQA S ALL*/
 		if (tmp_core != NULL) {
 			for (i = 0; i < BPU_PRIO_NUM; i++) {

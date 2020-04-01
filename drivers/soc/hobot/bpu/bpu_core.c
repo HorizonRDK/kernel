@@ -130,7 +130,6 @@ static void bpu_core_tasklet(unsigned long data)/*PRQA S ALL*/
 			dev_err(core->dev, "bpu buffer bind user error\n");
 			return;
 		}
-
 	} while (lost_report != 0);
 
 	core->done_hw_id = 0;
@@ -306,7 +305,6 @@ static ssize_t bpu_core_read(struct file *filp,/*PRQA S ALL*/
 	struct bpu_core *core = (struct bpu_core *)user->host;/*PRQA S ALL*/
 
 	return bpu_read_with_user(core, user, buf, len);
-
 }
 
 static ssize_t bpu_core_write(struct file *filp,/*PRQA S ALL*/
@@ -687,7 +685,7 @@ static int bpu_core_probe(struct platform_device *pdev)/*PRQA S ALL*/
 		return ret;
 	}
 
-#ifdef CONFIG_X2_BPU
+#if defined(CONFIG_X2_BPU) || defined(CONFIG_X3_BPU)
 	core->hw_ops = &x2_hw_ops;
 #elif defined CONFIG_J5_BPU
 	core->hw_ops = &j5_hw_ops;
@@ -743,7 +741,7 @@ static int bpu_core_remove(struct platform_device *pdev)/*PRQA S ALL*/
 }
 
 static const struct of_device_id bpu_core_of_match[] = {
-	{ .compatible = "hobot,x2-cnn-host",},
+	{ .compatible = "hobot,x2-cnn-host", },
 	{ /* sentinel */ }/*PRQA S ALL*/
 };
 MODULE_DEVICE_TABLE(of, bpu_core_of_match);/*PRQA S ALL*/
