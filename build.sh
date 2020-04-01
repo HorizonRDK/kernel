@@ -260,6 +260,8 @@ function all()
     cpfiles "$SRC_KERNEL_DIR/drivers/crypto/hobot/pka/elprsa.ko " "$TARGET_TMPROOTFS_DIR/lib/modules/"
     cpfiles "$SRC_KERNEL_DIR/drivers/crypto/hobot/core/spaccexample.ko " "$TARGET_TMPROOTFS_DIR/lib/modules/"
     cpfiles "$SRC_KERNEL_DIR/drivers/soc/hobot/cnn_host/hobot_cnn_host_total.ko " "$TARGET_TMPROOTFS_DIR/lib/modules/"
+	cpfiles "$SRC_KERNEL_DIR/drivers/soc/hobot/bpu/bpu_framework.ko " "$TARGET_TMPROOTFS_DIR/lib/modules/"
+	cpfiles "$SRC_KERNEL_DIR/drivers/soc/hobot/bpu/bpu_cores.ko " "$TARGET_TMPROOTFS_DIR/lib/modules/"
     cpfiles "$SRC_KERNEL_DIR/drivers/misc/hobot_efuse.ko " "$TARGET_TMPROOTFS_DIR/lib/modules/"
     cpfiles "$SRC_KERNEL_DIR/drivers/misc/x2_efuse.ko " "$TARGET_TMPROOTFS_DIR/lib/modules/"
     cpfiles "$SRC_KERNEL_DIR/_install/lib/modules/*" "$TARGET_TMPROOTFS_DIR/lib/modules/"
