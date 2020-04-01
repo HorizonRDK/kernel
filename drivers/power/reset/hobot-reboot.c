@@ -256,8 +256,9 @@ static ssize_t x2_swinfo_store(struct kobject *kobj,
 static const char * const x2_swi_boot_desp[] = {
 	"normal", "splonce", "ubootonce",
 	"splwait", "ubootwait", "udumptf", "udumpemmc",
-	"udumpusb", "unknown"
+	"udumpusb", "udumpfastboot", "unknown"
 };
+
 static ssize_t x2_swinfo_boot_show(struct kobject *kobj,
 		struct kobj_attribute *attr, char *buf)
 {
