@@ -105,8 +105,21 @@ int ips_set_md_cfg(sif_output_md_t *cfg)
 	ips_mot_data_sel(g_ips_dev->base_reg, 0x1);
 	ips_mot_set_prec(g_ips_dev->base_reg, cfg->precision, cfg->weight_decay);
 	ips_mot_enable(g_ips_dev->base_reg, cfg->enable);
+	ips_set_sram_mux(g_ips_dev->base_reg, 1);
 	ips_enable_intr(g_ips_dev->base_reg, MOD_INTR, true);
 	spin_unlock(&g_ips_dev->shared_slock);
+
+	return ret;
+}
+
+int ips_disable_md(void)
+{
+	int ret = 0;
+	BUG_ON(!g_ips_dev);
+
+	ips_mot_enable(g_ips_dev->base_reg, 0);
+	ips_set_sram_mux(g_ips_dev->base_reg, 0);
+	ips_enable_intr(g_ips_dev->base_reg, MOD_INTR, false);
 
 	return ret;
 }
@@ -162,6 +175,23 @@ int ips_get_bus_ctrl(void)
 	return ret;
 }
 EXPORT_SYMBOL_GPL(ips_get_bus_ctrl);
+
+void ips_set_iram_size(u32 iram_size)
+{
+	BUG_ON(!g_ips_dev);
+	g_ips_dev->iram_used_size = iram_size;
+	vio_dbg("%s: 0x%x\n", __func__, iram_size);
+}
+
+int ips_get_free_iram_range(u32 *address)
+{
+	int length = 0;
+	*address = g_ips_dev->iram_used_size;
+	length = IRAM_MAX_RANG - g_ips_dev->iram_used_size;
+
+	return length;
+}
+EXPORT_SYMBOL_GPL(ips_get_free_iram_range);
 
 int ips_get_bus_status(void)
 {

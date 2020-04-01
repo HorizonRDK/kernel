@@ -180,7 +180,8 @@ struct sif_subdev {
 	u32 mux_index;
 	u32 ddr_mux_index;
 	u32 dol_num;
-	u32 rx_num;
+	u32 rx_index;
+	u32 ipi_index;
 	u32 mux_nums;
 	sif_data_desc_t ddrin_fmt;
 	struct frame_id 		info;

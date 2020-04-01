@@ -34,4 +34,5 @@ void isp_vcke_ctrl(void __iomem *base_addr, bool en);
 void isp_vcke_th0(void __iomem *base_addr, u32 cfg);
 void isp_vcke_th1(void __iomem *base_addr, u32 cfg);
 void ips_hw_dump(u32 __iomem *base_reg);
+void ips_set_sram_mux(void __iomem *base_addr, u32 md_cfg);
 #endif

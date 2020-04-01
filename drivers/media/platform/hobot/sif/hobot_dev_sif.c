@@ -481,7 +481,14 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 	if (md_enable)
 		subdev->md_refresh_count = 0;
 
-	subdev->rx_num = sif_config->input.mipi.mipi_rx_index;
+	subdev->rx_index = sif_config->input.mipi.mipi_rx_index;
+	if (subdev->rx_index < 2)
+		subdev->ipi_index = subdev->rx_index * 4 +
+				sif_config->input.mipi.vc_index;
+	else
+		subdev->ipi_index = 8 + (subdev->rx_index - 2) * 2 +
+				sif_config->input.mipi.vc_index;
+
 	subdev->initial_frameid = true;
 	sif->sif_mux[mux_index] = group;
 
@@ -1047,11 +1054,11 @@ static irqreturn_t sif_isr(int irq, void *data)
 				group = sif->sif_mux[mux_index];
 				subdev = group->sub_ctx[0];
 				if (subdev->initial_frameid) {
-					sif_enable_init_frameid(sif->base_reg, subdev->rx_num, 0);
+					sif_enable_init_frameid(sif->base_reg, subdev->rx_index, 0);
 					subdev->initial_frameid = false;
 				}
-				sif_get_frameid_timestamps(sif->base_reg,
-							   mux_index, &group->frameid);
+				sif_get_frameid_timestamps(sif->base_reg, mux_index,
+						subdev->ipi_index, &group->frameid, subdev->dol_num);
 
 				if (subdev->md_refresh_count == 1) {
 					ips_set_md_refresh(0);

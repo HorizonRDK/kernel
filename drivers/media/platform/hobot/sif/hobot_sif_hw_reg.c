@@ -978,18 +978,46 @@ static void sif_set_isp_output(u32 __iomem *base_reg,
 
 	sif_output_isp_t *p_isp;
 
-	const u32 iram_addr_range[3][2] =
+	u32 iram_addr_range[2][2] =
 	{
-		{0      , 0x10000},     // 64KB
-		{0x10000, 0x80000},     // 448KB
+		{0, 0x80000},     // 512KB
 		{0x80000, 0x100000},    // 512KB
 	};
-	u32 iram_stride = 0;
+	u32 iram_stride = 4096;
 	u32 gain = 0;
 	int i = 0;
+	int iram_size = 0;
 
 	p_isp = &p_out->isp;
-	iram_stride = p_out->ddr.stride;
+
+	if (p_isp->dol_exp_num == 2) {
+		if (p_isp->func.short_maxexp_lines) {
+			iram_stride = p_out->ddr.stride;
+			iram_size = iram_stride *
+					(p_isp->func.short_maxexp_lines + 1);
+			iram_addr_range[0][1] = iram_size;
+		} else {
+			iram_size = iram_addr_range[0][1];
+		}
+	} else if (p_isp->dol_exp_num == 3) {
+		if (p_isp->func.short_maxexp_lines && p_isp->func.medium_maxexp_lines) {
+			iram_stride = p_out->ddr.stride;
+			iram_size = iram_stride *
+					(p_isp->func.short_maxexp_lines + 1);
+			iram_addr_range[1][0] = iram_addr_range[0][1];
+			iram_size += iram_stride *
+					(p_isp->func.medium_maxexp_lines + 1);
+			iram_addr_range[1][1] = iram_size;
+		} else {
+			iram_size = iram_addr_range[1][1];
+		}
+	}
+
+	if (iram_size > IRAM_MAX_RANG) {
+		vio_err("beyond iram rang (0x%x)\n", iram_size);
+		return;
+	}
+	ips_set_iram_size(iram_size);
 
 	vio_dbg("%s: iram_stride = %d\n", __func__, iram_stride);
 	if (p_isp->enable) {
@@ -1008,16 +1036,9 @@ static void sif_set_isp_output(u32 __iomem *base_reg,
 			// For DOL 2/3
 			if (p_isp->dol_exp_num > 1) {
 				vio_hw_set_reg(base_reg,
-					&sif_regs[SIF_AXI_FRM0_W_ADDR0], iram_addr_range[0][0]);
+					&sif_regs[SIF_AXI_FRM1_W_ADDR0], iram_addr_range[0][0]);
 				vio_hw_set_reg(base_reg,
-					&sif_regs[SIF_AXI_FRM0_W_ADDR3], iram_addr_range[0][1]);
-				vio_hw_set_reg(base_reg,
-					&sif_regs[SIF_AXI_FRM0_W_STRIDE], iram_stride);
-
-				vio_hw_set_reg(base_reg,
-					&sif_regs[SIF_AXI_FRM1_W_ADDR0], iram_addr_range[1][0]);
-				vio_hw_set_reg(base_reg,
-					&sif_regs[SIF_AXI_FRM1_W_ADDR3], iram_addr_range[1][1]);
+					&sif_regs[SIF_AXI_FRM1_W_ADDR3], iram_addr_range[0][1]);
 				vio_hw_set_reg(base_reg,
 					&sif_regs[SIF_AXI_FRM1_W_STRIDE], iram_stride);
 			}
@@ -1025,9 +1046,9 @@ static void sif_set_isp_output(u32 __iomem *base_reg,
 			// For DOL 3
 			if (p_isp->dol_exp_num > 2) {
 				vio_hw_set_reg(base_reg,
-					&sif_regs[SIF_AXI_FRM2_W_ADDR0], iram_addr_range[2][0]);
+					&sif_regs[SIF_AXI_FRM2_W_ADDR0], iram_addr_range[1][0]);
 				vio_hw_set_reg(base_reg,
-					&sif_regs[SIF_AXI_FRM2_W_ADDR3], iram_addr_range[2][1]);
+					&sif_regs[SIF_AXI_FRM2_W_ADDR3], iram_addr_range[1][1]);
 				vio_hw_set_reg(base_reg,
 					&sif_regs[SIF_AXI_FRM2_W_STRIDE], iram_stride);
 			}
@@ -1306,6 +1327,7 @@ void sif_hw_disable(u32 __iomem *base_reg)
 	vio_hw_set_reg(base_reg, &sif_regs[SIF_SW_RESET], 0x00000000); //remove it for test only
 
 	sif_set_isp_performance(base_reg, 0);
+	ips_disable_md();
 
 #ifdef SIF_MEMORY_DEBUG
 	// For Debug: Memory Violation
@@ -1367,12 +1389,16 @@ void sif_hw_enable(u32 __iomem *base_reg)
 }
 
 void sif_get_frameid_timestamps(u32 __iomem *base_reg, u32 mux,
-				struct frame_id *info)
+			u32 ipi_index, struct frame_id *info, u32 dol_num)
 {
 	u32 value;
 	u64 timestamp_l, timestamp_m;
 
-	value = vio_hw_get_reg(base_reg,
+	if (dol_num >= 2)
+		value = vio_hw_get_reg(base_reg,
+					&sif_regs[SIF_FRAME_ID_IPI_0_1 + ipi_index / 2]);
+	else
+		value = vio_hw_get_reg(base_reg,
 					&sif_regs[SIF_FRAME_ID_IN_BUF_0_1 + mux / 2]);
 	if(mux % 2 == 0)
 		info->frame_id = value & 0xffff;
@@ -1385,7 +1411,7 @@ void sif_get_frameid_timestamps(u32 __iomem *base_reg, u32 mux,
 						&sif_regs[SIF_TIMESTAMP0_MSB + mux * 2]);
 	info->timestamps = timestamp_l | timestamp_m << 32;
 
-	vio_dbg("sif frame ID = %d\n", info->frame_id);
+	vio_dbg("[mux%d]sif frame ID = %d\n", mux, info->frame_id);
 }
 
 u32 sif_get_current_bufindex(u32 __iomem *base_reg, u32 mux)

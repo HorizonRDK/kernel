@@ -73,6 +73,8 @@ typedef struct sif_func_desc {
 	uint32_t	set_bypass_channels;
 	uint32_t	set_mux_out_index;
 	//uint32_t	  set_mux_out_reverse;
+	uint32_t    short_maxexp_lines;
+	uint32_t    medium_maxexp_lines;
 	uint32_t 	vc_short_seq; //frame sequence mark in dol mode
 	uint32_t 	vc_medium_seq;
 	uint32_t 	vc_long_seq;

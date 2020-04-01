@@ -166,6 +166,11 @@ int ips_clk_ctrl(void __iomem *base_addr, u32 module, bool enable)
 	return 0;
 }
 
+void ips_set_sram_mux(void __iomem *base_addr, u32 md_cfg)
+{
+	vio_hw_set_reg(base_addr, &ips_regs[IPS_SRAM_MUX], md_cfg);
+}
+
 void ips_mot_set_roi(void __iomem *base_addr, struct roi_rect *rect)
 {
 	vio_hw_set_field(base_addr, &ips_regs[MOT_DET_ROT_LT],
