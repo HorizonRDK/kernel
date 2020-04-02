@@ -138,6 +138,30 @@ static void vcm_v4l2_subdev_move( void *ctx, uint16_t position )
     return;
 }
 
+static void zoom_v4l2_subdev_move(void *ctx, uint16_t position)
+{
+    lens_context_t *p_ctx = ctx;
+
+    if ( p_ctx != NULL ) {
+        struct soc_lens_ioctl_args settings;
+        struct v4l2_subdev *sd = p_ctx->soc_lens;
+        uint32_t ctx_num = get_ctx_num( ctx );
+        if ( sd != NULL && ctx_num < FIRMWARE_CONTEXT_NUMBER ) {
+            settings.ctx_num = ctx_num;
+            settings.args.general.val_in = position;
+            int rc = v4l2_subdev_call( sd, core, ioctl, SOC_LENS_MOVE_ZOOM, &settings );
+            if ( rc == 0 ) {
+            } else {
+                LOG( LOG_ERR, "Failed to move the lens. rc = %d", rc );
+            }
+        } else {
+            LOG( LOG_ERR, "SOC lens subdev pointer is NULL" );
+        }
+    } else {
+        LOG( LOG_ERR, "Lens context pointer is NULL" );
+    }
+    return;
+}
 
 static uint8_t vcm_v4l2_subdev_is_moving( void *ctx )
 {
@@ -256,6 +280,7 @@ void lens_v4l2_subdev_init( void **ctx, lens_control_t *ctrl, uint32_t lens_bus 
         ctrl->write_lens_register = vcm_v4l2_subdev_write_register;
         ctrl->read_lens_register = vcm_v4l2_subdev_read_register;
         ctrl->get_parameters = lens_get_parameters;
+        ctrl->move_zoom = zoom_v4l2_subdev_move;
 
         *ctx = p_ctx;
 

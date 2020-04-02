@@ -113,6 +113,9 @@ struct _AF_fsm_t {
     uint8_t frame_skip_cnt;
     uint8_t frame_skip_start;
 
+    uint32_t zoom_manual_pos;
+    uint32_t zoom_curr_pos;
+
     af_state_t state;
 };
 

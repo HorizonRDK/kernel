@@ -2246,6 +2246,39 @@ uint8_t af_manual_control( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t 
 #endif
 
 // ------------------------------------------------------------------------------ //
+// zoom_manual_control description:
+//
+//   Manually set the focal length, only available when ZOOM_MODE_ID is set to ZOOM_MANUAL.
+//
+//   Values:
+//    [0-255]
+//
+//   Key:
+//    0    - macro mechanical end
+//    255  - infinity end
+//
+// ------------------------------------------------------------------------------ //
+#ifdef ZOOM_MANUAL_CONTROL_ID
+uint8_t zoom_manual_control( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    *ret_value = 0;
+#if defined( ISP_HAS_AF_LMS_FSM ) || defined( ISP_HAS_AF_MANUAL_FSM )
+    if ( direction == COMMAND_SET ) {
+        acamera_fsm_mgr_set_param( instance, FSM_PARAM_SET_ZOOM_MANUAL_POS, &value, sizeof( value ) );
+        return SUCCESS;
+    } else if ( direction == COMMAND_GET ) {
+        acamera_fsm_mgr_get_param( instance, FSM_PARAM_GET_ZOOM_MANUAL_POS, NULL, 0, ret_value, sizeof( uint32_t ) );
+        return SUCCESS;
+    }
+
+    return NOT_SUPPORTED;
+#else
+    return NOT_SUPPORTED;
+#endif
+}
+#endif
+
+// ------------------------------------------------------------------------------ //
 // af_range_low description:
 //
 //     Sets the lowest value that the AF algorithm can select.

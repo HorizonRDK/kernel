@@ -196,6 +196,7 @@
 #define TREGISTERS                                        0x00000009
 #define MSENSOR                                           0x0000000a //IE&E add
 #define LOG_LIST                                          0x0000000b //add API by myself
+#define LDC_PARAM                                         0x0000000c //IE&E add
 
 // ------------------------------------------------------------------------------ //
 //		BUFFER TYPES
@@ -324,6 +325,21 @@
 #define SENSOR_LINES_PER_SECOND                           0x00000070//add
 #define SENSOR_DECOMP_BITS                                0x00000071//IE&E add
 #define ZOOM_MANUAL_CONTROL_ID                            0x00000072//ie&e add
+#define LINE_BUF_ID                                       0x00000073//ie&e add
+#define X_PARAMTER_A_ID                                   0x00000074//ie&e add
+#define X_PARAMTER_B_ID                                   0x00000075//ie&e add
+#define Y_PARAMTER_A_ID                                   0x00000076//ie&e add
+#define Y_PARAMTER_B_ID                                   0x00000077//ie&e add
+#define RADIUS_XOFFSET_ID                                 0x00000078//ie&e add
+#define RADIUS_YOFFSET_ID                                 0x00000079//ie&e add
+#define CENTER_XOFFSET_ID                                 0x0000007a//ie&e add
+#define CENTER_YOFFSET_ID                                 0x0000007b//ie&e add
+#define WOI_YLENGTH_ID                                    0x0000007c//ie&e add
+#define WOI_YSTART_ID                                     0x0000007d//ie&e add
+#define WOI_XLENGTH_ID                                    0x0000007e//ie&e add
+#define WOI_XSTART_ID                                     0x0000007f//ie&e add
+#define LDC_PARAM_UPDATE_ID                               0x00000080//ie&e add
+
 
 #define LOG_LIST_LEVEL                                    0x00000094 // add API by myself
 #define LOG_LIST_MASK                                     0x00000095 // add API by myself

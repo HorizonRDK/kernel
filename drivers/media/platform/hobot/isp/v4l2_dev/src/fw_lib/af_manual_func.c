@@ -44,6 +44,22 @@
 #define CUR_MOD_NAME LOG_MODULE_AF_MANUAL
 #endif
 
+void zoom_update_lens_position(AF_fsm_ptr_t p_fsm)
+{
+    //const lens_param_t *lens_param = p_fsm->lens_ctrl.get_parameters(p_fsm->lens_ctx);
+
+    /* the new AF position is updated in sbuf FSM */
+    if (p_fsm->zoom_manual_pos != p_fsm->zoom_curr_pos) {
+
+        LOG(LOG_INFO, "last position(%u) move changed.", p_fsm->zoom_curr_pos);
+        p_fsm->lens_ctrl.move_zoom( p_fsm->lens_ctx, p_fsm->zoom_manual_pos);
+
+        p_fsm->zoom_curr_pos = p_fsm->zoom_manual_pos;
+
+    } else {
+        LOG(LOG_INFO, "last position(%u) not changed.", p_fsm->zoom_curr_pos);
+    }
+}
 
 static void af_update_lens_position( AF_fsm_ptr_t p_fsm )
 {

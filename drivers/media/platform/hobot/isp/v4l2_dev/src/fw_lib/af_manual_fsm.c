@@ -31,12 +31,15 @@
 
 
 extern void af_set_new_param( AF_fsm_ptr_t p_fsm, sbuf_af_t *p_sbuf_af );
+extern void zoom_update_lens_position(AF_fsm_ptr_t p_fsm);
 
 void AF_fsm_clear( AF_fsm_t *p_fsm )
 {
     p_fsm->frame_num = 0;
     p_fsm->mode = AF_MODE_AF;
     p_fsm->pos_manual = 0;
+    p_fsm->zoom_manual_pos = 100;
+    p_fsm->zoom_curr_pos = 100;
     p_fsm->new_pos = 0;
     p_fsm->roi = 0x4040C0C0;
     p_fsm->lens_driver_ok = 0;
@@ -162,6 +165,23 @@ int AF_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_t input_
         if ( pos_manual <= 256 ) {
             p_fsm->pos_manual = pos_manual;
         }
+
+        break;
+    }
+
+    case FSM_PARAM_SET_ZOOM_MANUAL_POS: {
+        if ( !input || input_size != sizeof( uint32_t ) ) {
+            LOG( LOG_ERR, "Invalid param, param_id: %d.", param_id );
+            rc = -1;
+            break;
+        }
+
+        uint32_t zoom_manual = *(uint32_t *)input;
+
+        if ((zoom_manual <= 300) && (zoom_manual >= 100)) {
+            p_fsm->zoom_manual_pos = zoom_manual;
+        }
+	zoom_update_lens_position(p_fsm);
 
         break;
     }
@@ -297,6 +317,16 @@ int AF_fsm_get_param( void *fsm, uint32_t param_id, void *input, uint32_t input_
         }
 
         *(int32_t *)output = p_fsm->lens_driver_ok;
+        break;
+
+    case FSM_PARAM_GET_ZOOM_MANUAL_POS:
+        if ( !output || output_size != sizeof( int32_t ) ) {
+            LOG( LOG_ERR, "Invalid param, param_id: %d.", param_id );
+            rc = -1;
+            break;
+        }
+
+        *(int32_t *)output = p_fsm->zoom_manual_pos;
         break;
 
     default:

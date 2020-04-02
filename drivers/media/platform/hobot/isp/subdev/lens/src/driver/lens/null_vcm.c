@@ -52,6 +52,15 @@ uint8_t lens_null_test( uint32_t lens_bus )
     return 1;//TODO
 }
 
+static void zoom_null_drv_move(void *ctx, uint16_t position)
+{
+	int ret = 0;
+	lens_context_t *p_ctx = (lens_context_t *)ctx;
+
+	LOG(LOG_INFO, "IE&E %s, position %d ", __func__, position);
+	ret = lens_api_zoom_move(p_ctx->port, position);
+}
+
 static void vcm_null_drv_move( void *ctx, uint16_t position )
 {
 	int ret = 0;
@@ -98,6 +107,7 @@ void lens_null_init( void **ctx, lens_control_t *ctrl, uint32_t lens_bus )
 
     ctrl->is_moving = vcm_null_drv_is_moving;
     ctrl->move = vcm_null_drv_move;
+    ctrl->move_zoom = zoom_null_drv_move;
     ctrl->write_lens_register = vcm_null_write_register;
     ctrl->read_lens_register = vcm_null_read_register;
     ctrl->get_parameters = lens_get_parameters;

@@ -324,6 +324,9 @@ case  TALGORITHMS:
 		case  AF_MANUAL_CONTROL_ID:
 			ret = af_manual_control(instance, value, direction, ret_value);
 			break;
+		case  ZOOM_MANUAL_CONTROL_ID:
+			ret = zoom_manual_control(instance, value, direction, ret_value);
+			break;
 		case  AE_MODE_ID:
 			ret = ae_mode(instance, value, direction, ret_value);
 			break;
