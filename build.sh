@@ -106,13 +106,13 @@ function build_wifi()
     cpfiles "$SRC_KERNEL_DIR/drivers/staging/marvell/bin_sd8801/*.ko" "$TARGET_TMPROOTFS_DIR/lib/modules/"
     rm -fr $SRC_KERNEL_DIR/drivers/staging/marvell/bin_sd8801
     cpfiles "$SRC_KERNEL_DIR/drivers/staging/marvell/FwImage/sd8801_uapsta.bin" "$TARGET_TMPROOTFS_DIR/lib/firmware/mrvl/"
-    
+
     echo "build wifi rtl8819fs.............."
     cd $SRC_KERNEL_DIR/drivers/staging/rtl8189fs/
     make
     cd $SRC_KERNEL_DIR
     cpfiles "$SRC_KERNEL_DIR/drivers/staging/rtl8189fs/*.ko" "$TARGET_TMPROOTFS_DIR/lib/modules/"
-    rm -fr $SRC_KERNEL_DIR/drivers/staging/rtl8189fs/*.ko 
+    rm -fr $SRC_KERNEL_DIR/drivers/staging/rtl8189fs/*.ko
     echo "end build wifi...................."
 }
 
@@ -134,7 +134,7 @@ function change_dts_flash_config()
     }
 
 
-    if [ x"$BOOT_MODE" = x"nor" ] || [ x"$BOOT_MODE" = x"nand" ];then
+    if [ x"$1" = x"nor" ] || [ x"$1" = x"nand" ];then
         flashline=`getlinenum`
         sed -i "${flashline}s#disabled#okay#g" $dts_file
     else
@@ -327,8 +327,15 @@ function clean()
 
 cd $(dirname $0)
 # config dts
-change_dts_flash_config $BOOT_MODE
+if_flash=$BOOT_MODE
+if [[ ! -z "$FLASH_ENABLE" ]];then
+    if [ "$FLASH_ENABLE" = "nor" -o  "$FLASH_ENABLE" = "nand" ];then
+        echo "$FLASH_ENALBE flash is enabled!!"
+        if_flash=$FLASH_ENABLE
+    fi
+fi
+
+change_dts_flash_config $if_flash
 
 set_kernel_config
 buildopt $cmd
-
