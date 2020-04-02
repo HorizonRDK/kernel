@@ -244,7 +244,7 @@ function all()
         exit 1
     }
     # x3 wifi
-    build_wifi
+#    build_wifi
 
     # put binaries to dest directory
     cpfiles "$SRC_KERNEL_DIR/arch/$ARCH_KERNEL/boot/$KERNEL_IMAGE_NAME" "$prefix/"
