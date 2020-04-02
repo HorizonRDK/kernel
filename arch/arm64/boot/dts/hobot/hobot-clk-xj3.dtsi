@@ -1040,95 +1040,62 @@
 
 		sd0_div_clk: sd0_div_clk {
 			#clock-cells = <0>;
-			compatible = "hobot,div-clk";
-			clocks = <&peri_pllmux_clk>;
-			offset = <0x320>;
-			bits = <0>;
-			field = <4>;
-		};
-
-		sd0_div_cclk: sd0_div_cclk {
-			#clock-cells = <0>;
 			compatible = "hobot,fixed-factor-clk";
-			clocks = <&sd0_div_clk>;
+			clocks = <&peri_pllmux_clk>;
 			offset = <0x320>;
 			bits = <4>;
 			field = <4>;
 			clk-div = <8>;
 			clk-mult = <1>;
-			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		sd0_cclk: sd0_cclk {
 			#clock-cells = <0>;
-			compatible = "hobot,gate-clk";
-			clocks = <&sd0_div_cclk>;
-			offset = <0x150 0x154 0x158 0x258>;
-			bits = <15 15 15 1>;
-			field = <1 1 1 1>;
-			clk-flags = <CLK_SET_RATE_PARENT>;
+			compatible = "hobot,endiv-clk";
+			clocks = <&sd0_div_clk>;
+			offset = <0x320 0x150 0x154 0x158 0x258 0x0>;
+			bits = <0 15 15 15 1 32>;
+			field = <4 1 1 1 1>;
 		};
 
 		sd1_div_clk: sd1_div_clk {
 			#clock-cells = <0>;
-			compatible = "hobot,div-clk";
-			clocks = <&peri_pllmux_clk>;
-			offset = <0x330>;
-			bits = <0>;
-			field = <4>;
-		};
-
-		sd1_div_cclk: sd1_div_cclk {
-			#clock-cells = <0>;
 			compatible = "hobot,fixed-factor-clk";
-			clocks = <&sd1_div_clk>;
+			clocks = <&peri_pllmux_clk>;
 			offset = <0x330>;
 			bits = <4>;
 			field = <4>;
 			clk-div = <8>;
 			clk-mult = <1>;
-			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		sd1_cclk: sd1_cclk {
 			#clock-cells = <0>;
-			compatible = "hobot,gate-clk";
-			clocks = <&sd1_div_cclk>;
-			offset = <0x150 0x154 0x158 0x258>;
-			bits = <16 16 16 2>;
-			field = <1 1 1 1>;
-			clk-flags = <CLK_SET_RATE_PARENT>;
+			compatible = "hobot,endiv-clk";
+			clocks = <&sd1_div_clk>;
+			offset = <0x330 0x150 0x154 0x158 0x258 0x0>;
+			bits = <0 16 16 16 2 32>;
+			field = <4 1 1 1 1>;
 		};
 
 		sd2_div_clk: sd2_div_clk {
 			#clock-cells = <0>;
-			compatible = "hobot,div-clk";
-			clocks = <&peri_pllmux_clk>;
-			offset = <0x340>;
-			bits = <0>;
-			field = <4>;
-		};
-
-		sd2_div_cclk: sd2_div_cclk {
-			#clock-cells = <0>;
 			compatible = "hobot,fixed-factor-clk";
-			clocks = <&sd2_div_clk>;
+			clocks = <&peri_pllmux_clk>;
 			offset = <0x340>;
 			bits = <4>;
 			field = <4>;
 			clk-div = <8>;
 			clk-mult = <1>;
-			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		sd2_cclk: sd2_cclk {
 			#clock-cells = <0>;
-			compatible = "hobot,gate-clk";
-			clocks = <&sd2_div_cclk>;
-			offset = <0x150 0x154 0x158 0x258>;
-			bits = <25 25 25 3>;
-			field = <1 1 1 1>;
-			clk-flags = <CLK_SET_RATE_PARENT>;
+			compatible = "hobot,endiv-clk";
+			clocks = <&sd2_div_clk>;
+			offset = <0x340 0x150 0x154 0x158 0x258 0x0>;
+			bits = <0 25 25 25 3 32>;
+			field = <4 1 1 1 1>;
 		};
 
 		eth0_prediv_clk: eth0_prediv_clk {
