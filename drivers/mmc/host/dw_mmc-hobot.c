@@ -20,6 +20,7 @@
 #include <linux/regmap.h>
 #include <linux/of_gpio.h>
 #include <linux/mmc/slot-gpio.h>
+#include <linux/pm_runtime.h>
 #include <linux/regulator/consumer.h>
 
 #include "dw_mmc.h"
@@ -73,7 +74,7 @@
 #define SD1_PADC_VAL_CLR1		(0xF8F8F8F8)
 #define SD1_PADC_VAL			(0x04040404)
 
-#define VER		"HOBOT-mmc_V20.200330"
+#define VER		"HOBOT-mmc_V20.200402"
 
 static int debug;
 module_param(debug, int, 0644);
@@ -126,7 +127,7 @@ static int hb_mmc_set_sd_padcctrl(struct dw_mci_hobot_priv_data *priv)
 int hb_mmc_disable_clk(struct dw_mci_hobot_priv_data *priv)
 {
 #ifdef CONFIG_HOBOT_XJ2
-	u64 timeout = jiffies + msecs_to_jiffies(10);
+	unsigned long timeout = jiffies + msecs_to_jiffies(10);
 	u32 clken_clr_shift = 0, clkoff_sta_shift = 0;
 	u32 reg_value;
 	int retry = 0;
@@ -172,7 +173,7 @@ int hb_mmc_disable_clk(struct dw_mci_hobot_priv_data *priv)
 int hb_mmc_enable_clk(struct dw_mci_hobot_priv_data *priv)
 {
 #ifdef CONFIG_HOBOT_XJ2
-	u64 timeout = jiffies + msecs_to_jiffies(10);
+	unsigned long timeout = jiffies + msecs_to_jiffies(10);
 	u32 clken_set_shift = 0, clkoff_sta_shift = 0;
 	u32 reg_value;
 	int retry = 0;
@@ -745,6 +746,7 @@ static int dw_mci_hobot_probe(struct platform_device *pdev)
 {
 	const struct dw_mci_drv_data *drv_data;
 	const struct of_device_id *match;
+	int ret;
 
 	if (!pdev->dev.of_node)
 		return -ENODEV;
@@ -753,7 +755,24 @@ static int dw_mci_hobot_probe(struct platform_device *pdev)
 
 	match = of_match_node(dw_mci_hobot_match, pdev->dev.of_node);
 	drv_data = match->data;
-	return dw_mci_pltfm_register(pdev, drv_data);
+
+	pm_runtime_get_noresume(&pdev->dev);
+	pm_runtime_set_active(&pdev->dev);
+	pm_runtime_enable(&pdev->dev);
+	pm_runtime_set_autosuspend_delay(&pdev->dev, 50);
+	pm_runtime_use_autosuspend(&pdev->dev);
+
+	ret = dw_mci_pltfm_register(pdev, drv_data);
+	if (ret) {
+		pm_runtime_disable(&pdev->dev);
+		pm_runtime_set_suspended(&pdev->dev);
+		pm_runtime_put_noidle(&pdev->dev);
+		return ret;
+	}
+
+	pm_runtime_put_autosuspend(&pdev->dev);
+
+	return 0;
 }
 
 static int dw_mci_hobot_remove(struct platform_device *pdev)
@@ -777,14 +796,21 @@ static int dw_mci_hobot_remove(struct platform_device *pdev)
 		gpio_free(priv->powerup_gpio);
 	}
 
-	dw_mci_pltfm_remove(pdev);
+	pm_runtime_get_sync(&pdev->dev);
+	pm_runtime_disable(&pdev->dev);
+	pm_runtime_put_noidle(&pdev->dev);
 
-	return 0;
+	return dw_mci_pltfm_remove(pdev);
 }
 
 static const struct dev_pm_ops dw_mci_hobot_pmops = {
+	/*
 	SET_SYSTEM_SLEEP_PM_OPS(dw_mci_system_suspend,
 				dw_mci_system_resume)
+	*/
+	SET_SYSTEM_SLEEP_PM_OPS(pm_runtime_force_suspend,
+				pm_runtime_force_resume)
+
 	SET_RUNTIME_PM_OPS(dw_mci_runtime_suspend,
 			   dw_mci_runtime_resume,
 			   NULL)

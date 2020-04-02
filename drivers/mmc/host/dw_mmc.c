@@ -3524,18 +3524,17 @@ void dw_mci_remove(struct dw_mci *host)
 }
 EXPORT_SYMBOL(dw_mci_remove);
 
-
-
 #ifdef CONFIG_PM
 int dw_mci_runtime_suspend(struct device *dev)
 {
 	struct dw_mci *host = dev_get_drvdata(dev);
 
+	dev_dbg(dev, "%s:%s\n", __FILE__, __func__);
+
 	if (host->use_dma && host->dma_ops->exit)
 		host->dma_ops->exit(host);
 
 	clk_disable_unprepare(host->ciu_clk);
-
 	return 0;
 }
 EXPORT_SYMBOL(dw_mci_runtime_suspend);
@@ -3544,6 +3543,8 @@ int dw_mci_runtime_resume(struct device *dev)
 {
 	int ret = 0;
 	struct dw_mci *host = dev_get_drvdata(dev);
+
+	dev_dbg(dev, "%s:%s\n", __FILE__, __func__);
 
 	ret = clk_prepare_enable(host->ciu_clk);
 	if (ret)
@@ -3583,7 +3584,6 @@ int dw_mci_runtime_resume(struct device *dev)
 
 	/* Now that slots are all setup, we can enable card detect */
 	dw_mci_enable_cd(host);
-
 err:
 	return ret;
 }
@@ -3593,7 +3593,7 @@ int dw_mci_system_suspend(struct device *dev)
 {
 	struct dw_mci *host = dev_get_drvdata(dev);
 
-	pr_info("%s:%s, enter suspend...\n", __FILE__, __func__);
+	dev_dbg(dev, "%s:%s\n", __FILE__, __func__);
 #ifdef CONFIG_HOBOT_FPGA_X3
 	return 0;
 #endif
@@ -3619,7 +3619,7 @@ int dw_mci_system_resume(struct device *dev)
 	struct dw_mci *host = dev_get_drvdata(dev);
 	int ret;
 
-	pr_info("%s:%s, enter resume...\n", __FILE__, __func__);
+	dev_dbg(dev, "%s:%s\n", __FILE__, __func__);
 #ifdef CONFIG_HOBOT_FPGA_X3
 	return 0;
 #endif
@@ -3692,10 +3692,7 @@ int dw_mci_system_resume(struct device *dev)
 	/* Now that slots are all setup, we can enable card detect */
 	dw_mci_enable_cd(host);
 
-	pr_info("%s:%s, mmc runtime_resume success\n", __FILE__, __func__);
-
 	return 0;
-
 err:
 	if (host->slot &&
 		(mmc_can_gpio_cd(host->slot->mmc) ||
