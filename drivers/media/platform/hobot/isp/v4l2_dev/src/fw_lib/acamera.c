@@ -76,7 +76,10 @@ int sif_isp_ctx_sync_func(int ctx_id);
 static DECLARE_WAIT_QUEUE_HEAD(wq);
 static DECLARE_WAIT_QUEUE_HEAD(wq_fe);
 
+#if FW_USE_HOBOT_DMA
 extern hobot_dma_t g_hobot_dma;
+#endif
+
 int32_t acamera_set_api_context( uint32_t ctx_num )
 {
     int32_t result = 0;
@@ -380,8 +383,10 @@ int32_t acamera_init( acamera_settings *settings, uint32_t ctx_num )
                             break;
 
                         system_dma_copy_sg( g_firmware.dma_chan_isp_config, ISP_CONFIG_PING, SYS_DMA_FROM_DEVICE, 0, idx );
+#if FW_USE_HOBOT_DMA
     			isp_idma_start_transfer(&g_hobot_dma);
 			system_dma_wait_done(g_firmware.dma_chan_isp_config);
+#endif
                         // init context
                         result = acamera_init_context( p_ctx, &settings[idx], &g_firmware );
                         if ( result == 0 ) {
@@ -389,12 +394,15 @@ int32_t acamera_init( acamera_settings *settings, uint32_t ctx_num )
                             LOG( LOG_INFO, "DMA config from DDR to ping and pong of size %d", ACAMERA_ISP1_SIZE );
                             // system_dma_copy current software context to the ping and pong
                             system_dma_copy_sg( g_firmware.dma_chan_isp_config, ISP_CONFIG_PING, SYS_DMA_TO_DEVICE, 0, idx );
+#if FW_USE_HOBOT_DMA
 			    isp_idma_start_transfer(&g_hobot_dma);
 			    system_dma_wait_done(g_firmware.dma_chan_isp_config);
-
+#endif
                             system_dma_copy_sg( g_firmware.dma_chan_isp_config, ISP_CONFIG_PONG, SYS_DMA_TO_DEVICE, 0, idx );
+#if FW_USE_HOBOT_DMA
 			    isp_idma_start_transfer(&g_hobot_dma);
 			    system_dma_wait_done(g_firmware.dma_chan_isp_config);
+#endif
                             if ( result == 0 ) {
 #if ISP_SENSOR_DRIVER_MODEL != 1
                                 // avoid interrupt status check against the model
@@ -456,12 +464,16 @@ int32_t acamera_init( acamera_settings *settings, uint32_t ctx_num )
 void acamera_update_cur_settings_to_isp( uint32_t fw_ctx_id )
 {
     system_dma_copy_sg( g_firmware.dma_chan_isp_config, ISP_CONFIG_PING, SYS_DMA_TO_DEVICE, NULL, fw_ctx_id );
+#if FW_USE_HOBOT_DMA
     isp_idma_start_transfer(&g_hobot_dma);
     system_dma_wait_done(g_firmware.dma_chan_isp_config);
+#endif
 
     system_dma_copy_sg( g_firmware.dma_chan_isp_config, ISP_CONFIG_PONG, SYS_DMA_TO_DEVICE, NULL, fw_ctx_id );
+#if FW_USE_HOBOT_DMA
     isp_idma_start_transfer(&g_hobot_dma);
     system_dma_wait_done(g_firmware.dma_chan_isp_config);
+#endif
 }
 
 #endif /* #if USER_MODULE */

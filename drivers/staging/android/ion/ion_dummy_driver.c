@@ -36,6 +36,7 @@ extern struct ion_device *ion_device_create(long (*custom_ioctl)
 				      unsigned long arg));
 
 struct ion_device *hb_ion_dev;
+EXPORT_SYMBOL(hb_ion_dev);
 static struct ion_heap **heaps;
 struct dma_chan *dma_ch;
 static struct mutex dma_lock;

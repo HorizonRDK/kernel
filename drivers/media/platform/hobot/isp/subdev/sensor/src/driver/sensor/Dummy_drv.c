@@ -374,6 +374,8 @@ int sensor_info_check_valid(uint32_t ctx_id, struct v4l2_format *f)
 
 	return 1;
 }
+EXPORT_SYMBOL(sensor_info_check_valid);
+
 int sensor_info_check_exist(uint32_t ctx_id, struct v4l2_format *f)
 {
 	int i;
@@ -402,6 +404,7 @@ int sensor_info_check_exist(uint32_t ctx_id, struct v4l2_format *f)
 
 	return 0;
 }
+EXPORT_SYMBOL(sensor_info_check_exist);
 
 void sensor_info_fill(uint32_t ctx_id, struct v4l2_format *f)
 {
@@ -425,6 +428,7 @@ void sensor_info_fill(uint32_t ctx_id, struct v4l2_format *f)
 	p_ctx->supported_modes[i].bits = f->fmt.pix_mp.reserved[1];	
 	p_ctx->param.modes_num++;
 }
+EXPORT_SYMBOL(sensor_info_fill);
 
 int sensor_info_get_idx(uint32_t ctx_id, struct v4l2_format *f)
 {
@@ -446,6 +450,8 @@ int sensor_info_get_idx(uint32_t ctx_id, struct v4l2_format *f)
 
 	return -1;
 }
+EXPORT_SYMBOL(sensor_info_get_idx);
+
 //--------------------Initialization------------------------------------------------------------
 void sensor_init_dummy(uint32_t ctx_id, void **ctx, sensor_control_t *ctrl )
 {

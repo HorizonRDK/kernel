@@ -65,6 +65,21 @@ void camera_sys_printk_disturing(sensor_turning_data_t *turing_param)
 			turing_param->dol2.param_hold,
 		turing_param->dol2.param_hold_length);
 }
+int camera_sys_read(uint32_t port, uint32_t reg_addr,
+		uint32_t reg_width, char *buf, uint32_t length)
+{
+	int ret = 0;
+	uint32_t chip_id;
+	chip_id = camera_mod[port]->camera_param.chip_id;
+
+	if(camera_mod[port]->camera_param.bus_type == I2C_BUS) {
+		ret = camera_i2c_read(port, reg_addr, reg_width, buf, length);
+	} else if (camera_mod[port]->camera_param.bus_type == SPI_BUS) {
+		ret = camera_spi_read(port, chip_id, reg_width, reg_addr, buf, length);
+	}
+
+	return ret;
+}
 int camera_sys_write(uint32_t port, uint32_t reg_addr,
 		uint32_t reg_width, char *buf, uint32_t length)
 {
@@ -136,9 +151,6 @@ static int camera_sys_set_normal_gain(uint32_t port, uint32_t *input_gain,
 		ret = camera_sys_write(port, s_gain, reg_width, a_gain, s_gain_length);
 		ret = camera_sys_write(port, sd_gain, reg_width, dig_gain, sd_gain_length);
 	}
-	// ret = camera_i2c_read(port, s_gain, reg_width, rev_d, s_gain_length);
-	// pr_info("rev_d[0] 0x%x rev_d[1] 0x%x rev_d[2] 0x%x\n",
-	// rev_d[0], rev_d[1], rev_d[2]);
 
     return ret;
 }
@@ -155,6 +167,7 @@ static int camera_sys_set_normal_line(uint32_t port, uint32_t *input_line)
 
 	camera_trans_value(input_line, line_d);
 	ret = camera_sys_write(port, s_line, reg_width, line_d, s_line_length);
+
 	return ret;
 }
 
