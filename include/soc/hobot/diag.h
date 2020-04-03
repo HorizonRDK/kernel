@@ -32,8 +32,6 @@
 #define DIAG_MSG_TYPE_SEND_ENV_DATA	2
 #define DIAG_MSG_TYPE_READ_ENV_DATA	3
 
-extern uint32_t g_eth_error;
-
 /*
  * module id
  */

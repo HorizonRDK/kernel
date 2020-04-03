@@ -91,7 +91,6 @@ static int bpu1_hotplug;
 
 static struct timer_list check_timer;
 static struct mutex enable_lock;
-static int bpu_err_flag;
 static int hotplug_ext_flag;
 
 #define MAX_PID_NUM 0x8
@@ -459,10 +458,7 @@ static irqreturn_t hobot_bpu_interrupt_handler(int irq, void *dev_id)
 
 	hobot_bpu_reg_write(dev, CNNINT_MASK, 0x0);
 	irq_err = tmp_irq & 0xf000;
-	if (bpu_err_flag != 0)
-		irq_err = bpu_err_flag;
 	report_bpu_diagnose_msg(irq_err, dev->core_index);
-	bpu_err_flag = 0;
 	spin_unlock_irqrestore(&dev->cnn_spin_lock, flags);
 	dev->head_value = 0;
 	dev->inst_num = 0;
@@ -2487,25 +2483,6 @@ static ssize_t nseconds_store(struct kobject *kobj, struct kobj_attribute *attr,
 	return count;
 }
 
-static ssize_t bpu_err_flag_show(struct kobject *kobj, struct kobj_attribute *attr,
-			char *buf)
-{
-	return sprintf(buf, "%d\n", bpu_err_flag);
-}
-
-static ssize_t bpu_err_flag_store(struct kobject *kobj, struct kobj_attribute *attr,
-		 const char *buf, size_t count)
-{
-	int ret;
-
-	ret = sscanf(buf, "%du", &bpu_err_flag);
-	if (ret < 0) {
-		pr_info("%s sscanf error\n", __func__);
-		return 0;
-	}
-	return count;
-}
-
 static ssize_t hotplug_ext_flag_show(struct kobject *kobj, struct kobj_attribute *attr,
  char *buf)
 {
@@ -2994,11 +2971,8 @@ static struct kobj_attribute fc_enable    = __ATTR(fc_time_enable, 0664,
 						    fc_time_enable_store);
 static struct kobj_attribute pro_nseconds   = __ATTR(profiler_n_seconds, 0664,
 						    nseconds_show, nseconds_store);
-static struct kobj_attribute bpu_err   = __ATTR(bpu_err_flag, 0664,
-						    bpu_err_flag_show, bpu_err_flag_store);
 static struct kobj_attribute hotplug_ext   = __ATTR(hotplug_ext_flag, 0664,
 						    hotplug_ext_flag_show, hotplug_ext_flag_store);
-
 static struct kobj_attribute pro_ratio0    = __ATTR(ratio, 0444,
 						    ratio0_show, NULL);
 static struct kobj_attribute pro_ratio1    = __ATTR(ratio, 0444,
@@ -3045,7 +3019,6 @@ static struct attribute *bpu_attrs[] = {
 	&pro_nseconds.attr,
 	&fc_enable.attr,
 	&burst_len.attr,
-	&bpu_err.attr,
 	&hotplug_ext.attr,
 	NULL,
 };

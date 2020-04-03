@@ -2886,7 +2886,6 @@ static int x2_dma_interrupt(struct x2_priv *priv, \
 	int err = 0;
     void __iomem *ioaddr = priv->ioaddr;
 	u32 intr_status = readl(ioaddr + DMA_CHAN_STATUS(chan)); //0x1160
-	err = g_eth_error;
 
 #if 0
     u32 intr_en = readl(ioaddr + DMA_CHAN_INTR_ENA(chan));
@@ -2940,7 +2939,6 @@ static int x2_dma_interrupt(struct x2_priv *priv, \
 	writel((intr_status), ioaddr + DMA_CHAN_STATUS(chan));
 
 	dwceqos_diag_process(err, intr_status);
-	g_eth_error = 0;
 	return ret;
 }
 
