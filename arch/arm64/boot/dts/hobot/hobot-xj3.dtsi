@@ -1153,12 +1153,14 @@
 				opp-microvolt = <800000>;
 				clock-latency-ns = <500000>;
 			};
+/*
 			opp03 {
 				opp-hz = /bits/ 64 <1200000000>;
 				opp-microvolt = <1000000>;
 				clock-latency-ns = <500000>;
 				turbo-mode;
 			};
+*/
 		};
 
 		efuse: efuse@0xA1001000{
