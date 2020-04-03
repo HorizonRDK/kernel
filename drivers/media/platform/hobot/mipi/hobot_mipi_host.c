@@ -289,6 +289,14 @@ typedef struct _mipi_host_s {
 #endif
 } mipi_host_t;
 
+typedef struct _mipi_user_s {
+	spinlock_t slock;
+	struct mutex mutex;
+	uint32_t open_cnt;
+	uint32_t init_cnt;
+	uint32_t start_cnt;
+} mipi_user_t;
+
 typedef struct _mipi_hdev_s {
 	int               port;
 	int               lane_mode;
@@ -298,6 +306,7 @@ typedef struct _mipi_hdev_s {
 	void             *ex_hdev;
 	int               is_ex;
 	mipi_host_t       host;
+	mipi_user_t       user;
 #ifdef CONFIG_X2_DIAG
 	struct timer_list diag_timer;
 	uint32_t          last_err_tm_ms;
@@ -1444,6 +1453,20 @@ static int32_t mipi_host_init(mipi_hdev_t *hdev, mipi_host_cfg_t *cfg)
 static int hobot_mipi_host_open(struct inode *inode, struct file *file)
 {
 	mipi_hdev_t *hdev = container_of(inode->i_cdev, mipi_hdev_t, cdev);
+	mipi_user_t *user = &hdev->user;
+	mipi_host_param_t *param = &hdev->host.param;
+	struct device *dev = hdev->dev;
+
+	spin_lock(&user->slock);
+	mipidbg("open as %d", user->open_cnt);
+	if (user->open_cnt == 0) {
+		mutex_init(&user->mutex);
+		user->init_cnt = 0;
+		user->start_cnt = 0;
+	}
+	user->open_cnt++;
+	spin_unlock(&user->slock);
+
 	file->private_data = hdev;
 	return 0;
 }
@@ -1453,8 +1476,16 @@ static int hobot_mipi_host_close(struct inode *inode, struct file *file)
 	mipi_hdev_t *hdev = file->private_data;
 	mipi_hdev_t *ex_hdev;
 	mipi_host_t *host = &hdev->host;
+	mipi_user_t *user = &hdev->user;
+	mipi_host_param_t *param = &host->param;
+	struct device *dev = hdev->dev;
 
-	if (host->state != MIPI_STATE_DEFAULT) {
+	spin_lock(&user->slock);
+	if (user->open_cnt > 0)
+		user->open_cnt--;
+	mipidbg("close as %d", user->open_cnt);
+	if (user->open_cnt == 0 &&
+		host->state != MIPI_STATE_DEFAULT) {
 		mipi_host_stop(hdev);
 		mipi_host_deinit(hdev);
 		if (hdev->ex_hdev) {
@@ -1464,6 +1495,8 @@ static int hobot_mipi_host_close(struct inode *inode, struct file *file)
 		}
 		host->state = MIPI_STATE_DEFAULT;
 	}
+	spin_unlock(&user->slock);
+
 	return 0;
 }
 
@@ -1473,6 +1506,7 @@ static long hobot_mipi_host_ioctl(struct file *file, unsigned int cmd, unsigned 
 	mipi_hdev_t *ex_hdev;
 	struct device *dev = hdev->dev;
 	mipi_host_t *host = &hdev->host;
+	mipi_user_t *user = &hdev->user;
 	int ret = 0;
 #ifdef CONFIG_HOBOT_MIPI_REG_OPERATE
 	void __iomem *iomem = host->iomem;
@@ -1488,108 +1522,155 @@ static long hobot_mipi_host_ioctl(struct file *file, unsigned int cmd, unsigned 
 	case MIPIHOSTIOC_INIT:
 		{
 			mipi_host_cfg_t mipi_host_cfg;
-			mipiinfo("init cmd");
-			if (!arg) {
-				mipierr("init error, config should not be NULL");
+			if (mutex_lock_interruptible(&user->mutex)) {
+				mipierr("init user mutex lock error");
 				return -EINVAL;
 			}
-			if (MIPI_STATE_DEFAULT != host->state) {
-				mipiinfo("re-init, pre state: %d(%s)",
-						host->state, g_mh_state[host->state]);
+			mipiinfo("init cmd: %d %s", user->init_cnt,
+					(user->init_cnt) ? "drop" : "real");
+			if (!arg || copy_from_user((void *)&mipi_host_cfg,
+				   (void __user *)arg, sizeof(mipi_host_cfg_t))) {
+				mipierr("init error, config %p from user error", (void __user *)arg);
+				mutex_unlock(&user->mutex);
+				return -EINVAL;
 			}
-			if (copy_from_user((void *)&mipi_host_cfg,
-				(void __user *)arg, sizeof(mipi_host_cfg_t))) {
-				mipierr("copy data from user failed");
-				return -EFAULT;
-			}
-			if (0 != mipi_host_configure_lanemode(hdev, mipi_host_cfg.lane)) {
-				mipierr("require %dlane error!!!", mipi_host_cfg.lane);
-				return -EACCES;
-			}
-			if (hdev->ex_hdev) {
-				mipi_host_cfg_t mipi_exth_cfg;
-				memcpy(&mipi_exth_cfg, &mipi_host_cfg, sizeof(mipi_host_cfg_t));
-				ex_hdev = (mipi_hdev_t *)(hdev->ex_hdev);
-				if (0 != (ret = mipi_host_init(ex_hdev, &mipi_exth_cfg))) {
+			if (user->init_cnt == 0) {
+				if (MIPI_STATE_DEFAULT != host->state) {
+					mipiinfo("re-init, pre state: %d(%s)",
+							 host->state, g_mh_state[host->state]);
+				}
+				if (0 != mipi_host_configure_lanemode(hdev, mipi_host_cfg.lane)) {
+					mipierr("require %dlane error!!!", mipi_host_cfg.lane);
+					mutex_unlock(&user->mutex);
+					return -EACCES;
+				}
+				if (hdev->ex_hdev) {
+					mipi_host_cfg_t mipi_exth_cfg;
+					memcpy(&mipi_exth_cfg, &mipi_host_cfg, sizeof(mipi_host_cfg_t));
+					ex_hdev = (mipi_hdev_t *)(hdev->ex_hdev);
+					if (0 != (ret = mipi_host_init(ex_hdev, &mipi_exth_cfg))) {
+						mutex_unlock(&user->mutex);
+						return ret;
+					}
+				}
+				if (0 != (ret = mipi_host_init(hdev, &mipi_host_cfg))) {
+					mipierr("init error: %d", ret);
+					mutex_unlock(&user->mutex);
 					return ret;
 				}
+				host->state = MIPI_STATE_INIT;
+			} else if (memcmp(&host->cfg, &mipi_host_cfg, sizeof(mipi_host_cfg_t))) {
+				mipiinfo("warning: init config mismatch");
 			}
-			if (0 != (ret = mipi_host_init(hdev, &mipi_host_cfg))) {
-				mipierr("init error: %d", ret);
-				return ret;
-			}
-			host->state = MIPI_STATE_INIT;
+			user->init_cnt++;
+			mutex_unlock(&user->mutex);
 		}
 		break;
 	case MIPIHOSTIOC_DEINIT:
 		{
-			mipiinfo("deinit cmd");
-			if (MIPI_STATE_DEFAULT == host->state) {
-				mipiinfo("has not been init");
-				break;
+			if (mutex_lock_interruptible(&user->mutex)) {
+				mipierr("deinit user mutex lock error");
+				return -EINVAL;
 			}
-			if (MIPI_STATE_START == host->state) {
-				mipi_host_stop(hdev);
+			if (user->init_cnt > 0)
+				user->init_cnt--;
+			mipiinfo("deinit cmd: %d %s", user->init_cnt,
+					(user->init_cnt) ? "drop" : "real");
+			if (user->init_cnt == 0) {
+				if (MIPI_STATE_START == host->state) {
+					mipi_host_stop(hdev);
+					if (hdev->ex_hdev) {
+						ex_hdev = (mipi_hdev_t *)(hdev->ex_hdev);
+						mipi_host_stop(ex_hdev);
+					}
+					user->start_cnt = 0;
+				}
+				mipi_host_deinit(hdev);
+				if (hdev->ex_hdev) {
+					ex_hdev = (mipi_hdev_t *)(hdev->ex_hdev);
+					mipi_host_deinit(ex_hdev);
+					ex_hdev->is_ex = 0;
+					hdev->ex_hdev = NULL;
+				}
+				host->state = MIPI_STATE_DEFAULT;
 			}
-			if (hdev->ex_hdev) {
-				ex_hdev = (mipi_hdev_t *)(hdev->ex_hdev);
-				mipi_host_stop(ex_hdev);
-			}
-			mipi_host_deinit(hdev);
-			if (hdev->ex_hdev) {
-				ex_hdev = (mipi_hdev_t *)(hdev->ex_hdev);
-				mipi_host_deinit(ex_hdev);
-				ex_hdev->is_ex = 0;
-				hdev->ex_hdev = NULL;
-			}
-			host->state = MIPI_STATE_DEFAULT;
+			mutex_unlock(&user->mutex);
 		}
 		break;
 	case MIPIHOSTIOC_START:
 		{
-			mipiinfo("start cmd");
-			if (MIPI_STATE_START == host->state) {
-				mipiinfo("already in start state");
-				break;
-			} else if (MIPI_STATE_INIT != host->state &&
-					   MIPI_STATE_STOP != host->state) {
-				mipierr("state error, current state: %d(%s)",
-						host->state, g_mh_state[host->state]);
-				return -EBUSY;
+			if (mutex_lock_interruptible(&user->mutex)) {
+				mipierr("start user mutex lock error");
+				return -EINVAL;
 			}
-			if (hdev->ex_hdev) {
-				ex_hdev = (mipi_hdev_t *)(hdev->ex_hdev);
-				if (0 != (ret = mipi_host_start(ex_hdev))) {
+			mipiinfo("start cmd: %d %s", user->start_cnt,
+					(user->start_cnt) ? "drop" : "real");
+			if (user->start_cnt == 0) {
+				if (MIPI_STATE_START == host->state) {
+					mipiinfo("already in start state");
+					user->start_cnt++;
+					mutex_unlock(&user->mutex);
+					break;
+				} else if (MIPI_STATE_INIT != host->state &&
+						   MIPI_STATE_STOP != host->state) {
+					mipierr("state error, current state: %d(%s)",
+							host->state, g_mh_state[host->state]);
+					mutex_unlock(&user->mutex);
+					return -EBUSY;
+				}
+				if (hdev->ex_hdev) {
+					ex_hdev = (mipi_hdev_t *)(hdev->ex_hdev);
+					if (0 != (ret = mipi_host_start(ex_hdev))) {
+						mutex_unlock(&user->mutex);
+						return ret;
+					}
+				}
+				if (0 != (ret = mipi_host_start(hdev))) {
+					mipierr("start error: %d", ret);
+					mutex_unlock(&user->mutex);
 					return ret;
 				}
+				host->state = MIPI_STATE_START;
 			}
-			if (0 != (ret = mipi_host_start(hdev))) {
-				mipierr("start error: %d", ret);
-				return ret;
-			}
-			host->state = MIPI_STATE_START;
+			user->start_cnt++;
+			mutex_unlock(&user->mutex);
 		}
 		break;
 	case MIPIHOSTIOC_STOP:
 		{
-			mipiinfo("stop cmd");
-			if (MIPI_STATE_STOP == host->state) {
-				mipiinfo("already in stop state");
-				break;
-			} else if (MIPI_STATE_START != host->state) {
-				mipierr("state error, current state: %d(%s)",
-						host->state, g_mh_state[host->state]);
-				return -EBUSY;
+			if (mutex_lock_interruptible(&user->mutex)) {
+				mipierr("stop user mutex lock error");
+				return -EINVAL;
 			}
-			if (hdev->ex_hdev) {
-				ex_hdev = (mipi_hdev_t *)(hdev->ex_hdev);
-				mipi_host_stop(ex_hdev);
+			if (user->start_cnt > 0)
+				user->start_cnt--;
+			mipiinfo("stop cmd: %d %s", user->start_cnt,
+					(user->start_cnt) ? "drop" : "real");
+			if (user->start_cnt == 0) {
+				if (MIPI_STATE_STOP == host->state) {
+					mipiinfo("already in stop state");
+					mutex_unlock(&user->mutex);
+					break;
+				} else if (MIPI_STATE_START != host->state) {
+					mipierr("state error, current state: %d(%s)",
+							host->state, g_mh_state[host->state]);
+					user->start_cnt++;
+					mutex_unlock(&user->mutex);
+					return -EBUSY;
+				}
+				if (hdev->ex_hdev) {
+					ex_hdev = (mipi_hdev_t *)(hdev->ex_hdev);
+					mipi_host_stop(ex_hdev);
+				}
+				if (0 != (ret = mipi_host_stop(hdev))) {
+					mipierr("stop error: %d", ret);
+					user->start_cnt++;
+					mutex_unlock(&user->mutex);
+					return ret;
+				}
+				host->state = MIPI_STATE_STOP;
 			}
-			if (0 != (ret = mipi_host_stop(hdev))) {
-				mipierr("stop error: %d", ret);
-				return ret;
-			}
-			host->state = MIPI_STATE_STOP;
+			mutex_unlock(&user->mutex);
 		}
 		break;
 	case MIPIHOSTIOC_SNRCLK_SET_EN:
@@ -1597,7 +1678,7 @@ static long hobot_mipi_host_ioctl(struct file *file, unsigned int cmd, unsigned 
 			uint32_t enable;
 
 			mipiinfo("snrclk set en cmd");
-			if (get_user(enable, (uint32_t *)arg)) {
+			if (!arg || get_user(enable, (uint32_t *)arg)) {
 				mipierr("get data from user failed");
 				return -EFAULT;
 			}
@@ -1610,12 +1691,43 @@ static long hobot_mipi_host_ioctl(struct file *file, unsigned int cmd, unsigned 
 			uint32_t freq;
 
 			mipiinfo("snrclk set freq cmd");
-			if (get_user(freq, (uint32_t *)arg)) {
+			if (!arg || get_user(freq, (uint32_t *)arg)) {
 				mipierr("get data from user failed");
 				return -EFAULT;
 			}
 			if (mipi_host_snrclk_set_freq(hdev, freq))
 				return -EACCES;
+		}
+		break;
+	case MIPIHOSTIOC_GET_INIT_CNT:
+		{
+			if (mutex_lock_interruptible(&user->mutex)) {
+				mipierr("get int_cnt user mutex lock error");
+				return -EINVAL;
+			}
+			if (put_user(user->init_cnt, (uint32_t *)arg)) {
+				mipierr("put data to user failed");
+				mutex_unlock(&user->mutex);
+				return -EFAULT;
+			}
+		}
+		break;
+	case MIPIHOSTIOC_GET_START_CNT:
+		{
+			if (mutex_lock_interruptible(&user->mutex)) {
+				mipierr("get start_cnt user mutex lock error");
+				return -EINVAL;
+			}
+			if (put_user(user->start_cnt, (uint32_t *)arg)) {
+				mipierr("put data to user failed");
+				mutex_unlock(&user->mutex);
+				return -EFAULT;
+			}
+		}
+		break;
+	case MIPIHOSTIOC_PUT_CNT:
+		{
+			mutex_unlock(&user->mutex);
 		}
 		break;
 #ifdef CONFIG_HOBOT_MIPI_REG_OPERATE
@@ -1802,6 +1914,7 @@ static ssize_t mipi_host_status_show(struct device *dev,
 {
 	mipi_hdev_t *hdev = dev_get_drvdata(dev);
 	mipi_host_t *host = &hdev->host;
+	mipi_user_t *user = &hdev->user;
 	mipi_host_cfg_t *cfg = &host->cfg;
 	mipi_host_snrclk_t *snrclk = &host->snrclk;
 	mipi_host_param_t *param = &host->param;
@@ -1968,6 +2081,10 @@ static ssize_t mipi_host_status_show(struct device *dev,
 			MH_STA_SHOW(support, "%s", "none");
 		MH_STA_SHOW(state, "%s", (param->snrclk_en ? "enable" : "disable"));
 		MH_STA_SHOW(freq, "%u", param->snrclk_freq);
+	} else if (strcmp(attr->attr.name, "user") == 0) {
+		MH_STA_SHOW(user, "%d", user->open_cnt);
+		MH_STA_SHOW(init, "%d", user->init_cnt);
+		MH_STA_SHOW(start, "%d", user->start_cnt);
 #if MIPI_HOST_INT_DBG
 	} else if (strcmp(attr->attr.name, "icnt") == 0) {
 		for (i = 0; i < sizeof(host->icnt)/sizeof(uint32_t); i++) {
@@ -1989,6 +2106,7 @@ MIPI_HOST_STATUS_DEC(info);
 MIPI_HOST_STATUS_DEC(cfg);
 MIPI_HOST_STATUS_DEC(regs);
 MIPI_HOST_STATUS_DEC(snrclk);
+MIPI_HOST_STATUS_DEC(user);
 #if MIPI_HOST_INT_DBG
 MIPI_HOST_STATUS_DEC(icnt);
 #endif
@@ -1998,6 +2116,7 @@ static struct attribute *status_attr[] = {
 	MIPI_HOST_STATUS_ADD(cfg),
 	MIPI_HOST_STATUS_ADD(regs),
 	MIPI_HOST_STATUS_ADD(snrclk),
+	MIPI_HOST_STATUS_ADD(user),
 #if MIPI_HOST_INT_DBG
 	MIPI_HOST_STATUS_ADD(icnt),
 #endif
@@ -2106,6 +2225,7 @@ static int hobot_mipi_host_probe_cdev(mipi_hdev_t *hdev)
 						32, 300, 5000, NULL) < 0)
 		pr_err("mipi host %d diag register fail\n", hdev->port);
 #endif
+	spin_lock_init(&hdev->user.slock);
 
 	return 0;
 err_creat:
