@@ -250,23 +250,17 @@ function all()
     cpfiles "$SRC_KERNEL_DIR/arch/$ARCH_KERNEL/boot/$KERNEL_IMAGE_NAME" "$prefix/"
     cd $SRC_KERNEL_DIR/arch/$ARCH_KERNEL/boot/dts/hobot/
     cpfiles "$KERNEL_DTB_NAME" "$prefix/"
-    cpfiles "$SRC_KERNEL_DIR/net/mac80211/mac80211.ko " "$TARGET_TMPROOTFS_DIR/lib/modules/"
-    cpfiles "$SRC_KERNEL_DIR/net/wireless/cfg80211.ko " "$TARGET_TMPROOTFS_DIR/lib/modules/"
-    cpfiles "$SRC_KERNEL_DIR/drivers/staging/rtl8723bs/r8723bs.ko " "$TARGET_TMPROOTFS_DIR/lib/modules/"
-    ${CROSS_COMPILE}strip -g $TARGET_TMPROOTFS_DIR/lib/modules/*.ko
+
+    mkdir -p $TARGET_TMPROOTFS_DIR/lib/modules/
+    find $SRC_KERNEL_DIR -type f -name "*.ko" -exec cp {} $TARGET_TMPROOTFS_DIR/lib/modules/ \;
+
     cpfiles "$SRC_KERNEL_DIR/drivers/staging/rtl8723bs/rtlwifi/rtl8723bs_nic.bin " "$TARGET_TMPROOTFS_DIR/lib/firmware/rtlwifi/"
     cpfiles "$SRC_KERNEL_DIR/drivers/crypto/hobot/pka/clp300.elf " "$TARGET_TMPROOTFS_DIR/lib/firmware/"
-    cpfiles "$SRC_KERNEL_DIR/drivers/crypto/hobot/core/elpspacccrypto.ko " "$TARGET_TMPROOTFS_DIR/lib/modules/"
-    cpfiles "$SRC_KERNEL_DIR/drivers/crypto/hobot/pka/elprsa.ko " "$TARGET_TMPROOTFS_DIR/lib/modules/"
-    cpfiles "$SRC_KERNEL_DIR/drivers/crypto/hobot/core/spaccexample.ko " "$TARGET_TMPROOTFS_DIR/lib/modules/"
-    cpfiles "$SRC_KERNEL_DIR/drivers/soc/hobot/cnn_host/hobot_cnn_host_total.ko " "$TARGET_TMPROOTFS_DIR/lib/modules/"
-	cpfiles "$SRC_KERNEL_DIR/drivers/soc/hobot/bpu/bpu_framework.ko " "$TARGET_TMPROOTFS_DIR/lib/modules/"
-	cpfiles "$SRC_KERNEL_DIR/drivers/soc/hobot/bpu/bpu_cores.ko " "$TARGET_TMPROOTFS_DIR/lib/modules/"
-    cpfiles "$SRC_KERNEL_DIR/drivers/misc/hobot_efuse.ko " "$TARGET_TMPROOTFS_DIR/lib/modules/"
-    cpfiles "$SRC_KERNEL_DIR/drivers/misc/x2_efuse.ko " "$TARGET_TMPROOTFS_DIR/lib/modules/"
+
+    ${CROSS_COMPILE}strip -v -g $TARGET_TMPROOTFS_DIR/lib/modules/*.ko
     cpfiles "$SRC_KERNEL_DIR/_install/lib/modules/*" "$TARGET_TMPROOTFS_DIR/lib/modules/"
 
-    rm $SRC_KERNEL_DIR/_install/ -rf
+#    rm $SRC_KERNEL_DIR/_install/ -rf
 
     # build dtb-mapping.conf
     build_dtbmapping
