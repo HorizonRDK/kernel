@@ -25,11 +25,11 @@ EXTRA_CFLAGS +=	$(DEBFLAGS) -I$(LDDINCDIR) -DCONFIG_PM
 ifneq ($(KERNELRELEASE),)
 # call from kernel build system
 
-#obj-m	:= hobot-vpu.o
-hobot-vpu-objs := hobot_vpu.o hobot_vpu_buf.o
-hobot-vpu-objs += hobot_vpu_ctl.o hobot_vpu_pm.o
+#obj-m	:= hobot_vpu.o
+hobot_vpu-objs := hobot_vpu_dev.o hobot_vpu_buf.o
+hobot_vpu-objs += hobot_vpu_ctl.o hobot_vpu_pm.o
 
-obj-$(CONFIG_VIDEO_HOBOTC_VPU)	:= hobot-vpu.o
+obj-$(CONFIG_VIDEO_HOBOTC_VPU)	:= hobot_vpu.o
 
 else
 

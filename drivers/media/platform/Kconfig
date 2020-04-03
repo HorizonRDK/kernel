@@ -3,25 +3,25 @@
 #	Most drivers here are currently for webcam support
 
 menuconfig VIDEO_HOBOTC_JPU
-	bool "HOBOT C-series JPEG encoder & decoder driver"
+	tristate "HOBOT C-series JPEG encoder & decoder driver"
 	default n
 	---help---
 	  Say Y here to enable support for HOBOT C-series JPEG driver.
 
 menuconfig VIDEO_HOBOTC_JPU_CV
-	bool "HOBOT C-series JPEG encoder & decoder driver for CV"
+	tristate "HOBOT C-series JPEG encoder & decoder driver for CV"
 	default n
 	---help---
 	  Say Y here to enable support for HOBOT C-series JPEG driver for CV.
 
 menuconfig VIDEO_HOBOTC_VPU
-	bool "HOBOT C-series VPU encoder & decoder driver"
+	tristate "HOBOT C-series VPU encoder & decoder driver"
 	default n
 	---help---
 	  Say Y here to enable support for HOBOT C-series VSP driver.
 
 menuconfig VIDEO_HOBOTC_VPU_CV
-	bool "HOBOT C-series VPU encoder & decoder driver for CV"
+	tristate "HOBOT C-series VPU encoder & decoder driver for CV"
 	default n
 	---help---
 	  Say Y here to enable support for HOBOT C-series VSP driver for CV.

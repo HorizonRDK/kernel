@@ -18,20 +18,24 @@ export READELF="${CROSS_COMPILE}readelf"
 export STRIP="${CROSS_COMPILE}strip"
 
 
-EXTRA_CFLAGS +=	$(DEBFLAGS) -I$(LDDINCDIR)
+#EXTRA_CFLAGS +=	$(DEBFLAGS) -I$(LDDINCDIR)
+EXTRA_CFLAGS +=	$(DEBFLAGS) -I$(LDDINCDIR) -DCONFIG_PM
+
 
 ifneq ($(KERNELRELEASE),)
 # call from kernel build system
 
-#obj-m	:= jpu.o
-hobot-jpu-objs := hobot_jpu.o hobot_jpu_buf.o
-hobot-jpu-objs += hobot_jpu_ctl.o hobot_jpu_pm.o
+#obj-m	:= hobot_jpu.o
+hobot_jpu-objs := hobot_jpu_dev.o hobot_jpu_buf.o
+hobot_jpu-objs += hobot_jpu_ctl.o hobot_jpu_pm.o
 
-obj-$(CONFIG_VIDEO_HOBOTC_JPU)	:= hobot-jpu.o
+obj-$(CONFIG_VIDEO_HOBOTC_JPU)	:= hobot_jpu.o
 
 else
 
 KERNELDIR := ../../../../../kernel
+#KERNELDIR ?= /lib/modules/$(shell uname -r)/build
+
 PWD	  := $(shell pwd)
 
 default:

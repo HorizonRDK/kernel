@@ -9,10 +9,12 @@
 #include <linux/ioport.h>
 #include <linux/module.h>
 #include <linux/of.h>
+#include <linux/pm.h>
 #include <linux/platform_device.h>
 #include <linux/dma-mapping.h>
 #include <linux/delay.h>
 #include <linux/uaccess.h>
+#include <linux/slab.h>
 #include <linux/sched.h>
 #include <linux/version.h>
 #include <linux/poll.h>
@@ -1336,6 +1338,6 @@ static struct platform_driver jpu_driver = {
 
 module_platform_driver(jpu_driver);
 
-MODULE_AUTHOR("HOBOT");
+MODULE_AUTHOR("Hobot");
 MODULE_DESCRIPTION("Hobot JPEG processing unit linux driver");
-MODULE_LICENSE("Proprietary");
+MODULE_LICENSE("GPL v2");
