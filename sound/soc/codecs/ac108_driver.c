@@ -1475,8 +1475,8 @@ static int ac108_i2c_probe(struct i2c_client *i2c, const struct i2c_device_id *i
 	}
 
 	if (v != AC108_CHIP_ID) {
-		dev_dbg(&i2c->dev, "chip is not AC108 (%X)\n", v);
-		dev_dbg(&i2c->dev, "Expected %X\n", AC108_CHIP_ID);
+		dev_err(&i2c->dev, "chip is not AC108 (%X)\n", v);
+		dev_err(&i2c->dev, "Expected %X\n", AC108_CHIP_ID);
 		return -ENODEV;
 	}
 
@@ -1518,6 +1518,7 @@ static int ac108_i2c_probe(struct i2c_client *i2c, const struct i2c_device_id *i
 		pr_err("failed to create attr group\n");
 	}
 	
+	pr_info("Success create ac108\n");
 	return ret;
 }
 

@@ -67,7 +67,7 @@ static int adc_digital_val	= 0xb0b0;
 static bool drc_used		= true;
 
 #define AC101_RATES SNDRV_PCM_RATE_8000_96000
-#define AC101_FORMATS (SNDRV_PCM_FMTBIT_S16_LE | \
+#define AC101_FORMATS (SNDRV_PCM_FMTBIT_S8 | SNDRV_PCM_FMTBIT_S16_LE | \
                         SNDRV_PCM_FMTBIT_S24_LE |       \
                         SNDRV_PCM_FMTBIT_S32_LE | \
                         0)
@@ -1060,6 +1060,10 @@ int ac101_hw_params(struct snd_pcm_substream *substream,
 	channels = params_channels(params);
 
 	switch (params_format(params)) {
+	case SNDRV_PCM_FORMAT_S8:
+		aif1_slot_size = 8;
+		aif1_word_size = 8;
+		break;
 	case SNDRV_PCM_FORMAT_S24_LE:
 	case SNDRV_PCM_FORMAT_S32_LE:
 		aif1_slot_size = 32;
@@ -1817,8 +1821,8 @@ int ac101_i2c_probe(struct i2c_client *i2c, const struct i2c_device_id *id)
 	}
 
 	if (v != AC101_CHIP_ID) {
-		dev_dbg(&i2c->dev, "chip is not AC101 (%X)\n", v);
-		dev_dbg(&i2c->dev, "Expected %X\n", AC101_CHIP_ID);
+		dev_err(&i2c->dev, "chip is not AC101 (%X)\n", v);
+		dev_err(&i2c->dev, "Expected %X\n", AC101_CHIP_ID);
 		return -ENODEV;
 	}
 
@@ -1845,7 +1849,7 @@ int ac101_i2c_probe(struct i2c_client *i2c, const struct i2c_device_id *id)
 	ac10x->gpiod_spk_amp_gate = gpio_to_desc(gpiod_spk_amp_gate);*/
 
 	ac10x_init(ac10x->codec);
-	pr_debug("%s register success\n", __func__);
+	pr_info("%s register success\n", __func__);
 	return 0;
 }
 
