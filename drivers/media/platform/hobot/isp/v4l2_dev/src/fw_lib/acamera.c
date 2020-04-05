@@ -334,7 +334,9 @@ int32_t acamera_init( acamera_settings *settings, uint32_t ctx_num )
 #endif
 
 #if FW_HAS_CONTROL_CHANNEL
-        ctrl_channel_init();
+    for ( idx = 0; idx < ctx_num; idx++ ) {
+        ctrl_channel_init(idx);
+    }
 #endif
 
         if ( result == 0 ) {
@@ -483,14 +485,12 @@ static void acamera_deinit( void )
     int idx;
     acamera_context_t *p_ctx;
 
-#if FW_HAS_CONTROL_CHANNEL
-    ctrl_channel_deinit();
-#endif
-
     system_dma_destroy( g_firmware.dma_chan_isp_config );
     system_dma_destroy( g_firmware.dma_chan_isp_metering );
     for ( idx = 0; idx < g_firmware.context_number; idx++ ) {
-
+#if FW_HAS_CONTROL_CHANNEL
+        ctrl_channel_deinit(idx);
+#endif
         p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[idx];
 
         acamera_deinit_context( p_ctx );

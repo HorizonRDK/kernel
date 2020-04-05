@@ -26,7 +26,7 @@ extern "C" {
 
 #include "acamera_types.h"
 
-#define CTRL_CHANNEL_DEV_NAME "ac_isp4uf"
+#define CTRL_CHANNEL_DEV_NAME "ac_isp4uf%d"
 #define CTRL_CHANNEL_DEV_NODE_NAME "/dev/" CTRL_CHANNEL_DEV_NAME
 #define CTRL_CHANNEL_MAX_CMD_SIZE ( 8 * 1024 )
 
@@ -49,9 +49,9 @@ struct ctrl_cmd_item {
     uint32_t cmd_value;
 };
 
-int ctrl_channel_init( void );
-void ctrl_channel_process( void );
-void ctrl_channel_deinit( void );
+int ctrl_channel_init(int ctx_id);
+void ctrl_channel_process(void);
+void ctrl_channel_deinit(int ctx_id);
 
 void ctrl_channel_handle_command( uint32_t cmd_ctx_id, uint8_t command_type, uint8_t command, uint32_t value, uint8_t direction );
 void ctrl_channel_handle_api_calibration( uint32_t cmd_ctx_id, uint8_t type, uint8_t id, uint8_t direction, void *data, uint32_t data_size );

@@ -36,7 +36,7 @@
 struct ctrl_channel_dev_context {
     uint8_t dev_inited;
     int dev_minor_id;
-    char *dev_name;
+    char dev_name[16];
     int dev_opened;
 
     struct miscdevice ctrl_dev;
@@ -48,13 +48,13 @@ struct ctrl_channel_dev_context {
     struct ctrl_cmd_item cmd_item;
 };
 
-static struct ctrl_channel_dev_context ctrl_channel_ctx;
+static struct ctrl_channel_dev_context ctrl_channel_ctx[FIRMWARE_CONTEXT_NUMBER];
 
 static int ctrl_channel_fops_open( struct inode *inode, struct file *f )
 {
     int rc;
-    struct ctrl_channel_dev_context *p_ctx = &ctrl_channel_ctx;
     int minor = iminor( inode );
+    struct ctrl_channel_dev_context *p_ctx = &ctrl_channel_ctx[minor];
 
     LOG( LOG_INFO, "client is opening..., minor: %d.", minor );
 
@@ -91,12 +91,8 @@ lock_failure:
 static int ctrl_channel_fops_release( struct inode *inode, struct file *f )
 {
     int rc;
-    struct ctrl_channel_dev_context *p_ctx = (struct ctrl_channel_dev_context *)f->private_data;
-
-    if ( p_ctx != &ctrl_channel_ctx ) {
-        LOG( LOG_ERR, "Inalid paramter: %p, exptected: %p.", p_ctx, &ctrl_channel_ctx );
-        return -EINVAL;
-    }
+    int minor = iminor( inode );
+    struct ctrl_channel_dev_context *p_ctx = &ctrl_channel_ctx[minor];
 
     rc = mutex_lock_interruptible( &p_ctx->fops_lock );
     if ( rc ) {
@@ -126,8 +122,8 @@ static ssize_t ctrl_channel_fops_write( struct file *file, const char __user *bu
     unsigned int copied;
     struct ctrl_channel_dev_context *p_ctx = (struct ctrl_channel_dev_context *)file->private_data;
 
-    if ( p_ctx != &ctrl_channel_ctx ) {
-        LOG( LOG_ERR, "Inalid paramter: %p, exptected: %p.", p_ctx, &ctrl_channel_ctx );
+    if (p_ctx->dev_opened == 0) {
+        LOG( LOG_ERR, "ctrl channel ac_isp4uf[%d] is not opened", p_ctx->dev_minor_id);
         return -EINVAL;
     }
 
@@ -151,8 +147,8 @@ static ssize_t ctrl_channel_fops_read( struct file *file, char __user *buf, size
     unsigned int copied = 0;
     struct ctrl_channel_dev_context *p_ctx = (struct ctrl_channel_dev_context *)file->private_data;
 
-    if ( p_ctx != &ctrl_channel_ctx ) {
-        LOG( LOG_ERR, "Inalid paramter: %p, exptected: %p.", p_ctx, &ctrl_channel_ctx );
+    if (p_ctx->dev_opened == 0) {
+        LOG( LOG_ERR, "ctrl channel ac_isp4uf[%d] is not opened", p_ctx->dev_minor_id);
         return -EINVAL;
     }
 
@@ -205,78 +201,78 @@ static int ctrl_channel_write( const struct ctrl_cmd_item *p_cmd, const void *da
 {
     int rc;
 
-    if ( !ctrl_channel_ctx.dev_inited ) {
+    if ( !ctrl_channel_ctx[p_cmd->cmd_ctx_id].dev_inited ) {
         LOG( LOG_ERR, "dev is not inited, failed to write." );
         return -1;
     }
 
-    mutex_lock( &ctrl_channel_ctx.fops_lock );
+    mutex_lock( &ctrl_channel_ctx[p_cmd->cmd_ctx_id].fops_lock );
 
-    rc = kfifo_in( &ctrl_channel_ctx.ctrl_kfifo_out, p_cmd, sizeof( struct ctrl_cmd_item ) );
+    rc = kfifo_in( &ctrl_channel_ctx[p_cmd->cmd_ctx_id].ctrl_kfifo_out, p_cmd, sizeof( struct ctrl_cmd_item ) );
     if ( data )
-        kfifo_in( &ctrl_channel_ctx.ctrl_kfifo_out, data, data_size );
+        kfifo_in( &ctrl_channel_ctx[p_cmd->cmd_ctx_id].ctrl_kfifo_out, data, data_size );
 
-    mutex_unlock( &ctrl_channel_ctx.fops_lock );
+    mutex_unlock( &ctrl_channel_ctx[p_cmd->cmd_ctx_id].fops_lock );
 
     return rc;
 }
 
-int ctrl_channel_init( void )
+int ctrl_channel_init(int ctx_id)
 {
     int rc;
 
-    memset( &ctrl_channel_ctx, 0, sizeof( ctrl_channel_ctx ) );
-    ctrl_channel_ctx.ctrl_dev.name = CTRL_CHANNEL_DEV_NAME;
-    ctrl_channel_ctx.dev_name = CTRL_CHANNEL_DEV_NAME;
-    ctrl_channel_ctx.ctrl_dev.minor = MISC_DYNAMIC_MINOR;
-    ctrl_channel_ctx.ctrl_dev.fops = &isp_fops;
+    memset( &ctrl_channel_ctx[ctx_id], 0, sizeof( ctrl_channel_ctx ) );
+    ctrl_channel_ctx[ctx_id].ctrl_dev.name = ctrl_channel_ctx[ctx_id].dev_name;
+    sprintf(ctrl_channel_ctx[ctx_id].dev_name, CTRL_CHANNEL_DEV_NAME, ctx_id);
+    ctrl_channel_ctx[ctx_id].ctrl_dev.minor = ctx_id;
+    ctrl_channel_ctx[ctx_id].ctrl_dev.fops = &isp_fops;
 
-    rc = misc_register( &ctrl_channel_ctx.ctrl_dev );
+    rc = misc_register( &ctrl_channel_ctx[ctx_id].ctrl_dev );
     if ( rc ) {
         LOG( LOG_ERR, "Error: register ISP ctrl channel device failed, ret: %d.", rc );
         return rc;
     }
 
-    ctrl_channel_ctx.dev_minor_id = ctrl_channel_ctx.ctrl_dev.minor;
-    mutex_init( &ctrl_channel_ctx.fops_lock );
+    ctrl_channel_ctx[ctx_id].dev_minor_id = ctrl_channel_ctx[ctx_id].ctrl_dev.minor;
+    mutex_init( &ctrl_channel_ctx[ctx_id].fops_lock );
 
-    rc = kfifo_alloc( &ctrl_channel_ctx.ctrl_kfifo_in, CTRL_CHANNEL_FIFO_INPUT_SIZE, GFP_KERNEL );
+    rc = kfifo_alloc( &ctrl_channel_ctx[ctx_id].ctrl_kfifo_in, CTRL_CHANNEL_FIFO_INPUT_SIZE, GFP_KERNEL );
     if ( rc ) {
         LOG( LOG_ERR, "Error: kfifo_in alloc failed, ret: %d.", rc );
         goto failed_kfifo_in_alloc;
     }
 
-    rc = kfifo_alloc( &ctrl_channel_ctx.ctrl_kfifo_out, CTRL_CHANNEL_FIFO_OUTPUT_SIZE, GFP_KERNEL );
+    rc = kfifo_alloc( &ctrl_channel_ctx[ctx_id].ctrl_kfifo_out, CTRL_CHANNEL_FIFO_OUTPUT_SIZE, GFP_KERNEL );
     if ( rc ) {
         LOG( LOG_ERR, "Error: kfifo_out alloc failed, ret: %d.", rc );
         goto failed_kfifo_out_alloc;
     }
 
-    ctrl_channel_ctx.dev_inited = 1;
+    ctrl_channel_ctx[ctx_id].dev_inited = 1;
 
-    LOG( LOG_INFO, "ctrl_channel_dev_context(%s) init OK.", ctrl_channel_ctx.dev_name );
+    LOG( LOG_INFO, "ctrl_channel_dev_context(%s) init OK.", ctrl_channel_ctx[ctx_id].dev_name );
 
     return 0;
 
 failed_kfifo_out_alloc:
-    kfifo_free( &ctrl_channel_ctx.ctrl_kfifo_in );
+    kfifo_free( &ctrl_channel_ctx[ctx_id].ctrl_kfifo_in );
 failed_kfifo_in_alloc:
-    misc_deregister( &ctrl_channel_ctx.ctrl_dev );
+    misc_deregister( &ctrl_channel_ctx[ctx_id].ctrl_dev );
 
-    LOG( LOG_ERR, "Error: init failed for dev: %s.", ctrl_channel_ctx.ctrl_dev.name );
+    LOG( LOG_ERR, "Error: init failed for dev: %s.", ctrl_channel_ctx[ctx_id].ctrl_dev.name );
     return rc;
 }
 
-void ctrl_channel_deinit( void )
+void ctrl_channel_deinit(int ctx_id)
 {
-    if ( ctrl_channel_ctx.dev_inited ) {
-        kfifo_free( &ctrl_channel_ctx.ctrl_kfifo_in );
+    if ( ctrl_channel_ctx[ctx_id].dev_inited ) {
+        kfifo_free( &ctrl_channel_ctx[ctx_id].ctrl_kfifo_in );
 
-        kfifo_free( &ctrl_channel_ctx.ctrl_kfifo_out );
+        kfifo_free( &ctrl_channel_ctx[ctx_id].ctrl_kfifo_out );
 
-        misc_deregister( &ctrl_channel_ctx.ctrl_dev );
+        misc_deregister( &ctrl_channel_ctx[ctx_id].ctrl_dev );
 
-        LOG( LOG_INFO, "misc_deregister dev: %s.", ctrl_channel_ctx.ctrl_dev.name );
+        LOG( LOG_INFO, "misc_deregister dev: %s.", ctrl_channel_ctx[ctx_id].ctrl_dev.name );
     } else {
         LOG( LOG_INFO, "dev not inited, do nothing." );
     }
@@ -368,14 +364,14 @@ static uint8_t is_uf_needed_command( uint8_t command_type, uint8_t command, uint
 
 void ctrl_channel_handle_command( uint32_t cmd_ctx_id, uint8_t type, uint8_t command, uint32_t value, uint8_t direction )
 {
-    struct ctrl_cmd_item *p_cmd = &ctrl_channel_ctx.cmd_item;
+    struct ctrl_cmd_item *p_cmd = &ctrl_channel_ctx[cmd_ctx_id].cmd_item;
 
-    if ( !ctrl_channel_ctx.dev_inited ) {
+    if ( !ctrl_channel_ctx[cmd_ctx_id].dev_inited ) {
         LOG( LOG_ERR, "FW ctrl channel is not inited." );
         return;
     }
 
-    if ( !ctrl_channel_ctx.dev_opened ) {
+    if ( !ctrl_channel_ctx[cmd_ctx_id].dev_opened ) {
         LOG( LOG_DEBUG, "FW ctrl channel is not opened, skip." );
         return;
     }
@@ -401,14 +397,14 @@ void ctrl_channel_handle_command( uint32_t cmd_ctx_id, uint8_t type, uint8_t com
 
 void ctrl_channel_handle_api_calibration( uint32_t cmd_ctx_id, uint8_t type, uint8_t id, uint8_t direction, void *data, uint32_t data_size )
 {
-    struct ctrl_cmd_item *p_cmd = &ctrl_channel_ctx.cmd_item;
+    struct ctrl_cmd_item *p_cmd = &ctrl_channel_ctx[cmd_ctx_id].cmd_item;
 
-    if ( !ctrl_channel_ctx.dev_inited ) {
+    if ( !ctrl_channel_ctx[cmd_ctx_id].dev_inited ) {
         LOG( LOG_ERR, "FW ctrl channel is not inited." );
         return;
     }
 
-    if ( !ctrl_channel_ctx.dev_opened ) {
+    if ( !ctrl_channel_ctx[cmd_ctx_id].dev_opened ) {
         LOG( LOG_INFO, "FW ctrl channel is not opened, skip." );
         return;
     }
