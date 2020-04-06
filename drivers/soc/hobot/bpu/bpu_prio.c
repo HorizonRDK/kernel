@@ -64,6 +64,9 @@ static void bpu_prio_tasklet(unsigned long data)/*PRQA S ALL*/
 			}
 		} else {
 			if (kfifo_len(&tmp_prio_node->buf_fc_fifo) == 0) {/*PRQA S ALL*/
+				if (i == 0) {
+					complete(&prio->no_task_comp);
+				}
 				continue;
 			}
 			ret = kfifo_get(&tmp_prio_node->buf_fc_fifo,/*PRQA S ALL*/
@@ -109,6 +112,7 @@ struct bpu_prio *bpu_prio_init(struct bpu_core *core, uint32_t levels)
 	}
 
 	mutex_init(&prio->mutex_lock);/*PRQA S ALL*/
+	init_completion(&prio->no_task_comp);/*PRQA S ALL*/
 
 	for (i = 0u; i < prio->level_num; i++) {
 		ret = kfifo_alloc(&prio->prios[i].buf_fc_fifo,/*PRQA S ALL*/
@@ -128,6 +132,7 @@ struct bpu_prio *bpu_prio_init(struct bpu_core *core, uint32_t levels)
 	}
 
 	tasklet_init(&prio->tasklet, bpu_prio_tasklet, (unsigned long)prio);/*PRQA S ALL*/
+	prio->plug_in = 1;
 	prio->inited = 1;
 
 	return prio;
@@ -151,6 +156,7 @@ void bpu_prio_exit(struct bpu_prio *prio)
 		kfifo_free(&prio->prios[i].buf_fc_fifo);/*PRQA S ALL*/
 	}
 
+	prio->plug_in = 0;
 	prio->inited = 0;
 	kfree((void *)prio->prios); /*PRQA S ALL*/
 	prio->prios = NULL;
@@ -202,7 +208,7 @@ int32_t bpu_prio_in(struct bpu_prio *prio, const struct bpu_fc *bpu_fc)
 EXPORT_SYMBOL(bpu_prio_in);
 // PRQA S ALL --
 
-void  bpu_prio_trig_out(struct bpu_prio *prio)
+void bpu_prio_trig_out(struct bpu_prio *prio)
 {
 	if (prio == NULL) {
 		return;
@@ -216,4 +222,99 @@ void  bpu_prio_trig_out(struct bpu_prio *prio)
 }
 // PRQA S ALL ++
 EXPORT_SYMBOL(bpu_prio_trig_out);
+// PRQA S ALL --
+
+static uint32_t bpu_prio_left_task_num(struct bpu_prio *prio)
+{
+	uint32_t left_num = 0u;
+	uint32_t i;
+
+	if (prio == NULL) {
+		return 0;
+	}
+
+	if (prio->inited == 0u) {
+		return 0;
+	}
+
+	for (i = 0u; i < prio->level_num; i++) {
+		left_num = kfifo_len(&prio->prios[i].buf_fc_fifo);/*PRQA S ALL*/
+	}
+
+	return left_num;
+}
+
+bool bpu_prio_is_plug_in(struct bpu_prio *prio)
+{
+	if (prio == NULL) {
+		return false;
+	}
+
+	if (prio->inited == 0u) {
+		return false;
+	}
+
+	if (prio->plug_in > 0u) {
+		return true;
+	}
+
+	return false;
+}
+
+void bpu_prio_plug_in(struct bpu_prio *prio)
+{
+	if (prio == NULL) {
+		return;
+	}
+
+	if (prio->inited == 0u) {
+		return;
+	}
+
+	prio->plug_in = 1u;
+}
+// PRQA S ALL ++
+EXPORT_SYMBOL(bpu_prio_plug_in);
+// PRQA S ALL --
+
+void bpu_prio_plug_out(struct bpu_prio *prio)
+{
+	if (prio == NULL) {
+		return;
+	}
+
+	if (prio->inited == 0u) {
+		return;
+	}
+
+	prio->plug_in = 0u;
+}
+// PRQA S ALL ++
+EXPORT_SYMBOL(bpu_prio_plug_out);
+// PRQA S ALL --
+
+int32_t bpu_prio_wait_empty(struct bpu_prio *prio, int32_t jiffes)
+{
+	uint32_t left_num;
+
+	if (prio == NULL) {
+		return 0;
+	}
+
+	if (prio->inited == 0u) {
+		return 0;
+	}
+
+	left_num = bpu_prio_left_task_num(prio);
+	if (left_num > 0u) {
+		if(wait_for_completion_timeout(&prio->no_task_comp, jiffes) == 0u) {
+			/* timeout, may need wait again*/
+			return -EAGAIN;
+		}
+	}
+
+	return 0;
+}
+// PRQA S ALL ++
+EXPORT_SYMBOL(bpu_prio_wait_empty);
 // PRQA S ALL --

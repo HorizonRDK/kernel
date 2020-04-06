@@ -19,7 +19,6 @@ void bpu_sched_seed_update(void)
 	struct list_head *pos, *pos_n;
 	int32_t run_fc_num = 0;
 	uint32_t i;
-	int32_t ret;
 
 	list_for_each_safe(pos, pos_n, &g_bpu->core_list) { /*PRQA S ALL*/
 		tmp_core = (struct bpu_core *)pos;/*PRQA S ALL*/
@@ -39,10 +38,6 @@ void bpu_sched_seed_update(void)
 		}
 	} else {
 		g_bpu->sched_seed = DEFAULT_SCHED_SEED;
-		ret = mod_timer(g_bpu->sched_timer, jiffies + g_bpu->sched_seed);
-		if (ret <= 0) {
-			pr_err("BPU sched update timer failed\n");/*PRQA S ALL*/
-		}
 	}
 }
 // PRQA S ALL ++
@@ -101,7 +96,7 @@ int32_t bpu_sched_start(struct bpu *bpu)
 	bpu->sched_seed = HZ;
 	bpu->stat_reset_count = 0;
 
-	bpu->sched_timer->expires = jiffies + bpu->sched_seed;
+	bpu->sched_timer->expires = jiffies + DEFAULT_SCHED_SEED;
 	add_timer(bpu->sched_timer);
 
 	return 0;

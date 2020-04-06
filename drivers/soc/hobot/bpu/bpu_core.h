@@ -32,9 +32,15 @@
 #endif
 
 enum bpu_core_status_cmd {
-	IF_BUSY = 0,
-	/* get inventory fc num */
-	INVENTORY_NUM,
+	/* get if bpu busy, 1:busy; 0:free*/
+	BUSY_STATE = 0,
+	/*
+	 * get bpu work or not_work(dead or hung)
+	 * return 1: working; 0: not work
+	 */
+	WORK_STATE,
+	/* To update some val for state check */
+	UPDATE_STATE,
 	STATUS_CMD_MAX,
 };
 
@@ -108,9 +114,6 @@ struct bpu_core {
 	/* list to store user */
 	struct list_head user_list;
 
-	/* key point time for statistics */
-	struct timeval k_point;
-
 	struct bpu_core_hw_ops *hw_ops;
 	int32_t index;
 
@@ -125,6 +128,11 @@ struct bpu_core {
 	/* > 0; auto change by governor; <=0: manual levle, 0 is highest */
 	int32_t power_level;
 
+	/*
+	 * if hotplug = 1, powered off core's
+	 * task will sched to other core
+	 */
+	uint16_t hotplug;
 	uint16_t hw_enabled;
 
 	struct tasklet_struct tasklet;

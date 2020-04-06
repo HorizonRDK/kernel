@@ -19,6 +19,7 @@
 #include <linux/miscdevice.h>
 #include <uapi/hobot/bpu.h>
 
+#define ALL_CORE_MASK	(0xFFFFFFFFu)
 #define PERSENT		(100u)
 #define SECTOMS		(1000)
 #define SECTOUS		(1000000)
@@ -174,6 +175,7 @@ int32_t bpu_core_register(struct bpu_core *core);
 void bpu_core_unregister(struct bpu_core *core);
 int32_t bpu_write_fc_to_core(struct bpu_core *core,
 		struct bpu_fc *bpu_fc, uint32_t offpos);
+bool bpu_core_is_online(struct bpu_core *core);
 
 /* statusis apis */
 uint32_t bpu_ratio(struct bpu *bpu);

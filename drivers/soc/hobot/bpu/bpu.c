@@ -297,6 +297,22 @@ int32_t bpu_write_fc_to_core(struct bpu_core *core,
 	return write_fc_num;
 }
 
+bool bpu_core_is_online(struct bpu_core *core)
+{
+	if (core == NULL) {
+		return false;
+	}
+
+	if (core->hw_enabled == 0) {
+		return false;
+	}
+
+	return bpu_prio_is_plug_in(core->prio_sched);
+}
+// PRQA S ALL ++
+EXPORT_SYMBOL(bpu_core_is_online);
+// PRQA S ALL --
+
 static struct bpu_core *bpu_opt_core(const struct bpu *bpu, uint64_t core_mask)
 {
 	struct bpu_core *tmp_core, *tmp_opt_core = NULL;
@@ -309,7 +325,7 @@ static struct bpu_core *bpu_opt_core(const struct bpu *bpu, uint64_t core_mask)
 
 	list_for_each_safe(pos, pos_n, &bpu->core_list) {/*PRQA S ALL*/
 		tmp_core = (struct bpu_core*)pos;/*PRQA S ALL*/
-		if (tmp_core != NULL) {
+		if (bpu_core_is_online(tmp_core)) {
 			if ((core_mask & ((uint64_t)0x1u << (uint32_t)tmp_core->index)) != 0u) {
 				mutex_lock(&tmp_core->mutex_lock);
 				if ((atomic_read(&tmp_core->open_counter) != 0) &&/*PRQA S ALL*/
@@ -360,17 +376,24 @@ int32_t  bpu_write_with_user(const struct bpu_core *core,
 			return -EINVAL;
 		}
 
-		if (core == NULL) {
+		if (!bpu_core_is_online(core)) {
 			/*
 			* choose optimal core according to core stauts
 			* FIXME: need find core according core_mask flag
 			*/
 			mutex_lock(&g_bpu->mutex_lock);
 			if (tmp_run_c_mask != 0u) {
-				tmp_core = bpu_opt_core(g_bpu, tmp_core_mask & tmp_run_c_mask);
-			} else {
-				tmp_core = bpu_opt_core(g_bpu, tmp_core_mask);
+				tmp_core_mask &= tmp_run_c_mask;
 			}
+
+			if (core != NULL) {
+				/* if core support hotplug choose other cores */
+				if ((tmp_core_mask == ((uint64_t)0x1 << core->index))
+						&& (core->hotplug != 0)) {
+					tmp_core_mask = ALL_CORE_MASK;
+				}
+			}
+			tmp_core = bpu_opt_core(g_bpu, tmp_core_mask);
 			if (tmp_core == NULL) {
 				mutex_unlock(&g_bpu->mutex_lock);
 				pr_err("BPU has no suitable core, 0x%llx!", tmp_run_c_mask);/*PRQA S ALL*/

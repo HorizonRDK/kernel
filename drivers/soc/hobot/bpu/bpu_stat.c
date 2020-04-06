@@ -69,8 +69,6 @@ void bpu_core_update(struct bpu_core *core, struct bpu_fc *fc)
 
 	core->last_done_point = fc->end_point;
 
-	core->k_point = fc->end_point;
-
 	spin_unlock_irqrestore(&core->spin_lock, flags);
 }
 // PRQA S ALL ++
@@ -212,7 +210,7 @@ uint32_t bpu_fc_group_ratio(struct bpu_fc_group *group)
 
 	list_for_each_safe(pos, pos_n, &g_bpu->core_list) {/*PRQA S ALL*/
 		tmp_core = (struct bpu_core *)list_entry(pos, struct bpu_core, node);/*PRQA S ALL*/
-		if (tmp_core != NULL) {
+		if (bpu_core_is_online(tmp_core)) {
 			pass_time += time_interval(&tmp_core->p_start_point, &tmp_point);
 		}
 	}
@@ -247,7 +245,7 @@ uint32_t bpu_user_ratio(struct bpu_user *user)
 
 	list_for_each_safe(pos, pos_n, &g_bpu->core_list) {/*PRQA S ALL*/
 		tmp_core = (struct bpu_core *)list_entry(pos, struct bpu_core, node);/*PRQA S ALL*/
-		if (tmp_core != NULL) {
+		if (bpu_core_is_online(tmp_core)) {
 			pass_time += time_interval(&tmp_core->p_start_point, &tmp_point);
 		}
 	}
@@ -273,7 +271,7 @@ uint32_t bpu_ratio(struct bpu *bpu)
 
 	list_for_each_safe(pos, pos_n, &bpu->core_list) {/*PRQA S ALL*/
 		tmp_core = (struct bpu_core *)list_entry(pos, struct bpu_core, node);/*PRQA S ALL*/
-		if (tmp_core != NULL) {
+		if (bpu_core_is_online(tmp_core)) {
 			ratio += bpu_core_ratio(tmp_core);
 			core_num++;
 		}

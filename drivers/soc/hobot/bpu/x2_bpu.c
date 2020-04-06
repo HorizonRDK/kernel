@@ -545,22 +545,51 @@ static int32_t x2_bpu_read_fc(const struct bpu_core *core,
 
 static int32_t x2_bpu_status(struct bpu_core *core, uint32_t cmd)
 {
-	uint32_t head_index, tail_index;
+	static uint32_t head_index, tail_index;
+	uint32_t tmp_head_index, tmp_tail_index;
+	static uint32_t inst_num;
+	uint32_t tmp_inst_num;
+	int ret = 0;
 
 	if (core == NULL) {
 		pr_err("Get Status from invalid bpu core!\n");
 		return -ENODEV;
 	}
 
-	head_index = x2_bpu_reg_read(core, CNN_FC_HEAD);
+	tmp_head_index = x2_bpu_reg_read(core, CNN_FC_HEAD);
+	tmp_tail_index = x2_bpu_reg_read(core, CNN_FC_TAIL);
+	tmp_inst_num = x2_bpu_reg_read(core, CNNINT_INST_NUM);
 
-	tail_index = x2_bpu_reg_read(core, CNN_FC_TAIL);
-
-	if (head_index == tail_index) {
-		return 0;
+	switch (cmd) {
+	case (uint32_t)BUSY_STATE:/*PRQA S ALL*/
+		if (tmp_head_index == tmp_tail_index) {
+			ret = 0;
+		} else {
+			ret = 1;
+		}
+		break;
+	case (uint32_t)WORK_STATE:/*PRQA S ALL*/
+		if ((tmp_head_index == tail_index)
+				&& (tmp_inst_num == inst_num)
+				&& (tmp_head_index != tmp_tail_index)) {
+			ret = 0;
+		} else {
+			ret = 1;
+		}
+		break;
+	case (uint32_t)UPDATE_STATE:/*PRQA S ALL*/
+		/* do nothing just update regs*/
+		break;
+	default:
+		pr_err("Invalid bpu state cmd[%d]\n", cmd);/*PRQA S ALL*/
+		ret = -EINVAL;
+		break;
 	}
 
-	return 1;
+	head_index = tmp_head_index;
+	tail_index = tmp_tail_index;
+	inst_num = tmp_inst_num;
+	return ret;
 }
 
 /* X2 use core reserved[0] to store burst_len set */

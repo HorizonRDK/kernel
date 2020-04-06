@@ -34,7 +34,10 @@ struct bpu_prio {
 	/* to find the high task and set to hw_tail */
 	struct tasklet_struct tasklet;
 	struct mutex mutex_lock;
+	/* prios emptyp completion */
+	struct completion no_task_comp;
 	uint16_t inited;
+	uint16_t plug_in;
 	/* array to store support prios */
 	struct bpu_prio_node *prios;
 	uint32_t level_num;
@@ -44,5 +47,9 @@ struct bpu_prio *bpu_prio_init(struct bpu_core *core, uint32_t levels);
 void bpu_prio_exit(struct bpu_prio *prio);
 int32_t bpu_prio_in(struct bpu_prio *prio, const struct bpu_fc *bpu_fc);
 void bpu_prio_trig_out(struct bpu_prio *prio);
+bool bpu_prio_is_plug_in(struct bpu_prio *prio);
+void bpu_prio_plug_in(struct bpu_prio *prio);
+void bpu_prio_plug_out(struct bpu_prio *prio);
+int32_t bpu_prio_wait_empty(struct bpu_prio *prio, int32_t jiffes);
 
 #endif

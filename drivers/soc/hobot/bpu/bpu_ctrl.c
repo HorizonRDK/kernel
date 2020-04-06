@@ -223,11 +223,40 @@ int32_t bpu_core_enable(struct bpu_core *core)
 		return err;
 	}
 
+	bpu_prio_plug_in(core->prio_sched);
+
 	return ret;
 }
 // PRQA S ALL ++
 EXPORT_SYMBOL(bpu_core_enable);
 // PRQA S ALL --
+
+static int32_t bpu_core_plug_out(struct bpu_core *core)
+{
+	int32_t tmp_work_state = 1;
+	int32_t ret = 0;
+
+	if (core == NULL) {
+		pr_err("Disable invalid core!\n");/*PRQA S ALL*/
+		return -EINVAL;
+	}
+
+	if (core->hotplug > 0u) {
+		/*
+		 * if need support hotplug on/off, before real
+		 * disable, need wait the prio task fifos empty
+		 */
+		do {
+			ret = bpu_prio_wait_empty(core->prio_sched, HZ);
+			if (core->hw_ops->status != NULL) {
+				tmp_work_state = core->hw_ops->status(core, WORK_STATE);
+			}
+		/* if core not work, can exit waiting */
+		} while ((ret != 0) && (tmp_work_state == 1));
+	}
+
+	return ret;
+}
 
 int32_t bpu_core_disable(struct bpu_core *core)
 {
@@ -239,6 +268,14 @@ int32_t bpu_core_disable(struct bpu_core *core)
 	}
 	if (core->hw_enabled == 0u) {
 		return 0;
+	}
+
+	bpu_prio_plug_out(core->prio_sched);
+	ret = bpu_core_plug_out(core);
+	if (ret != 0) {
+		bpu_prio_plug_in(core->prio_sched);
+		dev_err(core->dev, "Try to pre Plugout core failed!\n");
+		return ret;
 	}
 
 	core->hw_enabled = 0;

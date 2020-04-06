@@ -158,6 +158,10 @@ static irqreturn_t bpu_core_irq_handler(int irq, void *dev_id)/*PRQA S ALL*/
 	spin_unlock(&core->spin_lock);
 	pr_debug("BPU Core[%d] irq %d come\n", core->index, tmp_hw_id);/*PRQA S ALL*/
 
+	if (core->hw_ops->status != NULL) {
+		(void)core->hw_ops->status(core, UPDATE_STATE);
+	}
+
 	if (tmp_hw_id == (uint32_t)HW_ID_MAX) {
 		return IRQ_HANDLED;
 	}
@@ -192,7 +196,7 @@ static long bpu_core_ioctl(struct file *filp,/*PRQA S ALL*/
 		break;
 	case BPU_GET_CAP:/*PRQA S ALL*/
 		/* get the lowest prio fifo size to user */
-		if (core->hw_enabled > 0u) {
+		if (bpu_core_is_online(core) || (core->hotplug > 0u)) {
 			cap = kfifo_avail(&core->run_fc_fifo[0]);/*PRQA S ALL*/
 		} else {
 			cap = 0;
