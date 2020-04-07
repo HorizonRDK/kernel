@@ -111,6 +111,7 @@ int ips_set_md_cfg(sif_output_md_t *cfg)
 
 	return ret;
 }
+EXPORT_SYMBOL_GPL(ips_set_md_cfg);
 
 int ips_disable_md(void)
 {
@@ -123,6 +124,7 @@ int ips_disable_md(void)
 
 	return ret;
 }
+EXPORT_SYMBOL_GPL(ips_disable_md);
 
 int ips_set_md_refresh(bool enable)
 {
@@ -133,6 +135,7 @@ int ips_set_md_refresh(bool enable)
 
 	return ret;
 }
+EXPORT_SYMBOL_GPL(ips_set_md_refresh);
 
 int ips_set_md_resolution(u32 width, u32 height)
 {
@@ -143,6 +146,7 @@ int ips_set_md_resolution(u32 width, u32 height)
 
 	return ret;
 }
+EXPORT_SYMBOL_GPL(ips_set_md_resolution);
 
 int ips_get_md_event(void)
 {
@@ -153,6 +157,8 @@ int ips_get_md_event(void)
 	g_ips_dev->event = 0;
 	return ret;
 }
+EXPORT_SYMBOL_GPL(ips_get_md_event);
+
 
 int ips_set_md_fmt(u32 fmt)
 {
@@ -163,6 +169,8 @@ int ips_set_md_fmt(u32 fmt)
 
 	return ret;
 }
+EXPORT_SYMBOL_GPL(ips_set_md_fmt);
+
 int ips_get_bus_ctrl(void)
 {
 	int ret = 0;
@@ -182,6 +190,7 @@ void ips_set_iram_size(u32 iram_size)
 	g_ips_dev->iram_used_size = iram_size;
 	vio_dbg("%s: 0x%x\n", __func__, iram_size);
 }
+EXPORT_SYMBOL_GPL(ips_set_iram_size);
 
 int ips_get_free_iram_range(u32 *address)
 {
@@ -600,4 +609,4 @@ module_exit(x3_ips_exit);
 
 MODULE_AUTHOR("Sun Kaikai<kaikai.sun@horizon.com>");
 MODULE_DESCRIPTION("X3 IPS driver");
-MODULE_LICENSE("GPL");
+MODULE_LICENSE("GPL v2");

@@ -25,6 +25,7 @@ int frame_fcount(struct vio_frame *frame, void *data)
 {
 	return frame->fcount - (u32)(ulong)data;
 }
+EXPORT_SYMBOL(frame_fcount);
 
 int put_frame(struct vio_framemgr *this, struct vio_frame *frame,
 			enum vio_frame_state state)
@@ -43,6 +44,7 @@ int put_frame(struct vio_framemgr *this, struct vio_frame *frame,
 #endif
 	return 0;
 }
+EXPORT_SYMBOL(put_frame);
 
 struct vio_frame *get_frame(struct vio_framemgr *this,
 			enum vio_frame_state state)
@@ -58,6 +60,7 @@ struct vio_frame *get_frame(struct vio_framemgr *this,
 	frame->state = FS_INVALID;
 	return frame;
 }
+EXPORT_SYMBOL(get_frame);
 
 int trans_frame(struct vio_framemgr *this, struct vio_frame *frame,
 			enum vio_frame_state state)
@@ -79,6 +82,7 @@ int trans_frame(struct vio_framemgr *this, struct vio_frame *frame,
 	//	frame->bak_flag = frame->out_flag;
 	return put_frame(this, frame, state);
 }
+EXPORT_SYMBOL(trans_frame);
 
 struct vio_frame *peek_frame(struct vio_framemgr *this,
 			enum vio_frame_state state)
@@ -89,6 +93,7 @@ struct vio_frame *peek_frame(struct vio_framemgr *this,
 		return NULL;
 	return list_first_entry(&this->queued_list[state], struct vio_frame, list);
 }
+EXPORT_SYMBOL(peek_frame);
 
 struct vio_frame *peek_frame_tail(struct vio_framemgr *this,
 			enum vio_frame_state state)
@@ -99,6 +104,7 @@ struct vio_frame *peek_frame_tail(struct vio_framemgr *this,
 		return NULL;
 	return list_last_entry(&this->queued_list[state], struct vio_frame, list);
 }
+EXPORT_SYMBOL(peek_frame_tail);
 
 struct vio_frame *find_frame(struct vio_framemgr *this,
 			     enum vio_frame_state state,
@@ -158,6 +164,7 @@ void print_frame_info_queue(struct vio_framemgr *this,
 	}
 	vio_cont("X\n");
 }
+EXPORT_SYMBOL(print_frame_info_queue);
 
 void frame_work_function(struct kthread_work *work)
 {
@@ -216,6 +223,7 @@ p_err_ignore:
 
 	return;
 }
+EXPORT_SYMBOL(frame_work_function);
 
 int frame_manager_open(struct vio_framemgr *this, u32 buffers)
 {
@@ -249,6 +257,7 @@ int frame_manager_open(struct vio_framemgr *this, u32 buffers)
 	spin_unlock_irqrestore(&this->slock, flag);
 	return 0;
 }
+EXPORT_SYMBOL(frame_manager_open);
 
 int frame_manager_close(struct vio_framemgr *this)
 {
@@ -267,6 +276,7 @@ int frame_manager_close(struct vio_framemgr *this)
 	spin_unlock_irqrestore(&this->slock, flag);
 	return 0;
 }
+EXPORT_SYMBOL(frame_manager_close);
 
 int frame_manager_flush(struct vio_framemgr *this)
 {
@@ -282,6 +292,7 @@ int frame_manager_flush(struct vio_framemgr *this)
 	BUG_ON(this->queued_count[FS_FREE] != this->num_frames);
 	return 0;
 }
+EXPORT_SYMBOL(frame_manager_flush);
 
 /*
  * Open frame manager for multi-process scenario
@@ -355,6 +366,7 @@ int frame_manager_open_mp(struct vio_framemgr *this, u32 buffers,
 		ind_fst, buffers, this->num_frames);
 	return 0;
 }
+EXPORT_SYMBOL(frame_manager_open_mp);
 
 int frame_manager_close_mp(struct vio_framemgr *this,
 	u32 index_start, u32 buffers, u32 ctx_index)
@@ -402,6 +414,7 @@ int frame_manager_close_mp(struct vio_framemgr *this,
 	spin_unlock_irqrestore(&this->slock, flag);
 	return 0;
 }
+EXPORT_SYMBOL(frame_manager_close_mp);
 
 int frame_manager_flush_mp(struct vio_framemgr *this,
 	u32 index_start, u32 buffers)
@@ -424,6 +437,7 @@ int frame_manager_flush_mp(struct vio_framemgr *this,
 
 	return 0;
 }
+EXPORT_SYMBOL(frame_manager_flush_mp);
 
 /*
  * Set the streaming off mask of the frame
@@ -514,6 +528,7 @@ int frame_manager_flush_mp_prepare(struct vio_framemgr *this,
 	spin_unlock_irqrestore(&this->slock, flag);
 	return 0;
 }
+EXPORT_SYMBOL(frame_manager_flush_mp_prepare);
 
 void frame_manager_print_queues(struct vio_framemgr *this)
 {
@@ -521,6 +536,7 @@ void frame_manager_print_queues(struct vio_framemgr *this)
 	for (i = 0; i < NR_FRAME_STATE; i++)
 		print_frame_queue(this, (enum vio_frame_state)i);
 }
+EXPORT_SYMBOL(frame_manager_print_queues);
 
 void frame_manager_print_info_queues(struct vio_framemgr *this)
 {
@@ -528,3 +544,4 @@ void frame_manager_print_info_queues(struct vio_framemgr *this)
 	for (i = 0; i < NR_FRAME_STATE; i++)
 		print_frame_info_queue(this, (enum vio_frame_state)i);
 }
+EXPORT_SYMBOL(frame_manager_print_info_queues);

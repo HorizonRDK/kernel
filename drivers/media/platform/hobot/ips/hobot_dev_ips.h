@@ -10,9 +10,6 @@
 #include <uapi/linux/types.h>
 #include <linux/cdev.h>
 #include <linux/wait.h>
-#include "sif_config.h"
-
-#define IRAM_MAX_RANG	0x140000
 
 struct x3_ips_dev {
 	u32 __iomem			*base_reg;

@@ -7,6 +7,8 @@
 #ifndef __HOBOT_SIF_CONFIG__
 #define __HOBOT_SIF_CONFIG__
 
+#include "vio_config.h"
+
 typedef enum _sif_event_e {
 	SIF_START  = 1,
 	SIF_STOP   = 2,
@@ -151,20 +153,6 @@ typedef struct sif_output_mipi {
 	uint32_t		  enable;
 	uint32_t		  channels;
 } sif_output_mipi_t;
-
-typedef struct sif_output_md {
-	uint32_t	enable;
-	uint32_t	path_sel; //ipu:0, isp:1
-	uint32_t	roi_top;
-	uint32_t	roi_left;
-	uint32_t	roi_width;
-	uint32_t	roi_height;
-	uint32_t	grid_step;
-	uint32_t	grid_tolerance;
-	uint32_t	threshold;
-	uint32_t	weight_decay;
-	uint32_t	precision;
-} sif_output_md_t;
 
 typedef struct sif_output {
 	sif_output_ipu_t	 ipu;

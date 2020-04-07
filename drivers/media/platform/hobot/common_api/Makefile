@@ -1,19 +1,11 @@
 #
 # Makefile for the Linux Kernel IPS specific device drivers.
 #
-TARGET:=sif
+ifneq ($(KERNELRELEASE),)
+obj-y += hobot_common_api.o
+hobot_common_api-objs := vio_framemgr.o vio_hw_common_api.o vio_group_api.o
 
-#FW_SRC := $(wildcard ./*.c ../common_api/*.c)
-FW_SRC := ./hobot_sif_hw_reg.c ./hobot_dev_sif.c ../common_api/vio_framemgr.c ../common_api/vio_hw_common_api.c ../common_api/vio_group_api.c
-
-export FW_SRC_OBJ := $(FW_SRC:.c=.o)
-
-ccflags-y:= -I./ -I../
-EXTRA_CFLAGS += -Idrivers/media/platform/hobot/common_api/
-EXTRA_CFLAGS += -Idrivers/media/platform/hobot/ips/
-
-obj-m += $(TARGET).o
-$(TARGET)-objs += $(FW_SRC_OBJ)
+else
 
 ifeq ($(CROSS_COMPILE),)
     _CROSS_COMPILE = ~/codes/testbench-master/hbtdisk/toolchain/aarch64-gcc-linaro-7.2.1-2017.11/bin/aarch64-linux-gnu-
@@ -42,4 +34,4 @@ default:
 
 clean:
 	CROSS_COMPILE=${_CROSS_COMPILE} make ARCH=${_ARCH} -C $(_KDIR) M=$(PWD) clean
-
+endif

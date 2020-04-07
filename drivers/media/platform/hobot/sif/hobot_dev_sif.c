@@ -34,7 +34,6 @@
 static int mismatch_limit = 1;
 module_param(mismatch_limit, int, 0644);
 
-extern struct class *vps_class;
 typedef int (*isp_callback)(int);
 isp_callback sif_isp_ctx_sync;
 int sif_video_streamoff(struct sif_video_ctx *sif_ctx);
@@ -1555,4 +1554,4 @@ module_exit(x3_sif_exit);
 
 MODULE_AUTHOR("Sun Kaikai<kaikai.sun@horizon.com>");
 MODULE_DESCRIPTION("X3 SIF driver");
-MODULE_LICENSE("GPL");
+MODULE_LICENSE("GPL v2");

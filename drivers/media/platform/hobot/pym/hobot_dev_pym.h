@@ -96,6 +96,7 @@ struct x3_pym_dev {
 	resource_size_t regs_start;
 	resource_size_t regs_end;
 	int irq;
+	dev_t devno;
 	unsigned long state;
 
 	struct class *class;

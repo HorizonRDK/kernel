@@ -15,7 +15,6 @@
 #include "vio_config.h"
 #include "vio_framemgr.h"
 #include "vio_group_api.h"
-#include "hobot_dev_ips.h"
 
 #define SIF_MUX_MAX	8
 #define X3_SIF_NAME  "x3-sif"

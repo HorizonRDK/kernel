@@ -26,15 +26,15 @@
 
 #include "gdc_dev.h"
 #include "gdc_hw_api.h"
-#include "hobot_dev_ips.h"
 
-#define MODULE_NAME "X2A GDC"
+#define MODULE_NAME "X3 GDC"
 
 extern void write_gdc_mask(uint32_t model, uint32_t *enable);
 extern void write_gdc_status(uint32_t model, uint32_t *enable);
 
+typedef void(*rst_func)(void);
+extern void gdc_call_install(rst_func p);
 
-extern struct class *vps_class;
 struct x3_gdc_dev *g_gdc_dev = NULL;
 
 struct gdc_group *gdc_get_group(struct x3_gdc_dev *gdc)
@@ -147,7 +147,6 @@ void dwe0_reset_control(void)
 	}
 	spin_unlock_irqrestore(&g_gdc_dev->shared_slock, flag);
 }
-EXPORT_SYMBOL_GPL(dwe0_reset_control);
 
 /**
  *   This function starts the gdc block
@@ -654,6 +653,8 @@ static int x3_gdc_probe(struct platform_device *pdev)
 
 	if (gdc->hw_id == 0)
 		g_gdc_dev = gdc;
+
+	gdc_call_install(dwe0_reset_control);
 	vio_info("[FRT:D] %s(%d)\n", __func__, ret);
 
 	return 0;
@@ -754,5 +755,5 @@ static void __exit x3_gdc_exit(void)
 module_exit(x3_gdc_exit);
 
 MODULE_AUTHOR("Sun Kaikai<kaikai.sun@horizon.com>");
-MODULE_DESCRIPTION("X2A GDC driver");
-MODULE_LICENSE("GPL");
+MODULE_DESCRIPTION("X3 GDC driver");
+MODULE_LICENSE("GPL v2");

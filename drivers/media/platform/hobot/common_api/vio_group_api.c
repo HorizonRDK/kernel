@@ -8,7 +8,6 @@
 #include <linux/sched.h>
 #include <uapi/linux/sched/types.h>
 #include "vio_group_api.h"
-#include "hobot_dev_ips.h"
 
 static struct vio_chain chain[VIO_MAX_STREAM];
 int vio_group_task_start(struct vio_group_task *group_task)
@@ -48,6 +47,7 @@ p_work:
 p_err:
 	return ret;
 }
+EXPORT_SYMBOL(vio_group_task_start);
 
 int vio_group_task_stop(struct vio_group_task *group_task)
 {
@@ -88,6 +88,7 @@ p_err:
 	return ret;
 
 }
+EXPORT_SYMBOL(vio_group_task_stop);
 
 void vio_group_start_trigger(struct vio_group *group, struct vio_frame *frame)
 {
@@ -97,6 +98,7 @@ void vio_group_start_trigger(struct vio_group *group, struct vio_frame *frame)
 	atomic_inc(&group->rcount);
 	kthread_queue_work(&group_task->worker, &frame->work);
 }
+EXPORT_SYMBOL(vio_group_start_trigger);
 
 int vio_group_init_mp(u32 group_id)
 {
@@ -114,6 +116,7 @@ int vio_group_init_mp(u32 group_id)
 	}
 	return 0;
 }
+EXPORT_SYMBOL(vio_group_init_mp);
 
 struct vio_group *vio_get_chain_group(int instance, u32 group_id)
 {
@@ -136,6 +139,7 @@ struct vio_group *vio_get_chain_group(int instance, u32 group_id)
 
 	return group;
 }
+EXPORT_SYMBOL(vio_get_chain_group);
 
 void vio_group_init(struct vio_group *group)
 {
@@ -154,6 +158,7 @@ void vio_group_init(struct vio_group *group)
 	for(i = 0; i < MAX_SUB_DEVICE; i++)
 		group->sub_ctx[i] = NULL;
 }
+EXPORT_SYMBOL(vio_group_init);
 
 int vio_init_chain(int instance)
 {
@@ -178,6 +183,7 @@ int vio_init_chain(int instance)
 
 	return 0;
 }
+EXPORT_SYMBOL(vio_init_chain);
 
 int vio_bind_chain_groups(struct vio_group *src_group, struct vio_group *dts_group)
 {
@@ -200,6 +206,7 @@ int vio_bind_chain_groups(struct vio_group *src_group, struct vio_group *dts_gro
 
 	return 0;
 }
+EXPORT_SYMBOL(vio_bind_chain_groups);
 
 void vio_bind_group_done(int instance)
 {
@@ -254,6 +261,7 @@ void vio_bind_group_done(int instance)
 
 	vio_info("Stream%d path: G0%s\n", group->instance, stream);
 }
+EXPORT_SYMBOL(vio_bind_group_done);
 
 void vio_get_frame_id(struct vio_group *group)
 {
@@ -266,6 +274,7 @@ void vio_get_frame_id(struct vio_group *group)
 	memcpy(&group->frameid, &sif_group->frameid, sizeof(struct frame_id));
 
 }
+EXPORT_SYMBOL(vio_get_frame_id);
 
 void vio_reset_module(u32 module)
 {
@@ -306,6 +315,7 @@ void vio_reset_module(u32 module)
 	if (module == GROUP_ID_PYM)
 		ips_set_module_reset(IPU_PYM_RST);
 }
+EXPORT_SYMBOL(vio_reset_module);
 
 void vio_group_done(struct vio_group *group)
 {
@@ -328,3 +338,4 @@ void vio_group_done(struct vio_group *group)
 		group_leader->id);
 	}
 }
+EXPORT_SYMBOL(vio_group_done);

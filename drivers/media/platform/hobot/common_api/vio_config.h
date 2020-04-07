@@ -12,7 +12,9 @@
 #define vio_dbg(fmt, ...)	pr_debug(fmt, ##__VA_ARGS__)
 #define vio_info(fmt, ...)	printk(KERN_DEBUG fmt, ##__VA_ARGS__)
 #define vio_cont(fmt, ...)	printk(KERN_DEBUG fmt, ##__VA_ARGS__)
-    
+
+#define IRAM_MAX_RANG	0x140000
+
 #define VIO_MAX_STREAM	6 
 #define CONFIG_QEMU_TEST 0
 enum vio_video_state { 
@@ -70,4 +72,19 @@ struct roi_rect{
     u16 roi_width;
     u16 roi_height;
 };
+
+typedef struct sif_output_md {
+	uint32_t	enable;
+	uint32_t	path_sel; //ipu:0, isp:1
+	uint32_t	roi_top;
+	uint32_t	roi_left;
+	uint32_t	roi_width;
+	uint32_t	roi_height;
+	uint32_t	grid_step;
+	uint32_t	grid_tolerance;
+	uint32_t	threshold;
+	uint32_t	weight_decay;
+	uint32_t	precision;
+} sif_output_md_t;
+
 #endif /* __HOBOT_VIO_CONFIG_H__ */

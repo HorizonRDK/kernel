@@ -26,13 +26,9 @@
 #include <linux/poll.h>
 
 #include "hobot_dev_ipu.h"
-#include "hobot_dev_ips.h"
-
 #include "ipu_hw_api.h"
 
 #define MODULE_NAME "X3 IPU"
-
-extern struct class *vps_class;
 
 static u32 color[MAX_OSD_COLOR_NUM] = {
 	0x601010, 0x606010, 0x60B010, 0x60F010, 0x60F060, 0x60F0B0, 0x60F0F0,
@@ -1940,12 +1936,11 @@ int x3_ipu_subdev_init(struct x3_ipu_dev *ipu)
 int x3_ipu_device_node_init(struct x3_ipu_dev *ipu)
 {
 	int ret = 0;
-	dev_t devno;
-	struct device *dev = NULL;
 	int i = 0;
 	char name[32];
+	struct device *dev = NULL;
 
-	ret = alloc_chrdev_region(&devno, 0, MAX_DEVICE, "x3_ipu");
+	ret = alloc_chrdev_region(&ipu->devno, 0, MAX_DEVICE, "x3_ipu");
 	if (ret < 0) {
 		vio_err("Error %d while alloc chrdev ipu", ret);
 		goto err_req_cdev;
@@ -1953,7 +1948,7 @@ int x3_ipu_device_node_init(struct x3_ipu_dev *ipu)
 
 	cdev_init(&ipu->cdev, &x3_ipu_fops);
 	ipu->cdev.owner = THIS_MODULE;
-	ret = cdev_add(&ipu->cdev, devno, MAX_DEVICE);
+	ret = cdev_add(&ipu->cdev, ipu->devno, MAX_DEVICE);
 	if (ret) {
 		vio_err("Error %d while adding x2 ipu cdev", ret);
 		goto err;
@@ -1964,7 +1959,7 @@ int x3_ipu_device_node_init(struct x3_ipu_dev *ipu)
 	else
 		ipu->class = class_create(THIS_MODULE, X3_IPU_NAME);
 
-	dev = device_create(ipu->class, NULL, MKDEV(MAJOR(devno), 0), NULL,
+	dev = device_create(ipu->class, NULL, MKDEV(MAJOR(ipu->devno), 0), NULL,
 			  "ipu_s0");
 	if (IS_ERR(dev)) {
 		ret = -EINVAL;
@@ -1972,7 +1967,7 @@ int x3_ipu_device_node_init(struct x3_ipu_dev *ipu)
 		goto err;
 	}
 
-	dev = device_create(ipu->class, NULL, MKDEV(MAJOR(devno), 1), NULL,
+	dev = device_create(ipu->class, NULL, MKDEV(MAJOR(ipu->devno), 1), NULL,
 			  "ipu_us");
 	if (IS_ERR(dev)) {
 		ret = -EINVAL;
@@ -1981,7 +1976,7 @@ int x3_ipu_device_node_init(struct x3_ipu_dev *ipu)
 	}
 	for (i = 0; i < 6; i++) {
 		snprintf(name, 32, "ipu_ds%d", i);
-		dev = device_create(ipu->class, NULL, MKDEV(MAJOR(devno), i + 2),
+		dev = device_create(ipu->class, NULL, MKDEV(MAJOR(ipu->devno), i + 2),
 			      NULL, name);
 		if (IS_ERR(dev)) {
 			ret = -EINVAL;
@@ -1994,7 +1989,7 @@ int x3_ipu_device_node_init(struct x3_ipu_dev *ipu)
 err:
 	class_destroy(ipu->class);
 err_req_cdev:
-	unregister_chrdev_region(devno, MAX_DEVICE);
+	unregister_chrdev_region(ipu->devno, MAX_DEVICE);
 	return ret;
 }
 
@@ -2098,6 +2093,22 @@ p_err:
 static int x3_ipu_remove(struct platform_device *pdev)
 {
 	int ret = 0;
+	int i = 0;
+	struct x3_ipu_dev *ipu;
+
+	BUG_ON(!pdev);
+
+	ipu = platform_get_drvdata(pdev);
+
+	free_irq(ipu->irq, ipu);
+
+	for(i = 0; i < MAX_DEVICE; i++)
+		device_destroy(ipu->class, MKDEV(MAJOR(ipu->devno), i));
+
+	class_destroy(ipu->class);
+	cdev_del(&ipu->cdev);
+	unregister_chrdev_region(ipu->devno, MAX_DEVICE);
+	kfree(ipu);
 
 	vio_info("%s\n", __func__);
 
@@ -2167,4 +2178,4 @@ static void __exit x3_ipu_exit(void)
 module_exit(x3_ipu_exit);
 MODULE_AUTHOR("Sun Kaikai<kaikai.sun@horizon.com>");
 MODULE_DESCRIPTION("X3 IPU driver");
-MODULE_LICENSE("GPL");
+MODULE_LICENSE("GPL v2");

@@ -12,6 +12,7 @@
 #include <linux/wait.h>
 
 #include "vio_framemgr.h"
+#include "vio_config.h"
 
 #define MAX_SUB_DEVICE  8
 #define MAX_SHADOW_NUM 4
@@ -107,5 +108,26 @@ void vio_group_done(struct vio_group *group);
 extern u32 ipu_get_iar_display_type(u8 *pipeline, u8 *channel);
 extern int32_t ipu_set_display_addr(uint32_t disp_layer, u32 yaddr, u32 caddr);
 #endif
+
+extern void ips_set_module_reset(unsigned long module);
+extern int ips_set_clk_ctrl(unsigned long module, bool enable);
+extern int ips_set_bus_ctrl(unsigned int cfg);
+extern int ips_get_bus_ctrl(void);
+
+extern int ips_get_bus_status(void);
+extern int ips_set_md_cfg(sif_output_md_t *cfg);
+extern int ips_disable_md(void);
+extern int ips_set_md_refresh(bool enable);
+extern int ips_set_md_resolution(u32 width, u32 height);
+extern int ips_get_md_event(void);
+extern int ips_set_md_fmt(u32 fmt);
+extern void ips_set_iram_size(u32 iram_size);
+
+extern int vio_clk_enable(const char *name);
+extern int vio_clk_disable(const char *name);
+extern int vio_set_clk_rate(const char *name, ulong frequency);
+extern ulong vio_get_clk_rate(const char *name);
+
+extern struct class *vps_class;
 
 #endif

@@ -26,6 +26,7 @@ u32 vio_hw_get_reg(void __iomem *base_addr, const struct vio_reg_def *reg)
 #endif /*  */
 	return reg_value;
 }
+EXPORT_SYMBOL(vio_hw_get_reg);
 
 void vio_hw_set_reg(void __iomem *base_addr, const struct vio_reg_def *reg,
 		u32 val) 
@@ -42,6 +43,7 @@ void vio_hw_set_reg(void __iomem *base_addr, const struct vio_reg_def *reg,
 	writel(val, base_addr + reg->sfr_offset);
 #endif
 }
+EXPORT_SYMBOL(vio_hw_set_reg);
 
 u32 vio_hw_get_field(void __iomem *base_addr,
 		const struct vio_reg_def *reg,
@@ -64,6 +66,7 @@ u32 vio_hw_get_field(void __iomem *base_addr,
 #endif
 	return field_value;
 }
+EXPORT_SYMBOL(vio_hw_get_field);
 
 void vio_hw_set_field(void __iomem *base_addr,
 		const struct vio_reg_def *reg,
@@ -96,6 +99,7 @@ void vio_hw_set_field(void __iomem *base_addr,
 	writel(reg_value, base_addr + (reg->sfr_offset));
 #endif
 }
+EXPORT_SYMBOL(vio_hw_set_field);
 
 u32 vio_hw_get_field_value(u32 reg_value,
 		const struct vio_field_def *field) 
@@ -109,6 +113,7 @@ u32 vio_hw_get_field_value(u32 reg_value,
 
 	return field_value;
 }
+EXPORT_SYMBOL(vio_hw_get_field_value);
 
 u32 vio_hw_set_field_value(u32 reg_value, const struct vio_field_def *field,
 		u32 val)
@@ -126,6 +131,7 @@ u32 vio_hw_set_field_value(u32 reg_value, const struct vio_field_def *field,
 
 	return reg_value;
 }
+EXPORT_SYMBOL(vio_hw_set_field_value);
 
 void vio_hw_dump_regs(void __iomem *base_addr,
 		const struct vio_reg_def *regs, u32 total_cnt)
@@ -139,4 +145,4 @@ void vio_hw_dump_regs(void __iomem *base_addr,
 			regs[i].reg_name, regs[i].sfr_offset, reg_value);
 	}
 }
-
+EXPORT_SYMBOL(vio_hw_dump_regs);

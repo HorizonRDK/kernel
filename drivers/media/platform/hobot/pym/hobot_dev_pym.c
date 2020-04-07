@@ -26,12 +26,9 @@
 #include <linux/poll.h>
 
 #include "hobot_dev_pym.h"
-#include "hobot_dev_ips.h"
 #include "pym_hw_api.h"
 
 #define MODULE_NAME "X3 PYM"
-
-extern struct class *vps_class;
 
 void pym_update_param(struct pym_subdev *subdev);
 int pym_video_streamoff(struct pym_video_ctx *pym_ctx);
@@ -1204,10 +1201,9 @@ int x3_pym_subdev_init(struct x3_pym_dev *pym)
 int x3_pym_device_node_init(struct x3_pym_dev *pym)
 {
 	int ret = 0;
-	dev_t devno;
 	struct device *dev = NULL;
 
-	ret = alloc_chrdev_region(&devno, 0, MAX_DEVICE, "x3_pym");
+	ret = alloc_chrdev_region(&pym->devno, 0, MAX_DEVICE, "x3_pym");
 	if (ret < 0) {
 		vio_err("Error %d while alloc chrdev pym", ret);
 		goto err_req_cdev;
@@ -1215,7 +1211,7 @@ int x3_pym_device_node_init(struct x3_pym_dev *pym)
 
 	cdev_init(&pym->cdev, &x3_pym_fops);
 	pym->cdev.owner = THIS_MODULE;
-	ret = cdev_add(&pym->cdev, devno, MAX_DEVICE);
+	ret = cdev_add(&pym->cdev, pym->devno, MAX_DEVICE);
 	if (ret) {
 		vio_err("Error %d while adding x2 pym cdev", ret);
 		goto err;
@@ -1226,7 +1222,7 @@ int x3_pym_device_node_init(struct x3_pym_dev *pym)
 	else
 		pym->class = class_create(THIS_MODULE, X3_PYM_NAME);
 
-	dev = device_create(pym->class, NULL, MKDEV(MAJOR(devno), 0),
+	dev = device_create(pym->class, NULL, MKDEV(MAJOR(pym->devno), 0),
 					NULL, "pym");
 	if (IS_ERR(dev)) {
 		ret = -EINVAL;
@@ -1238,7 +1234,7 @@ int x3_pym_device_node_init(struct x3_pym_dev *pym)
 err:
 	class_destroy(pym->class);
 err_req_cdev:
-	unregister_chrdev_region(devno, MAX_DEVICE);
+	unregister_chrdev_region(pym->devno, MAX_DEVICE);
 	return ret;
 }
 
@@ -1340,6 +1336,19 @@ p_err:
 static int x3_pym_remove(struct platform_device *pdev)
 {
 	int ret = 0;
+	struct x3_pym_dev *pym;
+
+	BUG_ON(!pdev);
+
+	pym = platform_get_drvdata(pdev);
+
+	free_irq(pym->irq, pym);
+
+	device_destroy(pym->class, pym->devno);
+	class_destroy(pym->class);
+	cdev_del(&pym->cdev);
+	unregister_chrdev_region(pym->devno, MAX_DEVICE);
+	kfree(pym);
 
 	vio_info("%s\n", __func__);
 
@@ -1410,4 +1419,4 @@ module_exit(x3_pym_exit);
 
 MODULE_AUTHOR("Sun Kaikai<kaikai.sun@horizon.com>");
 MODULE_DESCRIPTION("X3 PYM driver");
-MODULE_LICENSE("GPL");
+MODULE_LICENSE("GPL v2");
