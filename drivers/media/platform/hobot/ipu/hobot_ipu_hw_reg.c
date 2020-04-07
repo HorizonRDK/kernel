@@ -601,31 +601,29 @@ void ipu_set_osd_enable(void __iomem *base_addr, u8 shadow_index, u32 osd_num,
 }
 
 void ipu_set_osd_overlay_mode(void __iomem *base_addr, u8 shadow_index,
-			      u32 osd_num, u32 osd_layer, u8 enable)
+			      u32 osd_num, u8 cfg)
 {
-	int shift;
 
-	shift = osd_num * 3 + osd_layer;
 	switch (shadow_index) {
 	case SDW_ID_0:
 		vio_hw_set_field(base_addr, &ipu_regs[IPU_0_OSD_EN],
-				 &ipu_fields[IPU_F_OSD_OVERLAY_MODE],
-				 enable << shift);
+				 &ipu_fields[IPU_F_OSD_0_OVERLAY_MODE - osd_num],
+				 cfg);
 		break;
 	case SDW_ID_1:
 		vio_hw_set_field(base_addr, &ipu_regs[IPU_1_OSD_EN],
-				 &ipu_fields[IPU_F_OSD_OVERLAY_MODE],
-				 enable << shift);
+				 &ipu_fields[IPU_F_OSD_0_OVERLAY_MODE - osd_num],
+				 cfg);
 		break;
 	case SDW_ID_2:
 		vio_hw_set_field(base_addr, &ipu_regs[IPU_2_OSD_EN],
-				 &ipu_fields[IPU_F_OSD_OVERLAY_MODE],
-				 enable << shift);
+				 &ipu_fields[IPU_F_OSD_0_OVERLAY_MODE - osd_num],
+				 cfg);
 		break;
 	case SDW_ID_3:
 		vio_hw_set_field(base_addr, &ipu_regs[IPU_3_OSD_EN],
-				 &ipu_fields[IPU_F_OSD_OVERLAY_MODE],
-				 enable << shift);
+				 &ipu_fields[IPU_F_OSD_0_OVERLAY_MODE - osd_num],
+				 cfg);
 		break;
 	default:
 		vio_err("[%s]invalid shadow index(%d) for ipu\n", __func__, shadow_index);

@@ -382,6 +382,7 @@ void ipu_hw_set_osd_cfg(struct ipu_subdev *subdev, u32 shadow_index)
 	u32 id = 0;
 	u32 i = 0;
 	u8 osd_enable = 0;
+	u8 osd_overlay = 0;
 	u32 sta_enable = 0;
 	u16 start_x, start_y, width, height;
 	u32 __iomem *base_reg;
@@ -410,17 +411,19 @@ void ipu_hw_set_osd_cfg(struct ipu_subdev *subdev, u32 shadow_index)
 	if (osd_cfg->osd_box_update) {
 		for (i = 0; i < MAX_OSD_LAYER; i++) {
 			osd_enable |= osd_box[i].osd_en << i;
+			osd_overlay |= osd_box[i].osd_en ? osd_box->overlay_mode << i : 0;
 			start_x = osd_box[i].start_x;
 			start_y = osd_box[i].start_y;
 			width = osd_box[i].width;
 			height = osd_box[i].height;
 			ipu_set_osd_roi(base_reg, shadow_index, osd_index, i, start_x,
 					start_y, width, height);
-			ipu_set_osd_overlay_mode(base_reg, shadow_index, osd_index, i,
-					osd_box->overlay_mode);
 		}
+		ipu_set_osd_overlay_mode(base_reg, shadow_index, osd_index,
+				osd_overlay);
 		ipu_set_osd_enable(base_reg, shadow_index, osd_index, osd_enable);
-		vio_dbg("OSD[%d]osd enable = 0x%x", osd_index, osd_enable);
+		vio_dbg("OSD[%d]osd enable = 0x%x, overlay = 0x%x", osd_index,
+				osd_enable, osd_overlay);
 	}
 	osd_cfg->osd_box_update = 0;
 
