@@ -261,6 +261,7 @@ extern struct list_head diag_id_unmask_list;
 extern uint32_t diag_id_unmask_list_num;
 //extern spinlock_t diag_id_unmask_list_spinlock;
 
+struct id_register_struct *diag_id_in_register_list(struct diag_msg_id *id);
 /*
  * send event sta and it's env data to the diag app.
  * @id module id, event id, msg priority

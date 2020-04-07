@@ -16,6 +16,7 @@
 #include <linux/time.h>
 #include <linux/param.h>
 #include <linux/random.h>
+#include <soc/hobot/diag.h>
 #include "diag_dev.h"
 
 //#define DEBUG
@@ -30,18 +31,31 @@ ssize_t test_enable_show(struct class *class,
 	return strlen(buf);
 }
 
+static void enable_callback(uint16_t module_id, uint16_t event_id)
+{
+	struct diag_msg_id reg_id;
+	struct id_register_struct *regisid = NULL;
+	uint8_t *paylod = NULL;
+	uint32_t paylodlen = 0;
+
+	reg_id.module_id = module_id;
+	reg_id.event_id = event_id;
+	regisid = diag_id_in_register_list(&reg_id);
+	if (regisid == NULL)
+		return;
+	if (regisid->msg_rcvcallback)
+		regisid->msg_rcvcallback(paylod, paylodlen);
+	else
+		pr_debug("module_id:%d, event_id:%d callback is NULL\n",
+				reg_id.module_id, reg_id.event_id);
+}
+
 ssize_t test_enable_store(struct class *class,
 		struct class_attribute *attr, const char *buf, size_t count)
 {
-	diag_send_event_stat_and_env_data(DiagMsgPrioHigh, ModuleDiag_bpu,
-			EventIdBpu0Err, DiagEventStaFail, DiagGenEnvdataWhenErr,
-			NULL, 0);
-	diag_send_event_stat_and_env_data(DiagMsgPrioHigh, ModuleDiag_bpu,
-			EventIdBpu1Err, DiagEventStaFail, DiagGenEnvdataWhenErr,
-			NULL, 0);
-	diag_send_event_stat_and_env_data(DiagMsgPrioHigh, ModuleDiag_eth,
-			EventIdEthDmaBusErr, DiagEventStaFail, DiagGenEnvdataWhenErr,
-			NULL, 0);
+	enable_callback(ModuleDiag_eth, EventIdEthDmaBusErr);
+	enable_callback(ModuleDiag_bpu, EventIdBpu0Err);
+	enable_callback(ModuleDiag_bpu, EventIdBpu1Err);
 	return count;
 }
 

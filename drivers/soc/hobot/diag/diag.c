@@ -35,7 +35,6 @@ struct sock *nlsk;
 struct completion diag_dev_completion;
 
 static int diag_is_ready(void);
-static struct id_register_struct *diag_id_in_register_list(struct diag_msg_id *id);
 static void
 clear_envflag_and_release_idinfo(struct id_info *pidinfo);
 
@@ -473,7 +472,7 @@ int diag_unmask_id_in_list(struct diag_msg_id *id)
 	return ret;
 }
 
-static struct id_register_struct *diag_id_in_register_list(struct diag_msg_id *id)
+struct id_register_struct *diag_id_in_register_list(struct diag_msg_id *id)
 {
 	//unsigned long flags;
 	struct id_register_struct *idreg;
@@ -491,6 +490,7 @@ static struct id_register_struct *diag_id_in_register_list(struct diag_msg_id *i
 
 	return result;
 }
+EXPORT_SYMBOL(diag_id_in_register_list);
 
 static int diag_id_snd_condition_is_ok(struct id_register_struct *p, uint8_t current_sta)
 {
@@ -1187,7 +1187,6 @@ static void diag_work_handler(struct work_struct *work)
 	//struct id_register_struct *pid_reg_down;
 	//struct diag_msg_id id;
 	//int i;
-	int index;
 	INIT_LIST_HEAD(&tmp_list);
 
 	/* process group1 list */

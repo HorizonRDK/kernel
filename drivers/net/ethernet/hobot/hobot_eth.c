@@ -84,6 +84,8 @@
 
 #define HOBOT_USE_IRQ_SPLIT 1
 
+static int eth_err_flag;
+
 static int xj3_mdio_read(struct mii_bus *bus, int mii_id, int phyreg) {
     struct net_device *ndev = bus->priv;
     struct xj3_priv *priv = netdev_priv(ndev);
@@ -2818,6 +2820,11 @@ static int xj3_dma_interrupt(struct xj3_priv *priv, struct xj3_extra_stats *x,
     }
     writel((intr_status), ioaddr + DMA_CHAN_STATUS(chan));
 
+	if (eth_err_flag == 1) {
+		err = 1;
+		eth_err_flag = 0;
+	}
+
     dwceqos_diag_process(err, intr_status);
     return ret;
 }
@@ -5153,6 +5160,11 @@ static int xj3_eth_dwmac_config_dt(struct platform_device *pdev,
     return 0;
 }
 
+static void hobot_eth_diag_test(void *p, size_t len)
+{
+		eth_err_flag = 1;
+}
+
 static int hobot_eth_probe(struct platform_device *pdev) {
     struct plat_config_data *plat_dat;
 
@@ -5191,8 +5203,8 @@ static int hobot_eth_probe(struct platform_device *pdev) {
 
     ret = xj3_dvr_probe(&pdev->dev, plat_dat, &xj3_res);
     if (ret) goto remove;
-    if (diag_register(ModuleDiag_eth, EventIdEthDmaBusErr, 4, 20, 8000, NULL) <
-        0)
+    if (diag_register(ModuleDiag_eth, EventIdEthDmaBusErr, 4, 20, 8000,
+				hobot_eth_diag_test) < 0)
         pr_err("eth diag register fail\n");
     pr_info("%s: probe sucessfully\n", __func__);
     return ret;

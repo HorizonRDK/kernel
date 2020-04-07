@@ -88,6 +88,7 @@ static int bpu0_power;
 static int bpu1_power;
 static int bpu0_hotplug;
 static int bpu1_hotplug;
+static int bpu_err_flag;
 
 static struct timer_list check_timer;
 static struct mutex enable_lock;
@@ -458,6 +459,10 @@ static irqreturn_t hobot_bpu_interrupt_handler(int irq, void *dev_id)
 
 	hobot_bpu_reg_write(dev, CNNINT_MASK, 0x0);
 	irq_err = tmp_irq & 0xf000;
+	if (bpu_err_flag == 1) {
+		irq_err = 0x1000;
+		bpu_err_flag = 0;
+	}
 	report_bpu_diagnose_msg(irq_err, dev->core_index);
 	spin_unlock_irqrestore(&dev->cnn_spin_lock, flags);
 	dev->head_value = 0;
@@ -1990,6 +1995,10 @@ static void hobot_check_cnn(unsigned long arg)
 }
 #endif
 
+static void bpu_diag_test(void *p, size_t len)
+{
+	bpu_err_flag = 1;
+}
 int hobot_bpu_probe(struct platform_device *pdev)
 {
 
@@ -2207,7 +2216,8 @@ int hobot_bpu_probe(struct platform_device *pdev)
 
 	/* diag ref init */
 	if ((EventIdBpu0Err + cnn_id) <= EventIdBpu1Err) {
-		if (diag_register(ModuleDiag_bpu, EventIdBpu0Err + cnn_id, 5, 300, 7000, NULL) < 0)
+		if (diag_register(ModuleDiag_bpu, EventIdBpu0Err + cnn_id, 5, 300,
+					7000, bpu_diag_test) < 0)
 			dev_err(&pdev->dev, "bpu%d diag register fail\n", cnn_id);
 	} else
 			dev_err(&pdev->dev, "bpu event id overun: max = 2,but now is:%d\n",
