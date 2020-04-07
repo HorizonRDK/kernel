@@ -109,9 +109,11 @@ void acamera_fw_deinit( acamera_context_t *p_ctx )
 
 int acamera_fw_isp_prepare(int ctx_id)
 {
-	acamera_context_t *p_ctx = (acamera_context_t *)acamera_get_ctx_ptr(ctx_id);
-
-	init_stab( p_ctx );
+    if (0 <= ctx_id && ctx_id < FIRMWARE_CONTEXT_NUMBER) {
+        acamera_context_t *p_ctx = (acamera_context_t *)acamera_get_ctx_ptr(ctx_id);
+        if (p_ctx != NULL)
+            init_stab( p_ctx );
+    }
 
 	return 0;
 }

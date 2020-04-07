@@ -16,7 +16,7 @@
 #
 
 srcfiles := $(subst $(src_v4l2)/,,$(wildcard $(src_v4l2)/src/*/*.c $(src_v4l2)/src/*/*/*.c $(src_v4l2)/app/*.c $(src_v4l2)/app/*/*.c))
-isp-objs += $(patsubst %.c,%.o,$(srcfiles))
-obj-$(CONFIG_VIDEO_HOBOT_ISP) += isp.o
+hobot_isp-objs += $(patsubst %.c,%.o,$(srcfiles))
+obj-$(CONFIG_VIDEO_HOBOT_ISP) += hobot_isp.o
 
 EXTRA_CFLAGS += $(addprefix -I,$(shell find $(src_v4l2) -type d))

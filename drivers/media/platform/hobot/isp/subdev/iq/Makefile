@@ -17,7 +17,7 @@
 
 iq_dir := $(src_subdev)/iq
 srcfiles := $(subst $(iq_dir)/,,$(wildcard $(iq_dir)/src/*/*.c $(iq_dir)/app/*.c))
-iq-objs += $(patsubst %.c,%.o,$(srcfiles))
-obj-$(CONFIG_VIDEO_HOBOT_ISP) += iq.o
+hobot_iq-objs += $(patsubst %.c,%.o,$(srcfiles))
+obj-$(CONFIG_VIDEO_HOBOT_ISP) += hobot_iq.o
 
 EXTRA_CFLAGS += $(addprefix -I,$(shell find $(iq_dir) -type d))

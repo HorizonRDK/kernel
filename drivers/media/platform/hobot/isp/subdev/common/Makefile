@@ -18,7 +18,7 @@
 common_dir := $(src_subdev)/common
 
 srcfiles := $(subst $(common_dir)/,,$(wildcard $(common_dir)/src/*.c))
-common-objs += $(patsubst %.c,%.o,$(srcfiles))
-obj-$(CONFIG_VIDEO_HOBOT_ISP) += common.o
+hobot_sensor-objs += $(patsubst %.c,%.o,$(srcfiles))
+obj-$(CONFIG_VIDEO_HOBOT_ISP) += hobot_sensor.o
 
 EXTRA_CFLAGS += $(addprefix -I,$(shell find $(common_dir) -type d))

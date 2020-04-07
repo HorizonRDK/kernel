@@ -683,5 +683,5 @@ void __exit acamera_soc_dwe_exit(void)
 module_init(acamera_soc_dwe_init);
 module_exit(acamera_soc_dwe_exit);
 
-MODULE_LICENSE("GPL v2");
 MODULE_AUTHOR("IE&E");
+MODULE_LICENSE("GPL v2");

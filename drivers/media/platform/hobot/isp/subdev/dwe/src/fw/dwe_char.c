@@ -764,7 +764,3 @@ void __exit dwe_dev_exit(int port)
 	}
 }
 EXPORT_SYMBOL(dwe_dev_exit);
-
-MODULE_AUTHOR("Horizon Inc.");
-MODULE_DESCRIPTION("dwe_char dev of x2a");
-MODULE_LICENSE("GPL v2");

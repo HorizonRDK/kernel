@@ -18,7 +18,7 @@
 lens_dir := $(src_subdev)/lens
 srcfiles := $(subst $(lens_dir)/,,$(wildcard $(lens_dir)/src/*/*.c \
 	$(lens_dir)/src/*/*/*.c $(lens_dir)/src/*/*/*/*.c $(lens_dir)/app/*.c))
-lens-objs += $(patsubst %.c,%.o,$(srcfiles))
-obj-$(CONFIG_VIDEO_HOBOT_ISP) += lens.o
+hobot_lens-objs += $(patsubst %.c,%.o,$(srcfiles))
+obj-$(CONFIG_VIDEO_HOBOT_ISP) += hobot_lens.o
 
 EXTRA_CFLAGS += $(addprefix -I,$(shell find $(lens_dir) -type d))

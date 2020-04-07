@@ -51,6 +51,22 @@ static dwe_param_t dwe_param[FIRMWARE_CONTEXT_NUMBER];
 static struct dwe_dev_s *dev_ptr;
 struct mutex mc_mutex;
 
+typedef void(*rst_func)(void);
+
+static rst_func gdc_call_back = NULL;
+void gdc_call_install(rst_func p)
+{
+	gdc_call_back = p;
+}
+EXPORT_SYMBOL_GPL(gdc_call_install);
+
+void gdc_rst_func(void)
+{
+	if (gdc_call_back) {
+		gdc_call_back();
+	}
+}
+
 //used by gdc model
 //model 0: gdc_0  1: gdc_1
 //enable 0: disabel 1: enable
@@ -66,7 +82,7 @@ void read_gdc_status(uint32_t model, uint32_t *enable)
 		}
 	}
 }
-EXPORT_SYMBOL(read_gdc_status);
+EXPORT_SYMBOL_GPL(read_gdc_status);
 
 void write_gdc_status(uint32_t model, uint32_t *enable)
 {
@@ -80,7 +96,7 @@ void write_gdc_status(uint32_t model, uint32_t *enable)
 		}
 	}
 }
-EXPORT_SYMBOL(write_gdc_status);
+EXPORT_SYMBOL_GPL(write_gdc_status);
 
 void write_gdc_mask(uint32_t model, uint32_t *enable)
 {
@@ -94,7 +110,7 @@ void write_gdc_mask(uint32_t model, uint32_t *enable)
 		}
 	}
 }
-EXPORT_SYMBOL(write_gdc_mask);
+EXPORT_SYMBOL_GPL(write_gdc_mask);
 
 void read_gdc_mask(uint32_t model, uint32_t *enable)
 {
@@ -108,7 +124,7 @@ void read_gdc_mask(uint32_t model, uint32_t *enable)
 		}
 	}
 }
-EXPORT_SYMBOL(read_gdc_mask);
+EXPORT_SYMBOL_GPL(read_gdc_mask);
 
 void printk_ldcparam(ldc_param_s *pldc)
 {
@@ -464,7 +480,6 @@ void dwe_sw_init(void)
 	set_dwe_checktype(dev_ptr->dis_dev->io_vaddr, &tmp);
 }
 
-extern void dwe0_reset_control(void);
 extern void reset_dwe_ctx(void);
 
 void dwe_sw_deinit(void)
@@ -518,7 +533,7 @@ void dwe_sw_deinit(void)
 	tmp &= 0xfb;
 	set_dwe_checktype(dev_ptr->dis_dev->io_vaddr, &tmp);
 
-	dwe0_reset_control();
+	gdc_rst_func();
 	reset_dwe_ctx();
 }
 

@@ -17,7 +17,7 @@
 
 log_list_dir := $(src_subdev)/log_list
 srcfiles := $(subst $(log_list_dir)/,,$(wildcard $(log_list_dir)/*.c))
-log_list-objs += $(patsubst %.c,%.o,$(srcfiles))
-obj-$(CONFIG_VIDEO_HOBOT_ISP) += log_list.o
+hobot_isp_log-objs += $(patsubst %.c,%.o,$(srcfiles))
+obj-$(CONFIG_VIDEO_HOBOT_ISP) += hobot_isp_log.o
 
 EXTRA_CFLAGS += $(addprefix -I,$(shell find $(log_list_dir) -type d))

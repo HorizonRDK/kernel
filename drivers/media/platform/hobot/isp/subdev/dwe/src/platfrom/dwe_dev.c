@@ -214,8 +214,3 @@ void __exit system_dwe_exit( void )
     platform_driver_unregister( &dwe_dev_driver );
 }
 EXPORT_SYMBOL(system_dwe_exit);
-
-
-MODULE_AUTHOR("Horizon Inc.");
-MODULE_DESCRIPTION("DWE dev");
-MODULE_LICENSE("GPL v2");

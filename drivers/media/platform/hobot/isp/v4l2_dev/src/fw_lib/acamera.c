@@ -526,12 +526,8 @@ int32_t acamera_interrupt_handler()
 #else
 
 static int cur_ctx_id;
-module_param(cur_ctx_id, int, 0644);
 static int last_ctx_id;
-module_param(last_ctx_id, int, 0644);
 static int next_ctx_id;
-module_param(next_ctx_id, int, 0644);
-
 static void start_processing_frame( void )
 {
 #if ISP_HAS_DMA_INPUT
