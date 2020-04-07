@@ -579,7 +579,11 @@ static bool spinand_isbad(struct nand_device *nand, const struct nand_pos *pos)
 	memset(spinand->oobbuf, 0, 2);
 	spinand_select_target(spinand, pos->target);
 	spinand_read_page(spinand, &req, false);
+#ifndef CONFIG_YAFFS_FS
 	if (spinand->oobbuf[0] != 0xff || spinand->oobbuf[1] != 0xff)
+#else
+	if (spinand->oobbuf[0] != 0xff)
+#endif
 		return true;
 
 	return false;
@@ -1090,7 +1094,6 @@ static int spinand_probe(struct spi_mem *mem)
 	mutex_init(&spinand->lock);
 	mtd = spinand_to_mtd(spinand);
 	mtd->dev.parent = &mem->spi->dev;
-
 	ret = spinand_init(spinand);
 	if (ret)
 		return ret;
