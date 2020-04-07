@@ -294,22 +294,24 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 
 	if ((group) && atomic_dec_return(&subdev->refcount) == 0) {
 		subdev->state = 0;
-		clear_bit(subdev->mux_index, &sif->mux_mask);
-		clear_bit(subdev->ddr_mux_index, &sif->mux_mask);
 		clear_bit(VIO_GROUP_INIT, &group->state);
-		clear_bit(subdev->ddr_mux_index, &sif->state);
-		if (subdev->dol_num > 1)
-			clear_bit(SIF_DOL2_MODE + subdev->mux_index + 1, &sif->state);
-		if (subdev->dol_num > 2)
-			clear_bit(SIF_DOL2_MODE + subdev->mux_index + 2, &sif->state);
+		if (group->id == 0) {
+			clear_bit(subdev->mux_index, &sif->mux_mask);
+			clear_bit(subdev->ddr_mux_index, &sif->mux_mask);
+			clear_bit(subdev->ddr_mux_index, &sif->state);
+			if (subdev->dol_num > 1)
+				clear_bit(SIF_DOL2_MODE + subdev->mux_index + 1, &sif->state);
+			if (subdev->dol_num > 2)
+				clear_bit(SIF_DOL2_MODE + subdev->mux_index + 2, &sif->state);
 
-		if (subdev->mux_nums > 1) {
-			clear_bit(subdev->mux_index + 1, &sif->mux_mask);
-			clear_bit(subdev->ddr_mux_index + 1, &sif->mux_mask);
-		}
-		if (subdev->mux_nums > 2) {
-			clear_bit(subdev->mux_index + 2, &sif->mux_mask);
-			clear_bit(subdev->ddr_mux_index + 2, &sif->mux_mask);
+			if (subdev->mux_nums > 1) {
+				clear_bit(subdev->mux_index + 1, &sif->mux_mask);
+				clear_bit(subdev->ddr_mux_index + 1, &sif->mux_mask);
+			}
+			if (subdev->mux_nums > 2) {
+				clear_bit(subdev->mux_index + 2, &sif->mux_mask);
+				clear_bit(subdev->ddr_mux_index + 2, &sif->mux_mask);
+			}
 		}
 		if (group->gtask)
 			vio_group_task_stop(group->gtask);
