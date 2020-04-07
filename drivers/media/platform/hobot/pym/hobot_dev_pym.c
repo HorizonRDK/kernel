@@ -729,6 +729,13 @@ int pym_video_dqbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 			pym_ctx->event = 0;
 			return ret;
 		}
+	} else {
+		if (atomic_read(&subdev->refcount) == 1) {
+			ret = -EFAULT;
+			pym_ctx->event = 0;
+			framemgr_x_barrier_irqr(framemgr, 0, flags);
+			return ret;
+		}
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
@@ -736,7 +743,6 @@ int pym_video_dqbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	if (pym_ctx->event == VIO_FRAME_DONE) {
 		bufindex = subdev->frameinfo.bufferindex;
-		//framemgr->dispatch_mask[bufindex] |= (1 << ctx_index);
 		memcpy(frameinfo, &subdev->frameinfo, sizeof(struct frame_info));
 	} else {
 		ret = -EFAULT;
@@ -809,7 +815,9 @@ static long x3_pym_ioctl(struct file *file, unsigned int cmd,
 		pym_video_s_stream(pym_ctx, ! !enable);
 		break;
 	case PYM_IOC_DQBUF:
-		pym_video_dqbuf(pym_ctx, &frameinfo);
+		ret = pym_video_dqbuf(pym_ctx, &frameinfo);
+		if (ret)
+			return -EFAULT;
 		ret = copy_to_user((void __user *) arg, (char *) &frameinfo,
 				 sizeof(struct frame_info));
 		if (ret)
@@ -1008,7 +1016,46 @@ void pym_frame_done(struct pym_subdev *subdev)
 
 void pym_frame_ndone(struct pym_subdev *subdev)
 {
-	pym_frame_done(subdev);
+	struct vio_framemgr *framemgr;
+	struct vio_frame *frame;
+	struct vio_group *group;
+	struct pym_video_ctx *pym_ctx;
+	unsigned long flags;
+	int i = 0;
+
+	group = subdev->group;
+	framemgr = &subdev->framemgr;
+	framemgr_e_barrier_irqs(framemgr, 0, flags);
+	frame = peek_frame(framemgr, FS_PROCESS);
+	if (frame) {
+                vio_dbg("ndone bidx%d fid%d, proc->req.",
+                       frame->frameinfo.bufferindex,
+                       frame->frameinfo.frame_id);
+		trans_frame(framemgr, frame, FS_REQUEST);
+		if(group->leader == true)
+			vio_group_start_trigger(group, frame);
+	} else {
+		vio_err("[S%d]ndone PYM PROCESS queue has no member;\n", group->instance);
+		vio_err("[S%d][V%d][FRM](%d %d %d %d %d)\n",
+			group->instance,
+			subdev->id,
+			framemgr->queued_count[FS_FREE],
+			framemgr->queued_count[FS_REQUEST],
+			framemgr->queued_count[FS_PROCESS],
+			framemgr->queued_count[FS_COMPLETE],
+			framemgr->queued_count[FS_USED]);
+	}
+	framemgr_x_barrier_irqr(framemgr, 0, flags);
+
+	spin_lock(&subdev->slock);
+	for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
+		if (test_bit(i, &subdev->val_ctx_mask)) {
+			pym_ctx = subdev->ctx[i];
+			pym_ctx->event = VIO_FRAME_DONE;
+			wake_up(&pym_ctx->done_wq);
+		}
+	}
+	spin_unlock(&subdev->slock);
 }
 
 static irqreturn_t pym_isr(int irq, void *data)

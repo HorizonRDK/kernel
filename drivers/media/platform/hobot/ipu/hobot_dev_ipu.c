@@ -1351,6 +1351,13 @@ int ipu_video_dqbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 		framemgr_x_barrier_irqr(framemgr, 0, flags);
 
 		return ret;
+	} else {
+		if (atomic_read(&subdev->refcount) == 1) {
+			ret = -EFAULT;
+			ipu_ctx->event = 0;
+			framemgr_x_barrier_irqr(framemgr, 0, flags);
+			return ret;
+		}
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
@@ -1408,7 +1415,9 @@ static long x3_ipu_ioctl(struct file *file, unsigned int cmd,
 		ipu_video_s_stream(ipu_ctx, ! !enable);
 		break;
 	case IPU_IOC_DQBUF:
-		ipu_video_dqbuf(ipu_ctx, &frameinfo);
+		ret = ipu_video_dqbuf(ipu_ctx, &frameinfo);
+		if (ret)
+			return -EFAULT;
 		ret = copy_to_user((void __user *) arg, (char *) &frameinfo,
 				 sizeof(struct frame_info));
 		if (ret)
@@ -1645,6 +1654,10 @@ void ipu_frame_ndone(struct ipu_subdev *subdev)
 {
 	struct ipu_video_ctx *ipu_ctx = NULL;
 	int i = 0;
+	struct vio_framemgr *framemgr;
+	struct vio_frame *frame;
+	struct vio_group *group;
+	unsigned long flags;
 
 	spin_lock(&subdev->slock);
 	for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
@@ -1658,9 +1671,40 @@ void ipu_frame_ndone(struct ipu_subdev *subdev)
 	}
 	spin_unlock(&subdev->slock);
 
-	ipu_frame_done(subdev);
-	ipu_ctx->event = VIO_FRAME_DONE;
-	wake_up(&ipu_ctx->done_wq);
+	group = subdev->group;
+	framemgr = &subdev->framemgr;
+	framemgr_e_barrier_irqs(framemgr, 0, flags);
+	frame = peek_frame(framemgr, FS_PROCESS);
+	if (frame) {
+		vio_dbg("ndone bidx%d fid%d, proc->req.",
+			frame->frameinfo.bufferindex,
+			frame->frameinfo.frame_id);
+		trans_frame(framemgr, frame, FS_REQUEST);
+		if (subdev->leader == true && group->leader)
+			vio_group_start_trigger(group, frame);
+	} else {
+		vio_err("[S%d][V%d]ndone IPU PROCESS queue has no member;\n",
+				group->instance, subdev->id);
+		vio_err("[S%d][V%d][FRM](%d %d %d %d %d)\n",
+			group->instance,
+			subdev->id,
+			framemgr->queued_count[FS_FREE],
+			framemgr->queued_count[FS_REQUEST],
+			framemgr->queued_count[FS_PROCESS],
+			framemgr->queued_count[FS_COMPLETE],
+			framemgr->queued_count[FS_USED]);
+	}
+	framemgr_x_barrier_irqr(framemgr, 0, flags);
+
+	spin_lock(&subdev->slock);
+	for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
+		if (test_bit(i, &subdev->val_ctx_mask)) {
+			ipu_ctx = subdev->ctx[i];
+			ipu_ctx->event = VIO_FRAME_DONE;
+			wake_up(&ipu_ctx->done_wq);
+		}
+	}
+	spin_unlock(&subdev->slock);
 }
 
 static irqreturn_t ipu_isr(int irq, void *data)
