@@ -19,13 +19,13 @@ config X2_ETH
 	---help---
 	  This driver supports the X2 Ethernet device from Hobot
 
-config X2A_ETH
-	tristate "Hobot X2A Ethernet Device support"
+config X3_ETH
+	tristate "Hobot X3 Ethernet Device support"
 	select PHYLIB
 	select CRC32
 	select MII
 	depends on OF && HAS_DMA
 	---help---
-	  This driver supports the X2A Ethernet device from Hobot
+	  This driver supports the X3 Ethernet device from Hobot
 
 endif # NET_VENDOR_HOBOT

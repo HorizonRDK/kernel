@@ -2991,7 +2991,7 @@ static int dwceqos_probe(struct platform_device *pdev)
 
 	lp->phy_interface = ret;
 
-	if (IS_ENABLED(CONFIG_X2A_ETH)) {
+	if (IS_ENABLED(CONFIG_X3_ETH)) {
 		struct pinctrl *pinctrl = NULL;
 		struct pinctrl_state *pins_eth_mux = NULL;
 

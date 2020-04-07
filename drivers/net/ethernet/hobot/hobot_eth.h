@@ -15,8 +15,8 @@
 #include <linux/pinctrl/consumer.h>
 #include "hobot_mmc.h"
 
-#define X2_MAX_RX_QUEUES 8
-#define X2_MAX_TX_QUEUES 8
+#define XJ3_MAX_RX_QUEUES 8
+#define XJ3_MAX_TX_QUEUES 8
 
 #define HOBOT_RX_FRAMES 2
 #define MAX_DMA_RIWT 0x300ff
@@ -27,15 +27,15 @@
 #define HOBOT_TX_MAX_FRAMES 250
 #define HOBOT_TX_FRAMES 2
 
-#define X2_GET_ENTRY(x, size) ((x + 1) & (size - 1))
+#define XJ3_GET_ENTRY(x, size) ((x + 1) & (size - 1))
 #define DRIVER_VERSION			"0.9"
-struct x2_rx_routing {
+struct xj3_rx_routing {
 	u32 reg_mask;
 	u32 reg_shift;
 };
 
 
-struct x2_extra_stats {
+struct xj3_extra_stats {
 	/* Transmit errors */
 	unsigned long tx_underflow ____cacheline_aligned;
 	unsigned long tx_carrier;
@@ -228,7 +228,7 @@ struct dma_features {
 };
 
 
-struct x2_resource {
+struct xj3_resource {
 	void __iomem *addr;
 	const char *mac;
 	int irq;
@@ -252,11 +252,11 @@ struct dma_ext_desc {
 };
 
 
-struct x2_rx_queue {
+struct xj3_rx_queue {
 	u32 rx_count_frames;
 	u32 queue_index;
-	struct x2_priv *priv_data;
-	
+	struct xj3_priv *priv_data;
+
 	struct dma_ext_desc *dma_erx ____cacheline_aligned_in_smp;
 	struct dma_desc *dma_rx;
 	struct sk_buff **rx_skbuff;
@@ -271,7 +271,7 @@ struct x2_rx_queue {
 	u32 rx_zeroc_thresh;
 };
 
-struct x2_tx_info {
+struct xj3_tx_info {
 	dma_addr_t buf;
 	bool map_as_page;
 	unsigned len;
@@ -279,14 +279,14 @@ struct x2_tx_info {
 	bool is_jumbo;
 
 };
-struct x2_tx_queue {
+struct xj3_tx_queue {
 	u32 queue_index;
-	struct x2_priv *priv_data;
+	struct xj3_priv *priv_data;
 	struct dma_ext_desc *dma_etx ____cacheline_aligned_in_smp;
 	struct dma_desc *dma_tx;
 
 	struct sk_buff **tx_skbuff;
-	struct x2_tx_info *tx_skbuff_dma;
+	struct xj3_tx_info *tx_skbuff_dma;
 	unsigned int cur_tx;
 	unsigned int dirty_tx;
 	dma_addr_t dma_tx_phy;
@@ -298,7 +298,7 @@ struct x2_tx_queue {
 };
 
 
-struct x2_rxq_cfg {
+struct xj3_rxq_cfg {
 	u8 mode_to_use;
 	u32 chan;
 	u8 pkt_route;
@@ -306,10 +306,10 @@ struct x2_rxq_cfg {
 	u32 prio;
 };
 
-struct x2_txq_cfg {
+struct xj3_txq_cfg {
 	u32 weight;
 	u8 mode_to_use;
-	
+
 	u32 send_slope;
 	u32 idle_slope;
 	u32 high_credit;
@@ -324,7 +324,7 @@ struct x2_txq_cfg {
 #define STMMAC_EST_GCL_MAX_ENTRIES		1024
 
 
-struct x2_est_cfg {
+struct xj3_est_cfg {
 	__u32 cmd;
 	__u32 enabled;
 	__u32 estwid;
@@ -336,7 +336,7 @@ struct x2_est_cfg {
 	u32 gcl_size;
 };
 
-struct x2_fpe_cfg {
+struct xj3_fpe_cfg {
 	__u32 cmd;
 	__u32 enabled;
 
@@ -345,7 +345,7 @@ struct x2_fpe_cfg {
 
 
 
-struct x2_dma_cfg {
+struct xj3_dma_cfg {
 	int pbl;
 	int txpbl;
 	int rxpbl;
@@ -363,7 +363,7 @@ struct x2_dma_cfg {
 
 };
 
-struct x2_mdio_bus_data {
+struct xj3_mdio_bus_data {
 	int (*phy_reset)(void *priv);
 	unsigned int phy_mask;
 	int *irqs;
@@ -373,7 +373,7 @@ struct x2_mdio_bus_data {
 };
 
 #define AXI_BLEN 7
-struct x2_axi {
+struct xj3_axi {
 	bool axi_lpi_en;
 	bool axi_xit_frm;
 	u32 axi_wr_osr_lmt;
@@ -385,8 +385,8 @@ struct x2_axi {
 	bool axi_rb;
 };
 
-#define X2_PPS_MAX 4
-struct x2_pps_cfg {
+#define XJ3_PPS_MAX 4
+struct xj3_pps_cfg {
 	bool available;
 	struct timespec64 start;
 	struct timespec64 period;
@@ -417,24 +417,24 @@ struct plat_config_data {
 	int has_gmac4;
 	int pmt;
 	int maxmtu;
-	struct x2_axi *axi;
+	struct xj3_axi *axi;
 
 	u32 use_riwt;
     struct pinctrl *pinctrl;
     struct pinctrl_state *pin_eth_mux;
-	
-	struct x2_mdio_bus_data *mdio_bus_data;
 
-	struct x2_rxq_cfg rx_queues_cfg[X2_MAX_RX_QUEUES];
-	struct x2_txq_cfg tx_queues_cfg[X2_MAX_TX_QUEUES];
-	struct x2_dma_cfg *dma_cfg;
+	struct xj3_mdio_bus_data *mdio_bus_data;
 
-	struct clk *x2_mac_pre_div_clk;
-	struct clk *x2_mac_div_clk;
-	//struct clk *x2_phy_ref_clk;
+	struct xj3_rxq_cfg rx_queues_cfg[XJ3_MAX_RX_QUEUES];
+	struct xj3_txq_cfg tx_queues_cfg[XJ3_MAX_TX_QUEUES];
+	struct xj3_dma_cfg *dma_cfg;
+
+	struct clk *xj3_mac_pre_div_clk;
+	struct clk *xj3_mac_div_clk;
+	//struct clk *xj3_phy_ref_clk;
     struct clk *clk_ptp_ref;
 
-	
+
 	u32 rx_queues_to_use;
 	u32 tx_queues_to_use;
 	u8 rx_sched_algorithm;
@@ -454,7 +454,7 @@ struct plat_config_data {
 	int force_no_tx_coe;
 
 	bool est_en;
-	struct x2_est_cfg est_cfg;
+	struct xj3_est_cfg est_cfg;
 	bool fp_en;
 	bool tbssel;
 
@@ -472,17 +472,16 @@ struct plat_config_data {
 	int force_thresh_dma_mode;
 	bool en_tx_lpi_clockgating;
 	int mac_port_sel_speed;
-	struct clk *x2_clk;
+	struct clk *xj3_clk;
 
-	
+
 	struct stmmac_pps_cfg pps_cfg[STMMAC_PPS_MAX_NUM];
 
 };
 
-#define X2_MAX_DMA_CH 4
+#define XJ3_MAX_DMA_CH 4
 #define IRQ_MAX_NAME 10
-struct x2_priv {
-	
+struct xj3_priv {
 	u32 tx_count_frames;
 	u32 rx_coal_frames;
 	u32 tx_coal_frames;
@@ -493,15 +492,15 @@ struct x2_priv {
 	u32 tx_coal_timer;
 	u32 use_riwt;
 	u32 rx_riwt;
-	
+
 	void __iomem *ioaddr;
 
 	struct net_device *dev;
 	struct device *device;
 	struct mii_bus *mii;
 
-	struct x2_rx_queue rx_queue[X2_MAX_RX_QUEUES];
-	struct x2_tx_queue tx_queue[X2_MAX_TX_QUEUES];
+	struct xj3_rx_queue rx_queue[XJ3_MAX_RX_QUEUES];
+	struct xj3_tx_queue tx_queue[XJ3_MAX_TX_QUEUES];
 
 
 	struct plat_config_data *plat;
@@ -534,13 +533,13 @@ struct x2_priv {
 	void __iomem *mmcaddr;
 	void __iomem *ptpaddr;
 
-	u32 mss;	
+	u32 mss;
 	bool tso;
 
 
 
 
-	struct x2_extra_stats xstats ____cacheline_aligned_in_smp;
+	struct xj3_extra_stats xstats ____cacheline_aligned_in_smp;
 
 	bool tx_path_in_lpi_mode;
 	int hwts_rx_en;
@@ -555,7 +554,7 @@ struct x2_priv {
 	spinlock_t ptp_lock;
 	u32 sub_second_inc;
 	u32 systime_flags;
-	struct x2_pps_cfg pps[X2_PPS_MAX];
+	struct xj3_pps_cfg pps[XJ3_PPS_MAX];
 
 	u8 pcp_hi;
 	u8 pcp_lo;
@@ -574,7 +573,7 @@ struct x2_priv {
 	int tx_irq;
 	int rx_irq;
 
-	u32 dma_ch_int_en[X2_MAX_DMA_CH];
+	u32 dma_ch_int_en[XJ3_MAX_DMA_CH];
 };
 
 
@@ -651,7 +650,7 @@ enum {
 #define STMMAC_IOCTL_PPS_CMD_CANCEL_STOP_PULSE_TRAIN 	0X6
 
 
-struct x2_ioctl_pps_cfg {
+struct xj3_ioctl_pps_cfg {
 	__u32 cmd;
 	__u32 index;
 	__u32 enabled;
@@ -663,13 +662,13 @@ struct x2_ioctl_pps_cfg {
 	__u32 freq;
 };
 
-struct x2_qmode_cfg {
+struct xj3_qmode_cfg {
 	__u32 cmd;
 	__u32 queue_idx;
 	__u32 queue_mode;
 };
 
-struct x2_cbs_cfg {
+struct xj3_cbs_cfg {
 	__u32 cmd;
 	__u32 queue_idx;
 	__u32 send_slope;
@@ -685,9 +684,9 @@ struct x2_cbs_cfg {
 
 
 
-#define STMMAC_STAT(m)	\
-	{ #m, FIELD_SIZEOF(struct x2_extra_stats, m),	\
-	offsetof(struct x2_priv, xstats.m)}
+#define STMMAC_STAT(m)  \
+	 { #m, FIELD_SIZEOF(struct xj3_extra_stats, m),	\
+	offsetof(struct xj3_priv, xstats.m)}
 
 static const struct stmmac_stats stmmac_gstrings_stats[] = {
 	/* Transmit errors */
@@ -817,7 +816,7 @@ static const struct stmmac_stats stmmac_gstrings_stats[] = {
 
 #define HOBOT_MMC_STAT(m) \
     { #m, FIELD_SIZEOF(struct hobot_counters, m), \
-    offsetof(struct x2_priv, mmc.m)}
+    offsetof(struct xj3_priv, mmc.m)}
 
 static const struct stmmac_stats hobot_mmc[] = {
     HOBOT_MMC_STAT(mmc_tx_octetcount_gb),
@@ -907,6 +906,6 @@ enum hobot_state {
     HOBOT_DOWN,
 };
 
-void hobot_set_ethtool_ops(struct x2_priv *priv);
-void hobot_dma_rx_watchdog(struct x2_priv *priv, u32 riwt, u32 number);
+void hobot_set_ethtool_ops(struct xj3_priv *priv);
+void hobot_dma_rx_watchdog(struct xj3_priv *priv, u32 riwt, u32 number);
 #endif

@@ -1,3 +1,7 @@
+/*************************************
+***    COPYRIGHT NOTICE
+***    Copyright 2020 Horizon Robotics, Inc.
+*/
 #ifndef __HOBOT_REG_H_
 #define __HOBOT_REG_H_
 
@@ -7,7 +11,7 @@
 
 
 #if IS_ENABLED(CONFIG_VLAN_8021Q)
-#define X2_VLAN_TAG_USED
+#define XJ3_VLAN_TAG_USED
 #include <linux/if_vlan.h>
 #endif
 
@@ -145,7 +149,7 @@ enum packets_types {
 #define DEFAULT_DMA_PBL			8
 
 
-#define SF_DMA_MODE 1	
+#define SF_DMA_MODE 1
 
 
 #define GMAC_PCS_BASE			0x000000e0
@@ -172,7 +176,7 @@ enum packets_types {
 #define DWCEQOS_ADDR_HIGH(reg)           (0x00000300 + (reg * 8))
 #define DWCEQOS_ADDR_LOW(reg)            (0x00000304 + (reg * 8))
 
-#define DWCEQOS_TX_TIMEOUT 5 
+#define DWCEQOS_TX_TIMEOUT 5
 
 #define DMA_TX_SIZE 512
 #define DMA_RX_SIZE 512
@@ -876,7 +880,7 @@ enum packets_types {
 /*ethtool*/
 
 #define	MAC_Egress_Timestamp_Latency	0x0000066C
-#define	MAC_Igress_Timestamp_Latency	0x000006b8	
+#define	MAC_Igress_Timestamp_Latency	0x000006b8
 #define MAC_Timestamp_Ingress_Corr_Nanosecond 0xb58
 #define MAC_Timestamp_Egress_Corr_Nanosecond 0xb5c
 #define MAC_Timestamp_Ingress_Corr_Subnanosecond 0xb60
