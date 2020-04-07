@@ -460,6 +460,55 @@ case  LOG_LIST:
 			break;
 	}//switch (command)
 	break;
+case  LDC_PARAM:
+	switch (command){
+		case  LINE_BUF_ID:
+			ret = ldc_line_buf_control(instance, value, direction, ret_value);
+			break;
+		case  X_PARAMTER_A_ID:
+			ret = ldc_x_param_a_control(instance, value, direction, ret_value);
+			break;
+		case  X_PARAMTER_B_ID:
+			ret = ldc_x_param_b_control(instance, value, direction, ret_value);
+			break;
+		case  Y_PARAMTER_A_ID:
+			ret = ldc_y_param_a_control(instance, value, direction, ret_value);
+			break;
+		case  Y_PARAMTER_B_ID:
+			ret = ldc_y_param_b_control(instance, value, direction, ret_value);
+			break;
+		case  RADIUS_XOFFSET_ID:
+			ret = ldc_radius_x_offset_control(instance, value, direction, ret_value);
+			break;
+		case  RADIUS_YOFFSET_ID:
+			ret = ldc_radius_y_offset_control(instance, value, direction, ret_value);
+			break;
+		case  CENTER_XOFFSET_ID:
+			ret = ldc_center_x_offset_control(instance, value, direction, ret_value);
+			break;
+		case  CENTER_YOFFSET_ID:
+			ret = ldc_center_y_offset_control(instance, value, direction, ret_value);
+			break;
+		case  WOI_YLENGTH_ID:
+			ret = ldc_woi_y_length_control(instance, value, direction, ret_value);
+			break;
+		case  WOI_YSTART_ID:
+			ret = ldc_woi_y_stsrt_control(instance, value, direction, ret_value);
+			break;
+		case  WOI_XLENGTH_ID:
+			ret = ldc_woi_x_length_control(instance, value, direction, ret_value);
+			break;
+		case  WOI_XSTART_ID:
+			ret = ldc_woi_x_start_control(instance, value, direction, ret_value);
+			break;
+		case  LDC_PARAM_UPDATE_ID:
+			ret = ldc_ldc_bypass_control(instance, value, direction, ret_value);
+			break;
+		case  LDC_BYPASS_ID:
+			ret = ldc_param_update_control(instance, value, direction, ret_value);
+			break;
+	}//switch (command)
+	break;
 }//switch (command_type)
 
 #if FW_HAS_CONTROL_CHANNEL

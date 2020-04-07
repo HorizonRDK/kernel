@@ -339,6 +339,7 @@
 #define WOI_XLENGTH_ID                                    0x0000007e//ie&e add
 #define WOI_XSTART_ID                                     0x0000007f//ie&e add
 #define LDC_PARAM_UPDATE_ID                               0x00000080//ie&e add
+#define LDC_BYPASS_ID                                     0x00000081//ie&e add
 
 
 #define LOG_LIST_LEVEL                                    0x00000094 // add API by myself

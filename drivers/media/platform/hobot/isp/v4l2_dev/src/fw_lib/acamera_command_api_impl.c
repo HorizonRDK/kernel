@@ -5454,3 +5454,263 @@ uint8_t monitor_status_iridix_delay_target2apply_max( acamera_fsm_mgr_t *instanc
     return result;
 }
 #endif
+
+// ------------------------------------------------------------------------------ //
+//   lcd control description:
+//
+// ------------------------------------------------------------------------------ //
+#ifdef LINE_BUF_ID
+uint8_t ldc_line_buf_control(acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value)
+{
+    *ret_value = 0;
+
+    if (direction == COMMAND_SET) {
+        acamera_fsm_mgr_set_param(instance, FSM_PARAM_SET_LDC_LINE_BUF, &value, sizeof(value));
+        return SUCCESS;
+    } else if (direction == COMMAND_GET) {
+        acamera_fsm_mgr_get_param(instance, FSM_PARAM_GET_LDC_LINE_BUF, NULL, 0, ret_value, sizeof(uint32_t));
+        return SUCCESS;
+    }
+
+    return NOT_SUPPORTED;
+}
+#endif
+
+#ifdef X_PARAMTER_A_ID
+uint8_t ldc_x_param_a_control(acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value)
+{
+    *ret_value = 0;
+
+    if (direction == COMMAND_SET) {
+        acamera_fsm_mgr_set_param(instance, FSM_PARAM_SET_LDC_X_PARAM_A, &value, sizeof(value));
+        return SUCCESS;
+    } else if (direction == COMMAND_GET) {
+        acamera_fsm_mgr_get_param(instance, FSM_PARAM_GET_LDC_X_PARAM_A, NULL, 0, ret_value, sizeof(uint32_t));
+        return SUCCESS;
+    }
+
+    return NOT_SUPPORTED;
+}
+#endif
+
+#ifdef X_PARAMTER_B_ID
+uint8_t ldc_x_param_b_control(acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value)
+{
+    *ret_value = 0;
+
+    if (direction == COMMAND_SET) {
+        acamera_fsm_mgr_set_param(instance, FSM_PARAM_SET_LDC_X_PARAM_B, &value, sizeof(value));
+        return SUCCESS;
+    } else if (direction == COMMAND_GET) {
+        acamera_fsm_mgr_get_param(instance, FSM_PARAM_GET_LDC_X_PARAM_B, NULL, 0, ret_value, sizeof(uint32_t));
+        return SUCCESS;
+    }
+
+    return NOT_SUPPORTED;
+}
+#endif
+
+#ifdef Y_PARAMTER_A_ID
+uint8_t ldc_y_param_a_control(acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value)
+{
+    *ret_value = 0;
+
+    if (direction == COMMAND_SET) {
+        acamera_fsm_mgr_set_param(instance, FSM_PARAM_SET_LDC_Y_PARAM_A, &value, sizeof(value));
+        return SUCCESS;
+    } else if (direction == COMMAND_GET) {
+        acamera_fsm_mgr_get_param(instance, FSM_PARAM_GET_LDC_Y_PARAM_A, NULL, 0, ret_value, sizeof(uint32_t));
+        return SUCCESS;
+    }
+
+    return NOT_SUPPORTED;
+}
+#endif
+
+#ifdef Y_PARAMTER_B_ID
+uint8_t ldc_y_param_b_control(acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value)
+{
+    *ret_value = 0;
+
+    if (direction == COMMAND_SET) {
+        acamera_fsm_mgr_set_param(instance, FSM_PARAM_SET_LDC_Y_PARAM_B, &value, sizeof(value));
+        return SUCCESS;
+    } else if (direction == COMMAND_GET) {
+        acamera_fsm_mgr_get_param(instance, FSM_PARAM_GET_LDC_Y_PARAM_B, NULL, 0, ret_value, sizeof(uint32_t));
+        return SUCCESS;
+    }
+
+    return NOT_SUPPORTED;
+}
+#endif
+
+#ifdef RADIUS_XOFFSET_ID
+uint8_t ldc_radius_x_offset_control(acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value)
+{
+    *ret_value = 0;
+
+    if (direction == COMMAND_SET) {
+        acamera_fsm_mgr_set_param(instance, FSM_PARAM_SET_LDC_RADIUS_XOFFSET, &value, sizeof(value));
+        return SUCCESS;
+    } else if (direction == COMMAND_GET) {
+        acamera_fsm_mgr_get_param(instance, FSM_PARAM_GET_LDC_RADIUS_XOFFSET, NULL, 0, ret_value, sizeof(uint32_t));
+        return SUCCESS;
+    }
+
+    return NOT_SUPPORTED;
+}
+#endif
+
+#ifdef RADIUS_YOFFSET_ID
+uint8_t ldc_radius_y_offset_control(acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value)
+{
+    *ret_value = 0;
+
+    if (direction == COMMAND_SET) {
+        acamera_fsm_mgr_set_param(instance, FSM_PARAM_SET_LDC_RADIUS_YOFFSET, &value, sizeof(value));
+        return SUCCESS;
+    } else if (direction == COMMAND_GET) {
+        acamera_fsm_mgr_get_param(instance, FSM_PARAM_GET_LDC_RADIUS_YOFFSET, NULL, 0, ret_value, sizeof(uint32_t));
+        return SUCCESS;
+    }
+
+    return NOT_SUPPORTED;
+}
+#endif
+
+#ifdef CENTER_XOFFSET_ID
+uint8_t ldc_center_x_offset_control(acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value)
+{
+    *ret_value = 0;
+
+    if (direction == COMMAND_SET) {
+        acamera_fsm_mgr_set_param(instance, FSM_PARAM_SET_LDC_CENTER_XOFFSET, &value, sizeof(value));
+        return SUCCESS;
+    } else if (direction == COMMAND_GET) {
+        acamera_fsm_mgr_get_param(instance, FSM_PARAM_GET_LDC_CENTER_XOFFSET, NULL, 0, ret_value, sizeof(uint32_t));
+        return SUCCESS;
+    }
+
+    return NOT_SUPPORTED;
+}
+#endif
+
+#ifdef CENTER_YOFFSET_ID
+uint8_t ldc_center_y_offset_control(acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value)
+{
+    *ret_value = 0;
+
+    if (direction == COMMAND_SET) {
+        acamera_fsm_mgr_set_param(instance, FSM_PARAM_SET_LDC_CENTER_YOFFSET, &value, sizeof(value));
+        return SUCCESS;
+    } else if (direction == COMMAND_GET) {
+        acamera_fsm_mgr_get_param(instance, FSM_PARAM_GET_LDC_CENTER_YOFFSET, NULL, 0, ret_value, sizeof(uint32_t));
+        return SUCCESS;
+    }
+
+    return NOT_SUPPORTED;
+}
+#endif
+
+#ifdef WOI_YLENGTH_ID
+uint8_t ldc_woi_y_length_control(acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value)
+{
+    *ret_value = 0;
+
+    if (direction == COMMAND_SET) {
+        acamera_fsm_mgr_set_param(instance, FSM_PARAM_SET_LDC_WOI_YLENGTH, &value, sizeof(value));
+        return SUCCESS;
+    } else if (direction == COMMAND_GET) {
+        acamera_fsm_mgr_get_param(instance, FSM_PARAM_GET_LDC_WOI_YLENGTH, NULL, 0, ret_value, sizeof(uint32_t));
+        return SUCCESS;
+    }
+
+    return NOT_SUPPORTED;
+}
+#endif
+
+#ifdef WOI_YSTART_ID
+uint8_t ldc_woi_y_stsrt_control(acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value)
+{
+    *ret_value = 0;
+
+    if (direction == COMMAND_SET) {
+        acamera_fsm_mgr_set_param(instance, FSM_PARAM_SET_LDC_WOI_YSTART, &value, sizeof(value));
+        return SUCCESS;
+    } else if (direction == COMMAND_GET) {
+        acamera_fsm_mgr_get_param(instance, FSM_PARAM_GET_LDC_WOI_YSTART, NULL, 0, ret_value, sizeof(uint32_t));
+        return SUCCESS;
+    }
+
+    return NOT_SUPPORTED;
+}
+#endif
+
+#ifdef WOI_XLENGTH_ID
+uint8_t ldc_woi_x_length_control(acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value)
+{
+    *ret_value = 0;
+
+    if (direction == COMMAND_SET) {
+        acamera_fsm_mgr_set_param(instance, FSM_PARAM_SET_LDC_WOI_XLENGTH, &value, sizeof(value));
+        return SUCCESS;
+    } else if (direction == COMMAND_GET) {
+        acamera_fsm_mgr_get_param(instance, FSM_PARAM_GET_LDC_WOI_XLENGTH, NULL, 0, ret_value, sizeof(uint32_t));
+        return SUCCESS;
+    }
+
+    return NOT_SUPPORTED;
+}
+#endif
+
+#ifdef WOI_XSTART_ID
+uint8_t ldc_woi_x_start_control(acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value)
+{
+    *ret_value = 0;
+
+    if (direction == COMMAND_SET) {
+        acamera_fsm_mgr_set_param(instance, FSM_PARAM_SET_LDC_WOI_XSTART, &value, sizeof(value));
+        return SUCCESS;
+    } else if (direction == COMMAND_GET) {
+        acamera_fsm_mgr_get_param(instance, FSM_PARAM_GET_LDC_WOI_XSTART, NULL, 0, ret_value, sizeof(uint32_t));
+        return SUCCESS;
+    }
+
+    return NOT_SUPPORTED;
+}
+#endif
+
+#ifdef LDC_BYPASS_ID
+uint8_t ldc_ldc_bypass_control(acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value)
+{
+    *ret_value = 0;
+
+    if (direction == COMMAND_SET) {
+        acamera_fsm_mgr_set_param(instance, FSM_PARAM_SET_LDC_BYPASS, &value, sizeof(value));
+        return SUCCESS;
+    } else if (direction == COMMAND_GET) {
+        acamera_fsm_mgr_get_param(instance, FSM_PARAM_GET_LDC_BYPASS, NULL, 0, ret_value, sizeof(uint32_t));
+        return SUCCESS;
+    }
+
+    return NOT_SUPPORTED;
+}
+#endif
+
+#ifdef LDC_PARAM_UPDATE_ID
+uint8_t ldc_param_update_control(acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value)
+{
+    *ret_value = 0;
+
+    if (direction == COMMAND_SET) {
+        acamera_fsm_mgr_set_param(instance, FSM_PARAM_SET_LDC_PARAM_UPDATE, &value, sizeof(value));
+        return SUCCESS;
+    } else if (direction == COMMAND_GET) {
+        acamera_fsm_mgr_get_param(instance, FSM_PARAM_GET_LDC_PARAM_UPDATE, NULL, 0, ret_value, sizeof(uint32_t));
+        return SUCCESS;
+    }
+
+    return NOT_SUPPORTED;
+}
+#endif
+
