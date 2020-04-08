@@ -132,6 +132,8 @@ static int jpu_free_instances(struct file *filp)
 	void *jdi_mutexes_base;
 	const int PTHREAD_MUTEX_T_DESTROY_VALUE = 0xdead10cc;
 	hb_jpu_dev_t *dev;
+	int core_idx = 0;
+
 	jpu_debug_enter();
 	if (!filp) {
 		jpu_err("failed to free jpu buffers, filp is null.");
@@ -150,8 +152,9 @@ static int jpu_free_instances(struct file *filp)
 
 	list_for_each_entry_safe(vil, n, &dev->inst_list_head, list) {
 		if (vil->filp == filp) {
+			// core_idx need set when multi-core (todo zhaojun.li)
 			vip_base = (void *)(dev->instance_pool.base +
-					    instance_pool_size_per_core);
+					    instance_pool_size_per_core * core_idx);
 			jpu_debug(5,
 				  "jpu_free_instances detect instance crash "
 				  "instIdx=%d, vip_base=%p, instance_pool_size_per_core=%d\n",
