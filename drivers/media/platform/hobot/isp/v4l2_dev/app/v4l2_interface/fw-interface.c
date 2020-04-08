@@ -42,6 +42,13 @@ extern void isp_fw_exit( void );
 
 static int isp_started = 0;
 
+typedef enum {
+	BAYER_RGGB = 0,
+	BAYER_GRBG,
+	BAYER_GBRG,
+	BAYER_BGGR,
+	MONOCHROME,
+} sensor_cfa_pattern_e;
 
 /* ----------------------------------------------------------------
  * fw_interface control interface
@@ -1335,4 +1342,27 @@ int fw_intf_temper_buf_ctrl(uint32_t ctx_id, uint32_t ctrl_val)
 		isp_temper_free((general_fsm_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_GENERAL]->p_fsm));
 
 	return 0;
+}
+
+int fw_intf_cfa_pattern_ctrl(uint32_t ctx_id, uint32_t ctrl_val)
+{
+    int pattern = 0;
+    acamera_context_t *ptr = acamera_get_ctx_ptr(ctx_id);
+
+    if (MONOCHROME == ctrl_val)
+        pattern = BAYER_RGGB;
+
+    if (BAYER_RGGB <= ctrl_val && ctrl_val <= BAYER_BGGR)
+        pattern = ctrl_val;
+
+    acamera_isp_top_rggb_start_pre_mirror_write(ptr->settings.isp_base, pattern);
+    acamera_isp_top_rggb_start_post_mirror_write(ptr->settings.isp_base, pattern);
+
+    if (MONOCHROME == ctrl_val) {
+        acamera_isp_top_bypass_demosaic_rgb_write(ptr->settings.isp_base, 1);
+        acamera_isp_top_bypass_white_balance_write(ptr->settings.isp_base, 1);
+        acamera_isp_top_bypass_3d_lut_write(ptr->settings.isp_base, 1);
+    }
+
+    return 0;
 }

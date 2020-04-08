@@ -1042,6 +1042,7 @@ int isp_v4l2_stream_get_format( isp_v4l2_stream_t *pstream, struct v4l2_format *
 extern int sensor_info_check_valid(uint32_t ctx_id, struct v4l2_format *f);
 extern int sensor_info_check_exist(uint32_t ctx_id, struct v4l2_format *f);
 extern void sensor_info_fill(uint32_t ctx_id, struct v4l2_format *f);
+extern int fw_intf_cfa_pattern_ctrl(uint32_t ctx_id, uint32_t ctrl_val);
 int isp_v4l2_stream_set_format( isp_v4l2_stream_t *pstream, struct v4l2_format *f )
 {
     int rc = 0;
@@ -1051,12 +1052,13 @@ int isp_v4l2_stream_set_format( isp_v4l2_stream_t *pstream, struct v4l2_format *
         return -EINVAL;
     }
 
-    pr_debug("[Stream#%d]   - SET fmt - width: %4u, height: %4u, exp %d, bits %d, format: 0x%x.",
+    pr_debug("[Stream#%d]   - SET fmt - width: %4u, height: %4u, exp %d, bits %d, cfa %d, format: 0x%x.",
          pstream->stream_id,
          f->fmt.pix_mp.width,
          f->fmt.pix_mp.height,
          f->fmt.pix_mp.reserved[0],
          f->fmt.pix_mp.reserved[1],
+         f->fmt.pix_mp.reserved[2],
          f->fmt.pix_mp.pixelformat );
 
     /* try format first */
@@ -1111,6 +1113,7 @@ int isp_v4l2_stream_set_format( isp_v4l2_stream_t *pstream, struct v4l2_format *
     /* update format field */
     pstream->cur_v4l2_fmt = *f;
 
+    fw_intf_cfa_pattern_ctrl(pstream->ctx_id, f->fmt.pix_mp.reserved[2]);
 
     LOG( LOG_NOTICE, "[Stream#%d]   - New fmt - width: %4u, height: %4u, format: 0x%x, type: %5u. ",
          pstream->stream_id,
