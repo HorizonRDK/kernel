@@ -255,11 +255,7 @@ int sensor_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_t in
         }
 
         p_fsm->preset_mode = *(uint32_t *)input;
-	if (p_fsm->preset_mode == 0) {
-		p_fsm->sensor_type = 0;
-	} else {
-		p_fsm->sensor_type = 1;
-	}
+	p_fsm->sensor_type = 1;
         break;
 
     case FSM_PARAM_SET_SENSOR_I2C_CHANNEL://IE&E ADD

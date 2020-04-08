@@ -454,7 +454,7 @@ static void sensor_set_parameters(void *ctx, uint32_t cmd, uint32_t data)
 		}
 		break;
 		case SET_INTER_MIN: {
-			if(data < p_ctx->param.integration_time_min) {
+			if((data < p_ctx->param.integration_time_min) || (data > p_ctx->param.integration_time_limit)) {
 				p_ctx->tuning_param.integration_time_min
 					= p_ctx->param.integration_time_min;
 			} else {
@@ -481,7 +481,7 @@ static void sensor_set_parameters(void *ctx, uint32_t cmd, uint32_t data)
 		}
 		break;
 		case SET_INTER_LIMIT: {
-			if(data > p_ctx->param.integration_time_limit) {
+			if((data > p_ctx->param.integration_time_limit) || (data < p_ctx->param.integration_time_min)) {
 				p_ctx->tuning_param.integration_time_limit
 					= p_ctx->param.integration_time_limit;
 			} else {
