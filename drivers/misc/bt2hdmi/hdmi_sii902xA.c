@@ -58,9 +58,6 @@ static struct work_struct	*sii902xAwork;
 
 // hotplug service with timer poll.
 static void x2_hdmi_timer(unsigned long dontcare);
-#ifdef CONFIG_HOBOT_IAR
-extern int get_iar_module_rst_pin(void);
-#endif
 
 static DEFINE_TIMER(x2hdmitimer, x2_hdmi_timer, 0, 0);
 static void x2_hdmi_timer(unsigned long dontcare)
@@ -166,7 +163,7 @@ static int hdmi_sii_probe(struct i2c_client *client,
 		}
 #ifdef CONFIG_HOBOT_XJ3
 		if (hb_disp_base_board_id == 0x1) {	//x3_dvb
-#ifdef CONFIG_HOBOT_IAR
+//#ifdef CONFIG_HOBOT_IAR
 			ret = get_iar_module_rst_pin();
 			if (ret < 0) {
 				dev_err(&client->dev,
@@ -174,7 +171,7 @@ static int hdmi_sii_probe(struct i2c_client *client,
 				return ret;
 			}
 			Si9022A_rst_pin = ret;
-#endif
+//#endif
 		} else if (hb_disp_base_board_id == 0x2) {	//j3_dvb
 			ret = of_property_read_u32(client->dev.of_node, "rst_pin",
 							&Si9022A_rst_pin);
@@ -249,9 +246,9 @@ static int hdmi_sii_probe(struct i2c_client *client,
 		ret = siHdmiTx_ReConfig(vmode, vformat, afs);
 		if (ret < 0) {
 			pr_err("bt1120 to HDMI device:sii9022a is not exist!\n");
-#ifndef CONFIG_HOBOT_IAR
+//#ifndef CONFIG_HOBOT_IAR
 			gpio_free(Si9022A_rst_pin);
-#endif
+//#endif
 			gpio_free(Si9022A_irq_pin);
 			return ret;
 		}
@@ -316,9 +313,9 @@ static int hdmi_sii_remove(struct i2c_client *client)
 		free_irq(sii902xA->irq, &sii902xA);
 	del_timer(&x2hdmitimer);
 	gpio_free(Si9022A_irq_pin);
-#ifndef CONFIG_HOBOT_IAR
+//#ifndef CONFIG_HOBOT_IAR
 	gpio_free(Si9022A_rst_pin);
-#endif
+//#endif
 	kfree(sii902xAwork);
 	dev_info(&client->dev, "detached successfully\n");
 
@@ -849,7 +846,8 @@ static void __exit hdmi_sii_exit(void)
 
 module_init(hdmi_sii_init);
 module_exit(hdmi_sii_exit);
-MODULE_VERSION("1.4");
-MODULE_AUTHOR("Silicon image SZ office, Inc.");
-MODULE_DESCRIPTION("sii902xA HDMI driver");
-MODULE_ALIAS("platform:hdmi-sii902xA");
+MODULE_LICENSE("GPL v2");
+//MODULE_VERSION("1.4");
+//MODULE_AUTHOR("Silicon image SZ office, Inc.");
+//MODULE_DESCRIPTION("sii902xA HDMI driver");
+//MODULE_ALIAS("platform:hdmi-sii902xA");

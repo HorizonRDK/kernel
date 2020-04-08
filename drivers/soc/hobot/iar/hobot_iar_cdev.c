@@ -161,7 +161,8 @@ int32_t iar_display_update(update_cmd_t *update_cmd)
 		if (update_cmd->enable_flag[index] && update_cmd->frame_size[index] < MAX_FRAME_BUF_SIZE) {
 #ifdef IAR_DMA_MODE
 			if (g_iar_cdev->framebuf_user[index]) {
-				__clean_dcache_area_poc(g_iar_cdev->framebuf_user[index]->vaddr, update_cmd->frame_size[index]);
+				//__clean_dcache_area_poc(g_iar_cdev->framebuf_user[index]->vaddr,
+				//update_cmd->frame_size[index]);
 				ret = iar_write_framebuf_dma(index, g_iar_cdev->framebuf_user[index]->paddr, update_cmd->frame_size[index]);
 			}
 #else

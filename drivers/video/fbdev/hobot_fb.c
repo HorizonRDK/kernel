@@ -35,7 +35,7 @@
 #include <video/of_display_timing.h>
 #include <asm/cacheflush.h>
 #include <linux/linux_logo.h>
-#include <soc/hobot/hobot_iar.h>
+//#include <soc/hobot/hobot_iar.h>
 
 #include "hobot_fb.h"
 

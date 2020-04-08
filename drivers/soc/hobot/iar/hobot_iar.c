@@ -42,6 +42,7 @@
 #define PWM_PERIOD_DEFAULT 1000
 #define PWM_DUTY_DEFAULT 10
 unsigned int iar_debug_level = 0;
+EXPORT_SYMBOL(iar_debug_level);
 module_param(iar_debug_level, uint, 0644);
 
 #define IAR_ENABLE 1
@@ -56,19 +57,23 @@ uint32_t iar_display_ipu_addr_dual[DISPLAY_TYPE_TOTAL_MULTI][2];
 uint32_t iar_display_ipu_addr_ddrmode[33][2];
 uint32_t iar_display_yaddr_offset;
 uint32_t iar_display_caddr_offset;
+
 #ifdef CONFIG_HOBOT_XJ2
 uint8_t iar_display_addr_type = DS5;
 uint8_t iar_display_cam_no;
 #else
-#define X3_GPIO_BASE    (0xA6003000)
-#define X3_GPIO0_VALUE_REG      (0xC)
-#define X3_PWM0_PINMUX	(0xA6004010)
 uint32_t hb_disp_base_board_id;
 uint8_t iar_display_addr_type = DISPLAY_CHANNEL1;
 uint8_t iar_display_cam_no = PIPELINE0;
 uint8_t iar_display_addr_type_video1 = 0;
 uint8_t iar_display_cam_no_video1 = PIPELINE0;
+EXPORT_SYMBOL(hb_disp_base_board_id);
+EXPORT_SYMBOL(iar_display_addr_type);
+EXPORT_SYMBOL(iar_display_cam_no);
+EXPORT_SYMBOL(iar_display_addr_type_video1);
+EXPORT_SYMBOL(iar_display_cam_no_video1);
 #endif
+
 uint32_t iar_display_ipu_slot_size = 0x1000000;
 uint8_t ch1_en;
 uint8_t disp_user_config_done;
@@ -110,6 +115,13 @@ struct disp_timing video_1080x1920 = {
 struct disp_timing video_720x1280_touch = {
 	100, 100, 10, 20, 10, 10
 };
+EXPORT_SYMBOL(disp_user_config_done);
+EXPORT_SYMBOL(disp_copy_done);
+EXPORT_SYMBOL(video_1920x1080);
+EXPORT_SYMBOL(video_800x480);
+EXPORT_SYMBOL(video_720x1280);
+EXPORT_SYMBOL(video_1080x1920);
+EXPORT_SYMBOL(video_720x1280_touch);
 
 #ifdef CONFIG_PM
 uint32_t g_iar_regs[91];
@@ -364,9 +376,8 @@ typedef enum _iar_table_e {
 
 struct iar_dev_s *g_iar_dev;
 struct pwm_device *screen_backlight_pwm;
-//int display_type = MIPI_720P_TOUCH;
-//int display_type = MIPI_1080P;
 int display_type = LCD_7_TYPE;
+EXPORT_SYMBOL(display_type);
 #ifdef CONFIG_PM
 
 uint32_t g_out_sel = 0;
@@ -476,6 +487,7 @@ void x2_iar_dump(void)
 
 	writel(0x8, g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
 }
+EXPORT_SYMBOL_GPL(x2_iar_dump);
 
 buf_addr_t iar_addr_convert(phys_addr_t paddr)
 {
@@ -830,6 +842,7 @@ int8_t disp_set_pixel_clk(uint64_t pixel_clk)
 	pr_err("%s: iar pixel rate is %lld\n", __func__, pixel_rate);
 	return 0;
 }
+EXPORT_SYMBOL_GPL(disp_set_pixel_clk);
 
 int disp_clk_disable(void)
 {
@@ -971,7 +984,7 @@ int set_screen_backlight(unsigned int backlight_level)
 	}
 	return 0;
 }
-
+EXPORT_SYMBOL_GPL(set_screen_backlight);
 
 int disp_pinmux_bt1120(void)
 {
@@ -1538,6 +1551,7 @@ int32_t iar_layer_disable(int32_t layer_no)
 	iar_update();
 	return 0;
 }
+EXPORT_SYMBOL_GPL(iar_layer_disable);
 
 int32_t iar_layer_enable(int32_t layer_no)
 {
@@ -1554,6 +1568,7 @@ int32_t iar_layer_enable(int32_t layer_no)
 	iar_update();
 	return 0;
 }
+EXPORT_SYMBOL_GPL(iar_layer_enable);
 
 int32_t iar_close(void)
 {
@@ -1684,7 +1699,7 @@ frame_buf_t* x2_iar_get_framebuf_addr(int channel)
 	}
 	return &g_iar_dev->frambuf[channel];
 }
-
+EXPORT_SYMBOL_GPL(x2_iar_get_framebuf_addr);
 /////////////iar wb
 
 int iar_wb_stream_on(void)
@@ -1840,6 +1855,7 @@ EXPORT_SYMBOL_GPL(iar_wb_dqbuf);
 EXPORT_SYMBOL_GPL(iar_wb_stream_off);
 EXPORT_SYMBOL_GPL(iar_wb_stream_on);
 EXPORT_SYMBOL_GPL(iar_wb_setcfg);
+EXPORT_SYMBOL_GPL(iar_wb_getcfg);
 
 int iar_wb_capture_start(void)
 {
@@ -1972,6 +1988,7 @@ int iar_output_stream_on(layer_no)
 
 	return 0;
 }
+EXPORT_SYMBOL_GPL(iar_output_stream_on);
 
 int iar_output_stream_off(layer_no)
 {
@@ -1992,6 +2009,7 @@ int iar_output_stream_off(layer_no)
 
 	return 0;
 }
+EXPORT_SYMBOL_GPL(iar_output_stream_off);
 
 int iar_output_dqbuf(int layer_no, struct frame_info *frameinfo)
 {
@@ -2307,6 +2325,7 @@ int disp_set_ppbuf_addr(uint8_t layer_no, void *yaddr, void *caddr)
 	g_iar_dev->cur_framebuf_id[layer_no] = !video_index;
 	return 0;
 }
+EXPORT_SYMBOL_GPL(disp_set_ppbuf_addr);
 
 int iar_rotate_video_buffer(phys_addr_t yaddr,
 		phys_addr_t uaddr, phys_addr_t vaddr)

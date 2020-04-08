@@ -10,6 +10,7 @@
 #include <linux/of_address.h>
 #include <linux/fb.h>
 #include <linux/slab.h>
+#include <linux/ion.h>
 #include "../../../drivers/media/platform/hobot/common_api/vio_framemgr.h"
 #include "../../../drivers/media/platform/hobot/common_api/vio_config.h"
 
@@ -718,18 +719,28 @@ enum PIXEL_CLK {
 	PIXEL_CLK_162,
 };
 
-extern int display_type;
-extern unsigned int iar_debug_level;
-extern uint8_t disp_user_config_done;
-extern struct ion_device *hb_ion_dev;
-extern uint8_t disp_copy_done;
-#ifdef CONFIG_HOBOT_XJ3
+extern struct disp_timing video_1920x1080;
+extern struct disp_timing video_800x480;
+extern struct disp_timing video_720x1280;
+extern struct disp_timing video_1080x1920;
+extern struct disp_timing video_720x1280_touch;
 extern uint32_t hb_disp_base_board_id;
 extern uint8_t iar_display_addr_type;
 extern uint8_t iar_display_cam_no;
+#ifdef CONFIG_HOBOT_XJ3
+#define X3_GPIO_BASE    (0xA6003000)
+#define X3_GPIO0_VALUE_REG      (0xC)
+#define X3_PWM0_PINMUX  (0xA6004010)
 extern uint8_t iar_display_addr_type_video1;
 extern uint8_t iar_display_cam_no_video1;
 #endif
+
+
+extern int display_type;
+extern struct ion_device *hb_ion_dev;
+extern uint8_t disp_copy_done;
+extern uint8_t disp_user_config_done;
+extern unsigned int iar_debug_level;
 #define IAR_DEBUG_PRINT(format, args...)	\
 	do {									\
 		if(iar_debug_level)					\
@@ -786,6 +797,7 @@ int set_mipi_display(uint8_t panel_no);
 int32_t iar_layer_disable(int32_t layer_no);
 int32_t iar_layer_enable(int32_t layer_no);
 int set_screen_backlight(unsigned int backlight_level);
+int get_iar_module_rst_pin(void);
 //int iar_is_enabled(void);
 int iar_wb_dqbuf(struct frame_info *frameinfo);
 int iar_wb_qbuf(struct frame_info *frameinfo);
