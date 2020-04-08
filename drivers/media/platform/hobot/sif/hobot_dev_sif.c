@@ -34,16 +34,8 @@
 static int mismatch_limit = 1;
 module_param(mismatch_limit, int, 0644);
 
-typedef int (*isp_callback)(int);
-isp_callback sif_isp_ctx_sync;
 int sif_video_streamoff(struct sif_video_ctx *sif_ctx);
-
-void isp_register_callback(isp_callback func)
-{
-	sif_isp_ctx_sync = func;
-}
-EXPORT_SYMBOL(isp_register_callback);
-
+extern isp_callback sif_isp_ctx_sync;
 static int x3_sif_suspend(struct device *dev)
 {
 	int ret = 0;
@@ -1469,11 +1461,14 @@ static int x3_sif_remove(struct platform_device *pdev)
 
 	sif = platform_get_drvdata(pdev);
 
+	device_remove_file(&pdev->dev, &dev_attr_regdump);
+
 	free_irq(sif->irq, sif);
 	for(i = 0; i < MAX_DEVICE; i++)
 		device_destroy(sif->class, MKDEV(MAJOR(sif->devno), i));
 
-	class_destroy(sif->class);
+	if (!vps_class)
+		class_destroy(sif->class);
 	cdev_del(&sif->cdev);
 	unregister_chrdev_region(sif->devno, MAX_DEVICE);
 	kfree(sif);
@@ -1482,7 +1477,8 @@ static int x3_sif_remove(struct platform_device *pdev)
 		device_destroy(g_vio_mp_dev->class,
 			MKDEV(MAJOR(g_vio_mp_dev->devno), i));
 
-	class_destroy(g_vio_mp_dev->class);
+	if (!vps_class)
+		class_destroy(g_vio_mp_dev->class);
 	cdev_del(&g_vio_mp_dev->cdev);
 	unregister_chrdev_region(g_vio_mp_dev->devno, MAX_DEVICE);
 	kfree(g_vio_mp_dev);

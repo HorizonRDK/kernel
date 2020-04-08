@@ -1342,10 +1342,13 @@ static int x3_pym_remove(struct platform_device *pdev)
 
 	pym = platform_get_drvdata(pdev);
 
+	device_remove_file(&pdev->dev, &dev_attr_regdump);
+
 	free_irq(pym->irq, pym);
 
 	device_destroy(pym->class, pym->devno);
-	class_destroy(pym->class);
+	if (!vps_class)
+		class_destroy(pym->class);
 	cdev_del(&pym->cdev);
 	unregister_chrdev_region(pym->devno, MAX_DEVICE);
 	kfree(pym);

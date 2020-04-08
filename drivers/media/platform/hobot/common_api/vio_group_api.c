@@ -10,6 +10,16 @@
 #include "vio_group_api.h"
 
 static struct vio_chain chain[VIO_MAX_STREAM];
+
+isp_callback sif_isp_ctx_sync;
+EXPORT_SYMBOL(sif_isp_ctx_sync);
+
+void isp_register_callback(isp_callback func)
+{
+	sif_isp_ctx_sync = func;
+}
+EXPORT_SYMBOL(isp_register_callback);
+
 int vio_group_task_start(struct vio_group_task *group_task)
 {
 	int ret = 0;

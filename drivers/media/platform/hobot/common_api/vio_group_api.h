@@ -92,6 +92,8 @@ struct vio_chain{
 	unsigned long state;
 };
 
+typedef int (*isp_callback)(int);
+
 int vio_group_task_start(struct vio_group_task *group_task);
 int vio_group_task_stop(struct vio_group_task *group_task);
 void vio_group_start_trigger(struct vio_group *group, struct vio_frame *frame);

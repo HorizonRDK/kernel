@@ -2103,12 +2103,15 @@ static int x3_ipu_remove(struct platform_device *pdev)
 
 	ipu = platform_get_drvdata(pdev);
 
+	device_remove_file(&pdev->dev, &dev_attr_regdump);
+
 	free_irq(ipu->irq, ipu);
 
 	for(i = 0; i < MAX_DEVICE; i++)
 		device_destroy(ipu->class, MKDEV(MAJOR(ipu->devno), i));
 
-	class_destroy(ipu->class);
+	if (!vps_class)
+		class_destroy(ipu->class);
 	cdev_del(&ipu->cdev);
 	unregister_chrdev_region(ipu->devno, MAX_DEVICE);
 	kfree(ipu);

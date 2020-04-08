@@ -679,10 +679,13 @@ static int x3_gdc_remove(struct platform_device *pdev)
 
 	gdc = platform_get_drvdata(pdev);
 
+	device_remove_file(&pdev->dev, &dev_attr_regdump);
+
 	free_irq(gdc->irq, gdc);
 
 	device_destroy(gdc->class, gdc->devno);
-	class_destroy(gdc->class);
+	if (!vps_class)
+		class_destroy(gdc->class);
 	cdev_del(&gdc->cdev);
 	unregister_chrdev_region(gdc->devno, GDC_MAX_DEVICE);
 	kfree(gdc);
