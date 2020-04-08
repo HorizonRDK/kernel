@@ -194,6 +194,7 @@ int32_t bpu_stat_reset(struct bpu *bpu);
 
 /* sys apis */
 int32_t bpu_sys_system_init(struct bpu *bpu);
+void bpu_sys_system_exit(struct bpu *bpu);
 int32_t bpu_core_create_sys(struct bpu_core *core);
 void bpu_core_discard_sys(const struct bpu_core *core);
 

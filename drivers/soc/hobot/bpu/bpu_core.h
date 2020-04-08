@@ -84,6 +84,11 @@ struct bpu_core {
 
 	uint32_t irq;
 	void __iomem *base;
+	/*
+	 * some platform need other place to ctrl bpu,
+	 * like pmu
+	 */
+	void __iomem *reserved_base;
 
 	/*
 	 * use to store bpu last done id which not

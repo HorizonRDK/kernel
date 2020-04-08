@@ -219,7 +219,6 @@ static inline uint32_t X2_CNN_INST_NUMBER_RO_SHIT(uint32_t n)
 #define CNN_FC_GAP_LEN			0x1000u
 #define CNN_FC_SPACE_LEN		(0x400u * 0x40u)
 
-#define BPU_PMU_REG				0xa6000010u
 static inline uint32_t BPU_ISO_BIT(uint32_t index)
 {
 	return (0x1u << (((index) << 2u) + 1u));

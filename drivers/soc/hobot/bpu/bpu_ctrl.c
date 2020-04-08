@@ -585,6 +585,8 @@ int32_t bpu_core_dvfs_register(struct bpu_core *core, const char *name)
 	}
 
 	if (dev_pm_opp_of_add_table(core->dev) != 0) {
+		devm_kfree(core->dev, (void *)core->dvfs);/*PRQA S ALL*/
+		core->dvfs = NULL;
 		dev_err(core->dev, "Invalid operating-points in devicetree.\n");
 		return -EINVAL;
 	}
@@ -608,6 +610,7 @@ int32_t bpu_core_dvfs_register(struct bpu_core *core, const char *name)
 	core->dvfs->devfreq = devm_devfreq_add_device(core->dev,
 			&core->dvfs->profile, gov_name, NULL);
 	if (IS_ERR(core->dvfs->devfreq)) {/*PRQA S ALL*/
+		core->dvfs->devfreq = NULL;
 		dev_err(core->dev, "Can't add dvfs to BPU core.\n");
 		return PTR_ERR(core->dvfs->devfreq);/*PRQA S ALL*/
 	}
@@ -645,9 +648,14 @@ void bpu_core_dvfs_unregister(struct bpu_core *core)
 		return;
 	}
 
-	devfreq_cooling_unregister(core->dvfs->cooling);
-	devm_devfreq_remove_device(core->dev, core->dvfs->devfreq);
-	devm_devfreq_unregister_opp_notifier(core->dev, core->dvfs->devfreq);
+	if ((core->dvfs->cooling != NULL) && (!IS_ERR(core->dvfs->cooling))) {
+		devfreq_cooling_unregister(core->dvfs->cooling);
+	}
+
+	if ((core->dvfs->devfreq != NULL) && (!IS_ERR(core->dvfs->devfreq))) {
+		devm_devfreq_remove_device(core->dev, core->dvfs->devfreq);
+		devm_devfreq_unregister_opp_notifier(core->dev, core->dvfs->devfreq);
+	}
 	dev_pm_opp_of_remove_table(core->dev);
 
 	devm_kfree(core->dev, (void *)core->dvfs);/*PRQA S ALL*/

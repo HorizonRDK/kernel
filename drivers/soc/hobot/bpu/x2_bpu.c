@@ -100,7 +100,6 @@ static int32_t x2_bpu_hw_init(struct bpu_core *core)
 
 static int32_t x2_bpu_iso_clear(struct bpu_core *core)
 {
-	void __iomem *bpu_pmu_base;
 	uint32_t reg_val;
 	int32_t ret = 0;
 
@@ -108,16 +107,12 @@ static int32_t x2_bpu_iso_clear(struct bpu_core *core)
 		return -ENODEV;
 	}
 
-	bpu_pmu_base = ioremap(BPU_PMU_REG, 4);
-	if (bpu_pmu_base == NULL) {
-		return -ENOMEM;
+	/* x2/x3 reserved mem is pmu function */
+	if (core->reserved_base != NULL) {
+		reg_val = readl(core->reserved_base);
+		reg_val &= ~BPU_ISO_BIT(core->index);
+		writel(reg_val, core->reserved_base);
 	}
-
-	reg_val = readl(bpu_pmu_base);
-	reg_val &= ~BPU_ISO_BIT(core->index);
-	writel(reg_val, bpu_pmu_base);
-
-	iounmap(bpu_pmu_base);
 
 	udelay(5);
 
@@ -133,7 +128,6 @@ static int32_t x2_bpu_iso_clear(struct bpu_core *core)
 
 static int32_t x2_bpu_iso_set(struct bpu_core *core)
 {
-	void __iomem *bpu_pmu_base;
 	uint32_t reg_val;
 	int32_t ret = 0;
 
@@ -141,16 +135,12 @@ static int32_t x2_bpu_iso_set(struct bpu_core *core)
 		return -ENODEV;
 	}
 
-	bpu_pmu_base = ioremap(BPU_PMU_REG, 4);
-	if (bpu_pmu_base == NULL) {
-		return -ENOMEM;
+	/* x2/x3 reserved mem is pmu function */
+	if (core->reserved_base != NULL) {
+		reg_val = readl(core->reserved_base);
+		reg_val |= BPU_ISO_BIT(core->index);
+		writel(reg_val, core->reserved_base);
 	}
-
-	reg_val = readl(bpu_pmu_base);
-	reg_val |= BPU_ISO_BIT(core->index);
-	writel(reg_val, bpu_pmu_base);
-
-	iounmap(bpu_pmu_base);
 
 	udelay(5);
 
@@ -169,8 +159,9 @@ static int32_t bpu_to_reset(struct reset_control *rst, uint32_t delay_time)
 	int32_t ret;
 
 	if (rst == NULL) {
-		pr_err("No reset ctrl null\n");/*PRQA S ALL*/
-		return -ENODEV;
+		/* some platform do not has rst, so just Warning */
+		pr_err("No reset ctrl have!!!\n");/*PRQA S ALL*/
+		return 0;
 	}
 
 	ret = reset_control_assert(rst);

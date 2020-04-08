@@ -828,6 +828,7 @@ static void __exit bpu_exit(void)
 	struct bpu *bpu = g_bpu;
 
 	if (bpu != NULL) {
+		bpu_sys_system_exit(bpu);
 		misc_deregister(&bpu->miscdev);
 
 		kfree((void *)bpu);/*PRQA S ALL*/

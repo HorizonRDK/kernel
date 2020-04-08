@@ -529,6 +529,20 @@ static int32_t bpu_core_parse_dts(struct platform_device *pdev, struct bpu_core 
 		return PTR_ERR(core->base);/*PRQA S ALL*/
 	}
 
+	/* try to get the extra mem resorece */
+	resource = platform_get_resource(pdev, IORESOURCE_MEM, 1);
+	if (resource != NULL) {
+		core->reserved_base = devm_ioremap(&pdev->dev,
+			resource->start, resource_size(resource));
+		if (IS_ERR(core->reserved_base)) {/*PRQA S ALL*/
+			dev_err(&pdev->dev, "Can't get bpu core extra resource failed[%ld]\n",
+					PTR_ERR(core->reserved_base));
+			core->reserved_base = NULL;
+		}
+	} else {
+		core->reserved_base = NULL;
+	}
+
 	ret = of_property_read_u32(np, "cnn-id", &core->index);/*PRQA S ALL*/
 	if (ret < 0) {
 		dev_err(&pdev->dev, "Can't get bpu core index\n");
@@ -537,26 +551,30 @@ static int32_t bpu_core_parse_dts(struct platform_device *pdev, struct bpu_core 
 
 	core->regulator = devm_regulator_get(&pdev->dev, "cnn");
 	if (IS_ERR(core->regulator)) {/*PRQA S ALL*/
+		/* some platform not has regulator, so just report error info */
+		core->regulator = NULL;
 		dev_err(&pdev->dev, "Can't get bpu core regulator\n");
-		return PTR_ERR(core->regulator);/*PRQA S ALL*/
 	}
 
 	core->aclk = devm_clk_get(&pdev->dev, "cnn_aclk");
 	if (IS_ERR(core->aclk) || (core->aclk == NULL)) {/*PRQA S ALL*/
+		/* some platform not has aclk, so just report error info */
+		core->aclk = NULL;
 		dev_err(&pdev->dev, "Can't get bpu core aclk\n");
-		return PTR_ERR(core->aclk);/*PRQA S ALL*/
 	}
 
 	core->mclk = devm_clk_get(&pdev->dev, "cnn_mclk");
 	if (IS_ERR(core->mclk) || (core->mclk == NULL)) {/*PRQA S ALL*/
+		/* some platform not has mclk, so just report error info */
+		core->mclk = NULL;
 		dev_err(&pdev->dev, "Can't get bpu core mclk\n");
-		return PTR_ERR(core->mclk);/*PRQA S ALL*/
 	}
 
 	core->rst = devm_reset_control_get(&pdev->dev, "cnn_rst");
 	if (IS_ERR(core->rst)) {/*PRQA S ALL*/
+		/* some platform not has rst, so just report error info */
+		core->rst = NULL;
 		dev_err(&pdev->dev, "Can't get bpu core rst\n");
-		return PTR_ERR(core->rst);/*PRQA S ALL*/
 	}
 
 	core->irq = irq_of_parse_and_map(np, 0);

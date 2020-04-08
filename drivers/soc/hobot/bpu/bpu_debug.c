@@ -7,6 +7,7 @@
  *
  */
 #include <linux/device.h>
+#include <linux/slab.h>
 #include "bpu.h"
 #include "bpu_core.h"
 #include "bpu_ctrl.h"
@@ -455,4 +456,18 @@ int32_t bpu_sys_system_init(struct bpu *bpu)
 	bpu->bus = &bpu_subsys;
 
 	return ret;
+}
+
+void bpu_sys_system_exit(struct bpu *bpu)
+{
+	if (bpu == NULL) {
+		return;
+	}
+
+	if (bpu->bus != NULL) {
+		bus_unregister(bpu->bus);
+		if (bpu->bus->dev_root != NULL) {
+			kfree(bpu->bus->dev_root);
+		}
+	}
 }
