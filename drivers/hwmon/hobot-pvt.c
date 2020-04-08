@@ -137,13 +137,6 @@ static int pvt_temp_read(struct device *dev, enum hwmon_sensor_types type,
 		pr_debug("avg:%ld, min:%ld, max:%ld, diff:%ld\n",
 			pvt_dev->cur_temp_avg, temp_min, temp_max, diff);
 
-	if ( *val < 10000 || *val > 100000 ) {
-		pr_err("abnormal temp %ldmC\n", *val);
-		for (i = 0; i < PVT_TS_NUM; i++) {
-			pr_err("%s cur_smpl[%d] = %d\n", ts_map[i], i, pvt_dev->cur_smpl[i]);
-			pr_err("%s cur_temp[%d] = %ldC\n", ts_map[i], i, pvt_dev->cur_temp[i]);
-		}
-	}
 	spin_unlock_irqrestore(&pvt_dev->lock, flags);
 
 	return  0;
@@ -228,9 +221,10 @@ static irqreturn_t pvt_irq_handler(int irq, void *dev_id)
 
 		if (sdif_done) {
 			if (sdif_data > 3000 || sdif_data < 1000) {
-				pr_err("invalid cur_smpl[%d] : %d, SDIF_DATA:%08x\n",
+				pr_debug("invalid cur_smpl[%d] : %d, SDIF_DATA:%08x\n",
 						i, pvt_dev->cur_smpl[i], sdif_data);
 			}
+			/* skip when less than 0c, a workaround for TS[2] abnormal value */
 			if (sdif_data < 864)
 				continue;
 
