@@ -133,17 +133,17 @@ function change_dts_flash_config()
         awk "BEGIN{a=`getline`;b="1";c=(a+b);print c}";
     }
 
+    key_value="nor_flash {"
+    local norline=`getlinenum`
+    sed -i "${norline}s#okay#disabled#g" $dts_file
+    key_value="nand_flash {"
+    local nandline=`getlinenum`
+    sed -i "${nandline}s#okay#disabled#g" $dts_file
 
     if [ x"$1" = x"nor" ] || [ x"$1" = x"nand" ];then
+        key_value="$1_flash {"
         flashline=`getlinenum`
         sed -i "${flashline}s#disabled#okay#g" $dts_file
-    else
-        key_value="nor_flash {"
-        local norline=`getlinenum`
-        sed -i "${norline}s#okay#disabled#g" $dts_file
-        key_value="nand_flash {"
-        local nandline=`getlinenum`
-        sed -i "${nandline}s#okay#disabled#g" $dts_file
     fi
 }
 
@@ -324,7 +324,7 @@ cd $(dirname $0)
 if_flash=$BOOT_MODE
 if [[ ! -z "$FLASH_ENABLE" ]];then
     if [ "$FLASH_ENABLE" = "nor" -o  "$FLASH_ENABLE" = "nand" ];then
-        echo "$FLASH_ENALBE flash is enabled!!"
+        echo "$FLASH_ENABLE flash is enabled!!"
         if_flash=$FLASH_ENABLE
     fi
 fi
