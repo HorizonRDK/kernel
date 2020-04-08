@@ -460,7 +460,7 @@ void ipu_hw_set_osd_cfg(struct ipu_subdev *subdev, u32 shadow_index)
 	osd_cfg->osd_sta_update = 0;
 
 	if(osd_cfg->osd_sta_level_update){
-		ipu_set_osd_sta_level(base_reg, shadow_index, i,
+		ipu_set_osd_sta_level(base_reg, shadow_index, osd_index,
 			      osd_cfg->osd_sta_level[osd_index]);
 	}
 	osd_cfg->osd_sta_level_update = 0;
