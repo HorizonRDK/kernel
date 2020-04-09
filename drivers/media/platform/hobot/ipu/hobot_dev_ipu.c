@@ -86,6 +86,7 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 	u32 index;
 	u32 cnt;
 	int ret = 0;
+	u32 ctx_index;
 
 	ipu_ctx = file->private_data;
 	group = ipu_ctx->group;
@@ -125,10 +126,12 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 	ipu_ctx->state = BIT(VIO_VIDEO_CLOSE);
 
 	clear_bit(ipu_ctx->ctx_index, &subdev->val_ctx_mask);
-	subdev->ctx[ipu_ctx->ctx_index] = NULL;
+	ctx_index = ipu_ctx->ctx_index;
+	subdev->ctx[ctx_index] = NULL;
 	kfree(ipu_ctx);
 
-	vio_info("[S%d]IPU close node V%d\n", group->instance, ipu_ctx->id);
+	vio_info("[S%d]IPU close node V%d proc %d\n", group->instance,
+		ipu_ctx->id, ctx_index);
 
 	return ret;
 }
@@ -1241,7 +1244,7 @@ int ipu_video_qbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 	index = frameinfo->bufferindex;
 	framemgr = ipu_ctx->framemgr;
 	subdev = ipu_ctx->subdev;
-	BUG_ON(index >= framemgr->num_frames);
+	BUG_ON(index >= framemgr->max_index);
 
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	frame = framemgr->frames_mp[index];

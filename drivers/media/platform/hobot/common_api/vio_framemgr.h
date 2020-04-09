@@ -154,6 +154,7 @@ struct vio_framemgr {
 	ulong			sindex;
 
 	u32			num_frames;
+	u32			max_index;
 	struct vio_frame	*frames;
 	struct vio_frame	*frames_mp[VIO_MP_MAX_FRAMES];
 	u8			dispatch_mask[VIO_MP_MAX_FRAMES];

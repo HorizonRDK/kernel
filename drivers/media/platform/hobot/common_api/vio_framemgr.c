@@ -360,10 +360,12 @@ int frame_manager_open_mp(struct vio_framemgr *this, u32 buffers,
 	*index_start = ind_fst;
 	this->num_frames += buffers;
 	this->state = FRAMEMGR_INIT;
+	if (this->max_index < (ind_fst + buffers))
+		this->max_index = ind_fst + buffers;
 	spin_unlock_irqrestore(&this->slock, flag);
 
-	vio_dbg("%s first index %d, num %d, this->num_frames %d.", __func__,
-		ind_fst, buffers, this->num_frames);
+	vio_dbg("%s first index %d, num %d, this->num_frames %d max index %d.",
+		__func__, ind_fst, buffers, this->num_frames, this->max_index);
 	return 0;
 }
 EXPORT_SYMBOL(frame_manager_open_mp);
@@ -375,6 +377,7 @@ int frame_manager_close_mp(struct vio_framemgr *this,
 	unsigned long flag;
 	struct vio_frame *frame;
 	struct vio_frame *free_addr;
+	u32 tmp_num;
 
 	if ((index_start + buffers) >= VIO_MP_MAX_FRAMES) {
 		vio_err("%s invalid index", __func__);
@@ -411,6 +414,19 @@ int frame_manager_close_mp(struct vio_framemgr *this,
 	this->num_frames -= buffers;
 	this->ctx_mask &= ~(1 << ctx_index);
 	kfree(free_addr);
+	if (this->max_index == (index_start + buffers)) {
+		tmp_num = 0;
+		for (i = 0; i < VIO_MP_MAX_FRAMES; i++) {
+			if ((this->index_state[i] == FRAME_IND_USING)
+				|| (this->index_state[i] == FRAME_IND_STREAMOFF))
+				tmp_num++;
+			if (tmp_num == this->num_frames)
+				break;
+		}
+		this->max_index = i + 1;
+	}
+	vio_dbg("%s first index %d, num %d, this->num_frames %d max index %d.",
+		__func__, index_start, buffers, this->num_frames, this->max_index);
 	spin_unlock_irqrestore(&this->slock, flag);
 	return 0;
 }

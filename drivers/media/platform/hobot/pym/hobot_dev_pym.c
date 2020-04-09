@@ -618,7 +618,7 @@ int pym_video_qbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 
 	index = frameinfo->bufferindex;
 	framemgr = pym_ctx->framemgr;
-	BUG_ON(index >= framemgr->num_frames);
+	BUG_ON(index >= framemgr->max_index);
 
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	frame = framemgr->frames_mp[index];
