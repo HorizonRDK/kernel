@@ -18,6 +18,7 @@
 #include <linux/clk-provider.h>
 #include <linux/regulator/consumer.h>
 #include <linux/dma-mapping.h>
+#include <soc/hobot/diag.h>
 #include "bpu.h"
 #include "bpu_core.h"
 #include "bpu_ctrl.h"
@@ -25,6 +26,7 @@
 
 #define DEFAULT_BURST_LEN (0x80u)
 #define HEXBITS (16u)
+static int32_t bpu_err_flag;
 
 static inline uint32_t x2_bpu_reg_read(const struct bpu_core *core,
 		uint32_t offset)
@@ -197,6 +199,11 @@ static int32_t x2_bpu_reset(struct bpu_core *core)
 	return x2_bpu_hw_init(core);
 }
 
+static void bpu_diag_test(void *p, size_t len)
+{
+	bpu_err_flag = 1;
+}
+
 static int32_t x2_bpu_enable(struct bpu_core *core)
 {
 	uint32_t tmp_fc_depth;
@@ -266,6 +273,15 @@ static int32_t x2_bpu_enable(struct bpu_core *core)
 	reg_val = X2_CNN_PE0_FC_BASE((uint32_t)core->fc_base_addr);
 
 	x2_bpu_reg_write(core, CNN_FC_BASE, reg_val);
+
+	if ((EventIdBpu0Err + core->index) <= EventIdBpu1Err) {
+		if (diag_register(ModuleDiag_bpu, EventIdBpu0Err + core->index, 5, 300,
+					7000, bpu_diag_test) < 0)
+			pr_debug("bpu%d diag register fail\n", core->index);
+	} else {
+		dev_err(core->dev, "bpu event id overun: max = 2,but now is:%d\n",
+			EventIdBpu0Err + core->index);
+	}
 
 	return 0;
 }
@@ -507,6 +523,30 @@ static int32_t x2_bpu_write_fc(const struct bpu_core *core,
 	return (int32_t)fc_num;
 }
 
+static void report_bpu_diagnose_msg(u32 err, int core_index)
+{
+	u32 ret;
+	u8 bpu_event;
+	u8 bpu_diag_envdata[5]; // core_id(1ybte) + error_code(4bytes)
+
+	ret = err & 0xf000;
+	bpu_event = EventIdBpu0Err + core_index;
+
+	if (ret == 0x1000 || ret == 0x2000 || ret == 0x3000 ||
+		ret == 0x4000 || ret == 0x5000 || ret == 0x6000 ||
+		ret == 0x7000 || ret == 0x8000 || ret == 0x9000 ) {
+		bpu_diag_envdata[0] = (u8)core_index;
+		memcpy(bpu_diag_envdata + 1, (uint8_t *)&ret, sizeof(u32));
+		diag_send_event_stat_and_env_data(
+				DiagMsgPrioHigh, ModuleDiag_bpu,
+				bpu_event, DiagEventStaFail,
+				DiagGenEnvdataWhenErr, bpu_diag_envdata, 5);
+	} else {
+		diag_send_event_stat(DiagMsgPrioMid, ModuleDiag_bpu,
+					bpu_event, DiagEventStaSuccess);
+	}
+}
+
 static int32_t x2_bpu_read_fc(const struct bpu_core *core,
 		uint32_t *tmp_id, uint32_t *err)
 {
@@ -530,6 +570,13 @@ static int32_t x2_bpu_read_fc(const struct bpu_core *core,
 	} else {
 		*err = 0;
 	}
+
+	if (bpu_err_flag == 1) {
+		report_bpu_diagnose_msg(0x1000, core->index);
+		bpu_err_flag = 0;
+		return 1;
+	}
+	report_bpu_diagnose_msg(*err, core->index);
 
 	return 1;
 }
