@@ -239,28 +239,27 @@ function all()
     }
 
     # make modules_install to INSTALL_MOD_PATH (default: /)
-    make INSTALL_MOD_PATH=$SRC_KERNEL_DIR/_install INSTALL_MOD_STRIP=1  modules_install || {
+    make INSTALL_MOD_PATH=$SRC_KERNEL_DIR/_install INSTALL_MOD_STRIP=1 INSTALL_NO_SUBDIR=1 modules_install || {
         echo "make modules_install to INSTALL_MOD_PATH failed"
         exit 1
     }
-    # x3 wifi
-#    build_wifi
 
-    # put binaries to dest directory
+    # x3 wifii
+    ##build_wifi
+    # put kernel image & dtb to dest directory
     cpfiles "$SRC_KERNEL_DIR/arch/$ARCH_KERNEL/boot/$KERNEL_IMAGE_NAME" "$prefix/"
     cd $SRC_KERNEL_DIR/arch/$ARCH_KERNEL/boot/dts/hobot/
     cpfiles "$KERNEL_DTB_NAME" "$prefix/"
 
-    mkdir -p $TARGET_TMPROOTFS_DIR/lib/modules/
-    find $SRC_KERNEL_DIR -type f -name "*.ko" -exec cp {} $TARGET_TMPROOTFS_DIR/lib/modules/ \;
-
+    # copy firmware
     cpfiles "$SRC_KERNEL_DIR/drivers/staging/rtl8723bs/rtlwifi/rtl8723bs_nic.bin " "$TARGET_TMPROOTFS_DIR/lib/firmware/rtlwifi/"
     cpfiles "$SRC_KERNEL_DIR/drivers/crypto/hobot/pka/clp300.elf " "$TARGET_TMPROOTFS_DIR/lib/firmware/"
 
+    # strip & copy kernel modules
     ${CROSS_COMPILE}strip -v -g $TARGET_TMPROOTFS_DIR/lib/modules/*.ko
     cpfiles "$SRC_KERNEL_DIR/_install/lib/modules/*" "$TARGET_TMPROOTFS_DIR/lib/modules/"
 
-#    rm $SRC_KERNEL_DIR/_install/ -rf
+    #rm $SRC_KERNEL_DIR/_install/ -rf
 
     # build dtb-mapping.conf
     build_dtbmapping

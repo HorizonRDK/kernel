@@ -152,6 +152,14 @@ stripped after they are installed.  If INSTALL_MOD_STRIP is '1', then
 the default option --strip-debug will be used.  Otherwise,
 INSTALL_MOD_STRIP value will be used as the options to the strip command.
 
+INSTALL_NO_SUBDIR
+--------------------------------------------------
+INSTALL_NO_SUBDIR, if defined, will cause modules to be installed in
+/lib/modules/$(uname -r) path, without any sub directories. It is simple and 
+suitable for the embedded system, which has no many kernel modules.
+Otherwise, it is same as the host PC. The kernel modules will be installed in
+the detail sub directories.
+
 INSTALL_HDR_PATH
 --------------------------------------------------
 INSTALL_HDR_PATH specifies where to install user space headers when
