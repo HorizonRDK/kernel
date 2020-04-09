@@ -520,33 +520,47 @@ void camera_sys_ar0144_turning_control(uint32_t port, sensor_priv_t *priv_param,
 	uint32_t fine = 0;
 	uint32_t analog_gain;
 	analog_gain = sensor_date(priv_param->gain_buf[0]);
-	if (analog_gain == 0)
-		analog_gain = 256;
-	tmp = analog_gain >> 8;
-	if (tmp == 1) {
-		tmp1 = 0;
-		coarse = 0 << 4;
-	} else if (tmp >= 2 && tmp < 4) {
-		tmp1 = 1;
-		coarse = 1 << 4;
-	} else if (tmp >= 4 && tmp < 8) {
-		tmp1 = 2;
-		coarse = 2 << 4;
-	} else if (tmp >= 8 && tmp < 16) {
-		tmp1 = 3;
-		coarse = 3 << 4;
-	} else if (tmp == 16) {
-		tmp1 = 4;
-		coarse = 4 << 4;
+	pr_debug("a_gain = 0x%x\n", analog_gain);
+
+	if (analog_gain < 4096) {
+		tmp = analog_gain >> 8;
+		if (tmp == 1) {
+			tmp1 = 0;
+			coarse = 0 << 4;
+		} else if (tmp >= 2 && tmp < 4) {
+			tmp1 = 1;
+			coarse = 1 << 4;
+		} else if (tmp >= 4 && tmp < 8) {
+			tmp1 = 2;
+			coarse = 2 << 4;
+		} else if (tmp >= 8 && tmp < 16) {
+			tmp1 = 3;
+			coarse = 3 << 4;
+		} else if (tmp == 16) {
+			tmp1 = 4;
+			coarse = 4 << 4;
+		}
+		tmp = (analog_gain * 10000) >> (tmp1 + 8);
+		fine = 32 - (320000 + tmp - 1) / tmp;
+		a_gain[0] = (uint16_t)(coarse | fine);
+		a_gain[0] = (uint16_t)(a_gain[0] << 8 | a_gain[0] >> 8);
+		d_gain[0] = 0x80;
+		d_gain[0] = (uint16_t)(d_gain[0] << 8 | d_gain[0] >> 8);
+	} else {
+		a_gain[0] = 0x40;
+		a_gain[0] = (uint16_t)(a_gain[0] << 8 | a_gain[0] >> 8);
+		tmp = analog_gain / 16;
+		d_gain[0] = tmp >> 1;
+		d_gain[0] = (uint16_t)(d_gain[0] << 8 | d_gain[0] >> 8);
 	}
-	tmp = (analog_gain * 10000) >> (tmp1 + 8);
-	fine = 32 - (320000 + tmp - 1) / tmp;
-	a_gain[0] = (uint16_t)(coarse | fine);
+
 	a_line[0] = priv_param->line_buf[0];
-
-
-	a_gain[0] = (uint16_t)(a_gain[0] << 8 | a_gain[0] >> 8);
 	a_line[0] = (uint16_t)(a_line[0] << 8 | a_line[0] >> 8);
+	
+	pr_debug("a_gain = 0x%x\n", a_gain[0]);
+	pr_debug("d_gain = 0x%x\n", d_gain[0]);
+	pr_debug("line = 0x%x\n", a_line[0]);
+	
 	return;
 }
 
