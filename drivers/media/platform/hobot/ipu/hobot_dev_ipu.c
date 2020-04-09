@@ -411,7 +411,7 @@ void ipu_hw_set_osd_cfg(struct ipu_subdev *subdev, u32 shadow_index)
 	if (osd_cfg->osd_box_update) {
 		for (i = 0; i < MAX_OSD_LAYER; i++) {
 			osd_enable |= osd_box[i].osd_en << i;
-			osd_overlay |= osd_box[i].osd_en ? osd_box->overlay_mode << i : 0;
+			osd_overlay |= osd_box[i].osd_en ? osd_box[i].overlay_mode << i : 0;
 			start_x = osd_box[i].start_x;
 			start_y = osd_box[i].start_y;
 			width = osd_box[i].width;
@@ -460,8 +460,9 @@ void ipu_hw_set_osd_cfg(struct ipu_subdev *subdev, u32 shadow_index)
 	osd_cfg->osd_sta_update = 0;
 
 	if(osd_cfg->osd_sta_level_update){
-		ipu_set_osd_sta_level(base_reg, shadow_index, osd_index,
-			      osd_cfg->osd_sta_level[osd_index]);
+		for (i = 0; i < MAX_OSD_STA_LEVEL_NUM; i++)
+			ipu_set_osd_sta_level(base_reg, shadow_index, i,
+					osd_cfg->osd_sta_level[i]);
 	}
 	osd_cfg->osd_sta_level_update = 0;
 }
