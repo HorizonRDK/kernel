@@ -92,9 +92,13 @@ module_param(txout_freq_force, uint, 0644);
 
 /*test code: addr*/
 #define REGS_RX_SYS_7            (0x08)
+#define REGS_RX_STARTUP_OVR_2    (0xE2)
+#define REGS_RX_STARTUP_OVR_3    (0xE3)
 #define REGS_RX_STARTUP_OVR_4    (0xE4)
 #define REGS_RX_STARTUP_OVR_5    (0xE5)
 #define REGS_RX_STARTUP_OVR_17   (0xF1)
+#define REGS_RX_CB_2             (0x1ac)
+#define REGS_RX_CLKLANE_LANE_6   (0x307)
 #define REGS_RX_LANE0_DDL_4      (0x60A)
 #define REGS_RX_LANE0_DDL_5      (0x60B)
 #define REGS_RX_LANE0_DDL_6      (0x60C)
@@ -134,6 +138,8 @@ module_param(txout_freq_force, uint, 0644);
 #define RX_CLK_SETTLE            (0x1 << 4)
 #define RX_HS_SETTLE(s)          (0x80 | ((s) & 0x7F))
 #define RX_SYSTEM_CONFIG         (0x38)
+#define RX_CB_BIAS_ATB           (0x4D)
+#define RX_CLKLANE_PULLLONG      (0x80)
 #define RX_OSCFREQ_HIGH(f)       (((f) & 0xF00) >> 8)
 #define RX_OSCFREQ_LOW(f)        ((f) & 0xFF)
 #define RX_OSCFREQ_EN            (0x1)
@@ -320,102 +326,78 @@ typedef struct _pll_range_table_s {
 	uint32_t     value;
 } pll_range_table_t;
 
-static const pll_range_table_t g_pll_range_table[] = {
-	{80,   97,  0x00},
-	{80,   107, 0x10},
-	{83,   118, 0x20},
-	{92,   128, 0x30},
-	{102,  139, 0x01},
-	{111,  149, 0x11},
-	{121,  160, 0x21},
-	{131,  170, 0x31},
-	{140,  181, 0x02},
-	{149,  191, 0x12},
-	{159,  202, 0x22},
-	{168,  212, 0x32},
-	{182,  228, 0x03},
-	{197,  244, 0x13},
-	{211,  259, 0x23},
-	{225,  275, 0x33},
-	{249,  301, 0x04},
-	{273,  328, 0x14},
-	{297,  354, 0x25},
-	{320,  380, 0x35},
-	{368,  433, 0x05},
-	{415,  485, 0x16},
-};
-
 typedef struct _pll_sel_table_s {
 	uint16_t     osc_freq;
+	uint16_t     osc_freq_1p4;
 	uint16_t     freq;
 	uint32_t     value;
 } pll_sel_table_t;
 
 static const pll_sel_table_t g_pll_sel_table[] = {
-	{438, 80, 0x00},
-	{438, 90, 0x10},
-	{438, 100, 0x20},
-	{438, 110, 0x30},
-	{438, 120, 0x01},
-	{438, 130, 0x11},
-	{438, 140, 0x21},
-	{438, 150, 0x31},
-	{438, 160, 0x02},
-	{438, 170, 0x12},
-	{438, 180, 0x22},
-	{438, 190, 0x32},
-	{438, 205, 0x03},
-	{438, 220, 0x13},
-	{438, 235, 0x23},
-	{438, 250, 0x33},
-	{438, 270, 0x04},
-	{438, 290, 0x14},
-	{438, 310, 0x25},
-	{438, 330, 0x35},
-	{438, 375, 0x05},
-	{438, 425, 0x16},
-	{438, 475, 0x26},
-	{438, 525, 0x37},
-	{438, 575, 0x07},
-	{438, 630, 0x18},
-	{438, 680, 0x28},
-	{438, 720, 0x39},
-	{438, 780, 0x09},
-	{438, 820, 0x19},
-	{438, 880, 0x29},
-	{438, 920, 0x3A},
-	{438, 980, 0x0A},
-	{438, 1020, 0x1A},
-	{438, 1100, 0x2A},
-	{438, 1150, 0x3B},
-	{438, 1200, 0x0B},
-	{438, 1250, 0x1B},
-	{438, 1300, 0x2B},
-	{438, 1350, 0x3C},
-	{438, 1400, 0x0C},
-	{438, 1450, 0x1C},
-	{438, 1500, 0x2C},
-	{271, 1550, 0x3D},
-	{280, 1600, 0x0D},
-	{289, 1650, 0x1D},
-	{298, 1700, 0x2D},
-	{306, 1750, 0x3E},
-	{315, 1800, 0x0E},
-	{324, 1850, 0x1E},
-	{333, 1900, 0x2F},
-	{341, 1950, 0x3F},
-	{350, 2000, 0x0F},
-	{359, 2050, 0x40},
-	{368, 2100, 0x41},
-	{376, 2150, 0x42},
-	{385, 2200, 0x43},
-	{394, 2250, 0x44},
-	{403, 2300, 0x45},
-	{411, 2350, 0x46},
-	{420, 2400, 0x47},
-	{429, 2450, 0x48},
-	{438, 2500, 0x49},
-	{438, 2501, 0x49},
+	{438, 460, 80, 0x00},
+	{438, 460, 90, 0x10},
+	{438, 460, 100, 0x20},
+	{438, 460, 110, 0x30},
+	{438, 460, 120, 0x01},
+	{438, 460, 130, 0x11},
+	{438, 460, 140, 0x21},
+	{438, 460, 150, 0x31},
+	{438, 460, 160, 0x02},
+	{438, 460, 170, 0x12},
+	{438, 460, 180, 0x22},
+	{438, 460, 190, 0x32},
+	{438, 460, 205, 0x03},
+	{438, 460, 220, 0x13},
+	{438, 460, 235, 0x23},
+	{438, 460, 250, 0x33},
+	{438, 460, 270, 0x04},
+	{438, 460, 290, 0x14},
+	{438, 460, 310, 0x25},
+	{438, 460, 330, 0x35},
+	{438, 460, 375, 0x05},
+	{438, 460, 425, 0x16},
+	{438, 460, 475, 0x26},
+	{438, 460, 525, 0x37},
+	{438, 460, 575, 0x07},
+	{438, 460, 630, 0x18},
+	{438, 460, 680, 0x28},
+	{438, 460, 720, 0x39},
+	{438, 460, 780, 0x09},
+	{438, 460, 820, 0x19},
+	{438, 460, 880, 0x29},
+	{438, 460, 920, 0x3A},
+	{438, 460, 980, 0x0A},
+	{438, 460, 1020, 0x1A},
+	{438, 460, 1100, 0x2A},
+	{438, 460, 1150, 0x3B},
+	{438, 460, 1200, 0x0B},
+	{438, 460, 1250, 0x1B},
+	{438, 460, 1300, 0x2B},
+	{438, 460, 1350, 0x3C},
+	{438, 460, 1400, 0x0C},
+	{438, 460, 1450, 0x1C},
+	{438, 460, 1500, 0x2C},
+	{271, 285, 1550, 0x3D},
+	{280, 295, 1600, 0x0D},
+	{289, 304, 1650, 0x1D},
+	{298, 313, 1700, 0x2E},
+	{306, 322, 1750, 0x3E},
+	{315, 331, 1800, 0x0E},
+	{324, 341, 1850, 0x1E},
+	{333, 350, 1900, 0x2F},
+	{341, 359, 1950, 0x3F},
+	{350, 368, 2000, 0x0F},
+	{359, 377, 2050, 0x40},
+	{368, 387, 2100, 0x41},
+	{376, 396, 2150, 0x42},
+	{385, 405, 2200, 0x43},
+	{394, 414, 2250, 0x44},
+	{403, 423, 2300, 0x45},
+	{411, 432, 2350, 0x46},
+	{420, 442, 2400, 0x47},
+	{429, 451, 2450, 0x48},
+	{438, 460, 2500, 0x49},
+	{438, 460, 2501, 0x49},
 };
 
 static uint32_t mipi_dphy_clk_range(mipi_phy_t *phy, uint32_t mipiclk, uint16_t *osc_freq)
@@ -423,6 +405,8 @@ static uint32_t mipi_dphy_clk_range(mipi_phy_t *phy, uint32_t mipiclk, uint16_t 
 	struct device *dev = (phy) ? phy->sub.dev : g_pdev.dev;
 	mipi_dphy_param_t *param = &g_pdev.dphy.param;
 	uint8_t  index = 0;
+	uint16_t osc_freq_v = 0;
+	int is_1p4 = 0;
 
 	for (index = 0; index < (ARRAY_SIZE(g_pll_sel_table) - 1); index++) {
 		if (mipiclk >= g_pll_sel_table[index].freq &&
@@ -432,9 +416,14 @@ static uint32_t mipi_dphy_clk_range(mipi_phy_t *phy, uint32_t mipiclk, uint16_t 
 			 g_pll_sel_table[index + 1].freq,
 			 g_pll_sel_table[index].value);
 			if (osc_freq) {
-				mipidbg("pll osc_freq: %d",
-					g_pll_sel_table[index].osc_freq);
-				*osc_freq = g_pll_sel_table[index].osc_freq;
+				if (phy && MIPI_HOST_IS_1P4(phy->sub.iomem))
+					is_1p4 = 1;
+				if (is_1p4)
+					osc_freq_v = g_pll_sel_table[index].osc_freq_1p4;
+				else
+					osc_freq_v = g_pll_sel_table[index].osc_freq;
+				mipidbg("pll osc_freq: %d", osc_freq_v);
+				*osc_freq = osc_freq_v;
 			}
 			if (phy)
 				phy->pll_sel = (void *)&g_pll_sel_table[index];
@@ -496,7 +485,8 @@ int32_t mipi_host_dphy_initialize(uint16_t mipiclk, uint16_t lane, uint16_t sett
 	mipi_phy_t *phy = mipi_dphy_get_phy(0, iomem);
 	struct device *dev = (phy) ? phy->sub.dev : g_pdev.dev;
 	mipi_dphy_param_t *param = &g_pdev.dphy.param;
-	uint16_t osc_freq = 438;
+	int is_1p4 = MIPI_HOST_IS_1P4(iomem);
+	uint16_t osc_freq = (is_1p4) ? 460 : 438;
 
 	mipidbg("host dphy initialize begin");
 	/*Release Synopsys-PHY test codes from reset*/
@@ -512,18 +502,27 @@ int32_t mipi_host_dphy_initialize(uint16_t mipiclk, uint16_t lane, uint16_t sett
 	mipi_dphy_set_freqrange(MIPI_DPHY_TYPE_HOST, (phy) ? (phy->sub.port) : 0,
 		MIPI_HSFREQRANGE, mipi_dphy_clk_range(phy, mipiclk / lane, &osc_freq));
 	mipi_host_dphy_testdata(phy, iomem, REGS_RX_SYS_7, RX_SYSTEM_CONFIG);
+	if (is_1p4) {
+		mipi_host_dphy_testdata(phy, iomem, REGS_RX_CLKLANE_LANE_6, RX_CLKLANE_PULLLONG);
+		mipi_host_dphy_testdata(phy, iomem, REGS_RX_CB_2, RX_CB_BIAS_ATB);
+		mipi_host_dphy_testdata(phy, iomem, REGS_RX_STARTUP_OVR_2, RX_OSCFREQ_LOW(osc_freq));
+		mipi_host_dphy_testdata(phy, iomem, REGS_RX_STARTUP_OVR_3, RX_OSCFREQ_HIGH(osc_freq));
+		mipi_host_dphy_testdata(phy, iomem, REGS_RX_STARTUP_OVR_4, RX_CLK_SETTLE | RX_OSCFREQ_EN);
+	}
 	mipi_host_dphy_testdata(phy, iomem, REGS_RX_LANE0_DDL_4, RX_OSCFREQ_LOW(osc_freq));
 	mipi_host_dphy_testdata(phy, iomem, REGS_RX_LANE0_DDL_5, RX_OSCFREQ_HIGH(osc_freq));
 	mipi_host_dphy_testdata(phy, iomem, REGS_RX_LANE0_DDL_6, RX_OSCFREQ_EN);
 	mipi_host_dphy_testdata(phy, iomem, REGS_RX_LANE1_DDL_4, RX_OSCFREQ_LOW(osc_freq));
 	mipi_host_dphy_testdata(phy, iomem, REGS_RX_LANE1_DDL_5, RX_OSCFREQ_HIGH(osc_freq));
 	mipi_host_dphy_testdata(phy, iomem, REGS_RX_LANE1_DDL_6, RX_OSCFREQ_EN);
-	mipi_host_dphy_testdata(phy, iomem, REGS_RX_LANE2_DDL_4, RX_OSCFREQ_LOW(osc_freq));
-	mipi_host_dphy_testdata(phy, iomem, REGS_RX_LANE2_DDL_5, RX_OSCFREQ_HIGH(osc_freq));
-	mipi_host_dphy_testdata(phy, iomem, REGS_RX_LANE2_DDL_6, RX_OSCFREQ_EN);
-	mipi_host_dphy_testdata(phy, iomem, REGS_RX_LANE3_DDL_4, RX_OSCFREQ_LOW(osc_freq));
-	mipi_host_dphy_testdata(phy, iomem, REGS_RX_LANE3_DDL_5, RX_OSCFREQ_HIGH(osc_freq));
-	mipi_host_dphy_testdata(phy, iomem, REGS_RX_LANE3_DDL_6, RX_OSCFREQ_EN);
+	if (!is_1p4) {
+		mipi_host_dphy_testdata(phy, iomem, REGS_RX_LANE2_DDL_4, RX_OSCFREQ_LOW(osc_freq));
+		mipi_host_dphy_testdata(phy, iomem, REGS_RX_LANE2_DDL_5, RX_OSCFREQ_HIGH(osc_freq));
+		mipi_host_dphy_testdata(phy, iomem, REGS_RX_LANE2_DDL_6, RX_OSCFREQ_EN);
+		mipi_host_dphy_testdata(phy, iomem, REGS_RX_LANE3_DDL_4, RX_OSCFREQ_LOW(osc_freq));
+		mipi_host_dphy_testdata(phy, iomem, REGS_RX_LANE3_DDL_5, RX_OSCFREQ_HIGH(osc_freq));
+		mipi_host_dphy_testdata(phy, iomem, REGS_RX_LANE3_DDL_6, RX_OSCFREQ_EN);
+	}
 
 	/* record host */
 	if (phy) {

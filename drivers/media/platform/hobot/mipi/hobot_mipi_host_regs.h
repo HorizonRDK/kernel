@@ -105,4 +105,13 @@
 #define REG_MIPI_HOST_INT_ST_ECC_CORRECT       (0x2D0)
 #define REG_MIPI_HOST_INT_MSK_ECC_CORRECT      (0x2D4)
 
+/* IP VERSION */
+#ifdef CONFIG_ARCH_HOBOT
+#define MIPI_HOST_IS_1P4(b)	       ((mipi_getreg((b) + REG_MIPI_HOST_VERSION)) \
+									> 0x31343000)
+#else
+#define MIPI_HOST_IS_1P4(b)	       ((mipi_getreg((b) + REG_MIPI_HOST_VERSION)) \
+									> 0x00003100)
+#endif
+
 #endif //__HOBOT_MIPI_HOST_REGS_H__

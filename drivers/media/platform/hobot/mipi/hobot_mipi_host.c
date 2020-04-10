@@ -79,14 +79,6 @@ module_param(init_num, uint, 0644);
 
 #define MIPI_HOST_INT_DBG		   (1)
 
-#ifdef CONFIG_ARCH_HOBOT
-#define MIPI_HOST_IS_1P4(b)	       ((mipi_getreg((b) + REG_MIPI_HOST_VERSION)) \
-									> 0x31343000)
-#else
-#define MIPI_HOST_IS_1P4(b)	       ((mipi_getreg((b) + REG_MIPI_HOST_VERSION)) \
-									> 0x00003100)
-#endif
-
 #define MIPI_HOST_INT_PHY_FATAL    (0x1)
 #define MIPI_HOST_INT_PKT_FATAL    (0x1<<1)
 #define MIPI_HOST_INT_FRM_FATAL    (0x1<<2)
