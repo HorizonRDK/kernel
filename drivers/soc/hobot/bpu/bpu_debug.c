@@ -466,8 +466,5 @@ void bpu_sys_system_exit(struct bpu *bpu)
 
 	if (bpu->bus != NULL) {
 		bus_unregister(bpu->bus);
-		if (bpu->bus->dev_root != NULL) {
-			kfree(bpu->bus->dev_root);
-		}
 	}
 }

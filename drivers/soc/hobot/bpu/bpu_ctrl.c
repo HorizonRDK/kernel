@@ -653,8 +653,8 @@ void bpu_core_dvfs_unregister(struct bpu_core *core)
 	}
 
 	if ((core->dvfs->devfreq != NULL) && (!IS_ERR(core->dvfs->devfreq))) {
-		devm_devfreq_remove_device(core->dev, core->dvfs->devfreq);
 		devm_devfreq_unregister_opp_notifier(core->dev, core->dvfs->devfreq);
+		devm_devfreq_remove_device(core->dev, core->dvfs->devfreq);
 	}
 	dev_pm_opp_of_remove_table(core->dev);
 

@@ -409,6 +409,7 @@ static int bpu_core_release(struct inode *inode, struct file *filp)/*PRQA S ALL*
 	if (atomic_read(&core->open_counter) == 0) {/*PRQA S ALL*/
 		/* release the real bpu core */
 		bpu_prio_exit(core->prio_sched);
+		core->prio_sched = NULL;
 		ret = bpu_core_disable(core);
 		if (ret != 0) {
 			dev_err(core->dev, "BPU core disable failed\n");
