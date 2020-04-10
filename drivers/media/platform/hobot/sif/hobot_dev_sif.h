@@ -208,7 +208,7 @@ struct x3_sif_dev {
 	atomic_t			open_cnt;
 	spinlock_t			shared_slock;
 	u32 				error_count;
-
+	u32					hblank;
 	unsigned long	mux_mask;
 
 	struct vio_group		*sif_input[VIO_MAX_STREAM];

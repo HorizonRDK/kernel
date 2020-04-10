@@ -548,7 +548,9 @@ int sif_video_init(struct sif_video_ctx *sif_ctx, unsigned long arg)
 		subdev->dol_num = sif_config.output.isp.dol_exp_num;
 		memcpy(&subdev->ddrin_fmt, &sif_config.input.ddr.data,
 			sizeof(sif_data_desc_t));
-		sif_set_isp_performance(sif->base_reg, 10);
+
+		sif_set_isp_performance(sif->base_reg, sif->hblank);
+
 		set_bit(SIF_DMA_IN_ENABLE, &sif->state);
 		set_bit(VIO_GROUP_DMA_INPUT, &group->state);
 		set_bit(VIO_GROUP_OTF_OUTPUT, &group->state);
@@ -1186,6 +1188,31 @@ err_req_cdev:
 	return ret;
 }
 
+static ssize_t sif_hblank_read(struct device *dev,
+				struct device_attribute *attr, char* buf)
+{
+	struct x3_sif_dev *sif;
+
+	sif = dev_get_drvdata(dev);
+
+	return snprintf(buf, "%d\n", sif->hblank);
+}
+
+static ssize_t sif_hblank_store(struct device *dev,
+				       struct device_attribute *devAttr,
+				       const char *buf, size_t size)
+{
+	struct x3_sif_dev *sif;
+
+	sif = dev_get_drvdata(dev);
+	sif->hblank = simple_strtoul(buf, NULL, 0);
+
+	vio_info("%s : hblank = %d\n", __func__, sif->hblank);
+
+	return size;
+}
+static DEVICE_ATTR(hblank, 0660, sif_hblank_read, sif_hblank_store);
+
 static ssize_t sif_reg_dump(struct device *dev,
 				struct device_attribute *attr, char* buf)
 {
@@ -1415,7 +1442,13 @@ static int x3_sif_probe(struct platform_device *pdev)
 	dev = &pdev->dev;
 	ret = device_create_file(dev, &dev_attr_regdump);
 	if(ret < 0) {
-		vio_err("create regdump failed (%d)\n",ret);
+		vio_err("create regdump failed (%d)\n", ret);
+		goto p_err;
+	}
+
+	ret = device_create_file(dev, &dev_attr_hblank);
+	if(ret < 0) {
+		vio_err("create hblank failed (%d)\n", ret);
 		goto p_err;
 	}
 
@@ -1423,6 +1456,8 @@ static int x3_sif_probe(struct platform_device *pdev)
 	/*4 ddr in channel can not be 0 together*/
 	sif_enable_dma(sif->base_reg, 0x10000);
 	ret = x3_sif_subdev_init(sif);
+
+	sif->hblank = 10;
 
 #if 1
 	/* vio mp dev node init*/
@@ -1462,6 +1497,7 @@ static int x3_sif_remove(struct platform_device *pdev)
 	sif = platform_get_drvdata(pdev);
 
 	device_remove_file(&pdev->dev, &dev_attr_regdump);
+	device_remove_file(&pdev->dev, &dev_attr_hblank);
 
 	free_irq(sif->irq, sif);
 	for(i = 0; i < MAX_DEVICE; i++)

@@ -1529,6 +1529,7 @@ int sif_get_irq_src(u32 __iomem *base_reg, struct sif_irq_src *src,
 void sif_set_isp_performance(u32 __iomem *base_reg, u8 value)
 {
 	vio_hw_set_reg(base_reg, &sif_regs[SIF_ISP_PERFORMANCE], value);
+	vio_dbg("%s:%d\n", __func__, value);
 }
 
 void sif_hw_dump(u32 __iomem *base_reg)
