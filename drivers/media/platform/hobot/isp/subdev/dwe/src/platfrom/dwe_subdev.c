@@ -207,7 +207,6 @@ EXPORT_SYMBOL(dis_set_ioctl);
 
 static irqreturn_t x2a_dis_irq(int this_irq, void *data)
 {
-	unsigned long flags = 0;
 	int ret = 0;
 	uint32_t addr = 0;
 	uint32_t tmp = 0;
@@ -260,8 +259,8 @@ static irqreturn_t x2a_dis_irq(int this_irq, void *data)
 		if (dwe_ctx->ctx.online_enable == 1) {
 			dwe_ctx->ctx.dis_next_port = dwe_ctx->ctx.online_port;
 		}
-		flags = 1;
-		schedule_work(&dwe_ctx->dis_work);
+		update_dis_param();
+		// schedule_work(&dwe_ctx->dis_work);
 	}
 
 	if ((tmp_irq.status_b.int_dis_h_ratio_err == 1) ||
@@ -297,7 +296,6 @@ static irqreturn_t x2a_dis_irq(int this_irq, void *data)
  */
 static irqreturn_t x2a_ldc_irq(int this_irq, void *data)
 {
-	unsigned long flags;
 	ldc_irqstatus_u tmp_irq;
 
 	disable_irq_nosync(this_irq);
@@ -351,8 +349,8 @@ static irqreturn_t x2a_ldc_irq(int this_irq, void *data)
 		if (dwe_ctx->ctx.online_enable == 1) {
 			dwe_ctx->ctx.ldc_next_port = dwe_ctx->ctx.online_port;
 		}
-		flags = 1;
-		schedule_work(&dwe_ctx->ldc_work);
+		update_ldc_param();
+		// schedule_work(&dwe_ctx->ldc_work);
 	}
 
 	if (tmp_irq.status_b.input_frame_done == 1) {
