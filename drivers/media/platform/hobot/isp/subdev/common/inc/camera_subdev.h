@@ -122,6 +122,8 @@ typedef struct pwl_s {
 	uint32_t gain_length;
 	uint32_t sd_gain;
 	uint32_t sd_gain_length;
+	uint32_t dc_gain;
+	uint32_t dc_gain_length;
 	uint32_t line;
 	uint32_t line_length;
 	uint32_t min_gain_time;
