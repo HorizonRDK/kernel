@@ -25,6 +25,7 @@
 #endif
 
 #include "acamera_isp_config.h"
+#include "acamera_firmware_config.h"
 #include "acamera_command_api.h"
 #include "acamera_isp_core_nomem_settings.h"
 #include "acamera_metering_stats_mem_config.h"
@@ -46,6 +47,9 @@
 #include "metadata_api.h"
 #endif
 
+#if FW_HAS_CONTROL_CHANNEL
+#include "acamera_ctrl_channel.h"
+#endif
 
 static const acam_reg_t **p_isp_data = SENSOR_ISP_SEQUENCE_DEFAULT;
 
@@ -107,26 +111,15 @@ void acamera_fw_deinit( acamera_context_t *p_ctx )
     acamera_fsm_mgr_deinit( &p_ctx->fsm_mgr );
 }
 
-int acamera_fw_isp_prepare(int ctx_id)
-{
-    if (0 <= ctx_id && ctx_id < FIRMWARE_CONTEXT_NUMBER) {
-        acamera_context_t *p_ctx = (acamera_context_t *)acamera_get_ctx_ptr(ctx_id);
-        if (p_ctx != NULL)
-            init_stab( p_ctx );
-    }
-
-	return 0;
-}
-
 extern uint8_t isp_safe_start( uint32_t base );
 extern uint8_t isp_safe_stop( uint32_t base );
 extern void isp_input_port_size_config(sensor_fsm_ptr_t p_fsm);
 int acamera_fw_isp_start(int ctx_id)
 {
 	uint8_t rc = 0;
-	//uint8_t count = 0;
-	//uint16_t sleep_in_us = 2000;
 	acamera_context_t *p_ctx = (acamera_context_t *)acamera_get_ctx_ptr(ctx_id);
+
+    acamera_load_isp_sequence( 0, p_ctx->isp_sequence, SENSOR_ISP_SEQUENCE_DEFAULT_SETTINGS );
 
     isp_input_port_size_config(p_ctx->fsm_mgr.fsm_arr[FSM_ID_SENSOR]->p_fsm);
 
@@ -138,16 +131,14 @@ int acamera_fw_isp_start(int ctx_id)
 	acamera_fw_interrupts_enable( p_ctx );
 
 	if (!rc)
-		printk("%s done.\n", __func__);
+		pr_info("done.\n");
 
-	return 0;
+	return rc;
 }
 
 int acamera_fw_isp_stop(int ctx_id)
 {
 	uint8_t rc = 0;
-	//uint8_t count = 0;
-	//uint16_t sleep_in_us = 2000;
 	acamera_context_t *p_ctx = (acamera_context_t *)acamera_get_ctx_ptr(ctx_id);
 
 	acamera_fw_interrupts_disable( p_ctx );
@@ -158,9 +149,9 @@ int acamera_fw_isp_stop(int ctx_id)
     rc = isp_safe_stop(p_ctx->settings.isp_base);
 
 	if (!rc)
-		printk("%s done.\n", __func__);
+		pr_info("done.\n");
 
-	return 0;
+	return rc;
 }
 
 extern void sensor_sw_init( sensor_fsm_ptr_t p_fsm );
@@ -556,7 +547,6 @@ int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settin
 
 #else
 
-
 int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settings, acamera_firmware_t *g_fw )
 {
     int32_t result = 0;
@@ -564,28 +554,19 @@ int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settin
     p_ctx->context_ref = (uint32_t *)p_ctx;
     p_ctx->p_gfw = g_fw;
 
-    if ( p_ctx->sw_reg_map.isp_sw_config_map != NULL ) {
+    pr_info("ctx_id %d +\n", p_ctx->context_id);
 
-        LOG( LOG_INFO, "Allocated memory for config space of size %d bytes", ACAMERA_ISP1_SIZE );
-        LOG( LOG_INFO, "Allocated memory for metering of size %d bytes", ACAMERA_METERING_STATS_MEM_SIZE );
+    if ( p_ctx->sw_reg_map.isp_sw_config_map != NULL ) {
         // copy settings
         system_memcpy( (void *)&p_ctx->settings, (void *)settings, sizeof( acamera_settings ) );
-
 
         p_ctx->settings.isp_base = (uintptr_t)p_ctx->sw_reg_map.isp_sw_config_map;
 
         // each context is initialized to the default state
         p_ctx->isp_sequence = p_isp_data;
 
-        acamera_load_isp_sequence( 0, p_ctx->isp_sequence, SENSOR_ISP_SEQUENCE_DEFAULT_SETTINGS );
 #if defined( SENSOR_ISP_SEQUENCE_DEFAULT_SETTINGS_CONTEXT )
         acamera_load_sw_sequence( p_ctx->settings.isp_base, p_ctx->isp_sequence, SENSOR_ISP_SEQUENCE_DEFAULT_SETTINGS_CONTEXT );
-#endif
-
-
-#if defined( SENSOR_ISP_SEQUENCE_DEFAULT_SETTINGS_FPGA ) && ISP_HAS_FPGA_WRAPPER
-        // these settings are loaded only for ARM FPGA demo platform and must be ignored on other systems
-        acamera_load_isp_sequence( 0, p_ctx->isp_sequence, SENSOR_ISP_SEQUENCE_DEFAULT_SETTINGS_FPGA );
 #endif
 
 #if ISP_DMA_RAW_CAPTURE
@@ -595,10 +576,10 @@ int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settin
         // reset frame counters
         p_ctx->isp_frame_counter_raw = 0;
 
-        acamera_fw_init( p_ctx );
-
-        configure_all_frame_buffers( p_ctx );
-
+        if (p_ctx->initialized == 0) {
+            acamera_fw_init( p_ctx );
+            configure_all_frame_buffers( p_ctx );
+        }
         init_stab( p_ctx );
 
 #if FW_HAS_CUSTOM_SETTINGS
@@ -610,12 +591,11 @@ int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settin
         //acamera_isp_input_port_mode_request_write( p_ctx->settings.isp_base, ACAMERA_ISP_INPUT_PORT_MODE_REQUEST_SAFE_START );
 
         p_ctx->initialized = 1;
-
+        pr_info("ctx_id %d -\n", p_ctx->context_id);
     } else {
         result = -1;
         LOG( LOG_ERR, "Failed to allocate memory for ISP config context" );
     }
-
 
     return result;
 }

@@ -21,6 +21,8 @@
  * ACamera PCI Express UIO driver
  *
  */
+#define pr_fmt(fmt) "[isp_drv]: %s: " fmt, __func__
+
 #include <linux/platform_device.h>
 #include <linux/device.h>
 #include <linux/module.h>
@@ -187,7 +189,7 @@ static int acamera_camera_async_complete( struct v4l2_async_notifier *notifier )
         v4l2devs_running = 1;
     }
 
-    LOG( LOG_NOTICE, "[KeyMsg] async complete done, rc: %d.", rc );
+    pr_info("complete done, rc: %d.\n", rc );
     return rc;
 }
 
@@ -310,11 +312,57 @@ static int isp_platform_remove( struct platform_device *pdev )
     return 0;
 }
 
+extern int acamera_isp_firmware_clear(void);
+static int isp_suspend(struct device *dev)
+{
+	int ret = 0;
+
+	pr_info("enter\n");
+    acamera_isp_firmware_clear();
+
+	return ret;
+}
+
+static int isp_resume(struct device *dev)
+{
+	int ret = 0;
+
+	pr_info("enter\n");
+
+	return ret;
+}
+
+static int isp_runtime_suspend(struct device *dev)
+{
+	int ret = 0;
+
+	pr_info("enter\n");
+
+	return ret;
+}
+
+static int isp_runtime_resume(struct device *dev)
+{
+	int ret = 0;
+
+	pr_info("enter\n");
+
+	return ret;
+}
+
+static const struct dev_pm_ops isp_pm_ops = {
+	.suspend = isp_suspend,
+	.resume = isp_resume,
+	.runtime_suspend = isp_runtime_suspend,
+	.runtime_resume = isp_runtime_resume,
+};
+
 static struct platform_driver isp_platform_driver = {
     .driver = {
         .name = "hobot,x3-isp",
         .owner = THIS_MODULE,
         .of_match_table = isp_dt_match,
+        .pm = &isp_pm_ops,
     },
     .remove = isp_platform_remove,
 };
@@ -333,15 +381,18 @@ static int __init fw_module_init( void )
     return rc;
 }
 
+extern void acamera_notify_evt_data_avail(void);
 static void __exit fw_module_exit( void )
 {
-    LOG( LOG_NOTICE, "[KeyMsg] ISP main dev exit." );
+    pr_debug("ISP main dev exit.\n");
+
+    // wake up isp_process thread
+    acamera_notify_evt_data_avail();
 
     if ( initialized == 1 ) {
         isp_v4l2_destroy_instance();
         initialized = 0;
     }
-
 #if V4L2_SOC_SUBDEV_ENABLE
     v4l2_async_notifier_unregister( &g_subdevs.notifier );
 #endif
@@ -349,7 +400,7 @@ static void __exit fw_module_exit( void )
     close_hw_io();
     platform_driver_unregister( &isp_platform_driver );
 
-    LOG( LOG_NOTICE, "[KeyMsg] ISP main dev exit done." );
+    pr_info("ISP module exit done.\n");
 }
 
 module_init( fw_module_init );

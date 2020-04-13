@@ -25,6 +25,7 @@
 #include "acamera_fw.h"
 #include "acamera_firmware_api.h"
 #include "acamera_firmware_config.h"
+#include "acamera_command_api.h"
 #include "acamera_calibrations.h"
 #include "acamera.h"
 #include "acamera_math.h"
@@ -40,6 +41,8 @@
 #if FW_HAS_CONTROL_CHANNEL
 #include "acamera_ctrl_channel.h"
 #endif
+#include "application_command_api.h"
+#include "runtime_initialization_settings.h"
 
 #if ISP_DMA_RAW_CAPTURE
 #include "dma_raw_capture.h"
@@ -134,8 +137,7 @@ static int32_t validate_settings( acamera_settings *settings, uint32_t ctx_num )
 
     if ( settings != NULL ) {
         // validate parameters for all input contexts
-        for ( idx = 0; idx < ctx_num; idx++ ) {
-            acamera_settings *ctx_set = &settings[idx];
+            acamera_settings *ctx_set = &settings[ctx_num];
             if ( ctx_set->sensor_init == NULL ||
                  ctx_set->sensor_deinit == NULL ||
                  ctx_set->get_calibrations == NULL ) {
@@ -151,7 +153,6 @@ static int32_t validate_settings( acamera_settings *settings, uint32_t ctx_num )
                 LOG( LOG_CRIT, "DS Frames are expected while DS block is not present in hardware for the context %d", idx );
             }
 #endif
-        }
     } else {
         result = -1;
     }
@@ -315,151 +316,156 @@ void acamera_update_cur_settings_to_isp( uint32_t fw_ctx_id )
 
 #else /* #if USER_MODULE */
 
+int acamera_isp_init_context(uint8_t idx)
+{
+    int i = 0;
+    int ret = 0;
+    acamera_context_t *p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[idx];
+
+    pr_info("+\n");
+    ret = validate_settings( settings, idx );
+    if (ret < 0) {
+        pr_err("settings[%d] validate not correct\n", idx);
+        return ret;
+    }
+
+    for (i = 0; g_firmware.initialized == 0 && i < FIRMWARE_CONTEXT_NUMBER; i++) {
+        pr_info("copy data from isp hw to sram %d\n", i);
+        system_dma_copy_sg( g_firmware.dma_chan_isp_config, ISP_CONFIG_PING, SYS_DMA_FROM_DEVICE, 0, i );
+#if FW_USE_HOBOT_DMA
+        isp_idma_start_transfer(&g_hobot_dma);
+        system_dma_wait_done(g_firmware.dma_chan_isp_config);
+#endif
+    }
+
+    ret = acamera_init_context( p_ctx, &settings[idx], &g_firmware );
+    if (ret == 0) {
+
+        if (g_firmware.initialized != 0) {
+            pr_debug("ping/pong have been inited\n");
+            goto out;
+        }
+
+        // system_dma_copy current software context to the ping and pong
+        system_dma_copy_sg( g_firmware.dma_chan_isp_config, ISP_CONFIG_PING, SYS_DMA_TO_DEVICE, 0, idx );
+#if FW_USE_HOBOT_DMA
+        isp_idma_start_transfer(&g_hobot_dma);
+        system_dma_wait_done(g_firmware.dma_chan_isp_config);
+#endif
+        system_dma_copy_sg( g_firmware.dma_chan_isp_config, ISP_CONFIG_PONG, SYS_DMA_TO_DEVICE, 0, idx );
+#if FW_USE_HOBOT_DMA
+        isp_idma_start_transfer(&g_hobot_dma);
+        system_dma_wait_done(g_firmware.dma_chan_isp_config);
+#endif
+        g_firmware.initialized = 1;
+
+        acamera_isp_isp_global_mcu_override_config_select_write( 0, 1 ); //put ping pong in slave mode
+        g_firmware.dma_flag_isp_config_completed = 1;
+        g_firmware.dma_flag_isp_metering_completed = 1;
+
+        // active context, for acamera_get_api_context calling
+        acamera_command( idx, TGENERAL, ACTIVE_CONTEXT, idx, COMMAND_SET, &ret );
+        pr_info("context-%d copy to isp ping/pong\n", idx);
+    } else {
+        g_firmware.initialized = 0;
+        pr_err("acamera context init failed, ret = %d\n", ret);
+    }
+
+out:
+    pr_info("-\n");
+
+    return ret;
+}
+
+int acamera_isp_firmware_clear(void)
+{
+    g_firmware.initialized = 0;
+    g_firmware.dma_flag_isp_config_completed = 0;
+    g_firmware.dma_flag_isp_metering_completed = 0;   
+
+    return 0;
+}
+
 int32_t acamera_init( acamera_settings *settings, uint32_t ctx_num )
 {
     int32_t result = 0;
     uint32_t idx;
 
-    result = validate_settings( settings, ctx_num );
-
-    if ( result == 0 ) {
-
-        // disable irq and clear interrupts
-        acamera_isp_isp_global_interrupt_mask_vector_write( 0, ISP_IRQ_DISABLE_ALL_IRQ );
-
+    // disable irq and clear interrupts
+    acamera_isp_isp_global_interrupt_mask_vector_write( 0, ISP_IRQ_DISABLE_ALL_IRQ );
 
 #if ACAMERA_ISP_PROFILING && ACAMERA_ISP_PROFILING_INIT
-        acamera_profiler_init();
-        acamera_profiler_start( 0 );
+    acamera_profiler_init();
+    acamera_profiler_start( 0 );
 #endif
+
+    g_firmware.api_context = 0;
+
+    system_semaphore_init(&g_firmware.sem_event_process_done);
+    system_semaphore_init( &g_firmware.sem_evt_avail );
+
+    if ( ctx_num <= FIRMWARE_CONTEXT_NUMBER ) {
+
+        g_firmware.context_number = ctx_num;
+
+        result = system_dma_init( &g_firmware.dma_chan_isp_config );
+        result |= system_dma_init( &g_firmware.dma_chan_isp_metering );
+        if ( result == 0 ) {
+            LOG( LOG_INFO, "DMA Channels allocated 0x%x and 0x%x", g_firmware.dma_chan_isp_config, g_firmware.dma_chan_isp_metering );
+            // allocate memory for dma transfers
+            for ( idx = 0; idx < ctx_num; idx++ ) {
+                acamera_context_t *p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[idx];
+                LOG( LOG_INFO, "Initialize context %d, context size is %d bytes", idx, sizeof( struct _acamera_context_t ) );
+                system_memset( (void *)p_ctx, 0x0, sizeof( struct _acamera_context_t ) );
+                // each context has unique id
+                p_ctx->context_id = idx;
+
+                // dump hw default configuration to the current context
+
+#if FW_USE_HOBOT_DMA
+                p_ctx->sw_reg_map.isp_sw_config_map = system_sw_alloc_dma_sram(HOBOT_DMA_SRAM_ONE_ZONE,
+                                                                                p_ctx->context_id,
+                                                                                &p_ctx->sw_reg_map.isp_sw_phy_addr);
+#else
+                p_ctx->sw_reg_map.isp_sw_config_map = system_sw_alloc(HOBOT_DMA_SRAM_SIZE);
+                p_ctx->sw_reg_map.isp_sw_phy_addr = 0;  // no use when DMA mode disable
+#endif
+                if ( p_ctx->sw_reg_map.isp_sw_config_map ) {
+                    result = dma_channel_addresses_setup( g_firmware.dma_chan_isp_config, g_firmware.dma_chan_isp_metering,
+                                        (void *)p_ctx->sw_reg_map.isp_sw_config_map, idx, settings->hw_isp_addr,
+                                        p_ctx->sw_reg_map.isp_sw_phy_addr);
+                } else {
+                    LOG( LOG_CRIT, "Software Context %d failed to allocate", idx );
+                    result = -1;
+                }
 
 #if FW_HAS_CONTROL_CHANNEL
-    for ( idx = 0; idx < ctx_num; idx++ ) {
-        ctrl_channel_init(idx);
-    }
+                ctrl_channel_init(idx);
 #endif
-
-        if ( result == 0 ) {
-
-            g_firmware.api_context = 0;
-
-	    system_semaphore_init(&g_firmware.sem_event_process_done);
-            system_semaphore_init( &g_firmware.sem_evt_avail );
-
-            if ( ctx_num <= FIRMWARE_CONTEXT_NUMBER ) {
-
-                g_firmware.context_number = ctx_num;
-
-                result = system_dma_init( &g_firmware.dma_chan_isp_config );
-                result |= system_dma_init( &g_firmware.dma_chan_isp_metering );
-                if ( result == 0 ) {
-                    LOG( LOG_INFO, "DMA Channels allocated 0x%x and 0x%x", g_firmware.dma_chan_isp_config, g_firmware.dma_chan_isp_metering );
-                    // allocate memory for dma transfers
-                    for ( idx = 0; idx < ctx_num; idx++ ) {
-                        acamera_context_t *p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[idx];
-                        LOG( LOG_INFO, "Initialize context %d, context size is %d bytes", idx, sizeof( struct _acamera_context_t ) );
-                        system_memset( (void *)p_ctx, 0x0, sizeof( struct _acamera_context_t ) );
-                        // each context has unique id
-                        p_ctx->context_id = idx;
-
-                        // dump hw default configuration to the current context
-
-#if FW_USE_HOBOT_DMA
-                        p_ctx->sw_reg_map.isp_sw_config_map = system_sw_alloc_dma_sram(HOBOT_DMA_SRAM_ONE_ZONE,
-                                                                                        p_ctx->context_id,
-                                                                                        &p_ctx->sw_reg_map.isp_sw_phy_addr);
-#else
-                        p_ctx->sw_reg_map.isp_sw_config_map = system_sw_alloc(HOBOT_DMA_SRAM_SIZE);
-                        p_ctx->sw_reg_map.isp_sw_phy_addr = 0;  // no use when DMA mode disable
-#endif
-                        if ( p_ctx->sw_reg_map.isp_sw_config_map ) {
-                            result = dma_channel_addresses_setup( g_firmware.dma_chan_isp_config, g_firmware.dma_chan_isp_metering,
-                                                (void *)p_ctx->sw_reg_map.isp_sw_config_map, idx, settings->hw_isp_addr,
-                                                p_ctx->sw_reg_map.isp_sw_phy_addr);
-                        } else {
-                            LOG( LOG_CRIT, "Software Context %d failed to allocate", idx );
-                            result = -1;
-                        }
-
-                        if ( result )
-                            break;
-
-                        system_dma_copy_sg( g_firmware.dma_chan_isp_config, ISP_CONFIG_PING, SYS_DMA_FROM_DEVICE, 0, idx );
-#if FW_USE_HOBOT_DMA
-    			isp_idma_start_transfer(&g_hobot_dma);
-			system_dma_wait_done(g_firmware.dma_chan_isp_config);
-#endif
-                        // init context
-                        result = acamera_init_context( p_ctx, &settings[idx], &g_firmware );
-                        if ( result == 0 ) {
-                            // initialize ping
-                            LOG( LOG_INFO, "DMA config from DDR to ping and pong of size %d", ACAMERA_ISP1_SIZE );
-                            // system_dma_copy current software context to the ping and pong
-                            system_dma_copy_sg( g_firmware.dma_chan_isp_config, ISP_CONFIG_PING, SYS_DMA_TO_DEVICE, 0, idx );
-#if FW_USE_HOBOT_DMA
-			    isp_idma_start_transfer(&g_hobot_dma);
-			    system_dma_wait_done(g_firmware.dma_chan_isp_config);
-#endif
-                            system_dma_copy_sg( g_firmware.dma_chan_isp_config, ISP_CONFIG_PONG, SYS_DMA_TO_DEVICE, 0, idx );
-#if FW_USE_HOBOT_DMA
-			    isp_idma_start_transfer(&g_hobot_dma);
-			    system_dma_wait_done(g_firmware.dma_chan_isp_config);
-#endif
-                            if ( result == 0 ) {
-#if ISP_SENSOR_DRIVER_MODEL != 1
-                                // avoid interrupt status check against the model
-                                while ( acamera_isp_isp_global_interrupt_status_vector_read( 0 ) != 0 ) {
-                                    // driver is initialized. we can start processing interrupts
-                                    // wait until irq mask is cleared and start processing
-                                    acamera_isp_isp_global_interrupt_clear_write( 0, 0 );
-                                    acamera_isp_isp_global_interrupt_clear_write( 0, 1 );
-                                }
-#endif // #if ISP_SENSOR_DRIVER_MODEL != 1
-                                //acamera_isp_isp_global_interrupt_mask_vector_write( 0, ISP_IRQ_MASK_VECTOR );
-                                g_firmware.initialized = 1;
-                            } else {
-                                LOG( LOG_CRIT, "One or more contexts were not initialized properly. " );
-                                g_firmware.initialized = 0;
-                                break;
-                            }
-                        } else {
-                            LOG( LOG_CRIT, "Failed to initialized the context %d", (int)idx );
-                            break;
-                        }
-                    }
-                } else {
-                    result = -1;
-                    LOG( LOG_CRIT, "Failed to initialize the system DMA engines" );
-                }
-            } else {
-                result = -1;
-                LOG( LOG_CRIT, "Failed to initialized the firmware context. Not enough memory. " );
+                if ( result )
+                    break;
             }
         } else {
-            LOG( LOG_CRIT, "Failed to initialized the BSP. Please implement the BSP layer and recompile the firmware" );
             result = -1;
+            LOG( LOG_CRIT, "Failed to initialize the system DMA engines" );
         }
+    } else {
+        result = -1;
+        LOG( LOG_CRIT, "Failed to initialized the firmware context. Not enough memory. " );
+    }
 
 #if ACAMERA_ISP_PROFILING && ACAMERA_ISP_PROFILING_INIT
-        acamera_profiler_stop( 0, 1 );
-        acamera_profiler_report();
+    acamera_profiler_stop( 0, 1 );
+    acamera_profiler_report();
 #endif
 
 
 #if ISP_HAS_DMA_INPUT
-        fpga_dma_input_init( &g_firmware );
+    fpga_dma_input_init( &g_firmware );
 #endif
-
-    } else {
-        LOG( LOG_CRIT, "Input initializations settings are not correct" );
-        result = -1;
-    }
 
     isp_register_callback(sif_isp_ctx_sync_func);
 
-    acamera_isp_isp_global_mcu_override_config_select_write( 0, 1 ); //put ping pong in slave mode
-    g_firmware.dma_flag_isp_config_completed = 1;
-    g_firmware.dma_flag_isp_metering_completed = 1;
     return result;
 }
 
@@ -1077,6 +1083,7 @@ pr_info("hcs1 %d, hcs2 %d, vc %d\n", hcs1, hcs2, vc);
 #endif // USER_MODULE
 
 extern int isp_stream_onoff_check(void);
+extern void system_interrupts_disable( void );
 int32_t acamera_process( void )
 {
     int32_t result = 0;
@@ -1090,7 +1097,6 @@ int32_t acamera_process( void )
         }
     } else {
         result = -1;
-        LOG( LOG_CRIT, "Firmware was not initialized properly. Please initialize the firmware before call acamera_process" );
     }
 
 #if FW_HAS_CONTROL_CHANNEL
@@ -1099,12 +1105,11 @@ int32_t acamera_process( void )
 
     system_semaphore_raise(g_firmware.sem_event_process_done);
 
-    /* acamera_fsm_mgr_process_events will disable/enable irq each loop, 
-    that will causing exception when resume from suspend, disable irq when no stream on */
+    /* disable irq when no stream on, else will blocking when resuming from suspend */
     if (isp_stream_onoff_check() == 0)
-        acamera_isp_interrupts_disable(&p_ctx->fsm_mgr);
+        system_interrupts_disable();
 
-    //system_semaphore_wait( g_firmware.sem_evt_avail, FW_EVT_QUEUE_TIMEOUT_MS );
+    // system_semaphore_wait( g_firmware.sem_evt_avail, FW_EVT_QUEUE_TIMEOUT_MS );
     system_semaphore_wait( g_firmware.sem_evt_avail, 0 );
 
     return result;

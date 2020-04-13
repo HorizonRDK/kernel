@@ -17,6 +17,7 @@
 *
 */
 
+#define pr_fmt(fmt) "[isp_drv]: %s: " fmt, __func__
 #include "acamera_command_api.h"
 
 
@@ -33,7 +34,12 @@
 extern void * acamera_get_ctx_ptr( uint32_t ctx_id );
 
 uint8_t acamera_command( uint32_t ctx_id, uint8_t command_type, uint8_t command, uint32_t value, uint8_t direction, uint32_t *ret_value){
-acamera_fsm_mgr_t *instance = &((acamera_context_ptr_t)acamera_get_ctx_ptr(ctx_id))->fsm_mgr;
+acamera_context_ptr_t p_ctx = acamera_get_ctx_ptr(ctx_id);
+if (p_ctx->initialized == 0) {
+	pr_err("context %d is not initialized.\n", ctx_id);
+	return -1;
+}
+acamera_fsm_mgr_t *instance = &p_ctx->fsm_mgr;
 uint8_t ret = NOT_EXISTS;
 switch (command_type){
 case  TGENERAL:

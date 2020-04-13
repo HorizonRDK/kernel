@@ -16,12 +16,13 @@
 * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 *
 */
-
+#define pr_fmt(fmt) "[isp_drv]: %s: " fmt, __func__
 #include <linux/kernel.h>
 #include <linux/slab.h>
 #include <linux/mm.h>
 #include <linux/fs.h>
-#include <linux/miscdevice.h>
+#include <linux/cdev.h>
+#include <linux/device.h>
 #include <linux/kfifo.h>
 #include <linux/sched.h>
 #include <linux/wait.h>
@@ -39,7 +40,9 @@ struct ctrl_channel_dev_context {
     char dev_name[16];
     int dev_opened;
 
-    struct miscdevice ctrl_dev;
+    struct device *ctrl_dev;
+    dev_t ctrl_devno;
+    struct cdev ctrl_cdev;
     struct mutex fops_lock;
 
     struct kfifo ctrl_kfifo_in;
@@ -49,6 +52,7 @@ struct ctrl_channel_dev_context {
 };
 
 static struct ctrl_channel_dev_context ctrl_channel_ctx[FIRMWARE_CONTEXT_NUMBER];
+extern struct class *vps_class;
 
 static int ctrl_channel_fops_open( struct inode *inode, struct file *f )
 {
@@ -221,19 +225,40 @@ int ctrl_channel_init(int ctx_id)
 {
     int rc;
 
-    memset( &ctrl_channel_ctx[ctx_id], 0, sizeof( ctrl_channel_ctx ) );
-    ctrl_channel_ctx[ctx_id].ctrl_dev.name = ctrl_channel_ctx[ctx_id].dev_name;
-    sprintf(ctrl_channel_ctx[ctx_id].dev_name, CTRL_CHANNEL_DEV_NAME, ctx_id);
-    ctrl_channel_ctx[ctx_id].ctrl_dev.minor = ctx_id;
-    ctrl_channel_ctx[ctx_id].ctrl_dev.fops = &isp_fops;
+    if (ctx_id >= FIRMWARE_CONTEXT_NUMBER) {
+        rc = -1;
+        pr_err("ctx_id %d exceed valid range\n", ctx_id);
+        return rc;
+    }
 
-    rc = misc_register( &ctrl_channel_ctx[ctx_id].ctrl_dev );
-    if ( rc ) {
+    memset( &ctrl_channel_ctx[ctx_id], 0, sizeof( ctrl_channel_ctx ) );
+    sprintf(ctrl_channel_ctx[ctx_id].dev_name, CTRL_CHANNEL_DEV_NAME, ctx_id);
+
+    rc = alloc_chrdev_region(&ctrl_channel_ctx[ctx_id].ctrl_devno, ctx_id, 1, ctrl_channel_ctx[ctx_id].dev_name);
+    if (rc < 0) {
         LOG( LOG_ERR, "Error: register ISP ctrl channel device failed, ret: %d.", rc );
         return rc;
     }
 
-    ctrl_channel_ctx[ctx_id].dev_minor_id = ctrl_channel_ctx[ctx_id].ctrl_dev.minor;
+    cdev_init(&ctrl_channel_ctx[ctx_id].ctrl_cdev, &isp_fops);
+    ctrl_channel_ctx[ctx_id].ctrl_cdev.owner = THIS_MODULE;
+    rc = cdev_add(&ctrl_channel_ctx[ctx_id].ctrl_cdev, ctrl_channel_ctx[ctx_id].ctrl_devno, 1);
+    if (rc < 0) {
+        LOG( LOG_ERR, "Error: cdev add ISP ctrl channel device failed, ret: %d.", rc );
+        unregister_chrdev_region(ctrl_channel_ctx[ctx_id].ctrl_devno, 1);
+        return rc;
+    }
+    ctrl_channel_ctx[ctx_id].dev_minor_id = MINOR(ctrl_channel_ctx[ctx_id].ctrl_devno);
+
+    ctrl_channel_ctx[ctx_id].ctrl_dev = device_create(vps_class, NULL,
+                    MKDEV(MAJOR(ctrl_channel_ctx[ctx_id].ctrl_devno), ctx_id),
+                    NULL, ctrl_channel_ctx[ctx_id].dev_name);
+    if (IS_ERR(ctrl_channel_ctx[ctx_id].ctrl_dev)) {
+            rc = -EINVAL;
+            pr_err("create device %s failed\n", ctrl_channel_ctx[ctx_id].dev_name);
+            goto failed_kfifo_in_alloc;
+    }
+
     mutex_init( &ctrl_channel_ctx[ctx_id].fops_lock );
 
     rc = kfifo_alloc( &ctrl_channel_ctx[ctx_id].ctrl_kfifo_in, CTRL_CHANNEL_FIFO_INPUT_SIZE, GFP_KERNEL );
@@ -250,16 +275,17 @@ int ctrl_channel_init(int ctx_id)
 
     ctrl_channel_ctx[ctx_id].dev_inited = 1;
 
-    LOG( LOG_INFO, "ctrl_channel_dev_context(%s) init OK.", ctrl_channel_ctx[ctx_id].dev_name );
+    pr_debug( "ctrl_channel_dev_context(%s@%d) init OK.", ctrl_channel_ctx[ctx_id].dev_name, ctrl_channel_ctx[ctx_id].dev_minor_id );
 
     return 0;
 
 failed_kfifo_out_alloc:
     kfifo_free( &ctrl_channel_ctx[ctx_id].ctrl_kfifo_in );
 failed_kfifo_in_alloc:
-    misc_deregister( &ctrl_channel_ctx[ctx_id].ctrl_dev );
+    cdev_del( &ctrl_channel_ctx[ctx_id].ctrl_cdev );
+    unregister_chrdev_region(ctrl_channel_ctx[ctx_id].ctrl_devno, 1);
 
-    LOG( LOG_ERR, "Error: init failed for dev: %s.", ctrl_channel_ctx[ctx_id].ctrl_dev.name );
+    LOG( LOG_ERR, "Error: init failed for dev: %s.", ctrl_channel_ctx[ctx_id].dev_name );
     return rc;
 }
 
@@ -270,9 +296,10 @@ void ctrl_channel_deinit(int ctx_id)
 
         kfifo_free( &ctrl_channel_ctx[ctx_id].ctrl_kfifo_out );
 
-        misc_deregister( &ctrl_channel_ctx[ctx_id].ctrl_dev );
+        cdev_del( &ctrl_channel_ctx[ctx_id].ctrl_cdev );
+        unregister_chrdev_region(ctrl_channel_ctx[ctx_id].ctrl_devno, 1);
 
-        LOG( LOG_INFO, "misc_deregister dev: %s.", ctrl_channel_ctx[ctx_id].ctrl_dev.name );
+        pr_info("cdev del dev: %s.", ctrl_channel_ctx[ctx_id].dev_name );
     } else {
         LOG( LOG_INFO, "dev not inited, do nothing." );
     }

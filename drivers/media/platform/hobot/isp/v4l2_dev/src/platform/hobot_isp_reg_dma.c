@@ -238,7 +238,6 @@ void hobot_dma_init(hobot_dma_t *hobot_dma)
     // 2. check init status (if already inited, just exit)
     flags = system_spinlock_lock( hobot_dma->dma_ctrl_lock );
     if(hobot_dma->init_cnt>0) {
-        printk("%s: already inited (init_cnt=%d)\n", __FUNCTION__,hobot_dma->init_cnt);
         system_spinlock_unlock( hobot_dma->dma_ctrl_lock, flags );
         return;
     }

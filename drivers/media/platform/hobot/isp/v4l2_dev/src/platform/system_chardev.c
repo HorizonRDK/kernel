@@ -749,7 +749,7 @@ int system_chardev_init( void )
     return 0;
 }
 
-
+extern void *acamera_get_api_ctx_ptr( void );
 int system_chardev_read( char *data, int size )
 {
     int rc;
@@ -775,7 +775,12 @@ int system_chardev_read( char *data, int size )
         mutex_lock( &isp_dev_ctx.fops_lock );
     }
 
-    rc = kfifo_out( &isp_dev_ctx.isp_kfifo_in, data, size );
+	acamera_context_ptr_t context_ptr = (acamera_context_ptr_t)acamera_get_api_ctx_ptr();
+	if (context_ptr->initialized == 0) {
+		rc = -1;
+	} else {
+		rc = kfifo_out( &isp_dev_ctx.isp_kfifo_in, data, size );
+	}
 
     mutex_unlock( &isp_dev_ctx.fops_lock );
     return rc;

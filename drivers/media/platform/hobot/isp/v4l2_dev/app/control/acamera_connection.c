@@ -16,7 +16,7 @@
 * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 *
 */
-
+#define pr_fmt(fmt) "[isp_drv]: %s: " fmt, __func__
 #include "acamera_types.h"
 #include "acamera_logger.h"
 #include "acamera_math.h"
@@ -262,6 +262,13 @@ static uint8_t read_32( uint32_t addr )
 
 static void process_request( void )
 {
+    acamera_context_ptr_t context_ptr = (acamera_context_ptr_t)acamera_get_api_ctx_ptr();
+
+    if (context_ptr->initialized == 0) {
+        pr_err("context %d is not initialized.\n", context_ptr->context_id);
+        return;
+    }
+
     uint32_t *rx_buf = (uint32_t *)&con.buffer[8];
     uint32_t *tx_buf = (uint32_t *)con.buffer;
     uint16_t type = ( *rx_buf++ ) & 0xFFFF;

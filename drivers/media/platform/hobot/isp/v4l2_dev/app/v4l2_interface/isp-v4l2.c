@@ -16,7 +16,7 @@
 * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 *
 */
-
+#define pr_fmt(fmt) "[isp_drv]: %s: " fmt, __func__
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/mutex.h>
@@ -44,10 +44,9 @@
 /* isp_v4l2_dev_t to destroy video device */
 static isp_v4l2_dev_t *g_isp_v4l2_devs[FIRMWARE_CONTEXT_NUMBER];
 
-extern int acamera_fw_isp_prepare(int ctx_id);
 extern int acamera_fw_isp_start(int ctx_id);
 extern int acamera_fw_isp_stop(int ctx_id);
-
+extern int acamera_isp_init_context(uint8_t idx);
 /* ----------------------------------------------------------------
  * V4L2 file handle structures and functions
  * : implementing multi stream
@@ -117,7 +116,15 @@ static int isp_v4l2_fop_open( struct file *file )
     isp_v4l2_dev_t *dev = video_drvdata( file );
     struct isp_v4l2_fh *sp;
 
-    acamera_fw_isp_prepare(dev->ctx_id);
+    if (!(0 <= dev->ctx_id && dev->ctx_id < FIRMWARE_CONTEXT_NUMBER)) {
+        rc = -1;
+        pr_err("ctx_id %d exceed valid range\n", dev->ctx_id);
+        return rc;
+    }
+
+    rc = acamera_isp_init_context(dev->ctx_id);
+    if (rc != 0)
+        goto fh_open_fail;
 
     /* open file header */
     rc = isp_v4l2_fh_open( file );
@@ -268,7 +275,7 @@ static int isp_v4l2_querycap( struct file *file, void *priv, struct v4l2_capabil
 
     LOG( LOG_DEBUG, "dev: %p, file: %p, priv: %p.\n", dev, file, priv );
 
-    strcpy( cap->driver, "ARM-camera-isp" );
+    strcpy( cap->driver, "x3-isp" );
     strcpy( cap->card, "juno R2" );
     snprintf( cap->bus_info, sizeof( cap->bus_info ), "platform:%s", dev->v4l2_dev->name );
 
@@ -384,6 +391,12 @@ static int isp_v4l2_streamon( struct file *file, void *priv, enum v4l2_buf_type 
     isp_v4l2_stream_t *pstream = dev->pstreams[sp->stream_id];
     int rc = 0;
 
+    if (!(0 <= dev->ctx_id && dev->ctx_id < FIRMWARE_CONTEXT_NUMBER)) {
+        rc = -1;
+        pr_err("ctx_id %d exceed valid range\n", dev->ctx_id);
+        return rc;
+    }
+
     if ( isp_v4l2_is_q_busy( &sp->vb2_q, file ) )
         return -EBUSY;
 
@@ -398,7 +411,9 @@ static int isp_v4l2_streamon( struct file *file, void *priv, enum v4l2_buf_type 
 
     if (isp_stream_onoff_check() == 0) {
             ips_set_clk_ctrl(ISP0_CLOCK_GATE, true);
-            acamera_fw_isp_start(dev->ctx_id);
+            rc = acamera_fw_isp_start(dev->ctx_id);
+            if (rc != 0)
+                return rc;
     }
 
     /* Start hardware */

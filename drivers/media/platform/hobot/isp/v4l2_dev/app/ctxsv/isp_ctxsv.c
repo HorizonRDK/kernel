@@ -130,7 +130,7 @@ int isp_ctx_queue_init(void)
 
 	spin_lock_init(&lock);
 
-	pr_info("init done\n");
+	pr_debug("init done\n");
 
 	return 0;
 }

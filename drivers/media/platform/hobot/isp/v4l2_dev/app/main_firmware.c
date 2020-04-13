@@ -157,11 +157,11 @@ int isp_fw_init( uint32_t hw_isp_addr )
     bsp_init();
 
     if ( result == 0 ) {
-        uint32_t rc = 0;
-        uint32_t ctx_num;
-        uint32_t prev_ctx_num = 0;
+        // uint32_t rc = 0;
+        // uint32_t ctx_num;
+        // uint32_t prev_ctx_num = 0;
 
-        application_command( TGENERAL, ACTIVE_CONTEXT, 0, COMMAND_GET, &prev_ctx_num );
+        // application_command( TGENERAL, ACTIVE_CONTEXT, 0, COMMAND_GET, &prev_ctx_num );
 
         // set the interrupt handler. The last parameter may be used
         // to specify the context. The system must call this interrupt_handler
@@ -171,13 +171,14 @@ int isp_fw_init( uint32_t hw_isp_addr )
         system_interrupt_set_handler( interrupt_handler, NULL );
 
         // start streaming for sensors
+        /*
         for ( ctx_num = 0; ctx_num < FIRMWARE_CONTEXT_NUMBER; ctx_num++ ) {
             application_command( TGENERAL, ACTIVE_CONTEXT, ctx_num, COMMAND_SET, &rc );
             application_command( TSENSOR, SENSOR_STREAMING, ON, COMMAND_SET, &rc );
         }
 
         application_command( TGENERAL, ACTIVE_CONTEXT, prev_ctx_num, COMMAND_SET, &rc );
-
+        */
     } else {
         LOG( LOG_INFO, "Failed to start firmware processing thread. " );
     }

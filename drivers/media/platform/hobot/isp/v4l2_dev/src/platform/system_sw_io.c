@@ -412,8 +412,14 @@ void system_sw_write_8( uintptr_t addr, uint8_t data )
 void system_reg_rw(struct regs_t *rg, uint8_t dir)
 {
 	acamera_context_ptr_t context_ptr = (acamera_context_ptr_t)acamera_get_api_ctx_ptr();
-        uintptr_t sw_addr = context_ptr->settings.isp_base + rg->addr;
-        uint32_t data = system_sw_read_32(sw_addr);
+
+    if (context_ptr->initialized == 0) {
+        pr_err("context %d is not initialized.\n", context_ptr->context_id);
+        return;
+    }
+
+    uintptr_t sw_addr = context_ptr->settings.isp_base + rg->addr;
+    uint32_t data = system_sw_read_32(sw_addr);
 	uint32_t mask = BIT_FIELD_MASK(rg->m, rg->n);
 
 	if (dir == COMMAND_SET) {

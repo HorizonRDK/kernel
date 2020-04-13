@@ -391,7 +391,8 @@ void acamera_reload_isp_calibratons( general_fsm_ptr_t p_fsm )
 #endif
     }
 
-    if ( acamera_isp_isp_global_parameter_status_lut_3d_read( p_fsm->cmn.isp_base ) == 0 ) {
+    // this write will touch hardware, should be config at first open, however LUT3D is not used currently
+    if ( 0 && acamera_isp_isp_global_parameter_status_lut_3d_read( p_fsm->cmn.isp_base ) == 0 ) {
 #if defined( ACAMERA_LUT3D_MEM_ARRAY_DATA_DEFAULT )
         uint32_t lut3d_mem_len = _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_LUT3D_MEM );
         const uint32_t *p_lut3d_mem = _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_LUT3D_MEM );
