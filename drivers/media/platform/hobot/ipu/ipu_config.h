@@ -108,6 +108,7 @@ typedef struct ipu_src_ctrl_s {
 	uint8_t ds2_to_pym_en;
 	uint16_t ddr_in_buf_num;
 	int timeout;
+	int dq_select_timeout;
 } ipu_src_ctrl_t;
 
 typedef struct ipu_cfg_s {
