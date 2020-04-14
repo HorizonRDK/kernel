@@ -395,7 +395,7 @@ static int update_cur_calibration_to_sbuf( void *fw_instance, struct sbuf_mgr *p
         p_sbuf_cali_data += lut_size;
     }
 
-    p_sbuf_mgr->sbuf_base->kf_info.cali_info.is_fetched = 0;
+    // p_sbuf_mgr->sbuf_base->kf_info.cali_info.is_fetched = 0;
 
     return rc;
 }

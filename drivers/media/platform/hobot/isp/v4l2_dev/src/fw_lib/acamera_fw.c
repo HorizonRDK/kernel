@@ -594,6 +594,7 @@ int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settin
         //acamera_isp_input_port_mode_request_write( p_ctx->settings.isp_base, ACAMERA_ISP_INPUT_PORT_MODE_REQUEST_SAFE_START );
 
         p_ctx->initialized = 1;
+        p_ctx->system_state = FW_RUN;
         pr_info("ctx_id %d -\n", p_ctx->context_id);
     } else {
         result = -1;
