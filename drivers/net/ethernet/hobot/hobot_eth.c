@@ -4836,7 +4836,8 @@ static ssize_t phy_addr_show(struct device *dev, struct device_attribute *attr,
 
     size_t ret = 0;
 
-    ret = snprintf(buf, "%x\n", priv->sysfs_phy_addr);
+    ret = snprintf(buf, sizeof(priv->sysfs_phy_addr)*2 + 2, "%x\n",
+                   priv->sysfs_phy_addr);
     return ret;
 }
 
@@ -4936,7 +4937,16 @@ static int xj3_dvr_probe(struct device *device,
     struct net_device *ndev = NULL;
     struct xj3_priv *priv;
     int ret = 0;
+    int timeout = 4;
     u32 queue;
+
+    writel(DMA_BUS_MODE_SFT_RESET, xj3_res->addr + DMA_BUS_MODE);
+    while (--timeout) {
+        udelay(1);
+        if (readl(xj3_res->addr + DMA_BUS_MODE) & DMA_BUS_MODE_SFT_RESET)
+            continue;
+        break;
+    }
 
     ndev = alloc_etherdev_mqs(sizeof(struct xj3_priv), MTL_MAX_TX_QUEUES,
                               MTL_MAX_RX_QUEUES);
