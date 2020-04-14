@@ -79,6 +79,10 @@ int sif_isp_ctx_sync_func(int ctx_id);
 static DECLARE_WAIT_QUEUE_HEAD(wq);
 static DECLARE_WAIT_QUEUE_HEAD(wq_fe);
 
+static int cur_ctx_id;
+static int last_ctx_id;
+static int next_ctx_id;
+
 #if FW_USE_HOBOT_DMA
 extern hobot_dma_t g_hobot_dma;
 #endif
@@ -323,6 +327,21 @@ int acamera_isp_init_context(uint8_t idx)
     acamera_context_t *p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[idx];
 
     pr_info("+\n");
+
+    for (i = 0; i < FIRMWARE_CONTEXT_NUMBER; i++) {
+        acamera_context_t *ctx_tmp = (acamera_context_t *)acamera_get_ctx_ptr(i);
+        pr_debug("ctx-%d offline st %d\n", i, ctx_tmp->sif_isp_offline);
+        if (ctx_tmp->sif_isp_offline == 1)
+            break;
+    }
+
+    // no stream running, update flag for online use
+    if (i >= FIRMWARE_CONTEXT_NUMBER) {
+        cur_ctx_id = idx;
+        last_ctx_id = idx;
+        next_ctx_id = idx;
+    }
+
     ret = validate_settings( settings, idx );
     if (ret < 0) {
         pr_err("settings[%d] validate not correct\n", idx);
@@ -342,7 +361,7 @@ int acamera_isp_init_context(uint8_t idx)
     if (ret == 0) {
 
         if (g_firmware.initialized != 0) {
-            pr_debug("ping/pong have been inited\n");
+            pr_debug("g_firmware have been inited, don't need touch isp hw ping/pong\n");
             goto out;
         }
 
@@ -531,9 +550,6 @@ int32_t acamera_interrupt_handler()
 }
 #else
 
-static int cur_ctx_id;
-static int last_ctx_id;
-static int next_ctx_id;
 static void start_processing_frame( void )
 {
 #if ISP_HAS_DMA_INPUT
@@ -854,6 +870,7 @@ static void set_dma_cmd_queue(dma_cmd *cmd, uint32_t ping_pong_sel)
 
 void isp_ctx_prepare(int ctx_pre, int ctx_next, int ppf)
 {
+    pr_debug("ctx_pre %d, ctx_next %d, ppf %d\n", ctx_pre, ctx_next, ppf);
 #if FW_USE_HOBOT_DMA
 	dma_cmd cmd[2];
 	if (ctx_pre == ctx_next) {

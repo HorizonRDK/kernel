@@ -148,6 +148,9 @@ int acamera_fw_isp_stop(int ctx_id)
 
     rc = isp_safe_stop(p_ctx->settings.isp_base);
 
+    p_ctx->sif_isp_offline = 0;
+    p_ctx->system_state = FW_PAUSE;
+
 	if (!rc)
 		pr_info("done.\n");
 

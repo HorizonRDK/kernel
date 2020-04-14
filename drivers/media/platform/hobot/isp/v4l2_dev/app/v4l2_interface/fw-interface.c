@@ -1361,8 +1361,9 @@ int fw_intf_cfa_pattern_ctrl(uint32_t ctx_id, uint32_t ctrl_val)
     if (MONOCHROME == ctrl_val) {
         acamera_isp_top_bypass_demosaic_rgb_write(ptr->settings.isp_base, 1);
         acamera_isp_top_bypass_white_balance_write(ptr->settings.isp_base, 1);
-        acamera_isp_top_bypass_3d_lut_write(ptr->settings.isp_base, 1);
     }
+
+    acamera_isp_top_bypass_3d_lut_write(ptr->settings.isp_base, 1);
 
     return 0;
 }
