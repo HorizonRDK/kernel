@@ -44,6 +44,7 @@
 #define MIPI_DEV_CFGCLK_NAME	"mipi_cfg_host"
 #define MIPI_DEV_CFGCLK_MHZ		24000000UL
 #define MIPI_DEV_REFCLK_NAME	"mipi_dev_ref"
+#define MIPI_DEV_REFCLK_MHZ		24000000UL
 
 static unsigned int port_num;
 module_param(port_num, uint, 0444);
@@ -333,7 +334,30 @@ static int32_t mipi_dev_initialize_ipi(mipi_ddev_t *ddev, mipi_dev_cfg_t *cfg)
 	return 0;
 }
 
+/**
+ * @brief mipi_dev_configure_cmp: configure compare.
+ *
+ * @param [in] scfg dcfg: mipi dev configure
+ *
+ * @return int32_t: 0/-1
+ */
+static int32_t mipi_dev_configure_cmp(mipi_dev_cfg_t *scfg, mipi_dev_cfg_t *dcfg)
+{
+	mipi_dev_cfg_t bcfg;
+
+	if (!scfg || !dcfg)
+		return -1;
+
+	memcpy(&bcfg, scfg, sizeof(mipi_dev_cfg_t));
+	if (dcfg->ipi_lines == 0)
+		bcfg.ipi_lines = 0;
+
+	return memcmp(&bcfg, dcfg, sizeof(mipi_dev_cfg_t));
+}
+
 #ifdef CONFIG_HOBOT_XJ3
+int vio_clk_enable(const char *name);
+int vio_clk_disable(const char *name);
 int vio_set_clk_rate(const char *name, ulong frequency);
 ulong vio_get_clk_rate(const char *name);
 #endif
@@ -352,9 +376,11 @@ static int32_t mipi_dev_configure_clk(mipi_ddev_t *ddev, const char *name,
 	struct device *dev = ddev->dev;
 	ulong clk;
 
+	if (freq == 0)
+		return vio_clk_disable(name);
+
 	clk = vio_get_clk_rate(name);
-	if (clk != freq)
-	{
+	if (clk != freq) {
 		vio_set_clk_rate(name, freq);
 		if (checkequ) {
 			clk = vio_get_clk_rate(name);
@@ -366,6 +392,7 @@ static int32_t mipi_dev_configure_clk(mipi_ddev_t *ddev, const char *name,
 			}
 		}
 	}
+	ret = vio_clk_enable(name);
 #endif
 	return ret;
 }
@@ -1022,11 +1049,14 @@ static int hobot_mipi_dev_close(struct inode *inode, struct file *file)
 	if (user->open_cnt > 0)
 		user->open_cnt--;
 	mipidbg("close as %d", user->open_cnt);
-	if (user->open_cnt == 0 &&
-		mdev->state != MIPI_STATE_DEFAULT) {
-		mipi_dev_stop(ddev);
-		mipi_dev_deinit(ddev);
-		mdev->state = MIPI_STATE_DEFAULT;
+	if (user->open_cnt == 0) {
+		if (mdev->state != MIPI_STATE_DEFAULT) {
+			mipi_dev_stop(ddev);
+			mipi_dev_deinit(ddev);
+			mdev->state = MIPI_STATE_DEFAULT;
+		}
+		mipi_dev_configure_clk(ddev, MIPI_DEV_CFGCLK_NAME, 0, 0);
+		mipi_dev_configure_clk(ddev, MIPI_DEV_REFCLK_NAME, 0, 0);
 	}
 	spin_unlock(&user->slock);
 
@@ -1046,6 +1076,8 @@ static int hobot_mipi_dev_open(struct inode *inode, struct file *file)
 		mutex_init(&user->mutex);
 		user->init_cnt = 0;
 		user->start_cnt = 0;
+		mipi_dev_configure_clk(ddev, MIPI_DEV_CFGCLK_NAME, MIPI_DEV_CFGCLK_MHZ, 1);
+		mipi_dev_configure_clk(ddev, MIPI_DEV_REFCLK_NAME, MIPI_DEV_REFCLK_MHZ, 1);
 	}
 	user->open_cnt++;
 	spin_unlock(&user->slock);
@@ -1104,7 +1136,7 @@ static long hobot_mipi_dev_ioctl(struct file *file, unsigned int cmd, unsigned l
 					return ret;
 				}
 				mdev->state = MIPI_STATE_INIT;
-			} else if (memcmp(&mdev->cfg, &mipi_dev_cfg, sizeof(mipi_dev_cfg_t))) {
+			} else if (mipi_dev_configure_cmp(&mdev->cfg, &mipi_dev_cfg)) {
 				mipiinfo("warning: init config mismatch");
 			}
 			user->init_cnt++;
@@ -1745,7 +1777,6 @@ static int hobot_mipi_dev_probe_param(void)
 #ifdef ADJUST_CLK_RECALCULATION
 		param->power_instart = 1;
 #endif
-		mipi_dev_configure_clk(ddev, MIPI_DEV_CFGCLK_NAME, MIPI_DEV_CFGCLK_MHZ, 1);
 		hobot_mipi_dev_phy_register(ddev);
 		g_ddev[i] = ddev;
 		port_num ++;
@@ -1867,7 +1898,6 @@ static int hobot_mipi_dev_probe(struct platform_device *pdev)
 		goto err_cdev;
 	}
 
-	mipi_dev_configure_clk(ddev, MIPI_DEV_CFGCLK_NAME, MIPI_DEV_CFGCLK_MHZ, 1);
 	hobot_mipi_dev_phy_register(ddev);
 	g_ddev[port] = ddev;
 	port_num ++;

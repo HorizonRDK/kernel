@@ -48,6 +48,7 @@
 #define MIPI_HOST_CFGCLK_NAME	"mipi_cfg_host"
 #define MIPI_HOST_CFGCLK_MHZ	24000000UL
 #define MIPI_HOST_REFCLK_NAME	"mipi_host_ref"
+#define MIPI_HOST_REFCLK_MHZ	24000000UL
 #define MIPI_HOST_IPICLK_NAME(x)	"mipi_rx" __stringify(x) "_ipi"
 #define MIPI_HOST_SNRCLK_NAME(x)	"sensor" __stringify(x) "_mclk"
 
@@ -560,7 +561,34 @@ static int32_t mipi_host_configure_ipi(mipi_hdev_t *hdev, mipi_host_cfg_t *cfg)
 	return 0;
 }
 
+/**
+ * @brief mipi_host_configure_cmp: configure compare.
+ *
+ * @param [in] scfg dcfg: mipi host configure
+ *
+ * @return int32_t: 0/-1
+ */
+static int32_t mipi_host_configure_cmp(mipi_host_cfg_t *scfg, mipi_host_cfg_t *dcfg)
+{
+	mipi_host_cfg_t bcfg;
+
+	if (!scfg || !dcfg)
+		return -1;
+
+	memcpy(&bcfg, scfg, sizeof(mipi_host_cfg_t));
+	if (dcfg->hsaTime == 0)
+		bcfg.hsaTime = 0;
+	if (dcfg->hbpTime == 0)
+		bcfg.hbpTime = 0;
+	if (dcfg->hsdTime == 0)
+		bcfg.hsdTime = 0;
+
+	return memcmp(&bcfg, dcfg, sizeof(mipi_host_cfg_t));
+}
+
 #ifdef CONFIG_HOBOT_XJ3
+int vio_clk_enable(const char *name);
+int vio_clk_disable(const char *name);
 int vio_set_clk_rate(const char *name, ulong frequency);
 ulong vio_get_clk_rate(const char *name);
 #endif
@@ -579,9 +607,11 @@ static int32_t mipi_host_configure_clk(mipi_hdev_t *hdev, const char *name,
 	struct device *dev = hdev->dev;
 	ulong clk;
 
+	if (freq == 0)
+		return vio_clk_disable(name);
+
 	clk = vio_get_clk_rate(name);
-	if (clk != freq)
-	{
+	if (clk != freq) {
 		vio_set_clk_rate(name, freq);
 		if (checkequ) {
 			clk = vio_get_clk_rate(name);
@@ -593,6 +623,7 @@ static int32_t mipi_host_configure_clk(mipi_hdev_t *hdev, const char *name,
 			}
 		}
 	}
+	ret = vio_clk_enable(name);
 #endif
 	return ret;
 }
@@ -1455,6 +1486,8 @@ static int hobot_mipi_host_open(struct inode *inode, struct file *file)
 		mutex_init(&user->mutex);
 		user->init_cnt = 0;
 		user->start_cnt = 0;
+		mipi_host_configure_clk(hdev, MIPI_HOST_CFGCLK_NAME, MIPI_HOST_CFGCLK_MHZ, 1);
+		mipi_host_configure_clk(hdev, MIPI_HOST_REFCLK_NAME, MIPI_HOST_REFCLK_MHZ, 1);
 	}
 	user->open_cnt++;
 	spin_unlock(&user->slock);
@@ -1476,16 +1509,19 @@ static int hobot_mipi_host_close(struct inode *inode, struct file *file)
 	if (user->open_cnt > 0)
 		user->open_cnt--;
 	mipidbg("close as %d", user->open_cnt);
-	if (user->open_cnt == 0 &&
-		host->state != MIPI_STATE_DEFAULT) {
-		mipi_host_stop(hdev);
-		mipi_host_deinit(hdev);
-		if (hdev->ex_hdev) {
-			ex_hdev = (mipi_hdev_t *)(hdev->ex_hdev);
-			mipi_host_stop(ex_hdev);
-			mipi_host_deinit(ex_hdev);
+	if (user->open_cnt == 0) {
+		if (host->state != MIPI_STATE_DEFAULT) {
+			mipi_host_stop(hdev);
+			mipi_host_deinit(hdev);
+			if (hdev->ex_hdev) {
+				ex_hdev = (mipi_hdev_t *)(hdev->ex_hdev);
+				mipi_host_stop(ex_hdev);
+				mipi_host_deinit(ex_hdev);
+			}
+			host->state = MIPI_STATE_DEFAULT;
 		}
-		host->state = MIPI_STATE_DEFAULT;
+		mipi_host_configure_clk(hdev, MIPI_HOST_CFGCLK_NAME, 0, 0);
+		mipi_host_configure_clk(hdev, MIPI_HOST_REFCLK_NAME, 0, 0);
 	}
 	spin_unlock(&user->slock);
 
@@ -1551,7 +1587,7 @@ static long hobot_mipi_host_ioctl(struct file *file, unsigned int cmd, unsigned 
 					return ret;
 				}
 				host->state = MIPI_STATE_INIT;
-			} else if (memcmp(&host->cfg, &mipi_host_cfg, sizeof(mipi_host_cfg_t))) {
+			} else if (mipi_host_configure_cmp(&host->cfg, &mipi_host_cfg)) {
 				mipiinfo("warning: init config mismatch");
 			}
 			user->init_cnt++;
@@ -2363,7 +2399,6 @@ static int hobot_mipi_host_probe_param(void)
 		param->cut_through = MIPI_HOST_CUT_DEFAULT;
 		param->ipi_limit = MIPI_HOST_IPILIMIT_DEFAULT;
 
-		mipi_host_configure_clk(hdev, MIPI_HOST_CFGCLK_NAME, MIPI_HOST_CFGCLK_MHZ, 1);
 		hobot_mipi_host_phy_register(hdev);
 		g_hdev[i] = hdev;
 		port_num ++;
@@ -2528,7 +2563,6 @@ static int hobot_mipi_host_probe(struct platform_device *pdev)
 						g_mh_snrclk_name[host->snrclk.index]));
 	}
 
-	mipi_host_configure_clk(hdev, MIPI_HOST_CFGCLK_NAME, MIPI_HOST_CFGCLK_MHZ, 1);
 	hobot_mipi_host_phy_register(hdev);
 	g_hdev[port] = hdev;
 	port_num ++;
