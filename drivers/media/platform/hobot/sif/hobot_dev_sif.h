@@ -36,6 +36,7 @@
 #define SIF_IOC_END_OF_STREAM    _IOW(SIF_IOC_MAGIC, 6, int)
 #define SIF_IOC_BYPASS    		 _IOW(SIF_IOC_MAGIC, 7, int)
 #define SIF_IOC_MD_EVENT    	 _IOR(SIF_IOC_MAGIC, 8, int)
+#define SIF_IOC_MD_CFG	    	 _IOW(SIF_IOC_MAGIC, 9, int)
 
 #define VIO_MP_IOC_MAGIC 'm'
 #define VIO_MP_IOC_BIND_GROUP	 _IOW(VIO_MP_IOC_MAGIC, 0, int)

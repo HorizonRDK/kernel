@@ -860,6 +860,33 @@ int sif_enable_bypass(struct sif_video_ctx *sif_ctx, u32 cfg)
 	return 0;
 }
 
+int sif_set_mot_cfg(struct sif_video_ctx *sif_ctx, unsigned long arg)
+{
+	int ret = 0;
+	sif_output_md_t md;
+	struct x3_sif_dev *sif;
+
+	if (!(sif_ctx->state & (BIT(VIO_VIDEO_S_INPUT) | BIT(VIO_VIDEO_REBUFS) |
+				BIT(VIO_VIDEO_INIT)))) {
+		vio_err("[%s][V%02d] invalid INIT is requested(%lX)",
+				__func__, sif_ctx->id, sif_ctx->state);
+		return -EINVAL;
+	}
+
+	ret = copy_from_user((char *) &md, (u32 __user *) arg,
+			   sizeof(sif_output_md_t));
+	if (ret) {
+		vio_err("%s copy_from_user error(%d)\n", __func__, ret);
+		return -EFAULT;
+	}
+	sif = sif_ctx->sif_dev;
+
+	sif_set_md_output(sif->base_reg, &md);
+
+	vio_info("%s: done\n", __func__);
+	return ret;
+}
+
 static long x3_sif_ioctl(struct file *file, unsigned int cmd,
 			  unsigned long arg)
 {
@@ -926,8 +953,12 @@ static long x3_sif_ioctl(struct file *file, unsigned int cmd,
 		if (ret)
 			return -EFAULT;
 		ret = sif_enable_bypass(sif_ctx, cfg);
+		break;
 	case SIF_IOC_MD_EVENT:
 		ret = ips_get_md_event();
+		break;
+	case SIF_IOC_MD_CFG:
+		ret = sif_set_mot_cfg(sif_ctx, arg);
 		break;
 	default:
 		vio_err("wrong ioctl command\n");
@@ -1195,7 +1226,7 @@ static ssize_t sif_hblank_read(struct device *dev,
 
 	sif = dev_get_drvdata(dev);
 
-	return snprintf(buf, "%d\n", sif->hblank);
+	return snprintf(buf, 64, "%d\n", sif->hblank);
 }
 
 static ssize_t sif_hblank_store(struct device *dev,

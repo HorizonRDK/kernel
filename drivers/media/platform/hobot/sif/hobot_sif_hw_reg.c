@@ -1111,7 +1111,7 @@ static void sif_set_ipu_output(u32 __iomem *base_reg,
  * @param p_md the pointer of sif_output_md_t
  *
  */
-static void sif_set_md_output(u32 __iomem *base_reg, sif_output_md_t *p_md)
+void sif_set_md_output(u32 __iomem *base_reg, sif_output_md_t *p_md)
 {
 	if (!p_md->enable)
         return;
