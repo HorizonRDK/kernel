@@ -25,6 +25,8 @@
 #include "system_stdlib.h"
 #include "acamera_isp_core_nomem_settings.h"
 #include "af_manual_fsm.h"
+#include "acamera_ctrl_channel.h"
+#include "acamera_command_api.h"
 
 #include "sbuf.h"
 
@@ -44,21 +46,52 @@
 #define CUR_MOD_NAME LOG_MODULE_AF_MANUAL
 #endif
 
+//TODO save lut of af
+#define ZOOM_STEP_NUM                  13   //  Zoom Ratio = 1.0 + (ZOOM_STEP_NUM-1) * 0.1
+#define AF_INIT_PARAMETER_NUM          21
+
+uint32_t zoom_af_table[ZOOM_STEP_NUM][AF_INIT_PARAMETER_NUM] =
+{
+ {166400, 166400, 166400, 167680, 167680, 167680,176000,176000,176000,177920,177920,177920,11,6,2,30,131072,131072,262144,65536, 0},
+ {136320, 136320, 136320, 137600, 137600, 137600,147200,147200,147200,149120,149120,149120,11,6,2,30,131072,131072,262144,65536, 0},
+ {110720, 110720, 110720, 112000, 112000, 112000,120320,120320,120320,122240,122240,122240,11,6,2,30,131072,131072,262144,65536, 0},
+ {88960, 88960, 88960, 90240, 90240, 90240, 99200, 99200, 99200,101120,101120,101120,11,6,2,30,131072,131072,262144,65536, 0},
+ {72320, 72320, 72320, 73600, 73600, 73600, 81920, 81920, 81920, 83840, 83840, 83840,11,6,2,30,131072,131072,262144,65536, 0},
+ {58240, 58240, 58240, 59520, 59520, 59520, 67840, 67840, 67840, 69760, 69760, 69760,11,6,2,30,131072,131072,262144,65536, 0},
+ {46080, 46080, 46080, 47360, 47360, 47360, 56960, 56960, 56960, 58880, 58880, 58880,11,6,2,30,131072,131072,262144,65536, 0},
+ {36480, 36480, 36480, 37760, 37760, 37760, 46720, 46720, 46720, 48640, 48640, 48640,11,6,2,30,131072,131072,262144,65536, 0},
+ {28800, 28800, 28800, 30080, 30080, 30080, 39040, 39040, 39040, 40960, 40960, 40960,11,6,2,30,131072,131072,262144,65536, 0},
+ {23040, 23040, 23040, 24320, 24320, 24320, 33280, 33280, 33280, 35200, 35200, 35200,11,6,2,30,131072,131072,262144,65536, 0},
+ {18560, 18560, 18560, 19840, 19840, 19840, 28800, 28800, 28800, 30720, 30720, 30720,11,6,2,30,131072,131072,262144,65536, 0},
+ {14720, 14720, 14720, 16000, 16000, 16000, 24960, 24960, 24960, 26880, 26880, 26880,11,6,2,30,131072,131072,262144,65536, 0},
+ {11520, 11520, 11520, 12800, 12800, 12800, 22400, 22400, 22400, 24320, 24320, 24320,11,6,2,30,131072,131072,262144,65536, 0}
+};
+
+
 void zoom_update_lens_position(AF_fsm_ptr_t p_fsm)
 {
-    //const lens_param_t *lens_param = p_fsm->lens_ctrl.get_parameters(p_fsm->lens_ctx);
+	uint32_t count = 0;
+	uint32_t ret_data = 0;
 
-    /* the new AF position is updated in sbuf FSM */
-    if (p_fsm->zoom_manual_pos != p_fsm->zoom_curr_pos) {
+	//const lens_param_t *lens_param = p_fsm->lens_ctrl.get_parameters(p_fsm->lens_ctx);
+	af_lms_param_t *param = (af_lms_param_t *)_GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_AF_LMS );
 
-        LOG(LOG_INFO, "last position(%u) move changed.", p_fsm->zoom_curr_pos);
-        p_fsm->lens_ctrl.move_zoom( p_fsm->lens_ctx, p_fsm->zoom_manual_pos);
+	/* the new AF position is updated in sbuf FSM */
+	if (p_fsm->zoom_manual_pos != p_fsm->zoom_curr_pos) {
+		LOG(LOG_INFO, "last position(%u) move changed.", p_fsm->zoom_curr_pos);
+		p_fsm->lens_ctrl.move_zoom( p_fsm->lens_ctx, p_fsm->zoom_manual_pos);
 
-        p_fsm->zoom_curr_pos = p_fsm->zoom_manual_pos;
-
-    } else {
-        LOG(LOG_INFO, "last position(%u) not changed.", p_fsm->zoom_curr_pos);
-    }
+		p_fsm->zoom_curr_pos = p_fsm->zoom_manual_pos;
+		count = (p_fsm->zoom_manual_pos - 100) / 10;
+		if (count < ZOOM_STEP_NUM) {
+			zoom_af_table[count][AF_INIT_PARAMETER_NUM - 1] = param->print_debug;
+			//memcpy(param, &zoom_af_table[count][0], (sizeof(af_lms_param_t) - sizeof(uint32_t)));
+			acamera_api_calibration(p_fsm->cmn.ctx_id, DYNAMIC_CALIBRATIONS_ID, CALIBRATION_AF_LMS,
+				COMMAND_SET, (void *)&zoom_af_table[count][0], sizeof(af_lms_param_t), &ret_data);
+		}
+	} else {
+		LOG(LOG_INFO, "last position(%u) not changed.", p_fsm->zoom_curr_pos);
+	}
 }
 
 static void af_update_lens_position( AF_fsm_ptr_t p_fsm )
