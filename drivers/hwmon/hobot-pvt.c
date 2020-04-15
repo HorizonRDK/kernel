@@ -220,13 +220,11 @@ static irqreturn_t pvt_irq_handler(int irq, void *dev_id)
 		}
 
 		if (sdif_done) {
-			if (sdif_data > 3000 || sdif_data < 1000) {
-				pr_debug("invalid cur_smpl[%d] : %d, SDIF_DATA:%08x\n",
+			/* abnormal when lower than -29C or higher than 121C */
+			if (sdif_data > 3300 || sdif_data < 300) {
+				pr_debug("abnormal cur_smpl[%d] : %d, SDIF_DATA:%08x\n",
 						i, pvt_dev->cur_smpl[i], sdif_data);
 			}
-			/* skip when less than 0c, a workaround for TS[2] abnormal value */
-			if (sdif_data < 864)
-				continue;
 
 			pvt_dev->cur_smpl[i] = sdif_data;
 			update_ts_bitmap |= BIT(i);
