@@ -168,8 +168,69 @@ static int isp_v4l2_ctrl_s_ctrl_custom( struct v4l2_ctrl *ctrl )
     return ret;
 }
 
+static int isp_v4l2_ctrl_g_ctrl_custom( struct v4l2_ctrl *ctrl )
+{
+    int ret = 0;
+
+    struct v4l2_ctrl_handler *hdl = ctrl->handler;
+
+    isp_v4l2_ctrl_t *isp_ctrl = cst_hdl_to_isp_ctrl( hdl );
+    int ctx_id = isp_ctrl->ctx_id;
+
+    LOG( LOG_INFO, "Control - id:0x%x, val:%d, is_int:%d, min:%d, max:%d.\n",
+         ctrl->id, ctrl->val, ctrl->is_int, ctrl->minimum, ctrl->maximum );
+
+    if ( isp_v4l2_ctrl_check_valid( ctrl ) < 0 ) {
+        LOG( LOG_ERR, "Invalid param: id:0x%x, val:0x%x, is_int:%d, min:0x%x, max:0x%x.\n",
+             ctrl->id, ctrl->val, ctrl->is_int, ctrl->minimum, ctrl->maximum );
+
+        return -EINVAL;
+    }
+
+    switch ( ctrl->id ) {
+    case ISP_V4L2_CID_TEST_PATTERN:
+        LOG( LOG_INFO, "new test_pattern: %d.\n", ctrl->val );
+        ret = fw_intf_set_test_pattern( ctx_id, ctrl->val );
+        break;
+    case ISP_V4L2_CID_TEST_PATTERN_TYPE:
+        LOG( LOG_INFO, "new test_pattern_type: %d.\n", ctrl->val );
+        ret = fw_intf_set_test_pattern_type( ctx_id, ctrl->val );
+        break;
+    case ISP_V4L2_CID_AF_REFOCUS:
+        LOG( LOG_INFO, "new focus: %d.\n", ctrl->val );
+        ret = fw_intf_set_af_refocus( ctx_id, ctrl->val );
+        break;
+    case ISP_V4L2_CID_SENSOR_PRESET:
+        LOG( LOG_INFO, "new sensor preset: %d.\n", ctrl->val );
+        ret = fw_intf_isp_set_sensor_preset( ctx_id, ctrl->val );
+        break;
+    case ISP_V4L2_CID_AF_ROI:
+        // map [0,127] to [0, 254] due to limitaton of V4L2_CTRL_TYPE_INTEGER.
+        LOG( LOG_INFO, "new af roi: 0x%x.\n", ctrl->val * 2 );
+        ret = fw_intf_set_af_roi( ctx_id, ctrl->val * 2 );
+        break;
+    case ISP_V4L2_CID_OUTPUT_FR_ON_OFF:
+        LOG( LOG_INFO, "output FR on/off: 0x%x.\n", ctrl->val );
+        ret = fw_intf_set_output_fr_on_off( ctx_id, ctrl->val );
+        break;
+    case ISP_V4L2_CID_OUTPUT_DS1_ON_OFF:
+        LOG( LOG_INFO, "output DS1 on/off: 0x%x.\n", ctrl->val );
+        ret = fw_intf_set_output_ds1_on_off( ctx_id, ctrl->val );
+        break;
+    case ISP_V4L2_CID_RAW_BYPASS:
+        ret = fw_intf_set_raw_bypass_on_off( ctx_id, ctrl->val );
+        break;
+    case ISP_V4L2_CID_TEMPER_BUF:
+        ret = fw_intf_temper_buf_ctrl( ctx_id, ctrl->val );
+        break;
+    }
+
+    return ret;
+}
+
 static const struct v4l2_ctrl_ops isp_v4l2_ctrl_ops_custom = {
     .s_ctrl = isp_v4l2_ctrl_s_ctrl_custom,
+    .g_volatile_ctrl = isp_v4l2_ctrl_g_ctrl_custom,
 };
 
 static const struct v4l2_ctrl_config isp_v4l2_ctrl_test_pattern = {
@@ -309,10 +370,35 @@ static const struct v4l2_ctrl_config isp_v4l2_ctrl_class = {
         }                                                    \
     }
 
+#if ( LINUX_VERSION_CODE >= KERNEL_VERSION( 4, 1, 1 ) )
+#define ADD_CTRL_CST_VOLATILE( id, cfg, priv )                          \
+    {                                                                   \
+        if ( fw_intf_validate_control( id ) ) {                         \
+            tmp_ctrl = v4l2_ctrl_new_custom( hdl_cst_ctrl, cfg, priv ); \
+            if ( tmp_ctrl )                                             \
+                tmp_ctrl->flags |= ( V4L2_CTRL_FLAG_VOLATILE |          \
+                                     V4L2_CTRL_FLAG_EXECUTE_ON_WRITE ); \
+        }                                                               \
+    }
+
+#else
+#define ADD_CTRL_CST_VOLATILE( id, cfg, priv )                          \
+    {                                                                   \
+        if ( fw_intf_validate_control( id ) ) {                         \
+            tmp_ctrl = v4l2_ctrl_new_custom( hdl_cst_ctrl, cfg, priv ); \
+            if ( tmp_ctrl )                                             \
+                tmp_ctrl->flags |= V4L2_CTRL_FLAG_VOLATILE;             \
+        }                                                               \
+    }
+
+#endif
+
 int isp_v4l2_ctrl_init( uint32_t ctx_id, isp_v4l2_ctrl_t *ctrl )
 {
     struct v4l2_ctrl_handler *hdl_std_ctrl = &ctrl->ctrl_hdl_std_ctrl;
     struct v4l2_ctrl_handler *hdl_cst_ctrl = &ctrl->ctrl_hdl_cst_ctrl;
+    struct v4l2_ctrl *tmp_ctrl;
+
     ctrl->ctx_id = ctx_id;
 
     LOG( LOG_INFO, "[ctrl] ctx_id#%d: ctrl: %p, hdl_std_ctrl: %p, ctrl_hdl_cst_ctrl: %p.", ctx_id, ctrl, hdl_std_ctrl, hdl_cst_ctrl );
@@ -351,26 +437,26 @@ int isp_v4l2_ctrl_init( uint32_t ctx_id, isp_v4l2_ctrl_t *ctrl )
                   0, 255, 1, 0 );
 
     /* Init and add custom controls */
-    v4l2_ctrl_handler_init( hdl_cst_ctrl, 2 );
+    v4l2_ctrl_handler_init( hdl_cst_ctrl, 9 );
     v4l2_ctrl_new_custom( hdl_cst_ctrl, &isp_v4l2_ctrl_class, NULL );
 
-    ADD_CTRL_CST( ISP_V4L2_CID_TEST_PATTERN,
+    ADD_CTRL_CST_VOLATILE( ISP_V4L2_CID_TEST_PATTERN,
                   &isp_v4l2_ctrl_test_pattern, NULL );
-    ADD_CTRL_CST( ISP_V4L2_CID_TEST_PATTERN_TYPE,
+    ADD_CTRL_CST_VOLATILE( ISP_V4L2_CID_TEST_PATTERN_TYPE,
                   &isp_v4l2_ctrl_test_pattern_type, NULL );
-    ADD_CTRL_CST( ISP_V4L2_CID_AF_REFOCUS,
+    ADD_CTRL_CST_VOLATILE( ISP_V4L2_CID_AF_REFOCUS,
                   &isp_v4l2_ctrl_af_refocus, NULL );
-    ADD_CTRL_CST( ISP_V4L2_CID_SENSOR_PRESET,
+    ADD_CTRL_CST_VOLATILE( ISP_V4L2_CID_SENSOR_PRESET,
                   &isp_v4l2_ctrl_sensor_preset, NULL );
-    ADD_CTRL_CST( ISP_V4L2_CID_AF_ROI,
+    ADD_CTRL_CST_VOLATILE( ISP_V4L2_CID_AF_ROI,
                   &isp_v4l2_ctrl_af_roi, NULL );
-    ADD_CTRL_CST( ISP_V4L2_CID_OUTPUT_FR_ON_OFF,
+    ADD_CTRL_CST_VOLATILE( ISP_V4L2_CID_OUTPUT_FR_ON_OFF,
                   &isp_v4l2_ctrl_output_fr_on_off, NULL );
-    ADD_CTRL_CST( ISP_V4L2_CID_OUTPUT_DS1_ON_OFF,
+    ADD_CTRL_CST_VOLATILE( ISP_V4L2_CID_OUTPUT_DS1_ON_OFF,
                   &isp_v4l2_ctrl_output_ds1_on_off, NULL );
-    ADD_CTRL_CST( ISP_V4L2_CID_RAW_BYPASS,
+    ADD_CTRL_CST_VOLATILE( ISP_V4L2_CID_RAW_BYPASS,
                   &isp_v4l2_ctrl_raw_bypass_on_off, NULL );
-    ADD_CTRL_CST( ISP_V4L2_CID_TEMPER_BUF,
+    ADD_CTRL_CST_VOLATILE( ISP_V4L2_CID_TEMPER_BUF,
                   &isp_v4l2_ctrl_temper_buf_ctrl, NULL );
 
 
@@ -378,7 +464,7 @@ int isp_v4l2_ctrl_init( uint32_t ctx_id, isp_v4l2_ctrl_t *ctrl )
     v4l2_ctrl_add_handler( hdl_std_ctrl, hdl_cst_ctrl, NULL );
     ctrl->video_dev->ctrl_handler = hdl_std_ctrl;
 
-    v4l2_ctrl_handler_setup( hdl_std_ctrl );
+    // v4l2_ctrl_handler_setup( hdl_std_ctrl );
 
     return 0;
 }

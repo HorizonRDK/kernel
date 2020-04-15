@@ -611,7 +611,7 @@ static int isp_fw_do_set_brightness( uint32_t ctx_id, int brightness )
      * before isp_fw initialed, so we need to check.
      */
     if ( !isp_started ) {
-        // LOG( LOG_ERR, "ISP FW not inited yet" );
+        LOG( LOG_ERR, "ISP FW not inited yet" );
         return -EBUSY;
     }
 
