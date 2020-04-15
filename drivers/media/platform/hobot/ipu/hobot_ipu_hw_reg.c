@@ -943,6 +943,17 @@ void ipu_set_intr_mask(void __iomem *base_addr, u32 intr_mask)
 	vio_hw_set_reg(base_addr, &ipu_regs[IPU_INT_MASK], intr_mask);
 }
 
+void ipu_set_ddr_fifo5(void __iomem *base_addr, u8 value)
+{
+	vio_hw_set_field(base_addr, &ipu_regs[IPU_WR_DDR_FIFO_THRED_1],
+			&ipu_fields[IPU_F_WD_DDR_FIFO_THRED_5], value);
+}
+
+int ipu_get_err_status(void __iomem *base_addr)
+{
+	return vio_hw_get_reg(base_addr, &ipu_regs[IPU_ERR_STATUS]);
+}
+
 void ipu_hw_dump(u32 __iomem *base_reg)
 {
 	vio_hw_dump_regs(base_reg, ipu_regs, NUM_OF_IPU_REG);

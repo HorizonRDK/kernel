@@ -636,7 +636,7 @@ int ipu_channel_wdma_disable(struct ipu_subdev *subdev)
 	if (id == GROUP_ID_US) {
 		ipu_set_us_enable(ipu->base_reg, shadow_index, false);
 		ipu_set_us_roi_enable(ipu->base_reg, shadow_index, false);
-	} else {
+	} else if (id >= GROUP_ID_DS0) {
 		ipu_set_ds_enable(ipu->base_reg, shadow_index, ds_ch, false);
 		ipu_set_ds_roi_enable(ipu->base_reg, shadow_index, ds_ch, false);
 	}

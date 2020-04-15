@@ -149,6 +149,7 @@ enum ipu_reg {
 	IPU_LAYER_2_REQ_LINE_CNT,
 	IPU_ERR_CLR,
 	IPU_ERR_STATUS,
+	IPU_WR_DDR_FIFO_THRED_1,
 	/*0x404*/
 	IPU_1_SRC_WIDTH,
 	IPU_1_SRC_HEIGHT,
@@ -748,6 +749,7 @@ static struct vio_reg_def ipu_regs[NUM_OF_IPU_REG]={
 	{"IPU_LAYER_2_REQ_LINE_CNT",    0x0224, RW},
 	{"IPU_ERR_CLR",                 0x0228, RW},
 	{"IPU_ERR_STATUS",              0x022C, RW},
+	{"IPU_WR_DDR_FIFO_THRED_1",     0x0234, RW},
 	/*0x404*/
 	{"IPU_1_SRC_WIDTH",             0x0404, RW},
 	{"IPU_1_SRC_HEIGHT",            0x0408, RW},
@@ -1481,6 +1483,7 @@ enum ipu_reg_field{
 	IPU_F_BUF_ERR,
 	IPU_F_STA_SIZE_ERR_H,
 	IPU_F_STA_SIZE_ERR_W,
+	IPU_F_WD_DDR_FIFO_THRED_5,
 	
 	IPU_F_PRE_INT_1_ENABLE,
 	IPU_F_PRE_INT_0_ENABLE,
@@ -1892,6 +1895,7 @@ static struct vio_field_def ipu_fields[NUM_OF_IPU_FIELD] = {
 	{IPU_ERR_STATUS,	IPU_F_BUF_ERR,          2 , 1 , 0},
 	{IPU_ERR_STATUS,	IPU_F_STA_SIZE_ERR_H,       1 , 1 , 0},
 	{IPU_ERR_STATUS,	IPU_F_STA_SIZE_ERR_W,       0 , 1 , 0},
+	{IPU_WR_DDR_FIFO_THRED_1,	IPU_F_WD_DDR_FIFO_THRED_5,       0 , 8 , 32},
 	/*0xe50*/
 	{IPU_INT_MASK,		IPU_F_PRE_INT_1_ENABLE,		18, 1 , 1},
 	{IPU_INT_MASK,		IPU_F_PRE_INT_0_ENABLE, 	17, 1 , 1},
