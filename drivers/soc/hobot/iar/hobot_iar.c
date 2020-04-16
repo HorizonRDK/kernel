@@ -123,9 +123,7 @@ EXPORT_SYMBOL(video_720x1280);
 EXPORT_SYMBOL(video_1080x1920);
 EXPORT_SYMBOL(video_720x1280_touch);
 
-#ifdef CONFIG_PM
-uint32_t g_iar_regs[91];
-#endif
+uint32_t g_iar_regs[93];
 
 const unsigned int g_iarReg_cfg_table[][3] = {
 	/*reg mask	reg offset*/
@@ -378,9 +376,6 @@ struct iar_dev_s *g_iar_dev;
 struct pwm_device *screen_backlight_pwm;
 int display_type = LCD_7_TYPE;
 EXPORT_SYMBOL(display_type);
-#ifdef CONFIG_PM
-
-uint32_t g_out_sel = 0;
 
 static void iar_regs_store(void)
 {
@@ -421,6 +416,16 @@ static void iar_regs_store(void)
 	/* offset: 0x338 */
 	regaddr = g_iar_dev->regaddr + 0x338;
 	g_iar_regs[90] = readl(regaddr);
+
+	/* offset: 0x340 */
+	regaddr = g_iar_dev->regaddr + 0x340;
+	g_iar_regs[91] = readl(regaddr);
+
+#ifdef CONFIG_HOBOT_XJ3
+	/* offset: 0x800 */
+        regaddr = g_iar_dev->regaddr + 0x800;
+        g_iar_regs[92] = readl(regaddr);
+#endif
 }
 
 static void iar_regs_restore(void)
@@ -465,17 +470,22 @@ static void iar_regs_restore(void)
 
 	/* offset: 0x340 */
 	regaddr = g_iar_dev->regaddr + 0x340;
-	writel((0x1 << g_out_sel), regaddr);
+	writel(g_iar_regs[91], regaddr);
+	//writel((0x1 << g_out_sel), regaddr);
 
 	/* offset: 0x318 */
 	regaddr = g_iar_dev->regaddr + 0x318;
 	writel(g_iar_regs[88], regaddr);
 
+#ifdef CONFIG_HOBOT_XJ3
+	/* offset: 0x800 */
+	regaddr = g_iar_dev->regaddr + 0x800;
+	writel(g_iar_regs[92], regaddr);
+#endif
 	/* offset: 0x98*/
 	regaddr = g_iar_dev->regaddr + 0x98;
 	writel(0x1, regaddr);
 }
-#endif
 
 void x2_iar_dump(void)
 {
@@ -1100,9 +1110,6 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 //		pr_err("%s: off bright value error, exit!!\n", __func__);
 //		return -1;
 //	}
-#ifdef CONFIG_PM
-	g_out_sel = cfg->out_sel;
-#endif
 	writel(cfg->bgcolor, g_iar_dev->regaddr + REG_IAR_BG_COLOR);
 
 	if (cfg->out_sel == OUTPUT_BT1120) {
@@ -3320,7 +3327,7 @@ static const struct of_device_id x2_iar_of_match[] = {
 MODULE_DEVICE_TABLE(of, x2_iar_of_match);
 #endif
 
-#ifdef CONFIG_PM
+//#ifdef CONFIG_PM
 int x2_iar_suspend(struct device *dev)
 {
 	pr_info("%s:%s, enter suspend...\n", __FILE__, __func__);
@@ -3338,7 +3345,7 @@ int x2_iar_resume(struct device *dev)
 
 	return 0;
 }
-#endif
+//#endif
 
 static const struct dev_pm_ops x2_iar_pm = {
 	SET_SYSTEM_SLEEP_PM_OPS(x2_iar_suspend,
@@ -3351,7 +3358,7 @@ static struct platform_driver x2_iar_driver = {
 	.driver = {
 		.name = "hobot-iar",
 		.of_match_table = of_match_ptr(x2_iar_of_match),
-		//.pm = &x2_iar_pm,
+		.pm = &x2_iar_pm,
 	},
 };
 /*
