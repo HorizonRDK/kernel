@@ -46,11 +46,8 @@ struct _LDC_fsm_t {
 	uint32_t woi_y_start;
 	uint32_t woi_x_length;
 	uint32_t woi_x_start;
-	uint32_t param_update;
 	uint32_t ldc_bypass;
-
-	void *lens_ctx;
-	lens_control_t lens_ctrl;
+	uint32_t param_update;
 };
 
 void LDC_fsm_clear( LDC_fsm_ptr_t p_fsm );

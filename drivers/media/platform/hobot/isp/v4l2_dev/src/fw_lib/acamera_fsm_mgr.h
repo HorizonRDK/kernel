@@ -90,6 +90,7 @@ typedef enum _fsm_id_t
     FSM_ID_METADATA,
     FSM_ID_AF,
     FSM_ID_FPGA_DMA_FE,
+    FSM_ID_LDC,
     FSM_ID_MAX
 } fsm_id_t;
 

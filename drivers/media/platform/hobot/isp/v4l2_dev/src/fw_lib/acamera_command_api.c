@@ -507,10 +507,10 @@ case  LDC_PARAM:
 		case  WOI_XSTART_ID:
 			ret = ldc_woi_x_start_control(instance, value, direction, ret_value);
 			break;
-		case  LDC_PARAM_UPDATE_ID:
+		case  LDC_BYPASS_ID:
 			ret = ldc_ldc_bypass_control(instance, value, direction, ret_value);
 			break;
-		case  LDC_BYPASS_ID:
+		case  LDC_PARAM_UPDATE_ID:
 			ret = ldc_param_update_control(instance, value, direction, ret_value);
 			break;
 	}//switch (command)

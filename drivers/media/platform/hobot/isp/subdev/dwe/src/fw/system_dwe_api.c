@@ -1,4 +1,4 @@
-/*  
+/*
  *
  *   Copyright (C) 2018 Horizon Inc.
  *
@@ -140,6 +140,45 @@ void printk_pgparam(pg_param_s *ppg)
 {
 	LOG(LOG_INFO, "pic %d, blank %d.", ppg->size.psize_g, ppg->blank.blank_g);
 }
+
+int set_ldc_param(uint32_t port, uint32_t *ptr, uint32_t size)
+{
+	int ret = 0;
+
+	if (port >= FIRMWARE_CONTEXT_NUMBER) {
+		LOG(LOG_ERR, "---port %d param is error!---", port);
+		ret = -1;
+	} else {
+		if (ptr) {
+			memcpy(&dwe_param[port].ldc_param, ptr, size);
+		} else {
+			LOG(LOG_ERR, "---pldc is err!---");
+			ret = -1;
+		}
+	}
+	return ret;
+}
+EXPORT_SYMBOL_GPL(set_ldc_param);
+
+int get_ldc_param(uint32_t port, uint32_t *ptr, uint32_t size)
+{
+	int ret = 0;
+
+	if (port >= FIRMWARE_CONTEXT_NUMBER) {
+		LOG(LOG_ERR, "---port %d param is error!---", port);
+		ret = -1;
+	} else {
+		if (ptr) {
+			memcpy(ptr, &dwe_param[port].ldc_param, size);
+		} else {
+			LOG(LOG_ERR, "---pldc is err!---");
+			ret = -1;
+		}
+	}
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(get_ldc_param);
 
 extern int dis_set_ioctl(uint32_t port, uint32_t online);
 extern int ldc_set_ioctl(uint32_t port, uint32_t online);
@@ -678,15 +717,15 @@ void dwe_printk_info(void)
 	}
 }
 
-/* 
- * ldc & dis 
+/*
+ * ldc & dis
  * if  port == 1
  *     using setting[0];
  * if  1 < port < 5
  *     using setting[0---port-1]
  * if  port >= 5
  *     using setting[0,1],
- *   
+ *
  */
 int ldc_hwparam_set(dwe_context_t *ctx, uint32_t port)
 {
@@ -811,7 +850,7 @@ int ldc_hwpath_set(dwe_context_t *ctx, uint32_t port)
 
 /*
  *     setting image_size
- * 
+ *
  *     if FIRMWARE_CONTEXT_NUMBER > 4
  *        setting[0-1]
  *     else

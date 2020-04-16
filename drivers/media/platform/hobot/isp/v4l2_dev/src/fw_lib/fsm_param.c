@@ -144,6 +144,13 @@ int acamera_fsm_mgr_set_param(acamera_fsm_mgr_t * p_fsm_mgr, uint32_t param_id, 
             LOG(LOG_ERR, "AF FSM doesn't support set_param().");
             rc = -1;
         }
+    } else if( FSM_PARAM_SET_LDC_START < param_id && param_id < FSM_PARAM_SET_LDC_END ) {
+        if( p_fsm_mgr->fsm_arr[FSM_ID_LDC]->ops.set_param ) {
+            rc = p_fsm_mgr->fsm_arr[FSM_ID_LDC]->ops.set_param( p_fsm_mgr->fsm_arr[FSM_ID_LDC]->p_fsm, param_id, input, input_size);
+        } else {
+            LOG(LOG_ERR, "AF FSM doesn't support set_param().");
+            rc = -1;
+        }
     } else {
         LOG(LOG_ERR, "Unsupported param_id: %d.", param_id);
         rc = -1;
@@ -257,6 +264,13 @@ int acamera_fsm_mgr_get_param(acamera_fsm_mgr_t * p_fsm_mgr, uint32_t param_id, 
             rc = p_fsm_mgr->fsm_arr[FSM_ID_FPGA_DMA_FE]->ops.get_param( p_fsm_mgr->fsm_arr[FSM_ID_FPGA_DMA_FE]->p_fsm, param_id, input, input_size, output, output_size);
         } else {
             LOG(LOG_ERR, "FPGA_DMA_FE FSM doesn't support get_param().");
+            rc = -1;
+        }
+    } else if(FSM_PARAM_GET_LDC_START < param_id && param_id < FSM_PARAM_GET_LDC_END) {
+        if( p_fsm_mgr->fsm_arr[FSM_ID_LDC]->ops.get_param ) {
+            rc = p_fsm_mgr->fsm_arr[FSM_ID_LDC]->ops.get_param( p_fsm_mgr->fsm_arr[FSM_ID_LDC]->p_fsm, param_id, input, input_size, output, output_size);
+        } else {
+            LOG(LOG_ERR, "LDC doesn't support get_param().");
             rc = -1;
         }
     } else {
