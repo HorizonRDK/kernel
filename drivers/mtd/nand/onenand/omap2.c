@@ -112,13 +112,13 @@ static int omap2_onenand_wait(struct mtd_info *mtd, int state)
 	unsigned long timeout;
 	u32 syscfg;
 
-	if (state == FL_RESETING || state == FL_PREPARING_ERASE ||
+	if (state == FL_RESETTING || state == FL_PREPARING_ERASE ||
 	    state == FL_VERIFYING_ERASE) {
 		int i = 21;
 		unsigned int intr_flags = ONENAND_INT_MASTER;
 
 		switch (state) {
-		case FL_RESETING:
+		case FL_RESETTING:
 			intr_flags |= ONENAND_INT_RESET;
 			break;
 		case FL_PREPARING_ERASE:
