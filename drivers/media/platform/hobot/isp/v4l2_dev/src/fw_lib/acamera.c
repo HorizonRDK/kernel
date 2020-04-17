@@ -888,6 +888,7 @@ void isp_ctx_prepare(int ctx_pre, int ctx_next, int ppf)
 }
 
 extern int ldc_set_ioctl(uint32_t port, uint32_t online);
+extern int dis_set_ioctl(uint32_t port, uint32_t online);
 extern void isp_input_port_size_config(sensor_fsm_ptr_t p_fsm);
 extern int ips_get_isp_frameid(void);
 int sif_isp_ctx_sync_func(int ctx_id)
@@ -915,6 +916,7 @@ int sif_isp_ctx_sync_func(int ctx_id)
 
 	isp_input_port_size_config(p_ctx->fsm_mgr.fsm_arr[FSM_ID_SENSOR]->p_fsm);
 	ldc_set_ioctl(ctx_id, 0);
+	dis_set_ioctl(ctx_id, 0);
 retry:
 	if (acamera_event_queue_empty(&p_ctx->fsm_mgr.event_queue)) {
 		// these flags are used for sync of callbacks
