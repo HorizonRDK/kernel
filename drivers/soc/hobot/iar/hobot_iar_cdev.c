@@ -304,12 +304,12 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 				return -EFAULT;
 			ret = disp_set_ppbuf_addr(0,
 			disp_vaddr.channel0_y_addr, disp_vaddr.channel0_c_addr);
-			if (ret)
-				pr_err("%s: channel 0 not display\n", __func__);
+			//if (ret)
+			//	pr_err("%s: channel 0 not display\n", __func__);
 			ret = disp_set_ppbuf_addr(1,
 			disp_vaddr.channel1_y_addr, disp_vaddr.channel1_c_addr);
-			if (ret)
-				pr_err("%s: channel 1 not display\n", __func__);
+			//if (ret)
+			//	pr_err("%s: channel 1 not display\n", __func__);
 			iar_update();
 		}
 		break;

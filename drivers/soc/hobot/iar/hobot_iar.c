@@ -2310,8 +2310,10 @@ int disp_set_ppbuf_addr(uint8_t layer_no, void *yaddr, void *caddr)
 	uint32_t y_size;
 	void __iomem *video_to_display_vaddr;
 
-	if (layer_no > 1 || yaddr == NULL)
+	if (layer_no > 1)
 		return -1;
+	if (yaddr == NULL)
+		return 0;
 	y_size =
 	g_iar_dev->buf_w_h[layer_no][0] * g_iar_dev->buf_w_h[layer_no][1];
 	video_index = g_iar_dev->cur_framebuf_id[layer_no];
