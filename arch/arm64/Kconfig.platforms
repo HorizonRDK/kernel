@@ -348,6 +348,18 @@ config HOBOT_XJ3_CV_ADDITION
 	  This enables Hobot XJ3 CV testing additional options.
 	  You only need to enable this, if you want to support XJ3 CV test.
 
+config HOBOT_GCOV_AVIO
+	bool "enable gnu coverage for hobot AVIO modules"
+	help
+	  This enables gcov in Makefiles of hobot modules.
+	  You only need to enable this for gcov test.
+
+config HOBOT_GCOV_BASE
+	bool "enable gnu coverage for hobot BaseSys modules"
+	help
+	  This enables gcov in Makefiles of hobot modules.
+	  You only need to enable this for gcov test.
+
 endmenu
 endif #ARCH_HOBOT
 

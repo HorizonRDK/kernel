@@ -20,3 +20,7 @@ hobot_isp-objs += $(patsubst %.c,%.o,$(srcfiles))
 obj-$(CONFIG_VIDEO_HOBOT_ISP) += hobot_isp.o
 
 EXTRA_CFLAGS += $(addprefix -I,$(shell find $(src_v4l2) -type d))
+
+ifeq ($(CONFIG_HOBOT_GCOV_AVIO),y)
+GCOV_PROFILE := y
+endif

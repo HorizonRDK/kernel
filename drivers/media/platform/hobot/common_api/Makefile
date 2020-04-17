@@ -4,6 +4,9 @@
 ifneq ($(KERNELRELEASE),)
 obj-y += hobot_common_api.o
 hobot_common_api-objs := vio_framemgr.o vio_hw_common_api.o vio_group_api.o
+ifeq ($(CONFIG_HOBOT_GCOV_AVIO),y)
+GCOV_PROFILE := y
+endif
 
 else
 

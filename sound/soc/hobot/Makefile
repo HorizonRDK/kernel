@@ -14,3 +14,7 @@ obj-$(CONFIG_HOBOT_AUDIO) += hobot-dma.o
 obj-$(CONFIG_HOBOT_AUDIO) += hobot-snd-96.o
 endif
 endif
+
+ifeq ($(CONFIG_HOBOT_GCOV_AVIO),y)
+GCOV_PROFILE := y
+endif

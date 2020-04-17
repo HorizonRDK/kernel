@@ -6,6 +6,11 @@ obj-$(CONFIG_HOBOT_VIO) += hobot_sif.o
 hobot_sif-objs := hobot_sif_hw_reg.o hobot_dev_sif.o
 
 EXTRA_CFLAGS += -Idrivers/media/platform/hobot/common_api/
+
+ifeq ($(CONFIG_HOBOT_GCOV_AVIO),y)
+GCOV_PROFILE := y
+endif
+
 else
 
 TARGET := hobot_sif

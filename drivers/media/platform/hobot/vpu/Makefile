@@ -30,6 +30,9 @@ hobot_vpu-objs := hobot_vpu_dev.o hobot_vpu_buf.o
 hobot_vpu-objs += hobot_vpu_ctl.o hobot_vpu_pm.o
 
 obj-$(CONFIG_VIDEO_HOBOTC_VPU)	:= hobot_vpu.o
+ifeq ($(CONFIG_HOBOT_GCOV_AVIO),y)
+GCOV_PROFILE := y
+endif
 
 else
 

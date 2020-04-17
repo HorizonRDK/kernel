@@ -6,6 +6,11 @@ obj-$(CONFIG_HOBOT_VIO) += hobot_ipu.o
 hobot_ipu-objs := hobot_ipu_hw_reg.o ./hobot_dev_ipu.o
 
 EXTRA_CFLAGS += -Idrivers/media/platform/hobot/common_api/
+
+ifeq ($(CONFIG_HOBOT_GCOV_AVIO),y)
+GCOV_PROFILE := y
+endif
+
 else
 
 TARGET := hobot_ipu

@@ -21,3 +21,7 @@ hobot_dwe-objs += $(patsubst %.c,%.o,$(srcfiles))
 obj-$(CONFIG_VIDEO_HOBOT_ISP) += hobot_dwe.o
 
 EXTRA_CFLAGS += $(addprefix -I,$(shell find $(dwe_dir) -type d))
+
+ifeq ($(CONFIG_HOBOT_GCOV_AVIO),y)
+GCOV_PROFILE := y
+endif

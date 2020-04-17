@@ -10,3 +10,7 @@ iar-objs += hobot_iar.o
 iar_cdev-objs := hobot_iar_cdev.o
 iar_mmap-objs := hobot_iar_mmap.o
 
+ifeq ($(CONFIG_HOBOT_GCOV_AVIO),y)
+GCOV_PROFILE := y
+endif
+

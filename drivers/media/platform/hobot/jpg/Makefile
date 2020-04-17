@@ -31,6 +31,10 @@ hobot_jpu-objs += hobot_jpu_ctl.o hobot_jpu_pm.o
 
 obj-$(CONFIG_VIDEO_HOBOTC_JPU)	:= hobot_jpu.o
 
+ifeq ($(CONFIG_HOBOT_GCOV_AVIO),y)
+GCOV_PROFILE := y
+endif
+
 else
 
 KERNELDIR := ../../../../../kernel

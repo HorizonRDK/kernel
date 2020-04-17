@@ -9,3 +9,7 @@ obj-y += pdu/
 obj-y += spacc/
 obj-y += pka/
 obj-y += trng/
+
+ifeq ($(CONFIG_HOBOT_GCOV_BASE),y)
+GCOV_PROFILE := y
+endif

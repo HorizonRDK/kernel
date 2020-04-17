@@ -49,3 +49,6 @@ elpmem-objs += spacc_mem.o
 
 obj-$(CONFIG_CRYPTO_DEV_HOBOT) := elppdu.o elpmem.o
 
+ifeq ($(CONFIG_HOBOT_GCOV_BASE),y)
+GCOV_PROFILE := y
+endif
