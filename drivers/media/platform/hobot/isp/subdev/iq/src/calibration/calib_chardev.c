@@ -59,6 +59,12 @@ static int calib_destory(uint8_t port)
 			return -CALIB_PORT_ERR;
 	}
 
+	ACameraCalibrations *c = soc_iq_get_lut_data_ptr(port);
+	if (c != NULL) {
+		get_calibrations_dynamic_fs_lin_dummy(c);
+		get_calibrations_static_fs_lin_dummy(c);
+	}
+
 	for(tmp = 0; tmp < CALIBRATION_TOTAL_SIZE; tmp++) {
 		if (calib_data->plut[tmp].ptr == NULL) {
 			LOG( LOG_ERR, "memory of port %d is not existance.", port );
@@ -72,12 +78,6 @@ static int calib_destory(uint8_t port)
 	kfree(calib_data);
 	calib_param_ctx.plist[port] = NULL;
 	calib_param_ctx.p_num &= ~(1 << port);
-
-	ACameraCalibrations *c = soc_iq_get_lut_data_ptr(port);
-	if (c != NULL) {
-		get_calibrations_dynamic_fs_lin_dummy(c);
-		get_calibrations_static_fs_lin_dummy(c);
-	}
 
 	LOG( LOG_DEBUG, "calib destory is success.");
 	
@@ -99,8 +99,9 @@ static int calib_create(camera_calib_t *ptr)
 		return -CALIB_PORT_ERR;
 	}
 
-	if (calib_param_ctx.plist[ptr->port])
-		return -CALIB_EXIST_ERR;
+	if (calib_param_ctx.plist[ptr->port]) {
+		ret = calib_destory(ptr->port);
+	}
 
 	calib_data = kzalloc(sizeof(struct calib_data_s), GFP_KERNEL);
 	if (!calib_data) {
@@ -345,6 +346,9 @@ static int calib_fops_open( struct inode *inode, struct file *f )
         goto lock_failure;
     }
 
+        p_ctx->dev_opened++;
+        f->private_data = p_ctx;
+#if 0
     if ( p_ctx->dev_opened ) {
         LOG( LOG_ERR,"open(%s) failed, already opened.", p_ctx->dev_name );
         rc = -EBUSY;
@@ -357,6 +361,7 @@ static int calib_fops_open( struct inode *inode, struct file *f )
         f->private_data = p_ctx;
         LOG( LOG_INFO, "Af set, private_data: %p.", f->private_data );
     }
+#endif
 
     mutex_unlock( &p_ctx->fops_lock );
 
@@ -381,7 +386,7 @@ static int calib_fops_release( struct inode *inode, struct file *f )
     }
 
     if ( p_ctx->dev_opened ) {
-        p_ctx->dev_opened = 0;
+        p_ctx->dev_opened--;
         f->private_data = NULL;
     } else {
         LOG( LOG_ERR, "Fatal error: wrong state of dev: %s, dev_opened: %d.", p_ctx->dev_name, p_ctx->dev_opened );
