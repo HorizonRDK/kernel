@@ -763,6 +763,11 @@ int32_t iar_upscaling_cfg(upscaling_cfg_t *cfg)
 		pr_err("iar_driver: channel width/height exceed limit, exit!!\n");
 		return -1;
 	}
+	if (cfg->src_height == 0 || cfg->tgt_height == 0 ||
+			cfg->src_width == 0 || cfg->tgt_width == 0) {
+		pr_err("iar_driver: channel width/height is zero, exit!!\n");
+		return -1;
+	}
 	value = IAR_REG_SET_FILED(IAR_SRC_HEIGTH, cfg->src_height, 0);
 	value = IAR_REG_SET_FILED(IAR_SRC_WIDTH, cfg->src_width, value);
 	writel(value, g_iar_dev->regaddr + REG_IAR_SRC_SIZE_UP);
@@ -1106,10 +1111,16 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 		pr_err("%s: off contrast exceed 255, exit!!\n", __func__);
 		return -1;
 	}
-//	if (cfg->ppcon2.off_bright > 128 || cfg->ppcon2.off_bright < -127) {
-//		pr_err("%s: off bright value error, exit!!\n", __func__);
-//		return -1;
-//	}
+	//if ((cfg->ppcon2.off_bright >= 0 && cfg->ppcon2.off_bright <= 0x7f) ||
+	//		(cfg->ppcon2.off_bright >= 0xffffff80 &&
+	//		cfg->ppcon2.off_bright <= 0xffffffff)) {
+	//	pr_err("%s: off bright value error, exit!!\n", __func__);
+	//	return -1;
+	//}
+	if (cfg->ppcon2.off_bright > 0x7f && cfg->ppcon2.off_bright < 0xffffff80) {
+		pr_err("%s: off bright value error, exit!!\n", __func__);
+		return -1;
+	}
 	writel(cfg->bgcolor, g_iar_dev->regaddr + REG_IAR_BG_COLOR);
 
 	if (cfg->out_sel == OUTPUT_BT1120) {
