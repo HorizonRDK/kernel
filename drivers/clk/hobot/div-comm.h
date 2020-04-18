@@ -1,9 +1,14 @@
 /*
- *  /drivers/clk/hobot/div_comm.h
+ * Horizon Robotics
  *
- *  This head file can be  used for div-gate.c and endiv_gate.c.
- *  In HOBOT clock driver, div-gate.c and endiv_gate.c have common interfaces to use.
-*/
+ *  Copyright (C) 2020 Horizon Robotics Inc.
+ *  All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ */
 
 #ifndef DRIVERS_CLK_HOBOT_DIV_COMM_H_
 #define DRIVERS_CLK_HOBOT_DIV_COMM_H_

@@ -1,9 +1,8 @@
 /*
- * Horizon Robotics-specific suspend support
+ * Horizon Robotics
  *
- *  Copyright (C) 2019 Horizon Robotics Inc.
+ *  Copyright (C) 2020 Horizon Robotics Inc.
  *  All rights reserved.
- *  Author: leye.wang<leye.wang@horizon.ai>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
