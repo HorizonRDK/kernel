@@ -60,12 +60,12 @@ struct motor_pos_set {
 };
 
 #define LENS_IOC_MAGIC    'l'
-#define LENS_SET_AF_PARAM          _IOW(LENS_IOC_MAGIC, 0, struct chardev_port_param)
-#define LENS_SET_ZOOM_PARAM        _IOW(LENS_IOC_MAGIC, 1, struct chardev_port_param)
-#define LENS_SET_AF_INIT          _IOW(LENS_IOC_MAGIC, 2, uint32_t)
-#define LENS_SET_ZOOM_INIT        _IOW(LENS_IOC_MAGIC, 3, uint32_t)
-#define LENS_SET_AF_DEINIT          _IOW(LENS_IOC_MAGIC, 4, uint32_t)
-#define LENS_SET_ZOOM_DEINIT        _IOW(LENS_IOC_MAGIC, 5, uint32_t)
+#define LENS_AF_INIT          _IOW(LENS_IOC_MAGIC, 0, struct chardev_port_param)
+#define LENS_ZOOM_INIT        _IOW(LENS_IOC_MAGIC, 1, struct chardev_port_param)
+#define LENS_AF_RESET          _IOW(LENS_IOC_MAGIC, 2, uint32_t)
+#define LENS_ZOOM_RESET        _IOW(LENS_IOC_MAGIC, 3, uint32_t)
+#define LENS_AF_DEINIT          _IOW(LENS_IOC_MAGIC, 4, uint32_t)
+#define LENS_ZOOM_DEINIT        _IOW(LENS_IOC_MAGIC, 5, uint32_t)
 #define LENS_SET_I2C_PARAM         _IOW(LENS_IOC_MAGIC, 6, struct motor_i2c_param)
 #define LENS_SET_AF_POS         _IOW(LENS_IOC_MAGIC, 7, struct motor_pos_set)
 #define LENS_SET_ZOOM_POS         _IOW(LENS_IOC_MAGIC, 8, struct motor_pos_set)

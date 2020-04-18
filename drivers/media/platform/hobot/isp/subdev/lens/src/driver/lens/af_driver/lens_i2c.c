@@ -211,15 +211,13 @@ static struct basic_control_ops basic_i2c_ops = {
 	.read_reg = motor_i2c_read_reg,
 };
 
-int lens_i2c_release(struct i2c_client *client)
+void lens_i2c_release(struct i2c_client *client)
 {
 	if (!client)
-		return -ENOMEM;
+		return;
 
 	i2c_unregister_device(client);
 	client = NULL;
-
-	return 0;
 }
 
 struct i2c_client *lens_i2c_request(uint32_t i2c_chn, uint32_t i2c_addr,

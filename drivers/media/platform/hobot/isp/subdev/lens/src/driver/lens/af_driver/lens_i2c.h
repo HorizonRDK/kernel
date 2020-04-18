@@ -14,6 +14,6 @@
 
 struct i2c_client *lens_i2c_request(uint32_t i2c_chn, uint32_t i2c_addr,
 	const char *name, struct basic_control_ops **ops);
-int lens_i2c_release(struct i2c_client *client);
+void lens_i2c_release(struct i2c_client *client);
 
 #endif /* __LENS_I2C_H__ */

@@ -106,7 +106,7 @@ static long lens_fop_ioctl(struct file *pfile, unsigned int cmd,
 	uint32_t port = 0;
 
 	switch (cmd) {
-	case LENS_SET_AF_PARAM: {
+	case LENS_AF_INIT: {
 		if (arg == 0) {
 			LOG(LOG_ERR, "arg is null !\n");
 			return -1;
@@ -122,7 +122,7 @@ static long lens_fop_ioctl(struct file *pfile, unsigned int cmd,
 		}
 	}
 	break;
-	case LENS_SET_ZOOM_PARAM: {
+	case LENS_ZOOM_INIT: {
 		if (arg == 0) {
 			LOG(LOG_ERR, "arg is null !\n");
 			return -1;
@@ -138,7 +138,7 @@ static long lens_fop_ioctl(struct file *pfile, unsigned int cmd,
 		}
 	}
 	break;
-	case LENS_SET_AF_INIT: {
+	case LENS_AF_RESET: {
 		if (arg == 0) {
 			LOG(LOG_ERR, "arg is null !\n");
 			return -1;
@@ -151,7 +151,7 @@ static long lens_fop_ioctl(struct file *pfile, unsigned int cmd,
 		ret = set_af_init((uint16_t)port);
 	}
 	break;
-	case LENS_SET_ZOOM_INIT: {
+	case LENS_ZOOM_RESET: {
 		if (arg == 0) {
 			LOG(LOG_ERR, "arg is null !\n");
 			return -1;
@@ -164,7 +164,7 @@ static long lens_fop_ioctl(struct file *pfile, unsigned int cmd,
 		ret = set_zoom_init((uint16_t)port);
 	}
 	break;
-	case LENS_SET_AF_DEINIT: {
+	case LENS_AF_DEINIT: {
 		if (arg == 0) {
 			LOG(LOG_ERR, "arg is null !\n");
 			return -1;
@@ -174,9 +174,10 @@ static long lens_fop_ioctl(struct file *pfile, unsigned int cmd,
 			LOG(LOG_ERR, "copy is err !\n");
 			return -EINVAL;
 		}
+		ret = free_af_param((uint16_t)port);
 	}
 	break;
-	case LENS_SET_ZOOM_DEINIT: {
+	case LENS_ZOOM_DEINIT: {
 		if (arg == 0) {
 			LOG(LOG_ERR, "arg is null !\n");
 			return -1;
@@ -186,6 +187,7 @@ static long lens_fop_ioctl(struct file *pfile, unsigned int cmd,
 			LOG(LOG_ERR, "copy is err !\n");
 			return -EINVAL;
 		}
+		ret = free_zoom_param((uint16_t)port);
 	}
 	break;
 	case LENS_SET_I2C_PARAM: {
