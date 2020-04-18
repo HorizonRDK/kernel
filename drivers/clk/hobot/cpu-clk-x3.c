@@ -71,6 +71,7 @@ static int __set_armpll_clk(struct clk_hw *hw, unsigned long cpu_freq)
 {
 	struct cpuclk *cpuclk;
 	unsigned long pll_rate, old_pll_rate;
+	unsigned long rate;
 	int found = 0;
 	int i, ret;
 
@@ -113,6 +114,11 @@ static int __set_armpll_clk(struct clk_hw *hw, unsigned long cpu_freq)
 		}
 		clk_prepare(cpuclk->armpll1);
 		clk_enable(cpuclk->armpll1);
+
+		// just to config cpu_div
+		rate = clk_get_rate(cpuclk->armpll2)
+			/ (pll_rate / cpu_freq);
+		clk_set_rate(cpuclk->cpu_div, rate);
 
 		/* switch back to armpll1 */
 		ret = clk_set_parent(cpuclk->armpll_mux, cpuclk->armpll1);
