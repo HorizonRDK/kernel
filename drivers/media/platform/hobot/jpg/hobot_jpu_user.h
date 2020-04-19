@@ -1,3 +1,8 @@
+/***************************************************************************
+ *                      COPYRIGHT NOTICE
+ *             Copyright 2019 Horizon Robotics, Inc.
+ *                     All rights reserved.
+ ***************************************************************************/
 #ifndef __HOBOT_JPU_USER_H__
 #define __HOBOT_JPU_USER_H__
 

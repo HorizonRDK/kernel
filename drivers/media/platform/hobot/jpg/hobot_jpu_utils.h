@@ -26,7 +26,13 @@
 //#define JPU_SUPPORT_RESERVED_VIDEO_MEMORY
 
 #define JPU_PLATFORM_DEVICE_NAME    "hb_jpu"
-#define JPU_CLK_NAME                "jpeg"
+#define JPU_JPEG_CLK_NAME           "jpg_cclk"
+
+typedef enum _hb_jpu_event_e {
+	JPU_EVENT_NONE = 0,
+	JPU_PIC_DONE = 1,
+	JPU_INST_CLOSED = 2,
+} hb_jpu_event_t;
 
 typedef struct _hb_jpu_platform_data {
 	int ip_ver;
@@ -71,7 +77,7 @@ typedef struct _hb_jpu_dev {
 	struct cdev cdev;
 	struct device *jpu_dev;
 	struct kobject *jpu_kobj;
-	struct clk *jpu_clk;
+	struct clk *jpu_cclk;
 #ifdef CONFIG_ION_HOBOT
 	struct ion_client *jpu_ion_client;
 #endif
@@ -79,8 +85,9 @@ typedef struct _hb_jpu_dev {
 	wait_queue_head_t interrupt_wait_q[MAX_NUM_JPU_INSTANCE];
 	int interrupt_flag[MAX_NUM_JPU_INSTANCE];
 	u32 interrupt_reason[MAX_NUM_JPU_INSTANCE];
-  wait_queue_head_t poll_wait_q[MAX_NUM_JPU_INSTANCE];
-  spinlock_t poll_spinlock;
+	hb_jpu_event_t poll_event[MAX_NUM_JPU_INSTANCE];
+	wait_queue_head_t poll_wait_q[MAX_NUM_JPU_INSTANCE];
+	spinlock_t poll_spinlock;
 
 	struct fasync_struct *async_queue;
 	u32 open_count;		/*!<< device reference count. Not instance count */
@@ -96,5 +103,10 @@ typedef struct _hb_jpu_dev {
 	hb_jpu_drv_buffer_t common_memory;
   u32 inst_index;
 } hb_jpu_dev_t;
+
+typedef struct _hb_jpu_priv {
+	hb_jpu_dev_t *jpu_dev;
+	u32 inst_index;
+} hb_jpu_priv_t;
 
 #endif /* __HOBOT_JPU_UTILS_H__ */

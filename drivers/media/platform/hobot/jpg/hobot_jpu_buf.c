@@ -1,3 +1,8 @@
+/***************************************************************************
+ *                      COPYRIGHT NOTICE
+ *             Copyright 2019 Horizon Robotics, Inc.
+ *                     All rights reserved.
+ ***************************************************************************/
 #include "hobot_jpu_buf.h"
 
 static avl_node_t *make_avl_node(jmem_key_t key, page_t * page)

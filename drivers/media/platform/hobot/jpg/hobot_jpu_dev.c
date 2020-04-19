@@ -27,7 +27,7 @@
 #include "hobot_jpu_reg.h"
 #include "hobot_jpu_utils.h"
 
-int jpu_debug_flag = 7;
+int jpu_debug_flag = 5;
 
 #ifdef JPU_SUPPORT_RESERVED_VIDEO_MEMORY
 #define JPU_INIT_VIDEO_MEMORY_SIZE_IN_BYTE (16*1024*1024)
@@ -114,10 +114,11 @@ static void jpu_free_dma_buffer(hb_jpu_dev_t *dev,
 		return;
 	}
 
-	if (jb->base)
 #ifdef JPU_SUPPORT_RESERVED_VIDEO_MEMORY
+	if (jb->base)
 		jmem_free(&s_jmem, jb->phys_addr, 0);
 #else
+	if (jb->base)
 		dma_free_coherent(dev->device, PAGE_ALIGN(jb->size), (void *)jb->base,
 				  jb->phys_addr);
 #endif /* JPUR_SUPPORT_RESERVED_VIDEO_MEMORY */
@@ -132,6 +133,7 @@ static int jpu_free_instances(struct file *filp)
 	void *jdi_mutexes_base;
 	const int PTHREAD_MUTEX_T_DESTROY_VALUE = 0xdead10cc;
 	hb_jpu_dev_t *dev;
+	hb_jpu_priv_t *priv;
 	int core_idx = 0;
 
 	jpu_debug_enter();
@@ -139,8 +141,8 @@ static int jpu_free_instances(struct file *filp)
 		jpu_err("failed to free jpu buffers, filp is null.");
 		return -1;
 	}
-	dev = filp->private_data;
-
+	priv = filp->private_data;
+	dev = priv->jpu_dev;
 	if (!dev) {
 		jpu_err("failed to free jpu buffers, dev is null.");
 		return -1;
@@ -190,12 +192,16 @@ static int jpu_free_instances(struct file *filp)
 			list_del(&vil->list);
 			kfree(vil);
 			test_and_clear_bit(vil->inst_idx, jpu_inst_bitmap);
+			spin_lock(&dev->poll_spinlock);
+			dev->poll_event[vil->inst_idx] = JPU_INST_CLOSED;
+			spin_unlock(&dev->poll_spinlock);
+			wake_up_interruptible(&dev->poll_wait_q[vil->inst_idx]);
 		}
 	}
 
 	jpu_debug_leave();
 
-	return 1;
+	return 0;
 }
 
 static int jpu_free_buffers(struct file *filp)
@@ -203,12 +209,14 @@ static int jpu_free_buffers(struct file *filp)
 	hb_jpu_drv_buffer_pool_t *pool, *n;
 	hb_jpu_drv_buffer_t jb;
 	hb_jpu_dev_t *dev;
+	hb_jpu_priv_t *priv;
 	jpu_debug_enter();
 	if (!filp) {
 		jpu_err("failed to free jpu buffers, filp is null.");
 		return -1;
 	}
-	dev = filp->private_data;
+	priv = filp->private_data;
+	dev = priv->jpu_dev;
 
 	if (!dev) {
 		jpu_err("failed to free jpu buffers, dev is null.");
@@ -236,8 +244,6 @@ static irqreturn_t jpu_irq_handler(int irq, void *dev_id)
 	int i;
 	u32 flag;
 
-	jpu_debug_enter();
-
 #ifdef JPU_IRQ_CONTROL
 	disable_irq_nosync(dev->irq);
 #endif
@@ -251,8 +257,11 @@ static irqreturn_t jpu_irq_handler(int irq, void *dev_id)
 
 	dev->interrupt_reason[i] = flag;
 	dev->interrupt_flag[i] = 1;
-	jpu_debug(5, "[%d] INTERRUPT FLAG: %08x, %08x\n", i,
+	jpu_debug(7, "[%d] INTERRUPT FLAG: %08x, %08x\n", i,
 		  dev->interrupt_reason[i], MJPEG_PIC_STATUS_REG(i));
+
+	// clear interrupt status register
+	JPU_WRITEL(MJPEG_PIC_STATUS_REG(i), flag);
 
 	// notify the interrupt to userspace
 	if (dev->async_queue)
@@ -260,10 +269,10 @@ static irqreturn_t jpu_irq_handler(int irq, void *dev_id)
 
 	wake_up_interruptible(&dev->interrupt_wait_q[i]);
 
-  //spin_lock(&dev->poll_spinlock);
-  wake_up_interruptible(&dev->poll_wait_q[i]);
-
-	jpu_debug_leave();
+	spin_lock(&dev->poll_spinlock);
+	dev->poll_event[i] = JPU_PIC_DONE;
+	spin_unlock(&dev->poll_spinlock);
+	wake_up_interruptible(&dev->poll_wait_q[i]);
 
 	return IRQ_HANDLED;
 }
@@ -283,8 +292,12 @@ static void jpu_parse_dts(struct device_node *np, hb_jpu_dev_t * jpu_dev)
 static int jpu_open(struct inode *inode, struct file *filp)
 {
 	hb_jpu_dev_t *dev;
+	hb_jpu_priv_t *priv;
 	jpu_debug_enter();
 
+	priv = kzalloc(sizeof(hb_jpu_priv_t), GFP_KERNEL);
+	if (!priv)
+		return -ENOMEM;
 	dev = container_of(inode->i_cdev, hb_jpu_dev_t, cdev);
 	if (!dev) {
 		jpu_err("failed to get jpu dev data");
@@ -293,9 +306,11 @@ static int jpu_open(struct inode *inode, struct file *filp)
 
 	spin_lock(&dev->jpu_spinlock);
 	dev->open_count++;
-  dev->inst_index = -1;
-	filp->private_data = (void *)dev;
+	priv->jpu_dev = dev;
+	priv->inst_index = -1;
+	filp->private_data = (void *)priv;
 	spin_unlock(&dev->jpu_spinlock);
+	hb_jpu_clk_enable(dev);
 
 	jpu_debug_leave();
 
@@ -305,8 +320,12 @@ static int jpu_open(struct inode *inode, struct file *filp)
 static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 {
 	int ret = 0;
-	hb_jpu_dev_t *dev = (hb_jpu_dev_t *) filp->private_data;
-	jpu_debug_enter();
+	int inst_index;
+	hb_jpu_dev_t *dev;
+	hb_jpu_priv_t *priv;
+
+	priv = filp->private_data;
+	dev = priv->jpu_dev;
 	if (!dev) {
 		jpu_err("failed to get jpu dev data");
 		return -1;
@@ -423,21 +442,21 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 			hb_jpu_drv_intr_t info;
 			u32 instance_no;
 
-			jpu_debug(5, "[+]JDI_IOCTL_WAIT_INTERRUPT\n");
+			jpu_debug(7, "[+]JDI_IOCTL_WAIT_INTERRUPT\n");
 			ret = copy_from_user(&info, (hb_jpu_drv_intr_t *) arg,
 					     sizeof(hb_jpu_drv_intr_t));
 			if (ret != 0)
 				return -EFAULT;
 
 			instance_no = info.inst_idx;
-			jpu_debug(5, "INSTANCE NO: %d\n", instance_no);
+			jpu_debug(7, "INSTANCE NO: %d Timeout %d:\n", instance_no, info.timeout);
 			ret =
 			    wait_event_interruptible_timeout
 			    (dev->interrupt_wait_q[instance_no],
 			     dev->interrupt_flag[instance_no] != 0,
 			     msecs_to_jiffies(info.timeout));
 			if (!ret) {
-				jpu_debug(5, "INSTANCE NO: %d ETIME\n",
+				jpu_debug(7, "INSTANCE NO: %d ETIME\n",
 					  instance_no);
 				ret = -ETIME;
 				break;
@@ -451,7 +470,7 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 			}
 #endif
 
-			jpu_debug(5,
+			jpu_debug(7,
 				  "INST(%d) s_interrupt_flag(%d), reason(0x%08x)\n",
 				  instance_no, dev->interrupt_flag[instance_no],
 				  dev->interrupt_reason[instance_no]);
@@ -464,7 +483,7 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 #ifdef JPU_IRQ_CONTROL
 			enable_irq(dev->irq);
 #endif
-			jpu_debug(5, "[-]VDI_IOCTL_WAIT_INTERRUPT\n");
+			jpu_debug(7, "[-]VDI_IOCTL_WAIT_INTERRUPT\n");
 			if (ret != 0)
 				return -EFAULT;
 		}
@@ -480,11 +499,11 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 
 #ifdef JPU_SUPPORT_CLOCK_CONTROL
 			if (clkgate)
-				hb_jpu_clk_enable(dev->jpu_clk);
+				hb_jpu_clk_enable(dev);
 			else
-				hb_jpu_clk_disable(dev->jpu_clk);
-#endif /* JPU_SUPPORT_CLOCK_CONTROL */
-			jpu_debug(5, "[-]JDI_IOCTL_SET_CLOCK_GATE\n");
+				hb_jpu_clk_disable(dev);
+#endif
+			jpu_debug(5, "[-]VDI_IOCTL_SET_CLOCK_GATE\n");
 		}
 		break;
 
@@ -497,6 +516,8 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 				    copy_to_user((void __user *)arg,
 						 &dev->instance_pool,
 						 sizeof(hb_jpu_drv_buffer_t));
+					if (ret != 0)
+						ret = -EFAULT;
 			} else {
 				ret = copy_from_user(&dev->instance_pool,
 						     (hb_jpu_drv_buffer_t *)
@@ -552,6 +573,8 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 			jpu_debug(5, "[+]JDI_IOCTL_OPEN_INSTANCE\n");
 
 			jil = kzalloc(sizeof(*jil), GFP_KERNEL);
+			if (!jil)
+				return -ENOMEM;
 			if (copy_from_user
 			    (&inst_info, (hb_jpu_drv_inst_t *) arg,
 			     sizeof(hb_jpu_drv_inst_t))) {
@@ -595,6 +618,7 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 
 			if (copy_to_user((void __user *)arg, &inst_info,
 					 sizeof(hb_jpu_drv_inst_t))) {
+				kfree(jil);
 				return -EFAULT;
 			}
 
@@ -610,6 +634,7 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 		{
 			hb_jpu_drv_inst_t inst_info;
 			hb_jpu_drv_instance_list_t *jil, *n;
+			u32 found = 0;
 
 			jpu_debug(5, "[+]JDI_IOCTL_CLOSE_INSTANCE\n");
 			if (copy_from_user
@@ -626,8 +651,14 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 				if (jil->inst_idx == inst_info.inst_idx) {
 					list_del(&jil->list);
 					kfree(jil);
+					found = 1;
 					break;
 				}
+			}
+
+			if (0 == found) {
+				spin_unlock(&dev->jpu_spinlock);
+				return -EINVAL;
 			}
 
 			/* counting the current open instance number */
@@ -636,6 +667,12 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 						 list) {
 				inst_info.inst_open_count++;
 			}
+
+			spin_lock(&dev->poll_spinlock);
+			dev->poll_event[inst_info.inst_idx] = JPU_INST_CLOSED;
+			spin_unlock(&dev->poll_spinlock);
+			wake_up_interruptible(&dev->poll_wait_q[inst_info.inst_idx]);
+
 			/* flag just for that jpu is in opened or closed */
 			dev->jpu_open_ref_count--;
 			spin_unlock(&dev->jpu_spinlock);
@@ -710,7 +747,6 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 		break;
 	case JDI_IOCTL_ALLOCATE_INSTANCE_ID:
 		{
-			int inst_index;
 			jpu_debug(5, "[+]JDI_IOCTL_ALLOCATE_INSTANCE_ID\n");
 			spin_lock(&dev->jpu_spinlock);
 			inst_index =
@@ -771,7 +807,7 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
       }
       inst_no = info.inst_idx;
       if (inst_no >= 0 && inst_no < MAX_NUM_JPU_INSTANCE) {
-        dev->inst_index = inst_no;
+        priv->inst_index = inst_no;
       } else {
         return  -EINVAL;
       }
@@ -816,21 +852,24 @@ static int jpu_release(struct inode *inode, struct file *filp)
 	int i;
 
 	hb_jpu_dev_t *dev;
+	hb_jpu_priv_t *priv;
 	jpu_debug_enter();
 	dev = container_of(inode->i_cdev, hb_jpu_dev_t, cdev);
 	if (!dev) {
 		jpu_err("failed to get jpu dev data");
 		return -1;
 	}
+	priv = filp->private_data;
+	hb_jpu_clk_disable(dev);
 
 	if ((ret = down_interruptible(&dev->jpu_sem)) == 0) {
 		/* found and free the not handled buffer by user applications */
+		spin_lock(&dev->jpu_spinlock);	//check this place
 		jpu_free_buffers(filp);
 
 		/* found and free the not closed instance by user applications */
 		jpu_free_instances(filp);
 		jpu_debug(5, "open_count: %d\n", dev->open_count);
-		spin_lock(&dev->jpu_spinlock);
 		dev->open_count--;
 		open_count = dev->open_count;
 		spin_unlock(&dev->jpu_spinlock);
@@ -844,6 +883,7 @@ static int jpu_release(struct inode *inode, struct file *filp)
 				test_and_clear_bit(i, jpu_inst_bitmap);
 		}
 	}
+	kfree(priv);
 	up(&dev->jpu_sem);
 
 	jpu_debug_leave();
@@ -855,8 +895,10 @@ static int jpu_fasync(int fd, struct file *filp, int mode)
 {
 	int ret = 0;
 	hb_jpu_dev_t *dev;
+	hb_jpu_priv_t *priv;
 	jpu_debug_enter();
-	dev = filp->private_data;
+	priv = filp->private_data;
+	dev = priv->jpu_dev;
 	if (!dev) {
 		jpu_err("failed to get jpu dev data");
 		return -1;
@@ -871,6 +913,7 @@ static int jpu_map_to_register(struct file *filp, struct vm_area_struct *vm)
 {
 	unsigned long pfn;
 	hb_jpu_dev_t *dev;
+	hb_jpu_priv_t *priv;
 	int ret;
 	jpu_debug_enter();
 
@@ -879,7 +922,8 @@ static int jpu_map_to_register(struct file *filp, struct vm_area_struct *vm)
 		return -1;
 	}
 
-	dev = filp->private_data;
+	priv = filp->private_data;
+	dev = priv->jpu_dev;
 
 	if (!dev) {
 		jpu_err("failed to map register, dev is null.");
@@ -899,6 +943,7 @@ static int jpu_map_to_physical_memory(struct file *filp,
 				      struct vm_area_struct *vm)
 {
 	hb_jpu_dev_t *dev;
+	hb_jpu_priv_t *priv;
 	int ret;
 	jpu_debug_enter();
 
@@ -907,7 +952,8 @@ static int jpu_map_to_physical_memory(struct file *filp,
 		return -1;
 	}
 
-	dev = filp->private_data;
+	priv = filp->private_data;
+	dev = priv->jpu_dev;
 
 	if (!dev) {
 		jpu_err("failed to map register, dev is null.");
@@ -932,6 +978,7 @@ static int jpu_map_to_instance_pool_memory(struct file *filp,
 	char *vmalloc_area_ptr;
 	unsigned long pfn;
 	hb_jpu_dev_t *dev;
+	hb_jpu_priv_t *priv;
 
 	jpu_debug_enter();
 
@@ -940,7 +987,8 @@ static int jpu_map_to_instance_pool_memory(struct file *filp,
 		return -1;
 	}
 
-	dev = filp->private_data;
+	priv = filp->private_data;
+	dev = priv->jpu_dev;
 
 	if (!dev) {
 		jpu_err("failed to map  instances, dev is null.");
@@ -978,8 +1026,10 @@ static int jpu_map_to_instance_pool_memory(struct file *filp,
 static int jpu_mmap(struct file *filp, struct vm_area_struct *vm)
 {
 	hb_jpu_dev_t *dev;
+	hb_jpu_priv_t *priv;
 	jpu_debug_enter();
-	dev = filp->private_data;
+	priv = filp->private_data;
+	dev = priv->jpu_dev;
 
 	if (vm->vm_pgoff == 0)
 		return jpu_map_to_instance_pool_memory(filp, vm);
@@ -993,18 +1043,29 @@ static int jpu_mmap(struct file *filp, struct vm_area_struct *vm)
 static unsigned int jpu_poll(struct file *filp, struct poll_table_struct *wait)
 {
 	hb_jpu_dev_t *dev;
-  unsigned int mask;
-  jpu_debug_enter();
-	dev = (hb_jpu_dev_t *) filp->private_data;
-  if (dev->inst_index < 0 || dev->inst_index >= MAX_NUM_JPU_INSTANCE) {
-    return EPOLLERR;
-  }
-  poll_wait(filp, &dev->poll_wait_q[dev->inst_index], wait);
-  mask = EPOLLIN | EPOLLET;
-	jpu_debug(5, "POLL MASK:%08x\n", mask);
-  jpu_debug_leave();
-  return mask;
-};
+	hb_jpu_priv_t *priv;
+	unsigned int mask;
+
+	priv = filp->private_data;
+	dev = priv->jpu_dev;
+	if (priv->inst_index < 0 || priv->inst_index >= MAX_NUM_JPU_INSTANCE) {
+		return EPOLLERR;
+	}
+	poll_wait(filp, &dev->poll_wait_q[priv->inst_index], wait);
+	spin_lock(&dev->poll_spinlock);
+	if (JPU_PIC_DONE == dev->poll_event[priv->inst_index]) {
+		mask = EPOLLIN | EPOLLET;
+	} else if (JPU_INST_CLOSED == dev->poll_event[priv->inst_index]) {
+		mask = EPOLLHUP;
+	} else if (JPU_EVENT_NONE == dev->poll_event[priv->inst_index]) {
+		mask = 0;
+	} else {
+		mask = EPOLLERR;
+	}
+	dev->poll_event[priv->inst_index] = JPU_EVENT_NONE;
+	spin_unlock(&dev->poll_spinlock);
+	return mask;
+}
 
 struct file_operations jpu_fops = {
 	.owner = THIS_MODULE,
@@ -1020,7 +1081,7 @@ struct file_operations jpu_fops = {
 
 static int jpu_probe(struct platform_device *pdev)
 {
-	hb_jpu_dev_t *dev;
+	hb_jpu_dev_t *dev = NULL;
 	struct resource *res = NULL;
 	int err = 0;
 	int i;
@@ -1137,14 +1198,11 @@ static int jpu_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, dev);
 
-	dev->jpu_clk = hb_jpu_clk_get(&pdev->dev);
-	if (!dev->jpu_clk) {
-		dev_err(&pdev->dev, "not support clock controller.\n");
-	} else {
-		dev_err(&pdev->dev, "get clock controller s_jpu_clk = %p\n",
-			dev->jpu_clk);
+	err = hb_jpu_clk_get(dev);
+	if (err < 0) {
+		goto ERR_GET_CLK;
 	}
-	hb_jpu_clk_enable(dev->jpu_clk);
+	hb_jpu_clk_put(dev);
 
 #ifdef CONFIG_ION_HOBOT
 	dev->jpu_ion_client = ion_client_create(ion_exynos, JPU_DEV_NAME);
@@ -1185,6 +1243,7 @@ static int jpu_probe(struct platform_device *pdev)
 			s_video_memory.phys_addr, s_video_memory.base);
 	}
 #endif
+	dev->poll_spinlock = __SPIN_LOCK_UNLOCKED(poll_spinlock);
 	for (i = 0; i < MAX_NUM_JPU_INSTANCE; i++) {
 		init_waitqueue_head(&dev->interrupt_wait_q[i]);
 		init_waitqueue_head(&dev->poll_wait_q[i]);
@@ -1195,7 +1254,6 @@ static int jpu_probe(struct platform_device *pdev)
 	mutex_init(&dev->jpu_mutex);
 	sema_init(&dev->jpu_sem, 1);
 	dev->jpu_spinlock = __SPIN_LOCK_UNLOCKED(jpu_spinlock);
-  dev->poll_spinlock = __SPIN_LOCK_UNLOCKED(poll_spinlock);
 
 	INIT_LIST_HEAD(&dev->jbp_head);
 	INIT_LIST_HEAD(&dev->inst_list_head);
@@ -1211,8 +1269,8 @@ ERR_RESERVED_MEM:
 	ion_client_destroy(dev->jpu_ion_client);
 ERR_ION_CLIENT:
 #endif
-	hb_jpu_clk_enable(dev->jpu_clk);
-	hb_jpu_clk_put(dev->jpu_clk);
+	hb_jpu_clk_put(dev);
+ERR_GET_CLK:
 	sysfs_remove_file(&pdev->dev.kobj, &jpu_debug_attr.attr);
 ERR_CREATE_SYSFS:
 	device_destroy(dev->jpu_class, dev->jpu_dev_num);
@@ -1261,8 +1319,8 @@ static int jpu_remove(struct platform_device *pdev)
 	ion_client_destroy(dev->jpu_ion_client);
 #endif
 
-	hb_jpu_clk_disable(dev->jpu_clk);
-	hb_jpu_clk_put(dev->jpu_clk);
+	//hb_jpu_clk_disable(dev);
+	//hb_jpu_clk_put(dev);
 	sysfs_remove_file(&pdev->dev.kobj, &jpu_debug_attr.attr);
 	device_destroy(dev->jpu_class, dev->jpu_dev_num);
 	cdev_del(&dev->cdev);
@@ -1287,7 +1345,7 @@ static int jpu_suspend(struct platform_device *pdev, pm_message_t state)
 		jpu_err("The jpu dev is NULL!");
 		return -1;
 	}
-	hb_jpu_clk_disable(dev->jpu_clk);
+	hb_jpu_clk_disable(dev);
 	jpu_debug_enter();
 	return 0;
 
@@ -1303,7 +1361,7 @@ static int jpu_resume(struct platform_device *pdev)
 		jpu_err("The jpu dev is NULL!");
 		return -1;
 	}
-	hb_jpu_clk_enable(dev->jpu_clk);
+	hb_jpu_clk_enable(dev);
 	jpu_debug_enter();
 	return 0;
 }
@@ -1319,7 +1377,7 @@ static int jpu_resume(struct platform_device *pdev)
 
 static const struct of_device_id jpu_of_match[] = {
 	{
-	 .compatible = "hobot,x2a_jpu",
+	 .compatible = "hobot,hobot_jpu",
 	 .data = NULL,
 	 },
 	{},

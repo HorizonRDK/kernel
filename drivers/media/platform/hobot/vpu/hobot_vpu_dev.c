@@ -582,7 +582,7 @@ static hb_vpu_driver_data_t vpu_drv_data = {
 
 static const struct of_device_id vpu_of_match[] = {
 	{
-	 .compatible = "hobot,x2a_vpu",
+	 .compatible = "hobot,hobot_vpu",
 	 .data = &vpu_drv_data,
 	 },
 	{},
