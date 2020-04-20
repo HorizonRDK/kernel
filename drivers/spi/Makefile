@@ -111,7 +111,7 @@ obj-$(CONFIG_SPI_XTENSA_XTFPGA)		+= spi-xtensa-xtfpga.o
 obj-$(CONFIG_SPI_ZYNQMP_GQSPI)		+= spi-zynqmp-gqspi.o
 obj-$(CONFIG_SPI_HOBOT_QSPI)		+= spi-hobot-qspi.o
 obj-$(CONFIG_SPI_HOBOT) += spi-hobot.o
-GCOV_PROFILE := y
+GCOV_PROFILE_spi-hobot-qspi.o := y
 
 # SPI slave protocol handlers
 obj-$(CONFIG_SPI_SLAVE_TIME)		+= spi-slave-time.o
