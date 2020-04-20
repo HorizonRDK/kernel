@@ -38,8 +38,8 @@ void AF_fsm_clear( AF_fsm_t *p_fsm )
     p_fsm->frame_num = 0;
     p_fsm->mode = AF_MODE_AF;
     p_fsm->pos_manual = 0;
-    p_fsm->zoom_manual_pos = 100;
-    p_fsm->zoom_curr_pos = 100;
+    p_fsm->zoom_manual_pos = 10;
+    p_fsm->zoom_curr_pos = 10;
     p_fsm->new_pos = 0;
     p_fsm->roi = 0x4040C0C0;
     p_fsm->lens_driver_ok = 0;
@@ -178,7 +178,7 @@ int AF_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_t input_
 
         uint32_t zoom_manual = *(uint32_t *)input;
 
-        if ((zoom_manual <= 300) && (zoom_manual >= 100)) {
+        if ((zoom_manual <= 80) && (zoom_manual >= 10)) {
             p_fsm->zoom_manual_pos = zoom_manual;
         }
 	zoom_update_lens_position(p_fsm);

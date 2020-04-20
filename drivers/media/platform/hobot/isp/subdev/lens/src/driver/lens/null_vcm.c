@@ -68,7 +68,7 @@ static void vcm_null_drv_move( void *ctx, uint16_t position )
 	lens_context_t *p_ctx = (lens_context_t *)ctx;
 
 	LOG( LOG_INFO, "IE&E %s, position %d ", __func__, position );
-	pos = position / 64;
+	pos = position / 16;
 	ret = lens_api_af_move(p_ctx->port, pos);
 }
 
