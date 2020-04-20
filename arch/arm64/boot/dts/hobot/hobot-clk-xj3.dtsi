@@ -72,6 +72,7 @@
 			compatible = "hobot,laintpll-clk";
 			clocks = <&osc_clk>;
 			offset = <0x0 0x4 0x8>;
+			clk-flags = <CLK_IGNORE_UNUSED>;
 		};
 
 		syspll_clk: syspll_clk {
@@ -79,6 +80,7 @@
 			compatible = "hobot,laintpll-clk";
 			clocks = <&osc_clk>;
 			offset = <0x10 0x14 0x18>;
+			clk-flags = <CLK_IGNORE_UNUSED>;
 		};
 
 		armpll2_clk: armpll2_clk {
@@ -140,6 +142,7 @@
 			offset = <0x200 0x100 0x104 0x108 0x208 0x0>;
 			bits = <0 0 0 0 0 32>;
 			field = <3 1 1 1 1>;
+			clk-flags = <CLK_IGNORE_UNUSED>;
 		};
 
 
@@ -150,6 +153,7 @@
 			offset = <0x200 0x100 0x104 0x108 0x208 0x0>;
 			bits = <4 11 11 11 1 32>;
 			field = <3 1 1 1 1>;
+			clk-flags = <CLK_IGNORE_UNUSED>;
 		};
 
 		sys_pllmux_clk: sys_pllmux_clk {
@@ -213,6 +217,7 @@
 			offset = <0x100 0x104 0x108 0x0>;
 			bits = <1 1 1 32>;
 			field = <1 1 1>;
+			clk-flags = <CLK_IGNORE_UNUSED>;
 		};
 
 		sys_sramc_aclk: sys_sramc_aclk {
@@ -222,6 +227,7 @@
 			offset = <0x100 0x104 0x108 0x0>;
 			bits = <2 2 2 32>;
 			field = <1 1 1>;
+			clk-flags = <CLK_IGNORE_UNUSED>;
 		};
 
 		sys_gic_aclk: sys_gic_aclk {
@@ -231,6 +237,7 @@
 			offset = <0x100 0x104 0x108 0x0>;
 			bits = <3 3 3 32>;
 			field = <1 1 1>;
+			clk-flags = <CLK_IGNORE_UNUSED>;
 		};
 
 		sys_qspi_aclk: sys_qspi_aclk {
@@ -367,6 +374,7 @@
 			compatible = "hobot,laintpll-clk";
 			clocks = <&osc_clk>;
 			offset = <0x20 0x24 0x28>;
+			clk-flags = <CLK_IGNORE_UNUSED>;
 		};
 
 		cnn_src_clk: cnn_src_clk {
@@ -436,6 +444,7 @@
 			compatible = "hobot,fracpll-clk";
 			clocks = <&osc_clk>;
 			offset = <0x30 0x34 0x3C>;
+			clk-flags = <CLK_IGNORE_UNUSED>;
 		};
 
 		ddr_src_clk: ddr_src_clk {
@@ -463,6 +472,7 @@
 			offset = <0x230 0x130 0x134 0x138 0x238 0x0>;
 			bits = <0 0 0 0 0 32>;
 			field = <3 1 1 1 1>;
+			clk-flags = <CLK_IGNORE_UNUSED>;
 		};
 
 		viopll_clk: viopll_clk {
@@ -470,6 +480,7 @@
 			compatible = "hobot,laintpll-clk";
 			clocks = <&osc_clk>;
 			offset = <0x40 0x44 0x48>;
+			clk-flags = <CLK_IGNORE_UNUSED>;
 		};
 
 		vio_pllmux_clk: vio_pllmux_clk {
@@ -486,6 +497,7 @@
 			compatible = "hobot,laintpll-clk";
 			clocks = <&osc_clk>;
 			offset = <0xB0 0xB4 0xB8>;
+			clk-flags = <CLK_IGNORE_UNUSED>;
 		};
 
 		vio2_pllmux_clk: vio2_pllmux_clk {
@@ -829,6 +841,7 @@
 			compatible = "hobot,laintpll-clk";
 			clocks = <&osc_clk>;
 			offset = <0x50 0x54 0x58>;
+			clk-flags = <CLK_IGNORE_UNUSED>;
 		};
 
 		peri_pllmux_clk: peri_pllmux_clk {
@@ -847,6 +860,7 @@
 			offset = <0x250 0x150 0x154 0x158 0x258 0x0>;
 			bits = <0 0 0 0 0 32>;
 			field = <3 1 1 1 1>;
+			clk-flags = <CLK_IGNORE_UNUSED>;
 		};
 
 		uart_div_clk: uart_div_clk {
