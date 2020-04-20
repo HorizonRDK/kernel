@@ -233,6 +233,8 @@ static int x3_sif_open(struct inode *inode, struct file *file)
 	if (atomic_read(&sif->open_cnt) == 0) {
 		//vio_clk_enable("sif_mclk");
 		ips_set_clk_ctrl(SIF_CLOCK_GATE, true);
+		/*4 ddr in channel can not be 0 together*/
+		sif_enable_dma(sif->base_reg, 0x10000);
 	}
 
 	atomic_inc(&sif->open_cnt);
@@ -1484,8 +1486,7 @@ static int x3_sif_probe(struct platform_device *pdev)
 	}
 
 	platform_set_drvdata(pdev, sif);
-	/*4 ddr in channel can not be 0 together*/
-	sif_enable_dma(sif->base_reg, 0x10000);
+
 	ret = x3_sif_subdev_init(sif);
 
 	sif->hblank = 10;
