@@ -1345,8 +1345,7 @@ static int jpu_suspend(struct platform_device *pdev, pm_message_t state)
 		jpu_err("The jpu dev is NULL!");
 		return -1;
 	}
-	hb_jpu_clk_disable(dev);
-	jpu_debug_enter();
+	jpu_debug_leave();
 	return 0;
 
 }
@@ -1361,8 +1360,7 @@ static int jpu_resume(struct platform_device *pdev)
 		jpu_err("The jpu dev is NULL!");
 		return -1;
 	}
-	hb_jpu_clk_enable(dev);
-	jpu_debug_enter();
+	jpu_debug_leave();
 	return 0;
 }
 #else

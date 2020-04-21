@@ -2029,10 +2029,12 @@ static int vpu_suspend(struct platform_device *pdev, pm_message_t state)
 	}
 
 	hb_vpu_clk_disable(dev);
+	vpu_debug_leave();
 	return 0;
 
 DONE_SUSPEND:
 	hb_vpu_clk_disable(dev);
+	vpu_debug_leave();
 	return -EAGAIN;
 }
 
@@ -2164,6 +2166,7 @@ DONE_WAKEUP:
 	if (dev->vpu_open_ref_count > 0)
 		hb_vpu_clk_enable(dev);
 
+	vpu_debug_leave();
 	return 0;
 }
 #else
