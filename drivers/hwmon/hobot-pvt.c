@@ -102,24 +102,33 @@ static int pvt_temp_read(struct device *dev, enum hwmon_sensor_types type,
 
 	spin_lock_irqsave(&pvt_dev->lock, flags);
 
+	if (test_gain == 94)
+		pvt_dev->cur_smpl[2] = test_gain;
+
 	for (i = 0; i < PVT_TS_NUM; i++) {
 		if (pvt_dev->ts_mode == 0) {
 			//ts mode 1
-			temp = ((pvt_dev->cur_smpl[i] * 220 - 67 * 4094) >> 12);
+			temp = (((int)pvt_dev->cur_smpl[i] * 220) >> 12) - ((67 * 4094) >> 12);
 		} else {
 			//ts mode 2
 			/*
 			 * use integer instead of float, the difference is less than 1C.
 			 * ((int)(pvt_dev->cur_smpl[i] * 204.4 - 43.14 * 4094) >> 12)
 			 */
-			temp = ((pvt_dev->cur_smpl[i] * 204 - 43 * 4094) >> 12);
+
+			temp = (((int)pvt_dev->cur_smpl[i] * 204) >> 12) - ((43 * 4094) >> 12);
 		}
 
 		pvt_dev->cur_temp[i] = temp;
-		pr_debug("%s cur_smpl[%d] = %d\n", ts_map[i], i, pvt_dev->cur_smpl[i]);
-		pr_debug("%s cur_temp[%d] = %ld\n", ts_map[i], i, pvt_dev->cur_temp[i]);
+
+		if (temp < 0) {
+			pr_debug("%s cur_smpl[%d] = %d\n", ts_map[i], i, pvt_dev->cur_smpl[i]);
+			pr_debug("%s cur_temp[%d] = %ld\n", ts_map[i], i, pvt_dev->cur_temp[i]);
+		}
 		sum += temp;
 	}
+
+	test_gain = 0;
 
 	pvt_dev->cur_temp_avg = sum >> 2;
 	*val = pvt_dev->cur_temp_avg * 1000 + test_gain;
@@ -138,9 +147,6 @@ static int pvt_temp_read(struct device *dev, enum hwmon_sensor_types type,
 
 	diff = temp_max - temp_min;
 	if (diff > 2)
-		pr_info("avg:%ld, min:%ld, max:%ld, diff:%ld\n",
-			pvt_dev->cur_temp_avg, temp_min, temp_max, diff);
-	else
 		pr_debug("avg:%ld, min:%ld, max:%ld, diff:%ld\n",
 			pvt_dev->cur_temp_avg, temp_min, temp_max, diff);
 
