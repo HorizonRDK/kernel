@@ -398,11 +398,13 @@ int dwe_init_api(dwe_context_t *ctx, struct dwe_dev_s *pdev, dwe_param_t **ppara
 	ctx->ptr_mem = ptr;
 	ctx->phy_mem = (uint32_t)__virt_to_phys(ptr);
 
+#if 0
 	for (tmp = 0; tmp < HADRWARE_CONTEXT_MAX; tmp++) {
 		set_chn_dis_addr(dev_ptr->dis_dev->io_vaddr, &ctx->phy_mem, tmp);
 	}
 
 	dwe_sw_init();
+#endif
 
 	ctx->ldc_running = 0;
 	ctx->ldc_dev_num = 0;
