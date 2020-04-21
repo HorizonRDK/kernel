@@ -40,6 +40,7 @@
 #define MPQ7920_LDO3_VSET	0x17
 #define MPQ7920_LDO4_VSET	0x1a
 #define MPQ7920_LDO5_VSET	0x1d
+#define MPQ7920_POWER_RAILS_CTRL	0x21
 #define MPQ7920_SYS_CTRL	0x22
 
 
@@ -304,6 +305,19 @@ static void mpq7920_slot_init(void)
 	regmap_write(mpq7920->regmap, MPQ7920_DCDC3_SLOT_MODE, 0x0);
 	regmap_write(mpq7920->regmap, MPQ7920_DCDC4_SLOT_MODE, 0x0);
 }
+#ifdef	CONFIG_HOBOT_XJ3
+static void mpq7920_power_rail_init(void)
+{
+	struct mpq7920 *mpq7920;
+	unsigned int val = 0;
+
+	mpq7920 = i2c_get_clientdata(mpq7920_i2c_client);
+	regmap_read(mpq7920->regmap, MPQ7920_POWER_RAILS_CTRL, &val);
+	val |= (1 << 2);
+	/* contrl LDO3 ON/OFF by EN1 pin */
+	regmap_write(mpq7920->regmap, MPQ7920_POWER_RAILS_CTRL, val);
+}
+#endif
 
 static int mpq7920_pmic_probe(struct i2c_client *client,
 			      const struct i2c_device_id *i2c_id)
@@ -415,8 +429,12 @@ static int mpq7920_pmic_probe(struct i2c_client *client,
 	mpq7920_i2c_client = client;
 	i2c_set_clientdata(client, mpq7920);
 
-	if (type == MPQ7920)
+	if (type == MPQ7920) {
 		mpq7920_slot_init();
+#ifdef	CONFIG_HOBOT_XJ3
+		mpq7920_power_rail_init();
+#endif
+	}
 
 	return 0;
 }
