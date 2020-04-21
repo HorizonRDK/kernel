@@ -202,16 +202,16 @@ static void sensor_set_type( void *ctx, uint8_t sensor_type, uint8_t sensor_i2c_
 	if (sensor_ops[p_ctx->channel]) {
 		if (param->modes_table[param->mode].wdr_mode == WDR_MODE_LINEAR) {
 			//normal
-    			sensor_ops[p_ctx->channel]->sensor_init(p_ctx->channel, 0);
+			sensor_ops[p_ctx->channel]->sensor_init(p_ctx->channel, NORMAL_M);
 		} else if (param->modes_table[param->mode].wdr_mode == WDR_MODE_FS_LIN) {
 			if (param->sensor_exp_number == 2) {
-    				sensor_ops[p_ctx->channel]->sensor_init(p_ctx->channel, 1);
+				sensor_ops[p_ctx->channel]->sensor_init(p_ctx->channel, DOL2_M);
 			} else if (param->sensor_exp_number == 3) {
-    				sensor_ops[p_ctx->channel]->sensor_init(p_ctx->channel, 2);
+				sensor_ops[p_ctx->channel]->sensor_init(p_ctx->channel, DOL3_M);
 			}
 		} else if (param->modes_table[param->mode].wdr_mode == WDR_MODE_NATIVE) {
 			//pwl
-    			sensor_ops[p_ctx->channel]->sensor_init(p_ctx->channel, 3);
+			sensor_ops[p_ctx->channel]->sensor_init(p_ctx->channel, PWL_M);
 		}
 		tmp = 0;
 		while (tmp < 5) {

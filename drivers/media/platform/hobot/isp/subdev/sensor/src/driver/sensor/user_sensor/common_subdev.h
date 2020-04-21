@@ -63,11 +63,11 @@ struct sensor_arg {
 };
 
 enum SENSOR_MODE {
-	SENSOR_LINEAR = 0,
+	SENSOR_LINEAR = 1,
 	SENSOR_DOL2,
 	SENSOR_DOL3,
-	SENSOR_PWL,
 	SENSOR_DOL4,
+	SENSOR_PWL,
 };
 
 enum camera_IOCTL {
