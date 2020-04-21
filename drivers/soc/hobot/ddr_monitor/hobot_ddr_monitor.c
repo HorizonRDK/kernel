@@ -1379,8 +1379,13 @@ static int ddr_monitor_probe(struct platform_device *pdev)
 	init_waitqueue_head(&g_ddr_monitor_dev->wq_head);
 	spin_lock_init(&g_ddr_monitor_dev->lock);
 
+#ifdef CONFIG_HOBOT_XJ3
+	writel(0x2021100, g_ddr_monitor_dev->regaddr + DDR_PORT_READ_QOS_CTRL);
+	writel(0x2021100, g_ddr_monitor_dev->regaddr + DDR_PORT_WRITE_QOS_CTRL);
+#else
 	writel(0x21100, g_ddr_monitor_dev->regaddr + DDR_PORT_READ_QOS_CTRL);
 	writel(0x21100, g_ddr_monitor_dev->regaddr + DDR_PORT_WRITE_QOS_CTRL);
+#endif
 
 	pr_info("ddr monitor init finished.");
 
