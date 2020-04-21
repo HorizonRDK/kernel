@@ -579,7 +579,9 @@ static bool spinand_isbad(struct nand_device *nand, const struct nand_pos *pos)
 	memset(spinand->oobbuf, 0, 2);
 	spinand_select_target(spinand, pos->target);
 	spinand_read_page(spinand, &req, false);
-#ifndef CONFIG_YAFFS_FS
+
+// Due to yaffs2 patch, oobbuf[1] will not be 0xff
+#ifdef CONFIG_MTD_NAND_OLD_OOB_FLAG
 	if (spinand->oobbuf[0] != 0xff || spinand->oobbuf[1] != 0xff)
 #else
 	if (spinand->oobbuf[0] != 0xff)

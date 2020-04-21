@@ -296,53 +296,48 @@
 		reg = <0x0>;
 		spi-max-frequency = <50000000>; /* For FPGA max clk is 20Mhz */
 
-		partition@qspi-system {
-			label = "qspi-system";
-			reg = <0x1640000 0x2000000>;
+		partition@nor-system {
+			label = "nor-system";
+			reg = <0xD60000 0x2100000>;
 		};
 
-		partition@qspi-sbl {
-			label = "qspi-sbl";
-			reg = <0x20000 0x60000>;
+		partition@nor-sbl {
+			label = "nor-sbl";
+			reg = <0x20000 0xA0000>;
 		};
 
-		partition@qspi-bl31 {
-			label = "qspi-bl31";
-			reg = <0x80000 0x80000>;
+		partition@nor-bl31 {
+			label = "nor-bl31";
+			reg = <0xC0000 0x60000>;
 		};
 
-		partition@qspi-uboot {
-			label = "qspi-uboot";
-			reg = <0x100000 0x100000>;
+		partition@nor-uboot {
+			label = "nor-uboot";
+			reg = <0x120000 0x200000>;
 		};
 
-		partition@qspi-bpu {
-			label = "qspi-bpu";
-			reg = <0x200000 0x20000>;
+		partition@nor-bpu {
+			label = "nor-bpu";
+			reg = <0x320000 0x20000>;
 		};
 
-		partition@qspi-vbmeta {
-			label = "qspi-vbmeta";
-			reg = <0x220000 0x20000>;
+		partition@nor-vbmeta {
+			label = "nor-vbmeta";
+			reg = <0x340000 0x20000>;
 		};
 
-		partition@qspi-boot {
-			label = "qspi-boot";
-			reg = <0x240000 0xA00000>;
+		partition@nor-boot {
+			label = "nor-boot";
+			reg = <0x360000 0xA00000>;
 		};
 
-		partition@qspi-recovery {
-			label = "qspi-recovery";
-			reg = <0xC40000 0xA00000>;
+		partition@nor-app {
+			label = "nor-app";
+			reg = <0x2E60000 0x0>;
 		};
 
-		partition@qspi-app {
-			label = "qspi-app";
-			reg = <0x3640000 0x960000>;
-		};
-
-		partition@qspi-nor {
-			label = "qspi-nor";
+		partition@nor-full {
+			label = "nor-full";
 			reg = <0x0 0x4000000>;
 		};
 	};
@@ -363,21 +358,25 @@
 		spi-rx-bus-width = <4>;
 		spi-max-frequency = <50000000>; /* For FPGA max clk is 20Mhz */
 
-		bootloader@0 {
-			label = "bootloader";
-			reg = <0 0x680000>;
+		partition@nand-bootloader {
+			label = "nand-bootloader";
+			reg = <0 0x720000>;
 		};
-		sys@680000 {
-			label = "sys";
-			reg = <0x680000 0x1400000>;
+		partition@nand-boot {
+			label = "nand-boot";
+			reg = <0x720000 0x1400000>;
 		};
-		rootfs@1A80000 {
-			label = "rootfs";
-			reg = <0x1A80000 0x3C00000>;
+		partition@nand-rootfs {
+			label = "nand-rootfs";
+			reg = <0x1B20000 0x3C00000>;
 		};
-		userdata@5680000 {
-			label = "userdata";
-			reg = <0x5680000 0>;
+		partition@nand-userdata {
+			label = "nand-userdata";
+			reg = <0x5720000 0>;
+		};
+		partition@nand-full {
+			label = "nand-full";
+			reg = <0x0 0x0>;
 		};
 	};
 };
