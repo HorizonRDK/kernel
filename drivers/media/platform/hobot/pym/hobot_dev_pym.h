@@ -36,6 +36,7 @@ struct pym_video_ctx{
 	struct vio_framemgr 	*framemgr;
 	u32			frm_fst_ind;
 	u32			frm_num;
+	int                     frm_num_usr;
 	struct vio_group		*group;
 	unsigned long			state;
 	u32 event;

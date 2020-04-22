@@ -61,6 +61,7 @@ struct ipu_video_ctx {
 	struct vio_framemgr 	*framemgr;
 	u32			frm_fst_ind;
 	u32			frm_num;
+	int			frm_num_usr;
 	struct vio_group 	*group;
 	u32 			event;
 	u32	 		id;

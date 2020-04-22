@@ -1248,6 +1248,7 @@ int ipu_video_qbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	frame = framemgr->frames_mp[index];
+	ipu_ctx->frm_num_usr--;
 	if (frame->state == FS_FREE) {
 		framemgr->dispatch_mask[index] &= ~(1 << ipu_ctx->ctx_index);
 		if (framemgr->index_state[index] == FRAME_IND_STREAMOFF) {
@@ -1329,6 +1330,18 @@ int ipu_video_dqbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 	ctx_index = ipu_ctx->ctx_index;
 
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
+	if (ipu_ctx->frm_num_usr > (int)ipu_ctx->frm_num) {
+		ret = -EFAULT;
+		ipu_ctx->event = 0;
+		vio_dbg("[S%d][V%d] %s (p%d) dq too much frame(%d-%d).",
+			ipu_ctx->group->instance, ipu_ctx->id, __func__,
+			ipu_ctx->ctx_index, ipu_ctx->frm_num_usr,
+			ipu_ctx->frm_num);
+		framemgr_x_barrier_irqr(framemgr, 0, flags);
+		return ret;
+	} else {
+		ipu_ctx->frm_num_usr++;
+	}
 	framemgr->ctx_mask |= (1 << ipu_ctx->ctx_index);
 	done_list = &framemgr->queued_list[FS_COMPLETE];
 	if (!list_empty(done_list)) {

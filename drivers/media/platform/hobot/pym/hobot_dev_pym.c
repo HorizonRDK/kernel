@@ -622,6 +622,7 @@ int pym_video_qbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	frame = framemgr->frames_mp[index];
+	pym_ctx->frm_num_usr--;
 	if (frame->state == FS_FREE) {
 		framemgr->dispatch_mask[index] &= ~(1 << pym_ctx->ctx_index);
 		if (framemgr->index_state[index] == FRAME_IND_STREAMOFF) {
@@ -704,6 +705,18 @@ int pym_video_dqbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 	subdev = pym_ctx->subdev;
 
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
+	if (pym_ctx->frm_num_usr > (int)pym_ctx->frm_num) {
+		ret = -EFAULT;
+		pym_ctx->event = 0;
+		vio_dbg("[S%d] %s (p%d) dq too much frame(%d-%d).",
+			pym_ctx->group->instance, __func__,
+			pym_ctx->ctx_index, pym_ctx->frm_num_usr,
+			pym_ctx->frm_num);
+		framemgr_x_barrier_irqr(framemgr, 0, flags);
+		return ret;
+	} else {
+		pym_ctx->frm_num_usr++;
+	}
 	framemgr->ctx_mask |= (1 << pym_ctx->ctx_index);
 	done_list = &framemgr->queued_list[FS_COMPLETE];
 	if (!list_empty(done_list)) {
