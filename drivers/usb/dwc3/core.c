@@ -10,6 +10,7 @@
  * (at your option) any later version.
  */
 
+#include <linux/clk.h>
 #include <linux/version.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
@@ -272,6 +273,13 @@ done:
 
 	return 0;
 }
+
+static const struct clk_bulk_data dwc3_core_clks[] = {
+	{ .id = "usb_aclk" },
+	{ .id = "pipe_clk" },
+	{ .id = "utmi_clk" },
+	{ .id = "utmi_clk_pre" },
+};
 
 /*
  * dwc3_frame_length_adjustment - Adjusts frame length if required
@@ -674,6 +682,8 @@ static void dwc3_core_exit(struct dwc3 *dwc)
 	usb_phy_set_suspend(dwc->usb3_phy, 1);
 	phy_power_off(dwc->usb2_generic_phy);
 	phy_power_off(dwc->usb3_generic_phy);
+	clk_bulk_disable(dwc->num_clks, dwc->clks);
+	clk_bulk_unprepare(dwc->num_clks, dwc->clks);
 }
 
 static bool dwc3_core_is_valid(struct dwc3 *dwc)
@@ -1395,11 +1405,19 @@ static int dwc3_probe(struct platform_device *pdev)
 
 	void __iomem		*regs;
 	void __iomem		*regs_sys;
+	int			i;
+	unsigned long		clkrate;
 
 	dwc = devm_kzalloc(dev, sizeof(*dwc), GFP_KERNEL);
 	if (!dwc)
 		return -ENOMEM;
 
+	dwc->clks = devm_kmemdup(dev, dwc3_core_clks, sizeof(dwc3_core_clks),
+				 GFP_KERNEL);
+	if (!dwc->clks)
+		return -ENOMEM;
+
+	dwc->num_clks = ARRAY_SIZE(dwc3_core_clks);
 	dwc->dev = dev;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
@@ -1464,6 +1482,32 @@ static int dwc3_probe(struct platform_device *pdev)
 
 	dwc3_get_properties(dwc);
 
+	ret = clk_bulk_get(dev, dwc->num_clks, dwc->clks);
+	if (ret == -EPROBE_DEFER)
+		goto err0;
+
+	/*
+	 * Clocks are optional, but new DT platforms should support all clocks
+	 * as required by the DT-binding.
+	 */
+	if (ret)
+		dwc->num_clks = 0;
+
+	ret = clk_bulk_prepare(dwc->num_clks, dwc->clks);
+	if (ret)
+		goto put_clks;
+
+	ret = clk_bulk_enable(dwc->num_clks, dwc->clks);
+	if (ret)
+		goto unprepare_clks;
+
+	dev_dbg(dev, "clock enabled, info clock rate:\n");
+	for (i = 0; i < dwc->num_clks; i++) {
+		clkrate = clk_get_rate(dwc->clks[i].clk);
+		dev_dbg(dev, "<%d>clock[%s] rate: %lu\n",
+				i, dwc->clks[i].id, clkrate);
+	}
+
 	platform_set_drvdata(pdev, dwc);
 	dwc3_cache_hwparams(dwc);
 
@@ -1527,6 +1571,11 @@ err1:
 	pm_runtime_put_sync(&pdev->dev);
 	pm_runtime_disable(&pdev->dev);
 
+	clk_bulk_disable(dwc->num_clks, dwc->clks);
+unprepare_clks:
+	clk_bulk_unprepare(dwc->num_clks, dwc->clks);
+put_clks:
+	clk_bulk_put(dwc->num_clks, dwc->clks);
 err0:
 	/*
 	 * restore res->start back to its original value so that, in case the
@@ -1563,6 +1612,7 @@ static int dwc3_remove(struct platform_device *pdev)
 
 	dwc3_free_event_buffers(dwc);
 	dwc3_free_scratch_buffers(dwc);
+	clk_bulk_put(dwc->num_clks, dwc->clks);
 
 	return 0;
 }
