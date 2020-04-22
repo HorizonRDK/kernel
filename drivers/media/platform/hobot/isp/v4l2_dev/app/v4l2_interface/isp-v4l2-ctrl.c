@@ -330,7 +330,7 @@ static const struct v4l2_ctrl_config isp_v4l2_ctrl_temper_buf_ctrl = {
     .name = "ISP TEMPER BUF CTRL",
     .type = V4L2_CTRL_TYPE_INTEGER,
     .min = 0,
-    .max = 1,
+    .max = 3,
     .step = 1,
     .def = 0,
 };

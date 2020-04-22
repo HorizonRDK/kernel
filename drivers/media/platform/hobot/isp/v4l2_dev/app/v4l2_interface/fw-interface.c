@@ -1336,10 +1336,21 @@ int fw_intf_temper_buf_ctrl(uint32_t ctx_id, uint32_t ctrl_val)
 {
 	acamera_context_t *p_ctx = acamera_get_ctx_ptr(ctx_id);
 
-	if (ctrl_val)
+	if (ctrl_val) {
+		if (ctrl_val == 2) {
+			pr_debug("set value %d, temper 2\n", ctrl_val);
+			((general_fsm_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_GENERAL]->p_fsm))->temper_mode = TEMPER2_MODE;
+		} else if (ctrl_val == 3) {
+			pr_debug("set value %d, temper 3\n", ctrl_val);
+			((general_fsm_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_GENERAL]->p_fsm))->temper_mode = TEMPER3_MODE;
+		} else {
+			pr_debug("set value %d, disabele\n", ctrl_val);
+			((general_fsm_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_GENERAL]->p_fsm))->temper_mode = NOTHING;
+		}
 		isp_temper_prepare((general_fsm_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_GENERAL]->p_fsm));
-	else
+	} else {
 		isp_temper_free((general_fsm_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_GENERAL]->p_fsm));
+	}
 
 	return 0;
 }

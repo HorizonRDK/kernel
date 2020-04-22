@@ -703,7 +703,7 @@ static int general_temper_init( general_fsm_ptr_t p_fsm )
     uint64_t dma_addr;
     int i;
 
-    p_fsm->temper_mode = TEMPER_MODE_DEFAULT;
+    // p_fsm->temper_mode = TEMPER_MODE_DEFAULT;
 
     /* Disable temper at the beginning */
     p_fsm->cnt_for_temper = 0;
@@ -811,20 +811,27 @@ static int general_temper_configure( general_fsm_ptr_t p_fsm )
         acamera_isp_temper_dma_msb_bank_base_writer_write( isp_base, msb_frame->address );
         acamera_isp_temper_dma_frame_write_on_msb_dma_write( isp_base, 1 );
         acamera_isp_temper_dma_frame_read_on_msb_dma_write( isp_base, 1 );
+    } else {
+	acamera_isp_temper_temper2_mode_write( isp_base, p_fsm->temper_mode == TEMPER2_MODE );
     }
-
-    acamera_isp_temper_temper2_mode_write( isp_base, p_fsm->temper_mode == TEMPER2_MODE );
     acamera_isp_temper_dma_line_offset_write( isp_base, lsb_frame->line_offset );
 
     /* Turn on */
-    acamera_isp_top_bypass_temper_write( isp_base, 0 );
+    if (p_fsm->temper_mode == TEMPER2_MODE || p_fsm->temper_mode == TEMPER3_MODE) {
+	acamera_isp_temper_enable_write(isp_base, 1);
+	acamera_isp_top_bypass_temper_write(isp_base, 0);
+    } else {
+	acamera_isp_temper_enable_write(isp_base, 0);
+	//acamera_isp_top_bypass_temper_write(isp_base, 1);
+    }
+	//acamera_isp_top_bypass_temper_write( isp_base, 0 );
 
     return 0;
 }
 
 int general_temper_set_mode( general_fsm_ptr_t p_fsm, uint32_t mode )
 {
-    if ( mode != TEMPER3_MODE && mode != TEMPER2_MODE ) {
+    if ( mode != TEMPER3_MODE && mode != TEMPER2_MODE && mode != NOTHING) {
         LOG( LOG_ERR, "invalid temper_mode: %d", mode );
         return -1;
     }

@@ -120,7 +120,7 @@ void iridix_fsm_process_interrupt( iridix_fsm_const_ptr_t p_fsm, uint8_t irq_eve
 
         diff = ( diff * diff_iridix_DG ) >> 8;
 
-        LOG( LOG_ERR, "diff2 %d\n", (int)diff);
+        LOG( LOG_DEBUG, "diff2 %d\n", (int)diff);
         if ( diff < 0 )
             diff = 256;
         if ( diff >= ( 1 << ACAMERA_ISP_IRIDIX_COLLECTION_CORRECTION_DATASIZE ) )
