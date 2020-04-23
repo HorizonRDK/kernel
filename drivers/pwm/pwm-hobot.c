@@ -44,6 +44,7 @@
 
 struct hobot_pwm_chip {
 	struct pwm_chip chip;
+	struct clk *mclk;
 	int irq;
 	char name[8];
 	void __iomem *base;
@@ -84,6 +85,7 @@ static int hobot_pwm_config(struct pwm_chip *chip, struct pwm_device *pwm, int d
 	int pwm_freq, pwm_ratio;
 	struct hobot_pwm_chip *hbpwm = to_hobot_pwm_chip(chip);
 
+	clk_prepare_enable(hbpwm->mclk);
 	/* config pwm freq */
 	pwm_freq = div64_u64((uint64_t)PWM_CLK * (uint64_t)period_ns,
 			(unsigned long long)NSEC_PER_SEC);
@@ -132,6 +134,7 @@ static void hobot_pwm_disable(struct pwm_chip *chip, struct pwm_device *pwm)
 		val &= (~PWM_INT_EN);
 	hobot_pwm_wr(hbpwm, PWM_EN, val);
 
+	clk_disable_unprepare(hbpwm->mclk);
 	return;
 }
 
@@ -157,6 +160,12 @@ static int hobot_pwm_probe(struct platform_device *pdev)
 	hbpwm->base = devm_ioremap_resource(&pdev->dev, res);
 	if (IS_ERR(hbpwm->base))
 		return PTR_ERR(hbpwm->base);
+
+	hbpwm->mclk = devm_clk_get(&pdev->dev, "pwm_mclk");
+	if (IS_ERR(hbpwm->mclk) || (hbpwm->mclk == NULL)) {
+		hbpwm->mclk = NULL;
+		dev_err(&pdev->dev, "Can't get pwm mclk\n");
+	}
 
 	/* Look for a serialN alias */
 	id = of_alias_get_id(node, "pwm");

@@ -570,6 +570,8 @@
                 iar: iar@0xA4001000 {
                         compatible = "hobot,hobot-iar";
                         reg = <0 0xA4301000 0 0x400>, <0 0xA4355000 0 0x1000>;
+			clocks = <&iar_pix_clk>, <&sif_mclk>;
+			clock-names = "iar_pix_clk","sif_mclk";
                         memory-region = <&iar_reserved>;
                         interrupt-parent = <&gic>;
                         interrupts = <0 69 4>;
@@ -689,6 +691,10 @@
 			reg = <0 0xA500D000 0 0x1000>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 44 4>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pwm0>;
+			clocks = <&pwm0_mclk>;
+			clock-names = "pwm_mclk";
 			status = "disabled";
 		};
 
@@ -697,6 +703,10 @@
 			reg = <0 0xA500E000 0 0x1000>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 45 4>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pwm1>;
+			clocks = <&pwm1_mclk>;
+			clock-names = "pwm_mclk";
 			status = "disabled";
 		};
 
@@ -705,6 +715,10 @@
 			reg = <0 0xA500F000 0 0x1000>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 46 4>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pwm2>;
+			clocks = <&pwm2_mclk>;
+			clock-names = "pwm_mclk";
 			status = "disabled";
 		};
 

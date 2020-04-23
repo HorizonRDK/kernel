@@ -531,6 +531,7 @@ struct iar_dev_s {
 	struct pinctrl_state *pins_mipi_dsi;
 	struct pinctrl_state *pins_rgb;
 	struct clk *iar_pixel_clk;
+	struct clk *sif_mclk;
 
     struct vio_framemgr framemgr_layer[IAR_CHANNEL_MAX];
     wait_queue_head_t output_done_wq[IAR_CHANNEL_MAX];
@@ -806,6 +807,7 @@ int32_t iar_layer_disable(int32_t layer_no);
 int32_t iar_layer_enable(int32_t layer_no);
 int set_screen_backlight(unsigned int backlight_level);
 int get_iar_module_rst_pin(void);
+int iar_enable_sif_mclk(void);
 //int iar_is_enabled(void);
 int iar_wb_dqbuf(struct frame_info *frameinfo);
 int iar_wb_qbuf(struct frame_info *frameinfo);

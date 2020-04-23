@@ -615,6 +615,7 @@ static ssize_t x2_iar_store(struct kobject *kobj, struct kobj_attribute *attr, c
 	tmp = (char *)buf;
 	if (strncmp(tmp, "start", 5) == 0) {
 		pr_info("iar start......\n");
+		iar_enable_sif_mclk();
 		iar_start(1);
 	} else if (strncmp(tmp, "stop", 4) == 0) {
 		pr_info("iar stop......\n");

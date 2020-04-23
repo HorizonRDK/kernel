@@ -2493,6 +2493,28 @@ int get_iar_module_rst_pin(void)
 }
 EXPORT_SYMBOL_GPL(get_iar_module_rst_pin);
 
+int iar_enable_sif_mclk(void)
+{
+	int ret = 0;
+
+	if (g_iar_dev == NULL) {
+		pr_err("%s: iar not init!!\n", __func__);
+		return -1;
+	}
+	if (g_iar_dev->sif_mclk == NULL) {
+		pr_err("%s: sif_mclk is null!!\n", __func__);
+		return -1;
+	}
+	ret = clk_prepare_enable(g_iar_dev->sif_mclk);
+	if (ret != 0) {
+		pr_err("%s: failed to prepare sif_mclk!!\n", __func__);
+		return ret;
+	}
+	pr_info("success prepare and enable sif_mclk!\n");
+	return 0;
+}
+EXPORT_SYMBOL_GPL(iar_enable_sif_mclk);
+
 static int x2_iar_probe(struct platform_device *pdev)
 {
 	struct resource *res, *irq, *res_mipi;
@@ -2523,6 +2545,16 @@ static int x2_iar_probe(struct platform_device *pdev)
 	g_iar_dev->pdev = pdev;
 	memset(&g_iar_dev->cur_framebuf_id, 0, IAR_CHANNEL_MAX * sizeof(int));
 
+	g_iar_dev->sif_mclk = devm_clk_get(&pdev->dev, "sif_mclk");
+        if (IS_ERR(g_iar_dev->sif_mclk)) {
+                dev_err(&pdev->dev, "failed to get sif_mclk\n");
+                return PTR_ERR(g_iar_dev->sif_mclk);
+        }
+        ret = clk_prepare_enable(g_iar_dev->sif_mclk);
+        if (ret != 0) {
+                dev_err(&pdev->dev, "failed to prepare sif_mclk\n");
+                return ret;
+        }
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	g_iar_dev->regaddr = devm_ioremap_resource(&pdev->dev, res);
 	if (IS_ERR(g_iar_dev->regaddr))
@@ -3295,6 +3327,10 @@ static int x2_iar_probe(struct platform_device *pdev)
 		}
 		pr_debug("%s: iar display enable!!\n", __func__);
 	}
+	if (g_iar_dev->sif_mclk == NULL)
+		pr_err("%s: sif mclk is null!!\n", __func__);
+	else
+		clk_disable_unprepare(g_iar_dev->sif_mclk);
 	//iar_close();
 	pr_info("iar probe end success!!!\n");
 	return 0;
