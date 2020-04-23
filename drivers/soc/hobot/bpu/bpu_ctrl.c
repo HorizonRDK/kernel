@@ -568,6 +568,7 @@ static int bpu_core_get_freq(struct device *dev, unsigned long *freq)/*PRQA S AL
 
 int32_t bpu_core_dvfs_register(struct bpu_core *core, const char *name)
 {
+	struct dev_pm_opp *opp;
 	const char *gov_name;
 	uint32_t tmp_state;
 	int32_t ret;
@@ -594,10 +595,31 @@ int32_t bpu_core_dvfs_register(struct bpu_core *core, const char *name)
 	core->dvfs->profile.polling_ms	= 0;
 	core->dvfs->profile.target = bpu_core_set_freq;
 	core->dvfs->profile.get_cur_freq = bpu_core_get_freq;
-	core->dvfs->profile.initial_freq = clk_get_rate(core->mclk);
+	if (core->mclk != NULL) {
+		core->dvfs->profile.initial_freq = clk_get_rate(core->mclk);
+	} else {
+		devm_kfree(core->dev, (void *)core->dvfs);/*PRQA S ALL*/
+		core->dvfs = NULL;
+		dev_err(core->dev, "No adjustable clock for dvfs.\n");
+		return -EINVAL;
+	}
 
 	core->dvfs->rate = core->dvfs->profile.initial_freq;
-	core->dvfs->volt = (uint32_t)regulator_get_voltage(core->regulator);
+	if (core->regulator != NULL) {
+		core->dvfs->volt = (uint32_t)regulator_get_voltage(core->regulator);
+	} else {
+		dev_err(core->dev, "No adjustable regulator for dvfs, use fake value.\n");
+		opp = devfreq_recommended_opp(core->dev, &core->dvfs->profile.initial_freq,
+				DEVFREQ_FLAG_LEAST_UPPER_BOUND);
+		if (IS_ERR(opp)) {/*PRQA S ALL*/
+			devm_kfree(core->dev, (void *)core->dvfs);/*PRQA S ALL*/
+			core->dvfs = NULL;
+			dev_err(core->dev, "Can't find opp\n");
+			return PTR_ERR(opp);/*PRQA S ALL*/
+		}
+		core->dvfs->volt = dev_pm_opp_get_voltage(opp);
+		dev_pm_opp_put(opp);
+	}
 
 	if (of_property_read_string(core->dev->of_node, "governor", &gov_name) != 0) {
 		if (name != NULL) {
@@ -673,6 +695,11 @@ int32_t bpu_core_set_freq_level(struct bpu_core *core, int32_t level)
 
 	if (core == NULL) {
 		pr_err("Invalid core set freq level!\n");/*PRQA S ALL*/
+		return -EINVAL;
+	}
+
+	if (core->dvfs == NULL) {
+		pr_err("No Adjustable clock to support set freq level!\n");/*PRQA S ALL*/
 		return -EINVAL;
 	}
 
