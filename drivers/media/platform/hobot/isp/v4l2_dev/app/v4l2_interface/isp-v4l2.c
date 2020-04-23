@@ -106,6 +106,17 @@ static int isp_v4l2_fh_release( struct file *file )
     return 0;
 }
 
+int isp_open_check(void)
+{
+    int i;
+    int total_open = 0;
+    for (i = 0; i < FIRMWARE_CONTEXT_NUMBER; i++) {
+	    isp_v4l2_dev_t *d = isp_v4l2_get_dev(i);
+	    total_open += atomic_read(&d->opened);
+    }
+
+    return total_open;
+}
 
 /* ----------------------------------------------------------------
  * V4L2 file operations
@@ -121,6 +132,9 @@ static int isp_v4l2_fop_open( struct file *file )
         pr_err("ctx_id %d exceed valid range\n", dev->ctx_id);
         return rc;
     }
+
+    if (isp_open_check() == 0)
+        ips_set_clk_ctrl(ISP0_CLOCK_GATE, true);
 
     rc = acamera_isp_init_context(dev->ctx_id);
     if (rc != 0)
@@ -213,6 +227,9 @@ static int isp_v4l2_fop_close( struct file *file )
 
     /* release file handle */
     isp_v4l2_fh_release( file );
+
+    if (isp_open_check() == 0)
+        ips_set_clk_ctrl(ISP0_CLOCK_GATE, false);
 
     return 0;
 }
@@ -410,7 +427,6 @@ static int isp_v4l2_streamon( struct file *file, void *priv, enum v4l2_buf_type 
     }
 
     if (isp_stream_onoff_check() == 0) {
-            ips_set_clk_ctrl(ISP0_CLOCK_GATE, true);
             rc = acamera_fw_isp_start(dev->ctx_id);
             if (rc != 0)
                 return rc;
@@ -452,7 +468,6 @@ static int isp_v4l2_streamoff( struct file *file, void *priv, enum v4l2_buf_type
 
     if (isp_stream_onoff_check() == 0) {
         acamera_fw_isp_stop(dev->ctx_id);
-        ips_set_clk_ctrl(ISP0_CLOCK_GATE, false);
     }
 
     return rc;

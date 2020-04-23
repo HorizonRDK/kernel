@@ -250,8 +250,8 @@ static ssize_t isp_fops_read( struct file *file, char __user *buf, size_t count,
 
         /* wait for the event */
         LOG( LOG_DEBUG, "input FIFO is empty, wait for data, timeout_in_jiffies: %ld, HZ: %d.", time_out_in_jiffies, HZ );
-        rc = wait_event_interruptible_timeout( p_ctx->kfifo_out_queue, !kfifo_is_empty( &p_ctx->isp_kfifo_out ), time_out_in_jiffies );
-
+	rc = wait_event_interruptible(p_ctx->kfifo_out_queue,
+		!kfifo_is_empty(&p_ctx->isp_kfifo_out));
         LOG( LOG_DEBUG, "data is coming or timeout, kfifo_out size: %u, rc: %d.", kfifo_len( &p_ctx->isp_kfifo_out ), rc );
 
         /* after wake up, we need to re-gain the mutex */
