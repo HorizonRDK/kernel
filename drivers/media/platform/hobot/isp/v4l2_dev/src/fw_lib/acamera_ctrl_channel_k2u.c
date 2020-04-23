@@ -384,6 +384,15 @@ static uint8_t is_uf_needed_command( uint8_t command_type, uint8_t command, uint
         }
 #endif
 
+#ifdef LOG_LIST
+    case LOG_LIST:
+        LOG( LOG_INFO, "LOG_LIST is supported, cmd_type: %u, cmd: %u, direction: %u",
+             command_type, command, direction );
+	if (direction == COMMAND_SET) {
+		rc = 1;
+	}
+        break;
+#endif
     }
 
     return rc;
