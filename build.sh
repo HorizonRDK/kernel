@@ -71,7 +71,7 @@ function build_dtbmapping()
     cd $path
 
     # real build
-    python makeimg.py || {
+    python2 makeimg.py || {
         echo "make failed"
         exit 1
     }
@@ -272,8 +272,8 @@ function all()
     cpfiles "$SRC_KERNEL_DIR/drivers/crypto/hobot/pka/clp300.elf " "$TARGET_TMPROOTFS_DIR/lib/firmware/"
 
     # strip & copy kernel modules
-    ${CROSS_COMPILE}strip -v -g $TARGET_TMPROOTFS_DIR/lib/modules/*.ko
     cpfiles "$SRC_KERNEL_DIR/_install/lib/modules/*" "$TARGET_TMPROOTFS_DIR/lib/modules/"
+    ${CROSS_COMPILE}strip -v -g $TARGET_TMPROOTFS_DIR/lib/modules/4.14.74/*.ko
 
     #rm $SRC_KERNEL_DIR/_install/ -rf
 
