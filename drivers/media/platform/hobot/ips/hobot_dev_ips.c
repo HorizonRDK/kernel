@@ -73,7 +73,11 @@ int ips_set_clk_ctrl(unsigned long module, bool enable)
 	BUG_ON(!g_ips_dev);
 
 	spin_lock(&g_ips_dev->shared_slock);
+	if (enable)
+		vio_clk_enable("sif_mclk");
 	ret = ips_clk_ctrl(g_ips_dev->base_reg, module, enable);
+	if (!enable)
+		vio_clk_disable("sif_mclk");
 	spin_unlock(&g_ips_dev->shared_slock);
 
 	return ret;

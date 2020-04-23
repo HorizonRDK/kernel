@@ -405,13 +405,15 @@ int acamera_isp_firmware_clear(void)
     return 0;
 }
 
+extern void ips_set_isp_interrupt(bool enable);
 int32_t acamera_init( acamera_settings *settings, uint32_t ctx_num )
 {
     int32_t result = 0;
     uint32_t idx;
 
     // disable irq and clear interrupts
-    acamera_isp_isp_global_interrupt_mask_vector_write( 0, ISP_IRQ_DISABLE_ALL_IRQ );
+    // acamera_isp_isp_global_interrupt_mask_vector_write( 0, ISP_IRQ_DISABLE_ALL_IRQ );
+    ips_set_isp_interrupt(0);
 
 #if ACAMERA_ISP_PROFILING && ACAMERA_ISP_PROFILING_INIT
     acamera_profiler_init();

@@ -767,8 +767,8 @@ int system_chardev_read( char *data, int size )
 
         /* wait for the event */
         LOG( LOG_DEBUG, "input FIFO is empty, wait for data, timeout_in_jiffies: %ld, HZ: %d.", time_out_in_jiffies, HZ );
-        rc = wait_event_interruptible_timeout( isp_dev_ctx.kfifo_in_queue, !kfifo_is_empty( &isp_dev_ctx.isp_kfifo_in ), time_out_in_jiffies );
-
+        // rc = wait_event_interruptible_timeout( isp_dev_ctx.kfifo_in_queue, !kfifo_is_empty( &isp_dev_ctx.isp_kfifo_in ), time_out_in_jiffies );
+		rc = wait_event_interruptible( isp_dev_ctx.kfifo_in_queue, !kfifo_is_empty( &isp_dev_ctx.isp_kfifo_in ) );
         LOG( LOG_DEBUG, "data is coming or timeout, kfifo_in size: %u, rc: %d.", kfifo_len( &isp_dev_ctx.isp_kfifo_in ), rc );
 
         /* after wake up, we need to re-gain the mutex */

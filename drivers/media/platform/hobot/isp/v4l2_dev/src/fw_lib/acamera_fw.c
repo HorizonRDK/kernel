@@ -114,6 +114,7 @@ void acamera_fw_deinit( acamera_context_t *p_ctx )
 extern uint8_t isp_safe_start( uint32_t base );
 extern uint8_t isp_safe_stop( uint32_t base );
 extern void isp_input_port_size_config(sensor_fsm_ptr_t p_fsm);
+extern void ips_set_isp_interrupt(bool enable);
 int acamera_fw_isp_start(int ctx_id)
 {
 	uint8_t rc = 0;
@@ -128,6 +129,8 @@ int acamera_fw_isp_start(int ctx_id)
 	//return the interrupts
 	acamera_isp_isp_global_interrupt_mask_vector_write( 0, ISP_IRQ_MASK_VECTOR );
 
+    ips_set_isp_interrupt(1);
+
 	acamera_fw_interrupts_enable( p_ctx );
 
 	if (!rc)
@@ -141,6 +144,7 @@ int acamera_fw_isp_stop(int ctx_id)
 	uint8_t rc = 0;
 	acamera_context_t *p_ctx = (acamera_context_t *)acamera_get_ctx_ptr(ctx_id);
 
+    ips_set_isp_interrupt(0);
 	acamera_fw_interrupts_disable( p_ctx );
 
 	//masked all interrupts

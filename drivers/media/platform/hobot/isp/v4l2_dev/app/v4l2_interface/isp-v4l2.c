@@ -36,7 +36,7 @@
 #include "isp-vb2.h"
 #include "fw-interface.h"
 #include "acamera_fw.h"
-#include "vio_config.h"
+#include "vio_group_api.h"
 
 #define ISP_V4L2_NUM_INPUTS 1
 
@@ -709,6 +709,8 @@ int isp_v4l2_create_instance( struct v4l2_device *v4l2_dev, uint32_t hw_isp_addr
         return -EINVAL;
     }
 
+    ips_set_clk_ctrl(ISP0_CLOCK_GATE, true);
+
     /* initialize v4l2 layer devices */
     for ( ctx_id = 0; ctx_id < FIRMWARE_CONTEXT_NUMBER; ctx_id++ ) {
         rc = isp_v4l2_init_dev( ctx_id, v4l2_dev );
@@ -731,6 +733,8 @@ int isp_v4l2_create_instance( struct v4l2_device *v4l2_dev, uint32_t hw_isp_addr
         if ( rc < 0 )
             goto deinit_fw_intf;
     }
+
+    ips_set_clk_ctrl(ISP0_CLOCK_GATE, false);
 
     return 0;
 

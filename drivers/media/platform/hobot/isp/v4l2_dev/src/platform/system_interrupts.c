@@ -167,6 +167,7 @@ void system_interrupts_init( void )
                               &system_interrupt_handler, interrupt_line_ACAMERA_JUNO_IRQ_FLAGS, "isp", NULL ) ) ) {
         LOG( LOG_ERR, "Could not get interrupt %d (ret=%d)\n", interrupt_line_ACAMERA_JUNO_IRQ, ret );
     } else {
+        system_interrupts_disable();
         LOG( LOG_INFO, "Interrupt %d requested (flags = 0x%x, ret = %d)\n",
              interrupt_line_ACAMERA_JUNO_IRQ, interrupt_line_ACAMERA_JUNO_IRQ_FLAGS, ret );
     }
