@@ -34,6 +34,7 @@
 		i2c5	= &i2c5;
 		i2s0	= &i2s0;
 		i2s1	= &i2s1;
+		usb	= &usb;
 		pwm0	= &pwm_0;
 		pwm1	= &pwm_1;
 		pwm2	= &pwm_2;
@@ -198,6 +199,11 @@
 &uart1 {
 	status = "okay";
 };
+
+&usb {
+	status = "okay";
+};
+
 /*
 &ips {
 	status = "okay";

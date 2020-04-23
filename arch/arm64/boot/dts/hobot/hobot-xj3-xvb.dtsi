@@ -37,6 +37,7 @@
 		spi0	= &spi0;
 		spi1	= &spi1;
 		spi2	= &spi2;
+		usb	= &usb;
 		pwm0	= &pwm_0;
 		pwm1	= &pwm_1;
 		pwm2	= &pwm_2;
@@ -178,6 +179,10 @@
 };
 
 &uart0 {
+	status = "okay";
+};
+
+&usb {
 	status = "okay";
 };
 

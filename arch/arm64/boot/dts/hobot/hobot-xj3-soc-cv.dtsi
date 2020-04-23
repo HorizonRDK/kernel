@@ -258,7 +258,7 @@
 			snps,dis_u2_susphy_quirk;
 			/* snps,dis_u3_susphy_quirk; */
 			/* extcon = <&usb_id>; */
-			status = "okay";
+			status = "disabled";
 		};
 
 		i2s0: i2s@0xA5007000 {

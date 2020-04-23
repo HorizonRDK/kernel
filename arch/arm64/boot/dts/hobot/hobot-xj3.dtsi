@@ -263,7 +263,6 @@
 			status = "disabled";
 		};
 
-
 		usb: usb@0xB2000000 {
 			compatible = "hobot,usb";
 			reg = <0 0xB2000000 0 0x10000>,
@@ -278,7 +277,7 @@
 			snps,dis_u2_susphy_quirk;
 			/* snps,dis_u3_susphy_quirk; */
 			extcon = <&usb_id>;
-			status = "okay";
+			status = "disabled";
 		};
 
 		usb_id: usb-id {
