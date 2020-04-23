@@ -142,3 +142,15 @@
 &sdio2 {
 	powerup-gpio = <4>;	/* j3-dvb JTG_TRSTN/GPIO0[4] */
 };
+
+&mipi_host0 {
+	pinctrl-0 = <&sensor0_func>;
+	pinctrl-1 = <&sensor0_gpio_func>;
+	snrclk-idx = <0>;
+};
+
+&mipi_host1 {
+	pinctrl-0 = <&sensor1_func>;
+	pinctrl-1 = <&sensor1_gpio_func>;
+	snrclk-idx = <1>;
+};
