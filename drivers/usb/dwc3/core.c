@@ -276,9 +276,6 @@ done:
 
 static const struct clk_bulk_data dwc3_core_clks[] = {
 	{ .id = "usb_aclk" },
-	{ .id = "pipe_clk" },
-	{ .id = "utmi_clk" },
-	{ .id = "utmi_clk_pre" },
 };
 
 /*
@@ -1501,7 +1498,7 @@ static int dwc3_probe(struct platform_device *pdev)
 	if (ret)
 		goto unprepare_clks;
 
-	dev_dbg(dev, "clock enabled, info clock rate:\n");
+	dev_dbg(dev, "%d clock enabled, info clock rate:\n", dwc->num_clks);
 	for (i = 0; i < dwc->num_clks; i++) {
 		clkrate = clk_get_rate(dwc->clks[i].clk);
 		dev_dbg(dev, "<%d>clock[%s] rate: %lu\n",

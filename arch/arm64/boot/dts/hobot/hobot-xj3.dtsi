@@ -270,10 +270,8 @@
 			  <0 0xA1000000 0 0x1000>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 26 4>;
-			clocks = <&usb_aclk>, <&pipe_mclk>,
-			<&utmi_mclk>, <&utmi_lst_div_clk>;
-			clock-names = "usb_aclk", "pipe_clk",
-			"utmi_clk", "utmi_clk_pre";
+			clocks = <&usb_aclk>;
+			clock-names = "usb_aclk";
 			/* dr_mode: {peripheral, host, otg} */
 			dr_mode = "otg";
 			/* phy_type: {utmi, utmi_wide, ulpi, serial, hsic} */
