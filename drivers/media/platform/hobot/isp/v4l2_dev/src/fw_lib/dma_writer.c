@@ -271,12 +271,6 @@ static int dma_writer_configure_frame_writer( dma_pipe *pipe,
 	    LOG(LOG_INFO, "%s current is pong, next ping", __func__);
     }
 
-    /* config ping on first frame */
-    if (p_ctx->isp_frame_counter == 0) {
-	base = 0;
-	LOG(LOG_INFO, "%s this is first frame, config to ping", __func__);
-    }
-
     if ( aframe->status != dma_buf_purge ) {
         /*
          * For now we don't change the settings, so we take them from the hardware

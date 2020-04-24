@@ -559,8 +559,8 @@ static void start_processing_frame( void )
     acamera_context_ptr_t p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[cur_ctx];
     LOG( LOG_INFO, "new frame for ctx_num#%d.", cur_ctx );
 #else
-    pr_debug("last ctx id %d\n", last_ctx_id);
-    acamera_context_ptr_t p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[last_ctx_id];
+    pr_debug("cur ctx id %d\n", cur_ctx_id);
+    acamera_context_ptr_t p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[cur_ctx_id];
 #endif
 
     // new_frame event to start reading metering memory and run 3A
@@ -927,8 +927,7 @@ retry:
 		g_firmware.dma_flag_dma_writer_config_completed = 0;
 
 		// switch to ping/pong contexts for the next frame
-		if (acamera_isp_isp_global_ping_pong_config_select_read(0) == ISP_CONFIG_PONG
-			|| p_ctx->isp_frame_counter == 0) {
+		if (acamera_isp_isp_global_ping_pong_config_select_read(0) == ISP_CONFIG_PONG) {
 			acamera_isp_isp_global_mcu_ping_pong_config_select_write(0, ISP_CONFIG_PING);
 			pr_debug("next is ping, DMA sram -> ping\n");
 			isp_ctx_prepare(last_ctx_id, next_ctx_id, ISP_CONFIG_PING);
@@ -1085,6 +1084,8 @@ pr_info("hcs1 %d, hcs2 %d, vc %d\n", hcs1, hcs2, vc);
 			wake_up(&wq_fe);
                 } else if ( irq_bit == ISP_INTERRUPT_EVENT_FR_Y_WRITE_DONE ) {
 					LOG( LOG_INFO, "frame write to ddr done" );
+                    g_firmware.frame_done = 1;
+                    wake_up(&wq_fe);
 					acamera_fw_raise_event( p_ctx, event_id_frame_done );
                 } else if ( irq_bit == ISP_INTERRUPT_EVENT_FR_UV_WRITE_DONE ) {
 					//do nothing

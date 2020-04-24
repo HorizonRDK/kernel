@@ -764,6 +764,18 @@ static int general_temper_exit( general_fsm_ptr_t p_fsm )
 		    temper_frame->width, temper_frame->height,
 		    size, temper_frame->address );
 
+    //bypass on
+    uint32_t curr = system_hw_read_32(0x18eb8L);
+    system_hw_write_32(0x18eb8L, curr | 0x2);
+
+    //disable
+    curr = system_hw_read_32(0x1aa1cL);
+    system_hw_write_32(0x1aa1cL, curr & 0xfffffffe);
+
+    //disable lsb/msb r/w
+    curr = system_hw_read_32(0x1ab78L);
+    system_hw_write_32(0x1ab78L, curr & 0xfffffff0);
+
     return 0;
 }
 
@@ -822,9 +834,7 @@ static int general_temper_configure( general_fsm_ptr_t p_fsm )
 	acamera_isp_top_bypass_temper_write(isp_base, 0);
     } else {
 	acamera_isp_temper_enable_write(isp_base, 0);
-	//acamera_isp_top_bypass_temper_write(isp_base, 1);
     }
-	//acamera_isp_top_bypass_temper_write( isp_base, 0 );
 
     return 0;
 }
