@@ -750,6 +750,7 @@ int system_chardev_init( void )
 }
 
 extern void *acamera_get_api_ctx_ptr( void );
+extern int isp_open_check(void);
 int system_chardev_read( char *data, int size )
 {
     int rc;
@@ -776,7 +777,7 @@ int system_chardev_read( char *data, int size )
     }
 
 	acamera_context_ptr_t context_ptr = (acamera_context_ptr_t)acamera_get_api_ctx_ptr();
-	if (context_ptr->initialized == 0) {
+	if (context_ptr->initialized == 0 || isp_open_check() == 0) {
 		rc = -1;
 	} else {
 		rc = kfifo_out( &isp_dev_ctx.isp_kfifo_in, data, size );

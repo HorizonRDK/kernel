@@ -527,6 +527,7 @@ static void process_api_request( void )
 }
 #endif
 
+extern int isp_open_check(void);
 void acamera_connection_process( void )
 {
 #if ISP_HAS_STREAM_CONNECTION
@@ -534,7 +535,7 @@ void acamera_connection_process( void )
     int cnt = 20;
     uint32_t *const buf = (uint32_t *)con.buffer;
 
-    if ( !con.data_read || !con.data_write ) {
+    if (!con.data_read || !con.data_write || !isp_open_check()) {
         return;
     }
 
