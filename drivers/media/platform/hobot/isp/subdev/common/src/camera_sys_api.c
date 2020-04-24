@@ -831,7 +831,7 @@ int  camera_sys_set_gain_line_control(uint32_t port, sensor_priv_t *priv_param)
 			camera_sys_set_dol3_line(port, priv_param->line_num, a_line);
 			camera_sys_set_param_hold(port, 0x0);
 			break;
-		case PWL:
+		case PWL_M:
 			camera_sys_set_ex_gain_control(port, priv_param, a_gain, d_gain, a_line);
 			break;
 		default:
