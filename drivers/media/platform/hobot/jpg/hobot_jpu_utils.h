@@ -26,7 +26,8 @@
 //#define JPU_SUPPORT_RESERVED_VIDEO_MEMORY
 
 #define JPU_PLATFORM_DEVICE_NAME    "hb_jpu"
-#define JPU_JPEG_CLK_NAME           "jpg_cclk"
+#define JPU_JPEG_ACLK_NAME           "jpg_aclk"
+#define JPU_JPEG_CCLK_NAME           "jpg_cclk"
 
 typedef enum _hb_jpu_event_e {
 	JPU_EVENT_NONE = 0,
@@ -77,6 +78,7 @@ typedef struct _hb_jpu_dev {
 	struct cdev cdev;
 	struct device *jpu_dev;
 	struct kobject *jpu_kobj;
+	struct clk *jpu_aclk;
 	struct clk *jpu_cclk;
 #ifdef CONFIG_ION_HOBOT
 	struct ion_client *jpu_ion_client;

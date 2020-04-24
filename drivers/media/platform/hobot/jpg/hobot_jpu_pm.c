@@ -22,15 +22,28 @@ int hb_jpu_clk_get(hb_jpu_dev_t *dev)
 	if (!dev) {
 		return -1;
 	}
-	dev->jpu_cclk = devm_clk_get(dev->device, JPU_JPEG_CLK_NAME);
+	dev->jpu_aclk = devm_clk_get(dev->device, JPU_JPEG_ACLK_NAME);
+	if ((!dev->jpu_aclk) || clk_prepare_enable(dev->jpu_aclk)) {
+		dev_err(dev->device, "failed to get clk(%s).\n", JPU_JPEG_ACLK_NAME);
+		dev->jpu_aclk = NULL;
+		dev->jpu_cclk = NULL;
+		return -1;
+	}
+
+	rate = clk_get_rate(dev->jpu_aclk);
+	dev_info(dev->device, "%s clock is %d\n", JPU_JPEG_ACLK_NAME, rate);
+
+	dev->jpu_cclk = devm_clk_get(dev->device, JPU_JPEG_CCLK_NAME);
 	if ((!dev->jpu_cclk) || clk_prepare_enable(dev->jpu_cclk)) {
-		dev_err(dev->device, "failed to get clk(%s).\n", JPU_JPEG_CLK_NAME);
+		dev_err(dev->device, "failed to get clk(%s).\n", JPU_JPEG_CCLK_NAME);
+		clk_disable_unprepare(dev->jpu_aclk);
+		dev->jpu_aclk = NULL;
 		dev->jpu_cclk = NULL;
 		return -1;
 	}
 
 	rate = clk_get_rate(dev->jpu_cclk);
-	dev_info(dev->device, "%s clock is %d\n", JPU_JPEG_CLK_NAME, rate);
+	dev_info(dev->device, "%s clock is %d\n", JPU_JPEG_CCLK_NAME, rate);
 
 	return 0;
 }
@@ -39,6 +52,7 @@ void hb_jpu_clk_put(hb_jpu_dev_t *dev)
 {
 	if (!dev)
 		return;
+	clk_disable_unprepare(dev->jpu_aclk);
 	clk_disable_unprepare(dev->jpu_cclk);
 }
 
@@ -47,9 +61,16 @@ int hb_jpu_clk_enable(hb_jpu_dev_t *dev)
 	int ret = 0;
 	if (!dev)
 		return -1;
+	ret = clk_prepare_enable(dev->jpu_aclk);
+	if (ret) {
+		dev_err(dev->device, "failed to enable clk(%s).\n", JPU_JPEG_ACLK_NAME);
+		return -1;
+	}
+
 	ret = clk_prepare_enable(dev->jpu_cclk);
 	if (ret) {
-		dev_err(dev->device, "failed to enable clk(%s).\n", JPU_JPEG_CLK_NAME);
+		clk_disable_unprepare(dev->jpu_aclk);
+		dev_err(dev->device, "failed to enable clk(%s).\n", JPU_JPEG_ACLK_NAME);
 		return -1;
 	}
 
@@ -60,5 +81,6 @@ void hb_jpu_clk_disable(hb_jpu_dev_t *dev)
 {
 	if (!dev)
 		return;
+	clk_disable_unprepare(dev->jpu_aclk);
 	clk_disable_unprepare(dev->jpu_cclk);
 }

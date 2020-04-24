@@ -26,6 +26,7 @@
 #endif
 
 #define VPU_PLATFORM_DEVICE_NAME "hb_vpu"
+#define VPU_ACLK_NAME "vpu_aclk"
 #define VPU_VCPU_BPU_CLK_NAME "vpu_bclk"
 #define VPU_VCE_CLK_NAME "vpu_cclk"
 
@@ -80,6 +81,7 @@ typedef struct _hb_vpu_dev {
 	struct cdev cdev;
 	struct device *vpu_dev;
 	struct kobject *vpu_kobj;
+	struct clk *vpu_aclk;
 	struct clk *vpu_bclk;
 	struct clk *vpu_cclk;
 #ifdef CONFIG_ION_HOBOT

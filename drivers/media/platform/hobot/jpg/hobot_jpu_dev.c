@@ -20,7 +20,6 @@
 #include <linux/poll.h>
 #include <linux/eventpoll.h>
 
-#include "hobot_jpu_buf.h"
 #include "hobot_jpu_ctl.h"
 #include "hobot_jpu_debug.h"
 #include "hobot_jpu_pm.h"

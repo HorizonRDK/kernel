@@ -26,7 +26,7 @@ ifneq ($(KERNELRELEASE),)
 # call from kernel build system
 
 #obj-m	:= hobot_vpu.o
-hobot_vpu-objs := hobot_vpu_dev.o hobot_vpu_buf.o
+hobot_vpu-objs := hobot_vpu_dev.o
 hobot_vpu-objs += hobot_vpu_ctl.o hobot_vpu_pm.o
 
 obj-$(CONFIG_VIDEO_HOBOTC_VPU)	:= hobot_vpu.o
