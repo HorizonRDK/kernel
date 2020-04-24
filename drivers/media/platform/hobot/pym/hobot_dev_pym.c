@@ -714,8 +714,6 @@ int pym_video_dqbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 			pym_ctx->frm_num);
 		framemgr_x_barrier_irqr(framemgr, 0, flags);
 		return ret;
-	} else {
-		pym_ctx->frm_num_usr++;
 	}
 	framemgr->ctx_mask |= (1 << pym_ctx->ctx_index);
 	done_list = &framemgr->queued_list[FS_COMPLETE];
@@ -732,11 +730,12 @@ int pym_video_dqbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 				memcpy(&subdev->frameinfo, &frame->frameinfo,
 					sizeof(struct frame_info));
 			}
+			pym_ctx->event = 0;
+			pym_ctx->frm_num_usr++;
 			framemgr_x_barrier_irqr(framemgr, 0, flags);
 			vio_dbg("[S%d] %s proc%d index%d frame%d from COMP\n",
 				pym_ctx->group->instance, __func__, ctx_index,
 				frameinfo->bufferindex, frameinfo->frame_id);
-			pym_ctx->event = 0;
 			return ret;
 		}
 	} else {
@@ -754,6 +753,7 @@ int pym_video_dqbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 	if (pym_ctx->event == VIO_FRAME_DONE) {
 		bufindex = subdev->frameinfo.bufferindex;
 		memcpy(frameinfo, &subdev->frameinfo, sizeof(struct frame_info));
+		pym_ctx->frm_num_usr++;
 	} else {
 		ret = -EFAULT;
 		vio_dbg("[S%d] %s proc%d no frame, event %d.\n",

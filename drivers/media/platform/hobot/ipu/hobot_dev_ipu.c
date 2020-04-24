@@ -1339,8 +1339,6 @@ int ipu_video_dqbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 			ipu_ctx->frm_num);
 		framemgr_x_barrier_irqr(framemgr, 0, flags);
 		return ret;
-	} else {
-		ipu_ctx->frm_num_usr++;
 	}
 	framemgr->ctx_mask |= (1 << ipu_ctx->ctx_index);
 	done_list = &framemgr->queued_list[FS_COMPLETE];
@@ -1358,6 +1356,7 @@ int ipu_video_dqbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 					sizeof(struct frame_info));
 			}
 			ipu_ctx->event = 0;
+			ipu_ctx->frm_num_usr++;
 			vio_dbg("[S%d][V%d] %s (p%d b%d f%d) from FS_COMPLETE.",
 				ipu_ctx->group->instance, ipu_ctx->id, __func__,
 				ipu_ctx->ctx_index,
@@ -1365,7 +1364,6 @@ int ipu_video_dqbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 				frame->frameinfo.frame_id);
 		}
 		framemgr_x_barrier_irqr(framemgr, 0, flags);
-
 		return ret;
 	} else {
 		if (atomic_read(&subdev->refcount) == 1) {
@@ -1382,6 +1380,7 @@ int ipu_video_dqbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 	if (ipu_ctx->event == VIO_FRAME_DONE) {
 		bufindex = subdev->frameinfo.bufferindex;
 		memcpy(frameinfo, &subdev->frameinfo, sizeof(struct frame_info));
+		ipu_ctx->frm_num_usr++;
 	} else {
 		ret = -EFAULT;
 		vio_dbg("[S%d] %s proc%d no frame, event %d.\n",
