@@ -60,8 +60,8 @@ struct cnn_pll_table {
 struct cnn_pll_table cpll_table[CNN_FREQ_NUM] = {
 	{1000000000, 1000000000},
 	{1200000000, 1200000000},
-	{800000000, 1600000000},
-	{400000000, 1600000000},		
+	{800000000,  800000000},
+	{400000000,  400000000},
 };
 
 static int __set_cnnpll_clk(struct clk_hw *hw, unsigned long cnn_freq)

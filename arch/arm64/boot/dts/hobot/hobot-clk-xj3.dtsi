@@ -412,11 +412,11 @@
 
 		cnn0_mclk: cnn0_mclk {
 			#clock-cells = <0>;
-			compatible = "hobot,endiv-clk";
+			compatible = "hobot,gate-clk";
 			clocks = <&cnn_clk>;
-			offset = <0x220 0x120 0x124 0x128 0x228 0x0>;
-			bits = <4 1 1 1 1 32>;
-			field = <3 1 1 1 1>;
+			offset = <0x120 0x124 0x128 0x228>;
+			bits = <1 1 1 1>;
+			field = <1 1 1 1>;
 			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
@@ -431,11 +431,11 @@
 
 		cnn1_mclk: cnn1_mclk {
 			#clock-cells = <0>;
-			compatible = "hobot,endiv-clk";
+			compatible = "hobot,gate-clk";
 			clocks = <&cnn_clk>;
-			offset = <0x220 0x120 0x124 0x128 0x228 0x0>;
-			bits = <12 5 5 5 3 32>;
-			field = <3 1 1 1 1>;
+			offset = <0x120 0x124 0x128 0x228>;
+			bits = <5 5 5 3>;
+			field = <1 1 1 1>;
 			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 

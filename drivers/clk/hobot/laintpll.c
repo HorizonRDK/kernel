@@ -71,12 +71,16 @@ struct laintpll_bestdiv {
  */
 #define PLL_BESTDIV_TABLE_LEN 6
 static struct laintpll_bestdiv pll_bestdiv_table[PLL_BESTDIV_TABLE_LEN] = {
+	{400000000,  1, 100, 6, 1},
+	{800000000,  1, 100, 3, 1},
 	{1000000000, 1, 125, 3, 1},
 	{1200000000, 1, 100, 2, 1},
 	{1500000000, 1, 125, 2, 1},
 	{1600000000, 1, 200, 3, 1},
+#if 0
 	{2000000000, 1, 250, 3, 1},
 	{2400000000, 1, 100, 1, 1},
+#endif
 };
 
 #define to_clk_laintpll(_hw) container_of(_hw, struct clk_laintpll, hw)
