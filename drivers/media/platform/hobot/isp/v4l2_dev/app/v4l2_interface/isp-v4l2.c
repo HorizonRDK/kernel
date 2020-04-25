@@ -37,6 +37,7 @@
 #include "fw-interface.h"
 #include "acamera_fw.h"
 #include "vio_group_api.h"
+#include "acamera.h"
 
 #define ISP_V4L2_NUM_INPUTS 1
 
@@ -116,6 +117,18 @@ int isp_open_check(void)
     }
 
     return total_open;
+}
+
+int isp_stream_onoff_check(void)
+{
+    int i;
+    int total_stream_on = 0;
+    for (i = 0; i < FIRMWARE_CONTEXT_NUMBER; i++) {
+	    isp_v4l2_dev_t *d = isp_v4l2_get_dev(i);
+	    total_stream_on += atomic_read(&d->stream_on_cnt);
+    }
+
+    return total_stream_on;
 }
 
 /* ----------------------------------------------------------------
@@ -365,6 +378,9 @@ static int isp_v4l2_s_fmt_vid_cap( struct file *file, void *priv, struct v4l2_fo
         return rc;
     }
 
+    if (isp_stream_onoff_check() == 0)
+        acamera_update_cur_settings_to_isp(dev->ctx_id);
+
     /* update stream pointer index */
     dev->stream_id_index[pstream->stream_type] = pstream->stream_id;
 
@@ -385,18 +401,6 @@ static int isp_v4l2_enum_framesizes( struct file *file, void *priv, struct v4l2_
 static inline bool isp_v4l2_is_q_busy( struct vb2_queue *queue, struct file *file )
 {
     return queue->owner && queue->owner != file->private_data;
-}
-
-int isp_stream_onoff_check(void)
-{
-    int i;
-    int total_stream_on = 0;
-    for (i = 0; i < FIRMWARE_CONTEXT_NUMBER; i++) {
-	    isp_v4l2_dev_t *d = isp_v4l2_get_dev(i);
-	    total_stream_on += atomic_read( &d->stream_on_cnt );
-    }
-
-    return total_stream_on;
 }
 
 extern void *acamera_get_ctx_ptr( uint32_t ctx_id );
