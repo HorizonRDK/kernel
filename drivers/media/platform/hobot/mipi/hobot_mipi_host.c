@@ -282,9 +282,8 @@ typedef struct _mipi_host_s {
 } mipi_host_t;
 
 typedef struct _mipi_user_s {
-	spinlock_t slock;
 	struct mutex mutex;
-	uint32_t open_cnt;
+	atomic_t open_cnt;
 	uint32_t init_cnt;
 	uint32_t start_cnt;
 } mipi_user_t;
@@ -1479,17 +1478,14 @@ static int hobot_mipi_host_open(struct inode *inode, struct file *file)
 	mipi_host_param_t *param = &hdev->host.param;
 	struct device *dev = hdev->dev;
 
-	spin_lock(&user->slock);
-	mipidbg("open as %d", user->open_cnt);
-	if (user->open_cnt == 0) {
+	if (atomic_inc_return(&user->open_cnt) == 1) {
+		mipidbg("open as first");
 		mutex_init(&user->mutex);
 		user->init_cnt = 0;
 		user->start_cnt = 0;
 		mipi_host_configure_clk(hdev, MIPI_HOST_CFGCLK_NAME, MIPI_HOST_CFGCLK_MHZ, 1);
 		mipi_host_configure_clk(hdev, MIPI_HOST_REFCLK_NAME, MIPI_HOST_REFCLK_MHZ, 1);
 	}
-	user->open_cnt++;
-	spin_unlock(&user->slock);
 
 	file->private_data = hdev;
 	return 0;
@@ -1504,11 +1500,8 @@ static int hobot_mipi_host_close(struct inode *inode, struct file *file)
 	mipi_host_param_t *param = &host->param;
 	struct device *dev = hdev->dev;
 
-	spin_lock(&user->slock);
-	if (user->open_cnt > 0)
-		user->open_cnt--;
-	mipidbg("close as %d", user->open_cnt);
-	if (user->open_cnt == 0) {
+	if (atomic_dec_return(&user->open_cnt) == 0) {
+		mipidbg("close as last");
 		if (host->state != MIPI_STATE_DEFAULT) {
 			mipi_host_stop(hdev);
 			mipi_host_deinit(hdev);
@@ -1522,7 +1515,6 @@ static int hobot_mipi_host_close(struct inode *inode, struct file *file)
 		mipi_host_configure_clk(hdev, MIPI_HOST_CFGCLK_NAME, 0, 0);
 		mipi_host_configure_clk(hdev, MIPI_HOST_REFCLK_NAME, 0, 0);
 	}
-	spin_unlock(&user->slock);
 
 	return 0;
 }
@@ -2109,7 +2101,7 @@ static ssize_t mipi_host_status_show(struct device *dev,
 		MH_STA_SHOW(state, "%s", (param->snrclk_en ? "enable" : "disable"));
 		MH_STA_SHOW(freq, "%u", param->snrclk_freq);
 	} else if (strcmp(attr->attr.name, "user") == 0) {
-		MH_STA_SHOW(user, "%d", user->open_cnt);
+		MH_STA_SHOW(user, "%d", atomic_read(&user->open_cnt));
 		MH_STA_SHOW(init, "%d", user->init_cnt);
 		MH_STA_SHOW(start, "%d", user->start_cnt);
 #if MIPI_HOST_INT_DBG
@@ -2252,7 +2244,7 @@ static int hobot_mipi_host_probe_cdev(mipi_hdev_t *hdev)
 						32, 300, 5000, NULL) < 0)
 		pr_err("mipi host %d diag register fail\n", hdev->port);
 #endif
-	spin_lock_init(&hdev->user.slock);
+	atomic_set(&hdev->user.open_cnt, 0);
 
 	return 0;
 err_creat:

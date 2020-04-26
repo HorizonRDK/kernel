@@ -237,9 +237,8 @@ typedef struct _mipi_dev_s {
 } mipi_dev_t;
 
 typedef struct _mipi_user_s {
-	spinlock_t slock;
 	struct mutex mutex;
-	uint32_t open_cnt;
+	atomic_t open_cnt;
 	uint32_t init_cnt;
 	uint32_t start_cnt;
 } mipi_user_t;
@@ -1044,11 +1043,8 @@ static int hobot_mipi_dev_close(struct inode *inode, struct file *file)
 	mipi_dev_param_t *param = &mdev->param;
 	struct device *dev = ddev->dev;
 
-	spin_lock(&user->slock);
-	if (user->open_cnt > 0)
-		user->open_cnt--;
-	mipidbg("close as %d", user->open_cnt);
-	if (user->open_cnt == 0) {
+	if (atomic_dec_return(&user->open_cnt) == 0) {
+		mipidbg("close as last");
 		if (mdev->state != MIPI_STATE_DEFAULT) {
 			mipi_dev_stop(ddev);
 			mipi_dev_deinit(ddev);
@@ -1057,7 +1053,6 @@ static int hobot_mipi_dev_close(struct inode *inode, struct file *file)
 		mipi_dev_configure_clk(ddev, MIPI_DEV_CFGCLK_NAME, 0, 0);
 		mipi_dev_configure_clk(ddev, MIPI_DEV_REFCLK_NAME, 0, 0);
 	}
-	spin_unlock(&user->slock);
 
 	return 0;
 }
@@ -1069,17 +1064,14 @@ static int hobot_mipi_dev_open(struct inode *inode, struct file *file)
 	mipi_dev_param_t *param = &ddev->mdev.param;
 	struct device *dev = ddev->dev;
 
-	spin_lock(&user->slock);
-	mipidbg("open as %d", user->open_cnt);
-	if (user->open_cnt == 0) {
+	if (atomic_inc_return(&user->open_cnt) == 1) {
+		mipidbg("open as first");
 		mutex_init(&user->mutex);
 		user->init_cnt = 0;
 		user->start_cnt = 0;
 		mipi_dev_configure_clk(ddev, MIPI_DEV_CFGCLK_NAME, MIPI_DEV_CFGCLK_MHZ, 1);
 		mipi_dev_configure_clk(ddev, MIPI_DEV_REFCLK_NAME, MIPI_DEV_REFCLK_MHZ, 1);
 	}
-	user->open_cnt++;
-	spin_unlock(&user->slock);
 
 	file->private_data = ddev;
 	return 0;
@@ -1492,7 +1484,7 @@ static ssize_t mipi_dev_status_show(struct device *dev,
 			s += sprintf(s, "not ioremap\n" );
 		}
 	} else if (strcmp(attr->attr.name, "user") == 0) {
-		MD_STA_SHOW(user, "%d", user->open_cnt);
+		MD_STA_SHOW(user, "%d", atomic_read(&user->open_cnt));
 		MD_STA_SHOW(init, "%d", user->init_cnt);
 		MD_STA_SHOW(start, "%d", user->start_cnt);
 #if MIPI_DEV_INT_DBG
@@ -1633,7 +1625,7 @@ static int hobot_mipi_dev_probe_cdev(mipi_ddev_t *ddev)
 						20, 300, 5000, NULL) < 0)
 		pr_err("mipi dev %d diag register fail\n", ddev->port);
 #endif
-	spin_lock_init(&ddev->user.slock);
+	atomic_set(&ddev->user.open_cnt, 0);
 
 	return 0;
 err_creat:
