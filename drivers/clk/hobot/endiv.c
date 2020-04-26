@@ -104,12 +104,23 @@ int endiv_clk_is_enabled(struct clk_hw *hw)
 {
 	struct clk_endiv *clk;
 	unsigned int val, status;
+	unsigned long flags = 0;
 
 	clk = to_clk_endiv(hw);
+
+	if (clk->lock)
+		spin_lock_irqsave(clk->lock, flags);
+	else
+		__acquire(clk->lock);
 
 	val = readl(clk->gate_reg.gt_reg.clken_sta_reg);
 	status = (val & (1 << clk->gate_reg.gt_reg.clken_sta_bit))
 	>> clk->gate_reg.gt_reg.clken_sta_bit;
+
+	if (clk->lock)
+		spin_unlock_irqrestore(clk->lock, flags);
+	else
+		__release(clk->lock);
 
 	return status;
 }
@@ -131,7 +142,7 @@ static int endiv_clk_set_rate(struct clk_hw *hw, unsigned long rate,
 				unsigned long parent_rate)
 {
 	struct clk_endiv *clk = to_clk_endiv(hw);
-	int value, reg0_val, reg1_val;
+	int value, reg0_val, reg1_val, enstat;
 	unsigned long flags = 0;
 	u32 val;
 
@@ -140,9 +151,15 @@ static int endiv_clk_set_rate(struct clk_hw *hw, unsigned long rate,
 	else
 		__acquire(clk->lock);
 
-	/* disable clk */
-	reg0_val = 1 << clk->gate_reg.gt_reg.disable_bit;
-	writel(reg0_val, clk->gate_reg.gt_reg.disable_reg);
+	value = readl(clk->gate_reg.gt_reg.clken_sta_reg);
+	enstat = (value & (1 << clk->gate_reg.gt_reg.clken_sta_bit))
+	>> clk->gate_reg.gt_reg.clken_sta_bit;
+
+	if (1 == enstat) {
+		/* disable clk */
+		reg0_val = 1 << clk->gate_reg.gt_reg.disable_bit;
+		writel(reg0_val, clk->gate_reg.gt_reg.disable_reg);
+	}
 
 	value = divider_get_val(rate, parent_rate, NULL,
 				clk->div_reg.div_field, clk->flags);
@@ -164,9 +181,11 @@ static int endiv_clk_set_rate(struct clk_hw *hw, unsigned long rate,
 	val |= (u32)value << clk->div_reg.div_bits;
 	clk_writel(val, clk->div_reg.divider_reg);
 
-	/* enable clk */
-	reg1_val = 1 << clk->gate_reg.gt_reg.enable_bit;
-	writel(reg1_val, clk->gate_reg.gt_reg.enable_reg);
+	if (1 == enstat) {
+		/* enable clk */
+		reg1_val = 1 << clk->gate_reg.gt_reg.enable_bit;
+		writel(reg1_val, clk->gate_reg.gt_reg.enable_reg);
+	}
 
 	if (clk->lock)
 		spin_unlock_irqrestore(clk->lock, flags);
