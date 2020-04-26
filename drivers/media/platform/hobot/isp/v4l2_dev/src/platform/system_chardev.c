@@ -635,7 +635,7 @@ int isp_dev_mem_alloc(void)
 	p_ctx = &isp_dev_ctx;
 
 	p_ctx->client = ion_client_create(hb_ion_dev, "ac_isp");
-	if (!p_ctx->client) {
+	if (IS_ERR(p_ctx->client)) {
 		LOG(LOG_ERR, "ac_isp ion client create failed.");
 		ret = -ENOMEM;
 		goto out1;
@@ -643,37 +643,33 @@ int isp_dev_mem_alloc(void)
 
 	p_ctx->handle = ion_alloc(p_ctx->client,
 			TOTAL_MEM_SIZE, 0, ION_HEAP_CARVEOUT_MASK, 0);
-	if (!p_ctx->handle) {
+	if (IS_ERR(p_ctx->handle)) {
 		LOG(LOG_ERR, "ac_isp ion handle create failed.");
 		ret = -ENOMEM;
-		goto out2;
+		goto out1;
 	}
 
 	ret = ion_phys(p_ctx->client, p_ctx->handle->id,
 			&p_ctx->phy_addr, &p_ctx->mem_size);
 	if (ret) {
 		LOG(LOG_ERR, "ion_phys get phy address failed.");
-		goto out3;
+		goto out2;
 	}
 	p_ctx->vir_addr = ion_map_kernel(p_ctx->client, p_ctx->handle);
-	if (!p_ctx->vir_addr) {
+	if (IS_ERR(p_ctx->vir_addr)) {
 		LOG(LOG_ERR, "ion_map failed.");
 		ret = -ENOMEM;
-		goto out4;
+		goto out2;
 	}
 
 	return 0;
 
-out4:
-	ion_unmap_kernel(p_ctx->client, p_ctx->handle);
-out3:
+out2:
 	ion_free(p_ctx->client, p_ctx->handle);
 	p_ctx->phy_addr = 0;
 	p_ctx->mem_size = 0;
-out2:
 	ion_client_destroy(p_ctx->client);
 out1:
-
 	return ret;
 }
 
@@ -817,8 +813,8 @@ int system_chardev_destroy( void )
 
         misc_deregister( &isp_dev_ctx.isp_dev );
 
-	if (isp_dev_ctx.client) {
-		if (isp_dev_ctx.handle) {
+	if (IS_ERR(isp_dev_ctx.client) == 0) {
+		if (IS_ERR(isp_dev_ctx.handle) == 0) {
 			ion_unmap_kernel(isp_dev_ctx.client, isp_dev_ctx.handle);
 			ion_free(isp_dev_ctx.client, isp_dev_ctx.handle);
 		}

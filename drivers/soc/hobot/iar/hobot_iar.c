@@ -2709,7 +2709,7 @@ static int x2_iar_probe(struct platform_device *pdev)
 	}
 
 	g_iar_dev->iar_iclient = ion_client_create(hb_ion_dev, "iar");
-	if (!g_iar_dev->iar_iclient) {
+	if (IS_ERR(g_iar_dev->iar_iclient)) {
 		dev_err(&pdev->dev, "Create iar ion client failed!!");
 		ret = -ENOMEM;
 		goto err1;
@@ -2721,7 +2721,7 @@ static int x2_iar_probe(struct platform_device *pdev)
 
 	if (!g_iar_dev->iar_ihandle || IS_ERR(g_iar_dev->iar_ihandle)) {
 		dev_err(&pdev->dev, "Create iar ion client failed!!");
-		goto err2;
+		goto err1;
 	}
 
 	ret = ion_phys(g_iar_dev->iar_iclient, g_iar_dev->iar_ihandle->id,
