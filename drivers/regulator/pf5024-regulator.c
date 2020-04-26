@@ -47,6 +47,9 @@
 #define	PF5024_ENA			0x01
 #define	PF5024_DIS			0x0
 #define	PF5024_VSEL_MASK		0xFF	/* VSET - [7:0] */
+#define	PF5024_RUN_MODE_MASK		0xFC
+#define PF5024_PWM_MODE			0x01
+#define PF5024_PFM_MODE			0x02
 
 /*
  * PF5024 voltage number
@@ -282,9 +285,56 @@ static const struct i2c_device_id pf5024_ids[] = {
 };
 MODULE_DEVICE_TABLE(i2c, pf5024_ids);
 
+#ifdef CONFIG_PM_SLEEP
+int pf5024_suspend(struct device *dev)
+{
+	struct pf5024 *pf5024;
+	unsigned int val = 0;
+
+	/*change work mode to PFM from PWM, PFM mode is higher efficiency than
+	 * PWM mode when low power*/
+	pf5024 = i2c_get_clientdata(pf5024_i2c_client);
+
+	regmap_read(pf5024->regmap, PF5024_DCDC1_MODE, &val);
+	val = (val & PF5024_RUN_MODE_MASK) | PF5024_PFM_MODE;
+	regmap_write(pf5024->regmap, PF5024_DCDC1_MODE, val);
+
+	regmap_read(pf5024->regmap, PF5024_DCDC2_MODE, &val);
+	val = (val & PF5024_RUN_MODE_MASK) | PF5024_PFM_MODE;
+	regmap_write(pf5024->regmap, PF5024_DCDC2_MODE, val);
+
+	return 0;
+}
+
+int pf5024_resume(struct device *dev)
+{
+	struct pf5024 *pf5024;
+	unsigned int val = 0;
+
+	pf5024 = i2c_get_clientdata(pf5024_i2c_client);
+
+	regmap_read(pf5024->regmap, PF5024_DCDC1_MODE, &val);
+	val = (val & PF5024_RUN_MODE_MASK) | PF5024_PWM_MODE;
+	regmap_write(pf5024->regmap, PF5024_DCDC1_MODE, val);
+
+	regmap_read(pf5024->regmap, PF5024_DCDC2_MODE, &val);
+	val = (val & PF5024_RUN_MODE_MASK) | PF5024_PWM_MODE;
+	regmap_write(pf5024->regmap, PF5024_DCDC2_MODE, val);
+
+	return 0;
+}
+
+static const struct dev_pm_ops pf5024_pmops = {
+	.suspend = pf5024_suspend,
+	.resume = pf5024_resume,
+};
+#endif
 static struct i2c_driver pf5024_pmic_driver = {
 	.driver	= {
 		.name	= "pf5024",
+#ifdef CONFIG_PM_SLEEP
+		.pm = &pf5024_pmops,
+#endif
 	},
 	.probe		= pf5024_pmic_probe,
 	.id_table	= pf5024_ids,
