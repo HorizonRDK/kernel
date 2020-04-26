@@ -121,10 +121,8 @@ static int pvt_temp_read(struct device *dev, enum hwmon_sensor_types type,
 
 		pvt_dev->cur_temp[i] = temp;
 
-		if (temp < 0) {
-			pr_debug("%s cur_smpl[%d] = %d\n", ts_map[i], i, pvt_dev->cur_smpl[i]);
-			pr_debug("%s cur_temp[%d] = %ld\n", ts_map[i], i, pvt_dev->cur_temp[i]);
-		}
+		pr_debug("%s cur_smpl[%d] = %d\n", ts_map[i], i, pvt_dev->cur_smpl[i]);
+		pr_debug("%s cur_temp[%d] = %ld\n", ts_map[i], i, pvt_dev->cur_temp[i]);
 		sum += temp;
 	}
 
