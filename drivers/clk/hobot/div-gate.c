@@ -77,7 +77,7 @@ void div_gate_clk_disable(struct clk_hw *hw)
 	/* determining is ips reg? */
 	if(clk->gate_reg.disable_bit == 32) {
 		if (status) {
-			val |= 0 << clk->gate_reg.enable_bit;
+			val &= ~(1 << clk->gate_reg.enable_bit);
 			writel(val, clk->gate_reg.enable_reg);
 		}
 	} else {
@@ -260,27 +260,6 @@ static struct clk *div_gate_clk_register(struct device *dev, const char *name,
 	return clk;
 }
 
-static void __iomem * clk_get_ipsregister_base(struct device_node *np)
-{
-	void __iomem *clk_ipsreg_base = NULL;
-	struct device_node *pnode;
-
-	if(clk_ipsreg_base == NULL) {
-		pnode = of_get_parent(np);
-		if(!pnode) {
-			pr_err("%s: %s failed to get parent node!\n", __func__, np->name);
-			return NULL;
-		}
-		clk_ipsreg_base = of_iomap(pnode, 1);
-		if(!clk_ipsreg_base) {
-			pr_err("%s: %s faield to remap!\n", __func__, np->name);
-			return ERR_PTR(-ENOMEM);
-		}
-		of_node_put(pnode);
-	}
-	return clk_ipsreg_base;
-}
-
 static void __init _of_hobot_div_gate_clk_setup(struct device_node *node,
 		const struct clk_ops *ops)
 {
@@ -316,12 +295,6 @@ static void __init _of_hobot_div_gate_clk_setup(struct device_node *node,
 		return;
 	}
 
-	ipsreg_base = clk_get_ipsregister_base(node);
-	if (!ipsreg_base) {
-		pr_err("%s: %s failed to get the reg base!\n", __func__, node->name);
-		return;
-	}
-
 	ret = of_property_read_u32_array(node, "bits", data, 4);
 	if (ret) {
 		pr_err("%s:%s no bits property", __func__, node->name);
@@ -343,6 +316,12 @@ static void __init _of_hobot_div_gate_clk_setup(struct device_node *node,
 		gate_reg.enable_reg = reg_base + data[2];
 		gate_reg.disable_reg = reg_base + data[3];
 	} else {
+		ipsreg_base = clk_get_ipsregister_base(node);
+		if (!ipsreg_base) {
+			pr_err("%s: %s failed to get the reg base!\n", __func__, node->name);
+			return;
+		}
+
 		ret = of_property_read_u32_array(node, "offset", data, 4);
 		if (ret) {
 			pr_err("%s:%s no offset property", __func__, node->name);
@@ -382,7 +361,7 @@ static void __init _of_hobot_div_gate_clk_setup(struct device_node *node,
 	if (!IS_ERR(clk))
 		of_clk_add_provider(node, of_clk_src_simple_get, clk);
 
-	pr_info("%s: %s div_gate clock set up.\n", __func__, node->name);
+	// pr_info("%s: %s div_gate clock set up.\n", __func__, node->name);
 }
 
 static void __init of_hobot_div_gate_clk_setup(struct device_node *node)

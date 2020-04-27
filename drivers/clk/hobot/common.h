@@ -14,5 +14,6 @@
 #define __CLK_H__
 
 extern void __iomem * clk_get_register_base(struct device_node *np);
+extern void __iomem * clk_get_ipsregister_base(struct device_node *np);
 
 #endif

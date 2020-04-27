@@ -696,6 +696,15 @@
 			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
+		iar_ipi_clk: iar_ipi_clk{
+			#clock-cells = <0>;
+			compatible = "hobot,gate-clk";
+			clocks = <&vio_pllmux_clk>;
+			offset = <0xc 0xc 0x0 0x0>;
+			bits = <14 14 32 32>;
+			field = <1 1 1>;
+		};
+
 		bt_padc_pixclk: bt_padc_pixclk {
 			#clock-cells = <0>;
 			compatible = "hobot,gpio-clk";

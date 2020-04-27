@@ -855,7 +855,7 @@ int8_t disp_set_pixel_clk(uint64_t pixel_clk)
 		return -1;
 	}
 	pixel_rate = clk_get_rate(g_iar_dev->iar_pixel_clk);
-	pr_err("%s: iar pixel rate is %lld\n", __func__, pixel_rate);
+	pr_info("%s: iar pixel rate is %lld\n", __func__, pixel_rate);
 	return 0;
 }
 EXPORT_SYMBOL_GPL(disp_set_pixel_clk);
@@ -888,6 +888,8 @@ int disp_clk_enable(void)
 		pixel_clock = 32000000;
 	else if (display_type == MIPI_720P_TOUCH)
 		pixel_clock = 54000000;
+	else if (display_type == SIF_IPI)
+		pixel_clock = 54400000;
 	else
 		pixel_clock = 163000000;
 	pixel_clock = clk_round_rate(g_iar_dev->iar_pixel_clk, pixel_clock);
@@ -899,6 +901,21 @@ int disp_clk_enable(void)
 	pixel_clock = clk_get_rate(g_iar_dev->iar_pixel_clk);
 	pr_debug("%s: iar pixel rate is %lld\n", __func__, pixel_clock);
 	return 0;
+}
+
+static int ipi_clk_disable(void)
+{
+	if (g_iar_dev->iar_ipi_clk == NULL)
+		return -1;
+	clk_disable_unprepare(g_iar_dev->iar_ipi_clk);
+	return 0;
+}
+
+static int ipi_clk_enable(void)
+{
+	if (g_iar_dev->iar_ipi_clk == NULL)
+		return -1;
+	return clk_prepare_enable(g_iar_dev->iar_ipi_clk);
 }
 
 static int screen_backlight_init(void)
@@ -1664,6 +1681,9 @@ int32_t iar_stop(void)
 	writel(value, g_iar_dev->regaddr + REG_IAR_DE_REFRESH_EN);
 
 	writel(0x1, g_iar_dev->regaddr + REG_IAR_UPDATE);
+	if (display_type == SIF_IPI) {
+		ipi_clk_disable();
+	}
 	ret = disp_clk_disable();
 	//del_timer(&iartimer);
 	return ret;
@@ -2663,6 +2683,12 @@ static int x2_iar_probe(struct platform_device *pdev)
 		}
 	}
 
+	g_iar_dev->iar_ipi_clk = devm_clk_get(&pdev->dev, "iar_ipi_clk");
+	if (IS_ERR(g_iar_dev->iar_ipi_clk)) {
+		dev_warn(&pdev->dev, "failed to get iar_ipi_clk\n");
+		g_iar_dev->iar_ipi_clk = NULL;
+	}
+
 	g_iar_dev->iar_pixel_clk = devm_clk_get(&pdev->dev, "iar_pix_clk");
 	if (IS_ERR(g_iar_dev->iar_pixel_clk)) {
 		dev_err(&pdev->dev, "failed to get iar_pix_clk\n");
@@ -3155,8 +3181,18 @@ static int x2_iar_probe(struct platform_device *pdev)
 		}
 		pr_debug("set mipi 720p touch done!\n");
 	} else if (display_type == HDMI_TYPE || display_type == SIF_IPI) {
-		pr_debug("%s: display_type is HDMI/SIF_IPI panel!\n", __func__);
-		ret = disp_set_pixel_clk(163000000);
+		if (display_type == SIF_IPI) {
+			pr_debug("%s: display_type is SIF_IPI panel!\n", __func__);
+			ret = ipi_clk_enable();
+			if (ret) {
+				pr_err("ipi_clk_enable failed %d\n", ret);
+				return ret;
+			}
+			ret = disp_set_pixel_clk(54400000);
+		} else {
+			pr_debug("%s: display_type is HDMI panel!\n", __func__);
+			ret = disp_set_pixel_clk(163000000);
+		}
 		iar_display_cam_no = PIPELINE0;
                 iar_display_addr_type = DISPLAY_CHANNEL1;
 		if (ret)

@@ -531,6 +531,7 @@ struct iar_dev_s {
 	struct pinctrl_state *pins_mipi_dsi;
 	struct pinctrl_state *pins_rgb;
 	struct clk *iar_pixel_clk;
+	struct clk *iar_ipi_clk;
 	struct clk *sif_mclk;
 
     struct vio_framemgr framemgr_layer[IAR_CHANNEL_MAX];

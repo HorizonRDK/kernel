@@ -67,9 +67,16 @@ int gate_clk_enable(struct clk_hw *hw)
 			writel(reg_val, clk->reg.enable_reg);
 		}
 	} else {
-		if (!status0) {
-			reg_val = 1 << clk->reg.enable_bit;
-			writel(reg_val, clk->reg.enable_reg);
+		if(clk->reg.disable_bit == 32) {
+			if (!status0) {
+				val |= 1 << clk->reg.enable_bit;
+				writel(val, clk->reg.enable_reg);
+			}
+		} else {
+			if (!status0) {
+				reg_val = 1 << clk->reg.enable_bit;
+				writel(reg_val, clk->reg.enable_reg);
+			}
 		}
 	}
 
@@ -108,9 +115,16 @@ void gate_clk_disable(struct clk_hw *hw)
 			writel(reg_val, clk->reg.disable_reg);
 		}
 	} else {
-		if (status0) {
-			reg_val = 1 << clk->reg.disable_bit;
-			writel(reg_val, clk->reg.disable_reg);
+		if(clk->reg.disable_bit == 32) {
+			if (status0) {
+				val &= ~(1 << clk->reg.enable_bit);
+				writel(val, clk->reg.enable_reg);
+			}
+		} else {
+			if (status0) {
+				reg_val = 1 << clk->reg.disable_bit;
+				writel(reg_val, clk->reg.disable_reg);
+			}
 		}
 	}
 
@@ -197,6 +211,7 @@ static void __init _of_hobot_gate_clk_setup(struct device_node *node,
 	unsigned int clk_gate_flags = 0;
 	unsigned int data[4] = {0};
 	static void __iomem *reg_base;
+	static void __iomem *ipsreg_base;
 	spinlock_t *lock;
 	int ret;
 
@@ -218,17 +233,6 @@ static void __init _of_hobot_gate_clk_setup(struct device_node *node,
 		return;
 	}
 
-	ret = of_property_read_u32_array(node, "offset", data, 4);
-	if (ret) {
-		pr_err("%s: %s missing offset property", __func__, node->name);
-		return;
-	}
-	reg.clken_sta_reg = reg_base + data[0];
-	reg.enable_reg = reg_base + data[1];
-	reg.disable_reg = reg_base + data[2];
-	reg.clkoff_sta_reg = reg_base + data[3];
-
-
 	ret = of_property_read_u32_array(node, "bits", data, 4);
 	if (ret) {
 		pr_err("%s:%s no bits property", __func__, node->name);
@@ -239,7 +243,36 @@ static void __init _of_hobot_gate_clk_setup(struct device_node *node,
 	reg.disable_bit = data[2];
 	reg.clkoff_sta_bit = data[3];
 
-	if (reg.clkoff_sta_reg != reg_base) {
+	if (reg.disable_bit != 32) {
+		ret = of_property_read_u32_array(node, "offset", data, 4);
+		if (ret) {
+			pr_err("%s: %s missing offset property", __func__, node->name);
+			return;
+		}
+		reg.clken_sta_reg = reg_base + data[0];
+		reg.enable_reg = reg_base + data[1];
+		reg.disable_reg = reg_base + data[2];
+		reg.clkoff_sta_reg = reg_base + data[3];
+	} else {
+		ipsreg_base = clk_get_ipsregister_base(node);
+		if (!ipsreg_base) {
+			pr_err("%s: %s failed to get the reg base!\n", __func__, node->name);
+			return;
+		}
+
+		ret = of_property_read_u32_array(node, "offset", data, 4);
+		if (ret) {
+			pr_err("%s: %s missing offset property", __func__, node->name);
+			return;
+		}
+		reg.clken_sta_reg = ipsreg_base + data[0];
+		reg.enable_reg = ipsreg_base + data[1];
+		reg.disable_reg = ipsreg_base + data[2];
+		reg.clkoff_sta_reg = ipsreg_base + data[3];
+	}
+
+	if (reg.clkoff_sta_reg != reg_base &&
+		reg.clkoff_sta_reg != ipsreg_base) {
 		ret = of_property_read_u32_array(node, "field", data, 4);
 		if (ret) {
 			pr_err("%s:%s no field property", __func__, node->name);
