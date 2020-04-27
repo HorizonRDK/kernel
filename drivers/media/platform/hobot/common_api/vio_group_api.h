@@ -48,7 +48,7 @@ enum vio_group_state {
 	VIO_GROUP_LEADER,
 };
 
-struct vio_group_task{
+struct vio_group_task {
 	struct task_struct		*task;
 	struct kthread_worker	worker;
 	unsigned long				state;
@@ -57,7 +57,7 @@ struct vio_group_task{
 	u32 id;
 };
 
-struct vio_group{
+struct vio_group {
 	spinlock_t 			slock;
 	void *sub_ctx[MAX_SUB_DEVICE];
 	struct frame_id frameid;
@@ -76,7 +76,7 @@ struct vio_group{
 	void (*frame_work)(struct vio_group *group);
 };
 
-struct vio_video_ctx{
+struct vio_video_ctx {
 	wait_queue_head_t		done_wq;
 	struct vio_framemgr 	framemgr;
 	struct vio_group		*group;
@@ -87,9 +87,14 @@ struct vio_video_ctx{
 	bool leader;
 };
 
-struct vio_chain{
+struct vio_chain {
 	struct vio_group group[GROUP_ID_NUMBER];
 	unsigned long state;
+};
+
+struct vio_core {
+       struct vio_chain chain[VIO_MAX_STREAM];
+       atomic_t rsccount;
 };
 
 typedef int (*isp_callback)(int);
@@ -105,6 +110,8 @@ void vio_get_frame_id(struct vio_group *group);
 int vio_group_init_mp(u32 group_id);
 void vio_reset_module(u32 module);
 void vio_group_done(struct vio_group *group);
+void vio_dwe_clk_enable(void);
+void vio_dwe_clk_disable(void);
 
 #ifdef X3_IAR_INTERFACE
 extern u32 ipu_get_iar_display_type(u8 *pipeline, u8 *channel);

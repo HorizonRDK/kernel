@@ -83,8 +83,8 @@ static int x3_gdc_open(struct inode *inode, struct file *file)
 	gdc_ctx->gdc_dev = gdc;
 	file->private_data = gdc_ctx;
 
+	vio_dwe_clk_enable();
 	write_gdc_mask(gdc->hw_id, &enbale);
-	ips_set_clk_ctrl(GDC0_CLOCK_GATE - gdc->hw_id, enbale);
 
 	vio_info("GDC%d open node\n", gdc->hw_id);
 p_err:
@@ -119,7 +119,7 @@ static int x3_gdc_close(struct inode *inode, struct file *file)
 	gdc = gdc_ctx->gdc_dev;
 
 	write_gdc_mask(gdc->hw_id, &enbale);
-	ips_set_clk_ctrl(GDC0_CLOCK_GATE - gdc->hw_id, enbale);
+	vio_dwe_clk_disable();
 
 	kfree(gdc_ctx);
 

@@ -23,6 +23,7 @@ struct x3_ips_dev {
 	resource_size_t			regs_end;
 	int				irq;
 	spinlock_t			shared_slock;
+	struct mutex	shared_mux;
 	wait_queue_head_t		done_wq;
 	u32 event;
 	u32 iram_used_size;

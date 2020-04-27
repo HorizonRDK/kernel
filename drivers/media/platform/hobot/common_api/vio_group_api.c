@@ -9,7 +9,7 @@
 #include <uapi/linux/sched/types.h>
 #include "vio_group_api.h"
 
-static struct vio_chain chain[VIO_MAX_STREAM];
+static struct vio_core iscore;
 
 isp_callback sif_isp_ctx_sync;
 EXPORT_SYMBOL(sif_isp_ctx_sync);
@@ -121,7 +121,7 @@ int vio_group_init_mp(u32 group_id)
 	}
 
 	for (i = 0; i < VIO_MAX_STREAM; i++) {
-		group = &chain[i].group[group_id];
+		group = &iscore.chain[i].group[group_id];
 		spin_lock_init(&group->slock);
 	}
 	return 0;
@@ -144,7 +144,7 @@ struct vio_group *vio_get_chain_group(int instance, u32 group_id)
 		vio_err("[%s]wrong group id (%d)\n", __func__, group_id);
 	}
 
-	ischain = &chain[instance];
+	ischain = &iscore.chain[instance];
 	group = &ischain->group[group_id];
 
 	return group;
@@ -176,7 +176,7 @@ int vio_init_chain(int instance)
 	struct vio_group *group;
 	int i = 0;
 
-	ischain = &chain[instance];
+	ischain = &iscore.chain[instance];
 
 	for (i = 0; i < GROUP_ID_NUMBER; i++) {
 		group = &ischain->group[i];
@@ -227,7 +227,7 @@ void vio_bind_group_done(int instance)
 	struct vio_group *group;
 	struct vio_group *leader_group;
 
-	ischain = &chain[instance];
+	ischain = &iscore.chain[instance];
 	for (i = 0; i < GROUP_ID_NUMBER; i++) {
 		group = &ischain->group[i];
 		if (test_bit(VIO_GROUP_DMA_OUTPUT, &group->state)) {
@@ -349,3 +349,34 @@ void vio_group_done(struct vio_group *group)
 	}
 }
 EXPORT_SYMBOL(vio_group_done);
+
+void vio_dwe_clk_enable(void)
+{
+	struct vio_core *core;
+	bool enable = true;
+
+	core = &iscore;
+	if (atomic_read(&core->rsccount) == 0) {
+		ips_set_clk_ctrl(GDC0_CLOCK_GATE, enable);
+		ips_set_clk_ctrl(GDC1_CLOCK_GATE, enable);
+		ips_set_clk_ctrl(DWE0_CLOCK_GATE, enable);
+		vio_info("%s done", __func__);
+	}
+	atomic_inc(&core->rsccount);
+}
+EXPORT_SYMBOL(vio_dwe_clk_enable);
+
+void vio_dwe_clk_disable(void)
+{
+	struct vio_core *core;
+	bool enable = false;
+
+	core = &iscore;
+	if (atomic_dec_return(&core->rsccount) == 0) {
+		ips_set_clk_ctrl(GDC0_CLOCK_GATE, enable);
+		ips_set_clk_ctrl(GDC1_CLOCK_GATE, enable);
+		ips_set_clk_ctrl(DWE0_CLOCK_GATE, enable);
+		vio_info("%s done", __func__);
+	}
+}
+EXPORT_SYMBOL(vio_dwe_clk_disable);

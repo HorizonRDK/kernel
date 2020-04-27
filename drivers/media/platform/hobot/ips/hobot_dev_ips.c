@@ -72,13 +72,13 @@ int ips_set_clk_ctrl(unsigned long module, bool enable)
 	int ret = 0;
 	BUG_ON(!g_ips_dev);
 
-	spin_lock(&g_ips_dev->shared_slock);
+	mutex_lock(&g_ips_dev->shared_mux);
 	if (enable)
 		vio_clk_enable("sif_mclk");
 	ret = ips_clk_ctrl(g_ips_dev->base_reg, module, enable);
 	if (!enable)
 		vio_clk_disable("sif_mclk");
-	spin_unlock(&g_ips_dev->shared_slock);
+	mutex_unlock(&g_ips_dev->shared_mux);
 
 	return ret;
 }
@@ -533,6 +533,7 @@ static int x3_ips_probe(struct platform_device *pdev)
 
 	g_ips_dev = ips;
 	spin_lock_init(&ips->shared_slock);
+	mutex_init(&ips->shared_mux);
 	init_waitqueue_head(&ips->done_wq);
 	vio_info("[FRT:D] %s(%d)\n", __func__, ret);
 
