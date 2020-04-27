@@ -130,33 +130,23 @@ static void sif_config_bypass(u32 __iomem *base_reg, u32 rx_index,
 				u32 bypass_channels)
 {
 	int i = 0;
-	u32 bypass_index_start = 0;
+	u32 bypass_sel = bypass_channels % 10;
+	u32 bypass_mask = bypass_channels / 10;
 
-	if (bypass_channels <= 0)
+	if (bypass_sel < 0 || bypass_sel == 2 || bypass_sel > 4)
 		return;
 
-	if (bypass_channels == 1) {
-		vio_hw_set_field(base_reg, &sif_regs[SIF_VIO_BYPASS_CFG],
-				&sif_fields[SW_MIPI_VIO_BYPASS_MUX_SELECT], 1); // ALL IPI0
-		bypass_index_start = rx_index;
-	} else if (bypass_channels == 2) {
-		vio_hw_set_field(base_reg, &sif_regs[SIF_VIO_BYPASS_CFG],
-				&sif_fields[SW_MIPI_VIO_BYPASS_MUX_SELECT], 4); // Rx0 + Rx1
-		bypass_index_start = rx_index * 2;
-	} else {
-		bypass_index_start = 0;
-		if (rx_index == 0)
-			vio_hw_set_field(base_reg, &sif_regs[SIF_VIO_BYPASS_CFG], 
-					&sif_fields[SW_MIPI_VIO_BYPASS_MUX_SELECT], 0); // Rx0
-		else if (rx_index == 1)
-			vio_hw_set_field(base_reg, &sif_regs[SIF_VIO_BYPASS_CFG],
-					&sif_fields[SW_MIPI_VIO_BYPASS_MUX_SELECT], 3); // Rx1
-	}
+	vio_hw_set_field(base_reg, &sif_regs[SIF_VIO_BYPASS_CFG],
+		&sif_fields[SW_MIPI_VIO_BYPASS_MUX_SELECT], bypass_sel);
 
-	for (i = 0; i < bypass_channels; i++) {
-		sif_hw_enable_bypass(base_reg, i, true); // Rx1
+	if (bypass_mask == 0)
+		bypass_mask = 0x1;
+	for (i = 0; i < 4; i++) {
+		if (bypass_mask & (0x1 << i))
+			sif_hw_enable_bypass(base_reg, i, true);
+		else
+			sif_hw_enable_bypass(base_reg, i, false);
 	}
-
 }
 
 /*
@@ -249,19 +239,19 @@ static void sif_start_pattern_gen(u32 __iomem *base_reg, u32 pat_index)
 						&sif_fields[SW_PAT_GEN0_ENABLE], 1);
 				break;
 			case 1:
-				vio_hw_set_field(base_reg, &sif_regs[SIF_PAT_GEN_ENABLE], 
+				vio_hw_set_field(base_reg, &sif_regs[SIF_PAT_GEN_ENABLE],
 						&sif_fields[SW_PAT_GEN1_ENABLE], 1);
 				break;
 			case 2:
-				vio_hw_set_field(base_reg, &sif_regs[SIF_PAT_GEN_ENABLE], 
+				vio_hw_set_field(base_reg, &sif_regs[SIF_PAT_GEN_ENABLE],
 						&sif_fields[SW_PAT_GEN2_ENABLE], 1);
 				break;
 			case 3:
-				vio_hw_set_field(base_reg, &sif_regs[SIF_PAT_GEN_ENABLE], 
+				vio_hw_set_field(base_reg, &sif_regs[SIF_PAT_GEN_ENABLE],
 						&sif_fields[SW_PAT_GEN3_ENABLE], 1);
 				break;
 			case 4:
-				vio_hw_set_field(base_reg, &sif_regs[SIF_PAT_GEN_ENABLE], 
+				vio_hw_set_field(base_reg, &sif_regs[SIF_PAT_GEN_ENABLE],
 						&sif_fields[SW_PAT_GEN4_ENABLE], 1);
 				break;
 			default:
@@ -327,7 +317,7 @@ static void sif_set_dvp_input(u32 __iomem *base_reg, sif_input_dvp_t* p_dvp)
 		if (p_dvp->data.pix_length == 5)
 			lines = 4;
 
-		sif_enable_mux_out(base_reg, 
+		sif_enable_mux_out(base_reg,
 				mux_out_index,
 				input_index_start,
 				lines);
@@ -338,7 +328,7 @@ static void sif_set_dvp_input(u32 __iomem *base_reg, sif_input_dvp_t* p_dvp)
 			if (lines > 1)
 				vio_err("Not supported: YUV over 2K");
 			else {
-				sif_enable_mux_out(base_reg, 
+				sif_enable_mux_out(base_reg,
 						mux_out_index + 1,
 						input_index_start + 1,
 						lines);
@@ -348,9 +338,9 @@ static void sif_set_dvp_input(u32 __iomem *base_reg, sif_input_dvp_t* p_dvp)
 		}
 
 
-		vio_hw_set_field(base_reg, &sif_regs[SIF_FRM_ID_DVP_IN_CFG], 
+		vio_hw_set_field(base_reg, &sif_regs[SIF_FRM_ID_DVP_IN_CFG],
 				&sif_fields[SW_DVP_FRAME_ID_ENABLE], enable_frame_id);
-		vio_hw_set_field(base_reg, &sif_regs[SIF_PAT_GEN_IPI_EN], 
+		vio_hw_set_field(base_reg, &sif_regs[SIF_PAT_GEN_IPI_EN],
 				&sif_fields[SW_DVP_IN_PAT_GEN_OUT], enable_pattern);
 
 		if (enable_pattern)
@@ -410,8 +400,10 @@ static void sif_set_iar_input(u32 __iomem *base_reg, sif_input_iar_t* p_iar)
 	if (p_iar->func.enable_bypass) {
 		vio_hw_set_field(base_reg, &sif_regs[SIF_VIO_BYPASS_CFG],
 				&sif_fields[SW_MIPI_VIO_BYPASS_MUX_SELECT], 2);  // DISP
-		vio_hw_set_field(base_reg, &sif_regs[SIF_VIO_BYPASS_CFG],
-				&sif_fields[SW_MIPI_VIO_BYPASS_MUX0_ENABLE], 1);
+		sif_hw_enable_bypass(base_reg, 0, true);
+		sif_hw_enable_bypass(base_reg, 1, false);
+		sif_hw_enable_bypass(base_reg, 2, false);
+		sif_hw_enable_bypass(base_reg, 3, false);
 
 		vio_hw_set_field(base_reg, &sif_regs[SIF_FRM_EN_INT],
 				&sif_fields[SW_SIF_MIPI_TX_IPI0_FS_INT_EN], 1);
@@ -426,12 +418,11 @@ static void sif_set_iar_input(u32 __iomem *base_reg, sif_input_iar_t* p_iar)
 		vio_hw_set_field(base_reg, &sif_regs[SIF_FRAME_ID_IAR_CFG],
 				&sif_fields[SW_SIF_IAR_MIPI_FRAME_ID_INIT], init_frame_id);
 	}
-	
 }
 
 void sif_config_mipi_rx(u32 __iomem *base_reg, u32 index,
 	sif_data_desc_t *data)
-{	
+{
 	switch(index){
 		case 0:
 			vio_hw_set_field(base_reg, &sif_regs[SIF_MIPI_RX_SET],
@@ -914,7 +905,7 @@ void sif_transfer_ddr_owner(u32 __iomem *base_reg, u32 mux_out_index,
 
 	if (mux_out_index < 8 && buf_index < 4) {
 		shift = mux_out_index*4 + buf_index;
-		vio_hw_set_field(base_reg, &sif_regs[SIF_AXI_BUS_OWNER], 
+		vio_hw_set_field(base_reg, &sif_regs[SIF_AXI_BUS_OWNER],
 				&sif_fields[SW_SIF_OUT_FRM0_W_DDR0_OWNER - shift], 1);
 	} else {
 		vio_err("sif_transfer_ddr_owner wrong index[%d,%d]\n",
@@ -1283,7 +1274,7 @@ static void sif_disable_input_and_output(u32 __iomem *base_reg)
 			&sif_fields[SW_SIF_ISP0_FLYBY_ENABLE], 0);
 	vio_hw_set_field(base_reg, &sif_regs[SIF_OUT_BUF_CTRL],
 			&sif_fields[SW_SIF_IPU0_OUT_ENABLE], 0);
-	
+
 	mdelay(100);
 
 	do

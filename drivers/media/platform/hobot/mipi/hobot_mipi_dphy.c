@@ -750,6 +750,21 @@ int32_t mipi_dev_dphy_initialize(void __iomem *iomem, uint16_t mipiclk, uint16_t
 	/*Configure the D-PHY frequency range*/
 	mipi_dphy_set_freqrange(MIPI_DPHY_TYPE_DEV, (phy) ? (phy->sub.port) : 0,
 		MIPI_HSFREQRANGE, mipi_dphy_clk_range(phy, mipiclk / lane, NULL));
+#if 0
+	if (mipiclk / lane >= 1500) {
+		mipi_dev_dphy_testdata(phy, iomem, 0xA0, 0x2);
+		mipi_dev_dphy_testdata(phy, iomem, 0xA3, 0x0);
+		mipi_dev_dphy_testdata(phy, iomem, 0x1F, 0x1);
+	}
+	if (mipiclk / lane >= 2300)
+		mipi_dev_dphy_testdata(phy, iomem, 0x0E, 0xE);
+	else
+		mipi_dev_dphy_testdata(phy, iomem, 0x0E, 0xD);
+	mipi_dev_dphy_testdata(phy, iomem, 0x14, 0x3);
+	mipi_dev_dphy_testdata(phy, iomem, 0x15, 0x2D);
+	mipi_dev_dphy_testdata(phy, iomem, 0x16, 0x3);
+	mipi_dev_dphy_testdata(phy, iomem, 0x24, 0x7C);
+#else
 	mipi_dev_dphy_testdata(phy, iomem, REGS_TX_SLEW_5, TX_SLEW_RATE_CAL);
 	mipi_dev_dphy_testdata(phy, iomem, REGS_TX_SLEW_7, TX_SLEW_RATE_CTL);
 	mipi_dev_dphy_testdata(phy, iomem, REGS_TX_PLL_27, TX_PLL_DIV(n));
@@ -771,6 +786,7 @@ int32_t mipi_dev_dphy_initialize(void __iomem *iomem, uint16_t mipiclk, uint16_t
 	mipi_dev_dphy_testdata(phy, iomem, REGS_TX_HSTXTHSZERO_OVR, TX_HSTXTHSZERO_DATALANES);
 	mipi_dev_dphy_testdata(phy, iomem, REGS_TX_PLL_TH_DELAY, TX_PLL_TH_DELAY);
 	mipi_dev_dphy_testdata(phy, iomem, REGS_TX_PLL_CPBIAS_CNTRL, TX_PLL_CPBIAS_CNTRL);
+#endif
 #endif
 
 	/* record host */

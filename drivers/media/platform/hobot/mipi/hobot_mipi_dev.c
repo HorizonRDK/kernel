@@ -44,6 +44,7 @@
 #define MIPI_DEV_CFGCLK_MHZ		24000000UL
 #define MIPI_DEV_REFCLK_NAME	"mipi_dev_ref"
 #define MIPI_DEV_REFCLK_MHZ		24000000UL
+#define MIPI_DEV_IPICLK_NAME(x)	"mipi_tx_ipi"
 
 static unsigned int port_num;
 module_param(port_num, uint, 0444);
@@ -84,12 +85,13 @@ module_param(init_num, uint, 0644);
 #define MIPI_DEV_INT_IDI			(0x1<<1)
 #define MIPI_DEV_INT_IPI			(0x1<<2)
 #define MIPI_DEV_INT_PHY			(0x1<<3)
+#define MIPI_DEV_INT_MT_IPI			(0x1<<4)
+#define MIPI_DEV_INT_IDI_VCX_DMY	(0x1<<5)
+#define MIPI_DEV_INT_IDI_VCX2_DMY	(0x1<<6)
 
-#ifdef ADJUST_CLK_RECALCULATION
-#define MIPI_DEV_IPI_PKT_CFG		(0xb00)
-#else
 #define MIPI_DEV_IPI_PKT_CFG		(0xa00)
-#endif
+#define MIPI_DEV_IPI_HSYNC_PKT_EN	(0x01 << 8)
+#define MIPI_DEV_IPI_VC(x)			(((((x) / 4) & 0x7) << 12) | (((x) % 4) << 6))
 #define MIPI_DEV_IPI_MAX_FRAME		(0xffffffff)
 
 #define MIPI_DEV_VPG_DISABLE		(0x00)
@@ -127,6 +129,8 @@ module_param(init_num, uint, 0644);
 #define MIPI_DEV_VPG_DEF_FPS		(30)
 #define MIPI_DEV_VPG_DEF_BLANK		(0x5f4)
 
+#define MIPI_DEV_HSYNC_PKT_DEFAULT  (1)
+#define MIPI_DEV_IPILIMIT_DEFAULT   (102000000UL)
 #define MIPI_DEV_IRQ_CNT            (10)
 #define MIPI_DEV_IRQ_DEBUG          (1)
 
@@ -177,12 +181,19 @@ static const char *g_md_state[MIPI_STATE_MAX] = {
 	"stop",
 };
 
+static const char *g_md_ipiclk_name[] = {
+	MIPI_DEV_IPICLK_NAME(0),
+};
+
 typedef struct _mipi_dev_param_s {
 	/* type must be: uint32_t */
 	uint32_t nocheck;
 	uint32_t notimeout;
 	uint32_t dbg_value;
 	uint32_t power_instart;
+	uint32_t hsync_pkt;
+	uint32_t ipi_force;
+	uint32_t ipi_limit;
 #if MIPI_DEV_INT_DBG
 	uint32_t irq_cnt;
 	uint32_t irq_debug;
@@ -197,6 +208,9 @@ static const char *g_md_param_names[] = {
 	"notimeout",
 	"dbg_value",
 	"power_instart",
+	"hsync_pkt",
+	"ipi_force",
+	"ipi_limit",
 #if MIPI_DEV_INT_DBG
 	"irq_cnt",
 	"irq_debug",
@@ -214,6 +228,9 @@ typedef struct _mipi_dev_icnt_s {
 	uint32_t idi;
 	uint32_t ipi;
 	uint32_t phy;
+	uint32_t mt_ipi;
+	uint32_t idi_vcx;
+	uint32_t idi_vcx2;
 } mipi_dev_icnt_t;
 
 static const char *g_md_icnt_names[] = {
@@ -222,6 +239,9 @@ static const char *g_md_icnt_names[] = {
 	"idi",
 	"ipi",
 	"phy",
+	"mt_ipi",
+	"idi_vcx",
+	"idi_vcx2",
 };
 #endif
 
@@ -305,31 +325,133 @@ static int32_t mipi_dev_configure_lanemode(mipi_ddev_t *ddev, int lane)
 }
 
 /**
- * @brief mipi_dev_initialize_ipi : initialize dev ipi
+ * @brief mipi_dev_configure_ipi : configure dev ipi
  *
  * @param [in] cfg : the dev cfgler's setting
  *
  * @return int32_t: 0/-1
  */
-static int32_t mipi_dev_initialize_ipi(mipi_ddev_t *ddev, mipi_dev_cfg_t *cfg)
+static int32_t mipi_dev_configure_ipi(mipi_ddev_t *ddev, mipi_dev_cfg_t *cfg)
 {
+	struct device *dev = ddev->dev;
 	mipi_dev_t *mdev = &ddev->mdev;
+	mipi_dev_param_t *param = &mdev->param;
 	void __iomem *iomem = mdev->iomem;
+	int ipi_num;
 
 	if (!ddev || !iomem)
 		return -1;
 
-	/*Configure the IPI packet header*/
-	/*Configure the IPI line numbering*/
-	/*Configure IPI frame number*/
-	mipi_putreg(iomem + REG_MIPI_DEV_IPI_PKT_CFG, MIPI_DEV_IPI_PKT_CFG | cfg->datatype); /*vc change from 2'b11 to 2'b00*/
-	/*Configure IPI maximum frame number*/
-	mipi_putreg(iomem + REG_MIPI_DEV_IPI_MAX_FRAME_NUM, MIPI_DEV_IPI_MAX_FRAME);
-	/*Configure IPI horizontal resolution*/
-	mipi_putreg(iomem + REG_MIPI_DEV_IPI_PIXELS, cfg->width);
-	/*Configure IPI vertical resolution*/
-	mipi_putreg(iomem + REG_MIPI_DEV_IPI_LINES, cfg->ipi_lines ? cfg->ipi_lines : cfg->height + 1);
+#ifdef CONFIG_HOBOT_XJ2
+	ipi_num = 1;
+#else
+	ipi_num = 4;
+#endif
+	if (cfg->channel_num > ipi_num) {
+		mipierr("channel_num %d error, max %d", cfg->channel_num, ipi_num);
+		return -1;
+	}
 
+	ipi_num = 0;
+	switch (cfg->channel_num) {
+	case 4:
+#if MIPIDEV_CHANNEL_NUM >= 4
+		/* ipi4 config */
+		if (cfg->channel_sel[3] < 4) {
+			if (param->hsync_pkt)
+				mipi_putreg(iomem + REG_MIPI_DEV_IPI4_PKT_CFG,
+					MIPI_DEV_IPI_PKT_CFG |
+					MIPI_DEV_IPI_VC(cfg->channel_sel[3]) |
+					cfg->datatype | MIPI_DEV_IPI_HSYNC_PKT_EN);
+			else
+				mipi_putreg(iomem + REG_MIPI_DEV_IPI4_PKT_CFG,
+					MIPI_DEV_IPI_PKT_CFG |
+					MIPI_DEV_IPI_VC(cfg->channel_sel[3]) |
+					cfg->datatype);
+			mipi_putreg(iomem + REG_MIPI_DEV_IPI4_MAX_FRAME_NUM,
+				MIPI_DEV_IPI_MAX_FRAME);
+			mipi_putreg(iomem + REG_MIPI_DEV_IPI4_PIXELS,
+				cfg->width);
+			mipi_putreg(iomem + REG_MIPI_DEV_IPI4_LINES,
+				cfg->ipi_lines);
+			ipi_num++;
+		}
+#endif
+		/* no break */
+	case 3:
+#if MIPIDEV_CHANNEL_NUM >= 3
+		/* ipi3 config */
+		if (cfg->channel_sel[2] < 4) {
+			if (param->hsync_pkt)
+				mipi_putreg(iomem + REG_MIPI_DEV_IPI3_PKT_CFG,
+					MIPI_DEV_IPI_PKT_CFG |
+					MIPI_DEV_IPI_VC(cfg->channel_sel[2]) |
+					cfg->datatype | MIPI_DEV_IPI_HSYNC_PKT_EN);
+			else
+				mipi_putreg(iomem + REG_MIPI_DEV_IPI3_PKT_CFG,
+					MIPI_DEV_IPI_PKT_CFG |
+					MIPI_DEV_IPI_VC(cfg->channel_sel[2]) |
+					cfg->datatype);
+			mipi_putreg(iomem + REG_MIPI_DEV_IPI3_MAX_FRAME_NUM,
+				MIPI_DEV_IPI_MAX_FRAME);
+			mipi_putreg(iomem + REG_MIPI_DEV_IPI3_PIXELS,
+				cfg->width);
+			mipi_putreg(iomem + REG_MIPI_DEV_IPI3_LINES,
+				cfg->ipi_lines);
+			ipi_num++;
+		}
+#endif
+		/* no break */
+	case 2:
+#if MIPIDEV_CHANNEL_NUM >= 2
+		/* ipi2 config */
+		if (cfg->channel_sel[1] < 4) {
+			if (param->hsync_pkt)
+				mipi_putreg(iomem + REG_MIPI_DEV_IPI2_PKT_CFG,
+					MIPI_DEV_IPI_PKT_CFG |
+					MIPI_DEV_IPI_VC(cfg->channel_sel[1]) |
+					cfg->datatype | MIPI_DEV_IPI_HSYNC_PKT_EN);
+			else
+				mipi_putreg(iomem + REG_MIPI_DEV_IPI2_PKT_CFG,
+					MIPI_DEV_IPI_PKT_CFG |
+					MIPI_DEV_IPI_VC(cfg->channel_sel[1]) |
+					cfg->datatype);
+			mipi_putreg(iomem + REG_MIPI_DEV_IPI2_MAX_FRAME_NUM,
+				MIPI_DEV_IPI_MAX_FRAME);
+			mipi_putreg(iomem + REG_MIPI_DEV_IPI2_PIXELS,
+				cfg->width);
+			mipi_putreg(iomem + REG_MIPI_DEV_IPI2_LINES,
+				cfg->ipi_lines);
+			ipi_num++;
+		}
+#endif
+		/* no break */
+	case 1:
+	default:
+		/* ipi3 config */
+		if (cfg->channel_sel[0] < 4) {
+			if (param->hsync_pkt)
+				mipi_putreg(iomem + REG_MIPI_DEV_IPI_PKT_CFG,
+					MIPI_DEV_IPI_PKT_CFG |
+					MIPI_DEV_IPI_VC(cfg->channel_sel[0]) |
+					cfg->datatype | MIPI_DEV_IPI_HSYNC_PKT_EN);
+			else
+				mipi_putreg(iomem + REG_MIPI_DEV_IPI_PKT_CFG,
+					MIPI_DEV_IPI_PKT_CFG |
+					MIPI_DEV_IPI_VC(cfg->channel_sel[0]) |
+					cfg->datatype);
+			mipi_putreg(iomem + REG_MIPI_DEV_IPI_MAX_FRAME_NUM,
+				MIPI_DEV_IPI_MAX_FRAME);
+			mipi_putreg(iomem + REG_MIPI_DEV_IPI_PIXELS,
+				cfg->width);
+			mipi_putreg(iomem + REG_MIPI_DEV_IPI_LINES,
+				cfg->ipi_lines);
+			ipi_num++;
+		}
+		break;
+	}
+
+	mipiinfo("config %d/%d ipi done", ipi_num, cfg->channel_num);
 	return 0;
 }
 
@@ -395,6 +517,73 @@ static int32_t mipi_dev_configure_clk(mipi_ddev_t *ddev, const char *name,
 #endif
 	return ret;
 }
+
+/**
+ * @brief mipi_dev_get_clk: configure clk of mipi dev
+ *
+ * @param [in] name: mipi dev clk's getting
+ *
+ * @return int32_t : 0/-1
+ */
+static ulong mipi_dev_get_clk(mipi_ddev_t *ddev, const char *name)
+{
+	ulong clk = 0;
+#ifdef CONFIG_HOBOT_XJ3
+	clk = vio_get_clk_rate(name);
+#endif
+	return clk;
+}
+
+/* mipi dev functions */
+static unsigned long mipi_dev_pixel_clk_select(mipi_ddev_t *ddev, mipi_dev_cfg_t *cfg)
+{
+	struct device *dev = ddev->dev;
+	mipi_dev_t *mdev = &ddev->mdev;
+	mipi_dev_param_t *param = &mdev->param;
+	unsigned long pixclk = cfg->linelenth * cfg->framelenth * cfg->fps;
+	unsigned long pixclk_act = pixclk;
+	unsigned long linelenth = cfg->linelenth;
+	unsigned long framelenth = cfg->framelenth;
+
+	if (!cfg->fps) {
+		mipiinfo("input FPS can't be zero!!!");
+		return 0;
+	}
+	if (!cfg->linelenth)
+		linelenth = cfg->width;
+	if (!cfg->framelenth)
+		framelenth = cfg->height;
+
+	if (param->ipi_force >= 10000000) {
+		pixclk = param->ipi_force;
+		mipiinfo("ipi clk force as %lu", pixclk);
+	} else {
+		pixclk = linelenth * framelenth * cfg->fps;
+		if (cfg->datatype < MIPI_CSI2_DT_RAW_8)
+			pixclk = pixclk;
+		else
+			pixclk = (pixclk + 2) / 3;
+
+		if (param->ipi_limit && pixclk < param->ipi_limit) {
+			mipiinfo("ipi clk limit %lu up to %u", pixclk, param->ipi_limit);
+			pixclk = param->ipi_limit;
+		}
+	}
+#ifdef CONFIG_HOBOT_XJ3
+	if (ddev->port >= ARRAY_SIZE(g_md_ipiclk_name) ||
+		mipi_dev_configure_clk(ddev, g_md_ipiclk_name[ddev->port], pixclk, 0) < 0) {
+		mipierr("mipi_dev_configure_clk %lu error", pixclk);
+	} else {
+		mipiinfo("dev fifo clk pixclk: %lu", pixclk);
+		pixclk_act = mipi_dev_get_clk(ddev, g_md_ipiclk_name[ddev->port]);
+		mipiinfo("dev fifo clk pixclk: %lu", pixclk_act);
+	}
+#else
+	mipiinfo("should: tx mipi ipi clk(%lu)", pixclk);
+#endif
+	return pixclk_act;
+}
+
 
 /**
  * @brief mipi_dev_vpg_get_hline : get hline time in vpg mode
@@ -507,13 +696,13 @@ static uint16_t mipi_dev_vpg_get_bk(mipi_ddev_t *ddev, mipi_dev_cfg_t *cfg)
 }
 
 /**
- * @brief mipi_dev_initialize_vpg : initialize&enable dev vpg mode
+ * @brief mipi_dev_configure_vpg : configure&enable dev vpg mode
  *
  * @param [in] cfg : the dev cfgler's setting
  *
  * @return int32_t: 0/-1
  */
-static int32_t mipi_dev_initialize_vpg(mipi_ddev_t *ddev, mipi_dev_cfg_t *cfg)
+static int32_t mipi_dev_configure_vpg(mipi_ddev_t *ddev, mipi_dev_cfg_t *cfg)
 {
 	struct device *dev = ddev->dev;
 	mipi_dev_t *mdev = &ddev->mdev;
@@ -525,7 +714,7 @@ static int32_t mipi_dev_initialize_vpg(mipi_ddev_t *ddev, mipi_dev_cfg_t *cfg)
 	if (!ddev || !iomem)
 		return -1;
 
-	mipiinfo("initialize vpg begin");
+	mipiinfo("configure vpg begin");
 	/*Disable the Video Pattern Generator*/
 	mipi_putreg(iomem + REG_MIPI_DEV_VPG_CTRL, MIPI_DEV_VPG_DISABLE);
 
@@ -565,7 +754,7 @@ static int32_t mipi_dev_initialize_vpg(mipi_ddev_t *ddev, mipi_dev_cfg_t *cfg)
 	/*Enalbe the Video Pattern Generator*/
 	mipi_putreg(iomem + REG_MIPI_DEV_VPG_CTRL, MIPI_DEV_VPG_ENABLE);
 
-	mipiinfo("initialize vpg 0x%02x vc%d %s %s end", cfg->datatype, vc,
+	mipiinfo("configure vpg 0x%02x vc%d %s %s end", cfg->datatype, vc,
 		(mode) ? "ber" : "bar", (ori) ? "horizontal" : "vertical");
 	return 0;
 }
@@ -573,10 +762,13 @@ static int32_t mipi_dev_initialize_vpg(mipi_ddev_t *ddev, mipi_dev_cfg_t *cfg)
 #if MIPI_DEV_INT_DBG
 static const uint32_t mipi_dev_int_msk[] = {
 	/* reg offset,                           mask,  */
-	REG_MIPI_DEV_INT_MASK_N_VPG,            0x00ff,
-	REG_MIPI_DEV_INT_MASK_N_IDI,            0x00ff,
-	REG_MIPI_DEV_INT_MASK_N_IPI,            0x00ff,
-	REG_MIPI_DEV_INT_MASK_N_PHY,            0x00ff,
+	REG_MIPI_DEV_INT_MASK_N_VPG,            0x0001,
+	REG_MIPI_DEV_INT_MASK_N_IDI,            0x03ff,
+	REG_MIPI_DEV_INT_MASK_N_IPI,            0x1f1f1f1f,
+	REG_MIPI_DEV_INT_MASK_N_PHY,            0x0007,
+	REG_MIPI_DEV_INT_MASK_N_IDI_VCX,        0xffffffff,
+	REG_MIPI_DEV_INT_MASK_N_IDI_VCX2,       0xffffffff,
+	REG_MIPI_DEV_INT_MASK_N_MT_IPI,         0x0001,
 };
 
 /**
@@ -715,11 +907,14 @@ static void mipi_dev_diag_timer_func(unsigned long data)
 #endif
 
 static const uint32_t mipi_dev_int_st[] = {
-	/* reg offset,           mask,             icnt */
-	REG_MIPI_DEV_INT_ST_VPG, MIPI_DEV_INT_VPG, 1,
-	REG_MIPI_DEV_INT_ST_IDI, MIPI_DEV_INT_IDI, 2,
-	REG_MIPI_DEV_INT_ST_IPI, MIPI_DEV_INT_IPI, 3,
-	REG_MIPI_DEV_INT_ST_PHY, MIPI_DEV_INT_PHY, 4,
+	/* reg offset,                mask,                      icnt */
+	REG_MIPI_DEV_INT_ST_VPG,      MIPI_DEV_INT_VPG,          1,
+	REG_MIPI_DEV_INT_ST_IDI,      MIPI_DEV_INT_IDI,          2,
+	REG_MIPI_DEV_INT_ST_IPI,      MIPI_DEV_INT_IPI,          3,
+	REG_MIPI_DEV_INT_ST_PHY,      MIPI_DEV_INT_PHY,          4,
+	REG_MIPI_DEV_INT_ST_MT_IPI,   MIPI_DEV_INT_MT_IPI,       5,
+	REG_MIPI_DEV_INT_ST_IDI_VCX,  MIPI_DEV_INT_IDI_VCX_DMY,  6,
+	REG_MIPI_DEV_INT_ST_IDI_VCX2, MIPI_DEV_INT_IDI_VCX2_DMY, 7
 };
 
 /**
@@ -774,10 +969,19 @@ static irqreturn_t mipi_dev_irq_func(int this_irq, void *data)
 			mask = st[i + 1];
 			if (!(irq_do & mask))
 				continue;
+			if (mask == MIPI_DEV_INT_IDI)
+				irq_do |= (MIPI_DEV_INT_IDI_VCX_DMY |
+					MIPI_DEV_INT_IDI_VCX2_DMY);
 
 			reg = st[i];
 			icnt_n = st[i + 2];
 			subirq = mipi_getreg(iomem + reg);
+			if (subirq == 0 && (mask == MIPI_DEV_INT_IDI ||
+					mask == MIPI_DEV_INT_IDI_VCX_DMY ||
+					mask == MIPI_DEV_INT_IDI_VCX_DMY)) {
+				irq_do &= ~mask;
+				continue;
+			}
 			if (param->irq_debug)
 				mipierr("  %s: 0x%x",
 					g_md_icnt_names[icnt_n], subirq);
@@ -958,6 +1162,7 @@ static int32_t mipi_dev_init(mipi_ddev_t *ddev, mipi_dev_cfg_t *cfg)
 	mipi_dev_param_t *param = &mdev->param;
 	void __iomem *iomem = mdev->iomem;
 	uint32_t power = 0;
+	unsigned long pixclk = 0;
 
 	if (!ddev || !iomem)
 		return -1;
@@ -965,6 +1170,11 @@ static int32_t mipi_dev_init(mipi_ddev_t *ddev, mipi_dev_cfg_t *cfg)
 	mipiinfo("init begin");
 	if (0 != mipi_dev_configure_lanemode(ddev, cfg->lane)) {
 		mipierr("configure lane error!!!");
+		return -1;
+	}
+	pixclk = mipi_dev_pixel_clk_select(ddev, cfg);
+	if (0 == pixclk) {
+		mipierr("pixel clk config error!");
 		return -1;
 	}
 #ifdef CONFIG_HOBOT_MIPI_PHY
@@ -1003,16 +1213,17 @@ static int32_t mipi_dev_init(mipi_ddev_t *ddev, mipi_dev_cfg_t *cfg)
 	power |= DEV_DPHY_FORCEPOLL;
 	mipi_putreg(iomem + REG_MIPI_DEV_PHY_RSTZ, power);
 
+	cfg->ipi_lines = cfg->ipi_lines ? cfg->ipi_lines : (cfg->height + 1);
 	if (!cfg->vpg) {
-		if (0 != mipi_dev_initialize_ipi(ddev, cfg)) {
+		if (0 != mipi_dev_configure_ipi(ddev, cfg)) {
 			mipi_dev_deinit(ddev);
-			mipierr("initialize ipi error!!!");
+			mipierr("configure ipi error!!!");
 			return -1;
 		}
 	} else {
-		if (0 != mipi_dev_initialize_vpg(ddev, cfg)) {
+		if (0 != mipi_dev_configure_vpg(ddev, cfg)) {
 			mipi_dev_deinit(ddev);
-			mipierr("initialize vpg error!!!");
+			mipierr("configure vpg error!!!");
 			return -1;
 		}
 	}
@@ -1363,6 +1574,9 @@ MIPI_DEV_PARAM_DEC(nocheck);
 MIPI_DEV_PARAM_DEC(notimeout);
 MIPI_DEV_PARAM_DEC(dbg_value);
 MIPI_DEV_PARAM_DEC(power_instart);
+MIPI_DEV_PARAM_DEC(hsync_pkt);
+MIPI_DEV_PARAM_DEC(ipi_force);
+MIPI_DEV_PARAM_DEC(ipi_limit);
 #if MIPI_DEV_INT_DBG
 MIPI_DEV_PARAM_DEC(irq_cnt);
 MIPI_DEV_PARAM_DEC(irq_debug);
@@ -1379,6 +1593,9 @@ static struct attribute *param_attr[] = {
 	MIPI_DEV_PARAM_ADD(notimeout),
 	MIPI_DEV_PARAM_ADD(dbg_value),
 	MIPI_DEV_PARAM_ADD(power_instart),
+	MIPI_DEV_PARAM_ADD(hsync_pkt),
+	MIPI_DEV_PARAM_ADD(ipi_force),
+	MIPI_DEV_PARAM_ADD(ipi_limit),
 #if MIPI_DEV_INT_DBG
 	MIPI_DEV_PARAM_ADD(irq_cnt),
 	MIPI_DEV_PARAM_ADD(irq_debug),
@@ -1457,10 +1674,16 @@ static ssize_t mipi_dev_status_show(struct device *dev,
 			MD_REG_SHOW(INT_ST_IDI);
 			MD_REG_SHOW(INT_ST_IPI);
 			MD_REG_SHOW(INT_ST_PHY);
+			MD_REG_SHOW(INT_ST_IDI_VCX);
+			MD_REG_SHOW(INT_ST_IDI_VCX2);
+			MD_REG_SHOW(INT_ST_MT_IPI);
 			MD_REG_SHOW(INT_MASK_N_VPG);
 			MD_REG_SHOW(INT_MASK_N_IDI);
 			MD_REG_SHOW(INT_MASK_N_IPI);
 			MD_REG_SHOW(INT_MASK_N_PHY);
+			MD_REG_SHOW(INT_MASK_N_IDI_VCX);
+			MD_REG_SHOW(INT_MASK_N_IDI_VCX2);
+			MD_REG_SHOW(INT_MASK_N_MT_IPI);
 			if (cfg->vpg) {
 				MD_REG_SHOW(VPG_CTRL);
 				MD_REG_SHOW(VPG_STATUS);
@@ -1487,13 +1710,73 @@ static ssize_t mipi_dev_status_show(struct device *dev,
 			MD_REG_SHOW(PHY_CAL);
 			MD_REG_SHOW(TO_CNT_CFG);
 			MD_REG_SHOW(PHY_STATUS);
-			MD_REG_SHOW(IPI_PKT_CFG);
-			MD_REG_SHOW(IPI_PIXELS);
-			MD_REG_SHOW(IPI_MAX_FRAME_NUM);
-			MD_REG_SHOW(IPI_START_LINE_NUM);
-			MD_REG_SHOW(IPI_STEP_LINE_NUM);
-			MD_REG_SHOW(IPI_LINES);
-			MD_REG_SHOW(IPI_DATA_SEND_START);
+			MD_REG_SHOW(IDI_FIFO_STATUS);
+			MD_REG_SHOW(IPI_INSERT_CTRL);
+			if (cfg->channel_num >= 0 && cfg->channel_sel[0] >= 0) {
+				MD_REG_SHOW(IPI_PKT_CFG);
+				MD_REG_SHOW(IPI_PIXELS);
+				MD_REG_SHOW(IPI_MAX_FRAME_NUM);
+				MD_REG_SHOW(IPI_START_LINE_NUM);
+				MD_REG_SHOW(IPI_STEP_LINE_NUM);
+				MD_REG_SHOW(IPI_LINES);
+				MD_REG_SHOW(IPI_DATA_SEND_START);
+				MD_REG_SHOW(IPI_FIFO_STATUS);
+				MD_REG_SHOW(IPI_TRANS_STATUS);
+				MD_REG_SHOW(IPI_HSA_HBP_PPI_TIME);
+				MD_REG_SHOW(IPI_HLINE_PPI_TIME);
+				MD_REG_SHOW(IPI_VSA_LINES);
+				MD_REG_SHOW(IPI_VBP_LINES);
+				MD_REG_SHOW(IPI_VFP_LINES);
+				MD_REG_SHOW(IPI_ACT_LINES);
+				MD_REG_SHOW(IPI_FB_LINES);
+				MD_REG_SHOW(IPI1_HSA_HBP_TIME);
+				MD_REG_SHOW(IPI1_LP_TIME);
+			}
+			if (cfg->channel_num > 1 && cfg->channel_sel[1] >= 0) {
+				MD_REG_SHOW(IPI2_PKT_CFG);
+				MD_REG_SHOW(IPI2_PIXELS);
+				MD_REG_SHOW(IPI2_MAX_FRAME_NUM);
+				MD_REG_SHOW(IPI2_START_LINE_NUM);
+				MD_REG_SHOW(IPI2_STEP_LINE_NUM);
+				MD_REG_SHOW(IPI2_LINES);
+				MD_REG_SHOW(IPI2_DATA_SEND_START);
+				MD_REG_SHOW(IPI2_FIFO_STATUS);
+				MD_REG_SHOW(IPI2_HSA_HBP_TIME);
+				MD_REG_SHOW(IPI2_LP_TIME);
+			}
+			if (cfg->channel_num > 2 && cfg->channel_sel[2] >= 0) {
+				MD_REG_SHOW(IPI3_PKT_CFG);
+				MD_REG_SHOW(IPI3_PIXELS);
+				MD_REG_SHOW(IPI3_MAX_FRAME_NUM);
+				MD_REG_SHOW(IPI3_START_LINE_NUM);
+				MD_REG_SHOW(IPI3_STEP_LINE_NUM);
+				MD_REG_SHOW(IPI3_LINES);
+				MD_REG_SHOW(IPI3_DATA_SEND_START);
+				MD_REG_SHOW(IPI3_FIFO_STATUS);
+				MD_REG_SHOW(IPI3_HSA_HBP_TIME);
+				MD_REG_SHOW(IPI3_LP_TIME);
+			}
+			if (cfg->channel_num > 3 && cfg->channel_sel[3] >= 0) {
+				MD_REG_SHOW(IPI4_PKT_CFG);
+				MD_REG_SHOW(IPI4_PIXELS);
+				MD_REG_SHOW(IPI4_MAX_FRAME_NUM);
+				MD_REG_SHOW(IPI4_START_LINE_NUM);
+				MD_REG_SHOW(IPI4_STEP_LINE_NUM);
+				MD_REG_SHOW(IPI4_LINES);
+				MD_REG_SHOW(IPI4_DATA_SEND_START);
+				MD_REG_SHOW(IPI4_FIFO_STATUS);
+				MD_REG_SHOW(IPI4_HSA_HBP_TIME);
+				MD_REG_SHOW(IPI4_LP_TIME);
+			}
+			if (cfg->channel_num > 1) {
+				MD_REG_SHOW(MT_IPI_CFG);
+				MD_REG_SHOW(MT_IPI_DF_TIME);
+				MD_REG_SHOW(MT_IPI_FIFO_STATUS);
+				MD_REG_SHOW(MT_IPI1_TRANS_CFG);
+				MD_REG_SHOW(MT_IPI2_TRANS_CFG);
+				MD_REG_SHOW(MT_IPI3_TRANS_CFG);
+				MD_REG_SHOW(MT_IPI4_TRANS_CFG);
+			}
 		} else {
 			s += sprintf(s, "not ioremap\n" );
 		}
@@ -1783,6 +2066,9 @@ static int hobot_mipi_dev_probe_param(void)
 #ifdef ADJUST_CLK_RECALCULATION
 		param->power_instart = 1;
 #endif
+		param->hsync_pkt = MIPI_DEV_HSYNC_PKT_DEFAULT;
+		param->ipi_limit = MIPI_DEV_IPILIMIT_DEFAULT;
+
 		hobot_mipi_dev_phy_register(ddev);
 		g_ddev[i] = ddev;
 		port_num ++;
@@ -1893,6 +2179,8 @@ static int hobot_mipi_dev_probe(struct platform_device *pdev)
 #ifdef ADJUST_CLK_RECALCULATION
 	param->power_instart = 1;
 #endif
+	param->hsync_pkt = MIPI_DEV_HSYNC_PKT_DEFAULT;
+	param->ipi_limit = MIPI_DEV_IPILIMIT_DEFAULT;
 
 	platform_set_drvdata(pdev, ddev);
 

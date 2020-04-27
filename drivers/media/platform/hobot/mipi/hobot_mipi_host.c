@@ -125,6 +125,9 @@ module_param(init_num, uint, 0644);
 #define MIPI_HOST_IPILIMIT_DEFAULT (102000000UL)
 #define MIPI_HOST_IRQ_CNT          (10)
 #define MIPI_HOST_IRQ_DEBUG        (1)
+#define MIPI_HOST_SNRCLK_DISABLE   (0)
+#define MIPI_HOST_SNRCLK_ENABLE    (1)
+#define MIPI_HOST_SNRCLK_NOUSED    (2)
 #define MIPI_HOST_SNRCLK_FREQ_MIN  (9281250UL)
 
 #define HOST_DPHY_LANE_MAX         (4)
@@ -464,7 +467,7 @@ static int32_t mipi_host_configure_ipi(mipi_hdev_t *hdev, mipi_host_cfg_t *cfg)
 		/* no break */
 	case 3:
 #if MIPIHOST_CHANNEL_NUM >= 3
-		/* ipi4 config */
+		/* ipi3 config */
 		if (cfg->channel_sel[2] < 4) {
 			mipi_putreg(iomem + REG_MIPI_HOST_IPI3_MEM_FLUSH,
 				MIPI_HOST_MEMFLUSN_ENABLE);
@@ -495,7 +498,7 @@ static int32_t mipi_host_configure_ipi(mipi_hdev_t *hdev, mipi_host_cfg_t *cfg)
 		/* no break */
 	case 2:
 #if MIPIHOST_CHANNEL_NUM >= 2
-		/* ipi4 config */
+		/* ipi2 config */
 		if (cfg->channel_sel[1] < 4) {
 			mipi_putreg(iomem + REG_MIPI_HOST_IPI2_MEM_FLUSH,
 				MIPI_HOST_MEMFLUSN_ENABLE);
@@ -526,7 +529,7 @@ static int32_t mipi_host_configure_ipi(mipi_hdev_t *hdev, mipi_host_cfg_t *cfg)
 		/* no break */
 	case 1:
 	default:
-		/* ipi4 config */
+		/* ipi1 config */
 		if (cfg->channel_sel[0] < 4) {
 			mipi_putreg(iomem + REG_MIPI_HOST_IPI_MEM_FLUSH,
 				MIPI_HOST_MEMFLUSN_ENABLE);
@@ -704,7 +707,7 @@ static int32_t mipi_host_snrclk_set_en(mipi_hdev_t *hdev, int enable)
 			ret = pinctrl_select_state(snrclk->pinctrl,
 					snrclk->enable);
 			if (ret == 0)
-				param->snrclk_en = 1;
+				param->snrclk_en = MIPI_HOST_SNRCLK_ENABLE;
 		} else {
 			mipierr("snrclk set enable not support");
 			ret = -1;
@@ -715,7 +718,7 @@ static int32_t mipi_host_snrclk_set_en(mipi_hdev_t *hdev, int enable)
 			ret = pinctrl_select_state(snrclk->pinctrl,
 					snrclk->disable);
 			if (ret == 0)
-				param->snrclk_en = 0;
+				param->snrclk_en = MIPI_HOST_SNRCLK_DISABLE;
 		} else {
 			mipierr("snrclk set disable not support");
 			ret = -1;
@@ -2053,7 +2056,7 @@ static ssize_t mipi_host_status_show(struct device *dev,
 				MH_REG_SHOW(INT_MSK_FRAME_FATAL);
 				MH_REG_SHOW(INT_MSK_PKT);
 			}
-			if (cfg->channel_num > 0 && cfg->channel_sel[0] >= 0) {
+			if (cfg->channel_num >= 0 && cfg->channel_sel[0] >= 0) {
 				MH_REG_SHOW(IPI_MODE);
 				MH_REG_SHOW(IPI_VCID);
 				MH_REG_SHOW(IPI_DATA_TYPE);
@@ -2112,7 +2115,9 @@ static ssize_t mipi_host_status_show(struct device *dev,
 				(snrclk->disable) ? "disable" : "");
 		else
 			MH_STA_SHOW(support, "%s", "none");
-		MH_STA_SHOW(state, "%s", (param->snrclk_en ? "enable" : "disable"));
+		MH_STA_SHOW(state, "%s",
+			(param->snrclk_en == MIPI_HOST_SNRCLK_NOUSED) ? "noused" :
+			((param->snrclk_en == MIPI_HOST_SNRCLK_ENABLE) ? "enable" : "disable"));
 		MH_STA_SHOW(freq, "%u", param->snrclk_freq);
 	} else if (strcmp(attr->attr.name, "user") == 0) {
 		MH_STA_SHOW(user, "%d", user->open_cnt);
@@ -2563,7 +2568,7 @@ static int hobot_mipi_host_probe(struct platform_device *pdev)
 		}
 	} else {
 		if (host->snrclk.pinctrl)
-			host->param.snrclk_en = 2;
+			host->param.snrclk_en = MIPI_HOST_SNRCLK_NOUSED;
 		if (host->snrclk.index >= 0)
 			host->param.snrclk_freq = (uint32_t)(mipi_host_get_clk(hdev,
 						g_mh_snrclk_name[host->snrclk.index]));

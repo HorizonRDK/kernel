@@ -15,6 +15,12 @@
 
 #include <linux/types.h>
 
+#define MIPIDEV_CHANNEL_NUM (4)
+#define MIPIDEV_CHANNEL_0   (0)
+#define MIPIDEV_CHANNEL_1   (1)
+#define MIPIDEV_CHANNEL_2   (2)
+#define MIPIDEV_CHANNEL_3   (3)
+
 typedef struct _mipi_dev_cfg_t {
 	uint16_t lane;
 	uint16_t datatype;
@@ -28,6 +34,8 @@ typedef struct _mipi_dev_cfg_t {
 	uint16_t settle;
 	uint16_t vpg;
 	uint16_t ipi_lines;
+	uint16_t channel_num;
+	uint16_t channel_sel[MIPIDEV_CHANNEL_NUM];
 } mipi_dev_cfg_t;
 
 #define MIPIDEVIOC_MAGIC 'v'
