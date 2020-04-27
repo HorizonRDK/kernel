@@ -457,7 +457,7 @@ void sensor_init_dummy(uint32_t ctx_id, void **ctx, sensor_control_t *ctrl )
 {
     if ( ctx_id < FIRMWARE_CONTEXT_NUMBER ) {
         sensor_context_t *p_ctx = &s_ctx[ctx_id];
-		sensor_ops[p_ctx->channel] = NULL;
+		sensor_ops[ctx_id] = NULL;
 
 		p_ctx->channel = ctx_id;
         p_ctx->param.sensor_exp_number = 1;
@@ -493,12 +493,6 @@ void sensor_init_dummy(uint32_t ctx_id, void **ctx, sensor_control_t *ctrl )
         ctrl->write_sensor_register = write_register;
         ctrl->start_streaming = start_streaming;
         ctrl->stop_streaming = stop_streaming;
-
-	// Reset sensor during initialization
-        sensor_hw_reset_enable();//TODO
-        system_timer_usleep( 1000 ); // reset at least 1 ms
-        sensor_hw_reset_disable();
-        system_timer_usleep( 1000 );
     } else {
         LOG( LOG_ERR, "Attempt to initialize more sensor instances than was configured. Sensor initialization failed." );
         *ctx = NULL;

@@ -44,6 +44,7 @@
 
 /* isp_v4l2_dev_t to destroy video device */
 static isp_v4l2_dev_t *g_isp_v4l2_devs[FIRMWARE_CONTEXT_NUMBER];
+struct mutex init_lock;
 
 extern int acamera_fw_isp_start(int ctx_id);
 extern int acamera_fw_isp_stop(int ctx_id);
@@ -146,12 +147,16 @@ static int isp_v4l2_fop_open( struct file *file )
         return rc;
     }
 
+    mutex_lock_interruptible(&init_lock);
     if (isp_open_check() == 0)
         ips_set_clk_ctrl(ISP0_CLOCK_GATE, true);
 
     rc = acamera_isp_init_context(dev->ctx_id);
-    if (rc != 0)
+    if (rc != 0) {
+        mutex_unlock(&init_lock);
         goto fh_open_fail;
+    }
+    mutex_unlock(&init_lock);
 
     /* open file header */
     rc = isp_v4l2_fh_open( file );
@@ -241,8 +246,10 @@ static int isp_v4l2_fop_close( struct file *file )
     /* release file handle */
     isp_v4l2_fh_release( file );
 
+    mutex_lock_interruptible(&init_lock);
     if (isp_open_check() == 0)
         ips_set_clk_ctrl(ISP0_CLOCK_GATE, false);
+    mutex_unlock(&init_lock);
 
     return 0;
 }
@@ -378,8 +385,10 @@ static int isp_v4l2_s_fmt_vid_cap( struct file *file, void *priv, struct v4l2_fo
         return rc;
     }
 
-    if (isp_stream_onoff_check() == 0)
+    mutex_lock_interruptible(&init_lock);
+    if (isp_stream_onoff_check() == 0 && isp_open_check() <= 1)
         acamera_update_cur_settings_to_isp(dev->ctx_id);
+    mutex_unlock(&init_lock);
 
     /* update stream pointer index */
     dev->stream_id_index[pstream->stream_type] = pstream->stream_id;
@@ -430,11 +439,13 @@ static int isp_v4l2_streamon( struct file *file, void *priv, enum v4l2_buf_type 
         }
     }
 
+    mutex_lock_interruptible(&init_lock);
     if (isp_stream_onoff_check() == 0) {
             rc = acamera_fw_isp_start(dev->ctx_id);
             if (rc != 0)
                 return rc;
     }
+    mutex_unlock(&init_lock);
 
     /* Start hardware */
     rc = isp_v4l2_stream_on( pstream );
@@ -470,9 +481,11 @@ static int isp_v4l2_streamoff( struct file *file, void *priv, enum v4l2_buf_type
 
     atomic_sub_return( 1, &dev->stream_on_cnt );
 
+    mutex_lock_interruptible(&init_lock);
     if (isp_stream_onoff_check() == 0) {
         acamera_fw_isp_stop(dev->ctx_id);
     }
+    mutex_unlock(&init_lock);
 
     return rc;
 }
@@ -645,6 +658,7 @@ static int isp_v4l2_init_dev( uint32_t ctx_id, struct v4l2_device *v4l2_dev )
     /* initialize locks */
     mutex_init( &dev->mlock );
     mutex_init( &dev->notify_lock );
+    mutex_init(&init_lock);
 
     /* initialize stream id table */
     for ( i = 0; i < V4L2_STREAM_TYPE_MAX; i++ ) {
