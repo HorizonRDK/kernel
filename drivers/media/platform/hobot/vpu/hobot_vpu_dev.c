@@ -1289,6 +1289,9 @@ INTERRUPT_REMAIN_IN_QUEUE:
 			if (intr_inst_index >= 0 &&
 				intr_inst_index < MAX_NUM_VPU_INSTANCE) {
 				priv->inst_index = intr_inst_index;
+				spin_lock(&dev->poll_spinlock);
+				dev->poll_event[priv->inst_index] = VPU_EVENT_NONE;
+				spin_unlock(&dev->poll_spinlock);
 			} else {
 				return -EINVAL;
 			}

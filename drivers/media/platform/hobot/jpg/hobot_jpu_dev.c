@@ -807,6 +807,9 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
       inst_no = info.inst_idx;
       if (inst_no >= 0 && inst_no < MAX_NUM_JPU_INSTANCE) {
         priv->inst_index = inst_no;
+        spin_lock(&dev->poll_spinlock);
+        dev->poll_event[priv->inst_index] = JPU_EVENT_NONE;
+        spin_unlock(&dev->poll_spinlock);
       } else {
         return  -EINVAL;
       }
