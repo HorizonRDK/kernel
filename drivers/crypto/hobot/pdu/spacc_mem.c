@@ -48,6 +48,8 @@
 #include <linux/io-mapping.h>
 #include <linux/irqdomain.h>
 #include <linux/of_irq.h>
+#include <linux/of.h>
+#include <linux/clk.h>
 #include <linux/err.h>
 
 #include "elppdu.h"
@@ -62,11 +64,58 @@ MODULE_PARM_DESC(baseaddr, "Hardware base address (default " __stringify(PDU_BAS
 static struct platform_device *devices[MAX_DEV];
 static int dev_id;
 
+static struct spacc_clks {
+	struct clk *sec_aclk;
+	struct clk *sec_mclk;
+	struct clk *pka_mclk;
+	struct clk *trng_mclk;
+} clks;
+
+static struct clk *spdu_enable_clk(const char *clk_name)
+{
+   struct of_phandle_args clkspec;
+   struct clk *clk;
+   int ret;
+
+   clkspec.np = of_find_node_by_name(NULL, clk_name);
+   if (!clkspec.np) {
+      pr_err("can't find %s node\n", clk_name);
+      return ERR_PTR(-ENODEV);
+   }
+
+   clk = of_clk_get_from_provider(&clkspec);
+   if (!clk) {
+      pr_err("can't get %s\n", clk_name);
+		return ERR_PTR(-ENODEV);
+   }
+
+   ret = clk_prepare_enable(clk);
+   if (ret) {
+	   pr_err("clk %s enable failed\n", clk_name);
+		return ERR_PTR(ret);
+	}
+
+   pr_debug("clk %s enabled\n", clk_name);
+
+   return clk;
+}
+
 static int spdu_init(unsigned long baseaddr, pdu_info *info)
 {
    void *pdu_mem;
 
    pr_debug("SPAcc-PDU base address: %.8lx\n", baseaddr);
+
+   clks.sec_aclk = spdu_enable_clk("sec_aclk");
+   clks.sec_mclk = spdu_enable_clk("sec_mclk");
+   clks.pka_mclk = spdu_enable_clk("pka_mclk");
+   clks.trng_mclk = spdu_enable_clk("trng_mclk");
+
+   if (PTR_ERR_OR_ZERO(clks.sec_aclk) || PTR_ERR_OR_ZERO(clks.sec_mclk) ||
+      PTR_ERR_OR_ZERO(clks.pka_mclk) || PTR_ERR_OR_ZERO(clks.trng_mclk)) {
+      pr_err("Failed to enable sec engine clockss\n");
+      return -ENODEV;
+   }
 
    pdu_mem = ioremap_nocache(baseaddr, 0x1000);
    if (!pdu_mem)
@@ -437,6 +486,11 @@ static void __exit pdu_vex_mod_exit(void)
    for (i = 0; i < MAX_DEV; i++) {
       platform_device_unregister(devices[i]);
    }
+
+   clk_disable_unprepare(clks.sec_aclk);
+   clk_disable_unprepare(clks.sec_mclk);
+   clk_disable_unprepare(clks.pka_mclk);
+   clk_disable_unprepare(clks.trng_mclk);
 }
 module_exit(pdu_vex_mod_exit);
 
