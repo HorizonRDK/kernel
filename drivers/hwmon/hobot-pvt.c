@@ -33,8 +33,9 @@
 #define PVT_SAMPLE_INTERVAL_MS 20
 #define PVT_TS_MASK GENMASK(PVT_TS_NUM - 1, 0)
 
-int test_gain = 0;
-module_param(test_gain, int, 0644);
+/* skip sample when calculated temp higher than 121C */
+int smpl_threshold = 3300;
+module_param(smpl_threshold, int, 0644);
 
 /* TS0: CNN0 TS1:CPU TS2:CNN1 TS3: DDR */
 static char *ts_map[] = {
@@ -102,9 +103,6 @@ static int pvt_temp_read(struct device *dev, enum hwmon_sensor_types type,
 
 	spin_lock_irqsave(&pvt_dev->lock, flags);
 
-	if (test_gain == 94)
-		pvt_dev->cur_smpl[2] = test_gain;
-
 	for (i = 0; i < PVT_TS_NUM; i++) {
 		if (pvt_dev->ts_mode == 0) {
 			//ts mode 1
@@ -126,10 +124,8 @@ static int pvt_temp_read(struct device *dev, enum hwmon_sensor_types type,
 		sum += temp;
 	}
 
-	test_gain = 0;
-
 	pvt_dev->cur_temp_avg = sum >> 2;
-	*val = pvt_dev->cur_temp_avg * 1000 + test_gain;
+	*val = pvt_dev->cur_temp_avg * 1000;
 
 	temp_min = temp_max = pvt_dev->cur_temp[0];
 	for (i = 0; i < PVT_TS_NUM; i++) {
@@ -231,14 +227,14 @@ static irqreturn_t pvt_irq_handler(int irq, void *dev_id)
 		}
 
 		if (sdif_done) {
-			/* abnormal when lower than -29C or higher than 121C */
-			if (sdif_data > 3300 || sdif_data < 300) {
-				pr_debug("abnormal cur_smpl[%d] : %d, SDIF_DATA:%08x\n",
-						i, pvt_dev->cur_smpl[i], sdif_data);
+			/* report abnormal value when higher than 121C */
+			if (sdif_data > smpl_threshold) {
+				pr_warn("abnormal smpl: SDIF_DATA:%d, last smpl on TS[%d]:%d\n",
+						sdif_data, i, pvt_dev->cur_smpl[i]);
+			} else {
+				pvt_dev->cur_smpl[i] = sdif_data;
+				update_ts_bitmap |= BIT(i);
 			}
-
-			pvt_dev->cur_smpl[i] = sdif_data;
-			update_ts_bitmap |= BIT(i);
 		}
 	}
 	spin_unlock(&pvt_dev->lock);
