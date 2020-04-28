@@ -465,10 +465,16 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 	subdev->dol_num = dol_exp_num;
 	if(dol_exp_num == 2){
 		set_bit(SIF_DOL2_MODE + mux_index + 1, &sif->state);
+		if (ddr_mux_index != mux_index)
+			set_bit(SIF_DOL2_MODE + ddr_mux_index + 1, &sif->state);
 		vio_info("DOL2 mode, current mux = %d\n", mux_index);
 	}else if(dol_exp_num == 3){
 		set_bit(SIF_DOL2_MODE + mux_index + 1, &sif->state);
 		set_bit(SIF_DOL2_MODE + mux_index + 2, &sif->state);
+		if (ddr_mux_index != mux_index) {
+			set_bit(SIF_DOL2_MODE + ddr_mux_index + 1, &sif->state);
+			set_bit(SIF_DOL2_MODE + ddr_mux_index + 2, &sif->state);
+		}
 		vio_info("DOL3 mode, current mux = %d\n", mux_index);
 	}
 
