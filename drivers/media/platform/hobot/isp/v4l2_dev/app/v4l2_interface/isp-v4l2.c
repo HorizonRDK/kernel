@@ -18,6 +18,7 @@
 */
 #define pr_fmt(fmt) "[isp_drv]: %s: " fmt, __func__
 #include <linux/module.h>
+#include <linux/delay.h>
 #include <linux/slab.h>
 #include <linux/mutex.h>
 #include <linux/videodev2.h>
@@ -36,6 +37,7 @@
 #include "isp-vb2.h"
 #include "fw-interface.h"
 #include "acamera_fw.h"
+#include "general_fsm.h"
 #include "vio_group_api.h"
 #include "acamera.h"
 
@@ -49,6 +51,10 @@ struct mutex init_lock;
 extern int acamera_fw_isp_start(int ctx_id);
 extern int acamera_fw_isp_stop(int ctx_id);
 extern int acamera_isp_init_context(uint8_t idx);
+extern void *acamera_get_ctx_ptr(uint32_t ctx_id);
+extern int ips_set_clk_ctrl(unsigned long module, bool enable);
+extern void general_temper_disable(void);
+static int _v4l2_stream_off(struct file *file);
 /* ----------------------------------------------------------------
  * V4L2 file handle structures and functions
  * : implementing multi stream
@@ -147,9 +153,17 @@ static int isp_v4l2_fop_open( struct file *file )
         return rc;
     }
 
-    mutex_lock_interruptible(&init_lock);
-    if (isp_open_check() == 0)
+    rc = mutex_lock_interruptible(&init_lock);
+    if (rc != 0) {
+        pr_err("mutex lock failed, rc = %d\n", rc);
+        return rc;
+    }
+    if (isp_open_check() == 0) {
         ips_set_clk_ctrl(ISP0_CLOCK_GATE, true);
+        // mdelay(1);
+        // ips_set_module_reset(ISP0_RST);
+        // mdelay(1);
+    }
 
     rc = acamera_isp_init_context(dev->ctx_id);
     if (rc != 0) {
@@ -208,14 +222,31 @@ fh_open_fail:
     return rc;
 }
 
+extern void isp_temper_free(general_fsm_ptr_t p_fsm);
 static int isp_v4l2_fop_close( struct file *file )
 {
+    int rc = 0;
     int open_counter;
     isp_v4l2_dev_t *dev = video_drvdata( file );
     struct isp_v4l2_fh *sp = fh_to_private( file->private_data );
     isp_v4l2_stream_t *pstream = dev->pstreams[sp->stream_id];
+    acamera_context_t *p_ctx = acamera_get_ctx_ptr(dev->ctx_id);
 
     LOG( LOG_INFO, "isp_v4l2 close: ctx_id: %d, called for sid:%d.", dev->ctx_id, sp->stream_id );
+
+    //force stream off
+    if (atomic_read(&dev->stream_on_cnt))
+        _v4l2_stream_off(file);
+
+    rc = mutex_lock_interruptible(&init_lock);
+    if (rc != 0) {
+        pr_err("mutex lock failed, rc = %d\n", rc);
+        return rc;
+    }
+    if (p_ctx != NULL) {
+		isp_temper_free((general_fsm_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_GENERAL]->p_fsm));
+	}
+    mutex_unlock(&init_lock);
 
     dev->stream_mask &= ~( 1 << sp->stream_id );
     open_counter = atomic_sub_return( 1, &dev->opened );
@@ -246,10 +277,20 @@ static int isp_v4l2_fop_close( struct file *file )
     /* release file handle */
     isp_v4l2_fh_release( file );
 
-    mutex_lock_interruptible(&init_lock);
-    if (isp_open_check() == 0)
+    rc = mutex_lock_interruptible(&init_lock);
+    if (rc != 0) {
+        pr_err("mutex lock failed, rc = %d\n", rc);
+        return rc;
+    }
+    //isp hardware stop
+    if (isp_open_check() == 0) {
+        acamera_fw_isp_stop(dev->ctx_id);
+        general_temper_disable();
         ips_set_clk_ctrl(ISP0_CLOCK_GATE, false);
+    }
     mutex_unlock(&init_lock);
+
+    pr_info("ctx_id %d done\n", dev->ctx_id);
 
     return 0;
 }
@@ -385,7 +426,11 @@ static int isp_v4l2_s_fmt_vid_cap( struct file *file, void *priv, struct v4l2_fo
         return rc;
     }
 
-    mutex_lock_interruptible(&init_lock);
+    rc = mutex_lock_interruptible(&init_lock);
+    if (rc != 0) {
+        pr_err("mutex lock failed, rc = %d\n", rc);
+        return rc;
+    }
     if (isp_stream_onoff_check() == 0 && isp_open_check() <= 1)
         acamera_update_cur_settings_to_isp(dev->ctx_id);
     mutex_unlock(&init_lock);
@@ -412,8 +457,6 @@ static inline bool isp_v4l2_is_q_busy( struct vb2_queue *queue, struct file *fil
     return queue->owner && queue->owner != file->private_data;
 }
 
-extern void *acamera_get_ctx_ptr( uint32_t ctx_id );
-extern int ips_set_clk_ctrl(unsigned long module, bool enable);
 static int isp_v4l2_streamon( struct file *file, void *priv, enum v4l2_buf_type i )
 {
     isp_v4l2_dev_t *dev = video_drvdata( file );
@@ -439,7 +482,11 @@ static int isp_v4l2_streamon( struct file *file, void *priv, enum v4l2_buf_type 
         }
     }
 
-    mutex_lock_interruptible(&init_lock);
+    rc = mutex_lock_interruptible(&init_lock);
+    if (rc != 0) {
+        pr_err("mutex lock failed, rc = %d\n", rc);
+        return rc;
+    }
     if (isp_stream_onoff_check() == 0) {
             rc = acamera_fw_isp_start(dev->ctx_id);
             if (rc != 0)
@@ -460,34 +507,35 @@ static int isp_v4l2_streamon( struct file *file, void *priv, enum v4l2_buf_type 
     return rc;
 }
 
-static int isp_v4l2_streamoff( struct file *file, void *priv, enum v4l2_buf_type i )
+static int _v4l2_stream_off(struct file *file)
 {
-    isp_v4l2_dev_t *dev = video_drvdata( file );
-    struct isp_v4l2_fh *sp = fh_to_private( priv );
-    isp_v4l2_stream_t *pstream = dev->pstreams[sp->stream_id];
     int rc = 0;
+    isp_v4l2_dev_t *dev = video_drvdata(file);
+    struct isp_v4l2_fh *sp = fh_to_private(file->private_data);
+    isp_v4l2_stream_t *pstream = dev->pstreams[sp->stream_id];
 
-    if ( isp_v4l2_is_q_busy( &sp->vb2_q, file ) )
+    if (isp_v4l2_is_q_busy(&sp->vb2_q, file))
         return -EBUSY;
 
     /* Stop hardware */
-    isp_v4l2_stream_off( pstream );
+    isp_v4l2_stream_off(pstream);
 
     /* vb streamoff */
     acamera_fsm_mgr_t *instance = &(((acamera_context_ptr_t)acamera_get_ctx_ptr(pstream->ctx_id))->fsm_mgr);
     if (instance->reserved) { //dma writer on
-        rc = vb2_streamoff( &sp->vb2_q, i );
+        rc = vb2_streamoff(&sp->vb2_q, sp->vb2_q.type);
     }
 
-    atomic_sub_return( 1, &dev->stream_on_cnt );
+    atomic_sub_return(1, &dev->stream_on_cnt);
 
-    mutex_lock_interruptible(&init_lock);
-    if (isp_stream_onoff_check() == 0) {
-        acamera_fw_isp_stop(dev->ctx_id);
-    }
-    mutex_unlock(&init_lock);
+    pr_info("ctx_id %d, done\n", dev->ctx_id);
 
     return rc;
+}
+
+static int isp_v4l2_streamoff( struct file *file, void *priv, enum v4l2_buf_type i )
+{
+    return _v4l2_stream_off(file);
 }
 
 

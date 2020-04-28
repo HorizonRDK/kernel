@@ -632,7 +632,7 @@ void general_frame_start( general_fsm_ptr_t p_fsm )
 
 #if GENERAL_TEMPER_ENABLED
     /* Enable temper after second frame to avoid broken frame */
-    if ( p_fsm->cnt_for_temper++ == 2 ) {
+    if ( p_fsm->cnt_for_temper++ == 5 ) {
 
 	pr_debug("temper_enable is %d\n", temper_enable);
 
@@ -764,6 +764,11 @@ static int general_temper_exit( general_fsm_ptr_t p_fsm )
 		    temper_frame->width, temper_frame->height,
 		    size, temper_frame->address );
 
+    return 0;
+}
+
+void general_temper_disable(void)
+{
     //bypass on
     uint32_t curr = system_hw_read_32(0x18eb8L);
     system_hw_write_32(0x18eb8L, curr | 0x2);
@@ -775,8 +780,6 @@ static int general_temper_exit( general_fsm_ptr_t p_fsm )
     //disable lsb/msb r/w
     curr = system_hw_read_32(0x1ab78L);
     system_hw_write_32(0x1ab78L, curr & 0xfffffff0);
-
-    return 0;
 }
 
 static int general_temper_configure( general_fsm_ptr_t p_fsm )
