@@ -55,6 +55,9 @@
 extern struct class *vps_class;
 dwe_charmod_s *dwe_mod[FIRMWARE_CONTEXT_NUMBER];
 
+extern void vio_dwe_clk_enable(void);
+extern void vio_dwe_clk_disable(void);
+
 static int dwe_fop_open(struct inode *pinode, struct file *pfile)
 {
 	int ret = 0;
@@ -83,6 +86,7 @@ static int dwe_fop_open(struct inode *pinode, struct file *pfile)
 
 	spin_lock(&dwe_cdev->slock);
 	if (dwe_cdev->user_num == 0) {
+		vio_dwe_clk_enable();
 		dwe_sw_init();
 	}
 	dwe_cdev->user_num++;
@@ -143,6 +147,7 @@ static int dwe_fop_release(struct inode *pinode, struct file *pfile)
 	dwe_cdev->user_num--;
 	if (dwe_cdev->user_num == 0) {
 		dwe_sw_deinit();
+		vio_dwe_clk_disable();
 	}
 	spin_unlock(&dwe_cdev->slock);
 	pfile->private_data = NULL;
