@@ -25,6 +25,7 @@
 #include <linux/interrupt.h>
 #include <linux/of_irq.h>
 #include <linux/slab.h>
+#include <linux/clk-provider.h>
 
 /* the offset of pwm registers */
 #define PWM_EN             0x00
@@ -84,8 +85,14 @@ static int hobot_pwm_config(struct pwm_chip *chip, struct pwm_device *pwm, int d
 	u32 val, reg, offset;
 	int pwm_freq, pwm_ratio;
 	struct hobot_pwm_chip *hbpwm = to_hobot_pwm_chip(chip);
+	int ret;
 
-	clk_prepare_enable(hbpwm->mclk);
+	ret = clk_prepare_enable(hbpwm->mclk);
+	if (ret) {
+		pr_err("failed to enable pwm clock\n");
+		return ret;
+	}
+
 	/* config pwm freq */
 	pwm_freq = div64_u64((uint64_t)PWM_CLK * (uint64_t)period_ns,
 			(unsigned long long)NSEC_PER_SEC);
@@ -113,7 +120,16 @@ static int hobot_pwm_config(struct pwm_chip *chip, struct pwm_device *pwm, int d
 static int hobot_pwm_enable(struct pwm_chip *chip, struct pwm_device *pwm)
 {
 	u32 val;
+	int ret;
 	struct hobot_pwm_chip *hbpwm = to_hobot_pwm_chip(chip);
+
+	if (!__clk_is_enabled(hbpwm->mclk)) {
+		ret = clk_prepare_enable(hbpwm->mclk);
+		if (ret) {
+			pr_err("failed to enable pwm clock\n");
+			return ret;
+		}
+	}
 
 	val = hobot_pwm_rd(hbpwm, PWM_EN);
 	val |= (1<<pwm->hwpwm);

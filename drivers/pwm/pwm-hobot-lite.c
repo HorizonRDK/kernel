@@ -18,6 +18,7 @@
 #include <linux/interrupt.h>
 #include <linux/of_irq.h>
 #include <linux/slab.h>
+#include <linux/clk-provider.h>
 
 /* the offset of pwm registers */
 #define LPWM_EN       0x00
@@ -63,6 +64,7 @@ static int hobot_lpwm_config(struct pwm_chip *chip, struct pwm_device *pwm,
 	u32 cfg, reg;
 	int period, high;
 	struct hobot_lpwm_chip *lpwm = to_hobot_lpwm_chip(chip);
+	int ret;
 
 	if (period_ns > 0 && (period_ns < 250000 || period_ns > 1000000000)) {
 		pr_err("lpwm only support period in [250000ns~1000000000ns]\n");
@@ -77,6 +79,12 @@ static int hobot_lpwm_config(struct pwm_chip *chip, struct pwm_device *pwm,
 	/* config pwm freq */
 	period = div64_u64((uint64_t)period_ns, (uint64_t)250000) - 1;
 	high = div64_u64((uint64_t)duty_ns, (uint64_t)250000) - 1;
+
+	ret = clk_prepare_enable(lpwm->clk);
+	if (ret) {
+		pr_err("failed to enable lpwm_mclk clock\n");
+		return ret;
+	}
 
 	pr_debug("set period_ns: %d, duty_ns: %d\n", period_ns, duty_ns);
 
@@ -95,8 +103,17 @@ static int hobot_lpwm_config(struct pwm_chip *chip, struct pwm_device *pwm,
 
 static int hobot_lpwm_enable(struct pwm_chip *chip, struct pwm_device *pwm)
 {
-	u32 val;
 	struct hobot_lpwm_chip *lpwm = to_hobot_lpwm_chip(chip);
+	u32 val;
+	int ret;
+
+	if (!__clk_is_enabled(lpwm->clk)) {
+		ret = clk_prepare_enable(lpwm->clk);
+		if (ret) {
+			pr_err("failed to enable lpwm_mclk clock\n");
+			return ret;
+		}
+	}
 
 	val = hobot_lpwm_rd(lpwm, LPWM_EN);
 	val |= (1 << pwm->hwpwm);
@@ -121,6 +138,8 @@ static void hobot_lpwm_disable(struct pwm_chip *chip, struct pwm_device *pwm)
 	val &= (~(1 << pwm->hwpwm));
 
 	hobot_lpwm_wr(lpwm, LPWM_EN, val);
+
+	clk_disable_unprepare(lpwm->clk);
 
 	return;
 }
@@ -230,6 +249,8 @@ static int hobot_lpwm_probe(struct platform_device *pdev)
 
 	/* reset all regs, use sw_trigger by default */
 	hobot_lpwm_wr(lpwm, LPWM_RST, 1);
+
+	clk_disable_unprepare(lpwm->clk);
 
 	pr_info("%s registered\n", lpwm->name);
 
