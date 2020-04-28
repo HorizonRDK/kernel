@@ -1116,7 +1116,9 @@ int ac101_hw_params(struct snd_pcm_substream *substream,
 
 	/* setting pll if it's master mode */
 	reg_val = ac101_read(codec, AIF_CLK_CTRL);
-	ac101_set_pll(codec_dai, ac10x->clk_id, 0, ac10x->sysclk, freq_out);
+	if ((reg_val & (0x1 << AIF1_MSTR_MOD)) == 0) {
+		ac101_set_pll(codec_dai, ac10x->clk_id, 0, ac10x->sysclk, freq_out);
+	}
 	bclkdiv = freq_out / (aif1_lrck_div * params_rate(params));
 	for (i = 0; i < ARRAY_SIZE(ac101_bclkdivs) - 1; i++) {
 		if (ac101_bclkdivs[i] >= bclkdiv) {
