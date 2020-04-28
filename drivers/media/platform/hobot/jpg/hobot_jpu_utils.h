@@ -62,7 +62,7 @@ typedef struct _hb_jpu_drv_instance_pool {
 typedef struct jpu_drv_context_t {
 	struct fasync_struct *async_queue;
 	u32 open_count;		/*!<< device reference count. Not instance count */
-	u32 interrupt_reason[MAX_NUM_JPU_INSTANCE];
+	u32 interrupt_reason[MAX_HW_NUM_JPU_INSTANCE];
 } jpu_drv_context_t;
 
 typedef struct _hb_jpu_dev {
@@ -84,9 +84,9 @@ typedef struct _hb_jpu_dev {
 	struct ion_client *jpu_ion_client;
 #endif
 
-	wait_queue_head_t interrupt_wait_q[MAX_NUM_JPU_INSTANCE];
-	int interrupt_flag[MAX_NUM_JPU_INSTANCE];
-	u32 interrupt_reason[MAX_NUM_JPU_INSTANCE];
+	wait_queue_head_t interrupt_wait_q[MAX_HW_NUM_JPU_INSTANCE];
+	int interrupt_flag[MAX_HW_NUM_JPU_INSTANCE];
+	u32 interrupt_reason[MAX_HW_NUM_JPU_INSTANCE];
 	hb_jpu_event_t poll_event[MAX_NUM_JPU_INSTANCE];
 	wait_queue_head_t poll_wait_q[MAX_NUM_JPU_INSTANCE];
 	spinlock_t poll_spinlock;

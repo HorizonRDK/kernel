@@ -247,7 +247,7 @@ static irqreturn_t jpu_irq_handler(int irq, void *dev_id)
 	disable_irq_nosync(dev->irq);
 #endif
 
-	for (i = 0; i < MAX_NUM_JPU_INSTANCE; i++) {
+	for (i = 0; i < MAX_HW_NUM_JPU_INSTANCE; i++) {
 		flag = JPU_READL(MJPEG_PIC_STATUS_REG(i));
 		if (flag != 0) {
 			break;
@@ -267,11 +267,6 @@ static irqreturn_t jpu_irq_handler(int irq, void *dev_id)
 		kill_fasync(&dev->async_queue, SIGIO, POLL_IN);
 
 	wake_up_interruptible(&dev->interrupt_wait_q[i]);
-
-	spin_lock(&dev->poll_spinlock);
-	dev->poll_event[i] = JPU_PIC_DONE;
-	spin_unlock(&dev->poll_spinlock);
-	wake_up_interruptible(&dev->poll_wait_q[i]);
 
 	return IRQ_HANDLED;
 }
@@ -473,6 +468,14 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 				  "INST(%d) s_interrupt_flag(%d), reason(0x%08x)\n",
 				  instance_no, dev->interrupt_flag[instance_no],
 				  dev->interrupt_reason[instance_no]);
+
+			if (priv->inst_index >= 0 &&
+				priv->inst_index < MAX_NUM_JPU_INSTANCE) {
+				spin_lock(&dev->poll_spinlock);
+				dev->poll_event[priv->inst_index] = JPU_PIC_DONE;
+				spin_unlock(&dev->poll_spinlock);
+				wake_up_interruptible(&dev->poll_wait_q[priv->inst_index]);
+			}
 
 			info.intr_reason = dev->interrupt_reason[instance_no];
 			dev->interrupt_flag[instance_no] = 0;
@@ -756,6 +759,7 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 			} else {
 				inst_index = -1;
 			}
+			priv->inst_index = inst_index;
 			spin_unlock(&dev->jpu_spinlock);
 
 			ret =
@@ -784,6 +788,7 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 			}
 			spin_lock(&dev->jpu_spinlock);
 			clear_bit(inst_index, jpu_inst_bitmap);
+			priv->inst_index = -1;
 			spin_unlock(&dev->jpu_spinlock);
 
 			jpu_debug(5,
@@ -791,31 +796,30 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 				  inst_index);
 		}
 		break;
-  case JDI_IOCTL_POLL_WAIT_INSTANCE:
-    {
-      hb_jpu_drv_intr_t info;
-      u32 inst_no;
+	case JDI_IOCTL_POLL_WAIT_INSTANCE: {
+		hb_jpu_drv_intr_t info;
+		u32 inst_no;
 
-      jpu_debug(5, "[+]JDI_IOCTL_POLL_WAIT_INSTANCE\n");
-      ret = copy_from_user(&info, (hb_jpu_drv_intr_t*)arg,
-              sizeof(hb_jpu_drv_intr_t));
-      if (ret != 0) {
-        jpu_err
-          ("JDI_IOCTL_FREE_INSTANCE_ID invalid instance id.");
-        return -EFAULT;
-      }
-      inst_no = info.inst_idx;
-      if (inst_no >= 0 && inst_no < MAX_NUM_JPU_INSTANCE) {
-        priv->inst_index = inst_no;
-        spin_lock(&dev->poll_spinlock);
-        dev->poll_event[priv->inst_index] = JPU_EVENT_NONE;
-        spin_unlock(&dev->poll_spinlock);
-      } else {
-        return  -EINVAL;
-      }
-      jpu_debug(5, "[-]JDI_IOCTL_POLL_WAIT_INSTANCE\n");
-    }
-    break;
+		jpu_debug(5, "[+]JDI_IOCTL_POLL_WAIT_INSTANCE\n");
+		ret = copy_from_user(&info, (hb_jpu_drv_intr_t*)arg,
+			sizeof(hb_jpu_drv_intr_t));
+		if (ret != 0) {
+			jpu_err
+				("JDI_IOCTL_FREE_INSTANCE_ID invalid instance id.");
+			return -EFAULT;
+		}
+		inst_no = info.inst_idx;
+		if (inst_no >= 0 && inst_no < MAX_NUM_JPU_INSTANCE) {
+			priv->inst_index = inst_no;
+			spin_lock(&dev->poll_spinlock);
+			dev->poll_event[priv->inst_index] = JPU_EVENT_NONE;
+			spin_unlock(&dev->poll_spinlock);
+		} else {
+			return  -EINVAL;
+		}
+		jpu_debug(5, "[-]JDI_IOCTL_POLL_WAIT_INSTANCE\n");
+	}
+	break;
 	default:
 		{
 			jpu_err("No such IOCTL, cmd is %d\n", cmd);

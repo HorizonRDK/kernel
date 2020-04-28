@@ -18,6 +18,7 @@
 #define JPU_IRQ_CONTROL
 #endif
 
+#define MAX_HW_NUM_JPU_INSTANCE         4
 #define MAX_NUM_JPU_INSTANCE            64
 #define MAX_NUM_JPU_CORE                1
 #define MAX_INST_HANDLE_SIZE            48
