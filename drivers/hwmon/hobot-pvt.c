@@ -33,8 +33,8 @@
 #define PVT_SAMPLE_INTERVAL_MS 20
 #define PVT_TS_MASK GENMASK(PVT_TS_NUM - 1, 0)
 
-/* skip sample when calculated temp higher than 121C */
-int smpl_threshold = 3300;
+/* skip sample when calculated temp higher than 152C */
+int smpl_threshold = 3900;
 module_param(smpl_threshold, int, 0644);
 
 /* TS0: CNN0 TS1:CPU TS2:CNN1 TS3: DDR */
@@ -229,7 +229,7 @@ static irqreturn_t pvt_irq_handler(int irq, void *dev_id)
 		if (sdif_done) {
 			/* report abnormal value when higher than 121C */
 			if (sdif_data > smpl_threshold) {
-				pr_warn("abnormal smpl: SDIF_DATA:%d, last smpl on TS[%d]:%d\n",
+				pr_info_ratelimited("abnormal smpl: SDIF_DATA:%d, last smpl on TS[%d]:%d\n",
 						sdif_data, i, pvt_dev->cur_smpl[i]);
 			} else {
 				pvt_dev->cur_smpl[i] = sdif_data;
