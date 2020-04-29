@@ -485,10 +485,10 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 	subdev->rx_index = sif_config->input.mipi.mipi_rx_index;
 	if (subdev->rx_index < 2)
 		subdev->ipi_index = subdev->rx_index * 4 +
-				sif_config->input.mipi.vc_index;
+				sif_config->input.mipi.vc_index[0];
 	else
 		subdev->ipi_index = 8 + (subdev->rx_index - 2) * 2 +
-				sif_config->input.mipi.vc_index;
+				sif_config->input.mipi.vc_index[0];
 
 	subdev->initial_frameid = true;
 	sif->sif_mux[mux_index] = group;

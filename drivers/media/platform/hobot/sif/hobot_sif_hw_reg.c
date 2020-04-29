@@ -745,14 +745,15 @@ static void sif_set_mipi_rx(u32 __iomem *base_reg, sif_input_mipi_t* p_mipi,
 	const static u32 map_mux_input[] = {0, 4, 8, 10};
 	u32 input_index_start = map_mux_input[p_mipi->mipi_rx_index];
 	u32 i_step, mux_out_index, lines, ddr_mux_out_index;
-	u32 vc_index = 0, ipi_index = 0;
+	u8 *vc_index;
+	u8 ipi_index = 0;
 	u32 ch_index[3] = {0, 1, 2};
 
 	if (!p_mipi->enable)
 		return;
 
 	/*yuv format setting*/
-	if (yuv_format && enable_mux_out) {
+	if (yuv_format && enable_mux_out && p_out->ddr.enable) {
 		if (set_mux_out_index % 2) {
 			vio_err("The index of mux-out should be even if using YUV format");
 			return;
@@ -779,10 +780,10 @@ static void sif_set_mipi_rx(u32 __iomem *base_reg, sif_input_mipi_t* p_mipi,
 	}
 	sif_config_mipi_rx(base_reg, p_mipi->mipi_rx_index, &p_mipi->data);
 	vc_index = p_mipi->vc_index;
-	vio_info("%s: %d\n", __func__, vc_index);
 	for (i = 0; i < p_mipi->channels; i++) {
-		ipi_index = i + vc_index;
+		ipi_index = vc_index[i];
 		sif_config_rx_ipi(base_reg, p_mipi->mipi_rx_index, ipi_index, p_mipi);
+		vio_info("%s: vc_index[%d] = %d\n", __func__, i, vc_index[i]);
 	}
 	if (p_mipi->func.enable_line_shift) {
 		vio_hw_set_field(base_reg, &sif_regs[SIF_ISP_EXP_CFG],
@@ -811,7 +812,7 @@ static void sif_set_mipi_rx(u32 __iomem *base_reg, sif_input_mipi_t* p_mipi,
 			ddr_mux_out_index = p_out->ddr.mux_index + ch_index[i];
 
 			lines = (p_mipi->data.width / LINE_BUFFER_SIZE) + 1;
-			ipi_index = i + vc_index;
+			ipi_index = vc_index[i];
 			sif_enable_mux_out(base_reg,
 					mux_out_index,
 					input_index_start + ipi_index,
@@ -1020,6 +1021,10 @@ static void sif_set_isp_output(u32 __iomem *base_reg,
 		vio_hw_set_field(base_reg, &sif_regs[SIF_OUT_BUF_CTRL],
 				&sif_fields[SW_SIF_ISP0_FLYBY_ENABLE],
 				p_isp->func.enable_flyby);
+		/*vio_hw_set_field(base_reg, &sif_regs[SIF_OUT_BUF_CTRL],
+				&sif_fields[SW_SIF_ISP0_YUV_ENABLE],
+				1);
+		*/
 		vio_hw_set_field(base_reg, &sif_regs[SIF_ISP_EXP_CFG],
 				&sif_fields[SW_SIF_ISP0_DOL_EXP_NUM], p_isp->dol_exp_num);
 		// Expected: At least one frame to ISP if flyby mode
