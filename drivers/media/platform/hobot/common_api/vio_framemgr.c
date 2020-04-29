@@ -379,7 +379,7 @@ int frame_manager_close_mp(struct vio_framemgr *this,
 	struct vio_frame *free_addr;
 	u32 tmp_num;
 
-	if ((index_start + buffers) >= VIO_MP_MAX_FRAMES) {
+	if ((index_start + buffers) > VIO_MP_MAX_FRAMES) {
 		vio_err("%s invalid index", __func__);
 		return -EFAULT;
 	}
@@ -413,6 +413,14 @@ int frame_manager_close_mp(struct vio_framemgr *this,
 	}
 	this->num_frames -= buffers;
 	this->ctx_mask &= ~(1 << ctx_index);
+	/* clear the frame mask bit of this ctx*/
+	for (i = 0; i < VIO_MP_MAX_FRAMES; i++) {
+		if ((this->index_state[i] != FRAME_IND_USING)
+			&& (this->index_state[i] != FRAME_IND_STREAMOFF))
+			continue;
+		if ((this->dispatch_mask[i] >> ctx_index) & 0x01)
+			this->dispatch_mask[i] &= ~(1 << ctx_index);
+	}
 	kfree(free_addr);
 	if (this->max_index == (index_start + buffers)) {
 		tmp_num = 0;
@@ -439,7 +447,7 @@ int frame_manager_flush_mp(struct vio_framemgr *this,
 	struct vio_frame *frame;
 	u32 i;
 
-	if ((index_start + buffers) >= VIO_MP_MAX_FRAMES) {
+	if ((index_start + buffers) > VIO_MP_MAX_FRAMES) {
 		vio_err("invalid index when flush frame manager.");
 		return -EFAULT;
 	}
@@ -473,7 +481,7 @@ int frame_manager_flush_mp_prepare(struct vio_framemgr *this,
 	u8 dispatch_mask;
 	const u8 one_frame_delay = 33;
 
-	if ((index_start + buffers) >= VIO_MP_MAX_FRAMES) {
+	if ((index_start + buffers) > VIO_MP_MAX_FRAMES) {
 		vio_err("invalid index when flush frame manager.");
 		return -EFAULT;
 	}
@@ -481,8 +489,9 @@ int frame_manager_flush_mp_prepare(struct vio_framemgr *this,
 
 	for (i = 0; i < VIO_MP_MAX_FRAMES; i++) {
 		if (this->index_state[i] == FRAME_IND_USING)
-			vio_dbg("%s(self%d):index%d,state%d.", __func__,
-				index_start, i, this->frames_mp[i]->state);
+			vio_dbg("%s(self%d):index%d,state%d,mask%x.", __func__,
+				index_start, i, this->frames_mp[i]->state,
+				 this->dispatch_mask[i]);
 	}
 	for (i = index_start; i < (buffers + index_start); i++) {
 		this->index_state[i] = FRAME_IND_STREAMOFF;
