@@ -100,6 +100,7 @@ struct x2_uart {
 	bool rx_enabled;
 #endif
 	int tx_in_progress;
+	unsigned int poll_flag;
 };
 
 #define to_x2_uart(_nb) container_of(_nb, struct x2_uart, \
@@ -653,6 +654,13 @@ static void x2_uart_start_tx(struct uart_port *port)
 	mask = UART_TXEPT;
 #elif defined CONFIG_HOBOT_TTY_DMA_MODE
 	mask = UART_TXTHD | UART_TXDON;
+	if (x2_port->poll_flag) {
+		val = readl(port->membase + X2_UART_FCR);
+		val |= UART_FCR_RDMA_EN | UART_FCR_TDMA_EN;
+		val |= UART_FCR_RFTRL(rx_trigger_level) | UART_FCR_TFTRL(tx_trigger_level);
+		writel(val, port->membase + X2_UART_FCR);
+		x2_port->poll_flag = 0;
+	}
 #endif /* CONFIG_HOBOT_TTY_IRQ_MODE */
 	writel(mask, port->membase + X2_UART_INT_UNMASK);
 
@@ -1141,27 +1149,27 @@ static void x2_uart_set_mctrl(struct uart_port *port, unsigned int mctrl)
 static int x2_uart_poll_get_char(struct uart_port *port)
 {
 	int c;
-	unsigned long flags;
+	unsigned int val = 0;
+	struct x2_uart *x2_uart = (struct x2_uart *)port->private_data;
 
-	spin_lock_irqsave(&port->lock, flags);
-
+	/*to poll mod*/
+	if (!x2_uart->poll_flag) {
+		val = readl(port->membase + X2_UART_FCR);
+		val &= ~(UART_FCR_RDMA_EN | UART_FCR_TDMA_EN);
+		writel(val, port->membase + X2_UART_FCR);
+		x2_uart->poll_flag = 1;
+	}
 	/* Check if FIFO is empty */
 	if (!(readl(port->membase + X2_UART_LSR) & UART_LSR_RXRDY))
 		c = NO_POLL_CHAR;
 	else			/* Read a character */
 		c = (unsigned char)readl(port->membase + X2_UART_RDR);
 
-	spin_unlock_irqrestore(&port->lock, flags);
-
 	return c;
 }
 
 static void x2_uart_poll_put_char(struct uart_port *port, unsigned char c)
 {
-	unsigned long flags;
-
-	spin_lock_irqsave(&port->lock, flags);
-
 	/* Wait until FIFO is empty */
 	while (!(readl(port->membase + X2_UART_LSR) & UART_LSR_TX_EMPTY))
 		cpu_relax();
@@ -1169,7 +1177,6 @@ static void x2_uart_poll_put_char(struct uart_port *port, unsigned char c)
 	/* Write a character */
 	writel(c, port->membase + X2_UART_TDR);
 
-	spin_unlock_irqrestore(&port->lock, flags);
 
 	return;
 }
