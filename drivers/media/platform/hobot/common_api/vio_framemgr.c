@@ -476,29 +476,32 @@ int frame_manager_flush_mp_prepare(struct vio_framemgr *this,
 	struct vio_frame *frame;
 	int i;
 	u32 delay_cnt;
+	u32 buf_drv_cnt;
 	u32 used_free_cnt = 0;
 	u32 other_proc_free;
 	u8 dispatch_mask;
-	const u8 one_frame_delay = 33;
+	const u8 one_frame_delay = 40;
 
 	if ((index_start + buffers) > VIO_MP_MAX_FRAMES) {
 		vio_err("invalid index when flush frame manager.");
 		return -EFAULT;
 	}
-	spin_lock_irqsave(&this->slock, flag);
-
-	for (i = 0; i < VIO_MP_MAX_FRAMES; i++) {
-		if (this->index_state[i] == FRAME_IND_USING)
-			vio_dbg("%s(self%d):index%d,state%d,mask%x.", __func__,
-				index_start, i, this->frames_mp[i]->state,
-				 this->dispatch_mask[i]);
+	#if 0
+	for (i = index_start; i < (buffers + index_start); i++) {
+		frame = this->frames_mp[i];
+		vio_dbg("%s%d:index%d,state%d,mask%x.", __func__, __LINE__,
+			i, this->frames_mp[i]->state,
+			this->dispatch_mask[i]);
 	}
+	#endif
+	spin_lock_irqsave(&this->slock, flag);
 	for (i = index_start; i < (buffers + index_start); i++) {
 		this->index_state[i] = FRAME_IND_STREAMOFF;
 	}
 
 	/* to USED or FREE*/
-	delay_cnt = buffers;
+	buf_drv_cnt = (4 * this->num_frames) / buffers;
+	delay_cnt = ((buf_drv_cnt > buffers) ? buf_drv_cnt : buffers);
 	while (delay_cnt) {
 		used_free_cnt = 0;
 		for (i = index_start; i < (buffers + index_start); i++) {
