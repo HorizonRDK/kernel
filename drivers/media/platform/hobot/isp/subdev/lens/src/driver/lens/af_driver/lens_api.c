@@ -88,17 +88,8 @@ int lens_api_zoom_init(uint16_t chn)
 int lens_api_zoom_move(uint16_t chn, uint32_t pos)
 {
 	int ret = 0;
-	uint32_t status = 0;
-	uint32_t count = 0;
-	uint32_t step[14] = {0, 180, 361, 541, 722, 902, 1082, 1263, 1443, 1624, 1804, 1985, 2165, 2275};
 
-	count = (pos - 10);
-	if (count > 14) {
-		return -1;
-	}
-	status = step[count];
-
-	ret = lens_driver_move(chn, LENS_ZOOM_PARAM_ID, status);
+	ret = lens_driver_move(chn, LENS_ZOOM_PARAM_ID, pos);
 
 	return ret;
 }

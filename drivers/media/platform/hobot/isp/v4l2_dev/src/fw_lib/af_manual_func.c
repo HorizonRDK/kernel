@@ -46,49 +46,41 @@
 #define CUR_MOD_NAME LOG_MODULE_AF_MANUAL
 #endif
 
-//TODO save lut of af
-#define ZOOM_STEP_NUM                  13   //  Zoom Ratio = 1.0 + (ZOOM_STEP_NUM-1) * 0.1
-#define AF_INIT_PARAMETER_NUM          21
-
-uint32_t zoom_af_table[ZOOM_STEP_NUM][AF_INIT_PARAMETER_NUM] =
-{
-{166400/4, 166400/4, 166400/4, 167680/4, 167680/4, 167680/4,176000/4,176000/4,176000/4,177920/4,177920/4,177920/4,11,6,2,30,131072,131072,262144,65536, 0},
-{136320/4, 136320/4, 136320/4, 137600/4, 137600/4, 137600/4,147200/4,147200/4,147200/4,149120/4,149120/4,149120/4,11,6,2,30,131072,131072,262144,65536, 0},
-{110720/4, 110720/4, 110720/4, 112000/4, 112000/4, 112000/4,120320/4,120320/4,120320/4,122240/4,122240/4,122240/4,11,6,2,30,131072,131072,262144,65536, 0},
-{88960/4, 88960/4, 88960/4, 90240/4, 90240/4, 90240/4, 99200/4, 99200/4, 99200/4,101120/4,101120/4,101120/4,11,6,2,30,131072,131072,262144,65536, 0},
-{72320/4, 72320/4, 72320/4, 73600/4, 73600/4, 73600/4, 81920/4, 81920/4, 81920/4, 83840/4, 83840/4, 83840/4,11,6,2,30,131072,131072,262144,65536, 0},
-{58240/4, 58240/4, 58240/4, 59520/4, 59520/4, 59520/4, 67840/4, 67840/4, 67840/4, 69760/4, 69760/4, 69760/4,11,6,2,30,131072,131072,262144,65536, 0},
-{46080/4, 46080/4, 46080/4, 47360/4, 47360/4, 47360/4, 56960/4, 56960/4, 56960/4, 58880/4, 58880/4, 58880/4,11,6,2,30,131072,131072,262144,65536, 0},
-{36480/4, 36480/4, 36480/4, 37760/4, 37760/4, 37760/4, 46720/4, 46720/4, 46720/4, 48640/4, 48640/4, 48640/4,11,6,2,30,131072,131072,262144,65536, 0},
-{28800/4, 28800/4, 28800/4, 30080/4, 30080/4, 30080/4, 39040/4, 39040/4, 39040/4, 40960/4, 40960/4, 40960/4,11,6,2,30,131072,131072,262144,65536, 0},
-{23040/4, 23040/4, 23040/4, 24320/4, 24320/4, 24320/4, 33280/4, 33280/4, 33280/4, 35200/4, 35200/4, 35200/4,11,6,2,30,131072,131072,262144,65536, 0},
-{18560/4, 18560/4, 18560/4, 19840/4, 19840/4, 19840/4, 28800/4, 28800/4, 28800/4, 30720/4, 30720/4, 30720/4,11,6,2,30,131072,131072,262144,65536, 0},
-{14720/4, 14720/4, 14720/4, 16000/4, 16000/4, 16000/4, 24960/4, 24960/4, 24960/4, 26880/4, 26880/4, 26880/4,11,6,2,30,131072,131072,262144,65536, 0},
-{11520/4, 11520/4, 11520/4, 12800/4, 12800/4, 12800/4, 22400/4, 22400/4, 22400/4, 24320/4, 24320/4, 24320/4,11,6,2,30,131072,131072,262144,65536, 0}
-};
-
-
-void zoom_update_lens_position(AF_fsm_ptr_t p_fsm)
+int zoom_update_lens_position(AF_fsm_ptr_t p_fsm)
 {
 	uint32_t count = 0;
 	uint32_t ret_data = 0;
 
 	//const lens_param_t *lens_param = p_fsm->lens_ctrl.get_parameters(p_fsm->lens_ctx);
-	af_lms_param_t *param = (af_lms_param_t *)_GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_AF_LMS );
+	uint32_t *zoom_param = (uint32_t *)_GET_USHORT_PTR(ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_ZOOM_LMS);
+	uint32_t *zoom_af_param = (uint32_t *)_GET_USHORT_PTR(ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_ZOOM_AF_LMS);
+	uint32_t zoom_cols = _GET_COLS(ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_ZOOM_LMS);
+	uint32_t zoom_af_rows = _GET_ROWS(ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_ZOOM_AF_LMS);
+
+	if (zoom_param == NULL || zoom_af_param == NULL) {
+		LOG(LOG_INFO, "zoom param is err!");
+		return -1;
+	}
+	LOG(LOG_DEBUG, "zoom_cols (%d) , zoom_af_rows (%d), zoom_param[0] (%d).", zoom_cols, zoom_af_rows, zoom_param[0]);
+	if ((zoom_param[0] > (zoom_cols - 1)) || (zoom_af_rows < zoom_param[0])) {
+		LOG(LOG_INFO, "zoom param is err!");
+		return -1;
+	}
 
 	/* the new AF position is updated in sbuf FSM */
 	if (p_fsm->zoom_manual_pos != p_fsm->zoom_curr_pos) {
 		LOG(LOG_INFO, "last position(%u) move changed.", p_fsm->zoom_curr_pos);
-		p_fsm->lens_ctrl.move_zoom( p_fsm->lens_ctx, p_fsm->zoom_manual_pos);
+		count = p_fsm->zoom_manual_pos - 10;
+		if (count >= zoom_param[0]) {
+			LOG(LOG_INFO, "zoom ctrl is out of range!");
+			return -1;
+		}
+		p_fsm->lens_ctrl.move_zoom( p_fsm->lens_ctx, zoom_param[count + 1]);
 
 		p_fsm->zoom_curr_pos = p_fsm->zoom_manual_pos;
-		count = (p_fsm->zoom_manual_pos - 10);
-		if (count < ZOOM_STEP_NUM) {
-			zoom_af_table[count][AF_INIT_PARAMETER_NUM - 1] = param->print_debug;
-			//memcpy(param, &zoom_af_table[count][0], (sizeof(af_lms_param_t) - sizeof(uint32_t)));
-			acamera_api_calibration(p_fsm->cmn.ctx_id, DYNAMIC_CALIBRATIONS_ID, CALIBRATION_AF_LMS,
-				COMMAND_SET, (void *)&zoom_af_table[count][0], sizeof(af_lms_param_t), &ret_data);
-		}
+		acamera_api_calibration(p_fsm->cmn.ctx_id, DYNAMIC_CALIBRATIONS_ID, CALIBRATION_AF_LMS,
+			COMMAND_SET, (void *)(zoom_af_param + (count * sizeof(af_lms_param_t)/sizeof(uint32_t))),
+			sizeof(af_lms_param_t), &ret_data);
 	} else {
 		LOG(LOG_INFO, "last position(%u) not changed.", p_fsm->zoom_curr_pos);
 	}

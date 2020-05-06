@@ -451,6 +451,26 @@ static uint32_t _calibration_ae_exposure_correction[]
 static uint16_t _calibration_af_zone_wght_hor[]
  = {0,0,16,16,16,16,16,16,16,16,16,16,16,16,16,0,0};
 
+static uint32_t _calibration_zoom_lms[] = {
+13, 0, 180, 361, 541, 722, 902, 1082, 1263, 1443, 1624, 1804, 1985, 2165, 2275
+};
+
+static uint32_t _calibration_zoom_af_lms[][21] = {
+{166400/4, 166400/4, 166400/4, 167680/4, 167680/4, 167680/4,176000/4,176000/4,176000/4,177920/4,177920/4,177920/4,11,6,2,30,131072,131072,262144,65536, 0},
+{136320/4, 136320/4, 136320/4, 137600/4, 137600/4, 137600/4,147200/4,147200/4,147200/4,149120/4,149120/4,149120/4,11,6,2,30,131072,131072,262144,65536, 0},
+{110720/4, 110720/4, 110720/4, 112000/4, 112000/4, 112000/4,120320/4,120320/4,120320/4,122240/4,122240/4,122240/4,11,6,2,30,131072,131072,262144,65536, 0},
+{88960/4, 88960/4, 88960/4, 90240/4, 90240/4, 90240/4, 99200/4, 99200/4, 99200/4,101120/4,101120/4,101120/4,11,6,2,30,131072,131072,262144,65536, 0},
+{72320/4, 72320/4, 72320/4, 73600/4, 73600/4, 73600/4, 81920/4, 81920/4, 81920/4, 83840/4, 83840/4, 83840/4,11,6,2,30,131072,131072,262144,65536, 0},
+{58240/4, 58240/4, 58240/4, 59520/4, 59520/4, 59520/4, 67840/4, 67840/4, 67840/4, 69760/4, 69760/4, 69760/4,11,6,2,30,131072,131072,262144,65536, 0},
+{46080/4, 46080/4, 46080/4, 47360/4, 47360/4, 47360/4, 56960/4, 56960/4, 56960/4, 58880/4, 58880/4, 58880/4,11,6,2,30,131072,131072,262144,65536, 0},
+{36480/4, 36480/4, 36480/4, 37760/4, 37760/4, 37760/4, 46720/4, 46720/4, 46720/4, 48640/4, 48640/4, 48640/4,11,6,2,30,131072,131072,262144,65536, 0},
+{28800/4, 28800/4, 28800/4, 30080/4, 30080/4, 30080/4, 39040/4, 39040/4, 39040/4, 40960/4, 40960/4, 40960/4,11,6,2,30,131072,131072,262144,65536, 0},
+{23040/4, 23040/4, 23040/4, 24320/4, 24320/4, 24320/4, 33280/4, 33280/4, 33280/4, 35200/4, 35200/4, 35200/4,11,6,2,30,131072,131072,262144,65536, 0},
+{18560/4, 18560/4, 18560/4, 19840/4, 19840/4, 19840/4, 28800/4, 28800/4, 28800/4, 30720/4, 30720/4, 30720/4,11,6,2,30,131072,131072,262144,65536, 0},
+{14720/4, 14720/4, 14720/4, 16000/4, 16000/4, 16000/4, 24960/4, 24960/4, 24960/4, 26880/4, 26880/4, 26880/4,11,6,2,30,131072,131072,262144,65536, 0},
+{11520/4, 11520/4, 11520/4, 12800/4, 12800/4, 12800/4, 22400/4, 22400/4, 22400/4, 24320/4, 24320/4, 24320/4,11,6,2,30,131072,131072,262144,65536, 0}
+};
+
 static LookupTable calibration_scaler_h_filter = { .ptr = _calibration_scaler_h_filter, .rows = 1, .cols = sizeof(_calibration_scaler_h_filter) / sizeof(_calibration_scaler_h_filter[0]), .width = sizeof(_calibration_scaler_h_filter[0] ) };
 static LookupTable calibration_awb_zone_wght_ver = { .ptr = _calibration_awb_zone_wght_ver, .rows = 1, .cols = sizeof(_calibration_awb_zone_wght_ver) / sizeof(_calibration_awb_zone_wght_ver[0]), .width = sizeof(_calibration_awb_zone_wght_ver[0] ) };
 static LookupTable calibration_awb_bg_max_gain = { .ptr = _calibration_awb_bg_max_gain, .cols = 2, .rows = sizeof(_calibration_awb_bg_max_gain) / sizeof(_calibration_awb_bg_max_gain[0]), .width = sizeof(_calibration_awb_bg_max_gain[0][0] ) };
@@ -512,6 +532,8 @@ static LookupTable calibration_saturation_strength = { .ptr = _calibration_satur
 static LookupTable calibration_stitching_lm_mov_mult = { .ptr = _calibration_stitching_lm_mov_mult, .cols = 2, .rows = sizeof(_calibration_stitching_lm_mov_mult) / sizeof(_calibration_stitching_lm_mov_mult[0]), .width = sizeof(_calibration_stitching_lm_mov_mult[0][0] ) };
 static LookupTable calibration_ae_exposure_correction = { .ptr = _calibration_ae_exposure_correction, .rows = 1, .cols = sizeof(_calibration_ae_exposure_correction) / sizeof(_calibration_ae_exposure_correction[0]), .width = sizeof(_calibration_ae_exposure_correction[0] ) };
 static LookupTable calibration_af_zone_wght_hor = { .ptr = _calibration_af_zone_wght_hor, .rows = 1, .cols = sizeof(_calibration_af_zone_wght_hor) / sizeof(_calibration_af_zone_wght_hor[0]), .width = sizeof(_calibration_af_zone_wght_hor[0] ) };
+static LookupTable calibration_zoom_lms = {.ptr = _calibration_zoom_lms, .rows = 1, .cols = sizeof(_calibration_zoom_lms)/sizeof(_calibration_zoom_lms[0]), .width = sizeof( _calibration_zoom_lms[0])};
+static LookupTable calibration_zoom_af_lms = {.ptr = _calibration_zoom_af_lms, .rows = sizeof( _calibration_zoom_af_lms ) / sizeof( _calibration_zoom_af_lms[0] ), .cols = 21, .width = sizeof( _calibration_zoom_af_lms[0][0] )};
 
 uint32_t get_calibrations_dynamic_linear_dummy( ACameraCalibrations *c ) {
 //uint32_t get_dynamic_calibrations( ApicalCalibrations * c ) {
@@ -578,6 +600,8 @@ uint32_t get_calibrations_dynamic_linear_dummy( ACameraCalibrations *c ) {
         c->calibrations[CALIBRATION_STITCHING_LM_MOV_MULT] = &calibration_stitching_lm_mov_mult;
         c->calibrations[CALIBRATION_AE_EXPOSURE_CORRECTION] = &calibration_ae_exposure_correction;
         c->calibrations[CALIBRATION_AF_ZONE_WGHT_HOR] = &calibration_af_zone_wght_hor;
+	c->calibrations[CALIBRATION_ZOOM_LMS] = &calibration_zoom_lms;
+	c->calibrations[CALIBRATION_ZOOM_AF_LMS] = &calibration_zoom_af_lms;
     } else {
         result = -1;
     }

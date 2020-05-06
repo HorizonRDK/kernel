@@ -31,7 +31,7 @@
 
 
 extern void af_set_new_param( AF_fsm_ptr_t p_fsm, sbuf_af_t *p_sbuf_af );
-extern void zoom_update_lens_position(AF_fsm_ptr_t p_fsm);
+extern int zoom_update_lens_position(AF_fsm_ptr_t p_fsm);
 
 void AF_fsm_clear( AF_fsm_t *p_fsm )
 {
@@ -178,10 +178,12 @@ int AF_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_t input_
 
         uint32_t zoom_manual = *(uint32_t *)input;
 
-        if ((zoom_manual <= 80) && (zoom_manual >= 10)) {
+        if ((zoom_manual <= 200) && (zoom_manual >= 10)) {
             p_fsm->zoom_manual_pos = zoom_manual;
+	    rc = zoom_update_lens_position(p_fsm);
+	    if (rc)
+		p_fsm->zoom_manual_pos = p_fsm->zoom_curr_pos;
         }
-	zoom_update_lens_position(p_fsm);
 
         break;
     }

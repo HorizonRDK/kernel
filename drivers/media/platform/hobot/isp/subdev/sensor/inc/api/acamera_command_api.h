@@ -171,13 +171,15 @@
 #define CALIBRATION_AE_CONTROL_HDR_TARGET                 0x0000006F
 #define CALIBRATION_AE_CONTROL                            0x00000070
 #define CALIBRATION_CUSTOM_SETTINGS_CONTEXT               0x00000071
+#define CALIBRATION_ZOOM_LMS                              0x00000072
+#define CALIBRATION_ZOOM_AF_LMS                           0x00000073
 
 
 // ------------------------------------------------------------------------------ //
 //		DYNAMIC STATE VALUES
 // ------------------------------------------------------------------------------ //
 
-#define CALIBRATION_TOTAL_SIZE 114
+#define CALIBRATION_TOTAL_SIZE 116
 //------------------FILE TRANSFER-------------------
 
 
