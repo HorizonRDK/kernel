@@ -55,8 +55,8 @@
 #endif
 
 /* max size */
-#define ISP_V4L2_MAX_WIDTH 3840
-#define ISP_V4L2_MAX_HEIGHT 2160
+#define ISP_V4L2_MAX_WIDTH 4000
+#define ISP_V4L2_MAX_HEIGHT 3000
 
 /* default size & format */
 #define ISP_DEFAULT_FORMAT V4L2_PIX_FMT_RGB32
@@ -351,8 +351,8 @@ void callback_dma_free_coherent( uint32_t ctx_id, uint64_t size, void *virt_addr
 {
     isp_v4l2_dev_t *isp_v4l2_dev = isp_v4l2_get_dev( ctx_id );
 
-    if (IS_ERR(isp_v4l2_dev->client) == 0) {
-	    if (IS_ERR(isp_v4l2_dev->handle) == 0) {
+    if (isp_v4l2_dev->client != NULL && IS_ERR(isp_v4l2_dev->client) == 0) {
+	    if (isp_v4l2_dev->handle != NULL && IS_ERR(isp_v4l2_dev->handle) == 0) {
 		    ion_unmap_kernel(isp_v4l2_dev->client, isp_v4l2_dev->handle);
 		    ion_free(isp_v4l2_dev->client, isp_v4l2_dev->handle);
 	    }
@@ -455,7 +455,9 @@ int callback_stream_get_frame( uint32_t ctx_id, acamera_stream_type_t type, afra
     pr_debug("stream_buffer_list_busy count %d", cnt);
 //debug end
 
-    if ( !list_empty( &pstream->stream_buffer_list ) ) {
+    if (!list_empty(&pstream->stream_buffer_list_busy)) {
+        pbuf = list_entry(pstream->stream_buffer_list_busy.next, isp_v4l2_buffer_t, list);
+    } else if (!list_empty( &pstream->stream_buffer_list)) {
         pbuf = list_entry( pstream->stream_buffer_list.next, isp_v4l2_buffer_t, list );
         list_del( &pbuf->list );
         list_add_tail( &pbuf->list, &pstream->stream_buffer_list_busy );
