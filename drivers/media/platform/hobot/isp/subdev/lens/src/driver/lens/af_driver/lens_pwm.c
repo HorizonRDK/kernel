@@ -198,7 +198,7 @@ struct pwm_device *lens_pwm_request(uint32_t chn, const char *name,
 
 	LOG(LOG_DEBUG, "start request pwm driver!");
 	pwm_dev = pwm_request(chn, name);
-	if (pwm_dev == NULL) {
+	if (IS_ERR_OR_NULL(pwm_dev)) {
 		LOG(LOG_ERR, "can not get pwm device");
 	} else {
 		if (dev_type == PWM_TYPE) {

@@ -218,6 +218,10 @@ void free_ctx_param(struct basic_control_ops **ops, struct motor_param_s *param)
 		return;
 	}
 
+	if (*ops == NULL) {
+		return;
+	}
+
 	if (param->motor_type == I2C_TYPE) {
 		lens_i2c_release(param->i2c_param.i2c_dev);
 		param->i2c_param.i2c_dev = NULL;
