@@ -217,16 +217,18 @@ static int axp15060_pdata_from_dt(struct device *dev,
 
 	pdata->regulators = devm_kzalloc(dev,
 					 sizeof(struct axp15060_regulator_data) *
-					 num_matches, GFP_KERNEL);
+					 matched, GFP_KERNEL);
 	if (!pdata->regulators) {
 		dev_err(dev, "malloc for regulators fail, %d\n", -ENOMEM);
 		return -ENOMEM;
 	}
 
-	pdata->num_regulators = num_matches;
+	pdata->num_regulators = matched;
 	regulator = pdata->regulators;
 
 	for (i = 0; i < num_matches; i++) {
+		if (!matches[i].init_data)
+			continue;
 		regulator->id = i;
 		regulator->name = matches[i].name;
 		regulator->init_data = matches[i].init_data;
@@ -341,10 +343,11 @@ static int axp15060_pmic_probe(struct i2c_client *client,
 		config.regmap = axp15060->regmap;
 
 		rdata = axp15060_get_regulator_data(desc->id, pdata);
-		if (rdata) {
-			config.init_data = rdata->init_data;
-			config.of_node = rdata->of_node;
-		}
+		if (!rdata)
+			continue;
+
+		config.init_data = rdata->init_data;
+		config.of_node = rdata->of_node;
 
 		rdev = devm_regulator_register(dev, desc, &config);
 		if (IS_ERR(rdev)) {

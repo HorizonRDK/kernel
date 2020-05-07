@@ -50,35 +50,6 @@
 				regulator-max-microvolt = <1000000>;
 				regulator-always-on;
 			};
-
-			ddr_ao_1v1: DCDC5 {
-				regulator-name = "DDR_AO_1V1";
-				regulator-min-microvolt = <1100000>;
-				regulator-max-microvolt = <1100000>;
-				regulator-always-on;
-			};
-
-			ddr_pd_reg: DCDC6 {
-				regulator-name = "VDD_DDR_PD";
-				regulator-min-microvolt = <800000>;
-				regulator-max-microvolt = <800000>;
-				regulator-always-on;
-			};
-
-			core_ao_reg: BLDO1 {
-				regulator-name = "VDD_CORE_AO";
-				regulator-min-microvolt = <800000>;
-				regulator-max-microvolt = <800000>;
-				regulator-always-on;
-			};
-
-			sys_pd_1v8_reg: CLDO2 {
-				regulator-name = "VDD_1V8";
-				regulator-min-microvolt = <1800000>;
-				regulator-max-microvolt = <1800000>;
-				regulator-always-on;
-			};
-
 		};
 	};
 
