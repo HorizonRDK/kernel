@@ -72,6 +72,7 @@ module_param(init_num, uint, 0644);
 #endif
 
 #define MIPI_DEV_INT_DBG			(1)
+#define MIPI_DEV_SYSFS_FATAL_EN     (0)
 
 #define MIPI_DEV_CSI2_RAISE			(0x01)
 #define MIPI_DEV_CSI2_RESETN		(0x00)
@@ -104,7 +105,7 @@ module_param(init_num, uint, 0644);
 #define MIPI_DEV_VPG_LINENUM		(0x00 << 9)
 #define MIPI_DEV_VPG_HSYNC_DIS		(0x00)
 #define MIPI_DEV_VPG_HSYNC_EN		(0x01)
-#define MIPI_DEV_VPG_HSYNC			(MIPI_DEV_VPG_HSYNC_DIS << 8)
+#define MIPI_DEV_VPG_HSYNC(hsync)	((hsync)<< 8)
 #define MIPI_DEV_VPG_VCX(vc)		(((vc) & 0x1C) << 10)
 #define MIPI_DEV_VPG_VC(vc)			(((vc) & 0x3) << 6)
 #define MIPI_DEV_VPG_HSA_TIME		(0x4e)
@@ -231,6 +232,7 @@ typedef struct _mipi_dev_icnt_s {
 	uint32_t idi_vcx;
 	uint32_t idi_vcx2;
 } mipi_dev_icnt_t;
+#define MIPI_DEV_ICNT_NUM (sizeof(mipi_dev_icnt_t)/sizeof(uint32_t))
 
 static const char *g_md_icnt_names[] = {
 	"st_main",
@@ -703,6 +705,7 @@ static int32_t mipi_dev_configure_vpg(mipi_ddev_t *ddev, mipi_dev_cfg_t *cfg)
 {
 	struct device *dev = ddev->dev;
 	mipi_dev_t *mdev = &ddev->mdev;
+	mipi_dev_param_t *param = &mdev->param;
 	void __iomem *iomem = mdev->iomem;
 	uint8_t    ncount = 0;
 	uint32_t   status = 0;
@@ -733,8 +736,14 @@ static int32_t mipi_dev_configure_vpg(mipi_ddev_t *ddev, mipi_dev_cfg_t *cfg)
 	ori = (cfg->vpg >> 1) & 0x1;
 	mipi_putreg(iomem + REG_MIPI_DEV_VPG_MODE_CFG, MIPI_DEV_VPG_ORI(ori) |
 		MIPI_DEV_VPG_MODE(mode));
-	mipi_putreg(iomem + REG_MIPI_DEV_VPG_PKT_CFG, MIPI_DEV_VPG_LINENUM | MIPI_DEV_VPG_HSYNC |
-		MIPI_DEV_VPG_VCX(vc) | MIPI_DEV_VPG_VC(vc) | cfg->datatype);
+	if (param->hsync_pkt)
+		mipi_putreg(iomem + REG_MIPI_DEV_VPG_PKT_CFG, MIPI_DEV_VPG_LINENUM |
+			MIPI_DEV_VPG_HSYNC(MIPI_DEV_VPG_HSYNC_EN) |
+			MIPI_DEV_VPG_VCX(vc) | MIPI_DEV_VPG_VC(vc) | cfg->datatype);
+	else
+		mipi_putreg(iomem + REG_MIPI_DEV_VPG_PKT_CFG, MIPI_DEV_VPG_LINENUM |
+			MIPI_DEV_VPG_HSYNC(MIPI_DEV_VPG_HSYNC_DIS) |
+			MIPI_DEV_VPG_VCX(vc) | MIPI_DEV_VPG_VC(vc) | cfg->datatype);
 	mipi_putreg(iomem + REG_MIPI_DEV_VPG_PKT_SIZE, cfg->width);
 	mipi_putreg(iomem + REG_MIPI_DEV_VPG_HSA_TIME, MIPI_DEV_VPG_HSA_TIME);
 	mipi_putreg(iomem + REG_MIPI_DEV_VPG_HBP_TIME, MIPI_DEV_VPG_HBP_TIME);
@@ -865,13 +874,13 @@ static void mipi_dev_diag_report(mipi_ddev_t *ddev,
 		uint8_t errsta, uint32_t total_irq,
 		uint32_t *sub_irq_data, uint32_t elem_cnt)
 {
-	uint32_t buff[6];
+	uint32_t buff[MIPI_DEV_ICNT_NUM];
 	int i;
 
 	ddev->last_err_tm_ms = jiffies_to_msecs(get_jiffies_64());
 	if (errsta) {
 		buff[0] = total_irq;
-		for (i = 0; i < elem_cnt; i++)
+		for (i = 0; i < elem_cnt && i < (MIPI_DEV_ICNT_NUM - 1); i++)
 			buff[1 + i] = sub_irq_data[i];
 
 		diag_send_event_stat_and_env_data(
@@ -881,7 +890,7 @@ static void mipi_dev_diag_report(mipi_ddev_t *ddev,
 				DiagEventStaFail,
 				DiagGenEnvdataWhenErr,
 				(uint8_t *)buff,
-				24);
+				sizeof(buff));
 	}
 }
 
@@ -903,6 +912,22 @@ static void mipi_dev_diag_timer_func(unsigned long data)
 	mod_timer(&ddev->diag_timer, jiffi); // trriger again.
 }
 
+static void mipi_dev_diag_test(void *p, size_t len)
+{
+	mipi_ddev_t *ddev;
+	void __iomem *iomem;
+	int i;
+
+	for (i = 0; i < MIPI_DEV_MAX_NUM; i ++) {
+		ddev = g_ddev[i];
+		if (!ddev)
+			continue;
+		iomem = ddev->mdev.iomem;
+		if (!iomem)
+			continue;
+		mipi_putreg(iomem + REG_MIPI_DEV_INT_FORCE_PHY, 0x1);
+	}
+}
 
 static const uint32_t mipi_dev_int_st[] = {
 	/* reg offset,                mask,                      icnt */
@@ -938,7 +963,7 @@ static irqreturn_t mipi_dev_irq_func(int this_irq, void *data)
 	const uint32_t *st;
 	int i, num;
 	uint8_t err_occurred = 0;
-	uint32_t env_subirq[sizeof(mipi_dev_icnt_t)/sizeof(uint32_t)] = {0};
+	uint32_t env_subirq[MIPI_DEV_ICNT_NUM - 1] = {0};
 
 	if (!ddev || !iomem)
 		return IRQ_NONE;
@@ -1819,10 +1844,118 @@ static const struct attribute_group status_attr_group = {
 	.attrs = status_attr,
 };
 
+#if MIPI_DEV_INT_DBG && MIPI_DEV_SYSFS_FATAL_EN
+/* sysfs for mipi dev devices' fatal */
+static uint32_t mipi_dev_fatal_st_reg(const char *name)
+{
+	const uint32_t *st;
+	int i, num;
+
+	st = mipi_dev_int_st;
+	num = ARRAY_SIZE(mipi_dev_int_st);
+	if (strcmp(g_md_icnt_names[0], name) == 0)
+		return REG_MIPI_DEV_INT_ST_MAIN;
+	for (i = 0; i < num; i += 3) {
+		if (strcmp(g_md_icnt_names[st[i + 2]], name) == 0)
+			return (st[i]);
+	}
+
+	return 0;
+}
+
+static ssize_t mipi_dev_fatal_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	mipi_ddev_t *ddev = dev_get_drvdata(dev);
+	void __iomem *iomem = ddev->mdev.iomem;
+	char *s = buf;
+	uint32_t reg;
+
+	reg = mipi_dev_fatal_st_reg(attr->attr.name);
+	if (reg > 0)
+		s += sprintf(s, "0x%08x\n", mipi_getreg(iomem + reg));
+
+	return (s - buf);
+}
+
+static ssize_t mipi_dev_fatal_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	mipi_ddev_t *ddev = dev_get_drvdata(dev);
+	void __iomem *iomem = ddev->mdev.iomem;
+	int ret, error = -EINVAL;
+	uint32_t reg, val;
+	const uint32_t *st;
+	int i, num;
+
+	reg = mipi_dev_fatal_st_reg(attr->attr.name);
+	if (reg >= 0) {
+		ret = kstrtouint(buf, 0, &val);
+		if (!ret) {
+			if (reg == REG_MIPI_DEV_INT_ST_MAIN) {
+				st = mipi_dev_int_st;
+				num = ARRAY_SIZE(mipi_dev_int_st);
+				for (i = 0; i < num; i += 3) {
+					if (val & st[i + 1]) {
+						reg = st[i];
+						reg = REG_MIPI_DEV_INT_FORCE_VPG +
+							(reg - REG_MIPI_DEV_INT_ST_VPG) * 2;
+						mipi_putreg(iomem + reg, 0x1);
+					}
+				}
+			} else {
+				reg = REG_MIPI_DEV_INT_FORCE_VPG +
+					(reg - REG_MIPI_DEV_INT_ST_VPG) * 2;
+				mipi_putreg(iomem + reg, val);
+			}
+			error = 0;
+		}
+	}
+
+	return (error ? error : count);
+}
+
+#define MIPI_DEV_FATAL_DEC(a) \
+	MIPI_DEV_ATTR_DEC(a, 0644, \
+		mipi_dev_fatal_show, mipi_dev_fatal_store)
+#define MIPI_DEV_FATAL_ADD(a) \
+	MIPI_DEV_ATTR_ADD(a)
+
+MIPI_DEV_FATAL_DEC(st_main);
+MIPI_DEV_FATAL_DEC(vpg);
+MIPI_DEV_FATAL_DEC(idi);
+MIPI_DEV_FATAL_DEC(ipi);
+MIPI_DEV_FATAL_DEC(phy);
+MIPI_DEV_FATAL_DEC(mt_ipi);
+MIPI_DEV_FATAL_DEC(idi_vcx);
+MIPI_DEV_FATAL_DEC(idi_vcx2);
+
+static struct attribute *fatal_attr[] = {
+	MIPI_DEV_FATAL_ADD(st_main),
+	MIPI_DEV_FATAL_ADD(vpg),
+	MIPI_DEV_FATAL_ADD(idi),
+	MIPI_DEV_FATAL_ADD(ipi),
+	MIPI_DEV_FATAL_ADD(phy),
+	MIPI_DEV_FATAL_ADD(mt_ipi),
+	MIPI_DEV_FATAL_ADD(idi_vcx),
+	MIPI_DEV_FATAL_ADD(idi_vcx2),
+	NULL,
+};
+
+static const struct attribute_group fatal_attr_group = {
+	.name = __stringify(fatal),
+	.attrs = fatal_attr,
+};
+#endif
+
+
 /* sysfs attr groups */
 static const struct attribute_group *attr_groups[] = {
 	&param_attr_group,
 	&status_attr_group,
+#if MIPI_DEV_INT_DBG && MIPI_DEV_SYSFS_FATAL_EN
+	&fatal_attr_group,
+#endif
 	NULL,
 };
 
@@ -1900,7 +2033,7 @@ static int hobot_mipi_dev_probe_cdev(mipi_ddev_t *ddev)
 
 	/* diag */
 	if (diag_register(ModuleDiag_VIO, EventIdVioMipiDevErr,
-						24, 300, 5000, NULL) < 0) {
+		sizeof(mipi_dev_icnt_t), 300, 5000, mipi_dev_diag_test) < 0) {
 		pr_err("mipi dev %d diag register fail\n", ddev->port);
 	} else {
 		ddev->last_err_tm_ms = 0;

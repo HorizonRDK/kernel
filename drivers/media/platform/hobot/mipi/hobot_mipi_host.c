@@ -78,6 +78,7 @@ module_param(init_num, uint, 0644);
 #endif
 
 #define MIPI_HOST_INT_DBG		   (1)
+#define MIPI_HOST_SYSFS_FATAL_EN   (0)
 
 #define MIPI_HOST_INT_PHY_FATAL    (0x1)
 #define MIPI_HOST_INT_PKT_FATAL    (0x1<<1)
@@ -1041,6 +1042,23 @@ static void mipi_host_diag_timer_func(unsigned long data)
 	}
 	jiffi = get_jiffies_64() + msecs_to_jiffies(2000);
 	mod_timer(&hdev->diag_timer, jiffi); // trriger again.
+}
+
+static void mipi_host_diag_test(void *p, size_t len)
+{
+	mipi_hdev_t *hdev;
+	void __iomem *iomem;
+	int i;
+
+	for (i = 0; i < MIPI_HOST_MAX_NUM; i ++) {
+		hdev = g_hdev[i];
+		if (!hdev)
+			continue;
+		iomem = hdev->host.iomem;
+		if (!iomem)
+			continue;
+		mipi_putreg(iomem + REG_MIPI_HOST_INT_FORCE_PHY, 0x1);
+	}
 }
 
 #ifdef CONFIG_X2_SYSNOTIFY
@@ -2149,10 +2167,139 @@ static const struct attribute_group status_attr_group = {
 	.attrs = status_attr,
 };
 
+#if MIPI_HOST_INT_DBG && MIPI_HOST_SYSFS_FATAL_EN
+/* sysfs for mipi host devices' fatal */
+static uint32_t mipi_host_fatal_st_reg(void __iomem *iomem, const char *name)
+{
+	const uint32_t *st;
+	int i, num;
+
+	if (MIPI_HOST_IS_1P4(iomem)) {
+		st = mipi_host_1p4_int_st;
+		num = ARRAY_SIZE(mipi_host_1p4_int_st);
+	} else {
+		st = mipi_host_int_st;
+		num = ARRAY_SIZE(mipi_host_int_st);
+	}
+	if (strcmp(g_mh_icnt_names[0], name) == 0)
+		return REG_MIPI_HOST_INT_ST_MAIN;
+	for (i = 0; i < num; i += 3) {
+		if (strcmp(g_mh_icnt_names[st[i + 2]], name) == 0)
+			return (st[i]);
+	}
+
+	return 0;
+}
+
+static ssize_t mipi_host_fatal_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	mipi_hdev_t *hdev = dev_get_drvdata(dev);
+	void __iomem *iomem = hdev->host.iomem;
+	char *s = buf;
+	uint32_t reg;
+
+	reg = mipi_host_fatal_st_reg(iomem, attr->attr.name);
+	if (reg > 0)
+		s += sprintf(s, "0x%08x\n", mipi_getreg(iomem + reg));
+
+	return (s - buf);
+}
+
+static ssize_t mipi_host_fatal_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	mipi_hdev_t *hdev = dev_get_drvdata(dev);
+	void __iomem *iomem = hdev->host.iomem;
+	int ret, error = -EINVAL;
+	uint32_t reg, val;
+	const uint32_t *st;
+	int i, num;
+
+	reg = mipi_host_fatal_st_reg(iomem, attr->attr.name);
+	if (reg > 0) {
+		ret = kstrtouint(buf, 0, &val);
+		if (!ret) {
+			if (reg == REG_MIPI_HOST_INT_ST_MAIN) {
+				if (MIPI_HOST_IS_1P4(iomem)) {
+					st = mipi_host_1p4_int_st;
+					num = ARRAY_SIZE(mipi_host_1p4_int_st);
+				} else {
+					st = mipi_host_int_st;
+					num = ARRAY_SIZE(mipi_host_int_st);
+				}
+				for (i = 0; i < num; i += 3) {
+					if (val & st[i + 1])
+						mipi_putreg(iomem + st[i] + 0x8, 0x1);
+				}
+			} else {
+				mipi_putreg(iomem + reg + 0x8, val);
+			}
+			error = 0;
+		}
+	}
+
+	return (error ? error : count);
+}
+
+#define MIPI_HOST_FATAL_DEC(a) \
+	MIPI_HOST_ATTR_DEC(a, 0644, \
+		mipi_host_fatal_show, mipi_host_fatal_store)
+#define MIPI_HOST_FATAL_ADD(a) \
+	MIPI_HOST_ATTR_ADD(a)
+
+MIPI_HOST_FATAL_DEC(st_main);
+MIPI_HOST_FATAL_DEC(phy_fatal);
+MIPI_HOST_FATAL_DEC(pkt_fatal);
+MIPI_HOST_FATAL_DEC(frm_fatal);
+MIPI_HOST_FATAL_DEC(bndry_frm_fatal);
+MIPI_HOST_FATAL_DEC(seq_frm_fatal);
+MIPI_HOST_FATAL_DEC(crc_frm_fatal);
+MIPI_HOST_FATAL_DEC(pld_crc_fatal);
+MIPI_HOST_FATAL_DEC(data_id);
+MIPI_HOST_FATAL_DEC(ecc_corrected);
+MIPI_HOST_FATAL_DEC(phy);
+MIPI_HOST_FATAL_DEC(pkt);
+MIPI_HOST_FATAL_DEC(line);
+MIPI_HOST_FATAL_DEC(ipi);
+MIPI_HOST_FATAL_DEC(ipi2);
+MIPI_HOST_FATAL_DEC(ipi3);
+MIPI_HOST_FATAL_DEC(ipi4);
+
+static struct attribute *fatal_attr[] = {
+	MIPI_HOST_FATAL_ADD(st_main),
+	MIPI_HOST_FATAL_ADD(phy_fatal),
+	MIPI_HOST_FATAL_ADD(pkt_fatal),
+	MIPI_HOST_FATAL_ADD(frm_fatal),
+	MIPI_HOST_FATAL_ADD(bndry_frm_fatal),
+	MIPI_HOST_FATAL_ADD(seq_frm_fatal),
+	MIPI_HOST_FATAL_ADD(crc_frm_fatal),
+	MIPI_HOST_FATAL_ADD(pld_crc_fatal),
+	MIPI_HOST_FATAL_ADD(data_id),
+	MIPI_HOST_FATAL_ADD(ecc_corrected),
+	MIPI_HOST_FATAL_ADD(phy),
+	MIPI_HOST_FATAL_ADD(pkt),
+	MIPI_HOST_FATAL_ADD(line),
+	MIPI_HOST_FATAL_ADD(ipi),
+	MIPI_HOST_FATAL_ADD(ipi2),
+	MIPI_HOST_FATAL_ADD(ipi3),
+	MIPI_HOST_FATAL_ADD(ipi4),
+	NULL,
+};
+
+static const struct attribute_group fatal_attr_group = {
+	.name = __stringify(fatal),
+	.attrs = fatal_attr,
+};
+#endif
+
 /* sysfs attr groups */
 static const struct attribute_group *attr_groups[] = {
 	&param_attr_group,
 	&status_attr_group,
+#if MIPI_HOST_INT_DBG && MIPI_HOST_SYSFS_FATAL_EN
+	&fatal_attr_group,
+#endif
 	NULL,
 };
 
@@ -2230,7 +2377,7 @@ static int hobot_mipi_host_probe_cdev(mipi_hdev_t *hdev)
 
 	/* diag */
 	if (diag_register(ModuleDiag_VIO, EventIdVioMipiHost0Err + hdev->port,
-						4, 400, 6000, NULL) < 0) {
+						4, 400, 6000, mipi_host_diag_test) < 0) {
 		pr_err("mipi host %d diag register fail\n", hdev->port);
 	} else {
 		hdev->last_err_tm_ms = 0;
