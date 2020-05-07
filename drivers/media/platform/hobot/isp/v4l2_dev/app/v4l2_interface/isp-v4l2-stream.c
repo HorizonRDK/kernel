@@ -357,6 +357,8 @@ void callback_dma_free_coherent( uint32_t ctx_id, uint64_t size, void *virt_addr
 		    ion_free(isp_v4l2_dev->client, isp_v4l2_dev->handle);
 	    }
 	    ion_client_destroy(isp_v4l2_dev->client);
+        isp_v4l2_dev->client = NULL;
+        isp_v4l2_dev->handle = NULL;
     }
 }
 #else

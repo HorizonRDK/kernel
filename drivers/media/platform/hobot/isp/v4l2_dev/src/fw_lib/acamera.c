@@ -857,7 +857,7 @@ int32_t acamera_interrupt_handler()
 static void set_dma_cmd_queue(dma_cmd *cmd, uint32_t ping_pong_sel)
 {
     cmd[0].ctx = g_firmware.dma_chan_isp_metering;
-    cmd[0].buff_loc = ping_pong_sel;
+    cmd[0].buff_loc = !ping_pong_sel;
     cmd[0].direction = SYS_DMA_FROM_DEVICE;
     cmd[0].complete_func = dma_complete_metering_func;
     cmd[0].fw_ctx_id = last_ctx_id;
@@ -879,12 +879,12 @@ void isp_ctx_prepare(int ctx_pre, int ctx_next, int ppf)
 		set_dma_cmd_queue(cmd, ppf);
 		system_dma_copy_multi_sg(cmd, 2);
 	} else {
-		system_dma_copy_sg(g_firmware.dma_chan_isp_metering, ppf, SYS_DMA_FROM_DEVICE, dma_complete_metering_func, ctx_pre);
+		system_dma_copy_sg(g_firmware.dma_chan_isp_metering, !ppf, SYS_DMA_FROM_DEVICE, dma_complete_metering_func, ctx_pre);
 		system_dma_copy_sg(g_firmware.dma_chan_isp_config, ppf, SYS_DMA_TO_DEVICE, dma_complete_context_func, ctx_next);
 		isp_idma_start_transfer(&g_hobot_dma);
 	}
 #else
-	system_dma_copy_sg(g_firmware.dma_chan_isp_metering, ppf, SYS_DMA_FROM_DEVICE, dma_complete_metering_func, ctx_pre);
+	system_dma_copy_sg(g_firmware.dma_chan_isp_metering, !ppf, SYS_DMA_FROM_DEVICE, dma_complete_metering_func, ctx_pre);
 	system_dma_copy_sg(g_firmware.dma_chan_isp_config, ppf, SYS_DMA_TO_DEVICE, dma_complete_context_func, ctx_next);
 #endif
 }

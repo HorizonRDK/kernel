@@ -576,6 +576,8 @@ int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settin
         acamera_load_sw_sequence( p_ctx->settings.isp_base, p_ctx->isp_sequence, SENSOR_ISP_SEQUENCE_DEFAULT_SETTINGS_CONTEXT );
 #endif
 
+        acamera_isp_iridix_context_no_write(p_ctx->settings.isp_base, p_ctx->context_id);
+
 #if ISP_DMA_RAW_CAPTURE
         dma_raw_capture_init( g_fw );
 #endif
