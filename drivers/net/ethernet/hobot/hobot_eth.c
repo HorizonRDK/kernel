@@ -78,7 +78,7 @@ static int xj3_mdio_read(struct mii_bus *bus, int mii_id, int phyreg) {
     int i;
     int data;
 
-    pr_debug("%s, reg:0x%x\n", __func__, phyreg);
+    dev_dbg(priv->device, "%s, reg:0x%x\n", __func__, phyreg);
     regval = DWCEQOS_MDIO_PHYADDR(mii_id) | DWCEQOS_MDIO_PHYREG(phyreg) |
              DWCEQOS_MAC_MDIO_ADDR_CR(priv->csr_val) |
              DWCEQOS_MAC_MDIO_ADDR_GB | DWCEQOS_MAC_MDIO_ADDR_GOC_READ;
@@ -97,7 +97,8 @@ static int xj3_mdio_read(struct mii_bus *bus, int mii_id, int phyreg) {
         data = 0xffff;
     }
 
-    pr_debug("%s, reg:0x%x, data:0x%x\n", __func__, phyreg, data & 0xffff);
+    dev_dbg(priv->device, "%s, reg:0x%x, data:0x%x\n", __func__, phyreg,
+            data & 0xffff);
     return data & 0xffff;
 }
 
@@ -133,9 +134,9 @@ static int xj3_dt_phy(struct plat_config_data *plat, struct device_node *np,
     };
 
     plat->phy_node = of_parse_phandle(np, "phy-handle", 0);
-    if (plat->phy_node) pr_info("found phy-handle subnode\n");
+    if (plat->phy_node) dev_info(dev, "found phy-handle subnode\n");
 
-    pr_debug("%s, plat->phy_node: %p\n", __func__, plat->phy_node);
+    dev_dbg(dev, "%s, plat->phy_node: %p\n", __func__, plat->phy_node);
 
     if (!plat->phy_node && of_phy_is_fixed_link(np)) {
         if ((of_phy_register_fixed_link(np) < 0)) return -ENODEV;
@@ -179,7 +180,8 @@ static void xj3_mtl_setup(struct platform_device *pdev,
 
     rx_node = of_get_child_by_name(pdev->dev.of_node, "snps,mtl-rx-config");
     if (!rx_node) {
-        pr_info("%s, snps,mtl-rx-config rx-node is NULL\n", __func__);
+        dev_info(&pdev->dev, "%s, snps,mtl-rx-config rx-node is NULL\n",
+                 __func__);
         return;
     }
 
@@ -194,8 +196,8 @@ static void xj3_mtl_setup(struct platform_device *pdev,
                              &plat->tx_queues_to_use))
         plat->tx_queues_to_use = 1;
 
-    pr_info("%s, plat->rx-queues-to-use:%d, and tx:%d\n", __func__,
-            plat->rx_queues_to_use, plat->tx_queues_to_use);
+    dev_info(&pdev->dev, "%s, plat->rx-queues-to-use:%d, and tx:%d\n", __func__,
+             plat->rx_queues_to_use, plat->tx_queues_to_use);
 
     if (of_property_read_bool(rx_node, "snps,rx-sched-sp"))
         plat->rx_sched_algorithm = MTL_RX_ALGORITHM_SP;
@@ -351,7 +353,7 @@ struct plat_config_data *xj3_probe_config_dt(struct platform_device *pdev,
     plat->phy_addr = -1;
 
     if (of_property_read_u32(np, "snps,phy-addr", &plat->phy_addr) == 0)
-        pr_info("snps, phy-addr property is deprecated\n");
+        dev_info(&pdev->dev, "snps, phy-addr property is deprecated\n");
 
     if (xj3_dt_phy(plat, np, &pdev->dev)) return ERR_PTR(-ENODEV);
 
@@ -411,40 +413,40 @@ struct plat_config_data *xj3_probe_config_dt(struct platform_device *pdev,
     xj3_mtl_setup(pdev, plat);
     plat->xj3_mac_pre_div_clk = devm_clk_get(&pdev->dev, "eth0_pre_clk");
     if (IS_ERR(plat->xj3_mac_pre_div_clk)) {
-        pr_info("mac pre div clk clock not found\n");
+        dev_info(&pdev->dev, "mac pre div clk clock not found\n");
         goto err_out;
     }
     ret = clk_prepare_enable(plat->xj3_mac_pre_div_clk);
     if (ret) {
-        pr_info("unable to enable mac pre div clk\n");
+        dev_info(&pdev->dev, "unable to enable mac pre div clk\n");
         goto err_out;
     }
 
     plat->xj3_mac_div_clk = devm_clk_get(&pdev->dev, "eth0_clk");
     if (IS_ERR(plat->xj3_mac_div_clk)) {
-        pr_info("mac div clk not found\n");
+        dev_info(&pdev->dev, "mac div clk not found\n");
         goto err_mac_div_clk;
     }
 
     ret = clk_prepare_enable(plat->xj3_mac_div_clk);
     if (ret) {
-        pr_info("unable to enable mac div clk\n");
+        dev_info(&pdev->dev, "unable to enable mac div clk\n");
         goto err_mac_div_clk;
     }
 
     plat->clk_ptp_ref = devm_clk_get(&pdev->dev, "sys_div_pclk");
     if (IS_ERR(plat->clk_ptp_ref)) {
-        pr_info("ethernet: ptp cloock not found\n");
+        dev_info(&pdev->dev, "ethernet: ptp cloock not found\n");
         goto err_ptp_ref;
     }
     ret = clk_prepare_enable(plat->clk_ptp_ref);
     if (ret) {
-        pr_info("unable to enable ptp clk\n");
+        dev_info(&pdev->dev, "unable to enable ptp clk\n");
         goto err_ptp_ref;
     }
 
     plat->clk_ptp_rate = clk_get_rate(plat->clk_ptp_ref);
-    pr_info("%s, clk_ptp_rate:%d\n", __func__, plat->clk_ptp_rate);
+    dev_info(&pdev->dev, "%s, clk_ptp_rate:%d\n", __func__, plat->clk_ptp_rate);
     plat->cdc_delay = 2 * ((1000000000ULL) / plat->clk_ptp_rate);
     return plat;
 err_ptp_ref:
@@ -459,6 +461,7 @@ err_out:
 
 static int xj3_get_hw_features(void __iomem *ioaddr,
                                struct dma_features *dma_cap) {
+    struct xj3_priv *priv = container_of(ioaddr, struct xj3_priv, ioaddr);
     u32 hw_cap = readl(ioaddr + GMAC_HW_FEATURE0);
 
     /*  MAC HW feature0 */
@@ -473,7 +476,7 @@ static int xj3_get_hw_features(void __iomem *ioaddr,
     dma_cap->pmt_magic_frame = (hw_cap & GMAC_HW_FEAT_MGKSEL) >> 7;
     /* MMC */
     dma_cap->rmon = (hw_cap & GMAC_HW_FEAT_MMCSEL) >> 8;
-    pr_debug("%s, rmod:%d\n", __func__, dma_cap->rmon);
+    dev_dbg(priv->device, "%s, rmod:%d\n", __func__, dma_cap->rmon);
     /* IEEE 1588-2008 */
     dma_cap->atime_stamp = (hw_cap & GMAC_HW_FEAT_TSSEL) >> 12;
     /* 802.3az - Energy-Efficient Ethernet (EEE) */
@@ -482,8 +485,8 @@ static int xj3_get_hw_features(void __iomem *ioaddr,
     dma_cap->tx_coe = (hw_cap & GMAC_HW_FEAT_TXCOSEL) >> 14;
     dma_cap->rx_coe = (hw_cap & GMAC_HW_FEAT_RXCOESEL) >> 16;
 
-    pr_debug("%s, tx_coe:%d, rx_coe:%d\n", __func__, dma_cap->tx_coe,
-             dma_cap->rx_coe);
+    dev_dbg(priv->device, "%s, tx_coe:%d, rx_coe:%d\n", __func__,
+            dma_cap->tx_coe, dma_cap->rx_coe);
     /* MAC HW feature1 */
     hw_cap = readl(ioaddr + GMAC_HW_FEATURE1);
     dma_cap->av = (hw_cap & GMAC_HW_FEAT_AVSEL) >> 20;
@@ -495,8 +498,10 @@ static int xj3_get_hw_features(void __iomem *ioaddr,
     dma_cap->tx_fifo_size = 128 << ((hw_cap & GMAC_HW_TXFIFOSIZE) >> 6);
     dma_cap->rx_fifo_size = 128 << ((hw_cap & GMAC_HW_RXFIFOSIZE) >> 0);
 
-    pr_info("%s, tx_fifo_size:%d\n", __func__, dma_cap->tx_fifo_size);
-    pr_info("%s, rx_fifo_size:%d\n", __func__, dma_cap->rx_fifo_size);
+    dev_info(priv->device, "%s, tx_fifo_size:%d\n", __func__,
+             dma_cap->tx_fifo_size);
+    dev_info(priv->device, "%s, rx_fifo_size:%d\n", __func__,
+             dma_cap->rx_fifo_size);
     /* MAC HW feature2 */
     hw_cap = readl(ioaddr + GMAC_HW_FEATURE2);
     /* TX and RX number of channels */
@@ -597,7 +602,7 @@ static int xj3_hw_init(struct xj3_priv *priv) {
 
     if (priv->plat->force_thresh_dma_mode) priv->plat->tx_coe = 0;
 
-    if (priv->dma_cap.tsoen) pr_info("TSO supported\n");
+    if (priv->dma_cap.tsoen) dev_info(priv->device, "TSO supported\n");
     return 0;
 }
 
@@ -653,7 +658,7 @@ static int xj3_mdio_register(struct xj3_priv *priv) {
         err = mdiobus_register(new_bus);
 
     if (err != 0) {
-        pr_info("Cannot register the MDIO bus\n");
+        dev_info(priv->device, "Cannot register the MDIO bus\n");
         goto err_out;
     }
 
@@ -690,7 +695,8 @@ static int xj3_est_write(struct xj3_priv *priv, u32 reg, u32 val,
     }
 
     if (!timeout) {
-        pr_info("failed to write EST reg control 0x%x\n", control);
+        dev_info(priv->device, "failed to write EST reg control 0x%x\n",
+                 control);
         return -ETIMEDOUT;
     }
     return 0;
@@ -786,9 +792,11 @@ static int xj3_init_systime(struct xj3_priv *priv, u32 sec, u32 nsec) {
     value |= PTP_TCR_TSINIT;
     writel(value, ioaddr + PTP_TCR);
 
-    pr_debug("%s,and sec:0x%x, and nsec:0x%x\n", __func__, sec, nsec);
-    pr_debug("%s, PTP_STNSUR(0xb14):0x%x, and  PTP_TCR(0xb00):0x%x\n", __func__,
-             readl(ioaddr + PTP_STNSUR), readl(ioaddr + PTP_TCR));
+    dev_dbg(priv->device, "%s,and sec:0x%x, and nsec:0x%x\n", __func__, sec,
+            nsec);
+    dev_dbg(priv->device,
+            "%s, PTP_STNSUR(0xb14):0x%x, and  PTP_TCR(0xb00):0x%x\n", __func__,
+            readl(ioaddr + PTP_STNSUR), readl(ioaddr + PTP_TCR));
     limit = 10;
     while (limit--) {
         if (!(readl(ioaddr + PTP_TCR) & PTP_TCR_TSINIT)) break;
@@ -816,7 +824,8 @@ static int xj3_est_init(struct net_device *ndev, struct xj3_priv *priv,
     if (!estsel || !estdep || !estwid || !cfg) return -EINVAL;
 
     if (cfg->gcl_size > estdep) {
-        pr_info("%s, Invalid EST configuration supplied\n", __func__);
+        dev_info(priv->device, "%s, Invalid EST configuration supplied\n",
+                 __func__);
         return -EINVAL;
     }
 
@@ -844,7 +853,7 @@ static int xj3_est_init(struct net_device *ndev, struct xj3_priv *priv,
 
     for (i = 0; i < cfg->gcl_size; i++) {
         u32 reg = (i << MTL_EST_ADDR_OFFSET) & MTL_EST_ADDR;
-        pr_info("%s, %d gcl:0x%x\n", __func__, i, cfg->gcl[i]);
+        dev_info(priv->device, "%s, %d gcl:0x%x\n", __func__, i, cfg->gcl[i]);
         EST_WRITE(reg, cfg->gcl[i], true);
     }
 
@@ -864,7 +873,7 @@ static int xj3_est_init(struct net_device *ndev, struct xj3_priv *priv,
 
     return 0;
 write_fail:
-    pr_info("%s:Failed to write EST config\n", __func__);
+    dev_info(priv->device, "%s:Failed to write EST config\n", __func__);
     return -ETIMEDOUT;
 }
 
@@ -885,7 +894,8 @@ static int xj3_est_configuration(struct xj3_priv *priv) {
 
     //	xj3_est_intr_config(priv);
     if (!(priv->dma_cap.time_stamp || priv->adv_ts)) {
-        pr_info("%s, No HW time stamping: Disabling EST\n", __func__);
+        dev_info(priv->device, "%s, No HW time stamping: Disabling EST\n",
+                 __func__);
         priv->hwts_tx_en = 0;
         priv->hwts_rx_en = 0;
         priv->est_enabled = false;
@@ -962,8 +972,8 @@ static int xj3_pps_init(struct net_device *ndev, struct xj3_priv *priv,
     value |= cfg->ctrl_cmd << (index * 8);
     writel(value, ioaddr + MAC_PPS_CONTROL);
 
-    pr_info("Enableing %s PPS for output %d\n",
-            cfg->enable ? "Flexible" : "Fixed", index);
+    dev_info(priv->device, "Enableing %s PPS for output %d\n",
+             cfg->enable ? "Flexible" : "Fixed", index);
 
     return 0;
 }
@@ -1021,27 +1031,28 @@ int xj3_tsn_link_configure(struct net_device *ndev, enum sr_class class,
     int err;
     s32 bw;
 
-    pr_info("%s,and into here\n", __func__);
+    dev_info(priv->device, "%s,and into here\n", __func__);
 
     if (!xj3_tsn_capable(ndev)) {
-        pr_info("%s: NIC not capable\n", __func__);
+        dev_info(priv->device, "%s: NIC not capable\n", __func__);
         return -EINVAL;
     }
 
     if (framesize > MAX_FRAME_SIZE || framesize < MIN_FRAME_SIZE) {
-        pr_info("%s: framesize (%u) must be [%d,%d]\n", __func__, framesize,
-                MIN_FRAME_SIZE, MAX_FRAME_SIZE);
+        dev_info(priv->device, "%s: framesize (%u) must be [%d,%d]\n", __func__,
+                 framesize, MIN_FRAME_SIZE, MAX_FRAME_SIZE);
         return -EINVAL;
     }
 
     if (add_link && !priv->tsn_vlan_added) {
         rtnl_lock();
-        pr_info("%s: adding VLAN %u to HW filter on device:%s\n", __func__, vid,
-                ndev->name);
+        dev_info(priv->device, "%s: adding VLAN %u to HW filter on device:%s\n",
+                 __func__, vid, ndev->name);
 
         err = vlan_vid_add(ndev, htons(ETH_P_8021Q), vid);
         if (err != 0)
-            pr_info("%s: error adding vlan %u, res=%d\n", __func__, vid, err);
+            dev_info(priv->device, "%s: error adding vlan %u, res=%d\n",
+                     __func__, vid, err);
         rtnl_unlock();
 
         priv->pcp_hi = pcp_hi & 0x7;
@@ -1065,14 +1076,16 @@ int xj3_tsn_link_configure(struct net_device *ndev, enum sr_class class,
             bw = AVB_CLASSB_BW;
             break;
         default:
-            pr_info("%s: xj3 tsn unkown traffic-class, aborting config\n",
-                    __func__);
+            dev_info(priv->device,
+                     "%s: xj3 tsn unkown traffic-class, aborting config\n",
+                     __func__);
             return -EINVAL;
     }
 
     mode_to_use = priv->plat->tx_queues_cfg[queue].mode_to_use;
     if (mode_to_use != MTL_QUEUE_AVB) {
-        pr_info("%s: xj3 tsn :queue %d is no AVB /TSN\n", __func__, queue);
+        dev_info(priv->device, "%s: xj3 tsn :queue %d is no AVB /TSN\n",
+                 __func__, queue);
         return -EINVAL;
     }
 
@@ -1131,7 +1144,7 @@ static void xj3_set_speed(struct xj3_priv *priv) {
     } else if (phydev->speed == SPEED_100) {
         regval |= DWCEQOS_MAC_CFG_PS | DWCEQOS_MAC_CFG_FES;
     } else if (phydev->speed != SPEED_1000) {
-        pr_info("Unknown PHY speed %d\n", phydev->speed);
+        dev_info(priv->device, "Unknown PHY speed %d\n", phydev->speed);
         return;
     }
 
@@ -1218,10 +1231,10 @@ static void xj3_adjust_link(struct net_device *ndev) {
             priv->speed = phydev->speed;
             priv->duplex = phydev->duplex;
             status_change = 1;
-            pr_debug("%s, priv_speed;%d, phydev_speed:%d\n", __func__,
-                     priv->speed, phydev->speed);
-            pr_debug("%s, priv_duplex;%d, phydev_duplex:%d\n", __func__,
-                     priv->duplex, phydev->duplex);
+            dev_dbg(priv->device, "%s, priv_speed;%d, phydev_speed:%d\n",
+                    __func__, priv->speed, phydev->speed);
+            dev_dbg(priv->device, "%s, priv_duplex;%d, phydev_duplex:%d\n",
+                    __func__, priv->duplex, phydev->duplex);
         }
 
         if (priv->pause) {
@@ -1259,9 +1272,9 @@ static void xj3_adjust_link(struct net_device *ndev) {
         } else {
             xj3_link_down(priv);
         }
-        pr_debug("%s, speed:%s, duplex:%s\n", __func__,
-                 phy_speed_to_str(phydev->speed),
-                 phy_duplex_to_str(phydev->duplex));
+        dev_dbg(priv->device, "%s, speed:%s, duplex:%s\n", __func__,
+                phy_speed_to_str(phydev->speed),
+                phy_duplex_to_str(phydev->duplex));
 
         phy_print_status(phydev);
     }
@@ -1282,11 +1295,11 @@ static int xj3_init_phy(struct net_device *ndev) {
                                 interface);
 
         if (!phydev) {
-            pr_info("no phy founded\n");
+            dev_info(priv->device, "no phy founded\n");
             return -1;
         }
     } else {
-        pr_info("No PHY configured\n");
+        dev_info(priv->device, "No PHY configured\n");
         return -ENODEV;
     }
 
@@ -1502,7 +1515,7 @@ static int xj3_init_rx_buffers(struct xj3_priv *priv, struct dma_desc *p, int i,
 
     skb = __netdev_alloc_skb_ip_align(priv->dev, priv->dma_buf_sz, GFP_KERNEL);
     if (!skb) {
-        pr_info("%s, Rx init failed: skb is NULL\n", __func__);
+        dev_info(priv->device, "%s, Rx init failed: skb is NULL\n", __func__);
         return -ENOMEM;
     }
 
@@ -1510,7 +1523,7 @@ static int xj3_init_rx_buffers(struct xj3_priv *priv, struct dma_desc *p, int i,
     rx_q->rx_skbuff_dma[i] = dma_map_single(priv->device, skb->data,
                                             priv->dma_buf_sz, DMA_FROM_DEVICE);
     if (dma_mapping_error(priv->device, rx_q->rx_skbuff_dma[i])) {
-        pr_info("%s, DMA mapping error\n", __func__);
+        dev_info(priv->device, "%s, DMA mapping error\n", __func__);
         dev_kfree_skb_any(skb);
         return -EINVAL;
     }
@@ -1785,7 +1798,7 @@ static int xj3_init_dma_engine(struct xj3_priv *priv) {
 
     ret = xj3_dma_reset(priv->ioaddr);
     if (ret) {
-        pr_info("%s: Failed to reset dma\n", __func__);
+        dev_info(priv->device, "%s: Failed to reset dma\n", __func__);
         return ret;
     }
 
@@ -2143,7 +2156,8 @@ static void xj3_configure_tsn(struct xj3_priv *priv) {
     if (tx_cnt > 1) queues_av = xj3_config_cbs(priv);
 
     if (queues_av < MIN_AVB_QUEUES) {
-        pr_info("Not enuough queues for AVB (only %d)\n", queues_av);
+        dev_info(priv->device, "Not enuough queues for AVB (only %d)\n",
+                 queues_av);
         return;
     }
     /*disable tx and rx flow control*/
@@ -2386,8 +2400,8 @@ static int xj3_set_time(struct ptp_clock_info *ptp,
 
     spin_lock_irqsave(&priv->ptp_lock, flags);
 
-    pr_info("%s, tv_sec:0x%lx, tv_nesc:0x%lx\n", __func__, ts->tv_sec,
-            ts->tv_nsec);
+    dev_info(priv->device, "%s, tv_sec:0x%lx, tv_nesc:0x%lx\n", __func__,
+             ts->tv_sec, ts->tv_nsec);
 
     xj3_init_systime(priv, ts->tv_sec, ts->tv_nsec);
     spin_unlock_irqrestore(&priv->ptp_lock, flags);
@@ -2609,10 +2623,10 @@ static void xj3_ptp_register(struct xj3_priv *priv) {
     priv->ptp_clock = ptp_clock_register(&priv->ptp_clock_ops, priv->device);
 
     if (IS_ERR(priv->ptp_clock)) {
-        pr_info("ptp_clock_register failed by hobot\n");
+        dev_info(priv->device, "ptp_clock_register failed by hobot\n");
         priv->ptp_clock = NULL;
     } else if (priv->ptp_clock) {
-        pr_info("registered PTP clock by hobot successfully\n");
+        dev_info(priv->device, "registered PTP clock by hobot successfully\n");
     }
 }
 
@@ -2623,13 +2637,13 @@ static int xj3_init_ptp(struct xj3_priv *priv) {
     priv->adv_ts = 1;
 
     if (priv->dma_cap.time_stamp) {
-        pr_info("IEEE 1588-2002 Timestamp supported ");
-        pr_info("by Hobot Ethernet Network Card\n");
+        dev_info(priv->device, "IEEE 1588-2002 Timestamp supported ");
+        dev_info(priv->device, "by Hobot Ethernet Network Card\n");
     }
 
     if (priv->adv_ts) {
-        pr_info("IEEE 1588-2008 Advanced Timestamp ");
-        pr_info("supported by Hobot Ethernet Network Card\n");
+        dev_info(priv->device, "IEEE 1588-2008 Advanced Timestamp ");
+        dev_info(priv->device, "supported by Hobot Ethernet Network Card\n");
     }
 
     priv->hwts_tx_en = 0;
@@ -2649,7 +2663,8 @@ static int xj3_hw_setup(struct net_device *ndev, bool init_ptp) {
 
     ret = xj3_init_dma_engine(priv);
     if (ret < 0) {
-        pr_info("%s, DMA engine initilization failed\n", __func__);
+        dev_info(priv->device, "%s, DMA engine initilization failed\n",
+                 __func__);
         return ret;
     }
 
@@ -2661,7 +2676,7 @@ static int xj3_hw_setup(struct net_device *ndev, bool init_ptp) {
 
     ret = xj3_rx_ipc_enable(priv);
     if (!ret) {
-        pr_info("RX IPC checksum offload disabled\n");
+        dev_info(priv->device, "RX IPC checksum offload disabled\n");
         priv->plat->rx_coe = STMMAC_RX_COE_NONE;
         priv->rx_csum = 0;
     }
@@ -2674,12 +2689,13 @@ static int xj3_hw_setup(struct net_device *ndev, bool init_ptp) {
 
     if (init_ptp) {
         ret = clk_prepare_enable(priv->plat->clk_ptp_ref);
-        if (ret < 0) pr_info("failed to enable PTP reference clock\n");
+        if (ret < 0)
+            dev_err(priv->device, "failed to enable PTP reference clock\n");
         ret = xj3_init_ptp(priv);
         if (ret == -EOPNOTSUPP) {
-            pr_info("PTP not supported by HW\n");
+            dev_err(priv->device, "PTP not supported by HW\n");
         } else if (ret) {
-            pr_info("PTP init failed\n");
+            dev_err(priv->device, "PTP init failed\n");
         }
     }
 
@@ -2760,7 +2776,7 @@ static int xj3_dma_interrupt(struct xj3_priv *priv, struct xj3_extra_stats *x,
 #if 0
     u32 intr_en = readl(ioaddr + DMA_CHAN_INTR_ENA(chan));
     if (intr_status)
-    	pr_info("%s, chan:%d, intr_en:0x%x, intr_status:0x%x\n", \
+    	dev_info(priv->device, "%s, chan:%d, intr_en:0x%x, intr_status:0x%x\n", \
             __func__, chan, intr_en, intr_status);
 #endif
     if ((intr_status & DMA_CHAN_STATUS_AIS) || priv->use_riwt) {
@@ -2771,7 +2787,7 @@ static int xj3_dma_interrupt(struct xj3_priv *priv, struct xj3_extra_stats *x,
         if (intr_status & DMA_CHAN_STATUS_RPS) x->rx_process_stopped_irq++;
 
         if (intr_status & DMA_CHAN_STATUS_RWT) {
-            pr_info("rx watchdog irq\n");
+            dev_info(priv->device, "rx watchdog irq\n");
             x->rx_watchdog_irq++;
         }
         if (intr_status & DMA_CHAN_STATUS_ETI) x->tx_early_irq++;
@@ -2805,10 +2821,10 @@ static int xj3_dma_interrupt(struct xj3_priv *priv, struct xj3_extra_stats *x,
     }
     writel((intr_status), ioaddr + DMA_CHAN_STATUS(chan));
 
-	if (eth_err_flag == 1) {
-		err = 1;
-		eth_err_flag = 0;
-	}
+    if (eth_err_flag == 1) {
+        err = 1;
+        eth_err_flag = 0;
+    }
 
     dwceqos_diag_process(err, intr_status);
     return ret;
@@ -2870,23 +2886,23 @@ static void xj3_tx_err(struct xj3_priv *priv, u32 chan) {
     netif_tx_wake_queue(netdev_get_tx_queue(priv->dev, chan));
 }
 
-static inline void xj3_pcs_isr(void __iomem *ioaddr, u32 reg,
-                               unsigned int intr_status,
+static inline void xj3_pcs_isr(struct xj3_priv *priv, void __iomem *ioaddr,
+                               u32 reg, unsigned int intr_status,
                                struct xj3_extra_stats *x) {
     u32 val = readl(ioaddr + GMAC_AN_STATUS(reg));
 
     if (intr_status & PCS_ANE_IRQ) {
         x->irq_pcs_ane_n++;
         if (val & GMAC_AN_STATUS_ANC)
-            pr_info("xj3 pcs: ANE process completed\n");
+            dev_info(priv->device, "pcs: ANE process completed\n");
     }
 
     if (intr_status & PCS_LINK_IRQ) {
         x->irq_pcs_link_n++;
         if (val & GMAC_AN_STATUS_LS)
-            pr_info("xj3 pcs: link up\n");
+            dev_info(priv->device, "pcs: link up\n");
         else
-            pr_info("xj3 pcs: Link down\n");
+            dev_info(priv->device, "pcs: Link down\n");
     }
 }
 
@@ -2920,22 +2936,22 @@ static void xj3_phystatus(struct xj3_priv *priv, struct xj3_extra_stats *x) {
         x->pcs_duplex = ((status & GMAC_PHYIF_CTRLSTATUS_LNKMOD) >>
                          GMAC_PHYIF_CTRLSTATUS_LNKMOD_MASK);
 
-        pr_info("Link is Up - %d/%s \n", (int)x->pcs_speed,
-                x->pcs_duplex ? "Full" : "Half");
+        dev_info(priv->device, "Link is Up - %d/%s \n", (int)x->pcs_speed,
+                 x->pcs_duplex ? "Full" : "Half");
 
     } else {
         x->pcs_link = 0;
         spin_lock_irqsave(&priv->state_lock, flags);
         set_bit(HOBOT_DOWN, &priv->state);
         spin_unlock_irqrestore(&priv->state_lock, flags);
-        pr_info("Link is Down by Hobot\n");
+        dev_info(priv->device, "Link is Down\n");
     }
 
 #if 0
-	pr_info("%s, and mac_phy_status_reg-0xf8: 0x%x\n", \
+	dev_info(priv->device, "%s, and mac_phy_status_reg-0xf8: 0x%x\n", \
          __func__, readl(ioaddr + 0xf8));
 
-	pr_info("%s, and mac_AN_stauts_reg-0xe4: 0x%x\n", \
+	dev_info(priv->device, "%s, and mac_AN_stauts_reg-0xe4: 0x%x\n", \
         __func__, readl(ioaddr + 0xe4));
 #endif
 }
@@ -2951,33 +2967,35 @@ static int xj3_host_irq_status(struct xj3_priv *priv,
     intr_status &= intr_enable;
     if (intr_status & mmc_tx_irq) {
         x->mmc_tx_irq_n++;
-        pr_info("%s, mmc_tx_irq_n: %ld\n", __func__, x->mmc_tx_irq_n);
+        dev_info(priv->device, "%s, mmc_tx_irq_n: %ld\n", __func__,
+                 x->mmc_tx_irq_n);
     }
     if (intr_status & mmc_rx_csum_offload_irq) {
         x->mmc_rx_csum_offload_irq_n++;
-        pr_info("%s, mmc_rx_csum_offload_irq_n: %ld\n", __func__,
-                x->mmc_rx_csum_offload_irq_n);
+        dev_info(priv->device, "%s, mmc_rx_csum_offload_irq_n: %ld\n", __func__,
+                 x->mmc_rx_csum_offload_irq_n);
     }
     if (intr_status & pmt_irq) {
         readl(ioaddr + GMAC_PMT);
         x->irq_receive_pmt_irq_n++;
 
-        pr_info("%s, irq receive pmt irq\n", __func__);
+        dev_info(priv->device, "%s, irq receive pmt irq\n", __func__);
     }
 
     if (intr_status & mac_fpeis) {
         u32 value = readl(ioaddr + GMAC_FPE_CTRL_STS);
 
-        pr_info("%s, Frame preemption interrupt, fpe_ctrl_sts:0x%x\n", __func__,
-                value);
+        dev_info(priv->device,
+                 "%s, Frame preemption interrupt, fpe_ctrl_sts:0x%x\n",
+                 __func__, value);
 
-        pr_info("%s, frg cntr:%d, hlod:%d\n", __func__,
-                readl(ioaddr + MMC_TX_FPE_Frg_Cntr),
-                readl(ioaddr + MMC_TX_HOLD_Req_Cntr));
+        dev_info(priv->device, "%s, frg cntr:%d, hlod:%d\n", __func__,
+                 readl(ioaddr + MMC_TX_FPE_Frg_Cntr),
+                 readl(ioaddr + MMC_TX_HOLD_Req_Cntr));
 
         writel(value, ioaddr + GMAC_FPE_CTRL_STS);
     }
-    xj3_pcs_isr(ioaddr, GMAC_PCS_BASE, intr_status, x);
+    xj3_pcs_isr(priv, ioaddr, GMAC_PCS_BASE, intr_status, x);
 
     if (intr_status & PCS_RGSMIIIS_IRQ) {
         xj3_phystatus(priv, x);
@@ -3008,45 +3026,48 @@ static int xj3_host_mtl_irq_status(struct xj3_priv *priv, u32 chan) {
 
     if (mtl_irq_status & MTL_ESTIS) {
         u32 status = readl(ioaddr + 0xc58);
-        pr_debug("%s, MTL EST intterupt here, status:0x%x\n", __func__, status);
+        dev_dbg(priv->device, "%s, MTL EST intterupt here, status:0x%x\n",
+                __func__, status);
 
         if (status & MTL_STATUS_CGSN) {
-            pr_info("est current gcl slot num:%ld\n",
-                    ((status & MTL_STATUS_CGSN) >> 16) & 0xf);
+            dev_info(priv->device, "est current gcl slot num:%ld\n",
+                     ((status & MTL_STATUS_CGSN) >> 16) & 0xf);
         }
 
         if (status & MTL_STATUS_BTRL) {
-            pr_info("btr error loop count:%ld\n",
-                    ((status & MTL_STATUS_BTRL) >> 8) & 0xf);
+            dev_info(priv->device, "btr error loop count:%ld\n",
+                     ((status & MTL_STATUS_BTRL) >> 8) & 0xf);
         }
 
         if (status & MTL_STATUS_SWOL)
-            pr_info("gate control list %ld own by sofware\n",
-                    (status & MTL_STATUS_SWOL >> 7) & 0x1);
+            dev_info(priv->device, "gate control list %ld own by sofware\n",
+                     (status & MTL_STATUS_SWOL >> 7) & 0x1);
         else
-            pr_info("gcl 0 own by software\n");
+            dev_info(priv->device, "gcl 0 own by software\n");
 
         if (status & MTL_STATUS_CGCE) {
-            pr_info("constant gate control error\n");
+            dev_info(priv->device, "constant gate control error\n");
         }
         if (status & MTL_STATUS_HLBS)
-            pr_info("head of line blocking due scheduling\n");
+            dev_info(priv->device, "head of line blocking due scheduling\n");
 
         if (status & MTL_STATUS_HLBF) {
             u32 queue = readl(ioaddr + MTL_EST_Frm_Size_Error);
             u32 frame = readl(ioaddr + MTL_EST_Frm_Size_Capture);
 
-            pr_info("head of line bocking due to frame size, and queue:%d\n",
-                    queue);
-            pr_info("HOF block frame size:%d, and the queue:%d\n",
-                    frame & 0x3fff, (frame >> 16));
+            dev_info(priv->device,
+                     "head of line bocking due to frame size, and queue:%d\n",
+                     queue);
+            dev_info(priv->device,
+                     "HOF block frame size:%d, and the queue:%d\n",
+                     frame & 0x3fff, (frame >> 16));
 
             writel(queue, ioaddr + MTL_EST_Frm_Size_Error);
         }
-        if (status & MTL_STATUS_BTRE) pr_info("BTR error\n");
+        if (status & MTL_STATUS_BTRE) dev_info(priv->device, "BTR error\n");
 
         if (status & MTL_STATUS_SWLC)
-            pr_info("switch to S/W owned list complete\n");
+            dev_info(priv->device, "switch to S/W owned list complete\n");
 
         writel(status, ioaddr + 0xc58);
     }
@@ -3070,11 +3091,14 @@ static irqreturn_t xj3_interrupt(int irq, void *dev_id) {
 
 #if 0
     status = readl(priv->ioaddr + 0x1008);
-    pr_info("%s, dma interrupt status(0x1008):0x%x\n", __func__, status);
+    dev_info(priv->device, "%s, dma interrupt status(0x1008):0x%x\n",
+             __func__, status);
     status = readl(priv->ioaddr + 0xc20);
-    pr_info("%s, mtl interrupt_status(0xc20):0x%x\n", __func__, status);
+    dev_info(priv->device, "%s, mtl interrupt_status(0xc20):0x%x\n",
+             __func__, status);
     status = readl(priv->ioaddr + 0xb0);
-    pr_info("%s, mac interrupt status(0xb0):0x%x\n", __func__, status);
+    dev_info(priv->device, "%s, mac interrupt status(0xb0):0x%x\n",
+             __func__, status);
 #endif
     status = xj3_host_irq_status(priv, &priv->xstats);
 
@@ -3107,8 +3131,9 @@ static irqreturn_t xj3_interrupt(int irq, void *dev_id) {
 
 #if 0
         if (status)
-    	    pr_info("%s, and status:0x%x, handler_rx:0x%x, handle_tx:0x%x\n", \
-                __func__, status, handle_rx, handle_tx);
+    	    dev_info(priv->device, "%s, and status:0x%x, handler_rx:0x%x,"
+                     "handle_tx:0x%x\n", __func__, status,
+                     handle_rx, handle_tx);
 #endif
         if (likely((status & handle_rx)) || (status & handle_tx) ||
             (mtl_status & CORE_IRQ_MTL_RX_OVERFLOW)) {
@@ -3215,8 +3240,8 @@ static void xj3_est_read(struct xj3_priv *priv, u32 reg, bool is_gcla) {
         break;
     }
 
-    pr_debug("%s, reg:0x%x, value:0x%x\n", __func__, reg,
-             readl(priv->ioaddr + MTL_EST_GCL_DATA));
+    dev_dbg(priv->device, "%s, reg:0x%x, value:0x%x\n", __func__, reg,
+            readl(priv->ioaddr + MTL_EST_GCL_DATA));
 }
 
 static int xj3_get_est(struct xj3_priv *priv, void __user *data) {
@@ -3516,7 +3541,7 @@ static inline u32 xj3_tx_avail(struct xj3_priv *priv, u32 queue) {
     struct xj3_tx_queue *tx_q = &priv->tx_queue[queue];
     u32 avail;
 
-    /*  pr_info("%s, dirty_tx:0x%x, cur_tx:0x%x\n", __func__, \
+    /*  dev_info(priv->device, "%s, dirty_tx:0x%x, cur_tx:0x%x\n", __func__, \
             tx_q->dirty_tx, tx_q->cur_tx);
     */
     if (tx_q->dirty_tx > tx_q->cur_tx)
@@ -3599,7 +3624,7 @@ static void xj3_tx_clean(struct xj3_priv *priv, u32 queue) {
 
     if (netif_tx_queue_stopped(netdev_get_tx_queue(priv->dev, queue)) &&
         xj3_tx_avail(priv, queue) > STMMAC_TX_THRESH) {
-        pr_info("%s: restart transmit\n", __func__);
+        dev_info(priv->device, "%s: restart transmit\n", __func__);
         netif_tx_wake_queue(netdev_get_tx_queue(priv->dev, queue));
     }
 
@@ -3640,7 +3665,7 @@ static int xj3_open(struct net_device *ndev) {
 
     ret = xj3_init_phy(ndev);
     if (ret < 0) {
-        pr_info("%s, init phy error \n", __func__);
+        dev_info(priv->device, "%s, init phy error \n", __func__);
         return ret;
     }
 
@@ -3648,19 +3673,20 @@ static int xj3_open(struct net_device *ndev) {
 
     ret = alloc_dma_desc_resources(priv);
     if (ret < 0) {
-        pr_info("%s, DMA descriptor alloc failed\n", __func__);
+        dev_info(priv->device, "%s, DMA descriptor alloc failed\n", __func__);
         goto dma_desc_error;
     }
 
     ret = init_dma_desc_rings(ndev);
     if (ret < 0) {
-        pr_info("%s: DMA desc rings initalize failed\n", __func__);
+        dev_info(priv->device, "%s: DMA desc rings initalize failed\n",
+                 __func__);
         goto init_error;
     }
 
     ret = xj3_hw_setup(ndev, true);
     if (ret < 0) {
-        pr_info("%s, Hw setup failed\n", __func__);
+        dev_info(priv->device, "%s, Hw setup failed\n", __func__);
         goto init_error;
     }
 
@@ -3669,7 +3695,7 @@ static int xj3_open(struct net_device *ndev) {
     xj3_enable_all_queues(priv);
     xj3_start_all_queues(priv);
 
-    pr_info("%s: successfully\n", __func__);
+    dev_info(priv->device, "%s: successfully\n", __func__);
     return 0;
 
 init_error:
@@ -3843,7 +3869,8 @@ static void xj3_tso_allocator(struct xj3_priv *priv, unsigned int des,
     tmp_len = total_len;
 
 #if 0
-	pr_info("%s, and tmp_len:%d, total_len:%d\n", __func__, tmp_len, total_len);
+	dev_info(priv->device, "%s, and tmp_len:%d, total_len:%d\n",
+             __func__, tmp_len, total_len);
 #endif
 
     while (tmp_len > 0) {
@@ -3875,14 +3902,14 @@ static netdev_tx_t xj3_tso_xmit(struct sk_buff *skb, struct net_device *ndev) {
 
     proto_hdr_len = skb_transport_offset(skb) + tcp_hdrlen(skb);
 
-    pr_debug("%s, and transport offset:%d, tcphdrlen:%d\n", __func__,
-             skb_transport_offset(skb), tcp_hdrlen(skb));
+    dev_dbg(priv->device, "%s, and transport offset:%d, tcphdrlen:%d\n",
+            __func__, skb_transport_offset(skb), tcp_hdrlen(skb));
 
     if (unlikely(xj3_tx_avail(priv, queue) <
                  (((skb->len - proto_hdr_len) / TSO_MAX_BUFF_SIZE + 1)))) {
         if (!netif_tx_queue_stopped(netdev_get_tx_queue(ndev, queue))) {
             netif_tx_stop_queue(netdev_get_tx_queue(priv->dev, queue));
-            pr_info("tx ring full when queue awake\n");
+            dev_info(priv->device, "tx ring full when queue awake\n");
         }
 
         return NETDEV_TX_BUSY;
@@ -4000,9 +4027,10 @@ static netdev_tx_t xj3_xmit(struct sk_buff *skb, struct net_device *ndev) {
     tx_q = &priv->tx_queue[queue];
     if (skb_is_gso(skb) && priv->tso) {
         if (skb_shinfo(skb)->gso_type & (SKB_GSO_TCPV4 | SKB_GSO_TCPV6)) {
-            pr_debug("len:%d, gso:%d, priv->tso:%d, shinfo->gso_type:0x%x\n",
-                     skb->len, skb_is_gso(skb), priv->tso,
-                     skb_shinfo(skb)->gso_type);
+            dev_dbg(priv->device,
+                    "len:%d, gso:%d, priv->tso:%d, shinfo->gso_type:0x%x\n",
+                    skb->len, skb_is_gso(skb), priv->tso,
+                    skb_shinfo(skb)->gso_type);
             skb_set_queue_mapping(skb, 0);
             return xj3_tso_xmit(skb, ndev);
         }
@@ -4011,7 +4039,7 @@ static netdev_tx_t xj3_xmit(struct sk_buff *skb, struct net_device *ndev) {
     if ((xj3_tx_avail(priv, queue) < nfrags + 1)) {
         if (!netif_tx_queue_stopped(netdev_get_tx_queue(ndev, queue))) {
             netif_tx_stop_queue(netdev_get_tx_queue(priv->dev, queue));
-            pr_info("%s and tx stop queue\n", __func__);
+            dev_info(priv->device, "%s and tx stop queue\n", __func__);
         }
         return NETDEV_TX_BUSY;
     }
@@ -4019,7 +4047,7 @@ static netdev_tx_t xj3_xmit(struct sk_buff *skb, struct net_device *ndev) {
     entry = tx_q->cur_tx;
     first_entry = entry;
 
-    pr_debug("%s,tx queue:%d, entry:%d\n", __func__, queue, entry);
+    dev_dbg(priv->device, "%s,tx queue:%d, entry:%d\n", __func__, queue, entry);
     csum_insert = (skb->ip_summed == CHECKSUM_PARTIAL);
 
     if (priv->extend_desc)
@@ -4032,7 +4060,7 @@ static netdev_tx_t xj3_xmit(struct sk_buff *skb, struct net_device *ndev) {
     enh_desc = priv->plat->enh_desc;
 
     if (enh_desc) {
-        pr_info("%s, and enh_desc", __func__);
+        dev_info(priv->device, "%s, and enh_desc", __func__);
     }
 
     for (i = 0; i < nfrags; i++) {
@@ -4077,11 +4105,11 @@ static netdev_tx_t xj3_xmit(struct sk_buff *skb, struct net_device *ndev) {
         else
             tx_head = (void *)tx_q->dma_tx;
 
-        pr_info("frame to be transmited\n");
+        dev_info(priv->device, "frame to be transmited\n");
     }
 
     if (xj3_tx_avail(priv, queue) <= (MAX_SKB_FRAGS + 1)) {  // MAX_SKB_FRAGS:17
-        pr_info("%s, stop transmited packets\n", __func__);
+        dev_info(priv->device, "%s, stop transmited packets\n", __func__);
         netif_tx_stop_queue(netdev_get_tx_queue(priv->dev, queue));
     }
 
@@ -4168,7 +4196,7 @@ static int xj3_ptp_set_ts_config(struct net_device *ndev, struct ifreq *ifr) {
     xmac = 1;
 
     if (!(priv->dma_cap.time_stamp || priv->adv_ts)) {
-        pr_info("No support for HW time stamping\n");
+        dev_info(priv->device, "No support for HW time stamping\n");
         priv->hwts_tx_en = 0;
         priv->hwts_rx_en = 0;
         return -EOPNOTSUPP;
@@ -4289,7 +4317,7 @@ static int xj3_ptp_set_ts_config(struct net_device *ndev, struct ifreq *ifr) {
 
         value |= (1 << 19) | (1 << 14);
         value &= ~(1 << 17);
-        pr_debug("%s,and set value is 0x%x\n", __func__, value);
+        dev_dbg(priv->device, "%s,and set value is 0x%x\n", __func__, value);
         xj3_config_hw_tstamping(priv, value);
 
         sec_inc = xj3_config_sub_second_increment(
@@ -4391,6 +4419,7 @@ static const struct net_device_ops xj3_netdev_ops = {
 static int xj3_get_rx_status(void *data, struct xj3_extra_stats *x,
                              struct dma_desc *p) {
     struct net_device_stats *stats = (struct net_device_stats *)data;
+    struct xj3_priv *priv = container_of(x, struct xj3_priv, xstats);
     unsigned int rdes0 = le32_to_cpu(p->des0);
     unsigned int rdes1 = le32_to_cpu(p->des1);
     unsigned int rdes2 = le32_to_cpu(p->des2);
@@ -4399,8 +4428,9 @@ static int xj3_get_rx_status(void *data, struct xj3_extra_stats *x,
     int message_type;
     int ret = good_frame;
 
-    pr_debug("%s,and rdes0:0x%x, rdes1:0x%x, rdes2:0x%x, rdes3:0x%x\n",
-             __func__, rdes0, rdes1, rdes2, rdes3);
+    dev_dbg(priv->device,
+            "%s,and rdes0:0x%x, rdes1:0x%x, rdes2:0x%x, rdes3:0x%x\n", __func__,
+            rdes0, rdes1, rdes2, rdes3);
 
     if (rdes3 & RDES3_OWN) return dma_own;
 
@@ -4437,8 +4467,9 @@ static int xj3_get_rx_status(void *data, struct xj3_extra_stats *x,
 
     message_type = (rdes1 & ERDES4_MSG_TYPE_MASK) >> 8;
 
-    pr_debug("%s, and message_type:0x%x\n", __func__, message_type);
-    pr_debug("%s,payloadtype:0x%x\n", __func__, rdes1 & 0x7);
+    dev_dbg(priv->device, "%s, and message_type:0x%x\n", __func__,
+            message_type);
+    dev_dbg(priv->device, "%s,payloadtype:0x%x\n", __func__, rdes1 & 0x7);
 
     if (rdes1 & RDES1_IP_HDR_ERROR) {
         x->ip_hdr_err++;
@@ -4502,7 +4533,7 @@ static int xj3_get_rx_status(void *data, struct xj3_extra_stats *x,
         RDES2_L3_L4_FILT_NB_MATCH_SHIFT)
         x->l3_l4_filter_no_match++;
 
-    pr_debug("%s,and return ret:%d\n", __func__, ret);
+    dev_dbg(priv->device, "%s,and return ret:%d\n", __func__, ret);
     return ret;
 }
 
@@ -4564,15 +4595,15 @@ static void xj3_get_rx_hwtstamp(struct xj3_priv *priv, struct dma_desc *p,
     desc = np;
 
     if (xj3_get_rx_timestamp_status(p, np, priv->adv_ts)) {
-        pr_debug("get rx hwstamp: des0:0x%x, des1:0x%x\n", desc->des0,
-                 desc->des1);
+        dev_dbg(priv->device, "get rx hwstamp: des0:0x%x, des1:0x%x\n",
+                desc->des0, desc->des1);
         ns = le32_to_cpu(desc->des0);
         ns += le32_to_cpu(desc->des1) * 1000000000ULL;
         shhwtstamp = skb_hwtstamps(skb);
         memset(shhwtstamp, 0, sizeof(struct skb_shared_hwtstamps));
         shhwtstamp->hwtstamp = ns_to_ktime(ns);
     } else {
-        pr_debug("cannot get RX hw timestamp\n");
+        dev_dbg(priv->device, "cannot get RX hw timestamp\n");
     }
 }
 
@@ -4585,7 +4616,7 @@ static void xj3_rx_vlan(struct net_device *ndev, struct sk_buff *skb) {
         ehdr = (struct ethhdr *)skb->data;
         memmove(skb->data + VLAN_HLEN, ehdr, ETH_ALEN * 2);
         skb_pull(skb, VLAN_HLEN);
-        pr_debug("%s, vlanid:0x%x\n", __func__, vlanid);
+        dev_dbg(&ndev->dev, "%s, vlanid:0x%x\n", __func__, vlanid);
         __vlan_hwaccel_put_tag(skb, htons(ETH_P_8021Q), vlanid);
     }
 }
@@ -4624,7 +4655,8 @@ static inline void xj3_rx_refill(struct xj3_priv *priv, u32 queue) {
             if (!skb) {
                 rx_q->rx_zeroc_thresh = STMMAC_RX_THRESH;
                 if (net_ratelimit()) {
-                    pr_info("%s: fail to alloc skb entry%d\n", __func__, entry);
+                    dev_info(priv->device, "%s: fail to alloc skb entry%d\n",
+                             __func__, entry);
                 }
 
                 break;
@@ -4634,7 +4666,7 @@ static inline void xj3_rx_refill(struct xj3_priv *priv, u32 queue) {
             rx_q->rx_skbuff_dma[entry] = dma_map_single(
                 priv->device, skb->data, bfsize, DMA_FROM_DEVICE);
             if (dma_mapping_error(priv->device, rx_q->rx_skbuff_dma[entry])) {
-                pr_info("%s: Rx DMA map failed\n", __func__);
+                dev_info(priv->device, "%s: Rx DMA map failed\n", __func__);
                 dev_kfree_skb(skb);
                 break;
             }
@@ -4644,7 +4676,7 @@ static inline void xj3_rx_refill(struct xj3_priv *priv, u32 queue) {
 
             if (rx_q->rx_zeroc_thresh > 0) rx_q->rx_zeroc_thresh--;
 
-            pr_debug("%s: refill entry: #%d\n", __func__, entry);
+            dev_dbg(priv->device, "%s: refill entry: #%d\n", __func__, entry);
         }
 
         rx_q->rx_count_frames++;
@@ -4652,8 +4684,9 @@ static inline void xj3_rx_refill(struct xj3_priv *priv, u32 queue) {
         use_rx_wd = rx_q->rx_count_frames > 0;
         if (!priv->use_riwt) use_rx_wd = false;
 
-        pr_debug("%s, use_rx_wd:%d, rx_count:%d, rx_coal:%d\n", __func__,
-                 use_rx_wd, rx_q->rx_count_frames, priv->rx_coal_frames);
+        dev_dbg(priv->device, "%s, use_rx_wd:%d, rx_count:%d, rx_coal:%d\n",
+                __func__, use_rx_wd, rx_q->rx_count_frames,
+                priv->rx_coal_frames);
 
         dma_wmb();
         p->des3 = cpu_to_le32(RDES3_OWN | RDES3_BUFFER1_VALID_ADDR);
@@ -4694,7 +4727,7 @@ static int xj3_rx_packet(struct xj3_priv *priv, int limit, u32 queue) {
         rx_q->cur_rx = XJ3_GET_ENTRY(rx_q->cur_rx, DMA_RX_SIZE);
         next_entry = rx_q->cur_rx;
 
-        pr_debug("%s, cur_rx:%d\n", __func__, rx_q->cur_rx);
+        dev_dbg(priv->device, "%s, cur_rx:%d\n", __func__, rx_q->cur_rx);
         if (priv->extend_desc)
             np = (struct dma_desc *)(rx_q->dma_erx + next_entry);
         else
@@ -4721,8 +4754,8 @@ static int xj3_rx_packet(struct xj3_priv *priv, int limit, u32 queue) {
             des = le32_to_cpu(p->des0);
             frame_len = (le32_to_cpu(p->des3) & RDES3_PACKET_SIZE_MASK);
             if (frame_len > priv->dma_buf_sz) {
-                pr_info("len %d larger than size (%d)\n", frame_len,
-                        priv->dma_buf_sz);
+                dev_info(priv->device, "len %d larger than size (%d)\n",
+                         frame_len, priv->dma_buf_sz);
                 priv->dev->stats.rx_length_errors++;
                 break;
             }
@@ -4735,7 +4768,8 @@ static int xj3_rx_packet(struct xj3_priv *priv, int limit, u32 queue) {
 
             skb = rx_q->rx_skbuff[entry];
             if (!skb) {
-                pr_info("%s: inconsistent Rx chain\n", priv->dev->name);
+                dev_info(priv->device, "%s: inconsistent Rx chain\n",
+                         priv->dev->name);
                 priv->dev->stats.rx_dropped++;
                 break;
             }
@@ -4763,7 +4797,8 @@ static int xj3_rx_packet(struct xj3_priv *priv, int limit, u32 queue) {
         entry = next_entry;
     }
 
-    pr_debug("%s, count:%d, cur_rx:%d\n", __func__, count, rx_q->cur_rx);
+    dev_dbg(priv->device, "%s, count:%d, cur_rx:%d\n", __func__, count,
+            rx_q->cur_rx);
     xj3_rx_refill(priv, queue);
     priv->xstats.rx_pkt_n += count;
     return count;
@@ -4810,7 +4845,8 @@ static ssize_t phy_addr_store(struct device *dev, struct device_attribute *attr,
     } else {
         priv->sysfs_phy_addr = 0;
     }
-    pr_info("%s, and sysfs_phy_addr:0x%x\n", __func__, priv->sysfs_phy_addr);
+    dev_info(priv->device, "%s, and sysfs_phy_addr:0x%x\n", __func__,
+             priv->sysfs_phy_addr);
     return len;
 }
 
@@ -4821,7 +4857,7 @@ static ssize_t phy_addr_show(struct device *dev, struct device_attribute *attr,
 
     size_t ret = 0;
 
-    ret = snprintf(buf, sizeof(priv->sysfs_phy_addr)*2 + 2, "%x\n",
+    ret = snprintf(buf, sizeof(priv->sysfs_phy_addr) * 2 + 2, "%x\n",
                    priv->sysfs_phy_addr);
     return ret;
 }
@@ -4835,16 +4871,16 @@ static ssize_t phy_reg_show(struct device *dev, struct device_attribute *attr,
 
     size_t ret = 0;
 
-    pr_info("%s, reg0: 0x%x\n", __func__,
-            xj3_mdio_read(priv->mii, priv->sysfs_phy_addr, 0));
-    pr_info("%s, reg1: 0x%x\n", __func__,
-            xj3_mdio_read(priv->mii, priv->sysfs_phy_addr, 1));
-    pr_info("%s, reg2: 0x%x\n", __func__,
-            xj3_mdio_read(priv->mii, priv->sysfs_phy_addr, 2));
-    pr_info("%s, reg9: 0x%x\n", __func__,
-            xj3_mdio_read(priv->mii, priv->sysfs_phy_addr, 9));
-    pr_info("%s, reg10: 0x%x\n", __func__,
-            xj3_mdio_read(priv->mii, priv->sysfs_phy_addr, 10));
+    dev_info(priv->device, "%s, reg0: 0x%x\n", __func__,
+             xj3_mdio_read(priv->mii, priv->sysfs_phy_addr, 0));
+    dev_info(priv->device, "%s, reg1: 0x%x\n", __func__,
+             xj3_mdio_read(priv->mii, priv->sysfs_phy_addr, 1));
+    dev_info(priv->device, "%s, reg2: 0x%x\n", __func__,
+             xj3_mdio_read(priv->mii, priv->sysfs_phy_addr, 2));
+    dev_info(priv->device, "%s, reg9: 0x%x\n", __func__,
+             xj3_mdio_read(priv->mii, priv->sysfs_phy_addr, 9));
+    dev_info(priv->device, "%s, reg10: 0x%x\n", __func__,
+             xj3_mdio_read(priv->mii, priv->sysfs_phy_addr, 10));
 
     return ret;
 }
@@ -4861,13 +4897,13 @@ static ssize_t dump_rx_desc_show(struct device *dev,
     for (queue = 0; queue < 1; queue++) {
         struct xj3_rx_queue *rx_q = &priv->rx_queue[queue];
 
-        pr_info("%s, cur_rx:%d\n", __func__, rx_q->cur_rx);
+        dev_info(priv->device, "%s, cur_rx:%d\n", __func__, rx_q->cur_rx);
 
         for (i = 0; i < DMA_RX_SIZE; i++) {
             struct dma_desc *p;
 
             p = rx_q->dma_rx + i;
-            pr_info("%d, des3:0x%x\n", i, p->des3);
+            dev_info(priv->device, "%d, des3:0x%x\n", i, p->des3);
         }
     }
 
@@ -4885,15 +4921,16 @@ static ssize_t tx_desc_show(struct device *dev, struct device_attribute *attr,
     for (queue = 0; queue < 1; queue++) {
         struct xj3_tx_queue *tx_q = &priv->tx_queue[queue];
 
-        pr_info("%s, cur_rx:%d\n", __func__, tx_q->cur_tx);
+        dev_info(priv->device, "%s, cur_rx:%d\n", __func__, tx_q->cur_tx);
 
         for (i = 0; i < DMA_RX_SIZE; i++) {
             struct dma_desc *p;
 
             p = tx_q->dma_tx + i;
             if (p)
-                pr_info("%d, des0:0x%x, des1: 0x%x, des2:0x%x, des3:0x%x\n", i,
-                        p->des0, p->des1, p->des2, p->des3);
+                dev_info(priv->device,
+                         "%d, des0:0x%x, des1: 0x%x, des2:0x%x, des3:0x%x\n", i,
+                         p->des0, p->des1, p->des2, p->des3);
         }
     }
 
@@ -4993,7 +5030,7 @@ static int xj3_dvr_probe(struct device *device,
     if (priv->plat->tso_en) {
         ndev->hw_features |= NETIF_F_TSO | NETIF_F_TSO6;
         priv->tso = true;
-        pr_info("TSO feature enabled\n");
+        dev_info(priv->device, "TSO feature enabled\n");
     }
     if (priv->dma_cap.tx_coe)
         ndev->hw_features |= NETIF_F_IP_CSUM | NETIF_F_IPV6_CSUM;
@@ -5019,7 +5056,8 @@ static int xj3_dvr_probe(struct device *device,
         (priv->plat->maxmtu >= ndev->min_mtu))
         ndev->max_mtu = priv->plat->maxmtu;
     else if (priv->plat->maxmtu < ndev->min_mtu)
-        pr_info("waring: maxmtu having invalid value by Network\n");
+        dev_info(priv->device,
+                 "waring: maxmtu having invalid value by Network\n");
 
     priv->use_riwt = 1;
     dev_info(priv->device, "Enable Rx Mitigation via HW Watchdog Timer\n");
@@ -5036,14 +5074,14 @@ static int xj3_dvr_probe(struct device *device,
 
     ret = xj3_mdio_register(priv);
     if (ret < 0) {
-        pr_info("MDIO bus error register\n");
+        dev_info(priv->device, "MDIO bus error register\n");
         goto err_mdio_reg;
     }
 
     ret = devm_request_irq(priv->device, ndev->irq, &xj3_interrupt, 0,
                            ndev->name, ndev);
     if (ret < 0) {
-        pr_info("%s: error allocating the IRQ\n", __func__);
+        dev_info(priv->device, "%s: error allocating the IRQ\n", __func__);
         goto irq_error;
     }
 
@@ -5051,15 +5089,15 @@ static int xj3_dvr_probe(struct device *device,
     ret = devm_request_irq(priv->device, priv->tx_irq, &xj3_interrupt, 0,
                            priv->txirq_name, ndev);
     if (ret < 0) {
-        pr_info("%s: error allocating the IRQ(%s):%d\n", __func__,
-                priv->txirq_name, priv->tx_irq);
+        dev_info(priv->device, "%s: error allocating the IRQ(%s):%d\n",
+                 __func__, priv->txirq_name, priv->tx_irq);
         goto irq_error;
     }
     ret = devm_request_irq(priv->device, priv->rx_irq, &xj3_interrupt, 0,
                            priv->rxirq_name, ndev);
     if (ret < 0) {
-        pr_info("%s: error allocating the IRQ(%s):%d\n", __func__,
-                priv->rxirq_name, priv->rx_irq);
+        dev_info(priv->device, "%s: error allocating the IRQ(%s):%d\n",
+                 __func__, priv->rxirq_name, priv->rx_irq);
         goto irq_error;
     }
 #endif
@@ -5068,7 +5106,7 @@ static int xj3_dvr_probe(struct device *device,
 
     ret = register_netdev(ndev);
     if (ret) {
-        pr_info("error register network device\n");
+        dev_info(priv->device, "error register network device\n");
         goto err_netdev_reg;
     }
     return 0;
@@ -5155,10 +5193,7 @@ static int xj3_eth_dwmac_config_dt(struct platform_device *pdev,
     return 0;
 }
 
-static void hobot_eth_diag_test(void *p, size_t len)
-{
-		eth_err_flag = 1;
-}
+static void hobot_eth_diag_test(void *p, size_t len) { eth_err_flag = 1; }
 
 static int hobot_eth_probe(struct platform_device *pdev) {
     struct plat_config_data *plat_dat;
@@ -5177,13 +5212,13 @@ static int hobot_eth_probe(struct platform_device *pdev) {
 
     res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
     if (!res) {
-        pr_info("%s, get plat resouce failed\n", __func__);
+        dev_info(&pdev->dev, "%s, get plat resouce failed\n", __func__);
         ret = -ENXIO;
         goto err_get_res;
     }
     xj3_res.addr = devm_ioremap_resource(&pdev->dev, res);
     if (IS_ERR(xj3_res.addr)) {
-        pr_info("%s, error ioremap\n", __func__);
+        dev_info(&pdev->dev, "%s, error ioremap\n", __func__);
         ret = PTR_ERR(xj3_res.addr);
         goto err_get_res;
     }
@@ -5199,9 +5234,9 @@ static int hobot_eth_probe(struct platform_device *pdev) {
     ret = xj3_dvr_probe(&pdev->dev, plat_dat, &xj3_res);
     if (ret) goto remove;
     if (diag_register(ModuleDiag_eth, EventIdEthDmaBusErr, 4, 20, 8000,
-				hobot_eth_diag_test) < 0)
-        pr_err("eth diag register fail\n");
-    pr_info("%s: probe sucessfully\n", __func__);
+                      hobot_eth_diag_test) < 0)
+        dev_err(&pdev->dev, "eth diag register fail\n");
+    dev_info(&pdev->dev, "%s: probe sucessfully\n", __func__);
     return ret;
 remove:
 
@@ -5214,7 +5249,7 @@ static int hgb_remove(struct platform_device *pdev) {
     struct net_device *ndev = platform_get_drvdata(pdev);
     struct xj3_priv *priv = netdev_priv(ndev);
 
-    pr_debug("%s\n", __func__);
+    dev_dbg(&pdev->dev, "%s\n", __func__);
     xj3_stop_all_dma(priv);
     xj3_set_mac(priv->ioaddr, false);
     netif_carrier_off(ndev);
@@ -5232,7 +5267,7 @@ static int hgb_remove(struct platform_device *pdev) {
     free_netdev(ndev);
     of_node_put(priv->plat->phy_node);
     of_node_put(priv->plat->mdio_node);
-    pr_info("%s, successufully exit\n", __func__);
+    dev_info(priv->device, "%s, successufully exit\n", __func__);
     return 0;
 }
 
@@ -5252,7 +5287,7 @@ static int hobot_eth_suspend(struct device *dev) {
     u32 queue;
 
     if (!ndev) {
-        pr_info("%s, and ndev is NULL\n", __func__);
+        dev_info(priv->device, "%s, and ndev is NULL\n", __func__);
         return 0;
     }
 
