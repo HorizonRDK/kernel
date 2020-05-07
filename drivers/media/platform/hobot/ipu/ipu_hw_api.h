@@ -74,6 +74,7 @@ void ipu_get_intr_status(void __iomem *base_addr, u32 *status, bool clear);
 
 void ipu_set_intr_mask(void __iomem *base_addr, u32 intr_mask);
 void ipu_set_ddr_fifo5(void __iomem *base_addr, u8 value);
+void ipu_set_ddr_fifo_thred(void __iomem *base_addr, u8 index, u32 value);
 int ipu_get_err_status(void __iomem *base_addr);
 void ipu_hw_dump(u32 __iomem *base_reg);
 #endif

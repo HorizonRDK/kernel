@@ -38,6 +38,7 @@
 #define IPU_IOC_GET_INDEX      	 _IOR(IPU_IOC_MAGIC, 12, int)
 #define IPU_IOC_OSD_COLOR_MAP    _IOW(IPU_IOC_MAGIC, 13, int)
 #define IPU_IOC_ROI_INFO    	 _IOW(IPU_IOC_MAGIC, 14, int)
+#define IPU_IOC_SCALE_INFO    	 _IOW(IPU_IOC_MAGIC, 15, int)
 
 struct ipu_osd_cfg{
 	bool osd_box_update;
@@ -52,8 +53,22 @@ struct ipu_osd_cfg{
 };
 
 struct ipu_roi_cfg {
-	struct roi_rect roi;
+	uint8_t roi_en;
+	ipu_roi_box_t roi_info;
+};
+
+struct ipu_scale_cfg {
+	uint8_t sc_en;
+	ipu_scale_info_t sc_info;
+	uint32_t stride_y;
+	uint32_t stride_uv;
+};
+
+struct ipu_info_cfg {
+	struct ipu_roi_cfg roi_cfg;
 	bool roi_update;
+	struct ipu_scale_cfg scale_cfg;
+	bool scale_update;
 };
 
 struct ipu_video_ctx {
@@ -147,7 +162,7 @@ struct ipu_subdev {
 	u32 			id;
 
 	struct ipu_osd_cfg osd_cfg;
-	struct ipu_roi_cfg roi_cfg;
+	struct ipu_info_cfg info_cfg;
 	ipu_cfg_t ipu_cfg;
 };
 

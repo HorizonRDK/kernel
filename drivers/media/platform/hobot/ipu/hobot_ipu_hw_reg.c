@@ -949,6 +949,11 @@ void ipu_set_ddr_fifo5(void __iomem *base_addr, u8 value)
 			&ipu_fields[IPU_F_WD_DDR_FIFO_THRED_5], value);
 }
 
+void ipu_set_ddr_fifo_thred(void __iomem *base_addr, u8 index, u32 value)
+{
+	vio_hw_set_reg(base_addr, &ipu_regs[IPU_WR_DDR_FIFO_THRED_0 + index], value);
+}
+
 int ipu_get_err_status(void __iomem *base_addr)
 {
 	return vio_hw_get_reg(base_addr, &ipu_regs[IPU_ERR_STATUS]);

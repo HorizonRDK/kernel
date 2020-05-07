@@ -284,17 +284,37 @@ void ipu_clear_group_leader(struct vio_group *group)
 int ipu_update_roi_info(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 {
 	int ret = 0;
-	struct roi_rect *roi_rect;
+	struct ipu_roi_cfg *roi_cfg;
 	struct ipu_subdev *subdev;
 
 	subdev = ipu_ctx->subdev;
-	roi_rect = &subdev->roi_cfg.roi;
-	ret = copy_from_user((char *) roi_rect, (u32 __user *) arg,
-			   sizeof(struct roi_rect));
+	roi_cfg = &subdev->info_cfg.roi_cfg;
+	ret = copy_from_user((char *) roi_cfg, (u32 __user *) arg,
+			   sizeof(struct ipu_roi_cfg));
 	if (ret)
 		return -EFAULT;
 
-	subdev->roi_cfg.roi_update = 1;
+	subdev->info_cfg.roi_update = 1;
+	vio_dbg("[S%d][V%d] %s\n", ipu_ctx->group->instance, ipu_ctx->id,
+		 __func__);
+
+	return ret;
+}
+
+int ipu_update_scale_info(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
+{
+	int ret = 0;
+	struct ipu_scale_cfg *scale_cfg;
+	struct ipu_subdev *subdev;
+
+	subdev = ipu_ctx->subdev;
+	scale_cfg = &subdev->info_cfg.scale_cfg;
+	ret = copy_from_user((char *) scale_cfg, (u32 __user *) arg,
+			   sizeof(struct ipu_scale_cfg));
+	if (ret)
+		return -EFAULT;
+
+	subdev->info_cfg.scale_update = 1;
 	vio_dbg("[S%d][V%d] %s\n", ipu_ctx->group->instance, ipu_ctx->id,
 		 __func__);
 
@@ -470,33 +490,147 @@ void ipu_hw_set_osd_cfg(struct ipu_subdev *subdev, u32 shadow_index)
 	osd_cfg->osd_sta_level_update = 0;
 }
 
-void ipu_hw_set_roi_cfg(struct ipu_subdev *subdev, u32 shadow_index)
+void ipu_set_roi_enable(struct ipu_subdev *subdev, u32 shadow_index,
+			bool roi_en)
 {
-	u32 __iomem *base_reg;
 	u32 id = 0;
+	u8 ds_ch = 0;
+	u32 __iomem *base_reg;
+
+	id = subdev->id;
+	base_reg = subdev->ipu_dev->base_reg;
+
+	if (id == GROUP_ID_US) {
+		ipu_set_us_roi_enable(base_reg, shadow_index, roi_en);
+	} else if (id >= GROUP_ID_DS0) {
+		ds_ch = id - GROUP_ID_DS0;
+		ipu_set_ds_roi_enable(base_reg, shadow_index, ds_ch, roi_en);
+	}
+}
+
+void ipu_set_sc_enable(struct ipu_subdev *subdev, u32 shadow_index,
+			bool sc_en)
+{
+	u32 id = 0;
+	u8 ds_ch = 0;
+	u32 __iomem *base_reg;
+
+	id = subdev->id;
+	base_reg = subdev->ipu_dev->base_reg;
+
+	if (id == GROUP_ID_US) {
+		ipu_set_us_enable(base_reg, shadow_index, sc_en);;
+	} else if (id >= GROUP_ID_DS0) {
+		ds_ch = id - GROUP_ID_DS0;
+		ipu_set_ds_enable(base_reg, shadow_index, ds_ch, sc_en);
+	}
+}
+
+void ipu_hw_set_roi_cfg(struct ipu_subdev *subdev, u32 shadow_index,
+			ipu_roi_box_t *roi)
+{
+	u32 id = 0;
+	u8 ds_ch = 0;
+	u32 __iomem *base_reg;
+
+	id = subdev->id;
+	base_reg = subdev->ipu_dev->base_reg;
+
+	if (id == GROUP_ID_US) {
+		ipu_set_us_roi_rect(base_reg, shadow_index, roi->start_x,
+					roi->start_y, roi->width, roi->height);
+	} else {
+		ds_ch = id - GROUP_ID_DS0;
+		ipu_set_ds_roi_rect(base_reg, shadow_index, ds_ch,
+					roi->start_x, roi->start_y,
+					roi->width, roi->height);
+	}
+}
+
+void ipu_hw_set_scale_cfg(struct ipu_subdev *subdev, u32 shadow_index,
+			ipu_scale_info_t *sc_info)
+{
+	u32 id = 0;
+	u8 ds_ch = 0;
+	u32 __iomem *base_reg;
+
+	id = subdev->id;
+	base_reg = subdev->ipu_dev->base_reg;
+
+	if (id == GROUP_ID_US) {
+		ipu_set_us_target(base_reg, shadow_index,
+					sc_info->step_x, sc_info->step_y,
+					sc_info->tgt_width, sc_info->tgt_height);
+	} else {
+		ds_ch = id - GROUP_ID_DS0;
+		ipu_set_ds_step(base_reg, shadow_index, ds_ch,
+					sc_info->step_x, sc_info->step_y,
+					sc_info->pre_scale_x, sc_info->pre_scale_y);
+		ipu_set_ds_target_size(base_reg, shadow_index, ds_ch,
+					sc_info->tgt_width, sc_info->tgt_height);
+	}
+
+	vio_dbg("[V%d]%s: stepx = %d, stepy = %d, tgt_width = %d, tgt_height = %d\n",
+			id, __func__, sc_info->step_x, sc_info->step_y,
+			sc_info->tgt_width, sc_info->tgt_height);
+}
+
+void ipu_hw_set_wdma_stride(struct ipu_subdev *subdev, u32 shadow_index,
+			u32 stride_y, u32 stride_uv)
+{
+	u32 id = 0;
+	u8 ds_ch = 0;
+	u32 __iomem *base_reg;
+
+	id = subdev->id;
+	base_reg = subdev->ipu_dev->base_reg;
+
+	if (id == GROUP_ID_US) {
+		ipu_set_us_wdma_stride(base_reg, shadow_index,
+					stride_y, stride_uv);
+	} else {
+		ds_ch = id - GROUP_ID_DS0;
+		ipu_set_ds_wdma_stride(base_reg, shadow_index, ds_ch,
+				   stride_y, stride_uv);
+	}
+}
+
+void ipu_hw_set_info_cfg(struct ipu_subdev *subdev, u32 shadow_index)
+{
+	u32 id = 0;
+	struct ipu_info_cfg *info_cfg;
 	struct ipu_roi_cfg *roi_cfg;
-	struct roi_rect *roi;
+	ipu_roi_box_t *roi;
+	struct ipu_scale_cfg *scale_cfg;
+	ipu_scale_info_t *sc_info;
 
 	id = subdev->id;
 	if (id < GROUP_ID_US || id > GROUP_ID_DS4) {
 		return;
 	}
 
-	roi_cfg = &subdev->roi_cfg;
-	roi = &roi_cfg->roi;
-	base_reg = subdev->ipu_dev->base_reg;
+	info_cfg = &subdev->info_cfg;
+	roi_cfg = &info_cfg->roi_cfg;
+	scale_cfg = &info_cfg->scale_cfg;
+	roi = &roi_cfg->roi_info;
+	sc_info = &scale_cfg->sc_info;
 
-	if (roi_cfg->roi_update) {
-		if (id == GROUP_ID_US)
-			ipu_set_us_roi_rect(base_reg, shadow_index, roi->roi_x, roi->roi_y,
-						roi->roi_width, roi->roi_height);
-		else
-			ipu_set_ds_roi_rect(base_reg, shadow_index, id - GROUP_ID_DS0,
-						roi->roi_x, roi->roi_y,
-						roi->roi_width, roi->roi_height);
-		roi_cfg->roi_update = 0;
+	if (info_cfg->roi_update) {
+		if (roi_cfg->roi_en)
+			ipu_hw_set_roi_cfg(subdev, shadow_index, roi);
+		ipu_set_roi_enable(subdev, shadow_index, roi_cfg->roi_en);
+		info_cfg->roi_update = 0;
 	}
 
+	if (info_cfg->scale_update) {
+		if (scale_cfg->sc_en) {
+			ipu_hw_set_scale_cfg(subdev, shadow_index, sc_info);
+			ipu_hw_set_wdma_stride(subdev, shadow_index,
+					scale_cfg->stride_y, scale_cfg->stride_uv);
+		}
+		ipu_set_sc_enable(subdev, shadow_index, scale_cfg->sc_en);
+		info_cfg->scale_update = 0;
+	}
 }
 
 void ipu_hw_set_cfg(struct ipu_subdev *subdev)
@@ -521,14 +655,14 @@ void ipu_hw_set_cfg(struct ipu_subdev *subdev)
 	ipu_set_shd_rdy(base_reg, rdy);
 
 	ipu_hw_set_osd_cfg(subdev, shadow_index);
-	ipu_hw_set_roi_cfg(subdev, shadow_index);
+	ipu_hw_set_info_cfg(subdev, shadow_index);
 
 	rdy = ipu_get_shd_rdy(base_reg);
 	rdy = rdy | (1 << shadow_index);
 	ipu_set_shd_rdy(base_reg, rdy);
 }
 
-int ipu_update_osd_sta_roi(struct ipu_video_ctx *ipu_ctx, unsigned long arg)	//osd_sta_box_t (*sta_box)[MAX_STA_NUM], u8 *osd_sta_level)
+int ipu_update_osd_sta_roi(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 {
 	int ret = 0;
 	osd_sta_box_t *osd_sta;
@@ -607,7 +741,8 @@ int ipu_get_osd_bin(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 	return ret;
 }
 
-int ipu_channel_wdma_disable(struct ipu_subdev *subdev)
+int ipu_channel_wdma_enable(struct ipu_subdev *subdev, bool roi_en,
+			bool sc_en)
 {
 	int ret = 0;
 	u32 rdy = 0;
@@ -633,13 +768,8 @@ int ipu_channel_wdma_disable(struct ipu_subdev *subdev)
 	rdy = rdy & ~(1 << shadow_index);
 	ipu_set_shd_rdy(ipu->base_reg, rdy);
 
-	if (id == GROUP_ID_US) {
-		ipu_set_us_enable(ipu->base_reg, shadow_index, false);
-		ipu_set_us_roi_enable(ipu->base_reg, shadow_index, false);
-	} else if (id >= GROUP_ID_DS0) {
-		ipu_set_ds_enable(ipu->base_reg, shadow_index, ds_ch, false);
-		ipu_set_ds_roi_enable(ipu->base_reg, shadow_index, ds_ch, false);
-	}
+	ipu_set_roi_enable(subdev, shadow_index, roi_en);
+	ipu_set_sc_enable(subdev, shadow_index, sc_en);
 
 	rdy = ipu_get_shd_rdy(ipu->base_reg);
 	rdy = rdy | (1 << shadow_index);
@@ -648,7 +778,7 @@ int ipu_channel_wdma_disable(struct ipu_subdev *subdev)
 	return ret;
 }
 
-int ipu_update_ds_ch_param(struct          ipu_subdev *subdev, u8 ds_ch,
+int ipu_update_ds_ch_param(struct ipu_subdev *subdev, u8 ds_ch,
 			   ipu_ds_info_t *ds_config)
 {
 	int ret = 0;
@@ -1103,6 +1233,8 @@ int ipu_video_streamon(struct ipu_video_ctx *ipu_ctx)
 			}
 		}
 	}
+	ipu_set_ddr_fifo_thred(ipu->base_reg, 0, 0);
+	ipu_set_ddr_fifo_thred(ipu->base_reg, 1, 0);
 
 	set_bit(IPU_HW_RUN, &ipu->state);
 p_inc:
@@ -1134,7 +1266,7 @@ int ipu_video_streamoff(struct ipu_video_ctx *ipu_ctx)
 
 	/* last process of this sub_mp */
 	if (atomic_read(&subdev->refcount) == 1)
-		ipu_channel_wdma_disable(subdev);
+		ipu_channel_wdma_enable(subdev, false, false);
 
 	if (atomic_dec_return(&ipu_dev->rsccount) > 0
 		&& !test_bit(IPU_HW_FORCE_STOP, &ipu_dev->state))
@@ -1502,6 +1634,9 @@ static long x3_ipu_ioctl(struct file *file, unsigned int cmd,
 	case IPU_IOC_ROI_INFO:
 		ret = ipu_update_roi_info(ipu_ctx, arg);
 		break;
+	case IPU_IOC_SCALE_INFO:
+		ret = ipu_update_scale_info(ipu_ctx, arg);
+		break;
 	case IPU_IOC_BIND_GROUP:
 		ret = get_user(instance, (u32 __user *) arg);
 		if (ret)
@@ -1749,6 +1884,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 	u32 status = 0;
 	u32 instance = 0;
 	u32 size_err = 0;
+	u32 err_status = 0;
 	struct x3_ipu_dev *ipu;
 	struct vio_group *group;
 	struct vio_group_task *gtask;
@@ -1760,12 +1896,14 @@ static irqreturn_t ipu_isr(int irq, void *data)
 	group = ipu->group[instance];
 	ipu_get_intr_status(ipu->base_reg, &status, true);
 	size_err = ipu_get_size_err(ipu->base_reg);
+	err_status = ipu_get_err_status(ipu->base_reg);
 	vio_dbg("%s status = 0x%x\n", __func__, status);
 
-	if (size_err) {
+	if (size_err || err_status) {
 		ipu_clear_size_err(ipu->base_reg, 1);
 		ipu_clear_size_err(ipu->base_reg, 0);
 		vio_warn("IPU size error detection(0x%x)\n", size_err);
+		vio_warn("IPU size error status(0x%x)\n", err_status);
 	}
 
 	if (status & (1 << INTR_IPU_US_FRAME_DROP)) {
@@ -1880,6 +2018,11 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		if (group && group->get_timestamps) {
 			vio_get_frame_id(group);
 			vio_dbg("[S%d]IPU frame count = %d\n",
+					instance, group->frameid.frame_id);
+		}
+		if (test_bit(IPU_DMA_INPUT, &ipu->state)) {
+			group->frameid.frame_id = atomic_read(&ipu->sensor_fcount);
+			vio_info("[S%d]IPU frame count = %d\n",
 					instance, group->frameid.frame_id);
 		}
 	}

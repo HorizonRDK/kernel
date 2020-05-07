@@ -149,6 +149,7 @@ enum ipu_reg {
 	IPU_LAYER_2_REQ_LINE_CNT,
 	IPU_ERR_CLR,
 	IPU_ERR_STATUS,
+	IPU_WR_DDR_FIFO_THRED_0,
 	IPU_WR_DDR_FIFO_THRED_1,
 	/*0x404*/
 	IPU_1_SRC_WIDTH,
@@ -749,6 +750,7 @@ static struct vio_reg_def ipu_regs[NUM_OF_IPU_REG]={
 	{"IPU_LAYER_2_REQ_LINE_CNT",    0x0224, RW},
 	{"IPU_ERR_CLR",                 0x0228, RW},
 	{"IPU_ERR_STATUS",              0x022C, RW},
+	{"IPU_WR_DDR_FIFO_THRED_0", 	0x0230, RW},
 	{"IPU_WR_DDR_FIFO_THRED_1",     0x0234, RW},
 	/*0x404*/
 	{"IPU_1_SRC_WIDTH",             0x0404, RW},
