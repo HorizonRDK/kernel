@@ -924,7 +924,7 @@ static int screen_backlight_init(void)
 
 	pr_debug("initialize lcd backligbt!!!\n");
 	screen_backlight_pwm = pwm_request(0, "lcd-pwm");
-	if (screen_backlight_pwm == NULL) {
+	if (IS_ERR(screen_backlight_pwm)) {
 		pr_err("\nNo pwm device 0!!!!\n");
 		return -ENODEV;
 	}
