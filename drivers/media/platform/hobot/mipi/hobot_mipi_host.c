@@ -28,6 +28,7 @@
 
 #include <soc/hobot/hobot_mipi_host.h>
 #include <soc/hobot/hobot_mipi_dphy.h>
+#include <soc/hobot/diag.h>
 
 #include "hobot_mipi_host_regs.h"
 #include "hobot_mipi_utils.h"
@@ -36,11 +37,10 @@
 #include "x2/x2_ips.h"
 #endif
 
-#ifdef CONFIG_X2_DIAG
-#include <x2/diag.h>
-
+#ifdef CONFIG_X2_SYSNOTIFY
 #define EventIdVioMipiHostError 80
 #endif
+
 
 #define MIPI_HOST_DNAME		"mipi_host"
 #define MIPI_HOST_MAX_NUM	CONFIG_HOBOT_MIPI_HOST_MAX_NUM
@@ -302,10 +302,8 @@ typedef struct _mipi_hdev_s {
 	int               is_ex;
 	mipi_host_t       host;
 	mipi_user_t       user;
-#ifdef CONFIG_X2_DIAG
 	struct timer_list diag_timer;
 	uint32_t          last_err_tm_ms;
-#endif
 #if MIPI_HOST_INT_DBG && defined MIPI_HOST_INT_USE_TIMER
 	struct            timer_list irq_timer;
 	uint32_t          irq_timer_en;
@@ -1011,43 +1009,20 @@ static void mipi_host_irq_disable(mipi_hdev_t *hdev)
 	return;
 }
 
-#ifdef CONFIG_X2_DIAG
 static void mipi_host_diag_report(mipi_hdev_t *hdev,
-		uint8_t errsta, uint32_t total_irq,
-		uint32_t *sub_irq_data, uint32_t elem_cnt)
+		uint8_t errsta, uint32_t total_irq)
 {
-	uint32_t buff[8];
-	int i;
-
 	hdev->last_err_tm_ms = jiffies_to_msecs(get_jiffies_64());
 	if (errsta) {
-		buff[0] = total_irq;
-		for (i = 0; i < elem_cnt; i++)
-			buff[1 + i] = sub_irq_data[i];
-
 		diag_send_event_stat_and_env_data(
 				DiagMsgPrioHigh,
 				ModuleDiag_VIO,
-				EventIdVioMipiHostErr,
+				EventIdVioMipiHost0Err + hdev->port,
 				DiagEventStaFail,
 				DiagGenEnvdataWhenErr,
-				(uint8_t *)buff,
-				32);
+				(uint8_t *)&total_irq,
+				4);
 	}
-}
-
-static void mipi_host_error_report(mipi_hdev_t *hdev,
-		uint8_t errsta, uint32_t total_irq,
-		uint32_t *sub_irq_data, uint32_t elem_cnt)
-{
-		diag_send_event_stat_and_env_data(
-				DiagMsgPrioLow,
-				ModuleDiag_VIO,
-				EventIdVioMipiHostError,
-				DiagEventStaFail,
-				DiagGenEnvdataWhenErr,
-				NULL,
-				32);
 }
 
 static void mipi_host_diag_timer_func(unsigned long data)
@@ -1061,11 +1036,26 @@ static void mipi_host_diag_timer_func(unsigned long data)
 		diag_send_event_stat(
 				DiagMsgPrioMid,
 				ModuleDiag_VIO,
-				EventIdVioMipiHostErr,
+				EventIdVioMipiHost0Err + hdev->port,
 				DiagEventStaSuccess);
 	}
 	jiffi = get_jiffies_64() + msecs_to_jiffies(2000);
 	mod_timer(&hdev->diag_timer, jiffi); // trriger again.
+}
+
+#ifdef CONFIG_X2_SYSNOTIFY
+static void mipi_host_error_report(mipi_hdev_t *hdev,
+		uint8_t errsta, uint32_t total_irq,
+		uint32_t *sub_irq_data, uint32_t elem_cnt)
+{
+		diag_send_event_stat_and_env_data(
+				DiagMsgPrioLow,
+				ModuleDiag_VIO,
+				EventIdVioMipiHostError,
+				DiagEventStaFail,
+				DiagGenEnvdataWhenErr,
+				NULL,
+				32);
 }
 #endif
 
@@ -1123,10 +1113,7 @@ static irqreturn_t mipi_host_irq_func(int this_irq, void *data)
 	uint32_t subirq = 0;
 	const uint32_t *st;
 	int i, num;
-#ifdef CONFIG_X2_DIAG
 	uint8_t err_occurred = 0;
-	uint32_t env_subirq[sizeof(mipi_host_icnt_t)/sizeof(uint32_t)] = {0};
-#endif
 
 	if (!hdev || !iomem)
 		return IRQ_NONE;
@@ -1169,10 +1156,7 @@ static irqreturn_t mipi_host_irq_func(int this_irq, void *data)
 				mipidbg("  %s: 0x%x",
 					g_mh_icnt_names[icnt_n], subirq);
 			icnt_p[icnt_n]++;
-#ifdef CONFIG_X2_DIAG
 			err_occurred = 1;
-			env_subirq[icnt_n] = subirq;
-#endif
 			irq_do &= ~mask;
 			if (!irq_do)
 				break;
@@ -1185,9 +1169,8 @@ static irqreturn_t mipi_host_irq_func(int this_irq, void *data)
 	if (this_irq >= 0)
 		enable_irq(this_irq);
 
-#ifdef CONFIG_X2_DIAG
-	mipi_host_diag_report(hdev, err_occurred, irq, env_subirq,
-				 sizeof(env_subirq)/sizeof(uint32_t));
+	mipi_host_diag_report(hdev, err_occurred, irq);
+#ifdef CONFIG_X2_SYSNOTIFY
 	mipi_host_error_report(hdev, err_occurred, irq, env_subirq,
 				  sizeof(env_subirq)/sizeof(uint32_t));
 #endif
@@ -2245,12 +2228,11 @@ static int hobot_mipi_host_probe_cdev(mipi_hdev_t *hdev)
 		goto err_creat;
 	}
 
-#ifdef CONFIG_X2_DIAG
 	/* diag */
-	if (diag_register(ModuleDiag_VIO, EventIdVioMipiHostErr,
-						32, 400, 6000, NULL) < 0)
+	if (diag_register(ModuleDiag_VIO, EventIdVioMipiHost0Err + hdev->port,
+						4, 400, 6000, NULL) < 0) {
 		pr_err("mipi host %d diag register fail\n", hdev->port);
-	else {
+	} else {
 		hdev->last_err_tm_ms = 0;
 		init_timer(&hdev->diag_timer);
 		hdev->diag_timer.expires =
@@ -2259,6 +2241,8 @@ static int hobot_mipi_host_probe_cdev(mipi_hdev_t *hdev)
 		hdev->diag_timer.function = mipi_host_diag_timer_func;
 		add_timer(&hdev->diag_timer);
 	}
+
+#ifdef CONFIG_X2_SYSNOTIFY
 	if (diag_register(ModuleDiag_VIO, EventIdVioMipiHostError,
 						32, 300, 5000, NULL) < 0)
 		pr_err("mipi host %d diag register fail\n", hdev->port);
@@ -2275,9 +2259,7 @@ err_add:
 
 static int hobot_mipi_host_remove_cdev(mipi_hdev_t *hdev)
 {
-#ifdef CONFIG_X2_DIAG
-	del_timer_sync(&hdev->host.diag_timer);
-#endif
+	del_timer_sync(&hdev->diag_timer);
 	if (g_mh_class)
 		device_destroy(g_mh_class, hdev->devno);
 	cdev_del(&hdev->cdev);

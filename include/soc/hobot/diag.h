@@ -106,7 +106,10 @@ enum diag_i2c_driver_module_eventid {
 
 /* VIO module event id */
 enum diag_vio_module_eventid {
-	EventIdVioMipiHostErr = 1,
+	EventIdVioMipiHost0Err = 1,
+	EventIdVioMipiHost1Err,
+	EventIdVioMipiHost2Err,
+	EventIdVioMipiHost3Err,
 	EventIdVioMipiDevErr,
 	EventIdVioSifErr,
 	EventIdVioIpuSingleErr,

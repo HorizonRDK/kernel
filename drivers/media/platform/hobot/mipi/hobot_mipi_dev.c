@@ -28,13 +28,12 @@
 
 #include <soc/hobot/hobot_mipi_dev.h>
 #include <soc/hobot/hobot_mipi_dphy.h>
+#include <soc/hobot/diag.h>
 
 #include "hobot_mipi_dev_regs.h"
 #include "hobot_mipi_utils.h"
 
-#ifdef CONFIG_X2_DIAG
-#include <x2/diag.h>
-
+#ifdef CONFIG_X2_SYSNOTIFY
 #define EventIdVioMipiDevError 81
 #endif
 
@@ -272,10 +271,8 @@ typedef struct _mipi_ddev_s {
 	struct device    *dev;
 	mipi_dev_t        mdev;
 	mipi_user_t       user;
-#ifdef CONFIG_X2_DIAG
 	struct timer_list diag_timer;
 	uint32_t          last_err_tm_ms;
-#endif
 #if MIPI_DEV_INT_DBG && defined MIPI_DEV_INT_USE_TIMER
 	struct timer_list irq_timer;
 	uint32_t          irq_timer_en;
@@ -848,7 +845,7 @@ static void mipi_dev_irq_disable(mipi_ddev_t *ddev)
 	return;
 }
 
-#ifdef CONFIG_X2_DIAG
+#ifdef CONFIG_X2_SYSNOTIFY
 static void mipi_dev_error_report(mipi_ddev_t *ddev,
 		uint8_t errsta, uint32_t total_irq,
 		uint32_t *sub_irq_data, uint32_t elem_cnt)
@@ -862,12 +859,13 @@ static void mipi_dev_error_report(mipi_ddev_t *ddev,
 				NULL,
 				20);
 }
+#endif
 
 static void mipi_dev_diag_report(mipi_ddev_t *ddev,
 		uint8_t errsta, uint32_t total_irq,
 		uint32_t *sub_irq_data, uint32_t elem_cnt)
 {
-	uint32_t buff[5];
+	uint32_t buff[6];
 	int i;
 
 	ddev->last_err_tm_ms = jiffies_to_msecs(get_jiffies_64());
@@ -883,7 +881,7 @@ static void mipi_dev_diag_report(mipi_ddev_t *ddev,
 				DiagEventStaFail,
 				DiagGenEnvdataWhenErr,
 				(uint8_t *)buff,
-				20);
+				24);
 	}
 }
 
@@ -904,7 +902,7 @@ static void mipi_dev_diag_timer_func(unsigned long data)
 	jiffi = get_jiffies_64() + msecs_to_jiffies(2000);
 	mod_timer(&ddev->diag_timer, jiffi); // trriger again.
 }
-#endif
+
 
 static const uint32_t mipi_dev_int_st[] = {
 	/* reg offset,                mask,                      icnt */
@@ -939,10 +937,8 @@ static irqreturn_t mipi_dev_irq_func(int this_irq, void *data)
 	uint32_t subirq = 0;
 	const uint32_t *st;
 	int i, num;
-#ifdef CONFIG_X2_DIAG
 	uint8_t err_occurred = 0;
 	uint32_t env_subirq[sizeof(mipi_dev_icnt_t)/sizeof(uint32_t)] = {0};
-#endif
 
 	if (!ddev || !iomem)
 		return IRQ_NONE;
@@ -989,10 +985,8 @@ static irqreturn_t mipi_dev_irq_func(int this_irq, void *data)
 				mipidbg("  %s: 0x%x",
 					g_md_icnt_names[icnt_n], subirq);
 			icnt_p[icnt_n]++;
-#ifdef CONFIG_X2_DIAG
 			err_occurred = 1;
-			env_subirq[icnt_n] = subirq;
-#endif
+			env_subirq[icnt_n - 1] = subirq;
 			irq_do &= ~mask;
 			if (!irq_do)
 				break;
@@ -1005,9 +999,9 @@ static irqreturn_t mipi_dev_irq_func(int this_irq, void *data)
 	if (this_irq >= 0)
 		enable_irq(this_irq);
 
-#ifdef CONFIG_X2_DIAG
-	mipi_dev_diag_report(ddev, err_occureed, irq, env_subirq,
+	mipi_dev_diag_report(ddev, err_occurred, irq, env_subirq,
 				 sizeof(env_subirq)/sizeof(uint32_t));
+#ifdef CONFIG_X2_SYSNOTIFY
 	mipi_dev_error_report(ddev, err_occureed, irq, env_subirq,
 				 sizeof(env_subirq)/sizeof(uint32_t));
 #endif
@@ -1904,20 +1898,20 @@ static int hobot_mipi_dev_probe_cdev(mipi_ddev_t *ddev)
 		goto err_creat;
 	}
 
-#ifdef CONFIG_X2_DIAG
 	/* diag */
 	if (diag_register(ModuleDiag_VIO, EventIdVioMipiDevErr,
-						20, 300, 5000, NULL) < 0)
+						24, 300, 5000, NULL) < 0) {
 		pr_err("mipi dev %d diag register fail\n", ddev->port);
-	else {
+	} else {
 		ddev->last_err_tm_ms = 0;
-		init_timer(&dev->diag_timer);
+		init_timer(&ddev->diag_timer);
 		ddev->diag_timer.expires =
 			get_jiffies_64() + msecs_to_jiffies(1000);
-		ddev->diag_timer.data = 0;
+		ddev->diag_timer.data = (unsigned long)ddev;
 		ddev->diag_timer.function = mipi_dev_diag_timer_func;
 		add_timer(&ddev->diag_timer);
 	}
+#ifdef CONFIG_X2_SYSNOTIFY
 	if (diag_register(ModuleDiag_VIO, EventIdVioMipiDevError,
 						20, 300, 5000, NULL) < 0)
 		pr_err("mipi dev %d diag register fail\n", ddev->port);
@@ -1934,9 +1928,7 @@ err_add:
 
 static int hobot_mipi_dev_remove_cdev(mipi_ddev_t *ddev)
 {
-#ifdef CONFIG_X2_DIAG
-	del_timer_sync(&ddev->mdev.diag_timer);
-#endif
+	del_timer_sync(&ddev->diag_timer);
 	if (g_md_class)
 		device_destroy(g_md_class, ddev->devno);
 	cdev_del(&ddev->cdev);
