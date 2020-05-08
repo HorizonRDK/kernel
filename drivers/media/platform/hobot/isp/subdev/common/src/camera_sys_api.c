@@ -475,14 +475,16 @@ void camera_sys_os8a10_turning_data(uint32_t port, sensor_priv_t *priv_param,
 	}
 
 	if(camera_mod[port]->camera_param.mode == NORMAL_M) {
-		if(priv_param->gain_buf[0] <= camera_mod[port]->camera_param.sensor_data.
-				analog_gain_max) {
+		if(priv_param->gain_buf[0] <= (camera_mod[port]->camera_param.sensor_data.
+				analog_gain_max >> 13)) {
 			a_gain[0] = a_gain_temp[0];
 			d_gain[0] = 1 << 8;
 		} else {
-			a_gain[0] = sensor_date(camera_mod[port]->camera_param.sensor_data.analog_gain_max);
+			a_gain[0] = sensor_date(camera_mod[port]->camera_param.sensor_data.analog_gain_max >> 13);
 			d_gain[0] = a_gain_temp[0] / a_gain[0];
-			d_gain[0] = 1 << 8;
+			d_gain[0] = d_gain[0] << 8;
+			if (d_gain[0] > sensor_date(camera_mod[port]->camera_param.sensor_data.digital_gain_max >> 13))
+				d_gain[0] = sensor_date(camera_mod[port]->camera_param.sensor_data.digital_gain_max);
 		}
 
 		if(again_prec <= 8)
@@ -496,11 +498,11 @@ void camera_sys_os8a10_turning_data(uint32_t port, sensor_priv_t *priv_param,
 			d_gain[0] = (d_gain[0] << (dgain_prec - 8));
 
 	} else if (camera_mod[port]->camera_param.mode == DOL2_M) {
-		if(priv_param->gain_buf[0] <= camera_mod[port]->camera_param.sensor_data.analog_gain_max) {
+		if(priv_param->gain_buf[0] <= (camera_mod[port]->camera_param.sensor_data.analog_gain_max >> 13)) {
 			a_gain[0] = a_gain_temp[0];
 			d_gain[0] = 1 << 8;
 		} else {
-			a_gain[0] = sensor_date(camera_mod[port]->camera_param.sensor_data.analog_gain_max);
+			a_gain[0] = sensor_date(camera_mod[port]->camera_param.sensor_data.analog_gain_max >> 13);
 			d_gain[0] = a_gain_temp[0] / a_gain[0];
 			d_gain[0] = 1 << 8;
 		}

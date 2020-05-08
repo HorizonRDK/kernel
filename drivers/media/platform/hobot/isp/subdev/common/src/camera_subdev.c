@@ -88,10 +88,10 @@ static long camera_subdev_ioctl(struct v4l2_subdev *sd,
                         ARGS_TO_PTR(arg)->r_data);
 		break;
 	case SENSOR_ALLOC_ANALOG_GAIN:
-		//camera_sys_alloc_again(ARGS_TO_PTR(arg)->port, ARGS_TO_PTR(arg)->a_gain);
+		camera_sys_alloc_again(ARGS_TO_PTR(arg)->port, ARGS_TO_PTR(arg)->a_gain);
 		break;
 	case SENSOR_ALLOC_DIGITAL_GAIN:
-		//camera_sys_alloc_dgain(ARGS_TO_PTR(arg)->port, ARGS_TO_PTR(arg)->d_gain);
+		camera_sys_alloc_dgain(ARGS_TO_PTR(arg)->port, ARGS_TO_PTR(arg)->d_gain);
 		break;
 	case SENSOR_ALLOC_INTEGRATION_TIME:
 		//camera_sys_alloc_intergration_time(ARGS_TO_PTR(arg)->port,

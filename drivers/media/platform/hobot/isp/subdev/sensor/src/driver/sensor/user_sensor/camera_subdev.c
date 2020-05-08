@@ -56,6 +56,7 @@ static int32_t common_alloc_analog_gain(uint8_t chn, int32_t gain)
 	uint32_t analog_gain = gain;
 	struct sensor_arg settings;
 
+	LOG(LOG_DEBUG, "analog gain is %d", gain);
 	if (common_subdev != NULL && chn < FIRMWARE_CONTEXT_NUMBER) {
 		settings.port = chn;
 		settings.a_gain = (uint32_t *)&analog_gain;
@@ -101,26 +102,27 @@ static int32_t common_alloc_digital_gain(uint8_t chn, int32_t gain)
 	uint32_t digital_gain = gain;
 	struct sensor_arg settings;
 
+	LOG(LOG_DEBUG, "digital gain is %d", gain);
 	if (common_subdev != NULL && chn < FIRMWARE_CONTEXT_NUMBER) {
 		settings.port = chn;
 		settings.d_gain = (uint32_t *)&digital_gain;
 		// Initial local parameters
 		ret = v4l2_subdev_call(common_subdev, core, ioctl,
 			SENSOR_ALLOC_DIGITAL_GAIN, &settings);
-#if 0
+#if 1
 		switch (sensor_ctl[chn].mode) {
 		case SENSOR_LINEAR:
 		case SENSOR_PWL:
-			sensor_ctl[chn].gain_buf[0] = digital_gain;
+			sensor_ctl[chn].gain_buf[0] += digital_gain;
 			sensor_ctl[chn].gain_num = 1;
 		break;
 		case SENSOR_DOL2:
-			sensor_ctl[chn].gain_buf[0] = digital_gain;
+			sensor_ctl[chn].gain_buf[0] += digital_gain;
 			//sensor_ctl[chn].gain_buf[1] = digital_gain;
 			sensor_ctl[chn].gain_num = 1;
 		break;
 		case SENSOR_DOL3:
-			sensor_ctl[chn].gain_buf[0] = digital_gain;
+			sensor_ctl[chn].gain_buf[0] += digital_gain;
 			//sensor_ctl[chn].gain_buf[1] = digital_gain;
 			//sensor_ctl[chn].gain_buf[2] = digital_gain;
 			sensor_ctl[chn].gain_num = 1;
