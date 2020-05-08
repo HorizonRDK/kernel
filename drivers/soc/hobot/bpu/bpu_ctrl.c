@@ -16,7 +16,7 @@
 #endif
 #include "bpu_ctrl.h"
 
-static int32_t bpu_core_pend_on(const struct bpu_core *core)
+static int32_t bpu_core_pend_on(struct bpu_core *core)
 {
 	if (core == NULL) {
 		pr_err("Pend on invalid core!\n");/*PRQA S ALL*/
@@ -28,7 +28,7 @@ static int32_t bpu_core_pend_on(const struct bpu_core *core)
 	return 0;
 }
 
-static int32_t bpu_core_pend_off(const struct bpu_core *core)
+static int32_t bpu_core_pend_off(struct bpu_core *core)
 {
 	if (core == NULL) {
 		pr_err("Pend off invalid core!\n");/*PRQA S ALL*/

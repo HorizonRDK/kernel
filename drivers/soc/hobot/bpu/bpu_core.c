@@ -587,7 +587,7 @@ static int32_t bpu_core_parse_dts(struct platform_device *pdev, struct bpu_core 
 	return 0;
 }
 
-static int32_t bpu_core_alloc_fifos(const struct bpu_core *core)
+static int32_t bpu_core_alloc_fifos(struct bpu_core *core)
 {
 	uint32_t i, j;
 	int32_t ret;
@@ -621,7 +621,7 @@ static int32_t bpu_core_alloc_fifos(const struct bpu_core *core)
 	return ret;
 }
 
-static void bpu_core_free_fifos(const struct bpu_core *core)
+static void bpu_core_free_fifos(struct bpu_core *core)
 {
 	uint32_t i;
 

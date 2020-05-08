@@ -29,7 +29,7 @@ static ssize_t bpu_core_queue_show(struct device *dev, struct device_attribute *
 static ssize_t bpu_core_fc_time_show(struct device *dev, struct device_attribute *attr, char *buf)/*PRQA S ALL*/
 {
 	struct bpu_core *core = (struct bpu_core *)dev_get_drvdata(dev);/*PRQA S ALL*/
-	struct bpu_fc tmp_fcs[BPU_CORE_RECORE_NUM];
+	struct bpu_fc *tmp_fcs;
 	int32_t i, len;
 	int32_t ret;
 
@@ -47,6 +47,9 @@ static ssize_t bpu_core_fc_time_show(struct device *dev, struct device_attribute
 		return ret;
 	}
 
+	tmp_fcs = (struct bpu_fc *)kzalloc((sizeof(struct bpu_fc) /*PRQA S ALL*/
+			* BPU_CORE_RECORE_NUM), GFP_KERNEL);/*PRQA S ALL*/
+
 	len = kfifo_out_peek(&core->done_fc_fifo, tmp_fcs, len);/*PRQA S ALL*/
 	for(i = 0; i < len; i++) {
 		ret += sprintf(buf + ret,/*PRQA S ALL*/
@@ -63,6 +66,8 @@ static ssize_t bpu_core_fc_time_show(struct device *dev, struct device_attribute
 				- ((tmp_fcs[i].start_point.tv_sec * SECTOUS)
 				+ tmp_fcs[i].start_point.tv_usec));
 	}
+
+	kfree(tmp_fcs);
 
 	return ret;
 }

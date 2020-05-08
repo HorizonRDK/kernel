@@ -376,7 +376,7 @@ int32_t  bpu_write_with_user(const struct bpu_core *core,
 			return -EINVAL;
 		}
 
-		if (!bpu_core_is_online(core)) {
+		if (!bpu_core_is_online((struct bpu_core *)core)) {
 			/*
 			* choose optimal core according to core stauts
 			* FIXME: need find core according core_mask flag
@@ -439,7 +439,7 @@ int32_t bpu_read_with_user(struct bpu_core *core, /*PRQA S ALL*/
 
 	mutex_lock(&user->mutex_lock);
 
-	ret = kfifo_to_user(&user->done_fcs, buf, len, &copied);/*PRQA S ALL*/
+	ret = kfifo_to_user(&user->done_fcs, (void __user *)buf, len, &copied);/*PRQA S ALL*/
 	if (ret < 0) {
 		mutex_unlock(&user->mutex_lock);
 		return ret;
@@ -530,7 +530,7 @@ static long bpu_ioctl(struct file *filp,/*PRQA S ALL*/
 		list_for_each_safe(pos, pos_n, &g_bpu->core_list) {/*PRQA S ALL*/
 			tmp_core = (struct bpu_core*)pos;/*PRQA S ALL*/
 			if (tmp_core != NULL) {
-				cap = max((int32_t)kfifo_avail(&tmp_core->run_fc_fifo[0]), cap);/*PRQA S ALL*/
+				cap = max((uint16_t)kfifo_avail(&tmp_core->run_fc_fifo[0]), cap);/*PRQA S ALL*/
 			}
 		}
 		mutex_unlock(&g_bpu->mutex_lock);
