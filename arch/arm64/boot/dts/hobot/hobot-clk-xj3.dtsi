@@ -711,6 +711,7 @@
 			clocks = <&iar_pix_clk>;
 			offset = <0x310>;
 			bits = <16>;
+			clk-flags = <CLK_IGNORE_UNUSED>;
 		};
 
 		pym_src_clk: pym_src_clk {
