@@ -154,30 +154,32 @@ static void sif_config_bypass(u32 __iomem *base_reg, u32 rx_index,
  *
  * @param pat_index 0:DVP, 1:IPI0, 2:IPI1, 3:IPI2, 4:IPI3
  */
-static void sif_set_pattern_gen(u32 __iomem *base_reg, u32 pat_index,
-				sif_data_desc_t* p_data)
+void sif_set_pattern_gen(u32 __iomem *base_reg, u32 pat_index,
+				sif_data_desc_t* p_data, u32 framerate)
 {
+	const u32 padding = 1;
 	u32 is_raw = (p_data->format == 0);
+	u32 y, cb, cr;
+	u32 h_time;
+	u32 v_line;
 
-#if 0
-	const u32 fps = 2;
-	const u32 clk_hz = 33 * 1000000;
-	const u32 padding = 1;
-	// For 4K
-	//const u32 padding = 1024;
-	// 0:RAW, non-0:YUV
-	//u32 h_time = (p_data->width + padding) / (is_raw ? 3 : 1);
-	u32 h_time = 4096;
-	// For 4K
-	//u32 h_time = p_data->width + padding;
-	u32 v_line = clk_hz / fps	/ h_time;
-
-#else
-	const u32 padding = 1;
-	u32 h_time = 4096 * 5;
-	u32 v_line = p_data->height + 100 + 1;
-#endif
-	u32 y,cb, cr;
+	if (framerate) {
+		const u32 clk_hz = vio_get_clk_rate("sif_mclk");
+		h_time = 4096;
+		v_line = clk_hz / framerate / h_time;
+		while (v_line >= 0x10000) {
+			v_line = v_line >> 1;
+			h_time = h_time << 1;
+		}
+		if (v_line <= p_data->height) {
+			vio_err("wrong fps%d, v_line(%d) <= height(%d), force set v_line\n",
+					framerate, v_line, p_data->height);
+			v_line = p_data->height + 100 + 1;
+		}
+	} else {
+		h_time = 4096;
+		v_line = p_data->height + 100 + 1;
+	}
 
 	y = 128;
 	cr = 160;
@@ -344,7 +346,7 @@ static void sif_set_dvp_input(u32 __iomem *base_reg, sif_input_dvp_t* p_dvp)
 				&sif_fields[SW_DVP_IN_PAT_GEN_OUT], enable_pattern);
 
 		if (enable_pattern)
-			sif_set_pattern_gen(base_reg, 0, &p_dvp->data);
+			sif_set_pattern_gen(base_reg, 0, &p_dvp->data, 0);
 
 		if (yuv_format) {
 			if (mux_out_index % 1) {
@@ -678,7 +680,7 @@ void sif_config_rx_ipi(u32 __iomem *base_reg, u32 index, u32 vc_channel,
 	}
 
 	if(enable_pattern)
-		sif_set_pattern_gen(base_reg, vc_channel + 1, &p_mipi->data);
+		sif_set_pattern_gen(base_reg, vc_channel + 1, &p_mipi->data, 0);
 }
 
 void sif_set_dol_channels(sif_input_mipi_t* p_mipi, sif_output_isp_t *p_isp,

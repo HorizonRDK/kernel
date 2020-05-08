@@ -37,6 +37,7 @@
 #define SIF_IOC_BYPASS    		 _IOW(SIF_IOC_MAGIC, 7, int)
 #define SIF_IOC_MD_EVENT    	 _IOR(SIF_IOC_MAGIC, 8, int)
 #define SIF_IOC_MD_CFG	    	 _IOW(SIF_IOC_MAGIC, 9, int)
+#define SIF_IOC_PATTERN_CFG	     _IOW(SIF_IOC_MAGIC, 10, int)
 
 #define VIO_MP_IOC_MAGIC 'm'
 #define VIO_MP_IOC_BIND_GROUP	 _IOW(VIO_MP_IOC_MAGIC, 0, int)
@@ -121,6 +122,10 @@ enum sif_group_state {
 	SIF_GROUP_LEADER,
 };
 
+struct sif_pattern_cfg {
+	u32 instance;
+	u32 framerate;
+};
 /* device node for multi process */
 struct mp_ctx {
 	atomic_t		*refcount;
@@ -181,9 +186,11 @@ struct sif_subdev {
 	u32 ddr_mux_index;
 	u32 dol_num;
 	u32 rx_index;
+	u8	vc_index;
 	u32 ipi_index;
 	u32 mux_nums;
 	sif_data_desc_t ddrin_fmt;
+	sif_data_desc_t fmt;
 	struct frame_id 		info;
 	bool initial_frameid;
 	u32 md_refresh_count;

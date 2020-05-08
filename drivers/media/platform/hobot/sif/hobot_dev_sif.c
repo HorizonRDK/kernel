@@ -284,12 +284,10 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 	sif_ctx = file->private_data;
 	sif = sif_ctx->sif_dev;
 	subdev = sif_ctx->subdev;
-	group = subdev->group;
 
-	if ((group) && atomic_dec_return(&subdev->refcount) == 0) {
+	if ((subdev) && atomic_dec_return(&subdev->refcount) == 0) {
 		subdev->state = 0;
-		clear_bit(VIO_GROUP_INIT, &group->state);
-		if (group->id == 0) {
+		if (sif_ctx->id == 0) {
 			clear_bit(subdev->mux_index, &sif->mux_mask);
 			clear_bit(subdev->ddr_mux_index, &sif->mux_mask);
 			clear_bit(subdev->ddr_mux_index, &sif->state);
@@ -307,8 +305,12 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 				clear_bit(subdev->ddr_mux_index + 2, &sif->mux_mask);
 			}
 		}
-		if (group->gtask)
+
+		group = subdev->group;
+		if (group && group->gtask) {
+			clear_bit(VIO_GROUP_INIT, &group->state);
 			vio_group_task_stop(group->gtask);
+		}
 
 		frame_manager_close(sif_ctx->framemgr);
 	}
@@ -328,10 +330,12 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 	}
 	sif_ctx->state = BIT(VIO_VIDEO_CLOSE);
 
-	spin_lock(&subdev->slock);
-	clear_bit(sif_ctx->ctx_index, &subdev->val_ctx_mask);
+	if (subdev) {
+		spin_lock(&subdev->slock);
+		clear_bit(sif_ctx->ctx_index, &subdev->val_ctx_mask);
+		spin_unlock(&subdev->slock);
+	}
 	kfree(sif_ctx);
-	spin_unlock(&subdev->slock);
 
 	vio_info("SIF close node %d\n", sif_ctx->id);
 	return 0;
@@ -483,12 +487,11 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 		subdev->md_refresh_count = 0;
 
 	subdev->rx_index = sif_config->input.mipi.mipi_rx_index;
+	subdev->vc_index = sif_config->input.mipi.vc_index[0];
 	if (subdev->rx_index < 2)
-		subdev->ipi_index = subdev->rx_index * 4 +
-				sif_config->input.mipi.vc_index[0];
+		subdev->ipi_index = subdev->rx_index * 4 + subdev->vc_index;
 	else
-		subdev->ipi_index = 8 + (subdev->rx_index - 2) * 2 +
-				sif_config->input.mipi.vc_index[0];
+		subdev->ipi_index = 8 + (subdev->rx_index - 2) * 2 + subdev->vc_index;
 
 	subdev->initial_frameid = true;
 	sif->sif_mux[mux_index] = group;
@@ -514,6 +517,9 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 
 	subdev->bufcount = sif_get_current_bufindex(sif->base_reg, ddr_mux_index);
 	sif->mismatch_cnt = 0;
+
+	memcpy(&subdev->fmt, &sif_config->input.mipi.data,
+		sizeof(sif_data_desc_t));
 
 	vio_info("[S%d] %s mux_index %d ddr_mux_index = %d\n", group->instance,
 			__func__, mux_index, ddr_mux_index);
@@ -876,7 +882,7 @@ int sif_set_mot_cfg(struct sif_video_ctx *sif_ctx, unsigned long arg)
 
 	if (!(sif_ctx->state & (BIT(VIO_VIDEO_S_INPUT) | BIT(VIO_VIDEO_REBUFS) |
 				BIT(VIO_VIDEO_INIT)))) {
-		vio_err("[%s][V%02d] invalid INIT is requested(%lX)",
+		vio_err("[%s][V%02d] invalid MD is requested(%lX)",
 				__func__, sif_ctx->id, sif_ctx->state);
 		return -EINVAL;
 	}
@@ -892,6 +898,35 @@ int sif_set_mot_cfg(struct sif_video_ctx *sif_ctx, unsigned long arg)
 	sif_set_md_output(sif->base_reg, &md);
 
 	vio_info("%s: done\n", __func__);
+	return ret;
+}
+
+int sif_set_pattern_cfg(struct sif_video_ctx *sif_ctx, unsigned long arg)
+{
+	int ret = 0;
+	struct sif_pattern_cfg cfg;
+	struct x3_sif_dev *sif;
+	struct sif_subdev *subdev;
+
+	ret = copy_from_user((char *) &cfg, (u32 __user *) arg,
+			   sizeof(struct sif_pattern_cfg));
+	if (ret) {
+		vio_err("%s copy_from_user error(%d)\n", __func__, ret);
+		return -EFAULT;
+	}
+
+	if (cfg.instance > VIO_MAX_STREAM) {
+		vio_err("%s : wrong instance %d\n", __func__, cfg.instance);
+		return -EFAULT;
+	}
+
+	sif = sif_ctx->sif_dev;
+	subdev = &sif->sif_mux_subdev[cfg.instance];
+
+	sif_set_pattern_gen(sif->base_reg, subdev->vc_index + 1, &subdev->fmt,
+				cfg.framerate);
+
+	vio_info("[%d]%s: frame_rate %d\n", cfg.instance, __func__, cfg.framerate);
 	return ret;
 }
 
@@ -967,6 +1002,9 @@ static long x3_sif_ioctl(struct file *file, unsigned int cmd,
 		break;
 	case SIF_IOC_MD_CFG:
 		ret = sif_set_mot_cfg(sif_ctx, arg);
+		break;
+	case SIF_IOC_PATTERN_CFG:
+		ret = sif_set_pattern_cfg(sif_ctx, arg);
 		break;
 	default:
 		vio_err("wrong ioctl command\n");
