@@ -381,7 +381,7 @@ int get_free_mux(struct x3_sif_dev *sif, u32 index, int format, u32 dol_num,
 
 	*mux_numbers = mux_nums;
 
-	spin_lock(&sif->shared_slock);
+	mutex_lock(&sif->shared_mutex);
 	for (i = index; i < SIF_MUX_MAX; i += step) {
 		if (!test_bit(i, &sif->mux_mask)) {
 			if (mux_nums > 1 && test_bit(i + 1, &sif->mux_mask))
@@ -398,7 +398,7 @@ int get_free_mux(struct x3_sif_dev *sif, u32 index, int format, u32 dol_num,
 			break;
 		}
 	}
-	spin_unlock(&sif->shared_slock);
+	mutex_unlock(&sif->shared_mutex);
 
 	if (i >= SIF_MUX_MAX) {
 		vio_err("can't get free mux\n");
@@ -672,11 +672,11 @@ int sif_video_streamon(struct sif_video_ctx *sif_ctx)
 		goto p_inc;
 
 	msleep(500);
-	spin_lock_irqsave(&sif_dev->shared_slock, flag);
+	mutex_lock(&sif_dev->shared_mutex);
 	sif_dev->error_count = 0;
 	sif_hw_enable(sif_dev->base_reg);
 	set_bit(SIF_HW_RUN, &sif_dev->state);
-	spin_unlock_irqrestore(&sif_dev->shared_slock, flag);
+	mutex_unlock(&sif_dev->shared_mutex);
 
 p_inc:
 	atomic_inc(&sif_dev->rsccount);
@@ -716,12 +716,12 @@ int sif_video_streamoff(struct sif_video_ctx *sif_ctx)
 
 	msleep(100);
 
-	spin_lock_irqsave(&sif_dev->shared_slock, flag);
+	mutex_lock(&sif_dev->shared_mutex);
 
 	sif_hw_disable(sif_dev->base_reg);
 	clear_bit(SIF_HW_RUN, &sif_dev->state);
 
-	spin_unlock_irqrestore(&sif_dev->shared_slock, flag);
+	mutex_unlock(&sif_dev->shared_mutex);
 p_dec:
 
 	if (framemgr->frames != NULL)
@@ -1474,7 +1474,7 @@ static int x3_sif_probe(struct platform_device *pdev)
 	atomic_set(&sif->rsccount, 0);
 	atomic_set(&sif->open_cnt, 0);
 
-	spin_lock_init(&sif->shared_slock);
+	mutex_init(&sif->shared_mutex);
 
 	x3_sif_device_node_init(sif);
 

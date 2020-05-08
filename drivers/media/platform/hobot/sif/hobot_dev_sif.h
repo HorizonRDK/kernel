@@ -207,7 +207,7 @@ struct x3_sif_dev {
 	atomic_t			instance;
 	atomic_t			rsccount;
 	atomic_t			open_cnt;
-	spinlock_t			shared_slock;
+	struct mutex			shared_mutex;
 	u32 				error_count;
 	u32					hblank;
 	unsigned long	mux_mask;

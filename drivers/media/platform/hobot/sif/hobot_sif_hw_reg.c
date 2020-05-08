@@ -1280,7 +1280,7 @@ static void sif_disable_input_and_output(u32 __iomem *base_reg)
 	vio_hw_set_field(base_reg, &sif_regs[SIF_OUT_BUF_CTRL],
 			&sif_fields[SW_SIF_IPU0_OUT_ENABLE], 0);
 
-	mdelay(100);
+	//mdelay(100);
 
 	do
 	{
@@ -1289,7 +1289,7 @@ static void sif_disable_input_and_output(u32 __iomem *base_reg)
 		if (value == 1)
 			break;
 
-		if (t++ < 10) {
+		if (t++ < 1000) {
 			mdelay(1);
 			vio_info("wait for SIF idle");
 			continue;
