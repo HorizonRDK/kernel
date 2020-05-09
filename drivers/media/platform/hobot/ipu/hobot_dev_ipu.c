@@ -24,6 +24,7 @@
 #include <asm/cacheflush.h>
 #include <linux/io.h>
 #include <linux/poll.h>
+#include <soc/hobot/diag.h>
 
 #include "hobot_dev_ipu.h"
 #include "ipu_hw_api.h"
@@ -1882,12 +1883,36 @@ void ipu_frame_ndone(struct ipu_subdev *subdev)
 	spin_unlock(&subdev->slock);
 }
 
+static void ipu_diag_report(uint8_t errsta, unsigned int status)
+{
+	unsigned int sta;
+
+	sta = status;
+	if (errsta) {
+		diag_send_event_stat_and_env_data(
+				DiagMsgPrioHigh,
+				ModuleDiag_VIO,
+				EventIdVioIpuErr,
+				DiagEventStaFail,
+				DiagGenEnvdataWhenErr,
+				(uint8_t *)&sta,
+				sizeof(unsigned int));
+	} else {
+		diag_send_event_stat(
+				DiagMsgPrioMid,
+				ModuleDiag_VIO,
+				EventIdVioIpuErr,
+				DiagEventStaSuccess);
+	}
+}
+
 static irqreturn_t ipu_isr(int irq, void *data)
 {
 	u32 status = 0;
 	u32 instance = 0;
 	u32 size_err = 0;
 	u32 err_status = 0;
+	u32 err_occured = 0;
 	struct x3_ipu_dev *ipu;
 	struct vio_group *group;
 	struct vio_group_task *gtask;
@@ -1907,6 +1932,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		ipu_clear_size_err(ipu->base_reg, 0);
 		vio_warn("IPU size error detection(0x%x)\n", size_err);
 		vio_warn("IPU size error status(0x%x)\n", err_status);
+		err_occured = 1;
 	}
 
 	if (status & (1 << INTR_IPU_US_FRAME_DROP)) {
@@ -1915,6 +1941,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		if (subdev)
 			ipu_frame_ndone(subdev);
 		ipu->frame_drop_count++;
+		err_occured = 2;
 	}
 
 	if (status & (1 << INTR_IPU_DS0_FRAME_DROP)) {
@@ -1922,6 +1949,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		subdev = group->sub_ctx[GROUP_ID_DS0];
 		if (subdev)
 			ipu_frame_ndone(subdev);
+		err_occured = 2;
 	}
 
 	if (status & (1 << INTR_IPU_DS1_FRAME_DROP)) {
@@ -1929,6 +1957,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		subdev = group->sub_ctx[GROUP_ID_DS1];
 		if (subdev)
 			ipu_frame_ndone(subdev);
+		err_occured = 2;
 	}
 
 	if (status & (1 << INTR_IPU_DS2_FRAME_DROP)) {
@@ -1936,6 +1965,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		subdev = group->sub_ctx[GROUP_ID_DS2];
 		if (subdev)
 			ipu_frame_ndone(subdev);
+		err_occured = 2;
 	}
 
 	if (status & (1 << INTR_IPU_DS3_FRAME_DROP)) {
@@ -1943,6 +1973,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		subdev = group->sub_ctx[GROUP_ID_DS3];
 		if (subdev)
 			ipu_frame_ndone(subdev);
+		err_occured = 2;
 	}
 
 	if (status & (1 << INTR_IPU_DS4_FRAME_DROP)) {
@@ -1951,6 +1982,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		if (subdev)
 			ipu_frame_ndone(subdev);
 		ipu->frame_drop_count++;
+		err_occured = 2;
 	}
 
 	if (status & (1 << INTR_IPU_FRAME_DONE)) {
@@ -2035,7 +2067,10 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		vio_err("[S%d]too many Frame drop\n", instance);
 		ipu->frame_drop_count = 0;
 	}
-
+	if (err_occured == 1)
+		ipu_diag_report(err_occured, err_status);
+	else
+		ipu_diag_report(err_occured, status);
 	return IRQ_HANDLED;
 }
 
@@ -2261,7 +2296,9 @@ static int x3_ipu_probe(struct platform_device *pdev)
 
 	x3_ipu_subdev_init(ipu);
 	vio_group_init_mp(GROUP_ID_IPU);
-
+	if (diag_register(ModuleDiag_VIO, EventIdVioIpuErr,
+					4, 380, 8000, NULL) < 0)
+		pr_err("ipu dual diag register fail\n");
 	vio_info("[FRT:D] %s(%d)\n", __func__, ret);
 
 	return 0;

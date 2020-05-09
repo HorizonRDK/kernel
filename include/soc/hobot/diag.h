@@ -112,9 +112,7 @@ enum diag_vio_module_eventid {
 	EventIdVioMipiHost3Err,
 	EventIdVioMipiDevErr,
 	EventIdVioSifErr,
-	EventIdVioIpuSingleErr,
-	EventIdVioIpuDualErr,
-	EventIdVioIpuDDRErr,
+	EventIdVioIpuErr,
 	EventIdVioIspDropErr,
 };
 
