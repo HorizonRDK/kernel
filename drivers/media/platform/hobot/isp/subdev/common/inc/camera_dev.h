@@ -33,6 +33,14 @@
 #define SENSOR_USER_LOCK      _IOW(CAMERA_IOC_MAGIC, 4, int)
 #define SENSOR_USER_UNLOCK    _IOW(CAMERA_IOC_MAGIC, 5, int)
 
+struct sensor_ctrl_ops {
+	char ctrl_name[20];
+	void (*camera_sys_control)(uint32_t port, sensor_priv_t *priv_param, uint32_t *a_gain,
+		uint32_t *d_gain, uint32_t *a_line);
+	void (*camera_alloc_again)(uint32_t port, uint32_t *a_gain);
+	void (*camera_alloc_dgain)(uint32_t port, uint32_t *a_gain);
+};
+
 typedef struct _camera_charmod_s {
 	char name[CHAR_DEVNAME_LEN];
 	uint32_t devflag;

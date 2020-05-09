@@ -113,19 +113,19 @@ static int32_t common_alloc_digital_gain(uint8_t chn, int32_t gain)
 		switch (sensor_ctl[chn].mode) {
 		case SENSOR_LINEAR:
 		case SENSOR_PWL:
-			sensor_ctl[chn].gain_buf[0] += digital_gain;
-			sensor_ctl[chn].gain_num = 1;
+			sensor_ctl[chn].dgain_buf[0] = digital_gain;
+			sensor_ctl[chn].dgain_num = 1;
 		break;
 		case SENSOR_DOL2:
-			sensor_ctl[chn].gain_buf[0] += digital_gain;
+			sensor_ctl[chn].dgain_buf[0] = digital_gain;
 			//sensor_ctl[chn].gain_buf[1] = digital_gain;
-			sensor_ctl[chn].gain_num = 1;
+			sensor_ctl[chn].dgain_num = 1;
 		break;
 		case SENSOR_DOL3:
-			sensor_ctl[chn].gain_buf[0] += digital_gain;
+			sensor_ctl[chn].dgain_buf[0] = digital_gain;
 			//sensor_ctl[chn].gain_buf[1] = digital_gain;
 			//sensor_ctl[chn].gain_buf[2] = digital_gain;
-			sensor_ctl[chn].gain_num = 1;
+			sensor_ctl[chn].dgain_num = 1;
 		break;
 		case SENSOR_DOL4:
 			LOG(LOG_ERR, "common subdev pointer is NULL");

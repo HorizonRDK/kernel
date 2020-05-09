@@ -73,6 +73,7 @@ struct sensor_operations *sensor_ops[FIRMWARE_CONTEXT_NUMBER];
 struct sensor_priv_old sensor_data[FIRMWARE_CONTEXT_NUMBER];
 
 //--------------------RESET------------------------------------------------------------
+#if 0
 static void sensor_hw_reset_enable( void )
 {
 //-- TODO
@@ -88,7 +89,7 @@ static void sensor_hw_reset_disable( void )
 //	if (sensor_ops[p_ctx->channel])
 //		sensor_ops[p_ctx->channel]->sensor_hw_reset_disable();
 }
-
+#endif
 //--------------------FLASH------------------------------------------------------------
 
 static int32_t sensor_alloc_analog_gain( void *ctx, int32_t gain )
@@ -136,8 +137,7 @@ static int32_t sensor_alloc_digital_gain( void *ctx, int32_t gain )
 				param->integration_time_limit = sensor_param.exposure_time_max;
 				param->integration_time_long_max = sensor_param.exposure_time_long_max;
 				param->dgain_log2_max = sensor_param.digital_gain_max;
-				if (sensor_param.analog_gain_max)
-					param->again_log2_max = sensor_param.analog_gain_max;
+				param->again_log2_max = sensor_param.analog_gain_max;
 			}
 		}
 	}
@@ -230,8 +230,7 @@ static void sensor_set_type( void *ctx, uint8_t sensor_type, uint8_t sensor_i2c_
 				param->integration_time_limit = sensor_param.exposure_time_max;
 				param->integration_time_long_max = sensor_param.exposure_time_long_max;
 				param->dgain_log2_max = sensor_param.digital_gain_max;
-				if (sensor_param.analog_gain_max)
-					param->again_log2_max = sensor_param.analog_gain_max;
+				param->again_log2_max = sensor_param.analog_gain_max;
 				break;
 			} else {
 				sensor_ops[p_ctx->channel]->param_enable = 0;
@@ -296,8 +295,7 @@ static const sensor_param_t *sensor_get_parameters( void *ctx )
 			param->integration_time_max = sensor_param.exposure_time_max;
 			param->integration_time_limit = sensor_param.exposure_time_max;
 			param->dgain_log2_max = sensor_param.digital_gain_max;
-			if (sensor_param.analog_gain_max)
-				param->again_log2_max = sensor_param.analog_gain_max;
+			param->again_log2_max = sensor_param.analog_gain_max;
 			if (sensor_param.fps) {
 				p_ctx->supported_modes[param->mode].fps = sensor_param.fps;
 			} else {

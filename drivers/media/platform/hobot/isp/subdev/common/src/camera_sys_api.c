@@ -40,6 +40,351 @@
 extern 	uint32_t sensor_log10(uint32_t val);
 extern 	uint32_t sensor_date(uint32_t val);
 
+/*
+ * sensor gain/line ctrl for imx327 and so on
+ * note: imx327 only have a_gain(a_gain/d_gain in the same register)
+ * note: db
+ */
+
+void camera_sys_imxsensor_turning_control(uint32_t port, sensor_priv_t *priv_param,
+	uint32_t *a_gain, uint32_t *d_gain, uint32_t *a_line)
+{
+	int i;
+	uint32_t step_gain;
+	uint32_t line_buf0,  line_buf1, line_buf2;
+
+	line_buf0 = priv_param->line_buf[0];
+	line_buf1 = priv_param->line_buf[1];
+	line_buf2 = priv_param->line_buf[2];
+
+	step_gain = camera_mod[port]->camera_param.sensor_data.step_gain;
+	for(i = 0; i < priv_param->gain_num; i++) {
+		a_gain[i] = sensor_log10(priv_param->gain_buf[i]);
+		a_gain[i] = (uint32_t)(((a_gain[i]* 200) / step_gain) >> 8);
+	}
+	if(priv_param->line_num == 1) {
+		a_line[0] = camera_mod[port]->camera_param.sensor_data.VMAX
+			- 1 - priv_param->line_buf[0];
+	} else if (priv_param->line_num == 2) {
+		if (line_buf1 >= camera_mod[port]->camera_param.sensor_data.FSC_DOL2)
+				line_buf1 = camera_mod[port]->camera_param.sensor_data.FSC_DOL2 - 1;
+		 a_line[1] = camera_mod[port]->camera_param.sensor_data.FSC_DOL2
+			 - 1 - line_buf1;
+		if (line_buf0 >= camera_mod[port]->camera_param.sensor_data.RHS1)
+				line_buf0 = camera_mod[port]->camera_param.sensor_data.RHS1 - 1;
+		 a_line[0] = camera_mod[port]->camera_param.sensor_data.RHS1
+			 - 1 - line_buf0;
+	} else if (priv_param->line_num == 3) {
+		 a_line[2] = camera_mod[port]->camera_param.sensor_data.FSC_DOL3
+			- 1 - line_buf2;
+		 a_line[1] = camera_mod[port]->camera_param.sensor_data.RHS2
+			 - 1 - line_buf1;
+		 a_line[0] = camera_mod[port]->camera_param.sensor_data.RHS1
+			 - 1 - line_buf0;
+	}
+	return;
+}
+
+/*
+ * sensor gain/line ctrl for os8a10 and so on
+ * note: have again/dgain
+ * note:
+ *
+ */
+void camera_sys_os8a10_turning_data(uint32_t port, sensor_priv_t *priv_param,
+				uint32_t *a_gain, uint32_t *d_gain, uint32_t *a_line)
+{
+	int i;
+	uint32_t again_prec, dgain_prec;
+	uint32_t a_gain_temp[4];
+	uint32_t d_gain_temp[4];
+	again_prec = camera_mod[port]->camera_param.sensor_data.again_prec;
+	dgain_prec = camera_mod[port]->camera_param.sensor_data.dgain_prec;
+
+	for(i = 0; i < priv_param->gain_num; i++) {
+		a_gain_temp[i] = sensor_date(priv_param->gain_buf[i]);
+	}
+
+	for(i = 0; i < priv_param->dgain_num; i++) {
+		d_gain_temp[i] = sensor_date(priv_param->dgain_buf[i]);
+	}
+
+	if(camera_mod[port]->camera_param.mode == NORMAL_M) {
+		a_gain[0] = a_gain_temp[0];
+		d_gain[0] = d_gain_temp[0];
+
+		if(again_prec <= 8)
+			a_gain[0] = (a_gain[0] >> (8 - again_prec));
+		else
+			a_gain[0] = (a_gain[0] << (again_prec - 8));
+
+		if(dgain_prec <= 8)
+			d_gain[0] = (d_gain[0] >> (8 - dgain_prec));
+		else
+			d_gain[0] = (d_gain[0] << (dgain_prec - 8));
+
+	} else if (camera_mod[port]->camera_param.mode == DOL2_M) {
+		a_gain[0] = a_gain_temp[0];
+		d_gain[0] = d_gain_temp[0];
+
+		if(again_prec <= 8)
+			a_gain[0] = (a_gain[0] >> (8 - again_prec));
+		else
+			a_gain[0] = (a_gain[0] << (again_prec - 8));
+		if(dgain_prec <= 8)
+			d_gain[0] = (d_gain[0] >> (8 - dgain_prec));
+		else
+			d_gain[0] = (d_gain[0] << (dgain_prec - 8));
+
+		a_gain[1] = a_gain_temp[1];
+		d_gain[1] = d_gain_temp[1];
+
+		if(again_prec <= 8)
+			a_gain[1] = (a_gain[1] >> (8 - again_prec));
+		else
+			a_gain[1] = (a_gain[1] << (again_prec - 8));
+		if(dgain_prec <= 8)
+			d_gain[1] = (d_gain[1] >> (8 - dgain_prec));
+		else
+			d_gain[1] = (d_gain[1] << (dgain_prec - 8));
+	}
+
+	if(camera_mod[port]->camera_param.mode == NORMAL_M) {
+		if(priv_param->line_buf[0] > camera_mod[port]->camera_param.
+					sensor_data.VMAX - 8)
+			priv_param->line_buf[0] = camera_mod[port]->camera_param.
+							sensor_data.VMAX - 8;
+	} else if (camera_mod[port]->camera_param.mode == DOL2_M) {
+		if((priv_param->line_buf[0] + priv_param->line_buf[1]) >
+				(camera_mod[port]->camera_param.sensor_data.VMAX - 4))
+			priv_param->line_buf[1] = camera_mod[port]->camera_param.sensor_data.VMAX
+				- 4 - priv_param->line_buf[0];
+	}
+
+	for(i = 0; i < priv_param->line_num; i++) {
+		again_prec = priv_param->line_buf[i];
+		a_line[i] = 0;
+		a_line[i] = (again_prec & 0xff) << 8;
+		a_line[i] |= (again_prec & 0xff00) >> 8;
+		pr_debug("line[%d] = 0x%x\n", i, a_line[i]);
+	}
+
+	// change
+	for(i = 0; i < priv_param->gain_num; i++) {
+		again_prec = a_gain[i];
+		a_gain[i] = 0;
+		a_gain[i] = (again_prec & 0xff) << 8;
+		a_gain[i] |= (again_prec & 0xff00) >> 8;
+		pr_debug("a_gain[%d] = 0x%x\n", i, a_gain[i]);
+	}
+
+	// change
+	for(i = 0; i < priv_param->dgain_num; i++) {
+		dgain_prec = d_gain[i];
+		d_gain[i] = 0;
+		d_gain[i] = (dgain_prec & 0xff) << 8;
+		d_gain[i] |= (dgain_prec & 0xff00) >> 8;
+		pr_debug("d_gain[%d] = 0x%x\n", i, d_gain[i]);
+	}
+
+		return;
+}
+
+/*
+ * sensor gain/line ctrl for 0144 and so on
+ * note: have again/dgain
+ * note:
+ *
+ */
+void camera_sys_ar0144_turning_control(uint32_t port, sensor_priv_t *priv_param,
+                uint32_t *a_gain, uint32_t *d_gain, uint32_t *a_line)
+{
+	uint32_t tmp = 0;
+	uint32_t tmp1 = 0;
+	uint32_t coarse = 0;
+	uint32_t fine = 0;
+	uint32_t analog_gain;
+	uint32_t digital_gain;
+	analog_gain = sensor_date(priv_param->gain_buf[0]);
+	digital_gain = sensor_date(priv_param->dgain_buf[0]);
+	pr_debug("a_gain = 0x%x\n", analog_gain);
+
+	//again
+	tmp = analog_gain >> 8;
+	if (tmp == 1) {
+		tmp1 = 0;
+		coarse = 0 << 4;
+	} else if (tmp >= 2 && tmp < 4) {
+		tmp1 = 1;
+		coarse = 1 << 4;
+	} else if (tmp >= 4 && tmp < 8) {
+		tmp1 = 2;
+		coarse = 2 << 4;
+	} else if (tmp >= 8 && tmp < 16) {
+		tmp1 = 3;
+		coarse = 3 << 4;
+	} else if (tmp == 16) {
+		tmp1 = 4;
+		coarse = 4 << 4;
+	}
+	tmp = (analog_gain * 10000) >> (tmp1 + 8);
+	fine = 32 - (320000 + tmp - 1) / tmp;
+	a_gain[0] = (uint16_t)(coarse | fine);
+	a_gain[0] = (uint16_t)(a_gain[0] << 8 | a_gain[0] >> 8);
+
+	//digital
+	d_gain[0] = digital_gain >> 1;
+	d_gain[0] = (uint16_t)(d_gain[0] << 8 | d_gain[0] >> 8);
+
+	a_line[0] = priv_param->line_buf[0];
+	a_line[0] = (uint16_t)(a_line[0] << 8 | a_line[0] >> 8);
+
+	pr_debug("a_gain = 0x%x\n", a_gain[0]);
+	pr_debug("d_gain = 0x%x\n", d_gain[0]);
+	pr_debug("line = 0x%x\n", a_line[0]);
+
+	return;
+}
+
+/*
+ * sensor gain/line ctrl for ar0233 and so on
+ * note: have dgain
+ * note: ae using again to send info
+ * note:
+ *
+ */
+void camera_sys_ar0233_turning_control(uint32_t port, sensor_priv_t *priv_param,
+				uint32_t *a_gain, uint32_t *d_gain, uint32_t *a_line)
+{
+	int i;
+
+	for(i = 0; i < priv_param->gain_num; i++) {
+		a_gain[i] = sensor_date(priv_param->gain_buf[i]);
+		a_gain[i] = a_gain[i] >> 1;
+		if ((a_gain[i] >> 7) > 16)
+			d_gain[i] = a_gain[i] >> 2;
+			pr_info("gain_num %d, a_gain[i] %d, d_gain[i]0x%x\n", a_gain[i],
+					d_gain[i], priv_param->gain_num);
+	}
+	for(i = 0; i < priv_param->line_num; i++) {
+		 a_line[i] = priv_param->line_buf[i];
+		 pr_info("priv_param->line_num %d a_line[i] 0x%x\n",
+				 priv_param->line_num, a_line[i]);
+	}
+	return;
+}
+
+/*
+ * sensor gain/line ctrl for ar0231 and so on
+ * note: have again/dgain
+ * note: ae using again to send info
+ *
+ */
+unsigned int cal_again_regval(unsigned int* input_value)
+{
+	unsigned int again_regval;
+	unsigned int value = *input_value;
+	if ( (value >= 256) && (value < 320) ) {
+		again_regval = 0x7777;
+		*input_value = (value << 9) / 256;
+	} else if ((value >= 320) && (value < 384)) {
+		again_regval = 0x8888;
+		*input_value = (value << 9) / 320;
+	} else if ((value >= 384) && (value < 512)) {
+		again_regval = 0x9999;
+		*input_value = (value << 9) / 384;
+	} else if ((value >= 512) && (value < 598)) {
+		again_regval = 0xaaaa;
+		*input_value = (value << 9) / 512;
+	} else if ((value >= 598) && (value < 896)) {
+		again_regval = 0xbbbb;
+		*input_value = (value << 9) / 598;
+	} else if ((value >= 896) && (value < 1024)) {
+		again_regval = 0xcccc;
+		*input_value = (value << 9) / 896;
+	} else {
+		again_regval = 0xdddd;
+		*input_value = (value << 9) / 1024;
+	}
+	return	again_regval;
+}
+
+void camera_sys_ar0231_turning_control(uint32_t port, sensor_priv_t *priv_param,
+				uint32_t *a_gain, uint32_t *d_gain, uint32_t *a_line)
+{
+	int i;
+	unsigned int value;
+	for(i = 0; i < priv_param->gain_num; i++) {
+		value = sensor_date(priv_param->gain_buf[i]);
+		if (value < 760) {
+			d_gain[i + 3] = 0; //dc_gain
+			a_gain[i] = cal_again_regval(&value);
+			d_gain[i] = value;
+			pr_info("dc_gain_reg: 0x%x, again_reg: 0x%x, dgain_reg: 0x%x\n",
+					d_gain[i + 3], a_gain[i], d_gain[i]);
+		} else {
+			d_gain[i + 3] = 0xf;  //dc_gain
+			value = (value << 8) / 760;
+			a_gain[i] = cal_again_regval(&value);
+			d_gain[i] = value;
+			pr_info("dcgain_reg: 0x%x, again_reg: 0x%x, dgain_reg: 0x%x\n",
+					d_gain[i + 3], a_gain[i], d_gain[i]);
+		}
+	}
+	for(i = 0; i < priv_param->line_num; i++) {
+		 a_line[i] = priv_param->line_buf[i];
+		 pr_info("priv_param->line_num %d  a_line[i] 0x%x\n",
+				 priv_param->line_num, a_line[i]);
+	}
+	return;
+}
+
+void camera_common_alloc_again(uint32_t port, uint32_t *a_gain)
+{
+	if(*a_gain >= (camera_mod[port]->camera_param.sensor_data.analog_gain_max >> 13))
+		*a_gain = camera_mod[port]->camera_param.sensor_data.analog_gain_max >> 13;
+}
+
+void camera_common_alloc_dgain(uint32_t port, uint32_t *d_gain)
+{
+	if(*d_gain >= (camera_mod[port]->camera_param.sensor_data.digital_gain_max >> 13))
+		*d_gain = camera_mod[port]->camera_param.sensor_data.digital_gain_max >> 13;
+}
+
+struct sensor_ctrl_ops sensor_ops[] = {
+	{
+		.ctrl_name = "imx327",
+		.camera_sys_control = camera_sys_imxsensor_turning_control,
+		.camera_alloc_again = camera_common_alloc_again,
+		.camera_alloc_dgain = camera_common_alloc_dgain,
+	},
+	{
+		.ctrl_name = "os8a10",
+		.camera_sys_control = camera_sys_os8a10_turning_data,
+		.camera_alloc_again = camera_common_alloc_again,
+		.camera_alloc_dgain = camera_common_alloc_dgain,
+	},
+	{
+		.ctrl_name = "ar0233",
+		.camera_sys_control = camera_sys_ar0233_turning_control,
+		.camera_alloc_again = camera_common_alloc_again,
+		.camera_alloc_dgain = camera_common_alloc_dgain,
+	},
+	{
+		.ctrl_name = "ar0144",
+		.camera_sys_control = camera_sys_ar0144_turning_control,
+		.camera_alloc_again = camera_common_alloc_again,
+		.camera_alloc_dgain = camera_common_alloc_dgain,
+	},
+	{
+		.ctrl_name = "ar0231",
+		.camera_sys_control = camera_sys_ar0231_turning_control,
+		.camera_alloc_again = camera_common_alloc_again,
+		.camera_alloc_dgain = camera_common_alloc_dgain,
+	},
+};
+
+
 void camera_sys_printk_disturing(sensor_turning_data_t *turing_param)
 {
 	pr_info("sensor_addr 0x%x, bus_type %d, reg_width %d",
@@ -101,9 +446,14 @@ int camera_sys_write(uint32_t port, uint32_t reg_addr,
 int	camera_sys_alloc_again(uint32_t port, uint32_t *a_gain)
 {
 	int ret = 0;
+	uint32_t num = camera_mod[port]->camera_param.sensor_data.turning_type;
 
-	if(*a_gain >= camera_mod[port]->camera_param.sensor_data.analog_gain_max)
-		*a_gain = camera_mod[port]->camera_param.sensor_data.analog_gain_max;
+	if (num  > sizeof(sensor_ops)/sizeof(struct sensor_ctrl_ops)) {
+		pr_info("gain line calculation out range\n");
+	} else {
+		if (sensor_ops[num - 1].camera_alloc_again)
+			sensor_ops[num - 1].camera_alloc_again(port, a_gain);
+	}
 
 	return ret;
 }
@@ -111,9 +461,14 @@ int	camera_sys_alloc_again(uint32_t port, uint32_t *a_gain)
 int	camera_sys_alloc_dgain(uint32_t port, uint32_t *d_gain)
 {
 	int ret = 0;
+	uint32_t num = camera_mod[port]->camera_param.sensor_data.turning_type;
 
-	if(*d_gain >= camera_mod[port]->camera_param.sensor_data.digital_gain_max)
-		*d_gain = camera_mod[port]->camera_param.sensor_data.digital_gain_max;
+	if (num > sizeof(sensor_ops)/sizeof(struct sensor_ctrl_ops)) {
+		pr_info("gain line calculation out range\n");
+	} else {
+		if (sensor_ops[num - 1].camera_alloc_dgain)
+			sensor_ops[num - 1].camera_alloc_dgain(port, d_gain);
+	}
 
 	return ret;
 }
@@ -342,306 +697,19 @@ static int camera_sys_set_dol3_line(uint32_t port, uint32_t gain_num,
 	return ret;
 }
 
-void camera_sys_imxsensor_turning_control(uint32_t port,
-		sensor_priv_t *priv_param, uint32_t *a_gain, uint32_t *a_line)
-{
-	int i;
-	uint32_t step_gain;
-	uint32_t line_buf0,  line_buf1, line_buf2;
-
-	line_buf0 = priv_param->line_buf[0];
-	line_buf1 = priv_param->line_buf[1];
-	line_buf2 = priv_param->line_buf[2];
-
-	step_gain = camera_mod[port]->camera_param.sensor_data.step_gain;
-	for(i = 0; i < priv_param->gain_num; i++) {
-		a_gain[i] = sensor_log10(priv_param->gain_buf[i]);
-		a_gain[i] = (uint32_t)(((a_gain[i]* 200) / step_gain) >> 8);
-	}
-	if(priv_param->line_num == 1) {
-		a_line[0] = camera_mod[port]->camera_param.sensor_data.VMAX
-			- 1 - priv_param->line_buf[0];
-	} else if (priv_param->line_num == 2) {
-		if (line_buf1 >= camera_mod[port]->camera_param.sensor_data.FSC_DOL2)
-				line_buf1 = camera_mod[port]->camera_param.sensor_data.FSC_DOL2 - 1;
-		 a_line[1] = camera_mod[port]->camera_param.sensor_data.FSC_DOL2
-			 - 1 - line_buf1;
-		if (line_buf0 >= camera_mod[port]->camera_param.sensor_data.RHS1)
-				line_buf0 = camera_mod[port]->camera_param.sensor_data.RHS1 - 1;
-		 a_line[0] = camera_mod[port]->camera_param.sensor_data.RHS1
-			 - 1 - line_buf0;
-	} else if (priv_param->line_num == 3) {
-		 a_line[2] = camera_mod[port]->camera_param.sensor_data.FSC_DOL3
-			- 1 - line_buf2;
-		 a_line[1] = camera_mod[port]->camera_param.sensor_data.RHS2
-			 - 1 - line_buf1;
-		 a_line[0] = camera_mod[port]->camera_param.sensor_data.RHS1
-			 - 1 - line_buf0;
-	}
-	return;
-}
-
-void camera_sys_ar0233_turning_control(sensor_priv_t *priv_param,
-				uint32_t *a_gain, uint32_t *d_gain, uint32_t *a_line)
-{
-	int i;
-
-	for(i = 0; i < priv_param->gain_num; i++) {
-		a_gain[i] = sensor_date(priv_param->gain_buf[i]);
-		a_gain[i] = a_gain[i] >> 1;
-		if ((a_gain[i] >> 7) > 16)
-			d_gain[i] = a_gain[i] >> 2;
-			pr_info("gain_num %d, a_gain[i] %d, d_gain[i]0x%x\n", a_gain[i],
-					d_gain[i], priv_param->gain_num);
-	}
-	for(i = 0; i < priv_param->line_num; i++) {
-		 a_line[i] = priv_param->line_buf[i];
-		 pr_info("priv_param->line_num %d a_line[i] 0x%x\n",
-				 priv_param->line_num, a_line[i]);
-	}
-	return;
-}
-
-unsigned int cal_again_regval(unsigned int* input_value)
-{
-	unsigned int again_regval;
-	unsigned int value = *input_value;
-	if ( (value >= 256) && (value < 320) ) {
-		again_regval = 0x7777;
-		*input_value = (value << 9) / 256;
-	} else if ((value >= 320) && (value < 384)) {
-		again_regval = 0x8888;
-		*input_value = (value << 9) / 320;
-	} else if ((value >= 384) && (value < 512)) {
-		again_regval = 0x9999;
-		*input_value = (value << 9) / 384;
-	} else if ((value >= 512) && (value < 598)) {
-		again_regval = 0xaaaa;
-		*input_value = (value << 9) / 512;
-	} else if ((value >= 598) && (value < 896)) {
-		again_regval = 0xbbbb;
-		*input_value = (value << 9) / 598;
-	} else if ((value >= 896) && (value < 1024)) {
-		again_regval = 0xcccc;
-		*input_value = (value << 9) / 896;
-	} else {
-		again_regval = 0xdddd;
-		*input_value = (value << 9) / 1024;
-	}
-	return	again_regval;
-}
-
-void camera_sys_ar0231_turning_control(sensor_priv_t *priv_param,
-				uint32_t *a_gain, uint32_t *d_gain, uint32_t *a_line)
-{
-	int i;
-	unsigned int value;
-	for(i = 0; i < priv_param->gain_num; i++) {
-		value = sensor_date(priv_param->gain_buf[i]);
-		if (value < 760) {
-			d_gain[i + 3] = 0; //dc_gain
-			a_gain[i] = cal_again_regval(&value);
-			d_gain[i] = value;
-			pr_info("dc_gain_reg: 0x%x, again_reg: 0x%x, dgain_reg: 0x%x\n",
-					d_gain[i + 3], a_gain[i], d_gain[i]);
-		} else {
-			d_gain[i + 3] = 0xf;  //dc_gain
-			value = (value << 8) / 760;
-			a_gain[i] = cal_again_regval(&value);
-			d_gain[i] = value;
-			pr_info("dcgain_reg: 0x%x, again_reg: 0x%x, dgain_reg: 0x%x\n",
-					d_gain[i + 3], a_gain[i], d_gain[i]);
-		}
-	}
-	for(i = 0; i < priv_param->line_num; i++) {
-		 a_line[i] = priv_param->line_buf[i];
-		 pr_info("priv_param->line_num %d  a_line[i] 0x%x\n",
-				 priv_param->line_num, a_line[i]);
-	}
-	return;
-}
-
-void camera_sys_os8a10_turning_data(uint32_t port, sensor_priv_t *priv_param,
-				uint32_t *a_gain, uint32_t *d_gain, uint32_t *a_line)
-{
-	int i;
-	uint32_t again_prec, dgain_prec;
-	uint32_t a_gain_temp[4];
-	again_prec = camera_mod[port]->camera_param.sensor_data.again_prec;
-	dgain_prec = camera_mod[port]->camera_param.sensor_data.dgain_prec;
-
-	for(i = 0; i < priv_param->gain_num; i++) {
-		a_gain_temp[i] = sensor_date(priv_param->gain_buf[i]);
-	}
-
-	if(camera_mod[port]->camera_param.mode == NORMAL_M) {
-		if(priv_param->gain_buf[0] <= (camera_mod[port]->camera_param.sensor_data.
-				analog_gain_max >> 13)) {
-			a_gain[0] = a_gain_temp[0];
-			d_gain[0] = 1 << 8;
-		} else {
-			a_gain[0] = sensor_date(camera_mod[port]->camera_param.sensor_data.analog_gain_max >> 13);
-			d_gain[0] = a_gain_temp[0] / a_gain[0];
-			d_gain[0] = d_gain[0] << 8;
-			if (d_gain[0] > sensor_date(camera_mod[port]->camera_param.sensor_data.digital_gain_max >> 13))
-				d_gain[0] = sensor_date(camera_mod[port]->camera_param.sensor_data.digital_gain_max);
-		}
-
-		if(again_prec <= 8)
-			a_gain[0] = (a_gain[0] >> (8 - again_prec));
-		else
-			a_gain[0] = (a_gain[0] << (again_prec - 8));
-
-		if(dgain_prec <= 8)
-			d_gain[0] = (d_gain[0] >> (8 - dgain_prec));
-		else
-			d_gain[0] = (d_gain[0] << (dgain_prec - 8));
-
-	} else if (camera_mod[port]->camera_param.mode == DOL2_M) {
-		if(priv_param->gain_buf[0] <= (camera_mod[port]->camera_param.sensor_data.analog_gain_max >> 13)) {
-			a_gain[0] = a_gain_temp[0];
-			d_gain[0] = 1 << 8;
-		} else {
-			a_gain[0] = sensor_date(camera_mod[port]->camera_param.sensor_data.analog_gain_max >> 13);
-			d_gain[0] = a_gain_temp[0] / a_gain[0];
-			d_gain[0] = 1 << 8;
-		}
-
-		if(again_prec <= 8)
-			a_gain[0] = (a_gain[0] >> (8 - again_prec));
-		else
-			a_gain[0] = (a_gain[0] << (again_prec - 8));
-		if(dgain_prec <= 8)
-			d_gain[0] = (d_gain[0] >> (8 - dgain_prec));
-		else
-			d_gain[0] = (d_gain[0] << (dgain_prec - 8));
-
-		if(priv_param->gain_buf[1] <= camera_mod[port]->camera_param.
-				sensor_data.analog_gain_max) {
-			a_gain[1] = a_gain_temp[1];
-			d_gain[1] = 1 << 8;
-		} else {
-			a_gain[1] = sensor_date(camera_mod[port]->camera_param.sensor_data.analog_gain_max);
-			d_gain[1] = a_gain_temp[1] / a_gain[1];
-			d_gain[1] = 1 << 8;
-		}
-
-		if(again_prec <= 8)
-			a_gain[1] = (a_gain[1] >> (8 - again_prec));
-		else
-			a_gain[1] = (a_gain[1] << (again_prec - 8));
-		if(dgain_prec <= 8)
-			d_gain[1] = (d_gain[1] >> (8 - dgain_prec));
-		else
-			d_gain[1] = (d_gain[1] << (dgain_prec - 8));
-	}
-
-	if(camera_mod[port]->camera_param.mode == NORMAL_M) {
-		if(priv_param->line_buf[0] > camera_mod[port]->camera_param.
-					sensor_data.VMAX - 8)
-			priv_param->line_buf[0] = camera_mod[port]->camera_param.
-							sensor_data.VMAX - 8;
-	} else if (camera_mod[port]->camera_param.mode == DOL2_M) {
-		if((priv_param->line_buf[0] + priv_param->line_buf[1]) >
-				(camera_mod[port]->camera_param.sensor_data.VMAX - 4))
-			priv_param->line_buf[1] = camera_mod[port]->camera_param.sensor_data.VMAX
-				- 4 - priv_param->line_buf[0];
-	}
-
-	for(i = 0; i < priv_param->line_num; i++) {
-		again_prec = priv_param->line_buf[i];
-		a_line[i] = 0;
-		a_line[i] = (again_prec & 0xff) << 8;
-		a_line[i] |= (again_prec & 0xff00) >> 8;
-		pr_debug("line[%d] = 0x%x\n", i, a_line[i]);
-	}
-
-	// change
-	for(i = 0; i < priv_param->gain_num; i++) {
-		again_prec = a_gain[i];
-		a_gain[i] = 0;
-		a_gain[i] = (again_prec & 0xff) << 8;
-		a_gain[i] |= (again_prec & 0xff00) >> 8;
-		pr_debug("a_gain[%d] = 0x%x\n", i, a_gain[i]);
-
-		again_prec = d_gain[i];
-		d_gain[i] = 0;
-		d_gain[i] = (again_prec & 0xff) << 8;
-		d_gain[i] |= (again_prec & 0xff00) >> 8;
-		pr_debug("d_gain[%d] = 0x%x\n", i, d_gain[i]);
-	}
-
-		return;
-}
-
-
-void camera_sys_ar0144_turning_control(uint32_t port, sensor_priv_t *priv_param,
-                uint32_t *a_gain, uint32_t *d_gain, uint32_t *a_line)
-{
-	uint32_t tmp = 0;
-	uint32_t tmp1 = 0;
-	uint32_t coarse = 0;
-	uint32_t fine = 0;
-	uint32_t analog_gain;
-	analog_gain = sensor_date(priv_param->gain_buf[0]);
-	pr_debug("a_gain = 0x%x\n", analog_gain);
-
-	if (analog_gain < 4096) {
-		tmp = analog_gain >> 8;
-		if (tmp == 1) {
-			tmp1 = 0;
-			coarse = 0 << 4;
-		} else if (tmp >= 2 && tmp < 4) {
-			tmp1 = 1;
-			coarse = 1 << 4;
-		} else if (tmp >= 4 && tmp < 8) {
-			tmp1 = 2;
-			coarse = 2 << 4;
-		} else if (tmp >= 8 && tmp < 16) {
-			tmp1 = 3;
-			coarse = 3 << 4;
-		} else if (tmp == 16) {
-			tmp1 = 4;
-			coarse = 4 << 4;
-		}
-		tmp = (analog_gain * 10000) >> (tmp1 + 8);
-		fine = 32 - (320000 + tmp - 1) / tmp;
-		a_gain[0] = (uint16_t)(coarse | fine);
-		a_gain[0] = (uint16_t)(a_gain[0] << 8 | a_gain[0] >> 8);
-		d_gain[0] = 0x80;
-		d_gain[0] = (uint16_t)(d_gain[0] << 8 | d_gain[0] >> 8);
-	} else {
-		a_gain[0] = 0x40;
-		a_gain[0] = (uint16_t)(a_gain[0] << 8 | a_gain[0] >> 8);
-		tmp = analog_gain / 16;
-		d_gain[0] = tmp >> 1;
-		d_gain[0] = (uint16_t)(d_gain[0] << 8 | d_gain[0] >> 8);
-	}
-
-	a_line[0] = priv_param->line_buf[0];
-	a_line[0] = (uint16_t)(a_line[0] << 8 | a_line[0] >> 8);
-	
-	pr_debug("a_gain = 0x%x\n", a_gain[0]);
-	pr_debug("d_gain = 0x%x\n", d_gain[0]);
-	pr_debug("line = 0x%x\n", a_line[0]);
-	
-	return;
-}
-
 int camera_sys_gain_line_process(uint32_t port, sensor_priv_t *priv_param,
 				uint32_t *a_gain, uint32_t *d_gain, uint32_t *a_line)
 {
-	if(camera_mod[port]->camera_param.sensor_data.turning_type == 1) {
-		camera_sys_imxsensor_turning_control(port, priv_param, a_gain, a_line);
-	} else if (camera_mod[port]->camera_param.sensor_data.turning_type == 2) {
-		camera_sys_os8a10_turning_data(port, priv_param, a_gain, d_gain, a_line);
-	} else if (camera_mod[port]->camera_param.sensor_data.turning_type == 3) {
-		camera_sys_ar0233_turning_control(priv_param, a_gain, d_gain, a_line);
-	} else if (camera_mod[port]->camera_param.sensor_data.turning_type == 4) {
-		camera_sys_ar0144_turning_control(port, priv_param, a_gain, d_gain, a_line);
-	} else if (camera_mod[port]->camera_param.sensor_data.turning_type == 5) {
-		camera_sys_ar0231_turning_control(priv_param, a_gain, d_gain, a_line);
+	uint32_t num = camera_mod[port]->camera_param.sensor_data.turning_type;
+
+	if (camera_mod[port]->camera_param.sensor_data.turning_type >
+		sizeof(sensor_ops)/sizeof(struct sensor_ctrl_ops)) {
+		pr_info("gain line calculation out range\n");
+	} else {
+		if (sensor_ops[num - 1].camera_sys_control)
+			sensor_ops[num - 1].camera_sys_control(port, priv_param, a_gain, d_gain, a_line);
 	}
+
 	return 0;
 }
 
