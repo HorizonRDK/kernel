@@ -25,6 +25,7 @@
 #include <linux/io.h>
 #include <linux/timer.h>
 #include <linux/poll.h>
+#include <soc/hobot/diag.h>
 
 #include "hobot_dev_sif.h"
 #include "sif_hw_api.h"
@@ -1087,6 +1088,29 @@ void sif_frame_done(struct sif_subdev *subdev)
 	vio_dbg("%s: mux_index = %d\n", __func__, subdev->ddr_mux_index);
 }
 
+static void sif_diag_report(uint8_t errsta, unsigned int status)
+{
+	unsigned int sta;
+
+	sta = status;
+	if (errsta) {
+		diag_send_event_stat_and_env_data(
+				DiagMsgPrioHigh,
+				ModuleDiag_VIO,
+				EventIdVioSifErr,
+				DiagEventStaFail,
+				DiagGenEnvdataWhenErr,
+				(uint8_t *)&sta,
+				sizeof(unsigned int));
+	} else {
+		diag_send_event_stat(
+				DiagMsgPrioMid,
+				ModuleDiag_VIO,
+				EventIdVioSifErr,
+				DiagEventStaSuccess);
+	}
+}
+
 static irqreturn_t sif_isr(int irq, void *data)
 {
 	int ret = 0;
@@ -1094,6 +1118,7 @@ static irqreturn_t sif_isr(int irq, void *data)
 	u32 instance;
 	u32 status = 0;
 	u32 intr_en = 0;
+	u32 err_occured = 0;
 	struct sif_irq_src irq_src;
 	struct x3_sif_dev *sif;
 	struct vio_group *group;
@@ -1168,24 +1193,27 @@ static irqreturn_t sif_isr(int irq, void *data)
 			sif_print_rx_status(sif->base_reg, irq_src.sif_err_status);
 		}
 		sif->mismatch_cnt++;
+		err_occured = 1;
 	}
 
 	if (irq_src.sif_frm_int & 1 << INTR_SIF_IN_OVERFLOW) {
 		sif->error_count++;
 		vio_err("input buffer overflow(0x%x)\n", irq_src.sif_in_buf_overflow);
 		sif_print_buffer_status(sif->base_reg);
+		err_occured = 1;
 	}
 
 	if (irq_src.sif_frm_int & 1 << INTR_SIF_OUT_BUF_ERROR) {
 		sif->error_count++;
 		vio_err("Out buffer error\n");
+		err_occured = 1;
 	}
 
 	if (sif->error_count >= SIF_ERR_COUNT) {
 		sif_hw_dump(sif->base_reg);
 		sif->error_count = 0;
 	}
-
+	sif_diag_report(err_occured, irq_src.sif_frm_int);
 	return IRQ_HANDLED;
 }
 
@@ -1543,6 +1571,9 @@ static int x3_sif_probe(struct platform_device *pdev)
 	}
 	x3_vio_mp_device_node_init(g_vio_mp_dev);
 #endif
+	if (diag_register(ModuleDiag_VIO, EventIdVioSifErr,
+					4, 400, 8000, NULL) < 0)
+		vio_err("sif diag register fail\n");
 
 	vio_info("[FRT:D] %s(%d)\n", __func__, ret);
 
