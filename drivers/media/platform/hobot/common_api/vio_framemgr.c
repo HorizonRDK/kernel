@@ -440,68 +440,38 @@ int frame_manager_close_mp(struct vio_framemgr *this,
 }
 EXPORT_SYMBOL(frame_manager_close_mp);
 
-int frame_manager_flush_mp(struct vio_framemgr *this,
-	u32 index_start, u32 buffers)
-{
-	unsigned long flag;
-	struct vio_frame *frame;
-	u32 i;
-
-	if ((index_start + buffers) > VIO_MP_MAX_FRAMES) {
-		vio_err("invalid index when flush frame manager.");
-		return -EFAULT;
-	}
-	spin_lock_irqsave(&this->slock, flag);
-	for (i = index_start; i < (buffers + index_start); i++) {
-		frame = this->frames_mp[i];
-		if (frame)
-			trans_frame(this, frame, FS_FREE);
-	}
-	spin_unlock_irqrestore(&this->slock, flag);
-
-	return 0;
-}
-EXPORT_SYMBOL(frame_manager_flush_mp);
-
 /*
- * Set the streaming off mask of the frame
  * Wait for frame state to become UESD or FREE
  * Wait for frame to be qbuf by other process, which means other process free
  * this frame
  */
-int frame_manager_flush_mp_prepare(struct vio_framemgr *this,
+int frame_manager_flush_mp(struct vio_framemgr *this,
 	u32 index_start, u32 buffers, u8 proc_id)
 {
 	unsigned long flag;
 	struct vio_frame *frame;
-	int i;
-	u32 delay_cnt;
+	u32 i;
+	u32 delay_cnt, real_cnt;
 	u32 buf_drv_cnt;
 	u32 used_free_cnt = 0;
-	u32 other_proc_free;
-	u8 dispatch_mask;
+	u32 other_proc_free = 0;
 	const u8 one_frame_delay = 40;
+	u8 dispatch_mask;
 
 	if ((index_start + buffers) > VIO_MP_MAX_FRAMES) {
 		vio_err("invalid index when flush frame manager.");
 		return -EFAULT;
 	}
-	#if 0
-	for (i = index_start; i < (buffers + index_start); i++) {
-		frame = this->frames_mp[i];
-		vio_dbg("%s%d:index%d,state%d,mask%x.", __func__, __LINE__,
-			i, this->frames_mp[i]->state,
-			this->dispatch_mask[i]);
-	}
-	#endif
-	spin_lock_irqsave(&this->slock, flag);
-	for (i = index_start; i < (buffers + index_start); i++) {
-		this->index_state[i] = FRAME_IND_STREAMOFF;
+	if (this->frames_mp[index_start] == NULL) {
+		vio_err("%s start index is null", __func__);
+		return -EFAULT;
 	}
 
+	spin_lock_irqsave(&this->slock, flag);
 	/* to USED or FREE*/
 	buf_drv_cnt = (4 * this->num_frames) / buffers;
 	delay_cnt = ((buf_drv_cnt > buffers) ? buf_drv_cnt : buffers);
+	real_cnt = 0;
 	while (delay_cnt) {
 		used_free_cnt = 0;
 		for (i = index_start; i < (buffers + index_start); i++) {
@@ -514,21 +484,23 @@ int frame_manager_flush_mp_prepare(struct vio_framemgr *this,
 			break;
 
 		delay_cnt--;
+		real_cnt++;
 		spin_unlock_irqrestore(&this->slock, flag);
 		msleep(one_frame_delay);
 		spin_lock_irqsave(&this->slock, flag);
 	}
 	if (delay_cnt)
 		vio_dbg("%s:use %dms, all index %d-%d in USED or FREE.",
-			__func__, one_frame_delay * (buffers - delay_cnt),
+			__func__, one_frame_delay * real_cnt,
 			index_start, index_start + buffers -1);
 	else
 		vio_dbg("%s:timeout %dms,%d buffers in USED or FREE, %d not.",
-			__func__, one_frame_delay * buffers, used_free_cnt,
+			__func__, one_frame_delay * real_cnt, used_free_cnt,
 			buffers - used_free_cnt);
 
 	/* release by other proc */
 	delay_cnt = buffers;
+	real_cnt = 0;
 	while (delay_cnt) {
 		other_proc_free = 0;
 		for (i = index_start; i < (buffers + index_start); i++) {
@@ -540,20 +512,74 @@ int frame_manager_flush_mp_prepare(struct vio_framemgr *this,
 			break;
 
 		delay_cnt--;
+		real_cnt++;
 		spin_unlock_irqrestore(&this->slock, flag);
 		msleep(one_frame_delay);
 		spin_lock_irqsave(&this->slock, flag);
 	}
 	if (delay_cnt)
 		vio_dbg("%s:use %dms, all index %d-%d free by other proc.",
-			__func__, one_frame_delay * (buffers - delay_cnt),
+			__func__, one_frame_delay * real_cnt,
 			index_start, index_start + buffers -1);
 	else
 		vio_dbg("%s:timeout %dms, %d buffers free, %d not.",
-			__func__, one_frame_delay * buffers,
-			used_free_cnt, buffers - used_free_cnt);
-
+			__func__, one_frame_delay * real_cnt,
+			other_proc_free, buffers - other_proc_free);
+	for (i = index_start; i < (buffers + index_start); i++) {
+		frame = this->frames_mp[i];
+		if (frame)
+			trans_frame(this, frame, FS_FREE);
+	}
 	spin_unlock_irqrestore(&this->slock, flag);
+
+	return 0;
+}
+EXPORT_SYMBOL(frame_manager_flush_mp);
+
+/*
+ * Set the streaming off mask of the frame, clear ctx_mask
+ */
+int frame_manager_flush_mp_prepare(struct vio_framemgr *this,
+	u32 index_start, u32 buffers, u8 proc_id)
+{
+	unsigned long flag;
+	int i;
+
+	if ((index_start + buffers) > VIO_MP_MAX_FRAMES) {
+		vio_err("invalid index when flush frame manager.");
+		return -EFAULT;
+	}
+	#if 0
+	struct vio_frame *frame;
+	for (i = index_start; i < (buffers + index_start); i++) {
+		frame = this->frames_mp[i];
+		vio_dbg("%s%d:index%d,state%d,mask%x.", __func__, __LINE__,
+			i, this->frames_mp[i]->state,
+			this->dispatch_mask[i]);
+	}
+	#endif
+	spin_lock_irqsave(&this->slock, flag);
+	for (i = index_start; i < (buffers + index_start); i++) {
+		this->index_state[i] = FRAME_IND_STREAMOFF;
+	}
+	this->ctx_mask &= ~(1 << proc_id);
+	/* clear the frame mask bit of this ctx*/
+	for (i = 0; i < VIO_MP_MAX_FRAMES; i++) {
+		if ((this->index_state[i] != FRAME_IND_USING)
+			&& (this->index_state[i] != FRAME_IND_STREAMOFF))
+			continue;
+		this->dispatch_mask[i] &= ~(1 << proc_id);
+	}
+	spin_unlock_irqrestore(&this->slock, flag);
+
+	vio_dbg("%s proc %d:", __func__, proc_id);
+	for (i = 0; i < VIO_MP_MAX_FRAMES; i++) {
+		if ((this->index_state[i] != FRAME_IND_USING)
+			&& (this->index_state[i] != FRAME_IND_STREAMOFF))
+			continue;
+		vio_dbg("frm%d mask 0x%x", i, this->dispatch_mask[i]);
+	}
+
 	return 0;
 }
 EXPORT_SYMBOL(frame_manager_flush_mp_prepare);

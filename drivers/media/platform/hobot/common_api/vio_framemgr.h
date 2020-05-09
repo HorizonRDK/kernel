@@ -208,7 +208,7 @@ int frame_manager_open_mp(struct vio_framemgr *this, u32 buffers,
 int frame_manager_close_mp(struct vio_framemgr *this,
 	u32 index_start, u32 buffers, u32 ctx_index);
 int frame_manager_flush_mp(struct vio_framemgr *this,
-	u32 index_start, u32 buffers);
+	u32 index_start, u32 buffers, u8 proc_id);
 int frame_manager_flush_mp_prepare(struct vio_framemgr *this,
 	u32 index_start, u32 buffers, u8 proc_id);
 

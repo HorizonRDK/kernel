@@ -656,7 +656,6 @@ int sif_bind_chain_group(struct sif_video_ctx *sif_ctx, int instance)
 int sif_video_streamon(struct sif_video_ctx *sif_ctx)
 {
 	int ret = 0;
-	unsigned long flag;
 	struct x3_sif_dev *sif_dev;
 	struct sif_subdev *subdev;
 
@@ -701,7 +700,6 @@ int sif_video_streamoff(struct sif_video_ctx *sif_ctx)
 	struct x3_sif_dev *sif_dev;
 	struct vio_framemgr *framemgr;
 	struct sif_subdev *subdev;
-	unsigned long flag;
 
 	if (!(sif_ctx->state & BIT(VIO_VIDEO_START))) {
 		vio_err("[%s][V%02d] invalid STREAM OFF is requested(%lX)",

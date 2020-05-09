@@ -87,6 +87,7 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 	u32 cnt;
 	int ret = 0;
 	u32 ctx_index;
+	u32 id;
 
 	ipu_ctx = file->private_data;
 	group = ipu_ctx->group;
@@ -104,6 +105,7 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 
 	index = ipu_ctx->frm_fst_ind;
 	cnt = ipu_ctx->frm_num;
+	frame_manager_flush_mp(ipu_ctx->framemgr, index, cnt, ipu_ctx->ctx_index);
 	frame_manager_close_mp(ipu_ctx->framemgr, index, cnt, ipu_ctx->ctx_index);
 
 	if (atomic_dec_return(&ipu->open_cnt) == 0) {
@@ -127,11 +129,12 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 
 	clear_bit(ipu_ctx->ctx_index, &subdev->val_ctx_mask);
 	ctx_index = ipu_ctx->ctx_index;
+	id = ipu_ctx->id;
 	subdev->ctx[ctx_index] = NULL;
 	kfree(ipu_ctx);
 
 	vio_info("[S%d]IPU close node V%d proc %d\n", group->instance,
-		ipu_ctx->id, ctx_index);
+		id, ctx_index);
 
 	return ret;
 }
@@ -1282,13 +1285,12 @@ p_dec:
 			frame_manager_flush_mp_prepare(ipu_ctx->framemgr,
 				ipu_ctx->frm_fst_ind, ipu_ctx->frm_num,
 				ipu_ctx->ctx_index);
-		frame_manager_flush_mp(ipu_ctx->framemgr, ipu_ctx->frm_fst_ind,
-			ipu_ctx->frm_num);
 	}
 
 	ipu_ctx->state = BIT(VIO_VIDEO_STOP);
 
-	vio_info("[S%d][V%d]%s\n", group->instance, ipu_ctx->id, __func__);
+	vio_info("[S%d][V%d]%s:proc %d\n", group->instance, ipu_ctx->id,
+		__func__, ipu_ctx->ctx_index);
 
 	return 0;
 }
@@ -1449,8 +1451,9 @@ int ipu_video_qbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 			}
 		}
 	} else {
-		vio_err("[S%d][V%d] frame(%d) is invalid state(%d)\n",
-			group->instance, ipu_ctx->id, index, frame->state);
+		vio_err("[S%d][V%d] q:proc%d frame(%d) is invalid state(%d)\n",
+			group->instance, ipu_ctx->id, ipu_ctx->ctx_index,
+			index, frame->state);
 		ret = -EINVAL;
 		goto err;
 	}

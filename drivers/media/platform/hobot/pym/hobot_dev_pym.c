@@ -119,6 +119,7 @@ static int x3_pym_close(struct inode *inode, struct file *file)
 
 	index = pym_ctx->frm_fst_ind;
 	count = pym_ctx->frm_num;
+	frame_manager_flush_mp(pym_ctx->framemgr, index, count, pym_ctx->ctx_index);
 	frame_manager_close_mp(pym_ctx->framemgr, index, count, pym_ctx->ctx_index);
 
 	if (atomic_dec_return(&pym->open_cnt) == 0) {
@@ -537,8 +538,6 @@ p_dec:
 				pym_ctx->frm_fst_ind, pym_ctx->frm_num,
 				pym_ctx->ctx_index);
 		}
-		frame_manager_flush_mp(pym_ctx->framemgr, pym_ctx->frm_fst_ind,
-			pym_ctx->frm_num);
 	}
 	pym_ctx->state = BIT(VIO_VIDEO_STOP);
 
