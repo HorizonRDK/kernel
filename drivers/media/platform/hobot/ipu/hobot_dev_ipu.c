@@ -1244,10 +1244,26 @@ int ipu_video_qbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 	index = frameinfo->bufferindex;
 	framemgr = ipu_ctx->framemgr;
 	subdev = ipu_ctx->subdev;
-	BUG_ON(index >= framemgr->max_index);
+	group = ipu_ctx->group;
+	if (index >= framemgr->max_index) {
+		vio_err("[S%d] %s index err(%d-%d).\n", group->instance,
+		__func__, index, framemgr->max_index);
+		return -EINVAL;
+	}
+	if (framemgr->index_state[index] == FRAME_IND_FREE) {
+		vio_err("[S%d] %s index%d state err.\n", group->instance,
+			__func__, index);
+		return -EINVAL;
+	}
 
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	frame = framemgr->frames_mp[index];
+	if (frame == NULL) {
+		vio_err("[S%d] %s frame null, index %d.\n", group->instance,
+			__func__, index);
+		ret = -EFAULT;
+		goto err;
+	}
 	ipu_ctx->frm_num_usr--;
 	if (frame->state == FS_FREE) {
 		framemgr->dispatch_mask[index] &= ~(1 << ipu_ctx->ctx_index);
@@ -1301,7 +1317,6 @@ int ipu_video_qbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
-	group = ipu_ctx->group;
 	if (subdev->leader == true && group->leader) {
 		vio_group_start_trigger(group, frame);
 	}
