@@ -59,11 +59,12 @@ struct vio_clk vio_clk_list[] = {
 
 void ips_set_module_reset(unsigned long module)
 {
+	unsigned long flags;
 	BUG_ON(!g_ips_dev);
 
-	spin_lock(&g_ips_dev->shared_slock);
+	spin_lock_irqsave(&g_ips_dev->shared_slock, flags);
 	ips_module_reset(g_ips_dev->base_reg, module);
-	spin_unlock(&g_ips_dev->shared_slock);
+	spin_unlock_irqrestore(&g_ips_dev->shared_slock, flags);
 }
 EXPORT_SYMBOL_GPL(ips_set_module_reset);
 
@@ -87,11 +88,12 @@ EXPORT_SYMBOL_GPL(ips_set_clk_ctrl);
 int ips_set_bus_ctrl(unsigned int cfg)
 {
 	int ret = 0;
+	unsigned long flags;
 	BUG_ON(!g_ips_dev);
 
-	spin_lock(&g_ips_dev->shared_slock);
+	spin_lock_irqsave(&g_ips_dev->shared_slock, flags);
 	ips_set_axi_bus_ctrl(g_ips_dev->base_reg, cfg);
-	spin_unlock(&g_ips_dev->shared_slock);
+	spin_unlock_irqrestore(&g_ips_dev->shared_slock, flags);
 
 	return ret;
 }
@@ -100,10 +102,11 @@ EXPORT_SYMBOL_GPL(ips_set_bus_ctrl);
 int ips_set_md_cfg(sif_output_md_t *cfg)
 {
 	int ret = 0;
+	unsigned long flags;
 	struct roi_rect rect;
 	BUG_ON(!g_ips_dev);
 
-	spin_lock(&g_ips_dev->shared_slock);
+	spin_lock_irqsave(&g_ips_dev->shared_slock, flags);
 	rect.roi_height = cfg->roi_height;
 	rect.roi_width = cfg->roi_width;
 	rect.roi_x = cfg->roi_left;
@@ -117,7 +120,7 @@ int ips_set_md_cfg(sif_output_md_t *cfg)
 	ips_mot_enable(g_ips_dev->base_reg, cfg->enable);
 	ips_set_sram_mux(g_ips_dev->base_reg, 1);
 	ips_enable_intr(g_ips_dev->base_reg, MOD_INTR, true);
-	spin_unlock(&g_ips_dev->shared_slock);
+	spin_unlock_irqrestore(&g_ips_dev->shared_slock, flags);
 
 	return ret;
 }
@@ -184,11 +187,12 @@ EXPORT_SYMBOL_GPL(ips_set_md_fmt);
 int ips_get_bus_ctrl(void)
 {
 	int ret = 0;
+	unsigned long flags;
 	BUG_ON(!g_ips_dev);
 
-	spin_lock(&g_ips_dev->shared_slock);
+	spin_lock_irqsave(&g_ips_dev->shared_slock, flags);
 	ret = ips_get_axi_bus_ctrl(g_ips_dev->base_reg);
-	spin_unlock(&g_ips_dev->shared_slock);
+	spin_unlock_irqrestore(&g_ips_dev->shared_slock, flags);
 
 	return ret;
 }
@@ -215,11 +219,12 @@ EXPORT_SYMBOL_GPL(ips_get_free_iram_range);
 int ips_get_bus_status(void)
 {
 	int ret = 0;
+	unsigned long flags;
 	BUG_ON(!g_ips_dev);
 
-	spin_lock(&g_ips_dev->shared_slock);
+	spin_lock_irqsave(&g_ips_dev->shared_slock, flags);
 	ret = ipu_get_axi_statue(g_ips_dev->base_reg);
-	spin_unlock(&g_ips_dev->shared_slock);
+	spin_unlock_irqrestore(&g_ips_dev->shared_slock, flags);
 
 	return ret;
 }
@@ -228,11 +233,12 @@ EXPORT_SYMBOL_GPL(ips_get_bus_status);
 int ips_get_isp_frameid(void)
 {
 	int ret = 0;
+	unsigned long flags;
 	BUG_ON(!g_ips_dev);
 
-	spin_lock(&g_ips_dev->shared_slock);
+	spin_lock_irqsave(&g_ips_dev->shared_slock, flags);
 	ret = ips_get_isp_frame_id(g_ips_dev->base_reg);
-	spin_unlock(&g_ips_dev->shared_slock);
+	spin_unlock_irqrestore(&g_ips_dev->shared_slock, flags);
 
 	return ret;
 }
@@ -240,41 +246,45 @@ EXPORT_SYMBOL_GPL(ips_get_isp_frameid);
 
 void ips_set_isp_interrupt(bool enable)
 {
+	unsigned long flags;
 	BUG_ON(!g_ips_dev);
 
-	spin_lock(&g_ips_dev->shared_slock);
+	spin_lock_irqsave(&g_ips_dev->shared_slock, flags);
 	ips_enable_isp0_intr(g_ips_dev->base_reg, enable);
-	spin_unlock(&g_ips_dev->shared_slock);
+	spin_unlock_irqrestore(&g_ips_dev->shared_slock, flags);
 }
 EXPORT_SYMBOL_GPL(ips_set_isp_interrupt);
 
 void ips_set_isp_vcke_ctrl(bool enable)
 {
+	unsigned long flags;
 	BUG_ON(!g_ips_dev);
 
-	spin_lock(&g_ips_dev->shared_slock);
+	spin_lock_irqsave(&g_ips_dev->shared_slock, flags);
 	isp_vcke_ctrl(g_ips_dev->base_reg, enable);
-	spin_unlock(&g_ips_dev->shared_slock);
+	spin_unlock_irqrestore(&g_ips_dev->shared_slock, flags);
 }
 EXPORT_SYMBOL_GPL(ips_set_isp_vcke_ctrl);
 
 void ips_set_isp_vcke_th0(u32 cfg)
 {
+	unsigned long flags;
 	BUG_ON(!g_ips_dev);
 
-	spin_lock(&g_ips_dev->shared_slock);
+	spin_lock_irqsave(&g_ips_dev->shared_slock, flags);
 	isp_vcke_th0(g_ips_dev->base_reg, cfg);
-	spin_unlock(&g_ips_dev->shared_slock);
+	spin_unlock_irqrestore(&g_ips_dev->shared_slock, flags);
 }
 EXPORT_SYMBOL_GPL(ips_set_isp_vcke_th0);
 
 void ips_set_isp_vcke_th1(u32 cfg)
 {
+	unsigned long flags;
 	BUG_ON(!g_ips_dev);
 
-	spin_lock(&g_ips_dev->shared_slock);
+	spin_lock_irqsave(&g_ips_dev->shared_slock, flags);
 	isp_vcke_th1(g_ips_dev->base_reg, cfg);
-	spin_unlock(&g_ips_dev->shared_slock);
+	spin_unlock_irqrestore(&g_ips_dev->shared_slock, flags);
 }
 EXPORT_SYMBOL_GPL(ips_set_isp_vcke_th1);
 
