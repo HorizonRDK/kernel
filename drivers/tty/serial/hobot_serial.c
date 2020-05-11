@@ -103,6 +103,12 @@ struct x2_uart {
 	unsigned int poll_flag;
 };
 
+enum uart_mode {
+	UART_POLL_MODE,
+	UART_IRQ_MODE,
+	UART_DMA_MODE
+};
+
 #define to_x2_uart(_nb) container_of(_nb, struct x2_uart, \
 		clk_rate_change_nb);
 
@@ -115,6 +121,33 @@ static unsigned int dbg_tx_index = 0;
 #ifdef CONFIG_HOBOT_TTY_DMA_MODE
 
 #define X2_UART_DMA_SIZE	UART_XMIT_SIZE
+
+static void check_switch_mode(struct uart_port *port, enum uart_mode mode)
+{
+	unsigned int val = 0;
+	struct x2_uart *x2_uart = NULL;
+
+	if (port == NULL) {
+		pr_err("%s [%d]: uart port is NULL\n", __FILE__, __LINE__);
+		return;
+	}
+
+	x2_uart = (struct x2_uart *)port->private_data;
+	if (x2_uart->poll_flag && (mode == UART_DMA_MODE)) {
+		val = readl(port->membase + X2_UART_FCR);
+		val |= UART_FCR_RDMA_EN | UART_FCR_TDMA_EN;
+		val |= UART_FCR_RFTRL(rx_trigger_level) | UART_FCR_TFTRL(tx_trigger_level);
+		writel(val, port->membase + X2_UART_FCR);
+		x2_uart->poll_flag = 0;
+	} else if (!x2_uart->poll_flag && (mode == UART_POLL_MODE)) {
+		val = readl(port->membase + X2_UART_FCR);
+		val &= ~(UART_FCR_RDMA_EN | UART_FCR_TDMA_EN);
+		writel(val, port->membase + X2_UART_FCR);
+		x2_uart->poll_flag = 1;
+	} else if (mode == UART_IRQ_MODE) {
+		/*reserved for switch to irq mode, do nothing now*/
+	}
+}
 
 static int x2_uart_dma_alloc(struct uart_port *port)
 {
@@ -529,6 +562,7 @@ static irqreturn_t x2_uart_isr(int irq, void *dev_id)
 	struct uart_port *port = (struct uart_port *)dev_id;
 	unsigned int status;
 
+	check_switch_mode(port, UART_DMA_MODE);
 	spin_lock(&port->lock);
 	status = readl(port->membase + X2_UART_SRC_PND);
 	/* Disable the special irq */
@@ -654,13 +688,8 @@ static void x2_uart_start_tx(struct uart_port *port)
 	mask = UART_TXEPT;
 #elif defined CONFIG_HOBOT_TTY_DMA_MODE
 	mask = UART_TXTHD | UART_TXDON;
-	if (x2_port->poll_flag) {
-		val = readl(port->membase + X2_UART_FCR);
-		val |= UART_FCR_RDMA_EN | UART_FCR_TDMA_EN;
-		val |= UART_FCR_RFTRL(rx_trigger_level) | UART_FCR_TFTRL(tx_trigger_level);
-		writel(val, port->membase + X2_UART_FCR);
-		x2_port->poll_flag = 0;
-	}
+	check_switch_mode(port, UART_DMA_MODE);
+
 #endif /* CONFIG_HOBOT_TTY_IRQ_MODE */
 	writel(mask, port->membase + X2_UART_INT_UNMASK);
 
@@ -1149,16 +1178,8 @@ static void x2_uart_set_mctrl(struct uart_port *port, unsigned int mctrl)
 static int x2_uart_poll_get_char(struct uart_port *port)
 {
 	int c;
-	unsigned int val = 0;
-	struct x2_uart *x2_uart = (struct x2_uart *)port->private_data;
 
-	/*to poll mod*/
-	if (!x2_uart->poll_flag) {
-		val = readl(port->membase + X2_UART_FCR);
-		val &= ~(UART_FCR_RDMA_EN | UART_FCR_TDMA_EN);
-		writel(val, port->membase + X2_UART_FCR);
-		x2_uart->poll_flag = 1;
-	}
+	check_switch_mode(port, UART_POLL_MODE);
 	/* Check if FIFO is empty */
 	if (!(readl(port->membase + X2_UART_LSR) & UART_LSR_RXRDY))
 		c = NO_POLL_CHAR;
