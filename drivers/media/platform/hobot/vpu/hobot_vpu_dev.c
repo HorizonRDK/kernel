@@ -27,6 +27,7 @@
 #include "hobot_vpu_utils.h"
 
 int vpu_debug_flag = 5;
+int vpu_debug_info_flag = 0;
 int vpu_pf_bw_debug_flag = 0;
 
 #ifdef VPU_SUPPORT_RESERVED_VIDEO_MEMORY
@@ -46,6 +47,32 @@ static hb_vpu_drv_buffer_t s_video_memory = { 0 };
 
 DECLARE_BITMAP(vpu_inst_bitmap, MAX_NUM_VPU_INSTANCE);
 
+static ssize_t vpu_debug_show(struct kobject *kobj,
+			      struct kobj_attribute *attr, char *buf)
+{
+	return snprintf(buf, 5, "%d\n", vpu_debug_info_flag ? 1 : 0);
+}
+
+static ssize_t vpu_debug_store(struct kobject *kobj,
+			       struct kobj_attribute *attr, const char *buf,
+			       size_t n)
+{
+	int ret;
+
+	ret = sscanf(buf, "%d", &vpu_debug_info_flag);
+	return n;
+}
+
+static struct kobj_attribute vpu_debug_attr = {
+	.attr = {
+		 .name = __stringify(debug),
+		 .mode = 0644,
+		 },
+	.show = vpu_debug_show,
+	.store = vpu_debug_store,
+};
+
+
 static ssize_t vpu_performance_bandwidth_show(struct kobject *kobj,
 			      struct kobj_attribute *attr, char *buf)
 {
@@ -62,7 +89,7 @@ static ssize_t vpu_performance_bandwidth_store(struct kobject *kobj,
 	return n;
 }
 
-static struct kobj_attribute vpu_debug_attr = {
+static struct kobj_attribute vpu_pf_bw_debug_attr = {
 	.attr = {
 		 .name = __stringify(performance_bandwidth),
 		 .mode = 0644,
@@ -1770,10 +1797,16 @@ static int vpu_probe(struct platform_device *pdev)
 		goto ERR_CREATE_DEV;
 	}
 
+	err = sysfs_create_file(&pdev->dev.kobj, &vpu_pf_bw_debug_attr.attr);
+	if(err < 0) {
+		dev_err(&pdev->dev, "failed to create sys!!");
+		goto ERR_CREATE_SYSFS1;
+	}
+
 	err = sysfs_create_file(&pdev->dev.kobj, &vpu_debug_attr.attr);
 	if(err < 0) {
 		dev_err(&pdev->dev, "failed to create sys!!");
-		goto ERR_CREATE_SYSFS;
+		goto ERR_CREATE_SYSFS2;
 	}
 
 	platform_set_drvdata(pdev, dev);
@@ -1886,7 +1919,9 @@ ERR_ION_CLIENT:
 	hb_vpu_clk_put(dev);
 ERR_GET_CLK:
 	sysfs_remove_file(&pdev->dev.kobj, &vpu_debug_attr.attr);
-ERR_CREATE_SYSFS:
+ERR_CREATE_SYSFS2:
+	sysfs_remove_file(&pdev->dev.kobj, &vpu_pf_bw_debug_attr.attr);
+ERR_CREATE_SYSFS1:
 	device_destroy(dev->vpu_class, dev->vpu_dev_num);
 ERR_CREATE_DEV:
 	cdev_del(&dev->cdev);
@@ -1953,6 +1988,7 @@ static int vpu_remove(struct platform_device *pdev)
 
 	//hb_vpu_clk_disable(dev);
 	//hb_vpu_clk_put(dev);
+	sysfs_remove_file(&pdev->dev.kobj, &vpu_pf_bw_debug_attr.attr);
 	sysfs_remove_file(&pdev->dev.kobj, &vpu_debug_attr.attr);
 	device_destroy(dev->vpu_class, dev->vpu_dev_num);
 	cdev_del(&dev->cdev);

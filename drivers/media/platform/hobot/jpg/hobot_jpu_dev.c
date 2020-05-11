@@ -27,6 +27,7 @@
 #include "hobot_jpu_utils.h"
 
 int jpu_debug_flag = 5;
+int jpu_debug_info_flag = 0;
 
 #ifdef JPU_SUPPORT_RESERVED_VIDEO_MEMORY
 #define JPU_INIT_VIDEO_MEMORY_SIZE_IN_BYTE (16*1024*1024)
@@ -52,26 +53,24 @@ DECLARE_BITMAP(jpu_inst_bitmap, MAX_NUM_JPU_INSTANCE);
 static ssize_t jpu_debug_show(struct kobject *kobj,
 			      struct kobj_attribute *attr, char *buf)
 {
-	char *s = buf;
-
-	// TODO add dump interface.
-
-	return (s - buf);
+	return snprintf(buf, 5, "%d\n", jpu_debug_info_flag ? 1 : 0);
 }
 
 static ssize_t jpu_debug_store(struct kobject *kobj,
 			       struct kobj_attribute *attr, const char *buf,
 			       size_t n)
 {
-	int error = -EINVAL;
-	return error ? error : n;
+	int ret;
+
+	ret = sscanf(buf, "%d", &jpu_debug_info_flag);
+	return n;
 }
 
 static struct kobj_attribute jpu_debug_attr = {
 	.attr = {
-		 .name = __stringify(jpu_debug_attr),
-		 .mode = 0644,
-		 },
+		.name = __stringify(debug),
+		.mode = 0644,
+		},
 	.show = jpu_debug_show,
 	.store = jpu_debug_store,
 };
