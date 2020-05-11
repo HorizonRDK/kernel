@@ -128,6 +128,11 @@ void *acamera_get_ctx_ptr( uint32_t ctx_id )
     return &( g_firmware.fw_ctx[ctx_id] );
 }
 
+acamera_firmware_t *acamera_get_firmware_ptr(void)
+{
+    return &g_firmware;
+}
+
 void acamera_notify_evt_data_avail( void )
 {
     system_semaphore_raise( g_firmware.sem_evt_avail );
@@ -421,6 +426,7 @@ int32_t acamera_init( acamera_settings *settings, uint32_t ctx_num )
 #endif
 
     g_firmware.api_context = 0;
+    g_firmware.first_frame = 0;
 
     system_semaphore_init(&g_firmware.sem_event_process_done);
     system_semaphore_init( &g_firmware.sem_evt_avail );
@@ -552,6 +558,53 @@ int32_t acamera_interrupt_handler()
 }
 #else
 
+// dma writer status debug
+void dma_writer_status(acamera_context_ptr_t p_ctx)
+{
+    uint16_t v = 0;
+
+    v = system_hw_read_32(0x00054);
+    pr_info("dma alarms sts %x\n", v);
+
+    pr_info("==ping==\n");
+    v = system_hw_read_32(0x1c110);
+    pr_info("y wbank sts %x\n", v);
+    v = system_hw_read_32(0x1c11c);
+    pr_info("y icount, wcount %x\n", v);
+    v = system_hw_read_32(0x1c124);
+    pr_info("y fail sts %x\n", v);
+    v = system_hw_read_32(0x1c128);
+    pr_info("y blk sts %x\n", v);
+
+    v = system_hw_read_32(0x1c168);
+    pr_info("uv wbank sts %x\n", v);
+    v = system_hw_read_32(0x1c174);
+    pr_info("uv icount, wcount %x\n", v);
+    v = system_hw_read_32(0x1c17c);
+    pr_info("uv fail sts %x\n", v);
+    v = system_hw_read_32(0x1c180);
+    pr_info("uv blk sts %x\n", v);
+
+    pr_info("==pong==\n");
+    v = system_hw_read_32(0x1c110 + ISP_CONFIG_PING_SIZE);
+    pr_info("y wbank sts %x\n", v);
+    v = system_hw_read_32(0x1c11c + ISP_CONFIG_PING_SIZE);
+    pr_info("y icount, wcount %x\n", v);
+    v = system_hw_read_32(0x1c124 + ISP_CONFIG_PING_SIZE);
+    pr_info("y fail sts %x\n", v);
+    v = system_hw_read_32(0x1c128 + ISP_CONFIG_PING_SIZE);
+    pr_info("y blk sts %x\n", v);
+
+    v = system_hw_read_32(0x1c168 + ISP_CONFIG_PING_SIZE);
+    pr_info("uv wbank sts %x\n", v);
+    v = system_hw_read_32(0x1c174 + ISP_CONFIG_PING_SIZE);
+    pr_info("uv icount, wcount %x\n", v);
+    v = system_hw_read_32(0x1c17c + ISP_CONFIG_PING_SIZE);
+    pr_info("uv fail sts %x\n", v);
+    v = system_hw_read_32(0x1c180 + ISP_CONFIG_PING_SIZE);
+    pr_info("uv blk sts %x\n", v);
+}
+
 static void start_processing_frame( void )
 {
 #if ISP_HAS_DMA_INPUT
@@ -565,6 +618,8 @@ static void start_processing_frame( void )
 
     // new_frame event to start reading metering memory and run 3A
     acamera_fw_raise_event( p_ctx, event_id_new_frame );
+
+    // dma_writer_status(p_ctx);
 }
 
 void dma_writer_config_done(void)

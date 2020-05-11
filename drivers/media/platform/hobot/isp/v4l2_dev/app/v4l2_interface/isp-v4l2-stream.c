@@ -450,16 +450,20 @@ int callback_stream_get_frame( uint32_t ctx_id, acamera_stream_type_t type, afra
     list_for_each_safe(p, n, &pstream->stream_buffer_list)
 	cnt++;
     pr_debug("stream_buffer_list count %d", cnt);
+//debug end
 
     cnt = 0;
     list_for_each_safe(p, n, &pstream->stream_buffer_list_busy)
 	cnt++;
     pr_debug("stream_buffer_list_busy count %d", cnt);
-//debug end
 
-    if (!list_empty(&pstream->stream_buffer_list_busy)) {
+    if (cnt > 1) {
         pbuf = list_entry(pstream->stream_buffer_list_busy.next, isp_v4l2_buffer_t, list);
-    } else if (!list_empty( &pstream->stream_buffer_list)) {
+        list_del(&pbuf->list);
+        list_add_tail(&pbuf->list, &pstream->stream_buffer_list);
+    }
+
+    if (!list_empty( &pstream->stream_buffer_list)) {
         pbuf = list_entry( pstream->stream_buffer_list.next, isp_v4l2_buffer_t, list );
         list_del( &pbuf->list );
         list_add_tail( &pbuf->list, &pstream->stream_buffer_list_busy );

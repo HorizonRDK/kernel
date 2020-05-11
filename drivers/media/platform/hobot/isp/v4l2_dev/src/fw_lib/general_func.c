@@ -769,7 +769,7 @@ static int general_temper_exit( general_fsm_ptr_t p_fsm )
 
 void general_temper_disable(void)
 {
-    //bypass on
+    //PING. bypass on
     uint32_t curr = system_hw_read_32(0x18eb8L);
     system_hw_write_32(0x18eb8L, curr | 0x2);
 
@@ -780,6 +780,18 @@ void general_temper_disable(void)
     //disable lsb/msb r/w
     curr = system_hw_read_32(0x1ab78L);
     system_hw_write_32(0x1ab78L, curr & 0xfffffff0);
+
+    //PONG. bypass on
+    curr = system_hw_read_32(0x18eb8L + ISP_CONFIG_PING_SIZE);
+    system_hw_write_32(0x18eb8L + ISP_CONFIG_PING_SIZE, curr | 0x2);
+
+    //disable
+    curr = system_hw_read_32(0x1aa1cL + ISP_CONFIG_PING_SIZE);
+    system_hw_write_32(0x1aa1cL + ISP_CONFIG_PING_SIZE, curr & 0xfffffffe);
+
+    //disable lsb/msb r/w
+    curr = system_hw_read_32(0x1ab78L + ISP_CONFIG_PING_SIZE);
+    system_hw_write_32(0x1ab78L + ISP_CONFIG_PING_SIZE, curr & 0xfffffff0);
 }
 
 static int general_temper_configure( general_fsm_ptr_t p_fsm )

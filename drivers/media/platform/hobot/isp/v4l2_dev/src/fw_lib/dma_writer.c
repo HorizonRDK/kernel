@@ -16,7 +16,7 @@
 * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 *
 */
-
+#define pr_fmt(fmt) "[isp_drv]: %s: " fmt, __func__
 #include "acamera_logger.h"
 #include "system_interrupts.h"
 #include "system_stdlib.h"
@@ -254,6 +254,7 @@ static int dma_writer_configure_frame_reader( dma_pipe *pipe, tframe_t *frame )
 
 #if HOBOT_DMA_WRITER_FRAME
 extern void dma_writer_config_done(void);
+extern acamera_firmware_t *acamera_get_firmware_ptr(void);
 static int dma_writer_configure_frame_writer( dma_pipe *pipe,
                                               aframe_t *aframe,
                                               dma_writer_reg_ops_t *reg_ops )
@@ -262,13 +263,25 @@ static int dma_writer_configure_frame_writer( dma_pipe *pipe,
     uint32_t line_offset;
     uintptr_t base;
     struct _acamera_context_t *p_ctx = pipe->settings.p_ctx;
+    acamera_firmware_t *fw_ptr = acamera_get_firmware_ptr();
 
     if ( acamera_isp_isp_global_ping_pong_config_select_read( 0 ) == ISP_CONFIG_PING ) {
 	    base = ISP_CONFIG_PING_SIZE;
-	    LOG(LOG_INFO, "%s current is ping, next pong", __func__);
+        uint32_t v = acamera_isp_fr_dma_writer_bank0_base_read_hw(0);
+	    pr_debug("current is ping, addr is 0x%x, next pong\n", v);
     } else {
 	    base = 0;
-	    LOG(LOG_INFO, "%s current is pong, next ping", __func__);
+        uint32_t v = acamera_isp_fr_dma_writer_bank0_base_read_hw(ISP_CONFIG_PING_SIZE);
+	    pr_debug("current is pong, addr is 0x%x, next ping\n", v);
+    }
+
+    /* config ping on first frame.
+        in case of raw feedback case, cannot using frame count variable as a condition.
+    */
+    if (fw_ptr && fw_ptr->first_frame == 0) {
+        base = 0;
+        fw_ptr->first_frame = 1;
+        pr_debug("this is first frame, config to ping\n");
     }
 
     if ( aframe->status != dma_buf_purge ) {
@@ -304,7 +317,7 @@ static int dma_writer_configure_frame_writer( dma_pipe *pipe,
         reg_ops->line_offset_write_hw( base, line_offset );
         reg_ops->bank0_base_write_hw( base, addr );
         reg_ops->write_on_write_hw( base, 1 );
-        LOG( LOG_INFO, "enable dma write, frame%d, %dx%d, stride=%d, phy_addr=0x%x, size=%d, type=%d",
+        pr_debug("enable dma write, frame%d, %dx%d, stride=%d, phy_addr=0x%x, size=%d, type=%d",
             aframe->frame_id, aframe->width, aframe->height, aframe->line_offset,
             aframe->address, aframe->size, aframe->type);
 
@@ -533,6 +546,12 @@ void dma_writer_clear(uint32_t ctx_id)
 	dh->pipe[dma_fr].settings.done_frame.secondary.status = dma_buf_purge;
 	dh->pipe[dma_fr].settings.delay_frame.primary.status = dma_buf_purge;
 	dh->pipe[dma_fr].settings.delay_frame.secondary.status = dma_buf_purge;
+
+    //ping/pong dma writer disable write
+    dh->pipe[dma_fr].primary.write_on_write_hw(0, 0);
+    dh->pipe[dma_fr].secondary.write_on_write_hw(0, 0);
+    dh->pipe[dma_fr].primary.write_on_write_hw(ISP_CONFIG_PING_SIZE, 0);
+    dh->pipe[dma_fr].secondary.write_on_write_hw(ISP_CONFIG_PING_SIZE, 0);
 }
 
 static dma_handle s_handle[FIRMWARE_CONTEXT_NUMBER];
