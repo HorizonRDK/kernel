@@ -201,26 +201,6 @@ static const struct file_operations cnn_debugfs_fops = {
 	.release = single_release,
 };
 
-/*
- * hobot_bpu_fc_gap_mem_init - init memory pattern for
- * function call gap(only for debug)
- *
- */
-void hobot_bpu_fc_gap_mem_init(struct hobot_bpu_dev *dev)
-{
-	int mem_pattern = 0x5a;
-	void *cnn_fc_start_gap_virt, *cnn_fc_end_gap_virt;
-
-	cnn_fc_start_gap_virt =
-		phys_to_virt(dev->fc_phys_base - CNN_FC_GAP_LEN);
-	memset(cnn_fc_start_gap_virt, mem_pattern, CNN_FC_GAP_LEN);
-
-	cnn_fc_end_gap_virt =
-		phys_to_virt(dev->fc_phys_base + dev->fc_mem_size);
-	memset(cnn_fc_end_gap_virt, mem_pattern, CNN_FC_GAP_LEN);
-}
-
-
 /**
  * hobot_bpu_reset_assert - asserts reset using reset framework
  * @rstc: pointer to reset_control
@@ -2131,35 +2111,16 @@ int hobot_bpu_probe(struct platform_device *pdev)
 		goto err_out;
 	}
 
-	/* request memory address */
-	mem_np = of_parse_phandle(np, "memory-region", 0);
-	if (!mem_np) {
-		/*FIXME: may can use ion to alloc this space */
-		dev_err(cnn_dev->dev,
-			"No %s specified\n", "memory-region");
-		goto err_out;
-	}
-	rc = of_address_to_resource(mem_np, 0, &mem_reserved);
-	if (rc) {
-		dev_err(cnn_dev->dev,
-			"No memory address assigned to the region\n");
-		goto err_out;
-	}
-
-	if (resource_size(&mem_reserved)
-			< (CNN_FC_GAP_LEN * 3 + CNN_FC_SPACE_LEN * 2)) {
-		dev_err(&pdev->dev,
-			"No enough memory for function call\n");
+	cnn_dev->core_index = cnn_id;
+	cnn_dev->fc_base = dma_alloc_coherent(&pdev->dev,
+			CNN_FC_SPACE_LEN, &cnn_dev->fc_phys_base, GFP_KERNEL);
+	if (cnn_dev->fc_base == NULL) {
+		dev_err(&pdev->dev, "bpu core alloc fc mem failed\n");
 		rc = -1;
 		goto err_out;
 	}
-
-	cnn_dev->core_index = cnn_id;
-	cnn_dev->fc_phys_base = mem_reserved.start + CNN_FC_GAP_LEN
-		+ (CNN_FC_SPACE_LEN + CNN_FC_GAP_LEN) * cnn_id;
 	cnn_dev->fc_mem_size  = CNN_FC_SPACE_LEN;
-	cnn_dev->fc_base = cnn_ram_vmap(cnn_dev->fc_phys_base,
-				cnn_dev->fc_mem_size, CNN_MT_UC);
+
 	atomic_set(&cnn_dev->hw_id_counter, 1);
 	atomic_set(&cnn_dev->wait_fc_cnt, 0);
 	atomic_set(&cnn_dev->hw_flg, 0);
@@ -2172,8 +2133,6 @@ int hobot_bpu_probe(struct platform_device *pdev)
 			cnn_dev->fc_phys_base,
 			cnn_dev->fc_mem_size,
 			(cnn_dev->fc_mem_size / 64) - 1);
-
-	hobot_bpu_fc_gap_mem_init(cnn_dev);
 
 	mutex_init(&cnn_dev->cnn_lock);
 	spin_lock_init(&cnn_dev->set_time_lock);
@@ -2284,7 +2243,10 @@ static int hobot_bpu_remove(struct platform_device *pdev)
 	if (profiler_enable)
 		del_timer(&check_timer);
 	tasklet_kill(&dev->tasklet);
-	vm_unmap_ram(dev->fc_base, dev->fc_mem_size / PAGE_SIZE);
+
+	dma_free_coherent(&pdev->dev, CNN_FC_SPACE_LEN,
+			dev->fc_base, dev->fc_phys_base);
+
 	dev->cnn_base = 0;
 	cnn_debugfs_cleanup(dev);
 	cnn_fc_time_kfifo_clean(dev);

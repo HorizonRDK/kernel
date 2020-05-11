@@ -161,7 +161,7 @@ struct hobot_bpu_dev {
 	void __iomem	*cnn_base;
 	u32		irq;
 	void *fc_base;
-	unsigned int fc_phys_base;
+	dma_addr_t fc_phys_base;
 	unsigned int fc_mem_size;
 
 	struct device *dev;

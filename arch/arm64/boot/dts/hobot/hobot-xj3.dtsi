@@ -950,7 +950,6 @@
 			compatible = "hobot,x2-cnn-host";
 			reg = <0x0 0xA3000000 0x0 0x1000>,
 				<0x0 0xA6000010 0x0 0x04>;
-			memory-region = <&fc_reserved>;
 			cnn-id = <0x0>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 55 4>;
@@ -970,7 +969,6 @@
 			compatible = "hobot,x2-cnn-host";
 			reg = <0x0 0xA3001000 0x0 0x1000>,
 				<0x0 0xA6000010 0x0 0x04>;
-			memory-region = <&fc_reserved>;
 			cnn-id = <0x1>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 56 4>;
