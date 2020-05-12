@@ -84,14 +84,14 @@ static int dwe_fop_open(struct inode *pinode, struct file *pfile)
 		return -ENXIO;
 	}
 
-	spin_lock(&dwe_cdev->slock);
+	mutex_lock(&dwe_cdev->slock);
 	if (dwe_cdev->user_num == 0) {
 		vio_dwe_clk_enable();
 		dwe_sw_init();
 	}
 	dwe_cdev->user_num++;
 	pfile->private_data = dwe_cdev;
-	spin_unlock(&dwe_cdev->slock);
+	mutex_unlock(&dwe_cdev->slock);
 
 	//init stream
 	ret = dwe_v4l2_stream_init(&dwe_mod[tmp]->pstream, tmp);
@@ -143,13 +143,13 @@ static int dwe_fop_release(struct inode *pinode, struct file *pfile)
 	if (dwe_cdev->vb2_q.lock)
 		mutex_unlock(dwe_cdev->vb2_q.lock);
 
-	spin_lock(&dwe_cdev->slock);
+	mutex_lock(&dwe_cdev->slock);
 	dwe_cdev->user_num--;
 	if (dwe_cdev->user_num == 0) {
 		dwe_sw_deinit();
 		vio_dwe_clk_disable();
 	}
-	spin_unlock(&dwe_cdev->slock);
+	mutex_unlock(&dwe_cdev->slock);
 	pfile->private_data = NULL;
 
 	LOG(LOG_DEBUG, "close is success!\n");
@@ -741,7 +741,7 @@ int __init dwe_dev_init(uint32_t port)
 	}
 
 	dwe_mod[port]->port = port;
-	spin_lock_init(&(dwe_mod[port]->slock));
+	mutex_init(&(dwe_mod[port]->slock));
 #endif
 	LOG(LOG_INFO, "%s register success !\n", dwe_mod[port]->name);
 	return ret;

@@ -42,7 +42,7 @@
 typedef struct _dwe_charmod_s {
 	char name[CHARDEVNAME_LEN];
 	uint32_t devflag;
-	spinlock_t slock;
+	struct mutex slock;
 	uint32_t user_num;
 
 //miscdevice
