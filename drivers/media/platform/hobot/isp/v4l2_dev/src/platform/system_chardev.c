@@ -354,6 +354,25 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 
 	mutex_lock(&isp_dev_ctx.fops_lock);
 
+	switch (cmd) {
+	case ISPIOC_REG_RW:
+	case ISPIOC_LUT_RW:
+	case ISPIOC_COMMAND:
+		if (copy_from_user(&md, (void __user *)arg, sizeof(md))) {
+			ret = -EFAULT;
+			break;
+		}
+
+		if (md.chn >= FIRMWARE_CONTEXT_NUMBER) {
+			pr_err("ctx id %d exceed valid range\n", md.chn);
+			ret = -EFAULT;
+			break;
+		}
+	}
+
+	if (ret < 0)
+		goto out;
+
 	acamera_set_api_context(md.chn);
 
 	switch (cmd) {
@@ -362,10 +381,7 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
         	uint8_t i = 0;
 		uint32_t s = 0;
 		struct regs_t *rg;
-		if (copy_from_user(&md, (void __user *)arg, sizeof(md))) {
-			ret = -EFAULT;
-			break;
-		}
+
 		s = md.elem * sizeof(struct regs_t);
 		md.ptr = kzalloc(s, GFP_KERNEL);
 
@@ -395,10 +411,6 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 	{
 		uint32_t s = 0;
 
-		if (copy_from_user(&md, (void __user *)arg, sizeof(md))) {
-			ret = -EFAULT;
-			break;
-		}
 		s = md.elem & 0xffff;
 		md.ptr = kzalloc(s, GFP_KERNEL);
 
@@ -425,10 +437,7 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 		uint8_t type = 0xff;
 		uint32_t s = 0;
 		struct kv_t *kv;
-		if (copy_from_user(&md, (void __user *)arg, sizeof(md))) {
-			ret = -EFAULT;
-			break;
-		}
+
 		s = md.elem * sizeof(struct kv_t);
 		md.ptr = kzalloc(s, GFP_KERNEL);
 
@@ -584,6 +593,7 @@ err_flag:
 		break;
 	}
 
+out:
 	mutex_unlock(&isp_dev_ctx.fops_lock);
 
 	return ret;

@@ -314,8 +314,9 @@ static int dma_writer_configure_frame_writer( dma_pipe *pipe,
 		dma_writer_config_done();
 	}
     } else {
+        reg_ops->write_on_write( pipe->settings.isp_base, 0 );
         reg_ops->write_on_write_hw( base, 0 );
-        LOG( LOG_INFO, "disable dma write, frame%d, %dx%d, stride=%d, phy_addr=0x%x, size=%d, type=%d",
+        pr_debug("disable dma write, frame%d, %dx%d, stride=%d, phy_addr=0x%x, size=%d, type=%d",
             aframe->frame_id, aframe->width, aframe->height, aframe->line_offset,
             aframe->address, aframe->size, aframe->type);
     }
