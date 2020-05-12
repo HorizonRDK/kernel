@@ -85,13 +85,6 @@ static int hobot_pwm_config(struct pwm_chip *chip, struct pwm_device *pwm, int d
 	u32 val, reg, offset;
 	int pwm_freq, pwm_ratio;
 	struct hobot_pwm_chip *hbpwm = to_hobot_pwm_chip(chip);
-	int ret;
-
-	ret = clk_prepare_enable(hbpwm->mclk);
-	if (ret) {
-		pr_err("failed to enable pwm clock\n");
-		return ret;
-	}
 
 	/* config pwm freq */
 	pwm_freq = div64_u64((uint64_t)PWM_CLK * (uint64_t)period_ns,
@@ -123,14 +116,6 @@ static int hobot_pwm_enable(struct pwm_chip *chip, struct pwm_device *pwm)
 	int ret;
 	struct hobot_pwm_chip *hbpwm = to_hobot_pwm_chip(chip);
 
-	if (!__clk_is_enabled(hbpwm->mclk)) {
-		ret = clk_prepare_enable(hbpwm->mclk);
-		if (ret) {
-			pr_err("failed to enable pwm clock\n");
-			return ret;
-		}
-	}
-
 	val = hobot_pwm_rd(hbpwm, PWM_EN);
 	val |= (1<<pwm->hwpwm);
 	val |= PWM_INT_EN;
@@ -150,14 +135,41 @@ static void hobot_pwm_disable(struct pwm_chip *chip, struct pwm_device *pwm)
 		val &= (~PWM_INT_EN);
 	hobot_pwm_wr(hbpwm, PWM_EN, val);
 
-	clk_disable_unprepare(hbpwm->mclk);
 	return;
+}
+
+static int hobot_pwm_request(struct pwm_chip *chip, struct pwm_device *pwm)
+{
+	int ret;
+	struct hobot_pwm_chip *hbpwm = to_hobot_pwm_chip(chip);
+
+	if (hbpwm->mclk == NULL)
+		return -1;
+	if (!__clk_is_enabled(hbpwm->mclk)) {
+		ret = clk_prepare_enable(hbpwm->mclk);
+		if (ret) {
+			pr_err("failed to enable pwm clock\n");
+			return ret;
+		}
+	}
+	return 0;
+}
+
+static void hobot_pwm_free(struct pwm_chip *chip, struct pwm_device *pwm)
+{
+	struct hobot_pwm_chip *hbpwm = to_hobot_pwm_chip(chip);
+
+	if (hbpwm->mclk == NULL)
+		return;
+	clk_disable_unprepare(hbpwm->mclk);
 }
 
 static const struct pwm_ops hobot_pwm_ops = {
 	.config  = hobot_pwm_config,
 	.enable  = hobot_pwm_enable,
 	.disable = hobot_pwm_disable,
+	.request = hobot_pwm_request,
+	.free = hobot_pwm_free,
 	.owner   = THIS_MODULE,
 };
 
