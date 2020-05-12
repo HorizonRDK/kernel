@@ -26,6 +26,7 @@
 #include <linux/wait.h>
 #include <linux/kthread.h>
 #include <linux/pwm.h>
+#include <linux/uaccess.h>
 #include <soc/hobot/hobot_ips_x2.h>
 #include <soc/hobot/hobot_iar.h>
 #include "linux/ion.h"
@@ -2320,6 +2321,7 @@ int disp_set_ppbuf_addr(uint8_t layer_no, void *yaddr, void *caddr)
 	uint8_t video_index;
 	uint32_t y_size;
 	void __iomem *video_to_display_vaddr;
+	int ret = 0;
 
 	if (layer_no > 1)
 		return -1;
@@ -2330,8 +2332,18 @@ int disp_set_ppbuf_addr(uint8_t layer_no, void *yaddr, void *caddr)
 	video_index = g_iar_dev->cur_framebuf_id[layer_no];
 	video_to_display_vaddr =
 		g_iar_dev->pingpong_buf[layer_no].framebuf[!video_index].vaddr;
-	memcpy(video_to_display_vaddr, yaddr, y_size);
-	memcpy(video_to_display_vaddr + y_size, caddr, y_size >> 1);
+	ret = copy_from_user(video_to_display_vaddr, yaddr, y_size);
+	if (ret) {
+		pr_err("%s: error copy y imge from user!\n", __func__);
+		return ret;
+	}
+        ret = copy_from_user(video_to_display_vaddr + y_size,
+			caddr, y_size >> 1);
+	if (ret) {
+		pr_err("%s: error copy uv imge from user!\n", __func__);
+		return ret;
+	}
+
 	disp_copy_done = 1;
 
 	display_addr.Yaddr =
