@@ -387,10 +387,27 @@ int frame_manager_close_mp(struct vio_framemgr *this,
 		vio_err("%s start index is null", __func__);
 		return -EFAULT;
 	}
+	if (buffers == 0) {
+		vio_err("%s buffer number is ", __func__);
+		return -EFAULT;
+	}
 
 	spin_lock_irqsave(&this->slock, flag);
-	free_addr = this->frames_mp[index_start];
+	if ((this->index_state[index_start] == FRAME_IND_STREAMOFF)
+		|| (this->index_state[index_start] == FRAME_IND_USING)) {
+		free_addr = this->frames_mp[index_start];
+	} else {
+		vio_err("%s start index %d state %d err", __func__, index_start,
+			this->index_state[index_start]);
+		goto err_unlock;
+	}
 	for (i = index_start; i < (index_start + buffers); i++) {
+		if ((this->index_state[i] != FRAME_IND_STREAMOFF)
+			&& (this->index_state[i] != FRAME_IND_USING)) {
+			vio_err("%s:index %d state %d error", __func__, i,
+				this->index_state[i]);
+			goto err_unlock;
+		}
 		frame = this->frames_mp[i];
 		if (!frame) {
 			vio_err("%s:frame%d null", __func__, i);
@@ -437,6 +454,10 @@ int frame_manager_close_mp(struct vio_framemgr *this,
 		__func__, index_start, buffers, this->num_frames, this->max_index);
 	spin_unlock_irqrestore(&this->slock, flag);
 	return 0;
+
+err_unlock:
+	spin_unlock_irqrestore(&this->slock, flag);
+	return -EFAULT;
 }
 EXPORT_SYMBOL(frame_manager_close_mp);
 

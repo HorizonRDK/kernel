@@ -91,10 +91,16 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 	u32 id;
 
 	ipu_ctx = file->private_data;
-	group = ipu_ctx->group;
 	ipu = ipu_ctx->ipu_dev;
-	subdev = ipu_ctx->subdev;
+	if (ipu_ctx->state & BIT(VIO_VIDEO_OPEN)) {
+		vio_info("[Sx][V%d] %s: only open.\n", ipu_ctx->id, __func__);
+		atomic_dec(&ipu->open_cnt);
+		kfree(ipu_ctx);
+		return 0;
+	}
 
+	group = ipu_ctx->group;
+	subdev = ipu_ctx->subdev;
 	if ((group) &&(atomic_dec_return(&subdev->refcount) == 0)) {
 		subdev->state = 0;
 		clear_bit(VIO_GROUP_LEADER, &group->state);

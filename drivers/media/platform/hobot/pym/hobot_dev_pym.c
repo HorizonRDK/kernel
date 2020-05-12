@@ -106,10 +106,16 @@ static int x3_pym_close(struct inode *inode, struct file *file)
 	u32 count;
 
 	pym_ctx = file->private_data;
-	group = pym_ctx->group;
 	pym = pym_ctx->pym_dev;
-	subdev = pym_ctx->subdev;
+	if (pym_ctx->state & BIT(VIO_VIDEO_OPEN)) {
+		vio_info("[Sx][V%d] %s: only open.\n", pym_ctx->id, __func__);
+		atomic_dec(&pym->open_cnt);
+		kfree(pym_ctx);
+		return 0;
+	}
 
+	group = pym_ctx->group;
+	subdev = pym_ctx->subdev;
 	if ((group) && atomic_dec_return(&subdev->refcount) == 0) {
 		subdev->state = 0;
 		clear_bit(VIO_GROUP_INIT, &group->state);
