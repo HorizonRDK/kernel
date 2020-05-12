@@ -95,7 +95,7 @@ uint8_t disp_copy_done = 0;
 uint8_t iar_enable = 1;
 
 phys_addr_t logo_paddr;
-void *logo_vaddr;
+void *logo_vaddr = NULL;
 
 struct disp_timing video_1920x1080 = {
 	148, 88, 44, 36, 4, 5
@@ -2707,7 +2707,6 @@ static int x2_iar_probe(struct platform_device *pdev)
 	ret = request_threaded_irq(g_iar_dev->irq, x2_iar_irq, NULL, IRQF_TRIGGER_HIGH,
 							   dev_name(&pdev->dev), g_iar_dev);
 	disable_irq(g_iar_dev->irq);
-
 	if (g_iar_dev->iar_task == NULL) {
 		g_iar_dev->iar_task =
 			kthread_run(iar_thread,
@@ -2718,29 +2717,30 @@ static int x2_iar_probe(struct platform_device *pdev)
 			ret = PTR_ERR(g_iar_dev->iar_task);
 		}
 	}
+
 	np = of_parse_phandle(pdev->dev.of_node, "memory-region", 0);
 	if (!np) {
 		dev_err(&g_iar_dev->pdev->dev, "No %s specified\n", "memory-region");
 #ifndef USE_ION_MEM
 		goto err1;
 #endif
-	}
-	ret = of_address_to_resource(np, 0, &r);
-	if (ret) {
-		dev_err(&pdev->dev, "No memory address assigned to the region\n");
-		goto err1;
-	}
-
-	pr_debug("iar reserved memory size is %lld\n", resource_size(&r));
-#ifdef USE_ION_MEM
-	if (resource_size(&r) < MAX_FRAME_BUF_SIZE) {
-		pr_debug("iar logo memory size is not large enough!(<1buffer)\n");
-		//return -1;
 	} else {
-		logo_paddr = r.start;
-		logo_vaddr = ioremap_nocache(r.start, MAX_FRAME_BUF_SIZE);
-	}
+		ret = of_address_to_resource(np, 0, &r);
+		if (ret) {
+			dev_err(&pdev->dev, "No memory address assigned to the region\n");
+			goto err1;
+		}
 
+		pr_debug("iar reserved memory size is %lld\n", resource_size(&r));
+		if (resource_size(&r) < MAX_FRAME_BUF_SIZE) {
+			pr_debug("iar logo memory size is not large enough!(<1buffer)\n");
+			//return -1;
+		} else {
+			logo_paddr = r.start;
+			logo_vaddr = ioremap_nocache(r.start, MAX_FRAME_BUF_SIZE);
+		}
+	}
+#ifdef USE_ION_MEM
 	if (!hb_ion_dev) {
 		dev_err(&pdev->dev, "NO ION device found!!");
 		goto err1;
@@ -2753,10 +2753,23 @@ static int x2_iar_probe(struct platform_device *pdev)
 		goto err1;
 	}
 
+#ifdef CONFIG_HOBOT_XJ2
 	g_iar_dev->iar_ihandle = ion_alloc(g_iar_dev->iar_iclient,
 		IAR_MEM_SIZE - MAX_FRAME_BUF_SIZE, 0x20,
 		ION_HEAP_CARVEOUT_MASK, 0);
-
+#else
+	if (logo_vaddr == NULL) {
+		g_iar_dev->iar_ihandle = ion_alloc(g_iar_dev->iar_iclient,
+			IAR_MEM_SIZE, 0x20,
+			ION_HEAP_CARVEOUT_MASK, 0);
+		pr_debug("iar request 64M ion memory region!\n");
+	} else {
+		g_iar_dev->iar_ihandle = ion_alloc(g_iar_dev->iar_iclient,
+			IAR_MEM_SIZE - MAX_FRAME_BUF_SIZE, 0x20,
+			ION_HEAP_CARVEOUT_MASK, 0);
+		pr_debug("iar request 56M ion memory region!\n");
+	}
+#endif
 	if (!g_iar_dev->iar_ihandle || IS_ERR(g_iar_dev->iar_ihandle)) {
 		dev_err(&pdev->dev, "Create iar ion client failed!!");
 		goto err1;
@@ -2813,8 +2826,15 @@ static int x2_iar_probe(struct platform_device *pdev)
 		mem_paddr + MAX_FRAME_BUF_SIZE;
 	g_iar_dev->frambuf[IAR_CHANNEL_4].vaddr =
 		vaddr + MAX_FRAME_BUF_SIZE;
-	g_iar_dev->frambuf[IAR_CHANNEL_1].paddr = logo_paddr;
-	g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr = logo_vaddr;
+	if (logo_vaddr == NULL) {
+		g_iar_dev->frambuf[IAR_CHANNEL_1].paddr =
+			mem_paddr + MAX_FRAME_BUF_SIZE * 7;
+		g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr =
+			vaddr + MAX_FRAME_BUF_SIZE * 7;
+	} else {
+		g_iar_dev->frambuf[IAR_CHANNEL_1].paddr = logo_paddr;
+		g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr = logo_vaddr;
+	}
 	g_iar_dev->frambuf[IAR_CHANNEL_2].paddr =
 		mem_paddr + MAX_FRAME_BUF_SIZE * 2;
 	g_iar_dev->frambuf[IAR_CHANNEL_2].vaddr =
