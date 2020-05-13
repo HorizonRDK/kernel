@@ -142,7 +142,8 @@ int general_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_t i
 #if ISP_WDR_SWITCH
         p_fsm->wdr_mode_req = wdr_param->wdr_mode;
 
-        if ( ( p_fsm->wdr_mode_req != p_fsm->wdr_mode ) || ( p_fsm->cur_exp_number != wdr_param->exp_number ) ) {
+        //if ( ( p_fsm->wdr_mode_req != p_fsm->wdr_mode ) || ( p_fsm->cur_exp_number != wdr_param->exp_number ) ) {
+        if (1) {
             p_fsm->wdr_mode = p_fsm->wdr_mode_req;
             p_fsm->cur_exp_number = wdr_param->exp_number;
 
