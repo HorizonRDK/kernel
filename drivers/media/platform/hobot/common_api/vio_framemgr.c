@@ -487,6 +487,10 @@ int frame_manager_flush_mp(struct vio_framemgr *this,
 		vio_err("%s start index is null", __func__);
 		return -EFAULT;
 	}
+	if (buffers == 0) {
+		vio_err("%s buffer number is ", __func__);
+		return -EFAULT;
+	}
 
 	spin_lock_irqsave(&this->slock, flag);
 	/* to USED or FREE*/
@@ -496,7 +500,17 @@ int frame_manager_flush_mp(struct vio_framemgr *this,
 	while (delay_cnt) {
 		used_free_cnt = 0;
 		for (i = index_start; i < (buffers + index_start); i++) {
+			if ((this->index_state[i] != FRAME_IND_STREAMOFF)
+				&& (this->index_state[i] != FRAME_IND_USING)) {
+				vio_err("%s:index %d state %d error", __func__, i,
+					this->index_state[i]);
+				goto err_unlock;
+			}
 			frame = this->frames_mp[i];
+			if (!frame) {
+				vio_err("%s:frame%d null", __func__, i);
+				goto err_unlock;
+			}
 			if ((frame->state == FS_USED)
 				|| (frame->state == FS_FREE))
 				used_free_cnt++;
@@ -552,8 +566,11 @@ int frame_manager_flush_mp(struct vio_framemgr *this,
 			trans_frame(this, frame, FS_FREE);
 	}
 	spin_unlock_irqrestore(&this->slock, flag);
-
 	return 0;
+
+err_unlock:
+	spin_unlock_irqrestore(&this->slock, flag);
+	return -EFAULT;;
 }
 EXPORT_SYMBOL(frame_manager_flush_mp);
 
@@ -570,6 +587,11 @@ int frame_manager_flush_mp_prepare(struct vio_framemgr *this,
 		vio_err("invalid index when flush frame manager.");
 		return -EFAULT;
 	}
+	if (buffers == 0) {
+		vio_err("%s buffer number is ", __func__);
+		return -EFAULT;
+	}
+
 	#if 0
 	struct vio_frame *frame;
 	for (i = index_start; i < (buffers + index_start); i++) {
