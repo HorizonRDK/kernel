@@ -944,6 +944,23 @@ void isp_ctx_prepare(int ctx_pre, int ctx_next, int ppf)
 #endif
 }
 
+static int _all_contexts_frame_counter_status(void)
+{
+    int i = 0;
+    acamera_context_ptr_t p_ctx;
+
+    for (i = 0; i < FIRMWARE_CONTEXT_NUMBER; i++) {
+        p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[i];
+        if (p_ctx->isp_frame_counter)
+            break;
+    }
+
+    if (i >= FIRMWARE_CONTEXT_NUMBER)
+        return 0;
+
+    return 1;
+}
+
 extern int ldc_set_ioctl(uint32_t port, uint32_t online);
 extern int dis_set_ioctl(uint32_t port, uint32_t online);
 extern void isp_input_port_size_config(sensor_fsm_ptr_t p_fsm);
@@ -953,9 +970,9 @@ int sif_isp_ctx_sync_func(int ctx_id)
 	acamera_context_ptr_t p_ctx;
 
 	p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[ctx_id];
-	if (g_firmware.frame_done == 0 && p_ctx->isp_frame_counter != 0) {
+	if (atomic_read(&g_firmware.frame_done) == 0 && _all_contexts_frame_counter_status() != 0) {
 		pr_debug("isp is working now, next ctx id %d.\n", ctx_id);
-		wait_event_timeout(wq_fe, g_firmware.frame_done, msecs_to_jiffies(200));
+		wait_event_timeout(wq_fe, atomic_read(&g_firmware.frame_done), msecs_to_jiffies(200));
 	}
 
 	pr_debug("start isp ctx switch, ctx_id %d\n", ctx_id);
@@ -969,7 +986,7 @@ int sif_isp_ctx_sync_func(int ctx_id)
 	cur_ctx_id = ctx_id;
 	next_ctx_id = ctx_id;
 	p_ctx->sif_isp_offline = 1;
-	g_firmware.frame_done = 0;
+	atomic_set(&g_firmware.frame_done, 0);
 
 	isp_input_port_size_config(p_ctx->fsm_mgr.fsm_arr[FSM_ID_SENSOR]->p_fsm);
 	ldc_set_ioctl(ctx_id, 0);
@@ -1043,12 +1060,12 @@ pr_info("hcs1 %d, hcs2 %d, vc %d\n", hcs1, hcs2, vc);
     pr_debug("IRQ MASK is 0x%x, ctx_id %d, frame id %d\n", irq_mask, cur_ctx_id, p_ctx->isp_frame_counter);
 
     if(irq_mask&0x8) {
-        printk("broken frame status = 0x%x", acamera_isp_isp_global_monitor_broken_frame_status_read(0));
-        printk("active width min/max/sum/num = %d/%d/%d/%d", system_hw_read_32(0xb4),system_hw_read_32(0xb8),system_hw_read_32(0xbc),system_hw_read_32(0xc0));
-        printk("active high min/max/sum/num = %d/%d/%d/%d", system_hw_read_32(0xc4),system_hw_read_32(0xc8),system_hw_read_32(0xcc),system_hw_read_32(0xd0));
-        printk("hblank min/max/sum/num = %d/%d/%d/%d", system_hw_read_32(0xd4),system_hw_read_32(0xd8),system_hw_read_32(0xdc),system_hw_read_32(0xe0));
-        printk("vblank min/max/sum/num = %d/%d/%d/%d", system_hw_read_32(0xe4),system_hw_read_32(0xe8),system_hw_read_32(0xec),system_hw_read_32(0xf0));
-	printk("input port w/h %x, ping w/h %x, pong w/h %x", system_hw_read_32(0x98L), system_hw_read_32(0x18e88L), system_hw_read_32(0x30e48L));
+        pr_err("broken frame status = 0x%x", acamera_isp_isp_global_monitor_broken_frame_status_read(0));
+        // printk("active width min/max/sum/num = %d/%d/%d/%d", system_hw_read_32(0xb4),system_hw_read_32(0xb8),system_hw_read_32(0xbc),system_hw_read_32(0xc0));
+        // printk("active high min/max/sum/num = %d/%d/%d/%d", system_hw_read_32(0xc4),system_hw_read_32(0xc8),system_hw_read_32(0xcc),system_hw_read_32(0xd0));
+        // printk("hblank min/max/sum/num = %d/%d/%d/%d", system_hw_read_32(0xd4),system_hw_read_32(0xd8),system_hw_read_32(0xdc),system_hw_read_32(0xe0));
+        // printk("vblank min/max/sum/num = %d/%d/%d/%d", system_hw_read_32(0xe4),system_hw_read_32(0xe8),system_hw_read_32(0xec),system_hw_read_32(0xf0));
+	    // printk("input port w/h %x, ping w/h %x, pong w/h %x", system_hw_read_32(0x98L), system_hw_read_32(0x18e88L), system_hw_read_32(0x30e48L));
     }
 
     // clear irq vector
@@ -1135,11 +1152,11 @@ pr_info("hcs1 %d, hcs2 %d, vc %d\n", hcs1, hcs2, vc);
                     } //if ( acamera_event_queue_empty( &p_ctx->fsm_mgr.event_queue ) )
                 } else if ( irq_bit == ISP_INTERRUPT_EVENT_ISP_END_FRAME_END ) {
 			pr_debug("frame done, ctx id %d\n", cur_ctx_id);
-			g_firmware.frame_done = 1;
+			atomic_set(&g_firmware.frame_done, 1);
 			wake_up(&wq_fe);
                 } else if ( irq_bit == ISP_INTERRUPT_EVENT_FR_Y_WRITE_DONE ) {
 					LOG( LOG_INFO, "frame write to ddr done" );
-                    g_firmware.frame_done = 1;
+                    atomic_set(&g_firmware.frame_done, 1);
                     wake_up(&wq_fe);
 					acamera_fw_raise_event( p_ctx, event_id_frame_done );
                 } else if ( irq_bit == ISP_INTERRUPT_EVENT_FR_UV_WRITE_DONE ) {
