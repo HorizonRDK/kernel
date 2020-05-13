@@ -126,21 +126,25 @@ void sif_hw_enable_bypass(u32 __iomem *base_reg, u32 ch_index, bool enable)
  * @param bypass_channels the number of bypass channels from the MIPI Rx
  * @return check whether valid to config or not
  */
-static void sif_config_bypass(u32 __iomem *base_reg, u32 rx_index,
-				u32 bypass_channels)
+static void sif_config_bypass(u32 __iomem *base_reg, u32 bypass_channels)
 {
 	int i = 0;
 	u32 bypass_sel = bypass_channels % 10;
-	u32 bypass_mask = bypass_channels / 10;
+	u32 bypass_mask = (bypass_channels % 1000) / 10;
+	u32 bypass_nsel = bypass_channels / 1000;
 
-	if (bypass_sel < 0 || bypass_sel == 2 || bypass_sel > 4)
+	if (bypass_sel < 0 || bypass_sel > 4)
 		return;
 
-	vio_hw_set_field(base_reg, &sif_regs[SIF_VIO_BYPASS_CFG],
-		&sif_fields[SW_MIPI_VIO_BYPASS_MUX_SELECT], bypass_sel);
-
+	if (!bypass_nsel) {
+		vio_hw_set_field(base_reg, &sif_regs[SIF_VIO_BYPASS_CFG],
+			&sif_fields[SW_MIPI_VIO_BYPASS_MUX_SELECT], bypass_sel);
+		if (bypass_sel == 2)
+			bypass_mask = 0x1;
+	}
 	if (bypass_mask == 0)
 		bypass_mask = 0x1;
+
 	for (i = 0; i < 4; i++) {
 		if (bypass_mask & (0x1 << i))
 			sif_hw_enable_bypass(base_reg, i, true);
@@ -149,6 +153,49 @@ static void sif_config_bypass(u32 __iomem *base_reg, u32 rx_index,
 	}
 }
 
+void sif_set_bypass_cfg(u32 __iomem *base_reg, sif_input_bypass_t *cfg)
+{
+	u32 bypass_channels = 0;
+	int i = 0;
+
+	bypass_channels = cfg->set_bypass_channels;
+
+	if (cfg->enable_bypass) {
+		if ((bypass_channels / 1000) &&
+			vio_hw_get_field(base_reg, &sif_regs[SIF_VIO_BYPASS_CFG],
+			&sif_fields[SW_MIPI_VIO_BYPASS_MUX_SELECT]) == 5) {
+			vio_hw_set_field(base_reg, &sif_regs[SIF_VIO_BYPASS_CFG],
+				&sif_fields[SW_MIPI_VIO_BYPASS_MUX_SELECT], 2);
+		}
+		sif_config_bypass(base_reg, bypass_channels);
+		if ((bypass_channels % 10) == 2 && (bypass_channels / 1000) == 0) {
+			vio_hw_set_field(base_reg, &sif_regs[SIF_FRM_EN_INT],
+					&sif_fields[SW_SIF_MIPI_TX_IPI0_FS_INT_EN], 1);
+
+			vio_hw_set_field(base_reg, &sif_regs[SIF_FRAME_ID_IAR_CFG],
+						&sif_fields[SW_SIF_IAR_MIPI_FRAME_ID_ENABLE],
+						cfg->enable_frame_id);
+			if (cfg->init_frame_id != 0) {
+				vio_hw_set_field(base_reg, &sif_regs[SIF_FRAME_ID_IAR_CFG],
+						&sif_fields[SW_SIF_IAR_MIPI_FRAME_ID_SET_EN], 1);
+				vio_hw_set_field(base_reg, &sif_regs[SIF_FRAME_ID_IAR_CFG],
+						&sif_fields[SW_SIF_IAR_MIPI_FRAME_ID_INIT],
+						cfg->init_frame_id);
+			}
+		}
+	} else {
+		if (vio_hw_get_field(base_reg, &sif_regs[SIF_VIO_BYPASS_CFG],
+			&sif_fields[SW_MIPI_VIO_BYPASS_MUX_SELECT]) == 2) {
+			vio_hw_set_field(base_reg, &sif_regs[SIF_VIO_BYPASS_CFG],
+				&sif_fields[SW_MIPI_VIO_BYPASS_MUX_SELECT], 5);
+		}
+		for (i = 0; i < 4; i++) {
+			sif_hw_enable_bypass(base_reg, i, false);
+		}
+	}
+}
+
+extern int testpattern_fps;
 /*
  * Config Pattern Gen Engine
  *
@@ -162,23 +209,25 @@ void sif_set_pattern_gen(u32 __iomem *base_reg, u32 pat_index,
 	u32 y, cb, cr;
 	u32 h_time;
 	u32 v_line;
+	const u32 clk_hz = vio_get_clk_rate("sif_mclk");
 
-	if (framerate) {
-		const u32 clk_hz = vio_get_clk_rate("sif_mclk");
+	if (framerate)
+		testpattern_fps = framerate;
+	else if (testpattern_fps)
+		framerate = testpattern_fps;
+	else
+		framerate = testpattern_fps = 30;
+
+	v_line = p_data->height + 100 + 1;
+	h_time = clk_hz / framerate / v_line;
+	while (h_time >= 0x10000) {
+		v_line = v_line << 1;
+		h_time = h_time >> 1;
+	}
+	if (h_time <= p_data->width) {
+		vio_err("wrong fps%d, h_time(%d) <= width(%d), force set h_time\n",
+				framerate, h_time, p_data->width);
 		h_time = 4096;
-		v_line = clk_hz / framerate / h_time;
-		while (v_line >= 0x10000) {
-			v_line = v_line >> 1;
-			h_time = h_time << 1;
-		}
-		if (v_line <= p_data->height) {
-			vio_err("wrong fps%d, v_line(%d) <= height(%d), force set v_line\n",
-					framerate, v_line, p_data->height);
-			v_line = p_data->height + 100 + 1;
-		}
-	} else {
-		h_time = 4096;
-		v_line = p_data->height + 100 + 1;
 	}
 
 	y = 128;
@@ -392,7 +441,7 @@ static void sif_set_dvp_input(u32 __iomem *base_reg, sif_input_dvp_t* p_dvp)
  *
  * @param p_iar the pointer of sif_input_iar_t
  */
-static void sif_set_iar_input(u32 __iomem *base_reg, sif_input_iar_t* p_iar)
+static void sif_set_iar_input(u32 __iomem *base_reg, sif_input_iar_t *p_iar)
 {
 	u32 init_frame_id = p_iar->func.set_init_frame_id;
 
@@ -400,13 +449,7 @@ static void sif_set_iar_input(u32 __iomem *base_reg, sif_input_iar_t* p_iar)
 		return;
 
 	if (p_iar->func.enable_bypass) {
-		vio_hw_set_field(base_reg, &sif_regs[SIF_VIO_BYPASS_CFG],
-				&sif_fields[SW_MIPI_VIO_BYPASS_MUX_SELECT], 2);  // DISP
-		sif_hw_enable_bypass(base_reg, 0, true);
-		sif_hw_enable_bypass(base_reg, 1, false);
-		sif_hw_enable_bypass(base_reg, 2, false);
-		sif_hw_enable_bypass(base_reg, 3, false);
-
+		sif_config_bypass(base_reg, 2);
 		vio_hw_set_field(base_reg, &sif_regs[SIF_FRM_EN_INT],
 				&sif_fields[SW_SIF_MIPI_TX_IPI0_FS_INT_EN], 1);
 	}
@@ -846,8 +889,7 @@ static void sif_set_mipi_rx(u32 __iomem *base_reg, sif_input_mipi_t* p_mipi,
 
 	/*bypass enable*/
 	if (p_mipi->func.enable_bypass) {
-		sif_config_bypass(base_reg, p_mipi->mipi_rx_index,
-								p_mipi->func.set_bypass_channels);
+		sif_config_bypass(base_reg, p_mipi->func.set_bypass_channels);
 	}
 
 	// FIXME: Workaround
@@ -977,7 +1019,7 @@ static void sif_set_isp_output(u32 __iomem *base_reg,
 		{0, 0x80000},     // 512KB
 		{0x80000, 0x100000},    // 512KB
 	};
-	u32 iram_stride = 4096;
+	u32 iram_stride = 8192;
 	u32 gain = 0;
 	int i = 0;
 	int iram_size = 0;

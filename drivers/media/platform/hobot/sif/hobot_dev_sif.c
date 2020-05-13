@@ -34,6 +34,8 @@
 
 static int mismatch_limit = 1;
 module_param(mismatch_limit, int, 0644);
+int testpattern_fps = 30;
+module_param(testpattern_fps, int, 0644);
 
 int sif_video_streamoff(struct sif_video_ctx *sif_ctx);
 extern isp_callback sif_isp_ctx_sync;
@@ -502,7 +504,7 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 		cfg = ips_get_bus_ctrl() | 0xd21e << 16;
 	} else {
 		set_bit(VIO_GROUP_DMA_OUTPUT, &group->state);
-		cfg = ips_get_bus_ctrl() | 0xc002 << 16;
+		cfg = ips_get_bus_ctrl() | 0x9002 << 16;
 
 		gtask = &sif->sifout_task[mux_index];
 		gtask->id = group->id;
@@ -715,6 +717,11 @@ int sif_video_streamoff(struct sif_video_ctx *sif_ctx)
 	sif_dev = sif_ctx->sif_dev;
 	framemgr = sif_ctx->framemgr;
 
+	if (sif_ctx->id == 0) {
+		sif_enable_frame_intr(sif_dev->base_reg, subdev->mux_index, false);
+		sif_enable_frame_intr(sif_dev->base_reg, subdev->ddr_mux_index, false);
+	}
+
 	if (atomic_dec_return(&sif_dev->rsccount) > 0
 		&& !test_bit(SIF_HW_FORCE_STOP, &sif_dev->state))
 		goto p_dec;
@@ -860,15 +867,21 @@ int sif_video_dqbuf(struct sif_video_ctx *sif_ctx,
 	return ret;
 }
 
-int sif_enable_bypass(struct sif_video_ctx *sif_ctx, u32 cfg)
+int sif_enable_bypass(struct sif_video_ctx *sif_ctx, unsigned long arg)
 {
-	int i = 0;
+	int ret = 0;
 	struct x3_sif_dev *sif;
+	sif_input_bypass_t cfg;
+
+	ret = copy_from_user((char *) &cfg, (u32 __user *) arg,
+			   sizeof(sif_input_bypass_t));
+	if (ret) {
+		vio_err("%s copy_from_user error(%d)\n", __func__, ret);
+		return -EFAULT;
+	}
 
 	sif = sif_ctx->sif_dev;
-	for (i = 0; i < 4; i++) {
-		sif_hw_enable_bypass(sif->base_reg, i, cfg & (1 << i));
-	}
+	sif_set_bypass_cfg(sif->base_reg, &cfg);
 
 	return 0;
 }
@@ -936,7 +949,6 @@ static long x3_sif_ioctl(struct file *file, unsigned int cmd,
 	int buffers = 0;
 	int enable = 0;
 	int instance = 0;
-	u32 cfg = 0;
 	struct sif_video_ctx *sif_ctx;
 	struct frame_info frameinfo;
 	struct vio_group *group;
@@ -991,10 +1003,7 @@ static long x3_sif_ioctl(struct file *file, unsigned int cmd,
 		vio_bind_group_done(instance);
 		break;
 	case SIF_IOC_BYPASS:
-		ret = get_user(cfg, (u32 __user *) arg);
-		if (ret)
-			return -EFAULT;
-		ret = sif_enable_bypass(sif_ctx, cfg);
+		ret = sif_enable_bypass(sif_ctx, arg);
 		break;
 	case SIF_IOC_MD_EVENT:
 		ret = ips_get_md_event();

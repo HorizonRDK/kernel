@@ -112,6 +112,13 @@ typedef struct sif_input_ddr {
 	sif_data_desc_t   data;
 } sif_input_ddr_t;
 
+typedef struct sif_input_bypass {
+	uint32_t		  enable_bypass;
+	uint32_t		  enable_frame_id;
+	uint32_t		  init_frame_id;
+	uint32_t	      set_bypass_channels;
+} sif_input_bypass_t;
+
 typedef struct sif_input_iar {
 	uint32_t		  enable;
 	sif_func_desc_t   func;
