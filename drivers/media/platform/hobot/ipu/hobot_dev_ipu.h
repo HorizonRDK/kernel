@@ -184,6 +184,7 @@ struct x3_ipu_dev {
 	atomic_t sensor_fcount;
 	atomic_t backup_fcount;
 	u32 frame_drop_count;
+	u32 frame_drop_channel[VIO_MAX_STREAM][6];
 
 	struct ipu_subdev subdev[VIO_MAX_STREAM][MAX_DEVICE];
 	struct vio_group *group[VIO_MAX_STREAM];

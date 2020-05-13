@@ -84,6 +84,8 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 	struct x3_ipu_dev *ipu;
 	struct vio_group *group;
 	struct ipu_subdev *subdev;
+	int instance = 0;
+	int i = 0;
 	u32 index;
 	u32 cnt;
 	int ret = 0;
@@ -108,6 +110,10 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 		if (group->gtask)
 			vio_group_task_stop(group->gtask);
 		subdev->leader = false;
+		instance = group->instance;
+		ipu->group[instance] = NULL;
+		for (i = 0; i < 6; i++)
+			ipu->frame_drop_channel[instance][i] = 0;
 	}
 
 	index = ipu_ctx->frm_fst_ind;
@@ -130,6 +136,7 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 			vio_info("ipu force stream off\n");
 		}
 		ips_set_clk_ctrl(IPU0_CLOCK_GATE, false);
+		ipu->frame_drop_count = 0;
 	}
 
 	ipu_ctx->state = BIT(VIO_VIDEO_CLOSE);
@@ -850,6 +857,8 @@ int ipu_update_ds_ch_param(struct ipu_subdev *subdev, u8 ds_ch,
 	//ipu_set_intr_mask(ipu->base_reg, 0);
 	vio_dbg("[%d][ds%d]roi_x = %d, roi_y = %d, roi_width = %d, roi_height = %d\n",
 		 shadow_index, ds_ch, roi_x, roi_y, roi_width, roi_height);
+	vio_dbg("[%d][ds%d]stride_y = %d, stride_uv = %d\n", shadow_index, ds_ch,
+		 ds_stride_y, ds_stride_uv);
 	return ret;
 }
 
@@ -1946,8 +1955,10 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		subdev = group->sub_ctx[GROUP_ID_US];
 		if (subdev)
 			ipu_frame_ndone(subdev);
-		ipu->frame_drop_count++;
+
 		err_occured = 2;
+		ipu->frame_drop_count++;
+		ipu->frame_drop_channel[instance][0]++;
 	}
 
 	if (status & (1 << INTR_IPU_DS0_FRAME_DROP)) {
@@ -1955,7 +1966,10 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		subdev = group->sub_ctx[GROUP_ID_DS0];
 		if (subdev)
 			ipu_frame_ndone(subdev);
+
 		err_occured = 2;
+		ipu->frame_drop_count++;
+		ipu->frame_drop_channel[instance][1]++;
 	}
 
 	if (status & (1 << INTR_IPU_DS1_FRAME_DROP)) {
@@ -1963,7 +1977,10 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		subdev = group->sub_ctx[GROUP_ID_DS1];
 		if (subdev)
 			ipu_frame_ndone(subdev);
+
 		err_occured = 2;
+		ipu->frame_drop_count++;
+		ipu->frame_drop_channel[instance][2]++;
 	}
 
 	if (status & (1 << INTR_IPU_DS2_FRAME_DROP)) {
@@ -1971,7 +1988,10 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		subdev = group->sub_ctx[GROUP_ID_DS2];
 		if (subdev)
 			ipu_frame_ndone(subdev);
+
 		err_occured = 2;
+		ipu->frame_drop_count++;
+		ipu->frame_drop_channel[instance][3]++;
 	}
 
 	if (status & (1 << INTR_IPU_DS3_FRAME_DROP)) {
@@ -1979,7 +1999,10 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		subdev = group->sub_ctx[GROUP_ID_DS3];
 		if (subdev)
 			ipu_frame_ndone(subdev);
+
 		err_occured = 2;
+		ipu->frame_drop_count++;
+		ipu->frame_drop_channel[instance][4]++;
 	}
 
 	if (status & (1 << INTR_IPU_DS4_FRAME_DROP)) {
@@ -1987,8 +2010,10 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		subdev = group->sub_ctx[GROUP_ID_DS4];
 		if (subdev)
 			ipu_frame_ndone(subdev);
-		ipu->frame_drop_count++;
+
 		err_occured = 2;
+		ipu->frame_drop_count++;
+		ipu->frame_drop_channel[instance][5]++;
 	}
 
 	if (status & (1 << INTR_IPU_FRAME_DONE)) {
@@ -2056,19 +2081,15 @@ static irqreturn_t ipu_isr(int irq, void *data)
 			}
 		}
 
+		group->frameid.frame_id++;
 		if (group && group->get_timestamps) {
 			vio_get_frame_id(group);
 			vio_dbg("[S%d]IPU frame count = %d\n",
 					instance, group->frameid.frame_id);
 		}
-		if (test_bit(IPU_DMA_INPUT, &ipu->state)) {
-			group->frameid.frame_id = atomic_read(&ipu->sensor_fcount);
-			vio_info("[S%d]IPU frame count = %d\n",
-					instance, group->frameid.frame_id);
-		}
 	}
 
-	if (ipu->frame_drop_count > 8) {
+	if (ipu->frame_drop_count > 20) {
 		//ipu_hw_dump(ipu->base_reg);
 		vio_err("[S%d]too many Frame drop\n", instance);
 		ipu->frame_drop_count = 0;
@@ -2241,6 +2262,30 @@ static ssize_t ipu_reg_dump(struct device *dev,
 
 static DEVICE_ATTR(regdump, 0444, ipu_reg_dump, NULL);
 
+static ssize_t ipu_err_status(struct device *dev,
+				struct device_attribute *attr, char* buf)
+{
+	struct x3_ipu_dev *ipu;
+	u32 offset = 0;
+	int instance = 0;
+	int i = 0;
+
+	ipu = dev_get_drvdata(dev);
+	for(instance = 0; instance < VIO_MAX_STREAM; instance++) {
+		if (ipu->group[instance]) {
+			for (i = 0; i < 6; i++) {
+				snprintf(&buf[offset], 64, "S%d_ch%d_drop: %d\n", instance, i,
+						ipu->frame_drop_channel[instance][i]);
+				offset = strlen(buf);
+			}
+		}
+	}
+
+	return offset;
+}
+
+static DEVICE_ATTR(err_status, 0444, ipu_err_status, NULL);
+
 static int x3_ipu_probe(struct platform_device *pdev)
 {
 	int ret = 0;
@@ -2289,8 +2334,14 @@ static int x3_ipu_probe(struct platform_device *pdev)
 
 	dev = &pdev->dev;
 	ret = device_create_file(dev, &dev_attr_regdump);
-	if(ret < 0) {
-		vio_err("create regdump failed (%d)\n",ret);
+	if (ret < 0) {
+		vio_err("create regdump failed (%d)\n", ret);
+		goto p_err;
+	}
+
+	ret = device_create_file(dev, &dev_attr_err_status);
+	if (ret < 0) {
+		vio_err("create err_status failed (%d)\n", ret);
 		goto p_err;
 	}
 	platform_set_drvdata(pdev, ipu);
@@ -2331,6 +2382,7 @@ static int x3_ipu_remove(struct platform_device *pdev)
 	ipu = platform_get_drvdata(pdev);
 
 	device_remove_file(&pdev->dev, &dev_attr_regdump);
+	device_remove_file(&pdev->dev, &dev_attr_err_status);
 
 	free_irq(ipu->irq, ipu);
 

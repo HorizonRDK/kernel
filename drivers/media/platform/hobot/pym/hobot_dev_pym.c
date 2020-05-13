@@ -102,8 +102,9 @@ static int x3_pym_close(struct inode *inode, struct file *file)
 	struct vio_group *group;
 	struct x3_pym_dev *pym;
 	struct pym_subdev *subdev;
-	u32 index;
-	u32 count;
+	u32 index = 0;
+	u32 count = 0;
+	int instance = 0;
 
 	pym_ctx = file->private_data;
 	pym = pym_ctx->pym_dev;
@@ -121,6 +122,10 @@ static int x3_pym_close(struct inode *inode, struct file *file)
 		clear_bit(VIO_GROUP_INIT, &group->state);
 		if (group->gtask)
 			vio_group_task_stop(group->gtask);
+		instance = group->instance;
+		pym->group[instance] = NULL;
+		pym->ds_drop_count[instance] = 0;
+		pym->us_drop_count[instance] = 0;
 	}
 
 	index = pym_ctx->frm_fst_ind;
@@ -910,7 +915,7 @@ int x3_pym_mmap(struct file *file, struct vm_area_struct *vma)
 
 	pym_ctx = file->private_data;
 	if (!pym_ctx) {
-		vio_err("%s ipu_ctx is null.", __func__);
+		vio_err("%s pym_ctx is null.", __func__);
 		ret = -EFAULT;
 		goto err;
 	}
@@ -1110,11 +1115,13 @@ static irqreturn_t pym_isr(int irq, void *data)
 	if (status & (1 << INTR_PYM_DS_FRAME_DROP)) {
 		vio_err("[%d]DS drop frame\n", instance);
 		drop_flag = true;
+		pym->ds_drop_count[instance]++;
 	}
 
 	if (status & (1 << INTR_PYM_US_FRAME_DROP)) {
 		vio_err("[%d]US drop frame\n", instance);
 		drop_flag = true;
+		pym->us_drop_count[instance]++;
 	}
 
 	if (status & (1 << INTR_PYM_FRAME_DONE)) {
@@ -1144,7 +1151,7 @@ static irqreturn_t pym_isr(int irq, void *data)
 			}
 		}
 
-		group->frameid.frame_id = atomic_read(&pym->sensor_fcount);
+		group->frameid.frame_id++;
 		if (group && group->get_timestamps)
 			vio_get_frame_id(group);
 	}
@@ -1290,6 +1297,30 @@ static ssize_t pym_reg_dump(struct device *dev,
 
 static DEVICE_ATTR(regdump, 0444, pym_reg_dump, NULL);
 
+static ssize_t pym_err_status(struct device *dev,
+				struct device_attribute *attr, char* buf)
+{
+	struct x3_pym_dev *pym;
+	u32 offset = 0;
+	int instance = 0;
+
+	pym = dev_get_drvdata(dev);
+	for(instance = 0; instance < VIO_MAX_STREAM; instance++) {
+		if (pym->group[instance]) {
+			snprintf(&buf[offset], 64, "S%d_us_drop: %d\n", instance,
+					pym->us_drop_count[instance]);
+			offset = strlen(buf);
+			snprintf(&buf[offset], 64, "S%d_ds_drop: %d\n", instance,
+					pym->ds_drop_count[instance]);
+			offset = strlen(buf);
+		}
+	}
+
+	return offset;
+}
+
+static DEVICE_ATTR(err_status, 0444, pym_err_status, NULL);
+
 static int x3_pym_probe(struct platform_device *pdev)
 {
 	int ret = 0;
@@ -1339,8 +1370,14 @@ static int x3_pym_probe(struct platform_device *pdev)
 
 	dev = &pdev->dev;
 	ret = device_create_file(dev, &dev_attr_regdump);
-	if(ret < 0) {
-		vio_err("create regdump failed (%d)\n",ret);
+	if (ret < 0) {
+		vio_err("create regdump failed (%d)\n", ret);
+		goto p_err;
+	}
+
+	ret = device_create_file(dev, &dev_attr_err_status);
+	if (ret < 0) {
+		vio_err("create err_status failed (%d)\n", ret);
 		goto p_err;
 	}
 	platform_set_drvdata(pdev, pym);
@@ -1379,6 +1416,7 @@ static int x3_pym_remove(struct platform_device *pdev)
 	pym = platform_get_drvdata(pdev);
 
 	device_remove_file(&pdev->dev, &dev_attr_regdump);
+	device_remove_file(&pdev->dev, &dev_attr_err_status);
 
 	free_irq(pym->irq, pym);
 

@@ -110,6 +110,8 @@ struct x3_pym_dev {
 	atomic_t sensor_fcount;
 	atomic_t backup_fcount;
 
+	u32 us_drop_count[VIO_MAX_STREAM];
+	u32 ds_drop_count[VIO_MAX_STREAM];
 	struct pym_subdev subdev[VIO_MAX_STREAM];
 	struct vio_group *group[VIO_MAX_STREAM];
 	struct vio_group_task gtask;
