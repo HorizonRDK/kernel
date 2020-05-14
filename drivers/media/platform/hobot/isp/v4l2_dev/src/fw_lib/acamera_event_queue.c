@@ -71,7 +71,6 @@ int acamera_event_queue_pop( acamera_event_queue_ptr_t p_queue )
     acamera_loop_buf_ptr_t p_buf = &( p_queue->buf );
 
     flags = system_spinlock_lock( p_queue->lock );
-
     if ( p_buf->head == p_buf->tail ) {
         rc = -1;
     }
@@ -116,6 +115,46 @@ int32_t acamera_event_queue_empty( acamera_event_queue_ptr_t p_queue )
     }
     system_spinlock_unlock( p_queue->lock, flags );
     return result;
+}
+
+int32_t acamera_event_queue_has_mask_event( acamera_event_queue_ptr_t p_queue )
+{
+	int rc = 0;
+    int i = 0;
+    int filter_cnt = 1;
+    int check_pass = 0;
+	int pos, event;
+	unsigned long flags;
+	event_id_t event_id;
+	acamera_loop_buf_ptr_t p_buf = &( p_queue->buf );
+
+	flags = system_spinlock_lock( p_queue->lock );
+
+	pos = p_buf->tail;
+
+	while (i < filter_cnt && p_buf->head != pos) {
+
+		if ( pos >= p_buf->data_buf_size ) {
+			pos -= p_buf->data_buf_size;
+		}
+
+		event = p_buf->p_data_buf[pos];
+		event_id = (event_id_t)(event);
+        if (event_id == event_id_frame_done) {
+            check_pass = 1;
+        }
+
+        i++;
+		pos++;
+	}
+
+    if (check_pass) {
+        rc = 1;
+    }
+
+	system_spinlock_unlock( p_queue->lock, flags );
+
+	return rc;
 }
 
 extern const char * const event_name[];

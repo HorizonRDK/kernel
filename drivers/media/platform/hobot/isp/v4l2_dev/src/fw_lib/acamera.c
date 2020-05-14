@@ -558,6 +558,19 @@ int32_t acamera_interrupt_handler()
 }
 #else
 
+void input_port_status(void)
+{
+    pr_info("broken frame status = 0x%x\n", acamera_isp_isp_global_monitor_broken_frame_status_read(0));
+    pr_info("active width min/max/sum/num = %d/%d/%d/%d\n", system_hw_read_32(0xb4),system_hw_read_32(0xb8),system_hw_read_32(0xbc),system_hw_read_32(0xc0));
+    pr_info("active high min/max/sum/num = %d/%d/%d/%d\n", system_hw_read_32(0xc4),system_hw_read_32(0xc8),system_hw_read_32(0xcc),system_hw_read_32(0xd0));
+    pr_info("hblank min/max/sum/num = %d/%d/%d/%d\n", system_hw_read_32(0xd4),system_hw_read_32(0xd8),system_hw_read_32(0xdc),system_hw_read_32(0xe0));
+    pr_info("vblank min/max/sum/num = %d/%d/%d/%d\n", system_hw_read_32(0xe4),system_hw_read_32(0xe8),system_hw_read_32(0xec),system_hw_read_32(0xf0));
+
+    pr_info("dma alarms sts %x\n", system_hw_read_32(0x00054));
+
+    pr_info("input port w/h %x, ping w/h %x, pong w/h %x\n", system_hw_read_32(0x98L), system_hw_read_32(0x18e88L), system_hw_read_32(0x30e48L));
+}
+
 // dma writer status debug
 void dma_writer_status(acamera_context_ptr_t p_ctx)
 {
@@ -992,7 +1005,8 @@ int sif_isp_ctx_sync_func(int ctx_id)
 	ldc_set_ioctl(ctx_id, 0);
 	dis_set_ioctl(ctx_id, 0);
 retry:
-	if (acamera_event_queue_empty(&p_ctx->fsm_mgr.event_queue)) {
+	if (acamera_event_queue_empty(&p_ctx->fsm_mgr.event_queue)
+        || acamera_event_queue_has_mask_event(&p_ctx->fsm_mgr.event_queue)) {
 		// these flags are used for sync of callbacks
 		g_firmware.dma_flag_isp_config_completed = 0;
 		g_firmware.dma_flag_isp_metering_completed = 0;
@@ -1113,7 +1127,8 @@ pr_info("hcs1 %d, hcs2 %d, vc %d\n", hcs1, hcs2, vc);
                     }
 
                     // we must finish all previous processing before scheduling new dma
-                    if ( acamera_event_queue_empty( &p_ctx->fsm_mgr.event_queue ) ) {
+                    if ( acamera_event_queue_empty( &p_ctx->fsm_mgr.event_queue )
+                        || acamera_event_queue_has_mask_event( &p_ctx->fsm_mgr.event_queue ) ) {
                         // switch to ping/pong contexts for the next frame
 
                         // these flags are used for sync of callbacks
@@ -1155,7 +1170,7 @@ pr_info("hcs1 %d, hcs2 %d, vc %d\n", hcs1, hcs2, vc);
 			atomic_set(&g_firmware.frame_done, 1);
 			wake_up(&wq_fe);
                 } else if ( irq_bit == ISP_INTERRUPT_EVENT_FR_Y_WRITE_DONE ) {
-					LOG( LOG_INFO, "frame write to ddr done" );
+					pr_debug("frame write to ddr done" );
                     atomic_set(&g_firmware.frame_done, 1);
                     wake_up(&wq_fe);
 					acamera_fw_raise_event( p_ctx, event_id_frame_done );
