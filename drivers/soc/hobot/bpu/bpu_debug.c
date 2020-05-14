@@ -33,14 +33,14 @@ static ssize_t bpu_core_fc_time_show(struct device *dev, struct device_attribute
 	int32_t i, len;
 	int32_t ret;
 
-	ret = sprintf(buf, "%-6s%-10s\t%-6s\t%-6s\t%-10s\t%-10s\t%s\n",
+	ret = sprintf(buf, "%s\t%s\t\t%s\t%s\t%s\t%s\t%s\n",
 					"index",
 					"id:hwid",
 					"group",
 					"prio",
-					"start_time",
-					"end_time",
-					"exe_time");
+					"s_time",
+					"e_time",
+					"r_time");
 
 	len = kfifo_len(&core->done_fc_fifo);/*PRQA S ALL*/
 	if (len <= 0) {
@@ -53,7 +53,7 @@ static ssize_t bpu_core_fc_time_show(struct device *dev, struct device_attribute
 	len = kfifo_out_peek(&core->done_fc_fifo, tmp_fcs, len);/*PRQA S ALL*/
 	for(i = 0; i < len; i++) {
 		ret += sprintf(buf + ret,/*PRQA S ALL*/
-				"%-6d%d:%-10d\t%d:%-6d%-6d\t%-10ld\t%-10ld\t%ldus\n",
+				"%d\t%d:%d\t%d:%d\t%d\t%ld\t%ld\t%ldus\n",
 				tmp_fcs[i].index, tmp_fcs[i].info.id, tmp_fcs[i].hw_id,
 				bpu_group_id(tmp_fcs[i].info.g_id), bpu_group_user(tmp_fcs[i].info.g_id),
 				tmp_fcs[i].info.priority,
