@@ -97,10 +97,16 @@
 			record-size = <0x4000>;
 		};
 
-		/* Reserved 742MB memory for ion */
+		/* Reserved 740MB memory for ion */
 		ion_reserved: ion_reserved@0x2340000 {
 			compatible = "ion-pool";
-			reg = <0x0 0x2340000 0x0 0x2E600000>;
+			reg = <0x0 0x2340000 0x0 0x2E400000>;
+		};
+
+		/* Reserved 2MB memory for bpu model */
+		bpu_model_reserved: bpu_model_reserved@0x30740000 {
+			reg = <0x0 0x30740000 0x0 0x200000>;
+			no-map;
 		};
 
 	};
