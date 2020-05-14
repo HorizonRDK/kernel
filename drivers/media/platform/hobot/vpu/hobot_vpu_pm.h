@@ -9,6 +9,8 @@
 #include <linux/clk.h>
 #include "hobot_vpu_utils.h"
 
+#define MAX_VPU_FREQ 544000000
+
 int hb_vpu_init_pm(struct device *dev);
 void hb_vpu_final_pm(struct device *dev);
 
@@ -17,9 +19,9 @@ void hb_vpu_clock_off(void);
 int hb_vpu_power_on(void);
 int hb_vpu_power_off(void);
 
-int hb_vpu_clk_get(hb_vpu_dev_t *dev);
+int hb_vpu_clk_get(hb_vpu_dev_t *dev, unsigned long freq);
 void hb_vpu_clk_put(hb_vpu_dev_t *dev);
-int hb_vpu_clk_enable(hb_vpu_dev_t *dev);
+int hb_vpu_clk_enable(hb_vpu_dev_t *dev, unsigned long freq);
 void hb_vpu_clk_disable(hb_vpu_dev_t *dev);
 
 #endif /* __HOBOT_VPU_PM_H__ */

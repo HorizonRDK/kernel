@@ -29,6 +29,7 @@
 int vpu_debug_flag = 5;
 int vpu_debug_info_flag = 0;
 int vpu_pf_bw_debug_flag = 0;
+unsigned long vpu_clk_freq = MAX_VPU_FREQ;
 
 #ifdef VPU_SUPPORT_RESERVED_VIDEO_MEMORY
 #define VPU_INIT_VIDEO_MEMORY_SIZE_IN_BYTE (62*1024*1024)
@@ -46,6 +47,8 @@ static hb_vpu_drv_buffer_t s_video_memory = { 0 };
 #endif
 
 DECLARE_BITMAP(vpu_inst_bitmap, MAX_NUM_VPU_INSTANCE);
+
+module_param(vpu_clk_freq, ulong, 0644);
 
 static ssize_t vpu_debug_show(struct kobject *kobj,
 			      struct kobj_attribute *attr, char *buf)
@@ -71,7 +74,6 @@ static struct kobj_attribute vpu_debug_attr = {
 	.show = vpu_debug_show,
 	.store = vpu_debug_store,
 };
-
 
 static ssize_t vpu_performance_bandwidth_show(struct kobject *kobj,
 			      struct kobj_attribute *attr, char *buf)
@@ -661,12 +663,15 @@ static int vpu_open(struct inode *inode, struct file *filp)
 	}
 
 	spin_lock(&dev->vpu_spinlock);
+	if (dev->open_count == 0) {
+		dev->vpu_freq = vpu_clk_freq;
+	}
 	dev->open_count++;
 	priv->vpu_dev = dev;
 	priv->inst_index = -1;
 	filp->private_data = (void *)priv;
 	spin_unlock(&dev->vpu_spinlock);
-	hb_vpu_clk_enable(dev);
+	hb_vpu_clk_enable(dev, dev->vpu_freq);
 
 	vpu_debug_leave();
 	return 0;
@@ -933,7 +938,7 @@ INTERRUPT_REMAIN_IN_QUEUE:
 				return -EFAULT;
 #ifdef VPU_SUPPORT_CLOCK_CONTROL
 			if (clkgate)
-				hb_vpu_clk_enable(dev);
+				hb_vpu_clk_enable(dev, dev->vpu_freq);
 			else
 				hb_vpu_clk_disable(dev);
 #endif
@@ -1811,7 +1816,8 @@ static int vpu_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, dev);
 
-	err = hb_vpu_clk_get(dev);
+	dev->vpu_freq = MAX_VPU_FREQ;
+	err = hb_vpu_clk_get(dev, dev->vpu_freq);
 	if (err < 0) {
 		goto ERR_GET_CLK;
 	}
@@ -2014,7 +2020,7 @@ static int vpu_suspend(struct platform_device *pdev, pm_message_t state)
 
 	vpu_debug_enter();
 	dev = (hb_vpu_dev_t *) platform_get_drvdata(pdev);
-	hb_vpu_clk_enable(dev);
+	hb_vpu_clk_enable(dev, dev->vpu_freq);
 
 	if (dev->vpu_open_ref_count > 0) {
 		for (core = 0; core < MAX_NUM_VPU_CORE; core++) {
@@ -2093,7 +2099,7 @@ static int vpu_resume(struct platform_device *pdev)
 
 	vpu_debug_enter();
 	dev = (hb_vpu_dev_t *) platform_get_drvdata(pdev);
-	hb_vpu_clk_enable(dev);
+	hb_vpu_clk_enable(dev, dev->vpu_freq);
 
 	for (core = 0; core < MAX_NUM_VPU_CORE; core++) {
 		if (dev->bit_fm_info[core].size == 0) {
@@ -2202,7 +2208,7 @@ static int vpu_resume(struct platform_device *pdev)
 
 DONE_WAKEUP:
 	if (dev->vpu_open_ref_count > 0)
-		hb_vpu_clk_enable(dev);
+		hb_vpu_clk_enable(dev, dev->vpu_freq);
 
 	vpu_debug_leave();
 	return 0;

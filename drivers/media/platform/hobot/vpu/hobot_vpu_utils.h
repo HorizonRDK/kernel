@@ -108,6 +108,7 @@ typedef struct _hb_vpu_dev {
 	struct fasync_struct *async_queue;
 	u32 open_count;		/*!<< device reference count. Not instance count */
 	int vpu_open_ref_count;
+	unsigned long vpu_freq;
 
 	hb_vpu_drv_firmware_t bit_fm_info[MAX_NUM_VPU_CORE];
 
