@@ -138,5 +138,6 @@ extern int vio_set_clk_rate(const char *name, ulong frequency);
 extern ulong vio_get_clk_rate(const char *name);
 
 extern struct class *vps_class;
+extern int sif_mclk_freq;
 
 #endif

@@ -38,6 +38,11 @@
 #define MODULE_NAME "X3 IPS"
 #define REGISTER_CLK(name) {name, NULL}
 
+ulong sif_mclk_freq = 0;
+module_param(sif_mclk_freq, ulong, 0644);
+
+EXPORT_SYMBOL(sif_mclk_freq);
+
 struct x3_ips_dev *g_ips_dev;
 
 struct vio_clk vio_clk_list[] = {
@@ -348,6 +353,7 @@ int vio_set_clk_rate(const char *name, ulong frequency)
 {
 	int ret = 0;
 	size_t index;
+	ulong round_rate = 0;
 	struct clk *clk = NULL;
 
 	for (index = 0; index < ARRAY_SIZE(vio_clk_list); index++) {
@@ -360,11 +366,14 @@ int vio_set_clk_rate(const char *name, ulong frequency)
 		return -EINVAL;
 	}
 
-	ret = clk_set_rate(clk, frequency);
+	round_rate = clk_round_rate(clk, frequency);
+	ret = clk_set_rate(clk, round_rate);
 	if (ret) {
 		vio_err("[@][ERR] %s: clk_set_rate is fail(%s)\n", __func__, name);
 		return ret;
 	}
+
+	vio_dbg("%s : frequence %ld\n", __func__, round_rate);
 
 	return ret;
 }

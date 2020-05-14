@@ -358,6 +358,8 @@ void vio_dwe_clk_enable(void)
 
 	core = &iscore;
 	if (atomic_read(&core->rsccount) == 0) {
+		if (sif_mclk_freq)
+			vio_set_clk_rate("sif_mclk", sif_mclk_freq);
 		ips_set_clk_ctrl(GDC0_CLOCK_GATE, enable);
 		ips_set_clk_ctrl(GDC1_CLOCK_GATE, enable);
 		ips_set_clk_ctrl(DWE0_CLOCK_GATE, enable);

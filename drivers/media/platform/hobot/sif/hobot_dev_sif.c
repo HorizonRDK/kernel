@@ -234,7 +234,8 @@ static int x3_sif_open(struct inode *inode, struct file *file)
 	sif_ctx->state = BIT(VIO_VIDEO_OPEN);
 
 	if (atomic_read(&sif->open_cnt) == 0) {
-		//vio_clk_enable("sif_mclk");
+		if (sif_mclk_freq)
+			vio_set_clk_rate("sif_mclk", sif_mclk_freq);
 		ips_set_clk_ctrl(SIF_CLOCK_GATE, true);
 		/*4 ddr in channel can not be 0 together*/
 		sif_enable_dma(sif->base_reg, 0x10000);

@@ -70,6 +70,8 @@ static int x3_ipu_open(struct inode *inode, struct file *file)
 	if (atomic_read(&ipu->open_cnt) == 0) {
 		atomic_set(&ipu->backup_fcount, 0);
 		atomic_set(&ipu->sensor_fcount, 0);
+		if (sif_mclk_freq)
+			vio_set_clk_rate("sif_mclk", sif_mclk_freq);
 		ips_set_clk_ctrl(IPU0_CLOCK_GATE, true);
 	}
 
