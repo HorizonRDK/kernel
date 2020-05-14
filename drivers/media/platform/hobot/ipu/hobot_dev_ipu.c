@@ -111,7 +111,6 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 			vio_group_task_stop(group->gtask);
 		subdev->leader = false;
 		instance = group->instance;
-		ipu->group[instance] = NULL;
 		for (i = 0; i < 6; i++)
 			ipu->frame_drop_channel[instance][i] = 0;
 	}
@@ -2021,7 +2020,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 			vio_group_done(group);
 
 		if (test_bit(IPU_DMA_INPUT, &ipu->state)) {
-			up(&gtask->hw_resource);
+			vio_group_done(group);
 			subdev = group->sub_ctx[GROUP_ID_SRC];
 			if (subdev)
 				ipu_frame_done(subdev);

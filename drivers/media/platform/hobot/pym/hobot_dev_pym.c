@@ -123,7 +123,6 @@ static int x3_pym_close(struct inode *inode, struct file *file)
 		if (group->gtask)
 			vio_group_task_stop(group->gtask);
 		instance = group->instance;
-		pym->group[instance] = NULL;
 		pym->ds_drop_count[instance] = 0;
 		pym->us_drop_count[instance] = 0;
 	}
@@ -1129,7 +1128,7 @@ static irqreturn_t pym_isr(int irq, void *data)
 			vio_group_done(group);
 
 		if (test_bit(PYM_DMA_INPUT, &pym->state)) {
-			up(&gtask->hw_resource);
+			vio_group_done(group);
 		}
 		pym_frame_done(group->sub_ctx[GROUP_ID_SRC]);
 	}
