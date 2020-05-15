@@ -1168,7 +1168,7 @@ static irqreturn_t pym_isr(int irq, void *data)
 			vio_group_done(group);
 
 		if (test_bit(PYM_DMA_INPUT, &pym->state)) {
-			up(&gtask->hw_resource);
+			vio_group_done(group);
 		}
 		pym_frame_done(group->sub_ctx[GROUP_ID_SRC]);
 	}

@@ -2065,7 +2065,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 			vio_group_done(group);
 
 		if (test_bit(IPU_DMA_INPUT, &ipu->state)) {
-			up(&gtask->hw_resource);
+			vio_group_done(group);
 			subdev = group->sub_ctx[GROUP_ID_SRC];
 			if (subdev)
 				ipu_frame_done(subdev);
