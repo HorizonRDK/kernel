@@ -1320,6 +1320,609 @@ static struct attribute *write_qctl_attrs[] = {
 	NULL,
 };
 
+#ifdef CONFIG_HOBOT_XJ3
+static ssize_t sifw_axibus_ctrl_store(struct device_driver *drv,
+		const char *buf, size_t count)
+{
+	unsigned int tmp;
+	int shift = 17;
+	void __iomem *axibus_reg = ioremap_nocache(0xa4000038, 4);
+	mutex_lock(&ddr_mo_mutex);
+
+	sscanf(buf, "%x", &write_ctl_value);
+	if (write_ctl_value > 1 || write_ctl_value < 0) {
+		pr_err("set value %d error,you should set 0~1\n", write_ctl_value);
+		mutex_unlock(&ddr_mo_mutex);
+		return count;
+	}
+	tmp = readl(axibus_reg);
+	tmp &= ~(1 << shift);
+	tmp |= (write_ctl_value << shift);
+
+	writel(tmp, axibus_reg);
+	mutex_unlock(&ddr_mo_mutex);
+	iounmap(axibus_reg);
+	return count;
+}
+
+static ssize_t sifw_axibus_ctrl_show(struct device_driver *drv, char *buf)
+{
+	unsigned int tmp;
+	int len = 0;
+	int shift = 17;
+	void __iomem *axibus_reg = ioremap_nocache(0xa4000038, 4);
+
+	tmp = readl(axibus_reg);
+	len = sprintf(buf, "axibus: 0x%08x:\n", tmp);
+	if (tmp & (1 << shift)) {
+		len += sprintf(buf + len, "sif: vio1\n");
+	} else {
+		len += sprintf(buf + len, "sif: vio0\n");
+	}
+	iounmap(axibus_reg);
+	return len;
+}
+
+static ssize_t isp0m0_axibus_ctrl_store(struct device_driver *drv,
+		const char *buf, size_t count)
+{
+	unsigned int tmp;
+	int shift = 18;
+	void __iomem *axibus_reg = ioremap_nocache(0xa4000038, 4);
+	mutex_lock(&ddr_mo_mutex);
+
+	sscanf(buf, "%x", &write_ctl_value);
+	if (write_ctl_value > 1 || write_ctl_value < 0) {
+		pr_err("set value %d error,you should set 0~1\n", write_ctl_value);
+		mutex_unlock(&ddr_mo_mutex);
+		return count;
+	}
+	tmp = readl(axibus_reg);
+	tmp &= ~(1 << shift);
+	tmp |= (write_ctl_value << shift);
+
+	writel(tmp, axibus_reg);
+	mutex_unlock(&ddr_mo_mutex);
+	iounmap(axibus_reg);
+	return count;
+}
+
+static ssize_t isp0m0_axibus_ctrl_show(struct device_driver *drv, char *buf)
+{
+	unsigned int tmp;
+	int len = 0;
+	int shift = 18;
+	void __iomem *axibus_reg = ioremap_nocache(0xa4000038, 4);
+
+	tmp = readl(axibus_reg);
+	len = sprintf(buf, "axibus: 0x%08x:\n", tmp);
+	if (tmp & (1 << shift)) {
+		len += sprintf(buf + len, "isp_0_m0: vio1\n");
+	} else {
+		len += sprintf(buf + len, "isp_0_m0: vio0\n");
+	}
+	iounmap(axibus_reg);
+	return len;
+}
+
+// isp_0_m1
+static ssize_t isp0m1_axibus_ctrl_store(struct device_driver *drv,
+		const char *buf, size_t count)
+{
+	unsigned int tmp;
+	int shift = 19;
+	void __iomem *axibus_reg = ioremap_nocache(0xa4000038, 4);
+	mutex_lock(&ddr_mo_mutex);
+
+	sscanf(buf, "%x", &write_ctl_value);
+	if (write_ctl_value > 1 || write_ctl_value < 0) {
+		pr_err("set value %d error,you should set 0~1\n", write_ctl_value);
+		mutex_unlock(&ddr_mo_mutex);
+		return count;
+	}
+	tmp = readl(axibus_reg);
+	tmp &= ~(1 << shift);
+	tmp |= (write_ctl_value << shift);
+
+	writel(tmp, axibus_reg);
+	mutex_unlock(&ddr_mo_mutex);
+	iounmap(axibus_reg);
+	return count;
+}
+
+static ssize_t isp0m1_axibus_ctrl_show(struct device_driver *drv, char *buf)
+{
+	unsigned int tmp;
+	int len = 0;
+	int shift = 19;
+	void __iomem *axibus_reg = ioremap_nocache(0xa4000038, 4);
+
+	tmp = readl(axibus_reg);
+	len = sprintf(buf, "axibus: 0x%08x:\n", tmp);
+	if (tmp & (1 << shift)) {
+		len += sprintf(buf + len, "isp_0_m1: vio1\n");
+	} else {
+		len += sprintf(buf + len, "isp_0_m1: vio0\n");
+	}
+	iounmap(axibus_reg);
+	return len;
+}
+
+// isp_0_m2
+static ssize_t isp0m2_axibus_ctrl_store(struct device_driver *drv,
+		const char *buf, size_t count)
+{
+	unsigned int tmp;
+	int shift = 20;
+	void __iomem *axibus_reg = ioremap_nocache(0xa4000038, 4);
+	mutex_lock(&ddr_mo_mutex);
+
+	sscanf(buf, "%x", &write_ctl_value);
+	if (write_ctl_value > 1 || write_ctl_value < 0) {
+		pr_err("set value %d error,you should set 0~1\n", write_ctl_value);
+		mutex_unlock(&ddr_mo_mutex);
+		return count;
+	}
+	tmp = readl(axibus_reg);
+	tmp &= ~(1 << shift);
+	tmp |= (write_ctl_value << shift);
+
+	writel(tmp, axibus_reg);
+	mutex_unlock(&ddr_mo_mutex);
+	iounmap(axibus_reg);
+	return count;
+}
+
+static ssize_t isp0m2_axibus_ctrl_show(struct device_driver *drv, char *buf)
+{
+	unsigned int tmp;
+	int len = 0;
+	int shift = 20;
+	void __iomem *axibus_reg = ioremap_nocache(0xa4000038, 4);
+
+	tmp = readl(axibus_reg);
+	len = sprintf(buf, "axibus: 0x%08x:\n", tmp);
+	if (tmp & (1 << shift)) {
+		len += sprintf(buf + len, "isp_0_m2: vio1\n");
+	} else {
+		len += sprintf(buf + len, "isp_0_m2: vio0\n");
+	}
+	iounmap(axibus_reg);
+	return len;
+}
+
+// gdc_0
+static ssize_t gdc0_axibus_ctrl_store(struct device_driver *drv,
+		const char *buf, size_t count)
+{
+	unsigned int tmp;
+	int shift = 24;
+	void __iomem *axibus_reg = ioremap_nocache(0xa4000038, 4);
+	mutex_lock(&ddr_mo_mutex);
+
+	sscanf(buf, "%x", &write_ctl_value);
+	if (write_ctl_value > 1 || write_ctl_value < 0) {
+		pr_err("set value %d error,you should set 0~1\n", write_ctl_value);
+		mutex_unlock(&ddr_mo_mutex);
+		return count;
+	}
+	tmp = readl(axibus_reg);
+	tmp &= ~(1 << shift);
+	tmp |= (write_ctl_value << shift);
+
+	writel(tmp, axibus_reg);
+	mutex_unlock(&ddr_mo_mutex);
+	iounmap(axibus_reg);
+	return count;
+}
+
+static ssize_t gdc0_axibus_ctrl_show(struct device_driver *drv, char *buf)
+{
+	unsigned int tmp;
+	int len = 0;
+	int shift = 24;
+	void __iomem *axibus_reg = ioremap_nocache(0xa4000038, 4);
+
+	tmp = readl(axibus_reg);
+	len = sprintf(buf, "axibus: 0x%08x:\n", tmp);
+	if (tmp & (1 << shift)) {
+		len += sprintf(buf + len, "gdc_0: vio1\n");
+	} else {
+		len += sprintf(buf + len, "gdc_0: vio0\n");
+	}
+	iounmap(axibus_reg);
+	return len;
+}
+
+// t21
+static ssize_t t21_axibus_ctrl_store(struct device_driver *drv,
+		const char *buf, size_t count)
+{
+	unsigned int tmp;
+	int shift = 25;
+	void __iomem *axibus_reg = ioremap_nocache(0xa4000038, 4);
+	mutex_lock(&ddr_mo_mutex);
+
+	sscanf(buf, "%x", &write_ctl_value);
+	if (write_ctl_value > 1 || write_ctl_value < 0) {
+		pr_err("set value %d error,you should set 0~1\n", write_ctl_value);
+		mutex_unlock(&ddr_mo_mutex);
+		return count;
+	}
+	tmp = readl(axibus_reg);
+	tmp &= ~(1 << shift);
+	tmp |= (write_ctl_value << shift);
+
+	writel(tmp, axibus_reg);
+	mutex_unlock(&ddr_mo_mutex);
+	iounmap(axibus_reg);
+	return count;
+}
+
+static ssize_t t21_axibus_ctrl_show(struct device_driver *drv, char *buf)
+{
+	unsigned int tmp;
+	int len = 0;
+	int shift = 25;
+	void __iomem *axibus_reg = ioremap_nocache(0xa4000038, 4);
+
+	tmp = readl(axibus_reg);
+	len = sprintf(buf, "axibus: 0x%08x:\n", tmp);
+	if (tmp & (1 << shift)) {
+		len += sprintf(buf + len, "t21: vio1\n");
+	} else {
+		len += sprintf(buf + len, "t21: vio0\n");
+	}
+	iounmap(axibus_reg);
+	return len;
+}
+
+// gdc_1
+static ssize_t gdc1_axibus_ctrl_store(struct device_driver *drv,
+		const char *buf, size_t count)
+{
+	unsigned int tmp;
+	int shift = 26;
+	void __iomem *axibus_reg = ioremap_nocache(0xa4000038, 4);
+	mutex_lock(&ddr_mo_mutex);
+
+	sscanf(buf, "%x", &write_ctl_value);
+	if (write_ctl_value > 1 || write_ctl_value < 0) {
+		pr_err("set value %d error,you should set 0~1\n", write_ctl_value);
+		mutex_unlock(&ddr_mo_mutex);
+		return count;
+	}
+	tmp = readl(axibus_reg);
+	tmp &= ~(1 << shift);
+	tmp |= (write_ctl_value << shift);
+
+	writel(tmp, axibus_reg);
+	mutex_unlock(&ddr_mo_mutex);
+	iounmap(axibus_reg);
+	return count;
+}
+
+static ssize_t gdc1_axibus_ctrl_show(struct device_driver *drv, char *buf)
+{
+	unsigned int tmp;
+	int len = 0;
+	int shift = 26;
+	void __iomem *axibus_reg = ioremap_nocache(0xa4000038, 4);
+
+	tmp = readl(axibus_reg);
+	len = sprintf(buf, "axibus: 0x%08x:\n", tmp);
+	if (tmp & (1 << shift)) {
+		len += sprintf(buf + len, "gdc_1: vio1\n");
+	} else {
+		len += sprintf(buf + len, "gdc_1: vio0\n");
+	}
+	iounmap(axibus_reg);
+	return len;
+}
+
+// sifr
+static ssize_t sifr_axibus_ctrl_store(struct device_driver *drv,
+		const char *buf, size_t count)
+{
+	unsigned int tmp;
+	int shift = 27;
+	void __iomem *axibus_reg = ioremap_nocache(0xa4000038, 4);
+	mutex_lock(&ddr_mo_mutex);
+
+	sscanf(buf, "%x", &write_ctl_value);
+	if (write_ctl_value > 1 || write_ctl_value < 0) {
+		pr_err("set value %d error,you should set 0~1\n", write_ctl_value);
+		mutex_unlock(&ddr_mo_mutex);
+		return count;
+	}
+	tmp = readl(axibus_reg);
+	tmp &= ~(1 << shift);
+	tmp |= (write_ctl_value << shift);
+
+	writel(tmp, axibus_reg);
+	mutex_unlock(&ddr_mo_mutex);
+	iounmap(axibus_reg);
+	return count;
+}
+
+static ssize_t sifr_axibus_ctrl_show(struct device_driver *drv, char *buf)
+{
+	unsigned int tmp;
+	int len = 0;
+	int shift = 27;
+	void __iomem *axibus_reg = ioremap_nocache(0xa4000038, 4);
+
+	tmp = readl(axibus_reg);
+	len = sprintf(buf, "axibus: 0x%08x:\n", tmp);
+	if (tmp & (1 << shift)) {
+		len += sprintf(buf + len, "sifr: vio1\n");
+	} else {
+		len += sprintf(buf + len, "sifr: vio0\n");
+	}
+	iounmap(axibus_reg);
+	return len;
+}
+
+// ipu
+static ssize_t ipu0_axibus_ctrl_store(struct device_driver *drv,
+		const char *buf, size_t count)
+{
+	unsigned int tmp;
+	int shift = 28;
+	void __iomem *axibus_reg = ioremap_nocache(0xa4000038, 4);
+	mutex_lock(&ddr_mo_mutex);
+
+	sscanf(buf, "%x", &write_ctl_value);
+	if (write_ctl_value > 1 || write_ctl_value < 0) {
+		pr_err("set value %d error,you should set 0~1\n", write_ctl_value);
+		mutex_unlock(&ddr_mo_mutex);
+		return count;
+	}
+	tmp = readl(axibus_reg);
+	tmp &= ~(1 << shift);
+	tmp |= (write_ctl_value << shift);
+
+	writel(tmp, axibus_reg);
+	mutex_unlock(&ddr_mo_mutex);
+	iounmap(axibus_reg);
+	return count;
+}
+
+static ssize_t ipu0_axibus_ctrl_show(struct device_driver *drv, char *buf)
+{
+	unsigned int tmp;
+	int len = 0;
+	int shift = 28;
+	void __iomem *axibus_reg = ioremap_nocache(0xa4000038, 4);
+
+	tmp = readl(axibus_reg);
+	len = sprintf(buf, "axibus: 0x%08x:\n", tmp);
+	if (tmp & (1 << shift)) {
+		len += sprintf(buf + len, "ipu0: vio1\n");
+	} else {
+		len += sprintf(buf + len, "ipu0: vio0\n");
+	}
+	iounmap(axibus_reg);
+	return len;
+}
+
+// pym
+static ssize_t pym_axibus_ctrl_store(struct device_driver *drv,
+		const char *buf, size_t count)
+{
+	unsigned int tmp;
+	int shift = 30;
+	void __iomem *axibus_reg = ioremap_nocache(0xa4000038, 4);
+	mutex_lock(&ddr_mo_mutex);
+
+	sscanf(buf, "%x", &write_ctl_value);
+	if (write_ctl_value > 1 || write_ctl_value < 0) {
+		pr_err("set value %d error,you should set 0~1\n", write_ctl_value);
+		mutex_unlock(&ddr_mo_mutex);
+		return count;
+	}
+	tmp = readl(axibus_reg);
+	tmp &= ~(1 << shift);
+	tmp |= (write_ctl_value << shift);
+
+	writel(tmp, axibus_reg);
+	mutex_unlock(&ddr_mo_mutex);
+	iounmap(axibus_reg);
+	return count;
+}
+
+static ssize_t pym_axibus_ctrl_show(struct device_driver *drv, char *buf)
+{
+	unsigned int tmp;
+	int len = 0;
+	int shift = 30;
+	void __iomem *axibus_reg = ioremap_nocache(0xa4000038, 4);
+
+	tmp = readl(axibus_reg);
+	len = sprintf(buf, "axibus: 0x%08x:\n", tmp);
+	if (tmp & (1 << shift)) {
+		len += sprintf(buf + len, "pym: vio1\n");
+	} else {
+		len += sprintf(buf + len, "pym: vio0\n");
+	}
+	iounmap(axibus_reg);
+	return len;
+}
+
+// iar
+static ssize_t iar_axibus_ctrl_store(struct device_driver *drv,
+		const char *buf, size_t count)
+{
+	unsigned int tmp;
+	int shift = 31;
+	void __iomem *axibus_reg = ioremap_nocache(0xa4000038, 4);
+	mutex_lock(&ddr_mo_mutex);
+
+	sscanf(buf, "%x", &write_ctl_value);
+	if (write_ctl_value > 1 || write_ctl_value < 0) {
+		pr_err("set value %d error,you should set 0~1\n", write_ctl_value);
+		mutex_unlock(&ddr_mo_mutex);
+		return count;
+	}
+	tmp = readl(axibus_reg);
+	tmp &= ~(1 << shift);
+	tmp |= (write_ctl_value << shift);
+
+	writel(tmp, axibus_reg);
+	mutex_unlock(&ddr_mo_mutex);
+	iounmap(axibus_reg);
+	return count;
+}
+
+static ssize_t iar_axibus_ctrl_show(struct device_driver *drv, char *buf)
+{
+	unsigned int tmp;
+	int len = 0;
+	int shift = 31;
+	void __iomem *axibus_reg = ioremap_nocache(0xa4000038, 4);
+
+	tmp = readl(axibus_reg);
+	len = sprintf(buf, "axibus: 0x%08x:\n", tmp);
+	if (tmp & (1 << shift)) {
+		len += sprintf(buf + len, "iar: vio1\n");
+	} else {
+		len += sprintf(buf + len, "iar: vio0\n");
+	}
+	iounmap(axibus_reg);
+	return len;
+}
+
+static ssize_t all_axibus_ctrl_store(struct device_driver *drv,
+		const char *buf, size_t count)
+{
+	void __iomem *axibus_reg = ioremap_nocache(0xa4000038, 4);
+	mutex_lock(&ddr_mo_mutex);
+
+	sscanf(buf, "%x", &write_ctl_value);
+
+	writel(write_ctl_value, axibus_reg);
+	mutex_unlock(&ddr_mo_mutex);
+	iounmap(axibus_reg);
+	return count;
+}
+
+static ssize_t all_axibus_ctrl_show(struct device_driver *drv, char *buf)
+{
+	unsigned int tmp;
+	int len = 0;
+	void __iomem *axibus_reg = ioremap_nocache(0xa4000038, 4);
+
+	tmp = readl(axibus_reg);
+	len = sprintf(buf, "axibus: 0x%08x:\n", tmp);
+	if (tmp & (1<<17)) {    // sif bif17
+		len += sprintf(buf + len, "sifw: vio1\n");
+	}
+	if (tmp & (1<<18)) {    // bit18
+		len += sprintf(buf + len, "isp_0_m0: vio1\n");
+	}
+	if (tmp & (1<<19)) {    //  bit19
+		len += sprintf(buf + len, "isp_0_m1: vio1\n");
+	}
+	if (tmp & (1<<20)) {   // bit20
+		len += sprintf(buf + len, "isp_0_m2: vio1\n");
+	}
+	// if (tmp & (1<<21)) {
+	// 	len += sprintf(buf + len, "isp_1_m0: vio1\n");
+	// }
+	// if (tmp & (1<<22)) {
+	// 	len += sprintf(buf + len, "isp_1_m1: vio1\n");
+	// }
+	// if (tmp & (1<<23)) {
+	// 	len += sprintf(buf + len, "isp_1_m2: vio1\n");
+	// }
+	if (tmp & (1<<24)) {
+		len += sprintf(buf + len, "gdc0: vio1\n");
+	}
+	if (tmp & (1<<25)) {
+		len += sprintf(buf + len, "t21_0: vio1\n");
+	}
+	if (tmp & (1<<26)) {
+		len += sprintf(buf + len, "gdc_1: vio1\n");
+	}
+	if (tmp & (1<<27)) {
+		len += sprintf(buf + len, "sifr: vio1\n");
+	}
+	if (tmp & (1<<28)) {
+		len += sprintf(buf + len, "ipu_0: vio1\n");
+	}
+	// if (tmp & (1<<29)) {
+	// 	len += sprintf(buf + len, "ipu_1: vio1\n");
+	// }
+	if (tmp & (1<<30)) {
+		len += sprintf(buf + len, "pym: vio1\n");
+	}
+	if (tmp & (1<<31)) {
+		len += sprintf(buf + len, "iar: vio1\n");
+	}
+	iounmap(axibus_reg);
+	return len;
+}
+
+static struct driver_attribute sifw_axibus_ctrl    = __ATTR(sifw, 0664,
+						       sifw_axibus_ctrl_show,
+						       sifw_axibus_ctrl_store);
+static struct driver_attribute isp0m0_axibus_ctrl    = __ATTR(isp0m0, 0664,
+						       isp0m0_axibus_ctrl_show,
+						       isp0m0_axibus_ctrl_store);
+static struct driver_attribute isp0m1_axibus_ctrl    = __ATTR(isp0m1, 0664,
+						       isp0m1_axibus_ctrl_show,
+						       isp0m1_axibus_ctrl_store);
+static struct driver_attribute isp0m2_axibus_ctrl    = __ATTR(isp0m2, 0664,
+						       isp0m2_axibus_ctrl_show,
+						       isp0m2_axibus_ctrl_store);
+
+static struct driver_attribute gdc0_axibus_ctrl    = __ATTR(gdc0, 0664,
+						       gdc0_axibus_ctrl_show,
+						       gdc0_axibus_ctrl_store);
+static struct driver_attribute t21_axibus_ctrl    = __ATTR(t21, 0664,
+						       t21_axibus_ctrl_show,
+						       t21_axibus_ctrl_store);
+static struct driver_attribute gdc1_axibus_ctrl    = __ATTR(gdc1, 0664,
+						       gdc1_axibus_ctrl_show,
+						       gdc1_axibus_ctrl_store);
+static struct driver_attribute ipu0_axibus_ctrl    = __ATTR(ipu0, 0664,
+						       ipu0_axibus_ctrl_show,
+						       ipu0_axibus_ctrl_store);
+static struct driver_attribute sifr_axibus_ctrl    = __ATTR(sifr, 0664,
+						       sifr_axibus_ctrl_show,
+						       sifr_axibus_ctrl_store);
+static struct driver_attribute pym_axibus_ctrl    = __ATTR(pym, 0664,
+						       pym_axibus_ctrl_show,
+						       pym_axibus_ctrl_store);
+static struct driver_attribute iar_axibus_ctrl    = __ATTR(iar, 0664,
+						       iar_axibus_ctrl_show,
+						       iar_axibus_ctrl_store);
+
+static struct driver_attribute all_axibus_ctrl    = __ATTR(all, 0664,
+						       all_axibus_ctrl_show,
+						       all_axibus_ctrl_store);
+
+static struct attribute *axibus_ctrl_attrs[] = {
+	&iar_axibus_ctrl.attr,
+	&pym_axibus_ctrl.attr,
+	&sifr_axibus_ctrl.attr,
+	&ipu0_axibus_ctrl.attr,
+	&gdc1_axibus_ctrl.attr,
+	&t21_axibus_ctrl.attr,
+	&gdc0_axibus_ctrl.attr,
+	&isp0m2_axibus_ctrl.attr,
+	&isp0m1_axibus_ctrl.attr,
+	&isp0m0_axibus_ctrl.attr,
+	&sifw_axibus_ctrl.attr,
+	&all_axibus_ctrl.attr,
+	NULL,
+};
+static struct attribute_group axibus_group = {
+	.name = "axibus_ctrl",
+	.attrs = axibus_ctrl_attrs,
+};
+
+#endif
 
 static struct attribute_group read_attr_group = {
 	.name = "read_qos_ctrl",
@@ -1330,9 +1933,14 @@ static struct attribute_group write_attr_group = {
 	.attrs = write_qctl_attrs,
 };
 
+
+
 static const struct attribute_group *ddr_attr_groups[] = {
 	&read_attr_group,
 	&write_attr_group,
+#ifdef CONFIG_HOBOT_XJ3
+	&axibus_group,
+#endif
 	NULL,
 };
 struct bus_type ddr_monitor_subsys = {
