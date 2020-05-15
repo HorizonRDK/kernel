@@ -89,7 +89,7 @@ static long camera_fop_ioctl(struct file *pfile, unsigned int cmd,
 	sensor_turning_data_t turning_data;
 	int mst_flg = 0;
 
-	pr_info("---[%s-%d]---\n", __func__, __LINE__);
+	//pr_info("---[%s-%d]---\n", __func__, __LINE__);
 
 	spin_lock(&camera_cdev->slock);
 	if (camera_cdev->mst_file == NULL) {
@@ -142,6 +142,12 @@ static long camera_fop_ioctl(struct file *pfile, unsigned int cmd,
 				spin_unlock(&camera_cdev->slock);
 				return -EINVAL;
 			}
+			if (camera_cdev->start_num == 1)
+				pr_info("---[%s-%d] start ---\n", __func__,
+					__LINE__);
+			if (camera_cdev->start_num == 0)
+				pr_info("---[%s-%d] stop ---\n", __func__,
+					__LINE__);
 			break;
 		case SENSOR_GET_START_CNT:
 			if (copy_to_user((void __user *)arg,

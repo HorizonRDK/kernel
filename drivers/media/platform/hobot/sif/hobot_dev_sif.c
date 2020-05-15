@@ -32,6 +32,7 @@
 
 #define MODULE_NAME "X3 SIF"
 
+char sif_node_name[MAX_DEVICE][8] = {"capture", "ddrin"};
 static int mismatch_limit = 1;
 module_param(mismatch_limit, int, 0644);
 int testpattern_fps = 30;
@@ -649,6 +650,7 @@ int sif_bind_chain_group(struct sif_video_ctx *sif_ctx, int instance)
 	}
 
 	sif_ctx->state = BIT(VIO_VIDEO_S_INPUT);
+	sif->statistic.enable[instance] = 1;
 
 	vio_info("[S%d][V%d] %s done, ctx_index(%d) refcount(%d)\n",
 		group->instance, sif_ctx->id, __func__,
@@ -943,6 +945,33 @@ int sif_set_pattern_cfg(struct sif_video_ctx *sif_ctx, unsigned long arg)
 	return ret;
 }
 
+void sif_video_user_stats(struct sif_video_ctx *sif_ctx,
+	struct user_statistic *stats)
+{
+	struct x3_sif_dev *sif;
+	struct vio_group *group;
+	struct user_statistic *stats_in_drv;
+	u32 instance, dev_id;
+
+	sif = sif_ctx->sif_dev;
+	group = sif_ctx->group;
+	if (!sif || !group) {
+		vio_err("%s init err", __func__);
+	}
+
+	if (sif_ctx->ctx_index == 0) {
+		instance = group->instance;
+		dev_id = sif_ctx->id;
+		stats_in_drv = &sif->statistic.user_stats[instance][dev_id];
+		stats_in_drv->cnt[USER_STATS_NORM_FRM] =
+			stats->cnt[USER_STATS_NORM_FRM];
+		stats_in_drv->cnt[USER_STATS_SEL_TMOUT] =
+			stats->cnt[USER_STATS_SEL_TMOUT];
+		stats_in_drv->cnt[USER_STATS_DROP] =
+			stats->cnt[USER_STATS_DROP];
+	}
+}
+
 static long x3_sif_ioctl(struct file *file, unsigned int cmd,
 			  unsigned long arg)
 {
@@ -953,6 +982,7 @@ static long x3_sif_ioctl(struct file *file, unsigned int cmd,
 	struct sif_video_ctx *sif_ctx;
 	struct frame_info frameinfo;
 	struct vio_group *group;
+	struct user_statistic stats;
 
 	sif_ctx = file->private_data;
 	BUG_ON(!sif_ctx);
@@ -1015,6 +1045,13 @@ static long x3_sif_ioctl(struct file *file, unsigned int cmd,
 	case SIF_IOC_PATTERN_CFG:
 		ret = sif_set_pattern_cfg(sif_ctx, arg);
 		break;
+	case SIF_IOC_USER_STATS:
+		ret = copy_from_user((char *) &stats, (u32 __user *) arg,
+				   sizeof(struct user_statistic));
+		if (ret)
+			return -EFAULT;
+		sif_video_user_stats(sif_ctx, &stats);
+		break;
 	default:
 		vio_err("wrong ioctl command\n");
 		ret = -EFAULT;
@@ -1050,6 +1087,7 @@ void sif_frame_done(struct sif_subdev *subdev)
 	struct vio_frame *frame;
 	struct vio_group *group;
 	struct sif_video_ctx *sif_ctx;
+	struct x3_sif_dev *sif;
 	unsigned long flags;
 	u32 event = 0;
 	int i = 0;
@@ -1057,6 +1095,7 @@ void sif_frame_done(struct sif_subdev *subdev)
 	BUG_ON(!subdev);
 
 	group = subdev->group;
+	sif = subdev->sif_dev;
 	framemgr = &subdev->framemgr;
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	frame = peek_frame(framemgr, FS_PROCESS);
@@ -1071,7 +1110,9 @@ void sif_frame_done(struct sif_subdev *subdev)
 
 		trans_frame(framemgr, frame, FS_COMPLETE);
 		event = VIO_FRAME_DONE;
+		sif->statistic.normal_frame[group->instance][subdev->id]++;
 	} else {
+		sif->statistic.err_buf_lack_fe[group->instance][subdev->id]++;
 		event = VIO_FRAME_NDONE;
 		vio_err("[S%d][V%d]SIF PROCESS queue has no member;\n",
 			group->instance, subdev->id);
@@ -1125,7 +1166,7 @@ static irqreturn_t sif_isr(int irq, void *data)
 {
 	int ret = 0;
 	u32 mux_index = 0;
-	u32 instance;
+	u32 instance = 0;
 	u32 status = 0;
 	u32 intr_en = 0;
 	u32 err_occured = 0;
@@ -1177,6 +1218,7 @@ static irqreturn_t sif_isr(int irq, void *data)
 							gtask->id,
 							gtask->hw_resource.count,
 							atomic_read(&group->rcount));
+						sif->statistic.err_task_lack_fs[instance]++;
 					} else {
 						up(&gtask->hw_resource);
 					}
@@ -1204,6 +1246,8 @@ static irqreturn_t sif_isr(int irq, void *data)
 		}
 		sif->mismatch_cnt++;
 		err_occured = 1;
+		instance = atomic_read(&sif->instance);
+		sif->statistic.err_mismatch[instance]++;
 	}
 
 	if (irq_src.sif_frm_int & 1 << INTR_SIF_IN_OVERFLOW) {
@@ -1211,12 +1255,16 @@ static irqreturn_t sif_isr(int irq, void *data)
 		vio_err("input buffer overflow(0x%x)\n", irq_src.sif_in_buf_overflow);
 		sif_print_buffer_status(sif->base_reg);
 		err_occured = 1;
+		instance = atomic_read(&sif->instance);
+		sif->statistic.err_overflow[instance]++;
 	}
 
 	if (irq_src.sif_frm_int & 1 << INTR_SIF_OUT_BUF_ERROR) {
 		sif->error_count++;
 		vio_err("Out buffer error\n");
 		err_occured = 1;
+		instance = atomic_read(&sif->instance);
+		sif->statistic.err_buf_err[instance]++;
 	}
 
 	if (sif->error_count >= SIF_ERR_COUNT) {
@@ -1487,6 +1535,66 @@ err_req_cdev:
 	return ret;
 }
 
+static ssize_t sif_stat_show(struct device *dev,
+				struct device_attribute *attr, char* buf)
+{
+	struct x3_sif_dev *sif;
+	u32 offset = 0;
+	int instance = 0;
+	int i = 0;
+	ssize_t len = 0;
+	struct user_statistic *stats;
+
+	sif = dev_get_drvdata(dev);
+
+	for(instance = 0; instance < VIO_MAX_STREAM; instance++) {
+		if (!sif->statistic.enable[instance])
+			continue;
+		len = snprintf(&buf[offset], PAGE_SIZE - offset,
+			"*******S%d info:******\n",
+			instance);
+		offset += len;
+		for (i = 0; i < 2; i++) {
+			stats = &sif->statistic.user_stats[instance][i];
+			len = snprintf(&buf[offset], PAGE_SIZE - offset,
+				"ch%d(%s) DRV: normal %d, drop %d, fe_lack_buf %d"
+				" || USER: normal %d, sel tout %d, drop %d, dq fail %d, sel err%d\n",
+				i, sif_node_name[i],
+				sif->statistic.normal_frame[instance][i],
+				sif->statistic.err_frame_drop[instance][i],
+				sif->statistic.err_buf_lack_fe[instance][i],
+				stats->cnt[USER_STATS_NORM_FRM],
+				stats->cnt[USER_STATS_SEL_TMOUT],
+				stats->cnt[USER_STATS_DROP],
+				stats->cnt[USER_STATS_DQ_FAIL],
+				stats->cnt[USER_STATS_SEL_ERR]);
+			offset += len;
+		}
+		len = snprintf(&buf[offset], PAGE_SIZE - offset,
+			"DRV: fs_lack_task %d, mismatch %d, overflow %d, buf err %d\n",
+			sif->statistic.err_task_lack_fs[instance],
+			sif->statistic.err_mismatch[instance],
+			sif->statistic.err_overflow[instance],
+			sif->statistic.err_buf_err[instance]);
+		offset += len;
+	}
+	return offset;
+}
+
+static ssize_t sif_stat_store(struct device *dev,
+					struct device_attribute *attr,
+					const char *page, size_t len)
+{
+	struct x3_sif_dev *sif;
+
+	sif = dev_get_drvdata(dev);
+	if (sif)
+		memset(&sif->statistic, 0, sizeof(sif->statistic));
+
+	return len;
+}
+static DEVICE_ATTR(err_status, S_IRUGO|S_IWUSR, sif_stat_show, sif_stat_store);
+
 struct x3_vio_mp_dev *g_vio_mp_dev = NULL;
 static int x3_sif_probe(struct platform_device *pdev)
 {
@@ -1565,6 +1673,12 @@ static int x3_sif_probe(struct platform_device *pdev)
 		goto p_err;
 	}
 
+	ret = device_create_file(dev, &dev_attr_err_status);
+	if (ret < 0) {
+		vio_err("create err_status failed (%d)\n", ret);
+		goto p_err;
+	}
+
 	platform_set_drvdata(pdev, sif);
 
 	ret = x3_sif_subdev_init(sif);
@@ -1613,6 +1727,7 @@ static int x3_sif_remove(struct platform_device *pdev)
 
 	device_remove_file(&pdev->dev, &dev_attr_regdump);
 	device_remove_file(&pdev->dev, &dev_attr_hblank);
+	device_remove_file(&pdev->dev, &dev_attr_err_status);
 
 	free_irq(sif->irq, sif);
 	for(i = 0; i < MAX_DEVICE; i++)

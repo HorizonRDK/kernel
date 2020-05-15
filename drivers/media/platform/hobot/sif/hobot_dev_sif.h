@@ -38,6 +38,7 @@
 #define SIF_IOC_MD_EVENT    	 _IOR(SIF_IOC_MAGIC, 8, int)
 #define SIF_IOC_MD_CFG	    	 _IOW(SIF_IOC_MAGIC, 9, int)
 #define SIF_IOC_PATTERN_CFG	     _IOW(SIF_IOC_MAGIC, 10, int)
+#define SIF_IOC_USER_STATS       _IOR(SIF_IOC_MAGIC, 11, struct user_statistic)
 
 #define VIO_MP_IOC_MAGIC 'm'
 #define VIO_MP_IOC_BIND_GROUP	 _IOW(VIO_MP_IOC_MAGIC, 0, int)
@@ -56,6 +57,22 @@ struct sif_multi_frame {
 	u8 mux_index;
 	u8 trigger_mode;
 	u8 enable;
+};
+
+struct sif_status_statistic {
+	u32 enable[VIO_MAX_STREAM];
+
+	/* driver statistic*/
+	u32 normal_frame[VIO_MAX_STREAM][MAX_DEVICE];
+	u32 err_frame_drop[VIO_MAX_STREAM][MAX_DEVICE];
+	u32 err_buf_lack_fe[VIO_MAX_STREAM][MAX_DEVICE];
+	u32 err_task_lack_fs[VIO_MAX_STREAM];
+	u32 err_mismatch[VIO_MAX_STREAM];
+	u32 err_overflow[VIO_MAX_STREAM];
+	u32 err_buf_err[VIO_MAX_STREAM];
+
+	/* user statistic*/
+	struct user_statistic user_stats[VIO_MAX_STREAM][MAX_DEVICE];
 };
 
 enum sif_format{
@@ -218,6 +235,7 @@ struct x3_sif_dev {
 	u32 				error_count;
 	u32					hblank;
 	unsigned long	mux_mask;
+	struct sif_status_statistic 	statistic;
 
 	struct vio_group		*sif_input[VIO_MAX_STREAM];
 	struct vio_group		*sif_mux[SIF_MUX_MAX];

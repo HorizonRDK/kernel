@@ -123,8 +123,6 @@ static int x3_pym_close(struct inode *inode, struct file *file)
 		if (group->gtask)
 			vio_group_task_stop(group->gtask);
 		instance = group->instance;
-		pym->ds_drop_count[instance] = 0;
-		pym->us_drop_count[instance] = 0;
 	}
 
 	index = pym_ctx->frm_fst_ind;
@@ -391,6 +389,7 @@ int pym_bind_chain_group(struct pym_video_ctx *pym_ctx, int instance)
 	group->frame_work = pym_frame_work;
 	group->gtask = &pym->gtask;
 	group->gtask->id = group->id;
+	pym->statistic.enable[instance] = 1;
 
 	vio_info("[S%d][V%d] %s done, ctx_index(%d) refcount(%d)\n",
 		group->instance, pym_ctx->id, __func__,
@@ -735,7 +734,7 @@ int pym_video_dqbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 	if (pym_ctx->frm_num_usr > (int)pym_ctx->frm_num) {
 		ret = -EFAULT;
 		pym_ctx->event = 0;
-		vio_dbg("[S%d] %s (p%d) dq too much frame(%d-%d).",
+		vio_err("[S%d] %s (p%d) dq too much frame(%d-%d).",
 			pym_ctx->group->instance, __func__,
 			pym_ctx->ctx_index, pym_ctx->frm_num_usr,
 			pym_ctx->frm_num);
@@ -769,6 +768,9 @@ int pym_video_dqbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 		if (atomic_read(&subdev->refcount) == 1) {
 			ret = -EFAULT;
 			pym_ctx->event = 0;
+			vio_err("[S%d][V%d] %s (p%d) complete empty.",
+				pym_ctx->group->instance, pym_ctx->id, __func__,
+				pym_ctx->ctx_index);
 			framemgr_x_barrier_irqr(framemgr, 0, flags);
 			return ret;
 		}
@@ -783,7 +785,7 @@ int pym_video_dqbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 		pym_ctx->frm_num_usr++;
 	} else {
 		ret = -EFAULT;
-		vio_dbg("[S%d] %s proc%d no frame, event %d.\n",
+		vio_err("[S%d] %s proc%d no frame, event %d.\n",
 			pym_ctx->group->instance, __func__, ctx_index,
 			pym_ctx->event);
 		framemgr_x_barrier_irqr(framemgr, 0, flags);
@@ -822,6 +824,32 @@ int pym_video_getindex(struct pym_video_ctx *pym_ctx)
 	return buf_index;
 }
 
+void pym_video_user_stats(struct pym_video_ctx *pym_ctx,
+	struct user_statistic *stats)
+{
+	struct x3_pym_dev *pym;
+	struct vio_group *group;
+	struct user_statistic *stats_in_drv;
+	u32 instance;
+
+	pym = pym_ctx->pym_dev;
+	group = pym_ctx->group;
+	if (!pym || !group) {
+		vio_err("%s init err", __func__);
+	}
+
+	if (pym_ctx->ctx_index == 0) {
+		instance = group->instance;
+		stats_in_drv = &pym->statistic.user_stats[instance];
+		stats_in_drv->cnt[USER_STATS_NORM_FRM] =
+			stats->cnt[USER_STATS_NORM_FRM];
+		stats_in_drv->cnt[USER_STATS_SEL_TMOUT] =
+			stats->cnt[USER_STATS_SEL_TMOUT];
+		stats_in_drv->cnt[USER_STATS_DROP] =
+			stats->cnt[USER_STATS_DROP];
+	}
+}
+
 static long x3_pym_ioctl(struct file *file, unsigned int cmd,
 			  unsigned long arg)
 {
@@ -833,6 +861,7 @@ static long x3_pym_ioctl(struct file *file, unsigned int cmd,
 	struct frame_info frameinfo;
 	struct vio_group *group;
 	int buf_index;
+	struct user_statistic stats;
 
 	pym_ctx = file->private_data;
 	BUG_ON(!pym_ctx);
@@ -892,6 +921,13 @@ static long x3_pym_ioctl(struct file *file, unsigned int cmd,
 		if (ret)
 			return -EFAULT;
 		ret = pym_bind_chain_group(pym_ctx, instance);
+		break;
+	case PYM_IOC_USER_STATS:
+		ret = copy_from_user((char *) &stats, (u32 __user *) arg,
+				   sizeof(struct user_statistic));
+		if (ret)
+			return -EFAULT;
+		pym_video_user_stats(pym_ctx, &stats);
 		break;
 	default:
 		vio_err("wrong ioctl command\n");
@@ -1006,11 +1042,13 @@ void pym_frame_done(struct pym_subdev *subdev)
 	struct vio_frame *frame;
 	struct vio_group *group;
 	struct pym_video_ctx *pym_ctx;
+	struct x3_pym_dev *pym;
 	unsigned long flags;
 	u32 event = 0;
 	int i = 0;
 
 	group = subdev->group;
+	pym = subdev->pym_dev;
 	framemgr = &subdev->framemgr;
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	frame = peek_frame(framemgr, FS_PROCESS);
@@ -1026,7 +1064,9 @@ void pym_frame_done(struct pym_subdev *subdev)
 		pym_set_iar_output(subdev, frame);
 		event = VIO_FRAME_DONE;
 		trans_frame(framemgr, frame, FS_COMPLETE);
+		pym->statistic.normal_frame[group->instance]++;
 	} else {
+		pym->statistic.err_buf_lack_fe[group->instance]++;
 		event = VIO_FRAME_NDONE;
 		vio_err("[S%d]PYM PROCESS queue has no member;\n", group->instance);
 		vio_err("[S%d][V%d][FRM](%d %d %d %d %d)\n",
@@ -1114,13 +1154,13 @@ static irqreturn_t pym_isr(int irq, void *data)
 	if (status & (1 << INTR_PYM_DS_FRAME_DROP)) {
 		vio_err("[%d]DS drop frame\n", instance);
 		drop_flag = true;
-		pym->ds_drop_count[instance]++;
+		pym->statistic.err_frame_drop_ds[instance]++;
 	}
 
 	if (status & (1 << INTR_PYM_US_FRAME_DROP)) {
 		vio_err("[%d]US drop frame\n", instance);
 		drop_flag = true;
-		pym->us_drop_count[instance]++;
+		pym->statistic.err_frame_drop_us[instance]++;
 	}
 
 	if (status & (1 << INTR_PYM_FRAME_DONE)) {
@@ -1128,7 +1168,7 @@ static irqreturn_t pym_isr(int irq, void *data)
 			vio_group_done(group);
 
 		if (test_bit(PYM_DMA_INPUT, &pym->state)) {
-			vio_group_done(group);
+			up(&gtask->hw_resource);
 		}
 		pym_frame_done(group->sub_ctx[GROUP_ID_SRC]);
 	}
@@ -1145,6 +1185,7 @@ static irqreturn_t pym_isr(int irq, void *data)
 					atomic_read(&group->rcount),
 					atomic_read(&pym->backup_fcount),
 					atomic_read(&pym->sensor_fcount));
+				pym->statistic.err_task_lack_fs[instance]++;
 			} else {
 				up(&gtask->hw_resource);
 			}
@@ -1296,29 +1337,62 @@ static ssize_t pym_reg_dump(struct device *dev,
 
 static DEVICE_ATTR(regdump, 0444, pym_reg_dump, NULL);
 
-static ssize_t pym_err_status(struct device *dev,
+
+static ssize_t pym_stat_show(struct device *dev,
 				struct device_attribute *attr, char* buf)
 {
 	struct x3_pym_dev *pym;
 	u32 offset = 0;
 	int instance = 0;
+	ssize_t len = 0;
+	struct user_statistic *stats;
 
 	pym = dev_get_drvdata(dev);
 	for(instance = 0; instance < VIO_MAX_STREAM; instance++) {
-		if (pym->group[instance]) {
-			snprintf(&buf[offset], 64, "S%d_us_drop: %d\n", instance,
-					pym->us_drop_count[instance]);
-			offset = strlen(buf);
-			snprintf(&buf[offset], 64, "S%d_ds_drop: %d\n", instance,
-					pym->ds_drop_count[instance]);
-			offset = strlen(buf);
-		}
+		if (!pym->statistic.enable[instance])
+			continue;
+		len = snprintf(&buf[offset], PAGE_SIZE - offset,
+			"*******S%d info:******\n",
+			instance);
+		offset += len;
+
+		stats = &pym->statistic.user_stats[instance];
+		len = snprintf(&buf[offset], PAGE_SIZE - offset,
+			"DRV: normal %d, drop us%d ds%d, fe_lack_buf %d"
+			" || USER: normal %d, sel tout %d, drop %d, dq fail %d, sel err%d\n",
+			pym->statistic.normal_frame[instance],
+			pym->statistic.err_frame_drop_us[instance],
+			pym->statistic.err_frame_drop_ds[instance],
+			pym->statistic.err_buf_lack_fe[instance],
+			stats->cnt[USER_STATS_NORM_FRM],
+			stats->cnt[USER_STATS_SEL_TMOUT],
+			stats->cnt[USER_STATS_DROP],
+			stats->cnt[USER_STATS_DQ_FAIL],
+			stats->cnt[USER_STATS_SEL_ERR]);
+		offset += len;
+
+		len = snprintf(&buf[offset], PAGE_SIZE - offset,
+			"DRV: fs_lack_task %d\n",
+			pym->statistic.err_task_lack_fs[instance]);
+		offset += len;
 	}
 
 	return offset;
 }
 
-static DEVICE_ATTR(err_status, 0444, pym_err_status, NULL);
+static ssize_t pym_stat_store(struct device *dev,
+					struct device_attribute *attr,
+					const char *page, size_t len)
+{
+	struct x3_pym_dev *pym;
+
+	pym = dev_get_drvdata(dev);
+	if (pym)
+		memset(&pym->statistic, 0, sizeof(pym->statistic));
+
+	return len;
+}
+static DEVICE_ATTR(err_status, S_IRUGO|S_IWUSR, pym_stat_show, pym_stat_store);
 
 static int x3_pym_probe(struct platform_device *pdev)
 {

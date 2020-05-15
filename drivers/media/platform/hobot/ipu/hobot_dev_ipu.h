@@ -39,6 +39,7 @@
 #define IPU_IOC_OSD_COLOR_MAP    _IOW(IPU_IOC_MAGIC, 13, int)
 #define IPU_IOC_ROI_INFO    	 _IOW(IPU_IOC_MAGIC, 14, int)
 #define IPU_IOC_SCALE_INFO    	 _IOW(IPU_IOC_MAGIC, 15, int)
+#define IPU_IOC_USER_STATS       _IOR(IPU_IOC_MAGIC, 16, struct user_statistic)
 
 struct ipu_osd_cfg{
 	bool osd_box_update;
@@ -69,6 +70,19 @@ struct ipu_info_cfg {
 	bool roi_update;
 	struct ipu_scale_cfg scale_cfg;
 	bool scale_update;
+};
+
+struct ipu_status_statistic {
+	u32 enable[VIO_MAX_STREAM];
+
+	/* driver statistic*/
+	u32 normal_frame[VIO_MAX_STREAM][MAX_DEVICE];
+	u32 err_frame_drop[VIO_MAX_STREAM][MAX_DEVICE];
+	u32 err_buf_lack_fe[VIO_MAX_STREAM][MAX_DEVICE];
+	u32 err_task_lack_fs[VIO_MAX_STREAM];
+
+	/* user statistic*/
+	struct user_statistic user_stats[VIO_MAX_STREAM][MAX_DEVICE];
 };
 
 struct ipu_video_ctx {
@@ -184,7 +198,7 @@ struct x3_ipu_dev {
 	atomic_t sensor_fcount;
 	atomic_t backup_fcount;
 	u32 frame_drop_count;
-	u32 frame_drop_channel[VIO_MAX_STREAM][6];
+	struct ipu_status_statistic statistic;
 
 	struct ipu_subdev subdev[VIO_MAX_STREAM][MAX_DEVICE];
 	struct vio_group *group[VIO_MAX_STREAM];

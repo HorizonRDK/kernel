@@ -181,6 +181,23 @@ static const char * const frame_state_name[NR_FRAME_STATE] = {
 	"Used"
 };
 
+/* frame info statistic */
+enum USER_STATISTIC {
+	USER_STATS_NORM_FRM = 0,
+	USER_STATS_SEL_TMOUT ,
+	USER_STATS_DROP,
+	USER_STATS_DQ_FAIL,
+	USER_STATS_SEL_ERR,
+	/* reserver: 5-7 */
+	USER_STATS_NUM = 8
+};
+
+struct user_statistic {
+	uint32_t cnt[USER_STATS_NUM];
+};
+
+
+
 int frame_fcount(struct vio_frame *frame, void *data);
 int put_frame(struct vio_framemgr *this, struct vio_frame *frame,
 			enum vio_frame_state state);

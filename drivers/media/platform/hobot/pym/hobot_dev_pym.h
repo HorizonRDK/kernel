@@ -29,7 +29,21 @@
 #define PYM_IOC_END_OF_STREAM    _IOW(PYM_IOC_MAGIC, 5, int)
 #define PYM_IOC_BIND_GROUP       _IOW(PYM_IOC_MAGIC, 6, int)
 #define PYM_IOC_GET_INDEX	 _IOR(PYM_IOC_MAGIC, 7, int)
+#define PYM_IOC_USER_STATS       _IOR(PYM_IOC_MAGIC, 8, struct user_statistic)
 
+struct pym_status_statistic {
+	u32 enable[VIO_MAX_STREAM];
+
+	/* driver statistic*/
+	u32 normal_frame[VIO_MAX_STREAM];
+	u32 err_frame_drop_us[VIO_MAX_STREAM];
+	u32 err_frame_drop_ds[VIO_MAX_STREAM];
+	u32 err_buf_lack_fe[VIO_MAX_STREAM];
+	u32 err_task_lack_fs[VIO_MAX_STREAM];
+
+	/* user statistic*/
+	struct user_statistic user_stats[VIO_MAX_STREAM];
+};
 
 struct pym_video_ctx{
 	wait_queue_head_t		done_wq;
@@ -110,8 +124,7 @@ struct x3_pym_dev {
 	atomic_t sensor_fcount;
 	atomic_t backup_fcount;
 
-	u32 us_drop_count[VIO_MAX_STREAM];
-	u32 ds_drop_count[VIO_MAX_STREAM];
+	struct pym_status_statistic statistic;
 	struct pym_subdev subdev[VIO_MAX_STREAM];
 	struct vio_group *group[VIO_MAX_STREAM];
 	struct vio_group_task gtask;
