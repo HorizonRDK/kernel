@@ -319,12 +319,12 @@ void vio_reset_module(u32 module)
 		}
 	}
 
-	cfg = ips_get_bus_ctrl() & ~bit;
-	ips_set_bus_ctrl(cfg);
-
 	ips_set_module_reset(reset);
 	if (module == GROUP_ID_PYM)
 		ips_set_module_reset(IPU_PYM_RST);
+
+	cfg = ips_get_bus_ctrl() & ~bit;
+	ips_set_bus_ctrl(cfg);
 }
 EXPORT_SYMBOL(vio_reset_module);
 
