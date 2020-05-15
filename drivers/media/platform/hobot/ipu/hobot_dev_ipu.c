@@ -299,40 +299,20 @@ void ipu_clear_group_leader(struct vio_group *group)
 	clear_bit(VIO_GROUP_LEADER, &group->state);
 }
 
-int ipu_update_roi_info(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
-{
-	int ret = 0;
-	struct ipu_roi_cfg *roi_cfg;
-	struct ipu_subdev *subdev;
-
-	subdev = ipu_ctx->subdev;
-	roi_cfg = &subdev->info_cfg.roi_cfg;
-	ret = copy_from_user((char *) roi_cfg, (u32 __user *) arg,
-			   sizeof(struct ipu_roi_cfg));
-	if (ret)
-		return -EFAULT;
-
-	subdev->info_cfg.roi_update = 1;
-	vio_dbg("[S%d][V%d] %s\n", ipu_ctx->group->instance, ipu_ctx->id,
-		 __func__);
-
-	return ret;
-}
-
 int ipu_update_scale_info(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 {
 	int ret = 0;
-	struct ipu_scale_cfg *scale_cfg;
+	ipu_ds_info_t *sc_cfg;
 	struct ipu_subdev *subdev;
 
 	subdev = ipu_ctx->subdev;
-	scale_cfg = &subdev->info_cfg.scale_cfg;
-	ret = copy_from_user((char *) scale_cfg, (u32 __user *) arg,
-			   sizeof(struct ipu_scale_cfg));
+	sc_cfg = &subdev->info_cfg.sc_info;
+	ret = copy_from_user((char *) sc_cfg, (u32 __user *) arg,
+			   sizeof(ipu_ds_info_t));
 	if (ret)
 		return -EFAULT;
 
-	subdev->info_cfg.scale_update = 1;
+	subdev->info_cfg.info_update = 1;
 	vio_dbg("[S%d][V%d] %s\n", ipu_ctx->group->instance, ipu_ctx->id,
 		 __func__);
 
@@ -617,10 +597,9 @@ void ipu_hw_set_info_cfg(struct ipu_subdev *subdev, u32 shadow_index)
 {
 	u32 id = 0;
 	struct ipu_info_cfg *info_cfg;
-	struct ipu_roi_cfg *roi_cfg;
+	ipu_ds_info_t *sc_info;
 	ipu_roi_box_t *roi;
-	struct ipu_scale_cfg *scale_cfg;
-	ipu_scale_info_t *sc_info;
+	ipu_scale_info_t *scale_info;
 
 	id = subdev->id;
 	if (id < GROUP_ID_US || id > GROUP_ID_DS4) {
@@ -628,26 +607,22 @@ void ipu_hw_set_info_cfg(struct ipu_subdev *subdev, u32 shadow_index)
 	}
 
 	info_cfg = &subdev->info_cfg;
-	roi_cfg = &info_cfg->roi_cfg;
-	scale_cfg = &info_cfg->scale_cfg;
-	roi = &roi_cfg->roi_info;
-	sc_info = &scale_cfg->sc_info;
+	sc_info = &info_cfg->sc_info;
+	roi = &sc_info->ds_roi_info;
+	scale_info = &sc_info->ds_sc_info;
 
-	if (info_cfg->roi_update) {
-		if (roi_cfg->roi_en)
+	if (info_cfg->info_update) {
+		if (sc_info->ds_roi_en)
 			ipu_hw_set_roi_cfg(subdev, shadow_index, roi);
-		ipu_set_roi_enable(subdev, shadow_index, roi_cfg->roi_en);
-		info_cfg->roi_update = 0;
-	}
+		ipu_set_roi_enable(subdev, shadow_index, sc_info->ds_roi_en);
 
-	if (info_cfg->scale_update) {
-		if (scale_cfg->sc_en) {
-			ipu_hw_set_scale_cfg(subdev, shadow_index, sc_info);
+		if (sc_info->ds_sc_en) {
+			ipu_hw_set_scale_cfg(subdev, shadow_index, scale_info);
 			ipu_hw_set_wdma_stride(subdev, shadow_index,
-					scale_cfg->stride_y, scale_cfg->stride_uv);
+					sc_info->ds_stride_y, sc_info->ds_stride_uv);
 		}
-		ipu_set_sc_enable(subdev, shadow_index, scale_cfg->sc_en);
-		info_cfg->scale_update = 0;
+		ipu_set_sc_enable(subdev, shadow_index, sc_info->ds_sc_en);
+		info_cfg->info_update = 0;
 	}
 }
 
@@ -1682,9 +1657,6 @@ static long x3_ipu_ioctl(struct file *file, unsigned int cmd,
 		break;
 	case IPU_IOC_OSD_COLOR_MAP:
 		ret = ipu_update_osd_color_map(ipu_ctx, arg);
-		break;
-	case IPU_IOC_ROI_INFO:
-		ret = ipu_update_roi_info(ipu_ctx, arg);
 		break;
 	case IPU_IOC_SCALE_INFO:
 		ret = ipu_update_scale_info(ipu_ctx, arg);

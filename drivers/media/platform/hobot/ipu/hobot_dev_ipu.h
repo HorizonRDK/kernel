@@ -37,8 +37,7 @@
 #define IPU_IOC_BIND_GROUP       _IOW(IPU_IOC_MAGIC, 11, int)
 #define IPU_IOC_GET_INDEX      	 _IOR(IPU_IOC_MAGIC, 12, int)
 #define IPU_IOC_OSD_COLOR_MAP    _IOW(IPU_IOC_MAGIC, 13, int)
-#define IPU_IOC_ROI_INFO    	 _IOW(IPU_IOC_MAGIC, 14, int)
-#define IPU_IOC_SCALE_INFO    	 _IOW(IPU_IOC_MAGIC, 15, int)
+#define IPU_IOC_SCALE_INFO    	 _IOW(IPU_IOC_MAGIC, 14, int)
 #define IPU_IOC_USER_STATS       _IOR(IPU_IOC_MAGIC, 16, struct user_statistic)
 
 struct ipu_osd_cfg{
@@ -53,23 +52,9 @@ struct ipu_osd_cfg{
 	osd_color_map_t color_map;
 };
 
-struct ipu_roi_cfg {
-	uint8_t roi_en;
-	ipu_roi_box_t roi_info;
-};
-
-struct ipu_scale_cfg {
-	uint8_t sc_en;
-	ipu_scale_info_t sc_info;
-	uint32_t stride_y;
-	uint32_t stride_uv;
-};
-
 struct ipu_info_cfg {
-	struct ipu_roi_cfg roi_cfg;
-	bool roi_update;
-	struct ipu_scale_cfg scale_cfg;
-	bool scale_update;
+	ipu_ds_info_t sc_info;
+	bool info_update;
 };
 
 struct ipu_status_statistic {
