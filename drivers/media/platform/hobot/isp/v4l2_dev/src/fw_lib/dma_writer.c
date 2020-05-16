@@ -278,9 +278,9 @@ static int dma_writer_configure_frame_writer( dma_pipe *pipe,
     /* config ping on first frame.
         in case of raw feedback case, cannot using frame count variable as a condition.
     */
-    if (fw_ptr && fw_ptr->first_frame == 0) {
+    if (fw_ptr && fw_ptr->first_frame < 2) {
         base = 0;
-        fw_ptr->first_frame = 1;
+        fw_ptr->first_frame++;
         pr_debug("this is first frame, config to ping\n");
     }
 

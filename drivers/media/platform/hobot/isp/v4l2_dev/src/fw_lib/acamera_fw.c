@@ -142,9 +142,11 @@ int acamera_fw_isp_start(int ctx_id)
 
 int acamera_fw_isp_stop(int ctx_id)
 {
+    int i = 0;
 	uint8_t rc = 0;
 	acamera_context_t *p_ctx = (acamera_context_t *)acamera_get_ctx_ptr(ctx_id);
     acamera_firmware_t *fw_ptr = acamera_get_firmware_ptr();
+    acamera_fsm_mgr_t *instance;
 
     ips_set_isp_interrupt(0);
 	acamera_fw_interrupts_disable( p_ctx );
@@ -154,9 +156,18 @@ int acamera_fw_isp_stop(int ctx_id)
 
     rc = isp_safe_stop(p_ctx->settings.isp_base);
 
-    p_ctx->sif_isp_offline = 0;
-    p_ctx->system_state = FW_PAUSE;
     fw_ptr->first_frame = 0;
+
+    // clear all contexts state
+    for (i = 0; i < FIRMWARE_CONTEXT_NUMBER; i++) {
+        p_ctx = (acamera_context_t *)acamera_get_ctx_ptr(i);
+        if (p_ctx) {
+            instance= &p_ctx->fsm_mgr;
+            instance->reserved = 0;
+            p_ctx->sif_isp_offline = 0;
+            p_ctx->system_state = FW_PAUSE;
+        }
+    }
 
 	if (!rc)
 		pr_info("done.\n");
@@ -300,7 +311,6 @@ void acamera_fw_raise_event( acamera_context_t *p_ctx, event_id_t event_id )
 #endif
          ) {
         acamera_event_queue_push( &p_ctx->fsm_mgr.event_queue, (int)( event_id ) );
-
         acamera_notify_evt_data_avail();
     }
 }

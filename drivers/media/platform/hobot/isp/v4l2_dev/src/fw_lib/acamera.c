@@ -76,8 +76,9 @@ static acamera_firmware_t g_firmware;
 typedef int (*isp_callback)(int);
 extern void isp_register_callback(isp_callback func);
 int sif_isp_ctx_sync_func(int ctx_id);
-static DECLARE_WAIT_QUEUE_HEAD(wq);
-static DECLARE_WAIT_QUEUE_HEAD(wq_fe);
+static DECLARE_WAIT_QUEUE_HEAD(wq_dma_cfg_done);
+static DECLARE_WAIT_QUEUE_HEAD(wq_frame_end);
+static DECLARE_WAIT_QUEUE_HEAD(wq_dma_done);
 
 static int cur_ctx_id;
 static int last_ctx_id;
@@ -637,7 +638,7 @@ static void start_processing_frame( void )
 
 void dma_writer_config_done(void)
 {
-	wake_up(&wq);
+	wake_up(&wq_dma_cfg_done);
 }
 EXPORT_SYMBOL(dma_writer_config_done);
 
@@ -981,12 +982,29 @@ extern int ips_get_isp_frameid(void);
 int sif_isp_ctx_sync_func(int ctx_id)
 {
 	acamera_context_ptr_t p_ctx;
+    acamera_fsm_mgr_t *instance;
 
 	p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[ctx_id];
-	if (atomic_read(&g_firmware.frame_done) == 0 && _all_contexts_frame_counter_status() != 0) {
-		pr_debug("isp is working now, next ctx id %d.\n", ctx_id);
-		wait_event_timeout(wq_fe, atomic_read(&g_firmware.frame_done), msecs_to_jiffies(200));
-	}
+    instance = &(((acamera_context_ptr_t)acamera_get_ctx_ptr(last_ctx_id))->fsm_mgr);
+
+    /* wait last ctx done */
+    if (instance->reserved) { //dma writer on, isp offline next module
+        if ((atomic_read(&g_firmware.dma_done) == 0
+            || atomic_read(&g_firmware.frame_done) == 0)
+            && _all_contexts_frame_counter_status() != 0) {
+            pr_debug("=>isp is working now, next ctx id %d.\n", ctx_id);
+            wait_event_timeout(wq_dma_done,
+                atomic_read(&g_firmware.dma_done) && atomic_read(&g_firmware.frame_done),
+                msecs_to_jiffies(30));
+        }
+        atomic_set(&g_firmware.dma_done, 0);
+    } else { //dma writer off, isp online next module
+        if (atomic_read(&g_firmware.frame_done) == 0 && _all_contexts_frame_counter_status() != 0) {
+            pr_debug("->isp is working now, next ctx id %d.\n", ctx_id);
+            wait_event_timeout(wq_frame_end, atomic_read(&g_firmware.frame_done), msecs_to_jiffies(30));
+        }
+        atomic_set(&g_firmware.frame_done, 0);
+    }
 
 	pr_debug("start isp ctx switch, ctx_id %d\n", ctx_id);
 
@@ -998,8 +1016,8 @@ int sif_isp_ctx_sync_func(int ctx_id)
 
 	cur_ctx_id = ctx_id;
 	next_ctx_id = ctx_id;
+
 	p_ctx->sif_isp_offline = 1;
-	atomic_set(&g_firmware.frame_done, 0);
 
 	isp_input_port_size_config(p_ctx->fsm_mgr.fsm_arr[FSM_ID_SENSOR]->p_fsm);
 	ldc_set_ioctl(ctx_id, 0);
@@ -1023,6 +1041,7 @@ retry:
 			isp_ctx_prepare(last_ctx_id, next_ctx_id, ISP_CONFIG_PONG);
 		}
 	} else {
+        pr_info("previous frame events are not process done\n");
 		system_semaphore_wait(g_firmware.sem_event_process_done, 0);
 		goto retry;
 	}
@@ -1031,7 +1050,7 @@ retry:
 		g_firmware.dma_flag_isp_metering_completed &&
 		g_firmware.dma_flag_dma_writer_config_completed)) {
 
-		wait_event_timeout(wq, g_firmware.dma_flag_dma_writer_config_completed, msecs_to_jiffies(1000));
+		wait_event_timeout(wq_dma_cfg_done, g_firmware.dma_flag_dma_writer_config_completed, msecs_to_jiffies(30));
 		pr_debug("ISP->SIF: wake up sif feed thread\n");
 	} else
 		pr_debug("ISP->SIF: do not need waiting, return to sif feed thread\n");
@@ -1163,16 +1182,26 @@ pr_info("hcs1 %d, hcs2 %d, vc %d\n", hcs1, hcs2, vc);
 			    isp_ctx_prepare(0, 0, ISP_CONFIG_PONG);
                         }
                     } else {
-                        LOG( LOG_ERR, "Attempt to start a new frame before processing is done for the prevous frame. Skip this frame" );
+                        pr_debug("sem cnt %d, ev_q head %d tail %d\n",
+                            ((struct semaphore *)g_firmware.sem_evt_avail)->count,
+                            p_ctx->fsm_mgr.event_queue.buf.head,
+                            p_ctx->fsm_mgr.event_queue.buf.tail);
+                        pr_err("prevous frame is not processing done, skip this frame\n");
                     } //if ( acamera_event_queue_empty( &p_ctx->fsm_mgr.event_queue ) )
                 } else if ( irq_bit == ISP_INTERRUPT_EVENT_ISP_END_FRAME_END ) {
-			pr_debug("frame done, ctx id %d\n", cur_ctx_id);
-			atomic_set(&g_firmware.frame_done, 1);
-			wake_up(&wq_fe);
+                    pr_debug("frame done, ctx id %d\n", cur_ctx_id);
+                    if (p_ctx->sif_isp_offline) {
+                        atomic_set(&g_firmware.frame_done, 1);
+                        wake_up(&wq_frame_end);
+                        if (p_ctx->fsm_mgr.reserved) //dma writer on
+                            wake_up(&wq_dma_done);
+                    }
                 } else if ( irq_bit == ISP_INTERRUPT_EVENT_FR_Y_WRITE_DONE ) {
-					pr_debug("frame write to ddr done" );
-                    atomic_set(&g_firmware.frame_done, 1);
-                    wake_up(&wq_fe);
+                    pr_debug("frame write to ddr done\n");
+                    if (p_ctx->sif_isp_offline) {
+                        atomic_set(&g_firmware.dma_done, 1);
+                        wake_up(&wq_dma_done);
+                    }
 					acamera_fw_raise_event( p_ctx, event_id_frame_done );
                 } else if ( irq_bit == ISP_INTERRUPT_EVENT_FR_UV_WRITE_DONE ) {
 					//do nothing

@@ -185,6 +185,7 @@ struct _acamera_firmware_t {
 
     uint32_t dma_flag_dma_writer_config_completed;
     atomic_t frame_done;
+    atomic_t dma_done;
     uint8_t first_frame;
 
     uint32_t initialized;
