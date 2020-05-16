@@ -32,6 +32,7 @@ typedef struct sensor_data {
 	uint32_t  step_gain;
 	uint32_t  again_prec;
 	uint32_t  dgain_prec;
+	uint32_t  conversion;
 	uint32_t  VMAX;
 	uint32_t  HMAX;
 	uint32_t  FSC_DOL2;

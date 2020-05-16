@@ -264,9 +264,9 @@ static void sensor_set_mode(void *ctx, uint8_t mode)
 
     param->pixels_per_line = param->total.width;
     param->integration_time_min = 5;
-    param->integration_time_max = 900;
-    param->integration_time_long_max = 900 * 3;
-    param->integration_time_limit = 900;
+    param->integration_time_max = 90000;
+    param->integration_time_long_max = 90000 * 3;
+    param->integration_time_limit = 90000;
     param->lines_per_second = 10000;
     param->sensor_exp_number = param->modes_table[mode].exposures;
     //sensor param init
@@ -294,6 +294,7 @@ static const sensor_param_t *sensor_get_parameters( void *ctx )
 			param->integration_time_min = sensor_param.exposure_time_min;
 			param->integration_time_max = sensor_param.exposure_time_max;
 			param->integration_time_limit = sensor_param.exposure_time_max;
+			param->integration_time_long_max = sensor_param.exposure_time_long_max;
 			param->dgain_log2_max = sensor_param.digital_gain_max;
 			param->again_log2_max = sensor_param.analog_gain_max;
 			if (sensor_param.fps) {

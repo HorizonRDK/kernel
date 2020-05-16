@@ -35,8 +35,10 @@
 
 struct sensor_ctrl_ops {
 	char ctrl_name[20];
-	void (*camera_sys_control)(uint32_t port, sensor_priv_t *priv_param, uint32_t *a_gain,
-		uint32_t *d_gain, uint32_t *a_line);
+	void (*camera_gain_control)(uint32_t port, sensor_priv_t *priv_param,
+		uint32_t *a_gain, uint32_t *d_gain, uint32_t *a_line);
+	void (*camera_line_control)(uint32_t port, sensor_priv_t *priv_param,
+		uint32_t *a_line);
 	void (*camera_alloc_again)(uint32_t port, uint32_t *a_gain);
 	void (*camera_alloc_dgain)(uint32_t port, uint32_t *a_gain);
 };
