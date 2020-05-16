@@ -138,6 +138,24 @@ int isp_stream_onoff_check(void)
     return total_stream_on;
 }
 
+int isp_v4l2_update_ctx(int ctx_id)
+{
+    int rc = 0;
+
+    rc = mutex_lock_interruptible(&init_lock);
+    if (rc != 0) {
+        pr_err("mutex lock failed, rc = %d\n", rc);
+        return rc;
+    }
+
+    if (isp_stream_onoff_check() == 0 && isp_open_check() <= 1)
+        acamera_update_cur_settings_to_isp(ctx_id);
+
+    mutex_unlock(&init_lock);
+
+    return rc;
+}
+
 /* ----------------------------------------------------------------
  * V4L2 file operations
  */
@@ -425,15 +443,6 @@ static int isp_v4l2_s_fmt_vid_cap( struct file *file, void *priv, struct v4l2_fo
         LOG( LOG_ERR, "set format failed." );
         return rc;
     }
-
-    rc = mutex_lock_interruptible(&init_lock);
-    if (rc != 0) {
-        pr_err("mutex lock failed, rc = %d\n", rc);
-        return rc;
-    }
-    if (isp_stream_onoff_check() == 0 && isp_open_check() <= 1)
-        acamera_update_cur_settings_to_isp(dev->ctx_id);
-    mutex_unlock(&init_lock);
 
     /* update stream pointer index */
     dev->stream_id_index[pstream->stream_type] = pstream->stream_id;

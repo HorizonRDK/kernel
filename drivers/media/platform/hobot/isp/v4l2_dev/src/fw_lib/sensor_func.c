@@ -134,6 +134,7 @@ void sensor_hw_init( sensor_fsm_ptr_t p_fsm )
     //acamera_update_cur_settings_to_isp( p_fsm->cmn.ctx_id );
 }
 
+extern int isp_v4l2_update_ctx(int ctx_id);
 void sensor_sw_init( sensor_fsm_ptr_t p_fsm )
 {
     uint8_t bitwidth;
@@ -166,7 +167,10 @@ void sensor_sw_init( sensor_fsm_ptr_t p_fsm )
 
     sensor_update_black( p_fsm );
 
-    LOG( LOG_NOTICE, "Sensor initialization is complete, ID 0x%04X resolution %dx%d", p_fsm->ctrl.get_id( p_fsm->sensor_ctx ), param->active.width, param->active.height );
+    isp_v4l2_update_ctx(p_fsm->cmn.ctx_id);
+
+    pr_debug("Sensor initialization is complete, ID 0x%04X resolution %dx%d",
+        p_fsm->ctrl.get_id( p_fsm->sensor_ctx ), param->active.width, param->active.height);
 }
 
 void isp_input_port_size_config(sensor_fsm_ptr_t p_fsm)
