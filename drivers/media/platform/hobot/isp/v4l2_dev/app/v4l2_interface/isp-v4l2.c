@@ -142,16 +142,8 @@ int isp_v4l2_update_ctx(int ctx_id)
 {
     int rc = 0;
 
-    rc = mutex_lock_interruptible(&init_lock);
-    if (rc != 0) {
-        pr_err("mutex lock failed, rc = %d\n", rc);
-        return rc;
-    }
-
     if (isp_stream_onoff_check() == 0 && isp_open_check() <= 1)
         acamera_update_cur_settings_to_isp(ctx_id);
-
-    mutex_unlock(&init_lock);
 
     return rc;
 }
