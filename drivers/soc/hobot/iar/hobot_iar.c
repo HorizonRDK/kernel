@@ -2564,7 +2564,7 @@ static int x2_iar_probe(struct platform_device *pdev)
         uint32_t reg_val = 0;
 	uint32_t i = 0;
 
-	pr_info("x2 iar probe begin!!!\n");
+	pr_info("iar probe begin!!!\n");
 
 	g_iar_dev = devm_kzalloc(&pdev->dev, sizeof(struct iar_dev_s), GFP_KERNEL);
 	if (!g_iar_dev) {
@@ -2574,6 +2574,11 @@ static int x2_iar_probe(struct platform_device *pdev)
 	dev_set_drvdata(&pdev->dev, g_iar_dev);
 	spin_lock_init(&g_iar_dev->spinlock);
 	g_iar_dev->lock = &g_iar_dev->spinlock;
+
+	spin_lock_init(&g_iar_dev->framemgr.slock);
+	for (i = 0; i < IAR_CHANNEL_MAX; i++)
+		spin_lock_init(&g_iar_dev->framemgr_layer[i].slock);
+
 	g_iar_dev->pdev = pdev;
 	memset(&g_iar_dev->cur_framebuf_id, 0, IAR_CHANNEL_MAX * sizeof(int));
 
