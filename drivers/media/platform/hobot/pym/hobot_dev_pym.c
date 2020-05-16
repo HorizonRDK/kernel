@@ -1196,9 +1196,10 @@ static irqreturn_t pym_isr(int irq, void *data)
 			vio_get_frame_id(group);
 	}
 
-	if (drop_flag)
+	if (drop_flag) {
+		vio_group_done(group);
 		pym_frame_ndone(group->sub_ctx[GROUP_ID_SRC]);
-
+	}
 	return IRQ_HANDLED;
 }
 

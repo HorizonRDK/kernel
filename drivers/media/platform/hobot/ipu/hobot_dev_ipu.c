@@ -2111,6 +2111,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		vio_err("[S%d]too many Frame drop\n", instance);
 		ipu->frame_drop_count = 0;
 	}
+
 	if (err_occured == 1)
 		ipu_diag_report(err_occured, err_status);
 	else
