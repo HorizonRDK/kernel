@@ -476,6 +476,7 @@ void camera_sys_sensor_line_turning_data(uint32_t port,
 				camera_mod[port]->camera_param.dol3.line_p[i].max,
 				priv_param->line_buf[i]);
 		}
+	break;
 	case DOL2_M :
 		for(i = 0; i < 2; i++) {
 			a_line[i] = sensor_line_calculation(
@@ -484,15 +485,16 @@ void camera_sys_sensor_line_turning_data(uint32_t port,
 				camera_mod[port]->camera_param.dol2.line_p[i].max,
 				priv_param->line_buf[i]);
 		}
+	break;
 	case NORMAL_M :
-		a_line[i] = sensor_line_calculation(
+		a_line[0] = sensor_line_calculation(
 			camera_mod[port]->camera_param.normal.line_p.ratio,
 			camera_mod[port]->camera_param.normal.line_p.offset,
 			camera_mod[port]->camera_param.normal.line_p.max,
 			priv_param->line_buf[0]);
 	break;
 	case PWL_M :
-		a_line[i] = sensor_line_calculation(
+		a_line[0] = sensor_line_calculation(
 			camera_mod[port]->camera_param.pwl.line_p.ratio,
 			camera_mod[port]->camera_param.pwl.line_p.offset,
 			camera_mod[port]->camera_param.pwl.line_p.max,
@@ -1242,11 +1244,46 @@ int camera_sys_turining_set(uint32_t port, sensor_turning_data_t *turning_pram)
 	if (port > CAMERA_TOTAL_NUMBER) {
 		return -1;
 	} else {
-		if (turning_pram)
+		if (turning_pram) {
+			//free malloc size
+			if (camera_mod[port]->camera_param.normal.again_lut) {
+				kfree(camera_mod[port]->camera_param.normal.again_lut);
+				camera_mod[port]->camera_param.normal.again_lut = NULL;
+			}
+			if (camera_mod[port]->camera_param.normal.dgain_lut) {
+				kfree(camera_mod[port]->camera_param.normal.dgain_lut);
+				camera_mod[port]->camera_param.normal.dgain_lut = NULL;
+			}
+			if (camera_mod[port]->camera_param.dol2.again_lut) {
+				kfree(camera_mod[port]->camera_param.dol2.again_lut);
+				camera_mod[port]->camera_param.dol2.again_lut = NULL;
+			}
+			if (camera_mod[port]->camera_param.dol2.dgain_lut) {
+				kfree(camera_mod[port]->camera_param.dol2.dgain_lut);
+				camera_mod[port]->camera_param.dol2.dgain_lut = NULL;
+			}
+			if (camera_mod[port]->camera_param.dol3.again_lut) {
+				kfree(camera_mod[port]->camera_param.dol3.again_lut);
+				camera_mod[port]->camera_param.dol3.again_lut = NULL;
+			}
+			if (camera_mod[port]->camera_param.dol3.dgain_lut) {
+				kfree(camera_mod[port]->camera_param.dol3.dgain_lut);
+				camera_mod[port]->camera_param.dol3.dgain_lut = NULL;
+			}
+			if (camera_mod[port]->camera_param.pwl.again_lut) {
+				kfree(camera_mod[port]->camera_param.pwl.again_lut);
+				camera_mod[port]->camera_param.pwl.again_lut = NULL;
+			}
+			if (camera_mod[port]->camera_param.pwl.dgain_lut) {
+				kfree(camera_mod[port]->camera_param.pwl.dgain_lut);
+				camera_mod[port]->camera_param.pwl.dgain_lut = NULL;
+			}
+
 			memcpy(&camera_mod[port]->camera_param, turning_pram,
 					sizeof(sensor_turning_data_t));
-		else
+		} else {
 			return -1;
+		}
 	}
 
 	// tuning lut map
