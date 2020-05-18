@@ -241,6 +241,7 @@ static long bpu_core_ioctl(struct file *filp,/*PRQA S ALL*/
 		break;
 	case BPU_GET_FREQ_LEVEL:/*PRQA S ALL*/
 		level = 0;
+#if defined(CONFIG_PM_DEVFREQ) && defined(CONFIG_DEVFREQ_THERMAL)
 		if (core->dvfs != NULL) {
 			for (i = 0; i < (int32_t)core->dvfs->level_num; i++) {
 				if (core->dvfs->rate == core->dvfs->profile.freq_table[i]) {
@@ -248,6 +249,7 @@ static long bpu_core_ioctl(struct file *filp,/*PRQA S ALL*/
 				}
 			}
 		}
+#endif
 		if (copy_to_user((void __user *)arg, &level, _IOC_SIZE(cmd)) != 0) {/*PRQA S ALL*/
 			dev_err(core->dev, "copy data to userspace failed\n");
 			return -EFAULT;
@@ -255,9 +257,11 @@ static long bpu_core_ioctl(struct file *filp,/*PRQA S ALL*/
 		break;
 	case BPU_GET_FREQ_LEVEL_NUM:/*PRQA S ALL*/
 		level = 1;
+#if defined(CONFIG_PM_DEVFREQ) && defined(CONFIG_DEVFREQ_THERMAL)
 		if (core->dvfs != NULL) {
 			level = (int16_t)core->dvfs->level_num;
 		}
+#endif
 		if (copy_to_user((void __user *)arg, &level, _IOC_SIZE(cmd)) != 0) {/*PRQA S ALL*/
 			dev_err(core->dev, "copy data to userspace failed\n");
 			return -EFAULT;
