@@ -264,17 +264,34 @@ static u32 x3_sif_poll(struct file *file, struct poll_table_struct *wait)
 {
 	int ret = 0;
 	struct sif_video_ctx *sif_ctx;
+	struct vio_framemgr *framemgr;
+	unsigned long flags;
+	struct list_head *done_list;
+	struct x3_sif_dev *sif;
 
 	sif_ctx = file->private_data;
+	framemgr = sif_ctx->framemgr;
+	sif = sif_ctx->sif_dev;
 
 	poll_wait(file, &sif_ctx->done_wq, wait);
-
-	if(sif_ctx->event == VIO_FRAME_DONE)
+	framemgr_e_barrier_irqs(framemgr, 0, flags);
+	done_list = &framemgr->queued_list[FS_COMPLETE];
+	if (!list_empty(done_list)) {
+		sif->statistic.pollin_comp[sif_ctx->group->instance]\
+			[sif_ctx->id]++;
+		framemgr_x_barrier_irqr(framemgr, 0, flags);
+		return POLLIN;
+	}
+	framemgr_x_barrier_irqr(framemgr, 0, flags);
+	if(sif_ctx->event == VIO_FRAME_DONE) {
+		sif->statistic.pollin_fe[sif_ctx->group->instance]\
+			[sif_ctx->id]++;
 		ret = POLLIN;
-	else if(sif_ctx->event == VIO_FRAME_NDONE)
+	} else if (sif_ctx->event == VIO_FRAME_NDONE) {
+		sif->statistic.pollerr[sif_ctx->group->instance]\
+			[sif_ctx->id]++;
 		ret = POLLERR;
-
-	sif_ctx->event = 0;
+	}
 
 	return ret;
 }
@@ -813,9 +830,11 @@ int sif_video_qbuf(struct sif_video_ctx *sif_ctx,
 	struct vio_frame *frame;
 	unsigned long flags;
 	struct vio_group *group;
+	struct x3_sif_dev *sif;
 
 	index = frameinfo->bufferindex;
 	framemgr = sif_ctx->framemgr;
+	sif = sif_ctx->sif_dev;
 	BUG_ON(index >= framemgr->num_frames);
 
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
@@ -835,6 +854,9 @@ int sif_video_qbuf(struct sif_video_ctx *sif_ctx,
 	group = sif_ctx->group;
 	vio_group_start_trigger(group, frame);
 
+	if (sif_ctx->ctx_index == 0)
+		sif->statistic.q_normal\
+			[sif_ctx->group->instance][sif_ctx->id]++;
 	vio_dbg("[S%d][V%d]%s index %d\n", sif_ctx->group->instance,
 		sif_ctx->id, __func__, frameinfo->bufferindex);
 
@@ -846,21 +868,34 @@ int sif_video_dqbuf(struct sif_video_ctx *sif_ctx,
 			struct frame_info *frameinfo)
 {
 	int ret = 0;
-	struct list_head *done_list;
 	struct vio_framemgr *framemgr;
 	struct vio_frame *frame;
 	unsigned long flags;
+	struct x3_sif_dev *sif;
 
 	framemgr = sif_ctx->framemgr;
-
-	done_list = &framemgr->queued_list[FS_COMPLETE];
-	wait_event_interruptible(sif_ctx->done_wq, !list_empty(done_list));
+	sif = sif_ctx->sif_dev;
 
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	frame = peek_frame(framemgr, FS_COMPLETE);
 	if (frame) {
 		memcpy(frameinfo, &frame->frameinfo, sizeof(struct frame_info));
 		trans_frame(framemgr, frame, FS_FREE);
+		sif_ctx->event = 0;
+		if (sif_ctx->ctx_index == 0)
+			sif->statistic.dq_normal\
+				[sif_ctx->group->instance][sif_ctx->id]++;
+	} else {
+		ret = -EFAULT;
+		sif_ctx->event = 0;
+		vio_err("[S%d][V%d] %s (p%d) complete empty.",
+			sif_ctx->group->instance, sif_ctx->id, __func__,
+			sif_ctx->ctx_index);
+		if (sif_ctx->ctx_index == 0)
+			sif->statistic.dq_err\
+				[sif_ctx->group->instance][sif_ctx->id]++;
+		framemgr_x_barrier_irqr(framemgr, 0, flags);
+		return ret;
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
@@ -1002,7 +1037,9 @@ static long x3_sif_ioctl(struct file *file, unsigned int cmd,
 		ret = sif_video_s_stream(sif_ctx, ! !enable);
 		break;
 	case SIF_IOC_DQBUF:
-		sif_video_dqbuf(sif_ctx, &frameinfo);
+		ret = sif_video_dqbuf(sif_ctx, &frameinfo);
+		if (ret)
+			return -EFAULT;
 		ret = copy_to_user((void __user *) arg,
 				(char *) &frameinfo, sizeof(struct frame_info));
 		if (ret)
@@ -1110,9 +1147,9 @@ void sif_frame_done(struct sif_subdev *subdev)
 
 		trans_frame(framemgr, frame, FS_COMPLETE);
 		event = VIO_FRAME_DONE;
-		sif->statistic.normal_frame[group->instance][subdev->id]++;
+		sif->statistic.fe_normal[group->instance][subdev->id]++;
 	} else {
-		sif->statistic.err_buf_lack_fe[group->instance][subdev->id]++;
+		sif->statistic.fe_lack_buf[group->instance][subdev->id]++;
 		event = VIO_FRAME_NDONE;
 		vio_err("[S%d][V%d]SIF PROCESS queue has no member;\n",
 			group->instance, subdev->id);
@@ -1218,7 +1255,7 @@ static irqreturn_t sif_isr(int irq, void *data)
 							gtask->id,
 							gtask->hw_resource.count,
 							atomic_read(&group->rcount));
-						sif->statistic.err_task_lack_fs[instance]++;
+						sif->statistic.fs_lack_task[instance]++;
 					} else {
 						up(&gtask->hw_resource);
 					}
@@ -1247,7 +1284,7 @@ static irqreturn_t sif_isr(int irq, void *data)
 		sif->mismatch_cnt++;
 		err_occured = 1;
 		instance = atomic_read(&sif->instance);
-		sif->statistic.err_mismatch[instance]++;
+		sif->statistic.hard_mismatch[instance]++;
 	}
 
 	if (irq_src.sif_frm_int & 1 << INTR_SIF_IN_OVERFLOW) {
@@ -1256,7 +1293,7 @@ static irqreturn_t sif_isr(int irq, void *data)
 		sif_print_buffer_status(sif->base_reg);
 		err_occured = 1;
 		instance = atomic_read(&sif->instance);
-		sif->statistic.err_overflow[instance]++;
+		sif->statistic.hard_overflow[instance]++;
 	}
 
 	if (irq_src.sif_frm_int & 1 << INTR_SIF_OUT_BUF_ERROR) {
@@ -1264,7 +1301,7 @@ static irqreturn_t sif_isr(int irq, void *data)
 		vio_err("Out buffer error\n");
 		err_occured = 1;
 		instance = atomic_read(&sif->instance);
-		sif->statistic.err_buf_err[instance]++;
+		sif->statistic.hard_buf_err[instance]++;
 	}
 
 	if (sif->error_count >= SIF_ERR_COUNT) {
@@ -1557,25 +1594,39 @@ static ssize_t sif_stat_show(struct device *dev,
 		for (i = 0; i < 2; i++) {
 			stats = &sif->statistic.user_stats[instance][i];
 			len = snprintf(&buf[offset], PAGE_SIZE - offset,
-				"ch%d(%s) DRV: normal %d, drop %d, fe_lack_buf %d"
-				" || USER: normal %d, sel tout %d, drop %d, dq fail %d, sel err%d\n",
+				"ch%d(%s) USER: normal %d, sel tout %d, "
+				"drop %d, dq fail %d, sel err%d\n",
 				i, sif_node_name[i],
-				sif->statistic.normal_frame[instance][i],
-				sif->statistic.err_frame_drop[instance][i],
-				sif->statistic.err_buf_lack_fe[instance][i],
 				stats->cnt[USER_STATS_NORM_FRM],
 				stats->cnt[USER_STATS_SEL_TMOUT],
 				stats->cnt[USER_STATS_DROP],
 				stats->cnt[USER_STATS_DQ_FAIL],
 				stats->cnt[USER_STATS_SEL_ERR]);
 			offset += len;
+
+			len = snprintf(&buf[offset],  PAGE_SIZE - offset,
+				"ch%d(%s) DRV: fe_normal %d, fe_lack_buf %d, "
+				"pollin_comp %d, pollin_isr %d, pollerr %d, "
+				"dq_normal %d, dq_err %d, "
+				"q_normal %d\n",
+				i, sif_node_name[i],
+				sif->statistic.fe_normal[instance][i],
+				sif->statistic.fe_lack_buf[instance][i],
+				sif->statistic.pollin_comp[instance][i],
+				sif->statistic.pollin_fe[instance][i],
+				sif->statistic.pollerr[instance][i],
+				sif->statistic.dq_normal[instance][i],
+				sif->statistic.dq_err[instance][i],
+				sif->statistic.q_normal[instance][i]);
+			offset += len;
 		}
 		len = snprintf(&buf[offset], PAGE_SIZE - offset,
-			"DRV: fs_lack_task %d, mismatch %d, overflow %d, buf err %d\n",
-			sif->statistic.err_task_lack_fs[instance],
-			sif->statistic.err_mismatch[instance],
-			sif->statistic.err_overflow[instance],
-			sif->statistic.err_buf_err[instance]);
+			"DRV: fs_lack_task %d, mismatch %d, "
+			"overflow %d, buf err %d\n",
+			sif->statistic.fs_lack_task[instance],
+			sif->statistic.hard_mismatch[instance],
+			sif->statistic.hard_overflow[instance],
+			sif->statistic.hard_buf_err[instance]);
 		offset += len;
 	}
 	return offset;

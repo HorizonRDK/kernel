@@ -171,15 +171,33 @@ static u32 x3_ipu_poll(struct file *file, struct poll_table_struct *wait)
 	int ret = 0;
 	struct ipu_video_ctx *ipu_ctx;
 	struct vio_framemgr *framemgr;
+	unsigned long flags;
+	struct list_head *done_list;
+	struct x3_ipu_dev *ipu;
 
 	ipu_ctx = file->private_data;
 	framemgr = ipu_ctx->framemgr;
+	ipu = ipu_ctx->ipu_dev;
 
 	poll_wait(file, &ipu_ctx->done_wq, wait);
-	if(ipu_ctx->event == VIO_FRAME_DONE)
+	framemgr_e_barrier_irqs(framemgr, 0, flags);
+	done_list = &framemgr->queued_list[FS_COMPLETE];
+	if (!list_empty(done_list)) {
+		ipu->statistic.pollin_comp[ipu_ctx->group->instance]\
+			[ipu_ctx->id]++;
+		framemgr_x_barrier_irqr(framemgr, 0, flags);
+		return POLLIN;
+	}
+	framemgr_x_barrier_irqr(framemgr, 0, flags);
+	if(ipu_ctx->event == VIO_FRAME_DONE) {
+		ipu->statistic.pollin_fe[ipu_ctx->group->instance]\
+			[ipu_ctx->id]++;
 		ret = POLLIN;
-	else if(ipu_ctx->event == VIO_FRAME_NDONE)
+	} else if (ipu_ctx->event == VIO_FRAME_NDONE) {
+		ipu->statistic.pollerr[ipu_ctx->group->instance]\
+			[ipu_ctx->id]++;
 		ret =  POLLERR;
+	}
 
 	return ret;
 }
@@ -1367,11 +1385,13 @@ int ipu_video_qbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 	struct vio_frame *frame;
 	struct vio_group *group;
 	struct ipu_subdev *subdev;
+	struct x3_ipu_dev *ipu;
 
 	index = frameinfo->bufferindex;
 	framemgr = ipu_ctx->framemgr;
 	subdev = ipu_ctx->subdev;
 	group = ipu_ctx->group;
+	ipu = ipu_ctx->ipu_dev;
 	if (index >= framemgr->max_index) {
 		vio_err("[S%d] %s index err(%d-%d).\n", group->instance,
 		__func__, index, framemgr->max_index);
@@ -1456,6 +1476,9 @@ int ipu_video_qbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 		vio_group_start_trigger(group, frame);
 	}
 
+	if (ipu_ctx->ctx_index == 0)
+		ipu->statistic.q_normal\
+			[ipu_ctx->group->instance][ipu_ctx->id]++;
 	vio_dbg("[S%d][V%d] %s index %d\n", group->instance, ipu_ctx->id,
 		__func__, frameinfo->bufferindex);
 	return ret;
@@ -1474,10 +1497,12 @@ int ipu_video_dqbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 	struct ipu_subdev *subdev;
 	u32 bufindex;
 	u32 ctx_index;
+	struct x3_ipu_dev *ipu;
 
 	framemgr = ipu_ctx->framemgr;
 	subdev = ipu_ctx->subdev;
 	ctx_index = ipu_ctx->ctx_index;
+	ipu = ipu_ctx->ipu_dev;
 
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	if (ipu_ctx->frm_num_usr > (int)ipu_ctx->frm_num) {
@@ -1513,6 +1538,9 @@ int ipu_video_dqbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 				frame->frameinfo.bufferindex,
 				frame->frameinfo.frame_id);
 		}
+		if (ipu_ctx->ctx_index == 0)
+			ipu->statistic.dq_normal\
+				[ipu_ctx->group->instance][ipu_ctx->id]++;
 		framemgr_x_barrier_irqr(framemgr, 0, flags);
 		return ret;
 	} else {
@@ -1522,6 +1550,9 @@ int ipu_video_dqbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 			vio_err("[S%d][V%d] %s (p%d) complete empty.",
 				ipu_ctx->group->instance, ipu_ctx->id, __func__,
 				ipu_ctx->ctx_index);
+			if (ipu_ctx->ctx_index == 0)
+				ipu->statistic.dq_err\
+					[ipu_ctx->group->instance][ipu_ctx->id]++;
 			framemgr_x_barrier_irqr(framemgr, 0, flags);
 			return ret;
 		}
@@ -1829,9 +1860,9 @@ void ipu_frame_done(struct ipu_subdev *subdev)
 		ipu_set_iar_output(subdev, frame);
 		event = VIO_FRAME_DONE;
 		trans_frame(framemgr, frame, FS_COMPLETE);
-		ipu->statistic.normal_frame[group->instance][subdev->id]++;
+		ipu->statistic.fe_normal[group->instance][subdev->id]++;
 	} else {
-		ipu->statistic.err_buf_lack_fe[group->instance][subdev->id]++;
+		ipu->statistic.fe_lack_buf[group->instance][subdev->id]++;
 		event = VIO_FRAME_NDONE;
 		vio_err("[S%d][V%d]IPU PROCESS queue has no member;\n",
 				group->instance, subdev->id);
@@ -1974,7 +2005,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 
 		err_occured = 2;
 		ipu->frame_drop_count++;
-		ipu->statistic.err_frame_drop[instance][GROUP_ID_US]++;
+		ipu->statistic.hard_frame_drop[instance][GROUP_ID_US]++;
 	}
 
 	if (status & (1 << INTR_IPU_DS0_FRAME_DROP)) {
@@ -1985,7 +2016,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 
 		err_occured = 2;
 		ipu->frame_drop_count++;
-		ipu->statistic.err_frame_drop[instance][GROUP_ID_DS0]++;
+		ipu->statistic.hard_frame_drop[instance][GROUP_ID_DS0]++;
 	}
 
 	if (status & (1 << INTR_IPU_DS1_FRAME_DROP)) {
@@ -1996,7 +2027,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 
 		err_occured = 2;
 		ipu->frame_drop_count++;
-		ipu->statistic.err_frame_drop[instance][GROUP_ID_DS1]++;
+		ipu->statistic.hard_frame_drop[instance][GROUP_ID_DS1]++;
 	}
 
 	if (status & (1 << INTR_IPU_DS2_FRAME_DROP)) {
@@ -2007,7 +2038,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 
 		err_occured = 2;
 		ipu->frame_drop_count++;
-		ipu->statistic.err_frame_drop[instance][GROUP_ID_DS2]++;
+		ipu->statistic.hard_frame_drop[instance][GROUP_ID_DS2]++;
 	}
 
 	if (status & (1 << INTR_IPU_DS3_FRAME_DROP)) {
@@ -2018,7 +2049,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 
 		err_occured = 2;
 		ipu->frame_drop_count++;
-		ipu->statistic.err_frame_drop[instance][GROUP_ID_DS3]++;
+		ipu->statistic.hard_frame_drop[instance][GROUP_ID_DS3]++;
 	}
 
 	if (status & (1 << INTR_IPU_DS4_FRAME_DROP)) {
@@ -2029,7 +2060,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 
 		err_occured = 2;
 		ipu->frame_drop_count++;
-		ipu->statistic.err_frame_drop[instance][GROUP_ID_DS4]++;
+		ipu->statistic.hard_frame_drop[instance][GROUP_ID_DS4]++;
 	}
 
 	if (status & (1 << INTR_IPU_FRAME_DONE)) {
@@ -2092,7 +2123,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 					atomic_read(&group->rcount),
 					atomic_read(&ipu->backup_fcount),
 					atomic_read(&ipu->sensor_fcount));
-				ipu->statistic.err_task_lack_fs[instance]++;
+				ipu->statistic.fs_lack_task[instance]++;
 			} else {
 				up(&gtask->hw_resource);
 			}
@@ -2301,29 +2332,43 @@ static ssize_t ipu_stat_show(struct device *dev,
 		offset += len;
 		for (i = 0; i < 7; i++) {
 			stats = &ipu->statistic.user_stats[instance][i];
-			len = snprintf(&buf[offset],  PAGE_SIZE - offset,
-				"ch%d(%s) DRV: normal %d, drop %d, fe_lack_buf %d"
-				" || USER: normal %d, sel tout %d, drop %d, dq fail %d, sel err%d\n",
+			len = snprintf(&buf[offset], PAGE_SIZE - offset,
+				"ch%d(%s) USER: normal %d, sel tout %d, drop %d, "
+				"dq fail %d, sel err%d\n",
 				i, ipu_node_name[i],
-				ipu->statistic.normal_frame[instance][i],
-				ipu->statistic.err_frame_drop[instance][i],
-				ipu->statistic.err_buf_lack_fe[instance][i],
 				stats->cnt[USER_STATS_NORM_FRM],
 				stats->cnt[USER_STATS_SEL_TMOUT],
 				stats->cnt[USER_STATS_DROP],
 				stats->cnt[USER_STATS_DQ_FAIL],
 				stats->cnt[USER_STATS_SEL_ERR]);
 			offset += len;
+
+			len = snprintf(&buf[offset],  PAGE_SIZE - offset,
+				"ch%d(%s) DRV: fe_normal %d, fe_lack_buf %d, "
+				"pollin_comp %d, pollin_isr %d, pollerr %d, "
+				"dq_normal %d, dq_err %d, "
+				"q_normal %d "
+				"hard_frame_drop %d\n",
+				i, ipu_node_name[i],
+				ipu->statistic.fe_normal[instance][i],
+				ipu->statistic.fe_lack_buf[instance][i],
+				ipu->statistic.pollin_comp[instance][i],
+				ipu->statistic.pollin_fe[instance][i],
+				ipu->statistic.pollerr[instance][i],
+				ipu->statistic.dq_normal[instance][i],
+				ipu->statistic.dq_err[instance][i],
+				ipu->statistic.q_normal[instance][i],
+				ipu->statistic.hard_frame_drop[instance][i]);
+			offset += len;
 		}
 		len = snprintf(&buf[offset], PAGE_SIZE - offset,
 			"DRV: fs_lack_task %d\n",
-			ipu->statistic.err_task_lack_fs[instance]);
+			ipu->statistic.fs_lack_task[instance]);
 		offset += len;
 	}
 
 	return offset;
 }
-
 static ssize_t ipu_stat_store(struct device *dev,
 					struct device_attribute *attr,
 					const char *page, size_t len)

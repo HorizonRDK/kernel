@@ -35,11 +35,21 @@ struct pym_status_statistic {
 	u32 enable[VIO_MAX_STREAM];
 
 	/* driver statistic*/
-	u32 normal_frame[VIO_MAX_STREAM];
-	u32 err_frame_drop_us[VIO_MAX_STREAM];
-	u32 err_frame_drop_ds[VIO_MAX_STREAM];
-	u32 err_buf_lack_fe[VIO_MAX_STREAM];
-	u32 err_task_lack_fs[VIO_MAX_STREAM];
+	u32 fe_normal[VIO_MAX_STREAM];
+	u32 fe_lack_buf[VIO_MAX_STREAM];
+
+	u32 hard_frame_drop_us[VIO_MAX_STREAM];
+	u32 hard_frame_drop_ds[VIO_MAX_STREAM];
+	u32 fs_lack_task[VIO_MAX_STREAM];
+
+	u32 dq_normal[VIO_MAX_STREAM];
+	u32 dq_err[VIO_MAX_STREAM];
+
+	u32 pollin_fe[VIO_MAX_STREAM];
+	u32 pollin_comp[VIO_MAX_STREAM];
+	u32 pollerr[VIO_MAX_STREAM];
+
+	u32 q_normal[VIO_MAX_STREAM];
 
 	/* user statistic*/
 	struct user_statistic user_stats[VIO_MAX_STREAM];

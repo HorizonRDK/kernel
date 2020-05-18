@@ -84,14 +84,31 @@ static u32 x3_pym_poll(struct file *file, struct poll_table_struct *wait)
 {
 	int ret = 0;
 	struct pym_video_ctx *pym_ctx;
+	struct vio_framemgr *framemgr;
+	unsigned long flags;
+	struct list_head *done_list;
+	struct x3_pym_dev *pym;
 
 	pym_ctx = file->private_data;
+	framemgr = pym_ctx->framemgr;
+	pym = pym_ctx->pym_dev;;
 
 	poll_wait(file, &pym_ctx->done_wq, wait);
-	if (pym_ctx->event == VIO_FRAME_DONE)
+	framemgr_e_barrier_irqs(framemgr, 0, flags);
+	done_list = &framemgr->queued_list[FS_COMPLETE];
+	if (!list_empty(done_list)) {
+		pym->statistic.pollin_comp[pym_ctx->group->instance]++;
+		framemgr_x_barrier_irqr(framemgr, 0, flags);
+		return POLLIN;
+	}
+	framemgr_x_barrier_irqr(framemgr, 0, flags);
+	if (pym_ctx->event == VIO_FRAME_DONE) {
+		pym->statistic.pollin_fe[pym_ctx->group->instance]++;
 		ret = POLLIN;
-	else if (pym_ctx->event == VIO_FRAME_NDONE)
+	} else if (pym_ctx->event == VIO_FRAME_NDONE) {
+		pym->statistic.pollerr[pym_ctx->group->instance]++;
 		ret = POLLERR;
+	}
 
 	return ret;
 }
@@ -623,10 +640,12 @@ int pym_video_qbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 	struct vio_group *group;
 	unsigned long flags;
 	int index;
+	struct x3_pym_dev *pym;
 
 	index = frameinfo->bufferindex;
 	framemgr = pym_ctx->framemgr;
 	group = pym_ctx->group;
+	pym = pym_ctx->pym_dev;
 	if (index >= framemgr->max_index) {
 		vio_err("[S%d] %s index err(%d-%d).\n", group->instance,
 			__func__, index, framemgr->max_index);
@@ -705,6 +724,8 @@ int pym_video_qbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 	if(group->leader == true)
 		vio_group_start_trigger(group, frame);
 
+	if (pym_ctx->ctx_index == 0)
+		pym->statistic.q_normal[pym_ctx->group->instance]++;
 	vio_dbg("[S%d] %s index %d\n", group->instance,
 		__func__, frameinfo->bufferindex);
 
@@ -725,10 +746,12 @@ int pym_video_dqbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 	u32 bufindex;
 	u32 ctx_index;
 	struct pym_subdev *subdev;
+	struct x3_pym_dev *pym;
 
 	framemgr = pym_ctx->framemgr;
 	ctx_index = pym_ctx->ctx_index;
 	subdev = pym_ctx->subdev;
+	pym = pym_ctx->pym_dev;
 
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	if (pym_ctx->frm_num_usr > (int)pym_ctx->frm_num) {
@@ -762,6 +785,8 @@ int pym_video_dqbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 			vio_dbg("[S%d] %s proc%d index%d frame%d from COMP\n",
 				pym_ctx->group->instance, __func__, ctx_index,
 				frameinfo->bufferindex, frameinfo->frame_id);
+			if (pym_ctx->ctx_index == 0)
+				pym->statistic.dq_normal[pym_ctx->group->instance]++;
 			return ret;
 		}
 	} else {
@@ -771,6 +796,8 @@ int pym_video_dqbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 			vio_err("[S%d][V%d] %s (p%d) complete empty.",
 				pym_ctx->group->instance, pym_ctx->id, __func__,
 				pym_ctx->ctx_index);
+			if (pym_ctx->ctx_index == 0)
+				pym->statistic.dq_err[pym_ctx->group->instance]++;
 			framemgr_x_barrier_irqr(framemgr, 0, flags);
 			return ret;
 		}
@@ -1064,9 +1091,9 @@ void pym_frame_done(struct pym_subdev *subdev)
 		pym_set_iar_output(subdev, frame);
 		event = VIO_FRAME_DONE;
 		trans_frame(framemgr, frame, FS_COMPLETE);
-		pym->statistic.normal_frame[group->instance]++;
+		pym->statistic.fe_normal[group->instance]++;
 	} else {
-		pym->statistic.err_buf_lack_fe[group->instance]++;
+		pym->statistic.fe_lack_buf[group->instance]++;
 		event = VIO_FRAME_NDONE;
 		vio_err("[S%d]PYM PROCESS queue has no member;\n", group->instance);
 		vio_err("[S%d][V%d][FRM](%d %d %d %d %d)\n",
@@ -1154,13 +1181,13 @@ static irqreturn_t pym_isr(int irq, void *data)
 	if (status & (1 << INTR_PYM_DS_FRAME_DROP)) {
 		vio_err("[%d]DS drop frame\n", instance);
 		drop_flag = true;
-		pym->statistic.err_frame_drop_ds[instance]++;
+		pym->statistic.hard_frame_drop_ds[instance]++;
 	}
 
 	if (status & (1 << INTR_PYM_US_FRAME_DROP)) {
 		vio_err("[%d]US drop frame\n", instance);
 		drop_flag = true;
-		pym->statistic.err_frame_drop_us[instance]++;
+		pym->statistic.hard_frame_drop_us[instance]++;
 	}
 
 	if (status & (1 << INTR_PYM_FRAME_DONE)) {
@@ -1185,7 +1212,7 @@ static irqreturn_t pym_isr(int irq, void *data)
 					atomic_read(&group->rcount),
 					atomic_read(&pym->backup_fcount),
 					atomic_read(&pym->sensor_fcount));
-				pym->statistic.err_task_lack_fs[instance]++;
+				pym->statistic.fs_lack_task[instance]++;
 			} else {
 				up(&gtask->hw_resource);
 			}
@@ -1359,12 +1386,8 @@ static ssize_t pym_stat_show(struct device *dev,
 
 		stats = &pym->statistic.user_stats[instance];
 		len = snprintf(&buf[offset], PAGE_SIZE - offset,
-			"DRV: normal %d, drop us%d ds%d, fe_lack_buf %d"
-			" || USER: normal %d, sel tout %d, drop %d, dq fail %d, sel err%d\n",
-			pym->statistic.normal_frame[instance],
-			pym->statistic.err_frame_drop_us[instance],
-			pym->statistic.err_frame_drop_ds[instance],
-			pym->statistic.err_buf_lack_fe[instance],
+			"USER: normal %d, sel tout %d, "
+			"drop %d, dq fail %d, sel err%d\n",
 			stats->cnt[USER_STATS_NORM_FRM],
 			stats->cnt[USER_STATS_SEL_TMOUT],
 			stats->cnt[USER_STATS_DROP],
@@ -1372,9 +1395,27 @@ static ssize_t pym_stat_show(struct device *dev,
 			stats->cnt[USER_STATS_SEL_ERR]);
 		offset += len;
 
+		len = snprintf(&buf[offset],  PAGE_SIZE - offset,
+			"DRV: fe_normal %d, fe_lack_buf %d, "
+			"pollin_comp %d, pollin_isr %d, pollerr %d, "
+			"dq_normal %d, dq_err %d, "
+			"q_normal %d, "
+			"hard_frame_drop_us %d, hard_frame_drop_ds %d\n",
+			pym->statistic.fe_normal[instance],
+			pym->statistic.fe_lack_buf[instance],
+			pym->statistic.pollin_comp[instance],
+			pym->statistic.pollin_fe[instance],
+			pym->statistic.pollerr[instance],
+			pym->statistic.dq_normal[instance],
+			pym->statistic.dq_err[instance],
+			pym->statistic.q_normal[instance],
+			pym->statistic.hard_frame_drop_us[instance],
+			pym->statistic.hard_frame_drop_ds[instance]);
+		offset += len;
+
 		len = snprintf(&buf[offset], PAGE_SIZE - offset,
 			"DRV: fs_lack_task %d\n",
-			pym->statistic.err_task_lack_fs[instance]);
+			pym->statistic.fs_lack_task[instance]);
 		offset += len;
 	}
 
