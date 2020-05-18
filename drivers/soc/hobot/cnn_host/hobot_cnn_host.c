@@ -1453,57 +1453,6 @@ static void hobot_bpu_do_tasklet(unsigned long data)
 		complete(&dev->bpu_completion);
 }
 
-
-
-static void *cnn_ram_vmap(phys_addr_t start, size_t size,
-		unsigned int memtype)
-{
-	struct page **pages;
-	phys_addr_t page_start;
-	unsigned int page_count;
-	pgprot_t prot;
-	unsigned int i;
-	void *vaddr;
-
-	page_start = start - offset_in_page(start);
-	page_count = DIV_ROUND_UP(size + offset_in_page(start), PAGE_SIZE);
-
-	switch (memtype) {
-	case CNN_MT_WB:
-		prot = PAGE_KERNEL;
-		break;
-	case CNN_MT_UC:
-		prot = pgprot_noncached(PAGE_KERNEL);
-		break;
-	case CNN_MT_WC:
-		prot = pgprot_writecombine(PAGE_KERNEL);
-		break;
-	case CNN_MT_WT:
-		prot = __pgprot(PROT_NORMAL_WT);
-		break;
-	default:
-		/* Default set normal memory(cacheable) */
-		prot = PAGE_KERNEL;
-	}
-
-	pages = kmalloc_array(page_count, sizeof(struct page *), GFP_KERNEL);
-	if (!pages) {
-		pr_err("%s: Failed to allocate array for %u pages\n",
-		       __func__, page_count);
-		return NULL;
-	}
-
-	for (i = 0; i < page_count; i++) {
-		phys_addr_t addr = page_start + i * PAGE_SIZE;
-
-		pages[i] = pfn_to_page(addr >> PAGE_SHIFT);
-	}
-	vaddr = vm_map_ram(pages, page_count, -1, prot);
-	kfree(pages);
-
-	return vaddr;
-}
-
 int cnn_debugfs_remove_files(const struct cnn_debugfs_info *files, int count,
 			     struct hobot_bpu_dev *dev)
 {
@@ -1987,8 +1936,6 @@ int hobot_bpu_probe(struct platform_device *pdev)
 	struct device_node *np = pdev->dev.of_node;
 	struct resource *res;
 	struct resource *pmu;
-	struct device_node *mem_np = NULL;
-	struct resource mem_reserved;
 	int cnn_id;
 	char dev_name[8];
 
@@ -2128,7 +2075,7 @@ int hobot_bpu_probe(struct platform_device *pdev)
 	cnn_dev->real_int_cnt = 0;
 	cnn_dev->wait_nega_flag = 0;
 
-	pr_info("bpu%d fc phy base = 0x%x, len = 0x%x, default fc len = 0x%x\n",
+	pr_info("bpu%d fc phy base = 0x%llx, len = 0x%x, default fc len = 0x%x\n",
 			cnn_dev->core_index,
 			cnn_dev->fc_phys_base,
 			cnn_dev->fc_mem_size,
