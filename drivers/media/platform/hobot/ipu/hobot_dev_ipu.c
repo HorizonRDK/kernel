@@ -2112,6 +2112,11 @@ static irqreturn_t ipu_isr(int irq, void *data)
 	}
 
 	if (status & (1 << INTR_IPU_FRAME_START)) {
+		ipu->statistic.fs[instance]++;
+		ipu->statistic.tal_fs++;
+		ipu->statistic.grp_tsk_left[instance]
+			= atomic_read(&group->rcount);
+		ipu->statistic.tal_frm_work = atomic_read(&ipu->backup_fcount);
 		atomic_inc(&ipu->sensor_fcount);
 		if (test_bit(IPU_OTF_INPUT, &ipu->state)
 				&& group->leader) {
@@ -2362,10 +2367,18 @@ static ssize_t ipu_stat_show(struct device *dev,
 			offset += len;
 		}
 		len = snprintf(&buf[offset], PAGE_SIZE - offset,
-			"DRV: fs_lack_task %d\n",
+			"DRV: fs %d, grp_tsk_left %d, fs_lack_task %d\n",
+			ipu->statistic.fs[instance],
+			ipu->statistic.grp_tsk_left[instance],
 			ipu->statistic.fs_lack_task[instance]);
 		offset += len;
 	}
+
+	len = snprintf(&buf[offset], PAGE_SIZE - offset,
+		"DRV: tatal_fs %d, tatal_frm_work %d\n",
+		ipu->statistic.tal_fs,
+		ipu->statistic.tal_frm_work);
+	offset += len;
 
 	return offset;
 }

@@ -1236,6 +1236,9 @@ static irqreturn_t sif_isr(int irq, void *data)
 			if ((status & 1 << mux_index)) {
 				group = sif->sif_mux[mux_index];
 				subdev = group->sub_ctx[0];
+				sif->statistic.fs[group->instance]++;
+				sif->statistic.grp_tsk_left[group->instance]
+					= atomic_read(&group->rcount);
 				if (subdev->initial_frameid) {
 					sif_enable_init_frameid(sif->base_reg, subdev->rx_index, 0);
 					subdev->initial_frameid = false;
@@ -1255,7 +1258,7 @@ static irqreturn_t sif_isr(int irq, void *data)
 							gtask->id,
 							gtask->hw_resource.count,
 							atomic_read(&group->rcount));
-						sif->statistic.fs_lack_task[instance]++;
+						sif->statistic.fs_lack_task[group->instance]++;
 					} else {
 						up(&gtask->hw_resource);
 					}
@@ -1621,8 +1624,10 @@ static ssize_t sif_stat_show(struct device *dev,
 			offset += len;
 		}
 		len = snprintf(&buf[offset], PAGE_SIZE - offset,
-			"DRV: fs_lack_task %d, mismatch %d, "
-			"overflow %d, buf err %d\n",
+			"DRV: fs %d, grp_tsk_left %d, fs_lack_task %d, "
+			"mismatch %d, overflow %d, buf err %d\n",
+			sif->statistic.fs[instance],
+			sif->statistic.grp_tsk_left[instance],
 			sif->statistic.fs_lack_task[instance],
 			sif->statistic.hard_mismatch[instance],
 			sif->statistic.hard_overflow[instance],

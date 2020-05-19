@@ -1201,6 +1201,11 @@ static irqreturn_t pym_isr(int irq, void *data)
 	}
 
 	if (status & (1 << INTR_PYM_FRAME_START)) {
+		pym->statistic.fs[instance]++;
+		pym->statistic.tal_fs++;
+		pym->statistic.grp_tsk_left[instance]
+			= atomic_read(&group->rcount);
+		pym->statistic.tal_frm_work = atomic_read(&pym->backup_fcount);
 		atomic_inc(&pym->sensor_fcount);
 		if (test_bit(PYM_OTF_INPUT, &pym->state)
 				&& group->leader) {
@@ -1414,10 +1419,18 @@ static ssize_t pym_stat_show(struct device *dev,
 		offset += len;
 
 		len = snprintf(&buf[offset], PAGE_SIZE - offset,
-			"DRV: fs_lack_task %d\n",
+			"DRV: fs %d, grp_tsk_left %d, fs_lack_task %d\n",
+			pym->statistic.fs[instance],
+			pym->statistic.grp_tsk_left[instance],
 			pym->statistic.fs_lack_task[instance]);
 		offset += len;
 	}
+
+	len = snprintf(&buf[offset], PAGE_SIZE - offset,
+		"DRV: tatal_fs %d, tatal_frm_work %d\n",
+		pym->statistic.tal_fs,
+		pym->statistic.tal_frm_work);
+	offset += len;
 
 	return offset;
 }

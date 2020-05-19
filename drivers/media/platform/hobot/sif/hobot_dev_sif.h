@@ -80,6 +80,9 @@ struct sif_status_statistic {
 	u32 hard_overflow[VIO_MAX_STREAM];
 	u32 hard_buf_err[VIO_MAX_STREAM];
 
+	u32 fs[VIO_MAX_STREAM];
+	u32 grp_tsk_left[VIO_MAX_STREAM];
+
 	/* user statistic*/
 	struct user_statistic user_stats[VIO_MAX_STREAM][MAX_DEVICE];
 };

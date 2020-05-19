@@ -76,6 +76,12 @@ struct ipu_status_statistic {
 
 	u32 q_normal[VIO_MAX_STREAM][MAX_DEVICE];
 
+	u32 fs[VIO_MAX_STREAM];
+	u32 grp_tsk_left[VIO_MAX_STREAM];
+
+	u32 tal_fs;
+	u32 tal_frm_work;
+
 	/* user statistic*/
 	struct user_statistic user_stats[VIO_MAX_STREAM][MAX_DEVICE];
 };
