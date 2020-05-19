@@ -19002,6 +19002,7 @@ static const struct cipher_testvec aes_ctr_enc_tv_template[] = {
 			  "\xdf\xc9\xc5\x8d\xb6\x7a\xad\xa6"
 			  "\x13\xc2\xdd\x08\x45\x79\x41\xa6",
 		.rlen	= 64,
+#ifndef CONFIG_HOBOT_XJ3
 	}, { /* Generated with Crypto++ */
 		.key	= "\xC9\x83\xA6\xC9\xEC\x0F\x32\x55"
 			  "\x0F\x32\x55\x78\x9B\xBE\x78\x9B"
@@ -19139,6 +19140,7 @@ static const struct cipher_testvec aes_ctr_enc_tv_template[] = {
 		.also_non_np = 1,
 		.np	= 3,
 		.tap	= { 496 - 20, 4, 16 },
+#endif
 	}, { /* Generated with Crypto++ */
 		.key	= "\xC9\x83\xA6\xC9\xEC\x0F\x32\x55"
 			  "\x0F\x32\x55\x78\x9B\xBE\x78\x9B"
@@ -19357,6 +19359,7 @@ static const struct cipher_testvec aes_ctr_dec_tv_template[] = {
 			  "\xf6\x9f\x24\x45\xdf\x4f\x9b\x17"
 			  "\xad\x2b\x41\x7b\xe6\x6c\x37\x10",
 		.rlen	= 64,
+#ifndef CONFIG_HOBOT_XJ3
 	}, { /* Generated with Crypto++ */
 		.key	= "\xC9\x83\xA6\xC9\xEC\x0F\x32\x55"
 			  "\x0F\x32\x55\x78\x9B\xBE\x78\x9B"
@@ -19494,6 +19497,7 @@ static const struct cipher_testvec aes_ctr_dec_tv_template[] = {
 		.also_non_np = 1,
 		.np	= 3,
 		.tap	= { 496 - 20, 4, 16 },
+#endif
 	}, { /* Generated with Crypto++ */
 		.key	= "\xC9\x83\xA6\xC9\xEC\x0F\x32\x55"
 			  "\x0F\x32\x55\x78\x9B\xBE\x78\x9B"
