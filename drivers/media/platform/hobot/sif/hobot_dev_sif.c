@@ -339,6 +339,7 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 
 	if (atomic_dec_return(&sif->open_cnt) == 0) {
 		clear_bit(SIF_DMA_IN_ENABLE, &sif->state);
+		clear_bit(SIF_OTF_OUTPUT, &sif->state);
 		if (test_bit(SIF_HW_RUN, &sif->state)) {
 			set_bit(SIF_HW_FORCE_STOP, &sif->state);
 			sif_video_streamoff(sif_ctx);
@@ -458,10 +459,20 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 	ddr_enable =  sif_config->output.ddr.enable;
 	md_enable = sif_config->output.md.enable;
 
+	if (isp_flyby && !test_bit(SIF_OTF_OUTPUT, &sif->state))
+		set_bit(SIF_OTF_OUTPUT, &sif->state);
+
 	/* mux initial*/
-	mux_index = get_free_mux(sif, 0, format, dol_exp_num, &mux_nums);
-	if (mux_index < 0)
-		return mux_index;
+	if (!isp_flyby && test_bit(SIF_OTF_OUTPUT, &sif->state)) {
+		mux_index = get_free_mux(sif, 4, format, dol_exp_num, &mux_nums);
+		if (mux_index < 0)
+			return mux_index;
+		sif_config->output.isp.func.enable_flyby = 1;
+	} else {
+		mux_index = get_free_mux(sif, 0, format, dol_exp_num, &mux_nums);
+		if (mux_index < 0)
+			return mux_index;
+	}
 
 	subdev->mux_nums = mux_nums;
 	sif_config->input.mipi.func.set_mux_out_index = mux_index;

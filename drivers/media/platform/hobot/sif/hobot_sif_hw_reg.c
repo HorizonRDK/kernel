@@ -218,7 +218,7 @@ void sif_set_pattern_gen(u32 __iomem *base_reg, u32 pat_index,
 	else
 		framerate = testpattern_fps = 30;
 
-	v_line = p_data->height + 100 + 1;
+	v_line = p_data->height + 400 + 1;
 	h_time = clk_hz / framerate / v_line;
 	while (h_time >= 0x10000) {
 		v_line = v_line << 1;
@@ -1207,7 +1207,7 @@ void sif_hw_config(u32 __iomem *base_reg, sif_cfg_t* c)
 	}
 
 	if (enable_output_ddr) {
-		if (!online_ddr_enable)
+		if (!online_ddr_enable && !c->output.isp.func.enable_flyby)
 			vio_hw_set_field(base_reg, &sif_regs[SIF_SETTING],
 					&sif_fields[SW_SIF_OWNBIT_UNDERRUN_SKIP_FRM_ENABLE], 1);
 		vio_hw_set_field(base_reg, &sif_regs[SIF_FRM_EN_INT],
