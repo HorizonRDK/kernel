@@ -20,8 +20,6 @@
 #define REG_MIPI_HOST_N_LANES                  (0x04)
 #define REG_MIPI_HOST_CSI2_RESETN              (0x08)
 #define REG_MIPI_HOST_INT_ST_MAIN              (0x0c)
-#define REG_MIPI_HOST_DATA_IDS_1               (0x10)
-#define REG_MIPI_HOST_DATA_IDS_2               (0x14)
 #define REG_MIPI_HOST_PHY_SHUTDOWNZ            (0x40)
 #define REG_MIPI_HOST_DPHY_RSTZ                (0x44)
 #define REG_MIPI_HOST_PHY_RX                   (0x48)

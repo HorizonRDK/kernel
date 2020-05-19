@@ -1289,6 +1289,7 @@ static int hobot_mipi_dev_close(struct inode *inode, struct file *file)
 		}
 		mipi_dev_configure_clk(ddev, MIPI_DEV_CFGCLK_NAME, 0, 0);
 		mipi_dev_configure_clk(ddev, MIPI_DEV_REFCLK_NAME, 0, 0);
+		mipi_dev_configure_clk(ddev, g_md_ipiclk_name[ddev->port], 0, 0);
 	}
 	mutex_unlock(&user->open_mutex);
 
@@ -1437,10 +1438,12 @@ static long hobot_mipi_dev_ioctl(struct file *file, unsigned int cmd, unsigned l
 		break;
 	case MIPIDEVIOC_STOP:
 		{
+			int start_cnt_save;
 			if (mutex_lock_interruptible(&user->mutex)) {
 				mipierr("stop user mutex lock error");
 				return -EINVAL;
 			}
+			start_cnt_save = user->start_cnt;
 			if (user->start_cnt > 0)
 				user->start_cnt--;
 			mipiinfo("stop cmd: %d %s", user->start_cnt,
@@ -1453,13 +1456,13 @@ static long hobot_mipi_dev_ioctl(struct file *file, unsigned int cmd, unsigned l
 				} else if (MIPI_STATE_START != mdev->state) {
 					mipierr("state error, current state: %d(%s)",
 							mdev->state, g_md_state[mdev->state]);
-					user->start_cnt++;
+					user->start_cnt = start_cnt_save;
 					mutex_unlock(&user->mutex);
 					return -EBUSY;
 				}
 				if (0 != (ret = mipi_dev_stop(ddev))) {
 					mipierr("stop error: %d", ret);
-					user->start_cnt++;
+					user->start_cnt = start_cnt_save;
 					mutex_unlock(&user->mutex);
 					return ret;
 				}

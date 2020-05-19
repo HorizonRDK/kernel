@@ -1419,11 +1419,12 @@ static int32_t mipi_host_init(mipi_hdev_t *hdev, mipi_host_cfg_t *cfg)
 		} else {
 			mipi_host_snrclk_set_en(hdev, 0);
 		}
-	}
-	pixclk = mipi_host_pixel_clk_select(hdev, cfg);
-	if (0 == pixclk) {
-		mipierr("pixel clk config error!");
-		return -1;
+		/* ipi clock */
+		pixclk = mipi_host_pixel_clk_select(hdev, cfg);
+		if (0 == pixclk) {
+			mipierr("pixel clk config error!");
+			return -1;
+		}
 	}
 #ifdef CONFIG_HOBOT_MIPI_PHY
 	mipi_dphy_set_freqrange(MIPI_DPHY_TYPE_HOST, hdev->port,
@@ -1461,10 +1462,10 @@ static int32_t mipi_host_init(mipi_hdev_t *hdev, mipi_host_cfg_t *cfg)
 			return -1;
 		}
 	}
-	cfg->hsaTime = cfg->hsaTime ? cfg->hsaTime : MIPI_HOST_HSATIME;
-	cfg->hbpTime = cfg->hbpTime ? cfg->hbpTime : MIPI_HOST_HBPTIME;
-	cfg->hsdTime = cfg->hsdTime ? cfg->hsdTime : mipi_host_get_hsd(hdev, cfg, pixclk);
 	if (!hdev->is_ex) {
+		cfg->hsaTime = cfg->hsaTime ? cfg->hsaTime : MIPI_HOST_HSATIME;
+		cfg->hbpTime = cfg->hbpTime ? cfg->hbpTime : MIPI_HOST_HBPTIME;
+		cfg->hsdTime = cfg->hsdTime ? cfg->hsdTime : mipi_host_get_hsd(hdev, cfg, pixclk);
 		if (0 != mipi_host_configure_ipi(hdev, cfg)) {
 			mipierr("configure ipi error!!!");
 			mipi_host_deinit(hdev);
@@ -1531,6 +1532,7 @@ static int hobot_mipi_host_close(struct inode *inode, struct file *file)
 		}
 		mipi_host_configure_clk(hdev, MIPI_HOST_CFGCLK_NAME, 0, 0);
 		mipi_host_configure_clk(hdev, MIPI_HOST_REFCLK_NAME, 0, 0);
+		mipi_host_configure_clk(hdev, g_mh_ipiclk_name[hdev->port], 0, 0);
 	}
 	mutex_unlock(&user->open_mutex);
 
@@ -1675,10 +1677,12 @@ static long hobot_mipi_host_ioctl(struct file *file, unsigned int cmd, unsigned 
 		break;
 	case MIPIHOSTIOC_STOP:
 		{
+			int start_cnt_save;
 			if (mutex_lock_interruptible(&user->mutex)) {
 				mipierr("stop user mutex lock error");
 				return -EINVAL;
 			}
+			start_cnt_save = user->start_cnt;
 			if (user->start_cnt > 0)
 				user->start_cnt--;
 			mipiinfo("stop cmd: %d %s", user->start_cnt,
@@ -1691,7 +1695,7 @@ static long hobot_mipi_host_ioctl(struct file *file, unsigned int cmd, unsigned 
 				} else if (MIPI_STATE_START != host->state) {
 					mipierr("state error, current state: %d(%s)",
 							host->state, g_mh_state[host->state]);
-					user->start_cnt++;
+					user->start_cnt = start_cnt_save;
 					mutex_unlock(&user->mutex);
 					return -EBUSY;
 				}
@@ -1701,7 +1705,7 @@ static long hobot_mipi_host_ioctl(struct file *file, unsigned int cmd, unsigned 
 				}
 				if (0 != (ret = mipi_host_stop(hdev))) {
 					mipierr("stop error: %d", ret);
-					user->start_cnt++;
+					user->start_cnt = start_cnt_save;
 					mutex_unlock(&user->mutex);
 					return ret;
 				}
@@ -2010,9 +2014,6 @@ static ssize_t mipi_host_status_show(struct device *dev,
 			MH_REG_SHOW(VERSION);
 			MH_REG_SHOW(N_LANES);
 			MH_REG_SHOW(CSI2_RESETN);
-			MH_REG_SHOW(DATA_IDS_1);
-			MH_REG_SHOW(DATA_IDS_2);
-			MH_REG_SHOW(DATA_IDS_2);
 			MH_REG_SHOW(PHY_SHUTDOWNZ);
 			MH_REG_SHOW(DPHY_RSTZ);
 			MH_REG_SHOW(PHY_RX);
