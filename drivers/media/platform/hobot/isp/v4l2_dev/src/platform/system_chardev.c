@@ -368,6 +368,19 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 			ret = -EFAULT;
 			break;
 		}
+		break;
+	default:
+		pr_err("command %d not support.\n", cmd);
+		break;
+	}
+
+	if (ret >= 0) {
+		acamera_context_t *p_ctx;
+		p_ctx = (acamera_context_t *)acamera_get_ctx_ptr(md.chn);
+		if (p_ctx->initialized == 0) {
+			pr_err("%d ctx is not inited.\n", md.chn);
+			ret = -EFAULT;
+		}
 	}
 
 	if (ret < 0)

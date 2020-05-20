@@ -359,6 +359,11 @@ static int update_cur_calibration_to_sbuf( void *fw_instance, struct sbuf_mgr *p
     uint32_t lut_size = 0;
     LookupTable *p_lut = NULL;
 
+    if (p_sbuf_mgr->sbuf_base == NULL) {
+        pr_err("sbuf alloc failed.\n");
+        return -1;
+    }
+
     uint8_t *sbuf_cali_base = (uint8_t *)&p_sbuf_mgr->sbuf_base->kf_info.cali_info.cali_data;
     struct sbuf_lookup_table *p_sbuf_lut_arr = (struct sbuf_lookup_table *)sbuf_cali_base;
     uint8_t *p_sbuf_cali_data = sbuf_cali_base + sizeof( struct sbuf_lookup_table ) * CALIBRATION_TOTAL_SIZE;
