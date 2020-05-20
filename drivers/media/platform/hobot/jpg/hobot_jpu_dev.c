@@ -27,7 +27,7 @@
 #include "hobot_jpu_utils.h"
 
 int jpu_debug_flag = 5;
-int jpu_debug_info_flag = 0;
+int jpu_debug_info = 0;
 
 #ifdef JPU_SUPPORT_RESERVED_VIDEO_MEMORY
 #define JPU_INIT_VIDEO_MEMORY_SIZE_IN_BYTE (16*1024*1024)
@@ -50,30 +50,7 @@ static hb_jpu_drv_buffer_t s_video_memory = { 0 };
 
 DECLARE_BITMAP(jpu_inst_bitmap, MAX_NUM_JPU_INSTANCE);
 
-static ssize_t jpu_debug_show(struct kobject *kobj,
-			      struct kobj_attribute *attr, char *buf)
-{
-	return snprintf(buf, 5, "%d\n", jpu_debug_info_flag ? 1 : 0);
-}
-
-static ssize_t jpu_debug_store(struct kobject *kobj,
-			       struct kobj_attribute *attr, const char *buf,
-			       size_t n)
-{
-	int ret;
-
-	ret = sscanf(buf, "%d", &jpu_debug_info_flag);
-	return n;
-}
-
-static struct kobj_attribute jpu_debug_attr = {
-	.attr = {
-		.name = __stringify(debug),
-		.mode = 0644,
-		},
-	.show = jpu_debug_show,
-	.store = jpu_debug_store,
-};
+module_param(jpu_debug_info, int, 0644);
 
 static int jpu_alloc_dma_buffer(hb_jpu_dev_t *dev,
 			hb_jpu_drv_buffer_t * jb)
@@ -468,14 +445,6 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 				  instance_no, dev->interrupt_flag[instance_no],
 				  dev->interrupt_reason[instance_no]);
 
-			if (priv->inst_index >= 0 &&
-				priv->inst_index < MAX_NUM_JPU_INSTANCE) {
-				spin_lock(&dev->poll_spinlock);
-				dev->poll_event[priv->inst_index] = JPU_PIC_DONE;
-				spin_unlock(&dev->poll_spinlock);
-				wake_up_interruptible(&dev->poll_wait_q[priv->inst_index]);
-			}
-
 			info.intr_reason = dev->interrupt_reason[instance_no];
 			dev->interrupt_flag[instance_no] = 0;
 			dev->interrupt_reason[instance_no] = 0;
@@ -755,10 +724,13 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 						MAX_NUM_JPU_INSTANCE);
 			if (inst_index < MAX_NUM_JPU_INSTANCE) {
 				set_bit(inst_index, jpu_inst_bitmap);
+				spin_lock(&dev->poll_spinlock);
+				dev->poll_event[inst_index] = JPU_EVENT_NONE;
+				spin_unlock(&dev->poll_spinlock);
 			} else {
 				inst_index = -1;
 			}
-			priv->inst_index = inst_index;
+			priv->inst_index = inst_index; // it's useless
 			spin_unlock(&dev->jpu_spinlock);
 
 			ret =
@@ -799,24 +771,34 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 		hb_jpu_drv_intr_t info;
 		u32 inst_no;
 
-		jpu_debug(5, "[+]JDI_IOCTL_POLL_WAIT_INSTANCE\n");
+		//jpu_debug(5, "[+]JDI_IOCTL_POLL_WAIT_INSTANCE\n");
 		ret = copy_from_user(&info, (hb_jpu_drv_intr_t*)arg,
 			sizeof(hb_jpu_drv_intr_t));
 		if (ret != 0) {
 			jpu_err
-				("JDI_IOCTL_FREE_INSTANCE_ID invalid instance id.");
+				("JDI_IOCTL_POLL_WAIT_INSTANCE copy from user fail.\n");
 			return -EFAULT;
 		}
 		inst_no = info.inst_idx;
 		if (inst_no >= 0 && inst_no < MAX_NUM_JPU_INSTANCE) {
-			priv->inst_index = inst_no;
-			spin_lock(&dev->poll_spinlock);
-			dev->poll_event[priv->inst_index] = JPU_EVENT_NONE;
-			spin_unlock(&dev->poll_spinlock);
+			if (info.intr_reason == 0) {
+				priv->inst_index = inst_no;
+			} else if (info.intr_reason == JPU_PIC_DONE ||
+				info.intr_reason == JPU_INST_CLOSED) {
+				spin_lock(&dev->poll_spinlock);
+				dev->poll_event[inst_no] = JPU_PIC_DONE;
+				spin_unlock(&dev->poll_spinlock);
+				wake_up_interruptible(&dev->poll_wait_q[inst_no]);
+			} else {
+				jpu_err
+					("JDI_IOCTL_POLL_WAIT_INSTANCE invalid instance reason"
+					"(%d) or index(%d).", info.intr_reason, inst_no);
+				return -EINVAL;
+			}
 		} else {
-			return  -EINVAL;
+			return -EINVAL;
 		}
-		jpu_debug(5, "[-]JDI_IOCTL_POLL_WAIT_INSTANCE\n");
+		//jpu_debug(5, "[-]JDI_IOCTL_POLL_WAIT_INSTANCE\n");
 	}
 	break;
 	default:
@@ -1195,12 +1177,6 @@ static int jpu_probe(struct platform_device *pdev)
 		goto ERR_CREATE_DEV;
 	}
 
-	err = sysfs_create_file(&pdev->dev.kobj, &jpu_debug_attr.attr);
-	if(err < 0) {
-		dev_err(&pdev->dev, "failed to create sys!!");
-		goto ERR_CREATE_SYSFS;
-	}
-
 	platform_set_drvdata(pdev, dev);
 
 	err = hb_jpu_clk_get(dev);
@@ -1276,8 +1252,6 @@ ERR_ION_CLIENT:
 #endif
 	hb_jpu_clk_put(dev);
 ERR_GET_CLK:
-	sysfs_remove_file(&pdev->dev.kobj, &jpu_debug_attr.attr);
-ERR_CREATE_SYSFS:
 	device_destroy(dev->jpu_class, dev->jpu_dev_num);
 ERR_CREATE_DEV:
 	cdev_del(&dev->cdev);
@@ -1326,7 +1300,6 @@ static int jpu_remove(struct platform_device *pdev)
 
 	//hb_jpu_clk_disable(dev);
 	//hb_jpu_clk_put(dev);
-	sysfs_remove_file(&pdev->dev.kobj, &jpu_debug_attr.attr);
 	device_destroy(dev->jpu_class, dev->jpu_dev_num);
 	cdev_del(&dev->cdev);
 	unregister_chrdev_region(dev->jpu_dev_num, 1);

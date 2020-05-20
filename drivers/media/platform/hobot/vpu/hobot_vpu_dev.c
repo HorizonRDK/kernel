@@ -27,8 +27,8 @@
 #include "hobot_vpu_utils.h"
 
 int vpu_debug_flag = 5;
-int vpu_debug_info_flag = 0;
-int vpu_pf_bw_debug_flag = 0;
+int vpu_debug_info = 0;
+int vpu_pf_bw_debug = 0;
 unsigned long vpu_clk_freq = MAX_VPU_FREQ;
 
 #ifdef VPU_SUPPORT_RESERVED_VIDEO_MEMORY
@@ -49,56 +49,8 @@ static hb_vpu_drv_buffer_t s_video_memory = { 0 };
 DECLARE_BITMAP(vpu_inst_bitmap, MAX_NUM_VPU_INSTANCE);
 
 module_param(vpu_clk_freq, ulong, 0644);
-
-static ssize_t vpu_debug_show(struct kobject *kobj,
-			      struct kobj_attribute *attr, char *buf)
-{
-	return snprintf(buf, 5, "%d\n", vpu_debug_info_flag ? 1 : 0);
-}
-
-static ssize_t vpu_debug_store(struct kobject *kobj,
-			       struct kobj_attribute *attr, const char *buf,
-			       size_t n)
-{
-	int ret;
-
-	ret = sscanf(buf, "%d", &vpu_debug_info_flag);
-	return n;
-}
-
-static struct kobj_attribute vpu_debug_attr = {
-	.attr = {
-		 .name = __stringify(debug),
-		 .mode = 0644,
-		 },
-	.show = vpu_debug_show,
-	.store = vpu_debug_store,
-};
-
-static ssize_t vpu_performance_bandwidth_show(struct kobject *kobj,
-			      struct kobj_attribute *attr, char *buf)
-{
-	return snprintf(buf, 5, "%d\n", vpu_pf_bw_debug_flag ? 1 : 0);
-}
-
-static ssize_t vpu_performance_bandwidth_store(struct kobject *kobj,
-			       struct kobj_attribute *attr, const char *buf,
-			       size_t n)
-{
-	int ret;
-
-	ret = sscanf(buf, "%d", &vpu_pf_bw_debug_flag);
-	return n;
-}
-
-static struct kobj_attribute vpu_pf_bw_debug_attr = {
-	.attr = {
-		 .name = __stringify(performance_bandwidth),
-		 .mode = 0644,
-		 },
-	.show = vpu_performance_bandwidth_show,
-	.store = vpu_performance_bandwidth_store,
-};
+module_param(vpu_debug_info, int, 0644);
+module_param(vpu_pf_bw_debug, int, 0644);
 
 static int vpu_alloc_dma_buffer(hb_vpu_dev_t *dev, hb_vpu_drv_buffer_t * vb)
 {
@@ -586,15 +538,6 @@ static irqreturn_t vpu_irq_handler(int irq, void *dev_id)
 	if (intr_inst_index >= 0 && intr_inst_index < MAX_NUM_VPU_INSTANCE) {
 		dev->interrupt_flag[intr_inst_index] = 1;
 		wake_up_interruptible(&dev->interrupt_wait_q[intr_inst_index]);
-		if ((intr_reason == (1 << INT_WAVE5_DEC_PIC))
-			|| (intr_reason == (1 << INT_WAVE5_ENC_PIC))) {
-			spin_lock(&dev->poll_spinlock);
-			dev->poll_event[intr_inst_index] =
-				(intr_reason == (1 << INT_WAVE5_ENC_PIC)) ? VPU_ENC_PIC_DONE
-				:VPU_DEC_PIC_DONE;
-			spin_unlock(&dev->poll_spinlock);
-			wake_up_interruptible(&dev->poll_wait_q[intr_inst_index]);
-		}
 	}
 #else
 	dev->interrupt_flag = 1;
@@ -1264,9 +1207,13 @@ INTERRUPT_REMAIN_IN_QUEUE:
 						MAX_NUM_VPU_INSTANCE);
 			if (inst_index < MAX_NUM_VPU_INSTANCE) {
 				set_bit(inst_index, vpu_inst_bitmap);
+				spin_lock(&dev->poll_spinlock);
+				dev->poll_event[inst_index] = VPU_EVENT_NONE;
+				spin_unlock(&dev->poll_spinlock);
 			} else {
 				inst_index = -1;
 			}
+			priv->inst_index = inst_index; // it's useless
 			spin_unlock(&dev->vpu_spinlock);
 
 			ret =
@@ -1308,11 +1255,13 @@ INTERRUPT_REMAIN_IN_QUEUE:
 #ifdef SUPPORT_MULTI_INST_INTR
 			u32 intr_inst_index;
 #endif
-			vpu_debug(5, "[+]VDI_IOCTL_POLL_WAIT_INSTANCE\n");
+			//vpu_debug(5, "[+]VDI_IOCTL_POLL_WAIT_INSTANCE\n");
 
 			ret = copy_from_user(&info, (hb_vpu_drv_intr_t *) arg,
 						 sizeof(hb_vpu_drv_intr_t));
 			if (ret != 0) {
+				vpu_err
+					("JDI_IOCTL_POLL_WAIT_INSTANCE copy from user fail.\n");
 				return -EFAULT;
 			}
 #ifdef SUPPORT_MULTI_INST_INTR
@@ -1320,15 +1269,27 @@ INTERRUPT_REMAIN_IN_QUEUE:
 			priv = filp->private_data;
 			if (intr_inst_index >= 0 &&
 				intr_inst_index < MAX_NUM_VPU_INSTANCE) {
-				priv->inst_index = intr_inst_index;
-				spin_lock(&dev->poll_spinlock);
-				dev->poll_event[priv->inst_index] = VPU_EVENT_NONE;
-				spin_unlock(&dev->poll_spinlock);
+				if (info.intr_reason == 0) {
+					priv->inst_index = intr_inst_index;
+				} else if (info.intr_reason == VPU_ENC_PIC_DONE ||
+					info.intr_reason == VPU_DEC_PIC_DONE ||
+					info.intr_reason == VPU_INST_CLOSED) {
+					spin_lock(&dev->poll_spinlock);
+					dev->poll_event[intr_inst_index] = VPU_ENC_PIC_DONE;
+					spin_unlock(&dev->poll_spinlock);
+					wake_up_interruptible(&dev->poll_wait_q[intr_inst_index]);
+				} else {
+					vpu_err
+						("VDI_IOCTL_POLL_WAIT_INSTANCE invalid instance reason"
+						"(%d) or index(%d).\n",
+						info.intr_reason, intr_inst_index);
+					return -EINVAL;
+				}
 			} else {
 				return -EINVAL;
 			}
 #endif
-			vpu_debug(5, "[-]VDI_IOCTL_POLL_WAIT_INSTANCE\n");
+			//vpu_debug(5, "[-]VDI_IOCTL_POLL_WAIT_INSTANCE\n");
 		}
 		break;
 	default:
@@ -1802,18 +1763,6 @@ static int vpu_probe(struct platform_device *pdev)
 		goto ERR_CREATE_DEV;
 	}
 
-	err = sysfs_create_file(&pdev->dev.kobj, &vpu_pf_bw_debug_attr.attr);
-	if(err < 0) {
-		dev_err(&pdev->dev, "failed to create sys!!");
-		goto ERR_CREATE_SYSFS1;
-	}
-
-	err = sysfs_create_file(&pdev->dev.kobj, &vpu_debug_attr.attr);
-	if(err < 0) {
-		dev_err(&pdev->dev, "failed to create sys!!");
-		goto ERR_CREATE_SYSFS2;
-	}
-
 	platform_set_drvdata(pdev, dev);
 
 	dev->vpu_freq = MAX_VPU_FREQ;
@@ -1924,10 +1873,6 @@ ERR_ION_CLIENT:
 #endif
 	hb_vpu_clk_put(dev);
 ERR_GET_CLK:
-	sysfs_remove_file(&pdev->dev.kobj, &vpu_debug_attr.attr);
-ERR_CREATE_SYSFS2:
-	sysfs_remove_file(&pdev->dev.kobj, &vpu_pf_bw_debug_attr.attr);
-ERR_CREATE_SYSFS1:
 	device_destroy(dev->vpu_class, dev->vpu_dev_num);
 ERR_CREATE_DEV:
 	cdev_del(&dev->cdev);
@@ -1994,8 +1939,6 @@ static int vpu_remove(struct platform_device *pdev)
 
 	//hb_vpu_clk_disable(dev);
 	//hb_vpu_clk_put(dev);
-	sysfs_remove_file(&pdev->dev.kobj, &vpu_pf_bw_debug_attr.attr);
-	sysfs_remove_file(&pdev->dev.kobj, &vpu_debug_attr.attr);
 	device_destroy(dev->vpu_class, dev->vpu_dev_num);
 	cdev_del(&dev->cdev);
 	unregister_chrdev_region(dev->vpu_dev_num, 1);
