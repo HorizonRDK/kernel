@@ -179,6 +179,7 @@ struct ipu_subdev {
 	struct ipu_osd_cfg osd_cfg;
 	struct ipu_info_cfg info_cfg;
 	ipu_cfg_t ipu_cfg;
+	ipu_ds_info_t scale_cfg;
 };
 
 struct x3_ipu_dev {
