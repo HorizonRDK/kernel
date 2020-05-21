@@ -68,7 +68,7 @@ struct sensor_arg {
 };
 
 typedef struct ctrlp_s {
-        uint32_t ratio;
+        int32_t ratio;
         uint32_t offset;
         uint32_t max;
 } ctrlp_t;

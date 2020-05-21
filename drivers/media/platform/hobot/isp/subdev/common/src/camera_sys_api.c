@@ -449,18 +449,21 @@ void camera_sys_sensor_gain_turning_data(uint32_t port,
 	}
 }
 
-static uint32_t sensor_line_calculation(uint32_t ratio, uint32_t offset,
+static uint32_t sensor_line_calculation(int ratio, uint32_t offset,
 	uint32_t max, uint32_t input)
 {
 	uint32_t line = input;
+	uint32_t r_t = 256;
 	if (input > max) {
 		input = max;
 	}
 
-	if (ratio == 0) {
-		line = offset - input;
+	if (ratio >= 0) {
+		r_t = (uint32_t)(0 - ratio);
+		line = offset - (r_t * input) >> 8;
 	} else {
-		line = offset + input;
+		r_t = (uint32_t)(ratio);
+		line = offset + (r_t * input) >> 8;
 	}
 
 	pr_debug("%s, ratio 0x%x, offset 0x%x, max 0x%x, input %x\n",
@@ -1392,6 +1395,15 @@ int camera_sys_turining_set(uint32_t port, sensor_turning_data_t *turning_pram)
 
 			memcpy(&camera_mod[port]->camera_param, turning_pram,
 					sizeof(sensor_turning_data_t));
+
+			camera_mod[port]->camera_param.normal.again_lut = NULL;
+			camera_mod[port]->camera_param.normal.dgain_lut = NULL;
+			camera_mod[port]->camera_param.dol2.again_lut = NULL;
+			camera_mod[port]->camera_param.dol2.dgain_lut = NULL;
+			camera_mod[port]->camera_param.dol3.again_lut = NULL;
+			camera_mod[port]->camera_param.dol3.dgain_lut = NULL;
+			camera_mod[port]->camera_param.pwl.again_lut = NULL;
+			camera_mod[port]->camera_param.pwl.dgain_lut = NULL;
 		} else {
 			return -1;
 		}
