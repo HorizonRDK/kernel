@@ -160,6 +160,7 @@ void gdc_start(struct x3_gdc_dev *gdc_dev)
 {
 	gdc_process_enable(gdc_dev->base_reg, 0);
 	gdc_process_enable(gdc_dev->base_reg, 1);
+	vio_set_stat_info(0, GDC_FS, 0);
 	vio_dbg("%s\n", __func__);
 }
 
@@ -388,6 +389,7 @@ int gdc_video_process(struct gdc_video_ctx *gdc_ctx, unsigned long arg)
 		vio_err("GDC process failed\n");
 		ret = -VIO_FRAME_NDONE;
 	}
+	vio_set_stat_info(0, GDC_FE, 0);
 
 	vio_dbg("%s done: ret(%d), timeout %d\n", __func__, ret, timeout);
 p_err_ignore:

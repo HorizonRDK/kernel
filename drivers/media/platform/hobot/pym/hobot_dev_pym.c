@@ -1085,7 +1085,7 @@ void pym_frame_done(struct pym_subdev *subdev)
 			frame->frameinfo.timestamps =
 			    group->frameid.timestamps;
 		}
-
+		vio_set_stat_info(group->instance, PYM_FE, group->frameid.frame_id);
 		do_gettimeofday(&frame->frameinfo.tv);
 
 		pym_set_iar_output(subdev, frame);
@@ -1226,6 +1226,7 @@ static irqreturn_t pym_isr(int irq, void *data)
 		group->frameid.frame_id++;
 		if (group && group->get_timestamps)
 			vio_get_frame_id(group);
+		vio_set_stat_info(group->instance, PYM_FS, group->frameid.frame_id);
 	}
 
 	if (drop_flag) {

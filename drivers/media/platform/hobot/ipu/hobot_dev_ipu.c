@@ -1853,6 +1853,8 @@ void ipu_frame_done(struct ipu_subdev *subdev)
 		}
 
 		do_gettimeofday(&frame->frameinfo.tv);
+		vio_set_stat_info(group->instance, IPU_FS + subdev->id,
+				group->frameid.frame_id);
 
 		vio_dbg("done bidx%d fid%d ",
 			frame->frameinfo.bufferindex,
@@ -1984,6 +1986,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 	gtask = &ipu->gtask;
 	instance = atomic_read(&ipu->instance);
 	group = ipu->group[instance];
+
 	ipu_get_intr_status(ipu->base_reg, &status, true);
 	size_err = ipu_get_size_err(ipu->base_reg);
 	err_status = ipu_get_err_status(ipu->base_reg);
@@ -2140,6 +2143,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 			vio_dbg("[S%d]IPU frame count = %d\n",
 					instance, group->frameid.frame_id);
 		}
+		vio_set_stat_info(group->instance, IPU_FS, group->frameid.frame_id);
 	}
 
 	if (ipu->frame_drop_count > 20) {

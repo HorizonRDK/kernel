@@ -37,6 +37,8 @@ static int mismatch_limit = 1;
 module_param(mismatch_limit, int, 0644);
 int testpattern_fps = 30;
 module_param(testpattern_fps, int, 0644);
+static bool debug_log_print = 0;
+module_param(debug_log_print, bool, 0644);
 
 int sif_video_streamoff(struct sif_video_ctx *sif_ctx);
 extern isp_callback sif_isp_ctx_sync;
@@ -1128,7 +1130,6 @@ void sif_get_timestamps(struct vio_group *group, struct frame_id *info){
 	info = &subdev->info;
 }
 
-
 void sif_frame_done(struct sif_subdev *subdev)
 {
 	struct vio_framemgr *framemgr;
@@ -1153,6 +1154,9 @@ void sif_frame_done(struct sif_subdev *subdev)
 			frame->frameinfo.timestamps =
 			    group->frameid.timestamps;
 		}
+
+		vio_set_stat_info(group->instance, SIF_CAP_FE + group->id * 2,
+				group->frameid.frame_id);
 
 		do_gettimeofday(&frame->frameinfo.tv);
 
@@ -1257,6 +1261,12 @@ static irqreturn_t sif_isr(int irq, void *data)
 				sif_get_frameid_timestamps(sif->base_reg, mux_index,
 						subdev->ipi_index, &group->frameid, subdev->dol_num);
 
+				if (debug_log_print)
+					vio_print_stat_info(group->instance);
+
+				vio_set_stat_info(group->instance, SIF_CAP_FS,
+						group->frameid.frame_id);
+
 				if (subdev->md_refresh_count == 1) {
 					ips_set_md_refresh(0);
 				}
@@ -1288,6 +1298,14 @@ static irqreturn_t sif_isr(int irq, void *data)
 
 		subdev = group->sub_ctx[0];
 		sif_frame_done(subdev);
+	}
+
+	if (test_bit(SIF_DMA_IN_ENABLE, &sif->state) &&
+		(irq_src.sif_out_int & 1 << SIF_ISP_OUT_FS)) {
+			instance = atomic_read(&sif->instance);
+			group = sif->sif_input[instance];
+			vio_set_stat_info(group->instance, SIF_IN_FS,
+					group->frameid.frame_id);
 	}
 
 	if (irq_src.sif_frm_int & 1 << INTR_SIF_IN_SIZE_MISMATCH) {

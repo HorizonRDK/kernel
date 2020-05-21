@@ -383,3 +383,56 @@ void vio_dwe_clk_disable(void)
 	}
 }
 EXPORT_SYMBOL(vio_dwe_clk_disable);
+
+void vio_set_stat_info(u32 instance, u32 stat_type, u16 frameid)
+{
+	struct vio_chain *chain;
+	struct statinfo *stat;
+
+	chain = &iscore.chain[instance];
+	stat = &chain->statinfo[stat_type];
+	stat->framid = frameid;
+	do_gettimeofday(&stat->g_tv);
+}
+EXPORT_SYMBOL(vio_set_stat_info);
+
+void vio_print_stat_info(u32 instance)
+{
+	struct vio_chain *chain;
+	struct statinfo *stat;
+
+	chain = &iscore.chain[instance];
+	stat = chain->statinfo;
+	vio_info("[F%d]sif_cap(FS %ld.%06ld|FE %ld.%06ld)\n",
+		stat[SIF_CAP_FS].framid,
+		stat[SIF_CAP_FS].g_tv.tv_sec, stat[SIF_CAP_FS].g_tv.tv_usec,
+		stat[SIF_CAP_FE].g_tv.tv_sec, stat[SIF_CAP_FE].g_tv.tv_usec);
+
+	vio_info("[F%d]sif_in(FS %ld.%06ld|FE %ld.%06ld)\n",
+		stat[SIF_IN_FS].framid,
+		stat[SIF_IN_FS].g_tv.tv_sec, stat[SIF_IN_FS].g_tv.tv_usec,
+		stat[SIF_IN_FE].g_tv.tv_sec, stat[SIF_IN_FE].g_tv.tv_usec);
+
+	vio_info("[F%d]ipu(FS %ld.%06ld|FE US %ld.%06ld|ds0 %ld.%06ld|",
+		stat[IPU_FS].framid,
+		stat[IPU_FS].g_tv.tv_sec, stat[IPU_FS].g_tv.tv_usec,
+		stat[IPU_US_FE].g_tv.tv_sec, stat[IPU_US_FE].g_tv.tv_usec,
+		stat[IPU_DS0_FE].g_tv.tv_sec, stat[IPU_DS0_FE].g_tv.tv_usec);
+
+	vio_info("ds1 %ld.%06ld|ds2 %ld.%06ld|ds3 %ld.%06ld|ds4 %ld.%06ld)\n",
+		stat[IPU_DS1_FE].g_tv.tv_sec, stat[IPU_DS1_FE].g_tv.tv_usec,
+		stat[IPU_DS2_FE].g_tv.tv_sec, stat[IPU_DS2_FE].g_tv.tv_usec,
+		stat[IPU_DS3_FE].g_tv.tv_sec, stat[IPU_DS3_FE].g_tv.tv_usec,
+		stat[IPU_DS4_FE].g_tv.tv_sec, stat[IPU_DS4_FE].g_tv.tv_usec);
+
+	vio_info("[F%d]pym(FS %ld.%06ld|FE %ld.%06ld)\n",
+		stat[PYM_FS].framid,
+		stat[PYM_FS].g_tv.tv_sec, stat[PYM_FS].g_tv.tv_usec,
+		stat[PYM_FE].g_tv.tv_sec, stat[PYM_FE].g_tv.tv_usec);
+
+	vio_info("[F%d]pym(FS %ld.%06ld|FE %ld.%06ld)\n",
+		stat[GDC_FS].framid,
+		stat[GDC_FS].g_tv.tv_sec, stat[GDC_FS].g_tv.tv_usec,
+		stat[GDC_FE].g_tv.tv_sec, stat[GDC_FE].g_tv.tv_usec);
+}
+EXPORT_SYMBOL(vio_print_stat_info);

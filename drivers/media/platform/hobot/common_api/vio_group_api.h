@@ -29,6 +29,23 @@
 #define IPU0_IDLE    BIT(12)
 #define PYM_IDLE	BIT(14)
 
+#define SIF_CAP_FS		0
+#define SIF_CAP_FE		1
+#define SIF_IN_FS		2
+#define SIF_IN_FE		3
+#define IPU_FS			4
+#define IPU_US_FE		5
+#define IPU_DS0_FE		6
+#define IPU_DS1_FE		7
+#define IPU_DS2_FE		8
+#define IPU_DS3_FE		9
+#define IPU_DS4_FE		10
+#define PYM_FS			11
+#define PYM_FE			12
+#define GDC_FS			13
+#define GDC_FE			14
+#define STAT_NUM		15
+
 enum vio_group_task_state {
 	VIO_GTASK_START,
 	VIO_GTASK_REQUEST_STOP,
@@ -87,8 +104,14 @@ struct vio_video_ctx {
 	bool leader;
 };
 
+struct statinfo {
+	int framid;
+	struct timeval g_tv;
+};
+
 struct vio_chain {
 	struct vio_group group[GROUP_ID_NUMBER];
+	struct statinfo statinfo[STAT_NUM];
 	unsigned long state;
 };
 
@@ -112,6 +135,8 @@ void vio_reset_module(u32 module);
 void vio_group_done(struct vio_group *group);
 void vio_dwe_clk_enable(void);
 void vio_dwe_clk_disable(void);
+void vio_set_stat_info(u32 instance, u32 stat_type, u16 frameid);
+void vio_print_stat_info(u32 instance);
 
 #ifdef X3_IAR_INTERFACE
 extern u32 ipu_get_iar_display_type(u8 *pipeline, u8 *channel);
