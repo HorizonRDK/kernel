@@ -295,6 +295,21 @@ int frame_manager_flush(struct vio_framemgr *this)
 EXPORT_SYMBOL(frame_manager_flush);
 
 /*
+ * init framemgr
+ */
+int frame_manager_init_mp(struct vio_framemgr *this)
+{
+	if (this == NULL) {
+		vio_err("%s framemgr is null.\n", __func__);
+		return -EFAULT;
+	}
+	spin_lock_init(&this->slock);
+
+	return 0;
+}
+EXPORT_SYMBOL(frame_manager_init_mp);
+
+/*
  * Open frame manager for multi-process scenario
  */
 int frame_manager_open_mp(struct vio_framemgr *this, u32 buffers,

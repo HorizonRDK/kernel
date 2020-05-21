@@ -400,8 +400,8 @@ int pym_bind_chain_group(struct pym_video_ctx *pym_ctx, int instance)
 		vio_err("alreay open too much for one pipeline\n");
 		return -EFAULT;
 	}
-	atomic_inc(&subdev->refcount);
-
+	if (atomic_inc_return(&subdev->refcount) == 1)
+		frame_manager_init_mp(pym_ctx->framemgr);
 
 	group->frame_work = pym_frame_work;
 	group->gtask = &pym->gtask;

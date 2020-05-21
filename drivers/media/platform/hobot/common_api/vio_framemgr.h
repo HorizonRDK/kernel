@@ -220,6 +220,7 @@ int frame_manager_close(struct vio_framemgr *this);
 int frame_manager_flush(struct vio_framemgr *this);
 void frame_manager_print_queues(struct vio_framemgr *this);
 void frame_manager_print_info_queues(struct vio_framemgr *this);
+int frame_manager_init_mp(struct vio_framemgr *this);
 int frame_manager_open_mp(struct vio_framemgr *this, u32 buffers,
 	u32 *index_start);
 int frame_manager_close_mp(struct vio_framemgr *this,

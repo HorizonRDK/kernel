@@ -308,6 +308,12 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 	sif_ctx = file->private_data;
 	sif = sif_ctx->sif_dev;
 	subdev = sif_ctx->subdev;
+	if (sif_ctx->state & BIT(VIO_VIDEO_OPEN)) {
+		vio_info("[Sx][V%d] %s: only open.\n", sif_ctx->id, __func__);
+		atomic_dec(&sif->open_cnt);
+		kfree(sif_ctx);
+		return 0;
+	}
 
 	if ((subdev) && atomic_dec_return(&subdev->refcount) == 0) {
 		subdev->state = 0;
@@ -570,13 +576,13 @@ int sif_video_init(struct sif_video_ctx *sif_ctx, unsigned long arg)
 	struct sif_subdev *subdev;
 	sif_cfg_t sif_config;
 
-	group = sif_ctx->group;
 	if (!(sif_ctx->state & (BIT(VIO_VIDEO_S_INPUT) | BIT(VIO_VIDEO_REBUFS)))) {
-		vio_err("[%d][%s][V%02d] invalid INIT is requested(%lX)",
-			group->instance, __func__, sif_ctx->id, sif_ctx->state);
+		vio_err("[%s][V%02d] invalid INIT is requested(%lX)",
+			__func__, sif_ctx->id, sif_ctx->state);
 		return -EINVAL;
 	}
 
+	group = sif_ctx->group;
 	subdev = sif_ctx->subdev;
 	if (test_bit(SIF_SUBDEV_INIT, &subdev->state)) {
 		vio_info("subdev already init, current refcount(%d)\n",
@@ -645,6 +651,11 @@ int sif_bind_chain_group(struct sif_video_ctx *sif_ctx, int instance)
 		group_id = GROUP_ID_SIF_IN;
 		subdev->id = sif_ctx->id;
 	}
+	if (atomic_read(&subdev->refcount) >= 1) {
+		vio_err("%s more than one pipeline bind\n", __func__);
+		return -EFAULT;
+	}
+
 	group = vio_get_chain_group(instance, group_id);
 	if (!group)
 		return -EFAULT;
@@ -1075,7 +1086,9 @@ static long x3_sif_ioctl(struct file *file, unsigned int cmd,
 		ret = get_user(instance, (u32 __user *) arg);
 		if (ret)
 			return -EFAULT;
-		sif_bind_chain_group(sif_ctx, instance);
+		ret = sif_bind_chain_group(sif_ctx, instance);
+		if (ret)
+			return -EFAULT;
 		break;
 	case SIF_IOC_END_OF_STREAM:
 		ret = get_user(instance, (u32 __user *) arg);
