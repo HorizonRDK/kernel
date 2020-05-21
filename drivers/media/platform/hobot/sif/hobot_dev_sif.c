@@ -545,7 +545,7 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 		set_bit(ddr_mux_index, &sif->state);
 	}
 
-	ips_set_bus_ctrl(cfg);
+	// ips_set_bus_ctrl(cfg);
 	sif_hw_config(sif->base_reg, sif_config);
 
 	subdev->bufcount = sif_get_current_bufindex(sif->base_reg, ddr_mux_index);
