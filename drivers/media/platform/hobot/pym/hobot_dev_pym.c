@@ -31,6 +31,7 @@
 #define MODULE_NAME "X3 PYM"
 
 void pym_update_param(struct pym_subdev *subdev);
+void pym_update_param_ch(struct pym_subdev *subdev);
 int pym_video_streamoff(struct pym_video_ctx *pym_ctx);
 
 static int x3_pym_open(struct inode *inode, struct file *file)
@@ -224,6 +225,15 @@ static void pym_frame_work(struct vio_group *group)
 		if (test_bit(PYM_REUSE_SHADOW0, &pym->state))
 			pym_update_param(subdev);
 
+		if (subdev->update_all == 1) {
+			subdev->update_all = 0;
+			pym_update_param(subdev);
+		}
+		if (subdev->update_ch == 1) {
+			subdev->update_ch = 0;
+			pym_update_param_ch(subdev);
+		}
+
 		pym_set_common_rdy(pym->base_reg, 0);
 		pym_set_shd_select(pym->base_reg, shadow_index);
 
@@ -349,6 +359,73 @@ void pym_update_param(struct pym_subdev *subdev)
 	pym_select_input_path(pym->base_reg, pym_config->img_scr);
 
 	pym_set_common_rdy(pym->base_reg, 1);
+}
+
+void pym_update_param_ch(struct pym_subdev *subdev)
+{
+	u16 roi_width;
+	u32 shadow_index = 0;
+	pym_cfg_t *pym_config;
+	struct vio_group *group;
+	struct x3_pym_dev *pym;
+	struct roi_rect rect;
+	uint8_t ch;
+	pym_scale_ch_t *pym_scale_ch;
+
+	group = subdev->group;
+	pym = subdev->pym_dev;
+	pym_config = &subdev->pym_cfg;
+	pym_scale_ch = &subdev->pym_cfg_ch;
+	if (group->instance < MAX_SHADOW_NUM)
+		shadow_index = group->instance;
+	else
+		set_bit(PYM_REUSE_SHADOW0, &pym->state);
+
+	pym_set_shd_rdy(pym->base_reg, shadow_index, 0);
+
+	if (pym_scale_ch->type == PYM_CH_DS) {
+		ch = pym_scale_ch->ch;
+		if (ch >= MAX_PYM_DS_COUNT) {
+			vio_err("%s ds channel num err %d", __func__, ch);
+			pym_set_shd_rdy(pym->base_reg, shadow_index, 1);
+			return;
+		}
+		memcpy(&pym_config->stds_box[ch], &pym_scale_ch->ch_scale,
+			sizeof(pym_scale_box_t));
+		rect.roi_x = pym_scale_ch->ch_scale.roi_x;
+		rect.roi_y = pym_scale_ch->ch_scale.roi_y;
+		rect.roi_width = pym_scale_ch->ch_scale.tgt_width;
+		rect.roi_height = pym_scale_ch->ch_scale.tgt_height;
+		pym_ds_config_factor(pym->base_reg, shadow_index, ch,
+				     pym_scale_ch->ch_scale.factor);
+		pym_ds_config_roi(pym->base_reg, shadow_index, ch, &rect);
+		roi_width = pym_scale_ch->ch_scale.roi_width;
+		pym_ds_set_src_width(pym->base_reg, shadow_index, ch, roi_width);
+	} else if (pym_scale_ch->type == PYM_CH_US) {
+		ch = pym_scale_ch->ch;
+		if (ch > MAX_PYM_US_COUNT) {
+			vio_err("%s us channel num err %d", __func__, ch);
+			pym_set_shd_rdy(pym->base_reg, shadow_index, 1);
+			return;
+		}
+		memcpy(&pym_config->stus_box[ch], &pym_scale_ch->ch_scale,
+			sizeof(pym_scale_box_t));
+		rect.roi_x = pym_scale_ch->ch_scale.roi_x;
+		rect.roi_y = pym_scale_ch->ch_scale.roi_y;
+		rect.roi_width = pym_scale_ch->ch_scale.tgt_width;
+		rect.roi_height = pym_scale_ch->ch_scale.tgt_height;
+		pym_us_config_factor(pym->base_reg, shadow_index, ch,
+				     pym_scale_ch->ch_scale.factor);
+		pym_us_config_roi(pym->base_reg, shadow_index, ch, &rect);
+		roi_width = pym_scale_ch->ch_scale.roi_width;
+		pym_us_set_src_width(pym->base_reg, shadow_index, ch, roi_width);
+	} else {
+		vio_err("%s channel type err.", __func__);
+		pym_set_shd_rdy(pym->base_reg, shadow_index, 1);
+		return;
+	}
+
+	pym_set_shd_rdy(pym->base_reg, shadow_index, 1);
 }
 
 int pym_bind_chain_group(struct pym_video_ctx *pym_ctx, int instance)
@@ -877,6 +954,64 @@ void pym_video_user_stats(struct pym_video_ctx *pym_ctx,
 	}
 }
 
+int pym_update_scale_info(struct pym_video_ctx *pym_ctx, unsigned long arg)
+{
+	int ret = 0;
+	struct vio_group *group;
+	struct pym_subdev *subdev;
+	pym_cfg_t *pym_config;
+
+	group = pym_ctx->group;
+	subdev = pym_ctx->subdev;
+	if (!group || !subdev) {
+		vio_err("%s init err", __func__);
+	}
+
+	pym_config = &subdev->pym_cfg;
+	ret = copy_from_user((char *)pym_config,
+				(u32 __user *) arg, sizeof(pym_cfg_t));
+	if (ret)
+		return -EFAULT;
+	subdev->update_all = 1;
+
+	vio_dbg("[S%d]%s: request updata all cfg.\n",
+		group->instance, __func__);
+	return ret;
+}
+
+int pym_update_ch_scale_info(struct pym_video_ctx *pym_ctx, unsigned long arg)
+{
+	int ret = 0;
+	struct vio_group *group;
+	struct pym_subdev *subdev;
+	pym_scale_ch_t *pym_config_ch;
+
+	group = pym_ctx->group;
+	subdev = pym_ctx->subdev;
+	if (!group || !subdev) {
+		vio_err("%s init err", __func__);
+	}
+
+	pym_config_ch = &subdev->pym_cfg_ch;
+	ret = copy_from_user((char *)pym_config_ch,
+				(u32 __user *) arg, sizeof(pym_scale_ch_t));
+	if (ret)
+		return -EFAULT;
+	subdev->update_ch = 1;
+
+	vio_dbg("[S%d]%s: ds%d f%d x-y(%d-%d) w-h(%d-%d) tgt(%d-%d).\n",
+		group->instance, __func__,
+		pym_config_ch->ch,
+		pym_config_ch->ch_scale.factor,
+		pym_config_ch->ch_scale.roi_x,
+		pym_config_ch->ch_scale.roi_y,
+		pym_config_ch->ch_scale.roi_width,
+		pym_config_ch->ch_scale.roi_height,
+		pym_config_ch->ch_scale.tgt_width,
+		pym_config_ch->ch_scale.tgt_height);
+	return ret;
+}
+
 static long x3_pym_ioctl(struct file *file, unsigned int cmd,
 			  unsigned long arg)
 {
@@ -955,6 +1090,12 @@ static long x3_pym_ioctl(struct file *file, unsigned int cmd,
 		if (ret)
 			return -EFAULT;
 		pym_video_user_stats(pym_ctx, &stats);
+		break;
+	case PYM_IOC_SCALE_INFO:
+		ret = pym_update_scale_info(pym_ctx, arg);
+		break;
+	case PYM_IOC_SCALE_INFO_CH:
+		ret = pym_update_ch_scale_info(pym_ctx, arg);
 		break;
 	default:
 		vio_err("wrong ioctl command\n");

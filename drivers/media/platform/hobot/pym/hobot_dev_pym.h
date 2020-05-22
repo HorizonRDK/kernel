@@ -30,6 +30,8 @@
 #define PYM_IOC_BIND_GROUP       _IOW(PYM_IOC_MAGIC, 6, int)
 #define PYM_IOC_GET_INDEX	 _IOR(PYM_IOC_MAGIC, 7, int)
 #define PYM_IOC_USER_STATS       _IOR(PYM_IOC_MAGIC, 8, struct user_statistic)
+#define PYM_IOC_SCALE_INFO	 _IOR(PYM_IOC_MAGIC, 9, pym_cfg_t)
+#define PYM_IOC_SCALE_INFO_CH	 _IOR(PYM_IOC_MAGIC, 10, pym_scale_ch_t)
 
 struct pym_status_statistic {
 	u32 enable[VIO_MAX_STREAM];
@@ -115,9 +117,12 @@ struct pym_subdev {
 	unsigned long 		state;
 	struct vio_group 	*group;
 	struct x3_pym_dev 	*pym_dev;
+	u32 id;
 
 	pym_cfg_t pym_cfg;
-	u32 id;
+	bool update_all;
+	pym_scale_ch_t pym_cfg_ch;
+	bool update_ch;
 };
 
 
