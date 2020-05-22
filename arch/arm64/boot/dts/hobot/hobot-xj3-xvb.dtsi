@@ -67,7 +67,7 @@
 
 	memory@0 {
 		device_type = "memory";
-		reg = <0x0 0x0 0x0 0x40000000>;
+		reg = <0x0 0x200000 0x0 0x3FE00000>;
 	};
 
 	reserved-memory {
@@ -75,38 +75,20 @@
 		#size-cells = <2>;
 		ranges;
 
-		/*Reserved 1M memory for bifbase*/
-		bifbase_reserved: bifbase_reserved@0x02000000 {
-			reg = <0x0 0x02000000 0x0 0x00100000>;
-			no-map;
-		};
-
-		/*Reserved 2MB memory for BL31*/
-		bl31_reserved: bl31_reserved@0x2100000 {
-			reg = <0x0 0x2100000 0x0 0x200000>;
-			no-map;
-		};
-
 		/*Reserved 256K memory pstore */
-		ramoops@0x2300000 {
+		ramoops@0x3FC0000 {
 			compatible = "ramoops";
-			reg = <0x0 0x02300000 0x0 0x40000>;
+			reg = <0x0 0x3FC0000 0x0 0x40000>;
 			console-size = <0x8000>;
 			pmsg-size = <0x8000>;
 			ftrace-size = <0x8000>;
 			record-size = <0x4000>;
 		};
 
-		/* Reserved 740MB memory for ion */
-		ion_reserved: ion_reserved@0x2340000 {
+		/* Reserved 742MB memory for ion */
+		ion_reserved: ion_reserved@0x4000000 {
 			compatible = "ion-pool";
-			reg = <0x0 0x2340000 0x0 0x2E400000>;
-		};
-
-		/* Reserved 2MB memory for bpu model */
-		bpu_model_reserved: bpu_model_reserved@0x30740000 {
-			reg = <0x0 0x30740000 0x0 0x200000>;
-			no-map;
+			reg = <0x0 0x4000000 0x0 0x2E600000>;
 		};
 
 	};

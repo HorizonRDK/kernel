@@ -1075,7 +1075,6 @@
 
 		bifbase: bifbase {
 			compatible = "hobot,bifbase";
-			memory-region = <&bifbase_reserved>;
 			status = "disabled";
 		};
 
