@@ -787,6 +787,16 @@ int ipu_channel_wdma_enable(struct ipu_subdev *subdev, bool enable)
 		ipu_set_sc_enable(subdev, shadow_index, enable);
 	}
 
+	if (id == GROUP_ID_SRC) {
+		if (enable) {
+			ipu_set_ds_roi_enable(ipu->base_reg, shadow_index, 2,
+				info->ds_roi_en);
+			ipu_set_ds_enable(ipu->base_reg, shadow_index, 2, info->ds_sc_en);
+		} else {
+			ipu_set_ds_roi_enable(ipu->base_reg, shadow_index, 2, false);
+			ipu_set_ds_enable(ipu->base_reg, shadow_index, 2, false);
+		}
+	}
 	rdy = ipu_get_shd_rdy(ipu->base_reg);
 	rdy = rdy | (1 << shadow_index);
 	ipu_set_shd_rdy(ipu->base_reg, rdy);
@@ -1033,6 +1043,8 @@ int ipu_update_common_param(struct ipu_subdev *subdev,
 	rdy = rdy | (1 << shadow_index) | (1 << 4);
 	ipu_set_shd_rdy(ipu->base_reg, rdy);
 
+	memcpy(&subdev->scale_cfg, &ipu_cfg->ds_info[2], sizeof(ipu_ds_info_t));
+
 	return ret;
 }
 
@@ -1252,8 +1264,8 @@ int ipu_video_streamon(struct ipu_video_ctx *ipu_ctx)
 			}
 		}
 	}
-	ipu_set_ddr_fifo_thred(ipu->base_reg, 0, 0);
-	ipu_set_ddr_fifo_thred(ipu->base_reg, 1, 0);
+	//ipu_set_ddr_fifo_thred(ipu->base_reg, 0, 0);
+	//ipu_set_ddr_fifo_thred(ipu->base_reg, 1, 0);
 
 	set_bit(IPU_HW_RUN, &ipu->state);
 p_inc:
