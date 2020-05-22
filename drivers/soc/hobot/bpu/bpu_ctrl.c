@@ -653,6 +653,7 @@ int32_t bpu_core_dvfs_register(struct bpu_core *core, const char *name)
 			core->dvfs->devfreq);
 
 	core->power_level = 1;
+	core->dvfs->devfreq->data = core;
 
 	return ret;
 }

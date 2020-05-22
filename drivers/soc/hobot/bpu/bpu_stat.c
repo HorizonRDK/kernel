@@ -60,6 +60,12 @@ void bpu_core_update(struct bpu_core *core, struct bpu_fc *fc)
 	}
 
 	core->p_run_time += tmp_time;
+
+	/* update the global slowest time */
+	if (tmp_time > g_bpu->slow_task_time) {
+		g_bpu->slow_task_time = tmp_time;
+	}
+
 	if (tmp_fc_group != NULL) {
 		tmp_fc_group->p_run_time += tmp_time;
 	}
@@ -130,6 +136,8 @@ int32_t bpu_stat_reset(struct bpu *bpu)
 	unsigned long user_flags;/*PRQA S ALL*/
 	int32_t ret;
 
+	/* reset the global slowest time in reset period */
+	bpu->slow_task_time = 0u;
 	/* reset the bpu core */
 	list_for_each_safe(pos, pos_n, &bpu->core_list) {/*PRQA S ALL*/
 		tmp_core = (struct bpu_core *)list_entry(pos, struct bpu_core, node);/*PRQA S ALL*/
@@ -284,6 +292,9 @@ uint32_t bpu_ratio(struct bpu *bpu)
 
 	return bpu->ratio;
 }
+// PRQA S ALL ++
+EXPORT_SYMBOL(bpu_ratio);
+// PRQA S ALL --
 
 // PRQA S ALL ++
 MODULE_DESCRIPTION("BPU and Cores statistics related realize");

@@ -14,6 +14,15 @@ config BPU
 
 	  If unsure, say N.
 
+config BPU_ONDEMAND_GOVERNOR
+	tristate "BPU OnDemand Governor"
+	depends on BPU
+	default m
+	help
+	  Say y here to support BPU ondemand governor
+
+	  If unsure, say y.
+
 config BPU_CORE
 	tristate "BPU Cores driver"
 	depends on BPU

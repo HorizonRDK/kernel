@@ -116,9 +116,11 @@ struct bpu {
 
 	/* list to store user */
 	struct list_head user_list;
-	/* list to store user */
+	/* list to store group*/
 	struct list_head group_list;
-	int32_t busy_thres;
+
+	/* record slowest task time in priod of time*/
+	uint64_t slow_task_time;
 
 	/* use the value to adjust sched time */
 	uint32_t sched_seed;
