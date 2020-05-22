@@ -168,6 +168,8 @@ void vio_group_init(struct vio_group *group)
 	atomic_set(&group->rcount, 0);
 	for(i = 0; i < MAX_SUB_DEVICE; i++)
 		group->sub_ctx[i] = NULL;
+
+	vio_dbg("%s : %d\n", __func__, group->id);
 }
 EXPORT_SYMBOL(vio_group_init);
 
@@ -183,10 +185,10 @@ int vio_init_chain(int instance)
 		group = &ischain->group[i];
 		spin_lock(&group->slock);
 		if (!test_bit(VIO_GROUP_INIT, &group->state)) {
-			vio_group_init(group);
 			group->chain = ischain;
 			group->instance= instance;
 			group->id = i;
+			vio_group_init(group);
 			set_bit(VIO_GROUP_INIT, &group->state);
 		}
 		spin_unlock(&group->slock);
@@ -226,7 +228,6 @@ void vio_bind_group_done(int instance)
 	int offset = 0;
 	struct vio_chain *ischain;
 	struct vio_group *group;
-	struct vio_group *leader_group;
 
 	ischain = &iscore.chain[instance];
 	for (i = 0; i < GROUP_ID_NUMBER; i++) {
@@ -239,6 +240,7 @@ void vio_bind_group_done(int instance)
 
 	for (i = 0; i < GROUP_ID_NUMBER; i++) {
 		group = &ischain->group[i];
+		group->next = NULL;
 		if (test_bit(VIO_GROUP_DMA_INPUT, &group->state)) {
 			group->leader = true;
 			snprintf(&stream[offset], sizeof(stream) - offset,
@@ -260,10 +262,10 @@ void vio_bind_group_done(int instance)
 			if (test_bit(VIO_GROUP_DMA_OUTPUT, &group->state)) {
 				group->leader = true;
 				group->head = group;
-				leader_group = group;
 				while (group->next) {
 					group = group->next;
-					group->head = leader_group;
+					group->leader = true;
+					group->head = group;
 				}
 				break;
 			}

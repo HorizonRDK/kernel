@@ -337,9 +337,11 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 		}
 
 		group = subdev->group;
-		if (group && group->gtask) {
+		if (group) {
 			clear_bit(VIO_GROUP_INIT, &group->state);
-			vio_group_task_stop(group->gtask);
+			if (group->gtask) {
+				vio_group_task_stop(group->gtask);
+			}
 		}
 
 		frame_manager_close(sif_ctx->framemgr);
