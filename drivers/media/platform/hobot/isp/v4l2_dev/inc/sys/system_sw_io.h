@@ -24,6 +24,7 @@
 
 void *system_sw_alloc( uint32_t size );
 void system_sw_free( void *ptr );
+void *system_sw_get_dma_addr(int chn_idx);
 void *system_sw_alloc_dma_sram( uint32_t size , uint32_t context_id, uint32_t *phy_addr);
 void system_sw_free_dma_sram( void *ptr ,uint32_t context_id);
 

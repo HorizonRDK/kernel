@@ -40,6 +40,7 @@
 #include "general_fsm.h"
 #include "vio_group_api.h"
 #include "acamera.h"
+#include "system_dma.h"
 
 #define ISP_V4L2_NUM_INPUTS 1
 
@@ -51,6 +52,7 @@ struct mutex init_lock;
 extern int acamera_fw_isp_start(int ctx_id);
 extern int acamera_fw_isp_stop(int ctx_id);
 extern int acamera_isp_init_context(uint8_t idx);
+extern int acamera_isp_deinit_context(uint8_t idx);
 extern void *acamera_get_ctx_ptr(uint32_t ctx_id);
 extern int ips_set_clk_ctrl(unsigned long module, bool enable);
 extern void general_temper_disable(void);
@@ -141,9 +143,13 @@ int isp_stream_onoff_check(void)
 int isp_v4l2_update_ctx(int ctx_id)
 {
     int rc = 0;
+    acamera_context_t *p_ctx = acamera_get_ctx_ptr(ctx_id);
 
-    if (isp_stream_onoff_check() == 0 && isp_open_check() <= 1)
-        acamera_update_cur_settings_to_isp(ctx_id);
+    if (isp_stream_onoff_check() == 0 && isp_open_check() <= 1) {
+        if (p_ctx->dma_chn_idx >= 0 && p_ctx->dma_chn_idx < HW_CONTEXT_NUMBER) {
+            acamera_update_cur_settings_to_isp(p_ctx->dma_chn_idx);
+        }
+    }
 
     return rc;
 }
@@ -292,11 +298,15 @@ static int isp_v4l2_fop_close( struct file *file )
         pr_err("mutex lock failed, rc = %d\n", rc);
         return rc;
     }
+
+    acamera_isp_deinit_context(dev->ctx_id);
+
     //isp hardware stop
     if (isp_open_check() == 0) {
         acamera_fw_isp_stop(dev->ctx_id);
         general_temper_disable();
         ips_set_clk_ctrl(ISP0_CLOCK_GATE, false);
+        system_dma_desc_flush();
     }
     mutex_unlock(&init_lock);
 

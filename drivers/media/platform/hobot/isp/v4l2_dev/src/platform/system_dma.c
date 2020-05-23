@@ -182,6 +182,19 @@ int32_t system_dma_destroy( void *ctx )
     return result;
 }
 
+void system_dma_desc_flush(void)
+{
+    if (!list_empty(&g_hobot_dma.pending_list)) {
+        list_splice_tail_init(&g_hobot_dma.pending_list, &g_hobot_dma.free_list);
+    }
+    if (!list_empty(&g_hobot_dma.active_list)) {
+        list_splice_tail_init(&g_hobot_dma.active_list, &g_hobot_dma.free_list);
+    }
+    if (!list_empty(&g_hobot_dma.done_list)) {
+        list_splice_tail_init(&g_hobot_dma.done_list, &g_hobot_dma.free_list);
+    }
+}
+
 static void dma_complete_func( void *ctx )
 {
     system_dma_device_t *system_dma_device = (system_dma_device_t *)ctx;
@@ -604,12 +617,18 @@ int32_t system_dma_copy_sg( void *ctx,
     system_dma_device->buff_loc = buff_loc;
 
     unsigned long flags;
-    idma_descriptor_t *desc;
-    desc = kcalloc(1, sizeof(idma_descriptor_t), GFP_KERNEL);
-    if (!desc) {
-	pr_err("alloc memory for idma_descriptor_t failed.\n");
-	return result;
+    idma_descriptor_t *desc = NULL;
+    flags = system_spinlock_lock( g_hobot_dma.dma_ctrl_lock );
+    if ( !list_empty(&g_hobot_dma.free_list) ) { 
+        desc = list_first_entry(&g_hobot_dma.free_list, idma_descriptor_t, node);
+        list_del(&desc->node);
     }
+    if (!desc) {
+        system_spinlock_unlock( g_hobot_dma.dma_ctrl_lock, flags );
+        pr_err("idma free list empty.\n");
+        return -1;
+    }
+
     desc->ctx_id = fw_ctx_id;
     desc->isp_sram_sg = isp_sram_sg;
     desc->dma_sram_sg = dma_sram_sg;
@@ -618,7 +637,6 @@ int32_t system_dma_copy_sg( void *ctx,
     desc->callback.cb = dma_complete_func;
     desc->callback.cb_data = ctx;
 
-    flags = system_spinlock_lock( g_hobot_dma.dma_ctrl_lock );
     list_add_tail(&desc->node, &g_hobot_dma.pending_list);
     system_spinlock_unlock( g_hobot_dma.dma_ctrl_lock, flags );
 
@@ -710,13 +728,18 @@ int32_t system_dma_copy_multi_sg( dma_cmd* cmd, uint32_t cmd_num)
         system_dma_device->direction = direction;
         system_dma_device->buff_loc = buff_loc;
 
-	unsigned long flags;
-	idma_descriptor_t *desc;
-	desc = kcalloc(1, sizeof(idma_descriptor_t), GFP_ATOMIC);
-	if (!desc) {
-		pr_err("alloc memory for idma_descriptor_t failed.\n");
-		return result;
-	}
+    unsigned long flags;
+    idma_descriptor_t *desc = NULL;
+    flags = system_spinlock_lock( g_hobot_dma.dma_ctrl_lock );
+    if ( !list_empty(&g_hobot_dma.free_list) ) {
+        desc = list_first_entry(&g_hobot_dma.free_list, idma_descriptor_t, node);
+        list_del(&desc->node);
+    }
+    if (!desc) {
+        system_spinlock_unlock( g_hobot_dma.dma_ctrl_lock, flags );
+        pr_err("idma free list empty.\n");
+        return -1;
+    }
 	desc->ctx_id = fw_ctx_id;
 	desc->isp_sram_sg = isp_sram_sg;
 	desc->dma_sram_sg = dma_sram_sg;
@@ -725,7 +748,6 @@ int32_t system_dma_copy_multi_sg( dma_cmd* cmd, uint32_t cmd_num)
 	desc->callback.cb = dma_complete_func;
 	desc->callback.cb_data = ctx;
 
-	flags = system_spinlock_lock( g_hobot_dma.dma_ctrl_lock );
 	if (last_cmd)
 		list_add_tail(&desc->node, &g_hobot_dma.pending_list);
 	else

@@ -226,7 +226,7 @@ void *system_sw_alloc( uint32_t size )
 {
     void* va;
 
-    va = kzalloc( size, GFP_KERNEL | GFP_DMA | GFP_ATOMIC );
+    va = kzalloc( size, GFP_ATOMIC );
 #if HOBOT_REGISTER_MONITOR
     hobot_rm_init();
     //hobot_rm_add(0x80);
@@ -249,6 +249,7 @@ void *system_sw_alloc( uint32_t size )
 void system_sw_free( void *ptr )
 {
     kfree( ptr );
+    ptr = NULL;
 #if HOBOT_REGISTER_MONITOR
         pr_err("%s HOBOT_REGISTER_MONITOR not support memory free\n", __FUNCTION__);
         g_count = 0;
@@ -258,6 +259,14 @@ void system_sw_free( void *ptr )
 #if FW_USE_HOBOT_DMA
 
 uint8_t *g_hobot_dma_va = NULL;
+
+void *system_sw_get_dma_addr(int chn_idx)
+{
+    if (g_hobot_dma_va != NULL)
+        return (void*)(g_hobot_dma_va + (chn_idx * HOBOT_DMA_SRAM_ONE_ZONE));
+
+    return NULL;
+}
 
 void *system_sw_alloc_dma_sram( uint32_t size , uint32_t context_id, uint32_t *phy_addr)
 {
@@ -284,7 +293,8 @@ void *system_sw_alloc_dma_sram( uint32_t size , uint32_t context_id, uint32_t *p
 
     va = (void*) (g_hobot_dma_va + (context_id*HOBOT_DMA_SRAM_ONE_ZONE));
     *phy_addr = HOBOT_DMA_SRAM_PA+ (context_id*HOBOT_DMA_SRAM_ONE_ZONE);
-    pr_debug("%s : pa=0x%x, context_id=%d, offset=%d\n", __FUNCTION__, *phy_addr, context_id, (context_id*HOBOT_DMA_SRAM_ONE_ZONE));
+    pr_info("pa=0x%x, va=%p, context_id=%d, offset=%d\n",
+        *phy_addr, va, context_id, (context_id*HOBOT_DMA_SRAM_ONE_ZONE));
 
 #if HOBOT_REGISTER_MONITOR
     g_sw_isp_base[context_id].base = va;
@@ -294,15 +304,14 @@ void *system_sw_alloc_dma_sram( uint32_t size , uint32_t context_id, uint32_t *p
     return va;
 }
 
-void system_sw_free_dma_sram( void *ptr ,uint32_t context_id)
+void system_sw_free_dma_sram(void *ptr, uint32_t context_id)
 {
-    pr_debug("%s WARNING: not support memory free dma sram (context_id=%d)\n", __FUNCTION__, context_id);
+    if (g_hobot_dma_va != NULL) {
+        iounmap(g_hobot_dma_va);
+        g_hobot_dma_va = NULL;
+    }
 
-#if HOBOT_REGISTER_MONITOR
-    pr_debug("%s WARNING: HOBOT_REGISTER_MONITOR not support memory free\n", __FUNCTION__, context_id);
-    g_count = 0;
-#endif//HOBOT_REGISTER_MONITOR
-
+    ptr = NULL;
 }
 #endif
 

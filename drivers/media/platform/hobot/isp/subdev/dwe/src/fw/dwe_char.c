@@ -604,6 +604,10 @@ static int dwe_probe(struct platform_device *dev)
 		port = 4;
 	} else if (strstr(dev->name, "dwe_sbuf5") != 0) {
 		port = 5;
+	} else if (strstr(dev->name, "dwe_sbuf6") != 0) {
+		port = 6;
+	} else if (strstr(dev->name, "dwe_sbuf7") != 0) {
+		port = 7;
 	}
 
 	if (port < FIRMWARE_CONTEXT_NUMBER) {
@@ -680,6 +684,24 @@ static struct platform_driver dwe_device_driver[FIRMWARE_CONTEXT_NUMBER] = {
 		.remove         = dwe_remove,
 		.driver         = {
 			.name   = "dwe_sbuf6",
+		},
+	},
+#endif
+#if FIRMWARE_CONTEXT_NUMBER > 6
+	{
+		.probe          = dwe_probe,
+		.remove         = dwe_remove,
+		.driver         = {
+			.name   = "dwe_sbuf7",
+		},
+	},
+#endif
+#if FIRMWARE_CONTEXT_NUMBER > 7
+	{
+		.probe          = dwe_probe,
+		.remove         = dwe_remove,
+		.driver         = {
+			.name   = "dwe_sbuf8",
 		},
 	},
 #endif

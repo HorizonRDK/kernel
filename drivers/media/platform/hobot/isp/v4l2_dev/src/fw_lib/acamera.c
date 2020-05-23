@@ -20,6 +20,7 @@
 #define pr_fmt(fmt) "[isp_drv]: %s: " fmt, __func__
 
 #include <linux/module.h>
+#include <linux/mutex.h>
 #include <linux/semaphore.h>
 #include <linux/crc16.h>
 #include "acamera_fw.h"
@@ -37,6 +38,9 @@
 #include "acamera_aexp_hist_stats_mem_config.h"
 #include "acamera_decompander0_mem_config.h"
 #include "acamera_ihist_stats_mem_config.h"
+
+#include "dma_writer.h"
+#include "dma_writer_fsm.h"
 
 #if FW_HAS_CONTROL_CHANNEL
 #include "acamera_ctrl_channel.h"
@@ -82,11 +86,15 @@ static DECLARE_WAIT_QUEUE_HEAD(wq_dma_done);
 
 static int cur_ctx_id;
 static int last_ctx_id;
-static int next_ctx_id;
+static int cur_chn_id;
+static int last_chn_id;
+static int swap_ctx_id;
 
 #if FW_USE_HOBOT_DMA
 extern hobot_dma_t g_hobot_dma;
 #endif
+extern int isp_stream_onoff_check(void);
+extern void system_interrupts_disable( void );
 
 int32_t acamera_set_api_context( uint32_t ctx_num )
 {
@@ -132,6 +140,24 @@ void *acamera_get_ctx_ptr( uint32_t ctx_id )
 acamera_firmware_t *acamera_get_firmware_ptr(void)
 {
     return &g_firmware;
+}
+
+int acamera_all_hw_contexts_inited(void)
+{
+    int i = 0;
+    int count = 0;
+    acamera_context_ptr_t p_ctx;
+
+    for (i = 0; i < FIRMWARE_CONTEXT_NUMBER; i++) {
+        p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[i];
+        if (p_ctx && p_ctx->initialized)
+            count++;
+    }
+
+    if (count >= HW_CONTEXT_NUMBER)
+        return 1;
+
+    return 0;
 }
 
 void acamera_notify_evt_data_avail( void )
@@ -328,25 +354,10 @@ void acamera_update_cur_settings_to_isp( uint32_t fw_ctx_id )
 
 int acamera_isp_init_context(uint8_t idx)
 {
-    int i = 0;
     int ret = 0;
     acamera_context_t *p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[idx];
 
     pr_info("+\n");
-
-    for (i = 0; i < FIRMWARE_CONTEXT_NUMBER; i++) {
-        acamera_context_t *ctx_tmp = (acamera_context_t *)acamera_get_ctx_ptr(i);
-        pr_debug("ctx-%d offline st %d\n", i, ctx_tmp->sif_isp_offline);
-        if (ctx_tmp->sif_isp_offline == 1)
-            break;
-    }
-
-    // no stream running, update flag for online use
-    if (i >= FIRMWARE_CONTEXT_NUMBER) {
-        cur_ctx_id = idx;
-        last_ctx_id = idx;
-        next_ctx_id = idx;
-    }
 
     ret = validate_settings( settings, idx );
     if (ret < 0) {
@@ -354,34 +365,19 @@ int acamera_isp_init_context(uint8_t idx)
         return ret;
     }
 
-    for (i = 0; g_firmware.initialized == 0 && i < FIRMWARE_CONTEXT_NUMBER; i++) {
-        pr_info("copy data from isp hw to sram %d\n", i);
-        system_dma_copy_sg( g_firmware.dma_chan_isp_config, ISP_CONFIG_PING, SYS_DMA_FROM_DEVICE, 0, i );
-#if FW_USE_HOBOT_DMA
-        isp_idma_start_transfer(&g_hobot_dma);
-        system_dma_wait_done(g_firmware.dma_chan_isp_config);
-#endif
-    }
-
     ret = acamera_init_context( p_ctx, &settings[idx], &g_firmware );
     if (ret == 0) {
-
-        if (g_firmware.initialized != 0) {
-            pr_debug("g_firmware have been inited, don't need touch isp hw ping/pong\n");
+        if (g_firmware.initialized) {
+            pr_debug("firmware have been inited, don't touch isp hardware\n");
             goto out;
         }
 
-        // system_dma_copy current software context to the ping and pong
-        system_dma_copy_sg( g_firmware.dma_chan_isp_config, ISP_CONFIG_PING, SYS_DMA_TO_DEVICE, 0, idx );
-#if FW_USE_HOBOT_DMA
-        isp_idma_start_transfer(&g_hobot_dma);
-        system_dma_wait_done(g_firmware.dma_chan_isp_config);
-#endif
-        system_dma_copy_sg( g_firmware.dma_chan_isp_config, ISP_CONFIG_PONG, SYS_DMA_TO_DEVICE, 0, idx );
-#if FW_USE_HOBOT_DMA
-        isp_idma_start_transfer(&g_hobot_dma);
-        system_dma_wait_done(g_firmware.dma_chan_isp_config);
-#endif
+        //update for isp fore-end online
+        cur_ctx_id = idx;
+        last_ctx_id = idx;
+        cur_chn_id = p_ctx->dma_chn_idx;
+        last_chn_id = p_ctx->dma_chn_idx;
+
         g_firmware.initialized = 1;
 
         acamera_isp_isp_global_mcu_override_config_select_write( 0, 1 ); //put ping pong in slave mode
@@ -398,6 +394,16 @@ int acamera_isp_init_context(uint8_t idx)
 
 out:
     pr_info("-\n");
+
+    return ret;
+}
+
+int acamera_isp_deinit_context(uint8_t idx)
+{
+    int ret = 0;
+    acamera_context_t *p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[idx];
+
+    acamera_deinit_context(p_ctx);
 
     return ret;
 }
@@ -428,8 +434,9 @@ int32_t acamera_init( acamera_settings *settings, uint32_t ctx_num )
 
     g_firmware.api_context = 0;
     g_firmware.first_frame = 0;
+    g_firmware.cache_area = NULL;
 
-    system_semaphore_init(&g_firmware.sem_event_process_done);
+    mutex_init(&g_firmware.ctx_chg_lock);
     system_semaphore_init( &g_firmware.sem_evt_avail );
 
     if ( ctx_num <= FIRMWARE_CONTEXT_NUMBER ) {
@@ -451,22 +458,25 @@ int32_t acamera_init( acamera_settings *settings, uint32_t ctx_num )
                 // dump hw default configuration to the current context
 
 #if FW_USE_HOBOT_DMA
-                p_ctx->sw_reg_map.isp_sw_config_map = system_sw_alloc_dma_sram(HOBOT_DMA_SRAM_ONE_ZONE,
+                if (idx < HW_CONTEXT_NUMBER) {
+                    p_ctx->sw_reg_map.isp_sw_config_map = system_sw_alloc_dma_sram(HOBOT_DMA_SRAM_ONE_ZONE,
                                                                                 p_ctx->context_id,
                                                                                 &p_ctx->sw_reg_map.isp_sw_phy_addr);
+                }
 #else
-                p_ctx->sw_reg_map.isp_sw_config_map = system_sw_alloc(HOBOT_DMA_SRAM_SIZE);
+                p_ctx->sw_reg_map.isp_sw_config_map = system_sw_alloc(HOBOT_DMA_SRAM_ONE_ZONE);
                 p_ctx->sw_reg_map.isp_sw_phy_addr = 0;  // no use when DMA mode disable
 #endif
-                if ( p_ctx->sw_reg_map.isp_sw_config_map ) {
-                    result = dma_channel_addresses_setup( g_firmware.dma_chan_isp_config, g_firmware.dma_chan_isp_metering,
-                                        (void *)p_ctx->sw_reg_map.isp_sw_config_map, idx, settings->hw_isp_addr,
-                                        p_ctx->sw_reg_map.isp_sw_phy_addr);
-                } else {
-                    LOG( LOG_CRIT, "Software Context %d failed to allocate", idx );
-                    result = -1;
+                if (idx < HW_CONTEXT_NUMBER) {
+                    if ( p_ctx->sw_reg_map.isp_sw_config_map ) {
+                        result = dma_channel_addresses_setup( g_firmware.dma_chan_isp_config, g_firmware.dma_chan_isp_metering,
+                                            (void *)p_ctx->sw_reg_map.isp_sw_config_map, idx, settings->hw_isp_addr,
+                                            p_ctx->sw_reg_map.isp_sw_phy_addr);
+                    } else {
+                        LOG( LOG_CRIT, "Software Context %d failed to allocate", idx );
+                        result = -1;
+                    }
                 }
-
 #if FW_HAS_CONTROL_CHANNEL
                 ctrl_channel_init(idx);
 #endif
@@ -527,11 +537,10 @@ static void acamera_deinit( void )
 #endif
         p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[idx];
 
-        acamera_deinit_context( p_ctx );
-
         if ( p_ctx->sw_reg_map.isp_sw_config_map != NULL ) {
 #if FW_USE_HOBOT_DMA
-            system_sw_free_dma_sram( (void *)p_ctx->sw_reg_map.isp_sw_config_map, p_ctx->context_id );
+            if (p_ctx->content_side == SIDE_SRAM)
+                system_sw_free_dma_sram( (void *)p_ctx->sw_reg_map.isp_sw_config_map, p_ctx->context_id );
 #else
             system_sw_free( (void *)p_ctx->sw_reg_map.isp_sw_config_map );
 #endif
@@ -545,7 +554,6 @@ int32_t acamera_terminate()
     acamera_logger_empty(); //empty the logger buffer and print remaining logs
     acamera_deinit();
     system_semaphore_destroy( g_firmware.sem_evt_avail );
-    system_semaphore_destroy(g_firmware.sem_event_process_done);
 
     return 0;
 }
@@ -644,15 +652,11 @@ EXPORT_SYMBOL(dma_writer_config_done);
 
 static void dma_complete_context_func( void *arg )
 {
-    int ctx_id = 0;
-    system_dma_device_t *system_dma_device = (system_dma_device_t *)arg;
+    int ctx_id = cur_ctx_id;
 
     pr_debug("DMA COMPLETION FOR CONTEXT\n");
 
     g_firmware.dma_flag_isp_config_completed = 1;
-
-    if (system_dma_device != NULL)
-	ctx_id = system_dma_device->cur_fw_ctx_id;
 
     if ( g_firmware.dma_flag_isp_config_completed && g_firmware.dma_flag_isp_metering_completed ) {
 	isp_ctx_node_t *cn;
@@ -695,15 +699,11 @@ static void dma_complete_context_func( void *arg )
 
 static void dma_complete_metering_func( void *arg )
 {
-    int ctx_id = 0;
-    system_dma_device_t *system_dma_device = (system_dma_device_t *)arg;
+    int ctx_id = cur_ctx_id;
 
     pr_debug("DMA COMPLETION FOR METERING\n");
 
     g_firmware.dma_flag_isp_metering_completed = 1;
-
-    if (system_dma_device != NULL)
-	ctx_id = system_dma_device->cur_fw_ctx_id;
 
     if ( g_firmware.dma_flag_isp_config_completed && g_firmware.dma_flag_isp_metering_completed ) {
 	acamera_context_t *p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[ctx_id];
@@ -922,6 +922,37 @@ int32_t acamera_interrupt_handler()
 }
 
 #else
+static int _all_contexts_frame_counter_status(void)
+{
+    int i = 0;
+    acamera_context_ptr_t p_ctx;
+
+    for (i = 0; i < FIRMWARE_CONTEXT_NUMBER; i++) {
+        p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[i];
+        if (p_ctx->isp_frame_counter)
+            break;
+    }
+
+    if (i >= FIRMWARE_CONTEXT_NUMBER)
+        return 0;
+
+    return 1;
+}
+
+static int _get_first_swap_ctx_id(void)
+{
+    int i = 0;
+    acamera_context_ptr_t p_ctx;
+
+    for (i = 0; i < FIRMWARE_CONTEXT_NUMBER; i++) {
+        p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[i];
+        if (p_ctx->dma_chn_idx != -1)
+            break;
+    }
+
+    return i;
+}
+
 #if FW_USE_HOBOT_DMA
 static void set_dma_cmd_queue(dma_cmd *cmd, uint32_t ping_pong_sel)
 {
@@ -929,19 +960,19 @@ static void set_dma_cmd_queue(dma_cmd *cmd, uint32_t ping_pong_sel)
     cmd[0].buff_loc = !ping_pong_sel;
     cmd[0].direction = SYS_DMA_FROM_DEVICE;
     cmd[0].complete_func = dma_complete_metering_func;
-    cmd[0].fw_ctx_id = last_ctx_id;
+    cmd[0].fw_ctx_id = last_chn_id;
 
     cmd[1].ctx = g_firmware.dma_chan_isp_config;
     cmd[1].buff_loc = ping_pong_sel;
     cmd[1].direction = SYS_DMA_TO_DEVICE;
     cmd[1].complete_func = dma_complete_context_func;
-    cmd[1].fw_ctx_id = next_ctx_id;
+    cmd[1].fw_ctx_id = cur_chn_id;
 }
 #endif /* FW_USE_HOBOT_DMA*/
 
-void isp_ctx_prepare(int ctx_pre, int ctx_next, int ppf)
+void isp_ctx_transfer(int ctx_pre, int ctx_next, int ppf)
 {
-    pr_debug("ctx_pre %d, ctx_next %d, ppf %d\n", ctx_pre, ctx_next, ppf);
+    pr_debug("chn_pre %d, chn_next %d, ppf %d\n", ctx_pre, ctx_next, ppf);
 #if FW_USE_HOBOT_DMA
 	dma_cmd cmd[2];
 	if (ctx_pre == ctx_next) {
@@ -958,21 +989,147 @@ void isp_ctx_prepare(int ctx_pre, int ctx_next, int ppf)
 #endif
 }
 
-static int _all_contexts_frame_counter_status(void)
+void _fsm_isp_base_update(acamera_context_ptr_t p_ctx)
 {
     int i = 0;
-    acamera_context_ptr_t p_ctx;
+    dma_handle *dh = NULL;
 
-    for (i = 0; i < FIRMWARE_CONTEXT_NUMBER; i++) {
-        p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[i];
-        if (p_ctx->isp_frame_counter)
-            break;
+    for(i = 0; i < FSM_ID_MAX; i++) {
+        p_ctx->fsm_mgr.fsm_arr[i]->isp_base = (uintptr_t)p_ctx->sw_reg_map.isp_sw_config_map;
     }
 
-    if (i >= FIRMWARE_CONTEXT_NUMBER)
-        return 0;
+    p_ctx->settings.isp_base = (uintptr_t)p_ctx->sw_reg_map.isp_sw_config_map;
+    p_ctx->fsm_mgr.isp_base = (uintptr_t)p_ctx->sw_reg_map.isp_sw_config_map;
+    dh = ((dma_writer_fsm_const_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_DMA_WRITER]->p_fsm))->handle;
+    dh->pipe[dma_fr].settings.isp_base = (uintptr_t)p_ctx->sw_reg_map.isp_sw_config_map;
+}
 
-    return 1;
+void _ctx_chn_idx_update(int ctx_id)
+{
+    int i = 0;
+    static uint8_t frame_list[FIRMWARE_CONTEXT_NUMBER] = {0};
+    acamera_context_ptr_t p_ctx, p_tmp;
+
+    p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[ctx_id];
+
+    if (p_ctx->p_gfw->sw_frame_counter++ < HW_CONTEXT_NUMBER) {
+        swap_ctx_id = _get_first_swap_ctx_id();
+    } else {
+        swap_ctx_id = last_ctx_id;
+    }
+
+    //if swap_ctx_id is invalid
+    p_tmp = (acamera_context_ptr_t)&g_firmware.fw_ctx[swap_ctx_id];
+    i = FIRMWARE_CONTEXT_NUMBER - 3;
+    while ((p_tmp->dma_chn_idx < 0 || !p_tmp->initialized) && i >= 0) {
+        swap_ctx_id = frame_list[i];
+        p_tmp = (acamera_context_ptr_t)&g_firmware.fw_ctx[swap_ctx_id];
+        i--;
+    }
+
+    if (_all_contexts_frame_counter_status() == 0) {
+        last_ctx_id = ctx_id;
+        last_chn_id = (p_ctx->dma_chn_idx < 0) ? 0 : p_ctx->dma_chn_idx;
+    } else {
+	    last_ctx_id = cur_ctx_id;
+        last_chn_id = cur_chn_id;
+    }
+
+	cur_ctx_id = ctx_id;
+    cur_chn_id = p_ctx->dma_chn_idx;
+
+    pr_debug("sw cnter %d, swap ctx id %d, last ctx id %d\n",
+            p_ctx->p_gfw->sw_frame_counter, swap_ctx_id, last_ctx_id);
+    pr_debug("last chn id %d, cur ctx id %d, cur chn id %d\n",
+            last_chn_id, cur_ctx_id, cur_chn_id);
+    for (i = 0; i < FIRMWARE_CONTEXT_NUMBER; i++)
+        pr_debug("%d ", frame_list[i]);
+    pr_debug("\n");
+
+    //record ctx id, according to frame comming sequence
+    for (i = 1; i < FIRMWARE_CONTEXT_NUMBER; i++)
+        frame_list[i-1] = frame_list[i];
+    frame_list[FIRMWARE_CONTEXT_NUMBER-1] = cur_ctx_id;
+}
+
+int isp_ctx_prepare(acamera_context_ptr_t p_ctx)
+{
+    int ret = 0;
+    int be_out_ctx_deinited = 0;
+    volatile uint8_t *p_ctx_addr;
+    acamera_context_ptr_t p_ctx_be_out;
+
+    pr_debug("swap in ctx: id %d, side %s, dma_chn %d, paddr %p\n",
+            p_ctx->context_id, p_ctx->content_side ? "ddr" : "sram",
+            p_ctx->dma_chn_idx, p_ctx->sw_reg_map.isp_sw_config_map);
+
+    ret = mutex_lock_interruptible(&p_ctx->p_gfw->ctx_chg_lock);
+    if (ret != 0) {
+        pr_err("mutex lock failed, rc = %d\n", ret);
+        return ret;
+    }
+
+    //isp ctx swap
+    p_ctx_be_out = (acamera_context_ptr_t)&g_firmware.fw_ctx[swap_ctx_id];
+
+    //in case of be-out ctx have been exit
+    if (p_ctx_be_out->dma_chn_idx < 0 && p_ctx_be_out->initialized == 0) {
+        int i = 0;
+        for (i = 0; i < HW_CONTEXT_NUMBER; i++) {
+            if (!test_bit(i, &g_firmware.dma_chn_bitmap)) {
+                p_ctx_be_out->dma_chn_idx = i;
+                set_bit(i, &g_firmware.dma_chn_bitmap);
+                break;
+            }
+        }
+        be_out_ctx_deinited = 1;
+        pr_debug("ctx id %d have been exit\n", p_ctx_be_out->context_id);
+    }
+
+    cur_chn_id = p_ctx_be_out->dma_chn_idx;
+
+    pr_debug("swap out ctx: id %d, side %s, dma_chn %d\n",
+            p_ctx_be_out->context_id, p_ctx_be_out->content_side ? "ddr" : "sram",
+            p_ctx_be_out->dma_chn_idx);
+    pr_debug("be out paddr %p, cache %p\n",
+            p_ctx_be_out->sw_reg_map.isp_sw_config_map, p_ctx->p_gfw->cache_area);
+
+    //swap out
+    if (be_out_ctx_deinited == 0) {
+        memcpy_fromio((void *)p_ctx->p_gfw->cache_area, (void *)p_ctx_be_out->sw_reg_map.isp_sw_config_map, HOBOT_DMA_SRAM_ONE_ZONE);
+        p_ctx_be_out->content_side = SIDE_DDR;
+        p_ctx_be_out->dma_chn_idx = -1;
+    }
+
+    //swap in
+    memcpy_toio((void *)p_ctx_be_out->sw_reg_map.isp_sw_config_map, (void *)p_ctx->sw_reg_map.isp_sw_config_map, HOBOT_DMA_SRAM_ONE_ZONE);
+    p_ctx->content_side = SIDE_SRAM;
+    p_ctx->dma_chn_idx = cur_chn_id;
+
+    //swap pointer
+    if (be_out_ctx_deinited == 0) {
+        p_ctx_addr = p_ctx_be_out->sw_reg_map.isp_sw_config_map;
+        p_ctx_be_out->sw_reg_map.isp_sw_config_map = p_ctx->p_gfw->cache_area;
+        p_ctx->p_gfw->cache_area = p_ctx->sw_reg_map.isp_sw_config_map;
+        p_ctx->sw_reg_map.isp_sw_config_map = p_ctx_addr;
+    } else {
+        vfree((void *)p_ctx->sw_reg_map.isp_sw_config_map);
+        p_ctx->sw_reg_map.isp_sw_config_map = p_ctx_be_out->sw_reg_map.isp_sw_config_map;
+        pr_debug("ctx id %d have swaped in, ctx id %d is exit, free mem\n",
+                p_ctx->context_id, p_ctx_be_out->context_id);
+    }
+
+    _fsm_isp_base_update(p_ctx);
+
+    pr_debug("swap done ctx: id %d, side %s, dma_chn %d, paddr %p\n",
+            p_ctx->context_id, p_ctx->content_side ? "ddr" : "sram",
+            p_ctx->dma_chn_idx, p_ctx->sw_reg_map.isp_sw_config_map);
+    pr_debug("swaped paddr %p, cache %p\n",
+            p_ctx_be_out->sw_reg_map.isp_sw_config_map, p_ctx->p_gfw->cache_area);
+
+    mutex_unlock(&p_ctx->p_gfw->ctx_chg_lock);
+
+    return ret;
 }
 
 extern int ldc_set_ioctl(uint32_t port, uint32_t online);
@@ -998,6 +1155,7 @@ int sif_isp_ctx_sync_func(int ctx_id)
                 msecs_to_jiffies(30));
         }
         atomic_set(&g_firmware.dma_done, 0);
+        atomic_set(&g_firmware.frame_done, 0);
     } else { //dma writer off, isp online next module
         if (atomic_read(&g_firmware.frame_done) == 0 && _all_contexts_frame_counter_status() != 0) {
             pr_debug("->isp is working now, next ctx id %d.\n", ctx_id);
@@ -1008,21 +1166,13 @@ int sif_isp_ctx_sync_func(int ctx_id)
 
 	pr_debug("start isp ctx switch, ctx_id %d\n", ctx_id);
 
-    //in case of non ctx-0 run first
-    if (p_ctx->isp_frame_counter == 0)
-        last_ctx_id = ctx_id;
-    else
-	    last_ctx_id = cur_ctx_id;
-
-	cur_ctx_id = ctx_id;
-	next_ctx_id = ctx_id;
-
-	p_ctx->sif_isp_offline = 1;
+    p_ctx->sif_isp_offline = 1;
+    _ctx_chn_idx_update(ctx_id);
 
 	isp_input_port_size_config(p_ctx->fsm_mgr.fsm_arr[FSM_ID_SENSOR]->p_fsm);
 	ldc_set_ioctl(ctx_id, 0);
 	dis_set_ioctl(ctx_id, 0);
-retry:
+
 	if (acamera_event_queue_empty(&p_ctx->fsm_mgr.event_queue)
         || acamera_event_queue_has_mask_event(&p_ctx->fsm_mgr.event_queue)) {
 		// these flags are used for sync of callbacks
@@ -1030,20 +1180,23 @@ retry:
 		g_firmware.dma_flag_isp_metering_completed = 0;
 		g_firmware.dma_flag_dma_writer_config_completed = 0;
 
+        if (p_ctx->content_side == SIDE_DDR) {
+            isp_ctx_prepare(p_ctx);
+        }
+
 		// switch to ping/pong contexts for the next frame
 		if (acamera_isp_isp_global_ping_pong_config_select_read(0) == ISP_CONFIG_PONG) {
 			acamera_isp_isp_global_mcu_ping_pong_config_select_write(0, ISP_CONFIG_PING);
 			pr_debug("next is ping, DMA sram -> ping\n");
-			isp_ctx_prepare(last_ctx_id, next_ctx_id, ISP_CONFIG_PING);
+			isp_ctx_transfer(last_chn_id, cur_chn_id, ISP_CONFIG_PING);
 		} else {
 			acamera_isp_isp_global_mcu_ping_pong_config_select_write(0, ISP_CONFIG_PONG);
 			pr_debug("next is pong, DMA sram -> pong\n");
-			isp_ctx_prepare(last_ctx_id, next_ctx_id, ISP_CONFIG_PONG);
+			isp_ctx_transfer(last_chn_id, cur_chn_id, ISP_CONFIG_PONG);
 		}
 	} else {
         pr_info("previous frame events are not process done\n");
-		system_semaphore_wait(g_firmware.sem_event_process_done, 0);
-		goto retry;
+        return -1;
 	}
 
 	if (!(g_firmware.dma_flag_isp_config_completed &&
@@ -1166,7 +1319,7 @@ pr_info("hcs1 %d, hcs2 %d, vc %d\n", hcs1, hcs2, vc);
                             //            |^^^^^^^^^|
                             // conf --->  |  PONG   |
                             //            |_________|
-			    isp_ctx_prepare(0, 0, ISP_CONFIG_PING);
+                            isp_ctx_transfer(0, 0, ISP_CONFIG_PING);
                         } else {
                             LOG( LOG_INFO, "Current config is ping" );
                             //            |^^^^^^^^^|
@@ -1179,7 +1332,7 @@ pr_info("hcs1 %d, hcs2 %d, vc %d\n", hcs1, hcs2, vc);
                             //            |^^^^^^^^^|
                             // conf --->  |  PING   |
                             //            |_________|
-			    isp_ctx_prepare(0, 0, ISP_CONFIG_PONG);
+                            isp_ctx_transfer(0, 0, ISP_CONFIG_PONG);
                         }
                     } else {
                         pr_debug("sem cnt %d, ev_q head %d tail %d\n",
@@ -1220,8 +1373,6 @@ pr_info("hcs1 %d, hcs2 %d, vc %d\n", hcs1, hcs2, vc);
 
 #endif // USER_MODULE
 
-extern int isp_stream_onoff_check(void);
-extern void system_interrupts_disable( void );
 int32_t acamera_process( void )
 {
     int32_t result = 0;
@@ -1240,8 +1391,6 @@ int32_t acamera_process( void )
 #if FW_HAS_CONTROL_CHANNEL
     ctrl_channel_process();
 #endif
-
-    system_semaphore_raise(g_firmware.sem_event_process_done);
 
     /* disable irq when no stream on, else will blocking when resuming from suspend */
     if (isp_stream_onoff_check() == 0)

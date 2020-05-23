@@ -112,6 +112,10 @@ typedef struct _acamera_isp_sw_regs_map {
     uint32_t isp_sw_phy_addr;
 } acamera_isp_sw_regs_map;
 
+enum {
+    SIDE_SRAM = 0,
+    SIDE_DDR = 1,
+};
 
 struct _acamera_context_t {
     uint32_t irq_flag;
@@ -159,6 +163,9 @@ struct _acamera_context_t {
     // sif offline isp on/off
     uint8_t sif_isp_offline;
 
+    uint8_t content_side;
+    int dma_chn_idx;
+
     acamera_isp_sw_regs_map sw_reg_map;
 };
 
@@ -188,9 +195,15 @@ struct _acamera_firmware_t {
     atomic_t dma_done;
     uint8_t first_frame;
 
+    int cache_ctx_id;
+    int cache_empty;
+    volatile uint8_t *cache_area;
+    unsigned long dma_chn_bitmap;
+    struct mutex ctx_chg_lock;
+
+    uint32_t sw_frame_counter;
     uint32_t initialized;
 
-    semaphore_t sem_event_process_done;
     semaphore_t sem_evt_avail;
 };
 

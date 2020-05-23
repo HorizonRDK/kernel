@@ -257,6 +257,8 @@ int32_t system_dma_copy_sg( void *ctx, int32_t buff_loc, uint32_t direction, dma
 int32_t system_dma_copy_multi_sg( dma_cmd* cmd,
                                             uint32_t cmd_num);
 void system_dma_wait_done(void *ctx);
+
+void system_dma_desc_flush(void);
 #endif
 
 #endif // __SYSTEM_DMA_H__

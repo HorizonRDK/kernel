@@ -18,7 +18,7 @@
 #define __ACAMERA_DWE_CONFIG_H__
 
 
-#define FIRMWARE_CONTEXT_NUMBER 4
+#define FIRMWARE_CONTEXT_NUMBER 8
 #define HADRWARE_CONTEXT_MAX    4
 #define BUFFER_DMA 1 // 1 use dma  0 use vmalloc
 #define DIS_STAT_SIZE 12000 // (1920 + 1080)*1080 byte

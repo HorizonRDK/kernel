@@ -1874,6 +1874,8 @@ void sbuf_deinit( sbuf_fsm_ptr_t p_fsm )
          p_ctx->dev_name,
          p_ctx->dev_minor_id );
 
+    p_ctx->dev_minor_id = -1;
+
     sbuf_mgr_free( &p_ctx->sbuf_mgr );
 
     p_dev = &p_ctx->sbuf_dev;

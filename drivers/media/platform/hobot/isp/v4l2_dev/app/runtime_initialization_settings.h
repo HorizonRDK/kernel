@@ -75,7 +75,7 @@ static acamera_settings settings[ FIRMWARE_CONTEXT_NUMBER ] = {    {
         .callback_stream_put_frame = callback_stream_put_frame,
 	.callback_stream_release_frame = callback_stream_release_frame,
     },
-#endif // FIRMWARE_CONTEXT_NUMBER == 2
+#endif
 
 #if FIRMWARE_CONTEXT_NUMBER >= 3
     {
@@ -93,7 +93,7 @@ static acamera_settings settings[ FIRMWARE_CONTEXT_NUMBER ] = {    {
         .callback_stream_put_frame = callback_stream_put_frame,
 	.callback_stream_release_frame = callback_stream_release_frame,
     },
-#endif // FIRMWARE_CONTEXT_NUMBER == 2
+#endif
 
 #if FIRMWARE_CONTEXT_NUMBER >= 4
     {
@@ -111,7 +111,7 @@ static acamera_settings settings[ FIRMWARE_CONTEXT_NUMBER ] = {    {
         .callback_stream_put_frame = callback_stream_put_frame,
 	.callback_stream_release_frame = callback_stream_release_frame,
     },
-#endif // FIRMWARE_CONTEXT_NUMBER == 2
+#endif
 
 #if FIRMWARE_CONTEXT_NUMBER >= 5
     {
@@ -129,7 +129,7 @@ static acamera_settings settings[ FIRMWARE_CONTEXT_NUMBER ] = {    {
         .callback_stream_put_frame = callback_stream_put_frame,
 	.callback_stream_release_frame = callback_stream_release_frame,
     },
-#endif // FIRMWARE_CONTEXT_NUMBER == 2
+#endif
 
 #if FIRMWARE_CONTEXT_NUMBER >= 6
     {
@@ -147,5 +147,41 @@ static acamera_settings settings[ FIRMWARE_CONTEXT_NUMBER ] = {    {
         .callback_stream_put_frame = callback_stream_put_frame,
 	.callback_stream_release_frame = callback_stream_release_frame,
     },
-#endif // FIRMWARE_CONTEXT_NUMBER == 2
+#endif
+
+#if FIRMWARE_CONTEXT_NUMBER >= 7
+    {
+        .sensor_init = sensor_init_v4l2,
+        .sensor_deinit = sensor_deinit_v4l2,
+        .get_calibrations = get_calibrations_v4l2,
+        .lens_init = lens_init,
+        .lens_deinit = lens_deinit,
+        .isp_base = 0x0,
+        .hw_isp_addr = 0x0,
+        .callback_meta = callback_meta,
+        .callback_dma_alloc_coherent = callback_dma_alloc_coherent,
+        .callback_dma_free_coherent = callback_dma_free_coherent,
+        .callback_stream_get_frame = callback_stream_get_frame,
+        .callback_stream_put_frame = callback_stream_put_frame,
+	.callback_stream_release_frame = callback_stream_release_frame,
+    },
+#endif
+
+#if FIRMWARE_CONTEXT_NUMBER >= 8
+    {
+        .sensor_init = sensor_init_v4l2,
+        .sensor_deinit = sensor_deinit_v4l2,
+        .get_calibrations = get_calibrations_v4l2,
+        .lens_init = lens_init,
+        .lens_deinit = lens_deinit,
+        .isp_base = 0x0,
+        .hw_isp_addr = 0x0,
+        .callback_meta = callback_meta,
+        .callback_dma_alloc_coherent = callback_dma_alloc_coherent,
+        .callback_dma_free_coherent = callback_dma_free_coherent,
+        .callback_stream_get_frame = callback_stream_get_frame,
+        .callback_stream_put_frame = callback_stream_put_frame,
+	.callback_stream_release_frame = callback_stream_release_frame,
+    },
+#endif
 } ;

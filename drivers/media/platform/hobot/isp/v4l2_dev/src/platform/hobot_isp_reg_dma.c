@@ -30,6 +30,7 @@
 #include <linux/time.h>
 #include <linux/list.h>
 #include "system_dma.h"
+#include "system_sw_io.h"
 #include "hobot_isp_reg_dma.h"
 
 #if FW_USE_HOBOT_DMA
@@ -163,9 +164,8 @@ static void isp_idma_tasklet(unsigned long data)
 	// process each callback
 	if (!list_empty(&hobot_dma->done_list)) {
 		list_for_each_entry_safe(desc, next, &hobot_dma->done_list, node) {
-			list_del(&desc->node);
+			list_move_tail(&desc->node, &hobot_dma->free_list);
 			desc->callback.cb(desc->callback.cb_data);
-			kfree(desc);
 		}
 	}
 	spin_unlock_irqrestore(hobot_dma->dma_ctrl_lock, flags);
@@ -223,6 +223,7 @@ irqreturn_t hobot_dma_interrupt(int irq, void *data)
 
 void hobot_dma_init(hobot_dma_t *hobot_dma)
 {
+    int i = 0;
     struct device_node *np;
     uint32_t ret;
     unsigned long flags;
@@ -247,11 +248,22 @@ void hobot_dma_init(hobot_dma_t *hobot_dma)
     hobot_dma->init_cnt++;
     system_spinlock_unlock( hobot_dma->dma_ctrl_lock, flags );
 
+    INIT_LIST_HEAD(&hobot_dma->free_list);
     INIT_LIST_HEAD(&hobot_dma->pending_list);
     INIT_LIST_HEAD(&hobot_dma->done_list);
     INIT_LIST_HEAD(&hobot_dma->active_list);
 
     tasklet_init(&hobot_dma->tasklet, isp_idma_tasklet, (unsigned long)hobot_dma);
+
+    for (i = 0; i < 4; i++) {
+        idma_descriptor_t *desc;
+        desc = system_sw_alloc(sizeof(idma_descriptor_t));
+        if (!desc) {
+            pr_err("alloc idma desc mem failed, size %d\n", sizeof(idma_descriptor_t));
+            return;
+        }
+        list_add_tail(&desc->node, &hobot_dma->free_list);
+    }
 
     // 3. if first time init, mapping interrupt here
     np = of_find_compatible_node(NULL, NULL, "hobot,x3-isp");
@@ -273,6 +285,7 @@ void hobot_dma_init(hobot_dma_t *hobot_dma)
 
 void hobot_dma_deinit(hobot_dma_t *hobot_dma)
 {
+    int i;
     const char *devname;
     unsigned long flags;
     // 1. check lock init
@@ -295,6 +308,16 @@ void hobot_dma_deinit(hobot_dma_t *hobot_dma)
         printk(KERN_ERR "%s: not init dma yet (init_cnt=%d)\n", __FUNCTION__,hobot_dma->init_cnt);
         system_spinlock_unlock( hobot_dma->dma_ctrl_lock, flags );
         return;
+    }
+
+    for (i = 0; i < 4; i++) {
+        idma_descriptor_t *desc, *next;
+        if (!list_empty(&hobot_dma->free_list)) {
+            list_for_each_entry_safe(desc, next, &hobot_dma->free_list, node) {
+                list_del(&desc->node);
+                kfree(desc);
+            }
+        }
     }
 
     tasklet_kill(&hobot_dma->tasklet);

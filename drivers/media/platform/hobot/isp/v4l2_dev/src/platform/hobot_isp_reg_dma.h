@@ -63,6 +63,7 @@ typedef struct hobot_dma_s {
     sys_spinlock dma_ctrl_lock;
 
     struct tasklet_struct tasklet;
+    struct list_head free_list;
     struct list_head pending_list;
     struct list_head active_list;
     struct list_head done_list;

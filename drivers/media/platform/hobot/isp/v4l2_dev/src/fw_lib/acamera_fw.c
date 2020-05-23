@@ -37,7 +37,10 @@
 #include "isp_config_seq.h"
 #include "system_stdlib.h"
 #include "general_fsm.h"
+#include "system_dma.h"
+#include "hobot_isp_reg_dma.h"
 #include "isp_ctxsv.h"
+
 
 #if ISP_HAS_FPGA_WRAPPER
 #include "acamera_fpga_config.h"
@@ -57,6 +60,9 @@ extern void acamera_notify_evt_data_avail( void );
 extern void acamera_update_cur_settings_to_isp( uint32_t fw_ctx_id );
 extern void *acamera_get_ctx_ptr(uint32_t ctx_id);
 static void init_stab( acamera_context_ptr_t p_ctx );
+#if FW_USE_HOBOT_DMA
+extern hobot_dma_t g_hobot_dma;
+#endif
 
 void acamera_load_isp_sequence( uintptr_t isp_base, const acam_reg_t **sequence, uint8_t num )
 {
@@ -142,11 +148,9 @@ int acamera_fw_isp_start(int ctx_id)
 
 int acamera_fw_isp_stop(int ctx_id)
 {
-    int i = 0;
 	uint8_t rc = 0;
 	acamera_context_t *p_ctx = (acamera_context_t *)acamera_get_ctx_ptr(ctx_id);
     acamera_firmware_t *fw_ptr = acamera_get_firmware_ptr();
-    acamera_fsm_mgr_t *instance;
 
     ips_set_isp_interrupt(0);
 	acamera_fw_interrupts_disable( p_ctx );
@@ -157,20 +161,17 @@ int acamera_fw_isp_stop(int ctx_id)
     rc = isp_safe_stop(p_ctx->settings.isp_base);
 
     fw_ptr->first_frame = 0;
-
-    // clear all contexts state
-    for (i = 0; i < FIRMWARE_CONTEXT_NUMBER; i++) {
-        p_ctx = (acamera_context_t *)acamera_get_ctx_ptr(i);
-        if (p_ctx) {
-            instance= &p_ctx->fsm_mgr;
-            instance->reserved = 0;
-            p_ctx->sif_isp_offline = 0;
-            p_ctx->system_state = FW_PAUSE;
-        }
+    fw_ptr->sw_frame_counter = 0;
+    fw_ptr->initialized = 0;
+    if (fw_ptr->cache_area != NULL) {
+        pr_debug("free ddr ctx mem %p\n", p_ctx->p_gfw->cache_area);
+        vfree((void *)p_ctx->p_gfw->cache_area);
+        fw_ptr->cache_area = NULL;
     }
 
-	if (!rc)
+	if (!rc) {
 		pr_info("done.\n");
+    }
 
 	return rc;
 }
@@ -566,15 +567,77 @@ int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settin
 }
 
 #else
-
+extern int acamera_all_hw_contexts_inited(void);
 int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settings, acamera_firmware_t *g_fw )
 {
     int32_t result = 0;
     // keep the context pointer for debug purposes
     p_ctx->context_ref = (uint32_t *)p_ctx;
     p_ctx->p_gfw = g_fw;
+    p_ctx->dma_chn_idx = -1;
 
     pr_info("ctx_id %d +\n", p_ctx->context_id);
+
+    result = mutex_lock_interruptible(&p_ctx->p_gfw->ctx_chg_lock);
+    if (result != 0) {
+        pr_err("mutex lock failed, rc = %d\n", result);
+        return result;
+    }
+
+    if (acamera_all_hw_contexts_inited()) {
+        p_ctx->content_side = SIDE_DDR;
+        p_ctx->sw_reg_map.isp_sw_config_map = vmalloc(HOBOT_DMA_SRAM_ONE_ZONE);
+        if (p_ctx->sw_reg_map.isp_sw_config_map == NULL) {
+            pr_err("external ctx area alloc failed.\n");
+            mutex_unlock(&p_ctx->p_gfw->ctx_chg_lock);
+            return -1;
+        }
+        pr_debug("alloc ddr ctx mem vaddr %p\n", p_ctx->sw_reg_map.isp_sw_config_map);
+        memset((void *)p_ctx->sw_reg_map.isp_sw_config_map, 0, HOBOT_DMA_SRAM_ONE_ZONE);
+        p_ctx->sw_reg_map.isp_sw_phy_addr = 0;
+
+        if (p_ctx->p_gfw->cache_area == NULL) {
+            p_ctx->p_gfw->cache_area = vmalloc(HOBOT_DMA_SRAM_ONE_ZONE);
+            if (p_ctx->p_gfw->cache_area == NULL) {
+                pr_err("cache area alloc failed.\n");
+                mutex_unlock(&p_ctx->p_gfw->ctx_chg_lock);
+                return -1;
+            }
+            memset((void *)p_ctx->p_gfw->cache_area, 0, HOBOT_DMA_SRAM_ONE_ZONE);
+            pr_debug("alloc cache area vaddr %p\n", p_ctx->p_gfw->cache_area);
+        }
+    } else {
+        int i = 0;
+        for (i = 0; i < HW_CONTEXT_NUMBER; i++) {
+            if (!test_bit(i, &g_fw->dma_chn_bitmap)) {
+                p_ctx->dma_chn_idx = i;
+                set_bit(i, &g_fw->dma_chn_bitmap);
+                break;
+            }
+        }
+        if (p_ctx->dma_chn_idx >= 0 && p_ctx->dma_chn_idx < HW_CONTEXT_NUMBER) {
+            p_ctx->sw_reg_map.isp_sw_config_map = system_sw_get_dma_addr(p_ctx->dma_chn_idx);
+            if (p_ctx->sw_reg_map.isp_sw_config_map == NULL) {
+                pr_err("idma is not remap, get addr failed.\n");
+                mutex_unlock(&p_ctx->p_gfw->ctx_chg_lock);
+                return -1;
+            }
+            pr_info("copy data from isp hw to sram %d\n", p_ctx->dma_chn_idx);
+            p_ctx->content_side = SIDE_SRAM;
+            system_dma_copy_sg(g_fw->dma_chan_isp_config,
+                    ISP_CONFIG_PING, SYS_DMA_FROM_DEVICE, 0, p_ctx->dma_chn_idx);
+#if FW_USE_HOBOT_DMA
+            isp_idma_start_transfer(&g_hobot_dma);
+            system_dma_wait_done(g_fw->dma_chan_isp_config);
+        }
+#endif
+    }
+
+    mutex_unlock(&p_ctx->p_gfw->ctx_chg_lock);
+
+    pr_info("side %s, chn %d, paddr %p\n",
+        p_ctx->content_side ? "ddr" : "sram",
+        p_ctx->dma_chn_idx, p_ctx->sw_reg_map.isp_sw_config_map);
 
     if ( p_ctx->sw_reg_map.isp_sw_config_map != NULL ) {
         // copy settings
@@ -588,8 +651,6 @@ int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settin
 #if defined( SENSOR_ISP_SEQUENCE_DEFAULT_SETTINGS_CONTEXT )
         acamera_load_sw_sequence( p_ctx->settings.isp_base, p_ctx->isp_sequence, SENSOR_ISP_SEQUENCE_DEFAULT_SETTINGS_CONTEXT );
 #endif
-
-        acamera_isp_iridix_context_no_write(p_ctx->settings.isp_base, p_ctx->context_id);
 
 #if ISP_DMA_RAW_CAPTURE
         dma_raw_capture_init( g_fw );
@@ -610,6 +671,13 @@ int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settin
         acamera_load_sw_sequence( p_ctx->settings.isp_base, &p_custom_settings_context, 0 );
 #endif
 
+        if (p_ctx->dma_chn_idx >= 0 && p_ctx->dma_chn_idx < HW_CONTEXT_NUMBER) {
+            acamera_isp_iridix_context_no_write(p_ctx->settings.isp_base, p_ctx->dma_chn_idx);
+        } else {
+            acamera_isp_top_bypass_iridix_write(p_ctx->settings.isp_base, 1);
+            acamera_isp_iridix_enable_write(p_ctx->settings.isp_base, 0);
+        }
+
         //acamera_isp_input_port_mode_request_write( p_ctx->settings.isp_base, ACAMERA_ISP_INPUT_PORT_MODE_REQUEST_SAFE_START );
 
         p_ctx->initialized = 1;
@@ -626,6 +694,32 @@ int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settin
 
 void acamera_deinit_context( acamera_context_t *p_ctx )
 {
+    int rc = 0;
+
+    rc = mutex_lock_interruptible(&p_ctx->p_gfw->ctx_chg_lock);
+    if (rc != 0) {
+        pr_err("mutex lock failed, rc = %d\n", rc);
+        return;
+    }
+
+    if (p_ctx->content_side == SIDE_DDR && p_ctx->sw_reg_map.isp_sw_config_map) {
+        pr_debug("ctx_id %d, free ddr ctx mem\n", p_ctx->context_id);
+        vfree((void *)p_ctx->sw_reg_map.isp_sw_config_map);
+        p_ctx->sw_reg_map.isp_sw_config_map = NULL;
+    }
+
+    // clear all contexts state
+    p_ctx->fsm_mgr.reserved = 0;
+    p_ctx->sif_isp_offline = 0;
+    p_ctx->initialized = 0;
+    p_ctx->system_state = FW_PAUSE;
+    if (p_ctx->dma_chn_idx >= 0 && p_ctx->dma_chn_idx < HW_CONTEXT_NUMBER) {
+        clear_bit(p_ctx->dma_chn_idx, &(p_ctx->p_gfw->dma_chn_bitmap));
+        p_ctx->dma_chn_idx = -1;
+    }
+
+    mutex_unlock(&p_ctx->p_gfw->ctx_chg_lock);
+
     acamera_fw_deinit( p_ctx );
 }
 

@@ -68,5 +68,31 @@ extern uint32_t get_calibrations_dummy( uint32_t ctx_num, void * sensor_arg,ACam
 	#define CALIBRATION_SUBDEV_FUNCTIONS {get_calibrations_dummy, get_calibrations_dummy, \
 						get_calibrations_dummy, get_calibrations_dummy,\
 						get_calibrations_dummy, get_calibrations_dummy,}
+#elif FIRMWARE_CONTEXT_NUMBER == 7
+	#define SENSOR_INIT_SUBDEV_FUNCTIONS {sensor_init_dummy, sensor_init_dummy,\
+						 sensor_init_dummy, sensor_init_dummy,\
+						 sensor_init_dummy, sensor_init_dummy,\
+						 sensor_init_dummy,}
+	#define SENSOR_DEINIT_SUBDEV_FUNCTIONS {sensor_deinit_dummy, sensor_deinit_dummy, \
+						 sensor_deinit_dummy, sensor_deinit_dummy,\
+						 sensor_deinit_dummy, sensor_deinit_dummy,\
+						 sensor_deinit_dummy,}
+	#define CALIBRATION_SUBDEV_FUNCTIONS {get_calibrations_dummy, get_calibrations_dummy, \
+						get_calibrations_dummy, get_calibrations_dummy,\
+						get_calibrations_dummy, get_calibrations_dummy,\
+						 get_calibrations_dummy,}
+#elif FIRMWARE_CONTEXT_NUMBER == 8
+	#define SENSOR_INIT_SUBDEV_FUNCTIONS {sensor_init_dummy, sensor_init_dummy,\
+						 sensor_init_dummy, sensor_init_dummy,\
+						 sensor_init_dummy, sensor_init_dummy,\
+						 sensor_init_dummy, sensor_init_dummy,}
+	#define SENSOR_DEINIT_SUBDEV_FUNCTIONS {sensor_deinit_dummy, sensor_deinit_dummy, \
+						 sensor_deinit_dummy, sensor_deinit_dummy,\
+						 sensor_deinit_dummy, sensor_deinit_dummy,\
+						 sensor_deinit_dummy, sensor_deinit_dummy,}
+	#define CALIBRATION_SUBDEV_FUNCTIONS {get_calibrations_dummy, get_calibrations_dummy, \
+						get_calibrations_dummy, get_calibrations_dummy,\
+						get_calibrations_dummy, get_calibrations_dummy,\
+						get_calibrations_dummy, get_calibrations_dummy,}
 #endif 
 
