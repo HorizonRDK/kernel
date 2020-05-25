@@ -785,7 +785,7 @@ static int __init bpu_init(void)/*PRQA S ALL*/
 	struct bpu *bpu;
 	int32_t ret;
 
-	bpu = (struct bpu *)kzalloc(sizeof(struct bpu_user), GFP_KERNEL);/*PRQA S ALL*/
+	bpu = (struct bpu *)kzalloc(sizeof(struct bpu), GFP_KERNEL);/*PRQA S ALL*/
 	if (bpu == NULL) {
 		pr_err("Can't alloc bpu mem\n");/*PRQA S ALL*/
 		return -ENOMEM;
