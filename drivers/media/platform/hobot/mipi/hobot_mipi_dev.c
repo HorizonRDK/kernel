@@ -28,7 +28,9 @@
 
 #include <soc/hobot/hobot_mipi_dev.h>
 #include <soc/hobot/hobot_mipi_dphy.h>
+#ifdef CONFIG_HOBOT_DIAG
 #include <soc/hobot/diag.h>
+#endif
 
 #include "hobot_mipi_dev_regs.h"
 #include "hobot_mipi_utils.h"
@@ -271,10 +273,13 @@ typedef struct _mipi_ddev_s {
 	dev_t             devno;
 	struct cdev       cdev;
 	struct device    *dev;
+	uint64_t          ipi_clock;
 	mipi_dev_t        mdev;
 	mipi_user_t       user;
+#ifdef CONFIG_HOBOT_DIAG
 	struct timer_list diag_timer;
 	uint32_t          last_err_tm_ms;
+#endif
 #if MIPI_DEV_INT_DBG && defined MIPI_DEV_INT_USE_TIMER
 	struct timer_list irq_timer;
 	uint32_t          irq_timer_en;
@@ -492,8 +497,8 @@ static int32_t mipi_dev_configure_clk(mipi_ddev_t *ddev, const char *name,
 				ulong freq, int checkequ)
 {
 	int32_t ret = 0;
-#ifdef CONFIG_HOBOT_XJ3
 	struct device *dev = ddev->dev;
+#ifdef CONFIG_HOBOT_XJ3
 	ulong clk;
 
 	if (freq == 0)
@@ -506,13 +511,15 @@ static int32_t mipi_dev_configure_clk(mipi_ddev_t *ddev, const char *name,
 			clk = vio_get_clk_rate(name);
 			if (clk != freq) {
 				mipierr("%s = %lu != %lu", name, clk, freq);
-				ret = -1;
+				return (-1);
 			} else {
 				mipiinfo("%s = %lu", name, clk);
 			}
 		}
 	}
 	ret = vio_clk_enable(name);
+#else
+	mipiinfo("should: %s %s %lu", __func__, name, freq);
 #endif
 	return ret;
 }
@@ -529,6 +536,10 @@ static ulong mipi_dev_get_clk(mipi_ddev_t *ddev, const char *name)
 	ulong clk = 0;
 #ifdef CONFIG_HOBOT_XJ3
 	clk = vio_get_clk_rate(name);
+#else
+	struct device *dev = ddev->dev;
+
+	mipiinfo("should: %s %s %lu", __func__, name, clk);
 #endif
 	return clk;
 }
@@ -568,18 +579,16 @@ static unsigned long mipi_dev_pixel_clk_select(mipi_ddev_t *ddev, mipi_dev_cfg_t
 			pixclk = param->ipi_limit;
 		}
 	}
-#ifdef CONFIG_HOBOT_XJ3
 	if (ddev->port >= ARRAY_SIZE(g_md_ipiclk_name) ||
 		mipi_dev_configure_clk(ddev, g_md_ipiclk_name[ddev->port], pixclk, 0) < 0) {
+		pixclk_act = 0;
 		mipierr("mipi_dev_configure_clk %lu error", pixclk);
 	} else {
-		mipiinfo("dev fifo clk pixclk: %lu", pixclk);
 		pixclk_act = mipi_dev_get_clk(ddev, g_md_ipiclk_name[ddev->port]);
-		mipiinfo("dev fifo clk pixclk: %lu", pixclk_act);
+		if (pixclk_act == 0)
+			pixclk_act = pixclk;
+		mipiinfo("ipiclk set %lu get %lu", pixclk, pixclk_act);
 	}
-#else
-	mipiinfo("should: tx mipi ipi clk(%lu)", pixclk);
-#endif
 	return pixclk_act;
 }
 
@@ -870,6 +879,7 @@ static void mipi_dev_error_report(mipi_ddev_t *ddev,
 }
 #endif
 
+#ifdef CONFIG_HOBOT_DIAG
 static void mipi_dev_diag_report(mipi_ddev_t *ddev,
 		uint8_t errsta, uint32_t total_irq,
 		uint32_t *sub_irq_data, uint32_t elem_cnt)
@@ -928,6 +938,7 @@ static void mipi_dev_diag_test(void *p, size_t len)
 		mipi_putreg(iomem + REG_MIPI_DEV_INT_FORCE_PHY, 0x1);
 	}
 }
+#endif
 
 static const uint32_t mipi_dev_int_st[] = {
 	/* reg offset,                mask,                      icnt */
@@ -1024,8 +1035,10 @@ static irqreturn_t mipi_dev_irq_func(int this_irq, void *data)
 	if (this_irq >= 0)
 		enable_irq(this_irq);
 
+#ifdef CONFIG_HOBOT_DIAG
 	mipi_dev_diag_report(ddev, err_occurred, irq, env_subirq,
 				 sizeof(env_subirq)/sizeof(uint32_t));
+#endif
 #ifdef CONFIG_X2_SYSNOTIFY
 	mipi_dev_error_report(ddev, err_occureed, irq, env_subirq,
 				 sizeof(env_subirq)/sizeof(uint32_t));
@@ -1039,7 +1052,6 @@ static void mipi_dev_irq_timer_func(unsigned long data)
 	mipi_ddev_t *ddev = (mipi_ddev_t *)data;
 	mipi_dev_t *mdev = &ddev->mdev;
 	void __iomem *iomem = mdev->iomem;
-	uint32_t      irq = 0;
 	unsigned long jiffi;
 
 	if (ddev->irq_timer_en) {
@@ -1164,6 +1176,11 @@ static int32_t mipi_dev_deinit(mipi_ddev_t *ddev)
 	mipi_putreg(iomem + REG_MIPI_DEV_VPG_CTRL, MIPI_DEV_VPG_DISABLE);
 	mipi_putreg(iomem + REG_MIPI_DEV_CSI2_RESETN, MIPI_DEV_CSI2_RESETN);
 
+	if (ddev->ipi_clock != 0) {
+		mipi_dev_configure_clk(ddev, g_md_ipiclk_name[ddev->port], 0, 0);
+		ddev->ipi_clock = 0;
+	}
+
 	return 0;
 }
 
@@ -1196,6 +1213,7 @@ static int32_t mipi_dev_init(mipi_ddev_t *ddev, mipi_dev_cfg_t *cfg)
 		mipierr("pixel clk config error!");
 		return -1;
 	}
+	ddev->ipi_clock = pixclk;
 #ifdef CONFIG_HOBOT_MIPI_PHY
 	mipi_dphy_set_freqrange(MIPI_DPHY_TYPE_DEV, ddev->port,
 				MIPI_CFGCLKFREQRANGE, MIPI_DEV_CFGCLK_DEFAULT);
@@ -1216,6 +1234,7 @@ static int32_t mipi_dev_init(mipi_ddev_t *ddev, mipi_dev_cfg_t *cfg)
 #ifdef CONFIG_HOBOT_MIPI_PHY
 	/*Initialize the PHY*/
 	if (0 != mipi_dev_dphy_initialize(iomem, cfg->mipiclk, cfg->lane, cfg->settle)) {
+		mipi_dev_deinit(ddev);
 		mipierr("dphy initialize error!!!");
 		return -1;
 	}
@@ -1289,7 +1308,6 @@ static int hobot_mipi_dev_close(struct inode *inode, struct file *file)
 		}
 		mipi_dev_configure_clk(ddev, MIPI_DEV_CFGCLK_NAME, 0, 0);
 		mipi_dev_configure_clk(ddev, MIPI_DEV_REFCLK_NAME, 0, 0);
-		mipi_dev_configure_clk(ddev, g_md_ipiclk_name[ddev->port], 0, 0);
 	}
 	mutex_unlock(&user->open_mutex);
 
@@ -1670,6 +1688,7 @@ static ssize_t mipi_dev_status_show(struct device *dev,
 #endif
 		MD_STA_SHOW(state, "%d(%s)", mdev->state,
 			g_md_state[mdev->state]);
+		MD_STA_SHOW(ipi_clock, "%llu", ddev->ipi_clock);
 	} else if (strcmp(attr->attr.name, "cfg") == 0) {
 		if (mdev->state >= MIPI_STATE_INIT) {
 			MD_STA_SHOW(lane, "%d", cfg->lane);
@@ -2034,6 +2053,7 @@ static int hobot_mipi_dev_probe_cdev(mipi_ddev_t *ddev)
 		goto err_creat;
 	}
 
+#ifdef CONFIG_HOBOT_DIAG
 	/* diag */
 	if (diag_register(ModuleDiag_VIO, EventIdVioMipiDevErr,
 		sizeof(mipi_dev_icnt_t), 300, 5000, mipi_dev_diag_test) < 0) {
@@ -2047,6 +2067,7 @@ static int hobot_mipi_dev_probe_cdev(mipi_ddev_t *ddev)
 		ddev->diag_timer.function = mipi_dev_diag_timer_func;
 		add_timer(&ddev->diag_timer);
 	}
+#endif
 #ifdef CONFIG_X2_SYSNOTIFY
 	if (diag_register(ModuleDiag_VIO, EventIdVioMipiDevError,
 						20, 300, 5000, NULL) < 0)
@@ -2064,7 +2085,9 @@ err_add:
 
 static int hobot_mipi_dev_remove_cdev(mipi_ddev_t *ddev)
 {
+#ifdef CONFIG_HOBOT_DIAG
 	del_timer_sync(&ddev->diag_timer);
+#endif
 	if (g_md_class)
 		device_destroy(g_md_class, ddev->devno);
 	cdev_del(&ddev->cdev);
