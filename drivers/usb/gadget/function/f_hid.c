@@ -540,6 +540,15 @@ static int hidg_setup(struct usb_function *f,
 		break;
 
 	case ((USB_DIR_OUT | USB_TYPE_CLASS | USB_RECIP_INTERFACE) << 8
+		| USB_REQ_GET_INTERFACE):
+		VDBG(cdev, "get_interface |wLenght=%d\n", ctrl->wLength);
+		/* send an empty report */
+		length = min_t(unsigned, length, hidg->report_length);
+		memset(req->buf, 0x0, length);
+		goto respond;
+		break;
+
+	case ((USB_DIR_OUT | USB_TYPE_CLASS | USB_RECIP_INTERFACE) << 8
 		  | HID_REQ_SET_PROTOCOL):
 		VDBG(cdev, "set_protocol\n");
 		if (value > HID_REPORT_PROTOCOL)
