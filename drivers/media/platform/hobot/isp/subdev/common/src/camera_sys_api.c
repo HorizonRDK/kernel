@@ -452,22 +452,22 @@ void camera_sys_sensor_gain_turning_data(uint32_t port,
 static uint32_t sensor_line_calculation(int ratio, uint32_t offset,
 	uint32_t max, uint32_t input)
 {
-	uint32_t line = input;
+	uint32_t line = 0;
 	uint32_t r_t = 256;
 	if (input > max) {
 		input = max;
 	}
 
-	if (ratio >= 0) {
+	if (ratio < 0) {
 		r_t = (uint32_t)(0 - ratio);
-		line = offset - (r_t * input) >> 8;
+		line = (uint32_t)(offset - ((r_t * input) >> 8));
 	} else {
 		r_t = (uint32_t)(ratio);
-		line = offset + (r_t * input) >> 8;
+		line = (uint32_t)(offset + ((r_t * input) >> 8));
 	}
 
-	pr_debug("%s, ratio 0x%x, offset 0x%x, max 0x%x, input %x\n",
-		__func__, ratio, offset, max, input);
+	pr_debug("%s, ratio 0x%x, offset 0x%x, max 0x%x, input 0x%x, line 0x%x\n",
+		__func__, ratio, offset, max, input, line);
 	return line;
 }
 
