@@ -368,9 +368,10 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 		clear_bit(sif_ctx->ctx_index, &subdev->val_ctx_mask);
 		spin_unlock(&subdev->slock);
 	}
-	kfree(sif_ctx);
 
 	vio_info("SIF close node %d\n", sif_ctx->id);
+	kfree(sif_ctx);
+
 	return 0;
 }
 
