@@ -270,7 +270,7 @@ static struct platform_driver hidg_plat_driver = {
 		.name	= "hidg",
 	},
 };
-
+#if 0
 static struct hidg_func_descriptor my_customized_hid_data = {
 	.subclass		= 0, /* No subclass */
 	.protocol		= 0xff,
@@ -284,7 +284,7 @@ static struct hidg_func_descriptor my_customized_hid_data = {
 		0xa0 + 1, 0x01,
 		// Input report: Vendor-defined
 		0x08 + 1, 0xFF, // Vendor-defined usage
-		0x94 + 1, 64,//
+		0x94 + 1, 64,// report count
 		0x74 + 1, 8,  //8
 		0x14 + 1, (unsigned char) -128,
 		0x24 + 1, (unsigned char)  127,
@@ -292,7 +292,7 @@ static struct hidg_func_descriptor my_customized_hid_data = {
 
 		// Output report: vendor-defined
 		0x08 + 1, 0xFF, // Vendor-defined usage
-		0x94 + 1, 64,
+		0x94 + 1, 64,  // report count
 		0x74 + 1, 8,  //8
 		0x14 + 1, (unsigned char) -128,
 		0x24 + 1, (unsigned char)  127,
@@ -301,6 +301,38 @@ static struct hidg_func_descriptor my_customized_hid_data = {
 		0xc0
 	}
 };
+#else
+static struct hidg_func_descriptor my_customized_hid_data = {
+	.subclass		= 0, /* No subclass */
+	.protocol		= 0xff,
+	.report_length		= 1024,
+	.report_desc_length	= 34,
+	.report_desc		= {
+		// Global Usage Page
+		0x04 + 2, 0xFF, 0xFF, // Vendor-defined
+		// Collection: Application
+		0x08 + 1, 0xFF, // Vendor-defined
+		0xa0 + 1, 0x01,
+		// Input report: Vendor-defined
+		0x08 + 1, 0xFF, // Vendor-defined usage
+		0x94 + 2, 0x00, 0x04,// report count
+		0x74 + 1, 8,  //8
+		0x14 + 1, (unsigned char) -128,
+		0x24 + 1, (unsigned char)  127,
+		0x80 + 1, 0,    // No Modifiers
+
+		// Output report: vendor-defined
+		0x08 + 1, 0xFF, // Vendor-defined usage
+		0x94 + 2, 0x00, 0x04,// report count
+		0x74 + 1, 8,  //8
+		0x14 + 1, (unsigned char) -128,
+		0x24 + 1, (unsigned char)  127,
+		0x90 + 1, 0,    // No Modifiers
+
+		0xc0
+	}
+};
+#endif
 
 void my_hid_dev_release(struct device *dev)
 {
