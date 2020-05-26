@@ -495,8 +495,6 @@ void x2_iar_dump(void)
 		int regval = readl(regaddr);
 		printk("iar reg:[0x%p]: 0x%x \n", regaddr, regval);
 	}
-
-	writel(0x8, g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
 }
 EXPORT_SYMBOL_GPL(x2_iar_dump);
 
