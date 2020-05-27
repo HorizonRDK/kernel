@@ -15,7 +15,7 @@
 
 #define IRAM_MAX_RANG	0x140000
 
-#define VIO_MAX_STREAM	6 
+#define VIO_MAX_STREAM	8
 #define CONFIG_QEMU_TEST 0
 enum vio_video_state { 
 	VIO_VIDEO_CLOSE,
