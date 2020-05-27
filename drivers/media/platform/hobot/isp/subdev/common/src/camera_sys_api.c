@@ -1344,7 +1344,12 @@ static uint32_t *camera_sys_lut_fill(uint32_t gain_num, uint32_t *turning_pram)
 
 	gain_ptr = kzalloc(256 * gain_num * sizeof(uint32_t), GFP_KERNEL);
 	if (gain_ptr) {
-		memcpy(gain_ptr, turning_pram, (256 * gain_num * sizeof(uint32_t)));
+		if (copy_from_user((void *)gain_ptr, (void __user *)turning_pram,
+			256 * gain_num * sizeof(uint32_t))) {
+				kfree(gain_ptr);
+				gain_ptr = NULL;
+				pr_err("copy is err !\n");
+		}
 	}
 
 	return gain_ptr;
