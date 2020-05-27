@@ -116,7 +116,7 @@ struct bpu_prio *bpu_prio_init(struct bpu_core *core, uint32_t levels)
 
 	for (i = 0u; i < prio->level_num; i++) {
 		ret = kfifo_alloc(&prio->prios[i].buf_fc_fifo,/*PRQA S ALL*/
-				FC_MAX_DEPTH, GFP_KERNEL);
+				(FC_MAX_DEPTH / (i + 1u)), GFP_KERNEL);
 		if (ret != 0) {
 			for (j = 0; j < i; j++) {
 				kfifo_free(&prio->prios[i].buf_fc_fifo);/*PRQA S ALL*/

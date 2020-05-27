@@ -215,7 +215,7 @@ static int32_t x2_bpu_enable(struct bpu_core *core)
 		return -ENODEV;
 	}
 
-	if (core->fc_base != NULL) {
+	if (core->fc_base[0] != NULL) {
 		dev_err(core->dev, "bpu core already enable\n");
 		return 0;
 	}
@@ -251,9 +251,9 @@ static int32_t x2_bpu_enable(struct bpu_core *core)
 
 	/* The following to init fc info */
 
-	core->fc_base = dma_alloc_coherent(core->dev,/*PRQA S ALL*/
-			FC_SIZE * FC_DEPTH, &core->fc_base_addr, GFP_KERNEL);
-	if (core->fc_base == NULL) {
+	core->fc_base[0] = dma_alloc_coherent(core->dev,/*PRQA S ALL*/
+			FC_SIZE * FC_DEPTH, &core->fc_base_addr[0], GFP_KERNEL);
+	if (core->fc_base[0] == NULL) {
 		dev_err(core->dev, "bpu core alloc fc mem failed\n");
 		return -ENOMEM;
 	}
@@ -270,7 +270,7 @@ static int32_t x2_bpu_enable(struct bpu_core *core)
 	x2_bpu_reg_write(core, CNN_FC_LEN, reg_val);
 
 	/* tell bpu fc base */
-	reg_val = X2_CNN_PE0_FC_BASE((uint32_t)core->fc_base_addr);
+	reg_val = X2_CNN_PE0_FC_BASE((uint32_t)core->fc_base_addr[0]);
 
 	x2_bpu_reg_write(core, CNN_FC_BASE, reg_val);
 
@@ -294,7 +294,7 @@ static int32_t x2_bpu_disable(struct bpu_core *core)
 		pr_err("Disable invalid bpu core!\n");/*PRQA S ALL*/
 		return -ENODEV;
 	}
-	if (core->fc_base == NULL) {
+	if (core->fc_base[0] == NULL) {
 		dev_err(core->dev, "bpu core already disabled\n");
 		return 0;
 	}
@@ -314,8 +314,8 @@ static int32_t x2_bpu_disable(struct bpu_core *core)
 	}
 
 	dma_free_coherent(core->dev, FC_SIZE * FC_DEPTH,
-			core->fc_base, core->fc_base_addr);/*PRQA S ALL*/
-	core->fc_base = NULL;
+			core->fc_base[0], core->fc_base_addr[0]);/*PRQA S ALL*/
+	core->fc_base[0] = NULL;
 
 	return ret;
 }
@@ -439,7 +439,7 @@ static int32_t x2_bpu_fc_equeue(const struct bpu_core *core,
 
 	if ((tail_index + *fc_num) > fc_depth) {
 		insert_fc_cnt = fc_depth - tail_index + 1u;
-		(void)memcpy(&core->fc_base[tail_index], &fc_data[0],/*PRQA S ALL*/
+		(void)memcpy(&(core->fc_base[0])[tail_index], &fc_data[0],/*PRQA S ALL*/
 			((uint64_t)insert_fc_cnt * X2_CNN_FC_SIZE));
 
 		if (fc_tail_flag != 0u) {
@@ -450,13 +450,13 @@ static int32_t x2_bpu_fc_equeue(const struct bpu_core *core,
 
 		residue_fc_cnt = *fc_num - insert_fc_cnt;
 		if (residue_fc_cnt > 0u) {
-			(void)memcpy(&core->fc_base[0], &fc_data[insert_fc_cnt],/*PRQA S ALL*/
+			(void)memcpy(&(core->fc_base[0])[0], &fc_data[insert_fc_cnt],/*PRQA S ALL*/
 				(uint64_t)residue_fc_cnt * X2_CNN_FC_SIZE);
 		}
 
 		ret = fc_tail_flag | residue_fc_cnt;
 	} else {
-		(void)memcpy(&core->fc_base[tail_index], &fc_data[0],/*PRQA S ALL*/
+		(void)memcpy(&(core->fc_base[0])[tail_index], &fc_data[0],/*PRQA S ALL*/
 			(uint64_t)*fc_num * X2_CNN_FC_SIZE);
 
 		ret = fc_tail_flag | (tail_index + *fc_num);
@@ -478,7 +478,7 @@ static int32_t x2_bpu_write_fc(const struct bpu_core *core,
 		return -ENODEV;
 	}
 
-	if (core->fc_base == NULL) {
+	if (core->fc_base[0] == NULL) {
 		dev_err(core->dev, "bpu core not enable\n");
 		return -ENODEV;
 	}
@@ -516,7 +516,7 @@ static int32_t x2_bpu_write_fc(const struct bpu_core *core,
 		update_tail = (uint32_t)ret;
 	}
 
-	fc->index = (update_tail & (~X2_CNN_FC_IDX_FLAG)) - 1u;
+	fc->index = update_tail & (~X2_CNN_FC_IDX_FLAG);
 
 	x2_bpu_set_update_tail(core, (uint32_t)update_tail);
 

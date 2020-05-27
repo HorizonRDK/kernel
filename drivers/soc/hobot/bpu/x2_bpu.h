@@ -21,11 +21,11 @@
 #define BPU_PRIO_NUM			(1u)
 static inline uint32_t FC_PRIO_ID(uint32_t prio, uint32_t id)
 {
-	return ((id) & 0x1FF) | ((prio & 0x7) << 9);
+	return ((id) & 0xFFF);
 }
 static inline uint32_t FC_ID(uint32_t id)
 {
-	return ((id) & 0x1FF);
+	return ((id) & 0xFFF);
 }
 static inline uint32_t FC_PRIO(uint32_t id)
 {

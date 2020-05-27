@@ -101,9 +101,10 @@ struct bpu_core {
 	 * which store bpu read fc base
 	 * alloc when core enable and
 	 * free when core disable
+	 * number for diff level fc fifo
 	 */
-	struct bpu_hw_fc *fc_base;
-	dma_addr_t fc_base_addr;
+	struct bpu_hw_fc *fc_base[BPU_PRIO_NUM];
+	dma_addr_t fc_base_addr[BPU_PRIO_NUM];
 
 	struct regulator *regulator;
 	struct clk *aclk;
