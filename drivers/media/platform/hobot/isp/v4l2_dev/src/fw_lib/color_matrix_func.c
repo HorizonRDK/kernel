@@ -27,6 +27,8 @@
 #include "acamera_command_api.h"
 #include "color_matrix_fsm.h"
 
+#include "system_stdlib.h"
+
 #ifndef AWB_LIGHT_SOURCE_A
 #define AWB_LIGHT_SOURCE_A 0x01
 #endif
@@ -149,6 +151,10 @@ static void mesh_shading_modulate_strength( color_matrix_fsm_ptr_t p_fsm )
         uint16_t log2_gain = total_gain >> ( LOG2_GAIN_SHIFT - 8 );
         uint16_t strength = acamera_calc_modulation_u16( log2_gain, _GET_MOD_ENTRY16_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_MESH_SHADING_STRENGTH ), _GET_ROWS( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_MESH_SHADING_STRENGTH ) );
         acamera_isp_mesh_shading_mesh_strength_write( p_fsm->cmn.isp_base, strength );
+	p_fsm->shading_mesh_strength = strength;
+    } else {
+	acamera_isp_mesh_shading_mesh_strength_write( p_fsm->cmn.isp_base, p_fsm->manual_shading_mesh_strength );
+	p_fsm->shading_mesh_strength = p_fsm->manual_shading_mesh_strength;
     }
 }
 
@@ -309,6 +315,7 @@ void color_matrix_initialize( color_matrix_fsm_t *p_fsm )
     p_fsm->shading_alpha = 0;
     p_fsm->shading_direction = 2; //0 ->inc  1->dec 2->do nothing
     p_fsm->shading_source_previous = AWB_LIGHT_SOURCE_D50;
+    p_fsm->manual_shading_mesh_strength = 2048;
 
     acamera_isp_mesh_shading_mesh_alpha_bank_r_write( p_fsm->cmn.isp_base, OV_08835_MESH_SHADING_LS_D50_BANK );
     acamera_isp_mesh_shading_mesh_alpha_bank_g_write( p_fsm->cmn.isp_base, OV_08835_MESH_SHADING_LS_D50_BANK );
@@ -335,7 +342,23 @@ void color_matrix_initialize( color_matrix_fsm_t *p_fsm )
 
 void color_matrix_write( color_matrix_fsm_t *p_fsm )
 {
-    if ( p_fsm->manual_CCM ) {
+
+     if ( ACAMERA_FSM2CTX_PTR( p_fsm )->stab.global_manual_ccm ) {
+	//pr_info
+	pr_info("%s--%d\n", __func__, __LINE__);
+         int16_t *ccm_matrix = ACAMERA_FSM2CTX_PTR( p_fsm )->stab.global_ccm_matrix;
+
+         acamera_isp_ccm_coefft_r_r_write( p_fsm->cmn.isp_base, ccm_matrix[0] );
+         acamera_isp_ccm_coefft_r_g_write( p_fsm->cmn.isp_base, ccm_matrix[1] );
+         acamera_isp_ccm_coefft_r_b_write( p_fsm->cmn.isp_base, ccm_matrix[2] );
+         acamera_isp_ccm_coefft_g_r_write( p_fsm->cmn.isp_base, ccm_matrix[3] );
+         acamera_isp_ccm_coefft_g_g_write( p_fsm->cmn.isp_base, ccm_matrix[4] );
+         acamera_isp_ccm_coefft_g_b_write( p_fsm->cmn.isp_base, ccm_matrix[5] );
+         acamera_isp_ccm_coefft_b_r_write( p_fsm->cmn.isp_base, ccm_matrix[6] );
+         acamera_isp_ccm_coefft_b_g_write( p_fsm->cmn.isp_base, ccm_matrix[7] );
+         acamera_isp_ccm_coefft_b_b_write( p_fsm->cmn.isp_base, ccm_matrix[8] );
+
+    } else if ( p_fsm->manual_CCM ) {
         acamera_isp_mesh_shading_mesh_alpha_bank_r_write( p_fsm->cmn.isp_base, OV_08835_MESH_SHADING_LS_D50_BANK );
         acamera_isp_mesh_shading_mesh_alpha_bank_g_write( p_fsm->cmn.isp_base, OV_08835_MESH_SHADING_LS_D50_BANK );
         acamera_isp_mesh_shading_mesh_alpha_bank_b_write( p_fsm->cmn.isp_base, OV_08835_MESH_SHADING_LS_D50_BANK );
@@ -353,6 +376,10 @@ void color_matrix_write( color_matrix_fsm_t *p_fsm )
         acamera_isp_ccm_coefft_b_g_write( p_fsm->cmn.isp_base, p_fsm->manual_color_matrix[7] );
         acamera_isp_ccm_coefft_b_b_write( p_fsm->cmn.isp_base, p_fsm->manual_color_matrix[8] );
 
+	system_memcpy( ACAMERA_FSM2CTX_PTR( p_fsm )->stab.global_ccm_matrix,
+               p_fsm->manual_color_matrix,
+               sizeof (ACAMERA_FSM2CTX_PTR( p_fsm )->stab.global_ccm_matrix) );
+
     } else {
 
         acamera_isp_ccm_coefft_r_r_write( p_fsm->cmn.isp_base, p_fsm->color_matrix[0] );
@@ -364,6 +391,10 @@ void color_matrix_write( color_matrix_fsm_t *p_fsm )
         acamera_isp_ccm_coefft_b_r_write( p_fsm->cmn.isp_base, p_fsm->color_matrix[6] );
         acamera_isp_ccm_coefft_b_g_write( p_fsm->cmn.isp_base, p_fsm->color_matrix[7] );
         acamera_isp_ccm_coefft_b_b_write( p_fsm->cmn.isp_base, p_fsm->color_matrix[8] );
+
+	system_memcpy( ACAMERA_FSM2CTX_PTR( p_fsm )->stab.global_ccm_matrix,
+               p_fsm->color_matrix,
+               sizeof (ACAMERA_FSM2CTX_PTR( p_fsm )->stab.global_ccm_matrix) );
     }
 }
 

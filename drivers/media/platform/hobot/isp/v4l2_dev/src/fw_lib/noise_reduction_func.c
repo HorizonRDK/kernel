@@ -25,7 +25,7 @@
 
 
 #if defined( CUR_MOD_NAME)
-#undef CUR_MOD_NAME 
+#undef CUR_MOD_NAME
 #define CUR_MOD_NAME LOG_MODULE_NOISE_REDUCTION
 #else
 #define CUR_MOD_NAME LOG_MODULE_NOISE_REDUCTION
@@ -485,6 +485,28 @@ void noise_reduction_initialize( noise_reduction_fsm_t *p_fsm )
 
 void noise_reduction_update( noise_reduction_fsm_t *p_fsm )
 {
+    if (p_fsm->nr_mode == NOISE_REDUCTION_MODE_OFF) {
+        /*
+         * Turn off Temper
+         */
+        acamera_isp_temper_noise_profile_global_offset_write( p_fsm->cmn.isp_base, 0 );
+        acamera_isp_temper_noise_profile_noise_level_0_write( p_fsm->cmn.isp_base, 0 );
+        acamera_isp_temper_noise_profile_noise_level_1_write( p_fsm->cmn.isp_base, 0 );
+        acamera_isp_temper_noise_profile_noise_level_2_write( p_fsm->cmn.isp_base, 0 );
+        acamera_isp_temper_noise_profile_noise_level_3_write( p_fsm->cmn.isp_base, 0 );
+
+        /*
+         * Turn off Sinter
+         */
+        acamera_isp_sinter_noise_profile_global_offset_write( p_fsm->cmn.isp_base, 0 );
+        acamera_isp_sinter_noise_profile_noise_level_0_write( p_fsm->cmn.isp_base, 0 );
+        acamera_isp_sinter_noise_profile_noise_level_1_write( p_fsm->cmn.isp_base, 0 );
+        acamera_isp_sinter_noise_profile_noise_level_2_write( p_fsm->cmn.isp_base, 0 );
+        acamera_isp_sinter_noise_profile_noise_level_3_write( p_fsm->cmn.isp_base, 0 );
+
+        return;
+    }
+
     int32_t total_gain = 0;
     uint32_t wdr_mode = 0;
 

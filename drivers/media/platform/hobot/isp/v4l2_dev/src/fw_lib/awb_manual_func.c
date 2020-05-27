@@ -28,7 +28,7 @@
 
 
 #if defined( CUR_MOD_NAME)
-#undef CUR_MOD_NAME 
+#undef CUR_MOD_NAME
 #define CUR_MOD_NAME LOG_MODULE_AWB_MANUAL
 #else
 #define CUR_MOD_NAME LOG_MODULE_AWB_MANUAL
@@ -365,11 +365,21 @@ void awb_normalise( AWB_fsm_t *p_fsm )
 {
     int32_t wb[4];
 
-    wb[0] = acamera_log2_fixed_to_fixed( _GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_STATIC_WB )[0], 8, LOG2_GAIN_SHIFT );
-    wb[1] = acamera_log2_fixed_to_fixed( _GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_STATIC_WB )[1], 8, LOG2_GAIN_SHIFT );
-    wb[2] = acamera_log2_fixed_to_fixed( _GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_STATIC_WB )[2], 8, LOG2_GAIN_SHIFT );
-    wb[3] = acamera_log2_fixed_to_fixed( _GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_STATIC_WB )[3], 8, LOG2_GAIN_SHIFT );
+    wb[0] = acamera_log2_fixed_to_fixed( ACAMERA_FSM2CTX_PTR( p_fsm )->stab.global_awb_red_gain, 8, LOG2_GAIN_SHIFT );
+    wb[1] = acamera_log2_fixed_to_fixed( ACAMERA_FSM2CTX_PTR( p_fsm )->stab.global_awb_green_even_gain, 8, LOG2_GAIN_SHIFT );
+    wb[2] = acamera_log2_fixed_to_fixed( ACAMERA_FSM2CTX_PTR( p_fsm )->stab.global_awb_green_odd_gain, 8, LOG2_GAIN_SHIFT );
+    wb[3] = acamera_log2_fixed_to_fixed( ACAMERA_FSM2CTX_PTR( p_fsm )->stab.global_awb_blue_gain, 8, LOG2_GAIN_SHIFT );
 
+    wb[0] -= acamera_log2_fixed_to_fixed( _GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_STATIC_WB )[0], 8, LOG2_GAIN_SHIFT );
+    wb[3] -= acamera_log2_fixed_to_fixed( _GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_STATIC_WB )[3], 8, LOG2_GAIN_SHIFT );
+
+    p_fsm->rg_coef = acamera_math_exp2( wb[0], LOG2_GAIN_SHIFT, 8 );
+    p_fsm->bg_coef = acamera_math_exp2( wb[3], LOG2_GAIN_SHIFT, 8 );
+
+    wb[0] += acamera_log2_fixed_to_fixed( _GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_STATIC_WB )[0], 8, LOG2_GAIN_SHIFT );
+    wb[3] += acamera_log2_fixed_to_fixed( _GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_STATIC_WB )[3], 8, LOG2_GAIN_SHIFT );
+
+#if 0
     {
         /* For both auto mode and manual mode, we use the same variables to save the red/blue gains */
         wb[0] += acamera_log2_fixed_to_fixed( ACAMERA_FSM2CTX_PTR( p_fsm )->stab.global_awb_red_gain, 8, LOG2_GAIN_SHIFT );
@@ -377,6 +387,7 @@ void awb_normalise( AWB_fsm_t *p_fsm )
         p_fsm->rg_coef = ACAMERA_FSM2CTX_PTR( p_fsm )->stab.global_awb_red_gain;
         p_fsm->bg_coef = ACAMERA_FSM2CTX_PTR( p_fsm )->stab.global_awb_blue_gain;
     }
+#endif
 
     {
         int i;

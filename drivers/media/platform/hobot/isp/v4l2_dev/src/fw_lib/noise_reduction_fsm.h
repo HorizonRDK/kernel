@@ -58,6 +58,8 @@ struct _noise_reduction_fsm_t {
     uint32_t temper_ev_previous_frame;
     uint32_t temper_diff_avg;
     uint32_t temper_diff_coeff;
+
+    noise_reduction_mode_t nr_mode;
 };
 
 
@@ -70,5 +72,13 @@ uint8_t noise_reduction_fsm_process_event( noise_reduction_fsm_ptr_t p_fsm, even
 void noise_reduction_fsm_process_interrupt( noise_reduction_fsm_const_ptr_t p_fsm, uint8_t irq_event );
 
 void noise_reduction_request_interrupt( noise_reduction_fsm_ptr_t p_fsm, system_fw_interrupt_mask_t mask );
+
+int noise_reduction_fsm_set_param( void *fsm, uint32_t param_id,
+                                   void *input, uint32_t input_size );
+
+int noise_reduction_fsm_get_param( void *fsm, uint32_t param_id,
+                                    void *input, uint32_t input_size,
+                                    void *output, uint32_t output_size );
+
 
 #endif /* __NOISE_REDUCTION_FSM_H__ */

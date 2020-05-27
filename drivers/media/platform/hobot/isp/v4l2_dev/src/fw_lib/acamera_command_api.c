@@ -204,6 +204,12 @@ case  TSYSTEM:
 		case  SYSTEM_AWB_BLUE_GAIN:
 			ret = system_awb_blue_gain(instance, value, direction, ret_value);
 			break;
+		case  SYSTEM_AWB_GREEN_EVEN_GAIN:
+			ret = system_awb_green_even_gain(instance, value, direction, ret_value);
+			break;
+		case  SYSTEM_AWB_GREEN_ODD_GAIN:
+			ret = system_awb_green_odd_gain(instance, value, direction, ret_value);
+			break;
 		case  SYSTEM_SATURATION_TARGET:
 			ret = system_saturation_target(instance, value, direction, ret_value);
 			break;
@@ -213,9 +219,43 @@ case  TSYSTEM:
 		case  SYSTEM_ANTI_FLICKER_FREQUENCY:
 			ret = system_anti_flicker_frequency(instance, value, direction, ret_value);
 			break;
+		case  SYSTEM_DYNAMIC_GAMMA_ENABLE:
+		        ret = system_dynamic_gamma_enable(instance, value, direction, ret_value);
+		        break;
+		case  SYSTEM_MANUAL_CCM:
+			ret = system_manual_ccm(instance, value, direction, ret_value);
+			break;
 		case  CALIBRATION_UPDATE:
 			ret = calibration_update(instance, value, direction, ret_value);
 			break;
+		case  SYSTEM_CCM_MATRIX_RR:
+			ret = system_ccm_matrix_rr(instance, value, direction, ret_value);
+			break;
+		case  SYSTEM_CCM_MATRIX_RG:
+			ret = system_ccm_matrix_rg(instance, value, direction, ret_value);
+			break;
+		case  SYSTEM_CCM_MATRIX_RB:
+			ret = system_ccm_matrix_rb(instance, value, direction, ret_value);
+			break;
+		case  SYSTEM_CCM_MATRIX_GR:
+			ret = system_ccm_matrix_gr(instance, value, direction, ret_value);
+			break;
+		case  SYSTEM_CCM_MATRIX_GG:
+			ret = system_ccm_matrix_gg(instance, value, direction, ret_value);
+			break;
+		case  SYSTEM_CCM_MATRIX_GB:
+			ret = system_ccm_matrix_gb(instance, value, direction, ret_value);
+			break;
+		case  SYSTEM_CCM_MATRIX_BR:
+			ret = system_ccm_matrix_br(instance, value, direction, ret_value);
+			break;
+		case  SYSTEM_CCM_MATRIX_BG:
+			ret = system_ccm_matrix_bg(instance, value, direction, ret_value);
+			break;
+		case  SYSTEM_CCM_MATRIX_BB:
+			ret = system_ccm_matrix_bb(instance, value, direction, ret_value);
+			break;
+
 	}//switch (command)
 	break;
 case  TISP_MODULES:
@@ -364,6 +404,9 @@ case  TALGORITHMS:
 		case  ANTIFLICKER_MODE_ID:
 			ret = antiflicker_mode(instance, value, direction, ret_value);
 			break;
+		case  NOISE_REDUCTION_MODE_ID:
+		        ret = noise_reduction_mode(instance, value, direction, ret_value);
+		        break;
 	}//switch (command)
 	break;
 case  TSCENE_MODES:
@@ -383,6 +426,12 @@ case  TSCENE_MODES:
 		case  SHARPENING_STRENGTH_ID:
 			ret = sharpening_strength(instance, value, direction, ret_value);
 			break;
+		case  SHADING_STRENGTH_ID:
+		        ret = shading_strength(instance, value, direction, ret_value);
+		        break;
+		case  HUE_THETA_ID:
+		        ret = hue_theta(instance, value, direction, ret_value);
+	        break;
 	}//switch (command)
 	break;
 case  TREGISTERS:

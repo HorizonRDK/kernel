@@ -988,6 +988,262 @@ uint8_t system_manual_awb( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t 
 }
 #endif
 
+// ------------------------------------------------------------------------------ //
+// system_manual_ccm description:
+//
+//       Control the manual_ccm parameter
+//
+//       Values:
+//        [0-1]
+//
+//       Key:
+//         0=disable
+//         1=enable
+//       Default Value: 0
+// ------------------------------------------------------------------------------ //
+#ifdef SYSTEM_MANUAL_CCM
+uint8_t system_manual_ccm( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    *ret_value = 0;
+    if ( direction == COMMAND_GET ) {
+        *ret_value = ACAMERA_MGR2CTX_PTR( instance )->stab.global_manual_ccm;
+    } else if ( direction == COMMAND_SET ) {
+        ACAMERA_MGR2CTX_PTR( instance )
+            ->stab.global_manual_ccm = value;
+    } else {
+        return NOT_SUPPORTED;
+    }
+
+    return SUCCESS;
+}
+#endif
+
+// ------------------------------------------------------------------------------ //
+// system_ccm_matrix_rr description:
+//
+//       Control the ccm_matrix_rr coefficient parameter
+//
+//       Values:
+//        [0-65535]
+//
+// ------------------------------------------------------------------------------ //
+#ifdef SYSTEM_CCM_MATRIX_RR
+uint8_t system_ccm_matrix_rr( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    if ( direction == COMMAND_GET ) {
+        *ret_value = ACAMERA_MGR2CTX_PTR( instance )->stab.global_ccm_matrix[0];
+    } else if ( direction == COMMAND_SET ) {
+        ACAMERA_MGR2CTX_PTR( instance )
+            ->stab.global_ccm_matrix[0] = value;
+    } else {
+        return NOT_SUPPORTED;
+    }
+
+    return SUCCESS;
+}
+#endif
+
+// ------------------------------------------------------------------------------ //
+// system_ccm_matrix_rg description:
+//
+//       Control the ccm_matrix_rg coefficient parameter
+//
+//       Values:
+//        [0-65535]
+//
+// ------------------------------------------------------------------------------ //
+#ifdef SYSTEM_CCM_MATRIX_RG
+uint8_t system_ccm_matrix_rg( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    if ( direction == COMMAND_GET ) {
+        *ret_value = ACAMERA_MGR2CTX_PTR( instance )->stab.global_ccm_matrix[1];
+    } else if ( direction == COMMAND_SET ) {
+        ACAMERA_MGR2CTX_PTR( instance )
+            ->stab.global_ccm_matrix[1] = value;
+    } else {
+        return NOT_SUPPORTED;
+    }
+
+    return SUCCESS;
+}
+#endif
+
+// ------------------------------------------------------------------------------ //
+// system_ccm_matrix_rb description:
+//
+//       Control the ccm_matrix_rb coefficient parameter
+//
+//       Values:
+//        [0-65535]
+//
+// ------------------------------------------------------------------------------ //
+#ifdef SYSTEM_CCM_MATRIX_RB
+uint8_t system_ccm_matrix_rb( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    if ( direction == COMMAND_GET ) {
+        *ret_value = ACAMERA_MGR2CTX_PTR( instance )->stab.global_ccm_matrix[2];
+    } else if ( direction == COMMAND_SET ) {
+        ACAMERA_MGR2CTX_PTR( instance )
+            ->stab.global_ccm_matrix[2] = value;
+    } else {
+        return NOT_SUPPORTED;
+    }
+
+    return SUCCESS;
+}
+#endif
+
+// ------------------------------------------------------------------------------ //
+// system_ccm_matrix_gr description:
+//
+//       Control the ccm_matrix_gr coefficient parameter
+//
+//       Values:
+//        [0-65535]
+//
+// ------------------------------------------------------------------------------ //
+#ifdef SYSTEM_CCM_MATRIX_GR
+uint8_t system_ccm_matrix_gr( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    if ( direction == COMMAND_GET ) {
+        *ret_value = ACAMERA_MGR2CTX_PTR( instance )->stab.global_ccm_matrix[3];
+    } else if ( direction == COMMAND_SET ) {
+        ACAMERA_MGR2CTX_PTR( instance )
+            ->stab.global_ccm_matrix[3] = value;
+    } else {
+        return NOT_SUPPORTED;
+    }
+
+    return SUCCESS;
+}
+#endif
+
+// ------------------------------------------------------------------------------ //
+// system_ccm_matrix_gg description:
+//
+//       Control the ccm_matrix_gg coefficient parameter
+//
+//       Values:
+//        [0-65535]
+//
+// ------------------------------------------------------------------------------ //
+#ifdef SYSTEM_CCM_MATRIX_GG
+uint8_t system_ccm_matrix_gg( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    if ( direction == COMMAND_GET ) {
+        *ret_value = ACAMERA_MGR2CTX_PTR( instance )->stab.global_ccm_matrix[4];
+    } else if ( direction == COMMAND_SET ) {
+        ACAMERA_MGR2CTX_PTR( instance )
+            ->stab.global_ccm_matrix[4] = value;
+    } else {
+        return NOT_SUPPORTED;
+    }
+
+    return SUCCESS;
+}
+#endif
+
+// ------------------------------------------------------------------------------ //
+// system_ccm_matrix_gb description:
+//
+//       Control the ccm_matrix_gb coefficient parameter
+//
+//       Values:
+//        [0-65535]
+//
+// ------------------------------------------------------------------------------ //
+#ifdef SYSTEM_CCM_MATRIX_GB
+uint8_t system_ccm_matrix_gb( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    if ( direction == COMMAND_GET ) {
+        *ret_value = ACAMERA_MGR2CTX_PTR( instance )->stab.global_ccm_matrix[5];
+    } else if ( direction == COMMAND_SET ) {
+        ACAMERA_MGR2CTX_PTR( instance )
+            ->stab.global_ccm_matrix[5] = value;
+    } else {
+        return NOT_SUPPORTED;
+    }
+
+    return SUCCESS;
+}
+#endif
+
+// ------------------------------------------------------------------------------ //
+// system_ccm_matrix_br description:
+//
+//       Control the ccm_matrix_br coefficient parameter
+//
+//       Values:
+//        [0-65535]
+//
+// ------------------------------------------------------------------------------ //
+#ifdef SYSTEM_CCM_MATRIX_BR
+uint8_t system_ccm_matrix_br( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    if ( direction == COMMAND_GET ) {
+        *ret_value = ACAMERA_MGR2CTX_PTR( instance )->stab.global_ccm_matrix[6];
+    } else if ( direction == COMMAND_SET ) {
+        ACAMERA_MGR2CTX_PTR( instance )
+            ->stab.global_ccm_matrix[6] = value;
+    } else {
+        return NOT_SUPPORTED;
+    }
+
+    return SUCCESS;
+}
+#endif
+
+
+// ------------------------------------------------------------------------------ //
+// system_ccm_matrix_bg description:
+//
+//       Control the ccm_matrix_bg coefficient parameter
+//
+//       Values:
+//        [0-65535]
+//
+// ------------------------------------------------------------------------------ //
+#ifdef SYSTEM_CCM_MATRIX_BG
+uint8_t system_ccm_matrix_bg( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    if ( direction == COMMAND_GET ) {
+        *ret_value = ACAMERA_MGR2CTX_PTR( instance )->stab.global_ccm_matrix[7];
+    } else if ( direction == COMMAND_SET ) {
+        ACAMERA_MGR2CTX_PTR( instance )
+            ->stab.global_ccm_matrix[7] = value;
+    } else {
+        return NOT_SUPPORTED;
+    }
+
+    return SUCCESS;
+}
+#endif
+
+// ------------------------------------------------------------------------------ //
+// system_ccm_matrix_bb description:
+//
+//       Control the ccm_matrix_bb coefficient parameter
+//
+//       Values:
+//        [0-65535]
+//
+// ------------------------------------------------------------------------------ //
+#ifdef SYSTEM_CCM_MATRIX_BB
+uint8_t system_ccm_matrix_bb( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    if ( direction == COMMAND_GET ) {
+        *ret_value = ACAMERA_MGR2CTX_PTR( instance )->stab.global_ccm_matrix[8];
+    } else if ( direction == COMMAND_SET ) {
+        ACAMERA_MGR2CTX_PTR( instance )
+            ->stab.global_ccm_matrix[8] = value;
+    } else {
+        return NOT_SUPPORTED;
+    }
+
+    return SUCCESS;
+}
+#endif
+
 #ifdef SYSTEM_ANTIFLICKER_ENABLE
 uint8_t system_antiflicker_enable( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
 {
@@ -998,6 +1254,24 @@ uint8_t system_antiflicker_enable( acamera_fsm_mgr_t *instance, uint32_t value, 
         return SUCCESS;
     } else if ( direction == COMMAND_SET ) {
         param->global_antiflicker_enable = value;
+        return SUCCESS;
+    } else {
+        return NOT_SUPPORTED;
+    }
+    return NOT_SUPPORTED;
+}
+#endif
+
+#ifdef SYSTEM_DYNAMIC_GAMMA_ENABLE
+uint8_t system_dynamic_gamma_enable( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    *ret_value = 0;
+    if ( direction == COMMAND_GET ) {
+        *ret_value = ACAMERA_MGR2CTX_PTR( instance )->stab.global_dynamic_gamma_enable;
+        return SUCCESS;
+    } else if ( direction == COMMAND_SET ) {
+        ACAMERA_MGR2CTX_PTR( instance )
+            ->stab.global_dynamic_gamma_enable = value;
         return SUCCESS;
     } else {
         return NOT_SUPPORTED;
@@ -1352,6 +1626,60 @@ uint8_t system_awb_blue_gain( acamera_fsm_mgr_t *instance, uint32_t value, uint8
     } else if ( direction == COMMAND_SET ) {
         ACAMERA_MGR2CTX_PTR( instance )
             ->stab.global_awb_blue_gain = value;
+        return SUCCESS;
+    } else {
+        return NOT_SUPPORTED;
+    }
+    return NOT_SUPPORTED;
+}
+#endif
+
+// ------------------------------------------------------------------------------ //
+// system_awb_green_even_gain description:
+//
+//       Control the awb_green_even_gain parameter
+//
+//       Values:
+//        [0-65535]
+//
+// ------------------------------------------------------------------------------ //
+#ifdef SYSTEM_AWB_GREEN_EVEN_GAIN
+uint8_t system_awb_green_even_gain( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    *ret_value = 0;
+    if ( direction == COMMAND_GET ) {
+        *ret_value = ACAMERA_MGR2CTX_PTR( instance )->stab.global_awb_green_even_gain;
+        return SUCCESS;
+    } else if ( direction == COMMAND_SET ) {
+        ACAMERA_MGR2CTX_PTR( instance )
+            ->stab.global_awb_green_even_gain = value;
+        return SUCCESS;
+    } else {
+        return NOT_SUPPORTED;
+    }
+    return NOT_SUPPORTED;
+}
+#endif
+
+// ------------------------------------------------------------------------------ //
+// system_awb_green_odd_gain description:
+//
+//       Control the awb_green_odd_gain parameter
+//
+//       Values:
+//        [0-65535]
+//
+// ------------------------------------------------------------------------------ //
+#ifdef SYSTEM_AWB_GREEN_ODD_GAIN
+uint8_t system_awb_green_odd_gain( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    *ret_value = 0;
+    if ( direction == COMMAND_GET ) {
+        *ret_value = ACAMERA_MGR2CTX_PTR( instance )->stab.global_awb_green_odd_gain;
+        return SUCCESS;
+    } else if ( direction == COMMAND_SET ) {
+        ACAMERA_MGR2CTX_PTR( instance )
+            ->stab.global_awb_green_odd_gain = value;
         return SUCCESS;
     } else {
         return NOT_SUPPORTED;
@@ -2848,6 +3176,71 @@ uint8_t awb_temperature( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t di
 }
 #endif
 
+// ------------------------------------------------------------------------------ //
+// noise_reduction_mode description:
+//
+//       Select a NOISE REDUCTION mode
+//
+//       Values:
+//        {NOISE_REDUCTION_OFF}
+//        {NOISE_REDUCTION_ON}
+//
+//       Default Value: {NOISE_REDUCTION_ON}
+// ------------------------------------------------------------------------------ //
+#ifdef NOISE_REDUCTION_MODE_ID
+uint8_t noise_reduction_mode( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    int rc = NOT_IMPLEMENTED;
+
+#ifdef ISP_HAS_NOISE_REDUCTION_FSM
+
+    if ( direction == COMMAND_SET ) {
+
+        noise_reduction_mode_t nr_mode;
+
+        switch ( value ) {
+        case NOISE_REDUCTION_OFF:
+            nr_mode = NOISE_REDUCTION_MODE_OFF;
+            break;
+        case NOISE_REDUCTION_ON:
+            nr_mode = NOISE_REDUCTION_MODE_ON;
+            break;
+        default:
+            return NOT_SUPPORTED;
+        };
+
+        rc = acamera_fsm_mgr_set_param( instance, FSM_PARAM_SET_NOISE_REDUCTION_MODE,
+                                        &nr_mode, sizeof( nr_mode ) );
+        if ( rc )
+            return NOT_SUPPORTED;
+
+    } else if ( direction == COMMAND_GET ) {
+        noise_reduction_mode_t nr_mode;
+
+        rc = acamera_fsm_mgr_get_param( instance, FSM_PARAM_GET_NOISE_REDUCTION_MODE,
+                                        NULL, 0, &nr_mode, sizeof( nr_mode ) );
+        if ( rc )
+            return NOT_SUPPORTED;
+
+        switch ( nr_mode ) {
+        case NOISE_REDUCTION_MODE_OFF:
+            *ret_value = NOISE_REDUCTION_OFF;
+            break;
+        case NOISE_REDUCTION_MODE_ON:
+            *ret_value = NOISE_REDUCTION_ON;
+            break;
+        default:
+            return NOT_SUPPORTED;
+        };
+
+    } else
+        return NOT_SUPPORTED;
+
+#endif /* ISP_HAS_NOISE_REDUCTION_FSM */
+
+    return rc;
+}
+#endif
 
 // ------------------------------------------------------------------------------ //
 // awb_light_source description:
@@ -3502,6 +3895,39 @@ uint8_t fr_output_mode( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t dir
 }
 #endif
 
+// ------------------------------------------------------------------------------ //
+// shading_strength description:
+//
+//       Control the shading strength value
+//
+//       Values:
+//        [0-4096]
+//
+//       Default Value: 2048
+// ------------------------------------------------------------------------------ //
+#ifdef SHADING_STRENGTH_ID
+uint8_t shading_strength( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    int rc;
+
+    if ( direction == COMMAND_SET ) {
+        rc = acamera_fsm_mgr_set_param( instance, FSM_PARAM_SET_SHADING_STRENGTH,
+                                        &value, sizeof( value ) );
+        if ( rc )
+            return NOT_SUPPORTED;
+    } else if ( direction == COMMAND_GET ) {
+        rc = acamera_fsm_mgr_get_param( instance, FSM_PARAM_GET_SHADING_STRENGTH,
+                                        NULL, 0, ret_value, sizeof( uint32_t ) );
+        if ( rc )
+            return NOT_SUPPORTED;
+    } else
+        return NOT_SUPPORTED;
+
+    return SUCCESS;
+}
+#endif
+
+
 
 // ------------------------------------------------------------------------------ //
 //Change FR Base and plane select and matrix yuv fsm accordingly
@@ -4035,6 +4461,7 @@ uint8_t saturation_strength( acamera_fsm_mgr_t *instance, uint32_t value, uint8_
 #endif
 }
 #endif
+
 // ------------------------------------------------------------------------------ //
 // hue theta description:
 // Control the hue
@@ -4047,18 +4474,16 @@ uint8_t saturation_strength( acamera_fsm_mgr_t *instance, uint32_t value, uint8_
 uint8_t hue_theta( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
 {
 #if defined( ISP_HAS_MATRIX_YUV_FSM )
-    uint16_t hue_theta = (uint16_t)value;
     *ret_value = 0;
     if ( direction == COMMAND_SET ) {
         if ( value > 360 )
             return NOT_SUPPORTED;
         else
-            acamera_fsm_mgr_set_param( instance, FSM_PARAM_SET_MATRIX_YUV_HUE_THETA, &hue_theta, sizeof( hue_theta ) );
+            acamera_fsm_mgr_set_param( instance, FSM_PARAM_SET_MATRIX_YUV_HUE_THETA, &value, sizeof( uint32_t ) );
 
         return SUCCESS;
     } else if ( direction == COMMAND_GET ) {
-        acamera_fsm_mgr_get_param( instance, FSM_PARAM_GET_MATRIX_YUV_HUE_THETA, NULL, 0, &hue_theta, sizeof( hue_theta ) );
-        *ret_value = hue_theta;
+        acamera_fsm_mgr_get_param( instance, FSM_PARAM_GET_MATRIX_YUV_HUE_THETA, NULL, 0, ret_value, sizeof( uint32_t ) );
         return SUCCESS;
     }
 

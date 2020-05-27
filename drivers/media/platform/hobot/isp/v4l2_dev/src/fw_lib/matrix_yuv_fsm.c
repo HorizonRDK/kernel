@@ -111,7 +111,6 @@ int matrix_yuv_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_
             rc = -1;
             break;
         }
-
         p_fsm->hue_theta = *(uint32_t *)input;
         matrix_yuv_update( p_fsm );
         break;
@@ -202,7 +201,6 @@ int matrix_yuv_fsm_get_param( void *fsm, uint32_t param_id, void *input, uint32_
             rc = -1;
             break;
         }
-
         *(uint32_t *)output = p_fsm->hue_theta;
         break;
 

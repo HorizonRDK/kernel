@@ -498,6 +498,7 @@ static void init_stab( acamera_context_ptr_t p_ctx )
     p_ctx->stab.global_manual_sinter = 0;
     p_ctx->stab.global_manual_temper = 0;
     p_ctx->stab.global_manual_awb = 0;
+    p_ctx->stab.global_manual_ccm = 0;
     p_ctx->stab.global_manual_saturation = 0;
     p_ctx->stab.global_manual_auto_level = 0;
     p_ctx->stab.global_manual_frame_stitch = 0;
@@ -521,9 +522,23 @@ static void init_stab( acamera_context_ptr_t p_ctx )
     p_ctx->stab.global_temper_threshold_target = 0;
     p_ctx->stab.global_awb_red_gain = 256;
     p_ctx->stab.global_awb_blue_gain = 256;
+    p_ctx->stab.global_awb_green_even_gain = 256;
+    p_ctx->stab.global_awb_green_odd_gain = 256;
+
+    p_ctx->stab.global_ccm_matrix[0] = 0x0100;
+    p_ctx->stab.global_ccm_matrix[1] = 0x0000;
+    p_ctx->stab.global_ccm_matrix[2] = 0x0000;
+    p_ctx->stab.global_ccm_matrix[3] = 0x0000;
+    p_ctx->stab.global_ccm_matrix[4] = 0x0100;
+    p_ctx->stab.global_ccm_matrix[5] = 0x0000;
+    p_ctx->stab.global_ccm_matrix[6] = 0x0000;
+    p_ctx->stab.global_ccm_matrix[7] = 0x0000;
+    p_ctx->stab.global_ccm_matrix[8] = 0x0100;
+
     p_ctx->stab.global_saturation_target = 0;
     p_ctx->stab.global_ae_compensation = SYSTEM_AE_COMPENSATION_DEFAULT;
     p_ctx->stab.global_calibrate_bad_pixels = 0;
+    p_ctx->stab.global_dynamic_gamma_enable = 0;
 
     isp_ctx_done_queue_clear(p_ctx->context_id);
     p_ctx->isp_ctxsv_on = 0;

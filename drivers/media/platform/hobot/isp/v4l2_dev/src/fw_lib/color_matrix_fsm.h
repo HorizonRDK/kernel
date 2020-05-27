@@ -67,6 +67,9 @@ struct _color_matrix_fsm_t {
     uint8_t manual_CCM;
     int16_t manual_color_matrix[9];
     int32_t temperature_threshold[8];
+
+    int32_t shading_mesh_strength;
+    int32_t manual_shading_mesh_strength;
 };
 
 

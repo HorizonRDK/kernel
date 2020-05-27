@@ -343,6 +343,11 @@ typedef struct _fsm_param_fw_status_info_ {
     af_status_info_t af_info;
 } status_info_param_t;
 
+typedef enum noise_reduction_mode {
+    NOISE_REDUCTION_MODE_OFF,
+    NOISE_REDUCTION_MODE_ON,
+} noise_reduction_mode_t;
+
 int acamera_fsm_mgr_get_param( acamera_fsm_mgr_t *p_fsm_mgr, uint32_t param_id, void *input, uint32_t input_size, void *output, uint32_t output_size );
 int acamera_fsm_mgr_set_param( acamera_fsm_mgr_t *p_fsm_mgr, uint32_t param_id, void *input, uint32_t input_size );
 

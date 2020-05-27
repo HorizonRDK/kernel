@@ -174,12 +174,21 @@
 #define CALIBRATION_ZOOM_LMS                              0x00000072
 #define CALIBRATION_ZOOM_AF_LMS                           0x00000073
 
+// ------------------------------------------------------------ //
+//              r2p0_new func
+// ------------------------------------------------------------ //
+#define CALIBRATION_AWB_WARMING_CCT                       0x00000074
+#define CALIBRATION_SHADING_RADIAL_IR                     0x00000075
+#define CALIBRATION_SHADING_RADIAL_CENTRE_AND_MULT        0x00000076
+#define CALIBRATION_GAMMA_EV1                             0x00000077
+#define CALIBRATION_GAMMA_EV2                             0x00000078
+#define CALIBRATION_GAMMA_THRESHOLD                       0x00000079
 
 // ------------------------------------------------------------------------------ //
 //		DYNAMIC STATE VALUES
 // ------------------------------------------------------------------------------ //
 
-#define CALIBRATION_TOTAL_SIZE 116
+#define CALIBRATION_TOTAL_SIZE 122
 //------------------FILE TRANSFER-------------------
 
 
@@ -344,6 +353,24 @@
 #define LDC_BYPASS_ID                                     0x00000081//ie&e add
 #define AF_UPDATE_ID                                      0x00000082//ie&e add
 
+// add r2p0 func
+#define SYSTEM_MANUAL_CCM                                 0x00000083
+#define SYSTEM_CCM_MATRIX_RR                              0x00000084
+#define SYSTEM_CCM_MATRIX_RG                              0x00000085
+#define SYSTEM_CCM_MATRIX_RB                              0x00000086
+#define SYSTEM_CCM_MATRIX_GR                              0x00000087
+#define SYSTEM_CCM_MATRIX_GG                              0x00000088
+#define SYSTEM_CCM_MATRIX_GB                              0x00000089
+#define SYSTEM_CCM_MATRIX_BR                              0x0000008a
+#define SYSTEM_CCM_MATRIX_BG                              0x0000008b
+#define SYSTEM_CCM_MATRIX_BB                              0x0000008c
+#define SYSTEM_AWB_GREEN_EVEN_GAIN                        0x0000008d
+#define SYSTEM_AWB_GREEN_ODD_GAIN                         0x0000008e
+#define NOISE_REDUCTION_MODE_ID                           0x0000008f
+#define SHADING_STRENGTH_ID                               0x00000090
+#define HUE_THETA_ID                                      0x00000091
+#define SYSTEM_DYNAMIC_GAMMA_ENABLE                       0x00000092
+
 #define LOG_LIST_LEVEL                                    0x00000094 // add API by myself
 #define LOG_LIST_MASK                                     0x00000095 // add API by myself
 #define LOGLIST_FW_GENERIC                                0x00000096 // add API by myself
@@ -442,6 +469,9 @@
 #define LENS                                              0x00000044
 #define ISP                                               0x00000045
 
+// r2p0 func
+#define NOISE_REDUCTION_OFF                               0x00000046
+#define NOISE_REDUCTION_ON                                0x00000047
 
 // ------------------------------------------------------------------------------ //
 //		RETURN VALUES

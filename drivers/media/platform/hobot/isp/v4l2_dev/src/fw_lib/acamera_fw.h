@@ -75,6 +75,7 @@ typedef struct _sytem_tab {
     uint8_t global_manual_sinter;
     uint8_t global_manual_temper;
     uint8_t global_manual_awb;
+    uint8_t global_manual_ccm;
     uint8_t global_manual_saturation;
     uint8_t global_manual_auto_level;
     uint8_t global_manual_frame_stitch;
@@ -100,11 +101,13 @@ typedef struct _sytem_tab {
     uint16_t global_awb_green_even_gain;
     uint16_t global_awb_green_odd_gain;
     uint16_t global_awb_blue_gain;
+    int16_t global_ccm_matrix[9];
     uint8_t global_saturation_target;
 
     uint8_t global_ae_compensation;
     uint8_t global_calibrate_bad_pixels;
     uint32_t global_info_preset_num;
+    uint8_t global_dynamic_gamma_enable;
 } system_tab;
 
 typedef struct _acamera_isp_sw_regs_map {

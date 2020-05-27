@@ -23,7 +23,7 @@
 
 
 #if defined( CUR_MOD_NAME)
-#undef CUR_MOD_NAME 
+#undef CUR_MOD_NAME
 #define CUR_MOD_NAME LOG_MODULE_COLOR_MATRIX
 #else
 #define CUR_MOD_NAME LOG_MODULE_COLOR_MATRIX
@@ -110,6 +110,17 @@ int color_matrix_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint3
         }
     }
 
+     case FSM_PARAM_SET_SHADING_STRENGTH:
+         if ( !input || input_size != sizeof( int32_t ) ) {
+             LOG( LOG_ERR, "Invalid param, param_id: %d", param_id );
+             rc = -1;
+             break;
+         }
+
+         p_fsm->manual_shading_mesh_strength = *(int32_t *)input;
+
+         break;
+
     default:
         rc = -1;
         break;
@@ -154,6 +165,17 @@ int color_matrix_fsm_get_param( void *fsm, uint32_t param_id, void *input, uint3
         *(int32_t *)output = p_fsm->shading_alpha;
 
         break;
+
+    case FSM_PARAM_GET_SHADING_STRENGTH:
+         if ( !output || output_size != sizeof( int32_t ) ) {
+             LOG( LOG_ERR, "Invalid param, param_id: %d", param_id );
+             rc = -1;
+             break;
+         }
+         *(int32_t *)output = p_fsm->shading_mesh_strength;
+
+         break;
+
 
     default:
         rc = -1;
