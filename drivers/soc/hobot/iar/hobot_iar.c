@@ -1660,6 +1660,8 @@ int32_t iar_start(int update)
 	writel(value, g_iar_dev->regaddr + REG_IAR_DE_REFRESH_EN);
 	//mod_timer(&iartimer,jiffies + msecs_to_jiffies( MSEC_PER_SEC));
 	writel(0x1, g_iar_dev->regaddr + REG_IAR_UPDATE);
+	if (display_type == MIPI_720P_TOUCH)
+		panel_exit_standby();
 
 	return 0;
 }
@@ -1674,6 +1676,8 @@ int32_t iar_stop(void)
 		printk(KERN_ERR "IAR dev not inited!");
 		return -1;
 	}
+	if (display_type == MIPI_720P_TOUCH)
+		panel_enter_standby();
 	value = readl(g_iar_dev->regaddr + REG_IAR_DE_REFRESH_EN);
 	value = IAR_REG_SET_FILED(IAR_DPI_TV_START, 0x0, value);
 	writel(value, g_iar_dev->regaddr + REG_IAR_DE_REFRESH_EN);

@@ -575,6 +575,25 @@ void dsi_panel_write_cmd(uint8_t cmd, uint8_t data, uint8_t header)
 	usleep_range(900, 1000);
 }
 
+
+void panel_enter_standby(void)
+{
+	dsi_panel_write_cmd(0x28, 0x00, 0x05);
+	msleep(10);
+	dsi_panel_write_cmd(0x10, 0x00, 0x05);
+	msleep(120);
+}
+EXPORT_SYMBOL_GPL(panel_enter_standby);
+
+void panel_exit_standby(void)
+{
+	msleep(10);
+	dsi_panel_write_cmd(0x11, 0x00, 0x05);
+	msleep(120);
+	dsi_panel_write_cmd(0x29, 0x00, 0x05);
+}
+EXPORT_SYMBOL_GPL(panel_exit_standby);
+
 int mipi_dsi_panel_init(uint8_t panel_no)
 {
 	mipi_dsi_set_mode(1);//cmd mode
