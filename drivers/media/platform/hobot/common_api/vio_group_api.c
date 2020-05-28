@@ -262,12 +262,7 @@ void vio_bind_group_done(int instance)
 			if (test_bit(VIO_GROUP_DMA_OUTPUT, &group->state)) {
 				group->leader = true;
 				group->head = group;
-				while (group->next) {
-					group = group->next;
-					group->leader = true;
-					group->head = group;
-				}
-				break;
+				group->next = NULL;
 			}
 		}
 	}
