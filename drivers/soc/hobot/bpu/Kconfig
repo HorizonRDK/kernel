@@ -16,6 +16,7 @@ config BPU
 
 config BPU_ONDEMAND_GOVERNOR
 	tristate "BPU OnDemand Governor"
+	depends on PM_DEVFREQ
 	depends on BPU
 	default m
 	help
