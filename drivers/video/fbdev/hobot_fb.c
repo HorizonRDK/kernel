@@ -423,7 +423,7 @@ static int x2fb_mmap(struct fb_info *info, struct vm_area_struct *pvma)
 {
 	int ret = 0;
 
-	pr_debug("x2fb mmap begin!\n");
+	pr_debug("hobot mmap begin!\n");
 	flag = 0;
 	if (info->fix.smem_start == 0 ||
 			(pvma->vm_end - pvma->vm_start) > MAX_FRAME_BUF_SIZE)
@@ -438,7 +438,7 @@ static int x2fb_mmap(struct fb_info *info, struct vm_area_struct *pvma)
 		pr_err("x2fb mmap fail\n");
 		return -EAGAIN;
 	}
-	pr_err("x2fb mmap end!:%lx\n", info->fix.smem_start);
+	pr_err("hobot mmap end!:%lx\n", info->fix.smem_start);
 	return ret;
 }
 
@@ -773,7 +773,7 @@ int user_set_fb(void)
 //	uint8_t *mem_src = logo_addr - x2_fbi->fb.fix.smem_start
 //		+ x2_fbi->fb.screen_base;
 	if (x2_fbi == NULL) {
-		pr_info("x2_fb is not initialize, exit!\n");
+		pr_info("hobot fb is not initialize, exit!\n");
 		return -1;
 	}
 	//iar_stop();
@@ -1449,11 +1449,11 @@ static int x2fb_probe(struct platform_device *pdev)
 	frame_buf_t framebuf_user;
 	frame_buf_t framebuf_user1;
 
-	pr_info("x2fb probe!!!\n");
+	pr_info("Hobot fb probe!!!\n");
 
 	x2_fbi = devm_kzalloc(&pdev->dev, sizeof(struct x2fb_info), GFP_KERNEL);
 	if (!x2_fbi) {
-		dev_err(&pdev->dev, "Unable to alloc x2 framebuffer DEV\n");
+		dev_err(&pdev->dev, "Unable to alloc hobot framebuffer DEV\n");
 		return -ENOMEM;
 	}
 
@@ -1553,7 +1553,7 @@ static int x2fb_probe(struct platform_device *pdev)
 		x2_fbi->fb1.fix.id, x2_fbi->fb1.fix.smem_start,
 		x2_fbi->fb1.fix.smem_start + x2_fbi->fb1.fix.smem_len - 1);
 #endif
-	pr_debug("x2 fb probe ok!!!\n");
+	pr_info("Hobot fb probe ok!!!\n");
 	return 0;
 }
 
