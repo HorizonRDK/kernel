@@ -1547,12 +1547,58 @@ int camera_sys_priv_set(uint32_t port, sensor_priv_t *priv_param)
 		ret = -1;
 	} else {
 		if (priv_param) {
+			uint32_t src_port = (camera_mod[port]->ae_share_flag >> 16) & 0xff;
+			uint32_t dst_port = camera_mod[port]->ae_share_flag & 0xf;
+
 			camera_sys_set_gain_line_control(port, priv_param);
+
+			/* ae share */
+			if (src_port == dst_port) {
+				goto out;
+			}
+
+			if (src_port - 0xA0 >= CAMERA_TOTAL_NUMBER || dst_port >= CAMERA_TOTAL_NUMBER) {
+				pr_err("port src %d, dst %d exceed valid range.\n", src_port, dst_port);
+				goto out;
+			}
+
+			if (src_port - 0xA0 != port) {
+				pr_err("src port %d is not sharer, cur port %d\n", src_port, port);
+				goto out;
+			}
+
+			uint32_t line = 0;
+			sensor_priv_t param;
+			memcpy(&param, priv_param, sizeof(sensor_priv_t));
+
+			line = sensor_line_calculation(
+							camera_mod[dst_port]->camera_param.normal.line_p.ratio,
+							camera_mod[dst_port]->camera_param.normal.line_p.offset,
+							camera_mod[dst_port]->camera_param.normal.line_p.max,
+							priv_param->line_buf[0]);
+
+			if (line < camera_mod[dst_port]->camera_param.normal.line_p.max
+				&& priv_param->gain_buf[0] == 0) {
+				;
+			} else if (line >= camera_mod[dst_port]->camera_param.normal.line_p.max
+				&& priv_param->gain_buf[0] == 0) {
+
+				param.gain_buf[0] = priv_param->line_buf[0] / 500 * 3 + 1/2;
+
+			} else if (line >= camera_mod[dst_port]->camera_param.normal.line_p.max
+				&& priv_param->gain_buf[0] > 0) {
+				;
+			}
+
+			pr_debug("line %d, gain idx %d\n", param.line_buf[0], param.gain_buf[0]);
+
+			camera_sys_set_gain_line_control(dst_port, &param);
 		}
 		else
 			ret = -1;
 	}
 
+out:
 	return ret;
 }
 

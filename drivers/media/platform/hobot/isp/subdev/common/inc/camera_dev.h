@@ -32,6 +32,7 @@
 #define SENSOR_GET_START_CNT  _IOR(CAMERA_IOC_MAGIC, 3, int)
 #define SENSOR_USER_LOCK      _IOW(CAMERA_IOC_MAGIC, 4, int)
 #define SENSOR_USER_UNLOCK    _IOW(CAMERA_IOC_MAGIC, 5, int)
+#define SENSOR_AE_SHARE	      _IOW(CAMERA_IOC_MAGIC, 6, int)
 
 struct sensor_ctrl_ops {
 	char ctrl_name[20];
@@ -59,6 +60,7 @@ typedef struct _camera_charmod_s {
 	struct file *mst_file;
 	struct mutex user_mutex;
 	uint32_t start_num;
+	uint32_t ae_share_flag;
 } camera_charmod_s;
 
 extern camera_charmod_s *camera_mod[CAMERA_TOTAL_NUMBER];

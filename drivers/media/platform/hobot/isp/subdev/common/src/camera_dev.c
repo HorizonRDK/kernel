@@ -166,6 +166,14 @@ static long camera_fop_ioctl(struct file *pfile, unsigned int cmd,
 		case SENSOR_USER_UNLOCK:
 			mutex_unlock(&camera_cdev->user_mutex);
 			break;
+		case SENSOR_AE_SHARE:
+			if (copy_from_user((void *)&camera_cdev->ae_share_flag,
+				(void __user *)arg, sizeof(uint32_t))) {
+				pr_err("ae share flag set err !\n");
+				return -EINVAL;
+			}
+			pr_err("ae_share %d \n", camera_cdev->ae_share_flag);
+			break;
 		default: {
 			pr_err("---cmd is err---\n");
 			ret = -1;
