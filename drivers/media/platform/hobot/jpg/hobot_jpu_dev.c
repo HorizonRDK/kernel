@@ -1224,7 +1224,7 @@ static int jpu_probe(struct platform_device *pdev)
 			s_video_memory.phys_addr, s_video_memory.base);
 	}
 #endif
-	dev->poll_spinlock = __SPIN_LOCK_UNLOCKED(poll_spinlock);
+	spin_lock_init(&dev->poll_spinlock);
 	for (i = 0; i < MAX_NUM_JPU_INSTANCE; i++) {
 		init_waitqueue_head(&dev->interrupt_wait_q[i]);
 		init_waitqueue_head(&dev->poll_wait_q[i]);
@@ -1234,7 +1234,7 @@ static int jpu_probe(struct platform_device *pdev)
 	dev->open_count = 0;
 	mutex_init(&dev->jpu_mutex);
 	sema_init(&dev->jpu_sem, 1);
-	dev->jpu_spinlock = __SPIN_LOCK_UNLOCKED(jpu_spinlock);
+	spin_lock_init(&dev->jpu_spinlock);
 
 	INIT_LIST_HEAD(&dev->jbp_head);
 	INIT_LIST_HEAD(&dev->inst_list_head);

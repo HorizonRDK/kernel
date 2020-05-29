@@ -1817,7 +1817,7 @@ static int vpu_probe(struct platform_device *pdev)
 	for (i = 0; i < MAX_NUM_VPU_INSTANCE; i++) {
 		init_waitqueue_head(&dev->poll_wait_q[i]);
 	}
-	dev->poll_spinlock = __SPIN_LOCK_UNLOCKED(poll_spinlock);
+	spin_lock_init(&dev->poll_spinlock);
 	for (i = 0; i < MAX_NUM_VPU_INSTANCE; i++) {
 		init_waitqueue_head(&dev->interrupt_wait_q[i]);
 	}
@@ -1832,8 +1832,8 @@ static int vpu_probe(struct platform_device *pdev)
 			goto ERR_ALLOC_FIFO;
 		}
 	}
-	dev->vpu_kfifo_lock = __SPIN_LOCK_UNLOCKED(vpu_kfifo_lock);
-	dev->irq_spinlock = __SPIN_LOCK_UNLOCKED(irq_spinlock);
+	spin_lock_init(&dev->vpu_kfifo_lock);
+	spin_lock_init(&dev->irq_spinlock);
 	dev->irq_trigger = 0;
 #else
 	init_waitqueue_head(&dev->interrupt_wait_q);
@@ -1843,7 +1843,7 @@ static int vpu_probe(struct platform_device *pdev)
 	dev->open_count = 0;
 	mutex_init(&dev->vpu_mutex);
 	sema_init(&dev->vpu_sem, 1);
-	dev->vpu_spinlock = __SPIN_LOCK_UNLOCKED(vpu_spinlock);
+	spin_lock_init(&dev->vpu_spinlock);
 
 	INIT_LIST_HEAD(&dev->vbp_head);
 	INIT_LIST_HEAD(&dev->inst_list_head);
