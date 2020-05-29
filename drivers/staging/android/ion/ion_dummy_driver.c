@@ -136,6 +136,12 @@ static long ion_dummy_ioctl(struct ion_client *client,
 		}
 		vaddr = (void *)phy_data.reserved;
 
+		if ((u64) phy_data.paddr == 0) {
+			pr_err("%s:%d invalid paddr:%016llx\n",
+				__func__, __LINE__, (u64)phy_data.paddr);
+			return -EFAULT;
+		}
+
 		dma_sync_single_for_device(NULL, phy_data.paddr, phy_data.len, DMA_TO_DEVICE);
 		__flush_dcache_area(page_address(pfn_to_page(PHYS_PFN(phy_data.paddr))), phy_data.len);
 
@@ -150,6 +156,12 @@ static long ion_dummy_ioctl(struct ion_client *client,
 				   sizeof(struct ion_phy_data))) {
 			pr_err("%s:copy from user failed\n",
 			       __func__);
+			return -EFAULT;
+		}
+
+		if ((u64) phy_data.paddr == 0) {
+			pr_err("%s:%d invalid paddr:%016llx\n",
+				__func__, __LINE__, (u64)phy_data.paddr);
 			return -EFAULT;
 		}
 
@@ -174,6 +186,13 @@ static long ion_dummy_ioctl(struct ion_client *client,
 			       __func__);
 			return -EFAULT;
 		}
+
+		if ((u64) phy_data.paddr == 0) {
+			pr_err("%s:%d invalid paddr:%016llx\n",
+				__func__, __LINE__, (u64)phy_data.paddr);
+			return -EFAULT;
+		}
+
 		if (!dma_ch) {
 			pr_err("no dma can use for memcpy failed\n");
 			return -ENODEV;
