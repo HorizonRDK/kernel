@@ -40,6 +40,9 @@
 #include "acamera_logger.h"
 #include "acamera_fw.h"
 
+#include "dma_writer.h"
+#include "dma_writer_fsm.h"
+
 #include "isp-v4l2-common.h"
 #include "isp-v4l2.h"
 #include "fw-interface.h"
@@ -799,6 +802,7 @@ static void isp_v4l2_stream_buffer_list_release( isp_v4l2_stream_t *pstream,
 }
 
 extern void *acamera_get_ctx_ptr( uint32_t ctx_id );
+extern int dma_writer_configure_pipe( dma_pipe *pipe );
 int isp_v4l2_stream_on( isp_v4l2_stream_t *pstream )
 {
     if ( !pstream ) {
@@ -831,8 +835,15 @@ int isp_v4l2_stream_on( isp_v4l2_stream_t *pstream )
 
     /* get one vb2 buffer config to dma writer */
     acamera_fsm_mgr_t *instance = &(((acamera_context_ptr_t)acamera_get_ctx_ptr(pstream->ctx_id))->fsm_mgr);
-    if (instance->reserved) //dma writer on
-        acamera_general_interrupt_hanlder(ACAMERA_MGR2CTX_PTR(instance), ACAMERA_IRQ_FRAME_WRITER_FR);
+    if (instance->reserved) { //dma writer on
+        dma_handle *dh = NULL;
+        acamera_context_ptr_t p_ctx;
+
+        p_ctx = acamera_get_ctx_ptr(pstream->ctx_id);
+        dh = ((dma_writer_fsm_const_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_DMA_WRITER]->p_fsm))->handle;
+        dma_writer_configure_pipe(&dh->pipe[dma_fr]);
+        // acamera_general_interrupt_hanlder(ACAMERA_MGR2CTX_PTR(instance), ACAMERA_IRQ_FRAME_WRITER_FR);
+    }
 
     return 0;
 }

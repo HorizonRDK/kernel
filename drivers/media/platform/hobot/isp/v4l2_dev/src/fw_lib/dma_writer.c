@@ -385,7 +385,7 @@ static int dma_writer_configure_frame_writer( dma_pipe *pipe,
 #endif
 
 #if HOBOT_DMA_WRITER_FRAME
-static int dma_writer_configure_pipe( dma_pipe *pipe )
+int dma_writer_configure_pipe( dma_pipe *pipe )
 {
     struct _acamera_context_t *p_ctx = pipe->settings.p_ctx;
     metadata_t *meta = &pipe->settings.curr_metadata;

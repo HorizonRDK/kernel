@@ -1036,7 +1036,7 @@ void _ctx_chn_idx_update(int ctx_id)
     }
 
 	cur_ctx_id = ctx_id;
-    cur_chn_id = p_ctx->dma_chn_idx;
+    cur_chn_id = (p_ctx->dma_chn_idx < 0) ? 0 : p_ctx->dma_chn_idx;
 
     pr_debug("sw cnter %d, swap ctx id %d, last ctx id %d\n",
             p_ctx->p_gfw->sw_frame_counter, swap_ctx_id, last_ctx_id);
@@ -1044,7 +1044,6 @@ void _ctx_chn_idx_update(int ctx_id)
             last_chn_id, cur_ctx_id, cur_chn_id);
     for (i = 0; i < FIRMWARE_CONTEXT_NUMBER; i++)
         pr_debug("%d ", frame_list[i]);
-    pr_debug("\n");
 
     //record ctx id, according to frame comming sequence
     for (i = 1; i < FIRMWARE_CONTEXT_NUMBER; i++)
@@ -1067,6 +1066,12 @@ int isp_ctx_prepare(acamera_context_ptr_t p_ctx)
     if (ret != 0) {
         pr_err("mutex lock failed, rc = %d\n", ret);
         return ret;
+    }
+
+    if (p_ctx->sw_reg_map.isp_sw_config_map == NULL) {
+        pr_err("ctx id %d exit.\n", p_ctx->context_id);
+        mutex_unlock(&p_ctx->p_gfw->ctx_chg_lock);
+        return -1;
     }
 
     //isp ctx swap
@@ -1138,6 +1143,7 @@ extern void isp_input_port_size_config(sensor_fsm_ptr_t p_fsm);
 extern int ips_get_isp_frameid(void);
 int sif_isp_ctx_sync_func(int ctx_id)
 {
+    int ret = 0;
 	acamera_context_ptr_t p_ctx;
     acamera_fsm_mgr_t *instance;
 
@@ -1181,7 +1187,11 @@ int sif_isp_ctx_sync_func(int ctx_id)
 		g_firmware.dma_flag_dma_writer_config_completed = 0;
 
         if (p_ctx->content_side == SIDE_DDR) {
-            isp_ctx_prepare(p_ctx);
+            ret = isp_ctx_prepare(p_ctx);
+            if (ret != 0) {
+                pr_err("outside ctx swap failed.\n");
+                return -1;
+            }
         }
 
 		// switch to ping/pong contexts for the next frame
@@ -1211,6 +1221,8 @@ int sif_isp_ctx_sync_func(int ctx_id)
 	return 0;
 }
 
+static int ip_sts_dbg;
+module_param(ip_sts_dbg, int, 0644);
 // single context handler
 int32_t acamera_interrupt_handler()
 {
@@ -1343,6 +1355,8 @@ pr_info("hcs1 %d, hcs2 %d, vc %d\n", hcs1, hcs2, vc);
                     } //if ( acamera_event_queue_empty( &p_ctx->fsm_mgr.event_queue ) )
                 } else if ( irq_bit == ISP_INTERRUPT_EVENT_ISP_END_FRAME_END ) {
                     pr_debug("frame done, ctx id %d\n", cur_ctx_id);
+                    if (ip_sts_dbg)
+                        input_port_status();
                     if (p_ctx->sif_isp_offline) {
                         atomic_set(&g_firmware.frame_done, 1);
                         wake_up(&wq_frame_end);
