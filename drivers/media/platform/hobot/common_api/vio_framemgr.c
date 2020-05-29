@@ -320,11 +320,12 @@ int frame_manager_open_mp(struct vio_framemgr *this, u32 buffers,
 	struct vio_frame *frames;
 	u32 ind_fst;
 
-	frames = kzalloc(sizeof(struct vio_frame) * buffers, GFP_KERNEL);
+	frames = vmalloc(sizeof(struct vio_frame) * buffers);
 	if (!frames) {
 		vio_err("failed to allocate frames");
 		return -ENOMEM;
 	}
+	memset(frames, 0, sizeof(struct vio_frame) * buffers);
 	spin_lock_irqsave(&this->slock, flag);
 	if ((this->num_frames + buffers) > VIO_MP_MAX_FRAMES) {
 		spin_unlock_irqrestore(&this->slock, flag);
@@ -453,7 +454,7 @@ int frame_manager_close_mp(struct vio_framemgr *this,
 		if ((this->dispatch_mask[i] >> ctx_index) & 0x01)
 			this->dispatch_mask[i] &= ~(1 << ctx_index);
 	}
-	kfree(free_addr);
+	vfree(free_addr);
 	if (this->max_index == (index_start + buffers)) {
 		tmp_num = 0;
 		for (i = 0; i < VIO_MP_MAX_FRAMES; i++) {
