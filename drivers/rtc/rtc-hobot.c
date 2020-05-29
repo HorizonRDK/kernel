@@ -201,14 +201,21 @@ static int x2_rtc_set_alarm(struct device *dev, struct rtc_wkalrm *wkalrm)
           RTC_ALARM_CFG_MON(bin2bcd(tm->tm_mon+1)) |
           RTC_ALARM_CFG_YEAR_L(bin2bcd((tm->tm_year+1900)%100)) |
           RTC_ALARM_CFG_YEAR_H(bin2bcd((tm->tm_year+1900)/100));
-	x2_rtc_wr(rtc, X2_RTC_DATE_CFG_REG, val);
+	x2_rtc_wr(rtc, X2_RTC_ALARM_DATE_REG, val);
 
 	if (wkalrm->enabled) {
 		val = x2_rtc_rd(rtc, X2_RTC_CTRL_REG);
-		val = X2_RTC_AL_SEC_EN  | X2_RTC_AL_MIN_EN | X2_RTC_AL_HOUR_EN |
+		val |= X2_RTC_AL_SEC_EN  | X2_RTC_AL_MIN_EN | X2_RTC_AL_HOUR_EN |
 		      X2_RTC_AL_WEEK_EN | X2_RTC_AL_DAY_EN | X2_RTC_AL_MON_EN  |
 		      X2_RTC_AL_YEAR_EN | X2_RTC_AL_EN;
 		x2_rtc_wr(rtc, X2_RTC_CTRL_REG, val);
+
+		val = x2_rtc_rd(rtc, X2_RTC_INT_UNMASK_REG);
+		val |= X2_RTC_AL_INT_EN;
+		x2_rtc_wr(rtc, X2_RTC_INT_UNMASK_REG, val);
+		val = x2_rtc_rd(rtc, X2_RTC_INT_SETMASK_REG);
+		val &= (~X2_RTC_AL_INT_EN);
+		x2_rtc_wr(rtc, X2_RTC_INT_SETMASK_REG, val);
 	}
 
 	return 0;
@@ -304,6 +311,8 @@ static int x2_rtc_probe(struct platform_device *pdev)
 		return ret;
 	}
 
+	device_set_wakeup_capable(&pdev->dev, true);
+	device_set_wakeup_enable(&pdev->dev, true);
 	rtc->rtc = devm_rtc_device_register(&pdev->dev, "hobot-rtc", &x2_rtc_ops, THIS_MODULE);
 	if (IS_ERR(rtc->rtc)) {
 		dev_err(&pdev->dev, "can't register rtc device\n");
