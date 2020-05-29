@@ -1103,35 +1103,34 @@ int ipu_video_init(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 	}
 
 	subdev = ipu_ctx->subdev;
-	if (test_bit(IPU_SUBDEV_INIT, &subdev->state)) {
+	if (test_and_set_bit(IPU_SUBDEV_INIT, &subdev->state)) {
 		vio_info("subdev already init, current refcount(%d)\n",
 				atomic_read(&subdev->refcount));
 		ipu_ctx->state = BIT(VIO_VIDEO_INIT);
 		return ret;
 	}
-
 	if (ipu_ctx->id == GROUP_ID_SRC) {
 		ipu_cfg = &subdev->ipu_cfg;
 		ret = copy_from_user((char *)ipu_cfg, (u32 __user *) arg,
 				   sizeof(ipu_cfg_t));
 		if (ret)
-			return -EFAULT;
+			goto err;
 		ret = ipu_update_common_param(subdev, ipu_cfg);
 		if (ret)
-			return -EFAULT;
+			goto err;
 		ret = ipu_set_path_attr(subdev, ipu_cfg);
 		if (ret)
-			return -EFAULT;
+			goto err;
 	} else if (ipu_ctx->id == GROUP_ID_US) {
 		scale_config = &subdev->scale_cfg;
 		ret = copy_from_user((char *) scale_config, (u32 __user *) arg,
 				   sizeof(ipu_us_info_t));
 		if (ret)
-			return -EFAULT;
+			goto err;
 
 		ret = ipu_update_us_param(subdev, (ipu_us_info_t*) scale_config);
 		if (ret)
-			return -EFAULT;
+			goto err;
 
 		if (scale_config->ds_roi_en || scale_config->ds_sc_en) {
 			ipu_set_group_leader(group, subdev->id);
@@ -1142,10 +1141,10 @@ int ipu_video_init(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 		ret = copy_from_user((char *) scale_config, (u32 __user *) arg,
 				   sizeof(ipu_ds_info_t));
 		if (ret)
-			return -EFAULT;
+			goto err;
 		ret = ipu_update_ds_param(subdev, scale_config);
 		if (ret)
-			return -EFAULT;
+			goto err;
 	}
 
 	if(!test_bit(IPU_REUSE_SHADOW0, &ipu->state)
@@ -1155,10 +1154,13 @@ int ipu_video_init(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 	vio_group_task_start(group->gtask);
 
 	ipu_ctx->state = BIT(VIO_VIDEO_INIT);
-	set_bit(IPU_SUBDEV_INIT, &subdev->state);
 
 	vio_info("[S%d][V%d]%s done\n", group->instance, ipu_ctx->id, __func__);
 
+	return ret;
+
+err:
+	clear_bit(IPU_SUBDEV_INIT, &subdev->state);
 	return ret;
 }
 

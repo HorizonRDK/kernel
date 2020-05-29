@@ -514,7 +514,7 @@ int pym_video_init(struct pym_video_ctx *pym_ctx, unsigned long arg)
 	}
 
 	subdev = pym_ctx->subdev;
-	if (test_bit(PYM_SUBDEV_INIT, &subdev->state)) {
+	if (test_and_set_bit(PYM_SUBDEV_INIT, &subdev->state)) {
 		vio_info("subdev already init, current refcount(%d)\n",
 				atomic_read(&subdev->refcount));
 		return ret;
@@ -523,12 +523,13 @@ int pym_video_init(struct pym_video_ctx *pym_ctx, unsigned long arg)
 	ret = copy_from_user((char *)pym_config,
 				(u32 __user *) arg, sizeof(pym_cfg_t));
 	if (ret)
-		return -EFAULT;
+		goto err;
 
 	if (pym_config->img_scr == 1) {
 		if (test_bit(PYM_DMA_INPUT, &pym_dev->state)){
 		 	vio_err("PYM DMA input already,can't set otf input\n");
-			return -EINVAL;
+			ret = -EINVAL;
+			goto err;
 		}else{
 			set_bit(PYM_OTF_INPUT, &pym_dev->state);
 			set_bit(VIO_GROUP_OTF_INPUT, &group->state);
@@ -536,7 +537,8 @@ int pym_video_init(struct pym_video_ctx *pym_ctx, unsigned long arg)
 	}else{
 		if (test_bit(PYM_OTF_INPUT, &pym_dev->state)) {
 			vio_err("PYM otf input already,can't set dma input\n");
-			return -EINVAL;
+			ret = -EINVAL;
+			goto err;
 		} else {
 			set_bit(PYM_DMA_INPUT, &pym_dev->state);
 			set_bit(VIO_GROUP_DMA_INPUT, &group->state);
@@ -547,10 +549,13 @@ int pym_video_init(struct pym_video_ctx *pym_ctx, unsigned long arg)
 
 	set_bit(VIO_GROUP_DMA_OUTPUT, &group->state);
 	vio_group_task_start(group->gtask);
-	set_bit(PYM_SUBDEV_INIT, &subdev->state);
 
 	pym_ctx->state = BIT(VIO_VIDEO_INIT);
 
+	return ret;
+
+err:
+	clear_bit(PYM_SUBDEV_INIT, &subdev->state);
 	return ret;
 }
 
