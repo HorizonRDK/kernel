@@ -243,7 +243,7 @@ static const struct uvc_format_mjpeg uvc_format_mjpg = {
 	.bDescriptorType	= USB_DT_CS_INTERFACE,
 	.bDescriptorSubType	= UVC_VS_FORMAT_MJPEG,
 	.bFormatIndex		= 2,
-	.bNumFrameDescriptors	= 3,
+	.bNumFrameDescriptors	= 4,
 	.bmFlags		= 0,
 	.bDefaultFrameIndex	= 1,
 	.bAspectRatioX		= 0,
@@ -309,6 +309,24 @@ static const struct UVC_FRAME_MJPEG(3) uvc_frame_mjpg_1080p = {
 	.dwFrameInterval[2]	= cpu_to_le32(1000000),
 };
 
+static const struct UVC_FRAME_MJPEG(3) uvc_frame_mjpg_2160p = {
+	.bLength		= UVC_DT_FRAME_MJPEG_SIZE(3),
+	.bDescriptorType	= USB_DT_CS_INTERFACE,
+	.bDescriptorSubType	= UVC_VS_FRAME_MJPEG,
+	.bFrameIndex		= 4,
+	.bmCapabilities		= 0,
+	.wWidth			= cpu_to_le16(3840),
+	.wHeight		= cpu_to_le16(2160),
+	.dwMinBitRate		= cpu_to_le32(3840*2160*2*8*10),
+	.dwMaxBitRate		= cpu_to_le32(3840*2160*2*8*30),
+	.dwMaxVideoFrameBufferSize	= cpu_to_le32(3840*2160*2),
+	.dwDefaultFrameInterval	= cpu_to_le32(333333),
+	.bFrameIntervalType	= 3,
+	.dwFrameInterval[0]	= cpu_to_le32(333333),
+	.dwFrameInterval[1]	= cpu_to_le32(666666),
+	.dwFrameInterval[2]	= cpu_to_le32(1000000),
+};
+
 static const struct uvc_color_matching_descriptor uvc_color_matching = {
 	.bLength		= UVC_DT_COLOR_MATCHING_SIZE,
 	.bDescriptorType	= USB_DT_CS_INTERFACE,
@@ -356,6 +374,7 @@ static const struct uvc_descriptor_header * const uvc_hs_streaming_cls[] = {
 	(const struct uvc_descriptor_header *) &uvc_frame_mjpg_360p,
 	(const struct uvc_descriptor_header *) &uvc_frame_mjpg_720p,
 	(const struct uvc_descriptor_header *) &uvc_frame_mjpg_1080p,
+	(const struct uvc_descriptor_header *) &uvc_frame_mjpg_2160p,
 	(const struct uvc_descriptor_header *) &uvc_color_matching,
 	NULL,
 };
@@ -370,6 +389,7 @@ static const struct uvc_descriptor_header * const uvc_ss_streaming_cls[] = {
 	(const struct uvc_descriptor_header *) &uvc_frame_mjpg_360p,
 	(const struct uvc_descriptor_header *) &uvc_frame_mjpg_720p,
 	(const struct uvc_descriptor_header *) &uvc_frame_mjpg_1080p,
+	(const struct uvc_descriptor_header *) &uvc_frame_mjpg_2160p,
 	(const struct uvc_descriptor_header *) &uvc_color_matching,
 	NULL,
 };
