@@ -231,6 +231,10 @@ function build_boot_image()
 
 function all()
 {
+    export SRC_KERNEL_DIR=`pwd`
+    change_dts_flash_config $if_flash
+    set_kernel_config
+
     if [ "x$KERNEL_WITH_RECOVERY" = "xtrue" ];then
         cd $SRC_KERNEL_DIR
 
@@ -327,7 +331,8 @@ cmd=$1
 
 function clean()
 {
-    make clean
+    SRC_KERNEL_DIR=`pwd`
+    make distclean
 }
 
 # include
@@ -335,6 +340,7 @@ function clean()
 # include end
 
 cd $(dirname $0)
+
 # config dts
 if_flash=$BOOT_MODE
 if [[ ! -z "$FLASH_ENABLE" ]];then
@@ -344,7 +350,4 @@ if [[ ! -z "$FLASH_ENABLE" ]];then
     fi
 fi
 
-change_dts_flash_config $if_flash
-
-set_kernel_config
 buildopt $cmd
