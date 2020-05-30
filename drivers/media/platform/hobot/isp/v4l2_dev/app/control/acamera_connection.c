@@ -535,7 +535,7 @@ void acamera_connection_process( void )
     int cnt = 20;
     uint32_t *const buf = (uint32_t *)con.buffer;
 
-    if (!con.data_read || !con.data_write || !isp_open_check()) {
+    if (!con.data_read || !con.data_write) {
         return;
     }
 

@@ -76,5 +76,6 @@ int fw_intf_set_output_fr_on_off( uint32_t ctx_id, uint32_t ctrl_val );
 int fw_intf_set_output_ds1_on_off( uint32_t ctx_id, uint32_t ctrl_val );
 int fw_intf_set_raw_bypass_on_off(uint32_t ctx_id, uint32_t ctrl_val);
 int fw_intf_temper_buf_ctrl(uint32_t ctx_id, uint32_t ctrl_val);
+int fw_intf_iridix_ctrl(uint32_t ctx_id, uint32_t ctrl_val);
 
 #endif

@@ -163,6 +163,7 @@ int acamera_fw_isp_stop(int ctx_id)
     fw_ptr->first_frame = 0;
     fw_ptr->sw_frame_counter = 0;
     fw_ptr->initialized = 0;
+    fw_ptr->iridix_ctrl_flag = 0;
     if (fw_ptr->cache_area != NULL) {
         pr_debug("free ddr ctx mem %p\n", p_ctx->p_gfw->cache_area);
         vfree((void *)p_ctx->p_gfw->cache_area);
@@ -586,6 +587,7 @@ extern int acamera_all_hw_contexts_inited(void);
 int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settings, acamera_firmware_t *g_fw )
 {
     int32_t result = 0;
+    static acamera_context_ptr_t p_ctx_tmp = NULL;
     // keep the context pointer for debug purposes
     p_ctx->context_ref = (uint32_t *)p_ctx;
     p_ctx->p_gfw = g_fw;
@@ -610,6 +612,9 @@ int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settin
         pr_debug("alloc ddr ctx mem vaddr %p\n", p_ctx->sw_reg_map.isp_sw_config_map);
         memset((void *)p_ctx->sw_reg_map.isp_sw_config_map, 0, HOBOT_DMA_SRAM_ONE_ZONE);
         p_ctx->sw_reg_map.isp_sw_phy_addr = 0;
+        if (p_ctx_tmp != NULL && p_ctx_tmp->content_side == SIDE_SRAM)
+            memcpy_fromio((void *)p_ctx->sw_reg_map.isp_sw_config_map,
+                (void *)p_ctx_tmp->sw_reg_map.isp_sw_config_map, HOBOT_DMA_SRAM_ONE_ZONE);
 
         if (p_ctx->p_gfw->cache_area == NULL) {
             p_ctx->p_gfw->cache_area = vmalloc(HOBOT_DMA_SRAM_ONE_ZONE);
@@ -637,6 +642,7 @@ int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settin
                 mutex_unlock(&p_ctx->p_gfw->ctx_chg_lock);
                 return -1;
             }
+            p_ctx_tmp = p_ctx;
             pr_info("copy data from isp hw to sram %d\n", p_ctx->dma_chn_idx);
             p_ctx->content_side = SIDE_SRAM;
             system_dma_copy_sg(g_fw->dma_chan_isp_config,

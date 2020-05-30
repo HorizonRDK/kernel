@@ -163,6 +163,9 @@ static int isp_v4l2_ctrl_s_ctrl_custom( struct v4l2_ctrl *ctrl )
     case ISP_V4L2_CID_TEMPER_BUF:
         ret = fw_intf_temper_buf_ctrl( ctx_id, ctrl->val );
         break;
+    case ISP_V4L2_CID_IRIDIX_CTRL:
+        ret = fw_intf_iridix_ctrl( ctx_id, ctrl->val );
+        break;
     }
 
     return ret;
@@ -222,6 +225,9 @@ static int isp_v4l2_ctrl_g_ctrl_custom( struct v4l2_ctrl *ctrl )
         break;
     case ISP_V4L2_CID_TEMPER_BUF:
         ret = fw_intf_temper_buf_ctrl( ctx_id, ctrl->val );
+        break;
+    case ISP_V4L2_CID_IRIDIX_CTRL:
+        ret = fw_intf_iridix_ctrl( ctx_id, ctrl->val );
         break;
     }
 
@@ -332,6 +338,17 @@ static const struct v4l2_ctrl_config isp_v4l2_ctrl_temper_buf_ctrl = {
     .min = 0,
     .max = 3,
     .step = 1,
+    .def = 0,
+};
+
+static const struct v4l2_ctrl_config isp_v4l2_ctrl_iridix_ctrl = {
+    .ops = &isp_v4l2_ctrl_ops_custom,
+    .id = ISP_V4L2_CID_IRIDIX_CTRL,
+    .name = "ISP IRIDIX BUF CTRL",
+    .type = V4L2_CTRL_TYPE_INTEGER,
+    .min = 0,
+    .max = 0x7FFFFFFF,
+    .step = 0,
     .def = 0,
 };
 
@@ -458,7 +475,8 @@ int isp_v4l2_ctrl_init( uint32_t ctx_id, isp_v4l2_ctrl_t *ctrl )
                   &isp_v4l2_ctrl_raw_bypass_on_off, NULL );
     ADD_CTRL_CST_VOLATILE( ISP_V4L2_CID_TEMPER_BUF,
                   &isp_v4l2_ctrl_temper_buf_ctrl, NULL );
-
+    ADD_CTRL_CST_VOLATILE( ISP_V4L2_CID_IRIDIX_CTRL,
+                  &isp_v4l2_ctrl_iridix_ctrl, NULL );
 
     /* Add control handler to v4l2 device */
     v4l2_ctrl_add_handler( hdl_std_ctrl, hdl_cst_ctrl, NULL );

@@ -198,14 +198,18 @@ struct _acamera_firmware_t {
     atomic_t dma_done;
     uint8_t first_frame;
 
-    int cache_ctx_id;
-    int cache_empty;
     volatile uint8_t *cache_area;
     unsigned long dma_chn_bitmap;
     struct mutex ctx_chg_lock;
 
     uint32_t sw_frame_counter;
     uint32_t initialized;
+
+    //byte3:status
+    //byte2:iridix turn over(1), iridix share(2)
+    //byte1:giver ctx id
+    //byte0:accepter ctx id
+    int iridix_ctrl_flag;
 
     semaphore_t sem_evt_avail;
 };

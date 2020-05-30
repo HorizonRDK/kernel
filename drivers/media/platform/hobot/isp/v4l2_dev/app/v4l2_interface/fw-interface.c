@@ -1373,3 +1373,13 @@ int fw_intf_cfa_pattern_ctrl(uint32_t ctx_id, uint32_t ctrl_val)
 
     return 0;
 }
+
+int fw_intf_iridix_ctrl(uint32_t ctx_id, uint32_t ctrl_val)
+{
+    acamera_context_t *ptr = acamera_get_ctx_ptr(ctx_id);
+
+    if (ptr != NULL)
+        ptr->p_gfw->iridix_ctrl_flag = ctrl_val;
+
+    return 0;
+}

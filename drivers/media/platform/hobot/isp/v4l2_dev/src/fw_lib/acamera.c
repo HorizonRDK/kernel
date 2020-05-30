@@ -75,6 +75,8 @@
 #include "isp_ctxsv.h"
 #include "hobot_isp_reg_dma.h"
 
+#define GET_BYTE_V(v, pos)      (v >> pos % sizeof(v) * 8 & 0xff)
+
 static acamera_firmware_t g_firmware;
 
 typedef int (*isp_callback)(int);
@@ -434,6 +436,8 @@ int32_t acamera_init( acamera_settings *settings, uint32_t ctx_num )
 
     g_firmware.api_context = 0;
     g_firmware.first_frame = 0;
+    g_firmware.sw_frame_counter = 0;
+    g_firmware.iridix_ctrl_flag = 0;
     g_firmware.cache_area = NULL;
 
     mutex_init(&g_firmware.ctx_chg_lock);
@@ -922,6 +926,50 @@ int32_t acamera_interrupt_handler()
 }
 
 #else
+static int _isp_iridix_ctrl(void)
+{
+    uint8_t iridix_no = 0xff;
+    int giver_ctx_id;
+    int accepter_ctx_id;
+    acamera_context_ptr_t p_ctx;
+
+    giver_ctx_id = GET_BYTE_V(g_firmware.iridix_ctrl_flag, 1);
+    accepter_ctx_id = GET_BYTE_V(g_firmware.iridix_ctrl_flag, 0);
+
+    if (giver_ctx_id >= FIRMWARE_CONTEXT_NUMBER || accepter_ctx_id >= FIRMWARE_CONTEXT_NUMBER) {
+       pr_debug("giver id %d or accepter id %d is invalid.\n", giver_ctx_id, accepter_ctx_id);
+       return -1;
+    }
+
+    pr_debug("giver id %d, accepter id %d\n", giver_ctx_id, accepter_ctx_id);
+
+    p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[giver_ctx_id];
+    if (p_ctx && p_ctx->sw_reg_map.isp_sw_config_map != NULL) {
+        iridix_no = acamera_isp_iridix_context_no_read(p_ctx->settings.isp_base);
+
+        //1: turn over  2: share
+        if (GET_BYTE_V(g_firmware.iridix_ctrl_flag, 2) == 1) {
+            acamera_isp_top_bypass_iridix_write(p_ctx->settings.isp_base, 1);
+            acamera_isp_iridix_enable_write(p_ctx->settings.isp_base, 0);
+            //TODO
+            //need maybe load calibration without iridix
+        }
+    }
+
+    p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[accepter_ctx_id];
+    if (iridix_no < HW_CONTEXT_NUMBER && p_ctx && p_ctx->sw_reg_map.isp_sw_config_map != NULL) {
+        acamera_isp_iridix_context_no_write(p_ctx->settings.isp_base, iridix_no);
+        acamera_isp_iridix_enable_write(p_ctx->settings.isp_base, 1);
+        acamera_isp_top_bypass_iridix_write(p_ctx->settings.isp_base, 1);
+        //TODO
+        //need maybe load calibration with iridix
+    }
+
+    g_firmware.iridix_ctrl_flag = 0;
+
+    return 0;
+}
+
 static int _all_contexts_frame_counter_status(void)
 {
     int i = 0;
@@ -1174,6 +1222,9 @@ int sif_isp_ctx_sync_func(int ctx_id)
 
     p_ctx->sif_isp_offline = 1;
     _ctx_chn_idx_update(ctx_id);
+
+    if (GET_BYTE_V(g_firmware.iridix_ctrl_flag, 2) != 0)
+        _isp_iridix_ctrl();
 
 	isp_input_port_size_config(p_ctx->fsm_mgr.fsm_arr[FSM_ID_SENSOR]->p_fsm);
 	ldc_set_ioctl(ctx_id, 0);
