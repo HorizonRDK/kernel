@@ -35,14 +35,9 @@
 #include "hobot_mipi_host_regs.h"
 #include "hobot_mipi_utils.h"
 
-#ifdef CONFIG_X2_IPS
-#include "x2/x2_ips.h"
+#ifdef CONFIG_HOBOT_IPS_X2
+#include "soc/hobot/hobot_ips_x2.h"
 #endif
-
-#ifdef CONFIG_X2_SYSNOTIFY
-#define EventIdVioMipiHostError 80
-#endif
-
 
 #define MIPI_HOST_DNAME		"mipi_host"
 #define MIPI_HOST_MAX_NUM	CONFIG_HOBOT_MIPI_HOST_MAX_NUM
@@ -773,7 +768,7 @@ static unsigned long mipi_host_pixel_clk_select(mipi_hdev_t *hdev, mipi_host_cfg
 			pixclk = param->ipi_limit;
 		}
 	}
-#if defined CONFIG_X2_IPS
+#ifdef CONFIG_HOBOT_IPS_X2
 	if (ips_set_mipi_ipi_clk(pixclk) < 0) {
 		mipiinfo("ips_set_mipi_ipi_clk %lu error", pixclk);
 		pixclk_act = 0;
@@ -1075,22 +1070,6 @@ static void mipi_host_diag_test(void *p, size_t len)
 }
 #endif
 
-#ifdef CONFIG_X2_SYSNOTIFY
-static void mipi_host_error_report(mipi_hdev_t *hdev,
-		uint8_t errsta, uint32_t total_irq,
-		uint32_t *sub_irq_data, uint32_t elem_cnt)
-{
-		diag_send_event_stat_and_env_data(
-				DiagMsgPrioLow,
-				ModuleDiag_VIO,
-				EventIdVioMipiHostError,
-				DiagEventStaFail,
-				DiagGenEnvdataWhenErr,
-				NULL,
-				32);
-}
-#endif
-
 static const uint32_t mipi_host_int_st[] = {
 	/* reg offset,                          mask,                    icnt */
 	REG_MIPI_HOST_INT_ST_PHY_FATAL,         MIPI_HOST_INT_PHY_FATAL, 1,
@@ -1204,11 +1183,6 @@ static irqreturn_t mipi_host_irq_func(int this_irq, void *data)
 #ifdef CONFIG_HOBOT_DIAG
 	mipi_host_diag_report(hdev, err_occurred, irq);
 #endif
-#ifdef CONFIG_X2_SYSNOTIFY
-	mipi_host_error_report(hdev, err_occurred, irq, env_subirq,
-				  sizeof(env_subirq)/sizeof(uint32_t));
-#endif
-
 	return IRQ_HANDLED;
 }
 
@@ -2413,11 +2387,6 @@ static int hobot_mipi_host_probe_cdev(mipi_hdev_t *hdev)
 		add_timer(&hdev->diag_timer);
 	}
 #endif
-#ifdef CONFIG_X2_SYSNOTIFY
-	if (diag_register(ModuleDiag_VIO, EventIdVioMipiHostError,
-						32, 300, 5000, NULL) < 0)
-		pr_err("mipi host %d diag register fail\n", hdev->port);
-#endif
 	mutex_init(&hdev->user.open_mutex);
 	hdev->user.open_cnt = 0;
 
@@ -2865,4 +2834,4 @@ late_initcall_sync(hobot_mipi_host_module_init);
 module_exit(hobot_mipi_host_module_exit);
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Zhang Tianyu <tianyu.zhang@hobot.cc>");
-MODULE_DESCRIPTION("X2 MIPI Host Driver");
+MODULE_DESCRIPTION("HOBOT MIPI Host Driver");

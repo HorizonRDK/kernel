@@ -35,10 +35,6 @@
 #include "hobot_mipi_dev_regs.h"
 #include "hobot_mipi_utils.h"
 
-#ifdef CONFIG_X2_SYSNOTIFY
-#define EventIdVioMipiDevError 81
-#endif
-
 #define MIPI_DEV_DNAME		"mipi_dev"
 #define MIPI_DEV_MAX_NUM	CONFIG_HOBOT_MIPI_DEV_MAX_NUM
 #define MIPI_DEV_CFGCLK_NAME	"mipi_cfg_host"
@@ -863,22 +859,6 @@ static void mipi_dev_irq_disable(mipi_ddev_t *ddev)
 	return;
 }
 
-#ifdef CONFIG_X2_SYSNOTIFY
-static void mipi_dev_error_report(mipi_ddev_t *ddev,
-		uint8_t errsta, uint32_t total_irq,
-		uint32_t *sub_irq_data, uint32_t elem_cnt)
-{
-		diag_send_event_stat_and_env_data(
-				DiagMsgPrioLow,
-				ModuleDiag_VIO,
-				EventIdVioMipiDevError,
-				DiagEventStaFail,
-				DiagGenEnvdataWhenErr,
-				NULL,
-				20);
-}
-#endif
-
 #ifdef CONFIG_HOBOT_DIAG
 static void mipi_dev_diag_report(mipi_ddev_t *ddev,
 		uint8_t errsta, uint32_t total_irq,
@@ -1037,10 +1017,6 @@ static irqreturn_t mipi_dev_irq_func(int this_irq, void *data)
 
 #ifdef CONFIG_HOBOT_DIAG
 	mipi_dev_diag_report(ddev, err_occurred, irq, env_subirq,
-				 sizeof(env_subirq)/sizeof(uint32_t));
-#endif
-#ifdef CONFIG_X2_SYSNOTIFY
-	mipi_dev_error_report(ddev, err_occureed, irq, env_subirq,
 				 sizeof(env_subirq)/sizeof(uint32_t));
 #endif
 	return IRQ_HANDLED;
@@ -2068,11 +2044,6 @@ static int hobot_mipi_dev_probe_cdev(mipi_ddev_t *ddev)
 		add_timer(&ddev->diag_timer);
 	}
 #endif
-#ifdef CONFIG_X2_SYSNOTIFY
-	if (diag_register(ModuleDiag_VIO, EventIdVioMipiDevError,
-						20, 300, 5000, NULL) < 0)
-		pr_err("mipi dev %d diag register fail\n", ddev->port);
-#endif
 	mutex_init(&ddev->user.open_mutex);
 	ddev->user.open_cnt = 0;
 
@@ -2478,4 +2449,4 @@ late_initcall_sync(hobot_mipi_dev_module_init);
 module_exit(hobot_mipi_dev_module_exit);
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Zhang Tianyu <tianyu.zhang@hobot.cc>");
-MODULE_DESCRIPTION("X2 MIPI Dev Driver");
+MODULE_DESCRIPTION("HOBOT MIPI Dev Driver");
