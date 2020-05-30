@@ -204,6 +204,7 @@ static const struct attribute_group dev_attr_group = {
 
 static int bpu_ondemand_env_init(struct devfreq *devfreq)
 {
+	struct bpu_core *core = (struct bpu_core *)dev_get_drvdata(devfreq->dev.parent);
 	struct ondemand_data *data;
 
 	data = kzalloc(sizeof(struct ondemand_data), GFP_KERNEL);
@@ -211,7 +212,7 @@ static int bpu_ondemand_env_init(struct devfreq *devfreq)
 		return -ENOMEM;
 	}
 
-	data->core = (struct bpu_core *)devfreq->data;
+	data->core = core;
 	data->busy_thres = DFT_BUSY_THRES;
 	data->diff_tail = DIFFTAIL;
 	data->time_thres = DFT_TIME_THRES;
