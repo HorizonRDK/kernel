@@ -144,7 +144,7 @@ static void dump_sysctrl_regs(void)
 #endif
 
 #ifdef CONFIG_PM_SLEEP
-static int x2_clk_suspend(void)
+static int hobot_clk_suspend(void)
 {
 	pr_info("%s:%s, syscore enter suspend...\n", __FILE__, __func__);
 
@@ -176,7 +176,7 @@ static int x2_clk_suspend(void)
 	return 0;
 }
 
-static void x2_clk_resume(void)
+static void hobot_clk_resume(void)
 {
 	pr_info("%s:%s, syscore enter resume...\n", __FILE__, __func__);
 
@@ -207,19 +207,19 @@ static void x2_clk_resume(void)
 	dump_sysctrl_regs();
 }
 
-static struct syscore_ops x2_clk_syscore_ops = {
-	.suspend = x2_clk_suspend,
-	.resume = x2_clk_resume,
+static struct syscore_ops hobot_clk_syscore_ops = {
+	.suspend = hobot_clk_suspend,
+	.resume = hobot_clk_resume,
 };
 #endif
 
-static int __init x2_clk_suspend_init(void)
+static int __init hobot_clk_suspend_init(void)
 {
 	pr_info("%s:%s, register syscore operations.\n", __FILE__, __func__);
 #ifdef CONFIG_PM_SLEEP
-	register_syscore_ops(&x2_clk_syscore_ops);
+	register_syscore_ops(&hobot_clk_syscore_ops);
 #endif
 
 	return 0;
 }
-arch_initcall(x2_clk_suspend_init);
+arch_initcall(hobot_clk_suspend_init);

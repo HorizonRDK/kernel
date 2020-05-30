@@ -888,7 +888,7 @@
 		};
 
 		timer0: timer@0xA1002000 {
-			compatible = "hobot,x2-timer";
+			compatible = "hobot,hobot-timer";
 			status = "disabled";
 			interrupts = <GIC_SPI 14 (GIC_CPU_MASK_SIMPLE(2)
 						 | IRQ_TYPE_LEVEL_HIGH)>,
@@ -903,7 +903,7 @@
 		};
 
 		timer1: timer@0xA1003000 {
-			compatible = "hobot,x2-timer";
+			compatible = "hobot,hobot-timer";
 			status = "disabled";
 			interrupts = <GIC_SPI 17 (GIC_CPU_MASK_SIMPLE(2)
 						 | IRQ_TYPE_LEVEL_HIGH)>,
@@ -918,7 +918,7 @@
 		};
 
 		timer2: timer@0xA1004000 {
-			compatible = "hobot,x2-timer";
+			compatible = "hobot,hobot-timer";
 			status = "disabled";
 			interrupts = <GIC_SPI 20 (GIC_CPU_MASK_SIMPLE(2)
 						 | IRQ_TYPE_LEVEL_HIGH)>,

@@ -29,23 +29,23 @@
 #include "hobot_dma.h"
 
 
-#define X2_DMA_MAX_CHANS_PER_DEVICE    0x01
-#define X2_DMA_ADDR_WIDTH              32
-#define X2_DMA_MAX_TRANS_LEN           0x1000000
-#define X2_DMA_ALL_IRQ_MASK            (X2_DMA_TXCMP|X2_DMA_TXERR|X2_DMA_CHTERM)
+#define HOBOT_DMA_MAX_CHANS_PER_DEVICE    0x01
+#define HOBOT_DMA_ADDR_WIDTH              32
+#define HOBOT_DMA_MAX_TRANS_LEN           0x1000000
+#define HOBOT_DMA_ALL_IRQ_MASK            (HOBOT_DMA_TXCMP|HOBOT_DMA_TXERR|HOBOT_DMA_CHTERM)
 
 
 /* Delay loop counter to prevent hardware failure */
-#define X2_DMA_LOOP_COUNT              1000000
+#define HOBOT_DMA_LOOP_COUNT              1000000
 
 /**
- * struct x2_dma_desc_hw - Hardware Descriptor
+ * struct hobot_dma_desc_hw - Hardware Descriptor
  * @src_addr: Source address @0x00
  * @dest_addr: Destination address @0x04
  * @tx_len: Length of transfer @0x08
  * @next_desc: Next Descriptor Pointer @0x0C
  */
-struct x2_dma_desc_hw {
+struct hobot_dma_desc_hw {
 	u32 src_addr;
 	u32 dest_addr;
 	u32 tx_len;
@@ -53,31 +53,31 @@ struct x2_dma_desc_hw {
 } __aligned(32);
 
 /**
- * struct x2_dma_tx_segment - Descriptor segment
+ * struct hobot_dma_tx_segment - Descriptor segment
  * @hw: Hardware descriptor
  * @node: Node in the descriptor segments list
  * @phys: Physical address of segment
  */
-struct x2_dma_tx_segment {
-	struct x2_dma_desc_hw hw;
+struct hobot_dma_tx_segment {
+	struct hobot_dma_desc_hw hw;
 	struct list_head node;
 	dma_addr_t phys;
 } __aligned(32);
 
 /**
- * struct x2_dma_tx_descriptor - Per Transaction structure
+ * struct hobot_dma_tx_descriptor - Per Transaction structure
  * @async_tx: Async transaction descriptor
  * @segments: TX segments list
  * @node: Node in the channel descriptors list
  */
-struct x2_dma_tx_descriptor {
+struct hobot_dma_tx_descriptor {
 	struct dma_async_tx_descriptor async_tx;
 	struct list_head segments;
 	struct list_head node;
 };
 
 /**
- * struct x2_dma_chan - Driver specific DMA channel structure
+ * struct hobot_dma_chan - Driver specific DMA channel structure
  * @xdev: Driver specific device structure
  * @desc_offset: TX descriptor registers offset
  * @lock: Descriptor operation lock
@@ -98,8 +98,8 @@ struct x2_dma_tx_descriptor {
  * @desc_submitcount: Descriptor h/w submitted count
  * @start_transfer: Differentiate b/w DMA IP's transfer
  */
-struct x2_dma_chan {
-	struct x2_dma_device *xdev;
+struct hobot_dma_chan {
+	struct hobot_dma_device *xdev;
 	u32 desc_offset;
 	spinlock_t lock;
 	struct list_head pending_list;
@@ -117,11 +117,11 @@ struct x2_dma_chan {
 	struct tasklet_struct tasklet;
 	u32 desc_pendingcount;
 	u32 desc_submitcount;
-	void (*start_transfer)(struct x2_dma_chan *chan);
+	void (*start_transfer)(struct hobot_dma_chan *chan);
 };
 
 /**
- * struct x2_dma_device - DMA device structure
+ * struct hobot_dma_device - DMA device structure
  * @regs: I/O mapped base address
  * @dev: Device Structure
  * @common: DMA device structure
@@ -131,47 +131,47 @@ struct x2_dma_chan {
  * @pdev: Platform device structure pointer
  * @nr_channels: Number of channels DMA device supports
  */
-struct x2_dma_device {
+struct hobot_dma_device {
 	void __iomem *regs;
 	struct device *dev;
 	struct dma_device common;
-	struct x2_dma_chan *chan[X2_DMA_MAX_CHANS_PER_DEVICE];
+	struct hobot_dma_chan *chan[HOBOT_DMA_MAX_CHANS_PER_DEVICE];
 	bool has_sg;
 	struct platform_device *pdev;
 	u32 nr_channels;
 };
 
 /* Macros */
-#define to_x2_chan(chan) \
-	container_of(chan, struct x2_dma_chan, common)
+#define to_hobot_chan(chan) \
+	container_of(chan, struct hobot_dma_chan, common)
 #define to_dma_tx_descriptor(tx) \
-	container_of(tx, struct x2_dma_tx_descriptor, async_tx)
-#define x2_dma_poll_timeout(chan, reg, val, cond, delay_us, timeout_us) \
+	container_of(tx, struct hobot_dma_tx_descriptor, async_tx)
+#define hobot_dma_poll_timeout(chan, reg, val, cond, delay_us, timeout_us) \
 	readl_poll_timeout(chan->xdev->regs + reg, val, cond, delay_us, timeout_us)
 
-static int x2_dma_chan_reset(struct x2_dma_chan *chan);
+static int hobot_dma_chan_reset(struct hobot_dma_chan *chan);
 
 /* IO accessors */
-static inline u32 x2_dma_rd(struct x2_dma_chan *chan, u32 reg)
+static inline u32 hobot_dma_rd(struct hobot_dma_chan *chan, u32 reg)
 {
 	return ioread32(chan->xdev->regs + reg);
 }
 
-static inline void x2_dma_wr(struct x2_dma_chan *chan, u32 reg, u32 value)
+static inline void hobot_dma_wr(struct hobot_dma_chan *chan, u32 reg, u32 value)
 {
 	iowrite32(value, chan->xdev->regs + reg);
 }
 
 
 /**
- * x2_cdma_alloc_tx_segment - Allocate transaction segment
+ * hobot_cdma_alloc_tx_segment - Allocate transaction segment
  * @chan: Driver specific DMA channel
  *
  * Return: The allocated segment on success and NULL on failure.
  */
-static struct x2_dma_tx_segment *x2_dma_alloc_tx_segment(struct x2_dma_chan *chan)
+static struct hobot_dma_tx_segment *hobot_dma_alloc_tx_segment(struct hobot_dma_chan *chan)
 {
-	struct x2_dma_tx_segment *segment;
+	struct hobot_dma_tx_segment *segment;
 	dma_addr_t phys;
 
 	segment = dma_pool_zalloc(chan->desc_pool, GFP_ATOMIC, &phys);
@@ -185,24 +185,24 @@ static struct x2_dma_tx_segment *x2_dma_alloc_tx_segment(struct x2_dma_chan *cha
 
 
 /**
- * x2_cdma_free_tx_segment - Free transaction segment
+ * hobot_cdma_free_tx_segment - Free transaction segment
  * @chan: Driver specific DMA channel
  * @segment: DMA transaction segment
  */
-static void x2_dma_free_tx_segment(struct x2_dma_chan *chan, struct x2_dma_tx_segment *segment)
+static void hobot_dma_free_tx_segment(struct hobot_dma_chan *chan, struct hobot_dma_tx_segment *segment)
 {
 	dma_pool_free(chan->desc_pool, segment, segment->phys);
 }
 
 /**
- * x2_dma_tx_descriptor - Allocate transaction descriptor
+ * hobot_dma_tx_descriptor - Allocate transaction descriptor
  * @chan: Driver specific DMA channel
  *
  * Return: The allocated descriptor on success and NULL on failure.
  */
-static struct x2_dma_tx_descriptor *x2_dma_alloc_tx_descriptor(struct x2_dma_chan *chan)
+static struct hobot_dma_tx_descriptor *hobot_dma_alloc_tx_descriptor(struct hobot_dma_chan *chan)
 {
-	struct x2_dma_tx_descriptor *desc;
+	struct hobot_dma_tx_descriptor *desc;
 
 	desc = kzalloc(sizeof(*desc), GFP_KERNEL);
 	if (!desc)
@@ -214,20 +214,20 @@ static struct x2_dma_tx_descriptor *x2_dma_alloc_tx_descriptor(struct x2_dma_cha
 }
 
 /**
- * x2_dma_free_tx_descriptor - Free transaction descriptor
+ * hobot_dma_free_tx_descriptor - Free transaction descriptor
  * @chan: Driver specific DMA channel
  * @desc: DMA transaction descriptor
  */
-static void x2_dma_free_tx_descriptor(struct x2_dma_chan *chan, struct x2_dma_tx_descriptor *desc)
+static void hobot_dma_free_tx_descriptor(struct hobot_dma_chan *chan, struct hobot_dma_tx_descriptor *desc)
 {
-	struct x2_dma_tx_segment *dma_segment, *dma_next;
+	struct hobot_dma_tx_segment *dma_segment, *dma_next;
 
 	if (!desc)
 		return;
 
 	list_for_each_entry_safe(dma_segment, dma_next, &desc->segments, node) {
 		list_del(&dma_segment->node);
-		x2_dma_free_tx_segment(chan, dma_segment);
+		hobot_dma_free_tx_segment(chan, dma_segment);
 	}
 
 	kfree(desc);
@@ -236,60 +236,60 @@ static void x2_dma_free_tx_descriptor(struct x2_dma_chan *chan, struct x2_dma_tx
 /* Required functions */
 
 /**
- * x2_dma_free_desc_list - Free descriptors list
+ * hobot_dma_free_desc_list - Free descriptors list
  * @chan: Driver specific DMA channel
  * @list: List to parse and delete the descriptor
  */
-static void x2_dma_free_desc_list(struct x2_dma_chan *chan,
+static void hobot_dma_free_desc_list(struct hobot_dma_chan *chan,
 					struct list_head *list)
 {
-	struct x2_dma_tx_descriptor *desc, *next;
+	struct hobot_dma_tx_descriptor *desc, *next;
 
 	list_for_each_entry_safe(desc, next, list, node) {
 		list_del(&desc->node);
-		x2_dma_free_tx_descriptor(chan, desc);
+		hobot_dma_free_tx_descriptor(chan, desc);
 	}
 }
 
 /**
- * x2_dma_free_descriptors - Free channel descriptors
+ * hobot_dma_free_descriptors - Free channel descriptors
  * @chan: Driver specific DMA channel
  */
-static void x2_dma_free_descriptors(struct x2_dma_chan *chan)
+static void hobot_dma_free_descriptors(struct hobot_dma_chan *chan)
 {
 	unsigned long flags;
 
 	spin_lock_irqsave(&chan->lock, flags);
 
-	x2_dma_free_desc_list(chan, &chan->pending_list);
-	x2_dma_free_desc_list(chan, &chan->done_list);
-	x2_dma_free_desc_list(chan, &chan->active_list);
+	hobot_dma_free_desc_list(chan, &chan->pending_list);
+	hobot_dma_free_desc_list(chan, &chan->done_list);
+	hobot_dma_free_desc_list(chan, &chan->active_list);
 
 	spin_unlock_irqrestore(&chan->lock, flags);
 }
 
 /**
- * x2_dma_free_chan_resources - Free channel resources
+ * hobot_dma_free_chan_resources - Free channel resources
  * @dchan: DMA channel
  */
-static void x2_dma_free_chan_resources(struct dma_chan *dchan)
+static void hobot_dma_free_chan_resources(struct dma_chan *dchan)
 {
-	struct x2_dma_chan *chan = to_x2_chan(dchan);
+	struct hobot_dma_chan *chan = to_hobot_chan(dchan);
 
 	dev_dbg(chan->dev, "Free all channel resources.\n");
 
-	x2_dma_free_descriptors(chan);
+	hobot_dma_free_descriptors(chan);
 
 	return;
 }
 
 /**
- * x2_dma_chan_desc_cleanup - Clean channel descriptors
+ * hobot_dma_chan_desc_cleanup - Clean channel descriptors
  * @chan: Driver specific DMA channel
  */
-static void x2_dma_chan_desc_cleanup(struct x2_dma_chan *chan)
+static void hobot_dma_chan_desc_cleanup(struct hobot_dma_chan *chan)
 {
-	struct x2_dma_tx_descriptor *desc, *next;
+	struct hobot_dma_tx_descriptor *desc, *next;
 	unsigned long flags;
 	spin_lock_irqsave(&chan->lock, flags);
 
@@ -306,56 +306,56 @@ static void x2_dma_chan_desc_cleanup(struct x2_dma_chan *chan)
 		}
 		/* Run any dependencies, then free the descriptor */
 		dma_run_dependencies(&desc->async_tx);
-		x2_dma_free_tx_descriptor(chan, desc);
+		hobot_dma_free_tx_descriptor(chan, desc);
 	}
 
 	spin_unlock_irqrestore(&chan->lock, flags);
 }
 
 /**
- * x2_dma_do_tasklet - Schedule completion tasklet
+ * hobot_dma_do_tasklet - Schedule completion tasklet
  * @data: Pointer to the x2 DMA channel structure
  */
-static void x2_dma_do_tasklet(unsigned long data)
+static void hobot_dma_do_tasklet(unsigned long data)
 {
-	struct x2_dma_chan *chan = (struct x2_dma_chan *)data;
-	x2_dma_chan_desc_cleanup(chan);
+	struct hobot_dma_chan *chan = (struct hobot_dma_chan *)data;
+	hobot_dma_chan_desc_cleanup(chan);
 }
 
 /**
- * x2_dma_alloc_chan_resources - Allocate channel resources
+ * hobot_dma_alloc_chan_resources - Allocate channel resources
  * @dchan: DMA channel
  *
  * Return: '0' on success and failure value on error
  */
-static int x2_dma_alloc_chan_resources(struct dma_chan *dchan)
+static int hobot_dma_alloc_chan_resources(struct dma_chan *dchan)
 {
 	unsigned int val = 0;
-	struct x2_dma_chan *chan = to_x2_chan(dchan);
+	struct hobot_dma_chan *chan = to_hobot_chan(dchan);
 
 	dma_cookie_init(dchan);
 
 	if (chan->has_sg) {
-		val = x2_dma_rd(chan, X2_DMA_CTRL_ADDR);
-		val |= X2_DMA_EN_LLI;
-		val |= X2_DMA_EN_CH;
+		val = hobot_dma_rd(chan, HOBOT_DMA_CTRL_ADDR);
+		val |= HOBOT_DMA_EN_LLI;
+		val |= HOBOT_DMA_EN_CH;
 	} else {
-		val |= X2_DMA_EN_CH;
+		val |= HOBOT_DMA_EN_CH;
 	}
-	x2_dma_wr(chan, X2_DMA_CTRL_ADDR, val);
+	hobot_dma_wr(chan, HOBOT_DMA_CTRL_ADDR, val);
 
 	return 0;
 }
 
 /**
- * x2_dma_tx_status - Get DMA transaction status
+ * hobot_dma_tx_status - Get DMA transaction status
  * @dchan: DMA channel
  * @cookie: Transaction identifier
  * @txstate: Transaction state
  *
  * Return: DMA transaction status
  */
-static enum dma_status x2_dma_tx_status(struct dma_chan *dchan,
+static enum dma_status hobot_dma_tx_status(struct dma_chan *dchan,
 					dma_cookie_t cookie,
 					struct dma_tx_state *txstate)
 {
@@ -370,14 +370,14 @@ static enum dma_status x2_dma_tx_status(struct dma_chan *dchan,
 }
 
 /**
- * x2_dma_start_transfer - Starts dma transfer
+ * hobot_dma_start_transfer - Starts dma transfer
  * @chan: Driver specific channel struct pointer
  */
-static void x2_dma_start_transfer(struct x2_dma_chan *chan)
+static void hobot_dma_start_transfer(struct hobot_dma_chan *chan)
 {
 	unsigned int val = 0;
-	struct x2_dma_tx_descriptor *head_desc, *tail_desc;
-	struct x2_dma_tx_segment *tail_segment;
+	struct hobot_dma_tx_descriptor *head_desc, *tail_desc;
+	struct hobot_dma_tx_segment *tail_segment;
 
 	if (chan->err)
 		return;
@@ -388,39 +388,39 @@ static void x2_dma_start_transfer(struct x2_dma_chan *chan)
 	if (list_empty(&chan->pending_list))
 		return;
 
-	head_desc = list_first_entry(&chan->pending_list, struct x2_dma_tx_descriptor, node);
-	tail_desc = list_last_entry(&chan->pending_list, struct x2_dma_tx_descriptor, node);
-	tail_segment = list_last_entry(&tail_desc->segments, struct x2_dma_tx_segment, node);
+	head_desc = list_first_entry(&chan->pending_list, struct hobot_dma_tx_descriptor, node);
+	tail_desc = list_last_entry(&chan->pending_list, struct hobot_dma_tx_descriptor, node);
+	tail_segment = list_last_entry(&tail_desc->segments, struct hobot_dma_tx_segment, node);
 
-	if (x2_dma_chan_reset(chan) < 0)
+	if (hobot_dma_chan_reset(chan) < 0)
 		return;
 
 	if (chan->has_sg) {
-		x2_dma_wr(chan, X2_DMA_LLI_ADDR, head_desc->async_tx.phys);
+		hobot_dma_wr(chan, HOBOT_DMA_LLI_ADDR, head_desc->async_tx.phys);
 
 		/* Start the transfer */
-		x2_dma_wr(chan, X2_DMA_SOFT_REQ, X2_DMA_START_TX);
+		hobot_dma_wr(chan, HOBOT_DMA_SOFT_REQ, HOBOT_DMA_START_TX);
 	} else {
 		/* In simple mode */
-		struct x2_dma_tx_segment *segment;
-		struct x2_dma_desc_hw *hw;
+		struct hobot_dma_tx_segment *segment;
+		struct hobot_dma_desc_hw *hw;
 
 		segment = list_first_entry(&head_desc->segments,
-					   struct x2_dma_tx_segment,
+					   struct hobot_dma_tx_segment,
 					   node);
 
 		hw = &segment->hw;
 
-		x2_dma_wr(chan, X2_DMA_SRC_ADDR,  hw->src_addr);
-		x2_dma_wr(chan, X2_DMA_DEST_ADDR, hw->dest_addr);
-		val = x2_dma_rd(chan, X2_DMA_CTRL_ADDR);
-		val |= X2_DMA_EN_CH;
+		hobot_dma_wr(chan, HOBOT_DMA_SRC_ADDR,  hw->src_addr);
+		hobot_dma_wr(chan, HOBOT_DMA_DEST_ADDR, hw->dest_addr);
+		val = hobot_dma_rd(chan, HOBOT_DMA_CTRL_ADDR);
+		val |= HOBOT_DMA_EN_CH;
 		val &= 0xFF000000;
 		val |= hw->tx_len;
-		x2_dma_wr(chan, X2_DMA_CTRL_ADDR, val);
+		hobot_dma_wr(chan, HOBOT_DMA_CTRL_ADDR, val);
 
 		/* Start the transfer */
-		x2_dma_wr(chan, X2_DMA_SOFT_REQ, X2_DMA_START_TX);
+		hobot_dma_wr(chan, HOBOT_DMA_SOFT_REQ, HOBOT_DMA_START_TX);
 	}
 
 	list_splice_tail_init(&chan->pending_list, &chan->active_list);
@@ -429,12 +429,12 @@ static void x2_dma_start_transfer(struct x2_dma_chan *chan)
 }
 
 /**
- * x2_dma_issue_pending - Issue pending transactions
+ * hobot_dma_issue_pending - Issue pending transactions
  * @dchan: DMA channel
  */
-static void x2_dma_issue_pending(struct dma_chan *dchan)
+static void hobot_dma_issue_pending(struct dma_chan *dchan)
 {
-	struct x2_dma_chan *chan = to_x2_chan(dchan);
+	struct hobot_dma_chan *chan = to_hobot_chan(dchan);
 	unsigned long flags;
 
 	spin_lock_irqsave(&chan->lock, flags);
@@ -443,14 +443,14 @@ static void x2_dma_issue_pending(struct dma_chan *dchan)
 }
 
 /**
- * x2_dma_complete_descriptor - Mark the active descriptor as complete
+ * hobot_dma_complete_descriptor - Mark the active descriptor as complete
  * @chan : x2 DMA channel
  *
  * CONTEXT: hardirq
  */
-static void x2_dma_complete_descriptor(struct x2_dma_chan *chan)
+static void hobot_dma_complete_descriptor(struct hobot_dma_chan *chan)
 {
-	struct x2_dma_tx_descriptor *desc, *next;
+	struct hobot_dma_tx_descriptor *desc, *next;
 
 	/* This function was invoked with lock held */
 	if (list_empty(&chan->active_list))
@@ -464,23 +464,23 @@ static void x2_dma_complete_descriptor(struct x2_dma_chan *chan)
 }
 
 /**
- * x2_dma_chan_reset - Reset DMA channel and enable interrupts
+ * hobot_dma_chan_reset - Reset DMA channel and enable interrupts
  * @chan: Driver specific DMA channel
  *
  * Return: '0' on success and failure value on error
  */
-static int x2_dma_chan_reset(struct x2_dma_chan *chan)
+static int hobot_dma_chan_reset(struct hobot_dma_chan *chan)
 {
 	int err;
 	unsigned int val;
 
 	/* Reset VDMA */
-	x2_dma_wr(chan, X2_DMA_FIFO_RST, x2_DMA_RST_FIFO);
+	hobot_dma_wr(chan, HOBOT_DMA_FIFO_RST, HOBOT_DMA_RST_FIFO);
 
 	/* Wait for the hardware to finish reset */
-	err = x2_dma_poll_timeout(chan, X2_DMA_FIFO_RST, val,
-				      !(val & x2_DMA_RST_FIFO), 0,
-				      X2_DMA_LOOP_COUNT);
+	err = hobot_dma_poll_timeout(chan, HOBOT_DMA_FIFO_RST, val,
+				      !(val & HOBOT_DMA_RST_FIFO), 0,
+				      HOBOT_DMA_LOOP_COUNT);
 	if (err) {
 		dev_err(chan->dev, "reset timeout\n");
 		return -ETIMEDOUT;
@@ -491,42 +491,42 @@ static int x2_dma_chan_reset(struct x2_dma_chan *chan)
 	chan->desc_submitcount = 0;
 
 	/* Enable interrupts */
-	val = X2_DMA_TXCMP | X2_DMA_TXERR | X2_DMA_CHTERM;
-	x2_dma_wr(chan, X2_DMA_INT_UNMASK, val);
-	x2_dma_wr(chan, X2_DMA_INT_SETMASK, 0x0);
+	val = HOBOT_DMA_TXCMP | HOBOT_DMA_TXERR | HOBOT_DMA_CHTERM;
+	hobot_dma_wr(chan, HOBOT_DMA_INT_UNMASK, val);
+	hobot_dma_wr(chan, HOBOT_DMA_INT_SETMASK, 0x0);
 
 	return 0;
 }
 
 /**
- * x2_dma_irq_handler - DMA Interrupt handler
+ * hobot_dma_irq_handler - DMA Interrupt handler
  * @irq: IRQ number
  * @data: Pointer to the x2 DMA channel structure
  *
  * Return: IRQ_HANDLED/IRQ_NONE
  */
-static irqreturn_t x2_dma_irq_handler(int irq, void *data)
+static irqreturn_t hobot_dma_irq_handler(int irq, void *data)
 {
-	struct x2_dma_chan *chan = data;
+	struct hobot_dma_chan *chan = data;
 	u32 status;
 	/* Read the status and ack the interrupts. */
-	status = x2_dma_rd(chan, X2_DMA_SRCPND);
-	if (!(status & X2_DMA_ALL_IRQ_MASK)) {
+	status = hobot_dma_rd(chan, HOBOT_DMA_SRCPND);
+	if (!(status & HOBOT_DMA_ALL_IRQ_MASK)) {
 		return IRQ_NONE;
 	}
-	x2_dma_wr(chan, X2_DMA_SRCPND, status);
+	hobot_dma_wr(chan, HOBOT_DMA_SRCPND, status);
 
-	if (status & X2_DMA_TXERR) {
+	if (status & HOBOT_DMA_TXERR) {
 		dev_dbg(chan->dev, "Channel transfer error!\n");
 	}
 
-	if (status & X2_DMA_CHTERM) {
+	if (status & HOBOT_DMA_CHTERM) {
 		dev_dbg(chan->dev, "Channel terminate!\n");
 	}
 
-	if (status & X2_DMA_TXCMP) {
+	if (status & HOBOT_DMA_TXCMP) {
 		spin_lock(&chan->lock);
-		x2_dma_complete_descriptor(chan);
+		hobot_dma_complete_descriptor(chan);
 		chan->idle = true;
 		//chan->start_transfer(chan);
 		spin_unlock(&chan->lock);
@@ -537,15 +537,15 @@ static irqreturn_t x2_dma_irq_handler(int irq, void *data)
 }
 
 /**
- * x2_dma_append_desc_queue - Queuing descriptor
+ * hobot_dma_append_desc_queue - Queuing descriptor
  * @chan: Driver specific dma channel
  * @desc: dma transaction descriptor
  */
-static void x2_dma_append_desc_queue(struct x2_dma_chan *chan,
-			      struct x2_dma_tx_descriptor *desc)
+static void hobot_dma_append_desc_queue(struct hobot_dma_chan *chan,
+			      struct hobot_dma_tx_descriptor *desc)
 {
-	struct x2_dma_tx_descriptor *tail_desc;
-	struct x2_dma_tx_segment *dma_tail_segment;
+	struct hobot_dma_tx_descriptor *tail_desc;
+	struct hobot_dma_tx_segment *dma_tail_segment;
 
 	if (list_empty(&chan->pending_list))
 		goto append;
@@ -554,9 +554,9 @@ static void x2_dma_append_desc_queue(struct x2_dma_chan *chan,
 	 * Add the hardware descriptor to the chain of hardware descriptors
 	 * that already exists in memory.
 	 */
-	tail_desc = list_last_entry(&chan->pending_list, struct x2_dma_tx_descriptor, node);
+	tail_desc = list_last_entry(&chan->pending_list, struct hobot_dma_tx_descriptor, node);
 
-	dma_tail_segment = list_last_entry(&tail_desc->segments, struct x2_dma_tx_segment, node);
+	dma_tail_segment = list_last_entry(&tail_desc->segments, struct hobot_dma_tx_segment, node);
 	dma_tail_segment->hw.next_desc = (u32)desc->async_tx.phys;
 
 	/*
@@ -569,15 +569,15 @@ append:
 }
 
 /**
- * x2_dma_tx_submit - Submit DMA transaction
+ * hobot_dma_tx_submit - Submit DMA transaction
  * @tx: Async transaction descriptor
  *
  * Return: cookie value on success and failure value on error
  */
-static dma_cookie_t x2_dma_tx_submit(struct dma_async_tx_descriptor *tx)
+static dma_cookie_t hobot_dma_tx_submit(struct dma_async_tx_descriptor *tx)
 {
-	struct x2_dma_tx_descriptor *desc = to_dma_tx_descriptor(tx);
-	struct x2_dma_chan *chan = to_x2_chan(tx->chan);
+	struct hobot_dma_tx_descriptor *desc = to_dma_tx_descriptor(tx);
+	struct hobot_dma_chan *chan = to_hobot_chan(tx->chan);
 	dma_cookie_t cookie;
 	unsigned long flags;
 	int err;
@@ -587,7 +587,7 @@ static dma_cookie_t x2_dma_tx_submit(struct dma_async_tx_descriptor *tx)
 		 * If reset fails, need to hard reset the system.
 		 * Channel is no longer functional
 		 */
-		err = x2_dma_chan_reset(chan);
+		err = hobot_dma_chan_reset(chan);
 		if (err < 0)
 			return err;
 	}
@@ -597,7 +597,7 @@ static dma_cookie_t x2_dma_tx_submit(struct dma_async_tx_descriptor *tx)
 	cookie = dma_cookie_assign(tx);
 
 	/* Put this transaction onto the tail of the pending queue */
-	x2_dma_append_desc_queue(chan, desc);
+	hobot_dma_append_desc_queue(chan, desc);
 
 	spin_unlock_irqrestore(&chan->lock, flags);
 
@@ -605,7 +605,7 @@ static dma_cookie_t x2_dma_tx_submit(struct dma_async_tx_descriptor *tx)
 }
 
 /**
- * x2_cdma_prep_memcpy - prepare descriptors for a memcpy transaction
+ * hobot_cdma_prep_memcpy - prepare descriptors for a memcpy transaction
  * @dchan: DMA channel
  * @dma_dst: destination address
  * @dma_src: source address
@@ -615,30 +615,30 @@ static dma_cookie_t x2_dma_tx_submit(struct dma_async_tx_descriptor *tx)
  * Return: Async transaction descriptor on success and NULL on failure
  */
 static struct dma_async_tx_descriptor *
-x2_dma_prep_memcpy(struct dma_chan *dchan, dma_addr_t dma_dst,
+hobot_dma_prep_memcpy(struct dma_chan *dchan, dma_addr_t dma_dst,
 			dma_addr_t dma_src, size_t len, unsigned long flags)
 {
-	struct x2_dma_chan *chan = to_x2_chan(dchan);
-	struct x2_dma_tx_descriptor *desc;
-	struct x2_dma_tx_segment *segment, *prev;
-	struct x2_dma_desc_hw *hw;
+	struct hobot_dma_chan *chan = to_hobot_chan(dchan);
+	struct hobot_dma_tx_descriptor *desc;
+	struct hobot_dma_tx_segment *segment, *prev;
+	struct hobot_dma_desc_hw *hw;
 
-	if (!len || len > X2_DMA_MAX_TRANS_LEN) {
+	if (!len || len > HOBOT_DMA_MAX_TRANS_LEN) {
 		return NULL;
 	}
 
-	desc = x2_dma_alloc_tx_descriptor(chan);
+	desc = hobot_dma_alloc_tx_descriptor(chan);
 	if (!desc) {
 		return NULL;
 	}
 
 	dma_async_tx_descriptor_init(&desc->async_tx, &chan->common);
-	desc->async_tx.tx_submit = x2_dma_tx_submit;
+	desc->async_tx.tx_submit = hobot_dma_tx_submit;
 	desc->async_tx.callback  = NULL;
 	desc->async_tx.callback_result = NULL;
 
 	/* Allocate the link descriptor from DMA pool */
-	segment = x2_dma_alloc_tx_segment(chan);
+	segment = hobot_dma_alloc_tx_segment(chan);
 	if (!segment) {
 		goto error;
 	}
@@ -650,7 +650,7 @@ x2_dma_prep_memcpy(struct dma_chan *dchan, dma_addr_t dma_dst,
 
 	/* Fill the previous next descriptor with current */
 	if (!list_empty(&desc->segments)) {
-		prev = list_last_entry(&desc->segments, struct x2_dma_tx_segment, node);
+		prev = list_last_entry(&desc->segments, struct hobot_dma_tx_segment, node);
 		prev->hw.next_desc = segment->phys;
 	}
 	/* Insert the segment into the descriptor segments list. */
@@ -658,44 +658,44 @@ x2_dma_prep_memcpy(struct dma_chan *dchan, dma_addr_t dma_dst,
 
 	/* Link the last hardware descriptor with the first. */
 	prev = segment;
-	segment = list_first_entry(&desc->segments, struct x2_dma_tx_segment, node);
+	segment = list_first_entry(&desc->segments, struct hobot_dma_tx_segment, node);
 	desc->async_tx.phys = segment->phys;
 
 	return &desc->async_tx;
 error:
-	x2_dma_free_tx_descriptor(chan, desc);
+	hobot_dma_free_tx_descriptor(chan, desc);
 	return NULL;
 }
 
 /**
- * x2_dma_terminate_all - Halt the channel and free descriptors
+ * hobot_dma_terminate_all - Halt the channel and free descriptors
  * @chan: Driver specific DMA Channel pointer
  */
-static int x2_dma_terminate_all(struct dma_chan *dchan)
+static int hobot_dma_terminate_all(struct dma_chan *dchan)
 {
 	unsigned int val;
-	struct x2_dma_chan *chan = to_x2_chan(dchan);
+	struct hobot_dma_chan *chan = to_hobot_chan(dchan);
 
 	/* Halt the DMA engine */
-	val = x2_dma_rd(chan, X2_DMA_CTRL_ADDR);
-	val &= ~X2_DMA_EN_CH;
-	x2_dma_wr(chan, X2_DMA_CTRL_ADDR, val);
+	val = hobot_dma_rd(chan, HOBOT_DMA_CTRL_ADDR);
+	val &= ~HOBOT_DMA_EN_CH;
+	hobot_dma_wr(chan, HOBOT_DMA_CTRL_ADDR, val);
 
 	/* Remove and free all of the descriptors in the lists */
-	x2_dma_free_descriptors(chan);
+	hobot_dma_free_descriptors(chan);
 
 	return 0;
 }
 
 /**
- * x2_dma_chan_remove - Per Channel remove function
+ * hobot_dma_chan_remove - Per Channel remove function
  * @chan: Driver specific DMA channel
  */
-static void x2_dma_chan_remove(struct x2_dma_chan *chan)
+static void hobot_dma_chan_remove(struct hobot_dma_chan *chan)
 {
 	/* Disable all interrupts */
-	x2_dma_wr(chan, X2_DMA_INT_SETMASK, X2_DMA_ALL_IRQ_MASK);
-	x2_dma_wr(chan, X2_DMA_INT_UNMASK, 0x0);
+	hobot_dma_wr(chan, HOBOT_DMA_INT_SETMASK, HOBOT_DMA_ALL_IRQ_MASK);
+	hobot_dma_wr(chan, HOBOT_DMA_INT_UNMASK, 0x0);
 
 	if (chan->irq > 0)
 		free_irq(chan->irq, chan);
@@ -708,7 +708,7 @@ static void x2_dma_chan_remove(struct x2_dma_chan *chan)
 }
 
 /**
- * x2_dma_chan_probe - Per Channel Probing
+ * hobot_dma_chan_probe - Per Channel Probing
  * It get channel features from the device tree entry and
  * initialize special channel handling routines
  *
@@ -717,9 +717,9 @@ static void x2_dma_chan_remove(struct x2_dma_chan *chan)
  *
  * Return: '0' on success and failure value on error
  */
-static int x2_dma_chan_probe(struct x2_dma_device *xdev, struct device_node *node, int chan_id)
+static int hobot_dma_chan_probe(struct hobot_dma_device *xdev, struct device_node *node, int chan_id)
 {
-	struct x2_dma_chan *chan;
+	struct hobot_dma_chan *chan;
 	u32 width;
 	int err;
 
@@ -753,16 +753,16 @@ static int x2_dma_chan_probe(struct x2_dma_device *xdev, struct device_node *nod
 
 	/* Request the interrupt */
 	chan->irq = irq_of_parse_and_map(node, 0);
-	err = request_irq(chan->irq, x2_dma_irq_handler, IRQF_SHARED, "hobot-dma-controller", chan);
+	err = request_irq(chan->irq, hobot_dma_irq_handler, IRQF_SHARED, "hobot-dma-controller", chan);
 	if (err) {
 		dev_err(xdev->dev, "unable to request IRQ %d\n", chan->irq);
 		return err;
 	}
 
-	chan->start_transfer = x2_dma_start_transfer;
+	chan->start_transfer = hobot_dma_start_transfer;
 
 	/* Initialize the tasklet */
-	tasklet_init(&chan->tasklet, x2_dma_do_tasklet, (unsigned long)chan);
+	tasklet_init(&chan->tasklet, hobot_dma_do_tasklet, (unsigned long)chan);
 
 	/*
 	 * Initialize the DMA channel and add it to the DMA engine channels
@@ -775,13 +775,13 @@ static int x2_dma_chan_probe(struct x2_dma_device *xdev, struct device_node *nod
 
 	/* Has this channel already been allocated? */
 	if (chan->desc_pool) {
-		dev_err(xdev->dev, "x2_dma_desc_pool already existed\n");
+		dev_err(xdev->dev, "hobot_dma_desc_pool already existed\n");
 		return -1;
 	}
 	chan->desc_pool = dma_pool_create("hobot_dma_desc_pool",
 				   chan->dev,
-				   sizeof(struct x2_dma_tx_segment),
-				   __alignof__(struct x2_dma_tx_segment),
+				   sizeof(struct hobot_dma_tx_segment),
+				   __alignof__(struct hobot_dma_tx_segment),
 				   0);
 	if (!chan->desc_pool) {
 		dev_err(chan->dev, "unable to allocate channel %d descriptor pool\n", chan->id);
@@ -789,7 +789,7 @@ static int x2_dma_chan_probe(struct x2_dma_device *xdev, struct device_node *nod
 	}
 
 	/* Reset the channel */
-	err = x2_dma_chan_reset(chan);
+	err = hobot_dma_chan_reset(chan);
 	if (err < 0) {
 		dev_err(xdev->dev, "Reset channel failed\n");
 		return err;
@@ -799,16 +799,16 @@ static int x2_dma_chan_probe(struct x2_dma_device *xdev, struct device_node *nod
 }
 
 /**
- * of_dma_x2_xlate - Translation function
+ * of_dma_hobot_xlate - Translation function
  * @dma_spec: Pointer to DMA specifier as found in the device tree
  * @ofdma: Pointer to DMA controller data
  *
  * Return: DMA channel pointer on success and NULL on error
  */
-static struct dma_chan *of_dma_x2_xlate(struct of_phandle_args *dma_spec,
+static struct dma_chan *of_dma_hobot_xlate(struct of_phandle_args *dma_spec,
 						struct of_dma *ofdma)
 {
-	struct x2_dma_device *xdev = ofdma->of_dma_data;
+	struct hobot_dma_device *xdev = ofdma->of_dma_data;
 	int chan_id = dma_spec->args[0];
 
 	if (chan_id >= xdev->nr_channels || !xdev->chan[chan_id])
@@ -817,22 +817,22 @@ static struct dma_chan *of_dma_x2_xlate(struct of_phandle_args *dma_spec,
 	return dma_get_slave_channel(&xdev->chan[chan_id]->common);
 }
 
-static const struct of_device_id x2_dma_of_ids[] = {
+static const struct of_device_id hobot_dma_of_ids[] = {
 	{ .compatible = "hobot,hobot-dma", },
 	{}
 };
-MODULE_DEVICE_TABLE(of, x2_dma_of_ids);
+MODULE_DEVICE_TABLE(of, hobot_dma_of_ids);
 
 /**
- * x2_dma_probe - Driver probe function
+ * hobot_dma_probe - Driver probe function
  * @pdev: Pointer to the platform_device structure
  *
  * Return: '0' on success and failure value on error
  */
-static int x2_dma_probe(struct platform_device *pdev)
+static int hobot_dma_probe(struct platform_device *pdev)
 {
 	struct device_node *node = pdev->dev.of_node;
-	struct x2_dma_device *xdev;
+	struct hobot_dma_device *xdev;
 	//struct device_node *child, *np = pdev->dev.of_node;
 	struct resource *io;
 	int i, err;
@@ -853,7 +853,7 @@ static int x2_dma_probe(struct platform_device *pdev)
 	xdev->has_sg = false;
 
 	/* Set the dma mask bits */
-	dma_set_mask(xdev->dev, DMA_BIT_MASK(X2_DMA_ADDR_WIDTH));
+	dma_set_mask(xdev->dev, DMA_BIT_MASK(HOBOT_DMA_ADDR_WIDTH));
 
 	/* Initialize the DMA engine */
 	xdev->common.dev = &pdev->dev;
@@ -861,52 +861,52 @@ static int x2_dma_probe(struct platform_device *pdev)
 	INIT_LIST_HEAD(&xdev->common.channels);
 
 	dma_cap_set(DMA_MEMCPY, xdev->common.cap_mask);
-	xdev->common.device_alloc_chan_resources = x2_dma_alloc_chan_resources;
-	xdev->common.device_free_chan_resources  = x2_dma_free_chan_resources;
-	xdev->common.device_terminate_all        = x2_dma_terminate_all;
-	xdev->common.device_tx_status            = x2_dma_tx_status;
-	xdev->common.device_issue_pending        = x2_dma_issue_pending;
-	xdev->common.device_prep_dma_memcpy      = x2_dma_prep_memcpy;
+	xdev->common.device_alloc_chan_resources = hobot_dma_alloc_chan_resources;
+	xdev->common.device_free_chan_resources  = hobot_dma_free_chan_resources;
+	xdev->common.device_terminate_all        = hobot_dma_terminate_all;
+	xdev->common.device_tx_status            = hobot_dma_tx_status;
+	xdev->common.device_issue_pending        = hobot_dma_issue_pending;
+	xdev->common.device_prep_dma_memcpy      = hobot_dma_prep_memcpy;
 
 	platform_set_drvdata(pdev, xdev);
 
 	/* Initialize the channels */
 	xdev->nr_channels = 1;
 	for (i=0; i<xdev->nr_channels; i++) {
-		x2_dma_chan_probe(xdev, node, i);
+		hobot_dma_chan_probe(xdev, node, i);
 	}
 
 	/* Register the DMA engine with the core */
 	dma_async_device_register(&xdev->common);
 
-	err = of_dma_controller_register(node, of_dma_x2_xlate, xdev);
+	err = of_dma_controller_register(node, of_dma_hobot_xlate, xdev);
 	if (err < 0) {
 		dev_err(&pdev->dev, "Unable to register DMA to DT\n");
 		dma_async_device_unregister(&xdev->common);
 		goto error;
 	}
 
-	dev_info(&pdev->dev, "X2 DMA Engine Driver Probed!!\n");
+	dev_info(&pdev->dev, "Hobot DMA Engine Driver Probed!!\n");
 
 	return 0;
 
 error:
 	for (i = 0; i < xdev->nr_channels; i++)
 		if (xdev->chan[i])
-			x2_dma_chan_remove(xdev->chan[i]);
+			hobot_dma_chan_remove(xdev->chan[i]);
 
 	return err;
 }
 
 /**
- * x2_dma_remove - Driver remove function
+ * hobot_dma_remove - Driver remove function
  * @pdev: Pointer to the platform_device structure
  *
  * Return: Always '0'
  */
-static int x2_dma_remove(struct platform_device *pdev)
+static int hobot_dma_remove(struct platform_device *pdev)
 {
-	struct x2_dma_device *xdev = platform_get_drvdata(pdev);
+	struct hobot_dma_device *xdev = platform_get_drvdata(pdev);
 	int i;
 
 	of_dma_controller_free(pdev->dev.of_node);
@@ -915,41 +915,41 @@ static int x2_dma_remove(struct platform_device *pdev)
 
 	for (i = 0; i < xdev->nr_channels; i++) {
 		if (xdev->chan[i]) {
-			x2_dma_chan_remove(xdev->chan[i]);
+			hobot_dma_chan_remove(xdev->chan[i]);
 		}
 	}
 	return 0;
 }
 
-static struct platform_driver x2_dma_driver = {
-	.probe = x2_dma_probe,
-	.remove = x2_dma_remove,
+static struct platform_driver hobot_dma_driver = {
+	.probe = hobot_dma_probe,
+	.remove = hobot_dma_remove,
 	.driver = {
 		.name = "hobot_dma",
-		.of_match_table = x2_dma_of_ids,
+		.of_match_table = hobot_dma_of_ids,
 	},
 };
 
-static int __init x2_dma_init(void)
+static int __init hobot_dma_init(void)
 {
 	int ret;
 
-	ret = platform_driver_register(&x2_dma_driver);
+	ret = platform_driver_register(&hobot_dma_driver);
 	if (ret) {
-		printk(KERN_ERR"x2_dma:probe failed:%d\n", ret);
+		printk(KERN_ERR"hobot_dma:probe failed:%d\n", ret);
 	}
 
 	return ret;
 }
 
-static void __exit x2_dma_exit(void)
+static void __exit hobot_dma_exit(void)
 {
-	platform_driver_unregister(&x2_dma_driver);
+	platform_driver_unregister(&hobot_dma_driver);
 }
 
-arch_initcall(x2_dma_init);
-module_exit(x2_dma_exit);
+arch_initcall(hobot_dma_init);
+module_exit(hobot_dma_exit);
 
 MODULE_AUTHOR("hobot, Inc.");
-MODULE_DESCRIPTION("X2 DMA driver");
+MODULE_DESCRIPTION("Hobot DMA driver");
 MODULE_LICENSE("GPL v2");

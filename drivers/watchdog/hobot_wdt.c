@@ -30,12 +30,12 @@
 #include <uapi/linux/sched/types.h>
 #include <soc/hobot/hobot_timer.h>
 
-#define X2_WDT_NAME				"hobot_wdt"
+#define HOBOT_WDT_NAME				"hobot_wdt"
 
 /* timeout value (in seconds) */
-#define X2_WDT_DEFAULT_TIMEOUT	10
-#define X2_WDT_MIN_TIMEOUT		1
-#define X2_WDT_MAX_TIMEOUT		178
+#define HOBOT_WDT_DEFAULT_TIMEOUT	10
+#define HOBOT_WDT_MIN_TIMEOUT		1
+#define HOBOT_WDT_MAX_TIMEOUT		178
 
 static int wdt_timeout;
 static int nowayout = WATCHDOG_NOWAYOUT;
@@ -48,7 +48,7 @@ static spinlock_t on_panic_lock;
 module_param(wdt_timeout, int, 0644);
 MODULE_PARM_DESC(wdt_timeout,
 		 "Watchdog time in seconds. (default="
-		 __MODULE_STRING(X2_WDT_DEFAULT_TIMEOUT) ")");
+		 __MODULE_STRING(HOBOT_WDT_DEFAULT_TIMEOUT) ")");
 
 module_param(nowayout, int, 0644);
 MODULE_PARM_DESC(nowayout,
@@ -60,11 +60,11 @@ MODULE_PARM_DESC(panic_on_bark,
 		 "trigger panic in IPI on other CPU (default="
 		 __MODULE_STRING(WATCHDOG_PANIC) ")");
 
-struct x2_wdt {
+struct hobot_wdt {
 	void __iomem *regs_base;
 	struct clk *clock;
 	spinlock_t io_lock;
-	struct watchdog_device x2_wdd;
+	struct watchdog_device hobot_wdd;
 
 	bool enabled;
 	u32 pet_time;
@@ -82,10 +82,10 @@ struct x2_wdt {
 	bool timer_expired;
 	u64 thread_wakeup_time;
 	bool barking;
-} *g_x2wdt;
+} *g_hbwdt;
 
-static int x2_wdt_start(struct watchdog_device *wdd);
-static int x2_wdt_stop(struct watchdog_device *wdd);
+static int hobot_wdt_start(struct watchdog_device *wdd);
+static int hobot_wdt_stop(struct watchdog_device *wdd);
 
 static int wdt_disable_set(const char *val, const struct kernel_param *kp)
 {
@@ -95,11 +95,11 @@ static int wdt_disable_set(const char *val, const struct kernel_param *kp)
 	if (ret < 0)
 		return ret;
 
-	if (disabled == 0 && !g_x2wdt->enabled) {
-		x2_wdt_start(&g_x2wdt->x2_wdd);
+	if (disabled == 0 && !g_hbwdt->enabled) {
+		hobot_wdt_start(&g_hbwdt->hobot_wdd);
 	}
-	else if (disabled == 1 && g_x2wdt->enabled){
-		x2_wdt_stop(&g_x2wdt->x2_wdd);
+	else if (disabled == 1 && g_hbwdt->enabled){
+		hobot_wdt_stop(&g_hbwdt->hobot_wdd);
 	}
 
 	return 0;
@@ -112,125 +112,125 @@ static const struct kernel_param_ops wdt_disable_param_ops = {
 
 module_param_cb(wdt_disable, &wdt_disable_param_ops, &disabled, 0644);
 
-#define x2_wdt_rd(dev, reg) 	  ioread32((dev)->regs_base + (reg))
-#define x2_wdt_wr(dev, reg, val)  iowrite32((val), (dev)->regs_base + (reg))
+#define hobot_wdt_rd(dev, reg) 	  ioread32((dev)->regs_base + (reg))
+#define hobot_wdt_wr(dev, reg, val)  iowrite32((val), (dev)->regs_base + (reg))
 
-static void x2_wdt_init_hw(struct x2_wdt *x2wdt)
+static void hobot_wdt_init_hw(struct hobot_wdt *hbwdt)
 {
 	u32 val;
 
 	/* set timer2 to watchdog mode */
-	val = x2_wdt_rd(x2wdt, X2_TIMER_TMRMODE_REG);
+	val = hobot_wdt_rd(hbwdt, HOBOT_TIMER_TMRMODE_REG);
 	val &= 0xFFFFF0FF;
-	val |= (X2_TIMER_WDT_MODE << X2_TIMER_T2MODE_OFFSET);
-	x2_wdt_wr(x2wdt, X2_TIMER_TMRMODE_REG, val);
+	val |= (HOBOT_TIMER_WDT_MODE << HOBOT_TIMER_T2MODE_OFFSET);
+	hobot_wdt_wr(hbwdt, HOBOT_TIMER_TMRMODE_REG, val);
 
 	return;
 }
 
-static int x2_wdt_stop(struct watchdog_device *wdd)
+static int hobot_wdt_stop(struct watchdog_device *wdd)
 {
 	u32 val;
-	struct x2_wdt *x2wdt = watchdog_get_drvdata(wdd);
+	struct hobot_wdt *hbwdt = watchdog_get_drvdata(wdd);
 
 	pr_debug("\n");
-	del_timer(&x2wdt->pet_timer);
+	del_timer(&hbwdt->pet_timer);
 
-	spin_lock(&x2wdt->io_lock);
+	spin_lock(&hbwdt->io_lock);
 
-	x2wdt->enabled = false;
+	hbwdt->enabled = false;
 
 	/* reset previous value */
-	x2_wdt_wr(x2wdt, X2_TIMER_WDCLR_REG, X2_TIMER_WDT_RESET);
+	hobot_wdt_wr(hbwdt, HOBOT_TIMER_WDCLR_REG, HOBOT_TIMER_WDT_RESET);
 
-	val = x2_wdt_rd(x2wdt, X2_TIMER_TMREN_REG);
-	val |= X2_TIMER_T2STOP;
-	x2_wdt_wr(x2wdt, X2_TIMER_TMRSTOP_REG, val);
+	val = hobot_wdt_rd(hbwdt, HOBOT_TIMER_TMREN_REG);
+	val |= HOBOT_TIMER_T2STOP;
+	hobot_wdt_wr(hbwdt, HOBOT_TIMER_TMRSTOP_REG, val);
 
 	/* disable wdt interrupt */
-	if (x2wdt->bark_irq)
-		x2_wdt_wr(x2wdt, X2_TIMER_TMR_SETMASK_REG, X2_TIMER_WDT_INTMASK);
+	if (hbwdt->bark_irq)
+		hobot_wdt_wr(hbwdt, HOBOT_TIMER_TMR_SETMASK_REG, HOBOT_TIMER_WDT_INTMASK);
 
-	spin_unlock(&x2wdt->io_lock);
-
-	return 0;
-}
-
-static int x2_wdt_reload(struct watchdog_device *wdd)
-{
-	struct x2_wdt *x2wdt = watchdog_get_drvdata(wdd);
-
-	spin_lock(&x2wdt->io_lock);
-	x2_wdt_wr(x2wdt, X2_TIMER_WDCLR_REG, X2_TIMER_WDT_RESET);
-	spin_unlock(&x2wdt->io_lock);
+	spin_unlock(&hbwdt->io_lock);
 
 	return 0;
 }
 
-static int x2_wdt_ping(struct watchdog_device *wdd)
+static int hobot_wdt_reload(struct watchdog_device *wdd)
 {
-	return x2_wdt_reload(wdd);
+	struct hobot_wdt *hbwdt = watchdog_get_drvdata(wdd);
+
+	spin_lock(&hbwdt->io_lock);
+	hobot_wdt_wr(hbwdt, HOBOT_TIMER_WDCLR_REG, HOBOT_TIMER_WDT_RESET);
+	spin_unlock(&hbwdt->io_lock);
+
+	return 0;
 }
 
-static int x2_wdt_start(struct watchdog_device *wdd)
+static int hobot_wdt_ping(struct watchdog_device *wdd)
 {
-	struct x2_wdt *x2wdt = watchdog_get_drvdata(wdd);
+	return hobot_wdt_reload(wdd);
+}
+
+static int hobot_wdt_start(struct watchdog_device *wdd)
+{
+	struct hobot_wdt *hbwdt = watchdog_get_drvdata(wdd);
 	u32 bark_count;
 	u32 bite_count;
 	u32 val;
 
 	pr_debug("\n");
-	spin_lock(&x2wdt->io_lock);
+	spin_lock(&hbwdt->io_lock);
 
 	/* reset previos value */
-	x2_wdt_wr(x2wdt, X2_TIMER_WDCLR_REG, X2_TIMER_WDT_RESET);
+	hobot_wdt_wr(hbwdt, HOBOT_TIMER_WDCLR_REG, HOBOT_TIMER_WDT_RESET);
 
 	/* Fill the count reg */
-	bark_count = x2wdt->bark_time * timer_rate;
-	bite_count = x2wdt->bite_time * timer_rate;
-	x2_wdt_wr(x2wdt, X2_TIMER_WDTGT_REG, bark_count);
-	x2_wdt_wr(x2wdt, X2_TIMER_WDWAIT_REG, bite_count);
+	bark_count = hbwdt->bark_time * timer_rate;
+	bite_count = hbwdt->bite_time * timer_rate;
+	hobot_wdt_wr(hbwdt, HOBOT_TIMER_WDTGT_REG, bark_count);
+	hobot_wdt_wr(hbwdt, HOBOT_TIMER_WDWAIT_REG, bite_count);
 
 	/* enable wdt interrupt */
-	if (x2wdt->bark_irq) {
-		val = ~(x2_wdt_rd(x2wdt, X2_TIMER_TMR_INTMASK_REG));
-		val |= X2_TIMER_WDT_INTMASK;
-		x2_wdt_wr(x2wdt, X2_TIMER_TMR_UNMASK_REG, val);
+	if (hbwdt->bark_irq) {
+		val = ~(hobot_wdt_rd(hbwdt, HOBOT_TIMER_TMR_INTMASK_REG));
+		val |= HOBOT_TIMER_WDT_INTMASK;
+		hobot_wdt_wr(hbwdt, HOBOT_TIMER_TMR_UNMASK_REG, val);
 	}
 
 	/* Start wdt timer */
-	val = x2_wdt_rd(x2wdt, X2_TIMER_TMREN_REG);
-	val |= X2_TIMER_T2START;
-	x2_wdt_wr(x2wdt, X2_TIMER_TMRSTART_REG, val);
+	val = hobot_wdt_rd(hbwdt, HOBOT_TIMER_TMREN_REG);
+	val |= HOBOT_TIMER_T2START;
+	hobot_wdt_wr(hbwdt, HOBOT_TIMER_TMRSTART_REG, val);
 
 	/* Unmask bark irq */
-	val = ~(x2_wdt_rd(x2wdt, X2_TIMER_TMR_INTMASK_REG));
-	val |= X2_TIMER_WDT_INTMASK;
-	x2_wdt_wr(x2wdt, X2_TIMER_TMR_UNMASK_REG, val);
+	val = ~(hobot_wdt_rd(hbwdt, HOBOT_TIMER_TMR_INTMASK_REG));
+	val |= HOBOT_TIMER_WDT_INTMASK;
+	hobot_wdt_wr(hbwdt, HOBOT_TIMER_TMR_UNMASK_REG, val);
 
-	x2wdt->enabled = true;
-	spin_unlock(&x2wdt->io_lock);
+	hbwdt->enabled = true;
+	spin_unlock(&hbwdt->io_lock);
 
-	add_timer(&x2wdt->pet_timer);
+	add_timer(&hbwdt->pet_timer);
 
 	return 0;
 }
 
-static int x2_wdt_settimeout(struct watchdog_device *wdd, unsigned int new_time)
+static int hobot_wdt_settimeout(struct watchdog_device *wdd, unsigned int new_time)
 {
-	struct x2_wdt *x2wdt = watchdog_get_drvdata(wdd);
+	struct hobot_wdt *hbwdt = watchdog_get_drvdata(wdd);
 
-	if (wdd->timeout > X2_WDT_MAX_TIMEOUT)
-		wdd->timeout = X2_WDT_MAX_TIMEOUT;
-	else if (wdd->timeout < X2_WDT_MIN_TIMEOUT)
-		wdd->timeout = X2_WDT_MIN_TIMEOUT;
+	if (wdd->timeout > HOBOT_WDT_MAX_TIMEOUT)
+		wdd->timeout = HOBOT_WDT_MAX_TIMEOUT;
+	else if (wdd->timeout < HOBOT_WDT_MIN_TIMEOUT)
+		wdd->timeout = HOBOT_WDT_MIN_TIMEOUT;
 	else
 		wdd->timeout = new_time;
 
-	x2wdt->bark_time = wdd->timeout;
-	x2wdt->bite_time = x2wdt->bite_time;
+	hbwdt->bark_time = wdd->timeout;
+	hbwdt->bite_time = hbwdt->bite_time;
 
-	return x2_wdt_start(wdd);
+	return hobot_wdt_start(wdd);
 }
 
 void dump_cpu_state(void *data)
@@ -260,21 +260,21 @@ void check_other_cpus(void)
 	}
 }
 
-static irqreturn_t x2_wdt_bark_irq_handler(int irq, void *data)
+static irqreturn_t hobot_wdt_bark_irq_handler(int irq, void *data)
 {
 	u32 val;
-	struct x2_wdt *x2wdt = (struct x2_wdt *)data;
+	struct hobot_wdt *hbwdt = (struct hobot_wdt *)data;
 
-	x2wdt->barking = true;
+	hbwdt->barking = true;
 
 	/* clear the irq */
-	val = x2_wdt_rd(x2wdt, X2_TIMER_TMR_SRCPND_REG);
-	val &= X2_TIMER_WDT_INTMASK;
-	x2_wdt_wr(x2wdt, X2_TIMER_TMR_SRCPND_REG, val);
+	val = hobot_wdt_rd(hbwdt, HOBOT_TIMER_TMR_SRCPND_REG);
+	val &= HOBOT_TIMER_WDT_INTMASK;
+	hobot_wdt_wr(hbwdt, HOBOT_TIMER_TMR_SRCPND_REG, val);
 
-	pr_err("x2_wdt: bark at %lld on cpu:%d\n", sched_clock(), get_cpu());
+	pr_err("hobot_wdt: bark at %lld on cpu:%d\n", sched_clock(), get_cpu());
 	dump_stack();
-	pr_err("x2_wdt: check other cpus\n");
+	pr_err("hobot_wdt: check other cpus\n");
 
 	/* flush cache for dump */
 	printk_safe_flush_on_panic();
@@ -282,71 +282,71 @@ static irqreturn_t x2_wdt_bark_irq_handler(int irq, void *data)
 	/* may stuck here if other cpu can't response IPI */
 	check_other_cpus();
 
-	pr_err("x2_wdt: waiting for panic on other CPU or watchdog bite ...\n");
+	pr_err("hobot_wdt: waiting for panic on other CPU or watchdog bite ...\n");
 
 	return IRQ_HANDLED;
 }
 
-static const struct watchdog_info x2_wdt_info = {
+static const struct watchdog_info hobot_wdt_info = {
 	.identity = "hobot_wdt_watchdog",
 	.options  = WDIOF_SETTIMEOUT | WDIOF_KEEPALIVEPING | WDIOF_MAGICCLOSE,
 };
 
-static int x2_wdt_restart(struct watchdog_device *wdd, unsigned long action,
+static int hobot_wdt_restart(struct watchdog_device *wdd, unsigned long action,
 						  void *data)
 {
 	u32 count, val;
-	struct x2_wdt *x2wdt = watchdog_get_drvdata(wdd);
+	struct hobot_wdt *hbwdt = watchdog_get_drvdata(wdd);
 
-	spin_lock(&x2wdt->io_lock);
+	spin_lock(&hbwdt->io_lock);
 
 	/* Fill the count reg: 100ms */
 	count = timer_rate / 10;
-	x2_wdt_wr(x2wdt, X2_TIMER_WDTGT_REG, count);
-	x2_wdt_wr(x2wdt, X2_TIMER_WDWAIT_REG, count);
+	hobot_wdt_wr(hbwdt, HOBOT_TIMER_WDTGT_REG, count);
+	hobot_wdt_wr(hbwdt, HOBOT_TIMER_WDWAIT_REG, count);
 
 	/* disable wdt interrupt */
-	if (x2wdt->bark_irq)
-		x2_wdt_wr(x2wdt, X2_TIMER_TMR_SETMASK_REG,
-				  X2_TIMER_WDT_INTMASK);
+	if (hbwdt->bark_irq)
+		hobot_wdt_wr(hbwdt, HOBOT_TIMER_TMR_SETMASK_REG,
+				  HOBOT_TIMER_WDT_INTMASK);
 
 	/* Start wdt timer */
-	val = x2_wdt_rd(x2wdt, X2_TIMER_TMREN_REG);
-	val |= X2_TIMER_T2START;
-	x2_wdt_wr(x2wdt, X2_TIMER_TMRSTART_REG, val);
+	val = hobot_wdt_rd(hbwdt, HOBOT_TIMER_TMREN_REG);
+	val |= HOBOT_TIMER_T2START;
+	hobot_wdt_wr(hbwdt, HOBOT_TIMER_TMRSTART_REG, val);
 
 	/* reset previos value */
-	x2_wdt_wr(x2wdt, X2_TIMER_WDCLR_REG, X2_TIMER_WDT_RESET);
+	hobot_wdt_wr(hbwdt, HOBOT_TIMER_WDCLR_REG, HOBOT_TIMER_WDT_RESET);
 
-	spin_unlock(&x2wdt->io_lock);
+	spin_unlock(&hbwdt->io_lock);
 
 	/* wait for reset to assert... */
 	mdelay(500);
 	return NOTIFY_DONE;
 }
 
-static const struct watchdog_ops x2_wdt_ops = {
+static const struct watchdog_ops hobot_wdt_ops = {
 	.owner = THIS_MODULE,
-	.start = x2_wdt_start,
-	.stop  = x2_wdt_stop,
-	.ping  = x2_wdt_ping,
-	.set_timeout = x2_wdt_settimeout,
-	.restart = x2_wdt_restart,
+	.start = hobot_wdt_start,
+	.stop  = hobot_wdt_stop,
+	.ping  = hobot_wdt_ping,
+	.set_timeout = hobot_wdt_settimeout,
+	.restart = hobot_wdt_restart,
 };
 
-static int x2_wdt_panic_handler(struct notifier_block *this,
+static int hobot_wdt_panic_handler(struct notifier_block *this,
 		unsigned long event, void *ptr)
 {
-	struct x2_wdt *x2wdt = container_of(this, struct x2_wdt, panic_blk);
+	struct hobot_wdt *hbwdt = container_of(this, struct hobot_wdt, panic_blk);
 	u32 val;
 
-	if (!x2wdt->enabled)
+	if (!hbwdt->enabled)
 		return 0;
 
 	/* no need wdt here since system will reboot immediately */
-	val = x2_wdt_rd(x2wdt, X2_TIMER_TMREN_REG);
-	val |= X2_TIMER_T2STOP;
-	x2_wdt_wr(x2wdt, X2_TIMER_TMRSTOP_REG, val);
+	val = hobot_wdt_rd(hbwdt, HOBOT_TIMER_TMREN_REG);
+	val |= HOBOT_TIMER_T2STOP;
+	hobot_wdt_wr(hbwdt, HOBOT_TIMER_TMRSTOP_REG, val);
 
 	/* make sure watchdog is stopped before proceeding */
 	mb();
@@ -354,12 +354,12 @@ static int x2_wdt_panic_handler(struct notifier_block *this,
 	return NOTIFY_DONE;
 }
 
-static void pet_watchdog(struct x2_wdt *x2wdt)
+static void pet_watchdog(struct hobot_wdt *hbwdt)
 {
-	if (x2wdt->barking)
+	if (hbwdt->barking)
 		pr_info("bark irq trigger, timer is still running\n");
 
-	x2_wdt_reload(&x2wdt->x2_wdd);
+	hobot_wdt_reload(&hbwdt->hobot_wdd);
 }
 
 /*
@@ -367,18 +367,18 @@ static void pet_watchdog(struct x2_wdt *x2wdt)
  */
 static void pet_timer_wakeup(unsigned long data)
 {
-	struct x2_wdt *x2wdt = (struct x2_wdt *)data;
+	struct hobot_wdt *hbwdt = (struct hobot_wdt *)data;
 
 	pr_debug("\n");
 
-	x2wdt->timer_expired = true;
-	x2wdt->last_pet = sched_clock();
-	wake_up(&x2wdt->pet_wait);
+	hbwdt->timer_expired = true;
+	hbwdt->last_pet = sched_clock();
+	wake_up(&hbwdt->pet_wait);
 }
 
 static __ref int watchdog_kthread(void *arg)
 {
-	struct x2_wdt *x2wdt = (struct x2_wdt *)arg;
+	struct hobot_wdt *hbwdt = (struct hobot_wdt *)arg;
 	unsigned long expired_time = 0;
 	struct sched_param param = {.sched_priority = MAX_RT_PRIO-1};
 	int ret;
@@ -387,27 +387,27 @@ static __ref int watchdog_kthread(void *arg)
 
 	while (!kthread_should_stop()) {
 		do {
-			ret = wait_event_interruptible(x2wdt->pet_wait,
-						x2wdt->timer_expired);
+			ret = wait_event_interruptible(hbwdt->pet_wait,
+						hbwdt->timer_expired);
 		} while (ret != 0);
 
-		x2wdt->thread_wakeup_time = sched_clock();
-		pr_debug("thread_wakeup_time: %llu\n", x2wdt->thread_wakeup_time);
+		hbwdt->thread_wakeup_time = sched_clock();
+		pr_debug("thread_wakeup_time: %llu\n", hbwdt->thread_wakeup_time);
 
-		x2wdt->timer_expired = false;
+		hbwdt->timer_expired = false;
 
-		if (x2wdt->enabled) {
-			expired_time = msecs_to_jiffies(x2wdt->pet_time * 1000);
-			pet_watchdog(x2wdt);
-			mod_timer(&x2wdt->pet_timer, jiffies + expired_time);
+		if (hbwdt->enabled) {
+			expired_time = msecs_to_jiffies(hbwdt->pet_time * 1000);
+			pet_watchdog(hbwdt);
+			mod_timer(&hbwdt->pet_timer, jiffies + expired_time);
 		}
 	}
 
 	return 0;
 }
 
-static int x2_wdog_dt_to_pdata(struct platform_device *pdev,
-					struct x2_wdt *x2wdt)
+static int hobot_wdog_dt_to_pdata(struct platform_device *pdev,
+					struct hobot_wdt *hbwdt)
 {
 	struct device_node *node = pdev->dev.of_node;
 	struct resource *res;
@@ -417,256 +417,256 @@ static int x2_wdog_dt_to_pdata(struct platform_device *pdev,
 	if (!res)
 		return -ENODEV;
 
-	x2wdt->regs_base = devm_ioremap_resource(&pdev->dev, res);
-	if (IS_ERR(x2wdt->regs_base)) {
-		ret = PTR_ERR(x2wdt->regs_base);
+	hbwdt->regs_base = devm_ioremap_resource(&pdev->dev, res);
+	if (IS_ERR(hbwdt->regs_base)) {
+		ret = PTR_ERR(hbwdt->regs_base);
 		return ret;
 	}
 
-	x2wdt->bark_irq = platform_get_irq(pdev, 0);
-	if (x2wdt->bark_irq < 0) {
+	hbwdt->bark_irq = platform_get_irq(pdev, 0);
+	if (hbwdt->bark_irq < 0) {
 		dev_err(&pdev->dev, "failed to get bark_irq\n");
 		return -ENXIO;
 	}
 
-	ret = of_property_read_u32(node, "bark-time", &x2wdt->bark_time);
+	ret = of_property_read_u32(node, "bark-time", &hbwdt->bark_time);
 	if (ret) {
 		dev_err(&pdev->dev, "reading bark time failed\n");
 		return -ENXIO;
 	}
-	ret = of_property_read_u32(node, "bite-time", &x2wdt->bite_time);
+	ret = of_property_read_u32(node, "bite-time", &hbwdt->bite_time);
 	if (ret) {
 		dev_err(&pdev->dev, "reading bite time failed\n");
 		return -ENXIO;
 	}
 
-	ret = of_property_read_u32(node, "pet-time", &x2wdt->pet_time);
+	ret = of_property_read_u32(node, "pet-time", &hbwdt->pet_time);
 	if (ret) {
 		dev_err(&pdev->dev, "reading pet time failed\n");
 		return -ENXIO;
 	}
 
 	dev_info(&pdev->dev, "watchdog setting [%ds %ds %ds]\n",
-		x2wdt->bark_time, x2wdt->bite_time, x2wdt->pet_time);
+		hbwdt->bark_time, hbwdt->bite_time, hbwdt->pet_time);
 
 	return 0;
 }
 /**
- * x2_wdt_probe - Probe call for the device.
+ * hobot_wdt_probe - Probe call for the device.
  *
  * @pdev: handle to the platform device structure.
  * Return: 0 on success, negative error otherwise.
  *
  * It does all the memory allocation and registration for the device.
  */
-static int x2_wdt_probe(struct platform_device *pdev)
+static int hobot_wdt_probe(struct platform_device *pdev)
 {
 	int ret;
-	struct x2_wdt *x2wdt;
-	struct watchdog_device *x2_wdd;
+	struct hobot_wdt *hbwdt;
+	struct watchdog_device *hobot_wdd;
 	u64 expired_time;
 
-	x2wdt = devm_kzalloc(&pdev->dev, sizeof(*x2wdt), GFP_KERNEL);
-	if (!x2wdt)
+	hbwdt = devm_kzalloc(&pdev->dev, sizeof(*hbwdt), GFP_KERNEL);
+	if (!hbwdt)
 		return -ENOMEM;
 
-	g_x2wdt = x2wdt;
+	g_hbwdt = hbwdt;
 
-	ret = x2_wdog_dt_to_pdata(pdev, x2wdt);
+	ret = hobot_wdog_dt_to_pdata(pdev, hbwdt);
 	if (ret)
 		goto err;
-	x2_wdd = &x2wdt->x2_wdd;
-	x2_wdd->info = &x2_wdt_info;
-	x2_wdd->ops = &x2_wdt_ops;
-	x2_wdd->timeout = x2wdt->bark_time;
-	x2_wdd->min_timeout = X2_WDT_MIN_TIMEOUT;
-	x2_wdd->max_timeout = X2_WDT_MAX_TIMEOUT;
+	hobot_wdd = &hbwdt->hobot_wdd;
+	hobot_wdd->info = &hobot_wdt_info;
+	hobot_wdd->ops = &hobot_wdt_ops;
+	hobot_wdd->timeout = hbwdt->bark_time;
+	hobot_wdd->min_timeout = HOBOT_WDT_MIN_TIMEOUT;
+	hobot_wdd->max_timeout = HOBOT_WDT_MAX_TIMEOUT;
 
-	x2_wdt_init_hw(x2wdt);
+	hobot_wdt_init_hw(hbwdt);
 
-	if (x2wdt->bark_irq >= 0) {
-		ret = devm_request_irq(&pdev->dev, x2wdt->bark_irq,
-		x2_wdt_bark_irq_handler, 0,
-								pdev->name, x2wdt);
+	if (hbwdt->bark_irq >= 0) {
+		ret = devm_request_irq(&pdev->dev, hbwdt->bark_irq,
+		hobot_wdt_bark_irq_handler, 0,
+								pdev->name, hbwdt);
 		if (ret) {
 			dev_err(&pdev->dev, "can't register interrupt handler err=%d\n", ret);
 			goto err;
 		}
 	}
 
-	x2wdt->clock = devm_clk_get(&pdev->dev, "watchdog_mclk");
-	if (IS_ERR(x2wdt->clock)) {
+	hbwdt->clock = devm_clk_get(&pdev->dev, "watchdog_mclk");
+	if (IS_ERR(hbwdt->clock)) {
 		dev_err(&pdev->dev, "failed to find watchdog clock source\n");
-		ret = PTR_ERR(x2wdt->clock);
+		ret = PTR_ERR(hbwdt->clock);
 		goto err;
 	}
 
-	ret = clk_prepare_enable(x2wdt->clock);
+	ret = clk_prepare_enable(hbwdt->clock);
 	if (ret < 0) {
 		dev_err(&pdev->dev, "failed to enable clock\n");
 		goto err;
 	}
 
-	timer_rate = clk_get_rate(x2wdt->clock);
+	timer_rate = clk_get_rate(hbwdt->clock);
 	if (!timer_rate) {
 		pr_err("failed to get watchdog clock rate\n");
 		return -1;
 	}
 
-	/* Initialize the members of x2_wdt structure */
-	x2_wdd->parent = &pdev->dev;
+	/* Initialize the members of hobot_wdt structure */
+	hobot_wdd->parent = &pdev->dev;
 
-	wdt_timeout = x2wdt->bark_time;
-	ret = watchdog_init_timeout(x2_wdd, wdt_timeout, &pdev->dev);
+	wdt_timeout = hbwdt->bark_time;
+	ret = watchdog_init_timeout(hobot_wdd, wdt_timeout, &pdev->dev);
 	if (ret) {
 		dev_err(&pdev->dev, "unable to set timeout value.\n");
 		goto err_clk;
 	}
 
-	watchdog_set_nowayout(x2_wdd, nowayout);
-	watchdog_set_restart_priority(x2_wdd, 192);
-	watchdog_stop_on_reboot(x2_wdd);
-	watchdog_set_drvdata(x2_wdd, x2wdt);
+	watchdog_set_nowayout(hobot_wdd, nowayout);
+	watchdog_set_restart_priority(hobot_wdd, 192);
+	watchdog_stop_on_reboot(hobot_wdd);
+	watchdog_set_drvdata(hobot_wdd, hbwdt);
 
-	spin_lock_init(&x2wdt->io_lock);
+	spin_lock_init(&hbwdt->io_lock);
 
-	ret = watchdog_register_device(x2_wdd);
+	ret = watchdog_register_device(hobot_wdd);
 	if (ret) {
 		dev_err(&pdev->dev, "Failed to register wdt device.\n");
 		goto err_clk;
 	}
 
-	platform_set_drvdata(pdev, x2wdt);
+	platform_set_drvdata(pdev, hbwdt);
 
-	/* attach x2_watchdog on CPU0 */
-	x2wdt->watchdog_thread = kthread_create_on_cpu(watchdog_kthread,
-		x2wdt, 0, "hw_watchdog");
-	if (IS_ERR(x2wdt->watchdog_thread)) {
-		ret = PTR_ERR(x2wdt->watchdog_thread);
+	/* attach hobot_watchdog on CPU0 */
+	hbwdt->watchdog_thread = kthread_create_on_cpu(watchdog_kthread,
+		hbwdt, 0, "hw_watchdog");
+	if (IS_ERR(hbwdt->watchdog_thread)) {
+		ret = PTR_ERR(hbwdt->watchdog_thread);
 		goto err;
 	}
 
-	expired_time = msecs_to_jiffies(x2wdt->pet_time * 1000);
+	expired_time = msecs_to_jiffies(hbwdt->pet_time * 1000);
 
-	x2wdt->panic_blk.notifier_call = x2_wdt_panic_handler;
+	hbwdt->panic_blk.notifier_call = hobot_wdt_panic_handler;
 	atomic_notifier_chain_register(&panic_notifier_list,
-				       &x2wdt->panic_blk);
+				       &hbwdt->panic_blk);
 
-	init_waitqueue_head(&x2wdt->pet_wait);
-	x2wdt->timer_expired = false;
+	init_waitqueue_head(&hbwdt->pet_wait);
+	hbwdt->timer_expired = false;
 
 
-	wake_up_process(x2wdt->watchdog_thread);
-	init_timer(&x2wdt->pet_timer);
-	x2wdt->pet_timer.data = (unsigned long)x2wdt;
-	x2wdt->pet_timer.function = pet_timer_wakeup;
-	x2wdt->pet_timer.expires = jiffies + expired_time;
-	add_timer(&x2wdt->pet_timer);
+	wake_up_process(hbwdt->watchdog_thread);
+	init_timer(&hbwdt->pet_timer);
+	hbwdt->pet_timer.data = (unsigned long)hbwdt;
+	hbwdt->pet_timer.function = pet_timer_wakeup;
+	hbwdt->pet_timer.expires = jiffies + expired_time;
+	add_timer(&hbwdt->pet_timer);
 
 
 	if (!disabled) {
-		x2_wdt_start(&x2wdt->x2_wdd);
-		x2wdt->last_pet = sched_clock();
+		hobot_wdt_start(&hbwdt->hobot_wdd);
+		hbwdt->last_pet = sched_clock();
 	}
 
-	dev_info(&pdev->dev, "X2 Watchdog Timer at %p with timeout %ds%s\n",
-			x2wdt->regs_base, x2_wdd->timeout, nowayout?",nowayout":"");
+	dev_info(&pdev->dev, "Hobot Watchdog Timer at %p with timeout %ds%s\n",
+			hbwdt->regs_base, hobot_wdd->timeout, nowayout?",nowayout":"");
 
 	return 0;
 
  err_clk:
-	clk_disable_unprepare(x2wdt->clock);
+	clk_disable_unprepare(hbwdt->clock);
 
  err:
 	return ret;
 }
 
 /**
- * x2_wdt_remove - Probe call for the device.
+ * hobot_wdt_remove - Probe call for the device.
  *
  * @pdev: handle to the platform device structure.
  * Return: 0 on success, otherwise negative error.
  *
  * Unregister the device after releasing the resources.
  */
-static int x2_wdt_remove(struct platform_device *pdev)
+static int hobot_wdt_remove(struct platform_device *pdev)
 {
-	struct x2_wdt *x2wdt = platform_get_drvdata(pdev);
+	struct hobot_wdt *hbwdt = platform_get_drvdata(pdev);
 
-	x2_wdt_stop(&x2wdt->x2_wdd);
-	watchdog_unregister_device(&x2wdt->x2_wdd);
-	clk_disable_unprepare(x2wdt->clock);
+	hobot_wdt_stop(&hbwdt->hobot_wdd);
+	watchdog_unregister_device(&hbwdt->hobot_wdd);
+	clk_disable_unprepare(hbwdt->clock);
 
 	return 0;
 }
 
 /**
- * x2_wdt_shutdown - Stop the device.
+ * hobot_wdt_shutdown - Stop the device.
  *
  * @pdev: handle to the platform structure.
  *
  */
-static void x2_wdt_shutdown(struct platform_device *pdev)
+static void hobot_wdt_shutdown(struct platform_device *pdev)
 {
-	struct x2_wdt *x2wdt = platform_get_drvdata(pdev);
+	struct hobot_wdt *hbwdt = platform_get_drvdata(pdev);
 
-	x2_wdt_stop(&x2wdt->x2_wdd);
+	hobot_wdt_stop(&hbwdt->hobot_wdd);
 }
 
 #ifdef CONFIG_PM
-int x2_wdt_suspend(struct device *dev)
+int hobot_wdt_suspend(struct device *dev)
 {
-	struct x2_wdt *x2wdt = dev_get_drvdata(dev);
+	struct hobot_wdt *hbwdt = dev_get_drvdata(dev);
 
 	if (disabled)
 		return 0;
 
-	if (x2wdt->enabled)
-		x2_wdt_stop(&x2wdt->x2_wdd);
+	if (hbwdt->enabled)
+		hobot_wdt_stop(&hbwdt->hobot_wdd);
 
-	x2wdt->enabled = false;
+	hbwdt->enabled = false;
 	return 0;
 }
 
-int x2_wdt_resume(struct device *dev)
+int hobot_wdt_resume(struct device *dev)
 {
-	struct x2_wdt *x2wdt = dev_get_drvdata(dev);
+	struct hobot_wdt *hbwdt = dev_get_drvdata(dev);
 
 	if (disabled)
 		return 0;
 
-	if (!x2wdt->enabled)
-		x2_wdt_start(&x2wdt->x2_wdd);
+	if (!hbwdt->enabled)
+		hobot_wdt_start(&hbwdt->hobot_wdd);
 
-	x2wdt->enabled = true;
+	hbwdt->enabled = true;
 	return 0;
 }
 #endif
 
-static const struct dev_pm_ops x2_wdt_dev_pm_ops = {
-	SET_SYSTEM_SLEEP_PM_OPS(x2_wdt_suspend,
-			x2_wdt_resume)
+static const struct dev_pm_ops hobot_wdt_dev_pm_ops = {
+	SET_SYSTEM_SLEEP_PM_OPS(hobot_wdt_suspend,
+			hobot_wdt_resume)
 };
 
-static const struct of_device_id x2_wdt_of_match[] = {
+static const struct of_device_id hobot_wdt_of_match[] = {
 	{ .compatible = "hobot,hobot-wdt", },
 	{ /* end of table */ }
 };
-MODULE_DEVICE_TABLE(of, x2_wdt_of_match);
+MODULE_DEVICE_TABLE(of, hobot_wdt_of_match);
 
 /* Driver Structure */
-static struct platform_driver x2_wdt_driver = {
-	.probe		= x2_wdt_probe,
-	.remove 	= x2_wdt_remove,
-	.shutdown	= x2_wdt_shutdown,
+static struct platform_driver hobot_wdt_driver = {
+	.probe		= hobot_wdt_probe,
+	.remove 	= hobot_wdt_remove,
+	.shutdown	= hobot_wdt_shutdown,
 	.driver 	= {
-		.name	= X2_WDT_NAME,
-		.of_match_table = x2_wdt_of_match,
-		.pm = &x2_wdt_dev_pm_ops,
+		.name	= HOBOT_WDT_NAME,
+		.of_match_table = hobot_wdt_of_match,
+		.pm = &hobot_wdt_dev_pm_ops,
 	},
 };
 
-module_platform_driver(x2_wdt_driver);
+module_platform_driver(hobot_wdt_driver);
 
 MODULE_AUTHOR("hobot, Inc.");
 MODULE_DESCRIPTION("Hobot Watchdog driver");

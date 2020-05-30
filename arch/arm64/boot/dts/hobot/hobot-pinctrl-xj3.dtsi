@@ -13,7 +13,7 @@
  / {
 	soc {
 		pinctrl: pinctrl@0xA6003000 {
-			compatible = "hobot,x2-pinctrl";
+			compatible = "hobot,x3-pinctrl";
 			reg = <0 0xA6004000 0 0x100>,
 				<0 0xA6003000 0 0x100>;
 			gpio-controller;
@@ -27,55 +27,55 @@
 			interrupt-controller;
 			#interrupt-cells = <2>;
 			i2c0_func: i2c0_func {
-				pinctrl-x2,pins-muxs = <
+				pinctrl-x3,pins-muxs = <
 					8	0 /*i2c0 SCL*/
 					9	0 /*i2c0 SDA*/
 				>;
 			};
 			i2c1_func: i2c1_func {
-				pinctrl-x2,pins-muxs = <
+				pinctrl-x3,pins-muxs = <
 					10	0 /*i2c1 SDA*/
 					11	0 /*i2c1 SCL*/
 				>;
 			};
 			i2c2_func: i2c2_func {
-				pinctrl-x2,pins-muxs = <
+				pinctrl-x3,pins-muxs = <
 					12	0 /*i2c2 SCL*/
 					13	0 /*i2c2 SDA*/
 				>;
 			};
 			i2c3_func: i2c3_func {
-				pinctrl-x2,pins-muxs = <
+				pinctrl-x3,pins-muxs = <
 					14       0 /*i2c3 SCL*/
 					15       0 /*i2c3 SDA*/
 				>;
 			};
 			i2c4_func: i2c4_func {
-				pinctrl-x2,pins-muxs = <
+				pinctrl-x3,pins-muxs = <
 					16       1 /*SPI0_CSN - i2c4 SDA*/
 					17       1 /*SPI0_SCLK - i2c4 SCL*/
 				>;
 			};
 			i2c5_func: i2c5_func {
-				pinctrl-x2,pins-muxs = <
+				pinctrl-x3,pins-muxs = <
 					18       1 /*SPI0_MOSI - i2c5 SDA*/
 					19       1 /*SPI0_MISO - i2c5 SCL*/
 				>;
 			};
 			uart0_func: uart0_func {
-				pinctrl-x2,pins-muxs = <
+				pinctrl-x3,pins-muxs = <
 					95	0 /*uart0 TXD*/
 					96	0 /*uart0 RXD*/
 				>;
 			};
 			uart1_func: uart1_func {
-				pinctrl-x2,pins-muxs = <
+				pinctrl-x3,pins-muxs = <
 					97	0 /*uart1 TXD*/
 					98	0 /*uart1 RXD*/
 				>;
 			};
 			uart1_func_rtscts: uart1_func_rtscts {
-				pinctrl-x2,pins-muxs = <
+				pinctrl-x3,pins-muxs = <
 					97	0 /*uart1 TXD*/
 					98	0 /*uart1 RXD*/
 					99	0 /*uart1 RTSN*/
@@ -83,19 +83,19 @@
 				>;
 			};
 			uart2_func: uart2_func {
-				pinctrl-x2,pins-muxs = <
+				pinctrl-x3,pins-muxs = <
 					99	1 /*uart1 RTSN - uart2 TXD*/
 					100	1 /*uart1 CTSN - uart2 RXD*/
 				>;
 			};
 			uart3_func: uart3_func {
-				pinctrl-x2,pins-muxs = <
+				pinctrl-x3,pins-muxs = <
 					111	1 /*Sensor2 MCLK - uart3 TXD*/
 					112	1 /*Sensor3 MCLK - uart3 RXD*/
 				>;
 			};
 			i2s0_func: i2s0_func {
-				pinctrl-x2,pins-muxs = <
+				pinctrl-x3,pins-muxs = <
 					101 0 /*i2s0 MCLK*/
 					102 0 /*i2s0 BGLK*/
 					103 0 /*i2s0 LRGK*/
@@ -103,7 +103,7 @@
 				>;
 			};
 			i2s1_func: i2s1_func {
-				pinctrl-x2,pins-muxs = <
+				pinctrl-x3,pins-muxs = <
 					105 0 /*i2s1 MCLK*/
 					106 0
 					107 0
@@ -111,7 +111,7 @@
 				>;
 			};
 			btout_func: btout_func {
-				pinctrl-x2,pins-muxs = <
+				pinctrl-x3,pins-muxs = <
 					78	0 /*BT1120_OUT_CLK*/
 					79	0 /*BT1120_OUT_DAT0*/
 					80	0
@@ -132,7 +132,7 @@
 				>;
 			};
 			dvpin_func: dvpin_func {
-				pinctrl-x2,pins-muxs = <
+				pinctrl-x3,pins-muxs = <
 					78	1 /*DVPIN_PCLK*/
 					79	1 /*DVPIN_VSYNC*/
 					80	1 /*DVPIN_HSYNC*/
@@ -151,7 +151,7 @@
 				>;
 			};
 			rgb_func: rgb_func {
-				pinctrl-x2,pins-muxs = <
+				pinctrl-x3,pins-muxs = <
 					20	2 /*VSYNC*/
 					21	2 /*HSYNC*/
 					26	2 /*DE*/
@@ -183,7 +183,7 @@
 				>;
 			};
 			bifsd_func:bifsd_func {
-				pinctrl-x2,pins-muxs = <
+				pinctrl-x3,pins-muxs = <
 					20	0 /*BIFSD_CLK*/
 					21	0 /*BIFSD_CMD*/
 					22	0 /*BIFSD_DATA0*/
@@ -198,7 +198,7 @@
 				>;
 			};
 			bifspi_func:bifspi_func {
-				pinctrl-x2,pins-muxs = <
+				pinctrl-x3,pins-muxs = <
 					27	0 /*BIFSPI_CSN*/
 					28	0 /*BIFSPI_SCLK*/
 					29	0 /*BIFSPI_MOSI*/
@@ -207,7 +207,7 @@
 				>;
 			};
 			bifspi_func_reset:bifspi_func_reset {
-				pinctrl-x2,pins-muxs = <
+				pinctrl-x3,pins-muxs = <
 					27	0 /*BIFSPI_CSN*/
 					28	0 /*BIFSPI_SCLK*/
 					29	0 /*BIFSPI_MOSI*/
@@ -216,7 +216,7 @@
 				>;
 			};
 			spi0_func:spi0_func {
-				pinctrl-x2,pins-muxs = <
+				pinctrl-x3,pins-muxs = <
 					16	0 /*SPI0_CSN0*/
 					17	0 /*SPI0_SCLK*/
 					18	0 /*SPI0_MOSI*/
@@ -224,12 +224,12 @@
 				>;
 			};
 			spi0_csn1_func:spi0_csn1_func {
-				pinctrl-x2,pins-muxs = <
+				pinctrl-x3,pins-muxs = <
 					120	1 /*QSPI_CSN1/SPI0_CSN1/GPIO7[8]*/
 				>;
 			};
 			spi1_func:spi1_func {
-				pinctrl-x2,pins-muxs = <
+				pinctrl-x3,pins-muxs = <
 					3	1 /*SPI1_SCLK*/
 					5	1 /*SPI1_CSN*/
 					6	1 /*SPI1_MISO*/
@@ -237,7 +237,7 @@
 				>;
 			};
 			spi2_func:spi2_func {
-				pinctrl-x2,pins-muxs = <
+				pinctrl-x3,pins-muxs = <
 					12	1 /*SPI2_MOSI*/
 					13	1 /*SPI2_MISO*/
 					14	1 /*SPI2_SCLK*/
@@ -245,7 +245,7 @@
 				>;
 			};
 			qspi_func:qspi_func {
-				pinctrl-x2,pins-muxs = <
+				pinctrl-x3,pins-muxs = <
 					32	0 /*QSPI_CSN*/
 					33	0 /*QSPI_SCLK*/
 					34	0 /*QSPI_MOSI_IO0*/
@@ -256,7 +256,7 @@
 				>;
 			};
 			sdio0_func:sdio0_func {
-				pinctrl-x2,pins-muxs = <
+				pinctrl-x3,pins-muxs = <
 					53	0 /*SD0_CLK*/
 					54	0 /*SD0_CMD*/
 					55	0 /*SD0_DATA0*/
@@ -273,7 +273,7 @@
 				>;
 			};
 			sdio1_func:sdio1_func {
-				pinctrl-x2,pins-muxs = <
+				pinctrl-x3,pins-muxs = <
 					66	0 /*SD1_CLK*/
 					67	0 /*SD1_CMD*/
 					68	0 /*SD1_DATA0*/
@@ -283,7 +283,7 @@
 				>;
 			};
 			sdio2_func:sdio2_func {
-				pinctrl-x2,pins-muxs = <
+				pinctrl-x3,pins-muxs = <
 					72	0 /*SD2_CLK*/
 					73	0 /*SD2_CMD*/
 					74	0 /*SD2_DATA0*/
@@ -293,7 +293,7 @@
 				>;
 			};
 			eth_func:eth_func {
-				pinctrl-x2,pins-muxs = <
+				pinctrl-x3,pins-muxs = <
 					38	3
 					39	0
 					40	0
@@ -312,92 +312,92 @@
 				>;
 			};
 			pwm0:pwm0_func {
-				pinctrl-x2,pins-muxs = <
+				pinctrl-x3,pins-muxs = <
 					4	2
 				>;
 			};
 			pwm1:pwm1_func {
-				pinctrl-x2,pins-muxs = <
+				pinctrl-x3,pins-muxs = <
 					22	1
 				>;
 			};
 			pwm2:pwm2_func {
-				pinctrl-x2,pins-muxs = <
+				pinctrl-x3,pins-muxs = <
 					23	1
 				>;
 			};
 			pwm3:pwm3_func {
-				pinctrl-x2,pins-muxs = <
+				pinctrl-x3,pins-muxs = <
 					24	1
 				>;
 			};
 			pwm4:pwm4_func {
-				pinctrl-x2,pins-muxs = <
+				pinctrl-x3,pins-muxs = <
 					25	1
 				>;
 			};
 			pwm5:pwm5_func {
-				pinctrl-x2,pins-muxs = <
+				pinctrl-x3,pins-muxs = <
 					18	2
 				>;
 			};
 			pwm6:pwm6_func {
-				pinctrl-x2,pins-muxs = <
+				pinctrl-x3,pins-muxs = <
 					19	2
 				>;
 			};
 			pwm7:pwm7_func {
-				pinctrl-x2,pins-muxs = <
+				pinctrl-x3,pins-muxs = <
 					12	2
 				>;
 			};
 			pwm8:pwm8_func {
-				pinctrl-x2,pins-muxs = <
+				pinctrl-x3,pins-muxs = <
 					13	2
 				>;
 			};
 			sensor0_func: sensor0_func {
-				pinctrl-x2,pins-muxs = <
+				pinctrl-x3,pins-muxs = <
 					109      0 /*Sensor0 MCLK*/
 				>;
 			};
 			sensor1_func: sensor1_func {
-				pinctrl-x2,pins-muxs = <
+				pinctrl-x3,pins-muxs = <
 					110      0 /*Sensor1 MCLK*/
 				>;
 			};
 			sensor2_func: sensor2_func {
-				pinctrl-x2,pins-muxs = <
+				pinctrl-x3,pins-muxs = <
 					111      0 /*Sensor2 MCLK*/
 				>;
 			};
 			sensor3_func: sensor3_func {
-				pinctrl-x2,pins-muxs = <
+				pinctrl-x3,pins-muxs = <
 					112      0 /*Sensor3 MCLK*/
 				>;
 			};
 			sensor0_gpio_func: sensor0_gpio_func {
-				pinctrl-x2,pins-muxs = <
+				pinctrl-x3,pins-muxs = <
 					109      3
 				>;
 			};
 			sensor1_gpio_func: sensor1_gpio_func {
-				pinctrl-x2,pins-muxs = <
+				pinctrl-x3,pins-muxs = <
 					110      3
 				>;
 			};
 			sensor2_gpio_func: sensor2_gpio_func {
-				pinctrl-x2,pins-muxs = <
+				pinctrl-x3,pins-muxs = <
 					111      3
 				>;
 			};
 			sensor3_gpio_func: sensor3_gpio_func {
-				pinctrl-x2,pins-muxs = <
+				pinctrl-x3,pins-muxs = <
 					112      3
 				>;
 			};
 			usb_id_function: usb-id-function {
-				pinctrl-x2,pins-muxs = <
+				pinctrl-x3,pins-muxs = <
 					65	3 /* usb id pin */
 				>;
 			};

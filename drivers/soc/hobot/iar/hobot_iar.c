@@ -488,7 +488,7 @@ static void iar_regs_restore(void)
 	writel(0x1, regaddr);
 }
 
-void x2_iar_dump(void)
+void hobot_iar_dump(void)
 {
 	void __iomem *regaddr = g_iar_dev->regaddr;
 	for (; (regaddr - g_iar_dev->regaddr) <= 0x404; regaddr += 0x4) {
@@ -496,7 +496,7 @@ void x2_iar_dump(void)
 		printk("iar reg:[0x%p]: 0x%x \n", regaddr, regval);
 	}
 }
-EXPORT_SYMBOL_GPL(x2_iar_dump);
+EXPORT_SYMBOL_GPL(hobot_iar_dump);
 
 buf_addr_t iar_addr_convert(phys_addr_t paddr)
 {
@@ -1732,7 +1732,7 @@ int32_t iar_pre_init(void)
 	return 0;
 }
 
-frame_buf_t* x2_iar_get_framebuf_addr(int channel)
+frame_buf_t* hobot_iar_get_framebuf_addr(int channel)
 {
 	if (NULL == g_iar_dev || channel < 0 || channel > IAR_CHANNEL_4) {
 		printk(KERN_ERR "IAR dev not inited!");
@@ -1740,7 +1740,7 @@ frame_buf_t* x2_iar_get_framebuf_addr(int channel)
 	}
 	return &g_iar_dev->frambuf[channel];
 }
-EXPORT_SYMBOL_GPL(x2_iar_get_framebuf_addr);
+EXPORT_SYMBOL_GPL(hobot_iar_get_framebuf_addr);
 /////////////iar wb
 
 int iar_wb_stream_on(void)
@@ -2212,14 +2212,14 @@ int iar_output_start(int layer_no)
 	return ret;
 }
 
-static irqreturn_t x2_iar_irq(int this_irq, void *data)
+static irqreturn_t hobot_iar_irq(int this_irq, void *data)
 {
 	//struct iar_dev_s *iar = data;
 	int regval = 0;
 	disable_irq_nosync(this_irq);
 	//TODO
 	regval = readl(g_iar_dev->regaddr + REG_IAR_DE_SRCPNDREG);
-	//printk("x2_iar_irq: %x\n", regval);
+	//printk("hobot_iar_irq: %x\n", regval);
 
 	if (regval & BIT(0)) {
 		writel(BIT(0), g_iar_dev->regaddr + REG_IAR_DE_SRCPNDREG);
@@ -2270,7 +2270,7 @@ int disable_iar_irq(void)
 	regval = 0xffffffff;
 	writel(regval, g_iar_dev->regaddr + REG_IAR_DE_SETMASK);
 
-	IAR_DEBUG_PRINT("x2_iar driver: mask all interrupts!\n");
+	IAR_DEBUG_PRINT("hobot_iar driver: mask all interrupts!\n");
 	return 0;
 }
 
@@ -2280,7 +2280,7 @@ int enable_iar_irq(void)
 	//FBUF_END: bit22, CBUF_END: bit23
 	regval = 0x00c00000;
 	writel(regval, g_iar_dev->regaddr + REG_IAR_DE_UNMASK);
-	IAR_DEBUG_PRINT("x2_iar driver: unmask FBUF end interrupt!\n");
+	IAR_DEBUG_PRINT("hobot_iar driver: unmask FBUF end interrupt!\n");
 
 	return 0;
 }
@@ -2442,7 +2442,7 @@ int iar_rotate_video_buffer(phys_addr_t yaddr,
 #define IAR_DRAW_WIDTH	(1920)
 #define IAR_DRAW_HEIGHT	(1080)
 #define IAR_DRAW_PBYTE	(4)
-static void x2_iar_draw_dot(char *frame, int x, int y, int color)
+static void hobot_iar_draw_dot(char *frame, int x, int y, int color)
 {
 	int pbyte = IAR_DRAW_PBYTE;
 
@@ -2456,31 +2456,31 @@ static void x2_iar_draw_dot(char *frame, int x, int y, int color)
 	}
 }
 
-static void x2_iar_draw_hline(char *frame, int x0, int x1, int y, int color)
+static void hobot_iar_draw_hline(char *frame, int x0, int x1, int y, int color)
 {
 	int xi, xa;
 
 	xi = (x0 < x1) ? x0 : x1;
 	xa = (x0 > x1) ? x0 : x1;
 	while (xi <= xa) {
-		x2_iar_draw_dot(frame, xi, y, color);
+		hobot_iar_draw_dot(frame, xi, y, color);
 		xi++;
 	}
 }
 
-static void x2_iar_draw_vline(char *frame, int x, int y0, int y1, int color)
+static void hobot_iar_draw_vline(char *frame, int x, int y0, int y1, int color)
 {
 	int yi, ya;
 
 	yi = (y0 < y1) ? y0 : y1;
 	ya = (y0 > y1) ? y0 : y1;
 	while (yi <= ya) {
-		x2_iar_draw_dot(frame, x, yi, color);
+		hobot_iar_draw_dot(frame, x, yi, color);
 		yi++;
 	}
 }
 
-static void x2_iar_draw_rect(char *frame, int x0, int y0, int x1, int y1,
+static void hobot_iar_draw_rect(char *frame, int x0, int y0, int x1, int y1,
 							int color, int fill)
 {
 	int xi, xa, yi, ya;
@@ -2491,14 +2491,14 @@ static void x2_iar_draw_rect(char *frame, int x0, int y0, int x1, int y1,
 	ya = (y0 > y1) ? y0 : y1;
 	if (fill) {
 		while (yi <= ya) {
-			x2_iar_draw_hline(frame, xi, xa, yi, color);
+			hobot_iar_draw_hline(frame, xi, xa, yi, color);
 			yi++;
 		}
 	} else {
-		x2_iar_draw_hline(frame, xi, xa, yi, color);
-		x2_iar_draw_hline(frame, xi, xa, ya, color);
-		x2_iar_draw_vline(frame, xi, yi, ya, color);
-		x2_iar_draw_vline(frame, xa, yi, ya, color);
+		hobot_iar_draw_hline(frame, xi, xa, yi, color);
+		hobot_iar_draw_hline(frame, xi, xa, ya, color);
+		hobot_iar_draw_vline(frame, xi, yi, ya, color);
+		hobot_iar_draw_vline(frame, xa, yi, ya, color);
 	}
 }
 */
@@ -2549,7 +2549,7 @@ int iar_enable_sif_mclk(void)
 }
 EXPORT_SYMBOL_GPL(iar_enable_sif_mclk);
 
-static int x2_iar_probe(struct platform_device *pdev)
+static int hobot_iar_probe(struct platform_device *pdev)
 {
 	struct resource *res, *irq, *res_mipi;
 	phys_addr_t mem_paddr;
@@ -2711,7 +2711,7 @@ static int x2_iar_probe(struct platform_device *pdev)
 	pr_debug("%s: iar pixel rate is %lld\n", __func__, pixel_rate);
 
 	init_waitqueue_head(&g_iar_dev->wq_head);
-	ret = request_threaded_irq(g_iar_dev->irq, x2_iar_irq, NULL, IRQF_TRIGGER_HIGH,
+	ret = request_threaded_irq(g_iar_dev->irq, hobot_iar_irq, NULL, IRQF_TRIGGER_HIGH,
 							   dev_name(&pdev->dev), g_iar_dev);
 	disable_irq(g_iar_dev->irq);
 	if (g_iar_dev->iar_task == NULL) {
@@ -3300,23 +3300,23 @@ static int x2_iar_probe(struct platform_device *pdev)
 		// color: [0:3]-BGRA -> 0x[A][R][G][B]
 		// white all.
 		deta = 0xFFFFFFFF;
-		x2_iar_draw_rect(temp1, IAR_DRAW_X(0, 1), IAR_DRAW_Y(0, 1),
+		hobot_iar_draw_rect(temp1, IAR_DRAW_X(0, 1), IAR_DRAW_Y(0, 1),
 			IAR_DRAW_XL(1, 1), IAR_DRAW_YL(1, 1), deta, 1);
 		// blue rect +1/10.
 		deta = 0xFF0000FF;
-		x2_iar_draw_rect(temp1, IAR_DRAW_X(1, 10), IAR_DRAW_Y(1, 10),
+		hobot_iar_draw_rect(temp1, IAR_DRAW_X(1, 10), IAR_DRAW_Y(1, 10),
 			IAR_DRAW_XL(9, 10), IAR_DRAW_YL(9, 10), deta, 1);
 		// green rect +1/10.
 		deta = 0xFF00FF00;
-		x2_iar_draw_rect(temp1, IAR_DRAW_X(2, 10), IAR_DRAW_Y(2, 10),
+		hobot_iar_draw_rect(temp1, IAR_DRAW_X(2, 10), IAR_DRAW_Y(2, 10),
 			IAR_DRAW_XL(8, 10), IAR_DRAW_YL(8, 10), deta, 1);
 		// red rect +1/10.
 		deta = 0xFFFF0000;
-		x2_iar_draw_rect(temp1, IAR_DRAW_X(3, 10), IAR_DRAW_Y(3, 10),
+		hobot_iar_draw_rect(temp1, IAR_DRAW_X(3, 10), IAR_DRAW_Y(3, 10),
 			IAR_DRAW_XL(7, 10), IAR_DRAW_YL(7, 10), deta, 1);
 		// black rect +1/10.
 		deta = 0xFF000000;
-		x2_iar_draw_rect(temp1, IAR_DRAW_X(4, 10), IAR_DRAW_Y(4, 10),
+		hobot_iar_draw_rect(temp1, IAR_DRAW_X(4, 10), IAR_DRAW_Y(4, 10),
 			IAR_DRAW_XL(6, 10), IAR_DRAW_YL(6, 10), deta, 1);
 #endif
 	} else if (display_type == MIPI_1080P) {
@@ -3419,7 +3419,7 @@ err2:
 	return ret;
 }
 
-static int x2_iar_remove(struct platform_device *pdev)
+static int hobot_iar_remove(struct platform_device *pdev)
 {
 	struct iar_dev_s *iar;
 
@@ -3444,15 +3444,15 @@ static int x2_iar_remove(struct platform_device *pdev)
  */
 
 #ifdef CONFIG_OF
-static const struct of_device_id x2_iar_of_match[] = {
+static const struct of_device_id hobot_iar_of_match[] = {
 	{.compatible = "hobot,hobot-iar"},
 	{},
 };
-MODULE_DEVICE_TABLE(of, x2_iar_of_match);
+MODULE_DEVICE_TABLE(of, hobot_iar_of_match);
 #endif
 
 //#ifdef CONFIG_PM
-int x2_iar_suspend(struct device *dev)
+int hobot_iar_suspend(struct device *dev)
 {
 	pr_info("%s:%s, enter suspend...\n", __FILE__, __func__);
 
@@ -3461,7 +3461,7 @@ int x2_iar_suspend(struct device *dev)
 	return 0;
 }
 
-int x2_iar_resume(struct device *dev)
+int hobot_iar_resume(struct device *dev)
 {
 	pr_info("%s:%s, enter resume...\n", __FILE__, __func__);
 
@@ -3471,33 +3471,33 @@ int x2_iar_resume(struct device *dev)
 }
 //#endif
 
-static const struct dev_pm_ops x2_iar_pm = {
-	SET_SYSTEM_SLEEP_PM_OPS(x2_iar_suspend,
-			x2_iar_resume)
+static const struct dev_pm_ops hobot_iar_pm = {
+	SET_SYSTEM_SLEEP_PM_OPS(hobot_iar_suspend,
+			hobot_iar_resume)
 };
 
-static struct platform_driver x2_iar_driver = {
-	.probe = x2_iar_probe,
-	.remove = x2_iar_remove,
+static struct platform_driver hobot_iar_driver = {
+	.probe = hobot_iar_probe,
+	.remove = hobot_iar_remove,
 	.driver = {
 		.name = "hobot-iar",
-		.of_match_table = of_match_ptr(x2_iar_of_match),
-		.pm = &x2_iar_pm,
+		.of_match_table = of_match_ptr(hobot_iar_of_match),
+		.pm = &hobot_iar_pm,
 	},
 };
 /*
-static int __init x2_iar_init(void)
+static int __init hobot_iar_init(void)
 {
         int ret;
 
-    ret = platform_driver_register(&x2_iar_driver);
+    ret = platform_driver_register(&hobot_iar_driver);
     if (ret)
-        pr_err("register x2_ips_driver error\n");
+        pr_err("register hobot_ips_driver error\n");
 
         return ret;
 }
 
-fs_initcall(x2_iar_init);
+fs_initcall(hobot_iar_init);
 */
-module_platform_driver(x2_iar_driver);
+module_platform_driver(hobot_iar_driver);
 MODULE_LICENSE("GPL");

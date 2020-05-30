@@ -26,9 +26,9 @@
 #include "../pinctrl-utils.h"
 #include "../core.h"
 
-#define X2_NUM_IOS	121
+#define X3_NUM_IOS	121
 
-struct x2_pctrl_group {
+struct x3_pctrl_group {
 	const char *name;
 	const unsigned int *pins;
 	const unsigned int *mux_val;
@@ -36,7 +36,7 @@ struct x2_pctrl_group {
 	struct list_head node;
 };
 
-struct x2_pinmux_function {
+struct x3_pinmux_function {
 	const char *name;
 	const char *const *groups;
 	unsigned int ngroups;
@@ -56,7 +56,7 @@ enum {
 	GPIO_IRQ_BANK_NUM,
 };
 
-struct x2_pinctrl {
+struct x3_pinctrl {
 	struct device *dev;
 	struct pinctrl_dev *pctrl;
 	struct mutex mutex;
@@ -71,7 +71,7 @@ struct x2_pinctrl {
 	struct radix_tree_root pgtree;
 	struct radix_tree_root ftree;
 	int irq_base;
-	DECLARE_BITMAP(gpio_irq_enabled_mask, X2_NUM_IOS);
+	DECLARE_BITMAP(gpio_irq_enabled_mask, X3_NUM_IOS);
 	int irqbind[GPIO_IRQ_BANK_NUM];
 };
 
@@ -85,8 +85,8 @@ enum {
 	GPIO_HIGH = 1
 };
 
-#define X2_IO_MIN 0
-#define X2_IO_MAX 120
+#define X3_IO_MIN 0
+#define X3_IO_MAX 120
 
 #define GROUP0_MAX	15
 #define GROUP1_MAX	31
@@ -97,23 +97,23 @@ enum {
 #define GROUP6_MAX	111
 #define GROUP7_MAX	120
 
-#define X2_IO_CTL	0x8
-#define X2_IO_IN_VALUE	0xc
-#define X2_IO_DIR_SHIFT	16
+#define X3_IO_CTL	0x8
+#define X3_IO_IN_VALUE	0xc
+#define X3_IO_DIR_SHIFT	16
 
-#define X2_IO_INT_SEL		0x100
-#define X2_IO_INT_EN		0x104
-#define X2_IO_INT_POS		0x108
-#define X2_IO_INT_NEG		0x10c
-#define X2_IO_INT_WIDTH		0x110
-#define X2_IO_INT_MASK		0x120
-#define X2_IO_INT_SETMASK	0x124
-#define X2_IO_INT_UNMASK	0x128
-#define X2_IO_INT_SRCPND	0x12c
+#define X3_IO_INT_SEL		0x100
+#define X3_IO_INT_EN		0x104
+#define X3_IO_INT_POS		0x108
+#define X3_IO_INT_NEG		0x10c
+#define X3_IO_INT_WIDTH		0x110
+#define X3_IO_INT_MASK		0x120
+#define X3_IO_INT_SETMASK	0x124
+#define X3_IO_INT_UNMASK	0x128
+#define X3_IO_INT_SRCPND	0x12c
 
 static struct __io_group io_groups[] = {
 	[0] = {
-		.start = 0,  //X2_IO_MIN,  special case, gpio0 is remove but bit is remain
+		.start = 0,  //X3_IO_MIN,  special case, gpio0 is remove but bit is remain
 		.end = GROUP0_MAX,
 		.regoffset = 0x0,
 	},
@@ -156,7 +156,7 @@ static struct __io_group io_groups[] = {
 
 unsigned int find_io_group_index(unsigned int io)
 {
-	if (io < X2_IO_MIN || io > X2_IO_MAX)
+	if (io < X3_IO_MIN || io > X3_IO_MAX)
 		return -1;
 
 	if (io / (GROUP3_MAX + 1)) {
@@ -186,16 +186,16 @@ unsigned int find_io_group_index(unsigned int io)
 	}
 }
 
-int find_irqbank(struct x2_pinctrl *x2_pctrl, unsigned int gpio)
+int find_irqbank(struct x3_pinctrl *x3_pctrl, unsigned int gpio)
 {
 	int i = 0;
 	for (i = 0; i < GPIO_IRQ_BANK_NUM; i++)
-		if (x2_pctrl->irqbind[i] == gpio)
+		if (x3_pctrl->irqbind[i] == gpio)
 			return i;
 	return -1;
 }
 
-static const struct pinctrl_pin_desc x2_pins[] = {
+static const struct pinctrl_pin_desc x3_pins[] = {
 	PINCTRL_PIN(0, "IO0"),
 	PINCTRL_PIN(1, "IO1"),
 	PINCTRL_PIN(2, "IO2"),
@@ -319,17 +319,17 @@ static const struct pinctrl_pin_desc x2_pins[] = {
 	PINCTRL_PIN(120, "IO120"),
 };
 
-static int x2_pinctrl_get_groups_count(struct pinctrl_dev *pctldev)
+static int x3_pinctrl_get_groups_count(struct pinctrl_dev *pctldev)
 {
-	struct x2_pinctrl *pctrl = pinctrl_dev_get_drvdata(pctldev);
+	struct x3_pinctrl *pctrl = pinctrl_dev_get_drvdata(pctldev);
 	return pctrl->ngroups;
 }
 
-static const char* x2_pinctrl_get_group_name(struct pinctrl_dev *pctldev,
+static const char* x3_pinctrl_get_group_name(struct pinctrl_dev *pctldev,
 											 unsigned selector)
 {
-	struct x2_pinctrl *pctrl = pinctrl_dev_get_drvdata(pctldev);
-	struct x2_pctrl_group *group;
+	struct x3_pinctrl *pctrl = pinctrl_dev_get_drvdata(pctldev);
+	struct x3_pctrl_group *group;
 	group = radix_tree_lookup(&pctrl->pgtree, selector);
 	if (!group) {
 		dev_err(pctrl->dev, "%s could not find pingroup%i\n", __func__, selector);
@@ -338,13 +338,13 @@ static const char* x2_pinctrl_get_group_name(struct pinctrl_dev *pctldev,
 	return group->name;
 }
 
-static int x2_pinctrl_get_group_pins(struct pinctrl_dev *pctldev,
+static int x3_pinctrl_get_group_pins(struct pinctrl_dev *pctldev,
 									 unsigned selector,
 									 const unsigned **pins,
 									 unsigned *num_pins)
 {
-	struct x2_pinctrl *pctrl = pinctrl_dev_get_drvdata(pctldev);
-	struct x2_pctrl_group *group;
+	struct x3_pinctrl *pctrl = pinctrl_dev_get_drvdata(pctldev);
+	struct x3_pctrl_group *group;
 	group = radix_tree_lookup(&pctrl->pgtree, selector);
 	if (!group) {
 		dev_err(pctrl->dev, "%s could not find pingroup%i\n", __func__, selector);
@@ -355,14 +355,14 @@ static int x2_pinctrl_get_group_pins(struct pinctrl_dev *pctldev,
 	return 0;
 }
 
-static unsigned int x2_add_pingroup(struct x2_pinctrl *x2_pctrl,
+static unsigned int x3_add_pingroup(struct x3_pinctrl *x3_pctrl,
 									const char *name,
 									int *pins,
 									int *muxs,
 									unsigned npins)
 {
-	struct x2_pctrl_group *pingroup;
-	pingroup = devm_kzalloc(x2_pctrl->dev, sizeof(*pingroup), GFP_KERNEL);
+	struct x3_pctrl_group *pingroup;
+	pingroup = devm_kzalloc(x3_pctrl->dev, sizeof(*pingroup), GFP_KERNEL);
 	if (!pingroup)
 		return -ENOMEM;
 	pingroup->name = name;
@@ -370,55 +370,55 @@ static unsigned int x2_add_pingroup(struct x2_pinctrl *x2_pctrl,
 	pingroup->pins = pins;
 	pingroup->mux_val = muxs;
 
-	mutex_lock(&x2_pctrl->mutex);
-	list_add_tail(&pingroup->node, &x2_pctrl->pingroups);
-	radix_tree_insert(&x2_pctrl->pgtree, x2_pctrl->ngroups, pingroup);
-	x2_pctrl->ngroups++;
-	mutex_unlock(&x2_pctrl->mutex);
+	mutex_lock(&x3_pctrl->mutex);
+	list_add_tail(&pingroup->node, &x3_pctrl->pingroups);
+	radix_tree_insert(&x3_pctrl->pgtree, x3_pctrl->ngroups, pingroup);
+	x3_pctrl->ngroups++;
+	mutex_unlock(&x3_pctrl->mutex);
 	return 0;
 
 }
-static struct x2_pinmux_function* x2_add_function(struct x2_pinctrl *x2_pctrl,
+static struct x3_pinmux_function* x3_add_function(struct x3_pinctrl *x3_pctrl,
 												  const char *name,
 												  const char **pgnames,
 												  unsigned npgnames)
 {
-	struct x2_pinmux_function *function;
-	function = devm_kzalloc(x2_pctrl->dev, sizeof(*function), GFP_KERNEL);
+	struct x3_pinmux_function *function;
+	function = devm_kzalloc(x3_pctrl->dev, sizeof(*function), GFP_KERNEL);
 	if (!function)
 		return NULL;
 	function->name = name;
 	function->groups = pgnames;
 	function->ngroups = npgnames;
 
-	mutex_lock(&x2_pctrl->mutex);
-	list_add_tail(&function->node, &x2_pctrl->functions);
-	radix_tree_insert(&x2_pctrl->ftree, x2_pctrl->nfuncs, function);
-	x2_pctrl->nfuncs++;
-	mutex_unlock(&x2_pctrl->mutex);
+	mutex_lock(&x3_pctrl->mutex);
+	list_add_tail(&function->node, &x3_pctrl->functions);
+	radix_tree_insert(&x3_pctrl->ftree, x3_pctrl->nfuncs, function);
+	x3_pctrl->nfuncs++;
+	mutex_unlock(&x3_pctrl->mutex);
 	return function;
 }
 
 
-static void x2_remove_function(struct x2_pinctrl *x2_pctrl,
-							   struct x2_pinmux_function *function)
+static void x3_remove_function(struct x3_pinctrl *x3_pctrl,
+							   struct x3_pinmux_function *function)
 {
 	int i;
-	mutex_lock(&x2_pctrl->mutex);
-	for (i = 0; i < x2_pctrl->nfuncs; i++) {
-		struct x2_pinmux_function *found;
-		found = radix_tree_lookup(&x2_pctrl->ftree, i);
+	mutex_lock(&x3_pctrl->mutex);
+	for (i = 0; i < x3_pctrl->nfuncs; i++) {
+		struct x3_pinmux_function *found;
+		found = radix_tree_lookup(&x3_pctrl->ftree, i);
 		if (found == function)
-			radix_tree_delete(&x2_pctrl->ftree, i);
+			radix_tree_delete(&x3_pctrl->ftree, i);
 	}
 	list_del(&function->node);
-	x2_pctrl->nfuncs--;
-	mutex_unlock(&x2_pctrl->mutex);
+	x3_pctrl->nfuncs--;
+	mutex_unlock(&x3_pctrl->mutex);
 }
 
-static int x2_find_func_byname(struct x2_pinctrl *pctrl, const char *func_name)
+static int x3_find_func_byname(struct x3_pinctrl *pctrl, const char *func_name)
 {
-	struct x2_pinmux_function *func;
+	struct x3_pinmux_function *func;
 	int selector = 0;
 
 	while (selector < pctrl->nfuncs) {
@@ -430,49 +430,49 @@ static int x2_find_func_byname(struct x2_pinctrl *pctrl, const char *func_name)
 	return -1;
 }
 
-static void x2_pinctrl_free_funcs(struct x2_pinctrl *x2_pctrl)
+static void x3_pinctrl_free_funcs(struct x3_pinctrl *x3_pctrl)
 {
 	struct list_head *pos, *tmp;
 	int i;
 
-	mutex_lock(&x2_pctrl->mutex);
-	for (i = 0; i < x2_pctrl->nfuncs; i++) {
-		struct x2_pinmux_function *func;
-		func = radix_tree_lookup(&x2_pctrl->ftree, i);
+	mutex_lock(&x3_pctrl->mutex);
+	for (i = 0; i < x3_pctrl->nfuncs; i++) {
+		struct x3_pinmux_function *func;
+		func = radix_tree_lookup(&x3_pctrl->ftree, i);
 		if (!func)
 			continue;
-		radix_tree_delete(&x2_pctrl->ftree, i);
+		radix_tree_delete(&x3_pctrl->ftree, i);
 	}
-	list_for_each_safe(pos, tmp, &x2_pctrl->functions) {
-		struct x2_pinmux_function *function;
-		function = list_entry(pos, struct x2_pinmux_function, node);
+	list_for_each_safe(pos, tmp, &x3_pctrl->functions) {
+		struct x3_pinmux_function *function;
+		function = list_entry(pos, struct x3_pinmux_function, node);
 		list_del(&function->node);
 	}
-	mutex_unlock(&x2_pctrl->mutex);
+	mutex_unlock(&x3_pctrl->mutex);
 }
 
-static void x2_pinctrl_free_pingroups(struct x2_pinctrl *x2_pctrl)
+static void x3_pinctrl_free_pingroups(struct x3_pinctrl *x3_pctrl)
 {
 	struct list_head *pos, *tmp;
 	int i;
 
-	mutex_lock(&x2_pctrl->mutex);
-	for (i = 0; i < x2_pctrl->ngroups; i++) {
-		struct x2_pctrl_group *pingroup;
-		pingroup = radix_tree_lookup(&x2_pctrl->pgtree, i);
+	mutex_lock(&x3_pctrl->mutex);
+	for (i = 0; i < x3_pctrl->ngroups; i++) {
+		struct x3_pctrl_group *pingroup;
+		pingroup = radix_tree_lookup(&x3_pctrl->pgtree, i);
 		if (!pingroup)
 			continue;
-		radix_tree_delete(&x2_pctrl->pgtree, i);
+		radix_tree_delete(&x3_pctrl->pgtree, i);
 	}
-	list_for_each_safe(pos, tmp, &x2_pctrl->pingroups) {
-		struct x2_pctrl_group *pingroup;
-		pingroup = list_entry(pos, struct x2_pctrl_group, node);
+	list_for_each_safe(pos, tmp, &x3_pctrl->pingroups) {
+		struct x3_pctrl_group *pingroup;
+		pingroup = list_entry(pos, struct x3_pctrl_group, node);
 		list_del(&pingroup->node);
 	}
-	mutex_unlock(&x2_pctrl->mutex);
+	mutex_unlock(&x3_pctrl->mutex);
 }
 
-static int x2_parse_one_pinctrl_entry(struct x2_pinctrl *x2_pctrl,
+static int x3_parse_one_pinctrl_entry(struct x3_pinctrl *x3_pctrl,
 									  struct device_node *np,
 									  struct pinctrl_map **map,
 									  unsigned *num_maps,
@@ -480,13 +480,13 @@ static int x2_parse_one_pinctrl_entry(struct x2_pinctrl *x2_pctrl,
 {
 	const __be32 *pinmux_group;
 	int size, rows, *pins, *muxs, index = 0, found = 0, res = -ENOMEM;
-	struct x2_pinmux_function *function = NULL;
-	pinmux_group = of_get_property(np, "pinctrl-x2,pins-muxs", &size);
+	struct x3_pinmux_function *function = NULL;
+	pinmux_group = of_get_property(np, "pinctrl-x3,pins-muxs", &size);
 	if ((!pinmux_group) || (size < sizeof(*pinmux_group) * 2)) {
-		dev_err(x2_pctrl->dev, "bad data for mux %s\n", np->name);
+		dev_err(x3_pctrl->dev, "bad data for mux %s\n", np->name);
 		return -EINVAL;
 	}
-	if (x2_find_func_byname(x2_pctrl, np->name) >= 0) {
+	if (x3_find_func_byname(x3_pctrl, np->name) >= 0) {
 		pr_debug("existed func group\n");
 		goto existed_func;
 	}
@@ -494,10 +494,10 @@ static int x2_parse_one_pinctrl_entry(struct x2_pinctrl *x2_pctrl,
 	size /= sizeof(*pinmux_group);  /* Number of elements in array */
 	rows = size / 2;
 
-	pins = devm_kzalloc(x2_pctrl->dev, sizeof(*pins) * rows, GFP_KERNEL);
+	pins = devm_kzalloc(x3_pctrl->dev, sizeof(*pins) * rows, GFP_KERNEL);
 	if (!pins)
 		return -ENOMEM;
-	muxs = devm_kzalloc(x2_pctrl->dev, sizeof(*muxs) * rows, GFP_KERNEL);
+	muxs = devm_kzalloc(x3_pctrl->dev, sizeof(*muxs) * rows, GFP_KERNEL);
 	if (!muxs)
 		goto free_pins;
 
@@ -511,10 +511,10 @@ static int x2_parse_one_pinctrl_entry(struct x2_pinctrl *x2_pctrl,
 	}
 
 	pgnames[0] = np->name;
-	function = x2_add_function(x2_pctrl, np->name, pgnames, 1);
+	function = x3_add_function(x3_pctrl, np->name, pgnames, 1);
 	if (!function)
 		goto free_muxs;
-	if (x2_add_pingroup(x2_pctrl, np->name, pins, muxs, found))
+	if (x3_add_pingroup(x3_pctrl, np->name, pins, muxs, found))
 		goto free_function;
 
 existed_func:
@@ -526,78 +526,78 @@ existed_func:
 	return 0;
 
 free_function:
-	x2_remove_function(x2_pctrl, function);
+	x3_remove_function(x3_pctrl, function);
 free_muxs:
-	devm_kfree(x2_pctrl->dev, muxs);
+	devm_kfree(x3_pctrl->dev, muxs);
 free_pins:
-	devm_kfree(x2_pctrl->dev, pins);
+	devm_kfree(x3_pctrl->dev, pins);
 
 	return res;
 }
 
-static int x2_pinctrl_dt_node_to_map(struct pinctrl_dev *pctldev,
+static int x3_pinctrl_dt_node_to_map(struct pinctrl_dev *pctldev,
 									 struct device_node *np_config,
 									 struct pinctrl_map **map, unsigned *num_maps)
 {
-	struct x2_pinctrl *x2_pctrl;
+	struct x3_pinctrl *x3_pctrl;
 	const char **pgnames;
 	int ret;
 
-	x2_pctrl = pinctrl_dev_get_drvdata(pctldev);
+	x3_pctrl = pinctrl_dev_get_drvdata(pctldev);
 
 	/* create 2 maps. One is for pinmux, and the other is for pinconf.      pinconf TODO */
-	*map = devm_kzalloc(x2_pctrl->dev, sizeof(**map) * 2, GFP_KERNEL);
+	*map = devm_kzalloc(x3_pctrl->dev, sizeof(**map) * 2, GFP_KERNEL);
 	if (!*map)
 		return -ENOMEM;
 
 	*num_maps = 0;
-	pgnames = devm_kzalloc(x2_pctrl->dev, sizeof(*pgnames), GFP_KERNEL);
+	pgnames = devm_kzalloc(x3_pctrl->dev, sizeof(*pgnames), GFP_KERNEL);
 	if (!pgnames) {
 		ret = -ENOMEM;
 		goto free_map;
 	}
-	ret = x2_parse_one_pinctrl_entry(x2_pctrl, np_config, map, num_maps, pgnames);
+	ret = x3_parse_one_pinctrl_entry(x3_pctrl, np_config, map, num_maps, pgnames);
 	if (ret < 0) {
-		dev_err(x2_pctrl->dev, "no pins entries for %s ret:%d\n", np_config->name, ret);
+		dev_err(x3_pctrl->dev, "no pins entries for %s ret:%d\n", np_config->name, ret);
 		goto free_pgnames;
 	}
 	return 0;
 
 free_pgnames:
-	devm_kfree(x2_pctrl->dev, pgnames);
+	devm_kfree(x3_pctrl->dev, pgnames);
 free_map:
-	devm_kfree(x2_pctrl->dev, *map);
+	devm_kfree(x3_pctrl->dev, *map);
 
 	return ret;
 }
 
-static void x2_pinctrl_dt_free_map(struct pinctrl_dev *pctldev,
+static void x3_pinctrl_dt_free_map(struct pinctrl_dev *pctldev,
 								   struct pinctrl_map *map,
 								   unsigned int num_maps)
 {
-	struct x2_pinctrl *pctrl = pinctrl_dev_get_drvdata(pctldev);
+	struct x3_pinctrl *pctrl = pinctrl_dev_get_drvdata(pctldev);
 	devm_kfree(pctrl->dev, map);
 }
 
-static const struct pinctrl_ops x2_pctrl_ops = {
-	.get_groups_count = x2_pinctrl_get_groups_count,
-	.get_group_name = x2_pinctrl_get_group_name,
-	.get_group_pins = x2_pinctrl_get_group_pins,
-	.dt_node_to_map = x2_pinctrl_dt_node_to_map,
-	.dt_free_map = x2_pinctrl_dt_free_map,
+static const struct pinctrl_ops x3_pctrl_ops = {
+	.get_groups_count = x3_pinctrl_get_groups_count,
+	.get_group_name = x3_pinctrl_get_group_name,
+	.get_group_pins = x3_pinctrl_get_group_pins,
+	.dt_node_to_map = x3_pinctrl_dt_node_to_map,
+	.dt_free_map = x3_pinctrl_dt_free_map,
 };
 
-static int x2_pmux_get_functions_count(struct pinctrl_dev *pctldev)
+static int x3_pmux_get_functions_count(struct pinctrl_dev *pctldev)
 {
-	struct x2_pinctrl *pctrl = pinctrl_dev_get_drvdata(pctldev);
+	struct x3_pinctrl *pctrl = pinctrl_dev_get_drvdata(pctldev);
 	return pctrl->nfuncs;
 }
 
-static const char* x2_pmux_get_function_name(struct pinctrl_dev *pctldev,
+static const char* x3_pmux_get_function_name(struct pinctrl_dev *pctldev,
 											 unsigned selector)
 {
-	struct x2_pinctrl *pctrl = pinctrl_dev_get_drvdata(pctldev);
-	struct x2_pinmux_function *func;
+	struct x3_pinctrl *pctrl = pinctrl_dev_get_drvdata(pctldev);
+	struct x3_pinmux_function *func;
 	func = radix_tree_lookup(&pctrl->ftree, selector);
 	if (!func) {
 		dev_err(pctrl->dev, "%s could not find function%i\n", __func__, selector);
@@ -606,13 +606,13 @@ static const char* x2_pmux_get_function_name(struct pinctrl_dev *pctldev,
 	return func->name;
 }
 
-static int x2_pmux_get_function_groups(struct pinctrl_dev *pctldev,
+static int x3_pmux_get_function_groups(struct pinctrl_dev *pctldev,
 									   unsigned selector,
 									   const char *const **groups,
 									   unsigned *const num_groups)
 {
-	struct x2_pinctrl *pctrl = pinctrl_dev_get_drvdata(pctldev);
-	struct x2_pinmux_function *func;
+	struct x3_pinctrl *pctrl = pinctrl_dev_get_drvdata(pctldev);
+	struct x3_pinmux_function *func;
 	func = radix_tree_lookup(&pctrl->ftree, selector);
 	if (!func) {
 		dev_err(pctrl->dev, "%s could not find function%i\n", __func__, selector);
@@ -623,7 +623,7 @@ static int x2_pmux_get_function_groups(struct pinctrl_dev *pctldev,
 	return 0;
 }
 
-static inline void x2_pinctrl_fsel_set(struct x2_pinctrl *pctrl,
+static inline void x3_pinctrl_fsel_set(struct x3_pinctrl *pctrl,
 									   unsigned pin,
 									   unsigned int fsel)
 {
@@ -639,31 +639,31 @@ static inline void x2_pinctrl_fsel_set(struct x2_pinctrl *pctrl,
 	}
 }
 
-static int x2_pinmux_set_mux(struct pinctrl_dev *pctldev,
+static int x3_pinmux_set_mux(struct pinctrl_dev *pctldev,
 			     unsigned int function, unsigned int group)
 {
 	int i;
-	struct x2_pinctrl *pctrl = pinctrl_dev_get_drvdata(pctldev);
-	const struct x2_pctrl_group *pgrp;
+	struct x3_pinctrl *pctrl = pinctrl_dev_get_drvdata(pctldev);
+	const struct x3_pctrl_group *pgrp;
 	pgrp = radix_tree_lookup(&pctrl->pgtree, group);
 
 	for (i = 0; i < pgrp->npins; i++) {
 		unsigned int pin = pgrp->pins[i];
 		unsigned int mux_val = pgrp->mux_val[i];
-		x2_pinctrl_fsel_set(pctrl, pin, mux_val);
+		x3_pinctrl_fsel_set(pctrl, pin, mux_val);
 	}
 	return 0;
 }
 
-static const struct pinmux_ops x2_pinmux_ops = {
-	.get_functions_count = x2_pmux_get_functions_count,
-	.get_function_name = x2_pmux_get_function_name,
-	.get_function_groups = x2_pmux_get_function_groups,
-	.set_mux = x2_pinmux_set_mux,
+static const struct pinmux_ops x3_pinmux_ops = {
+	.get_functions_count = x3_pmux_get_functions_count,
+	.get_function_name = x3_pmux_get_function_name,
+	.get_function_groups = x3_pmux_get_function_groups,
+	.set_mux = x3_pinmux_set_mux,
 	.strict = true,
 };
 
-static int x2_pinconf_cfg_get(struct pinctrl_dev *pctldev,
+static int x3_pinconf_cfg_get(struct pinctrl_dev *pctldev,
 							  unsigned pin,
 							  unsigned long *config)
 {
@@ -672,9 +672,9 @@ static int x2_pinconf_cfg_get(struct pinctrl_dev *pctldev,
 	void __iomem *regaddr;
 
 	unsigned int param = pinconf_to_config_param(*config);
-	struct x2_pinctrl *pctrl = pinctrl_dev_get_drvdata(pctldev);
+	struct x3_pinctrl *pctrl = pinctrl_dev_get_drvdata(pctldev);
 
-	if (pin >= X2_NUM_IOS)
+	if (pin >= X3_NUM_IOS)
 		return -ENOTSUPP;
 
 	regaddr = pctrl->pinbase + (pin << 2);
@@ -695,16 +695,16 @@ static int x2_pinconf_cfg_get(struct pinctrl_dev *pctldev,
 	return 0;
 }
 
-static int x2_pinconf_cfg_set(struct pinctrl_dev *pctldev,
+static int x3_pinconf_cfg_set(struct pinctrl_dev *pctldev,
 							  unsigned pin,
 							  unsigned long *configs,
 							  unsigned num_configs)
 {
 	int i, value;
 	void __iomem *regaddr;
-	struct x2_pinctrl *pctrl = pinctrl_dev_get_drvdata(pctldev);
+	struct x3_pinctrl *pctrl = pinctrl_dev_get_drvdata(pctldev);
 
-	if (pin >= X2_NUM_IOS)
+	if (pin >= X3_NUM_IOS)
 		return -ENOTSUPP;
 	regaddr = pctrl->pinbase + (pin << 2);
 
@@ -729,78 +729,78 @@ static int x2_pinconf_cfg_set(struct pinctrl_dev *pctldev,
 	return 0;
 }
 
-static const struct pinconf_ops x2_pinconf_ops = {
-	.pin_config_get = x2_pinconf_cfg_get,
-	.pin_config_set = x2_pinconf_cfg_set,
+static const struct pinconf_ops x3_pinconf_ops = {
+	.pin_config_get = x3_pinconf_cfg_get,
+	.pin_config_set = x3_pinconf_cfg_set,
 };
 
-static struct pinctrl_desc x2_desc = {
-	.name = "x2_pinctrl",
-	.pins = x2_pins,
-	.npins = ARRAY_SIZE(x2_pins),
-	.pctlops = &x2_pctrl_ops,
-	.pmxops = &x2_pinmux_ops,
-	.confops = &x2_pinconf_ops,
+static struct pinctrl_desc x3_desc = {
+	.name = "x3_pinctrl",
+	.pins = x3_pins,
+	.npins = ARRAY_SIZE(x3_pins),
+	.pctlops = &x3_pctrl_ops,
+	.pmxops = &x3_pinmux_ops,
+	.confops = &x3_pinconf_ops,
 	.owner = THIS_MODULE,
 };
 
-static int x2_gpio_get(struct gpio_chip *chip, unsigned offset)
+static int x3_gpio_get(struct gpio_chip *chip, unsigned offset)
 {
 	u32 value;
 	int index;
 	void __iomem *regaddr;
 	unsigned int gpio = chip->base + offset;
-	struct x2_pinctrl *pctrl = gpiochip_get_data(chip);
+	struct x3_pinctrl *pctrl = gpiochip_get_data(chip);
 	index = find_io_group_index(gpio);
 	if (index < 0)
 		return -1;
 	regaddr = pctrl->regbase + io_groups[index].regoffset;
 
-	value = readl(regaddr + X2_IO_IN_VALUE);
+	value = readl(regaddr + X3_IO_IN_VALUE);
 	value &= (0x1 << (gpio - io_groups[index].start));
 	if (value)
 		return 1;
 	return 0;
 }
 
-static void x2_gpio_set(struct gpio_chip *chip, unsigned offset, int val)
+static void x3_gpio_set(struct gpio_chip *chip, unsigned offset, int val)
 {
 	u32 value;
 	int index;
 	void __iomem *regaddr;
 	unsigned int gpio = chip->base + offset;
-	struct x2_pinctrl *pctrl = gpiochip_get_data(chip);
+	struct x3_pinctrl *pctrl = gpiochip_get_data(chip);
 	index = find_io_group_index(gpio);
 	if (index < 0)
 		return;
 	regaddr = pctrl->regbase + io_groups[index].regoffset;
-	value = readl(regaddr + X2_IO_CTL);
+	value = readl(regaddr + X3_IO_CTL);
 	if (val == GPIO_LOW)
 		value &= ~(0x1 << (gpio - io_groups[index].start));
 	else if (val == GPIO_HIGH)
 		value |= (0x1 << (gpio - io_groups[index].start));
-	writel(value, regaddr + X2_IO_CTL);
+	writel(value, regaddr + X3_IO_CTL);
 }
 
-static int x2_gpio_direction_input(struct gpio_chip *chip, unsigned offset)
+static int x3_gpio_direction_input(struct gpio_chip *chip, unsigned offset)
 {
 	u32 value;
 	int index;
 	void __iomem *regaddr;
 	unsigned int gpio = chip->base + offset;
-	struct x2_pinctrl *pctrl = gpiochip_get_data(chip);
+	struct x3_pinctrl *pctrl = gpiochip_get_data(chip);
 
 	index = find_io_group_index(gpio);
 	if (index < 0)
 		return -ENODEV;
 	regaddr = pctrl->regbase + io_groups[index].regoffset;
-	value = readl(regaddr + X2_IO_CTL);
-	value &= ~(0x1 << (gpio - io_groups[index].start + X2_IO_DIR_SHIFT));
-	writel(value, regaddr + X2_IO_CTL);
+	value = readl(regaddr + X3_IO_CTL);
+	value &= ~(0x1 << (gpio - io_groups[index].start + X3_IO_DIR_SHIFT));
+	writel(value, regaddr + X3_IO_CTL);
 	return 0;
 }
 
-static int x2_gpio_direction_output(struct gpio_chip *chip,
+static int x3_gpio_direction_output(struct gpio_chip *chip,
 									unsigned offset,
 									int val)
 {
@@ -808,135 +808,135 @@ static int x2_gpio_direction_output(struct gpio_chip *chip,
 	int index;
 	void __iomem *regaddr;
 	unsigned int gpio = chip->base + offset;
-	struct x2_pinctrl *pctrl = gpiochip_get_data(chip);
+	struct x3_pinctrl *pctrl = gpiochip_get_data(chip);
 
 	index = find_io_group_index(gpio);
 	if (index < 0)
 		return -ENODEV;
 	regaddr = pctrl->regbase + io_groups[index].regoffset;
-	value = readl(regaddr + X2_IO_CTL);
-	value |= (0x1 << (gpio - io_groups[index].start + X2_IO_DIR_SHIFT));
+	value = readl(regaddr + X3_IO_CTL);
+	value |= (0x1 << (gpio - io_groups[index].start + X3_IO_DIR_SHIFT));
 
 	if (val == GPIO_LOW)
 		value &= ~(0x1 << (gpio - io_groups[index].start));
 	else if (val == GPIO_HIGH)
 		value |= (0x1 << (gpio - io_groups[index].start));
 
-	writel(value, regaddr + X2_IO_CTL);
+	writel(value, regaddr + X3_IO_CTL);
 
 	return 0;
 }
 
-static int x2_gpio_to_irq(struct gpio_chip *chip, unsigned offset)
+static int x3_gpio_to_irq(struct gpio_chip *chip, unsigned offset)
 {
 	return 0;
 }
 
-static int x2_gpio_request(struct gpio_chip *chip, unsigned int offset)
+static int x3_gpio_request(struct gpio_chip *chip, unsigned int offset)
 {
 	int ret;
-	struct x2_pinctrl *pctrl = gpiochip_get_data(chip);
+	struct x3_pinctrl *pctrl = gpiochip_get_data(chip);
 	ret = pinctrl_request_gpio(chip->base + offset);
 	if (ret)
 		return ret;
-	x2_pinctrl_fsel_set(pctrl, chip->base + offset, 0x3);
+	x3_pinctrl_fsel_set(pctrl, chip->base + offset, 0x3);
 	return 0;
 }
-static void x2_gpio_free(struct gpio_chip *chip, unsigned int offset)
+static void x3_gpio_free(struct gpio_chip *chip, unsigned int offset)
 {
 	pinctrl_free_gpio(chip->base + offset);
 }
 
-static struct gpio_chip x2_gpio = {
-	.base = X2_IO_MIN,
-	.ngpio = X2_IO_MAX - X2_IO_MIN + 1,
-	.direction_input = x2_gpio_direction_input,
-	.direction_output = x2_gpio_direction_output,
-	.get = x2_gpio_get,
-	.set = x2_gpio_set,
-	.to_irq = x2_gpio_to_irq,
-	.request = x2_gpio_request,
-	.free = x2_gpio_free,
+static struct gpio_chip x3_gpio = {
+	.base = X3_IO_MIN,
+	.ngpio = X3_IO_MAX - X3_IO_MIN + 1,
+	.direction_input = x3_gpio_direction_input,
+	.direction_output = x3_gpio_direction_output,
+	.get = x3_gpio_get,
+	.set = x3_gpio_set,
+	.to_irq = x3_gpio_to_irq,
+	.request = x3_gpio_request,
+	.free = x3_gpio_free,
 };
 
-static struct pinctrl_gpio_range x2_pinctrl_gpio_range = {
-	.name = "pinctrl-x2",
-	.npins = X2_IO_MAX - X2_IO_MIN + 1,
+static struct pinctrl_gpio_range x3_pinctrl_gpio_range = {
+	.name = "pinctrl-x3",
+	.npins = X3_IO_MAX - X3_IO_MIN + 1,
 };
 
-static void x2_gpio_irq_enable(struct irq_data *data)
+static void x3_gpio_irq_enable(struct irq_data *data)
 {
 	u32 value, bank;
 	void __iomem	*regaddr;
 	struct gpio_chip *chip = irq_data_get_irq_chip_data(data);
-	struct x2_pinctrl *pctrl = gpiochip_get_data(chip);
+	struct x3_pinctrl *pctrl = gpiochip_get_data(chip);
 	unsigned gpio = irqd_to_hwirq(data) + chip->base;
 	set_bit(gpio, pctrl->gpio_irq_enabled_mask);
 	bank = find_irqbank(pctrl, gpio);
 	if (bank < GPIO_IRQ_BANK0 || bank > GPIO_IRQ_BANK3)
 		return;
-	regaddr = pctrl->regbase + X2_IO_INT_EN;
+	regaddr = pctrl->regbase + X3_IO_INT_EN;
 	value = readl(regaddr);
 	value |= 0x1 << bank;
 	writel(value, regaddr);
 }
 
-static void x2_gpio_irq_disable(struct irq_data *data)
+static void x3_gpio_irq_disable(struct irq_data *data)
 {
 	u32 value, bank;
 	void __iomem	*regaddr;
 	struct gpio_chip *chip = irq_data_get_irq_chip_data(data);
-	struct x2_pinctrl *pctrl = gpiochip_get_data(chip);
+	struct x3_pinctrl *pctrl = gpiochip_get_data(chip);
 	unsigned gpio = irqd_to_hwirq(data) + chip->base;
 	clear_bit(gpio, pctrl->gpio_irq_enabled_mask);
 	bank = find_irqbank(pctrl, gpio);
 	if (bank < GPIO_IRQ_BANK0 || bank > GPIO_IRQ_BANK3)
 		return;
-	regaddr = pctrl->regbase + X2_IO_INT_EN;
+	regaddr = pctrl->regbase + X3_IO_INT_EN;
 	value = readl(regaddr);
 	value &= ~(0x1 << bank);
 	writel(value, regaddr);
 }
 
-static void x2_gpio_irq_unmask(struct irq_data *data)
+static void x3_gpio_irq_unmask(struct irq_data *data)
 {
 	u32 value, bank;
 	struct gpio_chip *chip = irq_data_get_irq_chip_data(data);
-	struct x2_pinctrl *pctrl = gpiochip_get_data(chip);
+	struct x3_pinctrl *pctrl = gpiochip_get_data(chip);
 	unsigned gpio = irqd_to_hwirq(data) + chip->base;
 	bank = find_irqbank(pctrl, gpio);
 	if (bank < GPIO_IRQ_BANK0 || bank > GPIO_IRQ_BANK3)
 		return;
-	value = readl(pctrl->regbase + X2_IO_INT_UNMASK);
+	value = readl(pctrl->regbase + X3_IO_INT_UNMASK);
 	value |= 0x1 << bank;
-	writel(value, pctrl->regbase + X2_IO_INT_UNMASK);
+	writel(value, pctrl->regbase + X3_IO_INT_UNMASK);
 }
 
-static void x2_gpio_irq_mask(struct irq_data *data)
+static void x3_gpio_irq_mask(struct irq_data *data)
 {
 	u32 value, bank;
 	struct gpio_chip *chip = irq_data_get_irq_chip_data(data);
-	struct x2_pinctrl *pctrl = gpiochip_get_data(chip);
+	struct x3_pinctrl *pctrl = gpiochip_get_data(chip);
 	unsigned gpio = irqd_to_hwirq(data) + chip->base;
 	bank = find_irqbank(pctrl, gpio);
 	if (bank < GPIO_IRQ_BANK0 || bank > GPIO_IRQ_BANK3)
 		return;
-	value = readl(pctrl->regbase + X2_IO_INT_SETMASK);
+	value = readl(pctrl->regbase + X3_IO_INT_SETMASK);
 	value |= 0x1 << bank;
-	writel(value, pctrl->regbase + X2_IO_INT_SETMASK);
+	writel(value, pctrl->regbase + X3_IO_INT_SETMASK);
 }
 
-static int x2_gpio_irq_set_type(struct irq_data *data, unsigned int type)
+static int x3_gpio_irq_set_type(struct irq_data *data, unsigned int type)
 {
 	u32 value1, value2, gpio, bank;
 	struct gpio_chip *chip = irq_data_get_irq_chip_data(data);
-	struct x2_pinctrl *pctrl = gpiochip_get_data(chip);
+	struct x3_pinctrl *pctrl = gpiochip_get_data(chip);
 	gpio = irqd_to_hwirq(data) + chip->base;
 	bank = find_irqbank(pctrl, gpio);
 	if (bank < GPIO_IRQ_BANK0 || bank > GPIO_IRQ_BANK3)
 		return -EINVAL;
-	value1 = readl(pctrl->regbase + X2_IO_INT_POS);
-	value2 = readl(pctrl->regbase + X2_IO_INT_NEG);
+	value1 = readl(pctrl->regbase + X3_IO_INT_POS);
+	value2 = readl(pctrl->regbase + X3_IO_INT_NEG);
 	switch (type) {
 	case IRQ_TYPE_EDGE_RISING:
 		value1 |= BIT(bank);
@@ -953,47 +953,47 @@ static int x2_gpio_irq_set_type(struct irq_data *data, unsigned int type)
 	default:
 		return -EINVAL;
 	}
-	writel(value1, pctrl->regbase + X2_IO_INT_POS);
-	writel(value2, pctrl->regbase + X2_IO_INT_NEG);
+	writel(value1, pctrl->regbase + X3_IO_INT_POS);
+	writel(value2, pctrl->regbase + X3_IO_INT_NEG);
 	return 0;
 }
 
-static int x2_set_gpio_irq_to_bank(struct x2_pinctrl *pctrl)
+static int x3_set_gpio_irq_to_bank(struct x3_pinctrl *pctrl)
 {
 	u32 value, index, gpio;
 	for (index = 0; index < GPIO_IRQ_BANK_NUM; index++) {
 		gpio = pctrl->irqbind[index];
-		if (gpio < X2_IO_MIN || gpio > X2_IO_MAX)
+		if (gpio < X3_IO_MIN || gpio > X3_IO_MAX)
 			continue;
-		value = readl(pctrl->regbase + X2_IO_INT_SEL);
+		value = readl(pctrl->regbase + X3_IO_INT_SEL);
 		value &= ~(0xff << index * 8);
 		value |= (gpio << index * 8);
-		writel(value, pctrl->regbase + X2_IO_INT_SEL);
+		writel(value, pctrl->regbase + X3_IO_INT_SEL);
 	}
 	return 0;
 }
 
-static struct irq_chip x2_gpio_irq_chip = {
-	.name = "pinctrl-x2",
-	.irq_enable = x2_gpio_irq_enable,
-	.irq_disable = x2_gpio_irq_disable,
-	.irq_set_type = x2_gpio_irq_set_type,
+static struct irq_chip x3_gpio_irq_chip = {
+	.name = "pinctrl-x3",
+	.irq_enable = x3_gpio_irq_enable,
+	.irq_disable = x3_gpio_irq_disable,
+	.irq_set_type = x3_gpio_irq_set_type,
 	.irq_ack = NULL,
-	.irq_mask = x2_gpio_irq_mask,
-	.irq_unmask = x2_gpio_irq_unmask,
+	.irq_mask = x3_gpio_irq_mask,
+	.irq_unmask = x3_gpio_irq_unmask,
 };
 
-static void x2_gpio_generic_handler(struct irq_desc *desc)
+static void x3_gpio_generic_handler(struct irq_desc *desc)
 {
 	u32 value, gpio, i;
 	void __iomem	*regaddr;
 	struct gpio_chip *chip = irq_desc_get_handler_data(desc);
 	struct irq_chip *irqchip = irq_desc_get_chip(desc);
-	struct x2_pinctrl *pctrl = gpiochip_get_data(chip);
+	struct x3_pinctrl *pctrl = gpiochip_get_data(chip);
 
 	chained_irq_enter(irqchip, desc);
 
-	regaddr = pctrl->regbase + X2_IO_INT_SRCPND;
+	regaddr = pctrl->regbase + X3_IO_INT_SRCPND;
 	value = readl(regaddr);
 	for (i = 0; i < GPIO_IRQ_BANK_NUM; i++) {
 		gpio = pctrl->irqbind[i];
@@ -1005,62 +1005,62 @@ static void x2_gpio_generic_handler(struct irq_desc *desc)
 	chained_irq_exit(irqchip, desc);
 }
 
-static int x2_pinctrl_probe(struct platform_device *pdev)
+static int x3_pinctrl_probe(struct platform_device *pdev)
 {
 	struct resource *res,*irq;
-	struct x2_pinctrl *x2_pctrl;
+	struct x3_pinctrl *x3_pctrl;
 	int ret = 0;
 
-	x2_pctrl = devm_kzalloc(&pdev->dev, sizeof(struct x2_pinctrl), GFP_KERNEL);
-	if (!x2_pctrl)
+	x3_pctrl = devm_kzalloc(&pdev->dev, sizeof(struct x3_pinctrl), GFP_KERNEL);
+	if (!x3_pctrl)
 		return -ENOMEM;
-	printk("x2_pinctrl_probe\n");
+	printk("x3_pinctrl_probe\n");
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!res) {
 		dev_err(&pdev->dev, "missing IO resource\n");
 		return -ENODEV;
 	}
-	x2_pctrl->pinbase = devm_ioremap_resource(&pdev->dev, res);
+	x3_pctrl->pinbase = devm_ioremap_resource(&pdev->dev, res);
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 1);
 	if (!res) {
 		dev_err(&pdev->dev, "missing GPIO IO resource\n");
 		return -ENODEV;
 	}
-	x2_pctrl->regbase = devm_ioremap_resource(&pdev->dev, res);
-	x2_pctrl->dev = &pdev->dev;
-	mutex_init(&x2_pctrl->mutex);
-	INIT_LIST_HEAD(&x2_pctrl->pingroups);
-	INIT_LIST_HEAD(&x2_pctrl->functions);
-	bitmap_zero(x2_pctrl->gpio_irq_enabled_mask, X2_NUM_IOS);
-	x2_pctrl->gpio_chip = &x2_gpio;
-	x2_pctrl->gpio_chip->parent = &pdev->dev;
-	x2_pctrl->gpio_chip->of_node = pdev->dev.of_node;
+	x3_pctrl->regbase = devm_ioremap_resource(&pdev->dev, res);
+	x3_pctrl->dev = &pdev->dev;
+	mutex_init(&x3_pctrl->mutex);
+	INIT_LIST_HEAD(&x3_pctrl->pingroups);
+	INIT_LIST_HEAD(&x3_pctrl->functions);
+	bitmap_zero(x3_pctrl->gpio_irq_enabled_mask, X3_NUM_IOS);
+	x3_pctrl->gpio_chip = &x3_gpio;
+	x3_pctrl->gpio_chip->parent = &pdev->dev;
+	x3_pctrl->gpio_chip->of_node = pdev->dev.of_node;
 
-	ret = gpiochip_add_data(x2_pctrl->gpio_chip, x2_pctrl);
+	ret = gpiochip_add_data(x3_pctrl->gpio_chip, x3_pctrl);
 	if (ret) {
 		dev_err(&pdev->dev, "could not add GPIO chip\n");
 		goto free;
 	}
 
-	x2_pctrl->pctrl = devm_pinctrl_register(&pdev->dev, &x2_desc, x2_pctrl);
-	if (IS_ERR(x2_pctrl->pctrl)) {
-		ret = PTR_ERR(x2_pctrl->pctrl);
+	x3_pctrl->pctrl = devm_pinctrl_register(&pdev->dev, &x3_desc, x3_pctrl);
+	if (IS_ERR(x3_pctrl->pctrl)) {
+		ret = PTR_ERR(x3_pctrl->pctrl);
 		goto free;
 	}
-	x2_pctrl->gpio_range = &x2_pinctrl_gpio_range;
-	x2_pctrl->gpio_range->base = X2_IO_MIN;
-	x2_pctrl->gpio_range->pin_base = X2_IO_MIN;
-	x2_pctrl->gpio_range->gc = x2_pctrl->gpio_chip;
-	pinctrl_add_gpio_range(x2_pctrl->pctrl, x2_pctrl->gpio_range);
+	x3_pctrl->gpio_range = &x3_pinctrl_gpio_range;
+	x3_pctrl->gpio_range->base = X3_IO_MIN;
+	x3_pctrl->gpio_range->pin_base = X3_IO_MIN;
+	x3_pctrl->gpio_range->gc = x3_pctrl->gpio_chip;
+	pinctrl_add_gpio_range(x3_pctrl->pctrl, x3_pctrl->gpio_range);
 
-	platform_set_drvdata(pdev, x2_pctrl);
+	platform_set_drvdata(pdev, x3_pctrl);
 
-	x2_pctrl->irq_base = devm_irq_alloc_descs(x2_pctrl->dev, -1, 0,
-											  x2_pctrl->gpio_chip->ngpio, NUMA_NO_NODE);
-	if (x2_pctrl->irq_base < 0) {
-		dev_err(x2_pctrl->dev, "Failed to allocate IRQ numbers\n");
+	x3_pctrl->irq_base = devm_irq_alloc_descs(x3_pctrl->dev, -1, 0,
+											  x3_pctrl->gpio_chip->ngpio, NUMA_NO_NODE);
+	if (x3_pctrl->irq_base < 0) {
+		dev_err(x3_pctrl->dev, "Failed to allocate IRQ numbers\n");
 	}
-	ret = gpiochip_irqchip_add(x2_pctrl->gpio_chip, &x2_gpio_irq_chip, x2_pctrl->irq_base,
+	ret = gpiochip_irqchip_add(x3_pctrl->gpio_chip, &x3_gpio_irq_chip, x3_pctrl->irq_base,
 							   handle_level_irq, IRQ_TYPE_NONE);
 	if (ret) {
 		dev_err(&pdev->dev, "Could not connect irqchip to gpiochip!\n");
@@ -1070,37 +1070,37 @@ static int x2_pinctrl_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "No IRQ resource\n");
 		return -ENODEV;
 	}
-	gpiochip_set_chained_irqchip(x2_pctrl->gpio_chip, &x2_gpio_irq_chip, irq->start,
-								 x2_gpio_generic_handler);
+	gpiochip_set_chained_irqchip(x3_pctrl->gpio_chip, &x3_gpio_irq_chip, irq->start,
+								 x3_gpio_generic_handler);
 
-	if (!of_property_read_u32_array(pdev->dev.of_node, "gpioirq-bank-cfg", x2_pctrl->irqbind, GPIO_IRQ_BANK_NUM)) {
-		x2_set_gpio_irq_to_bank(x2_pctrl);
+	if (!of_property_read_u32_array(pdev->dev.of_node, "gpioirq-bank-cfg", x3_pctrl->irqbind, GPIO_IRQ_BANK_NUM)) {
+		x3_set_gpio_irq_to_bank(x3_pctrl);
 	}
 
-	dev_info(&pdev->dev, "x2 pinctrl initialized\n");
+	dev_info(&pdev->dev, "x3 pinctrl initialized\n");
 	return 0;
 free:
-	x2_pinctrl_free_funcs(x2_pctrl);
-	x2_pinctrl_free_pingroups(x2_pctrl);
+	x3_pinctrl_free_funcs(x3_pctrl);
+	x3_pinctrl_free_pingroups(x3_pctrl);
 	return ret;
 }
 
-static const struct of_device_id x2_pinctrl_of_match[] = {
-	{.compatible = "hobot,x2-pinctrl"},
+static const struct of_device_id x3_pinctrl_of_match[] = {
+	{.compatible = "hobot,x3-pinctrl"},
 	{}
 };
 
-static struct platform_driver x2_pinctrl_driver = {
+static struct platform_driver x3_pinctrl_driver = {
 	.driver = {
-		.name = "pinctrl-x2",
-		.of_match_table = x2_pinctrl_of_match,
+		.name = "pinctrl-x3",
+		.of_match_table = x3_pinctrl_of_match,
 	},
-	.probe = x2_pinctrl_probe,
+	.probe = x3_pinctrl_probe,
 };
 
-static int __init x2_pinctrl_init(void)
+static int __init x3_pinctrl_init(void)
 {
-	return platform_driver_register(&x2_pinctrl_driver);
+	return platform_driver_register(&x3_pinctrl_driver);
 }
-arch_initcall(x2_pinctrl_init);
+arch_initcall(x3_pinctrl_init);
 

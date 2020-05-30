@@ -42,7 +42,7 @@ static int iar_mmap_open(struct inode *inode, struct file *filp)
 	unsigned int channel;
 	iarcdev_p = container_of(inode->i_cdev, struct iar_mmap_s, cdev);
 	channel = MINOR(inode->i_rdev) - iarcdev_p->minor;
-	iarcdev_p->framebuf_user[channel] = x2_iar_get_framebuf_addr(channel);
+	iarcdev_p->framebuf_user[channel] = hobot_iar_get_framebuf_addr(channel);
 	filp->private_data = iarcdev_p->framebuf_user[channel];
 	printk("iar_mmap_open:%d\n", channel);
 	return 0;

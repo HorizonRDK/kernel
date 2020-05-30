@@ -594,16 +594,16 @@ static const struct file_operations iar_cdev_ops = {
 	.compat_ioctl = iar_cdev_ioctl
 };
 
-struct kobject *x2_iar_kobj;
-static ssize_t x2_iar_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
+struct kobject *hobot_iar_kobj;
+static ssize_t hobot_iar_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
 	char *s = buf;
 
-	x2_iar_dump();
+	hobot_iar_dump();
 
 	return (s - buf);
 }
-static ssize_t x2_iar_store(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t n)
+static ssize_t hobot_iar_store(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t n)
 {
 	const char *tmp;
 	int error = -EINVAL;
@@ -761,8 +761,8 @@ static struct kobj_attribute iar_test_attr = {
 		.name = __stringify(iar_test_attr),
 		.mode = 0644,
 	},
-	.show	= x2_iar_show,
-	.store	= x2_iar_store,
+	.show	= hobot_iar_show,
+	.store	= hobot_iar_store,
 };
 
 static struct attribute *attributes[] = {
@@ -806,8 +806,8 @@ int __init iar_cdev_init(void)
 
 	g_iar_cdev->dev = device_create(g_iar_cdev->iar_classes, NULL, g_iar_cdev->dev_num, NULL, g_iar_cdev->name);
 
-	g_iar_cdev->framebuf_user[IAR_CHANNEL_1] = x2_iar_get_framebuf_addr(IAR_CHANNEL_1);
-	g_iar_cdev->framebuf_user[IAR_CHANNEL_3] = x2_iar_get_framebuf_addr(IAR_CHANNEL_3);
+	g_iar_cdev->framebuf_user[IAR_CHANNEL_1] = hobot_iar_get_framebuf_addr(IAR_CHANNEL_1);
+	g_iar_cdev->framebuf_user[IAR_CHANNEL_3] = hobot_iar_get_framebuf_addr(IAR_CHANNEL_3);
 
 	return sysfs_create_group(&g_iar_cdev->dev->kobj, &attr_group);
 }
@@ -825,5 +825,5 @@ module_init(iar_cdev_init);
 module_exit(iar_cdev_exit);
 
 MODULE_LICENSE("GPL");
-MODULE_ALIAS("platform: x2");
+MODULE_ALIAS("Platform: Hobot SoC");
 

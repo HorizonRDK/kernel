@@ -47,7 +47,7 @@ ATOMIC_NOTIFIER_HEAD(panic_notifier_list);
 
 EXPORT_SYMBOL(panic_notifier_list);
 
-extern int x2_swinfo_panic(void);
+extern int hobot_swinfo_panic(void);
 
 static long no_blink(int state)
 {
@@ -245,7 +245,7 @@ void panic(const char *fmt, ...)
 	 * panic() is not being callled from OOPS.
 	 */
 	debug_locks_off();
-	x2_swinfo_panic();
+	hobot_swinfo_panic();
 	console_flush_on_panic();
 
 	if (!panic_blink)
