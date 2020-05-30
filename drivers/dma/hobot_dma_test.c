@@ -229,20 +229,20 @@ static int mem_dma_remove(struct platform_device *pdev) {
 	return 0;
 }
 
-static const struct of_device_id x2_dmatest_dt_ids[] = {
-	{ .compatible = "hobot,x2-dma-test", },
+static const struct of_device_id hobot_dmatest_dt_ids[] = {
+	{ .compatible = "hobot,hobot-dma-test", },
 	{},
 };
 
-MODULE_DEVICE_TABLE(of, x2_dmatest_dt_ids);
+MODULE_DEVICE_TABLE(of, hobot_dmatest_dt_ids);
 
-static struct platform_driver x2_dmatest_driver = {
+static struct platform_driver hobot_dmatest_driver = {
 	.probe  = mem_dma_probe,
 	.remove = mem_dma_remove,
 	.driver = {
 		.name  = "hobot_dmatest",
 		.owner = THIS_MODULE,
-		.of_match_table = of_match_ptr(x2_dmatest_dt_ids),
+		.of_match_table = of_match_ptr(hobot_dmatest_dt_ids),
 	},
 };
 
@@ -250,9 +250,9 @@ static int __init mem_dma_init(void)
 {
 	int ret;
 
-	ret = platform_driver_register(&x2_dmatest_driver);
+	ret = platform_driver_register(&hobot_dmatest_driver);
 	if (ret)
-		printk(KERN_ERR "x2_dmatest: probe failed: %d\n", ret);
+		printk(KERN_ERR "hobot_dmatest: probe failed: %d\n", ret);
 
 	return ret;
 }
@@ -260,7 +260,7 @@ module_init(mem_dma_init);
 
 static void __exit mem_dma_exit(void)
 {
-	platform_driver_unregister(&x2_dmatest_driver);
+	platform_driver_unregister(&hobot_dmatest_driver);
 }
 module_exit(mem_dma_exit);
 

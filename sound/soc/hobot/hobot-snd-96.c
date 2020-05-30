@@ -25,7 +25,7 @@ enum adau1977_sysclk_src {
         ADAU1977_SYSCLK_SRC_LRCLK,
 };
 
-static int x2_snd_hw_params(struct snd_pcm_substream *substream,
+static int hobot_snd_hw_params(struct snd_pcm_substream *substream,
 			     struct snd_pcm_hw_params *params)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
@@ -76,11 +76,11 @@ static int x2_snd_hw_params(struct snd_pcm_substream *substream,
 	return ret;
 }
 
-static struct snd_soc_ops x2_snd_ops = {
-	.hw_params = x2_snd_hw_params,
+static struct snd_soc_ops hobot_snd_ops = {
+	.hw_params = hobot_snd_hw_params,
 };
 
-static int x2_snd_probe(struct platform_device *pdev)
+static int hobot_snd_probe(struct platform_device *pdev)
 {
 	int ret = 0, id = 0, num = 0, idx = 0;
 	struct snd_soc_card *card = NULL;
@@ -127,7 +127,7 @@ static int x2_snd_probe(struct platform_device *pdev)
 	}
 	for_each_child_of_node(node, np) {
 		link = links + idx;
-		link->ops = &x2_snd_ops;
+		link->ops = &hobot_snd_ops;
 		cpu = of_get_child_by_name(np, "cpu");
 		codec = of_get_child_by_name(np, "codec");
 		if (!cpu || !codec) {
@@ -188,7 +188,7 @@ static int x2_snd_probe(struct platform_device *pdev)
 }
 
 
-static int x2_snd_remove(struct platform_device *pdev)
+static int hobot_snd_remove(struct platform_device *pdev)
 {
 	struct snd_soc_card *card = platform_get_drvdata(pdev);
 
@@ -203,42 +203,42 @@ static int x2_snd_remove(struct platform_device *pdev)
 }
 
 #ifdef CONFIG_OF
-static const struct of_device_id x2_snd_of_match[] = {
+static const struct of_device_id hobot_snd_of_match[] = {
 	{.compatible = "hobot, hobot-snd0", },
 	{.compatible = "hobot, hobot-snd1", },
 	{}
 };
 
 
-MODULE_DEVICE_TABLE(of, x2_snd_of_match);
+MODULE_DEVICE_TABLE(of, hobot_snd_of_match);
 #endif
 
-static struct platform_driver x2_snd_driver = {
-	.probe = x2_snd_probe,
-	.remove = x2_snd_remove,
+static struct platform_driver hobot_snd_driver = {
+	.probe = hobot_snd_probe,
+	.remove = hobot_snd_remove,
 	.driver = {
 	   .name = "hobot-snd",
 #ifdef CONFIG_OF
-	   .of_match_table = x2_snd_of_match,
+	   .of_match_table = hobot_snd_of_match,
 #endif
    },
 };
 
-int __init x2_snd_init(void)
+int __init hobot_snd_init(void)
 {
-	return platform_driver_register(&x2_snd_driver);
+	return platform_driver_register(&hobot_snd_driver);
 }
 
-static void __exit x2_snd_cleanup(void)
+static void __exit hobot_snd_cleanup(void)
 {
-	platform_driver_unregister(&x2_snd_driver);
+	platform_driver_unregister(&hobot_snd_driver);
 }
 
-late_initcall(x2_snd_init);
-module_exit(x2_snd_cleanup);
+late_initcall(hobot_snd_init);
+module_exit(hobot_snd_cleanup);
 
 /* Module information */
 MODULE_AUTHOR("Li Yang");
-MODULE_DESCRIPTION("X2 snd Interface");
-MODULE_ALIAS("platform:x2-snd-96boards");
+MODULE_DESCRIPTION("Hobot snd Interface");
+MODULE_ALIAS("platform:hobot-snd-96boards");
 MODULE_LICENSE("GPL");

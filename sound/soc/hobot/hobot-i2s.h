@@ -10,8 +10,8 @@
  * (at your option) any later version.
  */
 
-#ifndef __SND_SOC_X2_I2S_REGS_H
-#define __SND_SOC_X2_I2S_REGS_H
+#ifndef __SND_SOC_HOBOT_I2S_H__
+#define __SND_SOC_HOBOT_I2S_H__
 
 #include <asm-generic/io.h>
 
@@ -168,7 +168,7 @@ enum i2s_clk_type_e {
 	I2S_PRE_MCLK_DIV_SEL,
 };
 
-struct x2_i2s {
+struct hobot_i2s {
 
 	struct device *dev;
 	spinlock_t lock;
@@ -389,4 +389,4 @@ struct x2_i2s {
 
 #endif
 
-#endif /* __SND_SOC_X2_I2S_REGS_H */
+#endif /* __SND_SOC_HOBOT_I2S_H__ */

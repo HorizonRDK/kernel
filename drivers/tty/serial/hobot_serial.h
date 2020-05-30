@@ -14,42 +14,42 @@
 #define __HOBOT_SERIAL_H__
 
 /* the offset of uart registers and BITs for them */
-#define X2_UART_RDR			0x0000		/* RO: UART Receive Data Register */
-#define X2_UART_TDR			0x0004		/* WO: UART RX Data Register */
-#define X2_UART_LCR			0x0008		/* RW: UART Line Control Register */
-#define X2_UART_ENR			0x000c      /* RW: UART Enable Regsiter */
-#define X2_UART_BCR			0x0010      /* RW: UART BAUD Rate Configuration Register */
-#define X2_UART_MCR			0x0014      /* RW: UART Modem Control Register */
-#define X2_UART_TCR			0x0018      /* RW: UART Test Contorl Register */
-#define X2_UART_FCR			0x001c      /* RW: UART FIFO Configuration Register.*/
-#define X2_UART_LSR			0x0020      /* RU: UART Line Status Register.*/
-#define X2_UART_MSR			0x0024      /* RU: UART Modem Status Register */
-#define X2_UART_RXADDR		0x0028      /* RW: UART Receive DMA Base Address Register.*/
-#define X2_UART_RXSIZE		0x002c      /* RW: UART Receive DMA Size Register */
-#define X2_UART_RXDMA		0x0030      /* RW: UART Receive DMA Control Register */
-#define X2_UART_TXADDR		0x0034      /* RW: UART Transmit DMA Base Address Register */
-#define X2_UART_TXSIZE		0x0038      /* RW: UART Transmit DMA Size Register */
-#define X2_UART_TXDMA		0x003c      /* RW: UART Transmit DMA Control Register.*/
-#define X2_UART_SRC_PND		0x0040      /* WC: UART Interrupt Source Pending Register */
-#define X2_UART_INT_MASK	0x0044      /* RO: UART Interrupt Mask Register */
-#define X2_UART_INT_SETMASK 0x0048      /* WO: UART Interrupt Set Mask Register */
-#define X2_UART_INT_UNMASK  0x004c      /* WO: UART Interrupt Unmask Register.*/
-#define X2_UART_IR_EN		0x0100      /* RW: IR mode enable*/
-#define X2_UART_IR_CTRL		0x0104      /* RW: IR configuration registers*/
-#define X2_UART_IR_FIL		0x0108      /* RW: IR glitch filter time = IR_FIL*Period of cir_clock. Default = 1us*/
-#define X2_UART_IR_LEADS	0x010c      /* RW: IR AGC timing cont*/
-#define X2_UART_IR_LEADE	0x0110      /* RW: time lag of AGC to generate repeat Register */
-#define X2_UART_IR_SLEADE   0x0114      /* RW: IR time lag of AGC to generate command Regsiter */
-#define X2_UART_IR_BIT0     0x0118      /* RW: IR time to generate 0 */
-#define X2_UART_IR_BIT1     0x011c      /* RW: IR time to generate 1 */
-#define X2_UART_IR_BUSY     0x0120      /* RU: IR busy stauts */
-#define X2_UART_IR_SRCPND   0x0124      /* WC: IR interrupt source pending register */
-#define X2_UART_IR_INTMASK  0x0128      /* RU: IR interrupt mask Register */
-#define X2_UART_IR_SETMASK  0x012c      /* WO: IR setmask register */
-#define X2_UART_IR_UNMASK   0x0130      /* WO: IR unmask register */
-#define X2_UART_IR_DATA_H   0x0134      /* RU: receive high 16 bits data Register*/
-#define X2_UART_IR_DATA_L   0x0138      /* RU: receive low 32 bits data Register */
-#define X2_UART_IR_TIMEOUT  0x013c      /* RW: IR timeout for high recovery= period *IR_TIMEOUT Register */
+#define HOBOT_UART_RDR			0x0000		/* RO: UART Receive Data Register */
+#define HOBOT_UART_TDR			0x0004		/* WO: UART RX Data Register */
+#define HOBOT_UART_LCR			0x0008		/* RW: UART Line Control Register */
+#define HOBOT_UART_ENR			0x000c      /* RW: UART Enable Regsiter */
+#define HOBOT_UART_BCR			0x0010      /* RW: UART BAUD Rate Configuration Register */
+#define HOBOT_UART_MCR			0x0014      /* RW: UART Modem Control Register */
+#define HOBOT_UART_TCR			0x0018      /* RW: UART Test Contorl Register */
+#define HOBOT_UART_FCR			0x001c      /* RW: UART FIFO Configuration Register.*/
+#define HOBOT_UART_LSR			0x0020      /* RU: UART Line Status Register.*/
+#define HOBOT_UART_MSR			0x0024      /* RU: UART Modem Status Register */
+#define HOBOT_UART_RXADDR		0x0028      /* RW: UART Receive DMA Base Address Register.*/
+#define HOBOT_UART_RXSIZE		0x002c      /* RW: UART Receive DMA Size Register */
+#define HOBOT_UART_RXDMA		0x0030      /* RW: UART Receive DMA Control Register */
+#define HOBOT_UART_TXADDR		0x0034      /* RW: UART Transmit DMA Base Address Register */
+#define HOBOT_UART_TXSIZE		0x0038      /* RW: UART Transmit DMA Size Register */
+#define HOBOT_UART_TXDMA		0x003c      /* RW: UART Transmit DMA Control Register.*/
+#define HOBOT_UART_SRC_PND		0x0040      /* WC: UART Interrupt Source Pending Register */
+#define HOBOT_UART_INT_MASK	0x0044      /* RO: UART Interrupt Mask Register */
+#define HOBOT_UART_INT_SETMASK 0x0048      /* WO: UART Interrupt Set Mask Register */
+#define HOBOT_UART_INT_UNMASK  0x004c      /* WO: UART Interrupt Unmask Register.*/
+#define HOBOT_UART_IR_EN		0x0100      /* RW: IR mode enable*/
+#define HOBOT_UART_IR_CTRL		0x0104      /* RW: IR configuration registers*/
+#define HOBOT_UART_IR_FIL		0x0108      /* RW: IR glitch filter time = IR_FIL*Period of cir_clock. Default = 1us*/
+#define HOBOT_UART_IR_LEADS	0x010c      /* RW: IR AGC timing cont*/
+#define HOBOT_UART_IR_LEADE	0x0110      /* RW: time lag of AGC to generate repeat Register */
+#define HOBOT_UART_IR_SLEADE   0x0114      /* RW: IR time lag of AGC to generate command Regsiter */
+#define HOBOT_UART_IR_BIT0     0x0118      /* RW: IR time to generate 0 */
+#define HOBOT_UART_IR_BIT1     0x011c      /* RW: IR time to generate 1 */
+#define HOBOT_UART_IR_BUSY     0x0120      /* RU: IR busy stauts */
+#define HOBOT_UART_IR_SRCPND   0x0124      /* WC: IR interrupt source pending register */
+#define HOBOT_UART_IR_INTMASK  0x0128      /* RU: IR interrupt mask Register */
+#define HOBOT_UART_IR_SETMASK  0x012c      /* WO: IR setmask register */
+#define HOBOT_UART_IR_UNMASK   0x0130      /* WO: IR unmask register */
+#define HOBOT_UART_IR_DATA_H   0x0134      /* RU: receive high 16 bits data Register*/
+#define HOBOT_UART_IR_DATA_L   0x0138      /* RU: receive low 32 bits data Register */
+#define HOBOT_UART_IR_TIMEOUT  0x013c      /* RW: IR timeout for high recovery= period *IR_TIMEOUT Register */
 
 /* Uart line control register bits define */
 #define UART_LCR_8_BIT      (1U << 0)
@@ -85,11 +85,11 @@
 #define UART_MCR_DTRN			(1U << 0)
 #define UART_MCR_RTSN			(1U << 1)
 #define UART_MCR_LMD_MASK		(0x3)
-#define UART_MCR_LMD(x)		(((x) & X2_MCR_LMD_MASK) << 2U)
+#define UART_MCR_LMD(x)		(((x) & HOBOT_MCR_LMD_MASK) << 2U)
 #define UART_MCR_XON_MASK		(0xFF)
-#define UART_MCR_XON(x)		(((x) & X2_MCR_XON_MASK) << 8U)
+#define UART_MCR_XON(x)		(((x) & HOBOT_MCR_XON_MASK) << 8U)
 #define UART_MCR_XOFF_MASK		(0xFF)
-#define UART_MCR_XOFF(x)		(((x) & X2_MCR_XOFF_MASK) << 16U)
+#define UART_MCR_XOFF(x)		(((x) & HOBOT_MCR_XOFF_MASK) << 16U)
 
 /* Uart test control register bits define */
 #define UART_TCR_LB			(1U << 0)

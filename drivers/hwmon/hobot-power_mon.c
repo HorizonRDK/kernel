@@ -46,7 +46,7 @@ struct power_data {
 	struct task_struct *task;
 };
 
-struct power_data* x2_power = NULL;
+struct power_data* hobot_power = NULL;
 
 struct power_monitor_result_s {
 	unsigned long long curtime;
@@ -75,7 +75,7 @@ int i2c_read_word_ex(int dev, int reg, u16* result)
 {
 	union i2c_smbus_data data;
 	int status;
-	status = i2c_smbus_xfer(x2_power->i2c_adapter, dev, 0, I2C_SMBUS_READ, reg, I2C_SMBUS_WORD_DATA, &data);
+	status = i2c_smbus_xfer(hobot_power->i2c_adapter, dev, 0, I2C_SMBUS_READ, reg, I2C_SMBUS_WORD_DATA, &data);
 	*result = ((data.word & 0xff) << 8) | ((data.word >> 8) & 0xff);
 	if(status) {
 		printk("i2c read err:%d\n",status);
@@ -87,14 +87,14 @@ int i2c_write_word_ex(int dev, int reg, u16 value)
 {
 	union i2c_smbus_data data;
 	data.word = ((value & 0xff) << 8) | ((value >> 8) & 0xff);
-	return i2c_smbus_xfer(x2_power->i2c_adapter, dev, 0, I2C_SMBUS_WRITE, reg, I2C_SMBUS_WORD_DATA, &data);
+	return i2c_smbus_xfer(hobot_power->i2c_adapter, dev, 0, I2C_SMBUS_WRITE, reg, I2C_SMBUS_WORD_DATA, &data);
 }
 
 u16 i2c_read_word(int dev, int reg, u16* result)
 {
 	union i2c_smbus_data data;
 	int status;
-	status = i2c_smbus_xfer(x2_power->i2c_adapter, dev, 0, I2C_SMBUS_READ, reg, I2C_SMBUS_WORD_DATA, &data);
+	status = i2c_smbus_xfer(hobot_power->i2c_adapter, dev, 0, I2C_SMBUS_READ, reg, I2C_SMBUS_WORD_DATA, &data);
 	if(status) {
 		printk("i2c read err:%d\n",status);
 	}
@@ -106,14 +106,14 @@ int i2c_write_word(int dev, int reg, u16 value)
 {
 	union i2c_smbus_data data;
 	data.word = value;
-	return i2c_smbus_xfer(x2_power->i2c_adapter, dev, 0, I2C_SMBUS_WRITE, reg, I2C_SMBUS_WORD_DATA, &data);
+	return i2c_smbus_xfer(hobot_power->i2c_adapter, dev, 0, I2C_SMBUS_WRITE, reg, I2C_SMBUS_WORD_DATA, &data);
 }
 
 int i2c_write_byte(int dev, int reg, u8 value)
 {
 	union i2c_smbus_data data;
 	data.byte = value;
-	return i2c_smbus_xfer(x2_power->i2c_adapter, dev, 0, I2C_SMBUS_WRITE, reg, I2C_SMBUS_BYTE_DATA, &data);
+	return i2c_smbus_xfer(hobot_power->i2c_adapter, dev, 0, I2C_SMBUS_WRITE, reg, I2C_SMBUS_BYTE_DATA, &data);
 }
 
 
@@ -200,7 +200,7 @@ int read_pmic_value(struct power_monitor_result_s* res_info)
 static int power_mon_thread(void *data)
 {
 	printk("power_mon_thread run\n");
-	x2_power->start = 1;
+	hobot_power->start = 1;
 	do {
 		if(power_ddr_info) {
 			ktime_t ktime;
@@ -221,29 +221,29 @@ static int power_mon_thread(void *data)
 			g_power_current_index = (g_power_current_index + 1) % TOTAL_RECORD_NUM;
 			g_power_record_num ++;
 			if (g_power_record_num >= 200)
-				wake_up_interruptible(&x2_power->wq_head);
+				wake_up_interruptible(&hobot_power->wq_head);
 			}
 			if (g_power_monitor_poriod)
 				msleep(g_power_monitor_poriod);
 	} while (!kthread_should_stop());
-	x2_power->start = 0;
+	hobot_power->start = 0;
 	printk("power_mon_thread exit\n");
 	return 0;
 }
 
 int power_start(void)
 {
-	if (x2_power && !power_ddr_info) {
+	if (hobot_power && !power_ddr_info) {
 		printk("power_start\n");
 		//enable_irq(g_power_dev->irq);
 		power_ddr_info = vmalloc(sizeof(struct power_monitor_result_s) * TOTAL_RECORD_NUM);
 		g_power_current_index = 0;
 		g_power_record_num = 0;
 		g_power_ktime_start = ktime_get();
-		if (x2_power->task == NULL) {
-			x2_power->task = kthread_run(power_mon_thread, (void *)NULL, "power_mon_thread");
-			if (IS_ERR(x2_power->task)) {
-				x2_power->task = NULL;
+		if (hobot_power->task == NULL) {
+			hobot_power->task = kthread_run(power_mon_thread, (void *)NULL, "power_mon_thread");
+			if (IS_ERR(hobot_power->task)) {
+				hobot_power->task = NULL;
 				return -1;
 			}
 		}
@@ -253,11 +253,11 @@ int power_start(void)
 
 int power_stop(void)
 {
-	if (x2_power->task)
-		kthread_stop(x2_power->task);
-	x2_power->task = NULL;
-	while(x2_power->start);
-	if (x2_power && power_ddr_info) {
+	if (hobot_power->task)
+		kthread_stop(hobot_power->task);
+	hobot_power->task = NULL;
+	while(hobot_power->start);
+	if (hobot_power && power_ddr_info) {
 		printk("power_stop\n");
 		vfree(power_ddr_info);
 		//vfree(power_result_buf);
@@ -279,13 +279,13 @@ static int get_monitor_data(char* buf, int size)
 	}
 	if (g_power_record_num > 0) {
 
-		spin_lock_irq(&x2_power->lock);
+		spin_lock_irq(&hobot_power->lock);
 		num = g_power_record_num;
 		if (num >= TOTAL_RECORD_NUM)
 			num = TOTAL_RECORD_NUM;
 		start = (g_power_current_index + TOTAL_RECORD_NUM - num) % TOTAL_RECORD_NUM;
 		g_power_record_num = 0;
-		spin_unlock_irq(&x2_power->lock);
+		spin_unlock_irq(&hobot_power->lock);
 		for (j = 0; j < num; j++) {
 			cur = (start + j) % TOTAL_RECORD_NUM;
 			memcpy(power_result_buf + j * sizeof(struct power_monitor_result_s), power_ddr_info + cur, sizeof(struct power_monitor_result_s));
@@ -295,47 +295,47 @@ static int get_monitor_data(char* buf, int size)
 	return length;
 }
 
-static int power_mod_open(struct inode *pinode, struct file *pfile)
+static int power_mon_open(struct inode *pinode, struct file *pfile)
 {
-	printk(KERN_INFO "power_mod_open()!\n");
+	printk(KERN_INFO "power_mon_open()!\n");
 	power_start();
 	return 0;
 }
 
-static int power_mod_release(struct inode *pinode, struct file *pfile)
+static int power_mon_release(struct inode *pinode, struct file *pfile)
 {
-	printk(KERN_INFO "power_mod_release()!\n");
+	printk(KERN_INFO "power_mon_release()!\n");
 	power_stop();
 	return 0;
 }
 
-static ssize_t power_mod_read(struct file *pfile, char *puser_buf, size_t len, loff_t *poff)
+static ssize_t power_mon_read(struct file *pfile, char *puser_buf, size_t len, loff_t *poff)
 {
 	int result_len = 0;
-	wait_event_interruptible(x2_power->wq_head, g_power_record_num > 200);
+	wait_event_interruptible(hobot_power->wq_head, g_power_record_num > 200);
 	result_len = get_monitor_data(power_result_buf, 80*1024);
 	return result_len;
 }
 
-static ssize_t power_mod_write(struct file *pfile, const char *puser_buf, size_t len, loff_t *poff)
+static ssize_t power_mon_write(struct file *pfile, const char *puser_buf, size_t len, loff_t *poff)
 {
-	printk(KERN_INFO "power_mod_write()!\n");
+	printk(KERN_INFO "power_mon_write()!\n");
 	return 0;
 }
 
-static long power_mod_ioctl(struct file *pfile, unsigned int cmd, unsigned long arg)
+static long power_mon_ioctl(struct file *pfile, unsigned int cmd, unsigned long arg)
 {
 	switch (cmd) {
 	case POW_MONITOR_CUR:
 		{
 			int cur = 0;
 			if (!arg) {
-				printk(KERN_ERR "x2 pow_monitor get cur error\n");
+				printk(KERN_ERR "hobot pow_monitor get cur error\n");
 				return -EINVAL;
 			}
 			cur  = (g_power_current_index - 1 + TOTAL_RECORD_NUM) % TOTAL_RECORD_NUM;
 			if ( copy_to_user((void __user *)arg, (void *)(power_ddr_info + cur), sizeof(struct power_monitor_result_s)) ) {
-				printk(KERN_ERR "x2 pow_monitor get cur error, copy data to user failed\n");
+				printk(KERN_ERR "hobot pow_monitor get cur error, copy data to user failed\n");
 				return -EINVAL;
 			}
 		}
@@ -361,14 +361,14 @@ int power_mmap(struct file *filp, struct vm_area_struct *pvma)
 	return 0;
 }
 
-struct file_operations power_mod_fops = {
+struct file_operations power_mon_fops = {
 	.owner			= THIS_MODULE,
 	.mmap 			= power_mmap,
-	.open			= power_mod_open,
-	.read			= power_mod_read,
-	.write			= power_mod_write,
-	.release		= power_mod_release,
-	.unlocked_ioctl = power_mod_ioctl,
+	.open			= power_mon_open,
+	.read			= power_mon_read,
+	.write			= power_mon_write,
+	.release		= power_mon_release,
+	.unlocked_ioctl = power_mon_ioctl,
 };
 
 int power_cdev_create(void)
@@ -378,26 +378,26 @@ int power_cdev_create(void)
 
 	printk(KERN_INFO "power_cdev_create()\n");
 
-	x2_power->classes = class_create(THIS_MODULE, "x2_power");
-	if (IS_ERR(x2_power->classes))
-		return PTR_ERR(x2_power->classes);
+	hobot_power->classes = class_create(THIS_MODULE, "hobot_power_mon");
+	if (IS_ERR(hobot_power->classes))
+		return PTR_ERR(hobot_power->classes);
 
-	error = alloc_chrdev_region(&x2_power->dev_num, 0, 1, "x2_power");
+	error = alloc_chrdev_region(&hobot_power->dev_num, 0, 1, "hobot_power_mon");
 
 	if (!error) {
-		x2_power->major = MAJOR(x2_power->dev_num);
-		x2_power->minor = MINOR(x2_power->dev_num);
+		hobot_power->major = MAJOR(hobot_power->dev_num);
+		hobot_power->minor = MINOR(hobot_power->dev_num);
 	}
 
 	if (ret < 0)
 		return ret;
 
-	cdev_init(&x2_power->cdev, &power_mod_fops);
-	x2_power->cdev.owner = THIS_MODULE;
+	cdev_init(&hobot_power->cdev, &power_mon_fops);
+	hobot_power->cdev.owner = THIS_MODULE;
 
-	cdev_add(&x2_power->cdev, x2_power->dev_num, 1);
+	cdev_add(&hobot_power->cdev, hobot_power->dev_num, 1);
 
-	device_create(x2_power->classes, NULL, x2_power->dev_num, NULL, "x2_power");
+	device_create(hobot_power->classes, NULL, hobot_power->dev_num, NULL, "hobot_power_mon");
 	if (ret)
 		return ret;
 
@@ -408,21 +408,21 @@ void power_dev_remove(void)
 {
 	printk(KERN_INFO "power_dev_remove()\n");
 
-	cdev_del(&x2_power->cdev);
+	cdev_del(&hobot_power->cdev);
 
-	unregister_chrdev_region(x2_power->dev_num, 1);
+	unregister_chrdev_region(hobot_power->dev_num, 1);
 }
 
 
 static int power_mon_probe(struct platform_device *pdev)
 {
-	x2_power = kmalloc(sizeof(struct power_data), GFP_KERNEL);
-	if (!x2_power) {
+	hobot_power = kmalloc(sizeof(struct power_data), GFP_KERNEL);
+	if (!hobot_power) {
 		printk(KERN_ERR"Unable to alloc power_data\n");
 		return -ENOMEM;
 	}
-	x2_power->i2c_adapter = i2c_get_adapter(1);
-	if (!x2_power->i2c_adapter) {
+	hobot_power->i2c_adapter = i2c_get_adapter(1);
+	if (!hobot_power->i2c_adapter) {
 		printk(KERN_ERR"Unable to get i2c1 adapter\n");
 		return -EINVAL;
 	}
@@ -431,9 +431,9 @@ static int power_mon_probe(struct platform_device *pdev)
 	cfg_INA226(0x44, 0x2800);
 	cfg_INA226(0x45, 0x2800);
 	power_result_buf = kmalloc(TOTAL_RESULT_SIZE, GFP_KERNEL);
-	x2_power->task = NULL;
-	init_waitqueue_head(&x2_power->wq_head);
-	spin_lock_init(&x2_power->lock);
+	hobot_power->task = NULL;
+	init_waitqueue_head(&hobot_power->wq_head);
+	spin_lock_init(&hobot_power->lock);
 	power_cdev_create();
 	return 0;
 }
@@ -441,7 +441,7 @@ static int power_mon_probe(struct platform_device *pdev)
 static int power_mon_remove(struct platform_device *pdev)
 {
 	kfree(power_result_buf);
-	kfree(x2_power);
+	kfree(hobot_power);
 	power_result_buf = NULL;
 	return 0;
 }
@@ -449,7 +449,7 @@ static int power_mon_remove(struct platform_device *pdev)
 
 #ifdef CONFIG_OF
 static const struct of_device_id power_mon_of_match[] = {
-	{.compatible = "hobot,hobot-power"},
+	{.compatible = "hobot,hobot-power-mon"},
 	{},
 };
 MODULE_DEVICE_TABLE(of, power_mon_of_match);
@@ -459,7 +459,7 @@ static struct platform_driver power_mon_driver = {
 	.probe = power_mon_probe,
 	.remove = power_mon_remove,
 	.driver = {
-		.name = "hobot-power",
+		.name = "hobot-power-mon",
 		.of_match_table = of_match_ptr(power_mon_of_match),
 	},
 };

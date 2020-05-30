@@ -196,7 +196,7 @@ union fifo_ctl_reg_e {
 	struct fifo_ctl_bits_s bit;
 };
 
-struct x2_i2c_regs_s {
+struct hobot_i2c_regs_s {
 	union cfg_reg_e cfg;
 	union saddr_reg_e addr;
 	union dcount_reg_e dcount;

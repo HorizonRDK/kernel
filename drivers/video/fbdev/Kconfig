@@ -2497,7 +2497,7 @@ config FB_SM712
 	  called sm712fb. If you want to compile it as a module, say M
 	  here and read <file:Documentation/kbuild/modules.txt>.
 
-config FB_HOBOT_X2
+config FB_HOBOT
 	tristate "Horizon Robotics framebuffer support"
 	depends on FB && HOBOT_IAR && I2C
 	select FB_CFB_FILLRECT

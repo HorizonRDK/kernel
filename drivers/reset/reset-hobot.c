@@ -17,29 +17,29 @@
 #include <linux/of.h>
 #include <linux/spinlock.h>
 
-#define X2_MAX_NR_RESETS        64
+#define HOBOT_MAX_NR_RESETS        64
 
 #define RESET_REG_OFFSET_SHIFT  8
 #define RESET_REG_OFFSET_MASK   0xff00
 #define RESET_REG_BIT_MASK      0x1f
 
-struct x2_reset_data {
+struct hobot_reset_data {
         spinlock_t      lock;
         void __iomem    *membase;
         struct reset_controller_dev rcdev;
 };
 
-#define to_x2_reset_data(p)     \
-        container_of((p), struct x2_reset_data, rcdev)
+#define to_hobot_reset_data(p)     \
+        container_of((p), struct hobot_reset_data, rcdev)
 
-static int x2_reset_assert(struct reset_controller_dev *rcdev,
+static int hobot_reset_assert(struct reset_controller_dev *rcdev,
         unsigned long id)
 {
         void __iomem    *regaddr;
         uint32_t reg_val, offset;
         unsigned long flags;
         u8 bit;
-        struct x2_reset_data *data = to_x2_reset_data(rcdev);
+        struct hobot_reset_data *data = to_hobot_reset_data(rcdev);
 
         if (rcdev == NULL || id < 0)
                 return -EINVAL;
@@ -58,14 +58,14 @@ static int x2_reset_assert(struct reset_controller_dev *rcdev,
         return 0;
 }
 
-static int x2_reset_deassert(struct reset_controller_dev *rcdev,
+static int hobot_reset_deassert(struct reset_controller_dev *rcdev,
         unsigned long id)
 {
         void __iomem    *regaddr;
         uint32_t reg_val, offset;
         unsigned long flags;
         u8 bit;
-        struct x2_reset_data *data = to_x2_reset_data(rcdev);
+        struct hobot_reset_data *data = to_hobot_reset_data(rcdev);
 
         if (rcdev == NULL || id < 0)
                 return -EINVAL;
@@ -83,19 +83,19 @@ static int x2_reset_deassert(struct reset_controller_dev *rcdev,
         return 0;
 }
 
-static int x2_reset_status(struct reset_controller_dev *rcdev,
+static int hobot_reset_status(struct reset_controller_dev *rcdev,
         unsigned long id)
 {
         return 0;
 }
 
-static const struct reset_control_ops x2_reset_ops = {
-        .assert     = x2_reset_assert,
-        .deassert   = x2_reset_deassert,
-        .status     = x2_reset_status,
+static const struct reset_control_ops hobot_reset_ops = {
+        .assert     = hobot_reset_assert,
+        .deassert   = hobot_reset_deassert,
+        .status     = hobot_reset_status,
 };
 
-static int x2_reset_of_xlate(struct reset_controller_dev *rcdev,
+static int hobot_reset_of_xlate(struct reset_controller_dev *rcdev,
             const struct of_phandle_args *reset_spec)
 {
     u32 offset;
@@ -110,9 +110,9 @@ static int x2_reset_of_xlate(struct reset_controller_dev *rcdev,
     return (offset | bit);
 }
 
-static int x2_reset_probe(struct platform_device *pdev)
+static int hobot_reset_probe(struct platform_device *pdev)
 {
-        struct x2_reset_data *data;
+        struct hobot_reset_data *data;
         struct resource *res;
         struct device *dev = &pdev->dev;
         struct device_node *np = dev->of_node;
@@ -137,8 +137,8 @@ static int x2_reset_probe(struct platform_device *pdev)
         if (IS_ERR(data->membase))
                 return PTR_ERR(data->membase);
 
-        if (of_property_read_u32(np, "x2,modrst-offset", &modrst_offset)) {
-                dev_warn(dev, "missing x2,modrst-offset property, assuming 0x400!\n");
+        if (of_property_read_u32(np, "hobot,modrst-offset", &modrst_offset)) {
+                dev_warn(dev, "missing hobot,modrst-offset property, assuming 0x400!\n");
                 modrst_offset = 0x400;
         }
         data->membase += modrst_offset;
@@ -146,31 +146,31 @@ static int x2_reset_probe(struct platform_device *pdev)
         spin_lock_init(&data->lock);
 
         data->rcdev.owner = THIS_MODULE;
-        data->rcdev.nr_resets = X2_MAX_NR_RESETS;
-        data->rcdev.ops = &x2_reset_ops;
+        data->rcdev.nr_resets = HOBOT_MAX_NR_RESETS;
+        data->rcdev.ops = &hobot_reset_ops;
         data->rcdev.of_node = pdev->dev.of_node;
-        data->rcdev.of_xlate = x2_reset_of_xlate;
+        data->rcdev.of_xlate = hobot_reset_of_xlate;
         data->rcdev.of_reset_n_cells = 2;
 
         return devm_reset_controller_register(dev, &data->rcdev);
 
 }
-static const struct of_device_id x2_reset_dt_ids[] = {
-        { .compatible = "hobot,x2-reset", },
+static const struct of_device_id hobot_reset_dt_ids[] = {
+        { .compatible = "hobot,hobot-reset", },
         { },
 };
 
-static struct platform_driver x2_reset_driver = {
-        .probe  = x2_reset_probe,
+static struct platform_driver hobot_reset_driver = {
+        .probe  = hobot_reset_probe,
         .driver = {
                 .name       = KBUILD_MODNAME,
-                .of_match_table = x2_reset_dt_ids,
+                .of_match_table = hobot_reset_dt_ids,
         },
 };
 
-static int __init x2_reset_init(void)
+static int __init hobot_reset_init(void)
 {
-    return platform_driver_register(&x2_reset_driver);
+    return platform_driver_register(&hobot_reset_driver);
 }
 
-arch_initcall(x2_reset_init);
+arch_initcall(hobot_reset_init);

@@ -92,9 +92,9 @@ static struct idma_info_s {
 	void __iomem *regaddr_rx;
 
 	int idma_irq;
-} x2_i2sidma[2];
+} hobot_i2sidma[2];
 
-static int x2_copy_usr(struct snd_pcm_substream *substream,
+static int hobot_copy_usr(struct snd_pcm_substream *substream,
 		int channel, unsigned long hwoff,
 		void *buf, unsigned long bytes)
 {
@@ -140,7 +140,7 @@ static int x2_copy_usr(struct snd_pcm_substream *substream,
 	return 0;
 }
 
-static struct snd_dmaengine_dai_dma_data *x2_dai_get_dma_data(struct
+static struct snd_dmaengine_dai_dma_data *hobot_dai_get_dma_data(struct
 							      snd_pcm_substream
 							      *substream)
 {
@@ -170,29 +170,29 @@ static int i2sidma_enqueue(struct snd_pcm_substream *substream)
 	/* set buf0 ready */
 	val = dma_ctrl->start;
 	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
-		writel(val, x2_i2sidma[dma_ctrl->id].regaddr_rx +
+		writel(val, hobot_i2sidma[dma_ctrl->id].regaddr_rx +
 			I2S_BUF0_ADDR);
 		writel(val + dma_ctrl->periodsz,
-			x2_i2sidma[dma_ctrl->id].regaddr_rx +
+			hobot_i2sidma[dma_ctrl->id].regaddr_rx +
 				I2S_BUF1_ADDR);
 		dma_ctrl->buffer_int_index = 0;
 		dma_ctrl->buffer_set_index = 2;
 		val = (dma_ctrl->periodsz) / (dma_ctrl->ch_num);
-		writel(val, x2_i2sidma[dma_ctrl->id].regaddr_rx +
+		writel(val, hobot_i2sidma[dma_ctrl->id].regaddr_rx +
 			I2S_BUF_SIZE);
 
 
 	} else {
 
-		writel(val, x2_i2sidma[dma_ctrl->id].regaddr_tx +
+		writel(val, hobot_i2sidma[dma_ctrl->id].regaddr_tx +
 			I2S_BUF0_ADDR);
 		writel(val + dma_ctrl->periodsz,
-			x2_i2sidma[dma_ctrl->id].regaddr_tx +
+			hobot_i2sidma[dma_ctrl->id].regaddr_tx +
 				I2S_BUF1_ADDR);
 		dma_ctrl->buffer_int_index = 0;
 		//dma_ctrl->buffer_set_index = 1;
 		val = (dma_ctrl->periodsz) / (dma_ctrl->ch_num);
-		writel(val, x2_i2sidma[dma_ctrl->id].regaddr_tx +
+		writel(val, hobot_i2sidma[dma_ctrl->id].regaddr_tx +
 			I2S_BUF_SIZE);
 
 	}
@@ -218,10 +218,10 @@ static void i2sidma_control(int op, int stream, struct idma_ctrl_s *dma_ctrl)
 
 
 		if (stream == SNDRV_PCM_STREAM_CAPTURE)
-			val = readl(x2_i2sidma[dma_ctrl->id].regaddr_rx +
+			val = readl(hobot_i2sidma[dma_ctrl->id].regaddr_rx +
 				I2S_CTL);
 		else
-			val = readl(x2_i2sidma[dma_ctrl->id].regaddr_tx +
+			val = readl(hobot_i2sidma[dma_ctrl->id].regaddr_tx +
 				I2S_CTL);
 
 		switch (op) {
@@ -237,10 +237,10 @@ static void i2sidma_control(int op, int stream, struct idma_ctrl_s *dma_ctrl)
 		}
 
 		if (stream == SNDRV_PCM_STREAM_CAPTURE)
-			writel(val, x2_i2sidma[dma_ctrl->id].regaddr_rx +
+			writel(val, hobot_i2sidma[dma_ctrl->id].regaddr_rx +
 				I2S_CTL);
 		else
-			writel(val, x2_i2sidma[dma_ctrl->id].regaddr_tx +
+			writel(val, hobot_i2sidma[dma_ctrl->id].regaddr_tx +
 				I2S_CTL);
 
 
@@ -328,43 +328,43 @@ static int i2sidma_prepare(struct snd_pcm_substream *substream)
 	/* setting bufer base/size/reday register */
 	i2sidma_enqueue(substream);
 	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
-		writel(0xf, x2_i2sidma[dma_ctrl->id].regaddr_rx + I2S_UNMASK);
-		reg_val = readl(x2_i2sidma[dma_ctrl->id].regaddr_rx +
+		writel(0xf, hobot_i2sidma[dma_ctrl->id].regaddr_rx + I2S_UNMASK);
+		reg_val = readl(hobot_i2sidma[dma_ctrl->id].regaddr_rx +
 			I2S_SETMASK);
 		writel(UPDATE_VALUE_FIELD(reg_val, 0x1, I2S_INT_BUF_FLOW_BIT,
 			I2S_INT_BUF_FLOW_FIELD),
-			x2_i2sidma[dma_ctrl->id].regaddr_rx + I2S_SETMASK);
+			hobot_i2sidma[dma_ctrl->id].regaddr_rx + I2S_SETMASK);
 
 
-		reg_val = readl(x2_i2sidma[dma_ctrl->id].regaddr_rx +
+		reg_val = readl(hobot_i2sidma[dma_ctrl->id].regaddr_rx +
 			I2S_SETMASK);
 		writel(UPDATE_VALUE_FIELD
 			(reg_val, 0x1, I2S_INT_BUF_NOT_READY_BIT,
 				I2S_INT_BUF_NOT_READY_FIELD),
-				x2_i2sidma[dma_ctrl->id].regaddr_rx +
+				hobot_i2sidma[dma_ctrl->id].regaddr_rx +
 				I2S_SETMASK);
 
-		writel(0xF, x2_i2sidma[dma_ctrl->id].regaddr_rx + I2S_SRCPND);
+		writel(0xF, hobot_i2sidma[dma_ctrl->id].regaddr_rx + I2S_SRCPND);
 
 
 	} else {/* play */
-		writel(0xf, x2_i2sidma[dma_ctrl->id].regaddr_tx + I2S_UNMASK);
-		reg_val = readl(x2_i2sidma[dma_ctrl->id].regaddr_tx +
+		writel(0xf, hobot_i2sidma[dma_ctrl->id].regaddr_tx + I2S_UNMASK);
+		reg_val = readl(hobot_i2sidma[dma_ctrl->id].regaddr_tx +
 			I2S_SETMASK);
 		writel(UPDATE_VALUE_FIELD(reg_val, 0x1, I2S_INT_BUF_FLOW_BIT,
 			I2S_INT_BUF_FLOW_FIELD),
-			x2_i2sidma[dma_ctrl->id].regaddr_tx + I2S_SETMASK);
+			hobot_i2sidma[dma_ctrl->id].regaddr_tx + I2S_SETMASK);
 
 
-		reg_val = readl(x2_i2sidma[dma_ctrl->id].regaddr_tx +
+		reg_val = readl(hobot_i2sidma[dma_ctrl->id].regaddr_tx +
 			I2S_SETMASK);
 		writel(UPDATE_VALUE_FIELD
 				(reg_val, 0x1, I2S_INT_BUF_NOT_READY_BIT,
 				I2S_INT_BUF_NOT_READY_FIELD),
-				x2_i2sidma[dma_ctrl->id].regaddr_tx +
+				hobot_i2sidma[dma_ctrl->id].regaddr_tx +
 				I2S_SETMASK);
 
-		writel(0xF, x2_i2sidma[dma_ctrl->id].regaddr_tx + I2S_SRCPND);
+		writel(0xF, hobot_i2sidma[dma_ctrl->id].regaddr_tx + I2S_SRCPND);
 
 	}
 
@@ -392,7 +392,7 @@ static int i2sidma_trigger(struct snd_pcm_substream *substream, int cmd)
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
 		dma_ctr->state &= ~ST_RUNNING;
 		i2sidma_control(DMA_STOP, substream->stream, dma_ctr);
-		writel(0x0, x2_i2sidma[dma_ctr->id].regaddr_rx + I2S_UNMASK);
+		writel(0x0, hobot_i2sidma[dma_ctr->id].regaddr_rx + I2S_UNMASK);
 		break;
 
 	default:
@@ -487,11 +487,11 @@ static irqreturn_t iis_irq0(int irqno, void *dev_id)
 	u32	addr = 0;
 	uint8_t errsta = 0;
 
-	intstatus = readl(x2_i2sidma[0].regaddr_rx + I2S_SRCPND);
+	intstatus = readl(hobot_i2sidma[0].regaddr_rx + I2S_SRCPND);
 
 	if (intstatus == 0x4) {
 
-		writel(0x4, x2_i2sidma[dma_ctrl->id].regaddr_rx + I2S_SRCPND);
+		writel(0x4, hobot_i2sidma[dma_ctrl->id].regaddr_rx + I2S_SRCPND);
 		pr_debug("intstatus = 0x4,dma_ctrl->lastset is 0x%llx,buffer_int_index is %d,buffer_set_index is %d\n",
 			dma_ctrl->lastset, dma_ctrl->buffer_int_index,
 			dma_ctrl->buffer_set_index);
@@ -510,15 +510,15 @@ static irqreturn_t iis_irq0(int irqno, void *dev_id)
 
 		dma_ctrl->lastset = dma_ctrl->start +
 		(dma_ctrl->buffer_int_index * dma_ctrl->periodsz);
-		writel(addr, x2_i2sidma[dma_ctrl->id].regaddr_rx +
+		writel(addr, hobot_i2sidma[dma_ctrl->id].regaddr_rx +
 			I2S_BUF0_ADDR);
-		writel(0x1, x2_i2sidma[dma_ctrl->id].regaddr_rx +
+		writel(0x1, hobot_i2sidma[dma_ctrl->id].regaddr_rx +
 			I2S_BUF0_RDY);
 
 
 	} else if (intstatus == 0x8) {
 
-		writel(0x8, x2_i2sidma[dma_ctrl->id].regaddr_rx + I2S_SRCPND);
+		writel(0x8, hobot_i2sidma[dma_ctrl->id].regaddr_rx + I2S_SRCPND);
 		pr_debug("intstatus = 0x8,dma_ctrl->lastset is 0x%llx,buffer_int_index is %d,buffer_set_index is %d\n",
 			dma_ctrl->lastset, dma_ctrl->buffer_int_index,
 			dma_ctrl->buffer_set_index);
@@ -537,24 +537,24 @@ static irqreturn_t iis_irq0(int irqno, void *dev_id)
 
 		dma_ctrl->lastset = dma_ctrl->start +
 		(dma_ctrl->buffer_int_index * dma_ctrl->periodsz);
-		writel(addr, x2_i2sidma[dma_ctrl->id].regaddr_rx +
+		writel(addr, hobot_i2sidma[dma_ctrl->id].regaddr_rx +
 			I2S_BUF1_ADDR);
-		writel(0x1, x2_i2sidma[dma_ctrl->id].regaddr_rx + I2S_BUF1_RDY);
+		writel(0x1, hobot_i2sidma[dma_ctrl->id].regaddr_rx + I2S_BUF1_RDY);
 
 	} else {
 		pr_err("intstatus = 0x%x,INT status exception!\n", intstatus);
 		errsta = 1;
 		writel(intstatus,
-			x2_i2sidma[dma_ctrl->id].regaddr_rx +I2S_SRCPND);
+			hobot_i2sidma[dma_ctrl->id].regaddr_rx +I2S_SRCPND);
 		writel(dma_ctrl->start,
-			x2_i2sidma[dma_ctrl->id].regaddr_rx +I2S_BUF0_ADDR);
+			hobot_i2sidma[dma_ctrl->id].regaddr_rx +I2S_BUF0_ADDR);
 		writel(dma_ctrl->start + dma_ctrl->periodsz,
-			x2_i2sidma[dma_ctrl->id].regaddr_rx +I2S_BUF1_ADDR);
+			hobot_i2sidma[dma_ctrl->id].regaddr_rx +I2S_BUF1_ADDR);
 		dma_ctrl->buffer_int_index = 0;
 		dma_ctrl->buffer_set_index = 2;
 
-		writel(0x1, x2_i2sidma[dma_ctrl->id].regaddr_rx +I2S_BUF0_RDY);
-		writel(0x1, x2_i2sidma[dma_ctrl->id].regaddr_rx + I2S_BUF1_RDY);
+		writel(0x1, hobot_i2sidma[dma_ctrl->id].regaddr_rx +I2S_BUF0_RDY);
+		writel(0x1, hobot_i2sidma[dma_ctrl->id].regaddr_rx + I2S_BUF1_RDY);
 		if (dma_ctrl->cb)
 			dma_ctrl->cb(dma_ctrl->token, dma_ctrl->period);
 		goto err;
@@ -575,10 +575,10 @@ static irqreturn_t iis_irq1(int irqno, void *dev_id)
 	u32	addr = 0;
 	uint8_t errsta = 0;
 
-	intstatus = readl(x2_i2sidma[1].regaddr_tx + I2S_SRCPND);
+	intstatus = readl(hobot_i2sidma[1].regaddr_tx + I2S_SRCPND);
 
 	if (intstatus == 0x4) {
-		writel(0x4, x2_i2sidma[dma_ctrl->id].regaddr_tx + I2S_SRCPND);
+		writel(0x4, hobot_i2sidma[dma_ctrl->id].regaddr_tx + I2S_SRCPND);
 		addr = dma_ctrl->start;
 
 		dma_ctrl->buffer_int_index += 1;
@@ -588,9 +588,9 @@ static irqreturn_t iis_irq1(int irqno, void *dev_id)
 
 		dma_ctrl->lastset = dma_ctrl->start +
 		(dma_ctrl->buffer_int_index * dma_ctrl->periodsz);
-		writel(addr, x2_i2sidma[dma_ctrl->id].regaddr_tx +
+		writel(addr, hobot_i2sidma[dma_ctrl->id].regaddr_tx +
 			I2S_BUF0_ADDR);
-		writel(0x1, x2_i2sidma[dma_ctrl->id].regaddr_tx +
+		writel(0x1, hobot_i2sidma[dma_ctrl->id].regaddr_tx +
 			I2S_BUF0_RDY);
 
 		pr_debug("intstatus = 0x%x, dma_ctrl->lastset is 0x%llx, \
@@ -599,7 +599,7 @@ static irqreturn_t iis_irq1(int irqno, void *dev_id)
 			dma_ctrl->buffer_set_index);
 
 	} else if (intstatus == 0x8) {
-		writel(0x8, x2_i2sidma[dma_ctrl->id].regaddr_tx + I2S_SRCPND);
+		writel(0x8, hobot_i2sidma[dma_ctrl->id].regaddr_tx + I2S_SRCPND);
 		addr = dma_ctrl->start + dma_ctrl->periodsz;
 
 		dma_ctrl->buffer_int_index += 1;
@@ -609,9 +609,9 @@ static irqreturn_t iis_irq1(int irqno, void *dev_id)
 
 		dma_ctrl->lastset = dma_ctrl->start +
 		(dma_ctrl->buffer_int_index * dma_ctrl->periodsz);
-		writel(addr, x2_i2sidma[dma_ctrl->id].regaddr_tx +
+		writel(addr, hobot_i2sidma[dma_ctrl->id].regaddr_tx +
 			I2S_BUF1_ADDR);
-		writel(0x1, x2_i2sidma[dma_ctrl->id].regaddr_tx + I2S_BUF1_RDY);
+		writel(0x1, hobot_i2sidma[dma_ctrl->id].regaddr_tx + I2S_BUF1_RDY);
 
 		pr_debug("intstatus = 0x%x, dma_ctrl->lastset is 0x%llx, \
 			buffer_int_index is %d, buffer_set_index is %d\n",
@@ -622,19 +622,19 @@ static irqreturn_t iis_irq1(int irqno, void *dev_id)
 		pr_err("intstatus = 0x%x,INT status exception!\n", intstatus);
 		errsta = 1;
 
-		writel(intstatus, x2_i2sidma[dma_ctrl->id].regaddr_tx +
+		writel(intstatus, hobot_i2sidma[dma_ctrl->id].regaddr_tx +
 				I2S_SRCPND);
 
 		writel(dma_ctrl->start,
-			x2_i2sidma[dma_ctrl->id].regaddr_tx + I2S_BUF0_ADDR);
+			hobot_i2sidma[dma_ctrl->id].regaddr_tx + I2S_BUF0_ADDR);
 		writel(dma_ctrl->start + dma_ctrl->periodsz,
-			x2_i2sidma[dma_ctrl->id].regaddr_tx + I2S_BUF1_ADDR);
+			hobot_i2sidma[dma_ctrl->id].regaddr_tx + I2S_BUF1_ADDR);
 		//dma_ctrl->buffer_int_index = 0;
 		//dma_ctrl->buffer_set_index = 1;
 
-		writel(0x1, x2_i2sidma[dma_ctrl->id].regaddr_tx +
+		writel(0x1, hobot_i2sidma[dma_ctrl->id].regaddr_tx +
 				I2S_BUF0_RDY);
-		writel(0x1, x2_i2sidma[dma_ctrl->id].regaddr_tx +
+		writel(0x1, hobot_i2sidma[dma_ctrl->id].regaddr_tx +
 				I2S_BUF1_RDY);
 
 		if (dma_ctrl->cb)
@@ -659,7 +659,7 @@ static int i2sidma_open(struct snd_pcm_substream *substream)
 	struct snd_dmaengine_dai_dma_data *dma_data;
 	int ret;
 
-	dma_data = x2_dai_get_dma_data(substream);
+	dma_data = hobot_dai_get_dma_data(substream);
 
 	dma_ctrl = kzalloc(sizeof(struct idma_ctrl_s), GFP_KERNEL);
 	if (dma_ctrl == NULL)
@@ -670,7 +670,7 @@ static int i2sidma_open(struct snd_pcm_substream *substream)
 
 	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
 		dma_ctrl->id = 0;
-		ret = request_irq(x2_i2sidma[dma_ctrl->id].idma_irq, iis_irq0,
+		ret = request_irq(hobot_i2sidma[dma_ctrl->id].idma_irq, iis_irq0,
 			0, "idma0", dma_ctrl);
 		if (ret < 0) {
 			pr_err("fail to claim i2s irq , ret = %d\n", ret);
@@ -679,7 +679,7 @@ static int i2sidma_open(struct snd_pcm_substream *substream)
 		}
 	} else {
 		dma_ctrl->id = 1;
-		ret = request_irq(x2_i2sidma[dma_ctrl->id].idma_irq, iis_irq1,
+		ret = request_irq(hobot_i2sidma[dma_ctrl->id].idma_irq, iis_irq1,
 			0, "idma1", dma_ctrl);
 		if (ret < 0) {
 			pr_err("fail to claim i2s irq , ret = %d\n", ret);
@@ -691,7 +691,7 @@ static int i2sidma_open(struct snd_pcm_substream *substream)
 	/*
 	if (!strcmp(snd_card->name, "x2snd0")) {
 		dma_ctrl->id = 0;
-		ret = request_irq(x2_i2sidma[dma_ctrl->id].idma_irq, iis_irq0,
+		ret = request_irq(hobot_i2sidma[dma_ctrl->id].idma_irq, iis_irq0,
 			0, "idma0", dma_ctrl);
 		if (ret < 0) {
 			pr_err("fail to claim i2s irq , ret = %d\n", ret);
@@ -702,7 +702,7 @@ static int i2sidma_open(struct snd_pcm_substream *substream)
 	}
 	if (!strcmp(snd_card->name, "x2snd1")) {
 		dma_ctrl->id = 1;
-		ret = request_irq(x2_i2sidma[dma_ctrl->id].idma_irq, iis_irq1,
+		ret = request_irq(hobot_i2sidma[dma_ctrl->id].idma_irq, iis_irq1,
 			0, "idma1", dma_ctrl);
 		if (ret < 0) {
 			pr_err("fail to claim i2s irq , ret = %d\n", ret);
@@ -727,7 +727,7 @@ static int i2sidma_close(struct snd_pcm_substream *substream)
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct idma_ctrl_s *dma_ctrl = runtime->private_data;
 
-	free_irq(x2_i2sidma[dma_ctrl->id].idma_irq, dma_ctrl);
+	free_irq(hobot_i2sidma[dma_ctrl->id].idma_irq, dma_ctrl);
 	kfree(dma_ctrl);
 
 	return 0;
@@ -743,7 +743,7 @@ static struct snd_pcm_ops i2sidma_ops = {
 	.hw_params = i2sidma_hw_params,
 	.hw_free = i2sidma_hw_free,
 	.prepare = i2sidma_prepare,
-	.copy_user = x2_copy_usr,
+	.copy_user = hobot_copy_usr,
 };
 
 /* free capture or playback dma buffer(ioummap) */
@@ -781,7 +781,7 @@ static int preallocate_idma_buffer(struct snd_pcm *pcm, int stream)
 	dma_addr_t phy;
 
 	/* now not use dma data */
-	dma_data = x2_dai_get_dma_data(substream);
+	dma_data = hobot_dai_get_dma_data(substream);
 	buf->dev.dev = pcm->card->dev;
 	buf->private_data = NULL;
 
@@ -848,11 +848,11 @@ static int asoc_i2sidma_platform_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Failed to get mem resource0!\n");
 		return -ENOENT;
 	}
-	x2_i2sidma[id].regaddr_rx =
+	hobot_i2sidma[id].regaddr_rx =
 		devm_ioremap(&pdev->dev, res->start, resource_size(res));
-	if (IS_ERR(x2_i2sidma[id].regaddr_rx)) {
+	if (IS_ERR(hobot_i2sidma[id].regaddr_rx)) {
 		dev_err(&pdev->dev, "Failed to ioremap regaddr_rx!\n");
-		return PTR_ERR(x2_i2sidma[id].regaddr_rx);
+		return PTR_ERR(hobot_i2sidma[id].regaddr_rx);
 	}
 	res = NULL;
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 1);
@@ -860,11 +860,11 @@ static int asoc_i2sidma_platform_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Failed to get mem resource1!\n");
 		return -ENOENT;
 	}
-	x2_i2sidma[id].regaddr_tx =
+	hobot_i2sidma[id].regaddr_tx =
 		devm_ioremap(&pdev->dev, res->start, resource_size(res));
-	if (IS_ERR(x2_i2sidma[id].regaddr_tx)) {
+	if (IS_ERR(hobot_i2sidma[id].regaddr_tx)) {
 		dev_err(&pdev->dev, "Failed to ioremap regaddr_tx!\n");
-		return PTR_ERR(x2_i2sidma[id].regaddr_tx);
+		return PTR_ERR(hobot_i2sidma[id].regaddr_tx);
 	}
 
 	res = NULL;
@@ -880,9 +880,9 @@ static int asoc_i2sidma_platform_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Failed to get IRQ resource!\n");
 		return ret;
 	}
-	x2_i2sidma[id].idma_irq = ret;
+	hobot_i2sidma[id].idma_irq = ret;
 
-	spin_lock_init(&(x2_i2sidma[id].lock));
+	spin_lock_init(&(hobot_i2sidma[id].lock));
 
 	ret =  devm_snd_soc_register_platform(&pdev->dev,
 					      &asoc_i2sidma_platform[id]);
@@ -897,19 +897,19 @@ static int asoc_i2sidma_platform_probe(struct platform_device *pdev)
 }
 
 #ifdef CONFIG_OF
-static const struct of_device_id x2_i2sidma_of_match[] = {
+static const struct of_device_id hobot_i2sidma_of_match[] = {
 	{.compatible = "hobot-i2s0-idma",},
 	{.compatible = "hobot-i2s1-idma",},
 	{}
 };
 
-MODULE_DEVICE_TABLE(of, x2_i2sidma_of_match);
+MODULE_DEVICE_TABLE(of, hobot_i2sidma_of_match);
 #endif
 
 static struct platform_driver i2s_idma_driver = {
 	.driver = {
 		   .name = "hobot-i2s-idma",
-		   .of_match_table = x2_i2sidma_of_match,
+		   .of_match_table = hobot_i2sidma_of_match,
 		   },
 
 	.probe = asoc_i2sidma_platform_probe,

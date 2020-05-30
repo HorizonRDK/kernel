@@ -26,7 +26,7 @@
 
 #include <linux/i2c-hobot.h>
 
-#define X2_I2C_FIFO_SIZE	16
+#define HOBOT_I2C_FIFO_SIZE	16
 #define WAIT_IDLE_TIMEOUT	200 /* ms */
 #define XFER_TIMEOUT		1000 /* ms */
 #define HOBOT_SYSCTRL_REG   (0xA1000000)
@@ -46,9 +46,9 @@ enum {
 	i2c_write_read,
 };
 
-struct x2_i2c_dev {
+struct hobot_i2c_dev {
 	struct device *dev;
-	volatile struct x2_i2c_regs_s *i2c_regs;
+	volatile struct hobot_i2c_regs_s *i2c_regs;
 	struct reset_control *rst;
 	struct mutex lock;
 	int clkdiv;
@@ -67,7 +67,7 @@ struct x2_i2c_dev {
 	bool is_suspended;
 };
 
-static int x2_i2c_cfg(struct x2_i2c_dev *dev, int dir_rd, int timeout_enable)
+static int hobot_i2c_cfg(struct hobot_i2c_dev *dev, int dir_rd, int timeout_enable)
 {
 	union cfg_reg_e cfg;
 
@@ -86,7 +86,7 @@ static int x2_i2c_cfg(struct x2_i2c_dev *dev, int dir_rd, int timeout_enable)
 	return 0;
 }
 
-static int x2_i2c_reset(struct x2_i2c_dev *dev)
+static int hobot_i2c_reset(struct hobot_i2c_dev *dev)
 {
 	reset_control_assert(dev->rst);
 	udelay(2);
@@ -94,7 +94,7 @@ static int x2_i2c_reset(struct x2_i2c_dev *dev)
 	return 0;
 }
 
-static int x2_wait_idle(struct x2_i2c_dev *dev)
+static int hobot_wait_idle(struct hobot_i2c_dev *dev)
 {
 	int timeout = WAIT_IDLE_TIMEOUT;
 	union status_reg_e status;
@@ -112,17 +112,17 @@ static int x2_wait_idle(struct x2_i2c_dev *dev)
 	return 0;
 }
 
-static void x2_clear_int(struct x2_i2c_dev *dev)
+static void hobot_clear_int(struct hobot_i2c_dev *dev)
 {
 	iowrite32(0xffffffff, &dev->i2c_regs->srcpnd);
 }
 
-static void x2_mask_int(struct x2_i2c_dev *dev)
+static void hobot_mask_int(struct hobot_i2c_dev *dev)
 {
 	iowrite32(0xffffffff, &dev->i2c_regs->intsetmask);
 }
 
-static void x2_unmask_int(struct x2_i2c_dev *dev)
+static void hobot_unmask_int(struct hobot_i2c_dev *dev)
 {
 	union intunmask_reg_e unmask_reg;
 	unmask_reg.all = 0;
@@ -144,9 +144,9 @@ static void x2_unmask_int(struct x2_i2c_dev *dev)
 	iowrite32(unmask_reg.all, &dev->i2c_regs->intunmask);
 }
 
-static void x2_fill_txfifo(struct x2_i2c_dev *dev, int hold)
+static void hobot_fill_txfifo(struct hobot_i2c_dev *dev, int hold)
 {
-	int left = X2_I2C_FIFO_SIZE;
+	int left = HOBOT_I2C_FIFO_SIZE;
 	union status_reg_e status;
 
 	if (hold) {
@@ -169,9 +169,9 @@ static void x2_fill_txfifo(struct x2_i2c_dev *dev, int hold)
 	}
 }
 
-static void x2_drain_rxfifo(struct x2_i2c_dev *dev, int hold)
+static void hobot_drain_rxfifo(struct hobot_i2c_dev *dev, int hold)
 {
-	int left = X2_I2C_FIFO_SIZE;
+	int left = HOBOT_I2C_FIFO_SIZE;
 	union status_reg_e status;
 
 	if (hold) {
@@ -198,7 +198,7 @@ static void x2_drain_rxfifo(struct x2_i2c_dev *dev, int hold)
 /*
  * i2c diag msg send
  */
-static void x2_i2c_diag_process(u32 errsta, struct x2_i2c_dev *i2c_contro)
+static void hobot_i2c_diag_process(u32 errsta, struct hobot_i2c_dev *i2c_contro)
 {
 	u8 sta;
 	u8 envgen_timing;
@@ -223,19 +223,19 @@ static void x2_i2c_diag_process(u32 errsta, struct x2_i2c_dev *i2c_contro)
 	}
 }
 
-static irqreturn_t x2_i2c_isr(int this_irq, void *data)
+static irqreturn_t hobot_i2c_isr(int this_irq, void *data)
 {
-	struct x2_i2c_dev *dev = data;
+	struct hobot_i2c_dev *dev = data;
 	u32 err, comp = 1;
 	union sprcpnd_reg_e int_status;
 
 	disable_irq_nosync(this_irq);
 
-	dev_dbg(dev->dev, "x2_i2c_isr %x %x\n",
+	dev_dbg(dev->dev, "hobot_i2c_isr %x %x\n",
 			ioread32(&dev->i2c_regs->status), ioread32(&dev->i2c_regs->srcpnd));
-	x2_mask_int(dev);
+	hobot_mask_int(dev);
 	int_status.all = ioread32(&dev->i2c_regs->srcpnd);
-	x2_clear_int(dev);
+	hobot_clear_int(dev);
 
 	err = int_status.bit.nack | int_status.bit.sterr | int_status.bit.al |
 			int_status.bit.to | int_status.bit.aerr;
@@ -247,62 +247,62 @@ static irqreturn_t x2_i2c_isr(int this_irq, void *data)
 		if (int_status.bit.tr_done || int_status.bit.rrdy || int_status.bit.xrdy) {
 			if (dev->i2c_state == i2c_read) {
 				if (int_status.bit.tr_done)
-					x2_drain_rxfifo(dev, 0);
+					hobot_drain_rxfifo(dev, 0);
 				else
-					x2_drain_rxfifo(dev, 1);
+					hobot_drain_rxfifo(dev, 1);
 				comp = (dev->rx_remaining) ? 0 : 1;
 			} else if (dev->i2c_state == i2c_write) {
 				comp = (dev->tx_remaining) ? 0 : 1;
 				if (int_status.bit.tr_done)
-					x2_fill_txfifo(dev, 0);
+					hobot_fill_txfifo(dev, 0);
 				else
-					x2_fill_txfifo(dev, 1);
+					hobot_fill_txfifo(dev, 1);
 			} else if (dev->i2c_state == i2c_write_read) {
 				if (int_status.bit.xrdy) {
-					x2_fill_txfifo(dev, 1);
+					hobot_fill_txfifo(dev, 1);
 				} else if (int_status.bit.tr_done){
-					x2_drain_rxfifo(dev, 0);
+					hobot_drain_rxfifo(dev, 0);
 				} else {
-					x2_drain_rxfifo(dev, 1);
+					hobot_drain_rxfifo(dev, 1);
 				}
 				comp = (dev->rx_remaining) ? 0 : 1;
 			} else {
 				;
 			}
 			if (!comp) {
-				x2_unmask_int(dev);
+				hobot_unmask_int(dev);
 			}
 		}
 
 	}
 
-	x2_i2c_diag_process(err, dev);
+	hobot_i2c_diag_process(err, dev);
 
 	if (comp)
 		complete(&dev->completion);
 	enable_irq(this_irq);
-	dev_dbg(dev->dev, "x2 irq end\n");
+	dev_dbg(dev->dev, "i2c isr end\n");
 	return IRQ_HANDLED;
 }
 
-static int x2_i2c_xfer_msg(struct x2_i2c_dev *dev, struct i2c_msg *msg)
+static int hobot_i2c_xfer_msg(struct hobot_i2c_dev *dev, struct i2c_msg *msg)
 {
 	unsigned long time_left;
 	union ctl_reg_e ctl_reg;
 	union dcount_reg_e dcount_reg;
 
-	dev_dbg(dev->dev, "x2_i2c_xfer_msg %x %x\n", msg->flags, msg->len);
+	dev_dbg(dev->dev, "hobot_i2c_xfer_msg %x %x\n", msg->flags, msg->len);
 
 	dev->tx_buf = msg->buf;
 	dev->rx_buf = msg->buf;
 	dev->msg_err = 0;
 
 	reinit_completion(&dev->completion);
-	if (x2_wait_idle(dev))
+	if (hobot_wait_idle(dev))
 		return -ETIMEDOUT;
 
-	x2_mask_int(dev);
-	x2_clear_int(dev);
+	hobot_mask_int(dev);
+	hobot_clear_int(dev);
 
 	ctl_reg.all = 0;
 	dcount_reg.all = 0;
@@ -313,7 +313,7 @@ static int x2_i2c_xfer_msg(struct x2_i2c_dev *dev, struct i2c_msg *msg)
 		ctl_reg.bit.rd = 1;
 		dcount_reg.all = dev->rx_remaining << 16 | dev->tx_remaining;
 		iowrite32(dcount_reg.all, &dev->i2c_regs->dcount);
-		x2_fill_txfifo(dev, 0);
+		hobot_fill_txfifo(dev, 0);
 		dev->i2c_state = i2c_write_read;
 	} else {
 		if (msg->flags & I2C_M_RD) {
@@ -329,7 +329,7 @@ static int x2_i2c_xfer_msg(struct x2_i2c_dev *dev, struct i2c_msg *msg)
 			ctl_reg.bit.wr = 1;
 			dcount_reg.bit.w_dcount = msg->len;
 			iowrite32(dcount_reg.all, &dev->i2c_regs->dcount);
-			x2_fill_txfifo(dev, 0);
+			hobot_fill_txfifo(dev, 0);
 			dev->i2c_state = i2c_write;
 		}
 	}
@@ -344,7 +344,7 @@ static int x2_i2c_xfer_msg(struct x2_i2c_dev *dev, struct i2c_msg *msg)
 	ctl_reg.bit.sto = 1;
 	dev_dbg(dev->dev, "ctl_reg.all %x\n", ctl_reg.all);
 
-	x2_unmask_int(dev);
+	hobot_unmask_int(dev);
 	iowrite32(ctl_reg.all, &dev->i2c_regs->ctl);
 	time_left = wait_for_completion_timeout(&dev->completion,
 						msecs_to_jiffies(XFER_TIMEOUT));
@@ -371,7 +371,7 @@ static int x2_i2c_xfer_msg(struct x2_i2c_dev *dev, struct i2c_msg *msg)
 	return -EIO;
 }
 
-static void recal_clk_div(struct x2_i2c_dev *dev)
+static void recal_clk_div(struct hobot_i2c_dev *dev)
 {
 	u32 clk_freq = 0;
 	int temp_div = 0;
@@ -390,7 +390,7 @@ static void recal_clk_div(struct x2_i2c_dev *dev)
 	}
 }
 
-static void reset_client_freq(struct x2_i2c_dev *dev)
+static void reset_client_freq(struct hobot_i2c_dev *dev)
 {
 	struct client_request *client_req;
 
@@ -398,9 +398,9 @@ static void reset_client_freq(struct x2_i2c_dev *dev)
 	client_req->client_req_freq = 0;
 }
 
-static int x2_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[], int num)
+static int hobot_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[], int num)
 {
-	struct x2_i2c_dev *dev = i2c_get_adapdata(adap);
+	struct hobot_i2c_dev *dev = i2c_get_adapdata(adap);
 	int i;
 	int ret = 0;
 
@@ -409,16 +409,16 @@ static int x2_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[], int num)
 
 	mutex_lock(&dev->lock);
 
-	x2_i2c_reset(dev);
+	hobot_i2c_reset(dev);
 	recal_clk_div(dev);
 	if (msgs[0].flags & 0x20) {
-		x2_i2c_cfg(dev, 0, 0);
+		hobot_i2c_cfg(dev, 0, 0);
 	} else {
-		x2_i2c_cfg(dev, 1, 1);
+		hobot_i2c_cfg(dev, 1, 1);
 	}
 
 	for (i = 0; i < num; i++) {
-		ret = x2_i2c_xfer_msg(dev, &msgs[i]);
+		ret = hobot_i2c_xfer_msg(dev, &msgs[i]);
 		if (ret)
 			break;
 	}
@@ -434,7 +434,7 @@ static int x2_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[], int num)
 	return ret ? : i;
 }
 
-static int x2_i2c_doxfer_smbus(struct x2_i2c_dev *dev, u16 addr, bool write,
+static int hobot_i2c_doxfer_smbus(struct hobot_i2c_dev *dev, u16 addr, bool write,
 									u8 command, int size, u8 *data)
 {
 	unsigned long time_left;
@@ -442,11 +442,11 @@ static int x2_i2c_doxfer_smbus(struct x2_i2c_dev *dev, u16 addr, bool write,
 	union dcount_reg_e dcount_reg;
 
 	reinit_completion(&dev->completion);
-	if (x2_wait_idle(dev))
+	if (hobot_wait_idle(dev))
 		return -ETIMEDOUT;
 
-	x2_mask_int(dev);
-	x2_clear_int(dev);
+	hobot_mask_int(dev);
+	hobot_clear_int(dev);
 
 	dev->msg_err = 0;
 	dev->tx_buf = &command;
@@ -456,11 +456,11 @@ static int x2_i2c_doxfer_smbus(struct x2_i2c_dev *dev, u16 addr, bool write,
 	if (write) {
 		dcount_reg.bit.w_dcount = size + 1;
 		iowrite32(dcount_reg.all, &dev->i2c_regs->dcount);
-		x2_fill_txfifo(dev, 0);
+		hobot_fill_txfifo(dev, 0);
 		if (data) {
 			dev->tx_remaining = size;
 			dev->tx_buf = data;
-			x2_fill_txfifo(dev, 0);
+			hobot_fill_txfifo(dev, 0);
 		}
 		dev->i2c_state = i2c_write;
 		ctl_reg.bit.wr = 1;
@@ -468,7 +468,7 @@ static int x2_i2c_doxfer_smbus(struct x2_i2c_dev *dev, u16 addr, bool write,
 		dev->rx_remaining = 1;
 		dcount_reg.bit.w_dcount = 1;
 		iowrite32(dcount_reg.all, &dev->i2c_regs->dcount);
-		x2_fill_txfifo(dev, 0);
+		hobot_fill_txfifo(dev, 0);
 
 		dcount_reg.bit.r_dcount = size;
 		iowrite32(dcount_reg.all, &dev->i2c_regs->dcount);
@@ -484,7 +484,7 @@ static int x2_i2c_doxfer_smbus(struct x2_i2c_dev *dev, u16 addr, bool write,
 	ctl_reg.bit.sto = 1;
 	dev_dbg(dev->dev, "ctl_reg.all %x\n", ctl_reg.all);
 
-	x2_unmask_int(dev);
+	hobot_unmask_int(dev);
 	iowrite32(ctl_reg.all, &dev->i2c_regs->ctl);
 	time_left = wait_for_completion_timeout(&dev->completion,
 						msecs_to_jiffies(XFER_TIMEOUT));
@@ -509,47 +509,47 @@ static int x2_i2c_doxfer_smbus(struct x2_i2c_dev *dev, u16 addr, bool write,
 	return -EIO;
 }
 
-static int x2_i2c_xfer_smbus(struct i2c_adapter *adap, u16 addr,
+static int hobot_i2c_xfer_smbus(struct i2c_adapter *adap, u16 addr,
 			   unsigned short flags, char read_write,
 			   u8 command, int size, union i2c_smbus_data *data)
 {
 	int ret = 0;
-	struct x2_i2c_dev *dev = i2c_get_adapdata(adap);
+	struct hobot_i2c_dev *dev = i2c_get_adapdata(adap);
 
 	if (dev->is_suspended)
 		return -EBUSY;
 
 	mutex_lock(&dev->lock);
-	dev_dbg(dev->dev, "x2_i2c_xfer_smbus addr:%x cmd:%d rw:%d size:%d\n",
+	dev_dbg(dev->dev, "hobot_i2c_xfer_smbus addr:%x cmd:%d rw:%d size:%d\n",
 				addr, command, read_write, size);
 
-	x2_i2c_reset(dev);
+	hobot_i2c_reset(dev);
 	recal_clk_div(dev);
-	x2_i2c_cfg(dev, 0, 1);
+	hobot_i2c_cfg(dev, 0, 1);
 
 	switch (size) {
 	case I2C_SMBUS_BYTE:
-		ret = x2_i2c_doxfer_smbus(dev, addr,
+		ret = hobot_i2c_doxfer_smbus(dev, addr,
 				read_write == I2C_SMBUS_WRITE,
 				command, 0, &data->byte);
 		break;
 	case I2C_SMBUS_BYTE_DATA:
-		ret = x2_i2c_doxfer_smbus(dev, addr,
+		ret = hobot_i2c_doxfer_smbus(dev, addr,
 				read_write == I2C_SMBUS_WRITE,
 				command, 1, &data->byte);
 		break;
 	case I2C_SMBUS_WORD_DATA:
-		ret = x2_i2c_doxfer_smbus(dev, addr,
+		ret = hobot_i2c_doxfer_smbus(dev, addr,
 				read_write == I2C_SMBUS_WRITE,
 				command, 2, (u8 *)&data->word);
 		break;
 	case I2C_SMBUS_BLOCK_DATA:
-		ret = x2_i2c_doxfer_smbus(dev, addr,
+		ret = hobot_i2c_doxfer_smbus(dev, addr,
 				read_write == I2C_SMBUS_WRITE,
 				command, data->block[0], &data->block[1]);
 		break;
 	case I2C_SMBUS_I2C_BLOCK_DATA:
-		ret = x2_i2c_doxfer_smbus(dev, addr,
+		ret = hobot_i2c_doxfer_smbus(dev, addr,
 				read_write == I2C_SMBUS_WRITE,
 				command, data->block[0], &data->block[1]);
 		break;
@@ -569,23 +569,23 @@ static int x2_i2c_xfer_smbus(struct i2c_adapter *adap, u16 addr,
 }
 
 
-static u32 x2_i2c_func(struct i2c_adapter *adap)
+static u32 hobot_i2c_func(struct i2c_adapter *adap)
 {
 	return I2C_FUNC_10BIT_ADDR | I2C_FUNC_I2C |
 		(I2C_FUNC_SMBUS_EMUL & ~I2C_FUNC_SMBUS_QUICK);
 }
 
-static const struct i2c_algorithm x2_i2c_algo = {
-	.master_xfer = x2_i2c_xfer,
+static const struct i2c_algorithm hobot_i2c_algo = {
+	.master_xfer = hobot_i2c_xfer,
 #ifndef	CONFIG_HOBOT_FPGA_X3
-	.smbus_xfer = x2_i2c_xfer_smbus,
+	.smbus_xfer = hobot_i2c_xfer_smbus,
 #endif
-	.functionality = x2_i2c_func,
+	.functionality = hobot_i2c_func,
 };
 
-static int x2_i2c_probe(struct platform_device *pdev)
+static int hobot_i2c_probe(struct platform_device *pdev)
 {
-	struct x2_i2c_dev *dev;
+	struct hobot_i2c_dev *dev;
 	struct resource *mem, *irq;
 	int ret, i2c_id, temp_div;
 	struct client_request *client_req = NULL;
@@ -594,7 +594,7 @@ static int x2_i2c_probe(struct platform_device *pdev)
 	struct i2c_adapter *adap;
 
 	printk("hobot i2c probe start\n");
-	dev = devm_kzalloc(&pdev->dev, sizeof(struct x2_i2c_dev), GFP_KERNEL);
+	dev = devm_kzalloc(&pdev->dev, sizeof(struct hobot_i2c_dev), GFP_KERNEL);
 	if (!dev) {
 		ret = -ENOMEM;
 		goto err;
@@ -665,7 +665,7 @@ static int x2_i2c_probe(struct platform_device *pdev)
 	}
 	dev->irq = irq->start;
 
-	ret = request_irq(dev->irq, x2_i2c_isr, IRQF_TRIGGER_HIGH,
+	ret = request_irq(dev->irq, hobot_i2c_isr, IRQF_TRIGGER_HIGH,
 			  dev_name(&pdev->dev), dev);
 	if (ret) {
 		dev_err(&pdev->dev, "Could not request IRQ\n");
@@ -688,7 +688,7 @@ static int x2_i2c_probe(struct platform_device *pdev)
 	adap->owner = THIS_MODULE;
 	adap->class = I2C_CLASS_DEPRECATED;
 	strlcpy(adap->name, "Hobot I2C adapter", sizeof(adap->name));
-	adap->algo = &x2_i2c_algo;
+	adap->algo = &hobot_i2c_algo;
 	adap->algo_data = (void*)client_req;
 	adap->dev.parent = &pdev->dev;
 	adap->dev.of_node = pdev->dev.of_node;
@@ -720,9 +720,9 @@ err:
 	return ret;
 }
 
-static int x2_i2c_remove(struct platform_device *pdev)
+static int hobot_i2c_remove(struct platform_device *pdev)
 {
-	struct x2_i2c_dev *dev = platform_get_drvdata(pdev);
+	struct hobot_i2c_dev *dev = platform_get_drvdata(pdev);
 
 	free_irq(dev->irq, dev);
 	i2c_del_adapter(&dev->adapter);
@@ -735,11 +735,11 @@ static int x2_i2c_remove(struct platform_device *pdev)
 }
 
 #ifdef CONFIG_PM_SLEEP
-static int x2_i2c_suspend(struct device *dev)
+static int hobot_i2c_suspend(struct device *dev)
 {
 	u32 value;
 	void __iomem *address;
-	struct x2_i2c_dev *i2c_dev = dev_get_drvdata(dev);
+	struct hobot_i2c_dev *i2c_dev = dev_get_drvdata(dev);
 
 	pr_info("%s:%s, enter suspend...\n", __FILE__, __func__);
 
@@ -753,7 +753,7 @@ static int x2_i2c_suspend(struct device *dev)
 	i2c_unlock_adapter(&i2c_dev->adapter);
 
 	/* wait I2C bus to be idle */
-	//x2_wait_idle(i2c_dev);
+	//hobot_wait_idle(i2c_dev);
 	i2c_lock_adapter(&i2c_dev->adapter);
 	i2c_dev->is_suspended = true;
 	i2c_unlock_adapter(&i2c_dev->adapter);
@@ -765,11 +765,11 @@ static int x2_i2c_suspend(struct device *dev)
 	return 0;
 }
 
-static int x2_i2c_resume(struct device *dev)
+static int hobot_i2c_resume(struct device *dev)
 {
 	u32 value;
 	void __iomem *address;
-	struct x2_i2c_dev *i2c_dev = dev_get_drvdata(dev);
+	struct hobot_i2c_dev *i2c_dev = dev_get_drvdata(dev);
 
 	pr_info("%s:%s, enter resume...\n", __FILE__, __func__);
 
@@ -790,39 +790,39 @@ static int x2_i2c_resume(struct device *dev)
 }
 #endif
 
-static const struct dev_pm_ops x2_i2c_pm = {
-	SET_SYSTEM_SLEEP_PM_OPS(x2_i2c_suspend, x2_i2c_resume)
+static const struct dev_pm_ops hobot_i2c_pm = {
+	SET_SYSTEM_SLEEP_PM_OPS(hobot_i2c_suspend, hobot_i2c_resume)
 };
 
-static const struct of_device_id x2_i2c_of_match[] = {
+static const struct of_device_id hobot_i2c_of_match[] = {
 	{.compatible = "hobot,hobot-i2c"},
 	{},
 };
 
-MODULE_DEVICE_TABLE(of, x2_i2c_of_match);
+MODULE_DEVICE_TABLE(of, hobot_i2c_of_match);
 
-static struct platform_driver x2_i2c_driver = {
-	.probe = x2_i2c_probe,
-	.remove = x2_i2c_remove,
+static struct platform_driver hobot_i2c_driver = {
+	.probe = hobot_i2c_probe,
+	.remove = hobot_i2c_remove,
 	.driver = {
 		   .name = "hobot-i2c",
-		   .of_match_table = x2_i2c_of_match,
-		   .pm = &x2_i2c_pm,
+		   .of_match_table = hobot_i2c_of_match,
+		   .pm = &hobot_i2c_pm,
 		   },
 };
 
-static int __init x2_i2c_init(void)
+static int __init hobot_i2c_init(void)
 {
-	return platform_driver_register(&x2_i2c_driver);
+	return platform_driver_register(&hobot_i2c_driver);
 }
 
-static void __init x2_i2c_exit(void)
+static void __init hobot_i2c_exit(void)
 {
-	platform_driver_unregister(&x2_i2c_driver);
+	platform_driver_unregister(&hobot_i2c_driver);
 }
 
-subsys_initcall(x2_i2c_init);
-module_exit(x2_i2c_exit);
+subsys_initcall(hobot_i2c_init);
+module_exit(hobot_i2c_exit);
 
 MODULE_AUTHOR("Taochao");
 MODULE_AUTHOR("qiang.yu@horizon.ai");

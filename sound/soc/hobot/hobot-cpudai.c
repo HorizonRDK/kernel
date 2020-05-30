@@ -30,14 +30,14 @@
 
 #define msecs_to_loops(t) (loops_per_jiffy / 1000 * HZ * t)
 
-#define X2_I2S_RATES    SNDRV_PCM_RATE_8000_96000
+#define HOBOT_I2S_RATES    SNDRV_PCM_RATE_8000_96000
 
-#define X2_I2S_FMTS (SNDRV_PCM_FMTBIT_S8 | SNDRV_PCM_FMTBIT_S16_LE)
+#define HOBOT_I2S_FMTS (SNDRV_PCM_FMTBIT_S8 | SNDRV_PCM_FMTBIT_S16_LE)
 
 static inline int change_clk(struct device *dev,
         const char *clk_name, unsigned long rate);
 
-static unsigned int x2_i2s_read_base_reg(struct x2_i2s *i2s, int offset)
+static unsigned int hobot_i2s_read_base_reg(struct hobot_i2s *i2s, int offset)
 {
 	if (i2s->id == 0)
 		return readl(i2s->regaddr_rx+offset);
@@ -47,7 +47,7 @@ static unsigned int x2_i2s_read_base_reg(struct x2_i2s *i2s, int offset)
 
 
 /* enable/disable i2s controller */
-static void i2s_transfer_ctl(struct x2_i2s *i2s, bool on)
+static void i2s_transfer_ctl(struct hobot_i2s *i2s, bool on)
 {
 	unsigned long val;
 	void __iomem *addr;
@@ -82,7 +82,7 @@ static int i2s_set_sysclk(struct snd_soc_dai *dai,
 /* but also write sysctl clock register */
 static int i2s_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 {
-	struct x2_i2s *i2s = snd_soc_dai_get_drvdata(dai);
+	struct hobot_i2s *i2s = snd_soc_dai_get_drvdata(dai);
 	u32 val = 0;
 	unsigned long flags;
 
@@ -139,8 +139,8 @@ static int i2s_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 	return 0;
 }
 
-static void x2_i2s_sample_rate_set(struct snd_pcm_substream *substream,
-				   struct x2_i2s *i2s)
+static void hobot_i2s_sample_rate_set(struct snd_pcm_substream *substream,
+				   struct hobot_i2s *i2s)
 {
 
 	int ws_l, ws_h;
@@ -208,7 +208,7 @@ static int i2s_hw_params(struct snd_pcm_substream *substream,
 			  struct snd_pcm_hw_params *params,
 			  struct snd_soc_dai *dai)
 {
-	struct x2_i2s *i2s = snd_soc_dai_get_drvdata(dai);
+	struct hobot_i2s *i2s = snd_soc_dai_get_drvdata(dai);
 	u32 mod, chan = 0;
 	unsigned long flags;
 
@@ -311,7 +311,7 @@ static int i2s_hw_params(struct snd_pcm_substream *substream,
 	}
 	dev_dbg(i2s->dev, "x2 config wordlength is %d\n", i2s->wordlength);
 
-	x2_i2s_sample_rate_set(substream, i2s);
+	hobot_i2s_sample_rate_set(substream, i2s);
 	spin_unlock_irqrestore(&i2s->lock, flags);
 	return 0;
 }
@@ -320,7 +320,7 @@ static int i2s_hw_params(struct snd_pcm_substream *substream,
 static int i2s_startup(struct snd_pcm_substream *substream,
 			struct snd_soc_dai *dai)
 {
-	struct x2_i2s *i2s = snd_soc_dai_get_drvdata(dai);
+	struct hobot_i2s *i2s = snd_soc_dai_get_drvdata(dai);
 	unsigned long flags;
 
 	//dev_dbg(i2s->dev, "i2s_startup S, i2s->id is %d\n", i2s->id);
@@ -353,7 +353,7 @@ static int i2s_trigger(struct snd_pcm_substream *substream,
 			int cmd, struct snd_soc_dai *dai)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct x2_i2s *i2s = snd_soc_dai_get_drvdata(rtd->cpu_dai);
+	struct hobot_i2s *i2s = snd_soc_dai_get_drvdata(rtd->cpu_dai);
 	unsigned long flags;
 
 	//dev_dbg(i2s->dev, "i2s_trigger cmd is %d\n", cmd);
@@ -400,7 +400,7 @@ static int i2s_set_clkdiv(struct snd_soc_dai *dai, int div_id, int div)
 	return 0;
 }
 
-static const struct snd_soc_dai_ops x2_i2s_dai_ops = {
+static const struct snd_soc_dai_ops hobot_i2s_dai_ops = {
 	.trigger = i2s_trigger,
 	.hw_params = i2s_hw_params,
 	.set_fmt = i2s_set_fmt,
@@ -410,9 +410,9 @@ static const struct snd_soc_dai_ops x2_i2s_dai_ops = {
 
 };
 
-static int x2_i2s_dai_probe(struct snd_soc_dai *dai)
+static int hobot_i2s_dai_probe(struct snd_soc_dai *dai)
 {
-	struct x2_i2s *i2s = snd_soc_dai_get_drvdata(dai);
+	struct hobot_i2s *i2s = snd_soc_dai_get_drvdata(dai);
 
 	snd_soc_dai_init_dma_data(dai, &i2s->playback_dma_data,
 				  &i2s->capture_dma_data);
@@ -422,103 +422,103 @@ static int x2_i2s_dai_probe(struct snd_soc_dai *dai)
 }
 
 
-static int x2_i2s_dai_remove(struct snd_soc_dai *dai)
+static int hobot_i2s_dai_remove(struct snd_soc_dai *dai)
 {
 	return 0;
 }
 
-static struct snd_soc_dai_driver x2_i2s_dai_drv[2] = {
+static struct snd_soc_dai_driver hobot_i2s_dai_drv[2] = {
 
 	{
-		.probe = x2_i2s_dai_probe,
-		.remove = x2_i2s_dai_remove,
+		.probe = hobot_i2s_dai_probe,
+		.remove = hobot_i2s_dai_remove,
 
 		.playback = {
 			    .stream_name = "Playback",
 			    .channels_min = 1,
 			    .channels_max = 2,
-			    .rates = X2_I2S_RATES,
-			    .formats = X2_I2S_FMTS,
+			    .rates = HOBOT_I2S_RATES,
+			    .formats = HOBOT_I2S_FMTS,
 			    },
 		.capture = {
 			    .stream_name = "Capture",
 			    .channels_min = 1,
 			    .channels_max = 8,
-			    .rates = X2_I2S_RATES,
-			    .formats = X2_I2S_FMTS,
+			    .rates = HOBOT_I2S_RATES,
+			    .formats = HOBOT_I2S_FMTS,
 			    },
-		.ops = &x2_i2s_dai_ops,
+		.ops = &hobot_i2s_dai_ops,
 		.symmetric_rates = 1,
 		.name = "hobot-i2s0",
 	},
 	{
-		.probe = x2_i2s_dai_probe,/* the same as i2s0 dai param */
-		.remove = x2_i2s_dai_remove,/* the same as i2s0 dai param */
+		.probe = hobot_i2s_dai_probe,/* the same as i2s0 dai param */
+		.remove = hobot_i2s_dai_remove,/* the same as i2s0 dai param */
 		.playback = {
 			     .stream_name = "Playback",
 			     .channels_min = 1,
 			     .channels_max = 2,
-			     .rates = X2_I2S_RATES,
-			     .formats = X2_I2S_FMTS,
+			     .rates = HOBOT_I2S_RATES,
+			     .formats = HOBOT_I2S_FMTS,
 			     },
 		/*
 		.capture = {
 			    .stream_name = "Capture",
 			    .channels_min = 1,
 			    .channels_max = 4,
-			    .rates = X2_I2S_RATES,
-			    .formats = X2_I2S_FMTS,
+			    .rates = HOBOT_I2S_RATES,
+			    .formats = HOBOT_I2S_FMTS,
 			    },
 		*/
-		.ops = &x2_i2s_dai_ops,/* the same as i2s0 dai param */
+		.ops = &hobot_i2s_dai_ops,/* the same as i2s0 dai param */
 		.symmetric_rates = 1,
 		.name = "hobot-i2s1",
 	}
 };
-static const struct snd_soc_component_driver x2_i2s_component_drv[2];
-static ssize_t store_x2_i2s_reg(struct device *dev,
+static const struct snd_soc_component_driver hobot_i2s_component_drv[2];
+static ssize_t store_hobot_i2s_reg(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t count)
 {
-	struct x2_i2s *i2s;
+	struct hobot_i2s *i2s;
 
 	i2s = dev->driver_data;
 	return 0;
 }
 
-static ssize_t show_x2_i2s_reg(struct device *dev,
+static ssize_t show_hobot_i2s_reg(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
-	struct x2_i2s *i2s = (struct x2_i2s *)dev_get_drvdata(dev);
+	struct hobot_i2s *i2s = (struct hobot_i2s *)dev_get_drvdata(dev);
 	unsigned int val;
 
 	char *s = buf;
 
 
-		val = x2_i2s_read_base_reg(i2s, I2S_CTL);
+		val = hobot_i2s_read_base_reg(i2s, I2S_CTL);
 		s += sprintf(s, "ctl: 0x%08x\n", val);
-		val = x2_i2s_read_base_reg(i2s, I2S_MODE);
+		val = hobot_i2s_read_base_reg(i2s, I2S_MODE);
 		s += sprintf(s, "mode: 0x%08x\n", val);
-		val = x2_i2s_read_base_reg(i2s, I2S_DIV_WS);
+		val = hobot_i2s_read_base_reg(i2s, I2S_DIV_WS);
 		s += sprintf(s, "div_ws: 0x%08x\n", val);
-		val = x2_i2s_read_base_reg(i2s, I2S_CH_EN);
+		val = hobot_i2s_read_base_reg(i2s, I2S_CH_EN);
 		s += sprintf(s, "ch_en: 0x%08x\n", val);
-		val = x2_i2s_read_base_reg(i2s, I2S_BUF_SIZE);
+		val = hobot_i2s_read_base_reg(i2s, I2S_BUF_SIZE);
 		s += sprintf(s, "buf_size: 0x%08x\n", val);
-		val = x2_i2s_read_base_reg(i2s, I2S_BUF0_ADDR);
+		val = hobot_i2s_read_base_reg(i2s, I2S_BUF0_ADDR);
 		s += sprintf(s, "buf0_addr: 0x%08x\n", val);
-		val = x2_i2s_read_base_reg(i2s, I2S_BUF0_RDY);
+		val = hobot_i2s_read_base_reg(i2s, I2S_BUF0_RDY);
 		s += sprintf(s, "buf0_rdy: 0x%08x\n", val);
-		val = x2_i2s_read_base_reg(i2s, I2S_BUF1_ADDR);
+		val = hobot_i2s_read_base_reg(i2s, I2S_BUF1_ADDR);
 		s += sprintf(s, "buf1_addr: 0x%08x\n", val);
-		val = x2_i2s_read_base_reg(i2s, I2S_BUF1_RDY);
+		val = hobot_i2s_read_base_reg(i2s, I2S_BUF1_RDY);
 		s += sprintf(s, "buf1_rdy: 0x%08x\n", val);
-		val = x2_i2s_read_base_reg(i2s, I2S_BUF_CUR_ADDR);
+		val = hobot_i2s_read_base_reg(i2s, I2S_BUF_CUR_ADDR);
 		s += sprintf(s, "buf_cur_addr: 0x%08x\n", val);
-		val = x2_i2s_read_base_reg(i2s, I2S_CH_ERROR);
+		val = hobot_i2s_read_base_reg(i2s, I2S_CH_ERROR);
 		s += sprintf(s, "ch_error: 0x%08x\n", val);
-		val = x2_i2s_read_base_reg(i2s, I2S_SRCPND);
+		val = hobot_i2s_read_base_reg(i2s, I2S_SRCPND);
 		s += sprintf(s, "srcpnd: 0x%08x\n", val);
-		val = x2_i2s_read_base_reg(i2s, I2S_INTMASK);
+		val = hobot_i2s_read_base_reg(i2s, I2S_INTMASK);
 		s += sprintf(s, "intmask: 0x%08x\n", val);
 		if (s != buf)
 			*(s-1) = '\n';
@@ -527,7 +527,7 @@ static ssize_t show_x2_i2s_reg(struct device *dev,
 
 
 
-static DEVICE_ATTR(reg_dump, 0644, show_x2_i2s_reg, store_x2_i2s_reg);
+static DEVICE_ATTR(reg_dump, 0644, show_hobot_i2s_reg, store_hobot_i2s_reg);
 
 static inline int change_clk(struct device *dev,
 	const char *clk_name, unsigned long rate)
@@ -555,9 +555,9 @@ static inline int change_clk(struct device *dev,
 
 
 
-static int x2_i2s_probe(struct platform_device *pdev)
+static int hobot_i2s_probe(struct platform_device *pdev)
 {
-	struct x2_i2s *i2s;
+	struct hobot_i2s *i2s;
 	int id;
 	int ret;
 	struct resource *res;
@@ -569,7 +569,7 @@ static int x2_i2s_probe(struct platform_device *pdev)
 
 	i2s = devm_kzalloc(&pdev->dev, sizeof(*i2s), GFP_KERNEL);
 	if (!i2s) {
-		/* dev_err(&pdev->dev, "Can't allocate x2_i2s0\n"); */
+		/* dev_err(&pdev->dev, "Can't allocate hobot_i2s0\n"); */
 		return -ENOMEM;
 	}
 
@@ -717,12 +717,12 @@ static int x2_i2s_probe(struct platform_device *pdev)
 		return PTR_ERR(i2s->rst);
 	}
 
-	/* x2_i2s is set to cpudai dev data */
+	/* hobot_i2s is set to cpudai dev data */
 	dev_set_drvdata(&pdev->dev, i2s);
 
 	ret =
 		devm_snd_soc_register_component(&pdev->dev,
-			&x2_i2s_component_drv[id], &x2_i2s_dai_drv[id], 1);
+			&hobot_i2s_component_drv[id], &hobot_i2s_dai_drv[id], 1);
 	if (ret) {
 		dev_err(&pdev->dev, "Could not register DAI\n");
 		return ret;
@@ -735,35 +735,35 @@ static int x2_i2s_probe(struct platform_device *pdev)
 
 }
 
-/* static const struct snd_soc_component_driver x2_i2s_component_drv = { */
+/* static const struct snd_soc_component_driver hobot_i2s_component_drv = { */
 /* .name = DRV_NAME, */
 /* }; */
-static int x2_i2s_remove(struct platform_device *pdev)
+static int hobot_i2s_remove(struct platform_device *pdev)
 {
-	/* struct x2_i2s *i2s = dev_get_drvdata (&pdev->dev); */
+	/* struct hobot_i2s *i2s = dev_get_drvdata (&pdev->dev); */
 	return 0;
 }
 
 #ifdef CONFIG_OF
-static const struct of_device_id x2_i2s_of_match[] = {
+static const struct of_device_id hobot_i2s_of_match[] = {
 	{.compatible = "hobot, hobot-i2s0",},
 	{.compatible = "hobot, hobot-i2s1",},
 	{}
 };
 
-MODULE_DEVICE_TABLE(of, x2_i2s_of_match);
+MODULE_DEVICE_TABLE(of, hobot_i2s_of_match);
 #endif
 
-static struct platform_driver x2_i2s_driver = {
-	.probe = x2_i2s_probe,
-	.remove = x2_i2s_remove,
+static struct platform_driver hobot_i2s_driver = {
+	.probe = hobot_i2s_probe,
+	.remove = hobot_i2s_remove,
 	.driver = {
 		   .name = "hobot-i2s",
-		   .of_match_table = x2_i2s_of_match,
+		   .of_match_table = hobot_i2s_of_match,
 		   },
 };
 
-module_platform_driver(x2_i2s_driver);
+module_platform_driver(hobot_i2s_driver);
 
 /* Module information */
 MODULE_AUTHOR("Jxy");

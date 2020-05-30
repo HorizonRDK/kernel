@@ -113,10 +113,10 @@
 	};
 
 	rst: reset-controller {
-		compatible = "hobot,x2-reset";
+		compatible = "hobot,hobot-reset";
 		#reset-cells = <2>;
 		reg = <0x0 0xA1000000 0x0 0x1000>;
-		x2,modrst-offset = <0x400>;
+		hobot,modrst-offset = <0x400>;
 	};
 
 	sysctrl: system-controller@0xA1000000 {

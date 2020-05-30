@@ -147,7 +147,7 @@ obj-$(CONFIG_FB_DA8XX)		  += da8xx-fb.o
 obj-$(CONFIG_FB_MXS)		  += mxsfb.o
 obj-$(CONFIG_FB_SSD1307)	  += ssd1307fb.o
 obj-$(CONFIG_FB_SIMPLE)           += simplefb.o
-obj-$(CONFIG_FB_HOBOT_X2)         += hobot-fb.o
+obj-$(CONFIG_FB_HOBOT)         += hobot-fb.o
 ifeq ($(CONFIG_HOBOT_GCOV_AVIO),y)
 GCOV_PROFILE_hobot-fb.o := y
 endif
