@@ -28,7 +28,7 @@
 
 
 // ------------------------------------------------------------------------------ //
-// register of x2a system control for isp reset
+// register of x3 system control for isp reset
 // ------------------------------------------------------------------------------ //
 
 #define X2A_ISP_RESET_DEFAULT (0x0)
@@ -37,16 +37,16 @@
 #define X2A_ISP_RESET_MASK (0x40)
 
 // args: data (1-bit)
-static __inline void x2a_isp_reset_write(uint8_t data) {
+static __inline void x3_isp_reset_write(uint8_t data) {
     uint32_t curr = system_ctrl_hw_read_32(X2A_ISP_RESET_OFFSET);
     system_ctrl_hw_write_32(X2A_ISP_RESET_OFFSET, (((uint32_t) (data & 0x1)) << 6) | (curr & ~X2A_ISP_RESET_MASK));
 }
-static __inline uint8_t x2a_isp_reset_read(void) {
+static __inline uint8_t x3_isp_reset_read(void) {
     return (uint8_t)((system_ctrl_hw_read_32(X2A_ISP_RESET_OFFSET) & X2A_ISP_RESET_MASK) >> 6);
 }
 
 // ------------------------------------------------------------------------------ //
-// register of x2a isp offline mode output frame id
+// register of x3 isp offline mode output frame id
 // ------------------------------------------------------------------------------ //
 
 #define X2A_ISP_FRAME_DEFAULT (0x0)
@@ -55,7 +55,7 @@ static __inline uint8_t x2a_isp_reset_read(void) {
 #define X2A_ISP_FRAME_MASK (0xFFFF)
 
 // args: data (16-bit)
-static __inline uint32_t x2a_isp_frame_id_read(void) {
+static __inline uint32_t x3_isp_frame_id_read(void) {
     return (uint32_t)((system_ips_hw_read_32(X2A_ISP_FRAME_ID_OFFSET) & X2A_ISP_FRAME_MASK));
 }
 

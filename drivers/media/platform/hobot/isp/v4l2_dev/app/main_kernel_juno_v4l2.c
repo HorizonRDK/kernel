@@ -239,8 +239,8 @@ static int32_t isp_platform_probe( struct platform_device *pdev )
 //	    acamera_isp_isp_global_watchdog_timer_max_count_write(0,0x12345678);
     test_reg = acamera_isp_isp_global_watchdog_timer_max_count_read(0);
     LOG( LOG_INFO, "test_reg = 0x%x.", test_reg);
-    x2a_isp_reset_write(1);
-    x2a_isp_reset_write(0);
+    x3_isp_reset_write(1);
+    x3_isp_reset_write(0);
     test_reg = acamera_isp_isp_global_watchdog_timer_max_count_read(0);
     LOG( LOG_INFO, "after reset, test_reg = 0x%x.", test_reg);
 #endif

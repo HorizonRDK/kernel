@@ -65,12 +65,12 @@ typedef struct _camera_charmod_s {
 
 extern camera_charmod_s *camera_mod[CAMERA_TOTAL_NUMBER];
 
-typedef struct _x2a_camera_i2c_t {
+typedef struct _x3_camera_i2c_t {
 	uint32_t i2c_addr;
 	uint32_t reg_size;
 	uint32_t reg;
 	uint32_t data;
-} x2a_camera_i2c_t;
+} x3_camera_i2c_t;
 
 int camera_cdev_init(void);
 void camera_cdev_exit(void);

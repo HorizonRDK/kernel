@@ -205,7 +205,7 @@ EXPORT_SYMBOL(dis_set_ioctl);
  *
  */
 
-static irqreturn_t x2a_dis_irq(int this_irq, void *data)
+static irqreturn_t x3_dis_irq(int this_irq, void *data)
 {
 	int ret = 0;
 	uint32_t addr = 0;
@@ -294,7 +294,7 @@ static irqreturn_t x2a_dis_irq(int this_irq, void *data)
  *   else
  *       using setting[0-1] 
  */
-static irqreturn_t x2a_ldc_irq(int this_irq, void *data)
+static irqreturn_t x3_ldc_irq(int this_irq, void *data)
 {
 	ldc_irqstatus_u tmp_irq;
 
@@ -402,14 +402,14 @@ int dwe_hw_init(void)
 		return ret;
 	} else {
 		irq = dwe_ctx->dev_ctx->ldc_dev->irq_num;
-		ret = request_irq(irq, x2a_ldc_irq, IRQF_TRIGGER_HIGH, "X2A_LDC", NULL);
+		ret = request_irq(irq, x3_ldc_irq, IRQF_TRIGGER_HIGH, "X2A_LDC", NULL);
 		if (ret < 0) {
 			LOG(LOG_ERR, "ldc irq %d register failed!\n", irq);
 			goto irqldc_err;
 		}
 
 		irq = dwe_ctx->dev_ctx->dis_dev->irq_num;
-		ret = request_irq(irq, x2a_dis_irq, IRQF_TRIGGER_HIGH, "X2A_DIS", NULL);
+		ret = request_irq(irq, x3_dis_irq, IRQF_TRIGGER_HIGH, "X2A_DIS", NULL);
 		if (ret < 0) {
 			LOG(LOG_ERR, "dis irq %d register failed!\n", irq);
 			goto irqdis_err;
@@ -434,9 +434,9 @@ int dwe_hw_init(void)
 	return ret;
 
 irq_err:
-	free_irq(dwe_ctx->dev_ctx->dis_dev->irq_num, x2a_ldc_irq);
+	free_irq(dwe_ctx->dev_ctx->dis_dev->irq_num, x3_ldc_irq);
 irqdis_err:
-	free_irq(dwe_ctx->dev_ctx->ldc_dev->irq_num, x2a_ldc_irq);
+	free_irq(dwe_ctx->dev_ctx->ldc_dev->irq_num, x3_ldc_irq);
 irqldc_err:
 	return ret;
 }
@@ -451,10 +451,10 @@ void dwe_hw_deinit(void)
 		LOG(LOG_INFO, "dwe_ctx->dev_ctx is error! \n");
 	} else {
 		irq = dwe_ctx->dev_ctx->ldc_dev->irq_num;
-		free_irq(irq, x2a_ldc_irq);
+		free_irq(irq, x3_ldc_irq);
 		
 		irq = dwe_ctx->dev_ctx->dis_dev->irq_num;
-		free_irq(irq, x2a_dis_irq);
+		free_irq(irq, x3_dis_irq);
 	}
 
 	dwe_deinit_api(&dwe_ctx->ctx);

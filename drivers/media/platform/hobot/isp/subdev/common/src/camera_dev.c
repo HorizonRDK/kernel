@@ -270,6 +270,6 @@ devinit_err:
 // module_exit(camera_cdev_exit);
 
 MODULE_AUTHOR("Horizon Inc.");
-MODULE_DESCRIPTION("camera_char dev of x2a");
+MODULE_DESCRIPTION("camera_char dev of x3");
 MODULE_LICENSE("GPL");
 

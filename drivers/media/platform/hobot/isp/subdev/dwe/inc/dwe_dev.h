@@ -17,10 +17,10 @@
 
 #include <linux/types.h>
 
-#define X2A_LDC_NAME  "hobot,x2a-ldc"
-#define X2A_DIS_NAME  "hobot,x2a-dis0"
-#define X2A_DIS1_NAME  "hobot,x2a-dis1"
-#define X2A_DWE_NAME  "X2A-DWE"
+#define X2A_LDC_NAME  "hobot,x3-ldc"
+#define X2A_DIS_NAME  "hobot,x3-dis0"
+#define X2A_DIS1_NAME  "hobot,x3-dis1"
+#define X2A_DWE_NAME  "X3-DWE"
 
 typedef struct _dwe_subdev_s {
         phys_addr_t io_paddr;

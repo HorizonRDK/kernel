@@ -527,14 +527,14 @@
 		};
 /*
 		ldc: ldc@0xA4030000 {
-		    compatible = "hobot,x2a-ldc";
+		    compatible = "hobot,x3-ldc";
 		    reg = <0 0xA4030000 0 0x1000>;
 		    interrupt-parent = <&gic>;
 		    interrupts = <0 75 4>;
 		    status = "okay";
 		};
 		dis: dis@0xA4034000 {
-		    compatible = "hobot,x2a-dis";
+		    compatible = "hobot,x3-dis";
 		    reg = <0 0xA4034000 0 0x1000>;
 		    interrupt-parent = <&gic>;
 		    interrupts = <0 73 4>;
@@ -542,7 +542,7 @@
 		};
 
 		dis1: dis1@0xA4035000 {
-		    compatible = "hobot,x2a-dis1";
+		    compatible = "hobot,x3-dis1";
 		    reg = <0 0xA4035000 0 0x1000>;
 		    //interrupt-parent = <&gic>;
 		    //interrupts = <0 77 4>;
