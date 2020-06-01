@@ -204,6 +204,7 @@ int ctrl_channel_read( char *data, int size )
 static int ctrl_channel_write( const struct ctrl_cmd_item *p_cmd, const void *data, uint32_t data_size )
 {
     int rc;
+    int left_len = 0;
 
     if ( !ctrl_channel_ctx[p_cmd->cmd_ctx_id].dev_inited ) {
         LOG( LOG_ERR, "dev is not inited, failed to write." );
@@ -211,6 +212,23 @@ static int ctrl_channel_write( const struct ctrl_cmd_item *p_cmd, const void *da
     }
 
     mutex_lock( &ctrl_channel_ctx[p_cmd->cmd_ctx_id].fops_lock );
+
+    if (kfifo_is_full(&ctrl_channel_ctx[p_cmd->cmd_ctx_id].ctrl_kfifo_out)) {
+        pr_err("fifo full, skip this set:\n");
+        pr_err("ctx id: %u, category: %u, cmd_id: %u, cmd_direction: %u, cmd_value: %u.",
+        p_cmd->cmd_ctx_id, p_cmd->cmd_category, p_cmd->cmd_id, p_cmd->cmd_direction, p_cmd->cmd_value);
+        mutex_unlock( &ctrl_channel_ctx[p_cmd->cmd_ctx_id].fops_lock );
+        return -1;
+    }
+
+    left_len = kfifo_avail(&ctrl_channel_ctx[p_cmd->cmd_ctx_id].ctrl_kfifo_out);
+    if (left_len < data_size + sizeof(struct ctrl_cmd_item)) {
+        pr_err("fifo no enough space, skip this set:\n");
+        pr_err("ctx id: %u, category: %u, cmd_id: %u, cmd_direction: %u, cmd_value: %u.",
+        p_cmd->cmd_ctx_id, p_cmd->cmd_category, p_cmd->cmd_id, p_cmd->cmd_direction, p_cmd->cmd_value);
+        mutex_unlock( &ctrl_channel_ctx[p_cmd->cmd_ctx_id].fops_lock );
+        return -1;
+    }
 
     rc = kfifo_in( &ctrl_channel_ctx[p_cmd->cmd_ctx_id].ctrl_kfifo_out, p_cmd, sizeof( struct ctrl_cmd_item ) );
     if ( data )
@@ -231,7 +249,7 @@ int ctrl_channel_init(int ctx_id)
         return rc;
     }
 
-    memset( &ctrl_channel_ctx[ctx_id], 0, sizeof( ctrl_channel_ctx ) );
+    memset( &ctrl_channel_ctx[ctx_id], 0, sizeof(struct ctrl_channel_dev_context) );
     sprintf(ctrl_channel_ctx[ctx_id].dev_name, CTRL_CHANNEL_DEV_NAME, ctx_id);
 
     rc = alloc_chrdev_region(&ctrl_channel_ctx[ctx_id].ctrl_devno, ctx_id, 1, ctrl_channel_ctx[ctx_id].dev_name);
