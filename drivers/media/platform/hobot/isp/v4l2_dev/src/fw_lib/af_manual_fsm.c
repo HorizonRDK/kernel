@@ -112,12 +112,13 @@ int AF_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_t input_
             break;
         }
 
+#if 0
         uint32_t value = *(uint32_t *)input;
-
         if ( value <= 256 ) {
             af_lms_param_t *param = (af_lms_param_t *)_GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_AF_LMS );
             p_fsm->pos_min = param->pos_min + ( uint16_t )( ( uint32_t )( param->pos_max - param->pos_min ) * value >> 8 );
         }
+#endif
         break;
     }
 
@@ -128,12 +129,13 @@ int AF_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_t input_
             break;
         }
 
+#if 0
         uint32_t value = *(uint32_t *)input;
-
         if ( value <= 256 ) {
             af_lms_param_t *param = (af_lms_param_t *)_GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_AF_LMS );
             p_fsm->pos_max = param->pos_min + ( uint16_t )( ( uint32_t )( param->pos_max - param->pos_min ) * value >> 8 );
         }
+#endif
 
         break;
     }
@@ -162,9 +164,14 @@ int AF_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_t input_
 
         uint32_t pos_manual = *(uint32_t *)input;
 
+        if ((pos_manual <= p_fsm->pos_max) && (pos_manual >= p_fsm->pos_min)) {
+            p_fsm->pos_manual = pos_manual << 4;
+        }
+#if 0
         if ( pos_manual <= 256 ) {
             p_fsm->pos_manual = pos_manual;
         }
+#endif
 
         break;
     }
@@ -240,10 +247,12 @@ int AF_fsm_get_param( void *fsm, uint32_t param_id, void *input, uint32_t input_
             break;
         }
 
-        uint16_t af_range = p_fsm->pos_max - p_fsm->pos_min;
-        uint32_t last_position = p_fsm->last_position;
+        //uint16_t af_range = p_fsm->pos_max - p_fsm->pos_min;
+        //uint32_t last_position = p_fsm->last_position;
         uint32_t pos = 0;
 
+	pos = (uint32_t)(p_fsm->last_position >> 4);
+#if 0
         if ( last_position < p_fsm->pos_min ) {
             last_position = p_fsm->pos_min;
         } else if ( last_position > p_fsm->pos_max ) {
@@ -255,6 +264,7 @@ int AF_fsm_get_param( void *fsm, uint32_t param_id, void *input, uint32_t input_
         if ( pos > 255 ) {
             pos = 255;
         }
+#endif
 
         *(uint32_t *)output = pos;
 
@@ -269,8 +279,11 @@ int AF_fsm_get_param( void *fsm, uint32_t param_id, void *input, uint32_t input_
         }
 
         af_lms_param_t *param = (af_lms_param_t *)_GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_AF_LMS );
+        *(uint32_t *)output = (uint32_t)(param->pos_min >> 4);
+#if 0
+	af_lms_param_t *param = (af_lms_param_t *)_GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_AF_LMS );
         *(uint32_t *)output = ( param->pos_max != param->pos_min ) ? ( ( uint32_t )( p_fsm->pos_min - param->pos_min ) << 8 ) / ( param->pos_max - param->pos_min ) : -1;
-
+#endif
         break;
     }
 
@@ -281,9 +294,12 @@ int AF_fsm_get_param( void *fsm, uint32_t param_id, void *input, uint32_t input_
             break;
         }
 
-        af_lms_param_t *param = (af_lms_param_t *)_GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_AF_LMS );
+        af_lms_param_t *param = (af_lms_param_t *)_GET_USHORT_PTR(ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_AF_LMS);
+        *(uint32_t *)output = (uint32_t)(param->pos_max >> 4);
+#if 0
+	af_lms_param_t *param = (af_lms_param_t *)_GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_AF_LMS );
         *(uint32_t *)output = ( param->pos_max != param->pos_min ) ? ( ( uint32_t )( p_fsm->pos_max - param->pos_min ) << 8 ) / ( param->pos_max - param->pos_min ) : -1;
-
+#endif
         break;
     }
 

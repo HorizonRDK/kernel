@@ -132,8 +132,9 @@ static int calib_create(camera_calib_t *ptr)
 				calib_data->plut[tmp].cols *
 				calib_data->plut[tmp].width );
  
+			ptmp = NULL;
 			ptmp = kzalloc(tmp_c, GFP_KERNEL);
-			if (!calib_data) {
+			if (!ptmp) {
 				LOG( LOG_ERR, "%s calib_data malloc is failed.", __func__ );
 				ret = -CALIB_MALLOC_ERR;
 				goto copy_err;
