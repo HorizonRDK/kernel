@@ -26,9 +26,12 @@ static unsigned int streaming_interval = 1;
 module_param(streaming_interval, uint, S_IRUGO|S_IWUSR);
 MODULE_PARM_DESC(streaming_interval, "1 - 16");
 
+/* streaming_maxpacket: usb2.0 isoc high-bandwidht transfer(192Mbps, 24MBps) */
+// static unsigned int streaming_maxpacket = 1024 * 3;
 static unsigned int streaming_maxpacket = 1024;
 module_param(streaming_maxpacket, uint, S_IRUGO|S_IWUSR);
-MODULE_PARM_DESC(streaming_maxpacket, "1 - 1023 (FS), 1 - 3072 (hs/ss)");
+MODULE_PARM_DESC(streaming_maxpacket, "ISOC: 1 - 1023 (FS), 1 - 3072 (hs/ss) / "
+		"BULK: 1 - 64 (FS), 1 - 512 (HS), 1 - 1024 (SS)");
 
 static unsigned int streaming_maxburst;
 module_param(streaming_maxburst, uint, S_IRUGO|S_IWUSR);
@@ -181,7 +184,7 @@ static const struct uvc_format_uncompressed uvc_format_yuv = {
 	.bCopyProtect		= 0,
 };
 
-DECLARE_UVC_FRAME_UNCOMPRESSED(1);
+// DECLARE_UVC_FRAME_UNCOMPRESSED(1);
 DECLARE_UVC_FRAME_UNCOMPRESSED(3);
 
 static const struct UVC_FRAME_UNCOMPRESSED(3) uvc_frame_yuv_360p = {
@@ -252,7 +255,7 @@ static const struct uvc_format_mjpeg uvc_format_mjpg = {
 	.bCopyProtect		= 0,
 };
 
-DECLARE_UVC_FRAME_MJPEG(1);
+// DECLARE_UVC_FRAME_MJPEG(1);
 DECLARE_UVC_FRAME_MJPEG(3);
 
 static const struct UVC_FRAME_MJPEG(3) uvc_frame_mjpg_360p = {
@@ -327,6 +330,94 @@ static const struct UVC_FRAME_MJPEG(3) uvc_frame_mjpg_2160p = {
 	.dwFrameInterval[2]	= cpu_to_le32(1000000),
 };
 
+static const struct uvc_format_framebase uvc_format_h264 = {
+	.bLength		= UVC_DT_FORMAT_FRAMEBASE_SIZE,
+	.bDescriptorType	= USB_DT_CS_INTERFACE,
+	.bDescriptorSubType = UVC_VS_FORMAT_FRAME_BASED,
+	.bFormatIndex		= 3,
+	.bNumFrameDescriptors	= 3,
+	.guidFormat		=
+		{ 'H', '2',  '6', '4', 0x00, 0x00, 0x10, 0x00,
+		 0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71},
+	.bBitsPerPixel		= 16,
+	.bDefaultFrameIndex	= 3,
+	.bAspectRatioX		= 0,
+	.bAspectRatioY		= 0,
+	.bmInterfaceFlags	= 0,
+	.bCopyProtect		= 0,
+	.bVariableSize = 1
+};
+
+// DECLARE_UVC_FRAME_FRAMEBASE(1);
+DECLARE_UVC_FRAME_FRAMEBASE(3);
+static const struct UVC_FRAME_FRAMEBASE(3) uvc_frame_h264_360p = {
+	.bLength		= UVC_DT_FRAME_MJPEG_SIZE(3),
+	.bDescriptorType	= USB_DT_CS_INTERFACE,
+	.bDescriptorSubType = UVC_VS_FRAME_FRAME_BASED,
+	.bFrameIndex		= 1,
+	.bmCapabilities		= 0,
+	.wWidth			= cpu_to_le16(640),
+	.wHeight		= cpu_to_le16(360),
+	.dwMinBitRate		= cpu_to_le32(640*360*2*8*10),
+	.dwMaxBitRate		= cpu_to_le32(640*360*2*8*30),
+	.dwDefaultFrameInterval = cpu_to_le32(333333),
+	.bFrameIntervalType = 3,
+	.dwFrameInterval[0] = cpu_to_le32(333333),
+	.dwFrameInterval[1] = cpu_to_le32(666666),
+	.dwFrameInterval[2] = cpu_to_le32(1000000),
+};
+
+static const struct UVC_FRAME_FRAMEBASE(3) uvc_frame_h264_720p = {
+	.bLength		= UVC_DT_FRAME_MJPEG_SIZE(3),
+	.bDescriptorType	= USB_DT_CS_INTERFACE,
+	.bDescriptorSubType = UVC_VS_FRAME_FRAME_BASED,
+	.bFrameIndex		= 2,
+	.bmCapabilities		= 0,
+	.wWidth			= cpu_to_le16(1280),
+	.wHeight		= cpu_to_le16(720),
+	.dwMinBitRate		= cpu_to_le32(1280*720*2*8*10),
+	.dwMaxBitRate		= cpu_to_le32(1280*720*2*8*30),
+	.dwDefaultFrameInterval = cpu_to_le32(333333),
+	.bFrameIntervalType = 3,
+	.dwFrameInterval[0] = cpu_to_le32(333333),
+	.dwFrameInterval[1] = cpu_to_le32(666666),
+	.dwFrameInterval[2] = cpu_to_le32(1000000),
+};
+
+static const struct UVC_FRAME_FRAMEBASE(3) uvc_frame_h264_1080p = {
+	.bLength		= UVC_DT_FRAME_MJPEG_SIZE(3),
+	.bDescriptorType	= USB_DT_CS_INTERFACE,
+	.bDescriptorSubType = UVC_VS_FRAME_FRAME_BASED,
+	.bFrameIndex		= 3,
+	.bmCapabilities		= 0,
+	.wWidth			= cpu_to_le16(1920),
+	.wHeight		= cpu_to_le16(1080),
+	.dwMinBitRate		= cpu_to_le32(1920*1080*2*8*10),
+	.dwMaxBitRate		= cpu_to_le32(1920*1080*2*8*30), // int32_t overflow
+	.dwDefaultFrameInterval = cpu_to_le32(333333),
+	.bFrameIntervalType = 3,
+	.dwFrameInterval[0] = cpu_to_le32(333333),
+	.dwFrameInterval[1] = cpu_to_le32(666666),
+	.dwFrameInterval[2] = cpu_to_le32(1000000),
+};
+
+static const struct UVC_FRAME_FRAMEBASE(3) uvc_frame_h264_2160p = {
+	.bLength		= UVC_DT_FRAME_MJPEG_SIZE(3),
+	.bDescriptorType	= USB_DT_CS_INTERFACE,
+	.bDescriptorSubType = UVC_VS_FRAME_FRAME_BASED,
+	.bFrameIndex		= 4,
+	.bmCapabilities		= 0,
+	.wWidth			= cpu_to_le16(3840),
+	.wHeight		= cpu_to_le16(2160),
+	.dwMinBitRate		= cpu_to_le32(3840*2160*2*8*10),
+	.dwMaxBitRate		= cpu_to_le32(3840*2160*2*8*30), // int32_t overflow
+	.dwDefaultFrameInterval = cpu_to_le32(333333),
+	.bFrameIntervalType = 3,
+	.dwFrameInterval[0] = cpu_to_le32(333333),
+	.dwFrameInterval[1] = cpu_to_le32(666666),
+	.dwFrameInterval[2] = cpu_to_le32(1000000),
+};
+
 static const struct uvc_color_matching_descriptor uvc_color_matching = {
 	.bLength		= UVC_DT_COLOR_MATCHING_SIZE,
 	.bDescriptorType	= USB_DT_CS_INTERFACE,
@@ -360,6 +451,9 @@ static const struct uvc_descriptor_header * const uvc_fs_streaming_cls[] = {
 	(const struct uvc_descriptor_header *) &uvc_format_mjpg,
 	(const struct uvc_descriptor_header *) &uvc_frame_mjpg_360p,
 	(const struct uvc_descriptor_header *) &uvc_frame_mjpg_720p,
+	(const struct uvc_descriptor_header *) &uvc_format_h264,
+	(const struct uvc_descriptor_header *) &uvc_frame_h264_360p,
+	(const struct uvc_descriptor_header *) &uvc_frame_h264_720p,
 	(const struct uvc_descriptor_header *) &uvc_color_matching,
 	NULL,
 };
@@ -375,6 +469,11 @@ static const struct uvc_descriptor_header * const uvc_hs_streaming_cls[] = {
 	(const struct uvc_descriptor_header *) &uvc_frame_mjpg_720p,
 	(const struct uvc_descriptor_header *) &uvc_frame_mjpg_1080p,
 	(const struct uvc_descriptor_header *) &uvc_frame_mjpg_2160p,
+	(const struct uvc_descriptor_header *) &uvc_format_h264,
+	(const struct uvc_descriptor_header *) &uvc_frame_h264_360p,
+	(const struct uvc_descriptor_header *) &uvc_frame_h264_720p,
+	(const struct uvc_descriptor_header *) &uvc_frame_h264_1080p,
+	(const struct uvc_descriptor_header *) &uvc_frame_h264_2160p,
 	(const struct uvc_descriptor_header *) &uvc_color_matching,
 	NULL,
 };
@@ -390,6 +489,11 @@ static const struct uvc_descriptor_header * const uvc_ss_streaming_cls[] = {
 	(const struct uvc_descriptor_header *) &uvc_frame_mjpg_720p,
 	(const struct uvc_descriptor_header *) &uvc_frame_mjpg_1080p,
 	(const struct uvc_descriptor_header *) &uvc_frame_mjpg_2160p,
+	(const struct uvc_descriptor_header *) &uvc_format_h264,
+	(const struct uvc_descriptor_header *) &uvc_frame_h264_360p,
+	(const struct uvc_descriptor_header *) &uvc_frame_h264_720p,
+	(const struct uvc_descriptor_header *) &uvc_frame_h264_1080p,
+	(const struct uvc_descriptor_header *) &uvc_frame_h264_2160p,
 	(const struct uvc_descriptor_header *) &uvc_color_matching,
 	NULL,
 };
