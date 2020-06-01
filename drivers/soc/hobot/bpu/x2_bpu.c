@@ -334,10 +334,6 @@ static int32_t x2_bpu_set_clk(const struct bpu_core *core, uint64_t rate)
 		return ret;
 	}
 
-	if (!__clk_is_enabled(core->mclk)) {
-		return ret;
-	}
-
 	last_rate = clk_get_rate(core->mclk);
 
 	if (last_rate == rate) {
