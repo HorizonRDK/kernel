@@ -15,7 +15,6 @@
 
 #include "hobot_vpu_user.h"
 #include "hobot_vpu_config.h"
-//#include "../../../../../test_code/vsp/vpuapi/vpuconfig.h"
 
 // TODO remove this
 /* if this driver knows the dedicated video memory address */
@@ -88,22 +87,22 @@ typedef struct _hb_vpu_dev {
 	struct ion_client *vpu_ion_client;
 #endif
 
-#ifdef SUPPORT_MULTI_INST_INTR
 	wait_queue_head_t poll_wait_q[MAX_NUM_VPU_INSTANCE];
 	hb_vpu_event_t poll_event[MAX_NUM_VPU_INSTANCE];
 	spinlock_t poll_spinlock;
+#ifdef SUPPORT_MULTI_INST_INTR
 	wait_queue_head_t interrupt_wait_q[MAX_NUM_VPU_INSTANCE];
 	int interrupt_flag[MAX_NUM_VPU_INSTANCE];
 	struct kfifo interrupt_pending_q[MAX_NUM_VPU_INSTANCE];
 	spinlock_t vpu_kfifo_lock;
 	unsigned long interrupt_reason[MAX_NUM_VPU_INSTANCE];
-	spinlock_t irq_spinlock;
-	int irq_trigger;
 #else
 	wait_queue_head_t interrupt_wait_q;
 	int interrupt_flag;
 	unsigned long interrupt_reason;
 #endif
+	spinlock_t irq_spinlock;
+	int irq_trigger;
 
 	struct fasync_struct *async_queue;
 	u32 open_count;		/*!<< device reference count. Not instance count */

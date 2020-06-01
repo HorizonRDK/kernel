@@ -339,8 +339,8 @@ static irqreturn_t vpu_irq_handler(int irq, void *dev_id)
 #ifdef SUPPORT_MULTI_INST_INTR
 	u32 intr_reason = 0;
 	s32 intr_inst_index = 0;
-	unsigned long flags_mp;
 #endif
+	unsigned long flags_mp;
 
 #ifdef VPU_IRQ_CONTROL
 	spin_lock_irqsave(&dev->irq_spinlock, flags_mp);
@@ -749,8 +749,8 @@ static long vpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 			u32 intr_inst_index;
 			u32 intr_reason_in_q;
 			u32 interrupt_flag_in_q;
-			unsigned long flags_mp;
 #endif
+			unsigned long flags_mp;
 			//vpu_debug(5, "[+]VDI_IOCTL_WAIT_INTERRUPT\n");
 
 			ret = copy_from_user(&info, (hb_vpu_drv_intr_t *) arg,
@@ -1252,9 +1252,7 @@ INTERRUPT_REMAIN_IN_QUEUE:
 		case VDI_IOCTL_POLL_WAIT_INSTANCE: {
 			hb_vpu_drv_intr_t info;
 			hb_vpu_priv_t *priv;
-#ifdef SUPPORT_MULTI_INST_INTR
 			u32 intr_inst_index;
-#endif
 			//vpu_debug(5, "[+]VDI_IOCTL_POLL_WAIT_INSTANCE\n");
 
 			ret = copy_from_user(&info, (hb_vpu_drv_intr_t *) arg,
@@ -1264,7 +1262,6 @@ INTERRUPT_REMAIN_IN_QUEUE:
 					("JDI_IOCTL_POLL_WAIT_INSTANCE copy from user fail.\n");
 				return -EFAULT;
 			}
-#ifdef SUPPORT_MULTI_INST_INTR
 			intr_inst_index = info.intr_inst_index;
 			priv = filp->private_data;
 			if (intr_inst_index >= 0 &&
@@ -1288,7 +1285,6 @@ INTERRUPT_REMAIN_IN_QUEUE:
 			} else {
 				return -EINVAL;
 			}
-#endif
 			//vpu_debug(5, "[-]VDI_IOCTL_POLL_WAIT_INSTANCE\n");
 		}
 		break;
@@ -1385,10 +1381,10 @@ static ssize_t vpu_write(struct file *filp, const char __user * buf, size_t len,
 
 static int vpu_release(struct inode *inode, struct file *filp)
 {
-	int ret = 0;
+	int ret = 0, j = 0;
 	u32 open_count;
 #ifdef SUPPORT_MULTI_INST_INTR
-	int i, j;
+	int i;
 #endif
 	hb_vpu_dev_t *dev;
 	hb_vpu_priv_t *priv;
@@ -1813,11 +1809,11 @@ static int vpu_probe(struct platform_device *pdev)
 		s_video_memory.base);
 #endif
 
-#ifdef SUPPORT_MULTI_INST_INTR
 	for (i = 0; i < MAX_NUM_VPU_INSTANCE; i++) {
 		init_waitqueue_head(&dev->poll_wait_q[i]);
 	}
 	spin_lock_init(&dev->poll_spinlock);
+#ifdef SUPPORT_MULTI_INST_INTR
 	for (i = 0; i < MAX_NUM_VPU_INSTANCE; i++) {
 		init_waitqueue_head(&dev->interrupt_wait_q[i]);
 	}
@@ -1833,11 +1829,11 @@ static int vpu_probe(struct platform_device *pdev)
 		}
 	}
 	spin_lock_init(&dev->vpu_kfifo_lock);
-	spin_lock_init(&dev->irq_spinlock);
-	dev->irq_trigger = 0;
 #else
 	init_waitqueue_head(&dev->interrupt_wait_q);
 #endif
+	spin_lock_init(&dev->irq_spinlock);
+	dev->irq_trigger = 0;
 
 	dev->async_queue = NULL;
 	dev->open_count = 0;
@@ -1859,9 +1855,7 @@ static int vpu_probe(struct platform_device *pdev)
 
 	return 0;
 
-#ifdef SUPPORT_MULTI_INST_INTR
 ERR_ALLOC_FIFO:
-#endif
 #ifdef VPU_SUPPORT_RESERVED_VIDEO_MEMORY
 	vmem_exit(&s_vmem);
 ERROR_INIT_VMEM:
@@ -2096,6 +2090,12 @@ static int vpu_resume(struct platform_device *pdev)
 				regVal |= (1 << INT_WAVE5_INIT_SEQ);
 				regVal |= (1 << INT_WAVE5_DEC_PIC);
 				regVal |= (1 << INT_WAVE5_BSBUF_EMPTY);
+			} else if (product_code == WAVE420_CODE) {
+				regVal  = (1 << W4_INT_DEC_PIC_HDR);
+				regVal |= (1 << W4_INT_DEC_PIC);
+				regVal |= (1 << W4_INT_QUERY_DEC);
+				regVal |= (1 << W4_INT_SLEEP_VPU);
+				regVal |= (1 << W4_INT_BSBUF_EMPTY);
 			} else {
 				// decoder
 				regVal  = (1 << INT_WAVE5_INIT_SEQ);
