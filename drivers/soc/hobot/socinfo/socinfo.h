@@ -16,6 +16,7 @@
 /* ddr manufacture */
 #define DDR_MANU_HYNIX		0x1
 #define DDR_MANU_MICRON		0x2
+#define DDR_MANU_SAMSUNG	0x3
 #define PIN_DDR_TYPE_SEL(x)	((x) & 0x1)
 
 /* som type */

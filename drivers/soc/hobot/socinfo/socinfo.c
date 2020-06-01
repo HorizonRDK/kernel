@@ -158,6 +158,9 @@ ssize_t name_show(struct class *class,
 	case DDR_MANU_MICRON:
 		snprintf(name, sizeof(name), "%s-micron", name);
 		break;
+	case DDR_MANU_SAMSUNG:
+		snprintf(name, sizeof(name), "%s-samsung", name);
+		break;
 	default:
 		snprintf(name, sizeof(name), "%s-hynix", name);
 		break;
