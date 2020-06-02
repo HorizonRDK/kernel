@@ -2211,7 +2211,7 @@ static int hobot_bpu_remove(struct platform_device *pdev)
 }
 
 static const struct of_device_id hobot_bpu_of_match[] = {
-	{ .compatible = "hobot,x2-cnn-host",},
+	{ .compatible = "hobot,hobot-bpu",},
 	{}
 };
 static int hobot_bpu_drvsuspend(struct device *dev)
