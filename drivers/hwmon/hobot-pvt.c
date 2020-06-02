@@ -37,6 +37,10 @@
 int smpl_threshold = 3900;
 module_param(smpl_threshold, int, 0644);
 
+/* Max diff in Celsius */
+int max_diff = 20;
+module_param(max_diff, int, 0644);
+
 /* TS0: CNN0 TS1:CPU TS2:CNN1 TS3: DDR */
 static char *ts_map[] = {
 	"CNN0",
@@ -81,6 +85,53 @@ static inline void pvt_n_reg_wr(struct pvt_device *dev, int num,  u32 reg, u32 v
 	iowrite32(val, dev->reg_base + reg + num * 0x40);
 }
 
+/* return 1 if got abnormal value; 0 if no abnormal value */
+int fix_abnormal_temp_value(struct pvt_device *pvt_dev)
+{
+	long *ts = pvt_dev->cur_temp;
+	long avg = 0;
+	long abn = -99;
+	long diff;
+	long sum_temp = 0;
+	u32 sum_smpl = 0;
+	int i;
+	int abn_i = -1;
+
+	avg = pvt_dev->cur_temp_avg;
+	pr_debug("%4ld %4ld %4ld %4ld,  avg:%4ld",
+			ts[0], ts[1], ts[2], ts[3], avg);
+
+	for (i = 0; i < PVT_TS_NUM; i++) {
+		diff = abs(ts[i] -avg);
+
+		/* Pick the max deviation sample */
+		if (diff > max_diff) {
+			if (abn == -99 || (diff > abs(abn -avg))) {
+				abn = ts[i];
+				abn_i = i;
+			}
+		}
+	}
+
+	/* Set the max deviation sample to average of others*/
+	if (abn > -99 && abn_i >= 0) {
+		for (i = 0; i < PVT_TS_NUM; i++) {
+			if (i == abn_i)
+				continue;
+			sum_temp += pvt_dev->cur_temp[i];
+			sum_smpl += pvt_dev->cur_smpl[i];
+		}
+		avg = sum_temp / (PVT_TS_NUM - 1);
+		pvt_dev->cur_temp[abn_i] = avg;
+		pvt_dev->cur_smpl[abn_i] = sum_smpl / (PVT_TS_NUM - 1);
+		pvt_dev->cur_temp_avg = avg;
+		pr_info("Abnormal temperature detected on TS[%d]=%ld, new avg:%ld\n",
+				abn_i, abn, avg);
+		return 1;
+	}
+
+    return 0;
+}
 
 static int pvt_temp_read(struct device *dev, enum hwmon_sensor_types type,
 		     u32 attr, int channel, long *val)
@@ -125,8 +176,13 @@ static int pvt_temp_read(struct device *dev, enum hwmon_sensor_types type,
 	}
 
 	pvt_dev->cur_temp_avg = sum >> 2;
+
+	/* cur_smpl, cur_temp and cur_avg could be change in this function */
+	fix_abnormal_temp_value(pvt_dev);
+
 	*val = pvt_dev->cur_temp_avg * 1000;
 
+	/* collect reasonable diff data */
 	temp_min = temp_max = pvt_dev->cur_temp[0];
 	for (i = 0; i < PVT_TS_NUM; i++) {
 		if (pvt_dev->cur_temp[i] < temp_min ) {
