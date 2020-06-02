@@ -8,8 +8,8 @@
  * warranty of any kind, whether express or implied.
  *
  */
-#ifndef __X2_BPU_H__
-#define __X2_BPU_H__
+#ifndef __HW_IO_XJ3_H__
+#define __HW_IO_XJ3_H__
 
 /* the following marco mast define for every platform */
 #define FC_SIZE					(64u)
@@ -60,161 +60,161 @@ static inline uint32_t FC_PRIO(uint32_t id)
  * register bit
  *************************************************************/
 
-/*    X2_CNNBUS_CTRL_WM_0    */
-#define   X2_CNN_WD_MAXLEN_M_MASK		(0xff00u)
-static inline uint32_t X2_CNN_WD_MAXLEN_M(uint32_t n)
+/*    CNNBUS_CTRL_WM_0    */
+#define   CNN_WD_MAXLEN_M_MASK		(0xff00u)
+static inline uint32_t CNN_WD_MAXLEN_M(uint32_t n)
 {
 	return (((n) & 0xffu) << 0x8u);
 }
-static inline uint32_t X2_CNN_WD_MAXLEN_M_SHIT(uint32_t n)
+static inline uint32_t CNN_WD_MAXLEN_M_SHIT(uint32_t n)
 {
 	return (((n) & 0xffu) >> 0x8u);
 }
 
-#define   X2_CNN_WD_ENDIAN_M_MASK		(0xf0u)
-static inline uint32_t X2_CNN_WD_ENDIAN_M(uint32_t n)
+#define   CNN_WD_ENDIAN_M_MASK		(0xf0u)
+static inline uint32_t CNN_WD_ENDIAN_M(uint32_t n)
 {
 	return (((n) & 0xfu) << 0x4u);
 }
-static inline uint32_t X2_CNN_WD_ENDIAN_M_SHIT(uint32_t n)
+static inline uint32_t CNN_WD_ENDIAN_M_SHIT(uint32_t n)
 {
 	return (((n) & 0xfu) >> 0x4u);
 }
 
-#define   X2_CNN_WD_PRIORITY_M_MASK		(0xfu)
-static inline uint32_t X2_CNN_WD_PRIORITY_M(uint32_t n)
+#define   CNN_WD_PRIORITY_M_MASK		(0xfu)
+static inline uint32_t CNN_WD_PRIORITY_M(uint32_t n)
 {
 	return (((n) & 0xfu) << 0x0u);
 }
-static inline uint32_t X2_CNN_WD_PRIORITY_M_SHIT(uint32_t n)
+static inline uint32_t CNN_WD_PRIORITY_M_SHIT(uint32_t n)
 {
 	return (((n) & 0xfu) >> 0x0u);
 }
 
-/*    X2_CNN_CNNBUS_CTRL_RM_0	 */
-#define   X2_CNN_RD_MAXLEN_M_MASK		(0xff00u)
-static inline uint32_t X2_CNN_RD_MAXLEN_M(uint32_t n)
+/*    CNN_CNNBUS_CTRL_RM_0	 */
+#define   CNN_RD_MAXLEN_M_MASK		(0xff00u)
+static inline uint32_t CNN_RD_MAXLEN_M(uint32_t n)
 {
 	return (((n) & 0xffu) << 0x8u);
 }
-static inline uint32_t X2_CNN_RD_MAXLEN_M_SHIT(uint32_t n)
+static inline uint32_t CNN_RD_MAXLEN_M_SHIT(uint32_t n)
 {
 	return (((n) & 0xffu) >> 0x8u);
 }
 
-#define   X2_CNN_RD_ENDIAN_M_MASK		(0xf0u)
-static inline uint32_t X2_CNN_RD_ENDIAN_M(uint32_t n)
+#define   CNN_RD_ENDIAN_M_MASK		(0xf0u)
+static inline uint32_t CNN_RD_ENDIAN_M(uint32_t n)
 {
 	return (((n) & 0xfu) << 0x4u);
 }
-static inline uint32_t X2_CNN_RD_ENDIAN_M_SHIT(uint32_t n)
+static inline uint32_t CNN_RD_ENDIAN_M_SHIT(uint32_t n)
 {
 	return (((n) & 0xfu) >> 0x4u);
 }
 
-#define   X2_CNN_RD_PRIORITY_M_MASK		(0xfu)
-static inline uint32_t X2_CNN_RD_PRIORITY_M(uint32_t n)
+#define   CNN_RD_PRIORITY_M_MASK		(0xfu)
+static inline uint32_t CNN_RD_PRIORITY_M(uint32_t n)
 {
 	return (((n) & 0xfu) << 0x0u);
 }
-static inline uint32_t X2_CNN_RD_PRIORITY_M_SHIT(uint32_t n)
+static inline uint32_t CNN_RD_PRIORITY_M_SHIT(uint32_t n)
 {
 	return (((n) & 0xfu) >> 0x0u);
 }
 
-/*    X2_CNN_CNNBUS_AXIID    */
-#define   X2_CNN_AXIID_MASK			(0xfu << 0x0u)
-static inline uint32_t X2_CNN_AXIID(uint32_t n)
+/*    CNN_CNNBUS_AXIID    */
+#define   CNN_AXIID_MASK			(0xfu << 0x0u)
+static inline uint32_t CNN_AXIID(uint32_t n)
 {
 	return (((n) & 0xfu) << 0x0u);
 }
-static inline uint32_t X2_CNN_AXIID_SHIT(uint32_t n)
+static inline uint32_t CNN_AXIID_SHIT(uint32_t n)
 {
 	return (((n) & 0xfu) >> 0x0u);
 }
 
-/*    X2_CNN_CNNINT_MASK    */
-#define   X2_CNN_PE0_INT_MASK_MASK		(0x1u << 0x0u)
-static inline uint32_t X2_CNN_PE0_INT_MASK(uint32_t n)
+/*    CNN_CNNINT_MASK    */
+#define   CNN_PE0_INT_MASK_MASK		(0x1u << 0x0u)
+static inline uint32_t CNN_PE0_INT_MASK(uint32_t n)
 {
 	return (((n) & 0x1u) << 0x0u);
 }
-static inline uint32_t X2_CNN_PE0_INT_MASK_SHIT(uint32_t n)
+static inline uint32_t CNN_PE0_INT_MASK_SHIT(uint32_t n)
 {
 	return (((n) & 0x1u) >> 0x0u);
 }
 
-/*    X2_CNN_CNNINT_STATUS    */
-#define   X2_CNN_PE0_INT_STATUS_RO		(0x1u << 0x0u)
-static inline uint32_t X2_CNN_PE0_INT_STATUS_RO_SHIT(uint32_t n)
+/*    CNN_CNNINT_STATUS    */
+#define   CNN_PE0_INT_STATUS_RO		(0x1u << 0x0u)
+static inline uint32_t CNN_PE0_INT_STATUS_RO_SHIT(uint32_t n)
 {
 	return (((n) & 0x1u) >> 0x0u);
 }
 
-/*    X2_CNN_CNNINT_NUM    */
-#define   X2_CNN_INT_NUM_RO			(0xffffu << 0x0u)
-static inline uint32_t X2_CNN_INT_NUM_RO_SHIT(uint32_t n)
+/*    CNN_CNNINT_NUM    */
+#define   CNN_INT_NUM_RO			(0xffffu << 0x0u)
+static inline uint32_t CNN_INT_NUM_RO_SHIT(uint32_t n)
 {
 	return (((n) & 0xffffu) >> 0x0u);
 }
 
-/*    X2_CNN_CNNINT_ERR_NUM    */
-#define   X2_CNN_INT_ERR_NUM_RO			(0xffffu << 0x0u)
-static inline uint32_t X2_CNN_INT_ERR_NUM_RO_SHIT(uint32_t n)
+/*    CNN_CNNINT_ERR_NUM    */
+#define   CNN_INT_ERR_NUM_RO			(0xffffu << 0x0u)
+static inline uint32_t CNN_INT_ERR_NUM_RO_SHIT(uint32_t n)
 {
 	return (((n) & 0xffffu) >> 0x0u);
 }
 
-/*    X2_CNN_CNNINT_FC_BASE    */
-#define   X2_CNN_PE0_FC_BASE_MASK		(0xffffffffu << 0x0u)
-static inline uint32_t X2_CNN_PE0_FC_BASE(uint32_t n)
+/*    CNN_CNNINT_FC_BASE    */
+#define   CNN_PE0_FC_BASE_MASK		(0xffffffffu << 0x0u)
+static inline uint32_t CNN_PE0_FC_BASE(uint32_t n)
 {
 	return (((n) & 0xffffffffu) << 0x0u);
 }
-static inline uint32_t X2_CNN_PE0_FC_BASE_SHIT(uint32_t n)
+static inline uint32_t CNN_PE0_FC_BASE_SHIT(uint32_t n)
 {
 	return (((n) & 0xffffffffu) >> 0x0u);
 }
 
-/*    X2_CNN_CNNINT_FC_HEAD    */
-#define   X2_CNN_PE0_FC_HEAD_RO			(0x7ffu << 0x0u)
-static inline uint32_t X2_CNN_PE0_FC_HEAD_RO_SHIT(uint32_t n)
+/*    CNN_CNNINT_FC_HEAD    */
+#define   CNN_PE0_FC_HEAD_RO			(0x7ffu << 0x0u)
+static inline uint32_t CNN_PE0_FC_HEAD_RO_SHIT(uint32_t n)
 {
 	return (((n) & 0x7ffu) >> 0x0u);
 }
 
-/*    X2_CNN_CNNINT_FC_TAIL    */
-#define   X2_CNN_PE0_FC_TAIL_MASK		(0x7ffu << 0x0u)
-static inline uint32_t X2_CNN_PE0_FC_TAIL(uint32_t n)
+/*    CNN_CNNINT_FC_TAIL    */
+#define   CNN_PE0_FC_TAIL_MASK		(0x7ffu << 0x0u)
+static inline uint32_t CNN_PE0_FC_TAIL(uint32_t n)
 {
 	return (((n) & 0x7ffu) << 0x0u);
 }
-static inline uint32_t X2_CNN_PE0_FC_TAIL_SHIT(uint32_t n)
+static inline uint32_t CNN_PE0_FC_TAIL_SHIT(uint32_t n)
 {
 	return (((n) & 0x7ffu) >> 0x0u);
 }
 
-/*    X2_CNN_CNNINT_FC_LEN    */
-#define   X2_CNN_PE0_FC_LENGTH_MASK		(0x3ffu << 0x0u)
-static inline uint32_t X2_CNN_PE0_FC_LENGTH(uint32_t n)
+/*    CNN_CNNINT_FC_LEN    */
+#define   CNN_PE0_FC_LENGTH_MASK		(0x3ffu << 0x0u)
+static inline uint32_t CNN_PE0_FC_LENGTH(uint32_t n)
 {
 	return (((n) & 0x3ffu) << 0x0u);
 }
-static inline uint32_t X2_CNN_PE0_FC_LENGTH_SHIT(uint32_t n)
+static inline uint32_t CNN_PE0_FC_LENGTH_SHIT(uint32_t n)
 {
 	return (((n) & 0x3ffu) >> 0x0u);
 }
 
-/*    X2_CNN_CNNINT_INST_NUM	*/
-#define   X2_CNN_INST_NUMBER_RO			(0xffffffffu << 0x0u)
-static inline uint32_t X2_CNN_INST_NUMBER_RO_SHIT(uint32_t n)
+/*    CNN_CNNINT_INST_NUM	*/
+#define   CNN_INST_NUMBER_RO			(0xffffffffu << 0x0u)
+static inline uint32_t CNN_INST_NUMBER_RO_SHIT(uint32_t n)
 {
 	return (((n) & 0xffffffffu) >> 0x0u);
 }
 
-#define X2_CNN_MAX_FC_LEN_MASK	0x3ffu
-#define X2_CNN_FC_IDX_FLAG		0x400u
-#define X2_CNN_FC_SIZE			FC_SIZE
+#define CNN_MAX_FC_LEN_MASK	0x3ffu
+#define CNN_FC_IDX_FLAG		0x400u
+#define CNN_FC_SIZE			FC_SIZE
 
 #define CNN_FC_GAP_LEN			0x1000u
 #define CNN_FC_SPACE_LEN		(0x400u * 0x40u)
@@ -227,7 +227,5 @@ static inline uint32_t BPU_ISO_BIT(uint32_t index)
 #define BPU_MAX_CORE_NUM		2u
 #define BPU_ERR_IRQ_MASK		0xF000u
 #define BPU_IRQ_MASK			0x0FFFu
-
-extern struct bpu_core_hw_ops x2_hw_ops;
 
 #endif

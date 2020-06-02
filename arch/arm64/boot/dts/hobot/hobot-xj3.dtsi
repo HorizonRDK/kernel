@@ -946,7 +946,7 @@
 		};
 
 		cnn0: cnn@0xA3000000 {
-			compatible = "hobot,x2-cnn-host";
+			compatible = "hobot,hobot-bpu";
 			reg = <0x0 0xA3000000 0x0 0x1000>,
 				<0x0 0xA6000010 0x0 0x04>;
 			cnn-id = <0x0>;
@@ -966,7 +966,7 @@
 		};
 
 		cnn1: cnn@0xA3001000 {
-			compatible = "hobot,x2-cnn-host";
+			compatible = "hobot,hobot-bpu";
 			reg = <0x0 0xA3001000 0x0 0x1000>,
 				<0x0 0xA6000010 0x0 0x04>;
 			cnn-id = <0x1>;

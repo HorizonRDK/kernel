@@ -712,11 +712,7 @@ static int bpu_core_probe(struct platform_device *pdev)/*PRQA S ALL*/
 		return ret;
 	}
 
-#if defined(CONFIG_X2_BPU) || defined(CONFIG_X3_BPU)
-	core->hw_ops = &x2_hw_ops;
-#elif defined CONFIG_J5_BPU
-	core->hw_ops = &j5_hw_ops;
-#endif
+	core->hw_ops = &hw_ops;
 	if (core->hw_ops == NULL) {
 		bpu_core_unregister(core);
 		misc_deregister(&core->miscdev);
@@ -768,7 +764,7 @@ static int bpu_core_remove(struct platform_device *pdev)/*PRQA S ALL*/
 }
 
 static const struct of_device_id bpu_core_of_match[] = {
-	{ .compatible = "hobot,x2-cnn-host", },
+	{ .compatible = "hobot,hobot-bpu", },
 	{ /* sentinel */ }/*PRQA S ALL*/
 };
 MODULE_DEVICE_TABLE(of, bpu_core_of_match);/*PRQA S ALL*/

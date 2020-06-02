@@ -16,20 +16,7 @@
 #endif
 #include "bpu.h"
 #include "bpu_prio.h"
-
-#if defined(CONFIG_X2_BPU) || defined(CONFIG_X3_BPU)
-#include "x2_bpu.h"
-#elif defined CONFIG_J5_BPU
-#include "j5_bpu.h"
-#else
-#define FC_MAX_DEPTH			1024
-#define FC_DEPTH				FC_MAX_DEPTH
-#define HW_ID_MAX	0xFFF
-#define BPU_PRIO_NUM			0x1
-#define FC_PRIO_ID(prio, id)	((id) & 0xFF) | ((prio) << 8)
-#define FC_ID(id)				((id) & 0xFF)
-#define FC_PRIO(id)				(0)
-#endif
+#include "hw_io.h"
 
 enum bpu_core_status_cmd {
 	/* get if bpu busy, 1:busy; 0:free*/

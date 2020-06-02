@@ -404,6 +404,32 @@ int32_t bpu_core_process_recover(struct bpu_core *core)
 EXPORT_SYMBOL(bpu_core_process_recover);
 // PRQA S ALL --
 
+static int32_t bpu_core_raw_set_volt(const struct bpu_core *core, int32_t volt)
+{
+	int32_t ret = 0;
+
+	if (core == NULL) {
+		pr_err("Set invalid bpu core voltage!\n");/*PRQA S ALL*/
+		return -ENODEV;
+	}
+
+	if (volt <= 0) {
+		pr_err("Set invalid value bpu core voltage!\n");/*PRQA S ALL*/
+		return -EINVAL;
+	}
+
+	if (core->regulator != NULL) {
+		ret = regulator_set_voltage(core->regulator,
+					volt, INT_MAX);
+		if (ret != 0) {
+			dev_err(core->dev, "Cannot set voltage %u uV\n", volt);
+			return ret;
+		}
+	}
+
+	return ret;
+}
+
 static int32_t bpu_core_set_volt(struct bpu_core *core, int32_t volt)
 {
 	int32_t err, ret = 0;
@@ -421,23 +447,63 @@ static int32_t bpu_core_set_volt(struct bpu_core *core, int32_t volt)
 		}
 	}
 
+	ret = bpu_core_pend_to_leisure(core, HZ);
+	if (ret != 0) {
+		dev_err(core->dev, "Pend for core volt change failed!\n");
+		return ret;
+	}
+
 	if (core->hw_ops->set_volt != NULL) {
-		ret = bpu_core_pend_to_leisure(core, HZ);
-		if (ret != 0) {
-			dev_err(core->dev, "Pend for core volt change failed!\n");
-			return ret;
-		}
-
 		ret = core->hw_ops->set_volt(core, volt);
-		if (ret != 0) {
-			dev_err(core->dev, "BPU Core set volt %d failed!\n", volt);
-		}
+	} else {
+		ret = bpu_core_raw_set_volt(core, volt);
+	}
+	if (ret != 0) {
+		dev_err(core->dev, "BPU Core set volt %d failed!\n", volt);
+	}
 
-		err = bpu_core_pend_off(core);
-		if (err != 0) {
-			dev_err(core->dev, "Pend off from core volt change failed!\n");
-			return err;
-		}
+	err = bpu_core_pend_off(core);
+	if (err != 0) {
+		dev_err(core->dev, "Pend off from core volt change failed!\n");
+		return err;
+	}
+
+	return ret;
+}
+
+static int32_t bpu_core_raw_set_clk(const struct bpu_core *core, uint64_t rate)
+{
+	uint64_t last_rate;
+	int32_t ret = 0;
+
+	if (core == NULL) {
+		pr_err("Set invalid bpu core clk!\n");/*PRQA S ALL*/
+		return -ENODEV;
+	}
+
+	if (core->mclk == NULL) {
+		return ret;
+	}
+
+	last_rate = clk_get_rate(core->mclk);
+
+	if (last_rate == rate) {
+		return 0;
+	}
+
+	ret = clk_set_rate(core->mclk, rate);
+	if (ret != 0) {
+		dev_err(core->dev, "Cannot set frequency %llu (%d)\n",
+				rate, ret);
+		return ret;
+	}
+
+	/* check if rate set success, when not, user need recover volt */
+	if (clk_get_rate(core->mclk) != rate) {
+		dev_err(core->dev,
+				"Get wrong frequency, Request %llu, Current %lu\n",
+				rate, clk_get_rate(core->mclk));
+		return -EINVAL;
 	}
 
 	return ret;
@@ -452,23 +518,25 @@ static int32_t bpu_core_set_clk(struct bpu_core *core, uint64_t rate)
 		return -EINVAL;
 	}
 
+	ret = bpu_core_pend_to_leisure(core, HZ);
+	if (ret != 0) {
+		dev_err(core->dev, "Pend for core clk change failed!\n");
+		return ret;
+	}
+
 	if (core->hw_ops->set_clk != NULL) {
-		ret = bpu_core_pend_to_leisure(core, HZ);
-		if (ret != 0) {
-			dev_err(core->dev, "Pend for core clk change failed!\n");
-			return ret;
-		}
-
 		ret = core->hw_ops->set_clk(core, rate);
-		if (ret != 0) {
-			dev_err(core->dev, "BPU Core set clk to %lld failed!\n", rate);
-		}
+	} else {
+		ret = bpu_core_raw_set_clk(core, rate);
+	}
+	if (ret != 0) {
+		dev_err(core->dev, "BPU Core set clk to %lld failed!\n", rate);
+	}
 
-		err = bpu_core_pend_off(core);
-		if (err != 0) {
-			dev_err(core->dev, "Pend off from core clk change failed!\n");
-			return err;
-		}
+	err = bpu_core_pend_off(core);
+	if (err != 0) {
+		dev_err(core->dev, "Pend off from core clk change failed!\n");
+		return err;
 	}
 
 	return ret;

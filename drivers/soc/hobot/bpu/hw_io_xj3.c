@@ -22,85 +22,72 @@
 #include "bpu.h"
 #include "bpu_core.h"
 #include "bpu_ctrl.h"
-#include "x2_bpu.h"
+#include "hw_io.h"
 
 #define DEFAULT_BURST_LEN (0x80u)
-#define HEXBITS (16u)
 static int32_t bpu_err_flag;
 
-static inline uint32_t x2_bpu_reg_read(const struct bpu_core *core,
-		uint32_t offset)
-{
-	return readl(core->base + offset);/*PRQA S ALL*/
-}
-
-static inline void x2_bpu_reg_write(const struct bpu_core *core,
-		uint32_t offset, uint32_t val)
-{
-	writel(val, core->base + offset);/*PRQA S ALL*/
-}
-
-static void x2_cnnbus_wm_set(struct bpu_core *core, uint32_t reg_off,
+static void cnnbus_wm_set(struct bpu_core *core, uint32_t reg_off,
 	uint32_t wd_maxlen, uint32_t wd_endian, uint32_t wd_priority)
 {
 	uint32_t reg_val;
 
-	reg_val = x2_bpu_reg_read(core, reg_off);
-	reg_val &= ~(X2_CNN_WD_MAXLEN_M_MASK |
-		X2_CNN_WD_ENDIAN_M_MASK |
-		X2_CNN_WD_PRIORITY_M_MASK);
+	reg_val = bpu_core_reg_read(core, reg_off);
+	reg_val &= ~(CNN_WD_MAXLEN_M_MASK |
+		CNN_WD_ENDIAN_M_MASK |
+		CNN_WD_PRIORITY_M_MASK);
 
-	reg_val |= X2_CNN_WD_MAXLEN_M(wd_maxlen) |
-		X2_CNN_WD_ENDIAN_M(wd_endian) |
-		X2_CNN_WD_PRIORITY_M(wd_priority);
+	reg_val |= CNN_WD_MAXLEN_M(wd_maxlen) |
+		CNN_WD_ENDIAN_M(wd_endian) |
+		CNN_WD_PRIORITY_M(wd_priority);
 
-	x2_bpu_reg_write(core, reg_off, reg_val);
+	bpu_core_reg_write(core, reg_off, reg_val);
 }
 
-static void x2_cnnbus_rm_set(struct bpu_core *core, uint32_t reg_off,
+static void cnnbus_rm_set(struct bpu_core *core, uint32_t reg_off,
 	uint32_t rd_maxlen, uint32_t rd_endian, uint32_t rd_priority)
 {
 	uint32_t reg_val;
 
-	reg_val = x2_bpu_reg_read(core, reg_off);
-	reg_val &= ~(X2_CNN_RD_MAXLEN_M_MASK |
-		X2_CNN_RD_ENDIAN_M_MASK |
-		X2_CNN_RD_PRIORITY_M_MASK);
+	reg_val = bpu_core_reg_read(core, reg_off);
+	reg_val &= ~(CNN_RD_MAXLEN_M_MASK |
+		CNN_RD_ENDIAN_M_MASK |
+		CNN_RD_PRIORITY_M_MASK);
 
-	reg_val |= X2_CNN_RD_MAXLEN_M(rd_maxlen) |
-		X2_CNN_RD_ENDIAN_M(rd_endian) |
-		X2_CNN_RD_PRIORITY_M(rd_priority);
+	reg_val |= CNN_RD_MAXLEN_M(rd_maxlen) |
+		CNN_RD_ENDIAN_M(rd_endian) |
+		CNN_RD_PRIORITY_M(rd_priority);
 
-	x2_bpu_reg_write(core, reg_off, reg_val);
+	bpu_core_reg_write(core, reg_off, reg_val);
 }
 
-static int32_t x2_bpu_hw_init(struct bpu_core *core)
+static int32_t bpu_core_hw_init(struct bpu_core *core)
 {
 	if (core->reserved[0] == 0u) {
 		core->reserved[0] = DEFAULT_BURST_LEN;
 	}
 // PRQA S ALL ++
 	/* Config axi write master */
-	x2_cnnbus_wm_set(core, CNNBUS_CTRL_WM_0, core->reserved[0], 0xf, 0x1);
-	x2_cnnbus_wm_set(core, CNNBUS_CTRL_WM_1, 0x80, 0xf, 0x2);
-	x2_cnnbus_wm_set(core, CNNBUS_CTRL_WM_2, 0x8, 0x0, 0x3);
-	x2_cnnbus_wm_set(core, CNNBUS_CTRL_WM_3, 0x80, 0x0, 0x4);
+	cnnbus_wm_set(core, CNNBUS_CTRL_WM_0, core->reserved[0], 0xf, 0x1);
+	cnnbus_wm_set(core, CNNBUS_CTRL_WM_1, 0x80, 0xf, 0x2);
+	cnnbus_wm_set(core, CNNBUS_CTRL_WM_2, 0x8, 0x0, 0x3);
+	cnnbus_wm_set(core, CNNBUS_CTRL_WM_3, 0x80, 0x0, 0x4);
 
 	/* Config axi read master */
-	x2_cnnbus_rm_set(core, CNNBUS_CTRL_RM_0, 0x80, 0xf, 0x4);
-	x2_cnnbus_rm_set(core, CNNBUS_CTRL_RM_1, 0x80, 0xf, 0x4);
-	x2_cnnbus_rm_set(core, CNNBUS_CTRL_RM_2, 0x8, 0xf, 0x4);
-	x2_cnnbus_rm_set(core, CNNBUS_CTRL_RM_3, 0x80, 0x8, 0x5);
-	x2_cnnbus_rm_set(core, CNNBUS_CTRL_RM_4, 0x80, 0xf, 0x4);
-	x2_cnnbus_rm_set(core, CNNBUS_CTRL_RM_5, 0x80, 0x0, 0x6);
+	cnnbus_rm_set(core, CNNBUS_CTRL_RM_0, 0x80, 0xf, 0x4);
+	cnnbus_rm_set(core, CNNBUS_CTRL_RM_1, 0x80, 0xf, 0x4);
+	cnnbus_rm_set(core, CNNBUS_CTRL_RM_2, 0x8, 0xf, 0x4);
+	cnnbus_rm_set(core, CNNBUS_CTRL_RM_3, 0x80, 0x8, 0x5);
+	cnnbus_rm_set(core, CNNBUS_CTRL_RM_4, 0x80, 0xf, 0x4);
+	cnnbus_rm_set(core, CNNBUS_CTRL_RM_5, 0x80, 0x0, 0x6);
 // PRQA S ALL --
 	/* Set axibus id */
-	x2_bpu_reg_write(core, CNNBUS_AXIID, 0x0);
+	bpu_core_reg_write(core, CNNBUS_AXIID, 0x0);
 
 	return 0;
 }
 
-static int32_t x2_bpu_iso_clear(struct bpu_core *core)
+static int32_t bpu_core_iso_clear(struct bpu_core *core)
 {
 	uint32_t reg_val;
 	int32_t ret = 0;
@@ -128,7 +115,7 @@ static int32_t x2_bpu_iso_clear(struct bpu_core *core)
 	return ret;
 }
 
-static int32_t x2_bpu_iso_set(struct bpu_core *core)
+static int32_t bpu_core_iso_set(struct bpu_core *core)
 {
 	uint32_t reg_val;
 	int32_t ret = 0;
@@ -156,32 +143,7 @@ static int32_t x2_bpu_iso_set(struct bpu_core *core)
 	return ret;
 }
 
-static int32_t bpu_to_reset(struct reset_control *rst, uint32_t delay_time)
-{
-	int32_t ret;
-
-	if (rst == NULL) {
-		/* some platform do not has rst, so just Warning */
-		pr_err("No reset ctrl have!!!\n");/*PRQA S ALL*/
-		return 0;
-	}
-
-	ret = reset_control_assert(rst);
-	if (ret < 0) {
-		pr_err("reset assert failed\n");/*PRQA S ALL*/
-		return ret;
-	}
-	udelay(delay_time);/*PRQA S ALL*/
-	ret = reset_control_deassert(rst);
-	if (ret < 0) {
-		pr_err("reset deassert failed\n");/*PRQA S ALL*/
-		return ret;
-	}
-
-	return ret;
-}
-
-static int32_t x2_bpu_reset(struct bpu_core *core)
+static int32_t bpu_core_hw_rst(struct bpu_core *core)
 {
 	int32_t ret;
 
@@ -190,13 +152,13 @@ static int32_t x2_bpu_reset(struct bpu_core *core)
 		return -ENODEV;
 	}
 
-	ret = bpu_to_reset(core->rst, 1);
+	ret = bpu_core_hw_reset(core, 1);
 	if (ret != 0) {
 		dev_err(core->dev, "bpu core reset failed\n");
 		return ret;
 	}
 
-	return x2_bpu_hw_init(core);
+	return bpu_core_hw_init(core);
 }
 
 static void bpu_diag_test(void *p, size_t len)
@@ -204,7 +166,7 @@ static void bpu_diag_test(void *p, size_t len)
 	bpu_err_flag = 1;
 }
 
-static int32_t x2_bpu_enable(struct bpu_core *core)
+static int32_t bpu_core_hw_enable(struct bpu_core *core)
 {
 	uint32_t tmp_fc_depth;
 	uint32_t reg_val;
@@ -237,14 +199,14 @@ static int32_t x2_bpu_enable(struct bpu_core *core)
 		dev_err(core->dev, "bpu core power enable failed\n");
 	}
 
-	x2_bpu_iso_clear(core);
+	bpu_core_iso_clear(core);
 
 	ret = bpu_core_clk_on(core);
 	if (ret < 0) {
 		dev_err(core->dev, "bpu core clk enable failed\n");
 	}
 
-	ret = x2_bpu_reset(core);
+	ret = bpu_core_hw_rst(core);
 	if (ret != 0) {
 		dev_err(core->dev, "bpu core hw reset failed\n");
 	}
@@ -260,19 +222,19 @@ static int32_t x2_bpu_enable(struct bpu_core *core)
 
 	tmp_fc_depth = FC_DEPTH;
 
-	x2_bpu_reg_write(core, CNNINT_MASK, 0x0);
+	bpu_core_reg_write(core, CNNINT_MASK, 0x0);
 
 	/* tell bpu fc depth */
-	reg_val = x2_bpu_reg_read(core, CNN_FC_LEN);
-	reg_val &=  ~(X2_CNN_PE0_FC_LENGTH_MASK);
+	reg_val = bpu_core_reg_read(core, CNN_FC_LEN);
+	reg_val &=  ~(CNN_PE0_FC_LENGTH_MASK);
 	/* hw depth start from 0 */
-	reg_val |= X2_CNN_PE0_FC_LENGTH(tmp_fc_depth - 1);
-	x2_bpu_reg_write(core, CNN_FC_LEN, reg_val);
+	reg_val |= CNN_PE0_FC_LENGTH(tmp_fc_depth - 1);
+	bpu_core_reg_write(core, CNN_FC_LEN, reg_val);
 
 	/* tell bpu fc base */
-	reg_val = X2_CNN_PE0_FC_BASE((uint32_t)core->fc_base_addr[0]);
+	reg_val = CNN_PE0_FC_BASE((uint32_t)core->fc_base_addr[0]);
 
-	x2_bpu_reg_write(core, CNN_FC_BASE, reg_val);
+	bpu_core_reg_write(core, CNN_FC_BASE, reg_val);
 
 	if ((EventIdBpu0Err + core->index) <= EventIdBpu1Err) {
 		if (diag_register(ModuleDiag_bpu, EventIdBpu0Err + core->index, 5, 300,
@@ -286,7 +248,7 @@ static int32_t x2_bpu_enable(struct bpu_core *core)
 	return 0;
 }
 
-static int32_t x2_bpu_disable(struct bpu_core *core)
+static int32_t bpu_core_hw_disable(struct bpu_core *core)
 {
 	int32_t ret;
 
@@ -306,7 +268,7 @@ static int32_t x2_bpu_disable(struct bpu_core *core)
 		dev_err(core->dev, "bpu core clk disable failed\n");
 	}
 
-	x2_bpu_iso_set(core);
+	bpu_core_iso_set(core);
 
 	ret = bpu_core_power_off(core);
 	if (ret < 0) {
@@ -320,82 +282,18 @@ static int32_t x2_bpu_disable(struct bpu_core *core)
 	return ret;
 }
 
-static int32_t x2_bpu_set_clk(const struct bpu_core *core, uint64_t rate)
-{
-	uint64_t last_rate;
-	int32_t ret = 0;
-
-	if (core == NULL) {
-		pr_err("Set invalid bpu core clk!\n");/*PRQA S ALL*/
-		return -ENODEV;
-	}
-
-	if (core->mclk == NULL) {
-		return ret;
-	}
-
-	last_rate = clk_get_rate(core->mclk);
-
-	if (last_rate == rate) {
-		return 0;
-	}
-
-	ret = clk_set_rate(core->mclk, rate);
-	if (ret != 0) {
-		dev_err(core->dev, "Cannot set frequency %llu (%d)\n",
-				rate, ret);
-		return ret;
-	}
-
-	/* check if rate set success, when not, user need recover volt */
-	if (clk_get_rate(core->mclk) != rate) {
-		dev_err(core->dev,
-				"Get wrong frequency, Request %llu, Current %lu\n",
-				rate, clk_get_rate(core->mclk));
-		return -EINVAL;
-	}
-
-	return ret;
-}
-
-static int32_t x2_bpu_set_volt(const struct bpu_core *core, int32_t volt)
-{
-	int32_t ret = 0;
-
-	if (core == NULL) {
-		pr_err("Set invalid bpu core voltage!\n");/*PRQA S ALL*/
-		return -ENODEV;
-	}
-
-	if (volt <= 0) {
-		pr_err("Set invalid value bpu core voltage!\n");/*PRQA S ALL*/
-		return -EINVAL;
-	}
-
-	if (core->regulator != NULL) {
-		ret = regulator_set_voltage(core->regulator,
-					volt, INT_MAX);
-		if (ret != 0) {
-			dev_err(core->dev, "Cannot set voltage %u uV\n", volt);
-			return ret;
-		}
-	}
-
-	return ret;
-}
-
-static void x2_bpu_set_update_tail(const struct bpu_core *core, uint32_t tail_index)
+static void bpu_core_set_update_tail(const struct bpu_core *core, uint32_t tail_index)
 {
 	uint32_t tmp_reg;
 
-	tmp_reg = x2_bpu_reg_read(core, CNN_FC_TAIL);
-	tmp_reg &= ~(X2_CNN_PE0_FC_TAIL_MASK);
+	tmp_reg = bpu_core_reg_read(core, CNN_FC_TAIL);
+	tmp_reg &= ~(CNN_PE0_FC_TAIL_MASK);
 
-	tmp_reg |= X2_CNN_PE0_FC_TAIL(tail_index);
-	x2_bpu_reg_write(core, CNN_FC_TAIL, tmp_reg);
+	tmp_reg |= CNN_PE0_FC_TAIL(tail_index);
+	bpu_core_reg_write(core, CNN_FC_TAIL, tmp_reg);
 }
 
-static int32_t x2_bpu_fc_equeue(const struct bpu_core *core,
+static int32_t bpu_core_fc_equeue(const struct bpu_core *core,
 		const struct bpu_hw_fc fc_data[], uint32_t *fc_num)
 {
 	uint32_t free_fc_fifo;
@@ -404,16 +302,16 @@ static int32_t x2_bpu_fc_equeue(const struct bpu_core *core,
 	uint32_t fc_depth, insert_fc_cnt, residue_fc_cnt;
 	uint32_t ret = 0;
 
-	fc_depth = x2_bpu_reg_read(core, CNN_FC_LEN);
+	fc_depth = bpu_core_reg_read(core, CNN_FC_LEN);
 
-	head_index = x2_bpu_reg_read(core, CNN_FC_HEAD);
-	fc_head_flag = head_index & X2_CNN_FC_IDX_FLAG;
+	head_index = bpu_core_reg_read(core, CNN_FC_HEAD);
+	fc_head_flag = head_index & CNN_FC_IDX_FLAG;
 
-	tail_index = x2_bpu_reg_read(core, CNN_FC_TAIL);
-	fc_tail_flag = tail_index & X2_CNN_FC_IDX_FLAG;
+	tail_index = bpu_core_reg_read(core, CNN_FC_TAIL);
+	fc_tail_flag = tail_index & CNN_FC_IDX_FLAG;
 
-	head_index &= X2_CNN_MAX_FC_LEN_MASK;
-	tail_index &= X2_CNN_MAX_FC_LEN_MASK;
+	head_index &= CNN_MAX_FC_LEN_MASK;
+	tail_index &= CNN_MAX_FC_LEN_MASK;
 	if (fc_head_flag != fc_tail_flag) {
 		free_fc_fifo = head_index - tail_index;
 	} else {
@@ -436,24 +334,24 @@ static int32_t x2_bpu_fc_equeue(const struct bpu_core *core,
 	if ((tail_index + *fc_num) > fc_depth) {
 		insert_fc_cnt = fc_depth - tail_index + 1u;
 		(void)memcpy(&(core->fc_base[0])[tail_index], &fc_data[0],/*PRQA S ALL*/
-			((uint64_t)insert_fc_cnt * X2_CNN_FC_SIZE));
+			((uint64_t)insert_fc_cnt * CNN_FC_SIZE));
 
 		if (fc_tail_flag != 0u) {
 			fc_tail_flag = 0;
 		} else {
-			fc_tail_flag = X2_CNN_FC_IDX_FLAG;
+			fc_tail_flag = CNN_FC_IDX_FLAG;
 		}
 
 		residue_fc_cnt = *fc_num - insert_fc_cnt;
 		if (residue_fc_cnt > 0u) {
 			(void)memcpy(&(core->fc_base[0])[0], &fc_data[insert_fc_cnt],/*PRQA S ALL*/
-				(uint64_t)residue_fc_cnt * X2_CNN_FC_SIZE);
+				(uint64_t)residue_fc_cnt * CNN_FC_SIZE);
 		}
 
 		ret = fc_tail_flag | residue_fc_cnt;
 	} else {
 		(void)memcpy(&(core->fc_base[0])[tail_index], &fc_data[0],/*PRQA S ALL*/
-			(uint64_t)*fc_num * X2_CNN_FC_SIZE);
+			(uint64_t)*fc_num * CNN_FC_SIZE);
 
 		ret = fc_tail_flag | (tail_index + *fc_num);
 	}
@@ -461,7 +359,7 @@ static int32_t x2_bpu_fc_equeue(const struct bpu_core *core,
 	return (int32_t)ret;
 }
 
-static int32_t x2_bpu_write_fc(const struct bpu_core *core,
+static int32_t bpu_core_hw_write_fc(const struct bpu_core *core,
 		struct bpu_fc *fc, uint32_t offpos)
 {
 	uint16_t *tmp_fc_id;
@@ -505,16 +403,16 @@ static int32_t x2_bpu_write_fc(const struct bpu_core *core,
 		*tmp_fc_id = (uint16_t)fc->hw_id;
 	}
 
-	ret = x2_bpu_fc_equeue(core, &fc->fc_data[offpos], &fc_num);
+	ret = bpu_core_fc_equeue(core, &fc->fc_data[offpos], &fc_num);
 	if (ret < 0) {
 		return ret;
 	} else {
 		update_tail = (uint32_t)ret;
 	}
 
-	fc->index = update_tail & (~X2_CNN_FC_IDX_FLAG);
+	fc->index = update_tail & (~CNN_FC_IDX_FLAG);
 
-	x2_bpu_set_update_tail(core, (uint32_t)update_tail);
+	bpu_core_set_update_tail(core, (uint32_t)update_tail);
 
 	return (int32_t)fc_num;
 }
@@ -543,7 +441,7 @@ static void report_bpu_diagnose_msg(u32 err, int core_index)
 	}
 }
 
-static int32_t x2_bpu_read_fc(const struct bpu_core *core,
+static int32_t bpu_core_hw_read_fc(const struct bpu_core *core,
 		uint32_t *tmp_id, uint32_t *err)
 {
 	uint32_t irq_status;
@@ -554,12 +452,12 @@ static int32_t x2_bpu_read_fc(const struct bpu_core *core,
 	}
 
 	/* the status just need read on X2 */
-	irq_status = x2_bpu_reg_read(core, CNNINT_STATUS);
+	irq_status = bpu_core_reg_read(core, CNNINT_STATUS);
 	pr_debug("BPU Core irq status = 0x%x\n", irq_status);/*PRQA S ALL*/
 
-	x2_bpu_reg_write(core, CNNINT_MASK, 0x1);
-	*tmp_id = x2_bpu_reg_read(core, CNNINT_NUM);
-	x2_bpu_reg_write(core, CNNINT_MASK, 0x0);
+	bpu_core_reg_write(core, CNNINT_MASK, 0x1);
+	*tmp_id = bpu_core_reg_read(core, CNNINT_NUM);
+	bpu_core_reg_write(core, CNNINT_MASK, 0x0);
 
 	if (*tmp_id & 0xf000) {
 		*err = *tmp_id;
@@ -577,7 +475,7 @@ static int32_t x2_bpu_read_fc(const struct bpu_core *core,
 	return 1;
 }
 
-static int32_t x2_bpu_status(struct bpu_core *core, uint32_t cmd)
+static int32_t bpu_core_hw_status(struct bpu_core *core, uint32_t cmd)
 {
 	static uint32_t head_index, tail_index;
 	uint32_t tmp_head_index, tmp_tail_index;
@@ -590,9 +488,9 @@ static int32_t x2_bpu_status(struct bpu_core *core, uint32_t cmd)
 		return -ENODEV;
 	}
 
-	tmp_head_index = x2_bpu_reg_read(core, CNN_FC_HEAD);
-	tmp_tail_index = x2_bpu_reg_read(core, CNN_FC_TAIL);
-	tmp_inst_num = x2_bpu_reg_read(core, CNNINT_INST_NUM);
+	tmp_head_index = bpu_core_reg_read(core, CNN_FC_HEAD);
+	tmp_tail_index = bpu_core_reg_read(core, CNN_FC_TAIL);
+	tmp_inst_num = bpu_core_reg_read(core, CNNINT_INST_NUM);
 
 	switch (cmd) {
 	case (uint32_t)BUSY_STATE:/*PRQA S ALL*/
@@ -684,7 +582,7 @@ static struct attribute_group bpu_core_hw_attr_group = {
 	.attrs = bpu_core_hw_attrs,
 };
 // PRQA S ALL --
-static int32_t x2_bpu_debug(const struct bpu_core *core, int32_t state)
+static int32_t bpu_core_hw_debug(const struct bpu_core *core, int32_t state)
 {
 	int32_t ret;
 
@@ -708,20 +606,20 @@ static int32_t x2_bpu_debug(const struct bpu_core *core, int32_t state)
 	return 0;
 }
 
-struct bpu_core_hw_ops x2_hw_ops = {
-	.enable		= x2_bpu_enable,
-	.disable	= x2_bpu_disable,
-	.reset		= x2_bpu_reset,
-	.set_clk	= x2_bpu_set_clk,
-	.set_volt	= x2_bpu_set_volt,
-	.write_fc	= x2_bpu_write_fc,
-	.read_fc	= x2_bpu_read_fc,
-	.status		= x2_bpu_status,
-	.debug		= x2_bpu_debug,
+struct bpu_core_hw_ops hw_ops = {
+	.enable		= bpu_core_hw_enable,
+	.disable	= bpu_core_hw_disable,
+	.reset		= bpu_core_hw_rst,
+	.set_clk	= NULL,
+	.set_volt	= NULL,
+	.write_fc	= bpu_core_hw_write_fc,
+	.read_fc	= bpu_core_hw_read_fc,
+	.status		= bpu_core_hw_status,
+	.debug		= bpu_core_hw_debug,
 };
 
 // PRQA S ALL ++
-MODULE_DESCRIPTION("Driver for Horizon X2 SOC BPU");
+MODULE_DESCRIPTION("Driver for Horizon XJ3/XJ2 SOC BPU");
 MODULE_AUTHOR("Zhang Guoying <guoying.zhang@horizon.ai>");
 MODULE_LICENSE("GPL v2");
 // PRQA S ALL --
