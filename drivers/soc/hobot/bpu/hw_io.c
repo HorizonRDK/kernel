@@ -12,13 +12,8 @@
 #include <linux/types.h>
 #include <linux/slab.h>
 #include <asm/delay.h>
-#include <linux/clk.h>
 #include <linux/device.h>
 #include <linux/reset.h>
-#include <linux/clk-provider.h>
-#include <linux/regulator/consumer.h>
-#include <linux/dma-mapping.h>
-#include <soc/hobot/diag.h>
 #include "bpu.h"
 #include "bpu_ctrl.h"
 #include "hw_io.h"
