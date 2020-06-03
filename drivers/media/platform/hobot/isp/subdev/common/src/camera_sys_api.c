@@ -774,6 +774,10 @@ int camera_sys_write(uint32_t port, uint32_t reg_addr,
 int	camera_sys_alloc_again(uint32_t port, uint32_t *a_gain)
 {
 	int ret = 0;
+	if (port >= CAMERA_TOTAL_NUMBER) {
+		pr_err("not support %d max port is %d\n", port, CAMERA_TOTAL_NUMBER);
+		return -1;
+	}
 	uint32_t num = camera_mod[port]->camera_param.sensor_data.turning_type;
 
 	if (num  > sizeof(sensor_ops)/sizeof(struct sensor_ctrl_ops)) {
@@ -789,6 +793,10 @@ int	camera_sys_alloc_again(uint32_t port, uint32_t *a_gain)
 int	camera_sys_alloc_dgain(uint32_t port, uint32_t *d_gain)
 {
 	int ret = 0;
+	if (port >= CAMERA_TOTAL_NUMBER) {
+		pr_err("not support %d max port is %d\n", port, CAMERA_TOTAL_NUMBER);
+		return -1;
+	}
 	uint32_t num = camera_mod[port]->camera_param.sensor_data.turning_type;
 
 	if (num > sizeof(sensor_ops)/sizeof(struct sensor_ctrl_ops)) {
@@ -1606,6 +1614,10 @@ int camera_sys_get_param(uint32_t port, sensor_data_t *sensor_data)
 {
 	int ret = 0;
 
+	if (port >= CAMERA_TOTAL_NUMBER) {
+		pr_err("not support %d max port is %d\n", port, CAMERA_TOTAL_NUMBER);
+		return -1;
+	}
 	memcpy(sensor_data, &camera_mod[port]->camera_param.sensor_data,
 			sizeof(sensor_data_t));
 
@@ -1680,6 +1692,11 @@ int camera_sys_stream_on(uint32_t port)
 	int ret = 0, i;
 	char buf[2];
 	uint32_t reg_width, setting_size, data_length;
+
+        if (port >= CAMERA_TOTAL_NUMBER) {
+	    pr_err("not support %d max port is %d\n", port, CAMERA_TOTAL_NUMBER);
+	    return -1;
+	}
 	uint32_t *stream_on = camera_mod[port]->camera_param.stream_ctrl.stream_on;
     uint32_t size =
     sizeof(camera_mod[port]->camera_param.stream_ctrl.stream_on);
@@ -1717,6 +1734,11 @@ int camera_sys_stream_off(uint32_t port)
 	int ret = 0, i;
 	char buf[2];
 	uint32_t reg_width, setting_size, data_length;
+
+        if (port >= CAMERA_TOTAL_NUMBER) {
+	     pr_err("not support %d max port is %d\n", port, CAMERA_TOTAL_NUMBER);
+	     return -1;
+	}
 	uint32_t *stream_off = camera_mod[port]->camera_param.stream_ctrl.stream_off;
     uint32_t size =
     sizeof(camera_mod[port]->camera_param.stream_ctrl.stream_off);
@@ -1754,6 +1776,10 @@ int camera_sys_sensor_write(uint32_t port, uint32_t address, uint32_t w_data)
     char buf[1];
     uint32_t reg_width;
 
+    if (port >= CAMERA_TOTAL_NUMBER) {
+	pr_err("not support %d max port is %d\n", port, CAMERA_TOTAL_NUMBER);
+	return -1;
+    }
     reg_width = camera_mod[port]->camera_param.reg_width;
     buf[0] = (char)(w_data & 0xff);
     ret = camera_i2c_write(port, address, reg_width, buf, 1);
@@ -1766,6 +1792,10 @@ int camera_sys_sensor_read(uint32_t port, uint32_t address, uint32_t *r_data)
     char buf[1];
     uint32_t reg_width;
 
+     if (port >= CAMERA_TOTAL_NUMBER) {
+	pr_err("not support %d max port is %d\n", port, CAMERA_TOTAL_NUMBER);
+	return -1;
+    }
     reg_width = camera_mod[port]->camera_param.reg_width;
     ret = camera_i2c_read(port, address, reg_width, buf, 1);
     *r_data = (uint32_t)(buf[0]);

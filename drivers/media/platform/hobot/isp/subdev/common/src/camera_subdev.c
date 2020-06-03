@@ -64,34 +64,55 @@ static long camera_subdev_ioctl(struct v4l2_subdev *sd,
 		ret = camera_sys_priv_set(ARGS_TO_PTR(arg)->port,
 				ARGS_TO_PTR(arg)->sensor_priv);
 		if(ret < 0) {
-			pr_err("SENSOR_UPDATE error port %d\n", ARGS_TO_PTR(arg)->port);
+		   pr_err("SENSOR_UPDATE error port %d\n", ARGS_TO_PTR(arg)->port);
 		}
 		break;
 	case SENSOR_GET_PARAM:
-		camera_sys_get_param(ARGS_TO_PTR(arg)->port,
+		ret = camera_sys_get_param(ARGS_TO_PTR(arg)->port,
 				ARGS_TO_PTR(arg)->sensor_data);
+		if(ret < 0) {
+		   pr_err("camera_sys_get_param error port %d\n", ARGS_TO_PTR(arg)->port);
+		}
 		break;
 	case SENSOR_STREAM_ON:
-		camera_sys_stream_on(ARGS_TO_PTR(arg)->port);
+		ret = camera_sys_stream_on(ARGS_TO_PTR(arg)->port);
+		if(ret < 0) {
+		    pr_err("camera_sys_stream_on error port %d\n", ARGS_TO_PTR(arg)->port);
+		}
 		break;
 	case SENSOR_STREAM_OFF:
-		camera_sys_stream_off(ARGS_TO_PTR(arg)->port);
+		ret = camera_sys_stream_off(ARGS_TO_PTR(arg)->port);
+		if(ret < 0) {
+		    pr_err("camera_sys_stream_off error port %d\n", ARGS_TO_PTR(arg)->port);
+		}
 		break;
 	case SENSOR_WRITE:
-		camera_sys_sensor_write(ARGS_TO_PTR(arg)->port,
+		ret = camera_sys_sensor_write(ARGS_TO_PTR(arg)->port,
                         ARGS_TO_PTR(arg)->address,
                         ARGS_TO_PTR(arg)->w_data);
+		if(ret < 0) {
+		    pr_err("camera_sys_sensor_write error port %d\n", ARGS_TO_PTR(arg)->port);
+		}
 		break;
 	case SENSOR_READ:
-		camera_sys_sensor_read(ARGS_TO_PTR(arg)->port,
+		ret = camera_sys_sensor_read(ARGS_TO_PTR(arg)->port,
                         ARGS_TO_PTR(arg)->address,
                         ARGS_TO_PTR(arg)->r_data);
+		if(ret < 0) {
+		    pr_err("camera_sys_sensor_read error port %d\n", ARGS_TO_PTR(arg)->port);
+		}
 		break;
 	case SENSOR_ALLOC_ANALOG_GAIN:
-		camera_sys_alloc_again(ARGS_TO_PTR(arg)->port, ARGS_TO_PTR(arg)->a_gain);
+		ret = camera_sys_alloc_again(ARGS_TO_PTR(arg)->port, ARGS_TO_PTR(arg)->a_gain);
+		if(ret < 0) {
+		    pr_err("camera_sys_alloc_again error port %d\n", ARGS_TO_PTR(arg)->port);
+		}
 		break;
 	case SENSOR_ALLOC_DIGITAL_GAIN:
-		camera_sys_alloc_dgain(ARGS_TO_PTR(arg)->port, ARGS_TO_PTR(arg)->d_gain);
+		ret = camera_sys_alloc_dgain(ARGS_TO_PTR(arg)->port, ARGS_TO_PTR(arg)->d_gain);
+		if(ret < 0) {
+		    pr_err("camera_sys_alloc_dgain error port %d\n", ARGS_TO_PTR(arg)->port);
+		}
 		break;
 	case SENSOR_ALLOC_INTEGRATION_TIME:
 		//camera_sys_alloc_intergration_time(ARGS_TO_PTR(arg)->port,
