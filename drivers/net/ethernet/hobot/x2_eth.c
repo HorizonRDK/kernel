@@ -1,13 +1,28 @@
-/*
- * Horizon Robotics
+/*  Synopsys DWC Ethernet Quality-of-Service v4.10a linux driver
  *
- *  Copyright (C) 2020 Horizon Robotics Inc.
- *  All rights reserved.
+ *	Copyright (C) 2015 Axis Communications AB.
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
+ *  This is a driver for the Synopsys DWC Ethernet QoS IP version 4.10a (GMAC).
+ *  This version introduced a lot of changes which breaks backwards
+ *  compatibility the non-QoS IP from Synopsys (used in the ST Micro drivers).
+ *  Some fields differ between version 4.00a and 4.10a, mainly the interrupt
+ *  bit fields. The driver could be made compatible with 4.00, if all relevant
+ *  HW erratas are handled.
+ *
+ *  The GMAC is highly configurable at synthesis time. This driver has been
+ *  developed for a subset of the total available feature set. Currently
+ *  it supports:
+ *  - TSO
+ *  - Checksum offload for RX and TX.
+ *  - Energy efficient ethernet.
+ *  - GMII phy interface.
+ *  - The statistics module.
+ *  - Single RX and TX queue.
+ *
+ *
+ *  This program is free software; you can redistribute it and/or modify it
+ *  under the terms and conditions of the GNU General Public License,
+ *  version 2, as published by the Free Software Foundation.
  */
 
 #include <linux/clk.h>
