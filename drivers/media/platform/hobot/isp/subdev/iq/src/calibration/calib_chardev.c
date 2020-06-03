@@ -67,7 +67,7 @@ static int calib_destory(uint8_t port)
 
 	for(tmp = 0; tmp < CALIBRATION_TOTAL_SIZE; tmp++) {
 		if (calib_data->plut[tmp].ptr == NULL) {
-			LOG( LOG_ERR, "memory of port %d is not existance.", port );
+			LOG( LOG_DEBUG, "memory of port %d is not existance.", port );
 		} else {
 			LOG( LOG_DEBUG, "%d memory of port %d is free.", tmp, port );
 			kfree(calib_data->plut[tmp].ptr);

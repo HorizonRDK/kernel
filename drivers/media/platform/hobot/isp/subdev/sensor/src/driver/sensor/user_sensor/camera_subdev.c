@@ -58,7 +58,7 @@ static int32_t common_alloc_analog_gain(uint8_t chn, int32_t gain)
 
 	LOG(LOG_DEBUG, "analog gain is %d", gain);
 	if (common_subdev != NULL && chn < FIRMWARE_CONTEXT_NUMBER) {
-		settings.port = chn;
+		settings.port = (uint32_t)chn;
 		settings.a_gain = (uint32_t *)&analog_gain;
 		// Initial local parameters
 		ret = v4l2_subdev_call(common_subdev, core, ioctl,
@@ -104,7 +104,7 @@ static int32_t common_alloc_digital_gain(uint8_t chn, int32_t gain)
 
 	LOG(LOG_DEBUG, "digital gain is %d", gain);
 	if (common_subdev != NULL && chn < FIRMWARE_CONTEXT_NUMBER) {
-		settings.port = chn;
+		settings.port = (uint32_t)chn;
 		settings.d_gain = (uint32_t *)&digital_gain;
 		// Initial local parameters
 		ret = v4l2_subdev_call(common_subdev, core, ioctl,

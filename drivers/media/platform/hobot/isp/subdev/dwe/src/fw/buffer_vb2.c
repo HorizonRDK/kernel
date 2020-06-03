@@ -157,6 +157,7 @@ int dwe_vb2_queue_init(struct vb2_queue *q, struct mutex *mlock,
 #endif
 	q->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_MONOTONIC;
 	q->min_buffers_needed = 1;
+	mutex_init(mlock);
 	q->lock = mlock;
 	//ops
 	q->dev = dev;
