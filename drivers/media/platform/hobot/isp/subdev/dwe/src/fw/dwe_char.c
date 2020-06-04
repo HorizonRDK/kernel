@@ -54,6 +54,9 @@
 
 extern struct class *vps_class;
 dwe_charmod_s *dwe_mod[FIRMWARE_CONTEXT_NUMBER];
+static uint32_t pipe_count = 0;
+static uint32_t pipe_key = 0;
+struct mutex g_lock;
 
 extern void vio_dwe_clk_enable(void);
 extern void vio_dwe_clk_disable(void);
@@ -84,14 +87,18 @@ static int dwe_fop_open(struct inode *pinode, struct file *pfile)
 		return -ENXIO;
 	}
 
-	mutex_lock(&dwe_cdev->slock);
-	if (dwe_cdev->user_num == 0) {
+	//mutex_lock(&dwe_cdev->slock);
+	dwe_cdev->user_num++;
+	pfile->private_data = dwe_cdev;
+	//mutex_unlock(&dwe_cdev->slock);
+
+	mutex_lock(&g_lock);
+	if (pipe_count == 0) {
 		vio_dwe_clk_enable();
 		dwe_sw_init();
 	}
-	dwe_cdev->user_num++;
-	pfile->private_data = dwe_cdev;
-	mutex_unlock(&dwe_cdev->slock);
+	pipe_count++;
+	mutex_unlock(&g_lock);
 
 	//init stream
 	ret = dwe_v4l2_stream_init(&dwe_mod[tmp]->pstream, tmp);
@@ -128,6 +135,14 @@ static int dwe_fop_release(struct inode *pinode, struct file *pfile)
 	dwe_charmod_s *dwe_cdev = pfile->private_data;
 	dwe_v4l2_stream_t *pstream = dwe_cdev->pstream;
 
+	if (dwe_cdev->user_num == 0) {
+		return -ENXIO;
+	}
+
+	//mutex_lock(&dwe_cdev->slock);
+	dwe_cdev->user_num--;
+	//mutex_unlock(&dwe_cdev->slock);
+
 	/* deinit stream */
 	if (pstream) {
 		dwe_v4l2_stream_deinit(pstream);
@@ -143,14 +158,15 @@ static int dwe_fop_release(struct inode *pinode, struct file *pfile)
 	if (dwe_cdev->vb2_q.lock)
 		mutex_unlock(dwe_cdev->vb2_q.lock);
 
-	mutex_lock(&dwe_cdev->slock);
-	dwe_cdev->user_num--;
-	if (dwe_cdev->user_num == 0) {
+	pfile->private_data = NULL;
+
+	mutex_lock(&g_lock);
+	pipe_count--;
+	if (pipe_count == 0) {
 		dwe_sw_deinit();
 		vio_dwe_clk_disable();
 	}
-	mutex_unlock(&dwe_cdev->slock);
-	pfile->private_data = NULL;
+	mutex_unlock(&g_lock);
 
 	LOG(LOG_DEBUG, "close is success!\n");
 	return 0;
@@ -722,7 +738,7 @@ int __init dwe_dev_init(uint32_t port)
 	}
 
 	snprintf(dwe_mod[port]->name, CHARDEVNAME_LEN, "dwe_sbuf%d", port);
-	
+
 //misc_device
 #if 0
 	dwe_mod[port]->dwe_chardev.name = dwe_mod[port]->name;
@@ -764,6 +780,10 @@ int __init dwe_dev_init(uint32_t port)
 
 	dwe_mod[port]->port = port;
 	mutex_init(&(dwe_mod[port]->slock));
+	if (!pipe_key) {
+		pipe_key = 1;
+		mutex_init(&g_lock);
+	}
 #endif
 	LOG(LOG_INFO, "%s register success !\n", dwe_mod[port]->name);
 	return ret;
