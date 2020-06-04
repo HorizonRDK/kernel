@@ -460,6 +460,7 @@ typedef struct _ppcon2_cfg_t {
 	uint32_t saturation;
 	uint32_t off_contrast;
 	uint32_t off_bright;
+	float gamma_value;
 } ppcon2_cfg_t;
 
 typedef struct _refresh_cfg_t {
