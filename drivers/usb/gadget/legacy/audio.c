@@ -148,8 +148,8 @@ static struct usb_function *f_uac1;
  */
 
 /* Thanks to Linux Foundation for donating this product ID. */
-#define AUDIO_VENDOR_NUM		0x1d6b	/* Linux Foundation */
-#define AUDIO_PRODUCT_NUM		0x0101	/* Linux-USB Audio Gadget */
+#define AUDIO_VENDOR_NUM		0x20B1	/* Linux Foundation */
+#define AUDIO_PRODUCT_NUM		0x0002	/* Linux-USB Audio Gadget */
 
 /*-------------------------------------------------------------------------*/
 
