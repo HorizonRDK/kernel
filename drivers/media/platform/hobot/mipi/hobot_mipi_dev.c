@@ -70,6 +70,7 @@ module_param(init_num, uint, 0644);
 #endif
 
 #define MIPI_DEV_INT_DBG			(1)
+#define MIPI_DEV_INT_DBG_ERRSTR		(1)
 #define MIPI_DEV_SYSFS_FATAL_EN     (0)
 
 #define MIPI_DEV_CSI2_RAISE			(0x01)
@@ -130,7 +131,9 @@ module_param(init_num, uint, 0644);
 #define MIPI_DEV_HSYNC_PKT_DEFAULT  (1)
 #define MIPI_DEV_IPILIMIT_DEFAULT   (102000000UL)
 #define MIPI_DEV_IRQ_CNT            (10)
-#define MIPI_DEV_IRQ_DEBUG          (1)
+#define MIPI_DEV_IRQ_DEBUG_PRERR    (0x1)
+#define MIPI_DEV_IRQ_DEBUG_ERRSTR   (0x2)
+#define MIPI_DEV_IRQ_DEBUG          (0x1)
 
 #define DEV_DPHY_LANE_MAX			(4)
 #define DEV_DPHY_CHECK_MAX			(500)
@@ -242,6 +245,105 @@ static const char *g_md_icnt_names[] = {
 	"idi_vcx",
 	"idi_vcx2",
 };
+
+typedef struct _mipi_dev_ireg_s {
+	uint32_t icnt_n;
+	uint32_t st_mask;
+	uint32_t reg_st;
+	uint32_t reg_mask;
+	uint32_t reg_force;
+	uint32_t err_mask;
+#if MIPI_DEV_INT_DBG_ERRSTR
+	const char* err_str[32];
+#endif
+} mipi_dev_ireg_t;
+
+static const mipi_dev_ireg_t md_int_regs_1p2[] = {
+	{ 1, MIPI_DEV_INT_VPG, REG_MIPI_DEV_INT_ST_VPG,
+		REG_MIPI_DEV_INT_MASK_N_VPG, REG_MIPI_DEV_INT_FORCE_VPG,
+		0x00000001,
+#if MIPI_DEV_INT_DBG_ERRSTR
+	  { "vpg_pkt_lost" },
+#endif
+	},
+	{ 2, MIPI_DEV_INT_IDI, REG_MIPI_DEV_INT_ST_IDI,
+		REG_MIPI_DEV_INT_MASK_N_IDI, REG_MIPI_DEV_INT_FORCE_IDI,
+		0x000003ff,
+#if MIPI_DEV_INT_DBG_ERRSTR
+	  { "idi_errwc", "idi_vc0_errf_seq", "idi_vc1_errf_seq",
+		"idi_vc2_errf_seq", "idi_vc3_errf_seq", "idi_vc0_errl_seq",
+		"idi_vc1_errl_seq", "idi_vc2_errl_seq",
+		"idi_vc3_errl_seq", "idi_fifo_overflow" },
+#endif
+	},
+	{ 3, MIPI_DEV_INT_IPI, REG_MIPI_DEV_INT_ST_IPI,
+		REG_MIPI_DEV_INT_MASK_N_IPI, REG_MIPI_DEV_INT_FORCE_IPI,
+		0x1f1f1f1f,
+#if MIPI_DEV_INT_DBG_ERRSTR
+	  { "ipi_errpixel", "ipi_fifo_overflow", "ipi_errline",
+		"ipi_fifo_underflow", "ipi_trans_conflict", NULL, NULL, NULL,
+		"ipi2_errpixel", "ipi2_fifo_overflow", "ipi2_errline",
+		"ipi2_fifo_underflow", "ipi2_trans_conflict", NULL, NULL, NULL,
+		"ipi3_errpixel", "ipi3_fifo_overflow", "ipi3_errline",
+		"ipi3_fifo_underflow", "ipi3_trans_conflict", NULL, NULL, NULL,
+		"ipi4_errpixel", "ipi4_fifo_overflow", "ipi4_errline",
+		"ipi4_fifo_underflow", "ipi4_trans_conflict", NULL, NULL, NULL },
+#endif
+	},
+	{ 4, MIPI_DEV_INT_PHY, REG_MIPI_DEV_INT_ST_PHY,
+		REG_MIPI_DEV_INT_MASK_N_PHY, REG_MIPI_DEV_INT_FORCE_PHY,
+		0x00000007,
+#if MIPI_DEV_INT_DBG_ERRSTR
+	  { "to_hs_tx", "errcontentionlp0", "errcontentionlp1" },
+#endif
+	},
+	{ 5, MIPI_DEV_INT_MT_IPI, REG_MIPI_DEV_INT_ST_MT_IPI,
+		REG_MIPI_DEV_INT_MASK_N_MT_IPI, REG_MIPI_DEV_INT_FORCE_MT_IPI,
+		0x00000001,
+#if MIPI_DEV_INT_DBG_ERRSTR
+	  { "mt_ipi_fifo_overflow" },
+#endif
+	},
+	{ 6, MIPI_DEV_INT_IDI_VCX_DMY, REG_MIPI_DEV_INT_ST_IDI_VCX,
+		REG_MIPI_DEV_INT_MASK_N_IDI_VCX, REG_MIPI_DEV_INT_FORCE_IDI_VCX,
+		0x0fff0fff,
+#if MIPI_DEV_INT_DBG_ERRSTR
+	  { "idi_vc4_errf_seq", "idi_vc5_errf_seq", "idi_vc6_errf_seq",
+		"idi_vc7_errf_seq", "idi_vc8_errf_seq", "idi_vc9_errf_seq",
+		"idi_vc10_errf_seq", "idi_vc11_errf_seq",
+		"idi_vc12_errf_seq", "idi_vc13_errf_seq", "idi_vc14_errf_seq",
+		"idi_vc15_errf_seq", NULL, NULL, NULL, NULL,
+		"idi_vc4_errl_seq", "idi_vc5_errl_seq", "idi_vc6_errl_seq",
+		"idi_vc7_errl_seq", "idi_vc8_errl_seq", "idi_vc9_errl_seq",
+		"idi_vc10_errl_seq", "idi_vc11_errl_seq",
+		"idi_vc12_errl_seq", "idi_vc13_errl_seq", "idi_vc14_errl_seq",
+		"idi_vc15_errl_seq", NULL, NULL, NULL, NULL },
+#endif
+	},
+	{ 6, MIPI_DEV_INT_IDI_VCX2_DMY, REG_MIPI_DEV_INT_ST_IDI_VCX2,
+		REG_MIPI_DEV_INT_MASK_N_IDI_VCX2, REG_MIPI_DEV_INT_FORCE_IDI_VCX2,
+		0xffffffff,
+#if MIPI_DEV_INT_DBG_ERRSTR
+	  { "idi_vc17_errf_seq", "idi_vc18_errf_seq", "idi_vc19_errf_seq",
+		"idi_vc20_errf_seq", "idi_vc21_errf_seq", "idi_vc21_errf_seq",
+		"idi_vc22_errf_seq", "idi_vc23_errf_seq",
+		"idi_vc24_errf_seq", "idi_vc25_errf_seq", "idi_vc26_errf_seq",
+		"idi_vc27_errf_seq", "idi_vc28_errf_seq", "idi_vc29_errf_seq",
+		"idi_vc30_errf_seq", "idi_vc31_errf_seq",
+		"idi_vc17_errl_seq", "idi_vc18_errl_seq", "idi_vc19_errl_seq",
+		"idi_vc20_errl_seq", "idi_vc21_errl_seq", "idi_vc21_errl_seq",
+		"idi_vc22_errl_seq", "idi_vc23_errl_seq",
+		"idi_vc24_errl_seq", "idi_vc25_errl_seq", "idi_vc26_errl_seq",
+		"idi_vc27_errl_seq", "idi_vc28_errl_seq", "idi_vc29_errl_seq",
+		"idi_vc30_errl_seq", "idi_vc31_errl_seq" },
+#endif
+	}
+};
+
+typedef struct _mipi_dev_ierr_s {
+	const mipi_dev_ireg_t *iregs;
+	uint32_t num;
+} mipi_dev_ierr_t;
 #endif
 
 typedef struct _mipi_dev_s {
@@ -251,6 +353,7 @@ typedef struct _mipi_dev_s {
 	mipi_dev_cfg_t    cfg;
 	mipi_dev_param_t  param;
 #if MIPI_DEV_INT_DBG
+	mipi_dev_ierr_t   ierr;
 	mipi_dev_icnt_t   icnt;
 #endif
 } mipi_dev_t;
@@ -771,17 +874,6 @@ static int32_t mipi_dev_configure_vpg(mipi_ddev_t *ddev, mipi_dev_cfg_t *cfg)
 }
 
 #if MIPI_DEV_INT_DBG
-static const uint32_t mipi_dev_int_msk[] = {
-	/* reg offset,                           mask,  */
-	REG_MIPI_DEV_INT_MASK_N_VPG,            0x0001,
-	REG_MIPI_DEV_INT_MASK_N_IDI,            0x03ff,
-	REG_MIPI_DEV_INT_MASK_N_IPI,            0x1f1f1f1f,
-	REG_MIPI_DEV_INT_MASK_N_PHY,            0x0007,
-	REG_MIPI_DEV_INT_MASK_N_IDI_VCX,        0xffffffff,
-	REG_MIPI_DEV_INT_MASK_N_IDI_VCX2,       0xffffffff,
-	REG_MIPI_DEV_INT_MASK_N_MT_IPI,         0x0001,
-};
-
 /**
  * @brief mipi_dev_irq_enable : Enale mipi dev IRQ
  *
@@ -792,26 +884,23 @@ static const uint32_t mipi_dev_int_msk[] = {
 static void mipi_dev_irq_enable(mipi_ddev_t *ddev)
 {
 	mipi_dev_t *mdev = &ddev->mdev;
+	mipi_dev_ierr_t *ierr = &mdev->ierr;
+	const mipi_dev_ireg_t *ireg = NULL;
 	void __iomem *iomem = mdev->iomem;
-	uint32_t reg = 0;
-	uint32_t mask = 0;
 	uint32_t temp = 0;
-	const uint32_t *msk;
-	int i, num;
+	int i;
 
 	if (!ddev || !iomem)
 		return;
 
-	msk = mipi_dev_int_msk;
-	num = ARRAY_SIZE(mipi_dev_int_msk);
-
-	for (i = 0; i < num; i += 2) {
-		reg = msk[i];
-		mask = msk[i + 1];
-		temp = mipi_getreg(iomem + reg);
-		temp &= ~(mask);
-		temp |= mask;
-		mipi_putreg(iomem + reg, temp);
+	temp = mipi_getreg(iomem + REG_MIPI_DEV_INT_ST_MAIN);
+	for (i = 0; i < ierr->num; i++) {
+		ireg = &ierr->iregs[i];
+		temp = mipi_getreg(iomem + ireg->reg_st);
+		temp = mipi_getreg(iomem + ireg->reg_mask);
+		temp &= ~(ireg->err_mask);
+		temp |= ireg->err_mask;
+		mipi_putreg(iomem + ireg->reg_mask, temp);
 	}
 
 #ifdef MIPI_DEV_INT_USE_TIMER
@@ -831,25 +920,20 @@ static void mipi_dev_irq_enable(mipi_ddev_t *ddev)
 static void mipi_dev_irq_disable(mipi_ddev_t *ddev)
 {
 	mipi_dev_t *mdev = &ddev->mdev;
+	mipi_dev_ierr_t *ierr = &mdev->ierr;
+	const mipi_dev_ireg_t *ireg = NULL;
 	void __iomem *iomem = mdev->iomem;
-	uint32_t reg = 0;
-	uint32_t mask = 0;
 	uint32_t temp = 0;
-	const uint32_t *msk;
-	int i, num;
+	int i;
 
 	if (!ddev || !iomem)
 		return;
 
-	msk = mipi_dev_int_msk;
-	num = ARRAY_SIZE(mipi_dev_int_msk);
-
-	for (i = 0; i < num; i += 2) {
-		reg = msk[i];
-		mask = msk[i + 1];
-		temp = mipi_getreg(iomem + reg);
-		temp &= ~(mask);
-		mipi_putreg(iomem + reg, temp);
+	for (i = 0; i < ierr->num; i ++) {
+		ireg = &ierr->iregs[i];
+		temp = mipi_getreg(iomem + ireg->reg_mask);
+		temp &= ~(ireg->err_mask);
+		mipi_putreg(iomem + ireg->reg_mask, temp);
 	}
 
 #ifdef MIPI_DEV_INT_USE_TIMER
@@ -920,17 +1004,6 @@ static void mipi_dev_diag_test(void *p, size_t len)
 }
 #endif
 
-static const uint32_t mipi_dev_int_st[] = {
-	/* reg offset,                mask,                      icnt */
-	REG_MIPI_DEV_INT_ST_VPG,      MIPI_DEV_INT_VPG,          1,
-	REG_MIPI_DEV_INT_ST_IDI,      MIPI_DEV_INT_IDI,          2,
-	REG_MIPI_DEV_INT_ST_IPI,      MIPI_DEV_INT_IPI,          3,
-	REG_MIPI_DEV_INT_ST_PHY,      MIPI_DEV_INT_PHY,          4,
-	REG_MIPI_DEV_INT_ST_MT_IPI,   MIPI_DEV_INT_MT_IPI,       5,
-	REG_MIPI_DEV_INT_ST_IDI_VCX,  MIPI_DEV_INT_IDI_VCX_DMY,  6,
-	REG_MIPI_DEV_INT_ST_IDI_VCX2, MIPI_DEV_INT_IDI_VCX2_DMY, 7
-};
-
 /**
  * @brief mipi_dev_irq_func : irq func
  *
@@ -944,6 +1017,8 @@ static irqreturn_t mipi_dev_irq_func(int this_irq, void *data)
 	mipi_ddev_t *ddev = (mipi_ddev_t *)data;
 	struct device *dev = ddev->dev;
 	mipi_dev_t *mdev = &ddev->mdev;
+	mipi_dev_ierr_t *ierr = &mdev->ierr;
+	const mipi_dev_ireg_t *ireg = NULL;
 	mipi_dev_param_t *param = &mdev->param;
 	mipi_dev_icnt_t *icnt = &mdev->icnt;
 	void __iomem *iomem = mdev->iomem;
@@ -951,10 +1026,15 @@ static irqreturn_t mipi_dev_irq_func(int this_irq, void *data)
 	uint32_t reg, mask, icnt_n;
 	uint32_t irq = 0, irq_do;
 	uint32_t subirq = 0;
-	const uint32_t *st;
-	int i, num;
+	int i;
 	uint8_t err_occurred = 0;
 	uint32_t env_subirq[MIPI_DEV_ICNT_NUM - 1] = {0};
+	char *perr = "";
+#if MIPI_DEV_INT_DBG_ERRSTR
+	int j, l;
+	uint32_t subirq_do;
+	char err_str[256];
+#endif
 
 	if (!ddev || !iomem)
 		return IRQ_NONE;
@@ -962,44 +1042,60 @@ static irqreturn_t mipi_dev_irq_func(int this_irq, void *data)
 	if (this_irq >= 0)
 		disable_irq_nosync(this_irq);
 
-	st = mipi_dev_int_st;
-	num = ARRAY_SIZE(mipi_dev_int_st);
-
 #ifdef MIPI_DEV_INT_USE_TIMER
 	irq = ddev->irq_st_main;
 #else
 	irq = mipi_getreg(iomem + REG_MIPI_DEV_INT_ST_MAIN);
 #endif
-	if (param->irq_debug)
+	if (param->irq_debug & MIPI_DEV_IRQ_DEBUG_PRERR)
 		mipierr("irq status 0x%x", irq);
 	else
 		mipidbg("irq status 0x%x", irq);
 	if(irq) {
 		irq_do = irq;
 		icnt->st_main++;
-		for (i = 0; i < num; i += 3) {
-			mask = st[i + 1];
+		for (i = 0; i < ierr->num; i++) {
+			ireg = &ierr->iregs[i];
+			mask = ireg->st_mask;
 			if (!(irq_do & mask))
 				continue;
 			if (mask == MIPI_DEV_INT_IDI)
 				irq_do |= (MIPI_DEV_INT_IDI_VCX_DMY |
 					MIPI_DEV_INT_IDI_VCX2_DMY);
 
-			reg = st[i];
-			icnt_n = st[i + 2];
-			subirq = mipi_getreg(iomem + reg);
-			if (subirq == 0 && (mask == MIPI_DEV_INT_IDI ||
-					mask == MIPI_DEV_INT_IDI_VCX_DMY ||
-					mask == MIPI_DEV_INT_IDI_VCX_DMY)) {
+			reg = ireg->reg_st;
+			icnt_n = ireg->icnt_n;
+			subirq = mipi_getreg(iomem + reg) & ireg->err_mask;
+			if (!subirq) {
 				irq_do &= ~mask;
 				continue;
 			}
-			if (param->irq_debug)
-				mipierr("  %s: 0x%x",
-					g_md_icnt_names[icnt_n], subirq);
+
+			if (!subirq)
+				continue;
+#if MIPI_DEV_INT_DBG_ERRSTR
+			err_str[0] = '\0';
+			perr = err_str;
+			if (param->irq_debug & MIPI_DEV_IRQ_DEBUG_ERRSTR) {
+				subirq_do = subirq;
+				j = 0;
+				l = 0;
+				while(subirq_do && j < 32 && l < sizeof(err_str)) {
+					if (subirq_do & (0x1 << j)) {
+						l += snprintf(&err_str[l], sizeof(err_str) - l,
+								" %d:%s", j, (ireg->err_str[j]) ? ireg->err_str[j] : "rsv");
+						subirq_do &= ~(0x1 << j);
+					}
+					j++;
+				}
+			}
+#endif
+			if (param->irq_debug & MIPI_DEV_IRQ_DEBUG_PRERR)
+				mipierr("  %s: 0x%x%s",
+					g_md_icnt_names[icnt_n], subirq, perr);
 			else
-				mipidbg("  %s: 0x%x",
-					g_md_icnt_names[icnt_n], subirq);
+				mipidbg("  %s: 0x%x%s",
+					g_md_icnt_names[icnt_n], subirq, perr);
 			icnt_p[icnt_n]++;
 			err_occurred = 1;
 			env_subirq[icnt_n - 1] = subirq;
@@ -1844,32 +1940,40 @@ static const struct attribute_group status_attr_group = {
 
 #if MIPI_DEV_INT_DBG && MIPI_DEV_SYSFS_FATAL_EN
 /* sysfs for mipi dev devices' fatal */
-static uint32_t mipi_dev_fatal_st_reg(const char *name)
+static const mipi_dev_ireg_t* mipi_dev_get_ireg(mipi_dev_ierr_t *ierr, const char *name)
 {
-	const uint32_t *st;
-	int i, num;
+	const mipi_dev_ireg_t *ireg = NULL, *itmp = NULL;
+	int i;
 
-	st = mipi_dev_int_st;
-	num = ARRAY_SIZE(mipi_dev_int_st);
-	if (strcmp(g_md_icnt_names[0], name) == 0)
-		return REG_MIPI_DEV_INT_ST_MAIN;
-	for (i = 0; i < num; i += 3) {
-		if (strcmp(g_md_icnt_names[st[i + 2]], name) == 0)
-			return (st[i]);
+	for (i = 0; i < ierr->num; i++) {
+		itmp = &ierr->iregs[i];
+		if (itmp->icnt_n < ARRAY_SIZE(g_md_icnt_names) &&
+			strcmp(g_md_icnt_names[itmp->icnt_n], name) == 0) {
+			ireg = itmp;
+			break;
+		}
 	}
 
-	return 0;
+	return ireg;
 }
 
 static ssize_t mipi_dev_fatal_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	mipi_ddev_t *ddev = dev_get_drvdata(dev);
+	mipi_dev_ierr_t *ierr = &ddev->mdev.ierr;
+	const mipi_dev_ireg_t *ireg = NULL;
 	void __iomem *iomem = ddev->mdev.iomem;
 	char *s = buf;
-	uint32_t reg;
+	uint32_t reg = 0;
 
-	reg = mipi_dev_fatal_st_reg(attr->attr.name);
+	if (strcmp(g_md_icnt_names[0], attr->attr.name) == 0) {
+		reg = REG_MIPI_DEV_INT_ST_MAIN;
+	} else {
+		ireg = mipi_dev_get_ireg(ierr, attr->attr.name);
+		if (ireg)
+			reg = ireg->reg_st;
+	}
 	if (reg > 0)
 		s += sprintf(s, "0x%08x\n", mipi_getreg(iomem + reg));
 
@@ -1880,32 +1984,33 @@ static ssize_t mipi_dev_fatal_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
 	mipi_ddev_t *ddev = dev_get_drvdata(dev);
+	mipi_dev_ierr_t *ierr = &ddev->mdev.ierr;
+	const mipi_dev_ireg_t *ireg = NULL;
 	void __iomem *iomem = ddev->mdev.iomem;
 	int ret, error = -EINVAL;
-	uint32_t reg, val;
-	const uint32_t *st;
-	int i, num;
+	uint32_t val;
+	int i;
 
-	reg = mipi_dev_fatal_st_reg(attr->attr.name);
-	if (reg >= 0) {
-		ret = kstrtouint(buf, 0, &val);
-		if (!ret) {
-			if (reg == REG_MIPI_DEV_INT_ST_MAIN) {
-				st = mipi_dev_int_st;
-				num = ARRAY_SIZE(mipi_dev_int_st);
-				for (i = 0; i < num; i += 3) {
-					if (val & st[i + 1]) {
-						reg = st[i];
-						reg = REG_MIPI_DEV_INT_FORCE_VPG +
-							(reg - REG_MIPI_DEV_INT_ST_VPG) * 2;
-						mipi_putreg(iomem + reg, 0x1);
-					}
-				}
-			} else {
-				reg = REG_MIPI_DEV_INT_FORCE_VPG +
-					(reg - REG_MIPI_DEV_INT_ST_VPG) * 2;
-				mipi_putreg(iomem + reg, val);
+	ret = kstrtouint(buf, 0, &val);
+	if (ret) {
+		return error;
+	}
+
+	if (strcmp(g_md_icnt_names[0], attr->attr.name) == 0) {
+		for (i = 0; i < ierr->num; i++) {
+			ireg = &ierr->iregs[i];
+			if (val & ireg->st_mask) {
+				mipi_putreg(iomem + ireg->reg_force, ireg->err_mask);
+				val &= ~ireg->st_mask;
+				if (val == 0)
+					break;
 			}
+		}
+		error = 0;
+	} else {
+		ireg = mipi_dev_get_ireg(ierr, attr->attr.name);
+		if (ireg) {
+			mipi_putreg(iomem + ireg->reg_force, val);
 			error = 0;
 		}
 	}
@@ -2182,6 +2287,8 @@ static int hobot_mipi_dev_probe_param(void)
 		add_timer(&ddev->irq_timer);
 		param->irq_cnt = MIPI_DEV_IRQ_CNT;
 		param->irq_debug = MIPI_DEV_IRQ_DEBUG;
+		mdev->ierr.iregs = md_int_regs_1p2;
+		mdev->ierr.num = ARRAY_SIZE(md_int_regs_1p2);
 #else
 		pr_info("[%s] no int timer\n", __func__);
 #endif
@@ -2297,6 +2404,8 @@ static int hobot_mipi_dev_probe(struct platform_device *pdev)
 #endif
 	param->irq_cnt = MIPI_DEV_IRQ_CNT;
 	param->irq_debug = MIPI_DEV_IRQ_DEBUG;
+	mdev->ierr.iregs = md_int_regs_1p2;
+	mdev->ierr.num = ARRAY_SIZE(md_int_regs_1p2);
 #endif
 #ifdef ADJUST_CLK_RECALCULATION
 	param->power_instart = 1;

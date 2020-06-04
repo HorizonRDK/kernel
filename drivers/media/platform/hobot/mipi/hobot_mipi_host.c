@@ -75,6 +75,7 @@ module_param(init_num, uint, 0644);
 #endif
 
 #define MIPI_HOST_INT_DBG		   (1)
+#define MIPI_HOST_INT_DBG_ERRSTR   (1)
 #define MIPI_HOST_SYSFS_FATAL_EN   (0)
 
 #define MIPI_HOST_INT_PHY_FATAL    (0x1)
@@ -122,7 +123,9 @@ module_param(init_num, uint, 0644);
 #define MIPI_HOST_CUT_DEFAULT      (1)
 #define MIPI_HOST_IPILIMIT_DEFAULT (102000000UL)
 #define MIPI_HOST_IRQ_CNT          (10)
-#define MIPI_HOST_IRQ_DEBUG        (1)
+#define MIPI_HOST_IRQ_DEBUG_PRERR  (0x1)
+#define MIPI_HOST_IRQ_DEBUG_ERRSTR (0x2)
+#define MIPI_HOST_IRQ_DEBUG        (0x1)
 #define MIPI_HOST_SNRCLK_DISABLE   (0)
 #define MIPI_HOST_SNRCLK_ENABLE    (1)
 #define MIPI_HOST_SNRCLK_NOUSED    (2)
@@ -268,6 +271,332 @@ static const char *g_mh_icnt_names[] = {
 	"ipi3",
 	"ipi4",
 };
+
+typedef struct _mipi_host_ireg_s {
+	uint32_t icnt_n;
+	uint32_t st_mask;
+	uint32_t reg_st;
+	uint32_t reg_mask;
+	uint32_t reg_force;
+	uint32_t err_mask;
+#if MIPI_HOST_INT_DBG_ERRSTR
+	const char* err_str[32];
+#endif
+} mipi_host_ireg_t;
+
+static const mipi_host_ireg_t mh_int_regs_1p3[] = {
+	{ 1, MIPI_HOST_INT_PHY_FATAL, REG_MIPI_HOST_INT_ST_PHY_FATAL,
+		REG_MIPI_HOST_INT_MSK_PHY_FATAL, REG_MIPI_HOST_INT_FORCE_PHY_FATAL,
+		0x000000ff,
+#if MIPI_HOST_INT_DBG_ERRSTR
+	  { "phy_errsotsynchs_0", "phy_errsotsynchs_1",
+		"phy_errsotsynchs_2", "phy_errsotsynchs_3",
+		"phy_errsotsynchs_4", "phy_errsotsynchs_5",
+		"phy_errsotsynchs_6", "phy_errsotsynchs_7" },
+#endif
+	},
+	{ 2, MIPI_HOST_INT_PKT_FATAL, REG_MIPI_HOST_INT_ST_PKT_FATAL,
+		REG_MIPI_HOST_INT_MSK_PKT_FATAL, REG_MIPI_HOST_INT_FORCE_PKT_FATAL,
+		0x0000010f,
+#if MIPI_HOST_INT_DBG_ERRSTR
+	  { "vc0_err_crc", "vc1_err_crc", "vc2_err_crc", "vc3_err_crc",
+		NULL, NULL, NULL, NULL,
+		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+		"err_ecc_double" },
+#endif
+	},
+	{ 3, MIPI_HOST_INT_FRM_FATAL, REG_MIPI_HOST_INT_ST_FRAME_FATAL,
+		REG_MIPI_HOST_INT_MSK_FRAME_FATAL, REG_MIPI_HOST_INT_FORCE_FRAME_FATAL,
+		0x000f0f0f,
+#if MIPI_HOST_INT_DBG_ERRSTR
+	  { "err_f_bndry_match_vc0", "err_f_bndry_match_vc1",
+		"err_f_bndry_match_vc2", "err_f_bndry_match_vc3",
+		NULL, NULL, NULL, NULL,
+		"err_f_seq_vc0", "err_f_seq_vc1",
+		"err_f_seq_vc2", "err_f_seq_vc3",
+		NULL, NULL, NULL, NULL,
+		"err_frame_data_vc0", "err_frame_data_vc1",
+		"err_frame_data_vc2", "err_frame_data_vc3" },
+#endif
+	},
+	{ 10, MIPI_HOST_INT_PHY, REG_MIPI_HOST_INT_ST_PHY,
+		REG_MIPI_HOST_INT_MSK_PHY, REG_MIPI_HOST_INT_FORCE_PHY,
+		0x00ff00ff,
+#if MIPI_HOST_INT_DBG_ERRSTR
+	  { "phy_errsoths_0", "phy_errsoths_1",
+		"phy_errsoths_2", "phy_errsoths_3",
+		"phy_errsoths_4", "phy_errsoths_5",
+		"phy_errsoths_6", "phy_errsoths_7",
+		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+		"phy_erresc_0", "phy_erresc_1",
+		"phy_erresc_2", "phy_erresc_3",
+		"phy_erresc_4", "phy_erresc_5",
+		"phy_erresc_6", "phy_erresc_7" },
+#endif
+	},
+	{ 12, MIPI_HOST_1P4_INT_LINE, REG_MIPI_HOST_INT_ST_LINE,
+		REG_MIPI_HOST_INT_MSK_LINE, REG_MIPI_HOST_INT_FORCE_LINE,
+		0x00ff00ff,
+#if MIPI_HOST_INT_DBG_ERRSTR
+	  { "err_l_bndry_match_di0", "err_l_bndry_match_di1",
+		"err_l_bndry_match_di2", "err_l_bndry_match_di3",
+		"err_l_bndry_match_di4", "err_l_bndry_match_di5",
+		"err_l_bndry_match_di6", "err_l_bndry_match_di7",
+		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+		"err_l_seq_di0", "err_l_seq_di1",
+		"err_l_seq_di2", "err_l_seq_di3",
+		"err_l_seq_di4", "err_l_seq_di5",
+		"err_l_seq_di6", "err_l_seq_di7" },
+#endif
+	},
+	{ 13, MIPI_HOST_INT_IPI, REG_MIPI_HOST_INT_ST_IPI,
+		REG_MIPI_HOST_INT_MSK_IPI, REG_MIPI_HOST_INT_FORCE_IPI,
+		0x0000003f,
+#if MIPI_HOST_INT_DBG_ERRSTR
+	  { "pixel_if_fifo_underflow", "pixel_if_fifo_overflow",
+		"pixel_if_frame_sync_err", "pixel_if_fifo_nempty_fs",
+		"pixel_if_hline_err", "int_event_fifo_overflow" },
+#endif
+	},
+	{ 14, MIPI_HOST_INT_IPI2, REG_MIPI_HOST_INT_ST_IPI2,
+		REG_MIPI_HOST_INT_MSK_IPI2, REG_MIPI_HOST_INT_FORCE_IPI2,
+		0x0000003f,
+#if MIPI_HOST_INT_DBG_ERRSTR
+	  { "pixel_if_fifo_underflow", "pixel_if_fifo_overflow",
+		"pixel_if_frame_sync_err", "pixel_if_fifo_nempty_fs",
+		"pixel_if_hline_err", "int_event_fifo_overflow" },
+#endif
+	},
+	{ 15, MIPI_HOST_INT_IPI3, REG_MIPI_HOST_INT_ST_IPI3,
+		REG_MIPI_HOST_INT_MSK_IPI3, REG_MIPI_HOST_INT_FORCE_IPI3,
+		0x0000003f,
+#if MIPI_HOST_INT_DBG_ERRSTR
+	  { "pixel_if_fifo_underflow", "pixel_if_fifo_overflow",
+		"pixel_if_frame_sync_err", "pixel_if_fifo_nempty_fs",
+		"pixel_if_hline_err", "int_event_fifo_overflow" },
+#endif
+	},
+	{ 16, MIPI_HOST_INT_IPI4, REG_MIPI_HOST_INT_ST_IPI4,
+		REG_MIPI_HOST_INT_MSK_IPI4, REG_MIPI_HOST_INT_FORCE_IPI4,
+		0x0000003f,
+#if MIPI_HOST_INT_DBG_ERRSTR
+	  { "pixel_if_fifo_underflow", "pixel_if_fifo_overflow",
+		"pixel_if_frame_sync_err", "pixel_if_fifo_nempty_fs",
+		"pixel_if_hline_err", "int_event_fifo_overflow" },
+#endif
+	}
+};
+
+static const mipi_host_ireg_t mh_int_regs_1p4[] = {
+	{ 1, MIPI_HOST_1P4_INT_PHY_FATAL, REG_MIPI_HOST_INT_ST_PHY_FATAL,
+		REG_MIPI_HOST_INT_MSK_PHY_FATAL, REG_MIPI_HOST_INT_FORCE_PHY_FATAL,
+		0x000000ff, /* ignore err_deskew */
+#if MIPI_HOST_INT_DBG_ERRSTR
+	  { "phy_errsotsynchs_0", "phy_errsotsynchs_1",
+		"phy_errsotsynchs_2", "phy_errsotsynchs_3",
+		"phy_errsotsynchs_4", "phy_errsotsynchs_5",
+		"phy_errsotsynchs_6", "phy_errsotsynchs_7",
+		"err_deskew" },
+#endif
+	},
+	{ 2, MIPI_HOST_1P4_INT_PKT_FATAL, REG_MIPI_HOST_INT_ST_PKT_FATAL,
+		REG_MIPI_HOST_INT_ST_PKT_FATAL, REG_MIPI_HOST_INT_FORCE_PKT_FATAL,
+		0x00000001,
+#if MIPI_HOST_INT_DBG_ERRSTR
+	  { "err_ecc_double" },
+#endif
+	},
+	{ 4, MIPI_HOST_1P4_INT_BNDRY_FRM_FATAL, REG_MIPI_HOST_INT_ST_BNDRY_FRAME_FATAL,
+		REG_MIPI_HOST_INT_MSK_BNDRY_FRAME_FATAL, REG_MIPI_HOST_INT_FORCE_BNDRY_FRAME_FATAL,
+		0xffffffff,
+#if MIPI_HOST_INT_DBG_ERRSTR
+	  { "err_f_bndry_match_vc0", "err_f_bndry_match_vc1",
+		"err_f_bndry_match_vc2", "err_f_bndry_match_vc3",
+		"err_f_bndry_match_vc4", "err_f_bndry_match_vc5",
+		"err_f_bndry_match_vc6", "err_f_bndry_match_vc7",
+		"err_f_bndry_match_vc8", "err_f_bndry_match_vc9",
+		"err_f_bndry_match_vc10", "err_f_bndry_match_vc11",
+		"err_f_bndry_match_vc12", "err_f_bndry_match_vc13",
+		"err_f_bndry_match_vc14", "err_f_bndry_match_vc15",
+		"err_f_bndry_match_vc16", "err_f_bndry_match_vc17",
+		"err_f_bndry_match_vc18", "err_f_bndry_match_vc19",
+		"err_f_bndry_match_vc20", "err_f_bndry_match_vc21",
+		"err_f_bndry_match_vc22", "err_f_bndry_match_vc23",
+		"err_f_bndry_match_vc24", "err_f_bndry_match_vc25",
+		"err_f_bndry_match_vc26", "err_f_bndry_match_vc27",
+		"err_f_bndry_match_vc28", "err_f_bndry_match_vc29",
+		"err_f_bndry_match_vc30", "err_f_bndry_match_vc31" },
+#endif
+	},
+	{ 5, MIPI_HOST_1P4_INT_SEQ_FRM_FATAL, REG_MIPI_HOST_INT_ST_SEQ_FRAME_FATAL,
+		REG_MIPI_HOST_INT_MSK_SEQ_FRAME_FATAL, REG_MIPI_HOST_INT_FORCE_SEQ_FRAME_FATAL,
+		0xffffffff,
+#if MIPI_HOST_INT_DBG_ERRSTR
+	  { "err_f_seq_vc0", "err_f_seq_vc1", "err_f_seq_vc2",
+		"err_f_seq_vc3", "err_f_seq_vc4", "err_f_seq_vc5",
+		"err_f_seq_vc6", "err_f_seq_vc7",
+		"err_f_seq_vc8", "err_f_seq_vc9", "err_f_seq_vc10",
+		"err_f_seq_vc11", "err_f_seq_vc12", "err_f_seq_vc13",
+		"err_f_seq_vc14", "err_f_seq_vc15",
+		"err_f_seq_vc16", "err_f_seq_vc17", "err_f_seq_vc18",
+		"err_f_seq_vc19", "err_f_seq_vc20", "err_f_seq_vc21",
+		"err_f_seq_vc22", "err_f_seq_vc23",
+		"err_f_seq_vc24", "err_f_seq_vc25", "err_f_seq_vc26",
+		"err_f_seq_vc27", "err_f_seq_vc28", "err_f_seq_vc29",
+		"err_f_seq_vc30", "err_f_seq_vc31" },
+#endif
+	},
+	{ 6, MIPI_HOST_1P4_INT_CRC_FRM_FATAL, REG_MIPI_HOST_INT_ST_CRC_FRAME_FATAL,
+		REG_MIPI_HOST_INT_MSK_CRC_FRAME_FATAL, REG_MIPI_HOST_INT_FORCE_CRC_FRAME_FATAL,
+		0xffffffff,
+#if MIPI_HOST_INT_DBG_ERRSTR
+	  { "err_frame_data_vc0", "err_frame_data_vc1",
+		"err_frame_data_vc2", "err_frame_data_vc3",
+		"err_frame_data_vc4", "err_frame_data_vc5",
+		"err_frame_data_vc6", "err_frame_data_vc7",
+		"err_frame_data_vc8", "err_frame_data_vc9",
+		"err_frame_data_vc10", "err_frame_data_vc11",
+		"err_frame_data_vc12", "err_frame_data_vc13",
+		"err_frame_data_vc14", "err_frame_data_vc15",
+		"err_frame_data_vc16", "err_frame_data_vc17",
+		"err_frame_data_vc18", "err_frame_data_vc19",
+		"err_frame_data_vc20", "err_frame_data_vc21",
+		"err_frame_data_vc22", "err_frame_data_vc23",
+		"err_frame_data_vc24", "err_frame_data_vc25",
+		"err_frame_data_vc26", "err_frame_data_vc27",
+		"err_frame_data_vc28", "err_frame_data_vc29",
+		"err_frame_data_vc30", "err_frame_data_vc31" },
+#endif
+	},
+	{ 7, MIPI_HOST_1P4_INT_PLD_CRC_FATAL, REG_MIPI_HOST_INT_ST_PLD_CRC_FATAL,
+		REG_MIPI_HOST_INT_MSK_PLD_CRC_FATAL, REG_MIPI_HOST_INT_FORCE_PLD_CRC_FATAL,
+		0xffffffff,
+#if MIPI_HOST_INT_DBG_ERRSTR
+	  { "err_crc_vc0", "err_crc_vc1", "err_crc_vc2",
+		"err_crc_vc3", "err_crc_vc4", "err_crc_vc5",
+		"err_crc_vc6", "err_crc_vc7",
+		"err_crc_vc8", "err_crc_vc9", "err_crc_vc10",
+		"err_crc_vc11", "err_crc_vc12", "err_crc_vc13",
+		"err_crc_vc14", "err_crc_vc15",
+		"err_crc_vc16", "err_crc_vc17", "err_crc_vc18",
+		"err_crc_vc19", "err_crc_vc20", "err_crc_vc21",
+		"err_crc_vc22", "err_crc_vc23",
+		"err_crc_vc24", "err_crc_vc25", "err_crc_vc26",
+		"err_crc_vc27", "err_crc_vc28", "err_crc_vc29",
+		"err_crc_vc30", "err_crc_vc31" },
+#endif
+	},
+	{ 8, MIPI_HOST_1P4_INT_DATA_ID, REG_MIPI_HOST_INT_ST_DATA_ID,
+		REG_MIPI_HOST_INT_MSK_DATA_ID, REG_MIPI_HOST_INT_FORCE_DATA_ID,
+		0xffffffff,
+#if MIPI_HOST_INT_DBG_ERRSTR
+	  { "err_id_vc0", "err_id_vc1", "err_id_vc2",
+		"err_id_vc3", "err_id_vc4", "err_id_vc5",
+		"err_id_vc6", "err_id_vc7",
+		"err_id_vc8", "err_id_vc9", "err_id_vc10",
+		"err_id_vc11", "err_id_vc12", "err_id_vc13",
+		"err_id_vc14", "err_id_vc15",
+		"err_id_vc16", "err_id_vc17", "err_id_vc18",
+		"err_id_vc19", "err_id_vc20", "err_id_vc21",
+		"err_id_vc22", "err_id_vc23",
+		"err_id_vc24", "err_id_vc25", "err_id_vc26",
+		"err_id_vc27", "err_id_vc28", "err_id_vc29",
+		"err_id_vc30", "err_id_vc31" },
+#endif
+	},
+	{ 9, MIPI_HOST_1P4_INT_ECC_CORRECTED, REG_MIPI_HOST_INT_ST_ECC_CORRECT,
+		REG_MIPI_HOST_INT_MSK_ECC_CORRECT, REG_MIPI_HOST_INT_FORCE_ECC_CORRECT,
+		0xffffffff,
+#if MIPI_HOST_INT_DBG_ERRSTR
+	  { "err_ecc_corrected0", "err_ecc_corrected1",
+		"err_ecc_corrected2", "err_ecc_corrected3",
+		"err_ecc_corrected4", "err_ecc_corrected5",
+		"err_ecc_corrected6", "err_ecc_corrected7",
+		"err_ecc_corrected8", "err_ecc_corrected9",
+		"err_ecc_corrected10", "err_ecc_corrected11",
+		"err_ecc_corrected12", "err_ecc_corrected13",
+		"err_ecc_corrected14", "err_ecc_corrected15",
+		"err_ecc_corrected16", "err_ecc_corrected17",
+		"err_ecc_corrected18", "err_ecc_corrected19",
+		"err_ecc_corrected20", "err_ecc_corrected21",
+		"err_ecc_corrected22", "err_ecc_corrected23",
+		"err_ecc_corrected24", "err_ecc_corrected25",
+		"err_ecc_corrected26", "err_ecc_corrected27",
+		"err_ecc_corrected28", "err_ecc_corrected29",
+		"err_ecc_corrected30", "err_ecc_corrected31" },
+#endif
+	},
+	{ 10, MIPI_HOST_1P4_INT_PHY, REG_MIPI_HOST_INT_ST_PHY,
+		REG_MIPI_HOST_INT_MSK_PHY, REG_MIPI_HOST_INT_FORCE_PHY,
+		0x00ff00ff,
+#if MIPI_HOST_INT_DBG_ERRSTR
+	  { "phy_errsoths_0", "phy_errsoths_1",
+		"phy_errsoths_2", "phy_errsoths_3",
+		"phy_errsoths_4", "phy_errsoths_5",
+		"phy_errsoths_6", "phy_errsoths_7",
+		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+		"phy_erresc_0", "phy_erresc_1",
+		"phy_erresc_2", "phy_erresc_3",
+		"phy_erresc_4", "phy_erresc_5",
+		"phy_erresc_6", "phy_erresc_7" },
+#endif
+	},
+	{ 12, MIPI_HOST_1P4_INT_LINE, REG_MIPI_HOST_INT_ST_LINE,
+		REG_MIPI_HOST_INT_MSK_LINE, REG_MIPI_HOST_INT_FORCE_LINE,
+		0x00ff00ff,
+#if MIPI_HOST_INT_DBG_ERRSTR
+	  { "err_l_bndry_match_di0", "err_l_bndry_match_di1",
+		"err_l_bndry_match_di2", "err_l_bndry_match_di3",
+		"err_l_bndry_match_di4", "err_l_bndry_match_di5",
+		"err_l_bndry_match_di6", "err_l_bndry_match_di7",
+		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+		"err_l_seq_di0", "err_l_seq_di1",
+		"err_l_seq_di2", "err_l_seq_di3",
+		"err_l_seq_di4", "err_l_seq_di5",
+		"err_l_seq_di6", "err_l_seq_di7" },
+#endif
+	},
+	{ 13, MIPI_HOST_1P4_INT_IPI, REG_MIPI_HOST_INT_ST_IPI,
+		REG_MIPI_HOST_INT_MSK_IPI, REG_MIPI_HOST_INT_FORCE_IPI,
+		0x0000003f,
+#if MIPI_HOST_INT_DBG_ERRSTR
+	  { "pixel_if_fifo_underflow", "pixel_if_fifo_overflow",
+		"pixel_if_frame_sync_err", "pixel_if_fifo_nempty_fs",
+		"pixel_if_hline_err", "int_event_fifo_overflow" },
+#endif
+	},
+	{ 14, MIPI_HOST_1P4_INT_IPI2, REG_MIPI_HOST_INT_ST_IPI2,
+		REG_MIPI_HOST_INT_MSK_IPI2, REG_MIPI_HOST_INT_FORCE_IPI2,
+		0x0000003f,
+#if MIPI_HOST_INT_DBG_ERRSTR
+	  { "pixel_if_fifo_underflow", "pixel_if_fifo_overflow",
+		"pixel_if_frame_sync_err", "pixel_if_fifo_nempty_fs",
+		"pixel_if_hline_err", "int_event_fifo_overflow" },
+#endif
+	},
+	{ 15, MIPI_HOST_1P4_INT_IPI3, REG_MIPI_HOST_INT_ST_IPI3,
+		REG_MIPI_HOST_INT_MSK_IPI3, REG_MIPI_HOST_INT_FORCE_IPI3,
+		0x0000003f,
+#if MIPI_HOST_INT_DBG_ERRSTR
+	  { "pixel_if_fifo_underflow", "pixel_if_fifo_overflow",
+		"pixel_if_frame_sync_err", "pixel_if_fifo_nempty_fs",
+		"pixel_if_hline_err", "int_event_fifo_overflow" },
+#endif
+	},
+	{ 16, MIPI_HOST_1P4_INT_IPI4, REG_MIPI_HOST_INT_ST_IPI4,
+		REG_MIPI_HOST_INT_MSK_IPI4, REG_MIPI_HOST_INT_FORCE_IPI4,
+		0x0000003f,
+#if MIPI_HOST_INT_DBG_ERRSTR
+	  { "pixel_if_fifo_underflow", "pixel_if_fifo_overflow",
+		"pixel_if_frame_sync_err", "pixel_if_fifo_nempty_fs",
+		"pixel_if_hline_err", "int_event_fifo_overflow" },
+#endif
+	}
+};
+typedef struct _mipi_host_ierr_s {
+	const mipi_host_ireg_t *iregs;
+	uint32_t num;
+} mipi_host_ierr_t;
 #endif
 
 typedef struct _mipi_host_s {
@@ -278,6 +607,7 @@ typedef struct _mipi_host_s {
 	mipi_host_param_t param;
 	mipi_host_snrclk_t snrclk;
 #if MIPI_HOST_INT_DBG
+	mipi_host_ierr_t ierr;
 	mipi_host_icnt_t icnt;
 #endif
 } mipi_host_t;
@@ -898,38 +1228,6 @@ static uint16_t mipi_host_get_hsd(mipi_hdev_t *hdev, mipi_host_cfg_t *cfg,
 }
 
 #if MIPI_HOST_INT_DBG
-static const uint32_t mipi_host_int_msk[] = {
-	/* reg offset,                           mask,  */
-	REG_MIPI_HOST_INT_MSK_PHY_FATAL,         0x000f,
-	REG_MIPI_HOST_INT_MSK_PKT_FATAL,         0x000f,
-	REG_MIPI_HOST_INT_MSK_FRAME_FATAL,       0x000f,
-	REG_MIPI_HOST_INT_MSK_PHY,               0x000f,
-	REG_MIPI_HOST_INT_MSK_PKT,               0x000f,
-	REG_MIPI_HOST_INT_MSK_LINE,              0x00ff,
-	REG_MIPI_HOST_INT_MSK_IPI,               0x003f,
-	REG_MIPI_HOST_INT_MSK_IPI2,              0x003f,
-	REG_MIPI_HOST_INT_MSK_IPI3,              0x003f,
-	REG_MIPI_HOST_INT_MSK_IPI4,              0x003f,
-};
-
-static const uint32_t mipi_host_1p4_int_msk[] = {
-	/* reg offset,                           mask,      */
-	REG_MIPI_HOST_INT_MSK_PHY_FATAL,         0x000001ff,
-	REG_MIPI_HOST_INT_MSK_PKT_FATAL,         0x00000001,
-	REG_MIPI_HOST_INT_MSK_LINE,              0x00ff00ff,
-	REG_MIPI_HOST_INT_MSK_BNDRY_FRAME_FATAL, 0xffffffff,
-	REG_MIPI_HOST_INT_MSK_SEQ_FRAME_FATAL,   0xffffffff,
-	REG_MIPI_HOST_INT_MSK_CRC_FRAME_FATAL,   0xffffffff,
-	REG_MIPI_HOST_INT_MSK_PLD_CRC_FATAL,     0xffffffff,
-	REG_MIPI_HOST_INT_MSK_DATA_ID,           0xffffffff,
-    REG_MIPI_HOST_INT_MSK_ECC_CORRECT,       0xffffffff,
-	REG_MIPI_HOST_INT_MSK_PHY,               0x00ff00ff,
-	REG_MIPI_HOST_INT_MSK_IPI,               0x0000003f,
-	REG_MIPI_HOST_INT_MSK_IPI2,              0x0000003f,
-	REG_MIPI_HOST_INT_MSK_IPI3,              0x0000003f,
-	REG_MIPI_HOST_INT_MSK_IPI4,              0x0000003f,
-};
-
 /**
  * @brief mipi_host_irq_enable : Enale mipi host IRQ
  *
@@ -940,31 +1238,23 @@ static const uint32_t mipi_host_1p4_int_msk[] = {
 static void mipi_host_irq_enable(mipi_hdev_t *hdev)
 {
 	mipi_host_t *host = &hdev->host;
+	mipi_host_ierr_t *ierr = &host->ierr;
+	const mipi_host_ireg_t *ireg = NULL;
 	void __iomem *iomem = host->iomem;
-	uint32_t reg = 0;
-	uint32_t mask = 0;
 	uint32_t temp = 0;
-	const uint32_t *msk;
-	int i, num;
+	int i;
 
 	if (!hdev || !iomem)
 		return;
 
-	if (MIPI_HOST_IS_1P4(iomem)) {
-		msk = mipi_host_1p4_int_msk;
-		num = ARRAY_SIZE(mipi_host_1p4_int_msk);
-	} else {
-		msk = mipi_host_int_msk;
-		num = ARRAY_SIZE(mipi_host_int_msk);
-	}
-
-	for (i = 0; i < num; i += 2) {
-		reg = msk[i];
-		mask = msk[i + 1];
-		temp = mipi_getreg(iomem + reg);
-		temp &= ~(mask);
-		temp |= mask;
-		mipi_putreg(iomem + reg, temp);
+	temp = mipi_getreg(iomem + REG_MIPI_HOST_INT_ST_MAIN);
+	for (i = 0; i < ierr->num; i++) {
+		ireg = &ierr->iregs[i];
+		temp = mipi_getreg(iomem + ireg->reg_st);
+		temp = mipi_getreg(iomem + ireg->reg_mask);
+		temp &= ~(ireg->err_mask);
+		temp |= ireg->err_mask;
+		mipi_putreg(iomem + ireg->reg_mask, temp);
 	}
 
 #ifdef MIPI_HOST_INT_USE_TIMER
@@ -984,30 +1274,20 @@ static void mipi_host_irq_enable(mipi_hdev_t *hdev)
 static void mipi_host_irq_disable(mipi_hdev_t *hdev)
 {
 	mipi_host_t *host = &hdev->host;
+	mipi_host_ierr_t *ierr = &host->ierr;
+	const mipi_host_ireg_t *ireg = NULL;
 	void __iomem *iomem = host->iomem;
-	uint32_t reg = 0;
-	uint32_t mask = 0;
 	uint32_t temp = 0;
-	const uint32_t *msk;
-	int i, num;
+	int i;
 
 	if (!hdev || !iomem)
 		return;
 
-	if (MIPI_HOST_IS_1P4(iomem)) {
-		msk = mipi_host_1p4_int_msk;
-		num = ARRAY_SIZE(mipi_host_1p4_int_msk);
-	} else {
-		msk = mipi_host_int_msk;
-		num = ARRAY_SIZE(mipi_host_int_msk);
-	}
-
-	for (i = 0; i < num; i+=2) {
-		reg = msk[i];
-		mask = msk[i + 1];
-		temp = mipi_getreg(iomem + reg);
-		temp &= ~(mask);
-		mipi_putreg(iomem + reg, temp);
+	for (i = 0; i < ierr->num; i ++) {
+		ireg = &ierr->iregs[i];
+		temp = mipi_getreg(iomem + ireg->reg_mask);
+		temp &= ~(ireg->err_mask);
+		mipi_putreg(iomem + ireg->reg_mask, temp);
 	}
 
 #if defined MIPI_HOST_INT_USE_TIMER
@@ -1070,38 +1350,6 @@ static void mipi_host_diag_test(void *p, size_t len)
 }
 #endif
 
-static const uint32_t mipi_host_int_st[] = {
-	/* reg offset,                          mask,                    icnt */
-	REG_MIPI_HOST_INT_ST_PHY_FATAL,         MIPI_HOST_INT_PHY_FATAL, 1,
-	REG_MIPI_HOST_INT_ST_PKT_FATAL,         MIPI_HOST_INT_PKT_FATAL, 2,
-	REG_MIPI_HOST_INT_ST_FRAME_FATAL,       MIPI_HOST_INT_FRM_FATAL, 3,
-	REG_MIPI_HOST_INT_ST_PHY,               MIPI_HOST_INT_PHY,       10,
-	REG_MIPI_HOST_INT_ST_PKT,               MIPI_HOST_INT_PKT,       11,
-	REG_MIPI_HOST_INT_ST_LINE,              MIPI_HOST_INT_LINE,      12,
-	REG_MIPI_HOST_INT_ST_IPI,               MIPI_HOST_INT_IPI,       13,
-	REG_MIPI_HOST_INT_ST_IPI2,              MIPI_HOST_INT_IPI2,      14,
-	REG_MIPI_HOST_INT_ST_IPI3,              MIPI_HOST_INT_IPI3,      15,
-	REG_MIPI_HOST_INT_ST_IPI4,              MIPI_HOST_INT_IPI4,      16,
-};
-
-static const uint32_t mipi_host_1p4_int_st[] = {
-	/* reg offset,                          mask,                              icnt */
-	REG_MIPI_HOST_INT_ST_PHY_FATAL,         MIPI_HOST_1P4_INT_PHY_FATAL,       1,
-	REG_MIPI_HOST_INT_ST_PKT_FATAL,         MIPI_HOST_1P4_INT_PKT_FATAL,       2,
-	REG_MIPI_HOST_INT_ST_BNDRY_FRAME_FATAL, MIPI_HOST_1P4_INT_BNDRY_FRM_FATAL, 4,
-	REG_MIPI_HOST_INT_ST_SEQ_FRAME_FATAL,   MIPI_HOST_1P4_INT_SEQ_FRM_FATAL,   5,
-	REG_MIPI_HOST_INT_ST_CRC_FRAME_FATAL,   MIPI_HOST_1P4_INT_CRC_FRM_FATAL,   6,
-	REG_MIPI_HOST_INT_ST_PLD_CRC_FATAL,     MIPI_HOST_1P4_INT_PLD_CRC_FATAL,   7,
-	REG_MIPI_HOST_INT_ST_DATA_ID,           MIPI_HOST_1P4_INT_DATA_ID,         8,
-	REG_MIPI_HOST_INT_ST_ECC_CORRECT,       MIPI_HOST_1P4_INT_ECC_CORRECTED,   9,
-	REG_MIPI_HOST_INT_ST_PHY,               MIPI_HOST_1P4_INT_PHY,             10,
-	REG_MIPI_HOST_INT_ST_LINE,              MIPI_HOST_1P4_INT_LINE,            12,
-	REG_MIPI_HOST_INT_ST_IPI,               MIPI_HOST_1P4_INT_IPI,             13,
-	REG_MIPI_HOST_INT_ST_IPI2,              MIPI_HOST_1P4_INT_IPI2,            14,
-	REG_MIPI_HOST_INT_ST_IPI3,              MIPI_HOST_1P4_INT_IPI3,            15,
-	REG_MIPI_HOST_INT_ST_IPI4,              MIPI_HOST_1P4_INT_IPI4,            16,
-};
-
 /**
  * @brief mipi_host_irq_func : irq func
  *
@@ -1115,6 +1363,8 @@ static irqreturn_t mipi_host_irq_func(int this_irq, void *data)
 	mipi_hdev_t *hdev = (mipi_hdev_t *)data;
 	struct device *dev = hdev->dev;
 	mipi_host_t *host = &hdev->host;
+	mipi_host_ierr_t *ierr = &host->ierr;
+	const mipi_host_ireg_t *ireg = NULL;
 	mipi_host_param_t *param = &host->param;
 	mipi_host_icnt_t *icnt = &host->icnt;
 	void __iomem *iomem = host->iomem;
@@ -1122,9 +1372,14 @@ static irqreturn_t mipi_host_irq_func(int this_irq, void *data)
 	uint32_t reg, mask, icnt_n;
 	uint32_t irq = 0, irq_do;
 	uint32_t subirq = 0;
-	const uint32_t *st;
-	int i, num;
+	int i;
 	uint8_t err_occurred = 0;
+	char *perr = "";
+#if MIPI_HOST_INT_DBG_ERRSTR
+	int j, l;
+	uint32_t subirq_do;
+	char err_str[256];
+#endif
 
 	if (!hdev || !iomem)
 		return IRQ_NONE;
@@ -1132,40 +1387,55 @@ static irqreturn_t mipi_host_irq_func(int this_irq, void *data)
 	if (this_irq >= 0)
 		disable_irq_nosync(this_irq);
 
-	if (MIPI_HOST_IS_1P4(iomem)) {
-		st = mipi_host_1p4_int_st;
-		num = ARRAY_SIZE(mipi_host_1p4_int_st);
-	} else {
-		st = mipi_host_int_st;
-		num = ARRAY_SIZE(mipi_host_int_st);
-	}
-
 #ifdef MIPI_HOST_INT_USE_TIMER
 	irq = hdev->irq_st_main;
 #else
 	irq = mipi_getreg(iomem + REG_MIPI_HOST_INT_ST_MAIN);
 #endif
-	if (param->irq_debug)
+	if (param->irq_debug & MIPI_HOST_IRQ_DEBUG_PRERR)
 		mipierr("irq status 0x%x", irq);
 	else
 		mipidbg("irq status 0x%x", irq);
 	if(irq) {
 		irq_do = irq;
 		icnt->st_main++;
-		for (i = 0; i < num; i += 3) {
-			mask = st[i + 1];
+		for (i = 0; i < ierr->num; i++) {
+			ireg = &ierr->iregs[i];
+			mask = ireg->st_mask;
 			if (!(irq_do & mask))
 				continue;
 
-			reg = st[i];
-			icnt_n = st[i + 2];
-			subirq = mipi_getreg(iomem + reg);
-			if (param->irq_debug)
-				mipierr("  %s: 0x%x",
-					g_mh_icnt_names[icnt_n], subirq);
+			reg = ireg->reg_st;
+			icnt_n = ireg->icnt_n;
+			subirq = mipi_getreg(iomem + reg) & ireg->err_mask;
+			if (!subirq) {
+				irq_do &= ~mask;
+				continue;
+			}
+
+#if MIPI_HOST_INT_DBG_ERRSTR
+			err_str[0] = '\0';
+			perr = err_str;
+			if (param->irq_debug & MIPI_HOST_IRQ_DEBUG_ERRSTR) {
+				subirq_do = subirq;
+				j = 0;
+				l = 0;
+				while(subirq_do && j < 32 && l < sizeof(err_str)) {
+					if (subirq_do & (0x1 << j)) {
+						l += snprintf(&err_str[l], sizeof(err_str) - l,
+								" %d:%s", j, (ireg->err_str[j]) ? ireg->err_str[j] : "rsv");
+						subirq_do &= ~(0x1 << j);
+					}
+					j++;
+				}
+			}
+#endif
+			if (param->irq_debug & MIPI_HOST_IRQ_DEBUG_PRERR)
+				mipierr("  %s: 0x%x%s",
+					g_mh_icnt_names[icnt_n], subirq, perr);
 			else
-				mipidbg("  %s: 0x%x",
-					g_mh_icnt_names[icnt_n], subirq);
+				mipidbg("  %s: 0x%x%s",
+					g_mh_icnt_names[icnt_n], subirq, perr);
 			icnt_p[icnt_n]++;
 			err_occurred = 1;
 			irq_do &= ~mask;
@@ -2166,37 +2436,40 @@ static const struct attribute_group status_attr_group = {
 
 #if MIPI_HOST_INT_DBG && MIPI_HOST_SYSFS_FATAL_EN
 /* sysfs for mipi host devices' fatal */
-static uint32_t mipi_host_fatal_st_reg(void __iomem *iomem, const char *name)
+static const mipi_host_ireg_t* mipi_host_get_ireg(mipi_host_ierr_t *ierr, const char *name)
 {
-	const uint32_t *st;
-	int i, num;
+	const mipi_host_ireg_t *ireg = NULL, *itmp = NULL;
+	int i;
 
-	if (MIPI_HOST_IS_1P4(iomem)) {
-		st = mipi_host_1p4_int_st;
-		num = ARRAY_SIZE(mipi_host_1p4_int_st);
-	} else {
-		st = mipi_host_int_st;
-		num = ARRAY_SIZE(mipi_host_int_st);
-	}
-	if (strcmp(g_mh_icnt_names[0], name) == 0)
-		return REG_MIPI_HOST_INT_ST_MAIN;
-	for (i = 0; i < num; i += 3) {
-		if (strcmp(g_mh_icnt_names[st[i + 2]], name) == 0)
-			return (st[i]);
+	for (i = 0; i < ierr->num; i++) {
+		itmp = &ierr->iregs[i];
+		if (itmp->icnt_n < ARRAY_SIZE(g_mh_icnt_names) &&
+			strcmp(g_mh_icnt_names[itmp->icnt_n], name) == 0) {
+			ireg = itmp;
+			break;
+		}
 	}
 
-	return 0;
+	return ireg;
 }
 
 static ssize_t mipi_host_fatal_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	mipi_hdev_t *hdev = dev_get_drvdata(dev);
+	mipi_host_ierr_t *ierr = &hdev->host.ierr;
+	const mipi_host_ireg_t *ireg = NULL;
 	void __iomem *iomem = hdev->host.iomem;
 	char *s = buf;
-	uint32_t reg;
+	uint32_t reg = 0;
 
-	reg = mipi_host_fatal_st_reg(iomem, attr->attr.name);
+	if (strcmp(g_mh_icnt_names[0], attr->attr.name) == 0) {
+		reg = REG_MIPI_HOST_INT_ST_MAIN;
+	} else {
+		ireg = mipi_host_get_ireg(ierr, attr->attr.name);
+		if (ireg)
+			reg = ireg->reg_st;
+	}
 	if (reg > 0)
 		s += sprintf(s, "0x%08x\n", mipi_getreg(iomem + reg));
 
@@ -2207,36 +2480,38 @@ static ssize_t mipi_host_fatal_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
 	mipi_hdev_t *hdev = dev_get_drvdata(dev);
+	mipi_host_ierr_t *ierr = &hdev->host.ierr;
+	const mipi_host_ireg_t *ireg = NULL;
 	void __iomem *iomem = hdev->host.iomem;
 	int ret, error = -EINVAL;
-	uint32_t reg, val;
-	const uint32_t *st;
-	int i, num;
+	uint32_t val;
+	int i;
 
-	reg = mipi_host_fatal_st_reg(iomem, attr->attr.name);
-	if (reg > 0) {
-		ret = kstrtouint(buf, 0, &val);
-		if (!ret) {
-			if (reg == REG_MIPI_HOST_INT_ST_MAIN) {
-				if (MIPI_HOST_IS_1P4(iomem)) {
-					st = mipi_host_1p4_int_st;
-					num = ARRAY_SIZE(mipi_host_1p4_int_st);
-				} else {
-					st = mipi_host_int_st;
-					num = ARRAY_SIZE(mipi_host_int_st);
-				}
-				for (i = 0; i < num; i += 3) {
-					if (val & st[i + 1])
-						mipi_putreg(iomem + st[i] + 0x8, 0x1);
-				}
-			} else {
-				mipi_putreg(iomem + reg + 0x8, val);
+	ret = kstrtouint(buf, 0, &val);
+	if (ret) {
+		return error;
+	}
+
+	if (strcmp(g_mh_icnt_names[0], attr->attr.name) == 0) {
+		for (i = 0; i < ierr->num; i++) {
+			ireg = &ierr->iregs[i];
+			if (val & ireg->st_mask) {
+				mipi_putreg(iomem + ireg->reg_force, ireg->err_mask);
+				val &= ~ireg->st_mask;
+				if (val == 0)
+					break;
 			}
+		}
+		error = 0;
+	} else {
+		ireg = mipi_host_get_ireg(ierr, attr->attr.name);
+		if (ireg) {
+			mipi_putreg(iomem + ireg->reg_force, val);
 			error = 0;
 		}
 	}
 
-	return (error ? error : count);
+	return ((error) ? error : count);
 }
 
 #define MIPI_HOST_FATAL_DEC(a) \
@@ -2527,6 +2802,13 @@ static int hobot_mipi_host_probe_param(void)
 		add_timer(&hdev->irq_timer);
 		param->irq_cnt = MIPI_HOST_IRQ_CNT;
 		param->irq_debug = MIPI_HOST_IRQ_DEBUG;
+		if (MIPI_HOST_IS_1P4(host->iomem)) {
+			host->ierr.iregs = mh_int_regs_1p4;
+			host->ierr.num = ARRAY_SIZE(mh_int_regs_1p4);
+		} else {
+			host->ierr.iregs = mh_int_regs_1p3;
+			host->ierr.num = ARRAY_SIZE(mh_int_regs_1p3);
+		}
 #else
 		pr_info("[%s] no int timer\n", __func__);
 #endif
@@ -2642,6 +2924,13 @@ static int hobot_mipi_host_probe(struct platform_device *pdev)
 #endif
 	param->irq_cnt = MIPI_HOST_IRQ_CNT;
 	param->irq_debug = MIPI_HOST_IRQ_DEBUG;
+	if (MIPI_HOST_IS_1P4(host->iomem)) {
+		host->ierr.iregs = mh_int_regs_1p4;
+		host->ierr.num = ARRAY_SIZE(mh_int_regs_1p4);
+	} else {
+		host->ierr.iregs = mh_int_regs_1p3;
+		host->ierr.num = ARRAY_SIZE(mh_int_regs_1p3);
+	}
 #endif
 
 	param->adv_value = MIPI_HOST_ADV_DEFAULT;
