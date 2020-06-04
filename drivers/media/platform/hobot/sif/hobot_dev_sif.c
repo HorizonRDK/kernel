@@ -722,6 +722,7 @@ int sif_video_streamon(struct sif_video_ctx *sif_ctx)
 		return ret;
 
 	sif_dev = sif_ctx->sif_dev;
+	sif_start_pattern_gen(sif_dev->base_reg, 0);
 
 	if (atomic_read(&sif_dev->rsccount) > 0)
 		goto p_inc;

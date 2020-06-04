@@ -276,7 +276,7 @@ void sif_set_pattern_gen(u32 __iomem *base_reg, u32 pat_index,
 
 }
 
-static void sif_start_pattern_gen(u32 __iomem *base_reg, u32 pat_index)
+void sif_start_pattern_gen(u32 __iomem *base_reg, u32 pat_index)
 {
 	int i = 0;
 
@@ -1413,7 +1413,7 @@ void sif_hw_enable(u32 __iomem *base_reg)
 	// PG is behind the data gate.
 	// To enable PG first will cause somedata inside data path, while SIF is stopped.
 
-	sif_start_pattern_gen(base_reg, 0);
+	//sif_start_pattern_gen(base_reg, 0);
 
 #ifdef SIF_TEST_DROP_FRAME
 	vio_info("Delay 0.5s - Start");

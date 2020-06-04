@@ -43,4 +43,5 @@ void sif_set_pattern_gen(u32 __iomem *base_reg, u32 pat_index,
 void sif_set_bypass_cfg(u32 __iomem *base_reg, sif_input_bypass_t *cfg);
 void sif_enable_frame_intr(void __iomem *base_reg, u32 mux_index,
 				bool enable);
+void sif_start_pattern_gen(u32 __iomem *base_reg, u32 pat_index);
 #endif
