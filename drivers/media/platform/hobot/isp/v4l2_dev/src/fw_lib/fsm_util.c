@@ -34,9 +34,14 @@ uint32_t acamera_fsm_util_is_irq_event_ignored( fsm_irq_mask_t *p_mask, uint8_t 
     return ignore_irq;
 }
 
+extern void *acamera_get_ctx_ptr(uint32_t ctx_id);
 uint32_t acamera_fsm_util_get_cur_frame_id( fsm_common_t *p_cmn )
 {
     uint32_t cur_frame_id = 0;
-    cur_frame_id = acamera_isp_isp_global_dbg_frame_cnt_ctx0_read( p_cmn->isp_base );
+    acamera_context_t *p_ctx;
+
+    p_ctx = acamera_get_ctx_ptr(p_cmn->ctx_id);
+    cur_frame_id = p_ctx->isp_frame_counter;
+    // cur_frame_id = acamera_isp_isp_global_dbg_frame_cnt_ctx0_read( p_cmn->isp_base );
     return cur_frame_id;
 }

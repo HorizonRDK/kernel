@@ -415,7 +415,7 @@ void awb_normalise( AWB_fsm_t *p_fsm )
 void awb_set_new_param( AWB_fsm_ptr_t p_fsm, sbuf_awb_t *p_sbuf_awb )
 {
     if ( p_sbuf_awb->frame_id == p_fsm->cur_result_gain_frame_id ) {
-        LOG( LOG_ERR, "Error: Same frame used twice, frame_id: %u.", p_sbuf_awb->frame_id );
+        pr_info("Same frame used twice, frame_id: %u.", p_sbuf_awb->frame_id);
         return;
     }
 

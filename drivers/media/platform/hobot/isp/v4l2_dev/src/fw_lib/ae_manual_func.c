@@ -255,7 +255,7 @@ void AE_fsm_process_interrupt( AE_fsm_const_ptr_t p_fsm, uint8_t irq_event )
 void ae_set_new_param( AE_fsm_ptr_t p_fsm, sbuf_ae_t *p_sbuf_ae )
 {
     if ( p_sbuf_ae->frame_id == p_fsm->frame_id_tracking ) {
-        LOG( LOG_ERR, "Error: Same frame used twice, frame_id: %u.", p_sbuf_ae->frame_id );
+        pr_info("Same frame used twice, frame_id: %u.", p_sbuf_ae->frame_id);
         return;
     }
 
