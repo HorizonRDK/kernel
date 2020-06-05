@@ -59,6 +59,7 @@ struct cnn_pll_table {
 #define CNN_FREQ_NUM 4
 struct cnn_pll_table cpll_table[CNN_FREQ_NUM] = {
 	{1000000000, 1000000000},
+	{950000000,  950000000},
 	{1200000000, 1200000000},
 	{800000000,  800000000},
 	{400000000,  400000000},

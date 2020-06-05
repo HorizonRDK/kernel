@@ -73,6 +73,7 @@ struct laintpll_bestdiv {
 static struct laintpll_bestdiv pll_bestdiv_table[PLL_BESTDIV_TABLE_LEN] = {
 	{400000000,  1, 100, 6, 1},
 	{800000000,  1, 100, 3, 1},
+	{950000000,  6, 475, 2, 1},
 	{1000000000, 1, 125, 3, 1},
 	{1200000000, 1, 100, 2, 1},
 	{1500000000, 1, 125, 2, 1},
