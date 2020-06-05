@@ -85,6 +85,7 @@ struct vio_group {
 	u32 sema_flag;
 	bool get_timestamps;
 	bool leader;
+	u32 output_flag;
 	struct vio_group		*next;
 	struct vio_group		*prev;
 	struct vio_group		*head;

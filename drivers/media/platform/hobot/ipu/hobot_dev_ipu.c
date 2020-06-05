@@ -33,8 +33,8 @@
 
 static u32 color[MAX_OSD_COLOR_NUM] = {
 	0xff8080, 0x008080, 0x968080, 0x8DC01B, 0x952B15, 0xE10094, 0x545BA7,
-    0x9E26C4, 0x34AAB5, 0xD47A9E, 0x4C54FF, 0xD06057, 0x0FC574, 0x3A5E56,
-    0x2968C5
+	0x9E26C4, 0x34AAB5, 0xD47A9E, 0x4C54FF, 0xD06057, 0x0FC574, 0x3A5E56,
+	0x2968C5
 };
 
 char ipu_node_name[MAX_DEVICE][8] =
@@ -114,7 +114,9 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 		if (group->gtask)
 			vio_group_task_stop(group->gtask);
 		subdev->leader = false;
+		group->output_flag = 0;
 		instance = group->instance;
+		ipu->reuse_shadow0_count &= ~instance;
 	}
 
 	index = ipu_ctx->frm_fst_ind;
@@ -138,6 +140,8 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 		}
 		ips_set_clk_ctrl(IPU0_CLOCK_GATE, false);
 		ipu->frame_drop_count = 0;
+		ipu->reuse_shadow0_flag = 0;
+		ipu->reuse_shadow0_count = 0;
 	}
 
 	ipu_ctx->state = BIT(VIO_VIDEO_CLOSE);
@@ -780,9 +784,25 @@ int ipu_channel_wdma_enable(struct ipu_subdev *subdev, bool enable)
 	ipu_set_shd_rdy(ipu->base_reg, rdy);
 
 	if (enable) {
+		if (shadow_index == 0) {
+			if (ipu->reuse_shadow0_flag != 1 << group->instance) {
+				vio_info("group%d can't set shadow 0 group\n", group->instance);
+				return ret;
+			}
+		}
+
 		ipu_set_roi_enable(subdev, shadow_index, info->ds_roi_en);
 		ipu_set_sc_enable(subdev, shadow_index, info->ds_sc_en);
 	} else {
+		if (shadow_index == 0) {
+			if ((ipu->reuse_shadow0_count & ~(1 << 0)) ||
+				(ipu->reuse_shadow0_count & ~(1 << 4)) ||
+				(ipu->reuse_shadow0_count & ~(1 << 5))) {
+				vio_info("can't disable shadow0 by group%d,reuse(0x%x)\n",
+					group->instance, ipu->reuse_shadow0_count);
+				return ret;
+			}
+		}
 		ipu_set_roi_enable(subdev, shadow_index, enable);
 		ipu_set_sc_enable(subdev, shadow_index, enable);
 	}
@@ -826,6 +846,20 @@ int ipu_update_ds_ch_param(struct ipu_subdev *subdev, u8 ds_ch,
 
 	if (group->instance < MAX_SHADOW_NUM)
 		shadow_index = group->instance;
+
+	if (shadow_index == 0) {
+		if (ipu->reuse_shadow0_flag == 0)
+			ipu->reuse_shadow0_flag = 1 << group->instance;
+
+		ipu->reuse_shadow0_count |= 1 << group->instance;
+
+		if (ipu->reuse_shadow0_flag != 1 << group->instance) {
+			vio_info("shadow 0 group already configurated by group%d\n",
+				group->instance);
+			return ret;
+		}
+		vio_info("reuse_shadow0_flag = %d\n", ipu->reuse_shadow0_flag);
+	}
 
 	rdy = ipu_get_shd_rdy(ipu->base_reg);
 	rdy = rdy & ~(1 << shadow_index);
@@ -885,6 +919,7 @@ int ipu_update_ds_param(struct ipu_subdev *subdev, ipu_ds_info_t *ds_config)
 	}
 	if (ds_config->ds_roi_en || ds_config->ds_sc_en) {
 		ipu_set_group_leader(group, subdev->id);
+		group->output_flag++;
 		set_bit(VIO_GROUP_DMA_OUTPUT, &group->state);
 		if (subdev->id == GROUP_ID_DS2) {
 			set_bit(IPU_DS2_DMA_OUTPUT, &ipu->state);
@@ -909,6 +944,20 @@ int ipu_update_us_param(struct ipu_subdev *subdev, ipu_us_info_t *us_config)
 
 	if (group->instance < MAX_SHADOW_NUM)
 		shadow_index = group->instance;
+
+	if (shadow_index == 0) {
+		if (ipu->reuse_shadow0_flag == 0)
+			ipu->reuse_shadow0_flag = 1 << group->instance;
+
+		ipu->reuse_shadow0_count |= 1 << group->instance;
+
+		if (ipu->reuse_shadow0_flag != 1 << group->instance) {
+			vio_info("shadow 0 group already configurated by group%d\n",
+				group->instance);
+			return ret;
+		}
+		vio_info("reuse_shadow0_flag = %d\n", ipu->reuse_shadow0_flag);
+	}
 
 	rdy = ipu_get_shd_rdy(ipu->base_reg);
 	rdy = rdy & ~(1 << shadow_index);
@@ -1109,6 +1158,7 @@ int ipu_video_init(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 		ipu_ctx->state = BIT(VIO_VIDEO_INIT);
 		return ret;
 	}
+
 	if (ipu_ctx->id == GROUP_ID_SRC) {
 		ipu_cfg = &subdev->ipu_cfg;
 		ret = copy_from_user((char *)ipu_cfg, (u32 __user *) arg,
@@ -1133,6 +1183,7 @@ int ipu_video_init(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 			goto err;
 
 		if (scale_config->ds_roi_en || scale_config->ds_sc_en) {
+			group->output_flag++;
 			ipu_set_group_leader(group, subdev->id);
 			set_bit(VIO_GROUP_DMA_OUTPUT, &group->state);
 		}
@@ -1158,7 +1209,6 @@ int ipu_video_init(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 	vio_info("[S%d][V%d]%s done\n", group->instance, ipu_ctx->id, __func__);
 
 	return ret;
-
 err:
 	clear_bit(IPU_SUBDEV_INIT, &subdev->state);
 	return ret;
@@ -1992,6 +2042,7 @@ static void ipu_diag_report(uint8_t errsta, unsigned int status)
 static irqreturn_t ipu_isr(int irq, void *data)
 {
 	u32 status = 0;
+	bool drop_flag = 0;
 	u32 instance = 0;
 	u32 size_err = 0;
 	u32 err_status = 0;
@@ -2028,6 +2079,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		err_occured = 2;
 		ipu->frame_drop_count++;
 		ipu->statistic.hard_frame_drop[instance][GROUP_ID_US]++;
+		drop_flag = true;
 	}
 
 	if (status & (1 << INTR_IPU_DS0_FRAME_DROP)) {
@@ -2039,6 +2091,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		err_occured = 2;
 		ipu->frame_drop_count++;
 		ipu->statistic.hard_frame_drop[instance][GROUP_ID_DS0]++;
+		drop_flag = true;
 	}
 
 	if (status & (1 << INTR_IPU_DS1_FRAME_DROP)) {
@@ -2050,6 +2103,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		err_occured = 2;
 		ipu->frame_drop_count++;
 		ipu->statistic.hard_frame_drop[instance][GROUP_ID_DS1]++;
+		drop_flag = true;
 	}
 
 	if (status & (1 << INTR_IPU_DS2_FRAME_DROP)) {
@@ -2061,6 +2115,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		err_occured = 2;
 		ipu->frame_drop_count++;
 		ipu->statistic.hard_frame_drop[instance][GROUP_ID_DS2]++;
+		drop_flag = true;
 	}
 
 	if (status & (1 << INTR_IPU_DS3_FRAME_DROP)) {
@@ -2072,6 +2127,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		err_occured = 2;
 		ipu->frame_drop_count++;
 		ipu->statistic.hard_frame_drop[instance][GROUP_ID_DS3]++;
+		drop_flag = true;
 	}
 
 	if (status & (1 << INTR_IPU_DS4_FRAME_DROP)) {
@@ -2083,6 +2139,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		err_occured = 2;
 		ipu->frame_drop_count++;
 		ipu->statistic.hard_frame_drop[instance][GROUP_ID_DS4]++;
+		drop_flag = true;
 	}
 
 	if (status & (1 << INTR_IPU_FRAME_DONE)) {
@@ -2169,6 +2226,11 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		//ipu_hw_dump(ipu->base_reg);
 		vio_err("[S%d]too many Frame drop\n", instance);
 		ipu->frame_drop_count = 0;
+	}
+
+	if (drop_flag) {
+		if (group->output_flag == 1)
+			vio_group_done(group);
 	}
 
 	if (err_occured == 1)
