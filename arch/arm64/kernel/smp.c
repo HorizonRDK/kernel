@@ -866,6 +866,10 @@ static void ipi_cpu_crash_stop(unsigned int cpu, struct pt_regs *regs)
 #endif
 }
 
+#ifdef CONFIG_ARCH_HOBOT
+extern void hobot_swinfo_crash_save_cpu(unsigned int cpu, struct pt_regs *regs);
+#endif
+
 /*
  * Main handler for inter-processor interrupts
  */
@@ -902,6 +906,13 @@ void handle_IPI(int ipinr, struct pt_regs *regs)
 			ipi_cpu_crash_stop(cpu, regs);
 
 			unreachable();
+#ifdef CONFIG_ARCH_HOBOT
+		} else {
+			irq_enter();
+			hobot_swinfo_crash_save_cpu(cpu, regs);
+			cpu_park_loop();
+			unreachable();
+#endif
 		}
 		break;
 

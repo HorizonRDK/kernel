@@ -17,6 +17,8 @@
 #include <linux/of_address.h>
 #include <linux/platform_device.h>
 #include <linux/reboot.h>
+#include <linux/dma-mapping.h>
+#include <linux/kdebug.h>
 #include <asm/proc-fns.h>
 #include <asm/system_misc.h>
 
@@ -39,6 +41,8 @@ static u32 swinfo_ro;
 static u32 swi_boot[3];
 static u32 swi_dump[3];
 static u32 swinfo_ptype, swinfo_preg;
+static u32 cpu_num = NR_CPUS;
+static dma_addr_t hobot_cpu_data_paddr;
 
 int hobot_swinfo_set(u32 sel, u32 index, u32 mask, u32 value)
 {
@@ -470,6 +474,90 @@ static void hobot_swinfo_bit2mask(int bs, int be, u32 *mask, u32 *offset)
 	*offset = bs;
 }
 
+struct hobot_cpu_data_s {
+	struct pt_regs pt_regs;
+	bool is_online;
+	struct task_struct *cur_task;
+};
+
+static struct hobot_cpu_data_s *hobot_cpu_data;
+
+
+void print_cpu_data(int id)
+{
+    struct pt_regs *pt_regs = &hobot_cpu_data[id].pt_regs;
+	int i;
+
+	for (i = 0; i < 31; i++) {
+		if (i < 10) /* Keep "=" align */
+			pr_debug("x%d    = 0x%016llx\n",
+				i, pt_regs->regs[i]);
+		else
+			pr_debug("x%d   = 0x%016llx\n",
+				i, pt_regs->regs[i]);
+	}
+	pr_debug("sp    = 0x%016llx\n", pt_regs->sp);
+	pr_debug("pc    = 0x%016llx\n", pt_regs->pc);
+}
+
+void hobot_swinfo_crash_save_cpu(unsigned int cpu, struct pt_regs *regs)
+{
+	pr_info("hobot_swinfo_crash_save_cpu: saving regs for cpu %d\n", cpu);
+
+	memcpy(&hobot_cpu_data[cpu].pt_regs, regs, sizeof(struct pt_regs));
+}
+
+enum ipi_msg_type {
+    IPI_RESCHEDULE,
+    IPI_CALL_FUNC,
+    IPI_CPU_STOP,
+    IPI_CPU_CRASH_STOP,
+    IPI_TIMER,
+    IPI_IRQ_WORK,
+    IPI_WAKEUP
+};
+
+extern void (*__smp_cross_call)(const struct cpumask *, unsigned int);
+static int hobot_swinfo_die_handler(struct notifier_block *nb,
+			unsigned long reason, void *data)
+{
+	int cpu;
+	struct cpumask  mask;
+	struct die_args *args = (struct die_args *)data;
+
+	cpu = smp_processor_id();
+
+	memcpy(&hobot_cpu_data[cpu].pt_regs, args->regs, sizeof(struct pt_regs));
+
+	cpumask_copy(&mask, cpu_online_mask);
+	cpumask_clear_cpu(cpu, &mask);
+
+	pr_crit("swinfo: saving other cpus context and stopping them\n");
+	__smp_cross_call(&mask, IPI_CPU_CRASH_STOP);
+
+	return NOTIFY_OK;
+}
+
+static struct notifier_block hobot_swinfo_die_notifier = {
+	.notifier_call = hobot_swinfo_die_handler,
+	.priority      = INT_MAX-1,
+};
+
+static int hobot_swinfo_panic_handler(struct notifier_block *this,
+                    unsigned long event, void *unused)
+{
+	int id;
+
+	for (id = 0; id < cpu_num; id++)
+		print_cpu_data(id);
+
+	return NOTIFY_OK;
+}
+struct notifier_block hobot_swinfo_panic_notifier = {
+    .notifier_call = hobot_swinfo_panic_handler,
+    .priority      = INT_MAX-1, /* priority: INT_MAX >= x >= 0 */
+};
+
 static int hobot_restart_handler(struct notifier_block *this,
 				unsigned long mode, void *cmd)
 {
@@ -508,6 +596,37 @@ static int hobot_reboot_probe(struct platform_device *pdev)
 		iounmap(base);
 		return -EINVAL;
 	}
+
+	err = dma_set_coherent_mask(&pdev->dev, DMA_BIT_MASK(32));
+	if (err) {
+		dev_err(&pdev->dev,
+			"dma_set_coherent_mask 32 fails with: %d\n", err);
+		return err;
+	}
+
+	hobot_cpu_data = dma_alloc_coherent(&pdev->dev,
+			sizeof(struct hobot_cpu_data_s) * cpu_num, &hobot_cpu_data_paddr, 0);
+
+	if (hobot_cpu_data == NULL) {
+		pr_err("%s: can not allocate cpu_data buffer\n", __func__);
+		return -ENOMEM;
+	}
+	memset(hobot_cpu_data, 0, sizeof(struct hobot_cpu_data_s) * cpu_num);
+
+	err = register_die_notifier(&hobot_swinfo_die_notifier);
+	if (err != 0) {
+		pr_err("%s: registering die notifier failed with err=%d\n",
+				__func__, err);
+		return err;
+	}
+
+    err = atomic_notifier_chain_register(&panic_notifier_list,
+        &hobot_swinfo_panic_notifier);
+    if (err != 0) {
+        pr_err("%s: unable to register a panic notifier (err=%d)\n",
+                __func__, err);
+        return err;
+    }
 
 	err = register_restart_handler(&hobot_restart_nb);
 	if (err) {
@@ -605,6 +724,14 @@ static int hobot_reboot_remove(struct platform_device *pdev)
 		sysfs_remove_group(k_obj, &hobot_swinfo_attr_group);
 		kobject_put(k_obj);
 	}
+
+	dma_free_coherent(&pdev->dev,
+			sizeof(struct hobot_cpu_data_s) * cpu_num,
+			hobot_cpu_data, hobot_cpu_data_paddr);
+
+	unregister_die_notifier(&hobot_swinfo_die_notifier);
+    atomic_notifier_chain_unregister(&panic_notifier_list,
+            &hobot_swinfo_panic_notifier);
 
 	return 0;
 }
