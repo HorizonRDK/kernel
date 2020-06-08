@@ -407,7 +407,6 @@ config USB_CONFIGFS_F_UAC2
 	select SND_PCM
 	select USB_U_AUDIO
 	select USB_F_UAC2
-	default y
 	help
 	  This Audio function is compatible with USB Audio Class
 	  specification 2.0. It implements 1 AudioControl interface,
