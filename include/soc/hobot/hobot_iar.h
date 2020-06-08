@@ -531,7 +531,6 @@ struct iar_dev_s {
 	struct pinctrl_state *pins_bt656;
 	struct pinctrl_state *pins_mipi_dsi;
 	struct pinctrl_state *pins_rgb;
-	struct pinctrl_state *pins_rgb_gpio;
 	struct clk *iar_pixel_clk;
 	struct clk *iar_ipi_clk;
 	struct clk *sif_mclk;

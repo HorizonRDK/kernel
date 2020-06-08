@@ -182,38 +182,6 @@
 					119	2 /*DATA23*/
 				>;
 			};
-			rgb_gpio_func: rgb_gpio_func {
-				pinctrl-x3,pins-muxs = <
-					20	3 /*VSYNC*/
-					21	3 /*HSYNC*/
-					26	3 /*DE*/
-					78	3 /*CLK*/
-					79	3 /*DAT0*/
-					80	3
-					81	3
-					82	3
-					83	3
-					84	3
-					85	3
-					86	3 /*DAT7*/
-					87	3 /*DAT8*/
-					88	3
-					89	3
-					90	3
-					91	3
-					92	3
-					93	3
-					94	3 /*DAT15*/
-					22	3 /*DATA16*/
-					23	3
-					24	3
-					25	3 /*DATA19*/
-					116	3 /*DATA20*/
-					117	3
-					118	3
-					119	3 /*DATA23*/
-				>;
-			};
 			bifsd_func:bifsd_func {
 				pinctrl-x3,pins-muxs = <
 					20	0 /*BIFSD_CLK*/
