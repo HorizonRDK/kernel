@@ -56,8 +56,7 @@ struct cnn_pll_table {
 	unsigned long pll_freq;
 };
 
-#define CNN_FREQ_NUM 4
-struct cnn_pll_table cpll_table[CNN_FREQ_NUM] = {
+struct cnn_pll_table cpll_table[] = {
 	{1000000000, 1000000000},
 	{950000000,  950000000},
 	{1200000000, 1200000000},
@@ -74,7 +73,7 @@ static int __set_cnnpll_clk(struct clk_hw *hw, unsigned long cnn_freq)
 
 	cnnclk = to_cnnclk(hw);
 
-	for (i = 0; i < CNN_FREQ_NUM; i++) {
+	for (i = 0; i < ARRAY_SIZE(cpll_table); i++) {
 		if (cnn_freq == cpll_table[i].cnn_freq) {
 			pll_rate = cpll_table[i].pll_freq;
 			found = 1;

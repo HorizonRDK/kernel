@@ -69,8 +69,7 @@ struct laintpll_bestdiv {
  * Only support 1.6GHz, 2GHz and 2.4G for ARMPLL,
  * add more if there are new pll freq use case for other plls
  */
-#define PLL_BESTDIV_TABLE_LEN 6
-static struct laintpll_bestdiv pll_bestdiv_table[PLL_BESTDIV_TABLE_LEN] = {
+static struct laintpll_bestdiv pll_bestdiv_table[] = {
 	{400000000,  1, 100, 6, 1},
 	{800000000,  1, 100, 3, 1},
 	{950000000,  6, 475, 2, 1},
@@ -163,7 +162,7 @@ static int laintpll_lookup_table(struct clk_laintpll *clk,
 	struct laintpll_bestdiv *bestdiv;
 	int i;
 
-	for (i = 0; i < PLL_BESTDIV_TABLE_LEN; i++) {
+	for (i = 0; i < ARRAY_SIZE(pll_bestdiv_table); i++) {
 		if (rate == pll_bestdiv_table[i].freq) {
 			bestdiv = &pll_bestdiv_table[i];
 			clk->refdiv = bestdiv->refdiv;
