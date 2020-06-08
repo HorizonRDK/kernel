@@ -324,7 +324,7 @@ static struct class_attribute boot_attribute =
 	__ATTR(boot_mode, 0644, boot_show, soc_store);
 
 static struct class_attribute socuid_attribute =
-	__ATTR(socuid, 0644, socuid_show, soc_store);
+	__ATTR(soc_uid, 0644, socuid_show, soc_store);
 
 static struct attribute *socinfo_attributes[] = {
 	&name_attribute.attr,
