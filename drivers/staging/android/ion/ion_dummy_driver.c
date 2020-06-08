@@ -239,6 +239,18 @@ static long ion_dummy_ioctl(struct ion_client *client,
 	return ret;
 }
 
+int ion_check_in_heap_carveout(phys_addr_t start, size_t size)
+{
+	struct ion_platform_heap *cvt = &dummy_heaps[ION_HEAP_TYPE_CARVEOUT];
+
+	if (start < cvt->base || start + size > cvt->base + cvt->size)
+		return -1;
+
+	return 0;
+}
+
+EXPORT_SYMBOL_GPL(ion_check_in_heap_carveout);
+
 static int __init ion_dummy_init(void)
 {
 	struct device_node *node;

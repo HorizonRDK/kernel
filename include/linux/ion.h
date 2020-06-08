@@ -609,5 +609,6 @@ void ion_carveout_free(struct ion_heap *heap, phys_addr_t addr,
 void ion_pages_sync_for_device(struct device *dev, struct page *page,
 		size_t size, enum dma_data_direction dir);
 
+int ion_check_in_heap_carveout(phys_addr_t paddr, size_t size);
 
 #endif /* _ION_H */
