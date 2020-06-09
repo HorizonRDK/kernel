@@ -566,6 +566,13 @@ config GPIO_ZX
 	help
 	  Say yes here to support the GPIO device on ZTE ZX SoCs.
 
+config GPIO_HOBOT_X3
+	bool "HOBOT X3 GPIO support"
+	depends on ARCH_HOBOT
+	select GPIOLIB_IRQCHIP
+	help
+	Say yes here to support the GPIO device on HOBOT X3 SoCs.
+
 config GPIO_LOONGSON1
 	tristate "Loongson1 GPIO support"
 	depends on MACH_LOONGSON32

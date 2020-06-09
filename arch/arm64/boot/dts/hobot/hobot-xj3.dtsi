@@ -282,7 +282,7 @@
 
 		usb_id: usb-id {
 			compatible = "linux,extcon-usb-gpio";
-			id-gpio = <&pinctrl 65 GPIO_ACTIVE_HIGH>;
+			id-gpio = <&gpios 65 GPIO_ACTIVE_HIGH>;
 			/* vbus-gpio = <>; */
 		};
 
@@ -691,7 +691,7 @@
 			interrupt-parent = <&gic>;
 			interrupts = <0 44 4>;
 			pinctrl-names = "default";
-			pinctrl-0 = <&pwm0>;
+			pinctrl-0 = <&pwm0_func>;
 			clocks = <&pwm0_mclk>;
 			clock-names = "pwm_mclk";
 			status = "disabled";
@@ -703,7 +703,7 @@
 			interrupt-parent = <&gic>;
 			interrupts = <0 45 4>;
 			pinctrl-names = "default";
-			pinctrl-0 = <&pwm1>;
+			pinctrl-0 = <&pwm1_func>;
 			clocks = <&pwm1_mclk>;
 			clock-names = "pwm_mclk";
 			status = "disabled";
@@ -715,7 +715,7 @@
 			interrupt-parent = <&gic>;
 			interrupts = <0 46 4>;
 			pinctrl-names = "default";
-			pinctrl-0 = <&pwm2>;
+			pinctrl-0 = <&pwm2_func>;
 			clocks = <&pwm2_mclk>;
 			clock-names = "pwm_mclk";
 			status = "disabled";
@@ -773,6 +773,18 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 		};
+
+		gpios: gpio@0xA6003000 {
+			compatible = "hobot,x3-gpio";
+			reg = <0 0xA6003000 0 0x100>;
+			gpio-controller;
+			#gpio-cells = <2>;
+			gpio-ranges = <&pinctrl 0 0 121>;
+			interrupts = <0 54 4>;
+			interrupt-parent = <&gic>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+			};
 
 		nand_flash: nand@0xB0000000 {
 			compatible = "hobot,hb-qspi";

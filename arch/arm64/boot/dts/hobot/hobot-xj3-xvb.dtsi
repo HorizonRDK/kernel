@@ -163,8 +163,10 @@
 
 &pinctrl {
 	status = "okay";
-	/* 29:lcd;64:sdio1cd;65:usb */
-	gpioirq-bank-cfg = <29 64 65 0>;
+};
+
+&gpios {
+	status = "okay";
 };
 
 &uart0 {
@@ -400,7 +402,7 @@
 	sd-uhs-sdr104;
 	uhs-180v-gpio = <120>; /* QSPI_CSN1/GPIO7[8] */
 	uhs-180v-logic = <1>;
-	cd-gpios = <&pinctrl 64 GPIO_ACTIVE_HIGH>;  /* SD0_DET_N /GPIO4[0] */
+	cd-gpios = <&gpios 64 GPIO_ACTIVE_HIGH>;  /* SD0_DET_N /GPIO4[0] */
 	/* broken-cd; */
 	disable-wp;
 };
