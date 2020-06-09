@@ -494,6 +494,7 @@ struct ion_heap *ion_chunk_heap_create(struct ion_platform_heap *heap_data);
 void ion_chunk_heap_destroy(struct ion_heap *heap);
 
 int ion_add_cma_heaps(struct ion_device *idev);
+int ion_del_cma_heaps(struct ion_device *idev);
 
 /* int ion_device_create(void); */
 #if 0

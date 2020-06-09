@@ -164,10 +164,17 @@ static struct ion_heap *__ion_cma_heap_create(struct cma *cma)
 	return &cma_heap->heap;
 }
 
-
 static int __ion_add_cma_heaps(struct cma *cma, void *data)
 {
+	const char *name;
 	struct ion_heap *heap;
+
+	if (!cma_ion_dev)
+		return -ENODEV;
+
+	name = cma_get_name(cma);
+	if (strcmp(name, "ion_cma"))
+		return 0;
 
 	heap = __ion_cma_heap_create(cma);
 	if (IS_ERR(heap))
@@ -175,13 +182,34 @@ static int __ion_add_cma_heaps(struct cma *cma, void *data)
 
 	heap->name = cma_get_name(cma);
 
-	if (strcmp(heap->name, "ion_cma"))
+	ion_device_add_heap(cma_ion_dev, heap);
+
+	return 0;
+}
+
+static int __ion_del_cma_heaps(struct cma *cma, void *data)
+{
+	const char *name;
+	struct ion_heap *heap;
+	struct ion_cma_heap *cma_heap;
+
+	if (!cma_ion_dev)
+		return -ENODEV;
+
+	name = cma_get_name(cma);
+	if (strcmp(name, "ion_cma"))
 		return 0;
 
-	if (cma_ion_dev)
-		ion_device_add_heap(cma_ion_dev, heap);
-	else
-		return -ENODEV;
+	plist_for_each_entry(heap, &cma_ion_dev->heaps, node) {
+		if (heap->type == ION_HEAP_TYPE_DMA) {
+			plist_del((struct plist_node *)heap, &cma_ion_dev->heaps);
+			break;
+		}
+	}
+
+	cma_heap = to_cma_heap(heap);
+	kfree(cma_heap);
+	cma_ion_dev = NULL;
 
 	return 0;
 }
@@ -190,7 +218,15 @@ int ion_add_cma_heaps(struct ion_device *idev)
 {
 	if (!cma_ion_dev)
 		cma_ion_dev = idev;
+	else
+		return 0;
 
 	cma_for_each_area(__ion_add_cma_heaps, NULL);
+	return 0;
+}
+
+int ion_del_cma_heaps(struct ion_device *idev)
+{
+	cma_for_each_area(__ion_del_cma_heaps, NULL);
 	return 0;
 }

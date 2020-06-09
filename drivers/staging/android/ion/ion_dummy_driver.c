@@ -333,6 +333,8 @@ static int __init ion_dummy_init(void)
 err:
 	for (i = 0; i < dummy_ion_pdata.nr; ++i)
 		ion_heap_destroy(heaps[i]);
+
+	ion_del_cma_heaps(hb_ion_dev);
 	kfree(heaps);
 
 	if (chunk_ptr) {
@@ -353,6 +355,8 @@ static void __exit ion_dummy_exit(void)
 
 	for (i = 0; i < dummy_ion_pdata.nr; i++)
 		ion_heap_destroy(heaps[i]);
+
+	ion_del_cma_heaps(hb_ion_dev);
 	kfree(heaps);
 
 	if (chunk_ptr) {
