@@ -224,13 +224,25 @@ static int i2s_hw_params(struct snd_pcm_substream *substream,
 		/* setting channel num and enable channel */
 		switch (i2s->channel_num) {
 		case 16:
+		case 15:
+		case 14:
+		case 13:
+		case 12:
+		case 11:
+		case 10:
+		case 9:
 			mod |= MOD_16_CH;
 			chan |= 0xffff;
+			break;
 		case 8:
+		case 7:
+		case 6:
+		case 5:
 			mod |= MOD_8_CH;
 			chan |= 0xff;
 			break;
 		case 4:
+		case 3:
 			mod |= MOD_4_CH;
 			chan |= 0xf;
 			break;
