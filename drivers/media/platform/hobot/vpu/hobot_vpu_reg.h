@@ -115,18 +115,21 @@ typedef enum {
 
 #define W5_COMMAND				(W5_REG_BASE + 0x0100)
 #define W5_VPU_HOST_INT_REQ			(W5_REG_BASE + 0x0038)
+#define W5_QUERY_OPTION			(W5_REG_BASE + 0x0104)
 
 /* Product register */
 #define VPU_PRODUCT_CODE_REGISTER		(BIT_BASE + 0x1044)
 #if defined(VPU_SUPPORT_PLATFORM_DRIVER_REGISTER) && defined(CONFIG_PM)
 static u32 s_vpu_reg_store[MAX_NUM_VPU_CORE][64];
 #endif
+#define GET_RESULT				2
 
 #define W5_MAX_CODE_BUF_SIZE			(512*1024)
 #define W5_CMD_INIT_VPU				(0x0001)
 #define W5_CMD_SLEEP_VPU			(0x0004)
 #define W5_CMD_WAKEUP_VPU			(0x0002)
 #define W5_DESTROY_INSTANCE			(0x0020)
+#define W5_QUERY				(0x4000)
 
 #define VPU_ISSUE_COMMAND(core, cmd) \
 			do {	\

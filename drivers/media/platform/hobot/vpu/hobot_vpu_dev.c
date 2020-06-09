@@ -142,10 +142,34 @@ static int vpu_free_instances(struct file *filp)
 					break;
 				}
 			}
-
 			if (VPU_READL(W5_RET_SUCCESS) == 0) {
-				vpu_err("Command %d failed [0x%x]",
-					W5_DESTROY_INSTANCE, VPU_READL(W5_RET_FAIL_REASON));
+				int error = VPU_READL(W5_RET_FAIL_REASON);
+				if (error == 0x1000) {
+					VPU_WRITEL(W5_QUERY_OPTION, GET_RESULT);
+					VPU_WRITEL(W5_CMD_INSTANCE_INFO,
+						(-1 << 16)|(vil->inst_idx&0xffff));
+					VPU_ISSUE_COMMAND(vil->core_idx, W5_QUERY);
+					while (VPU_READL(W5_VPU_BUSY_STATUS)) {
+						if (time_after(jiffies, timeout)) {
+							vpu_err("Timeout to do command %d",
+								W5_DESTROY_INSTANCE);
+							break;
+						}
+					}
+					VPU_WRITEL(W5_CMD_INSTANCE_INFO,
+						(-1 << 16)|(vil->inst_idx&0xffff));
+					VPU_ISSUE_COMMAND(vil->core_idx, W5_DESTROY_INSTANCE);
+					while (VPU_READL(W5_VPU_BUSY_STATUS)) {
+						if (time_after(jiffies, timeout)) {
+							vpu_err("Timeout to do command %d",
+								W5_DESTROY_INSTANCE);
+							break;
+						}
+					}
+				} else {
+					vpu_err("Command %d failed [0x%x]",
+						W5_DESTROY_INSTANCE, VPU_READL(W5_RET_FAIL_REASON));
+				}
 			}
 
 			vip = (hb_vpu_instance_pool_t *) vip_base;
