@@ -2077,16 +2077,20 @@ static const struct usb_gadget_ops dwc3_gadget_ops = {
 
 /* -------------------------------------------------------------------------- */
 
-static int dwc3_gadget_init_endpoints(struct dwc3 *dwc, u8 total)
+static int dwc3_gadget_init_hw_endpoints(struct dwc3 *dwc,
+		u8 num, u32 direction)
 {
-	struct dwc3_ep			*dep;
-	u8				epnum;
+	struct dwc3_ep		*dep;
+	u8			i;
 
-	INIT_LIST_HEAD(&dwc->gadget.ep_list);
+	if (direction && num > dwc->num_in_eps) {
+		dev_err(dwc->dev, "No enough IN eps resource."
+			"request: %d, max: %d\n", num, dwc->num_in_eps);
+		return -EINVAL;
+	}
 
-	for (epnum = 0; epnum < total; epnum++) {
-		bool			direction = epnum & 1;
-		u8			num = epnum >> 1;
+	for (i = 0; i < num; i++) {
+		u8 epnum = (i << 1) | (direction ? 1 : 0);
 
 		dep = kzalloc(sizeof(*dep), GFP_KERNEL);
 		if (!dep)
@@ -2098,10 +2102,12 @@ static int dwc3_gadget_init_endpoints(struct dwc3 *dwc, u8 total)
 		dep->regs = dwc->regs + DWC3_DEP_BASE(epnum);
 		dwc->eps[epnum] = dep;
 
-		snprintf(dep->name, sizeof(dep->name), "ep%u%s", num,
+		snprintf(dep->name, sizeof(dep->name), "ep%u%s", epnum >> 1,
 				direction ? "in" : "out");
 
 		dep->endpoint.name = dep->name;
+		dev_info(dwc->dev, "initializing epnum(%d), %s", epnum,
+				dep->name);
 
 		if (!(dep->number > 1)) {
 			dep->endpoint.desc = &dwc3_gadget_ep0_desc;
@@ -2110,7 +2116,7 @@ static int dwc3_gadget_init_endpoints(struct dwc3 *dwc, u8 total)
 
 		spin_lock_init(&dep->lock);
 
-		if (num == 0) {
+		if (epnum == 0 || epnum == 1) {
 			usb_ep_set_maxpacket_limit(&dep->endpoint, 512);
 			dep->endpoint.maxburst = 1;
 			dep->endpoint.ops = &dwc3_gadget_ep0_ops;
@@ -2126,7 +2132,7 @@ static int dwc3_gadget_init_endpoints(struct dwc3 *dwc, u8 total)
 			/* MDWIDTH is represented in bits, we need it in bytes */
 			mdwidth /= 8;
 
-			size = dwc3_readl(dwc->regs, DWC3_GTXFIFOSIZ(num));
+			size = dwc3_readl(dwc->regs, DWC3_GTXFIFOSIZ(epnum >> 1));
 			size = DWC3_GTXFIFOSIZ_TXFDEF(size);
 
 			/* FIFO Depth is in MDWDITH bytes. Multiply */
@@ -2168,7 +2174,7 @@ static int dwc3_gadget_init_endpoints(struct dwc3 *dwc, u8 total)
 				return ret;
 		}
 
-		if (num == 0) {
+		if (epnum == 0 || epnum == 1) {
 			dep->endpoint.caps.type_control = true;
 		} else {
 			dep->endpoint.caps.type_iso = true;
@@ -2181,6 +2187,31 @@ static int dwc3_gadget_init_endpoints(struct dwc3 *dwc, u8 total)
 
 		INIT_LIST_HEAD(&dep->pending_list);
 		INIT_LIST_HEAD(&dep->started_list);
+	}
+
+	return 0;
+}
+
+static int dwc3_gadget_init_endpoints(struct dwc3 *dwc)
+{
+	int		ret;
+
+	INIT_LIST_HEAD(&dwc->gadget.ep_list);
+
+	/* hobot xj3 soc endpoint physical resources' limitations as below:
+	 * totally 9 eps, 6 IN eps at most.
+	 * init endpoint with 5 IN + 4 OUT configuration.
+	 */
+	ret = dwc3_gadget_init_hw_endpoints(dwc, 4, 0);
+	if (ret < 0) {
+		dev_err(dwc->dev, "failed to allocate OUT endpoints");
+		return ret;
+	}
+
+	ret = dwc3_gadget_init_hw_endpoints(dwc, 5, 1);
+	if (ret < 0) {
+		dev_err(dwc->dev, "failed to allocate IN endpoints");
+		return ret;
 	}
 
 	return 0;
@@ -3274,7 +3305,7 @@ int dwc3_gadget_init(struct dwc3 *dwc)
 	 * sure we're starting from a well known location.
 	 */
 
-	ret = dwc3_gadget_init_endpoints(dwc, dwc->num_eps);
+	ret = dwc3_gadget_init_endpoints(dwc);
 	if (ret)
 		goto err3;
 

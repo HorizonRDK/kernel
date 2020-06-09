@@ -831,6 +831,8 @@ struct dwc3_scratchpad_array {
  * @u1sel: parameter from Set SEL request.
  * @u1pel: parameter from Set SEL request.
  * @num_eps: number of endpoints
+ * @num_in_eps: number of IN endpoints
+ * @num_out_eps: number of OUT endpoints
  * @ep0_next_event: hold the next expected event
  * @ep0state: state of endpoint zero
  * @link_state: link state
@@ -1001,6 +1003,8 @@ struct dwc3 {
 	u8			speed;
 
 	u8			num_eps;
+	u8			num_in_eps;
+	u8			num_out_eps;
 
 	struct dwc3_hwparams	hwparams;
 	struct dentry		*root;
