@@ -1639,6 +1639,7 @@ int ipu_video_dqbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 		vio_err("[S%d] %s proc%d no frame, event %d.\n",
 			ipu_ctx->group->instance, __func__, ctx_index,
 			ipu_ctx->event);
+		ipu_ctx->event = 0;
 		framemgr_x_barrier_irqr(framemgr, 0, flags);
 		goto DONE;
 	}

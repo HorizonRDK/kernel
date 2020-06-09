@@ -897,6 +897,7 @@ int pym_video_dqbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 		vio_err("[S%d] %s proc%d no frame, event %d.\n",
 			pym_ctx->group->instance, __func__, ctx_index,
 			pym_ctx->event);
+		pym_ctx->event = 0;
 		framemgr_x_barrier_irqr(framemgr, 0, flags);
 		goto DONE;
 	}
