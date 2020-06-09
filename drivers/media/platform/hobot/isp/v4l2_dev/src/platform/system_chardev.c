@@ -424,7 +424,12 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 	{
 		uint32_t s = 0;
 
-		s = md.elem & 0xffff;
+		// s = md.elem & 0xffff;
+		s = _GET_SIZE((acamera_context_t *)acamera_get_ctx_ptr(md.chn), md.id);
+		if (s == 0) {
+			pr_err("calibration id %d is not exist.\n", md.id);
+			goto out;
+		}
 		md.ptr = kzalloc(s, GFP_KERNEL);
 
 		if (copy_from_user(md.ptr, pmd->ptr, s)) {
