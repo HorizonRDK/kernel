@@ -38,7 +38,6 @@ typedef struct _sensor_context_t {
 } sensor_context_t;
 
 static sensor_context_t s_ctx[FIRMWARE_CONTEXT_NUMBER];
-static int ctx_counter = 0;
 
 static uint32_t get_ctx_num( void *ctx )
 {
@@ -604,14 +603,15 @@ static void start_streaming( void *ctx )
     }
 }
 
-void sensor_deinit_v4l2( void *ctx )
+void sensor_deinit_v4l2( void *ctx, uint8_t ctx_id )
 {
     sensor_context_t *p_ctx = ctx;
     if ( p_ctx != NULL ) {
-        uint32_t ctx_num = get_ctx_num( ctx );
-        int rc = v4l2_subdev_call( p_ctx->soc_sensor, core, reset, ctx_num );
-        if ( --ctx_counter < 0 )
-            LOG( LOG_ERR, "Sensor context pointer is negative %d", ctx_counter );
+        if ( ctx_id >= FIRMWARE_CONTEXT_NUMBER ) {
+            LOG( LOG_ERR, "ctx num %d is invalid.", ctx_id);
+            return;
+        }
+        int rc = v4l2_subdev_call( p_ctx->soc_sensor, core, reset, ctx_id );
         if ( rc != 0 ) {
             LOG( LOG_ERR, "Failed to reset soc_sensor. core->reset failed with rc %d", rc );
             return;
@@ -622,7 +622,7 @@ void sensor_deinit_v4l2( void *ctx )
 }
 
 //--------------------Initialization------------------------------------------------------------
-void sensor_init_v4l2( void **ctx, sensor_control_t *ctrl )
+void sensor_init_v4l2( void **ctx, sensor_control_t *ctrl, uint8_t ctx_id )
 {
     //struct soc_sensor_ioctl_args settings;
     int rc = 0;
@@ -630,8 +630,8 @@ void sensor_init_v4l2( void **ctx, sensor_control_t *ctrl )
     LOG( LOG_NOTICE, "[KeyMsg] init sensor start" );
 
     // Local sensor data structure
-    if ( ctx_counter < FIRMWARE_CONTEXT_NUMBER ) {
-        sensor_context_t *p_ctx = &s_ctx[ctx_counter];
+    if ( ctx_id < FIRMWARE_CONTEXT_NUMBER ) {
+        sensor_context_t *p_ctx = &s_ctx[ctx_id];
 
         ctrl->alloc_analog_gain = sensor_alloc_analog_gain;
         ctrl->alloc_digital_gain = sensor_alloc_digital_gain;
@@ -660,7 +660,7 @@ void sensor_init_v4l2( void **ctx, sensor_control_t *ctrl )
             return;
         }
 
-        rc = v4l2_subdev_call( p_ctx->soc_sensor, core, init, ctx_counter );
+        rc = v4l2_subdev_call( p_ctx->soc_sensor, core, init, ctx_id );
         if ( rc != 0 ) {
             LOG( LOG_CRIT, "Failed to initialize soc_sensor. core->init failed with rc %d", rc );
             return;
@@ -668,10 +668,6 @@ void sensor_init_v4l2( void **ctx, sensor_control_t *ctrl )
 
         sensor_update_parameters( p_ctx );
 	sensor_init_tuning_parameters(p_ctx);//add ie&e
-
-        ctx_counter++;
-
-
     } else {
         LOG( LOG_ERR, "Attempt to initialize more sensor instances than was configured. Sensor initialization failed." );
         *ctx = NULL;

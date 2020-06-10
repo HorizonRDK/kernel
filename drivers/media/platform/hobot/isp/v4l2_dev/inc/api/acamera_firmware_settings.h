@@ -123,8 +123,8 @@ typedef struct _metadata_t {
 
 
 typedef struct _acamera_settings {
-    void (*sensor_init)( void** ctx, sensor_control_t* ctrl) ;         // must be initialized to provide sensor initialization entry. Must be provided.
-    void (*sensor_deinit)( void *ctx ) ;         // must be initialized to provide sensor initialization entry. Must be provided.
+    void (*sensor_init)( void** ctx, sensor_control_t* ctrl, uint8_t ctx_id ) ;         // must be initialized to provide sensor initialization entry. Must be provided.
+    void (*sensor_deinit)( void *ctx, uint8_t ctx_id ) ;         // must be initialized to provide sensor initialization entry. Must be provided.
     int32_t (*lens_init)( void** ctx, lens_control_t* ctrl) ;          // initialize lens driver for AF. May be NULL. Must return 0 on success and -1 on fail.
     void (*lens_deinit)( void *ctx ) ;         // initialize lens driver for AF. May be NULL. Must return 0 on success and -1 on fail.
     uint32_t (*get_calibrations)( uint32_t ctx_num,void * sensor_arg,ACameraCalibrations *, uint32_t sensor_type ) ;  // must be initialized to provide calibrations. Must be provided.

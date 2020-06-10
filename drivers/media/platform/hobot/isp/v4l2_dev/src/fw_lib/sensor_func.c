@@ -79,7 +79,7 @@ void sensor_init_output( sensor_fsm_ptr_t p_fsm, int mode )
 uint32_t sensor_boot_init( sensor_fsm_ptr_t p_fsm )
 {
     ACAMERA_FSM2CTX_PTR( p_fsm )
-        ->settings.sensor_init( &p_fsm->sensor_ctx, &p_fsm->ctrl );
+        ->settings.sensor_init(&p_fsm->sensor_ctx, &p_fsm->ctrl, p_fsm->cmn.ctx_id);
 
 
 #if USER_MODULE
@@ -298,5 +298,5 @@ uint32_t sensor_get_lines_second( sensor_fsm_ptr_t p_fsm )
 void sensor_deinit( sensor_fsm_ptr_t p_fsm )
 {
     ACAMERA_FSM2CTX_PTR( p_fsm )
-        ->settings.sensor_deinit( p_fsm->sensor_ctx );
+        ->settings.sensor_deinit( p_fsm->sensor_ctx, p_fsm->cmn.ctx_id );
 }

@@ -1070,7 +1070,8 @@ int isp_v4l2_stream_set_format( isp_v4l2_stream_t *pstream, struct v4l2_format *
         return -EINVAL;
     }
 
-    pr_debug("[Stream#%d]   - SET fmt - width: %4u, height: %4u, exp %d, bits %d, cfa %d, format: 0x%x.",
+    pr_debug("[ctx#%d] [Stream#%d]   - SET fmt - width: %4u, height: %4u, exp %d, bits %d, cfa %d, format: 0x%x.",
+         pstream->ctx_id,
          pstream->stream_id,
          f->fmt.pix_mp.width,
          f->fmt.pix_mp.height,

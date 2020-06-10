@@ -197,13 +197,12 @@ static void sensor_set_type( void *ctx, uint8_t sensor_type, uint8_t sensor_i2c_
     struct _setting_param_t sensor_param;
     uint32_t tmp = 0;
 
-    LOG( LOG_INFO, "[%s--%d]", __func__, __LINE__ );
+    pr_debug("sensor type %d, exp %d\n", sensor_type, param->sensor_exp_number);
     if ((sensor_ops[p_ctx->channel] == NULL) || (param->sensor_type != sensor_type) ||
 		(param->sensor_i2c_channel != sensor_i2c_channel)) {
     	param->sensor_type = sensor_type;
     	param->sensor_i2c_channel = sensor_i2c_channel;
-    	sensor_ops[p_ctx->channel] = sensor_chn_open(p_ctx->channel, sensor_i2c_channel, sensor_type);
-    	printk("sensor set type is %d, i2c chn is %d, dol%d ", sensor_type, sensor_i2c_channel, param->sensor_exp_number );
+		sensor_ops[p_ctx->channel] = sensor_chn_open(p_ctx->channel, sensor_i2c_channel, sensor_type);
 	if (sensor_ops[p_ctx->channel]) {
 		if (param->modes_table[param->mode].wdr_mode == WDR_MODE_LINEAR) {
 			//normal
@@ -272,6 +271,9 @@ static void sensor_set_mode(void *ctx, uint8_t mode)
     //sensor param init
     p_ctx->supported_modes[param->mode].fps = 2560;
     param->mode = mode;
+
+	pr_debug("mode %d, w %d, h %d, exp %d\n",
+		mode, param->active.width, param->active.height, param->sensor_exp_number);
 }
 
 static uint16_t sensor_get_id( void *ctx )

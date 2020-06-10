@@ -1223,8 +1223,9 @@ int sif_isp_ctx_sync_func(int ctx_id)
     p_ctx->sif_isp_offline = 1;
     _ctx_chn_idx_update(ctx_id);
 
-    if (GET_BYTE_V(g_firmware.iridix_ctrl_flag, 2) != 0)
+    if (GET_BYTE_V(g_firmware.iridix_ctrl_flag, 2) != 0) {
         _isp_iridix_ctrl();
+    }
 
 	isp_input_port_size_config(p_ctx->fsm_mgr.fsm_arr[FSM_ID_SENSOR]->p_fsm);
 	ldc_set_ioctl(ctx_id, 0);

@@ -25,8 +25,8 @@
 
 
 
-extern void sensor_init_v4l2( void** ctx, sensor_control_t*) ;
-extern void sensor_deinit_v4l2( void *ctx ) ;
+extern void sensor_init_v4l2( void** ctx, sensor_control_t*, uint8_t ctx_id ) ;
+extern void sensor_deinit_v4l2( void *ctx, uint8_t ctx_id ) ;
 extern uint32_t get_calibrations_v4l2( uint32_t ctx_num,void * sensor_arg,ACameraCalibrations *, uint32_t sensor_type) ;
 
 
