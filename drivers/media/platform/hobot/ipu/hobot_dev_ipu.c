@@ -121,9 +121,12 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 
 	index = ipu_ctx->frm_fst_ind;
 	cnt = ipu_ctx->frm_num;
-	frame_manager_flush_mp(ipu_ctx->framemgr, index, cnt, ipu_ctx->ctx_index);
-	frame_manager_close_mp(ipu_ctx->framemgr, index, cnt, ipu_ctx->ctx_index);
-
+	if (ipu_ctx->framemgr) {
+		frame_manager_flush_mp(ipu_ctx->framemgr, index, cnt,
+				ipu_ctx->ctx_index);
+		frame_manager_close_mp(ipu_ctx->framemgr, index, cnt,
+				ipu_ctx->ctx_index);
+	}
 	if (atomic_dec_return(&ipu->open_cnt) == 0) {
 		clear_bit(IPU_OTF_INPUT, &ipu->state);
 		clear_bit(IPU_DMA_INPUT, &ipu->state);
@@ -140,7 +143,6 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 		}
 		ips_set_clk_ctrl(IPU0_CLOCK_GATE, false);
 		ipu->frame_drop_count = 0;
-		ipu->reuse_shadow0_flag = 0;
 		ipu->reuse_shadow0_count = 0;
 	}
 
@@ -205,6 +207,22 @@ static u32 x3_ipu_poll(struct file *file, struct poll_table_struct *wait)
 
 	return ret;
 }
+int ipu_check_phyaddr(struct vio_frame *frame)
+{
+	int ret = 0;
+
+	ret = ion_check_in_heap_carveout(frame->frameinfo.addr[0], 0);
+	if (ret < 0) {
+		vio_err("phy addr[0] is beyond ion address region\n");
+	}
+
+	ret = ion_check_in_heap_carveout(frame->frameinfo.addr[1], 0);
+	if (ret < 0) {
+		vio_err("phy addr[1] is beyond ion address region\n");
+	}
+
+	return ret;
+}
 
 void ipu_frame_work(struct vio_group *group)
 {
@@ -244,6 +262,8 @@ void ipu_frame_work(struct vio_group *group)
 		framemgr_e_barrier_irqs(framemgr, 0, flags);
 		frame = peek_frame(framemgr, FS_REQUEST);
 		if (frame) {
+			ipu_check_phyaddr(frame);
+
 			switch (i) {
 			case GROUP_ID_SRC:
 				ipu_set_rdma_addr(ipu->base_reg,
@@ -784,20 +804,13 @@ int ipu_channel_wdma_enable(struct ipu_subdev *subdev, bool enable)
 	ipu_set_shd_rdy(ipu->base_reg, rdy);
 
 	if (enable) {
-		if (shadow_index == 0) {
-			if (ipu->reuse_shadow0_flag != 1 << group->instance) {
-				vio_info("group%d can't set shadow 0 group\n", group->instance);
-				return ret;
-			}
-		}
-
 		ipu_set_roi_enable(subdev, shadow_index, info->ds_roi_en);
 		ipu_set_sc_enable(subdev, shadow_index, info->ds_sc_en);
 	} else {
 		if (shadow_index == 0) {
-			if ((ipu->reuse_shadow0_count & ~(1 << 0)) ||
-				(ipu->reuse_shadow0_count & ~(1 << 4)) ||
-				(ipu->reuse_shadow0_count & ~(1 << 5))) {
+			if (((ipu->reuse_shadow0_count & 0x11) == 0x11) ||
+				((ipu->reuse_shadow0_count & 0x30) == 0x30) ||
+				((ipu->reuse_shadow0_count & 0x21) == 0x21)) {
 				vio_info("can't disable shadow0 by group%d,reuse(0x%x)\n",
 					group->instance, ipu->reuse_shadow0_count);
 				return ret;
@@ -846,20 +859,6 @@ int ipu_update_ds_ch_param(struct ipu_subdev *subdev, u8 ds_ch,
 
 	if (group->instance < MAX_SHADOW_NUM)
 		shadow_index = group->instance;
-
-	if (shadow_index == 0) {
-		if (ipu->reuse_shadow0_flag == 0)
-			ipu->reuse_shadow0_flag = 1 << group->instance;
-
-		ipu->reuse_shadow0_count |= 1 << group->instance;
-
-		if (ipu->reuse_shadow0_flag != 1 << group->instance) {
-			vio_info("shadow 0 group already configurated by group%d\n",
-				group->instance);
-			return ret;
-		}
-		vio_info("reuse_shadow0_flag = %d\n", ipu->reuse_shadow0_flag);
-	}
 
 	rdy = ipu_get_shd_rdy(ipu->base_reg);
 	rdy = rdy & ~(1 << shadow_index);
@@ -944,20 +943,6 @@ int ipu_update_us_param(struct ipu_subdev *subdev, ipu_us_info_t *us_config)
 
 	if (group->instance < MAX_SHADOW_NUM)
 		shadow_index = group->instance;
-
-	if (shadow_index == 0) {
-		if (ipu->reuse_shadow0_flag == 0)
-			ipu->reuse_shadow0_flag = 1 << group->instance;
-
-		ipu->reuse_shadow0_count |= 1 << group->instance;
-
-		if (ipu->reuse_shadow0_flag != 1 << group->instance) {
-			vio_info("shadow 0 group already configurated by group%d\n",
-				group->instance);
-			return ret;
-		}
-		vio_info("reuse_shadow0_flag = %d\n", ipu->reuse_shadow0_flag);
-	}
 
 	rdy = ipu_get_shd_rdy(ipu->base_reg);
 	rdy = rdy & ~(1 << shadow_index);
@@ -1201,6 +1186,11 @@ int ipu_video_init(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 	if(!test_bit(IPU_REUSE_SHADOW0, &ipu->state)
 		&& group->instance >= MAX_SHADOW_NUM)
 		set_bit(IPU_REUSE_SHADOW0, &ipu->state);
+
+	if (group->instance >= MAX_SHADOW_NUM || group->instance == 0) {
+		ipu->reuse_shadow0_count |= 1 << group->instance;
+		vio_info("reuse_shadow0_count = %d\n", ipu->reuse_shadow0_count);
+	}
 
 	vio_group_task_start(group->gtask);
 
