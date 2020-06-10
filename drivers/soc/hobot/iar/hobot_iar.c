@@ -1915,21 +1915,78 @@ int iar_wb_capture_start(void)
 	unsigned long flags;
 	int regval = 0;
 	int wbcon = ((g_iar_dev->wb_sel&0x3) << 3) + (g_iar_dev->wb_format&0x7);
+	size_t frame_size_y = 0;
 
 	framemgr = &g_iar_dev->framemgr;
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	frame = peek_frame(framemgr, FS_REQUEST);
 
 	if (frame) {
+		if ((g_iar_dev->wb_format & 0x7) < 0x4) {
+			frame_size_y = frame->frameinfo.width * frame->frameinfo.height;
+			ret = ion_check_in_heap_carveout(frame->frameinfo.addr[0],
+					frame_size_y);
+			if (ret) {
+				pr_err("%s: wb add is not in ion pool!!\n", __func__);
+				return -1;
+			}
+			if (!frame->frameinfo.addr[1]) {
+				frame->frameinfo.addr[1] = frame->frameinfo.addr[0] +
+					frame->frameinfo.width * frame->frameinfo.height;
+				ret = ion_check_in_heap_carveout(frame->frameinfo.addr[1],
+						frame_size_y);
+				if (ret) {
+					pr_err("%s: wb add is not in ion pool!!\n", __func__);
+					return -1;
+				}
+			} else {
+				ret = ion_check_in_heap_carveout(frame->frameinfo.addr[1],
+						frame_size_y);
+				if (ret) {
+					pr_err("%s: wb add is not in ion pool!!\n", __func__);
+					return -1;
+				}
+			}
+		} else if ((g_iar_dev->wb_format & 0x7) < 0x6) {
+			frame_size_y = frame->frameinfo.width * frame->frameinfo.height;
+			ret = ion_check_in_heap_carveout(frame->frameinfo.addr[0],
+					frame_size_y);
+			if (ret) {
+				pr_err("%s: wb add is not in ion pool!!\n", __func__);
+				return -1;
+			}
+			if (!frame->frameinfo.addr[1]) {
+				frame->frameinfo.addr[1] = frame->frameinfo.addr[0] +
+					frame->frameinfo.width * frame->frameinfo.height;
+				ret = ion_check_in_heap_carveout(frame->frameinfo.addr[1],
+						frame_size_y >> 1);
+				if (ret) {
+					pr_err("%s: wb add is not in ion pool!!\n", __func__);
+					return -1;
+				}
+			} else {
+				ret = ion_check_in_heap_carveout(frame->frameinfo.addr[1],
+						frame_size_y >> 1);
+				if (ret) {
+					pr_err("%s: wb add is not in ion pool!!\n", __func__);
+					return -1;
+				}
+			}
+		} else if ((g_iar_dev->wb_format & 0x7) == 0x6) {
+			frame_size_y = frame->frameinfo.width * frame->frameinfo.height * 4;
+			ret = ion_check_in_heap_carveout(frame->frameinfo.addr[0],
+					frame_size_y);
+			if (ret) {
+				pr_err("%s: wb add is not in ion pool!!\n", __func__);
+				return -1;
+			}
+			frame->frameinfo.addr[1] = frame->frameinfo.addr[0];
+		}
 		// printk("iar_wb_capture from request: %d\n",
 		// frame->frameinfo.bufferindex);
 
 		writel(frame->frameinfo.addr[0],
 			g_iar_dev->regaddr + REG_IAR_CURRENT_CBUF_ADDR_WR_Y);
-		if(!frame->frameinfo.addr[1]) {
-			frame->frameinfo.addr[1] = frame->frameinfo.addr[0] +
-				frame->frameinfo.width * frame->frameinfo.height;
-		}
 		writel(frame->frameinfo.addr[1],
 			g_iar_dev->regaddr + REG_IAR_CURRENT_CBUF_ADDR_WR_UV);
 		// printk("Y: %x, UV: %x\n", frame->frameinfo.addr[0],
