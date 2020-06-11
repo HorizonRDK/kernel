@@ -211,7 +211,8 @@ static int hobot_wdt_start(struct watchdog_device *wdd)
 	hbwdt->enabled = true;
 	spin_unlock(&hbwdt->io_lock);
 
-	add_timer(&hbwdt->pet_timer);
+	if (!timer_pending(&hbwdt->pet_timer))
+		add_timer(&hbwdt->pet_timer);
 
 	return 0;
 }
@@ -561,8 +562,6 @@ static int hobot_wdt_probe(struct platform_device *pdev)
 	hbwdt->pet_timer.data = (unsigned long)hbwdt;
 	hbwdt->pet_timer.function = pet_timer_wakeup;
 	hbwdt->pet_timer.expires = jiffies + expired_time;
-	add_timer(&hbwdt->pet_timer);
-
 
 	if (!disabled) {
 		hobot_wdt_start(&hbwdt->hobot_wdd);
