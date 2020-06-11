@@ -133,20 +133,21 @@ static int x3_pym_close(struct inode *inode, struct file *file)
 		return 0;
 	}
 
-	group = pym_ctx->group;
-	subdev = pym_ctx->subdev;
-	if ((group) && atomic_dec_return(&subdev->refcount) == 0) {
-		subdev->state = 0;
-		clear_bit(VIO_GROUP_INIT, &group->state);
-		if (group->gtask)
-			vio_group_task_stop(group->gtask);
-		instance = group->instance;
-	}
-
 	index = pym_ctx->frm_fst_ind;
 	count = pym_ctx->frm_num;
 	frame_manager_flush_mp(pym_ctx->framemgr, index, count, pym_ctx->ctx_index);
 	frame_manager_close_mp(pym_ctx->framemgr, index, count, pym_ctx->ctx_index);
+
+	group = pym_ctx->group;
+	subdev = pym_ctx->subdev;
+	if ((group) && atomic_dec_return(&subdev->refcount) == 0) {
+		subdev->state = 0;
+		if (group->gtask)
+			vio_group_task_stop(group->gtask);
+		instance = group->instance;
+		if (atomic_dec_return(&group->node_refcount) == 0)
+			clear_bit(VIO_GROUP_INIT, &group->state);
+	}
 
 	if (atomic_dec_return(&pym->open_cnt) == 0) {
 		clear_bit(PYM_OTF_INPUT, &pym->state);
@@ -549,6 +550,7 @@ int pym_video_init(struct pym_video_ctx *pym_ctx, unsigned long arg)
 
 	set_bit(VIO_GROUP_DMA_OUTPUT, &group->state);
 	vio_group_task_start(group->gtask);
+	atomic_inc(&group->node_refcount);
 
 	pym_ctx->state = BIT(VIO_VIDEO_INIT);
 

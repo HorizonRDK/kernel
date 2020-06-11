@@ -86,6 +86,7 @@ struct vio_group {
 	bool get_timestamps;
 	bool leader;
 	u32 output_flag;
+	atomic_t node_refcount;
 	struct vio_group		*next;
 	struct vio_group		*prev;
 	struct vio_group		*head;

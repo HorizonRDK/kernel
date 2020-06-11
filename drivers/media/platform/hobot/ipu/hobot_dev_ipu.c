@@ -105,27 +105,25 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 		return 0;
 	}
 
+	index = ipu_ctx->frm_fst_ind;
+	cnt = ipu_ctx->frm_num;
+	frame_manager_flush_mp(ipu_ctx->framemgr, index, cnt, ipu_ctx->ctx_index);
+	frame_manager_close_mp(ipu_ctx->framemgr, index, cnt, ipu_ctx->ctx_index);
+
 	group = ipu_ctx->group;
 	subdev = ipu_ctx->subdev;
 	if ((group) &&(atomic_dec_return(&subdev->refcount) == 0)) {
 		subdev->state = 0;
-		clear_bit(VIO_GROUP_LEADER, &group->state);
-		clear_bit(VIO_GROUP_INIT, &group->state);
 		if (group->gtask)
 			vio_group_task_stop(group->gtask);
 		subdev->leader = false;
 		group->output_flag = 0;
 		instance = group->instance;
 		ipu->reuse_shadow0_count &= ~instance;
-	}
-
-	index = ipu_ctx->frm_fst_ind;
-	cnt = ipu_ctx->frm_num;
-	if (ipu_ctx->framemgr) {
-		frame_manager_flush_mp(ipu_ctx->framemgr, index, cnt,
-				ipu_ctx->ctx_index);
-		frame_manager_close_mp(ipu_ctx->framemgr, index, cnt,
-				ipu_ctx->ctx_index);
+		if (atomic_dec_return(&group->node_refcount) == 0) {
+			clear_bit(VIO_GROUP_LEADER, &group->state);
+			clear_bit(VIO_GROUP_INIT, &group->state);
+		}
 	}
 	if (atomic_dec_return(&ipu->open_cnt) == 0) {
 		clear_bit(IPU_OTF_INPUT, &ipu->state);
@@ -1193,6 +1191,7 @@ int ipu_video_init(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 	}
 
 	vio_group_task_start(group->gtask);
+	atomic_inc(&group->node_refcount);
 
 	ipu_ctx->state = BIT(VIO_VIDEO_INIT);
 

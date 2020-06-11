@@ -166,6 +166,7 @@ void vio_group_init(struct vio_group *group)
 	group->head = group;
 	group->frameid.frame_id = 0;
 	atomic_set(&group->rcount, 0);
+	atomic_set(&group->node_refcount, 0);
 	for(i = 0; i < MAX_SUB_DEVICE; i++)
 		group->sub_ctx[i] = NULL;
 
