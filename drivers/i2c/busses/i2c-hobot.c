@@ -593,7 +593,7 @@ static int hobot_i2c_probe(struct platform_device *pdev)
 	char i2c_name[20] = {0};
 	struct i2c_adapter *adap;
 
-	printk("hobot i2c probe start\n");
+	dev_info(&pdev->dev, "hobot i2c probe start\n");
 	dev = devm_kzalloc(&pdev->dev, sizeof(struct hobot_i2c_dev), GFP_KERNEL);
 	if (!dev) {
 		ret = -ENOMEM;
@@ -699,8 +699,8 @@ static int hobot_i2c_probe(struct platform_device *pdev)
 	if (ret)
 		goto err_irq;
 
-	/* 
-	 * diag ref init 
+	/*
+	 * diag ref init
 	 */
 	dev->i2c_id = i2c_id;
 	dev_info(&pdev->dev, "i2c%d diag register....\n", i2c_id);
@@ -709,7 +709,7 @@ static int hobot_i2c_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "i2c%d diag register fail\n",
 				EventIdI2cController0Err + i2c_id);
 	}
-	printk("hobot_i2c_%d probe done\n", i2c_id);
+	dev_info(&pdev->dev, "hobot_i2c_%d probe done\n", i2c_id);
 	return 0;
 
 err_irq:
@@ -757,7 +757,7 @@ static int hobot_i2c_suspend(struct device *dev)
 	i2c_lock_adapter(&i2c_dev->adapter);
 	i2c_dev->is_suspended = true;
 	i2c_unlock_adapter(&i2c_dev->adapter);
-	
+
 	//disable_irq(i2c_dev->irq);
 	//disable clk to reduce power
 	clk_disable_unprepare(i2c_dev->clk);
