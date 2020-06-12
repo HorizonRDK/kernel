@@ -39,7 +39,7 @@ config HOBOT_MCU_IRQ
         default y
         help
           Get mcu state&send irq and return timestamp
-	  
+
 
 menuconfig HOBOT_BIF_CP
         bool "Enable Horizon CP side BIF driver"
@@ -129,7 +129,7 @@ config HOBOT_DDR_MON
 
 config HOBOT_PM
 	bool "Enable HOBOT suspend"
-	default y
+	default n
 	help
 	  say yes to enable hobot suspend
 
