@@ -1246,8 +1246,13 @@ int sif_isp_ctx_sync_func(int ctx_id)
             }
         }
 
-		// switch to ping/pong contexts for the next frame
-		if (acamera_isp_isp_global_ping_pong_config_select_read(0) == ISP_CONFIG_PONG) {
+        /*
+            switch to ping/pong contexts for the next frame.
+            ping space is unconfiged, we must config it at first frame,
+            in case of different sensor comming.
+        */
+		if (acamera_isp_isp_global_ping_pong_config_select_read(0) == ISP_CONFIG_PONG
+            || p_ctx->p_gfw->sw_frame_counter == 1) {
 			acamera_isp_isp_global_mcu_ping_pong_config_select_write(0, ISP_CONFIG_PING);
 			pr_debug("next is ping, DMA sram -> ping\n");
 			isp_ctx_transfer(last_chn_id, cur_chn_id, ISP_CONFIG_PING);

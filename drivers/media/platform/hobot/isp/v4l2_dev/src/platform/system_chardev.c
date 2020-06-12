@@ -475,6 +475,9 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 			ret = acamera_command(md.chn, type, kv[i].k, kv[i].v, md.dir, &ret_value);
 			if (ret == SUCCESS && md.dir == COMMAND_GET)
 				kv[i].v = ret_value;
+
+			pr_debug("chn %d, k %d, v %d, dir %d, ret_value %d\n",
+				md.chn, kv[i].k, kv[i].v, md.dir, ret_value);
 		}
 
 		if (md.dir == COMMAND_GET) {

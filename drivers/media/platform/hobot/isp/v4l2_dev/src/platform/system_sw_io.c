@@ -293,7 +293,7 @@ void *system_sw_alloc_dma_sram( uint32_t size , uint32_t context_id, uint32_t *p
 
     va = (void*) (g_hobot_dma_va + (context_id*HOBOT_DMA_SRAM_ONE_ZONE));
     *phy_addr = HOBOT_DMA_SRAM_PA+ (context_id*HOBOT_DMA_SRAM_ONE_ZONE);
-    pr_info("pa=0x%x, va=%p, context_id=%d, offset=%d\n",
+    pr_debug("pa=0x%x, va=%p, context_id=%d, offset=%d\n",
         *phy_addr, va, context_id, (context_id*HOBOT_DMA_SRAM_ONE_ZONE));
 
 #if HOBOT_REGISTER_MONITOR

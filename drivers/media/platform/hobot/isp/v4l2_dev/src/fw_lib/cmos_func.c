@@ -17,6 +17,7 @@
 *
 */
 
+#define pr_fmt(fmt) "[isp_drv]: %s: " fmt, __func__
 #include "acamera_fw.h"
 #include "acamera_math.h"
 #include "system_timer.h"
@@ -869,7 +870,7 @@ void cmos_inttime_update( cmos_fsm_ptr_t p_fsm )
                     break;
                 }
             }
-            LOG( LOG_DEBUG, "exp_target %d, int_time: %d exposure %d ", exp_target, int_time, exposure);
+            pr_debug("exp_target %d, int_time: %d exposure %d ", exp_target, int_time, exposure);
             if ( p_fsm->flicker_freq && !p_fsm->manual_gain_mode && param->global_antiflicker_enable ) {
                 fsm_param_sensor_info_t sensor_info;
                 acamera_fsm_mgr_get_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_GET_SENSOR_INFO, NULL, 0, &sensor_info, sizeof( sensor_info ) );
@@ -936,7 +937,7 @@ void cmos_analog_gain_update( cmos_fsm_ptr_t p_fsm )
         }
     }
     p_fsm->again_val_log2 = again;
-    LOG( LOG_DEBUG, "target_gain %d, again_accuracy %d ", target_gain, again_accuracy);
+    pr_debug("target_gain %d, again_accuracy %d ", target_gain, again_accuracy);
 }
 
 void cmos_digital_gain_update( cmos_fsm_ptr_t p_fsm )
@@ -1134,7 +1135,7 @@ void cmos_long_exposure_update( cmos_fsm_ptr_t p_fsm )
             time.int_time = p_fsm->integration_time_short;
             time.int_time_M = p_fsm->integration_time_medium;
             time.int_time_L = p_fsm->integration_time_long;
-            LOG( LOG_DEBUG, " short %d medium %d long %d", p_fsm->integration_time_short, p_fsm->integration_time_medium, p_fsm->integration_time_long );
+            pr_debug(" short %d medium %d long %d", p_fsm->integration_time_short, p_fsm->integration_time_medium, p_fsm->integration_time_long );
 
             acamera_fsm_mgr_set_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_SET_SENSOR_ALLOC_INTEGRATION_TIME, &time, sizeof( time ) );
 
@@ -1270,7 +1271,7 @@ void cmos_set_exposure_target( cmos_fsm_ptr_t p_fsm, int32_t exposure_log2, uint
                 p_fsm->exposure_ratio_in = param_cmos->global_max_exposure_ratio * 64;
             }
 
-            LOG( LOG_DEBUG, "Set exposure %d and exposure ratio %d", (unsigned int)exposure_log2, (unsigned int)exposure_ratio );
+            pr_debug("Set exposure %d and exposure ratio %d", (unsigned int)exposure_log2, (unsigned int)exposure_ratio );
         }
     }
 #ifdef ISP_HAS_SENSOR_FSM

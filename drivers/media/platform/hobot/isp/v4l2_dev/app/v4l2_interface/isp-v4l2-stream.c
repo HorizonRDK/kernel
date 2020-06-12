@@ -804,6 +804,7 @@ static void isp_v4l2_stream_buffer_list_release( isp_v4l2_stream_t *pstream,
 extern void *acamera_get_ctx_ptr( uint32_t ctx_id );
 extern int dma_writer_configure_pipe( dma_pipe *pipe );
 extern int isp_stream_onoff_check(void);
+extern int isp_open_check(void);
 int isp_v4l2_stream_on( isp_v4l2_stream_t *pstream )
 {
     if ( !pstream ) {
@@ -834,9 +835,13 @@ int isp_v4l2_stream_on( isp_v4l2_stream_t *pstream )
     /* control fields update */
     pstream->stream_started = 1;
 
-    /* get one vb2 buffer config to dma writer */
+    /*
+    get one vb2 buffer config to dma writer.
+    isp fore-end offline don't need(multi stream must not) to do this,
+    use isp_open_check() to rule out multi stream.
+    */
     acamera_fsm_mgr_t *instance = &(((acamera_context_ptr_t)acamera_get_ctx_ptr(pstream->ctx_id))->fsm_mgr);
-    if (instance->reserved && isp_stream_onoff_check() == 0) { //dma writer on
+    if (instance->reserved && isp_open_check() <= 1 && isp_stream_onoff_check() == 0) { //dma writer on
         dma_handle *dh = NULL;
         acamera_context_ptr_t p_ctx;
 

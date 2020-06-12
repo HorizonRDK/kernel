@@ -527,7 +527,6 @@ static void process_api_request( void )
 }
 #endif
 
-extern int isp_open_check(void);
 void acamera_connection_process( void )
 {
 #if ISP_HAS_STREAM_CONNECTION
