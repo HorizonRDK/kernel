@@ -211,12 +211,14 @@ int ipu_check_phyaddr(struct vio_frame *frame)
 
 	ret = ion_check_in_heap_carveout(frame->frameinfo.addr[0], 0);
 	if (ret < 0) {
-		vio_err("phy addr[0] is beyond ion address region\n");
+		vio_err("phyaddr[0] 0x%x is beyond ion address region\n",
+				frame->frameinfo.addr[0]);
 	}
 
 	ret = ion_check_in_heap_carveout(frame->frameinfo.addr[1], 0);
 	if (ret < 0) {
-		vio_err("phy addr[1] is beyond ion address region\n");
+		vio_err("phyaddr[1] 0x%x is beyond ion address region\n",
+				frame->frameinfo.addr[1]);
 	}
 
 	return ret;
@@ -260,7 +262,8 @@ void ipu_frame_work(struct vio_group *group)
 		framemgr_e_barrier_irqs(framemgr, 0, flags);
 		frame = peek_frame(framemgr, FS_REQUEST);
 		if (frame) {
-			ipu_check_phyaddr(frame);
+			if (i != GROUP_ID_SRC)
+				ipu_check_phyaddr(frame);
 
 			switch (i) {
 			case GROUP_ID_SRC:
