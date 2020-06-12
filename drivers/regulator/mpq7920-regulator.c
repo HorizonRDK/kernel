@@ -286,9 +286,7 @@ static struct i2c_client *mpq7920_i2c_client;
 static void mpq7920_power_off(void)
 {
 	struct mpq7920 *mpq7920;
-#if defined(CONFIG_HOBOT_FPGA_X3) || defined(CONFIG_HOBOT_XJ3)
-	return;
-#endif
+
 	mpq7920 = i2c_get_clientdata(mpq7920_i2c_client);
 	regmap_write(mpq7920->regmap, mpq7920->off_reg, 0x0);
 
@@ -383,12 +381,7 @@ static int mpq7920_pmic_probe(struct i2c_client *client,
 		dev_err(dev, "Failed to allocate register map: %d\n", ret);
 		return ret;
 	}
-#if 0
-	if (of_device_is_system_power_controller(dev->of_node)) {
-		mpq7920->off_reg = off_reg;
-		pm_power_off = mpq7920_power_off;
-	}
-#else
+#ifndef CONFIG_HOBOT_XJ3
 	mpq7920->off_reg = off_reg;
 	pm_power_off = mpq7920_power_off;
 #endif
