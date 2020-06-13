@@ -662,13 +662,13 @@ static int ac108_read(u8 reg, u8 *rt_value, struct i2c_client *client)
 	
 	ret = i2c_master_send(client, read_cmd, cmd_len);
 	if (ret != cmd_len) {
-		pr_debug("ac108_read error1\n");
+		pr_err("ac108_read error1\n");
 		return -1;
 	}
 	
 	ret = i2c_master_recv(client, rt_value, 1);
 	if (ret != 1) {
-		pr_debug("ac108_read error2, ret = %d.\n", ret);
+		pr_err("ac108_read error2, ret = %d.\n", ret);
 		return -1;
 	}
 	pr_debug("%s(%02X(R), %02X(V), %02X(C))\n", __func__, reg, *rt_value, client->addr);
@@ -1436,7 +1436,249 @@ static ssize_t ac108_show(struct device *dev, struct device_attribute *attr, cha
 	printk("eg read star addres=0x06,count 0x10:echo 0610 >ac108\n");
 	printk("eg write star addres=0x90,value=0x3c,count=4:echo 4903c >ac108\n");
 	//printk("eg write value:0xfe to address:0x06 :echo 106fe > ac108\n");
-	return 0;
+	struct ac108_priv *ac108 = dev_get_drvdata(dev);
+	u8 val;
+	int ssize = 128;
+	char *s = buf;
+	ac108_read(PWR_CTRL1, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " PWR_CTRL1(0x1): 0x%0x \n", val);
+	ac108_read(PWR_CTRL3, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " PWR_CTRL3(0x3): 0x%0x \n", val);
+	ac108_read(PWR_CTRL6, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " PWR_CTRL6(0x6): 0x%0x \n", val);
+	ac108_read(PWR_CTRL7, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " PWR_CTRL7(0x7): 0x%0x \n", val);
+	ac108_read(PWR_CTRL9, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " PWR_CTRL9(0x9): 0x%0x \n", val);
+
+	ac108_read(PLL_CTRL1, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " PLL_CTRL1(0x10): 0x%0x \n", val);
+	ac108_read(PLL_CTRL2, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " PLL_CTRL2(0x11): 0x%0x \n", val);
+	ac108_read(PLL_CTRL3, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " PLL_CTRL3(0x12): 0x%0x \n", val);
+	ac108_read(PLL_CTRL4, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " PLL_CTRL4(0x13): 0x%0x \n", val);
+	ac108_read(PLL_CTRL5, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " PLL_CTRL5(0x14): 0x%0x \n", val);
+	ac108_read(PLL_CTRL6, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " PLL_CTRL6(0x16): 0x%0x \n", val);
+	ac108_read(PLL_CTRL7, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " PLL_CTRL7(0x17): 0x%0x \n", val);
+
+	ac108_read(PLL_LOCK_CTRL, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " PLL_LOCK_CTRL(0x18): 0x%0x \n", val);
+	ac108_read(SYSCLK_CTRL, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " SYSCLK_CTRL(0x20): 0x%0x \n", val);
+	ac108_read(MOD_CLK_EN, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " MOD_CLK_EN(0x21): 0x%0x \n", val);
+	ac108_read(MOD_RST_CTRL, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " MOD_RST_CTRL(0x22): 0x%0x \n", val);
+	ac108_read(DSM_CLK_CTRL, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " DSM_CLK_CTRL(0x25): 0x%0x \n", val);
+	ac108_read(I2S_CTRL, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " I2S_CTRL(0x30): 0x%0x \n", val);
+	ac108_read(I2S_BCLK_CTRL, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " I2S_BCLK_CTRL(0x31): 0x%0x \n", val);
+	ac108_read(I2S_LRCK_CTRL1, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " I2S_LRCK_CTRL1(0x32): 0x%0x \n", val);
+	ac108_read(I2S_LRCK_CTRL2, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " I2S_LRCK_CTRL2(0x33): 0x%0x \n", val);
+	ac108_read(I2S_FMT_CTRL1, &val, ac108->i2c);
+
+	s  += snprintf(s, ssize, " I2S_FMT_CTRL1(0x34): 0x%0x \n", val);
+	ac108_read(I2S_FMT_CTRL2, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " I2S_FMT_CTRL2(0x35): 0x%0x \n", val);
+	ac108_read(I2S_FMT_CTRL3, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " I2S_FMT_CTRL3(0x36): 0x%0x \n", val);
+	ac108_read(I2S_TX1_CTRL1, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " I2S_TX1_CTRL1(0x38): 0x%0x \n", val);
+	ac108_read(I2S_TX1_CTRL2, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " I2S_TX1_CTRL2(0x39): 0x%0x \n", val);
+	/*********************************************************/
+	ac108_read(I2S_TX1_CTRL3, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " I2S_TX1_CTRL3(0x3a): 0x%0x \n", val);
+	ac108_read(I2S_TX1_CHMP_CTRL1, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " I2S_TX1_CHMP_CTRL1(0x3c): 0x%0x \n", val);
+	ac108_read(I2S_TX1_CHMP_CTRL2, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " I2S_TX1_CHMP_CTRL2(0x3d): 0x%0x \n", val);
+	ac108_read(I2S_TX1_CHMP_CTRL3, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " I2S_TX1_CHMP_CTRL3(0x3e): 0x%0x \n", val);
+	ac108_read(I2S_TX1_CHMP_CTRL4, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " I2S_TX1_CHMP_CTRL4(0x3f): 0x%0x \n", val);
+
+	ac108_read(I2S_TX2_CTRL1, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " I2S_TX2_CTRL1(0x40): 0x%0x \n", val);
+	ac108_read(I2S_TX2_CTRL2, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " I2S_TX2_CTRL2(0x41): 0x%0x \n", val);
+	ac108_read(I2S_TX2_CTRL3, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " I2S_TX2_CTRL3(0x42): 0x%0x \n", val);
+
+	ac108_read(I2S_TX2_CHMP_CTRL1, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " I2S_TX2_CHMP_CTRL1(0x44): 0x%0x \n", val);
+	ac108_read(I2S_TX2_CHMP_CTRL2, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " I2S_TX2_CHMP_CTRL2(0x45): 0x%0x \n", val);
+	ac108_read(I2S_TX2_CHMP_CTRL3, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " I2S_TX2_CHMP_CTRL3(0x46): 0x%0x \n", val);
+	ac108_read(I2S_TX2_CHMP_CTRL4, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " I2S_TX2_CHMP_CTRL4(0x47): 0x%0x \n", val);
+
+	ac108_read(ADC_SPRC, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " ADC_SPRC(0x60): 0x%0x \n", val);
+	ac108_read(ADC_DIG_EN, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " ADC_DIG_EN(0x61): 0x%0x \n", val);
+	ac108_read(DMIC_EN, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " DMIC_EN(0x62): 0x%0x \n", val);
+	ac108_read(ADC_DSR, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " ADC_DSR(0x63): 0x%0x \n", val);
+	ac108_read(ADC_DDT_CTRL, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " ADC_DDT_CTRL(0x65): 0x%0x \n", val);
+
+	ac108_read(HPF_EN, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " HPF_EN(0x66): 0x%0x \n", val);
+	ac108_read(HPF_COEF_REGH1, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " HPF_COEF_REGH1(0x67): 0x%0x \n", val);
+	ac108_read(HPF_COEF_REGH2, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " HPF_COEF_REGH2(0x68): 0x%0x \n", val);
+	ac108_read(HPF_COEF_REGL1, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " HPF_COEF_REGL1(0x69): 0x%0x \n", val);
+	ac108_read(HPF_COEF_REGL2, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " HPF_COEF_REGL2(0x6a): 0x%0x \n", val);
+
+	ac108_read(ADC1_DVOL_CTRL, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " ADC1_DVOL_CTRL(0x70): 0x%0x \n", val);
+	ac108_read(ADC2_DVOL_CTRL, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " ADC2_DVOL_CTRL(0x71): 0x%0x \n", val);
+	ac108_read(ADC3_DVOL_CTRL, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " ADC3_DVOL_CTRL(0x72): 0x%0x \n", val);
+	ac108_read(ADC4_DVOL_CTRL, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " ADC4_DVOL_CTRL(0x73): 0x%0x \n", val);
+
+	ac108_read(ADC1_DMIX_SRC, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " ADC1_DMIX_SRC(0x76): 0x%0x \n", val);
+	ac108_read(ADC2_DMIX_SRC, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " ADC2_DMIX_SRC(0x77): 0x%0x \n", val);
+	ac108_read(ADC3_DMIX_SRC, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " ADC3_DMIX_SRC(0x78): 0x%0x \n", val);
+	ac108_read(ADC4_DMIX_SRC, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " ADC4_DMIX_SRC(0x79): 0x%0x \n", val);
+	/*********************************************************/
+	ac108_read(ADC_DIG_DEBUG, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " ADC_DIG_DEBUG(0x7f): 0x%0x \n", val);
+
+	ac108_read(I2S_DAT_PADDRV_CTRL, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " I2S_DAT_PADDRV_CTRL(0x80): 0x%0x \n", val);
+	ac108_read(I2S_CLK_PADDRV_CTRL, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " I2S_CLK_PADDRV_CTRL(0x81): 0x%0x \n", val);
+
+	ac108_read(ANA_PGA1_CTRL, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " ANA_PGA1_CTRL(0x90): 0x%0x \n", val);
+	ac108_read(ANA_PGA2_CTRL, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " ANA_PGA2_CTRL(0x91): 0x%0x \n", val);
+	ac108_read(ANA_PGA3_CTRL, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " ANA_PGA3_CTRL(0x92): 0x%0x \n", val);
+	ac108_read(ANA_PGA4_CTRL, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " ANA_PGA4_CTRL(0x93): 0x%0x \n", val);
+
+	ac108_read(MIC_OFFSET_CTRL1, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " MIC_OFFSET_CTRL1(0x96): 0x%0x \n", val);
+	ac108_read(MIC_OFFSET_CTRL2, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " MIC_OFFSET_CTRL2(0x97): 0x%0x \n", val);
+	ac108_read(MIC1_OFFSET_STATU1, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " MIC1_OFFSET_STATU1(0x98): 0x%0x \n", val);
+	ac108_read(MIC1_OFFSET_STATU2, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " MIC1_OFFSET_STATU2(0x99): 0x%0x \n", val);
+
+
+	ac108_read(MIC2_OFFSET_STATU1, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " MIC2_OFFSET_STATU1(0x9a): 0x%0x \n", val);
+	ac108_read(MIC2_OFFSET_STATU2, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " MIC2_OFFSET_STATU2(0x9b): 0x%0x \n", val);
+	ac108_read(MIC3_OFFSET_STATU1, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " MIC3_OFFSET_STATU1(0x9c): 0x%0x \n", val);
+	ac108_read(MIC3_OFFSET_STATU2, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " MIC3_OFFSET_STATU2(0x9d): 0x%0x \n", val);
+	ac108_read(MIC4_OFFSET_STATU1, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " MIC4_OFFSET_STATU1(0x9e): 0x%0x \n", val);
+	ac108_read(MIC4_OFFSET_STATU2, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " MIC4_OFFSET_STATU2(0x9f): 0x%0x \n", val);
+
+	ac108_read(ANA_ADC1_CTRL1, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " ANA_ADC1_CTRL2(0xa0): 0x%0x \n", val);
+	ac108_read(ANA_ADC1_CTRL2, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " ANA_ADC1_CTRL3(0xa1): 0x%0x \n", val);
+	ac108_read(ANA_ADC1_CTRL3, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " ANA_ADC1_CTRL4(0xa2): 0x%0x \n", val);
+	ac108_read(ANA_ADC1_CTRL4, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " ANA_ADC1_CTRL4(0xa3): 0x%0x \n", val);
+	ac108_read(ANA_ADC1_CTRL5, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " ANA_ADC1_CTRL5(0xa4): 0x%0x \n", val);
+	ac108_read(ANA_ADC1_CTRL6, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " ANA_ADC1_CTRL6(0xa5): 0x%0x \n", val);
+	ac108_read(ANA_ADC1_CTRL7, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " ANA_ADC1_CTRL7(0xa6): 0x%0x \n", val);
+
+	ac108_read(ANA_ADC2_CTRL1, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " ANA_ADC2_CTRL1(0xa7): 0x%0x \n", val);
+	ac108_read(ANA_ADC2_CTRL2, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " ANA_ADC2_CTRL2(0xa8): 0x%0x \n", val);
+	ac108_read(ANA_ADC2_CTRL3, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " ANA_ADC2_CTRL3(0xa9): 0x%0x \n", val);
+	ac108_read(ANA_ADC2_CTRL4, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " ANA_ADC2_CTRL4(0xaa): 0x%0x \n", val);
+	ac108_read(ANA_ADC2_CTRL5, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " ANA_ADC2_CTRL5(0xab): 0x%0x \n", val);
+	ac108_read(ANA_ADC2_CTRL6, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " ANA_ADC2_CTRL6(0xac): 0x%0x \n", val);
+	ac108_read(ANA_ADC2_CTRL7, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " ANA_ADC2_CTRL7(0xad): 0x%0x \n", val);
+
+	ac108_read(ANA_ADC3_CTRL1, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " ANA_ADC3_CTRL1(0xae): 0x%0x \n", val);
+	ac108_read(ANA_ADC3_CTRL2, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " ANA_ADC3_CTRL2(0xaf): 0x%0x \n", val);
+	ac108_read(ANA_ADC3_CTRL3, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " ANA_ADC3_CTRL3(0xb0): 0x%0x \n", val);
+	ac108_read(ANA_ADC3_CTRL4, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " ANA_ADC3_CTRL4(0xb1): 0x%0x \n", val);
+	ac108_read(ANA_ADC3_CTRL5, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " ANA_ADC3_CTRL5(0xb2): 0x%0x \n", val);
+	ac108_read(ANA_ADC3_CTRL6, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " ANA_ADC3_CTRL6(0xb3): 0x%0x \n", val);
+	ac108_read(ANA_ADC3_CTRL7, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " ANA_ADC3_CTRL7(0xb4): 0x%0x \n", val);
+	ac108_read(ANA_ADC4_CTRL1, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " ANA_ADC4_CTRL1(0xb5): 0x%0x \n", val);
+	ac108_read(ANA_ADC4_CTRL2, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " ANA_ADC4_CTRL2(0xb6): 0x%0x \n", val);
+	/*********************************************************/
+	ac108_read(ANA_ADC4_CTRL3, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " ANA_ADC4_CTRL3(0xb7): 0x%0x \n", val);
+	ac108_read(ANA_ADC4_CTRL4, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " ANA_ADC4_CTRL4(0xb8): 0x%0x \n", val);
+	ac108_read(ANA_ADC4_CTRL5, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " ANA_ADC4_CTRL5(0xb9): 0x%0x \n", val);
+	ac108_read(ANA_ADC4_CTRL6, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " ANA_ADC4_CTRL6(0xba): 0x%0x \n", val);
+	ac108_read(ANA_ADC4_CTRL7, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " ANA_ADC4_CTRL7(0xbb): 0x%0x \n", val);
+
+	ac108_read(GPIO_CFG1, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " GPIO_CFG1(0xc0): 0x%0x \n", val);
+	ac108_read(GPIO_CFG2, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " GPIO_CFG2(0xc1): 0x%0x \n", val);
+	ac108_read(GPIO_DAT, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " GPIO_DAT(0xc2): 0x%0x \n", val);
+	ac108_read(GPIO_DRV, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " GPIO_DRV(0xc3): 0x%0x \n", val);
+	ac108_read(GPIO_PULL, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " GPIO_PULL(0xc4): 0x%0x \n", val);
+	ac108_read(GPIO_INT_CFG, &val, ac108->i2c);
+	s  += snprintf(s, ssize, " GPIO_INT_CFG(0xc5): 0x%0x \n", val);
+
+	if(s != buf)
+		*(s-1) = '\n';
+	return (s-buf);
 }
 
 static DEVICE_ATTR(ac108, 0644, ac108_show, ac108_store);
