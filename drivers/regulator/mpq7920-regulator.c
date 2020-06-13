@@ -283,6 +283,8 @@ static struct mpq7920_regulator_data *mpq7920_get_regulator_data(
 }
 
 static struct i2c_client *mpq7920_i2c_client;
+
+#ifndef CONFIG_HOBOT_XJ3
 static void mpq7920_power_off(void)
 {
 	struct mpq7920 *mpq7920;
@@ -292,6 +294,7 @@ static void mpq7920_power_off(void)
 
 	while (1);
 }
+#endif
 
 static void mpq7920_slot_init(void)
 {

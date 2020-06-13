@@ -1146,6 +1146,7 @@ clear_envflag_and_release_idinfo(struct id_info *pidinfo)
 	kfree(pidinfo);
 }
 
+#if 0
 static int diag_item_in_register_list_envdatabuffer_index(struct id_info *pidinfo,
 												struct id_register_struct **result)
 {
@@ -1175,6 +1176,7 @@ static int diag_item_in_register_list_envdatabuffer_index(struct id_info *pidinf
 
 	return i;
 }
+#endif
 
 static void diag_work_handler(struct work_struct *work)
 {

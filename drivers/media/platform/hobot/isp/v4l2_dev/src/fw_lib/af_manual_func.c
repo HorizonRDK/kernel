@@ -84,6 +84,8 @@ int zoom_update_lens_position(AF_fsm_ptr_t p_fsm)
 	} else {
 		LOG(LOG_INFO, "last position(%u) not changed.", p_fsm->zoom_curr_pos);
 	}
+
+	return 0;
 }
 
 static void af_update_lens_position( AF_fsm_ptr_t p_fsm )

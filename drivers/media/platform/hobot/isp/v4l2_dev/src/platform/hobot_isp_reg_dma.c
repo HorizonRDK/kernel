@@ -259,7 +259,8 @@ void hobot_dma_init(hobot_dma_t *hobot_dma)
         idma_descriptor_t *desc;
         desc = system_sw_alloc(sizeof(idma_descriptor_t));
         if (!desc) {
-            pr_err("alloc idma desc mem failed, size %d\n", sizeof(idma_descriptor_t));
+            pr_err("alloc idma desc mem failed, size %lu\n",
+					sizeof(idma_descriptor_t));
             return;
         }
         list_add_tail(&desc->node, &hobot_dma->free_list);

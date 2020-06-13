@@ -113,7 +113,6 @@ static int hobot_pwm_config(struct pwm_chip *chip, struct pwm_device *pwm, int d
 static int hobot_pwm_enable(struct pwm_chip *chip, struct pwm_device *pwm)
 {
 	u32 val;
-	int ret;
 	struct hobot_pwm_chip *hbpwm = to_hobot_pwm_chip(chip);
 
 	val = hobot_pwm_rd(hbpwm, PWM_EN);
