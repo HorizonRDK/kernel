@@ -74,6 +74,9 @@ static int camera_fop_release(struct inode *pinode, struct file *pfile)
 	spin_lock(&camera_cdev->slock);
 	camera_cdev->user_num--;
 	camera_cdev->mst_file = NULL;
+	if (camera_cdev->user_num <= 0) {
+		camera_i2c_release(camera_cdev->port);
+	}
 	spin_unlock(&camera_cdev->slock);
 	pfile->private_data = NULL;
 
