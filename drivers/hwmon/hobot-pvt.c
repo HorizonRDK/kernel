@@ -34,12 +34,16 @@
 #define PVT_TS_MASK GENMASK(PVT_TS_NUM - 1, 0)
 
 /* skip sample when calculated temp higher than 152C */
-int smpl_threshold = 3900;
+static int smpl_threshold = 3900;
 module_param(smpl_threshold, int, 0644);
 
 /* Max diff in Celsius */
-int max_diff = 20;
+static int max_diff = 20;
 module_param(max_diff, int, 0644);
+
+/* For test, 0: default; 1: force calib, 2: force uncalib */
+static int force_calib = 0;
+module_param(force_calib, int, 0644);
 
 /* TS0: CNN0 TS1:CPU TS2:CNN1 TS3: DDR */
 static char *ts_map[] = {
@@ -59,8 +63,11 @@ struct pvt_device {
 	struct clk *clk;
 	struct timer_list irq_unmask_timer;
 	void __iomem *reg_base;
-	int ts_mode;
+	void __iomem *efuse_base;
 	int updated;
+	int ts_mode;
+	int cal_A[PVT_TS_NUM];
+	int cal_B[PVT_TS_NUM];
 	spinlock_t lock;
 };
 
@@ -85,6 +92,7 @@ static inline void pvt_n_reg_wr(struct pvt_device *dev, int num,  u32 reg, u32 v
 	iowrite32(val, dev->reg_base + reg + num * 0x40);
 }
 
+
 /* return 1 if got abnormal value; 0 if no abnormal value */
 int fix_abnormal_temp_value(struct pvt_device *pvt_dev)
 {
@@ -98,8 +106,6 @@ int fix_abnormal_temp_value(struct pvt_device *pvt_dev)
 	int abn_i = -1;
 
 	avg = pvt_dev->cur_temp_avg;
-	pr_debug("%4ld %4ld %4ld %4ld,  avg:%4ld",
-			ts[0], ts[1], ts[2], ts[3], avg);
 
 	for (i = 0; i < PVT_TS_NUM; i++) {
 		diff = abs(ts[i] -avg);
@@ -150,16 +156,19 @@ static int pvt_temp_read(struct device *dev, enum hwmon_sensor_types type,
 		return 0;
 	}
 
-	pr_debug("using ts calibration mode %d in [1, 2]\n", pvt_dev->ts_mode + 1);
-
 	spin_lock_irqsave(&pvt_dev->lock, flags);
 
 	for (i = 0; i < PVT_TS_NUM; i++) {
 		if (pvt_dev->ts_mode == 0) {
-			//ts mode 1
-			temp = (((int)pvt_dev->cur_smpl[i] * 220) >> 12) - ((67 * 4094) >> 12);
+			pr_debug("TS is running in calibrated mode\n");
+
+			/* ts mode 1, Calibrated mode */
+			temp = pvt_dev->cal_A[i] +
+					((((int)pvt_dev->cur_smpl[i] * pvt_dev->cal_B[i])) >> 12)
+						- (((2047 * pvt_dev->cal_B[i])) >> 12);
 		} else {
-			//ts mode 2
+			pr_debug("TS is running in uncalibrated mode\n");
+			/* ts mode 2, Uncalibrated mode */
 			/*
 			 * use integer instead of float, the difference is less than 1C.
 			 * ((int)(pvt_dev->cur_smpl[i] * 204.4 - 43.14 * 4094) >> 12)
@@ -258,6 +267,7 @@ static irqreturn_t pvt_irq_handler(int irq, void *dev_id)
 	u32 sdif_done = 0;
 	u32 sdif_data = 0;
 	u32 update_ts_bitmap = 0;
+	static u32 cnt = 0;
 	int i = 0;
 
 	ts_status = pvt_reg_rd(pvt_dev, IRQ_TS_STATUS_ADDR);
@@ -285,8 +295,10 @@ static irqreturn_t pvt_irq_handler(int irq, void *dev_id)
 		if (sdif_done) {
 			/* report abnormal value when higher than 121C */
 			if (sdif_data > smpl_threshold) {
-				pr_info_ratelimited("abnormal smpl: SDIF_DATA:%d, last smpl on TS[%d]:%d\n",
-						sdif_data, i, pvt_dev->cur_smpl[i]);
+				if(cnt++ % 10000 == 0)
+					pr_info("SDIF_DATA:%d, last TS[%d]:%d, cnt:%d\n",
+						sdif_data, i, pvt_dev->cur_smpl[i], cnt-1);
+				update_ts_bitmap |= BIT(i);
 			} else {
 				pvt_dev->cur_smpl[i] = sdif_data;
 				update_ts_bitmap |= BIT(i);
@@ -401,12 +413,13 @@ static int pvt_probe(struct platform_device *pdev)
 	struct pvt_device *pvt_dev;
 	struct device *hwmon_dev;
 	struct resource *res;
+	u32 val;
+	int i;
 
 	pvt_dev = devm_kzalloc(&pdev->dev, sizeof(*pvt_dev), GFP_KERNEL);
 	if (!pvt_dev)
 		return -ENOMEM;
 
-	pvt_dev->ts_mode = 1;
 	pvt_dev->dev = &pdev->dev;
 
 	spin_lock_init(&pvt_dev->lock);
@@ -415,6 +428,15 @@ static int pvt_probe(struct platform_device *pdev)
 	pvt_dev->reg_base = devm_ioremap_resource(&pdev->dev, res);
 	if (IS_ERR(pvt_dev->reg_base))
 		return PTR_ERR(pvt_dev->reg_base);
+
+	pr_debug("resource 0 %pr\n", res);
+
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 1);
+	pvt_dev->efuse_base = devm_ioremap_resource(&pdev->dev, res);
+	if (IS_ERR(pvt_dev->efuse_base))
+		return PTR_ERR(pvt_dev->efuse_base);
+
+	pr_debug("resource 1 %pr\n", res);
 
 	/* Obtain IRQ line */
 	pvt_dev->irq = platform_get_irq(pdev, 0);
@@ -444,7 +466,8 @@ static int pvt_probe(struct platform_device *pdev)
 	if (ret) {
 		dev_err(&pdev->dev, "set pvt clk rate to %ld failed.\n",
 				pvt_dev->ref_clk);
-		goto probe_clk_failed;
+		clk_disable_unprepare(pvt_dev->clk);
+		return ret;
 	}
 
 	dev_dbg(pvt_dev->dev, "PVT input clk: %lu\n", clk_get_rate(pvt_dev->clk));
@@ -455,6 +478,38 @@ static int pvt_probe(struct platform_device *pdev)
 	pvt_dev->irq_unmask_timer.expires = jiffies + msecs_to_jiffies(PVT_SAMPLE_INTERVAL_MS);
 	add_timer(&pvt_dev->irq_unmask_timer);
 
+	if (ioread32(pvt_dev->efuse_base) != 0) {
+		pr_info("TS Calibrated data detected\n");
+		for(i = 0; i < PVT_TS_NUM; i++) {
+			val = ioread32(pvt_dev->efuse_base + i * PVT_TS_NUM);
+
+			/* FIXME: lost some precision here */
+			pvt_dev->cal_A[i] = ((val & PVT_TS_A_MASK) >> 16) / 100;
+			pvt_dev->cal_B[i] = (val & PVT_TS_B_MASK) / 100;
+			pr_info("val:%08x, cal_A[%d]:%d, cal_B[%d]:%d\n", val, i, pvt_dev->cal_A[i],
+				i, pvt_dev->cal_B[i]);
+		}
+		pvt_dev->ts_mode = 0;
+	} else {
+		pvt_dev->ts_mode = 1;
+		pr_info("TS Calibrated data not detected\n");
+	}
+
+	/* extra control for mode switching test */
+	if (force_calib == 1) {
+		pvt_dev->cal_A[0] = 0x100F/100;
+		pvt_dev->cal_B[0] = 0x557A/100;
+		pvt_dev->cal_A[1] = 0x0FFA/100;
+		pvt_dev->cal_B[1] = 0x5565/100;
+		pvt_dev->cal_A[2] = 0x101E/100;
+		pvt_dev->cal_B[2] = 0x558B/100;
+		pvt_dev->cal_A[3] = 0x102A/100;
+		pvt_dev->cal_B[3] = 0x5597/100;
+		pvt_dev->ts_mode = 0;
+	} else if (force_calib == 2) {
+		pvt_dev->ts_mode = 1;
+	}
+
 	pvt_init_hw(pvt_dev);
 
 	hwmon_dev = devm_hwmon_device_register_with_info(&pdev->dev,
@@ -463,8 +518,6 @@ static int pvt_probe(struct platform_device *pdev)
 
 	return PTR_ERR_OR_ZERO(hwmon_dev);
 
-probe_clk_failed:
-	clk_disable_unprepare(pvt_dev->clk);
 
 	return ret;
 }

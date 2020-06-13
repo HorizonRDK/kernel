@@ -1112,7 +1112,8 @@
 */
 		pvt: pvt@0xA1009000 {
 			compatible = "hobot,hobot-pvt";
-			reg = <0 0xA1009000 0 0x1000>;
+			reg = <0 0xA1009000 0 0x1000>,
+				  <0 0xA6008000 0 0x1000>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 64 4>;
 			clocks = <&sys_div_pclk>;
