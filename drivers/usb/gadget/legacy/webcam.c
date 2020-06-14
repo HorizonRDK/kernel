@@ -37,6 +37,11 @@ static unsigned int streaming_maxburst;
 module_param(streaming_maxburst, uint, S_IRUGO|S_IWUSR);
 MODULE_PARM_DESC(streaming_maxburst, "0 - 15 (ss only)");
 
+static unsigned int streaming_bulk = 0;
+module_param(streaming_bulk, uint, S_IRUGO|S_IWUSR);
+MODULE_PARM_DESC(streaming_bulk, "0 (use ISOC video streaming ep) / "
+		"1 (use BULK video streaming ep)");
+
 static unsigned int trace;
 module_param(trace, uint, S_IRUGO|S_IWUSR);
 MODULE_PARM_DESC(trace, "Trace level bitmask");
@@ -551,6 +556,7 @@ webcam_bind(struct usb_composite_dev *cdev)
 	uvc_opts->streaming_interval = streaming_interval;
 	uvc_opts->streaming_maxpacket = streaming_maxpacket;
 	uvc_opts->streaming_maxburst = streaming_maxburst;
+	uvc_opts->streaming_bulk = streaming_bulk;
 	uvc_set_trace_param(trace);
 
 	uvc_opts->fs_control = uvc_fs_control_cls;
