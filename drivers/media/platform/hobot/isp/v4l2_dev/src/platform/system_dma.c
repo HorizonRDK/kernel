@@ -182,8 +182,12 @@ int32_t system_dma_destroy( void *ctx )
     return result;
 }
 
+#if FW_USE_HOBOT_DMA
 void system_dma_desc_flush(void)
 {
+    unsigned long flags;
+
+    flags = system_spinlock_lock( g_hobot_dma.dma_ctrl_lock );
     if (!list_empty(&g_hobot_dma.pending_list)) {
         list_splice_tail_init(&g_hobot_dma.pending_list, &g_hobot_dma.free_list);
     }
@@ -193,7 +197,9 @@ void system_dma_desc_flush(void)
     if (!list_empty(&g_hobot_dma.done_list)) {
         list_splice_tail_init(&g_hobot_dma.done_list, &g_hobot_dma.free_list);
     }
+    system_spinlock_unlock( g_hobot_dma.dma_ctrl_lock, flags );
 }
+#endif
 
 static void dma_complete_func( void *ctx )
 {

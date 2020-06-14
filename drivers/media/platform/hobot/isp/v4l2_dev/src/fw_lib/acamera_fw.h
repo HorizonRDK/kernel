@@ -193,7 +193,7 @@ struct _acamera_firmware_t {
     void *dma_chan_isp_metering;
     uint32_t dma_flag_isp_metering_completed;
 
-    uint32_t dma_flag_dma_writer_config_completed;
+    uint32_t handler_flag_interrupt_handle_completed;
     atomic_t frame_done;
     atomic_t dma_done;
     uint8_t first_frame;

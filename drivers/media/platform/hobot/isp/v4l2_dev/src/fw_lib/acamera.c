@@ -638,8 +638,8 @@ static void start_processing_frame( void )
     acamera_context_ptr_t p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[cur_ctx];
     LOG( LOG_INFO, "new frame for ctx_num#%d.", cur_ctx );
 #else
-    pr_debug("cur ctx id %d\n", cur_ctx_id);
-    acamera_context_ptr_t p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[cur_ctx_id];
+    pr_debug("last ctx id %d\n", last_ctx_id);
+    acamera_context_ptr_t p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[last_ctx_id];
 #endif
 
     // new_frame event to start reading metering memory and run 3A
@@ -690,11 +690,6 @@ static void dma_complete_context_func( void *arg )
 		}
 	}
 
-	if (p_ctx->sif_isp_offline && p_ctx->fsm_mgr.reserved == 0) { // indicate dma writer is disabled
-		g_firmware.dma_flag_dma_writer_config_completed = 1;
-		dma_writer_config_done();
-	}
-
         start_processing_frame();
     }
 
@@ -710,14 +705,8 @@ static void dma_complete_metering_func( void *arg )
     g_firmware.dma_flag_isp_metering_completed = 1;
 
     if ( g_firmware.dma_flag_isp_config_completed && g_firmware.dma_flag_isp_metering_completed ) {
-	acamera_context_t *p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[ctx_id];
 
 	pr_debug("START PROCESSING FROM METERING CALLBACK, ctx_id %d\n", ctx_id);
-
-	if (p_ctx->sif_isp_offline && p_ctx->fsm_mgr.reserved == 0) { // indicate dma writer is disabled
-		g_firmware.dma_flag_dma_writer_config_completed = 1;
-		dma_writer_config_done();
-	}
 
         start_processing_frame();
     }
@@ -1236,7 +1225,7 @@ int sif_isp_ctx_sync_func(int ctx_id)
 		// these flags are used for sync of callbacks
 		g_firmware.dma_flag_isp_config_completed = 0;
 		g_firmware.dma_flag_isp_metering_completed = 0;
-		g_firmware.dma_flag_dma_writer_config_completed = 0;
+		g_firmware.handler_flag_interrupt_handle_completed = 0;
 
         if (p_ctx->content_side == SIDE_DDR) {
             ret = isp_ctx_prepare(p_ctx);
@@ -1268,9 +1257,9 @@ int sif_isp_ctx_sync_func(int ctx_id)
 
 	if (!(g_firmware.dma_flag_isp_config_completed &&
 		g_firmware.dma_flag_isp_metering_completed &&
-		g_firmware.dma_flag_dma_writer_config_completed)) {
+		g_firmware.handler_flag_interrupt_handle_completed)) {
 
-		wait_event_timeout(wq_dma_cfg_done, g_firmware.dma_flag_dma_writer_config_completed, msecs_to_jiffies(30));
+		wait_event_timeout(wq_dma_cfg_done, g_firmware.handler_flag_interrupt_handle_completed, msecs_to_jiffies(30));
 		pr_debug("ISP->SIF: wake up sif feed thread\n");
 	} else
 		pr_debug("ISP->SIF: do not need waiting, return to sif feed thread\n");

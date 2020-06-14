@@ -306,7 +306,9 @@ static int isp_v4l2_fop_close( struct file *file )
         acamera_fw_isp_stop(dev->ctx_id);
         general_temper_disable();
         ips_set_clk_ctrl(ISP0_CLOCK_GATE, false);
+#if FW_USE_HOBOT_DMA
         system_dma_desc_flush();
+#endif
     }
     mutex_unlock(&init_lock);
 

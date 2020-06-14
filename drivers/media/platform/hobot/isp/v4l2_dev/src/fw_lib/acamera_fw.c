@@ -636,12 +636,14 @@ int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settin
             }
         }
         if (p_ctx->dma_chn_idx >= 0 && p_ctx->dma_chn_idx < HW_CONTEXT_NUMBER) {
+#if FW_USE_HOBOT_DMA
             p_ctx->sw_reg_map.isp_sw_config_map = system_sw_get_dma_addr(p_ctx->dma_chn_idx);
             if (p_ctx->sw_reg_map.isp_sw_config_map == NULL) {
                 pr_err("idma is not remap, get addr failed.\n");
                 mutex_unlock(&p_ctx->p_gfw->ctx_chg_lock);
                 return -1;
             }
+#endif
             p_ctx_tmp = p_ctx;
             pr_info("copy data from isp hw to sram %d\n", p_ctx->dma_chn_idx);
             p_ctx->content_side = SIDE_SRAM;
@@ -650,8 +652,8 @@ int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settin
 #if FW_USE_HOBOT_DMA
             isp_idma_start_transfer(&g_hobot_dma);
             system_dma_wait_done(g_fw->dma_chan_isp_config);
-        }
 #endif
+        }
     }
 
     mutex_unlock(&p_ctx->p_gfw->ctx_chg_lock);

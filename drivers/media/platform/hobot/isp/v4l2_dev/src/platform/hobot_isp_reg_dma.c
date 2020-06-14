@@ -178,7 +178,6 @@ static void isp_idma_tasklet(unsigned long data)
 irqreturn_t hobot_dma_interrupt(int irq, void *data)
 {
     hobot_dma_t *hobot_dma = (hobot_dma_t*) data;
-    idma_descriptor_t *desc, *next;
     static uint32_t count = 0;
     unsigned long flags;
 
@@ -198,13 +197,12 @@ irqreturn_t hobot_dma_interrupt(int irq, void *data)
 
 	if (!list_empty(&hobot_dma->active_list))
 		list_splice_tail_init(&hobot_dma->active_list, &hobot_dma->done_list);
-    }
-
-    // dma is not done, clear active_list
-    if (!list_empty(&hobot_dma->active_list)) {
-	    list_for_each_entry_safe(desc, next, &hobot_dma->active_list, node) {
-                list_del(&desc->node);
-	    }
+    } else {
+        // dma is not done, clear active_list
+        pr_err("idma is not done.\n");
+        if (!list_empty(&hobot_dma->active_list)) {
+            list_splice_tail_init(&hobot_dma->active_list, &hobot_dma->free_list);
+        }
     }
 
     hobot_dma->nents_total = 0;
