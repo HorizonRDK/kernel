@@ -47,9 +47,9 @@ void general_fsm_clear( general_fsm_t *p_fsm )
 
 void general_request_interrupt( general_fsm_ptr_t p_fsm, system_fw_interrupt_mask_t mask )
 {
-    acamera_isp_interrupts_disable( ACAMERA_FSM2MGR_PTR( p_fsm ) );
+    // acamera_isp_interrupts_disable( ACAMERA_FSM2MGR_PTR( p_fsm ) );
     p_fsm->mask.irq_mask |= mask;
-    acamera_isp_interrupts_enable( ACAMERA_FSM2MGR_PTR( p_fsm ) );
+    // acamera_isp_interrupts_enable( ACAMERA_FSM2MGR_PTR( p_fsm ) );
 }
 
 void general_fsm_init( void *fsm, fsm_init_param_t *init_param )
@@ -362,6 +362,7 @@ int general_fsm_get_param( void *fsm, uint32_t param_id, void *input, uint32_t i
     return rc;
 }
 
+extern int isp_stream_onoff_check(void);
 extern void dma_writer_config_done(void);
 uint8_t general_fsm_process_event( general_fsm_t *p_fsm, event_id_t event_id )
 {
@@ -373,16 +374,16 @@ uint8_t general_fsm_process_event( general_fsm_t *p_fsm, event_id_t event_id )
         break;
     case event_id_new_frame:
         //need to be almost sync as the new address available from FR or DS
+        acamera_general_interrupt_hanlder( ACAMERA_FSM2CTX_PTR( p_fsm ), ACAMERA_IRQ_FRAME_WRITER_FR ); //enabled for DMA_WRITER_FSM
         acamera_general_interrupt_hanlder( ACAMERA_FSM2CTX_PTR( p_fsm ), ACAMERA_IRQ_FRAME_START );
         acamera_general_interrupt_hanlder( ACAMERA_FSM2CTX_PTR( p_fsm ), ACAMERA_IRQ_FRAME_END );
         acamera_general_interrupt_hanlder( ACAMERA_FSM2CTX_PTR( p_fsm ), ACAMERA_IRQ_ANTIFOG_HIST );
         acamera_general_interrupt_hanlder( ACAMERA_FSM2CTX_PTR( p_fsm ), ACAMERA_IRQ_AF2_STATS );
         acamera_general_interrupt_hanlder( ACAMERA_FSM2CTX_PTR( p_fsm ), ACAMERA_IRQ_AWB_STATS );
         acamera_general_interrupt_hanlder( ACAMERA_FSM2CTX_PTR( p_fsm ), ACAMERA_IRQ_AE_STATS );
-        acamera_general_interrupt_hanlder( ACAMERA_FSM2CTX_PTR( p_fsm ), ACAMERA_IRQ_FRAME_WRITER_FR ); //enabled for DMA_WRITER_FSM
 
-        if (p_fsm->p_fsm_mgr->p_ctx->sif_isp_offline) {
-            p_fsm->p_fsm_mgr->p_ctx->p_gfw->handler_flag_interrupt_handle_completed = 1;
+        if (ACAMERA_FSM2CTX_PTR( p_fsm )->sif_isp_offline && isp_stream_onoff_check() == 2) {
+            ACAMERA_FSM2CTX_PTR( p_fsm )->p_gfw->handler_flag_interrupt_handle_completed = 1;
             dma_writer_config_done();
         }
 

@@ -33,8 +33,8 @@ static void acamera_event_queue_reset( acamera_loop_buf_ptr_t p_buf )
 void acamera_event_queue_push( acamera_event_queue_ptr_t p_queue, int event )
 {
     int err = 0;
-    acamera_loop_buf_ptr_t p_buf = &( p_queue->buf );
     unsigned long flags;
+    acamera_loop_buf_ptr_t p_buf = &( p_queue->buf );
 
     flags = system_spinlock_lock( p_queue->lock );
 
@@ -107,7 +107,7 @@ int acamera_event_queue_pop( acamera_event_queue_ptr_t p_queue )
 int32_t acamera_event_queue_empty( acamera_event_queue_ptr_t p_queue )
 {
     int32_t result = 0;
-    uint32_t flags = 0;
+    unsigned long flags;
     acamera_loop_buf_ptr_t p_buf = &( p_queue->buf );
     flags = system_spinlock_lock( p_queue->lock );
     if ( p_buf->head == p_buf->tail ) {
@@ -124,8 +124,8 @@ int32_t acamera_event_queue_has_mask_event( acamera_event_queue_ptr_t p_queue )
     int filter_cnt = 1;
     int check_pass = 0;
 	int pos, event;
-	unsigned long flags;
 	event_id_t event_id;
+    unsigned long flags;
 	acamera_loop_buf_ptr_t p_buf = &( p_queue->buf );
 
 	flags = system_spinlock_lock( p_queue->lock );
@@ -162,8 +162,8 @@ int32_t acamera_event_queue_view( acamera_event_queue_ptr_t p_queue )
 {
 	int rc = 0;
 	int pos, event;
-	unsigned long flags;
 	event_id_t event_id;
+    unsigned long flags;
 	acamera_loop_buf_ptr_t p_buf = &( p_queue->buf );
 
 	flags = system_spinlock_lock( p_queue->lock );

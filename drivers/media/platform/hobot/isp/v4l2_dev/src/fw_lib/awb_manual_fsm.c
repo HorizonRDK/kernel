@@ -64,9 +64,9 @@ void AWB_fsm_clear( AWB_fsm_t *p_fsm )
 
 void AWB_request_interrupt( AWB_fsm_ptr_t p_fsm, system_fw_interrupt_mask_t mask )
 {
-    acamera_isp_interrupts_disable( ACAMERA_FSM2MGR_PTR( p_fsm ) );
+    // acamera_isp_interrupts_disable( ACAMERA_FSM2MGR_PTR( p_fsm ) );
     p_fsm->mask.irq_mask |= mask;
-    acamera_isp_interrupts_enable( ACAMERA_FSM2MGR_PTR( p_fsm ) );
+    // acamera_isp_interrupts_enable( ACAMERA_FSM2MGR_PTR( p_fsm ) );
 }
 
 

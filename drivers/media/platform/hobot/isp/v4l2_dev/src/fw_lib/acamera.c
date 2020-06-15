@@ -22,6 +22,7 @@
 #include <linux/module.h>
 #include <linux/mutex.h>
 #include <linux/semaphore.h>
+#include <linux/kthread.h>
 #include <linux/crc16.h>
 #include "acamera_fw.h"
 #include "acamera_firmware_api.h"
@@ -162,9 +163,9 @@ int acamera_all_hw_contexts_inited(void)
     return 0;
 }
 
-void acamera_notify_evt_data_avail( void )
+void acamera_notify_evt_data_avail( acamera_context_t *p_ctx )
 {
-    system_semaphore_raise( g_firmware.sem_evt_avail );
+    system_semaphore_raise( p_ctx->sem_evt_avail );
 }
 
 static int32_t validate_settings( acamera_settings *settings, uint32_t ctx_num )
@@ -441,7 +442,6 @@ int32_t acamera_init( acamera_settings *settings, uint32_t ctx_num )
     g_firmware.cache_area = NULL;
 
     mutex_init(&g_firmware.ctx_chg_lock);
-    system_semaphore_init( &g_firmware.sem_evt_avail );
 
     if ( ctx_num <= FIRMWARE_CONTEXT_NUMBER ) {
 
@@ -458,6 +458,8 @@ int32_t acamera_init( acamera_settings *settings, uint32_t ctx_num )
                 system_memset( (void *)p_ctx, 0x0, sizeof( struct _acamera_context_t ) );
                 // each context has unique id
                 p_ctx->context_id = idx;
+
+                system_semaphore_init( &p_ctx->sem_evt_avail );
 
                 // dump hw default configuration to the current context
 
@@ -541,6 +543,8 @@ static void acamera_deinit( void )
 #endif
         p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[idx];
 
+        system_semaphore_destroy( p_ctx->sem_evt_avail );
+
         if ( p_ctx->sw_reg_map.isp_sw_config_map != NULL ) {
 #if FW_USE_HOBOT_DMA
             if (p_ctx->content_side == SIDE_SRAM)
@@ -557,7 +561,6 @@ int32_t acamera_terminate()
 {
     acamera_logger_empty(); //empty the logger buffer and print remaining logs
     acamera_deinit();
-    system_semaphore_destroy( g_firmware.sem_evt_avail );
 
     return 0;
 }
@@ -689,6 +692,12 @@ static void dma_complete_context_func( void *arg )
 			pr_debug("ctx dump frame id %d\n", cn->ctx.frame_id);
 		}
 	}
+         // indicate dma writer is disabled
+        if (p_ctx->sif_isp_offline && p_ctx->fsm_mgr.reserved == 0
+            && isp_stream_onoff_check() != 2) {
+            g_firmware.handler_flag_interrupt_handle_completed = 1;
+            dma_writer_config_done();
+        }
 
         start_processing_frame();
     }
@@ -705,8 +714,16 @@ static void dma_complete_metering_func( void *arg )
     g_firmware.dma_flag_isp_metering_completed = 1;
 
     if ( g_firmware.dma_flag_isp_config_completed && g_firmware.dma_flag_isp_metering_completed ) {
+        acamera_context_t *p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[ctx_id];
 
 	pr_debug("START PROCESSING FROM METERING CALLBACK, ctx_id %d\n", ctx_id);
+
+         // indicate dma writer is disabled
+        if (p_ctx->sif_isp_offline && p_ctx->fsm_mgr.reserved == 0
+            && isp_stream_onoff_check() != 2) {
+            g_firmware.handler_flag_interrupt_handle_completed = 1;
+            dma_writer_config_done();
+        }
 
         start_processing_frame();
     }
@@ -1099,15 +1116,8 @@ int isp_ctx_prepare(acamera_context_ptr_t p_ctx)
             p_ctx->context_id, p_ctx->content_side ? "ddr" : "sram",
             p_ctx->dma_chn_idx, p_ctx->sw_reg_map.isp_sw_config_map);
 
-    ret = mutex_lock_interruptible(&p_ctx->p_gfw->ctx_chg_lock);
-    if (ret != 0) {
-        pr_err("mutex lock failed, rc = %d\n", ret);
-        return ret;
-    }
-
     if (p_ctx->sw_reg_map.isp_sw_config_map == NULL) {
         pr_err("ctx id %d exit.\n", p_ctx->context_id);
-        mutex_unlock(&p_ctx->p_gfw->ctx_chg_lock);
         return -1;
     }
 
@@ -1169,8 +1179,6 @@ int isp_ctx_prepare(acamera_context_ptr_t p_ctx)
     pr_debug("swaped paddr %p, cache %p\n",
             p_ctx_be_out->sw_reg_map.isp_sw_config_map, p_ctx->p_gfw->cache_area);
 
-    mutex_unlock(&p_ctx->p_gfw->ctx_chg_lock);
-
     return ret;
 }
 
@@ -1183,6 +1191,14 @@ int sif_isp_ctx_sync_func(int ctx_id)
     int ret = 0;
 	acamera_context_ptr_t p_ctx;
     acamera_fsm_mgr_t *instance;
+    // struct timeval tv1, tv2;
+
+    // do_gettimeofday(&tv1);
+    ret = mutex_lock_interruptible(&g_firmware.ctx_chg_lock);
+    if (ret != 0) {
+        pr_err("mutex lock failed, rc = %d\n", ret);
+        return ret;
+    }
 
 	p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[ctx_id];
     instance = &(((acamera_context_ptr_t)acamera_get_ctx_ptr(last_ctx_id))->fsm_mgr);
@@ -1231,7 +1247,7 @@ int sif_isp_ctx_sync_func(int ctx_id)
             ret = isp_ctx_prepare(p_ctx);
             if (ret != 0) {
                 pr_err("outside ctx swap failed.\n");
-                return -1;
+                goto out;
             }
         }
 
@@ -1251,8 +1267,14 @@ int sif_isp_ctx_sync_func(int ctx_id)
 			isp_ctx_transfer(last_chn_id, cur_chn_id, ISP_CONFIG_PONG);
 		}
 	} else {
-        pr_info("previous frame events are not process done\n");
-        return -1;
+        system_semaphore_raise( p_ctx->sem_evt_avail );
+        pr_err("[s%d] previous frame events are not process done\n", ctx_id);
+        // pr_info("sem cnt %d, ev_q head %d tail %d\n",
+        //     ((struct semaphore *)p_ctx->sem_evt_avail)->count,
+        //     p_ctx->fsm_mgr.event_queue.buf.head,
+        //     p_ctx->fsm_mgr.event_queue.buf.tail);
+        // acamera_event_queue_view(&p_ctx->fsm_mgr.event_queue);
+        goto out;
 	}
 
 	if (!(g_firmware.dma_flag_isp_config_completed &&
@@ -1263,6 +1285,12 @@ int sif_isp_ctx_sync_func(int ctx_id)
 		pr_debug("ISP->SIF: wake up sif feed thread\n");
 	} else
 		pr_debug("ISP->SIF: do not need waiting, return to sif feed thread\n");
+
+out:
+    mutex_unlock(&g_firmware.ctx_chg_lock);
+
+    // do_gettimeofday(&tv2);
+    // pr_debug("cost %ld.%06ld\n", tv2.tv_sec - tv1.tv_sec, tv2.tv_usec - tv1.tv_usec);
 
 	return 0;
 }
@@ -1301,10 +1329,10 @@ pr_info("hcs1 %d, hcs2 %d, vc %d\n", hcs1, hcs2, vc);
 
     // Update frame counter
     p_ctx->isp_frame_counter = ips_get_isp_frameid();
-    pr_debug("IRQ MASK is 0x%x, ctx_id %d, frame id %d\n", irq_mask, cur_ctx_id, p_ctx->isp_frame_counter);
+    pr_debug("[s%d] IRQ MASK is 0x%x, frame id %d\n", cur_ctx_id, irq_mask, p_ctx->isp_frame_counter);
 
     if(irq_mask&0x8) {
-        pr_err("broken frame status = 0x%x", acamera_isp_isp_global_monitor_broken_frame_status_read(0));
+        pr_err("[s%d] broken frame status = 0x%x", cur_ctx_id, acamera_isp_isp_global_monitor_broken_frame_status_read(0));
         // printk("active width min/max/sum/num = %d/%d/%d/%d", system_hw_read_32(0xb4),system_hw_read_32(0xb8),system_hw_read_32(0xbc),system_hw_read_32(0xc0));
         // printk("active high min/max/sum/num = %d/%d/%d/%d", system_hw_read_32(0xc4),system_hw_read_32(0xc8),system_hw_read_32(0xcc),system_hw_read_32(0xd0));
         // printk("hblank min/max/sum/num = %d/%d/%d/%d", system_hw_read_32(0xd4),system_hw_read_32(0xd8),system_hw_read_32(0xdc),system_hw_read_32(0xe0));
@@ -1394,7 +1422,7 @@ pr_info("hcs1 %d, hcs2 %d, vc %d\n", hcs1, hcs2, vc);
                         }
                     } else {
                         pr_debug("sem cnt %d, ev_q head %d tail %d\n",
-                            ((struct semaphore *)g_firmware.sem_evt_avail)->count,
+                            ((struct semaphore *)p_ctx->sem_evt_avail)->count,
                             p_ctx->fsm_mgr.event_queue.buf.head,
                             p_ctx->fsm_mgr.event_queue.buf.tail);
                         pr_err("prevous frame is not processing done, skip this frame\n");
@@ -1433,31 +1461,24 @@ pr_info("hcs1 %d, hcs2 %d, vc %d\n", hcs1, hcs2, vc);
 
 #endif // USER_MODULE
 
-int32_t acamera_process( void )
+int isp_fw_process( void *data )
 {
-    int32_t result = 0;
-    int32_t idx = 0;
+    uint8_t ctx_id = *((uint8_t *)data);
     acamera_context_ptr_t p_ctx = NULL;
 
-    if ( g_firmware.initialized == 1 ) {
-        for ( idx = 0; idx < g_firmware.context_number; idx++ ) {
-            p_ctx = ( acamera_context_ptr_t ) & ( g_firmware.fw_ctx[idx] );
-            acamera_fw_process( p_ctx );
-        }
-    } else {
-        result = -1;
+    pr_debug( "isp_fw_process start" );
+
+    if (ctx_id >= FIRMWARE_CONTEXT_NUMBER) {
+        return -1;
     }
 
-#if FW_HAS_CONTROL_CHANNEL
-    ctrl_channel_process();
-#endif
+    p_ctx = ( acamera_context_ptr_t ) & ( g_firmware.fw_ctx[ctx_id] );
 
-    /* disable irq when no stream on, else will blocking when resuming from suspend */
-    if (isp_stream_onoff_check() == 0)
-        system_interrupts_disable();
+    while ( !kthread_should_stop() ) {
+        acamera_fw_process( p_ctx );
+        system_semaphore_wait( p_ctx->sem_evt_avail, 1 );
+    }
 
-    // system_semaphore_wait( g_firmware.sem_evt_avail, FW_EVT_QUEUE_TIMEOUT_MS );
-    system_semaphore_wait( g_firmware.sem_evt_avail, 0 );
-
-    return result;
+    pr_debug( "isp_fw_process stop" );
+    return 0;
 }

@@ -58,6 +58,8 @@ unsigned long system_spinlock_lock( sys_spinlock lock );
  */
 void system_spinlock_unlock( sys_spinlock lock, unsigned long flags );
 
+void system_spinlock_lock_bh( sys_spinlock lock );
+void system_spinlock_unlock_bh( sys_spinlock lock );
 
 /**
  *   Destroy spinlock

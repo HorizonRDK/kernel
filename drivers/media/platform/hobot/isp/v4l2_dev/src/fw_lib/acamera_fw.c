@@ -18,6 +18,9 @@
 */
 
 #define pr_fmt(fmt) "[isp_drv]: %s: " fmt, __func__
+#include <linux/kthread.h>
+#include <linux/sched.h>
+#include <uapi/linux/sched/types.h>
 
 #include "acamera_fw.h"
 #if ACAMERA_ISP_PROFILING
@@ -56,7 +59,7 @@
 
 static const acam_reg_t **p_isp_data = SENSOR_ISP_SEQUENCE_DEFAULT;
 
-extern void acamera_notify_evt_data_avail( void );
+extern void acamera_notify_evt_data_avail( acamera_context_t *p_ctx );
 extern void acamera_update_cur_settings_to_isp( uint32_t fw_ctx_id );
 extern void *acamera_get_ctx_ptr(uint32_t ctx_id);
 static void init_stab( acamera_context_ptr_t p_ctx );
@@ -107,7 +110,6 @@ void acamera_fw_init( acamera_context_t *p_ctx )
     acamera_fsm_mgr_init( &p_ctx->fsm_mgr );
 
     p_ctx->irq_flag = 0;
-    //acamera_fw_interrupts_enable( p_ctx );
     p_ctx->system_state = FW_RUN;
 }
 
@@ -313,7 +315,7 @@ void acamera_fw_raise_event( acamera_context_t *p_ctx, event_id_t event_id )
 #endif
          ) {
         acamera_event_queue_push( &p_ctx->fsm_mgr.event_queue, (int)( event_id ) );
-        acamera_notify_evt_data_avail();
+        acamera_notify_evt_data_avail(p_ctx);
     }
 }
 
@@ -329,7 +331,7 @@ void acamera_fsm_mgr_raise_event( acamera_fsm_mgr_t *p_fsm_mgr, event_id_t event
          ) {
         acamera_event_queue_push( &( p_fsm_mgr->event_queue ), (int)( event_id ) );
 
-        acamera_notify_evt_data_avail();
+        acamera_notify_evt_data_avail(p_fsm_mgr->p_ctx);
     }
 }
 
@@ -584,10 +586,13 @@ int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settin
 
 #else
 extern int acamera_all_hw_contexts_inited(void);
+extern int isp_fw_process( void *data );
 int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settings, acamera_firmware_t *g_fw )
 {
     int32_t result = 0;
+    char name[16] = {0};
     static acamera_context_ptr_t p_ctx_tmp = NULL;
+    struct sched_param param = { .sched_priority = MAX_RT_PRIO - 1 };
     // keep the context pointer for debug purposes
     p_ctx->context_ref = (uint32_t *)p_ctx;
     p_ctx->p_gfw = g_fw;
@@ -688,6 +693,11 @@ int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settin
         }
         init_stab( p_ctx );
 
+        sprintf(name, "isp_evt%d", p_ctx->context_id);
+        p_ctx->evt_thread = kthread_run( isp_fw_process, (void *)&p_ctx->context_id, name );
+        sched_setscheduler_nocheck(p_ctx->evt_thread, SCHED_FIFO, &param);
+        // set_cpus_allowed_ptr(p_ctx->evt_thread, cpumask_of(p_ctx->context_id % 4));
+
 #if FW_HAS_CUSTOM_SETTINGS
         // the custom initialization may be required for a context
         const acam_reg_t *p_custom_settings_context = (const acam_reg_t *)_GET_UINT_PTR( p_ctx, CALIBRATION_CUSTOM_SETTINGS_CONTEXT );
@@ -704,7 +714,6 @@ int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settin
         //acamera_isp_input_port_mode_request_write( p_ctx->settings.isp_base, ACAMERA_ISP_INPUT_PORT_MODE_REQUEST_SAFE_START );
 
         p_ctx->initialized = 1;
-        p_ctx->system_state = FW_RUN;
         pr_info("ctx_id %d -\n", p_ctx->context_id);
     } else {
         result = -1;
@@ -741,9 +750,10 @@ void acamera_deinit_context( acamera_context_t *p_ctx )
         p_ctx->dma_chn_idx = -1;
     }
 
-    mutex_unlock(&p_ctx->p_gfw->ctx_chg_lock);
+    kthread_stop(p_ctx->evt_thread);
 
     acamera_fw_deinit( p_ctx );
+    mutex_unlock(&p_ctx->p_gfw->ctx_chg_lock);
 }
 
 void acamera_general_interrupt_hanlder( acamera_context_ptr_t p_ctx, uint8_t event )

@@ -41,9 +41,9 @@ void noise_reduction_fsm_clear( noise_reduction_fsm_t *p_fsm )
 
 void noise_reduction_request_interrupt( noise_reduction_fsm_ptr_t p_fsm, system_fw_interrupt_mask_t mask )
 {
-    acamera_isp_interrupts_disable( ACAMERA_FSM2MGR_PTR( p_fsm ) );
+    // acamera_isp_interrupts_disable( ACAMERA_FSM2MGR_PTR( p_fsm ) );
     p_fsm->mask.irq_mask |= mask;
-    acamera_isp_interrupts_enable( ACAMERA_FSM2MGR_PTR( p_fsm ) );
+    // acamera_isp_interrupts_enable( ACAMERA_FSM2MGR_PTR( p_fsm ) );
 }
 
 void noise_reduction_fsm_init( void *fsm, fsm_init_param_t *init_param )

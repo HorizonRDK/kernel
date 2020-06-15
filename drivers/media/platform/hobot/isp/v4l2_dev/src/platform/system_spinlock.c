@@ -51,6 +51,20 @@ void system_spinlock_unlock( sys_spinlock lock, unsigned long flags )
     spin_unlock_irqrestore( slock, flags );
 }
 
+void system_spinlock_lock_bh( sys_spinlock lock )
+{
+    spinlock_t *slock = (spinlock_t *)lock;
+
+    spin_lock_bh( slock );
+}
+
+void system_spinlock_unlock_bh( sys_spinlock lock )
+{
+    spinlock_t *slock = (spinlock_t *)lock;
+
+    spin_unlock_bh( slock );
+}
+
 void system_spinlock_destroy( sys_spinlock lock )
 {
     spinlock_t *slock = (spinlock_t *)lock;

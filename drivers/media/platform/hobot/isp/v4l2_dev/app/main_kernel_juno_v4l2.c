@@ -381,13 +381,9 @@ static int __init fw_module_init( void )
     return rc;
 }
 
-extern void acamera_notify_evt_data_avail(void);
 static void __exit fw_module_exit( void )
 {
     pr_debug("ISP main dev exit.\n");
-
-    // wake up isp_process thread
-    acamera_notify_evt_data_avail();
 
     if ( initialized == 1 ) {
         isp_v4l2_destroy_instance();

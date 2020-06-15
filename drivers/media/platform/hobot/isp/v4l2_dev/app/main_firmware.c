@@ -19,13 +19,13 @@
 
 #include <linux/module.h>
 #include <linux/kernel.h>
-#include <linux/init.h>
 #include <linux/kthread.h>
 #include <linux/sched.h>
+#include <uapi/linux/sched/types.h>
+#include <linux/init.h>
+
 #include <linux/err.h>
 #include <linux/errno.h>
-#include <uapi/linux/sched/types.h>
-
 #include "acamera.h"
 #include "acamera_firmware_api.h"
 #include "acamera_firmware_config.h"
@@ -49,9 +49,6 @@
 // saved in the header file. They are given as a reference and should be changed
 // according to the customer needs.
 #include "runtime_initialization_settings.h"
-
-
-static struct task_struct *isp_fw_process_thread = NULL;
 
 #if !V4L2_INTERFACE_BUILD //all these callbacks are managed by v4l2
 
@@ -93,34 +90,6 @@ static int connection_thread( void *foo )
 }
 #endif
 
-static int isp_fw_process( void *data )
-{
-//		struct sched_param param = {.sched_priority = MAX_RT_PRIO-10};    // MAX_RT_PRIO - 1
-//		sched_setscheduler(current, SCHED_FIFO, &param);
-
-    LOG( LOG_INFO, "isp_fw_process start" );
-
-#if ISP_HAS_STREAM_CONNECTION && !CONNECTION_IN_THREAD
-    acamera_connection_init();
-#endif
-
-    while ( !kthread_should_stop() ) {
-        acamera_process();
-
-#if ISP_HAS_STREAM_CONNECTION && !CONNECTION_IN_THREAD
-        acamera_connection_process();
-#endif
-    }
-
-#if ISP_HAS_STREAM_CONNECTION && !CONNECTION_IN_THREAD
-    acamera_connection_destroy();
-#endif
-
-    LOG( LOG_INFO, "isp_fw_process stop" );
-    return 0;
-}
-
-
 // this is a main application IRQ handler to drive firmware
 // The main purpose is to redirect irq events to the
 // appropriate firmware context.
@@ -138,7 +107,6 @@ int isp_fw_init( uint32_t hw_isp_addr )
 {
     int result = 0;
     uint32_t i;
-    struct sched_param param = { .sched_priority = MAX_RT_PRIO - 1 };
 
     LOG( LOG_INFO, "fw_init start" );
 
@@ -192,13 +160,9 @@ int isp_fw_init( uint32_t hw_isp_addr )
 #endif
 
         LOG( LOG_INFO, "start fw thread %d", result );
-        isp_fw_process_thread = kthread_run( isp_fw_process, NULL, "isp_process" );
-        result = sched_setscheduler_nocheck(isp_fw_process_thread, SCHED_FIFO, &param);
-        if (result)
-                pr_err("sched_setscheduler_nocheck is fail(%d)", result);
     }
 
-    return PTR_RET( isp_fw_process_thread );
+    return 0;
 }
 
 void isp_fw_exit( void )
@@ -207,10 +171,6 @@ void isp_fw_exit( void )
     if ( isp_fw_connections_thread )
         kthread_stop( isp_fw_connections_thread );
 #endif
-
-    if ( isp_fw_process_thread ) {
-        kthread_stop( isp_fw_process_thread );
-    }
 
     // this api function will free
     // all resources allocated by the firmware

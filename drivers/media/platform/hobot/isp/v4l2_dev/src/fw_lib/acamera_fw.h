@@ -169,6 +169,9 @@ struct _acamera_context_t {
     uint8_t content_side;
     int dma_chn_idx;
 
+    semaphore_t sem_evt_avail;
+    struct task_struct *evt_thread;
+
     acamera_isp_sw_regs_map sw_reg_map;
 };
 
@@ -210,8 +213,6 @@ struct _acamera_firmware_t {
     //byte1:giver ctx id
     //byte0:accepter ctx id
     int iridix_ctrl_flag;
-
-    semaphore_t sem_evt_avail;
 };
 
 void acamera_load_isp_sequence( uintptr_t isp_base, const acam_reg_t **sequence, uint8_t num );

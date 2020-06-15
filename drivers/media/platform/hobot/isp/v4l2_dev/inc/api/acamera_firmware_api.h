@@ -65,7 +65,7 @@ int32_t acamera_terminate( void );
  *   @return 0 - success
  *          -1 - fail.
  */
-int32_t acamera_process( void );
+int32_t acamera_process( uint8_t ctx_id );
 
 
 /**

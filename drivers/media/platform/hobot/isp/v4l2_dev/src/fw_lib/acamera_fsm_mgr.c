@@ -166,9 +166,7 @@ void acamera_fsm_mgr_process_events(acamera_fsm_mgr_t *p_fsm_mgr,int n_max_event
     int n_event=0;
     for(;;)
     {
-        acamera_isp_interrupts_disable(p_fsm_mgr);
         int event=acamera_event_queue_pop(&(p_fsm_mgr->event_queue));
-        acamera_isp_interrupts_enable(p_fsm_mgr);
         if(event<0)
         {
             break;
