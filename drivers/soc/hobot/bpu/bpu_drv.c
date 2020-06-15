@@ -23,7 +23,7 @@ static void bpu_fc_clear(struct bpu_fc *fc)
 {
 	if (fc != NULL) {
 		if (fc->fc_data != NULL) {
-			kfree((void *)fc->fc_data);/*PRQA S ALL*/
+			vfree((void *)fc->fc_data);/*PRQA S ALL*/
 			fc->fc_data = NULL;
 			fc->info.length = 0;
 		}
@@ -157,7 +157,7 @@ static int32_t bpu_fc_create_from_user(struct bpu_fc *fc,
 	}
 
 	if ((data != NULL) && (user_fc->length > 0u)) {
-		fc->fc_data = kmalloc(user_fc->length, GFP_KERNEL);/*PRQA S ALL*/
+		fc->fc_data = vmalloc(user_fc->length);/*PRQA S ALL*/
 		if (fc->fc_data == NULL) {
 			pr_err("create bpu fc mem failed\n");/*PRQA S ALL*/
 			return -ENOMEM;
@@ -165,7 +165,7 @@ static int32_t bpu_fc_create_from_user(struct bpu_fc *fc,
 
 		if (copy_from_user(fc->fc_data, (void __user *)data,/*PRQA S ALL*/
 					user_fc->length) != 0u) {
-			kfree((void *)fc->fc_data);/*PRQA S ALL*/
+			vfree((void *)fc->fc_data);/*PRQA S ALL*/
 			fc->fc_data = NULL;
 			pr_err("%s: copy fc data failed from userspace\n", __func__);/*PRQA S ALL*/
 			return -EFAULT;
