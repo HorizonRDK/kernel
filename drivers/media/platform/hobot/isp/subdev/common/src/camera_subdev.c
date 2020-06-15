@@ -64,26 +64,26 @@ static long camera_subdev_ioctl(struct v4l2_subdev *sd,
 		ret = camera_sys_priv_set(ARGS_TO_PTR(arg)->port,
 				ARGS_TO_PTR(arg)->sensor_priv);
 		if(ret < 0) {
-		   pr_err("SENSOR_UPDATE error port %d\n", ARGS_TO_PTR(arg)->port);
+		   pr_err("SENSOR_UPDATE error port%d\n", ARGS_TO_PTR(arg)->port);
 		}
 		break;
 	case SENSOR_GET_PARAM:
 		ret = camera_sys_get_param(ARGS_TO_PTR(arg)->port,
 				ARGS_TO_PTR(arg)->sensor_data);
 		if(ret < 0) {
-		   pr_err("camera_sys_get_param error port %d\n", ARGS_TO_PTR(arg)->port);
+		   pr_err("camera_sys_get_param error port%d\n", ARGS_TO_PTR(arg)->port);
 		}
 		break;
 	case SENSOR_STREAM_ON:
 		ret = camera_sys_stream_on(ARGS_TO_PTR(arg)->port);
 		if(ret < 0) {
-		    pr_err("camera_sys_stream_on error port %d\n", ARGS_TO_PTR(arg)->port);
+		    pr_err("camera_sys_stream_on error port%d\n", ARGS_TO_PTR(arg)->port);
 		}
 		break;
 	case SENSOR_STREAM_OFF:
 		ret = camera_sys_stream_off(ARGS_TO_PTR(arg)->port);
 		if(ret < 0) {
-		    pr_err("camera_sys_stream_off error port %d\n", ARGS_TO_PTR(arg)->port);
+		    pr_err("camera_sys_stream_off error port%d\n", ARGS_TO_PTR(arg)->port);
 		}
 		break;
 	case SENSOR_WRITE:
@@ -91,7 +91,7 @@ static long camera_subdev_ioctl(struct v4l2_subdev *sd,
                         ARGS_TO_PTR(arg)->address,
                         ARGS_TO_PTR(arg)->w_data);
 		if(ret < 0) {
-		    pr_err("camera_sys_sensor_write error port %d\n", ARGS_TO_PTR(arg)->port);
+		    pr_err("camera_sys_sensor_write error port%d\n", ARGS_TO_PTR(arg)->port);
 		}
 		break;
 	case SENSOR_READ:
@@ -99,19 +99,19 @@ static long camera_subdev_ioctl(struct v4l2_subdev *sd,
                         ARGS_TO_PTR(arg)->address,
                         ARGS_TO_PTR(arg)->r_data);
 		if(ret < 0) {
-		    pr_err("camera_sys_sensor_read error port %d\n", ARGS_TO_PTR(arg)->port);
+		    pr_err("camera_sys_sensor_read error port%d\n", ARGS_TO_PTR(arg)->port);
 		}
 		break;
 	case SENSOR_ALLOC_ANALOG_GAIN:
 		ret = camera_sys_alloc_again(ARGS_TO_PTR(arg)->port, ARGS_TO_PTR(arg)->a_gain);
 		if(ret < 0) {
-		    pr_err("camera_sys_alloc_again error port %d\n", ARGS_TO_PTR(arg)->port);
+		    pr_err("camera_sys_alloc_again error port%d\n", ARGS_TO_PTR(arg)->port);
 		}
 		break;
 	case SENSOR_ALLOC_DIGITAL_GAIN:
 		ret = camera_sys_alloc_dgain(ARGS_TO_PTR(arg)->port, ARGS_TO_PTR(arg)->d_gain);
 		if(ret < 0) {
-		    pr_err("camera_sys_alloc_dgain error port %d\n", ARGS_TO_PTR(arg)->port);
+		    pr_err("camera_sys_alloc_dgain error port%d\n", ARGS_TO_PTR(arg)->port);
 		}
 		break;
 	case SENSOR_ALLOC_INTEGRATION_TIME:
@@ -119,7 +119,7 @@ static long camera_subdev_ioctl(struct v4l2_subdev *sd,
 		//		ARGS_TO_PTR(arg)->integration_time);
 		break;
 	default:
-		pr_err("Unknown lens ioctl cmd %d", cmd);
+		pr_err("Unknown camera_subdev_ioctl cmd", cmd);
 		ret = -1;
 		break;
 	}
@@ -165,7 +165,6 @@ static int32_t camera_subdev_probe(struct platform_device *pdev)
 {
 	int32_t ret = 0;
 
-	pr_info("v4l2_subdev_init\n");
 	camera_ctx = kzalloc(sizeof(camera_subdev_ctx), GFP_KERNEL);
 	if (camera_ctx == NULL) {
 		pr_err("kzalloc is failed!");
@@ -180,7 +179,7 @@ static int32_t camera_subdev_probe(struct platform_device *pdev)
 	camera_ctx->camera.dev = &pdev->dev;
 	ret = v4l2_async_register_subdev(&camera_ctx->camera);
 
-	pr_info("register v4l2 lens device. result %d", ret);
+	pr_info("register v4l2 lens device. result%d", ret);
 	return ret;
 }
 
@@ -206,18 +205,13 @@ int __init camera_subdev_driver_init(void)
 {
 	int ret = 0;
 
-	pr_info("[KeyMsg] camera subdevice init");
-
 	camera_subdev = platform_device_register_simple(
 		"camera_v4l2", -1, NULL, 0);
 	ret = platform_driver_register(&camera_subdev_driver);
 	if(ret < 0) {
 		goto init_err;
 	}
-	pr_info("%s --%d, platform_driver_register\n",
-		__func__, __LINE__);
 	camera_cdev_init();
-	pr_info("[KeyMsg] camera subdevice init done: %d", ret);
 	return ret;
 init_err:
 
@@ -228,8 +222,6 @@ init_err:
 
 void __exit camera_subdev_driver_exit(void)
 {
-	pr_info("[KeyMsg] camera subdevice exit");
-
 	camera_cdev_exit();
 	platform_driver_unregister(&camera_subdev_driver);
 	platform_device_unregister(camera_subdev);

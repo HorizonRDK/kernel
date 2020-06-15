@@ -42,7 +42,7 @@ static int camera_fop_open(struct inode *pinode, struct file *pfile)
 	camera_charmod_s *camera_cdev = NULL;
 	int minor = iminor(pinode);
 
-	pr_info("---[%s-%d]---\n", __func__, __LINE__);
+	pr_info("camera_fop_open begin %d \n", __LINE__);
 	for (tmp = 0; tmp < CAMERA_TOTAL_NUMBER; tmp++) {
 		if(camera_mod[tmp] &&
 				camera_mod[tmp]->dev_minor_id == minor ) {
@@ -63,7 +63,7 @@ static int camera_fop_open(struct inode *pinode, struct file *pfile)
 	camera_cdev->user_num++;
 	spin_unlock(&camera_cdev->slock);
 	pfile->private_data = camera_cdev;
-	pr_info("open is success !\n");
+	pr_info("camera_fop_open success %d\n", __LINE__);
 	return 0;
 }
 
@@ -79,9 +79,7 @@ static int camera_fop_release(struct inode *pinode, struct file *pfile)
 	}
 	spin_unlock(&camera_cdev->slock);
 	pfile->private_data = NULL;
-
-	pr_info("---[%s-%d]--- close is success!\n",
-		__func__, __LINE__);
+	pr_info("camera_fop_release success %d\n", __LINE__);
 	return 0;
 }
 static long camera_fop_ioctl(struct file *pfile, unsigned int cmd,
@@ -134,35 +132,33 @@ static long camera_fop_ioctl(struct file *pfile, unsigned int cmd,
 			if (copy_to_user((void __user *)arg,
 				(void *)&camera_cdev->user_num,
 				sizeof(uint32_t))) {
-				pr_err("copy is error!\n");
+				pr_err("ioctl copy to user is error! %d\n", __LINE__);
 				return -EINVAL;
 			}
 			break;
 		case SENSOR_SET_START_CNT:
 			if (copy_from_user((void *)&camera_cdev->start_num,
 				(void __user *)arg, sizeof(int))) {
-				pr_err("set user start count err !\n");
+				pr_err("ioctl set user start count err !\n");
 				spin_unlock(&camera_cdev->slock);
 				return -EINVAL;
 			}
 			if (camera_cdev->start_num == 1)
-				pr_info("---[%s-%d] start ---\n", __func__,
-					__LINE__);
+				pr_info("ioctl sensor start %d\n", __LINE__);
 			if (camera_cdev->start_num == 0)
-				pr_info("---[%s-%d] stop ---\n", __func__,
-					__LINE__);
+				pr_info("ioctl sensor stop %d\n", __LINE__);
 			break;
 		case SENSOR_GET_START_CNT:
 			if (copy_to_user((void __user *)arg,
 				(void *)&camera_cdev->start_num,
 				sizeof(int))) {
-				pr_err("get user start count err !\n");
+				pr_err("ioctl get user start count err !\n");
 				return -EINVAL;
 			}
 			break;
 		case SENSOR_USER_LOCK:
 			if (mutex_lock_interruptible(&camera_cdev->user_mutex)) {
-				pr_err("user lock err !\n");
+				pr_err("ioctl sensor user lock error!\n");
 				return -EINVAL;
 			}
 			break;
@@ -172,13 +168,13 @@ static long camera_fop_ioctl(struct file *pfile, unsigned int cmd,
 		case SENSOR_AE_SHARE:
 			if (copy_from_user((void *)&camera_cdev->ae_share_flag,
 				(void __user *)arg, sizeof(uint32_t))) {
-				pr_err("ae share flag set err !\n");
+				pr_err("ioctl ae share flag set err !\n");
 				return -EINVAL;
 			}
 			pr_err("ae_share %d \n", camera_cdev->ae_share_flag);
 			break;
 		default: {
-			pr_err("---cmd is err---\n");
+			pr_err("ioctl cmd is err \n");
 			ret = -1;
 		}
 			break;
@@ -199,11 +195,9 @@ int __init camera_dev_init(uint32_t port)
 {
 	int ret = 0;
 
-	pr_info("---[%s-%d]---\n", __func__, __LINE__);
 	if (port > CAMERA_TOTAL_NUMBER) {
 		return -ENXIO;
 	}
-
 	camera_mod[port] = kzalloc(sizeof(camera_charmod_s), GFP_KERNEL);
 	if (camera_mod[port] == NULL) {
 		pr_err("%s --%d kzalloc !\n", __func__, __LINE__);
@@ -233,12 +227,12 @@ register_err:
 
 void __exit camera_dev_exit(int port)
 {
-	pr_info("---[%s-%d]---\n", __func__, __LINE__);
 	if ((port < CAMERA_TOTAL_NUMBER) && (camera_mod[port] != NULL)) {
 		misc_deregister(&camera_mod[port]->camera_chardev);
 		kzfree(camera_mod[port]);
 		camera_mod[port] = NULL;
 	}
+	pr_info("camera_dev_exit success %d\n", __LINE__);
 }
 
 void camera_cdev_exit(void)
