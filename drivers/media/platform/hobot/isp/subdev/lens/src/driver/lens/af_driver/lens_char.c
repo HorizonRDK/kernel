@@ -102,6 +102,7 @@ static long lens_fop_ioctl(struct file *pfile, unsigned int cmd,
 	//struct lens_charmod_s *lens_cdev = pfile->private_data;
 
 	struct chardev_port_param lens_param;
+	struct motor_i2c_param i2c_param;
 	struct motor_pos_set pos_param;
 	uint32_t port = 0;
 
@@ -195,11 +196,12 @@ static long lens_fop_ioctl(struct file *pfile, unsigned int cmd,
 			LOG(LOG_ERR, "arg is null !\n");
 			return -1;
 		}
-		if (copy_from_user((void *)&lens_param, (void __user *)arg,
+		if (copy_from_user((void *)&i2c_param, (void __user *)arg,
 			sizeof(struct motor_i2c_param))) {
 			LOG(LOG_ERR, "copy is err !\n");
 			return -EINVAL;
 		}
+		ret = set_i2c_param(i2c_param.port, &i2c_param);
 	}
 	break;
 	case LENS_SET_AF_POS: {
@@ -229,7 +231,7 @@ static long lens_fop_ioctl(struct file *pfile, unsigned int cmd,
 	}
 	break;
 	default: {
-		LOG(LOG_ERR, "---cmd is err---\n");
+		LOG(LOG_ERR, "---cmd %d is err---\n", cmd);
 		ret = -1;
 	}
 	break;

@@ -43,5 +43,6 @@ int set_af_pos(uint16_t port, uint32_t pos);
 int set_zoom_pos(uint16_t port, uint32_t pos);
 int free_af_param(uint16_t port);
 int free_zoom_param(uint16_t port);
+int set_i2c_param(uint16_t port, struct motor_i2c_param *ctx);
 
 #endif /* __X3_LENS_DRIVER_H__ */

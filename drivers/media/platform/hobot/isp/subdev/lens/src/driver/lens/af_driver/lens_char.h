@@ -35,6 +35,7 @@ struct chardev_port_param {
 		struct {
 			uint16_t i2c_num;
 			uint32_t i2c_addr;
+			char d_name[30];
 		} i2c_param;
 		struct {
 			uint16_t gpio_a1;  // A+
@@ -45,9 +46,18 @@ struct chardev_port_param {
 	};
 };
 
+// af/zoom
+enum motor_type {
+	LENS_NULL = 0,
+	AF_MODE = 1,
+	ZOOM_MODE = 2,
+};
+
 struct motor_i2c_param {
 	uint16_t port;
 	uint16_t control_type;//af, zoom
+	uint16_t reg_width;
+	uint16_t conversion;
 	uint32_t reg_len;
 	uint32_t reg_addr;
 	uint32_t reserved_1;

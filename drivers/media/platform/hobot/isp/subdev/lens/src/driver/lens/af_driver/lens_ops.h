@@ -16,6 +16,7 @@ struct motor_info {
 	uint32_t init_pos;
 	uint32_t min_pos;
 	uint32_t max_pos;
+	void *ctrl_param;
 };
 
 struct motor_control_ops {

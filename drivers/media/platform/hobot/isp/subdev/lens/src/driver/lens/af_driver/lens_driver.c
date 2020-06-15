@@ -67,6 +67,7 @@ struct motro_i2c_param_s {
 	uint16_t i2c_num;
 	uint32_t i2c_addr;
 	void *i2c_dev;
+	struct motor_i2c_param reg_param;
 };
 
 /** spi_dev struct spi_client*/
@@ -330,7 +331,7 @@ static void lens_basic_move(struct motor_param_s *param,
 		LOG(LOG_INFO, "param is null");
 		return;
 	}
-
+	memset(&ctx_p, 0, sizeof(struct motor_info));
 	dev_info = get_driverdev_info(param, pos);
 	if (dev_info != NULL) {
 		param->curr_pos = param->next_pos;
@@ -340,6 +341,9 @@ static void lens_basic_move(struct motor_param_s *param,
 		ctx_p.init_pos = param->init_pos;
 		ctx_p.min_pos = param->min_pos;
 		ctx_p.max_pos = param->max_pos;
+		if (param->motor_type == I2C_TYPE) {
+			ctx_p.ctrl_param = (void *)(&param->i2c_param.reg_param);
+		}
 		ops->move(dev_info, &ctx_p, pos);
 		param->next_pos = pos;
 	}
@@ -384,15 +388,27 @@ static void lens_basic_write_reg(struct motor_param_s *param,
 	struct basic_control_ops *ops, uint32_t addr, uint32_t data)
 {
 	void *dev_info = NULL;
+	struct motor_info ctx_p;
 
 	if ((param == NULL) || (ops == NULL)) {
 		LOG(LOG_INFO, "param is null");
 		return;
 	}
 
+	memset(&ctx_p, 0, sizeof(struct motor_info));
 	dev_info = get_driverdev_info(param, param->next_pos);
 	if (dev_info != NULL) {
-		ops->write_reg(dev_info, NULL, addr, data);
+		param->curr_pos = param->next_pos;
+		ctx_p.max_step = param->max_step;
+		ctx_p.curr_pos = param->curr_pos;
+		ctx_p.next_pos = param->next_pos;
+		ctx_p.init_pos = param->init_pos;
+		ctx_p.min_pos = param->min_pos;
+		ctx_p.max_pos = param->max_pos;
+		if (param->motor_type == I2C_TYPE) {
+			ctx_p.ctrl_param = (void *)(&param->i2c_param.reg_param);
+		}
+		ops->write_reg(dev_info, &ctx_p, addr, data);
 	}
 }
 
@@ -401,15 +417,27 @@ static uint32_t lens_basic_read_reg(struct motor_param_s *param,
 {
 	uint32_t data = 0;
 	void *dev_info = NULL;
+	struct motor_info ctx_p;
 
 	if ((param == NULL) || (ops == NULL)) {
 		LOG(LOG_INFO, "param is null");
 		return 0;
 	}
 
+	memset(&ctx_p, 0, sizeof(struct motor_info));
 	dev_info = get_driverdev_info(param, param->next_pos);
 	if (dev_info != NULL) {
-		data = ops->read_reg(dev_info, NULL, addr);
+		param->curr_pos = param->next_pos;
+		ctx_p.max_step = param->max_step;
+		ctx_p.curr_pos = param->curr_pos;
+		ctx_p.next_pos = param->next_pos;
+		ctx_p.init_pos = param->init_pos;
+		ctx_p.min_pos = param->min_pos;
+		ctx_p.max_pos = param->max_pos;
+		if (param->motor_type == I2C_TYPE) {
+			ctx_p.ctrl_param = (void *)(&param->i2c_param.reg_param);
+		}
+		data = ops->read_reg(dev_info, &ctx_p, addr);
 	}
 	return data;
 }
@@ -636,6 +664,36 @@ int set_af_param(uint16_t port, struct chardev_port_param *ctx)
 
 	return ret;
 }
+
+int set_i2c_param(uint16_t port, struct motor_i2c_param *ctx)
+{
+	int ret = 0;
+
+	if ((port >= FIRMWARE_CONTEXT_NUMBER) || (ctx == NULL)) {
+		LOG(LOG_ERR, "Invalid param: port: %d.", port);
+		return -1;
+	}
+
+	if (ctx->control_type == AF_MODE) {
+		memcpy(&motor_ctx[port].af_param.i2c_param.reg_param,
+			ctx, sizeof(struct motor_i2c_param));
+	} else if (ctx->control_type == ZOOM_MODE) {
+		memcpy(&motor_ctx[port].zoom_param.i2c_param.reg_param,
+			ctx, sizeof(struct motor_i2c_param));
+	}
+
+	LOG(LOG_DEBUG, "i2c param port: %d.", ctx->port);
+	LOG(LOG_DEBUG, "i2c param type: %d.", ctx->control_type);
+	LOG(LOG_DEBUG, "i2c param reg_width: %d.", ctx->reg_width);
+	LOG(LOG_DEBUG, "i2c param conversion: %d.", ctx->conversion);
+	LOG(LOG_DEBUG, "i2c param reg_len: %d.", ctx->reg_len);
+	LOG(LOG_DEBUG, "i2c param reg_addr: 0x%x.", ctx->reg_addr);
+	LOG(LOG_DEBUG, "i2c param reserved1: %d.", ctx->reserved_1);
+	LOG(LOG_DEBUG, "i2c param reserved2: %d.", ctx->reserved_2);
+
+	return ret;
+}
+
 
 int free_af_param(uint16_t port)
 {

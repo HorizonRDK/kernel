@@ -81,13 +81,17 @@ static uint8_t vcm_null_drv_is_moving( void *ctx )
 
 static void vcm_null_write_register( void *ctx, uint32_t address, uint32_t data )
 {
-	//lens_context_t *p_ctx = (lens_context_t *)ctx;
+	lens_context_t *p_ctx = (lens_context_t *)ctx;
+	lens_api_af_write_reg(p_ctx->port, address, data);
 }
 
 static uint32_t vcm_null_read_register( void *ctx, uint32_t address )
 {
-	//lens_context_t *p_ctx = (lens_context_t *)ctx;
-	return 0;
+	uint32_t data = 0;
+
+	lens_context_t *p_ctx = (lens_context_t *)ctx;
+	lens_api_af_read_reg(p_ctx->port, address, &data);
+	return data;
 }
 
 static const lens_param_t *lens_get_parameters( void *ctx )
