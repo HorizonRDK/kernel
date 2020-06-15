@@ -1008,6 +1008,8 @@
 			pinctrl-names = "default","reset";
 			pinctrl-0 = <&bifspi_func>;
 			pinctrl-1 = <&bifspi_func_reset>;
+			clocks = <&sys_bifspi_aclk>;
+			clock-names = "sys_bifspi_aclk";
 			ap_access_first = <0x0>;
 			ap_access_last = <0xfffffffc>;
 		};
@@ -1023,6 +1025,8 @@
 			reset-names = "bifsd";
 			pinctrl-names = "default";
 			pinctrl-0 = <&bifsd_func>;
+			clocks = <&sys_bifsd_aclk>;
+			clock-names = "sys_bifsd_aclk";
 		};
 
 		sdio0: dwmmc@A5010000 {

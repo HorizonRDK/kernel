@@ -64,6 +64,32 @@ static void bifsd_reset(struct bif_sd *sd)
 	reset_control_deassert(sd->rst);
 }
 
+static int bifsd_clk_on(const struct bif_sd *bif_info)
+{
+	int ret = 0;
+
+	if (bif_info == NULL)
+		return ret;
+
+	if (bif_info->aclk != NULL && !__clk_is_enabled(bif_info->aclk))
+		ret = clk_prepare_enable(bif_info->aclk);
+
+	return ret;
+}
+
+static int bifsd_clk_off(const struct bif_sd *bif_info)
+{
+	int ret = 0;
+
+	if (bif_info == NULL)
+		return ret;
+
+	if (bif_info->aclk != NULL && __clk_is_enabled(bif_info->aclk))
+		clk_disable_unprepare(bif_info->aclk);
+
+	return ret;
+}
+
 ssize_t bifsd_show(struct kobject *driver,
 	struct kobj_attribute *attr, char *buf)
 {
@@ -1183,6 +1209,14 @@ int bifsd_pltfm_register(struct platform_device *pdev,
 			(uint64_t) sd->paddr, (uint64_t) sd->vaddr);
 	}
 
+	sd->aclk = devm_clk_get(&pdev->dev, "sys_bifspi_aclk");
+	if (IS_ERR(sd->aclk) || (sd->aclk == NULL)) {
+		sd->aclk = NULL;
+		dev_err(&pdev->dev, "get bif_sd aclk failed\n");
+		return 1;
+	}
+	bifsd_clk_on(sd);
+
 	if (!device_property_read_u32(sd->dev, "cd-gpio", &cd_gpio))
 		sd->cd_gpio = cd_gpio;
 	set_bifsd_info(sd);
@@ -1270,6 +1304,8 @@ static int bifsd_remove(struct platform_device *pdev)
 	sd_writel(sd, INT_STATUS_2, 0xFFFFFFFF, 0);
 	sd_writel(sd, INT_ENABLE_1, 0, 0);
 	sd_writel(sd, INT_ENABLE_2, 0, 0);
+
+	bifsd_clk_off(sd);
 
 	devm_kfree(&pdev->dev, sd);
 	del_timer_sync(&bifsd_diag_timer);

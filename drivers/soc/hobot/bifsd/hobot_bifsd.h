@@ -15,6 +15,8 @@
 #include <asm/io.h>
 #include <linux/device.h>
 #include <linux/of.h>
+#include <linux/clk.h>
+#include <linux/clk-provider.h>
 /*****************************************************************************/
 /* Constants                                                                 */
 /*****************************************************************************/
@@ -214,6 +216,7 @@ struct bif_sd {
 	u32 capacity;		/* bifsd capacity */
 	u32 work_mode;		/* acc or bypass */
 	u32 opt_mode;		/* byte or sector*/
+	struct clk *aclk;
 };
 
 struct bifsd_drv_data {

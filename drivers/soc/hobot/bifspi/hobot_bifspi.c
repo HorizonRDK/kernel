@@ -34,6 +34,8 @@
 #include <linux/io.h>
 #include <linux/interrupt.h>
 #include <linux/timer.h>
+#include <linux/clk.h>
+#include <linux/clk-provider.h>
 #include <soc/hobot/diag.h>
 #include <soc/hobot/hobot_bifspi.h>
 
@@ -89,6 +91,7 @@ struct bifspi_t {
 	struct reset_control *bif_rst;
 	struct pinctrl *pinctrl;
 	struct pinctrl_state *pins_bif;
+	struct clk *aclk;
 
 	// ddr limited scope
 	unsigned int first;
@@ -125,6 +128,32 @@ struct bif_acc_space {
 
 static void bif_set_access(struct bifspi_t *pbif, unsigned int first,
 			   unsigned int last);
+
+static int bifspi_clk_on(const struct bifspi_t *bif_info)
+{
+	int ret = 0;
+
+	if (bif_info == NULL)
+		return ret;
+
+	if (bif_info->aclk != NULL && !__clk_is_enabled(bif_info->aclk))
+		ret = clk_prepare_enable(bif_info->aclk);
+
+	return ret;
+}
+
+static int bifspi_clk_off(const struct bifspi_t *bif_info)
+{
+	int ret = 0;
+
+	if (bif_info == NULL)
+		return ret;
+
+	if (bif_info->aclk != NULL && __clk_is_enabled(bif_info->aclk))
+		clk_disable_unprepare(bif_info->aclk);
+
+	return ret;
+}
 
 ssize_t bifspi_show_ap_first(struct kobject *driver,
 			     struct kobj_attribute *attr, char *buf)
@@ -617,6 +646,14 @@ static int bifspi_probe(struct platform_device *pdev)
 		goto bif_iounmap;
 	}
 
+	bif_info->aclk = devm_clk_get(&pdev->dev, "sys_bifspi_aclk");
+	if (IS_ERR(bif_info->aclk) || (bif_info->aclk == NULL)) {
+		bif_info->aclk = NULL;
+		dev_err(&pdev->dev, "Can't get bpu core aclk\n");
+		goto failed_chardev;
+	}
+	bifspi_clk_on(bif_info);
+
 	bif_info->bif_rst = devm_reset_control_get(&pdev->dev, BIF_RST_NAME);
 	if (IS_ERR(bif_info->bif_rst))
 		goto failed_chardev;
@@ -684,6 +721,7 @@ static int bifspi_probe(struct platform_device *pdev)
 	return 0;
 
 failed_chardev:
+	bifspi_clk_off(bif_info);
 	if (bif_info->irq > 0)
 		devm_free_irq(&pdev->dev, bif_info->irq, bif_info);
 bif_iounmap:
@@ -706,6 +744,7 @@ static int bifspi_remove(struct platform_device *pdev)
 		devm_free_irq(&pdev->dev, pbif->irq, pbif);
 	if (pbif->regs_base > 0)
 		devm_iounmap(&pdev->dev, bif_info->regs_base);
+	bifspi_clk_off(pbif);
 
 	kfree(pbif);
 	del_timer_sync(&bifspi_diag_timer);
