@@ -375,7 +375,8 @@ typedef enum _iar_table_e {
 
 struct iar_dev_s *g_iar_dev;
 struct pwm_device *screen_backlight_pwm;
-int display_type = LCD_7_TYPE;
+//int display_type = LCD_7_TYPE;
+int display_type = UNUSED;
 EXPORT_SYMBOL(display_type);
 
 static void iar_regs_store(void)
@@ -3127,7 +3128,6 @@ static int hobot_iar_probe(struct platform_device *pdev)
 		}
 #endif
 	}
-
 	if (display_type == LCD_7_TYPE) {
 		iar_display_cam_no = PIPELINE0;
 		iar_display_addr_type = DISPLAY_CHANNEL1;

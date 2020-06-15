@@ -690,6 +690,7 @@ static ssize_t hobot_iar_store(struct kobject *kobj, struct kobj_attribute *attr
 	} else if (strncmp(tmp, "lcd", 3) == 0) {
 		pr_info("iar output lcd rgb panel config......\n");
 		display_type = LCD_7_TYPE;
+		iar_enable_sif_mclk();
 		iar_start(1);
 		user_set_fb();
 	} else if (strncmp(tmp, "mipi", 4) == 0) {
@@ -700,6 +701,7 @@ static ssize_t hobot_iar_store(struct kobject *kobj, struct kobj_attribute *attr
 	} else if (strncmp(tmp, "dsi1080", 7) == 0) {
 		pr_info("iar output lcd mipi 1080p panel config......\n");
 		display_type = MIPI_1080P;
+		iar_enable_sif_mclk();
 		iar_start(1);
 		user_set_fb();
 		set_mipi_display(0);
@@ -708,6 +710,7 @@ static ssize_t hobot_iar_store(struct kobject *kobj, struct kobj_attribute *attr
 	} else if (strncmp(tmp, "dsi720p", 7) == 0) {
 		pr_info("iar output lcd mipi 720p touch panel config......\n");
 		display_type = MIPI_720P_TOUCH;
+		iar_enable_sif_mclk();
 		iar_start(1);
 		user_set_fb();
 		set_mipi_display(1);

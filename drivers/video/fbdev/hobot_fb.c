@@ -1199,6 +1199,8 @@ int user_set_fb(void)
 		iar_set_bufaddr(IAR_CHANNEL_3, &graphic_display_paddr);
 		iar_set_bufaddr(IAR_CHANNEL_4, &graphic1_display_paddr);
 		iar_update();
+	} else {
+		pr_info("fb: display type is unused!!\n");
 	}
 	return regval;
 
