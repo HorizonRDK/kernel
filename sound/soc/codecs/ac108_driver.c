@@ -1872,6 +1872,7 @@ static const struct of_device_id ac108_dt_ids[] = {
 #if AC108_CHANNELS_MAX > 12
 	{ .compatible = "MicArray_3", },//ac108_3
 #endif
+	{}
 };
 MODULE_DEVICE_TABLE(of, ac108_dt_ids);
 

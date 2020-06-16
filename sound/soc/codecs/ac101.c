@@ -1922,3 +1922,4 @@ module_i2c_driver(ac101_i2c_driver);
 MODULE_DESCRIPTION("ASoC ac10x driver");
 MODULE_AUTHOR("huangxin,liushaohua");
 MODULE_AUTHOR("PeterYang<linsheng.yang@seeed.cc>");
+MODULE_LICENSE("GPL");
