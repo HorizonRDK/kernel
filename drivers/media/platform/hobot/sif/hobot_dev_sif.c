@@ -585,6 +585,8 @@ int sif_video_init(struct sif_video_ctx *sif_ctx, unsigned long arg)
 		return -EINVAL;
 	}
 
+	sif_ctx->state = BIT(VIO_VIDEO_INIT);
+
 	group = sif_ctx->group;
 	subdev = sif_ctx->subdev;
 	if (test_bit(SIF_SUBDEV_INIT, &subdev->state)) {
@@ -614,7 +616,6 @@ int sif_video_init(struct sif_video_ctx *sif_ctx, unsigned long arg)
 		set_bit(VIO_GROUP_OTF_OUTPUT, &group->state);
 	}
 
-	sif_ctx->state = BIT(VIO_VIDEO_INIT);
 	set_bit(SIF_SUBDEV_INIT, &subdev->state);
 
 	vio_info("[S%d][V%d] %s done\n", group->instance,
@@ -716,11 +717,14 @@ int sif_video_streamon(struct sif_video_ctx *sif_ctx)
 			__func__, sif_ctx->id, sif_ctx->state);
 		return -EINVAL;
 	}
+	sif_ctx->state = BIT(VIO_VIDEO_START);
 
 	subdev = sif_ctx->subdev;
-	if (test_bit(SIF_SUBDEV_STREAM_ON, &subdev->state))
+	if (test_bit(SIF_SUBDEV_STREAM_ON, &subdev->state)) {
+		vio_info("subdev already stream on, current refcount(%d)\n",
+				atomic_read(&subdev->refcount));
 		return ret;
-
+	}
 	sif_dev = sif_ctx->sif_dev;
 	sif_start_pattern_gen(sif_dev->base_reg, 0);
 
@@ -736,7 +740,6 @@ int sif_video_streamon(struct sif_video_ctx *sif_ctx)
 
 p_inc:
 	atomic_inc(&sif_dev->rsccount);
-	sif_ctx->state = BIT(VIO_VIDEO_START);
 	set_bit(SIF_SUBDEV_STREAM_ON, &subdev->state);
 
 	vio_info("[S%d][V%d]%s\n", sif_ctx->group->instance,
@@ -757,11 +760,14 @@ int sif_video_streamoff(struct sif_video_ctx *sif_ctx)
 			__func__, sif_ctx->id, sif_ctx->state);
 		return -EINVAL;
 	}
+	sif_ctx->state = BIT(VIO_VIDEO_STOP);
 
 	subdev = sif_ctx->subdev;
-	if (test_bit(SIF_SUBDEV_STREAM_OFF, &subdev->state))
+	if (test_bit(SIF_SUBDEV_STREAM_OFF, &subdev->state)) {
+		vio_info("subdev already stream off, current refcount(%d)\n",
+				atomic_read(&subdev->refcount));
 		return ret;
-
+	}
 	sif_dev = sif_ctx->sif_dev;
 	framemgr = sif_ctx->framemgr;
 
@@ -787,7 +793,6 @@ p_dec:
 	if (framemgr->frames != NULL)
 		frame_manager_flush(framemgr);
 
-	sif_ctx->state = BIT(VIO_VIDEO_STOP);
 	set_bit(SIF_SUBDEV_STREAM_OFF, &subdev->state);
 
 	vio_info("[S%d][V%d]%s\n", sif_ctx->group->instance,
@@ -822,10 +827,14 @@ int sif_video_reqbufs(struct sif_video_ctx *sif_ctx, u32 buffers)
 			__func__, sif_ctx->id, sif_ctx->state);
 		return -EINVAL;
 	}
+	sif_ctx->state = BIT(VIO_VIDEO_REBUFS);
 
 	subdev = sif_ctx->subdev;
-	if (test_bit(SIF_SUBDEV_REQBUF, &subdev->state))
+	if (test_bit(SIF_SUBDEV_REQBUF, &subdev->state)) {
+		vio_info("subdev already reqbufs, current refcount(%d)\n",
+				atomic_read(&subdev->refcount));
 		return ret;
+	}
 
 	framemgr = sif_ctx->framemgr;
 	ret = frame_manager_open(framemgr, buffers);
@@ -838,8 +847,6 @@ int sif_video_reqbufs(struct sif_video_ctx *sif_ctx, u32 buffers)
 	for (i = 0; i < buffers; i++) {
 		framemgr->frames[i].data = group;
 	}
-
-	sif_ctx->state = BIT(VIO_VIDEO_REBUFS);
 
 	set_bit(SIF_SUBDEV_REQBUF, &subdev->state);
 
