@@ -1566,6 +1566,7 @@ int ipu_video_dqbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 	ipu = ipu_ctx->ipu_dev;
 
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
+	#if 0
 	if (ipu_ctx->frm_num_usr > (int)ipu_ctx->frm_num) {
 		ret = -EFAULT;
 		ipu_ctx->event = 0;
@@ -1576,6 +1577,7 @@ int ipu_video_dqbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 		framemgr_x_barrier_irqr(framemgr, 0, flags);
 		return ret;
 	}
+	#endif
 	framemgr->ctx_mask |= (1 << ipu_ctx->ctx_index);
 	done_list = &framemgr->queued_list[FS_COMPLETE];
 	if (!list_empty(done_list)) {
