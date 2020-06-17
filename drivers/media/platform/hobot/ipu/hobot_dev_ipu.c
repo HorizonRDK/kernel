@@ -2401,14 +2401,24 @@ static ssize_t ipu_stat_show(struct device *dev,
 {
 	struct x3_ipu_dev *ipu;
 	u32 offset = 0;
-	int instance = 0;
+	int instance, instance_start;
 	int i = 0;
 	ssize_t len = 0;
 	struct user_statistic *stats;
 
 	ipu = dev_get_drvdata(dev);
+	if (!memcmp(attr->attr.name, "err_status01", sizeof("err_status01")))
+		instance_start = 0;
+	else if (!memcmp(attr->attr.name, "err_status23", sizeof("err_status23")))
+		instance_start = 2;
+	else if (!memcmp(attr->attr.name, "err_status45", sizeof("err_status45")))
+		instance_start = 4;
+	else if (!memcmp(attr->attr.name, "err_status67", sizeof("err_status67")))
+		instance_start = 6;
+	else
+		instance_start = 0;
 
-	for(instance = 0; instance < VIO_MAX_STREAM; instance++) {
+	for(instance = instance_start; instance < instance_start + 2; instance++) {
 		if (!ipu->statistic.enable[instance])
 			continue;
 		len = snprintf(&buf[offset], PAGE_SIZE - offset,
@@ -2467,14 +2477,61 @@ static ssize_t ipu_stat_store(struct device *dev,
 					const char *page, size_t len)
 {
 	struct x3_ipu_dev *ipu;
+	int instance, instance_start;
 
 	ipu = dev_get_drvdata(dev);
-	if (ipu)
-		memset(&ipu->statistic, 0, sizeof(ipu->statistic));
+	if (!memcmp(attr->attr.name, "err_status01", sizeof("err_status01")))
+		instance_start = 0;
+	else if (!memcmp(attr->attr.name, "err_status23", sizeof("err_status23")))
+		instance_start = 2;
+	else if (!memcmp(attr->attr.name, "err_status45", sizeof("err_status45")))
+		instance_start = 4;
+	else if (!memcmp(attr->attr.name, "err_status67", sizeof("err_status67")))
+		instance_start = 6;
+	else
+		instance_start = 0;
+
+	for(instance = instance_start; instance < instance_start + 2; instance++) {
+		ipu->statistic.enable[instance] = 0;
+		ipu->statistic.fs_lack_task[instance] = 0;
+		ipu->statistic.fs[instance] = 0;
+		ipu->statistic.grp_tsk_left[instance] = 0;
+		memset(ipu->statistic.fe_normal[instance], 0,
+			sizeof(ipu->statistic.fe_normal[instance]));
+		memset(ipu->statistic.fe_lack_buf[instance], 0,
+			sizeof(ipu->statistic.fe_lack_buf[instance]));
+		memset(ipu->statistic.hard_frame_drop[instance], 0,
+			sizeof(ipu->statistic.hard_frame_drop[instance]));
+		memset(ipu->statistic.dq_normal[instance], 0,
+			sizeof(ipu->statistic.dq_normal[instance]));
+		memset(ipu->statistic.dq_err[instance], 0,
+			sizeof(ipu->statistic.dq_err[instance]));
+		memset(ipu->statistic.pollin_fe[instance], 0,
+			sizeof(ipu->statistic.pollin_fe[instance]));
+		memset(ipu->statistic.pollin_comp[instance], 0,
+			sizeof(ipu->statistic.pollin_comp[instance]));
+		memset(ipu->statistic.pollerr[instance], 0,
+			sizeof(ipu->statistic.pollerr[instance]));
+		memset(ipu->statistic.q_normal[instance], 0,
+			sizeof(ipu->statistic.q_normal[instance]));
+		memset(ipu->statistic.user_stats[instance], 0,
+			sizeof(ipu->statistic.user_stats[instance]));
+		if (instance == 0) {
+			ipu->statistic.tal_fs = 0;
+			ipu->statistic.tal_frm_work = 0;
+		}
+	}
 
 	return len;
 }
-static DEVICE_ATTR(err_status, S_IRUGO|S_IWUSR, ipu_stat_show, ipu_stat_store);
+static DEVICE_ATTR(err_status01, S_IRUGO|S_IWUSR, ipu_stat_show,
+	ipu_stat_store);
+static DEVICE_ATTR(err_status23, S_IRUGO|S_IWUSR, ipu_stat_show,
+	ipu_stat_store);
+static DEVICE_ATTR(err_status45, S_IRUGO|S_IWUSR, ipu_stat_show,
+	ipu_stat_store);
+static DEVICE_ATTR(err_status67, S_IRUGO|S_IWUSR, ipu_stat_show,
+	ipu_stat_store);
 
 static int x3_ipu_probe(struct platform_device *pdev)
 {
@@ -2529,7 +2586,22 @@ static int x3_ipu_probe(struct platform_device *pdev)
 		goto p_err;
 	}
 
-	ret = device_create_file(dev, &dev_attr_err_status);
+	ret = device_create_file(dev, &dev_attr_err_status01);
+	if (ret < 0) {
+		vio_err("create err_status failed (%d)\n", ret);
+		goto p_err;
+	}
+	ret = device_create_file(dev, &dev_attr_err_status23);
+	if (ret < 0) {
+		vio_err("create err_status failed (%d)\n", ret);
+		goto p_err;
+	}
+	ret = device_create_file(dev, &dev_attr_err_status45);
+	if (ret < 0) {
+		vio_err("create err_status failed (%d)\n", ret);
+		goto p_err;
+	}
+	ret = device_create_file(dev, &dev_attr_err_status67);
 	if (ret < 0) {
 		vio_err("create err_status failed (%d)\n", ret);
 		goto p_err;
@@ -2572,7 +2644,10 @@ static int x3_ipu_remove(struct platform_device *pdev)
 	ipu = platform_get_drvdata(pdev);
 
 	device_remove_file(&pdev->dev, &dev_attr_regdump);
-	device_remove_file(&pdev->dev, &dev_attr_err_status);
+	device_remove_file(&pdev->dev, &dev_attr_err_status01);
+	device_remove_file(&pdev->dev, &dev_attr_err_status23);
+	device_remove_file(&pdev->dev, &dev_attr_err_status45);
+	device_remove_file(&pdev->dev, &dev_attr_err_status67);
 
 	free_irq(ipu->irq, ipu);
 
