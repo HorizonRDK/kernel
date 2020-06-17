@@ -486,6 +486,8 @@ void dwe_sw_init(void)
 {
 	uint32_t tmp = 0;
 
+	gdc_rst_func();
+
 	//init ldc
 	tmp = 0x03;
 	set_ldc_soft_reset(dev_ptr->ldc_dev->io_vaddr, &tmp);
@@ -573,6 +575,9 @@ void dwe_sw_deinit(void)
 	get_dwe_checktype(dev_ptr->dis_dev->io_vaddr, &tmp);
 	tmp &= 0xfb;
 	set_dwe_checktype(dev_ptr->dis_dev->io_vaddr, &tmp);
+
+	tmp = 0x03;
+	set_ldc_soft_reset(dev_ptr->ldc_dev->io_vaddr, &tmp);
 
 	gdc_rst_func();
 	reset_dwe_ctx();
