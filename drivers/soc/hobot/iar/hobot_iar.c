@@ -2721,28 +2721,28 @@ static int hobot_iar_probe(struct platform_device *pdev)
 		g_iar_dev->pins_bt1120 =
 			pinctrl_lookup_state(g_iar_dev->pinctrl, "bt_func");
 		if (IS_ERR(g_iar_dev->pins_bt1120)) {
-			dev_warn(&pdev->dev, "bt1120_func get error %ld\n",
+			dev_info(&pdev->dev, "bt1120_func get error %ld\n",
 					PTR_ERR(g_iar_dev->pins_bt1120));
 			g_iar_dev->pins_bt1120 = NULL;
 		}
 		g_iar_dev->pins_bt656 = pinctrl_lookup_state(g_iar_dev->pinctrl,
 					"bt656_func");
 		if (IS_ERR(g_iar_dev->pins_bt656)) {
-			dev_warn(&pdev->dev, "bt656_func get error %ld\n",
+			dev_info(&pdev->dev, "bt656_func get error %ld\n",
 					PTR_ERR(g_iar_dev->pins_bt656));
 			g_iar_dev->pins_bt656 = NULL;
 		}
 		g_iar_dev->pins_mipi_dsi =
 		pinctrl_lookup_state(g_iar_dev->pinctrl, "mipi_dsi_func");
 		if (IS_ERR(g_iar_dev->pins_mipi_dsi)) {
-			dev_warn(&pdev->dev, "mipi_dsi_func get error %ld\n",
+			dev_info(&pdev->dev, "mipi_dsi_func get error %ld\n",
 					PTR_ERR(g_iar_dev->pins_mipi_dsi));
 			g_iar_dev->pins_mipi_dsi = NULL;
 		}
 		g_iar_dev->pins_rgb = pinctrl_lookup_state(g_iar_dev->pinctrl,
 					"rgb_func");
 		if (IS_ERR(g_iar_dev->pins_rgb)) {
-			dev_warn(&pdev->dev, "rgb_func get error %ld\n",
+			dev_info(&pdev->dev, "rgb_func get error %ld\n",
 					PTR_ERR(g_iar_dev->pins_rgb));
 			g_iar_dev->pins_rgb = NULL;
 		}
