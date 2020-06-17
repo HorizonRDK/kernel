@@ -1,5 +1,5 @@
-config TIMESYNC
-	tristate "timesync module"
+config HOBOT_TIMESYNC
+	tristate "timesync with MCU"
 	default n
 	help
 	This is the timesync test driver --by zhongzhen.

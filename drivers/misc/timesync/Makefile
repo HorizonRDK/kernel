@@ -1,1 +1,1 @@
-obj-$(CONFIG_TIMESYNC) += timesync.o
+obj-$(CONFIG_HOBOT_TIMESYNC) += timesync.o

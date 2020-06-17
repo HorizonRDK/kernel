@@ -283,12 +283,12 @@ static irqreturn_t pvt_irq_handler(int irq, void *dev_id)
 
 		if (irq_status & TP_IRQ_STS_FAULT_BIT) {
 			pvt_n_reg_wr(pvt_dev, i, TS_n_IRQ_CLEAR_ADDR, TP_IRQ_STS_FAULT_BIT);
-			pr_warn("smp[%d] TP_IRQ_STS_FAULT_BIT fault\n", i);
+			pr_info("smp[%d] TP_IRQ_STS_FAULT_BIT fault\n", i);
 			continue;
 		}
 
 		if (sdif_data & TS_SDIF_DATA_FAULT_BIT) {
-			pr_warn("smp[%d] TS_SDIF_DATA_FAULT_BIT fault\n", i);
+			pr_info("smp[%d] TS_SDIF_DATA_FAULT_BIT fault\n", i);
 			continue;
 		}
 
