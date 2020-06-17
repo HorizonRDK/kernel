@@ -172,6 +172,23 @@ static const char *g_mh_state[MIPI_STATE_MAX] = {
 	"stop",
 };
 
+typedef enum _mipi_pre_state_t {
+	MIPI_PRE_STATE_DEFAULT = 0,
+	MIPI_PRE_STATE_INITING,
+	MIPI_PRE_STATE_INITED,
+	MIPI_PRE_STATE_STARTING,
+	MIPI_PRE_STATE_STARTED,
+	MIPI_PRE_STATE_MAX,
+} mipi_pre_state_t;
+
+static const char *g_mh_pre_state[MIPI_PRE_STATE_MAX] = {
+	"default",
+	"initing",
+	"inited",
+	"starting",
+	"started",
+};
+
 static const char *g_mh_ipiclk_name[] = {
 	MIPI_HOST_IPICLK_NAME(0),
 	MIPI_HOST_IPICLK_NAME(1),
@@ -618,6 +635,9 @@ typedef struct _mipi_user_s {
 	uint32_t open_cnt;
 	uint32_t init_cnt;
 	uint32_t start_cnt;
+	uint32_t pre_state;
+	bool pre_done;
+	wait_queue_head_t pre_wq;
 } mipi_user_t;
 
 typedef struct _mipi_hdev_s {
@@ -1757,6 +1777,8 @@ static int hobot_mipi_host_open(struct inode *inode, struct file *file)
 	mipidbg("open as %d", user->open_cnt);
 	if (user->open_cnt == 0) {
 		mutex_init(&user->mutex);
+		init_waitqueue_head(&user->pre_wq);
+		user->pre_state = MIPI_PRE_STATE_DEFAULT;
 		user->init_cnt = 0;
 		user->start_cnt = 0;
 		mipi_host_configure_clk(hdev, MIPI_HOST_CFGCLK_NAME, MIPI_HOST_CFGCLK_MHZ, 1);
@@ -1862,6 +1884,13 @@ static long hobot_mipi_host_ioctl(struct file *file, unsigned int cmd, unsigned 
 					mutex_unlock(&user->mutex);
 					return ret;
 				}
+				if (user->pre_state == MIPI_PRE_STATE_INITING) {
+					user->pre_state = MIPI_PRE_STATE_INITED;
+					user->pre_done = true;
+					wake_up_interruptible(&user->pre_wq);
+				} else {
+					user->pre_state = MIPI_PRE_STATE_INITED;
+				}
 				host->state = MIPI_STATE_INIT;
 			} else if (mipi_host_configure_cmp(&host->cfg, &mipi_host_cfg)) {
 				mipiinfo("warning: init config mismatch");
@@ -1896,6 +1925,7 @@ static long hobot_mipi_host_ioctl(struct file *file, unsigned int cmd, unsigned 
 					ex_hdev->is_ex = 0;
 					hdev->ex_hdev = NULL;
 				}
+				user->pre_state = MIPI_PRE_STATE_DEFAULT;
 				host->state = MIPI_STATE_DEFAULT;
 			}
 			mutex_unlock(&user->mutex);
@@ -1933,6 +1963,13 @@ static long hobot_mipi_host_ioctl(struct file *file, unsigned int cmd, unsigned 
 					mipierr("start error: %d", ret);
 					mutex_unlock(&user->mutex);
 					return ret;
+				}
+				if (user->pre_state == MIPI_PRE_STATE_STARTING) {
+					user->pre_state = MIPI_PRE_STATE_STARTED;
+					user->pre_done = true;
+					wake_up_interruptible(&user->pre_wq);
+				} else {
+					user->pre_state = MIPI_PRE_STATE_STARTED;
 				}
 				host->state = MIPI_STATE_START;
 			}
@@ -1974,6 +2011,7 @@ static long hobot_mipi_host_ioctl(struct file *file, unsigned int cmd, unsigned 
 					mutex_unlock(&user->mutex);
 					return ret;
 				}
+				user->pre_state = MIPI_PRE_STATE_INITED;
 				host->state = MIPI_STATE_STOP;
 			}
 			mutex_unlock(&user->mutex);
@@ -2005,35 +2043,170 @@ static long hobot_mipi_host_ioctl(struct file *file, unsigned int cmd, unsigned 
 				return -EACCES;
 		}
 		break;
-	case MIPIHOSTIOC_GET_INIT_CNT:
+	case MIPIHOSTIOC_PRE_INIT_REQUEST:
 		{
-			if (mutex_lock_interruptible(&user->mutex)) {
-				mipierr("get int_cnt user mutex lock error");
-				return -EINVAL;
-			}
-			if (put_user(user->init_cnt, (uint32_t *)arg)) {
-				mipierr("put data to user failed");
-				mutex_unlock(&user->mutex);
+			uint32_t timeout_ms = 0, wait = 0;
+
+			if (arg && get_user(timeout_ms, (uint32_t *)arg)) {
+				mipierr("get data from user failed");
 				return -EFAULT;
 			}
-		}
-		break;
-	case MIPIHOSTIOC_GET_START_CNT:
-		{
 			if (mutex_lock_interruptible(&user->mutex)) {
-				mipierr("get start_cnt user mutex lock error");
+				mipierr("pre_init_request user mutex lock error");
 				return -EINVAL;
 			}
-			if (put_user(user->start_cnt, (uint32_t *)arg)) {
-				mipierr("put data to user failed");
-				mutex_unlock(&user->mutex);
-				return -EFAULT;
+			if (user->init_cnt == 0) {
+				if (user->pre_state == MIPI_PRE_STATE_DEFAULT) {
+					mipiinfo("pre_init_request cmd: initing");
+					user->pre_state = MIPI_PRE_STATE_INITING;
+				} else if (user->pre_state == MIPI_PRE_STATE_INITING) {
+					wait = 1;
+				} else {
+					mipiinfo("pre_init_request cmd: preinited drop");
+					ret = -EACCES;
+				}
+			} else {
+				mipiinfo("pre_init_request cmd: inited drop");
+				ret = -EACCES;
 			}
-		}
-		break;
-	case MIPIHOSTIOC_PUT_CNT:
-		{
 			mutex_unlock(&user->mutex);
+			if (wait) {
+				user->pre_done = false;
+				if (timeout_ms)
+					wait_event_interruptible_timeout(user->pre_wq,
+						user->pre_done, msecs_to_jiffies(timeout_ms));
+				else
+					wait_event_interruptible(user->pre_wq,
+						user->pre_done);
+				if (mutex_lock_interruptible(&user->mutex)) {
+					mipierr("pre init wait user mutex lock error");
+					return -EINVAL;
+				}
+				if (user->init_cnt == 0 &&
+					user->pre_state == MIPI_PRE_STATE_DEFAULT) {
+					mipiinfo("pre_init_request cmd: wait & initing");
+					user->pre_state = MIPI_PRE_STATE_INITING;
+				} else {
+					mipiinfo("pre_init_request cmd: wait & drop");
+					ret = -EACCES;
+				}
+				mutex_unlock(&user->mutex);
+			}
+		}
+		break;
+	case MIPIHOSTIOC_PRE_START_REQUEST:
+		{
+			uint32_t timeout_ms = 0, wait = 0;
+
+			if (arg && get_user(timeout_ms, (uint32_t *)arg)) {
+				mipierr("get data from user failed");
+				return -EFAULT;
+			}
+			if (mutex_lock_interruptible(&user->mutex)) {
+				mipierr("pre_start_request user mutex lock error");
+				return -EINVAL;
+			}
+			if (user->start_cnt == 0) {
+				if (user->pre_state == MIPI_PRE_STATE_INITED) {
+					mipiinfo("pre_start_request cmd: starting");
+					user->pre_state = MIPI_PRE_STATE_STARTING;
+				} else if (user->pre_state == MIPI_PRE_STATE_STARTING) {
+					wait = 1;
+				} else {
+					mipiinfo("pre_start_request cmd: prestarted drop");
+					ret = -EACCES;
+				}
+			} else {
+				mipiinfo("pre_start_request cmd: started drop");
+				ret = -EACCES;
+			}
+			mutex_unlock(&user->mutex);
+			if (wait) {
+				user->pre_done = false;
+				if (timeout_ms)
+					wait_event_interruptible_timeout(user->pre_wq,
+						user->pre_done, msecs_to_jiffies(timeout_ms));
+				else
+					wait_event_interruptible(user->pre_wq,
+						user->pre_done);
+				if (mutex_lock_interruptible(&user->mutex)) {
+					mipierr("pre_start_request wait user mutex lock error");
+					return -EINVAL;
+				}
+				if (user->start_cnt == 0 &&
+					user->pre_state == MIPI_PRE_STATE_INITED) {
+					mipiinfo("pre_start_request cmd: wait & starting");
+					user->pre_state = MIPI_PRE_STATE_STARTING;
+				} else {
+					mipiinfo("pre_start_request cmd: wait & drop");
+					ret = -EACCES;
+				}
+				mutex_unlock(&user->mutex);
+			}
+		}
+		break;
+	case MIPIHOSTIOC_PRE_INIT_RESULT:
+		{
+			uint32_t result = 0, wake = 0;
+
+			if (!arg || get_user(result, (uint32_t *)arg)) {
+				mipierr("get data from user failed");
+				return -EFAULT;
+			}
+			if (mutex_lock_interruptible(&user->mutex)) {
+				mipierr("pre_init_result user mutex lock error");
+				return -EINVAL;
+			}
+			if (user->init_cnt == 0 &&
+				user->pre_state == MIPI_PRE_STATE_INITING) {
+				if (result)
+					user->pre_state = MIPI_PRE_STATE_DEFAULT;
+				else
+					user->pre_state = MIPI_PRE_STATE_INITED;
+				wake = 1;
+			}
+			mutex_unlock(&user->mutex);
+			if (wake) {
+				mipiinfo("pre_init_result cmd: %s wake",
+					(result) ? "falied" : "done");
+				user->pre_done = true;
+				wake_up_interruptible(&user->pre_wq);
+			} else {
+				mipiinfo("pre_init_result cmd: %s drop",
+					(result) ? "falied" : "done");
+			}
+		}
+		break;
+	case MIPIHOSTIOC_PRE_START_RESULT:
+		{
+			uint32_t result = 0, wake = 0;
+
+			if (!arg || get_user(result, (uint32_t *)arg)) {
+				mipierr("get data from user failed");
+				return -EFAULT;
+			}
+			if (mutex_lock_interruptible(&user->mutex)) {
+				mipierr("pre_start_result user mutex lock error");
+				return -EINVAL;
+			}
+			if (user->start_cnt == 0 &&
+				user->pre_state == MIPI_PRE_STATE_STARTING) {
+				if (result)
+					user->pre_state = MIPI_PRE_STATE_INITED;
+				else
+					user->pre_state = MIPI_PRE_STATE_STARTED;
+				wake = 1;
+			}
+			mutex_unlock(&user->mutex);
+			if (wake) {
+				mipiinfo("pre_start_result cmd: %s wake",
+					(result) ? "falied" : "done");
+				user->pre_done = true;
+				wake_up_interruptible(&user->pre_wq);
+			} else {
+				mipiinfo("pre_start_result cmd: %s drop",
+					(result) ? "falied" : "done");
+			}
 		}
 		break;
 #ifdef CONFIG_HOBOT_MIPI_REG_OPERATE
@@ -2079,7 +2252,7 @@ static long hobot_mipi_host_ioctl(struct file *file, unsigned int cmd, unsigned 
 	default:
 		return -ERANGE;
 	}
-	return 0;
+	return ret;
 }
 
 static const struct file_operations hobot_mipi_host_fops = {
@@ -2391,6 +2564,7 @@ static ssize_t mipi_host_status_show(struct device *dev,
 		MH_STA_SHOW(user, "%d", user->open_cnt);
 		MH_STA_SHOW(init, "%d", user->init_cnt);
 		MH_STA_SHOW(start, "%d", user->start_cnt);
+		MH_STA_SHOW(pre_state, "%s", g_mh_pre_state[user->pre_state]);
 #if MIPI_HOST_INT_DBG
 	} else if (strcmp(attr->attr.name, "icnt") == 0) {
 		for (i = 0; i < sizeof(host->icnt)/sizeof(uint32_t); i++) {
