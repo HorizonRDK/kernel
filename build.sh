@@ -258,6 +258,12 @@ function all()
         exit 1
     }
 
+    if [ "$TARGET_MODE" = "debug" ];then
+        [ -f ko_debug.tgz ] && tar xvf ko_debug.tgz
+    else
+        [ -f ko_release.tgz ] && tar xvf ko_release.tgz
+    fi
+
     # make modules_install to INSTALL_MOD_PATH (default: /)
     make INSTALL_MOD_PATH=$SRC_KERNEL_DIR/_install INSTALL_MOD_STRIP=1 INSTALL_NO_SUBDIR=1 modules_install || {
         echo "make modules_install to INSTALL_MOD_PATH failed"
