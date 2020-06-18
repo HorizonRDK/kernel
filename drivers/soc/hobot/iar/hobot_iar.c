@@ -1059,6 +1059,14 @@ int disp_pinmux_rgb(void)
 			g_iar_dev->pins_rgb);
 }
 
+int disp_pinmux_rgb_gpio(void)
+{
+	if (!g_iar_dev->pins_rgb_gpio)
+		return -ENODEV;
+	return pinctrl_select_state(g_iar_dev->pinctrl,
+			g_iar_dev->pins_rgb_gpio);
+}
+
 int32_t iar_output_cfg(output_cfg_t *cfg)
 {
 	void __iomem *hitm1_reg_addr;
@@ -1661,8 +1669,13 @@ int32_t iar_start(int update)
 	writel(value, g_iar_dev->regaddr + REG_IAR_DE_REFRESH_EN);
 	//mod_timer(&iartimer,jiffies + msecs_to_jiffies( MSEC_PER_SEC));
 	writel(0x1, g_iar_dev->regaddr + REG_IAR_UPDATE);
-	if (display_type == MIPI_720P_TOUCH)
+	if (display_type == MIPI_720P_TOUCH) {
 		panel_exit_standby();
+	} else if (display_type == LCD_7_TYPE) {
+		ret = disp_pinmux_rgb();
+		if (ret)
+			pr_err("error pinmux rgb func!!\n");
+	}
 
 	return 0;
 }
@@ -1686,6 +1699,10 @@ int32_t iar_stop(void)
 	writel(0x1, g_iar_dev->regaddr + REG_IAR_UPDATE);
 	if (display_type == SIF_IPI) {
 		ipi_clk_disable();
+	} else if (display_type == LCD_7_TYPE) {
+		ret = disp_pinmux_rgb_gpio();
+		if (ret)
+			pr_err("erroc pinmux rgb pins to gpio func!!\n");
 	}
 	ret = disp_clk_disable();
 	//del_timer(&iartimer);
@@ -2745,6 +2762,13 @@ static int hobot_iar_probe(struct platform_device *pdev)
 			dev_info(&pdev->dev, "rgb_func get error %ld\n",
 					PTR_ERR(g_iar_dev->pins_rgb));
 			g_iar_dev->pins_rgb = NULL;
+		}
+		g_iar_dev->pins_rgb_gpio = pinctrl_lookup_state(g_iar_dev->pinctrl,
+					"rgb_gpio_func");
+		if (IS_ERR(g_iar_dev->pins_rgb_gpio)) {
+			dev_warn(&pdev->dev, "rgb_gpio_func get error %ld\n",
+					PTR_ERR(g_iar_dev->pins_rgb_gpio));
+			g_iar_dev->pins_rgb_gpio = NULL;
 		}
 	}
 
