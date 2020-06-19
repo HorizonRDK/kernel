@@ -7,6 +7,8 @@
 #ifndef __HOBOT_SIF_HW_API__
 #define __HOBOT_SIF_HW_API__
 
+#define LINE_BUFFER_SIZE        (2688)
+
 void sif_transfer_ddr_owner(u32 __iomem *base_reg, u32 mux_out_index, u32 buf_index);
 u32 sif_get_ddr_addr(u32 __iomem *base_reg, u32 mux_out_index, u32 buf_index);
 void sif_set_ddr_output(u32 __iomem *base_reg, sif_output_ddr_t* p_ddr, u32 *enbale);
@@ -14,6 +16,7 @@ void sif_set_ddr_output(u32 __iomem *base_reg, sif_output_ddr_t* p_ddr, u32 *enb
 void sif_hw_config(u32 __iomem *base_reg, sif_cfg_t* c);
 void sif_hw_disable(u32 __iomem *base_reg);
 void sif_hw_enable(u32 __iomem *base_reg);
+void sif_disable_ipi(u32 __iomem *base_reg, u8 ipi_channel);
 
 void sif_get_frameid_timestamps(u32 __iomem *base_reg, u32 mux,
 			u32 ipi_index, struct frame_id *info, u32 dol_num);

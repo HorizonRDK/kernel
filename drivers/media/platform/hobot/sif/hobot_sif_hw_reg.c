@@ -18,6 +18,8 @@ void sif_enable_frame_intr(void __iomem *base_reg, u32 mux_index,
 			&sif_fields[SW_SIF_FRM0_DONE_INT_EN - mux_index], enable);
 	vio_hw_set_field(base_reg, &sif_regs[SIF_FRM_EN_INT],
 			&sif_fields[SW_SIF_MUX0_OUT_FS_INT_EN - mux_index], enable);
+	vio_hw_set_field(base_reg, &sif_regs[SIF_FRM_EN_INT],
+			&sif_fields[SW_SIF_MIPI_TX_IPI0_FS_INT_EN - mux_index], enable);
 }
 
 u32 sif_get_frame_intr(void __iomem *base_reg)
@@ -1241,10 +1243,17 @@ void sif_hw_config(u32 __iomem *base_reg, sif_cfg_t* c)
 
 }
 
+void sif_disable_ipi(u32 __iomem *base_reg, u8 ipi_channel)
+{
+	vio_hw_set_reg(base_reg, &sif_regs[SIF_FRM_ID_RX0_IPI0_CFG + ipi_channel],
+			0);
+	vio_hw_set_reg(base_reg, &sif_regs[SIF_MIPI_RX0_CFG0 + ipi_channel], 0);
+}
+
 static void sif_disable_input_and_output(u32 __iomem *base_reg)
 {
 	uint32_t t = 0, value = 0;
-
+	int i = 0;
 	// Disable Bypass && all TX IPIs
 	// NOTICE: SW_MIPI_RX_OUT_TX_LINE_INS_ENABLE's default value = 1
 	// To disable that will not attach the last blanking hsync at frame end.
@@ -1268,54 +1277,10 @@ static void sif_disable_input_and_output(u32 __iomem *base_reg)
 	// Clear: YUV Transform
 	vio_hw_set_reg(base_reg, &sif_regs[SIF_YUV422_TRANS], 0);
 
-	//clear frame id
-	vio_hw_set_reg(base_reg, &sif_regs[SIF_FRM_ID_RX0_IPI0_CFG], 0);
-	vio_hw_set_reg(base_reg, &sif_regs[SIF_FRM_ID_RX0_IPI1_CFG], 0);
-	vio_hw_set_reg(base_reg, &sif_regs[SIF_FRM_ID_RX0_IPI2_CFG], 0);
-	vio_hw_set_reg(base_reg, &sif_regs[SIF_FRM_ID_RX0_IPI3_CFG], 0);
-
-	vio_hw_set_reg(base_reg, &sif_regs[SIF_FRM_ID_RX1_IPI0_CFG], 0);
-	vio_hw_set_reg(base_reg, &sif_regs[SIF_FRM_ID_RX1_IPI1_CFG], 0);
-	vio_hw_set_reg(base_reg, &sif_regs[SIF_FRM_ID_RX1_IPI2_CFG], 0);
-	vio_hw_set_reg(base_reg, &sif_regs[SIF_FRM_ID_RX1_IPI3_CFG], 0);
-
-	vio_hw_set_reg(base_reg, &sif_regs[SIF_FRM_ID_RX2_IPI0_CFG], 0);
-	vio_hw_set_reg(base_reg, &sif_regs[SIF_FRM_ID_RX2_IPI1_CFG], 0);
-	vio_hw_set_reg(base_reg, &sif_regs[SIF_FRM_ID_RX3_IPI0_CFG], 0);
-	vio_hw_set_reg(base_reg, &sif_regs[SIF_FRM_ID_RX3_IPI1_CFG], 0);
-
-	// Clear: All IPI
-	vio_hw_set_field(base_reg, &sif_regs[SIF_MIPI_RX0_CFG0],
-			&sif_fields[SW_MIPI_RX0_IPI0_ENABLE], 0);
-	vio_hw_set_field(base_reg, &sif_regs[SIF_MIPI_RX0_CFG1],
-			&sif_fields[SW_MIPI_RX0_IPI1_ENABLE], 0);
-	vio_hw_set_field(base_reg, &sif_regs[SIF_MIPI_RX0_CFG2],
-			&sif_fields[SW_MIPI_RX0_IPI2_ENABLE], 0);
-	vio_hw_set_field(base_reg, &sif_regs[SIF_MIPI_RX0_CFG3],
-			&sif_fields[SW_MIPI_RX0_IPI3_ENABLE], 0);
-
-	vio_hw_set_field(base_reg, &sif_regs[SIF_MIPI_RX1_CFG0],
-			&sif_fields[SW_MIPI_RX1_IPI0_ENABLE], 0);
-	vio_hw_set_field(base_reg, &sif_regs[SIF_MIPI_RX1_CFG1],
-			&sif_fields[SW_MIPI_RX1_IPI1_ENABLE], 0);
-	vio_hw_set_field(base_reg, &sif_regs[SIF_MIPI_RX1_CFG2],
-			&sif_fields[SW_MIPI_RX1_IPI2_ENABLE], 0);
-	vio_hw_set_field(base_reg, &sif_regs[SIF_MIPI_RX1_CFG3],
-			&sif_fields[SW_MIPI_RX1_IPI3_ENABLE], 0);
-
-
-	vio_hw_set_field(base_reg, &sif_regs[SIF_MIPI_RX2_CFG0],
-			&sif_fields[SW_MIPI_RX2_IPI0_ENABLE], 0);
-	vio_hw_set_field(base_reg, &sif_regs[SIF_MIPI_RX2_CFG1],
-			&sif_fields[SW_MIPI_RX2_IPI1_ENABLE], 0);
-
-	vio_hw_set_field(base_reg, &sif_regs[SIF_MIPI_RX3_CFG0],
-			&sif_fields[SW_MIPI_RX3_IPI0_ENABLE], 0);
-	vio_hw_set_field(base_reg, &sif_regs[SIF_MIPI_RX3_CFG1],
-			&sif_fields[SW_MIPI_RX3_IPI1_ENABLE], 0);
-
 	vio_hw_set_reg(base_reg, &sif_regs[SIF_MOT_DET_MODE], 0);
 
+	for (i = 0; i < 12; i++)
+		sif_disable_ipi(base_reg, i);
 	// Shadow Update: IPI + DVP
 	vio_hw_set_reg(base_reg, &sif_regs[SIF_SHD_UP_RDY], 0xFFFFFFFF);
 
@@ -1323,8 +1288,6 @@ static void sif_disable_input_and_output(u32 __iomem *base_reg)
 			&sif_fields[SW_SIF_ISP0_FLYBY_ENABLE], 0);
 	vio_hw_set_field(base_reg, &sif_regs[SIF_OUT_BUF_CTRL],
 			&sif_fields[SW_SIF_IPU0_OUT_ENABLE], 0);
-
-	//mdelay(100);
 
 	do
 	{
@@ -1340,7 +1303,6 @@ static void sif_disable_input_and_output(u32 __iomem *base_reg)
 		}
 		vio_err("Timeout to wait idle: 1s");
 	} while(0);
-
 }
 
 

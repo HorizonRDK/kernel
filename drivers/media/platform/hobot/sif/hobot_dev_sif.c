@@ -334,6 +334,11 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 				clear_bit(subdev->mux_index + 2, &sif->mux_mask);
 				clear_bit(subdev->ddr_mux_index + 2, &sif->mux_mask);
 			}
+
+			if (subdev->fmt.width > LINE_BUFFER_SIZE) {
+				clear_bit(subdev->mux_index + 2, &sif->mux_mask);
+				clear_bit(subdev->ddr_mux_index + 2, &sif->mux_mask);
+			}
 		}
 
 		group = subdev->group;
@@ -404,12 +409,13 @@ int sif_get_stride(u32 pixel_length, u32 width)
 }
 
 int get_free_mux(struct x3_sif_dev *sif, u32 index, int format, u32 dol_num,
-		u32 *mux_numbers)
+		u32 width, u32 *mux_numbers)
 {
 	int ret = 0;
 	int i = 0;
 	int step = 1;
 	int mux_nums = 1;
+	int mux_for_4k[] = {0, 1, 4, 5};
 
 	mux_nums = dol_num;
 	if (format == HW_FORMAT_YUV422) {
@@ -420,20 +426,35 @@ int get_free_mux(struct x3_sif_dev *sif, u32 index, int format, u32 dol_num,
 	*mux_numbers = mux_nums;
 
 	mutex_lock(&sif->shared_mutex);
-	for (i = index; i < SIF_MUX_MAX; i += step) {
-		if (!test_bit(i, &sif->mux_mask)) {
-			if (mux_nums > 1 && test_bit(i + 1, &sif->mux_mask))
-				continue;
-			if (mux_nums > 2 && test_bit(i + 2, &sif->mux_mask))
-				continue;
+	if (width > LINE_BUFFER_SIZE && step == 1) {
+		for (i = 0; i < 4; i++) {
+			if (!test_bit(mux_for_4k[i], &sif->mux_mask)) {
+				if (test_bit(mux_for_4k[i] + 2, &sif->mux_mask))
+					continue;
 
-			set_bit(i, &sif->mux_mask);
-			if (mux_nums > 1)
-				set_bit(i + 1, &sif->mux_mask);
-			if (mux_nums > 2)
-				set_bit(i + 2, &sif->mux_mask);
-			ret = i;
-			break;
+				set_bit(mux_for_4k[i], &sif->mux_mask);
+				set_bit(mux_for_4k[i] + 2, &sif->mux_mask);
+				ret = i;
+				break;
+			}
+		}
+
+	} else {
+		for (i = index; i < SIF_MUX_MAX; i += step) {
+			if (!test_bit(i, &sif->mux_mask)) {
+				if (mux_nums > 1 && test_bit(i + 1, &sif->mux_mask))
+					continue;
+				if (mux_nums > 2 && test_bit(i + 2, &sif->mux_mask))
+					continue;
+
+				set_bit(i, &sif->mux_mask);
+				if (mux_nums > 1)
+					set_bit(i + 1, &sif->mux_mask);
+				if (mux_nums > 2)
+					set_bit(i + 2, &sif->mux_mask);
+				ret = i;
+				break;
+			}
 		}
 	}
 	mutex_unlock(&sif->shared_mutex);
@@ -457,6 +478,7 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 	u32 dol_exp_num = 0;
 	int format = 0;
 	int isp_flyby = 0;
+	u32 width = 0;
 	struct x3_sif_dev *sif;
 	struct vio_group_task *gtask;
 	struct vio_group *group;
@@ -464,6 +486,7 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 	sif = subdev->sif_dev;
 	group = subdev->group;
 
+	width = sif_config->input.mipi.data.width;
 	format = sif_config->input.mipi.data.format;
 	dol_exp_num = sif_config->output.isp.dol_exp_num;
 	isp_flyby = sif_config->output.isp.func.enable_flyby;
@@ -475,12 +498,12 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 
 	/* mux initial*/
 	if (!isp_flyby && test_bit(SIF_OTF_OUTPUT, &sif->state)) {
-		mux_index = get_free_mux(sif, 4, format, dol_exp_num, &mux_nums);
+		mux_index = get_free_mux(sif, 4, format, dol_exp_num, width, &mux_nums);
 		if (mux_index < 0)
 			return mux_index;
 		sif_config->output.isp.func.enable_flyby = 1;
 	} else {
-		mux_index = get_free_mux(sif, 0, format, dol_exp_num, &mux_nums);
+		mux_index = get_free_mux(sif, 0, format, dol_exp_num, width, &mux_nums);
 		if (mux_index < 0)
 			return mux_index;
 	}
@@ -492,7 +515,8 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 
 	if (isp_flyby && ddr_enable) {
 		vio_info("ddr output enable in online mode\n");
-		ddr_mux_index = get_free_mux(sif, 4, format, dol_exp_num, &mux_nums);
+		ddr_mux_index = get_free_mux(sif, 4, format, dol_exp_num,
+				width, &mux_nums);
 		if (ddr_mux_index < 0)
 			return ddr_mux_index;
 		sif->sif_mux[ddr_mux_index] = group;
@@ -532,6 +556,7 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 
 	subdev->rx_index = sif_config->input.mipi.mipi_rx_index;
 	subdev->vc_index = sif_config->input.mipi.vc_index[0];
+	subdev->ipi_channels = sif_config->input.mipi.channels;
 	if (subdev->rx_index < 2)
 		subdev->ipi_index = subdev->rx_index * 4 + subdev->vc_index;
 	else
@@ -751,6 +776,7 @@ p_inc:
 int sif_video_streamoff(struct sif_video_ctx *sif_ctx)
 {
 	int ret = 0;
+	int i = 0;
 	struct x3_sif_dev *sif_dev;
 	struct vio_framemgr *framemgr;
 	struct sif_subdev *subdev;
@@ -774,6 +800,8 @@ int sif_video_streamoff(struct sif_video_ctx *sif_ctx)
 	if (sif_ctx->id == 0) {
 		sif_enable_frame_intr(sif_dev->base_reg, subdev->mux_index, false);
 		sif_enable_frame_intr(sif_dev->base_reg, subdev->ddr_mux_index, false);
+		for (i = 0; i < subdev->ipi_channels; i++)
+			sif_disable_ipi(sif_dev->base_reg, subdev->ipi_index + i);
 	}
 
 	if (atomic_dec_return(&sif_dev->rsccount) > 0

@@ -217,6 +217,7 @@ struct sif_subdev {
 	u32 rx_index;
 	u8	vc_index;
 	u32 ipi_index;
+	u32 ipi_channels;
 	u32 mux_nums;
 	sif_data_desc_t ddrin_fmt;
 	sif_data_desc_t fmt;

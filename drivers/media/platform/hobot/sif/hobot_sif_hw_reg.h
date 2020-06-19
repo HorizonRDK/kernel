@@ -10,8 +10,6 @@
 #include "vio_hw_common_api.h"
 #include "hobot_dev_sif.h"
 
-#define LINE_BUFFER_SIZE        (2688)
-
 enum sif_reg {
 	SIF_SETTING,
 	SIF_SHD_UP_SEL,
