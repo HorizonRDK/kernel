@@ -108,7 +108,6 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 	index = ipu_ctx->frm_fst_ind;
 	cnt = ipu_ctx->frm_num;
 	frame_manager_flush_mp(ipu_ctx->framemgr, index, cnt, ipu_ctx->ctx_index);
-	frame_manager_close_mp(ipu_ctx->framemgr, index, cnt, ipu_ctx->ctx_index);
 
 	group = ipu_ctx->group;
 	subdev = ipu_ctx->subdev;
@@ -125,6 +124,7 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 			clear_bit(VIO_GROUP_INIT, &group->state);
 		}
 	}
+	frame_manager_close_mp(ipu_ctx->framemgr, index, cnt, ipu_ctx->ctx_index);
 	if (atomic_dec_return(&ipu->open_cnt) == 0) {
 		clear_bit(IPU_OTF_INPUT, &ipu->state);
 		clear_bit(IPU_DMA_INPUT, &ipu->state);

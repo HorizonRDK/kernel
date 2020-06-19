@@ -136,7 +136,6 @@ static int x3_pym_close(struct inode *inode, struct file *file)
 	index = pym_ctx->frm_fst_ind;
 	count = pym_ctx->frm_num;
 	frame_manager_flush_mp(pym_ctx->framemgr, index, count, pym_ctx->ctx_index);
-	frame_manager_close_mp(pym_ctx->framemgr, index, count, pym_ctx->ctx_index);
 
 	group = pym_ctx->group;
 	subdev = pym_ctx->subdev;
@@ -148,6 +147,8 @@ static int x3_pym_close(struct inode *inode, struct file *file)
 		if (atomic_dec_return(&group->node_refcount) == 0)
 			clear_bit(VIO_GROUP_INIT, &group->state);
 	}
+
+	frame_manager_close_mp(pym_ctx->framemgr, index, count, pym_ctx->ctx_index);
 
 	if (atomic_dec_return(&pym->open_cnt) == 0) {
 		clear_bit(PYM_OTF_INPUT, &pym->state);
