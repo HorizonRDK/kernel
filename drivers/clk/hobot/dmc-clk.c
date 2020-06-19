@@ -1,0 +1,266 @@
+/*
+ * dmc-clk.c --- DDR controller clock.
+ *
+ * Copyright (C) 2020, Schspa, all rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
+
+
+#include <linux/clkdev.h>
+#include <linux/clk.h>
+#include <linux/clk-provider.h>
+#include <linux/spinlock.h>
+#include <linux/arm-smccc.h>
+#include <asm-generic/delay.h>
+
+#include "common.h"
+
+#define to_dmc_clk(_hw) container_of(_hw, struct dmc_clk, hw)
+
+typedef void(hobot_invoke_fn)(unsigned long, unsigned long, unsigned long,
+			unsigned long, unsigned long, unsigned long,
+			unsigned long, unsigned long,
+			struct arm_smccc_res *);
+
+struct dmc_clk {
+	struct clk_hw hw;
+	unsigned int flags;
+	void __iomem *clk_base;
+	spinlock_t lock;
+	unsigned long rate;
+	hobot_invoke_fn *invoke_fn;
+	uint32_t fid;
+	uint32_t get_channels_cmd;
+	uint32_t set_cmd;
+	uint32_t get_cmd;
+	uint32_t channel;
+};
+
+/**
+ * hobot_smccc_smc() - Method to call firmware via SMC.
+ * @a0: Argument passed to Secure EL3.
+ * @a1: Argument passed to Secure EL3.
+ * @a2: Argument passed to Secure EL3.
+ * @a3: Argument passed to Secure EL3.
+ * @a4: Argument passed to Secure EL3.
+ * @a5: Argument passed to Secure EL3.
+ * @a6: Argument passed to Secure EL3.
+ * @a7: Argument passed to Secure EL3.
+ * @res: return code stored in.
+ *
+ * This function call arm_smccc_smc directly.
+ *
+ * Return: return value stored in res argument.
+ */
+static void hobot_smccc_smc(unsigned long a0, unsigned long a1,
+			unsigned long a2, unsigned long a3,
+			unsigned long a4, unsigned long a5,
+			unsigned long a6, unsigned long a7,
+			struct arm_smccc_res *res)
+{
+	arm_smccc_smc(a0, a1, a2, a3, a4, a5, a6, a7, res);
+}
+
+/**
+ * hobot_smccc_hvc() - Method to call firmware via HVC.
+ * @a0: Arguments passed to firmware.
+ * @a1: Arguments passed to firmware.
+ * @a2: Arguments passed to firmware.
+ * @a3: Arguments passed to firmware.
+ * @a4: Arguments passed to firmware.
+ * @a5: Arguments passed to firmware.
+ * @a6: Arguments passed to firmware.
+ * @a7: Arguments passed to firmware.
+ * @res: return code stored in.
+ *
+ * This function call arm_smccc_hvc directly.
+ *
+ * Return: return value stored in res argument.
+ */
+static void hobot_smccc_hvc(unsigned long a0, unsigned long a1,
+			unsigned long a2, unsigned long a3,
+			unsigned long a4, unsigned long a5,
+			unsigned long a6, unsigned long a7,
+			struct arm_smccc_res *res)
+{
+	arm_smccc_hvc(a0, a1, a2, a3, a4, a5, a6, a7, res);
+}
+
+static hobot_invoke_fn *get_invoke_func(struct device_node *np)
+{
+	const char *method;
+
+	if (of_property_read_string(np, "method", &method)) {
+		pr_warn("missing \"method\" property\n");
+		return ERR_PTR(-ENXIO);
+	}
+
+	if (!strcmp("hvc", method))
+		return hobot_smccc_hvc;
+	else if (!strcmp("smc", method))
+		return hobot_smccc_smc;
+
+	pr_warn("invalid \"method\" property: %s\n", method);
+	return ERR_PTR(-EINVAL);
+}
+
+static int dmc_set_rate(struct clk_hw *hw,
+			unsigned long rate, unsigned long parent_rate)
+{
+	struct dmc_clk *dclk = container_of(hw, struct dmc_clk, hw);
+	struct arm_smccc_res res;
+
+	dclk->invoke_fn(dclk->fid, dclk->set_cmd, dclk->channel, rate, 0, 0, 0, 0, &res);
+	if (res.a0 != 0) {
+		pr_err("%s: ddr channel:%u set rate to %lu failed with status :%lu\n",
+			__func__, dclk->channel, rate, res.a0);
+	}
+	dclk->rate = rate;
+	return 0;
+}
+
+static unsigned long dmc_recalc_rate(struct clk_hw *hw,
+				unsigned long parent_rate)
+{
+	struct dmc_clk *dclk = container_of(hw, struct dmc_clk, hw);
+	struct arm_smccc_res res;
+
+	dclk->invoke_fn(dclk->fid, dclk->get_cmd, dclk->channel, 0, 0, 0, 0, 0, &res);
+	if (res.a0 != 0) {
+		pr_err("%s: ddr channel:%u get rate failed with status :%lu\n",
+			__func__, dclk->channel, res.a0);
+	}
+	dclk->rate = res.a1;
+
+	return dclk->rate;
+}
+
+static long dmc_round_rate(struct clk_hw *hw,
+			unsigned long rate,
+			unsigned long *prate)
+{
+	/* TODO: round rate with frequency table. */
+	return rate;
+}
+
+const struct clk_ops dmc_clk_ops = {
+	.recalc_rate = dmc_recalc_rate,
+	.set_rate = dmc_set_rate,
+	.round_rate = dmc_round_rate,
+};
+
+static struct clk *dmc_clk_register(struct device *dev, struct device_node *node,
+				unsigned long flags,
+				const struct clk_ops *ops)
+{
+	struct clk_init_data init = {NULL};
+	struct dmc_clk *ddrclk;
+	struct clk *clk;
+	struct device_node *tee_node;
+	int ret;
+	uint32_t channel;
+	hobot_invoke_fn *invoke_fn;
+	struct arm_smccc_res res;
+
+	ddrclk = kzalloc(sizeof(*ddrclk), GFP_KERNEL);
+	if (!ddrclk)
+		return NULL;
+
+	tee_node = of_parse_phandle(node, "tee-dram-handle", 0);
+
+	invoke_fn = get_invoke_func(tee_node);
+	if (IS_ERR(invoke_fn)) {
+		ret = PTR_ERR(invoke_fn);
+		goto err_free;
+	}
+	ddrclk->invoke_fn = invoke_fn;
+
+#define GET_OFNODE_U32(node, name, dst)					\
+	do {								\
+		ret = of_property_read_u32(node, name, dst);		\
+		if (ret) {						\
+			pr_err("%s: failed to get " name "\n", __func__); \
+			ret = -EINVAL;					\
+			goto err_free;					\
+		}							\
+	} while (0)
+
+	GET_OFNODE_U32(tee_node, "fid", &ddrclk->fid);
+	GET_OFNODE_U32(tee_node, "get_channels_cmd", &ddrclk->get_channels_cmd);
+	GET_OFNODE_U32(tee_node, "set_cmd", &ddrclk->set_cmd);
+	GET_OFNODE_U32(tee_node, "get_cmd", &ddrclk->get_cmd);
+
+	of_node_put(tee_node);
+
+	ret = of_property_read_u32(node, "channel-id", &channel);
+	if (ret) {
+		pr_err("%s: can't find hank-id property\n", __func__);
+		goto err_free;
+	}
+
+	ddrclk->invoke_fn(ddrclk->fid, ddrclk->get_channels_cmd, 0, 0, 0, 0, 0, 0, &res);
+	if (res.a0 != 0) {
+		pr_err("failed to get total channels from tee world.");
+		goto err_free;
+	}
+
+	if (res.a1 <= channel) {
+		pr_err("ddr channel %u exceed %lu\n", channel, res.a1);
+		goto err_free;
+	}
+
+	init.name = node->full_name;
+	init.ops = ops;
+	init.flags = flags;
+
+	ddrclk->hw.init = &init;
+
+	spin_lock_init(&ddrclk->lock);
+	clk = clk_register(dev, &ddrclk->hw);
+	if (IS_ERR(clk)) {
+		pr_err("Failed to register clock for %s!\n", node->full_name);
+		kfree(ddrclk);
+		return NULL;
+	}
+
+	return clk;
+
+err_free:
+	kfree(ddrclk);
+	return NULL;
+}
+
+static void __init _of_hobot_dmc_clk_setup(struct device_node *node,
+					const struct clk_ops *ops)
+{
+	struct clk *clk;
+	unsigned int flags = 0;
+
+	clk = dmc_clk_register(NULL, node, flags, ops);
+
+	if (!IS_ERR_OR_NULL(clk))
+		of_clk_add_provider(node, of_clk_src_simple_get, clk);
+}
+
+static void __init of_hobot_dmc_clk_setup(struct device_node *node)
+{
+	_of_hobot_dmc_clk_setup(node, &dmc_clk_ops);
+}
+CLK_OF_DECLARE(hobot_dmc_clk, "hobot,hobot-dmc-clk", of_hobot_dmc_clk_setup);

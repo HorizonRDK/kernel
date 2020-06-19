@@ -8,4 +8,5 @@ config HOBOT_CPU_CLK_X3
 	bool "HOBOT cpu clk support for x3"
 config HOBOT_CNN_CLK_X3
 	bool "HOBOT cnn clk support for x3"
-
+config HOBOT_DMC_CLK
+    bool "HOBOT dmc clk"

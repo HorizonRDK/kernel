@@ -1164,6 +1164,38 @@
 			status = "disabled";
 		};
 
+		dmc_opp_table: dmc_opp_table {
+			compatible = "operating-points-v2";
+
+			opp00 {
+				opp-hz = /bits/ 64 <300000000>;
+				opp-microvolt = <900000>;
+			};
+			opp01 {
+				opp-hz = /bits/ 64 <666000000>;
+				opp-microvolt = <900000>;
+			};
+		};
+
+		dmc0_clk: dmc_clk@channel0 {
+			#clock-cells = <0>;
+			compatible = "hobot,hobot-dmc-clk";
+			channel-id = <0>;
+		};
+
+		dmc_0: dmc0 {
+			compatible = "hobot,xj3-dmc";
+			devfreq-events = <&ddr_monitor>;
+			operating-points-v2 = <&dmc_opp_table>;
+			clocks = <&dmc0_clk>;
+			clock-names = "dmc_clk";
+		};
+
+		dmc0_max {
+			compatible = "hobot,devfreq_qos";
+			devfreq = <&dmc_0>;
+		};
+
 		onewire: onewire {
 			compatible = "w1-gpio";
 			onewire_gpio = <84>;
