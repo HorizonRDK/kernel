@@ -434,11 +434,11 @@ int get_free_mux(struct x3_sif_dev *sif, u32 index, int format, u32 dol_num,
 
 				set_bit(mux_for_4k[i], &sif->mux_mask);
 				set_bit(mux_for_4k[i] + 2, &sif->mux_mask);
-				ret = i;
+				ret = mux_for_4k[i];
 				break;
 			}
 		}
-
+		i = SIF_MUX_MAX;
 	} else {
 		for (i = index; i < SIF_MUX_MAX; i += step) {
 			if (!test_bit(i, &sif->mux_mask)) {
