@@ -29,12 +29,7 @@
 #define HOBOT_I2C_FIFO_SIZE	16
 #define WAIT_IDLE_TIMEOUT	200 /* ms */
 #define XFER_TIMEOUT		1000 /* ms */
-#define HOBOT_SYSCTRL_REG   (0xA1000000)
-#define CLK_EN_SET_REG      (0x154)
-#define I2C0_MCLK_EB_BIT    (1<<11)
-#define CLK_EN_CLR_REG      (0x158)
 
-#define I2C0_MCLK_CLR_BIT   (1<<11)
 #define I2C_MAX_DIV			255
 #define I2C_SCL_DEFAULT_FREQ	100000 /*I2c SCL default frequency is 100KHZ*/
 #define I2C_CONTROL_CLK		24000000
@@ -734,66 +729,6 @@ static int hobot_i2c_remove(struct platform_device *pdev)
 	return 0;
 }
 
-#ifdef CONFIG_PM_SLEEP
-static int hobot_i2c_suspend(struct device *dev)
-{
-	u32 value;
-	void __iomem *address;
-	struct hobot_i2c_dev *i2c_dev = dev_get_drvdata(dev);
-
-	pr_info("%s:%s, enter suspend...\n", __FILE__, __func__);
-
-	//disable clk to reduce power
-	address = ioremap(HOBOT_SYSCTRL_REG, 0x400);
-	value = I2C0_MCLK_CLR_BIT;
-	writel(value, address+CLK_EN_CLR_REG);
-
-	i2c_lock_adapter(&i2c_dev->adapter);
-	i2c_dev->is_suspended = true;
-	i2c_unlock_adapter(&i2c_dev->adapter);
-
-	/* wait I2C bus to be idle */
-	//hobot_wait_idle(i2c_dev);
-	i2c_lock_adapter(&i2c_dev->adapter);
-	i2c_dev->is_suspended = true;
-	i2c_unlock_adapter(&i2c_dev->adapter);
-
-	//disable_irq(i2c_dev->irq);
-	//disable clk to reduce power
-	clk_disable_unprepare(i2c_dev->clk);
-
-	return 0;
-}
-
-static int hobot_i2c_resume(struct device *dev)
-{
-	u32 value;
-	void __iomem *address;
-	struct hobot_i2c_dev *i2c_dev = dev_get_drvdata(dev);
-
-	pr_info("%s:%s, enter resume...\n", __FILE__, __func__);
-
-	//enable clk to work
-	address = ioremap(HOBOT_SYSCTRL_REG, 0x400);
-	value = I2C0_MCLK_EB_BIT;
-	writel(value, address+CLK_EN_SET_REG);
-
-	i2c_lock_adapter(&i2c_dev->adapter);
-	i2c_dev->is_suspended = false;
-	i2c_unlock_adapter(&i2c_dev->adapter);
-
-	//enable_irq(i2c_dev->irq);
-	//enable clk to work
-	clk_prepare_enable(i2c_dev->clk);
-
-	return 0;
-}
-#endif
-
-static const struct dev_pm_ops hobot_i2c_pm = {
-	SET_SYSTEM_SLEEP_PM_OPS(hobot_i2c_suspend, hobot_i2c_resume)
-};
-
 static const struct of_device_id hobot_i2c_of_match[] = {
 	{.compatible = "hobot,hobot-i2c"},
 	{},
@@ -807,7 +742,6 @@ static struct platform_driver hobot_i2c_driver = {
 	.driver = {
 		   .name = "hobot-i2c",
 		   .of_match_table = hobot_i2c_of_match,
-		   .pm = &hobot_i2c_pm,
 		   },
 };
 
