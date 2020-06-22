@@ -532,14 +532,14 @@ int callback_stream_put_frame( uint32_t ctx_id, acamera_stream_type_t type, afra
     /* find stream pointer */
     rc = isp_v4l2_find_stream( &pstream, ctx_id, v4l2_type );
     if ( rc < 0 ) {
-        LOG( LOG_DEBUG, "can't find stream on ctx %d (errno = %d)",
+        LOG( LOG_ERR, "can't find stream on ctx %d (errno = %d)",
              ctx_id, rc );
         return -1;
     }
 
     /* check if stream is on */
     if ( !pstream->stream_started ) {
-        LOG( LOG_DEBUG, "[Stream#%d] type: %d is not started yet on ctx %d",
+        LOG( LOG_ERR, "[Stream#%d] type: %d is not started yet on ctx %d",
              pstream->stream_id, type, ctx_id );
         return -1;
     }
@@ -803,8 +803,6 @@ static void isp_v4l2_stream_buffer_list_release( isp_v4l2_stream_t *pstream,
 
 extern void *acamera_get_ctx_ptr( uint32_t ctx_id );
 extern int dma_writer_configure_pipe( dma_pipe *pipe );
-extern int isp_stream_onoff_check(void);
-extern int isp_open_check(void);
 int isp_v4l2_stream_on( isp_v4l2_stream_t *pstream )
 {
     if ( !pstream ) {
@@ -835,17 +833,11 @@ int isp_v4l2_stream_on( isp_v4l2_stream_t *pstream )
     /* control fields update */
     pstream->stream_started = 1;
 
-    /*
-    get one vb2 buffer config to dma writer.
-    isp fore-end offline don't need(multi stream must not) to do this,
-    use isp_open_check() to rule out multi stream.
-    */
+    /* get one vb2 buffer config to dma writer - for online only */
     acamera_fsm_mgr_t *instance = &(((acamera_context_ptr_t)acamera_get_ctx_ptr(pstream->ctx_id))->fsm_mgr);
-    if (instance->reserved && isp_open_check() <= 1 && isp_stream_onoff_check() == 0) { //dma writer on
+    acamera_context_ptr_t p_ctx = acamera_get_ctx_ptr(pstream->ctx_id);
+    if (p_ctx && instance && instance->reserved && p_ctx->p_gfw->sif_isp_offline == 0) { //dma writer on
         dma_handle *dh = NULL;
-        acamera_context_ptr_t p_ctx;
-
-        p_ctx = acamera_get_ctx_ptr(pstream->ctx_id);
         dh = ((dma_writer_fsm_const_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_DMA_WRITER]->p_fsm))->handle;
         dma_writer_configure_pipe(&dh->pipe[dma_fr]);
         // acamera_general_interrupt_hanlder(ACAMERA_MGR2CTX_PTR(instance), ACAMERA_IRQ_FRAME_WRITER_FR);
@@ -1066,6 +1058,7 @@ extern int sensor_info_check_valid(uint32_t ctx_id, struct v4l2_format *f);
 extern int sensor_info_check_exist(uint32_t ctx_id, struct v4l2_format *f);
 extern void sensor_info_fill(uint32_t ctx_id, struct v4l2_format *f);
 extern int fw_intf_cfa_pattern_ctrl(uint32_t ctx_id, uint32_t ctrl_val);
+extern int fw_intf_sif_isp_offline_set(uint32_t ctx_id, uint32_t ctrl_val);
 int isp_v4l2_stream_set_format( isp_v4l2_stream_t *pstream, struct v4l2_format *f )
 {
     int rc = 0;
@@ -1075,7 +1068,8 @@ int isp_v4l2_stream_set_format( isp_v4l2_stream_t *pstream, struct v4l2_format *
         return -EINVAL;
     }
 
-    pr_debug("[ctx#%d] [Stream#%d]   - SET fmt - width: %4u, height: %4u, exp %d, bits %d, cfa %d, format: 0x%x.",
+    pr_debug("[ctx#%d] [Stream#%d] - SET fmt - \
+        width: %4u, height: %4u, exp %d, bits %d, cfa %d, offline %d, format: 0x%x.",
          pstream->ctx_id,
          pstream->stream_id,
          f->fmt.pix_mp.width,
@@ -1083,6 +1077,7 @@ int isp_v4l2_stream_set_format( isp_v4l2_stream_t *pstream, struct v4l2_format *
          f->fmt.pix_mp.reserved[0],
          f->fmt.pix_mp.reserved[1],
          f->fmt.pix_mp.reserved[2],
+         f->fmt.pix_mp.reserved[3],
          f->fmt.pix_mp.pixelformat );
 
     /* try format first */
@@ -1138,6 +1133,7 @@ int isp_v4l2_stream_set_format( isp_v4l2_stream_t *pstream, struct v4l2_format *
     pstream->cur_v4l2_fmt = *f;
 
     fw_intf_cfa_pattern_ctrl(pstream->ctx_id, f->fmt.pix_mp.reserved[2]);
+    fw_intf_sif_isp_offline_set(pstream->ctx_id, f->fmt.pix_mp.reserved[3]);
 
     LOG( LOG_NOTICE, "[Stream#%d]   - New fmt - width: %4u, height: %4u, format: 0x%x, type: %5u. ",
          pstream->stream_id,

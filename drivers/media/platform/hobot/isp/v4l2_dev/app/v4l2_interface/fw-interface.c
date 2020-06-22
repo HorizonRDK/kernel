@@ -1383,3 +1383,13 @@ int fw_intf_iridix_ctrl(uint32_t ctx_id, uint32_t ctrl_val)
 
     return 0;
 }
+
+int fw_intf_sif_isp_offline_set(uint32_t ctx_id, uint32_t ctrl_val)
+{
+    acamera_context_t *ptr = acamera_get_ctx_ptr(ctx_id);
+
+    if (ptr != NULL)
+        ptr->p_gfw->sif_isp_offline = ctrl_val;
+
+    return 0;
+}

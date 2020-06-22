@@ -163,9 +163,6 @@ struct _acamera_context_t {
     uint8_t isp_awb_stats_on;
     uint8_t isp_ae_stats_on;
 
-    // sif offline isp on/off
-    uint8_t sif_isp_offline;
-
     uint8_t content_side;
     int dma_chn_idx;
 
@@ -206,7 +203,8 @@ struct _acamera_firmware_t {
     struct mutex ctx_chg_lock;
 
     uint32_t sw_frame_counter;
-    uint32_t initialized;
+    uint32_t initialized;    
+    uint8_t sif_isp_offline;
 
     //byte3:status
     //byte2:iridix turn over(1), iridix share(2)

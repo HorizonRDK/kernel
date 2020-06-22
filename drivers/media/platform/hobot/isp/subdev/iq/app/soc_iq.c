@@ -87,15 +87,11 @@ static long iq_ioctl( struct v4l2_subdev *sd, unsigned int cmd, void *arg )
         int32_t id = ARGS_TO_PTR( arg )->ioctl.request_info.id;
         int32_t sensor_type = ARGS_TO_PTR( arg )->ioctl.request_info.sensor_type;
         if ( context < FIRMWARE_CONTEXT_NUMBER && id < CALIBRATION_TOTAL_SIZE ) {
-
-            if (( g_luts_arr[context].cur_preset != sensor_arg->wdr_mode ) ||
-		(g_luts_arr[context].cur_sensor_type != iq_sensor_type)) {
 		g_luts_arr[context].cur_sensor_type = iq_sensor_type;
                 g_luts_arr[context].cur_preset = sensor_arg->wdr_mode;
                 LOG( LOG_INFO, "Get calibration data for preset: %d, sensor_type %d .", g_luts_arr[context].cur_preset, iq_sensor_type);
 
                 CALIBRATION_FUNC_ARR[context]( context, sensor_arg, &g_luts_arr[context].cali_lut_data, sensor_type );
-            }
 
             ACameraCalibrations *luts_ptr = &g_luts_arr[context].cali_lut_data;
             ARGS_TO_PTR( arg )

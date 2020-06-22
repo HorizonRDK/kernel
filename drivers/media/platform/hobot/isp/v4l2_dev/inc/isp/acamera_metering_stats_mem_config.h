@@ -30,7 +30,7 @@
 // ------------------------------------------------------------------------------ //
 
 #define ACAMERA_METERING_STATS_MEM_BASE_ADDR (0x44b0L)
-#define ACAMERA_METERING_STATS_MEM_SIZE (0x8000)
+#define ACAMERA_METERING_STATS_MEM_SIZE (0x66BC)
 
 #define ACAMERA_METERING_STATS_MEM_ARRAY_DATA_DEFAULT (0x0)
 #define ACAMERA_METERING_STATS_MEM_ARRAY_DATA_DATASIZE (32)

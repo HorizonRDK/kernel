@@ -437,6 +437,7 @@ int32_t acamera_init( acamera_settings *settings, uint32_t ctx_num )
 
     g_firmware.api_context = 0;
     g_firmware.first_frame = 0;
+    g_firmware.sif_isp_offline = 0;
     g_firmware.sw_frame_counter = 0;
     g_firmware.iridix_ctrl_flag = 0;
     g_firmware.cache_area = NULL;
@@ -693,7 +694,7 @@ static void dma_complete_context_func( void *arg )
 		}
 	}
          // indicate dma writer is disabled
-        if (p_ctx->sif_isp_offline && p_ctx->fsm_mgr.reserved == 0
+        if (p_ctx->p_gfw->sif_isp_offline && p_ctx->fsm_mgr.reserved == 0
             && isp_stream_onoff_check() != 2) {
             g_firmware.handler_flag_interrupt_handle_completed = 1;
             dma_writer_config_done();
@@ -719,7 +720,7 @@ static void dma_complete_metering_func( void *arg )
 	pr_debug("START PROCESSING FROM METERING CALLBACK, ctx_id %d\n", ctx_id);
 
          // indicate dma writer is disabled
-        if (p_ctx->sif_isp_offline && p_ctx->fsm_mgr.reserved == 0
+        if (p_ctx->p_gfw->sif_isp_offline && p_ctx->fsm_mgr.reserved == 0
             && isp_stream_onoff_check() != 2) {
             g_firmware.handler_flag_interrupt_handle_completed = 1;
             dma_writer_config_done();
@@ -1186,6 +1187,7 @@ extern int ldc_set_ioctl(uint32_t port, uint32_t online);
 extern int dis_set_ioctl(uint32_t port, uint32_t online);
 extern void isp_input_port_size_config(sensor_fsm_ptr_t p_fsm);
 extern int ips_get_isp_frameid(void);
+extern int dma_writer_configure_pipe( dma_pipe *pipe );
 int sif_isp_ctx_sync_func(int ctx_id)
 {
     int ret = 0;
@@ -1225,7 +1227,7 @@ int sif_isp_ctx_sync_func(int ctx_id)
 
 	pr_debug("start isp ctx switch, ctx_id %d\n", ctx_id);
 
-    p_ctx->sif_isp_offline = 1;
+    p_ctx->p_gfw->sif_isp_offline = 1;
     _ctx_chn_idx_update(ctx_id);
 
     if (GET_BYTE_V(g_firmware.iridix_ctrl_flag, 2) != 0) {
@@ -1238,6 +1240,8 @@ int sif_isp_ctx_sync_func(int ctx_id)
 
 	if (acamera_event_queue_empty(&p_ctx->fsm_mgr.event_queue)
         || acamera_event_queue_has_mask_event(&p_ctx->fsm_mgr.event_queue)) {
+        dma_handle *dh = NULL;
+
 		// these flags are used for sync of callbacks
 		g_firmware.dma_flag_isp_config_completed = 0;
 		g_firmware.dma_flag_isp_metering_completed = 0;
@@ -1249,6 +1253,12 @@ int sif_isp_ctx_sync_func(int ctx_id)
                 pr_err("outside ctx swap failed.\n");
                 goto out;
             }
+        }
+
+        /* get one vb2 buffer config to dma writer */
+        if (p_ctx->fsm_mgr.reserved) { //dma writer on
+            dh = ((dma_writer_fsm_const_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_DMA_WRITER]->p_fsm))->handle;
+            dma_writer_configure_pipe(&dh->pipe[dma_fr]);
         }
 
         /*
@@ -1369,7 +1379,7 @@ pr_info("hcs1 %d, hcs2 %d, vc %d\n", hcs1, hcs2, vc);
             irq_mask &= ~( 1 << irq_bit );
             if ( irq_is_1 ) {
                 // process interrupts
-                if ( p_ctx->sif_isp_offline == 0 && irq_bit == ISP_INTERRUPT_EVENT_ISP_START_FRAME_START ) {
+                if ( p_ctx->p_gfw->sif_isp_offline == 0 && irq_bit == ISP_INTERRUPT_EVENT_ISP_START_FRAME_START ) {
                     static uint32_t fs_cnt = 0;
                     if ( fs_cnt < 10 ) {
                         LOG( LOG_INFO, "[KeyMsg]: FS interrupt: %d", fs_cnt++ );
@@ -1431,7 +1441,7 @@ pr_info("hcs1 %d, hcs2 %d, vc %d\n", hcs1, hcs2, vc);
                     pr_debug("frame done, ctx id %d\n", cur_ctx_id);
                     if (ip_sts_dbg)
                         input_port_status();
-                    if (p_ctx->sif_isp_offline) {
+                    if (p_ctx->p_gfw->sif_isp_offline) {
                         atomic_set(&g_firmware.frame_done, 1);
                         wake_up(&wq_frame_end);
                         if (p_ctx->fsm_mgr.reserved) //dma writer on
@@ -1439,7 +1449,7 @@ pr_info("hcs1 %d, hcs2 %d, vc %d\n", hcs1, hcs2, vc);
                     }
                 } else if ( irq_bit == ISP_INTERRUPT_EVENT_FR_Y_WRITE_DONE ) {
                     pr_debug("frame write to ddr done\n");
-                    if (p_ctx->sif_isp_offline) {
+                    if (p_ctx->p_gfw->sif_isp_offline) {
                         atomic_set(&g_firmware.dma_done, 1);
                         wake_up(&wq_dma_done);
                     }

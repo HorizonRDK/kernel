@@ -166,6 +166,7 @@ int acamera_fw_isp_stop(int ctx_id)
     fw_ptr->sw_frame_counter = 0;
     fw_ptr->initialized = 0;
     fw_ptr->iridix_ctrl_flag = 0;
+    fw_ptr->sif_isp_offline = 0;
     if (fw_ptr->cache_area != NULL) {
         pr_debug("free ddr ctx mem %p\n", p_ctx->p_gfw->cache_area);
         vfree((void *)p_ctx->p_gfw->cache_area);
@@ -547,7 +548,6 @@ static void init_stab( acamera_context_ptr_t p_ctx )
     p_ctx->isp_ctxsv_on = 0;
     p_ctx->isp_ae_stats_on = 0;
     p_ctx->isp_awb_stats_on = 0;
-    p_ctx->sif_isp_offline = 0;
     p_ctx->isp_frame_counter = 0;
 
     ((general_fsm_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_GENERAL]->p_fsm))->cnt_for_temper = 0;
@@ -698,12 +698,6 @@ int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settin
         sched_setscheduler_nocheck(p_ctx->evt_thread, SCHED_FIFO, &param);
         // set_cpus_allowed_ptr(p_ctx->evt_thread, cpumask_of(p_ctx->context_id % 4));
 
-#if FW_HAS_CUSTOM_SETTINGS
-        // the custom initialization may be required for a context
-        const acam_reg_t *p_custom_settings_context = (const acam_reg_t *)_GET_UINT_PTR( p_ctx, CALIBRATION_CUSTOM_SETTINGS_CONTEXT );
-        acamera_load_sw_sequence( p_ctx->settings.isp_base, &p_custom_settings_context, 0 );
-#endif
-
         if (p_ctx->dma_chn_idx >= 0 && p_ctx->dma_chn_idx < HW_CONTEXT_NUMBER) {
             acamera_isp_iridix_context_no_write(p_ctx->settings.isp_base, p_ctx->dma_chn_idx);
         } else {
@@ -742,7 +736,6 @@ void acamera_deinit_context( acamera_context_t *p_ctx )
 
     // clear all contexts state
     p_ctx->fsm_mgr.reserved = 0;
-    p_ctx->sif_isp_offline = 0;
     p_ctx->initialized = 0;
     p_ctx->system_state = FW_PAUSE;
     if (p_ctx->dma_chn_idx >= 0 && p_ctx->dma_chn_idx < HW_CONTEXT_NUMBER) {

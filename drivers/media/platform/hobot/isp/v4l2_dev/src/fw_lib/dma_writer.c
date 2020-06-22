@@ -312,14 +312,16 @@ static int dma_writer_configure_frame_writer( dma_pipe *pipe,
         reg_ops->bank0_base_write( pipe->settings.isp_base, addr );
         reg_ops->write_on_write( pipe->settings.isp_base, 1 );
 
-        reg_ops->format_write_hw( base, aframe->type );
-        reg_ops->active_width_write_hw( base, aframe->width );
-        reg_ops->active_height_write_hw( base, aframe->height );
-        reg_ops->line_offset_write_hw( base, line_offset );
-        reg_ops->bank0_base_write_hw( base, addr );
-        reg_ops->write_on_write_hw( base, 1 );
-        pr_debug("enable dma write, frame%d, %dx%d, stride=%d, phy_addr=0x%x, size=%d, type=%d",
-            aframe->frame_id, aframe->width, aframe->height, aframe->line_offset,
+        if (p_ctx->p_gfw->sif_isp_offline == 0) {
+            reg_ops->format_write_hw( base, aframe->type );
+            reg_ops->active_width_write_hw( base, aframe->width );
+            reg_ops->active_height_write_hw( base, aframe->height );
+            reg_ops->line_offset_write_hw( base, line_offset );
+            reg_ops->bank0_base_write_hw( base, addr );
+            reg_ops->write_on_write_hw( base, 1 );
+        }
+        pr_debug("[s%d] enable dma write, frame%d, %dx%d, stride=%d, phy_addr=0x%x, size=%d, type=%d",
+            p_ctx->context_id, aframe->frame_id, aframe->width, aframe->height, aframe->line_offset,
             aframe->address, aframe->size, aframe->type);
 
         /* for offline, tell feed thread dma writer config done */
@@ -329,9 +331,11 @@ static int dma_writer_configure_frame_writer( dma_pipe *pipe,
         }
     } else {
         reg_ops->write_on_write( pipe->settings.isp_base, 0 );
-        reg_ops->write_on_write_hw( base, 0 );
-        pr_debug("disable dma write, frame%d, %dx%d, stride=%d, phy_addr=0x%x, size=%d, type=%d",
-            aframe->frame_id, aframe->width, aframe->height, aframe->line_offset,
+        if (p_ctx->p_gfw->sif_isp_offline == 0) {
+            reg_ops->write_on_write_hw( base, 0 );
+        }
+        pr_debug("[s%d] disable dma write, frame%d, %dx%d, stride=%d, phy_addr=0x%x, size=%d, type=%d",
+            p_ctx->context_id, aframe->frame_id, aframe->width, aframe->height, aframe->line_offset,
             aframe->address, aframe->size, aframe->type);
     }
 
