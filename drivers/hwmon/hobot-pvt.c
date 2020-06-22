@@ -38,7 +38,7 @@ static int smpl_threshold = 3900;
 module_param(smpl_threshold, int, 0644);
 
 /* Max diff in Celsius */
-static int max_diff = 20;
+static int max_diff = 20000;
 module_param(max_diff, int, 0644);
 
 /* For test, 0: default; 1: force calib, 2: force uncalib */
@@ -93,12 +93,13 @@ static inline void pvt_n_reg_wr(struct pvt_device *dev, int num,  u32 reg, u32 v
 }
 
 
+#define ABN_MAGIC -99999
 /* return 1 if got abnormal value; 0 if no abnormal value */
 int fix_abnormal_temp_value(struct pvt_device *pvt_dev)
 {
 	long *ts = pvt_dev->cur_temp;
 	long avg = 0;
-	long abn = -99;
+	long abn = ABN_MAGIC;
 	long diff;
 	long sum_temp = 0;
 	u32 sum_smpl = 0;
@@ -112,7 +113,7 @@ int fix_abnormal_temp_value(struct pvt_device *pvt_dev)
 
 		/* Pick the max deviation sample */
 		if (diff > max_diff) {
-			if (abn == -99 || (diff > abs(abn -avg))) {
+			if (abn == ABN_MAGIC || (diff > abs(abn -avg))) {
 				abn = ts[i];
 				abn_i = i;
 			}
@@ -120,7 +121,7 @@ int fix_abnormal_temp_value(struct pvt_device *pvt_dev)
 	}
 
 	/* Set the max deviation sample to average of others*/
-	if (abn > -99 && abn_i >= 0) {
+	if (abn > ABN_MAGIC && abn_i >= 0) {
 		for (i = 0; i < PVT_TS_NUM; i++) {
 			if (i == abn_i)
 				continue;
@@ -163,24 +164,21 @@ static int pvt_temp_read(struct device *dev, enum hwmon_sensor_types type,
 			pr_debug("TS is running in calibrated mode\n");
 
 			/* ts mode 1, Calibrated mode */
-			temp = pvt_dev->cal_A[i] +
-					((((int)pvt_dev->cur_smpl[i] * pvt_dev->cal_B[i])) >> 12)
-						- (((2047 * pvt_dev->cal_B[i])) >> 12);
+			temp = pvt_dev->cal_A[i] * 10 +
+			        ((((int)pvt_dev->cur_smpl[i] * pvt_dev->cal_B[i] * 10)) >> 12)
+					     - (((2047 * pvt_dev->cal_B[i] * 10)) >> 12) - 400;
 		} else {
 			pr_debug("TS is running in uncalibrated mode\n");
-			/* ts mode 2, Uncalibrated mode */
-			/*
-			 * use integer instead of float, the difference is less than 1C.
-			 * ((int)(pvt_dev->cur_smpl[i] * 204.4 - 43.14 * 4094) >> 12)
-			 */
 
-			temp = (((int)pvt_dev->cur_smpl[i] * 204) >> 12) - ((43 * 4094) >> 12);
+			/* ts mode 2, Uncalibrated mode */
+			temp = -40400 + 49 * pvt_dev->cur_smpl[i]
+			              + (148 * pvt_dev->cur_smpl[i]) / 1000;
 		}
 
 		pvt_dev->cur_temp[i] = temp;
 
 		pr_debug("%s cur_smpl[%d] = %d\n", ts_map[i], i, pvt_dev->cur_smpl[i]);
-		pr_debug("%s cur_temp[%d] = %ld\n", ts_map[i], i, pvt_dev->cur_temp[i]);
+		pr_debug("%s cur_temp[%d] = %ldmC\n", ts_map[i], i, pvt_dev->cur_temp[i]);
 		sum += temp;
 	}
 
@@ -189,7 +187,7 @@ static int pvt_temp_read(struct device *dev, enum hwmon_sensor_types type,
 	/* cur_smpl, cur_temp and cur_avg could be change in this function */
 	fix_abnormal_temp_value(pvt_dev);
 
-	*val = pvt_dev->cur_temp_avg * 1000;
+	*val = pvt_dev->cur_temp_avg;
 
 	/* collect reasonable diff data */
 	temp_min = temp_max = pvt_dev->cur_temp[0];
@@ -205,7 +203,7 @@ static int pvt_temp_read(struct device *dev, enum hwmon_sensor_types type,
 	}
 
 	diff = temp_max - temp_min;
-	if (diff > 2)
+	if (diff > 2000)
 		pr_debug("avg:%ld, min:%ld, max:%ld, diff:%ld\n",
 			pvt_dev->cur_temp_avg, temp_min, temp_max, diff);
 
@@ -354,10 +352,6 @@ static void pvt_init_hw(struct pvt_device *pvt_dev)
 		dev_dbg(pvt_dev->dev, "after enabled TS irq: IRQ_%d_EN_ADDR: %08x\n", i, val);
 	}
 
-	/*
-	 * TODO CFG alarm if needed
-	 */
-
 	/* Configure Clock Synthesizers from pvt spec, 240MHz to 4MHz  */
 	pvt_reg_wr(pvt_dev, TS_CMN_CLK_SYNTH_ADDR, 0x01011D1D);
 
@@ -478,33 +472,37 @@ static int pvt_probe(struct platform_device *pdev)
 	pvt_dev->irq_unmask_timer.expires = jiffies + msecs_to_jiffies(PVT_SAMPLE_INTERVAL_MS);
 	add_timer(&pvt_dev->irq_unmask_timer);
 
-	if (ioread32(pvt_dev->efuse_base) != 0) {
-		pr_info("TS Calibrated data detected\n");
-		for(i = 0; i < PVT_TS_NUM; i++) {
-			val = ioread32(pvt_dev->efuse_base + i * PVT_TS_NUM);
+	/* use uncalibrated mode by default */
+	pvt_dev->ts_mode = 1;
 
-			/* FIXME: lost some precision here */
-			pvt_dev->cal_A[i] = ((val & PVT_TS_A_MASK) >> 16) / 100;
-			pvt_dev->cal_B[i] = (val & PVT_TS_B_MASK) / 100;
-			pr_info("val:%08x, cal_A[%d]:%d, cal_B[%d]:%d\n", val, i, pvt_dev->cal_A[i],
-				i, pvt_dev->cal_B[i]);
-		}
+	for(i = 0; i < PVT_TS_NUM; i++) {
+		val = ioread32(pvt_dev->efuse_base + i * PVT_TS_NUM);
+
+		pvt_dev->cal_A[i] = ((val & PVT_TS_A_MASK) >> 16);
+		pvt_dev->cal_B[i] = (val & PVT_TS_B_MASK);
+		if (pvt_dev->cal_A[i] > 0x1500 || pvt_dev->cal_A[i] < 0x500 ||
+			pvt_dev->cal_B[i] > 0x6000 || pvt_dev->cal_B[i] < 0x5000 )
+			break;
+
+		pr_debug("val:%08x, cal_A[%d]:%d, cal_B[%d]:%d\n",
+				val, i, pvt_dev->cal_A[i], i, pvt_dev->cal_B[i]);
+	}
+
+	if (PVT_TS_NUM == i) {
+		pr_info("TS Calibrated data detected\n");
 		pvt_dev->ts_mode = 0;
-	} else {
-		pvt_dev->ts_mode = 1;
-		pr_info("TS Calibrated data not detected\n");
 	}
 
 	/* extra control for mode switching test */
 	if (force_calib == 1) {
-		pvt_dev->cal_A[0] = 0x100F/100;
-		pvt_dev->cal_B[0] = 0x557A/100;
-		pvt_dev->cal_A[1] = 0x0FFA/100;
-		pvt_dev->cal_B[1] = 0x5565/100;
-		pvt_dev->cal_A[2] = 0x101E/100;
-		pvt_dev->cal_B[2] = 0x558B/100;
-		pvt_dev->cal_A[3] = 0x102A/100;
-		pvt_dev->cal_B[3] = 0x5597/100;
+		pvt_dev->cal_A[0] = 0x100F;
+		pvt_dev->cal_B[0] = 0x557A;
+		pvt_dev->cal_A[1] = 0x0FFA;
+		pvt_dev->cal_B[1] = 0x5565;
+		pvt_dev->cal_A[2] = 0x101E;
+		pvt_dev->cal_B[2] = 0x558B;
+		pvt_dev->cal_A[3] = 0x102A;
+		pvt_dev->cal_B[3] = 0x5597;
 		pvt_dev->ts_mode = 0;
 	} else if (force_calib == 2) {
 		pvt_dev->ts_mode = 1;
