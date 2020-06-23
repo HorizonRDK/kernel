@@ -4704,8 +4704,8 @@ static inline void xj3_rx_refill(struct xj3_priv *priv, u32 queue) {
                 priv->rx_coal_frames);
 
         dma_wmb();
-        p->des3 = cpu_to_le32(RDES3_OWN | RDES3_BUFFER1_VALID_ADDR);
-        if (!use_rx_wd) p->des3 |= cpu_to_le32(RDES3_INT_ON_COMPLETION_EN);
+        if (!use_rx_wd) p->des3 = cpu_to_le32(RDES3_INT_ON_COMPLETION_EN);
+        p->des3 |= cpu_to_le32(RDES3_OWN | RDES3_BUFFER1_VALID_ADDR);
 
         entry = XJ3_GET_ENTRY(entry, DMA_RX_SIZE);
     }
