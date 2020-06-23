@@ -683,7 +683,7 @@ struct UVC_FRAME_H264(n) {				\
 } __attribute__((packed))
 #endif
 
-struct uvc_format_framebase {
+struct uvc_format_framebased {
 	__u8  bLength;
 	__u8  bDescriptorType;
 	__u8  bDescriptorSubType;
@@ -699,8 +699,8 @@ struct uvc_format_framebase {
 	__u8  bVariableSize;
 } __attribute__((__packed__));
 
-#define UVC_DT_FORMAT_FRAMEBASE_SIZE            28
-struct uvc_frame_framebase {
+#define UVC_DT_FORMAT_FRAMEBASED_SIZE            28
+struct uvc_frame_framebased {
 	__u8  bLength;
 	__u8  bDescriptorType;
 	__u8  bDescriptorSubType;
@@ -716,12 +716,12 @@ struct uvc_frame_framebase {
 	__u32 dwFrameInterval[];
 } __attribute__((__packed__));
 
-#define UVC_DT_FRAME_FRAMEBASE_SIZE(n)		(26+4*(n))
+#define UVC_DT_FRAME_FRAMEBASED_SIZE(n)		(26+4*(n))
 
-#define UVC_FRAME_FRAMEBASE(n) \
-	uvc_frame_framebase_##n
-#define DECLARE_UVC_FRAME_FRAMEBASE(n)      \
-struct UVC_FRAME_FRAMEBASE(n) {         \
+#define UVC_FRAME_FRAMEBASED(n) \
+	uvc_frame_framebased_##n
+#define DECLARE_UVC_FRAME_FRAMEBASED(n)      \
+struct UVC_FRAME_FRAMEBASED(n) {         \
 	__u8  bLength;                  \
 	__u8  bDescriptorType;              \
 	__u8  bDescriptorSubType;           \
