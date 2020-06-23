@@ -755,7 +755,7 @@ static void __init hobot_i2c_exit(void)
 	platform_driver_unregister(&hobot_i2c_driver);
 }
 
-subsys_initcall(hobot_i2c_init);
+module_init(hobot_i2c_init);
 module_exit(hobot_i2c_exit);
 
 MODULE_AUTHOR("Taochao");

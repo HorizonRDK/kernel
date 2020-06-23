@@ -661,4 +661,4 @@ static struct platform_driver x3_gpio_driver = {
 static int __init x3_gpio_init(void) {
     return platform_driver_register(&x3_gpio_driver);
 }
-arch_initcall(x3_gpio_init);
+module_init(x3_gpio_init);
