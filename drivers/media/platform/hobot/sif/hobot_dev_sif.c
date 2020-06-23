@@ -438,7 +438,10 @@ int get_free_mux(struct x3_sif_dev *sif, u32 index, int format, u32 dol_num,
 				break;
 			}
 		}
-		i = SIF_MUX_MAX;
+		if (i >= 4) {
+			vio_err("can't get free mux for 4k\n");
+			ret = -EINVAL;
+		}
 	} else {
 		for (i = index; i < SIF_MUX_MAX; i += step) {
 			if (!test_bit(i, &sif->mux_mask)) {
