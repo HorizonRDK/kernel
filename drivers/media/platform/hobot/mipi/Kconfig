@@ -11,7 +11,7 @@ config HOBOT_MIPI_HOST
 config HOBOT_MIPI_HOST_MAX_NUM
     int "Hobot MIPI host max port num"
 	depends on HOBOT_MIPI_HOST
-	default 4 if HOBOT_XJ3 || ARCH_ZYNQMP
+	default 4 if HOBOT_XJ3 || HOBOT_J5 || ARCH_ZYNQMP
 	default 1 if HOBOT_XJ2
 	---help---
       Max num of mipi host devices
@@ -25,7 +25,8 @@ config HOBOT_MIPI_DEV
 config HOBOT_MIPI_DEV_MAX_NUM
     int "Hobot MIPI dev max port num"
 	depends on HOBOT_MIPI_DEV
-	default 1
+	default 2 if HOBOT_J5 || ARCH_ZYNQMP
+	default 1 if HOBOT_XJ2 || HOBOT_XJ3
 	---help---
       Max num of mipi dev devices
 

@@ -195,6 +195,16 @@ typedef struct _mipi_dev_param_s {
 	uint32_t hsync_pkt;
 	uint32_t ipi_force;
 	uint32_t ipi_limit;
+	uint32_t ipi1_dt;
+#if MIPIDEV_CHANNEL_NUM >= 2
+	uint32_t ipi2_dt;
+#endif
+#if MIPIDEV_CHANNEL_NUM >= 3
+	uint32_t ipi3_dt;
+#endif
+#if MIPIDEV_CHANNEL_NUM >= 4
+	uint32_t ipi4_dt;
+#endif
 #if MIPI_DEV_INT_DBG
 	uint32_t irq_cnt;
 	uint32_t irq_debug;
@@ -212,6 +222,16 @@ static const char *g_md_param_names[] = {
 	"hsync_pkt",
 	"ipi_force",
 	"ipi_limit",
+	"ipi1_dt",
+#if MIPIDEV_CHANNEL_NUM >= 2
+	"ipi2_dt",
+#endif
+#if MIPIDEV_CHANNEL_NUM >= 3
+	"ipi3_dt",
+#endif
+#if MIPIDEV_CHANNEL_NUM >= 4
+	"ipi4_dt",
+#endif
 #if MIPI_DEV_INT_DBG
 	"irq_cnt",
 	"irq_debug",
@@ -441,6 +461,7 @@ static int32_t mipi_dev_configure_ipi(mipi_ddev_t *ddev, mipi_dev_cfg_t *cfg)
 	mipi_dev_param_t *param = &mdev->param;
 	void __iomem *iomem = mdev->iomem;
 	int ipi_num;
+	int vcid, datatype;
 
 	if (!ddev || !iomem)
 		return -1;
@@ -460,17 +481,19 @@ static int32_t mipi_dev_configure_ipi(mipi_ddev_t *ddev, mipi_dev_cfg_t *cfg)
 	case 4:
 #if MIPIDEV_CHANNEL_NUM >= 4
 		/* ipi4 config */
-		if (cfg->channel_sel[3] < 4) {
+		vcid = cfg->channel_sel[3];
+		if (vcid < 32) {
+			datatype = (param->ipi4_dt) ? param->ipi4_dt : cfg->datatype;
+			if (param->ipi4_dt || vcid != 3)
+				mipiinfo("ipi4 vc%d datatype 0x%02x", vcid, datatype);
 			if (param->hsync_pkt)
 				mipi_putreg(iomem + REG_MIPI_DEV_IPI4_PKT_CFG,
-					MIPI_DEV_IPI_PKT_CFG |
-					MIPI_DEV_IPI_VC(cfg->channel_sel[3]) |
-					cfg->datatype | MIPI_DEV_IPI_HSYNC_PKT_EN);
+					MIPI_DEV_IPI_PKT_CFG | MIPI_DEV_IPI_VC(vcid) |
+					datatype | MIPI_DEV_IPI_HSYNC_PKT_EN);
 			else
 				mipi_putreg(iomem + REG_MIPI_DEV_IPI4_PKT_CFG,
-					MIPI_DEV_IPI_PKT_CFG |
-					MIPI_DEV_IPI_VC(cfg->channel_sel[3]) |
-					cfg->datatype);
+					MIPI_DEV_IPI_PKT_CFG | MIPI_DEV_IPI_VC(vcid) |
+					datatype);
 			mipi_putreg(iomem + REG_MIPI_DEV_IPI4_MAX_FRAME_NUM,
 				MIPI_DEV_IPI_MAX_FRAME);
 			mipi_putreg(iomem + REG_MIPI_DEV_IPI4_PIXELS,
@@ -484,17 +507,19 @@ static int32_t mipi_dev_configure_ipi(mipi_ddev_t *ddev, mipi_dev_cfg_t *cfg)
 	case 3:
 #if MIPIDEV_CHANNEL_NUM >= 3
 		/* ipi3 config */
-		if (cfg->channel_sel[2] < 4) {
+		vcid = cfg->channel_sel[2];
+		if (vcid < 32) {
+			datatype = (param->ipi3_dt) ? param->ipi3_dt : cfg->datatype;
+			if (param->ipi3_dt || vcid != 2)
+				mipiinfo("ipi3 vc%d datatype 0x%02x", vcid, datatype);
 			if (param->hsync_pkt)
 				mipi_putreg(iomem + REG_MIPI_DEV_IPI3_PKT_CFG,
-					MIPI_DEV_IPI_PKT_CFG |
-					MIPI_DEV_IPI_VC(cfg->channel_sel[2]) |
-					cfg->datatype | MIPI_DEV_IPI_HSYNC_PKT_EN);
+					MIPI_DEV_IPI_PKT_CFG | MIPI_DEV_IPI_VC(vcid) |
+					datatype | MIPI_DEV_IPI_HSYNC_PKT_EN);
 			else
 				mipi_putreg(iomem + REG_MIPI_DEV_IPI3_PKT_CFG,
-					MIPI_DEV_IPI_PKT_CFG |
-					MIPI_DEV_IPI_VC(cfg->channel_sel[2]) |
-					cfg->datatype);
+					MIPI_DEV_IPI_PKT_CFG | MIPI_DEV_IPI_VC(vcid) |
+					datatype);
 			mipi_putreg(iomem + REG_MIPI_DEV_IPI3_MAX_FRAME_NUM,
 				MIPI_DEV_IPI_MAX_FRAME);
 			mipi_putreg(iomem + REG_MIPI_DEV_IPI3_PIXELS,
@@ -508,17 +533,19 @@ static int32_t mipi_dev_configure_ipi(mipi_ddev_t *ddev, mipi_dev_cfg_t *cfg)
 	case 2:
 #if MIPIDEV_CHANNEL_NUM >= 2
 		/* ipi2 config */
-		if (cfg->channel_sel[1] < 4) {
+		vcid = cfg->channel_sel[1];
+		if (vcid < 32) {
+			datatype = (param->ipi2_dt) ? param->ipi2_dt : cfg->datatype;
+			if (param->ipi2_dt || vcid != 1)
+				mipiinfo("ipi2 vc%d datatype 0x%02x", vcid, datatype);
 			if (param->hsync_pkt)
 				mipi_putreg(iomem + REG_MIPI_DEV_IPI2_PKT_CFG,
-					MIPI_DEV_IPI_PKT_CFG |
-					MIPI_DEV_IPI_VC(cfg->channel_sel[1]) |
-					cfg->datatype | MIPI_DEV_IPI_HSYNC_PKT_EN);
+					MIPI_DEV_IPI_PKT_CFG | MIPI_DEV_IPI_VC(vcid) |
+					datatype | MIPI_DEV_IPI_HSYNC_PKT_EN);
 			else
 				mipi_putreg(iomem + REG_MIPI_DEV_IPI2_PKT_CFG,
-					MIPI_DEV_IPI_PKT_CFG |
-					MIPI_DEV_IPI_VC(cfg->channel_sel[1]) |
-					cfg->datatype);
+					MIPI_DEV_IPI_PKT_CFG | MIPI_DEV_IPI_VC(vcid) |
+					datatype);
 			mipi_putreg(iomem + REG_MIPI_DEV_IPI2_MAX_FRAME_NUM,
 				MIPI_DEV_IPI_MAX_FRAME);
 			mipi_putreg(iomem + REG_MIPI_DEV_IPI2_PIXELS,
@@ -531,18 +558,20 @@ static int32_t mipi_dev_configure_ipi(mipi_ddev_t *ddev, mipi_dev_cfg_t *cfg)
 		/* no break */
 	case 1:
 	default:
-		/* ipi3 config */
-		if (cfg->channel_sel[0] < 4) {
+		/* ipi1 config */
+		vcid = cfg->channel_sel[0];
+		if (vcid < 32) {
+			datatype = (param->ipi1_dt) ? param->ipi1_dt : cfg->datatype;
+			if (param->ipi1_dt || vcid != 0)
+				mipiinfo("ipi1 vc%d datatype 0x%02x", vcid, datatype);
 			if (param->hsync_pkt)
 				mipi_putreg(iomem + REG_MIPI_DEV_IPI_PKT_CFG,
-					MIPI_DEV_IPI_PKT_CFG |
-					MIPI_DEV_IPI_VC(cfg->channel_sel[0]) |
-					cfg->datatype | MIPI_DEV_IPI_HSYNC_PKT_EN);
+					MIPI_DEV_IPI_PKT_CFG | MIPI_DEV_IPI_VC(vcid) |
+					datatype | MIPI_DEV_IPI_HSYNC_PKT_EN);
 			else
 				mipi_putreg(iomem + REG_MIPI_DEV_IPI_PKT_CFG,
-					MIPI_DEV_IPI_PKT_CFG |
-					MIPI_DEV_IPI_VC(cfg->channel_sel[0]) |
-					cfg->datatype);
+					MIPI_DEV_IPI_PKT_CFG | MIPI_DEV_IPI_VC(vcid) |
+					datatype);
 			mipi_putreg(iomem + REG_MIPI_DEV_IPI_MAX_FRAME_NUM,
 				MIPI_DEV_IPI_MAX_FRAME);
 			mipi_putreg(iomem + REG_MIPI_DEV_IPI_PIXELS,
@@ -665,7 +694,7 @@ static unsigned long mipi_dev_pixel_clk_select(mipi_ddev_t *ddev, mipi_dev_cfg_t
 
 	if (param->ipi_force >= 10000000) {
 		pixclk = param->ipi_force;
-		mipiinfo("ipi clk force as %lu", pixclk);
+		mipiinfo("ipiclk force as %lu", pixclk);
 	} else {
 		pixclk = linelenth * framelenth * cfg->fps;
 		if (cfg->datatype < MIPI_CSI2_DT_RAW_8)
@@ -674,7 +703,7 @@ static unsigned long mipi_dev_pixel_clk_select(mipi_ddev_t *ddev, mipi_dev_cfg_t
 			pixclk = (pixclk + 2) / 3;
 
 		if (param->ipi_limit && pixclk < param->ipi_limit) {
-			mipiinfo("ipi clk limit %lu up to %u", pixclk, param->ipi_limit);
+			mipiinfo("ipiclk limit %lu up to %u", pixclk, param->ipi_limit);
 			pixclk = param->ipi_limit;
 		}
 	}
@@ -1689,6 +1718,16 @@ MIPI_DEV_PARAM_DEC(power_instart);
 MIPI_DEV_PARAM_DEC(hsync_pkt);
 MIPI_DEV_PARAM_DEC(ipi_force);
 MIPI_DEV_PARAM_DEC(ipi_limit);
+MIPI_DEV_PARAM_DEC(ipi1_dt);
+#if MIPIDEV_CHANNEL_NUM >= 2
+MIPI_DEV_PARAM_DEC(ipi2_dt);
+#endif
+#if MIPIDEV_CHANNEL_NUM >= 3
+MIPI_DEV_PARAM_DEC(ipi3_dt);
+#endif
+#if MIPIDEV_CHANNEL_NUM >= 4
+MIPI_DEV_PARAM_DEC(ipi4_dt);
+#endif
 #if MIPI_DEV_INT_DBG
 MIPI_DEV_PARAM_DEC(irq_cnt);
 MIPI_DEV_PARAM_DEC(irq_debug);
@@ -1708,6 +1747,16 @@ static struct attribute *param_attr[] = {
 	MIPI_DEV_PARAM_ADD(hsync_pkt),
 	MIPI_DEV_PARAM_ADD(ipi_force),
 	MIPI_DEV_PARAM_ADD(ipi_limit),
+	MIPI_DEV_PARAM_ADD(ipi1_dt),
+#if MIPIDEV_CHANNEL_NUM >= 2
+	MIPI_DEV_PARAM_ADD(ipi2_dt),
+#endif
+#if MIPIDEV_CHANNEL_NUM >= 3
+	MIPI_DEV_PARAM_ADD(ipi3_dt),
+#endif
+#if MIPIDEV_CHANNEL_NUM >= 4
+	MIPI_DEV_PARAM_ADD(ipi4_dt),
+#endif
 #if MIPI_DEV_INT_DBG
 	MIPI_DEV_PARAM_ADD(irq_cnt),
 	MIPI_DEV_PARAM_ADD(irq_debug),

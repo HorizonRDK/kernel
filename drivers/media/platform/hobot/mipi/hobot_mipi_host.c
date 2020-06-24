@@ -47,6 +47,7 @@
 #define MIPI_HOST_REFCLK_MHZ	24000000UL
 #define MIPI_HOST_IPICLK_NAME(x)	"mipi_rx" __stringify(x) "_ipi"
 #define MIPI_HOST_SNRCLK_NAME(x)	"sensor" __stringify(x) "_mclk"
+#define MIPI_HOST_HW_MODE_DEF	0
 
 static unsigned int port_num;
 module_param(port_num, uint, 0444);
@@ -64,9 +65,11 @@ module_param(port_num, uint, 0444);
 static unsigned int reg_addr = MIPI_HOST_REG_ADDR;
 static unsigned int reg_size = MIPI_HOST_REG_SIZE;
 static unsigned int init_num = MIPI_HOST_MAX_NUM;
+static unsigned int hw_mode = 1;
 module_param(reg_addr, uint, 0644);
 module_param(reg_size, uint, 0644);
 module_param(init_num, uint, 0644);
+module_param(hw_mode, uint, 0644);
 #endif
 
 /* only hobot platform driver use irq */
@@ -106,13 +109,14 @@ module_param(init_num, uint, 0644);
 
 #define MIPI_HOST_CSI2_RAISE	   (0x01)
 #define MIPI_HOST_CSI2_RESETN	   (0x00)
-#define MIPI_HOST_BITWIDTH_48	   (0)
-#define MIPI_HOST_BITWIDTH_16	   (1)
-#define MIPI_HOST_BITWIDTH_OFFSET  (8)
 #define MIPI_HOST_MEMFLUSN_ENABLE  (0x01 << 8)
+#define MIPI_HOST_IPI_DT_MASK	   (0x3f)
 #define MIPI_HOST_EMB_DATA		   (0x01 << 8)
+#define MIPI_HOST_BITWIDTH_48	   (0x00 << 8)
+#define MIPI_HOST_BITWIDTH_16	   (0x01 << 8)
 #define MIPI_HOST_CUT_THROUGH	   (0x01 << 16)
 #define MIPI_HOST_IPI_ENABLE	   (0x01 << 24)
+#define MIPI_HOST_IPI_DISABLE	   (0x00)
 #define MIPI_HOST_LEGCYMODE_ENABLE (0x01 << 24)
 #define MIPI_HOST_HSATIME		   (0x04)
 #define MIPI_HOST_HBPTIME		   (0x04)
@@ -219,10 +223,21 @@ typedef struct _mipi_host_param_s {
 	uint32_t need_stop_check;
 	uint32_t stop_check_instart;
 	uint32_t cut_through;
+	uint32_t ipi_16bit;
 	uint32_t ipi_force;
 	uint32_t ipi_limit;
 	uint32_t snrclk_en;
 	uint32_t snrclk_freq;
+	uint32_t ipi1_dt;
+#if MIPIHOST_CHANNEL_NUM >= 2
+	uint32_t ipi2_dt;
+#endif
+#if MIPIHOST_CHANNEL_NUM >= 3
+	uint32_t ipi3_dt;
+#endif
+#if MIPIHOST_CHANNEL_NUM >= 4
+	uint32_t ipi4_dt;
+#endif
 #if MIPI_HOST_INT_DBG
 	uint32_t irq_cnt;
 	uint32_t irq_debug;
@@ -237,10 +252,21 @@ static const char *g_mh_param_names[] = {
 	"need_stop_check",
 	"stop_check_instart",
 	"cut_through",
+	"ipi_16bit",
 	"ipi_force",
 	"ipi_limit",
 	"snrclk_en",
 	"snrclk_freq",
+	"ipi1_dt",
+#if MIPIHOST_CHANNEL_NUM >= 2
+	"ipi2_dt",
+#endif
+#if MIPIHOST_CHANNEL_NUM >= 3
+	"ipi3_dt",
+#endif
+#if MIPIHOST_CHANNEL_NUM >= 4
+	"ipi4_dt",
+#endif
 #if MIPI_HOST_INT_DBG
 	"irq_cnt",
 	"irq_debug",
@@ -610,11 +636,62 @@ static const mipi_host_ireg_t mh_int_regs_1p4[] = {
 #endif
 	}
 };
+
 typedef struct _mipi_host_ierr_s {
 	const mipi_host_ireg_t *iregs;
 	uint32_t num;
 } mipi_host_ierr_t;
 #endif
+
+typedef struct _mipi_host_port_hw_s {
+	uint16_t group;
+	uint16_t index;
+	uint16_t lane_alone;
+	uint16_t lane_group;
+	uint16_t ipi;
+} mipi_host_port_hw_t;
+
+typedef struct _mipi_host_port_hw_mode_s {
+	const mipi_host_port_hw_t *unit;
+	uint16_t unum;
+	uint16_t ugrp;
+} mipi_host_hw_mode_t;
+
+/**
+ * comb 1 group by 2 ports:
+ * port group index lane ipi
+ * 0    0     0     2/4  4
+ * 1    1     0     2/4  4
+ * 2    0     1     2/0  2
+ * 3    1     1     2/0  2
+ * ...
+ */
+static const mipi_host_port_hw_t mh_port_hw_comb2[] = {
+	{ 0, 0, 2, 4, 4 },
+	{ 1, 0, 2, 4, 4 },
+	{ 0, 1, 2, 0, 2 },
+	{ 1, 1, 2, 0, 2 },
+};
+
+/**
+ * alone 1 group with 1 port:
+ * port group index lane ipi
+ * 0    0     0     4    4
+ * ...
+ */
+static const mipi_host_port_hw_t mh_port_hw_alone[] = {
+	{ 0, 0, 4, 4, 4 },
+};
+
+/**
+ * port hw mode:
+ * 0: comb2, as default.
+ * 1: alone.
+ */
+static const mipi_host_hw_mode_t g_mh_hw_modes[] = {
+	{ mh_port_hw_comb2, ARRAY_SIZE(mh_port_hw_comb2), 2 },
+	{ mh_port_hw_alone, ARRAY_SIZE(mh_port_hw_alone), 1 },
+};
 
 typedef struct _mipi_host_s {
 	void __iomem     *iomem;
@@ -651,6 +728,7 @@ typedef struct _mipi_hdev_s {
 	uint64_t          ipi_clock;
 	mipi_host_t       host;
 	mipi_user_t       user;
+	const mipi_host_hw_mode_t *hw_mode;
 #ifdef CONFIG_HOBOT_DIAG
 	struct timer_list diag_timer;
 	uint32_t          last_err_tm_ms;
@@ -666,20 +744,74 @@ static int g_mh_major;
 static struct class *g_mh_class;
 static mipi_hdev_t *g_hdev[MIPI_HOST_MAX_NUM];
 
-/*
- * mipi host port num to group and index:
- * port	group	index  lane  ipi
- * 0	0		0	   2/4   4
- * 1	1		0      2/0   2
- * 2	0		1      2/4   4
- * 3	1		1      2/0   2
- * ...
- */
-#define mipi_port_group(p)	((((p) / 4) * 2) + ((p) % 2))
-#define mipi_port_index(p)	(((p) % 4) / 2)
-#define mipi_port_lane(p,m)	(mipi_port_index(p) ? \
-								((m) ? 0 : 2) : ((m) ? 4 : 2))
-#define mipi_port_ipi(p)	(mipi_port_index(p) ? 2 : 4)
+static int mipi_host_port_group(mipi_hdev_t *hdev)
+{
+	int units, idx;
+
+	if (!hdev->hw_mode)
+		return (hdev->port);
+
+	units = hdev->port / hdev->hw_mode->unum;
+	idx = hdev->port % hdev->hw_mode->unum;
+
+	return ((units * hdev->hw_mode->ugrp) + hdev->hw_mode->unit[idx].group);
+}
+
+static int mipi_host_port_index(mipi_hdev_t *hdev)
+{
+	int idx;
+
+	if (!hdev->hw_mode)
+		return 0;
+
+	idx = hdev->port % hdev->hw_mode->unum;
+
+	return (hdev->hw_mode->unit[idx].index);
+}
+
+static int mipi_host_port_other(mipi_hdev_t *hdev)
+{
+	int units, idx, i;
+
+	if (!hdev->hw_mode)
+		return (-1);
+
+	units = hdev->port / hdev->hw_mode->unum;
+	idx = hdev->port % hdev->hw_mode->unum;
+	for (i = 0; i < hdev->hw_mode->unum; i++) {
+		if (i != idx && hdev->hw_mode->unit[idx].group == hdev->hw_mode->unit[i].group)
+			return ((units * hdev->hw_mode->unum) + i);
+	}
+
+	return (-1);
+}
+
+static int mipi_host_port_lane(mipi_hdev_t *hdev, int mode)
+{
+	int idx;
+
+	if (!hdev->hw_mode)
+		return 4;
+
+	idx = hdev->port % hdev->hw_mode->unum;
+
+	if (mode)
+		return (hdev->hw_mode->unit[idx].lane_group);
+	else
+		return (hdev->hw_mode->unit[idx].lane_alone);
+}
+
+static int mipi_host_port_ipi(mipi_hdev_t *hdev)
+{
+	int idx;
+
+	if (!hdev->hw_mode)
+		return 4;
+
+	idx = hdev->port % hdev->hw_mode->unum;
+
+	return (hdev->hw_mode->unit[idx].ipi);
+}
 
 /**
  * @brief mipi_host_configure_lanemode: configure dphy for lane mode
@@ -692,22 +824,21 @@ static int32_t mipi_host_configure_lanemode(mipi_hdev_t *hdev, int lane)
 {
 	struct device *dev = hdev->dev;
 	mipi_host_t *host = &hdev->host;
-	int group, index, poth;
+	int group, poth;
 	int i, ret, target_mode = -1;
 
 	if (!hdev)
 		return -1;
 
 	for (i = 0; i < 2; i++) {
-		if (lane <= mipi_port_lane(hdev->port, i)) {
+		if (lane <= mipi_host_port_lane(hdev, i)) {
 			target_mode = i;
 			break;
 		}
 	}
 
-	group = mipi_port_group(hdev->port);
-	index = mipi_port_index(hdev->port);
-	poth = (index) ? (hdev->port - 2) : (hdev->port + 2);
+	group = mipi_host_port_group(hdev);
+	poth = mipi_host_port_other(hdev);
 	if (target_mode < 0) {
 		mipierr("port%d not support %dlane",
 				hdev->port, lane);
@@ -740,7 +871,7 @@ static int32_t mipi_host_configure_lanemode(mipi_hdev_t *hdev, int lane)
 		g_hdev[poth]->lane_mode = target_mode;
 
 match_ex_hdev:
-	if (lane > 2) {
+	if (target_mode) {
 		if (poth < MIPI_HOST_MAX_NUM && g_hdev[poth] &&
 			g_hdev[poth]->host.state == MIPI_STATE_DEFAULT) {
 			/* match ex_hdev and mark it as ex */
@@ -769,39 +900,42 @@ static int32_t mipi_host_configure_ipi(mipi_hdev_t *hdev, mipi_host_cfg_t *cfg)
 	mipi_host_t *host = &hdev->host;
 	mipi_host_param_t *param = &host->param;
 	void __iomem *iomem = host->iomem;
-	int ipi_num;
+	int ipi_num, ipi_max;
+	int vcid, datatype;
+	uint32_t ipi_mode;
 
 	if (!hdev || !iomem)
 		return -1;
 
-	ipi_num = mipi_port_ipi(hdev->port);
-	if (cfg->channel_num > ipi_num) {
-		mipierr("channel_num %d error, max %d", cfg->channel_num, ipi_num);
+	ipi_max = mipi_host_port_ipi(hdev);
+	if (cfg->channel_num > ipi_max) {
+		mipierr("channel_num %d error, max %d", cfg->channel_num, ipi_max);
 		return -1;
 	}
 
+	ipi_mode = MIPI_HOST_IPI_ENABLE;
+	ipi_mode |= (param->cut_through) ? MIPI_HOST_CUT_THROUGH : 0;
+	ipi_mode |= (param->ipi_16bit) ? MIPI_HOST_BITWIDTH_16 : MIPI_HOST_BITWIDTH_48;
+	mipidbg("ipi_mode %dbit%s", (param->ipi_16bit) ? 16 : 48,
+		(param->cut_through) ? " cut_through" : "");
 
 	ipi_num = 0;
-	switch (cfg->channel_num) {
+	switch (ipi_max) {
 	case 4:
 #if MIPIHOST_CHANNEL_NUM >= 4
 		/* ipi4 config */
-		if (cfg->channel_sel[3] < 4) {
+		vcid = cfg->channel_sel[3];
+		if (cfg->channel_num >= 4 && vcid < 4) {
+			datatype = (param->ipi4_dt) ? param->ipi4_dt : cfg->datatype;
+			if (param->ipi4_dt || vcid != 3)
+				mipiinfo("ipi4 vc%d datatype 0x%02x%s", vcid,
+					datatype & MIPI_HOST_IPI_DT_MASK,
+					(datatype & MIPI_HOST_EMB_DATA) ? " as embedded" : "");
 			mipi_putreg(iomem + REG_MIPI_HOST_IPI4_MEM_FLUSH,
 				MIPI_HOST_MEMFLUSN_ENABLE);
-			mipi_putreg(iomem + REG_MIPI_HOST_IPI4_VCID,
-				cfg->channel_sel[3]);
-			mipi_putreg(iomem + REG_MIPI_HOST_IPI4_DATA_TYPE,
-				cfg->datatype);
-			if (param->cut_through)
-				mipi_putreg(iomem + REG_MIPI_HOST_IPI4_MODE,
-					MIPI_HOST_IPI_ENABLE |
-					(MIPI_HOST_BITWIDTH_48 << MIPI_HOST_BITWIDTH_OFFSET) |
-					MIPI_HOST_CUT_THROUGH);
-			else
-				mipi_putreg(iomem + REG_MIPI_HOST_IPI4_MODE,
-					MIPI_HOST_IPI_ENABLE |
-					(MIPI_HOST_BITWIDTH_48 << MIPI_HOST_BITWIDTH_OFFSET));
+			mipi_putreg(iomem + REG_MIPI_HOST_IPI4_VCID, vcid);
+			mipi_putreg(iomem + REG_MIPI_HOST_IPI4_DATA_TYPE, datatype);
+			mipi_putreg(iomem + REG_MIPI_HOST_IPI4_MODE, ipi_mode);
 			mipi_putreg(iomem + REG_MIPI_HOST_IPI4_HSA_TIME,
 				cfg->hsaTime);
 			mipi_putreg(iomem + REG_MIPI_HOST_IPI4_HBP_TIME,
@@ -811,28 +945,27 @@ static int32_t mipi_host_configure_ipi(mipi_hdev_t *hdev, mipi_host_cfg_t *cfg)
 			mipi_putreg(iomem + REG_MIPI_HOST_IPI4_ADV_FEATURES,
 				param->adv_value);
 			ipi_num ++;
+		} else {
+			mipi_putreg(iomem + REG_MIPI_HOST_IPI4_MODE,
+					MIPI_HOST_IPI_DISABLE);
 		}
 #endif
 		/* no break */
 	case 3:
 #if MIPIHOST_CHANNEL_NUM >= 3
 		/* ipi3 config */
-		if (cfg->channel_sel[2] < 4) {
+		vcid = cfg->channel_sel[2];
+		if (cfg->channel_num >= 3 && vcid < 4) {
+			datatype = (param->ipi3_dt) ? param->ipi3_dt : cfg->datatype;
+			if (param->ipi3_dt || vcid != 2)
+				mipiinfo("ipi3 vc%d datatype 0x%02x%s", vcid,
+					datatype & MIPI_HOST_IPI_DT_MASK,
+					(datatype & MIPI_HOST_EMB_DATA) ? " as embedded" : "");
 			mipi_putreg(iomem + REG_MIPI_HOST_IPI3_MEM_FLUSH,
 				MIPI_HOST_MEMFLUSN_ENABLE);
-			mipi_putreg(iomem + REG_MIPI_HOST_IPI3_VCID,
-				cfg->channel_sel[2]);
-			mipi_putreg(iomem + REG_MIPI_HOST_IPI3_DATA_TYPE,
-				cfg->datatype);
-			if (param->cut_through)
-				mipi_putreg(iomem + REG_MIPI_HOST_IPI3_MODE,
-					MIPI_HOST_IPI_ENABLE |
-					(MIPI_HOST_BITWIDTH_48 << MIPI_HOST_BITWIDTH_OFFSET) |
-					MIPI_HOST_CUT_THROUGH);
-			else
-				mipi_putreg(iomem + REG_MIPI_HOST_IPI3_MODE,
-					MIPI_HOST_IPI_ENABLE |
-					(MIPI_HOST_BITWIDTH_48 << MIPI_HOST_BITWIDTH_OFFSET));
+			mipi_putreg(iomem + REG_MIPI_HOST_IPI3_VCID, vcid);
+			mipi_putreg(iomem + REG_MIPI_HOST_IPI3_DATA_TYPE, datatype);
+			mipi_putreg(iomem + REG_MIPI_HOST_IPI3_MODE, ipi_mode);
 			mipi_putreg(iomem + REG_MIPI_HOST_IPI3_HSA_TIME,
 				cfg->hsaTime);
 			mipi_putreg(iomem + REG_MIPI_HOST_IPI3_HBP_TIME,
@@ -842,28 +975,27 @@ static int32_t mipi_host_configure_ipi(mipi_hdev_t *hdev, mipi_host_cfg_t *cfg)
 			mipi_putreg(iomem + REG_MIPI_HOST_IPI3_ADV_FEATURES,
 				param->adv_value);
 			ipi_num ++;
+		} else {
+			mipi_putreg(iomem + REG_MIPI_HOST_IPI3_MODE,
+					MIPI_HOST_IPI_DISABLE);
 		}
 #endif
 		/* no break */
 	case 2:
 #if MIPIHOST_CHANNEL_NUM >= 2
 		/* ipi2 config */
-		if (cfg->channel_sel[1] < 4) {
+		vcid = cfg->channel_sel[1];
+		if (cfg->channel_num >= 2 && vcid < 4) {
+			datatype = (param->ipi2_dt) ? param->ipi2_dt : cfg->datatype;
+			if (param->ipi2_dt || vcid != 1)
+				mipiinfo("ipi2 vc%d datatype 0x%02x%s", vcid,
+					datatype & MIPI_HOST_IPI_DT_MASK,
+					(datatype & MIPI_HOST_EMB_DATA) ? " as embedded" : "");
 			mipi_putreg(iomem + REG_MIPI_HOST_IPI2_MEM_FLUSH,
 				MIPI_HOST_MEMFLUSN_ENABLE);
-			mipi_putreg(iomem + REG_MIPI_HOST_IPI2_VCID,
-				cfg->channel_sel[1]);
-			mipi_putreg(iomem + REG_MIPI_HOST_IPI2_DATA_TYPE,
-				cfg->datatype);
-			if (param->cut_through)
-				mipi_putreg(iomem + REG_MIPI_HOST_IPI2_MODE,
-					MIPI_HOST_IPI_ENABLE |
-					(MIPI_HOST_BITWIDTH_48 << MIPI_HOST_BITWIDTH_OFFSET) |
-					MIPI_HOST_CUT_THROUGH);
-			else
-				mipi_putreg(iomem + REG_MIPI_HOST_IPI2_MODE,
-					MIPI_HOST_IPI_ENABLE |
-					(MIPI_HOST_BITWIDTH_48 << MIPI_HOST_BITWIDTH_OFFSET));
+			mipi_putreg(iomem + REG_MIPI_HOST_IPI2_VCID, vcid);
+			mipi_putreg(iomem + REG_MIPI_HOST_IPI2_DATA_TYPE, datatype);
+			mipi_putreg(iomem + REG_MIPI_HOST_IPI2_MODE, ipi_mode);
 			mipi_putreg(iomem + REG_MIPI_HOST_IPI2_HSA_TIME,
 				cfg->hsaTime);
 			mipi_putreg(iomem + REG_MIPI_HOST_IPI2_HBP_TIME,
@@ -873,28 +1005,27 @@ static int32_t mipi_host_configure_ipi(mipi_hdev_t *hdev, mipi_host_cfg_t *cfg)
 			mipi_putreg(iomem + REG_MIPI_HOST_IPI2_ADV_FEATURES,
 				param->adv_value);
 			ipi_num ++;
+		} else {
+			mipi_putreg(iomem + REG_MIPI_HOST_IPI2_MODE,
+					MIPI_HOST_IPI_DISABLE);
 		}
 #endif
 		/* no break */
 	case 1:
 	default:
 		/* ipi1 config */
-		if (cfg->channel_sel[0] < 4) {
+		vcid = cfg->channel_sel[0];
+		if (vcid < 4) {
+			datatype = (param->ipi1_dt) ? param->ipi1_dt : cfg->datatype;
+			if (param->ipi1_dt || vcid != 0)
+				mipiinfo("ipi1 vc%d datatype 0x%02x%s", vcid,
+					datatype & MIPI_HOST_IPI_DT_MASK,
+					(datatype & MIPI_HOST_EMB_DATA) ? " as embedded" : "");
 			mipi_putreg(iomem + REG_MIPI_HOST_IPI_MEM_FLUSH,
 				MIPI_HOST_MEMFLUSN_ENABLE);
-			mipi_putreg(iomem + REG_MIPI_HOST_IPI_VCID,
-				cfg->channel_sel[0]);
-			mipi_putreg(iomem + REG_MIPI_HOST_IPI_DATA_TYPE,
-				cfg->datatype);
-			if (param->cut_through)
-				mipi_putreg(iomem + REG_MIPI_HOST_IPI_MODE,
-					MIPI_HOST_IPI_ENABLE |
-					(MIPI_HOST_BITWIDTH_48 << MIPI_HOST_BITWIDTH_OFFSET) |
-					MIPI_HOST_CUT_THROUGH);
-			else
-				mipi_putreg(iomem + REG_MIPI_HOST_IPI_MODE,
-					MIPI_HOST_IPI_ENABLE |
-					(MIPI_HOST_BITWIDTH_48 << MIPI_HOST_BITWIDTH_OFFSET));
+			mipi_putreg(iomem + REG_MIPI_HOST_IPI_VCID, vcid);
+			mipi_putreg(iomem + REG_MIPI_HOST_IPI_DATA_TYPE, datatype);
+			mipi_putreg(iomem + REG_MIPI_HOST_IPI_MODE, ipi_mode);
 			mipi_putreg(iomem + REG_MIPI_HOST_IPI_HSA_TIME,
 				cfg->hsaTime);
 			mipi_putreg(iomem + REG_MIPI_HOST_IPI_HBP_TIME,
@@ -904,6 +1035,9 @@ static int32_t mipi_host_configure_ipi(mipi_hdev_t *hdev, mipi_host_cfg_t *cfg)
 			mipi_putreg(iomem + REG_MIPI_HOST_IPI_ADV_FEATURES,
 				param->adv_value);
 			ipi_num ++;
+		} else {
+			mipi_putreg(iomem + REG_MIPI_HOST_IPI_MODE,
+					MIPI_HOST_IPI_DISABLE);
 		}
 		break;
 	}
@@ -1105,7 +1239,7 @@ static unsigned long mipi_host_pixel_clk_select(mipi_hdev_t *hdev, mipi_host_cfg
 
 	if (param->ipi_force >= 10000000) {
 		pixclk = param->ipi_force;
-		mipiinfo("ipi clk force as %lu", pixclk);
+		mipiinfo("ipiclk force as %lu", pixclk);
 	} else {
 		pixclk = linelenth * framelenth * cfg->fps;
 		if (cfg->datatype < MIPI_CSI2_DT_RAW_8)
@@ -1114,7 +1248,7 @@ static unsigned long mipi_host_pixel_clk_select(mipi_hdev_t *hdev, mipi_host_cfg
 			pixclk = (pixclk + 2) / 3;
 
 		if (param->ipi_limit && pixclk < param->ipi_limit) {
-			mipiinfo("ipi clk limit %lu up to %u", pixclk, param->ipi_limit);
+			mipiinfo("ipiclk limit %lu up to %u", pixclk, param->ipi_limit);
 			pixclk = param->ipi_limit;
 		}
 	}
@@ -1173,6 +1307,7 @@ static uint16_t mipi_host_get_hsd(mipi_hdev_t *hdev, mipi_host_cfg_t *cfg,
 	 *
 	 */
 	struct device *dev = hdev->dev;
+	mipi_host_param_t *param = &hdev->host.param;
 	unsigned long rx_bit_clk = 0;
 	unsigned long bits_per_pixel = 0;
 	unsigned long line_size = 0;
@@ -1180,39 +1315,41 @@ static uint16_t mipi_host_get_hsd(mipi_hdev_t *hdev, mipi_host_cfg_t *cfg,
 	unsigned long time_ppi = 0;
 	unsigned long time_ipi = 0;
 	int32_t  hsdtime = 0;
+	int yuv_cycle = (param->ipi_16bit) ? 2 : 1;
+	int raw_pixel = (param->ipi_16bit) ? 1 : 3;
 
 	switch (cfg->datatype) {
 	case MIPI_CSI2_DT_YUV420_8:
 		bits_per_pixel = 8 * 3 / 2;
-		cycles_to_trans = cfg->width;
+		cycles_to_trans = cfg->width * yuv_cycle;
 		break;
 	case MIPI_CSI2_DT_YUV420_10:
 		bits_per_pixel = 16 * 3 / 2;
-		cycles_to_trans = cfg->width;
+		cycles_to_trans = cfg->width * yuv_cycle;
 		break;
 	case MIPI_CSI2_DT_YUV422_8:
 		bits_per_pixel = 8 * 2;
-		cycles_to_trans = cfg->width;
+		cycles_to_trans = cfg->width * yuv_cycle;
 		break;
 	case MIPI_CSI2_DT_YUV422_10:
 		bits_per_pixel = 16 * 2;
-		cycles_to_trans = cfg->width;
+		cycles_to_trans = cfg->width * yuv_cycle;
 		break;
 	case MIPI_CSI2_DT_RAW_8:
 		bits_per_pixel = 8;
-		cycles_to_trans = (cfg->width + 2) / 3;
+		cycles_to_trans = (cfg->width + 2) / raw_pixel;
 		break;
 	case MIPI_CSI2_DT_RAW_10:
 		bits_per_pixel = 10;
-		cycles_to_trans = (cfg->width + 2) / 3;
+		cycles_to_trans = (cfg->width + 2) / raw_pixel;
 		break;
 	case MIPI_CSI2_DT_RAW_12:
 		bits_per_pixel = 12;
-		cycles_to_trans = (cfg->width + 2) / 3;
+		cycles_to_trans = (cfg->width + 2) / raw_pixel;
 		break;
 	case MIPI_CSI2_DT_RAW_14:
 		bits_per_pixel = 14;
-		cycles_to_trans = (cfg->width + 2) / 3;
+		cycles_to_trans = (cfg->width + 2) / raw_pixel;
 		break;
 	default:
 		bits_per_pixel = 16;
@@ -2354,10 +2491,21 @@ MIPI_HOST_PARAM_DEC(adv_value);
 MIPI_HOST_PARAM_DEC(need_stop_check);
 MIPI_HOST_PARAM_DEC(stop_check_instart);
 MIPI_HOST_PARAM_DEC(cut_through);
+MIPI_HOST_PARAM_DEC(ipi_16bit);
 MIPI_HOST_PARAM_DEC(ipi_force);
 MIPI_HOST_PARAM_DEC(ipi_limit);
 MIPI_HOST_PARAM_DEC(snrclk_en);
 MIPI_HOST_PARAM_DEC(snrclk_freq);
+MIPI_HOST_PARAM_DEC(ipi1_dt);
+#if MIPIHOST_CHANNEL_NUM >= 2
+MIPI_HOST_PARAM_DEC(ipi2_dt);
+#endif
+#if MIPIHOST_CHANNEL_NUM >= 3
+MIPI_HOST_PARAM_DEC(ipi3_dt);
+#endif
+#if MIPIHOST_CHANNEL_NUM >= 4
+MIPI_HOST_PARAM_DEC(ipi4_dt);
+#endif
 #if MIPI_HOST_INT_DBG
 MIPI_HOST_PARAM_DEC(irq_cnt);
 MIPI_HOST_PARAM_DEC(irq_debug);
@@ -2371,10 +2519,21 @@ static struct attribute *param_attr[] = {
 	MIPI_HOST_PARAM_ADD(need_stop_check),
 	MIPI_HOST_PARAM_ADD(stop_check_instart),
 	MIPI_HOST_PARAM_ADD(cut_through),
+	MIPI_HOST_PARAM_ADD(ipi_16bit),
 	MIPI_HOST_PARAM_ADD(ipi_force),
 	MIPI_HOST_PARAM_ADD(ipi_limit),
 	MIPI_HOST_PARAM_ADD(snrclk_en),
 	MIPI_HOST_PARAM_ADD(snrclk_freq),
+	MIPI_HOST_PARAM_ADD(ipi1_dt),
+#if MIPIHOST_CHANNEL_NUM >= 2
+	MIPI_HOST_PARAM_ADD(ipi2_dt),
+#endif
+#if MIPIHOST_CHANNEL_NUM >= 3
+	MIPI_HOST_PARAM_ADD(ipi3_dt),
+#endif
+#if MIPIHOST_CHANNEL_NUM >= 4
+	MIPI_HOST_PARAM_ADD(ipi4_dt),
+#endif
 #if MIPI_HOST_INT_DBG
 	MIPI_HOST_PARAM_ADD(irq_cnt),
 	MIPI_HOST_PARAM_ADD(irq_debug),
@@ -2412,10 +2571,14 @@ static ssize_t mipi_host_status_show(struct device *dev,
 
 	if (strcmp(attr->attr.name, "info") == 0) {
 		MH_STA_SHOW(port, "%d", hdev->port);
+		MH_STA_SHOW(hw_mode, "g%d:%d l%d/%d i%d",
+			mipi_host_port_group(hdev), mipi_host_port_index(hdev),
+			mipi_host_port_lane(hdev, 0), mipi_host_port_lane(hdev, 1),
+			mipi_host_port_ipi(hdev));
 		MH_STA_SHOW(mode, "%s", (hdev->is_ex) ? "group_ext" :
 			((hdev->ex_hdev) ? "group_mst" : "alone"));
 		MH_STA_SHOW(lane_mode, "%d(%dlane)", hdev->lane_mode,
-			mipi_port_lane(hdev->port, hdev->lane_mode));
+			mipi_host_port_lane(hdev, hdev->lane_mode));
 		MH_STA_SHOW(iomem, "%p", host->iomem);
 #if MIPI_HOST_INT_DBG && defined MIPI_HOST_INT_USE_TIMER
 		MH_STA_SHOW(timer, "%s",
@@ -2940,6 +3103,9 @@ static int hobot_mipi_host_probe_param(void)
 	if (init_num > MIPI_HOST_MAX_NUM)
 		init_num = MIPI_HOST_MAX_NUM;
 
+	if (hw_mode > ARRAY_SIZE(g_mh_hw_modes))
+		hw_mode = MIPI_HOST_HW_MODE_DEF;
+
 	port_num = 0;
 	for (i = 0; i < init_num; i++) {
 		hdev = kmalloc(sizeof(mipi_hdev_t), GFP_KERNEL);
@@ -2949,10 +3115,12 @@ static int hobot_mipi_host_probe_param(void)
 			goto err_kmalloc;
 		}
 		memset(hdev, 0x0, sizeof(mipi_hdev_t));
+		hdev->port = i;
+		hdev->hw_mode = &g_mh_hw_modes[hw_mode];
 		host = &hdev->host;
 		param = &host->param;
-		group = mipi_port_group(i);
-		index = mipi_port_index(i);
+		group = mipi_host_port_group(hdev);
+		index = mipi_host_port_index(hdev);
 		reg_addr_dev = reg_addr + (reg_size * 2) * group + (reg_size * index);
 		host->iomem = ioremap_nocache(reg_addr_dev, reg_size);
 		if (IS_ERR(host->iomem)) {
@@ -2961,7 +3129,6 @@ static int hobot_mipi_host_probe_param(void)
 			host->iomem = NULL;
 			goto err_ioremap;
 		}
-		hdev->port = i;
 		hdev->lane_mode = mipi_dphy_get_lanemode(MIPI_DPHY_TYPE_HOST,
 								hdev->port);
 		ret = hobot_mipi_host_probe_cdev(hdev);
@@ -2997,7 +3164,7 @@ static int hobot_mipi_host_probe_param(void)
 		ret = mipi_getreg(host->iomem + REG_MIPI_HOST_VERSION);
 		dev_info(hdev->dev, "ver %c%c%c%c port%d(%d:%d)\n",
 			(ret >> 24), (ret >> 16), (ret >> 8), ret,
-			i, mipi_port_group(i), mipi_port_index(i));
+			i, mipi_host_port_group(hdev), mipi_host_port_index(hdev));
 	}
 	return 0;
 err_cdev:
@@ -3116,6 +3283,13 @@ static int hobot_mipi_host_probe(struct platform_device *pdev)
 	hdev->port = port;
 	hdev->lane_mode = mipi_dphy_get_lanemode(MIPI_DPHY_TYPE_HOST,
 							hdev->port);
+	ret = of_property_read_u32(pdev->dev.of_node,
+			"hw-mode", &node_val);
+	if (ret || node_val >= ARRAY_SIZE(g_mh_hw_modes)) {
+		node_val = MIPI_HOST_HW_MODE_DEF;
+	}
+	hdev->hw_mode = &g_mh_hw_modes[node_val];
+
 	ret = hobot_mipi_host_probe_cdev(hdev);
 	if (ret) {
 		goto err_cdev;
@@ -3168,7 +3342,7 @@ static int hobot_mipi_host_probe(struct platform_device *pdev)
 	ret = mipi_getreg(host->iomem + REG_MIPI_HOST_VERSION);
 	dev_info(hdev->dev, "ver %c%c%c%c port%d(%d:%d)\n",
 		(ret >> 24), (ret >> 16), (ret >> 8), ret,
-		port, mipi_port_group(port), mipi_port_index(port));
+		port, mipi_host_port_group(hdev), mipi_host_port_index(hdev));
 	return 0;
 err_cdev:
 #if MIPI_HOST_INT_DBG

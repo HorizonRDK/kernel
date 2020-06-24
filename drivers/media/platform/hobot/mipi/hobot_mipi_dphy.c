@@ -1296,13 +1296,13 @@ static int dummy_mipi_get_ctl(int type, int port, int region)
 
 	if (type == MIPI_DPHY_TYPE_HOST && port < MIPI_HOST_MAX_NUM) {
 		val = region_host_dummy[port][0].region[region];
-	} else if (type == MIPI_DPHY_TYPE_HOST && port < MIPI_HOST_MAX_NUM) {
+	} else if (type == MIPI_DPHY_TYPE_DEV && port < MIPI_DEV_MAX_NUM) {
 		val = region_dev_dummy[port][0].region[region];
 	} else {
 		val = -1;
 	}
 
-	mipidbg("get mipi%s%d ctl region %d value %d, dummp",
+	mipidbg("get mipi%s%d ctl region %d value %d, dummy",
 			g_mp_type[type], port, region, val);
 	return val;
 }
@@ -1315,13 +1315,13 @@ static int dummy_mipi_set_ctl(int type, int port, int region, int value)
 
 	if (type == MIPI_DPHY_TYPE_HOST && port < MIPI_HOST_MAX_NUM) {
 		region_host_dummy[port][0].region[region] = value;
-	} else if (type == MIPI_DPHY_TYPE_HOST && port < MIPI_HOST_MAX_NUM) {
+	} else if (type == MIPI_DPHY_TYPE_DEV && port < MIPI_DEV_MAX_NUM) {
 		region_dev_dummy[port][0].region[region] = value;
 	} else {
 		ret = -1;
 	}
 
-	mipidbg("set mipi%s%d ctl region %d value %d, dummp %d",
+	mipidbg("set mipi%s%d ctl region %d value %d, dummy %d",
 			g_mp_type[type], port, region, value, ret);
 	return ret;
 }
@@ -1334,13 +1334,13 @@ static int dummy_mipi_get_freqrange(int type, int port, int region)
 
 	if (type == MIPI_DPHY_TYPE_HOST && port < MIPI_HOST_MAX_NUM) {
 		val = region_host_dummy[port][1].region[region];
-	} else if (type == MIPI_DPHY_TYPE_HOST && port < MIPI_HOST_MAX_NUM) {
+	} else if (type == MIPI_DPHY_TYPE_DEV && port < MIPI_DEV_MAX_NUM) {
 		val = region_dev_dummy[port][1].region[region];
 	} else {
 		val = -1;
 	}
 
-	mipidbg("get mipi%s%d freq region %d value %d, dummp",
+	mipidbg("get mipi%s%d freq region %d value %d, dummy",
 			g_mp_type[type], port, region, val);
 	return val;
 }
@@ -1353,13 +1353,13 @@ static int dummy_mipi_set_freqrange(int type, int port, int region, int value)
 
 	if (type == MIPI_DPHY_TYPE_HOST && port < MIPI_HOST_MAX_NUM) {
 		region_host_dummy[port][1].region[region] = value;
-	} else if (type == MIPI_DPHY_TYPE_HOST && port < MIPI_HOST_MAX_NUM) {
+	} else if (type == MIPI_DPHY_TYPE_DEV && port < MIPI_DEV_MAX_NUM) {
 		region_dev_dummy[port][1].region[region] = value;
 	} else {
 		ret = -1;
 	}
 
-	mipidbg("set mipi%s%d freq region %d value %d, dummp %d",
+	mipidbg("set mipi%s%d freq region %d value %d, dummy %d",
 			g_mp_type[type], port, region, value, ret);
 	return ret;
 }
@@ -1372,13 +1372,13 @@ static int dummy_mipi_get_lanemode(int type, int port)
 
 	if (type == MIPI_DPHY_TYPE_HOST && port < MIPI_HOST_MAX_NUM) {
 		val = region_host_dummy[port][2].region[0];
-	} else if (type == MIPI_DPHY_TYPE_HOST && port < MIPI_HOST_MAX_NUM) {
+	} else if (type == MIPI_DPHY_TYPE_DEV && port < MIPI_DEV_MAX_NUM) {
 		val = region_dev_dummy[port][2].region[0];
 	} else {
 		val = -1;
 	}
 
-	mipidbg("get mipi%s%d lanemode region %d value %d, dummp",
+	mipidbg("get mipi%s%d lanemode region %d value %d, dummy",
 			g_mp_type[type], port, 2, val);
 	return val;
 }
@@ -1391,13 +1391,13 @@ static int dummy_mipi_set_lanemode(int type, int port, int lanemode)
 
 	if (type == MIPI_DPHY_TYPE_HOST && port < MIPI_HOST_MAX_NUM) {
 		region_host_dummy[port][2].region[0] = lanemode;
-	} else if (type == MIPI_DPHY_TYPE_HOST && port < MIPI_HOST_MAX_NUM) {
+	} else if (type == MIPI_DPHY_TYPE_DEV && port < MIPI_DEV_MAX_NUM) {
 		region_dev_dummy[port][2].region[0] = lanemode;
 	} else {
 		ret = -1;
 	}
 
-	mipidbg("set mipi%s%d lanemode region %d value %d, dummp %d",
+	mipidbg("set mipi%s%d lanemode region %d value %d, dummy %d",
 			g_mp_type[type], port, 2, lanemode, ret);
 	return ret;
 }
