@@ -103,13 +103,13 @@ static long camera_subdev_ioctl(struct v4l2_subdev *sd,
 		}
 		break;
 	case SENSOR_ALLOC_ANALOG_GAIN:
-		ret = camera_sys_alloc_again(ARGS_TO_PTR(arg)->port, ARGS_TO_PTR(arg)->a_gain);
+		//ret = camera_sys_alloc_again(ARGS_TO_PTR(arg)->port, ARGS_TO_PTR(arg)->a_gain);
 		if(ret < 0) {
 		    pr_err("camera_sys_alloc_again error port%d\n", ARGS_TO_PTR(arg)->port);
 		}
 		break;
 	case SENSOR_ALLOC_DIGITAL_GAIN:
-		ret = camera_sys_alloc_dgain(ARGS_TO_PTR(arg)->port, ARGS_TO_PTR(arg)->d_gain);
+		//ret = camera_sys_alloc_dgain(ARGS_TO_PTR(arg)->port, ARGS_TO_PTR(arg)->d_gain);
 		if(ret < 0) {
 		    pr_err("camera_sys_alloc_dgain error port%d\n", ARGS_TO_PTR(arg)->port);
 		}
