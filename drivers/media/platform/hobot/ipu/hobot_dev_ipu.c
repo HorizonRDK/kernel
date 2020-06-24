@@ -113,7 +113,7 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 	subdev = ipu_ctx->subdev;
 	if ((group) &&(atomic_dec_return(&subdev->refcount) == 0)) {
 		subdev->state = 0;
-		if (group->gtask)
+		if (group->gtask && subdev->leader)
 			vio_group_task_stop(group->gtask);
 		subdev->leader = false;
 		group->output_flag = 0;
@@ -1193,7 +1193,8 @@ int ipu_video_init(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 		vio_info("reuse_shadow0_count = %d\n", ipu->reuse_shadow0_count);
 	}
 
-	vio_group_task_start(group->gtask);
+	if (subdev->leader)
+		vio_group_task_start(group->gtask);
 	atomic_inc(&group->node_refcount);
 
 	ipu_ctx->state = BIT(VIO_VIDEO_INIT);
