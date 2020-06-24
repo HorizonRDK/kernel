@@ -85,12 +85,11 @@
 			record-size = <0x4000>;
 		};
 
-		/* Reserved 742MB memory for ion */
+		/* Reserved 672MB memory for ion */
 		ion_reserved: ion_reserved@0x4000000 {
 			compatible = "ion-pool";
-			reg = <0x0 0x4000000 0x0 0x2E600000>;
+			reg = <0x0 0x4000000 0x0 0x2A000000>;
 		};
-
 	};
 };
 
