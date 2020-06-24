@@ -2737,6 +2737,84 @@ int disable_sif_mclk(void)
 }
 EXPORT_SYMBOL_GPL(disable_sif_mclk);
 
+static int display_color_bar(unsigned int width, unsigned height,
+		char *draw_start_vaddr)
+{
+	char *vaddr;
+	int i = 0;
+	int color_bar_height = 0;
+	int left_height = 0;
+
+	vaddr = draw_start_vaddr;
+	color_bar_height = (height >> 1) / 5;
+	left_height = height - color_bar_height * 5;
+
+	for (i = 0; i < width * 4 * color_bar_height; i++) {
+		if (((i + 4) % 4) == 0) {
+			*vaddr = 0xff;//B
+		} else if (((i + 4) % 4) == 1) {
+			*vaddr = 0x00;
+		} else if (((i + 4) % 4) == 2) {
+			*vaddr = 0x00;
+		} else if (((i + 4) % 4) == 3) {
+			*vaddr = 0xff;
+		}
+		vaddr++;
+	}
+	for (i = 0; i < width * 4 * color_bar_height; i++) {
+		if (((i + 4) % 4) == 0) {
+			*vaddr = 0x00;
+		} else if (((i + 4) % 4) == 1) {
+			*vaddr = 0xff;//G
+		} else if (((i + 4) % 4) == 2) {
+			*vaddr = 0x00;
+		} else if (((i + 4) % 4) == 3) {
+			*vaddr = 0xff;
+		}
+		vaddr++;
+	}
+	for (i = 0; i < width * 4 * color_bar_height; i++) {
+		if (((i + 4) % 4) == 0) {
+			*vaddr = 0x00;
+		} else if (((i + 4) % 4) == 1) {
+			*vaddr = 0x00;
+		} else if (((i + 4) % 4) == 2) {
+			*vaddr = 0xff;//R
+		} else if (((i + 4) % 4) == 3) {
+			*vaddr = 0xff;
+		}
+		vaddr++;
+	}
+	for (i = 0; i < width * 4 * color_bar_height; i++) {
+		if (((i + 4) % 4) == 0) {
+			*vaddr = 0x00;
+		} else if (((i + 4) % 4) == 1) {
+			*vaddr = 0x00;
+		} else if (((i + 4) % 4) == 2) {
+			*vaddr = 0x00;
+		} else if (((i + 4) % 4) == 3) {
+			*vaddr = 0xff;//A
+		}
+		vaddr++;
+	}
+	for (i = 0; i < width * 4 * color_bar_height; i++) {
+		if (((i + 4) % 4) == 0) {
+			*vaddr = 0xff;
+		} else if (((i + 4) % 4) == 1) {
+			*vaddr = 0xff;
+		} else if (((i + 4) % 4) == 2) {
+			*vaddr = 0xff;
+		} else if (((i + 4) % 4) == 3) {
+			*vaddr = 0xff;//A
+		}
+		vaddr++;
+	}
+	for (i = 0; i < width * 4 * left_height; i++) {
+		*vaddr = 0x0;
+		vaddr++;
+	}
+	return 0;
+}
 
 static int hobot_iar_probe(struct platform_device *pdev)
 {
@@ -2746,8 +2824,6 @@ static int hobot_iar_probe(struct platform_device *pdev)
 	int ret = 0;
 	struct device_node *np;
 	struct resource r;
-	char *temp1;
-	int tempi = 0;
 	void *vaddr;
 	uint64_t pixel_rate;
 	char *type;
@@ -3250,60 +3326,7 @@ static int hobot_iar_probe(struct platform_device *pdev)
 	if (display_type == LCD_7_TYPE) {
 		iar_display_cam_no = PIPELINE0;
 		iar_display_addr_type = DISPLAY_CHANNEL1;
-		temp1 = g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr;
-		tempi = 0;
-		for (i = 0; i < 800 * 4 * 40; i++) {
-			if (((i + 4) % 4) == 0) {
-				*temp1 = 0xff;//B
-			} else if (((i + 4) % 4) == 1) {
-				*temp1 = 0x00;
-			} else if (((i + 4) % 4) == 2) {
-				*temp1 = 0x00;
-			} else if (((i + 4) % 4) == 3) {
-				*temp1 = 0xff;
-			}
-			temp1++;
-		}
-		for (i = 0; i < 800 * 4 * 40; i++) {
-			if (((i + 4) % 4) == 0) {
-				*temp1 = 0x00;
-			} else if (((i + 4) % 4) == 1) {
-				*temp1 = 0xff;//G
-			} else if (((i + 4) % 4) == 2) {
-				*temp1 = 0x00;
-			} else if (((i + 4) % 4) == 3) {
-				*temp1 = 0xff;
-			}
-			temp1++;
-		}
-		for (i = 0; i < 800 * 4 * 40; i++) {
-			if (((i + 4) % 4) == 0) {
-				*temp1 = 0x00;
-			} else if (((i + 4) % 4) == 1) {
-				*temp1 = 0x00;
-			} else if (((i + 4) % 4) == 2) {
-				*temp1 = 0xff;//R
-			} else if (((i + 4) % 4) == 3) {
-				*temp1 = 0xff;
-			}
-			temp1++;
-		}
-		for (i = 0; i < 800 * 4 * 40; i++) {
-			if (((i + 4) % 4) == 0) {
-				*temp1 = 0x00;
-			} else if (((i + 4) % 4) == 1) {
-				*temp1 = 0x00;
-			} else if (((i + 4) % 4) == 2) {
-				*temp1 = 0x00;
-			} else if (((i + 4) % 4) == 3) {
-				*temp1 = 0xff;//A
-			}
-			temp1++;
-		}
-		for (i = 0; i < 800 * 4 * 320; i++) {
-			*temp1 = 0x0;
-			temp1++;
-		}
+		display_color_bar(800, 480, g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr);
 	} else if (display_type == MIPI_720P) {
 		pr_debug("%s: display_type is mipi-720p-dsi panel!\n", __func__);
 		ret = disp_set_pixel_clk(68000000);
@@ -3316,72 +3339,7 @@ static int hobot_iar_probe(struct platform_device *pdev)
 			return ret;
 		iar_display_cam_no = PIPELINE0;
                 iar_display_addr_type = GDC0;
-		temp1 = g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr;
-		tempi = 0;
-		for (i = 0; i < 720 * 4 * 100; i++) {
-			if (((i + 4) % 4) == 0) {
-				*temp1 = 0xff;//B
-			} else if (((i + 4) % 4) == 1) {
-				*temp1 = 0x00;
-			} else if (((i + 4) % 4) == 2) {
-				*temp1 = 0x00;
-			} else if (((i + 4) % 4) == 3) {
-				*temp1 = 0xff;
-			}
-			temp1++;
-		}
-		for (i = 0; i < 720 * 4 * 100; i++) {
-			if (((i + 4) % 4) == 0) {
-				*temp1 = 0x00;
-			} else if (((i + 4) % 4) == 1) {
-				*temp1 = 0xff;//g
-			} else if (((i + 4) % 4) == 2) {
-				*temp1 = 0x00;
-			} else if (((i + 4) % 4) == 3) {
-				*temp1 = 0xff;
-			}
-			temp1++;
-		}
-		for (i = 0; i < 720 * 4 * 100; i++) {
-			if (((i + 4) % 4) == 0) {
-				*temp1 = 0x00;
-			} else if (((i + 4) % 4) == 1) {
-				*temp1 = 0x00;
-			} else if (((i + 4) % 4) == 2) {
-				*temp1 = 0xff;//r
-			} else if (((i + 4) % 4) == 3) {
-				*temp1 = 0xff;
-			}
-			temp1++;
-		}
-		for (i = 0; i < 720 * 4 * 100; i++) {
-			if (((i + 4) % 4) == 0) {
-				*temp1 = 0x00;
-			} else if (((i + 4) % 4) == 1) {
-				*temp1 = 0x00;
-			} else if (((i + 4) % 4) == 2) {
-				*temp1 = 0x00;
-			} else if (((i + 4) % 4) == 3) {
-				*temp1 = 0xff;//A
-			}
-			temp1++;
-		}
-		for (i = 0; i < 720 * 4 * 100; i++) {
-			if (((i + 4) % 4) == 0) {
-				*temp1 = 0xff;
-			} else if (((i + 4) % 4) == 1) {
-				*temp1 = 0xff;
-			} else if (((i + 4) % 4) == 2) {
-				*temp1 = 0xff;
-			} else if (((i + 4) % 4) == 3) {
-				*temp1 = 0xff;//
-			}
-			temp1++;
-		}
-		for (i = 0; i < 720 * 4 * 780; i++) {
-			*temp1 = 0x0;
-			temp1++;
-		}
+		display_color_bar(720, 1280, g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr);
 		pr_debug("set mipi 720p touch done!\n");
 	} else if (display_type == HDMI_TYPE || display_type == SIF_IPI) {
 		if (display_type == SIF_IPI) {
@@ -3396,76 +3354,11 @@ static int hobot_iar_probe(struct platform_device *pdev)
 			pr_debug("%s: display_type is HDMI panel!\n", __func__);
 			ret = disp_set_pixel_clk(163000000);
 		}
-		iar_display_cam_no = PIPELINE0;
-                iar_display_addr_type = DISPLAY_CHANNEL1;
 		if (ret)
 			return ret;
-		temp1 = g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr;
-                tempi = 0;
-		for (i = 0; i < 1920 * 4 * 100; i++) {
-			if (((i + 4) % 4) == 0) {
-				*temp1 = 0xff;//B
-			} else if (((i + 4) % 4) == 1) {
-				*temp1 = 0x00;
-			} else if (((i + 4) % 4) == 2) {
-				*temp1 = 0x00;
-			} else if (((i + 4) % 4) == 3) {
-				*temp1 = 0xff;
-			}
-			temp1++;
-		}
-		for (i = 0; i < 1920 * 4 * 100; i++) {
-			if (((i + 4) % 4) == 0) {
-				*temp1 = 0x00;
-			} else if (((i + 4) % 4) == 1) {
-				*temp1 = 0xff;//g
-			} else if (((i + 4) % 4) == 2) {
-				*temp1 = 0x00;
-			} else if (((i + 4) % 4) == 3) {
-				*temp1 = 0xff;
-			}
-			temp1++;
-		}
-		for (i = 0; i < 1920 * 4 * 100; i++) {
-			if (((i + 4) % 4) == 0) {
-				*temp1 = 0x00;
-			} else if (((i + 4) % 4) == 1) {
-				*temp1 = 0x00;
-			} else if (((i + 4) % 4) == 2) {
-				*temp1 = 0xff;//r
-			} else if (((i + 4) % 4) == 3) {
-				*temp1 = 0xff;
-			}
-			temp1++;
-		}
-		for (i = 0; i < 1920 * 4 * 100; i++) {
-			if (((i + 4) % 4) == 0) {
-				*temp1 = 0x00;
-			} else if (((i + 4) % 4) == 1) {
-				*temp1 = 0x00;
-			} else if (((i + 4) % 4) == 2) {
-				*temp1 = 0x00;
-			} else if (((i + 4) % 4) == 3) {
-				*temp1 = 0xff;//A
-			}
-			temp1++;
-		}
-		for (i = 0; i < 1920 * 4 * 100; i++) {
-			if (((i + 4) % 4) == 0) {
-				*temp1 = 0xff;
-			} else if (((i + 4) % 4) == 1) {
-				*temp1 = 0xff;
-			} else if (((i + 4) % 4) == 2) {
-				*temp1 = 0xff;
-			} else if (((i + 4) % 4) == 3) {
-				*temp1 = 0xff;//
-			}
-			temp1++;
-		}
-		for (i = 0; i < 1920 * 4 * 580; i++) {
-			*temp1 = 0x0;
-			temp1++;
-		}
+		iar_display_cam_no = PIPELINE0;
+		iar_display_addr_type = DISPLAY_CHANNEL1;
+		display_color_bar(1920, 1080, g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr);
 		pr_debug("set HDMI done!\n");
 #if 0
 		temp1 = g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr;
@@ -3502,72 +3395,7 @@ static int hobot_iar_probe(struct platform_device *pdev)
 		iar_display_cam_no = PIPELINE0;
 		iar_display_addr_type = GDC1;
 		// actual output 27.2Mhz(need 27Mhz)
-		temp1 = g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr;
-		tempi = 0;
-		for (i = 0; i < 1080 * 4 * 100; i++) {
-			if (((i + 4) % 4) == 0) {
-				*temp1 = 0xff;//B
-			} else if (((i + 4) % 4) == 1) {
-				*temp1 = 0x00;
-			} else if (((i + 4) % 4) == 2) {
-				*temp1 = 0x00;
-			} else if (((i + 4) % 4) == 3) {
-				*temp1 = 0xff;
-			}
-			temp1++;
-		}
-		for (i = 0; i < 1080 * 4 * 100; i++) {
-			if (((i + 4) % 4) == 0) {
-				*temp1 = 0x00;
-			} else if (((i + 4) % 4) == 1) {
-				*temp1 = 0xff;//b
-			} else if (((i + 4) % 4) == 2) {
-				*temp1 = 0x00;
-			} else if (((i + 4) % 4) == 3) {
-				*temp1 = 0xff;
-			}
-			temp1++;
-		}
-		for (i = 0; i < 1080 * 4 * 100; i++) {
-			if (((i + 4) % 4) == 0) {
-				*temp1 = 0x00;
-			} else if (((i + 4) % 4) == 1) {
-				*temp1 = 0x00;
-			} else if (((i + 4) % 4) == 2) {
-				*temp1 = 0xff;//g
-			} else if (((i + 4) % 4) == 3) {
-				*temp1 = 0xff;
-			}
-			temp1++;
-		}
-		for (i = 0; i < 1080 * 4 * 100; i++) {
-			if (((i + 4) % 4) == 0) {
-				*temp1 = 0x00;
-			} else if (((i + 4) % 4) == 1) {
-				*temp1 = 0x00;
-			} else if (((i + 4) % 4) == 2) {
-				*temp1 = 0x00;
-			} else if (((i + 4) % 4) == 3) {
-				*temp1 = 0xff;//A
-			}
-			temp1++;
-		}
-		for (i = 0; i < 1080 * 4 * 100; i++) {
-			if (((i + 4) % 4) == 0) {
-				*temp1 = 0xff;
-			} else if (((i + 4) % 4) == 1) {
-				*temp1 = 0xff;
-			} else if (((i + 4) % 4) == 2) {
-				*temp1 = 0xff;
-			} else if (((i + 4) % 4) == 3) {
-				*temp1 = 0xff;//
-			}
-			temp1++;
-		}
-		for (i = 0; i < 1080 * 4 * 1420; i++) {
-			*temp1 = 0x0;
-			temp1++;
-		}
+		display_color_bar(1080, 1920, g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr);
 		pr_debug("set mipi 1080p done!\n");
 	}
 	channel_buf_addr_3.addr = g_iar_dev->frambuf[IAR_CHANNEL_3].paddr;
