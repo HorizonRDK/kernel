@@ -1404,6 +1404,7 @@ int sif_subdev_init(struct sif_subdev *subdev)
 	int ret = 0;
 
 	spin_lock_init(&subdev->slock);
+	spin_lock_init(&subdev->framemgr.slock);
 	atomic_set(&subdev->refcount, 0);
 
 	return ret;

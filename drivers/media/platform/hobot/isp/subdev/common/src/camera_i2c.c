@@ -83,7 +83,6 @@ int camera_i2c_release(uint32_t port)
 		}
 	}
 	i2c_unregister_device(camera_mod[port]->client);
-	pr_info("the %s  is close success !", camera_mod[port]->client->name);
 	camera_mod[port]->client = NULL;
     return 0;
 }
