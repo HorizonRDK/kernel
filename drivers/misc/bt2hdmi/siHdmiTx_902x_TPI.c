@@ -4412,7 +4412,8 @@ void siHdmiTx_AudioSel(byte Afs)
 // Returns: none
 // Globals: none
 //------------------------------------------------------------------------------
-int siHdmiTx_ReConfig(byte vmode, byte VideoFormat, byte Afs)
+int siHdmiTx_ReConfig(unsigned short vmode,
+		unsigned short VideoFormat, unsigned short Afs)
 {
 	int ret = 0;
 
@@ -4431,3 +4432,4 @@ int siHdmiTx_ReConfig(byte vmode, byte VideoFormat, byte Afs)
 	siHdmiTx_PowerStateD3();
 	return 0;
 }
+EXPORT_SYMBOL_GPL(siHdmiTx_ReConfig);

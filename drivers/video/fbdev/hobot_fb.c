@@ -780,6 +780,8 @@ int user_set_fb(void)
 	graphic_display_paddr.addr = hobot_iar_get_framebuf_addr(2)->paddr;
 	graphic1_display_paddr.addr = hobot_iar_get_framebuf_addr(3)->paddr;
 
+	enable_sif_mclk();
+	iar_pixel_clk_enable();
 	if (display_type == HDMI_TYPE) {
 #ifdef CONFIG_HOBOT_XJ2
 		disp_set_panel_timing(&video_1920x1080);
@@ -1202,6 +1204,8 @@ int user_set_fb(void)
 	} else {
 		pr_info("fb: display type is unused!!\n");
 	}
+	iar_pixel_clk_disable();
+	disable_sif_mclk();
 	return regval;
 
 }

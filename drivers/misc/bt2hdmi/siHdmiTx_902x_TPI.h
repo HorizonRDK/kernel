@@ -1188,6 +1188,7 @@ int siHdmiTx_TPI_Init(void);
 void siHdmiTx_TPI_Poll(void);
 void siHdmiTx_VideoSel(byte vmode, byte VideoFormat);
 void siHdmiTx_AudioSel(byte Afs);
-int siHdmiTx_ReConfig(byte vmode, byte VideoFormat, byte Afs);
+int siHdmiTx_ReConfig(unsigned short vmode,
+		unsigned short VideoFormat, unsigned short Afs);
 void OnHdmiCableConnected(void);
 #endif

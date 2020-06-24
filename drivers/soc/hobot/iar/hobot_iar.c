@@ -92,8 +92,10 @@ uint8_t disp_user_update_video1;
 uint8_t frame_count;
 uint8_t rst_request_flag;
 uint8_t disp_copy_done = 0;
-uint8_t iar_enable = 1;
-
+static int disp_clk_already_enable = 0;
+static int sif_mclk_is_open = 0;
+static int sif_mclk_iar_open = 0;
+static int stop_flag = 0;
 phys_addr_t logo_paddr;
 void *logo_vaddr = NULL;
 
@@ -829,6 +831,46 @@ int32_t iar_gamma_cfg(gamma_cfg_t *cfg)
 }
 EXPORT_SYMBOL_GPL(iar_gamma_cfg);
 
+static int iar_enable_sif_mclk(void)
+{
+	int ret = 0;
+
+	if (g_iar_dev == NULL) {
+		pr_err("%s: iar not init!!\n", __func__);
+		return -1;
+	}
+	if (g_iar_dev->sif_mclk == NULL) {
+		pr_err("%s: sif_mclk is null!!\n", __func__);
+		return -1;
+	}
+	if (sif_mclk_is_open == 0 && sif_mclk_iar_open == 0) {
+		ret = clk_prepare_enable(g_iar_dev->sif_mclk);
+		if (ret != 0) {
+			pr_err("%s: failed to prepare sif_mclk!!\n", __func__);
+			return ret;
+		}
+		sif_mclk_iar_open = 1;
+	}
+	return 0;
+}
+
+static int iar_disable_sif_mclk(void)
+{
+	if (g_iar_dev == NULL) {
+		pr_err("%s: iar not init!!\n", __func__);
+		return -1;
+	}
+	if (g_iar_dev->sif_mclk == NULL) {
+		pr_err("%s: sif_mclk is null!!\n", __func__);
+		return -1;
+	}
+	if (sif_mclk_iar_open == 1) {
+		clk_disable_unprepare(g_iar_dev->sif_mclk);
+		sif_mclk_iar_open = 0;
+	}
+	return 0;
+}
+
 int8_t disp_set_pixel_clk(uint64_t pixel_clk)
 {
 	int32_t ret = 0;
@@ -848,40 +890,45 @@ int8_t disp_set_pixel_clk(uint64_t pixel_clk)
 		pr_err("%s: err checkout iar pixel clock rate!!\n", __func__);
 		return -1;
 	}
+#if 0
 	ret = clk_prepare_enable(g_iar_dev->iar_pixel_clk);
 	if (ret) {
 		pr_err("%s: err enable iar pixel clock!!\n", __func__);
 		return -1;
 	}
+#endif
 	pixel_rate = clk_get_rate(g_iar_dev->iar_pixel_clk);
 	pr_info("%s: iar pixel rate is %lld\n", __func__, pixel_rate);
 	return 0;
 }
 EXPORT_SYMBOL_GPL(disp_set_pixel_clk);
 
-int disp_clk_disable(void)
+static int disp_clk_disable(void)
 {
-	//int ret = 0;
 
 	if (g_iar_dev->iar_pixel_clk == NULL)
 		return -1;
-	clk_disable_unprepare(g_iar_dev->iar_pixel_clk);
-	//if (ret)
-	//	pr_err("%s: error disable iar pixel clock!\n", __func__);
+	if (disp_clk_already_enable == 1) {
+		clk_disable_unprepare(g_iar_dev->iar_pixel_clk);
+		disp_clk_already_enable = 0;
+	}
 	return 0;
 }
 
-int disp_clk_enable(void)
+static int disp_clk_enable(void)
 {
 	uint64_t pixel_clock;
 	int ret = 0;
 
 	if (g_iar_dev->iar_pixel_clk == NULL)
 		return -1;
-	ret = clk_prepare_enable(g_iar_dev->iar_pixel_clk);
-	if (ret) {
-		pr_err("%s: err enable iar pixel clock!!\n", __func__);
-		return -1;
+	if (disp_clk_already_enable == 0) {
+		ret = clk_prepare_enable(g_iar_dev->iar_pixel_clk);
+		if (ret) {
+			pr_err("%s: err enable iar pixel clock!!\n", __func__);
+			return -1;
+		}
+		disp_clk_already_enable = 1;
 	}
 	if (display_type == LCD_7_TYPE || display_type == MIPI_1080P)
 		pixel_clock = 32000000;
@@ -901,6 +948,31 @@ int disp_clk_enable(void)
 	pr_debug("%s: iar pixel rate is %lld\n", __func__, pixel_clock);
 	return 0;
 }
+
+int iar_pixel_clk_enable(void)
+{
+	int ret = 0;
+
+	if (g_iar_dev->iar_pixel_clk == NULL)
+		return -1;
+	ret = clk_prepare_enable(g_iar_dev->iar_pixel_clk);
+	if (ret) {
+		pr_err("%s: err enable iar pixel clock!!\n", __func__);
+		return -1;
+	}
+	return 0;
+}
+EXPORT_SYMBOL_GPL(iar_pixel_clk_enable);
+
+int iar_pixel_clk_disable(void)
+{
+	if (g_iar_dev->iar_pixel_clk == NULL)
+		return -1;
+	clk_disable_unprepare(g_iar_dev->iar_pixel_clk);
+	return 0;
+}
+EXPORT_SYMBOL_GPL(iar_pixel_clk_disable);
+
 
 static int ipi_clk_disable(void)
 {
@@ -1153,12 +1225,12 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 #ifdef CONFIG_HOBOT_XJ2
 		ips_pinmux_bt();
 #else
-		//ret = disp_set_pixel_clk(163000000);
-                //if (ret)
-                //        return ret;
+		display_type = HDMI_TYPE;
 		ret = disp_pinmux_bt1120();
 		if (ret)
 			return -1;
+		display_type = HDMI_TYPE;
+		disp_set_panel_timing(&video_1920x1080);
 #endif
 #ifdef CONFIG_HOBOT_XJ2
 		ips_set_btout_clksrc(IAR_CLK, true);//clk invert
@@ -1182,6 +1254,7 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 		writel(0x3, g_iar_dev->regaddr + REG_DISP_LCDIF_PADC_RESET_N);//0x804
 		//color config
 		writel(0x0, g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);//0x204
+		display_type = MIPI_720P_TOUCH;
 #else
 		pr_err("%s: error output mode!!!\n", __func__);
 #endif
@@ -1191,6 +1264,8 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 			pr_debug("err config RGB output pinmux!\n");
 			return ret;
 		}
+		display_type = LCD_7_TYPE;
+		disp_set_panel_timing(&video_800x480);
 		hitm1_reg_addr = ioremap_nocache(0xA6004000 + 0x138, 4);
 		reg_val = readl(hitm1_reg_addr);
 		reg_val = (reg_val & 0xffffffc3) | 0x3c;
@@ -1556,16 +1631,71 @@ int set_video_display_ddr_layer(uint8_t ddr_layer_no)
 }
 EXPORT_SYMBOL_GPL(set_video_display_ddr_layer);
 
+static int iar_thread(void *data)
+{
+	buf_addr_t display_addr;
+	buf_addr_t display_addr_video1;
+
+	while (!kthread_should_stop()) {
+		if (kthread_should_stop())
+			break;
+		wait_event_interruptible(g_iar_dev->wq_head,
+				ipu_process_done || stop_flag);
+		ipu_process_done = 0;
+#ifdef CONFIG_HOBOT_XJ3
+		display_addr.Yaddr = g_disp_yaddr;
+		display_addr.Uaddr = g_disp_caddr;
+		display_addr.Vaddr = 0;
+		display_addr_video1.Yaddr = g_disp_yaddr_video1;
+		display_addr_video1.Uaddr = g_disp_caddr_video1;
+		display_addr_video1.Vaddr = 0;
+#else
+		display_addr.Yaddr =
+			ipu_display_slot_id * iar_display_ipu_slot_size
+			+ iar_display_yaddr_offset;
+		display_addr.Uaddr =
+			ipu_display_slot_id * iar_display_ipu_slot_size
+			+ iar_display_caddr_offset;
+
+		display_addr.Vaddr = 0;
+		//pr_debug("iar_display_yaddr offset is 0x%x.\n",
+		//iar_display_yaddr_offset);
+		//pr_debug("iar_display_caddr offset is 0x%x.\n",
+		//iar_display_caddr_offset);
+		//pr_debug("iar: iar_display_yaddr is 0x%x.\n",
+		//display_addr.Yaddr);
+		//pr_debug("iar: iar_display_caddr is 0x%x.\n",
+		//display_addr.Uaddr);
+#endif
+		if (config_rotate) {
+			iar_rotate_video_buffer(display_addr.Yaddr,
+				display_addr.Uaddr, display_addr.Vaddr);
+		} else {
+			pr_debug("iar: iar display refresh!!!!!\n");
+			pr_debug("iar display video 0 yaddr is 0x%x, caddr is 0x%x\n",
+					display_addr.Yaddr, display_addr.Uaddr);
+			pr_debug("iar display video 1 yaddr is 0x%x, caddr is 0x%x\n",
+					display_addr_video1.Yaddr, display_addr_video1.Uaddr);
+			iar_set_bufaddr(0, &display_addr);
+			iar_set_bufaddr(1, &display_addr_video1);
+			iar_update();
+		}
+	}
+	return 0;
+}
+
+
 int32_t iar_open(void)
 {
+	int ret = 0;
+
 	if (NULL == g_iar_dev) {
 		printk(KERN_ERR "IAR dev not inited!");
 		return -1;
 	}
-	//value = readl(g_iar_dev->sysctrl + 0x144);
-	//value |= (0x1<<2);
-	//writel(value, g_iar_dev->sysctrl + 0x144);
-	//iar_pre_init();
+
+	enable_sif_mclk();
+	iar_pixel_clk_enable();
 	enable_iar_irq();
 	enable_irq(g_iar_dev->irq);
 
@@ -1575,7 +1705,20 @@ int32_t iar_open(void)
 
 	g_iar_dev->state = BIT(IAR_WB_INIT);
 
-	return 0;
+	if (g_iar_dev->iar_task == NULL) {
+		g_iar_dev->iar_task = kthread_run(iar_thread,
+				(void *)g_iar_dev, "iar_thread");
+		if (IS_ERR(g_iar_dev->iar_task)) {
+			g_iar_dev->iar_task = NULL;
+			dev_err(&g_iar_dev->pdev->dev, "iar thread create fail\n");
+			ret = PTR_ERR(g_iar_dev->iar_task);
+		}
+		stop_flag = 0;
+	} else {
+		pr_err("ipu iar thread already run!!\n");
+	}
+
+	return ret;
 }
 EXPORT_SYMBOL_GPL(iar_open);
 
@@ -1620,16 +1763,22 @@ int32_t iar_close(void)
 		return -1;
 	}
 	disp_user_config_done = 0;
-	//iar_layer_disable(0);
-	//iar_layer_disable(2);
-	//iar_stop();
-	//value = readl(g_iar_dev->sysctrl + 0x148);
-	//value |= (0x1<<2);
-	//writel(value, g_iar_dev->sysctrl + 0x148);
+	iar_stop();
+
 	disable_irq(g_iar_dev->irq);
 	frame_manager_close(&g_iar_dev->framemgr);
 	frame_manager_close(&g_iar_dev->framemgr_layer[0]);
 	frame_manager_close(&g_iar_dev->framemgr_layer[1]);
+
+	if (g_iar_dev->iar_task == NULL) {
+		pr_err("iar vio thread already stop!!\n");
+	} else {
+		stop_flag = 1;
+		kthread_stop(g_iar_dev->iar_task);
+		g_iar_dev->iar_task = NULL;
+	}
+	disable_sif_mclk();
+	iar_pixel_clk_disable();
 
 	return 0;
 }
@@ -1660,7 +1809,7 @@ int32_t iar_start(int update)
 		printk(KERN_ERR "IAR dev not inited!");
 		return -1;
 	}
-
+	iar_enable_sif_mclk();
 	ret = disp_clk_enable();
 	if (ret)
 		return -1;
@@ -1705,6 +1854,7 @@ int32_t iar_stop(void)
 			pr_err("erroc pinmux rgb pins to gpio func!!\n");
 	}
 	ret = disp_clk_disable();
+	iar_disable_sif_mclk();
 	//del_timer(&iartimer);
 	return ret;
 }
@@ -2360,58 +2510,6 @@ int enable_iar_irq(void)
 	return 0;
 }
 
-static int iar_thread(void *data)
-{
-	buf_addr_t display_addr;
-	buf_addr_t display_addr_video1;
-
-	do {
-		if (kthread_should_stop())
-			break;
-		wait_event_interruptible(g_iar_dev->wq_head, ipu_process_done);
-		ipu_process_done = 0;
-#ifdef CONFIG_HOBOT_XJ3
-		display_addr.Yaddr = g_disp_yaddr;
-		display_addr.Uaddr = g_disp_caddr;
-		display_addr.Vaddr = 0;
-		display_addr_video1.Yaddr = g_disp_yaddr_video1;
-		display_addr_video1.Uaddr = g_disp_caddr_video1;
-		display_addr_video1.Vaddr = 0;
-#else
-		display_addr.Yaddr =
-			ipu_display_slot_id * iar_display_ipu_slot_size
-			+ iar_display_yaddr_offset;
-		display_addr.Uaddr =
-			ipu_display_slot_id * iar_display_ipu_slot_size
-			+ iar_display_caddr_offset;
-
-		display_addr.Vaddr = 0;
-		//pr_debug("iar_display_yaddr offset is 0x%x.\n",
-		//iar_display_yaddr_offset);
-		//pr_debug("iar_display_caddr offset is 0x%x.\n",
-		//iar_display_caddr_offset);
-		//pr_debug("iar: iar_display_yaddr is 0x%x.\n",
-		//display_addr.Yaddr);
-		//pr_debug("iar: iar_display_caddr is 0x%x.\n",
-		//display_addr.Uaddr);
-#endif
-		if (config_rotate) {
-			iar_rotate_video_buffer(display_addr.Yaddr,
-				display_addr.Uaddr, display_addr.Vaddr);
-		} else {
-			pr_debug("iar: iar display refresh!!!!!\n");
-			pr_debug("iar display video 0 yaddr is 0x%x, caddr is 0x%x\n",
-					display_addr.Yaddr, display_addr.Uaddr);
-			pr_debug("iar display video 1 yaddr is 0x%x, caddr is 0x%x\n",
-					display_addr_video1.Yaddr, display_addr_video1.Uaddr);
-			iar_set_bufaddr(0, &display_addr);
-			iar_set_bufaddr(1, &display_addr_video1);
-			iar_update();
-		}
-	} while (!kthread_should_stop());
-	return 0;
-}
-
 int disp_set_ppbuf_addr(uint8_t layer_no, void *yaddr, void *caddr)
 {
 	buf_addr_t display_addr;
@@ -2602,7 +2700,8 @@ int get_iar_module_rst_pin(void)
 }
 EXPORT_SYMBOL_GPL(get_iar_module_rst_pin);
 
-int iar_enable_sif_mclk(void)
+
+int enable_sif_mclk(void)
 {
 	int ret = 0;
 
@@ -2619,10 +2718,25 @@ int iar_enable_sif_mclk(void)
 		pr_err("%s: failed to prepare sif_mclk!!\n", __func__);
 		return ret;
 	}
-	pr_info("success prepare and enable sif_mclk!\n");
 	return 0;
 }
-EXPORT_SYMBOL_GPL(iar_enable_sif_mclk);
+EXPORT_SYMBOL_GPL(enable_sif_mclk);
+
+int disable_sif_mclk(void)
+{
+	if (g_iar_dev == NULL) {
+		pr_err("%s: iar not init!!\n", __func__);
+		return -1;
+	}
+	if (g_iar_dev->sif_mclk == NULL) {
+		pr_err("%s: sif_mclk is null!!\n", __func__);
+		return -1;
+	}
+	clk_disable_unprepare(g_iar_dev->sif_mclk);
+	return 0;
+}
+EXPORT_SYMBOL_GPL(disable_sif_mclk);
+
 
 static int hobot_iar_probe(struct platform_device *pdev)
 {
@@ -2640,6 +2754,8 @@ static int hobot_iar_probe(struct platform_device *pdev)
 	void __iomem *hitm1_reg_addr;
         uint32_t reg_val = 0;
 	uint32_t i = 0;
+	buf_addr_t channel_buf_addr_3;
+	buf_addr_t channel_buf_addr_4;
 
 	pr_info("iar probe begin!!!\n");
 
@@ -2664,11 +2780,8 @@ static int hobot_iar_probe(struct platform_device *pdev)
                 dev_err(&pdev->dev, "failed to get sif_mclk\n");
                 return PTR_ERR(g_iar_dev->sif_mclk);
         }
-        ret = clk_prepare_enable(g_iar_dev->sif_mclk);
-        if (ret != 0) {
-                dev_err(&pdev->dev, "failed to prepare sif_mclk\n");
-                return ret;
-        }
+	sif_mclk_is_open = __clk_is_enabled(g_iar_dev->sif_mclk);
+	iar_enable_sif_mclk();
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	g_iar_dev->regaddr = devm_ioremap_resource(&pdev->dev, res);
 	if (IS_ERR(g_iar_dev->regaddr))
@@ -2783,12 +2896,8 @@ static int hobot_iar_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "failed to get iar_pix_clk\n");
 		return PTR_ERR(g_iar_dev->iar_pixel_clk);
 	}
+	clk_prepare_enable(g_iar_dev->iar_pixel_clk);
 
-	ret = clk_prepare_enable(g_iar_dev->iar_pixel_clk);
-	if (ret != 0) {
-		dev_err(&pdev->dev, "failed to prepare iar_pix_clk\n");
-		return ret;
-	}
 	pixel_rate = clk_get_rate(g_iar_dev->iar_pixel_clk);
 	pr_debug("%s: iar pixel rate is %lld\n", __func__, pixel_rate);
 
@@ -2796,17 +2905,6 @@ static int hobot_iar_probe(struct platform_device *pdev)
 	ret = request_threaded_irq(g_iar_dev->irq, hobot_iar_irq, NULL, IRQF_TRIGGER_HIGH,
 							   dev_name(&pdev->dev), g_iar_dev);
 	disable_irq(g_iar_dev->irq);
-	if (g_iar_dev->iar_task == NULL) {
-		g_iar_dev->iar_task =
-			kthread_run(iar_thread,
-					(void *)g_iar_dev, "iar_thread");
-		if (IS_ERR(g_iar_dev->iar_task)) {
-			g_iar_dev->iar_task = NULL;
-			dev_err(&g_iar_dev->pdev->dev, "iar thread create fail\n");
-			ret = PTR_ERR(g_iar_dev->iar_task);
-		}
-	}
-
 	np = of_parse_phandle(pdev->dev.of_node, "memory-region", 0);
 	if (!np) {
 		dev_err(&g_iar_dev->pdev->dev, "No %s specified\n", "memory-region");
@@ -3136,9 +3234,6 @@ static int hobot_iar_probe(struct platform_device *pdev)
 		} else if (strncmp(type, "hdmi", 4) == 0) {
 			display_type = HDMI_TYPE;
 			pr_info("%s: panel type is HDMI_TYPE\n", __func__);
-		} else if (strncmp(type, "disable", 7) == 0) {
-			pr_info("%s: iar disable\n", __func__);
-			iar_enable = 0;
 		} else if (strncmp(type, "ipi", 3) == 0) {
 			pr_info("%s: panel type is SIF IPI\n", __func__);
 			display_type = SIF_IPI;
@@ -3475,19 +3570,14 @@ static int hobot_iar_probe(struct platform_device *pdev)
 		}
 		pr_debug("set mipi 1080p done!\n");
 	}
-	if (iar_enable == 1) {
-		ret = iar_start(1);
-		if (ret) {
-			pr_err("%s: error start iar display!\n", __func__);
-			return -1;
-		}
-		pr_debug("%s: iar display enable!!\n", __func__);
-	}
-	if (g_iar_dev->sif_mclk == NULL)
-		pr_err("%s: sif mclk is null!!\n", __func__);
-	else
-		clk_disable_unprepare(g_iar_dev->sif_mclk);
-	//iar_close();
+	channel_buf_addr_3.addr = g_iar_dev->frambuf[IAR_CHANNEL_3].paddr;
+	channel_buf_addr_4.addr = g_iar_dev->frambuf[IAR_CHANNEL_4].paddr;
+	iar_switch_buf(0);
+	iar_set_bufaddr(IAR_CHANNEL_3, &channel_buf_addr_3);
+	iar_set_bufaddr(IAR_CHANNEL_4, &channel_buf_addr_4);
+	iar_update();
+	clk_disable_unprepare(g_iar_dev->iar_pixel_clk);
+	iar_disable_sif_mclk();
 	pr_info("iar probe end success!!!\n");
 	return 0;
 err1:

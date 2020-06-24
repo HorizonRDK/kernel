@@ -63,6 +63,10 @@
         _IOW(IAR_CDEV_MAGIC, 0x37, struct display_vio_channel_pipe)
 #define IAR_OUTPUT_LAYER1_STREAM _IOW(IAR_CDEV_MAGIC, 0x38, unsigned int)
 #define SCREEN_BACKLIGHT_SET       _IOW(IAR_CDEV_MAGIC, 0x39, unsigned int)
+#define HDMI_CONFIG       _IO(IAR_CDEV_MAGIC, 0x40)
+
+extern int siHdmiTx_ReConfig(unsigned short vmode,
+		unsigned short VideoFormat, unsigned short Afs);
 
 typedef struct _update_cmd_t {
 	unsigned int enable_flag[IAR_CHANNEL_MAX];
@@ -193,6 +197,12 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 		{
 			IAR_DEBUG_PRINT("IAR_START \n");
 			ret = iar_start(1);
+		}
+		break;
+	case HDMI_CONFIG:
+		 {
+			IAR_DEBUG_PRINT("HEMI_CONFIG \n");
+			ret = siHdmiTx_ReConfig(9, 4, 2);
 		}
 		break;
 	case IAR_STOP:
@@ -599,7 +609,11 @@ static ssize_t hobot_iar_show(struct kobject *kobj, struct kobj_attribute *attr,
 {
 	char *s = buf;
 
+	enable_sif_mclk();
+	iar_pixel_clk_enable();
 	hobot_iar_dump();
+	iar_pixel_clk_disable();
+	disable_sif_mclk();
 
 	return (s - buf);
 }
@@ -613,10 +627,13 @@ static ssize_t hobot_iar_store(struct kobject *kobj, struct kobj_attribute *attr
 	char value[3];
 
 	tmp = (char *)buf;
+	enable_sif_mclk();
+	iar_pixel_clk_enable();
 	if (strncmp(tmp, "start", 5) == 0) {
 		pr_info("iar start......\n");
-		iar_enable_sif_mclk();
 		iar_start(1);
+		if (display_type == HDMI_TYPE)
+			siHdmiTx_ReConfig(9, 4, 2);
 	} else if (strncmp(tmp, "stop", 4) == 0) {
 		pr_info("iar stop......\n");
 		iar_stop();
@@ -627,12 +644,12 @@ static ssize_t hobot_iar_store(struct kobject *kobj, struct kobj_attribute *attr
 			pr_info("checkout camera %ld display!!\n", tmp_value);
 			if (tmp_value > 1) {
 				pr_info("wrong camera channel, exit!!\n");
-				return error;
+				ret = error;
 			}
 			set_video_display_channel(tmp_value);
 		} else {
 			pr_info("error input, exit!!\n");
-			return error;
+			ret = error;
 		}
 	} else if (strncmp(tmp, "pipe", 4) == 0) {
 		tmp = tmp + 4;
@@ -641,14 +658,14 @@ static ssize_t hobot_iar_store(struct kobject *kobj, struct kobj_attribute *attr
 		ret = kstrtoul(value, 0, &disp_layer);
 		if (ret == 0) {
 			if (disp_layer > 1) {
-				pr_info("wrong video layer number, exit!!\n");
-				return error;
+				pr_err("wrong video layer number, exit!!\n");
+				ret = error;
 			} else {
-				pr_info("display layer is %ld!!\n", disp_layer);
+				pr_err("display layer is %ld!!\n", disp_layer);
 			}
 		} else {
-			pr_info("error input type, exit!!\n");
-			return error;
+			pr_err("error input type, exit!!\n");
+			ret = error;
 		}
 		tmp = tmp + 1;
 		memcpy((void *)(value), (void *)(tmp), 1);
@@ -656,14 +673,14 @@ static ssize_t hobot_iar_store(struct kobject *kobj, struct kobj_attribute *attr
 		ret = kstrtoul(value, 0, &pipeline);
 		if (ret == 0) {
 			if (pipeline > 3) {
-				pr_info("wrong pipeline number, exit!!\n");
-				return error;
+				pr_err("wrong pipeline number, exit!!\n");
+				ret = error;
 			} else {
-				pr_info("checkout pipeline %ld display!!\n", pipeline);
+				pr_err("checkout pipeline %ld display!!\n", pipeline);
 			}
 		} else {
-			pr_info("error input type, exit!!\n");
-			return error;
+			pr_err("error input type, exit!!\n");
+			ret = error;
 		}
 		tmp = tmp + 1;
 		//memcpy((void *)(value), (void *)(tmp), 1);
@@ -671,14 +688,14 @@ static ssize_t hobot_iar_store(struct kobject *kobj, struct kobj_attribute *attr
 		ret = kstrtoul(tmp, 0, &disp_vio_addr_type);
 		if (ret == 0) {
 			if (disp_vio_addr_type > 38) {
-				pr_info("wrong vio address type, exit!!\n");
-				return error;
+				pr_err("wrong vio address type, exit!!\n");
+				ret = error;
 			} else {
-				pr_info("display vio address type is %ld!!\n", disp_vio_addr_type);
+				pr_err("display vio address type is %ld!!\n", disp_vio_addr_type);
 			}
 		} else {
-			pr_info("error input type, exit!!\n");
-			return error;
+			pr_err("error input type, exit!!\n");
+			ret = error;
 		}
 		if (disp_layer == 0) {
 				iar_display_cam_no = pipeline;
@@ -690,7 +707,6 @@ static ssize_t hobot_iar_store(struct kobject *kobj, struct kobj_attribute *attr
 	} else if (strncmp(tmp, "lcd", 3) == 0) {
 		pr_info("iar output lcd rgb panel config......\n");
 		display_type = LCD_7_TYPE;
-		iar_enable_sif_mclk();
 		iar_start(1);
 		user_set_fb();
 	} else if (strncmp(tmp, "mipi", 4) == 0) {
@@ -701,31 +717,31 @@ static ssize_t hobot_iar_store(struct kobject *kobj, struct kobj_attribute *attr
 	} else if (strncmp(tmp, "dsi1080", 7) == 0) {
 		pr_info("iar output lcd mipi 1080p panel config......\n");
 		display_type = MIPI_1080P;
-		iar_enable_sif_mclk();
 		iar_start(1);
 		user_set_fb();
 		set_mipi_display(0);
-		//msleep(2000);
-		//mipi_dsi_panel_init(0);
 	} else if (strncmp(tmp, "dsi720p", 7) == 0) {
 		pr_info("iar output lcd mipi 720p touch panel config......\n");
 		display_type = MIPI_720P_TOUCH;
-		iar_enable_sif_mclk();
 		iar_start(1);
 		user_set_fb();
 		set_mipi_display(1);
-		//msleep(2000);
-		//mipi_dsi_panel_init(0);
+	} else if (strncmp(tmp, "hdmi", 4) == 0) {
+		pr_info("iar output hdmi panel config......\n");
+		display_type = HDMI_TYPE;
+		user_set_fb();
+		iar_start(1);
+		siHdmiTx_ReConfig(9, 4, 2);
 	} else if (strncmp(buf, "enable", 6) == 0) {
 		tmp = buf + 6;
 		ret = kstrtoul(tmp, 0, &tmp_value);
 		if (ret == 0) {
 			pr_info("enable channel %ld\n", tmp_value);
 			iar_layer_enable(tmp_value);
-			iar_start(1);
+			iar_update();
 		} else {
-			pr_info("error input, exit!!\n");
-			return error;
+			pr_err("error input, exit!!\n");
+			ret = error;
 		}
 
 	} else if (strncmp(buf, "disable", 7) == 0) {
@@ -734,10 +750,10 @@ static ssize_t hobot_iar_store(struct kobject *kobj, struct kobj_attribute *attr
 		if (ret == 0) {
 			pr_info("disable channel %ld\n", tmp_value);
 			iar_layer_disable(tmp_value);
-			iar_start(1);
+			iar_update();
 		} else {
-			pr_info("error input, exit!!\n");
-			return error;
+			pr_err("error input, exit!!\n");
+			ret = error;
 		}
 	} else if (strncmp(buf, "backlight", 9) == 0) {
 		tmp = buf + 9;
@@ -750,13 +766,13 @@ static ssize_t hobot_iar_store(struct kobject *kobj, struct kobj_attribute *attr
 				pr_info("error backlight level!!\n");
 			}
 		} else {
-			pr_info("error input, exit!!\n");
-			return error;
+			pr_err("error input, exit!!\n");
+			ret = error;
 		}
 	}
-
-        //return error ? error : n;
-        return n;
+	iar_pixel_clk_disable();
+	disable_sif_mclk();
+	return ret ? ret : n;
 }
 
 static struct kobj_attribute iar_test_attr = {
