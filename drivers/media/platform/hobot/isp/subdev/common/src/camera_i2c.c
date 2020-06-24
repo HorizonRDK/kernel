@@ -9,7 +9,7 @@
  *    but WITHOUT ANY WARRANTY; without even the implied warranty of
  *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *    GNU General Public License for more details.
- */ 
+ */
 #include <linux/platform_device.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
@@ -34,13 +34,21 @@ int camera_i2c_open(uint32_t port, uint32_t i2c_bus,
 		char *sensor_name, uint32_t sensor_addr)
 {
     struct i2c_adapter *adap;
-	uint32_t minor = 0;
+	uint32_t minor = 0, i;
 
 	pr_info("camera_i2c_open come in sensor_name %s sensor_addr 0x%x\n",
 			sensor_name, sensor_addr);
 	strncpy(camera_mod[port]->board_info.type, sensor_name,
 			sizeof(camera_mod[port]->board_info.type));
 	camera_mod[port]->board_info.addr = sensor_addr;
+	for (i = 0; i < CAMERA_TOTAL_NUMBER; i++) {
+		if ((camera_mod[i]->camera_param.sensor_addr == sensor_addr) &&
+			(camera_mod[i]->camera_param.bus_num == i2c_bus) &&
+			(camera_mod[i]->client)) {
+				camera_mod[port]->client = camera_mod[i]->client;
+				return 0;
+		}
+	}
 	if(camera_mod[port]->client) {
 		camera_i2c_release(port);
 	}
@@ -63,9 +71,17 @@ int camera_i2c_open(uint32_t port, uint32_t i2c_bus,
 
 int camera_i2c_release(uint32_t port)
 {
+	int i;
+
 	if (!camera_mod[port]->client)
 		return -ENOMEM;
-
+	for (i = 0; i < CAMERA_TOTAL_NUMBER; i++) {
+		if ((camera_mod[i]->client == camera_mod[port]->client) &&
+			(i != port)) {
+				camera_mod[port]->client = NULL;
+				return 0;
+		}
+	}
 	i2c_unregister_device(camera_mod[port]->client);
 	pr_info("the %s  is close success !", camera_mod[port]->client->name);
 	camera_mod[port]->client = NULL;
