@@ -1092,19 +1092,10 @@ EXPORT_SYMBOL_GPL(set_screen_backlight);
 
 int disp_pinmux_bt1120(void)
 {
-	int ret = 0;
-	void __iomem *pinctl_reg_addr;
-        uint32_t reg_val = 0;
-
 	if (!g_iar_dev->pins_bt1120)
 		return -ENODEV;
-	ret = pinctrl_select_state(g_iar_dev->pinctrl,
+	return pinctrl_select_state(g_iar_dev->pinctrl,
 			g_iar_dev->pins_bt1120);
-	pinctl_reg_addr = ioremap_nocache(0xa6004000 + 0x138, 4);
-	reg_val = readl(pinctl_reg_addr);
-	reg_val = (reg_val & 0xfffffffc) | 0x0000003c;
-	writel(reg_val, pinctl_reg_addr);
-	return ret;
 }
 
 int disp_pinmux_bt656(void)
