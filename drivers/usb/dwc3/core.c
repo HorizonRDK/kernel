@@ -1202,11 +1202,83 @@ static void dwc3_check_params(struct dwc3 *dwc)
 	}
 }
 
+static ssize_t dwc3_role_show(struct device *dev,
+		       struct device_attribute *attr, char *buf)
+{
+	struct dwc3	*dwc = dev_get_drvdata(dev);
+	unsigned long	flags;
+	u32		reg;
+	int r = 0;
+
+	spin_lock_irqsave(&dwc->lock, flags);
+	reg = dwc3_readl(dwc->regs, DWC3_GCTL);
+	spin_unlock_irqrestore(&dwc->lock, flags);
+
+	switch (DWC3_GCTL_PRTCAP(reg)) {
+	case DWC3_GCTL_PRTCAP_HOST:
+		r = sprintf(buf, "%s\n", "host");
+		break;
+	case DWC3_GCTL_PRTCAP_DEVICE:
+		r = sprintf(buf, "%s\n", "device");
+		break;
+	case DWC3_GCTL_PRTCAP_OTG:
+		r = sprintf(buf, "%s\n", "otg");
+		break;
+	default:
+		r = sprintf(buf, "UNKNOWN %08x\n", DWC3_GCTL_PRTCAP(reg));
+	}
+
+	return r;
+}
+
+static ssize_t dwc3_role_store(struct device *dev,
+			struct device_attribute *attr,
+			const char *buf, size_t count)
+{
+	struct dwc3	*dwc = dev_get_drvdata(dev);
+	u32		role = 0;
+
+	if (!strncmp(buf, "host", 4))
+		role = DWC3_GCTL_PRTCAP_HOST;
+
+	if (!strncmp(buf, "device", 6))
+		role = DWC3_GCTL_PRTCAP_DEVICE;
+
+	if (!strncmp(buf, "otg", 3))
+		role = DWC3_GCTL_PRTCAP_OTG;
+
+	if (role)
+		dwc3_set_mode(dwc, role);
+
+	return count;
+}
+
+static DEVICE_ATTR(role, 0644, dwc3_role_show, dwc3_role_store);
+
+static struct attribute *dwc3_attrs[] = {
+	&dev_attr_role.attr,
+	NULL,
+};
+
+static struct attribute_group dwc3_attr_group = {
+	.attrs = dwc3_attrs,
+};
+
+static void dwc3_sysfs_init(struct dwc3 *dwc)
+{
+	sysfs_create_group(&dwc->dev->kobj, &dwc3_attr_group);
+}
+
+static void dwc3_sysfs_exit(struct dwc3 *dwc)
+{
+	sysfs_remove_group(&dwc->dev->kobj, &dwc3_attr_group);
+}
+
 #ifdef HOBOT_TEST_REGISTER_RW
 static void hobot_usb_register_test(struct dwc3 *dwc)
 {
-	u32 reg;
-	unsigned int			i;
+	u32			reg;
+	unsigned int		i;
 	volatile unsigned int	*reg_ptr;
 
 	// Register R/W test
@@ -1247,7 +1319,7 @@ static void hobot_usb_register_test(struct dwc3 *dwc)
 
 static void hobot_phy_finetune_timing(struct dwc3 *dwc)
 {
-	unsigned int			field_value;
+	unsigned int		field_value;
 	volatile unsigned int	*reg_ptr;
 
 	reg_ptr = dwc->regs_sys + USB3_CTRL_REG0;
@@ -1555,6 +1627,8 @@ static int dwc3_probe(struct platform_device *pdev)
 	dwc3_debugfs_init(dwc);
 	pm_runtime_put(dev);
 
+	dwc3_sysfs_init(dwc);
+
 	return 0;
 
 err5:
@@ -1603,6 +1677,7 @@ static int dwc3_remove(struct platform_device *pdev)
 	res->start -= DWC3_GLOBALS_REGS_START;
 
 	dwc3_debugfs_exit(dwc);
+	dwc3_sysfs_exit(dwc);
 	dwc3_core_exit_mode(dwc);
 
 	dwc3_core_exit(dwc);
