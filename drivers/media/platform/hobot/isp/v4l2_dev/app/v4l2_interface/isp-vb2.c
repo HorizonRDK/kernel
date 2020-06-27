@@ -146,6 +146,8 @@ static void isp_vb2_buf_queue( struct vb2_buffer *vb )
     LOG( LOG_INFO, "Enter id:%d, cnt: %lu.", pstream->stream_id, cnt++ );
 
     spin_lock( &pstream->slock );
+    buf->y_paddr = pstream->y_paddr;
+    buf->uv_paddr = pstream->uv_paddr;
     list_add_tail( &buf->list, &pstream->stream_buffer_list );
     spin_unlock( &pstream->slock );
 }
@@ -173,7 +175,7 @@ int isp_vb2_queue_init( struct vb2_queue *q, struct mutex *mlock, isp_v4l2_strea
 
     LOG( LOG_INFO, "vb2 init for stream:%d type: %u.", pstream->stream_id, q->type );
 
-    q->io_modes = VB2_MMAP | VB2_READ;
+    q->io_modes = VB2_MMAP | VB2_USERPTR | VB2_READ;
     q->drv_priv = pstream;
     q->buf_struct_size = sizeof( isp_v4l2_buffer_t );
 

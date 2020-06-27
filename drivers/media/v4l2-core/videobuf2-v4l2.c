@@ -227,7 +227,8 @@ static void __fill_v4l2_buffer(struct vb2_buffer *vb, void *pb)
 				pdst->m.fd = psrc->m.fd;
 			pdst->data_offset = psrc->data_offset;
 			memset(pdst->reserved, 0, sizeof(pdst->reserved));
-			pdst->reserved[0] = vb2_dma_contig_plane_dma_addr(vb, plane);
+			if (q->memory == VB2_MEMORY_MMAP)
+				pdst->reserved[0] = vb2_dma_contig_plane_dma_addr(vb, plane);
 		}
 	} else {
 		/*

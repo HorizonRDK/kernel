@@ -37,7 +37,8 @@ typedef struct _isp_v4l2_buffer {
 #else
     struct vb2_buffer vb;
 #endif
-
+    uint32_t y_paddr;
+    uint32_t uv_paddr;
     struct list_head list;
 } isp_v4l2_buffer_t;
 
@@ -76,6 +77,9 @@ typedef struct _isp_v4l2_stream_t {
     struct list_head stream_buffer_list;
     struct list_head stream_buffer_list_busy;
     spinlock_t slock;
+
+    uint32_t y_paddr;
+    uint32_t uv_paddr;
 
     /* Temporal fields for memcpy */
 #if ISP_HAS_META_CB

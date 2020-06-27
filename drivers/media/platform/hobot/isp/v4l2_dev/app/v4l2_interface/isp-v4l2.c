@@ -627,11 +627,18 @@ static int isp_v4l2_querybuf( struct file *file, void *priv, struct v4l2_buffer 
 static int isp_v4l2_qbuf( struct file *file, void *priv, struct v4l2_buffer *p )
 {
     struct isp_v4l2_fh *sp = fh_to_private( file->private_data );
+    isp_v4l2_dev_t *dev = video_drvdata( file );
+    isp_v4l2_stream_t *pstream = dev->pstreams[sp->stream_id];
     int rc = 0;
 
     LOG( LOG_DEBUG, "(stream_id = %d, ownermatch=%d)", sp->stream_id, isp_v4l2_is_q_busy( &sp->vb2_q, file ) );
     if ( isp_v4l2_is_q_busy( &sp->vb2_q, file ) )
         return -EBUSY;
+
+    if (p->memory == V4L2_MEMORY_USERPTR) {
+        pstream->y_paddr = p->m.planes[0].reserved[0];
+        pstream->uv_paddr = p->m.planes[1].reserved[0];
+    }
 
     rc = vb2_qbuf( &sp->vb2_q, p );
     LOG( LOG_DEBUG, "sid:%d qbuf p->type:%d p->index:%d, rc %d", sp->stream_id, p->type, p->index, rc );

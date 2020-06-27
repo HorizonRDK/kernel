@@ -263,17 +263,20 @@ static uint32_t isp_v4l2_format_to_dma_output( uint32_t pixelformat, uint32_t pl
 
 static int isp_v4l2_stream_get_plane( struct vb2_buffer *vb,
                                       struct v4l2_pix_format_mplane *pix_mp,
-                                      aframe_t *aframe, uint32_t plane_no )
+                                      aframe_t *aframe, uint32_t plane_no,
+                                      isp_v4l2_buffer_t *pbuf )
 {
-    dma_addr_t addr;
+    if (pbuf->y_paddr) {
+        aframe->address = plane_no == 0 ? pbuf->y_paddr : pbuf->uv_paddr;
+        aframe->virt_addr = 0;
+    } else {
+        dma_addr_t addr;
+        addr = vb2_dma_contig_plane_dma_addr( vb, plane_no );
+        aframe->virt_addr = vb2_plane_vaddr( vb, plane_no );
+        aframe->address = (uint32_t)addr;
+    }
 
-    addr = vb2_dma_contig_plane_dma_addr( vb, plane_no );
-    addr -= ISP_SOC_DMA_BUS_OFFSET;
-
-    aframe->virt_addr = vb2_plane_vaddr( vb, plane_no );
-    aframe->address = (uint32_t)addr;
     aframe->status = dma_buf_empty;
-
     aframe->type = isp_v4l2_format_to_dma_output( pix_mp->pixelformat, plane_no );
     aframe->width = pix_mp->width;
     aframe->height = pix_mp->height;
@@ -502,7 +505,7 @@ int callback_stream_get_frame( uint32_t ctx_id, acamera_stream_type_t type, afra
         }
 
         for ( i = 0; i < vb->num_planes; i++ ) {
-            isp_v4l2_stream_get_plane( vb, pix_mp, &aframes[i], i );
+            isp_v4l2_stream_get_plane( vb, pix_mp, &aframes[i], i, pbuf );
         }
     } else {
         LOG( LOG_CRIT, "Invalid v4l2_fmt_type: %d", v4l2_fmt->type );
@@ -729,6 +732,8 @@ int isp_v4l2_stream_init( isp_v4l2_stream_t **ppstream, int stream_id, int ctx_i
     new_stream->stream_type = V4L2_STREAM_TYPE_MAX;
     new_stream->stream_started = 0;
     new_stream->last_frame_id = 0xFFFFFFFF;
+    new_stream->y_paddr = 0;
+    new_stream->uv_paddr = 0;
 
     //format new stream to default isp settings
     isp_v4l2_stream_try_format( new_stream, &( new_stream->cur_v4l2_fmt ) );
