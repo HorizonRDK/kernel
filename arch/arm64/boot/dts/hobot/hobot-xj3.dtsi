@@ -975,7 +975,6 @@
 			cooling-max-level = <3>;
 			operating-points-v2 = <&cnn_opp_table>;
 			busy_check = <1>;
-			governor = "userspace";
 		};
 
 		cnn1: cnn@0xA3001000 {
@@ -995,7 +994,6 @@
 			cooling-max-level = <3>;
 			operating-points-v2 = <&cnn_opp_table>;
 			busy_check = <1>;
-			governor = "userspace";
 		};
 
 		bifspi: bifspi@0xA1006000 {
@@ -1182,11 +1180,6 @@
 			opp02 {
 				opp-hz = /bits/ 64 <400000000>;
 				opp-microvolt = <800000>;
-				clock-latency-ns = <500000>;
-			};
-			opp03 {
-				opp-hz = /bits/ 64 <1200000000>;
-				opp-microvolt = <1000000>;
 				clock-latency-ns = <500000>;
 			};
 		};

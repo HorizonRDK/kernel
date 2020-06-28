@@ -110,6 +110,14 @@
 
 };
 
+&cnn_opp_table {
+	opp00 {
+		opp-hz = /bits/ 64 <950000000>;
+		opp-microvolt = <800000>;
+		clock-latency-ns = <500000>;
+	};
+};
+
 &cpu0 {
 	cpu-supply = <&cpu_pd_reg>;
 };
@@ -128,10 +136,12 @@
 
 &cnn0 {
 	cnn-supply = <&cnn0_pd_reg>;
+	governor = "performance";
 };
 
 &cnn1 {
 	cnn-supply = <&cnn1_pd_reg>;
+	governor = "performance";
 };
 
 &sdio1 {
