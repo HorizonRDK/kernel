@@ -540,14 +540,17 @@ int frame_manager_flush_mp(struct vio_framemgr *this,
 		msleep(one_frame_delay);
 		spin_lock_irqsave(&this->slock, flag);
 	}
-	if (delay_cnt)
+	if (delay_cnt) {
 		vio_dbg("%s:use %dms, all index %d-%d in USED or FREE.",
 			__func__, one_frame_delay * real_cnt,
 			index_start, index_start + buffers -1);
-	else
-		vio_dbg("%s:timeout %dms,%d buffers in USED or FREE, %d not.",
+	} else {
+		vio_err("%s:timeout %dms,%d buffers in USED or FREE, %d not.",
 			__func__, one_frame_delay * real_cnt, used_free_cnt,
 			buffers - used_free_cnt);
+		for (i = index_start; i < (buffers + index_start); i++)
+			kthread_cancel_work_async(&this->frames_mp[i]->work);
+	}
 
 	/* release by other proc */
 	delay_cnt = buffers;
