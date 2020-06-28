@@ -697,12 +697,11 @@ static void dma_complete_context_func( void *arg )
         if (p_ctx->p_gfw->sif_isp_offline && p_ctx->fsm_mgr.reserved == 0
             && isp_stream_onoff_check() != 2) {
             g_firmware.handler_flag_interrupt_handle_completed = 1;
-            dma_writer_config_done();
         }
 
         start_processing_frame();
     }
-
+    dma_writer_config_done();
     system_dma_unmap_sg( arg );
 }
 
@@ -723,12 +722,11 @@ static void dma_complete_metering_func( void *arg )
         if (p_ctx->p_gfw->sif_isp_offline && p_ctx->fsm_mgr.reserved == 0
             && isp_stream_onoff_check() != 2) {
             g_firmware.handler_flag_interrupt_handle_completed = 1;
-            dma_writer_config_done();
         }
 
         start_processing_frame();
     }
-
+    dma_writer_config_done();
     system_dma_unmap_sg( arg );
     // after we finish transfer context and metering we can start processing the current data
 }
@@ -1257,6 +1255,7 @@ int sif_isp_ctx_sync_func(int ctx_id)
 
         /* get one vb2 buffer config to dma writer */
         if (p_ctx->fsm_mgr.reserved) { //dma writer on
+            // acamera_general_interrupt_hanlder( p_ctx, ACAMERA_IRQ_FRAME_WRITER_FR );
             dh = ((dma_writer_fsm_const_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_DMA_WRITER]->p_fsm))->handle;
             dma_writer_configure_pipe(&dh->pipe[dma_fr]);
         }
@@ -1291,7 +1290,10 @@ int sif_isp_ctx_sync_func(int ctx_id)
 		g_firmware.dma_flag_isp_metering_completed &&
 		g_firmware.handler_flag_interrupt_handle_completed)) {
 
-		wait_event_timeout(wq_dma_cfg_done, g_firmware.handler_flag_interrupt_handle_completed, msecs_to_jiffies(30));
+		wait_event_timeout(wq_dma_cfg_done,
+            g_firmware.handler_flag_interrupt_handle_completed &&
+            g_firmware.dma_flag_isp_config_completed &&
+            g_firmware.dma_flag_isp_metering_completed, msecs_to_jiffies(30));
 		pr_debug("ISP->SIF: wake up sif feed thread\n");
 	} else
 		pr_debug("ISP->SIF: do not need waiting, return to sif feed thread\n");
