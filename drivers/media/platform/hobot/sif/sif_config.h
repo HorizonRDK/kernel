@@ -101,6 +101,7 @@ typedef struct sif_input_mipi {
 	uint32_t		  channels;
 	uint8_t		  	  vc_index[4];
 	uint32_t		  mipi_rx_index;
+	uint32_t          ipi_mode;
 } sif_input_mipi_t;
 
 //will move to isp input, sif ddr read is just for isp

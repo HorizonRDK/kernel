@@ -837,11 +837,14 @@ static void sif_set_mipi_rx(u32 __iomem *base_reg, sif_input_mipi_t* p_mipi,
 				&sif_fields[SW_RX0_DOL_HDR_MODE - p_mipi->mipi_rx_index], 1);
 		//TODO:SHITF
 	} else if (p_mipi->func.enable_id_decoder) {
+	    if (p_mipi->ipi_mode == 0) {
+			p_mipi->ipi_mode = p_mipi->channels;
+		}
 		vio_hw_set_field(base_reg, &sif_regs[SIF_ISP_EXP_CFG],
 				&sif_fields[SW_RX0_DOL_HDR_MODE - p_mipi->mipi_rx_index], 3);
 		vio_hw_set_field(base_reg, &sif_regs[SIF_ISP_EXP_CFG],
 				&sif_fields[SW_MIPI_RX0_IDCODE_EXP_NUM - p_mipi->mipi_rx_index],
-				p_mipi->channels);
+				p_mipi->ipi_mode);
 	} else {
 		vio_hw_set_field(base_reg, &sif_regs[SIF_ISP_EXP_CFG],
 				&sif_fields[SW_RX0_DOL_HDR_MODE - p_mipi->mipi_rx_index], 2);
