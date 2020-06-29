@@ -1386,9 +1386,10 @@ int ipu_video_reqbufs(struct ipu_video_ctx *ipu_ctx, u32 buffers)
 {
 	int ret = 0;
 	int i = 0;
-	struct vio_framemgr *framemgr;
 	u32 first_index;
+	struct vio_framemgr *framemgr;
 	struct ipu_subdev *subdev;
+	struct x3_ipu_dev *ipu_dev;
 
 	if (!(ipu_ctx->state & (BIT(VIO_VIDEO_STOP) | BIT(VIO_VIDEO_REBUFS) |
 		      BIT(VIO_VIDEO_INIT) | BIT(VIO_VIDEO_S_INPUT)))) {
@@ -1398,6 +1399,7 @@ int ipu_video_reqbufs(struct ipu_video_ctx *ipu_ctx, u32 buffers)
 	}
 
 	subdev = ipu_ctx->subdev;
+	ipu_dev = ipu_ctx->ipu_dev;
 	framemgr = ipu_ctx->framemgr;
 	ret = frame_manager_open_mp(framemgr, buffers, &first_index);
 	if (ret) {
@@ -1408,6 +1410,8 @@ int ipu_video_reqbufs(struct ipu_video_ctx *ipu_ctx, u32 buffers)
 	ipu_ctx->frm_num = buffers;
 	for (i = first_index; i < (first_index + buffers); i++) {
 		framemgr->frames_mp[i]->data = ipu_ctx->group;
+		framemgr->frames_mp[i]->mp_work = &ipu_dev->vwork[i].work;
+		ipu_dev->vwork[i].group = ipu_ctx->group;
 	}
 
 	ipu_ctx->state = BIT(VIO_VIDEO_REBUFS);
@@ -1539,7 +1543,7 @@ int ipu_video_qbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
 	if (subdev->leader == true && group->leader) {
-		vio_group_start_trigger(group, frame);
+		vio_group_start_trigger_mp(group, frame);
 	}
 
 	if (ipu_ctx->ctx_index == 0)
@@ -1991,7 +1995,7 @@ void ipu_frame_ndone(struct ipu_subdev *subdev)
 			frame->frameinfo.frame_id);
 		trans_frame(framemgr, frame, FS_REQUEST);
 		if (subdev->leader == true && group->leader)
-			vio_group_start_trigger(group, frame);
+			vio_group_start_trigger_mp(group, frame);
 	} else {
 		vio_err("[S%d][V%d]ndone IPU PROCESS queue has no member;\n",
 				group->instance, subdev->id);
@@ -2318,6 +2322,9 @@ int x3_ipu_subdev_init(struct x3_ipu_dev *ipu)
 			ret = ipu_subdev_init(subdev);
 		}
 	}
+
+	for (i = 0; i < VIO_MP_MAX_FRAMES; i++)
+		frame_work_init(&ipu->vwork[i].work);
 
 	return ret;
 }

@@ -134,6 +134,7 @@ struct frame_info {
 struct vio_frame {
 	struct list_head	list;
 	struct kthread_work work;
+	struct kthread_work *mp_work;
 	void 		*data;
 	/* common use */
 	u32			planes; /* total planes include multi-buffers */
@@ -229,5 +230,6 @@ int frame_manager_flush_mp(struct vio_framemgr *this,
 	u32 index_start, u32 buffers, u8 proc_id);
 int frame_manager_flush_mp_prepare(struct vio_framemgr *this,
 	u32 index_start, u32 buffers, u8 proc_id);
+void frame_work_init(struct kthread_work *work);
 
 #endif

@@ -95,6 +95,11 @@ struct vio_group {
 	void (*frame_work)(struct vio_group *group);
 };
 
+struct vio_work {
+	struct kthread_work work;
+	struct vio_group *group;
+};
+
 struct vio_video_ctx {
 	wait_queue_head_t		done_wq;
 	struct vio_framemgr 	framemgr;
@@ -127,6 +132,8 @@ typedef int (*isp_callback)(int);
 int vio_group_task_start(struct vio_group_task *group_task);
 int vio_group_task_stop(struct vio_group_task *group_task);
 void vio_group_start_trigger(struct vio_group *group, struct vio_frame *frame);
+void vio_group_start_trigger_mp(struct vio_group *group, struct vio_frame *frame);
+
 struct vio_group *vio_get_chain_group(int instance, u32 group_id);
 int vio_bind_chain_groups(struct vio_group *src_group, struct vio_group *dts_group);
 int vio_init_chain(int instance);

@@ -225,6 +225,65 @@ p_err_ignore:
 }
 EXPORT_SYMBOL(frame_work_function);
 
+void frame_work_function_mp(struct kthread_work *work)
+{
+	struct vio_work *vwork;
+	struct vio_group *group;
+	struct vio_group *leader;
+	struct vio_group_task *gtask;
+	bool try_rdown = false;
+	int ret = 0;
+
+	vwork = container_of(work, struct vio_work, work);
+	leader = vwork->group;
+	gtask = leader->gtask;
+
+	set_bit(VIO_GTASK_SHOT, &gtask->state);
+	atomic_dec(&leader->rcount);
+	vio_dbg("[S%d][G%d]%s #0\n", leader->instance, leader->id, __func__);
+
+	if (unlikely(test_bit(VIO_GTASK_REQUEST_STOP, &gtask->state))) {
+		vio_err(" cancel by gstop0");
+		goto p_err_ignore;
+	}
+
+	ret = down_interruptible(&gtask->hw_resource);
+	if (ret) {
+		vio_err(" down fail(%d)", ret);
+		goto p_err_ignore;
+	}
+
+	try_rdown = true;
+
+	if (unlikely(test_bit(VIO_GTASK_SHOT_STOP, &gtask->state))) {
+		vio_err(" cancel by gstop1");
+		goto p_err_ignore;
+	}
+
+	group = leader;
+	while (group->next) {
+		group = group->next;
+		vio_dbg("[S%d][G%d]%s #1\n", leader->instance, leader->id, __func__);
+		if(group->frame_work)
+			group->frame_work(group);
+	}
+	vio_dbg("[S%d][G%d]%s #2\n", leader->instance, leader->id, __func__);
+
+	leader->frame_work(leader);
+	clear_bit(VIO_GTASK_SHOT, &gtask->state);
+
+	return;
+
+p_err_ignore:
+	if (try_rdown)
+		up(&gtask->hw_resource);
+
+	clear_bit(VIO_GTASK_SHOT, &gtask->state);
+
+	return;
+}
+EXPORT_SYMBOL(frame_work_function_mp);
+
 int frame_manager_open(struct vio_framemgr *this, u32 buffers)
 {
 	u32 i;
@@ -258,6 +317,12 @@ int frame_manager_open(struct vio_framemgr *this, u32 buffers)
 	return 0;
 }
 EXPORT_SYMBOL(frame_manager_open);
+
+void frame_work_init(struct kthread_work *work)
+{
+	kthread_init_work(work, frame_work_function_mp);
+}
+EXPORT_SYMBOL(frame_work_init);
 
 int frame_manager_close(struct vio_framemgr *this)
 {
@@ -542,17 +607,14 @@ int frame_manager_flush_mp(struct vio_framemgr *this,
 		msleep(one_frame_delay);
 		spin_lock_irqsave(&this->slock, flag);
 	}
-	if (delay_cnt) {
+	if (delay_cnt)
 		vio_dbg("%s:use %dms, all index %d-%d in USED or FREE.",
 			__func__, one_frame_delay * real_cnt,
 			index_start, index_start + buffers -1);
-	} else {
-		vio_err("%s:timeout %dms,%d buffers in USED or FREE, %d not.",
+	else
+		vio_dbg("%s:timeout %dms,%d buffers in USED or FREE, %d not.",
 			__func__, one_frame_delay * real_cnt, used_free_cnt,
 			buffers - used_free_cnt);
-		for (i = index_start; i < (buffers + index_start); i++)
-			kthread_cancel_work_async(&this->frames_mp[i]->work);
-	}
 
 	/* release by other proc */
 	delay_cnt = buffers;

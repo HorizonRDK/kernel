@@ -207,6 +207,7 @@ struct x3_ipu_dev {
 	struct ipu_subdev subdev[VIO_MAX_STREAM][MAX_DEVICE];
 	struct vio_group *group[VIO_MAX_STREAM];
 	struct vio_group_task gtask;
+	struct vio_work vwork[VIO_MP_MAX_FRAMES];
 };
 
 #endif

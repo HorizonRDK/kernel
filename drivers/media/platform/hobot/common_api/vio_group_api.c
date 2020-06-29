@@ -110,6 +110,16 @@ void vio_group_start_trigger(struct vio_group *group, struct vio_frame *frame)
 }
 EXPORT_SYMBOL(vio_group_start_trigger);
 
+void vio_group_start_trigger_mp(struct vio_group *group, struct vio_frame *frame)
+{
+	struct vio_group_task *group_task;
+
+	group_task = group->gtask;
+	atomic_inc(&group->rcount);
+	kthread_queue_work(&group_task->worker, frame->mp_work);
+}
+EXPORT_SYMBOL(vio_group_start_trigger_mp);
+
 int vio_group_init_mp(u32 group_id)
 {
 	struct vio_group *group = NULL;

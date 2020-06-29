@@ -1083,33 +1083,6 @@ out:
 	return ret;
 }
 
-static bool __kthread_cancel_work_async(struct kthread_work *work,
-	bool is_dwork)
-{
-	struct kthread_worker *worker = work->worker;
-	unsigned long flags;
-	int ret = false;
-
-	if (!worker)
-		goto out;
-
-	spin_lock_irqsave(&worker->lock, flags);
-	/* Work must not be used with >1 worker, see kthread_queue_work(). */
-	WARN_ON_ONCE(work->worker != worker);
-
-	/* do nothing if cancel work is current works */
-	if (worker->current_work == work)
-		goto out_fast;
-
-	ret = __kthread_cancel_work(work, is_dwork, &flags);
-
-out_fast:
-	spin_unlock_irqrestore(&worker->lock, flags);
-out:
-	return ret;
-}
-
-
 /**
  * kthread_cancel_work_sync - cancel a kthread work and wait for it to finish
  * @work: the kthread work to cancel
@@ -1131,12 +1104,6 @@ bool kthread_cancel_work_sync(struct kthread_work *work)
 	return __kthread_cancel_work_sync(work, false);
 }
 EXPORT_SYMBOL_GPL(kthread_cancel_work_sync);
-
-bool kthread_cancel_work_async(struct kthread_work *work)
-{
-	return __kthread_cancel_work_async(work, false);
-}
-EXPORT_SYMBOL_GPL(kthread_cancel_work_async);
 
 /**
  * kthread_cancel_delayed_work_sync - cancel a kthread delayed work and
