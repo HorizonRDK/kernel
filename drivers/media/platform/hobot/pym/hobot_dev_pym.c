@@ -60,6 +60,7 @@ static int x3_pym_open(struct inode *inode, struct file *file)
 	if (atomic_read(&pym->open_cnt) == 0) {
 		atomic_set(&pym->backup_fcount, 0);
 		atomic_set(&pym->sensor_fcount, 0);
+		vio_clk_enable("sif_mclk");
 		vio_clk_enable("pym_mclk");
 	}
 
@@ -163,6 +164,7 @@ static int x3_pym_close(struct inode *inode, struct file *file)
 			vio_info("pym force stream off\n");
 		}
 		vio_clk_disable("pym_mclk");
+		vio_clk_disable("sif_mclk");
 	}
 
 	pym_ctx->state = BIT(VIO_VIDEO_CLOSE);
