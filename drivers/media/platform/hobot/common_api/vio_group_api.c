@@ -258,6 +258,17 @@ void vio_bind_group_done(int instance)
 	for (i = 0; i < GROUP_ID_NUMBER; i++) {
 		group = &ischain->group[i];
 		if (group->leader) {
+			/* make sure pym node is group leader in such case:
+			 * 1.ioctl EOS is called more than one time
+			 * 2.multi-process sharing data
+			 */
+			if (test_bit(VIO_GROUP_OTF_INPUT, &group->state)
+				&& (i >= GROUP_ID_IPU)
+				&& test_bit(VIO_GROUP_DMA_OUTPUT, &group->state)) {
+				group->head = group;
+				group->next = NULL;
+				continue;
+			}
 			break;
 		} else if (i >= GROUP_ID_IPU) {
 			if (test_bit(VIO_GROUP_DMA_OUTPUT, &group->state)) {
