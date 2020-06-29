@@ -172,3 +172,9 @@ config HOBOT_BIFSPI
           Say yes to enable bifspi AP side driver
 
 endif
+
+config HOBOT_CR5_SERVICE
+        tristate "HOBOT CR5 Service Drivers"
+        default n
+        ---help---
+           Drivers for the HOBOT CR5 Service
