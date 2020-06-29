@@ -176,24 +176,20 @@ static int32_t bpu_fc_create_from_user(struct bpu_fc *fc,
 }
 
 static int32_t bpu_write_prepare(struct bpu_user *user,
-			const char __user buf[], size_t len,
-			struct bpu_fc *bpu_fc)
+		const struct user_bpu_fc *header,
+		const char __user *buf, size_t len,
+		struct bpu_fc *bpu_fc)
 {
 	int32_t tmp_raw_fc_len;
 	int32_t ret;
 
-	if ((user == NULL) || (buf == NULL) || (len == 0u)) {
+	if ((user == NULL) || (header == NULL) ||(buf == NULL) || (len == 0u)) {
 		pr_err("Write bpu buffer error\n");/*PRQA S ALL*/
 		return -EINVAL;
 	}
 
-	if (len <= sizeof(struct user_bpu_fc)) {
-		pr_err("Write invalied data\n");/*PRQA S ALL*/
-		return -EINVAL;
-	}
-
 	tmp_raw_fc_len = bpu_fc_create_from_user(bpu_fc,
-		(struct user_bpu_fc *)buf, &buf[sizeof(struct user_bpu_fc)]);/*PRQA S ALL*/
+		header, buf);/*PRQA S ALL*/
 	if (tmp_raw_fc_len <= 0) {
 		pr_err("bpu fc from user error\n");/*PRQA S ALL*/
 		return -EINVAL;
@@ -352,6 +348,7 @@ int32_t  bpu_write_with_user(const struct bpu_core *core,
 	uint64_t tmp_run_c_mask;
 	struct bpu_fc tmp_bpu_fc;
 	struct bpu_core *tmp_core;
+	struct user_bpu_fc header;
 	uint32_t use_len = 0;
 	int32_t prepare_len;
 	int32_t ret;
@@ -360,8 +357,7 @@ int32_t  bpu_write_with_user(const struct bpu_core *core,
 		pr_err("Write bpu buffer error\n");/*PRQA S ALL*/
 		return -EINVAL;
 	}
-	tmp_core_mask = ((struct user_bpu_fc *)buf)->core_mask;/*PRQA S ALL*/
-	tmp_run_c_mask = ((struct user_bpu_fc *)buf)->run_c_mask;/*PRQA S ALL*/
+
 
 	if (len <= sizeof(struct user_bpu_fc)) {
 		pr_err("Write invalied data\n");/*PRQA S ALL*/
@@ -369,7 +365,16 @@ int32_t  bpu_write_with_user(const struct bpu_core *core,
 	}
 
 	while ((len - use_len) > (uint32_t)sizeof(struct user_bpu_fc)) {
-		prepare_len = bpu_write_prepare(user, &buf[use_len],
+		if (copy_from_user(&header, &buf[use_len], /*PRQA S ALL*/
+					sizeof(struct user_bpu_fc)) != 0) { /*PRQA S ALL*/
+			pr_err("%s: copy data failed from userspace when write\n", __func__);/*PRQA S ALL*/
+			return -EFAULT;
+		}
+		tmp_core_mask = header.core_mask;/*PRQA S ALL*/
+		tmp_run_c_mask = header.run_c_mask;/*PRQA S ALL*/
+
+		prepare_len = bpu_write_prepare(user, &header,
+				&buf[use_len + sizeof(struct user_bpu_fc)],
 				len - use_len, &tmp_bpu_fc);
 		if (prepare_len <= 0) {
 			pr_err("BPU prepare user write data!");/*PRQA S ALL*/
