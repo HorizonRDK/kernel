@@ -675,9 +675,10 @@ int pym_video_reqbufs(struct pym_video_ctx *pym_ctx, u32 buffers)
 {
 	int ret = 0;
 	int i = 0;
+	u32 first_index = 0;
 	struct vio_framemgr *framemgr;
 	struct pym_subdev *subdev;
-	u32 first_index;
+	struct x3_pym_dev *pym_dev;
 
 	if (!(pym_ctx->state & (BIT(VIO_VIDEO_STOP) | BIT(VIO_VIDEO_REBUFS) |
 		      BIT(VIO_VIDEO_INIT)| BIT(VIO_VIDEO_S_INPUT)))) {
@@ -687,6 +688,7 @@ int pym_video_reqbufs(struct pym_video_ctx *pym_ctx, u32 buffers)
 	}
 
 	subdev = pym_ctx->subdev;
+	pym_dev = pym_ctx->pym_dev;
 	framemgr = pym_ctx->framemgr;
 	ret = frame_manager_open_mp(framemgr, buffers, &first_index);
 	if (ret) {
@@ -697,6 +699,8 @@ int pym_video_reqbufs(struct pym_video_ctx *pym_ctx, u32 buffers)
 	pym_ctx->frm_num = buffers;
 	for (i = first_index; i < (buffers + first_index) ; i++) {
 		framemgr->frames_mp[i]->data = pym_ctx->group;
+		framemgr->frames_mp[i]->mp_work = &pym_dev->vwork[i].work;
+		pym_dev->vwork[i].group = pym_ctx->group;
 	}
 
 	pym_ctx->state = BIT(VIO_VIDEO_REBUFS);
@@ -809,7 +813,7 @@ int pym_video_qbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
 	if(group->leader == true)
-		vio_group_start_trigger(group, frame);
+		vio_group_start_trigger_mp(group, frame);
 
 	if (pym_ctx->ctx_index == 0)
 		pym->statistic.q_normal[pym_ctx->group->instance]++;
@@ -1291,7 +1295,7 @@ void pym_frame_ndone(struct pym_subdev *subdev)
                        frame->frameinfo.frame_id);
 		trans_frame(framemgr, frame, FS_REQUEST);
 		if(group->leader == true)
-			vio_group_start_trigger(group, frame);
+			vio_group_start_trigger_mp(group, frame);
 	} else {
 		vio_err("[S%d]ndone PYM PROCESS queue has no member;\n", group->instance);
 		vio_err("[S%d][V%d][FRM](%d %d %d %d %d)\n",
@@ -1465,6 +1469,9 @@ int x3_pym_subdev_init(struct x3_pym_dev *pym)
 		subdev = &pym->subdev[i];
 		ret = pym_subdev_init(subdev);
 	}
+
+	for (i = 0; i < VIO_MP_MAX_FRAMES; i++)
+		frame_work_init(&pym->vwork[i].work);
 
 	return ret;
 }

@@ -1387,6 +1387,7 @@ int ipu_video_reqbufs(struct ipu_video_ctx *ipu_ctx, u32 buffers)
 	int ret = 0;
 	int i = 0;
 	u32 first_index;
+	u32 instance = 0;
 	struct vio_framemgr *framemgr;
 	struct ipu_subdev *subdev;
 	struct x3_ipu_dev *ipu_dev;
@@ -1408,10 +1409,11 @@ int ipu_video_reqbufs(struct ipu_video_ctx *ipu_ctx, u32 buffers)
 	}
 	ipu_ctx->frm_fst_ind = first_index;
 	ipu_ctx->frm_num = buffers;
+	instance = ipu_ctx->group->instance;
 	for (i = first_index; i < (first_index + buffers); i++) {
 		framemgr->frames_mp[i]->data = ipu_ctx->group;
-		framemgr->frames_mp[i]->mp_work = &ipu_dev->vwork[i].work;
-		ipu_dev->vwork[i].group = ipu_ctx->group;
+		framemgr->frames_mp[i]->mp_work = &ipu_dev->vwork[instance][i].work;
+		ipu_dev->vwork[instance][i].group = ipu_ctx->group;
 	}
 
 	ipu_ctx->state = BIT(VIO_VIDEO_REBUFS);
@@ -2323,8 +2325,11 @@ int x3_ipu_subdev_init(struct x3_ipu_dev *ipu)
 		}
 	}
 
-	for (i = 0; i < VIO_MP_MAX_FRAMES; i++)
-		frame_work_init(&ipu->vwork[i].work);
+	for (i = 0; i < VIO_MAX_STREAM; i++) {
+		for (j = 0; j < VIO_MP_MAX_FRAMES; j++) {
+			frame_work_init(&ipu->vwork[i][j].work);
+		}
+	}
 
 	return ret;
 }
