@@ -700,7 +700,8 @@ enum AV_ConfigErrorCodes {
 //--------------------------------------------------------------------
 // System Macro Definitions
 //--------------------------------------------------------------------
-#define TX_HW_RESET_PERIOD	200
+//#define TX_HW_RESET_PERIOD	200
+#define TX_HW_RESET_PERIOD      100
 #define SII902XA_DEVICE_ID	0xB0
 
 #define T_HPD_DELAY	10
@@ -1191,4 +1192,5 @@ void siHdmiTx_AudioSel(byte Afs);
 int siHdmiTx_ReConfig(unsigned short vmode,
 		unsigned short VideoFormat, unsigned short Afs);
 void OnHdmiCableConnected(void);
+void TXHAL_InitPostReset(void);
 #endif

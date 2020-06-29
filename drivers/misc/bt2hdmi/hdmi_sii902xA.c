@@ -118,6 +118,8 @@ static int hdmi_sii_probe(struct i2c_client *client,
 		const struct i2c_device_id *id)
 {
 	int ret = 0;
+	byte devID = 0x00;
+	word wID = 0x0000;
 
 	dev_info(&client->adapter->dev, "hdmi %s i2c 0x%02X probe ...\n",
 			 id->name, client->addr);
@@ -243,12 +245,18 @@ static int hdmi_sii_probe(struct i2c_client *client,
 		// Initialize the registers as required. Setup firmware vars.
 		dev_dbg(&client->dev, "hdmi video vmode=%d vformat=%d, audio afs=%d\n",
 				 vmode, vformat, afs);
-		ret = siHdmiTx_ReConfig(vmode, vformat, afs);
-		if (ret < 0) {
+		TXHAL_InitPostReset();
+		WriteByteTPI(0xF5, 0x00);
+		WriteByteTPI(TPI_ENABLE, 0x00);
+		devID = ReadIndexedRegister(INDEXED_PAGE_0, 0x03);
+		wID = devID;
+		wID <<= 8;
+		devID = ReadIndexedRegister(INDEXED_PAGE_0, 0x02);
+		wID |= devID;
+		devID = ReadByteTPI(TPI_DEVICE_ID);
+		if (wID != 0x9022 || devID != SII902XA_DEVICE_ID) {
 			pr_err("bt1120 to HDMI device:sii9022a is not exist!\n");
-//#ifndef CONFIG_HOBOT_IAR
 			gpio_free(Si9022A_rst_pin);
-//#endif
 			gpio_free(Si9022A_irq_pin);
 			return ret;
 		}

@@ -3662,7 +3662,8 @@ byte StartTPI(void)
 	WriteByteTPI(TPI_ENABLE, 0x00);
 	// Write "0" to 72:C7 to start HW TPI mode
 
-	DelayMS(100);
+	//DelayMS(100);
+	DelayMS(10);
 
 	devID = ReadIndexedRegister(INDEXED_PAGE_0, 0x03);
 	wID = devID;
