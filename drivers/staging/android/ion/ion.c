@@ -42,6 +42,13 @@
 
 /* static struct ion_device *internal_dev; */
 static int heap_id;
+static char *_vio_data_type[26] = {
+	"ipuds0_other", "ipuds1", "ipuds2", "ipuds3", "ipuds4",
+	"ipuus", "pymfb", "pymdata", "siffb", "sifraw",
+	"sifyuv", "ispyuv", "gdc", "iar", "gdcfb",
+	"pymlayer", "rgn", "bpu0", "bpu1", "vpu",
+	"vpu0", "vpu1", "vpu2", "vpu3", "vpu4", "other"
+	};
 
 bool ion_buffer_fault_user_mappings(struct ion_buffer *buffer)
 {
@@ -444,6 +451,7 @@ struct ion_handle *ion_alloc(struct ion_client *client, size_t len,
 	struct ion_buffer *buffer = NULL;
 	struct ion_heap *heap;
 	int ret;
+	int type = 0;
 
 	/*
 	 * traverse the list of heaps available in this system in priority
@@ -459,6 +467,8 @@ struct ion_handle *ion_alloc(struct ion_client *client, size_t len,
 	}
 
 	down_read(&dev->lock);
+	type = flags >> 16;
+	flags = flags&0xffff;
 	plist_for_each_entry(heap, &dev->heaps, node) {
 		/* if the caller didn't specify this heap id */
 		if (!((1 << heap->type) & heap_id_mask))
@@ -479,6 +489,10 @@ struct ion_handle *ion_alloc(struct ion_client *client, size_t len,
 				__func__, PTR_ERR(buffer));
 		return ERR_CAST(buffer);
 	}
+	buffer->private_flags = type;
+
+	get_task_comm(buffer->task_comm, current->group_leader);
+	buffer->pid = task_pid_nr(current);
 
 	handle = ion_handle_create(client, buffer);
 
@@ -1399,6 +1413,10 @@ static int ion_debug_heap_show(struct seq_file *s, void *unused)
 	struct rb_node *n;
 	size_t total_size = 0;
 	size_t total_orphaned_size = 0;
+	int moduletype = 0;
+	int datatype = 0;
+	char iontype[32];
+	char *ptrtype;
 
 	seq_printf(s, "%16s %16s %16s\n", "client", "pid", "size");
 	seq_puts(s, "----------------------------------------------------\n");
@@ -1422,22 +1440,51 @@ static int ion_debug_heap_show(struct seq_file *s, void *unused)
 		}
 	}
 	seq_puts(s, "----------------------------------------------------\n");
-	seq_puts(s, "orphaned allocations (info is from last known client):\n");
+	seq_puts(s, "allocations (info is from last known client):\n");
 	mutex_lock(&dev->buffer_lock);
 	for (n = rb_first(&dev->buffers); n; n = rb_next(n)) {
 		struct ion_buffer *buffer = rb_entry(n, struct ion_buffer,
-						     node);
+							node);
 		if (buffer->heap->id != heap->id)
 			continue;
 		total_size += buffer->size;
+
+		moduletype = buffer->private_flags >> 12;
+		datatype = buffer->private_flags & 0xfff;
+		if (moduletype == 0) {
+			if (datatype > 25) datatype = 25;
+			ptrtype = _vio_data_type[datatype];
+		} else if (moduletype == 1) {
+			ptrtype = "bpu";
+		} else if (moduletype == 2) {
+			int vpuid = datatype >> 6;
+			int vputype = datatype & 0x3f;
+			snprintf(iontype, sizeof(iontype), "vpuchn%d_%d", vpuid, vputype);
+			ptrtype = iontype;
+		} else if (moduletype == 3) {
+			int jpuid = datatype >> 6;
+			int jputype = datatype & 0x3f;
+			snprintf(iontype, sizeof(iontype), "jpuchn%d_%d", jpuid, jputype);
+			ptrtype = iontype;
+		} else {
+			ptrtype = "other";
+		}
+
 		if (!buffer->handle_count) {
-			seq_printf(s, "%16s %16u %16zu %d\n",
-				   buffer->task_comm, buffer->pid,
-				   buffer->size, buffer->kmap_cnt);
-				   /* atomic_read(&buffer->ref.refcount)); */
+			seq_printf(s, "%16s %16u %16s %16zu %d orphaned\n",
+				buffer->task_comm, buffer->pid,
+				ptrtype,
+				buffer->size, buffer->kmap_cnt);
+				/* atomic_read(&buffer->ref.refcount)); */
 			total_orphaned_size += buffer->size;
+		} else {
+			seq_printf(s, "%16s %16u %16s %16zu %d\n",
+				buffer->task_comm, buffer->pid,
+				ptrtype,
+				buffer->size, buffer->kmap_cnt);
 		}
 	}
+
 	mutex_unlock(&dev->buffer_lock);
 	seq_puts(s, "----------------------------------------------------\n");
 	seq_printf(s, "%16s %16zu\n", "total orphaned",
