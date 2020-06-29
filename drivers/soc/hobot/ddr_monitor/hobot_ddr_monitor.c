@@ -66,6 +66,7 @@ struct ddr_monitor_dev_s {
 #endif
 
 struct ddr_monitor_dev_s* g_ddr_monitor_dev = NULL;
+int rd_cmd_bytes = 64;
 
 struct ddr_portdata_s {
 	unsigned int waddr_num;
@@ -256,7 +257,7 @@ static int get_monitor_data(char* buf)
 				}
 			}
 			read_bw = ((unsigned long) ddr_info[cur].rd_cmd_num) *
-				  64 * (1000000/g_monitor_period) >> 20;
+				  rd_cmd_bytes * (1000000/g_monitor_period) >> 20;
 			length += sprintf(buf + length, "ddrc:%lu MB/s;\n", read_bw);
 			length += sprintf(buf + length, "Write: ");
 			for (i = 0; i < PORT_NUM; i++) {
@@ -2026,6 +2027,8 @@ static int ddr_monitor_probe(struct platform_device *pdev)
 {
 	int ret = 0;
 	struct resource *pres;
+	void __iomem *ddrc_addr = NULL;
+	u32 reg_val;
 
 	pr_debug("\n");
 
@@ -2043,6 +2046,25 @@ static int ddr_monitor_probe(struct platform_device *pdev)
 
 	g_ddr_monitor_dev->regaddr = devm_ioremap_resource(&pdev->dev, pres);
 	g_ddr_monitor_dev->irq = platform_get_irq(pdev, 0);
+
+#ifdef CONFIG_HOBOT_XJ3
+	pres = platform_get_resource(pdev, IORESOURCE_MEM, 1);
+	if (!pres)
+		pr_info("DDR controller base is not detected.\n");
+
+	ddrc_addr = devm_ioremap_resource(&pdev->dev, pres);
+	reg_val = readl(ddrc_addr);
+	if (reg_val & 0x10) {
+		pr_info("DDR4 detected\n");
+		rd_cmd_bytes = 32;
+	} else if (reg_val & 0x20) {
+		pr_info("LPDDR4 detected\n");
+		rd_cmd_bytes = 64;
+	} else {
+		pr_err("Can't detected DDR type\n");
+	}
+#endif
+
 
 	ret = request_irq(g_ddr_monitor_dev->irq, ddr_monitor_isr, IRQF_TRIGGER_HIGH,
 			  dev_name(&pdev->dev), g_ddr_monitor_dev);

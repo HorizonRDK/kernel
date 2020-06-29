@@ -1126,7 +1126,8 @@
 
 		ddr_monitor: ddr_monitor@0xA2D10000 {
 			compatible = "hobot,ddrmonitor";
-			reg = <0 0xA2D10000 0 0x1000>;
+			reg = <0 0xA2D10000 0 0x1000>,
+		          <0 0xA2D00000 0 0x1000>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 63 4>;
 			status = "disabled";
