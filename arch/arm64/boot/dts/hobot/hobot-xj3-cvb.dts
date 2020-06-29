@@ -196,8 +196,10 @@
 
 &cnn0 {
 	cnn-supply = <&cnn0_pd_reg>;
+	governor = "userspace";
 };
 
 &cnn1 {
 	cnn-supply = <&cnn1_pd_reg>;
+	governor = "userspace";
 };
