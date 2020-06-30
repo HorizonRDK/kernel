@@ -330,6 +330,7 @@ int frame_manager_open_mp(struct vio_framemgr *this, u32 buffers,
 	if ((this->num_frames + buffers) > VIO_MP_MAX_FRAMES) {
 		spin_unlock_irqrestore(&this->slock, flag);
 		vio_err("%s:apply for too much frames,max 128.", __func__);
+		vfree(frames);
 		return -ENOMEM;
 	}
 
@@ -354,6 +355,7 @@ int frame_manager_open_mp(struct vio_framemgr *this, u32 buffers,
 				vio_dbg("\nindex state %d-%d:", i, i+15);
 			vio_dbg("%d ", this->index_state[i]);
 		}
+		vfree(frames);
 		return -ENOMEM;
 	}
 
