@@ -116,6 +116,7 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 		if (group->gtask && subdev->leader)
 			vio_group_task_stop(group->gtask);
 		subdev->leader = false;
+		subdev->skip_flag = false;
 		group->output_flag = 0;
 		instance = group->instance;
 		ipu->reuse_shadow0_count &= ~instance;
@@ -995,7 +996,10 @@ int ipu_set_path_attr(struct ipu_subdev *subdev, ipu_cfg_t *ipu_cfg)
 			set_bit(VIO_GROUP_OTF_INPUT, &group->state);
 		}
 	} else {
-		ipu_clear_group_leader(group);
+		if (test_bit(VIO_GROUP_LEADER, &group->state)) {
+			ipu_clear_group_leader(group);
+			subdev->skip_flag = true;
+		}
 		ipu_set_group_leader(group, GROUP_ID_SRC);
 		if (test_bit(IPU_OTF_INPUT, &ipu->state)) {
 			vio_err("IPU otf input already,can't set dma input\n");
@@ -1193,7 +1197,7 @@ int ipu_video_init(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 		vio_info("reuse_shadow0_count = %d\n", ipu->reuse_shadow0_count);
 	}
 
-	if (subdev->leader)
+	if (subdev->leader && !subdev->skip_flag)
 		vio_group_task_start(group->gtask);
 	atomic_inc(&group->node_refcount);
 
@@ -1594,6 +1598,7 @@ int ipu_video_dqbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 				memcpy(&subdev->frameinfo, &frame->frameinfo,
 					sizeof(struct frame_info));
 			}
+
 			ipu_ctx->event = 0;
 			ipu_ctx->frm_num_usr++;
 			vio_dbg("[S%d][V%d] %s (p%d b%d f%d) from FS_COMPLETE.",

@@ -171,6 +171,7 @@ struct ipu_subdev {
 	struct vio_framemgr	framemgr;
 	struct frame_info 	frameinfo;
 	bool 			leader;
+	bool			skip_flag;
 	unsigned long 		state;
 	struct vio_group 	*group;
 	struct x3_ipu_dev 	*ipu_dev;
