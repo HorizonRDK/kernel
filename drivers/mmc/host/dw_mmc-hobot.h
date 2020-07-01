@@ -13,6 +13,8 @@
 #ifndef _DW_MMC_HOBOT_H_
 #define _DW_MMC_HOBOT_H_
 
+#include <linux/pinctrl/consumer.h>
+
 struct dw_mci_hobot_priv_data {
 	void __iomem *sysctrl_reg;
 	void __iomem *padcctrl_reg;
@@ -26,6 +28,9 @@ struct dw_mci_hobot_priv_data {
 	u8 current_drv_phase;
 	u8 current_sample_phase;
 	u8 current_phase_cnt;
+	struct pinctrl *pin_ctrl;
+	struct pinctrl_state *pin_state_1_8v;
+	struct pinctrl_state *pin_state_3_3v;
 };
 
 int hb_mmc_disable_clk(struct dw_mci_hobot_priv_data *priv);

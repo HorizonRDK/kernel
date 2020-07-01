@@ -618,6 +618,20 @@ static int dw_mci_hb_parse_dt(struct dw_mci *host)
 		gpio_request(priv->uhs_180v_gpio, NULL);
 	}
 
+    priv->pin_ctrl = devm_pinctrl_get(host->dev);
+    if (IS_ERR(priv->pin_ctrl)) {
+        priv->pin_ctrl = NULL;
+    }
+
+    priv->pin_state_1_8v = pinctrl_lookup_state(priv->pin_ctrl, "voltage_1_8v");
+    if (IS_ERR(priv->pin_state_1_8v)) {
+        priv->pin_state_1_8v = NULL;
+    }
+	priv->pin_state_3_3v = pinctrl_lookup_state(priv->pin_ctrl, "voltage_3_3v");
+    if (IS_ERR(priv->pin_state_3_3v)) {
+        priv->pin_state_3_3v = NULL;
+    }
+
 	host->priv = priv;
 
 	return 0;
@@ -653,7 +667,20 @@ static int dw_mci_set_sel18(struct dw_mci *host, bool val)
 		dev_err(host->dev, "ctrl_id=%d uhs_180v_gpio=%d val=%d lval=%d\n",
 			priv->ctrl_id, priv->uhs_180v_gpio, val, logic_val);
 	if (priv->uhs_180v_gpio) {
-		ret = gpio_direction_output(priv->uhs_180v_gpio, logic_val);
+		if (val) {
+			ret = gpio_direction_output(priv->uhs_180v_gpio, logic_val);
+			if (priv->pin_ctrl && priv->pin_state_1_8v) {
+				dev_dbg(host->dev, "set pinctrl-voltage to 1.8v");
+				ret |= pinctrl_select_state(priv->pin_ctrl, priv->pin_state_1_8v);
+			}
+		} else {
+			if (priv->pin_ctrl && priv->pin_state_3_3v) {
+				dev_dbg(host->dev, "set pinctrl-voltage to 3.3v");
+				ret = pinctrl_select_state(priv->pin_ctrl, priv->pin_state_3_3v);
+			}
+			ret |= gpio_direction_output(priv->uhs_180v_gpio, logic_val);
+		}
+
 		usleep_range(5000, 10000);
 	}
 

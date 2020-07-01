@@ -424,6 +424,10 @@
 	cd-gpios = <&gpios 64 GPIO_ACTIVE_HIGH>;  /* SD0_DET_N /GPIO4[0] */
 	/* broken-cd; */
 	disable-wp;
+	pinctrl-names = "default","voltage_1_8v","voltage_3_3v";
+	pinctrl-0 = <&sdio1_func>;
+	pinctrl-1 = <&sd1_1_8v_func>;
+	pinctrl-2 = <&sd1_3_3v_func>;
 };
 
 &sdio2 {
