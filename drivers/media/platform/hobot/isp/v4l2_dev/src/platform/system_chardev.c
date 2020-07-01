@@ -35,6 +35,7 @@
 #include "acamera_tuning.h"
 #include "acamera_fw.h"
 #include "acamera_command_api.h"
+#include "general_fsm.h"
 #include "isp_ctxsv.h"
 
 #define SYSTEM_CHARDEV_FIFO_SIZE 4096
@@ -340,6 +341,7 @@ err_flag:
 #endif
 
 extern void *acamera_get_ctx_ptr(uint32_t ctx_id);
+extern int isp_temper_set_addr(general_fsm_ptr_t p_fsm);
 static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	long ret = 0;
@@ -368,6 +370,11 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 			ret = -EFAULT;
 			break;
 		}
+		break;
+	case ISPIOC_BUF_PACTET:
+	case ISPIOC_GET_CTX:
+	case ISPIOC_PUT_CTX:
+	case ISPIOC_FILL_CTX:
 		break;
 	default:
 		pr_err("command %d not support.\n", cmd);
@@ -550,6 +557,7 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 		p_ctx = (acamera_context_t *)acamera_get_ctx_ptr(ctx.ctx_id);
 		ptr = p_ctx->sw_reg_map.isp_sw_config_map + CTX_OFFSET;
 		memcpy_toio(ptr, ctx.ptr, CTX_SIZE);
+		isp_temper_set_addr((general_fsm_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_GENERAL]->p_fsm));
 	}
 		break;
 

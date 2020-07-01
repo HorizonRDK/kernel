@@ -71,6 +71,11 @@
 
 typedef uint16_t( CAC_MEM_LUT_T )[][10];
 
+enum {
+    TEMPER_BIT16 = 0,
+    TEMPER_BIT12,
+};
+
 #if GENERAL_TEMPER_ENABLED
 static int general_temper_init( general_fsm_ptr_t p_fsm );
 static int general_temper_exit( general_fsm_ptr_t p_fsm );
@@ -664,8 +669,6 @@ static void adjust_exposure( general_fsm_ptr_t p_fsm, int32_t corr )
 
 #endif
 
-static int temper_enable = 1;
-module_param(temper_enable, int, 0644);
 void general_frame_start( general_fsm_ptr_t p_fsm )
 {
 #if ISP_WDR_SWITCH
@@ -719,20 +722,8 @@ void general_frame_start( general_fsm_ptr_t p_fsm )
 
 #if GENERAL_TEMPER_ENABLED
     /* Enable temper after second frame to avoid broken frame */
-    if ( p_fsm->cnt_for_temper++ == 5 ) {
-
-	pr_debug("temper_enable is %d\n", temper_enable);
-
-	if (temper_enable == 0) {
-		acamera_isp_temper_enable_write( p_fsm->cmn.isp_base, 0 );
-	} else {
-		if (temper_enable == 2) {
-			acamera_isp_temper_temper2_mode_write(p_fsm->cmn.isp_base, 1);
-		} else if (temper_enable == 3) {
-			acamera_isp_temper_temper2_mode_write(p_fsm->cmn.isp_base, 0);
-		}
+    if ( p_fsm->temper_mode != NOTHING && p_fsm->cnt_for_temper++ == 2 ) {
 		acamera_isp_temper_enable_write( p_fsm->cmn.isp_base, 1 );
-	}
     }
 #endif
 
@@ -794,25 +785,40 @@ static int general_temper_init( general_fsm_ptr_t p_fsm )
     void *virt_addr;
     uint64_t dma_addr;
     int i;
+    uint8_t bytes_factor;
+    uint8_t cnt_per_dma;
+    uint8_t alignment = 128;
 
-    // p_fsm->temper_mode = TEMPER_MODE_DEFAULT;
+    if (p_fsm->temper_mode == NOTHING) {
+        pr_debug("temper is disabled.\n");
+        return 0;
+    }
 
-    /* Disable temper at the beginning */
+    p_fsm->temper_dw = TEMPER_BIT16;    //init temper dw to bit16-mode
     p_fsm->cnt_for_temper = 0;
-    acamera_isp_temper_enable_write( p_fsm->cmn.isp_base, 0 );
 
     p_ctx = acamera_get_ctx_ptr(p_fsm->p_fsm_mgr->ctx_id);
     sensor_fsm_ptr_t sensor_fsm = (sensor_fsm_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_SENSOR]->p_fsm);
     const sensor_param_t *param = sensor_fsm->ctrl.get_parameters( sensor_fsm->sensor_ctx );
 
+    if (p_fsm->temper_dw == TEMPER_BIT12) {
+        bytes_factor = 4;
+    } else {
+        bytes_factor = 5;
+    }
+
+    if (p_fsm->temper_mode == TEMPER2_MODE) {
+        cnt_per_dma = 1;
+    } else {
+        cnt_per_dma = 2;
+    }
+
     for ( i = 0; i < TEMPER_FRAMES_NO; i++ ) {
         temper_frame = &p_fsm->temper_frames[i];
         temper_frame->width = param->active.width;
         temper_frame->height = param->active.height;
-        temper_frame->type = acamera_isp_temper_dma_format_read( p_fsm->cmn.isp_base );
-        temper_frame->line_offset = acamera_line_offset( temper_frame->width, TEMPER_PIXEL_WIDTH );
-        temper_frame->size = temper_frame->height * temper_frame->line_offset;
-
+        temper_frame->line_offset = (temper_frame->width * bytes_factor / 2 + alignment - 1 ) & ~( alignment - 1 );
+        temper_frame->size = temper_frame->height * temper_frame->line_offset * cnt_per_dma;
     }
 
     virt_addr = p_settings->callback_dma_alloc_coherent( p_fsm->cmn.ctx_id,
@@ -843,6 +849,11 @@ static int general_temper_exit( general_fsm_ptr_t p_fsm )
     void *virt_addr;
     uint64_t dma_addr;
     uint32_t size;
+
+    if (p_fsm->temper_mode == NOTHING) {
+        pr_debug("temper is disabled.\n");
+        return 0;
+    }
 
     temper_frame = &p_fsm->temper_frames[0];
 
@@ -891,9 +902,11 @@ static int general_temper_configure( general_fsm_ptr_t p_fsm )
     uintptr_t isp_base = p_fsm->cmn.isp_base;
     aframe_t *lsb_frame = NULL;
     aframe_t *msb_frame = NULL;
+    uint8_t temper_format;
 
     /* Turn off */
     acamera_isp_top_bypass_temper_write( isp_base, 1 );
+    acamera_isp_temper_enable_write( isp_base, 0 );
 
     /* Disable LSB */
     acamera_isp_temper_dma_frame_write_on_lsb_dma_write( isp_base, 0 );
@@ -902,6 +915,11 @@ static int general_temper_configure( general_fsm_ptr_t p_fsm )
     /* Disable MSB */
     acamera_isp_temper_dma_frame_write_on_msb_dma_write( isp_base, 0 );
     acamera_isp_temper_dma_frame_read_on_msb_dma_write( isp_base, 0 );
+
+    if (p_fsm->temper_mode == NOTHING) {
+        pr_debug("temper is disabled.\n");
+        return 0;
+    }
 
     if ( TEMPER_FRAMES_NO >= 1 )
         lsb_frame = &p_fsm->temper_frames[0];
@@ -917,6 +935,11 @@ static int general_temper_configure( general_fsm_ptr_t p_fsm )
         LOG( LOG_ERR, "unable to configure TEMPER3_MODE" );
         return -1;
     }
+
+    //20 - 16bit, 6 - 12bit
+    temper_format = (p_fsm->temper_dw == TEMPER_BIT12 ? 6 : 20);
+    acamera_isp_temper_dma_format_write(isp_base,  temper_format);
+    acamera_isp_temper_dma_temper_dw_write(isp_base, p_fsm->temper_dw);
 
     /* Configure LSB */
     acamera_isp_temper_dma_lsb_bank_base_reader_write( isp_base, lsb_frame->address );
@@ -937,10 +960,44 @@ static int general_temper_configure( general_fsm_ptr_t p_fsm )
 
     /* Turn on */
     if (p_fsm->temper_mode == TEMPER2_MODE || p_fsm->temper_mode == TEMPER3_MODE) {
-	acamera_isp_temper_enable_write(isp_base, 1);
-	acamera_isp_top_bypass_temper_write(isp_base, 0);
-    } else {
-	acamera_isp_temper_enable_write(isp_base, 0);
+        // acamera_isp_temper_enable_write(isp_base, 1);
+        acamera_isp_top_bypass_temper_write(isp_base, 0);
+    }
+
+    return 0;
+}
+
+int isp_temper_set_addr(general_fsm_ptr_t p_fsm)
+{
+    uintptr_t isp_base = p_fsm->cmn.isp_base;
+    aframe_t *lsb_frame = NULL;
+    aframe_t *msb_frame = NULL;
+
+    lsb_frame = &p_fsm->temper_frames[0];
+    msb_frame = &p_fsm->temper_frames[1];
+
+    if ( !lsb_frame || !lsb_frame->address) {
+        LOG( LOG_ERR, "unable to configure TEMPER" );
+        return -1;
+    }
+
+    if ( p_fsm->temper_mode == TEMPER3_MODE && (!msb_frame || !msb_frame->address)) {
+        LOG( LOG_ERR, "unable to configure TEMPER3_MODE" );
+        return -1;
+    }
+
+    if (p_fsm->cnt_for_temper <= 2) {
+        acamera_isp_temper_enable_write( isp_base, 0 );
+    }
+
+    /* Configure LSB */
+    acamera_isp_temper_dma_lsb_bank_base_reader_write( isp_base, lsb_frame->address );
+    acamera_isp_temper_dma_lsb_bank_base_writer_write( isp_base, lsb_frame->address );
+
+    /* Configure MSB if TEMPER3_MODE */
+    if ( p_fsm->temper_mode == TEMPER3_MODE ) {
+        acamera_isp_temper_dma_msb_bank_base_reader_write( isp_base, msb_frame->address );
+        acamera_isp_temper_dma_msb_bank_base_writer_write( isp_base, msb_frame->address );
     }
 
     return 0;
