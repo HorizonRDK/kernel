@@ -68,4 +68,24 @@
 
 #define SCHMITT2_ENA	(1 << 9)
 #define SCHMITT2_DIS	(0 << 9)
+
+#define MODE_3_3V       (0)
+#define MODE_1_8V       (0xFFFF)
+
+#define SD2_MODE       (1 << 3)
+#define SD1_MODE       (1 << 2)
+#define SD0_MODE_P1    (1 << 1)
+#define SD0_MODE_P0    (1 << 0)
+#define RGMII_MODE_P1  (1 << 11)
+#define RGMII_MODE_P0  (1 << 10)
+#define I2C2_MODE      (1 << 9)
+#define I2C0_MODE      (1 << 8)
+#define BT1120_MODE_P2 (1 << 6)
+#define BT1120_MODE_P1 (1 << 5)
+#define BT1120_MODE_P0 (1 << 4)
+#define BIFSD_MODE_P1  (1 << 3)
+#define BIFSD_MODE_P0  (1 << 2)
+#define BIFSPI_MODE    (1 << 1)
+#define JTAG_MODE      (1 << 0)
+
 #endif //INCLUDE_DT_BINDINGS_PINCTRL_HOBOT_XJ3_H_
