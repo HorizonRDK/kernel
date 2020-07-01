@@ -2823,6 +2823,7 @@ static int hobot_iar_probe(struct platform_device *pdev)
 	uint32_t i = 0;
 	buf_addr_t channel_buf_addr_3;
 	buf_addr_t channel_buf_addr_4;
+	struct disp_timing default_timing = {80, 120, 48, 32, 43, 2};
 
 	pr_info("iar probe begin!!!\n");
 
@@ -3389,6 +3390,7 @@ static int hobot_iar_probe(struct platform_device *pdev)
 		display_color_bar(1080, 1920, g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr);
 		pr_debug("set mipi 1080p done!\n");
 	}
+	disp_set_panel_timing(&default_timing);
 	channel_buf_addr_3.addr = g_iar_dev->frambuf[IAR_CHANNEL_3].paddr;
 	channel_buf_addr_4.addr = g_iar_dev->frambuf[IAR_CHANNEL_4].paddr;
 	iar_switch_buf(0);
