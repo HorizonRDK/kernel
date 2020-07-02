@@ -143,6 +143,8 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 		ips_set_clk_ctrl(IPU0_CLOCK_GATE, false);
 		ipu->frame_drop_count = 0;
 		ipu->reuse_shadow0_count = 0;
+		sema_init(&ipu->gtask.hw_resource, 1);
+		atomic_set(&ipu->gtask.refcount, 0);
 	}
 
 	ipu_ctx->state = BIT(VIO_VIDEO_CLOSE);
@@ -1412,6 +1414,7 @@ int ipu_video_reqbufs(struct ipu_video_ctx *ipu_ctx, u32 buffers)
 	instance = ipu_ctx->group->instance;
 	for (i = first_index; i < (first_index + buffers); i++) {
 		framemgr->frames_mp[i]->data = ipu_ctx->group;
+		frame_work_init(&ipu_dev->vwork[instance][i].work);
 		framemgr->frames_mp[i]->mp_work = &ipu_dev->vwork[instance][i].work;
 		ipu_dev->vwork[instance][i].group = ipu_ctx->group;
 	}

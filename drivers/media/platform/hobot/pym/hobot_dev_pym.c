@@ -165,6 +165,8 @@ static int x3_pym_close(struct inode *inode, struct file *file)
 		}
 		vio_clk_disable("pym_mclk");
 		vio_clk_disable("sif_mclk");
+		sema_init(&pym->gtask.hw_resource, 1);
+		atomic_set(&pym->gtask.refcount, 0);
 	}
 
 	pym_ctx->state = BIT(VIO_VIDEO_CLOSE);
@@ -699,6 +701,7 @@ int pym_video_reqbufs(struct pym_video_ctx *pym_ctx, u32 buffers)
 	pym_ctx->frm_num = buffers;
 	for (i = first_index; i < (buffers + first_index) ; i++) {
 		framemgr->frames_mp[i]->data = pym_ctx->group;
+		frame_work_init(&pym_dev->vwork[i].work);
 		framemgr->frames_mp[i]->mp_work = &pym_dev->vwork[i].work;
 		pym_dev->vwork[i].group = pym_ctx->group;
 	}
