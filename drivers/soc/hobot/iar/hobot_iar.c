@@ -391,6 +391,8 @@ static void iar_regs_store(void)
 		return;
 	}
 
+	enable_sif_mclk();
+	iar_pixel_clk_enable();
 	/* offset: 0x0 ~ 0x94, 0x98 writeonly. */
 	for (i = 0; i < 37; i++) {
 		regaddr = g_iar_dev->regaddr + 0x4 * i;
@@ -430,6 +432,8 @@ static void iar_regs_store(void)
         regaddr = g_iar_dev->regaddr + 0x800;
         g_iar_regs[92] = readl(regaddr);
 #endif
+	disable_sif_mclk();
+	iar_pixel_clk_disable();
 }
 
 static void iar_regs_restore(void)
@@ -442,6 +446,8 @@ static void iar_regs_restore(void)
 		return;
 	}
 
+	enable_sif_mclk();
+	iar_pixel_clk_enable();
 	/* offset: 0x0 ~ 0x94, 0x98 writeonly. */
 	for (i = 0; i < 37; i++) {
 		regaddr = g_iar_dev->regaddr + 0x4 * i;
@@ -489,6 +495,8 @@ static void iar_regs_restore(void)
 	/* offset: 0x98*/
 	regaddr = g_iar_dev->regaddr + 0x98;
 	writel(0x1, regaddr);
+	disable_sif_mclk();
+	iar_pixel_clk_disable();
 }
 
 void hobot_iar_dump(void)
