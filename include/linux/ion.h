@@ -493,6 +493,7 @@ void ion_carveout_heap_destroy(struct ion_heap *heap);
 struct ion_heap *ion_chunk_heap_create(struct ion_platform_heap *heap_data);
 void ion_chunk_heap_destroy(struct ion_heap *heap);
 
+int ion_cma_get_info(struct ion_device *dev, phys_addr_t *base, size_t *size);
 int ion_add_cma_heaps(struct ion_device *idev);
 int ion_del_cma_heaps(struct ion_device *idev);
 

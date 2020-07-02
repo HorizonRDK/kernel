@@ -469,6 +469,7 @@ struct ion_handle *ion_alloc(struct ion_client *client, size_t len,
 	down_read(&dev->lock);
 	type = flags >> 16;
 	flags = flags&0xffff;
+	heap_id_mask |= ION_HEAP_TYPE_DMA_MASK;
 	plist_for_each_entry(heap, &dev->heaps, node) {
 		/* if the caller didn't specify this heap id */
 		if (!((1 << heap->type) & heap_id_mask))

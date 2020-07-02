@@ -164,6 +164,26 @@ static struct ion_heap *__ion_cma_heap_create(struct cma *cma)
 	return &cma_heap->heap;
 }
 
+int ion_cma_get_info(struct ion_device *dev, phys_addr_t *base, size_t *size)
+{
+	struct ion_heap *heap;
+	struct ion_cma_heap *cma_heap;
+
+	down_read(&dev->lock);
+	plist_for_each_entry(heap, &dev->heaps, node) {
+		if (!((1 << heap->type) & ION_HEAP_TYPE_DMA_MASK))
+			continue;
+
+		cma_heap = to_cma_heap(heap);
+		*base = cma_get_base(cma_heap->cma);
+		*size = cma_get_size(cma_heap->cma);
+		break;
+	}
+	up_read(&dev->lock);
+
+	return 0;
+}
+
 static int __ion_add_cma_heaps(struct cma *cma, void *data)
 {
 	const char *name;

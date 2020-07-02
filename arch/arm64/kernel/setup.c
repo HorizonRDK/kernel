@@ -285,7 +285,7 @@ void __init setup_arch(char **cmdline_p)
 	acpi_boot_table_init();
 
 	if (acpi_disabled)
-		unflatten_and_copy_device_tree();
+		unflatten_device_tree();
 
 	bootmem_init();
 
