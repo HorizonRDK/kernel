@@ -223,13 +223,13 @@ int ipu_check_phyaddr(struct vio_frame *frame)
 
 	ret = ion_check_in_heap_carveout(frame->frameinfo.addr[0], 0);
 	if (ret < 0) {
-		vio_err("phyaddr[0] 0x%x is beyond ion address region\n",
+		vio_err("ipu phyaddr[0] 0x%x is beyond ion address region\n",
 				frame->frameinfo.addr[0]);
 	}
 
 	ret = ion_check_in_heap_carveout(frame->frameinfo.addr[1], 0);
 	if (ret < 0) {
-		vio_err("phyaddr[1] 0x%x is beyond ion address region\n",
+		vio_err("ipu phyaddr[1] 0x%x is beyond ion address region\n",
 				frame->frameinfo.addr[1]);
 	}
 

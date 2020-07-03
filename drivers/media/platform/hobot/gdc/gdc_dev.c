@@ -209,6 +209,19 @@ void gdc_init(struct x3_gdc_dev *gdc_dev, gdc_settings_t *gdc_settings)
  *           -1 - no interrupt from GDC.
  */
 
+int gdc_check_phyaddr(u32 addr)
+{
+	int ret = 0;
+
+	ret = ion_check_in_heap_carveout(addr, 0);
+	if (ret < 0) {
+		vio_err("gdc phyaddr 0x%x is beyond ion address region\n",
+				addr);
+	}
+
+	return ret;
+}
+
 int gdc_process(struct x3_gdc_dev *gdc_dev, gdc_settings_t *gdc_settings)
 {
 	void __iomem *base_addr;
@@ -238,6 +251,7 @@ int gdc_process(struct x3_gdc_dev *gdc_dev, gdc_settings_t *gdc_settings)
 			gdc_set_rdma0_img_addr(base_addr, input_addr[0]);
 			vio_dbg("GDC input1 addr:%x\n", input_addr[0]);
 		}
+		gdc_check_phyaddr(input_addr[0]);
 		gdc_set_rdma0_line_offset(base_addr, lineoffset);
 		vio_dbg("GDC data1in lineoffset:%d, height:%d\n", lineoffset,
 			 height);
@@ -251,6 +265,7 @@ int gdc_process(struct x3_gdc_dev *gdc_dev, gdc_settings_t *gdc_settings)
 
 		gdc_set_rdma1_img_addr(base_addr, input_addr[1]);
 		gdc_set_rdma1_line_offset(base_addr, lineoffset);
+		gdc_check_phyaddr(input_addr[1]);
 		vio_dbg("GDC input2 addr:%x\n", input_addr[1]);
 		vio_dbg("GDC data2in lineoffset:%d, height:%d\n", lineoffset,
 			 height);
@@ -262,6 +277,7 @@ int gdc_process(struct x3_gdc_dev *gdc_dev, gdc_settings_t *gdc_settings)
 			>> gdc_settings->gdc_config.div_height;
 		gdc_set_rdma2_img_addr(base_addr, input_addr[2]);
 		gdc_set_rdma2_line_offset(base_addr, lineoffset);
+		gdc_check_phyaddr(input_addr[2]);
 	}
 	//outputs
 	if (num_input >= 1) {
@@ -279,6 +295,7 @@ int gdc_process(struct x3_gdc_dev *gdc_dev, gdc_settings_t *gdc_settings)
 		gdc_set_wdma0_img_addr(base_addr,
 				       gdc_settings->Out_buffer_addr[0]);
 		gdc_set_wdma0_line_offset(base_addr, lineoffset);
+		gdc_check_phyaddr(gdc_settings->Out_buffer_addr[0]);
 		vio_dbg("GDC out1: data1out_addr_write:%x\n",
 			 gdc_settings->Out_buffer_addr[0]);
 	}
@@ -293,6 +310,7 @@ int gdc_process(struct x3_gdc_dev *gdc_dev, gdc_settings_t *gdc_settings)
 		gdc_set_wdma1_img_addr(base_addr,
 				       gdc_settings->Out_buffer_addr[1]);
 		gdc_set_wdma1_line_offset(base_addr, lineoffset);
+		gdc_check_phyaddr(gdc_settings->Out_buffer_addr[1]);
 		vio_dbg("GDC out2: data2out_addr_write:%x\n",
 			 gdc_settings->Out_buffer_addr[1]);
 	}
@@ -303,7 +321,8 @@ int gdc_process(struct x3_gdc_dev *gdc_dev, gdc_settings_t *gdc_settings)
 		height = gdc_settings->gdc_config.output_height
 			>> gdc_settings->gdc_config.div_height;
 		gdc_set_wdma2_img_addr(base_addr,
-				       gdc_settings->Out_buffer_addr[1]);
+				       gdc_settings->Out_buffer_addr[2]);
+		gdc_check_phyaddr(gdc_settings->Out_buffer_addr[2]);
 		gdc_set_wdma2_line_offset(base_addr, lineoffset);
 		vio_dbg("out2: data2out_addr_write:%x\n",
 			 gdc_settings->Out_buffer_addr[1]);

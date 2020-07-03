@@ -85,9 +85,23 @@ static const struct dev_pm_ops x3_sif_pm_ops = {
 	.runtime_resume = x3_sif_runtime_resume,
 };
 
+int sif_check_phyaddr(u32 addr)
+{
+	int ret = 0;
+
+	ret = ion_check_in_heap_carveout(addr, 0);
+	if (ret < 0) {
+		vio_err("phyaddr 0x%x is beyond ion address region\n",
+				addr);
+	}
+
+	return ret;
+}
+
 void sif_config_rdma_cfg(struct sif_subdev *subdev, u8 index,
 			struct frame_info *frameinfo)
 {
+	int ret = 0;
 	u32 height = 0;
 	u32 width = 0;
 	u32 format = 0;
@@ -108,9 +122,13 @@ void sif_config_rdma_cfg(struct sif_subdev *subdev, u8 index,
 
 	sif_set_rdma_enable(sif->base_reg, index, true);
 	sif_set_rdma_buf_addr(sif->base_reg, index, frameinfo->addr[index]);
+	ret = sif_check_phyaddr(frameinfo->addr[index]);
+	if (ret)
+		vio_err("%s, addr[%d] error\n", __func__, index);
 	vio_info("[S%d]ddr in width = %d, height = %d, stride = %d\n",
 			group->instance, width, height, stride);
 }
+
 
 void sif_read_frame_work(struct vio_group *group)
 {
@@ -162,6 +180,7 @@ void sif_read_frame_work(struct vio_group *group)
 
 void sif_write_frame_work(struct vio_group *group)
 {
+	int ret = 0;
 	u32 instance = 0;
 	u32 buf_index = 0;
 	u32 mux_index = 0;
@@ -191,12 +210,18 @@ void sif_write_frame_work(struct vio_group *group)
 		sif_set_wdma_buf_addr(sif->base_reg, mux_index, buf_index,
 				      frame->frameinfo.addr[0]);
 		sif_transfer_ddr_owner(sif->base_reg, mux_index, buf_index);
+		ret = sif_check_phyaddr(frame->frameinfo.addr[0]);
+		if (ret)
+			vio_err("%s, addr[0] error\n", __func__);
 
 		if (yuv_format || subdev->dol_num > 1) {
 			sif_set_wdma_buf_addr(sif->base_reg, mux_index + 1,
 					      buf_index, frame->frameinfo.addr[1]);
 			sif_transfer_ddr_owner(sif->base_reg, mux_index + 1,
 					       buf_index);
+			ret = sif_check_phyaddr(frame->frameinfo.addr[1]);
+			if (ret)
+				vio_err("%s, addr[1] error\n", __func__);
 		}
 
 		if (subdev->dol_num > 2) {
@@ -204,6 +229,9 @@ void sif_write_frame_work(struct vio_group *group)
 					      buf_index, frame->frameinfo.addr[2]);
 			sif_transfer_ddr_owner(sif->base_reg, mux_index + 2,
 					       buf_index);
+			ret = sif_check_phyaddr(frame->frameinfo.addr[2]);
+			if (ret)
+				vio_err("%s, addr[2] error\n", __func__);
 		}
 		trans_frame(framemgr, frame, FS_PROCESS);
 		subdev->bufcount++;

@@ -182,6 +182,19 @@ static int x3_pym_close(struct inode *inode, struct file *file)
 	return 0;
 }
 
+int pym_check_phyaddr(u32 addr)
+{
+	int ret = 0;
+
+	ret = ion_check_in_heap_carveout(addr, 0);
+	if (ret < 0) {
+		vio_err("pym phyaddr 0x%x is beyond ion address region\n",
+				addr);
+	}
+
+	return ret;
+}
+
 void pym_set_buffers(struct x3_pym_dev *pym, struct vio_frame *frame)
 {
 	int i = 0;
@@ -247,6 +260,7 @@ static void pym_frame_work(struct vio_group *group)
 		pym_set_shd_select(pym->base_reg, shadow_index);
 
 		pym_set_buffers(pym, frame);
+		pym_check_phyaddr(frame->frameinfo.addr[0]);
 
 		if (test_bit(PYM_DMA_INPUT, &pym->state)) {
 			pym_rdma_set_addr(pym->base_reg,
