@@ -1762,7 +1762,7 @@ int32_t iar_close(void)
 		return -1;
 	}
 	disp_user_config_done = 0;
-	iar_stop();
+	//iar_stop();
 
 	disable_irq(g_iar_dev->irq);
 	frame_manager_close(&g_iar_dev->framemgr);

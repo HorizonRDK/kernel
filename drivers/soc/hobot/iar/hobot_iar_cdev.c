@@ -64,7 +64,10 @@
 #define IAR_OUTPUT_LAYER1_STREAM _IOW(IAR_CDEV_MAGIC, 0x38, unsigned int)
 #define SCREEN_BACKLIGHT_SET       _IOW(IAR_CDEV_MAGIC, 0x39, unsigned int)
 #define HDMI_CONFIG       _IO(IAR_CDEV_MAGIC, 0x40)
-
+#define IAR_GET_START_CNT       _IOR(IAR_CDEV_MAGIC, 0x42, unsigned int)
+#define IAR_GET_STOP_CNT       _IOR(IAR_CDEV_MAGIC, 0x43, unsigned int)
+unsigned int iar_open_cnt = 0;
+unsigned int iar_start_cnt = 0;
 extern int siHdmiTx_ReConfig(unsigned short vmode,
 		unsigned short VideoFormat, unsigned short Afs);
 
@@ -181,10 +184,18 @@ int32_t iar_display_update(update_cmd_t *update_cmd)
 static int iar_cdev_open(struct inode *inode, struct file *filp)
 {
 	struct iar_cdev_s *iarcdev_p;
+	int ret = 0;
 
-	iarcdev_p = container_of(inode->i_cdev, struct iar_cdev_s, cdev);
-	filp->private_data = iarcdev_p;
-	return iar_open();
+	mutex_lock(&g_iar_cdev->iar_mutex);
+	if (iar_open_cnt == 0) {
+		iarcdev_p = container_of(inode->i_cdev, struct iar_cdev_s, cdev);
+		filp->private_data = iarcdev_p;
+		ret = iar_open();
+	}
+	iar_open_cnt++;
+	mutex_unlock(&g_iar_cdev->iar_mutex);
+
+	return ret;
 }
 
 static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
@@ -197,6 +208,28 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 		{
 			IAR_DEBUG_PRINT("IAR_START \n");
 			ret = iar_start(1);
+		}
+		break;
+	case IAR_GET_START_CNT:
+		 {
+			unsigned int cnt;
+
+			cnt = iar_start_cnt;
+			if (copy_to_user(arg, &cnt,
+					sizeof(unsigned int)))
+				return -EFAULT;
+			iar_start_cnt++;
+		}
+		break;
+	case IAR_GET_STOP_CNT:
+		 {
+			unsigned int cnt;
+
+			iar_start_cnt--;
+			cnt = iar_start_cnt;
+			if (copy_to_user(arg, &cnt,
+					sizeof(unsigned int)))
+				return -EFAULT;
 		}
 		break;
 	case HDMI_CONFIG:
@@ -592,8 +625,16 @@ static ssize_t iar_cdev_read(struct file *filp, char __user *ubuf,
 
 int iar_cdev_release(struct inode *inode, struct file *filp)
 {
-	filp->private_data = NULL;
-	return iar_close();
+	mutex_lock(&g_iar_cdev->iar_mutex);
+	iar_open_cnt--;
+	if (iar_open_cnt == 0) {
+		filp->private_data = NULL;
+		iar_stop();
+		iar_start_cnt = 0;
+		iar_close();
+	}
+	mutex_unlock(&g_iar_cdev->iar_mutex);
+	return 0;
 }
 
 static const struct file_operations iar_cdev_ops = {
