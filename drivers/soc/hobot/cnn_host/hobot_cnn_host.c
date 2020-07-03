@@ -1567,10 +1567,6 @@ static int cnnfreq_target(struct device *dev, unsigned long *freq,
 	unsigned long old_clk_rate = cnnfreq->rate;
 	unsigned long rate, target_volt, target_rate;
 	int err;
-	if (cnn_dev->disable_bpu) {
-		err = 1;
-		return err;
-	}
 
 	if (!cnn_dev->has_regulator) {
 		pr_info("no regulator support\n");
