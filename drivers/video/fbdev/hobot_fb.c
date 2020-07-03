@@ -1547,17 +1547,19 @@ static int hbfb_probe(struct platform_device *pdev)
 		hobot_fbi->fb.fix.smem_start + hobot_fbi->fb.fix.smem_len - 1);
 
 #ifdef CONFIG_HOBOT_XJ3
-	ret = register_framebuffer(&hobot_fbi->fb1);
-	if (ret < 0) {
-		dev_err(&pdev->dev,
-			"Failed to register framebuffer device: %d\n", ret);
-		if (hobot_fbi->fb1.cmap.len)
-			fb_dealloc_cmap(&hobot_fbi->fb1.cmap);
-		return ret;
+	if (fb_num == 2) {
+		ret = register_framebuffer(&hobot_fbi->fb1);
+		if (ret < 0) {
+			dev_err(&pdev->dev,
+				"Failed to register framebuffer device: %d\n", ret);
+			if (hobot_fbi->fb1.cmap.len)
+				fb_dealloc_cmap(&hobot_fbi->fb1.cmap);
+			return ret;
+		}
+		fb_info(&hobot_fbi->fb1, "%s frame buffer at 0x%lx-0x%lx\n",
+			hobot_fbi->fb1.fix.id, hobot_fbi->fb1.fix.smem_start,
+			hobot_fbi->fb1.fix.smem_start + hobot_fbi->fb1.fix.smem_len - 1);
 	}
-	fb_info(&hobot_fbi->fb1, "%s frame buffer at 0x%lx-0x%lx\n",
-		hobot_fbi->fb1.fix.id, hobot_fbi->fb1.fix.smem_start,
-		hobot_fbi->fb1.fix.smem_start + hobot_fbi->fb1.fix.smem_len - 1);
 #endif
 	pr_info("Hobot fb probe ok!!!\n");
 	return 0;
@@ -1573,10 +1575,11 @@ static int hbfb_remove(struct platform_device *pdev)
 	if (fbi->fb.cmap.len)
 		fb_dealloc_cmap(&fbi->fb.cmap);
 #ifdef CONFIG_HOBOT_XJ3
-	unregister_framebuffer(&fbi->fb1);
-
-        if (fbi->fb1.cmap.len)
-                fb_dealloc_cmap(&fbi->fb1.cmap);
+	if (fb_num == 2) {
+		unregister_framebuffer(&fbi->fb1);
+		if (fbi->fb1.cmap.len)
+			fb_dealloc_cmap(&fbi->fb1.cmap);
+	}
 #endif
 	return 0;
 }

@@ -755,6 +755,7 @@ extern struct ion_device *hb_ion_dev;
 extern uint8_t disp_copy_done;
 extern uint8_t disp_user_config_done;
 extern unsigned int iar_debug_level;
+extern unsigned int fb_num;
 #define IAR_DEBUG_PRINT(format, args...)	\
 	do {									\
 		if(iar_debug_level)					\

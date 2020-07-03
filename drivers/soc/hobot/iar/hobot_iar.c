@@ -36,6 +36,7 @@
 //#ifdef CONFIG_X3
 #ifdef CONFIG_HOBOT_XJ3
 #define IAR_MEM_SIZE 0x4000000	//64MB
+#define MAX_YUV_BUF_SIZE 0x2F7600 //3MB,1920*1080*1.5
 #else
 #define IAR_MEM_SIZE 0x2000000        //32MB
 #endif
@@ -98,6 +99,8 @@ static int sif_mclk_iar_open = 0;
 static int stop_flag = 0;
 phys_addr_t logo_paddr;
 void *logo_vaddr = NULL;
+unsigned int fb_num = 1;
+EXPORT_SYMBOL(fb_num);
 
 struct disp_timing video_1920x1080 = {
 	148, 88, 44, 36, 4, 5
@@ -2925,6 +2928,9 @@ static int hobot_iar_probe(struct platform_device *pdev)
 	buf_addr_t channel_buf_addr_3;
 	buf_addr_t channel_buf_addr_4;
 	struct disp_timing default_timing = {80, 120, 48, 32, 43, 2};
+	size_t iar_request_ion_size = 0;
+	char* fb_num_str = NULL;
+	char* temp = NULL;
 
 	pr_info("iar probe begin!!!\n");
 
@@ -3079,6 +3085,49 @@ static int hobot_iar_probe(struct platform_device *pdev)
 	ret = request_threaded_irq(g_iar_dev->irq, hobot_iar_irq, NULL, IRQF_TRIGGER_HIGH,
 							   dev_name(&pdev->dev), g_iar_dev);
 	disable_irq(g_iar_dev->irq);
+	ret = fb_get_options("hobot", &type);
+	pr_debug("%s: fb get options display type is %s\n", __func__, type);
+	if (type != NULL) {
+#ifdef CONFIG_HOBOT_XJ3
+		fb_num_str = strstr(type, "fb_num=");
+		if (fb_num_str != NULL) {
+			temp = fb_num_str + 7;
+			ret = kstrtouint(temp, 0, &fb_num);
+			if (ret) {
+				pr_err("error fb num type, use default value!!\n");
+				fb_num = 1;
+			} else {
+				if (fb_num > 2) {
+					pr_err("error fb num, use default value!!\n");
+					fb_num = 1;
+				}
+			}
+		}
+		pr_debug("fb_num_str is %s, fb_num is %d\n", fb_num_str, fb_num);
+		if (strstr(type, "1080p") != NULL) {
+			display_type = MIPI_1080P;
+			pr_info("%s: panel type is MIPI_1080P\n", __func__);
+		} else if (strstr(type, "720p") != NULL) {
+			display_type = MIPI_720P_TOUCH;
+			pr_info("%s: panel type is MIPI_720P_TOUCH\n", __func__);
+		} else if (strstr(type, "lcd") != NULL) {
+			display_type = LCD_7_TYPE;
+			pr_info("%s: panel type is LCD_7_TYPE\n", __func__);
+		} else if (strstr(type, "hdmi") != NULL) {
+			display_type = HDMI_TYPE;
+			pr_info("%s: panel type is HDMI_TYPE\n", __func__);
+		} else if (strstr(type, "ipi") != NULL) {
+			pr_info("%s: panel type is SIF IPI\n", __func__);
+			display_type = SIF_IPI;
+		}
+#else
+		if (display_type == LCD_7_TYPE) {
+			if (strncmp(type, "mipi", 4) == 0)
+				display_type = MIPI_720P;
+		}
+#endif
+	}
+
 	np = of_parse_phandle(pdev->dev.of_node, "memory-region", 0);
 	if (!np) {
 		dev_err(&g_iar_dev->pdev->dev, "No %s specified\n", "memory-region");
@@ -3119,16 +3168,15 @@ static int hobot_iar_probe(struct platform_device *pdev)
 		IAR_MEM_SIZE - MAX_FRAME_BUF_SIZE, 0x20,
 		ION_HEAP_CARVEOUT_MASK, 0);
 #else
+	iar_request_ion_size = MAX_FRAME_BUF_SIZE * fb_num + MAX_YUV_BUF_SIZE * 6;
 	if (logo_vaddr == NULL) {
 		g_iar_dev->iar_ihandle = ion_alloc(g_iar_dev->iar_iclient,
-			IAR_MEM_SIZE, 0x20,
+			iar_request_ion_size, 0x20,
 			ION_HEAP_CARVEOUT_MASK, 0);
-		pr_debug("iar request 64M ion memory region!\n");
 	} else {
 		g_iar_dev->iar_ihandle = ion_alloc(g_iar_dev->iar_iclient,
-			IAR_MEM_SIZE - MAX_FRAME_BUF_SIZE, 0x20,
+			iar_request_ion_size - MAX_FRAME_BUF_SIZE, 0x20,
 			ION_HEAP_CARVEOUT_MASK, 0);
-		pr_debug("iar request 56M ion memory region!\n");
 	}
 #endif
 	if (!g_iar_dev->iar_ihandle || IS_ERR(g_iar_dev->iar_ihandle)) {
@@ -3138,7 +3186,6 @@ static int hobot_iar_probe(struct platform_device *pdev)
 
 	ret = ion_phys(g_iar_dev->iar_iclient, g_iar_dev->iar_ihandle->id,
 			&mem_paddr, &mem_size);
-
 	if (ret) {
 		dev_err(&pdev->dev, "Get buffer paddr failed!!");
 		ion_free(g_iar_dev->iar_iclient, g_iar_dev->iar_ihandle);
@@ -3154,7 +3201,7 @@ static int hobot_iar_probe(struct platform_device *pdev)
 	}
 #else
 	#ifdef CONFIG_HOBOT_XJ3
-	if (resource_size(&r) < MAX_FRAME_BUF_SIZE*8) {
+	if (resource_size(&r) < 0x1a00000) {
                 pr_err("iar memory size is not large enough!(<3buffer)\n");
                 goto err1;
         }
@@ -3163,7 +3210,7 @@ static int hobot_iar_probe(struct platform_device *pdev)
         //three buffers for video, one buffer for graphic(fb)
 
         //channel 2&4 disabled
-        vaddr = ioremap_nocache(r.start, MAX_FRAME_BUF_SIZE * 8);
+        vaddr = ioremap_nocache(r.start, resource_size(&r));
 	#else
 	if (resource_size(&r) < MAX_FRAME_BUF_SIZE*4) {
 		pr_err("iar memory size is not large enough!(<3buffer)\n");
@@ -3183,40 +3230,47 @@ static int hobot_iar_probe(struct platform_device *pdev)
 #ifdef CONFIG_HOBOT_XJ3
 	g_iar_dev->frambuf[IAR_CHANNEL_3].paddr = mem_paddr;
 	g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr = vaddr;
-	g_iar_dev->frambuf[IAR_CHANNEL_4].paddr =
-		mem_paddr + MAX_FRAME_BUF_SIZE;
-	g_iar_dev->frambuf[IAR_CHANNEL_4].vaddr =
-		vaddr + MAX_FRAME_BUF_SIZE;
+	if (fb_num == 2) {
+		g_iar_dev->frambuf[IAR_CHANNEL_4].paddr =
+			mem_paddr + MAX_FRAME_BUF_SIZE;
+		g_iar_dev->frambuf[IAR_CHANNEL_4].vaddr =
+			vaddr + MAX_FRAME_BUF_SIZE;
+	} else {
+		g_iar_dev->frambuf[IAR_CHANNEL_4].paddr = mem_paddr;
+		g_iar_dev->frambuf[IAR_CHANNEL_4].vaddr = vaddr;
+	}
 	if (logo_vaddr == NULL) {
 		g_iar_dev->frambuf[IAR_CHANNEL_1].paddr =
-			mem_paddr + MAX_FRAME_BUF_SIZE * 7;
+			g_iar_dev->frambuf[IAR_CHANNEL_4].paddr +
+			MAX_FRAME_BUF_SIZE + MAX_YUV_BUF_SIZE * 5;
 		g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr =
-			vaddr + MAX_FRAME_BUF_SIZE * 7;
+			g_iar_dev->frambuf[IAR_CHANNEL_4].vaddr +
+			MAX_FRAME_BUF_SIZE + MAX_YUV_BUF_SIZE * 5;
 	} else {
 		g_iar_dev->frambuf[IAR_CHANNEL_1].paddr = logo_paddr;
 		g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr = logo_vaddr;
 	}
 	g_iar_dev->frambuf[IAR_CHANNEL_2].paddr =
-		mem_paddr + MAX_FRAME_BUF_SIZE * 2;
+		g_iar_dev->frambuf[IAR_CHANNEL_4].paddr + MAX_FRAME_BUF_SIZE;
 	g_iar_dev->frambuf[IAR_CHANNEL_2].vaddr =
-		vaddr + MAX_FRAME_BUF_SIZE * 2;
+		g_iar_dev->frambuf[IAR_CHANNEL_4].vaddr + MAX_FRAME_BUF_SIZE;
 
 	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr =
-				mem_paddr + MAX_FRAME_BUF_SIZE * 3;
+			g_iar_dev->frambuf[IAR_CHANNEL_2].paddr + MAX_YUV_BUF_SIZE;
 	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr =
-				vaddr + MAX_FRAME_BUF_SIZE * 3;
+			g_iar_dev->frambuf[IAR_CHANNEL_2].vaddr + MAX_YUV_BUF_SIZE;
 	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].paddr
-			= mem_paddr + MAX_FRAME_BUF_SIZE * 4;
+			= g_iar_dev->frambuf[IAR_CHANNEL_2].paddr + MAX_YUV_BUF_SIZE * 2;
 	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].vaddr
-			= vaddr + MAX_FRAME_BUF_SIZE * 4;
+			= g_iar_dev->frambuf[IAR_CHANNEL_2].vaddr + MAX_YUV_BUF_SIZE * 2;
 	g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[0].paddr =
-				mem_paddr + MAX_FRAME_BUF_SIZE * 5;
+			g_iar_dev->frambuf[IAR_CHANNEL_2].paddr + MAX_YUV_BUF_SIZE * 3;
 	g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[0].vaddr =
-				vaddr + MAX_FRAME_BUF_SIZE * 5;
-	g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[1].paddr
-				= mem_paddr + MAX_FRAME_BUF_SIZE * 6;
-	g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[1].vaddr
-				= vaddr + MAX_FRAME_BUF_SIZE * 6;
+			g_iar_dev->frambuf[IAR_CHANNEL_2].vaddr + MAX_YUV_BUF_SIZE * 3;
+	g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[1].paddr =
+			g_iar_dev->frambuf[IAR_CHANNEL_2].paddr + MAX_YUV_BUF_SIZE * 4;
+	g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[1].vaddr =
+			g_iar_dev->frambuf[IAR_CHANNEL_2].vaddr + MAX_YUV_BUF_SIZE * 4;
 
 	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_3].paddr = 0x%llx\n",
 				g_iar_dev->frambuf[IAR_CHANNEL_3].paddr);
@@ -3263,10 +3317,12 @@ static int hobot_iar_probe(struct platform_device *pdev)
 				vaddr + MAX_FRAME_BUF_SIZE;
 
 	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].paddr
-			= g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr + MAX_FRAME_BUF_SIZE;
+		= g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr
+		+ MAX_FRAME_BUF_SIZE;
 
 	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].vaddr
-			= g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr + MAX_FRAME_BUF_SIZE;
+		= g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr
+		+ MAX_FRAME_BUF_SIZE;
 
 	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_1].paddr = 0x%llx\n",
 				g_iar_dev->frambuf[IAR_CHANNEL_1].paddr);
@@ -3290,35 +3346,33 @@ static int hobot_iar_probe(struct platform_device *pdev)
 #ifdef CONFIG_HOBOT_XJ3
 	g_iar_dev->frambuf[IAR_CHANNEL_3].paddr = mem_paddr;
 	g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr = vaddr;
-	g_iar_dev->frambuf[IAR_CHANNEL_4].paddr =
-		mem_paddr + MAX_FRAME_BUF_SIZE;
-	g_iar_dev->frambuf[IAR_CHANNEL_4].vaddr =
-		vaddr + MAX_FRAME_BUF_SIZE;
+	g_iar_dev->frambuf[IAR_CHANNEL_4].paddr = mem_paddr;
+	g_iar_dev->frambuf[IAR_CHANNEL_4].vaddr = vaddr;
 	g_iar_dev->frambuf[IAR_CHANNEL_1].paddr =
-		mem_paddr + MAX_FRAME_BUF_SIZE * 2;
+		g_iar_dev->frambuf[IAR_CHANNEL_4].paddr + MAX_FRAME_BUF_SIZE;
 	g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr =
-		vaddr + MAX_FRAME_BUF_SIZE * 2;
+		g_iar_dev->frambuf[IAR_CHANNEL_4].vaddr + MAX_FRAME_BUF_SIZE;
 	g_iar_dev->frambuf[IAR_CHANNEL_2].paddr =
-		mem_paddr + MAX_FRAME_BUF_SIZE * 3;
+		g_iar_dev->frambuf[IAR_CHANNEL_1].paddr + MAX_YUV_BUF_SIZE;
 	g_iar_dev->frambuf[IAR_CHANNEL_2].vaddr =
-		vaddr + MAX_FRAME_BUF_SIZE * 3;
+		g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr + MAX_YUV_BUF_SIZE;
 
 	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr =
-		mem_paddr + MAX_FRAME_BUF_SIZE * 4;
+		g_iar_dev->frambuf[IAR_CHANNEL_1].paddr + MAX_YUV_BUF_SIZE * 2;
 	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr =
-		vaddr + MAX_FRAME_BUF_SIZE * 4;
+		g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr + MAX_YUV_BUF_SIZE * 2;
 	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].paddr =
-		mem_paddr + MAX_FRAME_BUF_SIZE * 5;
+		g_iar_dev->frambuf[IAR_CHANNEL_1].paddr + MAX_YUV_BUF_SIZE * 3;
 	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].vaddr =
-		vaddr + MAX_FRAME_BUF_SIZE * 5;
+		g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr + MAX_YUV_BUF_SIZE * 3;
 	g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[0].paddr =
-		mem_paddr + MAX_FRAME_BUF_SIZE * 6;
+		g_iar_dev->frambuf[IAR_CHANNEL_1].paddr + MAX_YUV_BUF_SIZE * 4;
 	g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[0].vaddr =
-		vaddr + MAX_FRAME_BUF_SIZE * 6;
+		g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr + MAX_YUV_BUF_SIZE * 4;
 	g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[1].paddr =
-		mem_paddr + MAX_FRAME_BUF_SIZE * 7;
+		g_iar_dev->frambuf[IAR_CHANNEL_1].paddr + MAX_YUV_BUF_SIZE * 5;
 	g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[1].vaddr =
-		vaddr + MAX_FRAME_BUF_SIZE * 7;
+		g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr + MAX_YUV_BUF_SIZE * 5;
 
 	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_3].paddr = 0x%llx\n",
 				g_iar_dev->frambuf[IAR_CHANNEL_3].paddr);
@@ -3392,35 +3446,6 @@ static int hobot_iar_probe(struct platform_device *pdev)
 		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].vaddr);
 #endif
 #endif
-	ret = fb_get_options("hobot", &type);
-	pr_debug("%s: fb get options display type is %s\n", __func__, type);
-	if (type != NULL) {
-#ifdef CONFIG_HOBOT_XJ3
-		if (strncmp(type, "1080p", 5) == 0) {
-			display_type = MIPI_1080P;
-			pr_info("%s: panel type is MIPI_1080P\n", __func__);
-		} else if (strncmp(type, "720p", 4) == 0) {
-			display_type = MIPI_720P_TOUCH;
-			pr_info("%s: panel type is MIPI_720P_TOUCH\n", __func__);
-		} else if (strncmp(type, "lcd", 3) == 0) {
-			display_type = LCD_7_TYPE;
-			pr_info("%s: panel type is LCD_7_TYPE\n", __func__);
-		} else if (strncmp(type, "hdmi", 4) == 0) {
-			display_type = HDMI_TYPE;
-			pr_info("%s: panel type is HDMI_TYPE\n", __func__);
-		} else if (strncmp(type, "ipi", 3) == 0) {
-			pr_info("%s: panel type is SIF IPI\n", __func__);
-			display_type = SIF_IPI;
-		} else {
-			pr_err("wrong panel type!!!\n");
-		}
-#else
-		if (display_type == LCD_7_TYPE) {
-			if (strncmp(type, "mipi", 4) == 0)
-				display_type = MIPI_720P;
-		}
-#endif
-	}
 	if (display_type == LCD_7_TYPE) {
 		iar_display_cam_no = PIPELINE0;
 		iar_display_addr_type = DISPLAY_CHANNEL1;
