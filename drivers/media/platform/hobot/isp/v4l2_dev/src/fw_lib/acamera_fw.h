@@ -199,6 +199,7 @@ struct _acamera_firmware_t {
     uint8_t first_frame;
 
     volatile uint8_t *cache_area;
+    volatile uint8_t *backup_context;
     unsigned long dma_chn_bitmap;
     struct mutex ctx_chg_lock;
 

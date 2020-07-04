@@ -173,6 +173,11 @@ int acamera_fw_isp_stop(int ctx_id)
         fw_ptr->cache_area = NULL;
     }
 
+    if (fw_ptr->backup_context != NULL) {
+        vfree((void *)p_ctx->p_gfw->backup_context);
+        fw_ptr->backup_context = NULL;
+    }
+
 	if (!rc) {
 		pr_info("done.\n");
     }
@@ -591,7 +596,6 @@ int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settin
 {
     int32_t result = 0;
     char name[16] = {0};
-    static acamera_context_ptr_t p_ctx_tmp = NULL;
     struct sched_param param = { .sched_priority = MAX_RT_PRIO - 1 };
     // keep the context pointer for debug purposes
     p_ctx->context_ref = (uint32_t *)p_ctx;
@@ -617,10 +621,10 @@ int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settin
         pr_debug("alloc ddr ctx mem vaddr %p\n", p_ctx->sw_reg_map.isp_sw_config_map);
         memset((void *)p_ctx->sw_reg_map.isp_sw_config_map, 0, HOBOT_DMA_SRAM_ONE_ZONE);
         p_ctx->sw_reg_map.isp_sw_phy_addr = 0;
-        if (p_ctx_tmp != NULL && p_ctx_tmp->content_side == SIDE_SRAM)
-            memcpy_fromio((void *)p_ctx->sw_reg_map.isp_sw_config_map,
-                (void *)p_ctx_tmp->sw_reg_map.isp_sw_config_map, HOBOT_DMA_SRAM_ONE_ZONE);
-
+        if (p_ctx->p_gfw->backup_context) {
+            memcpy((void *)p_ctx->sw_reg_map.isp_sw_config_map,
+                (void *)p_ctx->p_gfw->backup_context, HOBOT_DMA_SRAM_ONE_ZONE);
+        }
         if (p_ctx->p_gfw->cache_area == NULL) {
             p_ctx->p_gfw->cache_area = vmalloc(HOBOT_DMA_SRAM_ONE_ZONE);
             if (p_ctx->p_gfw->cache_area == NULL) {
@@ -649,15 +653,34 @@ int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settin
                 return -1;
             }
 #endif
-            p_ctx_tmp = p_ctx;
-            pr_info("copy data from isp hw to sram %d\n", p_ctx->dma_chn_idx);
             p_ctx->content_side = SIDE_SRAM;
-            system_dma_copy_sg(g_fw->dma_chan_isp_config,
-                    ISP_CONFIG_PING, SYS_DMA_FROM_DEVICE, 0, p_ctx->dma_chn_idx);
+
+            //init one ctx's sram, copy from isp hw(first time init only)
+            if (p_ctx->p_gfw->initialized == 0) {
+                pr_info("copy data from isp hw to sram %d\n", p_ctx->dma_chn_idx);
+                system_dma_copy_sg(g_fw->dma_chan_isp_config,
+                        ISP_CONFIG_PING, SYS_DMA_FROM_DEVICE, 0, p_ctx->dma_chn_idx);
 #if FW_USE_HOBOT_DMA
-            isp_idma_start_transfer(&g_hobot_dma);
-            system_dma_wait_done(g_fw->dma_chan_isp_config);
+                isp_idma_start_transfer(&g_hobot_dma);
+                system_dma_wait_done(g_fw->dma_chan_isp_config);
 #endif
+                //save for other ctx initialized later
+                p_ctx->p_gfw->backup_context = vmalloc(HOBOT_DMA_SRAM_ONE_ZONE);
+                if (p_ctx->p_gfw->backup_context == NULL) {
+                    pr_err("backup_context alloc failed.\n");
+                    mutex_unlock(&p_ctx->p_gfw->ctx_chg_lock);
+                    return -1;
+                }
+                memset((void *)p_ctx->p_gfw->backup_context, 0, HOBOT_DMA_SRAM_ONE_ZONE);
+                memcpy_fromio((void *)p_ctx->p_gfw->backup_context,
+                    (void *)p_ctx->sw_reg_map.isp_sw_config_map, HOBOT_DMA_SRAM_ONE_ZONE);
+            } else {
+                if (p_ctx->p_gfw->backup_context) {
+                    pr_info("copy data from ddr to sram %d\n", p_ctx->dma_chn_idx);
+                    memcpy_toio((void *)p_ctx->sw_reg_map.isp_sw_config_map,
+                        (void *)p_ctx->p_gfw->backup_context, HOBOT_DMA_SRAM_ONE_ZONE);
+                }
+            }
         }
     }
 
