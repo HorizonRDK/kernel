@@ -83,6 +83,7 @@ struct vio_group {
 	u32 id;
 	u32 instance;
 	u32 sema_flag;
+	u32 target_sema;
 	bool get_timestamps;
 	bool leader;
 	u32 output_flag;

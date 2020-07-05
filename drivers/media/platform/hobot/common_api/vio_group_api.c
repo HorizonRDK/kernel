@@ -175,6 +175,7 @@ void vio_group_init(struct vio_group *group)
 	group->prev = group;
 	group->head = group;
 	group->frameid.frame_id = 0;
+	group->target_sema = 0x3;
 	atomic_set(&group->rcount, 0);
 	atomic_set(&group->node_refcount, 0);
 	for(i = 0; i < MAX_SUB_DEVICE; i++)
@@ -289,6 +290,13 @@ void vio_bind_group_done(int instance)
 		}
 	}
 
+	group = &ischain->group[GROUP_ID_SIF_IN];
+	if (group->next && group->next->next &&
+		test_bit(VIO_GROUP_DMA_OUTPUT, &group->next->state)) {
+		group->target_sema = 0x7;
+		vio_info("G1->G2->G3 case\n");
+	}
+
 	vio_info("Stream%d path: G0%s\n", group->instance, stream);
 }
 EXPORT_SYMBOL(vio_bind_group_done);
@@ -355,13 +363,19 @@ void vio_group_done(struct vio_group *group)
 	group_leader = group->head;
 	group_task = group_leader->gtask;
 
-	if (group->next == NULL)
+	if (group->next && group->head != group) {
+		group_leader->sema_flag |= 1 << 2;
+	}
+
+	if (group->next == NULL) {
 		group_leader->sema_flag |= 1 << 0;
+	}
 
-	if (group->head == group)
+	if (group->head == group) {
 		group_leader->sema_flag |= 1 << 1;
+	}
 
-	if(group_leader->sema_flag == 0x3) {
+	if(group_leader->sema_flag == group_leader->target_sema) {
 		up(&group_task->hw_resource);
 		group_leader->sema_flag = 0;
 		vio_dbg("[S%d][G%d]up hw_resource G%d\n", group->instance, group->id,
