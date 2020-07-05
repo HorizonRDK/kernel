@@ -551,6 +551,18 @@ void dma_writer_clear(uint32_t ctx_id)
 	dh->pipe[dma_fr].settings.done_frame.secondary.status = dma_buf_purge;
 	dh->pipe[dma_fr].settings.delay_frame.primary.status = dma_buf_purge;
 	dh->pipe[dma_fr].settings.delay_frame.secondary.status = dma_buf_purge;
+}
+
+void dma_writer_disable(uint32_t ctx_id)
+{
+	acamera_context_t *ptr = (acamera_context_t *)acamera_get_ctx_ptr(ctx_id);
+	acamera_fsm_mgr_t *fsm_mgr = &(ptr->fsm_mgr);
+	dma_writer_fsm_t *dma_fsm;
+	dma_handle *dh;
+
+	dma_fsm = (dma_writer_fsm_t *)fsm_mgr->fsm_arr[FSM_ID_DMA_WRITER]->p_fsm;
+
+	dh = (dma_handle *)dma_fsm->handle;
 
     //ping/pong dma writer disable write
     dh->pipe[dma_fr].primary.write_on_write_hw(0, 0);

@@ -239,6 +239,7 @@ fh_open_fail:
 }
 
 extern void isp_temper_free(general_fsm_ptr_t p_fsm);
+extern void dma_writer_disable(uint32_t ctx_id);
 static int isp_v4l2_fop_close( struct file *file )
 {
     int rc = 0;
@@ -305,6 +306,7 @@ static int isp_v4l2_fop_close( struct file *file )
     if (isp_open_check() == 0) {
         acamera_fw_isp_stop(dev->ctx_id);
         general_temper_disable();
+        dma_writer_disable(dev->ctx_id);
         ips_set_clk_ctrl(ISP0_CLOCK_GATE, false);
 #if FW_USE_HOBOT_DMA
         system_dma_desc_flush();
