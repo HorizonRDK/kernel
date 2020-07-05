@@ -55,9 +55,9 @@ typedef struct _dwe_context_t {
 	dframe_t dframes[FIRMWARE_CONTEXT_NUMBER];
 } dwe_context_t;
 
-int ldc_swparam_set(uint32_t port, ldc_param_s *pldc);
+int ldc_swparam_set(uint32_t port, ldc_param_s *pldc, uint32_t ctrl_enable);
 int ldc_swparam_get(uint32_t port, ldc_param_s *pldc);
-int dis_swparam_set(uint32_t port, dis_param_s *pdis);
+int dis_swparam_set(uint32_t port, dis_param_s *pdis, uint32_t ctrl_enable);
 int dis_swparam_get(uint32_t port, dis_param_s *pdis);
 int pattgen_param_set(uint32_t port, pg_param_s *ppg);
 int pattgen_param_get(uint32_t port, pg_param_s *ppg);

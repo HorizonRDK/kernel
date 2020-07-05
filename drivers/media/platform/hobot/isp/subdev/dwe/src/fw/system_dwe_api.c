@@ -184,7 +184,7 @@ extern int dis_set_ioctl(uint32_t port, uint32_t online);
 extern int ldc_set_ioctl(uint32_t port, uint32_t online);
 
 //driver <--> user  by chardev
-int ldc_swparam_set(uint32_t port, ldc_param_s *pldc)
+int ldc_swparam_set(uint32_t port, ldc_param_s *pldc, uint32_t ctrl_enable)
 {
 	int ret = 0;
 
@@ -217,7 +217,8 @@ int ldc_swparam_set(uint32_t port, ldc_param_s *pldc)
 	uint32_t temp = 1;
 	set_ldc_bypass(dev_ptr->ldc_dev->io_vaddr, &temp);
 #endif
-	ldc_set_ioctl(port, 1);
+        if (ctrl_enable)
+	        ldc_set_ioctl(port, 1);
 
 	LOG(LOG_DEBUG, "port is %d", port);
 
@@ -245,7 +246,7 @@ int ldc_swparam_get(uint32_t port, ldc_param_s *pldc)
 	return ret;
 }
 
-int dis_swparam_set(uint32_t port, dis_param_s *pdis)
+int dis_swparam_set(uint32_t port, dis_param_s *pdis, uint32_t ctrl_enable)
 {
 	int ret = 0;
 
@@ -274,7 +275,8 @@ int dis_swparam_set(uint32_t port, dis_param_s *pdis)
 		}
 	}
 #endif
-	dis_set_ioctl(port, 1);
+        if (ctrl_enable)
+	        dis_set_ioctl(port, 1);
 	return ret;
 }
 

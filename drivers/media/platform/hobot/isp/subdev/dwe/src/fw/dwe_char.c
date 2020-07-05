@@ -396,7 +396,11 @@ static long dwe_fop_ioctl(struct file *pfile, unsigned int cmd,
 			LOG(LOG_ERR, "copy is err !\n");
 			return -EINVAL;
 		}
-		ret = dis_swparam_set(dwe_cdev->port, &tmp_dis);
+	        if (pipe_count > 1) {
+		        ret = dis_swparam_set(dwe_cdev->port, &tmp_dis, 0);
+                } else {
+		        ret = dis_swparam_set(dwe_cdev->port, &tmp_dis, 1);
+                }
 	}
 		break;
 	case DWEC_GET_DIS_PARAM: {
@@ -424,7 +428,11 @@ static long dwe_fop_ioctl(struct file *pfile, unsigned int cmd,
 			LOG(LOG_ERR, "copy is err !\n");
 			return -EINVAL;
 		}
-		ret = ldc_swparam_set(dwe_cdev->port, &tmp_ldc);
+	        if (pipe_count > 1) {
+		        ret = ldc_swparam_set(dwe_cdev->port, &tmp_ldc, 0);
+                } else {
+		        ret = ldc_swparam_set(dwe_cdev->port, &tmp_ldc, 1);
+                }
 	}
 		break;
 	case DWEC_GET_LDC_PARAM: {
