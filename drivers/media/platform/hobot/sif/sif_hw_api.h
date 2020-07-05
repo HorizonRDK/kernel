@@ -16,6 +16,7 @@ void sif_set_ddr_output(u32 __iomem *base_reg, sif_output_ddr_t* p_ddr, u32 *enb
 void sif_hw_config(u32 __iomem *base_reg, sif_cfg_t* c);
 void sif_hw_disable(u32 __iomem *base_reg);
 void sif_hw_enable(u32 __iomem *base_reg);
+void sif_hw_post_config(u32 __iomem *base_reg, sif_cfg_t* c);
 void sif_disable_ipi(u32 __iomem *base_reg, u8 ipi_channel);
 
 void sif_get_frameid_timestamps(u32 __iomem *base_reg, u32 mux,

@@ -605,7 +605,7 @@ int sif_video_init(struct sif_video_ctx *sif_ctx, unsigned long arg)
 	struct x3_sif_dev *sif;
 	struct vio_group *group;
 	struct sif_subdev *subdev;
-	sif_cfg_t sif_config;
+	sif_cfg_t *sif_config;
 
 	if (!(sif_ctx->state & (BIT(VIO_VIDEO_S_INPUT) | BIT(VIO_VIDEO_REBUFS)))) {
 		vio_err("[%s][V%02d] invalid INIT is requested(%lX)",
@@ -617,13 +617,14 @@ int sif_video_init(struct sif_video_ctx *sif_ctx, unsigned long arg)
 
 	group = sif_ctx->group;
 	subdev = sif_ctx->subdev;
+	sif_config = &subdev->sif_cfg;
 	if (test_bit(SIF_SUBDEV_INIT, &subdev->state)) {
 		vio_info("subdev already init, current refcount(%d)\n",
 				atomic_read(&subdev->refcount));
 		return ret;
 	}
 
-	ret = copy_from_user((char *) &sif_config, (u32 __user *) arg,
+	ret = copy_from_user((char *) sif_config, (u32 __user *) arg,
 			   sizeof(sif_cfg_t));
 	if (ret)
 		return -EFAULT;
@@ -631,10 +632,10 @@ int sif_video_init(struct sif_video_ctx *sif_ctx, unsigned long arg)
 	sif = subdev->sif_dev;
 
 	if (sif_ctx->id == 0) {
-		ret = sif_mux_init(subdev, &sif_config);
+		ret = sif_mux_init(subdev, sif_config);
 	} else if (sif_ctx->id == 1) {
-		subdev->dol_num = sif_config.output.isp.dol_exp_num;
-		memcpy(&subdev->ddrin_fmt, &sif_config.input.ddr.data,
+		subdev->dol_num = sif_config->output.isp.dol_exp_num;
+		memcpy(&subdev->ddrin_fmt, &sif_config->input.ddr.data,
 			sizeof(sif_data_desc_t));
 
 		sif_set_isp_performance(sif->base_reg, sif->hblank);
@@ -762,6 +763,7 @@ int sif_video_streamon(struct sif_video_ctx *sif_ctx)
 	msleep(500);
 	mutex_lock(&sif_dev->shared_mutex);
 	sif_dev->error_count = 0;
+	sif_hw_post_config(sif_dev->base_reg, &subdev->sif_cfg);
 	sif_hw_enable(sif_dev->base_reg);
 	set_bit(SIF_HW_RUN, &sif_dev->state);
 	mutex_unlock(&sif_dev->shared_mutex);

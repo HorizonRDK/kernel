@@ -896,18 +896,6 @@ static void sif_set_mipi_rx(u32 __iomem *base_reg, sif_input_mipi_t* p_mipi,
 	if (p_mipi->func.enable_bypass) {
 		sif_config_bypass(base_reg, p_mipi->func.set_bypass_channels);
 	}
-
-	// FIXME: Workaround
-	vio_hw_set_field(base_reg, &sif_regs[SIF_OUT_BUF_FIFO_SIZE],
-			&sif_fields[SW_SIF_ISP0_PIC_FORMAT], p_mipi->data.format);
-	vio_hw_set_field(base_reg, &sif_regs[SIF_OUT_BUF_ISP0_CFG],
-			&sif_fields[SW_SIF_ISP0_PIX_LENGTH], p_mipi->data.pix_length);
-	vio_hw_set_field(base_reg, &sif_regs[SIF_OUT_BUF_ISP0_CFG],
-			&sif_fields[SW_SIF_ISP0_WIDTH], p_mipi->data.width);
-	vio_hw_set_field(base_reg, &sif_regs[SIF_OUT_BUF_ISP0_CFG],
-			&sif_fields[SW_SIF_ISP0_HEIGHT], p_mipi->data.height);
-
-	ips_set_md_resolution(p_mipi->data.width, p_mipi->data.height);
 }
 
 /*
@@ -1232,6 +1220,21 @@ void sif_hw_config(u32 __iomem *base_reg, sif_cfg_t* c)
 	// Multi-Frame Interrupt
 	sif_enable_multi_frame_id(base_reg);
 #endif
+}
+
+void sif_hw_post_config(u32 __iomem *base_reg, sif_cfg_t* c)
+{
+	sif_input_mipi_t* p_mipi;
+
+	p_mipi = &c->input.mipi;
+
+	vio_hw_set_field(base_reg, &sif_regs[SIF_OUT_BUF_FIFO_SIZE],
+			&sif_fields[SW_SIF_ISP0_PIC_FORMAT], p_mipi->data.format);
+
+	sif_config_rdma_fmt(base_reg, p_mipi->data.pix_length,
+			p_mipi->data.width, p_mipi->data.height);
+
+	ips_set_md_resolution(p_mipi->data.width, p_mipi->data.height);
 
 	// Output: ISP (from DDR / online)
 	sif_set_isp_output(base_reg, &c->output);
@@ -1243,7 +1246,6 @@ void sif_hw_config(u32 __iomem *base_reg, sif_cfg_t* c)
 	sif_set_md_output(base_reg, &c->output.md);
 
 	sif_set_ddr_input(base_reg, &c->input.ddr);
-
 }
 
 void sif_disable_ipi(u32 __iomem *base_reg, u8 ipi_channel)

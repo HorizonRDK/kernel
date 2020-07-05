@@ -211,6 +211,7 @@ struct sif_subdev {
 	struct vio_group 	*group;
 	struct x3_sif_dev 	*sif_dev;
 
+	sif_cfg_t sif_cfg;
 	u32 mux_index;
 	u32 ddr_mux_index;
 	u32 dol_num;
