@@ -17,6 +17,7 @@
 *
 */
 
+#include <linux/kernel.h>
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
 
@@ -41,6 +42,8 @@
 //#define DEBUG_METADATA_FSM
 #define MM_PROC_DIR   "hbmmst"
 
+extern void *acamera_get_ctx_ptr(uint32_t ctx_id);
+
 firmware_metadata_t g_fw_md[FIRMWARE_CONTEXT_NUMBER];
 static int ctx_id;
 
@@ -58,83 +61,94 @@ static void isp_proc_gain( struct seq_file *seq, const char *name, int32_t gain_
 
 static int isp_proc_show(struct seq_file *seq, void *v)
 {
-
-    firmware_metadata_t *md = &g_fw_md[ctx_id];
+    int i;
+    firmware_metadata_t *md;
     const char *modes[4] = {"Linear", "FS HDR", "Native HDR", "FS Linear"};
+    const char *cfa_pattern[4] = {"RGGB", "GRBG", "GBRG", "BGGR"};
+    acamera_context_t *p_ctx;
 
-    if (md->isp_mode > 3)
-        md->isp_mode = 0;
-    seq_printf(seq, "===ctx id %d===\n", ctx_id);
-    seq_printf(seq, "Format: %d\n", md->image_format );
-    seq_printf(seq, "Sensor bits: %d\n", md->sensor_bits );
-    seq_printf(seq, "RGGB start: %d\n", md->rggb_start );
-    seq_printf(seq, "ISP mode: %s\n", modes[md->isp_mode] );
-    seq_printf(seq, "FPS: %d.%02d\n", md->fps >> 8, ( ( md->fps & 0xFF ) * 100 ) >> 8 );
+    for (i = 0; i < FIRMWARE_CONTEXT_NUMBER; i++) {
 
-    seq_printf(seq, "Integration time: %d lines %lld.%02lld ms\n", md->int_time, md->int_time_ms / 100, md->int_time_ms % 100 );
-    seq_printf(seq, "Integration time medium: %d\n", md->int_time_medium );
-    seq_printf(seq, "Integration time long: %d\n", md->int_time_long );
-    isp_proc_gain( seq, "A", md->again );
-    isp_proc_gain( seq, "D", md->dgain );
-    isp_proc_gain( seq, "ISP", md->isp_dgain );
-    seq_printf(seq, "Equivalent Exposure: %d lines\n", acamera_math_exp2( md->exposure, LOG2_GAIN_SHIFT, 0 ) );
-    seq_printf(seq, "Exposure_log2: %d\n", md->exposure );
-    seq_printf(seq, "Gain_log2: %d\n", md->gain_log2 );
+        p_ctx = acamera_get_ctx_ptr(i);
+        if (p_ctx && p_ctx->initialized == 0)
+            continue;
 
-    seq_printf(seq, "Lens Position: %d\n", md->lens_pos );
+        md = &g_fw_md[i];
+        if (md->isp_mode > 3)
+            md->isp_mode = 0;
+        if (md->rggb_start > 3)
+            md->rggb_start = 0;
 
-    seq_printf(seq, "Antiflicker: %s\n", md->anti_flicker ? "on" : "off" );
+        seq_printf(seq, "===ctx id %d===\n", i);
+        // seq_printf(seq, "Format: %d\n", md->image_format );
+        seq_printf(seq, "Sensor width: %d\n", md->sensor_width);
+        seq_printf(seq, "Sensor height: %d\n", md->sensor_height);
+        seq_printf(seq, "Sensor bits: %d\n", md->sensor_bits );
+        seq_printf(seq, "RGGB start: %s\n", cfa_pattern[md->rggb_start] );
+        seq_printf(seq, "ISP mode: %s\n", modes[md->isp_mode] );
+        seq_printf(seq, "FPS: %d.%02d\n", md->fps >> 8, ( ( md->fps & 0xFF ) * 100 ) >> 8 );
 
-    seq_printf(seq, "Gain 00: %d\n", md->gain_00 );
-    seq_printf(seq, "Gain 01: %d\n", md->gain_01 );
-    seq_printf(seq, "Gain 10: %d\n", md->gain_10 );
-    seq_printf(seq, "Gain 11: %d\n", md->gain_11 );
-    seq_printf(seq, "Black Level 00: %d\n", md->black_level_00 );
-    seq_printf(seq, "Black Level 01: %d\n", md->black_level_01 );
-    seq_printf(seq, "Black Level 10: %d\n", md->black_level_10 );
-    seq_printf(seq, "Black Level 11: %d\n", md->black_level_11 );
+        seq_printf(seq, "Integration time: %d lines %lld.%02lld ms\n", md->int_time, md->int_time_ms / 100, md->int_time_ms % 100 );
+        seq_printf(seq, "Integration time medium: %d\n", md->int_time_medium );
+        seq_printf(seq, "Integration time long: %d\n", md->int_time_long );
+        isp_proc_gain( seq, "A", md->again );
+        isp_proc_gain( seq, "D", md->dgain );
+        isp_proc_gain( seq, "ISP", md->isp_dgain );
+        // seq_printf(seq, "Equivalent Exposure: %d lines\n", md->exposure_equiv );
+        seq_printf(seq, "Exposure_log2: %d\n", md->exposure );
+        // seq_printf(seq, "Gain_log2: %d\n", md->gain_log2 );
 
-    seq_printf(seq, "LSC table: %d\n", md->lsc_table );
-    seq_printf(seq, "LSC blend: %d\n", md->lsc_blend );
-    seq_printf(seq, "LSC Mesh strength: %d\n", md->lsc_mesh_strength );
+        seq_printf(seq, "Lens Position: %d\n", md->lens_pos );
 
-    seq_printf(seq, "AWB rg: %lld\n", md->awb_rgain );
-    seq_printf(seq, "AWB bg: %lld\n", md->awb_bgain );
-    seq_printf(seq, "AWB temperature: %lld\n", md->awb_cct );
+        seq_printf(seq, "Antiflicker: %s\n", md->anti_flicker ? "on" : "off" );
 
-    seq_printf(seq, "Sinter strength: %d\n", md->sinter_strength );
-    seq_printf(seq, "Sinter strength1: %d\n", md->sinter_strength1 );
-    seq_printf(seq, "Sinter strength4: %d\n", md->sinter_strength4 );
-    seq_printf(seq, "Sinter thresh1h: %d\n", md->sinter_thresh_1h );
-    seq_printf(seq, "Sinter thresh4h: %d\n", md->sinter_thresh_4h );
-    seq_printf(seq, "Sinter SAD: %d\n", md->sinter_sad );
+        seq_printf(seq, "WB Gain 00: %d\n", md->gain_00 );
+        seq_printf(seq, "WB Gain 01: %d\n", md->gain_01 );
+        seq_printf(seq, "WB Gain 10: %d\n", md->gain_10 );
+        seq_printf(seq, "WB Gain 11: %d\n", md->gain_11 );
+        seq_printf(seq, "Black Level 00: %d\n", md->black_level_00 );
+        seq_printf(seq, "Black Level 01: %d\n", md->black_level_01 );
+        seq_printf(seq, "Black Level 10: %d\n", md->black_level_10 );
+        seq_printf(seq, "Black Level 11: %d\n", md->black_level_11 );
 
-    seq_printf(seq, "Temper strength: %d\n", md->temper_strength );
+        seq_printf(seq, "LSC table: %d\n", md->lsc_table );
+        seq_printf(seq, "LSC blend: %d\n", md->lsc_blend );
+        seq_printf(seq, "LSC Mesh strength: %d\n", md->lsc_mesh_strength );
 
-    seq_printf(seq, "Iridix strength: %d\n", md->iridix_strength );
+        seq_printf(seq, "AWB rg: %lld\n", md->awb_rgain );
+        seq_printf(seq, "AWB bg: %lld\n", md->awb_bgain );
+        seq_printf(seq, "AWB temperature: %lld\n", md->awb_cct );
 
-    seq_printf(seq, "Dp threshold1: %d\n", md->dp_threash1 );
-    seq_printf(seq, "Dp slope1: %d\n", md->dp_slope1 );
-    seq_printf(seq, "Dp threshold2: %d\n", md->dp_threash2 );
-    seq_printf(seq, "Dp slope2: %d\n", md->dp_slope2 );
+        seq_printf(seq, "Sinter strength: %d\n", md->sinter_strength );
+        seq_printf(seq, "Sinter strength1: %d\n", md->sinter_strength1 );
+        seq_printf(seq, "Sinter strength4: %d\n", md->sinter_strength4 );
+        seq_printf(seq, "Sinter thresh1h: %d\n", md->sinter_thresh_1h );
+        seq_printf(seq, "Sinter thresh4h: %d\n", md->sinter_thresh_4h );
+        seq_printf(seq, "Sinter SAD: %d\n", md->sinter_sad );
 
-    seq_printf(seq, "Sharpening directional: %d\n", md->sharpening_directional );
-    seq_printf(seq, "Sharpening unidirectional: %d\n", md->sharpening_unidirectional );
-    seq_printf(seq, "Demosaic NP offset: %d\n", md->demosaic_np_offset );
+        seq_printf(seq, "Temper strength: %d\n", md->temper_strength );
 
-    seq_printf(seq, "FR sharpen strength: %d\n", md->fr_sharpern_strength );
-    seq_printf(seq, "DS1 sharpen strength: %d\n", md->ds1_sharpen_strength );
-    seq_printf(seq, "DS2 sharpen strength: %d\n", md->ds2_sharpen_strength );
+        seq_printf(seq, "Iridix strength: %d\n", md->iridix_strength );
 
-    seq_printf(seq, "CCM R_R: 0x%X\n", md->ccm[CCM_R][CCM_R] );
-    seq_printf(seq, "CCM R_G: 0x%X\n", md->ccm[CCM_R][CCM_G] );
-    seq_printf(seq, "CCM R_B: 0x%X\n", md->ccm[CCM_R][CCM_B] );
-    seq_printf(seq, "CCM G_R: 0x%X\n", md->ccm[CCM_G][CCM_R] );
-    seq_printf(seq, "CCM G_G: 0x%X\n", md->ccm[CCM_G][CCM_G] );
-    seq_printf(seq, "CCM G_B: 0x%X\n", md->ccm[CCM_G][CCM_B] );
-    seq_printf(seq, "CCM B_R: 0x%X\n", md->ccm[CCM_B][CCM_R] );
-    seq_printf(seq, "CCM B_G: 0x%X\n", md->ccm[CCM_B][CCM_G] );
-    seq_printf(seq, "CCM B_B: 0x%X\n", md->ccm[CCM_B][CCM_B] );
+        seq_printf(seq, "Dp threshold1: %d\n", md->dp_threash1 );
+        seq_printf(seq, "Dp slope1: %d\n", md->dp_slope1 );
+        seq_printf(seq, "Dp threshold2: %d\n", md->dp_threash2 );
+        seq_printf(seq, "Dp slope2: %d\n", md->dp_slope2 );
+
+        seq_printf(seq, "Demosaic NP offset: %d\n", md->demosaic_np_offset );
+
+        seq_printf(seq, "Sharpen strength: %d\n", md->fr_sharpern_strength );
+
+        seq_printf(seq, "CCM R_R: 0x%X\n", md->ccm[CCM_R][CCM_R] );
+        seq_printf(seq, "CCM R_G: 0x%X\n", md->ccm[CCM_R][CCM_G] );
+        seq_printf(seq, "CCM R_B: 0x%X\n", md->ccm[CCM_R][CCM_B] );
+        seq_printf(seq, "CCM G_R: 0x%X\n", md->ccm[CCM_G][CCM_R] );
+        seq_printf(seq, "CCM G_G: 0x%X\n", md->ccm[CCM_G][CCM_G] );
+        seq_printf(seq, "CCM G_B: 0x%X\n", md->ccm[CCM_G][CCM_B] );
+        seq_printf(seq, "CCM B_R: 0x%X\n", md->ccm[CCM_B][CCM_R] );
+        seq_printf(seq, "CCM B_G: 0x%X\n", md->ccm[CCM_B][CCM_G] );
+        seq_printf(seq, "CCM B_B: 0x%X\n", md->ccm[CCM_B][CCM_B] );
+    }
 
     return 0;
 }
@@ -242,11 +256,11 @@ void metadata_update_meta( metadata_fsm_t *p_fsm )
 
     // Basic info
     md->image_format = 1;
-    md->sensor_width = sensor_info.total_width;
-    md->sensor_height = sensor_info.total_height;
+    md->sensor_width = sensor_info.active_width;
+    md->sensor_height = sensor_info.active_height;
 
     md->sensor_bits = sensor_info.sensor_bits;
-    md->rggb_start = 0;
+    md->rggb_start = acamera_isp_top_rggb_start_pre_mirror_read(isp_base);
 
     md->isp_mode = wdr_mode;
     md->fps = fps;
@@ -257,7 +271,7 @@ void metadata_update_meta( metadata_fsm_t *p_fsm )
     acamera_fsm_mgr_get_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_GET_FRAME_EXPOSURE_SET, &frame, sizeof( frame ), &exp_set, sizeof( exp_set ) );
 
     md->int_time = exp_set.data.integration_time;
-    md->int_time_ms = ( md->int_time * 100000 / md->sensor_height ) * 256 / md->fps;
+    md->int_time_ms = DIV_ROUND_CLOSEST(100000, sensor_info.lines_per_second) * md->int_time;
     md->int_time_medium = exp_set.data.integration_time_medium;
     md->int_time_long = exp_set.data.integration_time_long;
     md->again = exp_set.info.again_log2;
@@ -285,18 +299,11 @@ void metadata_update_meta( metadata_fsm_t *p_fsm )
     md->gain_01 = acamera_isp_white_balance_gain_01_read( isp_base );
     md->gain_10 = acamera_isp_white_balance_gain_10_read( isp_base );
     md->gain_11 = acamera_isp_white_balance_gain_11_read( isp_base );
-#if 0
-    md->black_level_00 = (int)acamera_isp_offset_black_00_read( isp_base );
-    md->black_level_01 = (int)acamera_isp_offset_black_01_read( isp_base );
-    md->black_level_10 = (int)acamera_isp_offset_black_10_read( isp_base );
-    md->black_level_11 = (int)acamera_isp_offset_black_11_read( isp_base );
-#endif
 
-    //verify change of names
-    md->black_level_00 = (int)acamera_isp_gain_wdr_black_level_l_read( isp_base );
-    md->black_level_01 = (int)acamera_isp_gain_wdr_black_level_m_read( isp_base );
-    md->black_level_10 = (int)acamera_isp_gain_wdr_black_level_s_read( isp_base );
-    md->black_level_11 = (int)acamera_isp_gain_wdr_black_level_vs_read( isp_base );
+    md->black_level_00 = (int)acamera_isp_sensor_offset_pre_shading_offset_00_read( isp_base );
+    md->black_level_01 = (int)acamera_isp_sensor_offset_pre_shading_offset_01_read( isp_base );
+    md->black_level_10 = (int)acamera_isp_sensor_offset_pre_shading_offset_10_read( isp_base );
+    md->black_level_11 = (int)acamera_isp_sensor_offset_pre_shading_offset_11_read( isp_base );
 
     md->lsc_table = acamera_isp_mesh_shading_mesh_alpha_bank_r_read( isp_base );
     md->lsc_blend = shading_alpha;
@@ -329,7 +336,6 @@ void metadata_update_meta( metadata_fsm_t *p_fsm )
     md->demosaic_np_offset = acamera_isp_demosaic_rgb_np_offset_read( isp_base );
 
     md->fr_sharpern_strength = acamera_isp_fr_sharpen_strength_read( isp_base );
-    md->ds1_sharpen_strength = acamera_isp_ds1_sharpen_strength_read( isp_base );
 
     md->ccm[CCM_R][CCM_R] = acamera_isp_ccm_coefft_r_r_read( isp_base );
     md->ccm[CCM_R][CCM_G] = acamera_isp_ccm_coefft_r_g_read( isp_base );

@@ -431,6 +431,8 @@ void awb_set_new_param( AWB_fsm_ptr_t p_fsm, sbuf_awb_t *p_sbuf_awb )
     ACAMERA_FSM2CTX_PTR( p_fsm )
         ->stab.global_awb_blue_gain = p_sbuf_awb->awb_blue_gain;
 
+    p_fsm->avg_GR = p_sbuf_awb->awb_red_gain;
+    p_fsm->avg_GB = p_sbuf_awb->awb_blue_gain;
     p_fsm->temperature_detected = p_sbuf_awb->temperature_detected;
     p_fsm->light_source_candidate = p_sbuf_awb->light_source_candidate;
     p_fsm->p_high = p_sbuf_awb->p_high;

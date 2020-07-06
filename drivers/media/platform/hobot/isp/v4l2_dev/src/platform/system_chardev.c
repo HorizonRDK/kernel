@@ -109,6 +109,7 @@ extern void system_reg_rw(struct regs_t *rg, uint8_t dir);
 
 /* First item for ACT Control, second for user-FW */
 static struct isp_dev_context isp_dev_ctx;
+int isp_dev_mem_alloc(void);
 
 static int isp_fops_open( struct inode *inode, struct file *f )
 {
@@ -138,6 +139,17 @@ static int isp_fops_open( struct inode *inode, struct file *f )
         LOG( LOG_ERR, "Error: lock failed of dev: %s.", p_ctx->dev_name );
         goto lock_failure;
     }
+
+	if (p_ctx->dev_opened == 0) {
+		rc = isp_dev_mem_alloc();
+		if (rc) {
+			pr_err("ac_isp alloc mem failed. rc %d\n", rc);
+			mutex_unlock( &p_ctx->fops_lock );
+			return rc;
+		}
+
+		isp_ctx_queue_init();
+	}
 
     f->private_data = p_ctx;
     p_ctx->dev_opened++;
@@ -187,6 +199,15 @@ static int isp_fops_release( struct inode *inode, struct file *f )
         f->private_data = NULL;
         kfifo_reset( &p_ctx->isp_kfifo_in );
         kfifo_reset( &p_ctx->isp_kfifo_out );
+
+		//free ion memory
+		if (IS_ERR(isp_dev_ctx.client) == 0) {
+			if (IS_ERR(isp_dev_ctx.handle) == 0) {
+				ion_unmap_kernel(isp_dev_ctx.client, isp_dev_ctx.handle);
+				ion_free(isp_dev_ctx.client, isp_dev_ctx.handle);
+			}
+			ion_client_destroy(isp_dev_ctx.client);
+		}
     } else {
         pr_info("device name is %s, dev_opened reference count: %d.\n", p_ctx->dev_name, p_ctx->dev_opened);
     }
@@ -743,12 +764,6 @@ static int isp_dev_context_init( struct isp_dev_context *p_ctx )
     init_waitqueue_head( &p_ctx->kfifo_in_queue );
     init_waitqueue_head( &p_ctx->kfifo_out_queue );
 
-    rc = isp_dev_mem_alloc();
-    if (rc)
-	goto failed_kfifo_out_alloc;
-
-    isp_ctx_queue_init();
-
     p_ctx->dev_inited = 1;
 
     LOG( LOG_INFO, "isp_dev_context(%s) init OK.", p_ctx->dev_name );
@@ -851,14 +866,6 @@ int system_chardev_destroy( void )
         kfifo_free( &isp_dev_ctx.isp_kfifo_out );
 
         misc_deregister( &isp_dev_ctx.isp_dev );
-
-	if (IS_ERR(isp_dev_ctx.client) == 0) {
-		if (IS_ERR(isp_dev_ctx.handle) == 0) {
-			ion_unmap_kernel(isp_dev_ctx.client, isp_dev_ctx.handle);
-			ion_free(isp_dev_ctx.client, isp_dev_ctx.handle);
-		}
-		ion_client_destroy(isp_dev_ctx.client);
-	}
 
         LOG( LOG_INFO, "misc_deregister dev: %s.", isp_dev_ctx.dev_name );
     } else {
