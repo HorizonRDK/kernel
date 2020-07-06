@@ -1251,6 +1251,7 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 	} else if (cfg->out_sel == OUTPUT_MIPI_DSI) {
 #ifdef CONFIG_HOBOT_XJ3
 		//output config
+		disp_set_panel_timing(&video_720x1280_touch);
 		writel(0x8, g_iar_dev->regaddr + REG_IAR_DE_OUTPUT_SEL);//0x340
 		writel(0x13, g_iar_dev->regaddr + REG_DISP_LCDIF_CFG);//0x800
 		writel(0x3, g_iar_dev->regaddr + REG_DISP_LCDIF_PADC_RESET_N);//0x804

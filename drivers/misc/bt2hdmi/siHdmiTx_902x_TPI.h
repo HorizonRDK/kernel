@@ -1191,6 +1191,8 @@ void siHdmiTx_VideoSel(byte vmode, byte VideoFormat);
 void siHdmiTx_AudioSel(byte Afs);
 int siHdmiTx_ReConfig(unsigned short vmode,
 		unsigned short VideoFormat, unsigned short Afs);
+int disp_config_hdmi(unsigned short vmode,
+		unsigned short VideoFormat, unsigned short Afs);
 void OnHdmiCableConnected(void);
 void TXHAL_InitPostReset(void);
 #endif

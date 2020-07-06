@@ -4434,3 +4434,27 @@ int siHdmiTx_ReConfig(unsigned short vmode,
 	return 0;
 }
 EXPORT_SYMBOL_GPL(siHdmiTx_ReConfig);
+
+int disp_config_hdmi(unsigned short vmode,
+			unsigned short VideoFormat, unsigned short Afs)
+{
+	byte devID = 0x00;
+	word wID = 0x0000;
+
+	TXHAL_InitPostReset();
+	WriteByteTPI(0xF5, 0x00);
+	WriteByteTPI(TPI_ENABLE, 0x00);
+	devID = ReadIndexedRegister(INDEXED_PAGE_0, 0x03);
+	wID = devID;
+	wID <<= 8;
+	devID = ReadIndexedRegister(INDEXED_PAGE_0, 0x02);
+	wID |= devID;
+	devID = ReadByteTPI(TPI_DEVICE_ID);
+	if (wID != 0x9022 || devID != SII902XA_DEVICE_ID) {
+		pr_err("bt1120 to HDMI device:sii9022a is not exist!\n");
+		return -1;
+	}
+	siHdmiTx_ReConfig(vmode, VideoFormat, Afs);
+	return 0;
+}
+EXPORT_SYMBOL_GPL(disp_config_hdmi);

@@ -68,7 +68,7 @@
 #define IAR_GET_STOP_CNT       _IOR(IAR_CDEV_MAGIC, 0x43, unsigned int)
 unsigned int iar_open_cnt = 0;
 unsigned int iar_start_cnt = 0;
-extern int siHdmiTx_ReConfig(unsigned short vmode,
+extern int disp_config_hdmi(unsigned short vmode,
 		unsigned short VideoFormat, unsigned short Afs);
 
 typedef struct _update_cmd_t {
@@ -235,7 +235,7 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 	case HDMI_CONFIG:
 		 {
 			IAR_DEBUG_PRINT("HEMI_CONFIG \n");
-			ret = siHdmiTx_ReConfig(9, 4, 2);
+			ret = disp_config_hdmi(9, 4, 2);
 		}
 		break;
 	case IAR_STOP:
@@ -676,7 +676,7 @@ static ssize_t hobot_iar_store(struct kobject *kobj, struct kobj_attribute *attr
 		pr_info("iar start......\n");
 		iar_start(1);
 		if (display_type == HDMI_TYPE)
-			siHdmiTx_ReConfig(9, 4, 2);
+			disp_config_hdmi(9, 4, 2);
 	} else if (strncmp(tmp, "stop", 4) == 0) {
 		pr_info("iar stop......\n");
 		iar_stop();
@@ -774,7 +774,7 @@ static ssize_t hobot_iar_store(struct kobject *kobj, struct kobj_attribute *attr
 		display_type = HDMI_TYPE;
 		user_set_fb();
 		iar_start(1);
-		siHdmiTx_ReConfig(9, 4, 2);
+		disp_config_hdmi(9, 4, 2);
 	} else if (strncmp(buf, "enable", 6) == 0) {
 		tmp = buf + 6;
 		ret = kstrtoul(tmp, 0, &tmp_value);
