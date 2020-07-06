@@ -48,6 +48,11 @@ struct soc_sensor_ioctl_args {
             uint32_t val_in2; // second input value
             uint32_t val_out; // output value
         } general;
+        //send gain
+        struct {
+            uint32_t *gain_ptr;
+            uint32_t gain_num;
+        } gain;
     } args;
 };
 

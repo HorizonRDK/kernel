@@ -167,12 +167,10 @@ static long camera_ioctl( struct v4l2_subdev *sd, unsigned int cmd, void *arg )
 						ARGS_TO_PTR( arg )->args.general.val_in2 );
         break;
     case SOC_SENSOR_ALLOC_AGAIN:
-        ARGS_TO_PTR( arg )
-            ->args.general.val_out = ctx->camera_control.alloc_analog_gain( ctx->camera_context, ARGS_TO_PTR( arg )->args.general.val_in );
+        ctx->camera_control.alloc_analog_gain( ctx->camera_context, ARGS_TO_PTR( arg )->args.gain.gain_ptr, ARGS_TO_PTR( arg )->args.gain.gain_num);
         break;
     case SOC_SENSOR_ALLOC_DGAIN:
-        ARGS_TO_PTR( arg )
-            ->args.general.val_out = ctx->camera_control.alloc_digital_gain( ctx->camera_context, ARGS_TO_PTR( arg )->args.general.val_in );
+        ctx->camera_control.alloc_digital_gain( ctx->camera_context, ARGS_TO_PTR( arg )->args.gain.gain_ptr, ARGS_TO_PTR( arg )->args.gain.gain_num);
         break;
     case SOC_SENSOR_ALLOC_IT:
         ctx->camera_control.alloc_integration_time( ctx->camera_context, &ARGS_TO_PTR( arg )->args.integration_time.it_short, &ARGS_TO_PTR( arg )->args.integration_time.it_medium, &ARGS_TO_PTR( arg )->args.integration_time.it_long );

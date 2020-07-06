@@ -111,11 +111,28 @@ typedef struct _fsm_param_sensor_int_time_ {
     uint16_t int_time_L;
 } fsm_param_sensor_int_time_t;
 
+typedef struct _fsm_param_sensor_gain_ {
+    int32_t gain_ptr[4];
+    uint32_t gain_num;
+} fsm_param_sensor_gain_t;
+
+typedef struct _ae_out_info_ {
+        uint32_t line[4];
+        uint32_t line_num;
+        uint32_t sensor_again[4];
+        uint32_t sensor_again_num;
+        uint32_t sensor_dgain[4];
+        uint32_t sensor_dgain_num;
+        uint32_t isp_dgain;
+} ae_out_info_t;
 
 typedef struct _fsm_param_exposure_target_ {
     int32_t exposure_log2;
     uint32_t exposure_ratio;
     uint32_t frame_id_tracking;
+    ae_out_info_t ae_out_info;
+    uint16_t external_ae_enable;
+    uint16_t sensor_ctrl_enable;
 } fsm_param_exposure_target_t;
 
 typedef struct _fsm_param_crop_info_ {

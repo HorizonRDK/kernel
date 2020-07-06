@@ -30,7 +30,7 @@
 
 
 #if defined( CUR_MOD_NAME)
-#undef CUR_MOD_NAME 
+#undef CUR_MOD_NAME
 #define CUR_MOD_NAME LOG_MODULE_CMOS
 #else
 #define CUR_MOD_NAME LOG_MODULE_CMOS
@@ -239,49 +239,67 @@ void cmos_alloc_integration_time( cmos_fsm_ptr_t p_fsm, int32_t int_time )
     p_fsm->integration_time_short = new_integration_time_short;
 }
 
-int32_t cmos_alloc_sensor_analog_gain( cmos_fsm_ptr_t p_fsm, int32_t gain )
+int32_t cmos_alloc_sensor_analog_gain( cmos_fsm_ptr_t p_fsm, int32_t *gain_ptr, uint32_t gain_num)
 {
-    cmos_control_param_t *param = (cmos_control_param_t *)_GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_CMOS_CONTROL );
+    fsm_param_sensor_gain_t gain;
 
-    if ( gain < 0 ) {
-        return 0;
+    if ((gain_ptr == NULL) || (gain_num > 4)) {
+            LOG(LOG_ERR, "param is err");
+            return 0;
     }
+    memcpy(gain.gain_ptr, gain_ptr, sizeof(int32_t) * gain_num);
+    gain.gain_num = gain_num;
 
-    fsm_param_sensor_info_t sensor_info;
-    acamera_fsm_mgr_get_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_GET_SENSOR_INFO, NULL, 0, &sensor_info, sizeof( sensor_info ) );
+    if (gain_num == 1) {
+        cmos_control_param_t *param = (cmos_control_param_t *)_GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_CMOS_CONTROL );
 
-    int32_t max_gain = param->global_max_sensor_analog_gain << ( LOG2_GAIN_SHIFT - 5 );
-    if ( gain > max_gain ) {
-        gain = max_gain;
+        fsm_param_sensor_info_t sensor_info;
+        acamera_fsm_mgr_get_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_GET_SENSOR_INFO, NULL, 0, &sensor_info, sizeof( sensor_info ) );
+
+        int32_t max_gain = param->global_max_sensor_analog_gain << ( LOG2_GAIN_SHIFT - 5 );
+        if ( gain.gain_ptr[0] > max_gain ) {
+            gain.gain_ptr[0] = max_gain;
+        }
     }
 
     acamera_fsm_mgr_set_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_SET_SENSOR_ALLOC_ANALOG_GAIN, &gain, sizeof( gain ) );
+    memcpy(gain_ptr, gain.gain_ptr, sizeof(int32_t) * gain_num);
 
     // gain will be changed inside function, so we can return gain as the real gain.
-    return gain;
+    return gain.gain_ptr[0];
 }
 
-int32_t cmos_alloc_sensor_digital_gain( cmos_fsm_ptr_t p_fsm, int32_t gain )
+int32_t cmos_alloc_sensor_digital_gain( cmos_fsm_ptr_t p_fsm, int32_t *gain_ptr, uint32_t gain_num)
 {
-    cmos_control_param_t *param = (cmos_control_param_t *)_GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_CMOS_CONTROL );
-    if ( gain < 0 ) {
-        return 0;
+    fsm_param_sensor_gain_t gain;
+
+    if ((gain_ptr == NULL) || (gain_num > 4)) {
+            LOG(LOG_ERR, "param is err");
+            return 0;
     }
+    memcpy(gain.gain_ptr, gain_ptr, sizeof(int32_t) * gain_num);
+    gain.gain_num = gain_num;
 
-    fsm_param_sensor_info_t sensor_info;
-    acamera_fsm_mgr_get_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_GET_SENSOR_INFO, NULL, 0, &sensor_info, sizeof( sensor_info ) );
+    if (gain_num == 1) {
+        cmos_control_param_t *param = (cmos_control_param_t *)_GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_CMOS_CONTROL );
 
-    int32_t max_gain = MIN( sensor_info.dgain_log2_max, (int32_t)param->global_max_sensor_digital_gain << ( LOG2_GAIN_SHIFT - 5 ) );
-    if ( gain > max_gain ) {
-        gain = max_gain;
+        fsm_param_sensor_info_t sensor_info;
+        acamera_fsm_mgr_get_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_GET_SENSOR_INFO, NULL, 0, &sensor_info, sizeof( sensor_info ) );
+
+        int32_t max_gain = MIN( sensor_info.dgain_log2_max, (int32_t)param->global_max_sensor_digital_gain << ( LOG2_GAIN_SHIFT - 5 ) );
+        if ( gain.gain_ptr[0] > max_gain ) {
+            gain.gain_ptr[0] = max_gain;
+        }
     }
 
     acamera_fsm_mgr_set_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_SET_SENSOR_ALLOC_DIGITAL_GAIN, &gain, sizeof( gain ) );
+    memcpy(gain_ptr, gain.gain_ptr, sizeof(int32_t) * gain_num);
 
-    if ( gain < 0 ) {
-        gain = 0; // special mode like native HDR
+    if ( gain.gain_ptr[0] < 0 ) {
+        gain.gain_ptr[0] = 0; // special mode like native HDR
     }
-    return gain;
+
+    return gain.gain_ptr[0];
 }
 
 int32_t cmos_alloc_isp_digital_gain( cmos_fsm_ptr_t p_fsm, int32_t gain )
@@ -302,22 +320,26 @@ int32_t cmos_alloc_isp_digital_gain( cmos_fsm_ptr_t p_fsm, int32_t gain )
 
 int32_t cmos_get_manual_again_log2( cmos_fsm_ptr_t p_fsm )
 {
+    int32_t gain[4] = {0};
+    int32_t ret = -1;
     cmos_control_param_t *param = (cmos_control_param_t *)_GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_CMOS_CONTROL );
     if ( param->global_manual_sensor_analog_gain ) {
-        int32_t gain = param->global_sensor_analog_gain << ( LOG2_GAIN_SHIFT - 5 );
-        return cmos_alloc_sensor_analog_gain( p_fsm, gain );
+        gain[0] = param->global_sensor_analog_gain << ( LOG2_GAIN_SHIFT - 5 );
+        ret = cmos_alloc_sensor_analog_gain( p_fsm, gain, 1);
     }
-    return -1; // negative means it is not manual
+    return ret; // negative means it is not manual
 }
 
 int32_t cmos_get_manual_dgain_log2( cmos_fsm_ptr_t p_fsm )
 {
+    int32_t gain[4] = {0};
+    int32_t ret = -1;
     cmos_control_param_t *param = (cmos_control_param_t *)_GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_CMOS_CONTROL );
     if ( param->global_manual_sensor_digital_gain ) {
-        int32_t gain = ( param->global_sensor_digital_gain << ( LOG2_GAIN_SHIFT - 5 ) );
-        return cmos_alloc_sensor_digital_gain( p_fsm, gain );
+        gain[0] = ( param->global_sensor_digital_gain << ( LOG2_GAIN_SHIFT - 5 ) );
+        ret = cmos_alloc_sensor_digital_gain( p_fsm, gain, 1);
     }
-    return -1; // negative means it is not manual
+    return ret; // negative means it is not manual
 }
 
 int32_t cmos_get_manual_isp_dgain_log2( cmos_fsm_ptr_t p_fsm )
@@ -373,7 +395,7 @@ static void cmos_store_frame_exposure_set( cmos_fsm_ptr_t p_fsm, exposure_set_t 
         switch ( sensor_info.isp_exposure_channel_delay ) {
         case 1:
             prev_again = cmos_get_frame_exposure_set( (cmos_fsm_ptr_t)p_fsm, sensor_info.integration_time_apply_delay )->info.again_log2;
-            p_set->data.exposure_ratio_medium2 = 64 * (uint32_t)p_fsm->integration_time_long / p_fsm->integration_time_medium2 * acamera_math_exp2( prev_again - p_fsm->again_val_log2, LOG2_GAIN_SHIFT, 8 ) >> 8;
+            p_set->data.exposure_ratio_medium2 = 64 * (uint32_t)p_fsm->integration_time_long / p_fsm->integration_time_medium2 * acamera_math_exp2( prev_again - p_fsm->again_val_log2[0], LOG2_GAIN_SHIFT, 8 ) >> 8;
             break;
         default:
             p_set->data.exposure_ratio_medium2 = 64 * (uint32_t)p_fsm->integration_time_long / p_fsm->integration_time_medium2;
@@ -388,7 +410,7 @@ static void cmos_store_frame_exposure_set( cmos_fsm_ptr_t p_fsm, exposure_set_t 
         switch ( sensor_info.isp_exposure_channel_delay ) {
         case 1:
             prev_again = cmos_get_frame_exposure_set( (cmos_fsm_ptr_t)p_fsm, sensor_info.integration_time_apply_delay )->info.again_log2;
-            p_set->data.exposure_ratio_medium = 64 * (uint32_t)p_fsm->integration_time_long / p_fsm->integration_time_medium * acamera_math_exp2( prev_again - p_fsm->again_val_log2, LOG2_GAIN_SHIFT, 8 ) >> 8;
+            p_set->data.exposure_ratio_medium = 64 * (uint32_t)p_fsm->integration_time_long / p_fsm->integration_time_medium * acamera_math_exp2( prev_again - p_fsm->again_val_log2[0], LOG2_GAIN_SHIFT, 8 ) >> 8;
             break;
         default:
             p_set->data.exposure_ratio_medium = 64 * (uint32_t)p_fsm->integration_time_long / p_fsm->integration_time_medium;
@@ -401,7 +423,7 @@ static void cmos_store_frame_exposure_set( cmos_fsm_ptr_t p_fsm, exposure_set_t 
         switch ( sensor_info.isp_exposure_channel_delay ) {
         case 1:
             prev_again = cmos_get_frame_exposure_set( (cmos_fsm_ptr_t)p_fsm, sensor_info.integration_time_apply_delay )->info.again_log2;
-            p_set->data.exposure_ratio = 64 * (uint32_t)p_fsm->integration_time_long / p_fsm->integration_time_short * acamera_math_exp2( prev_again - p_fsm->again_val_log2, LOG2_GAIN_SHIFT, 8 ) >> 8;
+            p_set->data.exposure_ratio = 64 * (uint32_t)p_fsm->integration_time_long / p_fsm->integration_time_short * acamera_math_exp2( prev_again - p_fsm->again_val_log2[0], LOG2_GAIN_SHIFT, 8 ) >> 8;
             break;
         default:
             p_set->data.exposure_ratio = 64 * (uint32_t)p_fsm->integration_time_long / p_fsm->integration_time_short;
@@ -413,8 +435,8 @@ static void cmos_store_frame_exposure_set( cmos_fsm_ptr_t p_fsm, exposure_set_t 
     }
 
 
-    p_set->info.again_log2 = p_fsm->again_val_log2;
-    p_set->info.dgain_log2 = p_fsm->dgain_val_log2;
+    p_set->info.again_log2 = p_fsm->again_val_log2[0];
+    p_set->info.dgain_log2 = p_fsm->dgain_val_log2[0];
     p_set->info.isp_dgain_log2 = p_fsm->isp_dgain_log2;
     // update exposure for this frame
     p_set->info.exposure_log2 = p_set->info.again_log2 + p_set->info.dgain_log2 + p_set->info.isp_dgain_log2;
@@ -463,10 +485,10 @@ void cmos_update_exposure_history( cmos_fsm_ptr_t p_fsm )
 #endif
     }
     if ( !param->global_manual_sensor_analog_gain ) {
-        param->global_sensor_analog_gain = ( p_fsm->again_val_log2 >> ( LOG2_GAIN_SHIFT - 5 ) );
+        param->global_sensor_analog_gain = ( p_fsm->again_val_log2[0] >> ( LOG2_GAIN_SHIFT - 5 ) );
     }
     if ( !param->global_manual_sensor_digital_gain ) {
-        param->global_sensor_digital_gain = ( p_fsm->dgain_val_log2 >> ( LOG2_GAIN_SHIFT - 5 ) );
+        param->global_sensor_digital_gain = ( p_fsm->dgain_val_log2[0] >> ( LOG2_GAIN_SHIFT - 5 ) );
     }
     if ( !param->global_manual_isp_digital_gain ) {
         param->global_isp_digital_gain = ( p_fsm->isp_dgain_log2 >> ( LOG2_GAIN_SHIFT - 5 ) );
@@ -635,7 +657,9 @@ void cmos_fsm_process_interrupt( cmos_fsm_const_ptr_t p_fsm, uint8_t irq_event )
             ( (cmos_fsm_ptr_t)p_fsm )->exp_write_set = exp_set;
 
             if ( ( ACAMERA_FSM2CTX_PTR( p_fsm )->stab.global_freeze_firmware != 1 ) ) {
-                acamera_fsm_mgr_set_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_SET_SENSOR_UPDATE, NULL, 0 );
+                    if (p_fsm->sensor_ctrl_enable) {
+                        acamera_fsm_mgr_set_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_SET_SENSOR_UPDATE, NULL, 0 );
+                    }
 
                 // frame_id should not be 0, at the beginning, it's initialized to 0 and we should skip it.
                 if ( ( p_fsm->prev_ae_frame_id_tracking != exp_set.frame_id_tracking ) && ( exp_set.frame_id_tracking != 0 ) ) {
@@ -664,7 +688,7 @@ void cmos_fsm_process_interrupt( cmos_fsm_const_ptr_t p_fsm, uint8_t irq_event )
         }
 
         p_status_info->sys_info.exposure_log2 = p_fsm->exposure_log2;
-        p_status_info->sys_info.total_gain_log2 = p_fsm->again_val_log2 + p_fsm->dgain_val_log2 + p_fsm->isp_dgain_log2;
+        p_status_info->sys_info.total_gain_log2 = p_fsm->again_val_log2[0] + p_fsm->dgain_val_log2[0] + p_fsm->isp_dgain_log2;
 
         cmos_mointor_frame_start( (cmos_fsm_ptr_t)p_fsm );
 
@@ -891,6 +915,7 @@ void cmos_inttime_update( cmos_fsm_ptr_t p_fsm )
 void cmos_analog_gain_update( cmos_fsm_ptr_t p_fsm )
 {
     int32_t target_gain = p_fsm->target_gain_log2;
+    int32_t t_gain[4] = {0};
     cmos_control_param_t *param = (cmos_control_param_t *)_GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_CMOS_CONTROL );
 
     uint32_t wdr_mode = 0;
@@ -901,8 +926,9 @@ void cmos_analog_gain_update( cmos_fsm_ptr_t p_fsm )
             // automatic sensor digital gain goes before analog gain
             if ( cmos_get_manual_dgain_log2( p_fsm ) < 0 ) // negative means it is not manual
             {
-                p_fsm->dgain_val_log2 = cmos_alloc_sensor_digital_gain( p_fsm, target_gain );
-                target_gain -= p_fsm->dgain_val_log2;
+                t_gain[0] = target_gain;
+                p_fsm->dgain_val_log2[0] = cmos_alloc_sensor_digital_gain( p_fsm, t_gain, 1);
+                target_gain -= p_fsm->dgain_val_log2[0];
             }
             // analog gain has reserve before achieving maximum
             if ( cmos_get_manual_isp_dgain_log2( p_fsm ) < 0 ) // negative means it is not manual
@@ -928,16 +954,149 @@ void cmos_analog_gain_update( cmos_fsm_ptr_t p_fsm )
             gain = 0;
         }
     }
-    int32_t again = cmos_alloc_sensor_analog_gain( p_fsm, gain );
+    t_gain[0] = gain;
+    int32_t again = cmos_alloc_sensor_analog_gain( p_fsm, t_gain, 1);
+    p_fsm->again_val_log2[0] = again;
     if ( !param->global_manual_sensor_analog_gain &&
-         ( again != p_fsm->again_val_log2 ) ) {
-        if ( ( gain > p_fsm->again_val_log2 - again_accuracy ) &&
-             ( gain < p_fsm->again_val_log2 + again_accuracy ) ) {
-            again = cmos_alloc_sensor_analog_gain( p_fsm, p_fsm->again_val_log2 );
+         ( again != p_fsm->again_val_log2[0] ) ) {
+        if ( ( gain > p_fsm->again_val_log2[0] - again_accuracy ) &&
+             ( gain < p_fsm->again_val_log2[0] + again_accuracy ) ) {
+            again = cmos_alloc_sensor_analog_gain( p_fsm, p_fsm->again_val_log2, 1);
         }
     }
-    p_fsm->again_val_log2 = again;
+    p_fsm->again_val_log2[0] = again;
     pr_debug("target_gain %d, again_accuracy %d ", target_gain, again_accuracy);
+}
+
+void cmos_exposure_update_extern_ae( cmos_fsm_ptr_t p_fsm )
+{
+    fsm_param_sensor_int_time_t time;
+
+    fsm_param_sensor_info_t sensor_info;
+    acamera_fsm_mgr_get_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_GET_SENSOR_INFO, NULL, 0, &sensor_info, sizeof( sensor_info ) );
+
+    cmos_control_param_t *param = (cmos_control_param_t *)_GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_CMOS_CONTROL );
+    uint32_t exposure_ratio, integration_time_long;
+    uint32_t wdr_mode = 0;
+
+    acamera_fsm_mgr_get_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_GET_WDR_MODE, NULL, 0, &wdr_mode, sizeof( wdr_mode ) );
+
+    if (1) {
+        uint32_t integration_time_long_max = sensor_info.integration_time_long_max;
+        if ( !integration_time_long_max ) {
+            uint32_t integration_time_long_max = sensor_info.integration_time_limit;
+
+            if ( param->global_manual_max_integration_time && integration_time_long_max > param->global_max_integration_time ) {
+                integration_time_long_max = param->global_max_integration_time;
+            }
+        }
+        exposure_ratio = p_fsm->exposure_ratio_in;
+        if ( exposure_ratio < 64 ) {
+            exposure_ratio = 64;
+        }
+
+        integration_time_long = (uint32_t)p_fsm->integration_time_short * exposure_ratio >> 6;
+        if ( integration_time_long > 0xFFFF )
+            integration_time_long = 0xFFFF;
+
+        if ( sensor_info.sensor_exp_number == 4 ) {
+
+            time.int_time = p_fsm->ae_out_info.line[0];
+            time.int_time_M = p_fsm->ae_out_info.line[1];
+            time.int_time_M2 = p_fsm->ae_out_info.line[2];
+            time.int_time_L = p_fsm->ae_out_info.line[3];
+
+            acamera_fsm_mgr_set_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_SET_SENSOR_ALLOC_INTEGRATION_TIME, &time, sizeof( time ) );
+
+            // time is updated in above function, save it.
+            p_fsm->integration_time_short = time.int_time;
+            p_fsm->integration_time_medium = time.int_time_M;
+            p_fsm->integration_time_medium2 = time.int_time_M2;
+            p_fsm->integration_time_long = time.int_time_L;
+
+        } else if ( sensor_info.sensor_exp_number == 3 ) {
+
+            time.int_time = p_fsm->ae_out_info.line[0];
+            time.int_time_M = p_fsm->ae_out_info.line[1];
+            time.int_time_M2 = p_fsm->ae_out_info.line[2];
+            pr_debug(" short %d medium %d long %d", p_fsm->integration_time_short, p_fsm->integration_time_medium, p_fsm->integration_time_long );
+
+            acamera_fsm_mgr_set_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_SET_SENSOR_ALLOC_INTEGRATION_TIME, &time, sizeof( time ) );
+
+            // time is updated in above function, save it.
+            p_fsm->integration_time_short = time.int_time;
+            p_fsm->integration_time_medium = time.int_time_M;
+            p_fsm->integration_time_long = time.int_time_L;
+
+        } else if ( sensor_info.sensor_exp_number == 2 ) {
+            time.int_time = p_fsm->ae_out_info.line[0];
+            time.int_time_M = p_fsm->ae_out_info.line[1];
+
+            acamera_fsm_mgr_set_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_SET_SENSOR_ALLOC_INTEGRATION_TIME, &time, sizeof( time ) );
+
+            // time is updated in above function, save it.
+            p_fsm->integration_time_short = time.int_time;
+            p_fsm->integration_time_long = time.int_time_L;
+
+        } else {
+            time.int_time = p_fsm->ae_out_info.line[0];
+
+            LOG(LOG_DEBUG, " short %d limit short %d", time.int_time, p_fsm->integration_time_short);
+            acamera_fsm_mgr_set_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_SET_SENSOR_ALLOC_INTEGRATION_TIME, &time, sizeof( time ) );
+
+            // time is updated in above function, save it.
+            if ( is_short_exposure_frame( p_fsm->cmn.isp_base ) )
+                p_fsm->integration_time_short = time.int_time;
+            else
+                p_fsm->integration_time_long = time.int_time;
+        }
+
+        p_fsm->exposure_ratio = ( uint16_t )( 64 * (uint32_t)p_fsm->integration_time_long / p_fsm->integration_time_short );
+    }
+}
+
+void cmos_gain_update_extern_ae( cmos_fsm_ptr_t p_fsm )
+{
+    int32_t sgain = ANALOG_GAIN_ACCURACY;
+    int32_t gain = ANALOG_GAIN_ACCURACY;
+
+    fsm_param_sensor_info_t sensor_info;
+    acamera_fsm_mgr_get_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_GET_SENSOR_INFO, NULL, 0, &sensor_info, sizeof( sensor_info ) );
+    //gain
+    if (p_fsm->ae_out_info.sensor_again_num > 4)
+            p_fsm->ae_out_info.sensor_again_num = 4;
+
+    if (p_fsm->ae_out_info.sensor_dgain_num > 4)
+            p_fsm->ae_out_info.sensor_dgain_num = 4;
+
+    //save info
+    memcpy(p_fsm->again_val_log2, p_fsm->ae_out_info.sensor_again, sizeof(p_fsm->again_val_log2));
+    memcpy(p_fsm->dgain_val_log2, p_fsm->ae_out_info.sensor_dgain, sizeof(p_fsm->dgain_val_log2));
+
+    gain = cmos_get_manual_again_log2( p_fsm );
+    if (gain > 0) {
+            p_fsm->again_val_log2[0] = gain;
+    }
+    cmos_alloc_sensor_analog_gain( p_fsm, p_fsm->again_val_log2, p_fsm->ae_out_info.sensor_again_num);
+
+    gain = cmos_get_manual_dgain_log2( p_fsm );
+    if (gain > 0) {
+            p_fsm->dgain_val_log2[0] = gain;
+    }
+    cmos_alloc_sensor_digital_gain( p_fsm, p_fsm->dgain_val_log2, p_fsm->ae_out_info.sensor_dgain_num);
+
+    gain = cmos_get_manual_isp_dgain_log2( p_fsm );
+    if ( gain < 0 ) // negative means it is not manual
+    {
+        //manual gain is disable
+        gain = p_fsm->ae_out_info.isp_dgain;
+    } else {
+        p_fsm->isp_dgain_log2 = gain;
+    }
+    sgain = cmos_alloc_isp_digital_gain( p_fsm, gain);
+    p_fsm->isp_dgain_log2 = sgain;
+
+    LOG( LOG_INFO, "again %d, dgain %d, isp_dgain %d", p_fsm->again_val_log2[0], p_fsm->dgain_val_log2[0], p_fsm->isp_dgain_log2);
 }
 
 void cmos_digital_gain_update( cmos_fsm_ptr_t p_fsm )
@@ -947,16 +1106,17 @@ void cmos_digital_gain_update( cmos_fsm_ptr_t p_fsm )
     if ( gain < 0 ) // negative means it is not manual
     {
         // we should set the rest gain to make target_gain equals analogue_gain x digital_gain
-        gain = cmos_alloc_sensor_digital_gain( p_fsm, p_fsm->target_gain_log2 - p_fsm->again_val_log2 );
+        p_fsm->dgain_val_log2[0] = p_fsm->target_gain_log2 - p_fsm->again_val_log2[0];
+        gain = cmos_alloc_sensor_digital_gain( p_fsm, p_fsm->dgain_val_log2, 1);
     }
-    p_fsm->dgain_val_log2 = gain;
+    p_fsm->dgain_val_log2[0] = gain;
     gain = cmos_get_manual_isp_dgain_log2( p_fsm );
     if ( gain < 0 ) // negative means it is not manual
     {
-        gain = cmos_alloc_isp_digital_gain( p_fsm, p_fsm->target_gain_log2 - p_fsm->again_val_log2 - p_fsm->dgain_val_log2 );
+        gain = cmos_alloc_isp_digital_gain( p_fsm, p_fsm->target_gain_log2 - p_fsm->again_val_log2[0] - p_fsm->dgain_val_log2[0] );
     }
     p_fsm->isp_dgain_log2 = gain;
-    LOG( LOG_INFO, "again %d, dgain %d, isp_dgain %d", p_fsm->again_val_log2, p_fsm->dgain_val_log2, p_fsm->isp_dgain_log2);
+    LOG( LOG_INFO, "again %d, dgain %d, isp_dgain %d", p_fsm->again_val_log2[0], p_fsm->dgain_val_log2[0], p_fsm->isp_dgain_log2);
 }
 
 uint32_t get_quantised_integration_time( cmos_fsm_ptr_t p_fsm, uint32_t int_time )

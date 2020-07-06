@@ -50,20 +50,31 @@ static void common_control_deinit(void)
 }
 #endif
 
-static int32_t common_alloc_analog_gain(uint8_t chn, int32_t gain)
+static void common_alloc_analog_gain(uint8_t chn, int32_t *gain_ptr, uint32_t gain_num)
 {
 	int ret = 0;
-	uint32_t analog_gain = gain;
 	struct sensor_arg settings;
 
-	LOG(LOG_DEBUG, "analog gain is %d", gain);
-	if (common_subdev != NULL && chn < FIRMWARE_CONTEXT_NUMBER) {
+	if ((common_subdev != NULL) && (chn < FIRMWARE_CONTEXT_NUMBER) && (gain_ptr != NULL)) {
 		settings.port = (uint32_t)chn;
-		settings.a_gain = (uint32_t *)&analog_gain;
+		settings.a_gain = (uint32_t *)gain_ptr;
 		// Initial local parameters
 		ret = v4l2_subdev_call(common_subdev, core, ioctl,
 			SENSOR_ALLOC_ANALOG_GAIN, &settings);
 
+                switch (gain_num) {
+                case 3:
+			sensor_ctl[chn].gain_buf[2] = (uint32_t)gain_ptr[2];
+                case 2:
+			sensor_ctl[chn].gain_buf[1] = (uint32_t)gain_ptr[1];
+                case 1:
+			sensor_ctl[chn].gain_buf[0] = (uint32_t)gain_ptr[0];
+			sensor_ctl[chn].gain_num = gain_num;
+                        break;
+                default:
+			sensor_ctl[chn].gain_num = 0;
+                }
+#if 0
 		switch (sensor_ctl[chn].mode) {
 		case SENSOR_LINEAR:
 		case SENSOR_PWL:
@@ -89,27 +100,37 @@ static int32_t common_alloc_analog_gain(uint8_t chn, int32_t gain)
 			LOG(LOG_ERR, "sensor mode is error");
 		break;
 		}
+#endif
 	} else {
 		LOG(LOG_ERR, "common subdev pointer is NULL");
 	}
-
-	return analog_gain;
 }
 
-static int32_t common_alloc_digital_gain(uint8_t chn, int32_t gain)
+static void common_alloc_digital_gain(uint8_t chn, int32_t *gain_ptr, uint32_t gain_num)
 {
 	int ret = 0;
-	uint32_t digital_gain = gain;
 	struct sensor_arg settings;
 
-	LOG(LOG_DEBUG, "digital gain is %d", gain);
-	if (common_subdev != NULL && chn < FIRMWARE_CONTEXT_NUMBER) {
+	if ((common_subdev != NULL) && (chn < FIRMWARE_CONTEXT_NUMBER) && (gain_ptr != NULL)) {
 		settings.port = (uint32_t)chn;
-		settings.d_gain = (uint32_t *)&digital_gain;
+		settings.d_gain = (uint32_t *)gain_ptr;
 		// Initial local parameters
 		ret = v4l2_subdev_call(common_subdev, core, ioctl,
 			SENSOR_ALLOC_DIGITAL_GAIN, &settings);
-#if 1
+
+                switch (gain_num) {
+                case 3:
+			sensor_ctl[chn].dgain_buf[2] = (uint32_t)gain_ptr[2];
+                case 2:
+			sensor_ctl[chn].dgain_buf[1] = (uint32_t)gain_ptr[1];
+                case 1:
+			sensor_ctl[chn].dgain_buf[0] = (uint32_t)gain_ptr[0];
+			sensor_ctl[chn].dgain_num = gain_num;
+                        break;
+                default:
+			sensor_ctl[chn].dgain_num = 0;
+                }
+#if 0
 		switch (sensor_ctl[chn].mode) {
 		case SENSOR_LINEAR:
 		case SENSOR_PWL:
@@ -138,8 +159,6 @@ static int32_t common_alloc_digital_gain(uint8_t chn, int32_t gain)
 	} else {
 		LOG(LOG_ERR, "common subdev pointer is NULL");
 	}
-
-	return digital_gain;
 }
 
 static void common_alloc_integration_time(uint8_t chn, uint16_t *int_time,

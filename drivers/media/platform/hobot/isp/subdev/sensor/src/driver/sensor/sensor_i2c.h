@@ -37,8 +37,8 @@ struct sensor_operations {
 	uint8_t param_enable;
         int (* sensor_hw_reset_enable) (void);
         int (* sensor_hw_reset_disable) (void);
-	int32_t (* sensor_alloc_analog_gain) ( uint8_t chn, int32_t gain );
-	int32_t (*sensor_alloc_digital_gain) ( uint8_t chn, int32_t gain );
+	void (* sensor_alloc_analog_gain) (uint8_t chn, int32_t *gain_ptr, uint32_t gain_num);
+	void (* sensor_alloc_digital_gain) (uint8_t chn, int32_t *gain_ptr, uint32_t gain_num);
 	void (* sensor_alloc_integration_time) ( uint8_t chn, uint16_t *int_time, uint16_t *int_time_M, uint16_t *int_time_L );
 	void (* sensor_update) (uint8_t chn, struct sensor_priv_old updata);
 	uint16_t (* sensor_get_id) ( uint8_t chn );

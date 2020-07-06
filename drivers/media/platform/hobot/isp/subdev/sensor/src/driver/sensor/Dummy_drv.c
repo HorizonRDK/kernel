@@ -92,30 +92,43 @@ static void sensor_hw_reset_disable( void )
 #endif
 //--------------------FLASH------------------------------------------------------------
 
-static int32_t sensor_alloc_analog_gain( void *ctx, int32_t gain )
+static void sensor_alloc_analog_gain( void *ctx, int32_t *gain_ptr, uint32_t gain_num )
 {
+        uint32_t i = 0;
 //-- TODO
 	sensor_context_t *p_ctx = ctx;
-	int32_t analog_gain = 0;
 
-	gain = gain >> (LOG2_GAIN_SHIFT - 5);		
+        if (!gain_ptr) {
+	        LOG(LOG_ERR, "param is null");
+                return;
+        }
+
+        for (i = 0; (i < gain_num) || (i < 4); i++) {
+	        gain_ptr[i] = gain_ptr[i] >> (LOG2_GAIN_SHIFT - 5);
+        }
 	if (sensor_ops[p_ctx->channel]) {
 		if (sensor_ops[p_ctx->channel]->param_enable)
-			analog_gain = sensor_ops[p_ctx->channel]->sensor_alloc_analog_gain(p_ctx->channel, gain);
+			sensor_ops[p_ctx->channel]->sensor_alloc_analog_gain(p_ctx->channel, gain_ptr, gain_num);
 	}
-	sensor_data[p_ctx->channel].analog_gain = analog_gain;
+	sensor_data[p_ctx->channel].analog_gain = gain_ptr[0];
 
-	gain = gain << (LOG2_GAIN_SHIFT - 5);		
-	return gain;
+        for (i = 0; (i < gain_num) || (i < 4); i++) {
+	        gain_ptr[i] = gain_ptr[i] << (LOG2_GAIN_SHIFT - 5);
+        }
 }
 
-static int32_t sensor_alloc_digital_gain( void *ctx, int32_t gain )
+static void sensor_alloc_digital_gain( void *ctx, int32_t *gain_ptr, uint32_t gain_num)
 {
 	int32_t digital_gain = 0;
+        uint32_t i = 0;
 	sensor_context_t *p_ctx = ctx;
 //get param
     	sensor_param_t *param = &p_ctx->param;
     	struct _setting_param_t sensor_param;
+        if (!gain_ptr) {
+	        LOG(LOG_ERR, "param is null");
+                return;
+        }
 
 	LOG(LOG_DEBUG, "sensor_type %d", param->sensor_type);
 	LOG(LOG_DEBUG, "lines_per_second %d", param->lines_per_second);
@@ -142,16 +155,18 @@ static int32_t sensor_alloc_digital_gain( void *ctx, int32_t gain )
 		}
 	}
 //get param end
-
-	gain = gain >> (LOG2_GAIN_SHIFT - 5);
+        for (i = 0; (i < gain_num) || (i < 4); i++) {
+	        gain_ptr[i] = gain_ptr[i] >> (LOG2_GAIN_SHIFT - 5);
+        }
 	if (sensor_ops[p_ctx->channel]) {
 		if (sensor_ops[p_ctx->channel]->param_enable)
-			digital_gain = sensor_ops[p_ctx->channel]->sensor_alloc_digital_gain(p_ctx->channel, gain);
+			sensor_ops[p_ctx->channel]->sensor_alloc_digital_gain(p_ctx->channel, gain_ptr, gain_num);
 	}
-	sensor_data[p_ctx->channel].digital_gain = digital_gain;
+	sensor_data[p_ctx->channel].digital_gain = gain_ptr[0];
 
-	gain = gain << (LOG2_GAIN_SHIFT - 5);		
-	return gain;
+        for (i = 0; (i < gain_num) || (i < 4); i++) {
+	        gain_ptr[i] = gain_ptr[i] << (LOG2_GAIN_SHIFT - 5);
+        }
 }
 
 static void sensor_alloc_integration_time( void *ctx, uint16_t *int_time, uint16_t *int_time_M, uint16_t *int_time_L )

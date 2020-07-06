@@ -377,29 +377,29 @@ int sensor_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_t in
         break;
 
     case FSM_PARAM_SET_SENSOR_ALLOC_ANALOG_GAIN: {
-        if ( !input || input_size != sizeof( int32_t ) ) {
+        if ( !input || input_size != sizeof( fsm_param_sensor_gain_t ) ) {
             LOG( LOG_ERR, "Invalid param, param_id: %d.", param_id );
             rc = -1;
             break;
         }
 
-        int32_t expect_again = *( (int32_t *)input );
+        fsm_param_sensor_gain_t *p_gain = (fsm_param_sensor_gain_t *)input;
 
-        *( (int32_t *)input ) = p_fsm->ctrl.alloc_analog_gain( p_fsm->sensor_ctx, expect_again );
+        p_fsm->ctrl.alloc_analog_gain(p_fsm->sensor_ctx, p_gain->gain_ptr, p_gain->gain_num);
 
         break;
     }
 
     case FSM_PARAM_SET_SENSOR_ALLOC_DIGITAL_GAIN: {
-        if ( !input || input_size != sizeof( int32_t ) ) {
+        if ( !input || input_size != sizeof( fsm_param_sensor_gain_t ) ) {
             LOG( LOG_ERR, "Invalid param, param_id: %d.", param_id );
             rc = -1;
             break;
         }
 
-        int32_t expect_dgain = *( (int32_t *)input );
+        fsm_param_sensor_gain_t *p_gain = (fsm_param_sensor_gain_t *)input;
 
-        *( (int32_t *)input ) = p_fsm->ctrl.alloc_digital_gain( p_fsm->sensor_ctx, expect_dgain );
+        p_fsm->ctrl.alloc_digital_gain(p_fsm->sensor_ctx, p_gain->gain_ptr, p_gain->gain_num);
 
         break;
     }

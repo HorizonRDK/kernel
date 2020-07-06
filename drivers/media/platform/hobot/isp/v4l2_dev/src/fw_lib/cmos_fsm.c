@@ -57,6 +57,9 @@ void cmos_fsm_clear( cmos_fsm_t *p_fsm )
 
     p_fsm->prev_fs_frame_id = 0;
     p_fsm->prev_dgain_frame_id = 0;
+    memset(&p_fsm->ae_out_info, 0, sizeof(p_fsm->ae_out_info));
+    p_fsm->external_ae_enable = 0;
+    p_fsm->sensor_ctrl_enable = 0;
 }
 
 void cmos_request_interrupt( cmos_fsm_ptr_t p_fsm, system_fw_interrupt_mask_t mask )
@@ -94,6 +97,9 @@ int cmos_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_t inpu
         }
 
         p_exp_target = (fsm_param_exposure_target_t *)input;
+        memcpy(&p_fsm->ae_out_info, &p_exp_target->ae_out_info, sizeof(p_fsm->ae_out_info));
+        p_fsm->external_ae_enable = p_exp_target->external_ae_enable;
+        p_fsm->sensor_ctrl_enable = p_exp_target->sensor_ctrl_enable;
 
         cmos_set_exposure_target( p_fsm, p_exp_target->exposure_log2, p_exp_target->exposure_ratio );
 
@@ -274,8 +280,8 @@ int cmos_fsm_get_param( void *fsm, uint32_t param_id, void *input, uint32_t inpu
 #if USER_MODULE
         rc = acamera_fsm_mgr_get_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_GET_TOTAL_GAIN_LOG2, NULL, 0, output, output_size );
 #else
-        *( (int32_t *)output ) = p_fsm->again_val_log2 +
-                                 p_fsm->dgain_val_log2 +
+        *( (int32_t *)output ) = p_fsm->again_val_log2[0] +
+                                 p_fsm->dgain_val_log2[0] +
                                  p_fsm->isp_dgain_log2;
 #endif
         break;
@@ -322,7 +328,7 @@ int cmos_fsm_get_param( void *fsm, uint32_t param_id, void *input, uint32_t inpu
 
         fsm_param_gain_calc_param_t *p_param = (fsm_param_gain_calc_param_t *)input;
 
-        *( (uint32_t *)output ) = acamera_math_exp2( p_fsm->again_val_log2 + p_fsm->dgain_val_log2 + p_fsm->isp_dgain_log2, p_param->shift_in, p_param->shift_out );
+        *( (uint32_t *)output ) = acamera_math_exp2( p_fsm->again_val_log2[0] + p_fsm->dgain_val_log2[0] + p_fsm->isp_dgain_log2, p_param->shift_in, p_param->shift_out );
 
         break;
     }
@@ -409,7 +415,6 @@ uint8_t cmos_fsm_process_event( cmos_fsm_t *p_fsm, event_id_t event_id )
         break;
 
     case event_id_exposure_changed:
-
         // Update gains
         cmos_inttime_update( p_fsm );
         cmos_antiflicker_update( p_fsm );
@@ -423,6 +428,14 @@ uint8_t cmos_fsm_process_event( cmos_fsm_t *p_fsm, event_id_t event_id )
 
         cmos_update_exposure_history( p_fsm );
 
+        b_event_processed = 1;
+        break;
+    case event_id_extern_ae_readly:
+        cmos_exposure_update_extern_ae( p_fsm );
+        cmos_gain_update_extern_ae( p_fsm );
+        fsm_raise_event( p_fsm, event_id_update_iridix );
+
+        cmos_update_exposure_history( p_fsm );
         b_event_processed = 1;
         break;
     }

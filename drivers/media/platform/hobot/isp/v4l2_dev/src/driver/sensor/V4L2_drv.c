@@ -239,20 +239,21 @@ static void sensor_update_parameters( void *ctx )
 }
 
 
-static int32_t sensor_alloc_analog_gain( void *ctx, int32_t gain )
+static void sensor_alloc_analog_gain( void *ctx, int32_t *gain, uint32_t gain_num )
 {
     sensor_context_t *p_ctx = ctx;
-    int32_t result = 0;
     if ( p_ctx != NULL ) {
         struct soc_sensor_ioctl_args settings;
         struct v4l2_subdev *sd = p_ctx->soc_sensor;
         uint32_t ctx_num = get_ctx_num( ctx );
         if ( sd != NULL && ctx_num < FIRMWARE_CONTEXT_NUMBER ) {
             settings.ctx_num = ctx_num;
-            settings.args.general.val_in = gain;
+            settings.args.gain.gain_ptr = gain;
+            settings.args.gain.gain_num = gain_num;
+
             int rc = v4l2_subdev_call( sd, core, ioctl, SOC_SENSOR_ALLOC_AGAIN, &settings );
             if ( rc == 0 ) {
-                result = settings.args.general.val_out;
+                //result = settings.args.general.val_out;
             } else {
                 LOG( LOG_ERR, "Failed to alloc again. rc = %d", rc );
             }
@@ -262,24 +263,24 @@ static int32_t sensor_alloc_analog_gain( void *ctx, int32_t gain )
     } else {
         LOG( LOG_ERR, "Sensor context pointer is NULL" );
     }
-    return result;
 }
 
 
-static int32_t sensor_alloc_digital_gain( void *ctx, int32_t gain )
+static void sensor_alloc_digital_gain( void *ctx, int32_t *gain, uint32_t gain_num)
 {
     sensor_context_t *p_ctx = ctx;
-    int32_t result = 0;
     if ( p_ctx != NULL ) {
         struct soc_sensor_ioctl_args settings;
         struct v4l2_subdev *sd = p_ctx->soc_sensor;
         uint32_t ctx_num = get_ctx_num( ctx );
         if ( sd != NULL && ctx_num < FIRMWARE_CONTEXT_NUMBER ) {
             settings.ctx_num = ctx_num;
-            settings.args.general.val_in = gain;
+            settings.args.gain.gain_ptr = gain;
+            settings.args.gain.gain_num = gain_num;
+
             int rc = v4l2_subdev_call( sd, core, ioctl, SOC_SENSOR_ALLOC_DGAIN, &settings );
             if ( rc == 0 ) {
-                result = settings.args.general.val_out;
+                //result = settings.args.general.val_out;
             } else {
                 LOG( LOG_ERR, "Failed to digital again. rc = %d", rc );
             }
@@ -289,7 +290,6 @@ static int32_t sensor_alloc_digital_gain( void *ctx, int32_t gain )
     } else {
         LOG( LOG_ERR, "Sensor context pointer is NULL" );
     }
-    return result;
 }
 
 

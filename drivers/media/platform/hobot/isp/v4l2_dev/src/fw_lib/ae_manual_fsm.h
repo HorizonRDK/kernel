@@ -47,6 +47,11 @@ struct _AE_fsm_t {
 
     acamera_fsm_mgr_t *p_fsm_mgr;
     fsm_irq_mask_t mask;
+    //add by ie&e to prove extern ae
+    uint16_t external_ae_enable;
+    uint16_t sensor_ctrl_enable;
+    ae_5bin_weight_t ae_5bin_weight;
+    ae_out_info_t ae_info;
     int32_t error_log2;
     int32_t ae_hist_mean;
     int32_t exposure_log2;
@@ -62,7 +67,6 @@ struct _AE_fsm_t {
     uint32_t frame_id_tracking;
     ae_state_t state;
 };
-
 
 void AE_fsm_clear( AE_fsm_ptr_t p_fsm );
 

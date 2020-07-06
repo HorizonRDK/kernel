@@ -97,7 +97,7 @@ typedef struct _sensor_control_t {
      *
      *   @return the real analog gain which will be applied
      */
-    int32_t ( *alloc_analog_gain )( void *ctx, int32_t gain );
+    void ( *alloc_analog_gain )( void *ctx, int32_t *gain, uint32_t gain_num);
 
 
     /**
@@ -113,7 +113,7 @@ typedef struct _sensor_control_t {
      *
      *   @return the real digital gain which will be applied
      */
-    int32_t ( *alloc_digital_gain )( void *ctx, int32_t gain );
+    void ( *alloc_digital_gain )( void *ctx, int32_t *gain, uint32_t gain_num);
 
 
     /**

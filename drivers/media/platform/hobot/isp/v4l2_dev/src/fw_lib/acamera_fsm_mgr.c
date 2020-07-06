@@ -136,6 +136,7 @@ const char * const event_name[] = {
     "event_id_crop_changed",
     "event_id_crop_updated",
     "event_id_exposure_changed",
+    "event_id_extern_ae_readly",
     "event_id_frame_buf_reinit",
     "event_id_frame_buffer_ds_ready",
     "event_id_frame_buffer_fr_ready",

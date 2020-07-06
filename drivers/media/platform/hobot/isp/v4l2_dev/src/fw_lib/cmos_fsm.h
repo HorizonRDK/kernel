@@ -125,6 +125,8 @@ void cmos_update_exposure_history( cmos_fsm_ptr_t p_fsm );
 void cmos_set_exposure_target( cmos_fsm_ptr_t p_fsm, int32_t exposure_log2, uint32_t exposure_ratio );
 exposure_set_t *cmos_get_frame_exposure_set( cmos_fsm_ptr_t p_fsm, int i_frame );
 uint16_t cmos_get_fps( cmos_fsm_ptr_t p_fsm );
+void cmos_exposure_update_extern_ae( cmos_fsm_ptr_t p_fsm );
+void cmos_gain_update_extern_ae( cmos_fsm_ptr_t p_fsm );
 
 struct _cmos_fsm_t {
     fsm_common_t cmn;
@@ -158,8 +160,8 @@ struct _cmos_fsm_t {
     uint16_t integration_time_medium2;
     uint16_t integration_time_long;
     uint16_t exposure_ratio;
-    int32_t again_val_log2;
-    int32_t dgain_val_log2;
+    int32_t again_val_log2[4];
+    int32_t dgain_val_log2[4];
     int32_t log2_gain_avg;
     int32_t isp_dgain_log2;
     int32_t target_gain_log2;
@@ -178,6 +180,9 @@ struct _cmos_fsm_t {
     uint32_t prev_dgain_frame_id;
 
     uint32_t exp_lut[SYSTEM_EXPOSURE_PARTITION_VALUE_COUNT];
+    ae_out_info_t ae_out_info;
+    uint16_t external_ae_enable;
+    uint16_t sensor_ctrl_enable;
 };
 
 

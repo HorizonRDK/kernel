@@ -43,6 +43,9 @@ void AE_fsm_clear( AE_fsm_t *p_fsm )
     p_fsm->ae_roi_api = AE_CENTER_ZONES;
     p_fsm->roi = AE_CENTER_ZONES;
     p_fsm->frame_id_tracking = 0;
+    memset(&p_fsm->ae_info, 0, sizeof(p_fsm->ae_info));
+    p_fsm->external_ae_enable = 0;
+    p_fsm->sensor_ctrl_enable = 0;
 }
 
 void AE_request_interrupt( AE_fsm_ptr_t p_fsm, system_fw_interrupt_mask_t mask )
@@ -192,8 +195,14 @@ uint8_t AE_fsm_process_event( AE_fsm_t *p_fsm, event_id_t event_id )
     default:
         break;
     case event_id_ae_result_ready:
-        if ( ae_calculate_exposure( p_fsm ) ) {
-            fsm_raise_event( p_fsm, event_id_exposure_changed );
+        if (p_fsm->external_ae_enable == 0) { // user arm3a
+                if ( ae_calculate_exposure( p_fsm ) ) {
+                        fsm_raise_event( p_fsm, event_id_exposure_changed );
+                }
+        } else { // user external 3a
+                if ( ae_calculate_exposure( p_fsm ) ) {
+                        fsm_raise_event(p_fsm, event_id_extern_ae_readly);
+                }
         }
 
         b_event_processed = 1;

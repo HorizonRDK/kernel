@@ -61,6 +61,25 @@ enum sbuf_type {
     SBUF_TYPE_MAX,
 };
 
+typedef struct _ae_5bin_info_ {
+        uint32_t zones_size;
+        uint16_t zones_v;
+        uint16_t zones_h;
+        uint16_t threshold0_1;
+        uint16_t threshold1_2;
+        uint16_t threshold3_4;
+        uint16_t threshold4_5;
+        uint16_t normal_bin0;
+        uint16_t normal_bin1;
+        uint16_t normal_bin3;
+        uint16_t normal_bin4;
+} ae_5bin_info_t;
+
+typedef struct _ae_5bin_weight_ {
+        uint32_t zones_size;
+        uint8_t zones_weight[ISP_METERING_ZONES_AE5_V * ISP_METERING_ZONES_AE5_H];
+} ae_5bin_weight_t;
+
 struct sbuf_idx_set {
     uint8_t ae_idx;
     uint8_t ae_idx_valid;
@@ -129,11 +148,17 @@ typedef struct sbuf_ae {
     // KF -> UF: Data shared from kernel-FW to user-FW
     uint32_t stats_data[ISP_FULL_HISTOGRAM_SIZE];
     uint32_t histogram_sum;
-    uint16_t hist4[ACAMERA_ISP_METERING_AEXP_NODES_USED_HORIZ_DEFAULT * ACAMERA_ISP_METERING_AEXP_NODES_USED_VERT_DEFAULT];
+    uint16_t hist4[ISP_METERING_ZONES_AE5_S * ISP_METERING_ZONES_AE5_V * ISP_METERING_ZONES_AE5_H];
+    ae_5bin_info_t ae_5bin_info;
 
     // UF -> KF: Data shared from user-FW to kernel-FW
     int32_t ae_exposure;
     uint32_t ae_exposure_ratio;
+    ae_5bin_weight_t ae_5bin_weight;
+    ae_out_info_t  ae_info;
+
+    uint16_t external_ae_enable;
+    uint16_t sensor_ctrl_enable;
 
     uint32_t frame_id;
     ae_state_t state;
