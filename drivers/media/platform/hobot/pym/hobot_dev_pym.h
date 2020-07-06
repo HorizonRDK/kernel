@@ -149,7 +149,7 @@ struct x3_pym_dev {
 	struct pym_subdev subdev[VIO_MAX_STREAM];
 	struct vio_group *group[VIO_MAX_STREAM];
 	struct vio_group_task gtask;	
-	struct vio_work vwork[VIO_MP_MAX_FRAMES];
+	struct vio_work vwork[VIO_MAX_STREAM][VIO_MP_MAX_FRAMES];
 };
 
 #endif

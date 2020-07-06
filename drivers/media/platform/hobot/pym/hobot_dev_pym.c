@@ -678,6 +678,7 @@ int pym_video_reqbufs(struct pym_video_ctx *pym_ctx, u32 buffers)
 	int ret = 0;
 	int i = 0;
 	u32 first_index = 0;
+	u32 instance = 0;
 	struct vio_framemgr *framemgr;
 	struct pym_subdev *subdev;
 	struct x3_pym_dev *pym_dev;
@@ -699,11 +700,11 @@ int pym_video_reqbufs(struct pym_video_ctx *pym_ctx, u32 buffers)
 	}
 	pym_ctx->frm_fst_ind = first_index;
 	pym_ctx->frm_num = buffers;
+	instance = pym_ctx->group->instance;
 	for (i = first_index; i < (buffers + first_index) ; i++) {
 		framemgr->frames_mp[i]->data = pym_ctx->group;
-		frame_work_init(&pym_dev->vwork[i].work);
-		framemgr->frames_mp[i]->mp_work = &pym_dev->vwork[i].work;
-		pym_dev->vwork[i].group = pym_ctx->group;
+		framemgr->frames_mp[i]->mp_work = &pym_dev->vwork[instance][i].work;
+		pym_dev->vwork[instance][i].group = pym_ctx->group;
 	}
 
 	pym_ctx->state = BIT(VIO_VIDEO_REBUFS);
@@ -1464,7 +1465,7 @@ int pym_subdev_init(struct pym_subdev *subdev)
 
 int x3_pym_subdev_init(struct x3_pym_dev *pym)
 {
-	int i = 0;
+	int i = 0, j = 0;
 	int ret = 0;
 	struct pym_subdev *subdev;
 
@@ -1473,8 +1474,11 @@ int x3_pym_subdev_init(struct x3_pym_dev *pym)
 		ret = pym_subdev_init(subdev);
 	}
 
-	for (i = 0; i < VIO_MP_MAX_FRAMES; i++)
-		frame_work_init(&pym->vwork[i].work);
+	for (i = 0; i < VIO_MAX_STREAM; i++) {
+		for (j = 0; j < VIO_MP_MAX_FRAMES; j++) {
+			frame_work_init(&pym->vwork[i][j].work);
+		}
+	}
 
 	return ret;
 }
