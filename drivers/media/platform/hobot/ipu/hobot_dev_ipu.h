@@ -84,6 +84,8 @@ struct ipu_status_statistic {
 
 	/* user statistic*/
 	struct user_statistic user_stats[VIO_MAX_STREAM][MAX_DEVICE];
+
+	u32 enable_subdev[VIO_MAX_STREAM];
 };
 
 struct ipu_video_ctx {
@@ -100,6 +102,8 @@ struct ipu_video_ctx {
 
 	struct x3_ipu_dev 	*ipu_dev;
 	struct ipu_subdev	*subdev;
+
+	int belong_pipe;
 };
 
 enum ipu_group_state {

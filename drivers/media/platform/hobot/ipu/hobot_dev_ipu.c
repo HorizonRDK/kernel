@@ -98,11 +98,19 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 
 	ipu_ctx = file->private_data;
 	ipu = ipu_ctx->ipu_dev;
+
 	if (ipu_ctx->state & BIT(VIO_VIDEO_OPEN)) {
 		vio_info("[Sx][V%d] %s: only open.\n", ipu_ctx->id, __func__);
 		atomic_dec(&ipu->open_cnt);
 		kfree(ipu_ctx);
 		return 0;
+	}
+
+	// if pipeline's all subdevs are closed, pipeline is disabled
+	ipu->statistic.enable_subdev[ipu_ctx->belong_pipe] &= ~(BIT(ipu_ctx->id));
+	if (ipu->statistic.enable_subdev[ipu_ctx->belong_pipe] == 0) {
+		ipu->statistic.enable[ipu_ctx->belong_pipe] = 0;
+		vio_err("pipeline%d all subdev closed", ipu_ctx->belong_pipe);
 	}
 
 	index = ipu_ctx->frm_fst_ind;
@@ -1272,6 +1280,8 @@ int ipu_bind_chain_group(struct ipu_video_ctx *ipu_ctx, int instance)
 	group->gtask = &ipu->gtask;
 	group->gtask->id = group->id;
 	ipu->statistic.enable[instance] = 1;
+	ipu->statistic.enable_subdev[instance] |= BIT(ipu_ctx->id);
+	ipu_ctx->belong_pipe = instance;
 
 	vio_info("[S%d][V%d] %s done\n", instance, id, __func__);
 	ipu_ctx->state = BIT(VIO_VIDEO_S_INPUT);
@@ -2553,12 +2563,169 @@ static DEVICE_ATTR(err_status45, S_IRUGO|S_IWUSR, ipu_stat_show,
 static DEVICE_ATTR(err_status67, S_IRUGO|S_IWUSR, ipu_stat_show,
 	ipu_stat_store);
 
+static ssize_t enabled_pipeline_show(struct device *dev,
+					struct device_attribute *attr, char* buf)
+{
+	struct x3_ipu_dev *ipu;
+	u32 offset = 0, len = 0;
+	int enabled_pipe_num = 0;
+	int i = 0;
+	ipu = dev_get_drvdata(dev);
+
+	len = snprintf(buf, PAGE_SIZE - offset, "enable pipe index:");
+	offset += len;
+	for (i = 0; i < VIO_MAX_STREAM; i++) {
+		if (ipu->statistic.enable[i]) {
+			len = snprintf(buf+offset, PAGE_SIZE - offset, "%d,", 1);
+			enabled_pipe_num++;
+		} else {
+			len = snprintf(buf+offset, PAGE_SIZE - offset, "%d,", 0);
+		}
+		offset += len;
+	}
+
+	len = snprintf(buf+offset, PAGE_SIZE - offset, "\n%d pipeline(s) enabled\n", enabled_pipe_num);
+	offset += len;
+	return offset;
+}
+
+static DEVICE_ATTR_RO(enabled_pipeline);
+
+static ssize_t get_pipeline_info(int pipeid, struct device *dev,
+					struct device_attribute *attr, char* buf)
+{
+	struct x3_ipu_dev *ipu;
+	int i = 0;
+	u32 offset = 0, len = 0;
+	ipu_ds_info_t *ds_config;
+	ipu_us_info_t *us_config;
+	ipu = dev_get_drvdata(dev);
+
+	if (ipu->statistic.enable[0] == 0) {
+		len = snprintf(buf+offset, PAGE_SIZE - offset, "pipeline %d is disabled\n", pipeid);
+		offset += len;
+	} else {
+		len = snprintf(buf+offset, PAGE_SIZE - offset, "pipeline %d ipu config:\n", pipeid);
+		offset += len;
+
+		ipu_input_type_e input_type = ipu->subdev[pipeid][0].ipu_cfg.ctrl_info.source_sel;
+		if (input_type == 0) {
+			len = snprintf(buf+offset, PAGE_SIZE - offset, "input mode: %d, %s\n", input_type, "sif online to ipu");
+		} else if (input_type == 1) {
+			len = snprintf(buf+offset, PAGE_SIZE - offset, "input mode: %d, %s\n", input_type, "isp online to ipu");
+		} else if (input_type == 3) {
+			len = snprintf(buf+offset, PAGE_SIZE - offset, "input mode: %d, %s\n", input_type, "ddr to ipu");
+		} else {
+			len = snprintf(buf+offset, PAGE_SIZE - offset, "input mode: %d, %s\n", input_type, "wrong");
+		}
+		offset += len;
+		len = snprintf(buf+offset, PAGE_SIZE - offset, "channel config:\n");
+		offset += len;
+		// us config
+		us_config = (ipu_us_info_t *)&ipu->subdev[pipeid][1].scale_cfg;
+		len = snprintf(buf+offset, PAGE_SIZE - offset, "\tus channel: roi_en %d, wxh:%dx%d, upscale_en:%d, wxh:%dx%d\n",
+				us_config->us_roi_en, us_config->us_roi_info.width, us_config->us_roi_info.height,
+				us_config->us_sc_en, us_config->us_sc_info.tgt_width, us_config->us_sc_info.tgt_height
+			);
+		offset += len;
+
+		for (i = 0; i < 5; i++) {
+			ds_config = (ipu_ds_info_t *)&ipu->subdev[pipeid][2+i].scale_cfg;
+			len = snprintf(buf+offset, PAGE_SIZE - offset, "\tds%d channel: roi_en %d, wxh:%dx%d, downscale_en:%d, wxh:%dx%d\n",
+					i, ds_config->ds_roi_en, ds_config->ds_roi_info.width, ds_config->ds_roi_info.height,
+					ds_config->ds_sc_en, ds_config->ds_sc_info.tgt_width, ds_config->ds_sc_info.tgt_height
+				);
+			offset += len;
+		}
+	}
+	return offset;
+
+}
+
+static ssize_t pipeline0_info_show(struct device *dev,
+					struct device_attribute *attr, char* buf)
+{
+	return get_pipeline_info(0, dev, attr, buf);
+}
+
+static ssize_t pipeline1_info_show(struct device *dev,
+					struct device_attribute *attr, char* buf)
+{
+	return get_pipeline_info(1, dev, attr, buf);
+}
+
+static ssize_t pipeline2_info_show(struct device *dev,
+					struct device_attribute *attr, char* buf)
+{
+	return get_pipeline_info(2, dev, attr, buf);
+}
+
+static ssize_t pipeline3_info_show(struct device *dev,
+					struct device_attribute *attr, char* buf)
+{
+	return get_pipeline_info(3, dev, attr, buf);
+}
+
+static ssize_t pipeline4_info_show(struct device *dev,
+					struct device_attribute *attr, char* buf)
+{
+	return get_pipeline_info(4, dev, attr, buf);
+}
+
+static ssize_t pipeline5_info_show(struct device *dev,
+					struct device_attribute *attr, char* buf)
+{
+	return get_pipeline_info(5, dev, attr, buf);
+}
+
+static ssize_t pipeline6_info_show(struct device *dev,
+					struct device_attribute *attr, char* buf)
+{
+	return get_pipeline_info(6, dev, attr, buf);
+}
+
+static ssize_t pipeline7_info_show(struct device *dev,
+					struct device_attribute *attr, char* buf)
+{
+	return get_pipeline_info(7, dev, attr, buf);
+}
+
+static DEVICE_ATTR_RO(pipeline0_info);
+static DEVICE_ATTR_RO(pipeline1_info);
+static DEVICE_ATTR_RO(pipeline2_info);
+static DEVICE_ATTR_RO(pipeline3_info);
+static DEVICE_ATTR_RO(pipeline4_info);
+static DEVICE_ATTR_RO(pipeline5_info);
+static DEVICE_ATTR_RO(pipeline6_info);
+static DEVICE_ATTR_RO(pipeline7_info);
+
+
+static struct attribute *ipu_info_attrs[] = {
+	&dev_attr_enabled_pipeline.attr,
+	&dev_attr_pipeline0_info.attr,
+	&dev_attr_pipeline1_info.attr,
+	&dev_attr_pipeline2_info.attr,
+	&dev_attr_pipeline3_info.attr,
+	&dev_attr_pipeline4_info.attr,
+	&dev_attr_pipeline5_info.attr,
+	&dev_attr_pipeline6_info.attr,
+	&dev_attr_pipeline7_info.attr,
+	NULL
+};
+
+static struct attribute_group ipu_info_group = {
+	.attrs	= ipu_info_attrs,
+	.name	= "info",
+};
+
 static int x3_ipu_probe(struct platform_device *pdev)
 {
 	int ret = 0;
 	struct x3_ipu_dev *ipu;
 	struct device *dev = NULL;
 	struct resource *mem_res;
+
+	vio_err("sizeof vio_frame:%d", sizeof(struct vio_frame));
 
 	ipu = kzalloc(sizeof(struct x3_ipu_dev), GFP_KERNEL);
 	if (!ipu) {
@@ -2626,6 +2793,14 @@ static int x3_ipu_probe(struct platform_device *pdev)
 		vio_err("create err_status failed (%d)\n", ret);
 		goto p_err;
 	}
+
+	// create sysfs node for ipu info
+	ret = sysfs_create_group(&dev->kobj, &ipu_info_group);
+	if (ret) {
+		vio_err("create ipu info group fail");
+		goto p_err;
+	}
+
 	platform_set_drvdata(pdev, ipu);
 
 	sema_init(&ipu->gtask.hw_resource, 1);
@@ -2668,6 +2843,8 @@ static int x3_ipu_remove(struct platform_device *pdev)
 	device_remove_file(&pdev->dev, &dev_attr_err_status23);
 	device_remove_file(&pdev->dev, &dev_attr_err_status45);
 	device_remove_file(&pdev->dev, &dev_attr_err_status67);
+	sysfs_remove_group(&pdev->dev.kobj, &ipu_info_group);
+	
 
 	free_irq(ipu->irq, ipu);
 
