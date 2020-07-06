@@ -134,6 +134,9 @@ static int x3_pym_close(struct inode *inode, struct file *file)
 		return 0;
 	}
 
+	pym->statistic.enable[pym_ctx->belong_pipe] = 0;
+	vio_dbg("pym pipeline %d close", pym_ctx->belong_pipe);
+
 	index = pym_ctx->frm_fst_ind;
 	count = pym_ctx->frm_num;
 	frame_manager_flush_mp(pym_ctx->framemgr, index, count, pym_ctx->ctx_index);
@@ -490,6 +493,7 @@ int pym_bind_chain_group(struct pym_video_ctx *pym_ctx, int instance)
 	group->gtask = &pym->gtask;
 	group->gtask->id = group->id;
 	pym->statistic.enable[instance] = 1;
+	pym_ctx->belong_pipe = instance;
 
 	vio_info("[S%d][V%d] %s done, ctx_index(%d) refcount(%d)\n",
 		group->instance, pym_ctx->id, __func__,
@@ -1618,6 +1622,159 @@ static ssize_t pym_stat_store(struct device *dev,
 }
 static DEVICE_ATTR(err_status, S_IRUGO|S_IWUSR, pym_stat_show, pym_stat_store);
 
+
+static ssize_t enabled_pipeline_show(struct device *dev,
+					struct device_attribute *attr, char* buf)
+{
+	struct x3_pym_dev *pym;
+	u32 offset = 0, len = 0;
+	int enabled_pipe_num = 0;
+	int i = 0;
+	pym = dev_get_drvdata(dev);
+
+	len = snprintf(buf, PAGE_SIZE - offset, "enable pipe index:");
+	offset += len;
+	for (i = 0; i < VIO_MAX_STREAM; i++) {
+		if (pym->statistic.enable[i]) {
+			len = snprintf(buf+offset, PAGE_SIZE - offset, "%d,", 1);
+			enabled_pipe_num++;
+		} else {
+			len = snprintf(buf+offset, PAGE_SIZE - offset, "%d,", 0);
+		}
+		offset += len;
+	}
+
+	len = snprintf(buf+offset, PAGE_SIZE - offset, "\n%d pipeline(s) enabled\n", enabled_pipe_num);
+	offset += len;
+	return offset;
+}
+
+static DEVICE_ATTR_RO(enabled_pipeline);
+
+static ssize_t get_pipeline_info(int pipeid, struct device *dev,
+					struct device_attribute *attr, char* buf)
+{
+	struct x3_pym_dev *pym;
+	pym_cfg_t *pym_config;
+	int i = 0;
+	u32 offset = 0, len = 0;
+	pym = dev_get_drvdata(dev);
+
+	if (pym->statistic.enable[0] == 0) {
+		len = snprintf(buf+offset, PAGE_SIZE - offset, "pipeline %d is disabled\n", pipeid);
+		offset += len;
+	} else {
+		len = snprintf(buf+offset, PAGE_SIZE - offset, "pipeline %d pym config:\n", pipeid);
+		offset += len;
+
+		int input_type = pym->subdev[pipeid].pym_cfg.img_scr;
+		if (input_type == 0) {
+			len = snprintf(buf+offset, PAGE_SIZE - offset, "input mode: %d, %s\n", input_type, "ipu online to pym");
+		} else if (input_type == 1) {
+			len = snprintf(buf+offset, PAGE_SIZE - offset, "input mode: %d, %s\n", input_type, "ddr to ipu");
+		} else {
+			len = snprintf(buf+offset, PAGE_SIZE - offset, "input mode: %d, %s\n", input_type, "wrong");
+		}
+		offset += len;
+
+		len = snprintf(buf+offset, PAGE_SIZE - offset, "channel config:\n");
+		offset += len;
+
+		pym_config = &pym->subdev[pipeid].pym_cfg;
+		for (i = 0; i < MAX_PYM_DS_COUNT; i++) {
+			len = snprintf(buf+offset, PAGE_SIZE - offset, "\tds%d factor:%d, wxh:%dx%d, startXY:%d-%d\n",
+				i, pym_config->stds_box[i].factor, pym_config->stds_box[i].tgt_width, pym_config->stds_box[i].tgt_height,
+				pym_config->stds_box[i].roi_x, pym_config->stds_box[i].roi_y);
+			offset += len;
+		}
+
+		for (i = 0; i < MAX_PYM_US_COUNT; i++) {
+			len = snprintf(buf+offset, PAGE_SIZE - offset, "\tus%d factor:%d, wxh:%dx%d, startXY:%d-%d\n",
+				i, pym_config->stus_box[i].factor, pym_config->stus_box[i].tgt_width, pym_config->stus_box[i].tgt_height,
+				pym_config->stus_box[i].roi_x, pym_config->stus_box[i].roi_y);
+			offset += len;
+		}
+	}
+	return offset;
+
+}
+
+static ssize_t pipeline0_info_show(struct device *dev,
+					struct device_attribute *attr, char* buf)
+{
+	return get_pipeline_info(0, dev, attr, buf);
+}
+
+static ssize_t pipeline1_info_show(struct device *dev,
+					struct device_attribute *attr, char* buf)
+{
+	return get_pipeline_info(1, dev, attr, buf);
+}
+
+static ssize_t pipeline2_info_show(struct device *dev,
+					struct device_attribute *attr, char* buf)
+{
+	return get_pipeline_info(2, dev, attr, buf);
+}
+
+static ssize_t pipeline3_info_show(struct device *dev,
+					struct device_attribute *attr, char* buf)
+{
+	return get_pipeline_info(3, dev, attr, buf);
+}
+
+static ssize_t pipeline4_info_show(struct device *dev,
+					struct device_attribute *attr, char* buf)
+{
+	return get_pipeline_info(4, dev, attr, buf);
+}
+
+static ssize_t pipeline5_info_show(struct device *dev,
+					struct device_attribute *attr, char* buf)
+{
+	return get_pipeline_info(5, dev, attr, buf);
+}
+
+static ssize_t pipeline6_info_show(struct device *dev,
+					struct device_attribute *attr, char* buf)
+{
+	return get_pipeline_info(6, dev, attr, buf);
+}
+
+static ssize_t pipeline7_info_show(struct device *dev,
+					struct device_attribute *attr, char* buf)
+{
+	return get_pipeline_info(7, dev, attr, buf);
+}
+
+static DEVICE_ATTR_RO(pipeline0_info);
+static DEVICE_ATTR_RO(pipeline1_info);
+static DEVICE_ATTR_RO(pipeline2_info);
+static DEVICE_ATTR_RO(pipeline3_info);
+static DEVICE_ATTR_RO(pipeline4_info);
+static DEVICE_ATTR_RO(pipeline5_info);
+static DEVICE_ATTR_RO(pipeline6_info);
+static DEVICE_ATTR_RO(pipeline7_info);
+
+
+static struct attribute *pym_info_attrs[] = {
+	&dev_attr_enabled_pipeline.attr,
+	&dev_attr_pipeline0_info.attr,
+	&dev_attr_pipeline1_info.attr,
+	&dev_attr_pipeline2_info.attr,
+	&dev_attr_pipeline3_info.attr,
+	&dev_attr_pipeline4_info.attr,
+	&dev_attr_pipeline5_info.attr,
+	&dev_attr_pipeline6_info.attr,
+	&dev_attr_pipeline7_info.attr,
+	NULL
+};
+
+static struct attribute_group pym_info_group = {
+	.attrs	= pym_info_attrs,
+	.name	= "info",
+};
+
 static int x3_pym_probe(struct platform_device *pdev)
 {
 	int ret = 0;
@@ -1679,6 +1836,13 @@ static int x3_pym_probe(struct platform_device *pdev)
 	}
 	platform_set_drvdata(pdev, pym);
 
+	// create sysfs node for pym info
+	ret = sysfs_create_group(&dev->kobj, &pym_info_group);
+	if (ret) {
+		vio_err("create pym info group fail");
+		goto p_err;
+	}
+
 	spin_lock_init(&pym->shared_slock);
 	sema_init(&pym->gtask.hw_resource, 1);
 	atomic_set(&pym->gtask.refcount, 0);
@@ -1714,6 +1878,7 @@ static int x3_pym_remove(struct platform_device *pdev)
 
 	device_remove_file(&pdev->dev, &dev_attr_regdump);
 	device_remove_file(&pdev->dev, &dev_attr_err_status);
+	sysfs_remove_group(&pdev->dev.kobj, &pym_info_group);
 
 	free_irq(pym->irq, pym);
 

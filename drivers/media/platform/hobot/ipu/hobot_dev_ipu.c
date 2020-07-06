@@ -110,7 +110,7 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 	ipu->statistic.enable_subdev[ipu_ctx->belong_pipe] &= ~(BIT(ipu_ctx->id));
 	if (ipu->statistic.enable_subdev[ipu_ctx->belong_pipe] == 0) {
 		ipu->statistic.enable[ipu_ctx->belong_pipe] = 0;
-		vio_err("pipeline%d all subdev closed", ipu_ctx->belong_pipe);
+		vio_dbg("pipeline%d all subdev closed", ipu_ctx->belong_pipe);
 	}
 
 	index = ipu_ctx->frm_fst_ind;

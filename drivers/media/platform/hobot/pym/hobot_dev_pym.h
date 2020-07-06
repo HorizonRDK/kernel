@@ -77,6 +77,8 @@ struct pym_video_ctx{
 
 	struct x3_pym_dev 	*pym_dev;
 	struct pym_subdev	*subdev;
+
+	int belong_pipe;
 };
 
 enum group_id {
