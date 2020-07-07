@@ -369,6 +369,7 @@ static int i2s_trigger(struct snd_pcm_substream *substream,
 	unsigned long flags;
 
 	//dev_dbg(i2s->dev, "i2s_trigger cmd is %d\n", cmd);
+	mdelay(1);
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_START:
 	case SNDRV_PCM_TRIGGER_RESUME:
