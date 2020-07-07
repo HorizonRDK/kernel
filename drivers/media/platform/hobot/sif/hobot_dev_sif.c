@@ -1422,7 +1422,7 @@ static irqreturn_t sif_isr(int irq, void *data)
 	}
 
 	if (sif->error_count >= SIF_ERR_COUNT) {
-		sif_hw_dump(sif->base_reg);
+		// sif_hw_dump(sif->base_reg);
 		sif->error_count = 0;
 	}
 	sif_diag_report(err_occured, irq_src.sif_frm_int);
