@@ -103,7 +103,9 @@ typedef struct _hb_jpu_dev {
 
 	hb_jpu_drv_buffer_t instance_pool;
 	hb_jpu_drv_buffer_t common_memory;
-  u32 inst_index;
+	u32 inst_index;
+	hb_jpu_ctx_info_t jpu_ctx[MAX_NUM_JPU_INSTANCE];
+	hb_jpu_status_info_t jpu_status[MAX_NUM_JPU_INSTANCE];
 } hb_jpu_dev_t;
 
 typedef struct _hb_jpu_priv {

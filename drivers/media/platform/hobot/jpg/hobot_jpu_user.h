@@ -8,6 +8,7 @@
 
 #include <linux/fs.h>
 #include <linux/types.h>
+#include "../vpu/inc/hb_media_codec.h"
 
 #define JPU_DEV_NAME                    "jpu"
 //#define MAX_NUM_JPU_INSTANCE            64
@@ -34,6 +35,24 @@ typedef struct _hb_jpu_drv_intr {
 	int intr_reason;
 	unsigned int inst_idx;
 } hb_jpu_drv_intr_t;
+
+typedef struct _hb_jpu_ctx_info {
+	int valid;
+	media_codec_context_t context;
+	// decoder
+	mc_jpeg_enc_params_t jpeg_params;
+	mc_mjpeg_enc_params_t mjpeg_params;
+	mc_rate_control_params_t rc_params;
+} hb_jpu_ctx_info_t;
+
+typedef struct _hb_jpu_status_info {
+	unsigned int inst_idx;
+	mc_inter_status_t status;
+	// encoder
+	mc_mjpeg_jpeg_output_stream_info_t stream_info;
+	// decoder
+	mc_mjpeg_jpeg_output_frame_info_t frame_info;
+} hb_jpu_status_info_t;
 
 #define JDI_IOCTL_MAGIC  'J'
 
@@ -65,5 +84,8 @@ typedef struct _hb_jpu_drv_intr {
     _IOW(JDI_IOCTL_MAGIC, 15, int)
 #define JDI_IOCTL_POLL_WAIT_INSTANCE                \
     _IOW(JDI_IOCTL_MAGIC, 16, hb_jpu_drv_intr_t)
-
+#define JDI_IOCTL_SET_CTX_INFO				\
+    _IOW(JDI_IOCTL_MAGIC, 17, hb_jpu_ctx_info_t)
+#define JDI_IOCTL_SET_STATUS_INFO				\
+    _IOW(JDI_IOCTL_MAGIC, 18, hb_jpu_status_info_t)
 #endif /* __HOBOT_JPU_USER_H__ */

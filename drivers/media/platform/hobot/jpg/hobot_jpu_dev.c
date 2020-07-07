@@ -171,6 +171,10 @@ static int jpu_free_instances(struct file *filp)
 			dev->poll_event[vil->inst_idx] = JPU_INST_CLOSED;
 			spin_unlock(&dev->poll_spinlock);
 			wake_up_interruptible(&dev->poll_wait_q[vil->inst_idx]);
+			memset(&dev->jpu_ctx[vil->inst_idx], 0x00,
+				sizeof(dev->jpu_ctx[vil->inst_idx]));
+			memset(&dev->jpu_status[vil->inst_idx], 0x00,
+				sizeof(dev->jpu_status[vil->inst_idx]));
 		}
 	}
 
@@ -760,6 +764,10 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 			spin_lock(&dev->jpu_spinlock);
 			clear_bit(inst_index, jpu_inst_bitmap);
 			priv->inst_index = -1;
+			memset(&dev->jpu_ctx[inst_index], 0x00,
+				sizeof(dev->jpu_ctx[inst_index]));
+			memset(&dev->jpu_status[inst_index], 0x00,
+				sizeof(dev->jpu_status[inst_index]));
 			spin_unlock(&dev->jpu_spinlock);
 
 			jpu_debug(5,
@@ -801,6 +809,50 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 		//jpu_debug(5, "[-]JDI_IOCTL_POLL_WAIT_INSTANCE\n");
 	}
 	break;
+	case JDI_IOCTL_SET_CTX_INFO: {
+			jpu_debug(5, "[+]JDI_IOCTL_SET_CTX_INFO\n");
+			hb_jpu_ctx_info_t info;
+			ret = copy_from_user(&info, (hb_jpu_ctx_info_t *) arg,
+						 sizeof(hb_jpu_ctx_info_t));
+			if (ret != 0) {
+				jpu_err
+					("JDI_IOCTL_SET_CTX_INFO copy from user fail.\n");
+				return -EFAULT;
+			}
+			inst_index = info.context.instance_index;
+			if (inst_index < 0 || inst_index >= MAX_NUM_JPU_INSTANCE) {
+				jpu_err
+					("Invalid instance index %d.\n", inst_index);
+				return -EINVAL;
+			}
+			spin_lock(&dev->jpu_spinlock);
+			dev->jpu_ctx[inst_index] = info;
+			spin_unlock(&dev->jpu_spinlock);
+			jpu_debug(5, "[-]JDI_IOCTL_SET_CTX_INFO\n");
+			break;
+		}
+	case JDI_IOCTL_SET_STATUS_INFO: {
+			//jpu_debug(5, "[+]JDI_IOCTL_SET_STATUS_INFO\n");
+			hb_jpu_status_info_t info;
+			ret = copy_from_user(&info, (hb_jpu_status_info_t *) arg,
+						 sizeof(hb_jpu_status_info_t));
+			if (ret != 0) {
+				jpu_err
+					("JDI_IOCTL_SET_STATUS_INFO copy from user fail.\n");
+				return -EFAULT;
+			}
+			inst_index = info.inst_idx;
+			if (inst_index < 0 || inst_index >= MAX_NUM_JPU_INSTANCE) {
+				jpu_err
+					("Invalid instance index %d.\n", inst_index);
+				return -EINVAL;
+			}
+			spin_lock(&dev->jpu_spinlock);
+			dev->jpu_status[inst_index] = info;
+			spin_unlock(&dev->jpu_spinlock);
+			//jpu_debug(5, "[-]JDI_IOCTL_SET_STATUS_INFO\n");
+			break;
+		}
 	default:
 		{
 			jpu_err("No such IOCTL, cmd is %d\n", cmd);
