@@ -1515,6 +1515,62 @@ static ssize_t sif_reg_dump(struct device *dev,
 
 static DEVICE_ATTR(regdump, 0444, sif_reg_dump, NULL);
 
+#define SIF_STA_SHOW(n, fmt, ...) \
+						s += sprintf(s, "%-15s: " fmt "\n", #n, \
+		## __VA_ARGS__)
+
+static ssize_t sif_cfg_info(struct device *dev,
+				struct device_attribute *attr, char* buf)
+{
+	struct x3_sif_dev *sif;
+	char *s = buf;
+	sif_cfg_t *sif_cfg = NULL;
+	int i;
+	struct sif_subdev *subdev = NULL;
+
+	sif = dev_get_drvdata(dev);
+	for(i = 0; i < VIO_MAX_STREAM; i++) {
+		if (test_bit(SIF_SUBDEV_INIT, &sif->sif_mux_subdev[i].state)) {
+			subdev = &sif->sif_mux_subdev[i];
+		    sif_cfg = &sif->sif_mux_subdev[i].sif_cfg;
+		} else if (test_bit(SIF_SUBDEV_INIT, &sif->sif_in_subdev[i].state)) {
+			subdev = &sif->sif_in_subdev[i];
+		    sif_cfg = &sif->sif_in_subdev[i].sif_cfg;
+		} else {
+			s += sprintf(s, "pipe %d not inited\n", i);
+			subdev = NULL;
+			sif_cfg = NULL;
+		}
+
+		if (subdev && sif_cfg) {
+		   SIF_STA_SHOW(pipeid, "%d", i);
+		   SIF_STA_SHOW(mipi_rx_index, "%d   %s",
+		   subdev->rx_index, "mipi_index");
+		   SIF_STA_SHOW(vc_index, "%d   %s", subdev->vc_index, "vc of mipi");
+		   SIF_STA_SHOW(input_width, "%d", sif_cfg->input.mipi.data.width);
+		   SIF_STA_SHOW(input_height, "%d", sif_cfg->input.mipi.data.height);
+		   SIF_STA_SHOW(format, "%d   %s",
+			sif_cfg->input.mipi.data.format, "raw:0 yuv:8");
+		   SIF_STA_SHOW(ipi_channels, "%d", sif_cfg->input.mipi.channels);
+		   SIF_STA_SHOW(isp_enable, "%d   %s",
+			sif_cfg->output.isp.enable, "1: isp enable,  0: isp disable");
+		   SIF_STA_SHOW(ddrin_enable, "%d   %s",
+			sif_cfg->input.ddr.enable, "0: online->isp  1: offline->isp");
+		   SIF_STA_SHOW(out_ddr_enable, "%d   %s",
+			sif_cfg->output.ddr.enable, "1: sif->offline");
+		   SIF_STA_SHOW(isp_flyby, "%d   %s",
+			sif_cfg->output.isp.func.enable_flyby, "1: sif->online->isp");
+		   SIF_STA_SHOW(buffer_num, "%d   %s",
+			sif_cfg->output.ddr.buffer_num, "capture buff nums");
+		   SIF_STA_SHOW(ipu_flyby, "%d   %s",
+			sif_cfg->output.ipu.enable_flyby, "1: sif->online->ipu");
+		   s += sprintf(s, "\n\n");
+	   }
+	}
+	return (s - buf);
+}
+static DEVICE_ATTR(cfg_info, 0660, sif_cfg_info, NULL);
+
 /*
  * multi-process node
  */
@@ -1821,6 +1877,11 @@ static int x3_sif_probe(struct platform_device *pdev)
 		vio_err("create err_status failed (%d)\n", ret);
 		goto p_err;
 	}
+	ret = device_create_file(dev, &dev_attr_cfg_info);
+	if (ret < 0) {
+		vio_err("create dev_attr_cfg_info failed (%d)\n", ret);
+		goto p_err;
+	}
 
 	platform_set_drvdata(pdev, sif);
 
@@ -1871,6 +1932,7 @@ static int x3_sif_remove(struct platform_device *pdev)
 	device_remove_file(&pdev->dev, &dev_attr_regdump);
 	device_remove_file(&pdev->dev, &dev_attr_hblank);
 	device_remove_file(&pdev->dev, &dev_attr_err_status);
+	device_remove_file(&pdev->dev, &dev_attr_cfg_info);
 
 	free_irq(sif->irq, sif);
 	for(i = 0; i < MAX_DEVICE; i++)
