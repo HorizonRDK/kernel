@@ -41,6 +41,8 @@ struct hobot_lpwm_chip {
 	struct clk *clk;
 	void __iomem *base;
 	int offset[LPWM_NPWM];
+	struct pinctrl *pinctrl;
+	struct pinctrl_state *pins[LPWM_NPWM];
 };
 
 #define to_hobot_lpwm_chip(_chip) \
@@ -66,19 +68,19 @@ static int hobot_lpwm_config(struct pwm_chip *chip, struct pwm_device *pwm,
 	struct hobot_lpwm_chip *lpwm = to_hobot_lpwm_chip(chip);
 	int ret;
 
-	if (period_ns > 0 && (period_ns < 250000 || period_ns > 1000000000)) {
-		pr_err("lpwm only support period in [250000ns~1000000000ns]\n");
+	if (period_ns > 0 && (period_ns < 10000 || period_ns > 40960000)) {
+		pr_err("lpwm only support period in [10000ns~40960000ns]\n");
 		return -ERANGE;
 	}
 
-	if (duty_ns > 0 && (duty_ns < 250000 || duty_ns > 4000000)) {
-		pr_err("lpwm only support duty_cycle in [250000ns~1000000000ns]\n");
+	if (duty_ns > 0 && (duty_ns < 10000 || duty_ns > 160000)) {
+		pr_err("lpwm only support duty_cycle in [10000ns~160000ns]\n");
 		return -ERANGE;
 	}
 
 	/* config pwm freq */
-	period = div64_u64((uint64_t)period_ns, (uint64_t)250000) - 1;
-	high = div64_u64((uint64_t)duty_ns, (uint64_t)250000) - 1;
+	period = div64_u64((uint64_t)period_ns, (uint64_t)10000) - 1;
+	high = div64_u64((uint64_t)duty_ns, (uint64_t)10000) - 1;
 
 	ret = clk_prepare_enable(lpwm->clk);
 	if (ret) {
@@ -115,12 +117,12 @@ static int hobot_lpwm_enable(struct pwm_chip *chip, struct pwm_device *pwm)
 		}
 	}
 
+	if (lpwm->pinctrl != NULL && lpwm->pins[pwm->hwpwm] != NULL)
+		pinctrl_select_state(lpwm->pinctrl, lpwm->pins[pwm->hwpwm]);
+
 	val = hobot_lpwm_rd(lpwm, LPWM_EN);
 	val |= (1 << pwm->hwpwm);
-	val |= LPWM_EN;
 	hobot_lpwm_wr(lpwm, LPWM_EN, val);
-
-	hobot_lpwm_wr(lpwm, LPWM_SW_TRIG, 1);
 
 	pr_debug("enable lpwm%d, LPWM_EN: 0x%08x, LPWM_CFG: 0x%08x \n",
 		pwm->hwpwm, hobot_lpwm_rd(lpwm, LPWM_EN),
@@ -139,7 +141,8 @@ static void hobot_lpwm_disable(struct pwm_chip *chip, struct pwm_device *pwm)
 
 	hobot_lpwm_wr(lpwm, LPWM_EN, val);
 
-	clk_disable_unprepare(lpwm->clk);
+	if (__clk_is_enabled(lpwm->clk))
+		clk_disable_unprepare(lpwm->clk);
 
 	return;
 }
@@ -179,8 +182,8 @@ static ssize_t lpwm_offset_store(struct device *dev,
 	for (i = 0; i < LPWM_NPWM; i++) {
 		token = strsep(&p, " ");
 		sscanf(token, "%d", &offset_us);
-		if (offset_us < 250 || offset_us > 1000000) {
-			pr_info("lpwm offset should be in [250, 1000000] microseconds\n");
+		if (offset_us < 10 || offset_us > 40960) {
+			pr_info("lpwm offset should be in [10, 40960] microseconds\n");
 			return -EINVAL;
 		}
 
@@ -191,7 +194,7 @@ static ssize_t lpwm_offset_store(struct device *dev,
 	for (i = 0; i < LPWM_NPWM; i++) {
 		val = hobot_lpwm_rd(lpwm, (i * 0x4) + LPWM0_CFG);
 		val &= 0xFFFFF000;
-		val |= lpwm->offset[i] / 250 - 1;
+		val |= lpwm->offset[i] / 10 - 1;
 		hobot_lpwm_wr(lpwm, (i * 0x4) + LPWM0_CFG, val);
 	}
 
@@ -199,11 +202,35 @@ static ssize_t lpwm_offset_store(struct device *dev,
 }
 static DEVICE_ATTR_RW(lpwm_offset);
 
+
+static ssize_t lpwm_swtrig_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct hobot_lpwm_chip *lpwm = dev_get_drvdata(dev);
+	int val;
+	char *p = (char *)buf;
+	char *token;
+	int i;
+
+
+	sscanf(buf, "%d", &val);
+	pr_info("trigger lpwms, val:%d\n", val);
+	val = (val == 0) ? 1 : val;
+
+	hobot_lpwm_wr(lpwm, LPWM_SW_TRIG, val);
+
+	return count;
+}
+static DEVICE_ATTR_WO(lpwm_swtrig);
+
+
 static int hobot_lpwm_probe(struct platform_device *pdev)
 {
 	int ret;
 	struct hobot_lpwm_chip *lpwm;
 	struct resource *res;
+	int i;
+	char buf[16];
 
 	lpwm = devm_kzalloc(&pdev->dev, sizeof(struct hobot_lpwm_chip), GFP_KERNEL);
 	if (!lpwm)
@@ -220,6 +247,23 @@ static int hobot_lpwm_probe(struct platform_device *pdev)
 	if (IS_ERR(lpwm->clk)) {
 		pr_err("lpwm_mclk clock not found.\n");
 		return PTR_ERR(lpwm->clk);
+	}
+
+	lpwm->pinctrl = devm_pinctrl_get(&pdev->dev);
+	if (IS_ERR(lpwm->pinctrl)) {
+		pr_err("Failed to get a pinctrl state holder, check dts.\n");
+		return -ENODEV;
+	}
+
+	for (i = 0; i < LPWM_NPWM; i++) {
+		memset(buf, 0, sizeof(buf));
+		snprintf(buf, sizeof(buf), "lpwm%d", i);
+
+		lpwm->pins[i] = pinctrl_lookup_state(lpwm->pinctrl, buf);
+		if (lpwm->pins[i] == NULL) {
+			pr_err("lpwm%d pinctrl is not found, check dts.\n", i);
+			return -ENODEV;
+		}
 	}
 
 	ret = clk_prepare_enable(lpwm->clk);
@@ -241,6 +285,11 @@ static int hobot_lpwm_probe(struct platform_device *pdev)
 
 	if (sysfs_create_file(&pdev->dev.kobj, &dev_attr_lpwm_offset.attr)) {
 		pr_err("lpwm_offset create failed\n");
+		return -ENOMEM;
+	}
+
+	if (sysfs_create_file(&pdev->dev.kobj, &dev_attr_lpwm_swtrig.attr)) {
+		pr_err("lpwm_swtrig create failed\n");
 		return -ENOMEM;
 	}
 

@@ -239,6 +239,29 @@
 					0x1dc	(MUX_F3 | DRIVE1_22MA | SCHMITT2_DIS | PULL2_UP) /*DATA23*/
 				>;
 			};
+
+			lpwm0_func: lpwm0_func {
+				pinctrl-single,pins = <
+					0x1d0	(MUX_F1 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN) /*LPWM0*/
+				>;
+			};
+
+			lpwm1_func: lpwm1_func {
+				pinctrl-single,pins = <
+					0x1d4	(MUX_F1 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN) /*LPWM1*/
+				>;
+			};
+			lpwm2_func: lpwm2_func {
+				pinctrl-single,pins = <
+					0x1d8	(MUX_F1 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN) /*LPWM2*/
+				>;
+			};
+			lpwm3_func: lpwm3_func {
+				pinctrl-single,pins = <
+					0x1dc	(MUX_F1 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN) /*LPWM3*/
+				>;
+			};
+
 			bifsd_func: bifsd_func {
 				pinctrl-single,pins = <
 					0x050	(MUX_F0 | DRIVE2_09MA | SCHMITT2_ENA | PULL2_DOWN) /*BIFSD_CLK*/
