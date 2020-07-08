@@ -545,6 +545,8 @@ struct iar_dev_s {
 	wait_queue_head_t done_wq;
 	int wb_sel;
 	int wb_format;
+
+	struct dentry *debug_file_iar;
 };
 extern struct iar_dev_s *g_iar_dev;
 

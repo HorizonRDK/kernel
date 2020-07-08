@@ -2815,6 +2815,99 @@ static int display_color_bar(unsigned int width, unsigned height,
 	return 0;
 }
 
+static int iar_debug_show(struct seq_file *s, void *unused)
+{
+        int iar_open = 0;
+	uint32_t reg_value = 0;
+	int channel_enable_status[4] = {0};
+	int channel_priority[4] = {0};
+	int channel_resolution[4][2];
+	int channel_crop_resolution[4][2];
+	int channel_display_position[4][2];
+	int i = 0;
+
+	if (__clk_is_enabled(g_iar_dev->sif_mclk) &&
+			__clk_is_enabled(g_iar_dev->iar_pixel_clk)) {
+		iar_open = 1;
+		seq_printf(s, "Display module status: display module is runing\n");
+	} else {
+		iar_open = 0;
+		seq_printf(s, "Display module status: display module is stop\n");
+	}
+	enable_sif_mclk();
+	iar_pixel_clk_enable();
+	reg_value = readl(g_iar_dev->regaddr + 0x0);
+	for (i = 0; i < 4; i++) {
+		if ((reg_value >> (24 + i))  & 0x1) {
+			channel_enable_status[i] = 1;
+			channel_priority[i] = (reg_value >> (16 + i * 2)) & 0x3;
+			channel_resolution[i][0] = //g_iar_dev->buf_w_h[i][0];
+				readl(g_iar_dev->regaddr + 0x44 - i * 4);//width
+			channel_resolution[i][1] = g_iar_dev->buf_w_h[i][1];
+			channel_crop_resolution[i][0] =
+				readl(g_iar_dev->regaddr + 0x24 - i * 4) & 0x7ff;//width
+			channel_crop_resolution[i][1] =
+				(readl(g_iar_dev->regaddr + 0x24 - i * 4) >> 16) & 0x7ff;
+			channel_display_position[i][0] =
+				readl(g_iar_dev->regaddr + 0x58 - i * 4) & 0x7ff;//x pos
+			channel_display_position[i][1] =
+				(readl(g_iar_dev->regaddr + 0x58 - i * 4) >> 16) & 0x7ff;
+		}
+	}
+	seq_printf(s, "layer info:\n");
+	for (i = 0; i < 4; i++) {
+		if (channel_enable_status[i] == 1) {
+			seq_printf(s,
+				"           layer %d is enabled\n", i);
+			seq_printf(s,
+			"           layer %d resolution is width: %d, height: %d\n",
+				i, channel_resolution[i][0], channel_resolution[i][1]);
+			seq_printf(s,
+			"           layer %d crop width is %d, height: %d\n", i,
+				channel_crop_resolution[i][0], channel_crop_resolution[i][1]);
+			seq_printf(s,
+			"           layer %d display x position is %d, y position is %d\n", i,
+				channel_display_position[i][0], channel_display_position[i][1]);
+		}
+	}
+	seq_printf(s, "Priority: the highest priority layer is %d\n",
+			channel_priority[0]);
+	seq_printf(s, "          the second highest priority layer is %d\n",
+			channel_priority[1]);
+	seq_printf(s, "          the third highest priority layer is %d\n",
+			channel_priority[2]);
+	seq_printf(s, "          the lowest priority layer is %d\n",
+			channel_priority[3]);
+	reg_value = readl(g_iar_dev->regaddr + 0x340);
+	if (reg_value & 0x1)
+		seq_printf(s, "Output: output mode is IPI\n");
+	else if (reg_value & 0x2)
+		seq_printf(s, "Output: output mode is BT1120\n");
+	else if (reg_value & 0x4)
+		seq_printf(s, "Output: output mode is RGB\n");
+	else if ((readl(g_iar_dev->regaddr + 0x800) & 0x13) == 0x13)
+		seq_printf(s, "Output: output mode is MIPI-DSI\n");
+	reg_value = readl(g_iar_dev->regaddr + 0x200);
+	seq_printf(s, "        output resolution width is %d, height is %d\n",
+			reg_value & 0x7ff, (reg_value >> 16) & 0x7ff);
+	disable_sif_mclk();
+	iar_pixel_clk_disable();
+        return 0;
+}
+
+static int iar_debug_open(struct inode *inode, struct file *file)
+{
+        return single_open(file, iar_debug_show, inode->i_private);
+}
+
+static const struct file_operations iar_debug_fops = {
+        .open = iar_debug_open,
+        .read = seq_read,
+        .llseek = seq_lseek,
+        .release = single_release,
+};
+
+
 static int hobot_iar_probe(struct platform_device *pdev)
 {
 	struct resource *res, *irq, *res_mipi;
@@ -2850,6 +2943,11 @@ static int hobot_iar_probe(struct platform_device *pdev)
 
 	g_iar_dev->pdev = pdev;
 	memset(&g_iar_dev->cur_framebuf_id, 0, IAR_CHANNEL_MAX * sizeof(int));
+
+	g_iar_dev->debug_file_iar = debugfs_create_file("iar", 0664, NULL,
+			g_iar_dev, &iar_debug_fops);
+	if (!g_iar_dev->debug_file_iar)
+		pr_err("Failed to create client debugfs at %s\n", "iar");
 
 	g_iar_dev->sif_mclk = devm_clk_get(&pdev->dev, "sif_mclk");
         if (IS_ERR(g_iar_dev->sif_mclk)) {
