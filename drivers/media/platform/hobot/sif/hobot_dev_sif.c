@@ -444,6 +444,7 @@ int get_free_mux(struct x3_sif_dev *sif, u32 index, int format, u32 dol_num,
 	int step = 1;
 	int mux_nums = 1;
 	int mux_for_4k[] = {0, 1, 4, 5};
+	int start_index = 0;
 
 	mux_nums = dol_num;
 	if (format == HW_FORMAT_YUV422) {
@@ -455,7 +456,10 @@ int get_free_mux(struct x3_sif_dev *sif, u32 index, int format, u32 dol_num,
 
 	mutex_lock(&sif->shared_mutex);
 	if (width > LINE_BUFFER_SIZE && step == 1) {
-		for (i = 0; i < 4; i++) {
+		if (index == 4)
+			start_index = 2;
+
+		for (i = start_index; i < 4; i++) {
 			if (!test_bit(mux_for_4k[i], &sif->mux_mask)) {
 				if (test_bit(mux_for_4k[i] + 2, &sif->mux_mask))
 					continue;
