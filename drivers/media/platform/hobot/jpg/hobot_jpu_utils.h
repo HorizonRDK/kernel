@@ -98,6 +98,7 @@ typedef struct _hb_jpu_dev {
 	struct mutex jpu_mutex;
 	struct semaphore jpu_sem;
 	spinlock_t jpu_spinlock;
+	spinlock_t jpu_info_spinlock;
 	struct list_head jbp_head;
 	struct list_head inst_list_head;
 
@@ -106,6 +107,10 @@ typedef struct _hb_jpu_dev {
 	u32 inst_index;
 	hb_jpu_ctx_info_t jpu_ctx[MAX_NUM_JPU_INSTANCE];
 	hb_jpu_status_info_t jpu_status[MAX_NUM_JPU_INSTANCE];
+
+	struct dentry *debug_root;
+	struct dentry *debug_file_jenc;
+	struct dentry *debug_file_jdec;
 } hb_jpu_dev_t;
 
 typedef struct _hb_jpu_priv {

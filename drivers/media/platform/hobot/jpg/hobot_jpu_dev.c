@@ -19,6 +19,7 @@
 #include <linux/version.h>
 #include <linux/poll.h>
 #include <linux/eventpoll.h>
+#include <linux/debugfs.h>
 
 #include "hobot_jpu_ctl.h"
 #include "hobot_jpu_debug.h"
@@ -825,9 +826,9 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 					("Invalid instance index %d.\n", inst_index);
 				return -EINVAL;
 			}
-			spin_lock(&dev->jpu_spinlock);
+			spin_lock(&dev->jpu_info_spinlock);
 			dev->jpu_ctx[inst_index] = info;
-			spin_unlock(&dev->jpu_spinlock);
+			spin_unlock(&dev->jpu_info_spinlock);
 			jpu_debug(5, "[-]JDI_IOCTL_SET_CTX_INFO\n");
 			break;
 		}
@@ -847,9 +848,9 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 					("Invalid instance index %d.\n", inst_index);
 				return -EINVAL;
 			}
-			spin_lock(&dev->jpu_spinlock);
+			spin_lock(&dev->jpu_info_spinlock);
 			dev->jpu_status[inst_index] = info;
-			spin_unlock(&dev->jpu_spinlock);
+			spin_unlock(&dev->jpu_info_spinlock);
 			//jpu_debug(5, "[-]JDI_IOCTL_SET_STATUS_INFO\n");
 			break;
 		}
@@ -1118,6 +1119,182 @@ struct file_operations jpu_fops = {
   .poll = jpu_poll,
 };
 
+//////////////// jenc
+static char *get_codec(hb_jpu_ctx_info_t *jpu_ctx)
+{
+	switch (jpu_ctx->context.codec_id) {
+		case MEDIA_CODEC_ID_H264:
+			return "h264";
+		case MEDIA_CODEC_ID_H265:
+			return "h265";
+		case MEDIA_CODEC_ID_MJPEG:
+			return "mjpg";
+		case MEDIA_CODEC_ID_JPEG:
+			return "jpeg";
+		default:
+			break;
+	}
+	return "---";
+}
+
+static void rcparam_show(struct seq_file *s, hb_jpu_ctx_info_t *jpu_ctx) {
+	mc_rate_control_params_t *rc =
+		&(jpu_ctx->context.video_enc_params.rc_params);
+	if (rc->mode == MC_AV_RC_MODE_MJPEGFIXQP) {
+		seq_printf(s, "enc_idx   rc_mode frame_rate quality_factor\n");
+		seq_printf(s, "%6d mjpgfixqp %10d %10d\n",
+			jpu_ctx->context.instance_index,
+			rc->mjpeg_fixqp_params.frame_rate,
+			rc->mjpeg_fixqp_params.quality_factor);
+	}
+	seq_printf(s, "\n");
+}
+
+static int jpu_jenc_show(struct seq_file *s, void *unused)
+{
+	int i;
+	hb_jpu_dev_t *dev = (hb_jpu_dev_t *)s->private;
+	if (dev == NULL)
+		return 0;
+
+	seq_printf(s, "----encode param---------------------"
+		"---------------------------------------------------------------\n");
+	seq_printf(s, "enc_idx  enc_id width height pix_fmt "
+		"fbuf_count extern_buf_flag bsbuf_count bsbuf_size mirror rotate\n");
+	for (i = 0; i < MAX_NUM_JPU_INSTANCE; i++) {
+		if (dev->jpu_ctx[i].valid && dev->jpu_ctx[i].context.encoder) {
+			seq_printf(s, "%6d %7s %5d %6d %7d "\
+				"%10d %15d %11d %10d %6d %6d\n",
+				dev->jpu_ctx[i].context.instance_index,
+				get_codec(&dev->jpu_ctx[i]),
+				dev->jpu_ctx[i].context.video_enc_params.width,
+				dev->jpu_ctx[i].context.video_enc_params.height,
+				dev->jpu_ctx[i].context.video_enc_params.pix_fmt,
+				dev->jpu_ctx[i].context.video_enc_params.frame_buf_count,
+				dev->jpu_ctx[i].context.video_enc_params.external_frame_buf,
+				dev->jpu_ctx[i].context.video_enc_params.bitstream_buf_count,
+				dev->jpu_ctx[i].context.video_enc_params.bitstream_buf_size,
+				dev->jpu_ctx[i].context.video_enc_params.mir_direction,
+				dev->jpu_ctx[i].context.video_enc_params.rot_degree);
+		}
+	}
+	seq_printf(s, "\n");
+	seq_printf(s, "----encode rc param-------------------------------------\n");
+	for (i = 0; i < MAX_NUM_JPU_INSTANCE; i++) {
+		if (dev->jpu_ctx[i].valid && dev->jpu_ctx[i].context.encoder) {
+			rcparam_show(s, &(dev->jpu_ctx[i]));
+		}
+	}
+
+	// seq_printf(s, "\n");
+	// seq_printf(s, "----encode gop param:\n");
+	// seq_printf(s, "enc_idx gop_preset_idx custom_gop_size\n");
+	// for (i = 0; i < MAX_NUM_JPU_INSTANCE; i++) {
+	// 	if (dev->jpu_ctx[i].valid && dev->jpu_ctx[i].context.encoder) {
+	// 		mc_video_gop_params_t *gop =
+	// 			&(dev->jpu_ctx[i].context.video_enc_params.gop_params);
+	// 		seq_printf(s, "%6d %14d %10d\n",
+	// 			dev->jpu_ctx[i].context.instance_index,
+	// 			gop->gop_preset_idx,
+	// 			gop->custom_gop_size);
+	// 	}
+	// }
+	seq_printf(s, "\n");
+	seq_printf(s, "----encode status----------------"
+		"--------------------------------------------------"
+		"----------------------------------------\n");
+	seq_printf(s, "enc_idx enc_id cur_input_buf_cnt "
+		"cur_output_buf_cnt left_recv_frame left_enc_frame "
+		"total_input_buf_cnt total_output_buf_cnt\n");
+	for (i = 0; i < MAX_NUM_JPU_INSTANCE; i++) {
+		if (dev->jpu_ctx[i].valid && dev->jpu_ctx[i].context.encoder) {
+			mc_inter_status_t *status =	&(dev->jpu_status[i].status);
+			seq_printf(s, "%6d %7s %17d %18d %15d %14d %19d %20d\n",
+				dev->jpu_ctx[i].context.instance_index,
+				get_codec(&dev->jpu_ctx[i]),
+				status->cur_input_buf_cnt,
+				status->cur_output_buf_cnt,
+				status->left_recv_frame,
+				status->left_enc_frame,
+				status->total_input_buf_cnt,
+				status->total_output_buf_cnt);
+		}
+	}
+	return 0;
+}
+
+static int jpu_jenc_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, jpu_jenc_show, inode->i_private);
+}
+
+static const struct file_operations jpu_jenc_fops = {
+	.open = jpu_jenc_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+
+//////////////// jdec
+static int jpu_jdec_show(struct seq_file *s, void *unused)
+{
+	int i;
+	hb_jpu_dev_t *dev = (hb_jpu_dev_t *)s->private;
+
+	if (dev == NULL)
+		return 0;
+	seq_printf(s, "\n");
+	seq_printf(s, "----decode param-------------------------------------"
+		"-----------------------------------\n");
+	seq_printf(s, "dec_idx  dec_id feed_mode pix_fmt bitstream_buf_size "
+		"bitstream_buf_count frame_buf_count\n");
+	for (i = 0; i < MAX_NUM_JPU_INSTANCE; i++) {
+		if (dev->jpu_ctx[i].valid && (dev->jpu_ctx[i].context.encoder == 0)) {
+			seq_printf(s, "%6d %7s %9d %7d, %18d, %19d, %15d\n",
+				dev->jpu_ctx[i].context.instance_index,
+				get_codec(&dev->jpu_ctx[i]),
+				dev->jpu_ctx[i].context.video_dec_params.feed_mode,
+				dev->jpu_ctx[i].context.video_dec_params.pix_fmt,
+				dev->jpu_ctx[i].context.video_dec_params.bitstream_buf_size,
+				dev->jpu_ctx[i].context.video_dec_params.bitstream_buf_count,
+				dev->jpu_ctx[i].context.video_dec_params.frame_buf_count);
+		}
+	}
+
+	spin_lock(&dev->jpu_info_spinlock);
+	seq_printf(s, "\n");
+	seq_printf(s, "----decode status----------------"
+		"-----------------------------------------------------------\n");
+	seq_printf(s, "dec_idx dec_id cur_input_buf_cnt "
+		"cur_output_buf_cnt total_input_buf_cnt total_output_buf_cnt\n");
+	for (i = 0; i < MAX_NUM_JPU_INSTANCE; i++) {
+		if (dev->jpu_ctx[i].valid && (dev->jpu_ctx[i].context.encoder == 0)) {
+			mc_inter_status_t *status =	&(dev->jpu_status[i].status);
+			seq_printf(s, "%6d %7s %17d %18d %19d %20d\n",
+				dev->jpu_ctx[i].context.instance_index,
+				get_codec(&dev->jpu_ctx[i]),
+				status->cur_input_buf_cnt,
+				status->cur_output_buf_cnt,
+				status->total_input_buf_cnt,
+				status->total_output_buf_cnt);
+		}
+	}
+	spin_unlock(&dev->jpu_info_spinlock);
+	return 0;
+}
+
+static int jpu_jdec_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, jpu_jdec_show, inode->i_private);
+}
+
+static const struct file_operations jpu_jdec_fops = {
+	.open = jpu_jdec_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+
 static int jpu_probe(struct platform_device *pdev)
 {
 	hb_jpu_dev_t *dev = NULL;
@@ -1287,9 +1464,38 @@ static int jpu_probe(struct platform_device *pdev)
 	mutex_init(&dev->jpu_mutex);
 	sema_init(&dev->jpu_sem, 1);
 	spin_lock_init(&dev->jpu_spinlock);
+	spin_lock_init(&dev->jpu_info_spinlock);
 
 	INIT_LIST_HEAD(&dev->jbp_head);
 	INIT_LIST_HEAD(&dev->inst_list_head);
+
+	dev->debug_root = debugfs_create_dir("jpu", NULL);
+	if (!dev->debug_root) {
+		pr_err("hai: failed to create debugfs root directory.\n");
+		goto ERR_GET_CLK;
+	}
+
+	dev->debug_file_jenc = debugfs_create_file("jenc", 0664,
+						dev->debug_root,
+						dev, &jpu_jenc_fops);
+	if (!dev->debug_file_jenc) {
+		char buf[256], *path;
+
+		path = dentry_path_raw(dev->debug_root, buf, 256);
+		pr_err("Failed to create client debugfs at %s/%s\n",
+			path, "jenc");
+	}
+
+	dev->debug_file_jdec = debugfs_create_file("jdec", 0664,
+						dev->debug_root,
+						dev, &jpu_jdec_fops);
+	if (!dev->debug_file_jdec) {
+		char buf[256], *path;
+
+		path = dentry_path_raw(dev->debug_root, buf, 256);
+		pr_err("Failed to create client debugfs at %s/%s\n",
+			path, "jdec");
+	}
 
 	return 0;
 

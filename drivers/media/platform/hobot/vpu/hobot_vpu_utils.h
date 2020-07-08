@@ -115,6 +115,7 @@ typedef struct _hb_vpu_dev {
 	struct mutex vpu_mutex;
 	struct semaphore vpu_sem;
 	spinlock_t vpu_spinlock;
+	spinlock_t vpu_info_spinlock;
 	struct list_head vbp_head;
 	struct list_head inst_list_head;
 
@@ -122,6 +123,10 @@ typedef struct _hb_vpu_dev {
 	hb_vpu_drv_buffer_t common_memory;
 	hb_vpu_ctx_info_t vpu_ctx[MAX_NUM_VPU_INSTANCE];
 	hb_vpu_status_info_t vpu_status[MAX_NUM_VPU_INSTANCE];
+
+	struct dentry *debug_root;
+	struct dentry *debug_file_venc;
+	struct dentry *debug_file_vdec;
 } hb_vpu_dev_t;
 
 typedef struct _hb_vpu_priv {
