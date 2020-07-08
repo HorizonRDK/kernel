@@ -1569,7 +1569,7 @@ static ssize_t sif_cfg_info(struct device *dev,
 	}
 	return (s - buf);
 }
-static DEVICE_ATTR(cfg_info, 0660, sif_cfg_info, NULL);
+static DEVICE_ATTR(cfg_info, 0444, sif_cfg_info, NULL);
 
 /*
  * multi-process node
