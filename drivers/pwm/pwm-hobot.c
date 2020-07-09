@@ -68,6 +68,7 @@ static inline void hobot_pwm_wr(struct hobot_pwm_chip *hobot_chip, u32 reg, u32 
 	iowrite32(value, hobot_chip->base + reg);
 }
 
+#ifdef ENABLE_PWM_IRQ
 static irqreturn_t hobot_pwm_irq_handler(int irq, void *data)
 {
 	u32 status = 0;
@@ -75,10 +76,11 @@ static irqreturn_t hobot_pwm_irq_handler(int irq, void *data)
 
 	status = hobot_pwm_rd(hbpwm, PWM_SRCPND);
 	hobot_pwm_wr(hbpwm, PWM_SRCPND, status);
-	//dev_info(hbpwm->chip.dev, "pwm_irq_handler\n");
+	dev_debug(hbpwm->chip.dev, "pwm_irq_handler\n");
 
 	return IRQ_HANDLED;
 }
+#endif
 
 static int hobot_pwm_config(struct pwm_chip *chip, struct pwm_device *pwm, int duty_ns, int period_ns)
 {
@@ -200,6 +202,7 @@ static int hobot_pwm_probe(struct platform_device *pdev)
 	}
 	sprintf(hbpwm->name, "%s%d", PWM_NAME, id);
 
+#ifdef ENABLE_PWM_IRQ
 	hbpwm->irq = irq_of_parse_and_map(node, 0);
 	if (0 == hbpwm->irq) {
 		dev_err(&pdev->dev, "IRQ map failed!\n");
@@ -214,6 +217,7 @@ static int hobot_pwm_probe(struct platform_device *pdev)
 			hobot_pwm_wr(hbpwm, PWM_UNMASK, 1);
 		}
 	}
+#endif
 
 	hbpwm->chip.dev  = &pdev->dev;
 	hbpwm->chip.ops  = &hobot_pwm_ops;
