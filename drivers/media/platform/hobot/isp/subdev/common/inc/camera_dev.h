@@ -34,6 +34,11 @@
 #define SENSOR_USER_UNLOCK    _IOW(CAMERA_IOC_MAGIC, 5, int)
 #define SENSOR_AE_SHARE	      _IOW(CAMERA_IOC_MAGIC, 6, int)
 
+typedef enum _mipi_pre_state_t {
+	SENSOR_PRE_STATE_LOCK = 0,
+	SENSOR_PRE_STATE_UNLOCK,
+} sensor_pre_state_t;
+
 struct sensor_ctrl_ops {
 	char ctrl_name[20];
 	void (*camera_gain_control)(uint32_t port, sensor_priv_t *priv_param,
@@ -47,7 +52,7 @@ struct sensor_ctrl_ops {
 typedef struct _camera_charmod_s {
 	char name[CHAR_DEVNAME_LEN];
 	uint32_t devflag;
-	spinlock_t slock;
+	struct mutex slock;
 	uint32_t user_num;
 	int dev_minor_id;
 	struct miscdevice camera_chardev;
@@ -61,6 +66,10 @@ typedef struct _camera_charmod_s {
 	struct mutex user_mutex;
 	uint32_t start_num;
 	uint32_t ae_share_flag;
+	// wait queue
+	uint32_t pre_state;
+	bool pre_done;
+	wait_queue_head_t pre_wq;
 } camera_charmod_s;
 
 extern camera_charmod_s *camera_mod[CAMERA_TOTAL_NUMBER];

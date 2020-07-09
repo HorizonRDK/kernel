@@ -51,17 +51,17 @@ static int camera_fop_open(struct inode *pinode, struct file *pfile)
 				break;
 			}
 	}
-	spin_lock(&camera_cdev->slock);
+	mutex_lock(&camera_cdev->slock);
 	if (camera_cdev->user_num > 0) {
 		pr_info("more than one pthred use !\n");
 	} else {
 		camera_cdev->mst_file = pfile;
 		camera_cdev->start_num = 0;
-		mutex_init(&camera_cdev->user_mutex);
+		camera_cdev->pre_state = SENSOR_PRE_STATE_UNLOCK;
 		pr_info("user_mutex init !\n");
 	}
 	camera_cdev->user_num++;
-	spin_unlock(&camera_cdev->slock);
+	mutex_unlock(&camera_cdev->slock);
 	pfile->private_data = camera_cdev;
 	pr_info("camera_fop_open success %d\n", __LINE__);
 	return 0;
@@ -71,13 +71,13 @@ static int camera_fop_release(struct inode *pinode, struct file *pfile)
 {
 	camera_charmod_s *camera_cdev = pfile->private_data;
 
-	spin_lock(&camera_cdev->slock);
+	mutex_lock(&camera_cdev->slock);
 	camera_cdev->user_num--;
 	camera_cdev->mst_file = NULL;
 	if (camera_cdev->user_num <= 0) {
 		camera_i2c_release(camera_cdev->port);
 	}
-	spin_unlock(&camera_cdev->slock);
+	mutex_unlock(&camera_cdev->slock);
 	pfile->private_data = NULL;
 	pr_info("camera_fop_release success %d\n", __LINE__);
 	return 0;
@@ -92,7 +92,7 @@ static long camera_fop_ioctl(struct file *pfile, unsigned int cmd,
 
 	//pr_info("---[%s-%d]---\n", __func__, __LINE__);
 
-	spin_lock(&camera_cdev->slock);
+	mutex_lock(&camera_cdev->slock);
 	if (camera_cdev->mst_file == NULL) {
 		camera_cdev->mst_file = pfile;
 		mst_flg = 1;
@@ -101,7 +101,7 @@ static long camera_fop_ioctl(struct file *pfile, unsigned int cmd,
 	} else {
 		mst_flg = 1;
 	}
-	spin_unlock(&camera_cdev->slock);
+	mutex_unlock(&camera_cdev->slock);
 
 	switch(cmd) {
 		case SENSOR_TURNING_PARAM: {
@@ -140,7 +140,6 @@ static long camera_fop_ioctl(struct file *pfile, unsigned int cmd,
 			if (copy_from_user((void *)&camera_cdev->start_num,
 				(void __user *)arg, sizeof(int))) {
 				pr_err("ioctl set user start count err !\n");
-				spin_unlock(&camera_cdev->slock);
 				return -EINVAL;
 			}
 			if (camera_cdev->start_num == 1)
@@ -161,9 +160,35 @@ static long camera_fop_ioctl(struct file *pfile, unsigned int cmd,
 				pr_err("ioctl sensor user lock error!\n");
 				return -EINVAL;
 			}
+			if (camera_cdev->pre_state == SENSOR_PRE_STATE_UNLOCK) {
+				camera_cdev->pre_state = SENSOR_PRE_STATE_LOCK;
+				mutex_unlock(&camera_cdev->user_mutex);
+			} else {
+				mutex_unlock(&camera_cdev->user_mutex);
+				camera_cdev->pre_done = false;
+				wait_event_interruptible(camera_cdev->pre_wq, camera_cdev->pre_done);
+				if (mutex_lock_interruptible(&camera_cdev->user_mutex)) {
+					pr_err("ioctl sensor user lock error!\n");
+					return -EINVAL;
+				}
+				if (camera_cdev->pre_state == SENSOR_PRE_STATE_LOCK) {
+					mutex_unlock(&camera_cdev->user_mutex);
+					pr_err("ioctl sensor user lock failed!\n");
+					return -EBUSY;
+				}
+				camera_cdev->pre_state = SENSOR_PRE_STATE_LOCK;
+				mutex_unlock(&camera_cdev->user_mutex);
+			}
 			break;
 		case SENSOR_USER_UNLOCK:
+			if (mutex_lock_interruptible(&camera_cdev->user_mutex)) {
+				pr_err("ioctl sensor user lock error!\n");
+				return -EINVAL;
+			}
+			camera_cdev->pre_state = SENSOR_PRE_STATE_UNLOCK;
 			mutex_unlock(&camera_cdev->user_mutex);
+			camera_cdev->pre_done = true;
+			wake_up_interruptible(&camera_cdev->pre_wq);
 			break;
 		case SENSOR_AE_SHARE:
 			if (copy_from_user((void *)&camera_cdev->ae_share_flag,
@@ -216,7 +241,9 @@ int __init camera_dev_init(uint32_t port)
 	}
 	camera_mod[port]->dev_minor_id = camera_mod[port]->camera_chardev.minor;
 	camera_mod[port]->port = port;
-	spin_lock_init(&(camera_mod[port]->slock));
+	mutex_init(&(camera_mod[port]->slock));
+	mutex_init(&(camera_mod[port]->user_mutex));
+	init_waitqueue_head(&camera_mod[port]->pre_wq);
 	pr_info("port %d %s register success !\n", port, camera_mod[port]->name);
 	return ret;
 
