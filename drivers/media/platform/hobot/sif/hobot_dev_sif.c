@@ -1376,10 +1376,12 @@ static irqreturn_t sif_isr(int irq, void *data)
 			}
 		}
 	}
-
 	if (test_bit(SIF_DMA_IN_ENABLE, &sif->state)
 	    && (irq_src.sif_out_int & 1 << SIF_ISP_OUT_FE)) {
 		instance = atomic_read(&sif->instance);
+		if(!sif->sif_input[instance]) {
+			return IRQ_HANDLED;
+		}
 		group = sif->sif_input[instance];
 		gtask = group->gtask;
 
@@ -1388,10 +1390,12 @@ static irqreturn_t sif_isr(int irq, void *data)
 		subdev = group->sub_ctx[0];
 		sif_frame_done(subdev);
 	}
-
 	if (test_bit(SIF_DMA_IN_ENABLE, &sif->state) &&
 		(irq_src.sif_out_int & 1 << SIF_ISP_OUT_FS)) {
 			instance = atomic_read(&sif->instance);
+			if(!sif->sif_input[instance]) {
+				return IRQ_HANDLED;
+			}
 			group = sif->sif_input[instance];
 			vio_set_stat_info(group->instance, SIF_IN_FS,
 					group->frameid.frame_id);
