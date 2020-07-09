@@ -876,11 +876,10 @@ int __init iar_cdev_init(void)
 
 void __exit iar_cdev_exit(void)
 {
+	sysfs_remove_group(&g_iar_cdev->dev->kobj, &attr_group);
 	device_destroy(g_iar_cdev->iar_classes, g_iar_cdev->dev_num);
 	cdev_del(&g_iar_cdev->cdev);
 	unregister_chrdev_region(g_iar_cdev->dev_num, 1);
-
-	sysfs_remove_group(&g_iar_cdev->dev->kobj, &attr_group);
 }
 
 module_init(iar_cdev_init);

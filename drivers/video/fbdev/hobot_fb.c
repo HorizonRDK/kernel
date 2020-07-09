@@ -1607,7 +1607,11 @@ int __init hbfb_init(void)
 
 static void __exit hbfb_cleanup(void)
 {
+	enable_sif_mclk();
+	iar_pixel_clk_enable();
 	platform_driver_unregister(&hbfb_driver);
+	disable_sif_mclk();
+	iar_pixel_clk_disable();
 }
 
 late_initcall(hbfb_init);
