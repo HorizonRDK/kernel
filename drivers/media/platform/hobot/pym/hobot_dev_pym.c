@@ -707,6 +707,7 @@ int pym_video_reqbufs(struct pym_video_ctx *pym_ctx, u32 buffers)
 	instance = pym_ctx->group->instance;
 	for (i = first_index; i < (buffers + first_index) ; i++) {
 		framemgr->frames_mp[i]->data = pym_ctx->group;
+		frame_work_init(&pym_dev->vwork[instance][i].work);
 		framemgr->frames_mp[i]->mp_work = &pym_dev->vwork[instance][i].work;
 		pym_dev->vwork[instance][i].group = pym_ctx->group;
 	}

@@ -1425,6 +1425,7 @@ int ipu_video_reqbufs(struct ipu_video_ctx *ipu_ctx, u32 buffers)
 	instance = ipu_ctx->group->instance;
 	for (i = first_index; i < (first_index + buffers); i++) {
 		framemgr->frames_mp[i]->data = ipu_ctx->group;
+		frame_work_init(&ipu_dev->vwork[instance][i].work);
 		framemgr->frames_mp[i]->mp_work = &ipu_dev->vwork[instance][i].work;
 		ipu_dev->vwork[instance][i].group = ipu_ctx->group;
 	}
