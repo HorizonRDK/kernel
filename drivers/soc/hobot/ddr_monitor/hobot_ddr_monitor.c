@@ -54,15 +54,49 @@ struct ddr_monitor_dev_s {
 };
 
 #ifdef CONFIG_HOBOT_XJ3
+
 #define PORT_NUM 8
 #define SYS_PCLK_HZ 300000000
+
+/* Define DDRC registers for DDR detect */
 #define uMCTL2_BASE 0xA2D00000
 #define uMCTL2_MRCTRL0 0x10
 #define uMCTL2_MRCTRL1 0x14
 #define uMCTL2_MRSTAT  0x18
+
+
+/* Define DDRC registers for ECC interrupt */
+#define uMCTL2_ECCCFG0         0x0070
+#define uMCTL2_ECCSTAT         0x0078
+#define ECC_STAT_CORR_ERR      BIT8
+#define ECC_STAT_UNCORR_ERR    BIT16
+
+#define uMCTL2_ECCERRCNT       0x0080
+
+#define uMCTL2_ECCCTL          0x007c
+#define ECC_CORR_ERR_INTR_EN   BIT8
+#define ECC_UNCORR_ERR_INTR_EN BIT9
+#define ECC_UNCORR_ERR_CNT_CLR BIT3
+#define ECC_CORR_ERR_CNT_CLR   BIT2
+#define ECC_UNCORR_ERR_CLR     BIT1
+#define ECC_CORR_ERR_CLR       BIT0
+
+struct ddr_ecc_s {
+	int irq;
+	int enabled;
+	void __iomem *ddrc_base;
+	u64 corr_cnt;        // 1bit corrected error hit count
+	u64 uncorr_cnt;      // 2bit uncorrected error hit count
+	u64 uncorr_corr_cnt; // 3bit uncertain error hit count
+	struct notifier_block panic_blk;
+} ddr_ecc;
+
+
 #else
+
 #define PORT_NUM 6
 #define SYS_PCLK_HZ 333333333
+
 #endif
 
 struct ddr_monitor_dev_s* g_ddr_monitor_dev = NULL;
@@ -631,6 +665,41 @@ static irqreturn_t ddr_monitor_isr(int this_irq, void *data)
 
 	return IRQ_HANDLED;
 }
+
+static irqreturn_t ddr_ecc_isr(int this_irq, void *data)
+{
+	void __iomem *ddrc_base = ddr_ecc.ddrc_base;
+	void __iomem *ecc_ctrl = ddrc_base + uMCTL2_ECCCTL;
+	u32 ecc_stat;
+	u32 ecc_cnt;
+
+
+	ecc_stat = readl(ddrc_base + uMCTL2_ECCSTAT);
+	ecc_cnt  = readl(ddrc_base + uMCTL2_ECCERRCNT);
+
+	if ((ecc_stat & ECC_STAT_CORR_ERR) &&
+	     (ecc_stat & ECC_STAT_UNCORR_ERR)) {
+		ddr_ecc.uncorr_corr_cnt += (ecc_cnt & 0xFFFF) + (ecc_cnt >> 16);
+		pr_debug("3+ bits ecc error hits %llu\n", ddr_ecc.uncorr_corr_cnt);
+	} else if (ecc_stat & ECC_STAT_CORR_ERR) {
+		ddr_ecc.corr_cnt += ecc_cnt & 0xFFFF;
+		printk_once("1 bit corrected ecc error detected\n");
+		pr_debug("1 bit ecc error hits %llu\n", ddr_ecc.corr_cnt);
+	} else if (ecc_stat & ECC_STAT_UNCORR_ERR) {
+		ddr_ecc.uncorr_cnt += ecc_cnt >> 16;
+		pr_debug("2 bits ecc error hits %llu\n", ddr_ecc.uncorr_cnt);
+	}
+
+	writel(readl(ecc_ctrl) | ECC_UNCORR_ERR_CNT_CLR, ecc_ctrl);
+	writel(readl(ecc_ctrl) | ECC_CORR_ERR_CNT_CLR, ecc_ctrl);
+
+	writel(readl(ecc_ctrl) | ECC_UNCORR_ERR_CLR, ecc_ctrl);
+	writel(readl(ecc_ctrl) | ECC_CORR_ERR_CLR, ecc_ctrl);
+
+
+	return IRQ_HANDLED;
+}
+
 static unsigned int read_ctl_value;
 static unsigned int write_ctl_value;
 static ssize_t cpu_read_ctl_store(struct device_driver *drv,
@@ -1936,6 +2005,7 @@ static ssize_t all_axibus_ctrl_show(struct device_driver *drv, char *buf)
 	}
 	iounmap(axibus_reg);
 	close_sif_mclk();
+
 	return len;
 }
 
@@ -2023,11 +2093,81 @@ struct bus_type ddr_monitor_subsys = {
 	.name = "ddr_monitor",
 };
 
+static int ddr_ecc_enable_irq(void *ddrc_base, int enable)
+{
+	u32 *ecc_ctrl;
+
+	if (IS_ERR_OR_NULL(ddrc_base)) {
+		pr_err("invalid ddrc base address\n");
+		return -EINVAL;
+	}
+
+	ecc_ctrl = ddrc_base + uMCTL2_ECCCTL;
+	if (enable) {
+		writel(readl(ecc_ctrl) | ECC_UNCORR_ERR_CLR, ecc_ctrl);
+		writel(readl(ecc_ctrl) | ECC_CORR_ERR_CLR, ecc_ctrl);
+
+		writel(readl(ecc_ctrl) | ECC_CORR_ERR_INTR_EN, ecc_ctrl);
+		writel(readl(ecc_ctrl) | ECC_UNCORR_ERR_INTR_EN, ecc_ctrl);
+	} else {
+		writel(readl(ecc_ctrl) & ~ECC_CORR_ERR_INTR_EN, ecc_ctrl);
+		writel(readl(ecc_ctrl) & ~ECC_UNCORR_ERR_INTR_EN, ecc_ctrl);
+
+		writel(readl(ecc_ctrl) | ECC_UNCORR_ERR_CLR, ecc_ctrl);
+		writel(readl(ecc_ctrl) | ECC_CORR_ERR_CLR, ecc_ctrl);
+	}
+
+	return 0;
+}
+
+static ssize_t ddr_ecc_stat_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	size_t len = 0;
+
+	if (ddr_ecc.enabled == 0) {
+		len += snprintf(buf+len, 64, "ddr ecc is not enabled\n");
+	} else {
+		len += snprintf(buf+len, 64, "ddr ecc is enabled\n");
+
+		len += snprintf(buf+len, 64, "1 bit corrected error hits %llu times\n",
+				ddr_ecc.corr_cnt);
+
+		len += snprintf(buf+len, 64, "2 bits uncorrected error hits %llu times\n",
+				ddr_ecc.uncorr_cnt);
+
+		len += snprintf(buf+len, 64, "3+ bits uncertain error hits %llu times\n",
+				ddr_ecc.uncorr_corr_cnt);
+	}
+
+	return len;
+}
+
+static DEVICE_ATTR_RO(ddr_ecc_stat);
+
+static int ddr_ecc_panic_handler(struct notifier_block *this,
+        unsigned long event, void *ptr)
+{
+	if (ddr_ecc.enabled != 0) {
+		pr_err("ddr ecc is enabled.\n");
+
+		pr_err("1 bit corrected error hits %llu times\n",
+		               ddr_ecc.corr_cnt);
+		pr_err("2 bits uncorrected error hits %llu times\n",
+		               ddr_ecc.uncorr_cnt);
+		pr_err("3+ bits uncertain error hits %llu times\n",
+		               ddr_ecc.uncorr_corr_cnt);
+	}
+
+	return NOTIFY_DONE;
+}
+
+
 static int ddr_monitor_probe(struct platform_device *pdev)
 {
 	int ret = 0;
 	struct resource *pres;
-	void __iomem *ddrc_addr = NULL;
+	void __iomem *ddrc_base = NULL;
 	u32 reg_val;
 
 	pr_debug("\n");
@@ -2047,13 +2187,55 @@ static int ddr_monitor_probe(struct platform_device *pdev)
 	g_ddr_monitor_dev->regaddr = devm_ioremap_resource(&pdev->dev, pres);
 	g_ddr_monitor_dev->irq = platform_get_irq(pdev, 0);
 
+	ret = request_irq(g_ddr_monitor_dev->irq, ddr_monitor_isr, IRQF_TRIGGER_HIGH,
+			  dev_name(&pdev->dev), g_ddr_monitor_dev);
+	if (ret) {
+		dev_err(&pdev->dev, "Could not request IRQ\n");
+		return -ENODEV;
+	}
+
 #ifdef CONFIG_HOBOT_XJ3
 	pres = platform_get_resource(pdev, IORESOURCE_MEM, 1);
-	if (!pres)
-		pr_info("DDR controller base is not detected.\n");
+	if (!pres) {
+		pr_err("DDR controller base is not detected.\n");
+		return -ENODEV;
+	}
 
-	ddrc_addr = devm_ioremap_resource(&pdev->dev, pres);
-	reg_val = readl(ddrc_addr);
+	ddrc_base = devm_ioremap_resource(&pdev->dev, pres);
+	if (IS_ERR(ddrc_base)) {
+		pr_err("DDRC base address map failed\n");
+		return PTR_ERR(ddrc_base);
+	}
+
+	if (readl(ddrc_base + uMCTL2_ECCCFG0) & 0x7) {
+		ddr_ecc.enabled = 1;
+		ddr_ecc.ddrc_base = ddrc_base;
+		ddr_ecc.irq = platform_get_irq(pdev, 1);
+		if (ddr_ecc.irq < 0) {
+			pr_info("ddr ecc irq is not in dts\n");
+			return -ENODEV;
+		}
+
+		ret = request_irq(ddr_ecc.irq, ddr_ecc_isr, IRQF_TRIGGER_HIGH,
+				  "ddr_ecc", &ddr_ecc);
+		if (ret) {
+			dev_err(&pdev->dev, "Could not request IRQ\n");
+			return -ENODEV;
+		}
+
+		ddr_ecc.panic_blk.notifier_call = ddr_ecc_panic_handler;
+		atomic_notifier_chain_register(&panic_notifier_list,
+		                   &ddr_ecc.panic_blk);
+
+		ddr_ecc_enable_irq(ddrc_base, 1);
+	}
+
+	if (sysfs_create_file(&pdev->dev.kobj, &dev_attr_ddr_ecc_stat.attr)) {
+		pr_err("ddr_ecc_stat attr create failed\n");
+		return -ENOMEM;
+	}
+
+	reg_val = readl(ddrc_base);
 	if (reg_val & 0x10) {
 		pr_info("DDR4 detected\n");
 		rd_cmd_bytes = 32;
@@ -2065,13 +2247,6 @@ static int ddr_monitor_probe(struct platform_device *pdev)
 	}
 #endif
 
-
-	ret = request_irq(g_ddr_monitor_dev->irq, ddr_monitor_isr, IRQF_TRIGGER_HIGH,
-			  dev_name(&pdev->dev), g_ddr_monitor_dev);
-	if (ret) {
-		dev_err(&pdev->dev, "Could not request IRQ\n");
-		return -ENODEV;
-	}
 
 	g_ddr_monitor_dev->res_vaddr = kmalloc(TOTAL_RESULT_SIZE, GFP_KERNEL);
 	if (g_ddr_monitor_dev->res_vaddr == NULL) {
@@ -2104,6 +2279,8 @@ static int ddr_monitor_remove(struct platform_device *pdev)
 	ddr_monitor_dev_remove();
 	devm_kfree(&pdev->dev, g_ddr_monitor_dev);
 	g_ddr_monitor_dev = NULL;
+
+	sysfs_remove_file(&pdev->dev.kobj, &dev_attr_ddr_ecc_stat.attr);
 
 	return 0;
 }

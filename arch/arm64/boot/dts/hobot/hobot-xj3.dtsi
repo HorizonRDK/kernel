@@ -1134,7 +1134,7 @@
 			reg = <0 0xA2D10000 0 0x1000>,
 		          <0 0xA2D00000 0 0x1000>;
 			interrupt-parent = <&gic>;
-			interrupts = <0 63 4>;
+			interrupts = <0 63 4>, <0 93 4>;
 			status = "disabled";
 		};
 
