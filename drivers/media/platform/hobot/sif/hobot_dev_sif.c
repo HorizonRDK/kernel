@@ -586,8 +586,8 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 	}
 
 	/* MD initial*/
-	if (md_enable)
-		subdev->md_refresh_count = 0;
+	// if (md_enable)
+	subdev->md_refresh_count = 0;
 
 	subdev->rx_index = sif_config->input.mipi.mipi_rx_index;
 	subdev->vc_index = sif_config->input.mipi.vc_index[0];

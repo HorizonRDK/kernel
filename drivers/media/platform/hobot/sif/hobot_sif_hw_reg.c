@@ -1162,6 +1162,16 @@ void sif_set_md_output(u32 __iomem *base_reg, sif_output_md_t *p_md)
 				&sif_fields[SW_SIF_ISP_MD_ENABLE], 1);
 	}
 }
+void sif_md_config(u32 __iomem *base_reg, sif_cfg_t* c)
+{
+	sif_input_mipi_t* p_mipi;
+
+	p_mipi = &c->input.mipi;
+
+	ips_set_md_resolution(p_mipi->data.width, p_mipi->data.height);
+
+	sif_set_md_output(base_reg, &c->output.md);
+}
 
 void sif_hw_config(u32 __iomem *base_reg, sif_cfg_t* c)
 {
@@ -1212,7 +1222,7 @@ void sif_hw_config(u32 __iomem *base_reg, sif_cfg_t* c)
 		vio_hw_set_field(base_reg, &sif_regs[SIF_SETTING],
 				&sif_fields[SW_SIF_OWNBIT_UNDERRUN_SKIP_FRM_ENABLE], 0);
 	}
-
+	sif_md_config(base_reg, c);
 	// Debug: It switches register value from shadow to HW state
 	// sif_write_reg(SIF_SHD_UP_SEL, 0xFFFFFFFF);
 
@@ -1221,7 +1231,6 @@ void sif_hw_config(u32 __iomem *base_reg, sif_cfg_t* c)
 	sif_enable_multi_frame_id(base_reg);
 #endif
 }
-
 void sif_hw_post_config(u32 __iomem *base_reg, sif_cfg_t* c)
 {
 	sif_input_mipi_t* p_mipi;
@@ -1234,7 +1243,7 @@ void sif_hw_post_config(u32 __iomem *base_reg, sif_cfg_t* c)
 	sif_config_rdma_fmt(base_reg, p_mipi->data.pix_length,
 			p_mipi->data.width, p_mipi->data.height);
 
-	ips_set_md_resolution(p_mipi->data.width, p_mipi->data.height);
+	//  ips_set_md_resolution(p_mipi->data.width, p_mipi->data.height);
 
 	// Output: ISP (from DDR / online)
 	sif_set_isp_output(base_reg, &c->output);
@@ -1243,7 +1252,7 @@ void sif_hw_post_config(u32 __iomem *base_reg, sif_cfg_t* c)
 	sif_set_ipu_output(base_reg, &c->output.ipu);
 
 	// Output: MD (only from ISP for NOW)
-	sif_set_md_output(base_reg, &c->output.md);
+	//   sif_set_md_output(base_reg, &c->output.md);
 
 	sif_set_ddr_input(base_reg, &c->input.ddr);
 }
