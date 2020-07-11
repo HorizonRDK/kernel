@@ -14,8 +14,8 @@
 #define GIGADEVICE_STATUS_ECC_8_BITFLIPS	(3 << 4)
 
 // Add for GD5F1GQ4UC
-static SPINAND_OP_VARIANTS(gd5f1gq4uc_read_cache_variants,
-		//SPINAND_PAGE_READ_FROM_CACHE_QUADIO_OP(0, 2, NULL, 0),
+static SPINAND_OP_VARIANTS(read_cache_3a_variants,
+		SPINAND_PAGE_READ_FROM_CACHE_QUADIO_OP(0, 1, NULL, 0),
 		SPINAND_PAGE_READ_FROM_CACHE_X4_OP_3A(0, 1, NULL, 0),
 		SPINAND_PAGE_READ_FROM_CACHE_DUALIO_OP_3A(0, 1, NULL, 0),
 		SPINAND_PAGE_READ_FROM_CACHE_X2_OP_3A(0, 1, NULL, 0),
@@ -154,7 +154,7 @@ static const struct spinand_info gigadevice_spinand_table[] = {
 		     NAND_MEMORG(1, 2048, 64, 64, 1024, 20, 1, 1, 1),
 		     NAND_ECCREQ(8, 528),
 		     // Use special read_cache_variants
-		     SPINAND_INFO_OP_VARIANTS(&gd5f1gq4uc_read_cache_variants,
+		     SPINAND_INFO_OP_VARIANTS(&read_cache_3a_variants,
 									&write_cache_variants,
 									&update_cache_variants),
 		     SPINAND_HAS_QE_BIT,

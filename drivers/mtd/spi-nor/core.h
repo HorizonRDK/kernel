@@ -272,14 +272,14 @@ struct flash_info {
 	u16		addr_width;
 
 	u32		flags;
-#define SECT_4K			BIT(0)	/* SPINOR_OP_BE_4K works uniformly */
+#define SECT_4K				BIT(0)	/* SPINOR_OP_BE_4K works uniformly */
 #define SPI_NOR_NO_ERASE	BIT(1)	/* No erase command needed */
-#define SST_WRITE		BIT(2)	/* use SST byte programming */
+#define SST_WRITE			BIT(2)	/* use SST byte programming */
 #define SPI_NOR_NO_FR		BIT(3)	/* Can't do fastread */
-#define SECT_4K_PMC		BIT(4)	/* SPINOR_OP_BE_4K_PMC works uniformly */
+#define SECT_4K_PMC			BIT(4)	/* SPINOR_OP_BE_4K_PMC works uniformly */
 #define SPI_NOR_DUAL_READ	BIT(5)	/* Flash supports Dual Read */
 #define SPI_NOR_QUAD_READ	BIT(6)	/* Flash supports Quad Read */
-#define USE_FSR			BIT(7)	/* use flag status register */
+#define USE_FSR				BIT(7)	/* use flag status register */
 #define SPI_NOR_HAS_LOCK	BIT(8)	/* Flash supports lock/unlock via SR */
 #define SPI_NOR_HAS_TB		BIT(9)	/* Flash SR has Top/Bottom (TB) protect */
 					 				/* bit. Must be used with */
@@ -290,7 +290,7 @@ struct flash_info {
                                     /* to support memory size above 128Mib. */
 #define NO_CHIP_ERASE		BIT(12) /* Chip does not support chip erase */
 #define SPI_NOR_SKIP_SFDP	BIT(13)	/* Skip parsing of SFDP tables */
-#define USE_CLSR		BIT(14)	/* use CLSR command */
+#define USE_CLSR			BIT(14)	/* use CLSR command */
 #define SPI_NOR_OCTAL_READ	BIT(15)	/* Flash supports Octal Read */
 #define SPI_NOR_TB_SR_BIT6	BIT(16)	/* Top/Bottom (TB) is bit 6 of */
 					                /* status register. Must be used with */
@@ -299,6 +299,7 @@ struct flash_info {
 					                /* for block protection. */
 #define SPI_NOR_BP3_SR_BIT6	BIT(18) /* BP3 is bit 6 of status register. */
 					                /* Must be used with SPI_NOR_4BIT_BP. */
+#define SPI_NOR_QUADIO		BIT(19)
 	/* Part specific fixup hooks. */
 	const struct spi_nor_fixups *fixups;
 };

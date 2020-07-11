@@ -1,10 +1,35 @@
+/* SPDX-License-Identifier: GPL-2.0+
+ *
+ * Hobot QSPI driver
+ *
+ * Copyright (C) 2019, Horizon Robotics
+ */
+
 #ifndef __LINUX_HOBOT_QSPI_H__
 #define __LINUX_HOBOT_QSPI_H__
 
-#define HB_QSPI_MAX_CS          8
-#define HB_QSPI_DEF_CS          1
+#define HB_QSPI_NAME                "hb_qspi"
+
+/* Uncomment the following macro definition to use polling in batch mode */
+// #define HB_QSPI_WORK_POLL	1
+
+/* The following macro definition to turn on debugging */
+/* 1: tracks transfer failure, 2: tracks all transfer */
+#define QSPI_DEBUG		0
+
+#ifdef CONFIG_HOBOT_FPGA_X3
+#define	CONFIG_HOBOT_QSPI_REF_CLK 10000000
+#define	CONFIG_HOBOT_QSPI_CLK 5000000
+#endif
+
+#define HB_QSPI_CS(cs, enable) (BIT(cs) & enable)
+#define HB_QSPI_CS_EN 0
+#define HB_QSPI_CS_DIS 1
+
+#define HB_QSPI_MAX_CS          1
 #define HB_QSPI_DEF_BDR         50000000
-#define HB_QSPI_TIMEOUT_MS      16
+#define HB_QSPI_TIMEOUT_MS      1
+#define HB_QSPI_TIMEOUT_US      (1000 * 1000)
 /* HB QSPI register offsets */
 #define HB_QSPI_DAT_REG        0x00   /* Transmit data buffer and receive data buffer */
 #define HB_QSPI_BDR_REG        0x04   /* Baud-rate control while working as master */
@@ -30,18 +55,16 @@
 #define	HB_QSPI_SLV             0x00   /* Working slave mode */
 #define	LSB                     0x40   /* LSB transferred first on SPI bus */
 #define	MSB                     0x00   /* MSB transferred first on SPI bus */
-#define	CPHA_H                  0x20   /* Sampling of data at positive edges */
-#define	CPHA_L                  0x00   /* Sampling of data at negative edges */
-#define	CPOL_H                  0x10   /* In idle state SCLK is high */
-#define	CPOL_L                  0x00   /* In idle state SCLK is low */
-#define	SPI_MODE0               (CPOL_L | CPHA_L)
-#define	SPI_MODE1               (CPOL_L | CPHA_H)
-#define	SPI_MODE2               (CPOL_H | CPHA_L)
-#define	SPI_MODE3               (CPOL_H | CPHA_H)
 #define HB_QSPI_RX_EN           0x80   /* Indicates the Rx direction is working */
 #define	HB_QSPI_TX_EN           0x08   /* Indicates the Tx direction is working */
-#define	HB_QSPI_TX_TX_DIS       0x00
-#define	HB_QSPI_TX_RX_DIS       0x00
+#define	HB_QSPI_TX_DIS          ~HB_QSPI_TX_EN
+#define	HB_QSPI_RX_DIS          ~HB_QSPI_RX_EN
+#define HB_QSPI_CPOL            0x10
+#define HB_QSPI_CPHA            0x20
+#define HB_QSPI_MODE0           0x0
+#define HB_QSPI_MODE1           HB_QSPI_CPHA
+#define HB_QSPI_MODE2           HB_QSPI_CPOL
+#define HB_QSPI_MODE3           (HB_QSPI_CPOL | HB_QSPI_CPHA)
 
 /* Definition of SPI_CTRL2 */
 #define HB_QSPI_RX_INT          BIT(0) /* Enable the interrupt of RX */
@@ -78,9 +101,10 @@
 #define HB_QSPI_TRIG_LEVEL      (HB_QSPI_FIFO_DEPTH/2)
 
 /* Definition of DUAL_QUAD_MODE */
+#define HB_QSPI_DQM_DEFAULT     0x48
 #define HB_QSPI_SING            0x0
-#define HB_QSPI_INST_DUAL       BIT(0)
-#define HB_QSPI_INST_QUAD       BIT(1)
+#define HB_QSPI_DUAL_EN       BIT(0)
+#define HB_QSPI_QUAD_EN       BIT(1)
 #define	HB_QSPI_WP_CTL          BIT(2)
 #define	HB_QSPI_WP_OE           BIT(3)
 #define	HB_QSPI_WP_OUTPUT       BIT(4)
@@ -131,7 +155,7 @@
 #define HB_QSPI_BUS_DUAL        0x02   /* Dual I/O data transfer */
 #define HB_QSPI_BUS_QUAD        0x04   /* Quad I/O data transfer */
 
-#define TRYS_TOTAL_NUM          0x8000000
+#define TRYS_TOTAL_NUM          0x10000
 #define BATCH_MAX_CNT           0x10000
 #define	SPI_BACKUP_OFFSET       (0x10000)	//64K
 /* Macro Functions */

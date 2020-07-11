@@ -34,30 +34,19 @@
 #include <linux/mtd/spinand.h>
 #include <linux/completion.h>
 #include <soc/hobot/diag.h>
-#include <linux/spi/spi-hobot-qspi.h>
-
-#define HB_QSPI_NAME                "hb_qspi_nand"
+#include "./spi-hobot-qspi.h"
 
 static int first_time;
 static int last_err;
-/* #define HB_QSPI_WORK_POLL    1 */
-
-/* Uncomment the following macro definition to turn on debugging */
-// #define QSPI_DEBUG
-
-#ifdef CONFIG_HOBOT_FPGA_X3
-#define	CONFIG_HOBOT_QSPI_REF_CLK 10000000
-#define	CONFIG_HOBOT_QSPI_CLK 5000000
-#endif
 
 struct hb_qspi;
 
 struct hb_qspi_flash_pdata {
 	struct hb_qspi *hbqspi;
-	u8 inst_width;		/* Instruction always in single line mode */
-	u8 addr_width;		/* addr width is option 24bit and 32bit */
-	u8 data_width;		/* data width is 1, 2, 4 line mode */
-	u8 cs;			/* current cs */
+	uint8_t inst_width;		/* Instruction always in single line mode */
+	uint8_t addr_bytes;		/* 24bit(3 byte) or 32bit(4 byte) */
+	uint8_t buswidth;		/* data width available: 1, 2, 4 line*/
+	uint8_t cs;			/* current cs */
 };
 
 struct hb_qspi {
@@ -66,7 +55,7 @@ struct hb_qspi {
 	struct completion xfer_complete;
 
 #ifndef CONFIG_HOBOT_FPGA_X3
-	u32 ref_clk;
+	uint32_t ref_clk;
 	struct clk *pclk;
 #else
 	int ref_clk;
@@ -76,106 +65,109 @@ struct hb_qspi {
 	struct device *dev;
 	const void *txbuf;
 	void *rxbuf;
-	u32 speed_hz;
-	u32 mode;
-	bool batch_mode;
+	uint32_t speed_hz;
+	uint32_t buswidth;
+	uint32_t spi_mode;
 	struct hb_qspi_flash_pdata flash_pdata[HB_QSPI_MAX_CS];
 };
 
-/**
- * hb_qspi_read:	For QSPI controller read operation
- * @hbqspi:	Pointer to the hb_qspi structure
- * @offset:	Offset from where to read
- */
-static u32 hb_qspi_read(struct hb_qspi *hbqspi, u32 offset)
-{
-	return readl_relaxed(hbqspi->regs + offset);
-}
+#define hb_qspi_rd_reg(dev, reg)	   readl((dev)->regs + (reg))
+#define hb_qspi_wr_reg(dev, reg, val)  writel((val), (dev)->regs + (reg))
 
-/**
- * hb_qspi_write:	For QSPI controller write operation
- * @hbqspi:	Pointer to the hb_qspi structure
- * @offset:	Offset where to write
- * @val:	Value to be written
- */
-static void hb_qspi_write(struct hb_qspi *hbqspi, u32 offset, u32 val)
+static inline int hb_qspi_check_status(struct hb_qspi *hbqspi, uint32_t offset,
+			     			 uint32_t mask, uint32_t timeout)
 {
-	writel_relaxed(val, (hbqspi->regs + offset));
-}
-
-int hb_qspi_poll_rx_empty(struct hb_qspi *hbqspi,
-			  u32 offset, uint32_t mask, uint32_t timeout)
-{
-	uint32_t reg_val;
-	uint32_t ret = -1;
-
-	while (timeout--) {
-		reg_val = hb_qspi_read(hbqspi, offset);
-		ndelay(10);
-		if (!(reg_val & mask)) {
-			ret = 0;
-			break;
-		}
-	}
-	return ret;
-}
-
-static int qspi_check_status(struct hb_qspi *hbqspi, u32 offset, uint32_t mask,
-			     uint32_t timeout)
-{
-	int ret = 0;
+	int ret = 0, tries = timeout;
 	uint32_t val;
+	bool if_flip = mask & (HB_QSPI_TX_FULL | HB_QSPI_RX_EP);
 
 	do {
-		val = hb_qspi_read(hbqspi, offset);
-		ndelay(10);
-		timeout = timeout - 1;
+		val = hb_qspi_rd_reg(hbqspi, offset);
+		ndelay(1);
+		val = if_flip ? ~val : val;
+		timeout--;
 		if (timeout == 0) {
-			ret = -1;
+			ret = -ETIMEDOUT;
 			break;
 		}
 	} while (!(val & mask));
+#ifdef HB_QSPI_WORK_POLL
+	if (mask & val & HB_QSPI_RBD) {
+		hb_qspi_wr_reg(hbqspi, HB_QSPI_ST1_REG, val | HB_QSPI_RBD);
+	} else if (mask & val & HB_QSPI_TBD) {
+		hb_qspi_wr_reg(hbqspi, HB_QSPI_ST1_REG, val | HB_QSPI_TBD);
+	}
+#endif
+	if (ret)
+		pr_err("hb-qspi: status check timedout after %d tries.\n", tries);
 
 	return ret;
 }
 
-int hb_qspi_cfg_line_mode(struct hb_qspi *hbqspi, uint32_t line_mode,
-			  bool enable)
+static inline void hb_qspi_cfg_spi_mode(struct hb_qspi *hbqspi,
+										uint32_t reg_val)
 {
-	uint32_t ret = 0, val;
+	reg_val &= ~(HB_QSPI_CPOL | HB_QSPI_CPHA);
+	switch (hbqspi->spi_mode) {
+		case 0:
+			reg_val |= HB_QSPI_MODE0;
+			break;
+		case 1:
+			reg_val |= HB_QSPI_MODE1;
+			break;
+		case 2:
+			reg_val |= HB_QSPI_MODE2;
+			break;
+		case 3:
+			reg_val |= HB_QSPI_MODE3;
+			break;
+		default:
+			reg_val |= HB_QSPI_MODE0;
+			pr_info_once("Unknown spi mode for qspi: %d, using mode 0!\n",
+					hbqspi->spi_mode);
+			break;
+	}
+	hb_qspi_wr_reg(hbqspi, HB_QSPI_CTL1_REG, reg_val);
+#ifdef HB_QSPI_DEBUG
+	uint32_t tmp_val;
+	tmp_val = hb_qspi_rd_reg(hbqspi, HB_QSPI_CTL1_REG);
+	printk_ratelimited("qspi_ctl1_reg:0x%02x\n", tmp_val);
+#endif
+
+}
+
+static inline void hb_qspi_cfg_line_mode(struct hb_qspi *hbqspi,
+										uint32_t line_mode, bool quad_enable)
+{
+	uint32_t val;
 
 	if ((hbqspi == NULL) || (line_mode == 0)) {
-		ret = -1;
-		pr_err("%s:%d Invalid line mode\n", __func__, __LINE__);
-		return ret;
+		pr_info_once("%s:%d Invalide line mode, using 1 line mode!\n"
+				, __func__, __LINE__);
+		quad_enable = false;
 	}
-
-	if (enable) {
+	val = hb_qspi_rd_reg(hbqspi, HB_QSPI_CTL1_REG);
+	hb_qspi_cfg_spi_mode(hbqspi, val);
+	if (quad_enable) {
 		if (line_mode == SPI_RX_DUAL) {
-			val = hb_qspi_read(hbqspi, HB_QSPI_DQM_REG);
-			val |= HB_QSPI_INST_DUAL;
-			hb_qspi_write(hbqspi, HB_QSPI_DQM_REG, val);
+			val = hb_qspi_rd_reg(hbqspi, HB_QSPI_DQM_REG);
+			val |= HB_QSPI_DUAL_EN;
+			hb_qspi_wr_reg(hbqspi, HB_QSPI_DQM_REG, val);
 		}
 
 		if ((line_mode == SPI_RX_QUAD) || (line_mode == SPI_TX_QUAD)) {
-			val = hb_qspi_read(hbqspi, HB_QSPI_DQM_REG);
+			val = hb_qspi_rd_reg(hbqspi, HB_QSPI_DQM_REG);
 			val &=
 			    ~(HB_QSPI_HOLD_OUTPUT | HB_QSPI_HOLD_OE | HB_QSPI_HOLD_CTL
 			      | HB_QSPI_WP_OUTPUT | HB_QSPI_WP_OE | HB_QSPI_WP_CTL
-				  | HB_QSPI_INST_DUAL);
-			val |= HB_QSPI_INST_QUAD;
-			hb_qspi_write(hbqspi, HB_QSPI_DQM_REG, val);
+				  | HB_QSPI_DUAL_EN);
+			val |= HB_QSPI_QUAD_EN;
+			hb_qspi_wr_reg(hbqspi, HB_QSPI_DQM_REG, val);
 		}
 	} else {
-		val = hb_qspi_read(hbqspi, HB_QSPI_DQM_REG);
-		val |=
-		    (HB_QSPI_HOLD_OUTPUT | HB_QSPI_HOLD_OE | HB_QSPI_HOLD_CTL
-			| HB_QSPI_WP_OUTPUT | HB_QSPI_WP_OE | HB_QSPI_WP_CTL);
-		val &= ~(HB_QSPI_INST_QUAD | HB_QSPI_INST_DUAL);
-		hb_qspi_write(hbqspi, HB_QSPI_DQM_REG, val);
+		val = HB_QSPI_DQM_DEFAULT;
+		hb_qspi_wr_reg(hbqspi, HB_QSPI_DQM_REG, val);
 	}
-
-	return ret;
 }
 
 static void hb_qspi_chipselect(struct spi_device *qspi, bool is_high)
@@ -184,71 +176,81 @@ static void hb_qspi_chipselect(struct spi_device *qspi, bool is_high)
 
 	if (is_high) {
 		/* Deselect the slave */
-		hb_qspi_write(hbqspi, HB_QSPI_CS_REG, 0);
+		hb_qspi_wr_reg(hbqspi, HB_QSPI_CS_REG, 0);
 	} else {
 		/* Activate the chip select */
-		hb_qspi_write(hbqspi, HB_QSPI_CS_REG, 1);
+		hb_qspi_wr_reg(hbqspi, HB_QSPI_CS_REG, 1);
 	}
 }
 
-void qspi_enable_tx(struct hb_qspi *hbqspi)
+static inline void hb_qspi_enable_tx(struct hb_qspi *hbqspi)
 {
 	uint32_t val;
 
-	val = hb_qspi_read(hbqspi, HB_QSPI_CTL1_REG);
+	val = hb_qspi_rd_reg(hbqspi, HB_QSPI_CTL1_REG);
 	val |= HB_QSPI_TX_EN;
-	hb_qspi_write(hbqspi, HB_QSPI_CTL1_REG, val);
+	hb_qspi_wr_reg(hbqspi, HB_QSPI_CTL1_REG, val);
 }
 
-void qspi_disable_tx(struct hb_qspi *hbqspi)
+static inline void hb_qspi_disable_tx(struct hb_qspi *hbqspi)
 {
 	uint32_t val;
 
-	val = hb_qspi_read(hbqspi, HB_QSPI_CTL1_REG);
-	val &= ~HB_QSPI_TX_EN;
-	hb_qspi_write(hbqspi, HB_QSPI_CTL1_REG, val);
+	val = hb_qspi_rd_reg(hbqspi, HB_QSPI_CTL1_REG);
+	val &= HB_QSPI_TX_DIS;
+	hb_qspi_wr_reg(hbqspi, HB_QSPI_CTL1_REG, val);
 }
 
-void qspi_enable_rx(struct hb_qspi *hbqspi)
+static inline void hb_qspi_enable_rx(struct hb_qspi *hbqspi)
 {
 	uint32_t val;
 
-	val = hb_qspi_read(hbqspi, HB_QSPI_CTL1_REG);
+	val = hb_qspi_rd_reg(hbqspi, HB_QSPI_CTL1_REG);
 	val |= HB_QSPI_RX_EN;
-	hb_qspi_write(hbqspi, HB_QSPI_CTL1_REG, val);
+	hb_qspi_wr_reg(hbqspi, HB_QSPI_CTL1_REG, val);
 }
 
-void qspi_disable_rx(struct hb_qspi *hbqspi)
+static inline void hb_qspi_disable_rx(struct hb_qspi *hbqspi)
 {
 	uint32_t val;
 
-	val = hb_qspi_read(hbqspi, HB_QSPI_CTL1_REG);
-	val &= ~HB_QSPI_RX_EN;
-	hb_qspi_write(hbqspi, HB_QSPI_CTL1_REG, val);
+	val = hb_qspi_rd_reg(hbqspi, HB_QSPI_CTL1_REG);
+	val &= HB_QSPI_RX_DIS;
+	hb_qspi_wr_reg(hbqspi, HB_QSPI_CTL1_REG, val);
 }
 
-void qspi_batch_mode_set(struct hb_qspi *hbqspi, bool enable)
+static inline void hb_qspi_set_fw(struct hb_qspi *hbqspi, uint32_t fifo_width)
 {
 	uint32_t val;
 
-	val = hb_qspi_read(hbqspi, HB_QSPI_CTL3_REG);
+	val = hb_qspi_rd_reg(hbqspi, HB_QSPI_CTL1_REG);
+	val &= (~HB_QSPI_FW_MASK);
+	val |= fifo_width;
+	hb_qspi_wr_reg(hbqspi, HB_QSPI_CTL1_REG, val);
+}
+
+static inline void hb_qspi_batch_mode_set(struct hb_qspi *hbqspi, bool enable)
+{
+	uint32_t val;
+
+	val = hb_qspi_rd_reg(hbqspi, HB_QSPI_CTL3_REG);
 	if (enable)
 		val &= ~HB_QSPI_BATCH_DIS;
 	else
 		val |= HB_QSPI_BATCH_DIS;
-	hb_qspi_write(hbqspi, HB_QSPI_CTL3_REG, val);
+	hb_qspi_wr_reg(hbqspi, HB_QSPI_CTL3_REG, val);
 }
 
-void qspi_reset_fifo(struct hb_qspi *hbqspi)
+static inline void hb_qspi_reset_fifo(struct hb_qspi *hbqspi)
 {
 	uint32_t val;
 
-	val = hb_qspi_read(hbqspi, HB_QSPI_CTL3_REG);
+	val = hb_qspi_rd_reg(hbqspi, HB_QSPI_CTL3_REG);
 	val |= HB_QSPI_RST_FIFO;
-	hb_qspi_write(hbqspi, HB_QSPI_CTL3_REG, val);
+	hb_qspi_wr_reg(hbqspi, HB_QSPI_CTL3_REG, val);
 
 	val &= (~HB_QSPI_RST_FIFO);
-	hb_qspi_write(hbqspi, HB_QSPI_CTL3_REG, val);
+	hb_qspi_wr_reg(hbqspi, HB_QSPI_CTL3_REG, val);
 }
 
 static uint32_t caculate_qspi_divider(uint32_t hclk, uint32_t sclk)
@@ -274,38 +276,37 @@ static uint32_t caculate_qspi_divider(uint32_t hclk, uint32_t sclk)
 	return SCLK_VAL(div, scaler);
 }
 
-#ifdef QSPI_DEBUG
-void qspi_dump_reg(struct hb_qspi *hbqspi)
+#if (QSPI_DEBUG > 0)
+static void hb_qspi_dump_reg(struct hb_qspi *hbqspi)
 {
 	uint32_t val = 0, i;
 
 	for (i = HB_QSPI_DAT_REG; i <= HB_QSPI_XIP_REG; i = i + 4) {
-		val = hb_qspi_read(hbqspi, i);
-		printk("reg[0x%08x] ==> [0x%08x]\n", hbqspi->regs + i, val);
+		val = hb_qspi_rd_reg(hbqspi, i);
+		printk("reg[0x%p] ==> [0x%08x]\n", (hbqspi->regs + i), val);
 	}
 }
 
-void trace_transfer(const struct spi_transfer *transfer)
+static void trace_hbqspi_transfer(const struct spi_transfer *transfer)
 {
 #define __TRACE_BUF_SIZE__ 128
-	int i = 0;
-	const u8 *tmpbuf = NULL; // kzalloc(tmpbufsize, GFP_KERNEL);
-	char tmp_prbuf[32];
+#define QSPI_DEBUG_DATA_LEN	16
+	int i = 0, nbits = 0, xfer_len, start, end;
+	const uint8_t *tmpbuf = NULL;
+	char tmp_prbuf[QSPI_DEBUG_DATA_LEN * 2] = { 0 };
 	char *prbuf = kzalloc(__TRACE_BUF_SIZE__, GFP_KERNEL);
-	int nbits = 0;
 
 	memset(prbuf, '\0', __TRACE_BUF_SIZE__);
 	if( transfer->tx_buf ){
 		nbits = transfer->tx_nbits;
-		tmpbuf = (const u8 *)transfer->tx_buf;
+		tmpbuf = (const uint8_t *)transfer->tx_buf;
 	}else if(transfer->rx_buf){
 		nbits = transfer->rx_nbits;
-		tmpbuf = (const u8 *)transfer->rx_buf;
+		tmpbuf = (const uint8_t *)transfer->rx_buf;
 	}else{
 		printk("No data\n");
 		kfree(prbuf);
-
-		return ;
+		return;
 	}
 
 	snprintf(prbuf, __TRACE_BUF_SIZE__, "%s-%s[B:%d][L:%d] ",
@@ -315,9 +316,17 @@ void trace_transfer(const struct spi_transfer *transfer)
 	if(transfer->len) {
 		snprintf(tmp_prbuf, sizeof(tmp_prbuf), " ");
 		strcat(prbuf, tmp_prbuf);
-#define QSPI_DEBUG_DATA_LEN	16
-		for (i = 0; i < ((transfer->len < QSPI_DEBUG_DATA_LEN) ?
-			transfer->len : QSPI_DEBUG_DATA_LEN); i++) {
+		if (transfer->len < 0) {
+			xfer_len = -transfer->len;
+			start = ((xfer_len < QSPI_DEBUG_DATA_LEN) ?
+						0 : (xfer_len - QSPI_DEBUG_DATA_LEN));
+			end = xfer_len;
+		} else {
+			xfer_len = transfer->len;
+			start = 0;
+			end = (xfer_len < QSPI_DEBUG_DATA_LEN) ? xfer_len : QSPI_DEBUG_DATA_LEN;
+		}
+		for (i = start; i < end; i++) {
 			snprintf(tmp_prbuf, 32, "%02X ", tmpbuf[i]);
 			strcat(prbuf, tmp_prbuf);
 		}
@@ -327,17 +336,17 @@ void trace_transfer(const struct spi_transfer *transfer)
 }
 
 extern const char *__clk_get_name(const struct clk *clk);
-void trace_hbqspi(struct hb_qspi *hbqspi)
+static void trace_hbqspi(struct hb_qspi *hbqspi)
 {
-	printk("struct hb_qspi *hbqspi(0x%16X) = {\n", hbqspi);
-	printk("\t\t.regs[Phy] = 0x%0p\n", hbqspi->regs);
+	printk("struct hb_qspi *hbqspi(0x%16p) = {\n", hbqspi);
+	printk("\t\t.regs[Phy] = 0x%p\n", hbqspi->regs);
 	if(hbqspi->pdev) {
 		printk(".pdev = %s\n", dev_name(&hbqspi->pdev->dev));
 	}
 #ifndef CONFIG_HOBOT_FPGA_X3
 	printk("\t\t.ref_clk = %u\n", hbqspi->ref_clk);
 	if(hbqspi->pclk) {
-		printk("\t\t.pclk = %s@%u\n", __clk_get_name(hbqspi->pclk),
+		printk("\t\t.pclk = %s@%lu\n", __clk_get_name(hbqspi->pclk),
 			clk_get_rate(hbqspi->pclk));
 	}
 #else
@@ -346,11 +355,8 @@ void trace_hbqspi(struct hb_qspi *hbqspi)
 #endif
 	printk("\t\t.irq = %d\n", hbqspi->irq);
 	printk("\t\t.dev = %s\n", dev_name(hbqspi->dev));
-	// printk("\t\ttxbuf: 0x%p\n", hbqspi->txbuf);
-	// printk("\t\trxbuf: 0x%p\n", hbqspi->rxbuf);
 	printk("\t\t.speed_hz = %d\n", hbqspi->speed_hz);
-	printk("\t\t.mode = 0x%08X\n", hbqspi->mode);
-	printk("\t\t.batch_mode = %d\n", hbqspi->batch_mode);
+	//printk("\t\t.mode = 0x%08X\n", hbqspi->mode);
 	printk("}\n");
 }
 
@@ -359,53 +365,56 @@ void trace_hbqspi(struct hb_qspi *hbqspi)
 static void hb_qspi_hw_init(struct hb_qspi *hbqspi)
 {
 	uint32_t qspi_div;
-	uint32_t reg_val;
+	uint32_t reg_val = 0;
 
 	/* set qspi clk div */
 #ifndef CONFIG_HOBOT_FPGA_X3
 	qspi_div = caculate_qspi_divider(hbqspi->ref_clk, hbqspi->speed_hz);
-	hb_qspi_write(hbqspi, HB_QSPI_BDR_REG, qspi_div);
+	hb_qspi_wr_reg(hbqspi, HB_QSPI_BDR_REG, qspi_div);
 #else
 	qspi_div = caculate_qspi_divider(hbqspi->ref_clk, hbqspi->qspi_clk);
-	hb_qspi_write(hbqspi, HB_QSPI_BDR_REG, qspi_div);
+	hb_qspi_wr_reg(hbqspi, HB_QSPI_BDR_REG, qspi_div);
 #endif
-	/* clear status */
+	/* clear status and reset fifo */
 	reg_val = HB_QSPI_MODF_CLR | HB_QSPI_RBD | HB_QSPI_TBD;
-	hb_qspi_write(hbqspi, HB_QSPI_ST1_REG, reg_val);
+	hb_qspi_wr_reg(hbqspi, HB_QSPI_ST1_REG, reg_val);
 	reg_val = HB_QSPI_TXRD_EMPTY | HB_QSPI_RXWR_FULL;
-	hb_qspi_write(hbqspi, HB_QSPI_ST2_REG, reg_val);
+	hb_qspi_wr_reg(hbqspi, HB_QSPI_ST2_REG, reg_val);
+	hb_qspi_reset_fifo(hbqspi);
 
 	/* set qspi work mode */
-	reg_val = hb_qspi_read(hbqspi, HB_QSPI_CTL1_REG);
-	reg_val |= ((SPI_MODE0 & 0x30) | HB_QSPI_MST | HB_QSPI_FW8 | MSB);
-	hb_qspi_write(hbqspi, HB_QSPI_CTL1_REG, reg_val);
+	reg_val = hb_qspi_rd_reg(hbqspi, HB_QSPI_CTL1_REG);
+	reg_val &= (~HB_QSPI_FW_MASK);
+	reg_val |= (HB_QSPI_MST | HB_QSPI_FW8 | MSB);
+	hb_qspi_cfg_spi_mode(hbqspi, reg_val);
 
 	/* Set Rx/Tx fifo trig level  */
-	hb_qspi_write(hbqspi, HB_QSPI_TTL_REG, HB_QSPI_TRIG_LEVEL);
-	hb_qspi_write(hbqspi, HB_QSPI_RTL_REG, HB_QSPI_TRIG_LEVEL);
+	hb_qspi_wr_reg(hbqspi, HB_QSPI_TTL_REG, HB_QSPI_TRIG_LEVEL);
+	hb_qspi_wr_reg(hbqspi, HB_QSPI_RTL_REG, HB_QSPI_TRIG_LEVEL);
 
 	/* init interrupt */
-	reg_val = HB_QSPI_RBC_INT | HB_QSPI_TBC_INT |
-			HB_QSPI_ERR_INT;
-	hb_qspi_write(hbqspi, HB_QSPI_CTL2_REG, reg_val);
+	reg_val = HB_QSPI_ERR_INT;
+#ifndef HB_QSPI_WORK_POLL
+	reg_val |= (HB_QSPI_RBC_INT | HB_QSPI_TBC_INT);
+#endif
+	hb_qspi_wr_reg(hbqspi, HB_QSPI_CTL2_REG, reg_val);
 
 	/* unselect chip */
-	reg_val = hb_qspi_read(hbqspi, HB_QSPI_CS_REG);
+	reg_val = hb_qspi_rd_reg(hbqspi, HB_QSPI_CS_REG);
 	reg_val &= 0x0;
-	hb_qspi_write(hbqspi, HB_QSPI_CS_REG, reg_val);
+	hb_qspi_wr_reg(hbqspi, HB_QSPI_CS_REG, reg_val);
 
 	/* Always set SPI to one line as init. */
-	reg_val = hb_qspi_read(hbqspi, HB_QSPI_DQM_REG);
-	reg_val |= 0xfc;
-	hb_qspi_write(hbqspi, HB_QSPI_DQM_REG, reg_val);
+	reg_val = HB_QSPI_DQM_DEFAULT;
+	hb_qspi_wr_reg(hbqspi, HB_QSPI_DQM_REG, reg_val);
 
 	/* Disable hardware xip mode */
-	reg_val = hb_qspi_read(hbqspi, HB_QSPI_XIP_REG);
+	reg_val = hb_qspi_rd_reg(hbqspi, HB_QSPI_XIP_REG);
 	reg_val &= ~(1 << 1);
-	hb_qspi_write(hbqspi, HB_QSPI_XIP_REG, reg_val);
+	hb_qspi_wr_reg(hbqspi, HB_QSPI_XIP_REG, reg_val);
 }
 
-static int hb_qspi_setup(struct spi_device *qspi)
+static inline int hb_qspi_setup(struct spi_device *qspi)
 {
 	int ret = 0;
 	struct hb_qspi *hbqspi = spi_master_get_devdata(qspi->master);
@@ -413,7 +422,7 @@ static int hb_qspi_setup(struct spi_device *qspi)
 	if (qspi->master->busy)
 		return -EBUSY;
 
-	switch (hbqspi->mode) {
+	switch (hbqspi->buswidth) {
 	case SPI_NBITS_SINGLE:
 		break;
 	case SPI_NBITS_DUAL:
@@ -424,138 +433,239 @@ static int hb_qspi_setup(struct spi_device *qspi)
 		break;
 	default:
 		ret = -EINVAL;
-		pr_err("%s nothing mode matches 0x%08X.\n", __func__, qspi->mode);
+		pr_err("%s No mode matches 0x%08X.\n", __func__, qspi->mode);
 		break;
 	}
 
 	return ret;
 }
 
-int hb_qspi_write_data(struct hb_qspi *hbqspi, const void *txbuf, uint32_t len)
+static inline int hb_qspi_rd_byte(struct hb_qspi *hbqspi,
+								void *pbuf, uint32_t len)
 {
-	uint32_t tx_len;
-	uint32_t i;
-	const uint8_t *ptr = (const uint8_t *)txbuf;
-	uint32_t timeout = 0x1000;
-	int32_t err;
-	uint32_t tmp_txlen;
-	uint32_t remain_len = len;
-	uint32_t current_transfer_len = 0;
+	int64_t i, ret = len;
+	uint8_t *dbuf = (uint8_t *) pbuf;
 
-	qspi_disable_tx(hbqspi);
-	qspi_reset_fifo(hbqspi);
+	hb_qspi_reset_fifo(hbqspi);
+	hb_qspi_batch_mode_set(hbqspi, 0);
+	/* enable rx */
+	hb_qspi_enable_rx(hbqspi);
 
-	/* Enable batch mode */
-	qspi_batch_mode_set(hbqspi, hbqspi->batch_mode);
-
-	while (remain_len > 0) {
-		tx_len = MIN(remain_len, BATCH_MAX_CNT);
-		if (hbqspi->batch_mode) {
-			reinit_completion(&hbqspi->xfer_complete);
-			/* set batch cnt */
-			hb_qspi_write(hbqspi, HB_QSPI_TBC_REG, tx_len);
+	for (i = 0; i < len; i++) {
+		if (hb_qspi_check_status(hbqspi, HB_QSPI_ST2_REG,
+							  HB_QSPI_TX_EP, HB_QSPI_TIMEOUT_US)) {
+			pr_err("%s:%d generate read sclk failed\n", __func__, __LINE__);
+			ret = -1;
+			goto rd_err;
 		}
-		tmp_txlen = MIN(tx_len, HB_QSPI_FIFO_DEPTH);
-		for (i = 0; i < tmp_txlen; i++)
-			hb_qspi_write(hbqspi, HB_QSPI_DAT_REG, ptr[i]);
+		hb_qspi_wr_reg(hbqspi, HB_QSPI_DAT_REG, 0x00);
+		if (hb_qspi_check_status(hbqspi, HB_QSPI_ST2_REG,
+							  HB_QSPI_RX_EP, HB_QSPI_TIMEOUT_US)) {
+			pr_err("%s:%d No data fill into RX DAT\n", __func__, __LINE__);
+			ret = -ETIMEDOUT;
+			goto rd_err;
+		}
+		dbuf[i] = hb_qspi_rd_reg(hbqspi, HB_QSPI_DAT_REG) & 0xFF;
+	}
 
-		qspi_enable_tx(hbqspi);
-		err = qspi_check_status(hbqspi, HB_QSPI_ST2_REG, HB_QSPI_TX_EP, timeout);
-		if (err) {
-			current_transfer_len = tmp_txlen;
-			pr_err("%s:%d qspi send data timeout\n",
-				__func__, __LINE__);
-#ifdef QSPI_DEBUG
-			qspi_dump_reg(hbqspi);
+rd_err:
+	hb_qspi_disable_rx(hbqspi);
+	if (ret < 0) {
+#if (QSPI_DEBUG > 0)
+		hb_qspi_dump_reg(hbqspi);
 #endif
-			goto SPI_ERROR;
-		}
-		qspi_disable_tx(hbqspi);
-		remain_len -= tmp_txlen;
-		ptr += tmp_txlen;
 	}
-	if(hbqspi->batch_mode) {
-		qspi_batch_mode_set(hbqspi, 0);
-	}
-	return len;
 
-SPI_ERROR:
-	qspi_disable_tx(hbqspi);
-	qspi_reset_fifo(hbqspi);
-	if (hbqspi->batch_mode)
-		qspi_batch_mode_set(hbqspi, 0);
-	pr_err("error: qspi tx current_transfer_len: %d\n",
-	       current_transfer_len);
-	return current_transfer_len;
+	return ret;
 }
 
-static int hb_qspi_read_data(struct hb_qspi *hbqspi, uint8_t *rxbuf,
-			     uint32_t len)
+static inline int hb_qspi_rd_batch(struct hb_qspi *hbqspi,
+									void *pbuf, uint32_t len)
 {
-	int32_t i = 0;
-	uint32_t rx_len = 0;
-	uint8_t *ptr = rxbuf;
-	uint32_t rx_remain = len;
-	uint32_t timeout = 0x1000;
-	uint32_t tmp_rxlen;
-	uint32_t current_receive_len = 0;
+	uint32_t rx_len, offset = 0;
+	int64_t i, len_remain = (int64_t)len, ret = 0;
+	uint32_t *dbuf = (uint32_t *) pbuf;
 
-	qspi_reset_fifo(hbqspi);
+	hb_qspi_reset_fifo(hbqspi);
+	/* set fifo width and batch mode */
+	hb_qspi_set_fw(hbqspi, HB_QSPI_FW32);
+	hb_qspi_batch_mode_set(hbqspi, 1);
 
-	qspi_batch_mode_set(hbqspi, hbqspi->batch_mode);
-	do {
-		rx_len = MIN(rx_remain, BATCH_MAX_CNT);
-		rx_remain -= rx_len;
-		if(hbqspi->batch_mode) {
-			reinit_completion(&hbqspi->xfer_complete);
-			hb_qspi_write(hbqspi, HB_QSPI_RBC_REG, rx_len);
-		}
-		qspi_enable_rx(hbqspi);
-
-		while (rx_len > 0) {
-			tmp_rxlen = (rx_len > HB_QSPI_TRIG_LEVEL) ? HB_QSPI_TRIG_LEVEL : rx_len;
-			if (!hbqspi->batch_mode) {
-				if (qspi_check_status(hbqspi, HB_QSPI_ST2_REG, HB_QSPI_TX_EP, timeout)) {
-					pr_err("%s:%d generate read sclk failed\n", __func__, __LINE__);
-						goto SPI_ERROR;
-				}
-				for (i = 0; i < tmp_rxlen; i++)
-					hb_qspi_write(hbqspi, HB_QSPI_DAT_REG, 0x00);
-			}
-
-			if (hb_qspi_poll_rx_empty(hbqspi, HB_QSPI_ST2_REG, HB_QSPI_RX_EP, timeout)) {
-				pr_err("%s:%d timeout no data fill into rx fifo\n", __func__, __LINE__);
-#ifdef QSPI_DEBUG
-					qspi_dump_reg(hbqspi);
+	while (len_remain > 0) {
+#ifndef HB_QSPI_WORK_POLL
+		reinit_completion(&hbqspi->xfer_complete);
 #endif
-				goto SPI_ERROR;
-			}
-			for (i = 0; i < tmp_rxlen; i++)
-				ptr[i] = hb_qspi_read(hbqspi, HB_QSPI_DAT_REG);
-			rx_len -= tmp_rxlen;
-			ptr += tmp_rxlen;
-			current_receive_len += tmp_rxlen;
-		}
-		if (hbqspi->batch_mode) {
-			if (!wait_for_completion_timeout(&hbqspi->xfer_complete,
-			 msecs_to_jiffies(HB_QSPI_TIMEOUT_MS))) {
-				pr_err("%s:%d timeout loop batch rx done\n", __func__, __LINE__);
-#ifdef QSPI_DEBUG
-				qspi_dump_reg(hbqspi);
-#endif
-				goto SPI_ERROR;
-			}
-		}
-		qspi_disable_rx(hbqspi);
-	} while (rx_remain != 0);
-	qspi_reset_fifo(hbqspi);
-	return len;
+		rx_len = MIN(len_remain, BATCH_MAX_CNT);
+		hb_qspi_wr_reg(hbqspi, HB_QSPI_RBC_REG, rx_len);
+		/* enable rx */
+		hb_qspi_enable_rx(hbqspi);
 
-SPI_ERROR:
-	qspi_disable_rx(hbqspi);
-	qspi_reset_fifo(hbqspi);
-	pr_err("error: spi rx current_receive_len = %d\n", current_receive_len);
-	return current_receive_len;
+		for (i = 0; i < rx_len; i += 8) {
+			if (hb_qspi_check_status(hbqspi, HB_QSPI_ST1_REG,
+								HB_QSPI_RX_AF, HB_QSPI_TIMEOUT_US)) {
+				pr_err("%s:%d rx batch fill timeout! len=%u, recv=%lld\n",
+					__func__, __LINE__, len, i);
+				goto rb_err;
+			}
+			dbuf[offset++] = hb_qspi_rd_reg(hbqspi, HB_QSPI_DAT_REG);
+			dbuf[offset++] = hb_qspi_rd_reg(hbqspi, HB_QSPI_DAT_REG);
+		}
+#ifdef HB_QSPI_WORK_POLL
+		if (hb_qspi_check_status(hbqspi, HB_QSPI_ST1_REG,
+							  HB_QSPI_RBD, HB_QSPI_TIMEOUT_US)) {
+			pr_info("%s:%d poll rx batch comp timeout! len=%u, received=%lld\n",
+					__func__, __LINE__, len, i);
+		}
+#else
+		if (!wait_for_completion_timeout(&hbqspi->xfer_complete,
+									msecs_to_jiffies(HB_QSPI_TIMEOUT_MS))) {
+			pr_info("%s:%d rx batch comp timeout! len=%u, received=%lld\n",
+					__func__, __LINE__, len, i);
+		}
+#endif
+		hb_qspi_disable_rx(hbqspi);
+		len_remain -= rx_len;
+		ret += rx_len;
+	}
+
+rb_err:
+	hb_qspi_disable_rx(hbqspi);
+	if (ret != len) {
+		ret = -ETIMEDOUT;
+#if (QSPI_DEBUG > 0)
+		hb_qspi_dump_reg(hbqspi);
+#endif
+	}
+
+	/* Disable batch mode and rx link */
+	hb_qspi_set_fw(hbqspi, HB_QSPI_FW8);
+	hb_qspi_batch_mode_set(hbqspi, 0);
+
+	return ret;
+}
+
+static inline int hb_qspi_wr_byte(struct hb_qspi *hbqspi,
+							const void *pbuf, uint32_t len)
+{
+	int64_t i, ret = len;
+	uint8_t *dbuf = (uint8_t *) pbuf;
+#if (QSPI_DEBUG > 0)
+#define MAXPRINT 32
+	char data_tmp[4];
+	char tmpbuf[MAXPRINT * 2];
+	memset(tmpbuf, 0, sizeof(tmpbuf));
+	for (i = 0; i < ((len < MAXPRINT) ? len : MAXPRINT); i ++) {
+		snprintf(data_tmp, sizeof(data_tmp), "%02x ", ((uint8_t *)pbuf)[i]);
+		strncat(tmpbuf, data_tmp, sizeof(tmpbuf) - strlen(tmpbuf));
+	}
+	printk("Wr_byte:  %s\n", tmpbuf);
+#endif
+	hb_qspi_reset_fifo(hbqspi);
+	hb_qspi_batch_mode_set(hbqspi, 0);
+	/* enable tx */
+	hb_qspi_enable_tx(hbqspi);
+
+	for (i = 0; i < len; i++) {
+		if (hb_qspi_check_status(hbqspi, HB_QSPI_ST2_REG,
+							  HB_QSPI_TX_FULL, HB_QSPI_TIMEOUT_US)) {
+			pr_err("%s:%d TX DAT full before write\n", __func__, __LINE__);
+			ret = -ENOBUFS;
+			goto wr_err;
+		}
+		hb_qspi_wr_reg(hbqspi, HB_QSPI_DAT_REG, dbuf[i]);
+	}
+	/* Check tx complete */
+	if (hb_qspi_check_status(hbqspi, HB_QSPI_ST2_REG,
+						  HB_QSPI_TX_EP, HB_QSPI_TIMEOUT_US)) {
+		pr_err("%s:%d TX Data transfer overtime!\n", __func__, __LINE__);
+		ret = -ETIMEDOUT;
+		goto wr_err;
+	}
+
+wr_err:
+	hb_qspi_disable_tx(hbqspi);
+	if (ret < 0) {
+#if (QSPI_DEBUG > 0)
+		hb_qspi_dump_reg(hbqspi);
+#endif
+	}
+
+	return ret;
+}
+
+static inline int hb_qspi_wr_batch(struct hb_qspi *hbqspi,
+							const void *pbuf, uint32_t len)
+{
+	uint32_t tx_len, offset = 0;
+	int64_t i, len_remain = (int64_t)len, ret = 0;
+	uint32_t *dbuf = (uint32_t *) pbuf;
+#if (QSPI_DEBUG > 0)
+#define MAXPRINT 32
+	char data_tmp[4];
+	char tmpbuf[MAXPRINT * 2];
+	memset(tmpbuf, 0, sizeof(tmpbuf));
+	for (i = 0; i < ((len < MAXPRINT) ? len : MAXPRINT); i ++) {
+		snprintf(data_tmp, sizeof(data_tmp), "%02x ", ((uint8_t *)pbuf)[i]);
+		strncat(tmpbuf, data_tmp, sizeof(tmpbuf) - strlen(tmpbuf));
+	}
+	printk("Wr_batch: %s\n", tmpbuf);
+#endif
+	hb_qspi_reset_fifo(hbqspi);
+	/* set fifo width and batch mode */
+	hb_qspi_set_fw(hbqspi, HB_QSPI_FW32);
+	hb_qspi_batch_mode_set(hbqspi, 1);
+
+	while (len_remain > 0) {
+#ifndef HB_QSPI_WORK_POLL
+		reinit_completion(&hbqspi->xfer_complete);
+#endif
+		tx_len = MIN(len_remain, BATCH_MAX_CNT);
+		hb_qspi_wr_reg(hbqspi, HB_QSPI_TBC_REG, tx_len);
+
+		/* enable tx */
+		hb_qspi_enable_tx(hbqspi);
+
+		for (i = 0; i < tx_len; i += 8) {
+			if (hb_qspi_check_status(hbqspi, HB_QSPI_ST1_REG,
+								  HB_QSPI_TX_AE, HB_QSPI_TIMEOUT_US)) {
+				pr_err("%s:%d tx batch fill timeout! len=%u, received=%lld\n",
+					__func__, __LINE__, len, i);
+				goto tb_err;
+			}
+			hb_qspi_wr_reg(hbqspi, HB_QSPI_DAT_REG, dbuf[offset++]);
+			hb_qspi_wr_reg(hbqspi, HB_QSPI_DAT_REG, dbuf[offset++]);
+		}
+#ifdef HB_QSPI_WORK_POLL
+		if (hb_qspi_check_status(hbqspi, HB_QSPI_ST1_REG,
+							  HB_QSPI_TBD, HB_QSPI_TIMEOUT_US)) {
+			pr_err("%s:%d poll tx batch comp timeout! len=%u, received=%lld\n",
+					__func__, __LINE__, len, i);
+		}
+#else
+		if (!wait_for_completion_timeout(&hbqspi->xfer_complete,
+									msecs_to_jiffies(HB_QSPI_TIMEOUT_MS))) {
+			pr_info("%s:%d tx batch comp timeout! len=%u, tansferred=%lld\n",
+					__func__, __LINE__, len, i);
+		}
+#endif
+		len_remain -= tx_len;
+		ret += tx_len;
+	}
+
+tb_err:
+	hb_qspi_disable_tx(hbqspi);
+	if (ret != len) {
+		ret = -ETIMEDOUT;
+#if (QSPI_DEBUG > 0)
+		hb_qspi_dump_reg(hbqspi);
+#endif
+	}
+
+	/* Disable batch mode and tx link */
+	hb_qspi_set_fw(hbqspi, HB_QSPI_FW8);
+	hb_qspi_batch_mode_set(hbqspi, 0);
+
+	return ret;
 }
 
 /**
@@ -572,12 +682,12 @@ SPI_ERROR:
  * Return:	Number of bytes transferred in the last transfer
  */
 
-static int hb_qspi_start_transfer(struct spi_master *master,
+static inline int hb_qspi_start_transfer(struct spi_master *master,
 				  struct spi_device *qspi,
 				  struct spi_transfer *transfer)
 {
-	u16 mode = 0;
-	int transfer_len = 0;
+	uint16_t default_mode = 0;
+	int transfered = 0;
 	struct hb_qspi *hbqspi = spi_master_get_devdata(master);
 	unsigned remainder, residue;
 	remainder = transfer->len % (HB_QSPI_TRIG_LEVEL);
@@ -586,7 +696,7 @@ static int hb_qspi_start_transfer(struct spi_master *master,
 	 * this 'mode' init by spi core,
 	 * depending on tx-bus-width property defined in dts
 	 */
-	mode = qspi->mode;
+	default_mode = qspi->mode;
 	hbqspi->txbuf = transfer->tx_buf;
 	hbqspi->rxbuf = transfer->rx_buf;
 
@@ -611,12 +721,11 @@ static int hb_qspi_start_transfer(struct spi_master *master,
 		}
 
 		if (residue > 0) {
-			hbqspi->batch_mode = 1;
-			transfer_len += hb_qspi_write_data(hbqspi, hbqspi->txbuf, residue);
+			transfered += hb_qspi_wr_batch(hbqspi, hbqspi->txbuf, residue);
 		}
 		if (remainder > 0) {
-			hbqspi->batch_mode = 0;
-			transfer_len += hb_qspi_write_data(hbqspi, (void *)hbqspi->txbuf + residue, remainder);
+			transfered += hb_qspi_wr_byte(hbqspi,
+							(void *)hbqspi->txbuf + residue, remainder);
 		}
 
 		if (transfer->len) {
@@ -634,12 +743,11 @@ static int hb_qspi_start_transfer(struct spi_master *master,
 			hb_qspi_cfg_line_mode(hbqspi, SPI_RX_DUAL, true);
 
 		if (residue > 0) {
-			hbqspi->batch_mode = 1;
-			transfer_len += hb_qspi_read_data(hbqspi, hbqspi->rxbuf, residue);
+			transfered += hb_qspi_rd_batch(hbqspi, hbqspi->rxbuf, residue);
 		}
 		if (remainder > 0) {
-			hbqspi->batch_mode = 0;
-			transfer_len += hb_qspi_read_data(hbqspi, (void *)hbqspi->rxbuf + residue, remainder);
+			transfered += hb_qspi_rd_byte(hbqspi,
+							(void *)hbqspi->rxbuf + residue, remainder);
 		}
 
 		if (qspi->mode & SPI_RX_QUAD)
@@ -649,16 +757,133 @@ static int hb_qspi_start_transfer(struct spi_master *master,
 
 	}
 
-	qspi->mode = mode;
-	transfer->len = transfer_len;
-
-#ifdef QSPI_DEBUG
-		// trace transfer data when transfer done
-		trace_transfer(transfer);
+	qspi->mode = default_mode;
+	transfer->len = transfered;
+#if (QSPI_DEBUG > 1)
+	/* trace transfer data when transfer done */
+	trace_hbqspi_transfer(transfer);
 #endif
 
 	spi_finalize_current_transfer(master);
-	return transfer->len;
+	return transfered;
+}
+
+/**
+ * hb_qspi_exec_mem_op() - Initiates the QSPI transfer
+ * @mem: the SPI memory
+ * @op: the memory operation to execute
+ *
+ * Executes a memory operation.
+ *
+ * This function first selects the chip and starts the memory operation.
+ *
+ * Return: 0 in case of success, a negative error code otherwise.
+ */
+static int hb_qspi_exec_mem_op(struct spi_mem *mem,
+				 const struct spi_mem_op *op)
+{
+	struct hb_qspi *hbqspi = spi_controller_get_devdata(mem->spi->master);
+	int ret = 0, remainder = 0, residue = 0, non_data_size = 0, i;
+	uint8_t *non_data_buf = NULL, *tmp_ptr;
+#if (QSPI_DEBUG > 1)
+	printk("cmd:0x%02x addr_dum_dat_nbytes:%d %d %d bus_widths:%d%d%d%d\n",
+			op->cmd.opcode,
+			op->addr.nbytes, op->dummy.nbytes, op->data.nbytes,
+			op->cmd.buswidth, op->addr.buswidth,
+			op->dummy.buswidth, op->data.buswidth);
+#endif
+	/* First deal with non-data transmits: cmd/addr/dummy */
+	non_data_size = sizeof(op->cmd.opcode) + op->addr.nbytes
+					+ op->dummy.nbytes;
+	non_data_buf = kzalloc(non_data_size, GFP_KERNEL);
+	memset(non_data_buf, 0x0, non_data_size);
+	tmp_ptr = non_data_buf;
+
+	if (op->cmd.opcode) {
+		memcpy(tmp_ptr, (u8 *)&op->cmd.opcode, sizeof(op->cmd.opcode));
+		tmp_ptr += sizeof(op->cmd.opcode);
+	}
+
+	if (op->addr.nbytes) {
+		memset(tmp_ptr, 0, sizeof(op->addr.nbytes));
+		for (i = 0; i < op->addr.nbytes; i++)
+			tmp_ptr[i] = op->addr.val >>
+					(8 * (op->addr.nbytes - i - 1));
+
+		tmp_ptr += op->addr.nbytes;
+	}
+
+	if (op->dummy.nbytes) {
+		memset(tmp_ptr, 0xff, op->dummy.nbytes);
+	}
+
+	hb_qspi_cfg_line_mode(hbqspi, SPI_TX_QUAD, false);
+	hb_qspi_chipselect(mem->spi, HB_QSPI_CS_EN);
+
+	hbqspi->txbuf = non_data_buf;
+	hbqspi->rxbuf = NULL;
+	ret += hb_qspi_wr_byte(hbqspi, hbqspi->txbuf, sizeof(op->cmd.opcode));
+
+	hbqspi->txbuf = non_data_buf + sizeof(op->cmd.opcode);
+	hbqspi->rxbuf = NULL;
+	hb_qspi_cfg_line_mode(hbqspi,
+		op->addr.buswidth == 4 ? SPI_TX_QUAD : SPI_TX_DUAL,
+		op->addr.buswidth == 1 ? false : true);
+	ret += hb_qspi_wr_byte(hbqspi, hbqspi->txbuf,
+					non_data_size - sizeof(op->cmd.opcode));
+
+	if(ret != non_data_size) {
+		ret = -1;
+		goto exec_end;
+	}
+
+	ret = 0;
+	if (op->data.nbytes) {
+		if (op->data.buswidth == 4)
+			hb_qspi_cfg_line_mode(hbqspi, SPI_TX_QUAD, true);
+		else if (op->data.buswidth == 2)
+			hb_qspi_cfg_line_mode(hbqspi, SPI_TX_DUAL, true);
+		else
+			hb_qspi_cfg_line_mode(hbqspi, SPI_TX_QUAD, false);
+
+		remainder = op->data.nbytes % (HB_QSPI_TRIG_LEVEL);
+		residue   = op->data.nbytes - remainder;
+		if (op->data.dir == SPI_MEM_DATA_OUT) {
+			hbqspi->txbuf = (u8 *)op->data.buf.out;
+			hbqspi->rxbuf = NULL;
+			if (residue)
+				ret += hb_qspi_wr_batch(hbqspi, hbqspi->txbuf, residue);
+			if (remainder)
+				ret += hb_qspi_wr_byte(hbqspi,
+								(void *)hbqspi->txbuf + residue, remainder);
+		} else {
+			hbqspi->txbuf = NULL;
+			hbqspi->rxbuf = (u8 *)op->data.buf.in;
+			if (residue)
+				ret += hb_qspi_rd_batch(hbqspi,
+								(void *)hbqspi->rxbuf, residue);
+			if (remainder)
+				ret += hb_qspi_rd_byte(hbqspi,
+								(void *)hbqspi->rxbuf + residue, remainder);
+		}
+	}
+
+	dev_dbg(hbqspi->dev, "Data bytes transfered: %d\n", ret);
+	if (ret == op->data.nbytes) {
+		ret = 0;
+	} else {
+		ret = -ETIMEDOUT;
+	}
+
+exec_end:
+	if (non_data_buf)
+		kfree(non_data_buf);
+	hb_qspi_chipselect(mem->spi, HB_QSPI_CS_DIS);
+	hb_qspi_cfg_line_mode(hbqspi, SPI_TX_QUAD, 0);
+	if (ret)
+		dev_err(hbqspi->dev, "Exec op failed! cmd:%#02x err: %d\n",
+				op->cmd.opcode, ret);
+	return ret;
 }
 
 /**
@@ -693,38 +918,22 @@ static int hb_unprepare_transfer_hardware(struct spi_master *master)
 
 static bool hb_supports_op(struct spi_mem *mem, const struct spi_mem_op *op)
 {
-	struct hb_qspi *hbqspi = spi_master_get_devdata(mem->spi->master);
-	u32 mode = hbqspi->mode;
+	struct hb_qspi *hbqspi = spi_controller_get_devdata(mem->spi->master);
+	if (op->cmd.buswidth > 1
+		|| op->addr.buswidth > hbqspi->buswidth
+		|| op->dummy.buswidth > hbqspi->buswidth
+		|| op->data.buswidth > hbqspi->buswidth)
+		return false;
 
-	//program operate - for spinand_select_op_variant
-	switch (op->cmd.opcode) {
-	case SPINAND_CMD_PROG_LOAD_X4:
-	case SPINAND_CMD_PROG_LOAD_RDM_DATA_X4:
-		if (mode == SPI_NBITS_QUAD)
-			return true;
-		else
-			return false;
-	default:
-		break;
-	}
-
-	//read operate - for spinand_select_op_variant
-	if (op->data.dir == SPI_MEM_DATA_IN && op->data.buswidth == mode
-	    && op->addr.buswidth == mode)
-		return true;
-
-	//other cmd - for spi_mem_exec_op
-	if (!op->data.buswidth || !op->addr.buswidth || !op->dummy.buswidth)
-		return true;
-
-	return false;
+	return true;
 }
 
 static const struct spi_controller_mem_ops hb_mem_ops = {
 	.supports_op = hb_supports_op,
+	.exec_op = hb_qspi_exec_mem_op,
 };
 
-static void qspiflash_diag_report(uint8_t errsta, uint32_t sta_reg)
+static void hb_qspiflash_diag_report(uint8_t errsta, uint32_t sta_reg)
 {
 	if (errsta) {
 		diag_send_event_stat_and_env_data(
@@ -744,27 +953,29 @@ static void qspiflash_diag_report(uint8_t errsta, uint32_t sta_reg)
 	}
 }
 
-static void qspiflash_callback(void *p, size_t len)
+static void hb_qspiflash_callback(void *p, size_t len)
 {
 	first_time = 0;
 }
 
 static irqreturn_t hb_qspi_irq_handler(int irq, void *dev_id)
 {
-	unsigned int irq_status;
 	unsigned int err_status;
 	int err = 0;
 	struct hb_qspi *hbqspi = dev_id;
+#ifndef HB_QSPI_WORK_POLL
+	unsigned int irq_status;
 	/* Read interrupt status */
-	irq_status = hb_qspi_read(hbqspi, HB_QSPI_ST1_REG);
-	hb_qspi_write(hbqspi, HB_QSPI_ST1_REG, HB_QSPI_TBD | HB_QSPI_RBD);
-
-	err_status = hb_qspi_read(hbqspi, HB_QSPI_ST2_REG);
-	hb_qspi_write(hbqspi, HB_QSPI_ST2_REG,
-			HB_QSPI_RXWR_FULL | HB_QSPI_TXRD_EMPTY);
-
-	if (irq_status & (HB_QSPI_TBD | HB_QSPI_RBD))
+	irq_status = hb_qspi_rd_reg(hbqspi, HB_QSPI_ST1_REG);
+	hb_qspi_wr_reg(hbqspi, HB_QSPI_ST1_REG, HB_QSPI_TBD | HB_QSPI_RBD);
+	if (irq_status & (HB_QSPI_TBD | HB_QSPI_RBD)) {
 		complete(&hbqspi->xfer_complete);
+		return IRQ_HANDLED;
+	}
+#endif
+	err_status = hb_qspi_rd_reg(hbqspi, HB_QSPI_ST2_REG);
+	hb_qspi_wr_reg(hbqspi, HB_QSPI_ST2_REG,
+			HB_QSPI_RXWR_FULL | HB_QSPI_TXRD_EMPTY);
 
 	if (err_status & (HB_QSPI_RXWR_FULL | HB_QSPI_TXRD_EMPTY))
 		err = 1;
@@ -772,10 +983,10 @@ static irqreturn_t hb_qspi_irq_handler(int irq, void *dev_id)
 	if (first_time == 0) {
 		first_time = 1;
 		last_err = err;
-		qspiflash_diag_report(err, err_status);
+		hb_qspiflash_diag_report(err, err_status);
 	} else if (last_err != err) {
 		last_err = err;
-		qspiflash_diag_report(err, err_status);
+		hb_qspiflash_diag_report(err, err_status);
 	}
 	return IRQ_HANDLED;
 }
@@ -796,8 +1007,8 @@ static int hb_qspi_probe(struct platform_device *pdev)
 	struct resource *res;
 	struct device *dev = &pdev->dev;
 	struct device_node *nc;
-	u32 num_cs;
-	u32 max_speed_hz;
+	uint32_t num_cs, buswidth;
+	uint32_t max_speed_hz;
 
 	master = spi_alloc_master(&pdev->dev, sizeof(*hbqspi));
 	if (!master)
@@ -836,12 +1047,9 @@ static int hb_qspi_probe(struct platform_device *pdev)
 	hbqspi->qspi_clk = CONFIG_HOBOT_QSPI_CLK;
 #endif
 
-	if (of_property_read_bool(pdev->dev.of_node, "is-batch-mode"))
-		hbqspi->batch_mode = true;
-
 	/* used for spi-mem select op and meet __spi_validate */
-	if (of_property_read_u32(pdev->dev.of_node, "qspi-mode", &hbqspi->mode))
-		hbqspi->mode = 0;
+	if (of_property_read_u32(pdev->dev.of_node, "spi-mode", &hbqspi->spi_mode))
+		hbqspi->spi_mode = 0;
 
 	hbqspi->speed_hz = -1;
 	for_each_available_child_of_node(pdev->dev.of_node, nc) {
@@ -854,16 +1062,20 @@ static int hb_qspi_probe(struct platform_device *pdev)
 			dev_err(dev, "spi-max-frequency not found\n");
 		}
 	}
-	if (ret)
-		dev_err(dev, "tx/rx bus width not found\n");
+
+	buswidth = 1;
+	if (of_property_read_u32(pdev->dev.of_node, "bus-width", &buswidth))
+		dev_warn_once(dev, "tx/rx bus width not found, using 1 line mode\n");
+	hbqspi->buswidth = buswidth;
 
 	ret = of_property_read_u32(pdev->dev.of_node, "num-cs", &num_cs);
 	if (ret < 0)
-		master->num_chipselect = HB_QSPI_DEF_CS;
+		master->num_chipselect = HB_QSPI_MAX_CS;
 	else
 		master->num_chipselect = num_cs;
-
+#ifndef HB_QSPI_WORK_POLL
 	init_completion(&hbqspi->xfer_complete);
+#endif
 	/* Obtain IRQ line */
 	hbqspi->irq = platform_get_irq(pdev, 0);
 	if (hbqspi->irq < 0) {
@@ -877,7 +1089,7 @@ static int hb_qspi_probe(struct platform_device *pdev)
 		goto remove_master;
 	}
 	if (diag_register(ModuleDiag_qspi, EventIdqspiErr,
-						4, 10, 5000, qspiflash_callback) < 0)
+						4, 10, 5000, hb_qspiflash_callback) < 0)
 		pr_err("qspi flash diag register fail\n");
 
 	master->setup = hb_qspi_setup;
@@ -885,14 +1097,54 @@ static int hb_qspi_probe(struct platform_device *pdev)
 	master->transfer_one = hb_qspi_start_transfer;
 	master->prepare_transfer_hardware = hb_prepare_transfer_hardware;
 	master->unprepare_transfer_hardware = hb_unprepare_transfer_hardware;
+	master->mem_ops = &hb_mem_ops;
 	master->max_speed_hz = hbqspi->speed_hz;
 	master->bits_per_word_mask = SPI_BPW_MASK(8);
-	master->mode_bits = SPI_CPOL | SPI_CPHA | SPI_RX_DUAL | SPI_RX_QUAD |
-	    SPI_TX_DUAL | SPI_TX_QUAD;
+	master->mode_bits = 0;
+
+	switch (hbqspi->spi_mode) {
+		case 0:
+			master->mode_bits |= SPI_MODE_0;
+			break;
+		case 1:
+			master->mode_bits |= SPI_MODE_1;
+			break;
+		case 2:
+			master->mode_bits |= SPI_MODE_2;
+			break;
+		case 3:
+			master->mode_bits |= SPI_MODE_3;
+			break;
+		default:
+			master->mode_bits |= SPI_MODE_0;
+			pr_err("Unknown spi mode for qspi: %d, using mode 0!\n",
+					hbqspi->spi_mode);
+			break;
+	}
+
+	switch (buswidth) {
+		case 1:
+			break;
+		case 2:
+			master->mode_bits |= (SPI_TX_DUAL | SPI_RX_DUAL);
+			break;
+		case 4:
+			master->mode_bits |= (SPI_TX_QUAD | SPI_RX_QUAD);
+			break;
+		case 8:
+			master->mode_bits |= (SPI_TX_OCTAL | SPI_RX_OCTAL);
+			break;
+		default:
+			hbqspi->buswidth = 1;
+			master->mode_bits &= 0x0FF;
+			pr_err("Unknown data width for qspi: %d, using 1bit width!\n",
+					buswidth);
+			break;
+	}
 
 	/* QSPI controller initializations */
 	hb_qspi_hw_init(hbqspi);
-#ifdef QSPI_DEBUG
+#if (QSPI_DEBUG > 1)
 	trace_hbqspi(hbqspi);
 #endif
 
@@ -939,11 +1191,15 @@ int hb_qspi_suspend(struct device *dev)
 	pr_info("%s:%s, enter suspend...\n", __FILE__, __func__);
 
 	/* wait to be done */
-	qspi_check_status(hbqspi, HB_QSPI_ST2_REG, HB_QSPI_TX_EP, 0x1000);
-	hb_qspi_poll_rx_empty(hbqspi, HB_QSPI_ST2_REG, HB_QSPI_RX_EP, 0x1000);
+	hb_qspi_check_status(hbqspi, HB_QSPI_ST2_REG,
+								 HB_QSPI_TX_EP,
+								 HB_QSPI_TIMEOUT_US);
+	hb_qspi_check_status(hbqspi, HB_QSPI_ST2_REG,
+								 HB_QSPI_RX_EP,
+								 HB_QSPI_TIMEOUT_US);
 
-	qspi_disable_tx(hbqspi);
-	qspi_disable_rx(hbqspi);
+	hb_qspi_disable_tx(hbqspi);
+	hb_qspi_disable_rx(hbqspi);
 #ifdef CONFIG_HOBOT_XJ2
 	clk_disable_unprepare(hbqspi->pclk);
 #endif

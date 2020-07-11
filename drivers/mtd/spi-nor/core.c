@@ -2767,8 +2767,14 @@ static void spi_nor_info_init_params(struct spi_nor *nor)
 	if (info->flags & SPI_NOR_QUAD_READ) {
 		params->hwcaps.mask |= SNOR_HWCAPS_READ_1_1_4;
 		spi_nor_set_read_settings(&params->reads[SNOR_CMD_READ_1_1_4],
-					  0, 8, SPINOR_OP_READ_1_1_4,
-					  SNOR_PROTO_1_1_4);
+					0, 8, SPINOR_OP_READ_1_1_4,
+					SNOR_PROTO_1_1_4);
+		if (info->flags & SPI_NOR_QUADIO) {
+			params->hwcaps.mask |= SNOR_HWCAPS_READ_1_4_4;
+			spi_nor_set_read_settings(&params->reads[SNOR_CMD_READ_1_4_4],
+					  0, 6, SPINOR_OP_READ_1_4_4,
+					  SNOR_PROTO_1_4_4);
+		}
 	}
 
 	if (info->flags & SPI_NOR_OCTAL_READ) {

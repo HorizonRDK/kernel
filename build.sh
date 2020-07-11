@@ -86,24 +86,24 @@ function set_kernel_config()
     echo "******************************"
     echo "Set Kernel Defconfig"
     if [ "$BOOT_MODE" = "nand"  ];then
-        sed -i 's/# CONFIG_MTD_UBI_FASTMAP is not set/CONFIG_MTD_UBI_FASTMAP=y/g' $TOPDIR/kernel/arch/arm64/configs/$KERNEL_DEFCONFIG
-        sed -i 's/# CONFIG_MTD_UBI_FASTMAP_AUTOCONVERT is not set/CONFIG_MTD_UBI_FASTMAP_AUTOCONVERT=1/g' $TOPDIR/kernel/arch/arm64/configs/$KERNEL_DEFCONFIG
+        sed -i 's/# CONFIG_MTD_UBI_FASTMAP is not set/CONFIG_MTD_UBI_FASTMAP=y/g' $OUT_BUILD_KERNEL_DIR/arch/arm64/configs/$KERNEL_DEFCONFIG
+        sed -i 's/# CONFIG_MTD_UBI_FASTMAP_AUTOCONVERT is not set/CONFIG_MTD_UBI_FASTMAP_AUTOCONVERT=1/g' $OUT_BUILD_KERNEL_DIR/arch/arm64/configs/$KERNEL_DEFCONFIG
     else
-        sed -i 's/CONFIG_MTD_UBI_FASTMAP=y/# CONFIG_MTD_UBI_FASTMAP is not set/g' $TOPDIR/kernel/arch/arm64/configs/$KERNEL_DEFCONFIG
-        sed -i 's/CONFIG_MTD_UBI_FASTMAP_AUTOCONVERT=1/# CONFIG_MTD_UBI_FASTMAP_AUTOCONVERT is not set/g' $TOPDIR/kernel/arch/arm64/configs/$KERNEL_DEFCONFIG
+        sed -i 's/CONFIG_MTD_UBI_FASTMAP=y/# CONFIG_MTD_UBI_FASTMAP is not set/g' $OUT_BUILD_KERNEL_DIR/arch/arm64/configs/$KERNEL_DEFCONFIG
+        sed -i 's/CONFIG_MTD_UBI_FASTMAP_AUTOCONVERT=1/# CONFIG_MTD_UBI_FASTMAP_AUTOCONVERT is not set/g' $OUT_BUILD_KERNEL_DIR/arch/arm64/configs/$KERNEL_DEFCONFIG
     fi
 
     if [ ! -z "$GCOV_CFLAGS" ];then
         echo "Kernel GCOV function is enabled!"
-        sed -i 's:# CONFIG_GCOV_KERNEL is not set:CONFIG_GCOV_KERNEL=y:g' ${SRC_KERNEL_DIR}/arch/arm64/configs/xj3_debug_defconfig
-        sed -i 's:# CONFIG_GCOV_FORMAT_AUTODETECT is not set:CONFIG_GCOV_FORMAT_AUTODETECT=y:g' ${SRC_KERNEL_DIR}/arch/arm64/configs/xj3_debug_defconfig
-        sed -i 's:# CONFIG_HOBOT_GCOV_AVIO is not set:CONFIG_HOBOT_GCOV_AVIO=y:g' ${SRC_KERNEL_DIR}/arch/arm64/configs/xj3_debug_defconfig
-        sed -i 's:# CONFIG_HOBOT_GCOV_BASE is not set:CONFIG_HOBOT_GCOV_BASE=y:g' ${SRC_KERNEL_DIR}/arch/arm64/configs/xj3_debug_defconfig
+        sed -i 's:# CONFIG_GCOV_KERNEL is not set:CONFIG_GCOV_KERNEL=y:g' $OUT_BUILD_KERNEL_DIR/arch/arm64/configs/xj3_debug_defconfig
+        sed -i 's:# CONFIG_GCOV_FORMAT_AUTODETECT is not set:CONFIG_GCOV_FORMAT_AUTODETECT=y:g' $OUT_BUILD_KERNEL_DIR/arch/arm64/configs/xj3_debug_defconfig
+        sed -i 's:# CONFIG_HOBOT_GCOV_AVIO is not set:CONFIG_HOBOT_GCOV_AVIO=y:g' $OUT_BUILD_KERNEL_DIR/arch/arm64/configs/xj3_debug_defconfig
+        sed -i 's:# CONFIG_HOBOT_GCOV_BASE is not set:CONFIG_HOBOT_GCOV_BASE=y:g' $OUT_BUILD_KERNEL_DIR/arch/arm64/configs/xj3_debug_defconfig
     else
-        sed -i 's:CONFIG_GCOV_KERNEL=y:# CONFIG_GCOV_KERNEL is not set:g' ${SRC_KERNEL_DIR}/arch/arm64/configs/xj3_debug_defconfig
-        sed -i 's:CONFIG_GCOV_FORMAT_AUTODETECT=y:# CONFIG_GCOV_FORMAT_AUTODETECT is not set:g' ${SRC_KERNEL_DIR}/arch/arm64/configs/xj3_debug_defconfig
-        sed -i 's:CONFIG_HOBOT_GCOV_AVIO=y:# CONFIG_HOBOT_GCOV_AVIO is not set:g' ${SRC_KERNEL_DIR}/arch/arm64/configs/xj3_debug_defconfig
-        sed -i 's:CONFIG_HOBOT_GCOV_BASE=y:# CONFIG_HOBOT_GCOV_BASE is not set:g' ${SRC_KERNEL_DIR}/arch/arm64/configs/xj3_debug_defconfig
+        sed -i 's:CONFIG_GCOV_KERNEL=y:# CONFIG_GCOV_KERNEL is not set:g' $OUT_BUILD_KERNEL_DIR/arch/arm64/configs/xj3_debug_defconfig
+        sed -i 's:CONFIG_GCOV_FORMAT_AUTODETECT=y:# CONFIG_GCOV_FORMAT_AUTODETECT is not set:g' $OUT_BUILD_KERNEL_DIR/arch/arm64/configs/xj3_debug_defconfig
+        sed -i 's:CONFIG_HOBOT_GCOV_AVIO=y:# CONFIG_HOBOT_GCOV_AVIO is not set:g' $OUT_BUILD_KERNEL_DIR/arch/arm64/configs/xj3_debug_defconfig
+        sed -i 's:CONFIG_HOBOT_GCOV_BASE=y:# CONFIG_HOBOT_GCOV_BASE is not set:g' $OUT_BUILD_KERNEL_DIR/arch/arm64/configs/xj3_debug_defconfig
     fi
     echo "******************************"
 }
