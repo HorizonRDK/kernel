@@ -31,7 +31,7 @@
 #define XFER_TIMEOUT		1000 /* ms */
 
 #define I2C_MAX_DIV			255
-#define I2C_SCL_DEFAULT_FREQ	100000 /*I2c SCL default frequency is 100KHZ*/
+#define I2C_SCL_DEFAULT_FREQ	400000 /*I2c SCL default frequency is 400KHZ*/
 #define I2C_CONTROL_CLK		24000000
 
 enum {
