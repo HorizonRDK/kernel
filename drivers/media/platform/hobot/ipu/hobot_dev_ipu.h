@@ -185,6 +185,7 @@ struct ipu_subdev {
 	struct ipu_info_cfg info_cfg;
 	ipu_cfg_t ipu_cfg;
 	ipu_ds_info_t scale_cfg;
+	bool first_enable;
 };
 
 struct x3_ipu_dev {

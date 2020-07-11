@@ -44,6 +44,7 @@ void ipu_hw_set_cfg(struct ipu_subdev *subdev);
 void ipu_update_hw_param(struct ipu_subdev *subdev);
 int ipu_video_streamoff(struct ipu_video_ctx *ipu_ctx);
 enum buffer_owner ipu_index_owner(struct ipu_video_ctx *ipu_ctx, u32 index);
+int ipu_channel_wdma_enable(struct ipu_subdev *subdev, bool enable);
 
 static int x3_ipu_open(struct inode *inode, struct file *file)
 {
@@ -125,6 +126,7 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 			vio_group_task_stop(group->gtask);
 		subdev->leader = false;
 		subdev->skip_flag = false;
+		subdev->first_enable = false;
 		group->output_flag = 0;
 		instance = group->instance;
 		ipu->reuse_shadow0_count &= ~instance;
@@ -277,6 +279,11 @@ void ipu_frame_work(struct vio_group *group)
 			if (i != GROUP_ID_SRC)
 				ipu_check_phyaddr(frame);
 
+			if (subdev->first_enable == true) {
+				ipu_channel_wdma_enable(subdev, true);
+				subdev->first_enable = false;
+			}
+
 			switch (i) {
 			case GROUP_ID_SRC:
 				ipu_set_rdma_addr(ipu->base_reg,
@@ -316,8 +323,9 @@ void ipu_frame_work(struct vio_group *group)
 	if (test_bit(IPU_DMA_INPUT, &ipu->state))
 		ipu_set_rdma_start(ipu->base_reg);
 
-	if (!test_bit(IPU_HW_CONFIG, &ipu->state))
+	if (!test_bit(IPU_HW_CONFIG, &ipu->state)) {
 		set_bit(IPU_HW_CONFIG, &ipu->state);
+	}
 	vio_dbg("[S%d]%s done; rdy = %d\n", instance, __func__, rdy);
 }
 
@@ -1211,7 +1219,7 @@ int ipu_video_init(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 	if (subdev->leader && !subdev->skip_flag)
 		vio_group_task_start(group->gtask);
 	atomic_inc(&group->node_refcount);
-
+	subdev->first_enable = true;
 	ipu_ctx->state = BIT(VIO_VIDEO_INIT);
 
 	vio_info("[S%d][V%d]%s done\n", group->instance, ipu_ctx->id, __func__);
@@ -1308,10 +1316,6 @@ int ipu_video_streamon(struct ipu_video_ctx *ipu_ctx)
 	}
 
 	subdev = ipu_ctx->subdev;
-	ipu_channel_wdma_enable(subdev, true);
-
-	if (atomic_read(&ipu->rsccount) > 0)
-		goto p_inc;
 
 	if (group->leader && test_bit(IPU_OTF_INPUT, &ipu->state)) {
 		while(1) {
@@ -1326,6 +1330,11 @@ int ipu_video_streamon(struct ipu_video_ctx *ipu_ctx)
 			}
 		}
 	}
+
+	//ipu_channel_wdma_enable(subdev, true);
+
+	if (atomic_read(&ipu->rsccount) > 0)
+		goto p_inc;
 	//ipu_set_ddr_fifo_thred(ipu->base_reg, 0, 0);
 	//ipu_set_ddr_fifo_thred(ipu->base_reg, 1, 0);
 
