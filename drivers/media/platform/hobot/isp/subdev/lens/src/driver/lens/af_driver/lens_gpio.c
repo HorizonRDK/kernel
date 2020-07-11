@@ -119,7 +119,7 @@ static void montor_back(uint16_t A1, uint16_t A2,
 	uint32_t count = 0;
 	uint32_t temp = num % 4;
 
-	montor_step_one(A1, A2, B1, B2);
+	montor_step_four(A1, A2, B1, B2);
 	udelay(2*1000);
 	for (count = 0; count < (num / 4); count++) {
 		montor_step_one(A1, A2, B1, B2);
@@ -136,11 +136,17 @@ static void montor_back(uint16_t A1, uint16_t A2,
 	case 3:
 		montor_step_one(A1, A2, B1, B2);
 		udelay(m_delay_time);
+		montor_step_two(A1, A2, B1, B2);
+		udelay(m_delay_time);
+		montor_step_three(A1, A2, B1, B2);
+		udelay(m_delay_time);
 	case 2:
+		montor_step_one(A1, A2, B1, B2);
+		udelay(m_delay_time);
 		montor_step_two(A1, A2, B1, B2);
 		udelay(m_delay_time);
 	case 1:
-		montor_step_three(A1, A2, B1, B2);
+		montor_step_one(A1, A2, B1, B2);
 		udelay(m_delay_time);
 	}
 }
@@ -151,7 +157,7 @@ static void montor_forward(uint16_t A1, uint16_t A2,
 	uint32_t count = 0;
 	uint32_t temp = num % 4;
 
-	montor_step_four(A1, A2, B1, B2);
+	montor_step_one(A1, A2, B1, B2);
 	udelay(2*1000);
 	for (count = 0; count < (num / 4); count++) {
 		montor_step_four(A1, A2, B1, B2);
@@ -166,9 +172,15 @@ static void montor_forward(uint16_t A1, uint16_t A2,
 
 	switch (temp) {
 	case 3:
+		montor_step_two(A1, A2, B1, B2);
+		udelay(m_delay_time);
+		montor_step_three(A1, A2, B1, B2);
+		udelay(m_delay_time);
 		montor_step_four(A1, A2, B1, B2);
 		udelay(m_delay_time);
 	case 2:
+		montor_step_two(A1, A2, B1, B2);
+		udelay(m_delay_time);
 		montor_step_three(A1, A2, B1, B2);
 		udelay(m_delay_time);
 	case 1:
