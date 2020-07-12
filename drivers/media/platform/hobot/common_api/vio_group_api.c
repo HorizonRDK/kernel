@@ -363,7 +363,8 @@ void vio_group_done(struct vio_group *group)
 	group_leader = group->head;
 	group_task = group_leader->gtask;
 
-	if (group->next && group->head != group) {
+	if (group->next && group->head != group &&
+		test_bit(VIO_GROUP_DMA_OUTPUT, &group->state)) {
 		group_leader->sema_flag |= 1 << 2;
 	}
 

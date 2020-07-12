@@ -279,7 +279,7 @@ void ipu_frame_work(struct vio_group *group)
 			if (i != GROUP_ID_SRC)
 				ipu_check_phyaddr(frame);
 
-			if (subdev->first_enable == true) {
+			if (subdev->id != GROUP_ID_SRC && subdev->first_enable == true) {
 				ipu_channel_wdma_enable(subdev, true);
 				subdev->first_enable = false;
 			}
@@ -1331,7 +1331,10 @@ int ipu_video_streamon(struct ipu_video_ctx *ipu_ctx)
 		}
 	}
 
-	//ipu_channel_wdma_enable(subdev, true);
+	if (subdev->id == GROUP_ID_SRC &&
+				!test_bit(IPU_DS2_DMA_OUTPUT, &ipu->state)) {
+		ipu_channel_wdma_enable(subdev, true);
+	}
 
 	if (atomic_read(&ipu->rsccount) > 0)
 		goto p_inc;
