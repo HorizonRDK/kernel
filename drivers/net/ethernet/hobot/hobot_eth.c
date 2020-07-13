@@ -1282,9 +1282,11 @@ static void xj3_adjust_link(struct net_device *ndev) {
 
     if (status_change) {
         if (phydev->link) {
+            netif_carrier_on(priv->dev);
             netif_trans_update(priv->dev);
             xj3_link_up(priv);
         } else {
+            netif_carrier_off(priv->dev);
             xj3_link_down(priv);
         }
         dev_dbg(priv->device, "%s, speed:%s, duplex:%s\n", __func__,
@@ -2950,7 +2952,7 @@ static void xj3_phystatus(struct xj3_priv *priv, struct xj3_extra_stats *x) {
         spin_unlock_irqrestore(&priv->state_lock, flags);
         x->pcs_duplex = ((status & GMAC_PHYIF_CTRLSTATUS_LNKMOD) >>
                          GMAC_PHYIF_CTRLSTATUS_LNKMOD_MASK);
-
+        netif_carrier_on(priv->dev);
         dev_info(priv->device, "Link is Up - %d/%s \n", (int)x->pcs_speed,
                  x->pcs_duplex ? "Full" : "Half");
 
@@ -2959,6 +2961,7 @@ static void xj3_phystatus(struct xj3_priv *priv, struct xj3_extra_stats *x) {
         spin_lock_irqsave(&priv->state_lock, flags);
         set_bit(HOBOT_DOWN, &priv->state);
         spin_unlock_irqrestore(&priv->state_lock, flags);
+        netif_carrier_off(priv->dev);
         dev_info(priv->device, "Link is Down\n");
     }
 
@@ -3134,11 +3137,6 @@ static irqreturn_t xj3_interrupt(int irq, void *dev_id) {
             xj3_set_rx_tail_ptr(priv->ioaddr, rx_q->rx_tail_addr, queue);
         }
     }
-
-    if (priv->xstats.pcs_link)
-        netif_carrier_on(ndev);
-    else
-        netif_carrier_off(ndev);
 
     for (chan = 0; chan < tx_cnt; chan++) {
         struct xj3_rx_queue *rx_q = &priv->rx_queue[chan];
