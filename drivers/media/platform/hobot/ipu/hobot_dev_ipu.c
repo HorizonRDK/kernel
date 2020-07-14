@@ -310,6 +310,10 @@ void ipu_frame_work(struct vio_group *group)
 			if(!(i == GROUP_ID_SRC &&
 					test_bit(IPU_DS2_DMA_OUTPUT, &ipu->state)))
 				ipu_channel_wdma_enable(subdev, true);
+
+			if (i == GROUP_ID_DS2)
+				ipu_set_ds2_wdma_enable(ipu->base_reg, shadow_index, 1);
+
 			ipu_hw_set_cfg(subdev);
 			trans_frame(framemgr, frame, FS_PROCESS);
 		}
@@ -576,8 +580,12 @@ void ipu_disable_all_channels(void __iomem *base_reg, u8 shadow_index)
 	ipu_set_us_enable(base_reg, shadow_index, false);
 	ipu_set_us_roi_enable(base_reg, shadow_index, false);
 	for (i = 0; i < 5; i++) {
-		ipu_set_ds_enable(base_reg, shadow_index, i, false);
-		ipu_set_ds_roi_enable(base_reg, shadow_index, i, false);
+		if (i == 2) {
+			ipu_set_ds2_wdma_enable(base_reg, shadow_index, 0);
+		} else {
+			ipu_set_ds_enable(base_reg, shadow_index, i, false);
+			ipu_set_ds_roi_enable(base_reg, shadow_index, i, false);
+		}
 	}
 
 	vio_dbg("G%d: %s \n", shadow_index, __func__);
