@@ -45,6 +45,7 @@ void ipu_update_hw_param(struct ipu_subdev *subdev);
 int ipu_video_streamoff(struct ipu_video_ctx *ipu_ctx);
 enum buffer_owner ipu_index_owner(struct ipu_video_ctx *ipu_ctx, u32 index);
 int ipu_channel_wdma_enable(struct ipu_subdev *subdev, bool enable);
+void ipu_disable_all_channels(void __iomem *base_reg, u8 shadow_index);
 
 static int x3_ipu_open(struct inode *inode, struct file *file)
 {
@@ -272,6 +273,7 @@ void ipu_frame_work(struct vio_group *group)
 		subdev = group->sub_ctx[i];
 		if (!subdev)
 			continue;
+
 		framemgr = &subdev->framemgr;
 		framemgr_e_barrier_irqs(framemgr, 0, flags);
 		frame = peek_frame(framemgr, FS_REQUEST);
@@ -279,17 +281,13 @@ void ipu_frame_work(struct vio_group *group)
 			if (i != GROUP_ID_SRC)
 				ipu_check_phyaddr(frame);
 
-			if (subdev->id != GROUP_ID_SRC && subdev->first_enable == true) {
-				ipu_channel_wdma_enable(subdev, true);
-				subdev->first_enable = false;
-			}
-
 			switch (i) {
 			case GROUP_ID_SRC:
 				ipu_set_rdma_addr(ipu->base_reg,
 					frame->frameinfo.addr[0],
 					frame->frameinfo.addr[1]);
-				if (test_bit(IPU_REUSE_SHADOW0, &ipu->state))
+				if (test_bit(IPU_REUSE_SHADOW0, &ipu->state) &&
+						shadow_index == 0)
 					ipu_update_hw_param(subdev);
 				break;
 			case GROUP_ID_US:
@@ -309,7 +307,9 @@ void ipu_frame_work(struct vio_group *group)
 			default:
 				break;
 			}
-
+			if(!(i == GROUP_ID_SRC &&
+					test_bit(IPU_DS2_DMA_OUTPUT, &ipu->state)))
+				ipu_channel_wdma_enable(subdev, true);
 			ipu_hw_set_cfg(subdev);
 			trans_frame(framemgr, frame, FS_PROCESS);
 		}
@@ -569,6 +569,20 @@ void ipu_set_roi_enable(struct ipu_subdev *subdev, u32 shadow_index,
 	}
 }
 
+void ipu_disable_all_channels(void __iomem *base_reg, u8 shadow_index)
+{
+	int i = 0;
+
+	ipu_set_us_enable(base_reg, shadow_index, false);
+	ipu_set_us_roi_enable(base_reg, shadow_index, false);
+	for (i = 0; i < 5; i++) {
+		ipu_set_ds_enable(base_reg, shadow_index, i, false);
+		ipu_set_ds_roi_enable(base_reg, shadow_index, i, false);
+	}
+
+	vio_dbg("G%d: %s \n", shadow_index, __func__);
+}
+
 void ipu_set_sc_enable(struct ipu_subdev *subdev, u32 shadow_index,
 			bool sc_en)
 {
@@ -580,7 +594,7 @@ void ipu_set_sc_enable(struct ipu_subdev *subdev, u32 shadow_index,
 	base_reg = subdev->ipu_dev->base_reg;
 
 	if (id == GROUP_ID_US) {
-		ipu_set_us_enable(base_reg, shadow_index, sc_en);;
+		ipu_set_us_enable(base_reg, shadow_index, sc_en);
 	} else if (id >= GROUP_ID_DS0) {
 		ds_ch = id - GROUP_ID_DS0;
 		ipu_set_ds_enable(base_reg, shadow_index, ds_ch, sc_en);
@@ -854,6 +868,8 @@ int ipu_channel_wdma_enable(struct ipu_subdev *subdev, bool enable)
 	rdy = ipu_get_shd_rdy(ipu->base_reg);
 	rdy = rdy | (1 << shadow_index);
 	ipu_set_shd_rdy(ipu->base_reg, rdy);
+
+	vio_dbg("G%dV%d %s", shadow_index, subdev->id, __func__);
 
 	return ret;
 }
@@ -2230,9 +2246,13 @@ static irqreturn_t ipu_isr(int irq, void *data)
 			= atomic_read(&group->rcount);
 		ipu->statistic.tal_frm_work = atomic_read(&ipu->backup_fcount);
 		atomic_inc(&ipu->sensor_fcount);
+
+		ipu_disable_all_channels(ipu->base_reg, group->instance);
+
 		if (test_bit(IPU_OTF_INPUT, &ipu->state)
 				&& group->leader) {
-			if (unlikely(list_empty(&gtask->hw_resource.wait_list))) {
+			if (unlikely(list_empty(&gtask->hw_resource.wait_list)) &&
+				gtask->hw_resource.count >= 1) {
 				vio_err("[S%d]GP%d(res %d, rcnt %d, bcnt %d, scnt %d)\n",
 					group->instance,
 					gtask->id,

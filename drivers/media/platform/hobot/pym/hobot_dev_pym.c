@@ -1390,7 +1390,8 @@ static irqreturn_t pym_isr(int irq, void *data)
 		atomic_inc(&pym->sensor_fcount);
 		if (test_bit(PYM_OTF_INPUT, &pym->state)
 				&& group->leader) {
-			if (unlikely(list_empty(&gtask->hw_resource.wait_list))) {
+			if (unlikely(list_empty(&gtask->hw_resource.wait_list)) &&
+					gtask->hw_resource.count >= 1) {
 				vio_err("[S%d]GP%d(res %d, rcnt %d, bcnt %d, scnt %d)\n",
 					group->instance,
 					gtask->id,
