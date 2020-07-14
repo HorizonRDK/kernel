@@ -814,6 +814,8 @@ int set_mipi_display(uint8_t panel_no);
 int32_t iar_layer_disable(int32_t layer_no);
 int32_t iar_layer_enable(int32_t layer_no);
 int set_screen_backlight(unsigned int backlight_level);
+int screen_backlight_init(void);
+int screen_backlight_deinit(void);
 int get_iar_module_rst_pin(void);
 int enable_sif_mclk(void);
 int disable_sif_mclk(void);

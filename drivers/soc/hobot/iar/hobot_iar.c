@@ -99,6 +99,7 @@ static int sif_mclk_iar_open = 0;
 static int stop_flag = 0;
 phys_addr_t logo_paddr;
 void *logo_vaddr = NULL;
+static int pwm0_request_status = 0;
 unsigned int fb_num = 1;
 EXPORT_SYMBOL(fb_num);
 
@@ -1000,11 +1001,13 @@ static int ipi_clk_enable(void)
 	return clk_prepare_enable(g_iar_dev->iar_ipi_clk);
 }
 
-static int screen_backlight_init(void)
+int screen_backlight_init(void)
 {
 	int ret = 0;
 
 	pr_debug("initialize lcd backligbt!!!\n");
+	if (pwm0_request_status == 1)
+		return 0;
 	screen_backlight_pwm = pwm_request(0, "lcd-pwm");
 	if (IS_ERR(screen_backlight_pwm)) {
 		pr_err("\nNo pwm device 0!!!!\n");
@@ -1042,10 +1045,27 @@ static int screen_backlight_init(void)
 		pr_err("\nError enable pwm!!!!\n");
 		return ret;
 	}
+	pwm0_request_status = 1;
 	pr_debug("pwm enable is okay!!!\n");
 
 	return 0;
 }
+EXPORT_SYMBOL_GPL(screen_backlight_init);
+
+int screen_backlight_deinit(void)
+{
+	if (pwm0_request_status == 0)
+		return 0;
+	if (screen_backlight_pwm == NULL) {
+		pr_err("pwm is not init!!\n");
+		return -1;
+	}
+	pwm_free(screen_backlight_pwm);
+	screen_backlight_pwm = NULL;
+	pwm0_request_status = 0;
+	return 0;
+}
+EXPORT_SYMBOL_GPL(screen_backlight_deinit);
 
 int screen_backlight_change(unsigned int duty)
 {
@@ -1708,6 +1728,8 @@ int32_t iar_open(void)
 
 	g_iar_dev->state = BIT(IAR_WB_INIT);
 
+	if (hb_disp_base_board_id == 0x1)
+		screen_backlight_init();
 	if (g_iar_dev->iar_task == NULL) {
 		g_iar_dev->iar_task = kthread_run(iar_thread,
 				(void *)g_iar_dev, "iar_thread");
@@ -1780,6 +1802,8 @@ int32_t iar_close(void)
 		kthread_stop(g_iar_dev->iar_task);
 		g_iar_dev->iar_task = NULL;
 	}
+	if (hb_disp_base_board_id == 0x1)
+		screen_backlight_deinit();
 	disable_sif_mclk();
 	iar_pixel_clk_disable();
 
@@ -2979,12 +3003,6 @@ static int hobot_iar_probe(struct platform_device *pdev)
 	hb_disp_base_board_id = reg_val + 1;
 	pr_debug("iar: base board id is 0x%x\n", hb_disp_base_board_id);
 	if (hb_disp_base_board_id == 0x1) {     //x3_dvb
-		ret = screen_backlight_init();
-		hitm1_reg_addr = ioremap_nocache(X3_PWM0_PINMUX, 4);
-		writel(0x2, hitm1_reg_addr);
-		if (ret)
-			pr_err("%s: error init pwm0!!\n", __func__);
-		pr_info("iar: pwm0 init success!!\n");
 		ret = of_property_read_u32(pdev->dev.of_node,
 			"disp_panel_reset_pin", &panel_reset_pin);
 		if (ret) {

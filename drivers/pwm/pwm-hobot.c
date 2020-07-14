@@ -144,12 +144,10 @@ static int hobot_pwm_request(struct pwm_chip *chip, struct pwm_device *pwm)
 
 	if (hbpwm->mclk == NULL)
 		return -1;
-	if (!__clk_is_enabled(hbpwm->mclk)) {
-		ret = clk_prepare_enable(hbpwm->mclk);
-		if (ret) {
-			pr_err("failed to enable pwm clock\n");
-			return ret;
-		}
+	ret = clk_prepare_enable(hbpwm->mclk);
+	if (ret) {
+		pr_err("failed to enable pwm clock\n");
+		return ret;
 	}
 	return 0;
 }

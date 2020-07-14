@@ -674,12 +674,16 @@ static ssize_t hobot_iar_store(struct kobject *kobj, struct kobj_attribute *attr
 	iar_pixel_clk_enable();
 	if (strncmp(tmp, "start", 5) == 0) {
 		pr_info("iar start......\n");
+		if (hb_disp_base_board_id == 0x1)
+			screen_backlight_init();
 		iar_start(1);
 		if (display_type == HDMI_TYPE)
 			disp_config_hdmi(9, 4, 2);
 	} else if (strncmp(tmp, "stop", 4) == 0) {
 		pr_info("iar stop......\n");
 		iar_stop();
+		if (hb_disp_base_board_id == 0x1)
+			screen_backlight_deinit();
 	} else if (strncmp(tmp, "cam", 3) == 0) {
 		tmp = tmp + 3;
 		ret = kstrtoul(tmp, 0, &tmp_value);
@@ -750,6 +754,8 @@ static ssize_t hobot_iar_store(struct kobject *kobj, struct kobj_attribute *attr
 	} else if (strncmp(tmp, "lcd", 3) == 0) {
 		pr_info("iar output lcd rgb panel config......\n");
 		display_type = LCD_7_TYPE;
+		if (hb_disp_base_board_id == 0x1)
+			screen_backlight_init();
 		iar_start(1);
 		user_set_fb();
 	} else if (strncmp(tmp, "mipi", 4) == 0) {
@@ -760,12 +766,16 @@ static ssize_t hobot_iar_store(struct kobject *kobj, struct kobj_attribute *attr
 	} else if (strncmp(tmp, "dsi1080", 7) == 0) {
 		pr_info("iar output lcd mipi 1080p panel config......\n");
 		display_type = MIPI_1080P;
+		if (hb_disp_base_board_id == 0x1)
+			screen_backlight_init();
 		iar_start(1);
 		user_set_fb();
 		set_mipi_display(0);
 	} else if (strncmp(tmp, "dsi720p", 7) == 0) {
 		pr_info("iar output lcd mipi 720p touch panel config......\n");
 		display_type = MIPI_720P_TOUCH;
+		if (hb_disp_base_board_id == 0x1)
+			screen_backlight_init();
 		iar_start(1);
 		user_set_fb();
 		set_mipi_display(1);
