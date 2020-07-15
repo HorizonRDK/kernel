@@ -1397,7 +1397,7 @@ static struct attribute *write_qctl_attrs[] = {
 #ifdef CONFIG_HOBOT_XJ3
 static ssize_t open_sif_mclk(void)
 {
-	if ((g_ddr_monitor_dev == NULL) && (g_ddr_monitor_dev->sif_mclk == NULL))
+	if ((g_ddr_monitor_dev == NULL) || (g_ddr_monitor_dev->sif_mclk == NULL))
 		return -1;
 	g_ddr_monitor_dev->sif_mclk_is_open =
 		__clk_is_enabled(g_ddr_monitor_dev->sif_mclk);
@@ -1410,7 +1410,7 @@ static ssize_t open_sif_mclk(void)
 
 static ssize_t close_sif_mclk(void)
 {
-	if ((g_ddr_monitor_dev == NULL) && (g_ddr_monitor_dev->sif_mclk == NULL))
+	if ((g_ddr_monitor_dev == NULL) || (g_ddr_monitor_dev->sif_mclk == NULL))
 		return -1;
 	if (g_ddr_monitor_dev->sif_mclk_is_open == 0) {
 		clk_disable_unprepare(g_ddr_monitor_dev->sif_mclk);
