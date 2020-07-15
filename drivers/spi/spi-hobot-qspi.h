@@ -18,8 +18,8 @@
 #define QSPI_DEBUG		0
 
 #ifdef CONFIG_HOBOT_FPGA_X3
-#define	CONFIG_HOBOT_QSPI_REF_CLK 10000000
-#define	CONFIG_HOBOT_QSPI_CLK 5000000
+#define	HOBOT_QSPI_HCLK_DEF 10000000
+#define	HOBOT_QSPI_SCLK_DEF 50000000
 #endif
 
 #define HB_QSPI_CS(cs, enable) (BIT(cs) & enable)

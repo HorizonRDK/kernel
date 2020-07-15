@@ -54,18 +54,15 @@ struct hb_qspi {
 	struct platform_device *pdev;
 	struct completion xfer_complete;
 
-#ifndef CONFIG_HOBOT_FPGA_X3
 	uint32_t ref_clk;
-	struct clk *pclk;
-#else
-	int ref_clk;
-	int qspi_clk;
+#ifndef CONFIG_HOBOT_FPGA_X3
+	struct clk *hclk;
 #endif
+	uint32_t sclk;
 	int irq;
 	struct device *dev;
 	const void *txbuf;
 	void *rxbuf;
-	uint32_t speed_hz;
 	uint32_t buswidth;
 	uint32_t spi_mode;
 	struct hb_qspi_flash_pdata flash_pdata[HB_QSPI_MAX_CS];
@@ -253,27 +250,26 @@ static inline void hb_qspi_reset_fifo(struct hb_qspi *hbqspi)
 	hb_qspi_wr_reg(hbqspi, HB_QSPI_CTL3_REG, val);
 }
 
-static uint32_t caculate_qspi_divider(uint32_t hclk, uint32_t sclk)
+static void hb_qspi_set_speed(struct hb_qspi *hbqspi)
 {
-	uint32_t div = 0;
-	uint32_t div_min;
-	uint32_t scaler;
+	uint32_t div = 0, div_min, scaler, sclk_val;
 
 	/* The maxmium of prescale is 16, according to spec. */
-	div_min = hclk / sclk / 16;
+	div_min = hbqspi->ref_clk / hbqspi->sclk / 16;
 	if (div_min >= (1 << 16)) {
 		pr_err("error: Invalid QSpi freq\r\n");
 		/* Return a max scaler. */
-		return SCLK_VAL(0xF, 0xF);
+		sclk_val = SCLK_VAL(0xF, 0xF);
+		hb_qspi_wr_reg(hbqspi, HB_QSPI_BDR_REG, sclk_val);
 	}
 
 	while (div_min >= 1) {
 		div_min >>= 1;
 		div++;
 	}
-	scaler = ((hclk / sclk) / (2 << div)) - 1;
-
-	return SCLK_VAL(div, scaler);
+	scaler = ((hbqspi->ref_clk / hbqspi->sclk) / (2 << div)) - 1;
+	sclk_val = SCLK_VAL(div, scaler);
+	hb_qspi_wr_reg(hbqspi, HB_QSPI_BDR_REG, sclk_val);
 }
 
 #if (QSPI_DEBUG > 0)
@@ -343,19 +339,16 @@ static void trace_hbqspi(struct hb_qspi *hbqspi)
 	if(hbqspi->pdev) {
 		printk(".pdev = %s\n", dev_name(&hbqspi->pdev->dev));
 	}
-#ifndef CONFIG_HOBOT_FPGA_X3
 	printk("\t\t.ref_clk = %u\n", hbqspi->ref_clk);
-	if(hbqspi->pclk) {
-		printk("\t\t.pclk = %s@%lu\n", __clk_get_name(hbqspi->pclk),
-			clk_get_rate(hbqspi->pclk));
+#ifndef CONFIG_HOBOT_FPGA_X3
+	if(hbqspi->hclk) {
+		printk("\t\t.hclk = %s@%lu\n", __clk_get_name(hbqspi->hclk),
+			clk_get_rate(hbqspi->hclk));
 	}
-#else
-	printk("\t\t.ref_clk = %d\n", hbqspi->ref_clk);
-	printk("\t\t.qspi_clk = %d\n", hbqspi->qspi_clk);
 #endif
 	printk("\t\t.irq = %d\n", hbqspi->irq);
 	printk("\t\t.dev = %s\n", dev_name(hbqspi->dev));
-	printk("\t\t.speed_hz = %d\n", hbqspi->speed_hz);
+	printk("\t\t.sclk = %d\n", hbqspi->sclk);
 	//printk("\t\t.mode = 0x%08X\n", hbqspi->mode);
 	printk("}\n");
 }
@@ -364,17 +357,11 @@ static void trace_hbqspi(struct hb_qspi *hbqspi)
 
 static void hb_qspi_hw_init(struct hb_qspi *hbqspi)
 {
-	uint32_t qspi_div;
 	uint32_t reg_val = 0;
 
 	/* set qspi clk div */
-#ifndef CONFIG_HOBOT_FPGA_X3
-	qspi_div = caculate_qspi_divider(hbqspi->ref_clk, hbqspi->speed_hz);
-	hb_qspi_wr_reg(hbqspi, HB_QSPI_BDR_REG, qspi_div);
-#else
-	qspi_div = caculate_qspi_divider(hbqspi->ref_clk, hbqspi->qspi_clk);
-	hb_qspi_wr_reg(hbqspi, HB_QSPI_BDR_REG, qspi_div);
-#endif
+	hb_qspi_set_speed(hbqspi);
+
 	/* clear status and reset fifo */
 	reg_val = HB_QSPI_MODF_CLR | HB_QSPI_RBD | HB_QSPI_TBD;
 	hb_qspi_wr_reg(hbqspi, HB_QSPI_ST1_REG, reg_val);
@@ -1028,36 +1015,36 @@ static int hb_qspi_probe(struct platform_device *pdev)
 	hbqspi->dev = dev;
 
 #ifndef CONFIG_HOBOT_FPGA_X3
-	hbqspi->pclk = devm_clk_get(&pdev->dev, "qspi_aclk");
-	if (IS_ERR(hbqspi->pclk)) {
-		dev_err(dev, "pclk clock not found.\n");
-		ret = PTR_ERR(hbqspi->pclk);
+	hbqspi->hclk = devm_clk_get(&pdev->dev, "qspi_aclk");
+	if (IS_ERR(hbqspi->hclk)) {
+		dev_err(dev, "hclk clock not found.\n");
+		ret = PTR_ERR(hbqspi->hclk);
 		goto remove_master;
 	}
 
-	ret = clk_prepare_enable(hbqspi->pclk);
+	ret = clk_prepare_enable(hbqspi->hclk);
 	if (ret) {
 		dev_err(dev, "Unable to enable APB clock.\n");
-		goto clk_dis_pclk;
+		goto clk_dis_hclk;
 	}
 
-	hbqspi->ref_clk = clk_get_rate(hbqspi->pclk);
+	hbqspi->ref_clk = clk_get_rate(hbqspi->hclk);
 #else
-	hbqspi->ref_clk = CONFIG_HOBOT_QSPI_REF_CLK;
-	hbqspi->qspi_clk = CONFIG_HOBOT_QSPI_CLK;
+	hbqspi->ref_clk = HOBOT_QSPI_HCLK_DEF;
+	hbqspi->sclk = HOBOT_QSPI_SCLK_DEF;
 #endif
 
 	/* used for spi-mem select op and meet __spi_validate */
 	if (of_property_read_u32(pdev->dev.of_node, "spi-mode", &hbqspi->spi_mode))
 		hbqspi->spi_mode = 0;
 
-	hbqspi->speed_hz = -1;
+	hbqspi->sclk = HB_QSPI_DEF_BDR;
 	for_each_available_child_of_node(pdev->dev.of_node, nc) {
 		ret = of_property_read_u32(nc, "spi-max-frequency",
 				&max_speed_hz);
 		if (!ret) {
-			if (max_speed_hz < hbqspi->speed_hz)
-				hbqspi->speed_hz = max_speed_hz;
+			if (max_speed_hz < hbqspi->sclk)
+				hbqspi->sclk = max_speed_hz;
 		} else {
 			dev_err(dev, "spi-max-frequency not found\n");
 		}
@@ -1098,7 +1085,7 @@ static int hb_qspi_probe(struct platform_device *pdev)
 	master->prepare_transfer_hardware = hb_prepare_transfer_hardware;
 	master->unprepare_transfer_hardware = hb_unprepare_transfer_hardware;
 	master->mem_ops = &hb_mem_ops;
-	master->max_speed_hz = hbqspi->speed_hz;
+	master->max_speed_hz = hbqspi->sclk;
 	master->bits_per_word_mask = SPI_BPW_MASK(8);
 	master->mode_bits = 0;
 
@@ -1157,9 +1144,9 @@ static int hb_qspi_probe(struct platform_device *pdev)
 
 	return 0;
 
-clk_dis_pclk:
+clk_dis_hclk:
 #ifdef CONFIG_HOBOT_XJ2
-	clk_disable_unprepare(hbqspi->pclk);
+	clk_disable_unprepare(hbqspi->hclk);
 #endif
 
 remove_master:
@@ -1201,7 +1188,7 @@ int hb_qspi_suspend(struct device *dev)
 	hb_qspi_disable_tx(hbqspi);
 	hb_qspi_disable_rx(hbqspi);
 #ifdef CONFIG_HOBOT_XJ2
-	clk_disable_unprepare(hbqspi->pclk);
+	clk_disable_unprepare(hbqspi->hclk);
 #endif
 	return 0;
 }
@@ -1213,7 +1200,7 @@ int hb_qspi_resume(struct device *dev)
 
 	pr_info("%s:%s, enter resume...\n", __FILE__, __func__);
 #ifdef CONFIG_HOBOT_XJ2
-	clk_prepare_enable(hbqspi->pclk);
+	clk_prepare_enable(hbqspi->hclk);
 #endif
 	hb_qspi_hw_init(hbqspi);
 
