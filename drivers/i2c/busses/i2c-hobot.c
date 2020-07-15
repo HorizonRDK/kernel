@@ -409,7 +409,7 @@ static int hobot_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[], int n
 	if (msgs[0].flags & 0x20) {
 		hobot_i2c_cfg(dev, 0, 0);
 	} else {
-		hobot_i2c_cfg(dev, 1, 1);
+		hobot_i2c_cfg(dev, 1, 0);
 	}
 
 	for (i = 0; i < num; i++) {
