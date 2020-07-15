@@ -163,6 +163,7 @@ if __name__ == '__main__':
             file_produced1.write('\x00' * zero0)
         file_object.close()
         j = j + 12
+    file_produced1.close()
 
     dtbname = resolveJson(bootLoaderPath)
     listname = list(dtbname[0])
@@ -185,7 +186,6 @@ if __name__ == '__main__':
     file_produced2.close()
 
     # if (imageType == "nor" or imageType == "nand"):
-    file_produced1.close()
 
     with open(filePath[6], 'rb') as f_in, gzip.open(filePath[7], 'wb') as f_out:
             shutil.copyfileobj(f_in, f_out)

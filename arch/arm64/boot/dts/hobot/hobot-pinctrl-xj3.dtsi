@@ -64,6 +64,120 @@
 					0x0 MODE_3_3V SD1_MODE
 				>;
 			};
+			/* sd0 1.8v func */
+			sd0_1_8v_func: sd0_1_8v_func {
+				pinctrl-single,bits = <
+					0x0 MODE_1_8V SD0_MODE_P1
+					0x0 MODE_1_8V SD0_MODE_P0
+				>;
+			};
+			/*sd1 3.3v func */
+			sd0_3_3v_func: sd0_3_3v_func {
+				pinctrl-single,bits = <
+					0x0 MODE_3_3V SD0_MODE_P1
+					0x0 MODE_3_3V SD0_MODE_P0
+				>;
+			};
+
+			/* rgmii 1.8v func */
+			rgmii_1_8v_func: rgmii_1_8v_func {
+				pinctrl-single,bits = <
+					0x4 MODE_1_8V RGMII_MODE_P1
+					0x4 MODE_1_8V RGMII_MODE_P0
+				>;
+			};
+			/*rgmii 3.3v func */
+			rgmii_3_3v_func: rgmii_3_3v_func {
+				pinctrl-single,bits = <
+					0x4 MODE_3_3V RGMII_MODE_P1
+					0x4 MODE_3_3V RGMII_MODE_P0
+				>;
+			};
+
+			/* i2c2 1.8v func */
+			i2c2_1_8v_func: i2c2_1_8v_func {
+				pinctrl-single,bits = <
+					0x4 MODE_1_8V I2C2_MODE
+				>;
+			};
+			/*i2c2 3.3v func */
+			i2c2_3_3v_func: i2c2_3_3v_func {
+				pinctrl-single,bits = <
+					0x4 MODE_3_3V I2C2_MODE
+				>;
+			};
+
+			/* i2c0 1.8v func */
+			i2c0_1_8v_func: i2c0_1_8v_func {
+				pinctrl-single,bits = <
+					0x4 MODE_1_8V I2C0_MODE
+				>;
+			};
+			/*i2c2 3.3v func */
+			i2c0_3_3v_func: i2c0_3_3v_func {
+				pinctrl-single,bits = <
+					0x4 MODE_3_3V I2C0_MODE
+				>;
+			};
+
+			/* bt1120 1.8v func */
+			bt1120_1_8v_func: bt1120_1_8v_func {
+				pinctrl-single,bits = <
+				    0x4 MODE_1_8V BT1120_MODE_P2
+					0x4 MODE_1_8V BT1120_MODE_P1
+					0x4 MODE_1_8V BT1120_MODE_P0
+				>;
+			};
+			/* bt1120 3.3v func */
+			bt1120_3_3v_func: bt1120_3_3v_func {
+				pinctrl-single,bits = <
+					0x4 MODE_3_3V BT1120_MODE_P2
+					0x4 MODE_3_3V BT1120_MODE_P1
+					0x4 MODE_3_3V BT1120_MODE_P0
+				>;
+			};
+
+			/* bifsd 1.8v func */
+			bifsd_1_8v_func: bifsd_1_8v_func {
+				pinctrl-single,bits = <
+					0x4 MODE_1_8V BIFSD_MODE_P1
+					0x4 MODE_1_8V BIFSD_MODE_P0
+				>;
+			};
+			/* bifsd 3.3v func */
+			bifsd_3_3v_func: bifsd_3_3v_func {
+				pinctrl-single,bits = <
+					0x4 MODE_3_3V BIFSD_MODE_P1
+					0x4 MODE_3_3V BIFSD_MODE_P0
+				>;
+			};
+
+			/* bifspi 1.8v func */
+			bifspi_1_8v_func: bifspi_1_8v_func {
+				pinctrl-single,bits = <
+					0x4 MODE_1_8V BIFSPI_MODE
+				>;
+			};
+			/* bifspi 3.3v func */
+			bifspi_3_3v_func: bifspi_3_3v_func {
+				pinctrl-single,bits = <
+					0x4 MODE_3_3V BIFSPI_MODE
+				>;
+			};
+
+			/* jtag 1.8v func */
+			jtag_1_8v_func: jtag_1_8v_func {
+				pinctrl-single,bits = <
+					0x4 MODE_1_8V JTAG_MODE
+				>;
+			};
+			/* jtag 3.3v func */
+			jtag_3_3v_func: jtag_3_3v_func {
+				pinctrl-single,bits = <
+					0x4 MODE_3_3V JTAG_MODE
+				>;
+			};
+
 		};
 
 		pinctrl: pinctrl@0xA6004000 {
