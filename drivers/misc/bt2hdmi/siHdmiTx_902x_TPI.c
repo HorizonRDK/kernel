@@ -27,6 +27,7 @@
 #include <linux/of_address.h>
 #include <linux/gpio.h>
 #include <linux/gpio/consumer.h>
+#include <linux/i2c-hobot.h>
 
 #include "siHdmiTx_902x_TPI.h"
 #include "soc/hobot/hobot_ips_x2.h"
@@ -86,6 +87,7 @@ byte I2CReadBlock(struct i2c_client *client, byte RegAddr,
 		byte NBytes, byte *Data)
 {
 	int ret;
+	struct client_request *client_data;
 
 	struct i2c_msg request[] = {
 		{.addr = client->addr,
@@ -96,6 +98,8 @@ byte I2CReadBlock(struct i2c_client *client, byte RegAddr,
 		.len = NBytes,
 		.buf = Data,},
 	};
+	client_data = (struct client_request *)(client->adapter->algo_data);
+	client_data->client_req_freq = 100000;
 	ret = i2c_transfer(client->adapter, request, ARRAY_SIZE(request));
 	if (ret != ARRAY_SIZE(request)) {
 		TPI_TRACE_PRINT("unable to read EDID blocks %d\n", ret);
