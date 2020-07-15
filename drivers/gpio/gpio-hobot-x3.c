@@ -230,7 +230,7 @@ void release_irqbank(struct x3_gpio *gpo, unsigned long gpio) {
 
     index = find_irqbank(gpo, gpio);
     if (index != GPIO_IRQ_NO_BIND) {
-        gpo->irqbind[i] = GPIO_IRQ_NO_BIND;
+        gpo->irqbind[index] = GPIO_IRQ_NO_BIND;
     }
 }
 
