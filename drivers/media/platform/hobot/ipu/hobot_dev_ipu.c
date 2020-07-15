@@ -220,20 +220,20 @@ static u32 x3_ipu_poll(struct file *file, struct poll_table_struct *wait)
 
 	return ret;
 }
-int ipu_check_phyaddr(struct vio_frame *frame)
+int ipu_check_phyaddr(struct frame_info *frameinfo)
 {
 	int ret = 0;
 
-	ret = ion_check_in_heap_carveout(frame->frameinfo.addr[0], 0);
+	ret = ion_check_in_heap_carveout(frameinfo->addr[0], 0);
 	if (ret < 0) {
 		vio_err("ipu phyaddr[0] 0x%x is beyond ion address region\n",
-				frame->frameinfo.addr[0]);
+				frameinfo->addr[0]);
 	}
 
-	ret = ion_check_in_heap_carveout(frame->frameinfo.addr[1], 0);
+	ret = ion_check_in_heap_carveout(frameinfo->addr[1], 0);
 	if (ret < 0) {
 		vio_err("ipu phyaddr[1] 0x%x is beyond ion address region\n",
-				frame->frameinfo.addr[1]);
+				frameinfo->addr[1]);
 	}
 
 	return ret;
@@ -278,9 +278,6 @@ void ipu_frame_work(struct vio_group *group)
 		framemgr_e_barrier_irqs(framemgr, 0, flags);
 		frame = peek_frame(framemgr, FS_REQUEST);
 		if (frame) {
-			if (i != GROUP_ID_SRC)
-				ipu_check_phyaddr(frame);
-
 			switch (i) {
 			case GROUP_ID_SRC:
 				ipu_set_rdma_addr(ipu->base_reg,
@@ -1524,6 +1521,9 @@ int ipu_video_qbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 			__func__, index);
 		return -EINVAL;
 	}
+
+	if (subdev->id)
+		ipu_check_phyaddr(frameinfo);
 
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	frame = framemgr->frames_mp[index];

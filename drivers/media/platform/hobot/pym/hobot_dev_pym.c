@@ -244,7 +244,8 @@ static void pym_frame_work(struct vio_group *group)
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	frame = peek_frame(framemgr, FS_REQUEST);
 	if (frame) {
-		if (test_bit(PYM_REUSE_SHADOW0, &pym->state))
+		if (test_bit(PYM_REUSE_SHADOW0, &pym->state) &&
+				shadow_index == 0)
 			pym_update_param(subdev);
 
 		if (subdev->update_all == 1) {
@@ -260,7 +261,6 @@ static void pym_frame_work(struct vio_group *group)
 		pym_set_shd_select(pym->base_reg, shadow_index);
 
 		pym_set_buffers(pym, frame);
-		pym_check_phyaddr(frame->frameinfo.addr[0]);
 
 		if (test_bit(PYM_DMA_INPUT, &pym->state)) {
 			pym_rdma_set_addr(pym->base_reg,
@@ -779,6 +779,9 @@ int pym_video_qbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 		ret = -EFAULT;
 		goto err;
 	}
+
+	pym_check_phyaddr(frameinfo->spec.ds_uv_addr[0]);
+
 	pym_ctx->frm_num_usr--;
 	if (frame->state == FS_FREE) {
 		framemgr->dispatch_mask[index] &= ~(1 << pym_ctx->ctx_index);
