@@ -56,7 +56,7 @@ static char *ts_map[] = {
 struct pvt_device {
 	int irq;
 	long cur_temp[PVT_TS_NUM];
-	u32 cur_smpl[PVT_TS_NUM];
+	int cur_smpl[PVT_TS_NUM];
 	long cur_temp_avg;
 	long ref_clk;
 	struct device *dev;
@@ -165,7 +165,7 @@ static int pvt_temp_read(struct device *dev, enum hwmon_sensor_types type,
 
 			/* ts mode 1, Calibrated mode */
 			temp = pvt_dev->cal_A[i] * 10 +
-			        ((((int)pvt_dev->cur_smpl[i] * pvt_dev->cal_B[i] * 10)) >> 12)
+			        (((pvt_dev->cur_smpl[i] * pvt_dev->cal_B[i] * 10)) >> 12)
 					     - (((2047 * pvt_dev->cal_B[i] * 10)) >> 12) - 400;
 		} else {
 			pr_debug("TS is running in uncalibrated mode\n");
