@@ -400,9 +400,54 @@ static int update_cur_calibration_to_sbuf( void *fw_instance, struct sbuf_mgr *p
         p_sbuf_cali_data += lut_size;
     }
 
-    // p_sbuf_mgr->sbuf_base->kf_info.cali_info.is_fetched = 0;
+    p_sbuf_mgr->sbuf_base->kf_info.cali_info.is_fetched = 0;
 
     return rc;
+}
+
+int update_preset_mode_to_sbuf(uint8_t ctx_id)
+{
+    struct sbuf_context *p_ctx;
+    const sensor_param_t *param = NULL;
+    struct sbuf_mgr *p_sbuf_mgr;
+
+    if (ctx_id >= FIRMWARE_CONTEXT_NUMBER) {
+        pr_err("ctx id %d is invalid.\n", ctx_id);
+        return -1;
+    }
+
+    p_ctx = &sbuf_contexts[ctx_id];
+
+    if (p_ctx->sbuf_mgr.sbuf_inited == 0) {
+        pr_err("sbuf of ctx id %d is not inited.\n", ctx_id);
+        return -1;
+    }
+
+    p_sbuf_mgr = &p_ctx->sbuf_mgr;
+    acamera_fsm_mgr_get_param( p_ctx->p_fsm->cmn.p_fsm_mgr, FSM_PARAM_GET_SENSOR_PARAM, NULL, 0, &param, sizeof( param ) );
+
+    if ( param ) {
+        uint32_t idx = 0;
+        uint32_t valid_modes_num = 0;
+        valid_modes_num = param->modes_num;
+
+        if ( valid_modes_num > ISP_MAX_SENSOR_MODES ) {
+            valid_modes_num = ISP_MAX_SENSOR_MODES;
+        }
+
+        for ( idx = 0; idx < valid_modes_num; idx++ ) {
+            p_sbuf_mgr->sbuf_base->kf_info.sensor_info.modes[idx] = param->modes_table[idx];
+
+            pr_debug( "Sensor_mode[%d]: wdr_mode: %d, exp: %d.", idx,
+                 p_sbuf_mgr->sbuf_base->kf_info.sensor_info.modes[idx].wdr_mode,
+                 p_sbuf_mgr->sbuf_base->kf_info.sensor_info.modes[idx].exposures );
+        }
+
+        p_sbuf_mgr->sbuf_base->kf_info.sensor_info.modes_num = valid_modes_num;
+        pr_debug( "Sensor valid_modes_num: %d.", valid_modes_num );
+    }
+
+    return 0;
 }
 
 static uint32_t sbuf_mgr_item_count_in_using( struct sbuf_mgr *p_sbuf_mgr )

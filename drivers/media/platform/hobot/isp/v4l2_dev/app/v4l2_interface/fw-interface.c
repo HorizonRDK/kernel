@@ -311,6 +311,7 @@ int fw_intf_sensor_resume( uint32_t ctx_id )
 }
 
 extern int sensor_info_get_idx(uint32_t ctx_id, struct v4l2_format *f);
+extern int update_preset_mode_to_sbuf(uint8_t ctx_id);
 /* fw-interface per-stream config interface */
 int fw_intf_stream_set_resolution( uint32_t ctx_id, const isp_v4l2_sensor_info *sensor_info,
                                    isp_v4l2_stream_type_t streamType, struct v4l2_format *f )
@@ -343,6 +344,9 @@ int fw_intf_stream_set_resolution( uint32_t ctx_id, const isp_v4l2_sensor_info *
         pr_info("w %d, h %d, exposures %d, bits %d, preset idx = %d",
             f->fmt.pix_mp.width, f->fmt.pix_mp.height,
             f->fmt.pix_mp.reserved[0], f->fmt.pix_mp.reserved[1], idx);
+
+        update_preset_mode_to_sbuf(ctx_id);
+
         result = acamera_command( ctx_id, TSENSOR, SENSOR_PRESET, idx, COMMAND_SET, &ret_val );
         // *( (char *)&sensor_info->preset_cur ) = idx;
         if ( result ) {
