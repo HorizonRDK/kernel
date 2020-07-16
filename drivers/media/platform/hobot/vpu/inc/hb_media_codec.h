@@ -1554,7 +1554,7 @@ typedef struct _mc_h265_avbr_params {
 /**
  * Specifies the initial QP by user. If this value is smaller than 0 or 
  * larger than 51, the initial QP is decided by F/W.
- * Values[0~51]
+ * Values[0~63]
  *
  * - Note: It's unchangable RC parameter in the same sequence.
  * - Encoding: Support.
@@ -3829,6 +3829,26 @@ typedef struct _mc_h264_h265_output_frame_info {
 	hb_s32 frame_decoded_index;
 
 /**
+ * This is the physical start address of corresponding stream buffer.
+ *
+ * - Note:
+ * - Encoding: Unsupport.
+ * - Decoding: Support.
+ * - Default:
+ */
+	hb_u64 stream_start_addr;
+
+/**
+ * This is the size of corresponding stream buffer.
+ *
+ * - Note:
+ * - Encoding: Unsupport.
+ * - Decoding: Support.
+ * - Default:
+ */
+	hb_s32 stream_size;
+
+/**
  * This is the picture type of decoded picture.
  * @see mc_h264_nal_unit_type_t
  * @see mc_h265_nal_unit_type_t
@@ -4089,6 +4109,26 @@ typedef struct _mc_mjpeg_jpeg_output_frame_info {
 	hb_s32 frame_display_index;
 
 /**
+ * This is the physical start address of corresponding stream buffer.
+ *
+ * - Note:
+ * - Encoding: Unsupport.
+ * - Decoding: Support.
+ * - Default:
+ */
+	hb_u64 stream_start_addr;
+
+/**
+ * This is the size of corresponding stream buffer.
+ *
+ * - Note:
+ * - Encoding: Unsupport.
+ * - Decoding: Support.
+ * - Default:
+ */
+	hb_s32 stream_size;
+
+/**
  * JPEG error restart index.
  *
  * - Note:
@@ -4161,10 +4201,30 @@ typedef struct _mc_h264_h265_output_stream_info {
  *
  * - Note:
  * - Encoding: Support.
- * - Decoding: Support.
+ * - Decoding: Unsupport.
  * - Default: 0
  */
 	hb_bool frame_index;
+
+/**
+ * This is the Y component physical start address of corresponding frame buffer.
+ *
+ * - Note:
+ * - Encoding: Support.
+ * - Decoding: Unsupport.
+ * - Default:
+ */
+	hb_u64 frame_start_addr;
+
+/**
+ * This is the frame size of  corresponding frame buffer.
+ *
+ * - Note:
+ * - Encoding: Support.
+ * - Decoding: Unsupport.
+ * - Default:
+ */
+	hb_s32 frame_size;
 
 /**
  * This is the picture type of encoded picture.
@@ -4173,11 +4233,21 @@ typedef struct _mc_h264_h265_output_stream_info {
  * @see mc_h265_nal_unit_type_t
  *
  * - Note:
- * - Encoding: Unsupport.
- * - Decoding: Support.
+ * - Encoding: Support.
+ * - Decoding: Unsupport.
  * - Default:
  */
 	hb_s32 nalu_type;
+
+/**
+ * The slice idx of the currently being encoded Picture.
+ *
+ * - Note:
+ * - Encoding: Support.
+ * - Decoding: Unsupport.
+ * - Default: 0
+ */
+	hb_u32 slice_idx;
 
 /**
  * The number of slices of the currently being encoded Picture.
@@ -4185,7 +4255,7 @@ typedef struct _mc_h264_h265_output_stream_info {
  *
  * - Note:
  * - Encoding: Support.
- * - Decoding: Support.
+ * - Decoding: Unsupport.
  * - Default: 0
  */
 	hb_u32 slice_num;
@@ -4196,7 +4266,7 @@ typedef struct _mc_h264_h265_output_stream_info {
  *
  * - Note:
  * - Encoding: Support.
- * - Decoding: Support.
+ * - Decoding: Unsupport.
  * - Default: 0
  */
 	hb_u32 dependent_slice_num;
@@ -4208,7 +4278,7 @@ typedef struct _mc_h264_h265_output_stream_info {
  *
  * - Note:
  * - Encoding: Support.
- * - Decoding: Support.
+ * - Decoding: Unsupport.
  * - Default: 0
  */
 	hb_u32 pic_skipped;
@@ -4218,7 +4288,7 @@ typedef struct _mc_h264_h265_output_stream_info {
  *
  * - Note:
  * - Encoding: Support.
- * - Decoding: Support.
+ * - Decoding: Unsupport.
  * - Default: 0
  */
 	hb_u32 intra_block_num;
@@ -4228,7 +4298,7 @@ typedef struct _mc_h264_h265_output_stream_info {
  *
  * - Note:
  * - Encoding: Support.
- * - Decoding: Support.
+ * - Decoding: Unsupport.
  * - Default: 0
  */
 	hb_u32 skip_block_num;
@@ -4238,7 +4308,7 @@ typedef struct _mc_h264_h265_output_stream_info {
  *
  * - Note:
  * - Encoding: Support.
- * - Decoding: Support.
+ * - Decoding: Unsupport.
  * - Default: 0
  */
 	hb_u32 avg_mb_qp;
@@ -4329,6 +4399,46 @@ typedef struct _mc_h264_h265_output_stream_info {
 * Define the MJPEG/JPEG output stream information.
 **/
 typedef struct _mc_mjpeg_jpeg_output_stream_info {
+/**
+ * This is the Y component physical start address of corresponding frame buffer.
+ *
+ * - Note:
+ * - Encoding: Support.
+ * - Decoding: Unsupport.
+ * - Default:
+ */
+	hb_u64 frame_start_addr;
+
+/**
+ * This is the frame size of  corresponding frame buffer.
+ *
+ * - Note:
+ * - Encoding: Support.
+ * - Decoding: Unsupport.
+ * - Default:
+ */
+	hb_s32 frame_size;
+
+/**
+ * The slice idx of the currently being encoded Picture.
+ *
+ * - Note:
+ * - Encoding: Support.
+ * - Decoding: unSupport.
+ * - Default: 0
+ */
+	hb_u32 slice_idx;
+
+/**
+ * The number of slices of the currently being encoded Picture.
+ *
+ * - Note:
+ * - Encoding: Support.
+ * - Decoding: Unsupport.
+ * - Default: 0
+ */
+	hb_u32 slice_num;
+
 /**
  * The parameter for reporting the cycle number of encoding one frame.
  *
@@ -4703,7 +4813,7 @@ typedef struct _mc_audio_frame_buffer_info {
  * - Decoding: Support.
  * - Default: 0
  */
-	hb_u64 pts;
+	hb_s64 pts;
 
 /**
  * It indicates the end of frame.
@@ -4761,7 +4871,7 @@ typedef struct _mc_audio_stream_buffer_info {
  * - Decoding: Support.
  * - Default: 0
  */
-	hb_u64 pts;
+	hb_s64 pts;
 
 /**
  * It indicates the end of stream.
