@@ -631,6 +631,7 @@ static int isp_v4l2_qbuf( struct file *file, void *priv, struct v4l2_buffer *p )
     struct isp_v4l2_fh *sp = fh_to_private( file->private_data );
     isp_v4l2_dev_t *dev = video_drvdata( file );
     isp_v4l2_stream_t *pstream = dev->pstreams[sp->stream_id];
+    acamera_context_t *p_ctx;
     int rc = 0;
 
     LOG( LOG_DEBUG, "(stream_id = %d, ownermatch=%d)", sp->stream_id, isp_v4l2_is_q_busy( &sp->vb2_q, file ) );
@@ -642,6 +643,9 @@ static int isp_v4l2_qbuf( struct file *file, void *priv, struct v4l2_buffer *p )
         pstream->uv_paddr = p->m.planes[1].reserved[0];
     }
 
+    p_ctx = acamera_get_ctx_ptr(dev->ctx_id);
+    p_ctx->sts.qbuf_cnt++;
+
     rc = vb2_qbuf( &sp->vb2_q, p );
     LOG( LOG_DEBUG, "sid:%d qbuf p->type:%d p->index:%d, rc %d", sp->stream_id, p->type, p->index, rc );
     return rc;
@@ -650,10 +654,16 @@ static int isp_v4l2_qbuf( struct file *file, void *priv, struct v4l2_buffer *p )
 static int isp_v4l2_dqbuf( struct file *file, void *priv, struct v4l2_buffer *p )
 {
     struct isp_v4l2_fh *sp = fh_to_private( file->private_data );
+    isp_v4l2_dev_t *dev = video_drvdata( file );
+    acamera_context_t *p_ctx;
     int rc = 0;
+
     LOG( LOG_DEBUG, "(stream_id = %d, ownermatch=%d)", sp->stream_id, isp_v4l2_is_q_busy( &sp->vb2_q, file ) );
     if ( isp_v4l2_is_q_busy( &sp->vb2_q, file ) )
         return -EBUSY;
+
+    p_ctx = acamera_get_ctx_ptr(dev->ctx_id);
+    p_ctx->sts.dqbuf_cnt++;
 
     rc = vb2_dqbuf( &sp->vb2_q, p, file->f_flags & O_NONBLOCK );
     LOG( LOG_DEBUG, "sid:%d qbuf p->type:%d p->index:%d, rc %d", sp->stream_id, p->type, p->index, rc );

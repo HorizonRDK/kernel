@@ -1380,6 +1380,9 @@ pr_info("hcs1 %d, hcs2 %d, vc %d\n", hcs1, hcs2, vc);
             int32_t irq_is_1 = ( irq_mask & ( 1 << irq_bit ) );
             irq_mask &= ~( 1 << irq_bit );
             if ( irq_is_1 ) {
+                if (irq_bit == ISP_INTERRUPT_EVENT_ISP_START_FRAME_START) {
+                    p_ctx->sts.fs_irq_cnt++;
+                }
                 // process interrupts
                 if ( p_ctx->p_gfw->sif_isp_offline == 0 && irq_bit == ISP_INTERRUPT_EVENT_ISP_START_FRAME_START ) {
                     static uint32_t fs_cnt = 0;
@@ -1441,6 +1444,7 @@ pr_info("hcs1 %d, hcs2 %d, vc %d\n", hcs1, hcs2, vc);
                     } //if ( acamera_event_queue_empty( &p_ctx->fsm_mgr.event_queue ) )
                 } else if ( irq_bit == ISP_INTERRUPT_EVENT_ISP_END_FRAME_END ) {
                     pr_debug("frame done, ctx id %d\n", cur_ctx_id);
+                    p_ctx->sts.fe_irq_cnt++;
                     if (ip_sts_dbg)
                         input_port_status();
                     if (p_ctx->p_gfw->sif_isp_offline) {
@@ -1451,6 +1455,7 @@ pr_info("hcs1 %d, hcs2 %d, vc %d\n", hcs1, hcs2, vc);
                     }
                 } else if ( irq_bit == ISP_INTERRUPT_EVENT_FR_Y_WRITE_DONE ) {
                     pr_debug("frame write to ddr done\n");
+                    p_ctx->sts.frame_write_done_irq_cnt++;
                     if (p_ctx->p_gfw->sif_isp_offline) {
                         atomic_set(&g_firmware.dma_done, 1);
                         wake_up(&wq_dma_done);

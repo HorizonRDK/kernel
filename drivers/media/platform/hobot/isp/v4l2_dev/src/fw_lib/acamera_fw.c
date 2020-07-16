@@ -684,6 +684,7 @@ int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settin
         }
     }
 
+    memset(&p_ctx->sts, 0, sizeof(p_ctx->sts));
     mutex_unlock(&p_ctx->p_gfw->ctx_chg_lock);
 
     pr_info("side %s, chn %d, paddr %p\n",

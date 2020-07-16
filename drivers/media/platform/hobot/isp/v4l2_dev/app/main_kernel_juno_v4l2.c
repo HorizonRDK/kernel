@@ -34,6 +34,7 @@
 #include <asm/io.h>
 #include <asm/signal.h>
 
+#include "acamera_fw.h"
 #include "acamera_isp_config.h"
 #include "acamera_firmware_config.h"
 #include "acamera_logger.h"
@@ -194,12 +195,54 @@ static int acamera_camera_async_complete( struct v4l2_async_notifier *notifier )
 }
 
 #endif
+extern void *acamera_get_ctx_ptr(uint32_t ctx_id);
+static ssize_t isp_status_show(struct device *dev,
+				struct device_attribute *attr, char* buf)
+{
+    int ctx_id;
+    ssize_t len = 0;
+    uint32_t offset = 0;
+    acamera_context_ptr_t p_ctx;
 
+	for(ctx_id = 0; ctx_id < FIRMWARE_CONTEXT_NUMBER; ctx_id++) {
+        p_ctx = acamera_get_ctx_ptr(ctx_id);
+		if (p_ctx->initialized == 0)
+			continue;
+		len = snprintf(&buf[offset], PAGE_SIZE - offset, "\n--s%d status--\n", ctx_id);
+		offset += len;
+        len = snprintf(&buf[offset], PAGE_SIZE - offset,
+                        "fs_irq_cnt: %u\n"
+                        "fe_irq_cnt: %u\n"
+                        "frame_write_done_irq_cnt: %u\n"
+                        "qbuf_cnt: %u\n"
+                        "dqbuf_cnt: %u\n"
+                        "free_to_busy_cnt: %u\n"
+                        "free_to_busy_failed_cnt: %u\n"
+                        "busy_to_done_cnt: %u\n"
+                        "busy_to_done_failed_cnt: %u\n",
+                        p_ctx->sts.fs_irq_cnt,
+                        p_ctx->sts.fe_irq_cnt,
+                        p_ctx->sts.frame_write_done_irq_cnt,
+                        p_ctx->sts.qbuf_cnt,
+                        p_ctx->sts.dqbuf_cnt,
+                        p_ctx->sts.free_to_busy_cnt,
+                        p_ctx->sts.free_to_busy_failed_cnt,
+                        p_ctx->sts.busy_to_done_cnt,
+                        p_ctx->sts.busy_to_done_failed_cnt);
+		offset += len;
+	}
+
+    return offset;
+}
+
+static DEVICE_ATTR(isp_status, S_IRUGO, isp_status_show, NULL);
 
 static int32_t isp_platform_probe( struct platform_device *pdev )
 {
     int32_t rc = 0;
     struct resource *isp_res = NULL;
+    struct device *dev = NULL;
+
 //	    uint32_t test_reg = 0;
 
     // Initialize irq
@@ -284,6 +327,14 @@ static int32_t isp_platform_probe( struct platform_device *pdev )
     rc = v4l2_async_notifier_register( &v4l2_dev, &g_subdevs.notifier );
 
     LOG( LOG_INFO, "Init finished. async register notifier result %d. Waiting for subdevices", rc );
+
+    dev = &pdev->dev;
+	rc = device_create_file(dev, &dev_attr_isp_status);
+	if (rc < 0) {
+		pr_err("create isp_status failed, rc = %d\n", rc);
+		goto free_res;
+	}
+
 #else
     // no subdevice is used
     rc = isp_v4l2_create_instance( &v4l2_dev, (uint32_t)isp_res->start );
@@ -308,6 +359,7 @@ static int isp_platform_remove( struct platform_device *pdev )
 {
     LOG( LOG_NOTICE, "ISP Driver removed\n" );
     of_reserved_mem_device_release( &pdev->dev );
+    device_remove_file(&pdev->dev, &dev_attr_isp_status);
 
     return 0;
 }

@@ -120,6 +120,18 @@ enum {
     SIDE_DDR = 1,
 };
 
+typedef struct _isp_status_t {
+    uint32_t fs_irq_cnt;
+    uint32_t fe_irq_cnt;
+    uint32_t frame_write_done_irq_cnt;
+    uint32_t qbuf_cnt;
+    uint32_t dqbuf_cnt;
+    uint32_t free_to_busy_cnt;
+    uint32_t free_to_busy_failed_cnt;
+    uint32_t busy_to_done_cnt;
+    uint32_t busy_to_done_failed_cnt;
+} isp_status_t;
+
 struct _acamera_context_t {
     uint32_t irq_flag;
 
@@ -168,6 +180,8 @@ struct _acamera_context_t {
 
     semaphore_t sem_evt_avail;
     struct task_struct *evt_thread;
+
+    isp_status_t sts;
 
     acamera_isp_sw_regs_map sw_reg_map;
 };

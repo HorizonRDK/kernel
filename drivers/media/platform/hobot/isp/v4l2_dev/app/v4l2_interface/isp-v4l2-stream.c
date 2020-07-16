@@ -64,6 +64,9 @@
 /* default size & format */
 #define ISP_DEFAULT_FORMAT V4L2_PIX_FMT_RGB32
 
+extern void *acamera_get_ctx_ptr( uint32_t ctx_id );
+extern int dma_writer_configure_pipe( dma_pipe *pipe );
+
 typedef struct _isp_v4l2_fmt {
     const char *name;
     uint32_t fourcc;
@@ -421,6 +424,7 @@ int callback_stream_get_frame( uint32_t ctx_id, acamera_stream_type_t type, afra
     int i;
     int cnt = 0;
     struct list_head *p, *n;
+    acamera_context_ptr_t p_ctx = acamera_get_ctx_ptr(ctx_id);
 
     LOG(LOG_INFO,"++ : ctx_id = %d, type = %d, num_planes = %ld",ctx_id,type,num_planes);
     for ( i = 0; i < num_planes; i++ ) {
@@ -477,6 +481,7 @@ int callback_stream_get_frame( uint32_t ctx_id, acamera_stream_type_t type, afra
     spin_unlock( &pstream->slock );
 
     if ( !pbuf ) {
+        p_ctx->sts.free_to_busy_failed_cnt++;
         LOG( LOG_ERR, "[Stream#%d] type: %d no empty buffers",
              pstream->stream_id, type );
         return -1;
@@ -511,6 +516,7 @@ int callback_stream_get_frame( uint32_t ctx_id, acamera_stream_type_t type, afra
         LOG( LOG_CRIT, "Invalid v4l2_fmt_type: %d", v4l2_fmt->type );
         return -1;
     }
+    p_ctx->sts.free_to_busy_cnt++;
     LOG(LOG_INFO,"-- : ctx_id = %d, type = %d, num_planes = %ld",ctx_id,type,num_planes);
     return 0;
 }
@@ -527,6 +533,7 @@ int callback_stream_put_frame( uint32_t ctx_id, acamera_stream_type_t type, afra
     struct vb2_v4l2_buffer *vvb;
 #endif
     struct vb2_buffer *vb;
+    acamera_context_ptr_t p_ctx = acamera_get_ctx_ptr(ctx_id);
 
     v4l2_type = fw_to_isp_v4l2_stream_type( type );
     if ( v4l2_type == V4L2_STREAM_TYPE_MAX )
@@ -561,7 +568,8 @@ int callback_stream_put_frame( uint32_t ctx_id, acamera_stream_type_t type, afra
     spin_unlock( &pstream->slock );
 
     if ( !pbuf ) {
-        LOG( LOG_INFO, "[Stream#%d] type: %d no empty buffers",
+        p_ctx->sts.busy_to_done_failed_cnt++;
+        LOG( LOG_ERR, "[Stream#%d] type: %d no empty buffers",
              pstream->stream_id, type );
         return -1;
     }
@@ -597,6 +605,7 @@ int callback_stream_put_frame( uint32_t ctx_id, acamera_stream_type_t type, afra
     v4l2_get_timestamp( &vb->v4l2_buf.timestamp );
 #endif
 
+    p_ctx->sts.busy_to_done_cnt++;
     /* Put buffer back to vb2 queue */
     vb2_buffer_done( vb, VB2_BUF_STATE_DONE );
     /* Notify buffer ready */
@@ -806,8 +815,6 @@ static void isp_v4l2_stream_buffer_list_release( isp_v4l2_stream_t *pstream,
     }
 }
 
-extern void *acamera_get_ctx_ptr( uint32_t ctx_id );
-extern int dma_writer_configure_pipe( dma_pipe *pipe );
 int isp_v4l2_stream_on( isp_v4l2_stream_t *pstream )
 {
     if ( !pstream ) {
