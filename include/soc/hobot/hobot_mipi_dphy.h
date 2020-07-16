@@ -16,6 +16,7 @@
 typedef struct _mipi_dphy_tx_param_s {
 	/* type must be: uint32_t */
 	uint32_t txout_param_valid;
+	uint32_t txout_freq_mode;
 	uint32_t txout_freq_autolarge_enbale;
 	uint32_t txout_freq_gain_precent;
 	uint32_t txout_freq_force;
@@ -23,6 +24,7 @@ typedef struct _mipi_dphy_tx_param_s {
 
 #define MIPI_DPHY_TX_PARAM_NAMES \
 	"txout_param_valid", \
+	"txout_freq_mode", \
 	"txout_freq_autolarge_enbale", \
 	"txout_freq_gain_precent", \
 	"txout_freq_force"

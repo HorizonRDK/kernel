@@ -1734,6 +1734,7 @@ MIPI_DEV_PARAM_DEC(irq_debug);
 #endif
 #ifdef CONFIG_HOBOT_MIPI_PHY
 MIPI_DEV_PARAM_DEC(txout_param_valid);
+MIPI_DEV_PARAM_DEC(txout_freq_mode);
 MIPI_DEV_PARAM_DEC(txout_freq_autolarge_enbale);
 MIPI_DEV_PARAM_DEC(txout_freq_gain_precent);
 MIPI_DEV_PARAM_DEC(txout_freq_force);
@@ -1763,6 +1764,7 @@ static struct attribute *param_attr[] = {
 #endif
 #ifdef CONFIG_HOBOT_MIPI_PHY
 	MIPI_DEV_PARAM_ADD(txout_param_valid),
+	MIPI_DEV_PARAM_ADD(txout_freq_mode),
 	MIPI_DEV_PARAM_ADD(txout_freq_autolarge_enbale),
 	MIPI_DEV_PARAM_ADD(txout_freq_gain_precent),
 	MIPI_DEV_PARAM_ADD(txout_freq_force),

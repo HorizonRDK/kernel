@@ -1681,11 +1681,14 @@ static int32_t mipi_host_dphy_start_hs_reception(mipi_hdev_t *hdev)
 	void __iomem *iomem = host->iomem;
 	uint16_t ncount = 0;
 	uint32_t state = 0;
+	uint32_t notimeout;
 
 	if (!hdev || !iomem)
 		return -1;
 
 	mipiinfo("check hs reception");
+	notimeout = (hdev->is_ex) ?
+		g_hdev[mipi_host_port_other(hdev)]->host.param.notimeout : param->notimeout;
 	/*Check that clock lane is in HS mode*/
 	do {
 		state = mipi_getreg(iomem + REG_MIPI_HOST_PHY_RX);
@@ -1695,7 +1698,7 @@ static int32_t mipi_host_dphy_start_hs_reception(mipi_hdev_t *hdev)
 		}
 		ncount++;
 		mdelay(1);
-	} while (param->notimeout || ncount <= HOST_DPHY_CHECK_MAX);
+	} while (notimeout || ncount <= HOST_DPHY_CHECK_MAX);
 
 	mipiinfo("hs reception check error 0x%x", state);
 	return -1;
@@ -1714,6 +1717,7 @@ static int32_t mipi_host_start(mipi_hdev_t *hdev)
 	mipi_host_t *host = &hdev->host;
 	mipi_host_param_t *param = &host->param;
 	void __iomem *iomem = host->iomem;
+	uint32_t nocheck;
 
 	if (!hdev || !iomem)
 		return -1;
@@ -1725,7 +1729,9 @@ static int32_t mipi_host_start(mipi_hdev_t *hdev)
 			return -1;
 		}
 	}
-	if (!param->nocheck) {
+	nocheck = (hdev->is_ex) ?
+		g_hdev[mipi_host_port_other(hdev)]->host.param.nocheck : param->nocheck;
+	if (!nocheck) {
 		if (0 != mipi_host_dphy_start_hs_reception(hdev)) {
 			mipierr("hs reception state error!!!");
 			return -1;

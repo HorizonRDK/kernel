@@ -64,10 +64,12 @@ module_param(reg_size, uint, 0644);
 #endif
 
 /* module params */
+unsigned int txout_freq_mode;
 unsigned int txout_freq_autolarge_enbale;
 unsigned int txout_freq_gain_precent = 5;
 unsigned int txout_freq_force;
 
+module_param(txout_freq_mode, uint, 0644);
 module_param(txout_freq_autolarge_enbale, uint, 0644);
 module_param(txout_freq_gain_precent, uint, 0644);
 module_param(txout_freq_force, uint, 0644);
@@ -112,11 +114,21 @@ module_param(txout_freq_force, uint, 0644);
 #define REGS_RX_LANE3_DDL_6      (0xC0C)
 
 #define REGS_TX_TESECODE_08      (0x08)
+#define REGS_TX_PLL_PRO_CHG_PUMP (0x0E)
+#define REGS_TX_PLL_INT_CHG_PUMP (0x0F)
+#define REGS_TX_PLL_GMP_DIG      (0x13)
+#define REGS_TX_PLL_PHASE_ERR    (0x14)
+#define REGS_TX_PLL_LOCK_FILT    (0x15)
+#define REGS_TX_PLL_UNLOCK_FILT  (0x16)
 #define REGS_TX_PLL_TH_DELAY     (0x1B)
 #define REGS_TX_PLL_CPBIAS_CNTRL (0x1C)
 #define REGS_TX_PLL_LOCK_DETMODE (0x1D)
+#define REGS_TX_PLL_ANALOG_PROG  (0x1F)
+#define REGS_TX_BANDGA_CNTRL     (0x24)
 #define REGS_TX_SYSTIMERS_23     (0x65)
 #define REGS_TX_HSTXTHSZERO_OVR  (0x72)
+#define REGS_TX_SLEWRATE_FSM_OVR (0xA0)
+#define REGS_TX_SLEWRATE_DDL_CFG (0xA3)
 #define REGS_TX_PLL_2            (0x160)
 #define REGS_TX_PLL_1            (0x15E)
 #define REGS_TX_PLL_2            (0x160)
@@ -143,6 +155,17 @@ module_param(txout_freq_force, uint, 0644);
 #define RX_OSCFREQ_LOW(f)        ((f) & 0xFF)
 #define RX_OSCFREQ_EN            (0x1)
 
+#define TX_PLL_ANALOG_PROG_CTL   (0x1)
+#define TX_PLL_GMP_DIG_LOCK      (0x1)
+#define TX_PLL_PRO_CHG_PUMP_CTLD (0x0D)
+#define TX_PLL_PRO_CHG_PUMP_CTLE (0x0E)
+#define TX_PLL_INT_CHG_PUMP_CTL  (0x0)
+#define TX_PLL_PHASE_ERR_TH1     (0x3)
+#define TX_PLL_LOCK_FILT_TH2     (0x2D)
+#define TX_PLL_UNLOCK_FILT_TH3   (0x3)
+#define TX_SLEWRATE_FSM_OVR_EN   (0x2)
+#define TX_SLEWRATE_DDL_CFG_SEL  (0x0)
+#define TX_BANDGA_CNTRL_VAL      (0x7C)
 #define TX_HS_ZERO(s)            (0x80 | ((s) & 0x7F))
 #define TX_SLEW_RATE_CAL         (0x5E)
 #define TX_SLEW_RATE_CTL         (0x11)
@@ -161,7 +184,8 @@ module_param(txout_freq_force, uint, 0644);
 #define TX_PLL_FORCE_LOCK        (0x4)
 #define TX_HSTXTHSZERO_DATALANES (0x11)
 #define TX_PLL_TH_DELAY          (0xaa)
-#define TX_PLL_CPBIAS_CNTRL      (0xaa)
+#define TX_PLL_CPBIAS_CNTRL0     (0x10)
+#define TX_PLL_CPBIAS_CNTRL1     (0xaa)
 
 #ifdef CONFIG_HOBOT_MIPI_REG_OPERATE
 typedef struct _reg_s {
@@ -216,6 +240,7 @@ static const char *g_mp_type[] = { "host", "dev", "dsi" };
 int32_t mipi_dphy_register(int type, int port, mipi_phy_sub_t *sub)
 {
 	mipi_phy_t *phy;
+	mipi_dphy_tx_param_t *ptx;
 	struct device *dev;
 	int phy_max;
 	uint32_t *num;
@@ -242,6 +267,15 @@ int32_t mipi_dphy_register(int type, int port, mipi_phy_sub_t *sub)
 	}
 	memset(&phy[port], 0, sizeof(mipi_phy_t));
 	memcpy(&phy[port].sub, sub, sizeof(mipi_phy_sub_t));
+	if (type == MIPI_DPHY_TYPE_DEV) {
+		ptx = (mipi_dphy_tx_param_t *)(phy[port].sub.param);
+		if (ptx && ptx->txout_param_valid == 0) {
+			ptx->txout_freq_mode = txout_freq_mode;
+			ptx->txout_freq_autolarge_enbale = txout_freq_autolarge_enbale;
+			ptx->txout_freq_gain_precent = txout_freq_gain_precent;
+			ptx->txout_freq_force = txout_freq_force;
+		}
+	}
 	phy[port].reged = 1;
 	*num = *num + 1;
 
@@ -716,6 +750,10 @@ int32_t mipi_dev_dphy_initialize(void __iomem *iomem, uint16_t mipiclk, uint16_t
 	uint16_t   m = 0;
 	uint16_t   vco = 0;
 	uint16_t   outclk = 0;
+	uint32_t s_txout_freq_mode =
+		(ptx && ptx->txout_param_valid) ?
+			ptx->txout_freq_mode:
+			txout_freq_mode;
 	uint32_t s_txout_freq_force =
 		(ptx && ptx->txout_param_valid) ?
 			ptx->txout_freq_force:
@@ -742,52 +780,62 @@ int32_t mipi_dev_dphy_initialize(void __iomem *iomem, uint16_t mipiclk, uint16_t
 	/*Configure the D-PHY PLL*/
 	mipi_putreg(iomem + REG_MIPI_DEV_PHY0_TST_CTRL0, DPHY_TEST_RESETN);
 	/*Ensure that testclk and testen is set to low*/
-	outclk = mipi_tx_pll_div(phy, TX_REFSCLK_DEFAULT, (mipiclk / lane), &n, &m, &vco);
-	if (0 == outclk) {
-		mipierr("pll control error!");
-		return -1;
+	if (!s_txout_freq_mode) {
+		outclk = mipiclk / lane;
+		mipidbg("freq mode%d outclk: %dMbps(%dMHz)", s_txout_freq_mode,
+			outclk, outclk / 2);
+	} else {
+		outclk = mipi_tx_pll_div(phy, TX_REFSCLK_DEFAULT, (mipiclk / lane), &n, &m, &vco);
+		if (0 == outclk) {
+			mipierr("pll control error!");
+			return -1;
+		}
 	}
 	/*Configure the D-PHY frequency range*/
 	mipi_dphy_set_freqrange(MIPI_DPHY_TYPE_DEV, (phy) ? (phy->sub.port) : 0,
 		MIPI_HSFREQRANGE, mipi_dphy_clk_range(phy, mipiclk / lane, NULL));
-#if 0
-	if (mipiclk / lane >= 1500) {
-		mipi_dev_dphy_testdata(phy, iomem, 0xA0, 0x2);
-		mipi_dev_dphy_testdata(phy, iomem, 0xA3, 0x0);
-		mipi_dev_dphy_testdata(phy, iomem, 0x1F, 0x1);
-	}
-	if (mipiclk / lane >= 2300)
-		mipi_dev_dphy_testdata(phy, iomem, 0x0E, 0xE);
-	else
-		mipi_dev_dphy_testdata(phy, iomem, 0x0E, 0xD);
-	mipi_dev_dphy_testdata(phy, iomem, 0x14, 0x3);
-	mipi_dev_dphy_testdata(phy, iomem, 0x15, 0x2D);
-	mipi_dev_dphy_testdata(phy, iomem, 0x16, 0x3);
-	mipi_dev_dphy_testdata(phy, iomem, 0x24, 0x7C);
-#else
-	mipi_dev_dphy_testdata(phy, iomem, REGS_TX_SLEW_5, TX_SLEW_RATE_CAL);
-	mipi_dev_dphy_testdata(phy, iomem, REGS_TX_SLEW_7, TX_SLEW_RATE_CTL);
-	mipi_dev_dphy_testdata(phy, iomem, REGS_TX_PLL_27, TX_PLL_DIV(n));
-	mipi_dev_dphy_testdata(phy, iomem, REGS_TX_PLL_28, TX_PLL_MULTI_L(m));
-	mipi_dev_dphy_testdata(phy, iomem, REGS_TX_PLL_29, TX_PLL_MULTI_H(m));
-	mipi_dev_dphy_testdata(phy, iomem, REGS_TX_PLL_30, TX_PLL_VCO(vco));
-	mipi_dev_dphy_testdata(phy, iomem, REGS_TX_SYSTIMERS_23, TX_HS_ZERO(settle));
-	mipi_dev_dphy_testdata(phy, iomem, REGS_TX_PLL_1,  TX_PLL_CPBIAS);
-	mipi_dev_dphy_testdata(phy, iomem, REGS_TX_PLL_4,  TX_PLL_INT_CTL);
-	mipi_dev_dphy_testdata(phy, iomem, REGS_TX_PLL_17, TX_PLL_PROP_CNTRL);
-	mipi_dev_dphy_testdata(phy, iomem, REGS_TX_PLL_19, TX_PLL_RST_TIME_L);
-	mipi_dev_dphy_testdata(phy, iomem, REGS_TX_PLL_2,  TX_PLL_GEAR_SHIFT_L);
-	mipi_dev_dphy_testdata(phy, iomem, REGS_TX_PLL_3,  TX_PLL_GEAR_SHIFT_H);
-	if (outclk < TX_PLL_CLKDIV_CLK_LMT)
-		mipi_dev_dphy_testdata(phy, iomem, REGS_TX_CB_2, TX_PLL_CLKDIV_CLK_EN);
+	if (!s_txout_freq_mode) {
+		if (mipiclk / lane >= 1500) {
+			mipi_dev_dphy_testdata(phy, iomem, REGS_TX_SLEWRATE_FSM_OVR, TX_SLEWRATE_FSM_OVR_EN);
+			mipi_dev_dphy_testdata(phy, iomem, REGS_TX_SLEWRATE_DDL_CFG, TX_SLEWRATE_DDL_CFG_SEL);
+			mipi_dev_dphy_testdata(phy, iomem, REGS_TX_PLL_ANALOG_PROG, TX_PLL_ANALOG_PROG_CTL);
+		}
+		/* fix for 2Gbps */
+		mipi_dev_dphy_testdata(phy, iomem, REGS_TX_PLL_CPBIAS_CNTRL, TX_PLL_CPBIAS_CNTRL0);
+		mipi_dev_dphy_testdata(phy, iomem, REGS_TX_PLL_GMP_DIG, TX_PLL_GMP_DIG_LOCK);
+		mipi_dev_dphy_testdata(phy, iomem, REGS_TX_PLL_INT_CHG_PUMP, TX_PLL_INT_CHG_PUMP_CTL);
+		if (mipiclk / lane >= 2300)
+			mipi_dev_dphy_testdata(phy, iomem, REGS_TX_PLL_PRO_CHG_PUMP, TX_PLL_PRO_CHG_PUMP_CTLE);
+		else
+			mipi_dev_dphy_testdata(phy, iomem, REGS_TX_PLL_PRO_CHG_PUMP, TX_PLL_PRO_CHG_PUMP_CTLD);
+		mipi_dev_dphy_testdata(phy, iomem, REGS_TX_PLL_PHASE_ERR, TX_PLL_PHASE_ERR_TH1);
+		mipi_dev_dphy_testdata(phy, iomem, REGS_TX_PLL_LOCK_FILT, TX_PLL_LOCK_FILT_TH2);
+		mipi_dev_dphy_testdata(phy, iomem, REGS_TX_PLL_UNLOCK_FILT, TX_PLL_UNLOCK_FILT_TH3);
+		mipi_dev_dphy_testdata(phy, iomem, REGS_TX_BANDGA_CNTRL, TX_BANDGA_CNTRL_VAL);
+	} else {
+		mipi_dev_dphy_testdata(phy, iomem, REGS_TX_SLEW_5, TX_SLEW_RATE_CAL);
+		mipi_dev_dphy_testdata(phy, iomem, REGS_TX_SLEW_7, TX_SLEW_RATE_CTL);
+		mipi_dev_dphy_testdata(phy, iomem, REGS_TX_PLL_27, TX_PLL_DIV(n));
+		mipi_dev_dphy_testdata(phy, iomem, REGS_TX_PLL_28, TX_PLL_MULTI_L(m));
+		mipi_dev_dphy_testdata(phy, iomem, REGS_TX_PLL_29, TX_PLL_MULTI_H(m));
+		mipi_dev_dphy_testdata(phy, iomem, REGS_TX_PLL_30, TX_PLL_VCO(vco));
+		mipi_dev_dphy_testdata(phy, iomem, REGS_TX_SYSTIMERS_23, TX_HS_ZERO(settle));
+		mipi_dev_dphy_testdata(phy, iomem, REGS_TX_PLL_1,  TX_PLL_CPBIAS);
+		mipi_dev_dphy_testdata(phy, iomem, REGS_TX_PLL_4,  TX_PLL_INT_CTL);
+		mipi_dev_dphy_testdata(phy, iomem, REGS_TX_PLL_17, TX_PLL_PROP_CNTRL);
+		mipi_dev_dphy_testdata(phy, iomem, REGS_TX_PLL_19, TX_PLL_RST_TIME_L);
+		mipi_dev_dphy_testdata(phy, iomem, REGS_TX_PLL_2,  TX_PLL_GEAR_SHIFT_L);
+		mipi_dev_dphy_testdata(phy, iomem, REGS_TX_PLL_3,  TX_PLL_GEAR_SHIFT_H);
+		if (outclk < TX_PLL_CLKDIV_CLK_LMT)
+			mipi_dev_dphy_testdata(phy, iomem, REGS_TX_CB_2, TX_PLL_CLKDIV_CLK_EN);
 #ifdef CONFIG_HOBOT_XJ3
-	mipi_dev_dphy_testdata(phy, iomem, REGS_TX_PLL_LOCK_DETMODE, TX_PLL_FORCE_LOCK);
-	mipi_dev_dphy_testdata(phy, iomem, REGS_TX_TESECODE_08, 3);
-	mipi_dev_dphy_testdata(phy, iomem, REGS_TX_HSTXTHSZERO_OVR, TX_HSTXTHSZERO_DATALANES);
-	mipi_dev_dphy_testdata(phy, iomem, REGS_TX_PLL_TH_DELAY, TX_PLL_TH_DELAY);
-	mipi_dev_dphy_testdata(phy, iomem, REGS_TX_PLL_CPBIAS_CNTRL, TX_PLL_CPBIAS_CNTRL);
+		mipi_dev_dphy_testdata(phy, iomem, REGS_TX_PLL_LOCK_DETMODE, TX_PLL_FORCE_LOCK);
+		mipi_dev_dphy_testdata(phy, iomem, REGS_TX_TESECODE_08, 3);
+		mipi_dev_dphy_testdata(phy, iomem, REGS_TX_HSTXTHSZERO_OVR, TX_HSTXTHSZERO_DATALANES);
+		mipi_dev_dphy_testdata(phy, iomem, REGS_TX_PLL_TH_DELAY, TX_PLL_TH_DELAY);
+		mipi_dev_dphy_testdata(phy, iomem, REGS_TX_PLL_CPBIAS_CNTRL, TX_PLL_CPBIAS_CNTRL1);
 #endif
-#endif
+	}
 
 	/* record host */
 	if (phy) {
