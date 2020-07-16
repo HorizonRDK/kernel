@@ -1540,6 +1540,10 @@ static int jpu_remove(struct platform_device *pdev)
 
 	dev = platform_get_drvdata(pdev);
 
+	debugfs_remove_recursive(dev->debug_file_jenc);
+	debugfs_remove_recursive(dev->debug_file_jdec);
+	debugfs_remove_recursive(dev->debug_root);
+
 	if (dev->instance_pool.base) {
 		vfree((const void *)dev->instance_pool.base);
 		dev->instance_pool.base = 0;

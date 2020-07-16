@@ -2768,6 +2768,10 @@ static int vpu_remove(struct platform_device *pdev)
 
 	dev = platform_get_drvdata(pdev);
 
+	debugfs_remove_recursive(dev->debug_file_venc);
+	debugfs_remove_recursive(dev->debug_file_vdec);
+	debugfs_remove_recursive(dev->debug_root);
+
 	if (dev->instance_pool.base) {
 #ifdef USE_VMALLOC_FOR_INSTANCE_POOL_MEMORY
 		vfree((const void *)dev->instance_pool.base);
