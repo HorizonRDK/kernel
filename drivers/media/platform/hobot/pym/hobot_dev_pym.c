@@ -24,6 +24,7 @@
 #include <asm/cacheflush.h>
 #include <linux/io.h>
 #include <linux/poll.h>
+#include <linux/ion.h>
 
 #include "hobot_dev_pym.h"
 #include "pym_hw_api.h"
@@ -33,6 +34,8 @@
 void pym_update_param(struct pym_subdev *subdev);
 void pym_update_param_ch(struct pym_subdev *subdev);
 int pym_video_streamoff(struct pym_video_ctx *pym_ctx);
+
+extern struct ion_device *hb_ion_dev;
 
 static int x3_pym_open(struct inode *inode, struct file *file)
 {
@@ -115,6 +118,96 @@ static u32 x3_pym_poll(struct file *file, struct poll_table_struct *wait)
 	return ret;
 }
 
+static int x3_pym_try_release_process_ion(struct pym_video_ctx *pym_ctx,
+	struct mp_vio_frame *frame_array_addr[])
+{
+	struct mp_vio_frame *frame, *frame_start;
+	int i = 0, k = 0, frm_num = 0;
+	struct x3_pym_dev *pym = pym_ctx->pym_dev;
+
+	if (!frame_array_addr) {
+		return 0;
+	}
+
+	frame_start = (struct mp_vio_frame *)frame_array_addr[0];
+	frm_num = frame_start->ion_bufffer_num;
+
+	// process frames free, allocated in reqbufs
+	for (i = 0; i < frm_num ; i++) {
+		frame = (struct mp_vio_frame *)frame_array_addr[i];
+		if (!frame)
+			continue;
+		for (k = 0; k < frame->plane_count; k++) {
+			ion_free(pym->ion_client , frame->ion_handle[k]);
+		}
+		frame_array_addr[i] = NULL;
+	}
+
+	vfree(frame_start);
+
+	return 0;
+}
+
+static int x3_pym_release_subdev_all_ion(struct pym_subdev *subdev)
+{
+	struct mp_vio_frame *frame, *frame_start, *frame_array_addr[VIO_MP_MAX_FRAMES];
+	int i, j, k, first_index = 0, frm_num = 0;
+	struct x3_pym_dev *pym = subdev->pym_dev;
+	struct vio_framemgr *framemgr = &subdev->framemgr;
+	unsigned long flags;
+
+	vio_dbg("%s: ctx_mask %lx", __func__, subdev->val_ctx_mask);
+
+	framemgr_e_barrier_irqs(framemgr, 0, flags);
+	memcpy(frame_array_addr, framemgr->frames_mp,
+		sizeof(struct mp_vio_frame *)*VIO_MP_MAX_FRAMES);
+	for (i = 0; i < VIO_MP_MAX_FRAMES; i++) {
+		frame = (struct mp_vio_frame *)framemgr->frames_mp[i];
+		if (!frame)
+			continue;
+		list_del(&frame->common_frame.list);
+		framemgr->queued_count[frame->common_frame.state]--;
+		framemgr->frames_mp[i] = NULL;
+		framemgr->index_state[i] = FRAME_IND_FREE;
+		framemgr->dispatch_mask[i] = 0;
+	}
+
+	framemgr->max_index = 0;
+	framemgr->num_frames = 0;
+	framemgr->ctx_mask = 0;
+	framemgr->state = FRAMEMGR_CREAT;
+	for (i = 0; i < FS_INVALID; i++) {
+		vio_dbg("framemgr %d queue num:%d", i, framemgr->queued_count[i]);
+	}
+	framemgr_x_barrier_irqr(framemgr, 0, flags);
+
+	// process frames free, allocated in reqbufs
+	for (i = 0; i < VIO_MP_MAX_FRAMES; i++) {
+		frame_start = (struct mp_vio_frame *)frame_array_addr[i];
+		if (!frame_start)
+			continue;
+		first_index = frame_start->first_indx;
+		frm_num = frame_start->ion_bufffer_num;
+
+		// free ion
+		for (j = first_index; j < first_index + frm_num ; j++) {
+			frame = (struct mp_vio_frame *)frame_array_addr[j];
+			if (!frame)
+				continue;
+			for (k = 0; k < frame->plane_count; k++) {
+				ion_free(pym->ion_client , frame->ion_handle[k]);
+			}
+			frame_array_addr[j] = NULL;
+		}
+
+		vfree(frame_start);
+	}
+
+	vio_dbg("%s ion free done", __func__);
+
+	return 0;
+}
+
 static int x3_pym_close(struct inode *inode, struct file *file)
 {
 	struct pym_video_ctx *pym_ctx;
@@ -137,22 +230,31 @@ static int x3_pym_close(struct inode *inode, struct file *file)
 	pym->statistic.enable[pym_ctx->belong_pipe] = 0;
 	vio_dbg("pym pipeline %d close", pym_ctx->belong_pipe);
 
+	if (!(pym_ctx->state & BIT(VIO_VIDEO_STOP))) {
+		pym_video_streamoff(pym_ctx);
+	}
+
 	index = pym_ctx->frm_fst_ind;
 	count = pym_ctx->frm_num;
-	frame_manager_flush_mp(pym_ctx->framemgr, index, count, pym_ctx->ctx_index);
-
 	group = pym_ctx->group;
 	subdev = pym_ctx->subdev;
+
+	// in this function, we only need to release current process captured frame
+	//vio_dbg("from pym index %d, cnt %d, subdev id:%d", index, count, subdev->id);
+	//frame_manager_flush_mp(pym_ctx->framemgr, index, count, pym_ctx->ctx_index);
+
 	if ((group) && atomic_dec_return(&subdev->refcount) == 0) {
+		vio_dbg("pym subdev %d", subdev->id);
 		subdev->state = 0;
 		if (group->gtask)
 			vio_group_task_stop(group->gtask);
 		instance = group->instance;
 		if (atomic_dec_return(&group->node_refcount) == 0)
 			clear_bit(VIO_GROUP_INIT, &group->state);
-	}
 
-	frame_manager_close_mp(pym_ctx->framemgr, index, count, pym_ctx->ctx_index);
+		// this is the subdev's last process close, it's ok to free all ion buffer
+		x3_pym_release_subdev_all_ion(subdev);
+	}
 
 	if (atomic_dec_return(&pym->open_cnt) == 0) {
 		clear_bit(PYM_OTF_INPUT, &pym->state);
@@ -635,6 +737,68 @@ p_inc:
 	return ret;
 }
 
+
+static int pym_flush_mp_prepare(struct pym_video_ctx *pym_ctx)
+{
+	struct vio_framemgr *this;
+	struct vio_frame *frame;
+	struct vio_group *group;
+	unsigned long flags;
+	int i;
+	int index_start;
+	int buffers;
+	int proc_id;
+
+	this = pym_ctx->framemgr;
+	group = pym_ctx->group;
+
+	index_start = pym_ctx->frm_fst_ind;
+	buffers = pym_ctx->frm_num;
+	proc_id = pym_ctx->ctx_index;
+
+	if ((index_start + buffers) > VIO_MP_MAX_FRAMES) {
+		vio_err("invalid index when flush frame manager.");
+		return -EFAULT;
+	}
+	if (buffers == 0) {
+		vio_err("%s buffer number is ", __func__);
+		return -EFAULT;
+	}
+
+	framemgr_e_barrier_irqs(this, 0, flags);
+	for (i = index_start; i < (buffers + index_start); i++) {
+		this->index_state[i] = FRAME_IND_STREAMOFF;
+	}
+	this->ctx_mask &= ~(1 << proc_id);
+	/* clear the frame mask bit of this ctx*/
+	for (i = 0; i < VIO_MP_MAX_FRAMES; i++) {
+		if ((this->index_state[i] != FRAME_IND_USING)
+			&& (this->index_state[i] != FRAME_IND_STREAMOFF))
+			continue;
+		frame = this->frames_mp[i];
+		this->dispatch_mask[i] &= ~(1 << proc_id);
+		if (this->dispatch_mask[i] == 0x0000) {
+			if (frame) {
+				this->dispatch_mask[i] |= 0xFF00;
+				trans_frame(this, frame, FS_REQUEST);
+				if(group->leader == true)
+					vio_group_start_trigger_mp(group, frame);
+			}
+		}
+	}
+	framemgr_x_barrier_irqr(this, 0, flags);
+
+	vio_dbg("%s proc %d:", __func__, proc_id);
+	for (i = 0; i < VIO_MP_MAX_FRAMES; i++) {
+		if ((this->index_state[i] != FRAME_IND_USING)
+			&& (this->index_state[i] != FRAME_IND_STREAMOFF))
+			continue;
+		vio_dbg("frm%d mask 0x%x", i, this->dispatch_mask[i]);
+	}
+
+	return 0;
+}
+
 int pym_video_streamoff(struct pym_video_ctx *pym_ctx)
 {
 	int ret = 0;
@@ -666,10 +830,8 @@ int pym_video_streamoff(struct pym_video_ctx *pym_ctx)
 
 p_dec:
 	if (pym_ctx->framemgr->frames_mp[pym_ctx->frm_fst_ind] != NULL) {
-		if (atomic_read(&subdev->refcount) > 1) {
-			frame_manager_flush_mp_prepare(pym_ctx->framemgr,
-				pym_ctx->frm_fst_ind, pym_ctx->frm_num,
-				pym_ctx->ctx_index);
+		if (atomic_read(&subdev->refcount) >= 1) {
+			pym_flush_mp_prepare(pym_ctx);
 		}
 	}
 	pym_ctx->state = BIT(VIO_VIDEO_STOP);
@@ -755,6 +917,12 @@ int pym_video_qbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 	unsigned long flags;
 	int index;
 	struct x3_pym_dev *pym;
+	struct mp_vio_frame  *frame_array_addr[VIO_MP_MAX_FRAMES];
+	int i = 0, first_index, frame_num;
+	u16 mask = 0x00;
+	int tmp_num = 0;
+	struct mp_vio_frame *mp_frame;
+
 
 	index = frameinfo->bufferindex;
 	framemgr = pym_ctx->framemgr;
@@ -789,25 +957,29 @@ int pym_video_qbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 			vio_dbg("[S%d] q fail:FREE proc%d bidx%d is streaming off",
 				group->instance, pym_ctx->ctx_index, index);
 			ret = 0;
-			goto err;
+			goto try_releas_ion;
 		}
 		vio_dbg("[S%d] q:FREE->REQ,proc%d bidx%d",
 			group->instance, pym_ctx->ctx_index, index);
 		memcpy(&frame->frameinfo, frameinfo, sizeof(struct frame_info));
+		framemgr->dispatch_mask[index] |= 0xFF00;
 		trans_frame(framemgr, frame, FS_REQUEST);
 	} else if (frame->state == FS_USED) {
 		framemgr->dispatch_mask[index] &= ~(1 << pym_ctx->ctx_index);
 		if (framemgr->dispatch_mask[index] == 0) {
 			if (framemgr->index_state[index] == FRAME_IND_STREAMOFF) {
+				// this frame is already stream off
+				// check if all it's process frames are ready to free
 				vio_dbg("[S%d] q fail:USED proc%d bidx%d is streaming off",
 					group->instance, pym_ctx->ctx_index, index);
 				ret = 0;
-				goto err;
+				goto try_releas_ion;
 			}
 			vio_dbg("[S%d] q:USED->REQ,proc%d bidx%d",
 				group->instance, pym_ctx->ctx_index, index);
 			memcpy(&frame->frameinfo, frameinfo,
 				sizeof(struct frame_info));
+			framemgr->dispatch_mask[index] |= 0xFF00;
 			trans_frame(framemgr, frame, FS_REQUEST);
 		} else {
 			if ((framemgr->queued_count[FS_REQUEST] <= 2)
@@ -820,6 +992,7 @@ int pym_video_qbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 				framemgr->dispatch_mask[index] = 0;
 				memcpy(&frame->frameinfo, frameinfo,
 					sizeof(struct frame_info));
+				framemgr->dispatch_mask[index] |= 0xFF00;
 				trans_frame(framemgr, frame, FS_REQUEST);
 			} else {
 				vio_dbg("[S%d] q:disp mask%d,proc%d bidx%d",
@@ -846,6 +1019,60 @@ int pym_video_qbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 	vio_dbg("[S%d] %s index %d\n", group->instance,
 		__func__, frameinfo->bufferindex);
 
+	return ret;
+try_releas_ion:
+	//判断所有的dispatch_mask是否为0
+	//如果是，将frames从frames_mp断开
+	//并清空对应的index状态
+	mp_frame = (struct mp_vio_frame *)frame;
+	first_index = mp_frame->first_indx;
+	frame_num = mp_frame->ion_bufffer_num;
+	for (i = first_index; i < first_index+frame_num; i++) {
+		mask |= framemgr->dispatch_mask[i];
+		vio_dbg("pym index %d, mask:%x", i, framemgr->dispatch_mask[i]);
+	}
+	if (mask == 0x0000) {
+		memcpy(frame_array_addr, &framemgr->frames_mp[first_index],
+				sizeof(struct mp_vio_frame *)*frame_num);
+		for (i = first_index; i < first_index+frame_num; i++) {
+			mp_frame = (struct mp_vio_frame *)framemgr->frames_mp[i];
+			if (!mp_frame)
+				continue;
+			list_del(&mp_frame->common_frame.list);
+			framemgr->queued_count[mp_frame->common_frame.state]--;
+			framemgr->frames_mp[i] = NULL;
+			framemgr->index_state[i] = FRAME_IND_FREE;
+			framemgr->dispatch_mask[i] = 0;
+		}
+
+		framemgr->ctx_mask &= ~(1 << pym_ctx->ctx_index);
+		framemgr->num_frames -= frame_num;
+		/* clear the frame mask bit of this ctx*/
+		for (i = 0; i < VIO_MP_MAX_FRAMES; i++) {
+			if ((framemgr->index_state[i] != FRAME_IND_USING)
+				&& (framemgr->index_state[i] != FRAME_IND_STREAMOFF))
+				continue;
+
+			framemgr->dispatch_mask[i] &= ~(1 << pym_ctx->ctx_index);
+		}
+
+		if (framemgr->max_index == (first_index + frame_num)) {
+			tmp_num = 0;
+			for (i = 0; i < VIO_MP_MAX_FRAMES; i++) {
+				if ((framemgr->index_state[i] == FRAME_IND_USING)
+					|| (framemgr->index_state[i] == FRAME_IND_STREAMOFF))
+					tmp_num++;
+				if (tmp_num == framemgr->num_frames)
+					break;
+			}
+			framemgr->max_index = i + 1;
+		}
+	}
+	framemgr_x_barrier_irqr(framemgr, 0, flags);
+	if (mask == 0x0000) {
+		vio_info("pym release ion for proc%d", pym_ctx->ctx_index);
+		x3_pym_try_release_process_ion(pym_ctx, frame_array_addr);
+	}
 	return ret;
 
 err:
@@ -1055,6 +1282,127 @@ int pym_update_ch_scale_info(struct pym_video_ctx *pym_ctx, unsigned long arg)
 	return ret;
 }
 
+static void print_pym_ion_addr(struct pym_video_ctx *pym_ctx,
+		struct kernel_ion *ion_buffer)
+{
+	int i = 0, j = 0, k = 0;
+	struct vio_framemgr *framemgr;
+	struct mp_vio_frame *frame;
+
+	framemgr = pym_ctx->framemgr;
+	for (i = pym_ctx->frm_fst_ind;
+		i < (pym_ctx->frm_fst_ind+ion_buffer->buf_num); i++) {
+       frame = (struct mp_vio_frame *)framemgr->frames_mp[i];
+	   k = i - pym_ctx->frm_fst_ind;
+       // every plane will have a phy addr
+       for (j = 0; j < ion_buffer->one[k].planecount; j++) {
+		vio_dbg("frame index %d,plane %d,frame addr[0x%llx],buffer addr[0x%llx]",
+			i, j, frame->addr[j], ion_buffer->one[k].paddr[j]);
+       }
+	}
+}
+
+static void print_user_buffer_cfg(struct pym_video_ctx *pym_ctx,
+		struct kernel_ion *ion_buffer)
+{
+	int i = 0, j = 0;
+	for (i = 0; i < ion_buffer->buf_num; i++) {
+		for (j = 0; j < ion_buffer->one[i].planecount; j++) {
+			vio_dbg("buffer %d, plane %d, size:%zu",
+				i, j, ion_buffer->one[i].planeSize[j]);
+		}
+	}
+}
+
+int pym_alloc_ion_bufffer(struct pym_video_ctx *pym_ctx,
+		struct kernel_ion *ion_buffer)
+{
+	int i = 0, j = 0, k = 0, m = 0;
+	int ret = 0;
+	struct vio_framemgr *framemgr;
+	struct mp_vio_frame *frame;
+	struct x3_pym_dev *pym;
+	unsigned long flags;
+
+	if (!(pym_ctx->state & (BIT(VIO_VIDEO_S_INPUT) | BIT(VIO_VIDEO_REBUFS)))) {
+	       vio_err("[%s] invalid PYM_IOC_KERNEL_ION is requested(%lX)",
+		   			__func__, pym_ctx->state);
+	       return -EINVAL;
+	}
+
+	if ((pym_ctx->frm_num != ion_buffer->buf_num) || (pym_ctx->frm_num <= 0)) {
+	       vio_err("PYM_IOC_KERNEL_ION failed, buffer num not match");
+	       return -EINVAL;
+	}
+
+	framemgr = pym_ctx->framemgr;
+	pym = pym_ctx->pym_dev;
+
+	print_user_buffer_cfg(pym_ctx, ion_buffer);
+
+	// for all frame, allocated Y/UV ion buffer
+	for (i = pym_ctx->frm_fst_ind;
+		i < (pym_ctx->frm_fst_ind+pym_ctx->frm_num); i++) {
+       frame = (struct mp_vio_frame *)framemgr->frames_mp[i];
+	   k = i - pym_ctx->frm_fst_ind; // for ion_buffer index
+
+       // every plane will have a phy addr
+       for (j = 0; j < ion_buffer->one[k].planecount; j++) {
+           frame->ion_handle[j] = ion_alloc(pym->ion_client,
+			ion_buffer->one[k].planeSize[j], PAGE_SIZE, ION_HEAP_CARVEOUT_MASK, 0);
+           if (IS_ERR(frame->ion_handle[j])) {
+                   vio_err("pym ion alloc failed failed");
+
+                   // clean up current frame ion
+                   for (m = j-1; m >= 0; m--)
+                           ion_free(pym->ion_client, frame->ion_handle[m]);
+                   goto ion_cleanup;
+           }
+           ret = ion_phys(pym->ion_client, frame->ion_handle[j]->id,
+                           &ion_buffer->one[k].paddr[j],
+                           &ion_buffer->one[k].planeSize[j]);
+           if (ret) {
+                   vio_err("pym ion get phys addr failed");
+                   // clean up current frame ion
+                   for (; j >= 0; j--)
+                           ion_free(pym->ion_client, frame->ion_handle[j]);
+                   goto ion_cleanup;
+           }
+
+           // set vio_frame addr the same as allocted ion phys
+		   frame->addr[j] = ion_buffer->one[k].paddr[j];
+       }
+	}
+
+	// every frame rembers which process it belongs to
+	// and the firs_indx with buffer num,plane count
+	framemgr_e_barrier_irqs(framemgr, 0, flags);
+	for (i = pym_ctx->frm_fst_ind;
+			i < (pym_ctx->frm_fst_ind+pym_ctx->frm_num); i++) {
+		frame = (struct mp_vio_frame *)framemgr->frames_mp[i];
+		frame->first_indx = pym_ctx->frm_fst_ind;
+		frame->ion_bufffer_num = pym_ctx->frm_num;
+		frame->plane_count = ion_buffer->one[0].planecount;
+		frame->proc_id = pym_ctx->ctx_index;
+	}
+	framemgr_x_barrier_irqr(framemgr, 0, flags);
+
+	set_bit(VIO_VIDEO_ION_ALLOC, &pym_ctx->state);
+	print_pym_ion_addr(pym_ctx, ion_buffer);
+	return 0;
+
+ion_cleanup:
+	// cleanup all the other frame data
+	for (i = i-1; i >= pym_ctx->frm_fst_ind; i--) {
+	       frame = (struct mp_vio_frame *)framemgr->frames_mp[i];
+		   k = i - pym_ctx->frm_fst_ind;
+	       for (j = 0; j < ion_buffer->one[k].planecount; j++) {
+	               ion_free(pym->ion_client, frame->ion_handle[j]);
+	       }
+	}
+	return -ENOMEM;
+}
+
 static long x3_pym_ioctl(struct file *file, unsigned int cmd,
 			  unsigned long arg)
 {
@@ -1067,6 +1415,7 @@ static long x3_pym_ioctl(struct file *file, unsigned int cmd,
 	struct vio_group *group;
 	int buf_index;
 	struct user_statistic stats;
+	struct kernel_ion pym_ion;
 
 	pym_ctx = file->private_data;
 	BUG_ON(!pym_ctx);
@@ -1140,6 +1489,21 @@ static long x3_pym_ioctl(struct file *file, unsigned int cmd,
 	case PYM_IOC_SCALE_INFO_CH:
 		ret = pym_update_ch_scale_info(pym_ctx, arg);
 		break;
+	case PYM_IOC_KERNEL_ION:
+		ret = copy_from_user(&pym_ion, (u32 __user *) arg, sizeof(struct kernel_ion));
+		if (ret)
+			return -EFAULT;
+		ret = pym_alloc_ion_bufffer(pym_ctx, &pym_ion);
+		if (ret) {
+			vio_err("alloc ion buffer failed");
+			return -EFAULT;
+		}
+		ret = copy_to_user((u32 __user *) arg, &pym_ion, sizeof(struct kernel_ion));
+		if (ret) {
+			vio_err("copy to user failed");
+			return -EFAULT;
+		}
+		break;
 	default:
 		vio_err("wrong ioctl command\n");
 		ret = -EFAULT;
@@ -1154,7 +1518,7 @@ int x3_pym_mmap(struct file *file, struct vm_area_struct *vma)
 	int ret = 0;
 	struct pym_video_ctx *pym_ctx;
 	struct vio_framemgr *framemgr;
-	struct vio_frame *frame;
+	struct mp_vio_frame *frame;
 	int buffer_index;
 	u32 paddr = 0;
 	unsigned long flags;
@@ -1168,19 +1532,19 @@ int x3_pym_mmap(struct file *file, struct vm_area_struct *vma)
 
 	framemgr = pym_ctx->framemgr;
 	buffer_index = vma->vm_pgoff;
-	ret = pym_index_owner(pym_ctx, buffer_index);
+	/*ret = pym_index_owner(pym_ctx, buffer_index);
 	if( ret != VIO_BUFFER_OTHER ) {
 		vio_err("[S%d][V%d] %s proc %d error,index %d not other's",
 			pym_ctx->group->instance, pym_ctx->id, __func__,
 			pym_ctx->ctx_index, buffer_index);
 		ret = -EFAULT;
 		goto err;
-	}
+	}*/
 
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
-	frame = framemgr->frames_mp[buffer_index];
+	frame = (struct mp_vio_frame *)framemgr->frames_mp[buffer_index];
 	if (frame) {
-		paddr = frame->frameinfo.spec.ds_y_addr[0];
+		paddr = frame->addr[0];
 	} else {
 		vio_err("[S%d][V%d] %s proc %d error,frame null",
 			pym_ctx->group->instance, pym_ctx->id, __func__,
@@ -1839,6 +2203,12 @@ static int x3_pym_probe(struct platform_device *pdev)
 		goto err_get_irq;
 	}
 
+	pym->ion_client = ion_client_create(hb_ion_dev, "pym_driver_ion");
+	if (IS_ERR(pym->ion_client)) {
+			vio_err("pym ion client create failed.");
+			goto err_get_irq;
+	}
+
 	x3_pym_device_node_init(pym);
 
 	dev = &pdev->dev;
@@ -1898,6 +2268,7 @@ static int x3_pym_remove(struct platform_device *pdev)
 	device_remove_file(&pdev->dev, &dev_attr_regdump);
 	device_remove_file(&pdev->dev, &dev_attr_err_status);
 	sysfs_remove_group(&pdev->dev.kobj, &pym_info_group);
+	ion_client_destroy(pym->ion_client);
 
 	free_irq(pym->irq, pym);
 

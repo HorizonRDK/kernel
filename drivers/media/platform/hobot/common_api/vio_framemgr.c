@@ -76,6 +76,7 @@ int trans_frame(struct vio_framemgr *this, struct vio_frame *frame,
 							this->id);
 		return -EINVAL;
 	}
+
 	list_del(&frame->list);
 	this->queued_count[frame->state]--;
 	//if (state == FS_PROCESS && (!(this->id & FRAMEMGR_ID_HW)))
@@ -382,15 +383,16 @@ int frame_manager_open_mp(struct vio_framemgr *this, u32 buffers,
 {
 	u32 i, j;
 	unsigned long flag;
-	struct vio_frame *frames;
+	struct mp_vio_frame *frames;
+	struct mp_vio_frame *frame;
 	u32 ind_fst;
 
-	frames = vmalloc(sizeof(struct vio_frame) * buffers);
+	frames = vmalloc(sizeof(struct mp_vio_frame) * buffers);
 	if (!frames) {
 		vio_err("failed to allocate frames");
 		return -ENOMEM;
 	}
-	memset(frames, 0, sizeof(struct vio_frame) * buffers);
+	memset(frames, 0, sizeof(struct mp_vio_frame) * buffers);
 	spin_lock_irqsave(&this->slock, flag);
 	if ((this->num_frames + buffers) > VIO_MP_MAX_FRAMES) {
 		spin_unlock_irqrestore(&this->slock, flag);
@@ -399,6 +401,7 @@ int frame_manager_open_mp(struct vio_framemgr *this, u32 buffers,
 		return -ENOMEM;
 	}
 
+	// find the first continuous index for buffers
 	ind_fst = 0;
 	for (i = 0; i < VIO_MP_MAX_FRAMES; i++) {
 		if (this->index_state[i] == FRAME_IND_FREE) {
@@ -424,8 +427,10 @@ int frame_manager_open_mp(struct vio_framemgr *this, u32 buffers,
 		return -ENOMEM;
 	}
 
+	// note: this only give the mp_vio_frame->common_frame addr
+	// to frames_mp
 	for (i = 0; i < buffers; i++)
-		this->frames_mp[i + ind_fst] = &frames[i];
+		this->frames_mp[i + ind_fst] = &frames[i].common_frame;
 
 	if (this->state != FRAMEMGR_INIT) {
 		for (i = 0; i < NR_FRAME_STATE; i++) {
@@ -439,6 +444,14 @@ int frame_manager_open_mp(struct vio_framemgr *this, u32 buffers,
 		kthread_init_work(&this->frames_mp[i]->work,
 			frame_work_function);
 		this->index_state[i] = FRAME_IND_USING;
+
+		frame = (struct mp_vio_frame *)this->frames_mp[i];
+		frame->first_indx = ind_fst;
+		frame->ion_bufffer_num = buffers;
+		frame->addr[0] = 0; frame->addr[1] = 0; frame->addr[2] = 0;
+		frame->ion_handle[0] = NULL;
+		frame->ion_handle[1] = NULL;
+		frame->ion_handle[2] = NULL;
 	}
 	*index_start = ind_fst;
 	this->num_frames += buffers;
@@ -447,12 +460,13 @@ int frame_manager_open_mp(struct vio_framemgr *this, u32 buffers,
 		this->max_index = ind_fst + buffers;
 	spin_unlock_irqrestore(&this->slock, flag);
 
-	vio_dbg("%s first index %d, num %d, this->num_frames %d max index %d.",
-		__func__, ind_fst, buffers, this->num_frames, this->max_index);
+	vio_dbg("%s first index %d, num %d, num_frames %d max index %d.vmalloc start:%p",
+		__func__, ind_fst, buffers, this->num_frames, this->max_index, frames);
 	return 0;
 }
 EXPORT_SYMBOL(frame_manager_open_mp);
 
+#if 0
 int frame_manager_close_mp(struct vio_framemgr *this,
 	u32 index_start, u32 buffers, u32 ctx_index)
 {
@@ -543,6 +557,7 @@ err_unlock:
 	return -EFAULT;
 }
 EXPORT_SYMBOL(frame_manager_close_mp);
+#endif
 
 /*
  * Wait for frame state to become UESD or FREE
@@ -577,77 +592,24 @@ int frame_manager_flush_mp(struct vio_framemgr *this,
 
 	spin_lock_irqsave(&this->slock, flag);
 	/* to USED or FREE*/
-	buf_drv_cnt = (4 * this->num_frames) / buffers;
-	delay_cnt = ((buf_drv_cnt > buffers) ? buf_drv_cnt : buffers);
-	real_cnt = 0;
-	while (delay_cnt) {
-		used_free_cnt = 0;
-		for (i = index_start; i < (buffers + index_start); i++) {
-			if ((this->index_state[i] != FRAME_IND_STREAMOFF)
-				&& (this->index_state[i] != FRAME_IND_USING)) {
-				vio_err("%s:index %d state %d error", __func__, i,
-					this->index_state[i]);
-				goto err_unlock;
-			}
-			frame = this->frames_mp[i];
-			if (!frame) {
-				vio_err("%s:frame%d null", __func__, i);
-				goto err_unlock;
-			}
-			if ((frame->state == FS_USED)
-				|| (frame->state == FS_FREE))
-				used_free_cnt++;
-		}
-		if (used_free_cnt == buffers)
-			break;
-
-		delay_cnt--;
-		real_cnt++;
-		spin_unlock_irqrestore(&this->slock, flag);
-		msleep(one_frame_delay);
-		spin_lock_irqsave(&this->slock, flag);
-	}
-	if (delay_cnt)
-		vio_dbg("%s:use %dms, all index %d-%d in USED or FREE.",
-			__func__, one_frame_delay * real_cnt,
-			index_start, index_start + buffers -1);
-	else
-		vio_dbg("%s:timeout %dms,%d buffers in USED or FREE, %d not.",
-			__func__, one_frame_delay * real_cnt, used_free_cnt,
-			buffers - used_free_cnt);
-
-	/* release by other proc */
-	delay_cnt = buffers;
-	real_cnt = 0;
-	while (delay_cnt) {
-		other_proc_free = 0;
-		for (i = index_start; i < (buffers + index_start); i++) {
-			dispatch_mask = this->dispatch_mask[i];
-			if ((!dispatch_mask) || (dispatch_mask == (1 << proc_id)))
-				other_proc_free++;
-		}
-		if (other_proc_free == buffers)
-			break;
-
-		delay_cnt--;
-		real_cnt++;
-		spin_unlock_irqrestore(&this->slock, flag);
-		msleep(one_frame_delay);
-		spin_lock_irqsave(&this->slock, flag);
-	}
-	if (delay_cnt)
-		vio_dbg("%s:use %dms, all index %d-%d free by other proc.",
-			__func__, one_frame_delay * real_cnt,
-			index_start, index_start + buffers -1);
-	else
-		vio_dbg("%s:timeout %dms, %d buffers free, %d not.",
-			__func__, one_frame_delay * real_cnt,
-			other_proc_free, buffers - other_proc_free);
 	for (i = index_start; i < (buffers + index_start); i++) {
+		if ((this->index_state[i] != FRAME_IND_STREAMOFF)
+			&& (this->index_state[i] != FRAME_IND_USING)) {
+			vio_err("%s:index %d state %d error", __func__, i,
+				this->index_state[i]);
+			goto err_unlock;
+		}
 		frame = this->frames_mp[i];
-		if (frame)
-			trans_frame(this, frame, FS_FREE);
+		if (!frame) {
+			vio_err("%s:frame%d null, this should never be", __func__, i);
+			goto err_unlock;
+		}
+		if ((frame->state == FS_USED)
+			|| (frame->state == FS_FREE))
+			used_free_cnt++;
 	}
+	vio_dbg("%s:%d buffers in USED or FREE, %d not.",
+		__func__, used_free_cnt, buffers - used_free_cnt);
 	spin_unlock_irqrestore(&this->slock, flag);
 	return 0;
 

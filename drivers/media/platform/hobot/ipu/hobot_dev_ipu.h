@@ -11,6 +11,7 @@
 #include <linux/kthread.h>
 #include <linux/cdev.h>
 #include <linux/wait.h>
+#include <linux/ion.h>
 
 #include "ipu_config.h"
 
@@ -39,6 +40,9 @@
 #define IPU_IOC_OSD_COLOR_MAP    _IOW(IPU_IOC_MAGIC, 13, int)
 #define IPU_IOC_SCALE_INFO    	 _IOW(IPU_IOC_MAGIC, 14, int)
 #define IPU_IOC_USER_STATS       _IOR(IPU_IOC_MAGIC, 16, struct user_statistic)
+#define IPU_IOC_KERNEL_ION       _IOWR(IPU_IOC_MAGIC, 17, kernel_ion_t)
+
+
 
 struct ipu_osd_cfg{
 	bool osd_box_update;
@@ -213,6 +217,8 @@ struct x3_ipu_dev {
 	struct vio_group *group[VIO_MAX_STREAM];
 	struct vio_group_task gtask;
 	struct vio_work vwork[VIO_MAX_STREAM][VIO_MP_MAX_FRAMES];
+
+	struct ion_client *ion_client;
 };
 
 #endif

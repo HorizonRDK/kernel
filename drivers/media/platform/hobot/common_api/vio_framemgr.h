@@ -149,6 +149,25 @@ struct vio_frame {
 	u32			index;
 };
 
+struct mp_vio_frame {
+	// must be the first
+	struct vio_frame common_frame;
+
+	// ipu/pym multprocess share
+	// support max 3 planar
+	// phy addr for ion reserverd in xj3 is never greater than 32bit
+	int plane_count;
+	u64 addr[3];
+	struct ion_handle *ion_handle[3];
+
+	// which process this vio_frame belongs to
+	// the process alloc how may ion buffers and it's first indx in vio_framemgr
+	// for multiprocess alloc/free tracking
+	int proc_id;
+	int first_indx;
+	int ion_bufffer_num;
+};
+
 struct vio_framemgr {
 	u32			id;
 	spinlock_t		slock;
@@ -158,7 +177,7 @@ struct vio_framemgr {
 	u32			max_index;
 	struct vio_frame	*frames;
 	struct vio_frame	*frames_mp[VIO_MP_MAX_FRAMES];
-	u8			dispatch_mask[VIO_MP_MAX_FRAMES];
+	u16			dispatch_mask[VIO_MP_MAX_FRAMES];
 	u8			ctx_mask;
 	enum vio_frame_index_state	index_state[VIO_MP_MAX_FRAMES];
 	enum vio_framemgr_state	state;
@@ -197,6 +216,19 @@ struct user_statistic {
 	uint32_t cnt[USER_STATS_NUM];
 };
 
+#define HB_VIO_BUFFER_MAX_PLANES 3
+#define HB_VIO_BUFFER_MAX (16)
+typedef struct kernel_ion_one {
+	int planecount;
+	size_t planeSize[HB_VIO_BUFFER_MAX_PLANES];
+	uint64_t paddr[HB_VIO_BUFFER_MAX_PLANES];
+	int ion_fd[HB_VIO_BUFFER_MAX_PLANES];
+}kernel_ion_one_t;
+
+typedef struct kernel_ion {
+	int buf_num;
+	struct kernel_ion_one one[HB_VIO_BUFFER_MAX];
+}kernel_ion_t;
 
 
 int frame_fcount(struct vio_frame *frame, void *data);
@@ -224,8 +256,12 @@ void frame_manager_print_info_queues(struct vio_framemgr *this);
 int frame_manager_init_mp(struct vio_framemgr *this);
 int frame_manager_open_mp(struct vio_framemgr *this, u32 buffers,
 	u32 *index_start);
+
+#if 0
 int frame_manager_close_mp(struct vio_framemgr *this,
 	u32 index_start, u32 buffers, u32 ctx_index);
+#endif
+
 int frame_manager_flush_mp(struct vio_framemgr *this,
 	u32 index_start, u32 buffers, u8 proc_id);
 int frame_manager_flush_mp_prepare(struct vio_framemgr *this,

@@ -25,6 +25,7 @@ enum vio_video_state {
 	VIO_VIDEO_REBUFS,
 	VIO_VIDEO_STOP,
 	VIO_VIDEO_START, 
+	VIO_VIDEO_ION_ALLOC,
 };
 
 enum FrameErrorType{
