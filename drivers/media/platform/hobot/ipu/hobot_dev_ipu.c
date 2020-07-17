@@ -47,6 +47,7 @@ int ipu_video_streamoff(struct ipu_video_ctx *ipu_ctx);
 enum buffer_owner ipu_index_owner(struct ipu_video_ctx *ipu_ctx, u32 index);
 int ipu_channel_wdma_enable(struct ipu_subdev *subdev, bool enable);
 void ipu_disable_all_channels(void __iomem *base_reg, u8 shadow_index);
+int ipu_hw_enable_channel(struct ipu_subdev *subdev, bool enable);
 
 extern struct ion_device *hb_ion_dev;
 
@@ -428,7 +429,7 @@ void ipu_frame_work(struct vio_group *group)
 	vio_dbg("[S%d]%s start\n", instance, __func__);
 
 	rdy = ipu_get_shd_rdy(ipu->base_reg);
-	rdy = rdy & ~(1 << 4);
+	rdy = rdy & ~(1 << 4) & ~(1 << shadow_index);
 	ipu_set_shd_rdy(ipu->base_reg, rdy);
 
 	ipu_set_shd_select(ipu->base_reg, shadow_index);
@@ -469,9 +470,7 @@ void ipu_frame_work(struct vio_group *group)
 			default:
 				break;
 			}
-			if(!(i == GROUP_ID_SRC &&
-					test_bit(IPU_DS2_DMA_OUTPUT, &ipu->state)))
-				ipu_channel_wdma_enable(subdev, true);
+			ipu_hw_enable_channel(subdev, true);
 
 			if (i == GROUP_ID_DS2)
 				ipu_set_ds2_wdma_enable(ipu->base_reg, shadow_index, 1);
@@ -482,7 +481,7 @@ void ipu_frame_work(struct vio_group *group)
 		framemgr_x_barrier_irqr(framemgr, 0, flags);
 	}
 	rdy = ipu_get_shd_rdy(ipu->base_reg);
-	rdy = rdy | (1 << 4);
+	rdy = rdy | (1 << 4) | (1 << shadow_index);
 	ipu_set_shd_rdy(ipu->base_reg, rdy);
 	atomic_inc(&ipu->backup_fcount);
 
@@ -735,24 +734,6 @@ void ipu_set_roi_enable(struct ipu_subdev *subdev, u32 shadow_index,
 	}
 }
 
-void ipu_disable_all_channels(void __iomem *base_reg, u8 shadow_index)
-{
-	int i = 0;
-
-	ipu_set_us_enable(base_reg, shadow_index, false);
-	ipu_set_us_roi_enable(base_reg, shadow_index, false);
-	for (i = 0; i < 5; i++) {
-		if (i == 2) {
-			ipu_set_ds2_wdma_enable(base_reg, shadow_index, 0);
-		} else {
-			ipu_set_ds_enable(base_reg, shadow_index, i, false);
-			ipu_set_ds_roi_enable(base_reg, shadow_index, i, false);
-		}
-	}
-
-	vio_dbg("G%d: %s \n", shadow_index, __func__);
-}
-
 void ipu_set_sc_enable(struct ipu_subdev *subdev, u32 shadow_index,
 			bool sc_en)
 {
@@ -769,6 +750,63 @@ void ipu_set_sc_enable(struct ipu_subdev *subdev, u32 shadow_index,
 		ds_ch = id - GROUP_ID_DS0;
 		ipu_set_ds_enable(base_reg, shadow_index, ds_ch, sc_en);
 	}
+}
+
+int ipu_hw_enable_channel(struct ipu_subdev *subdev, bool enable)
+{
+	u32 shadow_index = 0;
+	int id = 0;
+	struct vio_group *group;
+	ipu_ds_info_t *info;
+
+	group = subdev->group;
+	if (!group) {
+		vio_err("[%s] group null", __func__);
+		return -EFAULT;
+	}
+
+	id = subdev->id;
+	if (id < GROUP_ID_US || id > GROUP_ID_DS4)
+		return 0;
+
+	if (group->instance < MAX_SHADOW_NUM)
+		shadow_index = group->instance;
+
+
+	info = &subdev->scale_cfg;
+	if (enable) {
+		ipu_set_roi_enable(subdev, shadow_index, info->ds_roi_en);
+		ipu_set_sc_enable(subdev, shadow_index, info->ds_sc_en);
+	} else {
+		ipu_set_roi_enable(subdev, shadow_index, enable);
+		ipu_set_sc_enable(subdev, shadow_index, enable);
+	}
+
+	vio_dbg("G%d: %s shadow %d\n", group->instance, __func__, shadow_index);
+
+	return 0;
+}
+
+void ipu_disable_all_channels(void __iomem *base_reg, u8 instance)
+{
+	int i = 0;
+	u8 shadow_index = 0;
+
+	if (instance < MAX_SHADOW_NUM)
+		shadow_index = instance;
+
+	ipu_set_us_enable(base_reg, shadow_index, false);
+	ipu_set_us_roi_enable(base_reg, shadow_index, false);
+	for (i = 0; i < 5; i++) {
+		if (i == 2) {
+			ipu_set_ds2_wdma_enable(base_reg, shadow_index, 0);
+		} else {
+			ipu_set_ds_enable(base_reg, shadow_index, i, false);
+			ipu_set_ds_roi_enable(base_reg, shadow_index, i, false);
+		}
+	}
+
+	vio_dbg("G%d: %s shadow %d\n", instance, __func__, shadow_index);
 }
 
 void ipu_hw_set_roi_cfg(struct ipu_subdev *subdev, u32 shadow_index,
@@ -875,7 +913,6 @@ void ipu_hw_set_info_cfg(struct ipu_subdev *subdev, u32 shadow_index)
 
 void ipu_hw_set_cfg(struct ipu_subdev *subdev)
 {
-	u32 rdy = 0;
 	u32 __iomem *base_reg;
 	u32 shadow_index = 0;
 	struct vio_group *group;
@@ -890,16 +927,8 @@ void ipu_hw_set_cfg(struct ipu_subdev *subdev)
 
 	base_reg = subdev->ipu_dev->base_reg;
 
-	rdy = ipu_get_shd_rdy(base_reg);
-	rdy = rdy & ~(1 << shadow_index);
-	ipu_set_shd_rdy(base_reg, rdy);
-
 	ipu_hw_set_osd_cfg(subdev, shadow_index);
 	ipu_hw_set_info_cfg(subdev, shadow_index);
-
-	rdy = ipu_get_shd_rdy(base_reg);
-	rdy = rdy | (1 << shadow_index);
-	ipu_set_shd_rdy(base_reg, rdy);
 }
 
 int ipu_update_osd_sta_roi(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
@@ -980,6 +1009,7 @@ int ipu_get_osd_bin(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 
 	return ret;
 }
+
 
 int ipu_channel_wdma_enable(struct ipu_subdev *subdev, bool enable)
 {

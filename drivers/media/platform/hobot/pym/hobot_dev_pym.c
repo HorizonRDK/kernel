@@ -939,6 +939,8 @@ int pym_video_qbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 		return -EINVAL;
 	}
 
+	pym_check_phyaddr(frameinfo->spec.ds_uv_addr[0]);
+
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	frame = framemgr->frames_mp[index];
 	if (frame == NULL) {
@@ -947,8 +949,6 @@ int pym_video_qbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 		ret = -EFAULT;
 		goto err;
 	}
-
-	pym_check_phyaddr(frameinfo->spec.ds_uv_addr[0]);
 
 	pym_ctx->frm_num_usr--;
 	if (frame->state == FS_FREE) {
