@@ -981,27 +981,6 @@ int pym_video_qbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 				sizeof(struct frame_info));
 			framemgr->dispatch_mask[index] |= 0xFF00;
 			trans_frame(framemgr, frame, FS_REQUEST);
-		} else {
-			if ((framemgr->queued_count[FS_REQUEST] <= 2)
-			&& (pym_index_owner(pym_ctx, index)
-				== VIO_BUFFER_THIS)) {
-				vio_info("[S%d] q:force proc%d bidx%d to req,mask %x",
-					group->instance,
-					pym_ctx->ctx_index, index,
-					framemgr->dispatch_mask[index]);
-				framemgr->dispatch_mask[index] = 0;
-				memcpy(&frame->frameinfo, frameinfo,
-					sizeof(struct frame_info));
-				framemgr->dispatch_mask[index] |= 0xFF00;
-				trans_frame(framemgr, frame, FS_REQUEST);
-			} else {
-				vio_dbg("[S%d] q:disp mask%d,proc%d bidx%d",
-					group->instance,
-					framemgr->dispatch_mask[index],
-					pym_ctx->ctx_index, index);
-				ret = 0;
-				goto err;
-			}
 		}
 	} else {
 		vio_err("[S%d] frame(%d) is invalid state(%d)\n",

@@ -1807,12 +1807,18 @@ int ipu_video_qbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 			ret = 0;
 			goto try_releas_ion;
 		}
-		vio_dbg("[S%d][V%d] q:FREE->REQ,proc%d bidx%d",
-			group->instance, ipu_ctx->id,
-			ipu_ctx->ctx_index, index);
 		memcpy(&frame->frameinfo, frameinfo, sizeof(struct frame_info));
 		framemgr->dispatch_mask[index] |= 0xFF00;
 		trans_frame(framemgr, frame, FS_REQUEST);
+		vio_dbg("[S%d][V%d] q:FREE->REQ,proc%d bidx%d,(%d %d %d %d %d)",
+			group->instance, ipu_ctx->id,
+			ipu_ctx->ctx_index, index,
+			framemgr->queued_count[FS_FREE],
+			framemgr->queued_count[FS_REQUEST],
+			framemgr->queued_count[FS_PROCESS],
+			framemgr->queued_count[FS_COMPLETE],
+			framemgr->queued_count[FS_USED]);
+
 	} else if (frame->state == FS_USED) {
 		framemgr->dispatch_mask[index] &= ~(1 << ipu_ctx->ctx_index);
 		if (framemgr->dispatch_mask[index] == 0) {
@@ -1823,34 +1829,18 @@ int ipu_video_qbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 				ret = 0;
 				goto try_releas_ion;
 			}
-			vio_dbg("[S%d][V%d] q:USED->REQ,proc%d bidx%d",
-				group->instance, ipu_ctx->id,
-				ipu_ctx->ctx_index, index);
 			memcpy(&frame->frameinfo, frameinfo,
 				sizeof(struct frame_info));
 			framemgr->dispatch_mask[index] |= 0xFF00;
 			trans_frame(framemgr, frame, FS_REQUEST);
-		} else {
-			if ((framemgr->queued_count[FS_REQUEST] <= 2)
-			&& (ipu_index_owner(ipu_ctx, index)
-				== VIO_BUFFER_THIS)) {
-				vio_info("[S%d][V%d] q:force proc%d bidx%d to req,mask %x",
-					group->instance, ipu_ctx->id,
-					ipu_ctx->ctx_index, index,
-					framemgr->dispatch_mask[index]);
-				framemgr->dispatch_mask[index] = 0;
-				memcpy(&frame->frameinfo, frameinfo,
-					sizeof(struct frame_info));
-				framemgr->dispatch_mask[index] |= 0xFF00;
-				trans_frame(framemgr, frame, FS_REQUEST);
-			} else {
-				vio_dbg("[S%d][V%d] q:disp mask%d,proc%d bidx%d",
-					group->instance, ipu_ctx->id,
-					framemgr->dispatch_mask[index],
-					ipu_ctx->ctx_index, index);
-				ret = 0;
-				goto err;
-			}
+			vio_dbg("[S%d][V%d] q:USED->REQ,proc%d bidx%d,(%d %d %d %d %d)",
+				group->instance, ipu_ctx->id,
+				ipu_ctx->ctx_index, index,
+				framemgr->queued_count[FS_FREE],
+				framemgr->queued_count[FS_REQUEST],
+				framemgr->queued_count[FS_PROCESS],
+				framemgr->queued_count[FS_COMPLETE],
+				framemgr->queued_count[FS_USED]);
 		}
 	} else {
 		vio_err("[S%d][V%d] q:proc%d frame(%d) is invalid state(%d)\n",
@@ -1988,11 +1978,16 @@ int ipu_video_dqbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 
 			ipu_ctx->event = 0;
 			ipu_ctx->frm_num_usr++;
-			vio_dbg("[S%d][V%d] %s (p%d b%d f%d) from FS_COMPLETE.",
+			vio_dbg("[S%d][V%d] %s (p%d b%d f%d) from FS_COMPLETE.(%d %d %d %d %d)",
 				ipu_ctx->group->instance, ipu_ctx->id, __func__,
 				ipu_ctx->ctx_index,
 				frame->frameinfo.bufferindex,
-				frame->frameinfo.frame_id);
+				frame->frameinfo.frame_id,
+				framemgr->queued_count[FS_FREE],
+				framemgr->queued_count[FS_REQUEST],
+				framemgr->queued_count[FS_PROCESS],
+				framemgr->queued_count[FS_COMPLETE],
+				framemgr->queued_count[FS_USED]);
 		}
 		if (ipu_ctx->ctx_index == 0)
 			ipu->statistic.dq_normal\
