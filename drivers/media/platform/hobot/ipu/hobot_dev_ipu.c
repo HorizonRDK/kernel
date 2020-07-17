@@ -2104,6 +2104,22 @@ int ipu_alloc_ion_bufffer(struct ipu_video_ctx *ipu_ctx,
 	struct mp_vio_frame *frame;
 	struct x3_ipu_dev *ipu;
 	unsigned long flags;
+	unsigned int ion_flag;
+
+	// ion cached
+	ion_flag = ION_FLAG_CACHED | ION_FLAG_CACHED_NEEDS_SYNC;
+	switch (ipu_ctx->id) {
+	case 1:
+		ion_flag |= (ipu_ctx->id + 4) << 16;
+		break;
+	case 2:
+	case 3:
+	case 4:
+	case 5:
+	case 6:
+		ion_flag |= (ipu_ctx->id - 2) << 16;
+		break;
+	}
 
 	if (!(ipu_ctx->state & (BIT(VIO_VIDEO_S_INPUT) | BIT(VIO_VIDEO_REBUFS)))) {
 		   vio_err("[%s] invalid IPU_IOC_KERNEL_ION is requested(%lX)",
@@ -2129,7 +2145,8 @@ int ipu_alloc_ion_bufffer(struct ipu_video_ctx *ipu_ctx,
 	   // every plane will have a phy addr
 	   for (j = 0; j < ion_buffer->one[k].planecount; j++) {
 		   frame->ion_handle[j] = ion_alloc(ipu->ion_client,
-			ion_buffer->one[k].planeSize[j], PAGE_SIZE, ION_HEAP_CARVEOUT_MASK, 0);
+			ion_buffer->one[k].planeSize[j], PAGE_SIZE,
+			ION_HEAP_CARVEOUT_MASK, ion_flag);
 		   if (IS_ERR(frame->ion_handle[j])) {
 			   vio_err("ipu ion alloc failed failed");
 
