@@ -49,7 +49,7 @@ module_param(iar_debug_level, uint, 0644);
 
 #define IAR_ENABLE 1
 #define IAR_DISABLE 0
-
+#define IARIONTYPE 13
 #define DISPLAY_TYPE_TOTAL_SINGLE 33
 #define DISPLAY_TYPE_TOTAL_MULTI 63
 
@@ -3191,11 +3191,11 @@ static int hobot_iar_probe(struct platform_device *pdev)
 	if (logo_vaddr == NULL) {
 		g_iar_dev->iar_ihandle = ion_alloc(g_iar_dev->iar_iclient,
 			iar_request_ion_size, 0x20,
-			ION_HEAP_CARVEOUT_MASK, 0);
+			ION_HEAP_CARVEOUT_MASK, (IARIONTYPE << 16)|0);
 	} else {
 		g_iar_dev->iar_ihandle = ion_alloc(g_iar_dev->iar_iclient,
 			iar_request_ion_size - MAX_FRAME_BUF_SIZE, 0x20,
-			ION_HEAP_CARVEOUT_MASK, 0);
+			ION_HEAP_CARVEOUT_MASK, (IARIONTYPE << 16)|0);
 	}
 #endif
 	if (!g_iar_dev->iar_ihandle || IS_ERR(g_iar_dev->iar_ihandle)) {
