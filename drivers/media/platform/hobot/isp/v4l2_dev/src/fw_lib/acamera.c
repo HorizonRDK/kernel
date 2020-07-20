@@ -42,6 +42,7 @@
 
 #include "dma_writer.h"
 #include "dma_writer_fsm.h"
+#include "./vio_group_api.h"
 
 #if FW_HAS_CONTROL_CHANNEL
 #include "acamera_ctrl_channel.h"
@@ -1384,6 +1385,10 @@ pr_info("hcs1 %d, hcs2 %d, vc %d\n", hcs1, hcs2, vc);
                     p_ctx->sts.fs_irq_cnt++;
                 }
                 // process interrupts
+                if ( irq_bit == ISP_INTERRUPT_EVENT_ISP_START_FRAME_START ) {
+                    vio_set_stat_info(cur_ctx_id, ISP_FS,
+                            p_ctx->isp_frame_counter);
+                }
                 if ( p_ctx->p_gfw->sif_isp_offline == 0 && irq_bit == ISP_INTERRUPT_EVENT_ISP_START_FRAME_START ) {
                     static uint32_t fs_cnt = 0;
                     if ( fs_cnt < 10 ) {
@@ -1453,6 +1458,8 @@ pr_info("hcs1 %d, hcs2 %d, vc %d\n", hcs1, hcs2, vc);
                         if (p_ctx->fsm_mgr.reserved) //dma writer on
                             wake_up(&wq_dma_done);
                     }
+                    vio_set_stat_info(cur_ctx_id, ISP_FE,
+                            p_ctx->isp_frame_counter);
                 } else if ( irq_bit == ISP_INTERRUPT_EVENT_FR_Y_WRITE_DONE ) {
                     pr_debug("frame write to ddr done\n");
                     p_ctx->sts.frame_write_done_irq_cnt++;

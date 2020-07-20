@@ -44,7 +44,11 @@
 #define PYM_FE			12
 #define GDC_FS			13
 #define GDC_FE			14
-#define STAT_NUM		15
+#define ISP_FS			15
+#define ISP_FE			16
+#define STAT_NUM		17
+
+#define MAX_DELAY_FRAMES 5
 
 enum vio_group_task_state {
 	VIO_GTASK_START,
@@ -120,6 +124,7 @@ struct statinfo {
 struct vio_chain {
 	struct vio_group group[GROUP_ID_NUMBER];
 	struct statinfo statinfo[STAT_NUM];
+	struct statinfo statinfobak[MAX_DELAY_FRAMES][STAT_NUM];
 	unsigned long state;
 };
 
@@ -147,6 +152,9 @@ void vio_dwe_clk_enable(void);
 void vio_dwe_clk_disable(void);
 void vio_set_stat_info(u32 instance, u32 stat_type, u16 frameid);
 void vio_print_stat_info(u32 instance);
+int vio_print_delay(s32 instance, s8* buf, u32 size);
+void vio_save_stat_info(u32 instance);
+void vio_clear_stat_info(u32 instance);
 
 #ifdef X3_IAR_INTERFACE
 extern u32 ipu_get_iar_display_type(u8 *pipeline, u8 *channel);

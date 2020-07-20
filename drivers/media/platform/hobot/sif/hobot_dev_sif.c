@@ -39,7 +39,7 @@ int testpattern_fps = 30;
 module_param(testpattern_fps, int, 0644);
 static bool debug_log_print = 0;
 module_param(debug_log_print, bool, 0644);
-
+static int g_print_instance = 0;
 int sif_video_streamoff(struct sif_video_ctx *sif_ctx);
 extern isp_callback sif_isp_ctx_sync;
 static int x3_sif_suspend(struct device *dev)
@@ -808,6 +808,7 @@ p_inc:
 	atomic_inc(&sif_dev->rsccount);
 	set_bit(SIF_SUBDEV_STREAM_ON, &subdev->state);
 
+	vio_clear_stat_info(sif_ctx->group->instance);
 	vio_info("[S%d][V%d]%s\n", sif_ctx->group->instance,
 		sif_ctx->id, __func__);
 
@@ -1363,6 +1364,7 @@ static irqreturn_t sif_isr(int irq, void *data)
 				if (debug_log_print)
 					vio_print_stat_info(group->instance);
 
+				vio_save_stat_info(group->instance);
 				vio_set_stat_info(group->instance, SIF_CAP_FS,
 						group->frameid.frame_id);
 
@@ -1840,6 +1842,28 @@ static ssize_t sif_stat_store(struct device *dev,
 }
 static DEVICE_ATTR(err_status, S_IRUGO|S_IWUSR, sif_stat_show, sif_stat_store);
 
+static ssize_t vio_delay_show(struct device *dev,
+				struct device_attribute *attr, char* buf)
+{
+	u32 offset = 0;
+	offset = vio_print_delay(g_print_instance, buf, PAGE_SIZE);
+	return offset;
+}
+
+static ssize_t vio_delay_store(struct device *dev,
+					struct device_attribute *attr,
+					const char *buf, size_t len)
+{
+	g_print_instance = simple_strtoul(buf, NULL, 0);
+	if (g_print_instance >= VIO_MAX_STREAM)
+		g_print_instance = VIO_MAX_STREAM - 1;
+	else if (g_print_instance < 0)
+		g_print_instance = 0;
+	return len;
+}
+
+static DEVICE_ATTR(vio_delay, S_IRUGO|S_IWUSR, vio_delay_show, vio_delay_store);
+
 struct x3_vio_mp_dev *g_vio_mp_dev = NULL;
 static int x3_sif_probe(struct platform_device *pdev)
 {
@@ -1928,6 +1952,11 @@ static int x3_sif_probe(struct platform_device *pdev)
 		vio_err("create dev_attr_cfg_info failed (%d)\n", ret);
 		goto p_err;
 	}
+	ret = device_create_file(dev, &dev_attr_vio_delay);
+	if (ret < 0) {
+		vio_err("create dev_attr_vio_delay failed (%d)\n", ret);
+		goto p_err;
+	}
 
 	platform_set_drvdata(pdev, sif);
 
@@ -1979,6 +2008,7 @@ static int x3_sif_remove(struct platform_device *pdev)
 	device_remove_file(&pdev->dev, &dev_attr_hblank);
 	device_remove_file(&pdev->dev, &dev_attr_err_status);
 	device_remove_file(&pdev->dev, &dev_attr_cfg_info);
+	device_remove_file(&pdev->dev, &dev_attr_vio_delay);
 
 	free_irq(sif->irq, sif);
 	for(i = 0; i < MAX_DEVICE; i++)
