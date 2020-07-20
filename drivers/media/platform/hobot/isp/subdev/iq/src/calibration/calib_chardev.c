@@ -153,7 +153,7 @@ static int calib_create(camera_calib_t *ptr)
 			}
 
 		} else {
-			LOG( LOG_ERR, "num %d is null.", tmp);
+			LOG( LOG_INFO, "num %d is null.", tmp);
 		}
 
 		LOG( LOG_DEBUG, "the num of %d calib data is in addr %p, rows %d, cols %d, width %d!", tmp, calib_data->plut[tmp].ptr, calib_data->plut[tmp].rows, calib_data->plut[tmp].cols, calib_data->plut[tmp].width);	
