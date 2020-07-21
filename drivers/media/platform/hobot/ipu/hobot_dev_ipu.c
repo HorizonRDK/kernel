@@ -478,6 +478,14 @@ void ipu_frame_work(struct vio_group *group)
 			ipu_hw_set_cfg(subdev);
 			trans_frame(framemgr, frame, FS_PROCESS);
 		}
+
+		vio_dbg("[S%d][V%d] work (%d %d %d %d %d)",
+			group->instance, subdev->id,
+			framemgr->queued_count[FS_FREE],
+			framemgr->queued_count[FS_REQUEST],
+			framemgr->queued_count[FS_PROCESS],
+			framemgr->queued_count[FS_COMPLETE],
+			framemgr->queued_count[FS_USED]);
 		framemgr_x_barrier_irqr(framemgr, 0, flags);
 	}
 	rdy = ipu_get_shd_rdy(ipu->base_reg);
@@ -1841,6 +1849,18 @@ int ipu_video_qbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 				framemgr->queued_count[FS_PROCESS],
 				framemgr->queued_count[FS_COMPLETE],
 				framemgr->queued_count[FS_USED]);
+		} else {
+			vio_dbg("[S%d][V%d] q:USED->REQ,proc%d bidx%d,disp_mask0x%x,(%d %d %d %d %d)",
+				group->instance, ipu_ctx->id,
+				ipu_ctx->ctx_index, index,
+				framemgr->dispatch_mask[index],
+				framemgr->queued_count[FS_FREE],
+				framemgr->queued_count[FS_REQUEST],
+				framemgr->queued_count[FS_PROCESS],
+				framemgr->queued_count[FS_COMPLETE],
+				framemgr->queued_count[FS_USED]);
+			ret = 0;
+			goto err;
 		}
 	} else {
 		vio_err("[S%d][V%d] q:proc%d frame(%d) is invalid state(%d)\n",
@@ -1969,7 +1989,8 @@ int ipu_video_dqbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 				sizeof(struct frame_info));
 			trans_frame(framemgr, frame, FS_USED);
 			bufindex = frame->frameinfo.bufferindex;
-			framemgr->dispatch_mask[bufindex] = framemgr->ctx_mask;
+			framemgr->dispatch_mask[bufindex] = 0x0000;
+			framemgr->dispatch_mask[bufindex] |= (1 << ipu_ctx->ctx_index);
 			/* copy frame_info to subdev*/
 			if (atomic_read(&subdev->refcount) > 1) {
 				memcpy(&subdev->frameinfo, &frame->frameinfo,
@@ -2014,8 +2035,19 @@ int ipu_video_dqbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	if (ipu_ctx->event == VIO_FRAME_DONE) {
 		bufindex = subdev->frameinfo.bufferindex;
-		memcpy(frameinfo, &subdev->frameinfo, sizeof(struct frame_info));
-		ipu_ctx->frm_num_usr++;
+		frame = framemgr->frames_mp[bufindex];
+		if (frame && (frame->state == FS_USED)) {
+			memcpy(frameinfo, &subdev->frameinfo, sizeof(struct frame_info));
+			framemgr->dispatch_mask[bufindex] |= (1 << ipu_ctx->ctx_index);
+			ipu_ctx->frm_num_usr++;
+		} else {
+			ret = -EAGAIN;
+			vio_dbg("[S%d] %s proc%d frame been qback by others.\n",
+				ipu_ctx->group->instance, __func__, ctx_index);
+			ipu_ctx->event = 0;
+			framemgr_x_barrier_irqr(framemgr, 0, flags);
+			goto DONE;
+		}
 	} else {
 		ret = -EFAULT;
 		vio_err("[S%d] %s proc%d no frame, event %d.\n",
@@ -2242,7 +2274,7 @@ static long x3_ipu_ioctl(struct file *file, unsigned int cmd,
 	case IPU_IOC_DQBUF:
 		ret = ipu_video_dqbuf(ipu_ctx, &frameinfo);
 		if (ret)
-			return -EFAULT;
+			return ret;
 		ret = copy_to_user((void __user *) arg, (char *) &frameinfo,
 				 sizeof(struct frame_info));
 		if (ret)

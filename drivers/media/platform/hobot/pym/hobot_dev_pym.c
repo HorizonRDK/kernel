@@ -426,6 +426,14 @@ static void pym_frame_work(struct vio_group *group)
 
 		trans_frame(framemgr, frame, FS_PROCESS);
 	}
+
+	vio_dbg("[S%d] work (%d %d %d %d %d)",
+			group->instance,
+			framemgr->queued_count[FS_FREE],
+			framemgr->queued_count[FS_REQUEST],
+			framemgr->queued_count[FS_PROCESS],
+			framemgr->queued_count[FS_COMPLETE],
+			framemgr->queued_count[FS_USED]);
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
 	if (!test_bit(PYM_HW_CONFIG, &pym->state))
@@ -992,11 +1000,16 @@ int pym_video_qbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 			ret = 0;
 			goto try_releas_ion;
 		}
-		vio_dbg("[S%d] q:FREE->REQ,proc%d bidx%d",
-			group->instance, pym_ctx->ctx_index, index);
 		memcpy(&frame->frameinfo, frameinfo, sizeof(struct frame_info));
 		framemgr->dispatch_mask[index] |= 0xFF00;
 		trans_frame(framemgr, frame, FS_REQUEST);
+		vio_dbg("[S%d] q:FREE->REQ,proc%d bidx%d,(%d %d %d %d %d)",
+			group->instance, pym_ctx->ctx_index, index,
+			framemgr->queued_count[FS_FREE],
+			framemgr->queued_count[FS_REQUEST],
+			framemgr->queued_count[FS_PROCESS],
+			framemgr->queued_count[FS_COMPLETE],
+			framemgr->queued_count[FS_USED]);
 	} else if (frame->state == FS_USED) {
 		framemgr->dispatch_mask[index] &= ~(1 << pym_ctx->ctx_index);
 		if (framemgr->dispatch_mask[index] == 0) {
@@ -1008,12 +1021,29 @@ int pym_video_qbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 				ret = 0;
 				goto try_releas_ion;
 			}
-			vio_dbg("[S%d] q:USED->REQ,proc%d bidx%d",
-				group->instance, pym_ctx->ctx_index, index);
 			memcpy(&frame->frameinfo, frameinfo,
 				sizeof(struct frame_info));
 			framemgr->dispatch_mask[index] |= 0xFF00;
 			trans_frame(framemgr, frame, FS_REQUEST);
+			vio_dbg("[S%d] q:USED->REQ,proc%d bidx%d,(%d %d %d %d %d)",
+				group->instance, pym_ctx->ctx_index, index,
+				framemgr->queued_count[FS_FREE],
+				framemgr->queued_count[FS_REQUEST],
+				framemgr->queued_count[FS_PROCESS],
+				framemgr->queued_count[FS_COMPLETE],
+				framemgr->queued_count[FS_USED]);
+		} else {
+			vio_dbg("[S%d] q:disp mask%d,proc%d bidx%d,(%d %d %d %d %d)",
+					group->instance,
+					framemgr->dispatch_mask[index],
+					pym_ctx->ctx_index, index,
+					framemgr->queued_count[FS_FREE],
+					framemgr->queued_count[FS_REQUEST],
+					framemgr->queued_count[FS_PROCESS],
+					framemgr->queued_count[FS_COMPLETE],
+					framemgr->queued_count[FS_USED]);
+			ret = 0;
+			goto err;
 		}
 	} else {
 		vio_err("[S%d] frame(%d) is invalid state(%d)\n",
@@ -1131,7 +1161,8 @@ int pym_video_dqbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 				sizeof(struct frame_info));
 			trans_frame(framemgr, frame, FS_USED);
 			bufindex = frame->frameinfo.bufferindex;
-			framemgr->dispatch_mask[bufindex] = framemgr->ctx_mask;
+			framemgr->dispatch_mask[bufindex] = 0x0000;
+			framemgr->dispatch_mask[bufindex] |= (1 << pym_ctx->ctx_index);
 			/* copy frame_info to subdev*/
 			if (atomic_read(&subdev->refcount) > 1) {
 				memcpy(&subdev->frameinfo, &frame->frameinfo,
@@ -1140,9 +1171,14 @@ int pym_video_dqbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 			pym_ctx->event = 0;
 			pym_ctx->frm_num_usr++;
 			framemgr_x_barrier_irqr(framemgr, 0, flags);
-			vio_dbg("[S%d] %s proc%d index%d frame%d from COMP\n",
+			vio_dbg("[S%d] %s proc%d index%d frame%d from COMP,(%d %d %d %d %d)\n",
 				pym_ctx->group->instance, __func__, ctx_index,
-				frameinfo->bufferindex, frameinfo->frame_id);
+				frameinfo->bufferindex, frameinfo->frame_id,
+				framemgr->queued_count[FS_FREE],
+				framemgr->queued_count[FS_REQUEST],
+				framemgr->queued_count[FS_PROCESS],
+				framemgr->queued_count[FS_COMPLETE],
+				framemgr->queued_count[FS_USED]);
 			if (pym_ctx->ctx_index == 0)
 				pym->statistic.dq_normal[pym_ctx->group->instance]++;
 			return ret;
@@ -1166,8 +1202,19 @@ int pym_video_dqbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	if (pym_ctx->event == VIO_FRAME_DONE) {
 		bufindex = subdev->frameinfo.bufferindex;
-		memcpy(frameinfo, &subdev->frameinfo, sizeof(struct frame_info));
-		pym_ctx->frm_num_usr++;
+		frame = framemgr->frames_mp[bufindex];
+		if (frame && (frame->state == FS_USED)) {
+			memcpy(frameinfo, &subdev->frameinfo, sizeof(struct frame_info));
+			framemgr->dispatch_mask[bufindex] |= (1 << pym_ctx->ctx_index);
+			pym_ctx->frm_num_usr++;
+		} else {
+			ret = -EAGAIN;
+			vio_dbg("[S%d] %s proc%d frame been qback by others.\n",
+				pym_ctx->group->instance, __func__, ctx_index);
+			pym_ctx->event = 0;
+			framemgr_x_barrier_irqr(framemgr, 0, flags);
+			goto DONE;
+		}
 	} else {
 		ret = -EFAULT;
 		vio_err("[S%d] %s proc%d no frame, event %d.\n",
@@ -1462,7 +1509,7 @@ static long x3_pym_ioctl(struct file *file, unsigned int cmd,
 	case PYM_IOC_DQBUF:
 		ret = pym_video_dqbuf(pym_ctx, &frameinfo);
 		if (ret)
-			return -EFAULT;
+			return ret;
 		ret = copy_to_user((void __user *) arg, (char *) &frameinfo,
 				 sizeof(struct frame_info));
 		if (ret)
