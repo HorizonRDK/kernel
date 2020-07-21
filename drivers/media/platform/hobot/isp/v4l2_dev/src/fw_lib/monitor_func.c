@@ -181,7 +181,7 @@ void monitor_handle_alg_flow( monitor_fsm_ptr_t p_fsm, mon_alg_info_t *p_mon_inf
         }
 
         if ( i >= ARR_SIZE( p_mon_info->alg_state_arr ) ) {
-            LOG( LOG_ERR, "MON_ALG_FLOW %s: Error: can't find frame: %d for state: %d.", p_mon_info->alg_name, p_flow->frame_id_tracking, p_flow->flow_state );
+            LOG( LOG_INFO, "MON_ALG_FLOW %s: Error: can't find frame: %d for state: %d.", p_mon_info->alg_name, p_flow->frame_id_tracking, p_flow->flow_state );
             monitor_dump_alg_state_arr( p_mon_info );
 
             return;

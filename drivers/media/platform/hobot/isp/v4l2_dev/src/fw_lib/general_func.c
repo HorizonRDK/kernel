@@ -478,7 +478,7 @@ void acamera_reload_isp_calibratons( general_fsm_ptr_t p_fsm )
         acamera_isp_radial_shading_off_center_multirx_write( p_fsm->cmn.isp_base, radial_shading_lut_cm[14] );
         acamera_isp_radial_shading_off_center_multiry_write( p_fsm->cmn.isp_base, radial_shading_lut_cm[15] );
     } else {
-        LOG( LOG_ERR, "CALIBRATION_SHADING_RADIAL_CENTRE_AND_MULT has wrong size %d but expected 16", len_cm );
+        LOG( LOG_INFO, "CALIBRATION_SHADING_RADIAL_CENTRE_AND_MULT has wrong size %d but expected 16", len_cm );
     }
 #endif
 
