@@ -357,6 +357,13 @@
                         channel_max = <2>;
                 };
 
+		snd2: sndcard@2 {
+			compatible = "hobot, hobot-snd2";
+			i2s_mode = <4>;
+			master = <1>;
+			channel_max = <2>;
+		};
+
 		i2c0: i2c@0xA5009000 {
 			compatible = "hobot,hobot-i2c";
 			reg = <0 0xA5009000 0 0x100>;

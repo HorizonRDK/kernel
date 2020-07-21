@@ -19,6 +19,11 @@
 #define AC101_BCLK1 3
 #define AC101_BCLK2 4
 
+#define HOBOT_DEF_SND_CARD 0;
+static int snd_card = HOBOT_DEF_SND_CARD;
+module_param(snd_card, uint, S_IRUGO);
+MODULE_PARM_DESC(snd_card, "Hobot Sound card");
+
 static int mclk;
 enum adau1977_sysclk_src {
         ADAU1977_SYSCLK_SRC_MCLK,
@@ -122,59 +127,65 @@ static int hobot_snd_probe(struct platform_device *pdev)
 		pr_debug("id: %d\n", id);
 		if (!strcmp(card->name, "x2snd0"))
 			id = 0;
-		else
+		else if (!strcmp(card->name, "x2snd1"))
 			id = 1;
+		else
+			id = 2;
 	}
-	for_each_child_of_node(node, np) {
-		link = links + idx;
-		link->ops = &hobot_snd_ops;
-		cpu = of_get_child_by_name(np, "cpu");
-		codec = of_get_child_by_name(np, "codec");
-		if (!cpu || !codec) {
-			dev_err(dev, "Can't find cpu(%p)/codec(%p) DT node\n", 
-				cpu, codec);
-			return -EINVAL;
-		}
-		link->cpu_of_node = of_parse_phandle(cpu, "sound-dai", 0);
-		if (!link->cpu_of_node) {
-			dev_err(dev, "error getting cpu phandle\n");
-			return ret;
-		}
-
-		ret = of_property_read_u32(link->cpu_of_node,
-				"mclk_set", &mclk);
-		pr_debug("Name of link->cpu_of_node : %s\n", link->cpu_of_node->name);
-		
-		ret = snd_soc_of_get_dai_link_codecs(dev, codec, link);
-		if (!link->codecs) {
-			dev_err(dev, "error getting codec\n");
-			return -EINVAL;
-		}
-		if (ret < 0) {
-			dev_err(dev, "error getting codec dai name(%d)\n", ret);
-			return ret;
-		}
-
-		platform = of_get_child_by_name(np, "platform");
-		if(platform){
-			link->platform_of_node = of_parse_phandle(platform, "sound-dai", 0);
-			if (!link->platform_of_node) {
-				dev_err(dev, "error getting platform phandle\n");
+	if (snd_card == id) {
+		for_each_child_of_node(node, np) {
+			link = links + idx;
+			link->ops = &hobot_snd_ops;
+			cpu = of_get_child_by_name(np, "cpu");
+			codec = of_get_child_by_name(np, "codec");
+			if (!cpu || !codec) {
+				dev_err(dev, "Can't find cpu(%p)/codec(%p) DT node\n",
+					cpu, codec);
+				return -EINVAL;
+			}
+			link->cpu_of_node = of_parse_phandle(cpu, "sound-dai", 0);
+			if (!link->cpu_of_node) {
+				dev_err(dev, "error getting cpu phandle\n");
 				return ret;
 			}
-			pr_debug("Name of link->platform_of_node : %s\n",
-				link->platform_of_node->name);
-		}
 
-		ret = of_property_read_string(np, "link-name", &link->name);
-		if (ret) {
-			dev_err(dev, "error getting codec dai_link name\n");
-			return ret;
+			ret = of_property_read_u32(link->cpu_of_node,
+				"mclk_set", &mclk);
+			pr_debug("Name of link->cpu_of_node : %s\n", link->cpu_of_node->name);
+		
+			ret = snd_soc_of_get_dai_link_codecs(dev, codec, link);
+			if (!link->codecs) {
+				dev_err(dev, "error getting codec\n");
+				return -EINVAL;
+			}
+			if (ret < 0) {
+				dev_err(dev, "error getting codec dai name(%d)\n", ret);
+				return ret;
+			}
+
+			platform = of_get_child_by_name(np, "platform");
+			if (platform) {
+				link->platform_of_node = of_parse_phandle(platform, "sound-dai", 0);
+				if (!link->platform_of_node) {
+					dev_err(dev, "error getting platform phandle\n");
+					return ret;
+				}
+				pr_debug("Name of link->platform_of_node : %s\n",
+					link->platform_of_node->name);
+			}
+
+			ret = of_property_read_string(np, "link-name", &link->name);
+			if (ret) {
+				dev_err(dev, "error getting codec dai_link name\n");
+				return ret;
+			}
+			link->dai_fmt = snd_soc_of_parse_daifmt(np, NULL, NULL, NULL);
+			pr_debug("Data of link->dai_fmt: 0x%08X\n", link->dai_fmt);
+			card->num_links++;
+			idx++;
 		}
-		link->dai_fmt = snd_soc_of_parse_daifmt(np, NULL, NULL, NULL);
-		pr_debug("Data of link->dai_fmt: 0x%08X\n", link->dai_fmt);
-		card->num_links++;
-		idx++;
+	} else {
+		return 0;
 	}
 	ret = snd_soc_register_card(card);
 	if (ret) {
@@ -206,6 +217,7 @@ static int hobot_snd_remove(struct platform_device *pdev)
 static const struct of_device_id hobot_snd_of_match[] = {
 	{.compatible = "hobot, hobot-snd0", },
 	{.compatible = "hobot, hobot-snd1", },
+	{.compatible = "hobot, hobot-snd2", },
 	{}
 };
 

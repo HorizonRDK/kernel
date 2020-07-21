@@ -34,6 +34,11 @@
 
 #define HOBOT_I2S_FMTS (SNDRV_PCM_FMTBIT_S8 | SNDRV_PCM_FMTBIT_S16_LE)
 
+#define HOBOT_DEF_I2S_MS 1;
+static int i2s_ms = HOBOT_DEF_I2S_MS;
+module_param(i2s_ms, uint, S_IRUGO);
+MODULE_PARM_DESC(i2s_ms, "Hobot i2s master/slave mode");
+
 static inline int change_clk(struct device *dev,
         const char *clk_name, unsigned long rate);
 
@@ -446,6 +451,7 @@ static struct snd_soc_dai_driver hobot_i2s_dai_drv[2] = {
 		.probe = hobot_i2s_dai_probe,
 		.remove = hobot_i2s_dai_remove,
 
+		/*
 		.playback = {
 			    .stream_name = "Playback",
 			    .channels_min = 1,
@@ -453,6 +459,7 @@ static struct snd_soc_dai_driver hobot_i2s_dai_drv[2] = {
 			    .rates = HOBOT_I2S_RATES,
 			    .formats = HOBOT_I2S_FMTS,
 			    },
+		*/
 		.capture = {
 			    .stream_name = "Capture",
 			    .channels_min = 1,
@@ -654,6 +661,9 @@ static int hobot_i2s_probe(struct platform_device *pdev)
 		}
 		ret = of_property_read_u32(pdev->dev.of_node,
 			"ms", &i2s->ms);
+		if (i2s->id == 1) {
+			i2s->ms = i2s_ms;
+		}
 		if (ret < 0) {
 			pr_err("failed:get  ms rc %d", ret);
 			return ret;
@@ -683,7 +693,7 @@ static int hobot_i2s_probe(struct platform_device *pdev)
 				i2s->bclk_set);
 
 			clk_enable(i2s->bclk);
-			pr_err("change_clk blck ret = %d\n", ret);
+			pr_info("change_clk blck ret = %d\n", ret);
 		} else if (i2s->ms == 4) {
 
 			/*
@@ -715,13 +725,13 @@ static int hobot_i2s_probe(struct platform_device *pdev)
 			value |= 1<<0;
 			writel(value, i2s->regaddr_rx);
 			writel(i2s->div_ws, i2s->regaddr_rx + I2S_DIV_WS);
-			pr_err("run i2s0 probe\n");
+			pr_info("run i2s0 probe\n");
 		} else {
 			value = readl(i2s->regaddr_tx);
 			value |= 1<<0;
 			writel(value, i2s->regaddr_tx);
 			writel(i2s->div_ws, i2s->regaddr_tx + I2S_DIV_WS);
-			pr_err("run i2s1 probe\n");
+			pr_info("run i2s1 probe\n");
 		}
 
 	i2s->rst = devm_reset_control_get(&pdev->dev, "i2s");
