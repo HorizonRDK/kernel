@@ -1199,6 +1199,7 @@ static int jpu_jenc_show(struct seq_file *s, void *unused)
 	// 			gop->custom_gop_size);
 	// 	}
 	// }
+	spin_lock(&dev->jpu_info_spinlock);
 	seq_printf(s, "\n");
 	seq_printf(s, "----encode status----------------"
 		"--------------------------------------------------"
@@ -1220,6 +1221,7 @@ static int jpu_jenc_show(struct seq_file *s, void *unused)
 				status->total_output_buf_cnt);
 		}
 	}
+	spin_unlock(&dev->jpu_info_spinlock);
 	return 0;
 }
 
@@ -1262,6 +1264,21 @@ static int jpu_jdec_show(struct seq_file *s, void *unused)
 	}
 
 	spin_lock(&dev->jpu_info_spinlock);
+	seq_printf(s, "\n");
+	seq_printf(s, "----decode frameinfo------------------------------------\n");
+	seq_printf(s, "dec_idx dec_id display_width display_height\n");
+	for (i = 0; i < MAX_NUM_JPU_INSTANCE; i++) {
+		if (dev->jpu_ctx[i].valid && (dev->jpu_ctx[i].context.encoder == 0)) {
+			mc_mjpeg_jpeg_output_frame_info_t *frameinfo
+								= &(dev->jpu_status[i].frame_info);
+			seq_printf(s, "%6d %7s %13d %14d\n",
+				dev->jpu_ctx[i].context.instance_index,
+				get_codec(&dev->jpu_ctx[i]),
+				frameinfo->display_width,
+				frameinfo->display_height);
+		}
+	}
+
 	seq_printf(s, "\n");
 	seq_printf(s, "----decode status----------------"
 		"-----------------------------------------------------------\n");

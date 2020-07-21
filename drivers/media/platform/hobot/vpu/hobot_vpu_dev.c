@@ -2455,6 +2455,21 @@ static int vpu_vdec_show(struct seq_file *s, void *unused)
 		}
 	}
 
+	spin_lock(&dev->vpu_info_spinlock);
+	seq_printf(s, "----decode frameinfo------------------------------------\n");
+	seq_printf(s, "dec_idx dec_id display_width display_height\n");
+	for (i = 0; i < MAX_NUM_VPU_INSTANCE; i++) {
+		if (dev->vpu_ctx[i].valid && (dev->vpu_ctx[i].context.encoder == 0)) {
+			mc_h264_h265_output_frame_info_t *frameinfo
+								= &(dev->vpu_status[i].frame_info);
+			seq_printf(s, "%6d %7s %13d %14d\n",
+				dev->vpu_ctx[i].context.instance_index,
+				get_codec(&dev->vpu_ctx[i]),
+				frameinfo->display_width,
+				frameinfo->display_height);
+		}
+	}
+
 	seq_printf(s, "----decode status---------------------------------------\n");
 	seq_printf(s, "dec_idx dec_id cur_input_buf_cnt "
 		"cur_output_buf_cnt total_input_buf_cnt total_output_buf_cnt\n");
@@ -2470,6 +2485,8 @@ static int vpu_vdec_show(struct seq_file *s, void *unused)
 				status->total_output_buf_cnt);
 		}
 	}
+	spin_unlock(&dev->vpu_info_spinlock);
+
 	return 0;
 }
 
