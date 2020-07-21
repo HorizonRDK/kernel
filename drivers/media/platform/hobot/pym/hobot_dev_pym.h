@@ -45,6 +45,9 @@ struct pym_status_statistic {
 
 	u32 hard_frame_drop_us[VIO_MAX_STREAM];
 	u32 hard_frame_drop_ds[VIO_MAX_STREAM];
+	u32 soft_frame_drop_us[VIO_MAX_STREAM];
+	u32 soft_frame_drop_ds[VIO_MAX_STREAM];
+
 	u32 fs_lack_task[VIO_MAX_STREAM];
 
 	u32 dq_normal[VIO_MAX_STREAM];
@@ -126,6 +129,7 @@ struct pym_subdev {
 
 	pym_cfg_t pym_cfg;
 	u32 update_all;
+	bool disable_flag;
 	pym_scale_ch_t pym_cfg_ch;
 	bool update_ch;
 };

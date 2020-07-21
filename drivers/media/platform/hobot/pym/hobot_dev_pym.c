@@ -297,15 +297,33 @@ int pym_check_phyaddr(u32 addr)
 	return ret;
 }
 
-void pym_set_buffers(struct x3_pym_dev *pym, struct vio_frame *frame)
+void pym_set_buffers(struct pym_subdev *subdev, struct vio_frame *frame)
 {
 	int i = 0;
+	u32 shadow_index = 0;
+	u32 base_layer_nums = 0;
 	u32 y_addr, uv_addr;
+	pym_cfg_t *pym_config;
+	struct vio_group *group;
+	struct x3_pym_dev *pym;
+
+	group = subdev->group;
+	pym = subdev->pym_dev;
+	pym_config = &subdev->pym_cfg;
+	if (group->instance < MAX_SHADOW_NUM)
+		shadow_index = group->instance;
 
 	for (i = 0; i < MAX_PYM_DS_COUNT; i++) {
 		y_addr = frame->frameinfo.spec.ds_y_addr[i];
 		uv_addr = frame->frameinfo.spec.ds_uv_addr[i];
 		pym_wdma_ds_set_addr(pym->base_reg, i, y_addr, uv_addr);
+		pym_ds_config_factor(pym->base_reg, shadow_index, i,
+				pym_config->stds_box[i].factor);
+	}
+
+	if (pym_config->ds_layer_en > 3 && pym_config->ds_layer_en < 24) {
+		base_layer_nums = pym_config->ds_layer_en / 4;
+		pym_ds_enabe_base_layer(pym->base_reg, shadow_index, base_layer_nums);
 	}
 
 	for (i = 0; i < MAX_PYM_US_COUNT; i++) {
@@ -313,8 +331,36 @@ void pym_set_buffers(struct x3_pym_dev *pym, struct vio_frame *frame)
 		uv_addr = frame->frameinfo.spec.us_uv_addr[i];
 		pym_wdma_us_set_addr(pym->base_reg, i, y_addr, uv_addr);
 	}
+	pym_us_enabe_layer(pym->base_reg, shadow_index, pym_config->us_layer_en);
+
+	subdev->disable_flag = false;
+	vio_dbg("S%d: %s shadow %d\n", group->instance, __func__, shadow_index);
 }
 
+static void pym_disable_layer(struct pym_subdev *subdev)
+{
+	int i = 0;
+	u32 shadow_index = 0;
+	pym_cfg_t *pym_config;
+	struct vio_group *group;
+	struct x3_pym_dev *pym;
+
+	group = subdev->group;
+	pym = subdev->pym_dev;
+	pym_config = &subdev->pym_cfg;
+	if (group->instance < MAX_SHADOW_NUM)
+		shadow_index = group->instance;
+
+	for (i = 0; i < MAX_PYM_DS_COUNT; i++) {
+		pym_ds_config_factor(pym->base_reg, shadow_index, i, 0);
+	}
+
+	pym_ds_enabe_base_layer(pym->base_reg, shadow_index, 0);
+	pym_us_enabe_layer(pym->base_reg, shadow_index, 0);
+	subdev->disable_flag = true;
+
+	vio_dbg("S%d: %s shadow %d\n", group->instance, __func__, shadow_index);
+}
 static void pym_frame_work(struct vio_group *group)
 {
 	struct x3_pym_dev *pym;
@@ -346,6 +392,7 @@ static void pym_frame_work(struct vio_group *group)
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	frame = peek_frame(framemgr, FS_REQUEST);
 	if (frame) {
+		pym_set_shd_rdy(pym->base_reg, shadow_index, 0);
 		if (test_bit(PYM_REUSE_SHADOW0, &pym->state) &&
 				shadow_index == 0)
 			pym_update_param(subdev);
@@ -363,14 +410,16 @@ static void pym_frame_work(struct vio_group *group)
 		pym_set_common_rdy(pym->base_reg, 0);
 		pym_set_shd_select(pym->base_reg, shadow_index);
 
-		pym_set_buffers(pym, frame);
+		pym_set_buffers(subdev, frame);
 
 		if (test_bit(PYM_DMA_INPUT, &pym->state)) {
 			pym_rdma_set_addr(pym->base_reg,
 					  frame->frameinfo.addr[0],
 					  frame->frameinfo.addr[1]);
 		}
+
 		pym_set_common_rdy(pym->base_reg, 1);
+		pym_set_shd_rdy(pym->base_reg, shadow_index, 1);
 
 		if (test_bit(PYM_DMA_INPUT, &pym->state))
 			pym_set_rdma_start(pym->base_reg);
@@ -408,7 +457,6 @@ void pym_update_param(struct pym_subdev *subdev)
 	u16 src_width, src_height, roi_width;
 	u32 shadow_index = 0;
 	int i = 0;
-	u32 base_layer_nums = 0;
 	u32 ds_bapass_uv = 0;
 	pym_cfg_t *pym_config;
 	struct vio_group *group;
@@ -423,8 +471,6 @@ void pym_update_param(struct pym_subdev *subdev)
 	else
 		set_bit(PYM_REUSE_SHADOW0, &pym->state);
 
-	pym_set_shd_rdy(pym->base_reg, shadow_index, 0);
-
 	//config src size
 	src_width = pym_config->img_width;
 	src_height = pym_config->img_height;
@@ -436,8 +482,6 @@ void pym_update_param(struct pym_subdev *subdev)
 		rect.roi_y = pym_config->stds_box[i].roi_y;
 		rect.roi_width = pym_config->stds_box[i].tgt_width;
 		rect.roi_height = pym_config->stds_box[i].tgt_height;
-		pym_ds_config_factor(pym->base_reg, shadow_index, i,
-				     pym_config->stds_box[i].factor);
 		pym_ds_config_roi(pym->base_reg, shadow_index, i, &rect);
 		roi_width = pym_config->stds_box[i].roi_width;
 		pym_ds_set_src_width(pym->base_reg, shadow_index, i, roi_width);
@@ -455,12 +499,6 @@ void pym_update_param(struct pym_subdev *subdev)
 
 	pym_ds_uv_bypass(pym->base_reg, shadow_index, ds_bapass_uv);
 
-	if (pym_config->ds_layer_en > 3 && pym_config->ds_layer_en < 24) {
-		base_layer_nums = pym_config->ds_layer_en / 4;
-		pym_ds_enabe_base_layer(pym->base_reg, shadow_index, base_layer_nums);
-	} else {
-		vio_err("wrong ds_layer_en(%d)\n", pym_config->ds_layer_en);
-	}
 	//config us roi and factor
 	for (i = 0; i < MAX_PYM_US_COUNT; i++) {
 		rect.roi_x = pym_config->stus_box[i].roi_x;
@@ -475,8 +513,6 @@ void pym_update_param(struct pym_subdev *subdev)
 	}
 
 	pym_us_uv_bypass(pym->base_reg, shadow_index, pym_config->us_uv_bypass);
-	pym_us_enabe_layer(pym->base_reg, shadow_index, pym_config->us_layer_en);
-	pym_set_shd_rdy(pym->base_reg, shadow_index, 1);
 
 	//config common register
 	pym_set_common_rdy(pym->base_reg, 0);
@@ -506,8 +542,6 @@ void pym_update_param_ch(struct pym_subdev *subdev)
 		shadow_index = group->instance;
 	else
 		set_bit(PYM_REUSE_SHADOW0, &pym->state);
-
-	pym_set_shd_rdy(pym->base_reg, shadow_index, 0);
 
 	if (pym_scale_ch->type == PYM_CH_DS) {
 		ch = pym_scale_ch->ch;
@@ -550,8 +584,6 @@ void pym_update_param_ch(struct pym_subdev *subdev)
 		pym_set_shd_rdy(pym->base_reg, shadow_index, 1);
 		return;
 	}
-
-	pym_set_shd_rdy(pym->base_reg, shadow_index, 1);
 }
 
 int pym_bind_chain_group(struct pym_video_ctx *pym_ctx, int instance)
@@ -1673,15 +1705,14 @@ void pym_frame_ndone(struct pym_subdev *subdev)
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	frame = peek_frame(framemgr, FS_PROCESS);
 	if (frame) {
-                vio_dbg("ndone bidx%d fid%d, proc->req.",
-                       frame->frameinfo.bufferindex,
-                       frame->frameinfo.frame_id);
+        vio_dbg("ndone bidx%d fid%d, proc->req.",
+               frame->frameinfo.bufferindex,
+               frame->frameinfo.frame_id);
 		trans_frame(framemgr, frame, FS_REQUEST);
 		if(group->leader == true)
 			vio_group_start_trigger_mp(group, frame);
 	} else {
-		vio_err("[S%d]ndone PYM PROCESS queue has no member;\n", group->instance);
-		vio_err("[S%d][V%d][FRM](%d %d %d %d %d)\n",
+		vio_err("[S%d][V%d] NDONE [FRM](%d %d %d %d %d)\n",
 			group->instance,
 			subdev->id,
 			framemgr->queued_count[FS_FREE],
@@ -1711,24 +1742,32 @@ static irqreturn_t pym_isr(int irq, void *data)
 	struct x3_pym_dev *pym;
 	struct vio_group *group;
 	struct vio_group_task *gtask;
+	struct pym_subdev *subdev;
 
 	pym = data;
 	gtask = &pym->gtask;
 	instance = atomic_read(&pym->instance);
 	group = pym->group[instance];
+	subdev = group->sub_ctx[GROUP_ID_SRC];
 	pym_get_intr_status(pym->base_reg, &status, true);
 	vio_dbg("%s:status = 0x%x\n", __func__, status);
 
 	if (status & (1 << INTR_PYM_DS_FRAME_DROP)) {
 		vio_err("[%d]DS drop frame\n", instance);
 		drop_flag = true;
-		pym->statistic.hard_frame_drop_ds[instance]++;
+		if (subdev->disable_flag)
+			pym->statistic.soft_frame_drop_ds[instance]++;
+		else
+			pym->statistic.hard_frame_drop_ds[instance]++;
 	}
 
 	if (status & (1 << INTR_PYM_US_FRAME_DROP)) {
 		vio_err("[%d]US drop frame\n", instance);
 		drop_flag = true;
-		pym->statistic.hard_frame_drop_us[instance]++;
+		if (subdev->disable_flag)
+			pym->statistic.soft_frame_drop_us[instance]++;
+		else
+			pym->statistic.hard_frame_drop_us[instance]++;
 	}
 
 	if (status & (1 << INTR_PYM_FRAME_DONE)) {
@@ -1738,7 +1777,7 @@ static irqreturn_t pym_isr(int irq, void *data)
 		if (test_bit(PYM_DMA_INPUT, &pym->state)) {
 			vio_group_done(group);
 		}
-		pym_frame_done(group->sub_ctx[GROUP_ID_SRC]);
+		pym_frame_done(subdev);
 	}
 
 	if (status & (1 << INTR_PYM_FRAME_START)) {
@@ -1748,6 +1787,7 @@ static irqreturn_t pym_isr(int irq, void *data)
 			= atomic_read(&group->rcount);
 		pym->statistic.tal_frm_work = atomic_read(&pym->backup_fcount);
 		atomic_inc(&pym->sensor_fcount);
+		pym_disable_layer(subdev);
 		if (test_bit(PYM_OTF_INPUT, &pym->state)
 				&& group->leader) {
 			if (unlikely(list_empty(&gtask->hw_resource.wait_list)) &&
@@ -1773,7 +1813,7 @@ static irqreturn_t pym_isr(int irq, void *data)
 
 	if (drop_flag) {
 		vio_group_done(group);
-		pym_frame_ndone(group->sub_ctx[GROUP_ID_SRC]);
+		pym_frame_ndone(subdev);
 	}
 	return IRQ_HANDLED;
 }
@@ -1954,7 +1994,8 @@ static ssize_t pym_stat_show(struct device *dev,
 			"pollin_comp %d, pollin_isr %d, pollerr %d, "
 			"dq_normal %d, dq_err %d, "
 			"q_normal %d, "
-			"hard_frame_drop_us %d, hard_frame_drop_ds %d\n",
+			"hard_frame_drop_us %d, hard_frame_drop_ds %d\n"
+			"soft_frame_drop_us %d, soft_frame_drop_ds %d\n",
 			pym->statistic.fe_normal[instance],
 			pym->statistic.fe_lack_buf[instance],
 			pym->statistic.pollin_comp[instance],
@@ -1964,7 +2005,9 @@ static ssize_t pym_stat_show(struct device *dev,
 			pym->statistic.dq_err[instance],
 			pym->statistic.q_normal[instance],
 			pym->statistic.hard_frame_drop_us[instance],
-			pym->statistic.hard_frame_drop_ds[instance]);
+			pym->statistic.hard_frame_drop_ds[instance],
+			pym->statistic.soft_frame_drop_us[instance],
+			pym->statistic.soft_frame_drop_ds[instance]);
 		offset += len;
 
 		len = snprintf(&buf[offset], PAGE_SIZE - offset,
