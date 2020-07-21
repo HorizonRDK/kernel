@@ -125,7 +125,7 @@ struct pym_subdev {
 	u32 id;
 
 	pym_cfg_t pym_cfg;
-	bool update_all;
+	u32 update_all;
 	pym_scale_ch_t pym_cfg_ch;
 	bool update_ch;
 };

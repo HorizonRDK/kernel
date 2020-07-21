@@ -43,6 +43,7 @@ typedef struct pym_cfg_s {
 	u16 ddr_in_buf_num;
 	u16 output_buf_num;
 	int timeout;
+	u32 cfg_index;
 	pym_scale_box_t stds_box[MAX_PYM_DS_COUNT];
 	pym_scale_box_t stus_box[MAX_PYM_US_COUNT];
 } pym_cfg_t;

@@ -350,7 +350,8 @@ static void pym_frame_work(struct vio_group *group)
 				shadow_index == 0)
 			pym_update_param(subdev);
 
-		if (subdev->update_all == 1) {
+		if (subdev->update_all) {
+			frame->frameinfo.dynamic_flag = subdev->update_all;
 			subdev->update_all = 0;
 			pym_update_param(subdev);
 		}
@@ -1206,22 +1207,30 @@ void pym_video_user_stats(struct pym_video_ctx *pym_ctx,
 int pym_update_scale_info(struct pym_video_ctx *pym_ctx, unsigned long arg)
 {
 	int ret = 0;
+	unsigned long flags;
 	struct vio_group *group;
 	struct pym_subdev *subdev;
 	pym_cfg_t *pym_config;
+	pym_cfg_t pym_new_config;
+	struct vio_framemgr *framemgr;
 
 	group = pym_ctx->group;
 	subdev = pym_ctx->subdev;
-	if (!group || !subdev) {
-		vio_err("%s init err", __func__);
+	framemgr = &subdev->framemgr;
+	if (!group || !subdev || !framemgr) {
+		vio_err("%s update_scale_info err", __func__);
+		return -EINVAL;
 	}
 
 	pym_config = &subdev->pym_cfg;
-	ret = copy_from_user((char *)pym_config,
+	ret = copy_from_user((char *)&pym_new_config,
 				(u32 __user *) arg, sizeof(pym_cfg_t));
-	if (ret)
-		return -EFAULT;
-	subdev->update_all = 1;
+	if (ret == 0) {
+		framemgr_e_barrier_irqs(framemgr, 0, flags);
+		subdev->update_all = pym_new_config.cfg_index;
+		memcpy((char *)pym_config, &pym_new_config, sizeof(pym_cfg_t));
+		framemgr_x_barrier_irqr(framemgr, 0, flags);
+	}
 
 	vio_dbg("[S%d]%s: request updata all cfg.\n",
 		group->instance, __func__);

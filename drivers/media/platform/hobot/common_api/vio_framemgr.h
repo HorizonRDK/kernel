@@ -127,6 +127,7 @@ struct frame_info {
 	u32 addr[8];
 	int bufferindex;
 	int pixel_length;
+	u32 dynamic_flag;
 	struct special_buffer spec;
 	int ion_share_fd[3];
 };
