@@ -286,7 +286,6 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 			vio_group_task_stop(group->gtask);
 		subdev->leader = false;
 		subdev->skip_flag = false;
-		subdev->first_enable = false;
 		group->output_flag = 0;
 		instance = group->instance;
 		ipu->reuse_shadow0_count &= ~instance;
@@ -295,6 +294,8 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 			clear_bit(VIO_GROUP_INIT, &group->state);
 		}
 		subdev->info_cfg.info_update = 0;
+		subdev->cur_enable_flag = 0;
+		atomic_set(&subdev->pre_enable_flag, 1);
 
 		// release all the ion for this subdev
 		// note: ipu_s0 no need driver ion buffer
@@ -416,6 +417,7 @@ void ipu_frame_work(struct vio_group *group)
 	u32 instance = 0;
 	u32 rdy = 0;
 	u8 shadow_index = 0;
+	bool ds2_dma_enable = 0;
 
 	instance = group->instance;
 	subdev = group->sub_ctx[0];
@@ -472,9 +474,10 @@ void ipu_frame_work(struct vio_group *group)
 			}
 			ipu_hw_enable_channel(subdev, true);
 
-			if (i == GROUP_ID_DS2)
+			if (i == GROUP_ID_DS2) {
 				ipu_set_ds2_wdma_enable(ipu->base_reg, shadow_index, 1);
-
+				ds2_dma_enable = true;
+			}
 			ipu_hw_set_cfg(subdev);
 			trans_frame(framemgr, frame, FS_PROCESS);
 		}
@@ -491,6 +494,10 @@ void ipu_frame_work(struct vio_group *group)
 	rdy = ipu_get_shd_rdy(ipu->base_reg);
 	rdy = rdy | (1 << 4) | (1 << shadow_index);
 	ipu_set_shd_rdy(ipu->base_reg, rdy);
+
+	if (ds2_dma_enable) {
+		atomic_set(&subdev->pre_enable_flag, 1);
+	}
 	atomic_inc(&ipu->backup_fcount);
 
 	if (test_bit(IPU_DMA_INPUT, &ipu->state))
@@ -1443,7 +1450,6 @@ int ipu_video_init(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 	if (subdev->leader && !subdev->skip_flag)
 		vio_group_task_start(group->gtask);
 	atomic_inc(&group->node_refcount);
-	subdev->first_enable = true;
 	ipu_ctx->state = BIT(VIO_VIDEO_INIT);
 
 	vio_info("[S%d][V%d]%s done\n", group->instance, ipu_ctx->id, __func__);
@@ -2751,7 +2757,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 	if (status & (1 << INTR_IPU_DS2_FRAME_DONE)
 	    && test_bit(IPU_DS2_DMA_OUTPUT, &ipu->state)) {
 		subdev = group->sub_ctx[GROUP_ID_DS2];
-		if (subdev)
+		if (subdev && subdev->cur_enable_flag)
 			ipu_frame_done(subdev);
 	}
 
@@ -2775,6 +2781,11 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		atomic_inc(&ipu->sensor_fcount);
 
 		ipu_disable_all_channels(ipu->base_reg, group->instance);
+		if (test_bit(IPU_DS2_DMA_OUTPUT, &ipu->state)) {
+			subdev = group->sub_ctx[GROUP_ID_DS2];
+			subdev->cur_enable_flag = atomic_read(&subdev->pre_enable_flag);
+			atomic_set(&subdev->pre_enable_flag, 0);
+		}
 
 		if (test_bit(IPU_OTF_INPUT, &ipu->state)
 				&& group->leader) {

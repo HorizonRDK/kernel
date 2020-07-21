@@ -189,7 +189,8 @@ struct ipu_subdev {
 	struct ipu_info_cfg info_cfg;
 	ipu_cfg_t ipu_cfg;
 	ipu_ds_info_t scale_cfg;
-	bool first_enable;
+	atomic_t pre_enable_flag;
+	u32 cur_enable_flag;
 };
 
 struct x3_ipu_dev {
