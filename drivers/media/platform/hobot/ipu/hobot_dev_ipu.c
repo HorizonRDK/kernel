@@ -45,7 +45,6 @@ void ipu_hw_set_cfg(struct ipu_subdev *subdev);
 void ipu_update_hw_param(struct ipu_subdev *subdev);
 int ipu_video_streamoff(struct ipu_video_ctx *ipu_ctx);
 enum buffer_owner ipu_index_owner(struct ipu_video_ctx *ipu_ctx, u32 index);
-int ipu_channel_wdma_enable(struct ipu_subdev *subdev, bool enable);
 void ipu_disable_all_channels(void __iomem *base_reg, u8 shadow_index);
 int ipu_hw_enable_channel(struct ipu_subdev *subdev, bool enable);
 
@@ -79,6 +78,7 @@ static int x3_ipu_open(struct inode *inode, struct file *file)
 	if (atomic_read(&ipu->open_cnt) == 0) {
 		atomic_set(&ipu->backup_fcount, 0);
 		atomic_set(&ipu->sensor_fcount, 0);
+		atomic_set(&ipu->enable_cnt, 0);
 		if (sif_mclk_freq)
 			vio_set_clk_rate("sif_mclk", sif_mclk_freq);
 		ips_set_clk_ctrl(IPU0_CLOCK_GATE, true);
@@ -418,6 +418,7 @@ void ipu_frame_work(struct vio_group *group)
 	u32 rdy = 0;
 	u8 shadow_index = 0;
 	bool ds2_dma_enable = 0;
+	bool dma_enable = 0;
 
 	instance = group->instance;
 	subdev = group->sub_ctx[0];
@@ -451,9 +452,6 @@ void ipu_frame_work(struct vio_group *group)
 				ipu_set_rdma_addr(ipu->base_reg,
 					frame->frameinfo.addr[0],
 					frame->frameinfo.addr[1]);
-				if (test_bit(IPU_REUSE_SHADOW0, &ipu->state) &&
-						shadow_index == 0)
-					ipu_update_hw_param(subdev);
 				break;
 			case GROUP_ID_US:
 				ipu_set_us_wdma_addr(ipu->base_reg,
@@ -472,12 +470,19 @@ void ipu_frame_work(struct vio_group *group)
 			default:
 				break;
 			}
+
+			if (test_bit(IPU_REUSE_SHADOW0, &ipu->state) &&
+					shadow_index == 0)
+				ipu_update_hw_param(subdev);
+
 			ipu_hw_enable_channel(subdev, true);
 
 			if (i == GROUP_ID_DS2) {
 				ipu_set_ds2_wdma_enable(ipu->base_reg, shadow_index, 1);
 				ds2_dma_enable = true;
 			}
+
+			dma_enable = true;
 			ipu_hw_set_cfg(subdev);
 			trans_frame(framemgr, frame, FS_PROCESS);
 		}
@@ -494,6 +499,10 @@ void ipu_frame_work(struct vio_group *group)
 	rdy = ipu_get_shd_rdy(ipu->base_reg);
 	rdy = rdy | (1 << 4) | (1 << shadow_index);
 	ipu_set_shd_rdy(ipu->base_reg, rdy);
+
+	if (dma_enable) {
+		atomic_inc(&ipu->enable_cnt);
+	}
 
 	if (ds2_dma_enable) {
 		subdev = group->sub_ctx[GROUP_ID_DS2];
@@ -2627,7 +2636,7 @@ static void ipu_diag_report(uint8_t errsta, unsigned int status)
 static irqreturn_t ipu_isr(int irq, void *data)
 {
 	u32 status = 0;
-	bool drop_flag = 0;
+	u32 drop_cnt = 0;
 	u32 instance = 0;
 	u32 size_err = 0;
 	u32 err_status = 0;
@@ -2664,7 +2673,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		err_occured = 2;
 		ipu->frame_drop_count++;
 		ipu->statistic.hard_frame_drop[instance][GROUP_ID_US]++;
-		drop_flag = true;
+		drop_cnt++;
 	}
 
 	if (status & (1 << INTR_IPU_DS0_FRAME_DROP)) {
@@ -2676,7 +2685,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		err_occured = 2;
 		ipu->frame_drop_count++;
 		ipu->statistic.hard_frame_drop[instance][GROUP_ID_DS0]++;
-		drop_flag = true;
+		drop_cnt++;
 	}
 
 	if (status & (1 << INTR_IPU_DS1_FRAME_DROP)) {
@@ -2688,7 +2697,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		err_occured = 2;
 		ipu->frame_drop_count++;
 		ipu->statistic.hard_frame_drop[instance][GROUP_ID_DS1]++;
-		drop_flag = true;
+		drop_cnt++;
 	}
 
 	if (status & (1 << INTR_IPU_DS2_FRAME_DROP)) {
@@ -2700,7 +2709,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		err_occured = 2;
 		ipu->frame_drop_count++;
 		ipu->statistic.hard_frame_drop[instance][GROUP_ID_DS2]++;
-		drop_flag = true;
+		drop_cnt++;
 	}
 
 	if (status & (1 << INTR_IPU_DS3_FRAME_DROP)) {
@@ -2712,7 +2721,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		err_occured = 2;
 		ipu->frame_drop_count++;
 		ipu->statistic.hard_frame_drop[instance][GROUP_ID_DS3]++;
-		drop_flag = true;
+		drop_cnt++;
 	}
 
 	if (status & (1 << INTR_IPU_DS4_FRAME_DROP)) {
@@ -2724,7 +2733,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		err_occured = 2;
 		ipu->frame_drop_count++;
 		ipu->statistic.hard_frame_drop[instance][GROUP_ID_DS4]++;
-		drop_flag = true;
+		drop_cnt++;
 	}
 
 	if (status & (1 << INTR_IPU_FRAME_DONE)) {
@@ -2783,7 +2792,13 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		ipu->statistic.tal_frm_work = atomic_read(&ipu->backup_fcount);
 		atomic_inc(&ipu->sensor_fcount);
 
-		ipu_disable_all_channels(ipu->base_reg, group->instance);
+		if (group->leader && !test_bit(IPU_DMA_INPUT, &ipu->state)) {
+			if (atomic_read(&ipu->enable_cnt)) {
+				atomic_dec(&ipu->enable_cnt);
+				ipu_disable_all_channels(ipu->base_reg, group->instance);
+			}
+		}
+
 		if (test_bit(IPU_DS2_DMA_OUTPUT, &ipu->state)) {
 			subdev = group->sub_ctx[GROUP_ID_DS2];
 			subdev->cur_enable_flag = atomic_read(&subdev->pre_enable_flag);
@@ -2823,9 +2838,10 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		ipu->frame_drop_count = 0;
 	}
 
-	if (drop_flag) {
-		if (group->output_flag == 1)
-			vio_group_done(group);
+	if (drop_cnt) {
+		if (!group->leader || test_bit(IPU_DMA_INPUT, &ipu->state))
+			if (group->output_flag == drop_cnt)
+				vio_group_done(group);
 	}
 
 	if (err_occured == 1)

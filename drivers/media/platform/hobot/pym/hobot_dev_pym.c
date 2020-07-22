@@ -63,6 +63,7 @@ static int x3_pym_open(struct inode *inode, struct file *file)
 	if (atomic_read(&pym->open_cnt) == 0) {
 		atomic_set(&pym->backup_fcount, 0);
 		atomic_set(&pym->sensor_fcount, 0);
+		atomic_set(&pym->enable_cnt, 0);
 		vio_clk_enable("sif_mclk");
 		vio_clk_enable("pym_mclk");
 	}
@@ -420,6 +421,7 @@ static void pym_frame_work(struct vio_group *group)
 
 		pym_set_common_rdy(pym->base_reg, 1);
 		pym_set_shd_rdy(pym->base_reg, shadow_index, 1);
+		atomic_inc(&pym->enable_cnt);
 
 		if (test_bit(PYM_DMA_INPUT, &pym->state))
 			pym_set_rdma_start(pym->base_reg);
@@ -1834,7 +1836,12 @@ static irqreturn_t pym_isr(int irq, void *data)
 			= atomic_read(&group->rcount);
 		pym->statistic.tal_frm_work = atomic_read(&pym->backup_fcount);
 		atomic_inc(&pym->sensor_fcount);
-		pym_disable_layer(subdev);
+
+		if(atomic_read(&pym->enable_cnt)) {
+			atomic_dec(&pym->enable_cnt);
+			pym_disable_layer(subdev);
+		}
+
 		if (test_bit(PYM_OTF_INPUT, &pym->state)
 				&& group->leader) {
 			if (unlikely(list_empty(&gtask->hw_resource.wait_list)) &&
@@ -1859,7 +1866,8 @@ static irqreturn_t pym_isr(int irq, void *data)
 	}
 
 	if (drop_flag) {
-		vio_group_done(group);
+		if (!group->leader || test_bit(PYM_DMA_INPUT, &pym->state))
+			vio_group_done(group);
 		pym_frame_ndone(subdev);
 	}
 	return IRQ_HANDLED;

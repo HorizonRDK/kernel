@@ -153,6 +153,7 @@ struct x3_pym_dev {
 	spinlock_t shared_slock;
 	atomic_t sensor_fcount;
 	atomic_t backup_fcount;
+	atomic_t enable_cnt;
 
 	struct pym_status_statistic statistic;
 	struct pym_subdev subdev[VIO_MAX_STREAM];
