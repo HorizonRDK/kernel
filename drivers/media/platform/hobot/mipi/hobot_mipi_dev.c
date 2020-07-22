@@ -134,6 +134,7 @@ module_param(init_num, uint, 0644);
 #define MIPI_DEV_IRQ_DEBUG_PRERR    (0x1)
 #define MIPI_DEV_IRQ_DEBUG_ERRSTR   (0x2)
 #define MIPI_DEV_IRQ_DEBUG          (0x1)
+#define MIPI_DEV_INIT_RETRY_DEFAULT (3)
 
 #define DEV_DPHY_LANE_MAX			(4)
 #define DEV_DPHY_CHECK_MAX			(500)
@@ -193,6 +194,7 @@ typedef struct _mipi_dev_param_s {
 	uint32_t dbg_value;
 	uint32_t power_instart;
 	uint32_t hsync_pkt;
+	uint32_t init_retry;
 	uint32_t ipi_force;
 	uint32_t ipi_limit;
 	uint32_t ipi1_dt;
@@ -220,6 +222,7 @@ static const char *g_md_param_names[] = {
 	"dbg_value",
 	"power_instart",
 	"hsync_pkt",
+	"init_retry",
 	"ipi_force",
 	"ipi_limit",
 	"ipi1_dt",
@@ -1300,6 +1303,7 @@ static int32_t mipi_dev_init(mipi_ddev_t *ddev, mipi_dev_cfg_t *cfg)
 	void __iomem *iomem = mdev->iomem;
 	uint32_t power = 0;
 	unsigned long pixclk = 0;
+	int retry = 0;
 
 	if (!ddev || !iomem)
 		return -1;
@@ -1315,6 +1319,8 @@ static int32_t mipi_dev_init(mipi_ddev_t *ddev, mipi_dev_cfg_t *cfg)
 		return -1;
 	}
 	ddev->ipi_clock = pixclk;
+
+init_retry:
 #ifdef CONFIG_HOBOT_MIPI_PHY
 	mipi_dphy_set_freqrange(MIPI_DPHY_TYPE_DEV, ddev->port,
 				MIPI_CFGCLKFREQRANGE, MIPI_DEV_CFGCLK_DEFAULT);
@@ -1375,6 +1381,11 @@ static int32_t mipi_dev_init(mipi_ddev_t *ddev, mipi_dev_cfg_t *cfg)
 
 		if (!param->nocheck) {
 			if (0 != mipi_dev_wait_phy_powerup(ddev, cfg)) {
+				if (retry < param->init_retry) {
+					retry++;
+					mipiinfo("init lock failed, retry %d...", retry);
+					goto init_retry;
+				}
 				mipi_dev_deinit(ddev);
 				mipierr("phy stop state error!!!");
 				return -1;
@@ -1716,6 +1727,7 @@ MIPI_DEV_PARAM_DEC(notimeout);
 MIPI_DEV_PARAM_DEC(dbg_value);
 MIPI_DEV_PARAM_DEC(power_instart);
 MIPI_DEV_PARAM_DEC(hsync_pkt);
+MIPI_DEV_PARAM_DEC(init_retry);
 MIPI_DEV_PARAM_DEC(ipi_force);
 MIPI_DEV_PARAM_DEC(ipi_limit);
 MIPI_DEV_PARAM_DEC(ipi1_dt);
@@ -1746,6 +1758,7 @@ static struct attribute *param_attr[] = {
 	MIPI_DEV_PARAM_ADD(dbg_value),
 	MIPI_DEV_PARAM_ADD(power_instart),
 	MIPI_DEV_PARAM_ADD(hsync_pkt),
+	MIPI_DEV_PARAM_ADD(init_retry),
 	MIPI_DEV_PARAM_ADD(ipi_force),
 	MIPI_DEV_PARAM_ADD(ipi_limit),
 	MIPI_DEV_PARAM_ADD(ipi1_dt),
@@ -2348,6 +2361,7 @@ static int hobot_mipi_dev_probe_param(void)
 #endif
 		param->hsync_pkt = MIPI_DEV_HSYNC_PKT_DEFAULT;
 		param->ipi_limit = MIPI_DEV_IPILIMIT_DEFAULT;
+		param->init_retry = MIPI_DEV_INIT_RETRY_DEFAULT;
 
 		hobot_mipi_dev_phy_register(ddev);
 		g_ddev[i] = ddev;
@@ -2463,6 +2477,7 @@ static int hobot_mipi_dev_probe(struct platform_device *pdev)
 #endif
 	param->hsync_pkt = MIPI_DEV_HSYNC_PKT_DEFAULT;
 	param->ipi_limit = MIPI_DEV_IPILIMIT_DEFAULT;
+	param->init_retry = MIPI_DEV_INIT_RETRY_DEFAULT;
 
 	platform_set_drvdata(pdev, ddev);
 
