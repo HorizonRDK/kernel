@@ -295,7 +295,7 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 		}
 		subdev->info_cfg.info_update = 0;
 		subdev->cur_enable_flag = 0;
-		atomic_set(&subdev->pre_enable_flag, 1);
+		atomic_set(&subdev->pre_enable_flag, 0);
 
 		// release all the ion for this subdev
 		// note: ipu_s0 no need driver ion buffer
@@ -496,6 +496,8 @@ void ipu_frame_work(struct vio_group *group)
 	ipu_set_shd_rdy(ipu->base_reg, rdy);
 
 	if (ds2_dma_enable) {
+		subdev = group->sub_ctx[GROUP_ID_DS2];
+		vio_dbg("set pre_enable_flag flag\n");
 		atomic_set(&subdev->pre_enable_flag, 1);
 	}
 	atomic_inc(&ipu->backup_fcount);
@@ -2785,6 +2787,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 			subdev = group->sub_ctx[GROUP_ID_DS2];
 			subdev->cur_enable_flag = atomic_read(&subdev->pre_enable_flag);
 			atomic_set(&subdev->pre_enable_flag, 0);
+			vio_dbg("FS subdev->cur_enable_flag %d\n", subdev->cur_enable_flag);
 		}
 
 		if (test_bit(IPU_OTF_INPUT, &ipu->state)
