@@ -2168,7 +2168,8 @@ int ipu_alloc_ion_bufffer(struct ipu_video_ctx *ipu_ctx,
 	}
 
 	if ((ipu_ctx->frm_num != ion_buffer->buf_num) || (ipu_ctx->frm_num <= 0)) {
-		   vio_err("IPU_IOC_KERNEL_ION failed, buffer num not match");
+		   vio_err("IPU_IOC_KERNEL_ION failed, buffer num not match:%d,%d",
+				ipu_ctx->frm_num, ion_buffer->buf_num);
 		   return -EINVAL;
 	}
 

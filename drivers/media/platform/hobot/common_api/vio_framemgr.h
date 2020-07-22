@@ -218,7 +218,7 @@ struct user_statistic {
 };
 
 #define HB_VIO_BUFFER_MAX_PLANES 3
-#define HB_VIO_BUFFER_MAX (16)
+#define HB_VIO_BUFFER_MAX_MP (128)
 typedef struct kernel_ion_one {
 	int planecount;
 	size_t planeSize[HB_VIO_BUFFER_MAX_PLANES];
@@ -228,7 +228,7 @@ typedef struct kernel_ion_one {
 
 typedef struct kernel_ion {
 	int buf_num;
-	struct kernel_ion_one one[HB_VIO_BUFFER_MAX];
+	struct kernel_ion_one one[HB_VIO_BUFFER_MAX_MP];
 }kernel_ion_t;
 
 
