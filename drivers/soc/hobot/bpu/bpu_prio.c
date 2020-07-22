@@ -115,11 +115,11 @@ struct bpu_prio *bpu_prio_init(struct bpu_core *core, uint32_t levels)
 	init_completion(&prio->no_task_comp);/*PRQA S ALL*/
 
 	for (i = 0u; i < prio->level_num; i++) {
-		ret = kfifo_alloc(&prio->prios[i].buf_fc_fifo,/*PRQA S ALL*/
-				(FC_MAX_DEPTH / (i + 1u)), GFP_KERNEL);
-		if (ret != 0) {
+		prio->prios[i].bpu_fc_fifo_buf =
+			vmalloc((FC_MAX_DEPTH / (i + 1u)) * sizeof(struct bpu_fc));
+		if (prio->prios[i].bpu_fc_fifo_buf == NULL) {
 			for (j = 0; j < i; j++) {
-				kfifo_free(&prio->prios[i].buf_fc_fifo);/*PRQA S ALL*/
+				vfree(&prio->prios[i].bpu_fc_fifo_buf);/*PRQA S ALL*/
 			}
 
 			kfree((void *)prio->prios);/*PRQA S ALL*/
@@ -127,6 +127,11 @@ struct bpu_prio *bpu_prio_init(struct bpu_core *core, uint32_t levels)
 			pr_err("can't create bpu prio for mem failed\n");/*PRQA S ALL*/
 			return NULL;
 		}
+
+		kfifo_init(&prio->prios[i].buf_fc_fifo,
+				prio->prios[i].bpu_fc_fifo_buf,
+				(FC_MAX_DEPTH / (i + 1u)) * sizeof(struct bpu_fc));
+
 		prio->prios[i].level = (uint32_t)i;
 		prio->prios[i].left_slice_num = 0;
 	}
@@ -153,7 +158,7 @@ void bpu_prio_exit(struct bpu_prio *prio)
 	tasklet_kill(&prio->tasklet);
 
 	for (i = 0u; i < prio->level_num; i++) {
-		kfifo_free(&prio->prios[i].buf_fc_fifo);/*PRQA S ALL*/
+		vfree(prio->prios[i].bpu_fc_fifo_buf);/*PRQA S ALL*/
 	}
 
 	prio->plug_in = 0;

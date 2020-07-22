@@ -16,6 +16,7 @@ struct bpu_prio_node {
 	uint32_t level;
 	/* store raw fc data of the priority */
 	DECLARE_KFIFO_PTR(buf_fc_fifo, struct bpu_fc);
+	void *bpu_fc_fifo_buf;
 	/*
 	 * left part fc set to hw fifo, residue_bpu_fc to
 	 * store the head bpu_fc raw fc data part, if
