@@ -336,7 +336,7 @@ static void sif_stop_pattern_gen(u32 __iomem *base_reg)
  */
 static void sif_set_dvp_input(u32 __iomem *base_reg, sif_input_dvp_t* p_dvp)
 {
-	u32 yuv_format	  = !!p_dvp->data.format;
+	u32 yuv_format	  = p_dvp->data.format;
 	u32 mux_out_index = p_dvp->func.set_mux_out_index;
 	u32 lines = (p_dvp->data.width / LINE_BUFFER_SIZE) + 1;
 	const u32 input_index_start = 15;
@@ -377,7 +377,7 @@ static void sif_set_dvp_input(u32 __iomem *base_reg, sif_input_dvp_t* p_dvp)
 		// Frame Done Interrupt
 		sif_enable_frame_intr(base_reg, mux_out_index, true);
 
-		if (yuv_format) {
+		if (yuv_format == HW_FORMAT_YUV422) {
 			if (lines > 1)
 				vio_err("Not supported: YUV over 2K");
 			else {
@@ -399,7 +399,7 @@ static void sif_set_dvp_input(u32 __iomem *base_reg, sif_input_dvp_t* p_dvp)
 		if (enable_pattern)
 			sif_set_pattern_gen(base_reg, 0, &p_dvp->data, 0);
 
-		if (yuv_format) {
+		if (yuv_format == HW_FORMAT_YUV422) {
 			if (mux_out_index % 1) {
 				vio_err("The mux_out_index should be even if using YUV format");
 				return;
@@ -470,6 +470,9 @@ static void sif_set_iar_input(u32 __iomem *base_reg, sif_input_iar_t *p_iar)
 void sif_config_mipi_rx(u32 __iomem *base_reg, u32 index,
 	sif_data_desc_t *data)
 {
+	if(data->format == SIF_FORMAT_YUV_RAW8) {
+		data->format = SIF_FORMAT_RAW;
+	}
 	switch(index){
 		case 0:
 			vio_hw_set_field(base_reg, &sif_regs[SIF_MIPI_RX_SET],
@@ -788,7 +791,8 @@ static void sif_set_mipi_rx(u32 __iomem *base_reg, sif_input_mipi_t* p_mipi,
 	int i = 0;
 	u32 enable_mux_out    = p_mipi->func.enable_mux_out;
 	u32 set_mux_out_index = p_mipi->func.set_mux_out_index;
-	u32 yuv_format        = !!p_mipi->data.format;
+	u32 yuv_format        = p_mipi->data.format;
+	u32 format = p_mipi->data.format;
 	const static u32 map_mux_input[] = {0, 4, 8, 10};
 	u32 input_index_start = map_mux_input[p_mipi->mipi_rx_index];
 	u32 i_step, mux_out_index, lines, ddr_mux_out_index;
@@ -798,9 +802,10 @@ static void sif_set_mipi_rx(u32 __iomem *base_reg, sif_input_mipi_t* p_mipi,
 
 	if (!p_mipi->enable)
 		return;
+	vio_info("yuv_format %d====\n", yuv_format);
 
 	/*yuv format setting*/
-	if (yuv_format && enable_mux_out && p_out->ddr.enable) {
+	if ((yuv_format == HW_FORMAT_YUV422) && enable_mux_out && p_out->ddr.enable) {
 		if (set_mux_out_index % 2) {
 			vio_err("The index of mux-out should be even if using YUV format");
 			return;
@@ -862,6 +867,9 @@ static void sif_set_mipi_rx(u32 __iomem *base_reg, sif_input_mipi_t* p_mipi,
 			ddr_mux_out_index = p_out->ddr.mux_index + ch_index[i];
 
 			lines = (p_mipi->data.width / LINE_BUFFER_SIZE) + 1;
+			if(format == SIF_FORMAT_YUV_RAW8) {
+				lines = 1;
+			}
 			ipi_index = vc_index[i];
 			sif_enable_mux_out(base_reg,
 					mux_out_index,
@@ -878,7 +886,7 @@ static void sif_set_mipi_rx(u32 __iomem *base_reg, sif_input_mipi_t* p_mipi,
 			// Frame Done Interrupt
 			sif_enable_frame_intr(base_reg, mux_out_index, true);
 
-			if (yuv_format) {
+			if (yuv_format == HW_FORMAT_YUV422) {
 				if (lines > 1)
 					vio_err("Not supported: YUV over 2K");
 				else {
@@ -1194,9 +1202,9 @@ void sif_hw_config(u32 __iomem *base_reg, sif_cfg_t* c)
 	sif_set_ddr_output(base_reg, &c->output.ddr, &enable_output_ddr);
 
 	if(enable_output_ddr){
-		yuv_format = !!c->input.mipi.data.format;
+		yuv_format = c->input.mipi.data.format;
 		dol_exp_num = c->output.isp.dol_exp_num;
-		if(yuv_format || dol_exp_num > 1){
+		if(yuv_format == HW_FORMAT_YUV422 || dol_exp_num > 1) {
 			memcpy(&ddr, &c->output.ddr, sizeof(sif_output_ddr_t));
 			ddr.mux_index += 1;
 			sif_set_ddr_output(base_reg, &ddr, &enable_output_ddr);

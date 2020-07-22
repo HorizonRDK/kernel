@@ -459,7 +459,7 @@ int get_free_mux(struct x3_sif_dev *sif, u32 index, int format, u32 dol_num,
 	*mux_numbers = mux_nums;
 
 	mutex_lock(&sif->shared_mutex);
-	if (width > LINE_BUFFER_SIZE && step == 1) {
+	if (width > LINE_BUFFER_SIZE && step == 1 && format != SIF_FORMAT_YUV_RAW8) {
 		if (index == 4)
 			start_index = 2;
 

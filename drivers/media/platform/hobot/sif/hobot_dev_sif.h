@@ -88,12 +88,8 @@ struct sif_status_statistic {
 };
 
 enum sif_format{
-	HW_FORMAT_RAW8,
-	HW_FORMAT_RAW10,
-	HW_FORMAT_RAW12,
-	HW_FORMAT_RAW14,
-	HW_FORMAT_RAW16,
-
+	SIF_FORMAT_RAW,
+	SIF_FORMAT_YUV_RAW8 = 1,
 	HW_FORMAT_YUV422 = 8
 };
 
