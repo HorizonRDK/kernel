@@ -748,11 +748,6 @@
 			status = "disabled";
 			#address-cells = <1>;
 			#size-cells = <0>;
-			spidev@0x00 {
-				compatible = "rohm,dh2228fv";
-				spi-max-frequency = <20000000>;
-				reg = <0>;
-			};
 		};
 
 		spi1: spi@0xA5005000 {
@@ -1215,7 +1210,7 @@
 		};
 
 		timesync: timesync {
-			compatible = "timesync";
+			compatible = "hobot,timesync";
 			status = "disabled";
 		};
 

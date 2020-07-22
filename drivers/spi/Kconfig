@@ -773,7 +773,7 @@ config SPI_HOBOT
 	  This selects the hobot SPI controller master driver
 
 config SPI_HOBOT_QSPI
-	tristate "HOBOT QSPI SPI controller"
+	tristate "HOBOT QSPI controller"
 	depends on SPI_MASTER
 	help
 	  This selects the HOBOT QSPI SPI controller master driver
@@ -843,6 +843,12 @@ config SPI_SLAVE_SYSTEM_CONTROL
 	help
 	  SPI slave handler to allow remote control of system reboot, power
 	  off, halt, and suspend.
+
+config SPI_HOBOT_SPIDEV
+	tristate "User mode Hobot SPI slave device support"
+	depends on SPI_SLAVE
+	help
+	  This supports user mode SPI protocol drivers.
 
 endif # SPI_SLAVE
 

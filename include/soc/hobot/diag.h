@@ -148,7 +148,9 @@ enum diag_qspi_module_eventid {
 
 /* spi module event id */
 enum diag_spi_module_eventid {
-	EventIdSpiErr = 1,
+	EventIdSpi0Err = 1,
+	EventIdSpi1Err,
+	EventIdSpi2Err,
 	EventIdQspiErr,
 };
 

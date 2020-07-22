@@ -26,9 +26,13 @@
 #include <soc/hobot/diag.h>
 #include <linux/timer.h>
 #include <linux/clk.h>
+#ifdef CONFIG_SPI_HOBOT_SPIDEV
+#include <linux/gpio.h>
+#include "spi-hobot-slave.h"
+#endif
 
 #define VER			"HOBOT-spi_V20.200330"
-/* x2 spi master or slave mode select*/
+/* hobot spi master or slave mode select*/
 #define MASTER_MODE		(0)
 #define SLAVE_MODE		(1)
 
@@ -38,7 +42,7 @@
 #define HB_SELECT_SLAVE2	(2)
 
 #define HB_SPI_NAME            "hobot_spi"
-/* X2 SPI register offsets */
+/* hobot SPI register offsets */
 #define HB_SPI_TXD_REG         0x00	/* data transmit register */
 #define HB_SPI_RXD_REG         0x04	/* data receive register */
 #define HB_SPI_CTRL_REG        0x08	/* SPI control register */
@@ -67,7 +71,7 @@
 #define HB_SPI_FIFO_RESET_REG  0x64	/* FIFO reset register */
 #define HB_SPI_TDMA_SIZE_REG   0x68	/* tx_dma size for ping-pong */
 #define HB_SPI_RDMA_SIZE_REG   0x6C	/* rx_dma size for ping-pong */
-/* X2 SPI CTRL bit Masks */
+/* hobot SPI CTRL bit Masks */
 #define HB_SPI_SS_OFFSET       30
 #define HB_SPI_SS_MASK         0xC0000000
 #define HB_SPI_DIVIDER_OFFSET  0
@@ -87,11 +91,11 @@
 #define HB_SPI_SAMP_CNT0       BIT(28)
 #define HB_SPI_SAMP_CNT1       BIT(29)
 
-/* X2 SPI SFSR bit Masks */
+/* hobot SPI SFSR bit Masks */
 #define HB_SPI_TIP_MASK        BIT(8)
 #define HB_SPI_DATA_RDY        BIT(4)
 #define HB_SPI_TF_EMPTY        BIT(5)
-/* X2 SPI INT bit Masks */
+/* hobot SPI INT bit Masks */
 #define HB_SPI_INT_ALL         0x000007FF
 #define HB_SPI_INT_DR          BIT(0)
 #define HB_SPI_INT_OE          BIT(1)
@@ -104,13 +108,13 @@
 #define HB_SPI_INT_RX_BGDONE   BIT(8)
 #define HB_SPI_INT_TX_BGDONE   BIT(9)
 #define HB_SPI_INT_DMA_TRDONE  BIT(10)
-/* X2 SPI FIFO_RESET bit Masks */
+/* hobot SPI FIFO_RESET bit Masks */
 #define HB_SPI_FRST_TXCLEAR    BIT(0)
 #define HB_SPI_FRST_RXCLEAR    BIT(1)
 #define HB_SPI_FRST_RXDIS      BIT(6)
 #define HB_SPI_FRST_TXDIS      BIT(7)
 #define HB_SPI_FRST_ABORT      BIT(8)
-/* X2 SPI DMA_CTRL0 bit Masks */
+/* hobot SPI DMA_CTRL0 bit Masks */
 #define HB_SPI_DMAC0_RXBLEN0   BIT(0)	/* dma burst len0 */
 #define HB_SPI_DMAC0_RXBLEN1   BIT(1)	/* dma burst len1 */
 #define HB_SPI_DMAC0_RXAL      BIT(2)	/* ping pang rx auto link */
@@ -125,17 +129,17 @@
 #define HB_SPI_DMAC0_TXMAXOS1  BIT(13)	/* outstanding trans1 tx */
 #define HB_SPI_DMAC0_TXBG      BIT(14)	/* ping pang mode need set tx */
 #define HB_SPI_DMAC0_TXAPBSEL  BIT(15)	/* fifo mode need set tx apb */
-/* X2 SPI DMA_CTRL1 bit Masks */
+/* hobot SPI DMA_CTRL1 bit Masks */
 #define HB_SPI_DMAC1_RXDSTART  BIT(0)
 #define HB_SPI_DMAC1_RXDCFG    BIT(1)
 #define HB_SPI_DMAC1_TXDSTART  BIT(5)
 #define HB_SPI_DMAC1_TXDCFG    BIT(6)
 
-/* X2 config Macro */
+/* hobot config Macro */
 #define msecs_to_loops(t)      (loops_per_jiffy / 1000 * HZ * t)
 #define HB_SPI_TIMEOUT         (msecs_to_jiffies(2000))
 #define HB_SPI_FIFO_SIZE       (32)
-/* X2 SPI operation Macro */
+/* hobot SPI operation Macro */
 #define HB_SPI_OP_CORE_EN      1
 #define HB_SPI_OP_CORE_DIS     0
 #define HB_SPI_OP_NONE         (-1)
@@ -155,9 +159,6 @@
 #define hb_spi_rd(dev, reg)       ioread32((dev)->regs_base + (reg))
 #define hb_spi_wr(dev, reg, val)  iowrite32((val), (dev)->regs_base + (reg))
 
-struct timer_list spi_diag_timer;
-static uint32_t spi_last_err_tm_ms;
-
 static int debug;
 static int slave_tout = 10;
 static int master_tout = 2;
@@ -167,6 +168,10 @@ module_param(slave_tout, int, 0644);
 MODULE_PARM_DESC(slave_tout, "spi: slave timeout(sec), default 10 s");
 module_param(master_tout, int, 0644);
 MODULE_PARM_DESC(master_tout, "spi: master timeout(sec), default 2 s");
+
+#ifdef CONFIG_SPI_HOBOT_SPIDEV
+char tx_rx_interrupt_conflict_flag;
+#endif
 
 struct hb_spi {
 	struct device *dev;	/* parent device */
@@ -189,9 +194,22 @@ struct hb_spi {
 	dma_addr_t tx_dma_phys;
 	dma_addr_t rx_dma_phys;
 
+	u8 spi_id;
 	int isslave;
 	bool slave_aborted;
 };
+
+#ifdef CONFIG_SPI_HOBOT_SPIDEV
+/*
+info ap when J3 tx&rx buf is ready
+ap start spi clk
+*/
+static int tx_or_rx_flag;//0:tx,1:rx
+enum{
+	tx_flag,
+	rx_flag
+};
+#endif
 
 static void hb_spi_dump(struct hb_spi *hbspi, char *str, unchar *buf,
 	int len)
@@ -334,7 +352,9 @@ static int hb_spi_drain_rxfifo(struct hb_spi *hbspi)
 }
 #endif
 
+
 #ifdef CONFIG_HB_SPI_DMA_SINGLE
+#ifndef CONFIG_SPI_HOBOT_SPIDEV
 /* spi tx fifo fill from txbuf with txcnt */
 static int hb_spi_fill_txdma(struct hb_spi *hbspi)
 {
@@ -405,38 +425,139 @@ static int hb_spi_drain_rxdma(struct hb_spi *hbspi)
 
 	return 0;
 }
+#else
+/* spi tx fifo fill from txbuf with txcnt */
+static int rx_end_flag;
+static spi_header_byte rx_mask;
+static int hb_spi_fill_txdma(struct hb_spi *hbspi)
+{
+	int cnt = 0, fragment_size = 0;
+	u32 dma_ctrl1 = 0;
+
+	if (hbspi->txbuf == NULL) {
+		hb_spi_wr(hbspi, HB_SPI_TXD_REG, 0);
+		return 0;
+	}
+
+	/* no data transfer, send complete */
+	if ((hbspi->txbuf && hbspi->txcnt == 0)
+		|| (hbspi->isslave == SLAVE_MODE && rx_end_flag == 0)) {
+		rx_end_flag = 0;
+		hb_spi_wr(hbspi, HB_SPI_FIFO_RESET_REG, HB_SPI_FRST_ABORT);
+		complete(&hbspi->completion);
+		return 0;
+	}
+
+	if (debug > 1)
+		hb_spi_dump(hbspi, "fill_txdma", hbspi->txbuf, hbspi->txcnt);
+	dma_sync_single_for_cpu(hbspi->dev, hbspi->tx_dma_phys,
+				HB_SPI_DMA_BUFSIZE, DMA_TO_DEVICE);
+	if (hbspi->isslave == SLAVE_MODE) {
+		if (tx_or_rx_flag == tx_flag) {
+			while (hbspi->txcnt > 0 && cnt < HB_SPI_DMA_BUFSIZE
+					&& fragment_size < SPI_FRAGMENT_SIZE) {
+				hbspi->tx_dma_buf[cnt] = *hbspi->txbuf;
+				hbspi->txbuf++;
+				hbspi->txcnt--;
+				cnt++;
+				fragment_size++;
+			}
+		} else if (tx_or_rx_flag == rx_flag) {
+			while (hbspi->txcnt > 0 && cnt < HB_SPI_DMA_BUFSIZE
+				&& fragment_size < SPI_FRAGMENT_SIZE
+				&& rx_end_flag == 1) {
+				hbspi->tx_dma_buf[cnt] = *hbspi->txbuf;
+				hbspi->txbuf++;
+				hbspi->txcnt--;
+				cnt++;
+				fragment_size++;
+			}
+		}
+	} else {
+		while (hbspi->txcnt > 0 && cnt < HB_SPI_DMA_BUFSIZE) {
+			hbspi->tx_dma_buf[cnt] = *hbspi->txbuf;
+			hbspi->txbuf++;
+			hbspi->txcnt--;
+			cnt++;
+		}
+	}
+	dma_sync_single_for_device(hbspi->dev, hbspi->tx_dma_phys,
+				   HB_SPI_DMA_BUFSIZE, DMA_TO_DEVICE);
+	hb_spi_wr(hbspi, HB_SPI_FIFO_RESET_REG, HB_SPI_FRST_TXDIS);
+
+	if (cnt) {
+		dma_ctrl1 |= HB_SPI_DMAC1_TXDSTART | HB_SPI_DMAC1_TXDCFG;
+		if (hbspi->rxbuf)
+			dma_ctrl1 |= HB_SPI_DMAC1_RXDSTART
+			    | HB_SPI_DMAC1_RXDCFG;
+		hb_spi_wr(hbspi, HB_SPI_TLEN_REG, cnt * 8);
+		hb_spi_wr(hbspi, HB_SPI_TDMA_SIZE0_REG, cnt);
+		hb_spi_wr(hbspi, HB_SPI_RDMA_SIZE0_REG, cnt);
+		/* open tx and rx dma at same time avoid rx problem */
+		hb_spi_wr(hbspi, HB_SPI_DMA_CTRL1_REG, dma_ctrl1);
+		if (hbspi->isslave == SLAVE_MODE)
+			hb_spi_info_ap();
+	}
+	return cnt;
+}
+
+static int hb_spi_drain_rxdma(struct hb_spi *hbspi)
+{
+	int cnt = 0, fragment_size = SPI_FRAGMENT_SIZE;
+	dma_sync_single_for_cpu(hbspi->dev, hbspi->rx_dma_phys,
+				HB_SPI_DMA_BUFSIZE, DMA_FROM_DEVICE);
+	if (hbspi->rxbuf) {
+		while (hbspi->rxcnt > 0 && cnt < HB_SPI_DMA_BUFSIZE) {
+			*hbspi->rxbuf = hbspi->rx_dma_buf[cnt];
+			hbspi->rxbuf++;
+			hbspi->rxcnt--;
+			cnt++;
+
+			if (hbspi->isslave == SLAVE_MODE) {
+				fragment_size--;
+				if (fragment_size <= 0)
+					break;
+			}
+		}
+	}
+	if (hbspi->isslave == SLAVE_MODE) {
+		rx_mask.byte_value = hbspi->rx_dma_buf[4];
+		if (tx_or_rx_flag == rx_flag && rx_mask.element_value.end == 1
+			&& rx_mask.byte_value < 0x7) {
+			rx_end_flag = 0;
+		}
+		if (tx_rx_interrupt_conflict_flag == 0 && tx_or_rx_flag == tx_flag
+			&& hbspi->rx_dma_buf[0] == SPI_PREAMBLE) {
+			tx_rx_interrupt_conflict_flag = 1;
+		}
+		if (tx_or_rx_flag == tx_flag && rx_mask.element_value.start == 1
+			&& hbspi->rx_dma_buf[0] == SPI_PREAMBLE) {
+			++ap_response_flag;
+		}
+	}
+	dma_sync_single_for_device(hbspi->dev, hbspi->rx_dma_phys,
+				   HB_SPI_DMA_BUFSIZE, DMA_FROM_DEVICE);
+	hb_spi_wr(hbspi, HB_SPI_FIFO_RESET_REG, HB_SPI_FRST_RXDIS);
+	if (debug > 1)
+		hb_spi_dump(hbspi, "drain_rxdma", hbspi->rx_dma_buf, cnt);
+	return 0;
+}
+#endif
 #endif
 
-static void spi_diag_report(uint8_t errsta, uint32_t srcpndreg)
+static void spi_diag_report(uint8_t errsta, uint32_t srcpndreg,
+						struct hb_spi *hbspi)
 {
-	spi_last_err_tm_ms = jiffies_to_msecs(get_jiffies_64());
 	if (errsta) {
 		diag_send_event_stat_and_env_data(
 				DiagMsgPrioHigh,
 				ModuleDiag_spi,
-				EventIdSpiErr,
+				EventIdSpi0Err + hbspi->spi_id,
 				DiagEventStaFail,
 				DiagGenEnvdataWhenErr,
 				(uint8_t *)&srcpndreg,
 				4);
 	}
-}
-
-static void spi_diag_timer_func(unsigned long data)
-{
-	uint32_t now_tm_ms;
-	unsigned long jiffi;
-
-	now_tm_ms = jiffies_to_msecs(get_jiffies_64());
-	if (now_tm_ms - spi_last_err_tm_ms > 5500) {
-		diag_send_event_stat(
-				DiagMsgPrioMid,
-				ModuleDiag_spi,
-				EventIdSpiErr,
-				DiagEventStaSuccess);
-	}
-	jiffi = get_jiffies_64() + msecs_to_jiffies(2100);
-	mod_timer(&spi_diag_timer, jiffi); // trrigr again.
 }
 
 /* spi interrupt handle */
@@ -482,8 +603,9 @@ static irqreturn_t hb_spi_int_handle(int irq, void *data)
 		hb_spi_fill_txdma(hbspi);
 #endif
 	}
+
 	if (errflg)
-		spi_diag_report(1, pnd);
+		spi_diag_report(1, pnd, hbspi);
 
 	return IRQ_HANDLED;
 }
@@ -571,7 +693,8 @@ static void hb_spi_init_hw(struct hb_spi *hbspi)
 		val |= HB_SPI_SLAVE_MODE;
 	else
 		val &= (~HB_SPI_SLAVE_MODE);
-	val &= (~HB_SPI_SAMP_SEL);
+	if (hbspi->isslave == MASTER_MODE)
+		val &= (~HB_SPI_SAMP_SEL);
 	hb_spi_wr(hbspi, HB_SPI_CTRL_REG, val);
 
 	if (debug)
@@ -580,7 +703,6 @@ static void hb_spi_init_hw(struct hb_spi *hbspi)
 
 	hb_spi_config(hbspi);
 	hb_spi_en_ctrl(hbspi, HB_SPI_OP_CORE_EN, 0, 0);
-
 }
 
 /* This function enables SPI master controller */
@@ -728,6 +850,15 @@ static int hb_spi_transfer_one(struct spi_master *master,
 	hbspi->rxbuf = (u8 *) xfer->rx_buf;
 	hbspi->len = xfer->len;
 
+#ifdef CONFIG_SPI_HOBOT_SPIDEV
+	if (hbspi->isslave == SLAVE_MODE) {
+		if (hbspi->txbuf[0] == SPI_PREAMBLE)
+			tx_or_rx_flag = tx_flag;//tx
+		else if (hbspi->txbuf[0] == DUMMY_FLAG)
+			tx_or_rx_flag = rx_flag;//rx
+	}
+#endif
+
 	if (debug > 1)
 		dev_err(hbspi->dev, "%s len=%d\n", __func__, hbspi->len);
 #ifdef CONFIG_HB_SPI_DMA_SINGLE
@@ -834,22 +965,29 @@ static int hb_spi_transfer_one(struct spi_master *master,
 	hb_spi_wr(hbspi, HB_SPI_FIFO_RESET_REG, fifo_reset);
 	hb_spi_wr(hbspi, HB_SPI_SRCPND_REG, HB_SPI_INT_ALL);
 	hb_spi_wr(hbspi, HB_SPI_DMA_CTRL0_REG, dma_ctrl0);
-	hb_spi_wr(hbspi, HB_SPI_INTUNMASK_REG, HB_SPI_INT_ALL);
+	hb_spi_wr(hbspi, HB_SPI_INTUNMASK_REG, int_umask);
 
 #ifdef	CONFIG_HB_SPI_FIFO_MODE
 	hb_spi_fill_txfifo(hbspi);
 	hb_spi_wr(hbspi, HB_SPI_DMA_CTRL1_REG, dma_ctrl1);
 #elif defined CONFIG_HB_SPI_DMA_SINGLE
+#ifdef CONFIG_SPI_HOBOT_SPIDEV
+	if (hbspi->isslave == SLAVE_MODE)
+		rx_end_flag = 1;
+#endif
 	hb_spi_fill_txdma(hbspi);
 #endif
 
 	ret = hb_spi_wait_for_completion(hbspi);
-	if (hb_spi_wait_for_tpi(hbspi, ms) == 0) {
-		dev_err(hbspi->dev, "Err txcnt=%d len=%d\n",
-			hbspi->txcnt, hbspi->len);
-		hb_spi_wr(hbspi, HB_SPI_FIFO_RESET_REG, HB_SPI_FRST_ABORT);
+	if (hbspi->isslave == MASTER_MODE) {
+		if (hb_spi_wait_for_tpi(hbspi, ms) == 0) {
+			dev_err(hbspi->dev, "Err txcnt=%d len=%d\n",
+				hbspi->txcnt, hbspi->len);
+			hb_spi_wr(hbspi, HB_SPI_FIFO_RESET_REG, HB_SPI_FRST_ABORT);
+		}
+		hb_spi_wr(hbspi, HB_SPI_INTSETMASK_REG, HB_SPI_INT_ALL);
 	}
-	hb_spi_wr(hbspi, HB_SPI_INTSETMASK_REG, HB_SPI_INT_ALL);
+
 	if (ret) {
 		hb_spi_wr(hbspi, HB_SPI_FIFO_RESET_REG, HB_SPI_FRST_ABORT);
 		if (debug > 1)
@@ -937,6 +1075,7 @@ static int hb_spi_slave_transfer_one(struct spi_controller *ctlr,
 {
 	return hb_spi_transfer_one(ctlr, spi, xfer);
 }
+
 static int hb_spi_slave_abort(struct spi_controller *ctlr)
 {
 	struct hb_spi *hbspi = spi_controller_get_devdata(ctlr);
@@ -964,22 +1103,17 @@ static int hb_spi_probe(struct platform_device *pdev)
 	u32 num_cs;
 
 	/* master or slave mode select */
-	of_property_read_u32(pdev->dev.of_node, "isslave", &isslave);
-	if (isslave == SLAVE_MODE) {
-		ctlr = spi_alloc_slave(&pdev->dev, sizeof(*hbspi));
-		if (!ctlr) {
-			dev_err(&pdev->dev,
-				"failed to alloc spi slave, try master\n");
-			isslave = MASTER_MODE;
-		}
-	} else {
-		isslave = MASTER_MODE;
-	}
-
+	isslave = of_property_read_bool(pdev->dev.of_node, "slave");
 	if (isslave == MASTER_MODE) {
 		ctlr = spi_alloc_master(&pdev->dev, sizeof(*hbspi));
 		if (!ctlr) {
 			dev_err(&pdev->dev, "failed to alloc spi master\n");
+			return -ENOMEM;
+		}
+	} else if (isslave == SLAVE_MODE) {
+		ctlr = spi_alloc_slave(&pdev->dev, sizeof(*hbspi));
+		if (!ctlr) {
+			dev_err(&pdev->dev, "failed to alloc spi slave, try master\n");
 			return -ENOMEM;
 		}
 	}
@@ -1052,7 +1186,6 @@ static int hb_spi_probe(struct platform_device *pdev)
 		hbspi->isslave = MASTER_MODE;
 		snprintf(ctrl_mode, sizeof(ctrl_mode), "%s", "master");
 		ctlr->bus_num = pdev->id;
-		// ctlr->num_chipselect = HB_SPI_MAX_CS;
 		ctlr->mode_bits = SPI_CPOL | SPI_CPHA | SPI_LSB_FIRST | SPI_CS_HIGH;
 		ctlr->setup = hb_spi_setup;
 		ctlr->prepare_transfer_hardware = hb_spi_prepare_xfer_hardware;
@@ -1060,7 +1193,7 @@ static int hb_spi_probe(struct platform_device *pdev)
 		ctlr->unprepare_transfer_hardware = hb_spi_unprepare_xfer_hardware;
 		ctlr->set_cs = hb_spi_chipselect;
 		ctlr->dev.of_node = pdev->dev.of_node;
-	} else {
+	} else if (isslave == SLAVE_MODE) {
 		hbspi->isslave = SLAVE_MODE;
 		snprintf(ctrl_mode, sizeof(ctrl_mode), "%s", "slave");
 		ctlr->mode_bits = SPI_CPOL | SPI_CPHA | SPI_LSB_FIRST;
@@ -1083,23 +1216,15 @@ static int hb_spi_probe(struct platform_device *pdev)
 #ifdef CONFIG_HB_SPI_DMA_SINGLE
 	ret = hb_spi_request_dma(hbspi);
 	if (ret < 0) {
-		dev_err(&pdev->dev, "failed to x2 spi request dma(%d)\n", ret);
+		dev_err(&pdev->dev, "failed to hobot spi request dma(%d)\n", ret);
 		goto clk_dis_mclk;
 	}
 #endif
 	/* diag */
-	if (diag_register(ModuleDiag_spi, EventIdSpiErr,
+	hbspi->spi_id = spi_id;
+	if (diag_register(ModuleDiag_spi, EventIdSpi0Err + spi_id,
 						4, 300, 6000, NULL) < 0)
-		dev_err(hbspi->dev, "spi diag register fail\n");
-	else {
-		spi_last_err_tm_ms = 0;
-		init_timer(&spi_diag_timer);
-		spi_diag_timer.expires =
-			get_jiffies_64() + msecs_to_jiffies(1000);
-		spi_diag_timer.data = 0;
-		spi_diag_timer.function = spi_diag_timer_func;
-		add_timer(&spi_diag_timer);
-	}
+		dev_err(hbspi->dev, "spi%d diag register fail\n", spi_id);
 
 	dev_err(&pdev->dev, "ver: %s %s\n", VER, ctrl_mode);
 
@@ -1162,11 +1287,20 @@ int hb_spi_resume(struct device *dev)
 
 	return 0;
 }
+#else
+int hb_spi_suspend(struct device *dev)
+{
+	return 0;
+}
+
+int hb_spi_resume(struct device *dev)
+{
+	return 0;
+}
 #endif
 
 static const struct dev_pm_ops hb_spi_dev_pm_ops = {
-	SET_SYSTEM_SLEEP_PM_OPS(hb_spi_suspend,
-			hb_spi_resume)
+	SET_SYSTEM_SLEEP_PM_OPS(hb_spi_suspend, hb_spi_resume)
 };
 
 static const struct of_device_id hb_spi_of_match[] = {
@@ -1190,5 +1324,5 @@ static struct platform_driver hb_spi_driver = {
 module_platform_driver(hb_spi_driver);
 
 MODULE_AUTHOR("hobot, Inc.");
-MODULE_DESCRIPTION("HOOT SPI driver");
+MODULE_DESCRIPTION("HOBOT SPI driver");
 MODULE_LICENSE("GPL v2");

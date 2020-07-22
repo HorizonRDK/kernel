@@ -116,3 +116,4 @@ GCOV_PROFILE_spi-hobot-qspi.o := y
 # SPI slave protocol handlers
 obj-$(CONFIG_SPI_SLAVE_TIME)		+= spi-slave-time.o
 obj-$(CONFIG_SPI_SLAVE_SYSTEM_CONTROL)	+= spi-slave-system-control.o
+obj-$(CONFIG_SPI_HOBOT_SPIDEV)		+= spidev-hobot-slave.o spidev-hobot-slave_link_layer.o spidev-hobot-slave_tp_layer.o

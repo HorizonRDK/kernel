@@ -164,3 +164,23 @@
 	pinctrl-1 = <&sensor1_gpio_func>;
 	snrclk-idx = <1>;
 };
+
+&spi2 {
+	status = "okay";
+	slave;
+	slave@0x00 {
+		compatible = "hobot,spidev_slave";
+		spi-max-frequency = <20000000>;
+		tri_pin = <99>;
+		irq_pin = <98>;
+		ack_pin = <97>;
+		//spi-cpha;
+		reg = <0>;
+	};
+};
+
+&timesync {
+	status = "okay";
+	timesync_irq_pin = <100>;
+	//timesync_debug_pin = <118>;
+};
