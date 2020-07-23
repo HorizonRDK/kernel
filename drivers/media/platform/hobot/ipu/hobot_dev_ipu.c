@@ -2516,8 +2516,10 @@ void ipu_frame_done(struct ipu_subdev *subdev)
 		}
 
 		do_gettimeofday(&frame->frameinfo.tv);
-		vio_set_stat_info(group->instance, IPU_FS + subdev->id,
+		if (subdev->id != 0) {
+			vio_set_stat_info(group->instance, IPU_FS + subdev->id,
 				group->frameid.frame_id);
+		}
 
 		vio_dbg("done bidx%d fid%d ",
 			frame->frameinfo.bufferindex,
