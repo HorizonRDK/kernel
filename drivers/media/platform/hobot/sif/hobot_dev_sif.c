@@ -728,7 +728,6 @@ int sif_bind_chain_group(struct sif_video_ctx *sif_ctx, int instance)
 	group = vio_get_chain_group(instance, group_id);
 	if (!group)
 		return -EFAULT;
-
 	group->sub_ctx[0] = subdev;
 	sif_ctx->group = group;
 	sif_ctx->subdev = subdev;
@@ -1350,6 +1349,9 @@ static irqreturn_t sif_isr(int irq, void *data)
 			//Frame start processing
 			if ((status & 1 << mux_index)) {
 				group = sif->sif_mux[mux_index];
+				if(!group || !group->sub_ctx[0]) {
+					return IRQ_HANDLED;
+				}
 				subdev = group->sub_ctx[0];
 				sif->statistic.fs[group->instance]++;
 				sif->statistic.grp_tsk_left[group->instance]
