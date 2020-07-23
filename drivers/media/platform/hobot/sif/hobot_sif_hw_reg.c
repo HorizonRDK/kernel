@@ -1164,6 +1164,8 @@ void sif_set_md_output(u32 __iomem *base_reg, sif_output_md_t *p_md)
 		ips_set_md_fmt(0x8);
 		vio_hw_set_field(base_reg, &sif_regs[SIF_MOT_DET_MODE],
 				&sif_fields[SW_SIF_IPU_MD_ENABLE], 1);
+		vio_hw_set_field(base_reg, &sif_regs[SIF_MOT_DET_MODE],
+				&sif_fields[SW_SIF_IPU_MD_IN_SELECT], 0);
 	} else {
 		ips_set_md_fmt(0x0);
 		vio_hw_set_field(base_reg, &sif_regs[SIF_MOT_DET_MODE],
