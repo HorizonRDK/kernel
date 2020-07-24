@@ -828,7 +828,8 @@ static int pym_flush_mp_prepare(struct pym_video_ctx *pym_ctx)
 		frame = this->frames_mp[i];
 		if (frame) {
 			frame->dispatch_mask &= ~(1 << proc_id);
-			if (frame->dispatch_mask == 0x0000) {
+			frame->poll_mask &= ~(1 << proc_id);
+			if (frame->dispatch_mask == 0x0000 && frame->poll_mask == 0x00) {
 				frame->dispatch_mask |= 0xFF00;
 				trans_frame(this, frame, FS_REQUEST);
 				if(group->leader == true)
