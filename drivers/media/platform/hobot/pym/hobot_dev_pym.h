@@ -132,6 +132,8 @@ struct pym_subdev {
 	bool disable_flag;
 	pym_scale_ch_t pym_cfg_ch;
 	bool update_ch;
+
+	u8 poll_mask;
 };
 
 

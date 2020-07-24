@@ -94,10 +94,15 @@ static u32 x3_pym_poll(struct file *file, struct poll_table_struct *wait)
 	unsigned long flags;
 	struct list_head *done_list;
 	struct x3_pym_dev *pym;
+	struct vio_frame *frame;
 
 	pym_ctx = file->private_data;
 	framemgr = pym_ctx->framemgr;
-	pym = pym_ctx->pym_dev;;
+	pym = pym_ctx->pym_dev;
+
+	framemgr_e_barrier_irqs(framemgr, 0, flags);
+	pym_ctx->subdev->poll_mask |= (1 << pym_ctx->ctx_index);
+	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
 	poll_wait(file, &pym_ctx->done_wq, wait);
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
@@ -177,6 +182,8 @@ static int x3_pym_release_subdev_all_ion(struct pym_subdev *subdev)
 	framemgr->num_frames = 0;
 	framemgr->ctx_mask = 0;
 	framemgr->state = FRAMEMGR_CREAT;
+	subdev->frameinfo.bufferindex = -1;
+	subdev->poll_mask = 0x00;
 	for (i = 0; i < FS_INVALID; i++) {
 		vio_dbg("framemgr %d queue num:%d", i, framemgr->queued_count[i]);
 	}
@@ -1014,7 +1021,9 @@ int pym_video_qbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 			framemgr->queued_count[FS_USED]);
 	} else if (frame->state == FS_USED) {
 		framemgr->dispatch_mask[index] &= ~(1 << pym_ctx->ctx_index);
-		if (framemgr->dispatch_mask[index] == 0) {
+
+		// qbuf的帧，只有在没有被其他帧占用，且poll_mask为0才释放
+		if (framemgr->dispatch_mask[index] == 0 && frame->poll_mask == 0x00) {
 			if (framemgr->index_state[index] == FRAME_IND_STREAMOFF) {
 				// this frame is already stream off
 				// check if all it's process frames are ready to free
@@ -1135,6 +1144,8 @@ int pym_video_dqbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 	u32 ctx_index;
 	struct pym_subdev *subdev;
 	struct x3_pym_dev *pym;
+	int cache_bufindex;
+	struct vio_frame *cache_frame;
 
 	framemgr = pym_ctx->framemgr;
 	ctx_index = pym_ctx->ctx_index;
@@ -1159,12 +1170,30 @@ int pym_video_dqbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 	if (!list_empty(done_list)) {
 		frame = peek_frame(framemgr, FS_COMPLETE);
 		if (frame) {
+			// in this point, new frame is OK, we need:
+			// if cached frame can be released to request;
+			// if not, cached frame will be release in qbuf;
+			// then cacned frame is update to the latest
+			cache_bufindex = subdev->frameinfo.bufferindex;
+			if (cache_bufindex >=0 && cache_bufindex < 128) {
+				cache_frame = framemgr->frames_mp[cache_bufindex];
+				if (cache_frame) {
+					cache_frame->poll_mask = 0x00;
+					if (framemgr->dispatch_mask[cache_bufindex] == 0x0000) {
+						subdev->frameinfo.bufferindex = -1;
+						framemgr->dispatch_mask[cache_bufindex] = 0xFF00;
+						trans_frame(framemgr, cache_frame, FS_REQUEST);
+						vio_dbg("ipu dq trans to request%d", cache_bufindex);
+					}
+				}
+			}
 			memcpy(frameinfo, &frame->frameinfo,
 				sizeof(struct frame_info));
 			trans_frame(framemgr, frame, FS_USED);
 			bufindex = frame->frameinfo.bufferindex;
 			framemgr->dispatch_mask[bufindex] = 0x0000;
 			framemgr->dispatch_mask[bufindex] |= (1 << pym_ctx->ctx_index);
+			frame->poll_mask &= ~(1 << pym_ctx->ctx_index);
 			/* copy frame_info to subdev*/
 			if (atomic_read(&subdev->refcount) > 1) {
 				memcpy(&subdev->frameinfo, &frame->frameinfo,
@@ -1203,16 +1232,28 @@ int pym_video_dqbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 	/* copy frame_info from subdev */
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	if (pym_ctx->event == VIO_FRAME_DONE) {
-		bufindex = subdev->frameinfo.bufferindex;
-		frame = framemgr->frames_mp[bufindex];
-		if (frame && (frame->state == FS_USED)) {
-			memcpy(frameinfo, &subdev->frameinfo, sizeof(struct frame_info));
-			framemgr->dispatch_mask[bufindex] |= (1 << pym_ctx->ctx_index);
-			pym_ctx->frm_num_usr++;
+		// if cached frame is exist, if so, this time get the cached frame
+		cache_bufindex = subdev->frameinfo.bufferindex;
+		if (cache_bufindex >= 0 && cache_bufindex < 128) {
+			frame = framemgr->frames_mp[cache_bufindex];
+			if (frame && (frame->state == FS_USED)) {
+				memcpy(frameinfo, &subdev->frameinfo, sizeof(struct frame_info));
+				framemgr->dispatch_mask[cache_bufindex] |= (1 << pym_ctx->ctx_index);
+				frame->poll_mask &= ~(1 << pym_ctx->ctx_index);
+				pym_ctx->frm_num_usr++;
+			} else {
+				ret = -EAGAIN;
+				vio_dbg("[S%d] %s proc%d frame been qback by others.\n",
+					pym_ctx->group->instance, __func__, ctx_index);
+				pym_ctx->event = 0;
+				framemgr_x_barrier_irqr(framemgr, 0, flags);
+				goto DONE;
+			}
 		} else {
 			ret = -EAGAIN;
-			vio_dbg("[S%d] %s proc%d frame been qback by others.\n",
-				pym_ctx->group->instance, __func__, ctx_index);
+			vio_dbg("[S%d] %s proc%d cached index wrong %d.\n",
+				pym_ctx->group->instance, __func__,
+				ctx_index, cache_bufindex);
 			pym_ctx->event = 0;
 			framemgr_x_barrier_irqr(framemgr, 0, flags);
 			goto DONE;
@@ -1695,6 +1736,8 @@ void pym_frame_done(struct pym_subdev *subdev)
 	unsigned long flags;
 	u32 event = 0;
 	int i = 0;
+	int cache_bufindex;
+	struct vio_frame *cache_frame;
 
 	group = subdev->group;
 	pym = subdev->pym_dev;
@@ -1713,7 +1756,24 @@ void pym_frame_done(struct pym_subdev *subdev)
 		pym_set_iar_output(subdev, frame);
 		event = VIO_FRAME_DONE;
 		trans_frame(framemgr, frame, FS_COMPLETE);
+		frame->poll_mask = subdev->poll_mask;
+		subdev->poll_mask = 0x00;
 		pym->statistic.fe_normal[group->instance]++;
+
+		// check if cache frame is release by others process
+		// if so, tran cache frame to request for hardware use
+		cache_bufindex = subdev->frameinfo.bufferindex;
+		if (cache_bufindex >=0 && cache_bufindex < 128) {
+			cache_frame = framemgr->frames_mp[cache_bufindex];
+			if (cache_frame) {
+				cache_frame->poll_mask = 0x00;
+				if (framemgr->dispatch_mask[cache_bufindex] == 0x0000) {
+					subdev->frameinfo.bufferindex = -1;
+					framemgr->dispatch_mask[cache_bufindex] = 0xFF00;
+					trans_frame(framemgr, cache_frame, FS_REQUEST);
+				}
+			}
+		}
 	} else {
 		pym->statistic.fe_lack_buf[group->instance]++;
 		event = VIO_FRAME_NDONE;
@@ -1934,6 +1994,8 @@ int pym_subdev_init(struct pym_subdev *subdev)
 
 	spin_lock_init(&subdev->slock);
 	atomic_set(&subdev->refcount, 0);
+	subdev->frameinfo.bufferindex = -1;
+	subdev->poll_mask = 0x00;
 
 	return ret;
 }

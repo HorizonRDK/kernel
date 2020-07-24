@@ -191,6 +191,8 @@ struct ipu_subdev {
 	ipu_ds_info_t scale_cfg;
 	atomic_t pre_enable_flag;
 	u32 cur_enable_flag;
+
+	u8 poll_mask;
 };
 
 struct x3_ipu_dev {

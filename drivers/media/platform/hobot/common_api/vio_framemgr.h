@@ -148,6 +148,8 @@ struct vio_frame {
 	u32			state;
 	u32			fcount;
 	u32			index;
+
+	u8		poll_mask;
 };
 
 struct mp_vio_frame {
