@@ -89,8 +89,8 @@ static DECLARE_BITMAP(minors, N_SPI_MINORS);
 static LIST_HEAD(device_list);
 static DEFINE_MUTEX(device_list_lock);
 
-//static unsigned int bufsiz = 4*1024;
 #define BUFSIZE			(4096)
+#define BUFSIZE_10K		(10 << 10)
 #define HOBOT_SPIDEV	"hobot_spidev"
 /*-------------------------------------------------------------------------*/
 #define TIMEOUT_MS_MAX (20)
@@ -108,14 +108,12 @@ static struct spidev_data *g_spidev = NULL;
 /* MCU response */
 int ap_response_flag;
 
-struct spi_statistic proc_statistic;
-
 static irqreturn_t spidev_irq(int irq, void *dev_id)
 {
 	static u16 index = 0;
 	struct spidev_data *spidev = dev_id;
 
-	++proc_statistic.eint_count;
+	spidev->spi_statistic.eint_count++;
 	if (!queue_work(spidev->work_queue, &spidev->work[index++]))
 		dev_err(&spidev->spi->dev, "queue_work failed index = %d\n", index);
 
@@ -126,7 +124,7 @@ static irqreturn_t spidev_irq(int irq, void *dev_id)
 static void J32ap_recv_ok_ack(struct spidev_data *spidev)
 {
 	gpio_direction_output(spidev->ack_pin, 1);
-	proc_statistic.ack_count++;
+	spidev->spi_statistic.ack_count++;
 	gpio_direction_output(spidev->ack_pin, 0);
 	gpio_direction_output(spidev->ack_pin, 1);
 }
@@ -153,25 +151,25 @@ static int save_spi_data(struct spidev_data *spidev, int length)
 				spidev->spi_recv_buf.rx_tmp_buf, length);
 		kfifo_put(&spidev->rx_fifo.len, length);
 		up(&spidev->sem);
-		if (g_debug_level > SPI_J3_AP_NO_DEBUG) {
-			spi_debug_log("enqueue:%d B", length);
-				spi_debug_log("save_spi_data:rx_tmp_buf\n");
-				for (i = 0; i < length; ++i) {
-					spi_debug_log("%x	", spidev->spi_recv_buf.rx_tmp_buf[i]);
-					if (!((i + 1) % 8))
-						spi_debug_log("\n");
-				}
-				spi_debug_log("\n");
+		if (spidev->level > SPI_NO_DEBUG) {
+			printk("enqueue:%d B", length);
+			printk("save_spi_data:rx_tmp_buf\n");
+			for (i = 0; i < length; ++i) {
+				printk(" 0x%x ", spidev->spi_recv_buf.rx_tmp_buf[i]);
+				if (!((i + 1) % 8))
+					printk("\n");
+			}
+			printk("\n");
 		}
 		spidev->spi_recv_buf.rx_tmp_buf_pos = spidev->spi_recv_buf.rx_tmp_buf;
 		spidev->spi_recv_buf.rx_tmp_len = 0;
 		spidev->spi_recv_buf.empty_len = RX_TEMP_BUFFER_LEN;
-		++proc_statistic.enqueued_frame;
+		spidev->spi_statistic.enqueued_frame++;
 		J32ap_recv_ok_ack(spidev);
 		return 1;
 	} else {
 		spi_err_log("rx_data_kfifo overflow,length %d \n", length);
-		++proc_statistic.rx_data_kfifo_overflow;
+		spidev->spi_statistic.rx_data_kfifo_overflow++;
 		return -2;
 	}
 }
@@ -189,50 +187,52 @@ static int recv_one_fragment(struct spidev_data *spidev,
 		return -4; // A10 resource is free, must return
 	}
 	++frag_count;
-	if (g_debug_level > SPI_J3_AP_NO_DEBUG)
-		spi_debug_log("status = %d\n", status);
 
-	if (g_debug_level > SPI_J3_AP_HEADER_DEBUG) {
-		spi_debug_log("rx_buf\n");
+	if (spidev->level > SPI_NO_DEBUG)
+		printk_ratelimited(KERN_INFO "status = %d\n", status);
+
+	if (spidev->level > SPI_HEADER_DEBUG) {
+		printk("rx_buf\n");
 		for (i = 0; i < BUFSIZE; ++i) {
-			spi_debug_log("%x	", spidev->rx_buffer[i]);
+			printk(" 0x%x ", spidev->rx_buffer[i]);
 			if (!((i + 1) % 8))
-				spi_debug_log("\n");
+				printk("\n");
 		}
-		spi_debug_log("\n");
+		printk("\n");
 	}
 	while (rest_fragment_count_tmp > 0) {
 		spidev->rx_buffer = spidev->rx_buffer + SPI_FRAGMENT_SIZE;
 #ifdef SPI_SLAVE_LINK_LAYER
 
-		if (g_debug_level > SPI_J3_AP_HEADER_DEBUG) {
-			spi_debug_log("rx_buf\n");
+		if (spidev->level > SPI_HEADER_DEBUG) {
+			printk("rx_buf\n");
 			for (i = 0; i < SPI_FRAGMENT_SIZE; ++i) {
-				spi_debug_log("%x	", spidev->rx_buffer[i]);
+				printk(" 0x%x ", spidev->rx_buffer[i]);
 				if (!((i + 1) % 8))
-					spi_debug_log("\n");
+					printk("\n");
 			}
-			spi_debug_log("\n");
+			printk("\n");
 		}
 		ret = spi_link_layer_correct_interface(spidev);
 		if (ret !=  link_correct) {
-			spi_debug_log("rx_buf link_layer test fail ret %d\n", ret);
-			if (g_debug_level > SPI_J3_AP_HEADER_DEBUG) {
-				spi_debug_log("rx_buf\n");
+			dev_err(&spidev->spi->dev,
+						"rx_buf link_layer test fail ret %d\n", ret);
+			if (spidev->level > SPI_HEADER_DEBUG) {
+				printk("rx_buf\n");
 				for (i = 0; i < SPI_FRAGMENT_SIZE; ++i) {
-					spi_debug_log("%x	", spidev->rx_buffer[i]);
+					printk(" 0x%x ", spidev->rx_buffer[i]);
 					if (!((i + 1) % 8))
-						spi_debug_log("\n");
+						printk("\n");
 				}
-				spi_debug_log("\n");
+				printk("\n");
 			}
 			return -3;
 		}
 		if (recv_one_frag_call == 0) {
-			++proc_statistic.tx_recv_one_frag_resolve_count;
+			spidev->spi_statistic.tx_recv_one_frag_resolve_count++;
 		}
 		if (recv_one_frag_call == 1) {
-			++proc_statistic.rx_recv_one_frag_resolve_count;
+			spidev->spi_statistic.rx_recv_one_frag_resolve_count++;
 		}
 		status = spi_tp_resolve_fragment_interface(spidev, &rest_fragment);
 		if (status == -1) {
@@ -243,7 +243,7 @@ static int recv_one_fragment(struct spidev_data *spidev,
 #endif
 	}
 	if (status < 0)
-		spi_err_log("error status %d\n", status);
+		dev_err(&spidev->spi->dev, "error status %d\n", status);
 	spidev->rx_buffer = tmp_rx_buf;
 
 	return status;
@@ -271,53 +271,53 @@ static int recv_rest_fragment(struct spidev_data *spidev,
 	t.rx_buf = spidev->rx_buffer;
 	t.len = (*rest_fragment_count * SPI_FRAGMENT_SIZE);
 
-	++proc_statistic.spidev_sync_3;
+	spidev->spi_statistic.spidev_sync_3++;
 	status = ctrl->transfer_one(ctrl, spi, &t);
 	++frag_count;
-	if (g_debug_level > SPI_J3_AP_NO_DEBUG)
-		spi_debug_log("status = %d\n", status);
 
-	if (g_debug_level > SPI_J3_AP_HEADER_DEBUG) {
-		spi_debug_log("rx_buf\n");
+	if (spidev->level > SPI_NO_DEBUG)
+		printk_ratelimited("status = %d\n", status);
+
+	if (spidev->level > SPI_HEADER_DEBUG) {
+		printk("rx_buf\n");
 		for (i = 0; i < BUFSIZE; ++i) {
-			spi_debug_log("%x	", spidev->rx_buffer[i]);
+			printk(" 0x%x ", spidev->rx_buffer[i]);
 			if (!((i + 1) % 8))
-				spi_debug_log("\n");
+				printk("\n");
 		}
-		spi_debug_log("\n");
+		printk("\n");
 	}
 	while (rest_fragment_count_tmp > 0) {
 #ifdef SPI_SLAVE_LINK_LAYER
-		if (g_debug_level > SPI_J3_AP_HEADER_DEBUG) {
-			spi_debug_log("rx_buf\n");
+		if (spidev->level > SPI_HEADER_DEBUG) {
+			printk("rx_buf\n");
 			for (i = 0; i < SPI_FRAGMENT_SIZE; ++i) {
-				spi_debug_log("%x	", spidev->rx_buffer[i]);
+				printk(" 0x%x ", spidev->rx_buffer[i]);
 				if (!((i + 1) % 8))
-					spi_debug_log("\n");
+					printk("\n");
 			}
-			spi_debug_log("\n");
+			printk("\n");
 		}
 		ret = spi_link_layer_correct_interface(spidev);
 		if (ret !=  link_correct) {
-			spi_err_log("rx_buf link_layer test fail ret %d\n", ret);
-			if (g_debug_level > SPI_J3_AP_HEADER_DEBUG) {
-			//	if (1) {
-				spi_debug_log("rx_buf\n");
+			dev_err(&spidev->spi->dev, "rx_buf link_layer test fail ret %d\n", ret);
+			if (spidev->level > SPI_HEADER_DEBUG) {
+				printk("rx_buf\n");
 				for (i = 0; i < SPI_FRAGMENT_SIZE; ++i) {
-					spi_debug_log("%x	", spidev->rx_buffer[i]);
+					printk(" 0x%x ", spidev->rx_buffer[i]);
 					if (!((i + 1) % 8))
-						spi_debug_log("\n");
+						printk("\n");
 				}
-				spi_debug_log("\n");
+				printk("\n");
 			}
 			return -3;
 		}
 
 		if (recv_one_frag_call == 0) {
-			++proc_statistic.tx_recv_one_frag_resolve_count;
+			spidev->spi_statistic.tx_recv_one_frag_resolve_count++;
 		}
 		if (recv_one_frag_call == 1) {
-			++proc_statistic.rx_recv_one_frag_resolve_count;
+			spidev->spi_statistic.rx_recv_one_frag_resolve_count++;
 		}
 		status = spi_tp_resolve_fragment_interface(spidev, &rest_fragment);
 		if (status == -1) {
@@ -340,19 +340,15 @@ static void rx_assemble_work(struct work_struct *work)
 	struct spidev_data *spidev = g_spidev;
 	struct spi_device *spi = spidev->spi;
 	struct spi_controller *ctrl = spi->controller;
-
-
-
-	
 	struct spi_transfer t;
 	int status = 0;
 	int i, ret = 0, rest_fragment_count = 0;
 	mutex_lock(&spidev->buf_lock);
 	preempt_disable();
-	++proc_statistic.rx_assemble_count;
+	spidev->spi_statistic.rx_assemble_count++;
 
 	if (ap_response_flag) {
-		++proc_statistic.int_bottom_pass;//pass irq bottom
+		spidev->spi_statistic.int_bottom_pass++;//pass irq bottom
 		--ap_response_flag;
 		mutex_unlock(&spidev->buf_lock);
 		preempt_enable_no_resched();
@@ -371,41 +367,43 @@ static void rx_assemble_work(struct work_struct *work)
 	t.rx_buf = spidev->rx_buffer;
 	t.len = BUFSIZE;
 
-	++proc_statistic.spidev_sync_2;
+	spidev->spi_statistic.spidev_sync_2++;
 	preempt_enable_no_resched();
 	status = ctrl->transfer_one(ctrl, spi, &t);
 	++frag_count;
-	if (g_debug_level > SPI_J3_AP_NO_DEBUG)
-		spi_debug_log("status = %d\n", status);
 
-	if (g_debug_level > SPI_J3_AP_HEADER_DEBUG) {
-		spi_debug_log("rx_buf\n");
+	if (spidev->level > SPI_NO_DEBUG)
+		printk_ratelimited("status = %d\n", status);
+
+	if (spidev->level > SPI_HEADER_DEBUG) {
+		printk("rx_buf\n");
 		for (i = 0; i < SPI_FRAGMENT_SIZE; ++i) {
-			spi_debug_log("%x	", spidev->rx_buffer[i]);
+			printk(" 0x%x", spidev->rx_buffer[i]);
 			if (!((i + 1) % 8))
-				spi_debug_log("\n");
+				printk("\n");
 		}
-		spi_debug_log("\n");
+		printk("\n");
 	}
 
 #ifdef SPI_SLAVE_LINK_LAYER
 	ret = spi_link_layer_correct_interface(spidev);
 	if (ret !=  link_correct) {
-		spi_err_log("rx_buf link_layer test fail ret %d\n", ret);
-		if (g_debug_level > SPI_J3_AP_HEADER_DEBUG) {
-			spi_debug_log("rx_buf\n");
+		dev_err(&spidev->spi->dev,
+					"rx_buf link_layer test fail ret %d\n", ret);
+		if (spidev->level > SPI_HEADER_DEBUG) {
+			printk("rx_buf\n");
 			for (i = 0; i < SPI_FRAGMENT_SIZE; ++i) {
-				spi_debug_log("%x	", spidev->rx_buffer[i]);
+				printk(" 0x%x ", spidev->rx_buffer[i]);
 				if (!((i + 1) % 8))
-					spi_debug_log("\n");
+					printk("\n");
 			}
-			spi_debug_log("\n");
+			printk("\n");
 		}
 		mutex_unlock(&spidev->buf_lock);
 		return;
 	}
 #endif
-	++proc_statistic.assemble_resolve_count;
+	spidev->spi_statistic.assemble_resolve_count++;
 #ifdef SPI_TP_LAYER
 		status = spi_tp_resolve_fragment_interface(spidev, &rest_fragment_count);
 		if (status == -1) {//recv not finish
@@ -424,9 +422,6 @@ out:
 	mutex_unlock(&spidev->buf_lock);
 }
 
-
-
-
 static ssize_t spidev_read(struct file *filp,
 				char __user *buf, size_t count, loff_t *f_pos)
 {
@@ -444,7 +439,7 @@ static ssize_t spidev_read(struct file *filp,
 	}
 
 	if (!kfifo_peek(&spidev->rx_fifo.len, &frame_len)) {
-		printk_once(KERN_INFO "hobot_spidev: no data\n");
+		printk_ratelimited(KERN_INFO "hobot_spidev: no data\n");
 		status = 0;
 		goto err;
 	}
@@ -460,14 +455,16 @@ static ssize_t spidev_read(struct file *filp,
 		status = -EFAULT;
 		goto err;
 	}
-	printk_once(KERN_INFO "frame_len = %d\n", frame_len);
+	if (spidev->level > SPI_NO_DEBUG)
+		printk_ratelimited(KERN_INFO "frame_len = %d\n", frame_len);
 
 	status = kfifo_to_user(&spidev->rx_fifo.data, buf, frame_len, &copied);
-	printk_once(KERN_INFO "copied = %d\n", copied);
+	if (spidev->level > SPI_NO_DEBUG)
+		printk_ratelimited(KERN_INFO "copied = %d\n", copied);
 
 	if (copied != frame_len) {
 		spidev->spi_statistic.kfifo_copy_error++;
-		dev_err(&spidev->spi->dev, "kfifo copy fail\n");
+		dev_err(&spidev->spi->dev, "kfifo copy failed\n");
 	}
 
 err:
@@ -477,105 +474,112 @@ err:
 extern char tx_rx_interrupt_conflict_flag;
 
 static int spi_send_message(struct spidev_data *spidev,
-							char *src_buf, unsigned int len)
+									char *src_buf, unsigned int len)
 {
 	struct spi_device *spi = spidev->spi;
 	struct spi_controller *ctrl = spi->controller;
 
-
-
+	char *tmp_src_buf = src_buf;
+	char *tmp_tx_buf = spidev->tx_buffer;
+	char *tmp_rx_buf = spidev->rx_buffer;
 	struct spi_transfer t;
+
+
 	int status = 0, i = 0, data_length = len;
 	int frag_count = 0, tmp_rest_rx_frag_count;
 	char ret = 0, tmp_rx_end_flag = 0, tp_frag_finish_flag = 0;
-	char *tmp_src_buf = src_buf, *tmp_tx_buf = spidev->tx_buffer;
-	char *tmp_rx_buf = spidev->rx_buffer;
-	while (tp_frag_finish_flag != 2) {//ret =2 frag finish
-#ifdef SPI_TP_LAYER
 
+
+	while (tp_frag_finish_flag != 2) {	/* ret = 2 frag finish */
+#ifdef SPI_TP_LAYER
 		tp_frag_finish_flag = spi_slave_tp_frag_interface(tmp_src_buf,
 											tmp_tx_buf + 4, data_length);
 		if (tp_frag_finish_flag == -1) {
-			spi_err_log("tp layer set error\n");
+			dev_err(&spidev->spi->dev, "tp layer set error\n");
 			status = -1;
 			goto done;
 		}
 #endif
+
 #ifdef SPI_SLAVE_LINK_LAYER
 		if (spi_link_layer_set_interface(tmp_tx_buf) == -1) {
-			spi_err_log("link layer set error\n");
+			dev_err(&spidev->spi->dev, "link layer set error\n");
 			status = -2;
 			goto done;
 		}
 #endif
-		if (g_debug_level > SPI_J3_AP_NO_DEBUG) {
-			spi_debug_log("spi_send_message:");
+		if (spidev->level > SPI_NO_DEBUG) {
+			printk("spi_send_message: \n");
 			for (i = 0; i < SPI_FRAGMENT_SIZE; i++) {
-				spi_debug_log(" %x ", tmp_tx_buf[i]);
-				if (i%8 == 0)
-					spi_debug_log("\n");
+				printk(" 0x%x ", tmp_tx_buf[i]);
+				if (i % 8 == 0)
+					printk("\n");
 			}
-			spi_debug_log("\n");
+			printk("\n");
 		}
+
 		tmp_tx_buf += SPI_FRAGMENT_SIZE;
 		frag_count++;
 	}
-		t.tx_buf = spidev->tx_buffer;
-		t.rx_buf = spidev->rx_buffer;
-		t.len = SPI_FRAGMENT_SIZE*frag_count;
 
-		++proc_statistic.spidev_sync_1;
-		status = ctrl->transfer_one(ctrl, spi, &t);
-		if (status < 0) {
-			spi_err_log("spidev_sync error,status %d\n", status);
-			goto done;
+	t.tx_buf = spidev->tx_buffer;
+	t.rx_buf = spidev->rx_buffer;
+	t.len = SPI_FRAGMENT_SIZE * frag_count;
+
+	spidev->spi_statistic.spidev_sync_1++;
+	status = ctrl->transfer_one(ctrl, spi, &t);
+	if (status < 0) {
+		dev_err(&spidev->spi->dev, "transfer_one failed, status %d\n", status);
+		goto done;
+	}
+
+	if (spidev->level > SPI_NO_DEBUG) {
+		printk("spi_send_message, recv data: \n");
+		for (i = 0; i < SPI_FRAGMENT_SIZE * frag_count; i++) {
+			printk(" 0x%x ", spidev->rx_buffer[i]);
+			if (i % 8 == 0)
+				printk("\n");
 		}
-		if (g_debug_level > SPI_J3_AP_NO_DEBUG) {
-			spi_debug_log("spi_send_message recv data:");
-			for (i = 0; i < SPI_FRAGMENT_SIZE*frag_count; i++) {
-				spi_debug_log(" %x ", spidev->rx_buffer[i]);
-				if (i%8 == 0)
-					spi_debug_log("\n");
-			}
-			spi_debug_log("\n");
-		}
-		if (tx_rx_interrupt_conflict_flag == 1) {
-			tx_rx_interrupt_conflict_flag = 0;
-			i = 0;
-			while (i++ < frag_count) {
+		printk("\n");
+	}
+
+	if (tx_rx_interrupt_conflict_flag == 1) {
+		tx_rx_interrupt_conflict_flag = 0;
+		i = 0;
+		while (i++ < frag_count) {
 #ifdef SPI_SLAVE_LINK_LAYER
-				ret = spi_link_layer_correct_interface(spidev);
-				if (ret == link_sync_dummy) {
-					spidev->rx_buffer += SPI_FRAGMENT_SIZE;
-					continue;
-				} else if (ret == link_correct) {
-					++proc_statistic.interrupt_conflict_1;
-				} else {
-					++proc_statistic.preamble_error;
-					spi_err_log("preamble_error error\n");
-					status = -3;
-					goto done;
-				}
+			ret = spi_link_layer_correct_interface(spidev);
+			if (ret == link_sync_dummy) {
+				spidev->rx_buffer += SPI_FRAGMENT_SIZE;
+				continue;
+			} else if (ret == link_correct) {
+				spidev->spi_statistic.interrupt_conflict_1++;
+			} else {
+				spidev->spi_statistic.preamble_error++;
+				spi_err_log("preamble_error error\n");
+				status = -3;
+				goto done;
+			}
 #endif
 #ifdef SPI_TP_LAYER
-				tmp_rx_end_flag = save_spi_data(spidev,
-					spi_tp_resolve_fragment_interface(spidev, &tmp_rest_rx_frag_count));
-				if (spi_tp_tx_start_or_end_interface(spidev) == start_frame
-					|| spi_tp_tx_start_or_end_interface(spidev) == single_frame) {
-					++proc_statistic.interrupt_conflict_2;
+			tmp_rx_end_flag = save_spi_data(spidev,
+				spi_tp_resolve_fragment_interface(spidev, &tmp_rest_rx_frag_count));
+			if (spi_tp_tx_start_or_end_interface(spidev) == start_frame
+				|| spi_tp_tx_start_or_end_interface(spidev) == single_frame) {
+				spidev->spi_statistic.interrupt_conflict_2++;
 //					++ap_response_flag;
-				} else {
-					tmp_rest_rx_frag_count--;
-				}
+			} else {
+				tmp_rest_rx_frag_count--;
+			}
 #endif
-				spidev->rx_buffer += SPI_FRAGMENT_SIZE;
-			}
-			spidev->rx_buffer = tmp_rx_buf;
-			if (tmp_rx_end_flag == -1) {//  =-1 -> rx continue
-				tmp_rx_end_flag = save_spi_data(spidev,
-									recv_rest_fragment(spidev, &tmp_rest_rx_frag_count));
-			}
+			spidev->rx_buffer += SPI_FRAGMENT_SIZE;
 		}
+		spidev->rx_buffer = tmp_rx_buf;
+		if (tmp_rx_end_flag == -1) {//  =-1 -> rx continue
+			tmp_rx_end_flag = save_spi_data(spidev,
+								recv_rest_fragment(spidev, &tmp_rest_rx_frag_count));
+		}
+	}
 done:
 	spidev->rx_buffer = tmp_rx_buf;
 //	preempt_enable_no_resched();
@@ -583,19 +587,10 @@ done:
 	return status;
 }
 
-char spi_slave_src_buf[10*1024] = {0};
-static char block_flag;//0:block,1:nonblock
-static unsigned int spi_send_data_len;
-
 static int spidev_send_kthread(void *data)
 {
 	struct spidev_data *spidev = data;
-
-
-
-
 	int retval = 0, data_len = 0;
-	char spi_slave_src_buf_tmp[BUFSIZE] = {0};
 
 	while (1) {
 		if (wait_event_interruptible(spidev->wait_queue, spidev->wait_condition)) {
@@ -607,26 +602,29 @@ static int spidev_send_kthread(void *data)
 		if (spidev->kthread_stop)
 			break;
 
-		if (block_flag == 0) {
-			retval = spi_send_message(spidev, spi_slave_src_buf, spi_send_data_len);
-			if (retval < 0) {
-				spi_err_log("spi send message error\n");
-			}
-			complete(&spidev->completion);
-		} else {
+		if (spidev->noblock) {
 			while (kfifo_get(&spidev->tx_fifo.len, &data_len)) {
+				retval = -EFAULT;
 				if (kfifo_out(&spidev->tx_fifo.data,
-					spi_slave_src_buf_tmp, data_len) == data_len) {
-					mutex_lock(&spidev->buf_lock);
-					retval = spi_send_message(spidev, spi_slave_src_buf_tmp, data_len);
-					mutex_unlock(&spidev->buf_lock);
-				} else {
-					spi_err_log("get fifo data error\n");
+						spidev->tx_swap_buffer, data_len) != data_len) {
+					dev_err(&spidev->spi->dev, "get fifo data failed\n");
+					continue;
 				}
-				if (retval < 0) {
-					spi_err_log("spi send message error\n");
-				}
+
+				mutex_lock(&spidev->buf_lock);
+				retval = spi_send_message(spidev,
+									spidev->tx_swap_buffer, data_len);
+				mutex_unlock(&spidev->buf_lock);
+
+				if (retval < 0)
+					dev_err(&spidev->spi->dev, "send message failed\n");
 			}
+		} else {
+			retval = spi_send_message(spidev,
+								spidev->tx_swap_buffer, spidev->data_len);
+			if (retval < 0)
+				dev_err(&spidev->spi->dev, "send message failed\n");
+			complete(&spidev->completion);
 		}
 	}
 
@@ -636,50 +634,50 @@ static int spidev_send_kthread(void *data)
 static ssize_t spidev_write(struct file *filp,
 		const char __user *buf, size_t count, loff_t *f_pos)
 {
-	struct spidev_data *spidev;
 	int retval = 0;
-	spidev = filp->private_data;
-	g_spidev = filp->private_data;
+	unsigned int copied = 0;
+	struct spidev_data *spidev = filp->private_data;
+
 	if (filp->f_flags & O_NONBLOCK) {
-		block_flag = 1;
-		if (copy_from_user(spi_slave_src_buf, (const u8 __user *)buf, count)) {
-			retval = -1;
-			spi_err_log("spi copy_from_user failed\n");
-			return retval;
-		}
-		spi_send_data_len = count;
+		spidev->noblock = 1;
 		spidev->wait_condition = 1;
-		if (kfifo_avail(&spidev->tx_fifo.data) >= count) {
-			kfifo_in(&spidev->tx_fifo.data, spi_slave_src_buf, count);
-			kfifo_put(&spidev->tx_fifo.len, count);
-			retval = count;
-		} else {
-			spi_err_log("send kfifo overflow\n");
+
+		if (kfifo_avail(&spidev->tx_fifo.data) < count) {
+			dev_err(&spidev->spi->dev, "tx fifo overflow\n");
 			retval = -EOVERFLOW;
 		}
+
+		retval = kfifo_from_user(&spidev->tx_fifo.data, buf, count, &copied);
+		if (spidev->level > SPI_NO_DEBUG)
+			printk_ratelimited(KERN_INFO "copied = %d\n", copied);
+		kfifo_put(&spidev->tx_fifo.len, count);
+
 		wake_up_interruptible(&spidev->wait_queue);
-		return retval;
+
+		return count;
 	} else {
-		block_flag = 0;
+		spidev->noblock = 0;
 		mutex_lock(&spidev->buf_lock);
-		if (copy_from_user(spi_slave_src_buf, (const u8 __user *)buf, count)) {
-			retval = -1;
-			spi_err_log("spi copy_from_user failed\n");
+		if (copy_from_user(spidev->tx_swap_buffer,
+								(const u8 __user *)buf, count)) {
+			dev_err(&spidev->spi->dev, "copy from user failed\n");
 			mutex_unlock(&spidev->buf_lock);
-			return retval;
+			return -EFAULT;
 		}
-		spi_send_data_len = count;
+		spidev->data_len = count;
+
 		spidev->wait_condition = 1;
 		wake_up_interruptible(&spidev->wait_queue);
-		if (!wait_for_completion_interruptible_timeout(
-				&spidev->completion, spidev->timeout)) {
-			spi_err_log("spi send timeout\n");
+
+		if (!wait_for_completion_interruptible_timeout
+					(&spidev->completion, spidev->timeout)) {
+			dev_err(&spidev->spi->dev, "completion timeout\n");
 			mutex_unlock(&spidev->buf_lock);
 			return -ETIME;
-		} else {
-			mutex_unlock(&spidev->buf_lock);
-			return count;
 		}
+
+		mutex_unlock(&spidev->buf_lock);
+		return count;
 	}
 }
 
@@ -868,129 +866,144 @@ static int spidev_open(struct inode *inode, struct file *filp)
 	}
 
 	/* just init one time */
-	if (!spidev->users) {
-		if (!spidev->tx_buffer) {
-			spidev->tx_buffer = kmalloc(BUFSIZE, GFP_KERNEL);
-			if (!spidev->tx_buffer) {
-				dev_err(&spidev->spi->dev, "open/ENOMEM\n");
-				status = -ENOMEM;
-				goto err_find_dev;
-			}
-		}
-
-		if (!spidev->rx_buffer) {
-			spidev->rx_buffer = kmalloc(BUFSIZE, GFP_KERNEL);
-			if (!spidev->rx_buffer) {
-				dev_err(&spidev->spi->dev, "open/ENOMEM\n");
-				status = -ENOMEM;
-				goto err_alloc_rx_buf;
-			}
-		}
-
-		/* alloc tx_dummy_buffer */
-		if (!spidev->tx_dummy_buffer) {
-			spidev->tx_dummy_buffer = kmalloc(BUFSIZE, GFP_KERNEL);
-			if (!spidev->tx_dummy_buffer) {
-				dev_err(&spidev->spi->dev, "open/ENOMEM\n");
-				status = -ENOMEM;
-				goto err_alloc_tx_dummy_buf;
-			}
-			memset(spidev->tx_dummy_buffer, 0xFD, BUFSIZE);
-		}
-
-		/* request tri pin */
-		status = gpio_request(spidev->tri_pin, "tri-pin");
-		if (status) {
-			dev_err(&spidev->spi->dev, "request tri pin failed\n");
-			goto err_request_tri_pin;
-		}
-		gpio_direction_output(spidev->tri_pin, 1);
-
-		/* request irq pin */
-		status = gpio_request(spidev->irq_pin, "irq-pin");
-		if (status) {
-			dev_err(&spidev->spi->dev, "request irq pin failed\n");
-			goto err_request_irq_pin;
-		}
-
-		/* request interrupt */
-		spidev->irq_num = gpio_to_irq(spidev->irq_pin);
-		dev_info(&spidev->spi->dev, "irq_num = %d\n", spidev->irq_num);
-		status = request_threaded_irq(spidev->irq_num, NULL, spidev_irq,
-				IRQF_TRIGGER_FALLING | IRQF_ONESHOT, HOBOT_SPIDEV, spidev);
-		if (status) {
-			dev_err(&spidev->spi->dev, "request irq failed\n");
-			goto err_request_irq;
-		}
-
-		/* request ack pin */
-		status = gpio_request(spidev->ack_pin, "ack-pin");
-		if (status) {
-			dev_err(&spidev->spi->dev, "request ack pin failed\n");
-			goto err_request_ack_pin;
-		}
-		gpio_direction_output(spidev->ack_pin, 1);
-
-		spidev->timeout = msecs_to_jiffies(TIMEOUT_MS_MAX);
-
-		/* initialize rx_tmp_buf */
-		spidev->spi_recv_buf.rx_tmp_buf = kmalloc(RX_TEMP_BUFFER_LEN, GFP_KERNEL);
-		if (!spidev->spi_recv_buf.rx_tmp_buf) {
-			dev_err(&spidev->spi->dev, "alloc rx_tmp_buf failed\n");
-			status = -ENOMEM;
-			goto err_alloc_rx_tmp_buf;
-		}
-		spidev->spi_recv_buf.rx_tmp_buf_pos = spidev->spi_recv_buf.rx_tmp_buf;
-		spidev->spi_recv_buf.new_frame_start = 0;
-		spidev->spi_recv_buf.rx_tmp_len = 0;
-		spidev->spi_recv_buf.empty_len = RX_TEMP_BUFFER_LEN;
-		spin_lock_init(&spidev->spi_recv_buf.rx_tmp_buf_lock);
-
-		/* initialize rx kfifo */
-		if (kfifo_alloc(&spidev->rx_fifo.data, DATA_FIFO_SIZE, GFP_KERNEL)) {
-			dev_err(&spidev->spi->dev, "alloc rx kfifo failed\n");
-			status = -ENOMEM;
-			goto err_alloc_rx_kfifo;
-		}
-		INIT_KFIFO(spidev->rx_fifo.len);
-
-		/* initialize tx kfifo */
-		if (kfifo_alloc(&spidev->tx_fifo.data, DATA_FIFO_SIZE, GFP_KERNEL)) {
-			dev_err(&spidev->spi->dev, "alloc tx kfifo failed\n");
-			status = -ENOMEM;
-			goto err_alloc_tx_kfifo;
-		}
-		INIT_KFIFO(spidev->tx_fifo.len);
-
-		/* create single thread workqueue */
-		spidev->work_queue = create_singlethread_workqueue("spidev_workqueue");
-		if (!spidev->work_queue) {
-			dev_err(&spidev->spi->dev, "create workqueue failed\n");
-			status = -ENOMEM;
-			goto err_create_workqueue;
-		}
-
-		init_waitqueue_head(&spidev->wait_queue);
-		spidev->wait_condition = 0;
-		spidev->kthread_stop = 0;
-
-		spidev->send_kthread = kthread_run(spidev_send_kthread, spidev, "spidev-send-kthread");
-		if (IS_ERR(spidev->send_kthread)) {
-			dev_err(&spidev->spi->dev, "create kthread failed\n");
-			status = -ENOMEM;
-			goto err_create_kthread;
-		}
-
-		spi_recv_rc = 0;
-		spi_send_rc = 0;
-
-		for (i = 0; i < WORK_COUNT; i++)
-			INIT_WORK(&spidev->work[i], rx_assemble_work);
-
-		sema_init(&spidev->sem, 0);
-		init_completion(&spidev->completion);
-		ap_response_flag = 0;
+	if (spidev->users > 0) {
+		dev_err(&spidev->spi->dev, "more than one user\n");
+		status = -EBUSY;
+		goto err_find_dev;
 	}
+
+	if (!spidev->tx_buffer) {
+		spidev->tx_buffer = kmalloc(BUFSIZE, GFP_KERNEL);
+		if (!spidev->tx_buffer) {
+			dev_err(&spidev->spi->dev, "open/ENOMEM\n");
+			status = -ENOMEM;
+			goto err_find_dev;
+		}
+	}
+
+	if (!spidev->rx_buffer) {
+		spidev->rx_buffer = kmalloc(BUFSIZE, GFP_KERNEL);
+		if (!spidev->rx_buffer) {
+			dev_err(&spidev->spi->dev, "open/ENOMEM\n");
+			status = -ENOMEM;
+			goto err_alloc_rx_buf;
+		}
+	}
+
+	/* alloc tx_dummy_buffer */
+	if (!spidev->tx_dummy_buffer) {
+		spidev->tx_dummy_buffer = kmalloc(BUFSIZE, GFP_KERNEL);
+		if (!spidev->tx_dummy_buffer) {
+			dev_err(&spidev->spi->dev, "open/ENOMEM\n");
+			status = -ENOMEM;
+			goto err_alloc_tx_dummy_buf;
+		}
+		memset(spidev->tx_dummy_buffer, 0xFD, BUFSIZE);
+	}
+
+	/* alloc tx_swap_buffer */
+	if (!spidev->tx_swap_buffer) {
+		spidev->tx_swap_buffer = kmalloc(BUFSIZE, GFP_KERNEL);
+		if (!spidev->tx_swap_buffer) {
+			dev_err(&spidev->spi->dev, "open/ENOMEM\n");
+			status = -ENOMEM;
+			goto err_alloc_tx_dummy_buf;
+		}
+	}
+
+	/* request tri pin */
+	status = gpio_request(spidev->tri_pin, "tri-pin");
+	if (status) {
+		dev_err(&spidev->spi->dev, "request tri pin failed\n");
+		goto err_request_tri_pin;
+	}
+	gpio_direction_output(spidev->tri_pin, 1);
+
+	/* request irq pin */
+	status = gpio_request(spidev->irq_pin, "irq-pin");
+	if (status) {
+		dev_err(&spidev->spi->dev, "request irq pin failed\n");
+		goto err_request_irq_pin;
+	}
+
+	/* request interrupt */
+	spidev->irq_num = gpio_to_irq(spidev->irq_pin);
+	dev_info(&spidev->spi->dev, "irq_num = %d\n", spidev->irq_num);
+	status = request_threaded_irq(spidev->irq_num, NULL, spidev_irq,
+			IRQF_TRIGGER_FALLING | IRQF_ONESHOT, HOBOT_SPIDEV, spidev);
+	if (status) {
+		dev_err(&spidev->spi->dev, "request irq failed\n");
+		goto err_request_irq;
+	}
+
+	/* request ack pin */
+	status = gpio_request(spidev->ack_pin, "ack-pin");
+	if (status) {
+		dev_err(&spidev->spi->dev, "request ack pin failed\n");
+		goto err_request_ack_pin;
+	}
+	gpio_direction_output(spidev->ack_pin, 1);
+
+	spidev->timeout = msecs_to_jiffies(TIMEOUT_MS_MAX);
+
+	/* initialize rx_tmp_buf */
+	spidev->spi_recv_buf.rx_tmp_buf = kmalloc(RX_TEMP_BUFFER_LEN, GFP_KERNEL);
+	if (!spidev->spi_recv_buf.rx_tmp_buf) {
+		dev_err(&spidev->spi->dev, "alloc rx_tmp_buf failed\n");
+		status = -ENOMEM;
+		goto err_alloc_rx_tmp_buf;
+	}
+	spidev->spi_recv_buf.rx_tmp_buf_pos = spidev->spi_recv_buf.rx_tmp_buf;
+	spidev->spi_recv_buf.new_frame_start = 0;
+	spidev->spi_recv_buf.rx_tmp_len = 0;
+	spidev->spi_recv_buf.empty_len = RX_TEMP_BUFFER_LEN;
+	spin_lock_init(&spidev->spi_recv_buf.rx_tmp_buf_lock);
+
+	/* initialize rx kfifo */
+	if (kfifo_alloc(&spidev->rx_fifo.data, DATA_FIFO_SIZE, GFP_KERNEL)) {
+		dev_err(&spidev->spi->dev, "alloc rx kfifo failed\n");
+		status = -ENOMEM;
+		goto err_alloc_rx_kfifo;
+	}
+	INIT_KFIFO(spidev->rx_fifo.len);
+
+	/* initialize tx kfifo */
+	if (kfifo_alloc(&spidev->tx_fifo.data, DATA_FIFO_SIZE, GFP_KERNEL)) {
+		dev_err(&spidev->spi->dev, "alloc tx kfifo failed\n");
+		status = -ENOMEM;
+		goto err_alloc_tx_kfifo;
+	}
+	INIT_KFIFO(spidev->tx_fifo.len);
+
+	/* create single thread workqueue */
+	spidev->work_queue = create_singlethread_workqueue("spidev_workqueue");
+	if (!spidev->work_queue) {
+		dev_err(&spidev->spi->dev, "create workqueue failed\n");
+		status = -ENOMEM;
+		goto err_create_workqueue;
+	}
+
+	init_waitqueue_head(&spidev->wait_queue);
+	spidev->wait_condition = 0;
+	spidev->kthread_stop = 0;
+
+	spidev->send_kthread = kthread_run(spidev_send_kthread,
+								spidev, "spidev-send-kthread");
+	if (IS_ERR(spidev->send_kthread)) {
+		dev_err(&spidev->spi->dev, "create kthread failed\n");
+		status = -ENOMEM;
+		goto err_create_kthread;
+	}
+
+	spi_recv_rc = 0;
+	spi_send_rc = 0;
+
+	for (i = 0; i < WORK_COUNT; i++)
+		INIT_WORK(&spidev->work[i], rx_assemble_work);
+
+	sema_init(&spidev->sem, 0);
+	init_completion(&spidev->completion);
+	ap_response_flag = 0;
 
 	spidev->users++;
 	filp->private_data = spidev;
@@ -1018,6 +1031,9 @@ err_request_irq:
 err_request_irq_pin:
 	gpio_free(spidev->tri_pin);
 err_request_tri_pin:
+	kfree(spidev->tx_swap_buffer);
+	spidev->tx_swap_buffer = NULL;
+err_alloc_tx_swap_buf:
 	kfree(spidev->tx_dummy_buffer);
 	spidev->tx_dummy_buffer = NULL;
 err_alloc_tx_dummy_buf:
@@ -1034,59 +1050,59 @@ err_find_dev:
 static int spidev_release(struct inode *inode, struct file *filp)
 {
 	struct spidev_data *spidev;
+	int	dofree;
 
 	mutex_lock(&device_list_lock);
 	spidev = filp->private_data;
 	filp->private_data = NULL;
 
-	/* last close? */
 	spidev->users--;
-	if (!spidev->users) {
-		int		dofree;
 
-		spidev->kthread_stop = 1;
-		spidev->wait_condition = 1;
-		wake_up_interruptible(&spidev->wait_queue);
-		kthread_stop(spidev->send_kthread);
-		spidev->wait_condition = 0;
+	spidev->kthread_stop = 1;
+	spidev->wait_condition = 1;
+	wake_up_interruptible(&spidev->wait_queue);
+	kthread_stop(spidev->send_kthread);
+	spidev->wait_condition = 0;
 
-		destroy_workqueue(spidev->work_queue);
+	destroy_workqueue(spidev->work_queue);
 
-		kfifo_free(&spidev->tx_fifo.data);
-		kfifo_free(&spidev->tx_fifo.data);
+	kfifo_free(&spidev->tx_fifo.data);
+	kfifo_free(&spidev->tx_fifo.data);
 
-		kfree(spidev->spi_recv_buf.rx_tmp_buf);
-		spidev->spi_recv_buf.rx_tmp_buf = NULL;
+	kfree(spidev->spi_recv_buf.rx_tmp_buf);
+	spidev->spi_recv_buf.rx_tmp_buf = NULL;
 
-		gpio_free(spidev->ack_pin);
-		free_irq(spidev->irq_num, (void *)spidev);
-		gpio_free(spidev->irq_pin);
-		gpio_free(spidev->tri_pin);
+	gpio_free(spidev->ack_pin);
+	free_irq(spidev->irq_num, (void *)spidev);
+	gpio_free(spidev->irq_pin);
+	gpio_free(spidev->tri_pin);
 
-		mutex_lock(&spidev->buf_lock);
-		kfree(spidev->tx_buffer);
-		spidev->tx_buffer = NULL;
+	mutex_lock(&spidev->buf_lock);
+	kfree(spidev->tx_buffer);
+	spidev->tx_buffer = NULL;
 
-		kfree(spidev->rx_buffer);
-		spidev->rx_buffer = NULL;
+	kfree(spidev->rx_buffer);
+	spidev->rx_buffer = NULL;
 
-		kfree(spidev->tx_dummy_buffer);
-		spidev->tx_dummy_buffer = NULL;
-		mutex_unlock(&spidev->buf_lock);
+	kfree(spidev->tx_dummy_buffer);
+	spidev->tx_dummy_buffer = NULL;
 
-		spin_lock_irq(&spidev->spi_lock);
-		if (spidev->spi)
-			spidev->speed_hz = spidev->spi->max_speed_hz;
+	kfree(spidev->tx_swap_buffer);
+	spidev->tx_swap_buffer = NULL;
+	mutex_unlock(&spidev->buf_lock);
 
-		dofree = (spidev->spi == NULL);
-		spin_unlock_irq(&spidev->spi_lock);
+	spin_lock_irq(&spidev->spi_lock);
+	if (spidev->spi)
+		spidev->speed_hz = spidev->spi->max_speed_hz;
 
-		spi_recv_rc = 0;
-		spi_send_rc = 0;
+	dofree = (spidev->spi == NULL);
+	spin_unlock_irq(&spidev->spi_lock);
 
-		if (dofree)
-			kfree(spidev);
-	}
+	spi_recv_rc = 0;
+	spi_send_rc = 0;
+
+	if (dofree)
+		kfree(spidev);
 
 	mutex_unlock(&device_list_lock);
 

@@ -55,7 +55,6 @@
 
 
 #define SPI_SLAVE_LINK_LAYER
-
 #define SPI_TP_LAYER
 
 struct spi_statistic
@@ -84,9 +83,6 @@ struct spi_statistic
 	unsigned int tx_custom_frame_count;
 	unsigned int ack_count;
 };
-
-
-extern struct spi_statistic proc_statistic;
 
 struct rx_tmp_buffer
 {
@@ -134,9 +130,11 @@ struct spidev_data {
 
 	u32 timeout;
 
+	u8 *tx_dummy_buffer;
 
-
-	u8			*tx_dummy_buffer;
+	u8 noblock;
+	u32 data_len;
+	u8 *tx_swap_buffer;
 
 	struct rx_tmp_buffer spi_recv_buf;
 
@@ -167,21 +165,11 @@ struct spidev_data {
 #define SPI_DATA_OFFSET      (8)
 #define SPI_DATA_LEN_OFFSET (9)
 
-
-
-
 #define SPI_NO_DEBUG				(0)
 #define SPI_HEADER_DEBUG			(1)
 #define SPI_DETAIL_DEBUG			(2)
 #define SPI_DEBUG_LEVEL_MIN   		(0)
 #define SPI_DEBUG_LEVEL_MAX 		(2)
-
-
-
-
-#define SPI_J3_AP_NO_DEBUG (0)
-#define SPI_J3_AP_HEADER_DEBUG (1)
-#define SPI_J3_AP_DETAIL_DEBUG (2)
 
 #define RX_TEMP_BUFFER_LEN (4 *1024)
 #define TX_TEMP_BUFFER_LEN (4 *1024)
@@ -189,7 +177,6 @@ struct spidev_data {
 #define SPI_PREAMBLE (0x47)
 #define DUMMY_FLAG   (0xFD)
 extern int frag_count;
-extern int g_debug_level;
 extern int ap_response_flag;
 extern int recv_start_frag_flag;
 extern int start_count;

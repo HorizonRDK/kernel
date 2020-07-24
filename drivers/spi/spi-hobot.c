@@ -450,27 +450,35 @@ static int hb_spi_fill_txdma(struct hb_spi *hbspi)
 
 	if (debug > 1)
 		hb_spi_dump(hbspi, "fill_txdma", hbspi->txbuf, hbspi->txcnt);
+
 	dma_sync_single_for_cpu(hbspi->dev, hbspi->tx_dma_phys,
-				HB_SPI_DMA_BUFSIZE, DMA_TO_DEVICE);
+								HB_SPI_DMA_BUFSIZE, DMA_TO_DEVICE);
 	if (hbspi->isslave == SLAVE_MODE) {
 		if (tx_or_rx_flag == tx_flag) {
-			while (hbspi->txcnt > 0 && cnt < HB_SPI_DMA_BUFSIZE
-					&& fragment_size < SPI_FRAGMENT_SIZE) {
+			while (hbspi->txcnt > 0 && cnt < HB_SPI_DMA_BUFSIZE) {
 				hbspi->tx_dma_buf[cnt] = *hbspi->txbuf;
 				hbspi->txbuf++;
 				hbspi->txcnt--;
 				cnt++;
-				fragment_size++;
+
+				if (hbspi->isslave == SLAVE_MODE) {
+					fragment_size++;
+					if (fragment_size >= SPI_FRAGMENT_SIZE)
+						break;
+				}
 			}
 		} else if (tx_or_rx_flag == rx_flag) {
-			while (hbspi->txcnt > 0 && cnt < HB_SPI_DMA_BUFSIZE
-				&& fragment_size < SPI_FRAGMENT_SIZE
-				&& rx_end_flag == 1) {
+			while (hbspi->txcnt > 0 && cnt < HB_SPI_DMA_BUFSIZE && rx_end_flag == 1) {
 				hbspi->tx_dma_buf[cnt] = *hbspi->txbuf;
 				hbspi->txbuf++;
 				hbspi->txcnt--;
 				cnt++;
-				fragment_size++;
+
+				if (hbspi->isslave == SLAVE_MODE) {
+					fragment_size++;
+					if (fragment_size >= SPI_FRAGMENT_SIZE)
+						break;
+				}
 			}
 		}
 	} else {
@@ -481,15 +489,15 @@ static int hb_spi_fill_txdma(struct hb_spi *hbspi)
 			cnt++;
 		}
 	}
+
 	dma_sync_single_for_device(hbspi->dev, hbspi->tx_dma_phys,
-				   HB_SPI_DMA_BUFSIZE, DMA_TO_DEVICE);
+								HB_SPI_DMA_BUFSIZE, DMA_TO_DEVICE);
 	hb_spi_wr(hbspi, HB_SPI_FIFO_RESET_REG, HB_SPI_FRST_TXDIS);
 
 	if (cnt) {
 		dma_ctrl1 |= HB_SPI_DMAC1_TXDSTART | HB_SPI_DMAC1_TXDCFG;
 		if (hbspi->rxbuf)
-			dma_ctrl1 |= HB_SPI_DMAC1_RXDSTART
-			    | HB_SPI_DMAC1_RXDCFG;
+			dma_ctrl1 |= HB_SPI_DMAC1_RXDSTART | HB_SPI_DMAC1_RXDCFG;
 		hb_spi_wr(hbspi, HB_SPI_TLEN_REG, cnt * 8);
 		hb_spi_wr(hbspi, HB_SPI_TDMA_SIZE0_REG, cnt);
 		hb_spi_wr(hbspi, HB_SPI_RDMA_SIZE0_REG, cnt);
@@ -503,9 +511,9 @@ static int hb_spi_fill_txdma(struct hb_spi *hbspi)
 
 static int hb_spi_drain_rxdma(struct hb_spi *hbspi)
 {
-	int cnt = 0, fragment_size = SPI_FRAGMENT_SIZE;
+	int cnt = 0, fragment_size = 0;
 	dma_sync_single_for_cpu(hbspi->dev, hbspi->rx_dma_phys,
-				HB_SPI_DMA_BUFSIZE, DMA_FROM_DEVICE);
+						HB_SPI_DMA_BUFSIZE, DMA_FROM_DEVICE);
 	if (hbspi->rxbuf) {
 		while (hbspi->rxcnt > 0 && cnt < HB_SPI_DMA_BUFSIZE) {
 			*hbspi->rxbuf = hbspi->rx_dma_buf[cnt];
@@ -514,12 +522,13 @@ static int hb_spi_drain_rxdma(struct hb_spi *hbspi)
 			cnt++;
 
 			if (hbspi->isslave == SLAVE_MODE) {
-				fragment_size--;
-				if (fragment_size <= 0)
+				fragment_size++;
+				if (fragment_size >= SPI_FRAGMENT_SIZE)
 					break;
 			}
 		}
 	}
+
 	if (hbspi->isslave == SLAVE_MODE) {
 		rx_mask.byte_value = hbspi->rx_dma_buf[4];
 		if (tx_or_rx_flag == rx_flag && rx_mask.element_value.end == 1
@@ -536,10 +545,13 @@ static int hb_spi_drain_rxdma(struct hb_spi *hbspi)
 		}
 	}
 	dma_sync_single_for_device(hbspi->dev, hbspi->rx_dma_phys,
-				   HB_SPI_DMA_BUFSIZE, DMA_FROM_DEVICE);
+								HB_SPI_DMA_BUFSIZE, DMA_FROM_DEVICE);
+
 	hb_spi_wr(hbspi, HB_SPI_FIFO_RESET_REG, HB_SPI_FRST_RXDIS);
+
 	if (debug > 1)
 		hb_spi_dump(hbspi, "drain_rxdma", hbspi->rx_dma_buf, cnt);
+
 	return 0;
 }
 #endif
@@ -873,12 +885,11 @@ static int hb_spi_transfer_one(struct spi_master *master,
 	ms = xfer->len * 8 * 1000 / hbspi->speed;
 	ms += 10;		/* some tolerance */
 
-	if (hbspi->isslave == MASTER_MODE) {
-		if (hb_spi_wait_for_tpi(hbspi, ms) == 0) {
-			dev_err(hbspi->dev, "%s %d\n", __func__, __LINE__);
-			return -EAGAIN;
-		}
+	if (hb_spi_wait_for_tpi(hbspi, ms) == 0) {
+		dev_err(hbspi->dev, "%s %d\n", __func__, __LINE__);
+		return -EAGAIN;
 	}
+
 	reinit_completion(&hbspi->completion);
 	hbspi->slave_aborted = false;	//slave
 
@@ -888,7 +899,11 @@ static int hb_spi_transfer_one(struct spi_master *master,
 		hbspi->speed = xfer->speed_hz;
 		hbspi->mode = spi->mode;
 		hb_spi_config(hbspi);
+
+		ms = xfer->len * 8 * 1000 / hbspi->speed;
+		ms += 10;
 	}
+
 #ifdef	CONFIG_HB_SPI_FIFO_MODE
 	/* prepare transfer with FIFO no-DMA */
 	if (hbspi->txbuf) {
@@ -903,6 +918,7 @@ static int hb_spi_transfer_one(struct spi_master *master,
 		hbspi->txcnt = 0;
 		tr_flag |= HB_SPI_OP_TX_DIS;
 	}
+
 	if (hbspi->rxbuf) {
 		hbspi->rxcnt = hbspi->len;
 		fifo_flag |= HB_SPI_OP_RX_FIFOE;
@@ -979,14 +995,13 @@ static int hb_spi_transfer_one(struct spi_master *master,
 #endif
 
 	ret = hb_spi_wait_for_completion(hbspi);
-	if (hbspi->isslave == MASTER_MODE) {
-		if (hb_spi_wait_for_tpi(hbspi, ms) == 0) {
-			dev_err(hbspi->dev, "Err txcnt=%d len=%d\n",
-				hbspi->txcnt, hbspi->len);
-			hb_spi_wr(hbspi, HB_SPI_FIFO_RESET_REG, HB_SPI_FRST_ABORT);
-		}
-		hb_spi_wr(hbspi, HB_SPI_INTSETMASK_REG, HB_SPI_INT_ALL);
+
+	if (hb_spi_wait_for_tpi(hbspi, ms) == 0) {
+		dev_err(hbspi->dev, "Err txcnt=%d len=%d\n",
+			hbspi->txcnt, hbspi->len);
+		hb_spi_wr(hbspi, HB_SPI_FIFO_RESET_REG, HB_SPI_FRST_ABORT);
 	}
+	hb_spi_wr(hbspi, HB_SPI_INTSETMASK_REG, HB_SPI_INT_ALL);
 
 	if (ret) {
 		hb_spi_wr(hbspi, HB_SPI_FIFO_RESET_REG, HB_SPI_FRST_ABORT);
@@ -1064,14 +1079,13 @@ static int hb_spi_slave_prepare_message(
 	hb_spi_en_ctrl(hbspi, HB_SPI_OP_CORE_EN, HB_SPI_OP_NONE,
 	       HB_SPI_OP_NONE);
 
-       if (debug > 1)
-	       dev_err(hbspi->dev, "%s HB_SPI_OP_CORE_EN\n", __func__);
+	if (debug > 1)
+		dev_err(hbspi->dev, "%s HB_SPI_OP_CORE_EN\n", __func__);
 
 	return 0;
 }
 static int hb_spi_slave_transfer_one(struct spi_controller *ctlr,
-	struct spi_device *spi,
-	struct spi_transfer *xfer)
+							struct spi_device *spi, struct spi_transfer *xfer)
 {
 	return hb_spi_transfer_one(ctlr, spi, xfer);
 }

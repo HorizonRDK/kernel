@@ -83,7 +83,7 @@ spi_tp_rx_start_or_end(struct spidev_data *spidev)
 		&& spi_rx_mask.element_value.consecutive == 1) {
 		ret = middle_frame;
 	}
-	if (g_debug_level > SPI_J3_AP_NO_DEBUG) {
+	if (spidev->level > SPI_NO_DEBUG) {
 		spi_debug_log("c=%d, start=%d, con=%d end=%d\n",
 			spidev->rx_buffer[SPI_COUNT_OFFSET],
 			spi_rx_mask.element_value.start,
@@ -117,7 +117,7 @@ spi_tp_tx_start_or_end(struct spidev_data *spidev)
 		&& spi_tx_mask.element_value.consecutive == 1) {
 		ret = middle_frame;
 	}
-	if (g_debug_level > SPI_J3_AP_NO_DEBUG) {
+	if (spidev->level > SPI_NO_DEBUG) {
 		spi_debug_log("c=%d, start=%d, end=%d\n",
 						spidev->tx_buffer[SPI_COUNT_OFFSET],
 						spi_tx_mask.element_value.start,
@@ -165,11 +165,11 @@ spi_tp_resolve_fragment(struct spidev_data *spidev,
 	ret = spi_tp_rx_start_or_end(spidev);
 	if (ret == start_frame) {
 		++start_count;
-		++proc_statistic.start_frag_count;
+		spidev->spi_statistic.start_frag_count++;
 		if (spidev->spi_recv_buf.new_frame_start == 1) {
 			reset_tmpbuf(spidev, RX_TEMP_BUFFER_LEN);
 			spidev->spi_recv_buf.new_frame_start = 1;
-			++proc_statistic.lost_end_frag_error;
+			spidev->spi_statistic.lost_end_frag_error++;
 		} else {
 			reset_tmpbuf(spidev, RX_TEMP_BUFFER_LEN);
 			spidev->spi_recv_buf.new_frame_start = 1;
@@ -198,7 +198,7 @@ spi_tp_resolve_fragment(struct spidev_data *spidev,
 		} else {
 			rx_tmp_buf_overflow = 1;
 		}
-		if (g_debug_level > SPI_J3_AP_NO_DEBUG) {
+		if (spidev->level > SPI_NO_DEBUG) {
 			for (i = 0; i < SPI_FRAGMENT_SIZE; ++i) {
 				spi_debug_log("%x", spidev->rx_buffer[i]);
 				if (!((i + 1) % 8))
@@ -220,7 +220,7 @@ spi_tp_resolve_fragment(struct spidev_data *spidev,
 			if (tmp_count != cur_custom_frame_count + 1) {
 				spi_err_log("lost middle\n");
 				reset_tmpbuf(spidev, RX_TEMP_BUFFER_LEN);
-				++proc_statistic.lost_middle_frag_error;
+				spidev->spi_statistic.lost_middle_frag_error++;
 				return -3;
 			}
 			if (spidev->spi_recv_buf.empty_len <
@@ -237,7 +237,7 @@ spi_tp_resolve_fragment(struct spidev_data *spidev,
 		} else { // lost middle fragment error
 			spi_err_log("lost middle\n");
 			reset_tmpbuf(spidev, RX_TEMP_BUFFER_LEN);
-			++proc_statistic.lost_middle_frag_error;
+			spidev->spi_statistic.lost_middle_frag_error++;
 			return -3;
 		}
 	} else if (ret == single_frame) {
@@ -252,7 +252,7 @@ spi_tp_resolve_fragment(struct spidev_data *spidev,
 			rx_tmp_buf_overflow = 3;
 			spi_err_log("rx_tmp_buf_overflow len 0x%x \n",
 						cur_custom_frame_len);
-			if (g_debug_level > SPI_J3_AP_NO_DEBUG) {
+			if (spidev->level > SPI_NO_DEBUG) {
 				for (i = 0; i < SPI_FRAGMENT_SIZE; ++i) {
 					spi_debug_log("%x", spidev->rx_buffer[i]);
 					if (!((i + 1) % 8))
@@ -280,20 +280,20 @@ spi_tp_resolve_fragment(struct spidev_data *spidev,
 			if (tmp_count != cur_custom_frame_count + 1) {
 				spi_err_log("lost middle\n");
 				reset_tmpbuf(spidev, RX_TEMP_BUFFER_LEN);
-				++proc_statistic.lost_middle_frag_error;
+				spidev->spi_statistic.lost_middle_frag_error++;
 				return -3;
 			}
 			if (spidev->spi_recv_buf.new_frame_start == 0) {
 				reset_tmpbuf(spidev, RX_TEMP_BUFFER_LEN);
 				spi_err_log("lost middle\n");
-				++proc_statistic.lost_start_frag_error;
+				spidev->spi_statistic.lost_start_frag_error++;
 				return -3;
 			}
 			if (spidev->spi_recv_buf.rx_tmp_len
 							>= cur_custom_frame_len) {
 				reset_tmpbuf(spidev, RX_TEMP_BUFFER_LEN);
 				spi_err_log("lost middle\n");
-				++proc_statistic.lost_start_frag_error;
+				spidev->spi_statistic.lost_start_frag_error++;
 				return -3;
 			}
 		}
@@ -302,7 +302,7 @@ spi_tp_resolve_fragment(struct spidev_data *spidev,
 		spi_err_log("rx_tmp_buf overflow %d\n", rx_tmp_buf_overflow);
 		rx_tmp_buf_overflow = 0;
 		reset_tmpbuf(spidev, RX_TEMP_BUFFER_LEN);
-		++proc_statistic.rx_tmp_buf_overflow;
+		spidev->spi_statistic.rx_tmp_buf_overflow++;
 		return -2;
 	}
 	return -1;
