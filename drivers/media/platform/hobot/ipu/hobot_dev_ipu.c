@@ -141,7 +141,6 @@ static int x3_ipu_release_s0_frame(struct ipu_subdev *subdev)
 		framemgr->queued_count[frame->common_frame.state]--;
 		framemgr->frames_mp[i] = NULL;
 		framemgr->index_state[i] = FRAME_IND_FREE;
-		framemgr->dispatch_mask[i] = 0;
 	}
 
 	framemgr->max_index = 0;
@@ -199,7 +198,6 @@ static int x3_ipu_release_subdev_all_ion(struct ipu_subdev *subdev)
 		framemgr->queued_count[frame->common_frame.state]--;
 		framemgr->frames_mp[i] = NULL;
 		framemgr->index_state[i] = FRAME_IND_FREE;
-		framemgr->dispatch_mask[i] = 0;
 	}
 
 	framemgr->max_index = 0;
@@ -362,7 +360,6 @@ static u32 x3_ipu_poll(struct file *file, struct poll_table_struct *wait)
 	unsigned long flags;
 	struct list_head *done_list;
 	struct x3_ipu_dev *ipu;
-	struct vio_frame *frame;
 
 	ipu_ctx = file->private_data;
 	framemgr = ipu_ctx->framemgr;
@@ -1641,10 +1638,10 @@ static int ipu_flush_mp_prepare(struct ipu_video_ctx *ipu_ctx)
 			&& (this->index_state[i] != FRAME_IND_STREAMOFF))
 			continue;
 		frame = this->frames_mp[i];
-		this->dispatch_mask[i] &= ~(1 << proc_id);
-		if (this->dispatch_mask[i] == 0x0000) {
-			if (frame) {
-				this->dispatch_mask[i] |= 0xFF00;
+		if (frame) {
+			frame->dispatch_mask &= ~(1 << proc_id);
+			if (frame->dispatch_mask == 0x0000) {
+				frame->dispatch_mask |= 0xFF00;
 				trans_frame(this, frame, FS_REQUEST);
 				if (subdev->leader == true && group->leader)
 					vio_group_start_trigger_mp(group, frame);
@@ -1658,7 +1655,6 @@ static int ipu_flush_mp_prepare(struct ipu_video_ctx *ipu_ctx)
 		if ((this->index_state[i] != FRAME_IND_USING)
 			&& (this->index_state[i] != FRAME_IND_STREAMOFF))
 			continue;
-		vio_dbg("frm%d mask 0x%x", i, this->dispatch_mask[i]);
 	}
 
 	return 0;
@@ -1798,6 +1794,7 @@ int ipu_video_qbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 	int i = 0, first_index, frame_num;
 	u16 mask = 0x0000;
 	int tmp_num = 0;
+	struct vio_frame *release_frame;
 
 	index = frameinfo->bufferindex;
 	framemgr = ipu_ctx->framemgr;
@@ -1831,7 +1828,7 @@ int ipu_video_qbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 	}
 	ipu_ctx->frm_num_usr--;
 	if (frame->state == FS_FREE) {
-		framemgr->dispatch_mask[index] &= ~(1 << ipu_ctx->ctx_index);
+		frame->dispatch_mask &= ~(1 << ipu_ctx->ctx_index);
 		if (framemgr->index_state[index] == FRAME_IND_STREAMOFF) {
 			vio_dbg("[S%d][V%d] q fail:FREE proc%d bidx%d is streaming off",
 				group->instance, ipu_ctx->id,
@@ -1840,7 +1837,7 @@ int ipu_video_qbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 			goto try_releas_ion;
 		}
 		memcpy(&frame->frameinfo, frameinfo, sizeof(struct frame_info));
-		framemgr->dispatch_mask[index] |= 0xFF00;
+		frame->dispatch_mask |= 0xFF00;
 		trans_frame(framemgr, frame, FS_REQUEST);
 		vio_dbg("[S%d][V%d] q:FREE->REQ,proc%d bidx%d,(%d %d %d %d %d)",
 			group->instance, ipu_ctx->id,
@@ -1852,10 +1849,10 @@ int ipu_video_qbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 			framemgr->queued_count[FS_USED]);
 
 	} else if (frame->state == FS_USED) {
-		framemgr->dispatch_mask[index] &= ~(1 << ipu_ctx->ctx_index);
+		frame->dispatch_mask &= ~(1 << ipu_ctx->ctx_index);
 
-		// qbuf的帧，只有在没有被其他帧占用，且poll_mask为0才释放
-		if (framemgr->dispatch_mask[index] == 0 && frame->poll_mask == 0x00) {
+		// tran frame to request if no process need
+		if (frame->dispatch_mask == 0 && frame->poll_mask == 0x00) {
 			if (framemgr->index_state[index] == FRAME_IND_STREAMOFF) {
 				vio_dbg("[S%d][V%d] q fail:USED proc%d bidx%d is streaming off",
 					group->instance, ipu_ctx->id,
@@ -1865,7 +1862,7 @@ int ipu_video_qbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 			}
 			memcpy(&frame->frameinfo, frameinfo,
 				sizeof(struct frame_info));
-			framemgr->dispatch_mask[index] |= 0xFF00;
+			frame->dispatch_mask |= 0xFF00;
 			trans_frame(framemgr, frame, FS_REQUEST);
 			vio_dbg("[S%d][V%d] q:USED->REQ,proc%d bidx%d,(%d %d %d %d %d)",
 				group->instance, ipu_ctx->id,
@@ -1879,7 +1876,7 @@ int ipu_video_qbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 			vio_dbg("[S%d][V%d] q:USED->REQ,proc%d bidx%d,disp_mask0x%x,(%d %d %d %d %d)",
 				group->instance, ipu_ctx->id,
 				ipu_ctx->ctx_index, index,
-				framemgr->dispatch_mask[index],
+				frame->dispatch_mask,
 				framemgr->queued_count[FS_FREE],
 				framemgr->queued_count[FS_REQUEST],
 				framemgr->queued_count[FS_PROCESS],
@@ -1909,19 +1906,21 @@ int ipu_video_qbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 	return ret;
 
 try_releas_ion:
-	//判断所有的dispatch_mask是否为0
-	//如果是，将frames从frames_mp断开
-	//并清空对应的index状态
+	// check if process's all frames are ok to free
 	mp_frame = (struct mp_vio_frame *)frame;
 	first_index = mp_frame->first_indx;
 	frame_num = mp_frame->ion_bufffer_num;
 	vio_dbg("subdev:%d, fst_ind:%d, frm_num:%d",
 		subdev->id, first_index, frame_num);
 	for (i = first_index; i < first_index+frame_num; i++) {
-		mask |= framemgr->dispatch_mask[i];
-		mp_frame = (struct mp_vio_frame *)framemgr->frames_mp[i];
-		vio_dbg("subdev:%d, index %d, mask:%x, state:%d", subdev->id, i,
-				framemgr->dispatch_mask[i], mp_frame->common_frame.state);
+		release_frame = framemgr->frames_mp[i];
+		if (release_frame) {
+			mask |= release_frame->dispatch_mask;
+			mp_frame = (struct mp_vio_frame *)release_frame;
+			vio_dbg("subdev:%d, index %d, mask:%x, state:%d", subdev->id, i,
+					release_frame->dispatch_mask,
+					mp_frame->common_frame.state);
+		}
 	}
 	vio_dbg("subdev:%d, whole mask:%x", subdev->id, mask);
 	if (mask == 0x0000) {
@@ -1935,7 +1934,6 @@ try_releas_ion:
 			framemgr->queued_count[mp_frame->common_frame.state]--;
 			framemgr->frames_mp[i] = NULL;
 			framemgr->index_state[i] = FRAME_IND_FREE;
-			framemgr->dispatch_mask[i] = 0;
 		}
 
 		framemgr->ctx_mask &= ~(1 << ipu_ctx->ctx_index);
@@ -1945,8 +1943,9 @@ try_releas_ion:
 			if ((framemgr->index_state[i] != FRAME_IND_USING)
 				&& (framemgr->index_state[i] != FRAME_IND_STREAMOFF))
 				continue;
-
-			framemgr->dispatch_mask[i] &= ~(1 << ipu_ctx->ctx_index);
+			release_frame = framemgr->frames_mp[i];
+			if (release_frame)
+				release_frame->dispatch_mask &= ~(1 << ipu_ctx->ctx_index);
 		}
 
 		if (framemgr->max_index == (first_index + frame_num)) {
@@ -2022,9 +2021,9 @@ int ipu_video_dqbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 				cache_frame = framemgr->frames_mp[cache_bufindex];
 				if (cache_frame) {
 					cache_frame->poll_mask = 0x00;
-					if (framemgr->dispatch_mask[cache_bufindex] == 0x0000) {
+					if (cache_frame->dispatch_mask == 0x0000) {
 						subdev->frameinfo.bufferindex = -1;
-						framemgr->dispatch_mask[cache_bufindex] = 0xFF00;
+						cache_frame->dispatch_mask = 0xFF00;
 						trans_frame(framemgr, cache_frame, FS_REQUEST);
 						vio_dbg("ipu dq trans to request%d", cache_bufindex);
 					}
@@ -2034,8 +2033,8 @@ int ipu_video_dqbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 				sizeof(struct frame_info));
 			trans_frame(framemgr, frame, FS_USED);
 			bufindex = frame->frameinfo.bufferindex;
-			framemgr->dispatch_mask[bufindex] = 0x0000;
-			framemgr->dispatch_mask[bufindex] |= (1 << ipu_ctx->ctx_index);
+			frame->dispatch_mask = 0x0000;
+			frame->dispatch_mask |= (1 << ipu_ctx->ctx_index);
 			frame->poll_mask &= ~(1 << ipu_ctx->ctx_index);
 			/* copy frame_info to subdev*/
 			if (atomic_read(&subdev->refcount) > 1) {
@@ -2086,7 +2085,7 @@ int ipu_video_dqbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 			frame = framemgr->frames_mp[cache_bufindex];
 			if (frame && (frame->state == FS_USED)) {
 				memcpy(frameinfo, &subdev->frameinfo, sizeof(struct frame_info));
-				framemgr->dispatch_mask[cache_bufindex] |= (1 << ipu_ctx->ctx_index);
+				frame->dispatch_mask |= (1 << ipu_ctx->ctx_index);
 				frame->poll_mask &= ~(1 << ipu_ctx->ctx_index);
 				ipu_ctx->frm_num_usr++;
 			} else {
@@ -2581,9 +2580,9 @@ void ipu_frame_done(struct ipu_subdev *subdev)
 			cache_frame = framemgr->frames_mp[cache_bufindex];
 			if (cache_frame) {
 				cache_frame->poll_mask = 0x00;
-				if (framemgr->dispatch_mask[cache_bufindex] == 0x0000) {
+				if (cache_frame->dispatch_mask == 0x0000) {
 					subdev->frameinfo.bufferindex = -1;
-					framemgr->dispatch_mask[cache_bufindex] = 0xFF00;
+					cache_frame->dispatch_mask = 0xFF00;
 					trans_frame(framemgr, cache_frame, FS_REQUEST);
 				}
 			}
