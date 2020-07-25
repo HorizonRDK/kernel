@@ -103,10 +103,12 @@ EXPORT_SYMBOL(vio_group_task_stop);
 void vio_group_start_trigger(struct vio_group *group, struct vio_frame *frame)
 {
 	struct vio_group_task *group_task;
-
+	bool trigger;
 	group_task = group->gtask;
 	atomic_inc(&group->rcount);
-	kthread_queue_work(&group_task->worker, &frame->work);
+	trigger = kthread_queue_work(&group_task->worker, &frame->work);
+	if (trigger == false)
+		vio_err("vio_group_start_trigger failed\n");
 }
 EXPORT_SYMBOL(vio_group_start_trigger);
 
@@ -422,9 +424,12 @@ void vio_set_stat_info(u32 instance, u32 stat_type, u16 frameid)
 {
 	struct vio_chain *chain;
 	struct statinfo *stat;
-
+	if (chain->statinfoidx < 0)
+		chain->statinfoidx = 0;
+	else if (chain->statinfoidx >= MAX_DELAY_FRAMES)
+		chain->statinfoidx = 0;
 	chain = &iscore.chain[instance];
-	stat = &chain->statinfo[stat_type];
+	stat = &chain->statinfo[chain->statinfoidx][stat_type];
 	stat->framid = frameid;
 	do_gettimeofday(&stat->g_tv);
 }
@@ -435,24 +440,22 @@ void vio_clear_stat_info(u32 instance)
 	struct vio_chain *chain;
 	chain = &iscore.chain[instance];
 	memset(chain->statinfo, 0, sizeof(chain->statinfo));
-	memset(chain->statinfobak, 0, sizeof(chain->statinfobak));
+	chain->statinfoidx = 0;
 }
 EXPORT_SYMBOL(vio_clear_stat_info);
 
-void vio_save_stat_info(u32 instance)
+void vio_exchanage_stat_info(u32 instance)
 {
 	struct vio_chain *chain;
 	struct statinfo *stat;
 	int i = 0;
 
 	chain = &iscore.chain[instance];
-	for (i = MAX_DELAY_FRAMES - 2; i >= 0; i--) {
-		memcpy(chain->statinfobak[i+1],
-			chain->statinfobak[i], sizeof(chain->statinfo));
-	}
-	memcpy(chain->statinfobak[0], chain->statinfo, sizeof(chain->statinfo));
+	chain->statinfoidx++;
+	if (chain->statinfoidx >= MAX_DELAY_FRAMES)
+		chain->statinfoidx = 0;
 }
-EXPORT_SYMBOL(vio_save_stat_info);
+EXPORT_SYMBOL(vio_exchanage_stat_info);
 
 int vio_print_delay(s32 instance, s8* buf, u32 size)
 {
@@ -461,27 +464,39 @@ int vio_print_delay(s32 instance, s8* buf, u32 size)
 	int i = 0;
 	u32 offset = 0;
 	int len = 0;
+	int idx = 0;
 
 	chain = &iscore.chain[instance];
+	idx = chain->statinfoidx;
 	len = snprintf(&buf[offset], size - offset,
-			"*******pipe %d vio info:************************\n", instance);
+			"*******pipe %d vio info:************\n", instance);
 	offset += len;
 	for (i = 1; i < MAX_DELAY_FRAMES; i++) {
-		stat = chain->statinfobak[i];
+		stat = chain->statinfo[(idx + i)%MAX_DELAY_FRAMES];
 		len = snprintf(&buf[offset], size - offset,
 			"*******frame %d vio info:******\n", i);
 		offset += len;
 		len = snprintf(&buf[offset], size - offset,
-			"[F%07d]sif_cap(FS %ld.%06ld)\n",
+			"[F%07d]sif_cap(FS %ld.%06ld)",
 			stat[SIF_CAP_FS].framid,
 			stat[SIF_CAP_FS].g_tv.tv_sec, stat[SIF_CAP_FS].g_tv.tv_usec);
 		offset += len;
-		len = snprintf(&buf[offset], size - offset,
-			"[F%07d]sif_cap(FE %ld.%06ld)\n",
-			stat[SIF_CAP_FE].framid,
-			stat[SIF_CAP_FE].g_tv.tv_sec, stat[SIF_CAP_FE].g_tv.tv_usec);
-		offset += len;
-
+		if (stat[SIF_CAP_FS].framid == stat[SIF_CAP_FE].framid) {
+			len = snprintf(&buf[offset], size - offset,
+				" sif_cap(FE %ld.%06ld) sif use time: %dus\n",
+				stat[SIF_CAP_FE].g_tv.tv_sec,
+				stat[SIF_CAP_FE].g_tv.tv_usec,
+				(stat[SIF_CAP_FE].g_tv.tv_sec - stat[SIF_CAP_FS].g_tv.tv_sec) *
+				1000000 + stat[SIF_CAP_FE].g_tv.tv_usec -
+				stat[SIF_CAP_FS].g_tv.tv_usec);
+			offset += len;
+		} else {
+			len = snprintf(&buf[offset], size - offset,
+				"\n[F%07d]sif_cap(FE %ld.%06ld)\n",
+				stat[SIF_CAP_FE].framid,
+				stat[SIF_CAP_FE].g_tv.tv_sec, stat[SIF_CAP_FE].g_tv.tv_usec);
+			offset += len;
+		}
 		len = snprintf(&buf[offset], size - offset,
 			"[F%07d] sif_in(FS %ld.%06ld)\n",
 			stat[SIF_IN_FS].framid,
@@ -564,7 +579,7 @@ void vio_print_stat_info(u32 instance)
 	struct statinfo *stat;
 
 	chain = &iscore.chain[instance];
-	stat = chain->statinfo;
+	stat = chain->statinfo[0];
 	vio_info("[F%d]sif_cap(FS %ld.%06ld|FE %ld.%06ld)\n",
 		stat[SIF_CAP_FS].framid,
 		stat[SIF_CAP_FS].g_tv.tv_sec, stat[SIF_CAP_FS].g_tv.tv_usec,

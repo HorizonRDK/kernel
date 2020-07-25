@@ -123,8 +123,8 @@ struct statinfo {
 
 struct vio_chain {
 	struct vio_group group[GROUP_ID_NUMBER];
-	struct statinfo statinfo[STAT_NUM];
-	struct statinfo statinfobak[MAX_DELAY_FRAMES][STAT_NUM];
+	struct statinfo statinfo[MAX_DELAY_FRAMES][STAT_NUM];
+	unsigned long statinfoidx;
 	unsigned long state;
 };
 
@@ -153,7 +153,7 @@ void vio_dwe_clk_disable(void);
 void vio_set_stat_info(u32 instance, u32 stat_type, u16 frameid);
 void vio_print_stat_info(u32 instance);
 int vio_print_delay(s32 instance, s8* buf, u32 size);
-void vio_save_stat_info(u32 instance);
+void vio_exchanage_stat_info(u32 instance);
 void vio_clear_stat_info(u32 instance);
 
 #ifdef X3_IAR_INTERFACE
