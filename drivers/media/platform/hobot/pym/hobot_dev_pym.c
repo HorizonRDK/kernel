@@ -828,7 +828,8 @@ static int pym_flush_mp_prepare(struct pym_video_ctx *pym_ctx)
 		if (frame) {
 			frame->dispatch_mask &= ~(1 << proc_id);
 			frame->poll_mask &= ~(1 << proc_id);
-			if (frame->dispatch_mask == 0x0000 && frame->poll_mask == 0x00) {
+			if (frame->dispatch_mask == 0x0000 && frame->poll_mask == 0x00
+					&& (this->index_state[i] == FRAME_IND_USING)) {
 				frame->dispatch_mask |= 0xFF00;
 				trans_frame(this, frame, FS_REQUEST);
 				if(group->leader == true)
@@ -1181,7 +1182,8 @@ int pym_video_dqbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 				cache_frame = framemgr->frames_mp[cache_bufindex];
 				if (cache_frame) {
 					cache_frame->poll_mask = 0x00;
-					if (cache_frame->dispatch_mask == 0x0000) {
+					if (cache_frame->dispatch_mask == 0x0000
+							&& (framemgr->index_state[cache_bufindex] == FRAME_IND_USING)) {
 						subdev->frameinfo.bufferindex = -1;
 						cache_frame->dispatch_mask = 0xFF00;
 						trans_frame(framemgr, cache_frame, FS_REQUEST);
@@ -1769,7 +1771,8 @@ void pym_frame_done(struct pym_subdev *subdev)
 			cache_frame = framemgr->frames_mp[cache_bufindex];
 			if (cache_frame) {
 				cache_frame->poll_mask = 0x00;
-				if (cache_frame->dispatch_mask == 0x0000) {
+				if (cache_frame->dispatch_mask == 0x0000
+						&& (framemgr->index_state[cache_bufindex] == FRAME_IND_USING)) {
 					subdev->frameinfo.bufferindex = -1;
 					cache_frame->dispatch_mask = 0xFF00;
 					trans_frame(framemgr, cache_frame, FS_REQUEST);
