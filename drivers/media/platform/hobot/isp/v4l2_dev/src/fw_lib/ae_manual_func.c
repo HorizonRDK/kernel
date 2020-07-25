@@ -191,8 +191,10 @@ void ae_read_full_histogram_data( AE_fsm_ptr_t p_fsm )
 
     p_fsm->fullhist_sum = sum;
 
+    int rc = 0;
     static int count = 0;
-    if (p_ctx->isp_ae_stats_on) {
+    rc = system_chardev_lock();
+    if (rc == 0 && p_ctx->isp_ae_stats_on) {
 	    isp_ctx_node_t *cn;
 	    cn = isp_ctx_get_node(fw_id, ISP_AE, FREEQ);
 	    if (!cn) {
@@ -211,6 +213,9 @@ void ae_read_full_histogram_data( AE_fsm_ptr_t p_fsm )
 		    pr_debug("ae stats frame id %d\n", cn->ctx.frame_id);
 	    }
     }
+    if (rc == 0)
+        system_chardev_unlock();    
+
 
     /* NOTE: the size should match */
     memcpy( p_sbuf_ae->stats_data, p_fsm->fullhist, sizeof( p_sbuf_ae->stats_data ) );

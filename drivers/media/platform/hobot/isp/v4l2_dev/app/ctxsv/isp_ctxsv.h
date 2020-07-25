@@ -65,4 +65,6 @@ extern void isp_ctx_put_node(int ctx_id, isp_ctx_node_t *cn, isp_info_type_e it,
 extern void isp_ctx_put(int ctx_id, isp_info_type_e type, uint8_t idx);
 extern void isp_ctx_done_queue_clear(int ctx_id);
 extern int isp_ctx_queue_init(void);
+extern int system_chardev_lock(void);
+extern void system_chardev_unlock(void);
 #endif

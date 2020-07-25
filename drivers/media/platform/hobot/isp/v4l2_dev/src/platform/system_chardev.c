@@ -106,10 +106,30 @@ struct isp_dev_context {
 extern struct ion_device *hb_ion_dev;
 extern int32_t acamera_set_api_context(uint32_t ctx_num);
 extern void system_reg_rw(struct regs_t *rg, uint8_t dir);
+extern void *acamera_get_ctx_ptr(uint32_t ctx_id);
+extern int isp_temper_set_addr(general_fsm_ptr_t p_fsm);
 
 /* First item for ACT Control, second for user-FW */
 static struct isp_dev_context isp_dev_ctx;
 int isp_dev_mem_alloc(void);
+
+int system_chardev_lock(void)
+{
+	int rc = 0;
+
+    rc = mutex_lock_interruptible( &isp_dev_ctx.fops_lock );
+    if ( rc ) {
+        LOG( LOG_ERR, "Error: lock failed of dev: %s.", isp_dev_ctx.dev_name );
+        return rc;
+    }
+
+	return rc;
+}
+
+void system_chardev_unlock(void)
+{
+	mutex_unlock( &isp_dev_ctx.fops_lock );
+}
 
 static int isp_fops_open( struct inode *inode, struct file *f )
 {
@@ -178,8 +198,9 @@ lock_failure:
 
 static int isp_fops_release( struct inode *inode, struct file *f )
 {
-    int rc;
+    int i, rc;
     struct isp_dev_context *p_ctx = (struct isp_dev_context *)f->private_data;
+	acamera_context_t *ptr;
 
     if ( p_ctx != &isp_dev_ctx ) {
         LOG( LOG_ERR, "Inalid paramter: %p.", p_ctx );
@@ -191,6 +212,14 @@ static int isp_fops_release( struct inode *inode, struct file *f )
         LOG( LOG_ERR, "Error: lock failed of dev: %s.", p_ctx->dev_name );
         return rc;
     }
+
+	//free memory later, disable all contexts isp info dump
+	for (i = 0; i < FIRMWARE_CONTEXT_NUMBER; i++) {
+		ptr = acamera_get_ctx_ptr(i);
+		ptr->isp_ctxsv_on = 0;
+		ptr->isp_awb_stats_on = 0;
+		ptr->isp_ae_stats_on = 0;
+	}
 
     p_ctx->dev_opened--;
 
@@ -361,8 +390,6 @@ err_flag:
 }
 #endif
 
-extern void *acamera_get_ctx_ptr(uint32_t ctx_id);
-extern int isp_temper_set_addr(general_fsm_ptr_t p_fsm);
 static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	long ret = 0;

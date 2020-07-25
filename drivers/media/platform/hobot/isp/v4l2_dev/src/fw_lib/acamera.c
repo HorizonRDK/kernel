@@ -100,6 +100,8 @@ extern hobot_dma_t g_hobot_dma;
 extern int isp_stream_onoff_check(void);
 extern void system_interrupts_disable( void );
 
+static void isp_ctxsv_work(struct work_struct *w);
+
 int32_t acamera_set_api_context( uint32_t ctx_num )
 {
     int32_t result = 0;
@@ -449,6 +451,8 @@ int32_t acamera_init( acamera_settings *settings, uint32_t ctx_num )
 
         g_firmware.context_number = ctx_num;
 
+        INIT_WORK(&g_firmware.ctxsv_work, isp_ctxsv_work);
+
         result = system_dma_init( &g_firmware.dma_chan_isp_config );
         result |= system_dma_init( &g_firmware.dma_chan_isp_metering );
         if ( result == 0 ) {
@@ -659,23 +663,17 @@ void dma_writer_config_done(void)
 }
 EXPORT_SYMBOL(dma_writer_config_done);
 
-static void dma_complete_context_func( void *arg )
+static void isp_ctxsv_work(struct work_struct *w)
 {
-    int ctx_id = cur_ctx_id;
+    int rc = 0;
+    isp_ctx_node_t *cn;
+    static int count = 0;
+    volatile void *offset;
+    uint8_t ctx_id = cur_ctx_id;
+    acamera_context_t *p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[ctx_id];
 
-    pr_debug("DMA COMPLETION FOR CONTEXT\n");
-
-    g_firmware.dma_flag_isp_config_completed = 1;
-
-    if ( g_firmware.dma_flag_isp_config_completed && g_firmware.dma_flag_isp_metering_completed ) {
-	isp_ctx_node_t *cn;
-	static int count = 0;
-	volatile void *offset;
-	acamera_context_t *p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[ctx_id];
-
-	pr_debug("START PROCESSING FROM CONTEXT CALLBACK, ctx_id %d\n", ctx_id);
-
-	if (p_ctx->isp_ctxsv_on) {
+    rc = system_chardev_lock();
+	if (rc == 0 && p_ctx->isp_ctxsv_on) {
 		cn = isp_ctx_get_node(ctx_id, ISP_CTX, FREEQ);
 		if (!cn) {
 			if (count++ >= 150) { //about 5s
@@ -694,6 +692,27 @@ static void dma_complete_context_func( void *arg )
 			pr_debug("ctx dump frame id %d\n", cn->ctx.frame_id);
 		}
 	}
+    if (rc == 0)
+        system_chardev_unlock();    
+}
+
+//Note: tasklet context
+static void dma_complete_context_func( void *arg )
+{
+    int ctx_id = cur_ctx_id;
+    acamera_context_t *p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[ctx_id];
+
+    pr_debug("DMA COMPLETION FOR CONTEXT\n");
+
+    g_firmware.dma_flag_isp_config_completed = 1;
+
+    if ( g_firmware.dma_flag_isp_config_completed && g_firmware.dma_flag_isp_metering_completed ) {
+
+        pr_debug("START PROCESSING FROM CONTEXT CALLBACK, ctx_id %d\n", ctx_id);
+
+        if (p_ctx->isp_ctxsv_on)
+            schedule_work(&g_firmware.ctxsv_work);
+
          // indicate dma writer is disabled
         if (p_ctx->p_gfw->sif_isp_offline && p_ctx->fsm_mgr.reserved == 0
             && isp_stream_onoff_check() != 2) {

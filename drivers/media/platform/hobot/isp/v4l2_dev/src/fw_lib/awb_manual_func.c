@@ -254,8 +254,10 @@ void awb_read_statistics( AWB_fsm_t *p_fsm )
         p_fsm->sum += p_sbuf_awb_stats->stats_data[_i].sum;
     }
 
+    int rc = 0;
     static int count = 0;
-    if (p_ctx->isp_awb_stats_on) {
+    rc = system_chardev_lock();
+    if (rc == 0 && p_ctx->isp_awb_stats_on) {
 	    isp_ctx_node_t *cn;
 	    cn = isp_ctx_get_node(fw_id, ISP_AWB, FREEQ);
 	    if (!cn) {
@@ -272,8 +274,10 @@ void awb_read_statistics( AWB_fsm_t *p_fsm )
 		    isp_ctx_put_node(fw_id, cn, ISP_AWB, DONEQ);
 
 		    pr_debug("awb stats frame id %d\n", cn->ctx.frame_id);
-	    }
+	    }        
     }
+    if (rc == 0)
+        system_chardev_unlock();
 
     p_sbuf_awb_stats->curr_AWB_ZONES = p_fsm->curr_AWB_ZONES;
 
