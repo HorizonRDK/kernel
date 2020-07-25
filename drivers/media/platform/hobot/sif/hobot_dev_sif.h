@@ -39,6 +39,9 @@
 #define SIF_IOC_MD_CFG	    	 _IOW(SIF_IOC_MAGIC, 9, int)
 #define SIF_IOC_PATTERN_CFG	     _IOW(SIF_IOC_MAGIC, 10, int)
 #define SIF_IOC_USER_STATS       _IOR(SIF_IOC_MAGIC, 11, struct user_statistic)
+#define SIF_IOC_MD_ENABLE	     _IO(SIF_IOC_MAGIC, 12)
+#define SIF_IOC_MD_DISENABLE	 _IO(SIF_IOC_MAGIC, 13)
+
 
 #define VIO_MP_IOC_MAGIC 'm'
 #define VIO_MP_IOC_BIND_GROUP	 _IOW(VIO_MP_IOC_MAGIC, 0, int)

@@ -122,14 +122,29 @@ int ips_set_md_cfg(sif_output_md_t *cfg)
 	ips_mot_set_step(g_ips_dev->base_reg, cfg->grid_step);
 	ips_mot_data_sel(g_ips_dev->base_reg, 0x1);
 	ips_mot_set_prec(g_ips_dev->base_reg, cfg->precision, cfg->weight_decay);
-	ips_mot_enable(g_ips_dev->base_reg, cfg->enable);
-	ips_set_sram_mux(g_ips_dev->base_reg, 1);
+	// ips_mot_enable(g_ips_dev->base_reg, cfg->enable);
+	// ips_set_sram_mux(g_ips_dev->base_reg, 1);
 	ips_enable_intr(g_ips_dev->base_reg, MOD_INTR, true);
 	spin_unlock_irqrestore(&g_ips_dev->shared_slock, flags);
 
 	return ret;
 }
 EXPORT_SYMBOL_GPL(ips_set_md_cfg);
+
+void ips_set_md_enable(void)
+{
+	ips_mot_enable(g_ips_dev->base_reg, 1);
+	ips_set_sram_mux(g_ips_dev->base_reg, 1);
+}
+EXPORT_SYMBOL_GPL(ips_set_md_enable);
+
+void ips_set_md_disable(void)
+{
+	ips_mot_enable(g_ips_dev->base_reg, 0);
+	ips_set_sram_mux(g_ips_dev->base_reg, 0);
+}
+
+EXPORT_SYMBOL_GPL(ips_set_md_disable);
 
 int ips_disable_md(void)
 {

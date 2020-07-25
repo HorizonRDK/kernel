@@ -166,6 +166,9 @@ extern int ips_set_clk_ctrl(unsigned long module, bool enable);
 extern int ips_set_bus_ctrl(unsigned int cfg);
 extern int ips_get_bus_ctrl(void);
 
+extern void ips_set_md_enable(void);
+extern void ips_set_md_disable(void);
+
 extern int ips_get_bus_status(void);
 extern int ips_set_md_cfg(sif_output_md_t *cfg);
 extern int ips_disable_md(void);

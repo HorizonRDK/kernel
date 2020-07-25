@@ -39,6 +39,9 @@ int ips_set_clk_ctrl(unsigned long module, bool enable);
 int ips_set_bus_ctrl(unsigned int cfg);
 int ips_get_bus_ctrl(void);
 
+void ips_set_md_enable(void);
+void ips_set_md_disable(void);
+
 int ips_get_bus_status(void);
 int ips_set_md_cfg(sif_output_md_t *cfg);
 int ips_disable_md(void);

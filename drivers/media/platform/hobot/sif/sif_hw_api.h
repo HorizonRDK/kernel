@@ -13,6 +13,9 @@ void sif_transfer_ddr_owner(u32 __iomem *base_reg, u32 mux_out_index, u32 buf_in
 u32 sif_get_ddr_addr(u32 __iomem *base_reg, u32 mux_out_index, u32 buf_index);
 void sif_set_ddr_output(u32 __iomem *base_reg, sif_output_ddr_t* p_ddr, u32 *enbale);
 
+void sif_set_md_enable(u32 __iomem *base_reg);
+	void sif_set_md_disable(u32 __iomem *base_reg);
+
 void sif_hw_config(u32 __iomem *base_reg, sif_cfg_t* c);
 void sif_hw_disable(u32 __iomem *base_reg);
 void sif_hw_enable(u32 __iomem *base_reg);

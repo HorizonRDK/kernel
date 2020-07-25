@@ -10,6 +10,7 @@
 #include "sif_hw_api.h"
 
 static uint32_t s_enable_pattern_gen = 0;
+static uint32_t path_sel = 0;
 
 void sif_enable_frame_intr(void __iomem *base_reg, u32 mux_index,
 				bool enable)
@@ -1146,6 +1147,27 @@ static void sif_set_ipu_output(u32 __iomem *base_reg,
 	}
 }
 
+void sif_set_md_enable(u32 __iomem *base_reg)
+{
+	if(path_sel == 1) {
+	vio_hw_set_field(base_reg, &sif_regs[SIF_MOT_DET_MODE],
+			&sif_fields[SW_SIF_IPU_MD_ENABLE], 1);
+	} else {
+	vio_hw_set_field(base_reg, &sif_regs[SIF_MOT_DET_MODE],
+			&sif_fields[SW_SIF_ISP_MD_ENABLE], 1);
+	}
+}
+void sif_set_md_disable(u32 __iomem *base_reg)
+{
+	if(path_sel == 1) {
+	vio_hw_set_field(base_reg, &sif_regs[SIF_MOT_DET_MODE],
+			&sif_fields[SW_SIF_IPU_MD_ENABLE], 0);
+	} else {
+	vio_hw_set_field(base_reg, &sif_regs[SIF_MOT_DET_MODE],
+			&sif_fields[SW_SIF_ISP_MD_ENABLE], 0);
+	}
+}
+
 /*
  * @brief config motion detection, and must config ISP output
  *
@@ -1154,22 +1176,16 @@ static void sif_set_ipu_output(u32 __iomem *base_reg,
  */
 void sif_set_md_output(u32 __iomem *base_reg, sif_output_md_t *p_md)
 {
-	if (!p_md->enable)
-        return;
-
 	ips_set_md_cfg(p_md);
 	ips_set_md_refresh(1);
+	path_sel = p_md->path_sel;
 
 	if (p_md->path_sel == 1) {
 		ips_set_md_fmt(0x8);
 		vio_hw_set_field(base_reg, &sif_regs[SIF_MOT_DET_MODE],
-				&sif_fields[SW_SIF_IPU_MD_ENABLE], 1);
-		vio_hw_set_field(base_reg, &sif_regs[SIF_MOT_DET_MODE],
 				&sif_fields[SW_SIF_IPU_MD_IN_SELECT], 0);
 	} else {
 		ips_set_md_fmt(0x0);
-		vio_hw_set_field(base_reg, &sif_regs[SIF_MOT_DET_MODE],
-				&sif_fields[SW_SIF_ISP_MD_ENABLE], 1);
 	}
 }
 void sif_md_config(u32 __iomem *base_reg, sif_cfg_t* c)

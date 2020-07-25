@@ -17,14 +17,14 @@
 
 #define VIO_MAX_STREAM	8
 #define CONFIG_QEMU_TEST 0
-enum vio_video_state { 
+enum vio_video_state {
 	VIO_VIDEO_CLOSE,
 	VIO_VIDEO_OPEN,
 	VIO_VIDEO_S_INPUT,
 	VIO_VIDEO_INIT,
 	VIO_VIDEO_REBUFS,
 	VIO_VIDEO_STOP,
-	VIO_VIDEO_START, 
+	VIO_VIDEO_START,
 	VIO_VIDEO_ION_ALLOC,
 };
 
@@ -75,7 +75,6 @@ struct roi_rect{
 };
 
 typedef struct sif_output_md {
-	uint32_t	enable;
 	uint32_t	path_sel; //ipu:0, isp:1
 	uint32_t	roi_top;
 	uint32_t	roi_left;

@@ -508,7 +508,6 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 {
 	int ret = 0;
 	u32 cfg = 0;
-	u32 md_enable = 0;
 	int mux_index = 0;
 	int ddr_mux_index = 0;
 	u32 mux_nums = 0;
@@ -529,7 +528,6 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 	dol_exp_num = sif_config->output.isp.dol_exp_num;
 	isp_flyby = sif_config->output.isp.func.enable_flyby;
 	ddr_enable =  sif_config->output.ddr.enable;
-	md_enable = sif_config->output.md.enable;
 
 	if (isp_flyby && !test_bit(SIF_OTF_OUTPUT, &sif->state))
 		set_bit(SIF_OTF_OUTPUT, &sif->state);
@@ -1032,6 +1030,31 @@ int sif_enable_bypass(struct sif_video_ctx *sif_ctx, unsigned long arg)
 
 	return 0;
 }
+int sif_set_mot_start(struct sif_video_ctx *sif_ctx)
+{
+	int ret = 0;
+	struct x3_sif_dev *sif;
+
+	sif = sif_ctx->sif_dev;
+
+	ips_set_md_enable();
+	sif_set_md_enable(sif->base_reg);
+	vio_info("%s: done\n", __func__);
+	return ret;
+}
+
+int sif_set_mot_stop(struct sif_video_ctx *sif_ctx)
+{
+	int ret = 0;
+	struct x3_sif_dev *sif;
+
+	sif = sif_ctx->sif_dev;
+
+	ips_set_md_disable();
+	sif_set_md_disable(sif->base_reg);
+	vio_info("%s: done\n", __func__);
+	return ret;
+}
 
 int sif_set_mot_cfg(struct sif_video_ctx *sif_ctx, unsigned long arg)
 {
@@ -1053,7 +1076,6 @@ int sif_set_mot_cfg(struct sif_video_ctx *sif_ctx, unsigned long arg)
 		return -EFAULT;
 	}
 	sif = sif_ctx->sif_dev;
-
 	sif_set_md_output(sif->base_reg, &md);
 
 	vio_info("%s: done\n", __func__);
@@ -1189,6 +1211,12 @@ static long x3_sif_ioctl(struct file *file, unsigned int cmd,
 		break;
 	case SIF_IOC_MD_CFG:
 		ret = sif_set_mot_cfg(sif_ctx, arg);
+		break;
+	case SIF_IOC_MD_ENABLE:
+		ret = sif_set_mot_start(sif_ctx);
+		break;
+	case SIF_IOC_MD_DISENABLE:
+		ret = sif_set_mot_stop(sif_ctx);
 		break;
 	case SIF_IOC_PATTERN_CFG:
 		ret = sif_set_pattern_cfg(sif_ctx, arg);
