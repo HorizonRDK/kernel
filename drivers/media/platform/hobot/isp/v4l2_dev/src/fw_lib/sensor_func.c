@@ -56,6 +56,9 @@ typedef struct {
 #define CUR_MOD_NAME LOG_MODULE_SENSOR
 #endif
 
+extern int isp_v4l2_update_ctx(int ctx_id);
+extern void *acamera_get_ctx_ptr(uint32_t ctx_id);
+
 void sensor_init_output( sensor_fsm_ptr_t p_fsm, int mode )
 {
     const sensor_param_t *param = p_fsm->ctrl.get_parameters( p_fsm->sensor_ctx );
@@ -134,7 +137,6 @@ void sensor_hw_init( sensor_fsm_ptr_t p_fsm )
     //acamera_update_cur_settings_to_isp( p_fsm->cmn.ctx_id );
 }
 
-extern int isp_v4l2_update_ctx(int ctx_id);
 void sensor_sw_init( sensor_fsm_ptr_t p_fsm )
 {
     uint8_t bitwidth;
@@ -173,15 +175,39 @@ void sensor_sw_init( sensor_fsm_ptr_t p_fsm )
         p_fsm->ctrl.get_id( p_fsm->sensor_ctx ), param->active.width, param->active.height);
 }
 
+
 void isp_input_port_size_config(sensor_fsm_ptr_t p_fsm)
 {
 	const sensor_param_t *param = p_fsm->ctrl.get_parameters(p_fsm->sensor_ctx);
+    acamera_context_t *ptr = acamera_get_ctx_ptr(p_fsm->cmn.ctx_id);
 
-	pr_debug("w %d, h %d\n", param->active.width, param->active.height);
+
+    if ((ptr->inport.xoffset < param->active.width &&
+        ptr->inport.xoffset + param->active.width <= ptr->inport.xtotal) == 0) {
+            ptr->inport.xoffset = 0;
+    }
+
+    if ((ptr->inport.yoffset < param->active.height &&
+        ptr->inport.yoffset + param->active.height <= ptr->inport.ytotal) == 0) {
+            ptr->inport.yoffset = 0;
+    }
+
+    pr_debug("xtotal %d, ytotal %d, xoffset %d, yoffset %d, xactive %d, yactive %d\n",
+        ptr->inport.xtotal, ptr->inport.ytotal,
+        ptr->inport.xoffset, ptr->inport.yoffset,
+        param->active.width, param->active.height);
+
 	acamera_isp_input_port_freeze_config_write(p_fsm->cmn.isp_base, 1);
+
+    acamera_isp_input_port_hc_start0_write(p_fsm->cmn.isp_base, ptr->inport.xoffset);
 	acamera_isp_input_port_hc_size0_write(p_fsm->cmn.isp_base, param->active.width);
+
+    acamera_isp_input_port_hc_start1_write(p_fsm->cmn.isp_base, ptr->inport.xoffset);
 	acamera_isp_input_port_hc_size1_write(p_fsm->cmn.isp_base, param->active.width);
+
+    acamera_isp_input_port_vc_start_write(p_fsm->cmn.isp_base, ptr->inport.yoffset);
 	acamera_isp_input_port_vc_size_write(p_fsm->cmn.isp_base, param->active.height);
+
 	acamera_isp_input_port_freeze_config_write(p_fsm->cmn.isp_base, 0);
 }
 

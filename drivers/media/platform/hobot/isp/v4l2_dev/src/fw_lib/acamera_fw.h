@@ -120,6 +120,13 @@ enum {
     SIDE_DDR = 1,
 };
 
+typedef struct _input_port_t {
+    uint16_t xtotal;
+    uint16_t ytotal;
+    uint16_t xoffset;
+    uint16_t yoffset;
+} input_port_t;
+
 typedef struct _isp_status_t {
     uint32_t fs_irq_cnt;
     uint32_t fe_irq_cnt;
@@ -146,6 +153,7 @@ struct _acamera_context_t {
     uint8_t initialized;
     uint8_t hflip;
     uint8_t vflip;
+    input_port_t inport;
 
     acamera_fsm_mgr_t fsm_mgr;
     acamera_firmware_t *p_gfw;

@@ -1023,7 +1023,7 @@ int isp_v4l2_stream_try_format( isp_v4l2_stream_t *pstream, struct v4l2_format *
             }
         }
         v4l_bound_align_image( &f->fmt.pix.width, 48, ISP_V4L2_MAX_WIDTH, 2,
-                               &f->fmt.pix.height, 32, ISP_V4L2_MAX_HEIGHT, 0, 0 );
+                               &f->fmt.pix.height, 32, ISP_V4L2_MAX_HEIGHT, 1, 0 );
     }
 
     f->fmt.pix.field = V4L2_FIELD_NONE;

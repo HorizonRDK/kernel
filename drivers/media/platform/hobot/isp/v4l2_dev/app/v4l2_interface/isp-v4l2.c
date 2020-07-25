@@ -44,6 +44,7 @@
 
 #define ISP_V4L2_NUM_INPUTS 1
 
+#define ISPIOC_INPUT_PORT_CTRL _IOWR('@', 0x10, input_port_t)
 
 /* isp_v4l2_dev_t to destroy video device */
 static isp_v4l2_dev_t *g_isp_v4l2_devs[FIRMWARE_CONTEXT_NUMBER];
@@ -670,6 +671,29 @@ static int isp_v4l2_dqbuf( struct file *file, void *priv, struct v4l2_buffer *p 
     return rc;
 }
 
+long isp_v4l2_ioc_default(struct file *file, void *fh, bool valid_prio, unsigned int cmd, void *arg)
+{
+    int ret = 0;
+    acamera_context_t *p_ctx;
+    isp_v4l2_dev_t *dev = video_drvdata( file );
+
+    p_ctx = acamera_get_ctx_ptr(dev->ctx_id);
+
+	switch (cmd) {
+	case ISPIOC_INPUT_PORT_CTRL:
+        memcpy(&p_ctx->inport, (input_port_t *)arg, sizeof(input_port_t));
+        break;
+	default:
+		return -ENOTTY;
+	}
+
+    pr_debug("xtotal %d, ytotal %d, xoffset %d, yoffset %d\n",
+        p_ctx->inport.xtotal, p_ctx->inport.ytotal,
+        p_ctx->inport.xoffset, p_ctx->inport.yoffset);
+
+    return ret;
+}
+
 static const struct v4l2_ioctl_ops isp_v4l2_ioctl_ops = {
     .vidioc_querycap = isp_v4l2_querycap,
 
@@ -701,6 +725,9 @@ static const struct v4l2_ioctl_ops isp_v4l2_ioctl_ops = {
     .vidioc_log_status = v4l2_ctrl_log_status,
     .vidioc_subscribe_event = v4l2_ctrl_subscribe_event,
     .vidioc_unsubscribe_event = v4l2_event_unsubscribe,
+
+    /* private ioctls */
+    .vidioc_default = isp_v4l2_ioc_default,
 };
 
 static int isp_v4l2_init_dev( uint32_t ctx_id, struct v4l2_device *v4l2_dev )
