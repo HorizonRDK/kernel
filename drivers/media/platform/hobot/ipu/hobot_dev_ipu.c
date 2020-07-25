@@ -2299,6 +2299,7 @@ ion_cleanup:
 	return -ENOMEM;
 }
 
+static struct kernel_ion ipu_ion;
 static long x3_ipu_ioctl(struct file *file, unsigned int cmd,
 			  unsigned long arg)
 {
@@ -2311,7 +2312,6 @@ static long x3_ipu_ioctl(struct file *file, unsigned int cmd,
 	struct vio_group *group;
 	u32 buf_index;
 	struct user_statistic stats;
-	struct kernel_ion ipu_ion;
 
 	ipu_ctx = file->private_data;
 	BUG_ON(!ipu_ctx);

@@ -1521,6 +1521,7 @@ ion_cleanup:
 	return -ENOMEM;
 }
 
+static struct kernel_ion pym_ion;
 static long x3_pym_ioctl(struct file *file, unsigned int cmd,
 			  unsigned long arg)
 {
@@ -1533,7 +1534,6 @@ static long x3_pym_ioctl(struct file *file, unsigned int cmd,
 	struct vio_group *group;
 	int buf_index;
 	struct user_statistic stats;
-	struct kernel_ion pym_ion;
 
 	pym_ctx = file->private_data;
 	BUG_ON(!pym_ctx);
@@ -2195,6 +2195,7 @@ static ssize_t get_pipeline_info(int pipeid, struct device *dev,
 {
 	struct x3_pym_dev *pym;
 	pym_cfg_t *pym_config;
+	int input_type;
 	int i = 0;
 	u32 offset = 0, len = 0;
 	pym = dev_get_drvdata(dev);
@@ -2206,7 +2207,7 @@ static ssize_t get_pipeline_info(int pipeid, struct device *dev,
 		len = snprintf(buf+offset, PAGE_SIZE - offset, "pipeline %d pym config:\n", pipeid);
 		offset += len;
 
-		int input_type = pym->subdev[pipeid].pym_cfg.img_scr;
+		input_type = pym->subdev[pipeid].pym_cfg.img_scr;
 		if (input_type == 0) {
 			len = snprintf(buf+offset, PAGE_SIZE - offset, "input mode: %d, %s\n", input_type, "ipu online to pym");
 		} else if (input_type == 1) {
