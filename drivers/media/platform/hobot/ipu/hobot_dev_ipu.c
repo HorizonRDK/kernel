@@ -264,7 +264,6 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 	// if pipeline's all subdevs are closed, pipeline is disabled
 	ipu->statistic.enable_subdev[ipu_ctx->belong_pipe] &= ~(BIT(ipu_ctx->id));
 	if (ipu->statistic.enable_subdev[ipu_ctx->belong_pipe] == 0) {
-		ipu->statistic.enable[ipu_ctx->belong_pipe] = 0;
 		vio_dbg("pipeline%d all subdev closed", ipu_ctx->belong_pipe);
 	}
 
@@ -3178,7 +3177,7 @@ static ssize_t ipu_stat_store(struct device *dev,
 		instance_start = 0;
 
 	for(instance = instance_start; instance < instance_start + 2; instance++) {
-		ipu->statistic.enable[instance] = 0;
+		// ipu->statistic.enable[instance] = 0;
 		ipu->statistic.fs_lack_task[instance] = 0;
 		ipu->statistic.fs[instance] = 0;
 		ipu->statistic.grp_tsk_left[instance] = 0;

@@ -405,7 +405,6 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 		clear_bit(sif_ctx->ctx_index, &subdev->val_ctx_mask);
 		spin_unlock(&subdev->slock);
 	}
-
 	vio_info("SIF close node %d\n", sif_ctx->id);
 	kfree(sif_ctx);
 
@@ -1835,11 +1834,14 @@ static ssize_t sif_stat_store(struct device *dev,
 					const char *page, size_t len)
 {
 	struct x3_sif_dev *sif;
+	u32 enable[VIO_MAX_STREAM];
 
 	sif = dev_get_drvdata(dev);
-	if (sif)
+	if (sif) {
+		memcpy(enable, sif->statistic.enable, sizeof(sif->statistic.enable));
 		memset(&sif->statistic, 0, sizeof(sif->statistic));
-
+		memcpy(sif->statistic.enable, enable, sizeof(sif->statistic.enable));
+	}
 	return len;
 }
 static DEVICE_ATTR(err_status, S_IRUGO|S_IWUSR, sif_stat_show, sif_stat_store);

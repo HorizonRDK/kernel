@@ -235,7 +235,6 @@ static int x3_pym_close(struct inode *inode, struct file *file)
 		return 0;
 	}
 
-	pym->statistic.enable[pym_ctx->belong_pipe] = 0;
 	vio_dbg("pym pipeline %d close", pym_ctx->belong_pipe);
 
 	if (!(pym_ctx->state & BIT(VIO_VIDEO_STOP))) {
@@ -2152,11 +2151,14 @@ static ssize_t pym_stat_store(struct device *dev,
 					const char *page, size_t len)
 {
 	struct x3_pym_dev *pym;
+	u32 enable[VIO_MAX_STREAM];
 
 	pym = dev_get_drvdata(dev);
-	if (pym)
+	if (pym) {
+		memcpy(enable, pym->statistic.enable, sizeof(pym->statistic.enable));
 		memset(&pym->statistic, 0, sizeof(pym->statistic));
-
+		memcpy(pym->statistic.enable, enable, sizeof(pym->statistic.enable));
+	}
 	return len;
 }
 static DEVICE_ATTR(err_status, S_IRUGO|S_IWUSR, pym_stat_show, pym_stat_store);
