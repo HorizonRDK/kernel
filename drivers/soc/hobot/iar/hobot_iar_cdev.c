@@ -692,11 +692,13 @@ static ssize_t hobot_iar_store(struct kobject *kobj, struct kobj_attribute *attr
 			if (tmp_value > 1) {
 				pr_info("wrong camera channel, exit!!\n");
 				ret = error;
+				goto err;
 			}
 			set_video_display_channel(tmp_value);
 		} else {
 			pr_info("error input, exit!!\n");
 			ret = error;
+			goto err;
 		}
 	} else if (strncmp(tmp, "pipe", 4) == 0) {
 		tmp = tmp + 4;
@@ -707,27 +709,31 @@ static ssize_t hobot_iar_store(struct kobject *kobj, struct kobj_attribute *attr
 			if (disp_layer > 1) {
 				pr_err("wrong video layer number, exit!!\n");
 				ret = error;
+				goto err;
 			} else {
 				pr_err("display layer is %ld!!\n", disp_layer);
 			}
 		} else {
 			pr_err("error input type, exit!!\n");
 			ret = error;
+			goto err;
 		}
 		tmp = tmp + 1;
 		memcpy((void *)(value), (void *)(tmp), 1);
                 value[1] = '\0';
 		ret = kstrtoul(value, 0, &pipeline);
 		if (ret == 0) {
-			if (pipeline > 3) {
+			if (pipeline > 7) {
 				pr_err("wrong pipeline number, exit!!\n");
 				ret = error;
+				goto err;
 			} else {
 				pr_err("checkout pipeline %ld display!!\n", pipeline);
 			}
 		} else {
 			pr_err("error input type, exit!!\n");
 			ret = error;
+			goto err;
 		}
 		tmp = tmp + 1;
 		//memcpy((void *)(value), (void *)(tmp), 1);
@@ -737,12 +743,14 @@ static ssize_t hobot_iar_store(struct kobject *kobj, struct kobj_attribute *attr
 			if (disp_vio_addr_type > 38) {
 				pr_err("wrong vio address type, exit!!\n");
 				ret = error;
+				goto err;
 			} else {
 				pr_err("display vio address type is %ld!!\n", disp_vio_addr_type);
 			}
 		} else {
 			pr_err("error input type, exit!!\n");
 			ret = error;
+			goto err;
 		}
 		if (disp_layer == 0) {
 				iar_display_cam_no = pipeline;
@@ -795,6 +803,7 @@ static ssize_t hobot_iar_store(struct kobject *kobj, struct kobj_attribute *attr
 		} else {
 			pr_err("error input, exit!!\n");
 			ret = error;
+			goto err;
 		}
 
 	} else if (strncmp(buf, "disable", 7) == 0) {
@@ -807,6 +816,7 @@ static ssize_t hobot_iar_store(struct kobject *kobj, struct kobj_attribute *attr
 		} else {
 			pr_err("error input, exit!!\n");
 			ret = error;
+			goto err;
 		}
 	} else if (strncmp(buf, "backlight", 9) == 0) {
 		tmp = buf + 9;
@@ -817,12 +827,15 @@ static ssize_t hobot_iar_store(struct kobject *kobj, struct kobj_attribute *attr
 				set_screen_backlight(tmp_value);
 			} else {
 				pr_info("error backlight level!!\n");
+				goto err;
 			}
 		} else {
 			pr_err("error input, exit!!\n");
 			ret = error;
+			goto err;
 		}
 	}
+err:
 	iar_pixel_clk_disable();
 	disable_sif_mclk();
 	return ret ? ret : n;
