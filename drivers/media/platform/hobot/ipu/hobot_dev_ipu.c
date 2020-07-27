@@ -1816,8 +1816,11 @@ int ipu_video_qbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 		return -EINVAL;
 	}
 
-	if (subdev->id)
-		ipu_check_phyaddr(frameinfo);
+	if (subdev->id) {
+		ret = ipu_check_phyaddr(frameinfo);
+		if (ret)
+			return -EINVAL;
+	}
 
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	frame = framemgr->frames_mp[index];

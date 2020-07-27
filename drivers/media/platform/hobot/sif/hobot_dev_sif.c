@@ -941,8 +941,11 @@ int sif_video_qbuf(struct sif_video_ctx *sif_ctx,
 
 	subdev = sif_ctx->subdev;
 
-	if (subdev->dol_num)
-	sif_check_phyaddr(frameinfo, subdev->dol_num);
+	if (subdev->dol_num) {
+		ret = sif_check_phyaddr(frameinfo, subdev->dol_num);
+		if (ret)
+			return -EINVAL;
+	}
 
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	frame = &framemgr->frames[index];
