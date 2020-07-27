@@ -421,7 +421,7 @@ int callback_stream_get_frame( uint32_t ctx_id, acamera_stream_type_t type, afra
     struct vb2_v4l2_buffer *vvb;
 #endif
     struct vb2_buffer *vb;
-    int i;
+    int i, factor;
     int cnt = 0;
     struct list_head *p, *n;
     acamera_context_ptr_t p_ctx = acamera_get_ctx_ptr(ctx_id);
@@ -467,7 +467,12 @@ int callback_stream_get_frame( uint32_t ctx_id, acamera_stream_type_t type, afra
 	cnt++;
     pr_debug("stream_buffer_list_busy count %d", cnt);
 
-    if (cnt > 1) {
+    if (p_ctx->p_gfw->sif_isp_offline == 1)
+        factor = 1;
+    else
+        factor = 2;
+
+    if (cnt >= factor) {
         pbuf = list_entry(pstream->stream_buffer_list_busy.next, isp_v4l2_buffer_t, list);
         list_del(&pbuf->list);
         list_add_tail(&pbuf->list, &pstream->stream_buffer_list);

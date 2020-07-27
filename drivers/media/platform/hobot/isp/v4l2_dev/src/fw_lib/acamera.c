@@ -582,6 +582,24 @@ int32_t acamera_interrupt_handler()
 
 void input_port_status(void)
 {
+#if 0
+uint32_t hcs1 = acamera_isp_input_port_hc_size0_read(0);
+uint32_t hcs2 = acamera_isp_input_port_hc_size1_read(0);
+uint32_t vc = acamera_isp_input_port_vc_size_read(0);
+pr_info("hcs1 %d, hcs2 %d, vc %d\n", hcs1, hcs2, vc);
+
+    if (acamera_isp_isp_global_ping_pong_config_select_read(0) == ISP_CONFIG_PONG) {
+	printk("pong\n");
+	printk("top w/h %x\n", system_hw_read_32(0x30e48));
+	printk("metering af w/h %x\n", system_hw_read_32(0x336e8));
+	printk("lumvar w/h %x\n", system_hw_read_32(0x33234));
+    } else {
+	printk("ping\n");
+	printk("top w/h %x\n", system_hw_read_32(0x18e88));
+	printk("metering af w/h %x\n", system_hw_read_32(0x1b728));
+	printk("lumvar w/h %x\n", system_hw_read_32(0x1b274));
+    }
+#endif
     pr_info("broken frame status = 0x%x\n", acamera_isp_isp_global_monitor_broken_frame_status_read(0));
     pr_info("active width min/max/sum/num = %d/%d/%d/%d\n", system_hw_read_32(0xb4),system_hw_read_32(0xb8),system_hw_read_32(0xbc),system_hw_read_32(0xc0));
     pr_info("active high min/max/sum/num = %d/%d/%d/%d\n", system_hw_read_32(0xc4),system_hw_read_32(0xc8),system_hw_read_32(0xcc),system_hw_read_32(0xd0));
@@ -1296,6 +1314,7 @@ int sif_isp_ctx_sync_func(int ctx_id)
 			isp_ctx_transfer(last_chn_id, cur_chn_id, ISP_CONFIG_PONG);
 		}
 	} else {
+        p_ctx->sts.evt_process_drop++;
         system_semaphore_raise( p_ctx->sem_evt_avail );
         pr_err("[s%d] previous frame events are not process done\n", ctx_id);
         // pr_info("sem cnt %d, ev_q head %d tail %d\n",
@@ -1330,31 +1349,54 @@ out:
 static int ip_sts_dbg;
 module_param(ip_sts_dbg, int, 0644);
 // single context handler
+
+int isp_error_sts = 0;
+int acamera_dma_alarms_error_occur(void)
+{
+    uint16_t dma_alarms_sts = acamera_isp_isp_global_monitor_dma_alarms_read(0);
+    acamera_context_ptr_t p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[cur_ctx_id];
+
+    acamera_isp_isp_global_monitor_output_dma_clr_alarm_write(0, 1);
+    acamera_isp_isp_global_monitor_temper_dma_clr_alarm_write(0, 1);
+    acamera_isp_isp_global_monitor_output_dma_clr_alarm_write(0, 0);
+    acamera_isp_isp_global_monitor_temper_dma_clr_alarm_write(0, 0);
+
+    if (dma_alarms_sts & 1 << ISP_TEMPER_LSB_DMA_FRAME_DROPPED) {
+        isp_error_sts = 1;
+        p_ctx->sts.temper_lsb_dma_drop++;
+        pr_err("temper lsb dma frame drop\n");
+    }
+    if (dma_alarms_sts & 1 << ISP_TEMPER_MSB_DMA_FRAME_DROPPED) {
+        isp_error_sts = 1;
+        p_ctx->sts.temper_msb_dma_drop++;
+        pr_err("temper msb dma frame drop\n");
+    }
+    if (dma_alarms_sts & 1 << ISP_FR_UV_DMA_FRAME_DROPPED) {
+        isp_error_sts = 1;
+        p_ctx->sts.fr_uv_dma_drop++;
+        pr_err("fr uv dma frame drop\n");
+    }
+    if (dma_alarms_sts & 1 << ISP_FR_Y_DMA_FRAME_DROPPED) {
+        isp_error_sts = 1;
+        p_ctx->sts.fr_y_dma_drop++;
+        pr_err("fr y dma frame drop\n");
+    }
+
+    return 0;
+}
+
+int isp_status_check(void)
+{
+    return isp_error_sts;
+}
+EXPORT_SYMBOL(isp_status_check);
+
 int32_t acamera_interrupt_handler()
 {
     int32_t result = 0;
     int32_t irq_bit = ISP_INTERRUPT_EVENT_NONES_COUNT - 1;
 
     acamera_context_ptr_t p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[cur_ctx_id];
-
-#if 0
-uint32_t hcs1 = acamera_isp_input_port_hc_size0_read(0);
-uint32_t hcs2 = acamera_isp_input_port_hc_size1_read(0);
-uint32_t vc = acamera_isp_input_port_vc_size_read(0);
-pr_info("hcs1 %d, hcs2 %d, vc %d\n", hcs1, hcs2, vc);
-
-    if (acamera_isp_isp_global_ping_pong_config_select_read(0) == ISP_CONFIG_PONG) {
-	printk("pong\n");
-	printk("top w/h %x\n", system_hw_read_32(0x30e48));
-	printk("metering af w/h %x\n", system_hw_read_32(0x336e8));
-	printk("lumvar w/h %x\n", system_hw_read_32(0x33234));
-    } else {
-	printk("ping\n");
-	printk("top w/h %x\n", system_hw_read_32(0x18e88));
-	printk("metering af w/h %x\n", system_hw_read_32(0x1b728));
-	printk("lumvar w/h %x\n", system_hw_read_32(0x1b274));
-    }
-#endif
 
     // read the irq vector from isp
     uint32_t irq_mask = acamera_isp_isp_global_interrupt_status_vector_read( 0 );
@@ -1363,31 +1405,61 @@ pr_info("hcs1 %d, hcs2 %d, vc %d\n", hcs1, hcs2, vc);
     p_ctx->isp_frame_counter = ips_get_isp_frameid();
     pr_debug("[s%d] IRQ MASK is 0x%x, frame id %d\n", cur_ctx_id, irq_mask, p_ctx->isp_frame_counter);
 
-    if(irq_mask&0x8) {
-        pr_err("[s%d] broken frame status = 0x%x", cur_ctx_id, acamera_isp_isp_global_monitor_broken_frame_status_read(0));
-        // printk("active width min/max/sum/num = %d/%d/%d/%d", system_hw_read_32(0xb4),system_hw_read_32(0xb8),system_hw_read_32(0xbc),system_hw_read_32(0xc0));
-        // printk("active high min/max/sum/num = %d/%d/%d/%d", system_hw_read_32(0xc4),system_hw_read_32(0xc8),system_hw_read_32(0xcc),system_hw_read_32(0xd0));
-        // printk("hblank min/max/sum/num = %d/%d/%d/%d", system_hw_read_32(0xd4),system_hw_read_32(0xd8),system_hw_read_32(0xdc),system_hw_read_32(0xe0));
-        // printk("vblank min/max/sum/num = %d/%d/%d/%d", system_hw_read_32(0xe4),system_hw_read_32(0xe8),system_hw_read_32(0xec),system_hw_read_32(0xf0));
-	    // printk("input port w/h %x, ping w/h %x, pong w/h %x", system_hw_read_32(0x98L), system_hw_read_32(0x18e88L), system_hw_read_32(0x30e48L));
-    }
-
     // clear irq vector
     acamera_isp_isp_global_interrupt_clear_write( 0, 0 );
     acamera_isp_isp_global_interrupt_clear_write( 0, 1 );
 
     if ( irq_mask > 0 ) {
-#if 0
         //check for errors in the interrupt
+        if ( irq_mask & 1 << ISP_INTERRUPT_EVENT_BROKEN_FRAME ) {
+
+            p_ctx->sts.broken_frame++;
+            pr_err("[s%d] broken frame sts = 0x%x\n", cur_ctx_id,
+                    acamera_isp_isp_global_monitor_broken_frame_status_read(0));
+
+            acamera_isp_isp_global_monitor_broken_frame_error_clear_write(0, 0);
+            acamera_isp_isp_global_monitor_broken_frame_error_clear_write(0, 1);
+            acamera_isp_isp_global_monitor_broken_frame_error_clear_write(0, 0);
+        }
+
+        if (irq_mask & 1 << ISP_INTERRUPT_EVENT_DMA_ERROR) {
+            p_ctx->sts.dma_error++;
+            pr_err("[s%d] isp dma error\n", cur_ctx_id);
+        }
+        if (irq_mask & 1 << ISP_INTERRUPT_EVENT_MULTICTX_ERROR) {
+            p_ctx->sts.context_manage_error++;
+            pr_err("[s%d] isp context manage error\n", cur_ctx_id);
+        }
+        if (irq_mask & 1 << ISP_INTERRUPT_EVENT_WATCHDOG_EXP) {
+            p_ctx->sts.watchdog_timeout++;
+            pr_err("[s%d] isp watchdog timeout error\n", cur_ctx_id);
+        }
+        if (irq_mask & 1 << ISP_INTERRUPT_EVENT_FRAME_COLLISION) {
+            p_ctx->sts.frame_collision++;
+            pr_err("[s%d] isp frame collision error\n", cur_ctx_id);
+        }
+
         if ( ( irq_mask & 1 << ISP_INTERRUPT_EVENT_BROKEN_FRAME ) ||
              ( irq_mask & 1 << ISP_INTERRUPT_EVENT_MULTICTX_ERROR ) ||
-             ( irq_mask & 1 << ISP_INTERRUPT_EVENT_WATCHDOG_EXP ) ||
              ( irq_mask & 1 << ISP_INTERRUPT_EVENT_DMA_ERROR ) ||
+             ( irq_mask & 1 << ISP_INTERRUPT_EVENT_WATCHDOG_EXP ) ||
              ( irq_mask & 1 << ISP_INTERRUPT_EVENT_FRAME_COLLISION ) ) {
 
-            LOG( LOG_ERR, "Found error resetting ISP. MASK is 0x%x", irq_mask );
+            isp_error_sts = 1;
+#if 0
+            pr_debug("isp error handle routine\n");
             acamera_fw_error_routine( p_ctx, irq_mask );
+            if (p_ctx->p_gfw->sif_isp_offline) {
+                atomic_set(&g_firmware.frame_done, 1);
+                wake_up(&wq_frame_end);
+                if (p_ctx->fsm_mgr.reserved) { //dma writer on
+                    atomic_set(&g_firmware.dma_done, 1);
+                    wake_up(&wq_dma_done);
+                }
+            }
+#endif
         }
+#if 0
 	if ( irq_mask & 1 << ISP_INTERRUPT_EVENT_DMA_ERROR ) {
 		acamera_fw_raise_event( p_ctx, event_id_frame_error );	//move node from busy to free list
 		acamera_fw_raise_event( p_ctx, event_id_frame_config );	//get a new buffer put to busy list
@@ -1401,10 +1473,12 @@ pr_info("hcs1 %d, hcs2 %d, vc %d\n", hcs1, hcs2, vc);
             irq_mask &= ~( 1 << irq_bit );
             if ( irq_is_1 ) {
                 if (irq_bit == ISP_INTERRUPT_EVENT_ISP_START_FRAME_START) {
+
+                    //clear error status
+                    isp_error_sts = 0;
+
                     p_ctx->sts.fs_irq_cnt++;
-                }
-                // process interrupts
-                if ( irq_bit == ISP_INTERRUPT_EVENT_ISP_START_FRAME_START ) {
+
                     vio_set_stat_info(cur_ctx_id, ISP_FS,
                             p_ctx->isp_frame_counter);
                 }
@@ -1460,6 +1534,7 @@ pr_info("hcs1 %d, hcs2 %d, vc %d\n", hcs1, hcs2, vc);
                             isp_ctx_transfer(0, 0, ISP_CONFIG_PONG);
                         }
                     } else {
+                        p_ctx->sts.evt_process_drop++;
                         pr_debug("sem cnt %d, ev_q head %d tail %d\n",
                             ((struct semaphore *)p_ctx->sem_evt_avail)->count,
                             p_ctx->fsm_mgr.event_queue.buf.head,
@@ -1468,25 +1543,29 @@ pr_info("hcs1 %d, hcs2 %d, vc %d\n", hcs1, hcs2, vc);
                     } //if ( acamera_event_queue_empty( &p_ctx->fsm_mgr.event_queue ) )
                 } else if ( irq_bit == ISP_INTERRUPT_EVENT_ISP_END_FRAME_END ) {
                     pr_debug("frame done, ctx id %d\n", cur_ctx_id);
+                    acamera_dma_alarms_error_occur();
                     p_ctx->sts.fe_irq_cnt++;
                     if (ip_sts_dbg)
                         input_port_status();
                     if (p_ctx->p_gfw->sif_isp_offline) {
                         atomic_set(&g_firmware.frame_done, 1);
                         wake_up(&wq_frame_end);
-                        if (p_ctx->fsm_mgr.reserved) //dma writer on
-                            wake_up(&wq_dma_done);
                     }
                     vio_set_stat_info(cur_ctx_id, ISP_FE,
                             p_ctx->isp_frame_counter);
                 } else if ( irq_bit == ISP_INTERRUPT_EVENT_FR_Y_WRITE_DONE ) {
                     pr_debug("frame write to ddr done\n");
+                    acamera_dma_alarms_error_occur();
                     p_ctx->sts.frame_write_done_irq_cnt++;
+
                     if (p_ctx->p_gfw->sif_isp_offline) {
                         atomic_set(&g_firmware.dma_done, 1);
                         wake_up(&wq_dma_done);
                     }
-					acamera_fw_raise_event( p_ctx, event_id_frame_done );
+
+                    if (isp_error_sts == 0) {
+					    acamera_fw_raise_event( p_ctx, event_id_frame_done );
+                    }
                 } else if ( irq_bit == ISP_INTERRUPT_EVENT_FR_UV_WRITE_DONE ) {
 					//do nothing
 				} else {

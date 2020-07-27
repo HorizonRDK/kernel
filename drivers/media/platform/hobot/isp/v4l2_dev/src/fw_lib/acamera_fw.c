@@ -185,6 +185,7 @@ int acamera_fw_isp_stop(int ctx_id)
 	return rc;
 }
 
+#if 0
 extern void sensor_sw_init( sensor_fsm_ptr_t p_fsm );
 void acamera_fw_error_routine( acamera_context_t *p_ctx, uint32_t irq_mask )
 {
@@ -282,7 +283,39 @@ retry_2:
 
     LOG( LOG_ERR, "starting isp from error routine" );
 }
+#else
+void acamera_fw_error_routine( acamera_context_t *p_ctx, uint32_t irq_mask )
+{
+    //masked all interrupts
+    acamera_isp_isp_global_interrupt_mask_vector_write( 0, ISP_IRQ_DISABLE_ALL_IRQ );
+    //safe stop
+    acamera_isp_input_port_mode_request_write( p_ctx->settings.isp_base, ACAMERA_ISP_INPUT_PORT_MODE_REQUEST_SAFE_STOP );
 
+    // check whether the HW is stopped or not.
+    uint32_t count = 0;
+    while ( acamera_isp_input_port_mode_status_read( p_ctx->settings.isp_base ) != ACAMERA_ISP_INPUT_PORT_MODE_REQUEST_SAFE_STOP || acamera_isp_isp_global_monitor_fr_pipeline_busy_read( p_ctx->settings.isp_base ) ) {
+        //cannot sleep use this delay
+        do {
+            count++;
+        } while ( count % 32 != 0 );
+
+        if ( ( count >> 5 ) > 50 ) {
+            LOG( LOG_ERR, "stopping isp failed, timeout: %u.", (unsigned int)count * 1000 );
+            break;
+        }
+    }
+
+    acamera_isp_isp_global_global_fsm_reset_write( p_ctx->settings.isp_base, 1 );
+    acamera_isp_isp_global_global_fsm_reset_write( p_ctx->settings.isp_base, 0 );
+
+    //return the interrupts
+    acamera_isp_isp_global_interrupt_mask_vector_write( 0, ISP_IRQ_MASK_VECTOR );
+
+    acamera_isp_input_port_mode_request_write( p_ctx->settings.isp_base, ACAMERA_ISP_INPUT_PORT_MODE_REQUEST_SAFE_START );
+
+    LOG( LOG_NOTICE, "starting isp from error" );
+}
+#endif
 
 void acamera_fw_process( acamera_context_t *p_ctx )
 {

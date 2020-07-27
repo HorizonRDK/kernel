@@ -65,6 +65,7 @@ typedef struct _subdev_dwe_ctx {
 } subdev_dwe_ctx;
 
 static subdev_dwe_ctx *dwe_ctx;
+static int ldc_error_sts = 0;
 
 void ldc_printk(void)
 {
@@ -73,6 +74,12 @@ void ldc_printk(void)
 void dis_printk(void)
 {
 }
+
+int ldc_status_check(void)
+{
+	return ldc_error_sts;
+}
+EXPORT_SYMBOL(ldc_status_check);
 
 void update_ldc_param(void)
 {
@@ -322,6 +329,9 @@ static irqreturn_t x3_ldc_irq(int this_irq, void *data)
 		pr_debug("[dump] addr 0x%x, data 0x%x", addr, tmp);
 		//
 		LOG(LOG_INFO, "----ldc_irqstatus %x----", dwe_ctx->ldc_irqstatus);
+
+		ldc_error_sts = 0;
+
 		dwe_ctx->ldc_irqstatus = tmp_irq.status_g;
 
 		if (dwe_ctx->ctx.ldc_running == 0) {
@@ -363,6 +373,11 @@ static irqreturn_t x3_ldc_irq(int this_irq, void *data)
 		(tmp_irq.status_b.line_overwrite == 1) ||
 		(tmp_irq.status_b.isp_in_overwrite == 1) ||
 		(tmp_irq.status_b.line_buf_woi_error == 1)) {
+
+		//set for ipu jdugement, mute woi_error
+		if (tmp_irq.status_b.line_buf_woi_error != 1)
+			ldc_error_sts = 1;
+
 		dwe_ctx->ldc_irqstatus |= tmp_irq.status_g;
 		dwe_ctx->ctx.ldc_running = 0;
 		//LOG(LOG_DEBUG, "----over_flow!----");

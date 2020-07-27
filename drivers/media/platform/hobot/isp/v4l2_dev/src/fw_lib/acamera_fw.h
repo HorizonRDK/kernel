@@ -131,6 +131,18 @@ typedef struct _isp_status_t {
     uint32_t fs_irq_cnt;
     uint32_t fe_irq_cnt;
     uint32_t frame_write_done_irq_cnt;
+
+    uint32_t broken_frame;
+    uint32_t dma_error;
+    uint32_t frame_collision;
+    uint32_t watchdog_timeout;
+    uint32_t context_manage_error;
+    uint32_t temper_lsb_dma_drop;
+    uint32_t temper_msb_dma_drop;
+    uint32_t fr_y_dma_drop;
+    uint32_t fr_uv_dma_drop;
+    uint32_t evt_process_drop;
+
     uint32_t qbuf_cnt;
     uint32_t dqbuf_cnt;
     uint32_t free_to_busy_cnt;
