@@ -881,7 +881,7 @@ int pym_video_streamoff(struct pym_video_ctx *pym_ctx)
 
 p_dec:
 	if (pym_ctx->framemgr->frames_mp[pym_ctx->frm_fst_ind] != NULL) {
-		if (atomic_read(&subdev->refcount) >= 1) {
+		if (atomic_read(&subdev->refcount) > 1) {
 			pym_flush_mp_prepare(pym_ctx);
 		}
 	}

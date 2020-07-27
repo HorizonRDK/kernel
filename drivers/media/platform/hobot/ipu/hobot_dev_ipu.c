@@ -1691,7 +1691,7 @@ int ipu_video_streamoff(struct ipu_video_ctx *ipu_ctx)
 p_dec:
 	if (ipu_ctx->framemgr->frames_mp[ipu_ctx->frm_fst_ind] != NULL) {
 		/* wait for frame to be transfered to USED or FREE */
-		if (atomic_read(&subdev->refcount) >= 1)
+		if (atomic_read(&subdev->refcount) > 1)
 			ipu_flush_mp_prepare(ipu_ctx);
 	}
 
