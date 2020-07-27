@@ -20,6 +20,24 @@ void isp_register_callback(isp_callback func)
 }
 EXPORT_SYMBOL(isp_register_callback);
 
+iar_get_type_callback iar_get_type;
+EXPORT_SYMBOL(iar_get_type);
+
+void iar_register_get_callback(iar_get_type_callback func)
+{
+       iar_get_type = func;
+}
+EXPORT_SYMBOL(iar_register_get_callback);
+
+iar_set_addr_callback iar_set_addr;
+EXPORT_SYMBOL(iar_set_addr);
+
+void iar_register_set_callback(iar_set_addr_callback func)
+{
+       iar_set_addr = func;
+}
+EXPORT_SYMBOL(iar_register_set_callback);
+
 int vio_group_task_start(struct vio_group_task *group_task)
 {
 	int ret = 0;

@@ -1711,17 +1711,19 @@ void pym_set_iar_output(struct pym_subdev *subdev, struct vio_frame *frame)
 	int ret = 0;
 	int i = 0;
 
-	ret = ipu_get_iar_display_type(dis_instance, display_layer);
+	if (iar_get_type == NULL || iar_set_addr == NULL)
+		return;
+	ret = iar_get_type(dis_instance, display_layer);
 	spec = &frame->frameinfo.spec;
 	group = subdev->group;
 	if (!ret) {
 		for (i = 0; i < 2; i++) {
 			if (group->instance == dis_instance[i] && display_layer[i] < 37) {
 				if (display_layer[i] >= 31)
-					ipu_set_display_addr(i, spec->us_y_addr[display_layer[i] - 31],
+					iar_set_addr(i, spec->us_y_addr[display_layer[i] - 31],
 						spec->us_uv_addr[display_layer[i] - 31]);
 				else if (display_layer[i] >= 7)
-					ipu_set_display_addr(i, spec->ds_y_addr[display_layer[i] - 7],
+					iar_set_addr(i, spec->ds_y_addr[display_layer[i] - 7],
 						spec->ds_uv_addr[display_layer[i] - 7]);
 			}
 			vio_dbg("[D%d]PYM display_layer = %d, dis_instance = %d", i,

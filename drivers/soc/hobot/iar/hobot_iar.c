@@ -3546,6 +3546,8 @@ static int hobot_iar_probe(struct platform_device *pdev)
 	iar_switch_buf(0);
 	iar_set_bufaddr(IAR_CHANNEL_3, &channel_buf_addr_3);
 	iar_set_bufaddr(IAR_CHANNEL_4, &channel_buf_addr_4);
+	iar_register_get_callback((int (*)(u8 *, u8 *))(ipu_get_iar_display_type));
+	iar_register_set_callback(ipu_set_display_addr);
 	iar_update();
 	clk_disable_unprepare(g_iar_dev->iar_pixel_clk);
 	iar_disable_sif_mclk();

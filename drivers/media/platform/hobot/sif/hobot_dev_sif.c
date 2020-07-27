@@ -41,7 +41,7 @@ static bool debug_log_print = 0;
 module_param(debug_log_print, bool, 0644);
 static int g_print_instance = 0;
 int sif_video_streamoff(struct sif_video_ctx *sif_ctx);
-extern isp_callback sif_isp_ctx_sync;
+
 static int x3_sif_suspend(struct device *dev)
 {
 	int ret = 0;

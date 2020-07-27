@@ -2521,12 +2521,14 @@ void ipu_set_iar_output(struct ipu_subdev *subdev, struct vio_frame *frame)
 	struct vio_group *group;
 
 	group = subdev->group;
-	ret = ipu_get_iar_display_type(dis_instance, display_layer);
+	if (iar_get_type == NULL || iar_set_addr == NULL)
+		return;
+	ret = iar_get_type(dis_instance, display_layer);
 	if (!ret) {
 		for (i = 0; i < 2; i++) {
 			if(group->instance == dis_instance[i] &&
 					subdev->id == display_layer[i]) {
-				ipu_set_display_addr(i, frame->frameinfo.addr[0],
+				iar_set_addr(i, frame->frameinfo.addr[0],
 						frame->frameinfo.addr[1]);
 			}
 			vio_dbg("[D%d]IPU display_layer = %d, dis_instance = %d", i,

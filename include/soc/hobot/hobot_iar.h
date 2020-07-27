@@ -21,6 +21,7 @@
 #include <linux/ion.h>
 #include "../../../drivers/media/platform/hobot/common_api/vio_framemgr.h"
 #include "../../../drivers/media/platform/hobot/common_api/vio_config.h"
+#include "../../../drivers/media/platform/hobot/common_api/vio_group_api.h"
 
 #define MAX_FRAME_BUF_SIZE	(1920*1080*4)
 #define VIDEO_FRAME_BUF_SIZE    (800*480*2)
@@ -756,6 +757,8 @@ extern uint8_t disp_copy_done;
 extern uint8_t disp_user_config_done;
 extern unsigned int iar_debug_level;
 extern unsigned int fb_num;
+extern void iar_register_get_callback(iar_get_type_callback func);
+extern void iar_register_set_callback(iar_set_addr_callback func);
 #define IAR_DEBUG_PRINT(format, args...)	\
 	do {									\
 		if(iar_debug_level)					\

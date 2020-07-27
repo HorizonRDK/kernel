@@ -134,6 +134,8 @@ struct vio_core {
 };
 
 typedef int (*isp_callback)(int);
+typedef int (*iar_get_type_callback)(u8 *pipeline, u8 *channel);
+typedef int (*iar_set_addr_callback)(uint32_t disp_layer, u32 yaddr, u32 caddr);
 
 int vio_group_task_start(struct vio_group_task *group_task);
 int vio_group_task_stop(struct vio_group_task *group_task);
@@ -156,10 +158,9 @@ int vio_print_delay(s32 instance, s8* buf, u32 size);
 void vio_exchanage_stat_info(u32 instance);
 void vio_clear_stat_info(u32 instance);
 
-#ifdef X3_IAR_INTERFACE
-extern u32 ipu_get_iar_display_type(u8 *pipeline, u8 *channel);
-extern int32_t ipu_set_display_addr(uint32_t disp_layer, u32 yaddr, u32 caddr);
-#endif
+extern iar_get_type_callback iar_get_type;
+extern iar_set_addr_callback iar_set_addr;
+extern isp_callback sif_isp_ctx_sync;
 
 extern void ips_set_module_reset(unsigned long module);
 extern int ips_set_clk_ctrl(unsigned long module, bool enable);
