@@ -98,12 +98,15 @@ static u32 x3_pym_poll(struct file *file, struct poll_table_struct *wait)
 	pym_ctx = file->private_data;
 	framemgr = pym_ctx->framemgr;
 	pym = pym_ctx->pym_dev;
+	printk("pym proc %d poll start\n", pym_ctx->ctx_index);
 
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	pym_ctx->subdev->poll_mask |= (1 << pym_ctx->ctx_index);
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
+	printk("pym proc %d poll start111", pym_ctx->ctx_index);
 	poll_wait(file, &pym_ctx->done_wq, wait);
+	printk("pym proc %d poll end", pym_ctx->ctx_index);
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	done_list = &framemgr->queued_list[FS_COMPLETE];
 	if (!list_empty(done_list)) {
@@ -1102,17 +1105,7 @@ try_releas_ion:
 			mp_frame->common_frame.dispatch_mask = 0;
 		}
 
-		framemgr->ctx_mask &= ~(1 << pym_ctx->ctx_index);
 		framemgr->num_frames -= frame_num;
-		/* clear the frame mask bit of this ctx*/
-		for (i = 0; i < VIO_MP_MAX_FRAMES; i++) {
-			if ((framemgr->index_state[i] != FRAME_IND_USING)
-				&& (framemgr->index_state[i] != FRAME_IND_STREAMOFF))
-				continue;
-			release_frame = framemgr->frames_mp[i];
-			if (release_frame)
-				release_frame->dispatch_mask &= ~(1 << pym_ctx->ctx_index);
-		}
 
 		if (framemgr->max_index == (first_index + frame_num)) {
 			tmp_num = 0;
@@ -1799,6 +1792,7 @@ void pym_frame_done(struct pym_subdev *subdev)
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
 	spin_lock(&subdev->slock);
+	vio_dbg("pym done subdev ctx mask:%x", subdev->val_ctx_mask);
 	for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
 		if (test_bit(i, &subdev->val_ctx_mask)) {
 			pym_ctx = subdev->ctx[i];
@@ -1842,6 +1836,7 @@ void pym_frame_ndone(struct pym_subdev *subdev)
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
 	spin_lock(&subdev->slock);
+	vio_dbg("pym ndone subdev ctx mask:%x", subdev->val_ctx_mask);
 	for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
 		if (test_bit(i, &subdev->val_ctx_mask)) {
 			pym_ctx = subdev->ctx[i];

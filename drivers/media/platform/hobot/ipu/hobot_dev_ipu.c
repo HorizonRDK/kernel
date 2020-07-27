@@ -1644,6 +1644,7 @@ static int ipu_flush_mp_prepare(struct ipu_video_ctx *ipu_ctx)
 					&& (this->index_state[i] == FRAME_IND_USING)) {
 				frame->dispatch_mask |= 0xFF00;
 				trans_frame(this, frame, FS_REQUEST);
+				vio_dbg("ipu streamoff to request%d", i);
 				if (subdev->leader == true && group->leader)
 					vio_group_start_trigger_mp(group, frame);
 			}
@@ -1940,17 +1941,7 @@ try_releas_ion:
 			framemgr->index_state[i] = FRAME_IND_FREE;
 		}
 
-		framemgr->ctx_mask &= ~(1 << ipu_ctx->ctx_index);
 		framemgr->num_frames -= frame_num;
-		/* clear the frame mask bit of this ctx*/
-		for (i = 0; i < VIO_MP_MAX_FRAMES; i++) {
-			if ((framemgr->index_state[i] != FRAME_IND_USING)
-				&& (framemgr->index_state[i] != FRAME_IND_STREAMOFF))
-				continue;
-			release_frame = framemgr->frames_mp[i];
-			if (release_frame)
-				release_frame->dispatch_mask &= ~(1 << ipu_ctx->ctx_index);
-		}
 
 		if (framemgr->max_index == (first_index + frame_num)) {
 			tmp_num = 0;
@@ -2592,6 +2583,7 @@ void ipu_frame_done(struct ipu_subdev *subdev)
 					subdev->frameinfo.bufferindex = -1;
 					cache_frame->dispatch_mask = 0xFF00;
 					trans_frame(framemgr, cache_frame, FS_REQUEST);
+					vio_dbg("ipu done to request%d", cache_bufindex);
 				}
 			}
 		}
