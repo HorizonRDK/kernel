@@ -98,15 +98,12 @@ static u32 x3_pym_poll(struct file *file, struct poll_table_struct *wait)
 	pym_ctx = file->private_data;
 	framemgr = pym_ctx->framemgr;
 	pym = pym_ctx->pym_dev;
-	printk("pym proc %d poll start\n", pym_ctx->ctx_index);
 
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	pym_ctx->subdev->poll_mask |= (1 << pym_ctx->ctx_index);
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
-	printk("pym proc %d poll start111", pym_ctx->ctx_index);
 	poll_wait(file, &pym_ctx->done_wq, wait);
-	printk("pym proc %d poll end", pym_ctx->ctx_index);
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	done_list = &framemgr->queued_list[FS_COMPLETE];
 	if (!list_empty(done_list)) {
@@ -2204,6 +2201,12 @@ static ssize_t get_pipeline_info(int pipeid, struct device *dev,
 	u32 offset = 0, len = 0;
 	pym = dev_get_drvdata(dev);
 
+	if (pym->statistic.enable[pipeid] == 0) {
+		len = snprintf(buf+offset, PAGE_SIZE - offset, "pipeline %d is disabled\n", pipeid);
+		offset += len;
+		goto done_return;
+	}
+
 	if (pym->statistic.enable[0] == 0) {
 		len = snprintf(buf+offset, PAGE_SIZE - offset, "pipeline %d is disabled\n", pipeid);
 		offset += len;
@@ -2213,9 +2216,9 @@ static ssize_t get_pipeline_info(int pipeid, struct device *dev,
 
 		input_type = pym->subdev[pipeid].pym_cfg.img_scr;
 		if (input_type == 0) {
-			len = snprintf(buf+offset, PAGE_SIZE - offset, "input mode: %d, %s\n", input_type, "ipu online to pym");
+			len = snprintf(buf+offset, PAGE_SIZE - offset, "input mode: %d, %s\n", input_type, "ddr to pym");
 		} else if (input_type == 1) {
-			len = snprintf(buf+offset, PAGE_SIZE - offset, "input mode: %d, %s\n", input_type, "ddr to ipu");
+			len = snprintf(buf+offset, PAGE_SIZE - offset, "input mode: %d, %s\n", input_type, "ipu online to pym");
 		} else {
 			len = snprintf(buf+offset, PAGE_SIZE - offset, "input mode: %d, %s\n", input_type, "wrong");
 		}
@@ -2226,21 +2229,22 @@ static ssize_t get_pipeline_info(int pipeid, struct device *dev,
 
 		pym_config = &pym->subdev[pipeid].pym_cfg;
 		for (i = 0; i < MAX_PYM_DS_COUNT; i++) {
-			len = snprintf(buf+offset, PAGE_SIZE - offset, "\tds%d factor:%d, wxh:%dx%d, startXY:%d-%d\n",
+			len = snprintf(buf+offset, PAGE_SIZE - offset, "\tds%d \tfactor:%d, \ttgt wxh:%dx%d, \tstartXY:%d-%d\n",
 				i, pym_config->stds_box[i].factor, pym_config->stds_box[i].tgt_width, pym_config->stds_box[i].tgt_height,
 				pym_config->stds_box[i].roi_x, pym_config->stds_box[i].roi_y);
 			offset += len;
 		}
 
 		for (i = 0; i < MAX_PYM_US_COUNT; i++) {
-			len = snprintf(buf+offset, PAGE_SIZE - offset, "\tus%d factor:%d, wxh:%dx%d, startXY:%d-%d\n",
+			len = snprintf(buf+offset, PAGE_SIZE - offset, "\tus%d \tfactor:%d, \ttgt wxh:%dx%d, \tstartXY:%d-%d\n",
 				i, pym_config->stus_box[i].factor, pym_config->stus_box[i].tgt_width, pym_config->stus_box[i].tgt_height,
 				pym_config->stus_box[i].roi_x, pym_config->stus_box[i].roi_y);
 			offset += len;
 		}
 	}
-	return offset;
 
+done_return:
+	return offset;
 }
 
 static ssize_t pipeline0_info_show(struct device *dev,
