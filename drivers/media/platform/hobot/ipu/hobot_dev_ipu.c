@@ -2234,7 +2234,7 @@ int ipu_alloc_ion_bufffer(struct ipu_video_ctx *ipu_ctx,
 			ion_buffer->one[k].planeSize[j], PAGE_SIZE,
 			ION_HEAP_CARVEOUT_MASK, ion_flag);
 		   if (IS_ERR(frame->ion_handle[j])) {
-			   vio_err("ipu ion alloc failed failed");
+			   vio_err("ipu ion alloc failed failed %d", i);
 
 			   // clean up current frame ion
 			   for (m = j-1; m >= 0; m--)
@@ -2278,7 +2278,7 @@ int ipu_alloc_ion_bufffer(struct ipu_video_ctx *ipu_ctx,
 
 ion_cleanup:
 	// cleanup all the other frame data
-	for (i = i -1; i >= ipu_ctx->frm_fst_ind; i--) {
+	for (i = i-1; i >= (int)ipu_ctx->frm_fst_ind; i--) {
 		   frame = (struct mp_vio_frame *)framemgr->frames_mp[i];
 		   k = i - ipu_ctx->frm_fst_ind;
 		   for (j = 0; j < ion_buffer->one[k].planecount; j++) {
@@ -2294,7 +2294,6 @@ ion_cleanup:
 	return -ENOMEM;
 }
 
-static struct kernel_ion ipu_ion;
 static long x3_ipu_ioctl(struct file *file, unsigned int cmd,
 			  unsigned long arg)
 {
@@ -2307,6 +2306,7 @@ static long x3_ipu_ioctl(struct file *file, unsigned int cmd,
 	struct vio_group *group;
 	u32 buf_index;
 	struct user_statistic stats;
+	struct kernel_ion *ipu_ion = NULL;
 
 	ipu_ctx = file->private_data;
 	BUG_ON(!ipu_ctx);
@@ -2396,19 +2396,29 @@ static long x3_ipu_ioctl(struct file *file, unsigned int cmd,
 		ipu_video_user_stats(ipu_ctx, &stats);
 		break;
 	case IPU_IOC_KERNEL_ION:
-		ret = copy_from_user(&ipu_ion, (u32 __user *) arg, sizeof(struct kernel_ion));
-		if (ret)
-			return -EFAULT;
-		ret = ipu_alloc_ion_bufffer(ipu_ctx, &ipu_ion);
+		ipu_ion = (struct kernel_ion *)vmalloc(sizeof(struct kernel_ion));
+		if (!ipu_ion) {
+			vio_err("alloc ipu ion struct faild");
+			return -ENOMEM;
+		}
+		ret = copy_from_user(ipu_ion, (u32 __user *) arg, sizeof(struct kernel_ion));
 		if (ret) {
+			vfree(ipu_ion);
+			return -EFAULT;
+		}
+		ret = ipu_alloc_ion_bufffer(ipu_ctx, ipu_ion);
+		if (ret) {
+			vfree(ipu_ion);
 			vio_err("alloc ion buffer failed");
 			return -EFAULT;
 		}
-		ret = copy_to_user((u32 __user *) arg, &ipu_ion, sizeof(struct kernel_ion));
+		ret = copy_to_user((u32 __user *) arg, ipu_ion, sizeof(struct kernel_ion));
 		if (ret) {
+			vfree(ipu_ion);
 			vio_err("copy to user failed");
 			return -EFAULT;
 		}
+		vfree(ipu_ion);
 		break;
 	default:
 		vio_err("wrong ioctl command\n");

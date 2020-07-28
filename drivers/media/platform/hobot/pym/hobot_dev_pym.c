@@ -1504,7 +1504,7 @@ int pym_alloc_ion_bufffer(struct pym_video_ctx *pym_ctx,
 
 ion_cleanup:
 	// cleanup all the other frame data
-	for (i = i-1; i >= pym_ctx->frm_fst_ind; i--) {
+	for (i = i-1; i >= (int)pym_ctx->frm_fst_ind; i--) {
 	       frame = (struct mp_vio_frame *)framemgr->frames_mp[i];
 		   k = i - pym_ctx->frm_fst_ind;
 	       for (j = 0; j < ion_buffer->one[k].planecount; j++) {
@@ -1514,7 +1514,6 @@ ion_cleanup:
 	return -ENOMEM;
 }
 
-static struct kernel_ion pym_ion;
 static long x3_pym_ioctl(struct file *file, unsigned int cmd,
 			  unsigned long arg)
 {
@@ -1527,6 +1526,7 @@ static long x3_pym_ioctl(struct file *file, unsigned int cmd,
 	struct vio_group *group;
 	int buf_index;
 	struct user_statistic stats;
+	struct kernel_ion *pym_ion = NULL;
 
 	pym_ctx = file->private_data;
 	BUG_ON(!pym_ctx);
@@ -1601,19 +1601,29 @@ static long x3_pym_ioctl(struct file *file, unsigned int cmd,
 		ret = pym_update_ch_scale_info(pym_ctx, arg);
 		break;
 	case PYM_IOC_KERNEL_ION:
-		ret = copy_from_user(&pym_ion, (u32 __user *) arg, sizeof(struct kernel_ion));
-		if (ret)
-			return -EFAULT;
-		ret = pym_alloc_ion_bufffer(pym_ctx, &pym_ion);
+		pym_ion = (struct kernel_ion *)vmalloc(sizeof(struct kernel_ion));
+		if (!pym_ion) {
+			vio_err("alloc pym ion struct faild");
+			return -ENOMEM;
+		}
+		ret = copy_from_user(pym_ion, (u32 __user *) arg, sizeof(struct kernel_ion));
 		if (ret) {
+			vfree(pym_ion);
+			return -EFAULT;
+		}
+		ret = pym_alloc_ion_bufffer(pym_ctx, pym_ion);
+		if (ret) {
+			vfree(pym_ion);
 			vio_err("alloc ion buffer failed");
 			return -EFAULT;
 		}
-		ret = copy_to_user((u32 __user *) arg, &pym_ion, sizeof(struct kernel_ion));
+		ret = copy_to_user((u32 __user *) arg, pym_ion, sizeof(struct kernel_ion));
 		if (ret) {
+			vfree(pym_ion);
 			vio_err("copy to user failed");
 			return -EFAULT;
 		}
+		vfree(pym_ion);
 		break;
 	default:
 		vio_err("wrong ioctl command\n");
