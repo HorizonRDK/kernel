@@ -29,6 +29,7 @@
 #define WAVE521C_DUAL_CODE              0x521d	// wave521 dual core
 
 #define MAX_NUM_VPU_INSTANCE            32	// 4 -> 32
+#define MAX_VPU_INSTANCE_IDX            0xFFFFFFFF
 #define MAX_INTERRUPT_QUEUE             (16*MAX_NUM_VPU_INSTANCE)
 #define MAX_NUM_VPU_CORE                1
 #define MAX_INST_HANDLE_SIZE            48	/* DO NOT CHANGE THIS VALUE */

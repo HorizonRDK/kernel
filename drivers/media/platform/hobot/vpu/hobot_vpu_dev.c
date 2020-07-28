@@ -134,7 +134,8 @@ static int vpu_free_instances(struct file *filp)
 				  (int)vil->inst_idx, (int)vil->core_idx,
 				  vip_base, (int)instance_pool_size_per_core);
 			core = vil->core_idx;
-			VPU_WRITEL(W5_CMD_INSTANCE_INFO, (-1 << 16)|(vil->inst_idx&0xffff));
+			VPU_WRITEL(W5_CMD_INSTANCE_INFO,
+				(-1 << 16)|(vil->inst_idx&MAX_VPU_INSTANCE_IDX));
 			VPU_ISSUE_COMMAND(vil->core_idx, W5_DESTROY_INSTANCE);
 			while (VPU_READL(W5_VPU_BUSY_STATUS)) {
 				if (time_after(jiffies, timeout)) {
@@ -148,7 +149,7 @@ static int vpu_free_instances(struct file *filp)
 				if (error == 0x1000) {
 					VPU_WRITEL(W5_QUERY_OPTION, GET_RESULT);
 					VPU_WRITEL(W5_CMD_INSTANCE_INFO,
-						(-1 << 16)|(vil->inst_idx&0xffff));
+						(-1 << 16)|(vil->inst_idx&MAX_VPU_INSTANCE_IDX));
 					VPU_ISSUE_COMMAND(vil->core_idx, W5_QUERY);
 					while (VPU_READL(W5_VPU_BUSY_STATUS)) {
 						if (time_after(jiffies, timeout)) {
@@ -158,7 +159,7 @@ static int vpu_free_instances(struct file *filp)
 						}
 					}
 					VPU_WRITEL(W5_CMD_INSTANCE_INFO,
-						(-1 << 16)|(vil->inst_idx&0xffff));
+						(-1 << 16)|(vil->inst_idx&MAX_VPU_INSTANCE_IDX));
 					VPU_ISSUE_COMMAND(vil->core_idx, W5_DESTROY_INSTANCE);
 					while (VPU_READL(W5_VPU_BUSY_STATUS)) {
 						if (time_after(jiffies, timeout)) {
@@ -277,7 +278,7 @@ static s32 vpu_get_inst_idx(hb_vpu_dev_t * dev, u32 * reason,
 		  int_reason, empty_inst, done_inst);
 
 	if (int_reason & (1 << INT_WAVE5_BSBUF_EMPTY)) {
-		reg_val = (empty_inst & 0xffff);
+		reg_val = (empty_inst & MAX_VPU_INSTANCE_IDX);
 		inst_idx = vpu_filter_inst_idx(reg_val);
 		*reason = (1 << INT_WAVE5_BSBUF_EMPTY);
 		vpu_debug(7, "W5_RET_BS_EMPTY_INST reg_val=0x%x, inst_idx=%d\n",
@@ -286,7 +287,7 @@ static s32 vpu_get_inst_idx(hb_vpu_dev_t * dev, u32 * reason,
 	}
 
 	if (int_reason & (1 << INT_WAVE5_INIT_SEQ)) {
-		reg_val = (seq_inst & 0xffff);
+		reg_val = (seq_inst & MAX_VPU_INSTANCE_IDX);
 		inst_idx = vpu_filter_inst_idx(reg_val);
 		*reason = (1 << INT_WAVE5_INIT_SEQ);
 		vpu_debug(7, "RET_SEQ_DONE_INSTANCE_INFO INIT_SEQ reg_val=0x%x,"
@@ -295,7 +296,7 @@ static s32 vpu_get_inst_idx(hb_vpu_dev_t * dev, u32 * reason,
 	}
 
 	if (int_reason & (1 << INT_WAVE5_DEC_PIC)) {
-		reg_val = (done_inst & 0xffff);
+		reg_val = (done_inst & MAX_VPU_INSTANCE_IDX);
 		inst_idx = vpu_filter_inst_idx(reg_val);
 		*reason = (1 << INT_WAVE5_DEC_PIC);
 		vpu_debug(7, "W5_RET_QUEUE_CMD_DONE_INST DEC_PIC reg_val=0x%x,"
@@ -318,7 +319,7 @@ static s32 vpu_get_inst_idx(hb_vpu_dev_t * dev, u32 * reason,
 	}
 
 	if (int_reason & (1 << INT_WAVE5_ENC_SET_PARAM)) {
-		reg_val = (seq_inst & 0xffff);
+		reg_val = (seq_inst & MAX_VPU_INSTANCE_IDX);
 		inst_idx = vpu_filter_inst_idx(reg_val);
 		*reason = (1 << INT_WAVE5_ENC_SET_PARAM);
 		vpu_debug(7,
@@ -329,7 +330,7 @@ static s32 vpu_get_inst_idx(hb_vpu_dev_t * dev, u32 * reason,
 
 #ifdef SUPPORT_SOURCE_RELEASE_INTERRUPT
 	if (int_reason & (1 << INT_WAVE5_ENC_SRC_RELEASE)) {
-		reg_val = (done_inst & 0xffff);
+		reg_val = (done_inst & MAX_VPU_INSTANCE_IDX);
 		inst_idx = vpu_filter_inst_idx(reg_val);
 		*reason = (1 << INT_WAVE5_ENC_SRC_RELEASE);
 		vpu_debug(7, "W5_RET_QUEUE_CMD_DONE_INST ENC_SET_PARAM "
