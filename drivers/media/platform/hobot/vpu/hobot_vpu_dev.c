@@ -1990,13 +1990,17 @@ static int vpu_venc_show(struct seq_file *s, void *unused)
 		return 0;
 
 	// seq_printf(s, "-----------------------venc-------------------------\n");
-	seq_printf(s, "----encode enc param----\n");
-	seq_printf(s, "%7s %7s %11s %11s %5s %6s %7s %10s %15s %11s %10s %6s %6s\n",
-		"enc_idx", "enc_id", "profile", "level", "width",
-		"height", "pix_fmt", "fbuf_count", "extern_buf_flag",
-		"bsbuf_count", "bsbuf_size", "mirror", "rotate");
+	output = 0;
 	for (i = 0; i < MAX_NUM_VPU_INSTANCE; i++) {
 		if (dev->vpu_ctx[i].valid && dev->vpu_ctx[i].context.encoder) {
+			if (output == 0) {
+				output = 1;
+				seq_printf(s, "----encode enc param----\n");
+				seq_printf(s, "%7s %7s %11s %11s %5s %6s %7s %10s %15s %11s "
+				"%10s %6s %6s\n", "enc_idx", "enc_id", "profile", "level",
+				"width", "height", "pix_fmt", "fbuf_count", "extern_buf_flag",
+				"bsbuf_count", "bsbuf_size", "mirror", "rotate");
+			}
 			seq_printf(s, "%7d %7s %11s %11s %5d %6d %7d "\
 				"%10d %15d %11d %10d %6d %6d\n",
 				dev->vpu_ctx[i].context.instance_index,
@@ -2666,8 +2670,6 @@ static int vpu_venc_show(struct seq_file *s, void *unused)
 
 static int vpu_venc_open(struct inode *inode, struct file *file)
 {
-	pr_err("==vpu_venc_open=== inode: %p\n", inode);
-
 	return single_open(file, vpu_venc_show, inode->i_private);
 }
 
@@ -2682,17 +2684,22 @@ static const struct file_operations vpu_venc_fops = {
 static int vpu_vdec_show(struct seq_file *s, void *unused)
 {
 	int i;
+	int output = 0;
 	hb_vpu_dev_t *dev = (hb_vpu_dev_t *)s->private;
 
 	if (dev == NULL)
 		return 0;
 
-	seq_printf(s, "----decode param----\n");
-	seq_printf(s, "%7s %7s %9s %7s %18s %19s %15s\n",
-		"dec_idx", "dec_id", "feed_mode", "pix_fmt", "bitstream_buf_size",
-		"bitstream_buf_count", "frame_buf_count");
+	output = 0;
 	for (i = 0; i < MAX_NUM_VPU_INSTANCE; i++) {
 		if (dev->vpu_ctx[i].valid && (dev->vpu_ctx[i].context.encoder == 0)) {
+			if (output == 0) {
+				output = 1;
+				seq_printf(s, "----decode param----\n");
+				seq_printf(s, "%7s %7s %9s %7s %18s %19s %15s\n", "dec_idx",
+					"dec_id", "feed_mode", "pix_fmt", "bitstream_buf_size",
+					"bitstream_buf_count", "frame_buf_count");
+			}
 			seq_printf(s, "%7d %7s %9d %7d %18d %19d %15d\n",
 				dev->vpu_ctx[i].context.instance_index,
 				get_codec(&dev->vpu_ctx[i]),
@@ -2705,13 +2712,17 @@ static int vpu_vdec_show(struct seq_file *s, void *unused)
 	}
 
 	spin_lock(&dev->vpu_info_spinlock);
-	seq_printf(s, "----decode frameinfo----\n");
-	seq_printf(s, "%7s %7s %13s %14s\n", "dec_idx", "dec_id",
-		"display_width", "display_height");
+	output = 0;
 	for (i = 0; i < MAX_NUM_VPU_INSTANCE; i++) {
 		if (dev->vpu_ctx[i].valid && (dev->vpu_ctx[i].context.encoder == 0)) {
 			mc_h264_h265_output_frame_info_t *frameinfo
 								= &(dev->vpu_status[i].frame_info);
+			if (output == 0) {
+				output = 1;
+				seq_printf(s, "\n----decode frameinfo----\n");
+				seq_printf(s, "%7s %7s %13s %14s\n", "dec_idx", "dec_id",
+					"display_width", "display_height");
+			}
 			seq_printf(s, "%7d %7s %13d %14d\n",
 				dev->vpu_ctx[i].context.instance_index,
 				get_codec(&dev->vpu_ctx[i]),
@@ -2720,13 +2731,17 @@ static int vpu_vdec_show(struct seq_file *s, void *unused)
 		}
 	}
 
-	seq_printf(s, "----decode status----\n");
-	seq_printf(s, "%7s %7s %17s %18s %19s %20s\n", "dec_idx", "dec_id",
-		"cur_input_buf_cnt", "cur_output_buf_cnt",
-		"total_input_buf_cnt", "total_output_buf_cnt");
+	output = 0;
 	for (i = 0; i < MAX_NUM_VPU_INSTANCE; i++) {
 		if (dev->vpu_ctx[i].valid && (dev->vpu_ctx[i].context.encoder == 0)) {
 			mc_inter_status_t *status =	&(dev->vpu_status[i].status);
+			if (output == 0) {
+				output = 1;
+				seq_printf(s, "----decode status----\n");
+				seq_printf(s, "%7s %7s %17s %18s %19s %20s\n", "dec_idx",
+					"dec_id", "cur_input_buf_cnt", "cur_output_buf_cnt",
+					"total_input_buf_cnt", "total_output_buf_cnt");
+			}
 			seq_printf(s, "%7d %7s %17d %18d %19d %20d\n",
 				dev->vpu_ctx[i].context.instance_index,
 				get_codec(&dev->vpu_ctx[i]),
