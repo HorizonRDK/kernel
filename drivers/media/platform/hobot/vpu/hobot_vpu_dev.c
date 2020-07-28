@@ -1744,10 +1744,10 @@ static char *get_profile(hb_vpu_ctx_info_t *vpu_ctx)
 			case MC_H264_PROFILE_HIGH444:
 				return "high444";
 			default:
-				return "---";
+				return "unspecified";
 		}
 	} else {
-		return "---";
+		return "unspecified";
 	}
 }
 
@@ -1790,7 +1790,7 @@ static char *get_level(hb_vpu_ctx_info_t *vpu_ctx)
 			case MC_H264_LEVEL5_2:
 				return "level5_2";
 			default:
-				return "---";
+				return "unspecified";
 		}
 	} else if (vpu_ctx->context.codec_id == MEDIA_CODEC_ID_H265) {
 		switch (vpu_ctx->context.video_enc_params.h265_enc_config.h265_level) {
@@ -1813,7 +1813,7 @@ static char *get_level(hb_vpu_ctx_info_t *vpu_ctx)
 			case MC_H265_LEVEL5_1:
 				return "level5_1";
 			default:
-				return "---";
+				return "unspecified";
 		}
 	} else {
 		return "---";
@@ -1834,16 +1834,17 @@ static char *get_codec(hb_vpu_ctx_info_t *vpu_ctx)
 		default:
 			break;
 	}
-	return "---";
+	return "unspecified";
 }
 
 static void rcparam_show(struct seq_file *s, hb_vpu_ctx_info_t *vpu_ctx) {
 	mc_rate_control_params_t *rc =
 		&(vpu_ctx->context.video_enc_params.rc_params);
 	if (rc->mode == MC_AV_RC_MODE_H264CBR) {
-		seq_printf(s, "%6d h264cbr %12d %8d %8d %10d %12d %14d %17d %8d %8d "
-			"%8d %8d %8d %8d %13d %12d %10d\n",
+		seq_printf(s, "%7d %7s %12d %8d %8d %10d %13d %15d %18d %8d %8d "
+			"%8d %8d %8d %8d %13d %12d %13d %12d\n",
 			vpu_ctx->context.instance_index,
+			"h264cbr",
 			rc->h264_cbr_params.intra_period,
 			rc->h264_cbr_params.intra_qp,
 			rc->h264_cbr_params.bit_rate,
@@ -1859,18 +1860,21 @@ static void rcparam_show(struct seq_file *s, hb_vpu_ctx_info_t *vpu_ctx) {
 			rc->h264_cbr_params.max_qp_B,
 			rc->h264_cbr_params.hvs_qp_enable,
 			rc->h264_cbr_params.hvs_qp_scale,
-			rc->h264_cbr_params.qp_map_enable);
+			rc->h264_cbr_params.qp_map_enable,
+			rc->h264_cbr_params.max_delta_qp);
 	} else if (rc->mode == MC_AV_RC_MODE_H264VBR) {
-		seq_printf(s, "%6d h264vbr %12d %8d %10d %13d\n",
+		seq_printf(s, "%7d %7s %12d %8d %10d %13d\n",
 			vpu_ctx->context.instance_index,
+			"h264vbr",
 			rc->h264_vbr_params.intra_period,
 			rc->h264_vbr_params.intra_qp,
 			rc->h264_vbr_params.frame_rate,
 			rc->h264_vbr_params.qp_map_enable);
 	} else if (rc->mode == MC_AV_RC_MODE_H264AVBR) {
-		seq_printf(s, "%6d h264avbr %12d %8d %8d %10d %12d %14d %17d %8d %8d "
-			"%8d %8d %8d %8d %13d %12d %10d\n",
+		seq_printf(s, "%7d %8s %12d %8d %8d %10d %13d %15d %18d %8d %8d "
+			"%8d %8d %8d %8d %13d %12d %13d %12d\n",
 			vpu_ctx->context.instance_index,
+			"h264avbr",
 			rc->h264_avbr_params.intra_period,
 			rc->h264_avbr_params.intra_qp,
 			rc->h264_avbr_params.bit_rate,
@@ -1886,24 +1890,29 @@ static void rcparam_show(struct seq_file *s, hb_vpu_ctx_info_t *vpu_ctx) {
 			rc->h264_avbr_params.max_qp_B,
 			rc->h264_avbr_params.hvs_qp_enable,
 			rc->h264_avbr_params.hvs_qp_scale,
-			rc->h264_avbr_params.qp_map_enable);
+			rc->h264_avbr_params.qp_map_enable,
+			rc->h264_avbr_params.max_delta_qp);
 	} else if (rc->mode == MC_AV_RC_MODE_H264FIXQP) {
-		seq_printf(s, "%6d h264fixqp %12d %10d %10d %10d %10d\n",
+		seq_printf(s, "%7d %9s %12d %10d %10d %10d %10d\n",
 			vpu_ctx->context.instance_index,
+			"h264fixqp",
 			rc->h264_fixqp_params.intra_period,
 			rc->h264_fixqp_params.frame_rate,
 			rc->h264_fixqp_params.force_qp_I,
 			rc->h264_fixqp_params.force_qp_P,
 			rc->h264_fixqp_params.force_qp_B);
 	} else if (rc->mode == MC_AV_RC_MODE_H264QPMAP) {
-		seq_printf(s, "%6d h264qpmap %12d %10d\n",
+		seq_printf(s, "%7d %9s %12d %10d %18d\n",
 			vpu_ctx->context.instance_index,
+			"h264qpmap",
 			rc->h264_qpmap_params.intra_period,
-			rc->h264_qpmap_params.frame_rate);
+			rc->h264_qpmap_params.frame_rate,
+			rc->h264_qpmap_params.qp_map_array_count);
 	} else if (rc->mode == MC_AV_RC_MODE_H265CBR) {
-		seq_printf(s, "%6d h265cbr %12d %8d %8d %10d %12d %14d %19d %8d %8d "
-			"%8d %8d %8d %8d %13d %12d %10d\n",
+		seq_printf(s, "%7d %7s %12d %8d %8d %10d %13d %15d %19d %8d %8d "
+			"%8d %8d %8d %8d %13d %12d %13d %12d\n",
 			vpu_ctx->context.instance_index,
+			"h265cbr",
 			rc->h265_cbr_params.intra_period,
 			rc->h265_cbr_params.intra_qp,
 			rc->h265_cbr_params.bit_rate,
@@ -1919,18 +1928,21 @@ static void rcparam_show(struct seq_file *s, hb_vpu_ctx_info_t *vpu_ctx) {
 			rc->h265_cbr_params.max_qp_B,
 			rc->h265_cbr_params.hvs_qp_enable,
 			rc->h265_cbr_params.hvs_qp_scale,
-			rc->h265_cbr_params.qp_map_enable);
+			rc->h265_cbr_params.qp_map_enable,
+			rc->h265_cbr_params.max_delta_qp);
 	} else if (rc->mode == MC_AV_RC_MODE_H265VBR) {
-		seq_printf(s, "%6d h265vbr %12d %8d %10d %13d\n",
+		seq_printf(s, "%7d %7s %12d %8d %10d %13d\n",
 			vpu_ctx->context.instance_index,
+			"h265vbr",
 			rc->h265_vbr_params.intra_period,
 			rc->h265_vbr_params.intra_qp,
 			rc->h265_vbr_params.frame_rate,
 			rc->h265_vbr_params.qp_map_enable);
 	} else if (rc->mode == MC_AV_RC_MODE_H265AVBR) {
-		seq_printf(s, "%6d h265avbr %12d %8d %8d %10d %12d %14d %19d %8d %8d "
-			"%8d %8d %8d %8d %13d %12d %10d\n",
+		seq_printf(s, "%7d %7s %12d %8d %8d %10d %13d %15d %19d %8d %8d "
+			"%8d %8d %8d %8d %13d %12d %13d %12d\n",
 			vpu_ctx->context.instance_index,
+			"h265avbr",
 			rc->h265_avbr_params.intra_period,
 			rc->h265_avbr_params.intra_qp,
 			rc->h265_avbr_params.bit_rate,
@@ -1946,20 +1958,24 @@ static void rcparam_show(struct seq_file *s, hb_vpu_ctx_info_t *vpu_ctx) {
 			rc->h265_avbr_params.max_qp_B,
 			rc->h265_avbr_params.hvs_qp_enable,
 			rc->h265_avbr_params.hvs_qp_scale,
-			rc->h265_avbr_params.qp_map_enable);
+			rc->h265_avbr_params.qp_map_enable,
+			rc->h265_avbr_params.max_delta_qp);
 	} else if (rc->mode == MC_AV_RC_MODE_H265FIXQP) {
-		seq_printf(s, "%6d h265fixqp %12d %10d %10d %10d %10d\n",
+		seq_printf(s, "%7d %9s %12d %10d %10d %10d %10d\n",
 			vpu_ctx->context.instance_index,
+			"h265fixqp",
 			rc->h265_fixqp_params.intra_period,
 			rc->h265_fixqp_params.frame_rate,
 			rc->h265_fixqp_params.force_qp_I,
 			rc->h265_fixqp_params.force_qp_P,
 			rc->h265_fixqp_params.force_qp_B);
 	} else if (rc->mode == MC_AV_RC_MODE_H265QPMAP) {
-		seq_printf(s, "%6d h265qpmap %12d %10d\n",
+		seq_printf(s, "%7d %9s %12d %10d %18d\n",
 			vpu_ctx->context.instance_index,
+			"h265qpmap",
 			rc->h265_qpmap_params.intra_period,
-			rc->h265_qpmap_params.frame_rate);
+			rc->h265_qpmap_params.frame_rate,
+			rc->h265_qpmap_params.qp_map_array_count);
 	}
 
 	seq_printf(s, "\n");
@@ -1974,13 +1990,14 @@ static int vpu_venc_show(struct seq_file *s, void *unused)
 		return 0;
 
 	// seq_printf(s, "-----------------------venc-------------------------\n");
-	seq_printf(s, "----encode enc param-----------------------------------"
-		"---------------------------------------------------------------\n");
-	seq_printf(s, "enc_idx  enc_id profile  level    width height pix_fmt "
-		"fbuf_count extern_buf_flag bsbuf_count bsbuf_size mirror rotate\n");
+	seq_printf(s, "----encode enc param----\n");
+	seq_printf(s, "%7s %7s %11s %11s %5s %6s %7s %10s %15s %11s %10s %6s %6s\n",
+		"enc_idx", "enc_id", "profile", "level", "width",
+		"height", "pix_fmt", "fbuf_count", "extern_buf_flag",
+		"bsbuf_count", "bsbuf_size", "mirror", "rotate");
 	for (i = 0; i < MAX_NUM_VPU_INSTANCE; i++) {
 		if (dev->vpu_ctx[i].valid && dev->vpu_ctx[i].context.encoder) {
-			seq_printf(s, "%6d %7s %7s %8s %5d %6d %7d "\
+			seq_printf(s, "%7d %7s %11s %11s %5d %6d %7d "\
 				"%10d %15d %11d %10d %6d %6d\n",
 				dev->vpu_ctx[i].context.instance_index,
 				get_codec(&dev->vpu_ctx[i]),
@@ -2006,16 +2023,15 @@ static int vpu_venc_show(struct seq_file *s, void *unused)
 			if (output == 0) {
 				output = 1;
 				seq_printf(s, "\n");
-				seq_printf(s, "----encode h264cbr param-----------------------"
-					"-----------"
-					"----------------------------------------------------------"
-					"---------------------------------------------"
-					"-----------------------------------------\n");
-				seq_printf(s, "enc_idx rc_mode intra_period intra_qp bit_rate "
-					"frame_rate "
-					"initial_rc_qp vbv_buffer_size mb_level_rc_enalbe min_qp_I "
-					"max_qp_I min_qp_P max_qp_P min_qp_B max_qp_B "
-					"hvs_qp_enable hvs_qp_scale qp_map_enable\n");
+				seq_printf(s, "----encode h264cbr param----\n");
+				seq_printf(s, "%7s %7s %12s %8s %8s %10s %13s %15s %18s %8s "
+					"%8s %8s %8s %8s %8s %13s %12s %13s %12s\n",
+					"enc_idx", "rc_mode", "intra_period", "intra_qp",
+					"bit_rate",	"frame_rate", "initial_rc_qp",
+					"vbv_buffer_size", "mb_level_rc_enalbe", "min_qp_I",
+					"max_qp_I", "min_qp_P", "max_qp_P", "min_qp_B", "max_qp_B",
+					"hvs_qp_enable", "hvs_qp_scale",
+					"qp_map_enable", "max_delta_qp");
 			}
 			rcparam_show(s, &(dev->vpu_ctx[i]));
 		}
@@ -2029,10 +2045,10 @@ static int vpu_venc_show(struct seq_file *s, void *unused)
 			if (output == 0) {
 				output = 1;
 				seq_printf(s, "\n");
-				seq_printf(s, "----encode h264vbr param--------------"
-					"------------------------\n");
-				seq_printf(s, "enc_idx rc_mode intra_period intra_qp "
-					"frame_rate qp_map_enable\n");
+				seq_printf(s, "----encode h264vbr param----\n");
+				seq_printf(s, "%7s %7s %12s %8s %10s %13s\n",
+					"enc_idx", "rc_mode", "intra_period", "intra_qp",
+					"frame_rate", "qp_map_enable\n");
 			}
 			rcparam_show(s, &(dev->vpu_ctx[i]));
 		}
@@ -2046,16 +2062,14 @@ static int vpu_venc_show(struct seq_file *s, void *unused)
 			if (output == 0) {
 				output = 1;
 				seq_printf(s, "\n");
-				seq_printf(s, "----encode h264avbr param-----------------------"
-					"-----------------------------------------"
-					"-------------------"
-					"------------------------------------------------------"
-					"----------------------------------------\n");
-				seq_printf(s, "enc_idx  rc_mode intra_period intra_qp bit_rate "
-					"frame_rate initial_rc_qp vbv_buffer_size "
-					"mb_level_rc_enalbe "
-					"min_qp_I max_qp_I min_qp_P max_qp_P min_qp_B max_qp_B "
-					"hvs_qp_enable hvs_qp_scale qp_map_enable\n");
+				seq_printf(s, "----encode h264avbr param----\n");
+				seq_printf(s, "%7s %8s %12s %8s %8s %10s %13s %15s %18s %8s "
+					"8s %8s %8s %8s %8s %13s %12s %13s %12s\n",
+					"enc_idx", "rc_mode", "intra_period", "intra_qp", "bit_rate"
+					"frame_rate", "initial_rc_qp", "vbv_buffer_size",
+					"mb_level_rc_enalbe", "min_qp_I", "max_qp_I", "min_qp_P",
+					"max_qp_P", "min_qp_B", "max_qp_B",	"hvs_qp_enable",
+					"hvs_qp_scale", "qp_map_enable", "max_delta_qp");
 			}
 			rcparam_show(s, &(dev->vpu_ctx[i]));
 		}
@@ -2069,10 +2083,10 @@ static int vpu_venc_show(struct seq_file *s, void *unused)
 			if (output == 0) {
 				output = 1;
 				seq_printf(s, "\n");
-				seq_printf(s, "----encode h264fixqp param----------------"
-					"--------------------------------\n");
-				seq_printf(s, "enc_idx   rc_mode intra_period frame_rate "
-					"force_qp_I force_qp_P force_qp_B\n");
+				seq_printf(s, "----encode h264fixqp param----\n");
+				seq_printf(s, "%7s %9s %12s %10s %10s %10s %10s\n",
+					"enc_idx", "rc_mode", "intra_period", "frame_rate",
+					"force_qp_I", "force_qp_P", "force_qp_B");
 			}
 			rcparam_show(s, &(dev->vpu_ctx[i]));
 		}
@@ -2086,8 +2100,9 @@ static int vpu_venc_show(struct seq_file *s, void *unused)
 			if (output == 0) {
 				output = 1;
 				seq_printf(s, "\n");
-				seq_printf(s, "----encode h264qpmap param------------------\n");
-				seq_printf(s, "enc_idx   rc_mode intra_period frame_rate\n");
+				seq_printf(s, "----encode h264qpmap param----\n");
+				seq_printf(s, "%7s %9s %12s %10s %18s\n", "enc_idx", "rc_mode",
+					"intra_period", "frame_rate", "qp_map_array_count");
 			}
 			rcparam_show(s, &(dev->vpu_ctx[i]));
 		}
@@ -2101,16 +2116,15 @@ static int vpu_venc_show(struct seq_file *s, void *unused)
 			if (output == 0) {
 				output = 1;
 				seq_printf(s, "\n");
-				seq_printf(s, "----encode h265cbr param-----------------------"
-					"-----------"
-					"--------------------------------------------------"
-					"------------------------------------------------------"
-					"----------------------------------------\n");
-				seq_printf(s, "enc_idx rc_mode intra_period intra_qp bit_rate "
-					"frame_rate "
-					"initial_rc_qp vbv_buffer_size ctu_level_rc_enalbe "
-					"min_qp_I max_qp_I min_qp_P max_qp_P min_qp_B max_qp_B "
-					"hvs_qp_enable hvs_qp_scale qp_map_enable\n");
+				seq_printf(s, "----encode h265cbr param----\n");
+				seq_printf(s, "%7s %7s %12s %8s %8s %10s %13s %15s %19s %8s "
+					"%8s %8s %8s %8s %8s %13s %12s %13s %12s\n",
+					"enc_idx", "rc_mode", "intra_period", "intra_qp",
+					"bit_rate",	"frame_rate", "initial_rc_qp",
+					"vbv_buffer_size", "ctu_level_rc_enalbe", "min_qp_I",
+					"max_qp_I", "min_qp_P", "max_qp_P", "min_qp_B", "max_qp_B",
+					"hvs_qp_enable", "hvs_qp_scale",
+					"qp_map_enable", "max_delta_qp");
 			}
 			rcparam_show(s, &(dev->vpu_ctx[i]));
 		}
@@ -2124,10 +2138,10 @@ static int vpu_venc_show(struct seq_file *s, void *unused)
 			if (output == 0) {
 				output = 1;
 				seq_printf(s, "\n");
-				seq_printf(s, "----encode h265vbr param--------------"
-					"------------------------\n");
-				seq_printf(s, "enc_idx rc_mode intra_period intra_qp "
-					"frame_rate qp_map_enable\n");
+				seq_printf(s, "----encode h265vbr param----\n");
+				seq_printf(s, "%7s %7s %12s %8s %10s %13s\n",
+					"enc_idx", "rc_mode", "intra_period", "intra_qp",
+					"frame_rate", "qp_map_enable\n");
 			}
 			rcparam_show(s, &(dev->vpu_ctx[i]));
 		}
@@ -2141,16 +2155,15 @@ static int vpu_venc_show(struct seq_file *s, void *unused)
 			if (output == 0) {
 				output = 1;
 				seq_printf(s, "\n");
-				seq_printf(s, "----encode h265avbr param---------------"
-					"--------------------------------------------------"
-					"-----------------------------"
-					"---------------------------------------------"
-					"----------------------------------------\n");
-				seq_printf(s, "enc_idx   rc_mode intra_period intra_qp "
-					"bit_rate frame_rate initial_rc_qp vbv_buffer_size "
-					"ctu_level_rc_enalbe min_qp_I "
-					"max_qp_I min_qp_P max_qp_P min_qp_B max_qp_B "
-					"hvs_qp_enable hvs_qp_scale qp_map_enable\n");
+				seq_printf(s, "----encode h265avbr param----\n");
+				seq_printf(s, "%7s %7s %12s %8s %8s %10s %13s %15s %19s %8s "
+					"%8s %8s %8s %8s %8s %13s %12s %13s %12s\n",
+					"enc_idx", "rc_mode", "intra_period", "intra_qp",
+					"bit_rate",	"frame_rate", "initial_rc_qp",
+					"vbv_buffer_size", "ctu_level_rc_enalbe", "min_qp_I",
+					"max_qp_I", "min_qp_P", "max_qp_P", "min_qp_B", "max_qp_B",
+					"hvs_qp_enable", "hvs_qp_scale",
+					"qp_map_enable", "max_delta_qp");
 			}
 			rcparam_show(s, &(dev->vpu_ctx[i]));
 		}
@@ -2164,10 +2177,10 @@ static int vpu_venc_show(struct seq_file *s, void *unused)
 			if (output == 0) {
 				output = 1;
 				seq_printf(s, "\n");
-				seq_printf(s, "----encode h265fixqp param----------------"
-					"--------------------------------\n");
-				seq_printf(s, "enc_idx   rc_mode intra_period frame_rate "
-					"force_qp_I force_qp_P force_qp_B\n");
+				seq_printf(s, "----encode h265fixqp param----\n");
+				seq_printf(s, "%7s %9s %12s %10s %10s %10s %10s\n",
+					"enc_idx", "rc_mode", "intra_period", "frame_rate",
+					"force_qp_I", "force_qp_P", "force_qp_B");
 			}
 			rcparam_show(s, &(dev->vpu_ctx[i]));
 		}
@@ -2181,8 +2194,9 @@ static int vpu_venc_show(struct seq_file *s, void *unused)
 			if (output == 0) {
 				output = 1;
 				seq_printf(s, "\n");
-				seq_printf(s, "----encode h265qpmap param------------------\n");
-				seq_printf(s, "enc_idx   rc_mode intra_period frame_rate\n");
+				seq_printf(s, "----encode h265qpmap param----\n");
+				seq_printf(s, "%7s %9s %12s %10s %18s\n", "enc_idx", "rc_mode",
+					"intra_period", "frame_rate", "qp_map_array_count");
 			}
 			rcparam_show(s, &(dev->vpu_ctx[i]));
 		}
@@ -2194,18 +2208,18 @@ static int vpu_venc_show(struct seq_file *s, void *unused)
 			if (output == 0) {
 				output = 1;
 				seq_printf(s, "\n");
-				seq_printf(s, "----encode gop param----------"
-					"---------------\n");
-				seq_printf(s, "enc_idx enc_id gop_preset_idx "
-					"custom_gop_size\n");
+				seq_printf(s, "----encode gop param----\n");
+				seq_printf(s, "%7s %7s %14s %15s %21s\n", "enc_idx", "enc_id",
+				"gop_preset_idx", "custom_gop_size", "decoding_refresh_type");
 			}
 			mc_video_gop_params_t *gop =
 				&(dev->vpu_ctx[i].context.video_enc_params.gop_params);
-			seq_printf(s, "%6d %7s %14d %10d\n",
+			seq_printf(s, "%7d %7s %14d %15d %21d\n",
 				dev->vpu_ctx[i].context.instance_index,
 				get_codec(&dev->vpu_ctx[i]),
 				gop->gop_preset_idx,
-				gop->custom_gop_size);
+				gop->custom_gop_size,
+				gop->decoding_refresh_type);
 		}
 	}
 
@@ -2215,12 +2229,11 @@ static int vpu_venc_show(struct seq_file *s, void *unused)
 			if (output == 0) {
 				output = 1;
 				seq_printf(s, "\n");
-				seq_printf(s, "----encode intra refresh----------"
-					"-----------------\n");
-				seq_printf(s, "enc_idx enc_id intra_refresh_mode "
-					"intra_refresh_arg\n");
+				seq_printf(s, "----encode intra refresh----\n");
+				seq_printf(s, "%7s %7s %18s %17s\n", "enc_idx", "enc_id",
+					"intra_refresh_mode", "intra_refresh_arg");
 			}
-			seq_printf(s, "%6d %7s %17d %16d\n",
+			seq_printf(s, "%7d %7s %18d %17d\n",
 				dev->vpu_ctx[i].context.instance_index,
 				get_codec(&dev->vpu_ctx[i]),
 				dev->vpu_ctx[i].intra_refr.intra_refresh_mode,
@@ -2234,12 +2247,12 @@ static int vpu_venc_show(struct seq_file *s, void *unused)
 			if (output == 0) {
 				output = 1;
 				seq_printf(s, "\n");
-				seq_printf(s, "----encode longterm ref-------------------------"
-					"-------------------------\n");
-				seq_printf(s, "enc_idx enc_id use_longterm longterm_pic_period "
-					"longterm_pic_using_period\n");
+				seq_printf(s, "----encode longterm ref----\n");
+				seq_printf(s, "%7s %7s %12s %19s %25s\n", "enc_idx", "enc_id",
+					"use_longterm", "longterm_pic_period",
+					"longterm_pic_using_period");
 			}
-			seq_printf(s, "%6d %7s %12d %19d %25d\n",
+			seq_printf(s, "%7d %7s %12d %19d %25d\n",
 				dev->vpu_ctx[i].context.instance_index,
 				get_codec(&dev->vpu_ctx[i]),
 				dev->vpu_ctx[i].ref_mode.use_longterm,
@@ -2252,15 +2265,119 @@ static int vpu_venc_show(struct seq_file *s, void *unused)
 	for (i = 0; i < MAX_NUM_VPU_INSTANCE; i++) {
 		if (dev->vpu_ctx[i].valid && dev->vpu_ctx[i].context.encoder &&
 			(dev->vpu_ctx[i].context.codec_id == MEDIA_CODEC_ID_H264)) {
+			mc_video_roi_params_t *roi_params =
+						&(dev->vpu_ctx[i].roi_params);
 			if (output == 0) {
 				output = 1;
 				seq_printf(s, "\n");
-				seq_printf(s, "----encode h264 entropy params--------------\n");
-				seq_printf(s, "enc_idx enc_id entropy_coding_mode\n");
+				seq_printf(s, "----encode roi_params----\n");
+				seq_printf(s, "%7s %7s %20s %19s\n", "enc_idx",
+					"enc_id", "roi_enable", "roi_map_array_count");
+			}
+			seq_printf(s, "%7d %7s %20d %19d\n",
+				dev->vpu_ctx[i].context.instance_index,
+				get_codec(&dev->vpu_ctx[i]),
+				roi_params->roi_enable,
+				roi_params->roi_map_array_count);
+		}
+	}
+
+	output = 0;
+	for (i = 0; i < MAX_NUM_VPU_INSTANCE; i++) {
+		if (dev->vpu_ctx[i].valid && dev->vpu_ctx[i].context.encoder &&
+			(dev->vpu_ctx[i].context.codec_id == MEDIA_CODEC_ID_H264)) {
+			mc_video_mode_decision_params_t *mode_decision =
+						&(dev->vpu_ctx[i].mode_decision);
+			if (output == 0) {
+				output = 1;
+				seq_printf(s, "\n");
+				seq_printf(s, "----encode mode_decision 1----\n");
+				seq_printf(s, "%7s %7s %20s %15s %15s %15s %15s %28s "
+					"%24s %27s %28s %24s %27s %28s %24s %27s\n", "enc_idx",
+					"enc_id", "mode_decision_enable", "pu04_delta_rate",
+					"pu08_delta_rate", "pu16_delta_rate",
+					"pu32_delta_rate", "pu04_intra_planar_delta_rate",
+					"pu04_intra_dc_delta_rate",
+					"pu04_intra_angle_delta_rate",
+					"pu08_intra_planar_delta_rate", "pu08_intra_dc_delta_rate",
+					"pu08_intra_angle_delta_rate",
+					"pu16_intra_planar_delta_rate", "pu16_intra_dc_delta_rate",
+					"pu16_intra_angle_delta_rate");
+			}
+			seq_printf(s, "%7d %7s %20d %15d %15d %15d %15d %28d "
+				"%24d %27d %28d %24d %27d %28d %24d %27d\n",
+				dev->vpu_ctx[i].context.instance_index,
+				get_codec(&dev->vpu_ctx[i]),
+				mode_decision->mode_decision_enable,
+				mode_decision->pu04_delta_rate,
+				mode_decision->pu08_delta_rate,
+				mode_decision->pu16_delta_rate,
+				mode_decision->pu32_delta_rate,
+				mode_decision->pu04_intra_planar_delta_rate,
+				mode_decision->pu04_intra_dc_delta_rate,
+				mode_decision->pu04_intra_angle_delta_rate,
+				mode_decision->pu08_intra_planar_delta_rate,
+				mode_decision->pu08_intra_dc_delta_rate,
+				mode_decision->pu08_intra_angle_delta_rate,
+				mode_decision->pu16_intra_planar_delta_rate,
+				mode_decision->pu16_intra_dc_delta_rate,
+				mode_decision->pu16_intra_angle_delta_rate);
+		}
+	}
+
+	output = 0;
+	for (i = 0; i < MAX_NUM_VPU_INSTANCE; i++) {
+		if (dev->vpu_ctx[i].valid && dev->vpu_ctx[i].context.encoder &&
+			(dev->vpu_ctx[i].context.codec_id == MEDIA_CODEC_ID_H264)) {
+			mc_video_mode_decision_params_t *mode_decision =
+						&(dev->vpu_ctx[i].mode_decision);
+			if (output == 0) {
+				output = 1;
+				seq_printf(s, "\n");
+				seq_printf(s, "----encode mode_decision 2----\n");
+				seq_printf(s, "%7s %7s %28s %24s %27s %21s %21s %21s "
+					"%21s %21s %21s %21s %21s %21s\n", "enc_idx",
+					"enc_id", "pu32_intra_planar_delta_rate",
+					"pu32_intra_dc_delta_rate",
+					"pu32_intra_angle_delta_rate", "cu08_intra_delta_rate",
+					"cu08_inter_delta_rate", "cu08_merge_delta_rate",
+					"cu16_intra_delta_rate", "cu16_inter_delta_rate",
+					"cu16_merge_delta_rate", "cu32_intra_delta_rate",
+					"cu32_inter_delta_rate", "cu32_merge_delta_rate");
+			}
+			seq_printf(s, "%7d %7s %28d %24d %27d %21d %21d %21d "
+				"%21d %21d %21d %21d %21d %21d\n",
+				dev->vpu_ctx[i].context.instance_index,
+				get_codec(&dev->vpu_ctx[i]),
+				mode_decision->pu32_intra_planar_delta_rate,
+				mode_decision->pu32_intra_dc_delta_rate,
+				mode_decision->pu32_intra_angle_delta_rate,
+				mode_decision->cu08_intra_delta_rate,
+				mode_decision->cu08_inter_delta_rate,
+				mode_decision->cu08_merge_delta_rate,
+				mode_decision->cu16_intra_delta_rate,
+				mode_decision->cu16_inter_delta_rate,
+				mode_decision->cu16_merge_delta_rate,
+				mode_decision->cu32_intra_delta_rate,
+				mode_decision->cu32_inter_delta_rate,
+				mode_decision->cu32_merge_delta_rate);
+		}
+	}
+
+	output = 0;
+	for (i = 0; i < MAX_NUM_VPU_INSTANCE; i++) {
+		if (dev->vpu_ctx[i].valid && dev->vpu_ctx[i].context.encoder &&
+			(dev->vpu_ctx[i].context.codec_id == MEDIA_CODEC_ID_H264)) {
+			if (output == 0) {
+				output = 1;
+				seq_printf(s, "\n");
+				seq_printf(s, "----encode h264 entropy params----\n");
+				seq_printf(s, "%7s %7s %19s\n", "enc_idx",
+					"enc_id", "entropy_coding_mode");
 			}
 			mc_h264_entropy_params_t *entropy_params =
 					&(dev->vpu_ctx[i].entropy_params);
-			seq_printf(s, "%6d %7s %12s\n",
+			seq_printf(s, "%7d %7s %19s\n",
 				dev->vpu_ctx[i].context.instance_index,
 				get_codec(&dev->vpu_ctx[i]),
 				entropy_params->entropy_coding_mode == 0?"CAVLC":"CABAC");
@@ -2274,14 +2391,13 @@ static int vpu_venc_show(struct seq_file *s, void *unused)
 			if (output == 0) {
 				output = 1;
 				seq_printf(s, "\n");
-				seq_printf(s, "----encode h264 slice pa-------"
-					"--------------\n");
-				seq_printf(s, "enc_idx enc_id h264_slice_mode "
-					"h264_slice_arg\n");
+				seq_printf(s, "----encode h264 slice params----\n");
+				seq_printf(s, "%7s %7s %15s %14s\n", "enc_idx", "enc_id",
+					"h264_slice_mode", "h264_slice_arg");
 			}
 			mc_video_slice_params_t *slice_params =
 					&(dev->vpu_ctx[i].slice_params);
-			seq_printf(s, "%6d %7s %14d %13d\n",
+			seq_printf(s, "%7d %7s %15d %14d\n",
 				dev->vpu_ctx[i].context.instance_index,
 				get_codec(&dev->vpu_ctx[i]),
 				slice_params->h264_slice.h264_slice_mode,
@@ -2298,17 +2414,154 @@ static int vpu_venc_show(struct seq_file *s, void *unused)
 			if (output == 0) {
 				output = 1;
 				seq_printf(s, "\n");
-				seq_printf(s, "----encode h264 deblk filter-----------------"
-					"-------------------------------------------------\n");
-				seq_printf(s, "enc_idx enc_id disable_deblocking_filter_idc "
-					"slice_alpha_c0_offset_div2 slice_beta_offset_div2\n");
+				seq_printf(s, "----encode h264 deblk filter----\n");
+				seq_printf(s, "%7s %7s %29s %26s %22s\n", "enc_idx",
+					"enc_id", "disable_deblocking_filter_idc",
+					"slice_alpha_c0_offset_div2", "slice_beta_offset_div2");
 			}
-			seq_printf(s, "%6d %7s %12d %19d %25d\n",
+			seq_printf(s, "%7d %7s %29d %26d %22d\n",
 				dev->vpu_ctx[i].context.instance_index,
 				get_codec(&dev->vpu_ctx[i]),
 				deblk_filter->h264_deblk.disable_deblocking_filter_idc,
 				deblk_filter->h264_deblk.slice_alpha_c0_offset_div2,
 				deblk_filter->h264_deblk.slice_beta_offset_div2);
+		}
+	}
+
+	output = 0;
+	for (i = 0; i < MAX_NUM_VPU_INSTANCE; i++) {
+		if (dev->vpu_ctx[i].valid && dev->vpu_ctx[i].context.encoder &&
+			(dev->vpu_ctx[i].context.codec_id == MEDIA_CODEC_ID_H264)) {
+			mc_h264_timing_params_t *timing =
+					&(dev->vpu_ctx[i].vui_timing.h264_timing);
+			if (output == 0) {
+				output = 1;
+				seq_printf(s, "\n");
+				seq_printf(s, "----encode h264 timing----\n");
+				seq_printf(s, "%7s %7s %21s %14s %21s\n", "enc_idx",
+					"enc_id", "vui_num_units_in_tick",
+					"vui_time_scale", "fixed_frame_rate_flag");
+			}
+			seq_printf(s, "%7d %7s %21d %14d %21d\n",
+				dev->vpu_ctx[i].context.instance_index,
+				get_codec(&dev->vpu_ctx[i]),
+				timing->vui_num_units_in_tick,
+				timing->vui_time_scale,
+				timing->fixed_frame_rate_flag);
+		}
+	}
+
+	output = 0;
+	for (i = 0; i < MAX_NUM_VPU_INSTANCE; i++) {
+		if (dev->vpu_ctx[i].valid && dev->vpu_ctx[i].context.encoder &&
+			(dev->vpu_ctx[i].context.codec_id == MEDIA_CODEC_ID_H264)) {
+			mc_h264_intra_pred_params_t *intra_pred_params =
+					&(dev->vpu_ctx[i].pred_unit.h264_intra_pred);
+			if (output == 0) {
+				output = 1;
+				seq_printf(s, "\n");
+				seq_printf(s, "----encode h264_intra_pred----\n");
+				seq_printf(s, "%7s %7s %27s\n", "enc_idx",
+					"enc_id", "constrained_intra_pred_flag");
+			}
+			seq_printf(s, "%7d %7s %27d\n",
+				dev->vpu_ctx[i].context.instance_index,
+				get_codec(&dev->vpu_ctx[i]),
+				intra_pred_params->constrained_intra_pred_flag);
+		}
+	}
+
+	output = 0;
+	for (i = 0; i < MAX_NUM_VPU_INSTANCE; i++) {
+		if (dev->vpu_ctx[i].valid && dev->vpu_ctx[i].context.encoder &&
+			(dev->vpu_ctx[i].context.codec_id == MEDIA_CODEC_ID_H264)) {
+			mc_h264_transform_params_t *h264_transform =
+					&(dev->vpu_ctx[i].transform_params.h264_transform);
+			if (output == 0) {
+				output = 1;
+				seq_printf(s, "\n");
+				seq_printf(s, "----encode h264_transform----\n");
+				seq_printf(s, "%7s %7s %20s %19s %19s %24s\n", "enc_idx",
+					"enc_id", "transform_8x8_enable", "chroma_cb_qp_offset",
+					"chroma_cr_qp_offset", "user_scaling_list_enable");
+			}
+			seq_printf(s, "%7d %7s %20d %19d %19d %24d\n",
+				dev->vpu_ctx[i].context.instance_index,
+				get_codec(&dev->vpu_ctx[i]),
+				h264_transform->transform_8x8_enable,
+				h264_transform->chroma_cb_qp_offset,
+				h264_transform->chroma_cr_qp_offset,
+				h264_transform->user_scaling_list_enable);
+		}
+	}
+
+	output = 0;
+	for (i = 0; i < MAX_NUM_VPU_INSTANCE; i++) {
+		if (dev->vpu_ctx[i].valid && dev->vpu_ctx[i].context.encoder &&
+			(dev->vpu_ctx[i].context.codec_id == MEDIA_CODEC_ID_H265)) {
+			mc_h265_transform_params_t *h265_transform =
+					&(dev->vpu_ctx[i].transform_params.h265_transform);
+			if (output == 0) {
+				output = 1;
+				seq_printf(s, "\n");
+				seq_printf(s, "----encode h265_transform----\n");
+				seq_printf(s, "%7s %7s %19s %19s %24s\n", "enc_idx",
+					"enc_id", "chroma_cb_qp_offset",
+					"chroma_cr_qp_offset", "user_scaling_list_enable");
+			}
+			seq_printf(s, "%7d %7s %19d %19d %24d\n",
+				dev->vpu_ctx[i].context.instance_index,
+				get_codec(&dev->vpu_ctx[i]),
+				h265_transform->chroma_cb_qp_offset,
+				h265_transform->chroma_cr_qp_offset,
+				h265_transform->user_scaling_list_enable);
+		}
+	}
+
+	output = 0;
+	for (i = 0; i < MAX_NUM_VPU_INSTANCE; i++) {
+		if (dev->vpu_ctx[i].valid && dev->vpu_ctx[i].context.encoder &&
+			(dev->vpu_ctx[i].context.codec_id == MEDIA_CODEC_ID_H265)) {
+			mc_h265_pred_unit_params_t *pred_unit_params =
+					&(dev->vpu_ctx[i].pred_unit.h265_pred_unit);
+			if (output == 0) {
+				output = 1;
+				seq_printf(s, "\n");
+				seq_printf(s, "----encode h265_pred_unit----\n");
+				seq_printf(s, "%7s %7s %16s %27s %35s %13s\n", "enc_idx",
+					"enc_id", "intra_nxn_enable", "constrained_intra_pred_flag",
+					"strong_intra_smoothing_enabled_flag", "max_num_merge");
+			}
+			seq_printf(s, "%7d %7s %16d %27d %35d %13d\n",
+				dev->vpu_ctx[i].context.instance_index,
+				get_codec(&dev->vpu_ctx[i]),
+				pred_unit_params->intra_nxn_enable,
+				pred_unit_params->constrained_intra_pred_flag,
+				pred_unit_params->strong_intra_smoothing_enabled_flag,
+				pred_unit_params->max_num_merge);
+		}
+	}
+
+	output = 0;
+	for (i = 0; i < MAX_NUM_VPU_INSTANCE; i++) {
+		if (dev->vpu_ctx[i].valid && dev->vpu_ctx[i].context.encoder &&
+			(dev->vpu_ctx[i].context.codec_id == MEDIA_CODEC_ID_H265)) {
+			mc_h265_timing_params_t *timing =
+					&(dev->vpu_ctx[i].vui_timing.h265_timing);
+			if (output == 0) {
+				output = 1;
+				seq_printf(s, "\n");
+				seq_printf(s, "----encode h265 timing----\n");
+				seq_printf(s, "%7s %7s %21s %14s %33s\n", "enc_idx",
+					"enc_id", "vui_num_units_in_tick",
+					"vui_time_scale", "vui_num_ticks_poc_diff_one_minus1");
+			}
+			seq_printf(s, "%7d %7s %21d %14d %33d\n",
+				dev->vpu_ctx[i].context.instance_index,
+				get_codec(&dev->vpu_ctx[i]),
+				timing->vui_num_units_in_tick,
+				timing->vui_time_scale,
+				timing->vui_num_ticks_poc_diff_one_minus1);
 		}
 	}
 
@@ -2321,14 +2574,13 @@ static int vpu_venc_show(struct seq_file *s, void *unused)
 			if (output == 0) {
 				output = 1;
 				seq_printf(s, "\n");
-				seq_printf(s, "----encode h265 slice params---------------"
-					"-----------------------------------------------------"
-					"------------------------\n");
-				seq_printf(s, "enc_idx enc_id h265_independent_slice_mode "
-					"h265_independent_slice_arg h265_dependent_slice_mode "
-					"h265_dependent_slice_arg\n");
+				seq_printf(s, "----encode h265 slice params----\n");
+				seq_printf(s, "%7s %7s %27s %26s %25s %24s\n",
+					"enc_idx", "enc_id", "h265_independent_slice_mode",
+					"h265_independent_slice_arg", "h265_dependent_slice_mode",
+					"h265_dependent_slice_arg");
 			}
-			seq_printf(s, "%6d %7s %27d %26d %25d %24d\n",
+			seq_printf(s, "%7d %7s %27d %26d %25d %24d\n",
 				dev->vpu_ctx[i].context.instance_index,
 				get_codec(&dev->vpu_ctx[i]),
 				slice_params->h265_slice.h265_independent_slice_mode,
@@ -2347,16 +2599,13 @@ static int vpu_venc_show(struct seq_file *s, void *unused)
 			if (output == 0) {
 				output = 1;
 				seq_printf(s, "\n");
-				seq_printf(s, "----encode h265 deblk filter---"
-					"--------------------------------------"
-					"--------------------------------------------"
-					"------------------------------------------\n");
-				seq_printf(s, "enc_idx enc_id "
-					"slice_deblocking_filter_disabled_flag "
-					"slice_beta_offset_div2 slice_tc_offset_div2 "
-					"slice_loop_filter_across_slices_enabled_flag\n");
+				seq_printf(s, "----encode h265 deblk filter----\n");
+				seq_printf(s, "%7s %7s %37s %22s %20s %44s\n", "enc_idx",
+					"enc_id", "slice_deblocking_filter_disabled_flag",
+					"slice_beta_offset_div2", "slice_tc_offset_div2",
+					"slice_loop_filter_across_slices_enabled_flag");
 			}
-			seq_printf(s, "%6d %7s %37d %22d %20d %40d\n",
+			seq_printf(s, "%7d %7s %37d %22d %20d %44d\n",
 				dev->vpu_ctx[i].context.instance_index,
 				get_codec(&dev->vpu_ctx[i]),
 				deblk_filter->h265_deblk.slice_deblocking_filter_disabled_flag,
@@ -2374,11 +2623,11 @@ static int vpu_venc_show(struct seq_file *s, void *unused)
 			if (output == 0) {
 				output = 1;
 				seq_printf(s, "\n");
-				seq_printf(s, "----encode h265 sao param-------------------\n");
-				seq_printf(s, "enc_idx enc_id "
+				seq_printf(s, "----encode h265 sao param----\n");
+				seq_printf(s, "%7s %7s %30s\n", "enc_idx", "enc_id",
 					"sample_adaptive_offset_enabled_flag\n");
 			}
-			seq_printf(s, "%6d %7s %30d\n",
+			seq_printf(s, "%7d %7s %30d\n",
 				dev->vpu_ctx[i].context.instance_index,
 				get_codec(&dev->vpu_ctx[i]),
 				sao_params->sample_adaptive_offset_enabled_flag);
@@ -2393,14 +2642,13 @@ static int vpu_venc_show(struct seq_file *s, void *unused)
 			if (output == 0) {
 				output = 1;
 				seq_printf(s, "\n");
-				seq_printf(s, "----encode status----------------"
-					"--------------------------------------------------"
-					"----------------------------------------\n");
-				seq_printf(s, "enc_idx enc_id cur_input_buf_cnt "
-					"cur_output_buf_cnt left_recv_frame left_enc_frame "
-					"total_input_buf_cnt total_output_buf_cnt\n");
+				seq_printf(s, "----encode status----\n");
+				seq_printf(s, "%7d %7s %17s %18s %15s %14s %19s %20s\n",
+					"enc_idx", "enc_id", "cur_input_buf_cnt",
+					"cur_output_buf_cnt", "left_recv_frame", "left_enc_frame",
+					"total_input_buf_cnt", "total_output_buf_cnt");
 			}
-			seq_printf(s, "%6d %7s %17d %18d %15d %14d %19d %20d\n",
+			seq_printf(s, "%7d %7s %17d %18d %15d %14d %19d %20d\n",
 				dev->vpu_ctx[i].context.instance_index,
 				get_codec(&dev->vpu_ctx[i]),
 				status->cur_input_buf_cnt,
@@ -2439,12 +2687,13 @@ static int vpu_vdec_show(struct seq_file *s, void *unused)
 	if (dev == NULL)
 		return 0;
 
-	seq_printf(s, "----decode param----------------------------------------\n");
-	seq_printf(s, "dec_idx  dec_id feed_mode pix_fmt bitstream_buf_size "
-		"bitstream_buf_count frame_buf_count\n");
+	seq_printf(s, "----decode param----\n");
+	seq_printf(s, "%7s %7s %9s %7s %18s %19s %15s\n",
+		"dec_idx", "dec_id", "feed_mode", "pix_fmt", "bitstream_buf_size",
+		"bitstream_buf_count", "frame_buf_count");
 	for (i = 0; i < MAX_NUM_VPU_INSTANCE; i++) {
 		if (dev->vpu_ctx[i].valid && (dev->vpu_ctx[i].context.encoder == 0)) {
-			seq_printf(s, "%6d %7s %9d %7d, %18d, %19d, %15d\n",
+			seq_printf(s, "%7d %7s %9d %7d %18d %19d %15d\n",
 				dev->vpu_ctx[i].context.instance_index,
 				get_codec(&dev->vpu_ctx[i]),
 				dev->vpu_ctx[i].context.video_dec_params.feed_mode,
@@ -2456,13 +2705,14 @@ static int vpu_vdec_show(struct seq_file *s, void *unused)
 	}
 
 	spin_lock(&dev->vpu_info_spinlock);
-	seq_printf(s, "----decode frameinfo------------------------------------\n");
-	seq_printf(s, "dec_idx dec_id display_width display_height\n");
+	seq_printf(s, "----decode frameinfo----\n");
+	seq_printf(s, "%7s %7s %13s %14s\n", "dec_idx", "dec_id",
+		"display_width", "display_height");
 	for (i = 0; i < MAX_NUM_VPU_INSTANCE; i++) {
 		if (dev->vpu_ctx[i].valid && (dev->vpu_ctx[i].context.encoder == 0)) {
 			mc_h264_h265_output_frame_info_t *frameinfo
 								= &(dev->vpu_status[i].frame_info);
-			seq_printf(s, "%6d %7s %13d %14d\n",
+			seq_printf(s, "%7d %7s %13d %14d\n",
 				dev->vpu_ctx[i].context.instance_index,
 				get_codec(&dev->vpu_ctx[i]),
 				frameinfo->display_width,
@@ -2470,13 +2720,14 @@ static int vpu_vdec_show(struct seq_file *s, void *unused)
 		}
 	}
 
-	seq_printf(s, "----decode status---------------------------------------\n");
-	seq_printf(s, "dec_idx dec_id cur_input_buf_cnt "
-		"cur_output_buf_cnt total_input_buf_cnt total_output_buf_cnt\n");
+	seq_printf(s, "----decode status----\n");
+	seq_printf(s, "%7s %7s %17s %18s %19s %20s\n", "dec_idx", "dec_id",
+		"cur_input_buf_cnt", "cur_output_buf_cnt",
+		"total_input_buf_cnt", "total_output_buf_cnt");
 	for (i = 0; i < MAX_NUM_VPU_INSTANCE; i++) {
 		if (dev->vpu_ctx[i].valid && (dev->vpu_ctx[i].context.encoder == 0)) {
 			mc_inter_status_t *status =	&(dev->vpu_status[i].status);
-			seq_printf(s, "%6d %7s %17d %18d %19d %20d\n",
+			seq_printf(s, "%7d %7s %17d %18d %19d %20d\n",
 				dev->vpu_ctx[i].context.instance_index,
 				get_codec(&dev->vpu_ctx[i]),
 				status->cur_input_buf_cnt,

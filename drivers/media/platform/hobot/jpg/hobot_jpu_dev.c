@@ -1141,9 +1141,11 @@ static void rcparam_show(struct seq_file *s, hb_jpu_ctx_info_t *jpu_ctx) {
 	mc_rate_control_params_t *rc =
 		&(jpu_ctx->context.video_enc_params.rc_params);
 	if (rc->mode == MC_AV_RC_MODE_MJPEGFIXQP) {
-		seq_printf(s, "enc_idx   rc_mode frame_rate quality_factor\n");
-		seq_printf(s, "%6d mjpgfixqp %10d %10d\n",
+		seq_printf(s, "%7s %9s %10s %14s\n",
+			"enc_idx", "rc_mode", "frame_rate", "quality_factor");
+		seq_printf(s, "%7d %9s %10d %14d\n",
 			jpu_ctx->context.instance_index,
+			"mjpgfixqp",
 			rc->mjpeg_fixqp_params.frame_rate,
 			rc->mjpeg_fixqp_params.quality_factor);
 	}
@@ -1157,14 +1159,13 @@ static int jpu_jenc_show(struct seq_file *s, void *unused)
 	if (dev == NULL)
 		return 0;
 
-	seq_printf(s, "----encode param---------------------"
-		"---------------------------------------------------------------\n");
-	seq_printf(s, "enc_idx  enc_id width height pix_fmt "
-		"fbuf_count extern_buf_flag bsbuf_count bsbuf_size mirror rotate\n");
+	seq_printf(s, "----encode param----\n");
+	seq_printf(s, "%7s %7s %5s %6s %7s %10s %15s %11s %10s %6s %6s\n",
+		"enc_idx", "enc_id", "width", "height", "pix_fmt", "fbuf_count",
+		"extern_buf_flag", "bsbuf_count", "bsbuf_size", "mirror", "rotate");
 	for (i = 0; i < MAX_NUM_JPU_INSTANCE; i++) {
 		if (dev->jpu_ctx[i].valid && dev->jpu_ctx[i].context.encoder) {
-			seq_printf(s, "%6d %7s %5d %6d %7d "\
-				"%10d %15d %11d %10d %6d %6d\n",
+			seq_printf(s, "%7d %7s %5d %6d %7d %10d %15d %11d %10d %6d %6d\n",
 				dev->jpu_ctx[i].context.instance_index,
 				get_codec(&dev->jpu_ctx[i]),
 				dev->jpu_ctx[i].context.video_enc_params.width,
@@ -1179,7 +1180,7 @@ static int jpu_jenc_show(struct seq_file *s, void *unused)
 		}
 	}
 	seq_printf(s, "\n");
-	seq_printf(s, "----encode rc param-------------------------------------\n");
+	seq_printf(s, "----encode rc param----\n");
 	for (i = 0; i < MAX_NUM_JPU_INSTANCE; i++) {
 		if (dev->jpu_ctx[i].valid && dev->jpu_ctx[i].context.encoder) {
 			rcparam_show(s, &(dev->jpu_ctx[i]));
@@ -1201,16 +1202,15 @@ static int jpu_jenc_show(struct seq_file *s, void *unused)
 	// }
 	spin_lock(&dev->jpu_info_spinlock);
 	seq_printf(s, "\n");
-	seq_printf(s, "----encode status----------------"
-		"--------------------------------------------------"
-		"----------------------------------------\n");
-	seq_printf(s, "enc_idx enc_id cur_input_buf_cnt "
-		"cur_output_buf_cnt left_recv_frame left_enc_frame "
-		"total_input_buf_cnt total_output_buf_cnt\n");
+	seq_printf(s, "----encode status----\n");
+	seq_printf(s, "%7s %7s %17s %18s %15s %14s %19s %20s\n",
+		"enc_idx", "enc_id", "cur_input_buf_cnt", "cur_output_buf_cnt",
+		"left_recv_frame", "left_enc_frame",
+		"total_input_buf_cnt", "total_output_buf_cnt");
 	for (i = 0; i < MAX_NUM_JPU_INSTANCE; i++) {
 		if (dev->jpu_ctx[i].valid && dev->jpu_ctx[i].context.encoder) {
 			mc_inter_status_t *status =	&(dev->jpu_status[i].status);
-			seq_printf(s, "%6d %7s %17d %18d %15d %14d %19d %20d\n",
+			seq_printf(s, "%7d %7s %17d %18d %15d %14d %19d %20d\n",
 				dev->jpu_ctx[i].context.instance_index,
 				get_codec(&dev->jpu_ctx[i]),
 				status->cur_input_buf_cnt,
@@ -1246,13 +1246,13 @@ static int jpu_jdec_show(struct seq_file *s, void *unused)
 	if (dev == NULL)
 		return 0;
 	seq_printf(s, "\n");
-	seq_printf(s, "----decode param-------------------------------------"
-		"-----------------------------------\n");
-	seq_printf(s, "dec_idx  dec_id feed_mode pix_fmt bitstream_buf_size "
-		"bitstream_buf_count frame_buf_count\n");
+	seq_printf(s, "----decode param----\n");
+	seq_printf(s, "%7s %7s %9s %7s %18s %19s %15s\n", "dec_idx", "dec_id",
+		"feed_mode", "pix_fmt", "bitstream_buf_size",
+		"bitstream_buf_count", "frame_buf_count");
 	for (i = 0; i < MAX_NUM_JPU_INSTANCE; i++) {
 		if (dev->jpu_ctx[i].valid && (dev->jpu_ctx[i].context.encoder == 0)) {
-			seq_printf(s, "%6d %7s %9d %7d, %18d, %19d, %15d\n",
+			seq_printf(s, "%7d %7s %9d %7d %18d %19d %15d\n",
 				dev->jpu_ctx[i].context.instance_index,
 				get_codec(&dev->jpu_ctx[i]),
 				dev->jpu_ctx[i].context.video_dec_params.feed_mode,
@@ -1265,13 +1265,14 @@ static int jpu_jdec_show(struct seq_file *s, void *unused)
 
 	spin_lock(&dev->jpu_info_spinlock);
 	seq_printf(s, "\n");
-	seq_printf(s, "----decode frameinfo------------------------------------\n");
-	seq_printf(s, "dec_idx dec_id display_width display_height\n");
+	seq_printf(s, "----decode frameinfo----\n");
+	seq_printf(s, "%7s %7s %13s %14s\n", "dec_idx", "dec_id",
+			"display_width", "display_height");
 	for (i = 0; i < MAX_NUM_JPU_INSTANCE; i++) {
 		if (dev->jpu_ctx[i].valid && (dev->jpu_ctx[i].context.encoder == 0)) {
 			mc_mjpeg_jpeg_output_frame_info_t *frameinfo
 								= &(dev->jpu_status[i].frame_info);
-			seq_printf(s, "%6d %7s %13d %14d\n",
+			seq_printf(s, "%7d %7s %13d %14d\n",
 				dev->jpu_ctx[i].context.instance_index,
 				get_codec(&dev->jpu_ctx[i]),
 				frameinfo->display_width,
@@ -1280,14 +1281,14 @@ static int jpu_jdec_show(struct seq_file *s, void *unused)
 	}
 
 	seq_printf(s, "\n");
-	seq_printf(s, "----decode status----------------"
-		"-----------------------------------------------------------\n");
-	seq_printf(s, "dec_idx dec_id cur_input_buf_cnt "
-		"cur_output_buf_cnt total_input_buf_cnt total_output_buf_cnt\n");
+	seq_printf(s, "----decode status----\n");
+	seq_printf(s, "%7s %7s %17s %18s %19s %20s\n", "dec_idx", "dec_id",
+		"cur_input_buf_cnt", "cur_output_buf_cnt",
+		"total_input_buf_cnt", "total_output_buf_cnt");
 	for (i = 0; i < MAX_NUM_JPU_INSTANCE; i++) {
 		if (dev->jpu_ctx[i].valid && (dev->jpu_ctx[i].context.encoder == 0)) {
 			mc_inter_status_t *status =	&(dev->jpu_status[i].status);
-			seq_printf(s, "%6d %7s %17d %18d %19d %20d\n",
+			seq_printf(s, "%7d %7s %17d %18d %19d %20d\n",
 				dev->jpu_ctx[i].context.instance_index,
 				get_codec(&dev->jpu_ctx[i]),
 				status->cur_input_buf_cnt,
