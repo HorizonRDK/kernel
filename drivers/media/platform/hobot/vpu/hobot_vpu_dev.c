@@ -2697,11 +2697,12 @@ static int vpu_vdec_show(struct seq_file *s, void *unused)
 			if (output == 0) {
 				output = 1;
 				seq_printf(s, "----decode param----\n");
-				seq_printf(s, "%7s %7s %9s %7s %18s %19s %15s\n", "dec_idx",
-					"dec_id", "feed_mode", "pix_fmt", "bitstream_buf_size",
-					"bitstream_buf_count", "frame_buf_count");
+				seq_printf(s, "%7s %7s %9s %7s %18s %19s %15s %14s %9s\n",
+					"dec_idx", "dec_id", "feed_mode", "pix_fmt",
+					"bitstream_buf_size", "bitstream_buf_count",
+					"frame_buf_count", "reorder_enable", "skip_mode");
 			}
-			seq_printf(s, "%7d %7s %9d %7d %18d %19d %15d\n",
+			seq_printf(s, "%7d %7s %9d %7d %18d %19d %15d ",
 				dev->vpu_ctx[i].context.instance_index,
 				get_codec(&dev->vpu_ctx[i]),
 				dev->vpu_ctx[i].context.video_dec_params.feed_mode,
@@ -2709,6 +2710,22 @@ static int vpu_vdec_show(struct seq_file *s, void *unused)
 				dev->vpu_ctx[i].context.video_dec_params.bitstream_buf_size,
 				dev->vpu_ctx[i].context.video_dec_params.bitstream_buf_count,
 				dev->vpu_ctx[i].context.video_dec_params.frame_buf_count);
+			if (dev->vpu_ctx[i].context.codec_id == MEDIA_CODEC_ID_H264) {
+				mc_h264_dec_config_t *h264_dec_config =
+					&dev->vpu_ctx[i].context.video_dec_params.h264_dec_config;
+				seq_printf(s, "%14d %9d\n",
+					h264_dec_config->reorder_enable,
+					h264_dec_config->skip_mode);
+			} else if (dev->vpu_ctx[i].context.codec_id
+								== MEDIA_CODEC_ID_H265) {
+				mc_h265_dec_config_t *h265_dec_config =
+					&dev->vpu_ctx[i].context.video_dec_params.h265_dec_config;
+				seq_printf(s, "%14d %9d\n",
+					h265_dec_config->reorder_enable,
+					h265_dec_config->skip_mode);
+			} else {
+				seq_printf(s, "\n");
+			}
 		}
 	}
 

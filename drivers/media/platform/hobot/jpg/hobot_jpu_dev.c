@@ -1266,11 +1266,12 @@ static int jpu_jdec_show(struct seq_file *s, void *unused)
 				output = 1;
 				seq_printf(s, "\n");
 				seq_printf(s, "----decode param----\n");
-				seq_printf(s, "%7s %7s %9s %7s %18s %19s %15s\n", "dec_idx",
-					"dec_id", "feed_mode", "pix_fmt", "bitstream_buf_size",
-					"bitstream_buf_count", "frame_buf_count");
+				seq_printf(s, "%7s %7s %9s %7s %18s %19s %15s %6s %6s\n",
+					"dec_idx", "dec_id", "feed_mode", "pix_fmt",
+					"bitstream_buf_size", "bitstream_buf_count",
+					"frame_buf_count", "mirror", "rotate");
 			}
-			seq_printf(s, "%7d %7s %9d %7d %18d %19d %15d\n",
+			seq_printf(s, "%7d %7s %9d %7d %18d %19d %15d ",
 				dev->jpu_ctx[i].context.instance_index,
 				get_codec(&dev->jpu_ctx[i]),
 				dev->jpu_ctx[i].context.video_dec_params.feed_mode,
@@ -1278,6 +1279,20 @@ static int jpu_jdec_show(struct seq_file *s, void *unused)
 				dev->jpu_ctx[i].context.video_dec_params.bitstream_buf_size,
 				dev->jpu_ctx[i].context.video_dec_params.bitstream_buf_count,
 				dev->jpu_ctx[i].context.video_dec_params.frame_buf_count);
+			if (dev->jpu_ctx[i].context.codec_id == MEDIA_CODEC_ID_MJPEG) {
+				mc_mjpeg_dec_config_t *mjpeg =
+					&dev->jpu_ctx[i].context.video_dec_params.mjpeg_dec_config;
+				seq_printf(s, "%6d %6d\n",
+					mjpeg->mir_direction, mjpeg->rot_degree);
+			} else if (dev->jpu_ctx[i].context.codec_id ==
+												MEDIA_CODEC_ID_JPEG) {
+				mc_jpeg_dec_config_t *jpeg =
+					&dev->jpu_ctx[i].context.video_dec_params.jpeg_dec_config;
+				seq_printf(s, "%6d %6d\n",
+					jpeg->mir_direction, jpeg->rot_degree);
+			} else {
+				seq_printf(s, "\n");
+			}
 		}
 	}
 
