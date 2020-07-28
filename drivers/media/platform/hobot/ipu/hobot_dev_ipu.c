@@ -276,6 +276,12 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 	group = ipu_ctx->group;
 	subdev = ipu_ctx->subdev;
 
+	if (ipu_ctx->id == GROUP_ID_SRC) {
+		memset(&subdev->ipu_cfg, 0, sizeof(ipu_cfg_t));
+	} else {
+		memset(&subdev->scale_cfg, 0, sizeof(ipu_ds_info_t));
+	}
+
 	//vio_dbg("from ipu index %d, cnt %d, subdev id:%d", index, cnt, subdev->id);
 	//frame_manager_flush_mp(ipu_ctx->framemgr, index, cnt, ipu_ctx->ctx_index);
 	if ((group) &&(atomic_dec_return(&subdev->refcount) == 0)) {
@@ -3267,7 +3273,7 @@ static ssize_t get_pipeline_info(int pipeid, struct device *dev,
 	ipu_input_type_e input_type;
 	ipu = dev_get_drvdata(dev);
 
-	if (ipu->statistic.enable[0] == 0) {
+	if (ipu->statistic.enable[pipeid] == 0) {
 		len = snprintf(buf+offset, PAGE_SIZE - offset, "pipeline %d is disabled\n", pipeid);
 		offset += len;
 	} else {
@@ -3297,6 +3303,9 @@ static ssize_t get_pipeline_info(int pipeid, struct device *dev,
 
 		for (i = 0; i < 5; i++) {
 			ds_config = (ipu_ds_info_t *)&ipu->subdev[pipeid][2+i].scale_cfg;
+			if (i == 2) {
+				ds_config = (ipu_ds_info_t *)&ipu->subdev[pipeid][0].ipu_cfg.ds_info[2];
+			}
 			len = snprintf(buf+offset, PAGE_SIZE - offset, "\tds%d channel: roi_en %d, wxh:%dx%d, downscale_en:%d, wxh:%dx%d\n",
 					i, ds_config->ds_roi_en, ds_config->ds_roi_info.width, ds_config->ds_roi_info.height,
 					ds_config->ds_sc_en, ds_config->ds_sc_info.tgt_width, ds_config->ds_sc_info.tgt_height
