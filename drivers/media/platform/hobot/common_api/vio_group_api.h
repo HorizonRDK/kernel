@@ -162,6 +162,9 @@ extern iar_get_type_callback iar_get_type;
 extern iar_set_addr_callback iar_set_addr;
 extern isp_callback sif_isp_ctx_sync;
 
+extern int isp_status_check(void);
+extern int ldc_status_check(void);
+
 extern void ips_set_module_reset(unsigned long module);
 extern int ips_set_clk_ctrl(unsigned long module, bool enable);
 extern int ips_set_bus_ctrl(unsigned int cfg);

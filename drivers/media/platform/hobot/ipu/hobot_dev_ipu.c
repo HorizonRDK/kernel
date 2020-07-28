@@ -2827,38 +2827,81 @@ static irqreturn_t ipu_isr(int irq, void *data)
 
 	if (status & (1 << INTR_IPU_US_FRAME_DONE)) {
 		subdev = group->sub_ctx[GROUP_ID_US];
-		if (subdev)
-			ipu_frame_done(subdev);
+		if (subdev) {
+			if (test_bit(IPU_OTF_INPUT, &ipu->state) &&
+				(isp_status_check() || ldc_status_check())) {
+				vio_err("[s%d]-us isp/ldc frame drop\n", instance);
+				ipu_frame_ndone(subdev);
+			} else {
+				ipu_frame_done(subdev);
+			}
+		}
 	}
 
 	if (status & (1 << INTR_IPU_DS0_FRAME_DONE)) {
 		subdev = group->sub_ctx[GROUP_ID_DS0];
-		if (subdev)
-			ipu_frame_done(subdev);
+		if (subdev) {
+			if (test_bit(IPU_OTF_INPUT, &ipu->state) &&
+				(isp_status_check() || ldc_status_check())) {
+				vio_err("[s%d]-ds0 isp/ldc frame drop\n", instance);
+				ipu_frame_ndone(subdev);
+			} else {
+				ipu_frame_done(subdev);
+			}
+		}
 	}
 
 	if (status & (1 << INTR_IPU_DS1_FRAME_DONE)) {
 		subdev = group->sub_ctx[GROUP_ID_DS1];
-		if (subdev)
-			ipu_frame_done(subdev);
+		if (subdev) {
+			if (test_bit(IPU_OTF_INPUT, &ipu->state) &&
+				(isp_status_check() || ldc_status_check())) {
+				vio_err("[s%d]-ds1 isp/ldc frame drop\n", instance);
+				ipu_frame_ndone(subdev);
+			} else {
+				ipu_frame_done(subdev);
+			}
+		}
 	}
 
 	if (status & (1 << INTR_IPU_DS2_FRAME_DONE)
 	    && test_bit(IPU_DS2_DMA_OUTPUT, &ipu->state)) {
 		subdev = group->sub_ctx[GROUP_ID_DS2];
-		if (subdev && subdev->cur_enable_flag)
-			ipu_frame_done(subdev);
+		if (subdev && subdev->cur_enable_flag) {
+			if (test_bit(IPU_OTF_INPUT, &ipu->state) &&
+				(isp_status_check() || ldc_status_check())) {
+				vio_err("[s%d]-ds2 isp/ldc frame drop\n", instance);
+				ipu_frame_ndone(subdev);
+			} else {
+				ipu_frame_done(subdev);
+			}
+		}
 	}
 
 	if (status & (1 << INTR_IPU_DS3_FRAME_DONE)) {
 		subdev = group->sub_ctx[GROUP_ID_DS3];
-		if (subdev)
-			ipu_frame_done(subdev);
+		if (subdev) {
+			if (test_bit(IPU_OTF_INPUT, &ipu->state) &&
+				(isp_status_check() || ldc_status_check())) {
+				vio_err("[s%d]-ds3 isp/ldc frame drop\n", instance);
+				ipu_frame_ndone(subdev);
+			} else {
+				ipu_frame_done(subdev);
+			}
+		}
 	}
 
 	if (status & (1 << INTR_IPU_DS4_FRAME_DONE)) {
 		subdev = group->sub_ctx[GROUP_ID_DS4];
-			ipu_frame_done(subdev);
+		if (subdev) {
+			if (test_bit(IPU_OTF_INPUT, &ipu->state) &&
+				(isp_status_check() || ldc_status_check())) {
+				vio_err("[s%d]-ds4 isp/ldc frame drop\n", instance);
+				ipu_frame_ndone(subdev);
+			} else {
+				ipu_frame_done(subdev);
+			}
+		}
 	}
 
 	if (status & (1 << INTR_IPU_FRAME_START)) {
