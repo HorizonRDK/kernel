@@ -276,12 +276,6 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 	group = ipu_ctx->group;
 	subdev = ipu_ctx->subdev;
 
-	if (ipu_ctx->id == GROUP_ID_SRC) {
-		memset(&subdev->ipu_cfg, 0, sizeof(ipu_cfg_t));
-	} else {
-		memset(&subdev->scale_cfg, 0, sizeof(ipu_ds_info_t));
-	}
-
 	//vio_dbg("from ipu index %d, cnt %d, subdev id:%d", index, cnt, subdev->id);
 	//frame_manager_flush_mp(ipu_ctx->framemgr, index, cnt, ipu_ctx->ctx_index);
 	if ((group) &&(atomic_dec_return(&subdev->refcount) == 0)) {
@@ -300,6 +294,11 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 		}
 		subdev->info_cfg.info_update = 0;
 		subdev->cur_enable_flag = 0;
+		if (ipu_ctx->id == GROUP_ID_SRC) {
+			memset(&subdev->ipu_cfg, 0, sizeof(ipu_cfg_t));
+		} else {
+			memset(&subdev->scale_cfg, 0, sizeof(ipu_ds_info_t));
+		}
 		atomic_set(&subdev->pre_enable_flag, 0);
 
 		// release all the ion for this subdev
@@ -2351,7 +2350,7 @@ static long x3_ipu_ioctl(struct file *file, unsigned int cmd,
 		ret = get_user(buffers, (u32 __user *) arg);
 		if (ret)
 			return -EFAULT;
-		ipu_video_reqbufs(ipu_ctx, buffers);
+		ret = ipu_video_reqbufs(ipu_ctx, buffers);
 		break;
 	case IPU_IOC_GET_INDEX:
 		buf_index = ipu_video_getindex(ipu_ctx);

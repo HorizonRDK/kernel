@@ -261,6 +261,8 @@ static int x3_pym_close(struct inode *inode, struct file *file)
 
 		// this is the subdev's last process close, it's ok to free all ion buffer
 		x3_pym_release_subdev_all_ion(subdev);
+		pym->statistic.enable[group->instance] = 0;
+		memset(&pym->subdev[group->instance].pym_cfg, 0, sizeof(pym_cfg_t));
 	}
 
 	if (atomic_dec_return(&pym->open_cnt) == 0) {
@@ -1565,7 +1567,7 @@ static long x3_pym_ioctl(struct file *file, unsigned int cmd,
 		ret = get_user(buffers, (u32 __user *) arg);
 		if (ret)
 			return -EFAULT;
-		pym_video_reqbufs(pym_ctx, buffers);
+		ret = pym_video_reqbufs(pym_ctx, buffers);
 		break;
 	case PYM_IOC_GET_INDEX:
 		buf_index = pym_video_getindex(pym_ctx);
