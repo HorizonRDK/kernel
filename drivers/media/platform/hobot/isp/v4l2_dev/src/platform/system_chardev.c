@@ -38,7 +38,7 @@
 #include "general_fsm.h"
 #include "isp_ctxsv.h"
 
-#define SYSTEM_CHARDEV_FIFO_SIZE 4096
+#define SYSTEM_CHARDEV_FIFO_SIZE (50*1024)
 #define SYSTEM_CHARDEV_NAME "ac_isp"
 
 #define ISPIOC_REG_RW   _IOWR('P', 0, struct metadata_t)
