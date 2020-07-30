@@ -265,6 +265,7 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 	ipu->statistic.enable_subdev[ipu_ctx->belong_pipe] &= ~(BIT(ipu_ctx->id));
 	if (ipu->statistic.enable_subdev[ipu_ctx->belong_pipe] == 0) {
 		vio_dbg("pipeline%d all subdev closed", ipu_ctx->belong_pipe);
+		ipu->statistic.enable[ipu_ctx->belong_pipe] = 0;
 	}
 
 	if (!(ipu_ctx->state & BIT(VIO_VIDEO_STOP))) {
@@ -3314,7 +3315,9 @@ static ssize_t get_pipeline_info(int pipeid, struct device *dev,
 					struct device_attribute *attr, char* buf)
 {
 	struct x3_ipu_dev *ipu;
-	int i = 0;
+	int i = 0, j = 0;
+	unsigned long flags;
+	struct vio_framemgr *framemgr;
 	u32 offset = 0, len = 0;
 	ipu_ds_info_t *ds_config;
 	ipu_us_info_t *us_config;
@@ -3325,6 +3328,26 @@ static ssize_t get_pipeline_info(int pipeid, struct device *dev,
 		len = snprintf(buf+offset, PAGE_SIZE - offset, "pipeline %d is disabled\n", pipeid);
 		offset += len;
 	} else {
+	   for (j = 0; j < MAX_DEVICE; j++) {
+		   framemgr = &ipu->subdev[pipeid][j].framemgr;
+		   if (framemgr->num_frames) {
+			   framemgr_e_barrier_irqs(framemgr, 0, flags);
+			   len = snprintf(buf+offset, PAGE_SIZE - offset,
+				   "\tsubdev%d queue(free:%d request:%d process:%d complete:%d used:%d)\n",
+				   j,
+				   framemgr->queued_count[FS_FREE],
+				   framemgr->queued_count[FS_REQUEST],
+				   framemgr->queued_count[FS_PROCESS],
+				   framemgr->queued_count[FS_COMPLETE],
+				   framemgr->queued_count[FS_USED]);
+			   framemgr_x_barrier_irqr(framemgr, 0, flags);
+			   offset += len;
+		   } else {
+			   len = snprintf(buf+offset, PAGE_SIZE - offset,
+				   "\tsubdev%d(disable)\n", j);
+			   offset += len;
+		   }
+	   }
 		len = snprintf(buf+offset, PAGE_SIZE - offset, "pipeline %d ipu config:\n", pipeid);
 		offset += len;
 

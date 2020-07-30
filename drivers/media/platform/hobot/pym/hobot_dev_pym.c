@@ -2209,6 +2209,8 @@ static ssize_t get_pipeline_info(int pipeid, struct device *dev,
 {
 	struct x3_pym_dev *pym;
 	pym_cfg_t *pym_config;
+	struct vio_framemgr *framemgr;
+	unsigned long flags;
 	int input_type;
 	int i = 0;
 	u32 offset = 0, len = 0;
@@ -2224,6 +2226,21 @@ static ssize_t get_pipeline_info(int pipeid, struct device *dev,
 		len = snprintf(buf+offset, PAGE_SIZE - offset, "pipeline %d is disabled\n", pipeid);
 		offset += len;
 	} else {
+		framemgr = &pym->subdev[i].framemgr;
+		len = snprintf(buf+offset, PAGE_SIZE - offset, "pipeline %d queue:\n", pipeid);
+		offset += len;
+		framemgr_e_barrier_irqs(framemgr, 0, flags);
+		len = snprintf(buf+offset, PAGE_SIZE - offset,
+				"pipeline %d queue(free:%d request:%d process:%d complete:%d used:%d)\n",
+				i,
+				framemgr->queued_count[FS_FREE],
+				framemgr->queued_count[FS_REQUEST],
+				framemgr->queued_count[FS_PROCESS],
+				framemgr->queued_count[FS_COMPLETE],
+				framemgr->queued_count[FS_USED]);
+		framemgr_x_barrier_irqr(framemgr, 0, flags);
+		offset += len;
+
 		len = snprintf(buf+offset, PAGE_SIZE - offset, "pipeline %d pym config:\n", pipeid);
 		offset += len;
 
