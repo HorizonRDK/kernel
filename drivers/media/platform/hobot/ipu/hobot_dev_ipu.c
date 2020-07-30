@@ -3146,6 +3146,7 @@ static ssize_t ipu_stat_show(struct device *dev,
 	u32 offset = 0;
 	int instance, instance_start;
 	int i = 0;
+	int output = 0;
 	ssize_t len = 0;
 	struct user_statistic *stats;
 
@@ -3164,6 +3165,7 @@ static ssize_t ipu_stat_show(struct device *dev,
 	for(instance = instance_start; instance < instance_start + 2; instance++) {
 		if (!ipu->statistic.enable[instance])
 			continue;
+		output = 1;
 		len = snprintf(&buf[offset], PAGE_SIZE - offset,
 			"*******S%d info:******\n",
 			instance);
@@ -3207,11 +3209,13 @@ static ssize_t ipu_stat_show(struct device *dev,
 		offset += len;
 	}
 
-	len = snprintf(&buf[offset], PAGE_SIZE - offset,
-		"DRV: tatal_fs %d, tatal_frm_work %d\n",
-		ipu->statistic.tal_fs,
-		ipu->statistic.tal_frm_work);
-	offset += len;
+	if (output == 1) {
+		len = snprintf(&buf[offset], PAGE_SIZE - offset,
+			"DRV: tatal_fs %d, tatal_frm_work %d\n",
+			ipu->statistic.tal_fs,
+			ipu->statistic.tal_frm_work);
+		offset += len;
+	}
 
 	return offset;
 }
@@ -3235,7 +3239,7 @@ static ssize_t ipu_stat_store(struct device *dev,
 		instance_start = 0;
 
 	for(instance = instance_start; instance < instance_start + 2; instance++) {
-		// ipu->statistic.enable[instance] = 0;
+		ipu->statistic.enable[instance] = 0;
 		ipu->statistic.fs_lack_task[instance] = 0;
 		ipu->statistic.fs[instance] = 0;
 		ipu->statistic.grp_tsk_left[instance] = 0;

@@ -1865,13 +1865,10 @@ static ssize_t sif_stat_store(struct device *dev,
 					const char *page, size_t len)
 {
 	struct x3_sif_dev *sif;
-	u32 enable[VIO_MAX_STREAM];
 
 	sif = dev_get_drvdata(dev);
 	if (sif) {
-		memcpy(enable, sif->statistic.enable, sizeof(sif->statistic.enable));
 		memset(&sif->statistic, 0, sizeof(sif->statistic));
-		memcpy(sif->statistic.enable, enable, sizeof(sif->statistic.enable));
 	}
 	return len;
 }

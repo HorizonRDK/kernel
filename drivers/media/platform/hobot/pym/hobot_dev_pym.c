@@ -2097,12 +2097,14 @@ static ssize_t pym_stat_show(struct device *dev,
 	u32 offset = 0;
 	int instance = 0;
 	ssize_t len = 0;
+	int output = 0;
 	struct user_statistic *stats;
 
 	pym = dev_get_drvdata(dev);
 	for(instance = 0; instance < VIO_MAX_STREAM; instance++) {
 		if (!pym->statistic.enable[instance])
 			continue;
+		output = 1;
 		len = snprintf(&buf[offset], PAGE_SIZE - offset,
 			"*******S%d info:******\n",
 			instance);
@@ -2148,11 +2150,13 @@ static ssize_t pym_stat_show(struct device *dev,
 		offset += len;
 	}
 
-	len = snprintf(&buf[offset], PAGE_SIZE - offset,
-		"DRV: tatal_fs %d, tatal_frm_work %d\n",
-		pym->statistic.tal_fs,
-		pym->statistic.tal_frm_work);
-	offset += len;
+	if (output == 1) {
+		len = snprintf(&buf[offset], PAGE_SIZE - offset,
+			"DRV: tatal_fs %d, tatal_frm_work %d\n",
+			pym->statistic.tal_fs,
+			pym->statistic.tal_frm_work);
+		offset += len;
+	}
 
 	return offset;
 }
@@ -2162,13 +2166,10 @@ static ssize_t pym_stat_store(struct device *dev,
 					const char *page, size_t len)
 {
 	struct x3_pym_dev *pym;
-	u32 enable[VIO_MAX_STREAM];
 
 	pym = dev_get_drvdata(dev);
 	if (pym) {
-		memcpy(enable, pym->statistic.enable, sizeof(pym->statistic.enable));
 		memset(&pym->statistic, 0, sizeof(pym->statistic));
-		memcpy(pym->statistic.enable, enable, sizeof(pym->statistic.enable));
 	}
 	return len;
 }
