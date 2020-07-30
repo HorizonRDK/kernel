@@ -1545,7 +1545,7 @@ static long x3_pym_ioctl(struct file *file, unsigned int cmd,
 		ret = get_user(enable, (u32 __user *) arg);
 		if (ret)
 			return -EFAULT;
-		pym_video_s_stream(pym_ctx, ! !enable);
+		ret = pym_video_s_stream(pym_ctx, !!enable);
 		break;
 	case PYM_IOC_DQBUF:
 		ret = pym_video_dqbuf(pym_ctx, &frameinfo);
@@ -1561,7 +1561,7 @@ static long x3_pym_ioctl(struct file *file, unsigned int cmd,
 				   sizeof(struct frame_info));
 		if (ret)
 			return -EFAULT;
-		pym_video_qbuf(pym_ctx, &frameinfo);
+		ret = pym_video_qbuf(pym_ctx, &frameinfo);
 		break;
 	case PYM_IOC_REQBUFS:
 		ret = get_user(buffers, (u32 __user *) arg);

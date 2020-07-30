@@ -1711,12 +1711,14 @@ p_dec:
 
 int ipu_video_s_stream(struct ipu_video_ctx *ipu_ctx, bool enable)
 {
-	if (enable)
-		ipu_video_streamon(ipu_ctx);
-	else
-		ipu_video_streamoff(ipu_ctx);
+	int ret = 0;
 
-	return 0;
+	if (enable)
+		ret = ipu_video_streamon(ipu_ctx);
+	else
+		ret = ipu_video_streamoff(ipu_ctx);
+
+	return ret;
 }
 
 int ipu_video_reqbufs(struct ipu_video_ctx *ipu_ctx, u32 buffers)
@@ -2328,7 +2330,7 @@ static long x3_ipu_ioctl(struct file *file, unsigned int cmd,
 		ret = get_user(enable, (u32 __user *) arg);
 		if (ret)
 			return -EFAULT;
-		ipu_video_s_stream(ipu_ctx, ! !enable);
+		ret = ipu_video_s_stream(ipu_ctx, !!enable);
 		break;
 	case IPU_IOC_DQBUF:
 		ret = ipu_video_dqbuf(ipu_ctx, &frameinfo);
@@ -2344,7 +2346,7 @@ static long x3_ipu_ioctl(struct file *file, unsigned int cmd,
 				   sizeof(struct frame_info));
 		if (ret)
 			return -EFAULT;
-		ipu_video_qbuf(ipu_ctx, &frameinfo);
+		ret = ipu_video_qbuf(ipu_ctx, &frameinfo);
 		break;
 	case IPU_IOC_REQBUFS:
 		ret = get_user(buffers, (u32 __user *) arg);
