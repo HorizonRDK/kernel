@@ -766,7 +766,7 @@ static int ac108_multi_chips_update_bits(u8 reg, u8 mask, u8 value)
 	for(i=0; i<(AC108_CHANNELS_MAX+3)/4; i++){
 		ret = ac108_update_bits(reg, mask, value, i2c_driver_clt[i]);
 		if (ret < 0) {
-			pr_err("%s ac108_update_bits error\n", __func__);
+			pr_err("%s ac108_update_bits(%d) error\n", __func__, i);
 			return -EINVAL;
 		}
 	}
