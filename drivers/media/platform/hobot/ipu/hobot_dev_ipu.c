@@ -31,6 +31,8 @@
 #include "ipu_hw_api.h"
 
 #define MODULE_NAME "X3 IPU"
+#define MR_FIFO_THRED0 0x30323020
+#define MR_FIFO_THRED1 0x00003220
 
 static u32 color[MAX_OSD_COLOR_NUM] = {
 	0xff8080, 0x008080, 0x968080, 0x8DC01B, 0x952B15, 0xE10094, 0x545BA7,
@@ -1589,8 +1591,8 @@ int ipu_video_streamon(struct ipu_video_ctx *ipu_ctx)
 
 	if (atomic_read(&ipu->rsccount) > 0)
 		goto p_inc;
-	//ipu_set_ddr_fifo_thred(ipu->base_reg, 0, 0);
-	//ipu_set_ddr_fifo_thred(ipu->base_reg, 1, 0);
+	ipu_set_ddr_fifo_thred(ipu->base_reg, 0, ipu->wr_fifo_thred0);
+	ipu_set_ddr_fifo_thred(ipu->base_reg, 1, ipu->wr_fifo_thred1);
 
 	set_bit(IPU_HW_RUN, &ipu->state);
 p_inc:
@@ -3148,6 +3150,58 @@ static ssize_t ipu_line_delay_store(struct device *dev,
 }
 static DEVICE_ATTR(line_delay, 0660, ipu_line_delay_read, ipu_line_delay_store);
 
+static ssize_t ipu_wr_fifo_thred0_read(struct device *dev,
+				struct device_attribute *attr, char* buf)
+{
+	struct x3_ipu_dev *ipu;
+
+	ipu = dev_get_drvdata(dev);
+
+	return snprintf(buf, 64, "0x%x\n", ipu->wr_fifo_thred0);
+}
+
+static ssize_t ipu_wr_fifo_thred0_store(struct device *dev,
+				       struct device_attribute *devAttr,
+				       const char *buf, size_t size)
+{
+	struct x3_ipu_dev *ipu;
+
+	ipu = dev_get_drvdata(dev);
+	ipu->wr_fifo_thred0 = simple_strtoul(buf, NULL, 0);
+
+	vio_info("%s : wr_fifo_thred0 = 0x%x\n", __func__, ipu->wr_fifo_thred0);
+
+	return size;
+}
+static DEVICE_ATTR(wr_fifo_thred0, 0660, ipu_wr_fifo_thred0_read,
+		ipu_wr_fifo_thred0_store);
+
+static ssize_t ipu_wr_fifo_thred1_read(struct device *dev,
+				struct device_attribute *attr, char* buf)
+{
+	struct x3_ipu_dev *ipu;
+
+	ipu = dev_get_drvdata(dev);
+
+	return snprintf(buf, 64, "0x%x\n", ipu->wr_fifo_thred1);
+}
+
+static ssize_t ipu_wr_fifo_thred1_store(struct device *dev,
+				       struct device_attribute *devAttr,
+				       const char *buf, size_t size)
+{
+	struct x3_ipu_dev *ipu;
+
+	ipu = dev_get_drvdata(dev);
+	ipu->wr_fifo_thred1 = simple_strtoul(buf, NULL, 0);
+
+	vio_info("%s : wr_fifo_thred1 = 0x%x\n", __func__, ipu->wr_fifo_thred1);
+
+	return size;
+}
+static DEVICE_ATTR(wr_fifo_thred1, 0660, ipu_wr_fifo_thred1_read,
+		ipu_wr_fifo_thred1_store);
+
 static ssize_t ipu_reg_dump(struct device *dev,
 				struct device_attribute *attr, char* buf)
 {
@@ -3550,7 +3604,7 @@ static int x3_ipu_probe(struct platform_device *pdev)
 	}
 	ret = device_create_file(dev, &dev_attr_line_delay);
 	if (ret < 0) {
-		vio_err("create hblank failed (%d)\n", ret);
+		vio_err("create line_delay failed (%d)\n", ret);
 		goto p_err;
 	}
 	ret = device_create_file(dev, &dev_attr_err_status01);
@@ -3573,6 +3627,16 @@ static int x3_ipu_probe(struct platform_device *pdev)
 		vio_err("create err_status failed (%d)\n", ret);
 		goto p_err;
 	}
+	ret = device_create_file(dev, &dev_attr_wr_fifo_thred0);
+	if (ret < 0) {
+		vio_err("create wr_fifo_thred0 failed (%d)\n", ret);
+		goto p_err;
+	}
+	ret = device_create_file(dev, &dev_attr_wr_fifo_thred1);
+	if (ret < 0) {
+		vio_err("create wr_fifo_thred1 failed (%d)\n", ret);
+		goto p_err;
+	}
 
 	// create sysfs node for ipu info
 	ret = sysfs_create_group(&dev->kobj, &ipu_info_group);
@@ -3583,6 +3647,8 @@ static int x3_ipu_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, ipu);
 	ipu->line_delay = 16;
+	ipu->wr_fifo_thred0 = MR_FIFO_THRED0;
+	ipu->wr_fifo_thred1 = MR_FIFO_THRED1;
 
 	sema_init(&ipu->gtask.hw_resource, 1);
 	atomic_set(&ipu->gtask.refcount, 0);
@@ -3620,12 +3686,15 @@ static int x3_ipu_remove(struct platform_device *pdev)
 	ipu = platform_get_drvdata(pdev);
 
 	device_remove_file(&pdev->dev, &dev_attr_regdump);
+	device_remove_file(&pdev->dev, &dev_attr_line_delay);
 	device_remove_file(&pdev->dev, &dev_attr_err_status01);
 	device_remove_file(&pdev->dev, &dev_attr_err_status23);
 	device_remove_file(&pdev->dev, &dev_attr_err_status45);
 	device_remove_file(&pdev->dev, &dev_attr_err_status67);
+	device_remove_file(&pdev->dev, &dev_attr_wr_fifo_thred0);
+	device_remove_file(&pdev->dev, &dev_attr_wr_fifo_thred1);
 	sysfs_remove_group(&pdev->dev.kobj, &ipu_info_group);
-	
+
 
 	free_irq(ipu->irq, ipu);
 
