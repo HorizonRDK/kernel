@@ -1419,6 +1419,7 @@ int ipu_video_init(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 		return ret;
 	}
 
+	ipu_set_line_delay(ipu->base_reg, ipu->line_delay);
 	if (ipu_ctx->id == GROUP_ID_SRC) {
 		ipu_cfg = &subdev->ipu_cfg;
 		ret = copy_from_user((char *)ipu_cfg, (u32 __user *) arg,
@@ -3122,6 +3123,31 @@ err_req_cdev:
 	return ret;
 }
 
+static ssize_t ipu_line_delay_read(struct device *dev,
+				struct device_attribute *attr, char* buf)
+{
+	struct x3_ipu_dev *ipu;
+
+	ipu = dev_get_drvdata(dev);
+
+	return snprintf(buf, 64, "%d\n", ipu->line_delay);
+}
+
+static ssize_t ipu_line_delay_store(struct device *dev,
+				       struct device_attribute *devAttr,
+				       const char *buf, size_t size)
+{
+	struct x3_ipu_dev *ipu;
+
+	ipu = dev_get_drvdata(dev);
+	ipu->line_delay = simple_strtoul(buf, NULL, 0);
+
+	vio_info("%s : line_delay = %d\n", __func__, ipu->line_delay);
+
+	return size;
+}
+static DEVICE_ATTR(line_delay, 0660, ipu_line_delay_read, ipu_line_delay_store);
+
 static ssize_t ipu_reg_dump(struct device *dev,
 				struct device_attribute *attr, char* buf)
 {
@@ -3522,7 +3548,11 @@ static int x3_ipu_probe(struct platform_device *pdev)
 		vio_err("create regdump failed (%d)\n", ret);
 		goto p_err;
 	}
-
+	ret = device_create_file(dev, &dev_attr_line_delay);
+	if (ret < 0) {
+		vio_err("create hblank failed (%d)\n", ret);
+		goto p_err;
+	}
 	ret = device_create_file(dev, &dev_attr_err_status01);
 	if (ret < 0) {
 		vio_err("create err_status failed (%d)\n", ret);
@@ -3552,6 +3582,7 @@ static int x3_ipu_probe(struct platform_device *pdev)
 	}
 
 	platform_set_drvdata(pdev, ipu);
+	ipu->line_delay = 16;
 
 	sema_init(&ipu->gtask.hw_resource, 1);
 	atomic_set(&ipu->gtask.refcount, 0);

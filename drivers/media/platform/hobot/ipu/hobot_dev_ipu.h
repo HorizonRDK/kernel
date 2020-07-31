@@ -207,6 +207,7 @@ struct x3_ipu_dev {
 	struct class *class;
 	struct cdev cdev;
 
+	u32	   line_delay;
 	atomic_t instance;
 	atomic_t rsccount;
 	atomic_t open_cnt;
