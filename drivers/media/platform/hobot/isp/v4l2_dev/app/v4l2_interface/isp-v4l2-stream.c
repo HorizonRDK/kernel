@@ -526,7 +526,7 @@ int callback_stream_get_frame( uint32_t ctx_id, acamera_stream_type_t type, afra
     return 0;
 }
 
-int callback_stream_put_frame( uint32_t ctx_id, acamera_stream_type_t type, aframe_t *aframes, uint64_t num_planes )
+int callback_stream_put_frame( uint32_t ctx_id, acamera_stream_type_t type, aframe_t *aframes, uint64_t num_planes, uint8_t flag )
 {
     int rc;
     int cnt = 0;
@@ -610,11 +610,15 @@ int callback_stream_put_frame( uint32_t ctx_id, acamera_stream_type_t type, afra
     v4l2_get_timestamp( &vb->v4l2_buf.timestamp );
 #endif
 
-    p_ctx->sts.busy_to_done_cnt++;
-    /* Put buffer back to vb2 queue */
-    vb2_buffer_done( vb, VB2_BUF_STATE_DONE );
-    /* Notify buffer ready */
-    isp_v4l2_notify_event( pstream->ctx_id, pstream->stream_id, V4L2_EVENT_ACAMERA_FRAME_READY );
+    if (flag == 0) {
+        p_ctx->sts.busy_to_done_cnt++;
+        /* Put buffer back to vb2 queue */
+        vb2_buffer_done( vb, VB2_BUF_STATE_DONE );
+        /* Notify buffer ready */
+        isp_v4l2_notify_event( pstream->ctx_id, pstream->stream_id, V4L2_EVENT_ACAMERA_FRAME_READY );
+    } else {
+        vb2_buffer_done( vb, VB2_BUF_STATE_ERROR );
+    }
 
     return 0;
 }

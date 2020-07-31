@@ -189,7 +189,7 @@ static int dma_writer_stream_get_frame( dma_pipe *pipe, tframe_t *tframe )
     return rc;
 }
 
-static int dma_writer_stream_put_frame( dma_pipe *pipe, tframe_t *tframe )
+static int dma_writer_stream_put_frame( dma_pipe *pipe, tframe_t *tframe, uint8_t flag )
 {
     uint32_t ctx_id = pipe->settings.p_ctx->context_id;
     acamera_stream_type_t type = pipe->type == dma_fr ? ACAMERA_STREAM_FR : ACAMERA_STREAM_DS1;
@@ -202,7 +202,7 @@ static int dma_writer_stream_put_frame( dma_pipe *pipe, tframe_t *tframe )
     tmp_aframes[0] = tframe->primary;
     tmp_aframes[1] = tframe->secondary;
 
-    rc = settings->callback_stream_put_frame( ctx_id, type, tmp_aframes, 2 );
+    rc = settings->callback_stream_put_frame( ctx_id, type, tmp_aframes, 2, flag );
 
     tframe->primary = tmp_aframes[0];
     tframe->secondary = tmp_aframes[1];
@@ -449,7 +449,7 @@ static int dma_writer_done_process( dma_pipe *pipe )
     }
 
     /* put back frame to the application (V4L2 for example) */
-    dma_writer_stream_put_frame( pipe, curr_frame );
+    dma_writer_stream_put_frame( pipe, curr_frame, 0 );
 
     return 0;
 }
@@ -467,8 +467,11 @@ static int dma_writer_error_process( dma_pipe *pipe )
         return -1;
     }
 
+    /* put back frame to the application (V4L2 for example) */
+    dma_writer_stream_put_frame( pipe, curr_frame, 1 );
+
     /* release frame to free list */
-    dma_writer_stream_release_frame( pipe, curr_frame );
+    // dma_writer_stream_release_frame( pipe, curr_frame );
 
     return 0;
 }

@@ -1565,6 +1565,8 @@ int32_t acamera_interrupt_handler()
 
                     if (isp_error_sts == 0) {
 					    acamera_fw_raise_event( p_ctx, event_id_frame_done );
+                    } else {
+                        acamera_fw_raise_event( p_ctx, event_id_frame_error );
                     }
                 } else if ( irq_bit == ISP_INTERRUPT_EVENT_FR_UV_WRITE_DONE ) {
 					//do nothing

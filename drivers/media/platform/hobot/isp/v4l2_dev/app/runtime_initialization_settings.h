@@ -40,7 +40,7 @@ extern void *callback_dma_alloc_coherent( uint32_t ctx_id, uint64_t size, uint64
 extern void callback_dma_free_coherent( uint32_t ctx_id, uint64_t size, void *virt_addr, uint64_t dma_addr ) ;
 
 extern int callback_stream_get_frame( uint32_t ctx_id, acamera_stream_type_t type, aframe_t *aframes, uint64_t num_planes ) ;
-extern int callback_stream_put_frame( uint32_t ctx_id, acamera_stream_type_t type, aframe_t *aframes, uint64_t num_planes ) ;
+extern int callback_stream_put_frame( uint32_t ctx_id, acamera_stream_type_t type, aframe_t *aframes, uint64_t num_planes, uint8_t flag ) ;
 extern int callback_stream_release_frame( uint32_t ctx_id, acamera_stream_type_t type, aframe_t *aframes, uint64_t num_planes ) ;
 
 static acamera_settings settings[ FIRMWARE_CONTEXT_NUMBER ] = {    {
