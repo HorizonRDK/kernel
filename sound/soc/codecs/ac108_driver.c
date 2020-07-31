@@ -657,8 +657,10 @@ static int ac108_read(u8 reg, u8 *rt_value, struct i2c_client *client)
 	read_cmd[0] = reg;
 	cmd_len = 1;
 	
-	if (client->adapter == NULL)
+	if (client == NULL || client->adapter == NULL) {
 		pr_err("ac108_read client->adapter==NULL\n");
+		return -ENODEV;
+	}
 	
 	ret = i2c_master_send(client, read_cmd, cmd_len);
 	if (ret != cmd_len) {
@@ -684,10 +686,15 @@ static int ac108_write(u8 reg, unsigned char value, struct i2c_client *client)
 	write_cmd[0] = reg;
 	write_cmd[1] = value;
 	
+	if (client == NULL || client->adapter == NULL) {
+		pr_err("ac108_write client->adapter==NULL\n");
+		return -ENODEV;
+	}
 	pr_debug("%s(%02X(R), %02X(V), %02X(C))\n", __func__, reg, value, client->addr);
 	ret = i2c_master_send(client, write_cmd, 2);
 	if (ret != 2) {
-		pr_debug("ac108_write error->[REG-0x%02x,val-0x%02x]\n",reg,value);
+		pr_err("ac108_write error->[REG-0x%02x,val-0x%02x]\n",
+			reg, value);
 		return -1;
 	}
 	
@@ -697,12 +704,22 @@ static int ac108_write(u8 reg, unsigned char value, struct i2c_client *client)
 static int ac108_update_bits(u8 reg, u8 mask, u8 value, struct i2c_client *client)
 {
 	u8 val_old,val_new;
+	int ret;
 
-	pr_debug("%s(%02X(R), %02X(M), %02X(V), %02X(C))\n", __func__, reg, mask, value, client->addr);
-	ac108_read(reg, &val_old, client);
+	pr_debug("%s(%02X(R), %02X(M), %02X(V), %02X(C))\n", __func__,
+		reg, mask, value, client->addr);
+	ret = ac108_read(reg, &val_old, client);
+	if (ret < 0) {
+		pr_err("%s ac108_read error!\n", __func__);
+		return -EINVAL;
+	}
 	val_new = (val_old & ~mask) | (value & mask);
 	if(val_new != val_old){
-		ac108_write(reg, val_new, client);
+		ret = ac108_write(reg, val_new, client);
+		if (ret < 0) {
+			pr_err("%s ac108_write error!\n", __func__);
+			return -EINVAL;
+		}
 	}
 
 	return 0;
@@ -725,10 +742,15 @@ static int ac108_multi_chips_read(u8 reg, unsigned char *rt_value)
 static int ac108_multi_chips_write(u8 reg, unsigned char value)
 {
 	u8 i;
+	int ret;
 
 	pr_debug("%s(%02X(R), %02X(V))\n", __func__, reg, value);
 	for(i=0; i<(AC108_CHANNELS_MAX+3)/4; i++){
-		ac108_write(reg, value, i2c_driver_clt[i]);
+		ret = ac108_write(reg, value, i2c_driver_clt[i]);
+		if (ret < 0) {
+			pr_err("%s ac108_write error!\n", __func__);
+			return -EINVAL;
+		}
 	}
 	
 	return 0;
@@ -737,11 +759,16 @@ static int ac108_multi_chips_write(u8 reg, unsigned char value)
 static int ac108_multi_chips_update_bits(u8 reg, u8 mask, u8 value)
 {
 	u8 i;
+	int ret;
 
 	pr_debug("%s(%02X(R), %02X(M), %02X(V))\n", __func__, reg, mask, value);
 	
 	for(i=0; i<(AC108_CHANNELS_MAX+3)/4; i++){
-		ac108_update_bits(reg, mask, value, i2c_driver_clt[i]);
+		ret = ac108_update_bits(reg, mask, value, i2c_driver_clt[i]);
+		if (ret < 0) {
+			pr_err("%s ac108_update_bits error\n", __func__);
+			return -EINVAL;
+		}
 	}
 
 	return 0;
@@ -989,6 +1016,7 @@ static int ac108_set_clkdiv(struct snd_soc_dai *dai, int div_id, int div)
 static int ac108_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 {
 	u8 tx_offset, i2s_mode, lrck_polarity, brck_polarity;
+	int ret;
 
 	AC108_DEBUG("\n--->%s\n",__FUNCTION__);
 
@@ -997,20 +1025,40 @@ static int ac108_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 #ifdef CONFIG_HOBOT_SOC
 		case SND_SOC_DAIFMT_CBS_CFS:	//AC108 Master
 			AC108_DEBUG("AC108 set to work as Master\n");
-			ac108_multi_chips_update_bits(I2S_CTRL, 0x3<<LRCK_IOEN, 0x3<<LRCK_IOEN);	//BCLK & LRCK output
+			ret = ac108_multi_chips_update_bits(I2S_CTRL, 0x3 << LRCK_IOEN,
+				0x3 << LRCK_IOEN);	//BCLK & LRCK output
+			if (ret < 0) {
+				pr_err("%s update SND_SOC_DAIFMT_CBS_CFS error\n", __func__);
+				return -EINVAL;
+			}
 			break;
 		case SND_SOC_DAIFMT_CBM_CFM:	//AC108 Slave
 			AC108_DEBUG("AC108 set to work as Slave\n");
-			ac108_multi_chips_update_bits(I2S_CTRL, 0x3<<LRCK_IOEN, 0x0<<LRCK_IOEN);	//BCLK & LRCK input
+			ret = ac108_multi_chips_update_bits(I2S_CTRL, 0x3 << LRCK_IOEN,
+				0x0 << LRCK_IOEN);	//BCLK & LRCK input
+			if (ret < 0) {
+				pr_err("%s update SND_SOC_DAIFMT_CBM_CFM error\n", __func__);
+				return -EINVAL;
+			}
 			break;
 #else
 		case SND_SOC_DAIFMT_CBM_CFM:	//AC108 Master
 			AC108_DEBUG("AC108 set to work as Master\n");
-			ac108_multi_chips_update_bits(I2S_CTRL, 0x3<<LRCK_IOEN, 0x3<<LRCK_IOEN);	//BCLK & LRCK output
+			ret = ac108_multi_chips_update_bits(I2S_CTRL, 0x3 << LRCK_IOEN,
+				0x3 << LRCK_IOEN);	//BCLK & LRCK output
+			if (ret < 0) {
+				pr_err("%s update SND_SOC_DAIFMT_CBM_CFM error\n", __func__);
+				return -EINVAL;
+			}
 			break;
 		case SND_SOC_DAIFMT_CBS_CFS:	//AC108 Slave
 			AC108_DEBUG("AC108 set to work as Slave\n");
-			ac108_multi_chips_update_bits(I2S_CTRL, 0x3<<LRCK_IOEN, 0x0<<LRCK_IOEN);	//BCLK & LRCK input
+			ret = ac108_multi_chips_update_bits(I2S_CTRL, 0x3 << LRCK_IOEN,
+				0x0 << LRCK_IOEN);	//BCLK & LRCK input
+			if (ret < 0) {
+				pr_err("%s update SND_SOC_DAIFMT_CBS_CFS error\n", __func__);
+				return -EINVAL;
+			}
 			break;
 #endif
 		default:
@@ -1054,8 +1102,13 @@ static int ac108_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 			pr_err("AC108 I2S format config error:%u\n\n",fmt & SND_SOC_DAIFMT_FORMAT_MASK);
 			return -EINVAL;
 	}
-	ac108_multi_chips_update_bits(I2S_FMT_CTRL1, 0x3<<MODE_SEL | 0x1<<TX2_OFFSET | 0x1<<TX1_OFFSET,\
-		i2s_mode<<MODE_SEL | tx_offset<<TX2_OFFSET | tx_offset<<TX1_OFFSET);
+	ret = ac108_multi_chips_update_bits(I2S_FMT_CTRL1,
+		0x3 << MODE_SEL | 0x1 << TX2_OFFSET | 0x1 << TX1_OFFSET,
+		i2s_mode << MODE_SEL | tx_offset << TX2_OFFSET | tx_offset << TX1_OFFSET);
+	if (ret < 0) {
+		pr_err("%s update I2S_FMT_CTRL1 error!\n", __func__);
+		return -EINVAL;
+	}
 
 	//AC108 config BCLK&LRCK polarity
 	switch (fmt & SND_SOC_DAIFMT_INV_MASK) {
@@ -1083,8 +1136,18 @@ static int ac108_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 			pr_err("AC108 config BCLK/LRCLK polarity error:%u\n\n",(fmt & SND_SOC_DAIFMT_INV_MASK)>>8);
 			return -EINVAL;
 	}
-	ac108_multi_chips_update_bits(I2S_BCLK_CTRL,  0x1<<BCLK_POLARITY, brck_polarity<<BCLK_POLARITY);
-	ac108_multi_chips_update_bits(I2S_LRCK_CTRL1, 0x1<<LRCK_POLARITY, lrck_polarity<<LRCK_POLARITY);
+	ret = ac108_multi_chips_update_bits(I2S_BCLK_CTRL,
+		0x1 << BCLK_POLARITY, brck_polarity << BCLK_POLARITY);
+	if (ret < 0) {
+		pr_err("%s update I2S_BCLK_CTRL error\n", __func__);
+		return -EINVAL;
+	}
+	ret = ac108_multi_chips_update_bits(I2S_LRCK_CTRL1,
+		0x1 << LRCK_POLARITY, lrck_polarity << LRCK_POLARITY);
+	if (ret < 0) {
+		pr_err("%s update I2S_LRCK_CTRL1 error\n", __func__);
+		return -EINVAL;
+	}
 	
 	return 0;
 }
