@@ -735,8 +735,9 @@ int32_t iar_channel_base_cfg(channel_base_cfg_t *cfg)
 	writel(cfg->keycolor, g_iar_dev->regaddr + KEY_COLOR_ADDR_OFFSET(channelid)); //set keycolor
 
 	value = readl(g_iar_dev->regaddr + REG_IAR_OVERLAY_OPT);
-	target_filed = IAR_LAYER_PRIORITY_1 - channelid; //set layer pri
-	value = IAR_REG_SET_FILED(target_filed, cfg->pri, value);
+	target_filed = IAR_LAYER_PRIORITY_1 - cfg->pri;
+	value = IAR_REG_SET_FILED(target_filed, channelid, value);
+	writel(value, g_iar_dev->regaddr + REG_IAR_OVERLAY_OPT);
 
 	value = IAR_REG_SET_FILED(IAR_EN_OVERLAY_PRI1, 0x1, value);
 	value = IAR_REG_SET_FILED(IAR_EN_OVERLAY_PRI2, 0x1, value);
@@ -2868,8 +2869,7 @@ static int iar_debug_show(struct seq_file *s, void *unused)
 	for (i = 0; i < 4; i++) {
 		if ((reg_value >> (24 + i))  & 0x1) {
 			channel_enable_status[i] = 1;
-			channel_priority[i] = (reg_value >> (16 + i * 2)) & 0x3;
-			channel_resolution[i][0] = //g_iar_dev->buf_w_h[i][0];
+			channel_resolution[i][0] =
 				readl(g_iar_dev->regaddr + 0x44 - i * 4);//width
 			channel_resolution[i][1] = g_iar_dev->buf_w_h[i][1];
 			channel_crop_resolution[i][0] =
@@ -2881,6 +2881,7 @@ static int iar_debug_show(struct seq_file *s, void *unused)
 			channel_display_position[i][1] =
 				(readl(g_iar_dev->regaddr + 0x58 - i * 4) >> 16) & 0x7ff;
 		}
+		channel_priority[i] = (reg_value >> (16 + i * 2)) & 0x3;
 	}
 	seq_printf(s, "layer info:\n");
 	for (i = 0; i < 4; i++) {
