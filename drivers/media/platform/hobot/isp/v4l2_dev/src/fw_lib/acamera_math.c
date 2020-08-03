@@ -349,52 +349,64 @@ uint16_t acamera_line_offset( uint16_t line_len, uint8_t bytes_per_pixel )
 
 uint16_t acamera_calc_modulation_u16( uint16_t x, const modulation_entry_t *p_table, int table_len )
 {
-    if ( x <= p_table->x ) {
+	int i;
+	if (p_table[table_len - 1].x == 0) {
+		for (i = 1; i < table_len; i++)
+			if ((p_table[i].x == 0) && (p_table[i].y == 0)) {
+				table_len = i;
+				break;
+			}
+	}
+    if (x <= p_table->x) {
         return p_table->y;
     }
-    if ( x >= p_table[table_len - 1].x ) {
+    if (x >= p_table[table_len - 1].x) {
         return p_table[table_len - 1].y;
     }
-    {
-        int i;
-        for ( i = 1; i < table_len; ++i ) {
-            if ( x < p_table[i].x ) {
-                break;
-            }
+    for (i = 1; i < table_len; ++i) {
+        if (x < p_table[i].x) {
+            break;
         }
-        if ( ( p_table[i].x - p_table[i - 1].x ) != 0 ) {
-            int alpha = ( x - p_table[i - 1].x ) * 256 / ( p_table[i].x - p_table[i - 1].x ); // division by zero is checked
-            return ( p_table[i].y * alpha + p_table[i - 1].y * ( 256 - alpha ) ) >> 8;
-        } else {
-            LOG( LOG_ERR, "AVOIDED DIVISION BY ZERO" );
-            return p_table[i].y;
-        }
+    }
+    if ((p_table[i].x - p_table[i - 1].x) != 0) {
+        int alpha =
+			(x - p_table[i - 1].x) * 256 / (p_table[i].x - p_table[i - 1].x);
+        return (p_table[i].y * alpha + p_table[i - 1].y * ( 256 - alpha )) >> 8;
+    } else {
+        LOG(LOG_ERR, "AVOIDED DIVISION BY ZERO");
+        return p_table[i].y;
     }
 }
 
 uint32_t acamera_calc_modulation_u32( uint32_t x, const modulation_entry_32_t *p_table, int table_len )
 {
-    if ( x <= p_table->x ) {
+	int i;
+	if (p_table[table_len - 1].x == 0) {
+		for (i = 1; i < table_len; i++)
+			if ((p_table[i].x == 0) && (p_table[i].y == 0)) {
+				table_len = i;
+				break;
+			}
+	}
+    if (x <= p_table->x) {
         return p_table->y;
     }
-    if ( x >= p_table[table_len - 1].x ) {
+    if (x >= p_table[table_len - 1].x) {
         return p_table[table_len - 1].y;
     }
-    {
-        uint16_t i;
-        for ( i = 1; i < table_len; ++i ) {
-            if ( x < p_table[i].x ) {
-                break;
-            }
+    for (i = 1; i < table_len; ++i) {
+        if (x < p_table[i].x) {
+            break;
         }
-        if ( ( p_table[i].x - p_table[i - 1].x ) != 0 ) {
-            // 32bit choosen to prevent overflows
-            uint32_t alpha = ( x - p_table[i - 1].x ) * 256 / ( p_table[i].x - p_table[i - 1].x ); // division by zero is checked
-            return ( p_table[i].y * alpha + p_table[i - 1].y * ( 256 - alpha ) ) >> 8;
-        } else {
-            LOG( LOG_ERR, "AVOIDED DIVISION BY ZERO" );
-            return p_table[i].y;
-        }
+    }
+    if ((p_table[i].x - p_table[i - 1].x) != 0) {
+        // 32bit choosen to prevent overflows
+        uint32_t alpha =
+			(x - p_table[i - 1].x) * 256 / (p_table[i].x - p_table[i - 1].x);
+        return (p_table[i].y * alpha + p_table[i - 1].y * (256 - alpha)) >> 8;
+    } else {
+        LOG(LOG_ERR, "AVOIDED DIVISION BY ZERO");
+        return p_table[i].y;
     }
 }
 
