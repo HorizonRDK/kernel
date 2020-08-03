@@ -1241,6 +1241,34 @@ static int ac108_hw_params(struct snd_pcm_substream *substream, struct snd_pcm_h
 	return 0;
 }
 
+static int ac108_reset(u8 reg, unsigned char value, struct i2c_client *client) {
+	int ret = 0;
+	u8 write_cmd[2] = {0};
+
+	write_cmd[0] = reg;
+	write_cmd[1] = value;
+
+	pr_debug("%s(%02X(R), %02X(V), %02X(C))\n", __func__,
+		reg, value, client->addr);
+	ret = i2c_master_send(client, write_cmd, 2);
+	if (ret != 2) {
+		return -1;
+	}
+
+	return 0;
+}
+
+static int ac108_multi_chips_reset(u8 reg, unsigned char value) {
+	u8 i;
+
+	pr_debug("%s(%02X(R), %02X(V))\n", __func__, reg, value);
+	for(i = 0; i < (AC108_CHANNELS_MAX + 3) / 4; i++) {
+		ac108_reset(reg, value, i2c_driver_clt[i]);
+	}
+
+	return 0;
+}
+
 static int ac108_hw_free(struct snd_pcm_substream *substream, struct snd_soc_dai *dai)
 {
 	AC108_DEBUG("\n--->%s\n",__FUNCTION__);
@@ -1257,7 +1285,8 @@ static int ac108_hw_free(struct snd_pcm_substream *substream, struct snd_soc_dai
 #else
 
 	AC108_DEBUG("AC108 reset all register to their default value\n\n");
-	ac108_multi_chips_write(CHIP_AUDIO_RST, 0x12);		//if config TX Encoding mode, also disable BCLK
+	//if config TX Encoding mode, also disable BCLK
+	ac108_multi_chips_reset(CHIP_AUDIO_RST, 0x12);
 #endif
 
 	return 0;
