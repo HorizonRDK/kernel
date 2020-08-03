@@ -660,6 +660,7 @@ int pym_bind_chain_group(struct pym_video_ctx *pym_ctx, int instance)
 	group->gtask = &pym->gtask;
 	group->gtask->id = group->id;
 	pym->statistic.enable[instance] = 1;
+	pym->statistic.err_stat_enable[instance] = 1;
 	pym_ctx->belong_pipe = instance;
 
 	vio_info("[S%d][V%d] %s done, ctx_index(%d) refcount(%d)\n",
@@ -2102,7 +2103,7 @@ static ssize_t pym_stat_show(struct device *dev,
 
 	pym = dev_get_drvdata(dev);
 	for(instance = 0; instance < VIO_MAX_STREAM; instance++) {
-		if (!pym->statistic.enable[instance])
+		if (!pym->statistic.err_stat_enable[instance])
 			continue;
 		output = 1;
 		len = snprintf(&buf[offset], PAGE_SIZE - offset,
@@ -2169,7 +2170,27 @@ static ssize_t pym_stat_store(struct device *dev,
 
 	pym = dev_get_drvdata(dev);
 	if (pym) {
-		memset(&pym->statistic, 0, sizeof(pym->statistic));
+		//memset(&pym->statistic, 0, sizeof(pym->statistic));
+		memset(&pym->statistic.fe_normal, 0, sizeof(pym->statistic.fe_normal));
+		memset(&pym->statistic.fe_normal, 0, sizeof(pym->statistic.fe_normal));
+		memset(&pym->statistic.fe_lack_buf, 0, sizeof(pym->statistic.fe_lack_buf));
+		memset(&pym->statistic.hard_frame_drop_us, 0, sizeof(pym->statistic.hard_frame_drop_us));
+		memset(&pym->statistic.hard_frame_drop_ds, 0, sizeof(pym->statistic.hard_frame_drop_ds));
+		memset(&pym->statistic.soft_frame_drop_us, 0, sizeof(pym->statistic.soft_frame_drop_us));
+		memset(&pym->statistic.soft_frame_drop_ds, 0, sizeof(pym->statistic.soft_frame_drop_ds));
+		memset(&pym->statistic.fs_lack_task, 0, sizeof(pym->statistic.fs_lack_task));
+		memset(&pym->statistic.dq_normal, 0, sizeof(pym->statistic.dq_normal));
+		memset(&pym->statistic.dq_err, 0, sizeof(pym->statistic.dq_err));
+		memset(&pym->statistic.pollin_fe, 0, sizeof(pym->statistic.pollin_fe));
+		memset(&pym->statistic.pollin_comp, 0, sizeof(pym->statistic.pollin_comp));
+		memset(&pym->statistic.pollerr, 0, sizeof(pym->statistic.pollerr));
+		memset(&pym->statistic.q_normal, 0, sizeof(pym->statistic.q_normal));
+		memset(&pym->statistic.fs, 0, sizeof(pym->statistic.fs));
+		memset(&pym->statistic.grp_tsk_left, 0, sizeof(pym->statistic.grp_tsk_left));
+		memset(&pym->statistic.tal_fs, 0, sizeof(pym->statistic.tal_fs));
+		memset(&pym->statistic.tal_frm_work, 0, sizeof(pym->statistic.tal_frm_work));
+		memset(&pym->statistic.user_stats, 0, sizeof(pym->statistic.user_stats));
+		memset(&pym->statistic.err_stat_enable, 0, sizeof(pym->statistic.err_stat_enable));
 	}
 	return len;
 }

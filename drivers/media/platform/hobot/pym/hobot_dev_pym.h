@@ -67,6 +67,7 @@ struct pym_status_statistic {
 
 	/* user statistic*/
 	struct user_statistic user_stats[VIO_MAX_STREAM];
+	u32 err_stat_enable[VIO_MAX_STREAM];
 };
 
 struct pym_video_ctx{

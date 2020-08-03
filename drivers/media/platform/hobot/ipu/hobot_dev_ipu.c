@@ -1542,6 +1542,7 @@ int ipu_bind_chain_group(struct ipu_video_ctx *ipu_ctx, int instance)
 	group->gtask = &ipu->gtask;
 	group->gtask->id = group->id;
 	ipu->statistic.enable[instance] = 1;
+	ipu->statistic.err_stat_enable[instance] = 1;
 	ipu->statistic.enable_subdev[instance] |= BIT(ipu_ctx->id);
 	ipu_ctx->belong_pipe = instance;
 
@@ -3246,7 +3247,7 @@ static ssize_t ipu_stat_show(struct device *dev,
 		instance_start = 0;
 
 	for(instance = instance_start; instance < instance_start + 2; instance++) {
-		if (!ipu->statistic.enable[instance])
+		if (!ipu->statistic.err_stat_enable[instance])
 			continue;
 		output = 1;
 		len = snprintf(&buf[offset], PAGE_SIZE - offset,
@@ -3322,7 +3323,7 @@ static ssize_t ipu_stat_store(struct device *dev,
 		instance_start = 0;
 
 	for(instance = instance_start; instance < instance_start + 2; instance++) {
-		ipu->statistic.enable[instance] = 0;
+		ipu->statistic.err_stat_enable[instance] = 0;
 		ipu->statistic.fs_lack_task[instance] = 0;
 		ipu->statistic.fs[instance] = 0;
 		ipu->statistic.grp_tsk_left[instance] = 0;
