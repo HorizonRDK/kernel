@@ -831,8 +831,19 @@ static int pym_flush_mp_prepare(struct pym_video_ctx *pym_ctx)
 		if (frame) {
 			frame->dispatch_mask &= ~(1 << proc_id);
 			frame->poll_mask &= ~(1 << proc_id);
+			/*
+			 * caution: this is for multiprocess share scenario
+			 * if frame is not been used by any process (dispatch_mask)
+			 * and is not been polled by any process (poll_mask)
+			 * and is not streamoff
+			 * and this frame is in FS_USED, it's ok to request
+			 *
+			 * if frame is not in FS_USED, it means this frame's frameinfo is never
+			 * filled in qbuf ioctl, it's frameinfo content is invalid
+			 */
 			if (frame->dispatch_mask == 0x0000 && frame->poll_mask == 0x00
-					&& (this->index_state[i] == FRAME_IND_USING)) {
+					&& (this->index_state[i] == FRAME_IND_USING)
+					&& (frame->state == FS_USED)) {
 				frame->dispatch_mask |= 0xFF00;
 				trans_frame(this, frame, FS_REQUEST);
 				if(group->leader == true)
@@ -1025,6 +1036,9 @@ int pym_video_qbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 			framemgr->queued_count[FS_PROCESS],
 			framemgr->queued_count[FS_COMPLETE],
 			framemgr->queued_count[FS_USED]);
+		vio_dbg("pym free q index%d,y:0x%x,uv:0x%x", frame->frameinfo.bufferindex,
+					frame->frameinfo.spec.ds_y_addr[0],
+					frame->frameinfo.spec.ds_uv_addr[0]);
 	} else if (frame->state == FS_USED) {
 		frame->dispatch_mask &= ~(1 << pym_ctx->ctx_index);
 
@@ -1049,6 +1063,9 @@ int pym_video_qbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 				framemgr->queued_count[FS_PROCESS],
 				framemgr->queued_count[FS_COMPLETE],
 				framemgr->queued_count[FS_USED]);
+			vio_dbg("pym used q index%d,y:0x%x,uv:0x%x", frame->frameinfo.bufferindex,
+					frame->frameinfo.spec.ds_y_addr[0],
+					frame->frameinfo.spec.ds_uv_addr[0]);
 		} else {
 			vio_dbg("[S%d] q:disp mask%d,proc%d bidx%d,(%d %d %d %d %d)",
 					group->instance,
@@ -1182,7 +1199,7 @@ int pym_video_dqbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 						subdev->frameinfo.bufferindex = -1;
 						cache_frame->dispatch_mask = 0xFF00;
 						trans_frame(framemgr, cache_frame, FS_REQUEST);
-						vio_dbg("ipu dq trans to request%d", cache_bufindex);
+						vio_dbg("pym dq trans to request%d", cache_bufindex);
 					}
 				}
 			}
