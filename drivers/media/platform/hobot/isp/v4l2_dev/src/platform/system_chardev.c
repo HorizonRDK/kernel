@@ -48,6 +48,7 @@
 #define ISPIOC_GET_CTX _IOWR('P', 4, isp_ctx_r_t)
 #define ISPIOC_PUT_CTX _IOWR('P', 5, isp_ctx_r_t)
 #define ISPIOC_FILL_CTX _IOWR('P', 6, isp_ctx_w_t)
+#define ISPIOC_REG_MEM_RW _IOWR('P', 7, struct regs_mem_t)
 
 #define CHECK_CODE	0xeeff
 
@@ -65,6 +66,15 @@ struct regs_t {
         uint8_t m;
         uint8_t n;
         uint32_t v;
+};
+
+// for register memory
+struct regs_mem_t {
+	uint32_t addr;	// register address
+	uint8_t chn;	// pipeline id
+	uint8_t dir;	// read or write
+	uint32_t size;	//sizeof data
+	uint32_t *ptr;	// pointer to data
 };
 
 // for command
@@ -408,6 +418,9 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 	case ISPIOC_REG_RW:
 	case ISPIOC_LUT_RW:
 	case ISPIOC_COMMAND:
+	{
+		acamera_context_t *p_ctx;
+
 		if (copy_from_user(&md, (void __user *)arg, sizeof(md))) {
 			ret = -EFAULT;
 			break;
@@ -418,30 +431,29 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 			ret = -EFAULT;
 			break;
 		}
+
+		p_ctx = (acamera_context_t *)acamera_get_ctx_ptr(md.chn);
+		if (p_ctx->initialized == 0) {
+			pr_err("%d ctx is not inited.\n", md.chn);
+			ret = -EFAULT;
+		} else {
+			acamera_set_api_context(md.chn);
+		}
+	}
 		break;
 	case ISPIOC_BUF_PACTET:
 	case ISPIOC_GET_CTX:
 	case ISPIOC_PUT_CTX:
 	case ISPIOC_FILL_CTX:
+	case ISPIOC_REG_MEM_RW:
 		break;
 	default:
 		pr_err("command %d not support.\n", cmd);
 		break;
 	}
 
-	if (ret >= 0) {
-		acamera_context_t *p_ctx;
-		p_ctx = (acamera_context_t *)acamera_get_ctx_ptr(md.chn);
-		if (p_ctx->initialized == 0) {
-			pr_err("%d ctx is not inited.\n", md.chn);
-			ret = -EFAULT;
-		}
-	}
-
 	if (ret < 0)
 		goto out;
-
-	acamera_set_api_context(md.chn);
 
 	switch (cmd) {
 	case ISPIOC_REG_RW:
@@ -503,7 +515,63 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 		kfree(md.ptr);
 	}
 		break;
+	case ISPIOC_REG_MEM_RW:
+	{
+        uint16_t i = 0;
+		acamera_context_ptr_t p_ctx;
+		struct regs_mem_t rgm;
+		struct regs_mem_t *prgm = (struct regs_mem_t *)arg;
 
+		if (copy_from_user(&rgm, (void __user *)arg, sizeof(rgm))) {
+			ret = -EFAULT;
+			break;
+		}
+
+		if (rgm.chn >= FIRMWARE_CONTEXT_NUMBER) {
+			pr_err("ctx id %d exceed valid range\n", rgm.chn);
+			ret = -EFAULT;
+			break;
+		}
+
+		p_ctx = (acamera_context_t *)acamera_get_ctx_ptr(rgm.chn);
+		if (p_ctx->initialized == 0) {
+			pr_err("%d ctx is not inited.\n", rgm.chn);
+			ret = -EFAULT;
+			break;
+		}
+
+		acamera_set_api_context(rgm.chn);
+
+		rgm.ptr = vzalloc(rgm.size);
+		if (rgm.ptr == NULL) {
+			ret = -ENOMEM;
+			break;
+		}
+
+		if (copy_from_user(rgm.ptr, prgm->ptr, rgm.size)) {
+			ret = -EFAULT;
+			vfree(rgm.ptr);
+			break;
+		}
+
+		uintptr_t sw_addr = p_ctx->settings.isp_base + rgm.addr;
+		for (i = 0; i < rgm.size / sizeof(uint32_t); i++) {
+			if (rgm.dir == COMMAND_SET) {
+				system_sw_write_32(sw_addr + i * 4, rgm.ptr[i]);
+			} else {
+				rgm.ptr[i] = system_sw_read_32(sw_addr + i * 4);
+			}
+		}
+
+		if (rgm.dir == COMMAND_GET) {
+			if (copy_to_user(prgm->ptr, rgm.ptr, rgm.size)) {
+				ret = -EFAULT;
+			}
+		}
+
+		vfree(rgm.ptr);
+	}
+		break;
 	case ISPIOC_COMMAND:
 	{
         	uint8_t i = 0;
