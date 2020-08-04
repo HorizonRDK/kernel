@@ -32,7 +32,9 @@
 #include <linux/clk.h>
 #include <linux/clk-provider.h>
 
-#include "hobot_ddr_monitor.h"
+#include "./hobot_ddr_monitor.h"
+#include "./hobot_ddr_mpu.h"
+
 static DEFINE_MUTEX(ddr_mo_mutex);
 
 struct ddr_monitor_dev_s {
@@ -699,6 +701,7 @@ static irqreturn_t ddr_ecc_isr(int this_irq, void *data)
 
 	return IRQ_HANDLED;
 }
+
 
 static unsigned int read_ctl_value;
 static unsigned int write_ctl_value;
@@ -1395,7 +1398,7 @@ static struct attribute *write_qctl_attrs[] = {
 };
 
 #ifdef CONFIG_HOBOT_XJ3
-static ssize_t open_sif_mclk(void)
+ssize_t open_sif_mclk(void)
 {
 	if ((g_ddr_monitor_dev == NULL) || (g_ddr_monitor_dev->sif_mclk == NULL))
 		return -1;
@@ -1408,7 +1411,7 @@ static ssize_t open_sif_mclk(void)
 	return 0;
 }
 
-static ssize_t close_sif_mclk(void)
+ssize_t close_sif_mclk(void)
 {
 	if ((g_ddr_monitor_dev == NULL) || (g_ddr_monitor_dev->sif_mclk == NULL))
 		return -1;
@@ -1417,6 +1420,24 @@ static ssize_t close_sif_mclk(void)
 	}
 
 	return 0;
+}
+
+u32 read_axibus_reg(void)
+{
+	unsigned int val = 0;
+	void __iomem *axibus_reg = ioremap_nocache(0xa4000038, 4);
+
+	mutex_lock(&ddr_mo_mutex);
+	open_sif_mclk();
+
+	val = readl(axibus_reg);
+
+	close_sif_mclk();
+	mutex_unlock(&ddr_mo_mutex);
+
+	iounmap(axibus_reg);
+
+	return val;
 }
 
 static ssize_t sifw_axibus_ctrl_store(struct device_driver *drv,
@@ -2195,6 +2216,7 @@ static int ddr_monitor_probe(struct platform_device *pdev)
 	}
 
 #ifdef CONFIG_HOBOT_XJ3
+	/* support ECC start */
 	pres = platform_get_resource(pdev, IORESOURCE_MEM, 1);
 	if (!pres) {
 		pr_err("DDR controller base is not detected.\n");
@@ -2234,6 +2256,12 @@ static int ddr_monitor_probe(struct platform_device *pdev)
 		pr_err("ddr_ecc_stat attr create failed\n");
 		return -ENOMEM;
 	}
+
+	/* support ECC end */
+
+	ret = ddr_mpu_init(pdev);
+	if (ret < 0)
+		pr_info("mpu is not supported\n");
 
 	reg_val = readl(ddrc_base);
 	if (reg_val & 0x10) {
@@ -2281,6 +2309,7 @@ static int ddr_monitor_remove(struct platform_device *pdev)
 	g_ddr_monitor_dev = NULL;
 
 	sysfs_remove_file(&pdev->dev.kobj, &dev_attr_ddr_ecc_stat.attr);
+	ddr_mpu_deinit(pdev);
 
 	return 0;
 }

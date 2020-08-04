@@ -150,7 +150,7 @@
 	rst: reset-controller {
 		compatible = "hobot,hobot-reset";
 		#reset-cells = <2>;
-		reg = <0x0 0xA1000000 0x0 0x1000>;
+		reg = <0x0 0xA1000000 0x0 0x500>;
 		hobot,modrst-offset = <0x400>;
 	};
 
@@ -1123,7 +1123,7 @@
 		pvt: pvt@0xA1009000 {
 			compatible = "hobot,hobot-pvt";
 			reg = <0 0xA1009000 0 0x1000>,
-				  <0 0xA6008000 0 0x1000>;
+				  <0 0xA6008000 0 0x100>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 64 4>;
 			clocks = <&sys_div_pclk>;
@@ -1133,10 +1133,12 @@
 
 		ddr_monitor: ddr_monitor@0xA2D10000 {
 			compatible = "hobot,ddrmonitor";
-			reg = <0 0xA2D10000 0 0x1000>,
-		          <0 0xA2D00000 0 0x1000>;
+			reg = <0 0xA2D10000 0 0x1000>, /* For ddr_monitor */
+				<0 0xA2D00000 0 0x1000>, /* For ECC */
+				<0 0xA1000900 0 0x100>,  /* For MPU */
+				<0 0xA6008200 0 0x300>; /* For MPU */
 			interrupt-parent = <&gic>;
-			interrupts = <0 63 4>, <0 93 4>;
+			interrupts = <0 63 4>, <0 93 4>, <0 90 4>;
 			status = "disabled";
 		};
 

@@ -10,8 +10,8 @@
  * (at your option) any later version.
  */
 
-#ifndef __HOBOT_ISP_H__
-#define __HOBOT_ISP_H__
+#ifndef __HOBOT_DDR_MONITOR_H__
+#define __HOBOT_DDR_MONITOR_H__
 
 
 #define BIT0        (0x1)
@@ -47,30 +47,6 @@
 #define BIT30       (0x40000000)
 #define BIT31       (0x80000000)
 
-#ifndef ISP_MAJOR
-#define ISP_MAJOR   235
-#endif /* ISP_MAJOR */
-
-#ifndef ISP_NR_DEVS
-#define ISP_NR_DEVS 1
-#endif /* ISP_NR_DEVS */
-
-#ifndef ISP_DEV_SIZE
-#define ISP_DEV_SIZE    4096
-#endif /* ISP_DEV_SIZE */
-
-#include <linux/types.h>
-
-struct isp_mod_s {
-	int *pData;
-	unsigned long size;
-	const char *name;
-	int major;
-	int minor;
-	struct cdev cdev;
-	dev_t dev_num;
-	struct class *isp_classes;
-};
 
 #define DDR_PORT_READ_QOS_CTRL 0x0
 #define DDR_PORT_WRITE_QOS_CTRL 0x04
@@ -123,7 +99,14 @@ struct isp_mod_s {
 #define PERCHARGE_CMD_TX_NUM 0x724
 #define PERCHARGE_CMD_FOR_RDWR_TX_NUM 0x728
 
+
+/* MPU registers */
+#define SYS_FW_IRQ_STA 0x40
+#define SYS_FW_IRQ_CLR 0x44
+#define SYS_LOCKDOWN_SECURE  0x00
+
+
 int ddr_monitor_start(void);
 int ddr_monitor_stop(void);
 
-#endif /* __HOBOT_ISP_H__ */
+#endif /* __HOBOT_DDR_MONITOR_H__ */
