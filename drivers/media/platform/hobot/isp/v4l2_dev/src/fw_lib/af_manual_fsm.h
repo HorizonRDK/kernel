@@ -116,6 +116,8 @@ struct _AF_fsm_t {
     uint32_t zoom_manual_pos;
     uint32_t zoom_curr_pos;
 
+    uint16_t af_status_kernel;
+
     af_state_t state;
 };
 

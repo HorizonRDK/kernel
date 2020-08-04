@@ -200,6 +200,7 @@ typedef struct sbuf_af {
     uint8_t frame_to_skip;
     uint16_t af_position;
     int32_t af_last_sharp;
+    uint16_t af_status_kernel;
     af_state_t state;
 } sbuf_af_t;
 #endif
