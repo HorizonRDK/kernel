@@ -2450,7 +2450,10 @@ int iar_output_start(int layer_no)
 		// frame->frameinfo.bufferindex);
 		int size = frame->frameinfo.width * frame->frameinfo.height;
 		display_addr.Yaddr = frame->frameinfo.addr[0];
-		display_addr.Uaddr = frame->frameinfo.addr[0] + size;
+		if (frame->frameinfo.addr[1] != 0)
+			display_addr.Uaddr = frame->frameinfo.addr[1];
+		else
+			display_addr.Uaddr = frame->frameinfo.addr[0] + size;
 		display_addr.Vaddr = 0;
 		iar_set_bufaddr(layer_no, &display_addr);
 		iar_update();
