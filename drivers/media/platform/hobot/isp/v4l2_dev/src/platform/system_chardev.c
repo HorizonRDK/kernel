@@ -464,22 +464,27 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 
 		s = md.elem * sizeof(struct regs_t);
 		md.ptr = kzalloc(s, GFP_KERNEL);
+		if (md.ptr == NULL) {
+			ret = -ENOMEM;
+			break;
+		}
 
 		if (copy_from_user(md.ptr, pmd->ptr, s)) {
 			ret = -EFAULT;
+			kfree(md.ptr);
 			break;
 		}
 
 		rg = md.ptr;
 
 		for (i = 0; i < md.elem; i++) {
+			//pr_debug("dir %d, elem %d, m %d, n %d, v %d\n", md.dir, md.elem, rg[i].m, rg[i].n, rg[i].v);
 			system_reg_rw(&rg[i], md.dir);
 		}
 
 		if (md.dir == COMMAND_GET) {
 			if (copy_to_user(pmd->ptr, md.ptr, s)) {
 				ret = -EFAULT;
-				break;
 			}
 		}
 
@@ -498,9 +503,14 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 			goto out;
 		}
 		md.ptr = kzalloc(s, GFP_KERNEL);
+		if (md.ptr == NULL) {
+			ret = -ENOMEM;
+			break;
+		}
 
 		if (copy_from_user(md.ptr, pmd->ptr, s)) {
 			ret = -EFAULT;
+			kfree(md.ptr);
 			break;
 		}
 
@@ -508,7 +518,6 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 		if (ret == SUCCESS && md.dir == COMMAND_GET) {
 			if (copy_to_user(pmd->ptr, md.ptr, s)) {
 				ret = -EFAULT;
-				break;
 			}
 		}
 
@@ -581,9 +590,14 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 
 		s = md.elem * sizeof(struct kv_t);
 		md.ptr = kzalloc(s, GFP_KERNEL);
+		if (md.ptr == NULL) {
+			ret = -ENOMEM;
+			break;
+		}
 
 		if (copy_from_user(md.ptr, pmd->ptr, s)) {
 			ret = -EFAULT;
+			kfree(md.ptr);
 			break;
 		}
 
@@ -606,7 +620,6 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 		if (md.dir == COMMAND_GET) {
 			if (copy_to_user(pmd->ptr, md.ptr, s)) {
 				ret = -EFAULT;
-				break;
 			}
 		}
 
