@@ -2943,9 +2943,11 @@ static irqreturn_t ipu_isr(int irq, void *data)
 
 		if (test_bit(IPU_DS2_DMA_OUTPUT, &ipu->state)) {
 			subdev = group->sub_ctx[GROUP_ID_DS2];
-			subdev->cur_enable_flag = atomic_read(&subdev->pre_enable_flag);
-			atomic_set(&subdev->pre_enable_flag, 0);
-			vio_dbg("FS subdev->cur_enable_flag %d\n", subdev->cur_enable_flag);
+			if (subdev) {
+				subdev->cur_enable_flag = atomic_read(&subdev->pre_enable_flag);
+				atomic_set(&subdev->pre_enable_flag, 0);
+				vio_dbg("FS subdev->cur_enable_flag %d\n", subdev->cur_enable_flag);
+			}
 		}
 
 		if (test_bit(IPU_OTF_INPUT, &ipu->state)
