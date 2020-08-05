@@ -208,10 +208,6 @@ static ssize_t lpwm_swtrig_store(struct device *dev,
 {
 	struct hobot_lpwm_chip *lpwm = dev_get_drvdata(dev);
 	int val;
-	char *p = (char *)buf;
-	char *token;
-	int i;
-
 
 	sscanf(buf, "%d", &val);
 	pr_info("trigger lpwms, val:%d\n", val);
