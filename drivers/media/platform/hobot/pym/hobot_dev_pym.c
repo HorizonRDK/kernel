@@ -225,6 +225,7 @@ static int x3_pym_close(struct inode *inode, struct file *file)
 	u32 index = 0;
 	u32 count = 0;
 	int instance = 0;
+	unsigned long flags;
 
 	pym_ctx = file->private_data;
 	pym = pym_ctx->pym_dev;
@@ -285,8 +286,10 @@ static int x3_pym_close(struct inode *inode, struct file *file)
 
 	pym_ctx->state = BIT(VIO_VIDEO_CLOSE);
 
+	spin_lock_irqsave(&subdev->slock, flags);
 	clear_bit(pym_ctx->ctx_index, &subdev->val_ctx_mask);
 	subdev->ctx[pym_ctx->ctx_index] = NULL;
+	spin_unlock_irqrestore(&subdev->slock, flags);
 	kfree(pym_ctx);
 
 	vio_info("[S%d] PYM close node\n", group->instance);
@@ -1823,8 +1826,10 @@ void pym_frame_done(struct pym_subdev *subdev)
 	for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
 		if (test_bit(i, &subdev->val_ctx_mask)) {
 			pym_ctx = subdev->ctx[i];
-			pym_ctx->event = event;
-			wake_up(&pym_ctx->done_wq);
+			if (pym_ctx) {
+				pym_ctx->event = event;
+				wake_up(&pym_ctx->done_wq);
+			}
 		}
 	}
 	spin_unlock(&subdev->slock);
@@ -1867,8 +1872,10 @@ void pym_frame_ndone(struct pym_subdev *subdev)
 	for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
 		if (test_bit(i, &subdev->val_ctx_mask)) {
 			pym_ctx = subdev->ctx[i];
-			pym_ctx->event = VIO_FRAME_DONE;
-			wake_up(&pym_ctx->done_wq);
+			if (pym_ctx) {
+				pym_ctx->event = VIO_FRAME_DONE;
+				wake_up(&pym_ctx->done_wq);
+			}
 		}
 	}
 	spin_unlock(&subdev->slock);

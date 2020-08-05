@@ -252,6 +252,7 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 	int ret = 0;
 	u32 ctx_index;
 	u32 id;
+	unsigned long flags;
 
 	ipu_ctx = file->private_data;
 	ipu = ipu_ctx->ipu_dev;
@@ -335,10 +336,12 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 
 	ipu_ctx->state = BIT(VIO_VIDEO_CLOSE);
 
+	spin_lock_irqsave(&subdev->slock, flags);
 	clear_bit(ipu_ctx->ctx_index, &subdev->val_ctx_mask);
 	ctx_index = ipu_ctx->ctx_index;
 	id = ipu_ctx->id;
 	subdev->ctx[ctx_index] = NULL;
+	spin_unlock_irqrestore(&subdev->slock, flags);
 	kfree(ipu_ctx);
 
 	vio_info("[S%d]IPU close node V%d proc %d\n", group->instance,
@@ -2645,8 +2648,10 @@ void ipu_frame_done(struct ipu_subdev *subdev)
 	for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
 		if (test_bit(i, &subdev->val_ctx_mask)) {
 			ipu_ctx = subdev->ctx[i];
-			ipu_ctx->event = event;
-			wake_up(&ipu_ctx->done_wq);
+			if (ipu_ctx) {
+				ipu_ctx->event = event;
+				wake_up(&ipu_ctx->done_wq);
+			}
 		}
 	}
 	spin_unlock(&subdev->slock);
@@ -2702,8 +2707,10 @@ void ipu_frame_ndone(struct ipu_subdev *subdev)
 	for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
 		if (test_bit(i, &subdev->val_ctx_mask)) {
 			ipu_ctx = subdev->ctx[i];
-			ipu_ctx->event = VIO_FRAME_DONE;
-			wake_up(&ipu_ctx->done_wq);
+			if (ipu_ctx) {
+				ipu_ctx->event = VIO_FRAME_DONE;
+				wake_up(&ipu_ctx->done_wq);
+			}
 		}
 	}
 	spin_unlock(&subdev->slock);
