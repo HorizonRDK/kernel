@@ -470,13 +470,20 @@ uvc_function_set_alt(struct usb_function *f, unsigned interface, unsigned alt)
 			return 0;
 
 		case UVC_STATE_STREAMING:
+			/**
+			 * Don't suggest to disable the streaming endpoint here,
+			 * as some host will do one set interface operation in
+			 * uvc steaming status... which will cause crash issue
+			 * in next stream on case.
+			 */
+#if 0
 			if (uvc->video.ep &&
 			    uvc->video.ep->enabled) {
 				ret = usb_ep_disable(uvc->video.ep);
 				if (ret)
 					return ret;
 			}
-
+#endif
 			memset(&v4l2_event, 0, sizeof(v4l2_event));
 			v4l2_event.type = UVC_EVENT_STREAMOFF;
 			v4l2_event_queue(&uvc->vdev, &v4l2_event);
