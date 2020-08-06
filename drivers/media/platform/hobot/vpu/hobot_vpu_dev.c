@@ -658,7 +658,6 @@ static long vpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 	int inst_index;
 	hb_vpu_dev_t *dev;
 	hb_vpu_priv_t *priv;
-	hb_vpu_ctx_info_t info;
 
 	priv = filp->private_data;
 	dev = priv->vpu_dev;
@@ -1324,6 +1323,7 @@ INTERRUPT_REMAIN_IN_QUEUE:
 		}
 		break;
 		case VDI_IOCTL_SET_CTX_INFO: {
+				hb_vpu_ctx_info_t info;
 				vpu_debug(5, "[+]VDI_IOCTL_SET_CTX_INFO\n");
 				ret = copy_from_user(&info, (hb_vpu_ctx_info_t *) arg,
 							 sizeof(hb_vpu_ctx_info_t));
