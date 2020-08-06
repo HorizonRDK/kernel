@@ -298,6 +298,7 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 	int inst_index;
 	hb_jpu_dev_t *dev;
 	hb_jpu_priv_t *priv;
+	hb_jpu_ctx_info_t info;
 
 	priv = filp->private_data;
 	dev = priv->jpu_dev;
@@ -812,7 +813,6 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 	break;
 	case JDI_IOCTL_SET_CTX_INFO: {
 			jpu_debug(5, "[+]JDI_IOCTL_SET_CTX_INFO\n");
-			hb_jpu_ctx_info_t info;
 			ret = copy_from_user(&info, (hb_jpu_ctx_info_t *) arg,
 						 sizeof(hb_jpu_ctx_info_t));
 			if (ret != 0) {

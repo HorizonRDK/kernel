@@ -206,9 +206,7 @@ void motor_i2c_move(void *ctx, void *param, uint32_t pos)
 
 void motor_i2c_stop(void *ctx, void *param)
 {
-	int ret = 0;
 	char buf[4] = {0, 0, 0, 0};
-	struct i2c_client *client = (struct i2c_client *)ctx;
 	struct motor_info *info = (struct motor_info *)param;
 	if (param == NULL)
 		return;

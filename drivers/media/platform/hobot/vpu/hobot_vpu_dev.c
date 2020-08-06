@@ -658,6 +658,7 @@ static long vpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 	int inst_index;
 	hb_vpu_dev_t *dev;
 	hb_vpu_priv_t *priv;
+	hb_vpu_ctx_info_t info;
 
 	priv = filp->private_data;
 	dev = priv->vpu_dev;
@@ -1324,7 +1325,6 @@ INTERRUPT_REMAIN_IN_QUEUE:
 		break;
 		case VDI_IOCTL_SET_CTX_INFO: {
 				vpu_debug(5, "[+]VDI_IOCTL_SET_CTX_INFO\n");
-				hb_vpu_ctx_info_t info;
 				ret = copy_from_user(&info, (hb_vpu_ctx_info_t *) arg,
 							 sizeof(hb_vpu_ctx_info_t));
 				if (ret != 0) {
@@ -1986,6 +1986,9 @@ static int vpu_venc_show(struct seq_file *s, void *unused)
 {
 	int i;
 	int output = 0;
+	mc_video_gop_params_t *gop = NULL;
+	mc_video_slice_params_t *slice_params = NULL;
+	mc_h264_entropy_params_t *entropy_params = NULL;
 	hb_vpu_dev_t *dev = (hb_vpu_dev_t *)s->private;
 	if (dev == NULL)
 		return 0;
@@ -2217,7 +2220,7 @@ static int vpu_venc_show(struct seq_file *s, void *unused)
 				seq_printf(s, "%7s %7s %14s %15s %21s\n", "enc_idx", "enc_id",
 				"gop_preset_idx", "custom_gop_size", "decoding_refresh_type");
 			}
-			mc_video_gop_params_t *gop =
+			gop =
 				&(dev->vpu_ctx[i].context.video_enc_params.gop_params);
 			seq_printf(s, "%7d %7s %14d %15d %21d\n",
 				dev->vpu_ctx[i].context.instance_index,
@@ -2379,7 +2382,7 @@ static int vpu_venc_show(struct seq_file *s, void *unused)
 				seq_printf(s, "%7s %7s %19s\n", "enc_idx",
 					"enc_id", "entropy_coding_mode");
 			}
-			mc_h264_entropy_params_t *entropy_params =
+			entropy_params =
 					&(dev->vpu_ctx[i].entropy_params);
 			seq_printf(s, "%7d %7s %19s\n",
 				dev->vpu_ctx[i].context.instance_index,
@@ -2399,7 +2402,7 @@ static int vpu_venc_show(struct seq_file *s, void *unused)
 				seq_printf(s, "%7s %7s %15s %14s\n", "enc_idx", "enc_id",
 					"h264_slice_mode", "h264_slice_arg");
 			}
-			mc_video_slice_params_t *slice_params =
+			slice_params =
 					&(dev->vpu_ctx[i].slice_params);
 			seq_printf(s, "%7d %7s %15d %14d\n",
 				dev->vpu_ctx[i].context.instance_index,
@@ -2647,7 +2650,7 @@ static int vpu_venc_show(struct seq_file *s, void *unused)
 				output = 1;
 				seq_printf(s, "\n");
 				seq_printf(s, "----encode status----\n");
-				seq_printf(s, "%7d %7s %17s %18s %15s %14s %19s %20s\n",
+				seq_printf(s, "%7s %7s %17s %18s %15s %14s %19s %20s\n",
 					"enc_idx", "enc_id", "cur_input_buf_cnt",
 					"cur_output_buf_cnt", "left_recv_frame", "left_enc_frame",
 					"total_input_buf_cnt", "total_output_buf_cnt");

@@ -1033,9 +1033,6 @@ err_request_irq_pin:
 err_request_tri_pin:
 	kfree(spidev->tx_swap_buffer);
 	spidev->tx_swap_buffer = NULL;
-err_alloc_tx_swap_buf:
-	kfree(spidev->tx_dummy_buffer);
-	spidev->tx_dummy_buffer = NULL;
 err_alloc_tx_dummy_buf:
 	kfree(spidev->rx_buffer);
 	spidev->rx_buffer = NULL;

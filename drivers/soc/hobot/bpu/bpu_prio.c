@@ -93,7 +93,6 @@ struct bpu_prio *bpu_prio_init(struct bpu_core *core, uint32_t levels)
 {
 	struct bpu_prio *prio;
 	uint32_t i, j;
-	int32_t ret;
 
 	prio = (struct bpu_prio *)kzalloc(sizeof(struct bpu_prio), GFP_KERNEL);/*PRQA S ALL*/
 	if (prio == NULL) {

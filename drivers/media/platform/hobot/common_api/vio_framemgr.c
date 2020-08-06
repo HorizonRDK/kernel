@@ -570,12 +570,7 @@ int frame_manager_flush_mp(struct vio_framemgr *this,
 	unsigned long flag;
 	struct vio_frame *frame;
 	u32 i;
-	u32 delay_cnt, real_cnt;
-	u32 buf_drv_cnt;
 	u32 used_free_cnt = 0;
-	u32 other_proc_free = 0;
-	const u8 one_frame_delay = 40;
-	u8 dispatch_mask;
 
 	if ((index_start + buffers) > VIO_MP_MAX_FRAMES) {
 		vio_err("invalid index when flush frame manager.");

@@ -1266,7 +1266,9 @@ static struct attribute_group dwc3_attr_group = {
 
 static void dwc3_sysfs_init(struct dwc3 *dwc)
 {
-	sysfs_create_group(&dwc->dev->kobj, &dwc3_attr_group);
+	int ret;
+
+	ret = sysfs_create_group(&dwc->dev->kobj, &dwc3_attr_group);
 }
 
 static void dwc3_sysfs_exit(struct dwc3 *dwc)

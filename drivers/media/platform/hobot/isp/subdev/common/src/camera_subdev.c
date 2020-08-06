@@ -119,7 +119,7 @@ static long camera_subdev_ioctl(struct v4l2_subdev *sd,
 		//		ARGS_TO_PTR(arg)->integration_time);
 		break;
 	default:
-		pr_err("Unknown camera_subdev_ioctl cmd", cmd);
+		pr_err("Unknown camera_subdev_ioctl cmd %d", cmd);
 		ret = -1;
 		break;
 	}

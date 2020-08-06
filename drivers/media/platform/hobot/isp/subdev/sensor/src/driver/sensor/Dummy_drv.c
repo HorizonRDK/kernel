@@ -119,7 +119,6 @@ static void sensor_alloc_analog_gain( void *ctx, int32_t *gain_ptr, uint32_t gai
 
 static void sensor_alloc_digital_gain( void *ctx, int32_t *gain_ptr, uint32_t gain_num)
 {
-	int32_t digital_gain = 0;
         uint32_t i = 0;
 	sensor_context_t *p_ctx = ctx;
 //get param

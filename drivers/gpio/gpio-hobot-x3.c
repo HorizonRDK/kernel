@@ -226,7 +226,7 @@ int request_irqbank(struct x3_gpio *gpo, unsigned long gpio) {
 }
 
 void release_irqbank(struct x3_gpio *gpo, unsigned long gpio) {
-    int i = 0, index = GPIO_IRQ_NO_BIND;
+    int index = GPIO_IRQ_NO_BIND;
 
     index = find_irqbank(gpo, gpio);
     if (index != GPIO_IRQ_NO_BIND) {
