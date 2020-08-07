@@ -1351,11 +1351,19 @@ module_param(ip_sts_dbg, int, 0644);
 // single context handler
 
 int isp_error_sts = 0;
+int temper_drop_cnt = 0;
 int acamera_dma_alarms_error_occur(void)
 {
-    uint16_t dma_alarms_sts = acamera_isp_isp_global_monitor_dma_alarms_read(0);
+    uint32_t dma_monitor_sts = system_hw_read_32(0x54L);
+    uint16_t dma_alarms_sts = (dma_monitor_sts & 0x3fff0000) >> 16;
+    uint8_t temper_dma_r_full = (dma_monitor_sts & 0x800) >> 11;
+    uint8_t temper_dma_r_empty = (dma_monitor_sts & 0x400) >> 10;
+    uint8_t temper_dma_w_full = (dma_monitor_sts & 0x200) >> 9;
+    uint8_t temper_dma_w_empty = (dma_monitor_sts & 0x100) >> 8;
     acamera_context_ptr_t p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[cur_ctx_id];
 
+    acamera_isp_isp_global_monitor_output_dma_clr_alarm_write(0, 0);
+    acamera_isp_isp_global_monitor_temper_dma_clr_alarm_write(0, 0);
     acamera_isp_isp_global_monitor_output_dma_clr_alarm_write(0, 1);
     acamera_isp_isp_global_monitor_temper_dma_clr_alarm_write(0, 1);
     acamera_isp_isp_global_monitor_output_dma_clr_alarm_write(0, 0);
@@ -1363,11 +1371,13 @@ int acamera_dma_alarms_error_occur(void)
 
     if (dma_alarms_sts & 1 << ISP_TEMPER_LSB_DMA_FRAME_DROPPED) {
         isp_error_sts = 1;
+        temper_drop_cnt = 2;
         p_ctx->sts.temper_lsb_dma_drop++;
         pr_err("temper lsb dma frame drop\n");
     }
     if (dma_alarms_sts & 1 << ISP_TEMPER_MSB_DMA_FRAME_DROPPED) {
         isp_error_sts = 1;
+        temper_drop_cnt = 3;
         p_ctx->sts.temper_msb_dma_drop++;
         pr_err("temper msb dma frame drop\n");
     }
@@ -1381,13 +1391,25 @@ int acamera_dma_alarms_error_occur(void)
         p_ctx->sts.fr_y_dma_drop++;
         pr_err("fr y dma frame drop\n");
     }
+    if (temper_dma_r_full) {
+        pr_err("temper_dma_r_full\n");
+    }
+    if (temper_dma_r_empty) {
+        pr_err("temper_dma_r_empty\n");
+    }
+    if (temper_dma_w_full) {
+        pr_err("temper_dma_w_full\n");
+    }
+    if (temper_dma_w_empty) {
+        pr_err("temper_dma_w_empty\n");
+    }
 
     return 0;
 }
 
 int isp_status_check(void)
 {
-    return isp_error_sts;
+    return isp_error_sts;   // || temper_drop_cnt;
 }
 EXPORT_SYMBOL(isp_status_check);
 
@@ -1474,8 +1496,14 @@ int32_t acamera_interrupt_handler()
             if ( irq_is_1 ) {
                 if (irq_bit == ISP_INTERRUPT_EVENT_ISP_START_FRAME_START) {
 
+                    //fs|------|fe #isp 5~6ms
+                    //fs|--|fe     #ipu 2ms
+                    // if (temper_drop_cnt > 0)
+                    //     temper_drop_cnt--;
+
                     //clear error status
                     isp_error_sts = 0;
+
 
                     p_ctx->sts.fs_irq_cnt++;
 
