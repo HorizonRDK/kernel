@@ -692,19 +692,25 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 
 	case ISPIOC_BUF_PACTET: {
 		isp_packet_s packet;
-		uint32_t buf[BUF_LENGTH];
+		uint32_t *buf = NULL;
 		uint32_t *buf_m = NULL;
+
+		buf = vzalloc(BUF_LENGTH * sizeof(uint32_t));
+		if (buf == NULL) {
+			LOG(LOG_ERR, "ISPIOC_BUF_PACTET buf alloc failed!\n");
+			break;
+		}
 
 		if (arg == 0) {
 			LOG(LOG_ERR, "arg is null !\n");
 			ret = -1;
-			break;
+			goto buf_free;
 		}
 		if (copy_from_user((void *)&packet, (void __user *)arg,
 			sizeof(isp_packet_s))) {
 			LOG(LOG_ERR, "copy is err !\n");
 			ret = -EINVAL;
-			break;
+			goto buf_free;
 		}
 		if (packet.buf[0] < BUF_LENGTH * 4) {
 			buf_m = buf;
@@ -713,7 +719,7 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 			if (buf_m == NULL) {
 				LOG(LOG_ERR, "kzalloc is failed!\n");
 				ret = -EINVAL;
-				break;
+				goto buf_free;
 			}
 		}
 		memcpy(buf_m, packet.buf, sizeof(packet.buf));
@@ -743,6 +749,8 @@ err_flag:
 		if (packet.buf[0] >= (BUF_LENGTH * 4)) {
 			kzfree(buf_m);
 		}
+buf_free:
+		vfree(buf);
 	}
 	break;
 
