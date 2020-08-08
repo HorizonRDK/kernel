@@ -177,9 +177,9 @@ static int isp_v4l2_fop_open( struct file *file )
     }
     if (isp_open_check() == 0) {
         ips_set_clk_ctrl(ISP0_CLOCK_GATE, true);
-        // mdelay(1);
-        // ips_set_module_reset(ISP0_RST);
-        // mdelay(1);
+	mdelay(1);
+	ips_set_module_reset(ISP0_RST);
+	mdelay(1);
     }
 
     rc = acamera_isp_init_context(dev->ctx_id);
