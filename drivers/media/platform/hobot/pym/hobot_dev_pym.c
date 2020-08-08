@@ -1161,6 +1161,7 @@ int pym_video_dqbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 	u32 bufindex;
 	u32 ctx_index;
 	struct pym_subdev *subdev;
+	struct vio_group *group;
 	struct x3_pym_dev *pym;
 	int cache_bufindex;
 	struct vio_frame *cache_frame;
@@ -1169,6 +1170,7 @@ int pym_video_dqbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 	ctx_index = pym_ctx->ctx_index;
 	subdev = pym_ctx->subdev;
 	pym = pym_ctx->pym_dev;
+	group = pym_ctx->group;
 
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	#if 0
@@ -1202,6 +1204,8 @@ int pym_video_dqbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 						subdev->frameinfo.bufferindex = -1;
 						cache_frame->dispatch_mask = 0xFF00;
 						trans_frame(framemgr, cache_frame, FS_REQUEST);
+						if(group->leader == true)
+							vio_group_start_trigger_mp(group, frame);
 						vio_dbg("pym dq trans to request%d", cache_bufindex);
 					}
 				}
@@ -1803,6 +1807,8 @@ void pym_frame_done(struct pym_subdev *subdev)
 					subdev->frameinfo.bufferindex = -1;
 					cache_frame->dispatch_mask = 0xFF00;
 					trans_frame(framemgr, cache_frame, FS_REQUEST);
+					if(group->leader == true)
+						vio_group_start_trigger_mp(group, frame);
 				}
 			}
 		}

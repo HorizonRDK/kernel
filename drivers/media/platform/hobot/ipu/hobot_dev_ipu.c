@@ -2009,6 +2009,7 @@ int ipu_video_dqbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 	struct vio_framemgr *framemgr;
 	struct vio_frame *frame;
 	struct ipu_subdev *subdev;
+	struct vio_group *group;
 	u32 bufindex;
 	u32 ctx_index;
 	struct x3_ipu_dev *ipu;
@@ -2019,6 +2020,7 @@ int ipu_video_dqbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 	subdev = ipu_ctx->subdev;
 	ctx_index = ipu_ctx->ctx_index;
 	ipu = ipu_ctx->ipu_dev;
+	group = ipu_ctx->group;
 
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	#if 0
@@ -2052,6 +2054,8 @@ int ipu_video_dqbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 						subdev->frameinfo.bufferindex = -1;
 						cache_frame->dispatch_mask = 0xFF00;
 						trans_frame(framemgr, cache_frame, FS_REQUEST);
+						if (subdev->leader == true && group->leader)
+							vio_group_start_trigger_mp(group, frame);
 						vio_dbg("ipu dq trans to request%d", cache_bufindex);
 					}
 				}
@@ -2624,6 +2628,8 @@ void ipu_frame_done(struct ipu_subdev *subdev)
 					subdev->frameinfo.bufferindex = -1;
 					cache_frame->dispatch_mask = 0xFF00;
 					trans_frame(framemgr, cache_frame, FS_REQUEST);
+					if (subdev->leader == true && group->leader)
+						vio_group_start_trigger_mp(group, frame);
 					vio_dbg("ipu done to request%d", cache_bufindex);
 				}
 			}
