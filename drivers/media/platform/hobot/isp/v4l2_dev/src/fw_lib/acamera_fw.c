@@ -785,6 +785,9 @@ void acamera_deinit_context( acamera_context_t *p_ctx )
         return;
     }
 
+    acamera_event_queue_clear(&p_ctx->fsm_mgr.event_queue);
+    kthread_stop(p_ctx->evt_thread);
+
     if (p_ctx->content_side == SIDE_DDR && p_ctx->sw_reg_map.isp_sw_config_map) {
         pr_debug("ctx_id %d, free ddr ctx mem\n", p_ctx->context_id);
         vfree((void *)p_ctx->sw_reg_map.isp_sw_config_map);
@@ -799,8 +802,6 @@ void acamera_deinit_context( acamera_context_t *p_ctx )
         clear_bit(p_ctx->dma_chn_idx, &(p_ctx->p_gfw->dma_chn_bitmap));
         p_ctx->dma_chn_idx = -1;
     }
-
-    kthread_stop(p_ctx->evt_thread);
 
     acamera_fw_deinit( p_ctx );
     mutex_unlock(&p_ctx->p_gfw->ctx_chg_lock);

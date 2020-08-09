@@ -25,6 +25,16 @@
 #include "acamera_logger.h"
 #include "system_spinlock.h"
 
+void acamera_event_queue_clear( acamera_event_queue_ptr_t p_queue )
+{
+    unsigned long flags;
+    acamera_loop_buf_ptr_t p_buf = &( p_queue->buf );
+
+    flags = system_spinlock_lock( p_queue->lock );
+    p_buf->head = p_buf->tail = 0;
+    system_spinlock_unlock( p_queue->lock, flags );
+}
+
 static void acamera_event_queue_reset( acamera_loop_buf_ptr_t p_buf )
 {
     p_buf->head = p_buf->tail = 0;
