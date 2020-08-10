@@ -562,8 +562,8 @@ static void init_stab( acamera_context_ptr_t p_ctx )
     p_ctx->stab.global_iridix_strength_target = 0;
     p_ctx->stab.global_sinter_threshold_target = 0;
     p_ctx->stab.global_temper_threshold_target = 0;
-    p_ctx->stab.global_awb_red_gain = 256;
-    p_ctx->stab.global_awb_blue_gain = 256;
+    p_ctx->stab.global_awb_red_gain = 500;
+    p_ctx->stab.global_awb_blue_gain = 400;
     p_ctx->stab.global_awb_green_even_gain = 256;
     p_ctx->stab.global_awb_green_odd_gain = 256;
 

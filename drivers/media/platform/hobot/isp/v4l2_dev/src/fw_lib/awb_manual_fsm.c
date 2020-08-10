@@ -60,6 +60,7 @@ void AWB_fsm_clear( AWB_fsm_t *p_fsm )
 
     p_fsm->cur_result_gain_frame_id = 0;
     p_fsm->pre_result_gain_frame_id = 0;
+    p_fsm->first_frame = 0;
 }
 
 void AWB_request_interrupt( AWB_fsm_ptr_t p_fsm, system_fw_interrupt_mask_t mask )
@@ -192,10 +193,14 @@ int AWB_fsm_get_param( void *fsm, uint32_t param_id, void *input, uint32_t input
             break;
         }
 
+	if (p_fsm->first_frame == 0) {
+		p_fsm->first_frame = 1;
+		awb_normalise(p_fsm);
+	}
         fsm_param_awb_info_t *p_info = (fsm_param_awb_info_t *)output;
 
         system_memcpy( p_info->wb_log2, p_fsm->wb_log2, sizeof( p_info->wb_log2 ) );
-        system_memcpy( p_info->awb_warming, p_fsm->awb_warming, sizeof( p_info->awb_warming ) );
+	system_memcpy( p_info->awb_warming, p_fsm->awb_warming, sizeof( p_info->awb_warming ) );
 
         p_info->temperature_detected = p_fsm->temperature_detected;
         p_info->p_high = p_fsm->p_high;
