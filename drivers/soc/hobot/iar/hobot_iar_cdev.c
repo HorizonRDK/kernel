@@ -793,6 +793,11 @@ static ssize_t hobot_iar_store(struct kobject *kobj, struct kobj_attribute *attr
 		user_set_fb();
 		iar_start(1);
 		disp_config_hdmi(9, 4, 2);
+	} else if (strncmp(tmp, "ipi", 3) == 0) {
+		pr_info("iar output ipi panel config......\n");
+		display_type = SIF_IPI;
+		user_set_fb();
+		iar_start(1);
 	} else if (strncmp(buf, "enable", 6) == 0) {
 		tmp = buf + 6;
 		ret = kstrtoul(tmp, 0, &tmp_value);

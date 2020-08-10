@@ -94,6 +94,7 @@ uint8_t frame_count;
 uint8_t rst_request_flag;
 uint8_t disp_copy_done = 0;
 static int disp_clk_already_enable = 0;
+static int ipi_clk_already_enable = 0;
 static int sif_mclk_is_open = 0;
 static int sif_mclk_iar_open = 0;
 static int stop_flag = 0;
@@ -991,15 +992,28 @@ static int ipi_clk_disable(void)
 {
 	if (g_iar_dev->iar_ipi_clk == NULL)
 		return -1;
-	clk_disable_unprepare(g_iar_dev->iar_ipi_clk);
+	if (ipi_clk_already_enable == 1) {
+		clk_disable_unprepare(g_iar_dev->iar_ipi_clk);
+		ipi_clk_already_enable = 0;
+	}
 	return 0;
 }
 
 static int ipi_clk_enable(void)
 {
+	int ret = 0;
+
 	if (g_iar_dev->iar_ipi_clk == NULL)
 		return -1;
-	return clk_prepare_enable(g_iar_dev->iar_ipi_clk);
+	if (ipi_clk_already_enable == 0) {
+		ret = clk_prepare_enable(g_iar_dev->iar_ipi_clk);
+		if (ret) {
+			pr_err("%s: err enable iar ipi clock!!\n", __func__);
+			return -1;
+		}
+		ipi_clk_already_enable = 1;
+	}
+	return 0;
 }
 
 int screen_backlight_init(void)
@@ -1310,11 +1324,19 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 		pr_err("%s: error output mode!!!\n", __func__);
 #endif
 	} else if (cfg->out_sel == OUTPUT_IPI) {
+		display_type = SIF_IPI;
+		disp_set_panel_timing(&video_1920x1080);
 		writel(0x9, g_iar_dev->regaddr + REG_IAR_DE_OUTPUT_SEL);
 		//IPI(SIF)
 		value = readl(g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
 		value = IAR_REG_SET_FILED(IAR_PANEL_COLOR_TYPE, 2, value);
 		//yuv444
+		value = IAR_REG_SET_FILED(IAR_YCBCR_OUTPUT, 1, value);
+		//convert ycbcr
+		writel(value, g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
+		value = readl(g_iar_dev->regaddr + REG_IAR_FORMAT_ORGANIZATION);
+		value = IAR_REG_SET_FILED(IAR_BT601_709_SEL, 1, value);
+		writel(value, g_iar_dev->regaddr + REG_IAR_FORMAT_ORGANIZATION);
 	} else {
 		pr_err("%s: error output mode!!!\n", __func__);
 		return -1;
@@ -1852,6 +1874,8 @@ int32_t iar_start(int update)
 		ret = disp_pinmux_rgb();
 		if (ret)
 			pr_err("error pinmux rgb func!!\n");
+	} else if (display_type == SIF_IPI) {
+		ipi_clk_enable();
 	}
 
 	return 0;
