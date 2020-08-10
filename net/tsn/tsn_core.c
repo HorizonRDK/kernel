@@ -1,3 +1,18 @@
+/*
+ *   TSN Core main part of TSN driver
+ *
+ *   Copyright (C) 2015- Henrik Austad <haustad@cisco.com>
+ *
+ *   This program is free software; you can redistribute it and/or modify
+ *   it under the terms of the GNU General Public License as published by
+ *   the Free Software Foundation; either version 2 of the License, or
+ *   (at your option) any later version.
+ *
+ *   This program is distributed in the hope that it will be useful,
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *   GNU General Public License for more details.
+ */
 
 #include <linux/pci.h>
 #include <linux/slab.h>
@@ -468,7 +483,7 @@ static int tsn_worker_init(struct tsn_list *list)
 {
 	/* create wait-queue */
 	list->tsn_thread = kthread_create(tsn_worker_fn, list, "tsn_worker");
-	if (!list->tsn_thread)
+	if (IS_ERR(list->tsn_thread))
 		return -ENOMEM;
 
 	/* prod the thread to make it ready if hrtimer calls it immediately */
@@ -497,9 +512,10 @@ static enum hrtimer_restart tsn_hrtimer_callback(struct hrtimer *hrt)
 	if (tsn_core_running(list)) {
 		/* kick worker */
 		list->should_run++;
-		if (list->tsn_thread != TASK_RUNNING)
+		if (list->tsn_thread->state != TASK_RUNNING) {
 			wake_up_process(list->tsn_thread);
-	}
+		}
+    }
 
 	return HRTIMER_RESTART;
 }
