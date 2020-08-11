@@ -452,10 +452,10 @@ static int pvt_probe(struct platform_device *pdev)
 	}
 
 	/*
-	 * Use 240MHz when sys_pll is 1.2G
+	 * Use 250MHz when sys_pll is 1.5G
 	 * Use clock synth setting for 240Mhz -> 4Mhz in PVT spec
 	 */
-	pvt_dev->ref_clk = clk_round_rate(pvt_dev->clk, 240000000);
+	pvt_dev->ref_clk = clk_round_rate(pvt_dev->clk, 250000000);
 	ret = clk_set_rate(pvt_dev->clk, pvt_dev->ref_clk);
 	if (ret) {
 		dev_err(&pdev->dev, "set pvt clk rate to %ld failed.\n",
