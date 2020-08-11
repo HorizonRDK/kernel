@@ -23,6 +23,7 @@
 #include <linux/reset.h>
 #include <soc/hobot/diag.h>
 #include <linux/clk.h>
+#include <linux/init.h>
 
 #include <linux/i2c-hobot.h>
 
@@ -61,7 +62,12 @@ struct hobot_i2c_dev {
 	uint8_t i2c_id;
 	bool is_suspended;
 };
-
+static int trans_freq = I2C_SCL_DEFAULT_FREQ;
+static int timeout_enable = 0;
+module_param(trans_freq, int, S_IRUGO|S_IWUSR);
+MODULE_PARM_DESC(trans_freq, "i2c:change i2c freq");
+module_param(timeout_enable, int, S_IRUGO|S_IWUSR);
+MODULE_PARM_DESC(timeout_enable, "i2c:i2c hardware timeout 0:off 1:on");
 static int hobot_i2c_cfg(struct hobot_i2c_dev *dev, int dir_rd, int timeout_enable)
 {
 	union cfg_reg_e cfg;
@@ -374,10 +380,13 @@ static void recal_clk_div(struct hobot_i2c_dev *dev)
 
 	client_req = (struct client_request *)dev->adapter.algo_data;
 	clk_freq = clk_get_rate(dev->clk);
-	if (client_req->client_req_freq != 0)
+	if (client_req->client_req_freq != 0) {
 		temp_div = DIV_ROUND_UP(clk_freq, client_req->client_req_freq) - 1;
-	else
+	} else {
+		if (trans_freq != dev->default_trans_freq)
+				dev->default_trans_freq = trans_freq;
 		temp_div = DIV_ROUND_UP(clk_freq, dev->default_trans_freq) - 1;
+	}
 	dev->clkdiv = DIV_ROUND_UP(temp_div, 8) - 1;
 	if (dev->clkdiv > I2C_MAX_DIV) {
 		dev_dbg(dev->dev, "clkdiv too large, set to 255");
@@ -409,7 +418,7 @@ static int hobot_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[], int n
 	if (msgs[0].flags & 0x20) {
 		hobot_i2c_cfg(dev, 0, 0);
 	} else {
-		hobot_i2c_cfg(dev, 1, 0);
+		hobot_i2c_cfg(dev, 1, timeout_enable);
 	}
 
 	for (i = 0; i < num; i++) {
