@@ -298,7 +298,7 @@
 		sys_div_pclk: sys_div_pclk {
 			#clock-cells = <0>;
 			compatible = "hobot,div-clk";
-			clocks = <&cpu_mux_clk>;
+			clocks = <&sys_pllmux_clk>;
 			offset = <0x204>;
 			bits = <12>;
 			field = <3>;
@@ -307,7 +307,7 @@
 		eth0_ephy_1stdiv_clk: eth0_ephy_1stdiv_clk {
 			#clock-cells = <0>;
 			compatible = "hobot,div-clk";
-			clocks = <&cpu_mux_clk>;
+			clocks = <&sys_pllmux_clk>;
 			offset = <0x380>;
 			bits = <12>;
 			field = <5>;
