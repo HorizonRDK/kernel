@@ -781,12 +781,9 @@ void acamera_deinit_context( acamera_context_t *p_ctx )
 
     rc = mutex_lock_interruptible(&p_ctx->p_gfw->ctx_chg_lock);
     if (rc != 0) {
-        pr_err("mutex lock failed, rc = %d\n", rc);
+        pr_err("ctx_chg_lock mutex lock failed, rc = %d\n", rc);
         return;
     }
-
-    acamera_event_queue_clear(&p_ctx->fsm_mgr.event_queue);
-    kthread_stop(p_ctx->evt_thread);
 
     if (p_ctx->content_side == SIDE_DDR && p_ctx->sw_reg_map.isp_sw_config_map) {
         pr_debug("ctx_id %d, free ddr ctx mem\n", p_ctx->context_id);

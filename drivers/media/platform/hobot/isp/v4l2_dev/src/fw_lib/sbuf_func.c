@@ -596,7 +596,7 @@ static void sbuf_mgr_reset( struct sbuf_mgr *p_sbuf_mgr )
     int i;
     unsigned long irq_flags;
 
-    spin_lock_init( &( p_sbuf_mgr->sbuf_lock ) );
+    // spin_lock_init( &( p_sbuf_mgr->sbuf_lock ) );
 
     spin_lock_irqsave( &p_sbuf_mgr->sbuf_lock, irq_flags );
 
@@ -1618,6 +1618,7 @@ static int sbuf_fops_open( struct inode *inode, struct file *f )
     return rc;
 }
 
+#if 0
 static int sbuf_fops_release( struct inode *inode, struct file *f )
 {
     int rc = 0;
@@ -1644,6 +1645,7 @@ static int sbuf_fops_release( struct inode *inode, struct file *f )
 
     return 0;
 }
+#endif
 
 static ssize_t sbuf_fops_write( struct file *file, const char __user *buf, size_t count, loff_t *ppos )
 {
@@ -1828,7 +1830,7 @@ LOG( LOG_INFO, "sbuf_iridix_t size: %lu.", sizeof( struct sbuf_iridix)*4);
 static struct file_operations sbuf_mgr_fops = {
     .owner = THIS_MODULE,
     .open = sbuf_fops_open,
-    .release = sbuf_fops_release,
+    // .release = sbuf_fops_release,
     .read = sbuf_fops_read,
     .write = sbuf_fops_write,
     .llseek = noop_llseek,
@@ -1899,6 +1901,34 @@ void sbuf_fsm_initialize( sbuf_fsm_t *p_fsm )
     return;
 }
 
+static int sbuf_clear(uint32_t fw_id)
+{
+    int rc = 0;
+    struct sbuf_context *p_ctx;
+
+    p_ctx = &( sbuf_contexts[fw_id] );
+
+    LOG( LOG_INFO, "p_ctx: %p, name: %s, fw_id: %d, minor_id: %d.", p_ctx, p_ctx->dev_name, p_ctx->fw_id, p_ctx->dev_minor_id );
+
+    rc = mutex_lock_interruptible( &p_ctx->fops_lock );
+    if ( rc ) {
+        LOG( LOG_ERR, "Error: lock failed." );
+        return rc;
+    }
+
+    if ( p_ctx->dev_opened ) {
+        p_ctx->dev_opened = 0;
+        sbuf_mgr_reset( &p_ctx->sbuf_mgr );
+    } else {
+        LOG( LOG_ERR, "Wrong state, dev_opened: %d.", p_ctx->dev_opened );
+        rc = -EINVAL;
+    }
+
+    mutex_unlock( &p_ctx->fops_lock );
+
+    return 0;
+}
+
 void sbuf_deinit( sbuf_fsm_ptr_t p_fsm )
 {
 #if ( LINUX_VERSION_CODE < KERNEL_VERSION( 4, 3, 0 ) )
@@ -1918,6 +1948,8 @@ void sbuf_deinit( sbuf_fsm_ptr_t p_fsm )
          p_ctx->fw_id,
          p_ctx->dev_name,
          p_ctx->dev_minor_id );
+
+    sbuf_clear(fw_id);
 
     p_ctx->dev_minor_id = -1;
 

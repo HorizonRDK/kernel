@@ -414,6 +414,14 @@ int acamera_isp_deinit_context(uint8_t idx)
     return ret;
 }
 
+void acamera_isp_evt_thread_stop(uint8_t idx)
+{
+    acamera_context_t *p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[idx];
+
+    acamera_event_queue_clear(&p_ctx->fsm_mgr.event_queue);
+    kthread_stop(p_ctx->evt_thread);
+}
+
 int acamera_isp_firmware_clear(void)
 {
     g_firmware.initialized = 0;
