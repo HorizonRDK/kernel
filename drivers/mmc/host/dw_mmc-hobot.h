@@ -31,6 +31,7 @@ struct dw_mci_hobot_priv_data {
 	struct pinctrl *pin_ctrl;
 	struct pinctrl_state *pin_state_1_8v;
 	struct pinctrl_state *pin_state_3_3v;
+	int mmc_fixed_voltage;
 };
 
 int hb_mmc_disable_clk(struct dw_mci_hobot_priv_data *priv);
