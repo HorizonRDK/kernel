@@ -40,7 +40,6 @@
 #include <linux/of_gpio.h>
 #include <linux/mmc/slot-gpio.h>
 #include <soc/hobot/diag.h>
-
 #include "dw_mmc.h"
 #include "dw_mmc-hobot.h"
 
@@ -919,11 +918,12 @@ static int dw_mci_edmac_init(struct dw_mci *host)
 		return -ENOMEM;
 
 	host->dms->ch = dma_request_slave_channel(host->dev, "rx-tx");
-	if (!host->dms->ch) {
+	if (IS_ERR(host->dms->ch)) {
+		int ret = PTR_ERR(host->dms->ch);
 		dev_err(host->dev, "Failed to get external DMA channel.\n");
 		kfree(host->dms);
 		host->dms = NULL;
-		return -ENXIO;
+		return ret;
 	}
 
 	return 0;
@@ -2974,9 +2974,6 @@ static int dw_mci_init_slot(struct dw_mci *host)
 
 	dw_mci_get_cd(mmc);
 
-	/* Now that slots are all setup, we can enable card detect */
-	dw_mci_enable_cd(host);
-
 	ret = mmc_add_host(mmc);
 	if (ret)
 		goto err_host_allocated;
@@ -3480,6 +3477,8 @@ int dw_mci_probe(struct dw_mci *host)
 							4, 50, 4000, NULL) < 0)
 			pr_err("emmc diag register fail\n");
 	}
+	/* Now that slots are all setup, we can enable card detect */
+	dw_mci_enable_cd(host);
 
 	return 0;
 
@@ -3688,6 +3687,10 @@ int dw_mci_system_resume(struct device *dev)
 
 	/* Force setup bus to guarantee available clock output */
 	dw_mci_setup_bus(host->slot, true);
+
+	/* Re-enable SDIO interrupts. */
+	if (sdio_irq_claimed(host->slot->mmc))
+		__dw_mci_enable_sdio_irq(host->slot, 1);
 
 	/* Now that slots are all setup, we can enable card detect */
 	dw_mci_enable_cd(host);
