@@ -524,6 +524,7 @@ source "drivers/misc/genwqe/Kconfig"
 source "drivers/misc/echo/Kconfig"
 source "drivers/misc/cxl/Kconfig"
 source "drivers/misc/bt2hdmi/Kconfig"
+source "drivers/misc/bt2hdmi-lt/Kconfig"
 source "drivers/misc/bt2mipi/Kconfig"
 source "drivers/misc/timesync/Kconfig"
 endmenu

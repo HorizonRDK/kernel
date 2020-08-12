@@ -1,0 +1,8 @@
+#
+# BT2HDMI device configuration
+#
+config HOBOT_HDMI_LT8618
+	tristate "LT8618SXB HDMI Drivers"
+	default m
+	---help---
+	Drivers for the LT8618SXB BT2HDMI chip
