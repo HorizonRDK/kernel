@@ -11,7 +11,7 @@
 #define HB_QSPI_NAME                "hb_qspi"
 
 /* Uncomment the following macro definition to use polling in batch mode */
-// #define HB_QSPI_WORK_POLL	1
+//#define HB_QSPI_WORK_POLL	1
 
 /* The following macro definition to turn on debugging */
 /* 1: tracks transfer failure, 2: tracks all transfer */

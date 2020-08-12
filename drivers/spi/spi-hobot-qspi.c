@@ -88,17 +88,26 @@ static inline int hb_qspi_check_status(struct hb_qspi *hbqspi, uint32_t offset,
 			break;
 		}
 	} while (!(val & mask));
-#ifdef HB_QSPI_WORK_POLL
-	if (mask & val & HB_QSPI_RBD) {
-		hb_qspi_wr_reg(hbqspi, HB_QSPI_ST1_REG, val | HB_QSPI_RBD);
-	} else if (mask & val & HB_QSPI_TBD) {
-		hb_qspi_wr_reg(hbqspi, HB_QSPI_ST1_REG, val | HB_QSPI_TBD);
-	}
-#endif
+
 	if (ret)
 		pr_err("hb-qspi: status check timedout after %d tries.\n", tries);
 
 	return ret;
+}
+
+static inline int hb_qspi_batch_done(struct hb_qspi *hbqspi,
+								uint32_t mask, uint32_t timeout)
+{
+	u32 val, trys = 0;
+
+	do {
+		val = hb_qspi_rd_reg(hbqspi, HB_QSPI_ST1_REG);
+		trys++;
+	} while ((!(val & mask)) && (trys < timeout));
+
+	hb_qspi_wr_reg(hbqspi, HB_QSPI_ST1_REG, (val | mask));
+
+	return trys < TRYS_TOTAL_NUM ? 0 : -1;
 }
 
 static inline void hb_qspi_cfg_spi_mode(struct hb_qspi *hbqspi,
@@ -498,7 +507,7 @@ static inline int hb_qspi_rd_batch(struct hb_qspi *hbqspi,
 			dbuf[offset++] = hb_qspi_rd_reg(hbqspi, HB_QSPI_DAT_REG);
 		}
 #ifdef HB_QSPI_WORK_POLL
-		if (hb_qspi_check_status(hbqspi, HB_QSPI_ST1_REG,
+		if (hb_qspi_batch_done(hbqspi,
 							  HB_QSPI_RBD, HB_QSPI_TIMEOUT_US)) {
 			pr_info("%s:%d poll rx batch comp timeout! len=%u, received=%lld\n",
 					__func__, __LINE__, len, i);
@@ -623,7 +632,7 @@ static inline int hb_qspi_wr_batch(struct hb_qspi *hbqspi,
 			hb_qspi_wr_reg(hbqspi, HB_QSPI_DAT_REG, dbuf[offset++]);
 		}
 #ifdef HB_QSPI_WORK_POLL
-		if (hb_qspi_check_status(hbqspi, HB_QSPI_ST1_REG,
+		if (hb_qspi_batch_done(hbqspi,
 							  HB_QSPI_TBD, HB_QSPI_TIMEOUT_US)) {
 			pr_err("%s:%d poll tx batch comp timeout! len=%u, received=%lld\n",
 					__func__, __LINE__, len, i);
