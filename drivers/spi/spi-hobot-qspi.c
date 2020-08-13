@@ -278,7 +278,9 @@ static void hb_qspi_set_speed(struct hb_qspi *hbqspi)
 	}
 	scaler = ((hbqspi->ref_clk / hbqspi->sclk) / (2 << div)) - 1;
 	sclk_val = SCLK_VAL(div, scaler);
+	pr_debug("hbqspi sclk_con val:0x%x\n", sclk_val);
 	hb_qspi_wr_reg(hbqspi, HB_QSPI_BDR_REG, sclk_val);
+	hbqspi->sclk = hbqspi->ref_clk / ((scaler + 1) * (2 << div));
 }
 
 #if (QSPI_DEBUG > 0)
@@ -1052,7 +1054,7 @@ static int hb_qspi_probe(struct platform_device *pdev)
 		ret = of_property_read_u32(nc, "spi-max-frequency",
 				&max_speed_hz);
 		if (!ret) {
-			if (max_speed_hz < hbqspi->sclk)
+			if (max_speed_hz < hbqspi->ref_clk / 2)
 				hbqspi->sclk = max_speed_hz;
 		} else {
 			dev_err(dev, "spi-max-frequency not found\n");
@@ -1088,6 +1090,11 @@ static int hb_qspi_probe(struct platform_device *pdev)
 						4, 10, 5000, hb_qspiflash_callback) < 0)
 		pr_err("qspi flash diag register fail\n");
 
+	/* QSPI controller initializations */
+	hb_qspi_hw_init(hbqspi);
+
+	pr_debug("hbqspi_refclk:%dHz, hbqspi_sclk:%dHz\n",
+			  hbqspi->ref_clk, hbqspi->sclk);
 	master->setup = hb_qspi_setup;
 	master->set_cs = hb_qspi_chipselect;
 	master->transfer_one = hb_qspi_start_transfer;
@@ -1138,8 +1145,6 @@ static int hb_qspi_probe(struct platform_device *pdev)
 			break;
 	}
 
-	/* QSPI controller initializations */
-	hb_qspi_hw_init(hbqspi);
 #if (QSPI_DEBUG > 1)
 	trace_hbqspi(hbqspi);
 #endif
