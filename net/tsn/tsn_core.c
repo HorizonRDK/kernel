@@ -39,6 +39,7 @@
 static struct tsn_list tlist;
 static int in_debug;
 static int on_cpu = -1;
+static bool tsn_enabled = false;
 
 
 
@@ -1128,6 +1129,10 @@ static int __init tsn_init_module(void)
 		goto error_thread_out;
 	}
 
+	if (tsn_enabled == false) {
+		hrtimer_cancel(&tlist.tsn_timer);
+	}
+
 	pr_info("TSN subsystem init OK\n");
 	return 0;
 
@@ -1168,8 +1173,34 @@ static void __exit tsn_exit_module(void)
 
 	pr_warn("TSN exit\n");
 }
+
+static int tsn_enabled_set(const char *val, const struct kernel_param *kp) {
+	int ret;
+
+	ret = param_set_bool(val, kp);
+	if (ret < 0)
+		return ret;
+
+	if (tsn_enabled == false) {
+		hrtimer_cancel(&tlist.tsn_timer);
+		pr_debug("%s cancel hrtimer", __func__);
+	} else {
+		hrtimer_restart(&tlist.tsn_timer);
+		pr_debug("%s restart hrtimer", __func__);
+	}
+	return 0;
+}
+
+
+static struct kernel_param_ops tsn_enabled_param_ops = {
+	.set =		tsn_enabled_set,
+	.get =		param_get_bool,
+};
+
+
 module_param(in_debug, int, S_IRUGO);
 module_param(on_cpu, int, S_IRUGO);
+module_param_cb(enabled, &tsn_enabled_param_ops, &tsn_enabled, 0644);
 module_init(tsn_init_module);
 module_exit(tsn_exit_module);
 MODULE_AUTHOR("Henrik Austad");
