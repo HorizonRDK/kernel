@@ -1369,9 +1369,22 @@ void ipu_update_hw_param(struct ipu_subdev *subdev)
 	ipu_us_info_t *us_info;
 	ipu_ds_info_t *ds_info;
 	struct vio_group *group;
+	struct ipu_subdev *subdev_src = NULL;
 
-	ipu_cfg = &subdev->ipu_cfg;
+	//ipu_cfg = &subdev->ipu_cfg;
 	group = subdev->group;
+
+	/*
+	 * caution: only ipu s0(src) node hold all the cfg
+	 * thus every time we need use ipu_cfg,
+	 * it must come from src subdev
+	 */
+	subdev_src = group->sub_ctx[0];
+	if (!subdev_src) {
+		vio_err("%s group%d sub mp 0 err.\n", __func__, group->instance);
+		return;
+	}
+	ipu_cfg = &subdev_src->ipu_cfg;
 
 	for (i = 0; i < MAX_DEVICE; i++) {
 		subdev = group->sub_ctx[i];
