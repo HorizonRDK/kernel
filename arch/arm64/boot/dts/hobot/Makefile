@@ -19,6 +19,7 @@ dtb-$(CONFIG_HOBOT_FPGA_X3) += hobot-xj3-fpga-haps.dtb
 dtb-$(CONFIG_HOBOT_XJ3)  += hobot-x3-dvb.dtb
 dtb-$(CONFIG_HOBOT_XJ3)  += hobot-j3-dvb.dtb
 dtb-$(CONFIG_HOBOT_XJ3)  += hobot-xj3-cvb.dtb
+dtb-$(CONFIG_HOBOT_XJ3)  += hobot-x3-sdb.dtb
 
 ifeq ($(CONFIG_HOBOT_XJ3_CV_ADDITION),y)
 	dtb-$(CONFIG_HOBOT_XJ3)  += hobot-xj3-soc-cv.dtb

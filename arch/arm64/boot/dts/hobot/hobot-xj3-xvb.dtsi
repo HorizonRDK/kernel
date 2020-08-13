@@ -469,6 +469,26 @@
 	bclk_set = <1536000>;
 };
 
+&i2sidma0 {
+	status = "okay";
+};
+
+&i2sidma1 {
+	status = "okay";
+};
+
+&snd0 {
+	status = "okay";
+};
+
+&snd1 {
+	status = "okay";
+};
+
+&snd2 {
+	status = "okay";
+};
+
 &jpu {
 	status = "okay";
 };

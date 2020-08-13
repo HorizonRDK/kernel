@@ -303,7 +303,7 @@
 			mclk_set = <12288000>;/* only for master mode,default is 12.288M*/
 			blck = <6144000>;/* only for master mode*/
 			slot_width= <128>;/*128,64*/
-			#status = "disabled";
+			status = "disabled";
 		};
 
 		i2s1: i2s@0xA5008000 {
@@ -322,7 +322,7 @@
 			bclk_set = <6144000>;/* only for master mode,tianpai is 6.144M*/
 			mclk_set = <12288000>;/* only for master mode,default is 12.288M*/
 			slot_width= <128>;/*128,64*/
-			#status = "disabled";
+			status = "disabled";
 		};
 
 		i2sidma0: idma@0 {
@@ -332,6 +332,7 @@
 				<0 0xA1000000 0 0x1000>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 36 4>;
+			status = "disabled";
 		};
 
 		i2sidma1: idma@1 {
@@ -341,6 +342,7 @@
 				<0 0xA1000000 0 0x1000>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 37 4>;
+			status = "disabled";
 		};
 
 		snd0: sndcard@0{
@@ -348,6 +350,7 @@
 			i2s_mode = <4>;/*1:i2s mode; 4:dsp mode*/
 			master = <1>;/*1:master; 4:slave*/
 			channel_max = <8>;
+			status = "disabled";
 		};
 
 		snd1: sndcard@1 {
@@ -355,6 +358,7 @@
                         i2s_mode = <4>;
                         master = <1>;
                         channel_max = <2>;
+			status = "disabled";
                 };
 
 		snd2: sndcard@2 {
@@ -362,6 +366,7 @@
 			i2s_mode = <4>;
 			master = <1>;
 			channel_max = <2>;
+			status = "disabled";
 		};
 
 		i2c0: i2c@0xA5009000 {

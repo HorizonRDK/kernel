@@ -14,6 +14,11 @@
         "gpio_id"   :   "0"
     },
 
+    "104": {
+        "dtb_name"  :   "hobot-x3-sdb.dtb",
+        "gpio_id"   :   "0"
+    },
+
     "201": {
         "dtb_name"  :  "hobot-j3-dvb.dtb",
         "gpio_id"   :   "0"
