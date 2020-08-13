@@ -269,15 +269,10 @@ static int isp_v4l2_stream_get_plane( struct vb2_buffer *vb,
                                       aframe_t *aframe, uint32_t plane_no,
                                       isp_v4l2_buffer_t *pbuf )
 {
-    if (pbuf->y_paddr) {
-        aframe->address = plane_no == 0 ? pbuf->y_paddr : pbuf->uv_paddr;
-        aframe->virt_addr = 0;
-    } else {
-        dma_addr_t addr;
-        addr = vb2_dma_contig_plane_dma_addr( vb, plane_no );
-        aframe->virt_addr = vb2_plane_vaddr( vb, plane_no );
-        aframe->address = (uint32_t)addr;
-    }
+    dma_addr_t addr;
+    addr = vb2_dma_contig_plane_dma_addr( vb, plane_no );
+    aframe->virt_addr = vb2_plane_vaddr( vb, plane_no );
+    aframe->address = (uint32_t)addr;
 
     aframe->status = dma_buf_empty;
     aframe->type = isp_v4l2_format_to_dma_output( pix_mp->pixelformat, plane_no );
@@ -750,8 +745,6 @@ int isp_v4l2_stream_init( isp_v4l2_stream_t **ppstream, int stream_id, int ctx_i
     new_stream->stream_type = V4L2_STREAM_TYPE_MAX;
     new_stream->stream_started = 0;
     new_stream->last_frame_id = 0xFFFFFFFF;
-    new_stream->y_paddr = 0;
-    new_stream->uv_paddr = 0;
 
     //format new stream to default isp settings
     isp_v4l2_stream_try_format( new_stream, &( new_stream->cur_v4l2_fmt ) );

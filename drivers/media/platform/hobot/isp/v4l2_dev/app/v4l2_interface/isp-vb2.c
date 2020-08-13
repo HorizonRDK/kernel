@@ -17,6 +17,7 @@
 *
 */
 
+#define pr_fmt(fmt) "[isp_drv]: %s: " fmt, __func__
 #include <linux/videodev2.h>
 #include <media/videobuf2-core.h>
 #include <media/videobuf2-vmalloc.h>
@@ -146,8 +147,6 @@ static void isp_vb2_buf_queue( struct vb2_buffer *vb )
     LOG( LOG_INFO, "Enter id:%d, cnt: %lu.", pstream->stream_id, cnt++ );
 
     spin_lock( &pstream->slock );
-    buf->y_paddr = pstream->y_paddr;
-    buf->uv_paddr = pstream->uv_paddr;
     list_add_tail( &buf->list, &pstream->stream_buffer_list );
     spin_unlock( &pstream->slock );
 }
