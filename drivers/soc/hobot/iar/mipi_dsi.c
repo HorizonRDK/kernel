@@ -22,6 +22,7 @@
 #include <linux/fs.h>
 #include <linux/io.h>
 #include <linux/mutex.h>
+#include <linux/iopoll.h>
 #include <asm/cacheflush.h>
 #include <soc/hobot/hobot_iar.h>
 #include <soc/hobot/hobot_mipi_dphy.h>
@@ -352,7 +353,7 @@ static void mipi_dphy_config(uint8_t panel_no)
 		mipi_dphy_write(0x72, 0x11);
 		mipi_dphy_write(0x1b, 0xaa);
 		mipi_dphy_write(0x1c, 0xaa);
-	} else if (panel_no == 1) {
+	} else if (panel_no == 1 || panel_no == 2) {
 		mipi_dphy_write(0x1d, 0x4);
 		mipi_dphy_write(0x1c, 0xaa);
 	}
@@ -391,7 +392,7 @@ static int mipi_dsi_core_pre_init(uint8_t panel_no)
 	mipi_dphy_set_freqrange(MIPI_DPHY_TYPE_DSI, 0, MIPI_CFGCLKFREQRANGE, 0x1c);
 	if (panel_no == 0)
 		mipi_dphy_set_freqrange(MIPI_DPHY_TYPE_DSI, 0, MIPI_HSFREQRANGE, 0x23);
-	else if (panel_no == 1)
+	else if (panel_no == 1 || panel_no == 2)
 		mipi_dphy_set_freqrange(MIPI_DPHY_TYPE_DSI, 0, MIPI_HSFREQRANGE, 0x16);
 
 	writel(0x0, g_iar_dev->mipi_dsi_regaddr + PHY_RSTZ);//0xa0
@@ -507,6 +508,77 @@ struct video_timing video_720_1280 = {
         720, 0, 0, 10, 30, 900, 10, 20, 10, 1320,
 };
 
+struct video_timing video_720_1280_sdb = {
+	720, 0, 0, 10, 40, 810, 3, 11, 16, 1310,
+};
+
+#define MIPI_SNP        0x05
+#define MIPI_S1P        0x15
+#define MIPI_LCP        0x39
+
+#define MIPI_SLP        0xFE
+#define MIPI_OFF        0xFF
+
+struct mipi_init_para {
+	uint8_t cmd_type;
+	uint8_t cmd_len;
+	uint8_t cmd[128];
+};
+
+static struct mipi_init_para init_para_720x1280_sdb[] = {
+	{MIPI_LCP, 0x04, {0xB9, 0xF1, 0x12, 0x83}},
+	{MIPI_LCP, 0x1C, {0xBA, 0x33, 0x81, 0x05, 0xF9, 0x0E, 0x0E,
+				0x20, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x44, 0x25, 0x00, 0x91,
+				0x0A, 0x00, 0x00, 0x02, 0x4F, 0xD1, 0x00, 0x00, 0x37}},
+	{MIPI_S1P, 0x02, {0xB8, 0x26}},
+	{MIPI_LCP, 0x04, {0xBF, 0x02, 0x10, 0x00}},
+	{MIPI_LCP, 0x0B, {0xB3, 0x07, 0x0B, 0x1E, 0x1E, 0x03, 0xFF,
+				0x00, 0x00, 0x00, 0x00}},
+	{MIPI_LCP, 0x0A, {0xC0, 0x73, 0x73, 0x50, 0x50, 0x00, 0x00,
+				0x08, 0x70, 0x00}},
+	{MIPI_S1P, 0x02, {0xBC, 0x46}},
+	{MIPI_S1P, 0x02, {0xCC, 0x0B}}, //0x0B
+	{MIPI_S1P, 0x02, {0xB4, 0x80}},
+	{MIPI_LCP, 0x04, {0xB2, 0xC8, 0x12, 0xA0}},
+	{MIPI_LCP, 0x0F, {0xE3, 0x07, 0x07, 0x0B, 0x0B, 0x03, 0x0B,
+				0x00, 0x00, 0x00, 0x00, 0xFF, 0x80,
+				0xC0, 0x10}},
+	{MIPI_LCP, 0x0D, {0xC1, 0x53, 0x00, 0x32, 0x32, 0x77, 0xF1,
+				0xFF, 0xFF, 0xCC, 0xCC, 0x77, 0x77}},
+	{MIPI_LCP, 0x03, {0xB5, 0x09, 0x09}},
+	{MIPI_LCP, 0x03, {0xB6, 0xB7, 0xB7}},
+	{MIPI_LCP, 0x40, {0xE9, 0xC2, 0x10, 0x0A, 0x00, 0x00, 0x81,
+				0x80, 0x12, 0x30, 0x00, 0x37, 0x86, 0x81,
+				0x80, 0x37, 0x18, 0x00, 0x05, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x05, 0x00, 0x00, 0x00,
+				0x00, 0xF8, 0xBA, 0x46, 0x02, 0x08, 0x28,
+				0x88, 0x88, 0x88, 0x88, 0x88, 0xF8, 0xBA,
+				0x57, 0x13, 0x18, 0x38, 0x88, 0x88, 0x88,
+				0x88, 0x88, 0x00, 0x00, 0x00, 0x03, 0x00,
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}},
+	{MIPI_LCP, 0x3E, {0xEA, 0x07, 0x12, 0x01, 0x01, 0x02, 0x3C,
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x8F,
+				0xBA, 0x31, 0x75, 0x38, 0x18, 0x88, 0x88,
+				0x88, 0x88, 0x88, 0x8F, 0xBA, 0x20, 0x64,
+				0x28, 0x08, 0x88, 0x88, 0x88, 0x88, 0x88,
+				0x23, 0x10, 0x00, 0x00, 0x04, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00}},
+	{MIPI_LCP, 0x23, {0xE0, 0x00, 0x02, 0x04, 0x1A, 0x23, 0x3F, 0x2C,
+				0x28, 0x05, 0x09, 0x0B, 0x10, 0x11, 0x10,
+				0x12, 0x12, 0x19, 0x00, 0x02, 0x04, 0x1A,
+				0x23, 0x3F, 0x2C, 0x28, 0x05, 0x09, 0x0B,
+				0x10, 0x11, 0x10, 0x12, 0x12, 0x19}},
+	{MIPI_SNP, 0x01, {0x11}},
+	{MIPI_SLP, 250, {0x00}},
+	{MIPI_SNP, 0x01, {0x29}},
+	{MIPI_SLP, 50, {0x00}},
+
+	{MIPI_OFF, 0x00, {0x00}},
+};
+
 static int mipi_dsi_video_config(struct video_timing *video_timing_config)
 {
 	uint32_t value;
@@ -573,6 +645,69 @@ void dsi_panel_write_cmd(uint8_t cmd, uint8_t data, uint8_t header)
 	value = (uint32_t)header | (uint32_t)cmd << 8 | (uint32_t)data << 16;
 	writel(value, g_iar_dev->mipi_dsi_regaddr + GEN_HDR);
 	usleep_range(900, 1000);
+}
+
+int dsi_panel_write_cmd_poll(uint8_t cmd, uint8_t data, uint8_t header)
+{
+	int ret;
+	u32 val, mask;
+	uint32_t value = 0;
+
+	ret = readl_poll_timeout(g_iar_dev->mipi_dsi_regaddr + CMD_PKT_STATUS,
+			val, !(val & BIT(1)), 1000, 20000);
+	if (ret < 0) {
+		pr_err("failed to get available command FIFO\n");
+		return ret;
+	}
+	value = (uint32_t)header | (uint32_t)cmd << 8 | (uint32_t)data << 16;
+	writel(value, g_iar_dev->mipi_dsi_regaddr + GEN_HDR);
+	mask = BIT(0) | BIT(2);
+	ret = readl_poll_timeout(g_iar_dev->mipi_dsi_regaddr + CMD_PKT_STATUS,
+			val, (val & mask) == mask, 1000, 20000);
+	if (ret < 0) {
+		pr_err("failed to write command FIFO\n");
+		return ret;
+	}
+
+	return 0;
+}
+
+static int32_t dsi_panel_write_long_cmd(uint32_t len, uint8_t *tx_buf)
+{
+	int32_t pld_data_bytes = sizeof(uint32_t), ret;
+	int32_t len_tmp = len;
+	uint32_t remainder;
+	uint32_t val;
+
+	if (len < 3) {
+		pr_err("wrong tx buf length %u for long write\n", len);
+		return -EINVAL;
+	}
+
+	while (DIV_ROUND_UP(len, pld_data_bytes)) {
+		if (len < pld_data_bytes) {
+			remainder = 0;
+			memcpy(&remainder, tx_buf, len);
+			writel(remainder, g_iar_dev->mipi_dsi_regaddr + GEN_PLD_DATA);
+			len = 0;
+		} else {
+			memcpy(&remainder, tx_buf, pld_data_bytes);
+			writel(remainder, g_iar_dev->mipi_dsi_regaddr + GEN_PLD_DATA);
+			tx_buf += pld_data_bytes;
+			len -= pld_data_bytes;
+		}
+
+		ret = readl_poll_timeout(g_iar_dev->mipi_dsi_regaddr + CMD_PKT_STATUS,
+				val, !(val & BIT(3)), 1000, 20000);
+		if (ret < 0) {
+			pr_err("failed to get available write payload FIFO\n");
+			return ret;
+		}
+	}
+
+	dsi_panel_write_cmd_poll(len_tmp, 0x00, 0x39);//byte1 byte2 byte0
+
+	return 0;
 }
 
 
@@ -1391,7 +1526,28 @@ int mipi_dsi_panel_init(uint8_t panel_no)
 		mipi_dsi_set_mode(0);//video mode
 		pr_info("mipi dsi panel config end!\n");
 		return 0;
-	}
+	} else if (panel_no == 2) {
+		int i = 0;
+		pr_info("mipi 720p svb portrait dsi panel config start!\n");
+		while (init_para_720x1280_sdb[i].cmd_type != MIPI_OFF) {
+			if (init_para_720x1280_sdb[i].cmd_type == MIPI_LCP) {
+				dsi_panel_write_long_cmd(init_para_720x1280_sdb[i].cmd_len,
+						init_para_720x1280_sdb[i].cmd);
+			} else if (init_para_720x1280_sdb[i].cmd_type == MIPI_S1P) {
+				dsi_panel_write_cmd_poll(init_para_720x1280_sdb[i].cmd[0],
+						init_para_720x1280_sdb[i].cmd[1], 0x15);
+			} else if (init_para_720x1280_sdb[i].cmd_type == MIPI_SNP) {
+				dsi_panel_write_cmd_poll(init_para_720x1280_sdb[i].cmd[0],
+						0x00, 0x05);
+			} else if (init_para_720x1280_sdb[i].cmd_type == MIPI_SLP) {
+				msleep(init_para_720x1280_sdb[i].cmd_len);
+			}
+			i++;
+		}
+		mipi_dsi_set_mode(0);//video mode
+		pr_info("mipi dsi panel config end!\n");
+		return 0;
+        }
 	return 0;
 }
 
@@ -1404,6 +1560,9 @@ int set_mipi_display(uint8_t panel_no)
 		mipi_dsi_video_config(&video_1080_1920);
 	else if (panel_no == 1)
 		mipi_dsi_video_config(&video_720_1280);
+	else if (panel_no == 2)
+		mipi_dsi_video_config(&video_720_1280_sdb);
+
 	msleep(100);
 	//mipi_dsi_set_mode(0);//video mode
 	//mipi_dsi_vid_mode_cfg(0);//normal mode

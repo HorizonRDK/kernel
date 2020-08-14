@@ -66,11 +66,14 @@
 #define HDMI_CONFIG       _IO(IAR_CDEV_MAGIC, 0x40)
 #define IAR_GET_START_CNT       _IOR(IAR_CDEV_MAGIC, 0x42, unsigned int)
 #define IAR_GET_STOP_CNT       _IOR(IAR_CDEV_MAGIC, 0x43, unsigned int)
+#define DISP_SET_VIDEO_PAUSE   _IOW(IAR_CDEV_MAGIC, 0x80, int)
+
 unsigned int iar_open_cnt = 0;
 unsigned int iar_start_cnt = 0;
 extern int disp_config_hdmi(unsigned short vmode,
 		unsigned short VideoFormat, unsigned short Afs);
-
+extern int xvb_sdb;
+extern bool iar_video_not_pause;
 typedef struct _update_cmd_t {
 	unsigned int enable_flag[IAR_CHANNEL_MAX];
 	unsigned int frame_size[IAR_CHANNEL_MAX];
@@ -234,8 +237,10 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 		break;
 	case HDMI_CONFIG:
 		 {
-			IAR_DEBUG_PRINT("HEMI_CONFIG \n");
-			ret = disp_config_hdmi(9, 4, 2);
+			if (xvb_sdb == 0) {
+				IAR_DEBUG_PRINT("HEMI_CONFIG \n");
+				ret = disp_config_hdmi(9, 4, 2);
+			}
 		}
 		break;
 	case IAR_STOP:
@@ -601,6 +606,11 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 			}
 		}
 		break;
+	case DISP_SET_VIDEO_PAUSE:
+		 {
+			iar_video_not_pause = !p;
+		}
+		break;
 	default:
 		ret = -EPERM;
 		break;
@@ -677,7 +687,7 @@ static ssize_t hobot_iar_store(struct kobject *kobj, struct kobj_attribute *attr
 		if (hb_disp_base_board_id == 0x1)
 			screen_backlight_init();
 		iar_start(1);
-		if (display_type == HDMI_TYPE)
+		if (display_type == HDMI_TYPE && xvb_sdb == 0)
 			disp_config_hdmi(9, 4, 2);
 	} else if (strncmp(tmp, "stop", 4) == 0) {
 		pr_info("iar stop......\n");
@@ -787,12 +797,20 @@ static ssize_t hobot_iar_store(struct kobject *kobj, struct kobj_attribute *attr
 		iar_start(1);
 		user_set_fb();
 		set_mipi_display(1);
+	} else if (strncmp(tmp, "dsi720x1280", 11) == 0) {
+		pr_info("iar output lcd mipi 720p sdb touch panel config......\n");
+		display_type = MIPI_720P_TOUCH;
+		screen_backlight_init();
+		iar_start(1);
+		user_set_fb();
+		set_mipi_display(2);
 	} else if (strncmp(tmp, "hdmi", 4) == 0) {
 		pr_info("iar output hdmi panel config......\n");
 		display_type = HDMI_TYPE;
 		user_set_fb();
 		iar_start(1);
-		disp_config_hdmi(9, 4, 2);
+		if (xvb_sdb == 0)
+			disp_config_hdmi(9, 4, 2);
 	} else if (strncmp(tmp, "ipi", 3) == 0) {
 		pr_info("iar output ipi panel config......\n");
 		display_type = SIF_IPI;

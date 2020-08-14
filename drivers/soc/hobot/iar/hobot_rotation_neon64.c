@@ -48,6 +48,7 @@ static void TransposeWx8_NEON(const uint8_t *src, int src_stride,
 {
 	const uint8_t *src_temp;
 
+	kernel_neon_begin();
 	asm volatile (
 		// loops are on blocks of 8. loop will stop when
 		// counter gets to or below 0. starting the counter
@@ -215,6 +216,7 @@ static void TransposeWx8_NEON(const uint8_t *src, int src_stride,
 		"v5", "v6", "v7", "v16", "v17", "v18", "v19", "v20",
 		"v21", "v22", "v23"
 	);
+	kernel_neon_end();
 }
 
 
@@ -230,6 +232,7 @@ static void TransposeUVWx8_NEON(const uint8_t *src,
 {
 	const uint8_t *src_temp;
 
+	kernel_neon_begin();
 	asm volatile (
 	// loops are on blocks of 8. loop will stop when
 	// counter gets to or below 0. starting the counter
@@ -440,6 +443,7 @@ static void TransposeUVWx8_NEON(const uint8_t *src,
 	: "memory", "cc", "v0", "v1", "v2", "v3", "v4",
 	"v5", "v6", "v7", "v16", "v17", "v18", "v19",
 	"v20", "v21", "v22", "v23", "v30", "v31");
+	kernel_neon_end();
 }
 
 
@@ -717,6 +721,7 @@ int NV12ToI420Rotate(const uint8_t *src_y, int src_stride_y,
 void MergeUVRow_NEON(const uint8_t *src_u, const uint8_t *src_v,
 		uint8_t *dst_uv, int width)
 {
+	kernel_neon_begin();
 	asm volatile (
 		"1:\n"
 		"ld1	{v0.16b}, [%0], #16\n"  // load U
@@ -731,6 +736,7 @@ void MergeUVRow_NEON(const uint8_t *src_u, const uint8_t *src_v,
 		:				// Input registers
 		: "cc", "memory", "v0", "v1"	// Clobber List
 	);
+	kernel_neon_end();
 }
 
 void MergeUVRow_C(const uint8_t *src_u, const uint8_t *src_v,

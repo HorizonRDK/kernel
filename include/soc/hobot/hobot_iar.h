@@ -739,6 +739,8 @@ extern struct disp_timing video_800x480;
 extern struct disp_timing video_720x1280;
 extern struct disp_timing video_1080x1920;
 extern struct disp_timing video_720x1280_touch;
+extern struct disp_timing video_1920x1080_sdb;
+extern struct disp_timing video_720x1280_touch_sdb;
 extern uint32_t hb_disp_base_board_id;
 extern uint8_t iar_display_addr_type;
 extern uint8_t iar_display_cam_no;

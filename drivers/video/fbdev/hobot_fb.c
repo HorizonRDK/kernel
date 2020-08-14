@@ -112,6 +112,7 @@ enum {
 	GAMMA_CFG,
 	OUTPUT_CFG,
 };
+extern int xvb_sdb;
 static int lcd_type = RGB888_700;
 //static int outmode = OUTPUT_RGB888;
 static int outmode = OUTPUT_BT1120;
@@ -386,6 +387,144 @@ struct fb_fix_screeninfo RGB700_fix_default = {
 	.ypanstep = 0,
 	.ywrapstep = 0,
 	.line_length = 3200,
+	.mmio_start = 0,
+	.mmio_len = 0,
+	.accel = FB_ACCEL_NONE,
+	.capabilities = 0,
+	.reserved = {0x0},
+};
+
+struct fb_var_screeninfo fb_720_1280_var_default = {
+	.xres = 720,
+	.yres = 1280,
+	.xres_virtual = 720,
+	.yres_virtual = 1280,
+	.xoffset = 0,
+	.yoffset = 0,
+	.bits_per_pixel = 32,
+	.grayscale = 0,
+	.red = {
+		.offset = 16,
+		.length = 8,
+		.msb_right = 0,//MSB left; !=0,MSB right
+	},
+	.green = {
+		.offset = 8,
+		.length = 8,
+		.msb_right = 0,
+	},
+	.blue = {
+		.offset = 0,
+		.length = 8,
+		.msb_right = 0,
+	},
+	.transp = {
+		.offset = 24,
+		.length = 8,
+		.msb_right = 0,
+	},
+	.nonstd = 0,
+	.activate = FB_ACTIVATE_NOW,
+	.height = 110,
+	.width = 62,
+	.accel_flags = FB_ACCEL_NONE,
+
+	.pixclock = 30030,//33.3M,
+//	.left_margin = 40,//20~200
+//	.right_margin = 40,//87~1
+	.left_margin = 46,//100+20
+	.right_margin = 46,//52+28
+//	.upper_margin = 12,//5~200
+//	.lower_margin = 30,//31~29
+	.upper_margin = 16,//42+1
+	.lower_margin = 14,//31+1
+	.hsync_len = 10,//1~87,no type value
+	.vsync_len = 3,//1~3,no type value
+
+	.sync = 0,//????????
+	.vmode = FB_VMODE_NONINTERLACED,
+	.rotate = 1,
+	.colorspace = 0,
+	.reserved = {0x0},
+};
+
+struct fb_fix_screeninfo fb_720_1280_fix_default = {
+	.id = "x2-fb",
+	.smem_start = 0x0,
+	.smem_len = MAX_FRAME_BUF_SIZE,
+	.type = FB_TYPE_PACKED_PIXELS,
+	.type_aux = 0,
+	.visual = FB_VISUAL_TRUECOLOR,  //FB_VISUAL_PSEUDOCOLOR,
+	.xpanstep = 0,
+	.ypanstep = 0,
+	.ywrapstep = 0,
+	.line_length = 2880,
+	.mmio_start = 0,
+	.mmio_len = 0,
+	.accel = FB_ACCEL_NONE,
+	.capabilities = 0,
+	.reserved = {0x0},
+};
+
+struct fb_var_screeninfo fb_1920_1080_var_default = {
+	.xres = 1920,
+	.yres = 1080,
+	.xres_virtual = 1920,
+	.yres_virtual = 1080,
+	.xoffset = 0,
+	.yoffset = 0,
+	.bits_per_pixel = 32,
+	.grayscale = 0,
+	.red = {
+		.offset = 16,
+		.length = 8,
+		.msb_right = 0,//MSB left; !=0,MSB right
+	},
+	.green = {
+		.offset = 8,
+		.length = 8,
+		.msb_right = 0,
+	},
+	.blue = {
+		.offset = 0,
+		.length = 8,
+		.msb_right = 0,
+	},
+	.transp = {
+		.offset = 24,
+		.length = 8,
+		.msb_right = 0,
+	},
+	.nonstd = 0,
+	.activate = FB_ACTIVATE_NOW,
+	.height = 110,
+	.width = 62,
+	.accel_flags = FB_ACCEL_NONE,
+	.pixclock = 30030,//33.3M,
+	.left_margin = 46,//100+20
+	.right_margin = 46,//52+28
+	.upper_margin = 16,//42+1
+	.lower_margin = 14,//31+1
+	.hsync_len = 10,//1~87,no type value
+	.vsync_len = 3,//1~3,no type value
+
+	.sync = 0,//????????
+	.vmode = FB_VMODE_NONINTERLACED,
+	.rotate = 1,
+	.colorspace = 0,
+	.reserved = {0x0},
+};
+struct fb_fix_screeninfo fb_1920_1080_fix_default = {
+	.id = "x2-fb",
+	.smem_start = 0x0,
+	.smem_len = MAX_FRAME_BUF_SIZE,
+	.type = FB_TYPE_PACKED_PIXELS,
+	.type_aux = 0,
+	.visual = FB_VISUAL_TRUECOLOR,  //FB_VISUAL_PSEUDOCOLOR,
+	.xpanstep = 0,
+	.ypanstep = 0,
+	.ywrapstep = 0,
+	.line_length = 7680,
 	.mmio_start = 0,
 	.mmio_len = 0,
 	.accel = FB_ACCEL_NONE,
@@ -786,7 +925,10 @@ int user_set_fb(void)
 #ifdef CONFIG_HOBOT_XJ2
 		disp_set_panel_timing(&video_1920x1080);
 #else
-		disp_set_panel_timing(&video_1920x1080);
+		if (xvb_sdb == 0)
+			disp_set_panel_timing(&video_1920x1080);
+		else if (xvb_sdb == 1)
+			disp_set_panel_timing(&video_1920x1080_sdb);
 		//disp_set_panel_timing(&video_800x480);
 		hobot_fbi->channel_base_cfg[0].enable = 1;
 		hobot_fbi->channel_base_cfg[1].enable = 0;
@@ -849,8 +991,7 @@ int user_set_fb(void)
 		iar_set_bufaddr(IAR_CHANNEL_4, &graphic1_display_paddr);
 		iar_update();
 #endif
-	}
-	if (display_type == LCD_7_TYPE) {
+	} else if (display_type == LCD_7_TYPE) {
 		pr_info("FrameBuffer:display type is LCD 7 TYPE!\n");
 		disp_set_panel_timing(&video_800x480);
 		hobot_fbi->memory_mode = 0;
@@ -1077,7 +1218,10 @@ int user_set_fb(void)
 		//set_mipi_display(0);
 	} else if (display_type == MIPI_720P_TOUCH) {
 		pr_info("fb_driver: disp set mipi 720p touch!\n");
-		disp_set_panel_timing(&video_720x1280_touch);
+		if (xvb_sdb == 0)
+			disp_set_panel_timing(&video_720x1280_touch);
+		else if (xvb_sdb == 1)
+			disp_set_panel_timing(&video_720x1280_touch_sdb);
 		hobot_fbi->memory_mode = 0;
 
 		hobot_fbi->channel_base_cfg[0].enable = 1;
@@ -1462,6 +1606,12 @@ static int hbfb_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Unable to alloc hobot framebuffer DEV\n");
 		return -ENOMEM;
 	}
+	if (xvb_sdb == 1) {
+		RGB700_var_default.red.offset = 16;
+		RGB700_var_default.green.offset = 8;
+		RGB700_var_default.blue.offset = 0;
+		RGB700_var_default.transp.offset = 24;
+	}
 
 	strcpy(hobot_fbi->fb.fix.id, DRIVER_NAME);
 	framebuf_user = *hobot_iar_get_framebuf_addr(2);
@@ -1473,6 +1623,9 @@ static int hbfb_probe(struct platform_device *pdev)
 
 	RGB500_fix_default.smem_start = framebuf_user.paddr;
 	RGB700_fix_default.smem_start = framebuf_user.paddr;
+	fb_720_1280_fix_default.smem_start = framebuf_user.paddr;
+	fb_1920_1080_fix_default.smem_start = framebuf_user.paddr;
+
 	RGB500_fix_default.line_length =
 		get_line_length(RGB500_var_default.xres_virtual,
 				RGB500_var_default.bits_per_pixel);
@@ -1481,34 +1634,46 @@ static int hbfb_probe(struct platform_device *pdev)
 		get_line_length(RGB700_var_default.xres_virtual,
 				RGB700_var_default.bits_per_pixel);
 
-	if (outmode == OUTPUT_RGB && lcd_type == RGB888_500) {
-		hobot_fbi->fb.fix = RGB500_fix_default;
-		hobot_fbi->fb.var = RGB500_var_default;
-		hobot_fbi->fb.flags = FBINFO_DEFAULT | FBINFO_HWACCEL_YPAN;
+	fb_720_1280_fix_default.line_length =
+		get_line_length(fb_720_1280_var_default.xres_virtual,
+				fb_720_1280_var_default.bits_per_pixel);
+	fb_1920_1080_fix_default.line_length =
+		get_line_length(fb_1920_1080_var_default.xres_virtual,
+				fb_1920_1080_var_default.bits_per_pixel);
+
+	if (display_type == HDMI_TYPE) {
+		hobot_fbi->fb.fix = fb_1920_1080_fix_default;
+		hobot_fbi->fb.var = fb_1920_1080_var_default;
+		//hobot_fbi->fb.flags = FBINFO_DEFAULT | FBINFO_HWACCEL_YPAN;
 		hobot_fbi->fb.fbops = &hbfb_ops;
 		hobot_fbi->fb.screen_base = framebuf_user.vaddr;
 		hobot_fbi->fb.screen_size = MAX_FRAME_BUF_SIZE;
 		hobot_fbi->fb.pseudo_palette = &hbfb_pseudo_palette;
 		if (fb_alloc_cmap(&hobot_fbi->fb.cmap, 256, 0))
 			return -ENOMEM;
-	} else if (outmode == OUTPUT_RGB && lcd_type == RGB888_700) {
-		hobot_fbi->fb.fix = RGB700_fix_default;
-		hobot_fbi->fb.var = RGB700_var_default;
-		hobot_fbi->fb.flags = FBINFO_DEFAULT | FBINFO_HWACCEL_YPAN;
+		hobot_fbi->fb1 = hobot_fbi->fb;
+		hobot_fbi->fb1.fix.smem_start = framebuf_user1.paddr;
+		snprintf(hobot_fbi->fb1.fix.id, sizeof(hobot_fbi->fb1.fix.id),
+				"hobot-fb1");
+		hobot_fbi->fb1.screen_base = framebuf_user1.vaddr;
+		if (fb_alloc_cmap(&hobot_fbi->fb1.cmap, 256, 0))
+			return -ENOMEM;
+	} else if (display_type == MIPI_720P || display_type == MIPI_720P_TOUCH) {
+		hobot_fbi->fb.fix = fb_720_1280_fix_default;
+		hobot_fbi->fb.var = fb_720_1280_var_default;
+		// hobot_fbi->fb.flags = FBINFO_DEFAULT | FBINFO_HWACCEL_YPAN;
 		hobot_fbi->fb.fbops = &hbfb_ops;
 		hobot_fbi->fb.screen_base = framebuf_user.vaddr;
 		hobot_fbi->fb.screen_size = MAX_FRAME_BUF_SIZE;
 		hobot_fbi->fb.pseudo_palette = &hbfb_pseudo_palette;
 		if (fb_alloc_cmap(&hobot_fbi->fb.cmap, 256, 0))
 			return -ENOMEM;
-	} else if (outmode == OUTPUT_BT1120 && lcd_type == RGB888_500) {
-		hobot_fbi->fb.fix = RGB500_fix_default;
-		hobot_fbi->fb.var = RGB500_var_default;
-		hobot_fbi->fb.fbops = &hbfb_ops;
-		hobot_fbi->fb.screen_base = framebuf_user.vaddr;
-		hobot_fbi->fb.screen_size = MAX_FRAME_BUF_SIZE;
-		hobot_fbi->fb.pseudo_palette = &hbfb_pseudo_palette;
-		if (fb_alloc_cmap(&hobot_fbi->fb.cmap, 256, 0))
+		hobot_fbi->fb1 = hobot_fbi->fb;
+		hobot_fbi->fb1.fix.smem_start = framebuf_user1.paddr;
+		snprintf(hobot_fbi->fb1.fix.id, sizeof(hobot_fbi->fb1.fix.id),
+				"hobot-fb1");
+		hobot_fbi->fb1.screen_base = framebuf_user1.vaddr;
+		if (fb_alloc_cmap(&hobot_fbi->fb1.cmap, 256, 0))
 			return -ENOMEM;
 	} else if (outmode == OUTPUT_BT1120 && lcd_type == RGB888_700) {
 		hobot_fbi->fb.fix = RGB700_fix_default;
@@ -1527,8 +1692,6 @@ static int hbfb_probe(struct platform_device *pdev)
 		hobot_fbi->fb1.screen_base = framebuf_user1.vaddr;
 		if (fb_alloc_cmap(&hobot_fbi->fb1.cmap, 256, 0))
 			return -ENOMEM;
-	} else if (outmode == OUTPUT_BT1120 && lcd_type == DSI_PANEL) {
-
 	}
 
 	platform_set_drvdata(pdev, hobot_fbi);

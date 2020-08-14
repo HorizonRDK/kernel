@@ -27,10 +27,12 @@
 #include <linux/kthread.h>
 #include <linux/pwm.h>
 #include <linux/uaccess.h>
+#include <asm/unaligned.h>
 #include <soc/hobot/hobot_ips_x2.h>
 #include <soc/hobot/hobot_iar.h>
 #include "linux/ion.h"
 #include "../../../media/platform/hobot/common_api/vio_framemgr.h"
+#include "./bmp_layout.h"
 
 #define USE_ION_MEM
 //#ifdef CONFIG_X3
@@ -43,6 +45,7 @@
 
 #define PWM_PERIOD_DEFAULT 1000
 #define PWM_DUTY_DEFAULT 10
+#define PWM_DUTY_SDB_DEFAULT 200
 unsigned int iar_debug_level = 0;
 EXPORT_SYMBOL(iar_debug_level);
 module_param(iar_debug_level, uint, 0644);
@@ -52,6 +55,18 @@ module_param(iar_debug_level, uint, 0644);
 #define IARIONTYPE 13
 #define DISPLAY_TYPE_TOTAL_SINGLE 33
 #define DISPLAY_TYPE_TOTAL_MULTI 63
+
+#define EMBEDIMG(_index, _path)                                   \
+	extern const char embedded_image_ ## _index ## _data[];               \
+	extern const char embedded_image_ ## _index ## _len[];                \
+	__asm__(".section \".rodata\", \"a\"\n\t"       \
+		"\nembedded_image_" #_index "_data:\n\t"              \
+		".incbin \"" _path "\"\n\t"                           \
+		"\nembedded_image_" #_index "_end:\n\t"               \
+		".equ embedded_image_" #_index "_len, "               \
+		"(embedded_image_" #_index "_end - "           \
+		"  embedded_image_" #_index "_data)\n\t"       \
+		".previous\n\t");
 
 int panel_reset_pin = 28;
 uint32_t iar_display_ipu_addr_single[DISPLAY_TYPE_TOTAL_SINGLE][2];
@@ -85,6 +100,9 @@ uint32_t g_disp_caddr;
 uint32_t g_disp_yaddr_video1;
 uint32_t g_disp_caddr_video1;
 
+bool iar_video_not_pause = true;
+EXPORT_SYMBOL_GPL(iar_video_not_pause);
+
 uint8_t config_rotate;
 uint8_t ipu_process_done;
 uint8_t disp_user_update;
@@ -101,12 +119,20 @@ static int stop_flag = 0;
 phys_addr_t logo_paddr;
 void *logo_vaddr = NULL;
 static int pwm0_request_status = 0;
+int xvb_sdb = 0;
+static int pwm_no = 0;
 unsigned int fb_num = 1;
+EXPORT_SYMBOL(xvb_sdb);
 EXPORT_SYMBOL(fb_num);
 
 struct disp_timing video_1920x1080 = {
 	148, 88, 44, 36, 4, 5
 };
+
+struct disp_timing video_1920x1080_sdb = {
+	160, 120, 24, 48, 4, 5
+};
+
 struct disp_timing video_800x480 = {
 	80, 120, 48, 32, 43, 2
 };
@@ -123,13 +149,18 @@ struct disp_timing video_1080x1920 = {
 struct disp_timing video_720x1280_touch = {
 	100, 100, 10, 20, 10, 10
 };
+struct disp_timing video_720x1280_touch_sdb = {
+        40, 40, 10, 11, 16, 3
+};
 EXPORT_SYMBOL(disp_user_config_done);
 EXPORT_SYMBOL(disp_copy_done);
 EXPORT_SYMBOL(video_1920x1080);
+EXPORT_SYMBOL(video_1920x1080_sdb);
 EXPORT_SYMBOL(video_800x480);
 EXPORT_SYMBOL(video_720x1280);
 EXPORT_SYMBOL(video_1080x1920);
 EXPORT_SYMBOL(video_720x1280_touch);
+EXPORT_SYMBOL(video_720x1280_touch_sdb);
 
 uint32_t g_iar_regs[93];
 
@@ -385,6 +416,7 @@ struct pwm_device *screen_backlight_pwm;
 //int display_type = LCD_7_TYPE;
 int display_type = UNUSED;
 EXPORT_SYMBOL(display_type);
+module_param(display_type, int, 0644);
 
 static void iar_regs_store(void)
 {
@@ -622,6 +654,11 @@ int32_t iar_config_pixeladdr(void)
 int disp_set_panel_timing(struct disp_timing *timing)
 {
 	uint32_t value;
+
+	if (NULL == g_iar_dev) {
+		pr_err(KERN_ERR "IAR dev not inited!");
+		return -1;
+	}
 
 	if (timing == NULL)
 		return -1;
@@ -944,14 +981,18 @@ static int disp_clk_enable(void)
 		}
 		disp_clk_already_enable = 1;
 	}
-	if (display_type == LCD_7_TYPE || display_type == MIPI_1080P)
+	if (display_type == LCD_7_TYPE || display_type == MIPI_1080P) {
 		pixel_clock = 32000000;
-	else if (display_type == MIPI_720P_TOUCH)
-		pixel_clock = 54000000;
-	else if (display_type == SIF_IPI)
+	} else if (display_type == MIPI_720P_TOUCH) {
+		if (xvb_sdb == 0)
+			pixel_clock = 54000000;
+		else
+			pixel_clock = 64000000;
+	} else if (display_type == SIF_IPI) {
 		pixel_clock = 54400000;
-	else
+	} else {
 		pixel_clock = 163000000;
+	}
 	pixel_clock = clk_round_rate(g_iar_dev->iar_pixel_clk, pixel_clock);
 	ret = clk_set_rate(g_iar_dev->iar_pixel_clk, pixel_clock);
 	if (ret) {
@@ -1019,16 +1060,21 @@ static int ipi_clk_enable(void)
 int screen_backlight_init(void)
 {
 	int ret = 0;
+	unsigned duty = 0;
 
 	pr_debug("initialize lcd backligbt!!!\n");
 	if (pwm0_request_status == 1)
 		return 0;
-	screen_backlight_pwm = pwm_request(0, "lcd-pwm");
+	if (xvb_sdb == 0)
+		duty = PWM_DUTY_DEFAULT;
+	else if (xvb_sdb == 1)
+		duty = PWM_DUTY_SDB_DEFAULT;
+	screen_backlight_pwm = pwm_request(pwm_no, "lcd-pwm");
 	if (IS_ERR(screen_backlight_pwm)) {
-		pr_err("\nNo pwm device 0!!!!\n");
+		pr_err("\nNo pwm device %d!!!!\n", pwm_no);
 		return -ENODEV;
 	}
-	pr_debug("pwm request 0 is okay!!!\n");
+	pr_debug("pwm request %d is okay!!!\n", pwm_no);
 	/**
 	 * pwm_config(struct pwm_device *pwm, int duty_ns,
 	 * int period_ns) - change a PWM device configuration
@@ -1038,7 +1084,7 @@ int screen_backlight_init(void)
 	 *
 	 * Returns: 0 on success or a negative error code on failure.
 	 */
-	ret = pwm_config(screen_backlight_pwm, PWM_DUTY_DEFAULT,
+	ret = pwm_config(screen_backlight_pwm, duty,
 				PWM_PERIOD_DEFAULT);
 	// 50Mhz,20ns period, on = 20ns
 	if (ret) {
@@ -1267,7 +1313,10 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 		if (ret)
 			return -1;
 		display_type = HDMI_TYPE;
-		disp_set_panel_timing(&video_1920x1080);
+		if (xvb_sdb == 0)
+			disp_set_panel_timing(&video_1920x1080);
+		else if (xvb_sdb == 1)
+			disp_set_panel_timing(&video_1920x1080_sdb);
 #endif
 #ifdef CONFIG_HOBOT_XJ2
 		ips_set_btout_clksrc(IAR_CLK, true);//clk invert
@@ -1286,7 +1335,10 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 	} else if (cfg->out_sel == OUTPUT_MIPI_DSI) {
 #ifdef CONFIG_HOBOT_XJ3
 		//output config
-		disp_set_panel_timing(&video_720x1280_touch);
+		if (xvb_sdb == 0)
+			disp_set_panel_timing(&video_720x1280_touch);
+		else if (xvb_sdb == 1)
+			disp_set_panel_timing(&video_720x1280_touch_sdb);
 		writel(0x8, g_iar_dev->regaddr + REG_IAR_DE_OUTPUT_SEL);//0x340
 		writel(0x13, g_iar_dev->regaddr + REG_DISP_LCDIF_CFG);//0x800
 		writel(0x3, g_iar_dev->regaddr + REG_DISP_LCDIF_PADC_RESET_N);//0x804
@@ -1386,7 +1438,10 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 			pr_err("%s: wrong json file or convert hw!\n",
 					__func__);
 		}
-		display_type = MIPI_720P;
+		if (xvb_sdb == 0)
+			display_type = MIPI_720P;
+		else if (xvb_sdb == 1)
+			display_type = MIPI_720P_TOUCH;
 	} else if (cfg->panel_type == 1) {
 		if (display_type == HDMI_TYPE) {
 			pr_err("%s: wrong json file or convert hw!\n",
@@ -1704,14 +1759,6 @@ static int iar_thread(void *data)
 			+ iar_display_caddr_offset;
 
 		display_addr.Vaddr = 0;
-		//pr_debug("iar_display_yaddr offset is 0x%x.\n",
-		//iar_display_yaddr_offset);
-		//pr_debug("iar_display_caddr offset is 0x%x.\n",
-		//iar_display_caddr_offset);
-		//pr_debug("iar: iar_display_yaddr is 0x%x.\n",
-		//display_addr.Yaddr);
-		//pr_debug("iar: iar_display_caddr is 0x%x.\n",
-		//display_addr.Uaddr);
 #endif
 		if (config_rotate) {
 			iar_rotate_video_buffer(display_addr.Yaddr,
@@ -1719,9 +1766,9 @@ static int iar_thread(void *data)
 		} else {
 			pr_debug("iar: iar display refresh!!!!!\n");
 			pr_debug("iar display video 0 yaddr is 0x%x, caddr is 0x%x\n",
-					display_addr.Yaddr, display_addr.Uaddr);
+				display_addr.Yaddr, display_addr.Uaddr);
 			pr_debug("iar display video 1 yaddr is 0x%x, caddr is 0x%x\n",
-					display_addr_video1.Yaddr, display_addr_video1.Uaddr);
+				display_addr_video1.Yaddr, display_addr_video1.Uaddr);
 			iar_set_bufaddr(0, &display_addr);
 			iar_set_bufaddr(1, &display_addr_video1);
 			iar_update();
@@ -1730,6 +1777,62 @@ static int iar_thread(void *data)
 	return 0;
 }
 
+static int iar_thread_sdb(void *data)
+{
+	buf_addr_t display_addr;
+	buf_addr_t display_addr_video1;
+
+	while (!kthread_should_stop()) {
+		if (kthread_should_stop())
+			break;
+		if (iar_video_not_pause) {
+			wait_event_interruptible(g_iar_dev->wq_head,
+					ipu_process_done || stop_flag);
+			ipu_process_done = 0;
+#ifdef CONFIG_HOBOT_XJ3
+			display_addr.Yaddr = g_disp_yaddr;
+			display_addr.Uaddr = g_disp_caddr;
+			display_addr.Vaddr = 0;
+			display_addr_video1.Yaddr = g_disp_yaddr_video1;
+			display_addr_video1.Uaddr = g_disp_caddr_video1;
+			display_addr_video1.Vaddr = 0;
+#else
+			display_addr.Yaddr =
+				ipu_display_slot_id * iar_display_ipu_slot_size
+				+ iar_display_yaddr_offset;
+			display_addr.Uaddr =
+				ipu_display_slot_id * iar_display_ipu_slot_size
+				+ iar_display_caddr_offset;
+
+			display_addr.Vaddr = 0;
+			//pr_debug("iar_display_yaddr offset is 0x%x.\n",
+			//iar_display_yaddr_offset);
+			//pr_debug("iar_display_caddr offset is 0x%x.\n",
+			//iar_display_caddr_offset);
+			//pr_debug("iar: iar_display_yaddr is 0x%x.\n",
+			//display_addr.Yaddr);
+			//pr_debug("iar: iar_display_caddr is 0x%x.\n",
+			//display_addr.Uaddr);
+#endif
+			if (config_rotate) {
+				iar_rotate_video_buffer(display_addr.Yaddr,
+					display_addr.Uaddr, display_addr.Vaddr);
+			} else {
+				pr_debug("iar: iar display refresh!!!!!\n");
+				pr_debug("iar display video 0 yaddr is 0x%x, caddr is 0x%x\n",
+					display_addr.Yaddr, display_addr.Uaddr);
+				pr_debug("iar display video 1 yaddr is 0x%x, caddr is 0x%x\n",
+					display_addr_video1.Yaddr, display_addr_video1.Uaddr);
+				iar_set_bufaddr(0, &display_addr);
+				iar_set_bufaddr(1, &display_addr_video1);
+				iar_update();
+			}
+		} else {
+			msleep(5);
+		}
+	}
+	return 0;
+}
 
 int32_t iar_open(void)
 {
@@ -1754,8 +1857,12 @@ int32_t iar_open(void)
 	if (hb_disp_base_board_id == 0x1)
 		screen_backlight_init();
 	if (g_iar_dev->iar_task == NULL) {
-		g_iar_dev->iar_task = kthread_run(iar_thread,
-				(void *)g_iar_dev, "iar_thread");
+		if (xvb_sdb == 0)
+			g_iar_dev->iar_task = kthread_run(iar_thread,
+					(void *)g_iar_dev, "iar_thread");
+		else if (xvb_sdb == 1)
+			g_iar_dev->iar_task = kthread_run(iar_thread_sdb,
+					(void *)g_iar_dev, "iar_thread_sdb");
 		if (IS_ERR(g_iar_dev->iar_task)) {
 			g_iar_dev->iar_task = NULL;
 			dev_err(&g_iar_dev->pdev->dev, "iar thread create fail\n");
@@ -2628,7 +2735,6 @@ int iar_rotate_video_buffer(phys_addr_t yaddr,
 			(uint8_t *)g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr;
 
 		do_gettimeofday(&tv_s);
-		preempt_disable();
 
 		NV12ToI420Rotate(src_addr, 1280,
 				src_addr + 1280*720, 1280,
@@ -2641,7 +2747,6 @@ int iar_rotate_video_buffer(phys_addr_t yaddr,
 				tmp_addr + 1280*720, 720/2,
 				video_display_vaddr + 1280*720, 720,
 				720/2, 1280/2);
-		preempt_enable();
 
 		do_gettimeofday(&tv_e);
 		time_cost = (tv_e.tv_sec*1000 + tv_e.tv_usec/1000) -
@@ -2730,19 +2835,21 @@ static void hobot_iar_draw_rect(char *frame, int x0, int y0, int x1, int y1,
 	}
 }
 */
+
 int panel_hardware_reset(void)
 {
-	gpio_direction_output(panel_reset_pin, 1);
-	pr_debug("panel reset pin output high!\n");
-	msleep(100);
-	gpio_direction_output(panel_reset_pin, 0);
-	pr_debug("panel reset pin output low!\n");
-	msleep(120);
-	gpio_direction_output(panel_reset_pin, 1);
-	pr_debug("panel reset pin output high!\n");
-	msleep(120);
-	pr_info("panel reset success!\n");
-
+	if (panel_reset_pin >= 0) {
+		gpio_direction_output(panel_reset_pin, 1);
+		pr_debug("panel reset pin output high!\n");
+		msleep(100);
+		gpio_direction_output(panel_reset_pin, 0);
+		pr_debug("panel reset pin output low!\n");
+		msleep(120);
+		gpio_direction_output(panel_reset_pin, 1);
+		pr_debug("panel reset pin output high!\n");
+		msleep(120);
+		pr_info("panel reset success!\n");
+	}
 	return 0;
 }
 EXPORT_SYMBOL_GPL(panel_hardware_reset);
@@ -2791,6 +2898,130 @@ int disable_sif_mclk(void)
 	return 0;
 }
 EXPORT_SYMBOL_GPL(disable_sif_mclk);
+
+static int stride_copy_bmp(int width, int height, const unsigned char *src,
+		int x0, int y0, int stride0, int height0,
+		unsigned char *dst, int x1, int y1, int stride1)
+{
+	int i, j;
+	const struct bmp_image *bmp = (const struct bmp_image *)src;
+	unsigned char *bmap;
+	unsigned long widthi, heighti;
+	int stb0;
+	unsigned colours, bmp_bpix;
+	const unsigned char *p0, *hp0;
+	unsigned char *p1, *hp1;
+	unsigned char ct;
+
+	int hdr_size;
+
+	if (!bmp || !(bmp->header.signature[0] == 'B' &&
+				bmp->header.signature[1] == 'M')) {
+		pr_err("Error: no valid bmp image for logo");
+		return -EINVAL;
+	}
+
+	widthi = get_unaligned_le32(&bmp->header.width);
+	heighti = get_unaligned_le32(&bmp->header.height);
+
+	if (width <= 0)
+		width = widthi;
+	if (height <= 0)
+		height = heighti;
+	if (stride0 <= 0)
+		stride0 = width;
+	if (height0 <= 0)
+		height0 = height;
+
+	stb0 = stride0 * 3;
+	if (stb0 & 0x03) stb0 = (stride0 * 3 + 3) & ~0x03;
+
+	bmp_bpix = get_unaligned_le16(&bmp->header.bit_count);
+	hdr_size = get_unaligned_le16(&bmp->header.size);
+
+	colours = 1 << bmp_bpix;
+
+	bmap = src + get_unaligned_le32(&bmp->header.data_offset);
+
+	p0 = bmap;
+	p1 = dst;
+
+	switch (bmp_bpix) {
+	case 24:
+		hp0 = p0 + y0 * stb0;
+		hp1 = p1 + (y1 + height - 1) * stride1 * 4;
+		for (i = 0; i < height; ++i) {
+			p0 = hp0 + x0 * 3;
+			p1 = hp1 + x1 * 4;
+			for (j = 0; j < width; j++) {
+				ct = 0xff;
+				ct &= *p0;
+				*(p1++) = *(p0++);
+				ct &= *p0;
+				*(p1++) = *(p0++);
+				ct &= *p0;
+				*(p1++) = *(p0++);
+				*(p1++) = (ct >= 0xe0 ? 0 : 0xff);
+			}
+			hp0 += stb0;
+			hp1 -= stride1 * 4;
+		}
+		break;
+	case 32:
+		hp0 = p0 + y0 * stride0 * 4;
+		hp1 = p1 + (y1 + height - 1) * stride1 * 4;
+		for (i = 0; i < height; ++i) {
+			p0 = hp0 + x0 * 4;
+			p1 = hp1 + x1 * 4;
+			for (j = 0; j < width; j++) {
+				*(p1++) = *(p0++);
+				*(p1++) = *(p0++);
+				*(p1++) = *(p0++);
+				*(p1++) = *(p0++);
+			}
+			hp0 += stride0 * 4;
+			hp1 -= stride1 * 4;
+		}
+		break;
+	default:
+		pr_err("logo only support 24/32 bits bmp\n");
+		break;
+	}
+	return 0;
+}
+
+static void stride_copy_420(int width, int height, const char *src,
+		int x0, int y0, int stride0, int height0,
+		char *dst, int x1, int y1, int stride1, int height1)
+{
+	const char *p0;
+	char *p1;
+	int i;
+
+	// copy y
+	p0 = src + (y0 * stride0) + x0;
+	p1 = dst + (y1 * stride1) + x1;
+	for (i = 0; i < height; i++) {
+		memcpy(p1, p0, width);
+		p0 += stride0;
+		p1 += stride1;
+	}
+	// copy uv
+	p0 = src + stride0 * height0;
+	p1 = dst + stride1 * height1;
+	x0 >>= 1;
+	x1 >>= 1;
+	stride0 >>= 1;
+	stride1 >>= 1;
+	width >>= 1;
+	p0 += (y0 * stride0) + x0;
+	p1 += (y1 * stride1) + x1;
+	for (i=0; i < height; i++) {
+		memcpy(p1, p0, width);
+		p0 += stride0;
+		p1 += stride1;
+	}
+}
 
 static int display_color_bar(unsigned int width, unsigned height,
 		char *draw_start_vaddr)
@@ -2963,6 +3194,7 @@ static const struct file_operations iar_debug_fops = {
         .release = single_release,
 };
 
+//int xvb_sdb = 0;
 
 static int hobot_iar_probe(struct platform_device *pdev)
 {
@@ -3025,12 +3257,21 @@ static int hobot_iar_probe(struct platform_device *pdev)
 		devm_ioremap_resource(&pdev->dev, res_mipi);
 	if (IS_ERR(g_iar_dev->mipi_dsi_regaddr))
 		return PTR_ERR(g_iar_dev->mipi_dsi_regaddr);
-	hitm1_reg_addr = ioremap_nocache(X3_GPIO_BASE + X3_GPIO0_VALUE_REG, 4);
-	reg_val = readl(hitm1_reg_addr);
-	reg_val = (((reg_val >> 14) & 0x1) << 1) | ((reg_val >> 12) & 0x1);
-	hb_disp_base_board_id = reg_val + 1;
-	pr_debug("iar: base board id is 0x%x\n", hb_disp_base_board_id);
-	if (hb_disp_base_board_id == 0x1) {     //x3_dvb
+	ret = of_property_match_string(pdev->dev.of_node, "board-name", "xvb");
+	if (ret < 0) {
+		xvb_sdb = 1;// base board is sdb
+		pwm_no = 1;
+		display_type = HDMI_TYPE;
+	} else {
+		xvb_sdb = 0;// base board is xvb
+		pwm_no = 0;
+		hitm1_reg_addr = ioremap_nocache(X3_GPIO_BASE + X3_GPIO0_VALUE_REG, 4);
+		reg_val = readl(hitm1_reg_addr);
+		reg_val = (((reg_val >> 14) & 0x1) << 1) | ((reg_val >> 12) & 0x1);
+		hb_disp_base_board_id = reg_val + 1;
+		pr_debug("iar: base board id is 0x%x\n", hb_disp_base_board_id);
+	}
+	if (hb_disp_base_board_id == 0x1 || xvb_sdb == 1) {     //x3_dvb
 		ret = of_property_read_u32(pdev->dev.of_node,
 			"disp_panel_reset_pin", &panel_reset_pin);
 		if (ret) {
@@ -3047,15 +3288,18 @@ static int hobot_iar_probe(struct platform_device *pdev)
 		}
 		pr_debug("gpio request succeed!!!!\n");
 	}
+
+	EMBEDIMG(0, "drivers/soc/hobot/iar/bootlogo.bmp");
 #endif
 	g_iar_dev->rst = devm_reset_control_get(&pdev->dev, "iar");
 	if (IS_ERR(g_iar_dev->rst)) {
 		dev_err(&pdev->dev, "missing controller reset\n");
 		return PTR_ERR(g_iar_dev->rst);
+	} else {
+		reset_control_assert(g_iar_dev->rst);
+		udelay(2);
+		reset_control_deassert(g_iar_dev->rst);
 	}
-	reset_control_assert(g_iar_dev->rst);
-	udelay(2);
-	reset_control_deassert(g_iar_dev->rst);
 
 	irq = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
 	if (!irq) {
@@ -3106,7 +3350,7 @@ static int hobot_iar_probe(struct platform_device *pdev)
 		g_iar_dev->pins_rgb_gpio = pinctrl_lookup_state(g_iar_dev->pinctrl,
 					"rgb_gpio_func");
 		if (IS_ERR(g_iar_dev->pins_rgb_gpio)) {
-			dev_warn(&pdev->dev, "rgb_gpio_func get error %ld\n",
+			dev_info(&pdev->dev, "rgb_gpio_func get error %ld\n",
 					PTR_ERR(g_iar_dev->pins_rgb_gpio));
 			g_iar_dev->pins_rgb_gpio = NULL;
 		}
@@ -3157,6 +3401,9 @@ static int hobot_iar_probe(struct platform_device *pdev)
 		} else if (strstr(type, "720p") != NULL) {
 			display_type = MIPI_720P_TOUCH;
 			pr_info("%s: panel type is MIPI_720P_TOUCH\n", __func__);
+		} else if (strstr(type, "dsi720x1280") != NULL) {	//for SDB panel
+			display_type = MIPI_720P_TOUCH;
+			pr_info("%s: panel type is MIPI_720P_TOUCH\n", __func__);
 		} else if (strstr(type, "lcd") != NULL) {
 			display_type = LCD_7_TYPE;
 			pr_info("%s: panel type is LCD_7_TYPE\n", __func__);
@@ -3177,8 +3424,8 @@ static int hobot_iar_probe(struct platform_device *pdev)
 
 	np = of_parse_phandle(pdev->dev.of_node, "memory-region", 0);
 	if (!np) {
-		dev_err(&g_iar_dev->pdev->dev, "No %s specified\n", "memory-region");
 #ifndef USE_ION_MEM
+		dev_err(&g_iar_dev->pdev->dev, "No %s specified\n", "memory-region");
 		goto err1;
 #endif
 	} else {
@@ -3509,7 +3756,12 @@ static int hobot_iar_probe(struct platform_device *pdev)
 			return ret;
 		iar_display_cam_no = PIPELINE0;
                 iar_display_addr_type = GDC0;
-		display_color_bar(720, 1280, g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr);
+		if (xvb_sdb == 0) {
+			display_color_bar(720, 1280, g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr);
+		} else if (xvb_sdb == 1) {
+			stride_copy_bmp(0, 0, embedded_image_0_data, 0, 0, 0, 0,
+				g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr, 24, 24, 720);
+		}
 		pr_debug("set mipi 720p touch done!\n");
 	} else if (display_type == HDMI_TYPE || display_type == SIF_IPI) {
 		if (display_type == SIF_IPI) {
@@ -3522,13 +3774,19 @@ static int hobot_iar_probe(struct platform_device *pdev)
 			ret = disp_set_pixel_clk(54400000);
 		} else {
 			pr_debug("%s: display_type is HDMI panel!\n", __func__);
-			ret = disp_set_pixel_clk(163000000);
+			//ret = disp_set_pixel_clk(163000000);
+			ret = disp_set_pixel_clk(148500000);
 		}
 		if (ret)
 			return ret;
 		iar_display_cam_no = PIPELINE0;
 		iar_display_addr_type = DISPLAY_CHANNEL1;
-		display_color_bar(1920, 1080, g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr);
+		if (xvb_sdb == 0) {
+			display_color_bar(1920, 1080, g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr);
+		} else if (xvb_sdb == 1) {
+			stride_copy_bmp(0, 0, embedded_image_0_data, 0, 0, 0, 0,
+					g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr, 24, 24, 1920);
+		}
 		pr_debug("set HDMI done!\n");
 #if 0
 		temp1 = g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr;
