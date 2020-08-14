@@ -58,7 +58,7 @@ struct ipu_osd_cfg{
 
 struct ipu_info_cfg {
 	ipu_ds_info_t sc_info;
-	bool info_update;
+	u32 info_update;
 };
 
 struct ipu_status_statistic {

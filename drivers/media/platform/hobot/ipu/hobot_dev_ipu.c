@@ -497,6 +497,9 @@ void ipu_frame_work(struct vio_group *group)
 			}
 
 			dma_enable = true;
+			if (subdev->info_cfg.info_update)
+				frame->frameinfo.dynamic_flag =
+					subdev->info_cfg.info_update;
 			ipu_hw_set_cfg(subdev);
 			trans_frame(framemgr, frame, FS_PROCESS);
 		}
@@ -570,17 +573,24 @@ void ipu_clear_group_leader(struct vio_group *group)
 int ipu_update_scale_info(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 {
 	int ret = 0;
-	ipu_ds_info_t *sc_cfg;
 	struct ipu_subdev *subdev;
+	struct vio_framemgr *framemgr;
+	struct ipu_info_cfg ipu_info;
+	unsigned long flags;
 
 	subdev = ipu_ctx->subdev;
-	sc_cfg = &subdev->info_cfg.sc_info;
-	ret = copy_from_user((char *) sc_cfg, (u32 __user *) arg,
-			   sizeof(ipu_ds_info_t));
+	framemgr = ipu_ctx->framemgr;
+
+	ret = copy_from_user((void *) &ipu_info, (u32 __user *) arg,
+		sizeof(struct ipu_info_cfg));
 	if (ret)
 		return -EFAULT;
 
-	subdev->info_cfg.info_update = 1;
+	framemgr_e_barrier_irqs(framemgr, 0, flags);
+	memcpy(&subdev->info_cfg, &ipu_info,
+			sizeof(struct ipu_info_cfg));
+	framemgr_x_barrier_irqr(framemgr, 0, flags);
+
 	vio_dbg("[S%d][V%d] %s\n", ipu_ctx->group->instance, ipu_ctx->id,
 		 __func__);
 
