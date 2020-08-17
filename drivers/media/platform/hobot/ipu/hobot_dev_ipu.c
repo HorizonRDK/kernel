@@ -241,6 +241,7 @@ static int x3_ipu_release_subdev_all_ion(struct ipu_subdev *subdev)
 	return 0;
 }
 
+static int subdev_frame_skip_deinit(struct ipu_subdev *subdev);
 static int x3_ipu_close(struct inode *inode, struct file *file)
 {
 	struct ipu_video_ctx *ipu_ctx;
@@ -312,6 +313,7 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 			x3_ipu_release_subdev_all_ion(subdev);
 		else
 			x3_ipu_release_s0_frame(subdev);
+		(void)subdev_frame_skip_deinit(subdev);
 	}
 
 	if (atomic_dec_return(&ipu->open_cnt) == 0) {
@@ -421,6 +423,109 @@ int ipu_check_phyaddr(struct frame_info *frameinfo)
 	return ret;
 }
 
+static int subdev_frame_skip_deinit(struct ipu_subdev *subdev)
+{
+	unsigned long flags;
+
+	if (subdev == NULL) {
+		return -ENODEV;
+	}
+
+	spin_lock_irqsave(&subdev->slock, flags);
+	subdev->enable_frame_cnt = 0;
+	subdev->curr_frame_cnt = 0;
+	subdev->frame_skip_step = 0;
+	subdev->frame_skip_num = 0;
+	spin_unlock_irqrestore(&subdev->slock, flags);
+
+	return 0;
+}
+
+static int subdev_set_frame_skip_param(struct ipu_video_ctx *ipu_ctx,
+			unsigned int frame_skip_step, unsigned int frame_skip_num)
+{
+	struct ipu_subdev *subdev = NULL;
+	unsigned long flags;
+
+	subdev = ipu_ctx->subdev;
+	if (subdev == NULL) {
+		return -ENODEV;
+	}
+
+	if (frame_skip_step < frame_skip_num) {
+		return -EINVAL;
+	}
+
+	spin_lock_irqsave(&subdev->slock, flags);
+	subdev->enable_frame_cnt = 0;
+	subdev->curr_frame_cnt = 0;
+	subdev->frame_skip_step = frame_skip_step;
+	subdev->frame_skip_num = frame_skip_num;
+	spin_unlock_irqrestore(&subdev->slock, flags);
+
+	vio_info("[S%d][V%d]set param skip_step = 0x%x, skip num = 0x%x\n",
+		subdev->group->instance, subdev->id,
+		subdev->frame_skip_step, subdev->frame_skip_num);
+	return 0;
+}
+
+static void subdev_inc_enable_frame_count(struct ipu_subdev *subdev)
+{
+	unsigned long flags;
+
+	if (subdev == NULL)
+		return;
+
+	spin_lock_irqsave(&subdev->slock, flags);
+	if ((subdev->frame_skip_step) && (subdev->frame_skip_num))
+		subdev->enable_frame_cnt++;
+	spin_unlock_irqrestore(&subdev->slock, flags);
+}
+
+static void subdev_set_lost_next_frame_flag(struct ipu_subdev *subdev)
+{
+	unsigned long flags;
+
+	if (subdev == NULL)
+		return;
+
+	spin_lock_irqsave(&subdev->slock, flags);
+	if ((subdev->frame_skip_step) && (subdev->frame_skip_num)) {
+		subdev->curr_frame_cnt++;
+
+		vio_dbg("[S%d][V%d]%s enable_frame = 0x%x, curr_frame = 0x%x,",
+				subdev->group->instance, subdev->id, __func__,
+				subdev->enable_frame_cnt, subdev->curr_frame_cnt);
+		vio_dbg("skip_step = 0x%x, skip_num = 0x%x\n",
+				subdev->frame_skip_step, subdev->frame_skip_num);
+		if (subdev->enable_frame_cnt >=
+			(subdev->frame_skip_step - subdev->frame_skip_num)) {
+			atomic_set(&subdev->lost_next_frame, 1);
+		} else {
+			atomic_set(&subdev->lost_next_frame, 0);
+		}
+
+		if (subdev->curr_frame_cnt >= subdev->frame_skip_step) {
+			subdev->curr_frame_cnt = 0;
+			subdev->enable_frame_cnt = 0;
+		}
+	}
+	spin_unlock_irqrestore(&subdev->slock, flags);
+}
+
+static void ipu_set_all_lost_next_frame_flags(struct vio_group *group)
+{
+	int i = 0;
+	struct ipu_subdev *subdev = NULL;
+
+	for (i = GROUP_ID_US; i < GROUP_ID_MAX; i++) {
+		subdev = group->sub_ctx[i];
+		if (subdev)
+			subdev_set_lost_next_frame_flag(subdev);
+	}
+}
+
+
 void ipu_frame_work(struct vio_group *group)
 {
 	struct ipu_subdev *subdev;
@@ -490,19 +595,32 @@ void ipu_frame_work(struct vio_group *group)
 					shadow_index == 0)
 				ipu_update_hw_param(subdev);
 
-			ipu_hw_enable_channel(subdev, true);
+			if (!atomic_read(&subdev->lost_next_frame)) {
+				ipu_hw_enable_channel(subdev, true);
 
-			if (i == GROUP_ID_DS2) {
-				ipu_set_ds2_wdma_enable(ipu->base_reg, shadow_index, 1);
-				ds2_dma_enable = true;
+				if (i == GROUP_ID_DS2) {
+					ipu_set_ds2_wdma_enable(ipu->base_reg, shadow_index, 1);
+					ds2_dma_enable = true;
+				}
+
+				dma_enable = true;
+				if (subdev->info_cfg.info_update)
+					frame->frameinfo.dynamic_flag =
+						subdev->info_cfg.info_update;
+				ipu_hw_set_cfg(subdev);
+				trans_frame(framemgr, frame, FS_PROCESS);
+				subdev_inc_enable_frame_count(subdev);
+			} else {
+				/* if we do not trigger frame again,
+				 * we will find framebuf in request list,
+				 * but we have consumed one hw_resource.wait_list member
+				 * */
+				if (subdev->leader == true && group->leader) {
+					vio_group_start_trigger_mp(group, frame);
+				}
+
+				vio_dbg("[S%d][V%d]lost frame\n", group->instance, subdev->id);
 			}
-
-			dma_enable = true;
-			if (subdev->info_cfg.info_update)
-				frame->frameinfo.dynamic_flag =
-					subdev->info_cfg.info_update;
-			ipu_hw_set_cfg(subdev);
-			trans_frame(framemgr, frame, FS_PROCESS);
 		}
 
 		vio_dbg("[S%d][V%d] work (%d %d %d %d %d)",
@@ -2366,6 +2484,7 @@ static long x3_ipu_ioctl(struct file *file, unsigned int cmd,
 	u32 buf_index;
 	struct user_statistic stats;
 	struct kernel_ion *ipu_ion = NULL;
+	struct ipu_frame_skip_info skip_info;
 
 	ipu_ctx = file->private_data;
 	BUG_ON(!ipu_ctx);
@@ -2478,6 +2597,14 @@ static long x3_ipu_ioctl(struct file *file, unsigned int cmd,
 			return -EFAULT;
 		}
 		vfree(ipu_ion);
+		break;
+	case IPU_IOC_SET_FRAME_SKIP_PARAM:
+		ret = copy_from_user((char *)&skip_info, (u32 __user *)arg,
+				   sizeof(struct ipu_frame_skip_info));
+		if (ret)
+			return -EFAULT;
+		ret = subdev_set_frame_skip_param(ipu_ctx,
+				skip_info.frame_skip_step, skip_info.frame_skip_num);
 		break;
 	default:
 		vio_err("wrong ioctl command\n");
@@ -2976,6 +3103,8 @@ static irqreturn_t ipu_isr(int irq, void *data)
 				atomic_dec(&ipu->enable_cnt);
 				ipu_disable_all_channels(ipu->base_reg, group->instance);
 			}
+
+			ipu_set_all_lost_next_frame_flags(group);
 		}
 
 		if (test_bit(IPU_DS2_DMA_OUTPUT, &ipu->state)) {

@@ -41,6 +41,7 @@
 #define IPU_IOC_SCALE_INFO    	 _IOW(IPU_IOC_MAGIC, 14, int)
 #define IPU_IOC_USER_STATS       _IOR(IPU_IOC_MAGIC, 16, struct user_statistic)
 #define IPU_IOC_KERNEL_ION       _IOWR(IPU_IOC_MAGIC, 17, kernel_ion_t)
+#define IPU_IOC_SET_FRAME_SKIP_PARAM    _IOWR(IPU_IOC_MAGIC, 18, int)
 
 
 
@@ -172,6 +173,11 @@ enum ipu_subdev_state {
 	IPU_SUBDEV_REQBUF
 };
 
+struct ipu_frame_skip_info {
+	unsigned int frame_skip_step;
+	unsigned int frame_skip_num;
+};
+
 struct ipu_subdev {
 	spinlock_t 		slock;
 	struct ipu_video_ctx	*ctx[VIO_MAX_SUB_PROCESS];
@@ -194,6 +200,12 @@ struct ipu_subdev {
 	u32 cur_enable_flag;
 
 	u8 poll_mask;
+
+	unsigned int enable_frame_cnt;
+	unsigned int curr_frame_cnt;
+	unsigned int frame_skip_step;
+	unsigned int frame_skip_num;
+	atomic_t lost_next_frame;
 };
 
 struct x3_ipu_dev {
