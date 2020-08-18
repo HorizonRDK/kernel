@@ -112,7 +112,6 @@ enum {
 	GAMMA_CFG,
 	OUTPUT_CFG,
 };
-extern int xvb_sdb;
 static int lcd_type = RGB888_700;
 //static int outmode = OUTPUT_RGB888;
 static int outmode = OUTPUT_BT1120;
@@ -925,11 +924,7 @@ int user_set_fb(void)
 #ifdef CONFIG_HOBOT_XJ2
 		disp_set_panel_timing(&video_1920x1080);
 #else
-		if (xvb_sdb == 0)
-			disp_set_panel_timing(&video_1920x1080);
-		else if (xvb_sdb == 1)
-			disp_set_panel_timing(&video_1920x1080_sdb);
-		//disp_set_panel_timing(&video_800x480);
+		disp_set_panel_timing(&video_1920x1080);
 		hobot_fbi->channel_base_cfg[0].enable = 1;
 		hobot_fbi->channel_base_cfg[1].enable = 0;
 		hobot_fbi->channel_base_cfg[2].enable = 1;
@@ -1218,10 +1213,7 @@ int user_set_fb(void)
 		//set_mipi_display(0);
 	} else if (display_type == MIPI_720P_TOUCH) {
 		pr_info("fb_driver: disp set mipi 720p touch!\n");
-		if (xvb_sdb == 0)
-			disp_set_panel_timing(&video_720x1280_touch);
-		else if (xvb_sdb == 1)
-			disp_set_panel_timing(&video_720x1280_touch_sdb);
+		disp_set_panel_timing(&video_720x1280_touch);
 		hobot_fbi->memory_mode = 0;
 
 		hobot_fbi->channel_base_cfg[0].enable = 1;
@@ -1598,6 +1590,7 @@ static int hbfb_probe(struct platform_device *pdev)
 	int ret;
 	frame_buf_t framebuf_user;
 	frame_buf_t framebuf_user1;
+	uint32_t rgba[4] = {8, 16, 24, 0};
 
 	pr_info("Hobot fb probe!!!\n");
 
@@ -1606,11 +1599,14 @@ static int hbfb_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Unable to alloc hobot framebuffer DEV\n");
 		return -ENOMEM;
 	}
-	if (xvb_sdb == 1) {
-		RGB700_var_default.red.offset = 16;
-		RGB700_var_default.green.offset = 8;
-		RGB700_var_default.blue.offset = 0;
-		RGB700_var_default.transp.offset = 24;
+	ret = of_property_read_u32_array(pdev->dev.of_node, "offset-rgba", rgba, 4);
+	if (ret) {
+		pr_err("error git rgba offset from dts, use default!!\n");
+	} else {
+		RGB700_var_default.red.offset = rgba[0];
+		RGB700_var_default.green.offset = rgba[1];
+		RGB700_var_default.blue.offset = rgba[2];
+		RGB700_var_default.transp.offset = rgba[3];
 	}
 
 	strcpy(hobot_fbi->fb.fix.id, DRIVER_NAME);

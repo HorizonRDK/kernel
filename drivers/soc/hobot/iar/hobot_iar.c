@@ -35,7 +35,6 @@
 #include "./bmp_layout.h"
 
 #define USE_ION_MEM
-//#ifdef CONFIG_X3
 #ifdef CONFIG_HOBOT_XJ3
 #define IAR_MEM_SIZE 0x4000000	//64MB
 #define MAX_YUV_BUF_SIZE 0x2F7600 //3MB,1920*1080*1.5
@@ -43,9 +42,6 @@
 #define IAR_MEM_SIZE 0x2000000        //32MB
 #endif
 
-#define PWM_PERIOD_DEFAULT 1000
-#define PWM_DUTY_DEFAULT 10
-#define PWM_DUTY_SDB_DEFAULT 200
 unsigned int iar_debug_level = 0;
 EXPORT_SYMBOL(iar_debug_level);
 module_param(iar_debug_level, uint, 0644);
@@ -121,6 +117,8 @@ void *logo_vaddr = NULL;
 static int pwm0_request_status = 0;
 int xvb_sdb = 0;
 static int pwm_no = 0;
+static int pwm_period = 1000;
+static int pwm_duty = 10;
 unsigned int fb_num = 1;
 EXPORT_SYMBOL(xvb_sdb);
 EXPORT_SYMBOL(fb_num);
@@ -129,38 +127,33 @@ struct disp_timing video_1920x1080 = {
 	148, 88, 44, 36, 4, 5
 };
 
-struct disp_timing video_1920x1080_sdb = {
-	160, 120, 24, 48, 4, 5
-};
-
 struct disp_timing video_800x480 = {
 	80, 120, 48, 32, 43, 2
 };
+
 struct disp_timing video_720x1280 = {
 	36, 84, 24, 11, 13, 2
 };
-//timing for haps
-//struct disp_timing video_1080x1920 = {
-//	32, 300, 5, 4, 100, 5
-//};
+
 struct disp_timing video_1080x1920 = {
 	100, 400, 5, 4, 400, 5
 };
 struct disp_timing video_720x1280_touch = {
 	100, 100, 10, 20, 10, 10
 };
-struct disp_timing video_720x1280_touch_sdb = {
-        40, 40, 10, 11, 16, 3
-};
+
+uint32_t pixel_clk_video_1920x1080 = 163000000;
+uint32_t pixel_clk_video_800x480 = 32000000;
+uint32_t pixel_clk_video_720x1280 = 68000000;
+uint32_t pixel_clk_video_1080x1920 = 32000000;
+uint32_t pixel_clk_video_720x1280_touch = 54000000;
 EXPORT_SYMBOL(disp_user_config_done);
 EXPORT_SYMBOL(disp_copy_done);
 EXPORT_SYMBOL(video_1920x1080);
-EXPORT_SYMBOL(video_1920x1080_sdb);
 EXPORT_SYMBOL(video_800x480);
 EXPORT_SYMBOL(video_720x1280);
 EXPORT_SYMBOL(video_1080x1920);
 EXPORT_SYMBOL(video_720x1280_touch);
-EXPORT_SYMBOL(video_720x1280_touch_sdb);
 
 uint32_t g_iar_regs[93];
 
@@ -981,18 +974,18 @@ static int disp_clk_enable(void)
 		}
 		disp_clk_already_enable = 1;
 	}
-	if (display_type == LCD_7_TYPE || display_type == MIPI_1080P) {
-		pixel_clock = 32000000;
-	} else if (display_type == MIPI_720P_TOUCH) {
-		if (xvb_sdb == 0)
-			pixel_clock = 54000000;
-		else
-			pixel_clock = 64000000;
-	} else if (display_type == SIF_IPI) {
+	if (display_type == LCD_7_TYPE)
+		pixel_clock = pixel_clk_video_800x480;
+	else if (display_type == MIPI_1080P)
+		pixel_clock = pixel_clk_video_1080x1920;
+	else if (display_type == MIPI_720P_TOUCH)
+		pixel_clock = pixel_clk_video_720x1280_touch;
+	else if (display_type == SIF_IPI)
 		pixel_clock = 54400000;
-	} else {
+	else if (display_type == HDMI_TYPE)
+		pixel_clock = pixel_clk_video_1920x1080;
+	else
 		pixel_clock = 163000000;
-	}
 	pixel_clock = clk_round_rate(g_iar_dev->iar_pixel_clk, pixel_clock);
 	ret = clk_set_rate(g_iar_dev->iar_pixel_clk, pixel_clock);
 	if (ret) {
@@ -1060,15 +1053,11 @@ static int ipi_clk_enable(void)
 int screen_backlight_init(void)
 {
 	int ret = 0;
-	unsigned duty = 0;
 
 	pr_debug("initialize lcd backligbt!!!\n");
 	if (pwm0_request_status == 1)
 		return 0;
-	if (xvb_sdb == 0)
-		duty = PWM_DUTY_DEFAULT;
-	else if (xvb_sdb == 1)
-		duty = PWM_DUTY_SDB_DEFAULT;
+
 	screen_backlight_pwm = pwm_request(pwm_no, "lcd-pwm");
 	if (IS_ERR(screen_backlight_pwm)) {
 		pr_err("\nNo pwm device %d!!!!\n", pwm_no);
@@ -1084,8 +1073,8 @@ int screen_backlight_init(void)
 	 *
 	 * Returns: 0 on success or a negative error code on failure.
 	 */
-	ret = pwm_config(screen_backlight_pwm, duty,
-				PWM_PERIOD_DEFAULT);
+	ret = pwm_config(screen_backlight_pwm, pwm_duty,
+				pwm_period);
 	// 50Mhz,20ns period, on = 20ns
 	if (ret) {
 		pr_err("\nError config pwm!!!!\n");
@@ -1139,7 +1128,7 @@ int screen_backlight_change(unsigned int duty)
 
 	pwm_disable(screen_backlight_pwm);
 
-	ret = pwm_config(screen_backlight_pwm, duty, PWM_PERIOD_DEFAULT);
+	ret = pwm_config(screen_backlight_pwm, duty, pwm_period);
 
 	if (ret) {
 		pr_err("\nError config pwm!!!!\n");
@@ -1163,10 +1152,10 @@ int set_screen_backlight(unsigned int backlight_level)
 	if (display_type == LCD_7_TYPE || display_type == MIPI_720P_TOUCH ||
 			display_type == MIPI_1080P) {
 		if (backlight_level == 0) {
-			duty = PWM_PERIOD_DEFAULT - 1;
+			duty = pwm_period - 1;
 		} else if (backlight_level <= 10 && backlight_level > 0) {
-			duty = PWM_PERIOD_DEFAULT -
-				PWM_PERIOD_DEFAULT / 10 * backlight_level;
+			duty = pwm_period -
+				pwm_period / 10 * backlight_level;
 		} else {
 			pr_err("error backlight value, exit!!\n");
 			return -1;
@@ -1313,10 +1302,7 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 		if (ret)
 			return -1;
 		display_type = HDMI_TYPE;
-		if (xvb_sdb == 0)
-			disp_set_panel_timing(&video_1920x1080);
-		else if (xvb_sdb == 1)
-			disp_set_panel_timing(&video_1920x1080_sdb);
+		disp_set_panel_timing(&video_1920x1080);
 #endif
 #ifdef CONFIG_HOBOT_XJ2
 		ips_set_btout_clksrc(IAR_CLK, true);//clk invert
@@ -1335,10 +1321,7 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 	} else if (cfg->out_sel == OUTPUT_MIPI_DSI) {
 #ifdef CONFIG_HOBOT_XJ3
 		//output config
-		if (xvb_sdb == 0)
-			disp_set_panel_timing(&video_720x1280_touch);
-		else if (xvb_sdb == 1)
-			disp_set_panel_timing(&video_720x1280_touch_sdb);
+		disp_set_panel_timing(&video_720x1280_touch);
 		writel(0x8, g_iar_dev->regaddr + REG_IAR_DE_OUTPUT_SEL);//0x340
 		writel(0x13, g_iar_dev->regaddr + REG_DISP_LCDIF_CFG);//0x800
 		writel(0x3, g_iar_dev->regaddr + REG_DISP_LCDIF_PADC_RESET_N);//0x804
@@ -1438,10 +1421,7 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 			pr_err("%s: wrong json file or convert hw!\n",
 					__func__);
 		}
-		if (xvb_sdb == 0)
-			display_type = MIPI_720P;
-		else if (xvb_sdb == 1)
-			display_type = MIPI_720P_TOUCH;
+		display_type = MIPI_720P_TOUCH;
 	} else if (cfg->panel_type == 1) {
 		if (display_type == HDMI_TYPE) {
 			pr_err("%s: wrong json file or convert hw!\n",
@@ -1741,7 +1721,7 @@ static int iar_thread(void *data)
 		if (kthread_should_stop())
 			break;
 		wait_event_interruptible(g_iar_dev->wq_head,
-				ipu_process_done || stop_flag);
+				(ipu_process_done & iar_video_not_pause) || stop_flag);
 		ipu_process_done = 0;
 #ifdef CONFIG_HOBOT_XJ3
 		display_addr.Yaddr = g_disp_yaddr;
@@ -1777,63 +1757,6 @@ static int iar_thread(void *data)
 	return 0;
 }
 
-static int iar_thread_sdb(void *data)
-{
-	buf_addr_t display_addr;
-	buf_addr_t display_addr_video1;
-
-	while (!kthread_should_stop()) {
-		if (kthread_should_stop())
-			break;
-		if (iar_video_not_pause) {
-			wait_event_interruptible(g_iar_dev->wq_head,
-					ipu_process_done || stop_flag);
-			ipu_process_done = 0;
-#ifdef CONFIG_HOBOT_XJ3
-			display_addr.Yaddr = g_disp_yaddr;
-			display_addr.Uaddr = g_disp_caddr;
-			display_addr.Vaddr = 0;
-			display_addr_video1.Yaddr = g_disp_yaddr_video1;
-			display_addr_video1.Uaddr = g_disp_caddr_video1;
-			display_addr_video1.Vaddr = 0;
-#else
-			display_addr.Yaddr =
-				ipu_display_slot_id * iar_display_ipu_slot_size
-				+ iar_display_yaddr_offset;
-			display_addr.Uaddr =
-				ipu_display_slot_id * iar_display_ipu_slot_size
-				+ iar_display_caddr_offset;
-
-			display_addr.Vaddr = 0;
-			//pr_debug("iar_display_yaddr offset is 0x%x.\n",
-			//iar_display_yaddr_offset);
-			//pr_debug("iar_display_caddr offset is 0x%x.\n",
-			//iar_display_caddr_offset);
-			//pr_debug("iar: iar_display_yaddr is 0x%x.\n",
-			//display_addr.Yaddr);
-			//pr_debug("iar: iar_display_caddr is 0x%x.\n",
-			//display_addr.Uaddr);
-#endif
-			if (config_rotate) {
-				iar_rotate_video_buffer(display_addr.Yaddr,
-					display_addr.Uaddr, display_addr.Vaddr);
-			} else {
-				pr_debug("iar: iar display refresh!!!!!\n");
-				pr_debug("iar display video 0 yaddr is 0x%x, caddr is 0x%x\n",
-					display_addr.Yaddr, display_addr.Uaddr);
-				pr_debug("iar display video 1 yaddr is 0x%x, caddr is 0x%x\n",
-					display_addr_video1.Yaddr, display_addr_video1.Uaddr);
-				iar_set_bufaddr(0, &display_addr);
-				iar_set_bufaddr(1, &display_addr_video1);
-				iar_update();
-			}
-		} else {
-			msleep(5);
-		}
-	}
-	return 0;
-}
-
 int32_t iar_open(void)
 {
 	int ret = 0;
@@ -1857,12 +1780,8 @@ int32_t iar_open(void)
 	if (hb_disp_base_board_id == 0x1)
 		screen_backlight_init();
 	if (g_iar_dev->iar_task == NULL) {
-		if (xvb_sdb == 0)
-			g_iar_dev->iar_task = kthread_run(iar_thread,
-					(void *)g_iar_dev, "iar_thread");
-		else if (xvb_sdb == 1)
-			g_iar_dev->iar_task = kthread_run(iar_thread_sdb,
-					(void *)g_iar_dev, "iar_thread_sdb");
+		g_iar_dev->iar_task = kthread_run(iar_thread,
+				(void *)g_iar_dev, "iar_thread");
 		if (IS_ERR(g_iar_dev->iar_task)) {
 			g_iar_dev->iar_task = NULL;
 			dev_err(&g_iar_dev->pdev->dev, "iar thread create fail\n");
@@ -2904,12 +2823,12 @@ static int stride_copy_bmp(int width, int height, const unsigned char *src,
 		unsigned char *dst, int x1, int y1, int stride1)
 {
 	int i, j;
-	const struct bmp_image *bmp = (const struct bmp_image *)src;
+	struct bmp_image *bmp = (struct bmp_image *)src;
 	unsigned char *bmap;
 	unsigned long widthi, heighti;
 	int stb0;
 	unsigned colours, bmp_bpix;
-	const unsigned char *p0, *hp0;
+	unsigned char *p0, *hp0;
 	unsigned char *p1, *hp1;
 	unsigned char ct;
 
@@ -3216,6 +3135,9 @@ static int hobot_iar_probe(struct platform_device *pdev)
 	size_t iar_request_ion_size = 0;
 	char* fb_num_str = NULL;
 	char* temp = NULL;
+	uint32_t timing[7] = {0};
+	uint32_t pwm[3] = {0};
+	uint32_t need_startup_img = 0;
 
 	pr_info("iar probe begin!!!\n");
 
@@ -3260,11 +3182,9 @@ static int hobot_iar_probe(struct platform_device *pdev)
 	ret = of_property_match_string(pdev->dev.of_node, "board-name", "xvb");
 	if (ret < 0) {
 		xvb_sdb = 1;// base board is sdb
-		pwm_no = 1;
 		display_type = HDMI_TYPE;
 	} else {
 		xvb_sdb = 0;// base board is xvb
-		pwm_no = 0;
 		hitm1_reg_addr = ioremap_nocache(X3_GPIO_BASE + X3_GPIO0_VALUE_REG, 4);
 		reg_val = readl(hitm1_reg_addr);
 		reg_val = (((reg_val >> 14) & 0x1) << 1) | ((reg_val >> 12) & 0x1);
@@ -3376,6 +3296,82 @@ static int hobot_iar_probe(struct platform_device *pdev)
 	ret = request_threaded_irq(g_iar_dev->irq, hobot_iar_irq, NULL, IRQF_TRIGGER_HIGH,
 							   dev_name(&pdev->dev), g_iar_dev);
 	disable_irq(g_iar_dev->irq);
+
+	ret = of_property_read_u32(pdev->dev.of_node, "startup-img",
+			&need_startup_img);
+	if (ret) {
+		pr_err("error get startup img config!!\n");
+		need_startup_img = 0;
+	}
+
+	ret = of_property_read_u32_array(pdev->dev.of_node, "pwm", pwm, 3);
+	if (ret) {
+		pr_err("error get pwm config from dts!!\n");
+	} else {
+		pwm_no = pwm[0];
+		pwm_period = pwm[1];
+		pwm_duty = pwm[2];
+	}
+	ret = of_property_read_u32_array(pdev->dev.of_node,
+			"timing_1920x1080", timing, 7);
+	if (ret == 0) {
+		pixel_clk_video_1920x1080 = timing[0];
+		video_1920x1080.hbp = timing[1];
+		video_1920x1080.hfp = timing[2];
+		video_1920x1080.hs = timing[3];
+		video_1920x1080.vbp = timing[4];
+		video_1920x1080.vfp = timing[5];
+		video_1920x1080.vs = timing[6];
+	} else {
+		pixel_clk_video_1920x1080 = 163000000;
+		pr_err("can't find timing for 1920*1080, use default!!\n");
+	}
+
+	ret = of_property_read_u32_array(pdev->dev.of_node,
+			"timing_800x480", timing, 7);
+	if (ret == 0) {
+		pixel_clk_video_800x480 = timing[0];
+		video_800x480.hbp = timing[1];
+		video_800x480.hfp = timing[2];
+		video_800x480.hs = timing[3];
+		video_800x480.vbp = timing[4];
+		video_800x480.vfp = timing[5];
+		video_800x480.vs = timing[6];
+	} else {
+		pixel_clk_video_800x480 = 32000000;
+		pr_err("can't find timing for 800*480, use default!!\n");
+	}
+
+	ret = of_property_read_u32_array(pdev->dev.of_node,
+			"timing_1080x1920", timing, 7);
+	if (ret == 0) {
+		pixel_clk_video_1080x1920 = timing[0];
+		video_1080x1920.hbp = timing[1];
+		video_1080x1920.hfp = timing[2];
+		video_1080x1920.hs = timing[3];
+		video_1080x1920.vbp = timing[4];
+		video_1080x1920.vfp = timing[5];
+		video_1080x1920.vs = timing[6];
+	} else {
+		pixel_clk_video_1080x1920 = 32000000;
+		pr_err("can't find timing for 1080*1920, use default!!\n");
+	}
+
+	ret = of_property_read_u32_array(pdev->dev.of_node,
+			"timing_720x1280_touch", timing, 7);
+	if (ret == 0) {
+		pixel_clk_video_720x1280 = timing[0];
+		video_720x1280.hbp = timing[1];
+		video_720x1280.hfp = timing[2];
+		video_720x1280.hs = timing[3];
+		video_720x1280.vbp = timing[4];
+		video_720x1280.vfp = timing[5];
+		video_720x1280.vs = timing[6];
+	} else {
+		pixel_clk_video_720x1280_touch = 54000000;
+		pr_err("can't find timing for 720*1280 touch, use default!!\n");
+	}
+
 	ret = fb_get_options("hobot", &type);
 	pr_debug("%s: fb get options display type is %s\n", __func__, type);
 	if (type != NULL) {
@@ -3746,21 +3742,21 @@ static int hobot_iar_probe(struct platform_device *pdev)
 		display_color_bar(800, 480, g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr);
 	} else if (display_type == MIPI_720P) {
 		pr_debug("%s: display_type is mipi-720p-dsi panel!\n", __func__);
-		ret = disp_set_pixel_clk(68000000);
+		ret = disp_set_pixel_clk(pixel_clk_video_720x1280);
 		if (ret)
 			return ret;
 	} else if (display_type == MIPI_720P_TOUCH) {
 		pr_info("%s: display_type is mipi-720p-dsi panel!\n", __func__);
-		ret = disp_set_pixel_clk(54000000);
+		ret = disp_set_pixel_clk(pixel_clk_video_720x1280_touch);
 		if (ret)
 			return ret;
 		iar_display_cam_no = PIPELINE0;
                 iar_display_addr_type = GDC0;
-		if (xvb_sdb == 0) {
-			display_color_bar(720, 1280, g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr);
-		} else if (xvb_sdb == 1) {
+		if (need_startup_img) {
 			stride_copy_bmp(0, 0, embedded_image_0_data, 0, 0, 0, 0,
 				g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr, 24, 24, 720);
+		} else {
+			display_color_bar(720, 1280, g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr);
 		}
 		pr_debug("set mipi 720p touch done!\n");
 	} else if (display_type == HDMI_TYPE || display_type == SIF_IPI) {
@@ -3774,18 +3770,17 @@ static int hobot_iar_probe(struct platform_device *pdev)
 			ret = disp_set_pixel_clk(54400000);
 		} else {
 			pr_debug("%s: display_type is HDMI panel!\n", __func__);
-			//ret = disp_set_pixel_clk(163000000);
-			ret = disp_set_pixel_clk(148500000);
+			ret = disp_set_pixel_clk(pixel_clk_video_1920x1080);
 		}
 		if (ret)
 			return ret;
 		iar_display_cam_no = PIPELINE0;
 		iar_display_addr_type = DISPLAY_CHANNEL1;
-		if (xvb_sdb == 0) {
-			display_color_bar(1920, 1080, g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr);
-		} else if (xvb_sdb == 1) {
+		if (need_startup_img) {
 			stride_copy_bmp(0, 0, embedded_image_0_data, 0, 0, 0, 0,
 					g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr, 24, 24, 1920);
+		} else {
+			display_color_bar(1920, 1080, g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr);
 		}
 		pr_debug("set HDMI done!\n");
 #if 0
@@ -3819,7 +3814,7 @@ static int hobot_iar_probe(struct platform_device *pdev)
 	} else if (display_type == MIPI_1080P) {
 		pr_debug("iar_driver: disp set mipi 1080p!\n");
 		pr_debug("iar_driver: output 1080*1920 color bar bgr!\n");
-		disp_set_pixel_clk(32000000);
+		disp_set_pixel_clk(pixel_clk_video_1080x1920);
 		iar_display_cam_no = PIPELINE0;
 		iar_display_addr_type = GDC1;
 		// actual output 27.2Mhz(need 27Mhz)
@@ -3915,19 +3910,6 @@ static struct platform_driver hobot_iar_driver = {
 		.pm = &hobot_iar_pm,
 	},
 };
-/*
-static int __init hobot_iar_init(void)
-{
-        int ret;
 
-    ret = platform_driver_register(&hobot_iar_driver);
-    if (ret)
-        pr_err("register hobot_ips_driver error\n");
-
-        return ret;
-}
-
-fs_initcall(hobot_iar_init);
-*/
 module_platform_driver(hobot_iar_driver);
 MODULE_LICENSE("GPL");

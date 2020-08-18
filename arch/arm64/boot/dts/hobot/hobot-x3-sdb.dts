@@ -337,10 +337,16 @@
 	pinctrl-3 = <&bt1120_1_8v_func>;
 	pinctrl-4 = <&bt1120_3_3v_func>;
 	disp_panel_reset_pin = <117>;
+	board-name = "sdb";
+	timing_1920x1080 = <148500000 160 120 24 48 4 5>;
+	timing_720x1280_touch = <64000000 40 40 10 11 16 3>;
+	startup-img = <1>;
+	pwm = <1 1000 200>;
 };
 
 &fb {
 	status = "okay";
+	offset-rgba = <16 8 0 24>;
 };
 
 &sdio0 {
