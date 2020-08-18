@@ -62,12 +62,59 @@ struct hobot_i2c_dev {
 	uint8_t i2c_id;
 	bool is_suspended;
 };
-static int trans_freq = I2C_SCL_DEFAULT_FREQ;
+
 static int timeout_enable = 0;
-module_param(trans_freq, int, S_IRUGO|S_IWUSR);
-MODULE_PARM_DESC(trans_freq, "i2c:change i2c freq");
+
 module_param(timeout_enable, int, S_IRUGO|S_IWUSR);
 MODULE_PARM_DESC(timeout_enable, "i2c:i2c hardware timeout 0:off 1:on");
+
+static const int supported_speed[] = {50000, 100000, 400000};
+
+static ssize_t speed_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	ssize_t	status = 0;
+	struct i2c_adapter *adap = to_i2c_adapter(dev);
+	struct hobot_i2c_dev *data = i2c_get_adapdata(adap);
+
+	status = sprintf(buf, "%d\n", data->default_trans_freq);
+	dev_dbg(data->dev, "%s", __func__);
+	return status;
+}
+
+static ssize_t speed_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
+{
+	int freq, i;
+	ssize_t	status = 0;
+	struct i2c_adapter *adap = to_i2c_adapter(dev);
+	struct hobot_i2c_dev *data = i2c_get_adapdata(adap);
+
+	status = kstrtoint(buf, 0, &freq);
+	if (status == 0) {
+		for (i = 0; i < ARRAY_SIZE(supported_speed); ++i) {
+			if (supported_speed[i] == freq)
+				break;
+		}
+		if (i == ARRAY_SIZE(supported_speed)) {
+			dev_err(data->dev, "invaild speed");
+			return -EPERM;
+		}
+		mutex_lock(&data->lock);
+		data->default_trans_freq = freq;
+		mutex_unlock(&data->lock);
+		status = size;
+		dev_dbg(data->dev, "%s freq: %d", __func__, freq);
+	}
+	return status;
+}
+
+static const struct device_attribute speed_attr = {
+	.attr = {.name = "speed", .mode = 0644},
+	.show = speed_show,
+	.store = speed_store,
+};
+
 static int hobot_i2c_cfg(struct hobot_i2c_dev *dev, int dir_rd, int timeout_enable)
 {
 	union cfg_reg_e cfg;
@@ -383,9 +430,7 @@ static void recal_clk_div(struct hobot_i2c_dev *dev)
 	if (client_req->client_req_freq != 0) {
 		temp_div = DIV_ROUND_UP(clk_freq, client_req->client_req_freq) - 1;
 	} else {
-		if (trans_freq != dev->default_trans_freq)
-				dev->default_trans_freq = trans_freq;
-		temp_div = DIV_ROUND_UP(clk_freq, dev->default_trans_freq) - 1;
+        temp_div = DIV_ROUND_UP(clk_freq, dev->default_trans_freq) - 1;
 	}
 	dev->clkdiv = DIV_ROUND_UP(temp_div, 8) - 1;
 	if (dev->clkdiv > I2C_MAX_DIV) {
@@ -712,6 +757,11 @@ static int hobot_i2c_probe(struct platform_device *pdev)
 			5, 300, 4000, NULL) < 0) {
 		dev_err(&pdev->dev, "i2c%d diag register fail\n",
 				EventIdI2cController0Err + i2c_id);
+	}
+	ret = device_create_file(&adap->dev, &speed_attr);
+	if (ret) {
+		dev_err(dev->dev, "create i2c speed_attr error");
+		goto err_irq;
 	}
 	dev_info(&pdev->dev, "hobot_i2c_%d probe done\n", i2c_id);
 	return 0;
