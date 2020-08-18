@@ -436,6 +436,7 @@ static int subdev_frame_skip_deinit(struct ipu_subdev *subdev)
 	subdev->curr_frame_cnt = 0;
 	subdev->frame_skip_step = 0;
 	subdev->frame_skip_num = 0;
+	atomic_set(&subdev->lost_next_frame, 0);
 	spin_unlock_irqrestore(&subdev->slock, flags);
 
 	return 0;
@@ -461,6 +462,7 @@ static int subdev_set_frame_skip_param(struct ipu_video_ctx *ipu_ctx,
 	subdev->curr_frame_cnt = 0;
 	subdev->frame_skip_step = frame_skip_step;
 	subdev->frame_skip_num = frame_skip_num;
+	atomic_set(&subdev->lost_next_frame, 0);
 	spin_unlock_irqrestore(&subdev->slock, flags);
 
 	vio_info("[S%d][V%d]set param skip_step = 0x%x, skip num = 0x%x\n",
