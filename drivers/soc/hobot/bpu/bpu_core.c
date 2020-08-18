@@ -152,7 +152,10 @@ static irqreturn_t bpu_core_irq_handler(int irq, void *dev_id)/*PRQA S ALL*/
 	spin_lock(&core->spin_lock);/*PRQA S ALL*/
 	ret = core->hw_ops->read_fc(core, &tmp_hw_id, &err);
 	if (ret <= 0) {
-		dev_err(core->dev, "BPU read hardware core error\n");
+		spin_unlock(&core->spin_lock);
+		if (ret < 0) {
+			dev_err(core->dev, "BPU read hardware core error\n");
+		}
 		return IRQ_HANDLED;
 	}
 	spin_unlock(&core->spin_lock);

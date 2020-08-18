@@ -354,6 +354,8 @@ static int32_t bpu_core_hw_read_fc(const struct bpu_core *core,
 {
 	uint32_t irq_status;
 	uint32_t ret_fc_num;
+	uint32_t tmp_err;
+	static uint32_t pre_err = 0;
 
 	if (core == NULL) {
 		pr_err("Read invalid bpu core!\n");/*PRQA S ALL*/
@@ -374,7 +376,14 @@ static int32_t bpu_core_hw_read_fc(const struct bpu_core *core,
 				core->index, ret_fc_num);
 	}
 
-	*err = bpu_core_reg_read(core, CNNINT_ERR_NUM);
+	tmp_err = bpu_core_reg_read(core, CNNINT_ERR_NUM);
+	if (tmp_err != 0) {
+		pre_err = tmp_err;
+	}
+	if (ret_fc_num > 0) {
+		*err = pre_err;
+		pre_err = 0;
+	}
 
 	return (int32_t)ret_fc_num;
 }
