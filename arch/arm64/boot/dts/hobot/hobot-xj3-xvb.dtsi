@@ -197,6 +197,13 @@
 	status = "okay";
 };
 
+&usb_id {
+	status = "okay";
+
+	/* vbus-gpio = <>; */
+	id-gpio = <&gpios 65 GPIO_ACTIVE_HIGH>;
+};
+
 &ips {
 	status = "okay";
 };

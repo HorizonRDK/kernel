@@ -282,8 +282,8 @@
 
 		usb_id: usb-id {
 			compatible = "linux,extcon-usb-gpio";
-			id-gpio = <&gpios 65 GPIO_ACTIVE_HIGH>;
-			/* vbus-gpio = <>; */
+
+			status = "disabled";
 		};
 
 		i2s0: i2s@0xA5007000 {

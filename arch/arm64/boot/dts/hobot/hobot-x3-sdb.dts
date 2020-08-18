@@ -215,6 +215,9 @@
 
 &usb_id {
 	status = "okay";
+
+	/* vbus-gpio = <>; */
+	id-gpio = <&gpios 65 GPIO_ACTIVE_HIGH>;
 	host-rst-gpio = <&gpios 115 GPIO_ACTIVE_HIGH>;
 	host-exrst-gpio = <&gpios 4 GPIO_ACTIVE_LOW>;
 };
