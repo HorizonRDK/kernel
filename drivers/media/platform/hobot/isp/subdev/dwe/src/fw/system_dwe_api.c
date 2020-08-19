@@ -797,7 +797,7 @@ int dis_hwparam_set(dwe_context_t *ctx, uint32_t port)
 		ctx->dframes[port].address = ctx->phy_mem;
 		ctx->dframes[port].virt_addr = ctx->ptr_mem;
 		tmp_cur = dwe_param[port].dis_param.path.path_g | 1;
-		//set_chn_dis_setting(dev_ptr->dis_dev->io_vaddr, &tmp_cur, ctx->dis_dev_num);
+		set_chn_dis_setting(dev_ptr->dis_dev->io_vaddr, &tmp_cur, ctx->dis_dev_num);
 	}
 
 	set_chn_dis_addr(dev_ptr->dis_dev->io_vaddr,

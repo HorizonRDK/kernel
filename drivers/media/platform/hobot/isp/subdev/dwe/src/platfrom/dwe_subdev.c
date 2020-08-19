@@ -192,6 +192,7 @@ int dis_set_ioctl(uint32_t port, uint32_t online)
 
 	spin_lock_irqsave(&dwe_ctx->dislock, flags);
 	dwe_ctx->ctx.dis_next_port = port;
+	dwe_ctx->ctx.dis_curr_port = port;
 	update_dis_param();
 	spin_unlock_irqrestore(&dwe_ctx->dislock, flags);
 	// schedule_work(&dwe_ctx->dis_work);
