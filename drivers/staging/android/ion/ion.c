@@ -451,6 +451,7 @@ struct ion_handle *ion_alloc(struct ion_client *client, size_t len,
 	struct ion_buffer *buffer = NULL;
 	struct ion_heap *heap;
 	int ret;
+	int heap_march = 0;
 	int type = 0;
 
 	/*
@@ -469,7 +470,32 @@ struct ion_handle *ion_alloc(struct ion_client *client, size_t len,
 	down_read(&dev->lock);
 	type = flags >> 16;
 	flags = flags&0xffff;
-	heap_id_mask |= ION_HEAP_TYPE_DMA_MASK;
+	/* bpu default not use cma heap */
+	if ((type >> 12) != 1) {
+		heap_id_mask |= ION_HEAP_TYPE_DMA_MASK;
+		plist_for_each_entry(heap, &dev->heaps, node) {
+			/* if the caller didn't specify this heap id */
+			if ((1 << heap->type) & heap_id_mask) {
+				heap_march = 1;
+			}
+		}
+		/* if no cma heap, use carveout*/
+		if (heap_march == 0) {
+			heap_id_mask &= ~ION_HEAP_TYPE_DMA_MASK;
+			heap_id_mask |= ION_HEAP_CARVEOUT_MASK;
+		}
+	} else {
+		plist_for_each_entry(heap, &dev->heaps, node) {
+			/* if the caller didn't specify this heap id */
+			if ((1 << heap->type) & heap_id_mask) {
+				heap_march = 1;
+			}
+		}
+		/* if no carveout heap, use cma */
+		if (heap_march == 0) {
+			heap_id_mask |= ION_HEAP_TYPE_DMA_MASK;
+		}
+	}
 	plist_for_each_entry(heap, &dev->heaps, node) {
 		/* if the caller didn't specify this heap id */
 		if (!((1 << heap->type) & heap_id_mask))
