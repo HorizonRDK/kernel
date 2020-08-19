@@ -34,11 +34,6 @@
 
 #include "acamera_isp_config.h"
 
-
-#if ISP_HAS_FPGA_WRAPPER
-#include "acamera_fpga_config.h"
-#endif
-
 #include "acamera_fsm_mgr.h"
 #include "acamera_types.h"
 #include "system_timer.h"

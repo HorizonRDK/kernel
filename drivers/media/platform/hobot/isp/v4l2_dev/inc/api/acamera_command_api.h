@@ -392,7 +392,6 @@
 #define LOGLIST_DMA_WRITER                                0x000000a5 // add API by myself
 #define LOGLIST_METADATA                                  0x000000a6 // add API by myself
 #define LOGLIST_AF_MANUAL                                 0x000000a7 // add API by myself
-#define LOGLIST_FPGA_DMA_FE                               0x000000a8 // add API by myself
 #define LOGLIST_SOC_IQ                                    0x000000a9 // add API by myself
 #define LOGLIST_SOC_SENSOR                                0x000000aa // add API by myself
 #define LOGLIST_SOC_LENS                                  0x000000ab // add API by myself

@@ -20,9 +20,6 @@
 #include "acamera_fw.h"
 #include "acamera_math.h"
 #include "acamera_firmware_config.h"
-#if ISP_HAS_FPGA_WRAPPER
-#include "acamera_fpga_config.h"
-#endif
 #include "acamera_isp_config.h"
 #include "acamera_command_api.h"
 #include "dma_writer_api.h"
@@ -128,12 +125,6 @@ void frame_buffer_initialize( dma_writer_fsm_ptr_t p_fsm )
 
     dma_writer_request_interrupt( p_fsm, p_fsm->mask.repeat_irq_mask );
 
-// DS buffer
-#if ISP_HAS_FPGA_WRAPPER && ISP_CONTROLS_DMA_READER
-    //  FRAME READER tab (address will be initialized in the first interrupt
-    acamera_fpga_frame_reader_axi_port_enable_write( p_fsm->cmn.isp_base, 1 );
-#endif
-
     if ( p_fsm->context_created == 0 ) {
         // create dma_pipe_hanlde
         dma_writer_create( &p_fsm->handle );
@@ -165,12 +156,6 @@ void frame_buffer_initialize( dma_writer_fsm_ptr_t p_fsm )
         api_ops[0].p_acamera_isp_dma_writer_format_write = acamera_isp_fr_dma_writer_format_write;
         api_ops[0].p_acamera_isp_dma_writer_max_bank_write = acamera_isp_fr_dma_writer_max_bank_write;
         api_ops[0].p_acamera_isp_dma_writer_bank0_base_write = acamera_isp_fr_dma_writer_bank0_base_write;
-#if ISP_HAS_FPGA_WRAPPER
-        api_ops.p_acamera_fpga_frame_reader_rbase_write = acamera_fpga_frame_reader_rbase_write;
-        api_ops.p_acamera_fpga_frame_reader_line_offset_write = acamera_fpga_frame_reader_line_offset_write;
-        api_ops.p_acamera_fpga_frame_reader_format_write = acamera_fpga_frame_reader_format_write;
-        api_ops.p_acamera_fpga_frame_reader_rbase_load_write = acamera_fpga_frame_reader_rbase_load_write;
-#endif
         api_ops[0].p_acamera_isp_dma_writer_line_offset_write = acamera_isp_fr_dma_writer_line_offset_write;
         api_ops[0].p_acamera_isp_dma_writer_line_offset_write = acamera_isp_fr_dma_writer_line_offset_write;
 
@@ -191,12 +176,6 @@ void frame_buffer_initialize( dma_writer_fsm_ptr_t p_fsm )
         api_ops[0].p_acamera_isp_dma_writer_active_height_write_uv = acamera_isp_fr_uv_dma_writer_active_height_write;
         api_ops[0].p_acamera_isp_dma_writer_active_width_read_uv = acamera_isp_fr_uv_dma_writer_active_width_read;
         api_ops[0].p_acamera_isp_dma_writer_active_height_read_uv = acamera_isp_fr_uv_dma_writer_active_height_read;
-#if ISP_HAS_FPGA_WRAPPER && defined( ACAMERA_FPGA_FRAME_READER_UV_RBASE_DEFAULT )
-        api_ops.p_acamera_fpga_frame_reader_rbase_write_uv = acamera_fpga_frame_reader_uv_rbase_write;
-        api_ops.p_acamera_fpga_frame_reader_line_offset_write_uv = acamera_fpga_frame_reader_uv_line_offset_write;
-        api_ops.p_acamera_fpga_frame_reader_format_write_uv = acamera_fpga_frame_reader_uv_format_write;
-        api_ops.p_acamera_fpga_frame_reader_rbase_load_write_uv = acamera_fpga_frame_reader_uv_rbase_load_write;
-#endif
 
         api_ops[1].p_acamera_isp_dma_writer_format_read = acamera_isp_fr_dma_writer_format_read_hw;
         api_ops[1].p_acamera_isp_dma_writer_format_write = acamera_isp_fr_dma_writer_format_write_hw;
@@ -253,12 +232,6 @@ void frame_buffer_initialize( dma_writer_fsm_ptr_t p_fsm )
         api_ops.p_acamera_isp_dma_writer_format_write = acamera_isp_ds1_dma_writer_format_write;
         api_ops.p_acamera_isp_dma_writer_max_bank_write = acamera_isp_ds1_dma_writer_max_bank_write;
         api_ops.p_acamera_isp_dma_writer_bank0_base_write = acamera_isp_ds1_dma_writer_bank0_base_write;
-#if ISP_HAS_FPGA_WRAPPER
-        api_ops.p_acamera_fpga_frame_reader_rbase_write = acamera_fpga_frame_reader_rbase_write;
-        api_ops.p_acamera_fpga_frame_reader_line_offset_write = acamera_fpga_frame_reader_line_offset_write;
-        api_ops.p_acamera_fpga_frame_reader_format_write = acamera_fpga_frame_reader_format_write;
-        api_ops.p_acamera_fpga_frame_reader_rbase_load_write = acamera_fpga_frame_reader_rbase_load_write;
-#endif
         api_ops.p_acamera_isp_dma_writer_line_offset_write = acamera_isp_ds1_dma_writer_line_offset_write;
         api_ops.p_acamera_isp_dma_writer_line_offset_write = acamera_isp_ds1_dma_writer_line_offset_write;
 
@@ -279,12 +252,7 @@ void frame_buffer_initialize( dma_writer_fsm_ptr_t p_fsm )
         api_ops.p_acamera_isp_dma_writer_active_height_write_uv = acamera_isp_ds1_uv_dma_writer_active_height_write;
         api_ops.p_acamera_isp_dma_writer_active_width_read_uv = acamera_isp_ds1_uv_dma_writer_active_width_read;
         api_ops.p_acamera_isp_dma_writer_active_height_read_uv = acamera_isp_ds1_uv_dma_writer_active_height_read;
-#if ISP_HAS_FPGA_WRAPPER && defined( ACAMERA_FPGA_FRAME_READER_UV_RBASE_DEFAULT )
-        api_ops.p_acamera_fpga_frame_reader_rbase_write_uv = acamera_fpga_frame_reader_uv_rbase_write;
-        api_ops.p_acamera_fpga_frame_reader_line_offset_write_uv = acamera_fpga_frame_reader_uv_line_offset_write;
-        api_ops.p_acamera_fpga_frame_reader_format_write_uv = acamera_fpga_frame_reader_uv_format_write;
-        api_ops.p_acamera_fpga_frame_reader_rbase_load_write_uv = acamera_fpga_frame_reader_uv_rbase_load_write;
-#endif
+
         // settings
         dma_writer_get_settings( p_fsm->handle, dma_ds1, &set_pipe );
         set_pipe.p_ctx = ACAMERA_FSM2CTX_PTR( p_fsm ); //back reference

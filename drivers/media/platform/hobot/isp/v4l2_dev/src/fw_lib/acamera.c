@@ -58,12 +58,6 @@
 #include "acamera_profiler.h"
 #endif
 
-#if ISP_HAS_DMA_INPUT
-#include "fpga_dma_input.h"
-#include "acamera_fpga_fe_isp_config.h"
-#endif
-
-
 #if ACAMERA_ISP_PROFILING
 #ifndef CHECK_STACK_SIZE_DWORDS
 #define CHECK_STACK_SIZE_DWORDS 1024
@@ -295,69 +289,6 @@ static int32_t dma_channel_addresses_setup( void *isp_chan, void *metering_chan,
     return result;
 }
 
-#if USER_MODULE
-
-int32_t acamera_init( acamera_settings *settings, uint32_t ctx_num )
-{
-    int32_t result = 0;
-    uint32_t idx = 0;
-
-    result = validate_settings( settings, ctx_num );
-
-    if ( result == 0 ) {
-
-#if FW_HAS_CONTROL_CHANNEL
-        ctrl_channel_init();
-#endif
-
-        g_firmware.api_context = 0;
-
-        system_semaphore_init( &g_firmware.sem_evt_avail );
-
-        if ( ctx_num <= FIRMWARE_CONTEXT_NUMBER ) {
-
-            g_firmware.context_number = ctx_num;
-
-            for ( idx = 0; idx < ctx_num; idx++ ) {
-                acamera_context_t *p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[idx];
-                LOG( LOG_INFO, "Initialize context %d, context size is %d bytes", idx, sizeof( struct _acamera_context_t ) );
-                system_memset( (void *)p_ctx, 0x0, sizeof( struct _acamera_context_t ) );
-                // each context has unique id
-                p_ctx->context_id = idx;
-
-                // init context
-                result = acamera_init_context( p_ctx, &settings[idx], &g_firmware );
-                if ( result != 0 ) {
-                    LOG( LOG_CRIT, "Failed to initialized the context %d", (int)idx );
-                    break;
-                }
-            }
-
-            if ( result == 0 ) {
-                g_firmware.initialized = 1;
-            } else {
-                g_firmware.initialized = 0;
-            }
-
-        } else {
-            result = -1;
-            LOG( LOG_CRIT, "Failed to initialized the firmware context. Not enough memory. " );
-        }
-
-    } else {
-        LOG( LOG_CRIT, "Input initializations settings are not correct" );
-        result = -1;
-    }
-
-    return result;
-}
-
-void acamera_update_cur_settings_to_isp( uint32_t fw_ctx_id )
-{
-}
-
-#else /* #if USER_MODULE */
-
 int acamera_isp_init_context(uint8_t idx)
 {
     int ret = 0;
@@ -517,11 +448,6 @@ int32_t acamera_init( acamera_settings *settings, uint32_t ctx_num )
     acamera_profiler_report();
 #endif
 
-
-#if ISP_HAS_DMA_INPUT
-    fpga_dma_input_init( &g_firmware );
-#endif
-
     isp_register_callback(sif_isp_ctx_sync_func);
 
     return result;
@@ -541,8 +467,6 @@ void acamera_update_cur_settings_to_isp( uint32_t fw_ctx_id )
     system_dma_wait_done(g_firmware.dma_chan_isp_config);
 #endif
 }
-
-#endif /* #if USER_MODULE */
 
 static void acamera_deinit( void )
 {
@@ -578,15 +502,6 @@ int32_t acamera_terminate()
 
     return 0;
 }
-
-
-#if USER_MODULE
-// single context handler
-int32_t acamera_interrupt_handler()
-{
-    return 0;
-}
-#else
 
 void input_port_status(void)
 {
@@ -668,14 +583,8 @@ void dma_writer_status(acamera_context_ptr_t p_ctx)
 
 static void start_processing_frame( void )
 {
-#if ISP_HAS_DMA_INPUT
-    int32_t cur_ctx = fpga_dma_input_current_context( &g_firmware );
-    acamera_context_ptr_t p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[cur_ctx];
-    LOG( LOG_INFO, "new frame for ctx_num#%d.", cur_ctx );
-#else
     pr_debug("last ctx id %d\n", last_ctx_id);
     acamera_context_ptr_t p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[last_ctx_id];
-#endif
 
     // new_frame event to start reading metering memory and run 3A
     acamera_fw_raise_event( p_ctx, event_id_new_frame );
@@ -777,206 +686,6 @@ static void dma_complete_metering_func( void *arg )
     // after we finish transfer context and metering we can start processing the current data
 }
 
-#if ISP_HAS_DMA_INPUT
-
-static int32_t fpga_irq_handler( uint32_t isp_event )
-{
-    int32_t result = 0;
-
-    switch ( isp_event ) {
-
-    case ISP_INTERRUPT_EVENT_DMA_WRITER1: {
-        static uint32_t fe_1_cnt = 0;
-        LOG( LOG_INFO, "ISP_INTERRUPT_EVENT_DMA_WRITER1: %d.", fe_1_cnt++ );
-
-        fpga_dma_input_interrupt( &g_firmware, ACAMERA_IRQ_DFE_FRAME_END, 0 );
-    } break;
-
-    case ISP_INTERRUPT_EVENT_DMA_WRITER2: {
-        static uint32_t fe_2_cnt = 0;
-        LOG( LOG_INFO, "ISP_INTERRUPT_EVENT_DMA_WRITER2: %d.", fe_2_cnt++ );
-
-        fpga_dma_input_interrupt( &g_firmware, ACAMERA_IRQ_DFE_FRAME_END, 1 );
-    } break;
-
-#if FIRMWARE_CONTEXT_NUMBER > 2
-    case ISP_INTERRUPT_EVENT_DMA_WRITER3:
-
-        fpga_dma_input_interrupt( &g_firmware, ACAMERA_IRQ_DFE_FRAME_END, 2 );
-        break;
-#endif
-
-#if FIRMWARE_CONTEXT_NUMBER > 3
-    case ISP_INTERRUPT_EVENT_DMA_WRITER4:
-        fpga_dma_input_interrupt( &g_firmware, ACAMERA_IRQ_DFE_FRAME_END, 3 );
-        break;
-#endif
-    default: {
-        result = -1;
-        LOG( LOG_DEBUG, "Not expected irq event %d for offline mode", (int)isp_event );
-    } break;
-    }
-
-    return result;
-}
-
-// multiple contexts handler
-int32_t acamera_interrupt_handler()
-{
-    int32_t result = 0;
-    int32_t irq_bit = ISP_INTERRUPT_EVENT_NONES_COUNT - 1;
-    int32_t irq = 0;
-    LOG( LOG_INFO, "Interrupt handler called" );
-
-    uint32_t fpga_irq_mask = acamera_fpga_fe_isp_interrupts_interrupt_status_read( 0 );
-
-    // clear fpga irq bits
-    acamera_fpga_fe_isp_interrupts_interrupt_clear_write( 0, 0 );
-    acamera_fpga_fe_isp_interrupts_interrupt_clear_write( 0, fpga_irq_mask );
-
-    // process interrupts
-    if ( fpga_irq_mask > 0 ) {
-        while ( fpga_irq_mask > 0 && irq < ISP_INTERRUPT_EVENT_NONES_COUNT ) {
-            int32_t lsb = ( fpga_irq_mask & 1 );
-            fpga_irq_mask >>= 1;
-            if ( lsb ) {
-                if ( g_firmware.dma_input.fpga_isp_interrupt_source_read[irq] != NULL ) {
-                    uint32_t isp_event = g_firmware.dma_input.fpga_isp_interrupt_source_read[irq]( 0 );
-
-                    fpga_irq_handler( isp_event );
-
-                } else {
-                    result = -1;
-                    LOG( LOG_ERR, "IRQ mask had interrupt %d but irq handler routine is null", (int)irq );
-                }
-            }
-            irq++;
-        }
-
-        if ( fpga_irq_mask != 0 ) {
-            LOG( LOG_INFO, "irq_mask is not zero. Some interrupts have been left unprocessed" );
-        }
-    }
-
-    int32_t last_ctx = fpga_dma_input_last_context( &g_firmware );
-    int32_t cur_ctx = fpga_dma_input_current_context( &g_firmware );
-    int32_t next_ctx = fpga_dma_input_next_context( &g_firmware );
-
-    acamera_context_ptr_t p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[cur_ctx];
-
-    // read the irq vector from isp
-    uint32_t irq_mask = acamera_isp_isp_global_interrupt_status_vector_read( 0 );
-
-    LOG( LOG_INFO, "IRQ MASK is 0x%x, last_ctx: %d, cur_ctx: %d, next_ctx: %d.", irq_mask, last_ctx, cur_ctx, next_ctx );
-    printk("IRQ MASK is 0x%x, last_ctx: %d, cur_ctx: %d, next_ctx: %d.", irq_mask, last_ctx, cur_ctx, next_ctx);
-
-    // clear irq vector
-    acamera_isp_isp_global_interrupt_clear_write( 0, 0 );
-    acamera_isp_isp_global_interrupt_clear_write( 0, 1 );
-
-    if ( irq_mask > 0 ) {
-
-        /*#if defined( ISP_INTERRUPT_EVENT_BROKEN_FRAME ) && defined( ISP_INTERRUPT_EVENT_MULTICTX_ERROR ) && defined( ISP_INTERRUPT_EVENT_DMA_ERROR ) && defined( ISP_INTERRUPT_EVENT_WATCHDOG_EXP ) && defined( ISP_INTERRUPT_EVENT_FRAME_COLLISION )
-        //check for errors in the interrupt
-        if ( ( irq_mask & 1 << ISP_INTERRUPT_EVENT_BROKEN_FRAME ) ||
-             ( irq_mask & 1 << ISP_INTERRUPT_EVENT_MULTICTX_ERROR ) ||
-             ( irq_mask & 1 << ISP_INTERRUPT_EVENT_DMA_ERROR ) ||
-             ( irq_mask & 1 << ISP_INTERRUPT_EVENT_WATCHDOG_EXP ) ||
-             ( irq_mask & 1 << ISP_INTERRUPT_EVENT_FRAME_COLLISION ) ) {
-
-            LOG( LOG_CRIT, "Found error resetting ISP. MASK is 0x%x", irq_mask );
-
-            acamera_fw_error_routine( p_ctx, irq_mask );
-            return -1; //skip other interrupts in case of error
-        }
-#endif*/
-
-        while ( irq_mask > 0 && irq_bit >= 0 ) {
-            int32_t irq_is_1 = ( irq_mask & ( 1 << irq_bit ) );
-            irq_mask &= ~( 1 << irq_bit );
-            if ( irq_is_1 ) {
-                // process interrupts
-                if ( irq_bit == ISP_INTERRUPT_EVENT_ISP_START_FRAME_START ) {
-                    static uint32_t fs_cnt = 0;
-
-                    LOG( LOG_INFO, "FS interrupt: %d", fs_cnt++ );
-
-#if ISP_DMA_RAW_CAPTURE
-                    dma_raw_capture_interrupt( &g_firmware, ACAMERA_IRQ_FRAME_END );
-#endif
-
-                    if ( g_firmware.dma_flag_isp_metering_completed == 0 || g_firmware.dma_flag_isp_config_completed == 0 ) {
-                        LOG( LOG_CRIT, "DMA is not finished, cfg: %d, meter: %d, skip this frame.", g_firmware.dma_flag_isp_config_completed, g_firmware.dma_flag_isp_metering_completed );
-                        return -2;
-                    }
-
-                    // we must finish all previous processing before scheduling new dma
-                    if ( acamera_event_queue_empty( &p_ctx->fsm_mgr.event_queue ) ) {
-                        // switch to ping/pong contexts for the next frame
-
-                        // these flags are used for sync of callbacks
-                        g_firmware.dma_flag_isp_config_completed = 0;
-                        g_firmware.dma_flag_isp_metering_completed = 0;
-
-                        if ( acamera_isp_isp_global_ping_pong_config_select_read( 0 ) == ISP_CONFIG_PONG ) {
-                            LOG( LOG_INFO, "Current config is pong" );
-                            //            |^^^^^^^^^|
-                            // next --->  |  PING   |
-                            //            |_________|
-
-                            // use ping for the next frame
-                            acamera_isp_isp_global_mcu_ping_pong_config_select_write( 0, ISP_CONFIG_PING );
-                            //
-                            //            |^^^^^^^^^|
-                            // conf --->  |  PONG   |
-                            //            |_________|
-                            LOG( LOG_INFO, "DMA metering from pong to DDR of size %d", ACAMERA_METERING_STATS_MEM_SIZE );
-                            // dma all stat memory only to the software context
-                            system_dma_copy_sg( g_firmware.dma_chan_isp_metering, ISP_CONFIG_PING, SYS_DMA_FROM_DEVICE, dma_complete_metering_func, last_ctx );
-                            LOG( LOG_INFO, "DMA config from pong to DDR of size %d", ACAMERA_ISP1_SIZE );
-                            system_dma_copy_sg( g_firmware.dma_chan_isp_config, ISP_CONFIG_PING, SYS_DMA_TO_DEVICE, dma_complete_context_func, next_ctx );
-                        } else {
-                            LOG( LOG_INFO, "Current config is ping" );
-                            //            |^^^^^^^^^|
-                            // next --->  |  PONG   |
-                            //            |_________|
-
-                            // use pong for the next frame
-                            acamera_isp_isp_global_mcu_ping_pong_config_select_write( 0, ISP_CONFIG_PONG );
-
-                            //            |^^^^^^^^^|
-                            // conf --->  |  PING   |
-                            //            |_________|
-
-                            LOG( LOG_INFO, "DMA metering from ping to DDR of size %d", ACAMERA_METERING_STATS_MEM_SIZE );
-                            // dma all stat memory only to the software context
-                            system_dma_copy_sg( g_firmware.dma_chan_isp_metering, ISP_CONFIG_PONG, SYS_DMA_FROM_DEVICE, dma_complete_metering_func, last_ctx );
-                            LOG( LOG_INFO, "DMA config from DDR to ping of size %d", ACAMERA_ISP1_SIZE );
-                            system_dma_copy_sg( g_firmware.dma_chan_isp_config, ISP_CONFIG_PONG, SYS_DMA_TO_DEVICE, dma_complete_context_func, next_ctx );
-                        }
-                    } else {
-                        LOG( LOG_ERR, "Attempt to start a new frame before processing is done for the prevous frame. Skip this frame" );
-                    }
-                } else if ( irq_bit == ISP_INTERRUPT_EVENT_ISP_END_FRAME_END ) {
-                    static uint32_t fe_cnt = 0;
-
-                    LOG( LOG_INFO, "FE interrupt: %d", fe_cnt++ );
-
-                    fpga_dma_input_interrupt( &g_firmware, ACAMERA_IRQ_FRAME_END, cur_ctx );
-
-                } else {
-                    // unhandled irq
-                    LOG( LOG_INFO, "Unhandled interrupt bit %d", irq_bit );
-                }
-            }
-            irq_bit--;
-        }
-    }
-
-    return result;
-}
-
-#else
 static int _isp_iridix_ctrl(void)
 {
     uint8_t iridix_no = 0xff;
@@ -1617,9 +1326,6 @@ int32_t acamera_interrupt_handler()
 
     return result;
 }
-#endif // ISP_HAS_DMA_INPUT
-
-#endif // USER_MODULE
 
 int isp_fw_process( void *data )
 {

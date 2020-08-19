@@ -62,10 +62,6 @@ struct _isp_info_t {
 #include "dma_raw_capture.h"
 #endif
 
-#if ISP_HAS_DMA_INPUT
-#include "fpga_dma_input.h"
-#endif
-
 typedef struct _sytem_tab {
     uint8_t global_freeze_firmware;
     uint8_t global_manual_exposure;

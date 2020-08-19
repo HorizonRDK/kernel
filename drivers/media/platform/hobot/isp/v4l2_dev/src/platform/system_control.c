@@ -32,9 +32,6 @@ extern void system_interrupts_deinit( void );
 void bsp_init( void )
 {
     system_interrupts_init();
-#if FPGA_HAS_HDMI
-    hdmi_init();
-#endif
 }
 
 void bsp_destroy( void )

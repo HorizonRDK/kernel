@@ -515,11 +515,6 @@ void general_set_wdr_mode( general_fsm_ptr_t p_fsm )
         LOG( LOG_INFO, "Setting Linear Binary Sequence\n" );
        // acamera_load_sw_sequence( p_fsm->cmn.isp_base, ACAMERA_FSM2CTX_PTR( p_fsm )->isp_sequence, SENSOR_ISP_SEQUENCE_DEFAULT_LINEAR );
 #endif
-
-#if defined( SENSOR_ISP_SEQUENCE_DEFAULT_FPGA_LINEAR ) && ISP_HAS_FPGA_WRAPPER
-        LOG( LOG_INFO, "Setting Linear Binary Sequence for FPGA\n" );
-        acamera_load_isp_sequence( 0, ACAMERA_FSM2CTX_PTR( p_fsm )->isp_sequence, SENSOR_ISP_SEQUENCE_DEFAULT_FPGA_LINEAR );
-#endif
         break;
 
     case WDR_MODE_FS_LIN: {
@@ -535,11 +530,6 @@ void general_set_wdr_mode( general_fsm_ptr_t p_fsm )
             acamera_load_sw_sequence( p_fsm->cmn.isp_base, ACAMERA_FSM2CTX_PTR( p_fsm )->isp_sequence, SENSOR_ISP_SEQUENCE_DEFAULT_FS_LIN_4EXP );
             pr_debug("Setting FS_Lin_4Exp Binary Sequence." );
         }
-#endif
-
-#if defined( SENSOR_ISP_SEQUENCE_DEFAULT_FPGA_FS_LIN ) && ISP_HAS_FPGA_WRAPPER
-        LOG( LOG_INFO, "Setting FS Lin Binary Sequence for FPGA\n" );
-        acamera_load_isp_sequence( 0, ACAMERA_FSM2CTX_PTR( p_fsm )->isp_sequence, SENSOR_ISP_SEQUENCE_DEFAULT_FPGA_FS_LIN );
 #endif
         break;
     }

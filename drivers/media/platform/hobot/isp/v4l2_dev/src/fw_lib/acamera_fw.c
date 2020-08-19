@@ -44,11 +44,6 @@
 #include "hobot_isp_reg_dma.h"
 #include "isp_ctxsv.h"
 
-
-#if ISP_HAS_FPGA_WRAPPER
-#include "acamera_fpga_config.h"
-#endif
-
 #if ISP_HAS_META_CB && defined( ISP_HAS_METADATA_FSM )
 #include "metadata_api.h"
 #endif
@@ -591,38 +586,7 @@ static void init_stab( acamera_context_ptr_t p_ctx )
     ((general_fsm_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_GENERAL]->p_fsm))->cnt_for_temper = 0;
 }
 
-
 extern void *get_system_ctx_ptr( void );
-
-#if USER_MODULE
-
-int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settings, acamera_firmware_t *g_fw )
-{
-    int32_t result = 0;
-    // keep the context pointer for debug purposes
-    p_ctx->context_ref = (uint32_t *)p_ctx;
-    p_ctx->p_gfw = g_fw;
-
-    // copy settings
-    system_memcpy( (void *)&p_ctx->settings, (void *)settings, sizeof( acamera_settings ) );
-
-    // each context is initialized to the default state
-    p_ctx->isp_sequence = p_isp_data;
-
-    // reset frame counters
-    p_ctx->isp_frame_counter_raw = 0;
-    p_ctx->isp_frame_counter = 0;
-
-    acamera_fw_init( p_ctx );
-
-    init_stab( p_ctx );
-
-    p_ctx->initialized = 1;
-
-    return result;
-}
-
-#else
 extern int acamera_all_hw_contexts_inited(void);
 extern int isp_fw_process( void *data );
 int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settings, acamera_firmware_t *g_fw )
@@ -773,7 +737,6 @@ int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settin
 
     return result;
 }
-#endif
 
 void acamera_deinit_context( acamera_context_t *p_ctx )
 {
@@ -847,7 +810,7 @@ void acamera_general_interrupt_hanlder( acamera_context_ptr_t p_ctx, uint8_t eve
 	 || ( event == ACAMERA_IRQ_FRAME_ERROR )
 #endif
 #if defined( ISP_HAS_CMOS_FSM )
-         || ( event == ACAMERA_IRQ_FRAME_START ) || ( event == ACAMERA_IRQ_FPGA_FRAME_END ) // process interrupts for FS anyway (otherwise exposure will be only short)
+         || ( event == ACAMERA_IRQ_FRAME_START ) // process interrupts for FS anyway (otherwise exposure will be only short)
 #endif
 #if defined( ISP_HAS_BSP_TEST_FSM )
          || event == ACAMERA_IRQ_FRAME_END || event == ACAMERA_IRQ_FRAME_START

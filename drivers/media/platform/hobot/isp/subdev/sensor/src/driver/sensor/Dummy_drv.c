@@ -34,7 +34,6 @@
 #include <linux/videodev2.h>
 #include "acamera_types.h"
 #include "acamera_logger.h"
-#include "sensor_init.h"
 #include "acamera_command_api.h"
 #include "acamera_sbus_api.h"
 #include "acamera_command_api.h"

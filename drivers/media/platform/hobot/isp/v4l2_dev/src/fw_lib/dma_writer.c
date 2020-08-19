@@ -93,83 +93,6 @@ static void dma_writer_initialize_reg_ops( dma_pipe *pipe )
     secondary_ops->active_height_read_hw = pipe->api[1].p_acamera_isp_dma_writer_active_height_read_uv;
 }
 
-#if CONFIG_DMA_WRITER_DEFAULT_BUFFER
-static int dma_writer_alloc_default_frame( dma_pipe *pipe )
-{
-    acamera_settings *settings = &pipe->settings.p_ctx->settings;
-    uint32_t ctx_id = pipe->settings.p_ctx->context_id;
-    tframe_t *default_frame;
-    void *virt_addr;
-    uint64_t dma_addr;
-    int i;
-    tframe_t *curr_frame = &pipe->settings.curr_frame;
-    tframe_t *done_frame = &pipe->settings.done_frame;
-    tframe_t *delay_frame = &pipe->settings.delay_frame;
-    dma_writer_reg_ops_t *primary_ops = &pipe->primary;
-
-    pipe->settings.default_index = 0;
-
-    for ( i = 0; i < DMA_WRITER_DEFAULT_BUFFER_NO; i++ ) {
-        default_frame = &pipe->settings.default_frame[i];
-        system_memset( default_frame, 0, sizeof( *default_frame ) );
-
-        default_frame->primary.type = primary_ops->format_read( pipe->settings.isp_base );
-        default_frame->primary.status = dma_buf_empty;
-        default_frame->primary.width = primary_ops->active_width_read( pipe->settings.isp_base );
-        default_frame->primary.height = primary_ops->active_height_read( pipe->settings.isp_base );
-        default_frame->primary.line_offset = acamera_line_offset( default_frame->primary.width,
-                                                                  _get_pixel_width( default_frame->primary.type ) );
-        default_frame->primary.size = default_frame->primary.height * default_frame->primary.line_offset;
-
-        virt_addr = settings->callback_dma_alloc_coherent(
-            ctx_id, default_frame->primary.size, &dma_addr );
-        if ( !virt_addr ) {
-            LOG( LOG_CRIT, "Pipe: %d unable to allocate default buffer", pipe->type );
-            return -1;
-        }
-
-        default_frame->primary.address = (uint32_t)dma_addr;
-        default_frame->primary.virt_addr = virt_addr;
-
-        LOG( LOG_INFO, "Pipe: %d Default buffer size: %d dma_addr: %llx",
-             pipe->type, default_frame->primary.size, default_frame->primary.address );
-
-        /* for the default frames we don't use the uv plane */
-        default_frame->secondary.status = dma_buf_purge;
-    }
-
-    *curr_frame = pipe->settings.default_frame[pipe->settings.default_index];
-    *done_frame = pipe->settings.default_frame[pipe->settings.default_index];
-    *delay_frame = pipe->settings.default_frame[pipe->settings.default_index];
-
-    pipe->settings.default_index = ( pipe->settings.default_index + 1 ) % 2;
-
-    return 0;
-}
-
-static void dma_writer_free_default_frame( dma_pipe *pipe )
-{
-    acamera_settings *settings = &pipe->settings.p_ctx->settings;
-    uint32_t ctx_id = pipe->settings.p_ctx->context_id;
-    tframe_t *default_frame;
-    void *virt_addr;
-    uint64_t dma_addr;
-    uint64_t size;
-    int i;
-
-    for ( i = 0; i < DMA_WRITER_DEFAULT_BUFFER_NO; i++ ) {
-        default_frame = &pipe->settings.default_frame[i];
-        dma_addr = default_frame->primary.address;
-        virt_addr = default_frame->primary.virt_addr;
-        size = default_frame->primary.size;
-
-        settings->callback_dma_free_coherent( ctx_id, size, virt_addr, dma_addr );
-
-        system_memset( default_frame, 0, sizeof( *default_frame ) );
-    }
-}
-#endif
-
 static int dma_writer_stream_get_frame( dma_pipe *pipe, tframe_t *tframe )
 {
     uint32_t ctx_id = pipe->settings.p_ctx->context_id;
@@ -210,6 +133,7 @@ static int dma_writer_stream_put_frame( dma_pipe *pipe, tframe_t *tframe, uint8_
     return rc;
 }
 
+#if 0
 static int dma_writer_stream_release_frame( dma_pipe *pipe, tframe_t *tframe )
 {
     uint32_t ctx_id = pipe->settings.p_ctx->context_id;
@@ -232,23 +156,6 @@ static int dma_writer_stream_release_frame( dma_pipe *pipe, tframe_t *tframe )
 */
 
     return rc;
-}
-
-#if CONFIG_DMA_WRITER_DEFAULT_BUFFER
-static int dma_writer_configure_frame_reader( dma_pipe *pipe, tframe_t *frame )
-{
-    aframe_t *aframe;
-
-    if ( !( pipe->settings.active && pipe->settings.ctx_id == acamera_get_api_context() ) )
-        return 0;
-
-    aframe = &frame->primary;
-
-    pipe->api[0].p_acamera_fpga_frame_reader_rbase_write( pipe->settings.isp_base, aframe->address );
-    pipe->api[0].p_acamera_fpga_frame_reader_line_offset_write( pipe->settings.isp_base, aframe->line_offset );
-    pipe->api[0].p_acamera_fpga_frame_reader_format_write( pipe->settings.isp_base, aframe->type );
-
-    return 0;
 }
 #endif
 
@@ -407,21 +314,11 @@ int dma_writer_configure_pipe( dma_pipe *pipe )
     curr_frame->primary.frame_id = meta->frame_id;
     curr_frame->secondary.frame_id = meta->frame_id;
 
-#if CONFIG_DMA_WRITER_DEFAULT_BUFFER
-    dma_writer_configure_frame_reader( pipe, done_frame );
-#endif
-
     /* try to get a new buffer from application (V4l2 for example) */
     rc = dma_writer_stream_get_frame( pipe, curr_frame );
     if ( rc ) {
-#if CONFIG_DMA_WRITER_DEFAULT_BUFFER
-        /* if there is no available buffer, use one of the default buffers */
-        *curr_frame = pipe->settings.default_frame[pipe->settings.default_index];
-        pipe->settings.default_index = ( pipe->settings.default_index + 1 ) % DMA_WRITER_DEFAULT_BUFFER_NO;
-#else
         curr_frame->primary.status = dma_buf_purge;
         curr_frame->secondary.status = dma_buf_purge;
-#endif
     } else {
         if ( curr_frame->primary.status == dma_buf_empty )
             curr_frame->primary.status = dma_buf_busy;
@@ -495,10 +392,6 @@ static int dma_writer_configure_pipe( dma_pipe *pipe )
     curr_frame->primary.frame_id = meta->frame_id;
     curr_frame->secondary.frame_id = meta->frame_id;
 
-#if CONFIG_DMA_WRITER_DEFAULT_BUFFER
-    dma_writer_configure_frame_reader( pipe, done_frame );
-#endif
-
     /* put back the done frame to the application (V4L2 for example) */
     if ( done_frame->primary.status == dma_buf_busy ||
          done_frame->secondary.status == dma_buf_busy )
@@ -513,14 +406,8 @@ static int dma_writer_configure_pipe( dma_pipe *pipe )
     /* try to get a new buffer from application (V4l2 for example) */
     rc = dma_writer_stream_get_frame( pipe, curr_frame );
     if ( rc ) {
-#if CONFIG_DMA_WRITER_DEFAULT_BUFFER
-        /* if there is no available buffer, use one of the default buffers */
-        *curr_frame = pipe->settings.default_frame[pipe->settings.default_index];
-        pipe->settings.default_index = ( pipe->settings.default_index + 1 ) % DMA_WRITER_DEFAULT_BUFFER_NO;
-#else
         curr_frame->primary.status = dma_buf_purge;
         curr_frame->secondary.status = dma_buf_purge;
-#endif
     } else {
         if ( curr_frame->primary.status == dma_buf_empty )
             curr_frame->primary.status = dma_buf_busy;
@@ -598,15 +485,9 @@ dma_error dma_writer_create( void **handle )
 
 void dma_writer_exit( void *handle )
 {
-#if CONFIG_DMA_WRITER_DEFAULT_BUFFER
-    dma_handle *p_dma = (dma_handle *)handle;
-
-    dma_writer_free_default_frame( &p_dma->pipe[dma_fr] );
 #if ISP_HAS_DS1
     dma_writer_free_default_frame( &p_dma->pipe[dma_ds1] );
 #endif
-#endif
-
     ctx_pos = 0;
 }
 
@@ -693,9 +574,6 @@ void dma_writer_set_initialized( void *handle, dma_type type, uint8_t initialize
 dma_error dma_writer_init( void *handle, dma_type type, dma_pipe_settings *settings, dma_api *api )
 {
     dma_error result = edma_ok;
-#if CONFIG_DMA_WRITER_DEFAULT_BUFFER
-    int rc;
-#endif
 
     if ( handle != NULL ) {
         dma_handle *p_dma = (dma_handle *)handle;
@@ -705,13 +583,6 @@ dma_error dma_writer_init( void *handle, dma_type type, dma_pipe_settings *setti
         result = dma_writer_set_settings( handle, type, settings );
 
         dma_writer_initialize_reg_ops( &p_dma->pipe[type] );
-
-#if CONFIG_DMA_WRITER_DEFAULT_BUFFER
-        rc = dma_writer_alloc_default_frame( &p_dma->pipe[type] );
-        if ( rc ) {
-            LOG( LOG_ERR, "%s: Failed to alloc default frame type:%d", TAG, (int)type );
-        }
-#endif
 
         if ( result == edma_ok ) {
             LOG( LOG_INFO, "%s: initialized a dma writer output. %dx%d ", TAG, (int)settings->width, (int)settings->height );

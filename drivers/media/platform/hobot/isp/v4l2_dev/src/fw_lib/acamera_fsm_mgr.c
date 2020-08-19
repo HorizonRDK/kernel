@@ -43,7 +43,6 @@ extern fsm_common_t * sbuf_get_fsm_common(uint8_t ctx_id);
 extern fsm_common_t * dma_writer_get_fsm_common(uint8_t ctx_id);
 extern fsm_common_t * metadata_get_fsm_common(uint8_t ctx_id);
 extern fsm_common_t * AF_get_fsm_common(uint8_t ctx_id);
-extern fsm_common_t * fpga_dma_fe_get_fsm_common(uint8_t ctx_id);
 extern fsm_common_t * LDC_get_fsm_common(uint8_t ctx_id);
 
 void acamera_fsm_mgr_init(acamera_fsm_mgr_t *p_fsm_mgr)
@@ -69,7 +68,6 @@ void acamera_fsm_mgr_init(acamera_fsm_mgr_t *p_fsm_mgr)
         dma_writer_get_fsm_common,
         metadata_get_fsm_common,
         AF_get_fsm_common,
-        fpga_dma_fe_get_fsm_common,
 	LDC_get_fsm_common
     };
 

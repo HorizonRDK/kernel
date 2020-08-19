@@ -24,7 +24,6 @@
 #include "acamera_firmware_config.h"
 #include "acamera.h"
 
-#define CONFIG_DMA_WRITER_DEFAULT_BUFFER        (ISP_HAS_FPGA_WRAPPER && ISP_CONTROLS_DMA_READER)
 #define DMA_WRITER_DEFAULT_BUFFER_NO            3
 
 /**
@@ -48,12 +47,6 @@ typedef struct dma_api {
     uint8_t ( *p_acamera_isp_dma_writer_format_read )( uintptr_t );
     void ( *p_acamera_isp_dma_writer_format_write )( uintptr_t, uint8_t );
     void ( *p_acamera_isp_dma_writer_bank0_base_write )( uintptr_t, uint32_t );
-#if ISP_HAS_FPGA_WRAPPER
-    void ( *p_acamera_fpga_frame_reader_rbase_write )( uintptr_t, uint32_t );
-    void ( *p_acamera_fpga_frame_reader_line_offset_write )( uintptr_t, uint32_t );
-    void (*p_acamera_fpga_frame_reader_format_write) (uintptr_t base, uint8_t data);
-    void (*p_acamera_fpga_frame_reader_rbase_load_write) (uintptr_t base, uint8_t data);
-#endif
     void ( *p_acamera_isp_dma_writer_line_offset_write )( uintptr_t, uint32_t );
     void ( *p_acamera_isp_dma_writer_frame_write_on_write )( uintptr_t, uint8_t );
     void ( *p_acamera_isp_dma_writer_active_width_write )( uintptr_t, uint16_t );
@@ -74,12 +67,6 @@ typedef struct dma_api {
     void ( *p_acamera_isp_dma_writer_active_height_write_uv )( uintptr_t, uint16_t );
     uint16_t ( *p_acamera_isp_dma_writer_active_width_read_uv )( uintptr_t );
     uint16_t ( *p_acamera_isp_dma_writer_active_height_read_uv )( uintptr_t );
-#if ISP_HAS_FPGA_WRAPPER
-    void ( *p_acamera_fpga_frame_reader_rbase_write_uv )( uintptr_t, uint32_t );
-    void ( *p_acamera_fpga_frame_reader_line_offset_write_uv )( uintptr_t, uint32_t );
-    void (*p_acamera_fpga_frame_reader_format_write_uv) (uintptr_t base, uint8_t data);
-    void (*p_acamera_fpga_frame_reader_rbase_load_write_uv) (uintptr_t base, uint8_t data);
-#endif
 
 } dma_api;
 
@@ -91,10 +78,6 @@ typedef struct dma_pipe_settings {
     uint32_t width;  // dma output width
     uint32_t height; // dma output height
 
-#if CONFIG_DMA_WRITER_DEFAULT_BUFFER
-    tframe_t default_frame[DMA_WRITER_DEFAULT_BUFFER_NO]; // default double buffering
-    uint8_t default_index; // marks either ping or pong default buffer
-#endif
     tframe_t curr_frame; // current frame written in the software configuration
     tframe_t delay_frame; // delayed frame due to pipeline delay
     tframe_t done_frame; // frame done means filled by the dma writer

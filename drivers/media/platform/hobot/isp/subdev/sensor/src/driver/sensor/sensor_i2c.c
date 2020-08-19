@@ -28,31 +28,6 @@
 #define CUR_MOD_NAME LOG_MODULE_SOC_SENSOR
 #endif
 
-
-#ifdef SENSOR_IMX290
-#include "./user_sensor/imx_290.h"
-#endif
-
-#ifdef SENSOR_IMX390
-#include "./user_sensor/imx_390.h"
-#endif
-
-#ifdef SENSOR_IMX385
-#include "./user_sensor/imx_385.h"
-#endif
-
-#ifdef SENSOR_IMX327
-#include "./user_sensor/imx_327.h"
-#endif
-
-#ifdef SENSOR_AR0233
-#include "./user_sensor/ar_0233.h"
-#endif
-
-#ifdef SENSOR_OS8A10
-#include "./user_sensor/os8a10.h"
-#endif
-
 #include "./user_sensor/camera_subdev.h"
 
 struct i2c_client *client[FIRMWARE_CONTEXT_NUMBER];
@@ -107,36 +82,6 @@ struct sensor_operations *sensor_ops_register(uint8_t sensor_sw)
 		sensor_ctrl = common_ops_register();
 		LOG(LOG_INFO, "common_register !");
 		break;
-#ifdef SENSOR_IMX290
-	case 2:
-		sensor_ctrl = imx290_ops_register(); 
-		LOG(LOG_INFO, "IMX_290 register !");
-		break;
-#endif
-#ifdef SENSOR_IMX385
-	case 3:
-		sensor_ctrl = imx385_ops_register();
-		break;
-		LOG(LOG_INFO, "IMX_385_register !");
-#endif
-#ifdef SENSOR_IMX327 
-	case 4:
-		sensor_ctrl = imx327_ops_register();
-		LOG(LOG_INFO, "IMX_327_register !");
-		break;
-#endif
-#ifdef SENSOR_AR0233 
-	case 5:
-		sensor_ctrl = ar0233_ops_register();
-		LOG(LOG_INFO, "ar0233_register !");
-		break;
-#endif
-#ifdef SENSOR_OS8A10 
-	case 6:
-		sensor_ctrl = os8a10_ops_register();
-		LOG(LOG_INFO, "os8a10_register !");
-		break;
-#endif
 	default:
 		LOG(LOG_INFO, "sensor %d is not register !", sensor_sw);
 		break;
