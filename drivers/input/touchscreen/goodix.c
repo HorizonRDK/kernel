@@ -754,14 +754,26 @@ static int goodix_ts_probe(struct i2c_client *client,
 				tp_irq_pin, ret);
 		return ret;
 	}
-
+#ifdef CONFIG_HOBOT_IAR
 	ret = get_iar_module_rst_pin();
 	if (ret < 0) {
 		dev_err(&client->dev, "Failed to get rst pin from iar module!\n");
 		return ret;
 	}
 	tp_rst_pin = ret;
-
+#else
+	ret = of_property_read_u32(client->dev.of_node, "rst_pin", &tp_rst_pin);
+	if (ret) {
+		dev_err(&client->dev, "Filed to get rst_pin %d\n", ret);
+		return ret;
+	}
+	ret = gpio_request(tp_rst_pin, "rst_pin");
+	if (ret < 0) {
+		dev_err(&client->dev, "Filed to request rst_pin-%d %d\n",
+				tp_irq_pin, ret);
+		return ret;
+	}
+#endif
 	error = goodix_reset();
 	if (error) {
 		dev_err(&client->dev, "Controller reset failed.\n");
