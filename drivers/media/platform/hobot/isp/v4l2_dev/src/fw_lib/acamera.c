@@ -1294,7 +1294,11 @@ int32_t acamera_interrupt_handler()
                         input_port_status();
                     if (p_ctx->p_gfw->sif_isp_offline) {
                         atomic_set(&g_firmware.frame_done, 1);
-                        wake_up(&wq_frame_end);
+                        if (p_ctx->fsm_mgr.reserved) { //sif m2m isp m2m ipu
+                            wake_up(&wq_dma_done);
+                        } else {    //sif m2m isp otf ipu
+                            wake_up(&wq_frame_end);
+                        }
                     }
                     vio_set_stat_info(cur_ctx_id, ISP_FE,
                             p_ctx->isp_frame_counter);
@@ -1303,6 +1307,7 @@ int32_t acamera_interrupt_handler()
                     acamera_dma_alarms_error_occur();
                     p_ctx->sts.frame_write_done_irq_cnt++;
 
+                    //isp m2m ipu
                     if (p_ctx->p_gfw->sif_isp_offline) {
                         atomic_set(&g_firmware.dma_done, 1);
                         wake_up(&wq_dma_done);
