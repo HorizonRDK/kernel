@@ -103,8 +103,8 @@
 
 */
 		/*Reserved 1M memory for CR5*/
-		/*r5_mem: r5_mem@0x01500000 {
-			reg = <0x0 0x01500000 0x0 0x100000>;
+		/*r5_mem: r5_mem@0x3E00000 {
+			reg = <0x0 0x3E00000 0x0 0x100000>;
 			no-map;
 		};*/
 	};

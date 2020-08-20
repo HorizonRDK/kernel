@@ -63,7 +63,7 @@ enum CR5_IMAGE_FORMAT {
 
 /*
  * cr5 image occupied reserved memory in device tree
- * addr = 0x01500000, size = 0x100000
+ * addr = 0x03E00000, size = 0x100000
  */
 
 typedef struct cr5_msg_info {
