@@ -118,6 +118,13 @@ static long camera_subdev_ioctl(struct v4l2_subdev *sd,
 		//camera_sys_alloc_intergration_time(ARGS_TO_PTR(arg)->port,
 		//		ARGS_TO_PTR(arg)->integration_time);
 		break;
+	case SENSOR_AWB_UPDATE:
+		ret = camera_sys_priv_awb_set(ARGS_TO_PTR(arg)->port,
+				ARGS_TO_PTR(arg)->sensor_priv);
+		if(ret < 0) {
+		   pr_err("SENSOR_AWB_UPDATE error port%d\n", ARGS_TO_PTR(arg)->port);
+		}
+		break;
 	default:
 		pr_err("Unknown camera_subdev_ioctl cmd %d", cmd);
 		ret = -1;

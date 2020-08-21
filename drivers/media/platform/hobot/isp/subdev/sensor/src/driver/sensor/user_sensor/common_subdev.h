@@ -24,6 +24,8 @@ typedef struct sensor_priv {
 	uint32_t en_dgain;
 	uint32_t line_num;
 	uint32_t line_buf[4];
+	uint32_t rgain;
+	uint32_t bgain;
 	uint8_t  mode;
 } sensor_priv_t;
 
@@ -82,7 +84,8 @@ enum camera_IOCTL {
 	SENSOR_STREAM_OFF,
 	SENSOR_ALLOC_ANALOG_GAIN,
 	SENSOR_ALLOC_DIGITAL_GAIN,
-	SENSOR_ALLOC_INTEGRATION_TIME
+	SENSOR_ALLOC_INTEGRATION_TIME,
+	SENSOR_AWB_UPDATE
 };
 
 #endif // DRIVERS_MEDIA_PLATFORM_HOBOT_ISP_SUBDEV_COMMON_INC_CAMERA_SUBDEV_H_

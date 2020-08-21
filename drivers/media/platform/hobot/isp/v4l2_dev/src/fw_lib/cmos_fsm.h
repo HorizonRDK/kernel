@@ -74,6 +74,7 @@ typedef struct _cmos_control_param_t {
     uint32_t global_isp_digital_gain;
     uint32_t global_analog_gain_last_priority;
     uint32_t global_analog_gain_reserve;
+    uint32_t global_sensor_awb_mode; // 0 use isp awb, 1 use sensor awb
 } cmos_control_param_t;
 
 /*

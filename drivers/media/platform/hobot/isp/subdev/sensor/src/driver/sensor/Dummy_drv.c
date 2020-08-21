@@ -377,6 +377,16 @@ static void start_streaming( void *ctx )
 		sensor_ops[p_ctx->channel]->start_streaming(p_ctx->channel);
 }
 
+static void sensor_awb_update( void *ctx, uint32_t rgain, uint32_t bgain )
+{
+//-- TODO
+	sensor_context_t *p_ctx = ctx;
+        LOG( LOG_INFO, "IE&E %s", __func__);
+
+	if (sensor_ops[p_ctx->channel])
+		sensor_ops[p_ctx->channel]->sensor_awb_update(p_ctx->channel, rgain, bgain);
+}
+
 void sensor_deinit_dummy(uint32_t ctx_id, void *ctx )
 {
 }
@@ -517,6 +527,7 @@ void sensor_init_dummy(uint32_t ctx_id, void **ctx, sensor_control_t *ctrl )
         ctrl->write_sensor_register = write_register;
         ctrl->start_streaming = start_streaming;
         ctrl->stop_streaming = stop_streaming;
+        ctrl->sensor_awb_update = sensor_awb_update;
     } else {
         LOG( LOG_ERR, "Attempt to initialize more sensor instances than was configured. Sensor initialization failed." );
         *ctx = NULL;

@@ -346,6 +346,30 @@ static void sensor_update( void *ctx )
 }
 
 
+static void sensor_awb_update( void *ctx , uint32_t rgain, uint32_t bgain)
+{
+    sensor_context_t *p_ctx = ctx;
+    if ( p_ctx != NULL ) {
+        struct soc_sensor_ioctl_args settings;
+        struct v4l2_subdev *sd = p_ctx->soc_sensor;
+        uint32_t ctx_num = get_ctx_num( ctx );
+        if ( sd != NULL && ctx_num < FIRMWARE_CONTEXT_NUMBER ) {
+            settings.ctx_num = ctx_num;
+            settings.args.general.val_in = rgain;
+            settings.args.general.val_in2 = bgain;
+            int rc = v4l2_subdev_call( sd, core, ioctl, SOC_SENSOR_AWB_UPDATE, &settings );
+            if ( rc != 0 ) {
+                LOG( LOG_ERR, "Failed to update sensor awb. rc = %d", rc );
+            }
+        } else {
+            LOG( LOG_ERR, "SOC sensor subdev pointer is NULL" );
+        }
+    } else {
+        LOG( LOG_ERR, "Sensor context pointer is NULL" );
+    }
+}
+
+
 static uint16_t sensor_get_id( void *ctx )
 {
     return 0;
@@ -638,6 +662,7 @@ void sensor_init_v4l2( void **ctx, sensor_control_t *ctrl, uint8_t ctx_id )
         ctrl->alloc_integration_time = sensor_alloc_integration_time;
         ctrl->sensor_update = sensor_update;
         ctrl->set_mode = sensor_set_mode;
+	ctrl->sensor_awb_update = sensor_awb_update;
 	ctrl->set_sensor_type = sensor_set_type;
         ctrl->get_id = sensor_get_id;
         ctrl->get_parameters = sensor_get_parameters;

@@ -154,6 +154,11 @@ enum SocCamera_ioctl {
     // output: none
     SOC_SENSOR_WRITE_REG,
 
+    // update awb info
+    // input: val_in - rgain
+    // input: val_in2 - bgain
+    // output: none
+    SOC_SENSOR_AWB_UPDATE,
 
     //########## STATIC PARAMETERS ###########//
 

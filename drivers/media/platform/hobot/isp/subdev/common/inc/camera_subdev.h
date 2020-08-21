@@ -26,6 +26,8 @@ typedef struct sensor_priv {
 	  uint32_t en_dgain;
 	  uint32_t line_num;
 	  uint32_t line_buf[4];
+	  uint32_t rgain;
+	  uint32_t bgain;
 	  uint8_t  mode;
 }sensor_priv_t;
 
@@ -183,6 +185,14 @@ typedef struct stream_ctrl_s {
 	uint32_t data_length;
 }stream_ctrl_t;
 
+typedef struct sensor_awb_ctrl_s {
+	uint32_t rgain_addr[4];
+	uint32_t rgain_length[4];
+	uint32_t bgain_addr[4];
+	uint32_t bgain_length[4];
+	uint32_t rb_prec;
+} sensor_awb_ctrl_t;
+
 typedef struct sensor_turning_data {
 	uint32_t  port;
 	char      sensor_name[CAMERA_SENSOR_NAME];
@@ -199,6 +209,7 @@ typedef struct sensor_turning_data {
 	dol2_t   dol2;
 	dol3_t   dol3;
 	pwl_t    pwl;  // ar0233
+	sensor_awb_ctrl_t sensor_awb;
 	stream_ctrl_t stream_ctrl;
 	sensor_data_t sensor_data;
 }sensor_turning_data_t;
@@ -212,7 +223,8 @@ enum camera_IOCTL {
     SENSOR_STREAM_OFF,
 	SENSOR_ALLOC_ANALOG_GAIN,
 	SENSOR_ALLOC_DIGITAL_GAIN,
-	SENSOR_ALLOC_INTEGRATION_TIME
+	SENSOR_ALLOC_INTEGRATION_TIME,
+	SENSOR_AWB_UPDATE,
 };
 
 #endif // DRIVERS_MEDIA_PLATFORM_HOBOT_ISP_SUBDEV_COMMON_INC_CAMERA_SUBDEV_H_

@@ -235,6 +235,25 @@ static void common_update(uint8_t chn, struct sensor_priv_old updata)
 	}
 }
 
+static void sensor_awb_update(uint8_t chn, uint32_t rgain, uint32_t bgain)
+{
+	int ret = 0;
+	struct sensor_arg settings;
+
+	if (common_subdev != NULL && chn < FIRMWARE_CONTEXT_NUMBER) {
+		settings.port = chn;
+		sensor_ctl[chn].rgain = rgain;
+		sensor_ctl[chn].bgain = bgain;
+		settings.sensor_priv = &sensor_ctl[chn];
+		LOG(LOG_ERR, "chn is %d", chn);
+		// Initial local parameters
+		ret = v4l2_subdev_call(common_subdev, core, ioctl,
+			SENSOR_AWB_UPDATE, &settings);
+	} else {
+		LOG(LOG_ERR, "common subdev pointer is NULL");
+	}
+}
+
 static void get_common_info(uint8_t chn)
 {
 	int ret = 0;
@@ -380,6 +399,7 @@ static struct sensor_operations common_ops = {
 	.start_streaming = common_start_streaming,
 	.sensor_init = common_init,
 	.sesor_get_para = common_get_param,
+	.sensor_awb_update = sensor_awb_update,
 };
 
 struct sensor_operations *common_ops_register(void)

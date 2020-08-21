@@ -24,6 +24,7 @@ enum control_mode_e {
 };
 
 int camera_sys_priv_set(uint32_t port, sensor_priv_t *priv_param);
+int camera_sys_priv_awb_set(uint32_t port, sensor_priv_t *priv_param);
 int camera_sys_get_param(uint32_t port, sensor_data_t *sensor_data);
 int camera_sys_turining_set(uint32_t port, sensor_turning_data_t *turning_pram);
 int	camera_sys_alloc_again(uint32_t port, uint32_t *a_gain);

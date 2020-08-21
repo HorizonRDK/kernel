@@ -274,6 +274,15 @@ typedef struct _sensor_control_t {
      */
     void ( *write_sensor_register )( void *ctx, uint32_t address, uint32_t data );
 
+    /**
+     *   write sensor awb register
+     *
+     *   @param ctx - pointer to the sensor context
+     *      address - address of register
+     *         data - data to write to register location
+     */
+    void ( *sensor_awb_update )( void *ctx, uint32_t rgain, uint32_t bgain );
+
 } sensor_control_t;
 
 

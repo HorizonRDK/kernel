@@ -242,6 +242,11 @@ typedef struct _fsm_param_reg_cfg_ {
     uint32_t reg_value;
 } fsm_param_reg_cfg_t;
 
+typedef struct _fsm_param_awb_cfg_ {
+    uint32_t rgain;
+    uint32_t bgain;
+} fsm_param_awb_cfg_t;
+
 typedef struct _fsm_param_ccm_manual_ {
     uint8_t manual_CCM;
     int16_t manual_color_matrix[9];

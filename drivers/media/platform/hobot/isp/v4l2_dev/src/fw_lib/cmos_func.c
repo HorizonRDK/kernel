@@ -660,6 +660,15 @@ void cmos_fsm_process_interrupt( cmos_fsm_const_ptr_t p_fsm, uint8_t irq_event )
                     if (p_fsm->sensor_ctrl_enable) {
                         acamera_fsm_mgr_set_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_SET_SENSOR_UPDATE, NULL, 0 );
                     }
+		//update awb info to sensor
+		if (_GET_COLS( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_CMOS_CONTROL ) == sizeof(cmos_control_param_t)/sizeof(uint32_t)) {
+			if (param->global_sensor_awb_mode) {
+				fsm_param_awb_cfg_t awb_f;
+				awb_f.rgain = ((cmos_fsm_ptr_t)p_fsm)->wb[0];
+				awb_f.bgain = ((cmos_fsm_ptr_t)p_fsm)->wb[3];
+				acamera_fsm_mgr_set_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_SET_SENSOR_AWB_UPDATE, &awb_f, sizeof( awb_f ) );
+			}
+		}
 
                 // frame_id should not be 0, at the beginning, it's initialized to 0 and we should skip it.
                 if ( ( p_fsm->prev_ae_frame_id_tracking != exp_set.frame_id_tracking ) && ( exp_set.frame_id_tracking != 0 ) ) {

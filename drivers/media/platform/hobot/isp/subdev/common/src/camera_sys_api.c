@@ -1346,6 +1346,54 @@ int  camera_sys_set_gain_line_control(uint32_t port, sensor_priv_t *priv_param)
 	return ret;
 }
 
+int  camera_sys_set_awb_control(uint32_t port, sensor_priv_t *priv_param)
+{
+	int ret = 0;
+	char awb_gain[3];
+	uint32_t i = 0;
+	uint32_t data = 0;
+
+	uint32_t reg_width, rgain_addr, rgain_length, bgain_addr, bgain_length;
+
+	reg_width = camera_mod[port]->camera_param.reg_width;
+
+	camera_sys_set_param_hold(port, 0x1);
+	for (i = 0; i < 4; i++) {
+		rgain_addr = camera_mod[port]->camera_param.sensor_awb.rgain_addr[i];
+		rgain_length = camera_mod[port]->camera_param.sensor_awb.rgain_length[i];
+		if (rgain_length != 0) {
+			if (camera_mod[port]->camera_param.sensor_awb.rb_prec > 8) {
+				data = priv_param->rgain << (camera_mod[port]->camera_param.sensor_awb.rb_prec - 8);
+			} else {
+				data = priv_param->rgain >> (8 - camera_mod[port]->camera_param.sensor_awb.rb_prec);
+			}
+			if (camera_mod[port]->camera_param.sensor_data.conversion) {
+				DOFFSET(&data, rgain_length);
+			}
+			camera_trans_value(&data, awb_gain);
+			ret = camera_sys_write(port, rgain_addr, reg_width, awb_gain, rgain_length);
+		}
+
+		bgain_addr = camera_mod[port]->camera_param.sensor_awb.bgain_addr[i];
+		bgain_length = camera_mod[port]->camera_param.sensor_awb.bgain_length[i];
+		if (bgain_length != 0) {
+			if (camera_mod[port]->camera_param.sensor_awb.rb_prec > 8) {
+				data = priv_param->bgain << (camera_mod[port]->camera_param.sensor_awb.rb_prec - 8);
+			} else {
+				data = priv_param->bgain >> (8 - camera_mod[port]->camera_param.sensor_awb.rb_prec);
+			}
+			if (camera_mod[port]->camera_param.sensor_data.conversion) {
+				DOFFSET(&data, bgain_length);
+			}
+			camera_trans_value(&data, awb_gain);
+			ret = camera_sys_write(port, bgain_addr, reg_width, awb_gain, bgain_length);
+		}
+	}
+	camera_sys_set_param_hold(port, 0x0);
+
+	return ret;
+}
+
 static uint32_t *camera_sys_lut_fill(uint32_t gain_num, uint32_t *turning_pram)
 {
 	uint32_t *gain_ptr = NULL;
@@ -1607,6 +1655,25 @@ int camera_sys_priv_set(uint32_t port, sensor_priv_t *priv_param)
 	}
 
 out:
+	return ret;
+}
+
+int camera_sys_priv_awb_set(uint32_t port, sensor_priv_t *priv_param)
+{
+	int ret = 0;
+
+	if (port > CAMERA_TOTAL_NUMBER) {
+		ret = -1;
+	} else {
+		if (priv_param) {
+			sensor_priv_t param;
+			memcpy(&param, priv_param, sizeof(sensor_priv_t));
+			pr_debug("rgain %d, bgain %d\n", param.rgain, param.bgain);
+			ret = camera_sys_set_awb_control(port, &param);
+		} else {
+			ret = -1;
+		}
+	}
 	return ret;
 }
 

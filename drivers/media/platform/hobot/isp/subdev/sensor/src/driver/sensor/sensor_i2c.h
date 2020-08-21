@@ -49,6 +49,7 @@ struct sensor_operations {
 	void (* start_streaming) ( uint8_t chn );
 	int (* sensor_init) ( uint8_t chn, uint8_t mode);
 	void (* sesor_get_para)(uint8_t chn, struct _setting_param_t *user_para);
+	void (* sensor_awb_update)(uint8_t chn, uint32_t rgain, uint32_t bgain);
 };
 
 

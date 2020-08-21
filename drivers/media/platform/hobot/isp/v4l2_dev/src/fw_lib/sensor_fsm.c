@@ -424,6 +424,20 @@ int sensor_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_t in
 
         break;
 
+    case FSM_PARAM_SET_SENSOR_AWB_UPDATE:
+
+        if ( !input || input_size != sizeof( fsm_param_awb_cfg_t ) ) {
+            LOG( LOG_ERR, "Invalid param, param_id: %d.", param_id );
+            rc = -1;
+            break;
+        }
+
+	fsm_param_awb_cfg_t *p_awb = (fsm_param_awb_cfg_t *)input;
+
+        p_fsm->ctrl.sensor_awb_update( p_fsm->sensor_ctx, p_awb->rgain, p_awb->bgain);
+
+        break;
+
     case FSM_PARAM_SET_SENSOR_REG: {
         if ( !input || input_size != sizeof( fsm_param_reg_cfg_t ) ) {
             LOG( LOG_ERR, "Invalid param, param_id: %d.", param_id );
