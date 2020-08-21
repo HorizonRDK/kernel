@@ -396,6 +396,7 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 		}
 		//it should disable after ipu stream off because it maybe contain ipu/sif clk
 		//vio_clk_disable("sif_mclk");
+        ips_set_module_reset(SIF_RST);
 		ips_set_clk_ctrl(SIF_CLOCK_GATE, false);
 	}
 	sif_ctx->state = BIT(VIO_VIDEO_CLOSE);
@@ -1406,7 +1407,8 @@ static irqreturn_t sif_isr(int irq, void *data)
 				subdev->md_refresh_count++;
 				if (test_bit(mux_index, &sif->state)) {
 					gtask = group->gtask;
-					if (unlikely(list_empty(&gtask->hw_resource.wait_list))) {
+					if (unlikely(list_empty(&gtask->hw_resource.wait_list)) &&
+						 gtask->hw_resource.count >= 4) {
 						vio_err("[S%d]GP%d(res %d, rcnt %d)\n",
 							group->instance,
 							gtask->id,
