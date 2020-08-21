@@ -64,7 +64,7 @@ module_param(iar_debug_level, uint, 0644);
 		"  embedded_image_" #_index "_data)\n\t"       \
 		".previous\n\t");
 
-int panel_reset_pin = 28;
+int panel_reset_pin = -1;
 uint32_t iar_display_ipu_addr_single[DISPLAY_TYPE_TOTAL_SINGLE][2];
 uint32_t iar_display_ipu_addr_dual[DISPLAY_TYPE_TOTAL_MULTI][2];
 uint32_t iar_display_ipu_addr_ddrmode[33][2];
@@ -80,7 +80,6 @@ uint8_t iar_display_addr_type = DISPLAY_CHANNEL1;
 uint8_t iar_display_cam_no = PIPELINE0;
 uint8_t iar_display_addr_type_video1 = 0;
 uint8_t iar_display_cam_no_video1 = PIPELINE0;
-EXPORT_SYMBOL(hb_disp_base_board_id);
 EXPORT_SYMBOL(iar_display_addr_type);
 EXPORT_SYMBOL(iar_display_cam_no);
 EXPORT_SYMBOL(iar_display_addr_type_video1);
@@ -103,9 +102,7 @@ uint8_t config_rotate;
 uint8_t ipu_process_done;
 uint8_t disp_user_update;
 uint8_t disp_user_update_video1;
-//uint8_t pingpong_config = 0;
 uint8_t frame_count;
-uint8_t rst_request_flag;
 uint8_t disp_copy_done = 0;
 static int disp_clk_already_enable = 0;
 static int ipi_clk_already_enable = 0;
@@ -115,12 +112,10 @@ static int stop_flag = 0;
 phys_addr_t logo_paddr;
 void *logo_vaddr = NULL;
 static int pwm0_request_status = 0;
-int xvb_sdb = 0;
 static int pwm_no = 0;
 static int pwm_period = 1000;
 static int pwm_duty = 10;
 unsigned int fb_num = 1;
-EXPORT_SYMBOL(xvb_sdb);
 EXPORT_SYMBOL(fb_num);
 
 struct disp_timing video_1920x1080 = {
@@ -2757,6 +2752,13 @@ static void hobot_iar_draw_rect(char *frame, int x0, int y0, int x1, int y1,
 
 int panel_hardware_reset(void)
 {
+	int ret = 0;
+
+	ret = gpio_request(panel_reset_pin, "disp_panel_reset_pin");
+	if (ret) {
+		pr_err("%s: error request panel reset pin!!\n", __func__);
+		return -1;
+	}
 	if (panel_reset_pin >= 0) {
 		gpio_direction_output(panel_reset_pin, 1);
 		pr_debug("panel reset pin output high!\n");
@@ -2769,18 +2771,32 @@ int panel_hardware_reset(void)
 		msleep(120);
 		pr_info("panel reset success!\n");
 	}
+	gpio_free(panel_reset_pin);
 	return 0;
 }
 EXPORT_SYMBOL_GPL(panel_hardware_reset);
 
 int get_iar_module_rst_pin(void)
 {
-	if (rst_request_flag == 0)
-		return -1;
 	return panel_reset_pin;
 }
 EXPORT_SYMBOL_GPL(get_iar_module_rst_pin);
 
+int get_base_board_id(void)
+{
+	void __iomem *hitm1_reg_addr;
+	uint32_t reg_val = 0;
+	int board_id = -1;
+
+	hitm1_reg_addr = ioremap_nocache(X3_GPIO_BASE + X3_GPIO0_VALUE_REG, 4);
+	reg_val = readl(hitm1_reg_addr);
+	reg_val = (((reg_val >> 14) & 0x1) << 1) | ((reg_val >> 12) & 0x1);
+	board_id = reg_val + 1;
+	pr_debug("iar: base board id is 0x%x\n", board_id);
+	iounmap(hitm1_reg_addr);
+	return board_id;
+}
+EXPORT_SYMBOL_GPL(get_base_board_id);
 
 int enable_sif_mclk(void)
 {
@@ -3126,8 +3142,6 @@ static int hobot_iar_probe(struct platform_device *pdev)
 	void *vaddr;
 	uint64_t pixel_rate;
 	char *type;
-	void __iomem *hitm1_reg_addr;
-        uint32_t reg_val = 0;
 	uint32_t i = 0;
 	buf_addr_t channel_buf_addr_3;
 	buf_addr_t channel_buf_addr_4;
@@ -3179,34 +3193,17 @@ static int hobot_iar_probe(struct platform_device *pdev)
 		devm_ioremap_resource(&pdev->dev, res_mipi);
 	if (IS_ERR(g_iar_dev->mipi_dsi_regaddr))
 		return PTR_ERR(g_iar_dev->mipi_dsi_regaddr);
-	ret = of_property_match_string(pdev->dev.of_node, "board-name", "xvb");
-	if (ret < 0) {
-		xvb_sdb = 1;// base board is sdb
-		display_type = HDMI_TYPE;
-	} else {
-		xvb_sdb = 0;// base board is xvb
-		hitm1_reg_addr = ioremap_nocache(X3_GPIO_BASE + X3_GPIO0_VALUE_REG, 4);
-		reg_val = readl(hitm1_reg_addr);
-		reg_val = (((reg_val >> 14) & 0x1) << 1) | ((reg_val >> 12) & 0x1);
-		hb_disp_base_board_id = reg_val + 1;
-		pr_debug("iar: base board id is 0x%x\n", hb_disp_base_board_id);
-	}
-	if (hb_disp_base_board_id == 0x1 || xvb_sdb == 1) {     //x3_dvb
-		ret = of_property_read_u32(pdev->dev.of_node,
+
+	ret = of_property_read_u32(pdev->dev.of_node,
+                        "default_display_type", &display_type);
+
+	hb_disp_base_board_id = get_base_board_id();
+
+	ret = of_property_read_u32(pdev->dev.of_node,
 			"disp_panel_reset_pin", &panel_reset_pin);
-		if (ret) {
-			dev_err(&pdev->dev, "Filed to get panel_reset_pin\n");
-		} else {
-			ret = gpio_request(panel_reset_pin, "disp_panel_reset_pin");
-			if (ret) {
-				pr_err("%s() Err get trigger pin ret= %d\n",
-					__func__, ret);
-				//return -ENODEV;
-			} else {
-				rst_request_flag = 1;
-			}
-		}
-		pr_debug("gpio request succeed!!!!\n");
+	if (ret) {
+		dev_err(&pdev->dev, "Filed to get panel_reset_pin\n");
+		return -ENODEV;
 	}
 
 	EMBEDIMG(0, "drivers/soc/hobot/iar/bootlogo.bmp");

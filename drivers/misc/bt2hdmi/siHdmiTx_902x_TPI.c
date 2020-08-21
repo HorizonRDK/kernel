@@ -309,9 +309,9 @@ int TxHW_Reset(void)
 {
 	TPI_TRACE_PRINT("\n>>");
 
-	gpio_set_value(Si9022A_rst_pin, 0);
+	hdmi_reset_output(0);
 	DelayMS(TX_HW_RESET_PERIOD);
-	gpio_set_value(Si9022A_rst_pin, 1);
+	hdmi_reset_output(1);
 
 	TXHAL_InitPostReset();
 	return 0;

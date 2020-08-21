@@ -465,13 +465,17 @@ static int goodix_reset(void)
 	int error;
 
 	/* begin select I2C slave addr */
+	error = gpio_request(tp_rst_pin, "rst_pin");
+	if (error) {
+		pr_err("error request reset pin, exit!!\n");
+		return error;
+	}
 	error = gpio_direction_output(tp_rst_pin, 0);
 	if (error)
 		return error;
 
 	msleep(20);/* T2: > 10ms */
 	/* HIGH: 0x28/0x29, LOW: 0xBA/0xBB */
-	//error = gpio_direction_output(tp_irq_pin, 1);
 	error = gpio_direction_output(tp_irq_pin, ts->client->addr == 0x14);
 	if (error)
 		return error;
@@ -492,6 +496,7 @@ static int goodix_reset(void)
 	error = goodix_int_sync();
 	if (error)
 		return error;
+	gpio_free(tp_rst_pin);
 
 	return 0;
 }
@@ -754,26 +759,13 @@ static int goodix_ts_probe(struct i2c_client *client,
 				tp_irq_pin, ret);
 		return ret;
 	}
-#ifdef CONFIG_HOBOT_IAR
-	ret = get_iar_module_rst_pin();
-	if (ret < 0) {
-		dev_err(&client->dev, "Failed to get rst pin from iar module!\n");
-		return ret;
-	}
-	tp_rst_pin = ret;
-#else
-	ret = of_property_read_u32(client->dev.of_node, "rst_pin", &tp_rst_pin);
+
+	ret = of_property_read_u32(client->dev.of_node, "reset_pin", &tp_rst_pin);
 	if (ret) {
 		dev_err(&client->dev, "Filed to get rst_pin %d\n", ret);
 		return ret;
 	}
-	ret = gpio_request(tp_rst_pin, "rst_pin");
-	if (ret < 0) {
-		dev_err(&client->dev, "Filed to request rst_pin-%d %d\n",
-				tp_irq_pin, ret);
-		return ret;
-	}
-#endif
+
 	error = goodix_reset();
 	if (error) {
 		dev_err(&client->dev, "Controller reset failed.\n");

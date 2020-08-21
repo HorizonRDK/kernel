@@ -741,7 +741,7 @@ extern struct disp_timing video_1080x1920;
 extern struct disp_timing video_720x1280_touch;
 extern struct disp_timing video_1920x1080_sdb;
 extern struct disp_timing video_720x1280_touch_sdb;
-extern uint32_t hb_disp_base_board_id;
+//extern uint32_t hb_disp_base_board_id;
 extern uint8_t iar_display_addr_type;
 extern uint8_t iar_display_cam_no;
 #ifdef CONFIG_HOBOT_XJ3
@@ -843,6 +843,7 @@ int iar_output_buf_init(int layer_no, struct frame_info *frameinfo);
 int iar_output_reqbufs(int layer_no, unsigned int buffers);
 int iar_output_stream_on(int layer_no);
 int iar_output_stream_off(int layer_no);
+int get_base_board_id(void);
 
 // Supported rotation.
 enum RotationMode {

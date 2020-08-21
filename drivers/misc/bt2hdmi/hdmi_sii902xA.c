@@ -114,12 +114,32 @@ static int match_id(const struct i2c_device_id *id,
 	return false;
 }
 
+int hdmi_reset_output(unsigned int output_level)
+{
+	int ret = 0;
+
+	if (Si9022A_rst_pin < 0) {
+		pr_err("hdmi reset pin not init, exit!!\n");
+		return -1;
+	}
+	ret = gpio_request(Si9022A_rst_pin, "rst_pin");
+	if (ret < 0) {
+		pr_err("Filed to request rst_pin-%d %d\n",
+				Si9022A_rst_pin, ret);
+		return ret;
+	}
+	gpio_direction_output(Si9022A_rst_pin, output_level);
+	gpio_free(Si9022A_rst_pin);
+	return 0;
+}
+
 static int hdmi_sii_probe(struct i2c_client *client,
 		const struct i2c_device_id *id)
 {
 	int ret = 0;
 	byte devID = 0x00;
 	word wID = 0x0000;
+	int board_id = -1;
 
 	dev_info(&client->adapter->dev, "hdmi %s i2c 0x%02X probe ...\n",
 			 id->name, client->addr);
@@ -164,7 +184,8 @@ static int hdmi_sii_probe(struct i2c_client *client,
 			}
 		}
 #ifdef CONFIG_HOBOT_XJ3
-		if (hb_disp_base_board_id == 0x1) {	//x3_dvb
+		board_id = get_base_board_id();	// x3_dvb
+		if (board_id == 0x1) {
 //#ifdef CONFIG_HOBOT_IAR
 			ret = get_iar_module_rst_pin();
 			if (ret < 0) {
@@ -174,19 +195,13 @@ static int hdmi_sii_probe(struct i2c_client *client,
 			}
 			Si9022A_rst_pin = ret;
 //#endif
-		} else if (hb_disp_base_board_id == 0x2) {	//j3_dvb
+		} else if (board_id == 0x2) {	//j3_dvb
 			ret = of_property_read_u32(client->dev.of_node, "rst_pin",
 							&Si9022A_rst_pin);
 			pr_debug("hdmi: reset pin is %d\n", Si9022A_rst_pin);
 			if (ret) {
 				dev_err(&client->dev, "Filed to get rst_pin %d\n",
 						ret);
-				return ret;
-			}
-			ret = gpio_request(Si9022A_rst_pin, "rst_pin");
-			if (ret < 0) {
-				dev_err(&client->dev, "Filed to request rst_pin-%d %d\n",
-						Si9022A_rst_pin, ret);
 				return ret;
 			}
 		}
@@ -197,16 +212,10 @@ static int hdmi_sii_probe(struct i2c_client *client,
 			dev_err(&client->dev, "Filed to get rst_pin %d\n", ret);
 			return ret;
 		}
-		ret = gpio_request(Si9022A_rst_pin, "rst_pin");
-		if (ret < 0) {
-			dev_err(&client->dev, "Filed to request rst_pin-%d %d\n",
-					Si9022A_rst_pin, ret);
-			return ret;
-		}
 #endif
 		dev_dbg(&client->dev, "rst_pin=%d, init out 1\n",
 				 Si9022A_rst_pin);
-		gpio_direction_output(Si9022A_rst_pin, 1);
+		hdmi_reset_output(1);
 
 		// dts: irq_pin - irq pin number(poll if irq requeset failed).
 		ret = of_property_read_u32(client->dev.of_node, "irq_pin",

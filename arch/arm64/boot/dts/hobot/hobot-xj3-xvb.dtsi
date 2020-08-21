@@ -142,6 +142,7 @@
 		compatible = "goodix,gt911";
 		reg = <0x14>;
 		irq_pin = <29>;
+		reset_pin = <28>;
         };
 
 	ac108_0: ac108_0@0x3b {
@@ -278,7 +279,6 @@
 
 &iar {
         status = "okay";
-	board-name = "xvb";
 	timing_1920x1080 = <163000000 148 88 44 36 4 5>;
 	timing_800x480 = <32000000 80 120 48 32 43 2>;
 	timing_1080x1920 = <32000000 100 400 5 4 400 5>;
