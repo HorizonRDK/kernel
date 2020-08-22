@@ -1053,7 +1053,7 @@ void ipu_hw_set_info_cfg(struct ipu_subdev *subdev, u32 shadow_index)
 {
 	u32 id = 0;
 	struct ipu_info_cfg *info_cfg;
-	ipu_ds_info_t *sc_info;
+	ipu_ds_info_t *sc_info, *sc_info_old;
 	ipu_roi_box_t *roi;
 	ipu_scale_info_t *scale_info;
 
@@ -1066,8 +1066,10 @@ void ipu_hw_set_info_cfg(struct ipu_subdev *subdev, u32 shadow_index)
 	sc_info = &info_cfg->sc_info;
 	roi = &sc_info->ds_roi_info;
 	scale_info = &sc_info->ds_sc_info;
+	sc_info_old = &subdev->scale_cfg;
 
 	if (info_cfg->info_update) {
+		memcpy(sc_info_old, sc_info, sizeof(ipu_ds_info_t));
 		if (sc_info->ds_roi_en)
 			ipu_hw_set_roi_cfg(subdev, shadow_index, roi);
 		ipu_set_roi_enable(subdev, shadow_index, sc_info->ds_roi_en);
