@@ -86,19 +86,19 @@
 			record-size = <0x4000>;
 		};
 
-		/* Reserved 256MB memory for ion cma */
+		/* Reserved 400MB memory for ion cma */
 		ion_cma {
 			compatible = "shared-dma-pool";
-			alloc-ranges = <0x0 0x4000000 0x0 0x14000000>;
+			alloc-ranges = <0x0 0x4000000 0x0 0x19000000>;
 			alignment = <0x0 0x100000>;
 			reusable;
-			size = <0x0 0x10000000>;
+			size = <0x0 0x19000000>;
 		};
 
-		/* Reserved 416MB memory for ion */
-		ion_reserved: ion_reserved@0x14000000 {
+		/* Reserved 272MB memory for ion */
+		ion_reserved: ion_reserved@0x1D000000 {
 			compatible = "ion-pool";
-			reg = <0x0 0x14000000 0x0 0x1A000000>;
+			reg = <0x0 0x1D000000 0x0 0x11000000>;
 		};
 
 		/*Reserved 1M memory for CR5*/
