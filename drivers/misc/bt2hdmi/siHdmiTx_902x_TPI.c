@@ -4461,4 +4461,4 @@ int disp_config_hdmi(unsigned short vmode,
 	siHdmiTx_ReConfig(vmode, VideoFormat, Afs);
 	return 0;
 }
-EXPORT_SYMBOL_GPL(disp_config_hdmi);
+//EXPORT_SYMBOL_GPL(disp_config_hdmi);

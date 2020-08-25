@@ -734,6 +734,11 @@ enum PIXEL_CLK {
 	PIXEL_CLK_162,
 };
 
+typedef int (*hdmi_set_config_callback)(unsigned short vmode,
+                unsigned short VideoFormat, unsigned short Afs);
+//extern hdmi_set_config_callback config_hdmi;
+void hdmi_register_config_callback(hdmi_set_config_callback func);
+
 extern struct disp_timing video_1920x1080;
 extern struct disp_timing video_800x480;
 extern struct disp_timing video_720x1280;

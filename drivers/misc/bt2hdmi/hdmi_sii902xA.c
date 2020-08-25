@@ -320,6 +320,8 @@ static int hdmi_sii_probe(struct i2c_client *client,
 				client->name);
 		return -EIO;
 	}
+	hdmi_register_config_callback(disp_config_hdmi);
+	pr_debug("sii902xa prob success!!\n");
 	return ret;
 }
 
