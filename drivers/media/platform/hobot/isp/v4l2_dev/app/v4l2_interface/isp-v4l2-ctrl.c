@@ -348,7 +348,7 @@ static const struct v4l2_ctrl_config isp_v4l2_ctrl_iridix_ctrl = {
     .type = V4L2_CTRL_TYPE_INTEGER,
     .min = 0,
     .max = 0x7FFFFFFF,
-    .step = 0,
+    .step = 1,
     .def = 0,
 };
 
@@ -454,7 +454,7 @@ int isp_v4l2_ctrl_init( uint32_t ctx_id, isp_v4l2_ctrl_t *ctrl )
                   0, 255, 1, 0 );
 
     /* Init and add custom controls */
-    v4l2_ctrl_handler_init( hdl_cst_ctrl, 9 );
+    v4l2_ctrl_handler_init( hdl_cst_ctrl, 8 );
     v4l2_ctrl_new_custom( hdl_cst_ctrl, &isp_v4l2_ctrl_class, NULL );
 
     ADD_CTRL_CST_VOLATILE( ISP_V4L2_CID_TEST_PATTERN,
@@ -469,14 +469,14 @@ int isp_v4l2_ctrl_init( uint32_t ctx_id, isp_v4l2_ctrl_t *ctrl )
                   &isp_v4l2_ctrl_af_roi, NULL );
     ADD_CTRL_CST_VOLATILE( ISP_V4L2_CID_OUTPUT_FR_ON_OFF,
                   &isp_v4l2_ctrl_output_fr_on_off, NULL );
-    ADD_CTRL_CST_VOLATILE( ISP_V4L2_CID_OUTPUT_DS1_ON_OFF,
-                  &isp_v4l2_ctrl_output_ds1_on_off, NULL );
+    ADD_CTRL_CST_VOLATILE( ISP_V4L2_CID_IRIDIX_CTRL,
+                  &isp_v4l2_ctrl_iridix_ctrl, NULL );
     ADD_CTRL_CST_VOLATILE( ISP_V4L2_CID_RAW_BYPASS,
                   &isp_v4l2_ctrl_raw_bypass_on_off, NULL );
     ADD_CTRL_CST_VOLATILE( ISP_V4L2_CID_TEMPER_BUF,
                   &isp_v4l2_ctrl_temper_buf_ctrl, NULL );
-    ADD_CTRL_CST_VOLATILE( ISP_V4L2_CID_IRIDIX_CTRL,
-                  &isp_v4l2_ctrl_iridix_ctrl, NULL );
+    // ADD_CTRL_CST_VOLATILE( ISP_V4L2_CID_OUTPUT_DS1_ON_OFF,
+    //               &isp_v4l2_ctrl_output_ds1_on_off, NULL );
 
     /* Add control handler to v4l2 device */
     v4l2_ctrl_add_handler( hdl_std_ctrl, hdl_cst_ctrl, NULL );

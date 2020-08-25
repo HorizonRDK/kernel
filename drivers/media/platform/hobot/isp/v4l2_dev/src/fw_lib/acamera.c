@@ -697,7 +697,7 @@ static int _isp_iridix_ctrl(void)
     accepter_ctx_id = GET_BYTE_V(g_firmware.iridix_ctrl_flag, 0);
 
     if (giver_ctx_id >= FIRMWARE_CONTEXT_NUMBER || accepter_ctx_id >= FIRMWARE_CONTEXT_NUMBER) {
-       pr_debug("giver id %d or accepter id %d is invalid.\n", giver_ctx_id, accepter_ctx_id);
+       pr_err("giver id %d or accepter id %d is invalid.\n", giver_ctx_id, accepter_ctx_id);
        return -1;
     }
 
@@ -706,23 +706,21 @@ static int _isp_iridix_ctrl(void)
     p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[giver_ctx_id];
     if (p_ctx && p_ctx->sw_reg_map.isp_sw_config_map != NULL) {
         iridix_no = acamera_isp_iridix_context_no_read(p_ctx->settings.isp_base);
-
+        pr_debug("giver_ctx_id %d, iridix no %d\n", giver_ctx_id, iridix_no);
         //1: turn over  2: share
         if (GET_BYTE_V(g_firmware.iridix_ctrl_flag, 2) == 1) {
+            pr_debug("giver_ctx_id %d trun off iridix\n", giver_ctx_id);
             acamera_isp_top_bypass_iridix_write(p_ctx->settings.isp_base, 1);
             acamera_isp_iridix_enable_write(p_ctx->settings.isp_base, 0);
-            //TODO
-            //need maybe load calibration without iridix
         }
     }
 
     p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[accepter_ctx_id];
     if (iridix_no < HW_CONTEXT_NUMBER && p_ctx && p_ctx->sw_reg_map.isp_sw_config_map != NULL) {
+        pr_debug("accepter_ctx_id %d trun on iridix\n", accepter_ctx_id);
         acamera_isp_iridix_context_no_write(p_ctx->settings.isp_base, iridix_no);
         acamera_isp_iridix_enable_write(p_ctx->settings.isp_base, 1);
         acamera_isp_top_bypass_iridix_write(p_ctx->settings.isp_base, 1);
-        //TODO
-        //need maybe load calibration with iridix
     }
 
     g_firmware.iridix_ctrl_flag = 0;
