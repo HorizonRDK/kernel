@@ -587,8 +587,8 @@ static void start_processing_frame( void )
     acamera_context_ptr_t p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[last_ctx_id];
 
     // new_frame event to start reading metering memory and run 3A
-    acamera_fw_raise_event( p_ctx, event_id_new_frame );
-
+	if (p_ctx->initialized != 0)
+		acamera_fw_raise_event(p_ctx, event_id_new_frame);
     // dma_writer_status(p_ctx);
 }
 
@@ -947,13 +947,13 @@ int sif_isp_ctx_sync_func(int ctx_id)
     // struct timeval tv1, tv2;
 
     // do_gettimeofday(&tv1);
-    ret = mutex_lock_interruptible(&g_firmware.ctx_chg_lock);
-    if (ret != 0) {
-        pr_err("mutex lock failed, rc = %d\n", ret);
-        return ret;
-    }
-
+	mutex_lock(&g_firmware.ctx_chg_lock);
 	p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[ctx_id];
+	if (p_ctx->initialized == 0) {
+		pr_err("pipe[%d] has closed!!!\n", ctx_id);
+		mutex_unlock(&g_firmware.ctx_chg_lock);
+		return -1;
+	}
     instance = &(((acamera_context_ptr_t)acamera_get_ctx_ptr(last_ctx_id))->fsm_mgr);
 
     /* wait last ctx done */

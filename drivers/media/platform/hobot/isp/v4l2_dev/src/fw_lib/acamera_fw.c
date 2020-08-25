@@ -601,11 +601,7 @@ int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settin
 
     pr_info("ctx_id %d +\n", p_ctx->context_id);
 
-    result = mutex_lock_interruptible(&p_ctx->p_gfw->ctx_chg_lock);
-    if (result != 0) {
-        pr_err("mutex lock failed, rc = %d\n", result);
-        return result;
-    }
+	mutex_lock(&p_ctx->p_gfw->ctx_chg_lock);
 
     if (acamera_all_hw_contexts_inited()) {
         p_ctx->content_side = SIDE_DDR;
@@ -740,13 +736,7 @@ int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settin
 
 void acamera_deinit_context( acamera_context_t *p_ctx )
 {
-    int rc = 0;
-
-    rc = mutex_lock_interruptible(&p_ctx->p_gfw->ctx_chg_lock);
-    if (rc != 0) {
-        pr_err("ctx_chg_lock mutex lock failed, rc = %d\n", rc);
-        return;
-    }
+    mutex_lock(&p_ctx->p_gfw->ctx_chg_lock);
 
     if (p_ctx->content_side == SIDE_DDR && p_ctx->sw_reg_map.isp_sw_config_map) {
         pr_debug("ctx_id %d, free ddr ctx mem\n", p_ctx->context_id);

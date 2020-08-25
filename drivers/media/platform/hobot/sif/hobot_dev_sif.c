@@ -148,6 +148,7 @@ void sif_read_frame_work(struct vio_group *group)
 {
 	unsigned long flags;
 	u32 instance = 0;
+	int ret = 0;
 	struct x3_sif_dev *sif;
 	struct vio_framemgr *framemgr;
 	struct vio_frame *frame;
@@ -157,7 +158,7 @@ void sif_read_frame_work(struct vio_group *group)
 	instance = group->instance;
 
 	if (sif_isp_ctx_sync != NULL) {
-		(*sif_isp_ctx_sync)(instance);
+		ret = (*sif_isp_ctx_sync)(instance);
 	}
 
 	subdev = group->sub_ctx[0];
@@ -174,17 +175,19 @@ void sif_read_frame_work(struct vio_group *group)
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	frame = peek_frame(framemgr, FS_REQUEST);
 	if (frame) {
-		frameinfo = &frame->frameinfo;
-		sif_config_rdma_cfg(subdev, 0, frameinfo);
+		if (ret == 0) {
+			frameinfo = &frame->frameinfo;
+			sif_config_rdma_cfg(subdev, 0, frameinfo);
 
-		if (subdev->dol_num > 1) {
-			sif_config_rdma_cfg(subdev, 1, frameinfo);
-		}
+			if (subdev->dol_num > 1) {
+				sif_config_rdma_cfg(subdev, 1, frameinfo);
+			}
 
-		if (subdev->dol_num > 2) {
-			sif_config_rdma_cfg(subdev, 2, frameinfo);
+			if (subdev->dol_num > 2) {
+				sif_config_rdma_cfg(subdev, 2, frameinfo);
+			}
+			sif_set_rdma_trigger(sif->base_reg, 1);
 		}
-		sif_set_rdma_trigger(sif->base_reg, 1);
 		trans_frame(framemgr, frame, FS_PROCESS);
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
