@@ -325,6 +325,7 @@ bool ion_buffer_fault_user_mappings(struct ion_buffer *buffer);
  */
 //void ion_device_add_heap(struct ion_heap *heap);
 void ion_device_add_heap(struct ion_device *dev, struct ion_heap *heap);
+void ion_device_del_heap(struct ion_device *dev, struct ion_heap *heap);
 
 /**
  * some helpers for common operations on buffers using the sg_table

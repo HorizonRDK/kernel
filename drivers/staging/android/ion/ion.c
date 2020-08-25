@@ -472,7 +472,7 @@ struct ion_handle *ion_alloc(struct ion_client *client, size_t len,
 	flags = flags&0xffff;
 	/* bpu default not use cma heap */
 	if ((type >> 12) != 1) {
-		heap_id_mask |= ION_HEAP_TYPE_DMA_MASK;
+		heap_id_mask = ION_HEAP_TYPE_DMA_MASK;
 		plist_for_each_entry(heap, &dev->heaps, node) {
 			/* if the caller didn't specify this heap id */
 			if ((1 << heap->type) & heap_id_mask) {
@@ -503,6 +503,20 @@ struct ion_handle *ion_alloc(struct ion_client *client, size_t len,
 		buffer = ion_buffer_create(heap, dev, len, align, flags);
 		if (!IS_ERR(buffer))
 			break;
+	}
+	/* if carveout can't alloc the mem, try use cma*/
+	if (((heap_id_mask & ION_HEAP_CARVEOUT_MASK) > 0)
+			&& ((buffer == NULL) || IS_ERR(buffer))) {
+		heap_id_mask &= ~ION_HEAP_CARVEOUT_MASK;
+		heap_id_mask |= ION_HEAP_TYPE_DMA_MASK;
+		plist_for_each_entry(heap, &dev->heaps, node) {
+			/* if the caller didn't specify this heap id */
+			if (!((1 << heap->type) & heap_id_mask))
+				continue;
+			buffer = ion_buffer_create(heap, dev, len, align, flags);
+			if (!IS_ERR(buffer))
+				break;
+		}
 	}
 	up_read(&dev->lock);
 
@@ -1634,6 +1648,17 @@ void ion_device_add_heap(struct ion_device *dev, struct ion_heap *heap)
 	}
 #endif
 	up_write(&dev->lock);
+}
+void ion_device_del_heap(struct ion_device *dev, struct ion_heap *heap)
+{
+	struct dentry *debug_file;
+
+	debug_file = debugfs_lookup(heap->name, dev->heaps_debug_root);
+	if (debug_file != NULL) {
+		debugfs_remove(debug_file);
+	}
+
+	plist_del(&heap->node, &dev->heaps);
 }
 
 #if 0

@@ -30,6 +30,7 @@
 #include <asm/cacheflush.h>
 #include <linux/ion.h>
 
+#define DFT_CMA_CARVEOUT_SIZE	(272 * 0x100000)
 extern struct ion_device *ion_device_create(long (*custom_ioctl)
 				     (struct ion_client *client,
 				      unsigned int cmd,
@@ -85,6 +86,198 @@ static void ion_dma_cb(void *data)
 {
 	complete(&dma_completion);
 }
+
+struct ion_cma_carveout {
+	struct ion_client *i_cc_client;
+	struct ion_handle *i_cc_handle;
+	phys_addr_t start;
+	size_t size;
+	bool cc_is_valid;
+};
+
+static struct ion_cma_carveout ion_cc = { 0 };
+static int ion_cma_carveout_range_create(size_t size)
+{
+	int ret, i;
+
+	if (!ion_cc.cc_is_valid) {
+		return 0;
+	}
+
+	ion_cc.i_cc_client = ion_client_create(hb_ion_dev, "ion_cma_carveout");
+	if (ion_cc.i_cc_client == NULL) {
+		pr_err("Create ion cma carveout client failed!!\n");
+		return -ENOMEM;
+	}
+
+	ion_cc.i_cc_handle = ion_alloc(ion_cc.i_cc_client,
+			size, 0x10, ION_HEAP_TYPE_DMA_MASK, 0xffff << 16);
+
+	if ((ion_cc.i_cc_handle == NULL) || IS_ERR(ion_cc.i_cc_handle)) {
+		ion_client_destroy(ion_cc.i_cc_client);
+		ion_cc.i_cc_handle = NULL;
+		ion_cc.i_cc_client = NULL;
+		pr_err("Alloc ion cma carveout buffer failed!!\n");
+		return -ENOMEM;
+	}
+
+	ret = ion_phys(ion_cc.i_cc_client, ion_cc.i_cc_handle->id,
+			&ion_cc.start, &ion_cc.size);
+	if (ret != 0) {
+		ion_free(ion_cc.i_cc_client, ion_cc.i_cc_handle);
+		ion_client_destroy(ion_cc.i_cc_client);
+		ion_cc.i_cc_handle = NULL;
+		ion_cc.i_cc_client = NULL;
+		pr_err("Alloced ion cma carveout buffer get phys failed!!\n");
+		return -ENOMEM;
+	}
+
+	dummy_heaps[ION_HEAP_TYPE_CARVEOUT].base = ion_cc.start;
+	dummy_heaps[ION_HEAP_TYPE_CARVEOUT].size = ion_cc.size;
+
+	for (i = 0; i < dummy_ion_pdata.nr; i++) {
+		struct ion_platform_heap *heap_data = &dummy_ion_pdata.heaps[i];
+
+		if (heap_data->type == ION_HEAP_TYPE_CARVEOUT &&
+							heap_data->base != 0) {
+			heaps[i] = ion_heap_create(heap_data);
+			if (IS_ERR_OR_NULL(heaps[i])) {
+				ion_free(ion_cc.i_cc_client, ion_cc.i_cc_handle);
+				ion_client_destroy(ion_cc.i_cc_client);
+				ion_cc.i_cc_handle = NULL;
+				ion_cc.i_cc_client = NULL;
+				dummy_heaps[ION_HEAP_TYPE_CARVEOUT].base = 0;
+				dummy_heaps[ION_HEAP_TYPE_CARVEOUT].size = 0;
+				pr_err("Create ion cma carveout heap failed!!\n");
+				return PTR_ERR(heaps[i]);
+			}
+			ion_device_add_heap(hb_ion_dev, heaps[i]);
+		}
+	}
+
+	return 0;
+}
+
+static void ion_cma_carveout_range_discard(void)
+{
+	int i;
+
+	if (!ion_cc.cc_is_valid) {
+		return;
+	}
+
+	for (i = 0; i < dummy_ion_pdata.nr; i++) {
+		struct ion_platform_heap *heap_data = &dummy_ion_pdata.heaps[i];
+		if (heap_data->type == ION_HEAP_TYPE_CARVEOUT &&
+							heap_data->base != 0) {
+			ion_device_del_heap(hb_ion_dev, heaps[i]);
+			ion_heap_destroy(heaps[i]);
+			heap_data->base = 0;
+			heap_data->size = 0;
+		}
+	}
+
+	if (ion_cc.i_cc_handle != NULL) {
+		ion_free(ion_cc.i_cc_client, ion_cc.i_cc_handle);
+		ion_cc.i_cc_handle = NULL;
+	}
+
+	if (ion_cc.i_cc_client != NULL) {
+		ion_client_destroy(ion_cc.i_cc_client);
+		ion_cc.i_cc_client = NULL;
+	}
+
+	ion_cc.start = 0;
+	ion_cc.size = 0;
+}
+
+static uint32_t ion_heap_buf_num(struct ion_client *client,
+				   uint32_t type)
+{
+	uint32_t num = 0;
+	struct rb_node *n;
+
+	mutex_lock(&client->lock);
+	for (n = rb_first(&client->handles); n; n = rb_next(n)) {
+		struct ion_handle *handle = rb_entry(n,
+						     struct ion_handle,
+						     node);
+		if (handle->buffer->heap->type == type) {
+			num++;
+		}
+	}
+	mutex_unlock(&client->lock);
+
+	return num;
+}
+
+static int ion_cma_carveout_range_resize(size_t size)
+{
+	uint32_t num = 0;
+	struct rb_node *n;
+	int ret = 0;
+
+	if ((size == ion_cc.size) || (!ion_cc.cc_is_valid)) {
+		return 0;
+	}
+
+	for (n = rb_first(&hb_ion_dev->clients); n; n = rb_next(n)) {
+		struct ion_client *client = rb_entry(n, struct ion_client,
+						     node);
+		num = ion_heap_buf_num(client, ION_HEAP_TYPE_CARVEOUT);
+		if (num > 0) {
+			pr_err("cma carveout head is using, can't be resize!!!\n");
+			return -ENODEV;
+		}
+
+	}
+
+	ion_cma_carveout_range_discard();
+
+	if (size > 0) {
+		ret = ion_cma_carveout_range_create(size);
+	}
+
+	return ret;
+}
+
+static ssize_t ion_cma_carveout_size_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", (uint32_t)(ion_cc.size / 0x100000));
+}
+
+static ssize_t ion_cma_carveout_size_store(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf, size_t len)
+{
+	uint32_t tmp_size;
+	int ret;
+
+	ret = sscanf(buf, "%du", &tmp_size);
+	if (ret < 0) {
+		return 0;
+	}
+
+	if (tmp_size >= 0) {
+		ion_cma_carveout_range_resize(tmp_size * 0x100000);
+	}
+
+	return (ssize_t)len;
+}
+
+static DEVICE_ATTR(cma_carveout_size, S_IRUGO | S_IWUSR,
+		ion_cma_carveout_size_show,
+		ion_cma_carveout_size_store);
+
+static struct attribute *ion_dev_attrs[] = {
+	&dev_attr_cma_carveout_size.attr,
+	NULL,
+};
+
+static struct attribute_group ion_dev_attr_group = {
+	.attrs = ion_dev_attrs,
+};
 
 #define ION_GET_PHY 0
 #define ION_CACHE_INVAL 1
@@ -269,7 +462,6 @@ static int __init ion_dummy_init(void)
 	if (!heaps)
 		return -ENOMEM;
 
-	/* phase the carveout heap */
 	node = of_find_node_by_path("/reserved-memory");
 	if (node) {
 		node = of_find_compatible_node(node, NULL, "ion-pool");
@@ -282,14 +474,8 @@ static int __init ion_dummy_init(void)
 				pr_info("ION Carveout MEM start 0x%llx, size 0x%lx\n",
 					dummy_heaps[ION_HEAP_TYPE_CARVEOUT].base,
 					dummy_heaps[ION_HEAP_TYPE_CARVEOUT].size);
-			} else {
-				pr_err("ion_dummy: Could not allocate carveout\n");
 			}
-		} else {
-			pr_err("ion_dummy: not reserve carveout memory\n");
 		}
-	} else {
-		pr_err("ion_dummy: not reserve memory\n");
 	}
 
 	/* Allocate a dummy chunk heap */
@@ -304,8 +490,7 @@ static int __init ion_dummy_init(void)
 	for (i = 0; i < dummy_ion_pdata.nr; i++) {
 		struct ion_platform_heap *heap_data = &dummy_ion_pdata.heaps[i];
 
-		if (heap_data->type == ION_HEAP_TYPE_CARVEOUT &&
-							!heap_data->base)
+		if (heap_data->type == ION_HEAP_TYPE_CARVEOUT && !heap_data->base)
 			continue;
 
 		if (heap_data->type == ION_HEAP_TYPE_CHUNK && !heap_data->base)
@@ -324,6 +509,25 @@ static int __init ion_dummy_init(void)
 		ion_device_add_heap(hb_ion_dev, heaps[i]);
 	}
 
+	ion_cc.cc_is_valid = false;
+	if (dummy_heaps[ION_HEAP_TYPE_CARVEOUT].base == 0) {
+		ion_cc.cc_is_valid = true;
+		pr_err("ion_dummy: not reserve carveout memory, try to alloc from cma\n");
+		if (ion_cma_carveout_range_create(DFT_CMA_CARVEOUT_SIZE) == 0) {
+			dummy_heaps[ION_HEAP_TYPE_CARVEOUT].base = ion_cc.start;
+			dummy_heaps[ION_HEAP_TYPE_CARVEOUT].size = ion_cc.size;
+			pr_info("ION Carveout MEM start 0x%llx, size 0x%lx\n",
+					dummy_heaps[ION_HEAP_TYPE_CARVEOUT].base,
+					dummy_heaps[ION_HEAP_TYPE_CARVEOUT].size);
+			err = device_add_group(hb_ion_dev->dev.this_device, &ion_dev_attr_group);
+			if (err < 0) {
+				pr_info("Create ion cma carveout size sys node failed\n");
+			}
+		} else {
+			pr_err("ion_dummy: not reserve memory\n");
+		}
+	}
+
 	dma_cap_zero(mask);
 	dma_cap_set(DMA_MEMCPY, mask);
 	dma_ch = dma_request_channel(mask, NULL, NULL);
@@ -336,6 +540,7 @@ static int __init ion_dummy_init(void)
 
 	return 0;
 err:
+	ion_cma_carveout_range_discard();
 	for (i = 0; i < dummy_ion_pdata.nr; ++i)
 		ion_heap_destroy(heaps[i]);
 
@@ -355,6 +560,7 @@ static void __exit ion_dummy_exit(void)
 {
 	int i;
 
+	ion_cma_carveout_range_discard();
 	ion_device_destroy(hb_ion_dev);
 	dma_release_channel(dma_ch);
 
