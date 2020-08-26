@@ -1008,9 +1008,9 @@ int sif_isp_ctx_sync_func(int ctx_id)
 
         /* get one vb2 buffer config to dma writer */
         if (p_ctx->fsm_mgr.reserved) { //dma writer on
-            // acamera_general_interrupt_hanlder( p_ctx, ACAMERA_IRQ_FRAME_WRITER_FR );
-            dh = ((dma_writer_fsm_const_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_DMA_WRITER]->p_fsm))->handle;
-            dma_writer_configure_pipe(&dh->pipe[dma_fr]);
+            acamera_general_interrupt_hanlder( p_ctx, ACAMERA_IRQ_FRAME_WRITER_FR );
+            // dh = ((dma_writer_fsm_const_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_DMA_WRITER]->p_fsm))->handle;
+            // dma_writer_configure_pipe(&dh->pipe[dma_fr]);
         }
 
         /*

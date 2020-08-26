@@ -1618,7 +1618,6 @@ static int sbuf_fops_open( struct inode *inode, struct file *f )
     return rc;
 }
 
-#if 0
 static int sbuf_fops_release( struct inode *inode, struct file *f )
 {
     int rc = 0;
@@ -1645,7 +1644,6 @@ static int sbuf_fops_release( struct inode *inode, struct file *f )
 
     return 0;
 }
-#endif
 
 static ssize_t sbuf_fops_write( struct file *file, const char __user *buf, size_t count, loff_t *ppos )
 {
@@ -1830,7 +1828,7 @@ LOG( LOG_INFO, "sbuf_iridix_t size: %lu.", sizeof( struct sbuf_iridix)*4);
 static struct file_operations sbuf_mgr_fops = {
     .owner = THIS_MODULE,
     .open = sbuf_fops_open,
-    // .release = sbuf_fops_release,
+    .release = sbuf_fops_release,
     .read = sbuf_fops_read,
     .write = sbuf_fops_write,
     .llseek = noop_llseek,
@@ -1901,6 +1899,7 @@ void sbuf_fsm_initialize( sbuf_fsm_t *p_fsm )
     return;
 }
 
+#if 0
 static int sbuf_clear(uint32_t fw_id)
 {
     int rc = 0;
@@ -1928,6 +1927,7 @@ static int sbuf_clear(uint32_t fw_id)
 
     return 0;
 }
+#endif
 
 void sbuf_deinit( sbuf_fsm_ptr_t p_fsm )
 {
@@ -1949,7 +1949,7 @@ void sbuf_deinit( sbuf_fsm_ptr_t p_fsm )
          p_ctx->dev_name,
          p_ctx->dev_minor_id );
 
-    sbuf_clear(fw_id);
+    // sbuf_clear(fw_id);
 
     p_ctx->dev_minor_id = -1;
 
