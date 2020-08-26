@@ -86,6 +86,7 @@ static void bpu_prio_tasklet(unsigned long data)/*PRQA S ALL*/
 				tmp_prio_node->left_slice_num = 0;
 			}
 		}
+		break;
 	}
 }
 
