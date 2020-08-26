@@ -55,6 +55,7 @@ static void bpu_core_tasklet(unsigned long data)/*PRQA S ALL*/
 		if (err == 0u) {
 			ret = kfifo_get(&core->run_fc_fifo[FC_PRIO(tmp_hw_id)], &tmp_bpu_fc);/*PRQA S ALL*/
 			if (ret < 1) {
+				bpu_prio_trig_out(core->prio_sched);
 				core->done_hw_id = 0;
 				bpu_sched_seed_update();
 				dev_err(core->dev,
@@ -62,6 +63,7 @@ static void bpu_core_tasklet(unsigned long data)/*PRQA S ALL*/
 						tmp_hw_id, lost_report);
 				return;
 			}
+			bpu_prio_trig_out(core->prio_sched);
 
 			/* maybe lost a hw irq */
 			if (tmp_bpu_fc.hw_id < tmp_hw_id) {
