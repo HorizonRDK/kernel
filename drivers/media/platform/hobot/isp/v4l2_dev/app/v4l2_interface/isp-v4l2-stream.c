@@ -1073,7 +1073,7 @@ extern int sensor_info_check_exist(uint32_t ctx_id, struct v4l2_format *f);
 extern void sensor_info_fill(uint32_t ctx_id, struct v4l2_format *f);
 extern int fw_intf_cfa_pattern_ctrl(uint32_t ctx_id, uint32_t ctrl_val);
 extern int fw_intf_sif_isp_offline_set(uint32_t ctx_id, uint32_t ctrl_val);
-int isp_v4l2_stream_set_format( isp_v4l2_stream_t *pstream, struct v4l2_format *f )
+int isp_v4l2_stream_set_format( isp_v4l2_stream_t *pstream, struct v4l2_format *f, struct vb2_queue *q )
 {
     int rc = 0;
 
@@ -1095,7 +1095,8 @@ int isp_v4l2_stream_set_format( isp_v4l2_stream_t *pstream, struct v4l2_format *
          f->fmt.pix_mp.pixelformat );
 
     /* try format first */
-    isp_v4l2_stream_try_format( pstream, f );
+    if (q && vb2_is_busy( q ) == 0)
+        isp_v4l2_stream_try_format( pstream, f );
 
     /* set stream type*/
     switch ( f->fmt.pix.pixelformat ) {

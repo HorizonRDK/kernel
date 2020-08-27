@@ -442,10 +442,12 @@ static int isp_v4l2_s_fmt_vid_cap( struct file *file, void *priv, struct v4l2_fo
     struct vb2_queue *q = &sp->vb2_q;
     int rc = 0;
     LOG( LOG_INFO, "isp_v4l2_s_fmt_vid_cap sid:%d", sp->stream_id );
-    if ( vb2_is_busy( q ) )
-        return -EBUSY;
 
-    rc = isp_v4l2_stream_set_format( pstream, f );
+    //linear/pwl switch will call this func, move this if case to isp_v4l2_stream_set_format
+    // if ( vb2_is_busy( q ) )
+    //     return -EBUSY;
+
+    rc = isp_v4l2_stream_set_format( pstream, f, q );
     if ( rc < 0 ) {
         LOG( LOG_ERR, "set format failed." );
         return rc;

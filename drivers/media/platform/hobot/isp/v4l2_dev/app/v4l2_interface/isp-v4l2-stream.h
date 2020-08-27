@@ -97,6 +97,6 @@ int isp_v4l2_stream_enum_framesizes( isp_v4l2_stream_t *pstream, struct v4l2_frm
 int isp_v4l2_stream_enum_format( isp_v4l2_stream_t *pstream, struct v4l2_fmtdesc *f );
 int isp_v4l2_stream_try_format( isp_v4l2_stream_t *pstream, struct v4l2_format *f );
 int isp_v4l2_stream_get_format( isp_v4l2_stream_t *pstream, struct v4l2_format *f );
-int isp_v4l2_stream_set_format( isp_v4l2_stream_t *pstream, struct v4l2_format *f );
+int isp_v4l2_stream_set_format( isp_v4l2_stream_t *pstream, struct v4l2_format *f, struct vb2_queue *q );
 
 #endif
