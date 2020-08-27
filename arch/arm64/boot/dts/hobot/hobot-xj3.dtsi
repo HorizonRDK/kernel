@@ -587,10 +587,11 @@
                         interrupt-parent = <&gic>;
                         interrupts = <0 69 4>;
                         resets = <&rst 0x40 12>;
-			pinctrl-names = "bt_func", "rgb_func", "rgb_gpio_func";
+			pinctrl-names = "bt_func", "rgb_func", "rgb_gpio_func", "bt1120_voltage_func";
 			pinctrl-0 = <&btout_func>;
 			pinctrl-1 = <&rgb_func>;
 			pinctrl-2 = <&rgb_gpio_func>;
+			pinctrl-3 = <&bt1120_1_8v_func>;
 			disp_panel_reset_pin = <28>;
                         reset-names = "iar";
                         status = "disabled";

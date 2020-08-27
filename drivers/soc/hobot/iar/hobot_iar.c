@@ -3236,6 +3236,20 @@ static int hobot_iar_probe(struct platform_device *pdev)
 		g_iar_dev->pins_mipi_dsi = NULL;
 		g_iar_dev->pins_rgb = NULL;
 	} else {
+		g_iar_dev->pins_voltage = pinctrl_lookup_state(g_iar_dev->pinctrl,
+					"bt1120_voltage_func");
+		if (IS_ERR(g_iar_dev->pins_voltage)) {
+			dev_info(&pdev->dev, "bt1120_voltage_func get error %ld\n",
+					PTR_ERR(g_iar_dev->pins_voltage));
+			g_iar_dev->pins_voltage = NULL;
+		}
+
+		if (g_iar_dev->pins_voltage) {
+			ret = pinctrl_select_state(g_iar_dev->pinctrl, g_iar_dev->pins_voltage);
+            if (ret) {
+				dev_info(&pdev->dev, "bt1120_voltage_func set error %d\n", ret);
+			}
+		}
 		g_iar_dev->pins_bt1120 =
 			pinctrl_lookup_state(g_iar_dev->pinctrl, "bt_func");
 		if (IS_ERR(g_iar_dev->pins_bt1120)) {
