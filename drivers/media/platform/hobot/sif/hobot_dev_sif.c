@@ -1244,6 +1244,35 @@ static long x3_sif_ioctl(struct file *file, unsigned int cmd,
 	return ret;
 }
 
+int x3_sif_mmap(struct file *file, struct vm_area_struct *vma)
+{
+	size_t size = vma->vm_end - vma->vm_start;
+	phys_addr_t offset = (phys_addr_t)vma->vm_pgoff << PAGE_SHIFT;
+
+	/* It's illegal to wrap around the end of the physical address space. */
+	if (offset + (phys_addr_t)size - 1 < offset)
+		return -EINVAL;
+
+	// if (!valid_mmap_phys_addr_range(vma->vm_pgoff, size))
+	// 	return -EINVAL;
+
+	// if (!private_mapping_ok(vma))
+	// 	return -ENOSYS;
+
+	// if (!range_is_allowed(vma->vm_pgoff, size))
+	// 	return -EPERM;
+
+	/* Remap-pfn-range will mark the range VM_IO */
+	if (remap_pfn_range(vma,
+			    vma->vm_start,
+			    vma->vm_pgoff,
+			    size,
+			    vma->vm_page_prot)) {
+		return -EAGAIN;
+	}
+	return 0;
+}
+
 static struct file_operations x3_sif_fops = {
 	.owner = THIS_MODULE,
 	.open = x3_sif_open,
@@ -1253,6 +1282,7 @@ static struct file_operations x3_sif_fops = {
 	.poll = x3_sif_poll,
 	.unlocked_ioctl = x3_sif_ioctl,
 	.compat_ioctl = x3_sif_ioctl,
+	.mmap = x3_sif_mmap,
 };
 
 void sif_get_timestamps(struct vio_group *group, struct frame_id *info){
