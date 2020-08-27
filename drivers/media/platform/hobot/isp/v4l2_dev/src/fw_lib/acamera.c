@@ -688,6 +688,7 @@ static void dma_complete_metering_func( void *arg )
 
 static int _isp_iridix_ctrl(void)
 {
+    uint8_t val = 0;
     uint8_t iridix_no = 0xff;
     int giver_ctx_id;
     int accepter_ctx_id;
@@ -702,6 +703,13 @@ static int _isp_iridix_ctrl(void)
     }
 
     pr_debug("giver id %d, accepter id %d\n", giver_ctx_id, accepter_ctx_id);
+
+    p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[accepter_ctx_id];
+    val = acamera_isp_top_bypass_iridix_read(p_ctx->settings.isp_base);
+    if (val == 0) {
+        pr_err("accepter_ctx_id %d iridix enabled already\n", accepter_ctx_id);
+        goto out;
+    }
 
     p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[giver_ctx_id];
     if (p_ctx && p_ctx->sw_reg_map.isp_sw_config_map != NULL) {
@@ -720,9 +728,10 @@ static int _isp_iridix_ctrl(void)
         pr_debug("accepter_ctx_id %d trun on iridix\n", accepter_ctx_id);
         acamera_isp_iridix_context_no_write(p_ctx->settings.isp_base, iridix_no);
         acamera_isp_iridix_enable_write(p_ctx->settings.isp_base, 1);
-        acamera_isp_top_bypass_iridix_write(p_ctx->settings.isp_base, 1);
+        acamera_isp_top_bypass_iridix_write(p_ctx->settings.isp_base, 0);
     }
 
+out:
     g_firmware.iridix_ctrl_flag = 0;
 
     return 0;
@@ -802,6 +811,7 @@ void _fsm_isp_base_update(acamera_context_ptr_t p_ctx)
 
     for(i = 0; i < FSM_ID_MAX; i++) {
         p_ctx->fsm_mgr.fsm_arr[i]->isp_base = (uintptr_t)p_ctx->sw_reg_map.isp_sw_config_map;
+        ((fsm_common_t *)(p_ctx->fsm_mgr.fsm_arr[i]->p_fsm))->isp_base = (uintptr_t)p_ctx->sw_reg_map.isp_sw_config_map;
     }
 
     p_ctx->settings.isp_base = (uintptr_t)p_ctx->sw_reg_map.isp_sw_config_map;
@@ -924,6 +934,7 @@ int isp_ctx_prepare(acamera_context_ptr_t p_ctx)
     }
 
     _fsm_isp_base_update(p_ctx);
+    _fsm_isp_base_update(p_ctx_be_out);
 
     pr_debug("swap done ctx: id %d, side %s, dma_chn %d, paddr %p\n",
             p_ctx->context_id, p_ctx->content_side ? "ddr" : "sram",
@@ -991,7 +1002,6 @@ int sif_isp_ctx_sync_func(int ctx_id)
 
 	if (acamera_event_queue_empty(&p_ctx->fsm_mgr.event_queue)
         || acamera_event_queue_has_mask_event(&p_ctx->fsm_mgr.event_queue)) {
-        dma_handle *dh = NULL;
 
 		// these flags are used for sync of callbacks
 		g_firmware.dma_flag_isp_config_completed = 0;
@@ -1009,6 +1019,7 @@ int sif_isp_ctx_sync_func(int ctx_id)
         /* get one vb2 buffer config to dma writer */
         if (p_ctx->fsm_mgr.reserved) { //dma writer on
             acamera_general_interrupt_hanlder( p_ctx, ACAMERA_IRQ_FRAME_WRITER_FR );
+            // dma_handle *dh = NULL;
             // dh = ((dma_writer_fsm_const_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_DMA_WRITER]->p_fsm))->handle;
             // dma_writer_configure_pipe(&dh->pipe[dma_fr]);
         }

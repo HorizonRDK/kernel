@@ -33,6 +33,9 @@
 #include "acamera_firmware_config.h"
 #include "system_timer.h"
 
+#if FW_HAS_CONTROL_CHANNEL
+#include "acamera_ctrl_channel.h"
+#endif
 
 #if defined( CUR_MOD_NAME)
 #undef CUR_MOD_NAME 
@@ -401,6 +404,10 @@ static int update_cur_calibration_to_sbuf( void *fw_instance, struct sbuf_mgr *p
     }
 
     p_sbuf_mgr->sbuf_base->kf_info.cali_info.is_fetched = 0;
+
+#if FW_HAS_CONTROL_CHANNEL
+	ctrl_channel_handle_command( ((acamera_context_ptr_t)fw_instance)->context_id, TSYSTEM, CALIBRATION_UPDATE, UPDATE, COMMAND_SET );
+#endif
 
     return rc;
 }
