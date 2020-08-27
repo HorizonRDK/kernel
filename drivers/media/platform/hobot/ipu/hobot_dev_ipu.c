@@ -436,6 +436,7 @@ static int subdev_frame_skip_deinit(struct ipu_subdev *subdev)
 	subdev->curr_frame_cnt = 0;
 	subdev->frame_skip_step = 0;
 	subdev->frame_skip_num = 0;
+	subdev->frame_rate_change_strategy = NULL_SKIP_MODE;
 	atomic_set(&subdev->lost_next_frame, 0);
 	spin_unlock_irqrestore(&subdev->slock, flags);
 
@@ -443,8 +444,10 @@ static int subdev_frame_skip_deinit(struct ipu_subdev *subdev)
 }
 
 static int subdev_set_frame_skip_param(struct ipu_video_ctx *ipu_ctx,
-			unsigned int frame_skip_step, unsigned int frame_skip_num)
+			unsigned int frame_skip_step, unsigned int frame_skip_num,
+			unsigned int frame_rate_change_strategy)
 {
+	int ret = 0;
 	struct ipu_subdev *subdev = NULL;
 	unsigned long flags;
 
@@ -457,18 +460,40 @@ static int subdev_set_frame_skip_param(struct ipu_video_ctx *ipu_ctx,
 		return -EINVAL;
 	}
 
+	if (frame_rate_change_strategy == FIX_INTERVAL_SKIP_MODE) {
+		if ((frame_skip_step < 2) || (frame_skip_num < 1)) {
+			return -EINVAL;
+		}
+	}
+
 	spin_lock_irqsave(&subdev->slock, flags);
 	subdev->enable_frame_cnt = 0;
 	subdev->curr_frame_cnt = 0;
 	subdev->frame_skip_step = frame_skip_step;
 	subdev->frame_skip_num = frame_skip_num;
-	atomic_set(&subdev->lost_next_frame, 0);
+	subdev->frame_rate_change_strategy = frame_rate_change_strategy;
+	switch (frame_rate_change_strategy) {
+	case FIX_INTERVAL_SKIP_MODE:
+		atomic_set(&subdev->lost_next_frame, 0);
+		subdev->curr_frame_cnt = 0;
+		break;
+	case BALANCE_SKIP_MODE:
+		/*balance strategy, we lost first frame*/
+		atomic_set(&subdev->lost_next_frame, 1);
+		subdev->curr_frame_cnt = frame_skip_num;
+		break;
+	default :
+		ret = -EINVAL;
+		break;
+	}
 	spin_unlock_irqrestore(&subdev->slock, flags);
 
-	vio_info("[S%d][V%d]set param skip_step = 0x%x, skip num = 0x%x\n",
+	vio_info("[S%d][V%d]set param skip_step=0x%x, skip_num=0x%x, strategy=0x%x\n",
 		subdev->group->instance, subdev->id,
-		subdev->frame_skip_step, subdev->frame_skip_num);
-	return 0;
+		subdev->frame_skip_step, subdev->frame_skip_num,
+		subdev->frame_rate_change_strategy);
+
+	return ret;
 }
 
 static void subdev_inc_enable_frame_count(struct ipu_subdev *subdev)
@@ -479,19 +504,15 @@ static void subdev_inc_enable_frame_count(struct ipu_subdev *subdev)
 		return;
 
 	spin_lock_irqsave(&subdev->slock, flags);
-	if ((subdev->frame_skip_step) && (subdev->frame_skip_num))
-		subdev->enable_frame_cnt++;
+	if (subdev->frame_rate_change_strategy == FIX_INTERVAL_SKIP_MODE) {
+		if ((subdev->frame_skip_step) && (subdev->frame_skip_num))
+			subdev->enable_frame_cnt++;
+	}
 	spin_unlock_irqrestore(&subdev->slock, flags);
 }
 
-static void subdev_set_lost_next_frame_flag(struct ipu_subdev *subdev)
+static void subdev_fix_interval_lost_next_frame(struct ipu_subdev *subdev)
 {
-	unsigned long flags;
-
-	if (subdev == NULL)
-		return;
-
-	spin_lock_irqsave(&subdev->slock, flags);
 	if ((subdev->frame_skip_step) && (subdev->frame_skip_num)) {
 		subdev->curr_frame_cnt++;
 
@@ -512,6 +533,42 @@ static void subdev_set_lost_next_frame_flag(struct ipu_subdev *subdev)
 			subdev->enable_frame_cnt = 0;
 		}
 	}
+}
+
+static void subdev_balance_lost_next_frame(struct ipu_subdev *subdev)
+{
+	if ((subdev->frame_skip_step) && (subdev->frame_skip_num)) {
+		subdev->curr_frame_cnt += subdev->frame_skip_num;
+		if (subdev->curr_frame_cnt < subdev->frame_skip_step) {
+			atomic_set(&subdev->lost_next_frame, 1);
+		} else {
+			subdev->curr_frame_cnt -= subdev->frame_skip_step;
+			atomic_set(&subdev->lost_next_frame, 0);
+		}
+	}
+}
+
+static void subdev_set_lost_next_frame_flag(struct ipu_subdev *subdev)
+{
+	unsigned long flags;
+
+	if (subdev == NULL)
+		return;
+
+	spin_lock_irqsave(&subdev->slock, flags);
+	switch (subdev->frame_rate_change_strategy) {
+	case NULL_SKIP_MODE:
+		atomic_set(&subdev->lost_next_frame, 0);
+		break;
+	case FIX_INTERVAL_SKIP_MODE:
+		subdev_fix_interval_lost_next_frame(subdev);
+		break;
+	case BALANCE_SKIP_MODE:
+		subdev_balance_lost_next_frame(subdev);
+		break;
+	default :
+		break;
+	}
 	spin_unlock_irqrestore(&subdev->slock, flags);
 }
 
@@ -526,7 +583,6 @@ static void ipu_set_all_lost_next_frame_flags(struct vio_group *group)
 			subdev_set_lost_next_frame_flag(subdev);
 	}
 }
-
 
 void ipu_frame_work(struct vio_group *group)
 {
@@ -2489,6 +2545,7 @@ static long x3_ipu_ioctl(struct file *file, unsigned int cmd,
 	struct user_statistic stats;
 	struct kernel_ion *ipu_ion = NULL;
 	struct ipu_frame_skip_info skip_info;
+	struct ipu_frame_rate_ctrl frame_rate_ctrl;
 
 	ipu_ctx = file->private_data;
 	BUG_ON(!ipu_ctx);
@@ -2607,8 +2664,16 @@ static long x3_ipu_ioctl(struct file *file, unsigned int cmd,
 				   sizeof(struct ipu_frame_skip_info));
 		if (ret)
 			return -EFAULT;
-		ret = subdev_set_frame_skip_param(ipu_ctx,
-				skip_info.frame_skip_step, skip_info.frame_skip_num);
+		ret = subdev_set_frame_skip_param(ipu_ctx, skip_info.frame_skip_step,
+					skip_info.frame_skip_num, FIX_INTERVAL_SKIP_MODE);
+		break;
+	case IPU_IOC_SET_FRAME_RATE_CTRL:
+		ret = copy_from_user((char *)&frame_rate_ctrl, (u32 __user *)arg,
+				   sizeof(struct ipu_frame_rate_ctrl));
+		if (ret)
+			return -EFAULT;
+		ret = subdev_set_frame_skip_param(ipu_ctx, frame_rate_ctrl.src_frame_rate,
+					frame_rate_ctrl.dst_frame_rate, BALANCE_SKIP_MODE);
 		break;
 	default:
 		vio_err("wrong ioctl command\n");
