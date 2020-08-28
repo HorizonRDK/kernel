@@ -42,6 +42,12 @@
 #define AXP15060_DCDC_MODE_CTRL1    0x1a  //on-off control
 #define AXP15060_DCDC_MODE_CTRL2    0x1b  //DCDC6-1 PFM/PWM control
 
+#define AXP15060_ALDO1_VSET			0x19
+#define AXP15060_ALDO2_VSET			0x20
+#define AXP15060_ALDO3_VSET			0x21
+#define AXP15060_ALDO4_VSET			0x22
+#define AXP15060_ALDO5_VSET			0x23
+
 #define AXP15060_BLDO1_VSET         0x24 //BLDO1 voltage set
 #define AXP15060_BLDO2_VSET         0x25
 #define AXP15060_BLDO3_VSET         0x26
@@ -84,6 +90,7 @@
 #define AXP15060_BLDO4_ENA          0x01
 
 #define AXP15060_VSET_MASK5         0x1F /*VSET - [4:0]*/
+#define AXP15060_VSET_MASK6         0x3F /*VSET - [4:0]*/
 #define AXP15060_VSET_MASK7         0x7F /*VSET - [6:0]*/
 
 #define AXP15060_POWER_OFF          0x80
@@ -162,6 +169,14 @@ static struct regulator_ops axp15060_ops = {
 		.owner			= THIS_MODULE,			\
 	}
 
+/*
+ * name:regulator name used
+ * id: regulator id, define in axp15060.h without prefix "ID_"
+ * linear: which linear id to chose, refer to axp15060_voltage_rangesxx array above
+ * step: how many step this regulator have, refer to datasheet
+ * vset_mask: refer to datasheet, when set register how many bits are used to control
+ * enable: register to enable this regulator, refer to AXP15060_ON_OFF_CTRLx
+ */
 static const struct regulator_desc axp15060_regulators[] = {
 	AXP15060_REG("DCDC1", DCDC1, 1, 20, 5, 1),
 	AXP15060_REG("DCDC2", DCDC2, 2, 88, 7, 1),
@@ -169,8 +184,20 @@ static const struct regulator_desc axp15060_regulators[] = {
 	AXP15060_REG("DCDC4", DCDC4, 2, 88, 7, 1),
 	AXP15060_REG("DCDC5", DCDC5, 3, 69, 7, 1),
 	AXP15060_REG("DCDC6", DCDC6, 4, 30, 5, 1),
+	AXP15060_REG("ALDO1", ALDO1, 5, 27, 5, 2),
+	AXP15060_REG("ALDO2", ALDO2, 5, 27, 5, 2),
+	AXP15060_REG("ALDO3", ALDO3, 5, 27, 5, 2),
+	AXP15060_REG("ALDO4", ALDO4, 5, 27, 5, 2),
+	AXP15060_REG("ALDO5", ALDO5, 5, 27, 5, 2),
 	AXP15060_REG("BLDO1", BLDO1, 5, 27, 5, 2),
+	AXP15060_REG("BLDO2", BLDO2, 5, 27, 5, 2),
+	AXP15060_REG("BLDO3", BLDO3, 5, 27, 5, 2),
+	AXP15060_REG("BLDO4", BLDO4, 5, 27, 5, 3),
+	AXP15060_REG("BLDO5", BLDO5, 5, 27, 5, 3),
+	AXP15060_REG("CLDO1", CLDO1, 5, 27, 5, 3),
 	AXP15060_REG("CLDO2", CLDO2, 5, 27, 5, 3),
+	AXP15060_REG("CLDO3", CLDO3, 5, 27, 5, 3),
+	AXP15060_REG("CLDO4", CLDO4, 5, 36, 6, 3),
 };
 
 #ifdef CONFIG_OF
@@ -187,8 +214,21 @@ static struct of_regulator_match axp15060_matches[] = {
 	[ID_DCDC4]	= { .name = "DCDC4"},
 	[ID_DCDC5]	= { .name = "DCDC5"},
 	[ID_DCDC6]	= { .name = "DCDC6"},
+	[ID_ALDO1]	= { .name = "ALDO1"},
+	[ID_ALDO2]	= { .name = "ALDO2"},
+	[ID_ALDO3]	= { .name = "ALDO3"},
+	[ID_ALDO4]	= { .name = "ALDO4"},
+	[ID_ALDO5]	= { .name = "ALDO5"},
 	[ID_BLDO1]	= { .name = "BLDO1"},
+	[ID_BLDO2]	= { .name = "BLDO2"},
+	[ID_BLDO3]	= { .name = "BLDO3"},
+	[ID_BLDO4]	= { .name = "BLDO4"},
+	[ID_BLDO5]	= { .name = "BLDO5"},
+	[ID_CLDO1]	= { .name = "CLDO1"},
 	[ID_CLDO2]	= { .name = "CLDO2"},
+	[ID_CLDO3]	= { .name = "CLDO3"},
+	[ID_CLDO4]	= { .name = "CLDO4"},
+
 };
 
 static int axp15060_pdata_from_dt(struct device *dev,
