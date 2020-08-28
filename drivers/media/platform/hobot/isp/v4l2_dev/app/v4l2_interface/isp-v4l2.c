@@ -488,8 +488,10 @@ static int isp_v4l2_streamon( struct file *file, void *priv, enum v4l2_buf_type 
         return rc;
     }
 
-    if ( isp_v4l2_is_q_busy( &sp->vb2_q, file ) )
+    if (isp_v4l2_is_q_busy(&sp->vb2_q, file)) {
+        LOG(LOG_ERR, "ctx_id %d, isp_v4l2_is_q_busy", dev->ctx_id);
         return -EBUSY;
+    }
 
     acamera_fsm_mgr_t *instance = &(((acamera_context_ptr_t)acamera_get_ctx_ptr(pstream->ctx_id))->fsm_mgr);
     if (instance->reserved) { //dma writer on
