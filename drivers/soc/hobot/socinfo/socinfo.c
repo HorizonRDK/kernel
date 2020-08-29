@@ -130,6 +130,9 @@ ssize_t name_show(struct class *class,
 	case BASE_BOARD_CVB:
 		snprintf(name, sizeof(name), "cvb");
 		break;
+	case BASE_BOARD_X3_SDB:
+		snprintf(name, sizeof(name), "x3sdb");
+		break;
 	default:
 		snprintf(name, sizeof(name), "x3dvb");
 		break;
