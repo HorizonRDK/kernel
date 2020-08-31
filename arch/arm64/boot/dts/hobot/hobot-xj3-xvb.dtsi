@@ -93,13 +93,15 @@
 			alignment = <0x0 0x100000>;
 			reusable;
 			size = <0x0 0x2A000000>;
+			status = "okay";
 		};
 
 		/* Reserved 272MB memory for ion */
-		/*ion_reserved: ion_reserved@0x1D000000 {
+		ion_reserved: ion_reserved@0x4000000 {
 			compatible = "ion-pool";
-			reg = <0x0 0x1D000000 0x0 0x11000000>;
-		};*/
+			reg = <0x0 0x4000000 0x0 0x2A000000>;
+			status = "disabled";
+		};
 
 		/*Reserved 1M memory for CR5*/
 		/*r5_mem: r5_mem@0x3E00000 {

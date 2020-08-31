@@ -505,10 +505,14 @@ struct ion_handle *ion_alloc(struct ion_client *client, size_t len,
 			break;
 	}
 	/* if carveout can't alloc the mem, try use cma*/
-	if (((heap_id_mask & ION_HEAP_CARVEOUT_MASK) > 0)
-			&& ((buffer == NULL) || IS_ERR(buffer))) {
-		heap_id_mask &= ~ION_HEAP_CARVEOUT_MASK;
-		heap_id_mask |= ION_HEAP_TYPE_DMA_MASK;
+	if ((buffer == NULL) || IS_ERR(buffer)) {
+		if ((heap_id_mask & ION_HEAP_CARVEOUT_MASK) > 0) {
+			heap_id_mask &= ~ION_HEAP_CARVEOUT_MASK;
+			heap_id_mask |= ION_HEAP_TYPE_DMA_MASK;
+		} else if ((heap_id_mask & ION_HEAP_TYPE_DMA_MASK) > 0) {
+			heap_id_mask &= ~ION_HEAP_TYPE_DMA_MASK;
+			heap_id_mask |= ION_HEAP_CARVEOUT_MASK;
+		}
 		plist_for_each_entry(heap, &dev->heaps, node) {
 			/* if the caller didn't specify this heap id */
 			if (!((1 << heap->type) & heap_id_mask))

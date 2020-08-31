@@ -453,6 +453,7 @@ static int __init ion_dummy_init(void)
 {
 	struct device_node *node;
 	struct resource ion_pool_reserved;
+	const char *status;
 	dma_cap_mask_t mask;
 	int i, err = 0;
 
@@ -466,14 +467,18 @@ static int __init ion_dummy_init(void)
 	if (node) {
 		node = of_find_compatible_node(node, NULL, "ion-pool");
 		if (node) {
-			if (!of_address_to_resource(node, 0, &ion_pool_reserved)) {
-				dummy_heaps[ION_HEAP_TYPE_CARVEOUT].base
-					= ion_pool_reserved.start;
-				dummy_heaps[ION_HEAP_TYPE_CARVEOUT].size
-					= resource_size(&ion_pool_reserved);
-				pr_info("ION Carveout MEM start 0x%llx, size 0x%lx\n",
-					dummy_heaps[ION_HEAP_TYPE_CARVEOUT].base,
-					dummy_heaps[ION_HEAP_TYPE_CARVEOUT].size);
+			status = of_get_property(node, "status", NULL);
+			if ((!status) || (strcmp(status, "okay") == 0)
+					|| (strcmp(status, "ok") == 0)) {
+				if (!of_address_to_resource(node, 0, &ion_pool_reserved)) {
+					dummy_heaps[ION_HEAP_TYPE_CARVEOUT].base
+						= ion_pool_reserved.start;
+					dummy_heaps[ION_HEAP_TYPE_CARVEOUT].size
+						= resource_size(&ion_pool_reserved);
+					pr_info("ION Carveout MEM start 0x%llx, size 0x%lx\n",
+							dummy_heaps[ION_HEAP_TYPE_CARVEOUT].base,
+							dummy_heaps[ION_HEAP_TYPE_CARVEOUT].size);
+				}
 			}
 		}
 	}
