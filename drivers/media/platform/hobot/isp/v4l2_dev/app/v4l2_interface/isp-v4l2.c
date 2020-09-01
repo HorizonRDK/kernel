@@ -171,11 +171,7 @@ static int isp_v4l2_fop_open( struct file *file )
         return rc;
     }
 
-    rc = mutex_lock_interruptible(&init_lock);
-    if (rc != 0) {
-        pr_err("mutex lock failed, rc = %d\n", rc);
-        return rc;
-    }
+    mutex_lock(&init_lock);
 
     if (isp_open_check() == 0) {
         ips_set_clk_ctrl(ISP0_CLOCK_GATE, true);
@@ -246,7 +242,6 @@ extern void isp_temper_free(general_fsm_ptr_t p_fsm);
 extern void dma_writer_disable(uint32_t ctx_id);
 static int isp_v4l2_fop_close( struct file *file )
 {
-    int rc = 0;
     isp_v4l2_dev_t *dev = video_drvdata( file );
     struct isp_v4l2_fh *sp = fh_to_private( file->private_data );
     isp_v4l2_stream_t *pstream = dev->pstreams[sp->stream_id];
@@ -254,11 +249,7 @@ static int isp_v4l2_fop_close( struct file *file )
 
     LOG( LOG_INFO, "isp_v4l2 close: ctx_id: %d, called for sid:%d.", dev->ctx_id, sp->stream_id );
 
-    rc = mutex_lock_interruptible(&init_lock);
-    if (rc != 0) {
-        pr_err("mutex lock failed, rc = %d\n", rc);
-        return rc;
-    }
+	mutex_lock(&init_lock);
 
     dev->stream_mask &= ~( 1 << sp->stream_id );
     atomic_sub_return( 1, &dev->opened );
@@ -502,11 +493,7 @@ static int isp_v4l2_streamon( struct file *file, void *priv, enum v4l2_buf_type 
         }
     }
 
-    rc = mutex_lock_interruptible(&init_lock);
-    if (rc != 0) {
-        pr_err("mutex lock failed, rc = %d\n", rc);
-        return rc;
-    }
+    mutex_lock(&init_lock);
     if (isp_stream_onoff_check() == 0) {
             rc = acamera_fw_isp_start(dev->ctx_id);
             if (rc != 0)

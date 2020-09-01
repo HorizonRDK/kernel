@@ -844,6 +844,16 @@ void _ctx_chn_idx_update(int ctx_id)
         i--;
     }
 
+	if (p_tmp->dma_chn_idx < 0) {
+		for(i = 0; i < FIRMWARE_CONTEXT_NUMBER; i++) {
+			p_tmp = (acamera_context_ptr_t)&g_firmware.fw_ctx[i];
+			if (p_tmp->dma_chn_idx != -1) {
+				swap_ctx_id = i;
+				break;
+			}
+		}
+	}
+
     if (_all_contexts_frame_counter_status() == 0) {
         last_ctx_id = ctx_id;
         last_chn_id = (p_ctx->dma_chn_idx < 0) ? 0 : p_ctx->dma_chn_idx;
