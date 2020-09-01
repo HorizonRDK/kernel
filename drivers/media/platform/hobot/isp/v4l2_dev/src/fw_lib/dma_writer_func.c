@@ -329,12 +329,13 @@ void frame_buffer_prepare_metadata( dma_writer_fsm_ptr_t p_fsm )
 #endif
 }
 
-void frame_buffer_fr_finished( dma_writer_fsm_ptr_t p_fsm )
+void frame_buffer_fr_finished(dma_writer_fsm_ptr_t p_fsm)
 {
     metadata_t *metadata_cb = dma_writer_return_metadata( p_fsm->handle, dma_fr );
 
     if ( metadata_cb ) {
-        metadata_cb->frame_id = ACAMERA_FSM2CTX_PTR( p_fsm )->isp_frame_counter;
+        metadata_cb->frame_id = ACAMERA_FSM2CTX_PTR(p_fsm)->isp_frame_counter;
+        metadata_cb->timestamps = ACAMERA_FSM2CTX_PTR(p_fsm)->timestamps;
     }
 }
 

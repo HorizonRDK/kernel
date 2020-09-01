@@ -158,7 +158,7 @@ uint8_t dma_writer_fsm_process_event( dma_writer_fsm_t *p_fsm, event_id_t event_
     case event_id_frame_buffer_fr_ready:
         if ( p_fsm->state == dma_writer_state_frame_processing_wait_events ) {
             p_fsm->state = dma_writer_state_frame_processing_FR_finished;
-            frame_buffer_fr_finished( p_fsm );
+            // frame_buffer_fr_finished( p_fsm );
             p_fsm->state = dma_writer_state_frame_processing_wait_events;
             b_event_processed = 1;
         }

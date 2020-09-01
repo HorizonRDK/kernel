@@ -11,6 +11,7 @@
 
 static uint32_t s_enable_pattern_gen = 0;
 static uint32_t path_sel = 0;
+extern struct vio_frame_id  sif_frame_info;
 
 void sif_enable_frame_intr(void __iomem *base_reg, u32 mux_index,
 				bool enable)
@@ -1452,8 +1453,8 @@ void sif_get_frameid_timestamps(u32 __iomem *base_reg, u32 mux,
 	timestamp_m = vio_hw_get_reg(base_reg,
 						&sif_regs[SIF_TIMESTAMP0_MSB + mux * 2]);
 	info->timestamps = timestamp_l | timestamp_m << 32;
-
-	vio_dbg("[mux%d]sif frame ID = %d\n", mux, info->frame_id);
+	sif_frame_info.frame_id = info->frame_id;
+	sif_frame_info.timestamps = info->timestamps;
 }
 
 u32 sif_get_current_bufindex(u32 __iomem *base_reg, u32 mux)

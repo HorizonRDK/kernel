@@ -31,6 +31,7 @@
 #include "sif_hw_api.h"
 
 #define MODULE_NAME "X3 SIF"
+extern struct vio_frame_id  sif_frame_info;
 
 char sif_node_name[MAX_DEVICE][8] = {"capture", "ddrin"};
 static int mismatch_limit = 1;
@@ -177,8 +178,11 @@ void sif_read_frame_work(struct vio_group *group)
 	if (frame) {
 		if (ret == 0) {
 			frameinfo = &frame->frameinfo;
+			group->frameid.frame_id = frameinfo->frame_id;
+			group->frameid.timestamps = frameinfo->timestamps;
+			sif_frame_info.frame_id = frameinfo->frame_id;
+			sif_frame_info.timestamps = frameinfo->timestamps;			
 			sif_config_rdma_cfg(subdev, 0, frameinfo);
-
 			if (subdev->dol_num > 1) {
 				sif_config_rdma_cfg(subdev, 1, frameinfo);
 			}

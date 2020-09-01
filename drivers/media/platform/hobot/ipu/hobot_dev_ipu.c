@@ -40,6 +40,8 @@ static u32 color[MAX_OSD_COLOR_NUM] = {
 	0x2968C5
 };
 
+extern struct vio_frame_id	ipu_frame_info;
+
 char ipu_node_name[MAX_DEVICE][8] =
 	{"src", "us", "ds0", "ds1", "ds2", "ds3", "ds4", "none"};
 
@@ -598,11 +600,30 @@ void ipu_frame_work(struct vio_group *group)
 	bool ds2_dma_enable = 0;
 	bool dma_enable = 0;
 
+	u32 src_frame_id = 0;
+	uint64_t src_timestamps = 0;
+
 	instance = group->instance;
 	subdev = group->sub_ctx[0];
 	if (!subdev) {
 		vio_err("%s group%d sub mp 0 err.\n", __func__, instance);
 		return;
+	}
+
+	if (group->group_scenario == 1) {
+		framemgr = &subdev->framemgr;
+		framemgr_e_barrier_irqs(framemgr, 0, flags);
+		frame = peek_frame(framemgr, FS_REQUEST);
+		if (frame) {
+			src_frame_id = frame->frameinfo.frame_id;
+			src_timestamps = frame->frameinfo.timestamps;
+			// save for pym get
+			group->frameid.frame_id = src_frame_id;
+			group->frameid.timestamps = src_timestamps;
+			vio_dbg("src_frame_id %d src_timestamps %llu \n",
+		    src_frame_id, src_timestamps);
+		}
+		framemgr_x_barrier_irqr(framemgr, 0, flags);
 	}
 	ipu = subdev->ipu_dev;
 	if (instance < MAX_SHADOW_NUM)
@@ -635,6 +656,10 @@ void ipu_frame_work(struct vio_group *group)
 				ipu_set_us_wdma_addr(ipu->base_reg,
 							 frame->frameinfo.addr[0],
 							 frame->frameinfo.addr[1]);
+				if (group->group_scenario == 1) {
+					frame->frameinfo.frame_id = src_frame_id;
+					frame->frameinfo.timestamps = src_timestamps;
+				}
 				break;
 			case GROUP_ID_DS0:
 			case GROUP_ID_DS1:
@@ -644,6 +669,10 @@ void ipu_frame_work(struct vio_group *group)
 				ipu_set_ds_wdma_addr(ipu->base_reg, i - 2,
 							 frame->frameinfo.addr[0],
 							 frame->frameinfo.addr[1]);
+				if (group->group_scenario == 1) {
+					frame->frameinfo.frame_id = src_frame_id;
+					frame->frameinfo.timestamps = src_timestamps;
+				}
 				break;
 			default:
 				break;
@@ -2818,17 +2847,23 @@ void ipu_frame_done(struct ipu_subdev *subdev)
 			frame->frameinfo.frame_id = group->frameid.frame_id;
 			frame->frameinfo.timestamps =
 			    group->frameid.timestamps;
+		} else {
+			if (group->group_scenario > 1) {
+			frame->frameinfo.frame_id = group->frameid.frame_id;
+			frame->frameinfo.timestamps =
+			    group->frameid.timestamps;
+			}
 		}
-
 		do_gettimeofday(&frame->frameinfo.tv);
 		if (subdev->id != 0) {
 			vio_set_stat_info(group->instance, IPU_FS + subdev->id,
 				group->frameid.frame_id);
 		}
-
-		vio_dbg("done bidx%d fid%d ",
+		vio_dbg("ipu done subdev id %d bidx%d fid%d timestamps %llu",
+		    subdev->id,
 			frame->frameinfo.bufferindex,
-			frame->frameinfo.frame_id);
+			frame->frameinfo.frame_id,
+			frame->frameinfo.timestamps);
 		ipu_set_iar_output(subdev, frame);
 		event = VIO_FRAME_DONE;
 		trans_frame(framemgr, frame, FS_COMPLETE);
@@ -3069,10 +3104,15 @@ static irqreturn_t ipu_isr(int irq, void *data)
 	}
 
 	if (status & (1 << INTR_IPU_FRAME_DONE)) {
-		if (!group->leader)
+		if (!group->leader) {
+			vio_get_sif_frame_id(group);
 			vio_group_done(group);
+		}
 
 		if (test_bit(IPU_DMA_INPUT, &ipu->state)) {
+			if(group->group_scenario != 1) {
+				vio_get_sif_frame_id(group);
+			}
 			vio_group_done(group);
 			subdev = group->sub_ctx[GROUP_ID_SRC];
 			if (subdev)
@@ -3201,12 +3241,15 @@ static irqreturn_t ipu_isr(int irq, void *data)
 				up(&gtask->hw_resource);
 			}
 		}
-
-		group->frameid.frame_id++;
-		if (group && group->get_timestamps) {
-			vio_get_frame_id(group);
-			vio_dbg("[S%d]IPU frame count = %d\n",
-					instance, group->frameid.frame_id);
+		if (group->group_scenario == 0) {
+			if (group && group->get_timestamps) {
+				vio_get_frame_id(group);
+				vio_dbg("[S%d]IPU frame count = %d\n",
+						instance, group->frameid.frame_id);
+			}
+		} else if (group->group_scenario == 1) {  // sif-offline-ipu-online-pym
+			ipu_frame_info.frame_id = group->frameid.frame_id;
+			ipu_frame_info.timestamps = group->frameid.timestamps;
 		}
 		vio_set_stat_info(group->instance, IPU_FS, group->frameid.frame_id);
 	}

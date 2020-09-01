@@ -66,6 +66,7 @@
 
 extern void *acamera_get_ctx_ptr( uint32_t ctx_id );
 extern int dma_writer_configure_pipe( dma_pipe *pipe );
+extern metadata_t *dma_writer_return_metadata(void *handle, dma_type type);
 
 typedef struct _isp_v4l2_fmt {
     const char *name;
@@ -534,6 +535,8 @@ int callback_stream_put_frame( uint32_t ctx_id, acamera_stream_type_t type, afra
 #endif
     struct vb2_buffer *vb;
     acamera_context_ptr_t p_ctx = acamera_get_ctx_ptr(ctx_id);
+    dma_writer_fsm_ptr_t p_fsm = NULL;
+    metadata_t *metadata_cb = NULL;
 
     v4l2_type = fw_to_isp_v4l2_stream_type( type );
     if ( v4l2_type == V4L2_STREAM_TYPE_MAX )
@@ -574,10 +577,13 @@ int callback_stream_put_frame( uint32_t ctx_id, acamera_stream_type_t type, afra
         return -1;
     }
 
+    p_fsm = (dma_writer_fsm_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_DMA_WRITER]->p_fsm);
+    metadata_cb = dma_writer_return_metadata(p_fsm->handle, dma_fr);
+
 #if ( LINUX_VERSION_CODE >= KERNEL_VERSION( 4, 4, 0 ) )
     vvb = &pbuf->vvb;
     vb = &vvb->vb2_buf;
-    vvb->sequence = aframes[0].frame_id;
+    vvb->sequence = metadata_cb->frame_id;
     vvb->field = V4L2_FIELD_NONE;
 #else
     vb = &pbuf->vb;
@@ -600,7 +606,9 @@ int callback_stream_put_frame( uint32_t ctx_id, acamera_stream_type_t type, afra
 #endif
 
 #if ( LINUX_VERSION_CODE >= KERNEL_VERSION( 4, 4, 0 ) )
-    vb->timestamp = ktime_get_ns();
+    // vb->timestamp = ktime_get_ns();
+    vb->timestamp = metadata_cb->timestamps;
+
 #else
     v4l2_get_timestamp( &vb->v4l2_buf.timestamp );
 #endif

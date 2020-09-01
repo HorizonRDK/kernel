@@ -119,6 +119,7 @@ typedef struct _metadata_t {
     int8_t dis_offset_x;
     int8_t dis_offset_y;
     uint32_t frame_id;
+    uint64_t timestamps;
 } metadata_t ;
 
 

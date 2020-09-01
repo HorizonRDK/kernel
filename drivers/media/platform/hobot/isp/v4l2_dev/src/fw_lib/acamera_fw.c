@@ -582,6 +582,7 @@ static void init_stab( acamera_context_ptr_t p_ctx )
     p_ctx->isp_ae_stats_on = 0;
     p_ctx->isp_awb_stats_on = 0;
     p_ctx->isp_frame_counter = 0;
+    p_ctx->timestamps = 0;
 
     ((general_fsm_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_GENERAL]->p_fsm))->cnt_for_temper = 0;
 }

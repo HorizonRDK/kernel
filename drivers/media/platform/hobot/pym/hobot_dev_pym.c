@@ -725,7 +725,7 @@ int pym_video_init(struct pym_video_ctx *pym_ctx, unsigned long arg)
 			set_bit(VIO_GROUP_DMA_INPUT, &group->state);
 		}
 	}
-		
+
 	pym_update_param(subdev);
 
 	set_bit(VIO_GROUP_DMA_OUTPUT, &group->state);
@@ -1773,6 +1773,7 @@ void pym_frame_done(struct pym_subdev *subdev)
 	int i = 0;
 	int cache_bufindex;
 	struct vio_frame *cache_frame;
+	struct vio_frame_id frmid;
 
 	group = subdev->group;
 	pym = subdev->pym_dev;
@@ -1784,7 +1785,15 @@ void pym_frame_done(struct pym_subdev *subdev)
 			frame->frameinfo.frame_id = group->frameid.frame_id;
 			frame->frameinfo.timestamps =
 			    group->frameid.timestamps;
+		} else {
+			vio_get_ipu_frame_info(&frmid);
+			frame->frameinfo.frame_id = frmid.frame_id;
+			frame->frameinfo.timestamps =
+			    frmid.timestamps;
 		}
+		vio_dbg("pym done fid%d timestamps %llu",
+			frame->frameinfo.frame_id,
+			frame->frameinfo.timestamps);
 		vio_set_stat_info(group->instance, PYM_FE, group->frameid.frame_id);
 		do_gettimeofday(&frame->frameinfo.tv);
 
@@ -1966,6 +1975,8 @@ static irqreturn_t pym_isr(int irq, void *data)
 		group->frameid.frame_id++;
 		if (group && group->get_timestamps)
 			vio_get_frame_id(group);
+		else
+			vio_get_ipu_frame_id(group);
 		vio_set_stat_info(group->instance, PYM_FS, group->frameid.frame_id);
 	}
 

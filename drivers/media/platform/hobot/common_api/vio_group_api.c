@@ -11,6 +11,12 @@
 
 static struct vio_core iscore;
 
+struct vio_frame_id  sif_frame_info;
+struct vio_frame_id  ipu_frame_info;
+
+EXPORT_SYMBOL(sif_frame_info);
+EXPORT_SYMBOL(ipu_frame_info);
+
 isp_callback sif_isp_ctx_sync;
 EXPORT_SYMBOL(sif_isp_ctx_sync);
 
@@ -71,7 +77,7 @@ int vio_group_task_start(struct vio_group_task *group_task)
 
 	set_bit(VIO_GTASK_START, &group_task->state);
 p_work:
-	atomic_inc(&group_task->refcount);	
+	atomic_inc(&group_task->refcount);
 p_err:
 	return ret;
 }
@@ -256,10 +262,12 @@ EXPORT_SYMBOL(vio_bind_chain_groups);
 void vio_bind_group_done(int instance)
 {
 	int i = 0;
-	char stream[64];
+	char stream[64] = {'\0'};
 	int offset = 0;
 	struct vio_chain *ischain;
 	struct vio_group *group;
+	struct vio_group *ipu_group;
+	int every_group_input[GROUP_ID_NUMBER] = {-1, -1, -1, -1};
 
 	ischain = &iscore.chain[instance];
 	for (i = 0; i < GROUP_ID_NUMBER; i++) {
@@ -278,14 +286,35 @@ void vio_bind_group_done(int instance)
 			snprintf(&stream[offset], sizeof(stream) - offset,
 					"=>G%d", group->id);
 			offset = strlen(stream);
+			every_group_input[i] = 1;
 		} else if (test_bit(VIO_GROUP_OTF_INPUT, &group->state)) {
 			vio_bind_chain_groups(&ischain->group[i - 1], group);
 			snprintf(&stream[offset], sizeof(stream) - offset,
 					"->G%d", group->id);
 			offset = strlen(stream);
+			every_group_input[i] = 0;
 		}
 	}
 
+	ipu_group = &iscore.chain[instance].group[GROUP_ID_IPU];
+	//  offline to ipu
+	if ((every_group_input[GROUP_ID_SIF_IN] == 1)
+		 && (every_group_input[GROUP_ID_IPU] == 1 ||
+		 every_group_input[GROUP_ID_IPU] == 0)) {
+		// sif->offline->isp->offline->ipu  G0=>G1=>G2
+		// sif-offline-isp-online-ipu G0=>G1->G2
+		ipu_group->group_scenario = 2;
+	} else if (every_group_input[GROUP_ID_SIF_IN] == -1
+		 && every_group_input[GROUP_ID_IPU] == 1) {
+		// sif->offline->ipu or sif-online-isp-offline-ipu
+		// G0=>G2 or G0->G2=>G3
+		ipu_group->group_scenario = 1;
+	} else if (every_group_input[GROUP_ID_SIF_IN] == -1
+		 && every_group_input[GROUP_ID_IPU] == 0) {
+		// sif->online->ipu or sif-online-isp-online-ipu
+		// G0->G2
+		ipu_group->group_scenario = 0;
+	}
 	for (i = 0; i < GROUP_ID_NUMBER; i++) {
 		group = &ischain->group[i];
 		if (group->leader) {
@@ -321,6 +350,20 @@ void vio_bind_group_done(int instance)
 }
 EXPORT_SYMBOL(vio_bind_group_done);
 
+void vio_get_sif_frame_info(struct vio_frame_id *frame_info)
+{
+	frame_info->frame_id = sif_frame_info.frame_id;
+	frame_info->timestamps = sif_frame_info.timestamps;
+}
+EXPORT_SYMBOL(vio_get_sif_frame_info);
+
+void vio_get_ipu_frame_info(struct vio_frame_id *frame_info)
+{
+	frame_info->frame_id = ipu_frame_info.frame_id;
+	frame_info->timestamps = ipu_frame_info.timestamps;
+}
+EXPORT_SYMBOL(vio_get_ipu_frame_info);
+
 void vio_get_frame_id(struct vio_group *group)
 {
 	struct vio_chain *ischain;
@@ -330,9 +373,33 @@ void vio_get_frame_id(struct vio_group *group)
 	sif_group = &ischain->group[GROUP_ID_SIF_OUT];
 
 	memcpy(&group->frameid, &sif_group->frameid, sizeof(struct frame_id));
-
 }
 EXPORT_SYMBOL(vio_get_frame_id);
+
+void vio_get_sif_frame_id(struct vio_group *group)
+{
+	struct vio_chain *ischain;
+	struct vio_group *sif_group;
+
+	ischain = group->chain;
+	sif_group = &ischain->group[GROUP_ID_SIF_IN];
+
+	memcpy(&group->frameid, &sif_group->frameid, sizeof(struct frame_id));
+}
+
+EXPORT_SYMBOL(vio_get_sif_frame_id);
+
+void vio_get_ipu_frame_id(struct vio_group *group)
+{
+	struct vio_chain *ischain;
+	struct vio_group *ipu_group;
+
+	ischain = group->chain;
+	ipu_group = &ischain->group[GROUP_ID_IPU];
+
+	memcpy(&group->frameid, &ipu_group->frameid, sizeof(struct frame_id));
+}
+EXPORT_SYMBOL(vio_get_ipu_frame_id);
 
 void vio_reset_module(u32 module)
 {

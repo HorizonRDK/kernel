@@ -42,7 +42,7 @@
 
 #include "dma_writer.h"
 #include "dma_writer_fsm.h"
-#include "./vio_group_api.h"
+#include "vio_group_api.h"
 
 #if FW_HAS_CONTROL_CHANNEL
 #include "acamera_ctrl_channel.h"
@@ -93,6 +93,7 @@ extern hobot_dma_t g_hobot_dma;
 #endif
 extern int isp_stream_onoff_check(void);
 extern void system_interrupts_disable( void );
+extern void frame_buffer_fr_finished(dma_writer_fsm_ptr_t p_fsm);
 
 static void isp_ctxsv_work(struct work_struct *w);
 
@@ -357,7 +358,7 @@ int acamera_isp_firmware_clear(void)
 {
     g_firmware.initialized = 0;
     g_firmware.dma_flag_isp_config_completed = 0;
-    g_firmware.dma_flag_isp_metering_completed = 0;   
+    g_firmware.dma_flag_isp_metering_completed = 0;
 
     return 0;
 }
@@ -628,7 +629,7 @@ static void isp_ctxsv_work(struct work_struct *w)
 		}
 	}
     if (rc == 0)
-        system_chardev_unlock();    
+        system_chardev_unlock();
 }
 
 //Note: tasklet context
@@ -1143,6 +1144,7 @@ int32_t acamera_interrupt_handler()
 {
     int32_t result = 0;
     int32_t irq_bit = ISP_INTERRUPT_EVENT_NONES_COUNT - 1;
+	struct vio_frame_id frmid;
 
     acamera_context_ptr_t p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[cur_ctx_id];
 
@@ -1150,8 +1152,12 @@ int32_t acamera_interrupt_handler()
     uint32_t irq_mask = acamera_isp_isp_global_interrupt_status_vector_read( 0 );
 
     // Update frame counter
-    p_ctx->isp_frame_counter = ips_get_isp_frameid();
-    pr_debug("[s%d] IRQ MASK is 0x%x, frame id %d\n", cur_ctx_id, irq_mask, p_ctx->isp_frame_counter);
+	vio_get_sif_frame_info(&frmid);
+    p_ctx->isp_frame_counter = frmid.frame_id;
+	p_ctx->timestamps = frmid.timestamps;
+    pr_debug("[s%d] IRQ MASK is 0x%x, frame id %d timestamps %d ms\n",
+		cur_ctx_id,
+		irq_mask, p_ctx->isp_frame_counter, p_ctx->timestamps);
 
     // clear irq vector
     acamera_isp_isp_global_interrupt_clear_write( 0, 0 );
@@ -1315,6 +1321,9 @@ int32_t acamera_interrupt_handler()
                     pr_debug("frame write to ddr done\n");
                     acamera_dma_alarms_error_occur();
                     p_ctx->sts.frame_write_done_irq_cnt++;
+
+                    //update frame id to metadata
+                    frame_buffer_fr_finished((dma_writer_fsm_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_DMA_WRITER]->p_fsm));
 
                     //isp m2m ipu
                     if (p_ctx->p_gfw->sif_isp_offline) {
