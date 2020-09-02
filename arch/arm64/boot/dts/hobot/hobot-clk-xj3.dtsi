@@ -65,6 +65,7 @@
 			offset = <0x110 0x114 0x118 0x0>;
 			bits = <2 2 2 32>;
 			field = <1 1 1>;
+			clk-flags = <CLK_IGNORE_UNUSED>;
 		};
 
 		armpll1_clk: armpll1_clk {
@@ -338,7 +339,7 @@
 			offset = <0x110 0x114 0x118 0x0>;
 			bits = <0 0 0 32>;
 			field = <1 1 1>;
-			clk-flags = <CLK_SET_RATE_PARENT>;
+			clk-flags = <CLK_IGNORE_UNUSED>;
 		};
 
 		atb_atclk: atb_atclk {
@@ -348,7 +349,7 @@
 			offset = <0x110 0x114 0x118 0x0>;
 			bits = <1 1 1 32>;
 			field = <1 1 1>;
-			clk-flags = <CLK_SET_RATE_PARENT>;
+			clk-flags = <CLK_IGNORE_UNUSED>;
 		};
 
 		armv8pil_clk: armv8pil_clk {
@@ -358,7 +359,7 @@
 			offset = <0x110 0x114 0x118 0x0>;
 			bits = <3 3 3 32>;
 			field = <1 1 1>;
-			clk-flags = <CLK_SET_RATE_PARENT>;
+			clk-flags = <CLK_IGNORE_UNUSED>;
 		};
 
 		cx_tpiu_clk: cx_tpiu_clk {
