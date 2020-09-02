@@ -134,6 +134,7 @@ int list_count(struct list_head *list)
 
 void isp_idma_start_transfer(hobot_dma_t *hobot_dma)
 {
+    int ret = 0;
 	unsigned long flags;
 	idma_descriptor_t *desc = NULL;
 
@@ -146,8 +147,12 @@ void isp_idma_start_transfer(hobot_dma_t *hobot_dma)
 	}
 
 	desc = list_first_entry(&hobot_dma->pending_list, idma_descriptor_t, node);
-	if (desc)
-		hobot_dma_submit_cmd(hobot_dma, desc, 1);
+	if (desc) {
+		ret = hobot_dma_submit_cmd(hobot_dma, desc, 1);
+        if (ret < 0) {  //submit failed, give back to pending list
+            list_add_tail(&desc->node, &hobot_dma->pending_list);
+        }
+    }
 	spin_unlock_irqrestore(hobot_dma->dma_ctrl_lock, flags);
 	pr_debug("end\n");
 }
@@ -454,7 +459,7 @@ static void hobot_dma_start(        hobot_dma_cmd_t *hobot_dma_cmds,
     count++;
 }
 
-void hobot_dma_submit_cmd(hobot_dma_t *hobot_dma, idma_descriptor_t *desc, int last_cmd)
+int hobot_dma_submit_cmd(hobot_dma_t *hobot_dma, idma_descriptor_t *desc, int last_cmd)
 {
     int i;
     struct scatterlist *isp_sram_sg, *dma_sram_sg;
@@ -466,18 +471,18 @@ void hobot_dma_submit_cmd(hobot_dma_t *hobot_dma, idma_descriptor_t *desc, int l
     // 1. check lock init
     if(hobot_dma->dma_ctrl_lock==NULL) {
         printk(KERN_ERR "ERROR: %s dma_ctrl_lock = NULL\n", __FUNCTION__);
-        return;
+        return -1;
     }
 
     uint32_t nents_total = hobot_dma->nents_total;
     if(hobot_dma->is_busy) {
-        printk(KERN_ERR "ERROR: %s dma is still busy now\n", __FUNCTION__);
-        return;
+        printk(KERN_ERR "ERROR: %s, ctx_id %d dma is still busy now\n", __FUNCTION__, desc->ctx_id);
+        return -1;
     }
     if((hobot_dma->nents_total+nents) > HOBOT_DMA_MAX_CMD) {
         printk(KERN_ERR "ERROR: %s can not process too many memory blocks (nents_total=%d,cur_nents=%d)\n",
             __FUNCTION__, hobot_dma->nents_total, nents);
-        return;
+        return -1;
     }
 
     fw_ctx_id = desc->ctx_id;	
@@ -511,6 +516,8 @@ void hobot_dma_submit_cmd(hobot_dma_t *hobot_dma, idma_descriptor_t *desc, int l
 	list_move_tail(&desc->node, &hobot_dma->active_list);
     }
 #endif
+
+    return 0;
 }
 
 

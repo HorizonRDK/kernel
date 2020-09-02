@@ -579,15 +579,11 @@ void isp_temper_prepare(general_fsm_ptr_t p_fsm)
 #endif
 }
 
-void isp_temper_free(general_fsm_ptr_t p_fsm)
+void general_deinitialize( general_fsm_ptr_t p_fsm )
 {
 #if GENERAL_TEMPER_ENABLED
     general_temper_exit( p_fsm );
 #endif
-}
-
-void general_deinitialize( general_fsm_ptr_t p_fsm )
-{
 }
 
 #if ISP_WDR_SWITCH

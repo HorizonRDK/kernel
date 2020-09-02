@@ -106,7 +106,7 @@ void hobot_dma_init(hobot_dma_t *hobot_dma);
 void hobot_dma_deinit(hobot_dma_t *hobot_dma);
 void hobot_dma_enable_irq(hobot_dma_t *hobot_dma);
 void hobot_dma_disable_irq(hobot_dma_t *hobot_dma);
-void hobot_dma_submit_cmd(hobot_dma_t *hobot_dma, idma_descriptor_t *desc, int last_cmd);
+int hobot_dma_submit_cmd(hobot_dma_t *hobot_dma, idma_descriptor_t *desc, int last_cmd);
 void isp_idma_start_transfer(hobot_dma_t *hobot_dma);
 #endif      /* FW_USE_HOBOT_DMA */
 

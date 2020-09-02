@@ -143,11 +143,31 @@ int acamera_fw_isp_start(int ctx_id)
 	return rc;
 }
 
+void acamera_fw_mem_free(void)
+{
+    acamera_firmware_t *fw_ptr = acamera_get_firmware_ptr();
+
+    fw_ptr->first_frame = 0;
+    fw_ptr->sw_frame_counter = 0;
+    fw_ptr->initialized = 0;
+    fw_ptr->iridix_ctrl_flag = 0;
+    fw_ptr->sif_isp_offline = 0;
+    if (fw_ptr->cache_area != NULL) {
+        pr_debug("free ddr ctx mem %p\n", fw_ptr->cache_area);
+        vfree((void *)fw_ptr->cache_area);
+        fw_ptr->cache_area = NULL;
+    }
+
+    if (fw_ptr->backup_context != NULL) {
+        vfree((void *)fw_ptr->backup_context);
+        fw_ptr->backup_context = NULL;
+    }
+}
+
 int acamera_fw_isp_stop(int ctx_id)
 {
 	uint8_t rc = 0;
 	acamera_context_t *p_ctx = (acamera_context_t *)acamera_get_ctx_ptr(ctx_id);
-    acamera_firmware_t *fw_ptr = acamera_get_firmware_ptr();
 
     ips_set_isp_interrupt(0);
 	acamera_fw_interrupts_disable( p_ctx );
@@ -156,22 +176,6 @@ int acamera_fw_isp_stop(int ctx_id)
 	acamera_isp_isp_global_interrupt_mask_vector_write( 0, ISP_IRQ_DISABLE_ALL_IRQ );
 
     rc = isp_safe_stop(p_ctx->settings.isp_base);
-
-    fw_ptr->first_frame = 0;
-    fw_ptr->sw_frame_counter = 0;
-    fw_ptr->initialized = 0;
-    fw_ptr->iridix_ctrl_flag = 0;
-    fw_ptr->sif_isp_offline = 0;
-    if (fw_ptr->cache_area != NULL) {
-        pr_debug("free ddr ctx mem %p\n", p_ctx->p_gfw->cache_area);
-        vfree((void *)p_ctx->p_gfw->cache_area);
-        fw_ptr->cache_area = NULL;
-    }
-
-    if (fw_ptr->backup_context != NULL) {
-        vfree((void *)p_ctx->p_gfw->backup_context);
-        fw_ptr->backup_context = NULL;
-    }
 
 	if (!rc) {
 		pr_info("done.\n");
@@ -587,8 +591,23 @@ static void init_stab( acamera_context_ptr_t p_ctx )
     ((general_fsm_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_GENERAL]->p_fsm))->cnt_for_temper = 0;
 }
 
+int acamera_all_dma_chn_occupied(acamera_firmware_t *g_fw)
+{
+    int i = 0;
+
+    for (i = 0; i < HW_CONTEXT_NUMBER; i++) {
+        if (!test_bit(i, &g_fw->dma_chn_bitmap)) {
+            break;
+        }
+    }
+
+    if (i >= HW_CONTEXT_NUMBER)
+        return 1;
+
+    return 0;
+}
+
 extern void *get_system_ctx_ptr( void );
-extern int acamera_all_hw_contexts_inited(void);
 extern int isp_fw_process( void *data );
 int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settings, acamera_firmware_t *g_fw )
 {
@@ -604,7 +623,7 @@ int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settin
 
 	mutex_lock(&p_ctx->p_gfw->ctx_chg_lock);
 
-    if (acamera_all_hw_contexts_inited()) {
+    if (acamera_all_dma_chn_occupied(g_fw)) {
         p_ctx->content_side = SIDE_DDR;
         p_ctx->sw_reg_map.isp_sw_config_map = vmalloc(HOBOT_DMA_SRAM_ONE_ZONE);
         if (p_ctx->sw_reg_map.isp_sw_config_map == NULL) {
@@ -631,6 +650,7 @@ int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settin
         }
     } else {
         int i = 0;
+        pr_debug("chn bitmap %lx\n", p_ctx->p_gfw->dma_chn_bitmap);
         for (i = 0; i < HW_CONTEXT_NUMBER; i++) {
             if (!test_bit(i, &g_fw->dma_chn_bitmap)) {
                 p_ctx->dma_chn_idx = i;
@@ -737,6 +757,8 @@ int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settin
 
 void acamera_deinit_context( acamera_context_t *p_ctx )
 {
+    pr_info("ctx_id %d +\n", p_ctx->context_id);
+
     mutex_lock(&p_ctx->p_gfw->ctx_chg_lock);
 
     if (p_ctx->content_side == SIDE_DDR && p_ctx->sw_reg_map.isp_sw_config_map) {
@@ -756,6 +778,8 @@ void acamera_deinit_context( acamera_context_t *p_ctx )
 
     acamera_fw_deinit( p_ctx );
     mutex_unlock(&p_ctx->p_gfw->ctx_chg_lock);
+
+    pr_info("ctx_id %d -\n", p_ctx->context_id);
 }
 
 void acamera_general_interrupt_hanlder( acamera_context_ptr_t p_ctx, uint8_t event )

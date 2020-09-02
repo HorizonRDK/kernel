@@ -52,6 +52,7 @@ struct mutex init_lock;
 
 extern int acamera_fw_isp_start(int ctx_id);
 extern int acamera_fw_isp_stop(int ctx_id);
+extern void acamera_fw_mem_free(void);
 extern int acamera_isp_init_context(uint8_t idx);
 extern int acamera_isp_deinit_context(uint8_t idx);
 extern void acamera_isp_evt_thread_stop(uint8_t idx);
@@ -171,6 +172,8 @@ static int isp_v4l2_fop_open( struct file *file )
         return rc;
     }
 
+    pr_debug("ctx_id %d +\n", dev->ctx_id);
+
     mutex_lock(&init_lock);
 
     if (isp_open_check() == 0) {
@@ -226,6 +229,8 @@ static int isp_v4l2_fop_open( struct file *file )
 
     mutex_unlock(&init_lock);
 
+    pr_debug("ctx_id %d -\n", dev->ctx_id);
+
     return rc;
 
 vb2_q_fail:
@@ -245,9 +250,8 @@ static int isp_v4l2_fop_close( struct file *file )
     isp_v4l2_dev_t *dev = video_drvdata( file );
     struct isp_v4l2_fh *sp = fh_to_private( file->private_data );
     isp_v4l2_stream_t *pstream = dev->pstreams[sp->stream_id];
-    acamera_context_t *p_ctx = acamera_get_ctx_ptr(dev->ctx_id);
 
-    LOG( LOG_INFO, "isp_v4l2 close: ctx_id: %d, called for sid:%d.", dev->ctx_id, sp->stream_id );
+    pr_debug("ctx_id %d +\n", dev->ctx_id);
 
 	mutex_lock(&init_lock);
 
@@ -257,26 +261,16 @@ static int isp_v4l2_fop_close( struct file *file )
     //evt-thread will touch hardware when processing event, stop it first
     acamera_isp_evt_thread_stop(dev->ctx_id);
 
-    //isp hardware stop
-    if (isp_open_check() == 0) {
-        acamera_fw_isp_stop(dev->ctx_id);
-        general_temper_disable();
-        dma_writer_disable(dev->ctx_id);
-        ips_set_clk_ctrl(ISP0_CLOCK_GATE, false);
-#if FW_USE_HOBOT_DMA
-        system_dma_desc_flush();
-#endif
-    }
-
-    acamera_isp_deinit_context(dev->ctx_id);
-
-    if (p_ctx != NULL) {
-		isp_temper_free((general_fsm_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_GENERAL]->p_fsm));
-	}
-
     //force stream off
     if (atomic_read(&dev->stream_on_cnt))
         _v4l2_stream_off(file);
+
+    //isp hardware stop
+    if (isp_open_check() == 0) {
+        ips_set_clk_ctrl(ISP0_CLOCK_GATE, false);
+        acamera_fw_mem_free();
+    }
+    acamera_isp_deinit_context(dev->ctx_id);
 
     /* deinit fh_ptr */
     if ( mutex_lock_interruptible( &dev->notify_lock ) )
@@ -306,7 +300,7 @@ static int isp_v4l2_fop_close( struct file *file )
 
     mutex_unlock(&init_lock);
 
-    pr_info("ctx_id %d done\n", dev->ctx_id);
+    pr_debug("ctx_id %d -\n", dev->ctx_id);
 
     return 0;
 }
@@ -524,7 +518,18 @@ static int _v4l2_stream_off(struct file *file)
     if (isp_v4l2_is_q_busy(&sp->vb2_q, file))
         return -EBUSY;
 
+    atomic_sub_return(1, &dev->stream_on_cnt);
+
     /* Stop hardware */
+    if (isp_stream_onoff_check() == 0) {
+        acamera_fw_isp_stop(dev->ctx_id);
+        general_temper_disable();
+        dma_writer_disable(dev->ctx_id);
+#if FW_USE_HOBOT_DMA
+        system_dma_desc_flush();
+#endif
+    }
+
     isp_v4l2_stream_off(pstream);
 
     /* vb streamoff */
@@ -533,8 +538,6 @@ static int _v4l2_stream_off(struct file *file)
         rc = vb2_streamoff(&sp->vb2_q, sp->vb2_q.type);
     }
 
-    atomic_sub_return(1, &dev->stream_on_cnt);
-
     pr_info("ctx_id %d, done\n", dev->ctx_id);
 
     return rc;
@@ -542,7 +545,7 @@ static int _v4l2_stream_off(struct file *file)
 
 static int isp_v4l2_streamoff( struct file *file, void *priv, enum v4l2_buf_type i )
 {
-    return _v4l2_stream_off(file);
+    return 0;//_v4l2_stream_off(file);
 }
 
 

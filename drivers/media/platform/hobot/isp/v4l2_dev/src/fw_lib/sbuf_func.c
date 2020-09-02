@@ -172,6 +172,7 @@ static int sbuf_mgr_alloc_sbuf( struct sbuf_mgr *p_sbuf_mgr )
 
     p_sbuf_mgr->buf_allocated = kzalloc( p_sbuf_mgr->len_allocated, GFP_KERNEL );
     if ( !p_sbuf_mgr->buf_allocated ) {
+        p_sbuf_mgr->sbuf_base = NULL;
         LOG( LOG_CRIT, "Fatal error: alloc memory failed." );
         return -ENOMEM;
     }
@@ -573,6 +574,12 @@ void sbuf_update_calibration_data( sbuf_fsm_ptr_t p_fsm )
         return;
     }
 
+    //in case of misc_register failed
+    if (p_ctx->sbuf_mgr.sbuf_inited == 0) {
+        LOG( LOG_ERR, "Error: sbuf is not inited, can't update calibration." );
+        return;
+    }
+
     sbuf_calibration_init( p_ctx );
 
     LOG( LOG_DEBUG, "--- sbuf_update_calibration_data" );
@@ -606,6 +613,11 @@ static void sbuf_mgr_reset( struct sbuf_mgr *p_sbuf_mgr )
     // spin_lock_init( &( p_sbuf_mgr->sbuf_lock ) );
 
     spin_lock_irqsave( &p_sbuf_mgr->sbuf_lock, irq_flags );
+
+    // sbuf_base would be NULL when sbuf alloc failed, sbuf alloc failed also cause user open error(mmap failed),
+    // after that fops_release will be called, NULL pointer will be trigger.
+    if (p_sbuf_mgr->sbuf_base == NULL)
+        goto out;
 
     p_sbuf_mgr->sbuf_base->kf_info.cali_info.is_fetched = 0;
 
@@ -706,6 +718,7 @@ static void sbuf_mgr_reset( struct sbuf_mgr *p_sbuf_mgr )
 #endif
     }
 
+out:
     spin_unlock_irqrestore( &p_sbuf_mgr->sbuf_lock, irq_flags );
 }
 

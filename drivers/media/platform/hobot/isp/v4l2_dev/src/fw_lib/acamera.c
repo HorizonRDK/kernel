@@ -143,24 +143,6 @@ acamera_firmware_t *acamera_get_firmware_ptr(void)
     return &g_firmware;
 }
 
-int acamera_all_hw_contexts_inited(void)
-{
-    int i = 0;
-    int count = 0;
-    acamera_context_ptr_t p_ctx;
-
-    for (i = 0; i < FIRMWARE_CONTEXT_NUMBER; i++) {
-        p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[i];
-        if (p_ctx && p_ctx->initialized)
-            count++;
-    }
-
-    if (count >= HW_CONTEXT_NUMBER)
-        return 1;
-
-    return 0;
-}
-
 void acamera_notify_evt_data_avail( acamera_context_t *p_ctx )
 {
     system_semaphore_raise( p_ctx->sem_evt_avail );
@@ -844,15 +826,15 @@ void _ctx_chn_idx_update(int ctx_id)
         i--;
     }
 
-	if (p_tmp->dma_chn_idx < 0) {
-		for(i = 0; i < FIRMWARE_CONTEXT_NUMBER; i++) {
-			p_tmp = (acamera_context_ptr_t)&g_firmware.fw_ctx[i];
-			if (p_tmp->dma_chn_idx != -1) {
-				swap_ctx_id = i;
-				break;
-			}
-		}
-	}
+    if (p_tmp->dma_chn_idx < 0) {
+        for(i = 0; i < FIRMWARE_CONTEXT_NUMBER; i++) {
+            p_tmp = (acamera_context_ptr_t)&g_firmware.fw_ctx[i];
+            if (p_tmp->dma_chn_idx != -1) {
+                swap_ctx_id = i;
+                break;
+            }
+        }
+    }
 
     if (_all_contexts_frame_counter_status() == 0) {
         last_ctx_id = ctx_id;
@@ -1165,7 +1147,7 @@ int32_t acamera_interrupt_handler()
 	vio_get_sif_frame_info(&frmid);
     p_ctx->isp_frame_counter = frmid.frame_id;
 	p_ctx->timestamps = frmid.timestamps;
-    pr_debug("[s%d] IRQ MASK is 0x%x, frame id %d timestamps %d ms\n",
+    pr_debug("[s%d] IRQ MASK is 0x%x, frame id %d timestamps %llu ms\n",
 		cur_ctx_id,
 		irq_mask, p_ctx->isp_frame_counter, p_ctx->timestamps);
 
