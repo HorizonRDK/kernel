@@ -371,6 +371,7 @@ int32_t bpu_core_process_recover(struct bpu_core *core)
 	}
 
 	dev_err(core->dev, "TO recovery bpu core%d\n", core->index);
+	(void)core->hw_ops->status(core, UPDATE_STATE);
 	/* copy run_fc_fifo for recover */
 	for (i = (int32_t)BPU_PRIO_NUM - 1; i >= 0; i--) {
 		(void)memcpy(&recovery_kfifo[i], &core->run_fc_fifo[i],/*PRQA S ALL*/

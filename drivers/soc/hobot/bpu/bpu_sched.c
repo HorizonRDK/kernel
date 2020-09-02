@@ -10,6 +10,7 @@
 #include <linux/sched.h>
 #include "bpu.h"
 #include "bpu_core.h"
+#include "bpu_ctrl.h"
 
 #define DEFAULT_SCHED_SEED (2u)
 
@@ -44,6 +45,42 @@ void bpu_sched_seed_update(void)
 EXPORT_SYMBOL(bpu_sched_seed_update);
 // PRQA S ALL --
 
+static void bpu_sched_check_to_core(struct bpu *bpu)
+{
+	struct bpu_core *tmp_core;
+	struct list_head *pos, *pos_n;
+	int32_t ret;
+
+	if (bpu == NULL) {
+		return;
+	}
+
+	list_for_each_safe(pos, pos_n, &bpu->core_list) {/*PRQA S ALL*/
+		tmp_core = (struct bpu_core *)pos;/*PRQA S ALL*/
+		if (tmp_core != NULL) {
+			if ((tmp_core->hw_ops->status == NULL) || (tmp_core->hw_enabled == 0)) {
+				continue;
+			}
+
+			(void)tmp_core->hw_ops->status(tmp_core, UPDATE_STATE);
+			if (tmp_core->hw_ops->status(tmp_core, WORK_STATE) == 1) {
+				continue;
+			}
+
+			ret = bpu_core_reset(tmp_core);
+			if (ret != 0) {
+				pr_err("Bpu core%d reset failed when check not work!\n",
+						tmp_core->index);/*PRQA S ALL*/
+			}
+
+			ret = bpu_core_process_recover(tmp_core);
+			if (ret != 0) {
+				pr_err("BPU core%d recover failed\n", tmp_core->index);
+			}
+		}
+	}
+}
+
 static void bpu_sched_worker(unsigned long arg) /*PRQA S ALL*/
 {
 	struct bpu *bpu = (struct bpu *)arg;  /*PRQA S ALL*/
@@ -63,7 +100,9 @@ static void bpu_sched_worker(unsigned long arg) /*PRQA S ALL*/
 			pr_err("Bpu stat reset failed!\n");/*PRQA S ALL*/
 		}
 
-		/*TODO: judge wether bpu core dead, if dead, reset */
+		/* judge wether bpu core dead, if dead, reset and recovery */
+		bpu_sched_check_to_core(bpu);
+
 		bpu->stat_reset_count = 0;
 	}
 

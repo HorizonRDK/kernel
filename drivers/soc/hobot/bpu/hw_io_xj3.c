@@ -63,6 +63,9 @@ static void cnnbus_rm_set(struct bpu_core *core, uint32_t reg_off,
 
 static int32_t bpu_core_hw_init(struct bpu_core *core)
 {
+	uint32_t reg_val;
+	uint32_t tmp_fc_depth;
+
 	if (core->reserved[0] == 0u) {
 		core->reserved[0] = DEFAULT_BURST_LEN;
 	}
@@ -83,6 +86,21 @@ static int32_t bpu_core_hw_init(struct bpu_core *core)
 // PRQA S ALL --
 	/* Set axibus id */
 	bpu_core_reg_write(core, CNNBUS_AXIID, 0x0);
+
+	bpu_core_reg_write(core, CNNINT_MASK, 0x0);
+
+	tmp_fc_depth = FC_DEPTH;
+	/* tell bpu fc depth */
+	reg_val = bpu_core_reg_read(core, CNN_FC_LEN);
+	reg_val &=  ~(CNN_PE0_FC_LENGTH_MASK);
+	/* hw depth start from 0 */
+	reg_val |= CNN_PE0_FC_LENGTH(tmp_fc_depth - 1);
+	bpu_core_reg_write(core, CNN_FC_LEN, reg_val);
+
+	/* tell bpu fc base */
+	reg_val = CNN_PE0_FC_BASE((uint32_t)core->fc_base_addr[0]);
+
+	bpu_core_reg_write(core, CNN_FC_BASE, reg_val);
 
 	return 0;
 }
@@ -168,8 +186,6 @@ static void bpu_diag_test(void *p, size_t len)
 
 static int32_t bpu_core_hw_enable(struct bpu_core *core)
 {
-	uint32_t tmp_fc_depth;
-	uint32_t reg_val;
 	int32_t ret;
 
 	if (core == NULL) {
@@ -206,11 +222,6 @@ static int32_t bpu_core_hw_enable(struct bpu_core *core)
 		dev_err(core->dev, "bpu core clk enable failed\n");
 	}
 
-	ret = bpu_core_hw_rst(core);
-	if (ret != 0) {
-		dev_err(core->dev, "bpu core hw reset failed\n");
-	}
-
 	/* The following to init fc info */
 
 	core->fc_base[0] = dma_alloc_coherent(core->dev,/*PRQA S ALL*/
@@ -220,21 +231,10 @@ static int32_t bpu_core_hw_enable(struct bpu_core *core)
 		return -ENOMEM;
 	}
 
-	tmp_fc_depth = FC_DEPTH;
-
-	bpu_core_reg_write(core, CNNINT_MASK, 0x0);
-
-	/* tell bpu fc depth */
-	reg_val = bpu_core_reg_read(core, CNN_FC_LEN);
-	reg_val &=  ~(CNN_PE0_FC_LENGTH_MASK);
-	/* hw depth start from 0 */
-	reg_val |= CNN_PE0_FC_LENGTH(tmp_fc_depth - 1);
-	bpu_core_reg_write(core, CNN_FC_LEN, reg_val);
-
-	/* tell bpu fc base */
-	reg_val = CNN_PE0_FC_BASE((uint32_t)core->fc_base_addr[0]);
-
-	bpu_core_reg_write(core, CNN_FC_BASE, reg_val);
+	ret = bpu_core_hw_rst(core);
+	if (ret != 0) {
+		dev_err(core->dev, "bpu core hw reset failed\n");
+	}
 
 	if ((EventIdBpu0Err + core->index) <= EventIdBpu1Err) {
 		if (diag_register(ModuleDiag_bpu, EventIdBpu0Err + core->index, 5, 300,
@@ -501,7 +501,7 @@ static int32_t bpu_core_hw_status(struct bpu_core *core, uint32_t cmd)
 		}
 		break;
 	case (uint32_t)WORK_STATE:/*PRQA S ALL*/
-		if ((tmp_head_index == tail_index)
+		if ((tmp_head_index == head_index)
 				&& (tmp_inst_num == inst_num)
 				&& (tmp_head_index != tmp_tail_index)) {
 			ret = 0;
