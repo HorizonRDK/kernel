@@ -690,7 +690,7 @@ static ssize_t hobot_iar_store(struct kobject *kobj, struct kobj_attribute *attr
 	tmp = (char *)buf;
 	enable_sif_mclk();
 	iar_pixel_clk_enable();
-	board_id = get_base_board_id();
+	board_id = simple_strtoul(base_board_name, NULL, 16);
 	if (strncmp(tmp, "start", 5) == 0) {
 		pr_info("iar start......\n");
 		if (board_id == 0x1)

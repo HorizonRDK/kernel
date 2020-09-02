@@ -8,6 +8,7 @@
 #include <linux/slab.h>
 #include <linux/clk.h>
 #include <linux/clk-provider.h>
+#include <linux/string.h>
 #include <linux/io.h>
 #include <linux/module.h>
 #include <linux/of.h>
@@ -2782,21 +2783,6 @@ int get_iar_module_rst_pin(void)
 }
 EXPORT_SYMBOL_GPL(get_iar_module_rst_pin);
 
-int get_base_board_id(void)
-{
-	void __iomem *hitm1_reg_addr;
-	uint32_t reg_val = 0;
-	int board_id = -1;
-
-	hitm1_reg_addr = ioremap_nocache(X3_GPIO_BASE + X3_GPIO0_VALUE_REG, 4);
-	reg_val = readl(hitm1_reg_addr);
-	reg_val = (((reg_val >> 14) & 0x1) << 1) | ((reg_val >> 12) & 0x1);
-	board_id = reg_val + 1;
-	pr_debug("iar: base board id is 0x%x\n", board_id);
-	iounmap(hitm1_reg_addr);
-	return board_id;
-}
-EXPORT_SYMBOL_GPL(get_base_board_id);
 
 int enable_sif_mclk(void)
 {
@@ -3197,7 +3183,7 @@ static int hobot_iar_probe(struct platform_device *pdev)
 	ret = of_property_read_u32(pdev->dev.of_node,
                         "default_display_type", &display_type);
 
-	hb_disp_base_board_id = get_base_board_id();
+	hb_disp_base_board_id = simple_strtoul(base_board_name, NULL, 16);
 
 	ret = of_property_read_u32(pdev->dev.of_node,
 			"disp_panel_reset_pin", &panel_reset_pin);

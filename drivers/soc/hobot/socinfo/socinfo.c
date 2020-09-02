@@ -40,6 +40,7 @@ const char *ddr_size;
 const char *som_name;
 const char *base_board_name;
 const char *board_name;
+EXPORT_SYMBOL_GPL(base_board_name);
 
 #if 0
 unsigned int x2_board_id[] = {

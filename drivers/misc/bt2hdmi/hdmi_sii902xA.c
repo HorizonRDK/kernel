@@ -32,11 +32,11 @@
 #include <linux/gpio.h>
 #include <linux/platform_device.h>
 #include <linux/regulator/consumer.h>
+#include <linux/string.h>
 
 #include "siHdmiTx_902x_TPI.h"
 #include "soc/hobot/hobot_iar.h"
 #include "soc/hobot/hobot_ips_x2.h"
-
 
 #define DEVICE_NAME	"sii902xA"
 
@@ -184,7 +184,7 @@ static int hdmi_sii_probe(struct i2c_client *client,
 			}
 		}
 #ifdef CONFIG_HOBOT_XJ3
-		board_id = get_base_board_id();	// x3_dvb
+		board_id = simple_strtoul(base_board_name, NULL, 16);
 		if (board_id == 0x1) {
 //#ifdef CONFIG_HOBOT_IAR
 			ret = get_iar_module_rst_pin();

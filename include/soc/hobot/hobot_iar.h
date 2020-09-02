@@ -765,6 +765,7 @@ extern uint8_t disp_copy_done;
 extern uint8_t disp_user_config_done;
 extern unsigned int iar_debug_level;
 extern unsigned int fb_num;
+extern const char *base_board_name;
 extern void iar_register_get_callback(iar_get_type_callback func);
 extern void iar_register_set_callback(iar_set_addr_callback func);
 #define IAR_DEBUG_PRINT(format, args...)	\
@@ -849,7 +850,6 @@ int iar_output_buf_init(int layer_no, struct frame_info *frameinfo);
 int iar_output_reqbufs(int layer_no, unsigned int buffers);
 int iar_output_stream_on(int layer_no);
 int iar_output_stream_off(int layer_no);
-int get_base_board_id(void);
 
 // Supported rotation.
 enum RotationMode {

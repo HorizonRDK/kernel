@@ -4456,7 +4456,6 @@ int disp_config_hdmi(unsigned short vmode,
 	devID = ReadByteTPI(TPI_DEVICE_ID);
 	if (wID != 0x9022 || devID != SII902XA_DEVICE_ID) {
 		pr_err("bt1120 to HDMI device:sii9022a is not exist!\n");
-		return -1;
 	}
 	siHdmiTx_ReConfig(vmode, VideoFormat, Afs);
 	return 0;
