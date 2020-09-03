@@ -506,7 +506,7 @@ static int32_t bpu_core_hw_status(struct bpu_core *core, uint32_t cmd)
 				&& (tmp_head_index != tmp_tail_index)) {
 			ret = 0;
 		} else {
-			ret = 1;
+			ret = (int32_t)tmp_head_index + 1;
 		}
 		break;
 	case (uint32_t)UPDATE_STATE:/*PRQA S ALL*/

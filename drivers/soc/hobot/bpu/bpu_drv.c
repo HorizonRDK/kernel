@@ -690,13 +690,6 @@ static int bpu_release(struct inode *inode, struct file *filp)/*PRQA S ALL*/
 	int32_t ret;
 
 	user->is_alive = 0;
-	/* wait user running fc done */
-	while(user->running_task_num > 0) {
-		/* timeout to prevent bpu hung make system hung*/
-		if(wait_for_completion_timeout(&user->no_task_comp, HZ) == 0u) {
-			user->running_task_num--;
-		}
-	}
 
 	atomic_dec(&bpu->open_counter);/*PRQA S ALL*/
 

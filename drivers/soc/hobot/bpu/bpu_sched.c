@@ -63,7 +63,7 @@ static void bpu_sched_check_to_core(struct bpu *bpu)
 			}
 
 			(void)tmp_core->hw_ops->status(tmp_core, UPDATE_STATE);
-			if (tmp_core->hw_ops->status(tmp_core, WORK_STATE) == 1) {
+			if (tmp_core->hw_ops->status(tmp_core, WORK_STATE) > 0) {
 				continue;
 			}
 

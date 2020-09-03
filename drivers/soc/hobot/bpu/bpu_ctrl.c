@@ -61,6 +61,7 @@ int32_t bpu_core_is_pending(const struct bpu_core *core)
  */
 static int32_t bpu_core_pend_to_leisure(struct bpu_core *core, int32_t timeout)
 {
+	int32_t core_work_state = 1;
 	int32_t ret;
 
 	if (core == NULL) {
@@ -75,9 +76,26 @@ static int32_t bpu_core_pend_to_leisure(struct bpu_core *core, int32_t timeout)
 	}
 
 	while (core->running_task_num > 0) {
+		if (core->hw_ops->status != NULL) {
+			(void)core->hw_ops->status(core, UPDATE_STATE);
+			core_work_state = core->hw_ops->status(core, WORK_STATE);
+			if (core_work_state == 0) {
+				/* if core do not work, just break wait */
+				break;
+			}
+		}
 		if (timeout > 0) {
 			if(wait_for_completion_timeout(
 					&core->no_task_comp, (uint32_t)timeout) == 0u) {
+				if (core->hw_ops->status != NULL) {
+					(void)core->hw_ops->status(core, UPDATE_STATE);
+					ret = core->hw_ops->status(core, WORK_STATE);
+					if (ret == core_work_state) {
+						/* if states between wait are same, break to not wait*/
+						ret = 0;
+						break;
+					}
+				}
 				core->running_task_num--;
 			}
 		} else {
@@ -201,12 +219,6 @@ int32_t bpu_core_enable(struct bpu_core *core)
 		return 0;
 	}
 
-	ret = bpu_core_pend_to_leisure(core, HZ);
-	if (ret != 0) {
-		dev_err(core->dev, "Pend for Disable core failed!\n");
-		return ret;
-	}
-
 	if (core->hw_ops->enable != NULL) {
 		ret = core->hw_ops->enable(core);
 	} else {
@@ -252,7 +264,7 @@ static int32_t bpu_core_plug_out(struct bpu_core *core)
 				tmp_work_state = core->hw_ops->status(core, WORK_STATE);
 			}
 		/* if core not work, can exit waiting */
-		} while ((ret != 0) && (tmp_work_state == 1));
+		} while ((ret != 0) && (tmp_work_state > 0));
 	}
 
 	return ret;

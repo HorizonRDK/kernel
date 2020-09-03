@@ -401,14 +401,29 @@ static int bpu_core_release(struct inode *inode, struct file *filp)/*PRQA S ALL*
 	struct bpu_user *user = (struct bpu_user *)filp->private_data;/*PRQA S ALL*/
 	struct bpu_core *core = (struct bpu_core *)user->host;/*PRQA S ALL*/
 	unsigned long flags;/*PRQA S ALL*/
+	int32_t core_work_state = 1;
 	int32_t ret;
 	uint32_t i;
 
 	user->is_alive = 0;
 	/* wait user running fc done */
-	while(user->running_task_num > 0) {
+	while((user->running_task_num > 0) && (core->hw_enabled > 0)) {
+		if (core->hw_ops->status != NULL) {
+			(void)core->hw_ops->status(core, UPDATE_STATE);
+			core_work_state = core->hw_ops->status(core, WORK_STATE);
+		}
+
 		/* timeout to prevent bpu hung make system hung*/
-		if(wait_for_completion_timeout(&user->no_task_comp, HZ) == 0u) {
+		if((wait_for_completion_timeout(&user->no_task_comp, HZ) == 0u)
+				&& (core_work_state > 0)) {
+			if (core->hw_ops->status != NULL) {
+				(void)core->hw_ops->status(core, UPDATE_STATE);
+				ret = core->hw_ops->status(core, WORK_STATE);
+				if (ret == core_work_state) {
+					/* if states between wait are same, break to not wait*/
+					break;
+				}
+			}
 			user->running_task_num--;
 		}
 	}
