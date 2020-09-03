@@ -1,0 +1,7 @@
+config MRVL_SD8801
+	tristate "Marvel 8801 SDIO WiFi"
+	depends on MAC80211
+    depends on CFG80211
+    default n
+	---help---
+	  Help message of MRVL_SD8801

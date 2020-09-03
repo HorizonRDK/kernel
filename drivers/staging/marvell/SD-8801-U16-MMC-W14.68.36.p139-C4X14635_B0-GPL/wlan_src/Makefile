@@ -18,11 +18,7 @@
 # ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
 # this warranty disclaimer.
 
-# COMPATDIR=/lib/modules/$(KERNELVERSION_X86)/build/compat-wireless-3.2-rc1-1/include
- KERNELDIR ?= ../../../../../
-#KERNELDIR ?= $(SRC_KERNEL_DIR)
-COMPATDIR ?= $(KERNELDIR)/include
-BINDIR = ../../bin_sd8801
+COMPATDIR=/lib/modules/$(KERNELVERSION_X86)/build/compat-wireless-3.2-rc1-1/include
 CC=		$(CROSS_COMPILE)gcc -I$(COMPATDIR)
 LD=		$(CROSS_COMPILE)ld
 BACKUP=		/root/backup
@@ -48,38 +44,35 @@ endif
 # n: NO DEBUG
 # 1: Only PRINTM(MMSG,...), PRINTM(MFATAL,...), ...
 # 2: All PRINTM()
-CONFIG_DEBUG=1
+CONFIG_DEBUG?=n
 
 # Proc debug file
-CONFIG_PROC_DEBUG=y
+CONFIG_PROC_DEBUG?=y
 
 # Enable STA mode support
-CONFIG_STA_SUPPORT=y
+CONFIG_STA_SUPPORT?=y
 
 # Enable uAP mode support
-CONFIG_UAP_SUPPORT=y
+CONFIG_UAP_SUPPORT?=y
 
 # Enable WIFIDIRECT support
-CONFIG_WIFI_DIRECT_SUPPORT=y
+CONFIG_WIFI_DIRECT_SUPPORT?=y
 
 # Enable WIFIDISPLAY support
-CONFIG_WIFI_DISPLAY_SUPPORT=y
+CONFIG_WIFI_DISPLAY_SUPPORT?=y
 
 # Re-association in driver
-CONFIG_REASSOCIATION=y
+CONFIG_REASSOCIATION?=y
 
 
 # Manufacturing firmware support
-CONFIG_MFG_CMD_SUPPORT=y
+CONFIG_MFG_CMD_SUPPORT?=y
 
 # OpenWrt support
-CONFIG_OPENWRT_SUPPORT=n
+CONFIG_OPENWRT_SUPPORT?=n
 
 # Big-endian platform
-CONFIG_BIG_ENDIAN=n
-
-
-
+CONFIG_BIG_ENDIAN?=n
 
 ifeq ($(CONFIG_DRV_EMBEDDED_SUPPLICANT), y)
 CONFIG_EMBEDDED_SUPP_AUTH=y
@@ -89,26 +82,21 @@ CONFIG_EMBEDDED_SUPP_AUTH=y
 endif
 endif
 
-CONFIG_SDIO_OOB_IRQ=n
+CONFIG_SDIO_OOB_IRQ?=n
 
 # Enable SDIO multi-port Tx aggregation
-CONFIG_SDIO_MULTI_PORT_TX_AGGR=y
+CONFIG_SDIO_MULTI_PORT_TX_AGGR?=y
 
 # Enable SDIO multi-port Rx aggregation
-CONFIG_SDIO_MULTI_PORT_RX_AGGR=y
+CONFIG_SDIO_MULTI_PORT_RX_AGGR?=y
 
 # SDIO suspend/resume
-CONFIG_SDIO_SUSPEND_RESUME=y
+CONFIG_SDIO_SUSPEND_RESUME?=y
 
-
-
-
-CONFIG_ANDROID_KERNEL=n
-
+CONFIG_ANDROID_KERNEL?=n
 
 #32bit app over 64bit kernel support
-CONFIG_USERSPACE_32BIT_OVER_KERNEL_64BIT=n
-
+CONFIG_USERSPACE_32BIT_OVER_KERNEL_64BIT?=n
 
 #############################################################################
 # Select Platform Tools
@@ -118,15 +106,11 @@ MODEXT = ko
 ccflags-y += -I$(M)/mlan
 ccflags-y += -DLINUX
 
-
-
-
 KERNELVERSION_X86 := 	$(shell uname -r)
 KERNELDIR ?= /lib/modules/$(KERNELVERSION_X86)/build
 LD += -S
-###haibo.guo 20200212 modify 
-#BINDIR = ../bin_sd8801
-BINDIR ?= ../bin_sd8801
+
+BINDIR = ../bin_sd8801
 #APPDIR= $(shell if test -d "mapp"; then echo mapp; fi)
 
 #############################################################################
@@ -227,7 +211,7 @@ ifeq ($(CONFIG_T50), y)
 endif
 
 # add -Wno-packed-bitfield-compat when GCC version greater than 4.4
-GCC_VERSION := $(shell echo `gcc -dumpversion | cut -f1-2 -d.` \>= 4.4 | sed -e 's/\./*100+/g' | bc )
+GCC_VERSION := $(shell echo `${CROSS_COMPILE}gcc -dumpversion | cut -f1-2 -d.` \>= 4.4 | sed -e 's/\./*100+/g' | bc )
 ifeq ($(GCC_VERSION),1)
 	ccflags-y += -Wno-packed-bitfield-compat
 endif
@@ -430,7 +414,7 @@ obj-m := mlan.o
 mlan-objs := $(MLANOBJS)
 endif
 MOALOBJS += mlinux/moal_sdio_mmc.o
-obj-m += sd8xxx.o
+obj-$(CONFIG_MRVL_SD8801) += sd8xxx.o
 sd8xxx-objs := $(MOALOBJS)
 
 # Otherwise we were called directly from the command line; invoke the kernel build system.

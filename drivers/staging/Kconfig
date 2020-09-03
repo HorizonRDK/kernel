@@ -32,6 +32,8 @@ source "drivers/staging/comedi/Kconfig"
 
 source "drivers/staging/olpc_dcon/Kconfig"
 
+source "drivers/staging/rtl8189fs/Kconfig"
+
 source "drivers/staging/rtl8192u/Kconfig"
 
 source "drivers/staging/rtl8192e/Kconfig"
@@ -117,5 +119,7 @@ source "drivers/staging/typec/Kconfig"
 source "drivers/staging/vboxvideo/Kconfig"
 
 source "drivers/staging/pi433/Kconfig"
+
+source "drivers/staging/marvell/SD-8801-U16-MMC-W14.68.36.p139-C4X14635_B0-GPL/wlan_src/Kconfig"
 
 endif # STAGING

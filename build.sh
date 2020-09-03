@@ -108,30 +108,6 @@ function set_kernel_config()
     echo "******************************"
 }
 
-function build_wifi()
-{
-    echo "begin build wifi...................."
-    echo "SRC_KERNEL_DIR=$SRC_KERNEL_DIR"
-    echo "TARGET_TMPROOTFS_DIR=$TARGET_TMPROOTFS_DIR"
-
-    echo "build wifi marvell 8801............."
-    cd $SRC_KERNEL_DIR/drivers/staging/marvell/
-    #make clean
-    make
-    cd $SRC_KERNEL_DIR
-    cpfiles "$SRC_KERNEL_DIR/drivers/staging/marvell/bin_sd8801/*.ko" "$TARGET_TMPROOTFS_DIR/lib/modules/"
-    rm -fr $SRC_KERNEL_DIR/drivers/staging/marvell/bin_sd8801
-    cpfiles "$SRC_KERNEL_DIR/drivers/staging/marvell/FwImage/sd8801_uapsta.bin" "$TARGET_TMPROOTFS_DIR/lib/firmware/mrvl/"
-
-    echo "build wifi rtl8819fs.............."
-    cd $SRC_KERNEL_DIR/drivers/staging/rtl8189fs/
-    make
-    cd $SRC_KERNEL_DIR
-    cpfiles "$SRC_KERNEL_DIR/drivers/staging/rtl8189fs/*.ko" "$TARGET_TMPROOTFS_DIR/lib/modules/"
-    rm -fr $SRC_KERNEL_DIR/drivers/staging/rtl8189fs/*.ko
-    echo "end build wifi...................."
-}
-
 function change_dts_flash_config()
 {
     local dts_file="arch/arm64/boot/dts/hobot/hobot-xj3-xvb.dtsi"
@@ -270,14 +246,13 @@ function all()
         exit 1
     }
 
-    # x3 wifii
-    ##build_wifi
     # put kernel image & dtb to dest directory
     cpfiles "$SRC_KERNEL_DIR/arch/$ARCH_KERNEL/boot/$KERNEL_IMAGE_NAME" "$prefix/"
     cd $SRC_KERNEL_DIR/arch/$ARCH_KERNEL/boot/dts/hobot/
     cpfiles "$KERNEL_DTB_NAME" "$prefix/"
 
     # copy firmware
+    cpfiles "$SRC_KERNEL_DIR/drivers/staging/marvell/FwImage/sd8801_uapsta.bin" "$TARGET_TMPROOTFS_DIR/lib/firmware/mrvl/"
     cpfiles "$SRC_KERNEL_DIR/drivers/staging/rtl8723bs/rtlwifi/rtl8723bs_nic.bin " "$TARGET_TMPROOTFS_DIR/lib/firmware/rtlwifi/"
     cpfiles "$SRC_KERNEL_DIR/drivers/crypto/hobot/pka/clp300.elf " "$TARGET_TMPROOTFS_DIR/lib/firmware/"
 
