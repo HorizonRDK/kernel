@@ -77,6 +77,8 @@ static int camera_fop_release(struct inode *pinode, struct file *pfile)
 	if (camera_cdev->user_num <= 0) {
 		camera_sys_stream_off(camera_cdev->port);
 		camera_i2c_release(camera_cdev->port);
+		memset(&camera_mod[camera_cdev->port]->camera_param, 0,
+			sizeof(sensor_turning_data_t));
 	}
 	mutex_unlock(&camera_cdev->slock);
 	pfile->private_data = NULL;
