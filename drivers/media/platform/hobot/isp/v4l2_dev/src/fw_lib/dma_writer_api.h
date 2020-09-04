@@ -113,7 +113,7 @@ typedef struct dma_pipe_settings {
  *   @return edma_ok - success
  *           edma_fail - fail
  */
-dma_error dma_writer_create( void **handle );
+dma_error dma_writer_create( void **handle, uint8_t ctx_id );
 void dma_writer_exit( void *handle );
 
 /**

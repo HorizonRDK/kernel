@@ -461,34 +461,11 @@ void dma_writer_disable(uint32_t ctx_id)
     dh->pipe[dma_fr].secondary.write_on_write_hw(ISP_CONFIG_PING_SIZE, 0);
 }
 
-static dma_handle s_handle[FIRMWARE_CONTEXT_NUMBER];
-static int32_t ctx_pos = 0;
-dma_error dma_writer_create( void **handle )
-{
-    dma_error result = edma_ok;
-    if ( handle != NULL ) {
-
-        if ( ctx_pos < acamera_get_context_number() ) {
-            *handle = &s_handle[ctx_pos];
-            system_memset( (void *)*handle, 0, sizeof( dma_handle ) );
-            ctx_pos++;
-        } else {
-            *handle = NULL;
-            result = edma_fail;
-            LOG( LOG_ERR, "dma context overshoot\n" );
-        }
-    } else {
-        result = edma_fail;
-    }
-    return result;
-}
-
 void dma_writer_exit( void *handle )
 {
 #if ISP_HAS_DS1
     dma_writer_free_default_frame( &p_dma->pipe[dma_ds1] );
 #endif
-    ctx_pos = 0;
 }
 
 dma_error dma_writer_update_state( dma_pipe *pipe )

@@ -483,8 +483,8 @@ int callback_stream_get_frame( uint32_t ctx_id, acamera_stream_type_t type, afra
 
     if ( !pbuf ) {
         p_ctx->sts.free_to_busy_failed_cnt++;
-        LOG( LOG_ERR, "[Stream#%d] type: %d no empty buffers",
-             pstream->stream_id, type );
+        LOG( LOG_ERR, "[Stream#%d] ctx_id %d no buffer",
+             pstream->stream_id, ctx_id );
         return -1;
     }
 

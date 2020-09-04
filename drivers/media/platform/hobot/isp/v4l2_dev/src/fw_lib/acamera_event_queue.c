@@ -46,6 +46,11 @@ void acamera_event_queue_push( acamera_event_queue_ptr_t p_queue, int event )
     unsigned long flags;
     acamera_loop_buf_ptr_t p_buf = &( p_queue->buf );
 
+    if (p_queue->lock == NULL) {
+        pr_err("lock is not inited.\n");
+        return;
+    }
+
     flags = system_spinlock_lock( p_queue->lock );
 
     if ( ( p_buf->head < 0 ) ||

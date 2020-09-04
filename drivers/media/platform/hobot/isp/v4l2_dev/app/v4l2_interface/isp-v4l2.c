@@ -128,6 +128,8 @@ int isp_open_check(void)
 	    total_open += atomic_read(&d->opened);
     }
 
+    pr_debug("total_open count %d\n", total_open);
+
     return total_open;
 }
 
@@ -139,6 +141,8 @@ int isp_stream_onoff_check(void)
 	    isp_v4l2_dev_t *d = isp_v4l2_get_dev(i);
 	    total_stream_on += atomic_read(&d->stream_on_cnt);
     }
+
+    pr_debug("total_stream_on count %d\n", total_stream_on);
 
     return total_stream_on;
 }
@@ -467,6 +471,7 @@ static int isp_v4l2_streamon( struct file *file, void *priv, enum v4l2_buf_type 
     isp_v4l2_stream_t *pstream = dev->pstreams[sp->stream_id];
     int rc = 0;
 
+    pr_info("ctx_id %d+\n", dev->ctx_id);
     if (!(0 <= dev->ctx_id && dev->ctx_id < FIRMWARE_CONTEXT_NUMBER)) {
         rc = -1;
         pr_err("ctx_id %d exceed valid range\n", dev->ctx_id);
@@ -504,6 +509,7 @@ static int isp_v4l2_streamon( struct file *file, void *priv, enum v4l2_buf_type 
     }
 
     atomic_add( 1, &dev->stream_on_cnt );
+    pr_info("ctx_id %d-\n", dev->ctx_id);
 
     return rc;
 }
@@ -515,6 +521,7 @@ static int _v4l2_stream_off(struct file *file)
     struct isp_v4l2_fh *sp = fh_to_private(file->private_data);
     isp_v4l2_stream_t *pstream = dev->pstreams[sp->stream_id];
 
+    pr_info("ctx_id %d+\n", dev->ctx_id);
     if (isp_v4l2_is_q_busy(&sp->vb2_q, file))
         return -EBUSY;
 
@@ -538,14 +545,14 @@ static int _v4l2_stream_off(struct file *file)
         rc = vb2_streamoff(&sp->vb2_q, sp->vb2_q.type);
     }
 
-    pr_info("ctx_id %d, done\n", dev->ctx_id);
+    pr_info("ctx_id %d-\n", dev->ctx_id);
 
     return rc;
 }
 
 static int isp_v4l2_streamoff( struct file *file, void *priv, enum v4l2_buf_type i )
 {
-    return 0;//_v4l2_stream_off(file);
+    return _v4l2_stream_off(file);
 }
 
 

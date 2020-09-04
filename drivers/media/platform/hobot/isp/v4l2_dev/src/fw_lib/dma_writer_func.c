@@ -24,6 +24,7 @@
 #include "acamera_command_api.h"
 #include "dma_writer_api.h"
 #include "system_stdlib.h"
+#include "dma_writer.h"
 #include "dma_writer_fsm.h"
 
 
@@ -112,6 +113,26 @@ void acamera_frame_buffer_update( dma_writer_fsm_const_ptr_t p_fsm )
 #endif
 }
 
+static dma_handle s_handle[FIRMWARE_CONTEXT_NUMBER];
+dma_error dma_writer_create( void **handle, uint8_t ctx_id )
+{
+    dma_error result = edma_ok;
+    if ( handle != NULL ) {
+
+        if ( ctx_id < acamera_get_context_number() ) {
+            *handle = &s_handle[ctx_id];
+            system_memset( (void *)*handle, 0, sizeof( dma_handle ) );
+        } else {
+            *handle = NULL;
+            result = edma_fail;
+            LOG( LOG_ERR, "dma context overshoot\n" );
+        }
+    } else {
+        result = edma_fail;
+    }
+    return result;
+}
+
 void frame_buffer_initialize( dma_writer_fsm_ptr_t p_fsm )
 {
     dma_api api_ops[2];
@@ -127,7 +148,7 @@ void frame_buffer_initialize( dma_writer_fsm_ptr_t p_fsm )
 
     if ( p_fsm->context_created == 0 ) {
         // create dma_pipe_hanlde
-        dma_writer_create( &p_fsm->handle );
+        dma_writer_create( &p_fsm->handle, p_fsm->cmn.ctx_id );
         p_fsm->context_created = 1;
         p_fsm->dma_reader_out = dma_fr; //default out to dma reader
     }

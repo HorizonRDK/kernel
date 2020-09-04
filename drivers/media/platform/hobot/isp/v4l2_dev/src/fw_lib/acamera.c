@@ -980,8 +980,7 @@ int sif_isp_ctx_sync_func(int ctx_id)
         atomic_set(&g_firmware.frame_done, 0);
     }
 
-	pr_debug("start isp ctx switch, ctx_id %d\n", ctx_id);
-
+    pr_debug("start isp ctx switch, ctx_id %d\n", ctx_id);
     p_ctx->p_gfw->sif_isp_offline = 1;
     _ctx_chn_idx_update(ctx_id);
 
