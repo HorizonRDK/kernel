@@ -1142,6 +1142,21 @@ config DMI
 	  However, even with this option, the resultant kernel should
 	  continue to boot on existing non-UEFI platforms.
 
+config UIMAGE_LOADADDR
+	hex "uimage loader base address"
+	default "0"
+	help
+	  The physical address at which the uImage is to be
+	  placed in the target.
+
+	  If UIMAGE_BOOT is not enabled, this has no effect.
+
+config UIMAGE_BOOT
+	bool "uimage enabled"
+	default y
+	help
+	  Say Y here if you intend to execute your compressed kernel uimage ,If unsure, say N.
+
 endmenu
 
 menu "Userspace binary formats"
