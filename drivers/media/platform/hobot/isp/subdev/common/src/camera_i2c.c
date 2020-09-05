@@ -91,6 +91,7 @@ int camera_i2c_read(uint32_t port, uint32_t reg_addr,
 		uint32_t bit_width, char *buf, uint32_t count)
 {
 	char tmp[4];
+	struct i2c_msg msg[2];
 	int ret = 0;
 
 	if (count > 100)
@@ -100,29 +101,33 @@ int camera_i2c_read(uint32_t port, uint32_t reg_addr,
 		return -ENOMEM;
 	}
 
+	struct i2c_adapter *adap = camera_mod[port]->client->adapter;
+
+	tmp[0] = (char)((reg_addr >> 8) & 0xff);
+	tmp[1] = (char)(reg_addr & 0xff);
+	msg[0].len = 2;
 	if (bit_width == 8) {
-		tmp[0] = (char)(reg_addr & 0xff);
-		ret = i2c_master_send(camera_mod[port]->client, tmp, 1);
-		if (ret != 1)
-			goto failed;
-	} else {
-		tmp[0] = (char)((reg_addr >> 8) & 0xff);
-		tmp[1] = (char)(reg_addr & 0xff);
-		ret = i2c_master_send(camera_mod[port]->client, tmp, 2);
-		if (ret != 2)
-			goto failed;
+		tmp[0] = tmp[1];
+		msg[0].len = 1;
 	}
 
-	if (ret < 0)
-		return ret;
+	msg[0].addr = camera_mod[port]->client->addr;
+	msg[0].flags = camera_mod[port]->client->flags & I2C_M_TEN;
+	msg[0].buf = (char *)tmp;
 
-	ret = i2c_master_recv(camera_mod[port]->client, buf, count);
-	if(ret != count) {
+	msg[1].addr = camera_mod[port]->client->addr;
+	msg[1].flags = camera_mod[port]->client->flags & I2C_M_TEN;
+	msg[1].flags |= I2C_M_RD;
+	msg[1].len = count;
+	msg[1].buf = buf;
+
+	ret = i2c_transfer(adap, msg, 2);
+	if(ret != 2) {
 		pr_err("read failed !");
 		ret = -1;
 	}
 
-		return ret;
+	return ret;
 failed:
 	return -1;
 }
