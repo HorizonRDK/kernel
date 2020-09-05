@@ -344,13 +344,7 @@ static int hobot_wdt_panic_handler(struct notifier_block *this,
 	if (!hbwdt->enabled)
 		return 0;
 
-	/* no need wdt here since system will reboot immediately */
-	val = hobot_wdt_rd(hbwdt, HOBOT_TIMER_TMREN_REG);
-	val |= HOBOT_TIMER_T2STOP;
-	hobot_wdt_wr(hbwdt, HOBOT_TIMER_TMRSTOP_REG, val);
-
-	/* make sure watchdog is stopped before proceeding */
-	mb();
+	hobot_wdt_reload(&hbwdt->hobot_wdd);
 
 	return NOTIFY_DONE;
 }
@@ -358,7 +352,7 @@ static int hobot_wdt_panic_handler(struct notifier_block *this,
 static void pet_watchdog(struct hobot_wdt *hbwdt)
 {
 	if (hbwdt->barking)
-		pr_info("bark irq trigger, timer is still running\n");
+		pr_info("bark irq triggered, timer is still running\n");
 
 	hobot_wdt_reload(&hbwdt->hobot_wdd);
 }
