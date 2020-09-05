@@ -130,6 +130,15 @@ void iridix_fsm_process_interrupt( iridix_fsm_const_ptr_t p_fsm, uint8_t irq_eve
 
         acamera_isp_iridix_collection_correction_write( p_fsm->cmn.isp_base, diff );
 
+        uint8_t smin = ( _GET_UCHAR_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_IRIDIX_MIN_MAX_STR )[0] );
+        uint8_t smax = ( _GET_UCHAR_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_IRIDIX_STRENGTH_MAXIMUM )[0] );
+        uint8_t factor = 0;
+
+        if (smin == smax)
+            factor = 8;
+        else
+            factor = 6;
+
         diff = 256; // this logic diff = 256 where strength is only updated creates a long delay.
         if ( diff == 256 ) {
             // time filter for iridix strength
@@ -138,8 +147,9 @@ void iridix_fsm_process_interrupt( iridix_fsm_const_ptr_t p_fsm, uint8_t irq_eve
                 ( (iridix_fsm_ptr_t)p_fsm )->strength_avg += p_fsm->strength_target - p_fsm->strength_avg / iridix_avg_coeff; // division by zero is checked
                 iridix_strength = ( uint16_t )( p_fsm->strength_avg / iridix_avg_coeff );                                     // division by zero is checked
             }
+
             if ( ACAMERA_FSM2CTX_PTR( p_fsm )->stab.global_manual_iridix == 0 ) {
-                acamera_isp_iridix_strength_inroi_write( p_fsm->cmn.isp_base, iridix_strength >> 6 );
+                acamera_isp_iridix_strength_inroi_write( p_fsm->cmn.isp_base, iridix_strength >> factor );
             }
 
             if ( ACAMERA_FSM2CTX_PTR( p_fsm )->stab.global_manual_iridix == 0 ) {
