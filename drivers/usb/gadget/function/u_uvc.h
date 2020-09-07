@@ -20,6 +20,7 @@
 #include <linux/usb/video.h>
 
 #define fi_to_f_uvc_opts(f)	container_of(f, struct f_uvc_opts, func_inst)
+#define video_to_uvc(f)		container_of(f, struct uvc_device, video)
 
 struct f_uvc_opts {
 	struct usb_function_instance			func_inst;

@@ -160,7 +160,7 @@ static const struct uvc_output_terminal_descriptor uvc_output_terminal = {
 	.iTerminal		= 0,
 };
 
-DECLARE_UVC_INPUT_HEADER_DESCRIPTOR(1, 2);
+DECLARE_UVC_INPUT_HEADER_DESCRIPTOR(1, 4);
 DECLARE_UVC_FRAME_UNCOMPRESSED(3);
 DECLARE_UVC_FRAME_MJPEG(3);
 DECLARE_UVC_FRAME_FRAMEBASED(3);
@@ -174,12 +174,11 @@ DECLARE_UVC_FRAME_H264(3);
 #define SUPPORT_H264
 #define SUPPORT_H265
 
-static const struct UVC_INPUT_HEADER_DESCRIPTOR(1, 2) uvc_input_header = {
-	.bLength		= UVC_DT_INPUT_HEADER_SIZE(1, 2),
+static const struct UVC_INPUT_HEADER_DESCRIPTOR(1, 4) uvc_input_header = {
+	.bLength		= UVC_DT_INPUT_HEADER_SIZE(1, 4),
 	.bDescriptorType	= USB_DT_CS_INTERFACE,
 	.bDescriptorSubType	= UVC_VS_INPUT_HEADER,
-	// .bNumFormats		= 4, /* nv12 , mjpg, h264, h265, win10 enum failed */
-	.bNumFormats		= 2, /* nv12 , mjpg, (h264, h265) */
+	.bNumFormats		= 4, /* nv12 , mjpg, h264, h265 */
 	.wTotalLength		= 0, /* dynamic */
 	.bEndpointAddress	= 0, /* dynamic */
 	.bmInfo			= 0,
@@ -190,6 +189,8 @@ static const struct UVC_INPUT_HEADER_DESCRIPTOR(1, 2) uvc_input_header = {
 	.bControlSize		= 1,
 	.bmaControls[0][0]	= 0,
 	.bmaControls[1][0]	= 4,
+	.bmaControls[2][0]	= 4,
+	.bmaControls[3][0]	= 4,
 };
 
 #ifdef SUPPORT_YUY2

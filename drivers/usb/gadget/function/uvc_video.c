@@ -22,6 +22,7 @@
 #include "uvc.h"
 #include "uvc_queue.h"
 #include "uvc_video.h"
+#include "u_uvc.h"
 
 /* --------------------------------------------------------------------------
  * Video codecs
@@ -349,6 +350,8 @@ int uvcg_video_enable(struct uvc_video *video, int enable)
 {
 	unsigned int i;
 	int ret;
+	struct uvc_device *uvc = video_to_uvc(video);
+	struct f_uvc_opts *opts = fi_to_f_uvc_opts(uvc->func.fi);
 
 	if (video->ep == NULL) {
 		printk(KERN_INFO "Video enable failed, device is "
@@ -372,7 +375,7 @@ int uvcg_video_enable(struct uvc_video *video, int enable)
 	if ((ret = uvc_video_alloc_requests(video)) < 0)
 		return ret;
 
-	if (video->max_payload_size) {
+	if (opts->streaming_bulk) {
 		video->encode = uvc_video_encode_bulk;
 		video->payload_size = 0;
 	} else
