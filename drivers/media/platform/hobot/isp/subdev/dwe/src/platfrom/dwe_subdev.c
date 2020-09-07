@@ -376,7 +376,7 @@ static irqreturn_t x3_ldc_irq(int this_irq, void *data)
 		(tmp_irq.status_b.line_buf_woi_error == 1)) {
 
 		//set for ipu jdugement, mute woi_error
-		if (tmp_irq.status_b.line_buf_woi_error != 1)
+		if (tmp_irq.status_g & 0x3c)
 			ldc_error_sts = 1;
 
 		dwe_ctx->ldc_irqstatus |= tmp_irq.status_g;
