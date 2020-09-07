@@ -20,6 +20,7 @@
 #include <linux/device.h>
 #include <linux/slab.h>
 #include <linux/mm.h>
+#include <linux/vmalloc.h>
 #include <linux/fs.h>
 #include <linux/miscdevice.h>
 #include <linux/uaccess.h>
@@ -170,7 +171,7 @@ static int sbuf_mgr_alloc_sbuf( struct sbuf_mgr *p_sbuf_mgr )
     /* allocate one more page for user-sapce mapping */
     p_sbuf_mgr->len_allocated = p_sbuf_mgr->len_used - 1 + PAGE_SIZE;
 
-    p_sbuf_mgr->buf_allocated = kzalloc( p_sbuf_mgr->len_allocated, GFP_KERNEL );
+    p_sbuf_mgr->buf_allocated = vmalloc_user(p_sbuf_mgr->len_allocated);
     if ( !p_sbuf_mgr->buf_allocated ) {
         p_sbuf_mgr->sbuf_base = NULL;
         LOG( LOG_CRIT, "Fatal error: alloc memory failed." );
@@ -185,7 +186,7 @@ static int sbuf_mgr_alloc_sbuf( struct sbuf_mgr *p_sbuf_mgr )
 
     /* set the page as reserved so that it won't be swapped out */
     for ( i = 0; i < p_sbuf_mgr->len_used; i += PAGE_SIZE ) {
-        SetPageReserved( virt_to_page( p_sbuf_mgr->buf_used + i ) );
+        SetPageReserved( vmalloc_to_page( p_sbuf_mgr->buf_used + i ) );
     }
 
     return 0;
@@ -741,10 +742,10 @@ static int sbuf_mgr_free( struct sbuf_mgr *p_sbuf_mgr )
         int i;
         /* clear the reserved flag before free so that no bug showed when freeed */
         for ( i = 0; i < p_sbuf_mgr->len_used; i += PAGE_SIZE ) {
-            ClearPageReserved( virt_to_page( p_sbuf_mgr->buf_used + i ) );
+            ClearPageReserved( vmalloc_to_page( p_sbuf_mgr->buf_used + i ) );
         }
 
-        kfree( p_sbuf_mgr->buf_allocated );
+        vfree( p_sbuf_mgr->buf_allocated );
         LOG( LOG_INFO, "sbuf alloc buffer %p is freed.", p_sbuf_mgr->buf_allocated );
         p_sbuf_mgr->buf_allocated = NULL;
         p_sbuf_mgr->buf_used = NULL;
@@ -1792,7 +1793,7 @@ LOG( LOG_INFO, "sbuf_iridix_t size: %lu.", sizeof( struct sbuf_iridix)*4);
     }
 
     /* remap the kernel buffer into the user app address space. */
-    rc = remap_pfn_range( vma, vma->vm_start, virt_to_phys( p_sbuf_mgr->buf_used ) >> PAGE_SHIFT, user_buf_len, vma->vm_page_prot );
+    rc = remap_vmalloc_range(vma, (void *)p_sbuf_mgr->buf_used, vma->vm_pgoff);
     if ( rc < 0 ) {
         LOG( LOG_ERR, "remap of sbuf failed, return: %d.", rc );
         return rc;
