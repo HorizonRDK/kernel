@@ -2027,7 +2027,7 @@ typedef struct _mc_video_custom_gop_pic_params {
  * The number of reference L0 of Nth picture in the custom GOP.
  * Flag to use multi reference picture for P picture.
  * It is valid only if PIC_TYPE is P.
- * Values[1,2]
+ * Values[0,1]
  *
  * - Note: It's unchangable parameter. 
  * - Encoding: Support.
@@ -4512,7 +4512,7 @@ typedef struct _mc_video_frame_buffer_info {
  * - Decoding: Support.
  * - Default: 0
  */
-	hb_u32 phy_ptr[3];
+	hb_u64 phy_ptr[3];
 
 /**
  * Buffer size.
@@ -4683,7 +4683,7 @@ typedef struct _mc_video_stream_buffer_info {
  * - Decoding: Support.
  * - Default: 0
  */
-	hb_u32 phy_ptr;
+	hb_u64 phy_ptr;
 
 /**
  * Buffer size.
@@ -4761,7 +4761,7 @@ typedef struct _mc_audio_frame_buffer_info {
  * - Decoding: Support.
  * - Default: 0
  */
-	hb_u32 phy_ptr;
+	hb_u64 phy_ptr;
 
 /**
  * Buffer size.
@@ -4851,7 +4851,7 @@ typedef struct _mc_audio_stream_buffer_info {
  * - Decoding: Support.
  * - Default: 0
  */
-	hb_u32 phy_ptr;
+	hb_u64 phy_ptr;
 
 /**
  * Buffer size.
@@ -7977,6 +7977,42 @@ extern hb_s32 hb_mm_mc_get_user_data(media_codec_context_t * context,
 */
 extern hb_s32 hb_mm_mc_release_user_data(media_codec_context_t * context,
 				const mc_user_data_buffer_t * params);
+
+/**
+* Get explicit header configuration.
+*
+* Only applied in H264 and H265 codec.
+*
+* @param[in]       codec context
+* @param[out]      explicit header configuration
+*                  The valid numbers are as follows.
+*                  0 : Disable, the header will be encoded into
+*                      independent frame
+*                  1 : Enable, the header will be encoded into IDR frame if
+*                      it exists.
+* @return >=0 on success, negative HB_MEDIA_ERROR in case of failure
+* @see media_codec_context_t
+*/
+extern hb_s32 hb_mm_mc_get_explicit_header_config(
+				media_codec_context_t *context, hb_s32 *status);
+
+/**
+* Set explicit header configuration.
+*
+* Only applied in H264 and H265 codec.
+*
+* @param[in]       codec context
+* @param[in]       enalbe/diable explicit header, default enable
+*                  The valid numbers are as follows.
+*                  0 : Disable, the header will be encoded into
+*                      independent frame
+*                  1 : Enable, the header will be encoded into IDR frame if
+*                      it exists.
+* @return >=0 on success, negative HB_MEDIA_ERROR in case of failure
+* @see media_codec_context_t
+*/
+extern hb_s32 hb_mm_mc_set_explicit_header_config(
+				media_codec_context_t *context, hb_s32 status);
 
 /**
 * Get the mjpeg parameters.
