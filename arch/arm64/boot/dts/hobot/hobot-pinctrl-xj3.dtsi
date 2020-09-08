@@ -22,6 +22,11 @@
 
 / {
 	soc {
+		pinctrl_cdev: pinctrl_cdev@0xA6004000 {
+			compatible = "hobot,pinctrl-cdev";
+			reg-info = <0xA6004000 0x200>;
+			gpio-range = <120>;
+		};
 		range: gpio-range {
 			#pinctrl-single,gpio-range-cells = <3>;
 		};
