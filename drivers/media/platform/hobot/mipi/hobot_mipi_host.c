@@ -1157,11 +1157,13 @@ static int32_t mipi_host_snrclk_set_freq(mipi_hdev_t *hdev, uint32_t freq)
 	}
 	name = g_mh_snrclk_name[snrclk->index];
 	ret = mipi_host_configure_clk(hdev, name, freq, 0);
-	param->snrclk_freq = (uint32_t)(mipi_host_get_clk(hdev, name));
-	diff = (freq > param->snrclk_freq) ? (freq - param->snrclk_freq) :
+	if (freq != 0) {
+		param->snrclk_freq = (uint32_t)(mipi_host_get_clk(hdev, name));
+		diff = (freq > param->snrclk_freq) ? (freq - param->snrclk_freq) :
 			param->snrclk_freq - freq;
-	if ((diff * 10) > freq) {
-		ret = -1;
+		if ((diff * 10) > freq) {
+			ret = -1;
+		}
 	}
 	if (ret)
 		mipierr("%s set %u but %u error", name, freq, param->snrclk_freq);
@@ -1189,6 +1191,14 @@ static int32_t mipi_host_snrclk_set_en(mipi_hdev_t *hdev, int enable)
 	if (!snrclk->pinctrl) {
 		mipierr("snrclk set en not support");
 		return -1;
+	}
+
+	/* enable clk as default at first time */
+	if (param->snrclk_en == MIPI_HOST_SNRCLK_NOUSED) {
+		mipiinfo("snrclk clk default as %u",
+			mipi_host_get_clk(hdev, g_mh_snrclk_name[snrclk->index]));
+		mipi_host_configure_clk(hdev, g_mh_snrclk_name[snrclk->index],
+			mipi_host_get_clk(hdev, g_mh_snrclk_name[snrclk->index]), 0);
 	}
 	if (enable) {
 		if (snrclk->enable) {
@@ -2463,22 +2473,25 @@ static ssize_t mipi_host_param_store(struct device *dev,
 	uint32_t *param = (uint32_t *)(&hdev->host.param);
 	int ret, error = -EINVAL;
 	int idx;
-	uint32_t val;
+	uint32_t val, pbak;
 
 	idx = mipi_host_param_idx(attr->attr.name);
 	if (idx >= 0) {
 		ret = kstrtouint(buf, 0, &val);
 		if (!ret) {
+			pbak = param[idx];
 			param[idx] = val;
 			error = 0;
 		}
 	}
 
 	if (error == 0) {
-		if(!strcmp(attr->attr.name, "snrclk_en"))
+		if(!strcmp(attr->attr.name, "snrclk_en")) {
+			param[idx] = pbak;
 			error = mipi_host_snrclk_set_en(hdev, val);
-		else if (!strcmp(attr->attr.name, "snrclk_freq"))
+		} else if (!strcmp(attr->attr.name, "snrclk_freq")) {
 			error = mipi_host_snrclk_set_freq(hdev, val);
+		}
 	}
 
 	return (error ? error : count);
@@ -3314,6 +3327,7 @@ static int hobot_mipi_host_probe(struct platform_device *pdev)
 		if (IS_ERR(host->snrclk.disable))
 			host->snrclk.disable = NULL;
 	}
+	host->param.snrclk_en = MIPI_HOST_SNRCLK_NOUSED;
 	ret = of_property_read_u32(pdev->dev.of_node,
 			"snrclk-idx", &node_val);
 	if (ret || node_val >= ARRAY_SIZE(g_mh_snrclk_name)) {
@@ -3334,8 +3348,6 @@ static int hobot_mipi_host_probe(struct platform_device *pdev)
 			mipi_host_snrclk_set_en(hdev, 1);
 		}
 	} else {
-		if (host->snrclk.pinctrl)
-			host->param.snrclk_en = MIPI_HOST_SNRCLK_NOUSED;
 		if (host->snrclk.index >= 0)
 			host->param.snrclk_freq = (uint32_t)(mipi_host_get_clk(hdev,
 						g_mh_snrclk_name[host->snrclk.index]));
