@@ -195,7 +195,14 @@ function build_boot_image()
 
     cpfiles "$path_avbtool/out/vbmeta.img" "$TARGET_DEPLOY_DIR"
     cpfiles "$path_avbtool/images/boot.img" "$TARGET_DEPLOY_DIR"
-
+    [ -f "$TARGET_DEPLOY_DIR/kernel.img" ] && { runcmd "rm $TARGET_DEPLOY_DIR/kernel.img"; }
+    # calculate vbmeta partition size
+    line=`sed -n '/vbmeta/p' ${GPT_CONFIG}`
+    arg=(${line//:/ })
+    vbmeta_size=$(( ${arg[4]%?} - ${arg[3]%?} + 1 ))
+    # create kernel.img
+    dd if=$TARGET_DEPLOY_DIR/vbmeta.img of=$TARGET_DEPLOY_DIR/kernel.img bs=512 conv=sync,notrunc > /dev/null 2>&1
+    dd if=$TARGET_DEPLOY_DIR/boot.img of=$TARGET_DEPLOY_DIR/kernel.img bs=512 seek=${vbmeta_size} conv=sync,notrunc > /dev/null 2>&1
     # build boot.zip
     cd $path_otatool
     bash build_kernel_update_package.sh emmc
