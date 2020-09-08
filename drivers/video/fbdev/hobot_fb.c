@@ -1273,6 +1273,67 @@ int user_set_fb(void)
 		iar_set_bufaddr(IAR_CHANNEL_3, &graphic_display_paddr);
 		iar_update();
 		//set_mipi_display(0);
+	} else if (display_type == BT656_TYPE) {
+		pr_info("fb_driver: disp set bt656 panel!\n");
+		disp_set_panel_timing(&video_704x576);
+		hobot_fbi->memory_mode = 0;
+
+		hobot_fbi->channel_base_cfg[0].enable = 1;
+		hobot_fbi->channel_base_cfg[1].enable = 0;
+		hobot_fbi->channel_base_cfg[2].enable = 1;
+		hobot_fbi->channel_base_cfg[3].enable = 0;
+		hobot_fbi->channel_base_cfg[0].channel = IAR_CHANNEL_1;
+		hobot_fbi->channel_base_cfg[0].enable = 1;
+		hobot_fbi->update_cmd.enable_flag[0] = 1;
+		hobot_fbi->update_cmd.enable_flag[2] = 1;
+		hobot_fbi->channel_base_cfg[0].pri = 3;
+		hobot_fbi->channel_base_cfg[0].width = 704;
+		hobot_fbi->channel_base_cfg[0].height = 576;
+		hobot_fbi->channel_base_cfg[0].buf_width = 704;
+		hobot_fbi->channel_base_cfg[0].buf_height = 576;
+		hobot_fbi->channel_base_cfg[0].format = FORMAT_YUV420SP_UV;
+		hobot_fbi->channel_base_cfg[0].alpha_sel = 0;
+		hobot_fbi->channel_base_cfg[0].ov_mode = 0;
+		hobot_fbi->channel_base_cfg[0].alpha_en = 1;
+		hobot_fbi->channel_base_cfg[0].alpha = 255;
+		hobot_fbi->channel_base_cfg[0].crop_width = 704;
+		hobot_fbi->channel_base_cfg[0].crop_height = 576;
+		hobot_fbi->channel_base_cfg[2].channel = IAR_CHANNEL_3;
+		hobot_fbi->channel_base_cfg[2].enable = 1;
+		hobot_fbi->update_cmd.enable_flag[2] = 1;
+		hobot_fbi->channel_base_cfg[2].pri = 1;
+		hobot_fbi->channel_base_cfg[2].width = 704;
+		hobot_fbi->channel_base_cfg[2].height = 576;
+		hobot_fbi->channel_base_cfg[2].buf_width = 704;
+		hobot_fbi->channel_base_cfg[2].buf_height = 576;
+		hobot_fbi->channel_base_cfg[2].format = 4;//ARGB8888
+		hobot_fbi->channel_base_cfg[2].alpha_sel = 0;
+		hobot_fbi->channel_base_cfg[2].ov_mode = 0;
+		hobot_fbi->channel_base_cfg[2].alpha_en = 1;
+		hobot_fbi->channel_base_cfg[2].alpha = 128;
+		hobot_fbi->channel_base_cfg[2].crop_width = 704;
+		hobot_fbi->channel_base_cfg[2].crop_height = 576;
+
+		hobot_fbi->output_cfg.out_sel = 3;//bt656
+		hobot_fbi->output_cfg.width = 704;
+		hobot_fbi->output_cfg.height = 576;
+		hobot_fbi->output_cfg.bgcolor = 16744328;//white.
+		//hobot_fbi->output_cfg.bgcolor = 88888888;//green
+
+		iar_channel_base_cfg(&hobot_fbi->channel_base_cfg[0]);
+		iar_channel_base_cfg(&hobot_fbi->channel_base_cfg[2]);
+		iar_output_cfg(&hobot_fbi->output_cfg);
+
+		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x00, 4);
+		writel(0x0572300f, hitm1_reg_addr);
+
+		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x48, 4);
+		//writel(FORMAT_ORGANIZATION_VAL, hitm1_reg_addr);
+		writel(0x00406, hitm1_reg_addr);
+
+		iar_switch_buf(0);
+		iar_set_bufaddr(IAR_CHANNEL_3, &graphic_display_paddr);
+		iar_update();
 	} else if (display_type == SIF_IPI) {
 		pr_info("%s: fb: display type is SIF IPI\n", __func__);
 		disp_set_panel_timing(&video_1920x1080);

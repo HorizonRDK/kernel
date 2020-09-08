@@ -120,22 +120,25 @@ unsigned int fb_num = 1;
 EXPORT_SYMBOL(fb_num);
 
 struct disp_timing video_1920x1080 = {
-	148, 88, 44, 36, 4, 5
+	148, 88, 44, 36, 4, 5, 10
 };
 
 struct disp_timing video_800x480 = {
-	80, 120, 48, 32, 43, 2
+	80, 120, 48, 32, 43, 2, 10
 };
 
 struct disp_timing video_720x1280 = {
-	36, 84, 24, 11, 13, 2
+	36, 84, 24, 11, 13, 2, 10
 };
 
 struct disp_timing video_1080x1920 = {
-	100, 400, 5, 4, 400, 5
+	100, 400, 5, 4, 400, 5, 10
 };
 struct disp_timing video_720x1280_touch = {
-	100, 100, 10, 20, 10, 10
+	100, 100, 10, 20, 10, 10, 10
+};
+struct disp_timing video_704x576 = {
+	288, 0, 0, 22, 2, 0, 0
 };
 
 uint32_t pixel_clk_video_1920x1080 = 163000000;
@@ -143,6 +146,7 @@ uint32_t pixel_clk_video_800x480 = 32000000;
 uint32_t pixel_clk_video_720x1280 = 68000000;
 uint32_t pixel_clk_video_1080x1920 = 32000000;
 uint32_t pixel_clk_video_720x1280_touch = 54000000;
+uint32_t pixel_clk_video_704x576 = 27000000;
 EXPORT_SYMBOL(disp_user_config_done);
 EXPORT_SYMBOL(disp_copy_done);
 EXPORT_SYMBOL(video_1920x1080);
@@ -150,6 +154,7 @@ EXPORT_SYMBOL(video_800x480);
 EXPORT_SYMBOL(video_720x1280);
 EXPORT_SYMBOL(video_1080x1920);
 EXPORT_SYMBOL(video_720x1280_touch);
+EXPORT_SYMBOL(video_704x576);
 
 uint32_t g_iar_regs[93];
 
@@ -665,12 +670,14 @@ int disp_set_panel_timing(struct disp_timing *timing)
 	writel(value, g_iar_dev->regaddr + REG_IAR_PARAMETER_VTIM_FIELD1);
 
 	value = readl(g_iar_dev->regaddr + REG_IAR_PARAMETER_VTIM_FIELD2);
-	value = IAR_REG_SET_FILED(IAR_DPI_VBP_FIELD2, timing->vbp, value);
+	value = IAR_REG_SET_FILED(IAR_DPI_VBP_FIELD2,
+			(timing->vbp) + 1, value);// for bt656 spec
 	value = IAR_REG_SET_FILED(IAR_DPI_VFP_FIELD2, timing->vfp, value);
 	value = IAR_REG_SET_FILED(IAR_DPI_VSW_FIELD2, timing->vs, value);
 	writel(value, g_iar_dev->regaddr + REG_IAR_PARAMETER_VTIM_FIELD2);
 
-	writel(0xa, g_iar_dev->regaddr + REG_IAR_PARAMETER_VFP_CNT_FIELD12);
+	writel(timing->vfp_cnt,
+		g_iar_dev->regaddr + REG_IAR_PARAMETER_VFP_CNT_FIELD12);
 	return 0;
 }
 EXPORT_SYMBOL_GPL(disp_set_panel_timing);
@@ -980,6 +987,8 @@ static int disp_clk_enable(void)
 		pixel_clock = 54400000;
 	else if (display_type == HDMI_TYPE)
 		pixel_clock = pixel_clk_video_1920x1080;
+	else if (display_type == BT656_TYPE)
+		pixel_clock = pixel_clk_video_704x576;
 	else
 		pixel_clock = 163000000;
 	pixel_clock = clk_round_rate(g_iar_dev->iar_pixel_clk, pixel_clock);
@@ -1321,7 +1330,6 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 		writel(0x8, g_iar_dev->regaddr + REG_IAR_DE_OUTPUT_SEL);//0x340
 		writel(0x13, g_iar_dev->regaddr + REG_DISP_LCDIF_CFG);//0x800
 		writel(0x3, g_iar_dev->regaddr + REG_DISP_LCDIF_PADC_RESET_N);//0x804
-		//color config
 		writel(0x0, g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);//0x204
 		display_type = MIPI_720P_TOUCH;
 #else
@@ -1342,15 +1350,26 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 
 		writel(0xc, g_iar_dev->regaddr + REG_IAR_DE_OUTPUT_SEL);
 		writel(0x0, g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
-		writel(0x00000000, g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
-		//rgb panel
 	} else if (cfg->out_sel == OUTPUT_BT656) {
 #ifdef CONFIG_HOBOT_XJ3
-		ret = disp_pinmux_bt656();
+		ret = disp_pinmux_bt1120();
 		if (ret)
 			return -1;
+		display_type = BT656_TYPE;
+		disp_set_panel_timing(&video_704x576);
 		writel(0x8, g_iar_dev->regaddr + REG_IAR_DE_OUTPUT_SEL);
-		// TODO(bt656_output_mode_config)
+		value = readl(g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
+		value = IAR_REG_SET_FILED(IAR_PANEL_COLOR_TYPE, 1, value);
+		value = IAR_REG_SET_FILED(IAR_INTERLACE_SEL, 1, value);
+		value = IAR_REG_SET_FILED(IAR_PIXEL_RATE, 1, value);
+		value = IAR_REG_SET_FILED(IAR_YCBCR_OUTPUT, 1, value);
+		value = IAR_REG_SET_FILED(IAR_ITU_R_656_EN, 1, value);
+
+		writel(value, g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
+		value = readl(g_iar_dev->regaddr + REG_IAR_FORMAT_ORGANIZATION);
+		value = IAR_REG_SET_FILED(IAR_BT601_709_SEL, 1, value);
+		writel(value, g_iar_dev->regaddr + REG_IAR_FORMAT_ORGANIZATION);
+		writel(0x4, g_iar_dev->regaddr + REG_IAR_DE_CONTROL_WO); //0x31c should be 4
 #else
 		pr_err("%s: error output mode!!!\n", __func__);
 #endif
@@ -1372,9 +1391,14 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 		pr_err("%s: error output mode!!!\n", __func__);
 		return -1;
 	}
+	if (cfg->out_sel == OUTPUT_BT656) {
+		value = IAR_REG_SET_FILED(IAR_PANEL_WIDTH, cfg->width, 0);
+		value = IAR_REG_SET_FILED(IAR_PANEL_HEIGHT, (cfg->height) >> 1, value);
 
-	value = IAR_REG_SET_FILED(IAR_PANEL_WIDTH, cfg->width, 0);
-	value = IAR_REG_SET_FILED(IAR_PANEL_HEIGHT, cfg->height, value);
+	} else {
+		value = IAR_REG_SET_FILED(IAR_PANEL_WIDTH, cfg->width, 0);
+		value = IAR_REG_SET_FILED(IAR_PANEL_HEIGHT, cfg->height, value);
+	}
 	writel(value, g_iar_dev->regaddr + REG_IAR_PANEL_SIZE);
 
 	//writel(0x00000008, g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
@@ -1431,10 +1455,12 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 		}
 	}
 
-	value = readl(g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
-	value = IAR_REG_SET_FILED(IAR_PANEL_COLOR_TYPE, 2, value);
-	value = IAR_REG_SET_FILED(IAR_YCBCR_OUTPUT, 1, value);
-	writel(value, g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
+	if (cfg->out_sel != OUTPUT_BT656) {
+		value = readl(g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
+		value = IAR_REG_SET_FILED(IAR_PANEL_COLOR_TYPE, 2, value);
+		value = IAR_REG_SET_FILED(IAR_YCBCR_OUTPUT, 1, value);
+		writel(value, g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
+	}
 #endif
 	value = readl(g_iar_dev->regaddr + REG_IAR_PP_CON_1);
 	value = IAR_REG_SET_FILED(IAR_CONTRAST, cfg->ppcon1.contrast, value);
@@ -3232,7 +3258,7 @@ static int hobot_iar_probe(struct platform_device *pdev)
 
 		if (g_iar_dev->pins_voltage) {
 			ret = pinctrl_select_state(g_iar_dev->pinctrl, g_iar_dev->pins_voltage);
-            if (ret) {
+			if (ret) {
 				dev_info(&pdev->dev, "bt1120_voltage_func set error %d\n", ret);
 			}
 		}
@@ -3369,6 +3395,21 @@ static int hobot_iar_probe(struct platform_device *pdev)
 		pr_err("can't find timing for 720*1280 touch, use default!!\n");
 	}
 
+	ret = of_property_read_u32_array(pdev->dev.of_node,
+			"timing_704x576", timing, 7);
+	if (ret == 0) {
+		pixel_clk_video_704x576 = timing[0];
+		video_704x576.hbp = timing[1];
+		video_704x576.hfp = timing[2];
+		video_704x576.hs = timing[3];
+		video_704x576.vbp = timing[4];
+		video_704x576.vfp = timing[5];
+		video_704x576.vs = timing[6];
+	} else {
+		pixel_clk_video_704x576 = 27000000;
+		pr_err("can't find timing for 704*576 touch, use default!!\n");
+	}
+
 	ret = fb_get_options("hobot", &type);
 	pr_debug("%s: fb get options display type is %s\n", __func__, type);
 	if (type != NULL) {
@@ -3406,6 +3447,9 @@ static int hobot_iar_probe(struct platform_device *pdev)
 		} else if (strstr(type, "ipi") != NULL) {
 			pr_info("%s: panel type is SIF IPI\n", __func__);
 			display_type = SIF_IPI;
+		} else if (strstr(type, "bt656") != NULL) {
+			pr_info("%s: panel type is BT656\n", __func__);
+			display_type = BT656_TYPE;
 		}
 #else
 		if (display_type == LCD_7_TYPE) {
@@ -3756,6 +3800,15 @@ static int hobot_iar_probe(struct platform_device *pdev)
 			display_color_bar(720, 1280, g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr);
 		}
 		pr_debug("set mipi 720p touch done!\n");
+	} else if (display_type == BT656_TYPE) {
+		pr_info("%s: display_type is BT656 panel!\n", __func__);
+		ret = disp_set_pixel_clk(pixel_clk_video_704x576);
+		if (ret)
+			return ret;
+		iar_display_cam_no = PIPELINE0;
+		iar_display_addr_type = DISPLAY_CHANNEL1;
+		display_color_bar(704, 576, g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr);
+		pr_debug("set bt656 panel done!\n");
 	} else if (display_type == HDMI_TYPE || display_type == SIF_IPI) {
 		if (display_type == SIF_IPI) {
 			pr_debug("%s: display_type is SIF_IPI panel!\n", __func__);

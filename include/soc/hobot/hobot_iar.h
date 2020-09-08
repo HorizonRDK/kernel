@@ -611,7 +611,8 @@ enum DISPLAY_TYPE {
 	MIPI_720P_TOUCH = 3,//mipi-dsi 720*1280 touch
 	MIPI_1080P = 4,//1080*1920
 	SIF_IPI = 5,
-	UNUSED = 6,
+	BT656_TYPE = 6,//704x576
+	UNUSED = 7,
 };
 #ifdef CONFIG_HOBOT_XJ3
 enum XJ3_DISPLAY_TYPE {
@@ -745,8 +746,7 @@ extern struct disp_timing video_800x480;
 extern struct disp_timing video_720x1280;
 extern struct disp_timing video_1080x1920;
 extern struct disp_timing video_720x1280_touch;
-extern struct disp_timing video_1920x1080_sdb;
-extern struct disp_timing video_720x1280_touch_sdb;
+extern struct disp_timing video_704x576;
 //extern uint32_t hb_disp_base_board_id;
 extern uint8_t iar_display_addr_type;
 extern uint8_t iar_display_cam_no;
