@@ -70,6 +70,7 @@ struct laintpll_bestdiv {
  * add more if there are new pll freq use case for other plls
  */
 static struct laintpll_bestdiv pll_bestdiv_table[] = {
+	{240000000,  1, 10, 1, 1},
 	{400000000,  1, 100, 6, 1},
 	{800000000,  1, 100, 3, 1},
 	{950000000,  6, 475, 2, 1},
@@ -368,7 +369,6 @@ static void laintpll_clk_disable(struct clk_hw *hw)
 
 	spin_lock_irqsave(&clk->lock, flags);
 	val = readl(clk->reg.pd_reg);
-	val |= 1 << PLL_PD_CTRL_PD_BIT | 1 << PLL_PD_CTRL_FOUTPOSTDIVPD_BIT;
 	pd = (val & (1 << PLL_PD_CTRL_PD_BIT)) >> PLL_PD_CTRL_PD_BIT;
 	if (!pd) {
 		val |= 1 << PLL_PD_CTRL_PD_BIT;

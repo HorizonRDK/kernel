@@ -59,6 +59,7 @@ struct cpu_pll_table {
 
 #define CPU_FREQ_NUM 6
 struct cpu_pll_table pll_table[CPU_FREQ_NUM] = {
+	{240000000,  240000000},
 	{250000000,  1000000000},
 	{500000000,  1500000000},
 	{800000000,  800000000},
@@ -94,26 +95,18 @@ static int __set_armpll_clk(struct clk_hw *hw, unsigned long cpu_freq)
 	if (pll_rate != old_pll_rate) {
 
 		/* enable and switch to pll2 */
-		clk_prepare(cpuclk->armpll2);
-		clk_enable(cpuclk->armpll2);
+		clk_prepare_enable(cpuclk->armpll2);
 
 		/* switch to armpll2 */
 		ret = clk_set_parent(cpuclk->armpll_mux, cpuclk->armpll2);
 		if (ret)
 			return ret;
 
-		/* change PLL */
-		clk_prepare(cpuclk->armpll1);
-		clk_enable(cpuclk->armpll1);
-		clk_disable(cpuclk->armpll1);
-
 		ret = clk_set_rate(cpuclk->armpll1, pll_rate);
 		if (ret) {
 			clk_set_parent(cpuclk->cpu_mux, cpuclk->cpu_div);
 			return ret;
 		}
-		clk_prepare(cpuclk->armpll1);
-		clk_enable(cpuclk->armpll1);
 
 		// just to config cpu_div
 		rate = clk_get_rate(cpuclk->armpll2)
@@ -125,7 +118,7 @@ static int __set_armpll_clk(struct clk_hw *hw, unsigned long cpu_freq)
 		if (ret)
 			return ret;
 
-		clk_disable(cpuclk->armpll2);
+		clk_disable_unprepare(cpuclk->armpll2);
 	}
 
 	return 0;
@@ -206,6 +199,7 @@ static struct clk *cpuclk_register(struct device *dev, const char *name,
 		return NULL;
 	}
 
+	clk_prepare_enable(cpu_clk->armpll1);
 	return clk;
 }
 
