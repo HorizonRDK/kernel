@@ -1765,6 +1765,14 @@ static int dwc3_resume_common(struct dwc3 *dwc, pm_message_t msg)
 	int		ret;
 	u32		reg;
 
+	ret = clk_bulk_prepare(dwc->num_clks, dwc->clks);
+	if (ret)
+		return ret;
+
+	ret = clk_bulk_enable(dwc->num_clks, dwc->clks);
+	if (ret)
+		return ret;
+
 	switch (dwc->current_dr_role) {
 	case DWC3_GCTL_PRTCAP_DEVICE:
 		ret = dwc3_core_init(dwc);
