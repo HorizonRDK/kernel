@@ -1782,16 +1782,27 @@ void pym_frame_done(struct pym_subdev *subdev)
 	frame = peek_frame(framemgr, FS_PROCESS);
 	if (frame) {
 		if(group->get_timestamps){
-			frame->frameinfo.frame_id = group->frameid.frame_id;
-			frame->frameinfo.timestamps =
-			    group->frameid.timestamps;
+			if(group->group_scenario !=6 &&
+				group->group_scenario != 4) {
+				frame->frameinfo.frame_id = group->frameid.frame_id;
+				frame->frameinfo.timestamps =
+				    group->frameid.timestamps;
+			}
 		} else {
-			vio_get_ipu_frame_info(&frmid);
-			frame->frameinfo.frame_id = frmid.frame_id;
-			frame->frameinfo.timestamps =
-			    frmid.timestamps;
+			if(group->group_scenario == 1 ||
+				group->group_scenario == 7) {
+				vio_get_ipu_frame_info(&frmid);
+				frame->frameinfo.frame_id = frmid.frame_id;
+				frame->frameinfo.timestamps =
+				    frmid.timestamps;
+			} else if (group->group_scenario == 2 ||
+				group->group_scenario == 5) {
+				frame->frameinfo.frame_id = group->frameid.frame_id;
+				frame->frameinfo.timestamps =
+				    group->frameid.timestamps;
+			}
 		}
-		vio_dbg("pym done fid%d timestamps %llu",
+		vio_dbg("pym done fid %d timestamps %llu",
 			frame->frameinfo.frame_id,
 			frame->frameinfo.timestamps);
 		vio_set_stat_info(group->instance, PYM_FE, group->frameid.frame_id);
@@ -1971,12 +1982,17 @@ static irqreturn_t pym_isr(int irq, void *data)
 				up(&gtask->hw_resource);
 			}
 		}
-
-		group->frameid.frame_id++;
-		if (group && group->get_timestamps)
-			vio_get_frame_id(group);
-		else
-			vio_get_ipu_frame_id(group);
+		if (group->group_scenario == 0) {
+			if (group && group->get_timestamps) {
+				vio_get_frame_id(group);
+			}
+		} else if (group->group_scenario == 1 ||
+				group->group_scenario == 7) {
+			  vio_get_ipu_frame_id(group);		// yuv ipu-online-pym
+		} else if (group->group_scenario == 2 ||
+				group->group_scenario == 5) {   // sif-offline-isp-online-ipu-online-pym
+			  vio_get_sif_frame_id(group);
+		}
 		vio_set_stat_info(group->instance, PYM_FS, group->frameid.frame_id);
 	}
 
