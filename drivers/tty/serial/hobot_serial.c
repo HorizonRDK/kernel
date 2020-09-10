@@ -255,7 +255,7 @@ static void hobot_uart_dma_rx_start(struct uart_port *port)
 	writel(HOBOT_UART_DMA_SIZE, port->membase + HOBOT_UART_RXSIZE);
 	val = readl(port->membase + HOBOT_UART_RXDMA);
 	val &= 0xFFFFFF00;
-	val |= UART_RXSTA | UART_RXWRAP;
+	val |= UART_RXSTA;
 	writel(val, port->membase + HOBOT_UART_RXDMA);
 
 	hobot_port->rx_enabled = 1;
@@ -1179,7 +1179,9 @@ static int hobot_uart_poll_get_char(struct uart_port *port)
 {
 	int c;
 
+#ifdef CONFIG_HOBOT_TTY_DMA_MODE
 	check_switch_mode(port, UART_POLL_MODE);
+#endif
 	/* Check if FIFO is empty */
 	if (!(readl(port->membase + HOBOT_UART_LSR) & UART_LSR_RXRDY))
 		c = NO_POLL_CHAR;
