@@ -246,6 +246,11 @@ int vio_bind_chain_groups(struct vio_group *src_group, struct vio_group *dts_gro
 	src_group->next = dts_group;
 	dts_group->prev = src_group;
 
+	// since this func run in
+	// the dts_group is always OTF_INPUT
+	// it's not the leader
+	dts_group->leader = false;
+
 	group = src_group;
 	while (group != group->prev) {
 		group = group->prev;
@@ -259,6 +264,11 @@ int vio_bind_chain_groups(struct vio_group *src_group, struct vio_group *dts_gro
 }
 EXPORT_SYMBOL(vio_bind_chain_groups);
 
+/*
+ * VIO modules in pipeline will run into this when init
+ * VIN/VPS will initialized randomly,
+ * but modules in VIN/VPS is sequential
+ */
 void vio_bind_group_done(int instance)
 {
 	int i = 0;
@@ -278,6 +288,14 @@ void vio_bind_group_done(int instance)
 		}
 	}
 
+	/*
+	 * whenerver vio_bind_group_done called,
+	 * all the groups in pipeline will be rechecked
+	 * and group bind relationship will be rewrite
+	 * 1. if module is DDR input, this module will be group leader
+	 * 2. if module is ONLINE input,
+	 *		this module is connected to previous group
+	 */
 	for (i = 0; i < GROUP_ID_NUMBER; i++) {
 		group = &ischain->group[i];
 		group->next = NULL;
@@ -296,6 +314,9 @@ void vio_bind_group_done(int instance)
 		}
 	}
 
+	/*
+	 * this logic is for frameid judge
+	 */
 	ipu_group = &iscore.chain[instance].group[GROUP_ID_IPU];
 	//  offline to ipu
 	if ((every_group_input[GROUP_ID_SIF_IN] == 1)
@@ -315,6 +336,7 @@ void vio_bind_group_done(int instance)
 		// G0->G2
 		ipu_group->group_scenario = 0;
 	}
+
 	for (i = 0; i < GROUP_ID_NUMBER; i++) {
 		group = &ischain->group[i];
 		if (group->leader) {
@@ -463,6 +485,8 @@ void vio_group_done(struct vio_group *group)
 		group_leader->sema_flag |= 1 << 1;
 	}
 
+	vio_dbg("group%d,leader%d,sema_flag=%d,target_sema=%d",
+		group->id, group_leader->id, group_leader->sema_flag, group_leader->target_sema);
 	if(group_leader->sema_flag == group_leader->target_sema) {
 		up(&group_task->hw_resource);
 		group_leader->sema_flag = 0;
