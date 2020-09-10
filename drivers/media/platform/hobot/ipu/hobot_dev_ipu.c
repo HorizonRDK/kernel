@@ -610,9 +610,9 @@ void ipu_frame_work(struct vio_group *group)
 		return;
 	}
 
-	if (group->group_scenario == 1 ||
-		group->group_scenario == 7 ||
-		group->group_scenario == 6) {
+	if (group->group_scenario == VIO_GROUP_SIF_OFF_IPU_ON_PYM ||
+		group->group_scenario == VIO_GROUP_SIF_ON_ISP_OFF_IPU_ON_PYM ||
+		group->group_scenario == VIO_GROUP_SIF_ON_ISP_OFF_IPU_ON_PYM) {
 		framemgr = &subdev->framemgr;
 		framemgr_e_barrier_irqs(framemgr, 0, flags);
 		frame = peek_frame(framemgr, FS_REQUEST);
@@ -658,9 +658,9 @@ void ipu_frame_work(struct vio_group *group)
 				ipu_set_us_wdma_addr(ipu->base_reg,
 							 frame->frameinfo.addr[0],
 							 frame->frameinfo.addr[1]);
-				if (group->group_scenario == 1 ||
-					group->group_scenario == 7 ||
-					group->group_scenario == 6) {
+				if (group->group_scenario == VIO_GROUP_SIF_OFF_IPU_ON_PYM ||
+					group->group_scenario == VIO_GROUP_SIF_ON_ISP_OFF_IPU_ON_PYM ||
+					group->group_scenario == VIO_GROUP_SIF_ON_ISP_OFF_IPU_ON_PYM) {
 					frame->frameinfo.frame_id = src_frame_id;
 					frame->frameinfo.timestamps = src_timestamps;
 				}
@@ -673,9 +673,9 @@ void ipu_frame_work(struct vio_group *group)
 				ipu_set_ds_wdma_addr(ipu->base_reg, i - 2,
 							 frame->frameinfo.addr[0],
 							 frame->frameinfo.addr[1]);
-				if (group->group_scenario == 1 ||
-					group->group_scenario == 7 ||
-					group->group_scenario == 6) {
+				if (group->group_scenario == VIO_GROUP_SIF_OFF_IPU_ON_PYM ||
+					group->group_scenario == VIO_GROUP_SIF_ON_ISP_OFF_IPU_ON_PYM ||
+					group->group_scenario == VIO_GROUP_SIF_ON_ISP_OFF_IPU_ON_PYM) {
 					frame->frameinfo.frame_id = src_frame_id;
 					frame->frameinfo.timestamps = src_timestamps;
 				}
@@ -2854,7 +2854,7 @@ void ipu_frame_done(struct ipu_subdev *subdev)
 			frame->frameinfo.timestamps =
 			    group->frameid.timestamps;
 		} else {
-			if (group->group_scenario > 1) {
+			if (group->group_scenario > VIO_GROUP_SIF_OFF_IPU_ON_PYM) {
 			frame->frameinfo.frame_id = group->frameid.frame_id;
 			frame->frameinfo.timestamps =
 			    group->frameid.timestamps;
@@ -3120,9 +3120,9 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		}
 
 		if (test_bit(IPU_DMA_INPUT, &ipu->state)) {
-			if(group->group_scenario != 1 &&
-				group->group_scenario != 7 &&
-				group->group_scenario != 6) {
+			if(group->group_scenario != VIO_GROUP_SIF_OFF_IPU_ON_PYM &&
+				group->group_scenario != VIO_GROUP_SIF_ON_ISP_OFF_IPU_ON_PYM &&
+				group->group_scenario != VIO_GROUP_SIF_ON_ISP_OFF_IPU_OFF_PYM) {
 				vio_get_sif_frame_id(group);
 			}
 			vio_group_done(group);
@@ -3253,14 +3253,14 @@ static irqreturn_t ipu_isr(int irq, void *data)
 				up(&gtask->hw_resource);
 			}
 		}
-		if (group->group_scenario == 0) {
+		if (group->group_scenario == VIO_GROUP_SIF_ON_ISP_ON_IPU_ON_PYM) {
 			if (group && group->get_timestamps) {
 				vio_get_frame_id(group);
 				vio_dbg("[S%d]IPU frame count = %d\n",
 						instance, group->frameid.frame_id);
 			}
-		} else if (group->group_scenario == 1 ||
-				group->group_scenario == 7) {
+		} else if (group->group_scenario == VIO_GROUP_SIF_OFF_IPU_ON_PYM ||
+				group->group_scenario == VIO_GROUP_SIF_ON_ISP_OFF_IPU_ON_PYM) {
 			ipu_frame_info.frame_id = group->frameid.frame_id;
 			ipu_frame_info.timestamps = group->frameid.timestamps;
 		}

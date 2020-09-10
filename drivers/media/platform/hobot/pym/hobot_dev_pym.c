@@ -1782,21 +1782,21 @@ void pym_frame_done(struct pym_subdev *subdev)
 	frame = peek_frame(framemgr, FS_PROCESS);
 	if (frame) {
 		if(group->get_timestamps){
-			if(group->group_scenario !=6 &&
-				group->group_scenario != 4) {
+			if(group->group_scenario !=VIO_GROUP_SIF_ON_ISP_OFF_IPU_OFF_PYM &&
+				group->group_scenario != VIO_GROUP_SIF_OFF_ISP_OFF_IPU_OFF_PYM) {
 				frame->frameinfo.frame_id = group->frameid.frame_id;
 				frame->frameinfo.timestamps =
 				    group->frameid.timestamps;
 			}
 		} else {
-			if(group->group_scenario == 1 ||
-				group->group_scenario == 7) {
+			if(group->group_scenario == VIO_GROUP_SIF_OFF_IPU_ON_PYM ||
+				group->group_scenario == VIO_GROUP_SIF_ON_ISP_OFF_IPU_ON_PYM) {
 				vio_get_ipu_frame_info(&frmid);
 				frame->frameinfo.frame_id = frmid.frame_id;
 				frame->frameinfo.timestamps =
 				    frmid.timestamps;
-			} else if (group->group_scenario == 2 ||
-				group->group_scenario == 5) {
+			} else if (group->group_scenario == VIO_GROUP_SIF_OFF_ISP_ON_IPU_ON_PYM ||
+				group->group_scenario == VIO_GROUP_SIF_OFF_ISP_OFF_IPU_ON_PYM) {
 				frame->frameinfo.frame_id = group->frameid.frame_id;
 				frame->frameinfo.timestamps =
 				    group->frameid.timestamps;
@@ -1982,15 +1982,15 @@ static irqreturn_t pym_isr(int irq, void *data)
 				up(&gtask->hw_resource);
 			}
 		}
-		if (group->group_scenario == 0) {
+		if (group->group_scenario == VIO_GROUP_SIF_ON_ISP_ON_IPU_ON_PYM) {
 			if (group && group->get_timestamps) {
 				vio_get_frame_id(group);
 			}
-		} else if (group->group_scenario == 1 ||
-				group->group_scenario == 7) {
+		} else if (group->group_scenario == VIO_GROUP_SIF_OFF_IPU_ON_PYM ||
+				group->group_scenario == VIO_GROUP_SIF_ON_ISP_OFF_IPU_ON_PYM) {
 			  vio_get_ipu_frame_id(group);		// yuv ipu-online-pym
-		} else if (group->group_scenario == 2 ||
-				group->group_scenario == 5) {   // sif-offline-isp-online-ipu-online-pym
+		} else if (group->group_scenario == VIO_GROUP_SIF_OFF_ISP_ON_IPU_ON_PYM ||
+				group->group_scenario == VIO_GROUP_SIF_OFF_ISP_OFF_IPU_ON_PYM) {
 			  vio_get_sif_frame_id(group);
 		}
 		vio_set_stat_info(group->instance, PYM_FS, group->frameid.frame_id);

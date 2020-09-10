@@ -69,6 +69,17 @@ enum vio_group_state {
 	VIO_GROUP_LEADER,
 };
 
+enum vio_group_scenarios_state {
+	VIO_GROUP_SIF_ON_ISP_ON_IPU_ON_PYM,
+	VIO_GROUP_SIF_OFF_IPU_ON_PYM,
+	VIO_GROUP_SIF_OFF_ISP_ON_IPU_ON_PYM,
+	VIO_GROUP_SIF_OFF_ISP_ON_IPU_OFF_PYM,
+	VIO_GROUP_SIF_OFF_ISP_OFF_IPU_OFF_PYM,
+	VIO_GROUP_SIF_OFF_ISP_OFF_IPU_ON_PYM,
+	VIO_GROUP_SIF_ON_ISP_OFF_IPU_OFF_PYM,
+	VIO_GROUP_SIF_ON_ISP_OFF_IPU_ON_PYM,
+};
+
 struct vio_group_task {
 	struct task_struct		*task;
 	struct kthread_worker	worker;
