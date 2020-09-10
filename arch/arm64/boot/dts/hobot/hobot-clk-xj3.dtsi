@@ -376,7 +376,6 @@
 			compatible = "hobot,laintpll-clk";
 			clocks = <&osc_clk>;
 			offset = <0x20 0x24 0x28>;
-			clk-flags = <CLK_IGNORE_UNUSED>;
 		};
 
 		cnn_src_clk: cnn_src_clk {
@@ -482,7 +481,6 @@
 			compatible = "hobot,laintpll-clk";
 			clocks = <&osc_clk>;
 			offset = <0x40 0x44 0x48>;
-			clk-flags = <CLK_IGNORE_UNUSED>;
 		};
 
 		vio_pllmux_clk: vio_pllmux_clk {
@@ -499,7 +497,6 @@
 			compatible = "hobot,laintpll-clk";
 			clocks = <&osc_clk>;
 			offset = <0xB0 0xB4 0xB8>;
-			clk-flags = <CLK_IGNORE_UNUSED>;
 		};
 
 		vio2_pllmux_clk: vio2_pllmux_clk {
