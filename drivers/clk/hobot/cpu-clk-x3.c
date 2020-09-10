@@ -57,8 +57,7 @@ struct cpu_pll_table {
 	unsigned long pll_freq;
 };
 
-#define CPU_FREQ_NUM 6
-struct cpu_pll_table pll_table[CPU_FREQ_NUM] = {
+struct cpu_pll_table pll_table[] = {
 	{240000000,  240000000},
 	{250000000,  1000000000},
 	{500000000,  1500000000},
@@ -78,7 +77,7 @@ static int __set_armpll_clk(struct clk_hw *hw, unsigned long cpu_freq)
 
 	cpuclk = to_cpuclk(hw);
 
-	for (i = 0; i < CPU_FREQ_NUM; i++) {
+	for (i = 0; i < ARRAY_SIZE(pll_table); i++) {
 		if (cpu_freq == pll_table[i].cpu_freq) {
 			pll_rate = pll_table[i].pll_freq;
 			found = 1;
