@@ -366,9 +366,10 @@ static void laintpll_clk_disable(struct clk_hw *hw)
 	unsigned int val;
 
 	clk = to_clk_laintpll(hw);
-
 	spin_lock_irqsave(&clk->lock, flags);
 	val = readl(clk->reg.pd_reg);
+	/* del this bl31 will not work properly when suspend, reserve for now*/
+	val |= 1 << PLL_PD_CTRL_PD_BIT | 1 << PLL_PD_CTRL_FOUTPOSTDIVPD_BIT;
 	pd = (val & (1 << PLL_PD_CTRL_PD_BIT)) >> PLL_PD_CTRL_PD_BIT;
 	if (!pd) {
 		val |= 1 << PLL_PD_CTRL_PD_BIT;
