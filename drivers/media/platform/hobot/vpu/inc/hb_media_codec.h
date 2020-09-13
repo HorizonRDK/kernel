@@ -4393,6 +4393,30 @@ typedef struct _mc_h264_h265_output_stream_info {
  * - Default: 0
  */
 	hb_u32 frame_cycle;
+
+/**
+ * Temporal ID.
+ *
+ * - Note:
+ * - Encoding: Support.
+ * - Decoding: Unsupport.
+ * - Default: 0
+ */
+	hb_u32 temporal_id;
+
+/**
+ * Longterm reference type and it's valid when longterm reference mode is
+ * enabled.
+ *
+ * - Note: 0: normal frame
+ *         1: longterm reference frame
+ *         2: using longterm reference frame
+ *         3: longterm reference and using longterm reference frame
+ * - Encoding: Support.
+ * - Decoding: Unsupport.
+ * - Default: 0
+ */
+	hb_u32 longterm_ref_type;
 } mc_h264_h265_output_stream_info_t;
 
 /**
