@@ -1140,6 +1140,9 @@
 			clocks = <&sys_div_pclk>;
 			clock-names = "sys_pclk";
 			#thermal-sensor-cells = <0>;
+			voltage_montior: voltage_montior {
+				#io-channel-cells = <1>;
+			};
 		};
 
 		ddr_monitor: ddr_monitor@0xA2D10000 {

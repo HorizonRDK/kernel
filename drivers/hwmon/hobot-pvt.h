@@ -260,7 +260,13 @@
 #define VM_CMN_SMPL_CNT_ADDR           0x0428
 
 #define VM_IRQ_ENABLE_ADDR          0x0600
+#define VM_IRQ_EN_FAULT_BIT         BIT(0)
+#define VM_IRQ_EN_DONE_BIT          BIT(1)
+
 #define VM_IRQ_STATUS_ADDR          0x0604
+#define VM_IRQ_STS_FAULT_BIT        BIT(0)
+#define VM_IRQ_STS_DONE_BIT         BIT(1)
+
 #define VM_IRQ_CLEAR_ADDR           0x0608
 #define VM_IRQ_TEST_ADDR            0x060c
 #define VM_IRQ_ALARMA_ENABLE_ADDR   0x0610
@@ -275,6 +281,7 @@
 #define VM_SDIF_DONE_ADDR           0x0634
 
 #define VM_CH_n_SDIF_DATA_ADDR     0x0640
+#define VM_SDIF_DATA_FAULT_BIT     BIT(17)
 /*
 #define VM_00_CH_00_SDIF_DATA_ADDR     0x0640
 #define VM_00_CH_01_SDIF_DATA_ADDR     0x0644
@@ -369,7 +376,9 @@
 #define HOBOT_SEC_EFUSE_BASE	0xA6008100
 #define PVT_TS_A_MASK			0xFFFF0000
 #define PVT_TS_B_MASK			0x0000FFFF
+#define PVT_VM_K3_MASK          0xFFFF0000
+#define PVT_VM_N0_MASK          0x00000FFF
 
-
-
+extern int hobot_vm_probe(struct device *dev, void __iomem *reg_base,
+			void __iomem *efuse_base);
 #endif /* __HOBOT_PVT_H__ */

@@ -513,6 +513,7 @@ static int pvt_probe(struct platform_device *pdev)
 	hwmon_dev = devm_hwmon_device_register_with_info(&pdev->dev,
 					HOBOT_PVT_TEMP_NAME, pvt_dev,
 					&pvt_chip_info, NULL);
+	hobot_vm_probe(&pdev->dev, pvt_dev->reg_base, pvt_dev->efuse_base);
 
 	return PTR_ERR_OR_ZERO(hwmon_dev);
 
