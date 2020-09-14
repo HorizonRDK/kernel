@@ -1204,7 +1204,7 @@
 			offset = <0x360>;
 			bits = <16>;
 			field = <3>;
-			clk-flags = <CLK_SET_RATE_PARENT>;
+			//clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		i2s1_bclk: i2s1_bclk {

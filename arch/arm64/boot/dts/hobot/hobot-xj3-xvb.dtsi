@@ -57,6 +57,7 @@
 		sndcard0 = &snd0;
 		sndcard1 = &snd1;
 		sndcard2 = &snd2;
+		sndcard3 = &snd3;
 		idma0 = &i2sidma0;
 		idma1 = &i2sidma1;
 	};
@@ -165,6 +166,12 @@
                 reg = <0x1a>;
                 #sound-dai-cells = <0>;
         };
+
+	ac102_0: ac102_0@0x33 {
+		compatible = "ac102_0";
+		reg = <0x33>;
+		#sound-dai-cells = <1>;
+	};
 
 	adau1977: adau1977@0x11 {
 		compatible = "adau1977";
@@ -506,6 +513,10 @@
 	status = "okay";
 };
 
+&snd3 {
+	status = "okay";
+};
+
 &jpu {
 	status = "okay";
 };
@@ -557,6 +568,7 @@
                 };
                 codec {
                         sound-dai = <&ac101>;
+                        //sound-dai = <&ac102_0 0>;
                 };
                 platform {
                         sound-dai = <&i2sidma1>;
@@ -609,6 +621,44 @@
                 };
                 codec {
                         sound-dai = <&ac101>;
+                };
+                platform {
+                        sound-dai = <&i2sidma1>;
+                };
+        };
+};
+
+&snd3 {
+        model = "x2snd3";
+        dai-link@0 {
+                dai-format = "dsp_a";
+                //dai-format = "i2s";   //duplex
+                bitclock-master;
+                frame-master;
+                frame-inversion;
+                link-name = "x2dailink0";
+                cpu {
+                        sound-dai = <&i2s0>;
+                };
+                codec {
+                        //sound-dai = <&ac101>;    //duplex
+                        sound-dai = <&ac108_0 0>;
+                };
+                platform {
+                        sound-dai = <&i2sidma0>;
+                };
+        };
+        dai-link@1 {
+                dai-format = "i2s";
+                bitclock-master;   //not need setting in duplex
+                frame-master;      //not need setting in duplex
+                frame-inversion;
+                link-name = "x2dailink1";
+                cpu {
+                        sound-dai = <&i2s1>;
+                };
+                codec {
+                        sound-dai = <&ac102_0 0>;
                 };
                 platform {
                         sound-dai = <&i2sidma1>;

@@ -1077,7 +1077,19 @@ int ac101_hw_params(struct snd_pcm_substream *substream,
 	}
 
 	/* set LRCK/BCLK ratio */
-	aif1_lrck_div = aif1_slot_size * channels;
+	//aif1_lrck_div = aif1_slot_size * channels;
+	switch(params_rate(params)) {
+	case 16000:
+	case 22050:
+		aif1_lrck_div = 128;
+		break;
+	case 8000:
+	case 32000:
+	case 48000:
+	case 44100:
+		aif1_lrck_div = 64;
+		break;
+	}
 	for (i = 0; i < ARRAY_SIZE(codec_aif1_lrck); i++) {
 		if (codec_aif1_lrck[i].val == aif1_lrck_div) {
 			break;

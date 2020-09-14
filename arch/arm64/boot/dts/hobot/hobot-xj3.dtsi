@@ -374,6 +374,14 @@
 			status = "disabled";
 		};
 
+		snd3: sndcard@3 {
+                        compatible = "hobot, hobot-snd3";
+                        i2s_mode = <4>;
+                        master = <1>;
+                        channel_max = <8>;
+                        status = "disabled";
+                };
+
 		i2c0: i2c@0xA5009000 {
 			compatible = "hobot,hobot-i2c";
 			reg = <0 0xA5009000 0 0x100>;

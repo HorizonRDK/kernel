@@ -1186,6 +1186,9 @@ config SND_SOC_AC108_DRIVER
 config SND_SOC_AC101_DRIVER
 	tristate "AC101 Audio Codec"
 	depends on I2C
+config SND_SOC_AC102
+	tristate "AC102 Audio Codec"
+	depends on I2C
 config HOBOT_SOC
 	tristate "CONFIG HOBOT SOC support"
 config SND_SOC_TI1864

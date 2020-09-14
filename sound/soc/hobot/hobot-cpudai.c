@@ -153,6 +153,8 @@ static void hobot_i2s_sample_rate_set(struct snd_pcm_substream *substream,
         int lrck_div = 0;
 
 	u32 reg_val = 0;
+	u16 mclk_period;
+	int mclk;
 
 	/* first get div_ws_l and div_ws_h, the value is equal */
 	/* bclk = Fws*(chan*word_len) = Fws*(div_ws_l+1 + div_ws_h+1) */
@@ -177,14 +179,41 @@ static void hobot_i2s_sample_rate_set(struct snd_pcm_substream *substream,
 	} else {/* play */
 
 		if (i2s->i2sdsp == 0) {	/* i2s mode */
-			lrck_div = i2s->wordlength * i2s->channel_num;
+			if (i2s->samplerate == 22050 || i2s->samplerate == 16000)
+				lrck_div = 128;
+			else
+				lrck_div = 64;
 			i2s->clk = i2s->samplerate * lrck_div;
 			ws_l = ws_h = (lrck_div / 2) - 1;
-			ret = change_clk(i2s->dev, "i2s-bclk",
-				i2s->clk);
-			if (ret < 0) {
-				pr_err("change i2s bclk failed\n");
+
+			clk_disable(i2s->bclk);
+			clk_disable(i2s->mclk);
+			if (i2s->samplerate == 44100 || i2s->samplerate == 22050 ||
+					i2s->samplerate == 8000) {
+				mclk_period = 4;
+				mclk = mclk_period * i2s->clk;
+				ret = change_clk(i2s->dev, "i2s-mclk", mclk);
+				if (ret < 0) {
+					pr_err("change i2s mclk failed\n");
+				}
+				ret = change_clk(i2s->dev, "i2s-bclk", i2s->clk);
+				if (ret < 0) {
+					pr_err("change i2s bclk failed\n");
+				}
+			} else {
+				ret = change_clk(i2s->dev, "i2s-mclk",
+					i2s->mclk_set);
+				if (ret < 0) {
+					pr_err("change i2s mclk failed\n");
+				}
+				ret = change_clk(i2s->dev, "i2s-bclk",
+					i2s->clk);
+				if (ret < 0) {
+					pr_err("change i2s bclk failed\n");
+				}
 			}
+			clk_enable(i2s->mclk);
+                        clk_enable(i2s->bclk);
 			i2s->div_ws = ws_l | (ws_h << 8);
 			writel(i2s->div_ws, i2s->regaddr_tx + I2S_DIV_WS);
 
@@ -687,11 +716,12 @@ static int hobot_i2s_probe(struct platform_device *pdev)
 
 		if (i2s->ms == 1) {
 			clk_disable(i2s->bclk);
-			//ret = change_clk(&pdev->dev, "i2s-mclk-div",
-			//	i2s->mclk_set);
+			ret = change_clk(&pdev->dev, "i2s-mclk",
+				i2s->mclk_set);
 			ret = change_clk(&pdev->dev, "i2s-bclk",
 				i2s->bclk_set);
 
+			clk_enable(i2s->mclk);
 			clk_enable(i2s->bclk);
 			pr_info("change_clk blck ret = %d\n", ret);
 		} else if (i2s->ms == 4) {

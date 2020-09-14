@@ -19,6 +19,7 @@
 #define AC101_BCLK1 3
 #define AC101_BCLK2 4
 
+#define FREQ_OUT 24576000
 #define HOBOT_DEF_SND_CARD 0;
 static int snd_card = HOBOT_DEF_SND_CARD;
 module_param(snd_card, uint, S_IRUGO);
@@ -63,6 +64,13 @@ static int hobot_snd_hw_params(struct snd_pcm_substream *substream,
 	if (!strcmp(rtd->codec_dai->name, "ac101-ic-pcm0")) {
 		ret = snd_soc_dai_set_sysclk(rtd->codec_dai, AC101_MCLK1, mclk,
 			SND_SOC_CLOCK_IN);
+		if (ret < 0) {
+			pr_err("%s, line:%d\n", __func__, __LINE__);
+			return ret;
+		}
+	} else if (!strcmp(rtd->codec_dai->name, "ac108-ic-pcm0")) {
+		ret = snd_soc_dai_set_pll(rtd->codec_dai, 0, 0, mclk,
+			FREQ_OUT);
 		if (ret < 0) {
 			pr_err("%s, line:%d\n", __func__, __LINE__);
 			return ret;
@@ -129,8 +137,10 @@ static int hobot_snd_probe(struct platform_device *pdev)
 			id = 0;
 		else if (!strcmp(card->name, "x2snd1"))
 			id = 1;
-		else
+		else if (!strcmp(card->name, "x2snd2"))
 			id = 2;
+		else
+			id = 3;
 	}
 	if (snd_card == id) {
 		for_each_child_of_node(node, np) {
@@ -151,6 +161,8 @@ static int hobot_snd_probe(struct platform_device *pdev)
 
 			ret = of_property_read_u32(link->cpu_of_node,
 				"mclk_set", &mclk);
+			if (id == 0)
+				mclk = 24576000;
 			pr_debug("Name of link->cpu_of_node : %s\n", link->cpu_of_node->name);
 		
 			ret = snd_soc_of_get_dai_link_codecs(dev, codec, link);
@@ -218,6 +230,7 @@ static const struct of_device_id hobot_snd_of_match[] = {
 	{.compatible = "hobot, hobot-snd0", },
 	{.compatible = "hobot, hobot-snd1", },
 	{.compatible = "hobot, hobot-snd2", },
+	{.compatible = "hobot, hobot-snd3", },
 	{}
 };
 
