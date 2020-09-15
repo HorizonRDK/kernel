@@ -19,8 +19,21 @@ static void gd25q256_default_init(struct spi_nor *nor)
 	nor->params->quad_enable = spi_nor_sr1_bit6_quad_enable;
 }
 
+static void gd25lq256_default_init(struct spi_nor *nor)
+{
+	/*
+	 * Some manufacturer like GigaDevice may need to manually
+	 * enable 4byte addressing modes on different memories.
+	 */
+	nor->params->set_4byte_addr_mode = spi_nor_set_4byte_addr_mode;
+}
+
 static struct spi_nor_fixups gd25q256_fixups = {
 	.default_init = gd25q256_default_init,
+};
+
+static struct spi_nor_fixups gd25lq256_fixups = {
+	.default_init = gd25lq256_default_init,
 };
 
 static const struct flash_info gigadevice_parts[] = {
@@ -47,7 +60,8 @@ static const struct flash_info gigadevice_parts[] = {
 			     SPI_NOR_HAS_LOCK | SPI_NOR_HAS_TB) },
 	{ "gd25q128", INFO(0xc84018, 0, 64 * 1024, 256,
 			   SECT_4K | SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ |
-			   SPI_NOR_HAS_LOCK | SPI_NOR_HAS_TB) },
+			   SPI_NOR_HAS_LOCK | SPI_NOR_HAS_TB)
+			   .fixups = &gd25lq256_fixups },
 	{ "gd25q256", INFO(0xc84019, 0, 64 * 1024, 512,
 			   SECT_4K | SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ |
 			   SPI_NOR_4B_OPCODES | SPI_NOR_HAS_LOCK |
