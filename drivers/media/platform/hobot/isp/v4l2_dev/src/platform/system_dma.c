@@ -197,6 +197,10 @@ void system_dma_desc_flush(void)
     if (!list_empty(&g_hobot_dma.done_list)) {
         list_splice_tail_init(&g_hobot_dma.done_list, &g_hobot_dma.free_list);
     }
+
+    g_hobot_dma.nents_total = 0;
+    g_hobot_dma.is_busy = 0;
+
     system_spinlock_unlock( g_hobot_dma.dma_ctrl_lock, flags );
 }
 #endif

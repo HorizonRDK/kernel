@@ -1038,6 +1038,7 @@ int isp_v4l2_stream_try_format( isp_v4l2_stream_t *pstream, struct v4l2_format *
 
     f->fmt.pix.field = V4L2_FIELD_NONE;
 
+    pr_debug("after align w %d, h %d\n", f->fmt.pix.width, f->fmt.pix.height);
 
     //all stream multiplanar
     f->type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
@@ -1049,6 +1050,8 @@ int isp_v4l2_stream_try_format( isp_v4l2_stream_t *pstream, struct v4l2_format *
         if (i == 1 && f->fmt.pix_mp.pixelformat == V4L2_PIX_FMT_NV12)
 		f->fmt.pix_mp.plane_fmt[i].sizeimage = f->fmt.pix_mp.plane_fmt[i].sizeimage / 2;
         memset( f->fmt.pix_mp.plane_fmt[i].reserved, 0, sizeof( f->fmt.pix_mp.plane_fmt[i].reserved ) );
+        pr_debug("plane %d, bytesperline %d, sizeimage %d\n", i,
+            f->fmt.pix_mp.plane_fmt[i].bytesperline, f->fmt.pix_mp.plane_fmt[i].sizeimage);
     }
 
     return 0;

@@ -152,7 +152,7 @@ int isp_v4l2_update_ctx(int ctx_id)
     int rc = 0;
     acamera_context_t *p_ctx = acamera_get_ctx_ptr(ctx_id);
 
-    if (isp_stream_onoff_check() == 0 && isp_open_check() <= 1) {
+    if (isp_stream_onoff_check() == 0 && isp_open_check() < 1) {
         if (p_ctx->dma_chn_idx >= 0 && p_ctx->dma_chn_idx < HW_CONTEXT_NUMBER) {
             acamera_update_cur_settings_to_isp(p_ctx->dma_chn_idx);
         }
@@ -176,9 +176,8 @@ static int isp_v4l2_fop_open( struct file *file )
         return rc;
     }
 
-    pr_debug("ctx_id %d +\n", dev->ctx_id);
-
     mutex_lock(&init_lock);
+    pr_debug("ctx_id %d +\n", dev->ctx_id);
 
     if (isp_open_check() == 0) {
         ips_set_clk_ctrl(ISP0_CLOCK_GATE, true);
@@ -231,9 +230,8 @@ static int isp_v4l2_fop_open( struct file *file )
     /* update open counter */
     atomic_add( 1, &dev->opened );
 
-    mutex_unlock(&init_lock);
-
     pr_debug("ctx_id %d -\n", dev->ctx_id);
+    mutex_unlock(&init_lock);
 
     return rc;
 
