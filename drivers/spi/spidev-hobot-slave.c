@@ -849,6 +849,8 @@ extern char spi_recv_rc, spi_send_rc;
 static int spidev_open(struct inode *inode, struct file *filp)
 {
 	struct spidev_data	*spidev;
+	struct spi_device *spi;
+	struct spi_controller *ctlr;
 	int	status = -ENXIO, i;
 
 	mutex_lock(&device_list_lock);
@@ -864,6 +866,10 @@ static int spidev_open(struct inode *inode, struct file *filp)
 		pr_debug("spidev: nothing for minor %d\n", iminor(inode));
 		goto err_find_dev;
 	}
+
+	spi = spidev->spi;
+	ctlr = spi->controller;
+	ctlr->info_ap = hb_spi_info_ap;
 
 	/* just init one time */
 	if (spidev->users > 0) {

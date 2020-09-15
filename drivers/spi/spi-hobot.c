@@ -174,6 +174,7 @@ char tx_rx_interrupt_conflict_flag;
 #endif
 
 struct hb_spi {
+	struct spi_controller *controller;
 	struct device *dev;	/* parent device */
 	void __iomem *regs_base;/* virt. address of the control registers */
 	int irq;		/* spi interrupt */
@@ -433,6 +434,7 @@ static int hb_spi_fill_txdma(struct hb_spi *hbspi)
 {
 	int cnt = 0, fragment_size = 0;
 	u32 dma_ctrl1 = 0;
+	struct spi_controller *ctlr = hbspi->controller;
 
 	if (hbspi->txbuf == NULL) {
 		hb_spi_wr(hbspi, HB_SPI_TXD_REG, 0);
@@ -503,8 +505,8 @@ static int hb_spi_fill_txdma(struct hb_spi *hbspi)
 		hb_spi_wr(hbspi, HB_SPI_RDMA_SIZE0_REG, cnt);
 		/* open tx and rx dma at same time avoid rx problem */
 		hb_spi_wr(hbspi, HB_SPI_DMA_CTRL1_REG, dma_ctrl1);
-		if (hbspi->isslave == SLAVE_MODE)
-			hb_spi_info_ap();
+		if (hbspi->isslave == SLAVE_MODE && ctlr->info_ap)
+			ctlr->info_ap();
 	}
 	return cnt;
 }
@@ -1135,6 +1137,7 @@ static int hb_spi_probe(struct platform_device *pdev)
 	hbspi = spi_controller_get_devdata(ctlr);
 	ctlr->dev.of_node = pdev->dev.of_node;
 	platform_set_drvdata(pdev, ctlr);
+	hbspi->controller = ctlr;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	hbspi->regs_base = devm_ioremap_resource(&pdev->dev, res);

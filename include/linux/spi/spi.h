@@ -654,6 +654,9 @@ struct spi_controller {
 
 	/* Interrupt enable state during PTP system timestamping */
 	unsigned long		irq_flags;
+
+	/* for cp notify ap dma config is ready */
+	void (*info_ap)(void);
 };
 
 static inline void *spi_controller_get_devdata(struct spi_controller *ctlr)

@@ -50,7 +50,7 @@
  * nodes, since there is no fixed association of minor numbers with any
  * particular SPI bus or device.
  */
-#define SPIDEV_MAJOR			153	/* assigned */
+#define SPIDEV_MAJOR			154	/* assigned */
 #define N_SPI_MINORS			32	/* ... up to 256 */
 
 static DECLARE_BITMAP(minors, N_SPI_MINORS);
@@ -825,7 +825,7 @@ static int __init spidev_init(void)
 	 * the driver which manages those device numbers.
 	 */
 	BUILD_BUG_ON(N_SPI_MINORS > 256);
-	status = register_chrdev(SPIDEV_MAJOR, "spi", &spidev_fops);
+	status = register_chrdev(SPIDEV_MAJOR, "spidev_test", &spidev_fops);
 	if (status < 0)
 		return status;
 

@@ -88,3 +88,32 @@
 	cnn-supply = <&cnn1_pd_reg>;
 	governor = "userspace";
 };
+
+&sdio1 {
+	powerup-gpio = <100>;	/* x3-dvb UART1_CTSN/GPIO6[4] */
+	powerup-logic = <1>;
+};
+
+&sdio2 {
+	powerup-gpio = <2>; /* x3-dvb EN_VDD_CNN1/GPIO0[2] */
+};
+
+
+&spi2 {
+	status = "disable";
+	slave;
+	slave@0x00 {
+		compatible = "rohm,dh2228fv";
+		spi-max-frequency = <20000000>;
+		reg = <0>;
+	};
+};
+
+&spi0 {
+	status = "disable";
+	spidev@0x00 {
+		compatible = "rohm,dh2228fv";
+		spi-max-frequency = <20000000>;
+		reg = <0>;
+	};
+};
