@@ -27,6 +27,7 @@
 #include <media/v4l2-ioctl.h>
 #include <media/v4l2-fh.h>
 #include <media/v4l2-event.h>
+#include <linux/pm_qos.h>
 
 #include "acamera_logger.h"
 
@@ -60,6 +61,7 @@ extern void *acamera_get_ctx_ptr(uint32_t ctx_id);
 extern int ips_set_clk_ctrl(unsigned long module, bool enable);
 extern void general_temper_disable(void);
 static int _v4l2_stream_off(struct file *file);
+static struct pm_qos_request isp_pm_qos_req;
 /* ----------------------------------------------------------------
  * V4L2 file handle structures and functions
  * : implementing multi stream
@@ -180,6 +182,7 @@ static int isp_v4l2_fop_open( struct file *file )
     pr_debug("ctx_id %d +\n", dev->ctx_id);
 
     if (isp_open_check() == 0) {
+        pm_qos_add_request(&isp_pm_qos_req, PM_QOS_DEVFREQ, 8300);
         ips_set_clk_ctrl(ISP0_CLOCK_GATE, true);
         mdelay(1);
         ips_set_module_reset(ISP0_RST);
@@ -269,6 +272,10 @@ static int isp_v4l2_fop_close( struct file *file )
 
     //isp hardware stop
     if (isp_open_check() == 0) {
+        pm_qos_remove_request(&isp_pm_qos_req);
+        acamera_fw_isp_stop(dev->ctx_id);
+        general_temper_disable();
+        dma_writer_disable(dev->ctx_id);
         ips_set_clk_ctrl(ISP0_CLOCK_GATE, false);
         acamera_fw_mem_free();
     }
