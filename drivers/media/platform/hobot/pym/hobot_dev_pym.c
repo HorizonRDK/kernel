@@ -25,6 +25,7 @@
 #include <linux/io.h>
 #include <linux/poll.h>
 #include <linux/ion.h>
+#include <linux/pm_qos.h>
 
 #include "hobot_dev_pym.h"
 #include "pym_hw_api.h"
@@ -36,6 +37,7 @@ void pym_update_param_ch(struct pym_subdev *subdev);
 int pym_video_streamoff(struct pym_video_ctx *pym_ctx);
 
 extern struct ion_device *hb_ion_dev;
+static struct pm_qos_request pym_pm_qos_req;
 
 static int x3_pym_open(struct inode *inode, struct file *file)
 {
@@ -61,6 +63,7 @@ static int x3_pym_open(struct inode *inode, struct file *file)
 	pym_ctx->state = BIT(VIO_VIDEO_OPEN);
 
 	if (atomic_read(&pym->open_cnt) == 0) {
+		pm_qos_add_request(&pym_pm_qos_req, PM_QOS_DEVFREQ, 8300);
 		atomic_set(&pym->backup_fcount, 0);
 		atomic_set(&pym->sensor_fcount, 0);
 		atomic_set(&pym->enable_cnt, 0);
@@ -267,6 +270,7 @@ static int x3_pym_close(struct inode *inode, struct file *file)
 	}
 
 	if (atomic_dec_return(&pym->open_cnt) == 0) {
+		pm_qos_remove_request(&pym_pm_qos_req);
 		clear_bit(PYM_OTF_INPUT, &pym->state);
 		clear_bit(PYM_DMA_INPUT, &pym->state);
 		clear_bit(PYM_REUSE_SHADOW0, &pym->state);

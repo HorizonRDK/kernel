@@ -26,6 +26,7 @@
 #include <linux/poll.h>
 #include <soc/hobot/diag.h>
 #include <linux/ion.h>
+#include <linux/pm_qos.h>
 
 #include "hobot_dev_ipu.h"
 #include "ipu_hw_api.h"
@@ -53,6 +54,7 @@ void ipu_disable_all_channels(void __iomem *base_reg, u8 shadow_index);
 int ipu_hw_enable_channel(struct ipu_subdev *subdev, bool enable);
 
 extern struct ion_device *hb_ion_dev;
+static struct pm_qos_request ipu_pm_qos_req;
 
 static struct mutex ipu_mutex;
 
@@ -88,6 +90,7 @@ static int x3_ipu_open(struct inode *inode, struct file *file)
 		goto p_err;
 	}
 	if (atomic_inc_return(&ipu->open_cnt) == 1) {
+		pm_qos_add_request(&ipu_pm_qos_req, PM_QOS_DEVFREQ, 8300);
 		atomic_set(&ipu->backup_fcount, 0);
 		atomic_set(&ipu->sensor_fcount, 0);
 		atomic_set(&ipu->enable_cnt, 0);
@@ -331,6 +334,7 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 	}
 
 	if (atomic_dec_return(&ipu->open_cnt) == 0) {
+		pm_qos_remove_request(&ipu_pm_qos_req);
 		clear_bit(IPU_OTF_INPUT, &ipu->state);
 		clear_bit(IPU_DMA_INPUT, &ipu->state);
 		clear_bit(IPU_DS2_DMA_OUTPUT, &ipu->state);
