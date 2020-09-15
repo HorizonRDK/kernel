@@ -26,7 +26,7 @@
 #include <linux/timer.h>
 #include <linux/poll.h>
 #include <soc/hobot/diag.h>
-
+#include <linux/pm_qos.h>
 #include "hobot_dev_sif.h"
 #include "sif_hw_api.h"
 
@@ -42,6 +42,7 @@ static bool debug_log_print = 0;
 module_param(debug_log_print, bool, 0644);
 static int g_print_instance = 0;
 int sif_video_streamoff(struct sif_video_ctx *sif_ctx);
+static struct pm_qos_request sif_pm_qos_req;
 
 static int x3_sif_suspend(struct device *dev)
 {
@@ -279,6 +280,7 @@ static int x3_sif_open(struct inode *inode, struct file *file)
 		if (sif_mclk_freq)
 			vio_set_clk_rate("sif_mclk", sif_mclk_freq);
 		ips_set_clk_ctrl(SIF_CLOCK_GATE, true);
+		pm_qos_add_request(&sif_pm_qos_req, PM_QOS_DEVFREQ, 8300);
 		/*4 ddr in channel can not be 0 together*/
 		sif_enable_dma(sif->base_reg, 0x10000);
 	}
@@ -401,6 +403,7 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 			atomic_set(&sif->rsccount, 0);
 			vio_info("sif force stream off\n");
 		}
+		pm_qos_remove_request(&sif_pm_qos_req);
 		//it should disable after ipu stream off because it maybe contain ipu/sif clk
 		//vio_clk_disable("sif_mclk");
         ips_set_module_reset(SIF_RST);
