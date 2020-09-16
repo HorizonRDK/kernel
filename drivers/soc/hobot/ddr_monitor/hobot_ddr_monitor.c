@@ -31,6 +31,7 @@
 #include <linux/delay.h>
 #include <linux/clk.h>
 #include <linux/clk-provider.h>
+#include <linux/devfreq-event.h>
 
 #include "./hobot_ddr_monitor.h"
 #include "./hobot_ddr_mpu.h"
@@ -52,7 +53,10 @@ struct ddr_monitor_dev_s {
 	wait_queue_head_t wq_head;
 	spinlock_t lock;
 	struct clk *sif_mclk;
+	struct clk *ddr_mclk;
 	int sif_mclk_is_open;
+	struct devfreq_event_desc *desc;
+	struct devfreq_event_dev *edev;
 };
 
 #ifdef CONFIG_HOBOT_XJ3
@@ -242,6 +246,93 @@ ssize_t ddr_monitor_debug_write(struct file *file, const char __user *buf, size_
 
 	return size;
 }
+
+
+static int hobot_dfi_disable(struct devfreq_event_dev *edev)
+{
+//	struct hobot_dfi *info = devfreq_event_get_drvdata(edev);
+
+	pr_debug("%s %d\n", __func__, __LINE__);
+	ddr_monitor_stop();
+#if 0
+	clk_disable_unprepare(info->clk);
+#endif
+
+	return 0;
+}
+
+static int hobot_dfi_enable(struct devfreq_event_dev *edev)
+{
+#if 0
+	struct hobot_dfi *info = devfreq_event_get_drvdata(edev);
+	int ret;
+
+	ret = clk_prepare_enable(info->clk);
+	if (ret) {
+		dev_err(&edev->dev, "failed to enable dfi clk: %d\n", ret);
+		return ret;
+	}
+#endif
+
+	pr_debug("%s %d\n", __func__, __LINE__);
+	ddr_monitor_start();
+
+	return 0;
+}
+
+static int hobot_dfi_set_event(struct devfreq_event_dev *edev)
+{
+	pr_debug("%s %d\n", __func__, __LINE__);
+	/* we don't support. */
+	return 0;
+}
+
+static int hobot_dfi_get_event(struct devfreq_event_dev *edev,
+				struct devfreq_event_data *edata)
+{
+	unsigned long flags;
+	struct ddr_monitor_result_s* cur_info;
+	unsigned long read_cnt = 0;
+	unsigned long write_cnt = 0;
+	unsigned long cur_ddr_clk;
+
+	pr_debug("%s %d\n", __func__, __LINE__);
+
+	if (g_record_num <= 0) {
+		pr_err("%s:%d ddr monitor record is empty\n", __func__, __LINE__);
+		return -1;
+	}
+
+	cur_ddr_clk = clk_get_rate(g_ddr_monitor_dev->ddr_mclk) * 4;;
+	pr_debug("cur_ddr_freq: %ld\n", cur_ddr_clk);
+
+	spin_lock_irqsave(&g_ddr_monitor_dev->lock, flags);
+	cur_info = &ddr_info[g_current_index];
+
+	read_cnt = cur_info->rd_cmd_num * rd_cmd_bytes *
+			(1000000 / g_monitor_period) >> 20;
+	write_cnt = cur_info->wr_cmd_num * 64 *
+			(1000000 / g_monitor_period) >> 20;
+
+	edata->load_count = read_cnt + write_cnt;
+	edata->total_count = (cur_ddr_clk * 4) >> 20;
+
+	spin_unlock_irqrestore(&g_ddr_monitor_dev->lock, flags);
+
+	pr_debug("rd_cnt:%ld,  wr_cnt:%ld, load:%ld, total:%ld\n",
+		read_cnt, write_cnt, edata->load_count , edata->total_count);
+
+	return 0;
+}
+
+
+static const struct devfreq_event_ops hobot_dfi_ops = {
+	.disable = hobot_dfi_disable,
+	.enable = hobot_dfi_enable,
+	.get_event = hobot_dfi_get_event,
+	.set_event = hobot_dfi_set_event,
+};
+
 
 static int get_monitor_data(char* buf)
 {
@@ -597,7 +688,6 @@ int ddr_get_port_status(void)
 	int i = 0;
 	ktime_t ktime;
 	int step;
-
 
 	ktime = ktime_sub(ktime_get(), g_ktime_start);
 	ddr_info[g_current_index].curtime = ktime_to_us(ktime);
@@ -2189,6 +2279,7 @@ static int ddr_monitor_probe(struct platform_device *pdev)
 	int ret = 0;
 	struct resource *pres;
 	void __iomem *ddrc_base = NULL;
+	struct devfreq_event_desc *desc;
 	u32 reg_val;
 
 	pr_debug("\n");
@@ -2275,6 +2366,23 @@ static int ddr_monitor_probe(struct platform_device *pdev)
 	}
 #endif
 
+	desc = devm_kzalloc(&pdev->dev, sizeof(*desc), GFP_KERNEL);
+	if (!desc)
+		return -ENOMEM;
+
+	desc->ops = &hobot_dfi_ops;
+	desc->driver_data = g_ddr_monitor_dev;
+	desc->name = pdev->dev.of_node->name;
+	g_ddr_monitor_dev->desc = desc;
+
+	g_ddr_monitor_dev->edev = devm_devfreq_event_add_edev(&pdev->dev, desc);
+	if (IS_ERR(g_ddr_monitor_dev->edev)) {
+		dev_err(&pdev->dev,
+			"failed to add devfreq-event device %d\n",
+			PTR_ERR(g_ddr_monitor_dev->edev));
+
+		return PTR_ERR(g_ddr_monitor_dev->edev);
+	}
 
 	g_ddr_monitor_dev->res_vaddr = kmalloc(TOTAL_RESULT_SIZE, GFP_KERNEL);
 	if (g_ddr_monitor_dev->res_vaddr == NULL) {
@@ -2295,6 +2403,11 @@ static int ddr_monitor_probe(struct platform_device *pdev)
 	writel(0x21100, g_ddr_monitor_dev->regaddr + DDR_PORT_WRITE_QOS_CTRL);
 #endif
 	g_ddr_monitor_dev->sif_mclk = devm_clk_get(&pdev->dev, "sif_mclk");
+	g_ddr_monitor_dev->ddr_mclk = devm_clk_get(&pdev->dev, "ddr_mclk");
+	if (g_ddr_monitor_dev->ddr_mclk == NULL) {
+		pr_err("failed to get ddr_mclk");
+		return -ENODEV;
+	}
 	pr_info("ddr monitor init finished.");
 
 	return ret;
