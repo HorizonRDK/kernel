@@ -211,6 +211,18 @@ static int hobot_dmcfreq_probe(struct platform_device *pdev)
 	ctx->rate = dev_pm_opp_get_freq(opp);
 	dev_pm_opp_put(opp);
 
+	ret = of_property_read_u32(dev->of_node, "upthreshold",
+				&ctx->ondemand_data.upthreshold);
+	if (ret)
+		pr_info("%s: failed to get upthreshold in dts, use default\n",
+				__func__);
+
+	ret = of_property_read_u32(dev->of_node, "downdifferential",
+				&ctx->ondemand_data.downdifferential);
+	if (ret)
+		pr_info("%s: failed to get  downdifferential in dts, use default\n",
+				__func__);
+
 	hobot_devfreq_dmc_profile.initial_freq = ctx->rate;
 
 	ctx->devfreq = devm_devfreq_add_device(dev,

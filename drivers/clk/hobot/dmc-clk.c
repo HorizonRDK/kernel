@@ -34,6 +34,13 @@
 
 #define to_dmc_clk(_hw) container_of(_hw, struct dmc_clk, hw)
 
+/*
+ * [FIXME] cur_ddr_rate is used to store current ddr freq before cr5
+ * function finished
+ */
+static unsigned long cur_ddr_rate;
+static char ddr_method[8] = "test";
+
 typedef void(hobot_invoke_fn)(unsigned long, unsigned long, unsigned long,
 			unsigned long, unsigned long, unsigned long,
 			unsigned long, unsigned long,
@@ -103,19 +110,41 @@ static void hobot_smccc_hvc(unsigned long a0, unsigned long a1,
 	arm_smccc_hvc(a0, a1, a2, a3, a4, a5, a6, a7, res);
 }
 
+static void hobot_ddrdfc_test(unsigned long a0, unsigned long a1,
+			unsigned long a2, unsigned long rate,
+			unsigned long a4, unsigned long a5,
+			unsigned long a6, unsigned long a7,
+			struct arm_smccc_res *res)
+{
+
+	pr_debug("%s rate:%ld\n", __func__, rate);
+out:
+	// just for debugging
+	res->a0 = 0;
+}
+
+
+
 static hobot_invoke_fn *get_invoke_func(struct device_node *np)
 {
-	const char *method;
 
+	const char *method = ddr_method;
+
+#ifndef CONFIG_HOBOT_XJ3
 	if (of_property_read_string(np, "method", &method)) {
 		pr_warn("missing \"method\" property\n");
 		return ERR_PTR(-ENXIO);
 	}
+#endif
+	/* force to test now */
+	method = "test";
 
 	if (!strcmp("hvc", method))
 		return hobot_smccc_hvc;
 	else if (!strcmp("smc", method))
 		return hobot_smccc_smc;
+	else if (!strcmp("test", method))
+		return hobot_ddrdfc_test;
 
 	pr_warn("invalid \"method\" property: %s\n", method);
 	return ERR_PTR(-EINVAL);
@@ -127,12 +156,18 @@ static int dmc_set_rate(struct clk_hw *hw,
 	struct dmc_clk *dclk = container_of(hw, struct dmc_clk, hw);
 	struct arm_smccc_res res;
 
+#ifndef CONFIG_HOBOT_XJ3
 	dclk->invoke_fn(dclk->fid, dclk->set_cmd, dclk->channel, rate, 0, 0, 0, 0, &res);
+#else
+	dclk->invoke_fn(0, 0, 0, rate, 0, 0, 0, 0, &res);
+#endif
 	if (res.a0 != 0) {
-		pr_err("%s: ddr channel:%u set rate to %lu failed with status :%lu\n",
+		pr_err("%s: ddr channel:%u set rate to %lu failed with status :%ld\n",
 			__func__, dclk->channel, rate, res.a0);
 	}
 	dclk->rate = rate;
+
+	cur_ddr_rate = rate;
 	return 0;
 }
 
@@ -142,12 +177,21 @@ static unsigned long dmc_recalc_rate(struct clk_hw *hw,
 	struct dmc_clk *dclk = container_of(hw, struct dmc_clk, hw);
 	struct arm_smccc_res res;
 
+#ifndef CONFIG_HOBOT_XJ3
 	dclk->invoke_fn(dclk->fid, dclk->get_cmd, dclk->channel, 0, 0, 0, 0, 0, &res);
+	dclk->invoke_fn(0, 0, 0, 0, 0, 0, 0, 0, &res);
 	if (res.a0 != 0) {
-		pr_err("%s: ddr channel:%u get rate failed with status :%lu\n",
+		pr_err("%s: ddr channel:%u get rate failed with status :%ld\n",
 			__func__, dclk->channel, res.a0);
 	}
+
 	dclk->rate = res.a1;
+#endif
+
+	/* FIXME: find a better way to get current ddr freq */
+	pr_debug("parent_rate: %ld,  dclk->rate:%ld, cur_ddr_rate:%ld\n",
+		parent_rate, dclk->rate, cur_ddr_rate);
+	dclk->rate = cur_ddr_rate;
 
 	return dclk->rate;
 }
@@ -157,6 +201,7 @@ static long dmc_round_rate(struct clk_hw *hw,
 			unsigned long *prate)
 {
 	/* TODO: round rate with frequency table. */
+	pr_debug("dmc_round_rate: rate:%ld\n", rate);
 	return rate;
 }
 
@@ -175,7 +220,7 @@ static struct clk *dmc_clk_register(struct device *dev, struct device_node *node
 	struct clk *clk;
 	struct device_node *tee_node;
 	int ret;
-	uint32_t channel;
+	uint32_t channel = 0;
 	hobot_invoke_fn *invoke_fn;
 	struct arm_smccc_res res;
 
@@ -192,6 +237,7 @@ static struct clk *dmc_clk_register(struct device *dev, struct device_node *node
 	}
 	ddrclk->invoke_fn = invoke_fn;
 
+#ifndef CONFIG_HOBOT_XJ3
 #define GET_OFNODE_U32(node, name, dst)					\
 	do {								\
 		ret = of_property_read_u32(node, name, dst);		\
@@ -216,6 +262,7 @@ static struct clk *dmc_clk_register(struct device *dev, struct device_node *node
 	}
 
 	ddrclk->invoke_fn(ddrclk->fid, ddrclk->get_channels_cmd, 0, 0, 0, 0, 0, 0, &res);
+
 	if (res.a0 != 0) {
 		pr_err("failed to get total channels from tee world.");
 		goto err_free;
@@ -226,11 +273,16 @@ static struct clk *dmc_clk_register(struct device *dev, struct device_node *node
 		goto err_free;
 	}
 
+#endif
+
 	init.name = node->full_name;
 	init.ops = ops;
 	init.flags = flags;
 
 	ddrclk->hw.init = &init;
+
+	/* FIXME: just for debug, remove me, start */
+	cur_ddr_rate = 667000000;
 
 	spin_lock_init(&ddrclk->lock);
 	clk = clk_register(dev, &ddrclk->hw);

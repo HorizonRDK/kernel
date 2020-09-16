@@ -1168,11 +1168,16 @@
 			compatible = "operating-points-v2";
 
 			opp00 {
-				opp-hz = /bits/ 64 <300000000>;
+				opp-hz = /bits/ 64 <667000000>;
 				opp-microvolt = <900000>;
 			};
 			opp01 {
-				opp-hz = /bits/ 64 <666000000>;
+				opp-hz = /bits/ 64 <2666000000>;
+				opp-microvolt = <900000>;
+			};
+
+			opp02 {
+				opp-hz = /bits/ 64 <3200000000>;
 				opp-microvolt = <900000>;
 			};
 		};
@@ -1189,11 +1194,14 @@
 			operating-points-v2 = <&dmc_opp_table>;
 			clocks = <&dmc0_clk>;
 			clock-names = "dmc_clk";
+			upthreshold = <55>;
+			downdifferential = <5>;
 		};
 
-		dmc0_max {
+		dmc0_min {
 			compatible = "hobot,devfreq_qos";
 			devfreq = <&dmc_0>;
+			devfreq-qos,type-min;
 		};
 
 		onewire: onewire {
