@@ -42,6 +42,8 @@
 #include <linux/usb/of.h>
 #include <linux/usb/otg.h>
 
+#include <soc/hobot/hobot_bus.h>
+
 #include "core.h"
 #include "gadget.h"
 #include "io.h"
@@ -60,6 +62,51 @@
 #define HOBOT_SOC_USB_RESET
 // #define HOBOT_SOC_DWC3_SETTING
 // #define HOBOT_SOC_DWC3_DEBUG
+
+#define HOBOT_DDR_DFS_ENABLE
+
+#ifdef HOBOT_DDR_DFS_ENABLE
+/*
+ * For ddr dynamic frequency selection & handling.
+ * Register a ddr frequency change notifier.
+ * When ddr frequency change, hb_bus module will notify HB_BUS_SIGNAL_START
+ * and HB_BUS_SIGNAL_END signals. Between this 2 signals, we need to guarantee
+ * usb controller don't access the ddr. Therefore, use the spinlock dwc->lock
+ * to do synchronize.
+ */
+static int
+ddr_dfs_call(struct notifier_block *self, unsigned long action, void *data)
+{
+	struct dwc3 *dwc = container_of(self, struct dwc3, ddrfreq_nb);
+	unsigned long	flags;
+
+	switch (action) {
+	case HB_BUS_SIGNAL_START:
+		spin_lock_irqsave(&dwc->lock, flags);
+		dev_dbg(dwc->dev, "%s: Grab semaphore success\n", __func__);
+		break;
+
+	case HB_BUS_SIGNAL_END:
+		spin_unlock_irqrestore(&dwc->lock, flags);
+		dev_dbg(dwc->dev, "%s: Release semaphore success\n", __func__);
+		break;
+
+	default:
+		dev_err(dwc->dev, "%s: Not defined action (%lu)\n", action,
+				__func__);
+		break;
+	}
+
+	return NOTIFY_OK;
+}
+#endif
+
+/*
+ * The code in this file is utility code, used to build a gadget driver
+ * from one or more "function" drivers, one or more "configuration"
+ * objects, and a "usb_composite_driver" by gluing them together along
+ * with the relevant device-wide data.
+ */
 
 /**
  * dwc3_get_dr_mode - Validates and sets dr_mode
@@ -1546,6 +1593,14 @@ static int dwc3_probe(struct platform_device *pdev)
 	dwc->regs_sys	= regs_sys;
 	dwc->regs_sys_size	= resource_size(res_sys);
 
+#ifdef HOBOT_DDR_DFS_ENABLE
+	/* register ddr dfs notifier */
+	dwc->ddrfreq_nb.notifier_call = ddr_dfs_call;
+	ret = hb_bus_register_client(&dwc->ddrfreq_nb);
+	if (ret)
+		goto notifier_err;
+#endif
+
 #ifdef HOBOT_TEST_REGISTER_RW
 	hobot_usb_register_test(dwc);
 #endif
@@ -1569,7 +1624,7 @@ static int dwc3_probe(struct platform_device *pdev)
 
 	ret = clk_bulk_get(dev, dwc->num_clks, dwc->clks);
 	if (ret == -EPROBE_DEFER)
-		goto err0;
+		goto get_clks;
 
 	/*
 	 * Clocks are optional, but new DT platforms should support all clocks
@@ -1663,6 +1718,9 @@ unprepare_clks:
 	clk_bulk_unprepare(dwc->num_clks, dwc->clks);
 put_clks:
 	clk_bulk_put(dwc->num_clks, dwc->clks);
+get_clks:
+	hb_bus_unregister_client(&dwc->ddrfreq_nb);
+notifier_err:
 err0:
 	/*
 	 * restore res->start back to its original value so that, in case the
@@ -1701,6 +1759,11 @@ static int dwc3_remove(struct platform_device *pdev)
 	dwc3_free_event_buffers(dwc);
 	dwc3_free_scratch_buffers(dwc);
 	clk_bulk_put(dwc->num_clks, dwc->clks);
+
+#ifdef HOBOT_DDR_DFS_ENABLE
+	/* unregister ddr dfs notifier */
+	hb_bus_unregister_client(&dwc->ddrfreq_nb);
+#endif
 
 	return 0;
 }
