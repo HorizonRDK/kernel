@@ -12,6 +12,7 @@
 #include <linux/cdev.h>
 #include <linux/kfifo.h>
 #include <linux/kthread.h>
+#include <linux/pm_qos.h>
 
 #include "hobot_vpu_user.h"
 #include "hobot_vpu_config.h"
@@ -127,6 +128,8 @@ typedef struct _hb_vpu_dev {
 	struct dentry *debug_root;
 	struct dentry *debug_file_venc;
 	struct dentry *debug_file_vdec;
+
+	struct pm_qos_request vpu_pm_qos_req;
 } hb_vpu_dev_t;
 
 typedef struct _hb_vpu_priv {

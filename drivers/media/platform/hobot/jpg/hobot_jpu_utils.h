@@ -11,6 +11,7 @@
 #include <linux/clk.h>
 #include <linux/cdev.h>
 #include <linux/slab.h>
+#include <linux/pm_qos.h>
 
 //#include "../../../../../test_code/jpg/jpuapi/jpuconfig.h"
 
@@ -111,6 +112,8 @@ typedef struct _hb_jpu_dev {
 	struct dentry *debug_root;
 	struct dentry *debug_file_jenc;
 	struct dentry *debug_file_jdec;
+
+	struct pm_qos_request jpu_pm_qos_req;
 } hb_jpu_dev_t;
 
 typedef struct _hb_jpu_priv {

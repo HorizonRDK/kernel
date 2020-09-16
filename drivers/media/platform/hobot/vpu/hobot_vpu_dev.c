@@ -638,6 +638,7 @@ static int vpu_open(struct inode *inode, struct file *filp)
 	spin_lock(&dev->vpu_spinlock);
 	if (dev->open_count == 0) {
 		dev->vpu_freq = vpu_clk_freq;
+		pm_qos_add_request(&dev->vpu_pm_qos_req, PM_QOS_DEVFREQ, 8300);
 	}
 	dev->open_count++;
 	priv->vpu_dev = dev;
@@ -1487,6 +1488,8 @@ static int vpu_release(struct inode *inode, struct file *filp)
 		open_count = dev->open_count;
 		spin_unlock(&dev->vpu_spinlock);
 		if (open_count == 0) {
+			pm_qos_remove_request(&dev->vpu_pm_qos_req);
+
 #ifdef SUPPORT_MULTI_INST_INTR
 			for (i = 0; i < MAX_NUM_VPU_INSTANCE; i++) {
 				kfifo_reset(&dev->interrupt_pending_q[i]);
