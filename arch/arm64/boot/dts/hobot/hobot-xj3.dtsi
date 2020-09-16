@@ -1140,7 +1140,7 @@
 			clocks = <&sys_div_pclk>;
 			clock-names = "sys_pclk";
 			#thermal-sensor-cells = <0>;
-			voltage_montior: voltage_montior {
+			voltage_monitor: voltage_monitor {
 				#io-channel-cells = <1>;
 			};
 		};

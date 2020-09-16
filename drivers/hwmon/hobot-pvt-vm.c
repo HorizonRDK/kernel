@@ -220,9 +220,9 @@ int hobot_vm_probe(struct device *dev, void __iomem *reg_base,
     u32 val;
     int ret;
 
-    of_node_vm = of_get_child_by_name(np, "voltage_montior");
+    of_node_vm = of_get_child_by_name(np, "voltage_monitor");
     if (!of_node_vm) {
-        dev_err(dev, "voltage montior is disabled");
+        dev_err(dev, "voltage monitor is disabled");
         return -ENODEV;
     }
 
