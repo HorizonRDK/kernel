@@ -221,7 +221,7 @@ int hb_mmc_enable_clk(struct dw_mci_hobot_priv_data *priv)
 	return 0;
 #endif
 }
-
+#ifdef CONFIG_HOBOT_XJ2
 void hb_mmc_set_power(struct dw_mci_hobot_priv_data *priv, bool val)
 {
 	bool logic_val = val;
@@ -239,6 +239,7 @@ void hb_mmc_set_power(struct dw_mci_hobot_priv_data *priv, bool val)
 		}
 	}
 }
+#endif
 
 static int hb_mmc_set_sample_phase(struct dw_mci_hobot_priv_data *priv,
 				   int degrees)
@@ -591,6 +592,7 @@ static int dw_mci_hb_parse_dt(struct dw_mci *host)
 	priv->powerup_gpio = 0;
 	priv->powerup_logic = 0;
 	priv->mmc_fixed_voltage = 0;
+#ifdef CONFIG_HOBOT_XJ2
 	of_val = 0;
 	if (!device_property_read_u32(host->dev, "powerup-logic", &of_val)) {
 		if (of_val)
@@ -606,6 +608,7 @@ static int dw_mci_hb_parse_dt(struct dw_mci *host)
 		usleep_range(20000, 30000);
 		hb_mmc_set_power(priv, 1);
 	}
+#endif
 	of_val = 0;
 	if (!device_property_read_u32(host->dev, "uhs-180v-logic", &of_val)) {
 		if (of_val)
@@ -847,10 +850,12 @@ static int dw_mci_hobot_remove(struct platform_device *pdev)
 		iounmap(priv->sysctrl_reg);
 	if (priv->uhs_180v_gpio)
 		gpio_free(priv->uhs_180v_gpio);
+#ifdef CONFIG_HOBOT_XJ2
 	if (priv->powerup_gpio) {
 		hb_mmc_set_power(priv, 0);
 		gpio_free(priv->powerup_gpio);
 	}
+#endif
 
 	pm_runtime_get_sync(&pdev->dev);
 	pm_runtime_disable(&pdev->dev);
@@ -860,13 +865,13 @@ static int dw_mci_hobot_remove(struct platform_device *pdev)
 }
 
 static const struct dev_pm_ops dw_mci_hobot_pmops = {
-	/*
+#ifdef CONFIG_HOBOT_XJ2
 	SET_SYSTEM_SLEEP_PM_OPS(dw_mci_system_suspend,
 				dw_mci_system_resume)
-	*/
+#else
 	SET_SYSTEM_SLEEP_PM_OPS(pm_runtime_force_suspend,
 				pm_runtime_force_resume)
-
+#endif
 	SET_RUNTIME_PM_OPS(dw_mci_runtime_suspend,
 			   dw_mci_runtime_resume,
 			   NULL)

@@ -288,10 +288,10 @@ static void dw_mci_wait_while_busy(struct dw_mci *host, u32 cmd_flags)
 			dev_err(host->dev, "Busy; trying anyway\n");
 	}
 }
-// hobot
+
 static void dw_mci_wait_busy(struct dw_mci_slot *slot)
 {
-#if 0
+	int ret = 0;
 	struct dw_mci *host = slot->host;
 	unsigned long timeout = jiffies + msecs_to_jiffies(500);
 
@@ -307,8 +307,10 @@ static void dw_mci_wait_busy(struct dw_mci_slot *slot)
 	* to update card clocks in non-volt-switch state. If it happends, we
 	* should reset controller to avoid getting "Timeout sending command".
 	*/
-	dw_mci_ctrl_reset(host, SDMMC_CTRL_ALL_RESET_FLAGS);
-#endif
+	ret = dw_mci_ctrl_reset(host, SDMMC_CTRL_ALL_RESET_FLAGS);
+	/* Fail to reset controller or still data busy, WARN_ON! */
+	if(!ret || dw_mci_card_busy(slot->mmc))
+		dev_warn(host->dev, "%s: Still busy after reset!\n", __func__);
 }
 
 static void mci_send_cmd(struct dw_mci_slot *slot, u32 cmd, u32 arg)
@@ -3149,8 +3151,8 @@ static void dw_mci_cto_timer(unsigned long arg)
 		tasklet_schedule(&host->tasklet);
 		break;
 	default:
-		dev_warn(host->dev, "Unexpected command timeout, state %d\n",
-			 host->state);
+		dev_err(host->dev, "Unexpected command%d timeout, state %d, status:0x%08x\n",
+			 host->cmd->opcode, host->state, mci_readl(host, STATUS));
 		break;
 	}
 
@@ -3580,7 +3582,7 @@ int dw_mci_runtime_resume(struct device *dev)
 
 	/* Force setup bus to guarantee available clock output */
 	dw_mci_setup_bus(host->slot, true);
-
+	usleep_range(10, 50);
 	/* Now that slots are all setup, we can enable card detect */
 	dw_mci_enable_cd(host);
 err:
@@ -3588,6 +3590,7 @@ err:
 }
 EXPORT_SYMBOL(dw_mci_runtime_resume);
 
+#ifdef CONFIG_HOBOT_XJ2
 int dw_mci_system_suspend(struct device *dev)
 {
 	struct dw_mci *host = dev_get_drvdata(dev);
@@ -3651,10 +3654,6 @@ int dw_mci_system_resume(struct device *dev)
 	}
 
 	/* reset all blocks */
-	//if (!dw_mci_ctrl_reset(g_host, SDMMC_CTRL_ALL_RESET_FLAGS)) {
-	//    pr_info("%s:%s specific reset failed\n", __FILE__, __func__);
-	//    return 0;
-	//}
 	if (!dw_mci_ctrl_reset(host, SDMMC_CTRL_ALL_RESET_FLAGS)) {
 		clk_disable_unprepare(host->ciu_clk);
 		hb_mmc_disable_clk(host->priv);
@@ -3705,6 +3704,7 @@ err:
 	return ret;
 }
 EXPORT_SYMBOL(dw_mci_system_resume);
+#endif /* CONFIG_HOBOT_XJ2 */
 #endif /* CONFIG_PM */
 
 static int __init dw_mci_init(void)

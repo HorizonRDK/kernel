@@ -88,12 +88,3 @@
 	cnn-supply = <&cnn1_pd_reg>;
 	governor = "userspace";
 };
-
-&sdio1 {
-	powerup-gpio = <100>;	/* x3-dvb UART1_CTSN/GPIO6[4] */
-	powerup-logic = <1>;
-};
-
-&sdio2 {
-	powerup-gpio = <2>; /* x3-dvb EN_VDD_CNN1/GPIO0[2] */
-};
