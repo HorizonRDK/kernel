@@ -54,6 +54,8 @@ int ipu_hw_enable_channel(struct ipu_subdev *subdev, bool enable);
 
 extern struct ion_device *hb_ion_dev;
 
+static struct mutex ipu_mutex;
+
 static int x3_ipu_open(struct inode *inode, struct file *file)
 {
 	struct ipu_video_ctx *ipu_ctx;
@@ -79,6 +81,12 @@ static int x3_ipu_open(struct inode *inode, struct file *file)
 	file->private_data = ipu_ctx;
 	ipu_ctx->state = BIT(VIO_VIDEO_OPEN);
 
+	ret = mutex_lock_interruptible(&ipu_mutex);
+	if (ret) {
+		vio_err("open ipu mutex lock failed:%d", ret);
+		mutex_unlock(&ipu_mutex);
+		goto p_err;
+	}
 	if (atomic_inc_return(&ipu->open_cnt) == 1) {
 		atomic_set(&ipu->backup_fcount, 0);
 		atomic_set(&ipu->sensor_fcount, 0);
@@ -88,6 +96,7 @@ static int x3_ipu_open(struct inode *inode, struct file *file)
 		ips_set_clk_ctrl(IPU0_CLOCK_GATE, true);
 		vio_reset_module(GROUP_ID_IPU);
 	}
+	mutex_unlock(&ipu_mutex);
 
 	//atomic_inc(&ipu->open_cnt);
 p_err:
@@ -262,7 +271,8 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 	ipu = ipu_ctx->ipu_dev;
 
 	if (ipu_ctx->state & BIT(VIO_VIDEO_OPEN)) {
-		vio_info("[Sx][V%d] %s: only open.\n", ipu_ctx->id, __func__);
+		vio_info("[S%d][V%d] %s: only open.\n", ipu_ctx->belong_pipe,
+					ipu_ctx->id, __func__);
 		atomic_dec(&ipu->open_cnt);
 		kfree(ipu_ctx);
 		return 0;
@@ -286,6 +296,8 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 
 	//vio_dbg("from ipu index %d, cnt %d, subdev id:%d", index, cnt, subdev->id);
 	//frame_manager_flush_mp(ipu_ctx->framemgr, index, cnt, ipu_ctx->ctx_index);
+	mutex_lock(&ipu_mutex);
+	vio_dbg("[S%d][V%d] in close,begin clean", ipu_ctx->belong_pipe, ipu_ctx->id);
 	if ((group) &&(atomic_dec_return(&subdev->refcount) == 0)) {
 		vio_dbg("ipu subdev %d", subdev->id);
 		subdev->state = 0;
@@ -338,6 +350,7 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 		sema_init(&ipu->gtask.hw_resource, 1);
 		atomic_set(&ipu->gtask.refcount, 0);
 	}
+	mutex_unlock(&ipu_mutex);
 
 	ipu_ctx->state = BIT(VIO_VIDEO_CLOSE);
 
@@ -1710,8 +1723,15 @@ int ipu_video_init(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 		vio_info("reuse_shadow0_count = %d\n", ipu->reuse_shadow0_count);
 	}
 
+	ret = mutex_lock_interruptible(&ipu_mutex);
+	if (ret) {
+		vio_err("ipu init mutex lock failed:%d", ret);
+		mutex_unlock(&ipu_mutex);
+		goto err;
+	}
 	if (subdev->leader && !subdev->skip_flag)
 		vio_group_task_start(group->gtask);
+	mutex_unlock(&ipu_mutex);
 	atomic_inc(&group->node_refcount);
 	ipu_ctx->state = BIT(VIO_VIDEO_INIT);
 
@@ -1731,6 +1751,7 @@ int ipu_bind_chain_group(struct ipu_video_ctx *ipu_ctx, int instance)
 	struct x3_ipu_dev *ipu;
 	struct ipu_subdev *subdev;
 	int i;
+	unsigned long flags;
 
 	if (!(ipu_ctx->state & BIT(VIO_VIDEO_OPEN))) {
 		vio_err("[%s]invalid BIND is requested(%lX)\n",
@@ -1761,7 +1782,7 @@ int ipu_bind_chain_group(struct ipu_video_ctx *ipu_ctx, int instance)
 	subdev->group = group;
 	subdev->id = id;
 
-	spin_lock(&subdev->slock);
+	spin_lock_irqsave(&subdev->slock, flags);
 	for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
 		if(!test_bit(i, &subdev->val_ctx_mask)) {
 			subdev->ctx[i] = ipu_ctx;
@@ -1770,7 +1791,7 @@ int ipu_bind_chain_group(struct ipu_video_ctx *ipu_ctx, int instance)
 			break;
 		}
 	}
-	spin_unlock(&subdev->slock);
+	spin_unlock_irqrestore(&subdev->slock, flags);
 	if (i == VIO_MAX_SUB_PROCESS) {
 		vio_err("alreay open too much for one pipeline\n");
 		return -EFAULT;
@@ -2915,7 +2936,7 @@ void ipu_frame_done(struct ipu_subdev *subdev)
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
-	spin_lock(&subdev->slock);
+	spin_lock_irqsave(&subdev->slock, flags);
 	for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
 		if (test_bit(i, &subdev->val_ctx_mask)) {
 			ipu_ctx = subdev->ctx[i];
@@ -2925,7 +2946,7 @@ void ipu_frame_done(struct ipu_subdev *subdev)
 			}
 		}
 	}
-	spin_unlock(&subdev->slock);
+	spin_unlock_irqrestore(&subdev->slock, flags);
 }
 
 void ipu_frame_ndone(struct ipu_subdev *subdev)
@@ -2937,17 +2958,17 @@ void ipu_frame_ndone(struct ipu_subdev *subdev)
 	struct vio_group *group;
 	unsigned long flags;
 
-	spin_lock(&subdev->slock);
+	spin_lock_irqsave(&subdev->slock, flags);
 	for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
 		if (test_bit(i, &subdev->val_ctx_mask))
 			ipu_ctx = subdev->ctx[i];
 	}
 	if(!ipu_ctx) {
-		spin_unlock(&subdev->slock);
+		spin_unlock_irqrestore(&subdev->slock, flags);
 		vio_err("%s:%d subdev.ctx[0] is null .\n", __func__, __LINE__);
 		return;
 	}
-	spin_unlock(&subdev->slock);
+	spin_unlock_irqrestore(&subdev->slock, flags);
 
 	group = subdev->group;
 	framemgr = &subdev->framemgr;
@@ -2974,7 +2995,7 @@ void ipu_frame_ndone(struct ipu_subdev *subdev)
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
-	spin_lock(&subdev->slock);
+	spin_lock_irqsave(&subdev->slock, flags);
 	for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
 		if (test_bit(i, &subdev->val_ctx_mask)) {
 			ipu_ctx = subdev->ctx[i];
@@ -2984,7 +3005,7 @@ void ipu_frame_ndone(struct ipu_subdev *subdev)
 			}
 		}
 	}
-	spin_unlock(&subdev->slock);
+	spin_unlock_irqrestore(&subdev->slock, flags);
 }
 
 static void ipu_diag_report(uint8_t errsta, unsigned int status)
@@ -3115,11 +3136,13 @@ static irqreturn_t ipu_isr(int irq, void *data)
 
 	if (status & (1 << INTR_IPU_FRAME_DONE)) {
 		if (!group->leader) {
+			vio_dbg("ipu not leader");
 			vio_get_sif_frame_id(group);
 			vio_group_done(group);
 		}
 
 		if (test_bit(IPU_DMA_INPUT, &ipu->state)) {
+			vio_dbg("ipu is dma input");
 			if(group->group_scenario != VIO_GROUP_SIF_OFF_IPU_ON_PYM &&
 				group->group_scenario != VIO_GROUP_SIF_ON_ISP_OFF_IPU_ON_PYM &&
 				group->group_scenario != VIO_GROUP_SIF_ON_ISP_OFF_IPU_OFF_PYM) {
@@ -3173,6 +3196,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 
 	if (status & (1 << INTR_IPU_DS2_FRAME_DONE)
 	    && test_bit(IPU_DS2_DMA_OUTPUT, &ipu->state)) {
+	    vio_dbg("ipu ds2");
 		subdev = group->sub_ctx[GROUP_ID_DS2];
 		if (subdev && subdev->cur_enable_flag) {
 			if (test_bit(IPU_OTF_INPUT, &ipu->state) &&
@@ -3182,6 +3206,9 @@ static irqreturn_t ipu_isr(int irq, void *data)
 			} else {
 				ipu_frame_done(subdev);
 			}
+		} else {
+			if(subdev)
+				vio_dbg("cur_en_flag:%d", subdev->cur_enable_flag);
 		}
 	}
 
@@ -3964,6 +3991,7 @@ static int x3_ipu_probe(struct platform_device *pdev)
 	atomic_set(&ipu->gtask.refcount, 0);
 	atomic_set(&ipu->rsccount, 0);
 	atomic_set(&ipu->open_cnt, 0);
+	mutex_init(&ipu_mutex);
 
 	x3_ipu_subdev_init(ipu);
 	vio_group_init_mp(GROUP_ID_IPU);
