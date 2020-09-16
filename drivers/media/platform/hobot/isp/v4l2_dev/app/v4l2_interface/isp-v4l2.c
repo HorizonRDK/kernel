@@ -152,7 +152,7 @@ int isp_v4l2_update_ctx(int ctx_id)
     int rc = 0;
     acamera_context_t *p_ctx = acamera_get_ctx_ptr(ctx_id);
 
-    if (isp_stream_onoff_check() == 0 && isp_open_check() < 1) {
+    if (isp_stream_onoff_check() == 0 && isp_open_check() <= 1) {
         if (p_ctx->dma_chn_idx >= 0 && p_ctx->dma_chn_idx < HW_CONTEXT_NUMBER) {
             acamera_update_cur_settings_to_isp(p_ctx->dma_chn_idx);
         }
@@ -185,6 +185,9 @@ static int isp_v4l2_fop_open( struct file *file )
         ips_set_module_reset(ISP0_RST);
         mdelay(1);
     }
+
+    /* update open counter */
+    atomic_add( 1, &dev->opened );
 
     rc = acamera_isp_init_context(dev->ctx_id);
     if (rc != 0) {
@@ -226,9 +229,6 @@ static int isp_v4l2_fop_open( struct file *file )
         LOG( LOG_ERR, "mutex_lock_interruptible failed.\n" );
     dev->fh_ptr[sp->stream_id] = &( sp->fh );
     mutex_unlock( &dev->notify_lock );
-
-    /* update open counter */
-    atomic_add( 1, &dev->opened );
 
     pr_debug("ctx_id %d -\n", dev->ctx_id);
     mutex_unlock(&init_lock);
