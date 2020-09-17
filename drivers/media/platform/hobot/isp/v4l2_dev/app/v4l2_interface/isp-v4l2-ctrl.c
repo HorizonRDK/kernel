@@ -103,6 +103,50 @@ static int isp_v4l2_ctrl_s_ctrl_standard( struct v4l2_ctrl *ctrl )
     case V4L2_CID_FOCUS_ABSOLUTE:
         ret = fw_intf_set_focus( ctx_id, ctrl->val );
         break;
+	case V4L2_CID_RED_BALANCE:
+		ret = fw_intf_set_white_balance_red(ctx_id, ctrl->val);
+		break;
+	case V4L2_CID_BLUE_BALANCE:
+		ret = fw_intf_set_white_balance_blue(ctx_id, ctrl->val);
+		break;
+	case V4L2_CID_GAMMA:
+		ret = fw_intf_set_gamma(ctx_id, ctrl->val);
+		break;
+	case V4L2_CID_HUE_AUTO:
+		ret = fw_intf_set_hue_auto(ctx_id, ctrl->val);
+		break;
+/*
+	case V4L2_CID_WHITE_BALANCE_TEMPERATURE:
+		ret = fw_intf_set_white_balance_tmperature(ctx_id, ctrl->val);
+		break;
+*/
+	case V4L2_CID_BACKLIGHT_COMPENSATION:
+		ret = fw_intf_set_backlight(ctx_id, ctrl->val);
+		break;
+	case V4L2_CID_PAN_ABSOLUTE:
+		ret = fw_intf_set_pan(ctx_id, ctrl->val);
+		break;
+	case V4L2_CID_PAN_SPEED:
+		ret = fw_intf_set_pan_speed(ctx_id, ctrl->val);
+		break;
+	case V4L2_CID_TILT_ABSOLUTE:
+		ret = fw_intf_set_tilt(ctx_id, ctrl->val);
+		break;
+	case V4L2_CID_TILT_SPEED:
+		ret = fw_intf_set_tilt_speed(ctx_id, ctrl->val);
+		break;
+	case V4L2_CID_ZOOM_ABSOLUTE:
+		ret = fw_intf_set_zoom(ctx_id, ctrl->val);
+		break;
+	case V4L2_CID_ZOOM_CONTINUOUS:
+		ret = fw_intf_set_zoom_continuous(ctx_id, ctrl->val);
+		break;
+	case V4L2_CID_IRIS_ABSOLUTE:
+		ret = fw_intf_set_iris(ctx_id, ctrl->val);
+		break;
+	case V4L2_CID_POWER_LINE_FREQUENCY:
+		ret = fw_intf_set_power_line_freq(ctx_id, ctrl->val);
+		break;
     }
 
     return ret;
@@ -429,6 +473,7 @@ int isp_v4l2_ctrl_init( uint32_t ctx_id, isp_v4l2_ctrl_t *ctrl )
     ADD_CTRL_STD( V4L2_CID_CONTRAST, 0, 255, 1, 128 );
     ADD_CTRL_STD( V4L2_CID_SATURATION, 0, 255, 1, 128 );
     ADD_CTRL_STD( V4L2_CID_HUE, 0, 255, 1, 128 );
+    ADD_CTRL_STD(V4L2_CID_HUE_AUTO, 0, 1, 1, 0);
     ADD_CTRL_STD( V4L2_CID_SHARPNESS, 0, 255, 1, 128 );
     ADD_CTRL_STD_MENU( V4L2_CID_COLORFX, 4, 0x1F0, 0 );
     /* orientation */
@@ -448,11 +493,34 @@ int isp_v4l2_ctrl_init( uint32_t ctx_id, isp_v4l2_ctrl_t *ctrl )
                   0, 1, 1, 1 );
     ADD_CTRL_STD( V4L2_CID_WHITE_BALANCE_TEMPERATURE,
                   2000, 8000, 1000, 5000 );
+    ADD_CTRL_STD(V4L2_CID_RED_BALANCE,
+                  0, 255, 1, 50);
+    ADD_CTRL_STD(V4L2_CID_BLUE_BALANCE,
+                  0, 255, 1, 50);
+    ADD_CTRL_STD(V4L2_CID_WHITE_BALANCE_TEMPERATURE,
+					1500, 15000, 100, 1500);
     /* focus */
     ADD_CTRL_STD( V4L2_CID_FOCUS_AUTO, 0, 1, 1, 1 );
     ADD_CTRL_STD( V4L2_CID_FOCUS_ABSOLUTE,
                   0, 255, 1, 0 );
-
+    ADD_CTRL_STD(V4L2_CID_ZOOM_ABSOLUTE,
+					0, 65535, 1, 50);
+    ADD_CTRL_STD(V4L2_CID_ZOOM_CONTINUOUS, 0, 255, 1, 0);
+	/* other */
+    ADD_CTRL_STD(V4L2_CID_GAMMA, 0, 500, 1, 50);
+	ADD_CTRL_STD(V4L2_CID_BACKLIGHT_COMPENSATION,
+					0, 65535, 1, 50);
+	ADD_CTRL_STD(V4L2_CID_PAN_ABSOLUTE,
+					0, 65535, 1, 50);
+    ADD_CTRL_STD(V4L2_CID_PAN_SPEED, 0, 255, 1, 50);
+    ADD_CTRL_STD(V4L2_CID_TILT_ABSOLUTE,
+					0, 65535, 1, 50);
+    ADD_CTRL_STD(V4L2_CID_TILT_SPEED, 0, 255, 1, 50);
+    ADD_CTRL_STD(V4L2_CID_IRIS_ABSOLUTE,
+					0, 65535, 1, 50);
+    ADD_CTRL_STD_MENU(V4L2_CID_POWER_LINE_FREQUENCY,
+						V4L2_CID_POWER_LINE_FREQUENCY_AUTO,
+						0, V4L2_CID_POWER_LINE_FREQUENCY_50HZ);
     /* Init and add custom controls */
     v4l2_ctrl_handler_init( hdl_cst_ctrl, 8 );
     v4l2_ctrl_new_custom( hdl_cst_ctrl, &isp_v4l2_ctrl_class, NULL );

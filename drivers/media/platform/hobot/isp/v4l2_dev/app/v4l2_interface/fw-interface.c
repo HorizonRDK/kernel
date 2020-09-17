@@ -35,13 +35,15 @@
 #include "fw-interface.h"
 #include "acamera_fw.h"
 #include "general_fsm.h"
+#include "./sbuf.h"
 
 //use main_firmware.c routines to initialize fw
 extern int isp_fw_init( uint32_t hw_isp_addr );
 extern void isp_fw_exit( void );
+extern void *acamera_get_ctx_ptr(uint32_t ctx_id);
 
 static int isp_started = 0;
-
+static int hue_auto[FIRMWARE_CONTEXT_NUMBER];
 typedef enum {
 	BAYER_RGGB = 0,
 	BAYER_GRBG,
@@ -681,25 +683,31 @@ static int isp_fw_do_set_saturation( uint32_t ctx_id, int saturation )
     return 0;
 }
 
-static int isp_fw_do_set_hue( uint32_t ctx_id, int hue )
+static int isp_fw_do_set_hue(uint32_t ctx_id, int hue)
 {
 #if defined( TSCENE_MODES ) && defined( HUE_THETA_ID )
     int result;
     uint32_t ret_val = 0;
 
-    LOG( LOG_INFO, "hue: %d.", hue );
+	if (hue_auto[ctx_id] == 1) {
+		   LOG(LOG_INFO, "manual set auto close");
+		   return 0;
+	}
+    LOG(LOG_INFO, "hue: %d.", hue);
 
     /* some controls(such brightness) will call acamera_command()
      * before isp_fw initialed, so we need to check.
      */
     if ( !isp_started ) {
-        LOG( LOG_ERR, "ISP FW not inited yet" );
+        LOG(LOG_ERR, "ISP FW not inited yet");
         return -EBUSY;
     }
 
-    result = acamera_command( ctx_id, TSCENE_MODES, HUE_THETA_ID, hue, COMMAND_SET, &ret_val );
+    result = acamera_command(ctx_id, TSCENE_MODES, HUE_THETA_ID,
+							hue, COMMAND_SET, &ret_val);
     if ( result ) {
-        LOG( LOG_ERR, "Failed to set HUE_THETA_ID to %d, ret_value: %d.", hue, result );
+        LOG(LOG_ERR, "Failed to set HUE_THETA_ID to %d, ret_value: %d.",
+			hue, result);
         return result;
     }
 #endif
@@ -707,6 +715,12 @@ static int isp_fw_do_set_hue( uint32_t ctx_id, int hue )
     return 0;
 }
 
+static int isp_fw_do_set_hue_auto(uint32_t ctx_id, int hue)
+{
+	hue_auto[ctx_id] = hue;
+	LOG(LOG_INFO, "hue_auto: %d.", hue);
+	return 0;
+}
 static int isp_fw_do_set_sharpness( uint32_t ctx_id, int sharpness )
 {
 #if defined( TSCENE_MODES ) && defined( SHARPENING_STRENGTH_ID )
@@ -1149,7 +1163,200 @@ static int isp_fw_do_set_focus( uint32_t ctx_id, int focus )
     return 0;
 }
 
+static int isp_fw_do_set_white_balance_red(uint32_t ctx_id, uint32_t red_value)
+{
+#if defined( TSYSTEM ) && defined( SYSTEM_AWB_RED_GAIN )
+    int result;
+    uint32_t ret_val = 0;
+	uint32_t tmp_val = 0;
 
+    LOG(LOG_INFO, "red_value: %d.", red_value);
+
+    /* some controls(such brightness) will call acamera_command()
+     * before isp_fw initialed, so we need to check.
+     */
+    if ( !isp_started ) {
+        LOG(LOG_ERR, "ISP FW not inited yet");
+        return -EBUSY;
+    }
+	tmp_val = acamera_log2_fixed_to_fixed(red_value, 0, 13);
+    result = acamera_command(ctx_id, TSYSTEM, SYSTEM_AWB_RED_GAIN,
+			tmp_val, COMMAND_SET, &ret_val);
+    if ( result ) {
+        LOG(LOG_ERR, "Failed to set SYSTEM_AWB_RED_GAIN to %d, ret_value: %d.",
+			red_value, result);
+        return result;
+    }
+#endif
+    return 0;
+}
+
+static int isp_fw_do_set_white_balance_blue
+						(uint32_t ctx_id, uint32_t blue_value)
+{
+#if defined( TSYSTEM ) && defined( SYSTEM_AWB_BLUE_GAIN )
+    int result;
+    uint32_t ret_val = 0;
+	uint32_t tmp_val = 0;
+
+    LOG(LOG_INFO, "blue_value: %d.", blue_value);
+
+    /* some controls(such brightness) will call acamera_command()
+     * before isp_fw initialed, so we need to check.
+     */
+    if ( !isp_started ) {
+        LOG(LOG_ERR, "ISP FW not inited yet");
+        return -EBUSY;
+    }
+	tmp_val = acamera_log2_fixed_to_fixed(blue_value, 0, 13);
+    result = acamera_command(ctx_id, TSYSTEM, SYSTEM_AWB_BLUE_GAIN,
+			tmp_val, COMMAND_SET, &ret_val);
+    if ( result ) {
+        LOG(LOG_ERR, "Failed to set SYSTEM_AWB_RED_GAIN to %d, ret_value: %d.",
+			blue_value, result);
+        return result;
+    }
+#endif
+    return 0;
+}
+
+int isp_fw_do_set_white_balance_tmperature(uint32_t ctx_id, uint32_t val)
+{
+#if defined( TALGORITHMS ) && defined( AWB_TEMPERATURE_ID )
+    int result;
+    uint32_t ret_val = 0;
+	uint32_t tmp_val = 0;
+
+    LOG(LOG_INFO, "temperature value: %d.", val);
+
+    /* some controls(such brightness) will call acamera_command()
+     * before isp_fw initialed, so we need to check.
+     */
+    if ( !isp_started ) {
+        LOG(LOG_ERR, "ISP FW not inited yet");
+        return -EBUSY;
+    }
+	tmp_val = ((val- 1500) << 8) / 13500;
+    result = acamera_command(ctx_id, TALGORITHMS, AWB_TEMPERATURE_ID,
+			tmp_val, COMMAND_SET, &ret_val);
+    if ( result ) {
+        LOG(LOG_ERR, "Failed to set AWB_TEMPERATURE_ID to %d, ret_value: %d.",
+			val, result);
+        return result;
+    }
+#endif
+    return 0;
+}
+
+int isp_fw_do_set_zoom(uint32_t ctx_id, int zoom_value)
+{
+#if defined( TALGORITHMS ) && defined( ZOOM_MANUAL_CONTROL_ID )
+    int result;
+    uint32_t ret_val = 0;
+	uint32_t tmp_val = 0;
+
+    LOG(LOG_INFO, "zoom value: %d.", zoom_value);
+
+    /* some controls(such brightness) will call acamera_command()
+     * before isp_fw initialed, so we need to check.
+     */
+    if ( !isp_started ) {
+        LOG(LOG_ERR, "ISP FW not inited yet");
+        return -EBUSY;
+    }
+	tmp_val = 10 + (zoom_value * 70) / 65535;
+    result = acamera_command(ctx_id, TALGORITHMS, ZOOM_MANUAL_CONTROL_ID,
+			tmp_val, COMMAND_SET, &ret_val);
+    if ( result ) {
+        LOG(LOG_ERR, "Failed to set ZOOM_MANUAL to %d,ret_value: %d.",
+					zoom_value, result);
+        return result;
+    }
+#endif
+    return 0;
+}
+
+int isp_fw_do_set_zoom_continuous(uint32_t ctx_id, int zoom_value)
+{
+#if defined( TALGORITHMS ) && defined( ZOOM_MANUAL_CONTROL_ID )
+    int result;
+    uint32_t ret_val = 0;
+	uint32_t tmp_val = 0;
+
+    LOG(LOG_INFO, "zoom value: %d.", zoom_value);
+
+    /* some controls(such brightness) will call acamera_command()
+     * before isp_fw initialed, so we need to check.
+     */
+    if ( !isp_started ) {
+        LOG(LOG_ERR, "ISP FW not inited yet");
+        return -EBUSY;
+    }
+	tmp_val = 10 + (zoom_value * 70) / 255;
+    result = acamera_command(ctx_id, TALGORITHMS, ZOOM_MANUAL_CONTROL_ID,
+								tmp_val, COMMAND_SET, &ret_val);
+    if ( result ) {
+        LOG(LOG_ERR, "Failed to set ZOOM_MANUAL_C to %d, ret_value: %d.",
+			zoom_value, result);
+        return result;
+    }
+#endif
+    return 0;
+}
+
+int isp_fw_set_power_line_freq(uint32_t ctx_id, int freq)
+{
+#if defined( TALGORITHMS ) && defined( ANTIFLICKER_MODE_ID )
+    int result;
+    uint32_t ret_val = 0;
+
+    LOG(LOG_INFO, "power line freq: %d.", freq);
+
+    /* some controls(such brightness) will call acamera_command()
+     * before isp_fw initialed, so we need to check.
+     */
+    if ( !isp_started ) {
+        LOG(LOG_ERR, "ISP FW not inited yet");
+        return -EBUSY;
+    }
+    result = acamera_command(ctx_id, TALGORITHMS, ANTIFLICKER_MODE_ID,
+							freq, COMMAND_SET, &ret_val);
+    if ( result ) {
+        LOG(LOG_ERR, "Failed to set ANTIFLICKER_MODE_ID to %d, ret_value: %d.",
+			freq, result);
+        return result;
+    }
+#endif
+    return 0;
+}
+int isp_fw_do_set_gamma(uint32_t ctx_id, uint32_t gamma)
+{
+	int result;
+	sbuf_gamma_t sbuf_gamma;
+
+	LOG(LOG_INFO, "gamma: %d.", gamma);
+
+	acamera_context_ptr_t p_ctx = acamera_get_ctx_ptr(ctx_id);
+	if (p_ctx && p_ctx->initialized == 0) {
+		pr_err("context %d is not initialized.\n", ctx_id);
+		return -1;
+	}
+	if (p_ctx && p_ctx->initialized == 0) {
+		pr_err("context %d is not initialized.\n", ctx_id);
+		return -1;
+	}
+	sbuf_gamma.gamma_gain = gamma;
+	sbuf_gamma.gamma_offset = 0;
+    result = acamera_fsm_mgr_set_param(&p_ctx->fsm_mgr,
+										FSM_PARAM_SET_GAMMA_NEW_PARAM,
+										&sbuf_gamma, sizeof(sbuf_gamma_t));
+    if ( result ) {
+        LOG(LOG_ERR, "Failed to set gamma to %d, ret_value: %d.",
+					gamma, result);
+        return result;
+    }
+	return 0;
+}
 /* ----------------------------------------------------------------
  * fw_interface config interface
  */
@@ -1323,7 +1530,63 @@ int fw_intf_set_output_ds1_on_off( uint32_t ctx_id, uint32_t ctrl_val )
 #endif
 }
 
-extern void *acamera_get_ctx_ptr(uint32_t ctx_id);
+int fw_intf_set_white_balance_red(uint32_t ctx_id, uint32_t val)
+{
+	return isp_fw_do_set_white_balance_red(ctx_id, val);
+}
+int fw_intf_set_white_balance_blue(uint32_t ctx_id, uint32_t val)
+{
+	return isp_fw_do_set_white_balance_blue(ctx_id, val);
+}
+int fw_intf_set_gamma(uint32_t ctx_id, uint32_t val)
+{
+	return isp_fw_do_set_gamma(ctx_id, val);
+}
+int fw_intf_set_hue_auto(uint32_t ctx_id, uint32_t val)
+{
+	return isp_fw_do_set_hue_auto(ctx_id, val);
+}
+int fw_intf_set_white_balance_tmperature(uint32_t ctx_id, uint32_t val)
+{
+	return isp_fw_do_set_white_balance_tmperature(ctx_id, val);
+}
+int fw_intf_set_backlight(uint32_t ctx_id, int val)
+{
+	return 0;
+}
+int fw_intf_set_pan(uint32_t ctx_id, int val)
+{
+	return 0;
+}
+int fw_intf_set_pan_speed(uint32_t ctx_id, int val)
+{
+	return 0;
+}
+int fw_intf_set_tilt(uint32_t ctx_id, int val)
+{
+	return 0;
+}
+int fw_intf_set_tilt_speed(uint32_t ctx_id, int val)
+{
+	return 0;
+}
+int fw_intf_set_zoom(uint32_t ctx_id, int val)
+{
+	return isp_fw_do_set_zoom(ctx_id, val);
+}
+int fw_intf_set_zoom_continuous(uint32_t ctx_id, int val)
+{
+	return isp_fw_do_set_zoom_continuous(ctx_id, val);
+}
+int fw_intf_set_iris(uint32_t ctx_id, int val)
+{
+	return 0;
+}
+int fw_intf_set_power_line_freq(uint32_t ctx_id, int val)
+{
+	return isp_fw_set_power_line_freq(ctx_id, val);
+}
+
 int fw_intf_set_raw_bypass_on_off(uint32_t ctx_id, uint32_t ctrl_val)
 {
 	acamera_context_t *ptr = acamera_get_ctx_ptr(ctx_id);

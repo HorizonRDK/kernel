@@ -77,5 +77,19 @@ int fw_intf_set_output_ds1_on_off( uint32_t ctx_id, uint32_t ctrl_val );
 int fw_intf_set_raw_bypass_on_off(uint32_t ctx_id, uint32_t ctrl_val);
 int fw_intf_temper_buf_ctrl(uint32_t ctx_id, uint32_t ctrl_val);
 int fw_intf_iridix_ctrl(uint32_t ctx_id, uint32_t ctrl_val);
-
+/*******new add interface********************************************/
+int fw_intf_set_white_balance_red(uint32_t ctx_id, uint32_t ctrl_val);
+int fw_intf_set_white_balance_blue(uint32_t ctx_id, uint32_t ctrl_val);
+int fw_intf_set_gamma(uint32_t ctx_id, uint32_t ctrl_val);
+int fw_intf_set_hue_auto(uint32_t ctx_id, uint32_t ctrl_val);
+int fw_intf_set_white_balance_tmperature(uint32_t ctx_id, uint32_t ctrl_val);
+int fw_intf_set_backlight(uint32_t ctx_id, int val);
+int fw_intf_set_pan(uint32_t ctx_id, int val);
+int fw_intf_set_pan_speed(uint32_t ctx_id, int val);
+int fw_intf_set_tilt(uint32_t ctx_id, int val);
+int fw_intf_set_tilt_speed(uint32_t ctx_id, int val);
+int fw_intf_set_zoom(uint32_t ctx_id, int val);
+int fw_intf_set_zoom_continuous(uint32_t ctx_id, int val);
+int fw_intf_set_iris(uint32_t ctx_id, int val);
+int fw_intf_set_power_line_freq(uint32_t ctx_id, int val);
 #endif
