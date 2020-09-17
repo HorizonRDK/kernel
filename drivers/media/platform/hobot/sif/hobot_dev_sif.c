@@ -140,7 +140,7 @@ void sif_config_rdma_cfg(struct sif_subdev *subdev, u8 index,
 	sif_set_rdma_enable(sif->base_reg, index, true);
 	sif_set_rdma_buf_addr(sif->base_reg, index, frameinfo->addr[index]);
 
-	vio_info("[S%d]ddr in width = %d, height = %d, stride = %d\n",
+	vio_dbg("[S%d]ddr in width = %d, height = %d, stride = %d\n",
 			group->instance, width, height, stride);
 }
 
@@ -702,6 +702,7 @@ int sif_bind_chain_group(struct sif_video_ctx *sif_ctx, int instance)
 	struct vio_group *group;
 	struct x3_sif_dev *sif;
 	struct sif_subdev *subdev;
+	unsigned long flags;
 
 	if (!(sif_ctx->state & BIT(VIO_VIDEO_OPEN))) {
 		vio_err("[%s]invalid BIND is requested(%lX)",
@@ -740,7 +741,7 @@ int sif_bind_chain_group(struct sif_video_ctx *sif_ctx, int instance)
 	subdev->sif_dev = sif;
 	subdev->group = group;
 
-	spin_lock(&subdev->slock);
+	spin_lock_irqsave(&subdev->slock, flags);
 	for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
 		if(!test_bit(i, &subdev->val_ctx_mask)) {
 			subdev->ctx[i] = sif_ctx;
@@ -749,7 +750,7 @@ int sif_bind_chain_group(struct sif_video_ctx *sif_ctx, int instance)
 			break;
 		}
 	}
-	spin_unlock(&subdev->slock);
+	spin_unlock_irqrestore(&subdev->slock, flags);
 	if (i == VIO_MAX_SUB_PROCESS) {
 		vio_err("alreay open too much for one pipeline\n");
 		return -EFAULT;
@@ -1346,7 +1347,7 @@ void sif_frame_done(struct sif_subdev *subdev)
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
-	spin_lock(&subdev->slock);
+	spin_lock_irqsave(&subdev->slock, flags);
 	for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
 		if (test_bit(i, &subdev->val_ctx_mask)) {
 			sif_ctx = subdev->ctx[i];
@@ -1354,7 +1355,7 @@ void sif_frame_done(struct sif_subdev *subdev)
 			wake_up(&sif_ctx->done_wq);
 		}
 	}
-	spin_unlock(&subdev->slock);
+	spin_unlock_irqrestore(&subdev->slock, flags);
 	vio_dbg("%s: mux_index = %d\n", __func__, subdev->ddr_mux_index);
 }
 
