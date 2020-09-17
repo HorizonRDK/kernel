@@ -368,6 +368,7 @@ static int i2s_startup(struct snd_pcm_substream *substream,
 {
 	struct hobot_i2s *i2s = snd_soc_dai_get_drvdata(dai);
 	unsigned long flags;
+	int ret;
 
 	//dev_dbg(i2s->dev, "i2s_startup S, i2s->id is %d\n", i2s->id);
 	spin_lock_irqsave(&i2s->lock, flags);
@@ -386,6 +387,13 @@ static int i2s_startup(struct snd_pcm_substream *substream,
 	else
 		i2s->streamflag = 1;
 
+	if (i2s->ms == 1) {
+                clk_enable(i2s->bclk);
+                ret = change_clk(i2s->dev, "i2s-bclk",
+                                i2s->bclk_set);
+        } else if (i2s->ms == 4) {
+                clk_disable(i2s->bclk);
+        }
 	//i2s_transfer_ctl(i2s, 0);
 
 
@@ -447,6 +455,16 @@ static int i2s_set_clkdiv(struct snd_soc_dai *dai, int div_id, int div)
 	return 0;
 }
 
+static int i2s_hw_free(struct snd_pcm_substream *substream,
+		struct snd_soc_dai *dai) {
+	struct hobot_i2s *i2s = snd_soc_dai_get_drvdata(dai);
+
+	clk_disable(i2s->bclk);
+	clk_disable(i2s->mclk);
+
+	return 0;
+}
+
 static const struct snd_soc_dai_ops hobot_i2s_dai_ops = {
 	.trigger = i2s_trigger,
 	.hw_params = i2s_hw_params,
@@ -454,7 +472,7 @@ static const struct snd_soc_dai_ops hobot_i2s_dai_ops = {
 	.set_clkdiv = i2s_set_clkdiv,
 	.set_sysclk = i2s_set_sysclk,
 	.startup = i2s_startup,
-
+	.hw_free = i2s_hw_free,
 };
 
 static int hobot_i2s_dai_probe(struct snd_soc_dai *dai)

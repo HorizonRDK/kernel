@@ -1284,9 +1284,9 @@ static int ac108_hw_free(struct snd_pcm_substream *substream, struct snd_soc_dai
 
 #else
 
-	AC108_DEBUG("AC108 reset all register to their default value\n\n");
+	//AC108_DEBUG("AC108 reset all register to their default value\n\n");
 	//if config TX Encoding mode, also disable BCLK
-	ac108_multi_chips_reset(CHIP_AUDIO_RST, 0x12);
+	//ac108_multi_chips_reset(CHIP_AUDIO_RST, 0x12);
 #endif
 
 	return 0;
