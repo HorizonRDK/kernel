@@ -323,6 +323,7 @@ EXPORT_SYMBOL(bpu_core_disable);
 
 int32_t bpu_core_reset(struct bpu_core *core)
 {
+	struct bpu_fc tmp_bpu_fc;
 	int32_t ret;
 	uint32_t i;
 
@@ -332,6 +333,13 @@ int32_t bpu_core_reset(struct bpu_core *core)
 	}
 
 	for (i = 0; i < BPU_PRIO_NUM; i++) {
+		while (!kfifo_is_empty(&core->run_fc_fifo[i])) {
+			ret = kfifo_get(&core->run_fc_fifo[i], &tmp_bpu_fc);/*PRQA S ALL*/
+			if (ret < 1) {
+				continue;
+			}
+			bpu_fc_clear(&tmp_bpu_fc);
+		}
 		kfifo_reset(&core->run_fc_fifo[i]);/*PRQA S ALL*/
 	}
 	kfifo_reset(&core->done_fc_fifo);/*PRQA S ALL*/
@@ -372,7 +380,7 @@ EXPORT_SYMBOL(bpu_core_reset);
 int32_t bpu_core_process_recover(struct bpu_core *core)
 {
 	struct bpu_fc tmp_bpu_fc;
-	struct kfifo recovery_kfifo[BPU_PRIO_NUM];/*PRQA S ALL*/
+	DECLARE_KFIFO_PTR(recovery_kfifo[BPU_PRIO_NUM], struct bpu_fc);
 	unsigned long flags;/*PRQA S ALL*/
 	int32_t ret;
 	int32_t i;
@@ -383,7 +391,6 @@ int32_t bpu_core_process_recover(struct bpu_core *core)
 	}
 
 	dev_err(core->dev, "TO recovery bpu core%d\n", core->index);
-	(void)core->hw_ops->status(core, UPDATE_STATE);
 	/* copy run_fc_fifo for recover */
 	for (i = (int32_t)BPU_PRIO_NUM - 1; i >= 0; i--) {
 		(void)memcpy(&recovery_kfifo[i], &core->run_fc_fifo[i],/*PRQA S ALL*/
@@ -397,8 +404,8 @@ int32_t bpu_core_process_recover(struct bpu_core *core)
 				return -EINVAL;
 			}
 
-			if (core->hw_ops->write_fc != NULL) {
-				spin_lock_irqsave(&core->spin_lock, flags);/*PRQA S ALL*/
+			spin_lock_irqsave(&core->spin_lock, flags);/*PRQA S ALL*/
+			if ((core->hw_ops->write_fc != NULL) && (tmp_bpu_fc.fc_data != NULL)) {
 				ret = core->hw_ops->write_fc(core, &tmp_bpu_fc, 0);
 				if (ret < 0) {
 					spin_unlock_irqrestore(&core->spin_lock, flags);
@@ -406,8 +413,8 @@ int32_t bpu_core_process_recover(struct bpu_core *core)
 							core->index);
 					return ret;
 				}
-				spin_unlock_irqrestore(&core->spin_lock, flags);
 			}
+			spin_unlock_irqrestore(&core->spin_lock, flags);
 		}
 	}
 

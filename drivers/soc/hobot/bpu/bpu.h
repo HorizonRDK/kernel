@@ -133,6 +133,7 @@ struct bpu {
 
 extern struct bpu *g_bpu;
 
+void bpu_fc_clear(struct bpu_fc *fc);
 int32_t bpu_write_with_user(const struct bpu_core *core,
 			struct bpu_user *user,
 			const char __user *buf, size_t len);

@@ -148,7 +148,9 @@ EXPORT_SYMBOL(bpu_prio_init);
 
 void bpu_prio_exit(struct bpu_prio *prio)
 {
+	struct bpu_fc tmp_bpu_fc;
 	uint32_t i;
+	int32_t ret;
 
 	if(prio == NULL) {
 		return;
@@ -158,6 +160,13 @@ void bpu_prio_exit(struct bpu_prio *prio)
 	tasklet_kill(&prio->tasklet);
 
 	for (i = 0u; i < prio->level_num; i++) {
+		while (!kfifo_is_empty(&prio->prios[i].buf_fc_fifo)) {
+			ret = kfifo_get(&prio->prios[i].buf_fc_fifo, &tmp_bpu_fc);/*PRQA S ALL*/
+			if (ret < 1) {
+				continue;
+			}
+			bpu_fc_clear(&tmp_bpu_fc);
+		}
 		vfree(prio->prios[i].bpu_fc_fifo_buf);/*PRQA S ALL*/
 	}
 

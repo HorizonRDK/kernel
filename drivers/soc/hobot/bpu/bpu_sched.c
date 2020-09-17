@@ -62,22 +62,22 @@ static void bpu_sched_check_to_core(struct bpu *bpu)
 				continue;
 			}
 
-			(void)tmp_core->hw_ops->status(tmp_core, UPDATE_STATE);
 			if (tmp_core->hw_ops->status(tmp_core, WORK_STATE) > 0) {
+				(void)tmp_core->hw_ops->status(tmp_core, UPDATE_STATE);
 				continue;
 			}
 
-			ret = bpu_core_reset(tmp_core);
-			if (ret != 0) {
-				pr_err("Bpu core%d reset failed when check not work!\n",
-						tmp_core->index);/*PRQA S ALL*/
-			}
+			if (tmp_core->hw_ops->reset != NULL) {
+				tmp_core->hw_ops->reset(tmp_core);
 
-			ret = bpu_core_process_recover(tmp_core);
-			if (ret != 0) {
-				pr_err("BPU core%d recover failed\n", tmp_core->index);
+				ret = bpu_core_process_recover(tmp_core);
+				if (ret != 0) {
+					pr_err("BPU core%d recover failed\n", tmp_core->index);
+				}
 			}
+			bpu_prio_trig_out(tmp_core->prio_sched);
 		}
+		(void)tmp_core->hw_ops->status(tmp_core, UPDATE_STATE);
 	}
 }
 

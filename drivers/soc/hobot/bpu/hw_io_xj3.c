@@ -477,9 +477,9 @@ static int32_t bpu_core_hw_read_fc(const struct bpu_core *core,
 
 static int32_t bpu_core_hw_status(struct bpu_core *core, uint32_t cmd)
 {
-	static uint32_t head_index, tail_index;
+	static uint32_t head_index[BPU_MAX_CORE_NUM], tail_index[BPU_MAX_CORE_NUM];
 	uint32_t tmp_head_index, tmp_tail_index;
-	static uint32_t inst_num;
+	static uint32_t inst_num[BPU_MAX_CORE_NUM];
 	uint32_t tmp_inst_num;
 	int ret = 0;
 
@@ -501,8 +501,8 @@ static int32_t bpu_core_hw_status(struct bpu_core *core, uint32_t cmd)
 		}
 		break;
 	case (uint32_t)WORK_STATE:/*PRQA S ALL*/
-		if ((tmp_head_index == head_index)
-				&& (tmp_inst_num == inst_num)
+		if ((tmp_head_index == head_index[core->index])
+				&& (tmp_inst_num == inst_num[core->index])
 				&& (tmp_head_index != tmp_tail_index)) {
 			ret = 0;
 		} else {
@@ -518,9 +518,9 @@ static int32_t bpu_core_hw_status(struct bpu_core *core, uint32_t cmd)
 		break;
 	}
 
-	head_index = tmp_head_index;
-	tail_index = tmp_tail_index;
-	inst_num = tmp_inst_num;
+	head_index[core->index] = tmp_head_index;
+	tail_index[core->index] = tmp_tail_index;
+	inst_num[core->index] = tmp_inst_num;
 	return ret;
 }
 

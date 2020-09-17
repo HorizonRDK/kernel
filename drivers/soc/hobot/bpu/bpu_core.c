@@ -64,6 +64,8 @@ static void bpu_core_tasklet(unsigned long data)/*PRQA S ALL*/
 				return;
 			}
 			bpu_prio_trig_out(core->prio_sched);
+			/* data has been no use fow hw, so clear data */
+			bpu_fc_clear(&tmp_bpu_fc);
 
 			/* maybe lost a hw irq */
 			if (tmp_bpu_fc.hw_id < tmp_hw_id) {
@@ -162,10 +164,6 @@ static irqreturn_t bpu_core_irq_handler(int irq, void *dev_id)/*PRQA S ALL*/
 	}
 	spin_unlock(&core->spin_lock);
 	pr_debug("BPU Core[%d] irq %d come\n", core->index, tmp_hw_id);/*PRQA S ALL*/
-
-	if (core->hw_ops->status != NULL) {
-		(void)core->hw_ops->status(core, UPDATE_STATE);
-	}
 
 	if (tmp_hw_id == (uint32_t)HW_ID_MAX) {
 		return IRQ_HANDLED;
@@ -337,15 +335,18 @@ static int bpu_core_open(struct inode *inode, struct file *filp)/*PRQA S ALL*/
 	int32_t ret;
 	uint32_t i;
 
+	mutex_lock(&core->mutex_lock);
 	if (atomic_read(&core->open_counter) == 0) {/*PRQA S ALL*/
 		/* first open init something files */
 		core->prio_sched = bpu_prio_init(core, CONFIG_BPU_PRIO_NUM);
 		if (core->prio_sched == NULL) {
+			mutex_unlock(&core->mutex_lock);
 			dev_err(core->dev, "Init bpu core prio sched failed\n");
 			return -EINVAL;
 		}
 		ret = bpu_core_enable(core);
 		if (ret != 0) {
+			mutex_unlock(&core->mutex_lock);
 			dev_err(core->dev, "Can't bpu core hw enable failed\n");
 			return ret;
 		}
@@ -358,6 +359,7 @@ static int bpu_core_open(struct inode *inode, struct file *filp)/*PRQA S ALL*/
 		if (core->hw_enabled == 0u) {
 			ret = bpu_core_enable(core);
 			if (ret != 0) {
+				mutex_unlock(&core->mutex_lock);
 				dev_err(core->dev, "Can't bpu core hw enable failed\n");
 				return ret;
 			}
@@ -366,6 +368,7 @@ static int bpu_core_open(struct inode *inode, struct file *filp)/*PRQA S ALL*/
 
 	user = (struct bpu_user *)kzalloc(sizeof(struct bpu_user), GFP_KERNEL);/*PRQA S ALL*/
 	if (user == NULL) {
+		mutex_unlock(&core->mutex_lock);
 		dev_err(core->dev, "Can't bpu user mem\n");
 		return -ENOMEM;
 	}
@@ -375,6 +378,7 @@ static int bpu_core_open(struct inode *inode, struct file *filp)/*PRQA S ALL*/
 	/* init fifo which report to userspace */
 	ret = kfifo_alloc(&user->done_fcs, BPU_CORE_RECORE_NUM, GFP_KERNEL);/*PRQA S ALL*/
 	if (ret != 0) {
+		mutex_unlock(&core->mutex_lock);
 		kfree((void *)user);/*PRQA S ALL*/
 		dev_err(core->dev, "Can't bpu user fifo buffer\n");
 		return -ret;
@@ -393,6 +397,7 @@ static int bpu_core_open(struct inode *inode, struct file *filp)/*PRQA S ALL*/
 	filp->private_data = (void *)user;/*PRQA S ALL*/
 
 	atomic_inc(&core->open_counter);/*PRQA S ALL*/
+	mutex_unlock(&core->mutex_lock);
 	return 0;
 }
 
@@ -402,6 +407,7 @@ static int bpu_core_release(struct inode *inode, struct file *filp)/*PRQA S ALL*
 	struct bpu_core *core = (struct bpu_core *)user->host;/*PRQA S ALL*/
 	unsigned long flags;/*PRQA S ALL*/
 	int32_t core_work_state = 1;
+	struct bpu_fc tmp_bpu_fc;
 	int32_t ret;
 	uint32_t i;
 
@@ -428,6 +434,7 @@ static int bpu_core_release(struct inode *inode, struct file *filp)/*PRQA S ALL*
 		}
 	}
 
+	mutex_lock(&core->mutex_lock);
 	atomic_dec(&core->open_counter);/*PRQA S ALL*/
 
 	if (atomic_read(&core->open_counter) == 0) {/*PRQA S ALL*/
@@ -443,10 +450,18 @@ static int bpu_core_release(struct inode *inode, struct file *filp)/*PRQA S ALL*
 		core->p_run_time = 0;
 		core->ratio = 0;
 		for (i = 0; i < BPU_PRIO_NUM; i++) {
+			while (!kfifo_is_empty(&core->run_fc_fifo[i])) {
+				ret = kfifo_get(&core->run_fc_fifo[i], &tmp_bpu_fc);/*PRQA S ALL*/
+				if (ret < 1) {
+					continue;
+				}
+				bpu_fc_clear(&tmp_bpu_fc);
+			}
 			kfifo_reset(&core->run_fc_fifo[i]);/*PRQA S ALL*/
 		}
 		spin_unlock_irqrestore(&core->spin_lock, flags);
 	}
+	mutex_unlock(&core->mutex_lock);
 
 	spin_lock_irqsave(&core->spin_lock, flags);/*PRQA S ALL*/
 	list_del((struct list_head *)user);/*PRQA S ALL*/
@@ -647,7 +662,9 @@ static int32_t bpu_core_alloc_fifos(struct bpu_core *core)
 
 static void bpu_core_free_fifos(struct bpu_core *core)
 {
+	struct bpu_fc tmp_bpu_fc;
 	uint32_t i;
+	int32_t ret;
 
 	if (core == NULL) {
 		return;
@@ -655,6 +672,13 @@ static void bpu_core_free_fifos(struct bpu_core *core)
 
 	kfifo_free(&core->done_fc_fifo);/*PRQA S ALL*/
 	for (i = 0; i < BPU_PRIO_NUM; i++) {
+		while (!kfifo_is_empty(&core->run_fc_fifo[i])) {
+			ret = kfifo_get(&core->run_fc_fifo[i], &tmp_bpu_fc);/*PRQA S ALL*/
+			if (ret < 1) {
+				continue;
+			}
+			bpu_fc_clear(&tmp_bpu_fc);
+		}
 		kfifo_free(&core->run_fc_fifo[i]);/*PRQA S ALL*/
 	}
 }

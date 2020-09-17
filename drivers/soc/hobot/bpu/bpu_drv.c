@@ -19,7 +19,7 @@
 struct bpu *g_bpu;
 
 /* mainly clear fc data in bpu_fc*/
-static void bpu_fc_clear(struct bpu_fc *fc)
+void bpu_fc_clear(struct bpu_fc *fc)
 {
 	if (fc != NULL) {
 		if (fc->fc_data != NULL) {
@@ -29,6 +29,9 @@ static void bpu_fc_clear(struct bpu_fc *fc)
 		}
 	}
 }
+// PRQA S ALL ++
+EXPORT_SYMBOL(bpu_fc_clear);
+// PRQA S ALL --
 
 static int32_t bpu_fc_bind_user(struct bpu_fc *fc, struct bpu_user *user)
 {
@@ -286,9 +289,6 @@ int32_t bpu_write_fc_to_core(struct bpu_core *core,
 		dev_err(core->dev, "no real bpu to process\n");
 		return -ENODEV;
 	}
-
-	/* data has been set to hw, so clear data */
-	bpu_fc_clear(bpu_fc);
 
 	return write_fc_num;
 }
