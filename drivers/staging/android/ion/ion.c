@@ -510,6 +510,7 @@ struct ion_handle *ion_alloc(struct ion_client *client, size_t len,
 			heap_id_mask &= ~ION_HEAP_CARVEOUT_MASK;
 			heap_id_mask |= ION_HEAP_TYPE_DMA_MASK;
 		} else if ((heap_id_mask & ION_HEAP_TYPE_DMA_MASK) > 0) {
+			pr_info("Retry alloc 0x%xByte from carveout heap\n", len);
 			heap_id_mask &= ~ION_HEAP_TYPE_DMA_MASK;
 			heap_id_mask |= ION_HEAP_CARVEOUT_MASK;
 		}
