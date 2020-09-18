@@ -116,7 +116,8 @@ struct bpu_prio *bpu_prio_init(struct bpu_core *core, uint32_t levels)
 
 	for (i = 0u; i < prio->level_num; i++) {
 		prio->prios[i].bpu_fc_fifo_buf =
-			vmalloc((FC_MAX_DEPTH / (i + 1u)) * sizeof(struct bpu_fc));
+			vmalloc(roundup_pow_of_two(FC_MAX_DEPTH / (i + 1u))
+					* sizeof(struct bpu_fc));
 		if (prio->prios[i].bpu_fc_fifo_buf == NULL) {
 			for (j = 0; j < i; j++) {
 				vfree(&prio->prios[i].bpu_fc_fifo_buf);/*PRQA S ALL*/
@@ -130,7 +131,8 @@ struct bpu_prio *bpu_prio_init(struct bpu_core *core, uint32_t levels)
 
 		kfifo_init(&prio->prios[i].buf_fc_fifo,
 				prio->prios[i].bpu_fc_fifo_buf,
-				(FC_MAX_DEPTH / (i + 1u)) * sizeof(struct bpu_fc));
+				roundup_pow_of_two(FC_MAX_DEPTH / (i + 1u))
+				* sizeof(struct bpu_fc));
 
 		prio->prios[i].level = (uint32_t)i;
 		prio->prios[i].left_slice_num = 0;
