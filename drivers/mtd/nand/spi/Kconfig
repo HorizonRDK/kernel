@@ -5,3 +5,11 @@ menuconfig MTD_SPI_NAND
 	select SPI_MEM
 	help
 	  This is the framework for the SPI NAND device drivers.
+
+	config SPINAND_ESMT
+	bool "Enable ESMT spi-nand detect"
+	default n
+	depends on MTD_SPI_NAND
+	help
+	  This option will enable ESMT spinand flash detection, which will
+	  disable Micron spinand flash detection. If unsure, please select n

@@ -1005,8 +1005,9 @@ static int hb_qspi_probe(struct platform_device *pdev)
 	struct resource *res;
 	struct device *dev = &pdev->dev;
 	struct device_node *nc;
-	uint32_t num_cs, buswidth;
-	uint32_t max_speed_hz;
+	uint32_t num_cs, buswidth, max_speed_hz;
+	const char* device_name;
+
 
 	master = spi_alloc_master(&pdev->dev, sizeof(*hbqspi));
 	if (!master)
@@ -1086,6 +1087,14 @@ static int hb_qspi_probe(struct platform_device *pdev)
 		dev_err(dev, "Cannot request IRQ.\n");
 		goto remove_master;
 	}
+
+	if (of_property_read_string(pdev->dev.of_node,
+								"device-name", &device_name)) {
+		master->dev.init_name = "hb_qspi";
+	} else {
+		master->dev.init_name =  device_name;
+	}
+
 	if (diag_register(ModuleDiag_qspi, EventIdqspiErr,
 						4, 10, 5000, hb_qspiflash_callback) < 0)
 		pr_err("qspi flash diag register fail\n");

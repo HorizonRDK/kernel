@@ -329,63 +329,14 @@
 	#size-cells = <0>;
 	spi-mode = <0>;		/* CPOL/CPHA mode */
 	bus-width = <4>;
+	device-name = "hr_nor";
 
 	flash@0 {
 		compatible = "jedec,spi-nor";
 		#address-cells = <1>;
 		#size-cells = <1>;
 		reg = <0x0>;
-		spi-max-frequency = <60000000>; /* For FPGA max clk is 20Mhz */
-
-		partition@nor-system {
-			label = "nor-system";
-			reg = <0xDC0000 0x2100000>;
-		};
-
-		partition@nor-sbl {
-			label = "nor-sbl";
-			reg = <0x20000 0xA0000>;
-		};
-
-		partition@nor-ddr {
-			label = "nor-ddr";
-			reg = <0xA0000 0x80000>;
-		};
-
-		partition@nor-bl31 {
-			label = "nor-bl31";
-			reg = <0x120000 0x60000>;
-		};
-
-		partition@nor-uboot {
-			label = "nor-uboot";
-			reg = <0x180000 0x200000>;
-		};
-
-		partition@nor-bpu {
-			label = "nor-bpu";
-			reg = <0x380000 0x20000>;
-		};
-
-		partition@nor-vbmeta {
-			label = "nor-vbmeta";
-			reg = <0x3A0000 0x20000>;
-		};
-
-		partition@nor-boot {
-			label = "nor-boot";
-			reg = <0x3C0000 0xA00000>;
-		};
-
-		partition@nor-app {
-			label = "nor-app";
-			reg = <0x2EC0000 0x0>;
-		};
-
-		partition@nor-full {
-			label = "nor-full";
-			reg = <0x0 0x0>;
-		};
+		spi-max-frequency = <62500000>; /* For FPGA max clk is 20Mhz */
 	};
 };
 
@@ -395,34 +346,14 @@
 	#size-cells = <0>;
 	spi-mode = <0>;		/* CPOL/CPHA mode */
 	bus-width = <4>;
+	device-name = "hr_nand";
 
 	spi-nand@0 {
 		compatible = "spi-nand";
 		#address-cells = <1>;
 		#size-cells = <1>;
 		reg = <0x0>;
-		spi-max-frequency = <60000000>; /* For FPGA max clk is 20Mhz */
-
-		partition@nand-bootloader {
-			label = "nand-bootloader";
-			reg = <0 0x780000>;
-		};
-		partition@nand-boot {
-			label = "nand-boot";
-			reg = <0x780000 0x1400000>;
-		};
-		partition@nand-rootfs {
-			label = "nand-rootfs";
-			reg = <0x1B80000 0x3C00000>;
-		};
-		partition@nand-userdata {
-			label = "nand-userdata";
-			reg = <0x5780000 0x0>;
-		};
-		partition@nand-full {
-			label = "nand-full";
-			reg = <0x0 0x0>;
-		};
+		spi-max-frequency = <62500000>; /* For FPGA max clk is 20Mhz */
 	};
 };
 

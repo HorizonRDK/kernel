@@ -762,7 +762,11 @@ static const struct nand_ops spinand_ops = {
 static const struct spinand_manufacturer *spinand_manufacturers[] = {
 	&gigadevice_spinand_manufacturer,
 	&macronix_spinand_manufacturer,
+#if IS_ENABLED(CONFIG_SPINAND_ESMT)
+	&esmt_spinand_manufacturer,
+#else
 	&micron_spinand_manufacturer,
+#endif
 	&winbond_spinand_manufacturer,
 };
 
