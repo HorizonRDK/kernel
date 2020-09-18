@@ -764,6 +764,9 @@ static void hb_spi_chipselect(struct spi_device *spi, bool is_high)
 	u32 val = 0;
 	struct hb_spi *hbspi = spi_master_get_devdata(spi->master);
 
+	if (spi->mode & SPI_NO_CS)
+		return;
+
 	if (spi->chip_select >= spi->master->num_chipselect) {
 		dev_err(hbspi->dev, "Err chip_select=%d num_chipselect=%d\n",
 			spi->chip_select, spi->master->num_chipselect);
@@ -1203,7 +1206,8 @@ static int hb_spi_probe(struct platform_device *pdev)
 		hbspi->isslave = MASTER_MODE;
 		snprintf(ctrl_mode, sizeof(ctrl_mode), "%s", "master");
 		ctlr->bus_num = pdev->id;
-		ctlr->mode_bits = SPI_CPOL | SPI_CPHA | SPI_LSB_FIRST | SPI_CS_HIGH;
+		ctlr->mode_bits = SPI_CPOL | SPI_CPHA | SPI_LSB_FIRST
+								| SPI_CS_HIGH | SPI_NO_CS;
 		ctlr->setup = hb_spi_setup;
 		ctlr->prepare_transfer_hardware = hb_spi_prepare_xfer_hardware;
 		ctlr->transfer_one = hb_spi_transfer_one;
