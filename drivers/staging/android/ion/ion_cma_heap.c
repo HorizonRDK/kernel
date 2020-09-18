@@ -44,11 +44,17 @@ static int ion_cma_allocate(struct ion_heap *heap, struct ion_buffer *buffer,
 	struct page *pages;
 	unsigned long size = PAGE_ALIGN(len);
 	unsigned long nr_pages = size >> PAGE_SHIFT;
+#ifndef CONFIG_HOBOT_XJ3
 	unsigned long align = get_order(size);
+#else
+	unsigned long align = 0;	//order 0 i.e. 1 page align
+#endif
 	int ret;
 
+#ifndef CONFIG_HOBOT_XJ3
 	if (align > CONFIG_CMA_ALIGNMENT)
 		align = CONFIG_CMA_ALIGNMENT;
+#endif
 
 	pages = cma_alloc(cma_heap->cma, nr_pages, align, GFP_KERNEL);
 	if (!pages)
