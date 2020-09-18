@@ -78,19 +78,7 @@ typedef struct ctrlp_s {
 typedef struct dol3_s {
 	uint32_t param_hold;
 	uint32_t param_hold_length;
-	uint32_t s_gain;
-	uint32_t s_gain_length;
-	uint32_t sd_gain;
-	uint32_t sd_gain_length;
-	uint32_t m_gain;
-	uint32_t m_gain_length;
-	uint32_t md_gain;
-	uint32_t md_gain_length;
 	ctrlp_t  line_p[3];
-	uint32_t l_gain;
-	uint32_t l_gain_length;
-	uint32_t ld_gain;
-	uint32_t ld_gain_length;
 	uint32_t s_line;
 	uint32_t s_line_length;
 	uint32_t m_line;
@@ -110,14 +98,6 @@ typedef struct dol3_s {
 typedef struct dol2_s {
 	uint32_t param_hold;
 	uint32_t param_hold_length;
-	uint32_t s_gain;
-    uint32_t s_gain_length;
-	uint32_t sd_gain;
-	uint32_t sd_gain_length;
-	uint32_t m_gain;
-	uint32_t m_gain_length;
-	uint32_t md_gain;
-	uint32_t md_gain_length;
 	ctrlp_t  line_p[2];
 	uint32_t s_line;
 	uint32_t s_line_length;
@@ -136,10 +116,6 @@ typedef struct dol2_s {
 typedef struct normal_s {
 	uint32_t param_hold;
 	uint32_t param_hold_length;
-	uint32_t s_gain;
-	uint32_t s_gain_length;
-	uint32_t sd_gain;
-	uint32_t sd_gain_length;
 	ctrlp_t  line_p;
 	uint32_t s_line;
 	uint32_t s_line_length;
@@ -156,19 +132,9 @@ typedef struct normal_s {
 typedef struct pwl_s {
 	uint32_t param_hold;
 	uint32_t param_hold_length;
-	uint32_t gain;
-	uint32_t gain_length;
-	uint32_t sd_gain;
-	uint32_t sd_gain_length;
-	uint32_t dc_gain;
-	uint32_t dc_gain_length;
 	ctrlp_t  line_p;
 	uint32_t line;
 	uint32_t line_length;
-	uint32_t min_gain_time;
-	uint32_t max_gain_time;
-	uint32_t min_dgain_time;
-	uint32_t max_dgain_time;
 	uint32_t again_control_num;
 	uint32_t again_control[4];
 	uint32_t again_control_length[4];

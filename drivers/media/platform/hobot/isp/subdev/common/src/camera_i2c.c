@@ -128,8 +128,6 @@ int camera_i2c_read(uint32_t port, uint32_t reg_addr,
 	}
 
 	return ret;
-failed:
-	return -1;
 }
 
 int camera_i2c_write(uint32_t port, uint32_t reg_addr, uint32_t bit_width,
