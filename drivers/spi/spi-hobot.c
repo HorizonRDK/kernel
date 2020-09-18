@@ -463,7 +463,7 @@ static int hb_spi_fill_txdma(struct hb_spi *hbspi)
 				hbspi->txcnt--;
 				cnt++;
 
-				if (hbspi->isslave == SLAVE_MODE) {
+				if (hbspi->isslave == SLAVE_MODE && ctlr->custom_flag) {
 					fragment_size++;
 					if (fragment_size >= SPI_FRAGMENT_SIZE)
 						break;
@@ -476,7 +476,7 @@ static int hb_spi_fill_txdma(struct hb_spi *hbspi)
 				hbspi->txcnt--;
 				cnt++;
 
-				if (hbspi->isslave == SLAVE_MODE) {
+				if (hbspi->isslave == SLAVE_MODE && ctlr->custom_flag) {
 					fragment_size++;
 					if (fragment_size >= SPI_FRAGMENT_SIZE)
 						break;
@@ -514,6 +514,8 @@ static int hb_spi_fill_txdma(struct hb_spi *hbspi)
 static int hb_spi_drain_rxdma(struct hb_spi *hbspi)
 {
 	int cnt = 0, fragment_size = 0;
+	struct spi_controller *ctlr = hbspi->controller;
+
 	dma_sync_single_for_cpu(hbspi->dev, hbspi->rx_dma_phys,
 						HB_SPI_DMA_BUFSIZE, DMA_FROM_DEVICE);
 	if (hbspi->rxbuf) {
@@ -523,7 +525,7 @@ static int hb_spi_drain_rxdma(struct hb_spi *hbspi)
 			hbspi->rxcnt--;
 			cnt++;
 
-			if (hbspi->isslave == SLAVE_MODE) {
+			if (hbspi->isslave == SLAVE_MODE && ctlr->custom_flag) {
 				fragment_size++;
 				if (fragment_size >= SPI_FRAGMENT_SIZE)
 					break;

@@ -657,6 +657,7 @@ struct spi_controller {
 
 	/* for cp notify ap dma config is ready */
 	void (*info_ap)(void);
+	bool custom_flag;
 };
 
 static inline void *spi_controller_get_devdata(struct spi_controller *ctlr)

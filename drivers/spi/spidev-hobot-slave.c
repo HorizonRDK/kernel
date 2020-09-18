@@ -870,6 +870,7 @@ static int spidev_open(struct inode *inode, struct file *filp)
 	spi = spidev->spi;
 	ctlr = spi->controller;
 	ctlr->info_ap = hb_spi_info_ap;
+	ctlr->custom_flag = true;
 
 	/* just init one time */
 	if (spidev->users > 0) {
