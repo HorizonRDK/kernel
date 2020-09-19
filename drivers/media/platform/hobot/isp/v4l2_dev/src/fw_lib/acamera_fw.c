@@ -770,6 +770,7 @@ void acamera_deinit_context( acamera_context_t *p_ctx )
     // clear all contexts state
     p_ctx->fsm_mgr.reserved = 0;
     p_ctx->initialized = 0;
+    p_ctx->out_format = 0;
     p_ctx->system_state = FW_PAUSE;
     if (p_ctx->dma_chn_idx >= 0 && p_ctx->dma_chn_idx < HW_CONTEXT_NUMBER) {
         clear_bit(p_ctx->dma_chn_idx, &(p_ctx->p_gfw->dma_chn_bitmap));

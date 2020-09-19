@@ -181,6 +181,7 @@ struct _acamera_context_t {
     const acam_reg_t **isp_sequence;
 
     int32_t isp_sequence_default;
+    uint8_t out_format;
 
     /* frame counters */
     uint32_t isp_frame_counter_raw; // frame counter for raw callback

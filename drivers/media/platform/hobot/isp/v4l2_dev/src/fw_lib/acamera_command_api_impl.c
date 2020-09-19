@@ -4087,7 +4087,9 @@ uint8_t fr_format_base_plane( acamera_fsm_mgr_t *instance, uint32_t value, uint8
 		acamera_isp_fr_dma_writer_format_write(ACAMERA_MGR2CTX_PTR(instance)->settings.isp_base, base);
 		acamera_isp_fr_uv_dma_writer_format_write(ACAMERA_MGR2CTX_PTR(instance)->settings.isp_base, base_uv);
 
-		acamera_fsm_mgr_set_param(instance, FSM_PARAM_SET_MATRIX_YUV_FR_OUT_FMT, &pipe_output_format, sizeof(pipe_output_format));
+        if (pipe_output_format != ACAMERA_MGR2CTX_PTR(instance)->out_format)
+            acamera_fsm_mgr_set_param(instance, FSM_PARAM_SET_MATRIX_YUV_FR_OUT_FMT, &pipe_output_format, sizeof(pipe_output_format));
+        ACAMERA_MGR2CTX_PTR(instance)->out_format = pipe_output_format;
 	}
 
         result = SUCCESS;
