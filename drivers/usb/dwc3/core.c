@@ -64,6 +64,12 @@
 // #define HOBOT_SOC_DWC3_DEBUG
 
 #define HOBOT_DDR_DFS_ENABLE
+// #define HOBOT_ENABLE_USB_REGULATOR	/* some issue, debugging... */
+
+static int dwc3_suspend(struct device *dev);
+static int dwc3_resume(struct device *dev);
+static int dwc3_probe(struct platform_device *pdev);
+static int dwc3_remove(struct platform_device *pdev);
 
 #ifdef HOBOT_DDR_DFS_ENABLE
 /*
@@ -74,26 +80,88 @@
  * usb controller don't access the ddr. Therefore, use the spinlock dwc->lock
  * to do synchronize.
  */
-static int
-ddr_dfs_call(struct notifier_block *self, unsigned long action, void *data)
+static int ddr_dfs_call(struct notifier_block *self,
+		unsigned long action, void *data)
 {
 	struct dwc3 *dwc = container_of(self, struct dwc3, ddrfreq_nb);
-	unsigned long	flags;
 
 	switch (action) {
 	case HB_BUS_SIGNAL_START:
-		spin_lock_irqsave(&dwc->lock, flags);
-		dev_dbg(dwc->dev, "%s: Grab semaphore success\n", __func__);
+		/*
+		 * Between START & END, there is sleep function, so couldn't use
+		 * below spin_lock.
+		 */
+		// spin_lock_irqsave(&dwc->lock, flags);
+		// dev_dbg(dwc->dev, "%s: Grab semaphore success\n", __func__);
+		dev_info(dwc->dev, "%s: bus signal start.\n", __func__);
 		break;
 
 	case HB_BUS_SIGNAL_END:
-		spin_unlock_irqrestore(&dwc->lock, flags);
-		dev_dbg(dwc->dev, "%s: Release semaphore success\n", __func__);
+		// spin_unlock_irqrestore(&dwc->lock, flags);
+		// dev_dbg(dwc->dev, "%s: Release semaphore success\n", __func__);
+
+		/* enter powersave state, suspend dwc3 & shutdown the power */
+		dev_info(dwc->dev, "%s: bus signal end.\n", __func__);
 		break;
 
 	default:
-		dev_err(dwc->dev, "%s: Not defined action (%lu)\n", action,
-				__func__);
+		dev_err(dwc->dev, "%s: Not defined action (%lu)\n",
+				__func__, action);
+		break;
+	}
+
+	return NOTIFY_OK;
+}
+
+static int power_save_call(struct notifier_block *self,
+		unsigned long action, void *data)
+{
+	struct dwc3 *dwc = container_of(self, struct dwc3, powersave_nb);
+	// struct platform_device *pdev = container_of(dwc->dev, struct platform_device, dev);
+	int ret;
+
+	switch (action) {
+	case POWERSAVE_STATE:
+		/* before enter powersave state, suspend & shutdown the power */
+		dev_info(dwc->dev, "%s: powersave state.\n", __func__);
+#ifdef CONFIG_PM_SLEEP
+		dev_info(dwc->dev, "%s: dwc3_suspend.\n", __func__);
+		dwc3_suspend(dwc->dev);
+#else
+		dev_info(dwc->dev, "%s: CONFIG_PM_SLEEP not enable\n", __func__);
+#endif
+		// dev_info(dwc->dev, "%s: dwc3_remove.\n", __func__);
+		// dwc3_remove(pdev);
+#ifdef HOBOT_ENABLE_USB_REGULATOR
+		ret = regulator_disable(dwc->regulator);
+		if (ret)
+			dev_err(dwc->dev, "usb regulator disable error\n");
+		else
+			dev_info(dwc->dev, "%s: regulator disabled.\n", __func__);
+#endif
+		break;
+	case OTHER_STATE:
+		/* before leave powersave state, supply power & resume */
+		dev_info(dwc->dev, "%s: otherstate state.\n", __func__);
+#ifdef HOBOT_ENABLE_USB_REGULATOR
+		ret = regulator_enable(dwc->regulator);
+		if (ret)
+			dev_err(dwc->dev, "usb regulator enable error\n");
+		else
+			dev_info(dwc->dev, "%s: regulator enabled.\n", __func__);
+#endif
+		// dev_info(dwc->dev, "%s: dwc3_probe.\n", __func__);
+		// dwc3_probe(pdev);
+#ifdef CONFIG_PM_SLEEP
+		dev_info(dwc->dev, "%s: dwc3_resume.\n", __func__);
+		dwc3_resume(dwc->dev);
+#else
+		dev_info(dwc->dev, "%s: CONFIG_PM_SLEEP not enable\n", __func__);
+#endif
+		break;
+	default:
+		dev_err(dwc->dev, "%s: Not defined action (%lu)\n",
+				__func__, action);
 		break;
 	}
 
@@ -1593,14 +1661,6 @@ static int dwc3_probe(struct platform_device *pdev)
 	dwc->regs_sys	= regs_sys;
 	dwc->regs_sys_size	= resource_size(res_sys);
 
-#ifdef HOBOT_DDR_DFS_ENABLE
-	/* register ddr dfs notifier */
-	dwc->ddrfreq_nb.notifier_call = ddr_dfs_call;
-	ret = hb_bus_register_client(&dwc->ddrfreq_nb);
-	if (ret)
-		goto notifier_err;
-#endif
-
 #ifdef HOBOT_TEST_REGISTER_RW
 	hobot_usb_register_test(dwc);
 #endif
@@ -1618,6 +1678,38 @@ static int dwc3_probe(struct platform_device *pdev)
 	// hobot_dwc3_info_register(dwc);
 	hobot_usb_reset(dwc);
 	// hobot_dwc3_info_register(dwc);
+#endif
+
+#ifdef HOBOT_DDR_DFS_ENABLE
+	/* get & enable regulator */
+	dwc->regulator = devm_regulator_get(dev, "usb_0v8");
+
+	if (IS_ERR(dwc->regulator)) { /* PRQA S ALL */
+		/* some platform not has regulator, so just report error info */
+		dwc->regulator = NULL;
+		dev_err(dev, "can't get usb regulator\n");
+	}
+
+	if (dwc->regulator) {
+		ret = regulator_enable(dwc->regulator);
+		if (ret) {
+			dev_err(dev, "usb regulator enable error\n");
+			goto regulator_fail;
+		}
+		dev_info(dev, "usb regulator enable succeed\n");
+	}
+
+	/* register ddr dfs notifier */
+	dwc->ddrfreq_nb.notifier_call = ddr_dfs_call;
+	ret = hb_bus_register_client(&dwc->ddrfreq_nb);
+	if (ret)
+		goto notifier_err1;
+
+	/* register powersave notifier */
+	dwc->powersave_nb.notifier_call = power_save_call;
+	ret = hb_usb_register_client(&dwc->powersave_nb);
+	if (ret)
+		goto notifier_err2;
 #endif
 
 	dwc3_get_properties(dwc);
@@ -1719,8 +1811,16 @@ unprepare_clks:
 put_clks:
 	clk_bulk_put(dwc->num_clks, dwc->clks);
 get_clks:
+	hb_usb_unregister_client(&dwc->powersave_nb);
+notifier_err2:
 	hb_bus_unregister_client(&dwc->ddrfreq_nb);
-notifier_err:
+notifier_err1:
+	if (dwc->regulator) {
+		ret = regulator_disable(dwc->regulator);
+		if (ret)
+			dev_err(dev, "usb regulator disable error\n");
+	}
+regulator_fail:
 err0:
 	/*
 	 * restore res->start back to its original value so that, in case the
@@ -1761,8 +1861,16 @@ static int dwc3_remove(struct platform_device *pdev)
 	clk_bulk_put(dwc->num_clks, dwc->clks);
 
 #ifdef HOBOT_DDR_DFS_ENABLE
+	/* unregister power save notifier */
+	hb_usb_unregister_client(&dwc->powersave_nb);
+
 	/* unregister ddr dfs notifier */
 	hb_bus_unregister_client(&dwc->ddrfreq_nb);
+
+	if (dwc->regulator) {
+		if (regulator_disable(dwc->regulator))
+			dev_err(dwc->dev, "usb regulator disable error\n");
+	}
 #endif
 
 	return 0;
@@ -1774,7 +1882,6 @@ static int dwc3_suspend_common(struct dwc3 *dwc, pm_message_t msg)
 	unsigned long	flags;
 	u32 reg;
 
-
 	switch (dwc->current_dr_role) {
 	case DWC3_GCTL_PRTCAP_DEVICE:
 		/* pm runtime suspend has problem, to be done in next version */
@@ -1782,7 +1889,6 @@ static int dwc3_suspend_common(struct dwc3 *dwc, pm_message_t msg)
 		if (pm_runtime_suspend(dwc->dev))
 			break;
 #endif
-
 		spin_lock_irqsave(&dwc->lock, flags);
 		dwc3_gadget_suspend(dwc);
 		spin_unlock_irqrestore(&dwc->lock, flags);
@@ -1855,6 +1961,7 @@ static int dwc3_resume_common(struct dwc3 *dwc, pm_message_t msg)
 			dwc3_set_prtcap(dwc, DWC3_GCTL_PRTCAP_HOST);
 			break;
 		}
+
 		/* Restore GUSB2PHYCFG bits that were modified in suspend */
 		reg = dwc3_readl(dwc->regs, DWC3_GUSB2PHYCFG(0));
 		if (dwc->dis_u2_susphy_quirk)

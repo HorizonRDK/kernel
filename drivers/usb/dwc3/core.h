@@ -919,6 +919,7 @@ struct dwc3 {
 	struct usb_gadget	gadget;
 	struct usb_gadget_driver *gadget_driver;
 
+	struct regulator	*regulator;
 	struct clk_bulk_data	*clks;
 	int			num_clks;
 
@@ -1056,6 +1057,8 @@ struct dwc3 {
 
 	/* ddr freq notifier */
 	struct notifier_block	ddrfreq_nb;
+	/* notify usb suspend & resume event */
+	struct notifier_block	powersave_nb;
 };
 
 #define work_to_dwc(w)		(container_of((w), struct dwc3, drd_work))
