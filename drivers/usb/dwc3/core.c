@@ -64,12 +64,13 @@
 // #define HOBOT_SOC_DWC3_DEBUG
 
 #define HOBOT_DDR_DFS_ENABLE
-// #define HOBOT_ENABLE_USB_REGULATOR	/* some issue, debugging... */
+#define HOBOT_ENABLE_USB_REGULATOR	/* need below hobot_usb_reset bofore dwc3_resume */
 
 static int dwc3_suspend(struct device *dev);
 static int dwc3_resume(struct device *dev);
 static int dwc3_probe(struct platform_device *pdev);
 static int dwc3_remove(struct platform_device *pdev);
+static void hobot_usb_reset(struct dwc3 *dwc);
 
 #ifdef HOBOT_DDR_DFS_ENABLE
 /*
@@ -154,6 +155,7 @@ static int power_save_call(struct notifier_block *self,
 		// dwc3_probe(pdev);
 #ifdef CONFIG_PM_SLEEP
 		dev_info(dwc->dev, "%s: dwc3_resume.\n", __func__);
+		hobot_usb_reset(dwc);
 		dwc3_resume(dwc->dev);
 #else
 		dev_info(dwc->dev, "%s: CONFIG_PM_SLEEP not enable\n", __func__);
@@ -1815,11 +1817,13 @@ get_clks:
 notifier_err2:
 	hb_bus_unregister_client(&dwc->ddrfreq_nb);
 notifier_err1:
+#if 0
 	if (dwc->regulator) {
 		ret = regulator_disable(dwc->regulator);
 		if (ret)
 			dev_err(dev, "usb regulator disable error\n");
 	}
+#endif
 regulator_fail:
 err0:
 	/*
