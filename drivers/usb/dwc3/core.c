@@ -94,7 +94,7 @@ static int ddr_dfs_call(struct notifier_block *self,
 		 */
 		// spin_lock_irqsave(&dwc->lock, flags);
 		// dev_dbg(dwc->dev, "%s: Grab semaphore success\n", __func__);
-		dev_info(dwc->dev, "%s: bus signal start.\n", __func__);
+		dev_dbg(dwc->dev, "%s: bus signal start.\n", __func__);
 		break;
 
 	case HB_BUS_SIGNAL_END:
@@ -102,7 +102,7 @@ static int ddr_dfs_call(struct notifier_block *self,
 		// dev_dbg(dwc->dev, "%s: Release semaphore success\n", __func__);
 
 		/* enter powersave state, suspend dwc3 & shutdown the power */
-		dev_info(dwc->dev, "%s: bus signal end.\n", __func__);
+		dev_dbg(dwc->dev, "%s: bus signal end.\n", __func__);
 		break;
 
 	default:
@@ -110,6 +110,8 @@ static int ddr_dfs_call(struct notifier_block *self,
 				__func__, action);
 		break;
 	}
+
+	dev_dbg(dwc->dev, "%s: function exit\n", __func__);
 
 	return NOTIFY_OK;
 }
@@ -124,41 +126,49 @@ static int power_save_call(struct notifier_block *self,
 	switch (action) {
 	case POWERSAVE_STATE:
 		/* before enter powersave state, suspend & shutdown the power */
-		dev_info(dwc->dev, "%s: powersave state.\n", __func__);
+		dev_dbg(dwc->dev, "%s: powersave state.\n", __func__);
 #ifdef CONFIG_PM_SLEEP
-		dev_info(dwc->dev, "%s: dwc3_suspend.\n", __func__);
+		dev_dbg(dwc->dev, "%s: dwc3_suspend.\n", __func__);
 		dwc3_suspend(dwc->dev);
 #else
-		dev_info(dwc->dev, "%s: CONFIG_PM_SLEEP not enable\n", __func__);
+		dev_dbg(dwc->dev, "%s: CONFIG_PM_SLEEP not enable\n", __func__);
 #endif
-		// dev_info(dwc->dev, "%s: dwc3_remove.\n", __func__);
+		// dev_dbg(dwc->dev, "%s: dwc3_remove.\n", __func__);
 		// dwc3_remove(pdev);
 #ifdef HOBOT_ENABLE_USB_REGULATOR
-		ret = regulator_disable(dwc->regulator);
-		if (ret)
-			dev_err(dwc->dev, "usb regulator disable error\n");
-		else
-			dev_info(dwc->dev, "%s: regulator disabled.\n", __func__);
+		if (dwc->regulator) {
+			ret = regulator_disable(dwc->regulator);
+			if (ret)
+				dev_err(dwc->dev, "usb regulator disable error\n");
+			else
+				dev_dbg(dwc->dev, "%s: regulator disabled.\n", __func__);
+		} else {
+			dev_err(dwc->dev, "no dwc->regulator\n");
+		}
 #endif
 		break;
 	case OTHER_STATE:
 		/* before leave powersave state, supply power & resume */
-		dev_info(dwc->dev, "%s: otherstate state.\n", __func__);
+		dev_dbg(dwc->dev, "%s: otherstate state.\n", __func__);
 #ifdef HOBOT_ENABLE_USB_REGULATOR
-		ret = regulator_enable(dwc->regulator);
-		if (ret)
-			dev_err(dwc->dev, "usb regulator enable error\n");
-		else
-			dev_info(dwc->dev, "%s: regulator enabled.\n", __func__);
+		if (dwc->regulator) {
+			ret = regulator_enable(dwc->regulator);
+			if (ret)
+				dev_err(dwc->dev, "usb regulator enable error\n");
+			else
+				dev_dbg(dwc->dev, "%s: regulator enabled.\n", __func__);
+		} else {
+			dev_err(dwc->dev, "no dwc->regulator\n");
+		}
 #endif
-		// dev_info(dwc->dev, "%s: dwc3_probe.\n", __func__);
+		// dev_dbg(dwc->dev, "%s: dwc3_probe.\n", __func__);
 		// dwc3_probe(pdev);
 #ifdef CONFIG_PM_SLEEP
-		dev_info(dwc->dev, "%s: dwc3_resume.\n", __func__);
+		dev_dbg(dwc->dev, "%s: dwc3_resume.\n", __func__);
 		hobot_usb_reset(dwc);
 		dwc3_resume(dwc->dev);
 #else
-		dev_info(dwc->dev, "%s: CONFIG_PM_SLEEP not enable\n", __func__);
+		dev_dbg(dwc->dev, "%s: CONFIG_PM_SLEEP not enable\n", __func__);
 #endif
 		break;
 	default:
