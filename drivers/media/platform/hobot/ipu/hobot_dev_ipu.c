@@ -344,6 +344,9 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 			atomic_set(&ipu->rsccount, 0);
 			vio_info("ipu force stream off\n");
 		}
+		if (group->group_scenario == VIO_GROUP_SIF_OFF_ISP_ON_IPU_ON_PYM ||
+				group->group_scenario == VIO_GROUP_SIF_OFF_ISP_ON_IPU_OFF_PYM)
+			vio_group_done(group);
 		ips_set_clk_ctrl(IPU0_CLOCK_GATE, false);
 		ipu->frame_drop_count = 0;
 		ipu->reuse_shadow0_count = 0;

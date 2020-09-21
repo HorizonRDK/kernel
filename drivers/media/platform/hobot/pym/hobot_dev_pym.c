@@ -278,6 +278,9 @@ static int x3_pym_close(struct inode *inode, struct file *file)
 			atomic_set(&pym->rsccount, 0);
 			vio_info("pym force stream off\n");
 		}
+		if (group->group_scenario == VIO_GROUP_SIF_OFF_ISP_ON_IPU_ON_PYM ||
+				group->group_scenario == VIO_GROUP_SIF_OFF_ISP_ON_IPU_OFF_PYM)
+			vio_group_done(group);
 		vio_clk_disable("pym_mclk");
 		vio_clk_disable("sif_mclk");
 		sema_init(&pym->gtask.hw_resource, 1);
