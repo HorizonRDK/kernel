@@ -281,12 +281,12 @@ static irqreturn_t pvt_irq_handler(int irq, void *dev_id)
 
 		if (irq_status & TP_IRQ_STS_FAULT_BIT) {
 			pvt_n_reg_wr(pvt_dev, i, TS_n_IRQ_CLEAR_ADDR, TP_IRQ_STS_FAULT_BIT);
-			pr_info("smp[%d] TP_IRQ_STS_FAULT_BIT fault\n", i);
+			pr_debug("smp[%d] TP_IRQ_STS_FAULT_BIT fault\n", i);
 			continue;
 		}
 
 		if (sdif_data & TS_SDIF_DATA_FAULT_BIT) {
-			pr_info("smp[%d] TS_SDIF_DATA_FAULT_BIT fault\n", i);
+			pr_debug("smp[%d] TS_SDIF_DATA_FAULT_BIT fault\n", i);
 			continue;
 		}
 
@@ -294,7 +294,7 @@ static irqreturn_t pvt_irq_handler(int irq, void *dev_id)
 			/* report abnormal value when higher than 121C */
 			if (sdif_data > smpl_threshold) {
 				if(cnt++ % 10000 == 0)
-					pr_info("SDIF_DATA:%d, last TS[%d]:%d, cnt:%d\n",
+					pr_debug("SDIF_DATA:%d, last TS[%d]:%d, cnt:%d\n",
 						sdif_data, i, pvt_dev->cur_smpl[i], cnt-1);
 				update_ts_bitmap |= BIT(i);
 			} else {
