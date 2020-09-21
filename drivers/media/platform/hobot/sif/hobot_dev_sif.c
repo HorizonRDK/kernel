@@ -1158,6 +1158,8 @@ static long x3_sif_ioctl(struct file *file, unsigned int cmd,
 	int enable = 0;
 	int instance = 0;
 	struct sif_video_ctx *sif_ctx;
+	struct x3_sif_dev *sif_dev;
+	struct vio_bind_info_dev *bind_info_dev;
 	struct frame_info frameinfo;
 	struct vio_group *group;
 	struct user_statistic stats;
@@ -1165,6 +1167,10 @@ static long x3_sif_ioctl(struct file *file, unsigned int cmd,
 	sif_ctx = file->private_data;
 	BUG_ON(!sif_ctx);
 	group = sif_ctx->group;
+	sif_dev = sif_ctx->sif_dev;
+	BUG_ON(!sif_dev);
+	bind_info_dev = sif_dev->vio_bind_info_dev;
+	BUG_ON(!bind_info_dev);
 
 	if (_IOC_TYPE(cmd) != SIF_IOC_MAGIC)
 		return -ENOTTY;
@@ -1208,6 +1214,12 @@ static long x3_sif_ioctl(struct file *file, unsigned int cmd,
 		ret = sif_bind_chain_group(sif_ctx, instance);
 		if (ret)
 			return -EFAULT;
+
+		struct hb_bind_info_s (*bind_info)[HB_ID_MAX];
+		bind_info = (bind_info_dev->bind_info);
+		memset(bind_info[instance], 0,
+			sizeof(struct hb_bind_info_s) * HB_ID_MAX);
+
 		break;
 	case SIF_IOC_END_OF_STREAM:
 		ret = get_user(instance, (u32 __user *) arg);
@@ -1838,6 +1850,134 @@ err_req_cdev:
 	return ret;
 }
 
+/*
+ * vio bind info dev node
+ */
+static int vio_bind_info_dev_open(struct inode *inode, struct file *file)
+{
+	struct mp_ctx *mp_ctx;
+	struct vio_bind_info_dev *bind_dev;
+
+	bind_dev = container_of(inode->i_cdev, struct vio_bind_info_dev, cdev);
+	file->private_data = bind_dev;
+
+	vio_info("vio bind info dev open.\n");
+
+	return 0;
+}
+
+static int vio_bind_info_dev_close(struct inode *inode, struct file *file)
+{
+	vio_info("vio bind info dev close.\n");
+
+	return 0;
+}
+
+static long vio_bind_info_ioctl(struct file *file, unsigned int cmd,
+			  unsigned long arg)
+{
+	int ret = 0;
+	int instance = 0;
+	struct mp_ctx *mp_ctx;
+	struct vio_bind_info_dev *bind_dev;
+	struct hb_bind_info_update_s bind_info_update;
+	struct hb_bind_info_s **bind_info;
+	SYS_MOD_S *src_mod, *dst_mod;
+
+	bind_dev = file->private_data;
+	BUG_ON(!bind_dev);
+	/*bind_info = &bind_dev->bind_info[0][0];*/
+	if (_IOC_TYPE(cmd) != VIO_BIND_INFO_MAGIC)
+		return -ENOTTY;
+
+	switch (cmd) {
+	case VIO_BIND_INFO_UPDATE:
+		ret = copy_from_user((char *) &bind_info_update,
+				(u32 __user *) arg,
+				sizeof(struct hb_bind_info_update_s));
+		if (ret)
+			return -EFAULT;
+		src_mod = &bind_info_update.src_mod;
+		dst_mod = &bind_info_update.dst_mod;
+		vio_dbg("src mod id%d devid%d chnid%d\n", src_mod->enModId,
+				src_mod->s32DevId, src_mod->s32ChnId);
+		vio_dbg("dst mod id%d devid%d chnid%d\n", dst_mod->enModId,
+				dst_mod->s32DevId, dst_mod->s32ChnId);
+
+		bind_dev->bind_info[src_mod->s32DevId][src_mod->enModId].\
+			out[src_mod->s32ChnId].next_mod = dst_mod->enModId;
+		bind_dev->bind_info[src_mod->s32DevId][src_mod->enModId].\
+			out[src_mod->s32ChnId].next_dev_id = dst_mod->s32DevId;
+		bind_dev->bind_info[src_mod->s32DevId][src_mod->enModId].\
+			out[src_mod->s32ChnId].next_chn_id = dst_mod->s32ChnId;
+
+		bind_dev->bind_info[dst_mod->s32DevId][dst_mod->enModId].\
+			in[dst_mod->s32ChnId].prev_mod = src_mod->enModId;
+		bind_dev->bind_info[dst_mod->s32DevId][dst_mod->enModId].\
+			in[dst_mod->s32ChnId].prev_dev_id = src_mod->s32DevId;
+		bind_dev->bind_info[dst_mod->s32DevId][dst_mod->enModId].\
+			in[dst_mod->s32ChnId].prev_chn_id = src_mod->s32ChnId;
+
+		break;
+	default:
+		vio_err("wrong ioctl command\n");
+		ret = -EFAULT;
+		break;
+	}
+
+	return ret;
+}
+
+static struct file_operations vio_bind_info_fops = {
+	.owner = THIS_MODULE,
+	.open = vio_bind_info_dev_open,
+	.release = vio_bind_info_dev_close,
+	.unlocked_ioctl = vio_bind_info_ioctl,
+	.compat_ioctl = vio_bind_info_ioctl,
+};
+
+int vio_bind_info_dev_node_init(struct vio_bind_info_dev *bind_dev)
+{
+	int ret = 0;
+	struct device *dev = NULL;
+
+	ret = alloc_chrdev_region(&bind_dev->devno, 0, 1, "vio_bind_info_dev");
+	if (ret < 0) {
+		vio_err("Error %d while alloc chrdev vio_bind_info", ret);
+		goto err_req_cdev;
+	}
+
+	cdev_init(&bind_dev->cdev, &vio_bind_info_fops);
+	bind_dev->cdev.owner = THIS_MODULE;
+	ret = cdev_add(&bind_dev->cdev, bind_dev->devno, 1);
+	if (ret) {
+		vio_err("Error %d while adding vio bind info dev", ret);
+		goto err;
+	}
+
+	if (vps_class)
+		bind_dev->class = vps_class;
+	else
+		bind_dev->class = class_create(THIS_MODULE,
+				X3_VIO_BIND_INFO_DEV_NAME);
+
+	dev = device_create(bind_dev->class, NULL,
+			MKDEV(MAJOR(bind_dev->devno), 0),
+			NULL, "vio_bind_info");
+	if (IS_ERR(dev)) {
+		ret = -EINVAL;
+		vio_err("vio bind info dev create fail\n");
+		goto err;
+	}
+
+	return ret;
+err:
+	class_destroy(bind_dev->class);
+err_req_cdev:
+	unregister_chrdev_region(bind_dev->devno, 1);
+	return ret;
+}
+
 static ssize_t sif_stat_show(struct device *dev,
 				struct device_attribute *attr, char* buf)
 {
@@ -1936,7 +2076,196 @@ static ssize_t vio_delay_store(struct device *dev,
 
 static DEVICE_ATTR(vio_delay, S_IRUGO|S_IWUSR, vio_delay_show, vio_delay_store);
 
+char VIO_MOD_NAME[][5] = {
+	"SYS",
+	"VIN",
+	"VOT",
+	"VPS",
+	"RGN",
+	"AIN",
+	"AOT",
+	"VENC",
+	"VDEC",
+	"AENC",
+	"ADEC"
+};
+
+static ssize_t vio_bind_info_show(struct device *dev,
+				struct device_attribute *attr, char* buf)
+{
+	struct x3_sif_dev *sif;
+	struct vio_bind_info_dev *bind_dev;
+	/*struct hb_bind_info_s **bind_info;*/
+	struct hb_bind_info_s (*bind_info)[HB_ID_MAX];
+	struct hb_bind_info_s *head_mod;
+	struct hb_bind_info_s *mod;
+	struct hb_bind_info_s *next_mod;
+	uint8_t pipe_id = 0;
+	uint8_t mod_id = 0;
+	uint8_t i, j, k, out_chn_num, link_flag;
+	int next_chn, prev_chn;
+	ssize_t len = 0;
+	uint16_t offset = 0, x_offset = 0;
+
+	sif = dev_get_drvdata(dev);
+	BUG_ON(!sif);
+	bind_dev = sif->vio_bind_info_dev;
+	BUG_ON(!bind_dev);
+	bind_info = (bind_dev->bind_info);
+
+	if (bind_info == NULL) {
+		vio_err("null bind_info error\n");
+		return 0;
+	}
+	for (pipe_id = 0; pipe_id < VIO_MAX_STREAM; pipe_id++) {
+		for (mod_id = 0; mod_id < HB_ID_MAX; mod_id++) {
+			mod = &bind_info[pipe_id][mod_id];
+			if (mod == NULL) {
+				vio_err("NULL mod error\n");
+				return 0;
+			}
+			mod->this_mod = mod_id;
+			mod->this_dev_id = pipe_id;
+			mod->had_show = 0;
+		}
+	}
+	for (pipe_id = 0; pipe_id < VIO_MAX_STREAM; pipe_id++) {
+		link_flag = 0;
+		x_offset = 0;
+		for (mod_id = 0; mod_id < HB_ID_MAX; mod_id++) {
+			mod = &bind_info[pipe_id][mod_id];
+			head_mod = mod;
+			/*
+			 *find a linked mod
+			 */
+			for (i = 0; i < MAX_INPUT_CHANNEL; i++) {
+				if (mod->in[i].prev_mod == 0)
+					continue;
+				mod = &bind_info[mod->in[i].prev_dev_id]\
+					[mod->in[i].prev_mod];
+				link_flag = 1;
+				break;
+			}
+			if (mod == head_mod)
+				continue;
+			vio_dbg("find a linked module %s\n",
+					VIO_MOD_NAME[mod->this_mod]);
+			/*
+			 *use the linked mod find the head mod
+			 */
+			for (j = 0; j < HB_ID_MAX; j++) {
+				for (i = 0; i < MAX_INPUT_CHANNEL; i++) {
+					if (mod->in[i].prev_mod == 0)
+						continue;
+					mod = &bind_info[mod->in[i].prev_dev_id]\
+						[mod->in[i].prev_mod];
+				}
+			}
+			head_mod = mod;
+			vio_dbg("find the head module %s\n",
+					VIO_MOD_NAME[mod->this_mod]);
+			break;
+		}
+		if (link_flag == 0)
+			continue;
+		if (head_mod->had_show != 0)
+			continue;
+		/*
+		 *print the bind info
+		 */
+		len = snprintf(&buf[offset], PAGE_SIZE - offset,
+			"\n[%s%d]", VIO_MOD_NAME[head_mod->this_mod],
+			head_mod->this_dev_id);
+		offset += len;
+		head_mod->had_show = 1;
+
+		while (1) {
+			next_chn = -1;
+			out_chn_num = 0;
+			for (i = 0; i < MAX_OUTPUT_CHANNEL; i++) {
+				if (mod->out[i].next_mod == 0)
+					continue;
+				next_chn = i;
+				out_chn_num++;
+				if (out_chn_num > 1) {
+					len = snprintf(&buf[offset],
+						PAGE_SIZE - offset,
+						"\n");
+					offset += len;
+					for (k = 0; k < x_offset / 2 + 5; k++)
+						offset += snprintf(&buf[offset],
+							PAGE_SIZE - offset, " ");
+					offset += snprintf(&buf[offset],
+						PAGE_SIZE - offset, "|");
+				}
+				len = snprintf(&buf[offset],
+					PAGE_SIZE - offset,
+					"-#%d <==",
+					next_chn);
+				offset += len;
+				if (out_chn_num <= 1)
+					x_offset += len;
+				next_mod = &bind_info[mod->out[next_chn].\
+					next_dev_id][mod->out[next_chn].next_mod];
+				for (j = 0; j < MAX_INPUT_CHANNEL; j++) {
+					if (next_mod->in[j].prev_mod != 0) {
+						prev_chn = j;
+						len = snprintf(&buf[offset],
+							PAGE_SIZE - offset,
+							"==> #%d",
+							prev_chn);
+						offset += len;
+						if (out_chn_num <= 1)
+							x_offset += len;
+					}
+				}
+				len = snprintf(&buf[offset], PAGE_SIZE - offset,
+					"-[%s%d]", VIO_MOD_NAME[next_mod->this_mod],
+					next_mod->this_dev_id);
+				offset += len;
+				if (out_chn_num <= 1)
+					x_offset += len;
+			}
+			if (next_chn == -1)
+				break;
+			mod = &bind_info[mod->out[next_chn].next_dev_id]\
+				[mod->out[next_chn].next_mod];
+		}
+	}
+	offset += snprintf(&buf[offset], PAGE_SIZE - offset, "\n");
+
+	return offset;
+}
+
+static ssize_t vio_bind_info_store(struct device *dev,
+					struct device_attribute *attr,
+					const char *buf, size_t len)
+{
+	int pipe_num;
+	struct x3_sif_dev *sif;
+	struct vio_bind_info_dev *bind_dev;
+	struct hb_bind_info_s (*bind_info)[HB_ID_MAX];
+
+	sif = dev_get_drvdata(dev);
+	bind_dev = sif->vio_bind_info_dev;
+	bind_info = (bind_dev->bind_info);
+
+	pipe_num = simple_strtoul(buf, NULL, 0);
+	if (pipe_num < VIO_MAX_STREAM)
+		memset(bind_info[pipe_num], 0,
+			sizeof(struct hb_bind_info_s) * HB_ID_MAX);
+	if (pipe_num == VIO_MAX_STREAM)
+		memset(&bind_info[0][0], 0,
+			sizeof(struct hb_bind_info_s) *\
+			HB_ID_MAX * VIO_MAX_STREAM);
+
+	return len;
+}
+static DEVICE_ATTR(bind_info, S_IRUGO|S_IWUSR,
+		vio_bind_info_show, vio_bind_info_store);
+
 struct x3_vio_mp_dev *g_vio_mp_dev = NULL;
+struct vio_bind_info_dev *g_vio_bind_info_dev = NULL;
 static int x3_sif_probe(struct platform_device *pdev)
 {
 	int ret = 0;
@@ -2029,6 +2358,11 @@ static int x3_sif_probe(struct platform_device *pdev)
 		vio_err("create dev_attr_vio_delay failed (%d)\n", ret);
 		goto p_err;
 	}
+	ret = device_create_file(dev, &dev_attr_bind_info);
+	if (ret < 0) {
+		vio_err("create dev_attr_bind_info failed (%d)\n", ret);
+		goto p_err;
+	}
 
 	platform_set_drvdata(pdev, sif);
 
@@ -2046,6 +2380,17 @@ static int x3_sif_probe(struct platform_device *pdev)
 	}
 	x3_vio_mp_device_node_init(g_vio_mp_dev);
 #endif
+
+	g_vio_bind_info_dev = kzalloc(sizeof(struct vio_bind_info_dev),
+			GFP_KERNEL);
+	if (g_vio_bind_info_dev == NULL) {
+		vio_err("bind info dev is NULL\n");
+		ret = -ENOMEM;
+		goto p_err;
+	}
+	vio_bind_info_dev_node_init(g_vio_bind_info_dev);
+	sif->vio_bind_info_dev = g_vio_bind_info_dev;
+
 	if (diag_register(ModuleDiag_VIO, EventIdVioSifErr,
 					4, 400, 8000, NULL) < 0)
 		vio_err("sif diag register fail\n");
@@ -2081,6 +2426,7 @@ static int x3_sif_remove(struct platform_device *pdev)
 	device_remove_file(&pdev->dev, &dev_attr_err_status);
 	device_remove_file(&pdev->dev, &dev_attr_cfg_info);
 	device_remove_file(&pdev->dev, &dev_attr_vio_delay);
+	device_remove_file(&pdev->dev, &dev_attr_bind_info);
 
 	free_irq(sif->irq, sif);
 	for(i = 0; i < MAX_DEVICE; i++)
@@ -2101,6 +2447,14 @@ static int x3_sif_remove(struct platform_device *pdev)
 	cdev_del(&g_vio_mp_dev->cdev);
 	unregister_chrdev_region(g_vio_mp_dev->devno, MAX_DEVICE);
 	kfree(g_vio_mp_dev);
+
+	device_destroy(g_vio_bind_info_dev->class,
+			MKDEV(MAJOR(g_vio_bind_info_dev->devno), 0));
+	if (!vps_class)
+		class_destroy(g_vio_bind_info_dev->class);
+	cdev_del(&g_vio_bind_info_dev->cdev);
+	unregister_chrdev_region(g_vio_bind_info_dev->devno, 1);
+	kfree(g_vio_bind_info_dev);
 
 	vio_info("%s\n", __func__);
 

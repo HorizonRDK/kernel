@@ -23,6 +23,7 @@
 #define SIF_ERR_COUNT  10
 
 #define X3_VIO_MP_NAME  "vio-mp"
+#define X3_VIO_BIND_INFO_DEV_NAME  "vio-bind-info"
 #define MAX_DEVICE_VIO_MP  1
 
 #define SIF_IOC_MAGIC 'x'
@@ -46,6 +47,9 @@
 #define VIO_MP_IOC_MAGIC 'm'
 #define VIO_MP_IOC_BIND_GROUP	 _IOW(VIO_MP_IOC_MAGIC, 0, int)
 #define VIO_MP_IOC_GET_REFCOUNT	 _IOR(VIO_MP_IOC_MAGIC, 1, int)
+
+#define VIO_BIND_INFO_MAGIC 'b'
+#define VIO_BIND_INFO_UPDATE	_IOW(VIO_BIND_INFO_MAGIC, 0, int)
 
 
 struct sif_irq_src {
@@ -169,7 +173,6 @@ struct x3_vio_mp_dev {
 	spinlock_t	slock;
 };
 
-
 struct sif_video_ctx{
 	wait_queue_head_t		done_wq;
 	struct vio_framemgr 	*framemgr;
@@ -249,6 +252,7 @@ struct x3_sif_dev {
 	u32					hblank;
 	unsigned long	mux_mask;
 	struct sif_status_statistic 	statistic;
+	struct vio_bind_info_dev 	*vio_bind_info_dev;
 
 	struct vio_group		*sif_input[VIO_MAX_STREAM];
 	struct vio_group		*sif_mux[SIF_MUX_MAX];
@@ -258,6 +262,64 @@ struct x3_sif_dev {
 
 	struct vio_group_task	sifin_task;
 	struct vio_group_task	sifout_task[SIF_MUX_MAX];
+};
+
+typedef enum HB_SYS_MOD_ID_E {
+	HB_ID_SYS = 0,
+	HB_ID_VIN,
+	HB_ID_VOT,
+	HB_ID_VPS,
+	HB_ID_RGN,
+	HB_ID_AIN,
+	HB_ID_AOT,
+	HB_ID_VENC,
+	HB_ID_VDEC,
+	HB_ID_AENC,
+	HB_ID_ADEC,
+	HB_ID_MAX
+} SYS_MOD_ID_E;
+
+typedef struct HB_SYS_MOD_S {
+	SYS_MOD_ID_E enModId;
+	uint8_t s32DevId;
+	uint8_t s32ChnId;
+} SYS_MOD_S;
+
+struct hb_in_chn_bind_info_s {
+	SYS_MOD_ID_E prev_mod;
+	uint8_t prev_dev_id;
+	uint8_t prev_chn_id;
+};
+
+struct hb_out_chn_bind_info_s {
+	SYS_MOD_ID_E next_mod;
+	uint8_t next_dev_id;
+	uint8_t next_chn_id;
+};
+
+#define MAX_INPUT_CHANNEL 8
+#define MAX_OUTPUT_CHANNEL 7
+
+struct hb_bind_info_s {
+	SYS_MOD_ID_E this_mod;
+	uint8_t this_dev_id;
+	uint8_t had_show;
+	struct hb_in_chn_bind_info_s in[MAX_INPUT_CHANNEL];
+	struct hb_out_chn_bind_info_s out[MAX_OUTPUT_CHANNEL];
+};
+
+struct hb_bind_info_update_s {
+	SYS_MOD_S src_mod;
+	SYS_MOD_S dst_mod;
+};
+
+/* device node for HAPI bind info */
+struct vio_bind_info_dev {
+	struct cdev	cdev;
+	struct class 	*class;
+	dev_t 		devno;
+	spinlock_t	slock;
+	struct hb_bind_info_s bind_info[VIO_MAX_STREAM][HB_ID_MAX];
 };
 
 int sif_get_stride(u32 pixel_length, u32 width);
