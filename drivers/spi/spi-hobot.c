@@ -30,6 +30,9 @@
 #include <linux/gpio.h>
 #include "spi-hobot-slave.h"
 #endif
+#ifdef CONFIG_HOBOT_BUS_CLK_X3
+#include <soc/hobot/hobot_bus.h>
+#endif
 
 #define VER			"HOBOT-spi_V20.200330"
 /* hobot spi master or slave mode select*/
@@ -160,8 +163,8 @@
 #define hb_spi_wr(dev, reg, val)  iowrite32((val), (dev)->regs_base + (reg))
 
 static int debug;
-static int slave_tout = 10;
-static int master_tout = 2;
+static int slave_tout = 2000;
+static int master_tout = 1000;
 module_param(debug, int, 0644);
 MODULE_PARM_DESC(debug, "spi: 0 close debug, other open debug");
 module_param(slave_tout, int, 0644);
@@ -198,6 +201,11 @@ struct hb_spi {
 	u8 spi_id;
 	int isslave;
 	bool slave_aborted;
+
+#ifdef CONFIG_HOBOT_BUS_CLK_X3
+	struct mutex nb_mtx;
+	struct notifier_block nb;
+#endif
 };
 
 #ifdef CONFIG_SPI_HOBOT_SPIDEV
@@ -828,9 +836,7 @@ static int hb_spi_wait_for_completion(struct hb_spi *hbspi)
 	int ret = 0;
 
 	if (hbspi->isslave == MASTER_MODE) {
-		t_out = min(max(master_tout, 1), 10);
-		t_out = t_out * 1000;
-		t_out = msecs_to_jiffies(t_out);
+		t_out = msecs_to_jiffies(master_tout);
 		if (!wait_for_completion_timeout(&hbspi->completion, t_out)) {
 			dev_err(hbspi->dev, "master: timeout\n");
 			ret = -ETIMEDOUT;
@@ -839,9 +845,7 @@ static int hb_spi_wait_for_completion(struct hb_spi *hbspi)
 	}
 
 	if (hbspi->isslave == SLAVE_MODE) {
-		t_out = min(max(slave_tout, 1), 100);
-		t_out = t_out * 1000;
-		t_out = msecs_to_jiffies(t_out);
+		t_out = msecs_to_jiffies(slave_tout);
 		if (!wait_for_completion_timeout(&hbspi->completion, t_out)
 			|| hbspi->slave_aborted) {
 			dev_err(hbspi->dev, "slave: timeout or aborted\n");
@@ -865,6 +869,9 @@ static int hb_spi_transfer_one(struct spi_master *master,
 	int ms;
 	u32 tlen;
 
+#ifdef CONFIG_HOBOT_BUS_CLK_X3
+	mutex_lock(&hbspi->nb_mtx);
+#endif
 	hbspi->txbuf = (u8 *) xfer->tx_buf;
 	hbspi->rxbuf = (u8 *) xfer->rx_buf;
 	hbspi->len = xfer->len;
@@ -894,7 +901,8 @@ static int hb_spi_transfer_one(struct spi_master *master,
 
 	if (hb_spi_wait_for_tpi(hbspi, ms) == 0) {
 		dev_err(hbspi->dev, "%s %d\n", __func__, __LINE__);
-		return -EAGAIN;
+		ret = -EAGAIN;
+		goto exit_1;
 	}
 
 	reinit_completion(&hbspi->completion);
@@ -943,7 +951,8 @@ static int hb_spi_transfer_one(struct spi_master *master,
 #elif defined CONFIG_HB_SPI_DMA_SINGLE
 	if (hbspi->tx_dma_buf == NULL || hbspi->rx_dma_buf == NULL) {
 		dev_err(hbspi->dev, "%s %d\n", __func__, __LINE__);
-		return -EAGAIN;
+		ret = -EAGAIN;
+		goto exit_1;
 	}
 
 	hb_spi_wr(hbspi, HB_SPI_TDMA_ADDR0_REG, hbspi->tx_dma_phys);
@@ -1017,7 +1026,9 @@ static int hb_spi_transfer_one(struct spi_master *master,
 		//return -EAGAIN;
 	}
 	spi_finalize_current_transfer(master);
+
 exit_1:
+	mutex_unlock(&hbspi->nb_mtx);
 	return xfer->len;
 }
 
@@ -1112,6 +1123,25 @@ static int hb_spi_slave_abort(struct spi_controller *ctlr)
 
 	return 0;
 }
+
+#ifdef CONFIG_HOBOT_BUS_CLK_X3
+static int hb_spi_notifier_callback(struct notifier_block *self,
+											unsigned long event, void *data)
+{
+	int ret = 0;
+	struct hb_spi *hbspi = container_of(self, struct hb_spi, nb);
+
+	if (event == HB_BUS_SIGNAL_START) {
+		mutex_lock(&hbspi->nb_mtx);
+		disable_irq(hbspi->irq);
+	} else if (event == HB_BUS_SIGNAL_END) {
+		enable_irq(hbspi->irq);
+		mutex_unlock(&hbspi->nb_mtx);
+	}
+
+	return ret;
+}
+#endif
 
 static int hb_spi_probe(struct platform_device *pdev)
 {
@@ -1234,6 +1264,14 @@ static int hb_spi_probe(struct platform_device *pdev)
 		goto clk_dis_mclk;
 	}
 
+#ifdef CONFIG_HOBOT_BUS_CLK_X3
+	mutex_init(&hbspi->nb_mtx);
+	hbspi->nb.notifier_call = hb_spi_notifier_callback;
+	ret = hb_bus_register_client(&hbspi->nb);
+	if (ret)
+		dev_err(&pdev->dev, "bus register failed\n");
+#endif
+
 	hb_spi_init_hw(hbspi);
 
 #ifdef CONFIG_HB_SPI_DMA_SINGLE
@@ -1243,6 +1281,7 @@ static int hb_spi_probe(struct platform_device *pdev)
 		goto clk_dis_mclk;
 	}
 #endif
+
 	/* diag */
 	hbspi->spi_id = spi_id;
 	if (diag_register(ModuleDiag_spi, EventIdSpi0Err + spi_id,
@@ -1265,6 +1304,12 @@ static int hb_spi_remove(struct platform_device *pdev)
 {
 	struct spi_controller *ctlr = platform_get_drvdata(pdev);
 	struct hb_spi *hbspi = spi_controller_get_devdata(ctlr);
+
+#ifdef CONFIG_HOBOT_BUS_CLK_X3
+	if (hbspi->nb.notifier_call)
+		hb_bus_unregister_client(&hbspi->nb);
+	hbspi->nb.notifier_call = NULL;
+#endif
 
 	hb_spi_en_ctrl(hbspi, HB_SPI_OP_CORE_DIS, HB_SPI_OP_NONE,
 		       HB_SPI_OP_NONE);
