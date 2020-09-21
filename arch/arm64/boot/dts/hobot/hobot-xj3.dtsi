@@ -291,6 +291,11 @@
 			status = "disabled";
 		};
 
+		dwc3_powersave: dwc3-powersave {
+			compatible = "hobot,dwc3-powersave";
+			dwc3 = <&usb>;
+		};
+
 		i2s0: i2s@0xA5007000 {
 			compatible = "hobot, hobot-i2s0";
 			reg = <0 0xA5007000 0 0x100>,

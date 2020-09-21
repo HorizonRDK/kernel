@@ -63,124 +63,6 @@
 // #define HOBOT_SOC_DWC3_SETTING
 // #define HOBOT_SOC_DWC3_DEBUG
 
-#define HOBOT_DDR_DFS_ENABLE
-#define HOBOT_ENABLE_USB_REGULATOR	/* need below hobot_usb_reset bofore dwc3_resume */
-
-static int dwc3_suspend(struct device *dev);
-static int dwc3_resume(struct device *dev);
-static int dwc3_probe(struct platform_device *pdev);
-static int dwc3_remove(struct platform_device *pdev);
-static void hobot_usb_reset(struct dwc3 *dwc);
-
-#ifdef HOBOT_DDR_DFS_ENABLE
-/*
- * For ddr dynamic frequency selection & handling.
- * Register a ddr frequency change notifier.
- * When ddr frequency change, hb_bus module will notify HB_BUS_SIGNAL_START
- * and HB_BUS_SIGNAL_END signals. Between this 2 signals, we need to guarantee
- * usb controller don't access the ddr. Therefore, use the spinlock dwc->lock
- * to do synchronize.
- */
-static int ddr_dfs_call(struct notifier_block *self,
-		unsigned long action, void *data)
-{
-	struct dwc3 *dwc = container_of(self, struct dwc3, ddrfreq_nb);
-
-	switch (action) {
-	case HB_BUS_SIGNAL_START:
-		/*
-		 * Between START & END, there is sleep function, so couldn't use
-		 * below spin_lock.
-		 */
-		// spin_lock_irqsave(&dwc->lock, flags);
-		// dev_dbg(dwc->dev, "%s: Grab semaphore success\n", __func__);
-		dev_dbg(dwc->dev, "%s: bus signal start.\n", __func__);
-		break;
-
-	case HB_BUS_SIGNAL_END:
-		// spin_unlock_irqrestore(&dwc->lock, flags);
-		// dev_dbg(dwc->dev, "%s: Release semaphore success\n", __func__);
-
-		/* enter powersave state, suspend dwc3 & shutdown the power */
-		dev_dbg(dwc->dev, "%s: bus signal end.\n", __func__);
-		break;
-
-	default:
-		dev_err(dwc->dev, "%s: Not defined action (%lu)\n",
-				__func__, action);
-		break;
-	}
-
-	dev_dbg(dwc->dev, "%s: function exit\n", __func__);
-
-	return NOTIFY_OK;
-}
-
-static int power_save_call(struct notifier_block *self,
-		unsigned long action, void *data)
-{
-	struct dwc3 *dwc = container_of(self, struct dwc3, powersave_nb);
-	// struct platform_device *pdev = container_of(dwc->dev, struct platform_device, dev);
-	int ret;
-
-	switch (action) {
-	case POWERSAVE_STATE:
-		/* before enter powersave state, suspend & shutdown the power */
-		dev_dbg(dwc->dev, "%s: powersave state.\n", __func__);
-#ifdef CONFIG_PM_SLEEP
-		dev_dbg(dwc->dev, "%s: dwc3_suspend.\n", __func__);
-		dwc3_suspend(dwc->dev);
-#else
-		dev_dbg(dwc->dev, "%s: CONFIG_PM_SLEEP not enable\n", __func__);
-#endif
-		// dev_dbg(dwc->dev, "%s: dwc3_remove.\n", __func__);
-		// dwc3_remove(pdev);
-#ifdef HOBOT_ENABLE_USB_REGULATOR
-		if (dwc->regulator) {
-			ret = regulator_disable(dwc->regulator);
-			if (ret)
-				dev_err(dwc->dev, "usb regulator disable error\n");
-			else
-				dev_dbg(dwc->dev, "%s: regulator disabled.\n", __func__);
-		} else {
-			dev_err(dwc->dev, "no dwc->regulator\n");
-		}
-#endif
-		break;
-	case OTHER_STATE:
-		/* before leave powersave state, supply power & resume */
-		dev_dbg(dwc->dev, "%s: otherstate state.\n", __func__);
-#ifdef HOBOT_ENABLE_USB_REGULATOR
-		if (dwc->regulator) {
-			ret = regulator_enable(dwc->regulator);
-			if (ret)
-				dev_err(dwc->dev, "usb regulator enable error\n");
-			else
-				dev_dbg(dwc->dev, "%s: regulator enabled.\n", __func__);
-		} else {
-			dev_err(dwc->dev, "no dwc->regulator\n");
-		}
-#endif
-		// dev_dbg(dwc->dev, "%s: dwc3_probe.\n", __func__);
-		// dwc3_probe(pdev);
-#ifdef CONFIG_PM_SLEEP
-		dev_dbg(dwc->dev, "%s: dwc3_resume.\n", __func__);
-		hobot_usb_reset(dwc);
-		dwc3_resume(dwc->dev);
-#else
-		dev_dbg(dwc->dev, "%s: CONFIG_PM_SLEEP not enable\n", __func__);
-#endif
-		break;
-	default:
-		dev_err(dwc->dev, "%s: Not defined action (%lu)\n",
-				__func__, action);
-		break;
-	}
-
-	return NOTIFY_OK;
-}
-#endif
-
 /*
  * The code in this file is utility code, used to build a gadget driver
  * from one or more "function" drivers, one or more "configuration"
@@ -1400,11 +1282,9 @@ static struct attribute_group dwc3_attr_group = {
 	.attrs = dwc3_attrs,
 };
 
-static void dwc3_sysfs_init(struct dwc3 *dwc)
+static int dwc3_sysfs_init(struct dwc3 *dwc)
 {
-	int ret;
-
-	ret = sysfs_create_group(&dwc->dev->kobj, &dwc3_attr_group);
+	return sysfs_create_group(&dwc->dev->kobj, &dwc3_attr_group);
 }
 
 static void dwc3_sysfs_exit(struct dwc3 *dwc)
@@ -1673,26 +1553,6 @@ static int dwc3_probe(struct platform_device *pdev)
 	dwc->regs_sys	= regs_sys;
 	dwc->regs_sys_size	= resource_size(res_sys);
 
-#ifdef HOBOT_TEST_REGISTER_RW
-	hobot_usb_register_test(dwc);
-#endif
-
-#ifdef HOBOT_FPGA_TEST_TIMING_FINETUNE
-	hobot_phy_finetune_timing(dwc);
-#endif
-
-#ifdef HOBOT_FPGA_USING_M31_PHY
-	hobot_usb_set_mode(dwc);
-	hobot_m31_phy_reset(dwc);
-#endif
-
-#ifdef HOBOT_SOC_USB_RESET
-	// hobot_dwc3_info_register(dwc);
-	hobot_usb_reset(dwc);
-	// hobot_dwc3_info_register(dwc);
-#endif
-
-#ifdef HOBOT_DDR_DFS_ENABLE
 	/* get & enable regulator */
 	dwc->regulator = devm_regulator_get(dev, "usb_0v8");
 
@@ -1711,19 +1571,24 @@ static int dwc3_probe(struct platform_device *pdev)
 		dev_info(dev, "usb regulator enable succeed\n");
 	}
 
-	/* register ddr dfs notifier */
-	dwc->ddrfreq_nb.notifier_call = ddr_dfs_call;
-	ret = hb_bus_register_client(&dwc->ddrfreq_nb);
-	if (ret)
-		goto notifier_err1;
-
-	/* register powersave notifier */
-	dwc->powersave_nb.notifier_call = power_save_call;
-	ret = hb_usb_register_client(&dwc->powersave_nb);
-	if (ret)
-		goto notifier_err2;
+#ifdef HOBOT_TEST_REGISTER_RW
+	hobot_usb_register_test(dwc);
 #endif
 
+#ifdef HOBOT_FPGA_TEST_TIMING_FINETUNE
+	hobot_phy_finetune_timing(dwc);
+#endif
+
+#ifdef HOBOT_FPGA_USING_M31_PHY
+	hobot_usb_set_mode(dwc);
+	hobot_m31_phy_reset(dwc);
+#endif
+
+#ifdef HOBOT_SOC_USB_RESET
+	// hobot_dwc3_info_register(dwc);
+	hobot_usb_reset(dwc);
+	// hobot_dwc3_info_register(dwc);
+#endif
 	dwc3_get_properties(dwc);
 
 	ret = clk_bulk_get(dev, dwc->num_clks, dwc->clks);
@@ -1797,10 +1662,11 @@ static int dwc3_probe(struct platform_device *pdev)
 	dwc3_debugfs_init(dwc);
 	pm_runtime_put(dev);
 
-	dwc3_sysfs_init(dwc);
+	if (dwc3_sysfs_init(dwc) < 0)
+		goto err6;
 
 	return 0;
-
+err6:
 err5:
 	dwc3_event_buffers_cleanup(dwc);
 
@@ -1823,10 +1689,6 @@ unprepare_clks:
 put_clks:
 	clk_bulk_put(dwc->num_clks, dwc->clks);
 get_clks:
-	hb_usb_unregister_client(&dwc->powersave_nb);
-notifier_err2:
-	hb_bus_unregister_client(&dwc->ddrfreq_nb);
-notifier_err1:
 #if 0
 	if (dwc->regulator) {
 		ret = regulator_disable(dwc->regulator);
@@ -1874,18 +1736,10 @@ static int dwc3_remove(struct platform_device *pdev)
 	dwc3_free_scratch_buffers(dwc);
 	clk_bulk_put(dwc->num_clks, dwc->clks);
 
-#ifdef HOBOT_DDR_DFS_ENABLE
-	/* unregister power save notifier */
-	hb_usb_unregister_client(&dwc->powersave_nb);
-
-	/* unregister ddr dfs notifier */
-	hb_bus_unregister_client(&dwc->ddrfreq_nb);
-
 	if (dwc->regulator) {
 		if (regulator_disable(dwc->regulator))
 			dev_err(dwc->dev, "usb regulator disable error\n");
 	}
-#endif
 
 	return 0;
 }

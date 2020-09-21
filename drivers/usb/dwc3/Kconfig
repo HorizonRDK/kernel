@@ -106,4 +106,14 @@ config USB_DWC3_ST
 	  inside (i.e. STiH407).
 	  Say 'Y' or 'M' if you have one such device.
 
+config USB_DWC3_POWERSAVE
+	tristate "Hobot DWC3 Power Save Feature"
+	depends on OF
+	default n
+	help
+	  Hobot SoCs with one DesignWare Core USB3 IP inside.
+	  And this feature is for dwc3 ip power on/off control for power 
+	  save freature.
+	  Say 'Y' or 'M' if you need power save feature for dwc3 controller
+	  in hobot platform.
 endif
