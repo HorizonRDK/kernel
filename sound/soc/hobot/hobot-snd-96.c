@@ -133,11 +133,11 @@ static int hobot_snd_probe(struct platform_device *pdev)
 	id = of_alias_get_id(pdev->dev.of_node, "sndcard");
 	if (id < 0) {
 		pr_debug("id: %d\n", id);
-		if (!strcmp(card->name, "x2snd0"))
+		if (!strcmp(card->name, "hobotsnd0"))
 			id = 0;
-		else if (!strcmp(card->name, "x2snd1"))
+		else if (!strcmp(card->name, "hobotsnd1"))
 			id = 1;
-		else if (!strcmp(card->name, "x2snd2"))
+		else if (!strcmp(card->name, "hobotsnd2"))
 			id = 2;
 		else
 			id = 3;
@@ -205,7 +205,7 @@ static int hobot_snd_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 
-	pr_info("Register success for x2snd%d\n", id);
+	pr_info("Register success for hobotsnd%d\n", id);
 
 	return ret;
 }

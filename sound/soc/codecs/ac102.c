@@ -344,6 +344,7 @@ static int ac102_update_bits(u8 reg, u8 mask, u8 value, struct i2c_client *clien
 	return 0;
 }
 
+#if 0
 static int ac102_multi_chips_read(u8 reg, unsigned char *rt_value)
 {
 	u8 i;
@@ -354,7 +355,7 @@ static int ac102_multi_chips_read(u8 reg, unsigned char *rt_value)
 
 	return 0;
 }
-
+#endif
 
 static int ac102_multi_chips_write(u8 reg, unsigned char value)
 {
@@ -472,9 +473,9 @@ static int ac102_set_pll(struct snd_soc_dai *dai, int pll_id, int source, unsign
 
 static int ac102_set_clkdiv(struct snd_soc_dai *dai, int div_id, int div)
 {
-	AC102_DEBUG("\n--->%s\n",__FUNCTION__);
 	u32 i,bclk_div,bclk_div_reg_val;
 
+	AC102_DEBUG("\n--->%s\n",__FUNCTION__);
 	if(!div_id){	//use div_id to judge Master/Slave mode,  0: Slave mode, 1: Master mode
 		AC102_DEBUG("AC102 work as Slave mode, don't need to config BCLK_DIV\n\n");
 		return 0;
@@ -503,9 +504,9 @@ static int ac102_set_clkdiv(struct snd_soc_dai *dai, int div_id, int div)
 
 static int ac102_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 {
-	AC102_DEBUG("\n--->%s\n",__FUNCTION__);
 	u8 i, tx_offset, i2s_mode, lrck_polarity, brck_polarity;
 	struct ac102_priv *ac102 = dev_get_drvdata(dai->dev);
+	AC102_DEBUG("\n--->%s\n",__FUNCTION__);
 
 	//AC102 config Master/Slave mode
 	switch (fmt & SND_SOC_DAIFMT_MASTER_MASK) {
@@ -604,9 +605,9 @@ static int ac102_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 
 static int ac102_hw_params(struct snd_pcm_substream *substream, struct snd_pcm_hw_params *params, struct snd_soc_dai *dai)
 {
-	AC102_DEBUG("\n--->%s\n",__FUNCTION__);
 	u8 i, channels, channels_en, sample_resolution;
-       u8 lrck_period;
+	u8 lrck_period;
+	AC102_DEBUG("\n--->%s\n",__FUNCTION__);
 
 	//AC102 hw init
 	for(i=0; i<AC102_CHIP_NUMS; i++){
@@ -739,6 +740,7 @@ static struct snd_soc_dai_driver ac102_dai0 = {
 
 };
 
+#if 0
 static struct snd_soc_dai_driver ac102_dai1 = {
 	.name = "ac102-pcm1",
 	.playback = {
@@ -795,6 +797,7 @@ static struct snd_soc_dai_driver ac102_dai3 = {
 	},
 	.ops = &ac102_dai_ops,
 };
+#endif
 
 static struct snd_soc_dai_driver *ac102_dai[] = {
 #if AC102_CHIP_NUMS > 0
@@ -839,9 +842,8 @@ static int ac102_remove(struct snd_soc_codec *codec)
 
 static int ac102_suspend(struct snd_soc_codec *codec)
 {
-	struct ac102_priv *ac102 = dev_get_drvdata(codec->dev);
-
 #if AC102_MATCH_DTS_EN
+	struct ac102_priv *ac102 = dev_get_drvdata(codec->dev);
 	if (regulator_en && !IS_ERR(ac102->vol_supply.vcc)) {
 		regulator_disable(ac102->vol_supply.vcc);
 		regulator_en = 0;
@@ -853,10 +855,9 @@ static int ac102_suspend(struct snd_soc_codec *codec)
 
 static int ac102_resume(struct snd_soc_codec *codec)
 {
-	struct ac102_priv *ac102 = dev_get_drvdata(codec->dev);
-	int ret;
-
 #if AC102_MATCH_DTS_EN
+	struct ac102_priv *ac102 = dev_get_drvdata(codec->dev);
+        int ret;
 	if (!regulator_en && !IS_ERR(ac102->vol_supply.vcc)) {
 		ret = regulator_enable(ac102->vol_supply.vcc);
 		if(ret != 0)
@@ -1033,8 +1034,6 @@ static struct attribute_group ac102_debug_attr_group = {
 static int ac102_i2c_probe(struct i2c_client *i2c, const struct i2c_device_id *i2c_id)
 {
 	struct ac102_priv *ac102;
-	struct device_node *np = i2c->dev.of_node;
-	char *regulator_name = NULL;
 	int ret = 0;
 
 	ac102 = devm_kzalloc(&i2c->dev, sizeof(struct ac102_priv), GFP_KERNEL);
@@ -1047,6 +1046,8 @@ static int ac102_i2c_probe(struct i2c_client *i2c, const struct i2c_device_id *i
 	dev_set_drvdata(&i2c->dev, ac102);
 
 #if AC102_MATCH_DTS_EN
+	char *regulator_name = NULL;
+	struct device_node *np = i2c->dev.of_node;
 	if (!regulator_en) {
 		ret = of_property_read_string(np, AC102_REGULATOR_NAME, &regulator_name);
 		if (ret) {
@@ -1094,6 +1095,7 @@ static int ac102_i2c_remove(struct i2c_client *i2c)
 }
 
 //I2C devices register method_3: i2c_detect
+#if 0
 static int ac102_i2c_detect(struct i2c_client *client, struct i2c_board_info *info)
 {
 	u8 ac102_chip_id;
@@ -1114,9 +1116,11 @@ static int ac102_i2c_detect(struct i2c_client *client, struct i2c_board_info *in
 
 	return -ENODEV;
 }
+#endif
 
 
 //I2C devices address used in register method_3
+#if 0
 static unsigned short ac102_i2c_addr[] = {
 #if AC102_CHIP_NUMS > 0
 	0x33,
@@ -1136,9 +1140,11 @@ static unsigned short ac102_i2c_addr[] = {
 
 	I2C_CLIENT_END,
 };
+#endif
 
 //I2C devices register method_1: i2c_board_info (i2c_register_board_info)
 //I2C devices register method_2: device tree source (in .dts file)
+#if 0
 static struct i2c_board_info ac102_i2c_board_info[] = {
 #if AC102_CHIP_NUMS > 0
 	{I2C_BOARD_INFO("ac102_0", 0x33),},
@@ -1156,6 +1162,7 @@ static struct i2c_board_info ac102_i2c_board_info[] = {
 	{I2C_BOARD_INFO("ac102_3", 0x30),},
 #endif
 };
+#endif
 
 //I2C driver and devices match method_1: i2c_device_id
 static struct i2c_device_id ac102_i2c_id[] = {

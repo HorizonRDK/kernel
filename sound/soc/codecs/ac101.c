@@ -1041,7 +1041,7 @@ int ac101_hw_params(struct snd_pcm_substream *substream,
 	int AIF_CLK_CTRL = AIF1_CLK_CTRL;
 	int aif1_word_size = 24;
 	int aif1_slot_size = 32;
-	int aif1_lrck_div;
+	int aif1_lrck_div = 64;
 	struct snd_soc_codec *codec = codec_dai->codec;
 	struct ac10x_priv *ac10x = static_ac10x;
 	int reg_val, freq_out;

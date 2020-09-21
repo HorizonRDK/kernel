@@ -469,14 +469,14 @@
 };
 
 &snd0 {
-        model = "x2snd0";
+        model = "hobotsnd0";
         dai-link@0 {
                 dai-format = "dsp_a";
                 //dai-format = "i2s";   //duplex
                 bitclock-master;
                 frame-master;
                 frame-inversion;
-                link-name = "x2dailink0";
+                link-name = "hobotdailink0";
                 cpu {
                         sound-dai = <&i2s0>;
                 };
@@ -493,7 +493,7 @@
                 bitclock-master;   //not need setting in duplex
                 frame-master;      //not need setting in duplex
                 frame-inversion;
-                link-name = "x2dailink1";
+                link-name = "hobotdailink1";
                 cpu {
                         sound-dai = <&i2s1>;
                 };
@@ -507,13 +507,13 @@
         };
 };
 &snd1 {
-        model = "x2snd1";
+        model = "hobotsnd1";
         dai-link@1 {
                 dai-format = "i2s";
                 bitclock-master;
                 frame-master;
                 frame-inversion;
-                link-name = "x2dailink1";
+                link-name = "hobotdailink1";
                 cpu {
                         sound-dai = <&i2s0>;
                 };
@@ -526,13 +526,13 @@
         };
 };
 &snd2 {
-        model = "x2snd2";
+        model = "hobotsnd2";
         dai-link@0 {
                 dai-format = "i2s";   //duplex
                 bitclock-master;
                 frame-master;
                 frame-inversion;
-                link-name = "x2dailink0";
+                link-name = "hobotdailink0";
                 cpu {
                         sound-dai = <&i2s0>;
                 };
@@ -546,7 +546,7 @@
         dai-link@1 {
                 dai-format = "i2s";
                 frame-inversion;
-                link-name = "x2dailink1";
+                link-name = "hobotdailink1";
                 cpu {
                         sound-dai = <&i2s1>;
                 };
@@ -560,14 +560,14 @@
 };
 
 &snd3 {
-        model = "x2snd3";
+        model = "hobotsnd3";
         dai-link@0 {
                 dai-format = "dsp_a";
                 //dai-format = "i2s";   //duplex
                 bitclock-master;
                 frame-master;
                 frame-inversion;
-                link-name = "x2dailink0";
+                link-name = "hobotdailink0";
                 cpu {
                         sound-dai = <&i2s0>;
                 };
@@ -584,7 +584,7 @@
                 bitclock-master;   //not need setting in duplex
                 frame-master;      //not need setting in duplex
                 frame-inversion;
-                link-name = "x2dailink1";
+                link-name = "hobotdailink1";
                 cpu {
                         sound-dai = <&i2s1>;
                 };
