@@ -123,6 +123,87 @@ out:
 	res->a0 = 0;
 }
 
+typedef void (*CR5_SEND_IPI_HANDLE_T)(void);
+CR5_SEND_IPI_HANDLE_T send_ipi_cr5;
+void register_cr5_send_ipi_func(CR5_SEND_IPI_HANDLE_T func)
+{
+        send_ipi_cr5 = func;
+}
+EXPORT_SYMBOL(register_cr5_send_ipi_func);
+
+#define CR5_DDR_SERVICE_START_FLAG 0xA5
+typedef void *(*CR5_GET_BASE_HANDLE_T)(void);
+CR5_GET_BASE_HANDLE_T cr5_get_msginfo_base;
+void register_cr5_get_msginfo_base(CR5_GET_BASE_HANDLE_T func)
+{
+        cr5_get_msginfo_base = func;
+}
+EXPORT_SYMBOL(register_cr5_get_msginfo_base);
+
+static void hobot_smccc_cr5(unsigned long a0, unsigned long a1,
+                        unsigned long a2, unsigned long rate,
+                        unsigned long a4, unsigned long a5,
+                        unsigned long a6, unsigned long a7,
+                        struct arm_smccc_res *res)
+{
+	char index = 0;
+	void *sram_vaddr = NULL;
+	volatile char *p_index = NULL;
+	volatile char *p_status = NULL;
+	volatile char *p_err = NULL;
+	volatile char *p_serive_started = NULL;
+
+	pr_debug("%s rate:%ld\n", __func__, rate);
+
+	if (cr5_get_msginfo_base == NULL) {
+		pr_debug("hobot_smccc_cr5, CR5 not work\n");
+		res->a0 = -ENODEV;
+		return;
+	}
+
+	sram_vaddr = cr5_get_msginfo_base();
+
+	if (sram_vaddr == NULL) {
+		res->a0 = -ENODEV;
+		pr_debug("hobot_smccc_cr5, CR5 msg vaddr is not valid\n");
+		return;
+	}
+
+	p_index = sram_vaddr;
+	p_status = sram_vaddr + 1;
+	p_err = sram_vaddr + 2;
+	p_serive_started = sram_vaddr + 3;
+
+	if (rate == 667000000)
+		index = 0;
+	else if (rate == 2666000000)
+		index = 1;
+	else if (rate == 3200000000)
+		index = 2;
+	else if (rate == 0) {
+		/* most case reclac rate is 0
+		 * we dont case, return OK
+		 */
+		res->a0 = 0;
+		return;
+	} else {
+		res->a0 = -EINVAL;
+		return;
+	}
+
+	*p_index = index;
+	*p_status = 0;
+	*p_serive_started = CR5_DDR_SERVICE_START_FLAG;
+#if 0
+	udelay(10);
+	send_ipi_cr5();
+#endif
+	*p_serive_started = CR5_DDR_SERVICE_START_FLAG;
+	while(!*p_status) {
+	}
+	res->a0 = *p_err;
+}
+
 
 
 static hobot_invoke_fn *get_invoke_func(struct device_node *np)
@@ -145,6 +226,8 @@ static hobot_invoke_fn *get_invoke_func(struct device_node *np)
 		return hobot_smccc_smc;
 	else if (!strcmp("test", method))
 		return hobot_ddrdfc_test;
+	else if (!strcmp("cr5", method))
+		return hobot_smccc_cr5;
 
 	pr_warn("invalid \"method\" property: %s\n", method);
 	return ERR_PTR(-EINVAL);
