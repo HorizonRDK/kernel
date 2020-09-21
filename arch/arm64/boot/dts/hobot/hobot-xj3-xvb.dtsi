@@ -105,16 +105,21 @@
 		};
 
 		/*Reserved 1M memory for CR5*/
-		/*r5_mem: r5_mem@0x3E00000 {
-			reg = <0x0 0x3E00000 0x0 0x100000>;
-			no-map;
-		};*/
+		image_r5_mem: image_r5_mem {
+                        reg = <0x0 0x80000000 0x0 0x10000>;
+                        no-map;
+                };
+
+                msg_r5_mem: msg_r5_mem {
+                        reg = <0x0 0x3EFF000 0x0 0x1000>;
+                        no-map;
+                };
 	};
 };
 
-/*&cr5_service {
-	status = "ok";
-};*/
+&cr5_service {
+	status = "okay";
+};
 
 &i2c0 {
 	status = "okay";

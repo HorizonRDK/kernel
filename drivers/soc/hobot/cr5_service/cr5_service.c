@@ -256,6 +256,7 @@ static int cr5_load_start_image(cr5_dev_info_t *cr5_dev, cr5_image_info_t *info)
 	loff_t image_size;
 	struct device *dev = cr5_dev->dev;
 	unsigned char *name = info->image_name;
+	int val;
 
 	/*open cr5 file*/
 	fp = filp_open(name, O_RDONLY, 0);
@@ -267,7 +268,7 @@ static int cr5_load_start_image(cr5_dev_info_t *cr5_dev, cr5_image_info_t *info)
 	ret = kernel_read_file(fp, &image_data, &image_size,
 					INT_MAX, READING_KEXEC_IMAGE);
 	if (ret) {
-		dev_err(dev, "kernel read file\n");
+		dev_err(dev, "kernel read file, 0x%x\n", ret);
 		goto err1;
 	}
 
@@ -276,10 +277,15 @@ static int cr5_load_start_image(cr5_dev_info_t *cr5_dev, cr5_image_info_t *info)
 	msleep(50);
 
 	/*start cr5
+	 *0.enable cr5 clock
 	 *1.keep cr5 reset state
 	 *2.set cr5 start addr
 	 *3.let cr5 run
 	 */
+	val = readl(cr5_dev->sys_ctrl.reg_base + 0x104);
+	val |= (0x1 << 14);
+	writel(val, cr5_dev->sys_ctrl.reg_base + 0x104);
+	msleep(10);
 	writel(0x2800, cr5_dev->sys_ctrl.reg_base + 0x400);
 	msleep(10);
 	writel(cr5_dev->mem.image_phy_addr, cr5_dev->sys_ctrl.reg_base + 0x600);
@@ -293,6 +299,20 @@ static int cr5_load_start_image(cr5_dev_info_t *cr5_dev, cr5_image_info_t *info)
 err1:
 	filp_close(fp, NULL);
 	return ret;
+}
+
+typedef void *(*CR5_GET_INFO_HANDLE_T)(void);
+extern void register_cr5_get_msginfo_base(CR5_GET_INFO_HANDLE_T func);
+void __iomem *cr5_get_msginfo_base(void)
+{
+	return global_cr5_device->mem.msg_vaddr;
+}
+
+typedef void (*CR5_SEND_IPI_HANDLE_T)(void);
+extern void register_cr5_send_ipi_func(CR5_SEND_IPI_HANDLE_T func);
+void send_cr5_ipi(void)
+{
+	mbox_ca53_transmit(global_cr5_device, 0);
 }
 
 static long cr5_service_dev_ioctl(struct file *file,
@@ -311,6 +331,9 @@ static long cr5_service_dev_ioctl(struct file *file,
 			} else {
 				ret = -ENOTTY;
 			}
+
+			register_cr5_get_msginfo_base(cr5_get_msginfo_base);
+			register_cr5_send_ipi_func(send_cr5_ipi);
 			break;
 		case CR5_SERVICE_REQ:
 			if (mutex_lock_interruptible(&cr5_dev->service_mutex)) {
@@ -397,18 +420,21 @@ static int map_cr5_service_reg_addr(struct platform_device *pdev)
 {
 	int ret;
 	struct device_node *np = NULL;
-	unsigned long cr5_reserve_phy_base;
-	unsigned long cr5_reserve_total_size;
-	void __iomem *cr5_reserve_virt_base;
+	unsigned long cr5_image_phy_base;
+	unsigned long cr5_image_total_size;
+	void __iomem *cr5_image_virt_base;
+	unsigned long cr5_msg_phy_base;
+	unsigned long cr5_msg_total_size;
+	void __iomem *cr5_msg_virt_base;
 	struct device *dev = &pdev->dev;
 	cr5_dev_info_t *cr5_dev = dev_get_drvdata(dev);
 	struct resource *res;
 	struct resource mem_reserved;
 
-	/*get reserve path*/
-	np = of_parse_phandle(pdev->dev.of_node, "memory-region", 0);
+	/*get image reserve path*/
+	np = of_parse_phandle(pdev->dev.of_node, "image-memory-region", 0);
 	if (!np) {
-		dev_err(&pdev->dev, "No %s specified\n", "memory-region");
+		dev_err(&pdev->dev, "No %s specified\n", "image-memory-region");
 	}
 
 	ret = of_address_to_resource(np, 0, &mem_reserved);
@@ -417,30 +443,43 @@ static int map_cr5_service_reg_addr(struct platform_device *pdev)
 			"No memory address assigned to the region\n");
 		return -ENOMEM;
 	} else {
-		cr5_reserve_phy_base = (unsigned long)mem_reserved.start;
-		cr5_reserve_total_size = resource_size(&mem_reserved);
-		if (cr5_reserve_total_size < (CR5_MSG_REGION_SIZE
-							+ CR5_IMAGE_REGION_SIZE)) {
-			dev_err(&pdev->dev,
-				"No enough memory address to CR5 service\n");
-			return -ENOMEM;
-		}
-
-		cr5_reserve_virt_base = (void __iomem *)ioremap_nocache(cr5_reserve_phy_base,
-									cr5_reserve_total_size);
+		cr5_image_phy_base = (unsigned long)mem_reserved.start;
+		cr5_image_total_size = resource_size(&mem_reserved);
+		cr5_image_virt_base = (void __iomem *)ioremap_nocache(cr5_image_phy_base,
+									cr5_image_total_size);
 		dev_info(&pdev->dev,
-			"Allocate reserved memory, paddr: 0x%0llx, vaddr: 0x%0llx\n",
-			(uint64_t) cr5_reserve_phy_base, (uint64_t)cr5_reserve_virt_base);
+			"Allocate image reserved memory, paddr: 0x%0llx, vaddr: 0x%0llx, size = 0x%llx\n",
+			(uint64_t) cr5_image_phy_base, (uint64_t)cr5_image_virt_base, (uint64_t)cr5_image_total_size);
 	}
 
-	cr5_dev->mem.image_phy_addr = cr5_reserve_phy_base;
-	cr5_dev->mem.image_vaddr = cr5_reserve_virt_base;
-	cr5_dev->mem.image_region_size = CR5_IMAGE_REGION_SIZE;
-	cr5_dev->mem.msg_phy_addr =
-			cr5_dev->mem.image_phy_addr + CR5_IMAGE_REGION_SIZE;
-	cr5_dev->mem.msg_vaddr =
-			cr5_dev->mem.image_vaddr + CR5_IMAGE_REGION_SIZE;
-	cr5_dev->mem.msg_region_size = CR5_MSG_REGION_SIZE;
+	/*get msg reserve path*/
+	np = of_parse_phandle(pdev->dev.of_node, "msg-memory-region", 0);
+	if (!np) {
+		dev_err(&pdev->dev, "No %s specified\n", "msg-memory-region");
+	}
+
+	memset (&mem_reserved, 0, sizeof (struct resource));
+	ret = of_address_to_resource(np, 0, &mem_reserved);
+	if (ret) {
+		dev_err(&pdev->dev,
+			"No memory address assigned to the region\n");
+		return -ENOMEM;
+	} else {
+		cr5_msg_phy_base = (unsigned long)mem_reserved.start;
+		cr5_msg_total_size = resource_size(&mem_reserved);
+		cr5_msg_virt_base = (void __iomem *)ioremap_nocache(cr5_msg_phy_base,
+									cr5_msg_total_size);
+		dev_info(&pdev->dev,
+			"Allocate reserved memory, paddr: 0x%0llx, vaddr: 0x%0llx, size = 0x%llx\n",
+			(uint64_t) cr5_msg_phy_base, (uint64_t)cr5_msg_virt_base, (uint64_t)cr5_msg_total_size);
+	}
+
+	cr5_dev->mem.image_phy_addr = cr5_image_phy_base;
+	cr5_dev->mem.image_vaddr = cr5_image_virt_base;
+	cr5_dev->mem.image_region_size = cr5_image_total_size;
+	cr5_dev->mem.msg_phy_addr = cr5_msg_phy_base;
+	cr5_dev->mem.msg_vaddr = cr5_msg_virt_base;
+	cr5_dev->mem.msg_region_size = cr5_msg_total_size;
 
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "ipi_reg");
 	if (!res) {
@@ -478,7 +517,8 @@ err2:
 	devm_iounmap(&pdev->dev, cr5_dev->ipi.ipi_apu_base);
 	cr5_dev->ipi.ipi_apu_base = NULL;
 err1:
-	iounmap(cr5_reserve_virt_base);
+	iounmap(cr5_msg_virt_base);
+	iounmap(cr5_image_virt_base);
 	cr5_dev->mem.image_phy_addr = 0;
 	cr5_dev->mem.image_vaddr = NULL;
 	cr5_dev->mem.image_region_size = 0;
@@ -505,13 +545,18 @@ static void unmap_cr5_service_reg_addr(struct platform_device *pdev)
 
 	if (cr5_dev->mem.image_vaddr != NULL) {
 		iounmap(cr5_dev->mem.image_vaddr);
-		cr5_dev->mem.image_phy_addr = 0;
-		cr5_dev->mem.image_vaddr = NULL;
-		cr5_dev->mem.image_region_size = 0;
-		cr5_dev->mem.msg_phy_addr = 0;
-		cr5_dev->mem.msg_vaddr = NULL;
-		cr5_dev->mem.msg_region_size = 0;
 	}
+
+	if (cr5_dev->mem.msg_vaddr != NULL) {
+		iounmap(cr5_dev->mem.msg_vaddr);
+	}
+
+	cr5_dev->mem.image_phy_addr = 0;
+	cr5_dev->mem.image_vaddr = NULL;
+	cr5_dev->mem.image_region_size = 0;
+	cr5_dev->mem.msg_phy_addr = 0;
+	cr5_dev->mem.msg_vaddr = NULL;
+	cr5_dev->mem.msg_region_size = 0;
 }
 
 static int alloc_cr5_service_cdev(struct platform_device *pdev)

@@ -1264,7 +1264,8 @@
 		cr5_service: cr5_service {
 			compatible = "hobot,cr5_service";
 			status = "disabled";
-			/*memory-region = <&r5_mem>;*/
+			image-memory-region = <&image_r5_mem>;
+			msg-memory-region = <&msg_r5_mem>;
 			reg = <0x0 0xA100B000 0x0 0x1000>,<0x0 0xA1000000 0x0 0x1000>;
 			reg-names = "ipi_reg", "sys_ctrl";
 			interrupt-parent = <&gic>;
