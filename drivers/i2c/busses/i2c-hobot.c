@@ -24,7 +24,8 @@
 #include <soc/hobot/diag.h>
 #include <linux/clk.h>
 #include <linux/init.h>
-
+#include <linux/notifier.h>
+#include <soc/hobot/hobot_bus.h>
 #include <linux/i2c-hobot.h>
 
 #define HOBOT_I2C_FIFO_SIZE	16
@@ -61,6 +62,9 @@ struct hobot_i2c_dev {
 	size_t rx_remaining;
 	uint8_t i2c_id;
 	bool is_suspended;
+#ifdef CONFIG_HOBOT_BUS_CLK_X3
+    struct notifier_block notif;
+#endif
 };
 
 static int timeout_enable = 0;
@@ -114,6 +118,29 @@ static const struct device_attribute speed_attr = {
 	.show = speed_show,
 	.store = speed_store,
 };
+
+#ifdef CONFIG_HOBOT_BUS_CLK_X3
+static int i2c_notifier_callback(struct notifier_block *self,
+				unsigned long event, void *data)
+{
+	struct hobot_i2c_dev *dev =
+			container_of(self, struct hobot_i2c_dev, notif);
+	if (IS_ERR(dev)) {
+		// pr_err("i2c notifier callback dev ptr error\n");
+		return -ENODEV;
+	}
+	if (event == HB_BUS_SIGNAL_START) {
+		mutex_lock(&dev->lock);
+		disable_irq(dev->irq);
+		// dev_info(dev->dev, "start frequence switch");
+	} else if (event == HB_BUS_SIGNAL_END) {
+		enable_irq(dev->irq);
+		mutex_unlock(&dev->lock);
+		// dev_info(dev->dev, "end frequence switch");
+	}
+	return 0;
+}
+#endif
 
 static int hobot_i2c_cfg(struct hobot_i2c_dev *dev, int dir_rd, int timeout_enable)
 {
@@ -457,6 +484,10 @@ static int hobot_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[], int n
 		return -EBUSY;
 
 	mutex_lock(&dev->lock);
+	if (clk_prepare_enable(dev->clk)) {
+		mutex_unlock(&dev->lock);
+		return -ENODEV;
+	}
 
 	hobot_i2c_reset(dev);
 	recal_clk_div(dev);
@@ -473,6 +504,7 @@ static int hobot_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[], int n
 	}
 
 	reset_client_freq(dev);
+	clk_disable_unprepare(dev->clk);
 	mutex_unlock(&dev->lock);
 
 	if (ret == -ETIMEDOUT) {
@@ -572,6 +604,10 @@ static int hobot_i2c_xfer_smbus(struct i2c_adapter *adap, u16 addr,
 	dev_dbg(dev->dev, "hobot_i2c_xfer_smbus addr:%x cmd:%d rw:%d size:%d\n",
 				addr, command, read_write, size);
 
+    if (clk_prepare_enable(dev->clk)) {
+		mutex_unlock(&dev->lock);
+		return -ENODEV;
+	}
 	hobot_i2c_reset(dev);
 	recal_clk_div(dev);
 	hobot_i2c_cfg(dev, 0, 1);
@@ -608,6 +644,7 @@ static int hobot_i2c_xfer_smbus(struct i2c_adapter *adap, u16 addr,
 	}
 
 	reset_client_freq(dev);
+	clk_disable_unprepare(dev->clk);
 	mutex_unlock(&dev->lock);
 
 	if (ret == -ETIMEDOUT) {
@@ -763,6 +800,16 @@ static int hobot_i2c_probe(struct platform_device *pdev)
 		dev_err(dev->dev, "create i2c speed_attr error");
 		goto err_irq;
 	}
+
+#ifdef CONFIG_HOBOT_BUS_CLK_X3
+	dev->notif.notifier_call = i2c_notifier_callback;
+	ret = hb_bus_register_client(&dev->notif);
+	if (ret) {
+		dev_err(dev->dev, "register bus notifier failed");
+		goto err_irq;
+	}
+#endif
+	clk_disable_unprepare(dev->clk);
 	dev_info(&pdev->dev, "hobot_i2c_%d probe done\n", i2c_id);
 	return 0;
 
@@ -785,6 +832,10 @@ static int hobot_i2c_remove(struct platform_device *pdev)
 		dev->adapter.algo_data = NULL;
 	}
 
+#ifdef CONFIG_HOBOT_BUS_CLK_X3
+	if (hb_bus_unregister_client(&dev->notif))
+		dev_err(dev->dev, "unregister bus notifier failed");
+#endif
 	return 0;
 }
 
