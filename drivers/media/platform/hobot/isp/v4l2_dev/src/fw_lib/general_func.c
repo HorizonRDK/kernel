@@ -512,8 +512,8 @@ void general_set_wdr_mode( general_fsm_ptr_t p_fsm )
     switch ( p_fsm->wdr_mode ) {
     case WDR_MODE_LINEAR:
 #ifdef SENSOR_ISP_SEQUENCE_DEFAULT_LINEAR
-        LOG( LOG_INFO, "Setting Linear Binary Sequence\n" );
-       // acamera_load_sw_sequence( p_fsm->cmn.isp_base, ACAMERA_FSM2CTX_PTR( p_fsm )->isp_sequence, SENSOR_ISP_SEQUENCE_DEFAULT_LINEAR );
+        pr_debug("Setting Linear Binary Sequence\n" );
+        acamera_load_sw_sequence( p_fsm->cmn.isp_base, ACAMERA_FSM2CTX_PTR( p_fsm )->isp_sequence, SENSOR_ISP_SEQUENCE_DEFAULT_LINEAR );
 #endif
         break;
 
