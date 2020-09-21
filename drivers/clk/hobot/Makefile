@@ -14,5 +14,6 @@ obj-$(CONFIG_HOBOT_COMMON_CLK)		+= endiv.o
 obj-$(CONFIG_HOBOT_CPU_CLK_X2)		+= cpu-clk-x2.o
 obj-$(CONFIG_HOBOT_CPU_CLK_X3)		+= cpu-clk-x3.o
 obj-$(CONFIG_HOBOT_CNN_CLK_X3)		+= cnn-clk-x3.o
+obj-$(CONFIG_HOBOT_BUS_CLK_X3)          += bus-clk-x3.o
 obj-$(CONFIG_CLK_HOBOT_COMMON_TEST)		+= clk-test.o
 obj-$(CONFIG_HOBOT_DMC_CLK)		+= dmc-clk.o

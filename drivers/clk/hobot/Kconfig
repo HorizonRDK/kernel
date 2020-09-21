@@ -10,3 +10,5 @@ config HOBOT_CNN_CLK_X3
 	bool "HOBOT cnn clk support for x3"
 config HOBOT_DMC_CLK
     bool "HOBOT dmc clk"
+config HOBOT_BUS_CLK_X3
+	bool "HOBOT bus clk support for x3"
