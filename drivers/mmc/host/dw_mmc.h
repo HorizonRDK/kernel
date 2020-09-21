@@ -164,7 +164,10 @@ struct dw_mci {
 	void __iomem		*fifo_reg;
 	u32			data_addr_override;
 	bool			wm_aligned;
-
+#if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
+	/* The dwmmc notifier block */
+	struct notifier_block dw_hb_notif;
+#endif
 	struct scatterlist	*sg;
 	struct sg_mapping_iter	sg_miter;
 

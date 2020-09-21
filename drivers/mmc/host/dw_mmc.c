@@ -40,6 +40,9 @@
 #include <linux/of_gpio.h>
 #include <linux/mmc/slot-gpio.h>
 #include <soc/hobot/diag.h>
+#if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
+#include <soc/hobot/hobot_bus.h>
+#endif
 #include "dw_mmc.h"
 #include "dw_mmc-hobot.h"
 
@@ -2700,6 +2703,25 @@ static void dw_mci_handle_cd(struct dw_mci *host)
 		msecs_to_jiffies(host->pdata->detect_delay_ms));
 }
 
+#if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
+static int mmc_notifier_callback(struct notifier_block *self,
+				 unsigned long event, void *data)
+{
+	struct dw_mci *host = container_of(self, struct dw_mci, dw_hb_notif);
+	unsigned long irqflags;
+
+	if (event == HB_BUS_SIGNAL_START) {
+		spin_lock_irqsave(&host->lock, irqflags);
+		dev_dbg(host->dev, "%s: Grab mmc fm lock success!\n", __func__);
+	} else if (event == HB_BUS_SIGNAL_END) {
+		spin_unlock_irqrestore(&host->lock, irqflags);
+		dev_dbg(host->dev, "%s: Release fm lock success!\n", __func__);
+	}
+
+	return 0;
+}
+#endif
+
 static void hb_emmc_diag_process(u32 errsta, u32 envdata)
 {
 	u8 sta;
@@ -3365,7 +3387,14 @@ int dw_mci_probe(struct dw_mci *host)
 	spin_lock_init(&host->lock);
 	spin_lock_init(&host->irq_lock);
 	INIT_LIST_HEAD(&host->queue);
+#if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
+	host->dw_hb_notif.notifier_call = &mmc_notifier_callback;
+	ret = hb_console_register_client(&(host->dw_hb_notif));
 
+	if (ret)
+		dev_err(host->dev, "Unable to register fb_notifier: %d\n",
+			ret);
+#endif
 	/*
 	 * Get the host data width - this assumes that HCON has been set with
 	 * the correct values.
@@ -3522,6 +3551,11 @@ void dw_mci_remove(struct dw_mci *host)
 	pr_info("(%s):%s, after reset_control_assert\n", __FILE__, __func__);
 
 	clk_disable_unprepare(host->ciu_clk);
+
+#if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
+	if (hb_bus_unregister_client(&(host->dw_hb_notif)))
+		dev_err(host->dev, "Error occurred while unregistering fb_notifier.\n");
+#endif
 }
 EXPORT_SYMBOL(dw_mci_remove);
 
