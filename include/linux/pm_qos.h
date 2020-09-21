@@ -10,6 +10,8 @@
 #include <linux/device.h>
 #include <linux/workqueue.h>
 
+#define NR_DEVFREQS  32
+
 enum {
 	PM_QOS_RESERVED = 0,
 	PM_QOS_CPU_DMA_LATENCY,
@@ -18,6 +20,15 @@ enum {
 	PM_QOS_MEMORY_BANDWIDTH,
 
 	/* insert new class ID */
+	PM_QOS_CPU_FREQ_MIN,
+	PM_QOS_CPU_FREQ_MIN_END = PM_QOS_CPU_FREQ_MIN + NR_CPUS - 1,
+	PM_QOS_CPU_FREQ_MAX,
+	PM_QOS_CPU_FREQ_MAX_END = PM_QOS_CPU_FREQ_MAX + NR_CPUS - 1,
+	PM_QOS_CPU_ONLINE_MIN,
+	PM_QOS_CPU_ONLINE_MAX,
+	PM_QOS_DEVFREQ,
+	PM_QOS_DEVFREQ_END = PM_QOS_DEVFREQ + NR_DEVFREQS - 1,
+
 	PM_QOS_NUM_CLASSES,
 };
 
@@ -38,6 +49,15 @@ enum pm_qos_flags_status {
 #define PM_QOS_LATENCY_TOLERANCE_DEFAULT_VALUE	0
 #define PM_QOS_LATENCY_TOLERANCE_NO_CONSTRAINT	(-1)
 #define PM_QOS_LATENCY_ANY			((s32)(~(__u32)0 >> 1))
+
+#define PM_QOS_CPUFREQ_MAX_DEFAULT_VALUE	(10000)
+#define PM_QOS_CPUFREQ_MIN_DEFAULT_VALUE	(0)
+#define PM_QOS_CPUFREQ_MAX_VALUE		(10000)
+#define PM_QOS_CPU_ONLINE_MIN_DEFAULT_VALUE	1
+#define PM_QOS_CPU_ONLINE_MAX_DEFAULT_VALUE	NR_CPUS
+#define PM_QOS_DEVFREQ_MAX_DEFAULT_VALUE	(10000)
+#define PM_QOS_DEVFREQ_MIN_DEFAULT_VALUE	(0)
+#define PM_QOS_DEVFREQ_MAX_VALUE		(10000)
 
 #define PM_QOS_FLAG_NO_POWER_OFF	(1 << 0)
 #define PM_QOS_FLAG_REMOTE_WAKEUP	(1 << 1)
@@ -177,6 +197,7 @@ static inline s32 dev_pm_qos_raw_read_value(struct device *dev)
 	return IS_ERR_OR_NULL(dev->power.qos) ?
 		0 : pm_qos_read_value(&dev->power.qos->resume_latency);
 }
+int pm_qos_class_register(const char *name, struct pm_qos_constraints *cons);
 #else
 static inline enum pm_qos_flags_status __dev_pm_qos_flags(struct device *dev,
 							  s32 mask)

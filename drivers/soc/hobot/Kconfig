@@ -150,6 +150,19 @@ config HOBOT_XJ3_CV_USRDRV
     help
        Driver for the user mode drive
 
+menuconfig HOBOT_PM_PERF
+	bool "Performance Sub-System Drivers Support on Hobot Platform"
+	depends on ARCH_HOBOT
+	default n
+	help
+	  Say yes to enable PM Sub-System drivers for Hobot JPlus SoCs
+
+if HOBOT_PM_PERF
+
+source "drivers/soc/hobot/performance/Kconfig"
+
+endif #HOBOT_PM_PERF
+
 endif #HOBOT_SOC_DRIVERS
 
 menuconfig HOBOT_BIF_AP

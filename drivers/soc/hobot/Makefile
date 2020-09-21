@@ -8,6 +8,7 @@ obj-$(CONFIG_HOBOT_CNN_MM)		+= cnn_mm/
 obj-$(CONFIG_HOBOT_BPU)		+= bpu/
 obj-$(CONFIG_HOBOT_DIAG)		+= diag/
 obj-$(CONFIG_HOBOT_PM)		+= pm/
+obj-$(CONFIG_HOBOT_PM_PERF)		+= performance/
 obj-$(CONFIG_HOBOT_MCU_IRQ)	+= mcu_irq/
 obj-$(CONFIG_HOBOT_BIFSPI_DEV)		+= bifspi/
 obj-$(CONFIG_HOBOT_BIFSD_DEV)		+= bifsd/
