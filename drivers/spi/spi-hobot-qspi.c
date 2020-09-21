@@ -34,6 +34,9 @@
 #include <linux/mtd/spinand.h>
 #include <linux/completion.h>
 #include <soc/hobot/diag.h>
+#if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
+#include <soc/hobot/hobot_bus.h>
+#endif
 #include "./spi-hobot-qspi.h"
 
 static int first_time;
@@ -53,7 +56,10 @@ struct hb_qspi {
 	void __iomem *regs;
 	struct platform_device *pdev;
 	struct completion xfer_complete;
-
+#if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
+	struct mutex xfer_lock;
+	struct notifier_block hbqspi_notif;
+#endif
 	uint32_t ref_clk;
 #ifndef CONFIG_HOBOT_FPGA_X3
 	struct clk *hclk;
@@ -90,7 +96,8 @@ static inline int hb_qspi_check_status(struct hb_qspi *hbqspi, uint32_t offset,
 	} while (!(val & mask));
 
 	if (ret)
-		pr_err("hb-qspi: status check timedout after %d tries.\n", tries);
+		pr_err("%s:%s: status check timedout after %d tries.\n",
+				__FILE__, __func__, tries);
 
 	return ret;
 }
@@ -262,6 +269,7 @@ static inline void hb_qspi_reset_fifo(struct hb_qspi *hbqspi)
 static void hb_qspi_set_speed(struct hb_qspi *hbqspi)
 {
 	uint32_t div = 0, div_min, scaler, sclk_val;
+	hbqspi->ref_clk = clk_get_rate(hbqspi->hclk);
 
 	/* The maxmium of prescale is 16, according to spec. */
 	div_min = hbqspi->ref_clk / hbqspi->sclk / 16;
@@ -278,9 +286,10 @@ static void hb_qspi_set_speed(struct hb_qspi *hbqspi)
 	}
 	scaler = ((hbqspi->ref_clk / hbqspi->sclk) / (2 << div)) - 1;
 	sclk_val = SCLK_VAL(div, scaler);
-	pr_debug("hbqspi sclk_con val:0x%x\n", sclk_val);
 	hb_qspi_wr_reg(hbqspi, HB_QSPI_BDR_REG, sclk_val);
 	hbqspi->sclk = hbqspi->ref_clk / ((scaler + 1) * (2 << div));
+	dev_dbg(hbqspi->dev, "hbqspi sclk_con val:0x%x, hclk %d, sclk %d\n",
+			 sclk_val, hbqspi->ref_clk, hbqspi->sclk);
 }
 
 #if (QSPI_DEBUG > 0)
@@ -688,6 +697,9 @@ static inline int hb_qspi_start_transfer(struct spi_master *master,
 	int transfered = 0;
 	struct hb_qspi *hbqspi = spi_master_get_devdata(master);
 	unsigned remainder, residue;
+#if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
+	mutex_lock(&(hbqspi->xfer_lock));
+#endif
 	remainder = transfer->len % (HB_QSPI_TRIG_LEVEL);
 	residue   = transfer->len - remainder;
 	/*
@@ -763,6 +775,9 @@ static inline int hb_qspi_start_transfer(struct spi_master *master,
 #endif
 
 	spi_finalize_current_transfer(master);
+#if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
+	mutex_unlock(&(hbqspi->xfer_lock));
+#endif
 	return transfered;
 }
 
@@ -783,13 +798,15 @@ static int hb_qspi_exec_mem_op(struct spi_mem *mem,
 	struct hb_qspi *hbqspi = spi_controller_get_devdata(mem->spi->master);
 	int ret = 0, remainder = 0, residue = 0, non_data_size = 0, i;
 	uint8_t *non_data_buf = NULL, *tmp_ptr;
-#if (QSPI_DEBUG > 1)
-	printk("cmd:0x%02x addr_dum_dat_nbytes:%d %d %d bus_widths:%d%d%d%d\n",
+#if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
+	mutex_lock(&(hbqspi->xfer_lock));
+#endif
+	dev_dbg(hbqspi->dev,
+			"cmd:0x%02x addr_dum_dat_nbytes:%d %d %d bus_widths:%d%d%d%d\n",
 			op->cmd.opcode,
 			op->addr.nbytes, op->dummy.nbytes, op->data.nbytes,
 			op->cmd.buswidth, op->addr.buswidth,
 			op->dummy.buswidth, op->data.buswidth);
-#endif
 	/* First deal with non-data transmits: cmd/addr/dummy */
 	non_data_size = sizeof(op->cmd.opcode) + op->addr.nbytes
 					+ op->dummy.nbytes;
@@ -881,6 +898,9 @@ exec_end:
 	if (ret)
 		dev_err(hbqspi->dev, "Exec op failed! cmd:%#02x err: %d\n",
 				op->cmd.opcode, ret);
+#if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
+	mutex_unlock(&(hbqspi->xfer_lock));
+#endif
 	return ret;
 }
 
@@ -895,7 +915,7 @@ exec_end:
  */
 static int hb_prepare_transfer_hardware(struct spi_master *master)
 {
-	/* For X2 no used */
+	/* For HB not used */
 	return 0;
 }
 
@@ -910,7 +930,7 @@ static int hb_prepare_transfer_hardware(struct spi_master *master)
  */
 static int hb_unprepare_transfer_hardware(struct spi_master *master)
 {
-	/* For X2 no used */
+	/* For HB not used */
 	return 0;
 }
 
@@ -955,6 +975,25 @@ static void hb_qspiflash_callback(void *p, size_t len)
 {
 	first_time = 0;
 }
+
+#if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
+static int hbqspi_notifier_callback(struct notifier_block *self,
+				 unsigned long event, void *data)
+{
+	struct hb_qspi *hbqspi = container_of(self, struct hb_qspi, hbqspi_notif);
+
+	if (event == HB_BUS_SIGNAL_START) {
+		mutex_lock(&(hbqspi->xfer_lock));
+		dev_dbg(hbqspi->dev, "%s: Grab hb_qspi lock success\n", __func__);
+	} else if (event == HB_BUS_SIGNAL_END) {
+		/* hb_qspi_set_speed(hbqspi); */
+		mutex_unlock(&(hbqspi->xfer_lock));
+		dev_dbg(hbqspi->dev, "%s: Release hb_qspi lock success\n", __func__);
+	}
+
+	return 0;
+}
+#endif
 
 static irqreturn_t hb_qspi_irq_handler(int irq, void *dev_id)
 {
@@ -1079,13 +1118,13 @@ static int hb_qspi_probe(struct platform_device *pdev)
 	hbqspi->irq = platform_get_irq(pdev, 0);
 	if (hbqspi->irq < 0) {
 		dev_err(dev, "Cannot obtain IRQ.\n");
-		goto remove_master;
+		goto clk_dis_hclk;
 	}
 	ret = devm_request_irq(dev, hbqspi->irq, hb_qspi_irq_handler,
 							0, pdev->name, hbqspi);
 	if (ret) {
 		dev_err(dev, "Cannot request IRQ.\n");
-		goto remove_master;
+		goto clk_dis_hclk;
 	}
 
 	if (of_property_read_string(pdev->dev.of_node,
@@ -1153,7 +1192,15 @@ static int hb_qspi_probe(struct platform_device *pdev)
 					buswidth);
 			break;
 	}
+#if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
+	mutex_init(&(hbqspi->xfer_lock));
+	hbqspi->hbqspi_notif.notifier_call = &hbqspi_notifier_callback;
+	ret = hb_bus_register_client(&(hbqspi->hbqspi_notif));
 
+	if (ret)
+		dev_err(dev, "Unable to register fb_notifier: %d\n",
+			ret);
+#endif
 #if (QSPI_DEBUG > 1)
 	trace_hbqspi(hbqspi);
 #endif
@@ -1162,15 +1209,15 @@ static int hb_qspi_probe(struct platform_device *pdev)
 		master->dev.parent = &master->dev;
 
 	ret = spi_register_master(master);
-	if (ret)
-		goto remove_master;
+	if (ret) {
+		dev_err(dev, "SPI master registration failed\n");
+		goto clk_dis_hclk;
+	}
 
 	return 0;
 
 clk_dis_hclk:
-#ifdef CONFIG_HOBOT_XJ2
 	clk_disable_unprepare(hbqspi->hclk);
-#endif
 
 remove_master:
 	spi_master_put(master);
@@ -1189,30 +1236,32 @@ remove_master:
  */
 static int hb_qspi_remove(struct platform_device *pdev)
 {
+	struct hb_qspi *hbqspi = platform_get_drvdata(pdev);
+	dev_dbg(hbqspi->dev, "removed\n");
+#if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
+	if (hb_bus_unregister_client(&(hbqspi->hbqspi_notif)))
+		dev_err(hbqspi->dev, "Error occurred while unregistering fb_notifier.\n");
+#endif
 	return 0;
 }
 
 #ifdef CONFIG_PM_SLEEP
 int hb_qspi_suspend(struct device *dev)
 {
+	int val;
 	struct spi_master *master = dev_get_drvdata(dev);
 	struct hb_qspi *hbqspi = spi_master_get_devdata(master);
 
 	pr_info("%s:%s, enter suspend...\n", __FILE__, __func__);
 
-	/* wait to be done */
-	hb_qspi_check_status(hbqspi, HB_QSPI_ST2_REG,
-								 HB_QSPI_TX_EP,
-								 HB_QSPI_TIMEOUT_US);
-	hb_qspi_check_status(hbqspi, HB_QSPI_ST2_REG,
-								 HB_QSPI_RX_EP,
-								 HB_QSPI_TIMEOUT_US);
+	val = hb_qspi_rd_reg(hbqspi, HB_QSPI_CTL1_REG);
+	while (val & (HB_QSPI_RX_EN | HB_QSPI_TX_EN)) {
+		val = hb_qspi_rd_reg(hbqspi, HB_QSPI_CTL1_REG);
+	}
 
 	hb_qspi_disable_tx(hbqspi);
 	hb_qspi_disable_rx(hbqspi);
-#ifdef CONFIG_HOBOT_XJ2
 	clk_disable_unprepare(hbqspi->hclk);
-#endif
 	return 0;
 }
 
@@ -1222,9 +1271,10 @@ int hb_qspi_resume(struct device *dev)
 	struct hb_qspi *hbqspi = spi_master_get_devdata(master);
 
 	pr_info("%s:%s, enter resume...\n", __FILE__, __func__);
-#ifdef CONFIG_HOBOT_XJ2
-	clk_prepare_enable(hbqspi->hclk);
-#endif
+
+	if (clk_prepare_enable(hbqspi->hclk)) {
+		pr_err("%s:%s, clk_enable failed!\n", __FILE__, __func__);
+	}
 	hb_qspi_hw_init(hbqspi);
 
 	return 0;
