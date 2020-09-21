@@ -367,6 +367,7 @@ int gdc_video_process(struct gdc_video_ctx *gdc_ctx, unsigned long arg)
 	unsigned long flag;
 	gdc_settings_t gdc_settings;
 	struct x3_gdc_dev *gdc_dev;
+	int enbale = 1;
 
 	ret = copy_from_user(&gdc_settings, (gdc_settings_t *) arg,
 			   sizeof(gdc_settings_t));
@@ -389,6 +390,7 @@ int gdc_video_process(struct gdc_video_ctx *gdc_ctx, unsigned long arg)
 	gdc_ctx->event = 0;
 	atomic_set(&gdc_dev->instance, gdc_ctx->group->instance);
 
+	write_gdc_mask(gdc_dev->hw_id, &enbale);
 	gdc_init(gdc_dev, &gdc_settings);
 	ret = gdc_process(gdc_dev, &gdc_settings);
 	gdc_start(gdc_dev);
