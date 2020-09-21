@@ -211,14 +211,11 @@ static hobot_invoke_fn *get_invoke_func(struct device_node *np)
 
 	const char *method = ddr_method;
 
-#ifndef CONFIG_HOBOT_XJ3
 	if (of_property_read_string(np, "method", &method)) {
-		pr_warn("missing \"method\" property\n");
-		return ERR_PTR(-ENXIO);
+		pr_info("no \"method\" property, use test method.\n");
+		/* use test with no method in dts */
+		method = "test";
 	}
-#endif
-	/* force to test now */
-	method = "test";
 
 	if (!strcmp("hvc", method))
 		return hobot_smccc_hvc;
@@ -313,7 +310,12 @@ static struct clk *dmc_clk_register(struct device *dev, struct device_node *node
 
 	tee_node = of_parse_phandle(node, "tee-dram-handle", 0);
 
+#ifdef CONFIG_HOBOT_XJ3
+	invoke_fn = get_invoke_func(node);
+#else
 	invoke_fn = get_invoke_func(tee_node);
+#endif
+
 	if (IS_ERR(invoke_fn)) {
 		ret = PTR_ERR(invoke_fn);
 		goto err_free;
