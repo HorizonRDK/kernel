@@ -224,6 +224,11 @@
 		#size-cells = <2>;
 		ranges;
 
+		hobot_bus: hobot_bus@0 {
+			compatible = "hobot,hobot-bus";
+			reg-info = <0 0xa1000000 0 0x4fc>;
+		};
+
 		uart0: serial@0xA5000000 {
 			compatible = "hobot,hobot-uart";
 			reg = <0 0xA5000000 0 0x1000>;
