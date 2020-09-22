@@ -344,6 +344,9 @@ static int bpu_core_open(struct inode *inode, struct file *filp)/*PRQA S ALL*/
 			dev_err(core->dev, "Init bpu core prio sched failed\n");
 			return -EINVAL;
 		}
+#ifdef CONFIG_X3_BPU
+		pm_qos_add_request(&core->pm_qos_req, PM_QOS_DEVFREQ, 8300);
+#endif
 		ret = bpu_core_enable(core);
 		if (ret != 0) {
 			mutex_unlock(&core->mutex_lock);
@@ -445,6 +448,9 @@ static int bpu_core_release(struct inode *inode, struct file *filp)/*PRQA S ALL*
 		if (ret != 0) {
 			dev_err(core->dev, "BPU core disable failed\n");
 		}
+#ifdef CONFIG_X3_BPU
+		pm_qos_remove_request(&core->pm_qos_req);
+#endif
 
 		spin_lock_irqsave(&core->spin_lock, flags);/*PRQA S ALL*/
 		core->p_run_time = 0;
@@ -788,6 +794,11 @@ static int bpu_core_probe(struct platform_device *pdev)/*PRQA S ALL*/
 		dev_err(&pdev->dev, "BPU core registe dvfs failed\n");
 	}
 
+	ret = bpu_core_bus_dvfs_register(core);
+	if (ret != 0) {
+		dev_err(&pdev->dev, "BPU core registe bus dvfs failed\n");
+	}
+
 	return 0;
 }
 
@@ -795,6 +806,7 @@ static int bpu_core_remove(struct platform_device *pdev)/*PRQA S ALL*/
 {
 	struct bpu_core *core = (struct bpu_core *)dev_get_drvdata(&pdev->dev);/*PRQA S ALL*/
 
+	bpu_core_bus_dvfs_unregister(core);
 	bpu_core_dvfs_unregister(core);
 	bpu_core_discard_sys(core);
 

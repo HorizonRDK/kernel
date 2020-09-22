@@ -886,3 +886,76 @@ int32_t bpu_core_set_limit(struct bpu_core *core, int32_t limit)
 // PRQA S ALL ++
 EXPORT_SYMBOL(bpu_core_set_limit);
 // PRQA S ALL --
+
+/* To support ddr bandwidth dvfs */
+#if defined(CONFIG_X3_BPU) && defined(CONFIG_HOBOT_BUS_CLK_X3)
+static int bpu_bus_dvfs_notify(struct notifier_block *nb,/*PRQA S ALL*/
+		unsigned long action, void *data)/*PRQA S ALL*/
+{
+	struct bpu_core *core = (struct bpu_core *)container_of(nb,/*PRQA S ALL     */
+			struct bpu_core, bus_dvfs_notifier);/*PRQA S ALL*/
+	int32_t ret;
+
+	if (core == NULL) {
+		return NOTIFY_DONE;
+	}
+
+	if (HB_BUS_SIGNAL_START == action) {
+		ret = bpu_core_pend_to_leisure(core, HZ);
+		if (ret != 0) {
+			pr_err("BPU core[%d] prepare for bus dvfs failed\n",
+					core->index);/*PRQA S ALL*/
+			return NOTIFY_BAD;/*PRQA S ALL*/
+		}
+
+		return NOTIFY_OK;
+	}
+
+	if (HB_BUS_SIGNAL_END == action) {
+		ret = bpu_core_pend_off(core);
+		if (ret != 0) {
+			pr_err("BPU core[%d] unprepare for bus dvfs failed\n",
+					core->index);/*PRQA S ALL*/
+			return NOTIFY_BAD;/*PRQA S ALL*/
+		}
+
+		return NOTIFY_OK;
+	}
+
+	return NOTIFY_DONE;
+}
+
+int32_t bpu_core_bus_dvfs_register(struct bpu_core *core)
+{
+	int32_t ret;
+
+	core->bus_dvfs_notifier.notifier_call = bpu_bus_dvfs_notify;
+	ret = hb_bus_register_client(&core->bus_dvfs_notifier);
+	if (ret != 0) {
+		dev_err(core->dev,
+				"Register hobot bus dvfs notifier failed %d!!\n", ret);
+		return ret;
+	}
+
+	return ret;
+}
+
+void bpu_core_bus_dvfs_unregister(struct bpu_core *core)
+{
+	(void)hb_bus_unregister_client(&core->bus_dvfs_notifier);
+}
+
+#else
+int32_t bpu_core_bus_dvfs_register(struct bpu_core *core)
+{
+	return 0;
+}
+
+void bpu_core_bus_dvfs_unregister(struct bpu_core *core)
+{
+}
+#endif
+// PRQA S ALL ++
+EXPORT_SYMBOL(bpu_core_bus_dvfs_register);
+EXPORT_SYMBOL(bpu_core_bus_dvfs_unregister);
+// PRQA S ALL --
