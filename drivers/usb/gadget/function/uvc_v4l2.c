@@ -134,7 +134,13 @@ uvc_v4l2_set_format(struct file *file, void *fh, struct v4l2_format *fmt)
 	video->width = fmt->fmt.pix.width;
 	video->height = fmt->fmt.pix.height;
 	video->imagesize = imagesize;
-	video->max_payload_size = imagesize;	// for bulk mode
+	if (video->imagesize > UVC_MAX_TRB_SIZE)
+		video->max_payload_size = UVC_MAX_TRB_SIZE;	// for bulk mode
+	else
+		video->max_payload_size = imagesize;	// for bulk mode
+
+	printk(KERN_INFO "%s, max_payload_size(0x%x), image_size(0x%x)\n",
+			__func__, video->max_payload_size, video->imagesize);
 
 	fmt->fmt.pix.field = V4L2_FIELD_NONE;
 	fmt->fmt.pix.bytesperline = bpl;

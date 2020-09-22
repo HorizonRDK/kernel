@@ -247,8 +247,15 @@ uvc_video_alloc_requests(struct uvc_video *video)
 			 * max_t(unsigned int, video->ep->maxburst, 1)
 			 * (video->ep->mult);
 	} else {
+#if 0
 		req_size = video->ep->maxpacket
 			 * max_t(unsigned int, video->ep->maxburst, 1);
+#else
+		if (video->imagesize <= UVC_MAX_TRB_SIZE)
+			req_size = video->imagesize;
+		else
+			req_size = UVC_MAX_TRB_SIZE;
+#endif
 	}
 
 	for (i = 0; i < UVC_NUM_REQUESTS; ++i) {
@@ -366,7 +373,7 @@ int uvcg_video_enable(struct uvc_video *video, int enable)
 
 		uvc_video_free_requests(video);
 		uvcg_queue_enable(&video->queue, 0);
-		/* In our hobot usb 3.0 bulk streaming mode, 
+		/* In our hobot usb 3.0 bulk streaming mode,
 		 * when host send reset, we should set our device endpoint in halt,
 		 * or there may be some request make next ep2 work fail.
 		 */

@@ -97,7 +97,7 @@ extern unsigned int uvc_gadget_trace_param;
 #define UVC_NUM_REQUESTS			4
 #define UVC_MAX_REQUEST_SIZE			64
 #define UVC_MAX_EVENTS				4
-
+#define UVC_MAX_TRB_SIZE			0x400000	/* check dwc3/gadget.c */
 /* ------------------------------------------------------------------------
  * Structures
  */
