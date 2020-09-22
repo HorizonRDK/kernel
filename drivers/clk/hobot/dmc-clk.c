@@ -28,6 +28,7 @@
 #include <linux/clk-provider.h>
 #include <linux/spinlock.h>
 #include <linux/arm-smccc.h>
+#include <linux/moduleparam.h>
 #include <asm-generic/delay.h>
 
 #include "common.h"
@@ -58,6 +59,7 @@ struct dmc_clk {
 	uint32_t set_cmd;
 	uint32_t get_cmd;
 	uint32_t channel;
+	struct clk *ddr_mclk;
 };
 
 /**
@@ -156,8 +158,12 @@ static void hobot_smccc_cr5(unsigned long a0, unsigned long a1,
 	pr_debug("%s rate:%ld\n", __func__, rate);
 
 	if (cr5_get_msginfo_base == NULL) {
-		pr_debug("hobot_smccc_cr5, CR5 not work\n");
-		res->a0 = -ENODEV;
+		pr_debug("hobot_smccc_cr5, CR5 not work, keep rate:%ld\n", rate);
+
+		/* keep devfreq working before cr5 is ready */
+		cur_ddr_rate = rate;
+		res->a0 = 0;
+
 		return;
 	}
 
@@ -244,12 +250,19 @@ static int dmc_set_rate(struct clk_hw *hw,
 	if (res.a0 != 0) {
 		pr_err("%s: ddr channel:%u set rate to %lu failed with status :%ld\n",
 			__func__, dclk->channel, rate, res.a0);
+		return -EINVAL;
 	}
 	dclk->rate = rate;
-
 	cur_ddr_rate = rate;
+
 	return 0;
 }
+
+unsigned long hobot_dmc_cur_rate(void)
+{
+	return cur_ddr_rate;
+}
+EXPORT_SYMBOL(hobot_dmc_cur_rate);
 
 static unsigned long dmc_recalc_rate(struct clk_hw *hw,
 				unsigned long parent_rate)
@@ -271,7 +284,6 @@ static unsigned long dmc_recalc_rate(struct clk_hw *hw,
 	/* FIXME: find a better way to get current ddr freq */
 	pr_debug("parent_rate: %ld,  dclk->rate:%ld, cur_ddr_rate:%ld\n",
 		parent_rate, dclk->rate, cur_ddr_rate);
-	dclk->rate = cur_ddr_rate;
 
 	return dclk->rate;
 }
@@ -365,9 +377,6 @@ static struct clk *dmc_clk_register(struct device *dev, struct device_node *node
 	init.flags = flags;
 
 	ddrclk->hw.init = &init;
-
-	/* FIXME: just for debug, remove me, start */
-	cur_ddr_rate = 667000000;
 
 	spin_lock_init(&ddrclk->lock);
 	clk = clk_register(dev, &ddrclk->hw);

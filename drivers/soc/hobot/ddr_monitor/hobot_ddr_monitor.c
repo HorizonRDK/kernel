@@ -287,6 +287,7 @@ static int hobot_dfi_set_event(struct devfreq_event_dev *edev)
 	return 0;
 }
 
+extern unsigned long hobot_dmc_cur_rate(void);
 static int hobot_dfi_get_event(struct devfreq_event_dev *edev,
 				struct devfreq_event_data *edata)
 {
@@ -294,7 +295,7 @@ static int hobot_dfi_get_event(struct devfreq_event_dev *edev,
 	struct ddr_monitor_result_s* cur_info;
 	unsigned long read_cnt = 0;
 	unsigned long write_cnt = 0;
-	unsigned long cur_ddr_clk;
+	unsigned long cur_ddr_rate;
 
 	pr_debug("%s %d\n", __func__, __LINE__);
 
@@ -303,8 +304,14 @@ static int hobot_dfi_get_event(struct devfreq_event_dev *edev,
 		return -1;
 	}
 
-	cur_ddr_clk = clk_get_rate(g_ddr_monitor_dev->ddr_mclk) * 4;;
-	pr_debug("cur_ddr_freq: %ld\n", cur_ddr_clk);
+	cur_ddr_rate = hobot_dmc_cur_rate();
+	if (unlikely(cur_ddr_rate == 0)) {
+		/* we trust ddr_mclk before CR5 changing ddr clk */
+		cur_ddr_rate = clk_get_rate(g_ddr_monitor_dev->ddr_mclk) * 4;;
+		pr_debug("get cur_ddr_rate %ld from ddr_mclk\n", cur_ddr_rate);
+	}
+
+	pr_debug("cur_ddr_freq: %ld\n", cur_ddr_rate);
 
 	spin_lock_irqsave(&g_ddr_monitor_dev->lock, flags);
 	cur_info = &ddr_info[g_current_index];
@@ -315,7 +322,7 @@ static int hobot_dfi_get_event(struct devfreq_event_dev *edev,
 			(1000000 / g_monitor_period) >> 20;
 
 	edata->load_count = read_cnt + write_cnt;
-	edata->total_count = (cur_ddr_clk * 4) >> 20;
+	edata->total_count = (cur_ddr_rate * 4) >> 20;
 
 	spin_unlock_irqrestore(&g_ddr_monitor_dev->lock, flags);
 
@@ -2378,7 +2385,7 @@ static int ddr_monitor_probe(struct platform_device *pdev)
 	g_ddr_monitor_dev->edev = devm_devfreq_event_add_edev(&pdev->dev, desc);
 	if (IS_ERR(g_ddr_monitor_dev->edev)) {
 		dev_err(&pdev->dev,
-			"failed to add devfreq-event device %d\n",
+			"failed to add devfreq-event device %ld\n",
 			PTR_ERR(g_ddr_monitor_dev->edev));
 
 		return PTR_ERR(g_ddr_monitor_dev->edev);
@@ -2403,8 +2410,13 @@ static int ddr_monitor_probe(struct platform_device *pdev)
 	writel(0x21100, g_ddr_monitor_dev->regaddr + DDR_PORT_WRITE_QOS_CTRL);
 #endif
 	g_ddr_monitor_dev->sif_mclk = devm_clk_get(&pdev->dev, "sif_mclk");
+	if (IS_ERR(g_ddr_monitor_dev->sif_mclk)) {
+		pr_err("failed to get sif_mclk");
+		return -ENODEV;
+	}
+
 	g_ddr_monitor_dev->ddr_mclk = devm_clk_get(&pdev->dev, "ddr_mclk");
-	if (g_ddr_monitor_dev->ddr_mclk == NULL) {
+	if (IS_ERR(g_ddr_monitor_dev->ddr_mclk)) {
 		pr_err("failed to get ddr_mclk");
 		return -ENODEV;
 	}
