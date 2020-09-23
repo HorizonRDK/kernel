@@ -113,6 +113,7 @@ static int hb_devfreq_qos_probe(struct platform_device *pdev)
 		qos_data->orig_limit = qos_data->df->max_freq;
 	}
 	plist_head_init(&qos_data->cons.list);
+	init_rwsem(&qos_data->notifiers.rwsem);
 	qos_data->cons.notifiers = &qos_data->notifiers;
 	qos_data->max_freq = qos_data->df->max_freq;
 
