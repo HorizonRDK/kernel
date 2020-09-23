@@ -344,14 +344,12 @@ static void rx_assemble_work(struct work_struct *work)
 	int status = 0;
 	int i, ret = 0, rest_fragment_count = 0;
 	mutex_lock(&spidev->buf_lock);
-	preempt_disable();
 	spidev->spi_statistic.rx_assemble_count++;
 
 	if (ap_response_flag) {
 		spidev->spi_statistic.int_bottom_pass++;//pass irq bottom
 		--ap_response_flag;
 		mutex_unlock(&spidev->buf_lock);
-		preempt_enable_no_resched();
 		return;
 	}
 
@@ -359,7 +357,6 @@ static void rx_assemble_work(struct work_struct *work)
 	if ((!spidev->tx_dummy_buffer) || (!spidev->rx_buffer)) {
 		spi_err_log("null pointer\n");
 		mutex_unlock(&spidev->buf_lock);
-		preempt_enable_no_resched();
 		return;
 	}
 	memset(&t, 0, sizeof(struct spi_transfer));
@@ -368,7 +365,6 @@ static void rx_assemble_work(struct work_struct *work)
 	t.len = BUFSIZE;
 
 	spidev->spi_statistic.spidev_sync_2++;
-	preempt_enable_no_resched();
 	status = ctrl->transfer_one(ctrl, spi, &t);
 	++frag_count;
 
@@ -471,7 +467,7 @@ err:
 	up(&spidev->sem);
 	return status ? status : copied;
 }
-extern char tx_rx_interrupt_conflict_flag;
+char tx_rx_interrupt_conflict_flag;
 
 static int spi_send_message(struct spidev_data *spidev,
 									char *src_buf, unsigned int len)

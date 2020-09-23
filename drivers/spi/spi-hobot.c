@@ -173,7 +173,8 @@ module_param(master_tout, int, 0644);
 MODULE_PARM_DESC(master_tout, "spi: master timeout(sec), default 2 s");
 
 #ifdef CONFIG_SPI_HOBOT_SPIDEV
-char tx_rx_interrupt_conflict_flag;
+extern char tx_rx_interrupt_conflict_flag;
+EXPORT_SYMBOL(tx_rx_interrupt_conflict_flag);
 #endif
 
 struct hb_spi {
