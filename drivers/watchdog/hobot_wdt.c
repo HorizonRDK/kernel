@@ -36,29 +36,23 @@
 #define HOBOT_WDT_DEFAULT_TIMEOUT	10
 #define HOBOT_WDT_MIN_TIMEOUT		1
 #define HOBOT_WDT_MAX_TIMEOUT		178
+#define HOBOT_WDT_PET_BARK_INTERVAL 3
 
 static int wdt_timeout;
+static int wdt_timeleft;
 static int nowayout = WATCHDOG_NOWAYOUT;
 static u64 timer_rate;
-static int disabled = 1;
+static int kthread_disabled = 1;
 static int panic_on_bark;
 static int on_panic;
 static spinlock_t on_panic_lock;
 
-module_param(wdt_timeout, int, 0644);
-MODULE_PARM_DESC(wdt_timeout,
-		 "Watchdog time in seconds. (default="
-		 __MODULE_STRING(HOBOT_WDT_DEFAULT_TIMEOUT) ")");
 
 module_param(nowayout, int, 0644);
-MODULE_PARM_DESC(nowayout,
-		 "Watchdog cannot be stopped once started (default="
-		 __MODULE_STRING(WATCHDOG_NOWAYOUT) ")");
-
 module_param(panic_on_bark, int, 0644);
-MODULE_PARM_DESC(panic_on_bark,
-		 "trigger panic in IPI on other CPU (default="
-		 __MODULE_STRING(WATCHDOG_PANIC) ")");
+
+#define hobot_wdt_rd(dev, reg)       ioread32((dev)->regs_base + (reg))
+#define hobot_wdt_wr(dev, reg, val)  iowrite32((val), (dev)->regs_base + (reg))
 
 struct hobot_wdt {
 	void __iomem *regs_base;
@@ -70,6 +64,7 @@ struct hobot_wdt {
 	u32 pet_time;
 	u32 bark_time;
 	u32 bite_time;
+	u32 bite_interval;
 	u32 bark_irq;
 	u32 bite_irq;
 	u64 last_pet;
@@ -86,19 +81,43 @@ struct hobot_wdt {
 
 static int hobot_wdt_start(struct watchdog_device *wdd);
 static int hobot_wdt_stop(struct watchdog_device *wdd);
+static int hobot_wdt_settimeout(struct watchdog_device *wdd,
+		unsigned int new_time);
 
-static int wdt_disable_set(const char *val, const struct kernel_param *kp)
+static int wdt_timeout_set(const char *val, const struct kernel_param *kp)
 {
 	int ret;
 
-	ret = param_set_ulong(val, kp);
+	ret = param_set_int(val, kp);
 	if (ret < 0)
 		return ret;
 
-	if (disabled == 0 && !g_hbwdt->enabled) {
+	ret = hobot_wdt_settimeout(&g_hbwdt->hobot_wdd, wdt_timeout);
+
+	wdt_timeout = g_hbwdt->bite_time;
+
+	return ret;
+}
+
+static const struct kernel_param_ops wdt_timeout_param_ops = {
+	.set = wdt_timeout_set,
+	.get = param_get_int,
+};
+
+module_param_cb(wdt_timeout, &wdt_timeout_param_ops, &wdt_timeout, 0644);
+
+static int wdt_kthread_disable_set(const char *val,
+		const struct kernel_param *kp)
+{
+	int ret;
+
+	ret = param_set_int(val, kp);
+	if (ret < 0)
+		return ret;
+
+	if (kthread_disabled == 0 && !g_hbwdt->enabled) {
 		hobot_wdt_start(&g_hbwdt->hobot_wdd);
-	}
-	else if (disabled == 1 && g_hbwdt->enabled){
+	} else if (kthread_disabled == 1 && g_hbwdt->enabled) {
 		hobot_wdt_stop(&g_hbwdt->hobot_wdd);
 	}
 
@@ -106,14 +125,32 @@ static int wdt_disable_set(const char *val, const struct kernel_param *kp)
 }
 
 static const struct kernel_param_ops wdt_disable_param_ops = {
-	.set = wdt_disable_set,
+	.set = wdt_kthread_disable_set,
 	.get = param_get_int,
 };
 
-module_param_cb(wdt_disable, &wdt_disable_param_ops, &disabled, 0644);
+module_param_cb(kthread_disable, &wdt_disable_param_ops,
+		&kthread_disabled, 0644);
 
-#define hobot_wdt_rd(dev, reg) 	  ioread32((dev)->regs_base + (reg))
-#define hobot_wdt_wr(dev, reg, val)  iowrite32((val), (dev)->regs_base + (reg))
+int wdt_timeleft_get(char *buffer, const struct kernel_param *kp)
+{
+	u32 timeleft;
+	int ret;
+
+	timeleft = hobot_wdt_rd(g_hbwdt, HOBOT_TIMER_WD1D_REG) / timer_rate;
+	timeleft = g_hbwdt->bark_time - timeleft + g_hbwdt->bite_interval;
+
+	ret = snprintf(buffer, 64, "timeleft:%ds.\n", timeleft);
+
+	return ret;
+}
+
+static const struct kernel_param_ops wdt_timeleft_param_ops = {
+	.get = wdt_timeleft_get,
+};
+
+module_param_cb(wdt_timeleft, &wdt_timeleft_param_ops, &wdt_timeleft, 0444);
+
 
 static void hobot_wdt_init_hw(struct hobot_wdt *hbwdt)
 {
@@ -133,8 +170,14 @@ static int hobot_wdt_stop(struct watchdog_device *wdd)
 	u32 val;
 	struct hobot_wdt *hbwdt = watchdog_get_drvdata(wdd);
 
+	if (!hbwdt->enabled) {
+		pr_debug("watchdog is already stopped.");
+		return 0;
+	}
+
 	pr_debug("\n");
-	del_timer(&hbwdt->pet_timer);
+	if (!kthread_disabled)
+		del_timer(&hbwdt->pet_timer);
 
 	spin_lock(&hbwdt->io_lock);
 
@@ -180,6 +223,12 @@ static int hobot_wdt_start(struct watchdog_device *wdd)
 	u32 val;
 
 	pr_debug("\n");
+
+	if(hbwdt->enabled) {
+		pr_debug("watchdog is already started\n");
+		return 0;
+	}
+
 	spin_lock(&hbwdt->io_lock);
 
 	/* reset previos value */
@@ -187,7 +236,7 @@ static int hobot_wdt_start(struct watchdog_device *wdd)
 
 	/* Fill the count reg */
 	bark_count = hbwdt->bark_time * timer_rate;
-	bite_count = hbwdt->bite_time * timer_rate;
+	bite_count = (hbwdt->bite_time - hbwdt->bark_time) * timer_rate;
 	hobot_wdt_wr(hbwdt, HOBOT_TIMER_WDTGT_REG, bark_count);
 	hobot_wdt_wr(hbwdt, HOBOT_TIMER_WDWAIT_REG, bite_count);
 
@@ -211,27 +260,50 @@ static int hobot_wdt_start(struct watchdog_device *wdd)
 	hbwdt->enabled = true;
 	spin_unlock(&hbwdt->io_lock);
 
-	if (!timer_pending(&hbwdt->pet_timer))
+	if (!kthread_disabled && !timer_pending(&hbwdt->pet_timer))
 		add_timer(&hbwdt->pet_timer);
 
 	return 0;
 }
 
-static int hobot_wdt_settimeout(struct watchdog_device *wdd, unsigned int new_time)
+static int hobot_wdt_settimeout(struct watchdog_device *wdd,
+		unsigned int new_time)
 {
 	struct hobot_wdt *hbwdt = watchdog_get_drvdata(wdd);
 
-	if (wdd->timeout > HOBOT_WDT_MAX_TIMEOUT)
+	if (new_time > HOBOT_WDT_MAX_TIMEOUT) {
+		pr_info("timeout should shorter than maxtime: %d\n",
+			HOBOT_WDT_MAX_TIMEOUT);
 		wdd->timeout = HOBOT_WDT_MAX_TIMEOUT;
-	else if (wdd->timeout < HOBOT_WDT_MIN_TIMEOUT)
-		wdd->timeout = HOBOT_WDT_MIN_TIMEOUT;
-	else
+	} else if (new_time <= hbwdt->pet_time + hbwdt->bite_interval) {
+		pr_info("timeout should longer than pettime+interval: %d\n",
+				hbwdt->pet_time + hbwdt->bite_interval);
+		wdd->timeout = hbwdt->pet_time + hbwdt->bite_interval + 1;
+	} else {
 		wdd->timeout = new_time;
+	}
 
-	hbwdt->bark_time = wdd->timeout;
-	hbwdt->bite_time = hbwdt->bite_time;
+	hbwdt->bite_time = wdd->timeout;
+	hbwdt->bark_time = hbwdt->bite_time - hbwdt->bite_interval;
+	wdt_timeout = wdd->timeout;
+
+	if (!hbwdt->enabled)
+		return 0;
+
+	hobot_wdt_stop(wdd);
+	pr_info("New wdt timeout time:%d\n", hbwdt->bite_time);
 
 	return hobot_wdt_start(wdd);
+}
+static unsigned int hbot_wdt_get_timeleft(struct watchdog_device *wdd)
+{
+	struct hobot_wdt *hbwdt = watchdog_get_drvdata(wdd);
+	u32 timeleft;
+
+	timeleft = hobot_wdt_rd(hbwdt, HOBOT_TIMER_WD1D_REG) / timer_rate;
+	timeleft = g_hbwdt->bark_time - timeleft + g_hbwdt->bite_interval;
+
+	return timeleft;
 }
 
 void dump_cpu_state(void *data)
@@ -289,7 +361,7 @@ static irqreturn_t hobot_wdt_bark_irq_handler(int irq, void *data)
 }
 
 static const struct watchdog_info hobot_wdt_info = {
-	.identity = "hobot_wdt_watchdog",
+	.identity = "hobot_watchdog",
 	.options  = WDIOF_SETTIMEOUT | WDIOF_KEEPALIVEPING | WDIOF_MAGICCLOSE,
 };
 
@@ -332,6 +404,7 @@ static const struct watchdog_ops hobot_wdt_ops = {
 	.stop  = hobot_wdt_stop,
 	.ping  = hobot_wdt_ping,
 	.set_timeout = hobot_wdt_settimeout,
+	.get_timeleft = hbot_wdt_get_timeleft,
 	.restart = hobot_wdt_restart,
 };
 
@@ -339,7 +412,6 @@ static int hobot_wdt_panic_handler(struct notifier_block *this,
 		unsigned long event, void *ptr)
 {
 	struct hobot_wdt *hbwdt = container_of(this, struct hobot_wdt, panic_blk);
-	u32 val;
 
 	if (!hbwdt->enabled)
 		return 0;
@@ -441,8 +513,14 @@ static int hobot_wdog_dt_to_pdata(struct platform_device *pdev,
 		return -ENXIO;
 	}
 
-	dev_info(&pdev->dev, "watchdog setting [%ds %ds %ds]\n",
-		hbwdt->bark_time, hbwdt->bite_time, hbwdt->pet_time);
+	/*
+	 * if bite_time is changed with new wdt_timeout, bark_time is adjusted
+	 * with this interval accordingly
+	 */
+	hbwdt->bite_interval = hbwdt->bite_time - hbwdt->bark_time;
+
+	dev_info(&pdev->dev, "watchdog setting [pet:%ds bark:%ds bite:%ds]\n",
+		hbwdt->pet_time, hbwdt->bark_time, hbwdt->bite_time);
 
 	return 0;
 }
@@ -470,10 +548,11 @@ static int hobot_wdt_probe(struct platform_device *pdev)
 	ret = hobot_wdog_dt_to_pdata(pdev, hbwdt);
 	if (ret)
 		goto err;
+
 	hobot_wdd = &hbwdt->hobot_wdd;
 	hobot_wdd->info = &hobot_wdt_info;
 	hobot_wdd->ops = &hobot_wdt_ops;
-	hobot_wdd->timeout = hbwdt->bark_time;
+	hobot_wdd->timeout = hbwdt->bite_time;
 	hobot_wdd->min_timeout = HOBOT_WDT_MIN_TIMEOUT;
 	hobot_wdd->max_timeout = HOBOT_WDT_MAX_TIMEOUT;
 
@@ -511,7 +590,7 @@ static int hobot_wdt_probe(struct platform_device *pdev)
 	/* Initialize the members of hobot_wdt structure */
 	hobot_wdd->parent = &pdev->dev;
 
-	wdt_timeout = hbwdt->bark_time;
+	wdt_timeout = hbwdt->bite_time;
 	ret = watchdog_init_timeout(hobot_wdd, wdt_timeout, &pdev->dev);
 	if (ret) {
 		dev_err(&pdev->dev, "unable to set timeout value.\n");
@@ -557,7 +636,7 @@ static int hobot_wdt_probe(struct platform_device *pdev)
 	hbwdt->pet_timer.function = pet_timer_wakeup;
 	hbwdt->pet_timer.expires = jiffies + expired_time;
 
-	if (!disabled) {
+	if (!kthread_disabled) {
 		hobot_wdt_start(&hbwdt->hobot_wdd);
 		hbwdt->last_pet = sched_clock();
 	}
@@ -611,7 +690,7 @@ int hobot_wdt_suspend(struct device *dev)
 {
 	struct hobot_wdt *hbwdt = dev_get_drvdata(dev);
 
-	if (disabled)
+	if (kthread_disabled)
 		return 0;
 
 	if (hbwdt->enabled)
@@ -625,7 +704,7 @@ int hobot_wdt_resume(struct device *dev)
 {
 	struct hobot_wdt *hbwdt = dev_get_drvdata(dev);
 
-	if (disabled)
+	if (kthread_disabled)
 		return 0;
 
 	if (!hbwdt->enabled)
