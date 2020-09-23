@@ -46,6 +46,7 @@
 #define ISP_V4L2_NUM_INPUTS 1
 
 #define ISPIOC_INPUT_PORT_CTRL _IOWR('@', 0x10, input_port_t)
+#define ISPIOC_MIRROR_CTRL _IOWR('@', 0x11, uint8_t)
 
 /* isp_v4l2_dev_t to destroy video device */
 static isp_v4l2_dev_t *g_isp_v4l2_devs[FIRMWARE_CONTEXT_NUMBER];
@@ -683,6 +684,22 @@ long isp_v4l2_ioc_default(struct file *file, void *fh, bool valid_prio, unsigned
 	case ISPIOC_INPUT_PORT_CTRL:
         memcpy(&p_ctx->inport, (input_port_t *)arg, sizeof(input_port_t));
         break;
+
+	case ISPIOC_MIRROR_CTRL: {
+        uint8_t v1 = 0, v2 = 0;
+
+        v1 = *((uint8_t *)arg);
+        v2 = acamera_isp_top_rggb_start_pre_mirror_read(p_ctx->settings.isp_base);
+
+        if (v1) //mirror on
+            acamera_isp_top_rggb_start_post_mirror_write(p_ctx->settings.isp_base, v2 % 2 ? v2 - 1 : v2 + 1);
+        else
+            acamera_isp_top_rggb_start_post_mirror_write(p_ctx->settings.isp_base, v2);
+
+        acamera_isp_top_bypass_mirror_write(p_ctx->settings.isp_base, !v1);
+
+        break;
+    }
 	default:
 		return -ENOTTY;
 	}
