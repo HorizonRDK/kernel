@@ -1163,6 +1163,17 @@
 			};
 		};
 
+		adc_key: adc_key {
+			compatible = "hobot,hobot-adc-key";
+			status = "disabled";
+			io-channels = <&voltage_monitor 0>;
+			demo-key {
+				linux,code = <108>;
+				label = "demo key";
+				hobot,adc_value = <130>;
+			};
+		};
+
 		ddr_monitor: ddr_monitor@0xA2D10000 {
 			compatible = "hobot,ddrmonitor";
 			reg = <0 0xA2D10000 0 0x1000>, /* For ddr_monitor */
