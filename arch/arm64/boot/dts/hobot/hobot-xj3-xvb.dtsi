@@ -88,7 +88,7 @@
 		};
 
 		/* Reserved 672MB memory for ion cma */
-		ion_cma {
+		ion_cma: ion_cma {
 			compatible = "shared-dma-pool";
 			alloc-ranges = <0x0 0x4000000 0x0 0x2A000000>;
 			alignment = <0x0 0x100000>;
