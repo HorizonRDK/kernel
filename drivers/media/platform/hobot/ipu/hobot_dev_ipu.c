@@ -86,7 +86,6 @@ static int x3_ipu_open(struct inode *inode, struct file *file)
 	ret = mutex_lock_interruptible(&ipu_mutex);
 	if (ret) {
 		vio_err("open ipu mutex lock failed:%d", ret);
-		mutex_unlock(&ipu_mutex);
 		goto p_err;
 	}
 	if (atomic_inc_return(&ipu->open_cnt) == 1) {
@@ -1733,7 +1732,6 @@ int ipu_video_init(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 	ret = mutex_lock_interruptible(&ipu_mutex);
 	if (ret) {
 		vio_err("ipu init mutex lock failed:%d", ret);
-		mutex_unlock(&ipu_mutex);
 		goto err;
 	}
 	if (subdev->leader && !subdev->skip_flag)

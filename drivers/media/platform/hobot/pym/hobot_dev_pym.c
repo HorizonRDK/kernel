@@ -38,6 +38,7 @@ int pym_video_streamoff(struct pym_video_ctx *pym_ctx);
 
 extern struct ion_device *hb_ion_dev;
 static struct pm_qos_request pym_pm_qos_req;
+static struct mutex pym_mutex;
 
 static int x3_pym_open(struct inode *inode, struct file *file)
 {
@@ -62,6 +63,11 @@ static int x3_pym_open(struct inode *inode, struct file *file)
 	file->private_data = pym_ctx;
 	pym_ctx->state = BIT(VIO_VIDEO_OPEN);
 
+	ret = mutex_lock_interruptible(&pym_mutex);
+	if (ret) {
+		vio_err("open ipu mutex lock failed:%d", ret);
+		goto p_err;
+	}
 	if (atomic_read(&pym->open_cnt) == 0) {
 		pm_qos_add_request(&pym_pm_qos_req, PM_QOS_DEVFREQ, 8300);
 		atomic_set(&pym->backup_fcount, 0);
@@ -72,6 +78,7 @@ static int x3_pym_open(struct inode *inode, struct file *file)
 	}
 
 	atomic_inc(&pym->open_cnt);
+	mutex_unlock(&pym_mutex);
 p_err:
 	return ret;
 }
@@ -253,7 +260,8 @@ static int x3_pym_close(struct inode *inode, struct file *file)
 	// in this function, we only need to release current process captured frame
 	//vio_dbg("from pym index %d, cnt %d, subdev id:%d", index, count, subdev->id);
 	//frame_manager_flush_mp(pym_ctx->framemgr, index, count, pym_ctx->ctx_index);
-
+	mutex_lock(&pym_mutex);
+	vio_dbg("pym in close,begin clean");
 	if ((group) && atomic_dec_return(&subdev->refcount) == 0) {
 		vio_dbg("pym subdev %d", subdev->id);
 		subdev->state = 0;
@@ -290,6 +298,7 @@ static int x3_pym_close(struct inode *inode, struct file *file)
 		sema_init(&pym->gtask.hw_resource, 1);
 		atomic_set(&pym->gtask.refcount, 0);
 	}
+	mutex_unlock(&pym_mutex);
 
 	pym_ctx->state = BIT(VIO_VIDEO_CLOSE);
 
@@ -736,7 +745,13 @@ int pym_video_init(struct pym_video_ctx *pym_ctx, unsigned long arg)
 	pym_update_param(subdev);
 
 	set_bit(VIO_GROUP_DMA_OUTPUT, &group->state);
+	ret = mutex_lock_interruptible(&pym_mutex);
+	if (ret) {
+		vio_err("ipu init mutex lock failed:%d", ret);
+		goto err;
+	}
 	vio_group_task_start(group->gtask);
+	mutex_unlock(&pym_mutex);
 	atomic_inc(&group->node_refcount);
 
 	pym_ctx->state = BIT(VIO_VIDEO_INIT);
@@ -2517,6 +2532,7 @@ static int x3_pym_probe(struct platform_device *pdev)
 	atomic_set(&pym->gtask.refcount, 0);
 	atomic_set(&pym->rsccount, 0);
 	atomic_set(&pym->open_cnt, 0);
+	mutex_init(&pym_mutex);
 
 	x3_pym_subdev_init(pym);
 	vio_group_init_mp(GROUP_ID_PYM);
