@@ -773,8 +773,10 @@ int	camera_sys_alloc_again(uint32_t port, uint32_t *a_gain)
 	}
 	uint32_t num = camera_mod[port]->camera_param.sensor_data.turning_type;
 
-	if (num  > sizeof(sensor_ops)/sizeof(struct sensor_ctrl_ops)) {
-		pr_info("gain line calculation out range\n");
+	if ((num == 0) || (num > sizeof(sensor_ops)/sizeof(struct sensor_ctrl_ops))) {
+		pr_info("gain line calculation out range, type is %d\n", num);
+		dump_stack();
+		return -1;
 	} else {
 		if (sensor_ops[num - 1].camera_alloc_again)
 			sensor_ops[num - 1].camera_alloc_again(port, a_gain);
@@ -792,8 +794,10 @@ int	camera_sys_alloc_dgain(uint32_t port, uint32_t *d_gain)
 	}
 	uint32_t num = camera_mod[port]->camera_param.sensor_data.turning_type;
 
-	if (num > sizeof(sensor_ops)/sizeof(struct sensor_ctrl_ops)) {
-		pr_info("gain line calculation out range\n");
+	if ((num == 0) || (num > sizeof(sensor_ops)/sizeof(struct sensor_ctrl_ops))) {
+		pr_info("gain line calculation out range, type is %d\n", num);
+		dump_stack();
+		return -1;
 	} else {
 		if (sensor_ops[num - 1].camera_alloc_dgain)
 			sensor_ops[num - 1].camera_alloc_dgain(port, d_gain);
@@ -988,9 +992,10 @@ int camera_sys_gain_line_process(uint32_t port, sensor_priv_t *priv_param,
 {
 	uint32_t num = camera_mod[port]->camera_param.sensor_data.turning_type;
 
-	if (camera_mod[port]->camera_param.sensor_data.turning_type >
-		sizeof(sensor_ops)/sizeof(struct sensor_ctrl_ops)) {
-		pr_info("gain line calculation out range\n");
+	if ((num == 0) || (num > sizeof(sensor_ops)/sizeof(struct sensor_ctrl_ops))) {
+		pr_info("gain line calculation out range, type is %d\n", num);
+		dump_stack();
+		return -1;
 	} else {
 		if (sensor_ops[num - 1].camera_gain_control)
 			sensor_ops[num - 1].camera_gain_control(port,
@@ -1133,7 +1138,11 @@ int  camera_sys_set_gain_line_control(uint32_t port, sensor_priv_t *priv_param)
 	uint32_t d_gain[6] = {0};
 	uint32_t a_line[3] = {0};
 
-	camera_sys_gain_line_process(port, priv_param, a_gain, d_gain, a_line);
+	ret = camera_sys_gain_line_process(port, priv_param, a_gain, d_gain, a_line);
+	if (ret) {
+		pr_err("[%s -- %d] param is err!", __func__, __LINE__);
+		return -1;
+	}
 	switch(camera_mod[port]->camera_param.mode) {
 		case NORMAL_M:
 			camera_sys_set_param_hold(port, 0x1);
