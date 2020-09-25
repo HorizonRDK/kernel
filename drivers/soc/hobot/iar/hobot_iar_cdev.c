@@ -244,9 +244,7 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 		 {
 			IAR_DEBUG_PRINT("HEMI_CONFIG \n");
 			//ret = disp_config_hdmi(9, 4, 2);
-			if (config_hdmi == NULL)
-				return 0;
-			else
+			if (config_hdmi != NULL)
 				ret = config_hdmi(9, 4, 2);
 		}
 		break;
