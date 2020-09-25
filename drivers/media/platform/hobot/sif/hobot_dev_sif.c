@@ -183,7 +183,7 @@ void sif_read_frame_work(struct vio_group *group)
 			group->frameid.frame_id = frameinfo->frame_id;
 			group->frameid.timestamps = frameinfo->timestamps;
 			sif_frame_info.frame_id = frameinfo->frame_id;
-			sif_frame_info.timestamps = frameinfo->timestamps;			
+			sif_frame_info.timestamps = frameinfo->timestamps;
 			sif_config_rdma_cfg(subdev, 0, frameinfo);
 			if (subdev->dol_num > 1) {
 				sif_config_rdma_cfg(subdev, 1, frameinfo);
@@ -292,7 +292,7 @@ static int x3_sif_open(struct inode *inode, struct file *file)
 	}
 	mutex_unlock(&sif_mutex);
 
-	vio_info("SIF open node %d\n", minor);
+	vio_info("SIF open node %d sif->open_cnt\n", minor, sif->open_cnt);
 p_err:
 	return ret;
 }
@@ -361,7 +361,9 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 		kfree(sif_ctx);
 		return 0;
 	}
-
+	if (!(sif_ctx->state & BIT(VIO_VIDEO_STOP))) {
+		sif_video_streamoff(sif_ctx);
+	}
 	mutex_lock(&sif_mutex);
 	if ((subdev) && atomic_dec_return(&subdev->refcount) == 0) {
 		subdev->state = 0;
@@ -832,7 +834,7 @@ p_inc:
 	set_bit(SIF_SUBDEV_STREAM_ON, &subdev->state);
 
 	vio_clear_stat_info(sif_ctx->group->instance);
-	vio_info("[S%d][V%d]%s\n", sif_ctx->group->instance,
+	vio_info("[S%d][V%d]%s \n", sif_ctx->group->instance,
 		sif_ctx->id, __func__);
 
 	return ret;
@@ -868,7 +870,6 @@ int sif_video_streamoff(struct sif_video_ctx *sif_ctx)
 		for (i = 0; i < subdev->ipi_channels; i++)
 			sif_disable_ipi(sif_dev->base_reg, subdev->ipi_index + i);
 	}
-
 	if (atomic_dec_return(&sif_dev->rsccount) > 0
 		&& !test_bit(SIF_HW_FORCE_STOP, &sif_dev->state))
 		goto p_dec;
