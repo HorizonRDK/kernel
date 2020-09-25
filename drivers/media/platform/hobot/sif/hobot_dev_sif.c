@@ -43,6 +43,7 @@ module_param(debug_log_print, bool, 0644);
 static int g_print_instance = 0;
 int sif_video_streamoff(struct sif_video_ctx *sif_ctx);
 static struct pm_qos_request sif_pm_qos_req;
+static struct mutex sif_mutex;
 
 static int x3_sif_suspend(struct device *dev)
 {
@@ -276,7 +277,12 @@ static int x3_sif_open(struct inode *inode, struct file *file)
 	file->private_data = sif_ctx;
 	sif_ctx->state = BIT(VIO_VIDEO_OPEN);
 
-	if (atomic_read(&sif->open_cnt) == 0) {
+	ret = mutex_lock_interruptible(&sif_mutex);
+	if (ret) {
+		vio_err("open sif mutex lock failed:%d", ret);
+		goto p_err;
+	}
+	if (atomic_inc_return(&sif->open_cnt) == 1) {
 		if (sif_mclk_freq)
 			vio_set_clk_rate("sif_mclk", sif_mclk_freq);
 		ips_set_clk_ctrl(SIF_CLOCK_GATE, true);
@@ -284,8 +290,8 @@ static int x3_sif_open(struct inode *inode, struct file *file)
 		/*4 ddr in channel can not be 0 together*/
 		sif_enable_dma(sif->base_reg, 0x10000);
 	}
+	mutex_unlock(&sif_mutex);
 
-	atomic_inc(&sif->open_cnt);
 	vio_info("SIF open node %d\n", minor);
 p_err:
 	return ret;
@@ -356,6 +362,7 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 		return 0;
 	}
 
+	mutex_lock(&sif_mutex);
 	if ((subdev) && atomic_dec_return(&subdev->refcount) == 0) {
 		subdev->state = 0;
 		if (sif_ctx->id == 0) {
@@ -409,6 +416,7 @@ static int x3_sif_close(struct inode *inode, struct file *file)
         ips_set_module_reset(SIF_RST);
 		ips_set_clk_ctrl(SIF_CLOCK_GATE, false);
 	}
+	mutex_unlock(&sif_mutex);
 	sif_ctx->state = BIT(VIO_VIDEO_CLOSE);
 
 	if (subdev) {
@@ -764,7 +772,14 @@ int sif_bind_chain_group(struct sif_video_ctx *sif_ctx, int instance)
 		sif->sif_input[instance] = group;
 		group->frame_work = sif_read_frame_work;
 		group->gtask = &sif->sifin_task;
+		group->gtask->id = group->id;
+		ret = mutex_lock_interruptible(&sif_mutex);
+		if (ret) {
+			vio_err("bind sif mutex lock failed:%d", ret);
+			goto p_err;
+		}
 		vio_group_task_start(group->gtask);
+		mutex_unlock(&sif_mutex);
 	}
 
 	sif_ctx->state = BIT(VIO_VIDEO_S_INPUT);
@@ -773,7 +788,7 @@ int sif_bind_chain_group(struct sif_video_ctx *sif_ctx, int instance)
 	vio_info("[S%d][V%d] %s done, ctx_index(%d) refcount(%d)\n",
 		group->instance, sif_ctx->id, __func__,
 		i, atomic_read(&subdev->refcount));
-
+p_err:
 	return ret;
 }
 
@@ -1166,6 +1181,7 @@ static long x3_sif_ioctl(struct file *file, unsigned int cmd,
 	struct frame_info frameinfo;
 	struct vio_group *group;
 	struct user_statistic stats;
+	struct hb_bind_info_s (*bind_info)[HB_ID_MAX];
 
 	sif_ctx = file->private_data;
 	BUG_ON(!sif_ctx);
@@ -1218,7 +1234,6 @@ static long x3_sif_ioctl(struct file *file, unsigned int cmd,
 		if (ret)
 			return -EFAULT;
 
-		struct hb_bind_info_s (*bind_info)[HB_ID_MAX];
 		bind_info = (bind_info_dev->bind_info);
 		memset(bind_info[instance], 0,
 			sizeof(struct hb_bind_info_s) * HB_ID_MAX);
@@ -1858,7 +1873,6 @@ err_req_cdev:
  */
 static int vio_bind_info_dev_open(struct inode *inode, struct file *file)
 {
-	struct mp_ctx *mp_ctx;
 	struct vio_bind_info_dev *bind_dev;
 
 	bind_dev = container_of(inode->i_cdev, struct vio_bind_info_dev, cdev);
@@ -1880,16 +1894,12 @@ static long vio_bind_info_ioctl(struct file *file, unsigned int cmd,
 			  unsigned long arg)
 {
 	int ret = 0;
-	int instance = 0;
-	struct mp_ctx *mp_ctx;
 	struct vio_bind_info_dev *bind_dev;
 	struct hb_bind_info_update_s bind_info_update;
-	struct hb_bind_info_s **bind_info;
 	SYS_MOD_S *src_mod, *dst_mod;
 
 	bind_dev = file->private_data;
 	BUG_ON(!bind_dev);
-	/*bind_info = &bind_dev->bind_info[0][0];*/
 	if (_IOC_TYPE(cmd) != VIO_BIND_INFO_MAGIC)
 		return -ENOTTY;
 
@@ -2328,6 +2338,7 @@ static int x3_sif_probe(struct platform_device *pdev)
 	sema_init(&sif->sifin_task.hw_resource, 1);
 	atomic_set(&sif->rsccount, 0);
 	atomic_set(&sif->open_cnt, 0);
+	mutex_init(&sif_mutex);
 
 	mutex_init(&sif->shared_mutex);
 
