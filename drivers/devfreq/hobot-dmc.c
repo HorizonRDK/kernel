@@ -162,6 +162,39 @@ static __maybe_unused int hobot_dmcfreq_resume(struct device *dev)
 static SIMPLE_DEV_PM_OPS(hobot_dmcfreq_pm, hobot_dmcfreq_suspend,
 			hobot_dmcfreq_resume);
 
+extern int dmc_clk_set_method(char *method);
+extern char *dmc_clk_get_method(void);
+
+#define DMC_METHOD_LEN 32
+static ssize_t method_show(struct device *dev,
+			     struct device_attribute *attr, char *buf)
+{
+	char *p = NULL;
+
+	p = dmc_clk_get_method();
+
+	return snprintf(buf, DMC_METHOD_LEN, "%s\n", p);
+}
+
+static ssize_t method_store(struct device *dev, struct device_attribute *attr,
+			      const char *buf, size_t count)
+{
+	int ret;
+	char ddr_method[DMC_METHOD_LEN];
+	ret = sscanf(buf, "%" __stringify(DMC_METHOD_LEN) "s", ddr_method);
+	if (ret != 1)
+		return -EINVAL;
+
+	pr_debug("set ddr clk method:%s\n", ddr_method);
+	ret = dmc_clk_set_method(ddr_method);
+
+	if (!ret)
+		ret = count;
+	return ret;
+}
+static DEVICE_ATTR_RW(method);
+
+
 static int hobot_dmcfreq_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -225,6 +258,7 @@ static int hobot_dmcfreq_probe(struct platform_device *pdev)
 
 	hobot_devfreq_dmc_profile.initial_freq = ctx->rate;
 
+	platform_set_drvdata(pdev, ctx);
 	ctx->devfreq = devm_devfreq_add_device(dev,
 					   &hobot_devfreq_dmc_profile,
 					   "simple_ondemand",
@@ -256,7 +290,12 @@ static int hobot_dmcfreq_probe(struct platform_device *pdev)
 	devm_devfreq_register_opp_notifier(dev, ctx->devfreq);
 
 	ctx->dev = dev;
-	platform_set_drvdata(pdev, ctx);
+
+	ret = device_create_file(dev, &dev_attr_method);
+	if (ret < 0) {
+		pr_err("failed to create method sysfs file\n");
+		return ret;
+	}
 
 	return 0;
 }

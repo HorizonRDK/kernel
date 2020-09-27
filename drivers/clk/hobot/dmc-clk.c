@@ -40,7 +40,8 @@
  * function finished
  */
 static unsigned long cur_ddr_rate;
-static char ddr_method[8] = "test";
+#define DDR_METHOD_LEN 32
+static char ddr_method[DDR_METHOD_LEN] = "test";
 
 typedef void(hobot_invoke_fn)(unsigned long, unsigned long, unsigned long,
 			unsigned long, unsigned long, unsigned long,
@@ -61,6 +62,8 @@ struct dmc_clk {
 	uint32_t channel;
 	struct clk *ddr_mclk;
 };
+
+struct dmc_clk *g_ddrclk;
 
 /**
  * hobot_smccc_smc() - Method to call firmware via SMC.
@@ -120,7 +123,7 @@ static void hobot_ddrdfc_test(unsigned long a0, unsigned long a1,
 {
 
 	pr_debug("%s rate:%ld\n", __func__, rate);
-out:
+
 	// just for debugging
 	res->a0 = 0;
 }
@@ -215,13 +218,15 @@ static void hobot_smccc_cr5(unsigned long a0, unsigned long a1,
 static hobot_invoke_fn *get_invoke_func(struct device_node *np)
 {
 
-	const char *method = ddr_method;
+	const char *method;
 
 	if (of_property_read_string(np, "method", &method)) {
 		pr_info("no \"method\" property, use test method.\n");
 		/* use test with no method in dts */
-		method = "test";
+		method = ddr_method;
 	}
+
+	strncpy(ddr_method, method, sizeof(ddr_method));
 
 	if (!strcmp("hvc", method))
 		return hobot_smccc_hvc;
@@ -233,14 +238,55 @@ static hobot_invoke_fn *get_invoke_func(struct device_node *np)
 		return hobot_smccc_cr5;
 
 	pr_warn("invalid \"method\" property: %s\n", method);
+	strncpy(ddr_method, "N/A", sizeof(ddr_method));
 	return ERR_PTR(-EINVAL);
 }
+
+int dmc_clk_set_method(char *method)
+{
+	if (g_ddrclk == NULL || method == NULL) {
+		pr_err("invalid params: gddrclk:%p, method:%p\n",
+			g_ddrclk, method);
+		return -EINVAL;
+	}
+
+	spin_lock(&g_ddrclk->lock);
+	if (!strcmp("hvc", method)) {
+		g_ddrclk->invoke_fn = hobot_smccc_hvc;
+	} else if (!strcmp("smc", method)) {
+		g_ddrclk->invoke_fn = hobot_smccc_smc;
+	} else if (!strcmp("test", method)) {
+		g_ddrclk->invoke_fn = hobot_ddrdfc_test;
+	} else if (!strcmp("cr5", method)) {
+		g_ddrclk->invoke_fn = hobot_smccc_cr5;
+	} else {
+		pr_err("method: %s is not supported\n", method);
+		spin_unlock(&g_ddrclk->lock);
+		return -EINVAL;
+	}
+
+	strncpy(ddr_method, method, sizeof(ddr_method));
+	spin_unlock(&g_ddrclk->lock);
+
+
+	return 0;
+}
+
+char *dmc_clk_get_method(void)
+{
+	pr_debug("cur method:%s: func: %pf\n",
+		ddr_method, g_ddrclk->invoke_fn);
+	return ddr_method;
+}
+
 
 static int dmc_set_rate(struct clk_hw *hw,
 			unsigned long rate, unsigned long parent_rate)
 {
 	struct dmc_clk *dclk = container_of(hw, struct dmc_clk, hw);
 	struct arm_smccc_res res;
+
+	spin_lock(&dclk->lock);
 
 #ifndef CONFIG_HOBOT_XJ3
 	dclk->invoke_fn(dclk->fid, dclk->set_cmd, dclk->channel, rate, 0, 0, 0, 0, &res);
@@ -255,6 +301,8 @@ static int dmc_set_rate(struct clk_hw *hw,
 	dclk->rate = rate;
 	cur_ddr_rate = rate;
 
+	spin_unlock(&dclk->lock);
+
 	return 0;
 }
 
@@ -268,9 +316,9 @@ static unsigned long dmc_recalc_rate(struct clk_hw *hw,
 				unsigned long parent_rate)
 {
 	struct dmc_clk *dclk = container_of(hw, struct dmc_clk, hw);
+#ifndef CONFIG_HOBOT_XJ3
 	struct arm_smccc_res res;
 
-#ifndef CONFIG_HOBOT_XJ3
 	dclk->invoke_fn(dclk->fid, dclk->get_cmd, dclk->channel, 0, 0, 0, 0, 0, &res);
 	dclk->invoke_fn(0, 0, 0, 0, 0, 0, 0, 0, &res);
 	if (res.a0 != 0) {
@@ -310,21 +358,21 @@ static struct clk *dmc_clk_register(struct device *dev, struct device_node *node
 	struct clk_init_data init = {NULL};
 	struct dmc_clk *ddrclk;
 	struct clk *clk;
-	struct device_node *tee_node;
 	int ret;
-	uint32_t channel = 0;
 	hobot_invoke_fn *invoke_fn;
-	struct arm_smccc_res res;
 
 	ddrclk = kzalloc(sizeof(*ddrclk), GFP_KERNEL);
 	if (!ddrclk)
 		return NULL;
 
-	tee_node = of_parse_phandle(node, "tee-dram-handle", 0);
+	g_ddrclk = ddrclk;
 
 #ifdef CONFIG_HOBOT_XJ3
 	invoke_fn = get_invoke_func(node);
 #else
+	uint32_t channel = 0;
+	struct device_node *tee_node;
+	tee_node = of_parse_phandle(node, "tee-dram-handle", 0);
 	invoke_fn = get_invoke_func(tee_node);
 #endif
 
@@ -335,6 +383,7 @@ static struct clk *dmc_clk_register(struct device *dev, struct device_node *node
 	ddrclk->invoke_fn = invoke_fn;
 
 #ifndef CONFIG_HOBOT_XJ3
+	struct arm_smccc_res res;
 #define GET_OFNODE_U32(node, name, dst)					\
 	do {								\
 		ret = of_property_read_u32(node, name, dst);		\
@@ -390,6 +439,7 @@ static struct clk *dmc_clk_register(struct device *dev, struct device_node *node
 
 err_free:
 	kfree(ddrclk);
+	g_ddrclk = NULL;
 	return NULL;
 }
 

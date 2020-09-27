@@ -584,10 +584,20 @@ struct devfreq *devfreq_add_device(struct device *dev,
 	mutex_lock(&devfreq_list_lock);
 	list_add(&devfreq->node, &devfreq_list);
 
+#ifdef CONFIG_ARM_HOBOT_DMC_DEVFREQ
+	if (!strncmp(dev_name(dev), "soc:dmc0", 8)) {
+#ifdef CONFIG_ARM_HOBOT_DMC_DEVFREQ_DEFAULT_GOV
+		pr_err("set governor %s\n", CONFIG_ARM_HOBOT_DMC_DEVFREQ_DEFAULT_GOV);
+		strncpy(devfreq->governor_name,
+		CONFIG_ARM_HOBOT_DMC_DEVFREQ_DEFAULT_GOV, DEVFREQ_NAME_LEN);
+#endif
+	}
+#endif
+
 	governor = find_devfreq_governor(devfreq->governor_name);
 	if (IS_ERR(governor)) {
-		dev_err(dev, "%s: Unable to find governor for the device\n",
-			__func__);
+		dev_err(dev, "%s: Unable to find governor %s for the device\n",
+			__func__, devfreq->governor_name);
 		err = PTR_ERR(governor);
 		goto err_init;
 	}

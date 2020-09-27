@@ -136,6 +136,10 @@ config ARM_HOBOT_DMC_DEVFREQ
           It sets the frequency for the memory controller and reads the usage counts
           from hardware.
 
+config ARM_HOBOT_DMC_DEVFREQ_DEFAULT_GOV
+	string
+	default "performance"
+
 source "drivers/devfreq/event/Kconfig"
 
 endif # PM_DEVFREQ
