@@ -850,7 +850,8 @@ void sbuf_update_ae_idx( sbuf_fsm_t *p_fsm )
 
     mutex_unlock( &p_ctx->idx_set_lock );
 
-    wake_up_interruptible( &p_ctx->idx_set_wait_queue );
+	if (is_idx_all_valid_item(&p_ctx->idx_set))
+		wake_up_interruptible(&p_ctx->idx_set_wait_queue);
 }
 
 void sbuf_update_awb_idx( sbuf_fsm_t *p_fsm )
@@ -901,7 +902,8 @@ void sbuf_update_awb_idx( sbuf_fsm_t *p_fsm )
 
     mutex_unlock( &p_ctx->idx_set_lock );
 
-    wake_up_interruptible( &p_ctx->idx_set_wait_queue );
+	if (is_idx_all_valid_item(&p_ctx->idx_set))
+		wake_up_interruptible(&p_ctx->idx_set_wait_queue);
 }
 
 void sbuf_update_af_idx( sbuf_fsm_t *p_fsm )
@@ -951,7 +953,8 @@ void sbuf_update_af_idx( sbuf_fsm_t *p_fsm )
 
     mutex_unlock( &p_ctx->idx_set_lock );
 
-    wake_up_interruptible( &p_ctx->idx_set_wait_queue );
+	if (is_idx_all_valid_item(&p_ctx->idx_set))
+		wake_up_interruptible(&p_ctx->idx_set_wait_queue);
 }
 
 void sbuf_update_gamma_idx( sbuf_fsm_t *p_fsm )
@@ -1001,7 +1004,8 @@ void sbuf_update_gamma_idx( sbuf_fsm_t *p_fsm )
 
     mutex_unlock( &p_ctx->idx_set_lock );
 
-    wake_up_interruptible( &p_ctx->idx_set_wait_queue );
+	if (is_idx_all_valid_item(&p_ctx->idx_set))
+		wake_up_interruptible(&p_ctx->idx_set_wait_queue);
 }
 
 static uint32_t sbuf_is_ready_to_send_data( struct sbuf_context *p_ctx )

@@ -299,4 +299,11 @@ static int inline is_idx_set_has_valid_item( struct sbuf_idx_set *p_idx_set )
     }
 }
 
+static int inline is_idx_all_valid_item(struct sbuf_idx_set *p_idx_set)
+{
+	return p_idx_set->ae_idx_valid &&
+         p_idx_set->awb_idx_valid &&
+         p_idx_set->af_idx_valid &&
+         p_idx_set->gamma_idx_valid;
+}
 #endif /* #ifndef _SHARED_BUFFER_H_ */
