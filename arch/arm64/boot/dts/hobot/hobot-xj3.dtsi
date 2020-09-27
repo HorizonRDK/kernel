@@ -727,37 +727,43 @@
 			status = "disabled";
 		};
 
-		pwm_0: pwm@0xA500D000 {
+		pwmchip0: pwm@0xA500D000 {
 			compatible = "hobot,hobot-pwm";
 			reg = <0 0xA500D000 0 0x1000>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 44 4>;
-			pinctrl-names = "default";
+			pinctrl-names = "pwm0", "pwm1","pwm2";
 			pinctrl-0 = <&pwm0_func>;
+			pinctrl-1 = <&pwm1_func>;
+			pinctrl-2 = <&pwm2_func>;
 			clocks = <&pwm0_mclk>;
 			clock-names = "pwm_mclk";
 			status = "disabled";
 		};
 
-		pwm_1: pwm@0xA500E000 {
+		pwmchip1: pwm@0xA500E000 {
 			compatible = "hobot,hobot-pwm";
 			reg = <0 0xA500E000 0 0x1000>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 45 4>;
-			pinctrl-names = "default";
-			pinctrl-0 = <&pwm1_func>;
+			pinctrl-names = "pwm0", "pwm1","pwm2";
+			pinctrl-0 = <&pwm3_func>;
+			pinctrl-1 = <&pwm4_func>;
+			pinctrl-2 = <&pwm5_func>;
 			clocks = <&pwm1_mclk>;
 			clock-names = "pwm_mclk";
 			status = "disabled";
 		};
 
-		pwm_2: pwm@0xA500F000 {
+		pwmchip2: pwm@0xA500F000 {
 			compatible = "hobot,hobot-pwm";
 			reg = <0 0xA500F000 0 0x1000>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 46 4>;
-			pinctrl-names = "default";
-			pinctrl-0 = <&pwm2_func>;
+			pinctrl-names = "pwm0", "pwm1","pwm2";
+			pinctrl-0 = <&pwm6_func>;
+			pinctrl-1 = <&pwm7_func>;
+			pinctrl-2 = <&pwm8_func>;
 			clocks = <&pwm2_mclk>;
 			clock-names = "pwm_mclk";
 			status = "disabled";

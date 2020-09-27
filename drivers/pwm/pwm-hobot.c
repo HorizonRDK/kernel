@@ -41,14 +41,17 @@
 #define PWM_INT_EN         (1U<<3)
 #define PWM_NPWM           3         /* number of channels per pwm chip(controller) */
 #define PWM_CLK            192000000
-#define PWM_NAME           "hobot-pwm"
+#define PWM_NAME_LEN       32
+#define PWM_NAME           "hobot-pwmchip"
 
 struct hobot_pwm_chip {
 	struct pwm_chip chip;
 	struct clk *mclk;
 	int irq;
-	char name[8];
+	char name[PWM_NAME_LEN];
 	void __iomem *base;
+	struct pinctrl *pinctrl;
+	struct pinctrl_state *pins[PWM_NPWM];
 };
 
 #define PWM_ENABLE	BIT(31)
@@ -117,6 +120,10 @@ static int hobot_pwm_enable(struct pwm_chip *chip, struct pwm_device *pwm)
 	u32 val;
 	struct hobot_pwm_chip *hbpwm = to_hobot_pwm_chip(chip);
 
+
+	if (hbpwm->pinctrl != NULL && hbpwm->pins[pwm->hwpwm] != NULL)
+		pinctrl_select_state(hbpwm->pinctrl, hbpwm->pins[pwm->hwpwm]);
+
 	val = hobot_pwm_rd(hbpwm, PWM_EN);
 	val |= (1<<pwm->hwpwm);
 	val |= PWM_INT_EN;
@@ -174,10 +181,11 @@ static const struct pwm_ops hobot_pwm_ops = {
 
 static int hobot_pwm_probe(struct platform_device *pdev)
 {
-	int ret, id;
+	int ret, i, id;
 	struct hobot_pwm_chip *hbpwm;
 	struct resource *res;
 	struct device_node *node = pdev->dev.of_node;
+	char buf[16];
 
 	hbpwm = devm_kzalloc(&pdev->dev, sizeof(struct hobot_pwm_chip), GFP_KERNEL);
 	if (!hbpwm)
@@ -200,7 +208,25 @@ static int hobot_pwm_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Get id of pwm:%d is err!\n", id);
 		id = 0;
 	}
-	sprintf(hbpwm->name, "%s%d", PWM_NAME, id);
+	snprintf(hbpwm->name, sizeof(hbpwm->name), "%s%d", PWM_NAME, id);
+
+	hbpwm->pinctrl = devm_pinctrl_get(&pdev->dev);
+	if (IS_ERR(hbpwm->pinctrl)) {
+		pr_err("Failed to get a pinctrl state holder, check dts.\n");
+		return -ENODEV;
+	}
+
+	for (i = 0; i < PWM_NPWM; i++) {
+		memset(buf, 0, sizeof(buf));
+		snprintf(buf, sizeof(buf), "pwm%d", i);
+
+		hbpwm->pins[i] = pinctrl_lookup_state(hbpwm->pinctrl, buf);
+		if (IS_ERR_OR_NULL(hbpwm->pins[i])) {
+			pr_err("Failed to find %s pinctrl, check dts.\n", buf);
+			return -ENODEV;
+		}
+	}
+
 
 #ifdef ENABLE_PWM_IRQ
 	hbpwm->irq = irq_of_parse_and_map(node, 0);
