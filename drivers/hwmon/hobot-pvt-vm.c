@@ -25,6 +25,8 @@
 #include <linux/io.h>
 #include <linux/clk.h>
 #include <linux/iio/iio.h>
+#include <linux/iio/driver.h>
+#include <linux/iio/machine.h>
 #include "hobot-pvt.h"
 
 struct hobot_vm_data_t {
@@ -168,6 +170,35 @@ static struct iio_chan_spec hobot_vm_iio_channels[] = {
     VM_CHANNEL(15, "VDD CORE PD"),
 };
 
+#define HB_VM_MAP(_consumer_dev_name, _consumer_channel, _adc_channel_label) \
+{ \
+    .consumer_dev_name = _consumer_dev_name,	\
+	.consumer_channel = _consumer_channel,		\
+	.adc_channel_label = _adc_channel_label,	\
+}
+
+/* default maps used by iio consumer (lp8788-charger driver) */
+static struct iio_map hb_vm_default_iio_maps[] = {
+	HB_VM_MAP("hobot-pvt-vm", "hobot-vm-ch0",  "Lite adc"),
+	HB_VM_MAP("hobot-pvt-vm", "hobot-vm-ch1",  "VDD CORE A0"),
+	HB_VM_MAP("hobot-pvt-vm", "hobot-vm-ch2",  "VDD CNN0"),
+	HB_VM_MAP("hobot-pvt-vm", "hobot-vm-ch3",  "VDD CNN0"),
+	HB_VM_MAP("hobot-pvt-vm", "hobot-vm-ch4",  "VDD CNN0"),
+	HB_VM_MAP("hobot-pvt-vm", "hobot-vm-ch5",  "VDD CPU OFF 1"),
+	HB_VM_MAP("hobot-pvt-vm", "hobot-vm-ch6",  "VDD CPU"),
+	HB_VM_MAP("hobot-pvt-vm", "hobot-vm-ch7",  "VDD CPU OFF 0"),
+	HB_VM_MAP("hobot-pvt-vm", "hobot-vm-ch8",  "VDD DDR"),
+	HB_VM_MAP("hobot-pvt-vm", "hobot-vm-ch9",  "VDD DDR"),
+	HB_VM_MAP("hobot-pvt-vm", "hobot-vm-ch10", "VDD CNN 1"),
+	HB_VM_MAP("hobot-pvt-vm", "hobot-vm-ch11", "VDD CNN 1"),
+	HB_VM_MAP("hobot-pvt-vm", "hobot-vm-ch12", "VDD CORE PD"),
+	HB_VM_MAP("hobot-pvt-vm", "hobot-vm-ch13", "VDD CORE PD"),
+	HB_VM_MAP("hobot-pvt-vm", "hobot-vm-ch14", "VDD CORE PD"),
+	HB_VM_MAP("hobot-pvt-vm", "hobot-vm-ch15", "VDD CORE PD"),
+	{},
+};
+
+
 static int hobot_vm_init_hw(struct hobot_vm_data_t *info)
 {
     u32 val;
@@ -267,6 +298,11 @@ int hobot_vm_probe(struct device *dev, void __iomem *reg_base,
     indio_dev->channels = info->channels;
     indio_dev->num_channels = info->num_channels;
 
+	ret = iio_map_array_register(indio_dev, hb_vm_default_iio_maps);
+	if (ret) {
+		dev_err(info->dev, "iio map_array register failed\n");
+        return ret;
+	}
     ret = iio_device_register(indio_dev);
     if (ret) {
         dev_err(info->dev, "iio device register failed\n");
