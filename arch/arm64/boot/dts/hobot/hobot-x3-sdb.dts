@@ -305,14 +305,10 @@
 
 &mipi_host0 {
 	status = "okay";
-	pinctrl-0 = <&sensor0_func>;
-	pinctrl-1 = <&sensor0_gpio_func>;
 };
 
 &mipi_host1 {
 	status = "okay";
-	pinctrl-0 = <&sensor1_func>;
-	pinctrl-1 = <&sensor1_gpio_func>;
 };
 
 &mipi_host2 {
@@ -441,7 +437,7 @@
 
 &soc_thermal {
 	status = "okay";
-	
+
 	trips {
 		threshold: trip-point@0 {
 			temperature = <80000>;

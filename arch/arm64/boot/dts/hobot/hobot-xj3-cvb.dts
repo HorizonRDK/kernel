@@ -49,6 +49,18 @@
 	powerup-gpio = <98>;	/* xj3-cvb UART1_RXD/GPIO6[2] */
 };
 
+&mipi_host0 {
+	pinctrl-0 = <&sensor1_func>;
+	pinctrl-1 = <&sensor1_gpio_func>;
+	snrclk-idx = <1>;
+};
+
+&mipi_host1 {
+	pinctrl-0 = <&sensor0_func>;
+	pinctrl-1 = <&sensor0_gpio_func>;
+	snrclk-idx = <0>;
+};
+
 /*TODO: maybe need to change or delete */
 &cpu_opp_table {
 	compatible = "operating-points-v2";

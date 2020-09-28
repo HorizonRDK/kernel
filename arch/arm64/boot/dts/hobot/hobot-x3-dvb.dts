@@ -108,6 +108,17 @@
 	powerup-gpio = <2>; /* x3-dvb EN_VDD_CNN1/GPIO0[2] */
 };
 
+&mipi_host0 {
+	pinctrl-0 = <&sensor1_func>;
+	pinctrl-1 = <&sensor1_gpio_func>;
+	snrclk-idx = <1>;
+};
+
+&mipi_host1 {
+	pinctrl-0 = <&sensor0_func>;
+	pinctrl-1 = <&sensor0_gpio_func>;
+	snrclk-idx = <0>;
+};
 
 &spi2 {
 	status = "disable";

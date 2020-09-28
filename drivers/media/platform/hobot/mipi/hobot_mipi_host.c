@@ -1195,7 +1195,7 @@ static int32_t mipi_host_snrclk_set_en(mipi_hdev_t *hdev, int enable)
 
 	/* enable clk as default at first time */
 	if (param->snrclk_en == MIPI_HOST_SNRCLK_NOUSED) {
-		mipiinfo("snrclk clk default as %u",
+		mipiinfo("snrclk clk default as %lu",
 			mipi_host_get_clk(hdev, g_mh_snrclk_name[snrclk->index]));
 		mipi_host_configure_clk(hdev, g_mh_snrclk_name[snrclk->index],
 			mipi_host_get_clk(hdev, g_mh_snrclk_name[snrclk->index]), 0);
