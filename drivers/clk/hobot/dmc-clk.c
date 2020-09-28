@@ -29,7 +29,9 @@
 #include <linux/spinlock.h>
 #include <linux/arm-smccc.h>
 #include <linux/moduleparam.h>
+#include <linux/smp.h>
 #include <asm-generic/delay.h>
+#include <linux/delay.h>
 
 #include "common.h"
 
@@ -61,6 +63,7 @@ struct dmc_clk {
 	uint32_t get_cmd;
 	uint32_t channel;
 	struct clk *ddr_mclk;
+	atomic_t vote_cnt;
 };
 
 struct dmc_clk *g_ddrclk;
@@ -122,7 +125,10 @@ static void hobot_ddrdfc_test(unsigned long a0, unsigned long a1,
 			struct arm_smccc_res *res)
 {
 
+	int i;
 	pr_debug("%s rate:%ld\n", __func__, rate);
+	for (i = 0; i < 1000; i++)
+		udelay(100);
 
 	// just for debugging
 	res->a0 = 0;
@@ -280,13 +286,70 @@ char *dmc_clk_get_method(void)
 }
 
 
+static void spin_on_cpu(void *info)
+{
+	pr_debug("%s %d enter\n", __func__, smp_processor_id());
+
+	/* tell the clock changing core this core is parked */
+	atomic_dec(&g_ddrclk->vote_cnt);
+	smp_mb();
+
+	/* this core will spin on the lock before ddr freq
+	 * changing finished
+	 */
+	spin_lock(&g_ddrclk->lock);
+
+
+	spin_unlock(&g_ddrclk->lock);
+	pr_debug("%s %d exit\n", __func__, smp_processor_id());
+}
+
+static void park_other_cpus(void)
+{
+    int cpu;
+	struct cpumask mask;
+
+    cpu = get_cpu();
+
+    memcpy(&mask, cpu_online_mask, sizeof(struct cpumask));
+    cpumask_clear_cpu(cpu, &mask);
+
+    for_each_cpu(cpu, &mask)
+		atomic_inc(&g_ddrclk->vote_cnt);
+
+	smp_mb();
+
+	on_each_cpu_mask(&mask, spin_on_cpu, NULL, 0);
+
+	put_cpu();
+}
+
+
 static int dmc_set_rate(struct clk_hw *hw,
 			unsigned long rate, unsigned long parent_rate)
 {
 	struct dmc_clk *dclk = container_of(hw, struct dmc_clk, hw);
 	struct arm_smccc_res res;
+	unsigned long flags;
+	int timeout = 1000000;
 
 	spin_lock(&dclk->lock);
+
+	atomic_set(&dclk->vote_cnt, 0);
+	park_other_cpus();
+	local_irq_save(flags);
+
+	while(atomic_read(&dclk->vote_cnt) > 0 && timeout > 0) {
+		udelay(100);
+		timeout -= 100;
+	}
+
+	if (timeout <= 0) {
+		pr_err("timeout waiting for ipi voting\n");
+		local_irq_restore(flags);
+		spin_unlock(&dclk->lock);
+		return -EBUSY;
+	}
 
 #ifndef CONFIG_HOBOT_XJ3
 	dclk->invoke_fn(dclk->fid, dclk->set_cmd, dclk->channel, rate, 0, 0, 0, 0, &res);
@@ -296,11 +359,13 @@ static int dmc_set_rate(struct clk_hw *hw,
 	if (res.a0 != 0) {
 		pr_err("%s: ddr channel:%u set rate to %lu failed with status :%ld\n",
 			__func__, dclk->channel, rate, res.a0);
+		spin_unlock(&dclk->lock);
 		return -EINVAL;
 	}
 	dclk->rate = rate;
 	cur_ddr_rate = rate;
 
+	local_irq_restore(flags);
 	spin_unlock(&dclk->lock);
 
 	return 0;
