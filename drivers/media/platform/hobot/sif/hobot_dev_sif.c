@@ -2131,7 +2131,7 @@ static ssize_t vio_bind_info_show(struct device *dev,
 		vio_err("null bind_info error\n");
 		return 0;
 	}
-	for (pipe_id = 0; pipe_id < VIO_MAX_STREAM; pipe_id++) {
+	for (pipe_id = 0; pipe_id < MAX_VIO_DEV; pipe_id++) {
 		for (mod_id = 0; mod_id < HB_ID_MAX; mod_id++) {
 			mod = &bind_info[pipe_id][mod_id];
 			if (mod == NULL) {
@@ -2143,7 +2143,7 @@ static ssize_t vio_bind_info_show(struct device *dev,
 			mod->had_show = 0;
 		}
 	}
-	for (pipe_id = 0; pipe_id < VIO_MAX_STREAM; pipe_id++) {
+	for (pipe_id = 0; pipe_id < MAX_VIO_DEV; pipe_id++) {
 		link_flag = 0;
 		x_offset = 0;
 		for (mod_id = 0; mod_id < HB_ID_MAX; mod_id++) {
@@ -2265,13 +2265,13 @@ static ssize_t vio_bind_info_store(struct device *dev,
 	bind_info = (bind_dev->bind_info);
 
 	pipe_num = simple_strtoul(buf, NULL, 0);
-	if (pipe_num < VIO_MAX_STREAM)
+	if (pipe_num < MAX_VIO_DEV)
 		memset(bind_info[pipe_num], 0,
 			sizeof(struct hb_bind_info_s) * HB_ID_MAX);
-	if (pipe_num == VIO_MAX_STREAM)
+	if (pipe_num == MAX_VIO_DEV)
 		memset(&bind_info[0][0], 0,
 			sizeof(struct hb_bind_info_s) *\
-			HB_ID_MAX * VIO_MAX_STREAM);
+			HB_ID_MAX * MAX_VIO_DEV);
 
 	return len;
 }

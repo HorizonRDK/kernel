@@ -299,6 +299,7 @@ struct hb_out_chn_bind_info_s {
 
 #define MAX_INPUT_CHANNEL 8
 #define MAX_OUTPUT_CHANNEL 7
+#define MAX_VIO_DEV        64  // max venc num is 64
 
 struct hb_bind_info_s {
 	SYS_MOD_ID_E this_mod;
@@ -319,7 +320,7 @@ struct vio_bind_info_dev {
 	struct class 	*class;
 	dev_t 		devno;
 	spinlock_t	slock;
-	struct hb_bind_info_s bind_info[VIO_MAX_STREAM][HB_ID_MAX];
+	struct hb_bind_info_s bind_info[MAX_VIO_DEV][HB_ID_MAX];
 };
 
 int sif_get_stride(u32 pixel_length, u32 width);
