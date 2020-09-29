@@ -64,8 +64,11 @@ struct hb_pinctrl_config {
 };
 
 struct hb_pinctrl_ioctrl_data {
-    struct hb_pinctrl_config __user *config;
+    struct hb_pinctrl_config *config;
     unsigned int npins;
 };
+
+int hobot_pinctrl_set(struct hb_pinctrl_ioctrl_data *ioctl_data);
+int hobot_pinctrl_get(struct hb_pinctrl_ioctrl_data *ioctl_data);
 
 #endif //DRIVERS_PINCTRL_HOBOT_HB_PINCTRL_CDEV_H_

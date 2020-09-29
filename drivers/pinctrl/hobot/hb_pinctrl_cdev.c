@@ -78,6 +78,11 @@ static const u8 driver_strength_map[2][16] = {
     { 6, 9, 12, 15, 18, 21, 24, 27, 30, 33, 36, 39, 41, 42, 44, 45},
 };
 
+enum call_type {
+	HB_PINCTRL_CALL_KERNEL,
+	HB_PINCTRL_CALL_USER,
+};
+
 struct hb_pinctrl_cdev_t {
     const char *name;
     struct class *class;
@@ -100,15 +105,18 @@ struct hb_pinctrl_device_t {
     struct hb_pinctrl_cdev_t pinctrl_cdev;
     struct hb_pinctrl_pin_type_t *pin_type;
     u32 pin_range;
+	atomic_t ready;
 };
 
 struct hb_pinctrl_device_t hb_pinctrl_dev;
 
-static inline bool pin_num_check(struct hb_pinctrl_config config) {
+static inline bool pin_num_check(struct hb_pinctrl_config config)
+{
     return config.pin_num < PINCTRL_IOCTRL_MAX_PINS;
 }
 
-static u16 drive_strength_round(u8 drive_val, u8 drive_type, u8 round_type) {
+static u16 drive_strength_round(u8 drive_val, u8 drive_type, u8 round_type)
+{
     u8 i = 0;
     u16 res = 0;
     u16 min_index = 0;
@@ -149,7 +157,8 @@ static u16 drive_strength_round(u8 drive_val, u8 drive_type, u8 round_type) {
 }
 
 static int set_sechmitt_state(struct hb_pinctrl_device_t *dev,
-    struct hb_pinctrl_config *config, u32 *reg_value) {
+    struct hb_pinctrl_config *config, u32 *reg_value)
+{
 
     u32 pin_num = config->pin_num;
     if (config->pin_sechmitt >= IOCTL_PIN_SECHMITT_MAX) {
@@ -172,7 +181,8 @@ static int set_sechmitt_state(struct hb_pinctrl_device_t *dev,
 }
 
 static void get_sechmitt_state(struct hb_pinctrl_device_t *dev,
-    struct hb_pinctrl_config *config, u32 reg_value) {
+    struct hb_pinctrl_config *config, u32 reg_value)
+{
 
     u32 pin_num = config->pin_num;
     // read sechmitt status
@@ -190,7 +200,8 @@ static void get_sechmitt_state(struct hb_pinctrl_device_t *dev,
 }
 
 static int set_pull_state(struct hb_pinctrl_device_t *dev,
-    struct hb_pinctrl_config *config, u32 *reg_value) {
+    struct hb_pinctrl_config *config, u32 *reg_value)
+{
 
     u32 pin_num = config->pin_num;
     if (config->pin_pull >= IOCTL_PIN_PULL_MAX) {
@@ -235,7 +246,8 @@ static int set_pull_state(struct hb_pinctrl_device_t *dev,
 }
 
 static void get_pull_state(struct hb_pinctrl_device_t *dev,
-    struct hb_pinctrl_config *config, u32 reg_value) {
+    struct hb_pinctrl_config *config, u32 reg_value)
+{
 
     u32 pin_num = config->pin_num;
     // read pull status
@@ -268,7 +280,8 @@ static void get_pull_state(struct hb_pinctrl_device_t *dev,
 }
 
 static int set_drive_state(struct hb_pinctrl_device_t *dev,
-    struct hb_pinctrl_config *config, u32 *reg_value) {
+    struct hb_pinctrl_config *config, u32 *reg_value)
+{
 
     u16 drive_index;
     u32 pin_num = config->pin_num;
@@ -291,7 +304,8 @@ static int set_drive_state(struct hb_pinctrl_device_t *dev,
 }
 
 static void get_drive_state(struct hb_pinctrl_device_t *dev,
-    struct hb_pinctrl_config *config, u32 reg_value) {
+    struct hb_pinctrl_config *config, u32 reg_value)
+{
 
     u32 pin_num = config->pin_num;
     if (dev->pin_type[pin_num].drive == 0) {
@@ -302,7 +316,8 @@ static void get_drive_state(struct hb_pinctrl_device_t *dev,
 }
 
 static int set_func_state(struct hb_pinctrl_device_t *dev,
-    struct hb_pinctrl_config *config, u32 *reg_value) {
+    struct hb_pinctrl_config *config, u32 *reg_value)
+{
 
     if (config->pin_func >= IOCTL_PIN_FUNC_MAX) {
         dev_err(dev->dev, "pin function parameter error");
@@ -318,7 +333,9 @@ static void get_func_state(struct hb_pinctrl_device_t *dev,
     config->pin_func = GET_FUNC_VAL(reg_value);
 }
 
-static int hb_pinctrl_set(struct hb_pinctrl_device_t *dev, unsigned long arg) {
+static int hb_pinctrl_set(struct hb_pinctrl_device_t *dev,
+				unsigned long arg, enum call_type c_type)
+{
     int ret, i;
     u16 pin_num;
     u32 reg_value;
@@ -330,25 +347,29 @@ static int hb_pinctrl_set(struct hb_pinctrl_device_t *dev, unsigned long arg) {
     };
 
     dev_dbg(dev->dev, "start %s", __func__);
-    ret = copy_from_user(&ioctrl_data,
-            (struct hb_pinctrl_ioctrl_data __user *)arg, sizeof(ioctrl_data));
-    if (ret) {
-        dev_err(dev->dev, "pinctrl_cdev: ioctl copy from user error\n");
-        return -EFAULT;
-    }
+	if (c_type == HB_PINCTRL_CALL_USER) {
+		ret = copy_from_user(&ioctrl_data,
+				(struct hb_pinctrl_ioctrl_data __user *)arg, sizeof(ioctrl_data));
+		if (ret) {
+			dev_err(dev->dev, "pinctrl_cdev: ioctl copy from user error\n");
+			return -EFAULT;
+		}
 
-    if (ioctrl_data.npins > PINCTRL_IOCTRL_MAX_PINS) {
-        dev_err(dev->dev, "npins over pinctrl max pins");
-        return -EINVAL;
-    }
+		if (ioctrl_data.npins > PINCTRL_IOCTRL_MAX_PINS) {
+			dev_err(dev->dev, "npins over pinctrl max pins");
+			return -EINVAL;
+		}
 
-    config = memdup_user(ioctrl_data.config,
-                ioctrl_data.npins * sizeof(struct hb_pinctrl_config));
-    if (IS_ERR(config)) {
-        dev_err(dev->dev, "memdup_user error");
-        return PTR_ERR(config);
-    }
-
+		config = memdup_user(ioctrl_data.config,
+					ioctrl_data.npins * sizeof(struct hb_pinctrl_config));
+		if (IS_ERR(config)) {
+			dev_err(dev->dev, "memdup_user error");
+			return PTR_ERR(config);
+		}
+	} else {
+        ioctrl_data = *((struct hb_pinctrl_ioctrl_data *)(arg));
+		config = ioctrl_data.config;
+	}
     dev_dbg(dev->dev, "%-10s %-10s %-10s %-10s %-10s %-10s",
         s[0], s[1], s[2], s[3], s[4], s[5]);
     for (i = 0; i < ioctrl_data.npins; ++i) {
@@ -402,11 +423,15 @@ static int hb_pinctrl_set(struct hb_pinctrl_device_t *dev, unsigned long arg) {
 
     return 0;
 error:
-    kfree(config);
+	if (c_type == HB_PINCTRL_CALL_USER) {
+		kfree(config);
+	}
     return ret;
 }
 
-static int hb_pinctrl_get(struct hb_pinctrl_device_t *dev, unsigned long arg) {
+static int hb_pinctrl_get(struct hb_pinctrl_device_t *dev,
+					unsigned long arg, enum call_type c_type)
+{
     int ret, i;
     u16 pin_num;
     u32 reg_value;
@@ -417,24 +442,29 @@ static int hb_pinctrl_get(struct hb_pinctrl_device_t *dev, unsigned long arg) {
         {"pins", "sechmitt", "pull", "drive", "function", "reg_value"};
 
     dev_dbg(dev->dev, "start %s", __func__);
-    ret = copy_from_user(&ioctrl_data,
-            (struct hb_pinctrl_ioctrl_data __user *)arg, sizeof(ioctrl_data));
-    if (ret) {
-        dev_err(dev->dev, "pinctrl_cdev: ioctl copy from user error\n");
-        return -EFAULT;
-    }
+	if (c_type == HB_PINCTRL_CALL_USER) {
+		ret = copy_from_user(&ioctrl_data,
+				(struct hb_pinctrl_ioctrl_data __user *)arg, sizeof(ioctrl_data));
+		if (ret) {
+			dev_err(dev->dev, "pinctrl_cdev: ioctl copy from user error\n");
+			return -EFAULT;
+		}
 
-    if (ioctrl_data.npins > PINCTRL_IOCTRL_MAX_PINS) {
-        dev_err(dev->dev, "npins over pinctrl max pins");
-        return -EINVAL;
-    }
+		if (ioctrl_data.npins > PINCTRL_IOCTRL_MAX_PINS) {
+			dev_err(dev->dev, "npins over pinctrl max pins");
+			return -EINVAL;
+		}
 
-    config = memdup_user(ioctrl_data.config,
-                ioctrl_data.npins * sizeof(struct hb_pinctrl_config));
-    if (IS_ERR(config)) {
-        dev_err(dev->dev, "memdup_user error");
-        return PTR_ERR(config);
-    }
+		config = memdup_user(ioctrl_data.config,
+					ioctrl_data.npins * sizeof(struct hb_pinctrl_config));
+		if (IS_ERR(config)) {
+			dev_err(dev->dev, "memdup_user error");
+			return PTR_ERR(config);
+		}
+	} else {
+        ioctrl_data = *((struct hb_pinctrl_ioctrl_data *)(arg));
+		config = ioctrl_data.config;
+	}
 
     dev_dbg(dev->dev, "%-10s %-10s %-10s %-10s %-10s %-10s",
         s[0], s[1], s[2], s[3], s[4], s[5]);
@@ -465,22 +495,26 @@ static int hb_pinctrl_get(struct hb_pinctrl_device_t *dev, unsigned long arg) {
             config[i].pin_num, config[i].pin_sechmitt, config[i].pin_pull,
             config[i].pin_drive, config[i].pin_func, reg_value);
     }
-
-    ret = copy_to_user(ioctrl_data.config, config,
-            ioctrl_data.npins * sizeof(struct hb_pinctrl_config));
-    if (ret) {
-        dev_err(dev->dev, "copy to userspace failed");
-        ret = -EFAULT;
-        goto error;
-    }
+	if (c_type == HB_PINCTRL_CALL_USER) {
+		ret = copy_to_user(ioctrl_data.config, config,
+				ioctrl_data.npins * sizeof(struct hb_pinctrl_config));
+		if (ret) {
+			dev_err(dev->dev, "copy to userspace failed");
+			ret = -EFAULT;
+			goto error;
+		}
+	}
     return 0;
 error:
-    kfree(config);
+	if (c_type == HB_PINCTRL_CALL_USER) {
+		kfree(config);
+	}
     return ret;
 }
 
 static DEFINE_MUTEX(pinctrl_dev_open_tmux);
-static int pinctrl_dev_open(struct inode *inode, struct file *file) {
+static int pinctrl_dev_open(struct inode *inode, struct file *file)
+{
     return 0;
 }
 
@@ -507,9 +541,9 @@ static long pinctrl_dev_ioctl(struct file *file, unsigned int cmd,
     dev_dbg(dev->dev, "%s, cmd=%d", __func__, cmd);
     switch (cmd) {
     case PINCTRL_SET:
-        return hb_pinctrl_set(dev, arg);
+        return hb_pinctrl_set(dev, arg, HB_PINCTRL_CALL_USER);
     case PINCTRL_GET:
-        return hb_pinctrl_get(dev, arg);
+        return hb_pinctrl_get(dev, arg, HB_PINCTRL_CALL_USER);
     default:
         break;
     }
@@ -533,7 +567,26 @@ static const struct file_operations pinctrl_dev_fops = {
     .compat_ioctl   = pinctrl_dev_ioctl,
 };
 
-static int hb_pinctrl_dev_init(struct hb_pinctrl_device_t *dev) {
+int hobot_pinctrl_set(struct hb_pinctrl_ioctrl_data *ioctl_data)
+{
+	if (!atomic_read(&hb_pinctrl_dev.ready))
+		return -ENODEV;
+	return hb_pinctrl_set(&hb_pinctrl_dev, (unsigned long)ioctl_data,
+				HB_PINCTRL_CALL_KERNEL);
+}
+EXPORT_SYMBOL_GPL(hobot_pinctrl_set);
+
+int hobot_pinctrl_get(struct hb_pinctrl_ioctrl_data *ioctl_data)
+{
+	if (!atomic_read(&hb_pinctrl_dev.ready))
+		return -ENODEV;
+	return hb_pinctrl_get(&hb_pinctrl_dev, (unsigned long)ioctl_data,
+				HB_PINCTRL_CALL_KERNEL);
+}
+EXPORT_SYMBOL_GPL(hobot_pinctrl_get);
+
+static int hb_pinctrl_dev_init(struct hb_pinctrl_device_t *dev)
+{
     int ret = 0;
     dev_t devno;
     struct cdev *p_cdev = &dev->pinctrl_cdev.cdev;
@@ -579,7 +632,8 @@ alloc_chrdev_error:
 	return ret;
 }
 
-static void hb_pinctrl_dev_exit(struct hb_pinctrl_device_t *dev) {
+static void hb_pinctrl_dev_exit(struct hb_pinctrl_device_t *dev)
+{
     dev_info(dev->dev, "pinctrl cdev exit");
 
     device_destroy(dev->pinctrl_cdev.class,
@@ -589,7 +643,8 @@ static void hb_pinctrl_dev_exit(struct hb_pinctrl_device_t *dev) {
     unregister_chrdev_region(MKDEV(dev->pinctrl_cdev.major_num, 0), 1);
 }
 
-static int hb_pinctrl_probe(struct platform_device *pdev) {
+static int hb_pinctrl_probe(struct platform_device *pdev)
+{
     int ret = 0, i = 0;
     struct resource *res;
     void __iomem *addr;
@@ -657,13 +712,18 @@ static int hb_pinctrl_probe(struct platform_device *pdev) {
         dev_err(dev->dev, "pinctrl cdev init failed");
         goto err_res;
     }
+	atomic_set(&dev->ready, 1);
     dev_info(dev->dev, "probe ok");
     return 0;
 err_res:
     return ret;
 }
 
-static int hb_pinctrl_remove(struct platform_device *pdev) {
+static int hb_pinctrl_remove(struct platform_device *pdev)
+{
+	struct hb_pinctrl_device_t *dev = &hb_pinctrl_dev;
+
+	atomic_set(&dev->ready, 0);
     hb_pinctrl_dev_exit(&hb_pinctrl_dev);
     return 0;
 }
@@ -672,7 +732,8 @@ static const struct of_device_id hb_pinctrl_of_match[] = {
     {
         .compatible = "hobot,pinctrl-cdev",
     },
-}
+	{},
+};
 
 MODULE_DEVICE_TABLE(of, hb_pinctrl_of_match);
 
