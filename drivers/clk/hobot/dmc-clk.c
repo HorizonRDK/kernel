@@ -285,6 +285,9 @@ char *dmc_clk_get_method(void)
 	return ddr_method;
 }
 
+#define DMC_FID        0x82000008
+#define DRAM_SET_RATE        0x10
+#define DRAM_GET_RATE        0x11
 
 static void spin_on_cpu(void *info)
 {
@@ -354,7 +357,7 @@ static int dmc_set_rate(struct clk_hw *hw,
 #ifndef CONFIG_HOBOT_XJ3
 	dclk->invoke_fn(dclk->fid, dclk->set_cmd, dclk->channel, rate, 0, 0, 0, 0, &res);
 #else
-	dclk->invoke_fn(0, 0, 0, rate, 0, 0, 0, 0, &res);
+	dclk->invoke_fn(DMC_FID, DRAM_SET_RATE, 0, rate, 0, 0, 0, 0, &res);
 #endif
 	if (res.a0 != 0) {
 		pr_err("%s: ddr channel:%u set rate to %lu failed with status :%ld\n",
