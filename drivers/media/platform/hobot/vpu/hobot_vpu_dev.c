@@ -53,6 +53,884 @@ module_param(vpu_clk_freq, ulong, 0644);
 module_param(vpu_debug_info, int, 0644);
 module_param(vpu_pf_bw_debug, int, 0644);
 
+
+#ifdef USE_MUTEX_IN_KERNEL_SPACE
+static int vdi_lock_base(hb_vpu_dev_t *dev, unsigned int type,
+			int fromUserspace)
+{
+	int ret;
+	// DPRINTK("[VPUDRV]+%s type=%d, pid=%d, tgid=%d, signal_pending_state=%d \n",
+	//__FUNCTION__, type, current->pid, current->tgid,
+	//signal_pending_state(TASK_INTERRUPTIBLE, current));
+	if (type == VPUDRV_MUTEX_VPU) {
+		ret = down_interruptible(&dev->vpu_vdi_sem);
+		if (fromUserspace == 0) {
+			if (ret == -EINTR) {
+				ret = down_killable(&dev->vpu_vdi_sem);
+			}
+		}
+	} else if (type == VPUDRV_MUTEX_DISP_FALG) {
+		ret = down_interruptible(&dev->vpu_vdi_disp_sem);
+		if (fromUserspace == 0) {
+			if (ret == -EINTR) {
+				ret = down_killable(&dev->vpu_vdi_disp_sem);
+			}
+		}
+	} else if (type == VPUDRV_MUTEX_RESET) {
+		ret = down_interruptible(&dev->vpu_vdi_reset_sem);
+		if (fromUserspace == 0) {
+			if (ret == -EINTR) {
+				ret = down_killable(&dev->vpu_vdi_reset_sem);
+			}
+		}
+	} else if (type == VPUDRV_MUTEX_VMEM) {
+		ret = down_interruptible(&dev->vpu_vdi_vmem_sem);
+		if (fromUserspace == 0) {
+			if (ret == -EINTR) {
+				ret = down_killable(&dev->vpu_vdi_vmem_sem);
+			}
+		}
+	} else {
+		vpu_err("unknown MUTEX_TYPE type=%d\n", type);
+		return 0;
+	}
+	if (ret == 0) {
+		dev->current_vdi_lock_pid[type] = current->tgid;
+	} else {
+		vpu_err("down_interruptible error ret=%d\n", ret);
+	}
+
+	// DPRINTK("[VPUDRV]+%s ret=%d \n", __FUNCTION__, ret);
+	return ret;
+}
+
+static int vdi_lock_user(hb_vpu_dev_t *dev, unsigned int type)
+{
+	return vdi_lock_base(dev, type, 1);
+}
+
+static int vdi_lock(hb_vpu_dev_t *dev, unsigned int type)
+{
+	return vdi_lock_base(dev, type, 0);
+}
+
+static void vdi_unlock(hb_vpu_dev_t *dev, unsigned int type)
+{
+	// DPRINTK("[VPUDRV]+%s, type=%d\n", __FUNCTION__, type);
+	if (type >= VPUDRV_MUTEX_VPU && type < VPUDRV_MUTEX_MAX) {
+		dev->current_vdi_lock_pid[type] = 0;
+	} else {
+		vpu_err("unknown MUTEX_TYPE type=%d\n", type);
+		return;
+	}
+	if (type == VPUDRV_MUTEX_VPU) {
+		up(&dev->vpu_vdi_sem);
+	} else if (type == VPUDRV_MUTEX_DISP_FALG) {
+		up(&dev->vpu_vdi_disp_sem);
+	} else if (type == VPUDRV_MUTEX_RESET) {
+		up(&dev->vpu_vdi_reset_sem);
+	} else if (type == VPUDRV_MUTEX_VMEM) {
+		up(&dev->vpu_vdi_vmem_sem);
+	}
+	// DPRINTK("[VPUDRV]-%s\n", __FUNCTION__);
+}
+#endif
+
+#ifdef USE_VPU_CLOSE_INSTANCE_ONCE_ABNORMAL_RELEASE
+static hb_vpu_instance_pool_t *get_instance_pool_handle(
+		hb_vpu_dev_t *dev, u32 core)
+{
+	int instance_pool_size_per_core;
+	void *vip_base;
+
+	if (core > MAX_NUM_VPU_CORE)
+		return NULL;
+
+	/* instance_pool.size  assigned to the size of all core once call
+	VDI_IOCTL_GET_INSTANCE_POOL by user. */
+	instance_pool_size_per_core = (dev->instance_pool.size/MAX_NUM_VPU_CORE);
+	vip_base = (void *)(dev->instance_pool.base +
+			(instance_pool_size_per_core * core));
+
+	return (hb_vpu_instance_pool_t *)vip_base;
+}
+#define FIO_TIMEOUT         100
+
+static void WriteVpuFIORegister(hb_vpu_dev_t *dev, u32 core,
+				u32 addr, u32 data)
+{
+	unsigned int ctrl;
+	unsigned int count = 0;
+	if (!dev) {
+		return;
+	}
+	VPU_WRITEL(W5_VPU_FIO_DATA, data);
+	ctrl  = (addr&0xffff);
+	ctrl |= (1<<16);    /* write operation */
+	VPU_WRITEL(W5_VPU_FIO_CTRL_ADDR, ctrl);
+
+	count = FIO_TIMEOUT;
+	while (count--) {
+		ctrl = VPU_READL(W5_VPU_FIO_CTRL_ADDR);
+		if (ctrl & 0x80000000) {
+			break;
+		}
+	}
+}
+static u32 ReadVpuFIORegister(hb_vpu_dev_t *dev, u32 core, u32 addr)
+{
+	u32 ctrl;
+	u32 count = 0;
+	u32 data  = 0xffffffff;
+
+	ctrl  = (addr&0xffff);
+	ctrl |= (0<<16);    /* read operation */
+	VPU_WRITEL(W5_VPU_FIO_CTRL_ADDR, ctrl);
+	count = FIO_TIMEOUT;
+	while (count--) {
+		ctrl = VPU_READL(W5_VPU_FIO_CTRL_ADDR);
+		if (ctrl & 0x80000000) {
+			data = VPU_READL(W5_VPU_FIO_DATA);
+			break;
+		}
+	}
+
+	return data;
+}
+
+static int vpuapi_wait_reset_busy(hb_vpu_dev_t *dev, u32 core)
+{
+	int ret;
+	u32 val;
+	int product_code;
+	unsigned long timeout = jiffies + VPU_BUSY_CHECK_TIMEOUT;
+
+	product_code = VPU_READL(VPU_PRODUCT_CODE_REGISTER);
+	while (1) {
+		if (PRODUCT_CODE_W_SERIES(product_code)) {
+			val = VPU_READL(W5_VPU_RESET_STATUS);
+		} else {
+			return -1;
+		}
+		if (val == 0) {
+			ret = VPUAPI_RET_SUCCESS;
+			break;
+		}
+
+		if (time_after(jiffies, timeout)) {
+			vpu_err("vpuapi_wait_reset_busy after BUSY timeout");
+			ret = VPUAPI_RET_TIMEOUT;
+			break;
+		}
+		udelay(0);	// delay more to give idle time to OS;
+	}
+
+	return ret;
+}
+
+static int vpuapi_wait_vpu_busy(hb_vpu_dev_t *dev, u32 core)
+{
+	int ret;
+	u32 val = 0;
+	u32 cmd;
+	u32 pc;
+	int product_code;
+	unsigned long timeout = jiffies + VPU_BUSY_CHECK_TIMEOUT;
+
+	product_code = VPU_READL(VPU_PRODUCT_CODE_REGISTER);
+	while(1) {
+		if (PRODUCT_CODE_W_SERIES(product_code)) {
+			val = VPU_READL(W5_VPU_BUSY_STATUS);
+			cmd = VPU_READL(W5_COMMAND);
+			pc = VPU_READL(W5_VCPU_CUR_PC);
+		} else {
+			return -1;
+		}
+		if (val == 0) {
+			ret = VPUAPI_RET_SUCCESS;
+			break;
+		}
+
+		if (time_after(jiffies, timeout)) {
+			vpu_err("timeout cmd=0x%x, pc=0x%x\n", cmd, pc);
+			ret = VPUAPI_RET_TIMEOUT;
+			break;
+		}
+		//vpu_debug(5, "%s cmd=0x%x, pc=0x%x\n", __FUNCTION__, cmd, pc);
+		udelay(0);	// delay more to give idle time to OS;
+	}
+
+	return ret;
+}
+
+static int vpuapi_wait_bus_busy(hb_vpu_dev_t *dev, u32 core,
+				u32 bus_busy_reg_addr)
+{
+	int ret;
+	u32 val;
+	int product_code;
+	unsigned long timeout = jiffies + VPU_BUSY_CHECK_TIMEOUT;
+
+	product_code = VPU_READL(VPU_PRODUCT_CODE_REGISTER);
+	ret = VPUAPI_RET_SUCCESS;
+	while (1) {
+		if (PRODUCT_CODE_W_SERIES(product_code)) {
+			val = ReadVpuFIORegister(dev, core, bus_busy_reg_addr);
+			if (val == 0x3f)
+				break;
+		} else {
+			return -1;
+		}
+
+		if (time_after(jiffies, timeout)) {
+			vpu_err("timeout \n");
+			ret = VPUAPI_RET_TIMEOUT;
+			break;
+		}
+		udelay(0);	// delay more to give idle time to OS;
+	}
+
+	return ret;
+}
+
+// PARAMETER
+/// mode 0 => wake
+/// mode 1 => sleep
+// return
+static int wave_sleep_wake(hb_vpu_dev_t *dev, u32 core, int mode)
+{
+	u32 val;
+	vpu_debug(5, "%s core=%d, mode=%d\n", __FUNCTION__, core, mode);
+	if (mode == VPU_SLEEP_MODE) {
+		if (vpuapi_wait_vpu_busy(dev, core) == VPUAPI_RET_TIMEOUT) {
+			return VPUAPI_RET_TIMEOUT;
+		}
+
+		VPU_WRITEL(W5_VPU_BUSY_STATUS, 1);
+		VPU_WRITEL(W5_COMMAND, W5_SLEEP_VPU);
+		VPU_WRITEL(W5_VPU_HOST_INT_REQ, 1);
+
+		if (vpuapi_wait_vpu_busy(dev, core) == VPUAPI_RET_TIMEOUT) {
+			return VPUAPI_RET_TIMEOUT;
+		}
+
+		if (VPU_READL(W5_RET_SUCCESS) == 0) {
+			val = VPU_READL(W5_RET_FAIL_REASON);
+			if (val == RETCODE_VPU_STILL_RUNNING) {
+				return VPUAPI_RET_STILL_RUNNING;
+			} else {
+				return VPUAPI_RET_FAILURE;
+			}
+		}
+	} else {
+		int i;
+		u32 val;
+		u32 remapSize;
+		u32 codeBase;
+		u32 codeSize;
+
+		VPU_WRITEL(W5_PO_CONF, 0);
+		for (i = W5_CMD_REG_END; i < W5_CMD_REG_END; i++) {
+#if defined(SUPPORT_SW_UART) || defined(SUPPORT_SW_UART_V2)
+			if (i == W5_SW_UART_STATUS)
+				continue;
+#endif
+
+			if (i == W5_RET_BS_EMPTY_INST || i == W5_RET_QUEUE_CMD_DONE_INST
+				|| i == W5_RET_SEQ_DONE_INSTANCE_INFO)
+				continue;
+
+			VPU_WRITEL(i, 0);
+		}
+		codeBase = dev->common_memory.phys_addr;
+		codeSize = (WAVE5_MAX_CODE_BUF_SIZE&~0xfff);
+		remapSize = (codeSize >> 12) & 0x1ff;
+
+		val = 0x80000000 | (WAVE5_UPPER_PROC_AXI_ID<<20) |
+			(W5_REMAP_CODE_INDEX << 12) | (0 << 16) | (1<<11) | remapSize;
+
+		VPU_WRITEL(W5_VPU_REMAP_CTRL,     val);
+		VPU_WRITEL(W5_VPU_REMAP_VADDR,    0x00000000);    /* DO NOT CHANGE! */
+		VPU_WRITEL(W5_VPU_REMAP_PADDR,    codeBase);
+		VPU_WRITEL(W5_ADDR_CODE_BASE,     codeBase);
+		VPU_WRITEL(W5_CODE_SIZE,          codeSize);
+		VPU_WRITEL(W5_CODE_PARAM,         (WAVE5_UPPER_PROC_AXI_ID << 4) | 0);
+		VPU_WRITEL(W5_HW_OPTION, 0);
+
+		// encoder
+		val  = (1<<INT_WAVE5_ENC_SET_PARAM);
+		val |= (1<<INT_WAVE5_ENC_PIC);
+		val |= (1<<INT_WAVE5_BSBUF_FULL);
+#ifdef SUPPORT_SOURCE_RELEASE_INTERRUPT
+		val |= (1<<INT_WAVE5_ENC_SRC_RELEASE);
+#endif
+		// decoder
+		val |= (1<<INT_WAVE5_INIT_SEQ);
+		val |= (1<<INT_WAVE5_DEC_PIC);
+		val |= (1<<INT_WAVE5_BSBUF_EMPTY);
+		VPU_WRITEL(W5_VPU_VINT_ENABLE,  val);
+
+		val = VPU_READL(W5_VPU_RET_VPU_CONFIG0);
+		if (((val>>16)&1) == 1) {
+			val = ((WAVE5_PROC_AXI_ID<<28)  |
+					(WAVE5_PRP_AXI_ID<<24)   |
+					(WAVE5_FBD_Y_AXI_ID<<20) |
+					(WAVE5_FBC_Y_AXI_ID<<16) |
+					(WAVE5_FBD_C_AXI_ID<<12) |
+					(WAVE5_FBC_C_AXI_ID<<8)  |
+					(WAVE5_PRI_AXI_ID<<4)    |
+					(WAVE5_SEC_AXI_ID<<0));
+			WriteVpuFIORegister(dev, core, W5_BACKBONE_PROG_AXI_ID, val);
+		}
+
+		VPU_WRITEL(W5_VPU_BUSY_STATUS, 1);
+		VPU_WRITEL(W5_COMMAND, W5_WAKEUP_VPU);
+		VPU_WRITEL(W5_VPU_REMAP_CORE_START, 1);
+
+		if (vpuapi_wait_vpu_busy(dev, core) == VPUAPI_RET_TIMEOUT) {
+			vpu_err("%s timeout pc=0x%x\n", __FUNCTION__,
+				VPU_READL(W5_VCPU_CUR_PC));
+			return VPUAPI_RET_TIMEOUT;
+		}
+
+		val = VPU_READL(W5_RET_SUCCESS);
+		if (val == 0) {
+			vpu_err("%s  VPUAPI_RET_FAILURE pc=0x%x \n", __FUNCTION__,
+				VPU_READL(W5_VCPU_CUR_PC));
+			return VPUAPI_RET_FAILURE;
+		}
+	}
+	vpu_debug(5, "-%s core=%d, mode=%d\n", __FUNCTION__, core, mode);
+	return VPUAPI_RET_SUCCESS;
+}
+
+static int wave_close_instance(hb_vpu_dev_t *dev, u32 core, u32 inst)
+{
+	int ret;
+	u32 error_reason = 0;
+	unsigned long timeout = jiffies + VPU_DEC_TIMEOUT;
+
+	vpu_debug(5, "[+] core=%d, inst=%d\n", core, inst);
+	if (vpu_check_is_decoder(dev, core, inst) == 1) {
+		ret = vpuapi_dec_set_stream_end(dev, core, inst);
+		ret = vpuapi_dec_clr_all_disp_flag(dev, core, inst);
+	}
+	while ((ret = vpuapi_close(dev, core, inst)) == VPUAPI_RET_STILL_RUNNING) {
+		ret = vpuapi_get_output_info(dev, core, inst, &error_reason);
+		vpu_debug(5, "core=%d, inst=%d, ret=%d, error_reason=0x%x\n",
+			core, inst,  ret, error_reason);
+		if (ret == VPUAPI_RET_SUCCESS) {
+			if ((error_reason & 0xf0000000)) {
+				if (vpu_do_sw_reset(dev, core, inst, error_reason)
+					== VPUAPI_RET_TIMEOUT) {
+					break;
+				}
+			}
+		}
+
+		if (vpu_check_is_decoder(dev, core, inst) == 1) {
+			ret = vpuapi_dec_set_stream_end(dev, core, inst);
+			ret = vpuapi_dec_clr_all_disp_flag(dev, core, inst);
+		}
+
+		mdelay(10);	// delay for vpuapi_close
+
+		if (time_after(jiffies, timeout)) {
+			vpu_err("vpuapi_close flow timeout ret=%d, inst=%d\n", ret, inst);
+			vpu_debug(5, "[-] ret=%d\n", ret);
+			return 0;
+		}
+	}
+
+	vpu_debug(5, "[-] ret=%d\n", ret);
+	return 1;
+}
+
+int vpu_check_is_decoder(hb_vpu_dev_t *dev, u32 core, u32 inst)
+{
+	u32 is_decoder;
+	unsigned char *codec_inst;
+	hb_vpu_instance_pool_t *vip = get_instance_pool_handle(dev, core);
+
+	if (vip == NULL) {
+		return 0;
+	}
+
+	codec_inst = &vip->codec_inst_pool[inst][0];
+	// indicates isDecoder in CodecInst structure in vpuapifunc.h
+	codec_inst = codec_inst + (sizeof(u32) * 7);
+	memcpy(&is_decoder, codec_inst, 4);
+
+	vpu_debug(5, "%s is_decoder=0x%x\n", __FUNCTION__, is_decoder);
+	return (is_decoder == 1)?1:0;
+}
+
+int vpu_close_instance(hb_vpu_dev_t *dev, u32 core, u32 inst)
+{
+	u32 product_code;
+	int success;
+	product_code = VPU_READL(VPU_PRODUCT_CODE_REGISTER);
+	vpu_debug(5, "[+] core=%d, inst=%d, product_code=0x%x\n",
+		core, inst, product_code);
+	if (PRODUCT_CODE_W_SERIES(product_code)) {
+		success = wave_close_instance(dev, core, inst);
+	} else {
+		vpu_err("vpu_close_instance Unknown product id : %08x\n", product_code);
+		success = 0;
+	}
+	vpu_debug(5, "[-] success=%d\n", success);
+	return success;
+}
+
+#if defined(CONFIG_PM)
+int vpu_sleep_wake(hb_vpu_dev_t *dev, u32 core, int mode)
+{
+	int inst;
+	int ret;
+	int product_code;
+	u32 error_reason = VPUAPI_RET_SUCCESS;
+	unsigned long timeout = jiffies + VPU_DEC_TIMEOUT;
+	product_code = VPU_READL(VPU_PRODUCT_CODE_REGISTER);
+	if (PRODUCT_CODE_W_SERIES(product_code)) {
+		if (mode == VPU_SLEEP_MODE) {
+			while((ret = wave_sleep_wake(dev, core, VPU_SLEEP_MODE)) ==
+				VPUAPI_RET_STILL_RUNNING) {
+				for (inst = 0; inst < MAX_NUM_VPU_INSTANCE; inst++) {
+					ret = vpuapi_get_output_info(dev, core, inst, &error_reason);
+					if (ret == VPUAPI_RET_SUCCESS) {
+						if ((error_reason & 0xf0000000)) {
+							if (vpu_do_sw_reset(dev, core, inst, error_reason)
+								== VPUAPI_RET_TIMEOUT) {
+								break;
+							}
+						}
+					}
+				}
+
+				for (inst = 0; inst < MAX_NUM_VPU_INSTANCE; inst++) {
+				}
+				mdelay(10);
+				if (time_after(jiffies, timeout)) {
+					return VPUAPI_RET_TIMEOUT;
+				}
+			}
+		} else {
+			ret = wave_sleep_wake(dev, core, VPU_WAKE_MODE);
+		}
+	} else {
+		vpu_err("vpu_sleep_wake Unknown product id : %08x\n", product_code);
+		ret = VPUAPI_RET_FAILURE;
+	}
+	return ret;
+}
+#endif
+// PARAMETER
+// reset_mode
+// 0 : safely
+// 1 : force
+int vpuapi_sw_reset(hb_vpu_dev_t *dev, u32 core, u32 inst, int reset_mode)
+{
+	u32 val = 0;
+	int product_code;
+	int ret;
+	u32 supportDualCore;
+	u32 supportBackbone;
+	u32 supportVcoreBackbone;
+	u32 supportVcpuBackbone;
+#if defined(SUPPORT_SW_UART) || defined(SUPPORT_SW_UART_V2)
+	u32 regSwUartStatus;
+#endif
+	vdi_lock(dev, VPUDRV_MUTEX_VPU);
+
+	product_code = VPU_READL(VPU_PRODUCT_CODE_REGISTER);
+	if (!PRODUCT_CODE_W_SERIES(product_code)) {
+		vpu_err("Doesn't support swreset for coda \n");
+		vdi_unlock(dev, VPUDRV_MUTEX_VPU);
+		return VPUAPI_RET_INVALID_PARAM;
+	}
+
+	VPU_WRITEL(W5_VPU_BUSY_STATUS, 0);
+
+	vpu_debug(5, "mode=%d\n", reset_mode);
+
+	if (reset_mode == 0) {
+		ret = wave_sleep_wake(dev, core, VPU_SLEEP_MODE);
+		vpu_debug(5, "Sleep done ret=%d\n", ret);
+		if (ret != VPUAPI_RET_SUCCESS) {
+			vdi_unlock(dev, VPUDRV_MUTEX_VPU);
+			return ret;
+		}
+	}
+
+	val = VPU_READL(W5_VPU_RET_VPU_CONFIG0);
+	if (((val>>16) & 0x1) == 0x01) {
+		supportBackbone = 1;
+	} else {
+		supportBackbone = 0;
+	}
+	if (((val>>22) & 0x1) == 0x01) {
+		supportVcoreBackbone = 1;
+	} else {
+		supportVcoreBackbone = 0;
+	}
+	if (((val>>28) & 0x1) == 0x01) {
+		supportVcpuBackbone = 1;
+	} else {
+		supportVcpuBackbone = 0;
+	}
+
+	val = VPU_READL(W5_VPU_RET_VPU_CONFIG1);
+	if (((val>>26) & 0x1) == 0x01) {
+		supportDualCore = 1;
+	} else {
+		supportDualCore = 0;
+	}
+
+	if (supportBackbone == 1) {
+		if (supportDualCore == 1) {
+			WriteVpuFIORegister(dev, core, W5_BACKBONE_BUS_CTRL_VCORE0, 0x7);
+			if (vpuapi_wait_bus_busy(dev, core, W5_BACKBONE_BUS_STATUS_VCORE0) !=
+				VPUAPI_RET_SUCCESS) {
+				WriteVpuFIORegister(dev, core, W5_BACKBONE_BUS_CTRL_VCORE0, 0x00);
+				vdi_unlock(dev, VPUDRV_MUTEX_VPU);
+				return VPUAPI_RET_TIMEOUT;
+			}
+
+			WriteVpuFIORegister(dev, core, W5_BACKBONE_BUS_CTRL_VCORE1, 0x7);
+			if (vpuapi_wait_bus_busy(dev, core, W5_BACKBONE_BUS_STATUS_VCORE1) !=
+				VPUAPI_RET_SUCCESS) {
+				WriteVpuFIORegister(dev, core, W5_BACKBONE_BUS_CTRL_VCORE1, 0x00);
+				vdi_unlock(dev, VPUDRV_MUTEX_VPU);
+				return VPUAPI_RET_TIMEOUT;
+			}
+		} else {
+			if (supportVcoreBackbone == 1) {
+				if (supportVcpuBackbone == 1) {
+					// Step1 : disable request
+					WriteVpuFIORegister(dev, core, W5_BACKBONE_BUS_CTRL_VCPU, 0xFF);
+
+					// Step2 : Waiting for completion of bus transaction
+					if (vpuapi_wait_bus_busy(dev, core, W5_BACKBONE_BUS_STATUS_VCPU)
+						!= VPUAPI_RET_SUCCESS) {
+						WriteVpuFIORegister(dev, core, W5_BACKBONE_BUS_CTRL_VCPU, 0x00);
+						vdi_unlock(dev, VPUDRV_MUTEX_VPU);
+						return VPUAPI_RET_TIMEOUT;
+					}
+				}
+				// Step1 : disable request
+				WriteVpuFIORegister(dev, core, W5_BACKBONE_BUS_CTRL_VCORE0, 0x7);
+
+				// Step2 : Waiting for completion of bus transaction
+				if (vpuapi_wait_bus_busy(dev, core, W5_BACKBONE_BUS_STATUS_VCORE0)
+					!= VPUAPI_RET_SUCCESS) {
+					WriteVpuFIORegister(dev, core, W5_BACKBONE_BUS_CTRL_VCORE0, 0x00);
+					vdi_unlock(dev, VPUDRV_MUTEX_VPU);
+					return VPUAPI_RET_TIMEOUT;
+				}
+			} else {
+				// Step1 : disable request
+				WriteVpuFIORegister(dev, core, W5_COMBINED_BACKBONE_BUS_CTRL, 0x7);
+
+				// Step2 : Waiting for completion of bus transaction
+				if (vpuapi_wait_bus_busy(dev, core, W5_COMBINED_BACKBONE_BUS_STATUS)
+					!= VPUAPI_RET_SUCCESS) {
+					WriteVpuFIORegister(dev, core, W5_COMBINED_BACKBONE_BUS_CTRL, 0x00);
+					vdi_unlock(dev, VPUDRV_MUTEX_VPU);
+					return VPUAPI_RET_TIMEOUT;
+				}
+			}
+		}
+	} else {
+		// Step1 : disable request
+		WriteVpuFIORegister(dev, core, W5_GDI_BUS_CTRL, 0x100);
+
+		// Step2 : Waiting for completion of bus transaction
+		if (vpuapi_wait_bus_busy(dev, core, W5_GDI_BUS_STATUS) != VPUAPI_RET_SUCCESS) {
+			WriteVpuFIORegister(dev, core, W5_GDI_BUS_CTRL, 0x00);
+			vdi_unlock(dev, VPUDRV_MUTEX_VPU);
+			return VPUAPI_RET_TIMEOUT;
+		}
+	}
+
+#if defined(SUPPORT_SW_UART) || defined(SUPPORT_SW_UART_V2)
+	regSwUartStatus = VPU_READL(W5_SW_UART_STATUS);
+#endif
+	val = W5_RST_BLOCK_ALL;
+	VPU_WRITEL(W5_VPU_RESET_REQ, val);
+
+	if (vpuapi_wait_reset_busy(dev, core) != VPUAPI_RET_SUCCESS) {
+		VPU_WRITEL(W5_VPU_RESET_REQ, 0);
+		vdi_unlock(dev, VPUDRV_MUTEX_VPU);
+		return VPUAPI_RET_TIMEOUT;
+	}
+
+	VPU_WRITEL(W5_VPU_RESET_REQ, 0);
+#if defined(SUPPORT_SW_UART) || defined(SUPPORT_SW_UART_V2)
+	VPU_WRITEL(W5_SW_UART_STATUS, regSwUartStatus); // enable SW UART.
+#endif
+
+	vpu_debug(5, "VPU_RESET done RESET_REQ=0x%x\n", val);
+
+	// Step3 : must clear GDI_BUS_CTRL after done SW_RESET
+	if (supportBackbone == 1) {
+		if (supportDualCore == 1) {
+			WriteVpuFIORegister(dev, core, W5_BACKBONE_BUS_CTRL_VCORE0, 0x00);
+			WriteVpuFIORegister(dev, core, W5_BACKBONE_BUS_CTRL_VCORE1, 0x00);
+		} else {
+			if (supportVcoreBackbone == 1) {
+				if (supportVcpuBackbone == 1) {
+					WriteVpuFIORegister(dev, core, W5_BACKBONE_BUS_CTRL_VCPU, 0x00);
+				}
+				WriteVpuFIORegister(dev, core, W5_BACKBONE_BUS_CTRL_VCORE0, 0x00);
+			} else {
+				WriteVpuFIORegister(dev, core, W5_COMBINED_BACKBONE_BUS_CTRL, 0x00);
+			}
+		}
+	} else {
+		WriteVpuFIORegister(dev, core, W5_GDI_BUS_CTRL, 0x00);
+	}
+
+
+	ret = wave_sleep_wake(dev, core, VPU_WAKE_MODE);
+
+	vpu_debug(5, "Wake done ret = %d\n", ret);
+	vdi_unlock(dev, VPUDRV_MUTEX_VPU);
+
+	return ret;
+}
+
+static int wave_issue_command(hb_vpu_dev_t *dev, u32 core, u32 inst,
+				u32 cmd)
+{
+	int ret;
+	u32 codec_mode;
+	unsigned char *codec_inst;
+	hb_vpu_instance_pool_t *vip = get_instance_pool_handle(dev, core);
+
+	if (vip == NULL) {
+		return VPUAPI_RET_INVALID_PARAM;
+	}
+
+	codec_inst = &vip->codec_inst_pool[inst][0];
+	// indicates codecMode in CodecInst structure in vpuapifunc.h
+	codec_inst = codec_inst + (sizeof(u32) * 3);
+	memcpy(&codec_mode, codec_inst, 4);
+
+	VPU_WRITEL(W5_CMD_INSTANCE_INFO, (codec_mode << 16)|(inst&0xffff));
+	VPU_WRITEL(W5_VPU_BUSY_STATUS, 1);
+	VPU_WRITEL(W5_COMMAND, cmd);
+
+	VPU_WRITEL(W5_VPU_HOST_INT_REQ, 1);
+
+	ret = vpuapi_wait_vpu_busy(dev, core);
+
+	return ret;
+}
+
+static int wave_send_query_command(hb_vpu_dev_t *dev,
+			unsigned long core, unsigned long inst, u32 queryOpt)
+{
+	int ret;
+	VPU_WRITEL(W5_QUERY_OPTION, queryOpt);
+	VPU_WRITEL(W5_VPU_BUSY_STATUS, 1);
+	ret = wave_issue_command(dev, core, inst, W5_QUERY);
+	if (ret != VPUAPI_RET_SUCCESS) {
+		vpu_err("fail1 ret=%d\n", ret);
+		return ret;
+	}
+
+	if (VPU_READL(W5_RET_SUCCESS) == 0) {
+		vpu_err("success=%d\n", VPU_READL(W5_RET_SUCCESS));
+		return VPUAPI_RET_FAILURE;
+	}
+
+	return VPUAPI_RET_SUCCESS;
+}
+
+int vpuapi_get_output_info(hb_vpu_dev_t *dev, u32 core,
+		u32 inst, u32 *error_reason)
+{
+	int ret = VPUAPI_RET_SUCCESS;
+	u32 val;
+
+	vdi_lock(dev, VPUDRV_MUTEX_VPU);
+	VPU_WRITEL(W5_CMD_DEC_ADDR_REPORT_BASE, 0);
+	VPU_WRITEL(W5_CMD_DEC_REPORT_SIZE,      0);
+	VPU_WRITEL(W5_CMD_DEC_REPORT_PARAM,     0);
+
+	ret = wave_send_query_command(dev, core, inst, GET_RESULT);
+	if (ret != VPUAPI_RET_SUCCESS) {
+		vdi_unlock(dev, VPUDRV_MUTEX_VPU);
+		return ret;
+	}
+
+	vpu_debug(5, "[+] success=%d, fail_reason=0x%x, error_reason=0x%x\n",
+		VPU_READL(W5_RET_DEC_DECODING_SUCCESS),
+		VPU_READL(W5_RET_FAIL_REASON),
+		VPU_READL(W5_RET_DEC_ERR_INFO));
+	val = VPU_READL(W5_RET_DEC_DECODING_SUCCESS);
+	if ((val & 0x01) == 0) {
+#ifdef SUPPORT_SW_UART
+		*error_reason = 0;
+#else
+		*error_reason = VPU_READL(W5_RET_DEC_ERR_INFO);
+#endif
+	} else {
+		*error_reason = 0x00;
+	}
+
+	if (ret != VPUAPI_RET_SUCCESS) {
+		vpu_debug(5, "[-] ret=%d\n", ret);
+	}
+	vdi_unlock(dev, VPUDRV_MUTEX_VPU);
+	return ret;
+}
+
+int vpuapi_dec_clr_all_disp_flag(hb_vpu_dev_t *dev, u32 core, u32 inst)
+{
+	int ret = VPUAPI_RET_SUCCESS;
+	u32 val;
+
+	vdi_lock(dev, VPUDRV_MUTEX_VPU);
+
+	VPU_WRITEL(W5_CMD_DEC_CLR_DISP_IDC, 0xffffffff);
+	VPU_WRITEL(W5_CMD_DEC_SET_DISP_IDC, 0);
+	ret = wave_send_query_command(dev, core, inst, UPDATE_DISP_FLAG);
+	if (ret != VPUAPI_RET_SUCCESS) {
+		vpu_err("ret=%d\n", ret);
+		vdi_unlock(dev, VPUDRV_MUTEX_VPU);
+		return ret;
+	}
+
+	val = VPU_READL(W5_RET_SUCCESS);
+	if (val == 0) {
+		ret = VPUAPI_RET_FAILURE;
+	}
+
+	if (ret != VPUAPI_RET_SUCCESS) {
+		vpu_err("ret=%d\n", ret);
+	}
+	vdi_unlock(dev, VPUDRV_MUTEX_VPU);
+	return ret;
+}
+
+int vpuapi_dec_set_stream_end(hb_vpu_dev_t *dev, u32 core, u32 inst)
+{
+	int ret = VPUAPI_RET_SUCCESS;
+	u32 val;
+	int product_code;
+
+	vdi_lock(dev, VPUDRV_MUTEX_VPU);
+
+	product_code = VPU_READL(VPU_PRODUCT_CODE_REGISTER);
+	if (PRODUCT_CODE_W_SERIES(product_code)) {
+		VPU_WRITEL(W5_BS_OPTION, (1/*STREAM END*/<<1) | (1/*explictEnd*/));
+		// keep not to be changed
+		// WriteVpuRegister(core, W5_BS_WR_PTR, pDecInfo->streamWrPtr);
+
+		ret = wave_issue_command(dev, core, inst, W5_UPDATE_BS);
+		if (ret != VPUAPI_RET_SUCCESS) {
+			vpu_err("ret=%d\n", ret);
+			vdi_unlock(dev, VPUDRV_MUTEX_VPU);
+			return ret;
+		}
+
+		val = VPU_READL(W5_RET_SUCCESS);
+		if (val == 0) {
+			ret = VPUAPI_RET_FAILURE;
+			vpu_err("ret=%d\n", ret);
+			vdi_unlock(dev, VPUDRV_MUTEX_VPU);
+			return ret;
+		}
+	} else {
+		ret = VPUAPI_RET_FAILURE;
+	}
+
+	if (ret != VPUAPI_RET_SUCCESS) {
+		vpu_err("ret=%d\n", ret);
+	}
+	vdi_unlock(dev, VPUDRV_MUTEX_VPU);
+	return ret;
+}
+
+int vpuapi_close(hb_vpu_dev_t *dev, u32 core, u32 inst)
+{
+	int ret = VPUAPI_RET_SUCCESS;
+	u32 val;
+	int product_code;
+
+
+	vdi_lock(dev, VPUDRV_MUTEX_VPU);
+	product_code = VPU_READL(VPU_PRODUCT_CODE_REGISTER);
+	vpu_debug(5, "[+] core=%d, inst=%d, product_code=0x%x\n", core, inst,
+		product_code);
+
+	if (PRODUCT_CODE_W_SERIES(product_code)) {
+		ret = wave_issue_command(dev, core, inst, W5_DESTROY_INSTANCE);
+		if (ret != VPUAPI_RET_SUCCESS) {
+			vpu_err("ret=%d\n", ret);
+			vdi_unlock(dev, VPUDRV_MUTEX_VPU);
+			return ret;
+		}
+
+		val = VPU_READL(W5_RET_SUCCESS);
+		if (val == 0) {
+			val = VPU_READL(W5_RET_FAIL_REASON);
+			if (val == WAVE5_SYSERR_VPU_STILL_RUNNING) {
+				ret = VPUAPI_RET_STILL_RUNNING;
+			} else {
+				ret = VPUAPI_RET_FAILURE;
+			}
+		} else {
+			ret = VPUAPI_RET_SUCCESS;
+		}
+	} else {
+			ret = VPUAPI_RET_FAILURE;
+	}
+
+	if (ret != VPUAPI_RET_SUCCESS) {
+		vpu_err("ret=%d\n", ret);
+	}
+	vpu_debug(5, "[-] ret=%d\n", ret);
+	vdi_unlock(dev, VPUDRV_MUTEX_VPU);
+	return ret;
+}
+
+int vpu_do_sw_reset(hb_vpu_dev_t *dev, u32 core, u32 inst, u32 error_reason)
+{
+	int ret;
+	hb_vpu_instance_pool_t *vip = get_instance_pool_handle(dev, core);
+	int doSwResetInstIdx;
+
+	vpu_debug(5, "[+] core=%d, inst=%d, error_reason=0x%x\n",
+		core, inst, error_reason);
+	if (vip == NULL)
+		return VPUAPI_RET_FAILURE;
+
+	vdi_lock(dev, VPUDRV_MUTEX_RESET);
+	ret = VPUAPI_RET_SUCCESS;
+	doSwResetInstIdx = vip->doSwResetInstIdxPlus1 - 1;
+	if (doSwResetInstIdx == inst || (error_reason & 0xf0000000)) {
+		ret = vpuapi_sw_reset(dev, core, inst, 0);
+		if (ret == VPUAPI_RET_STILL_RUNNING) {
+			vpu_debug(5, "VPU is still running\n");
+			vip->doSwResetInstIdxPlus1 = (inst + 1);
+		} else if (ret == VPUAPI_RET_SUCCESS) {
+			vpu_debug(5, "success\n");
+			vip->doSwResetInstIdxPlus1 = 0;
+		} else {
+			vpu_err("Fail result=0x%x\n", ret);
+			vip->doSwResetInstIdxPlus1 = 0;
+		}
+	}
+	vdi_unlock(dev, VPUDRV_MUTEX_RESET);
+	vpu_debug(5, "[-] vip->doSwResetInstIdx=%d, ret=%d\n",
+		vip->doSwResetInstIdxPlus1, ret);
+	mdelay(10);
+	return ret;
+}
+#endif
+
 static int vpu_alloc_dma_buffer(hb_vpu_dev_t *dev, hb_vpu_drv_buffer_t * vb)
 {
 	if (!vb || !dev)
@@ -101,12 +979,15 @@ static int vpu_free_instances(struct file *filp)
 	hb_vpu_instance_pool_t *vip;
 	void *vip_base;
 	int instance_pool_size_per_core;
+#ifdef USE_MUTEX_IN_KERNEL_SPACE
+#else
 	void *vdi_mutexes_base;
 	const int PTHREAD_MUTEX_T_DESTROY_VALUE = 0xdead10cc;
+	int core;
+	unsigned long timeout = jiffies + HZ;
+#endif
 	hb_vpu_dev_t *dev;
 	hb_vpu_priv_t *priv;
-	unsigned long timeout = jiffies + HZ;
-	int core;
 
 	vpu_debug_enter();
 	if (!filp) {
@@ -133,6 +1014,8 @@ static int vpu_free_instances(struct file *filp)
 				  "coreIdx=%d, vip_base=%p, instance_pool_size_per_core=%d\n",
 				  (int)vil->inst_idx, (int)vil->core_idx,
 				  vip_base, (int)instance_pool_size_per_core);
+#ifdef USE_VPU_CLOSE_INSTANCE_ONCE_ABNORMAL_RELEASE
+#else
 			core = vil->core_idx;
 			VPU_WRITEL(W5_CMD_INSTANCE_INFO,
 				(-1 << 16)|(vil->inst_idx&MAX_VPU_INSTANCE_IDX));
@@ -173,13 +1056,15 @@ static int vpu_free_instances(struct file *filp)
 						W5_DESTROY_INSTANCE, VPU_READL(W5_RET_FAIL_REASON));
 				}
 			}
-
+#endif
 			vip = (hb_vpu_instance_pool_t *) vip_base;
 			if (vip) {
 				/* only first 4 byte is key point(inUse of CodecInst in vpuapi)
 				   to free the corresponding instance. */
 				memset(&vip->codec_inst_pool[vil->inst_idx],
 				       0x00, 4);
+#ifdef USE_MUTEX_IN_KERNEL_SPACE
+#else
 #define PTHREAD_MUTEX_T_HANDLE_SIZE 4
 				vdi_mutexes_base =
 				    (vip_base +
@@ -199,6 +1084,10 @@ static int vpu_free_instances(struct file *filp)
 						    PTHREAD_MUTEX_T_HANDLE_SIZE;
 					}
 				}
+#endif
+#ifdef USE_VPU_CLOSE_INSTANCE_ONCE_ABNORMAL_RELEASE
+				vpu_close_instance(dev, (u32)vil->core_idx, (u32)vil->inst_idx);
+#endif
 			}
 			dev->vpu_open_ref_count--;
 			list_del(&vil->list);
@@ -302,19 +1191,6 @@ static s32 vpu_get_inst_idx(hb_vpu_dev_t * dev, u32 * reason,
 		vpu_debug(7, "W5_RET_QUEUE_CMD_DONE_INST DEC_PIC reg_val=0x%x,"
 			  "inst_idx=%d\n", reg_val, inst_idx);
 
-		if (int_reason & (1 << INT_WAVE5_ENC_LOW_LATENCY)) {
-			u32 ll_inst_idx;
-			reg_val = (done_inst >> 16);
-			ll_inst_idx = vpu_filter_inst_idx(reg_val);
-			if (ll_inst_idx == inst_idx)
-				*reason =
-				    ((1 << INT_WAVE5_DEC_PIC) |
-				     (1 << INT_WAVE5_ENC_LOW_LATENCY));
-			vpu_debug(7,
-				  "W5_RET_QUEUE_CMD_DONE_INST DEC_PIC and"
-				  "ENC_LOW_LATENCY reg_val=0x%x, inst_idx=%d, ll_inst_idx=%d\n",
-				  reg_val, inst_idx, ll_inst_idx);
-		}
 		goto GET_VPU_INST_IDX_HANDLED;
 	}
 
@@ -338,15 +1214,6 @@ static s32 vpu_get_inst_idx(hb_vpu_dev_t * dev, u32 * reason,
 		goto GET_VPU_INST_IDX_HANDLED;
 	}
 #endif
-
-	if (int_reason & (1 << INT_WAVE5_ENC_LOW_LATENCY)) {
-		reg_val = (done_inst >> 16);
-		inst_idx = vpu_filter_inst_idx(reg_val);
-		*reason = (1 << INT_WAVE5_ENC_LOW_LATENCY);
-		vpu_debug(7, "W5_RET_QUEUE_CMD_DONE_INST ENC_LOW_LATENCY"
-			  "reg_val=0x%x, inst_idx=%d\n", reg_val, inst_idx);
-		goto GET_VPU_INST_IDX_HANDLED;
-	}
 
 	inst_idx = -1;
 	*reason = 0;
@@ -460,34 +1327,11 @@ static irqreturn_t vpu_irq_handler(int irq, void *dev_id)
 								  done_inst,
 								  intr_inst_index);
 						}
-						if ((intr_reason ==
-						     (1 << INT_WAVE5_ENC_LOW_LATENCY)))
-						{
-							done_inst = (done_inst >> 16);
-							done_inst =
-							    done_inst & ~(1 <<
-									  intr_inst_index);
-							done_inst = (done_inst << 16);
-							VPU_WRITEL
-							    (W5_RET_QUEUE_CMD_DONE_INST,
-							     done_inst);
-							if (0 == done_inst) {
-								reason &= ~(1 << INT_WAVE5_ENC_LOW_LATENCY);
-							}
-							vpu_debug(7,
-								  "W5_RET_QUEUE_CMD_DONE_INST "
-								  "INT_WAVE5_ENC_LOW_LATENCY Clear "
-								  "done_inst=0x%x, intr_inst_index=%d\n",
-								  done_inst,
-								  intr_inst_index);
-						}
 						if (!kfifo_is_full
 						    (&dev->interrupt_pending_q
 						     [intr_inst_index])) {
 							if (intr_reason ==
-							    ((1 << INT_WAVE5_ENC_PIC) |
-							     (1 <<
-							      INT_WAVE5_ENC_LOW_LATENCY))) {
+							    (1 << INT_WAVE5_ENC_PIC)) {
 								u32 ll_intr_reason =
 								    (1 <<
 								     INT_WAVE5_ENC_PIC);
@@ -555,7 +1399,7 @@ static irqreturn_t vpu_irq_handler(int irq, void *dev_id)
 		vpu_debug(7, "product: 0x%08x intr_reason: 0x%08x\n\n",
 			  product_code, intr_reason);
 #else
-		vpu_debug(7, "product: 0x%08x intr_reason: 0x%08lx\n",
+		vpu_debug(7, "product: 0x%08x intr_reason: 0x%08x\n",
 			  product_code, dev->interrupt_reason);
 #endif
 	}
@@ -902,7 +1746,27 @@ INTERRUPT_REMAIN_IN_QUEUE:
 			}
 		}
 		break;
+#ifdef USE_MUTEX_IN_KERNEL_SPACE
+		case VDI_IOCTL_VDI_LOCK: {
+			unsigned int mutex_type;
+			ret = copy_from_user(&mutex_type, (unsigned int *)arg,
+					sizeof(unsigned int));
+			if (ret != 0)
+				return -EFAULT;
 
+			ret = vdi_lock_user(dev, mutex_type);
+		}
+		break;
+		case VDI_IOCTL_VDI_UNLOCK: {
+			unsigned int mutex_type;
+			ret = copy_from_user(&mutex_type, (unsigned int *)arg,
+					sizeof(unsigned int));
+			if (ret != 0)
+				return -EFAULT;
+			vdi_unlock(dev, mutex_type);
+		}
+		break;
+#endif
 	case VDI_IOCTL_SET_CLOCK_GATE:
 		{
 			u32 clkgate;
@@ -941,13 +1805,8 @@ INTERRUPT_REMAIN_IN_QUEUE:
 							   (hb_vpu_drv_buffer_t));
 					if (ret == 0) {
 #ifdef USE_VMALLOC_FOR_INSTANCE_POOL_MEMORY
-						dev->instance_pool.size =
-						    PAGE_ALIGN
-						    (dev->instance_pool.size);
-						dev->instance_pool.base =
-						    (unsigned long)
-						    vmalloc
-						    (dev->instance_pool.size);
+						dev->instance_pool.base = (unsigned long)vmalloc(
+							PAGE_ALIGN(dev->instance_pool.size));
 						dev->instance_pool.phys_addr =
 						    dev->instance_pool.base;
 
@@ -963,7 +1822,7 @@ INTERRUPT_REMAIN_IN_QUEUE:
 							memset((void *)
 							       dev->instance_pool.base,
 							       0x0,
-							       dev->instance_pool.size);
+							       PAGE_ALIGN(dev->instance_pool.size));
 							ret =
 							    copy_to_user((void
 									  __user
@@ -1325,7 +2184,7 @@ INTERRUPT_REMAIN_IN_QUEUE:
 		break;
 		case VDI_IOCTL_SET_CTX_INFO: {
 				hb_vpu_ctx_info_t info;
-				vpu_debug(5, "[+]VDI_IOCTL_SET_CTX_INFO\n");
+				//vpu_debug(5, "[+]VDI_IOCTL_SET_CTX_INFO\n");
 				ret = copy_from_user(&info, (hb_vpu_ctx_info_t *) arg,
 							 sizeof(hb_vpu_ctx_info_t));
 				if (ret != 0) {
@@ -1342,7 +2201,7 @@ INTERRUPT_REMAIN_IN_QUEUE:
 				spin_lock(&dev->vpu_info_spinlock);
 				dev->vpu_ctx[inst_index] = info;
 				spin_unlock(&dev->vpu_info_spinlock);
-				vpu_debug(5, "[-]VDI_IOCTL_SET_CTX_INFO\n");
+				//vpu_debug(5, "[-]VDI_IOCTL_SET_CTX_INFO\n");
 				break;
 			}
 		case VDI_IOCTL_SET_STATUS_INFO: {
@@ -1482,6 +2341,17 @@ static int vpu_release(struct inode *inode, struct file *filp)
 
 		vpu_free_buffers(filp);
 
+#ifdef USE_MUTEX_IN_KERNEL_SPACE
+		for (j = 0; j < VPUDRV_MUTEX_MAX; j++) {
+			if (dev->current_vdi_lock_pid[j] == current->tgid) {
+				vpu_debug(5, "MUTEX_TYPE: %d, VDI_LOCK_PID: %d, current->pid: %d, "
+					"current->tgid=%d\n", j, dev->current_vdi_lock_pid[j],
+					current->pid, current->tgid);
+				vdi_unlock(dev, j);
+			}
+		}
+#endif
+
 		/* found and free the not closed instance by user applications */
 		vpu_free_instances(filp);
 		dev->open_count--;
@@ -1507,6 +2377,16 @@ static int vpu_release(struct inode *inode, struct file *filp)
 
 			for (j = 0; j < MAX_NUM_VPU_INSTANCE; j++)
 				test_and_clear_bit(j, vpu_inst_bitmap);	// TODO should clear bit during every close
+#ifdef USE_VPU_CLOSE_INSTANCE_ONCE_ABNORMAL_RELEASE
+			for (j = 0; j < VPUDRV_MUTEX_MAX; j++) {
+				if (dev->current_vdi_lock_pid[j] != 0) {
+					vpu_debug(5, "RELEASE MUTEX_TYPE: %d, VDI_LOCK_PID: %d, "
+						"current->pid: %d\n", j, dev->current_vdi_lock_pid[j],
+						current->pid);
+					vdi_unlock(dev, i);
+				}
+			}
+#endif
 		}
 	}
 	kfree(priv);
@@ -3033,6 +3913,16 @@ static int vpu_probe(struct platform_device *pdev)
 		goto ERR_ALLOC_FIFO;
 	}
 
+#ifdef USE_MUTEX_IN_KERNEL_SPACE
+	for (i=0; i < VPUDRV_MUTEX_MAX; i++) {
+		dev->current_vdi_lock_pid[i] = 0;
+	}
+	sema_init(&dev->vpu_vdi_sem, 1);
+	sema_init(&dev->vpu_vdi_disp_sem, 1);
+	sema_init(&dev->vpu_vdi_reset_sem, 1);
+	sema_init(&dev->vpu_vdi_vmem_sem, 1);
+#endif
+
 	dev->debug_root = debugfs_create_dir("vpu", NULL);
 	if (!dev->debug_root) {
 		pr_err("hai: failed to create debugfs root directory.\n");
@@ -3160,11 +4050,15 @@ static int vpu_remove(struct platform_device *pdev)
 #if CONFIG_PM_SLEEP
 static int vpu_suspend(struct platform_device *pdev, pm_message_t state)
 {
-	int i;
 	int core;
+#ifdef USE_VPU_CLOSE_INSTANCE_ONCE_ABNORMAL_RELEASE
+	int ret;
+#else
+	int i;
 	/* vpu wait timeout to 1sec */
 	unsigned long timeout = jiffies + HZ;
 	int product_code;
+#endif
 	hb_vpu_dev_t *dev;
 
 	vpu_debug_enter();
@@ -3175,6 +4069,12 @@ static int vpu_suspend(struct platform_device *pdev, pm_message_t state)
 		for (core = 0; core < MAX_NUM_VPU_CORE; core++) {
 			if (dev->bit_fm_info[core].size == 0)
 				continue;
+#ifdef USE_VPU_CLOSE_INSTANCE_ONCE_ABNORMAL_RELEASE
+			ret = vpu_sleep_wake(dev, core, VPU_SLEEP_MODE);
+			if (ret != VPUAPI_RET_SUCCESS) {
+				goto DONE_SUSPEND;
+			}
+#else
 			product_code = VPU_READL(VPU_PRODUCT_CODE_REGISTER);
 			if (PRODUCT_CODE_W_SERIES(product_code)) {
 				while (VPU_READL(W5_VPU_BUSY_STATUS)) {
@@ -3218,6 +4118,7 @@ static int vpu_suspend(struct platform_device *pdev, pm_message_t state)
 					  product_code);
 				goto DONE_SUSPEND;
 			}
+#endif
 		}
 	}
 
@@ -3233,8 +4134,13 @@ DONE_SUSPEND:
 
 static int vpu_resume(struct platform_device *pdev)
 {
-	int i;
 	int core;
+#ifdef USE_VPU_CLOSE_INSTANCE_ONCE_ABNORMAL_RELEASE
+	int ret;
+#endif
+#ifdef USE_VPU_CLOSE_INSTANCE_ONCE_ABNORMAL_RELEASE
+#else
+	int i;
 	u32 val;
 	unsigned long timeout = jiffies + HZ;	/* vpu wait timeout to 1sec */
 	int product_code;
@@ -3244,6 +4150,7 @@ static int vpu_resume(struct platform_device *pdev)
 	u32 remap_size;
 	int regVal;
 	u32 hwOption = 0;
+#endif
 	hb_vpu_dev_t *dev;
 
 	vpu_debug_enter();
@@ -3254,7 +4161,12 @@ static int vpu_resume(struct platform_device *pdev)
 		if (dev->bit_fm_info[core].size == 0) {
 			continue;
 		}
-
+#ifdef USE_VPU_CLOSE_INSTANCE_ONCE_ABNORMAL_RELEASE
+		ret = vpu_sleep_wake(dev, core, VPU_WAKE_MODE);
+		if (ret != VPUAPI_RET_SUCCESS) {
+			goto DONE_WAKEUP;
+		}
+#else
 		product_code = VPU_READL(VPU_PRODUCT_CODE_REGISTER);
 		if (PRODUCT_CODE_W_SERIES(product_code)) {
 			code_base = dev->common_memory.phys_addr;
@@ -3290,7 +4202,7 @@ static int vpu_resume(struct platform_device *pdev)
 			VPU_WRITEL(W5_ADDR_CODE_BASE, code_base);
 			VPU_WRITEL(W5_CODE_SIZE, code_size);
 			VPU_WRITEL(W5_CODE_PARAM, 0);
-			VPU_WRITEL(W5_INIT_VPU_TIME_OUT_CNT, timeout);
+			//VPU_WRITEL(W5_INIT_VPU_TIME_OUT_CNT, timeout);
 
 			VPU_WRITEL(W5_HW_OPTION, hwOption);
 
@@ -3356,6 +4268,7 @@ static int vpu_resume(struct platform_device *pdev)
 				product_code);
 			goto DONE_WAKEUP;
 		}
+#endif
 	}
 
 	if (dev->vpu_open_ref_count == 0)

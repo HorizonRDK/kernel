@@ -63,8 +63,15 @@ typedef struct _hb_vpu_instance_list {
 } hb_vpu_instance_list_t;
 
 typedef struct _hb_vpu_instance_pool {
-	unsigned char
-	 codec_inst_pool[MAX_NUM_VPU_INSTANCE][MAX_INST_HANDLE_SIZE];
+	unsigned char codec_inst_pool[MAX_NUM_VPU_INSTANCE][MAX_INST_HANDLE_SIZE];
+//#ifdef USE_VPU_CLOSE_INSTANCE_ONCE_ABNORMAL_RELEASE
+	hb_vpu_drv_buffer_t vpu_common_buffer;
+	int vpu_instance_num;
+	int instance_pool_inited;
+	void* pendingInst;
+	int pendingInstIdxPlus1;
+	int doSwResetInstIdxPlus1;
+//#endif
 } hb_vpu_instance_pool_t;
 
 typedef struct _hb_vpu_dev {
@@ -129,6 +136,14 @@ typedef struct _hb_vpu_dev {
 	struct dentry *debug_file_venc;
 	struct dentry *debug_file_vdec;
 
+#ifdef USE_MUTEX_IN_KERNEL_SPACE
+	/* PID aquiring the vdi lock */
+	pid_t current_vdi_lock_pid[VPUDRV_MUTEX_MAX];
+	struct semaphore vpu_vdi_sem;
+	struct semaphore vpu_vdi_disp_sem;
+	struct semaphore vpu_vdi_reset_sem;
+	struct semaphore vpu_vdi_vmem_sem;
+#endif
 	struct pm_qos_request vpu_pm_qos_req;
 } hb_vpu_dev_t;
 
@@ -136,5 +151,28 @@ typedef struct _hb_vpu_priv {
 	hb_vpu_dev_t *vpu_dev;
 	u32 inst_index;
 } hb_vpu_priv_t;
+
+#ifdef USE_VPU_CLOSE_INSTANCE_ONCE_ABNORMAL_RELEASE
+#define VPU_WAKE_MODE 0
+#define VPU_SLEEP_MODE 1
+typedef enum {
+	VPUAPI_RET_SUCCESS,
+	VPUAPI_RET_FAILURE, // an error reported by FW
+	VPUAPI_RET_TIMEOUT,
+	VPUAPI_RET_STILL_RUNNING,
+	VPUAPI_RET_INVALID_PARAM,
+	VPUAPI_RET_MAX
+} VpuApiRet;
+int vpuapi_close(hb_vpu_dev_t *dev, u32 core, u32 inst);
+int vpuapi_dec_set_stream_end(hb_vpu_dev_t *dev, u32 core, u32 inst);
+int vpuapi_dec_clr_all_disp_flag(hb_vpu_dev_t *dev, u32 core, u32 inst);
+int vpuapi_get_output_info(hb_vpu_dev_t *dev, u32 core, u32 inst, u32 *error_reason);
+#if defined(CONFIG_PM)
+int vpu_sleep_wake(hb_vpu_dev_t *dev, u32 core, int mode);
+#endif
+int vpu_do_sw_reset(hb_vpu_dev_t *dev, u32 core, u32 inst, u32 error_reason);
+int vpu_close_instance(hb_vpu_dev_t *dev, u32 core, u32 inst);
+int vpu_check_is_decoder(hb_vpu_dev_t *dev, u32 core, u32 inst);
+#endif
 
 #endif /* __HOBOT_VPU_UTILS_H__ */

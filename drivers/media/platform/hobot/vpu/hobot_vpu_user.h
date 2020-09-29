@@ -13,6 +13,14 @@
 
 #define VPU_DEV_NAME "vpu"
 
+typedef enum hb_vpu_mutex {
+	VPUDRV_MUTEX_VPU,
+	VPUDRV_MUTEX_DISP_FALG,
+	VPUDRV_MUTEX_RESET,
+	VPUDRV_MUTEX_VMEM,
+	VPUDRV_MUTEX_MAX
+} hb_vpu_mutex_t;
+
 typedef struct _hb_vpu_drv_firmware {
 	/* size of this structure */
 	unsigned int size;
@@ -85,39 +93,44 @@ typedef struct _hb_vpu_drv_intr {
 
 #define VDI_IOCTL_MAGIC						'V'
 #define VDI_IOCTL_ALLOCATE_PHYSICAL_MEMORY			\
-	_IOWR(VDI_IOCTL_MAGIC, 0, hb_vpu_drv_buffer_t)
+	_IO(VDI_IOCTL_MAGIC, 0)
 #define VDI_IOCTL_FREE_PHYSICALMEMORY				\
-	_IOWR(VDI_IOCTL_MAGIC, 1, hb_vpu_drv_buffer_t)
+	_IO(VDI_IOCTL_MAGIC, 1)
 #define VDI_IOCTL_WAIT_INTERRUPT				\
-	_IOWR(VDI_IOCTL_MAGIC, 2, hb_vpu_drv_intr_t)
+	_IO(VDI_IOCTL_MAGIC, 2)
 #define VDI_IOCTL_SET_CLOCK_GATE				\
-	_IOW(VDI_IOCTL_MAGIC, 3, unsigned int)
+	_IO(VDI_IOCTL_MAGIC, 3)
 #define VDI_IOCTL_RESET						\
 	_IO(VDI_IOCTL_MAGIC, 4)
 #define VDI_IOCTL_GET_INSTANCE_POOL				\
-	_IOWR(VDI_IOCTL_MAGIC, 5, hb_vpu_drv_buffer_t)
+	_IO(VDI_IOCTL_MAGIC, 5)
 #define VDI_IOCTL_GET_COMMON_MEMORY				\
-	_IOWR(VDI_IOCTL_MAGIC, 6, hb_vpu_drv_buffer_t)
+	_IO(VDI_IOCTL_MAGIC, 6)
 #define VDI_IOCTL_GET_RESERVED_VIDEO_MEMORY_INFO		\
-	_IOWR(VDI_IOCTL_MAGIC, 8, hb_vpu_drv_buffer_t)
+	_IO(VDI_IOCTL_MAGIC, 8)
 #define VDI_IOCTL_OPEN_INSTANCE					\
-	_IOWR(VDI_IOCTL_MAGIC, 9, hb_vpu_drv_inst_t)
+	_IO(VDI_IOCTL_MAGIC, 9)
 #define VDI_IOCTL_CLOSE_INSTANCE				\
-	_IOWR(VDI_IOCTL_MAGIC, 10, hb_vpu_drv_inst_t)
+	_IO(VDI_IOCTL_MAGIC, 10)
 #define VDI_IOCTL_GET_INSTANCE_NUM				\
-	_IOWR(VDI_IOCTL_MAGIC, 11, hb_vpu_drv_inst_t)
+	_IO(VDI_IOCTL_MAGIC, 11)
 #define VDI_IOCTL_GET_REGISTER_INFO				\
-	_IOWR(VDI_IOCTL_MAGIC, 12, hb_vpu_drv_buffer_t)
+	_IO(VDI_IOCTL_MAGIC, 12)
 #define VDI_IOCTL_GET_FREE_MEM_SIZE				\
-	_IOWR(VDI_IOCTL_MAGIC, 13, int)
+	_IO(VDI_IOCTL_MAGIC, 13)
 #define VDI_IOCTL_ALLOCATE_INSTANCE_ID				\
-	_IOR(VDI_IOCTL_MAGIC, 14, int)
+	_IO(VDI_IOCTL_MAGIC, 14)
 #define VDI_IOCTL_FREE_INSTANCE_ID				\
-	_IOW(VDI_IOCTL_MAGIC, 15, int)
+	_IO(VDI_IOCTL_MAGIC, 15)
 #define VDI_IOCTL_POLL_WAIT_INSTANCE				\
-	_IOW(VDI_IOCTL_MAGIC, 16, hb_vpu_drv_intr_t)
+	_IO(VDI_IOCTL_MAGIC, 16)
 #define VDI_IOCTL_SET_CTX_INFO				\
-	_IOW(VDI_IOCTL_MAGIC, 17, hb_vpu_ctx_info_t)
+	_IO(VDI_IOCTL_MAGIC, 17)
 #define VDI_IOCTL_SET_STATUS_INFO				\
-	_IOW(VDI_IOCTL_MAGIC, 18, hb_vpu_status_info_t)
+	_IO(VDI_IOCTL_MAGIC, 18)
+#define VDI_IOCTL_VDI_LOCK	\
+	_IO(VDI_IOCTL_MAGIC, 23)
+#define VDI_IOCTL_VDI_UNLOCK	\
+	_IO(VDI_IOCTL_MAGIC, 24)
+
 #endif /* HOBOT_VPU_USER_H_ */

@@ -13,6 +13,9 @@
 /* if the driver want to use interrupt service from kernel ISR */
 #define VPU_SUPPORT_ISR
 
+#define USE_MUTEX_IN_KERNEL_SPACE
+#define USE_VPU_CLOSE_INSTANCE_ONCE_ABNORMAL_RELEASE
+
 #ifdef VPU_SUPPORT_ISR
 /* if the driver want to disable and enable IRQ whenever interrupt asserted. */
 #define VPU_IRQ_CONTROL
