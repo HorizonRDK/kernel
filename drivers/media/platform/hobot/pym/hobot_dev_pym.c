@@ -1869,18 +1869,25 @@ void pym_frame_done(struct pym_subdev *subdev)
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
-	spin_lock(&subdev->slock);
-	vio_dbg("pym done subdev ctx mask:%lu", subdev->val_ctx_mask);
-	for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
-		if (test_bit(i, &subdev->val_ctx_mask)) {
-			pym_ctx = subdev->ctx[i];
-			if (pym_ctx) {
-				pym_ctx->event = event;
-				wake_up(&pym_ctx->done_wq);
+	/*
+	 *pym us framedrop isr and done isr will be appear at the same frame
+	 *pym_frame_ndone will called after framedrop
+	 *check process frame to skip wakeup twice
+	 */
+	if (frame) {
+		spin_lock(&subdev->slock);
+		vio_dbg("pym done subdev ctx mask:%lu", subdev->val_ctx_mask);
+		for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
+			if (test_bit(i, &subdev->val_ctx_mask)) {
+				pym_ctx = subdev->ctx[i];
+				if (pym_ctx) {
+					pym_ctx->event = event;
+					wake_up(&pym_ctx->done_wq);
+				}
 			}
 		}
+		spin_unlock(&subdev->slock);
 	}
-	spin_unlock(&subdev->slock);
 }
 
 void pym_frame_ndone(struct pym_subdev *subdev)
