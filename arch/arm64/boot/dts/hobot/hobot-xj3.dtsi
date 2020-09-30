@@ -1212,7 +1212,7 @@
 		dmc0_clk: dmc_clk@channel0 {
 			#clock-cells = <0>;
 			compatible = "hobot,hobot-dmc-clk";
-			method = "smc";
+			method = "test";
 			channel-id = <0>;
 		};
 
