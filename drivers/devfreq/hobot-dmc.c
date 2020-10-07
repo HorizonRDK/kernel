@@ -195,6 +195,9 @@ static ssize_t method_store(struct device *dev, struct device_attribute *attr,
 static DEVICE_ATTR_RW(method);
 
 
+extern void devfreq_simple_ondemand_func_set_data(
+		struct devfreq_simple_ondemand_data *data);
+
 static int hobot_dmcfreq_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -259,6 +262,7 @@ static int hobot_dmcfreq_probe(struct platform_device *pdev)
 	hobot_devfreq_dmc_profile.initial_freq = ctx->rate;
 
 	platform_set_drvdata(pdev, ctx);
+	devfreq_simple_ondemand_func_set_data(&ctx->ondemand_data);
 	ctx->devfreq = devm_devfreq_add_device(dev,
 					   &hobot_devfreq_dmc_profile,
 					   "simple_ondemand",
