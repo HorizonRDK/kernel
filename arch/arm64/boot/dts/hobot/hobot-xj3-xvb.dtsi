@@ -38,9 +38,6 @@
 		spi1	= &spi1;
 		spi2	= &spi2;
 		usb	= &usb;
-		pwm0	= &pwmchip0;
-		pwm1	= &pwmchip1;
-		pwm2	= &pwmchip2;
 		bifspi	= &bifspi;
 		bifsd   = &bifsd;
 		mmc1	= &sdio0;
@@ -266,11 +263,11 @@
 	status = "okay";
 };
 
-&pwmchip0 {
+&pwm_c0 {
 	status = "okay";
 };
 
-&pwmchip1 {
+&pwm_c1 {
 	status = "okay";
 };
 

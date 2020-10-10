@@ -727,7 +727,7 @@
 			status = "disabled";
 		};
 
-		pwmchip0: pwm@0xA500D000 {
+		pwm_c0: pwm@0xA500D000 {
 			compatible = "hobot,hobot-pwm";
 			reg = <0 0xA500D000 0 0x1000>;
 			interrupt-parent = <&gic>;
@@ -741,7 +741,7 @@
 			status = "disabled";
 		};
 
-		pwmchip1: pwm@0xA500E000 {
+		pwm_c1: pwm@0xA500E000 {
 			compatible = "hobot,hobot-pwm";
 			reg = <0 0xA500E000 0 0x1000>;
 			interrupt-parent = <&gic>;
@@ -755,7 +755,7 @@
 			status = "disabled";
 		};
 
-		pwmchip2: pwm@0xA500F000 {
+		pwm_c2: pwm@0xA500F000 {
 			compatible = "hobot,hobot-pwm";
 			reg = <0 0xA500F000 0 0x1000>;
 			interrupt-parent = <&gic>;
