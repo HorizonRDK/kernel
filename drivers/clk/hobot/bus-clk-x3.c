@@ -87,7 +87,7 @@ struct hobot_bus {
 
 static BLOCKING_NOTIFIER_HEAD(hb_bus_notifier_list);
 static BLOCKING_NOTIFIER_HEAD(hb_usb_notifier_list);
-static ATOMIC_NOTIFIER_HEAD(hb_console_notifier_list);
+static ATOMIC_NOTIFIER_HEAD(hb_atomic_notifier_list);
 
 int hb_bus_register_client(struct notifier_block *nb)
 {
@@ -125,23 +125,23 @@ int hb_usb_notifier_call_chain(unsigned long val, void *v)
 }
 EXPORT_SYMBOL_GPL(hb_usb_notifier_call_chain);
 
-int hb_console_register_client(struct notifier_block *nb)
+int hb_atomic_register_client(struct notifier_block *nb)
 {
-	return atomic_notifier_chain_register(&hb_console_notifier_list, nb);
+	return atomic_notifier_chain_register(&hb_atomic_notifier_list, nb);
 }
-EXPORT_SYMBOL(hb_console_register_client);
+EXPORT_SYMBOL(hb_atomic_register_client);
 
-int hb_console_unregister_client(struct notifier_block *nb)
+int hb_atomic_unregister_client(struct notifier_block *nb)
 {
-	return atomic_notifier_chain_unregister(&hb_console_notifier_list, nb);
+	return atomic_notifier_chain_unregister(&hb_atomic_notifier_list, nb);
 }
-EXPORT_SYMBOL(hb_console_unregister_client);
+EXPORT_SYMBOL(hb_atomic_unregister_client);
 
-int hb_console_notifier_call_chain(unsigned long val, void *v)
+int hb_atomic_notifier_call_chain(unsigned long val, void *v)
 {
-	return atomic_notifier_call_chain(&hb_console_notifier_list, val, v);
+	return atomic_notifier_call_chain(&hb_atomic_notifier_list, val, v);
 }
-EXPORT_SYMBOL_GPL(hb_console_notifier_call_chain);
+EXPORT_SYMBOL_GPL(hb_atomic_notifier_call_chain);
 
 void switch_peri_pll(void __iomem *base, ulong pll_val)
 {
@@ -374,21 +374,20 @@ static int cpu_governor_callback(struct notifier_block *nb,
 				pr_debug("policy->governor: %s notify\n", policy->governor->name);
 				hb_usb_notifier_call_chain(POWERSAVE_STATE, NULL);
 				hb_bus_notifier_call_chain(HB_BUS_SIGNAL_START, (void*)&bus->old_state);
-				hb_console_notifier_call_chain(HB_BUS_SIGNAL_START, NULL);
-
+				hb_atomic_notifier_call_chain(HB_BUS_SIGNAL_START, NULL);
 				bus_change_state(bus, POWERSAVE_STATE);
 
-				hb_console_notifier_call_chain(HB_BUS_SIGNAL_END, NULL);
+				hb_atomic_notifier_call_chain(HB_BUS_SIGNAL_END, NULL);
 				hb_bus_notifier_call_chain(HB_BUS_SIGNAL_END, (void*)&bus->old_state);
 			} else if (strcmp(policy->governor->name, "powersave")
 					&& (bus->state == POWERSAVE_STATE)){
 				pr_debug("policy->governor: %s notify\n", policy->governor->name);
 				hb_bus_notifier_call_chain(HB_BUS_SIGNAL_START, (void*)&bus->old_state);
-				hb_console_notifier_call_chain(HB_BUS_SIGNAL_START, NULL);
+				hb_atomic_notifier_call_chain(HB_BUS_SIGNAL_START, NULL);
 
 				bus_change_state(bus, OTHER_STATE);
 
-				hb_console_notifier_call_chain(HB_BUS_SIGNAL_END, NULL);
+				hb_atomic_notifier_call_chain(HB_BUS_SIGNAL_END, NULL);
 				hb_bus_notifier_call_chain(HB_BUS_SIGNAL_END, (void*)&bus->old_state);
 				hb_usb_notifier_call_chain(OTHER_STATE, NULL);
 			}

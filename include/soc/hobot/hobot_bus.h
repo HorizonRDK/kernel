@@ -27,6 +27,6 @@ int hb_bus_unregister_client(struct notifier_block *nb);
 int hb_usb_register_client(struct notifier_block *nb);
 int hb_usb_unregister_client(struct notifier_block *nb);
 
-int hb_console_register_client(struct notifier_block *nb);
-int hb_console_unregister_client(struct notifier_block *nb);
+int hb_atomic_register_client(struct notifier_block *nb);
+int hb_atomic_unregister_client(struct notifier_block *nb);
 #endif

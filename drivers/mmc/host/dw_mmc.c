@@ -3389,7 +3389,7 @@ int dw_mci_probe(struct dw_mci *host)
 	INIT_LIST_HEAD(&host->queue);
 #if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
 	host->dw_hb_notif.notifier_call = &mmc_notifier_callback;
-	ret = hb_console_register_client(&(host->dw_hb_notif));
+	ret = hb_atomic_register_client(&(host->dw_hb_notif));
 
 	if (ret)
 		dev_err(host->dev, "Unable to register fb_notifier: %d\n",
@@ -3553,7 +3553,7 @@ void dw_mci_remove(struct dw_mci *host)
 	clk_disable_unprepare(host->ciu_clk);
 
 #if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
-	if (hb_bus_unregister_client(&(host->dw_hb_notif)))
+	if (hb_atomic_unregister_client(&(host->dw_hb_notif)))
 		dev_err(host->dev, "Error occurred while unregistering fb_notifier.\n");
 #endif
 }
