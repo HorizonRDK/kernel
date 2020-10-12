@@ -59,9 +59,15 @@ static int vdi_lock_base(hb_vpu_dev_t *dev, unsigned int type,
 			int fromUserspace)
 {
 	int ret;
-	// DPRINTK("[VPUDRV]+%s type=%d, pid=%d, tgid=%d, signal_pending_state=%d \n",
-	//__FUNCTION__, type, current->pid, current->tgid,
-	//signal_pending_state(TASK_INTERRUPTIBLE, current));
+	if (type >= VPUDRV_MUTEX_VPU && type < VPUDRV_MUTEX_MAX) {
+		vpu_debug(7, "+ type=%d, semcnt %d LOCK pid %d, pid=%d, tgid=%d, "
+			"fromuser %d.\n",
+			type, type == VPUDRV_MUTEX_VPU ?
+			dev->vpu_vdi_sem.count : dev->vpu_vdi_vmem_sem.count,
+			dev->current_vdi_lock_pid[type], current->pid,
+			current->tgid, fromUserspace);
+	}
+
 	if (type == VPUDRV_MUTEX_VPU) {
 		ret = down_interruptible(&dev->vpu_vdi_sem);
 		if (fromUserspace == 0) {
@@ -99,8 +105,13 @@ static int vdi_lock_base(hb_vpu_dev_t *dev, unsigned int type,
 	} else {
 		vpu_err("down_interruptible error ret=%d\n", ret);
 	}
+	vpu_debug(7, "- type=%d, semcnt %d LOCK pid %d, pid=%d, tgid=%d, "
+		"fromuser %d.\n",
+		type, type == VPUDRV_MUTEX_VPU ?
+		dev->vpu_vdi_sem.count : dev->vpu_vdi_vmem_sem.count,
+		dev->current_vdi_lock_pid[type], current->pid,
+		current->tgid, fromUserspace);
 
-	// DPRINTK("[VPUDRV]+%s ret=%d \n", __FUNCTION__, ret);
 	return ret;
 }
 
@@ -116,13 +127,16 @@ static int vdi_lock(hb_vpu_dev_t *dev, unsigned int type)
 
 static void vdi_unlock(hb_vpu_dev_t *dev, unsigned int type)
 {
-	// DPRINTK("[VPUDRV]+%s, type=%d\n", __FUNCTION__, type);
 	if (type >= VPUDRV_MUTEX_VPU && type < VPUDRV_MUTEX_MAX) {
 		dev->current_vdi_lock_pid[type] = 0;
 	} else {
 		vpu_err("unknown MUTEX_TYPE type=%d\n", type);
 		return;
 	}
+	vpu_debug(7, "+ type=%d, semcnt %d LOCK pid %d pid=%d, tgid=%d\n",
+		type, type == VPUDRV_MUTEX_VPU ?
+		dev->vpu_vdi_sem.count : dev->vpu_vdi_vmem_sem.count,
+		dev->current_vdi_lock_pid[type], current->pid, current->tgid);
 	if (type == VPUDRV_MUTEX_VPU) {
 		up(&dev->vpu_vdi_sem);
 	} else if (type == VPUDRV_MUTEX_DISP_FALG) {
@@ -132,7 +146,19 @@ static void vdi_unlock(hb_vpu_dev_t *dev, unsigned int type)
 	} else if (type == VPUDRV_MUTEX_VMEM) {
 		up(&dev->vpu_vdi_vmem_sem);
 	}
-	// DPRINTK("[VPUDRV]-%s\n", __FUNCTION__);
+	vpu_debug(7, "- type=%d, semcnt %d LOCK pid %d pid=%d, tgid=%d\n",
+		type, type == VPUDRV_MUTEX_VPU ?
+		dev->vpu_vdi_sem.count : dev->vpu_vdi_vmem_sem.count,
+		dev->current_vdi_lock_pid[type], current->pid, current->tgid);
+}
+#else
+static int vdi_lock(hb_vpu_dev_t *dev, unsigned int type)
+{
+	return 0;
+}
+
+static void vdi_unlock(hb_vpu_dev_t *dev, unsigned int type)
+{
 }
 #endif
 
@@ -256,7 +282,7 @@ static int vpuapi_wait_vpu_busy(hb_vpu_dev_t *dev, u32 core)
 			ret = VPUAPI_RET_TIMEOUT;
 			break;
 		}
-		//vpu_debug(5, "%s cmd=0x%x, pc=0x%x\n", __FUNCTION__, cmd, pc);
+		vpu_err("%s cmd=0x%x, pc=0x%x\n", __FUNCTION__, cmd, pc);
 		udelay(0);	// delay more to give idle time to OS;
 	}
 
@@ -488,6 +514,8 @@ int vpu_sleep_wake(hb_vpu_dev_t *dev, u32 core, int mode)
 	int inst;
 	int ret;
 	int product_code;
+	u32 intr_reason_in_q;
+	u32 interrupt_flag_in_q = 0;
 	u32 error_reason = VPUAPI_RET_SUCCESS;
 	unsigned long timeout = jiffies + VPU_DEC_TIMEOUT;
 	product_code = VPU_READL(VPU_PRODUCT_CODE_REGISTER);
@@ -496,17 +524,23 @@ int vpu_sleep_wake(hb_vpu_dev_t *dev, u32 core, int mode)
 			while((ret = wave_sleep_wake(dev, core, VPU_SLEEP_MODE)) ==
 				VPUAPI_RET_STILL_RUNNING) {
 				for (inst = 0; inst < MAX_NUM_VPU_INSTANCE; inst++) {
-					ret = vpuapi_get_output_info(dev, core, inst, &error_reason);
-					if (ret == VPUAPI_RET_SUCCESS) {
-						if ((error_reason & 0xf0000000)) {
-							if (vpu_do_sw_reset(dev, core, inst, error_reason)
-								== VPUAPI_RET_TIMEOUT) {
-								break;
+					intr_reason_in_q = 0;
+#ifdef SUPPORT_MULTI_INST_INTR
+					interrupt_flag_in_q = kfifo_out_spinlocked(&dev->interrupt_pending_q[inst],
+						&intr_reason_in_q, sizeof(u32), &dev->vpu_kfifo_lock);
+#endif
+					if (interrupt_flag_in_q > 0) {
+						ret = vpuapi_get_output_info(dev, core, inst, &error_reason);
+						if (ret == VPUAPI_RET_SUCCESS) {
+							if ((error_reason & 0xf0000000)) {
+								if (vpu_do_sw_reset(dev, core, inst, error_reason)
+									== VPUAPI_RET_TIMEOUT) {
+									break;
+								}
 							}
 						}
 					}
 				}
-
 				for (inst = 0; inst < MAX_NUM_VPU_INSTANCE; inst++) {
 				}
 				mdelay(10);
@@ -980,9 +1014,13 @@ static int vpu_free_instances(struct file *filp)
 	void *vip_base;
 	int instance_pool_size_per_core;
 #ifdef USE_MUTEX_IN_KERNEL_SPACE
+	int j = 0;
 #else
 	void *vdi_mutexes_base;
 	const int PTHREAD_MUTEX_T_DESTROY_VALUE = 0xdead10cc;
+#endif
+#ifdef USE_VPU_CLOSE_INSTANCE_ONCE_ABNORMAL_RELEASE
+#else
 	int core;
 	unsigned long timeout = jiffies + HZ;
 #endif
@@ -1064,6 +1102,14 @@ static int vpu_free_instances(struct file *filp)
 				memset(&vip->codec_inst_pool[vil->inst_idx],
 				       0x00, 4);
 #ifdef USE_MUTEX_IN_KERNEL_SPACE
+		for (j = 0; j < VPUDRV_MUTEX_MAX; j++) {
+			if (dev->current_vdi_lock_pid[j] == current->tgid) {
+				vpu_debug(5, "MUTEX_TYPE: %d, VDI_LOCK_PID: %d, current->pid: %d, "
+					"current->tgid=%d\n", j, dev->current_vdi_lock_pid[j],
+					current->pid, current->tgid);
+				vdi_unlock(dev, j);
+			}
+		}
 #else
 #define PTHREAD_MUTEX_T_HANDLE_SIZE 4
 				vdi_mutexes_base =
@@ -2161,7 +2207,9 @@ INTERRUPT_REMAIN_IN_QUEUE:
 			if (intr_inst_index >= 0 &&
 				intr_inst_index < MAX_NUM_VPU_INSTANCE) {
 				if (info.intr_reason == 0) {
+					spin_lock(&dev->poll_spinlock);
 					priv->inst_index = intr_inst_index;
+					spin_unlock(&dev->poll_spinlock);
 				} else if (info.intr_reason == VPU_ENC_PIC_DONE ||
 					info.intr_reason == VPU_DEC_PIC_DONE ||
 					info.intr_reason == VPU_INST_CLOSED) {
@@ -2341,6 +2389,7 @@ static int vpu_release(struct inode *inode, struct file *filp)
 
 		vpu_free_buffers(filp);
 
+#if 0
 #ifdef USE_MUTEX_IN_KERNEL_SPACE
 		for (j = 0; j < VPUDRV_MUTEX_MAX; j++) {
 			if (dev->current_vdi_lock_pid[j] == current->tgid) {
@@ -2350,6 +2399,7 @@ static int vpu_release(struct inode *inode, struct file *filp)
 				vdi_unlock(dev, j);
 			}
 		}
+#endif
 #endif
 
 		/* found and free the not closed instance by user applications */
@@ -2378,6 +2428,7 @@ static int vpu_release(struct inode *inode, struct file *filp)
 			for (j = 0; j < MAX_NUM_VPU_INSTANCE; j++)
 				test_and_clear_bit(j, vpu_inst_bitmap);	// TODO should clear bit during every close
 #ifdef USE_VPU_CLOSE_INSTANCE_ONCE_ABNORMAL_RELEASE
+#ifdef USE_MUTEX_IN_KERNEL_SPACE
 			for (j = 0; j < VPUDRV_MUTEX_MAX; j++) {
 				if (dev->current_vdi_lock_pid[j] != 0) {
 					vpu_debug(5, "RELEASE MUTEX_TYPE: %d, VDI_LOCK_PID: %d, "
@@ -2386,6 +2437,7 @@ static int vpu_release(struct inode *inode, struct file *filp)
 					vdi_unlock(dev, i);
 				}
 			}
+#endif
 #endif
 		}
 	}

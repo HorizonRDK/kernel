@@ -794,7 +794,9 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 		inst_no = info.inst_idx;
 		if (inst_no >= 0 && inst_no < MAX_NUM_JPU_INSTANCE) {
 			if (info.intr_reason == 0) {
+				spin_lock(&dev->poll_spinlock);
 				priv->inst_index = inst_no;
+				spin_unlock(&dev->poll_spinlock);
 			} else if (info.intr_reason == JPU_PIC_DONE ||
 				info.intr_reason == JPU_INST_CLOSED) {
 				spin_lock(&dev->poll_spinlock);

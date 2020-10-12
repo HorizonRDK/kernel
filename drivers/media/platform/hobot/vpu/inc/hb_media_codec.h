@@ -6993,6 +6993,38 @@ typedef struct _mc_inter_status {
 	hb_s32 channel_port_id;
 } mc_inter_status_t;
 
+typedef struct _mc_user_status {
+/**
+ * Current user output buffer count.
+ *
+ * - Note:
+ * - Encoding: Support.
+ * - Decoding: Support.
+ * - Default:
+ */
+	hb_u32 cur_user_output_buf_cnt;
+
+/**
+ * Current output buffer size.
+ *
+ * - Note:
+ * - Encoding: Support.
+ * - Decoding: Support.
+ * - Default:
+ */
+	hb_u64 cur_user_output_buf_size;
+
+/**
+ * Total processed buffer count.
+ *
+ * - Note:
+ * - Encoding: Support.
+ * - Decoding: Support.
+ * - Default:
+ */
+	hb_u32 total_user_output_buf_cnt;
+} mc_user_status_t;
+
 /**
 * Define the parameters of 3DNR encoding.
 **/
@@ -8161,6 +8193,19 @@ extern hb_s32 hb_mm_mc_register_audio_decoder(hb_s32 *handle,
 * @return 0 on success, negative HB_MEDIA_ERROR in case of failure
 */
 extern hb_s32 hb_mm_mc_unregister_audio_decoder(hb_s32 handle);
+
+/**
+* Set the user status. Warning: It's an internal API. Don't use this API.
+*
+* @param[in]       codec context
+* @param[in]       user status @see mc_user_status_t
+*
+* @return >=0 on success, negative HB_MEDIA_ERROR in case of failure
+* @see media_codec_context_t
+* @see mc_user_status_t
+*/
+extern hb_s32 hb_mm_mc_set_status(media_codec_context_t *context,
+				mc_user_status_t *status);
 
 #ifdef __cplusplus
 }
