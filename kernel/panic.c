@@ -141,7 +141,10 @@ void panic(const char *fmt, ...)
 	int old_cpu, this_cpu;
 	bool _crash_kexec_post_notifiers = crash_kexec_post_notifiers;
 
+#ifdef CONFIG_HOBOT_BIFSPI_DEV
 	bifspi_write_share_reg(SYS_STATUS_REG, STAGE_PANIC);
+#endif
+
 	/*
 	 * Disable local interrupts. This will prevent panic_smp_self_stop
 	 * from deadlocking the first cpu that invokes the panic, since

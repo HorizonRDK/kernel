@@ -7,7 +7,7 @@ menuconfig HOBOT_SOC_DRIVERS
 
 config HOBOT_SOCINFO
         tristate "Enable hobot socinfo driver "
-        default y
+        default n
         help
           Say yes to enable hobot socinfo driver In doubt, say N
 
@@ -21,7 +21,7 @@ config HOBOT_CNN_HOST
 
 config HOBOT_CNN_MM
         bool "hobot CNN Memory Heap Drivers"
-        default y
+        default n
         help
           Add hobot cnn memory heap management driver
 
@@ -29,28 +29,28 @@ source "drivers/soc/hobot/bpu/Kconfig"
 
 config HOBOT_DIAG
         bool "hobot diag driver, based on netlink"
-        default y
+        default n
         help
           Kernel modules(drivers) can send diag msgs to userspace
           by calling the API of the diag module(driver)
 
 config HOBOT_MCU_IRQ
         tristate "Time sync driver with MCU by 2 GPIO"
-        default y
+        default n
         help
           Get mcu state&send irq and return timestamp
 
 
 menuconfig HOBOT_BIF_CP
         bool "Enable Horizon CP side BIF driver"
-        default y
+        default n
         help
           Enable when BIF driver built in CP side
 
 if HOBOT_BIF_CP
 config HOBOT_BIFSPI_DEV
         bool "Bif SPI device driver support"
-        default y
+        default n
 	help
 	    Say Y here if you want to support read/write bif share register
 
@@ -65,7 +65,7 @@ config HOBOT_BIFSD_DEV
 
 config HOBOT_BIF_BASE
         tristate "Enable HOBOT BIF Base Drivers"
-        default y
+        default n
         help
           Horizon Robotics chip support BIFSPI and BIFSD interface, this driver provide basic API
           to other driver like virtual ethernet and virtual serial port
@@ -74,48 +74,48 @@ config HOBOT_BIF_BASE
 config HOBOT_BIF_ETHERNET
         tristate "Enable HOBOT BIF Ethernet Drivers"
 	depends on HOBOT_BIF_BASE
-        default y
+        default n
         help
           Say yes to enable bif virtual ethernet driver In doubt, say N
 
 config HOBOT_BIF_SIO
         tristate "Enable HOBOT BIF SIO Drivers"
 	depends on HOBOT_BIF_BASE
-        default y
+        default n
         help
           Say yes to enable bif virtual sieral port driver
 
 config HOBOT_BIF_LITE_CORE
         tristate "Enable HOBOT BIF Lite Drivers"
 	depends on HOBOT_BIF_BASE
-        default y
+        default n
         help
           Say yes to enable bif_lite_core driver
 
 config HOBOT_BIF_LITE_SPI
         tristate "Enable HOBOT BIF Lite SPI Drivers"
 	depends on HOBOT_BIF_LITE_CORE
-        default y
+        default n
         help
           Say yes to enable bif_lite_spi driver
 
 config HOBOT_BIF_LITE_SD
         tristate "Enable HOBOT BIF Lite SD Drivers"
 	depends on HOBOT_BIF_LITE_CORE
-        default y
+        default n
         help
           Say yes to enable bif_lite_sd driver
 
 config HOBOT_BIF_LITE_ETH
         tristate "Enable HOBOT BIF Lite ETH Drivers"
 	depends on HOBOT_BIF_LITE_CORE && HOBOT_BIF_ETHERNET
-        default y
+        default n
         help
           Say yes to enable bif_lite_eth driver
 
 config HOBOT_HBIPC_ETH
         tristate "Enable HBIPC Ethernet Drivers"
-        default y
+        default n
         help
           Say yes to enable bif_lite_sd driver
 
@@ -141,7 +141,7 @@ config HOBOT_IAR
 
 config HOBOT_VCAM
         tristate "Enable HOBOT VCAM Drivers"
-        default y
+        default n
         help
           Say yes to enable vcam driver
 
@@ -174,13 +174,13 @@ menuconfig HOBOT_BIF_AP
 if HOBOT_BIF_AP
 config HOBOT_BIFSD
         tristate "Enable HOBOT BIF SD Drivers"
-        default y
+        default n
         help
           Say yes to enable bifsd AP side driver
 
 config HOBOT_BIFSPI
         tristate "Enable HOBOT BIF SPI Drivers"
-        default y
+        default n
         help
           Say yes to enable bifspi AP side driver
 
