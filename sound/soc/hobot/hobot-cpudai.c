@@ -155,6 +155,8 @@ static void hobot_i2s_sample_rate_set(struct snd_pcm_substream *substream,
 	u32 reg_val = 0;
 	u16 mclk_period;
 	int mclk;
+	unsigned long flags;
+	spin_lock_irqsave(&i2s->lock, flags);
 
 	/* first get div_ws_l and div_ws_h, the value is equal */
 	/* bclk = Fws*(chan*word_len) = Fws*(div_ws_l+1 + div_ws_h+1) */
@@ -167,11 +169,12 @@ static void hobot_i2s_sample_rate_set(struct snd_pcm_substream *substream,
 			ws_h = 0;
 			ws_l = i2s->slot_width - 2;
 			i2s->clk = i2s->samplerate * i2s->slot_width;
+			spin_unlock_irqrestore(&i2s->lock, flags);
 			ret = change_clk(i2s->dev, "i2s-bclk",
 				i2s->clk);
 			if (ret < 0)
 				pr_err("change i2s bclk failed\n");
-
+			spin_lock_irqsave(&i2s->lock, flags);
 			writel(ws_l | (ws_h << 8), i2s->regaddr_rx +
 				I2S_DIV_WS);
 		}
@@ -185,6 +188,7 @@ static void hobot_i2s_sample_rate_set(struct snd_pcm_substream *substream,
 				lrck_div = 64;
 			i2s->clk = i2s->samplerate * lrck_div;
 			ws_l = ws_h = (lrck_div / 2) - 1;
+			spin_unlock_irqrestore(&i2s->lock, flags);
 
 			clk_disable(i2s->bclk);
 			clk_disable(i2s->mclk);
@@ -213,7 +217,8 @@ static void hobot_i2s_sample_rate_set(struct snd_pcm_substream *substream,
 				}
 			}
 			clk_enable(i2s->mclk);
-                        clk_enable(i2s->bclk);
+			clk_enable(i2s->bclk);
+			spin_lock_irqsave(&i2s->lock, flags);
 			i2s->div_ws = ws_l | (ws_h << 8);
 			writel(i2s->div_ws, i2s->regaddr_tx + I2S_DIV_WS);
 
@@ -234,7 +239,7 @@ static void hobot_i2s_sample_rate_set(struct snd_pcm_substream *substream,
 				i2s->regaddr_tx + I2S_DIV_WS);
 		}
 	}
-
+	spin_unlock_irqrestore(&i2s->lock, flags);
 }
 
 
@@ -357,8 +362,8 @@ static int i2s_hw_params(struct snd_pcm_substream *substream,
 	}
 	dev_dbg(i2s->dev, "x2 config wordlength is %d\n", i2s->wordlength);
 
-	hobot_i2s_sample_rate_set(substream, i2s);
 	spin_unlock_irqrestore(&i2s->lock, flags);
+	hobot_i2s_sample_rate_set(substream, i2s);
 	return 0;
 }
 
@@ -389,8 +394,6 @@ static int i2s_startup(struct snd_pcm_substream *substream,
 
 	if (i2s->ms == 1) {
                 clk_enable(i2s->bclk);
-                ret = change_clk(i2s->dev, "i2s-bclk",
-                                i2s->bclk_set);
         } else if (i2s->ms == 4) {
                 clk_disable(i2s->bclk);
         }
