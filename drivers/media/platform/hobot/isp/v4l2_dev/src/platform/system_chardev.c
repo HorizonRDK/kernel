@@ -49,6 +49,7 @@
 #define ISPIOC_PUT_CTX _IOWR('P', 5, isp_ctx_r_t)
 #define ISPIOC_FILL_CTX _IOWR('P', 6, isp_ctx_w_t)
 #define ISPIOC_REG_MEM_RW _IOWR('P', 7, struct regs_mem_t)
+#define ISPIOC_IRQ_WAIT _IOWR('P', 8, isp_irq_wait_s)
 
 #define CHECK_CODE	0xeeff
 
@@ -87,6 +88,12 @@ typedef struct _isp_packet_s {
         uint32_t buf[5];
         void *pdata;
 } isp_packet_s;
+
+typedef struct _isp_irq_wait_s {
+	uint8_t ctx_id;
+	uint8_t irq_type;
+	uint64_t time_out;
+} isp_irq_wait_s;
 
 #define BUF_LENGTH  1024
 
@@ -229,6 +236,8 @@ static int isp_fops_release( struct inode *inode, struct file *f )
 		ptr->isp_ctxsv_on = 0;
 		ptr->isp_awb_stats_on = 0;
 		ptr->isp_ae_stats_on = 0;
+		ptr->isp_af_stats_on = 0;
+		ptr->isp_ae_5bin_stats_on = 0;
 	}
 
     p_ctx->dev_opened--;
@@ -446,6 +455,7 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 	case ISPIOC_PUT_CTX:
 	case ISPIOC_FILL_CTX:
 	case ISPIOC_REG_MEM_RW:
+	case ISPIOC_IRQ_WAIT:
 		break;
 	default:
 		pr_err("command %d not support.\n", cmd);
@@ -646,6 +656,10 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 			p_ctx->isp_ae_stats_on = 1;
 		else if (ctx.type == ISP_AWB)
 			p_ctx->isp_awb_stats_on = 1;
+		else if (ctx.type == ISP_AF)
+			p_ctx->isp_af_stats_on = 1;
+		else if (ctx.type == ISP_AE_5BIN)
+			p_ctx->isp_ae_5bin_stats_on = 1;
 
 		cn = isp_ctx_get_node(ctx.ctx_id, ctx.type, DONEQ);
 		if (cn && copy_to_user((void __user *)arg, (void *)&cn->ctx, sizeof(ctx)))
@@ -753,7 +767,16 @@ buf_free:
 		vfree(buf);
 	}
 	break;
-
+	case ISPIOC_IRQ_WAIT: {
+		isp_irq_wait_s isp_wait_info;
+		if (copy_from_user((void *)&isp_wait_info, (void __user *)arg,
+			sizeof(isp_irq_wait_s))) {
+			LOG(LOG_ERR, "copy is err !\n");
+			ret = -EINVAL;
+		}
+		ret = isp_irq_wait_for_completion(isp_wait_info.ctx_id, isp_wait_info.irq_type, isp_wait_info.time_out);
+	}
+	break;
 	default:
 		LOG(LOG_ERR, "command %d not support.\n", cmd);
 		break;

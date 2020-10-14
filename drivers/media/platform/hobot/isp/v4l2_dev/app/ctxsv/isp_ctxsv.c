@@ -5,6 +5,7 @@
 #include <linux/list.h>
 #include <linux/spinlock.h>
 #include <linux/moduleparam.h>
+#include <linux/completion.h>
 #include "isp_ctxsv.h"
 
 /*
@@ -34,13 +35,36 @@ one single context memory layout
     |  ....  |  |            |
     |--------|  |            |
     |  buf5  |<--            |
+    |--------|               |
+    |  buf0  |---            |
+    |--------|  |            |
+    |  buf1  |  |            |
+    |--------|af area        |
+    |  ....  |  |            |
+    |--------|  |            |
+    |  buf5  |<--            |
+    |--------|               |
+    |  buf0  |---            |
+    |--------|  |            |
+    |  buf1  |  |            |
+    |--------|ae_5bin area   |
+    |  ....  |  |            |
+    |--------|  |            |
+    |  buf5  |<--            |
     |--------|<---------------
 
-cfg, ae, awb each have two queues: FREEQ, DONEQ
+cfg, ae, awb, af, ae_5bin each have two queues: FREEQ, DONEQ
 */
+enum interrupt_type {
+	ISP_FS_INT = 0,
+	ISP_FE_INT,
+	MAX_INT_TYPE,
+};
+
 static spinlock_t lock;
 static isp_ctx_node_t ctx_node[FIRMWARE_CONTEXT_NUMBER][TYPE_MAX][PER_ZONE_NODES];
 static struct list_head ctx_queue[FIRMWARE_CONTEXT_NUMBER][TYPE_MAX][Q_MAX];
+static struct completion irq_completion[FIRMWARE_CONTEXT_NUMBER][MAX_INT_TYPE];
 
 extern void *isp_dev_get_vir_addr(void);
 void isp_ctx_queue_state(char *tags);
@@ -101,6 +125,8 @@ int isp_ctx_queue_init(void)
 	void *cfg_base = NULL;
 	void *ae_base = NULL;
 	void *awb_base = NULL;
+	void *af_base = NULL;
+	void *ae_5bin_base = NULL;
 
 	base = isp_dev_get_vir_addr();
 
@@ -116,9 +142,13 @@ int isp_ctx_queue_init(void)
 			cfg_base = base + i * ONE_ZONE_SIZE;
 			ae_base = cfg_base + CFG_SIZE_IN_ONE_ZONE;
 			awb_base = ae_base + AE_SIZE_IN_ONE_ZONE;
+			af_base = awb_base + AWB_SIZE_IN_ONE_ZONE;
+			ae_5bin_base = af_base + AF_SIZE_IN_ONE_ZONE;
 			ctx_node[i][ISP_CTX][j].base = cfg_base + j * CFG_NODE_SIZE;
 			ctx_node[i][ISP_AE][j].base = ae_base + j * AE_NODE_SIZE;
 			ctx_node[i][ISP_AWB][j].base = awb_base + j * AWB_NODE_SIZE;
+			ctx_node[i][ISP_AF][j].base = af_base + j * AF_NODE_SIZE;
+			ctx_node[i][ISP_AE_5BIN][j].base = ae_5bin_base + j * AE_5BIN_NODE_SIZE;
 
 			for (k = 0; k < TYPE_MAX; k++) {
 				ctx_node[i][k][j].ctx.idx = j;
@@ -129,6 +159,13 @@ int isp_ctx_queue_init(void)
 	}
 
 	spin_lock_init(&lock);
+
+	// init isp interrupt completion
+        for (i = 0; i < FIRMWARE_CONTEXT_NUMBER; i++) {
+		for (j = 0; j < MAX_INT_TYPE; j++) {
+			init_completion(&irq_completion[i][j]);
+		}
+	}
 
 	pr_debug("init done\n");
 
@@ -159,3 +196,30 @@ void isp_ctx_queue_state(char *tags)
 	}
 
 }
+
+int isp_irq_wait_for_completion(int ctx_id, uint8_t irq_type, unsigned long timeout)
+{
+	int ret = 0;
+	unsigned long td = 0;
+	if ((ctx_id >= FIRMWARE_CONTEXT_NUMBER) || (irq_type >= MAX_INT_TYPE)) {
+		pr_err("param is err, ctx[%d] or irq_type[%d] is err!\n", ctx_id, irq_type);
+		return -1;
+	}
+	td = wait_for_completion_timeout(&irq_completion[ctx_id][irq_type], timeout);
+	if (!td) {
+		pr_debug("ctx[%d] irq_type[%d] is time_out\n", ctx_id, irq_type);
+		ret = -1;
+	}
+	// pr_info("ctx %d, irq_type %d is require, time out is %d!\n", ctx_id, irq_type, td);
+	return ret;
+}
+
+void isp_irq_completion(int ctx_id, uint8_t irq_type)
+{
+	if ((ctx_id >= FIRMWARE_CONTEXT_NUMBER) || (irq_type >= MAX_INT_TYPE)) {
+		pr_err("param is err, ctx[%d] or irq_type[%d] is err!\n", ctx_id, irq_type);
+		return;
+	}
+	//complete_all(&irq_completion[ctx_id][irq_type]);
+}
+

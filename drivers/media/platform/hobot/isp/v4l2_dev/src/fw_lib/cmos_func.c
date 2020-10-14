@@ -25,6 +25,7 @@
 #include "cmos_fsm.h"
 
 #include "acamera_logger.h"
+#include "isp_ctxsv.h"
 
 #define is_short_exposure_frame( base ) ( ACAMERA_FSM2CTX_PTR( p_fsm )->frame & 1 )
 
@@ -558,6 +559,7 @@ void cmos_fsm_process_interrupt( cmos_fsm_const_ptr_t p_fsm, uint8_t irq_event )
     status_info_param_t *p_status_info = (status_info_param_t *)_GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_STATUS_INFO );
 
     uint32_t wdr_mode = 0;
+    int fw_id = p_fsm->cmn.ctx_id;
 
     fsm_param_sensor_info_t sensor_info;
     acamera_fsm_mgr_get_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_GET_SENSOR_INFO, NULL, 0, &sensor_info, sizeof( sensor_info ) );
@@ -565,6 +567,8 @@ void cmos_fsm_process_interrupt( cmos_fsm_const_ptr_t p_fsm, uint8_t irq_event )
 
     switch ( irq_event ) {
     case ACAMERA_IRQ_FRAME_START:
+	// commple irq fs
+	isp_irq_completion(fw_id, 0);
         cmos_move_exposure_history( (cmos_fsm_ptr_t)p_fsm );
         {
             exposure_data_set_t exp_set = {0};
@@ -703,7 +707,8 @@ void cmos_fsm_process_interrupt( cmos_fsm_const_ptr_t p_fsm, uint8_t irq_event )
 
         break;
     case ACAMERA_IRQ_FRAME_END: {
-
+	// commple irq fs
+	isp_irq_completion(fw_id, 1);
         if ( ( wdr_mode == WDR_MODE_FS_LIN ) && ( ACAMERA_FSM2CTX_PTR( p_fsm )->stab.global_manual_frame_stitch == 0 ) ) {
 
             if ( sensor_info.sensor_exp_number == 4 ) {

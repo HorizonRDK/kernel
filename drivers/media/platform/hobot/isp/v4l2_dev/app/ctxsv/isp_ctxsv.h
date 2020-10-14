@@ -15,12 +15,16 @@
 
 #define AWB_NODE_SIZE	(33 * 33 * 8) //8712
 #define AE_NODE_SIZE	(ISP_FULL_HISTOGRAM_SIZE * 4) //4096
+#define AF_NODE_SIZE	(33 * 33 * 8) //8712
+#define AE_5BIN_NODE_SIZE	(33 * 33 * 8) //8712
 
 #define PER_ZONE_NODES	6
 
 #define CFG_SIZE_IN_ONE_ZONE    (CFG_NODE_SIZE * PER_ZONE_NODES)
 #define AE_SIZE_IN_ONE_ZONE     (AE_NODE_SIZE * PER_ZONE_NODES)
-#define ONE_ZONE_SIZE	(PER_ZONE_NODES * (CFG_NODE_SIZE + AWB_NODE_SIZE + AE_NODE_SIZE)) //87332x6=523992
+#define AWB_SIZE_IN_ONE_ZONE    (AWB_NODE_SIZE * PER_ZONE_NODES)
+#define AF_SIZE_IN_ONE_ZONE    (AF_NODE_SIZE * PER_ZONE_NODES)
+#define ONE_ZONE_SIZE	(PER_ZONE_NODES * (CFG_NODE_SIZE + AWB_NODE_SIZE + AE_NODE_SIZE + AF_NODE_SIZE + AE_5BIN_NODE_SIZE)) //87332x6=523992
 #define TOTAL_MEM_SIZE	(ONE_ZONE_SIZE * FIRMWARE_CONTEXT_NUMBER) //523992x4=2095968=2M
 
 typedef enum {
@@ -33,6 +37,8 @@ typedef enum {
 	ISP_CTX = 0,
 	ISP_AE,
 	ISP_AWB,
+	ISP_AF,
+	ISP_AE_5BIN,
 	TYPE_MAX,
 } isp_info_type_e;
 
@@ -67,4 +73,7 @@ extern void isp_ctx_done_queue_clear(int ctx_id);
 extern int isp_ctx_queue_init(void);
 extern int system_chardev_lock(void);
 extern void system_chardev_unlock(void);
+extern int isp_irq_wait_for_completion(int ctx_id, uint8_t irq_type, unsigned long timeout);
+extern void isp_irq_completion(int ctx_id, uint8_t irq_type);
+
 #endif

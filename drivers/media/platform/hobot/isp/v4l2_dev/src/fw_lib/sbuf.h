@@ -75,10 +75,10 @@ typedef struct _ae_5bin_info_ {
         uint16_t normal_bin4;
 } ae_5bin_info_t;
 
-typedef struct _ae_5bin_weight_ {
+typedef struct _ae_1024bin_weight_ {
         uint32_t zones_size;
         uint8_t zones_weight[ISP_METERING_ZONES_AE5_V * ISP_METERING_ZONES_AE5_H];
-} ae_5bin_weight_t;
+} ae_1024bin_weight_t;
 
 struct sbuf_idx_set {
     uint8_t ae_idx;
@@ -154,7 +154,7 @@ typedef struct sbuf_ae {
     // UF -> KF: Data shared from user-FW to kernel-FW
     int32_t ae_exposure;
     uint32_t ae_exposure_ratio;
-    ae_5bin_weight_t ae_5bin_weight;
+    ae_1024bin_weight_t ae_1024bin_weight;
     ae_out_info_t  ae_info;
 
     uint16_t external_ae_enable;

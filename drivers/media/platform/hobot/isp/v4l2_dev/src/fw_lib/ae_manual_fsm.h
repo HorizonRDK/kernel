@@ -50,7 +50,7 @@ struct _AE_fsm_t {
     //add by ie&e to prove extern ae
     uint16_t external_ae_enable;
     uint16_t sensor_ctrl_enable;
-    ae_5bin_weight_t ae_5bin_weight;
+    ae_1024bin_weight_t ae_1024bin_weight;
     ae_out_info_t ae_info;
     int32_t error_log2;
     int32_t ae_hist_mean;

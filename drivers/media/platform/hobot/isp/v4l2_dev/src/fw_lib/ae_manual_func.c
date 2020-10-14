@@ -246,6 +246,31 @@ void ae_read_full_histogram_data( AE_fsm_ptr_t p_fsm )
         p_sbuf_ae->hist4[i * 4 + 3] = ( uint16_t )((_metering_lut_entry >> 16) & 0xffff);
     }
 
+	// read ae_5bin static
+	static int ae_5bin_count = 0;
+	rc = system_chardev_lock();
+	if (rc == 0 && p_ctx->isp_ae_5bin_stats_on) {
+		isp_ctx_node_t *cn;
+		cn = isp_ctx_get_node(fw_id, ISP_AE_5BIN, FREEQ);
+		if (!cn) {
+			if (ae_5bin_count++ >= 150) { //about 5s
+				ae_5bin_count = 0;
+				p_ctx->isp_ae_5bin_stats_on = 0;
+			}
+			cn = isp_ctx_get_node(fw_id, ISP_AE_5BIN, DONEQ);
+		}
+		if (cn) {
+			cn->ctx.frame_id = p_ctx->isp_frame_counter;
+			memcpy(cn->base, p_sbuf_ae->hist4, sizeof(p_sbuf_ae->hist4));
+			cn->ctx.crc16 = crc16(~0, cn->base, sizeof(p_sbuf_ae->hist4));
+			isp_ctx_put_node(fw_id, cn, ISP_AE_5BIN, DONEQ);
+
+			pr_debug("ae_5bin stats frame id %d\n", cn->ctx.frame_id);
+		}
+	}
+	if (rc == 0)
+	    system_chardev_unlock();
+
     /* read done, set the buffer back for future using */
     sbuf.buf_status = SBUF_STATUS_DATA_DONE;
 
@@ -265,11 +290,11 @@ void ae_read_full_histogram_data( AE_fsm_ptr_t p_fsm )
 void ae_update_zone_weight_data( AE_fsm_ptr_t p_fsm )
 {
         uint32_t i;
-        uint32_t num = p_fsm->ae_5bin_weight.zones_size;
+        uint32_t num = p_fsm->ae_1024bin_weight.zones_size;
         if (num > ISP_METERING_ZONES_AE5_V * ISP_METERING_ZONES_AE5_H)
                 num = ISP_METERING_ZONES_AE5_V * ISP_METERING_ZONES_AE5_H;
         for (i = 0; i < num; i++) {
-                acamera_isp_metering_hist_aexp_zones_weight_write( p_fsm->cmn.isp_base, i, p_fsm->ae_5bin_weight.zones_weight[i]);
+                acamera_isp_metering_hist_aexp_zones_weight_write( p_fsm->cmn.isp_base, i, p_fsm->ae_1024bin_weight.zones_weight[i]);
         }
 }
 
@@ -284,7 +309,7 @@ void AE_fsm_process_interrupt( AE_fsm_const_ptr_t p_fsm, uint8_t irq_event )
         fsm_raise_event( p_fsm, event_id_ae_stats_ready );
         break;
     case ACAMERA_IRQ_FRAME_END:
-        ae_update_zone_weight_data( (AE_fsm_ptr_t)p_fsm );
+        //ae_update_zone_weight_data( (AE_fsm_ptr_t)p_fsm );
         break;
     }
 }
@@ -304,7 +329,7 @@ void ae_set_new_param( AE_fsm_ptr_t p_fsm, sbuf_ae_t *p_sbuf_ae )
     p_fsm->external_ae_enable = p_sbuf_ae->external_ae_enable;
     p_fsm->sensor_ctrl_enable = p_sbuf_ae->sensor_ctrl_enable;
     memcpy(&p_fsm->ae_info, &p_sbuf_ae->ae_info, sizeof(p_fsm->ae_info));
-    memcpy(&p_fsm->ae_5bin_weight, &p_sbuf_ae->ae_5bin_weight, sizeof(p_fsm->ae_5bin_weight));
+    memcpy(&p_fsm->ae_1024bin_weight, &p_sbuf_ae->ae_1024bin_weight, sizeof(p_fsm->ae_1024bin_weight));
 
     if ( p_fsm->frame_id_tracking ) {
         fsm_param_mon_alg_flow_t ae_flow;

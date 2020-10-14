@@ -17,6 +17,7 @@
 *
 */
 
+#include <linux/crc16.h>
 #include "acamera_types.h"
 #include "acamera_fw.h"
 #include "acamera_metering_stats_mem_config.h"
@@ -29,6 +30,8 @@
 #include "acamera_command_api.h"
 
 #include "sbuf.h"
+
+#include "isp_ctxsv.h"
 
 #if defined( ISP_METERING_OFFSET_AF )
 #define ISP_METERING_OFFSET_AUTO_FOCUS ISP_METERING_OFFSET_AF
@@ -142,6 +145,7 @@ void af_read_stats_data( AF_fsm_ptr_t p_fsm )
     sbuf_af_t *p_sbuf_af = NULL;
     struct sbuf_item sbuf;
     int fw_id = p_fsm->cmn.ctx_id;
+    acamera_context_t *p_ctx = ACAMERA_FSM2CTX_PTR(p_fsm);
 
     memset( &sbuf, 0, sizeof( sbuf ) );
     sbuf.buf_type = SBUF_TYPE_AF;
@@ -186,6 +190,32 @@ void af_read_stats_data( AF_fsm_ptr_t p_fsm )
             stats[full_inx][1] = acamera_metering_stats_mem_array_data_read( p_fsm->cmn.isp_base, ISP_METERING_OFFSET_AUTO_FOCUS + ( ( full_inx ) << 1 ) + 1 );
         }
     }
+
+    //add get af static func
+	int rc = 0;
+	static int count = 0;
+	rc = system_chardev_lock();
+	if (rc == 0 && p_ctx->isp_af_stats_on) {
+		isp_ctx_node_t *cn;
+		cn = isp_ctx_get_node(fw_id, ISP_AF, FREEQ);
+		if (!cn) {
+			if (count++ >= 150) { //about 5s
+				count = 0;
+				p_ctx->isp_af_stats_on = 0;
+			}
+			cn = isp_ctx_get_node(fw_id, ISP_AF, DONEQ);
+		}
+		if (cn) {
+			cn->ctx.frame_id = p_ctx->isp_frame_counter;
+			memcpy(cn->base, p_sbuf_af->stats_data, sizeof(p_sbuf_af->stats_data));
+			cn->ctx.crc16 = crc16(~0, cn->base, sizeof(p_sbuf_af->stats_data));
+			isp_ctx_put_node(fw_id, cn, ISP_AF, DONEQ);
+
+			pr_debug("af stats frame id %d\n", cn->ctx.frame_id);
+		}
+	}
+	if (rc == 0)
+		system_chardev_unlock();
 
     /* read done, set the buffer back for future using  */
     sbuf.buf_status = SBUF_STATUS_DATA_DONE;
