@@ -197,13 +197,6 @@ void ae_read_full_histogram_data( AE_fsm_ptr_t p_fsm )
     if (rc == 0 && p_ctx->isp_ae_stats_on) {
 	    isp_ctx_node_t *cn;
 	    cn = isp_ctx_get_node(fw_id, ISP_AE, FREEQ);
-	    if (!cn) {
-		    if (count++ >= 150) { //about 5s
-			    count = 0;
-			    p_ctx->isp_ae_stats_on = 0;
-		    }
-		    cn = isp_ctx_get_node(fw_id, ISP_AE, DONEQ);
-	    }
 	    if (cn) {
 		    cn->ctx.frame_id = p_ctx->isp_frame_counter;
 		    memcpy(cn->base, p_fsm->fullhist, sizeof(p_sbuf_ae->stats_data));
@@ -252,13 +245,6 @@ void ae_read_full_histogram_data( AE_fsm_ptr_t p_fsm )
 	if (rc == 0 && p_ctx->isp_ae_5bin_stats_on) {
 		isp_ctx_node_t *cn;
 		cn = isp_ctx_get_node(fw_id, ISP_AE_5BIN, FREEQ);
-		if (!cn) {
-			if (ae_5bin_count++ >= 150) { //about 5s
-				ae_5bin_count = 0;
-				p_ctx->isp_ae_5bin_stats_on = 0;
-			}
-			cn = isp_ctx_get_node(fw_id, ISP_AE_5BIN, DONEQ);
-		}
 		if (cn) {
 			cn->ctx.frame_id = p_ctx->isp_frame_counter;
 			memcpy(cn->base, p_sbuf_ae->hist4, sizeof(p_sbuf_ae->hist4));

@@ -661,7 +661,7 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 		else if (ctx.type == ISP_AE_5BIN)
 			p_ctx->isp_ae_5bin_stats_on = 1;
 
-		cn = isp_ctx_get_node(ctx.ctx_id, ctx.type, DONEQ);
+		cn = isp_ctx_get(ctx.ctx_id, ctx.type, ctx.time_out);
 		if (cn && copy_to_user((void __user *)arg, (void *)&cn->ctx, sizeof(ctx)))
 			ret = -EFAULT;
 	}

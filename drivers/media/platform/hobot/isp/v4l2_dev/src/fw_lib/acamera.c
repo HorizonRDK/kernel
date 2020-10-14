@@ -593,13 +593,6 @@ static void isp_ctxsv_work(struct work_struct *w)
     rc = system_chardev_lock();
 	if (rc == 0 && p_ctx->isp_ctxsv_on) {
 		cn = isp_ctx_get_node(ctx_id, ISP_CTX, FREEQ);
-		if (!cn) {
-			if (count++ >= 150) { //about 5s
-				count = 0;
-				p_ctx->isp_ctxsv_on = 0;
-			}
-			cn = isp_ctx_get_node(ctx_id, ISP_CTX, DONEQ);
-		}
 		if (cn) {
 			cn->ctx.frame_id = p_ctx->isp_frame_counter;
 			offset = p_ctx->sw_reg_map.isp_sw_config_map + ACAMERA_DECOMPANDER0_MEM_BASE_ADDR;
