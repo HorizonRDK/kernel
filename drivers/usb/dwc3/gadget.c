@@ -2106,7 +2106,7 @@ static int dwc3_gadget_init_hw_endpoints(struct dwc3 *dwc,
 				direction ? "in" : "out");
 
 		dep->endpoint.name = dep->name;
-		dev_info(dwc->dev, "initializing epnum(%d), %s", epnum,
+		dev_dbg(dwc->dev, "initializing epnum(%d), %s", epnum,
 				dep->name);
 
 		if (!(dep->number > 1)) {

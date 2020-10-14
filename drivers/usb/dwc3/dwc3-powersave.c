@@ -13,6 +13,7 @@
 #include <linux/kernel.h>
 #include <linux/platform_device.h>
 #include <linux/of_platform.h>
+#include <linux/extcon.h>
 #include <soc/hobot/hobot_bus.h>
 
 #include "core.h"
@@ -25,6 +26,13 @@ struct dwc3_powersave {
 	struct notifier_block	ddrfreq_nb;
 	/* notify usb suspend & resume event */
 	struct notifier_block	powersave_nb;
+	/* notify extcon usb gpio event */
+	struct notifier_block	edev_nb;
+	struct extcon_dev	*edev;
+	struct mutex		notifier_lock;
+
+	u32			current_powersave_status;
+	u32			last_powersave_status;
 };
 
 /*
@@ -82,18 +90,41 @@ static int power_save_call(struct notifier_block *self,
 
 	switch (action) {
 	case POWERSAVE_STATE:
+		mutex_lock(&dwc_pwr->notifier_lock);
+		dwc_pwr->last_powersave_status = 1;
+		if (dwc_pwr->current_powersave_status) {
+			dev_info(dev, "%s: dwc3 already in powersave status\n", __func__);
+			mutex_unlock(&dwc_pwr->notifier_lock);
+			break;
+		}
+
 		/* before enter powersave state, release dwc3 driver */
 		dev_dbg(dev, "%s: powersave state.\n", __func__);
 		dev_dbg(dev, "%s: manually detach dwc3 driver.\n", __func__);
 		device_release_driver(dwc3_device);
 
+		dwc_pwr->current_powersave_status = 1;
+		mutex_unlock(&dwc_pwr->notifier_lock);
+
 		break;
 	case OTHER_STATE:
+		mutex_lock(&dwc_pwr->notifier_lock);
+		dwc_pwr->last_powersave_status = 0;
+		if (!dwc_pwr->current_powersave_status) {
+			dev_info(dev, "%s: dwc3 already in normal status\n",
+					__func__);
+			mutex_unlock(&dwc_pwr->notifier_lock);
+			break;
+		}
+
 		/* before leave powersave state, attach device to dwc3 driver */
 		dev_dbg(dev, "%s: otherstate state.\n", __func__);
 		dev_dbg(dev, "%s: manually attach dwc3 driver.\n", __func__);
 		if (device_attach(dwc3_device) < 0)
 			dev_err(dwc3_device, "%s: attach device to driver failed\n", __func__);
+
+		dwc_pwr->current_powersave_status = 0;
+		mutex_unlock(&dwc_pwr->notifier_lock);
 
 		break;
 	default:
@@ -103,6 +134,51 @@ static int power_save_call(struct notifier_block *self,
 	}
 
 	return NOTIFY_OK;
+}
+
+static int extcon_usb_notifier(struct notifier_block *self,
+		unsigned long action, void *data)
+{
+	struct dwc3_powersave *dwc_pwr = container_of(self,
+			struct dwc3_powersave, edev_nb);
+	struct device	*dev = dwc_pwr->dev;
+	struct device	*dwc3_device = dwc_pwr->parent;
+
+	dev_dbg(dev, "%s: action(%lu), last_powerstatus(%d)\n",
+			__func__, action, dwc_pwr->last_powersave_status);
+
+	if (action) {
+		/* extcon otg usb device plug in */
+		mutex_lock(&dwc_pwr->notifier_lock);
+		if (!dwc_pwr->current_powersave_status) {
+			dev_info(dev, "%s: current not powersave status. needn't attach dwc3 driver",
+					__func__);
+			mutex_unlock(&dwc_pwr->notifier_lock);
+			return NOTIFY_DONE;
+		}
+
+		/* leave powersave state, attach device to dwc3 driver */
+		dev_dbg(dev, "%s: manually attach dwc3 driver.\n", __func__);
+		if (device_attach(dwc3_device) < 0)
+			dev_err(dwc3_device, "%s: attach device to driver failed\n", __func__);
+
+		dwc_pwr->current_powersave_status = 0;
+		mutex_unlock(&dwc_pwr->notifier_lock);
+	} else {
+		/* extcon otg usb device plug out, restore previous
+		 * powersave status if current not in powersave status */
+		mutex_lock(&dwc_pwr->notifier_lock);
+		if (dwc_pwr->last_powersave_status &&
+				!dwc_pwr->current_powersave_status) {
+			dev_info(dev, "%s: previous in powersave status, "
+					"need to restore it\n", __func__);
+			device_release_driver(dwc3_device);
+			dwc_pwr->current_powersave_status = 1;
+		}
+		mutex_unlock(&dwc_pwr->notifier_lock);
+	}
+
+	return NOTIFY_DONE;
 }
 
 static const struct of_device_id of_dwc3_powersave_match[] = {
@@ -138,6 +214,25 @@ static int dwc3_powersave_probe(struct platform_device *pdev)
 	dwc_pwr->dev = dev;
 	dwc_pwr->parent = &dwc3_pdev->dev;
 
+	mutex_init(&dwc_pwr->notifier_lock);
+
+	if (of_property_read_bool(dwc3_node, "extcon"))
+		dwc_pwr->edev = extcon_get_edev_by_phandle(&dwc3_pdev->dev, 0);
+
+	if (IS_ERR(dwc_pwr->edev)) {
+		ret = PTR_ERR(dwc_pwr->edev);
+		goto edev_err;
+	}
+
+	/* register extcon usb gpio notifier */
+	dwc_pwr->edev_nb.notifier_call = extcon_usb_notifier;
+	ret = extcon_register_notifier(dwc_pwr->edev, EXTCON_USB_HOST,
+				       &dwc_pwr->edev_nb);
+	if (ret < 0) {
+		dev_err(dev, "couldn't register extcon usb notifier\n");
+		goto edev_err;
+	}
+
 	/* register ddr dfs notifier */
 	dwc_pwr->ddrfreq_nb.notifier_call = ddr_dfs_call;
 	ret = hb_bus_register_client(&dwc_pwr->ddrfreq_nb);
@@ -158,6 +253,9 @@ notifier_err2:
 	/* unregister ddr dfs notifier */
 	hb_bus_unregister_client(&dwc_pwr->ddrfreq_nb);
 notifier_err1:
+	/* unregister extcon usb gpio notifier */
+	hb_bus_unregister_client(&dwc_pwr->edev_nb);
+edev_err:
 find_device_fail:
 	of_node_put(dwc3_node);
 
@@ -173,6 +271,10 @@ static int dwc3_powersave_remove(struct platform_device *pdev)
 
 	/* unregister ddr dfs notifier */
 	hb_bus_unregister_client(&dwc_pwr->ddrfreq_nb);
+
+	/* unregister extcon usb gpio notifier */
+	extcon_unregister_notifier(dwc_pwr->edev, EXTCON_USB_HOST,
+				   &dwc_pwr->edev_nb);
 
 	return 0;
 }
