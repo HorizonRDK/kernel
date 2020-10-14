@@ -307,6 +307,49 @@ int smp_call_function_single(int cpu, smp_call_func_t func, void *info,
 }
 EXPORT_SYMBOL(smp_call_function_single);
 
+#ifdef CONFIG_HOBOT_SOC
+/*
+ * smp_call_function_single_irq_disabled - Run a function on a specific
+ * CPU allowing irq disabled context, this is only used in ddr devfreq
+ * @func: The function to run. This must be fast and non-blocking.
+ * @info: An arbitrary pointer to pass to the function.
+ * @wait: If true, wait until function has completed on other CPUs.
+ *
+ * Returns 0 on success, else a negative status code.
+ */
+int smp_call_function_single_irq_disabled(int cpu,
+		smp_call_func_t func, void *info, int wait)
+{
+	call_single_data_t *csd;
+	call_single_data_t csd_stack = {
+		.flags = CSD_FLAG_LOCK | CSD_FLAG_SYNCHRONOUS,
+	};
+	int this_cpu;
+	int err;
+
+	/*
+	 * prevent preemption and reschedule on another processor,
+	 * as well as CPU removal
+	 */
+	this_cpu = get_cpu();
+
+	csd = &csd_stack;
+	if (!wait) {
+		csd = this_cpu_ptr(&csd_data);
+		csd_lock(csd);
+	}
+
+	err = generic_exec_single(cpu, csd, func, info);
+
+	if (wait)
+		csd_lock_wait(csd);
+
+	put_cpu();
+
+	return err;
+}
+#endif
+
 /**
  * smp_call_function_single_async(): Run an asynchronous function on a
  * 			         specific CPU.

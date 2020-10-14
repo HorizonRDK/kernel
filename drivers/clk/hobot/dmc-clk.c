@@ -127,7 +127,7 @@ static void hobot_ddrdfc_test(unsigned long a0, unsigned long a1,
 
 	int i;
 	pr_debug("%s rate:%ld\n", __func__, rate);
-	for (i = 0; i < 1000; i++)
+	for (i = 0; i < 6; i++)
 		udelay(100);
 
 	// just for debugging
@@ -291,6 +291,8 @@ char *dmc_clk_get_method(void)
 
 static void spin_on_cpu(void *info)
 {
+	unsigned long flags;
+
 	pr_debug("%s %d enter\n", __func__, smp_processor_id());
 
 	/* tell the clock changing core this core is parked */
@@ -300,12 +302,15 @@ static void spin_on_cpu(void *info)
 	/* this core will spin on the lock before ddr freq
 	 * changing finished
 	 */
-	spin_lock(&g_ddrclk->lock);
+	spin_lock_irqsave(&g_ddrclk->lock, flags);
 
 
-	spin_unlock(&g_ddrclk->lock);
+	spin_unlock_irqrestore(&g_ddrclk->lock, flags);
 	pr_debug("%s %d exit\n", __func__, smp_processor_id());
 }
+
+extern int smp_call_function_single_irq_disabled(int cpu,
+               smp_call_func_t func, void *info, int wait);
 
 static void park_other_cpus(void)
 {
@@ -322,7 +327,9 @@ static void park_other_cpus(void)
 
 	smp_mb();
 
-	on_each_cpu_mask(&mask, spin_on_cpu, NULL, 0);
+	for_each_cpu(cpu, &mask)
+		smp_call_function_single_irq_disabled(cpu,
+			spin_on_cpu, NULL, 0);
 
 	put_cpu();
 }
@@ -336,11 +343,10 @@ static int dmc_set_rate(struct clk_hw *hw,
 	unsigned long flags;
 	int timeout = 1000000;
 
-	spin_lock(&dclk->lock);
+	spin_lock_irqsave(&dclk->lock, flags);
 
 	atomic_set(&dclk->vote_cnt, 0);
 	park_other_cpus();
-	local_irq_save(flags);
 
 	while(atomic_read(&dclk->vote_cnt) > 0 && timeout > 0) {
 		udelay(100);
@@ -368,8 +374,7 @@ static int dmc_set_rate(struct clk_hw *hw,
 	dclk->rate = rate;
 	cur_ddr_rate = rate;
 
-	local_irq_restore(flags);
-	spin_unlock(&dclk->lock);
+	spin_unlock_irqrestore(&dclk->lock, flags);
 
 	return 0;
 }
