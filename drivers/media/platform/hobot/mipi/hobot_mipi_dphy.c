@@ -1304,10 +1304,10 @@ static int x3vio_mipi_set_lanemode(int type, int port, int lanemode)
 		spin_lock_irqsave(&dphy->lock, flags);
 		val = readl(dphy->iomem + REG_X3VIO_MIPI_RX_DPHY_CTRL);
 		if (port == 0 || port == 2) {
-			val &= ~DP_RMASK(X3VIO, RX_DPHY_MODE02);
+			val &= ~DP_VMASK(X3VIO, RX_DPHY_MODE02);
 			val |= DP_V2REG(X3VIO, RX_DPHY_MODE02, lanemode);
 		} else {
-			val &= ~DP_RMASK(X3VIO, RX_DPHY_MODE13);
+			val &= ~DP_VMASK(X3VIO, RX_DPHY_MODE13);
 			val |= DP_V2REG(X3VIO, RX_DPHY_MODE13, lanemode);
 		}
 		writel(val, dphy->iomem + REG_X3VIO_MIPI_RX_DPHY_CTRL);
@@ -1316,7 +1316,7 @@ static int x3vio_mipi_set_lanemode(int type, int port, int lanemode)
 			type == MIPI_DPHY_TYPE_DSI) && port == 0) {
 		spin_lock_irqsave(&dphy->lock, flags);
 		val = readl(dphy->iomem + REG_X3VIO_MIPI_TX_DPHY_CTRL);
-		val &= ~DP_RMASK(X3VIO, TX_DPHY_SEL);
+		val &= ~DP_VMASK(X3VIO, TX_DPHY_SEL);
 		val = DP_V2REG(X3VIO, TX_DPHY_SEL, lanemode);
 		writel(val, dphy->iomem + REG_X3VIO_MIPI_TX_DPHY_CTRL);
 		spin_unlock_irqrestore(&dphy->lock, flags);

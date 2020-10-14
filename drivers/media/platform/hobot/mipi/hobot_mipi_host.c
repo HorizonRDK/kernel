@@ -837,6 +837,10 @@ static int32_t mipi_host_configure_lanemode(mipi_hdev_t *hdev, int lane)
 		}
 	}
 
+	/* upd hw lane_mode */
+	hdev->lane_mode = mipi_dphy_get_lanemode(MIPI_DPHY_TYPE_HOST,
+							hdev->port);
+
 	group = mipi_host_port_group(hdev);
 	poth = mipi_host_port_other(hdev);
 	if (target_mode < 0) {
