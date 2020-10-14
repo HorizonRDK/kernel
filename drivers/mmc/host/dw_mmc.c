@@ -2708,7 +2708,7 @@ static int mmc_notifier_callback(struct notifier_block *self,
 				 unsigned long event, void *data)
 {
 	struct dw_mci *host = container_of(self, struct dw_mci, dw_hb_notif);
-	unsigned long irqflags;
+	static unsigned long irqflags;
 
 	if (event == HB_BUS_SIGNAL_START) {
 		spin_lock_irqsave(&host->lock, irqflags);
