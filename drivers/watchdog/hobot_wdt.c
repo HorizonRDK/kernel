@@ -45,11 +45,12 @@ static u64 timer_rate;
 static int kthread_disabled = 1;
 static int panic_on_bark;
 static int on_panic;
-static spinlock_t on_panic_lock;
+static int do_ipi_ping = 1;
 
 
 module_param(nowayout, int, 0644);
 module_param(panic_on_bark, int, 0644);
+module_param(do_ipi_ping, int, 0644);
 
 #define hobot_wdt_rd(dev, reg)       ioread32((dev)->regs_base + (reg))
 #define hobot_wdt_wr(dev, reg, val)  iowrite32((val), (dev)->regs_base + (reg))
@@ -77,6 +78,10 @@ struct hobot_wdt {
 	bool timer_expired;
 	u64 thread_wakeup_time;
 	bool barking;
+
+	cpumask_t alive_mask;
+	unsigned long long ping_start[NR_CPUS];
+	unsigned long long ping_end[NR_CPUS];
 } *g_hbwdt;
 
 static int hobot_wdt_start(struct watchdog_device *wdd);
@@ -308,15 +313,14 @@ static unsigned int hbot_wdt_get_timeleft(struct watchdog_device *wdd)
 
 void dump_cpu_state(void *data)
 {
-	pr_err("dump stack on on cpu:%d\n", get_cpu());
+	pr_err("dump stack on on cpu:%d\n", smp_processor_id());
 	dump_stack();
 
-	spin_lock(&on_panic_lock);
 	if (panic_on_bark && on_panic == 0) {
 		on_panic = 1;
-		spin_unlock(&on_panic_lock);
 		panic("Panic on watchdog bark ...");
 	}
+	pr_err("dump stack on on cpu:%d finished\n\n", smp_processor_id());
 }
 
 void check_other_cpus(void)
@@ -324,13 +328,23 @@ void check_other_cpus(void)
 	int cpu;
 	struct cpumask  mask;
 
-	cpu = get_cpu();
+	cpu = smp_processor_id();
 	memcpy(&mask, cpu_online_mask, sizeof(struct cpumask));
 	cpumask_clear_cpu(cpu, &mask);
 	for_each_cpu(cpu, &mask) {
+		/* nowait to skip the deadloop cpu */
 		smp_call_function_single(cpu, dump_cpu_state,
 			NULL, 1);
 	}
+}
+
+static void dump_alive_mask(struct hobot_wdt *hbwdt)
+{
+    char buf[32];
+
+    scnprintf(buf, sizeof(buf), "%*pb1",
+		cpumask_pr_args(&hbwdt->alive_mask));
+    pr_err("cpu alive mask since last pet %s\n\n", buf);
 }
 
 static irqreturn_t hobot_wdt_bark_irq_handler(int irq, void *data)
@@ -347,10 +361,13 @@ static irqreturn_t hobot_wdt_bark_irq_handler(int irq, void *data)
 
 	pr_err("hobot_wdt: bark at %lld on cpu:%d\n", sched_clock(), get_cpu());
 	dump_stack();
-	pr_err("hobot_wdt: check other cpus\n");
+	pr_err("hobot_wdt: check other cpus\n\n");
 
 	/* flush cache for dump */
 	printk_safe_flush_on_panic();
+
+	if (do_ipi_ping)
+		dump_alive_mask(hbwdt);
 
 	/* may stuck here if other cpu can't response IPI */
 	check_other_cpus();
@@ -443,6 +460,29 @@ static void pet_timer_wakeup(unsigned long data)
 	wake_up(&hbwdt->pet_wait);
 }
 
+static void ipi_report_alive(void *data)
+{
+	struct hobot_wdt *hbwdt = (struct hobot_wdt *)data;
+	int cpu = smp_processor_id();
+
+	cpumask_set_cpu(cpu, &hbwdt->alive_mask);
+	hbwdt->ping_end[cpu] = sched_clock();
+	smp_mb();
+	pr_debug("alive on cpu:%d\n", cpu);
+}
+
+static void hobot_wdt_ipi_ping(struct hobot_wdt *hbwdt)
+{
+	int cpu;
+
+	cpumask_clear(&hbwdt->alive_mask);
+	for_each_cpu(cpu, cpu_online_mask) {
+		hbwdt->ping_start[cpu] = sched_clock();
+		/* wait until ipi is reponsed */
+		smp_call_function_single(cpu, ipi_report_alive, hbwdt, 1);
+	}
+}
+
 static __ref int watchdog_kthread(void *arg)
 {
 	struct hobot_wdt *hbwdt = (struct hobot_wdt *)arg;
@@ -460,6 +500,9 @@ static __ref int watchdog_kthread(void *arg)
 
 		hbwdt->thread_wakeup_time = sched_clock();
 		pr_debug("thread_wakeup_time: %llu\n", hbwdt->thread_wakeup_time);
+
+		if (do_ipi_ping)
+			hobot_wdt_ipi_ping(hbwdt);
 
 		hbwdt->timer_expired = false;
 
