@@ -195,6 +195,22 @@ int AF_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_t input_
         break;
     }
 
+    case FSM_PARAM_SET_AF_KERNEL_PARAM: {
+        if (!input || input_size != sizeof(uint32_t)) {
+            LOG(LOG_ERR, "Invalid param, param_id: %d.", param_id);
+            rc = -1;
+            break;
+        }
+
+        uint32_t af_kernel = *(uint32_t *)input;
+
+        if (af_kernel < 3) {
+            p_fsm->af_status_kernel = af_kernel;
+        }
+
+        break;
+    }
+
     default:
         rc = -1;
         break;
@@ -345,6 +361,16 @@ int AF_fsm_get_param( void *fsm, uint32_t param_id, void *input, uint32_t input_
         }
 
         *(int32_t *)output = p_fsm->zoom_manual_pos;
+        break;
+
+    case FSM_PARAM_GET_AF_KERNEL_PARAM:
+        if (!output || output_size != sizeof(int32_t)) {
+            LOG(LOG_ERR, "Invalid param, param_id: %d.", param_id);
+            rc = -1;
+            break;
+        }
+
+        *(int32_t *)output = p_fsm->af_status_kernel;
         break;
 
     default:

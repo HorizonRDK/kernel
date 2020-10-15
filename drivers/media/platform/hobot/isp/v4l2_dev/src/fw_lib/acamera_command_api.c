@@ -407,6 +407,9 @@ case  TALGORITHMS:
 		case  NOISE_REDUCTION_MODE_ID:
 		        ret = noise_reduction_mode(instance, value, direction, ret_value);
 		        break;
+		case  AF_KERNEL_MANUAL_CONTROL_ID:
+			ret = af_kernel_manual_control(instance, value, direction, ret_value);
+			break;
 	}//switch (command)
 	break;
 case  TSCENE_MODES:

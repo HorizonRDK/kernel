@@ -72,6 +72,7 @@ typedef struct isp_ctx_head_s {
 static isp_ctx_node_t ctx_node[FIRMWARE_CONTEXT_NUMBER][TYPE_MAX][PER_ZONE_NODES];
 static isp_ctx_head ctx_queue[FIRMWARE_CONTEXT_NUMBER][TYPE_MAX];
 static struct completion irq_completion[FIRMWARE_CONTEXT_NUMBER][MAX_INT_TYPE];
+static uint8_t completion_flag = 0;
 
 extern void *isp_dev_get_vir_addr(void);
 void isp_ctx_queue_state(char *tags);
@@ -209,6 +210,7 @@ int isp_ctx_queue_init(void)
 			init_completion(&irq_completion[i][j]);
 		}
 	}
+	completion_flag = 1;
 
 	pr_debug("init done\n");
 
@@ -253,7 +255,7 @@ int isp_irq_wait_for_completion(int ctx_id, uint8_t irq_type, unsigned long time
 		pr_debug("ctx[%d] irq_type[%d] is time_out\n", ctx_id, irq_type);
 		ret = -1;
 	}
-	// pr_info("ctx %d, irq_type %d is require, time out is %d!\n", ctx_id, irq_type, td);
+	pr_debug("ctx %d, irq_type %d is require, time out is %d!\n", ctx_id, irq_type, td);
 	return ret;
 }
 
@@ -263,6 +265,8 @@ void isp_irq_completion(int ctx_id, uint8_t irq_type)
 		pr_err("param is err, ctx[%d] or irq_type[%d] is err!\n", ctx_id, irq_type);
 		return;
 	}
-	//complete_all(&irq_completion[ctx_id][irq_type]);
+	if (completion_flag) {
+	complete_all(&irq_completion[ctx_id][irq_type]);
+	}
 }
 

@@ -133,7 +133,7 @@ void af_set_new_param( AF_fsm_ptr_t p_fsm, sbuf_af_t *p_sbuf_af )
     p_fsm->new_last_sharp = p_sbuf_af->af_last_sharp;
     p_fsm->skip_frame = p_sbuf_af->frame_to_skip;
     p_fsm->state = p_sbuf_af->state;
-    p_fsm->af_status_kernel = p_sbuf_af->af_status_kernel;
+    //p_fsm->af_status_kernel = p_sbuf_af->af_status_kernel;
 
     af_update_lens_position( p_fsm );
 }

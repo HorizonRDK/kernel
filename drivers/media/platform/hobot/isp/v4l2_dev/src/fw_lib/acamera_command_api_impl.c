@@ -2602,6 +2602,35 @@ uint8_t zoom_manual_control( acamera_fsm_mgr_t *instance, uint32_t value, uint8_
 #endif
 
 // ------------------------------------------------------------------------------ //
+// af_kernel description:
+//
+//   Manually set the af kernel.
+//
+//   Values:
+//    [0-3]
+//
+//   Key:
+//    0  - min kernel
+//    3  - max kernel
+//
+// ------------------------------------------------------------------------------ //
+#ifdef AF_KERNEL_MANUAL_CONTROL_ID
+uint8_t af_kernel_manual_control(acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value)
+{
+    *ret_value = 0;
+    if (direction == COMMAND_SET) {
+        acamera_fsm_mgr_set_param(instance, FSM_PARAM_SET_AF_KERNEL_PARAM, &value, sizeof(value));
+        return SUCCESS;
+    } else if (direction == COMMAND_GET) {
+        acamera_fsm_mgr_get_param(instance, FSM_PARAM_GET_AF_KERNEL_PARAM, NULL, 0, ret_value, sizeof(uint32_t));
+        return SUCCESS;
+    }
+
+    return NOT_SUPPORTED;
+}
+#endif
+
+// ------------------------------------------------------------------------------ //
 // af_range_low description:
 //
 //     Sets the lowest value that the AF algorithm can select.
