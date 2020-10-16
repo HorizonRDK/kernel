@@ -112,6 +112,7 @@ struct vio_group {
 
 	// check ipu/pym scenario, for frameid
 	int group_scenario;
+	atomic_t work_insert;
 };
 
 struct vio_work {
@@ -159,6 +160,8 @@ int vio_group_task_start(struct vio_group_task *group_task);
 int vio_group_task_stop(struct vio_group_task *group_task);
 void vio_group_start_trigger(struct vio_group *group, struct vio_frame *frame);
 void vio_group_start_trigger_mp(struct vio_group *group, struct vio_frame *frame);
+void vio_group_insert_work(struct vio_group *group, struct kthread_work *work);
+
 
 struct vio_group *vio_get_chain_group(int instance, u32 group_id);
 int vio_bind_chain_groups(struct vio_group *src_group, struct vio_group *dts_group);

@@ -146,6 +146,17 @@ void vio_group_start_trigger_mp(struct vio_group *group, struct vio_frame *frame
 }
 EXPORT_SYMBOL(vio_group_start_trigger_mp);
 
+void vio_group_insert_work(struct vio_group *group, struct kthread_work *work)
+{
+	struct vio_group_task *group_task;
+
+	group_task = group->gtask;
+	atomic_inc(&group->rcount);
+	kthread_queue_work(&group_task->worker, work);
+}
+EXPORT_SYMBOL(vio_group_insert_work);
+
+
 int vio_group_init_mp(u32 group_id)
 {
 	struct vio_group *group = NULL;
@@ -205,6 +216,7 @@ void vio_group_init(struct vio_group *group)
 	group->sema_flag = 0x00;
 	atomic_set(&group->rcount, 0);
 	atomic_set(&group->node_refcount, 0);
+	atomic_set(&group->work_insert, 0);
 	for(i = 0; i < MAX_SUB_DEVICE; i++)
 		group->sub_ctx[i] = NULL;
 
@@ -391,6 +403,7 @@ void vio_bind_group_done(int instance)
 				group->leader = true;
 				group->head = group;
 				group->next = NULL;
+				vio_info("change group %d to leader\n", i);
 			}
 		}
 	}

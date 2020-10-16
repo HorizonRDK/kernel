@@ -303,9 +303,8 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 	if ((group) &&(atomic_dec_return(&subdev->refcount) == 0)) {
 		vio_dbg("ipu subdev %d", subdev->id);
 		subdev->state = 0;
-		if (group->gtask && subdev->leader)
+		if (group->gtask)
 			vio_group_task_stop(group->gtask);
-		subdev->leader = false;
 		subdev->skip_flag = false;
 		group->output_flag = 0;
 		instance = group->instance;
@@ -339,6 +338,7 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 		clear_bit(IPU_DS2_DMA_OUTPUT, &ipu->state);
 		clear_bit(IPU_HW_CONFIG, &ipu->state);
 		clear_bit(IPU_REUSE_SHADOW0, &ipu->state);
+		atomic_set(&group->work_insert, 0);
 
 		if (test_bit(IPU_HW_RUN, &ipu->state)) {
 			set_bit(IPU_HW_FORCE_STOP, &ipu->state);
@@ -605,6 +605,7 @@ static void ipu_set_all_lost_next_frame_flags(struct vio_group *group)
 	}
 }
 
+static int work_index = 0;
 void ipu_frame_work(struct vio_group *group)
 {
 	struct ipu_subdev *subdev;
@@ -650,6 +651,12 @@ void ipu_frame_work(struct vio_group *group)
 	if (instance < MAX_SHADOW_NUM)
 		shadow_index = instance;
 	vio_dbg("[S%d]%s start\n", instance, __func__);
+
+	if (group->leader && test_bit(IPU_OTF_INPUT, &ipu->state)) {
+		work_index = (work_index + 1) % 2;
+		vio_dbg("insert pipe %d index %d\n", instance, work_index);
+		vio_group_insert_work(group, &ipu->vwork[instance][work_index].work);
+	}
 
 	rdy = ipu_get_shd_rdy(ipu->base_reg);
 	rdy = rdy & ~(1 << 4) & ~(1 << shadow_index);
@@ -727,9 +734,9 @@ void ipu_frame_work(struct vio_group *group)
 				 * we will find framebuf in request list,
 				 * but we have consumed one hw_resource.wait_list member
 				 * */
-				if (subdev->leader == true && group->leader) {
-					vio_group_start_trigger_mp(group, frame);
-				}
+				//if (group->leader) {
+				//	vio_group_start_trigger_mp(group, frame);
+				//}
 
 				vio_dbg("[S%d][V%d]lost frame\n", group->instance, subdev->id);
 			}
@@ -781,7 +788,6 @@ void ipu_set_group_leader(struct vio_group *group, enum group_id id)
 
 	if (!test_bit(VIO_GROUP_LEADER, &group->state)) {
 		set_bit(VIO_GROUP_LEADER, &group->state);
-		subdev->leader = true;
 		vio_info("[S%d][V%d] %s\n", group->instance, id, __func__);
 	}
 }
@@ -795,7 +801,6 @@ void ipu_clear_group_leader(struct vio_group *group)
 		subdev = group->sub_ctx[i];
 		if (!subdev)
 			continue;
-		subdev->leader = false;
 	}
 
 	clear_bit(VIO_GROUP_LEADER, &group->state);
@@ -1734,7 +1739,16 @@ int ipu_video_init(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 		vio_err("ipu init mutex lock failed:%d", ret);
 		goto err;
 	}
-	if (subdev->leader && !subdev->skip_flag)
+
+	/*
+	 * if group->leader is true, that means ipu may be:
+	 * 1. all online scenario
+	 * 2. ddr->ipu
+	 * in these two scenario, ipu driver kernel thread should run
+	 * note only src node will call EOS, thus only work when src node init
+	 */
+	vio_err("ipu_video_init group->leader:%d\n", group->leader);
+	if (!subdev->skip_flag)
 		vio_group_task_start(group->gtask);
 	mutex_unlock(&ipu_mutex);
 	atomic_inc(&group->node_refcount);
@@ -1932,8 +1946,6 @@ static int ipu_flush_mp_prepare(struct ipu_video_ctx *ipu_ctx)
 				frame->dispatch_mask |= 0xFF00;
 				trans_frame(this, frame, FS_REQUEST);
 				vio_dbg("ipu streamoff to request%d", i);
-				if (subdev->leader == true && group->leader)
-					vio_group_start_trigger_mp(group, frame);
 			}
 		}
 	}
@@ -2193,7 +2205,21 @@ int ipu_video_qbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
-	if (subdev->leader == true && group->leader) {
+	/*
+	 * this should insert a work to thread
+	 * if all online, this qbuf only need one work to thread
+	 * if ddr->ipu, only src node need q work to thread
+	 */
+
+	// all online to ipu
+	if (group->leader && test_bit(IPU_OTF_INPUT, &ipu->state)) {
+		if(atomic_inc_return(&group->work_insert) == 1)
+			vio_group_start_trigger_mp(group, frame);
+		else
+			atomic_set(&group->work_insert, 1);
+	} else if (group->leader && test_bit(IPU_DMA_INPUT, &ipu->state)
+					&& subdev->id == 0) {
+		// ddr->ipu, qbuf is src
 		vio_group_start_trigger_mp(group, frame);
 	}
 
@@ -2317,8 +2343,6 @@ int ipu_video_dqbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 						subdev->frameinfo.bufferindex = -1;
 						cache_frame->dispatch_mask = 0xFF00;
 						trans_frame(framemgr, cache_frame, FS_REQUEST);
-						if (subdev->leader == true && group->leader)
-							vio_group_start_trigger_mp(group, frame);
 						vio_dbg("ipu dq trans to request%d", cache_bufindex);
 					}
 				}
@@ -2919,8 +2943,6 @@ void ipu_frame_done(struct ipu_subdev *subdev)
 					subdev->frameinfo.bufferindex = -1;
 					cache_frame->dispatch_mask = 0xFF00;
 					trans_frame(framemgr, cache_frame, FS_REQUEST);
-					if (subdev->leader == true && group->leader)
-						vio_group_start_trigger_mp(group, frame);
 					vio_dbg("ipu done to request%d", cache_bufindex);
 				}
 			}
@@ -2984,8 +3006,6 @@ void ipu_frame_ndone(struct ipu_subdev *subdev)
 			frame->frameinfo.bufferindex,
 			frame->frameinfo.frame_id);
 		trans_frame(framemgr, frame, FS_REQUEST);
-		if (subdev->leader == true && group->leader)
-			vio_group_start_trigger_mp(group, frame);
 	} else {
 		vio_err("[S%d][V%d]ndone IPU PROCESS queue has no member;\n",
 				group->instance, subdev->id);
