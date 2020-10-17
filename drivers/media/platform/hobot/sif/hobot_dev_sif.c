@@ -292,7 +292,7 @@ static int x3_sif_open(struct inode *inode, struct file *file)
 	}
 	mutex_unlock(&sif_mutex);
 
-	vio_info("SIF open node %d sif->open_cnt\n", minor, sif->open_cnt);
+	vio_info("SIF open node %d sif->open_cnt %d\n", minor, sif->open_cnt);
 p_err:
 	return ret;
 }

@@ -631,7 +631,7 @@ void ipu_frame_work(struct vio_group *group)
 
 	if (group->group_scenario == VIO_GROUP_SIF_OFF_IPU_ON_PYM ||
 		group->group_scenario == VIO_GROUP_SIF_ON_ISP_OFF_IPU_ON_PYM ||
-		group->group_scenario == VIO_GROUP_SIF_ON_ISP_OFF_IPU_ON_PYM) {
+		group->group_scenario == VIO_GROUP_SIF_ON_ISP_OFF_IPU_OFF_PYM) {
 		framemgr = &subdev->framemgr;
 		framemgr_e_barrier_irqs(framemgr, 0, flags);
 		frame = peek_frame(framemgr, FS_REQUEST);
@@ -679,7 +679,7 @@ void ipu_frame_work(struct vio_group *group)
 							 frame->frameinfo.addr[1]);
 				if (group->group_scenario == VIO_GROUP_SIF_OFF_IPU_ON_PYM ||
 					group->group_scenario == VIO_GROUP_SIF_ON_ISP_OFF_IPU_ON_PYM ||
-					group->group_scenario == VIO_GROUP_SIF_ON_ISP_OFF_IPU_ON_PYM) {
+					group->group_scenario == VIO_GROUP_SIF_ON_ISP_OFF_IPU_OFF_PYM) {
 					frame->frameinfo.frame_id = src_frame_id;
 					frame->frameinfo.timestamps = src_timestamps;
 				}
@@ -694,7 +694,7 @@ void ipu_frame_work(struct vio_group *group)
 							 frame->frameinfo.addr[1]);
 				if (group->group_scenario == VIO_GROUP_SIF_OFF_IPU_ON_PYM ||
 					group->group_scenario == VIO_GROUP_SIF_ON_ISP_OFF_IPU_ON_PYM ||
-					group->group_scenario == VIO_GROUP_SIF_ON_ISP_OFF_IPU_ON_PYM) {
+					group->group_scenario == VIO_GROUP_SIF_ON_ISP_OFF_IPU_OFF_PYM) {
 					frame->frameinfo.frame_id = src_frame_id;
 					frame->frameinfo.timestamps = src_timestamps;
 				}
