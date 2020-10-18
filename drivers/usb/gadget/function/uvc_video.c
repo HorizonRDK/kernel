@@ -373,13 +373,7 @@ int uvcg_video_enable(struct uvc_video *video, int enable)
 
 		uvc_video_free_requests(video);
 		uvcg_queue_enable(&video->queue, 0);
-		/* In our hobot usb 3.0 bulk streaming mode,
-		 * when host send reset, we should set our device endpoint in halt,
-		 * or there may be some request make next ep2 work fail.
-		 */
-		if (opts->streaming_bulk) {
-			usb_ep_set_halt(video->ep);
-		}
+
 		return 0;
 	}
 

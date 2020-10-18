@@ -1496,6 +1496,8 @@ int __dwc3_gadget_ep_set_halt(struct dwc3_ep *dep, int value, int protocol)
 {
 	struct dwc3_gadget_ep_cmd_params	params;
 	struct dwc3				*dwc = dep->dwc;
+	u32					reg;
+	u8					speed;
 	int					ret;
 
 	if (usb_endpoint_xfer_isoc(dep->endpoint.desc)) {
@@ -1535,8 +1537,25 @@ int __dwc3_gadget_ep_set_halt(struct dwc3_ep *dep, int value, int protocol)
 		else
 			dep->flags |= DWC3_EP_STALL;
 	} else {
-		if (!(dep->flags & DWC3_EP_STALL))
-			return 0;
+		if (!(dep->flags & DWC3_EP_STALL)) {
+			/*
+			 * TEMP PATCH!!!: Need to double check if usb3.0 uvc video
+			 * ep2in endpoint is stalled or not?? It seems that host
+			 * consider device ep2in is stalled... But device never call
+			 * set stall function... To be debug continued...
+			 *
+			 * Anyway, just do clear halt if receive event"Clear
+			 * Endpoint Feature(Halt ep2in)" for usb3.0 case.
+			 */
+			reg = dwc3_readl(dwc->regs, DWC3_DSTS);
+
+			speed = reg & DWC3_DSTS_CONNECTSPD;
+			if ((speed != DWC3_DSTS_SUPERSPEED) &&
+			    (speed != DWC3_DSTS_SUPERSPEED_PLUS)) {
+				// Just do clear halt for usb3.0 case
+				return 0;
+			}
+		}
 
 		ret = dwc3_send_clear_stall_ep_cmd(dep);
 		if (ret)
