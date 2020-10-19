@@ -2708,13 +2708,16 @@ static int mmc_notifier_callback(struct notifier_block *self,
 				 unsigned long event, void *data)
 {
 	struct dw_mci *host = container_of(self, struct dw_mci, dw_hb_notif);
-	static unsigned long irqflags;
 
 	if (event == HB_BUS_SIGNAL_START) {
-		spin_lock_irqsave(&host->lock, irqflags);
+		disable_irq(host->irq);
+		tasklet_disable(&host->tasklet);
+		spin_lock(&host->lock);
 		dev_dbg(host->dev, "%s: Grab mmc fm lock success!\n", __func__);
 	} else if (event == HB_BUS_SIGNAL_END) {
-		spin_unlock_irqrestore(&host->lock, irqflags);
+		spin_unlock(&host->lock);
+		tasklet_enable(&host->tasklet);
+		enable_irq(host->irq);
 		dev_dbg(host->dev, "%s: Release fm lock success!\n", __func__);
 	}
 
