@@ -43,6 +43,7 @@ typedef struct _camera_subdev_ctx {
 } camera_subdev_ctx;
 
 static camera_subdev_ctx *camera_ctx;
+static event_header_t event_header;
 
 static int camera_subdev_status(struct v4l2_subdev *sd)
 {
@@ -50,22 +51,51 @@ static int camera_subdev_status(struct v4l2_subdev *sd)
 	return 0;
 }
 
+static void write_sensor_work(struct work_struct *data)
+{
+	int ret = 0;
+	LIST_HEAD(event_list);
+	event_node_t *event_p;
+	spin_lock(&event_header.lock);
+	list_splice_init(&event_header.list_busy, &event_list);
+	spin_unlock(&event_header.lock);
+	list_for_each_entry(event_p, &event_list, list_node) {
+		ret = camera_sys_priv_set(event_p->port,
+			&event_p->priv_param);
+		if(ret < 0) {
+		   pr_err("SENSOR_UPDATE error port%d\n", event_p->port);
+		}
+	}
+	spin_lock(&event_header.lock);
+	list_splice_init(&event_list, &event_header.list_free);
+	spin_unlock(&event_header.lock);
+}
+
 static long camera_subdev_ioctl(struct v4l2_subdev *sd,
 		unsigned int cmd, void *arg)
 {
 	int ret = 0;
-
+	struct list_head *list;
+	event_node_t *event_p;
 	if (ARGS_TO_PTR(arg)->port >= CAMERA_TOTAL_NUMBER) {
 		pr_err("Failed to control dwe_ioctl :%d\n", ARGS_TO_PTR(arg)->port);
 		return -1;
 	}
 	switch (cmd) {
 	case SENSOR_UPDATE:
-		ret = camera_sys_priv_set(ARGS_TO_PTR(arg)->port,
-				ARGS_TO_PTR(arg)->sensor_priv);
-		if(ret < 0) {
-		   pr_err("SENSOR_UPDATE error port%d\n", ARGS_TO_PTR(arg)->port);
+		spin_lock(&event_header.lock);
+		if (!list_empty(&event_header.list_free)) {
+			list = event_header.list_free.next;
+			list_del(list);
+			event_p = list_entry(list, event_node_t, list_node);
+			event_p->port = ARGS_TO_PTR(arg)->port;
+			memcpy(&event_p->priv_param,
+					ARGS_TO_PTR(arg)->sensor_priv,
+					sizeof(sensor_priv_t));
+			list_add(list, &event_header.list_busy);
 		}
+		spin_unlock(&event_header.lock);
+		schedule_work(&event_header.updata_work);
 		break;
 	case SENSOR_GET_PARAM:
 		ret = camera_sys_get_param(ARGS_TO_PTR(arg)->port,
@@ -171,6 +201,14 @@ static const struct v4l2_subdev_ops camera_ops = {
 static int32_t camera_subdev_probe(struct platform_device *pdev)
 {
 	int32_t ret = 0;
+	int i, event_size;
+	event_node_t *event_arr;
+	event_size = 2 * CAMERA_TOTAL_NUMBER * sizeof(event_node_t);
+	event_arr = devm_kmalloc(&pdev->dev, event_size, GFP_KERNEL);
+	if (event_arr == NULL) {
+		pr_err("kzalloc event_node failed!");
+		return -ENOMEM;
+	}
 
 	camera_ctx = kzalloc(sizeof(camera_subdev_ctx), GFP_KERNEL);
 	if (camera_ctx == NULL) {
@@ -187,6 +225,13 @@ static int32_t camera_subdev_probe(struct platform_device *pdev)
 	ret = v4l2_async_register_subdev(&camera_ctx->camera);
 
 	pr_info("register v4l2 lens device. result%d", ret);
+
+	INIT_LIST_HEAD(&event_header.list_free);
+	INIT_LIST_HEAD(&event_header.list_busy);
+	spin_lock_init(&event_header.lock);
+	INIT_WORK(&event_header.updata_work, write_sensor_work);
+	for (i = 0; i < 2 * CAMERA_TOTAL_NUMBER; i++)
+		list_add(&event_arr[i].list_node, &event_header.list_free);
 	return ret;
 }
 

@@ -13,10 +13,12 @@
 
 #ifndef DRIVERS_MEDIA_PLATFORM_HOBOT_ISP_SUBDEV_COMMON_INC_CAMERA_SUBDEV_H_
 #define DRIVERS_MEDIA_PLATFORM_HOBOT_ISP_SUBDEV_COMMON_INC_CAMERA_SUBDEV_H_
-
 #define CAMERA_TOTAL_NUMBER  8
 #define V4L2_CAMERA_NAME "camera"
 #define CAMERA_SENSOR_NAME  20
+
+#include <linux/list.h>
+#include <linux/workqueue.h>
 
 typedef struct sensor_priv {
 	  uint32_t gain_num;
@@ -192,6 +194,19 @@ enum camera_IOCTL {
 	SENSOR_ALLOC_INTEGRATION_TIME,
 	SENSOR_AWB_UPDATE,
 };
+
+typedef struct {
+	struct list_head list_free;
+	struct list_head list_busy;
+	spinlock_t lock;
+	struct work_struct updata_work;
+} event_header_t;
+
+typedef struct {
+	struct list_head  list_node;
+	uint32_t port;
+	sensor_priv_t priv_param;
+} event_node_t;
 
 #endif // DRIVERS_MEDIA_PLATFORM_HOBOT_ISP_SUBDEV_COMMON_INC_CAMERA_SUBDEV_H_
 
