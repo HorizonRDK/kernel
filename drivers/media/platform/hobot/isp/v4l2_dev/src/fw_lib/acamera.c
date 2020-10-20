@@ -681,6 +681,10 @@ static int _isp_iridix_ctrl(void)
     pr_debug("giver id %d, accepter id %d\n", giver_ctx_id, accepter_ctx_id);
 
     p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[accepter_ctx_id];
+    if (p_ctx->initialized == 0) {
+	pr_err(" acamera_context[%d] is not initialized.\n", accepter_ctx_id);
+	return -1;
+    }
     val = acamera_isp_top_bypass_iridix_read(p_ctx->settings.isp_base);
     if (val == 0) {
         pr_err("accepter_ctx_id %d iridix enabled already\n", accepter_ctx_id);
