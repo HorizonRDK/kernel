@@ -776,16 +776,8 @@ static void hobot_uart_stop_tx(struct uart_port *port)
 static unsigned int hobot_uart_tx_empty(struct uart_port *port)
 {
 	unsigned int status;
-#if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
-	struct hobot_uart *hobot_port = port->private_data;
-	unsigned long flags = 0;
 
-	spin_lock_irqsave(&hobot_port->port->lock, flags);
-#endif
 	status = readl(port->membase + HOBOT_UART_LSR) & UART_LSR_TX_EMPTY;
-#if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
-	spin_unlock_irqrestore(&hobot_port->port->lock, flags);
-#endif
 	return status ? TIOCSER_TEMT : 0;
 }
 
@@ -1787,7 +1779,6 @@ static int hobot_uart_probe(struct platform_device *pdev)
 #if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
 	hobot_uart_data->uart_notifier.notifier_call = serial_notifier_callback;
 	hb_bus_register_client(&hobot_uart_data->uart_notifier);
-	pdev->dev.driver_data = hobot_uart_data;
 	init_completion(&hobot_uart_data->dmatx_completion);
 	atomic_set(&hobot_uart_data->uart_start, 0);
 #endif
