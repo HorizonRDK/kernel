@@ -103,7 +103,7 @@ helper()
 ####################################
 
 #"uh" > "u:h:" if need args
-while getopts "MCmjcheroid" opt; do
+while getopts "MPCmjcheroid" opt; do
   case $opt in
        m)
 			mk_cfg
@@ -111,6 +111,12 @@ while getopts "MCmjcheroid" opt; do
 			;;
        M)
 			cfg=xj3_debug_defconfig
+			echo $cfg
+			mk_cfg
+			exit
+			;;
+       P)
+			cfg=xj3_perf_defconfig
 			echo $cfg
 			mk_cfg
 			exit
