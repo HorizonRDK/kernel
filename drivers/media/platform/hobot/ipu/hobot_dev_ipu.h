@@ -219,6 +219,8 @@ struct ipu_subdev {
 	unsigned int frame_rate_change_strategy;
 	unsigned int frame_skip_step;
 	unsigned int frame_skip_num;
+
+	bool frame_is_skipped;
 };
 
 struct x3_ipu_dev {

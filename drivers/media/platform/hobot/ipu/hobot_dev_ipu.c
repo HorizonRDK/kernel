@@ -52,6 +52,9 @@ int ipu_video_streamoff(struct ipu_video_ctx *ipu_ctx);
 enum buffer_owner ipu_index_owner(struct ipu_video_ctx *ipu_ctx, u32 index);
 void ipu_disable_all_channels(void __iomem *base_reg, u8 shadow_index);
 int ipu_hw_enable_channel(struct ipu_subdev *subdev, bool enable);
+void ipu_frame_ndone(struct ipu_subdev *subdev);
+void ipu_frame_done(struct ipu_subdev *subdev);
+
 
 extern struct ion_device *hb_ion_dev;
 static struct pm_qos_request ipu_pm_qos_req;
@@ -619,6 +622,8 @@ void ipu_frame_work(struct vio_group *group)
 	u8 shadow_index = 0;
 	bool ds2_dma_enable = 0;
 	bool dma_enable = 0;
+	bool all_subdev_skip = 1;
+	int subdev_skip_enabled[MAX_SUB_DEVICE] = {-1};
 
 	u32 src_frame_id = 0;
 	uint64_t src_timestamps = 0;
@@ -766,8 +771,28 @@ void ipu_frame_work(struct vio_group *group)
 	}
 	atomic_inc(&ipu->backup_fcount);
 
-	if (test_bit(IPU_DMA_INPUT, &ipu->state))
-		ipu_set_rdma_start(ipu->base_reg);
+	// if all channel jump, skip this src frame
+	if (test_bit(IPU_DMA_INPUT, &ipu->state)) {
+		for (i = 1; i <= 6; i++) {
+			if (subdev_skip_enabled[i] == 1) {
+				vio_dbg("fake frame ndone when ddr->ipu jump, subdev %d\n", i);
+				subdev = group->sub_ctx[i];
+				if (!subdev)
+					continue;
+
+				subdev->frame_is_skipped = true;
+				ipu_frame_ndone(subdev);
+			}
+		}
+		vio_dbg("all subdev skip %d\n", all_subdev_skip);
+		ipu_set_all_lost_next_frame_flags(group);
+		if (all_subdev_skip) {
+			vio_group_done(group);
+			ipu_frame_done(group->sub_ctx[0]);
+		} else {
+			ipu_set_rdma_start(ipu->base_reg);
+		}
+	}
 
 	if (!test_bit(IPU_HW_CONFIG, &ipu->state)) {
 		set_bit(IPU_HW_CONFIG, &ipu->state);
@@ -2424,7 +2449,12 @@ int ipu_video_dqbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 			goto DONE;
 		}
 	} else {
-		ret = -EFAULT;
+		if (subdev && subdev->frame_is_skipped) {
+			ret = -ENODATA;
+			subdev->frame_is_skipped = false;
+		} else {
+			ret = -EFAULT;
+		}
 		vio_err("[S%d] %s proc%d no frame, event %d.\n",
 			ipu_ctx->group->instance, __func__, ctx_index,
 			ipu_ctx->event);
