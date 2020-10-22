@@ -787,6 +787,13 @@ void ipu_frame_work(struct vio_group *group)
 				ipu_frame_ndone(subdev);
 			}
 		}
+
+		// if ipu is dma input, and no output to ddr
+		// ddr->ipu->otf->pym, no ipu chn to ddr
+		if (test_bit(VIO_GROUP_DMA_INPUT, &group->state) &&
+			!test_bit(VIO_GROUP_DMA_OUTPUT, &group->state)) {
+			all_subdev_skip = 0;
+		}
 		vio_dbg("all subdev skip %d\n", all_subdev_skip);
 		ipu_set_all_lost_next_frame_flags(group);
 		if (all_subdev_skip) {
