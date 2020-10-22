@@ -44,7 +44,7 @@ static u32 color[MAX_OSD_COLOR_NUM] = {
 extern struct vio_frame_id	ipu_frame_info;
 
 char ipu_node_name[MAX_DEVICE][8] =
-	{"src", "us", "ds0", "ds1", "ds2", "ds3", "ds4", "none"};
+	{"src", "us", "ds0", "ds1", "ds2", "ds3", "ds4"};
 
 void ipu_hw_set_cfg(struct ipu_subdev *subdev);
 void ipu_update_hw_param(struct ipu_subdev *subdev);
@@ -624,7 +624,7 @@ void ipu_frame_work(struct vio_group *group)
 	bool ds2_dma_enable = 0;
 	bool dma_enable = 0;
 	bool all_subdev_skip = 1;
-	int subdev_skip_enabled[MAX_SUB_DEVICE] = {-1};
+	int subdev_skip_enabled[MAX_DEVICE] = {-1};
 
 	u32 src_frame_id = 0;
 	uint64_t src_timestamps = 0;
@@ -735,7 +735,7 @@ void ipu_frame_work(struct vio_group *group)
 				ipu_hw_set_cfg(subdev);
 				trans_frame(framemgr, frame, FS_PROCESS);
 				subdev_inc_enable_frame_count(subdev);
-				if (i >= 1 && i <= 6)
+				if ((i >= GROUP_ID_US) && (i <= (MAX_DEVICE - 1)))
 					all_subdev_skip = 0;
 			} else {
 				/* if we do not trigger frame again,
@@ -777,7 +777,7 @@ void ipu_frame_work(struct vio_group *group)
 
 	// if all channel jump, skip this src frame
 	if (test_bit(IPU_DMA_INPUT, &ipu->state)) {
-		for (i = 1; i <= 6; i++) {
+		for (i = 1; i <= (MAX_DEVICE - 1); i++) {
 			if (subdev_skip_enabled[i] == 1) {
 				vio_dbg("fake frame ndone when ddr->ipu jump, subdev %d\n", i);
 				subdev = group->sub_ctx[i];
@@ -3656,7 +3656,7 @@ static ssize_t ipu_stat_show(struct device *dev,
 			"*******S%d info:******\n",
 			instance);
 		offset += len;
-		for (i = 0; i < 7; i++) {
+		for (i = 0; i < MAX_DEVICE; i++) {
 			stats = &ipu->statistic.user_stats[instance][i];
 			len = snprintf(&buf[offset], PAGE_SIZE - offset,
 				"ch%d(%s) USER: normal %d, sel tout %d, drop %d, "

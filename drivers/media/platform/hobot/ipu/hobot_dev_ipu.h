@@ -21,7 +21,7 @@
 
 #define X3_IPU_NAME  "x3-ipu"
 
-#define MAX_DEVICE  8
+#define MAX_DEVICE  7
 #define IPU_IOC_MAGIC 'v'
 
 #define IPU_IOC_INIT             _IOW(IPU_IOC_MAGIC, 0, int)
