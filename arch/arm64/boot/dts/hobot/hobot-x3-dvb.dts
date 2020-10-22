@@ -32,14 +32,14 @@
 
 			cnn0_pd_reg: DCDC2 {
 				regulator-name = "VCC_CNN0";
-				regulator-min-microvolt = <800000>;
+				regulator-min-microvolt = <820000>;
 				regulator-max-microvolt = <1000000>;
 				regulator-enable-ramp-delay = <3000>;
 			};
 
 			cnn1_pd_reg: DCDC3 {
 				regulator-name = "VCC_CNN1";
-				regulator-min-microvolt = <800000>;
+				regulator-min-microvolt = <820000>;
 				regulator-max-microvolt = <1000000>;
 				regulator-enable-ramp-delay = <3000>;
 			};
