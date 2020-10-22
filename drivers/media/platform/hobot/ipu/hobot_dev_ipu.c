@@ -1828,8 +1828,8 @@ int ipu_bind_chain_group(struct ipu_video_ctx *ipu_ctx, int instance)
 	id = ipu_ctx->id;
 	subdev = &ipu->subdev[instance][id];
 	ipu->group[instance] = group;
-
 	group->sub_ctx[id] = subdev;
+
 	ipu_ctx->group = group;
 	ipu_ctx->subdev = subdev;
 	ipu_ctx->framemgr = &subdev->framemgr;
@@ -2416,7 +2416,12 @@ int ipu_video_dqbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 		return ret;
 	} else {
 		if (atomic_read(&subdev->refcount) == 1) {
-			ret = -EFAULT;
+			if (subdev && subdev->frame_is_skipped) {
+				ret = -ENODATA;
+				subdev->frame_is_skipped = false;
+			} else {
+				ret = -EFAULT;
+			}
 			ipu_ctx->event = 0;
 			vio_err("[S%d][V%d] %s (p%d) complete empty.",
 				ipu_ctx->group->instance, ipu_ctx->id, __func__,
@@ -2460,12 +2465,7 @@ int ipu_video_dqbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 			goto DONE;
 		}
 	} else {
-		if (subdev && subdev->frame_is_skipped) {
-			ret = -ENODATA;
-			subdev->frame_is_skipped = false;
-		} else {
-			ret = -EFAULT;
-		}
+		ret = -EFAULT;
 		vio_err("[S%d] %s proc%d no frame, event %d.\n",
 			ipu_ctx->group->instance, __func__, ctx_index,
 			ipu_ctx->event);
