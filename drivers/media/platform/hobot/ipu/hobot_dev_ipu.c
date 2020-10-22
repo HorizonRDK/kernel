@@ -734,6 +734,8 @@ void ipu_frame_work(struct vio_group *group)
 				ipu_hw_set_cfg(subdev);
 				trans_frame(framemgr, frame, FS_PROCESS);
 				subdev_inc_enable_frame_count(subdev);
+				if (i >= 1 && i <= 6)
+					all_subdev_skip = 0;
 			} else {
 				/* if we do not trigger frame again,
 				 * we will find framebuf in request list,
@@ -744,6 +746,7 @@ void ipu_frame_work(struct vio_group *group)
 				//}
 
 				vio_dbg("[S%d][V%d]lost frame\n", group->instance, subdev->id);
+				subdev_skip_enabled[i] = 1;
 			}
 		}
 
