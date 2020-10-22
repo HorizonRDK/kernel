@@ -7,6 +7,7 @@
 #include <linux/semaphore.h>
 #include <linux/moduleparam.h>
 #include <linux/completion.h>
+#include <linux/jiffies.h>
 #include "isp_ctxsv.h"
 
 /*
@@ -110,7 +111,7 @@ isp_ctx_node_t *isp_ctx_get_node_timeout(int ctx_id, isp_info_type_e it,
 	is_empty = list_empty(&ctx_queue[ctx_id][it].ctx_node_head[qt]);
 	spin_unlock(&lock);
 	if (unlikely(is_empty == 1))
-		ret = down_timeout(&ctx_queue[ctx_id][it].sem, timeout);
+		ret = down_timeout(&ctx_queue[ctx_id][it].sem, msecs_to_jiffies(timeout));
 
 	if (ret == 0) {
 		spin_lock(&lock);
@@ -174,7 +175,7 @@ int isp_ctx_queue_init(void)
 
 	for (i = 0; i < FIRMWARE_CONTEXT_NUMBER; i++) {
 		for (j = 0; j < TYPE_MAX; j++) {
-			sema_init(&ctx_queue[i][j].sem, 1);
+			sema_init(&ctx_queue[i][j].sem, 0);
 			INIT_LIST_HEAD(&ctx_queue[i][j].ctx_node_head[FREEQ]);
 			INIT_LIST_HEAD(&ctx_queue[i][j].ctx_node_head[DONEQ]);
 		}
