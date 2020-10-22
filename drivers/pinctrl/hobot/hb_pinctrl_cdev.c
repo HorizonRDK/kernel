@@ -24,7 +24,7 @@
 #include <linux/platform_device.h>
 #include <linux/of.h>
 #include <linux/io.h>
-#include "hb_pinctrl_cdev.h"
+#include <soc/hobot/hb_pinctrl_cdev.h>
 
 
 #define DRIVER_NAME "pinctrl_cdev"
