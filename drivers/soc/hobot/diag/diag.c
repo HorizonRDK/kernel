@@ -924,6 +924,18 @@ int diag_send_event_stat(
 }
 EXPORT_SYMBOL(diag_send_event_stat);
 
+/* other drivers use this interface to send event */
+int32_t diagnose_send_event(struct diag_event *event)
+{
+	int ret;
+
+	ret = diag_do_send_event_stat_and_env_data(event->event_prio,
+		event->module_id, event->event_id, event->event_sta,  event->when,
+		event->payload, event->env_len);
+	return ret;
+}
+EXPORT_SYMBOL(diagnose_send_event); /* PRQA S ALL */
+
 static int _diag_send_event_stat_and_env_data(
 	struct diag_msg_id *id,
 	uint8_t event_sta,
@@ -1419,6 +1431,18 @@ err:
 	return -1;
 }
 EXPORT_SYMBOL(diag_register);
+
+int32_t diagnose_register(const struct diag_register_info *register_info)
+{
+	int32_t ret;
+	ret = diag_register(register_info->module_id,
+		register_info->event_handle[0].event_id,
+		10, register_info->event_handle[0].min_snd_ms,
+		register_info->event_handle[0].max_snd_ms,
+		register_info->event_handle[0].cb);
+	return ret;
+}
+EXPORT_SYMBOL(diagnose_register); /* PRQA S ALL */
 
 static void netlink_rcv_diagmsg_process(char *pstr)
 {

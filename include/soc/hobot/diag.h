@@ -263,6 +263,45 @@ struct id_register_struct {
 	struct list_head id_register_lst;
 };
 
+#define EVENT_ID_MAX 1
+#define ENV_PAYLOAD_SIZE	128
+
+/*
+ * Each event_id may have an unique handling method.
+ */
+typedef void (*callback_t)(void *dev, size_t len);
+struct diag_event_id_handle {
+	uint8_t event_id;		//event id
+	uint32_t min_snd_ms;	//minimum interval between message send
+	uint32_t max_snd_ms;	//maximum interval between message send
+	callback_t cb;			//callback to process specific logic
+	void* data;
+};
+
+/*
+ * register struct, used by diagnose_register function to
+ * provide register information.
+ */
+struct diag_register_info {
+	uint8_t module_id;
+	struct diag_event_id_handle event_handle[EVENT_ID_MAX];
+	uint8_t event_cnt;
+};
+
+/*
+ * diagnose event struct defintion
+ */
+struct diag_event {
+	uint16_t module_id;
+	uint16_t event_id;
+	uint8_t event_prio;		//event priority
+	uint8_t event_sta;		//event status
+
+	uint8_t payload[ENV_PAYLOAD_SIZE];
+	uint8_t env_len;
+	uint8_t when;
+};
+
 extern struct net init_net;
 extern struct list_head diag_id_unmask_list;
 extern uint32_t diag_id_unmask_list_num;
@@ -302,8 +341,31 @@ extern int diag_send_event_stat(
  * @max_time_out_snd maximum timeout
  * @rcvcallback this module--event maybe rcv a msg form diag app[call back]
  */
-extern int diag_register(uint16_t module_id, uint16_t event_id, size_t envdata_max_size,
-		uint32_t min_snd_ms, uint32_t max_time_out_snd,
-		void (*rcvcallback)(void *p, size_t len));
+extern int diag_register(uint16_t module_id, uint16_t event_id,
+		size_t envdata_max_size, uint32_t min_snd_ms,
+		uint32_t max_time_out_snd, void (*rcvcallback)(void *p, size_t len));
+
+#define NOT_SUPPORT -1
+/*
+ * register to the diagnose driver, other modules should call
+ * this function before send event to the diagnose driver.
+ */
+extern int32_t diagnose_register(const struct diag_register_info *register_info);
+
+/*
+ * Send event to the diagnose driver.
+ *
+ * @event: diagnose event
+ * @return: 0 on success, -1 on failure
+ */
+extern int32_t diagnose_send_event(struct diag_event *event);
+
+/*
+ * unregister to the diagnose driver.
+ */
+static inline int32_t diagnose_unregister(uint8_t module_id)
+{
+	return NOT_SUPPORT;
+}
 
 #endif
