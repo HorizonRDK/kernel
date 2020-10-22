@@ -187,12 +187,20 @@ uvc_video_complete(struct usb_ep *ep, struct usb_request *req)
 
 	spin_lock_irqsave(&video->queue.irqlock, flags);
 	buf = uvcg_queue_head(&video->queue);
-	if (buf == NULL) {
-		spin_unlock_irqrestore(&video->queue.irqlock, flags);
-		goto requeue;
+	if (buf != NULL) {
+		video->encode(req, video, buf);
+	} else {
+		if (usb_endpoint_xfer_isoc(video->ep->desc)) {
+			/* when usb work in isoc mode,
+			 * there is no data to send
+			 * we need send zero packet for isoc transfer
+			 */
+			req->length = 0;
+		} else {
+			spin_unlock_irqrestore(&video->queue.irqlock, flags);
+			goto requeue;
+		}
 	}
-
-	video->encode(req, video, buf);
 
 	if ((ret = usb_ep_queue(ep, req, GFP_ATOMIC)) < 0) {
 		printk(KERN_INFO "Failed to queue request (%d).\n", ret);
