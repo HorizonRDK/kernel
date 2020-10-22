@@ -3001,6 +3001,9 @@ static int dw_mci_init_slot(struct dw_mci *host)
 
 	dw_mci_get_cd(mmc);
 
+	/* Now that slots are all setup, we can enable card detect */
+	dw_mci_enable_cd(host);
+
 	ret = mmc_add_host(mmc);
 	if (ret)
 		goto err_host_allocated;
@@ -3511,8 +3514,6 @@ int dw_mci_probe(struct dw_mci *host)
 							4, 50, 4000, NULL) < 0)
 			pr_err("emmc diag register fail\n");
 	}
-	/* Now that slots are all setup, we can enable card detect */
-	dw_mci_enable_cd(host);
 
 	return 0;
 
