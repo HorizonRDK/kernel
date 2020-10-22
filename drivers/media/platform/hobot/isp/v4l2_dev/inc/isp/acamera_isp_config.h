@@ -3567,4 +3567,47 @@ static __inline uint16_t acamera_isp_fr_uv_dma_writer_active_height_read_hw(uint
 }
 
 // ------------------------------------------------------------------------------ //
+// Register: RGGB start pre mirror
+// ------------------------------------------------------------------------------ //
+
+// ------------------------------------------------------------------------------ //
+// Starting color of the rggb pattern for all the modules before mirror
+// ------------------------------------------------------------------------------ //
+// args: data (2-bit)
+static __inline void acamera_isp_rggb_start_pre_mirror_write_hw(uint8_t data) {
+    uint32_t curr = system_hw_read_32(0x18e8cL);
+    system_hw_write_32(0x18e8cL, (((uint32_t) (data & 0x3)) << 0) | (curr & 0xfffffffc));
+}
+static __inline uint8_t acamera_isp_rggb_start_pre_mirror_read_hw(void) {
+    return (uint8_t)((system_hw_read_32(0x18e8cL) & 0x3) >> 0);
+}
+
+// ------------------------------------------------------------------------------ //
+// Register: RGGB start post mirror
+// ------------------------------------------------------------------------------ //
+
+// ------------------------------------------------------------------------------ //
+// Starting color of the rggb pattern for all the modules after mirror
+//        this must be same as RGGB start pre mirror if mirror is bypassed
+//
+// ------------------------------------------------------------------------------ //
+// args: data (2-bit)
+static __inline void acamera_isp_rggb_start_post_mirror_write_hw(uint8_t data) {
+    uint32_t curr = system_hw_read_32(0x18e8cL);
+    system_hw_write_32(0x18e8cL, (((uint32_t) (data & 0x3)) << 8) | (curr & 0xfffffcff));
+}
+static __inline uint8_t acamera_isp_rggb_start_post_mirror_read_hw(void) {
+    return (uint8_t)((system_hw_read_32(0x18e8cL) & 0x300) >> 8);
+}
+
+// args: data (1-bit)
+static __inline void acamera_isp_bypass_mirror_write_hw(uint8_t data) {
+    uint32_t curr = system_hw_read_32(0x18ec0L);
+    system_hw_write_32(0x18ec0L, (((uint32_t) (data & 0x1)) << 0) | (curr & 0xfffffffe));
+}
+static __inline uint8_t acamera_isp_bypass_mirror_read_hw(void) {
+    return (uint8_t)((system_hw_read_32(0x18ec0L) & 0x1) >> 0);
+}
+
+// ------------------------------------------------------------------------------ //
 #endif //__ACAMERA_ISP_CONFIG_H__
