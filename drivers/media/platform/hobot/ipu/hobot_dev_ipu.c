@@ -315,6 +315,7 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 		if (atomic_dec_return(&group->node_refcount) == 0) {
 			clear_bit(VIO_GROUP_LEADER, &group->state);
 			clear_bit(VIO_GROUP_INIT, &group->state);
+			clear_bit(VIO_GROUP_IPU_DS2_DMA_OUTPUT, &group->state);
 		}
 		subdev->info_cfg.info_update = 0;
 		subdev->cur_enable_flag = 0;
@@ -1481,7 +1482,7 @@ int ipu_update_ds_param(struct ipu_subdev *subdev, ipu_ds_info_t *ds_config)
 		group->output_flag++;
 		set_bit(VIO_GROUP_DMA_OUTPUT, &group->state);
 		if (subdev->id == GROUP_ID_DS2) {
-			set_bit(IPU_DS2_DMA_OUTPUT, &ipu->state);
+			set_bit(VIO_GROUP_IPU_DS2_DMA_OUTPUT, &group->state);
 		}
 	}
 	return ret;
@@ -1901,7 +1902,7 @@ int ipu_video_streamon(struct ipu_video_ctx *ipu_ctx)
 	}
 
 	if (subdev->id == GROUP_ID_SRC &&
-				!test_bit(IPU_DS2_DMA_OUTPUT, &ipu->state)) {
+				!test_bit(VIO_GROUP_IPU_DS2_DMA_OUTPUT, &group->state)) {
 		ipu_channel_wdma_enable(subdev, true);
 	}
 
@@ -3260,7 +3261,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 	}
 
 	if (status & (1 << INTR_IPU_DS2_FRAME_DONE)
-	    && test_bit(IPU_DS2_DMA_OUTPUT, &ipu->state)) {
+	    && test_bit(VIO_GROUP_IPU_DS2_DMA_OUTPUT, &group->state)) {
 	    vio_dbg("ipu ds2");
 		subdev = group->sub_ctx[GROUP_ID_DS2];
 		if (subdev && subdev->cur_enable_flag) {
@@ -3320,7 +3321,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 			ipu_set_all_lost_next_frame_flags(group);
 		}
 
-		if (test_bit(IPU_DS2_DMA_OUTPUT, &ipu->state)) {
+		if (test_bit(VIO_GROUP_IPU_DS2_DMA_OUTPUT, &group->state)) {
 			subdev = group->sub_ctx[GROUP_ID_DS2];
 			if (subdev) {
 				subdev->cur_enable_flag = atomic_read(&subdev->pre_enable_flag);

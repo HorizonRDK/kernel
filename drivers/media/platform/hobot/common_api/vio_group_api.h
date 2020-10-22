@@ -67,6 +67,7 @@ enum vio_group_state {
 	VIO_GROUP_DMA_INPUT,
 	VIO_GROUP_DMA_OUTPUT,
 	VIO_GROUP_LEADER,
+	VIO_GROUP_IPU_DS2_DMA_OUTPUT,
 };
 
 enum vio_group_scenarios_state {
