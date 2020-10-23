@@ -1428,7 +1428,8 @@ int camera_sys_priv_set(uint32_t port, sensor_priv_t *priv_param)
 {
 	int ret = 0;
 
-	if (port > CAMERA_TOTAL_NUMBER) {
+	mutex_lock(&camera_mod[port]->slock);
+	if (port > CAMERA_TOTAL_NUMBER || camera_mod[port]->client == NULL) {
 		ret = -1;
 	} else {
 		if (priv_param) {
@@ -1484,6 +1485,7 @@ int camera_sys_priv_set(uint32_t port, sensor_priv_t *priv_param)
 	}
 
 out:
+	mutex_unlock(&camera_mod[port]->slock);
 	return ret;
 }
 
