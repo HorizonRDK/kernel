@@ -437,6 +437,7 @@ int ipu_check_phyaddr(struct frame_info *frameinfo)
 	if (ret < 0) {
 		vio_err("ipu phyaddr[0] 0x%x is beyond ion address region\n",
 				frameinfo->addr[0]);
+		return ret;
 	}
 
 	ret = ion_check_in_heap_carveout(frameinfo->addr[1], 0);
