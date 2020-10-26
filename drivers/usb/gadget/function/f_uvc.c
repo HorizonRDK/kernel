@@ -288,7 +288,7 @@ uvc_function_ep0_complete(struct usb_ep *ep, struct usb_request *req)
 		v4l2_event.type = UVC_EVENT_DATA;
 		uvc_event->data.length = req->actual;
 		memcpy(&uvc_event->data.data, req->buf, req->actual);
-		v4l2_event_queue(&uvc->vdev, &v4l2_event);
+		v4l2_event_queue(uvc->vdev, &v4l2_event);
 	}
 }
 
@@ -322,7 +322,7 @@ uvc_function_setup(struct usb_function *f, const struct usb_ctrlrequest *ctrl)
 	memset(&v4l2_event, 0, sizeof(v4l2_event));
 	v4l2_event.type = UVC_EVENT_SETUP;
 	memcpy(&uvc_event->req, ctrl, sizeof(uvc_event->req));
-	v4l2_event_queue(&uvc->vdev, &v4l2_event);
+	v4l2_event_queue(uvc->vdev, &v4l2_event);
 
 	return 0;
 }
@@ -392,7 +392,7 @@ uvc_function_set_alt(struct usb_function *f, unsigned interface, unsigned alt)
 			memset(&v4l2_event, 0, sizeof(v4l2_event));
 			v4l2_event.type = UVC_EVENT_CONNECT;
 			uvc_event->speed = cdev->gadget->speed;
-			v4l2_event_queue(&uvc->vdev, &v4l2_event);
+			v4l2_event_queue(uvc->vdev, &v4l2_event);
 
 			uvc->state = UVC_STATE_CONNECTED;
 		}
@@ -414,7 +414,7 @@ uvc_function_set_alt(struct usb_function *f, unsigned interface, unsigned alt)
 
 			memset(&v4l2_event, 0, sizeof(v4l2_event));
 			v4l2_event.type = UVC_EVENT_STREAMOFF;
-			v4l2_event_queue(&uvc->vdev, &v4l2_event);
+			v4l2_event_queue(uvc->vdev, &v4l2_event);
 
 			uvc->state = UVC_STATE_CONNECTED;
 			return 0;
@@ -437,7 +437,7 @@ uvc_function_set_alt(struct usb_function *f, unsigned interface, unsigned alt)
 
 			memset(&v4l2_event, 0, sizeof(v4l2_event));
 			v4l2_event.type = UVC_EVENT_STREAMON;
-			v4l2_event_queue(&uvc->vdev, &v4l2_event);
+			v4l2_event_queue(uvc->vdev, &v4l2_event);
 			return USB_GADGET_DELAYED_STATUS;
 
 		default:
@@ -463,7 +463,7 @@ uvc_function_set_alt(struct usb_function *f, unsigned interface, unsigned alt)
 			} else {
 				memset(&v4l2_event, 0, sizeof(v4l2_event));
 				v4l2_event.type = UVC_EVENT_STREAMON;
-				v4l2_event_queue(&uvc->vdev, &v4l2_event);
+				v4l2_event_queue(uvc->vdev, &v4l2_event);
 
 				uvc->state = UVC_STATE_STREAMING;
 			}
@@ -486,7 +486,7 @@ uvc_function_set_alt(struct usb_function *f, unsigned interface, unsigned alt)
 #endif
 			memset(&v4l2_event, 0, sizeof(v4l2_event));
 			v4l2_event.type = UVC_EVENT_STREAMOFF;
-			v4l2_event_queue(&uvc->vdev, &v4l2_event);
+			v4l2_event_queue(uvc->vdev, &v4l2_event);
 			uvc->state = UVC_STATE_CONNECTED;
 			return 0;
 
@@ -506,7 +506,7 @@ uvc_function_disable(struct usb_function *f)
 
 	memset(&v4l2_event, 0, sizeof(v4l2_event));
 	v4l2_event.type = UVC_EVENT_DISCONNECT;
-	v4l2_event_queue(&uvc->vdev, &v4l2_event);
+	v4l2_event_queue(uvc->vdev, &v4l2_event);
 
 	uvc->state = UVC_STATE_DISCONNECTED;
 
@@ -547,18 +547,22 @@ uvc_register_video(struct uvc_device *uvc)
 {
 	struct usb_composite_dev *cdev = uvc->func.config->cdev;
 
+	uvc->vdev = video_device_alloc();
+	if (!uvc->vdev)
+		return -ENOMEM;
+
 	/* TODO reference counting. */
-	uvc->vdev.v4l2_dev = &uvc->v4l2_dev;
-	uvc->vdev.fops = &uvc_v4l2_fops;
-	uvc->vdev.ioctl_ops = &uvc_v4l2_ioctl_ops;
-	uvc->vdev.release = video_device_release_empty;
-	uvc->vdev.vfl_dir = VFL_DIR_TX;
-	uvc->vdev.lock = &uvc->video.mutex;
-	strlcpy(uvc->vdev.name, cdev->gadget->name, sizeof(uvc->vdev.name));
+	uvc->vdev->v4l2_dev = &uvc->v4l2_dev;
+	uvc->vdev->fops = &uvc_v4l2_fops;
+	uvc->vdev->ioctl_ops = &uvc_v4l2_ioctl_ops;
+	uvc->vdev->release = video_device_release;
+	uvc->vdev->vfl_dir = VFL_DIR_TX;
+	uvc->vdev->lock = &uvc->video.mutex;
+	strlcpy(uvc->vdev->name, cdev->gadget->name, sizeof(uvc->vdev->name));
 
-	video_set_drvdata(&uvc->vdev, uvc);
+	video_set_drvdata(uvc->vdev, uvc);
 
-	return video_register_device(&uvc->vdev, VFL_TYPE_GRABBER, -1);
+	return video_register_device(uvc->vdev, VFL_TYPE_GRABBER, -1);
 }
 
 #define UVC_COPY_DESCRIPTOR(mem, dst, desc) \
@@ -1085,7 +1089,7 @@ static void uvc_unbind(struct usb_configuration *c, struct usb_function *f)
 
 	INFO(cdev, "%s\n", __func__);
 
-	video_unregister_device(&uvc->vdev);
+	video_unregister_device(uvc->vdev);
 	v4l2_device_unregister(&uvc->v4l2_dev);
 
 	usb_ep_free_request(cdev->gadget->ep0, uvc->control_req);
