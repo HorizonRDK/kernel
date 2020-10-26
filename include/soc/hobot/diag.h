@@ -263,7 +263,7 @@ struct id_register_struct {
 	struct list_head id_register_lst;
 };
 
-#define EVENT_ID_MAX 1
+#define EVENT_ID_LEN 1
 #define ENV_PAYLOAD_SIZE	128
 
 /*
@@ -284,7 +284,7 @@ struct diag_event_id_handle {
  */
 struct diag_register_info {
 	uint8_t module_id;
-	struct diag_event_id_handle event_handle[EVENT_ID_MAX];
+	struct diag_event_id_handle event_handle[EVENT_ID_LEN];
 	uint8_t event_cnt;
 };
 
