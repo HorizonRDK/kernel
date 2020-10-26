@@ -11,8 +11,8 @@
 
 static struct vio_core iscore;
 
-struct vio_frame_id  sif_frame_info;
-struct vio_frame_id  ipu_frame_info;
+struct vio_frame_id  sif_frame_info[VIO_MAX_STREAM];
+struct vio_frame_id  ipu_frame_info[VIO_MAX_STREAM];
 
 EXPORT_SYMBOL(sif_frame_info);
 EXPORT_SYMBOL(ipu_frame_info);
@@ -419,17 +419,17 @@ void vio_bind_group_done(int instance)
 }
 EXPORT_SYMBOL(vio_bind_group_done);
 
-void vio_get_sif_frame_info(struct vio_frame_id *frame_info)
+void vio_get_sif_frame_info(u32 instance, struct vio_frame_id *frame_info)
 {
-	frame_info->frame_id = sif_frame_info.frame_id;
-	frame_info->timestamps = sif_frame_info.timestamps;
+	frame_info->frame_id = sif_frame_info[instance].frame_id;
+	frame_info->timestamps = sif_frame_info[instance].timestamps;
 }
 EXPORT_SYMBOL(vio_get_sif_frame_info);
 
-void vio_get_ipu_frame_info(struct vio_frame_id *frame_info)
+void vio_get_ipu_frame_info(u32 instance, struct vio_frame_id *frame_info)
 {
-	frame_info->frame_id = ipu_frame_info.frame_id;
-	frame_info->timestamps = ipu_frame_info.timestamps;
+	frame_info->frame_id = ipu_frame_info[instance].frame_id;
+	frame_info->timestamps = ipu_frame_info[instance].timestamps;
 }
 EXPORT_SYMBOL(vio_get_ipu_frame_info);
 

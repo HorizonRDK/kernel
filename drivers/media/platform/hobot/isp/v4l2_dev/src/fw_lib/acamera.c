@@ -585,7 +585,6 @@ static void isp_ctxsv_work(struct work_struct *w)
 {
     int rc = 0;
     isp_ctx_node_t *cn;
-    static int count = 0;
     volatile void *offset;
     uint8_t ctx_id = cur_ctx_id;
     acamera_context_t *p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[ctx_id];
@@ -1140,9 +1139,12 @@ int32_t acamera_interrupt_handler()
     uint32_t irq_mask = acamera_isp_isp_global_interrupt_status_vector_read( 0 );
 
     // Update frame counter
-	vio_get_sif_frame_info(&frmid);
-    p_ctx->isp_frame_counter = frmid.frame_id;
-	p_ctx->timestamps = frmid.timestamps;
+	if ( irq_mask & 1 << ISP_INTERRUPT_EVENT_ISP_START_FRAME_START ) {
+		vio_get_sif_frame_info(cur_ctx_id, &frmid);
+		p_ctx->isp_frame_counter = frmid.frame_id;
+		p_ctx->timestamps = frmid.timestamps;
+	}
+
     pr_debug("[s%d] IRQ MASK is 0x%x, frame id %d timestamps %llu ms\n",
 		cur_ctx_id,
 		irq_mask, p_ctx->isp_frame_counter, p_ctx->timestamps);

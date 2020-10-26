@@ -31,7 +31,7 @@
 #include "sif_hw_api.h"
 
 #define MODULE_NAME "X3 SIF"
-extern struct vio_frame_id  sif_frame_info;
+extern struct vio_frame_id  sif_frame_info[VIO_MAX_STREAM];
 
 char sif_node_name[MAX_DEVICE][8] = {"capture", "ddrin"};
 static int mismatch_limit = 1;
@@ -182,8 +182,8 @@ void sif_read_frame_work(struct vio_group *group)
 			frameinfo = &frame->frameinfo;
 			group->frameid.frame_id = frameinfo->frame_id;
 			group->frameid.timestamps = frameinfo->timestamps;
-			sif_frame_info.frame_id = frameinfo->frame_id;
-			sif_frame_info.timestamps = frameinfo->timestamps;
+			sif_frame_info[instance].frame_id = frameinfo->frame_id;
+			sif_frame_info[instance].timestamps = frameinfo->timestamps;
 			sif_config_rdma_cfg(subdev, 0, frameinfo);
 			if (subdev->dol_num > 1) {
 				sif_config_rdma_cfg(subdev, 1, frameinfo);
@@ -291,8 +291,6 @@ static int x3_sif_open(struct inode *inode, struct file *file)
 		sif_enable_dma(sif->base_reg, 0x10000);
 	}
 	mutex_unlock(&sif_mutex);
-
-	vio_info("SIF open node %d sif->open_cnt %d\n", minor, sif->open_cnt);
 p_err:
 	return ret;
 }
@@ -1460,8 +1458,8 @@ static irqreturn_t sif_isr(int irq, void *data)
 					sif_enable_init_frameid(sif->base_reg, subdev->rx_index, 0);
 					subdev->initial_frameid = false;
 				}
-				sif_get_frameid_timestamps(sif->base_reg, mux_index,
-						subdev->ipi_index, &group->frameid, subdev->dol_num);
+				sif_get_frameid_timestamps(sif->base_reg, mux_index, subdev->ipi_index,
+				 &group->frameid, subdev->dol_num, group->instance, &subdev->sif_cfg.output);
 
 				if (debug_log_print)
 					vio_print_stat_info(group->instance);

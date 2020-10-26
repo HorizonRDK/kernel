@@ -11,7 +11,7 @@
 
 static uint32_t s_enable_pattern_gen = 0;
 static uint32_t path_sel = 0;
-extern struct vio_frame_id  sif_frame_info;
+extern struct vio_frame_id  sif_frame_info[VIO_MAX_STREAM];
 
 void sif_enable_frame_intr(void __iomem *base_reg, u32 mux_index,
 				bool enable)
@@ -1431,8 +1431,8 @@ void sif_hw_enable(u32 __iomem *base_reg)
 
 }
 
-void sif_get_frameid_timestamps(u32 __iomem *base_reg, u32 mux,
-			u32 ipi_index, struct frame_id *info, u32 dol_num)
+void sif_get_frameid_timestamps(u32 __iomem *base_reg, u32 mux,	u32 ipi_index,
+ struct frame_id *info, u32 dol_num, u32 instance, sif_output_t *output)
 {
 	u32 value;
 	u64 timestamp_l, timestamp_m;
@@ -1453,8 +1453,10 @@ void sif_get_frameid_timestamps(u32 __iomem *base_reg, u32 mux,
 	timestamp_m = vio_hw_get_reg(base_reg,
 						&sif_regs[SIF_TIMESTAMP0_MSB + mux * 2]);
 	info->timestamps = timestamp_l | timestamp_m << 32;
-	sif_frame_info.frame_id = info->frame_id;
-	sif_frame_info.timestamps = info->timestamps;
+	if(output->isp.func.enable_flyby == 1) {
+		sif_frame_info[instance].frame_id = info->frame_id;
+		sif_frame_info[instance].timestamps = info->timestamps;
+	}
 }
 
 u32 sif_get_current_bufindex(u32 __iomem *base_reg, u32 mux)

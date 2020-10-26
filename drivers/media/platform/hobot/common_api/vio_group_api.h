@@ -169,8 +169,8 @@ int vio_bind_chain_groups(struct vio_group *src_group, struct vio_group *dts_gro
 int vio_init_chain(int instance);
 void vio_bind_group_done(int instance);
 void vio_get_frame_id(struct vio_group *group);
-void vio_get_sif_frame_info(struct vio_frame_id *frame_info);
-void vio_get_ipu_frame_info(struct vio_frame_id *frame_info);
+void vio_get_sif_frame_info(u32 instance, struct vio_frame_id *frame_info);
+void vio_get_ipu_frame_info(u32 instance, struct vio_frame_id *frame_info);
 void vio_get_sif_frame_id(struct vio_group *group);
 void vio_get_ipu_frame_id(struct vio_group *group);
 int vio_group_init_mp(u32 group_id);

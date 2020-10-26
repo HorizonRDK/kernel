@@ -41,7 +41,7 @@ static u32 color[MAX_OSD_COLOR_NUM] = {
 	0x2968C5
 };
 
-extern struct vio_frame_id	ipu_frame_info;
+extern struct vio_frame_id	ipu_frame_info[VIO_MAX_STREAM];
 
 char ipu_node_name[MAX_DEVICE][8] =
 	{"src", "us", "ds0", "ds1", "ds2", "ds3", "ds4"};
@@ -2961,7 +2961,8 @@ void ipu_frame_done(struct ipu_subdev *subdev)
 			vio_set_stat_info(group->instance, IPU_FS + subdev->id,
 				group->frameid.frame_id);
 		}
-		vio_dbg("ipu done subdev id %d bidx%d fid%d timestamps %llu",
+		vio_dbg("[S%d][V%d]ipu done buffidx%d fid %d timestamps %llu",
+			group->instance,
 		    subdev->id,
 			frame->frameinfo.bufferindex,
 			frame->frameinfo.frame_id,
@@ -3355,8 +3356,8 @@ static irqreturn_t ipu_isr(int irq, void *data)
 			}
 		} else if (group->group_scenario == VIO_GROUP_SIF_OFF_IPU_ON_PYM ||
 				group->group_scenario == VIO_GROUP_SIF_ON_ISP_OFF_IPU_ON_PYM) {
-			ipu_frame_info.frame_id = group->frameid.frame_id;
-			ipu_frame_info.timestamps = group->frameid.timestamps;
+			ipu_frame_info[instance].frame_id = group->frameid.frame_id;
+			ipu_frame_info[instance].timestamps = group->frameid.timestamps;
 		}
 		vio_set_stat_info(group->instance, IPU_FS, group->frameid.frame_id);
 	}

@@ -1813,7 +1813,7 @@ void pym_frame_done(struct pym_subdev *subdev)
 		} else {
 			if(group->group_scenario == VIO_GROUP_SIF_OFF_IPU_ON_PYM ||
 				group->group_scenario == VIO_GROUP_SIF_ON_ISP_OFF_IPU_ON_PYM) {
-				vio_get_ipu_frame_info(&frmid);
+				vio_get_ipu_frame_info(group->instance, &frmid);
 				frame->frameinfo.frame_id = frmid.frame_id;
 				frame->frameinfo.timestamps =
 				    frmid.timestamps;
@@ -1824,7 +1824,8 @@ void pym_frame_done(struct pym_subdev *subdev)
 				    group->frameid.timestamps;
 			}
 		}
-		vio_dbg("pym done fid %d timestamps %llu",
+		vio_dbg("[S%d]pym done fid %d timestamps %llu",
+			group->instance,
 			frame->frameinfo.frame_id,
 			frame->frameinfo.timestamps);
 		vio_set_stat_info(group->instance, PYM_FE, group->frameid.frame_id);
