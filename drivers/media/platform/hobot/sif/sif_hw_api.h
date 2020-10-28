@@ -17,6 +17,11 @@ void sif_set_md_enable(u32 __iomem *base_reg);
 	void sif_set_md_disable(u32 __iomem *base_reg);
 
 void sif_hw_config(u32 __iomem *base_reg, sif_cfg_t* c);
+void sif_set_isp_output(u32 __iomem *base_reg,
+				sif_output_t *p_out);
+void sif_raw_isp_output_config(u32 __iomem *base_reg,
+		sif_output_t *p_out);
+
 void sif_hw_disable(u32 __iomem *base_reg);
 void sif_hw_enable(u32 __iomem *base_reg);
 void sif_hw_post_config(u32 __iomem *base_reg, sif_cfg_t* c);

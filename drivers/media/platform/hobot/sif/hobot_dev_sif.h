@@ -246,6 +246,7 @@ struct x3_sif_dev {
 	unsigned long		state;
 	atomic_t			instance;
 	atomic_t			rsccount;
+	atomic_t			isp_init_cnt;
 	atomic_t			open_cnt;
 	struct mutex			shared_mutex;
 	u32 				error_count;

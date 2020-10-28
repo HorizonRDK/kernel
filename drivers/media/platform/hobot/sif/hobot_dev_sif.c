@@ -292,6 +292,7 @@ static int x3_sif_open(struct inode *inode, struct file *file)
 	}
 	mutex_unlock(&sif_mutex);
 p_err:
+	vio_dbg("%s open_cnt :%d", __func__, atomic_read(&sif->open_cnt));
 	return ret;
 }
 
@@ -349,6 +350,7 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 	struct vio_group *group;
 	struct x3_sif_dev *sif;
 	struct sif_subdev *subdev;
+	u32 isp_enable;
 
 	sif_ctx = file->private_data;
 	sif = sif_ctx->sif_dev;
@@ -399,10 +401,16 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 
 		frame_manager_close(sif_ctx->framemgr);
 	}
-
+	isp_enable = subdev->sif_cfg.output.isp.enable;
+	if(isp_enable) {
+		atomic_dec_return(&sif->isp_init_cnt);
+			vio_dbg("[S%d][V%d]%s isp_init_cnt %d \n", sif_ctx->group->instance,
+		sif_ctx->id, __func__, atomic_read(&sif->isp_init_cnt));
+	}
 	if (atomic_dec_return(&sif->open_cnt) == 0) {
 		clear_bit(SIF_DMA_IN_ENABLE, &sif->state);
 		clear_bit(SIF_OTF_OUTPUT, &sif->state);
+		atomic_set(&sif->isp_init_cnt, 0);
 		if (test_bit(SIF_HW_RUN, &sif->state)) {
 			set_bit(SIF_HW_FORCE_STOP, &sif->state);
 			sif_video_streamoff(sif_ctx);
@@ -563,6 +571,7 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 			return mux_index;
 	}
 
+	vio_dbg("S[%d] mux_index %d", group->instance, mux_index);
 	subdev->mux_nums = mux_nums;
 	sif_config->input.mipi.func.set_mux_out_index = mux_index;
 	subdev->mux_index = mux_index;
@@ -797,6 +806,7 @@ int sif_video_streamon(struct sif_video_ctx *sif_ctx)
 	int ret = 0;
 	struct x3_sif_dev *sif_dev;
 	struct sif_subdev *subdev;
+	u32 isp_enable;
 
 	if (!(sif_ctx->state & (BIT(VIO_VIDEO_STOP)
 			| BIT(VIO_VIDEO_REBUFS)
@@ -816,11 +826,15 @@ int sif_video_streamon(struct sif_video_ctx *sif_ctx)
 	sif_dev = sif_ctx->sif_dev;
 	sif_start_pattern_gen(sif_dev->base_reg, 0);
 
-	if (atomic_read(&sif_dev->rsccount) > 0)
-		goto p_inc;
-
-	msleep(500);
+	isp_enable = subdev->sif_cfg.output.isp.enable;
 	mutex_lock(&sif_dev->shared_mutex);
+	if (isp_enable && atomic_read(&sif_dev->isp_init_cnt) == 0) {
+		sif_raw_isp_output_config(sif_dev->base_reg, &subdev->sif_cfg.output);
+	}
+	if (atomic_read(&sif_dev->rsccount) > 0) {
+		mutex_unlock(&sif_dev->shared_mutex);
+		goto p_inc;
+	}
 	sif_dev->error_count = 0;
 	sif_hw_post_config(sif_dev->base_reg, &subdev->sif_cfg);
 	sif_hw_enable(sif_dev->base_reg);
@@ -828,13 +842,17 @@ int sif_video_streamon(struct sif_video_ctx *sif_ctx)
 	mutex_unlock(&sif_dev->shared_mutex);
 
 p_inc:
+	if(isp_enable) {
+		atomic_inc(&sif_dev->isp_init_cnt);
+	}
 	atomic_inc(&sif_dev->rsccount);
 	set_bit(SIF_SUBDEV_STREAM_ON, &subdev->state);
 
 	vio_clear_stat_info(sif_ctx->group->instance);
-	vio_info("[S%d][V%d]%s \n", sif_ctx->group->instance,
-		sif_ctx->id, __func__);
-
+	vio_info("[S%d][V%d]%s isp_init_cnt %d rsccount %d \n",
+		sif_ctx->group->instance, sif_ctx->id, __func__,
+		atomic_read(&sif_dev->isp_init_cnt),
+		atomic_read(&sif_dev->rsccount));
 	return ret;
 }
 
@@ -2336,6 +2354,7 @@ static int x3_sif_probe(struct platform_device *pdev)
 
 	sema_init(&sif->sifin_task.hw_resource, 1);
 	atomic_set(&sif->rsccount, 0);
+	atomic_set(&sif->isp_init_cnt, 0);
 	atomic_set(&sif->open_cnt, 0);
 	mutex_init(&sif_mutex);
 

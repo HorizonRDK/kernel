@@ -1002,33 +1002,22 @@ void sif_set_ddr_output(u32 __iomem *base_reg, sif_output_ddr_t* p_ddr,
 
 	*enbale = 1;
 }
-
-/*
- * @brief config an ISP output
- *
- * Set the number of exposure, flyby mode, and dgain.
- *
- * @param p_isp the pointer of sif_output_isp_t
- *
- */
-static void sif_set_isp_output(u32 __iomem *base_reg,
-				sif_output_t *p_out)
+void sif_raw_isp_output_config(u32 __iomem *base_reg,
+		sif_output_t *p_out)
 {
-
 	sif_output_isp_t *p_isp;
-
-	u32 iram_addr_range[2][2] =
-	{
-		{0, 0x80000},     // 512KB
-		{0x80000, 0x100000},    // 512KB
-	};
-	u32 iram_stride = 8192;
 	u32 gain = 0;
 	int i = 0;
 	int iram_size = 0;
+	u32 iram_addr_range[2][2] =
+	{
+		{0, 0x80000},	  // 512KB
+		{0x80000, 0x100000},	// 512KB
+	};
+	u32 iram_stride = 8192;
 
+	vio_dbg("%s config start\n", __func__);
 	p_isp = &p_out->isp;
-
 	if (p_isp->dol_exp_num == 2) {
 		if (p_isp->func.short_maxexp_lines) {
 			iram_stride = p_out->ddr.stride;
@@ -1051,6 +1040,7 @@ static void sif_set_isp_output(u32 __iomem *base_reg,
 			iram_size = iram_addr_range[1][1];
 		}
 	}
+	vio_dbg("%s: iram_stride = %d\n", __func__, iram_stride);
 
 	if (iram_size > IRAM_MAX_RANG) {
 		vio_err("beyond iram rang (0x%x)\n", iram_size);
@@ -1058,56 +1048,42 @@ static void sif_set_isp_output(u32 __iomem *base_reg,
 	}
 	ips_set_iram_size(iram_size);
 
-	vio_dbg("%s: iram_stride = %d\n", __func__, iram_stride);
-	if (p_isp->enable) {
-		vio_hw_set_field(base_reg, &sif_regs[SIF_OUT_EN_INT],
+	vio_hw_set_field(base_reg, &sif_regs[SIF_OUT_EN_INT],
 				&sif_fields[SIF_ISP0_OUT_FE_INT_EN], 1);
-		vio_hw_set_field(base_reg, &sif_regs[SIF_OUT_EN_INT],
-				&sif_fields[SIF_ISP0_OUT_FS_INT_EN], 1);
+	vio_hw_set_field(base_reg, &sif_regs[SIF_OUT_EN_INT],
+			&sif_fields[SIF_ISP0_OUT_FS_INT_EN], 1);
 
-		vio_hw_set_field(base_reg, &sif_regs[SIF_OUT_BUF_CTRL],
-				&sif_fields[SW_SIF_ISP0_FLYBY_ENABLE],
-				p_isp->func.enable_flyby);
-		/*vio_hw_set_field(base_reg, &sif_regs[SIF_OUT_BUF_CTRL],
-				&sif_fields[SW_SIF_ISP0_YUV_ENABLE],
-				1);
-		*/
-		vio_hw_set_field(base_reg, &sif_regs[SIF_ISP_EXP_CFG],
-				&sif_fields[SW_SIF_ISP0_DOL_EXP_NUM], p_isp->dol_exp_num);
-		// Expected: At least one frame to ISP if flyby mode
-		if (p_isp->func.enable_flyby) {
-			// For DOL 2/3
-			if (p_isp->dol_exp_num > 1) {
-				vio_hw_set_reg(base_reg,
-					&sif_regs[SIF_AXI_FRM1_W_ADDR0], iram_addr_range[0][0]);
-				vio_hw_set_reg(base_reg,
-					&sif_regs[SIF_AXI_FRM1_W_ADDR3], iram_addr_range[0][1]);
-				vio_hw_set_reg(base_reg,
-					&sif_regs[SIF_AXI_FRM1_W_STRIDE], iram_stride);
-			}
-
-			// For DOL 3
-			if (p_isp->dol_exp_num > 2) {
-				vio_hw_set_reg(base_reg,
-					&sif_regs[SIF_AXI_FRM2_W_ADDR0], iram_addr_range[1][0]);
-				vio_hw_set_reg(base_reg,
-					&sif_regs[SIF_AXI_FRM2_W_ADDR3], iram_addr_range[1][1]);
-				vio_hw_set_reg(base_reg,
-					&sif_regs[SIF_AXI_FRM2_W_STRIDE], iram_stride);
-			}
+	vio_hw_set_field(base_reg, &sif_regs[SIF_OUT_BUF_CTRL],
+			&sif_fields[SW_SIF_ISP0_FLYBY_ENABLE],
+			p_isp->func.enable_flyby);
+	/*vio_hw_set_field(base_reg, &sif_regs[SIF_OUT_BUF_CTRL],
+			&sif_fields[SW_SIF_ISP0_YUV_ENABLE],
+			1);
+	*/
+	vio_hw_set_field(base_reg, &sif_regs[SIF_ISP_EXP_CFG],
+			&sif_fields[SW_SIF_ISP0_DOL_EXP_NUM], p_isp->dol_exp_num);
+	// Expected: At least one frame to ISP if flyby mode
+	if (p_isp->func.enable_flyby) {
+		// For DOL 2/3
+		if (p_isp->dol_exp_num > 1) {
+			vio_hw_set_reg(base_reg,
+				&sif_regs[SIF_AXI_FRM1_W_ADDR0], iram_addr_range[0][0]);
+			vio_hw_set_reg(base_reg,
+				&sif_regs[SIF_AXI_FRM1_W_ADDR3], iram_addr_range[0][1]);
+			vio_hw_set_reg(base_reg,
+				&sif_regs[SIF_AXI_FRM1_W_STRIDE], iram_stride);
 		}
-	} else {
-		vio_hw_set_field(base_reg, &sif_regs[SIF_OUT_EN_INT],
-				&sif_fields[SIF_ISP0_OUT_FE_INT_EN], 0);
-		vio_hw_set_field(base_reg, &sif_regs[SIF_OUT_EN_INT],
-				&sif_fields[SIF_ISP0_OUT_FS_INT_EN], 0);
 
-		vio_hw_set_field(base_reg, &sif_regs[SIF_OUT_BUF_CTRL],
-				&sif_fields[SW_SIF_ISP0_FLYBY_ENABLE], 0);
-		vio_hw_set_field(base_reg, &sif_regs[SIF_ISP_EXP_CFG],
-				&sif_fields[SW_SIF_ISP0_DOL_EXP_NUM], 0);
+		// For DOL 3
+		if (p_isp->dol_exp_num > 2) {
+			vio_hw_set_reg(base_reg,
+				&sif_regs[SIF_AXI_FRM2_W_ADDR0], iram_addr_range[1][0]);
+			vio_hw_set_reg(base_reg,
+				&sif_regs[SIF_AXI_FRM2_W_ADDR3], iram_addr_range[1][1]);
+			vio_hw_set_reg(base_reg,
+				&sif_regs[SIF_AXI_FRM2_W_STRIDE], iram_stride);
+		}
 	}
-
 	if (p_isp->func.enable_dgain) {
 		gain = p_isp->func.set_dgain_short << 24
 				| p_isp->func.set_dgain_medium << 16
@@ -1122,6 +1098,35 @@ static void sif_set_isp_output(u32 __iomem *base_reg,
 			sif_set_wdma_enable(base_reg, i, true);
 			sif_set_rdma_enable(base_reg, i, true);
 		}
+	}
+}
+
+/*
+ * @brief config an ISP output
+ *
+ * Set the number of exposure, flyby mode, and dgain.
+ *
+ * @param p_isp the pointer of sif_output_isp_t
+ *
+ */
+void sif_set_isp_output(u32 __iomem *base_reg,
+				sif_output_t *p_out)
+{
+	sif_output_isp_t *p_isp;
+
+	p_isp = &p_out->isp;
+	if(!p_isp->enable) {
+		vio_dbg("%s config start\n", __func__);
+		#if 0
+		vio_hw_set_field(base_reg, &sif_regs[SIF_OUT_EN_INT],
+				&sif_fields[SIF_ISP0_OUT_FE_INT_EN], 0);
+		vio_hw_set_field(base_reg, &sif_regs[SIF_OUT_EN_INT],
+				&sif_fields[SIF_ISP0_OUT_FS_INT_EN], 0);
+		vio_hw_set_field(base_reg, &sif_regs[SIF_ISP_EXP_CFG],
+				&sif_fields[SW_SIF_ISP0_DOL_EXP_NUM], 0);
+	   #endif
+		vio_hw_set_field(base_reg, &sif_regs[SIF_OUT_BUF_CTRL],
+				&sif_fields[SW_SIF_ISP0_FLYBY_ENABLE], 0);
 	}
 }
 
@@ -1261,6 +1266,7 @@ void sif_hw_config(u32 __iomem *base_reg, sif_cfg_t* c)
 void sif_hw_post_config(u32 __iomem *base_reg, sif_cfg_t* c)
 {
 	sif_input_mipi_t* p_mipi;
+
 
 	p_mipi = &c->input.mipi;
 
