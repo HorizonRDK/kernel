@@ -2131,7 +2131,7 @@ int ipu_video_qbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 	struct ipu_subdev *subdev;
 	struct x3_ipu_dev *ipu;
 	struct mp_vio_frame  *frame_array_addr[VIO_MP_MAX_FRAMES];
-	int i = 0, first_index, frame_num;
+	int i = 0, first_index, frame_num, sif_state;
 	u16 mask = 0x0000;
 	int tmp_num = 0;
 	struct vio_frame *release_frame;
@@ -2248,8 +2248,16 @@ int ipu_video_qbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 	 * if ddr->ipu, only src node need q work to thread
 	 */
 
+	sif_state = vio_check_sif_state(group);
+
 	// all online to ipu
-	if (group->leader && test_bit(IPU_OTF_INPUT, &ipu->state)) {
+	if (group->leader && test_bit(IPU_OTF_INPUT, &ipu->state)
+			/*
+			 *SIF->ddr->ISP->online-IPU scene:
+			 *if SIFOUT have non state, IPU maybe not a real leader
+			 *maybe IPU initializes first, SIF is not initialized yet
+			 */
+			&& sif_state) {
 		if(atomic_inc_return(&group->work_insert) == 1)
 			vio_group_start_trigger_mp(group, frame);
 		else
