@@ -220,7 +220,7 @@ static void common_update(uint8_t chn, struct sensor_priv_old updata)
 	int ret = 0;
 	struct sensor_arg settings;
 
-	if (sensor_param[chn].pixels_per_line == 0)
+	if (sensor_param[chn].lines_per_second == 0)
 		return;
 
 	if (common_subdev != NULL && chn < FIRMWARE_CONTEXT_NUMBER) {
@@ -372,7 +372,7 @@ void common_get_param(uint8_t chn, struct _setting_param_t *user_para)
 	//get info
 	get_common_info(chn);
 
-	user_para->lines_per_second = sensor_param[chn].pixels_per_line;
+	user_para->lines_per_second = sensor_param[chn].lines_per_second;
 	user_para->analog_gain_max = sensor_param[chn].analog_gain_max;
 	user_para->digital_gain_max = sensor_param[chn].digital_gain_max;
 	user_para->exposure_time_max = sensor_param[chn].exposure_time_max;

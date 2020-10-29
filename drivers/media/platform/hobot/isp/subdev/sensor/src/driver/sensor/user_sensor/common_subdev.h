@@ -45,7 +45,7 @@ typedef struct sensor_data {
 	uint32_t  clk;
 	uint32_t  fps;
 	uint32_t  gain_max;
-	uint32_t  pixels_per_line;
+	uint32_t  lines_per_second;
 	uint32_t  analog_gain_max;
 	uint32_t  digital_gain_max;
 	uint32_t  exposure_time_max;
