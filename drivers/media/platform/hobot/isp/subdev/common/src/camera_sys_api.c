@@ -1114,6 +1114,8 @@ int  camera_sys_set_param_hold(uint32_t port, uint32_t value)
 			param_hold = camera_mod[port]->camera_param.dol3.param_hold;
 			param_hold_length = camera_mod[port]->camera_param.dol3.param_hold_length;
 			break;
+		case PWL_M:
+			break;
 		default:
 			pr_err("[%s -- %d ] mode is err %d !", __func__, __LINE__,
 					camera_mod[port]->camera_param.mode);
