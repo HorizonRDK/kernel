@@ -167,7 +167,7 @@ void af_read_stats_data( AF_fsm_ptr_t p_fsm )
     stats = p_sbuf_af->stats_data;
     p_sbuf_af->frame_num = p_fsm->frame_num;
 
-    if ( zones_horiz || !zones_vert ) {
+    if ( !zones_horiz || !zones_vert ) {
         zones_horiz = ISP_DEFAULT_AF_ZONES_HOR;
         zones_vert = ISP_DEFAULT_AF_ZONES_VERT;
     }
