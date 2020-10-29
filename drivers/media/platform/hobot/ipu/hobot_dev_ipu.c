@@ -776,6 +776,7 @@ void ipu_frame_work(struct vio_group *group)
 	}
 	atomic_inc(&ipu->backup_fcount);
 
+	// ddr->ipu scenario
 	// if all channel jump, skip this src frame
 	if (test_bit(IPU_DMA_INPUT, &ipu->state)) {
 		for (i = 1; i <= (MAX_DEVICE - 1); i++) {
@@ -803,6 +804,34 @@ void ipu_frame_work(struct vio_group *group)
 			ipu_frame_done(group->sub_ctx[0]);
 		} else {
 			ipu_set_rdma_start(ipu->base_reg);
+		}
+	} else {
+		// sif->ddr->isp->otf->ipu skip frame
+		if (!group->leader && test_bit(IPU_OTF_INPUT, &ipu->state)) {
+			vio_dbg("ddr->isp->otf->ipu skip frame check\n");
+			for (i = 1; i <= (MAX_DEVICE - 1); i++) {
+				if (subdev_skip_enabled[i] == 1) {
+					vio_dbg("fake frame ndone when ddr->ipu jump, subdev %d\n", i);
+					subdev = group->sub_ctx[i];
+					if (!subdev)
+						continue;
+					subdev->frame_is_skipped = true;
+					ipu_frame_ndone(subdev);
+				}
+			}
+			// no ipu channel enable ddr output
+			// ds2 is online to pym
+			if (!test_bit(VIO_GROUP_DMA_OUTPUT, &group->state)) {
+				all_subdev_skip = 0;
+			}
+			vio_dbg("all subdev skip %d\n", all_subdev_skip);
+			ipu_set_all_lost_next_frame_flags(group);
+			if (all_subdev_skip) {
+				// if all channel jump, give a done to
+				// sif ddrin leader
+				// else done will be given in ipu_isr FRAME_DONE
+				vio_group_done(group);
+			}
 		}
 	}
 
