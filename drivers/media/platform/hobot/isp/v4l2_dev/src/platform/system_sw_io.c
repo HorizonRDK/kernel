@@ -22,7 +22,6 @@
 #include "acamera_logger.h"
 #include <linux/gfp.h>
 #include <linux/slab.h>
-#include "acamera_firmware_config.h"
 #include "acamera_fw.h"
 #include "acamera_command_api.h"
 #include <asm/io.h>
@@ -315,7 +314,7 @@ void system_sw_free_dma_sram(void *ptr, uint32_t context_id)
 }
 #endif
 
-static int swreg_access_debug = 0;
+int swreg_access_debug = 0;
 module_param(swreg_access_debug, int, 0644);
 #if FW_USE_HOBOT_DMA
 void system_sram_access_assert(uintptr_t addr)
@@ -334,98 +333,6 @@ void system_sram_access_assert(uintptr_t addr)
 void system_sram_access_assert(uintptr_t addr)
 {}
 #endif
-
-uint32_t system_sw_read_32( uintptr_t addr )
-{
-    if (swreg_access_debug)
-        system_sram_access_assert(addr);
-    uint32_t result = 0;
-    if ( (void *)addr != NULL ) {
-        volatile uint32_t *p_addr = (volatile uint32_t *)( addr );
-        result = *p_addr;
-    } else {
-        LOG( LOG_ERR, "Failed to read memory from address 0x%x. Base pointer is null ", addr );
-    }
-    return result;
-}
-
-uint16_t system_sw_read_16( uintptr_t addr )
-{
-    if (swreg_access_debug)
-        system_sram_access_assert(addr);
-    uint16_t result = 0;
-    if ( (void *)addr != NULL ) {
-        volatile uint16_t *p_addr = (volatile uint16_t *)( addr );
-        result = *p_addr;
-    } else {
-        LOG( LOG_ERR, "Failed to read memory from address 0x%x. Base pointer is null ", addr );
-    }
-    return result;
-}
-
-uint8_t system_sw_read_8( uintptr_t addr )
-{
-    if (swreg_access_debug)
-        system_sram_access_assert(addr);
-    uint8_t result = 0;
-    if ( (void *)addr != NULL ) {
-        volatile uint8_t *p_addr = (volatile uint8_t *)( addr );
-        result = *p_addr;
-    } else {
-        LOG( LOG_ERR, "Failed to read memory from address 0x%x. Base pointer is null ", addr );
-    }
-    return result;
-}
-
-
-void system_sw_write_32( uintptr_t addr, uint32_t data )
-{
-#if HOBOT_REGISTER_MONITOR
-    hobot_rm_check_n_record((uint32_t)(((uint8_t*)addr) - g_sw_isp_base[0].base + HRM_RC_SW_BASE) ,data);
-#endif
-    if (swreg_access_debug)
-        system_sram_access_assert(addr);
-
-    if ( (void *)addr != NULL ) {
-        volatile uint32_t *p_addr = (volatile uint32_t *)( addr );
-        *p_addr = data;
-    } else {
-        LOG( LOG_ERR, "Failed to write %d to memory 0x%x. Base pointer is null ", data, addr );
-    }
-}
-
-void system_sw_write_16( uintptr_t addr, uint16_t data )
-{
-#if HOBOT_REGISTER_MONITOR
-        hobot_rm_check_n_record((uint32_t)(((uint8_t*)addr) - g_sw_isp_base[0].base + HRM_RC_SW_BASE) ,data);
-#endif
-    if (swreg_access_debug)
-        system_sram_access_assert(addr);
-
-    if ( (void *)addr != NULL ) {
-        volatile uint16_t *p_addr = (volatile uint16_t *)( addr );
-        *p_addr = data;
-    } else {
-        LOG( LOG_ERR, "Failed to write %d to memory 0x%x. Base pointer is null ", data, addr );
-    }
-}
-
-void system_sw_write_8( uintptr_t addr, uint8_t data )
-{
-#if HOBOT_REGISTER_MONITOR
-        hobot_rm_check_n_record((uint32_t)(((uint8_t*)addr) - g_sw_isp_base[0].base + HRM_RC_SW_BASE) ,data);
-#endif
-    if (swreg_access_debug)
-        system_sram_access_assert(addr);
-
-    if ( (void *)addr != NULL ) {
-        volatile uint8_t *p_addr = (volatile uint8_t *)( addr );
-        *p_addr = data;
-    } else {
-        LOG( LOG_ERR, "Failed to write %d to memory 0x%x. Base pointer is null ", data, addr );
-    }
-}
-
 void system_reg_rw(struct regs_t *rg, uint8_t dir)
 {
 	acamera_context_ptr_t context_ptr = (acamera_context_ptr_t)acamera_get_api_ctx_ptr();

@@ -192,7 +192,6 @@ void ae_read_full_histogram_data( AE_fsm_ptr_t p_fsm )
     p_fsm->fullhist_sum = sum;
 
     int rc = 0;
-    static int count = 0;
     rc = system_chardev_lock();
     if (rc == 0 && p_ctx->isp_ae_stats_on) {
 	    isp_ctx_node_t *cn;
@@ -240,7 +239,6 @@ void ae_read_full_histogram_data( AE_fsm_ptr_t p_fsm )
     }
 
 	// read ae_5bin static
-	static int ae_5bin_count = 0;
 	rc = system_chardev_lock();
 	if (rc == 0 && p_ctx->isp_ae_5bin_stats_on) {
 		isp_ctx_node_t *cn;

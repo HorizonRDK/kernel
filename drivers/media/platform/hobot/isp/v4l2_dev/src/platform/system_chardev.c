@@ -650,6 +650,11 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 
 		// isp context save on
 		p_ctx = (acamera_context_t *)acamera_get_ctx_ptr(ctx.ctx_id);
+		if (p_ctx->initialized == 0) {
+			pr_err("%d ctx is not inited.\n", ctx.ctx_id);
+			ret = -EFAULT;
+			break;
+		}
 		if (ctx.type == ISP_CTX)
 			p_ctx->isp_ctxsv_on = 1;
 		else if (ctx.type == ISP_AE)
@@ -670,7 +675,14 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 	case ISPIOC_PUT_CTX:
 	{
 		isp_ctx_r_t ctx;
+		acamera_context_t *p_ctx;
 		if (copy_from_user(&ctx, (void __user *)arg, sizeof(ctx))) {
+			ret = -EFAULT;
+			break;
+		}
+		p_ctx = (acamera_context_t *)acamera_get_ctx_ptr(ctx.ctx_id);
+		if (p_ctx->initialized == 0) {
+			pr_err("%d ctx is not inited.\n", ctx.ctx_id);
 			ret = -EFAULT;
 			break;
 		}
@@ -698,6 +710,11 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 		}
 
 		p_ctx = (acamera_context_t *)acamera_get_ctx_ptr(ctx.ctx_id);
+		if (p_ctx->initialized == 0) {
+			pr_err("%d ctx is not inited.\n", ctx.ctx_id);
+			ret = -EFAULT;
+			break;
+		}
 		ptr = p_ctx->sw_reg_map.isp_sw_config_map + CTX_OFFSET;
 		memcpy_toio(ptr, ctx.ptr, CTX_SIZE);
 		isp_temper_set_addr((general_fsm_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_GENERAL]->p_fsm));

@@ -110,8 +110,12 @@ isp_ctx_node_t *isp_ctx_get_node_timeout(int ctx_id, isp_info_type_e it,
 	spin_lock(&lock);
 	is_empty = list_empty(&ctx_queue[ctx_id][it].ctx_node_head[qt]);
 	spin_unlock(&lock);
-	if (unlikely(is_empty == 1))
-		ret = down_timeout(&ctx_queue[ctx_id][it].sem, msecs_to_jiffies(timeout));
+	if (unlikely(is_empty == 1)) {
+		system_chardev_unlock();
+		ret = down_timeout(&ctx_queue[ctx_id][it].sem,
+						msecs_to_jiffies(timeout));
+		system_chardev_lock();
+	}
 
 	if (ret == 0) {
 		spin_lock(&lock);
@@ -230,12 +234,13 @@ void isp_ctx_queue_state(char *tags)
 	for (i = 0; i < ctx_max; i++) {
 		for (j = 0; j < TYPE_MAX; j++) {
 			k1 = 0, k2 = 0;
+			spin_lock(&lock);
 			list_for_each_safe(this, next, &ctx_queue[i][j].ctx_node_head[FREEQ])
 				k1++;
 
 			list_for_each_safe(this, next, &ctx_queue[i][j].ctx_node_head[DONEQ])
 				k2++;
-
+			spin_unlock(&lock);
 			pr_debug("ctx[%d] type[%d] free queue count %d\n", i, j, k1);
 			pr_debug("ctx[%d] type[%d] done queue count %d\n", i, j, k2);
 		}
