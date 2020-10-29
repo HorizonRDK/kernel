@@ -1195,5 +1195,7 @@ int disp_config_hdmi(unsigned short vmode,
 		unsigned short VideoFormat, unsigned short Afs);
 void OnHdmiCableConnected(void);
 void TXHAL_InitPostReset(void);
+int TxHW_Reset(void);
+void reset_hdmi_converter(void);
 int hdmi_reset_output(unsigned int output_level);
 #endif

@@ -321,10 +321,15 @@ static int hdmi_sii_probe(struct i2c_client *client,
 		return -EIO;
 	}
 	hdmi_register_config_callback(disp_config_hdmi);
+	hdmi_register_stop_output_callback(reset_hdmi_converter);
 	pr_debug("sii902xa prob success!!\n");
 	return ret;
 }
 
+void reset_hdmi_converter(void)
+{
+	TxHW_Reset();
+}
 
 static int hdmi_sii_remove(struct i2c_client *client)
 {
