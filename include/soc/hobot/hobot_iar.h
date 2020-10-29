@@ -741,6 +741,9 @@ typedef int (*hdmi_set_config_callback)(unsigned short vmode,
 //extern hdmi_set_config_callback config_hdmi;
 void hdmi_register_config_callback(hdmi_set_config_callback func);
 
+typedef void (*hdmi_set_stop_output_callback)(void);
+void hdmi_register_stop_output_callback(hdmi_set_stop_output_callback func);
+
 extern struct disp_timing video_1920x1080;
 extern struct disp_timing video_800x480;
 extern struct disp_timing video_720x1280;

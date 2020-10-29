@@ -66,6 +66,7 @@
 #define HDMI_CONFIG       _IO(IAR_CDEV_MAGIC, 0x40)
 #define IAR_GET_START_CNT       _IOR(IAR_CDEV_MAGIC, 0x42, unsigned int)
 #define IAR_GET_STOP_CNT       _IOR(IAR_CDEV_MAGIC, 0x43, unsigned int)
+#define HDMI_SHUT_DOWN       _IO(IAR_CDEV_MAGIC, 0x44)
 #define DISP_SET_VIDEO_PAUSE   _IOW(IAR_CDEV_MAGIC, 0x80, int)
 
 unsigned int iar_open_cnt = 0;
@@ -98,6 +99,13 @@ void hdmi_register_config_callback(hdmi_set_config_callback func)
        config_hdmi = func;
 }
 EXPORT_SYMBOL(hdmi_register_config_callback);
+
+hdmi_set_stop_output_callback shut_down_hdmi;
+void hdmi_register_stop_output_callback(hdmi_set_stop_output_callback func)
+{
+	shut_down_hdmi = func;
+}
+EXPORT_SYMBOL(hdmi_register_stop_output_callback);
 
 int32_t iar_write_framebuf_poll(uint32_t channel, void __user *srcaddr, uint32_t size)
 {
@@ -243,11 +251,20 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 	case HDMI_CONFIG:
 		 {
 			IAR_DEBUG_PRINT("HEMI_CONFIG \n");
-			//ret = disp_config_hdmi(9, 4, 2);
 			if (config_hdmi != NULL)
 				ret = config_hdmi(9, 4, 2);
+			else
+				pr_err("no sii902x HDMI device!!\n");
 		}
 		break;
+	case HDMI_SHUT_DOWN:
+		 {
+			IAR_DEBUG_PRINT("HDMI SHUT DOWN\n");
+			if (shut_down_hdmi != NULL)
+				shut_down_hdmi();
+			else
+				pr_err("no sii902x HDMI device!!\n");
+		}
 	case IAR_STOP:
 		{
 			IAR_DEBUG_PRINT("IAR_STOP \n");
@@ -820,6 +837,18 @@ static ssize_t hobot_iar_store(struct kobject *kobj, struct kobj_attribute *attr
 		display_type = HDMI_TYPE;
 		user_set_fb();
 		iar_start(1);
+		if (config_hdmi == NULL)
+			goto err;
+		else
+			config_hdmi(9, 4, 2);
+	} else if (strncmp(tmp, "shutdown", 8) == 0) {
+		pr_info("user shut down hdmi output......\n");
+		if (shut_down_hdmi == NULL)
+			goto err;
+		else
+			shut_down_hdmi();
+	} else if (strncmp(tmp, "reopen", 6) == 0) {
+		pr_info("user start hdmi output......\n");
 		if (config_hdmi == NULL)
 			goto err;
 		else
