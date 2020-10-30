@@ -1029,7 +1029,9 @@ static int hb_spi_transfer_one(struct spi_master *master,
 	spi_finalize_current_transfer(master);
 
 exit_1:
+#ifdef CONFIG_HOBOT_BUS_CLK_X3
 	mutex_unlock(&hbspi->nb_mtx);
+#endif
 	return xfer->len;
 }
 
