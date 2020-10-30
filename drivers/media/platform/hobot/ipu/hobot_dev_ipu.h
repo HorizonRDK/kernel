@@ -44,7 +44,8 @@
 #define IPU_IOC_SET_FRAME_SKIP_PARAM    _IOWR(IPU_IOC_MAGIC, 18, int)
 #define IPU_IOC_SET_FRAME_RATE_CTRL    _IOWR(IPU_IOC_MAGIC, 19, int)
 
-
+#define	IOCTL_RET_VAL_BASE	1
+#define	IOCTL_FLAG_MULTI_PROCESS_SHARED	(IOCTL_RET_VAL_BASE + 1)
 
 struct ipu_osd_cfg{
 	bool osd_box_update;

@@ -1881,6 +1881,11 @@ int ipu_bind_chain_group(struct ipu_video_ctx *ipu_ctx, int instance)
 		vio_err("alreay open too much for one pipeline\n");
 		return -EFAULT;
 	}
+
+	/* indicate multi-process share one group */
+	if (atomic_read(&subdev->refcount) > 0)
+		ret = IOCTL_FLAG_MULTI_PROCESS_SHARED;
+
 	if (atomic_inc_return(&subdev->refcount) == 1)
 		frame_manager_init_mp(ipu_ctx->framemgr);
 
