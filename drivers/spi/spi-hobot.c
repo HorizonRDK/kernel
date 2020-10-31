@@ -206,8 +206,8 @@ struct hb_spi {
 	bool slave_aborted;
 
 #ifdef CONFIG_HOBOT_BUS_CLK_X3
-	struct mutex nb_mtx;
-	struct notifier_block nb;
+	struct mutex dpm_mtx;
+	struct hobot_dpm dpm;
 #endif
 };
 
@@ -876,7 +876,7 @@ static int hb_spi_transfer_one(struct spi_master *master,
 	u32 tlen;
 
 #ifdef CONFIG_HOBOT_BUS_CLK_X3
-	mutex_lock(&hbspi->nb_mtx);
+	mutex_lock(&hbspi->dpm_mtx);
 #endif
 	hbspi->txbuf = (u8 *) xfer->tx_buf;
 	hbspi->rxbuf = (u8 *) xfer->rx_buf;
@@ -1035,7 +1035,7 @@ static int hb_spi_transfer_one(struct spi_master *master,
 
 exit_1:
 #ifdef CONFIG_HOBOT_BUS_CLK_X3
-	mutex_unlock(&hbspi->nb_mtx);
+	mutex_unlock(&hbspi->dpm_mtx);
 #endif
 	return xfer->len;
 }
@@ -1133,18 +1133,19 @@ static int hb_spi_slave_abort(struct spi_controller *ctlr)
 }
 
 #ifdef CONFIG_HOBOT_BUS_CLK_X3
-static int hb_spi_notifier_callback(struct notifier_block *self,
-											unsigned long event, void *data)
+static int hb_spi_dpm_callback(struct hobot_dpm *self,
+										unsigned long event, int state)
 {
 	int ret = 0;
-	struct hb_spi *hbspi = container_of(self, struct hb_spi, nb);
+	struct hb_spi *hbspi = container_of(self, struct hb_spi, dpm);
 
 	if (event == HB_BUS_SIGNAL_START) {
-		mutex_lock(&hbspi->nb_mtx);
+		if (!mutex_trylock(&hbspi->dpm_mtx))
+			return -EBUSY;
 		disable_irq(hbspi->irq);
 	} else if (event == HB_BUS_SIGNAL_END) {
 		enable_irq(hbspi->irq);
-		mutex_unlock(&hbspi->nb_mtx);
+		mutex_unlock(&hbspi->dpm_mtx);
 	}
 
 	return ret;
@@ -1273,9 +1274,9 @@ static int hb_spi_probe(struct platform_device *pdev)
 	}
 
 #ifdef CONFIG_HOBOT_BUS_CLK_X3
-	mutex_init(&hbspi->nb_mtx);
-	hbspi->nb.notifier_call = hb_spi_notifier_callback;
-	ret = hb_bus_register_client(&hbspi->nb);
+	mutex_init(&hbspi->dpm_mtx);
+	hbspi->dpm.dpm_call = hb_spi_dpm_callback;
+	hobot_dpm_register(&hbspi->dpm, hbspi->dev);
 	if (ret)
 		dev_err(&pdev->dev, "bus register failed\n");
 #endif
@@ -1314,9 +1315,9 @@ static int hb_spi_remove(struct platform_device *pdev)
 	struct hb_spi *hbspi = spi_controller_get_devdata(ctlr);
 
 #ifdef CONFIG_HOBOT_BUS_CLK_X3
-	if (hbspi->nb.notifier_call)
-		hb_bus_unregister_client(&hbspi->nb);
-	hbspi->nb.notifier_call = NULL;
+	if (hbspi->dpm.dpm_call)
+		hobot_dpm_unregister(&hbspi->dpm);
+	hbspi->dpm.dpm_call = NULL;
 #endif
 
 	hb_spi_en_ctrl(hbspi, HB_SPI_OP_CORE_DIS, HB_SPI_OP_NONE,
