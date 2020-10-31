@@ -184,6 +184,7 @@ void sif_read_frame_work(struct vio_group *group)
 			group->frameid.timestamps = frameinfo->timestamps;
 			sif_frame_info[instance].frame_id = frameinfo->frame_id;
 			sif_frame_info[instance].timestamps = frameinfo->timestamps;
+			vio_dbg("sif_read_frame_work frame_id %d", frameinfo->frame_id);
 			sif_config_rdma_cfg(subdev, 0, frameinfo);
 			if (subdev->dol_num > 1) {
 				sif_config_rdma_cfg(subdev, 1, frameinfo);
@@ -1364,12 +1365,9 @@ void sif_frame_done(struct sif_subdev *subdev)
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	frame = peek_frame(framemgr, FS_PROCESS);
 	if (frame) {
-		if(group->get_timestamps){
-			frame->frameinfo.frame_id = group->frameid.frame_id;
-			frame->frameinfo.timestamps =
-			    group->frameid.timestamps;
-		}
-
+		frame->frameinfo.frame_id = group->frameid.frame_id;
+		frame->frameinfo.timestamps =
+		    group->frameid.timestamps;
 		vio_set_stat_info(group->instance, SIF_CAP_FE + group->id * 2,
 				group->frameid.frame_id);
 

@@ -1803,26 +1803,13 @@ void pym_frame_done(struct pym_subdev *subdev)
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	frame = peek_frame(framemgr, FS_PROCESS);
 	if (frame) {
-		if(group->get_timestamps){
-			if(group->group_scenario !=VIO_GROUP_SIF_ON_ISP_OFF_IPU_OFF_PYM &&
-				group->group_scenario != VIO_GROUP_SIF_OFF_ISP_OFF_IPU_OFF_PYM) {
-				frame->frameinfo.frame_id = group->frameid.frame_id;
-				frame->frameinfo.timestamps =
-				    group->frameid.timestamps;
-			}
-		} else {
-			if(group->group_scenario == VIO_GROUP_SIF_OFF_IPU_ON_PYM ||
-				group->group_scenario == VIO_GROUP_SIF_ON_ISP_OFF_IPU_ON_PYM) {
-				vio_get_ipu_frame_info(group->instance, &frmid);
-				frame->frameinfo.frame_id = frmid.frame_id;
-				frame->frameinfo.timestamps =
-				    frmid.timestamps;
-			} else if (group->group_scenario == VIO_GROUP_SIF_OFF_ISP_ON_IPU_ON_PYM ||
-				group->group_scenario == VIO_GROUP_SIF_OFF_ISP_OFF_IPU_ON_PYM) {
-				frame->frameinfo.frame_id = group->frameid.frame_id;
-				frame->frameinfo.timestamps =
-				    group->frameid.timestamps;
-			}
+		if(subdev->pym_cfg.img_scr) {
+			vio_get_ipu_frame_info(group->instance, &frmid);
+			vio_dbg("[S%d] pym online frame_id %d",
+				group->instance, frmid.frame_id);
+			frame->frameinfo.frame_id = frmid.frame_id;
+			frame->frameinfo.timestamps =
+			    frmid.timestamps;
 		}
 		vio_dbg("[S%d]pym done fid %d timestamps %llu",
 			group->instance,
@@ -2011,17 +1998,6 @@ static irqreturn_t pym_isr(int irq, void *data)
 			} else {
 				up(&gtask->hw_resource);
 			}
-		}
-		if (group->group_scenario == VIO_GROUP_SIF_ON_ISP_ON_IPU_ON_PYM) {
-			if (group && group->get_timestamps) {
-				vio_get_frame_id(group);
-			}
-		} else if (group->group_scenario == VIO_GROUP_SIF_OFF_IPU_ON_PYM ||
-				group->group_scenario == VIO_GROUP_SIF_ON_ISP_OFF_IPU_ON_PYM) {
-			  vio_get_ipu_frame_id(group);		// yuv ipu-online-pym
-		} else if (group->group_scenario == VIO_GROUP_SIF_OFF_ISP_ON_IPU_ON_PYM ||
-				group->group_scenario == VIO_GROUP_SIF_OFF_ISP_OFF_IPU_ON_PYM) {
-			  vio_get_sif_frame_id(group);
 		}
 		vio_set_stat_info(group->instance, PYM_FS, group->frameid.frame_id);
 	}

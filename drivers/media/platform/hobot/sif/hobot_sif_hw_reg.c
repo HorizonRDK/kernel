@@ -1459,7 +1459,8 @@ void sif_get_frameid_timestamps(u32 __iomem *base_reg, u32 mux,	u32 ipi_index,
 	timestamp_m = vio_hw_get_reg(base_reg,
 						&sif_regs[SIF_TIMESTAMP0_MSB + mux * 2]);
 	info->timestamps = timestamp_l | timestamp_m << 32;
-	if(output->isp.func.enable_flyby == 1) {
+	if(output->isp.func.enable_flyby == 1 ||
+	   output->ipu.enable_flyby == 1) {
 		sif_frame_info[instance].frame_id = info->frame_id;
 		sif_frame_info[instance].timestamps = info->timestamps;
 	}

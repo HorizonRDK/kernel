@@ -333,32 +333,8 @@ void vio_bind_group_done(int instance)
 	 */
 	ipu_group = &iscore.chain[instance].group[GROUP_ID_IPU];
 	pym_group = &iscore.chain[instance].group[GROUP_ID_PYM];
-	//  offline to ipu
-	if(every_group_input[GROUP_ID_SIF_IN] == -1
-		 && every_group_input[GROUP_ID_IPU] == 1 &&
-		 every_group_input[GROUP_ID_PYM] == 0) {
-		// sif-online-isp-offline-ipu-online-pym G0=>G2->G3
-		ipu_group->group_scenario = VIO_GROUP_SIF_ON_ISP_OFF_IPU_ON_PYM;
-		pym_group->group_scenario = VIO_GROUP_SIF_ON_ISP_OFF_IPU_ON_PYM;
-	} else if (every_group_input[GROUP_ID_SIF_IN] == -1
-		 && every_group_input[GROUP_ID_IPU] == 1 &&
-		 every_group_input[GROUP_ID_PYM] == 1) {
-		// sif-online-isp-offline-ipu-offline-pym G0->G2=>G3
-		ipu_group->group_scenario = VIO_GROUP_SIF_ON_ISP_OFF_IPU_OFF_PYM;
-		pym_group->group_scenario = VIO_GROUP_SIF_ON_ISP_OFF_IPU_OFF_PYM;
-	} else if (every_group_input[GROUP_ID_SIF_IN] == 1
-		 && every_group_input[GROUP_ID_IPU] == 1 &&
-		 every_group_input[GROUP_ID_PYM] == 0) {
-		// sif-offline-isp-offline-ipu-online-pym G0=>G1->G2->G3
-		ipu_group->group_scenario = VIO_GROUP_SIF_OFF_ISP_OFF_IPU_ON_PYM;
-		pym_group->group_scenario = VIO_GROUP_SIF_OFF_ISP_OFF_IPU_ON_PYM;
-	}  else if (every_group_input[GROUP_ID_SIF_IN] == 1
-		 && every_group_input[GROUP_ID_IPU] == 1 &&
-		 every_group_input[GROUP_ID_PYM] == 1) {
-		// sif-offline-isp-offline-ipu-offline-pym G0=>G1->G2=>G3
-		ipu_group->group_scenario = VIO_GROUP_SIF_OFF_ISP_OFF_IPU_OFF_PYM;
-		pym_group->group_scenario = VIO_GROUP_SIF_OFF_ISP_OFF_IPU_OFF_PYM;
-	} else if (every_group_input[GROUP_ID_SIF_IN] == 1
+
+	if (every_group_input[GROUP_ID_SIF_IN] == 1
 		 && every_group_input[GROUP_ID_IPU] == 0 &&
 		 every_group_input[GROUP_ID_PYM] == 1) {
 		// sif-offline-isp-online-ipu-offline-pym G0=>G1->G2=>G3
@@ -370,18 +346,6 @@ void vio_bind_group_done(int instance)
 		// sif-offline-isp-online-ipu-online-pym G0=>G1->G2->G3
 		ipu_group->group_scenario = VIO_GROUP_SIF_OFF_ISP_ON_IPU_ON_PYM;
 		pym_group->group_scenario = VIO_GROUP_SIF_OFF_ISP_ON_IPU_ON_PYM;
-	} else if (every_group_input[GROUP_ID_SIF_IN] == -1
-		 && every_group_input[GROUP_ID_IPU] == 1) {
-		// sif->offline->ipu or sif-online-isp-offline-ipu
-		// G0=>G2 or G0->G2=>G3
-		ipu_group->group_scenario = VIO_GROUP_SIF_OFF_IPU_ON_PYM;
-		pym_group->group_scenario = VIO_GROUP_SIF_OFF_IPU_ON_PYM;
-	} else if (every_group_input[GROUP_ID_SIF_IN] == -1
-		 && every_group_input[GROUP_ID_IPU] == 0) {
-		// sif->online->ipu-onilne-pym or sif-online-isp-online-ipu-online-pym
-		// G0->G2
-		ipu_group->group_scenario = VIO_GROUP_SIF_ON_ISP_ON_IPU_ON_PYM;
-		pym_group->group_scenario = VIO_GROUP_SIF_ON_ISP_ON_IPU_ON_PYM;
 	}
 
 	for (i = 0; i < GROUP_ID_NUMBER; i++) {
