@@ -22,10 +22,8 @@ struct dwc3_powersave {
 	struct device		*dev;
 	struct device		*parent;	/* parent dwc3 device */
 
-	/* ddr freq notifier */
-	struct notifier_block	ddrfreq_nb;
-	/* notify usb suspend & resume event */
-	struct notifier_block	powersave_nb;
+	/* notify device power management module event */
+	struct hobot_dpm	dpm;
 	/* notify extcon usb gpio event */
 	struct notifier_block	edev_nb;
 	struct extcon_dev	*edev;
@@ -36,25 +34,32 @@ struct dwc3_powersave {
 };
 
 /*
- * For ddr dynamic frequency selection & handling.
- * Register a ddr frequency change notifier.
- * When ddr frequency change, hb_bus module will notify HB_BUS_SIGNAL_START
- * and HB_BUS_SIGNAL_END signals. Between this 2 signals, we need to guarantee
- * usb controller don't access the ddr. Therefore, use the spinlock dwc->lock
- * to do synchronize.
+ * Function: power_management_call
+ * Description: callback function triggered by hobot bus system.
+ * Some event info as below:
+ * event:
+ *	HB_BUS_SIGNAL_START >>> change system pll clock start
+ *	HB_BUS_SIGNAL_END   >>> change system pll clock end
+ *
+ * state:
+ *	POWERSAVE_STATE     >>> enter powersave state
+ *	OTHER_STATE         >>> exit powersave state
+ *
+ * Just do correct things for above event!!
  */
-static int ddr_dfs_call(struct notifier_block *self,
-		unsigned long action, void *data)
+static int power_management_call(struct hobot_dpm *self,
+				unsigned long event, int state)
 {
 	struct dwc3_powersave *dwc_pwr = container_of(self,
-			struct dwc3_powersave, ddrfreq_nb);
+			struct dwc3_powersave, dpm);
 	struct device	*dev = dwc_pwr->dev;
 	struct device	*dwc3_device = dwc_pwr->parent;
 
 	if (!dwc3_device)
 		return NOTIFY_BAD;
 
-	switch (action) {
+	/* handle event (HB_BUS_SIGNAL_START, HB_BUS_SIGNAL_END) */
+	switch (event) {
 	case HB_BUS_SIGNAL_START:
 		/*
 		 * Between START & END, there is sleep function, so couldn't use
@@ -69,26 +74,13 @@ static int ddr_dfs_call(struct notifier_block *self,
 		break;
 
 	default:
-		dev_err(dev, "%s: Not defined action (%lu)\n",
-				__func__, action);
+		dev_err(dev, "%s: Not defined event(%lu)\n",
+				__func__, event);
 		break;
 	}
 
-	return NOTIFY_OK;
-}
-
-static int power_save_call(struct notifier_block *self,
-		unsigned long action, void *data)
-{
-	struct dwc3_powersave *dwc_pwr = container_of(self,
-			struct dwc3_powersave, powersave_nb);
-	struct device	*dev = dwc_pwr->dev;
-	struct device	*dwc3_device = dwc_pwr->parent;
-
-	if (!dwc3_device)
-		return NOTIFY_BAD;
-
-	switch (action) {
+	/* handle state (POWERSAVE_STATE, OTHER_STATE) */
+	switch (state) {
 	case POWERSAVE_STATE:
 		mutex_lock(&dwc_pwr->notifier_lock);
 		dwc_pwr->last_powersave_status = 1;
@@ -128,12 +120,12 @@ static int power_save_call(struct notifier_block *self,
 
 		break;
 	default:
-		dev_err(dwc3_device, "%s: Not defined action (%lu)\n",
-				__func__, action);
+		dev_err(dwc3_device, "%s: Not defined state(%d)\n",
+				__func__, state);
 		break;
 	}
 
-	return NOTIFY_OK;
+	return 0;
 }
 
 static int extcon_usb_notifier(struct notifier_block *self,
@@ -233,28 +225,14 @@ static int dwc3_powersave_probe(struct platform_device *pdev)
 		goto edev_err;
 	}
 
-	/* register ddr dfs notifier */
-	dwc_pwr->ddrfreq_nb.notifier_call = ddr_dfs_call;
-	ret = hb_bus_register_client(&dwc_pwr->ddrfreq_nb);
-	if (ret)
-		goto notifier_err1;
-
-	/* register powersave notifier */
-	dwc_pwr->powersave_nb.notifier_call = power_save_call;
-	ret = hb_usb_register_client(&dwc_pwr->powersave_nb);
-	if (ret)
-		goto notifier_err2;
+	/* register power management handler, and do correct things */
+	dwc_pwr->dpm.dpm_call = power_management_call;
+	hobot_dpm_register(&dwc_pwr->dpm, dev);
 
 	platform_set_drvdata(pdev, dwc_pwr);
 
 	return 0;
 
-notifier_err2:
-	/* unregister ddr dfs notifier */
-	hb_bus_unregister_client(&dwc_pwr->ddrfreq_nb);
-notifier_err1:
-	/* unregister extcon usb gpio notifier */
-	hb_bus_unregister_client(&dwc_pwr->edev_nb);
 edev_err:
 find_device_fail:
 	of_node_put(dwc3_node);
@@ -266,11 +244,8 @@ static int dwc3_powersave_remove(struct platform_device *pdev)
 {
 	struct dwc3_powersave	*dwc_pwr = platform_get_drvdata(pdev);
 
-	/* unregister power save notifier */
-	hb_usb_unregister_client(&dwc_pwr->powersave_nb);
-
-	/* unregister ddr dfs notifier */
-	hb_bus_unregister_client(&dwc_pwr->ddrfreq_nb);
+	/* unregister power management handler */
+	hobot_dpm_unregister(&dwc_pwr->dpm);
 
 	/* unregister extcon usb gpio notifier */
 	extcon_unregister_notifier(dwc_pwr->edev, EXTCON_USB_HOST,
