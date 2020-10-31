@@ -794,11 +794,6 @@ static int bpu_core_probe(struct platform_device *pdev)/*PRQA S ALL*/
 		dev_err(&pdev->dev, "BPU core registe dvfs failed\n");
 	}
 
-	ret = bpu_core_bus_dvfs_register(core);
-	if (ret != 0) {
-		dev_err(&pdev->dev, "BPU core registe bus dvfs failed\n");
-	}
-
 	return 0;
 }
 
@@ -806,7 +801,6 @@ static int bpu_core_remove(struct platform_device *pdev)/*PRQA S ALL*/
 {
 	struct bpu_core *core = (struct bpu_core *)dev_get_drvdata(&pdev->dev);/*PRQA S ALL*/
 
-	bpu_core_bus_dvfs_unregister(core);
 	bpu_core_dvfs_unregister(core);
 	bpu_core_discard_sys(core);
 

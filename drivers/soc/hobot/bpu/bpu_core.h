@@ -16,9 +16,6 @@
 #endif
 #ifdef CONFIG_X3_BPU
 #include <linux/pm_qos.h>
-#ifdef CONFIG_HOBOT_BUS_CLK_X3
-#include <soc/hobot/hobot_bus.h>
-#endif
 #endif
 #include "bpu.h"
 #include "bpu_prio.h"
@@ -123,9 +120,6 @@ struct bpu_core {
 #endif
 #ifdef CONFIG_X3_BPU
 	struct pm_qos_request pm_qos_req;
-#ifdef CONFIG_HOBOT_BUS_CLK_X3
-	struct notifier_block bus_dvfs_notifier;
-#endif
 #endif
 	/* bpu core ctrl */
 	int32_t running_task_num;

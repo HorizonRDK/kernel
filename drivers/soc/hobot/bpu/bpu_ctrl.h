@@ -44,7 +44,5 @@ static inline int32_t bpu_core_set_freq_level(struct bpu_core *core,
 	return 0;
 }
 #endif
-int32_t bpu_core_bus_dvfs_register(struct bpu_core *core);
-void bpu_core_bus_dvfs_unregister(struct bpu_core *core);
 
 #endif
