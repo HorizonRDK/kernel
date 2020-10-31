@@ -198,7 +198,6 @@ struct ipu_subdev {
 	atomic_t		refcount;
 	struct vio_framemgr	framemgr;
 	struct frame_info 	frameinfo;
-	bool			skip_flag;
 	unsigned long 		state;
 	struct vio_group 	*group;
 	struct x3_ipu_dev 	*ipu_dev;

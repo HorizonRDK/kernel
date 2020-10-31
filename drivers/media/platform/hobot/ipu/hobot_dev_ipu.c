@@ -308,7 +308,6 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 		subdev->state = 0;
 		if (group->gtask)
 			vio_group_task_stop(group->gtask);
-		subdev->skip_flag = false;
 		group->output_flag = 0;
 		instance = group->instance;
 		ipu->reuse_shadow0_count &= ~instance;
@@ -1582,7 +1581,6 @@ int ipu_set_path_attr(struct ipu_subdev *subdev, ipu_cfg_t *ipu_cfg)
 	} else {
 		if (test_bit(VIO_GROUP_LEADER, &group->state)) {
 			ipu_clear_group_leader(group);
-			subdev->skip_flag = true;
 		}
 		ipu_set_group_leader(group, GROUP_ID_SRC);
 		if (test_bit(IPU_OTF_INPUT, &ipu->state)) {
@@ -1808,9 +1806,8 @@ int ipu_video_init(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 	 * in these two scenario, ipu driver kernel thread should run
 	 * note only src node will call EOS, thus only work when src node init
 	 */
-	vio_err("ipu_video_init group->leader:%d\n", group->leader);
-	if (!subdev->skip_flag)
-		vio_group_task_start(group->gtask);
+	vio_info("ipu_video_init group->leader:%d\n", group->leader);
+	vio_group_task_start(group->gtask);
 	mutex_unlock(&ipu_mutex);
 	atomic_inc(&group->node_refcount);
 	ipu_ctx->state = BIT(VIO_VIDEO_INIT);
@@ -2296,7 +2293,7 @@ int ipu_video_qbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 	} else if (group->leader && test_bit(IPU_DMA_INPUT, &ipu->state)
 					&& subdev->id == 0) {
 		// ddr->ipu, qbuf is src
-		vio_dbg("[S%D]ddr->ipu src frame q index%d\m", group->instance,
+		vio_dbg("[S%d]ddr->ipu src frame q index%d\m", group->instance,
 					index);
 		vio_group_start_trigger_mp(group, frame);
 	}
