@@ -304,7 +304,7 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 	mutex_lock(&ipu_mutex);
 	vio_dbg("[S%d][V%d] in close,begin clean", ipu_ctx->belong_pipe, ipu_ctx->id);
 	if ((group) &&(atomic_dec_return(&subdev->refcount) == 0)) {
-		vio_dbg("ipu subdev %d", subdev->id);
+		vio_dbg("[S%d]ipu subdev %d", ipu_ctx->belong_pipe, subdev->id);
 		subdev->state = 0;
 		if (group->gtask)
 			vio_group_task_stop(group->gtask);
@@ -336,6 +336,7 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 	}
 
 	if (atomic_dec_return(&ipu->open_cnt) == 0) {
+		vio_dbg("[S%d] ipu last process close\n", instance);
 		pm_qos_remove_request(&ipu_pm_qos_req);
 		clear_bit(IPU_OTF_INPUT, &ipu->state);
 		clear_bit(IPU_DMA_INPUT, &ipu->state);
@@ -2251,7 +2252,9 @@ int ipu_video_qbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 				framemgr->queued_count[FS_PROCESS],
 				framemgr->queued_count[FS_COMPLETE],
 				framemgr->queued_count[FS_USED]);
-			vio_dbg("ipu used q index%d,y:0x%x,uv:0x%x", frame->frameinfo.bufferindex,
+			vio_dbg("[S%d][V%d]ipu used q index%d,y:0x%x,uv:0x%x", group->instance,
+				ipu_ctx->id,
+				frame->frameinfo.bufferindex,
 				frame->frameinfo.addr[0],
 				frame->frameinfo.addr[1]);
 		} else {
@@ -2299,6 +2302,8 @@ int ipu_video_qbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 	} else if (group->leader && test_bit(IPU_DMA_INPUT, &ipu->state)
 					&& subdev->id == 0) {
 		// ddr->ipu, qbuf is src
+		vio_dbg("[S%D]ddr->ipu src frame q index%d\m", group->instance,
+					index);
 		vio_group_start_trigger_mp(group, frame);
 	}
 
@@ -3246,13 +3251,13 @@ static irqreturn_t ipu_isr(int irq, void *data)
 
 	if (status & (1 << INTR_IPU_FRAME_DONE)) {
 		if (!group->leader) {
-			vio_dbg("ipu not leader");
+			vio_dbg("[S%d]ipu not leader", instance);
 			vio_get_sif_frame_id(group);
 			vio_group_done(group);
 		}
 
 		if (test_bit(IPU_DMA_INPUT, &ipu->state)) {
-			vio_dbg("ipu is dma input");
+			vio_dbg("[S%d]ipu is dma input", instance);
 			if(group->group_scenario != VIO_GROUP_SIF_OFF_IPU_ON_PYM &&
 				group->group_scenario != VIO_GROUP_SIF_ON_ISP_OFF_IPU_ON_PYM &&
 				group->group_scenario != VIO_GROUP_SIF_ON_ISP_OFF_IPU_OFF_PYM) {
@@ -3306,7 +3311,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 
 	if (status & (1 << INTR_IPU_DS2_FRAME_DONE)
 	    && test_bit(VIO_GROUP_IPU_DS2_DMA_OUTPUT, &group->state)) {
-	    vio_dbg("ipu ds2");
+	    vio_dbg("[S%d]ipu ds2", instance);
 		subdev = group->sub_ctx[GROUP_ID_DS2];
 		if (subdev && subdev->cur_enable_flag) {
 			if (test_bit(IPU_OTF_INPUT, &ipu->state) &&
@@ -3318,7 +3323,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 			}
 		} else {
 			if(subdev)
-				vio_dbg("cur_en_flag:%d", subdev->cur_enable_flag);
+				vio_dbg("[S%d]cur_en_flag:%d", instance, subdev->cur_enable_flag);
 		}
 	}
 
@@ -3370,7 +3375,8 @@ static irqreturn_t ipu_isr(int irq, void *data)
 			if (subdev) {
 				subdev->cur_enable_flag = atomic_read(&subdev->pre_enable_flag);
 				atomic_set(&subdev->pre_enable_flag, 0);
-				vio_dbg("FS subdev->cur_enable_flag %d\n", subdev->cur_enable_flag);
+				vio_dbg("[S%d]FS subdev->cur_enable_flag %d\n", instance,
+											subdev->cur_enable_flag);
 			}
 		}
 

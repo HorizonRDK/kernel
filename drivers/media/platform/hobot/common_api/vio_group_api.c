@@ -105,6 +105,7 @@ int vio_group_task_stop(struct vio_group_task *group_task)
 	if (refcount > 0)
 		goto p_err;
 
+	vio_dbg("real task stop %s\n", group_task->task->comm);
 	set_bit(VIO_GTASK_REQUEST_STOP, &group_task->state);
 
 	if(test_bit(VIO_GTASK_SHOT, &group_task->state)){
