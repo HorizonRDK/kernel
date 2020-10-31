@@ -63,7 +63,7 @@ struct hobot_i2c_dev {
 	uint8_t i2c_id;
 	bool is_suspended;
 #ifdef CONFIG_HOBOT_BUS_CLK_X3
-    struct notifier_block notif;
+    struct hobot_dpm dpm;
 #endif
 };
 
@@ -120,17 +120,18 @@ static const struct device_attribute speed_attr = {
 };
 
 #ifdef CONFIG_HOBOT_BUS_CLK_X3
-static int i2c_notifier_callback(struct notifier_block *self,
-				unsigned long event, void *data)
+static int i2c_dpm_callback(struct hobot_dpm *self,
+				unsigned long event, int state)
 {
 	struct hobot_i2c_dev *dev =
-			container_of(self, struct hobot_i2c_dev, notif);
+			container_of(self, struct hobot_i2c_dev, dpm);
 	if (IS_ERR(dev)) {
 		// pr_err("i2c notifier callback dev ptr error\n");
 		return -ENODEV;
 	}
 	if (event == HB_BUS_SIGNAL_START) {
-		mutex_lock(&dev->lock);
+		if (!mutex_trylock(&dev->lock))
+			return -EBUSY;
 		disable_irq(dev->irq);
 		// dev_info(dev->dev, "start frequence switch");
 	} else if (event == HB_BUS_SIGNAL_END) {
@@ -802,12 +803,8 @@ static int hobot_i2c_probe(struct platform_device *pdev)
 	}
 
 #ifdef CONFIG_HOBOT_BUS_CLK_X3
-	dev->notif.notifier_call = i2c_notifier_callback;
-	ret = hb_bus_register_client(&dev->notif);
-	if (ret) {
-		dev_err(dev->dev, "register bus notifier failed");
-		goto err_irq;
-	}
+	dev->dpm.dpm_call = i2c_dpm_callback;
+	hobot_dpm_register(&dev->dpm, &pdev->dev);
 #endif
 	clk_disable_unprepare(dev->clk);
 	dev_info(&pdev->dev, "hobot_i2c_%d probe done\n", i2c_id);
@@ -833,8 +830,7 @@ static int hobot_i2c_remove(struct platform_device *pdev)
 	}
 
 #ifdef CONFIG_HOBOT_BUS_CLK_X3
-	if (hb_bus_unregister_client(&dev->notif))
-		dev_err(dev->dev, "unregister bus notifier failed");
+	hobot_dpm_unregister(&dev->dpm);
 #endif
 	return 0;
 }
