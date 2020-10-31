@@ -26,7 +26,7 @@
 #include <soc/hobot/diag.h>
 #include <linux/timer.h>
 #include <linux/clk.h>
-#ifdef CONFIG_SPI_HOBOT_SPIDEV
+#ifdef CONFIG_SPI_HOBOT_SPIDEV_MODULE
 #include <linux/gpio.h>
 #include "spi-hobot-slave.h"
 #endif
@@ -172,9 +172,11 @@ MODULE_PARM_DESC(slave_tout, "spi: slave timeout(sec), default 10 s");
 module_param(master_tout, int, 0644);
 MODULE_PARM_DESC(master_tout, "spi: master timeout(sec), default 2 s");
 
-#ifdef CONFIG_SPI_HOBOT_SPIDEV
-extern char tx_rx_interrupt_conflict_flag;
+#ifdef CONFIG_SPI_HOBOT_SPIDEV_MODULE
+char tx_rx_interrupt_conflict_flag;
 EXPORT_SYMBOL(tx_rx_interrupt_conflict_flag);
+int ap_response_flag;
+EXPORT_SYMBOL(ap_response_flag);
 #endif
 
 struct hb_spi {
@@ -209,7 +211,7 @@ struct hb_spi {
 #endif
 };
 
-#ifdef CONFIG_SPI_HOBOT_SPIDEV
+#ifdef CONFIG_SPI_HOBOT_SPIDEV_MODULE
 /*
 info ap when J3 tx&rx buf is ready
 ap start spi clk
@@ -364,7 +366,7 @@ static int hb_spi_drain_rxfifo(struct hb_spi *hbspi)
 
 
 #ifdef CONFIG_HB_SPI_DMA_SINGLE
-#ifndef CONFIG_SPI_HOBOT_SPIDEV
+#ifndef CONFIG_SPI_HOBOT_SPIDEV_MODULE
 /* spi tx fifo fill from txbuf with txcnt */
 static int hb_spi_fill_txdma(struct hb_spi *hbspi)
 {
@@ -784,8 +786,11 @@ static void hb_spi_chipselect(struct spi_device *spi, bool is_high)
 		return;
 	}
 	val = hb_spi_rd(hbspi, HB_SPI_CTRL_REG);
-	dev_err(hbspi->dev, "A chip_select=%d CTRL=%08X high=%d\n",
-		spi->chip_select, val, is_high);
+
+	if (debug)
+		dev_info(hbspi->dev, "A chip_select=%d CTRL=%08X high=%d\n",
+			spi->chip_select, val, is_high);
+
 	if (is_high) {
 		// val |= HB_SPI_SS_MASK;
 		val &= (~HB_SPI_SS_MASK);
@@ -877,7 +882,7 @@ static int hb_spi_transfer_one(struct spi_master *master,
 	hbspi->rxbuf = (u8 *) xfer->rx_buf;
 	hbspi->len = xfer->len;
 
-#ifdef CONFIG_SPI_HOBOT_SPIDEV
+#ifdef CONFIG_SPI_HOBOT_SPIDEV_MODULE
 	if (hbspi->isslave == SLAVE_MODE) {
 		if (hbspi->txbuf[0] == SPI_PREAMBLE)
 			tx_or_rx_flag = tx_flag;//tx
@@ -1004,7 +1009,7 @@ static int hb_spi_transfer_one(struct spi_master *master,
 	hb_spi_fill_txfifo(hbspi);
 	hb_spi_wr(hbspi, HB_SPI_DMA_CTRL1_REG, dma_ctrl1);
 #elif defined CONFIG_HB_SPI_DMA_SINGLE
-#ifdef CONFIG_SPI_HOBOT_SPIDEV
+#ifdef CONFIG_SPI_HOBOT_SPIDEV_MODULE
 	if (hbspi->isslave == SLAVE_MODE)
 		rx_end_flag = 1;
 #endif
@@ -1291,7 +1296,7 @@ static int hb_spi_probe(struct platform_device *pdev)
 						4, 300, 6000, NULL) < 0)
 		dev_err(hbspi->dev, "spi%d diag register fail\n", spi_id);
 
-	dev_err(&pdev->dev, "ver: %s %s\n", VER, ctrl_mode);
+	dev_info(&pdev->dev, "ver: %s %s\n", VER, ctrl_mode);
 
 	return 0;
 
@@ -1329,7 +1334,7 @@ int hb_spi_suspend(struct device *dev)
 	struct spi_controller *ctlr = dev_get_drvdata(dev);
 	struct hb_spi *hbspi = spi_controller_get_devdata(ctlr);
 
-	dev_err(hbspi->dev, "enter suspend...\n");
+	dev_info(hbspi->dev, "enter suspend...\n");
 
 	/* Transfer in process flag, wait SPI to be idle */
 	hb_spi_wait_for_tpi(hbspi, 1);
@@ -1349,7 +1354,7 @@ int hb_spi_resume(struct device *dev)
 	struct spi_controller *ctlr = dev_get_drvdata(dev);
 	struct hb_spi *hbspi = spi_controller_get_devdata(ctlr);
 
-	dev_err(hbspi->dev, "enter resume...\n");
+	dev_info(hbspi->dev, "enter resume...\n");
 
 	//enable clk to work
 	clk_prepare_enable(hbspi->spi_mclk);

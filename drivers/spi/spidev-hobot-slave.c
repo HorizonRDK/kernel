@@ -106,7 +106,7 @@ static struct spidev_data *g_spidev = NULL;
 
 
 /* MCU response */
-int ap_response_flag;
+extern int ap_response_flag;
 
 static irqreturn_t spidev_irq(int irq, void *dev_id)
 {
@@ -435,7 +435,8 @@ static ssize_t spidev_read(struct file *filp,
 	}
 
 	if (!kfifo_peek(&spidev->rx_fifo.len, &frame_len)) {
-		printk_ratelimited(KERN_INFO "hobot_spidev: no data\n");
+		if (spidev->level > SPI_NO_DEBUG)
+			printk_ratelimited(KERN_INFO "hobot_spidev: no data\n");
 		status = 0;
 		goto err;
 	}
@@ -467,7 +468,7 @@ err:
 	up(&spidev->sem);
 	return status ? status : copied;
 }
-char tx_rx_interrupt_conflict_flag;
+extern char tx_rx_interrupt_conflict_flag;
 
 static int spi_send_message(struct spidev_data *spidev,
 									char *src_buf, unsigned int len)
