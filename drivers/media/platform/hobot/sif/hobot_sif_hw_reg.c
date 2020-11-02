@@ -894,7 +894,7 @@ static void sif_set_mipi_rx(u32 __iomem *base_reg, sif_input_mipi_t* p_mipi,
 				else {
 					sif_enable_mux_out(base_reg,
 							mux_out_index + 1,
-							input_index_start + ipi_index + 1,
+							input_index_start + ipi_index,
 							lines);
 					//sif_enable_frame_intr(base_reg, mux_out_index + 1, true);
 				}
