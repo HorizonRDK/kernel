@@ -740,6 +740,11 @@ void ipu_frame_work(struct vio_group *group)
 				//if (group->leader) {
 				//	vio_group_start_trigger_mp(group, frame);
 				//}
+				ipu_hw_enable_channel(subdev, false);
+				if (i == GROUP_ID_DS2) {
+					ipu_set_ds2_wdma_enable(ipu->base_reg,
+							shadow_index, 0);
+				}
 
 				vio_dbg("[S%d][V%d]lost frame\n", group->instance, subdev->id);
 				subdev_skip_enabled[i] = 1;
