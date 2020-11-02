@@ -3499,6 +3499,13 @@ int dw_mci_probe(struct dw_mci *host)
 	if (ret)
 		goto err_dmaunmap;
 
+	/* We need at least one slot to succeed */
+	ret = dw_mci_init_slot(host);
+	if (ret) {
+		dev_dbg(host->dev, "slot %d init failed\n", i);
+		goto err_dmaunmap;
+	}
+
 	/*
 	 * Enable interrupts for command done, data over, data empty,
 	 * receive ready and error such as transmit, receive timeout, crc error
@@ -3512,13 +3519,6 @@ int dw_mci_probe(struct dw_mci *host)
 	dev_dbg(host->dev,
 		 "DW MMC controller at irq %d,%d bit host data width,%u deep fifo\n",
 		 host->irq, width, fifo_size);
-
-	/* We need at least one slot to succeed */
-	ret = dw_mci_init_slot(host);
-	if (ret) {
-		dev_dbg(host->dev, "slot %d init failed\n", i);
-		goto err_dmaunmap;
-	}
 
 	if (host->slot->mmc->index == INDEX_ID_EMMC) {
 		if (diag_register(ModuleDiag_emmc, EventIdEmmcErr,
