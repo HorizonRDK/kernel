@@ -308,7 +308,7 @@ int uvcg_video_pump(struct uvc_video *video)
 	struct usb_request *req;
 	struct uvc_buffer *buf;
 	unsigned long flags;
-	int ret;
+	int ret = 0;
 
 	/* FIXME TODO Race between uvcg_video_pump and requests completion
 	 * handler ???
@@ -355,7 +355,7 @@ int uvcg_video_pump(struct uvc_video *video)
 	spin_lock_irqsave(&video->req_lock, flags);
 	list_add_tail(&req->list, &video->req_free);
 	spin_unlock_irqrestore(&video->req_lock, flags);
-	return 0;
+	return ret;
 }
 
 /*
