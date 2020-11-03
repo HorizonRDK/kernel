@@ -164,8 +164,8 @@ typedef struct _reg_s {
 	uint32_t value;
 } reg_t;
 
-#define MIPIDEVIOC_READ		   _IOWR(MIPIDEVIOC_MAGIC, 4, reg_t)
-#define MIPIDEVIOC_WRITE	   _IOW(MIPIDEVIOC_MAGIC, 5, reg_t)
+#define MIPIDEVIOC_READ		   _IOWR(MIPIDEVIOC_MAGIC, 16, reg_t)
+#define MIPIDEVIOC_WRITE	   _IOW(MIPIDEVIOC_MAGIC, 17, reg_t)
 #endif
 
 typedef enum _mipi_state_e {

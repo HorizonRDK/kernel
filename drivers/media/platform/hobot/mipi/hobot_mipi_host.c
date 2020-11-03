@@ -122,6 +122,10 @@ module_param(hw_mode, uint, 0644);
 #define MIPI_HOST_HBPTIME		   (0x04)
 #define MIPI_HOST_HSDTIME		   (0x5f4)
 #define MIPI_HOST_CFGCLK_DEFAULT   (0x1C)
+#define MIPI_HOST_IPI1_SOFTRSTN	   (0x01 << 0)
+#define MIPI_HOST_IPI2_SOFTRSTN	   (0x01 << 4)
+#define MIPI_HOST_IPI3_SOFTRSTN	   (0x01 << 8)
+#define MIPI_HOST_IPI4_SOFTRSTN	   (0x01 << 12)
 
 #define MIPI_HOST_ADV_DEFAULT      (0x3 << 16)
 #define MIPI_HOST_CUT_DEFAULT      (1)
@@ -157,8 +161,8 @@ typedef struct _reg_s {
 	uint32_t value;
 } reg_t;
 
-#define MIPIHOSTIOC_READ		_IOWR(MIPIHOSTIOC_MAGIC, 4, reg_t)
-#define MIPIHOSTIOC_WRITE		_IOW(MIPIHOSTIOC_MAGIC, 5, reg_t)
+#define MIPIHOSTIOC_READ		_IOWR(MIPIHOSTIOC_MAGIC, 16, reg_t)
+#define MIPIHOSTIOC_WRITE		_IOW(MIPIHOSTIOC_MAGIC, 17, reg_t)
 #endif
 
 typedef enum _mipi_state_t {
@@ -1073,6 +1077,76 @@ static int32_t mipi_host_configure_cmp(mipi_host_cfg_t *scfg, mipi_host_cfg_t *d
 		bcfg.hsdTime = 0;
 
 	return memcmp(&bcfg, dcfg, sizeof(mipi_host_cfg_t));
+}
+
+/**
+ * @brief mipi_host_ipi_reset: reset ipi of mipi host
+ *
+ * @param [in] ipi_reset: ipi reset struct.
+ *
+ * @return int32_t : 0/-1
+ */
+static int32_t mipi_host_ipi_reset(mipi_hdev_t *hdev, mipi_host_ipi_reset_t *ipi_reset)
+{
+	mipi_host_t *host = &hdev->host;
+	mipi_host_cfg_t *cfg = &host->cfg;
+	struct device *dev = hdev->dev;
+	void __iomem *iomem = host->iomem;
+	int32_t i, done = 0;
+	uint32_t softrstn, rstn_bit, reg_mode, ipi_mode;
+
+	if (!ipi_reset || !iomem)
+		return -1;
+
+	for (i = 0; i < MIPIHOST_CHANNEL_NUM; i++) {
+		if ((ipi_reset->mask & (0x1 << i)) == 0)
+			continue;
+		if (i >= cfg->channel_num) {
+			mipiinfo("ipi%d reset: not configed drop", i + 1);
+			continue;
+		}
+		switch (i) {
+		case 3:
+			reg_mode = REG_MIPI_HOST_IPI4_MODE;
+			rstn_bit = MIPI_HOST_IPI4_SOFTRSTN;
+			break;
+		case 2:
+			reg_mode = REG_MIPI_HOST_IPI3_MODE;
+			rstn_bit = MIPI_HOST_IPI3_SOFTRSTN;
+			break;
+		case 1:
+			reg_mode = REG_MIPI_HOST_IPI2_MODE;
+			rstn_bit = MIPI_HOST_IPI2_SOFTRSTN;
+			break;
+		case 0:
+		default:
+			reg_mode = REG_MIPI_HOST_IPI_MODE;
+			rstn_bit = MIPI_HOST_IPI1_SOFTRSTN;
+			break;
+		}
+		softrstn = mipi_getreg(iomem + REG_MIPI_HOST_IPI_SOFTRSTN);
+		ipi_mode = mipi_getreg(iomem + reg_mode);
+		if (ipi_reset->enable) {
+			mipiinfo("ipi%d reset: enable", i + 1);
+			softrstn |= rstn_bit;
+			ipi_mode |= MIPI_HOST_IPI_ENABLE;
+			mipi_putreg(iomem + REG_MIPI_HOST_IPI_SOFTRSTN, softrstn);
+			mipi_putreg(iomem + reg_mode, ipi_mode);
+		} else {
+			mipiinfo("ipi%d reset: disable", i + 1);
+			softrstn &= ~rstn_bit;
+			ipi_mode &= ~MIPI_HOST_IPI_ENABLE;
+			mipi_putreg(iomem + reg_mode, ipi_mode);
+			mipi_putreg(iomem + REG_MIPI_HOST_IPI_SOFTRSTN, softrstn);
+		}
+		done++;
+	}
+	if (done == 0) {
+		mipierr("ipi reset error: none");
+		return -1;
+	}
+
+	return 0;
 }
 
 #ifdef CONFIG_HOBOT_XJ3
@@ -2364,6 +2438,30 @@ static long hobot_mipi_host_ioctl(struct file *file, unsigned int cmd, unsigned 
 				mipiinfo("pre_start_result cmd: %s drop",
 					(result) ? "falied" : "done");
 			}
+		}
+		break;
+	case MIPIHOSTIOC_IPI_RESET:
+		{
+			mipi_host_ipi_reset_t ipi_reset;
+			if (mutex_lock_interruptible(&user->mutex)) {
+				mipierr("init user mutex lock error");
+				return -EINVAL;
+			}
+			mipiinfo("ipi reset cmd");
+			if (!arg || copy_from_user((void *)&ipi_reset,
+				   (void __user *)arg, sizeof(mipi_host_ipi_reset_t))) {
+				mipierr("ipi reset erorr, %p from user error", (void __user *)arg);
+				mutex_unlock(&user->mutex);
+				return -EINVAL;
+			}
+			if (user->init_cnt == 0) {
+				mipierr("state error: not inited");
+				mutex_unlock(&user->mutex);
+				return -EACCES;
+			}
+			if (mipi_host_ipi_reset(hdev, &ipi_reset))
+				ret = -EFAULT;
+			mutex_unlock(&user->mutex);
 		}
 		break;
 #ifdef CONFIG_HOBOT_MIPI_REG_OPERATE

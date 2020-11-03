@@ -39,6 +39,11 @@ typedef struct _mipi_host_cfg_t {
 	uint16_t channel_sel[MIPIHOST_CHANNEL_NUM];
 } mipi_host_cfg_t;
 
+typedef struct _mipi_host_ipi_reset_t {
+	uint16_t mask;
+	uint16_t enable;
+} mipi_host_ipi_reset_t;
+
 #define MIPIHOSTIOC_MAGIC 'v'
 #define MIPIHOSTIOC_INIT             _IOW(MIPIHOSTIOC_MAGIC, 0, mipi_host_cfg_t)
 #define MIPIHOSTIOC_DEINIT           _IO(MIPIHOSTIOC_MAGIC,  1)
@@ -50,5 +55,6 @@ typedef struct _mipi_host_cfg_t {
 #define MIPIHOSTIOC_PRE_START_REQUEST _IOW(MIPIHOSTIOC_MAGIC, 7, uint32_t)
 #define MIPIHOSTIOC_PRE_INIT_RESULT  _IOW(MIPIHOSTIOC_MAGIC, 8, uint32_t)
 #define MIPIHOSTIOC_PRE_START_RESULT _IOW(MIPIHOSTIOC_MAGIC, 9, uint32_t)
+#define MIPIHOSTIOC_IPI_RESET        _IOW(MIPIHOSTIOC_MAGIC, 10, mipi_host_ipi_reset_t)
 
 #endif /*__HOBOT_MIPI_HOST_H__*/

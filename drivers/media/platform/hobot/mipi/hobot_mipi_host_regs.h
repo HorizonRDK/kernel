@@ -36,6 +36,7 @@
 #define REG_MIPI_HOST_IPI_HBP_TIME             (0x94)
 #define REG_MIPI_HOST_IPI_HSD_TIME             (0x98)
 #define REG_MIPI_HOST_IPI_HLINE_TIME           (0x9c)
+#define REG_MIPI_HOST_IPI_SOFTRSTN             (0xa0)
 #define REG_MIPI_HOST_IPI_ADV_FEATURES         (0xac)
 #define REG_MIPI_HOST_IPI_VSA_LINES            (0xb0)
 #define REG_MIPI_HOST_IPI_VBP_LINES            (0xb4)
