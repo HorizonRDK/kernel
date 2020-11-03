@@ -247,9 +247,15 @@ function all()
         [ -f ko_release.tgz ] && tar xvf ko_release.tgz
     fi
 
-    # make modules_install to INSTALL_MOD_PATH (default: /)
+    # make modules_install to INSTALL_MOD_PATH for debug ko (default: /)
+    make INSTALL_MOD_PATH=$SRC_KERNEL_DIR/_debug INSTALL_NO_SUBDIR=1 modules_install || {
+        echo "make modules_install to INSTALL_MOD_PATH for debug ko failed"
+        exit 1
+    }
+
+    # make modules_install to INSTALL_MOD_PATH release ko (default: /)
     make INSTALL_MOD_PATH=$SRC_KERNEL_DIR/_install INSTALL_MOD_STRIP=1 INSTALL_NO_SUBDIR=1 modules_install || {
-        echo "make modules_install to INSTALL_MOD_PATH failed"
+        echo "make modules_install to INSTALL_MOD_PATH for release ko failed"
         exit 1
     }
 

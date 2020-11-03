@@ -171,8 +171,12 @@ struct usb_request *usb_ep_alloc_request(struct usb_ep *ep,
 {
 	struct usb_request *req = NULL;
 
+	if (!ep || !ep->ops || !ep->ops->alloc_request)
+		goto out;
+
 	req = ep->ops->alloc_request(ep, gfp_flags);
 
+out:
 	trace_usb_ep_alloc_request(ep, req, req ? 0 : -ENOMEM);
 
 	return req;
@@ -191,6 +195,9 @@ EXPORT_SYMBOL_GPL(usb_ep_alloc_request);
 void usb_ep_free_request(struct usb_ep *ep,
 				       struct usb_request *req)
 {
+	if (!ep || !ep->ops || !ep->ops->free_request)
+		return;
+
 	trace_usb_ep_free_request(ep, req, 0);
 	ep->ops->free_request(ep, req);
 }
@@ -261,6 +268,11 @@ int usb_ep_queue(struct usb_ep *ep,
 {
 	int ret = 0;
 
+	if (!ep || !ep->ops || !ep->ops->queue) {
+		ret = -EINVAL;
+		goto out;
+	}
+
 	if (WARN_ON_ONCE(!ep->enabled && ep->address)) {
 		ret = -ESHUTDOWN;
 		goto out;
@@ -294,7 +306,14 @@ int usb_ep_dequeue(struct usb_ep *ep, struct usb_request *req)
 {
 	int ret;
 
+	if (!ep || !ep->ops || !ep->ops->dequeue) {
+		ret = -EINVAL;
+		goto out;
+	}
+
 	ret = ep->ops->dequeue(ep, req);
+
+out:
 	trace_usb_ep_dequeue(ep, req, ret);
 
 	return ret;
@@ -326,7 +345,14 @@ int usb_ep_set_halt(struct usb_ep *ep)
 {
 	int ret;
 
+	if (!ep || !ep->ops || !ep->ops->set_halt) {
+		ret = -EINVAL;
+		goto out;
+	}
+
 	ret = ep->ops->set_halt(ep, 1);
+
+out:
 	trace_usb_ep_set_halt(ep, ret);
 
 	return ret;
@@ -350,7 +376,14 @@ int usb_ep_clear_halt(struct usb_ep *ep)
 {
 	int ret;
 
+	if (!ep || !ep->ops || !ep->ops->set_halt) {
+		ret = -EINVAL;
+		goto out;
+	}
+
 	ret = ep->ops->set_halt(ep, 0);
+
+out:
 	trace_usb_ep_clear_halt(ep, ret);
 
 	return ret;
@@ -723,7 +756,7 @@ int usb_gadget_deactivate(struct usb_gadget *gadget)
 {
 	int ret = 0;
 
-	if (gadget->deactivated)
+	if (!gadget || gadget->deactivated)
 		goto out;
 
 	if (gadget->connected) {
@@ -759,7 +792,7 @@ int usb_gadget_activate(struct usb_gadget *gadget)
 {
 	int ret = 0;
 
-	if (!gadget->deactivated)
+	if (!gadget || !gadget->deactivated)
 		goto out;
 
 	gadget->deactivated = false;

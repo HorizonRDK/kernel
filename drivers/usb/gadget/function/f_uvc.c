@@ -509,6 +509,7 @@ uvc_function_disable(struct usb_function *f)
 	v4l2_event_queue(uvc->vdev, &v4l2_event);
 
 	uvc->state = UVC_STATE_DISCONNECTED;
+	// f->config->cdev->gadget->uvc_enabled = false;
 
 	usb_ep_disable(uvc->video.ep);
 	usb_ep_disable(uvc->control_ep);
@@ -524,8 +525,22 @@ uvc_function_connect(struct uvc_device *uvc)
 	struct usb_composite_dev *cdev = uvc->func.config->cdev;
 	int ret;
 
+	if (!cdev || !cdev->gadget)
+		goto out;
+
+	if (cdev->gadget->uvc_enabled) {
+		WARNING(cdev, "uvc already enabled\n");
+		goto out;
+	}
+
 	if ((ret = usb_function_activate(&uvc->func)) < 0)
 		INFO(cdev, "UVC connect failed with %d\n", ret);
+
+	if (cdev->gadget)
+		cdev->gadget->uvc_enabled = true;
+
+out:
+	return;
 }
 
 void
@@ -534,8 +549,22 @@ uvc_function_disconnect(struct uvc_device *uvc)
 	struct usb_composite_dev *cdev = uvc->func.config->cdev;
 	int ret;
 
+	if (!cdev || !cdev->gadget)
+		goto out;
+
+	if (!cdev->gadget->uvc_enabled) {
+		WARNING(cdev, "uvc already disabled\n");
+		goto out;
+	}
+
 	if ((ret = usb_function_deactivate(&uvc->func)) < 0)
 		INFO(cdev, "UVC disconnect failed with %d\n", ret);
+
+	if (cdev->gadget)
+		cdev->gadget->uvc_enabled = false;
+
+out:
+	return;
 }
 
 /* --------------------------------------------------------------------------
@@ -1092,10 +1121,15 @@ static void uvc_unbind(struct usb_configuration *c, struct usb_function *f)
 	video_unregister_device(uvc->vdev);
 	v4l2_device_unregister(&uvc->v4l2_dev);
 
+	uvcg_video_enable(&uvc->video, 0);
+
 	usb_ep_free_request(cdev->gadget->ep0, uvc->control_req);
 	kfree(uvc->control_buf);
 
 	usb_free_all_descriptors(f);
+
+	uvc->video.ep = NULL;
+	uvc->control_ep = NULL;
 }
 
 static struct usb_function *uvc_alloc(struct usb_function_instance *fi)

@@ -368,7 +368,7 @@ int uvcg_video_enable(struct uvc_video *video, int enable)
 	struct uvc_device *uvc = video_to_uvc(video);
 	struct f_uvc_opts *opts = fi_to_f_uvc_opts(uvc->func.fi);
 
-	if (video->ep == NULL) {
+	if (video->ep == NULL || video->req == NULL) {
 		printk(KERN_INFO "Video enable failed, device is "
 			"uninitialized.\n");
 		return -ENODEV;

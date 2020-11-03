@@ -1219,6 +1219,10 @@ static void purge_configs_funcs(struct gadget_info *gi)
 				         "unbind function '%s'/%p\n",
 				         f->name, f);
 				f->unbind(c, f);
+
+				if (f->bind_deactivated &&
+						!gi->cdev.gadget->uvc_enabled)
+					usb_function_activate(f);
 			}
 		}
 		c->next_interface_id = 0;

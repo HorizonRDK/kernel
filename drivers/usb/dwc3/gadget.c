@@ -1395,7 +1395,6 @@ static int dwc3_gadget_ep_dequeue(struct usb_ep *ep,
 	int				ret = 0;
 
 	trace_dwc3_ep_dequeue(req);
-
 	spin_lock_irqsave(&dwc->lock, flags);
 
 	list_for_each_entry(r, &dep->pending_list, list) {
@@ -1575,12 +1574,16 @@ int __dwc3_gadget_ep_set_halt(struct dwc3_ep *dep, int value, int protocol)
 static int dwc3_gadget_ep_set_halt(struct usb_ep *ep, int value)
 {
 	struct dwc3_ep			*dep = to_dwc3_ep(ep);
-	struct dwc3			*dwc = dep->dwc;
+	struct dwc3			*dwc;
 
 	unsigned long			flags;
 
 	int				ret;
 
+	if (!dep)
+		return -EINVAL;
+
+	dwc = dep->dwc;
 	spin_lock_irqsave(&dwc->lock, flags);
 	ret = __dwc3_gadget_ep_set_halt(dep, value, false);
 	spin_unlock_irqrestore(&dwc->lock, flags);
