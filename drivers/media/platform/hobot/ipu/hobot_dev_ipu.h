@@ -215,6 +215,7 @@ struct ipu_subdev {
 	unsigned int enable_frame_cnt;
 	unsigned int curr_frame_cnt;
 	atomic_t lost_next_frame;
+	atomic_t lost_this_frame;
 
 	unsigned int frame_rate_change_strategy;
 	unsigned int frame_skip_step;

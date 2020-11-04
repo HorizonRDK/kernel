@@ -343,6 +343,7 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 		clear_bit(IPU_HW_CONFIG, &ipu->state);
 		clear_bit(IPU_REUSE_SHADOW0, &ipu->state);
 		atomic_set(&group->work_insert, 0);
+		atomic_set(&group->resource_up, 0);
 
 		if (test_bit(IPU_HW_RUN, &ipu->state)) {
 			set_bit(IPU_HW_FORCE_STOP, &ipu->state);
@@ -353,11 +354,11 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 		}
 		if (group->group_scenario == VIO_GROUP_SIF_OFF_ISP_ON_IPU_ON_PYM ||
 				group->group_scenario == VIO_GROUP_SIF_OFF_ISP_ON_IPU_OFF_PYM)
-			vio_group_done(group);
+			vio_group_done(group, 0);
 		ips_set_clk_ctrl(IPU0_CLOCK_GATE, false);
 		ipu->frame_drop_count = 0;
 		ipu->reuse_shadow0_count = 0;
-		sema_init(&ipu->gtask.hw_resource, 1);
+		sema_init(&ipu->gtask.hw_resource, 0);
 		atomic_set(&ipu->gtask.refcount, 0);
 	}
 	mutex_unlock(&ipu_mutex);
@@ -464,6 +465,7 @@ static int subdev_frame_skip_deinit(struct ipu_subdev *subdev)
 	subdev->frame_skip_num = 0;
 	subdev->frame_rate_change_strategy = NULL_SKIP_MODE;
 	atomic_set(&subdev->lost_next_frame, 0);
+	atomic_set(&subdev->lost_this_frame, 0);
 	spin_unlock_irqrestore(&subdev->slock, flags);
 
 	return 0;
@@ -539,6 +541,8 @@ static void subdev_inc_enable_frame_count(struct ipu_subdev *subdev)
 
 static void subdev_fix_interval_lost_next_frame(struct ipu_subdev *subdev)
 {
+	int lost_flag;
+
 	if ((subdev->frame_skip_step) && (subdev->frame_skip_num)) {
 		subdev->curr_frame_cnt++;
 
@@ -547,6 +551,8 @@ static void subdev_fix_interval_lost_next_frame(struct ipu_subdev *subdev)
 				subdev->enable_frame_cnt, subdev->curr_frame_cnt);
 		vio_dbg("skip_step = 0x%x, skip_num = 0x%x\n",
 				subdev->frame_skip_step, subdev->frame_skip_num);
+		lost_flag = atomic_read(&subdev->lost_next_frame);
+		atomic_set(&subdev->lost_this_frame, lost_flag);
 		if (subdev->enable_frame_cnt >=
 			(subdev->frame_skip_step - subdev->frame_skip_num)) {
 			atomic_set(&subdev->lost_next_frame, 1);
@@ -563,7 +569,11 @@ static void subdev_fix_interval_lost_next_frame(struct ipu_subdev *subdev)
 
 static void subdev_balance_lost_next_frame(struct ipu_subdev *subdev)
 {
+	int lost_flag;
+
 	if ((subdev->frame_skip_step) && (subdev->frame_skip_num)) {
+		lost_flag = atomic_read(&subdev->lost_next_frame);
+		atomic_set(&subdev->lost_this_frame, lost_flag);
 		subdev->curr_frame_cnt += subdev->frame_skip_num;
 		if (subdev->curr_frame_cnt < subdev->frame_skip_step) {
 			atomic_set(&subdev->lost_next_frame, 1);
@@ -571,6 +581,10 @@ static void subdev_balance_lost_next_frame(struct ipu_subdev *subdev)
 			subdev->curr_frame_cnt -= subdev->frame_skip_step;
 			atomic_set(&subdev->lost_next_frame, 0);
 		}
+		vio_dbg("[S%d][V%d]%s lost_this = 0x%x, lost_next = 0x%x,",
+				subdev->group->instance, subdev->id, __func__,
+				atomic_read(&subdev->lost_this_frame),
+				atomic_read(&subdev->lost_next_frame));
 	}
 }
 
@@ -625,6 +639,7 @@ void ipu_frame_work(struct vio_group *group)
 	bool ds2_dma_enable = 0;
 	bool dma_enable = 0;
 	bool all_subdev_skip = 1;
+	int all_this_frame_skip = 1;
 	int subdev_skip_enabled[MAX_DEVICE] = {-1};
 
 	u32 src_frame_id = 0;
@@ -657,7 +672,10 @@ void ipu_frame_work(struct vio_group *group)
 		shadow_index = instance;
 	vio_dbg("[S%d]%s start\n", instance, __func__);
 
-	if (group->leader && test_bit(IPU_OTF_INPUT, &ipu->state)) {
+	/*
+	 *work always run only wait for hw resource
+	 */
+	if (group->leader) {
 		work_index = (work_index + 1) % 2;
 		vio_dbg("insert pipe %d index %d\n", instance, work_index);
 		vio_group_insert_work(group, &ipu->vwork[instance][work_index].work);
@@ -670,10 +688,35 @@ void ipu_frame_work(struct vio_group *group)
 	ipu_set_shd_select(ipu->base_reg, shadow_index);
 
 	atomic_set(&ipu->instance, instance);
+
+	/*whether the current frame is skip in all channels*/
+	for (i = 1; i <= (MAX_DEVICE - 1); i++) {
+		subdev = group->sub_ctx[i];
+		if (!subdev)
+			continue;
+		if (!atomic_read(&subdev->lost_this_frame)) {
+			all_this_frame_skip = 0;
+			break;
+		}
+	}
+
 	for (i = MAX_DEVICE - 1; i >= 0; i--) {
 		subdev = group->sub_ctx[i];
 		if (!subdev)
 			continue;
+
+		/*
+		*in all online scene
+		*if not all chn skip, ndone the skiped chn
+		*/
+		if (group->leader && test_bit(IPU_OTF_INPUT, &ipu->state)
+				&& !all_this_frame_skip) {
+			if (atomic_read(&subdev->lost_this_frame)) {
+				vio_dbg("[V%d] ndone\n", i);
+				subdev->frame_is_skipped = true;
+				ipu_frame_ndone(subdev);
+			}
+		}
 
 		framemgr = &subdev->framemgr;
 		framemgr_e_barrier_irqs(framemgr, 0, flags);
@@ -799,7 +842,7 @@ void ipu_frame_work(struct vio_group *group)
 		vio_dbg("all subdev skip %d\n", all_subdev_skip);
 		ipu_set_all_lost_next_frame_flags(group);
 		if (all_subdev_skip) {
-			vio_group_done(group);
+			vio_group_done(group, 0);
 			ipu_frame_done(group->sub_ctx[0]);
 		} else {
 			ipu_set_rdma_start(ipu->base_reg);
@@ -829,7 +872,7 @@ void ipu_frame_work(struct vio_group *group)
 				// if all channel jump, give a done to
 				// sif ddrin leader
 				// else done will be given in ipu_isr FRAME_DONE
-				vio_group_done(group);
+				vio_group_done(group, 0);
 			}
 		}
 	}
@@ -1133,7 +1176,8 @@ int ipu_hw_enable_channel(struct ipu_subdev *subdev, bool enable)
 		ipu_set_sc_enable(subdev, shadow_index, enable);
 	}
 
-	vio_dbg("G%d: %s shadow %d\n", group->instance, __func__, shadow_index);
+	vio_dbg("G%d[V%d]: %s shadow %d enable %d\n", group->instance,
+			subdev->id, __func__, shadow_index, enable);
 
 	return 0;
 }
@@ -1813,6 +1857,7 @@ int ipu_video_init(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 	 */
 	vio_info("ipu_video_init group->leader:%d\n", group->leader);
 	vio_group_task_start(group->gtask);
+	sema_init(&group->gtask->hw_resource, 0);
 	mutex_unlock(&ipu_mutex);
 	atomic_inc(&group->node_refcount);
 	ipu_ctx->state = BIT(VIO_VIDEO_INIT);
@@ -1903,12 +1948,16 @@ int ipu_bind_chain_group(struct ipu_video_ctx *ipu_ctx, int instance)
 int ipu_video_streamon(struct ipu_video_ctx *ipu_ctx)
 {
 	u32 cnt = 20;
+	u32 instance = 0;
 	struct x3_ipu_dev *ipu;
 	struct vio_group *group;
 	struct ipu_subdev *subdev;
+	struct vio_group_task *gtask;
+	int sif_state;
 
 	ipu = ipu_ctx->ipu_dev;
 	group = ipu_ctx->group;
+	gtask = &ipu->gtask;
 
 	if (!(ipu_ctx->state & (BIT(VIO_VIDEO_STOP) | BIT(VIO_VIDEO_REBUFS)
 			| BIT(VIO_VIDEO_INIT)))) {
@@ -1918,6 +1967,35 @@ int ipu_video_streamon(struct ipu_video_ctx *ipu_ctx)
 	}
 
 	subdev = ipu_ctx->subdev;
+	sif_state = vio_check_sif_state(group);
+
+	/*
+	 *online scene q first work & up hw_resource
+	 *offline scecn q first work
+	 */
+	if (group->leader && test_bit(IPU_OTF_INPUT, &ipu->state)
+			/*
+			 *SIF->ddr->ISP->online-IPU scene:
+			 *if SIFOUT have non state, IPU maybe not a real leader
+			 *maybe IPU initializes first, SIF is not initialized yet
+			 */
+			&& sif_state) {
+		if (atomic_inc_return(&group->work_insert) == 1) {
+			vio_group_insert_work(group,
+					&ipu->vwork[instance][0].work);
+			if (test_bit(IPU_OTF_INPUT, &ipu->state))
+				up(&gtask->hw_resource);
+		} else {
+			atomic_set(&group->work_insert, 1);
+		}
+	} else if (group->leader && test_bit(IPU_DMA_INPUT, &ipu->state)) {
+		if (atomic_inc_return(&group->work_insert) == 1) {
+			vio_group_insert_work(group,
+					&ipu->vwork[instance][0].work);
+		} else {
+			atomic_set(&group->work_insert, 1);
+		}
+	}
 
 	if (group->leader && test_bit(IPU_OTF_INPUT, &ipu->state)) {
 		while(1) {
@@ -2161,8 +2239,9 @@ int ipu_video_qbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 	struct vio_group *group;
 	struct ipu_subdev *subdev;
 	struct x3_ipu_dev *ipu;
+	struct vio_group_task *gtask;
 	struct mp_vio_frame  *frame_array_addr[VIO_MP_MAX_FRAMES];
-	int i = 0, first_index, frame_num, sif_state;
+	int i = 0, first_index, frame_num;
 	u16 mask = 0x0000;
 	int tmp_num = 0;
 	struct vio_frame *release_frame;
@@ -2172,6 +2251,7 @@ int ipu_video_qbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 	subdev = ipu_ctx->subdev;
 	group = ipu_ctx->group;
 	ipu = ipu_ctx->ipu_dev;
+	gtask = &ipu->gtask;
 	vio_dbg("[S%d][V%d] %s index %d\n", group->instance, ipu_ctx->id,
 		__func__, frameinfo->bufferindex);
 
@@ -2276,31 +2356,22 @@ int ipu_video_qbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
 	/*
-	 * this should insert a work to thread
-	 * if all online, this qbuf only need one work to thread
-	 * if ddr->ipu, only src node need q work to thread
+	 * ddr-ipu scene need up hw_resource when q src
+	 * up the hw_resource when first q source
+	 * after the second time, up the hw_resource at the last call vio_group_done
 	 */
 
-	sif_state = vio_check_sif_state(group);
-
-	// all online to ipu
-	if (group->leader && test_bit(IPU_OTF_INPUT, &ipu->state)
-			/*
-			 *SIF->ddr->ISP->online-IPU scene:
-			 *if SIFOUT have non state, IPU maybe not a real leader
-			 *maybe IPU initializes first, SIF is not initialized yet
-			 */
-			&& sif_state) {
-		if(atomic_inc_return(&group->work_insert) == 1)
-			vio_group_start_trigger_mp(group, frame);
-		else
-			atomic_set(&group->work_insert, 1);
-	} else if (group->leader && test_bit(IPU_DMA_INPUT, &ipu->state)
-					&& subdev->id == 0) {
+	if (group->leader && test_bit(IPU_DMA_INPUT, &ipu->state)
+			&& subdev->id == GROUP_ID_SRC) {
 		// ddr->ipu, qbuf is src
-		vio_dbg("[S%d]ddr->ipu src frame q index%d\m", group->instance,
+		vio_dbg("[S%d]ddr->ipu src frame q index%d\n", group->instance,
 					index);
-		vio_group_start_trigger_mp(group, frame);
+		if (atomic_inc_return(&group->resource_up) == 1) {
+			up(&gtask->hw_resource);
+		} else {
+			atomic_set(&group->resource_up, 1);
+			vio_group_done(group, 1);
+		}
 	}
 
 	if (ipu_ctx->ctx_index == 0)
@@ -3238,11 +3309,11 @@ static irqreturn_t ipu_isr(int irq, void *data)
 	if (status & (1 << INTR_IPU_FRAME_DONE)) {
 		if (!group->leader) {
 			vio_dbg("[S%d]ipu not leader", instance);
-			vio_group_done(group);
+			vio_group_done(group, 0);
 		}
 
 		if (test_bit(IPU_DMA_INPUT, &ipu->state)) {
-			vio_group_done(group);
+			vio_group_done(group, 0);
 			subdev = group->sub_ctx[GROUP_ID_SRC];
 			if (subdev)
 				ipu_frame_done(subdev);
@@ -3404,7 +3475,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 	if (drop_cnt) {
 		if (!group->leader || test_bit(IPU_DMA_INPUT, &ipu->state))
 			if (group->output_flag == drop_cnt)
-				vio_group_done(group);
+				vio_group_done(group, 0);
 	}
 
 	if (err_occured == 1)
@@ -4088,7 +4159,7 @@ static int x3_ipu_probe(struct platform_device *pdev)
 	ipu->wr_fifo_thred0 = MR_FIFO_THRED0;
 	ipu->wr_fifo_thred1 = MR_FIFO_THRED1;
 
-	sema_init(&ipu->gtask.hw_resource, 1);
+	sema_init(&ipu->gtask.hw_resource, 0);
 	atomic_set(&ipu->gtask.refcount, 0);
 	atomic_set(&ipu->rsccount, 0);
 	atomic_set(&ipu->open_cnt, 0);

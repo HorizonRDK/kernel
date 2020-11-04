@@ -108,6 +108,7 @@ struct vio_group {
 	// check ipu/pym scenario, for frameid
 	int group_scenario;
 	atomic_t work_insert;
+	atomic_t resource_up;
 };
 
 struct vio_work {
@@ -170,7 +171,7 @@ void vio_get_ipu_frame_id(struct vio_group *group);
 int vio_check_sif_state(struct vio_group *group);
 int vio_group_init_mp(u32 group_id);
 void vio_reset_module(u32 module);
-void vio_group_done(struct vio_group *group);
+void vio_group_done(struct vio_group *group, int index);
 void vio_dwe_clk_enable(void);
 void vio_dwe_clk_disable(void);
 void vio_set_stat_info(u32 instance, u32 stat_type, u16 frameid);

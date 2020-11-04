@@ -1514,7 +1514,7 @@ static irqreturn_t sif_isr(int irq, void *data)
 		group = sif->sif_input[instance];
 		gtask = group->gtask;
 
-		vio_group_done(group);
+		vio_group_done(group, 0);
 
 		subdev = group->sub_ctx[0];
 		sif_frame_done(subdev);

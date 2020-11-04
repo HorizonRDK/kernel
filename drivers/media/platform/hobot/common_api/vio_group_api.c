@@ -218,6 +218,7 @@ void vio_group_init(struct vio_group *group)
 	atomic_set(&group->rcount, 0);
 	atomic_set(&group->node_refcount, 0);
 	atomic_set(&group->work_insert, 0);
+	atomic_set(&group->resource_up, 0);
 	for(i = 0; i < MAX_SUB_DEVICE; i++)
 		group->sub_ctx[i] = NULL;
 
@@ -380,6 +381,14 @@ void vio_bind_group_done(int instance)
 		vio_info("G1->G2->G3 case\n");
 	}
 
+	group = &ischain->group[GROUP_ID_IPU];
+	if (test_bit(VIO_GROUP_DMA_INPUT, &group->state) &&
+			test_bit(VIO_GROUP_DMA_OUTPUT, &group->state)) {
+		/*ddr->ipu->ddr*/
+		group->target_sema = 0x7;
+		vio_info("ddr=>G2=>ddr scene\n");
+	}
+
 	vio_info("Stream%d path: G0%s\n", group->instance, stream);
 }
 EXPORT_SYMBOL(vio_bind_group_done);
@@ -492,13 +501,19 @@ void vio_reset_module(u32 module)
 }
 EXPORT_SYMBOL(vio_reset_module);
 
-void vio_group_done(struct vio_group *group)
+void vio_group_done(struct vio_group *group, int index)
 {
 	struct vio_group_task *group_task;
 	struct vio_group *group_leader;
 
 	group_leader = group->head;
 	group_task = group_leader->gtask;
+
+	if (index && test_bit(VIO_GROUP_DMA_INPUT, &group->state) &&
+			test_bit(VIO_GROUP_DMA_OUTPUT, &group->state)) {
+		group_leader->sema_flag |= 1 << 2;
+		goto do_up;
+	}
 
 	if (group->next && group->head != group &&
 		test_bit(VIO_GROUP_DMA_OUTPUT, &group->state)) {
@@ -512,7 +527,7 @@ void vio_group_done(struct vio_group *group)
 	if (group->head == group) {
 		group_leader->sema_flag |= 1 << 1;
 	}
-
+do_up:
 	vio_dbg("group%d,leader%d,sema_flag=%d,target_sema=%d",
 		group->id, group_leader->id, group_leader->sema_flag, group_leader->target_sema);
 	if(group_leader->sema_flag == group_leader->target_sema) {
