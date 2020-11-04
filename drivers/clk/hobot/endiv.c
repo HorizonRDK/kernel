@@ -10,6 +10,7 @@
  * (at your option) any later version.
  */
 
+#include <linux/delay.h>
 #include "div-comm.h"
 
 struct clk_engate_reg{
@@ -73,6 +74,7 @@ void endiv_clk_disable(struct clk_hw *hw)
 	struct clk_endiv *clk = to_clk_endiv(hw);
 	unsigned int val, val1, status0, status1, reg_val;
 	unsigned long flags = 0;
+	int cnt = 100;
 
 	if (clk->lock)
 		spin_lock_irqsave(clk->lock, flags);
@@ -90,6 +92,13 @@ void endiv_clk_disable(struct clk_hw *hw)
 	if (status0 == 1 && status1 == 0) {
 		reg_val = 1 << clk->gate_reg.gt_reg.disable_bit;
 		writel(reg_val, clk->gate_reg.gt_reg.disable_reg);
+		while(!(readl(clk->gate_reg.clkoff_sta_reg)
+			& (1 << clk->gate_reg.clkoff_sta_bit)) && --cnt) {
+			udelay(1);
+		}
+
+		if (0 == cnt)
+			pr_err("%s: clk %s disable failed\n", __func__, hw->init->name);
 	}
 
 	if (clk->lock)
@@ -144,6 +153,7 @@ static int endiv_clk_set_rate(struct clk_hw *hw, unsigned long rate,
 	struct clk_endiv *clk = to_clk_endiv(hw);
 	int value, reg0_val, reg1_val, enstat;
 	unsigned long flags = 0;
+	int cnt = 100;
 	u32 val;
 
 	if (clk->lock)
@@ -159,6 +169,13 @@ static int endiv_clk_set_rate(struct clk_hw *hw, unsigned long rate,
 		/* disable clk */
 		reg0_val = 1 << clk->gate_reg.gt_reg.disable_bit;
 		writel(reg0_val, clk->gate_reg.gt_reg.disable_reg);
+		while(!(readl(clk->gate_reg.clkoff_sta_reg)
+			& (1 << clk->gate_reg.clkoff_sta_bit)) && --cnt) {
+			udelay(1);
+		}
+
+		if (0 == cnt)
+			pr_err("%s: clk %s disable failed\n", __func__, hw->init->name);
 	}
 
 	value = divider_get_val(rate, parent_rate, NULL,
@@ -185,6 +202,7 @@ static int endiv_clk_set_rate(struct clk_hw *hw, unsigned long rate,
 		/* enable clk */
 		reg1_val = 1 << clk->gate_reg.gt_reg.enable_bit;
 		writel(reg1_val, clk->gate_reg.gt_reg.enable_reg);
+		udelay(1);
 	}
 
 	if (clk->lock)

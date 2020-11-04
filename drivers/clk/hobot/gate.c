@@ -12,6 +12,7 @@
 
 #include <linux/clkdev.h>
 #include <linux/clk.h>
+#include <linux/delay.h>
 #include <linux/clk-provider.h>
 
 #include "common.h"
@@ -52,6 +53,8 @@ int gate_clk_enable(struct clk_hw *hw)
 		spin_lock_irqsave(clk->lock, flags);
 	else
 		__acquire(clk->lock);
+
+	udelay(1);
 
 	val = readl(clk->reg.clken_sta_reg);
 	status0 = (val & (1 << clk->reg.clken_sta_bit))
@@ -127,6 +130,8 @@ void gate_clk_disable(struct clk_hw *hw)
 			}
 		}
 	}
+
+	udelay(1);
 
 	if (clk->lock)
 		spin_unlock_irqrestore(clk->lock, flags);
