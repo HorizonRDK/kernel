@@ -282,6 +282,8 @@ int32_t bpu_write_fc_to_core(struct bpu_core *core,
 				dev_err(core->dev, "bpu request to fifo failed\n");
 				return -EBUSY;
 			}
+		} else {
+			bpu_fc_clear(bpu_fc);
 		}
 		spin_unlock_irqrestore(&core->spin_lock, flags);
 	} else {
