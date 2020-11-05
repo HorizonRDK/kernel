@@ -13,6 +13,7 @@
 
 #define VPU_DEV_NAME "vpu"
 
+#ifdef USE_MUTEX_IN_KERNEL_SPACE
 typedef enum hb_vpu_mutex {
 	VPUDRV_MUTEX_VPU,
 	VPUDRV_MUTEX_DISP_FALG,
@@ -20,6 +21,18 @@ typedef enum hb_vpu_mutex {
 	VPUDRV_MUTEX_VMEM,
 	VPUDRV_MUTEX_MAX
 } hb_vpu_mutex_t;
+#else
+typedef enum hb_vpu_mutex {
+	VPUDRV_MUTEX_VPU,
+	VPUDRV_MUTEX_DISP_FALG,
+	VPUDRV_MUTEX_RESET,
+	VPUDRV_MUTEX_VMEM,
+	VPUDRV_MUTEX_REV1,
+	VPUDRV_MUTEX_MAX
+} hb_vpu_mutex_t;
+
+#define VDI_NUM_LOCK_HANDLES                5
+#endif
 
 typedef struct _hb_vpu_drv_firmware {
 	/* size of this structure */

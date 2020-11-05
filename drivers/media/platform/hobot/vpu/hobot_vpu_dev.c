@@ -53,8 +53,124 @@ module_param(vpu_clk_freq, ulong, 0644);
 module_param(vpu_debug_info, int, 0644);
 module_param(vpu_pf_bw_debug, int, 0644);
 
+#if defined(USE_SHARE_SEM_BT_KERNEL_AND_USER)
+static void *get_mutex_base(hb_vpu_dev_t *dev, u32 core, unsigned int type)
+{
+	int instance_pool_size_per_core;
+	void *vip_base;
+	void *vdi_mutexes_base;
+	void *mutex;
 
-#ifdef USE_MUTEX_IN_KERNEL_SPACE
+	if (core > MAX_NUM_VPU_CORE) {
+		return NULL;
+	}
+	if (dev->instance_pool.base == 0) {
+		return NULL;
+	}
+
+	/* s_instance_pool.size  assigned to the size of all core once call
+	VDI_IOCTL_GET_INSTANCE_POOL by user. */
+	instance_pool_size_per_core = (dev->instance_pool.size/MAX_NUM_VPU_CORE);
+	vip_base = (void *)(dev->instance_pool.base + (instance_pool_size_per_core
+		* core));
+	vdi_mutexes_base = (vip_base + (instance_pool_size_per_core -
+		(sizeof(void *) * VDI_NUM_LOCK_HANDLES)));
+	if (type == VPUDRV_MUTEX_VPU) {
+		mutex = (void *)(vdi_mutexes_base + 0 * (sizeof(void *)));
+	} else if (type == VPUDRV_MUTEX_DISP_FALG) {
+		mutex = (void *)(vdi_mutexes_base + 1 * (sizeof(void *)));
+	} else if (type == VPUDRV_MUTEX_VMEM) {
+		mutex = (void *)(vdi_mutexes_base + 2 * (sizeof(void *)));
+	} else if (type == VPUDRV_MUTEX_RESET) {
+		mutex = (void *)(vdi_mutexes_base + 3 * (sizeof(void *)));
+	} else if (type == VPUDRV_MUTEX_REV1) {
+		mutex = (void *)(vdi_mutexes_base + 4 * (sizeof(void *)));
+	} else {
+		vpu_err("unknown MUTEX_TYPE type=%d\n", type);
+		return NULL;
+	}
+	return mutex;
+}
+
+static int vdi_lock(hb_vpu_dev_t *dev, u32 core, unsigned int type)
+{
+	int ret;
+	void *mutex;
+	int count;
+	int sync_ret;
+	int sync_val = current->tgid; //inst + 1; // 0 is used as free index
+	volatile int *sync_lock_ptr = NULL;
+
+	mutex = get_mutex_base(dev, core, type);
+	if (mutex == NULL) {
+		vpu_err("Fail to get mutex base, core=%d, type=%d\n", core, type);
+		return -1;
+	}
+
+	ret = 0;
+	count = 0;
+	sync_lock_ptr = (volatile int *)mutex;
+	// DPRINTK("[VPUDRV]+%s, type=%d, ret=%d\n", __FUNCTION__, type, ret);
+	while((sync_ret = __sync_val_compare_and_swap(sync_lock_ptr, 0,
+		sync_val)) != 0) {
+		count++;
+		if (count > (VPU_LOCK_BUSY_CHECK_TIMEOUT)) {
+			vpu_err("Failed to get lock type=%d, sync_ret=%d, sync_val=%d, "
+				"sync_ptr=%d, pid=%d, tgid=%d \n",
+				type, sync_ret, sync_val, (int)*sync_lock_ptr,
+				current->pid, current->tgid);
+			ret = -ETIME;
+			break;
+		}
+		mdelay(1);
+	}
+	// DPRINTK("[VPUDRV]-%s, type=%d, ret=%d\n", __FUNCTION__, type, ret);
+	return ret;
+}
+
+static void vdi_unlock(hb_vpu_dev_t *dev, u32 core, unsigned int type)
+{
+	// DPRINTK("[VPUDRV]+%s, type=%d\n", __FUNCTION__, type);
+	void *mutex;
+	volatile int *sync_lock_ptr = NULL;
+
+	mutex = get_mutex_base(dev, core, type);
+	if (mutex == NULL) {
+		vpu_err("Fail to get mutex base, core=%d, type=%d\n", core, type);
+		return;
+	}
+
+	sync_lock_ptr = (volatile int *)mutex;
+	__sync_lock_release(sync_lock_ptr);
+	// DPRINTK("[VPUDRV]-%s, type=%d\n", __FUNCTION__, type);
+}
+
+static void vdi_lock_release(hb_vpu_dev_t *dev, u32 core, unsigned int type)
+{
+	void *mutex;
+	volatile int *sync_lock_ptr = NULL;
+	int sync_val = current->tgid; //inst + 1; // 0 is used as free index
+	//vpu_err("[VPUDRV]+%s, type=%d\n", __FUNCTION__, type);
+
+	mutex = get_mutex_base(dev, core, type);
+	if (mutex == NULL) {
+		vpu_err("Fail to get mutex base, core=%d, type=%d\n", core, type);
+		return;
+	}
+
+	sync_lock_ptr = (volatile int *)mutex;
+	//if (*sync_lock_ptr == sync_val ||
+	//	*sync_lock_ptr == (current->tgid + MAX_VPU_LOCK_INSTANCE)) {
+	if (*sync_lock_ptr == sync_val) {
+		vpu_debug(5, "Free core=%d, type=%d, sync_lock=%d, current_pid=%d, "
+			"tgid=%d, sync_val=%d, \n", core, type,
+			(volatile int)*sync_lock_ptr, current->pid, current->tgid,
+			sync_val);
+		__sync_lock_release(sync_lock_ptr);
+	}
+	//vpu_err("[VPUDRV]-%s\n", __FUNCTION__);
+}
+#elif defined(USE_MUTEX_IN_KERNEL_SPACE)
 static int vdi_lock_base(hb_vpu_dev_t *dev, unsigned int type,
 			int fromUserspace)
 {
@@ -125,18 +241,23 @@ static int vdi_lock(hb_vpu_dev_t *dev, unsigned int type)
 	return vdi_lock_base(dev, type, 0);
 }
 
-static void vdi_unlock(hb_vpu_dev_t *dev, unsigned int type)
+static void vdi_unlock_base(hb_vpu_dev_t *dev, unsigned int type,
+				int fromUserspace)
 {
 	if (type >= VPUDRV_MUTEX_VPU && type < VPUDRV_MUTEX_MAX) {
+		if (dev->current_vdi_lock_pid[type] == 0) {
+			return;
+		}
+		vpu_debug(7, "+ type=%d, semcnt %d LOCK pid %d pid=%d, tgid=%d fromuser %d\n",
+			type, type == VPUDRV_MUTEX_VPU ?
+			dev->vpu_vdi_sem.count : dev->vpu_vdi_vmem_sem.count,
+			dev->current_vdi_lock_pid[type], current->pid, current->tgid,
+			fromUserspace);
 		dev->current_vdi_lock_pid[type] = 0;
 	} else {
 		vpu_err("unknown MUTEX_TYPE type=%d\n", type);
 		return;
 	}
-	vpu_debug(7, "+ type=%d, semcnt %d LOCK pid %d pid=%d, tgid=%d\n",
-		type, type == VPUDRV_MUTEX_VPU ?
-		dev->vpu_vdi_sem.count : dev->vpu_vdi_vmem_sem.count,
-		dev->current_vdi_lock_pid[type], current->pid, current->tgid);
 	if (type == VPUDRV_MUTEX_VPU) {
 		up(&dev->vpu_vdi_sem);
 	} else if (type == VPUDRV_MUTEX_DISP_FALG) {
@@ -146,11 +267,23 @@ static void vdi_unlock(hb_vpu_dev_t *dev, unsigned int type)
 	} else if (type == VPUDRV_MUTEX_VMEM) {
 		up(&dev->vpu_vdi_vmem_sem);
 	}
-	vpu_debug(7, "- type=%d, semcnt %d LOCK pid %d pid=%d, tgid=%d\n",
+	vpu_debug(7, "- type=%d, semcnt %d LOCK pid %d pid=%d, tgid=%d fromuser %d\n",
 		type, type == VPUDRV_MUTEX_VPU ?
 		dev->vpu_vdi_sem.count : dev->vpu_vdi_vmem_sem.count,
-		dev->current_vdi_lock_pid[type], current->pid, current->tgid);
+		dev->current_vdi_lock_pid[type], current->pid, current->tgid,
+		fromUserspace);
 }
+
+static void vdi_unlock_user(hb_vpu_dev_t *dev, unsigned int type)
+{
+	vdi_unlock_base(dev, type, 1);
+}
+
+static void vdi_unlock(hb_vpu_dev_t *dev, unsigned int type)
+{
+	vdi_unlock_base(dev, type, 0);
+}
+
 #else
 static int vdi_lock(hb_vpu_dev_t *dev, unsigned int type)
 {
@@ -172,6 +305,9 @@ static hb_vpu_instance_pool_t *get_instance_pool_handle(
 	if (core > MAX_NUM_VPU_CORE)
 		return NULL;
 
+	if (dev->instance_pool.base == 0) {
+		return NULL;
+	}
 	/* instance_pool.size  assigned to the size of all core once call
 	VDI_IOCTL_GET_INSTANCE_POOL by user. */
 	instance_pool_size_per_core = (dev->instance_pool.size/MAX_NUM_VPU_CORE);
@@ -342,7 +478,7 @@ static int wave_sleep_wake(hb_vpu_dev_t *dev, u32 core, int mode)
 
 		if (VPU_READL(W5_RET_SUCCESS) == 0) {
 			val = VPU_READL(W5_RET_FAIL_REASON);
-			if (val == RETCODE_VPU_STILL_RUNNING) {
+			if (val == WAVE5_SYSERR_VPU_STILL_RUNNING) {
 				return VPUAPI_RET_STILL_RUNNING;
 			} else {
 				return VPUAPI_RET_FAILURE;
@@ -574,12 +710,20 @@ int vpuapi_sw_reset(hb_vpu_dev_t *dev, u32 core, u32 inst, int reset_mode)
 #if defined(SUPPORT_SW_UART) || defined(SUPPORT_SW_UART_V2)
 	u32 regSwUartStatus;
 #endif
+#ifdef USE_SHARE_SEM_BT_KERNEL_AND_USER
+	vdi_lock(dev, core, VPUDRV_MUTEX_VPU);
+#else
 	vdi_lock(dev, VPUDRV_MUTEX_VPU);
+#endif
 
 	product_code = VPU_READL(VPU_PRODUCT_CODE_REGISTER);
 	if (!PRODUCT_CODE_W_SERIES(product_code)) {
 		vpu_err("Doesn't support swreset for coda \n");
+#ifdef USE_SHARE_SEM_BT_KERNEL_AND_USER
+		vdi_unlock(dev, core, VPUDRV_MUTEX_VPU);
+#else
 		vdi_unlock(dev, VPUDRV_MUTEX_VPU);
+#endif
 		return VPUAPI_RET_INVALID_PARAM;
 	}
 
@@ -591,7 +735,11 @@ int vpuapi_sw_reset(hb_vpu_dev_t *dev, u32 core, u32 inst, int reset_mode)
 		ret = wave_sleep_wake(dev, core, VPU_SLEEP_MODE);
 		vpu_debug(5, "Sleep done ret=%d\n", ret);
 		if (ret != VPUAPI_RET_SUCCESS) {
+#ifdef USE_SHARE_SEM_BT_KERNEL_AND_USER
+			vdi_unlock(dev, core, VPUDRV_MUTEX_VPU);
+#else
 			vdi_unlock(dev, VPUDRV_MUTEX_VPU);
+#endif
 			return ret;
 		}
 	}
@@ -626,7 +774,11 @@ int vpuapi_sw_reset(hb_vpu_dev_t *dev, u32 core, u32 inst, int reset_mode)
 			if (vpuapi_wait_bus_busy(dev, core, W5_BACKBONE_BUS_STATUS_VCORE0) !=
 				VPUAPI_RET_SUCCESS) {
 				WriteVpuFIORegister(dev, core, W5_BACKBONE_BUS_CTRL_VCORE0, 0x00);
+#ifdef USE_SHARE_SEM_BT_KERNEL_AND_USER
+				vdi_unlock(dev, core, VPUDRV_MUTEX_VPU);
+#else
 				vdi_unlock(dev, VPUDRV_MUTEX_VPU);
+#endif
 				return VPUAPI_RET_TIMEOUT;
 			}
 
@@ -634,7 +786,11 @@ int vpuapi_sw_reset(hb_vpu_dev_t *dev, u32 core, u32 inst, int reset_mode)
 			if (vpuapi_wait_bus_busy(dev, core, W5_BACKBONE_BUS_STATUS_VCORE1) !=
 				VPUAPI_RET_SUCCESS) {
 				WriteVpuFIORegister(dev, core, W5_BACKBONE_BUS_CTRL_VCORE1, 0x00);
+#ifdef USE_SHARE_SEM_BT_KERNEL_AND_USER
+				vdi_unlock(dev, core, VPUDRV_MUTEX_VPU);
+#else
 				vdi_unlock(dev, VPUDRV_MUTEX_VPU);
+#endif
 				return VPUAPI_RET_TIMEOUT;
 			}
 		} else {
@@ -647,7 +803,11 @@ int vpuapi_sw_reset(hb_vpu_dev_t *dev, u32 core, u32 inst, int reset_mode)
 					if (vpuapi_wait_bus_busy(dev, core, W5_BACKBONE_BUS_STATUS_VCPU)
 						!= VPUAPI_RET_SUCCESS) {
 						WriteVpuFIORegister(dev, core, W5_BACKBONE_BUS_CTRL_VCPU, 0x00);
+#ifdef USE_SHARE_SEM_BT_KERNEL_AND_USER
+						vdi_unlock(dev, core, VPUDRV_MUTEX_VPU);
+#else
 						vdi_unlock(dev, VPUDRV_MUTEX_VPU);
+#endif
 						return VPUAPI_RET_TIMEOUT;
 					}
 				}
@@ -658,7 +818,11 @@ int vpuapi_sw_reset(hb_vpu_dev_t *dev, u32 core, u32 inst, int reset_mode)
 				if (vpuapi_wait_bus_busy(dev, core, W5_BACKBONE_BUS_STATUS_VCORE0)
 					!= VPUAPI_RET_SUCCESS) {
 					WriteVpuFIORegister(dev, core, W5_BACKBONE_BUS_CTRL_VCORE0, 0x00);
+#ifdef USE_SHARE_SEM_BT_KERNEL_AND_USER
+					vdi_unlock(dev, core, VPUDRV_MUTEX_VPU);
+#else
 					vdi_unlock(dev, VPUDRV_MUTEX_VPU);
+#endif
 					return VPUAPI_RET_TIMEOUT;
 				}
 			} else {
@@ -669,7 +833,11 @@ int vpuapi_sw_reset(hb_vpu_dev_t *dev, u32 core, u32 inst, int reset_mode)
 				if (vpuapi_wait_bus_busy(dev, core, W5_COMBINED_BACKBONE_BUS_STATUS)
 					!= VPUAPI_RET_SUCCESS) {
 					WriteVpuFIORegister(dev, core, W5_COMBINED_BACKBONE_BUS_CTRL, 0x00);
+#ifdef USE_SHARE_SEM_BT_KERNEL_AND_USER
+					vdi_unlock(dev, core, VPUDRV_MUTEX_VPU);
+#else
 					vdi_unlock(dev, VPUDRV_MUTEX_VPU);
+#endif
 					return VPUAPI_RET_TIMEOUT;
 				}
 			}
@@ -681,7 +849,11 @@ int vpuapi_sw_reset(hb_vpu_dev_t *dev, u32 core, u32 inst, int reset_mode)
 		// Step2 : Waiting for completion of bus transaction
 		if (vpuapi_wait_bus_busy(dev, core, W5_GDI_BUS_STATUS) != VPUAPI_RET_SUCCESS) {
 			WriteVpuFIORegister(dev, core, W5_GDI_BUS_CTRL, 0x00);
+#ifdef USE_SHARE_SEM_BT_KERNEL_AND_USER
+			vdi_unlock(dev, core, VPUDRV_MUTEX_VPU);
+#else
 			vdi_unlock(dev, VPUDRV_MUTEX_VPU);
+#endif
 			return VPUAPI_RET_TIMEOUT;
 		}
 	}
@@ -694,7 +866,11 @@ int vpuapi_sw_reset(hb_vpu_dev_t *dev, u32 core, u32 inst, int reset_mode)
 
 	if (vpuapi_wait_reset_busy(dev, core) != VPUAPI_RET_SUCCESS) {
 		VPU_WRITEL(W5_VPU_RESET_REQ, 0);
+#ifdef USE_SHARE_SEM_BT_KERNEL_AND_USER
+		vdi_unlock(dev, core, VPUDRV_MUTEX_VPU);
+#else
 		vdi_unlock(dev, VPUDRV_MUTEX_VPU);
+#endif
 		return VPUAPI_RET_TIMEOUT;
 	}
 
@@ -728,8 +904,11 @@ int vpuapi_sw_reset(hb_vpu_dev_t *dev, u32 core, u32 inst, int reset_mode)
 	ret = wave_sleep_wake(dev, core, VPU_WAKE_MODE);
 
 	vpu_debug(5, "Wake done ret = %d\n", ret);
+#ifdef USE_SHARE_SEM_BT_KERNEL_AND_USER
+	vdi_unlock(dev, core, VPUDRV_MUTEX_VPU);
+#else
 	vdi_unlock(dev, VPUDRV_MUTEX_VPU);
-
+#endif
 	return ret;
 }
 
@@ -787,14 +966,22 @@ int vpuapi_get_output_info(hb_vpu_dev_t *dev, u32 core,
 	int ret = VPUAPI_RET_SUCCESS;
 	u32 val;
 
+#ifdef USE_SHARE_SEM_BT_KERNEL_AND_USER
+	vdi_lock(dev, core, VPUDRV_MUTEX_VPU);
+#else
 	vdi_lock(dev, VPUDRV_MUTEX_VPU);
+#endif
 	VPU_WRITEL(W5_CMD_DEC_ADDR_REPORT_BASE, 0);
 	VPU_WRITEL(W5_CMD_DEC_REPORT_SIZE,      0);
 	VPU_WRITEL(W5_CMD_DEC_REPORT_PARAM,     0);
 
 	ret = wave_send_query_command(dev, core, inst, GET_RESULT);
 	if (ret != VPUAPI_RET_SUCCESS) {
+#ifdef USE_SHARE_SEM_BT_KERNEL_AND_USER
+		vdi_unlock(dev, core, VPUDRV_MUTEX_VPU);
+#else
 		vdi_unlock(dev, VPUDRV_MUTEX_VPU);
+#endif
 		return ret;
 	}
 
@@ -816,7 +1003,11 @@ int vpuapi_get_output_info(hb_vpu_dev_t *dev, u32 core,
 	if (ret != VPUAPI_RET_SUCCESS) {
 		vpu_debug(5, "[-] ret=%d\n", ret);
 	}
+#ifdef USE_SHARE_SEM_BT_KERNEL_AND_USER
+	vdi_unlock(dev, core, VPUDRV_MUTEX_VPU);
+#else
 	vdi_unlock(dev, VPUDRV_MUTEX_VPU);
+#endif
 	return ret;
 }
 
@@ -825,14 +1016,22 @@ int vpuapi_dec_clr_all_disp_flag(hb_vpu_dev_t *dev, u32 core, u32 inst)
 	int ret = VPUAPI_RET_SUCCESS;
 	u32 val;
 
+#ifdef USE_SHARE_SEM_BT_KERNEL_AND_USER
+	vdi_lock(dev, core, VPUDRV_MUTEX_VPU);
+#else
 	vdi_lock(dev, VPUDRV_MUTEX_VPU);
+#endif
 
 	VPU_WRITEL(W5_CMD_DEC_CLR_DISP_IDC, 0xffffffff);
 	VPU_WRITEL(W5_CMD_DEC_SET_DISP_IDC, 0);
 	ret = wave_send_query_command(dev, core, inst, UPDATE_DISP_FLAG);
 	if (ret != VPUAPI_RET_SUCCESS) {
 		vpu_err("ret=%d\n", ret);
+#ifdef USE_SHARE_SEM_BT_KERNEL_AND_USER
+		vdi_unlock(dev, core, VPUDRV_MUTEX_VPU);
+#else
 		vdi_unlock(dev, VPUDRV_MUTEX_VPU);
+#endif
 		return ret;
 	}
 
@@ -844,7 +1043,11 @@ int vpuapi_dec_clr_all_disp_flag(hb_vpu_dev_t *dev, u32 core, u32 inst)
 	if (ret != VPUAPI_RET_SUCCESS) {
 		vpu_err("ret=%d\n", ret);
 	}
+#ifdef USE_SHARE_SEM_BT_KERNEL_AND_USER
+	vdi_unlock(dev, core, VPUDRV_MUTEX_VPU);
+#else
 	vdi_unlock(dev, VPUDRV_MUTEX_VPU);
+#endif
 	return ret;
 }
 
@@ -854,7 +1057,11 @@ int vpuapi_dec_set_stream_end(hb_vpu_dev_t *dev, u32 core, u32 inst)
 	u32 val;
 	int product_code;
 
+#ifdef USE_SHARE_SEM_BT_KERNEL_AND_USER
+	vdi_lock(dev, core, VPUDRV_MUTEX_VPU);
+#else
 	vdi_lock(dev, VPUDRV_MUTEX_VPU);
+#endif
 
 	product_code = VPU_READL(VPU_PRODUCT_CODE_REGISTER);
 	if (PRODUCT_CODE_W_SERIES(product_code)) {
@@ -865,7 +1072,11 @@ int vpuapi_dec_set_stream_end(hb_vpu_dev_t *dev, u32 core, u32 inst)
 		ret = wave_issue_command(dev, core, inst, W5_UPDATE_BS);
 		if (ret != VPUAPI_RET_SUCCESS) {
 			vpu_err("ret=%d\n", ret);
+#ifdef USE_SHARE_SEM_BT_KERNEL_AND_USER
+			vdi_unlock(dev, core, VPUDRV_MUTEX_VPU);
+#else
 			vdi_unlock(dev, VPUDRV_MUTEX_VPU);
+#endif
 			return ret;
 		}
 
@@ -873,7 +1084,11 @@ int vpuapi_dec_set_stream_end(hb_vpu_dev_t *dev, u32 core, u32 inst)
 		if (val == 0) {
 			ret = VPUAPI_RET_FAILURE;
 			vpu_err("ret=%d\n", ret);
+#ifdef USE_SHARE_SEM_BT_KERNEL_AND_USER
+			vdi_unlock(dev, core, VPUDRV_MUTEX_VPU);
+#else
 			vdi_unlock(dev, VPUDRV_MUTEX_VPU);
+#endif
 			return ret;
 		}
 	} else {
@@ -883,7 +1098,11 @@ int vpuapi_dec_set_stream_end(hb_vpu_dev_t *dev, u32 core, u32 inst)
 	if (ret != VPUAPI_RET_SUCCESS) {
 		vpu_err("ret=%d\n", ret);
 	}
+#ifdef USE_SHARE_SEM_BT_KERNEL_AND_USER
+	vdi_unlock(dev, core, VPUDRV_MUTEX_VPU);
+#else
 	vdi_unlock(dev, VPUDRV_MUTEX_VPU);
+#endif
 	return ret;
 }
 
@@ -893,8 +1112,11 @@ int vpuapi_close(hb_vpu_dev_t *dev, u32 core, u32 inst)
 	u32 val;
 	int product_code;
 
-
+#ifdef USE_SHARE_SEM_BT_KERNEL_AND_USER
+	vdi_lock(dev, core, VPUDRV_MUTEX_VPU);
+#else
 	vdi_lock(dev, VPUDRV_MUTEX_VPU);
+#endif
 	product_code = VPU_READL(VPU_PRODUCT_CODE_REGISTER);
 	vpu_debug(5, "[+] core=%d, inst=%d, product_code=0x%x\n", core, inst,
 		product_code);
@@ -903,7 +1125,11 @@ int vpuapi_close(hb_vpu_dev_t *dev, u32 core, u32 inst)
 		ret = wave_issue_command(dev, core, inst, W5_DESTROY_INSTANCE);
 		if (ret != VPUAPI_RET_SUCCESS) {
 			vpu_err("ret=%d\n", ret);
+#ifdef USE_SHARE_SEM_BT_KERNEL_AND_USER
+			vdi_unlock(dev, core, VPUDRV_MUTEX_VPU);
+#else
 			vdi_unlock(dev, VPUDRV_MUTEX_VPU);
+#endif
 			return ret;
 		}
 
@@ -926,7 +1152,11 @@ int vpuapi_close(hb_vpu_dev_t *dev, u32 core, u32 inst)
 		vpu_err("ret=%d\n", ret);
 	}
 	vpu_debug(5, "[-] ret=%d\n", ret);
+#ifdef USE_SHARE_SEM_BT_KERNEL_AND_USER
+	vdi_unlock(dev, core, VPUDRV_MUTEX_VPU);
+#else
 	vdi_unlock(dev, VPUDRV_MUTEX_VPU);
+#endif
 	return ret;
 }
 
@@ -941,7 +1171,11 @@ int vpu_do_sw_reset(hb_vpu_dev_t *dev, u32 core, u32 inst, u32 error_reason)
 	if (vip == NULL)
 		return VPUAPI_RET_FAILURE;
 
+#ifdef USE_SHARE_SEM_BT_KERNEL_AND_USER
+	vdi_lock(dev, core, VPUDRV_MUTEX_VPU);
+#else
 	vdi_lock(dev, VPUDRV_MUTEX_RESET);
+#endif
 	ret = VPUAPI_RET_SUCCESS;
 	doSwResetInstIdx = vip->doSwResetInstIdxPlus1 - 1;
 	if (doSwResetInstIdx == inst || (error_reason & 0xf0000000)) {
@@ -957,7 +1191,11 @@ int vpu_do_sw_reset(hb_vpu_dev_t *dev, u32 core, u32 inst, u32 error_reason)
 			vip->doSwResetInstIdxPlus1 = 0;
 		}
 	}
+#ifdef USE_SHARE_SEM_BT_KERNEL_AND_USER
+	vdi_unlock(dev, core, VPUDRV_MUTEX_VPU);
+#else
 	vdi_unlock(dev, VPUDRV_MUTEX_RESET);
+#endif
 	vpu_debug(5, "[-] vip->doSwResetInstIdx=%d, ret=%d\n",
 		vip->doSwResetInstIdxPlus1, ret);
 	mdelay(10);
@@ -1015,6 +1253,8 @@ static int vpu_free_instances(struct file *filp)
 	int instance_pool_size_per_core;
 #ifdef USE_MUTEX_IN_KERNEL_SPACE
 	int j = 0;
+#elif defined(USE_SHARE_SEM_BT_KERNEL_AND_USER)
+	int i = 0;
 #else
 	void *vdi_mutexes_base;
 	const int PTHREAD_MUTEX_T_DESTROY_VALUE = 0xdead10cc;
@@ -1097,25 +1337,25 @@ static int vpu_free_instances(struct file *filp)
 #endif
 			vip = (hb_vpu_instance_pool_t *) vip_base;
 			if (vip) {
+#ifdef USE_SHARE_SEM_BT_KERNEL_AND_USER
+				for (i = 0; i < VPUDRV_MUTEX_MAX; i++) {
+					vdi_lock_release(dev, (u32)vil->core_idx, i);
+				}
+#endif
+#ifdef USE_VPU_CLOSE_INSTANCE_ONCE_ABNORMAL_RELEASE
+				vpu_close_instance(dev, (u32)vil->core_idx, (u32)vil->inst_idx);
+#endif
 				/* only first 4 byte is key point(inUse of CodecInst in vpuapi)
 				   to free the corresponding instance. */
 				memset(&vip->codec_inst_pool[vil->inst_idx],
 				       0x00, 4);
-#ifdef USE_MUTEX_IN_KERNEL_SPACE
-		for (j = 0; j < VPUDRV_MUTEX_MAX; j++) {
-			if (dev->current_vdi_lock_pid[j] == current->tgid) {
-				vpu_debug(5, "MUTEX_TYPE: %d, VDI_LOCK_PID: %d, current->pid: %d, "
-					"current->tgid=%d\n", j, dev->current_vdi_lock_pid[j],
-					current->pid, current->tgid);
-				vdi_unlock(dev, j);
-			}
-		}
+#if defined(USE_MUTEX_IN_KERNEL_SPACE) || defined(USE_SHARE_SEM_BT_KERNEL_AND_USER)
 #else
 #define PTHREAD_MUTEX_T_HANDLE_SIZE 4
 				vdi_mutexes_base =
 				    (vip_base +
 				     (instance_pool_size_per_core -
-				      PTHREAD_MUTEX_T_HANDLE_SIZE * 4));
+				      PTHREAD_MUTEX_T_HANDLE_SIZE * VDI_NUM_LOCK_HANDLES));
 				vpu_debug(5,
 					  "vpu_free_instances : force to destroy "
 					  "vdi_mutexes_base=%p in userspace \n",
@@ -1130,9 +1370,6 @@ static int vpu_free_instances(struct file *filp)
 						    PTHREAD_MUTEX_T_HANDLE_SIZE;
 					}
 				}
-#endif
-#ifdef USE_VPU_CLOSE_INSTANCE_ONCE_ABNORMAL_RELEASE
-				vpu_close_instance(dev, (u32)vil->core_idx, (u32)vil->inst_idx);
 #endif
 			}
 			dev->vpu_open_ref_count--;
@@ -1809,7 +2046,7 @@ INTERRUPT_REMAIN_IN_QUEUE:
 					sizeof(unsigned int));
 			if (ret != 0)
 				return -EFAULT;
-			vdi_unlock(dev, mutex_type);
+			vdi_unlock_user(dev, mutex_type);
 		}
 		break;
 #endif
@@ -2195,6 +2432,7 @@ INTERRUPT_REMAIN_IN_QUEUE:
 			u32 intr_inst_index;
 			//vpu_debug(5, "[+]VDI_IOCTL_POLL_WAIT_INSTANCE\n");
 
+			if ((ret = down_interruptible(&dev->vpu_sem)) == 0) {
 			ret = copy_from_user(&info, (hb_vpu_drv_intr_t *) arg,
 						 sizeof(hb_vpu_drv_intr_t));
 			if (ret != 0) {
@@ -2227,12 +2465,15 @@ INTERRUPT_REMAIN_IN_QUEUE:
 			} else {
 				return -EINVAL;
 			}
+			up(&dev->vpu_sem);
+			}
 			//vpu_debug(5, "[-]VDI_IOCTL_POLL_WAIT_INSTANCE\n");
 		}
 		break;
 		case VDI_IOCTL_SET_CTX_INFO: {
 				hb_vpu_ctx_info_t info;
 				//vpu_debug(5, "[+]VDI_IOCTL_SET_CTX_INFO\n");
+				if ((ret = down_interruptible(&dev->vpu_sem)) == 0) {
 				ret = copy_from_user(&info, (hb_vpu_ctx_info_t *) arg,
 							 sizeof(hb_vpu_ctx_info_t));
 				if (ret != 0) {
@@ -2249,12 +2490,15 @@ INTERRUPT_REMAIN_IN_QUEUE:
 				spin_lock(&dev->vpu_info_spinlock);
 				dev->vpu_ctx[inst_index] = info;
 				spin_unlock(&dev->vpu_info_spinlock);
+				up(&dev->vpu_sem);
+				}
 				//vpu_debug(5, "[-]VDI_IOCTL_SET_CTX_INFO\n");
 				break;
 			}
 		case VDI_IOCTL_SET_STATUS_INFO: {
 				//vpu_debug(5, "[+]VDI_IOCTL_SET_STATUS_INFO\n");
 				hb_vpu_status_info_t info;
+				if ((ret = down_interruptible(&dev->vpu_sem)) == 0) {
 				ret = copy_from_user(&info, (hb_vpu_status_info_t *) arg,
 							 sizeof(hb_vpu_status_info_t));
 				if (ret != 0) {
@@ -2271,12 +2515,15 @@ INTERRUPT_REMAIN_IN_QUEUE:
 				spin_lock(&dev->vpu_info_spinlock);
 				dev->vpu_status[inst_index] = info;
 				spin_unlock(&dev->vpu_info_spinlock);
+				up(&dev->vpu_sem);
+				}
 				//vpu_debug(5, "[-]VDI_IOCTL_SET_STATUS_INFO\n");
 				break;
 			}
 	default:
 		{
 			vpu_err("No such IOCTL, cmd is %d\n", cmd);
+			ret = -EINVAL;
 		}
 		break;
 	}
@@ -2389,7 +2636,6 @@ static int vpu_release(struct inode *inode, struct file *filp)
 
 		vpu_free_buffers(filp);
 
-#if 0
 #ifdef USE_MUTEX_IN_KERNEL_SPACE
 		for (j = 0; j < VPUDRV_MUTEX_MAX; j++) {
 			if (dev->current_vdi_lock_pid[j] == current->tgid) {
@@ -2399,7 +2645,6 @@ static int vpu_release(struct inode *inode, struct file *filp)
 				vdi_unlock(dev, j);
 			}
 		}
-#endif
 #endif
 
 		/* found and free the not closed instance by user applications */
@@ -2434,7 +2679,7 @@ static int vpu_release(struct inode *inode, struct file *filp)
 					vpu_debug(5, "RELEASE MUTEX_TYPE: %d, VDI_LOCK_PID: %d, "
 						"current->pid: %d\n", j, dev->current_vdi_lock_pid[j],
 						current->pid);
-					vdi_unlock(dev, i);
+					vdi_unlock(dev, j);
 				}
 			}
 #endif
@@ -4121,6 +4366,13 @@ static int vpu_suspend(struct platform_device *pdev, pm_message_t state)
 		for (core = 0; core < MAX_NUM_VPU_CORE; core++) {
 			if (dev->bit_fm_info[core].size == 0)
 				continue;
+			vpu_debug(5, "[VPUDRV] vpu_suspend core=%d, int_reason=0x%x\n",
+				core, VPU_READL(W5_VPU_INT_REASON));
+			if (VPU_READL(W5_VPU_INT_REASON)) {
+				vpu_debug(5,
+					  "Failed to go into sleep for existing interrupt.\n");
+				goto DONE_SUSPEND;
+			}
 #ifdef USE_VPU_CLOSE_INSTANCE_ONCE_ABNORMAL_RELEASE
 			ret = vpu_sleep_wake(dev, core, VPU_SLEEP_MODE);
 			if (ret != VPUAPI_RET_SUCCESS) {

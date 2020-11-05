@@ -13,7 +13,9 @@
 /* if the driver want to use interrupt service from kernel ISR */
 #define VPU_SUPPORT_ISR
 
-#define USE_MUTEX_IN_KERNEL_SPACE
+#define USE_SHARE_SEM_BT_KERNEL_AND_USER
+#define VPU_LOCK_BUSY_CHECK_TIMEOUT          120000
+//#define USE_MUTEX_IN_KERNEL_SPACE
 #define USE_VPU_CLOSE_INSTANCE_ONCE_ABNORMAL_RELEASE
 
 #ifdef VPU_SUPPORT_ISR
