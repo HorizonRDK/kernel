@@ -100,14 +100,81 @@ static void jpu_free_dma_buffer(hb_jpu_dev_t *dev,
 #endif /* JPUR_SUPPORT_RESERVED_VIDEO_MEMORY */
 }
 
+#ifdef USE_SHARE_SEM_BT_KERNEL_AND_USER
+typedef enum hb_jpu_mutex {
+	JPUDRV_MUTEX_JPU,
+	JPUDRV_MUTEX_JMEM,
+	JPUDRV_MUTEX_MAX
+} hb_jpu_mutex_t;
+
+static void *get_mutex_base(hb_jpu_dev_t *dev, u32 core, unsigned int type)
+{
+	int instance_pool_size_per_core;
+	void *vip_base;
+	void *vdi_mutexes_base;
+	void *mutex;
+
+	if (dev->instance_pool.base == 0) {
+		return NULL;
+	}
+
+	/* s_instance_pool.size  assigned to the size of all core once call
+	VDI_IOCTL_GET_INSTANCE_POOL by user. */
+	instance_pool_size_per_core = (dev->instance_pool.size/MAX_NUM_JPU_CORE);
+	vip_base = (void *)(dev->instance_pool.base + (instance_pool_size_per_core
+		* core));
+	vdi_mutexes_base = (vip_base + (instance_pool_size_per_core -
+		(sizeof(void *) * JDI_NUM_LOCK_HANDLES)));
+	if (type == JPUDRV_MUTEX_JPU) {
+		mutex = (void *)(vdi_mutexes_base + 0 * (sizeof(void *)));
+	} else if (type == JPUDRV_MUTEX_JMEM) {
+		mutex = (void *)(vdi_mutexes_base + 1 * (sizeof(void *)));
+	} else {
+		jpu_err("unknown MUTEX_TYPE type=%d\n", type);
+		return NULL;
+	}
+	return mutex;
+}
+
+static void jdi_lock_release(hb_jpu_dev_t *dev, u32 core, unsigned int type)
+{
+	void *mutex;
+	volatile int *sync_lock_ptr = NULL;
+	int sync_val = current->tgid; //inst + 1; // 0 is used as free index
+	//jpu_err("[JPUDRV]+%s, type=%d\n", __FUNCTION__, type);
+
+	mutex = get_mutex_base(dev, core, type);
+	if (mutex == NULL) {
+		jpu_err("Fail to get mutex base, core=%d, type=%d\n", 0, type);
+		return;
+	}
+
+	sync_lock_ptr = (volatile int *)mutex;
+	//if (*sync_lock_ptr == sync_val ||
+	//	*sync_lock_ptr == (current->tgid + MAX_VPU_LOCK_INSTANCE)) {
+	if (*sync_lock_ptr == sync_val) {
+		jpu_debug(5, "Free core=%d, type=%d, sync_lock=%d, current_pid=%d, "
+			"tgid=%d, sync_val=%d, \n", 0, type,
+			(volatile int)*sync_lock_ptr, current->pid, current->tgid,
+			sync_val);
+		__sync_lock_release(sync_lock_ptr);
+	}
+	//jpu_err("[JPUDRV]-%s\n", __FUNCTION__);
+}
+#endif
+
 static int jpu_free_instances(struct file *filp)
 {
 	hb_jpu_drv_instance_list_t *vil, *n;
 	hb_jpu_drv_instance_pool_t *vip;
 	void *vip_base;
 	int instance_pool_size_per_core;
+#ifdef USE_SHARE_SEM_BT_KERNEL_AND_USER
+	int32_t i = 0;
+#else
 	void *jdi_mutexes_base;
 	const int PTHREAD_MUTEX_T_DESTROY_VALUE = 0xdead10cc;
+#endif
 	hb_jpu_dev_t *dev;
 	hb_jpu_priv_t *priv;
 	int core_idx = 0;
@@ -140,10 +207,17 @@ static int jpu_free_instances(struct file *filp)
 				  (int)instance_pool_size_per_core);
 			vip = (hb_jpu_drv_instance_pool_t *) vip_base;
 			if (vip) {
+#ifdef USE_SHARE_SEM_BT_KERNEL_AND_USER
+				for (i = 0; i < JPUDRV_MUTEX_MAX; i++) {
+					jdi_lock_release(dev, (u32)0, i);
+				}
+#endif
 				/* only first 4 byte is key point(inUse of CodecInst in jpuapi)
 				   to free the corresponding instance. */
 				memset(&vip->codecInstPool[vil->inst_idx], 0x00,
 				       4);
+#ifdef USE_SHARE_SEM_BT_KERNEL_AND_USER
+#else
 #define PTHREAD_MUTEX_T_HANDLE_SIZE 4
 				jdi_mutexes_base =
 				    (vip_base +
@@ -163,6 +237,7 @@ static int jpu_free_instances(struct file *filp)
 						    PTHREAD_MUTEX_T_HANDLE_SIZE;
 					}
 				}
+#endif
 			}
 			dev->jpu_open_ref_count--;
 			list_del(&vil->list);
@@ -784,6 +859,7 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 		u32 inst_no;
 
 		//jpu_debug(5, "[+]JDI_IOCTL_POLL_WAIT_INSTANCE\n");
+		if ((ret = down_interruptible(&dev->jpu_sem)) == 0) {
 		ret = copy_from_user(&info, (hb_jpu_drv_intr_t*)arg,
 			sizeof(hb_jpu_drv_intr_t));
 		if (ret != 0) {
@@ -812,12 +888,15 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 		} else {
 			return -EINVAL;
 		}
+		up(&dev->jpu_sem);
+		}
 		//jpu_debug(5, "[-]JDI_IOCTL_POLL_WAIT_INSTANCE\n");
 	}
 	break;
 	case JDI_IOCTL_SET_CTX_INFO: {
 			hb_jpu_ctx_info_t info;
 			jpu_debug(5, "[+]JDI_IOCTL_SET_CTX_INFO\n");
+			if ((ret = down_interruptible(&dev->jpu_sem)) == 0) {
 			ret = copy_from_user(&info, (hb_jpu_ctx_info_t *) arg,
 						 sizeof(hb_jpu_ctx_info_t));
 			if (ret != 0) {
@@ -834,12 +913,15 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 			spin_lock(&dev->jpu_info_spinlock);
 			dev->jpu_ctx[inst_index] = info;
 			spin_unlock(&dev->jpu_info_spinlock);
+			up(&dev->jpu_sem);
+			}
 			jpu_debug(5, "[-]JDI_IOCTL_SET_CTX_INFO\n");
 			break;
 		}
 	case JDI_IOCTL_SET_STATUS_INFO: {
 			//jpu_debug(5, "[+]JDI_IOCTL_SET_STATUS_INFO\n");
 			hb_jpu_status_info_t info;
+			if ((ret = down_interruptible(&dev->jpu_sem)) == 0) {
 			ret = copy_from_user(&info, (hb_jpu_status_info_t *) arg,
 						 sizeof(hb_jpu_status_info_t));
 			if (ret != 0) {
@@ -856,12 +938,15 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 			spin_lock(&dev->jpu_info_spinlock);
 			dev->jpu_status[inst_index] = info;
 			spin_unlock(&dev->jpu_info_spinlock);
+			up(&dev->jpu_sem);
+			}
 			//jpu_debug(5, "[-]JDI_IOCTL_SET_STATUS_INFO\n");
 			break;
 		}
 	default:
 		{
 			jpu_err("No such IOCTL, cmd is %d\n", cmd);
+			ret = -EINVAL;
 		}
 		break;
 	}

@@ -11,6 +11,8 @@
 //#define JPU_SUPPORT_CLOCK_CONTROL
 #define JPU_SUPPORT_ISR
 
+#define USE_SHARE_SEM_BT_KERNEL_AND_USER
+
 #ifdef JPU_SUPPORT_ISR
 #define JPU_IRQ_NUM                 	67+32	//15+32
 
@@ -22,5 +24,6 @@
 #define MAX_NUM_JPU_INSTANCE            64
 #define MAX_NUM_JPU_CORE                1
 #define MAX_INST_HANDLE_SIZE            48
+#define JDI_NUM_LOCK_HANDLES            4
 
 #endif /* __HOBOT_JPU_CONFIG_H_ */
