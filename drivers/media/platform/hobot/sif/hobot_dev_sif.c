@@ -647,7 +647,9 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 	}
 
 	// ips_set_bus_ctrl(cfg);
+	mutex_lock(&sif->shared_mutex);
 	sif_hw_config(sif->base_reg, sif_config);
+	mutex_unlock(&sif->shared_mutex);
 
 	subdev->bufcount = sif_get_current_bufindex(sif->base_reg, ddr_mux_index);
 	sif->mismatch_cnt = 0;
@@ -881,12 +883,14 @@ int sif_video_streamoff(struct sif_video_ctx *sif_ctx)
 	sif_dev = sif_ctx->sif_dev;
 	framemgr = sif_ctx->framemgr;
 
+	mutex_lock(&sif_dev->shared_mutex);
 	if (sif_ctx->id == 0) {
 		sif_enable_frame_intr(sif_dev->base_reg, subdev->mux_index, false);
 		sif_enable_frame_intr(sif_dev->base_reg, subdev->ddr_mux_index, false);
 		for (i = 0; i < subdev->ipi_channels; i++)
 			sif_disable_ipi(sif_dev->base_reg, subdev->ipi_index + i);
 	}
+	mutex_unlock(&sif_dev->shared_mutex);
 	if (atomic_dec_return(&sif_dev->rsccount) > 0
 		&& !test_bit(SIF_HW_FORCE_STOP, &sif_dev->state))
 		goto p_dec;
@@ -1673,8 +1677,11 @@ static ssize_t sif_reg_dump(struct device *dev,
 
 	sif = dev_get_drvdata(dev);
 
-	sif_hw_dump(sif->base_reg);
-
+	if (atomic_read(&sif->open_cnt) != 0) {
+		sif_hw_dump(sif->base_reg);
+	} else {
+		vio_info("SIF has not been initialized");
+	}
 	return 0;
 }
 
