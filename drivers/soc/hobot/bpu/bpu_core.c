@@ -434,6 +434,8 @@ static int bpu_core_release(struct inode *inode, struct file *filp)/*PRQA S ALL*
 				}
 			}
 			user->running_task_num--;
+		} else {
+			break;
 		}
 	}
 

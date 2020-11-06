@@ -475,11 +475,16 @@ static int32_t bpu_core_hw_read_fc(const struct bpu_core *core,
 	return 1;
 }
 
+/* bpu preread 4 fc in fifo, +2 for margin */
+#define LAG_FC_NUM	6
 static int32_t bpu_core_hw_status(struct bpu_core *core, uint32_t cmd)
 {
 	static uint32_t head_index[BPU_MAX_CORE_NUM], tail_index[BPU_MAX_CORE_NUM];
 	uint32_t tmp_head_index, tmp_tail_index;
 	static uint32_t inst_num[BPU_MAX_CORE_NUM];
+	struct timeval tmp_point;
+	uint64_t tmp_pass_time;
+	struct bpu_fc tmp_bpu_fc;
 	uint32_t tmp_inst_num;
 	int ret = 0;
 
@@ -504,7 +509,28 @@ static int32_t bpu_core_hw_status(struct bpu_core *core, uint32_t cmd)
 		if ((tmp_head_index == head_index[core->index])
 				&& (tmp_inst_num == inst_num[core->index])
 				&& (tmp_head_index != tmp_tail_index)) {
-			ret = 0;
+
+			ret = kfifo_peek(&core->run_fc_fifo[0], &tmp_bpu_fc);/*PRQA S ALL*/
+			if (ret < 1) {
+				ret = 0;
+			} else {
+				if(tmp_bpu_fc.info.process_time > 0) {
+					do_gettimeofday(&tmp_point);
+					tmp_pass_time = (((uint64_t)tmp_point.tv_sec
+							* (uint64_t)SECTOUS)
+							+ (uint64_t)tmp_point.tv_usec)
+							- (((uint64_t)tmp_bpu_fc.start_point.tv_sec
+							* (uint64_t)SECTOUS)
+							+ (uint64_t)tmp_bpu_fc.start_point.tv_usec);
+					if ((tmp_pass_time < (LAG_FC_NUM * tmp_bpu_fc.info.process_time))) {
+						ret = 1;
+					} else {
+						ret = 0;
+					}
+				} else {
+					ret = 0;
+				}
+			}
 		} else {
 			ret = (int32_t)tmp_head_index + 1;
 		}
