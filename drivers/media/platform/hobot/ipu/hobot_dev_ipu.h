@@ -244,6 +244,7 @@ struct x3_ipu_dev {
 	atomic_t sensor_fcount;
 	atomic_t backup_fcount;
 	atomic_t enable_cnt;
+	atomic_t first_resource_up;
 	u32 reuse_shadow0_count;
 	u32 frame_drop_count;
 	struct ipu_status_statistic statistic;

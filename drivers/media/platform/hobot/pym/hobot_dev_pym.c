@@ -292,7 +292,7 @@ static int x3_pym_close(struct inode *inode, struct file *file)
 		}
 		if (group->group_scenario == VIO_GROUP_SIF_OFF_ISP_ON_IPU_ON_PYM ||
 				group->group_scenario == VIO_GROUP_SIF_OFF_ISP_ON_IPU_OFF_PYM)
-			vio_group_done(group, 0);
+			vio_group_done(group);
 		vio_clk_disable("pym_mclk");
 		vio_clk_disable("sif_mclk");
 		sema_init(&pym->gtask.hw_resource, 1);
@@ -1962,10 +1962,10 @@ static irqreturn_t pym_isr(int irq, void *data)
 
 	if (status & (1 << INTR_PYM_FRAME_DONE)) {
 		if (!group->leader)
-			vio_group_done(group, 0);
+			vio_group_done(group);
 
 		if (test_bit(PYM_DMA_INPUT, &pym->state)) {
-			vio_group_done(group, 0);
+			vio_group_done(group);
 		}
 		pym_frame_done(subdev);
 	}
@@ -2004,7 +2004,7 @@ static irqreturn_t pym_isr(int irq, void *data)
 
 	if (drop_flag) {
 		if (!group->leader || test_bit(PYM_DMA_INPUT, &pym->state))
-			vio_group_done(group, 0);
+			vio_group_done(group);
 		pym_frame_ndone(subdev);
 	}
 	return IRQ_HANDLED;
