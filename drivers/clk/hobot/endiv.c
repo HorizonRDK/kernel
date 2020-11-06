@@ -98,7 +98,8 @@ void endiv_clk_disable(struct clk_hw *hw)
 		}
 
 		if (0 == cnt)
-			pr_err("%s: clk %s disable failed\n", __func__, hw->init->name);
+			pr_warn("%s: clk: 0x%lx disable failed\n",
+					__func__, clk->gate_reg.clkoff_sta_reg);
 	}
 
 	if (clk->lock)
@@ -175,7 +176,8 @@ static int endiv_clk_set_rate(struct clk_hw *hw, unsigned long rate,
 		}
 
 		if (0 == cnt)
-			pr_err("%s: clk %s disable failed\n", __func__, hw->init->name);
+			pr_warn("%s: clk: 0x%lx disable failed\n",
+					__func__, clk->gate_reg.clkoff_sta_reg);
 	}
 
 	value = divider_get_val(rate, parent_rate, NULL,
@@ -316,7 +318,7 @@ static void __init _of_hobot_endiv_clk_setup(struct device_node *node,
 	struct clk_div_reg div_reg;
 	struct clk_invert_reg invert_reg;
 	const char *parent_name;
-	unsigned int flags = 0;
+	unsigned int flags = CLK_OPS_PARENT_ENABLE;
 	unsigned int val;
 	unsigned int clk_gate_flags = 0;
 	unsigned int clk_divider_flags = 0;

@@ -211,7 +211,7 @@ static void __init _of_hobot_gate_clk_setup(struct device_node *node,
 	struct clk *clk;
 	struct clk_gate_reg reg;
 	const char *parent_name;
-	unsigned int flags = 0;
+	unsigned int flags = CLK_OPS_PARENT_ENABLE;
 	unsigned int val;
 	unsigned int clk_gate_flags = 0;
 	unsigned int data[4] = {0};
