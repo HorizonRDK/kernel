@@ -195,7 +195,6 @@ static int isp_v4l2_fop_open( struct file *file )
 
     rc = acamera_isp_init_context(dev->ctx_id);
     if (rc != 0) {
-        mutex_unlock(&init_lock);
         goto fh_open_fail;
     }
 
@@ -246,6 +245,7 @@ vb2_q_fail:
     isp_v4l2_fh_release( file );
 
 fh_open_fail:
+	mutex_unlock(&init_lock);
     return rc;
 }
 
@@ -1025,3 +1025,57 @@ int isp_v4l2_notify_event( int ctx_id, int stream_id, uint32_t event_type )
 
     return 0;
 }
+
+int isp_init_iridix(uint32_t ctx_id, uint32_t ctrl_val)
+{
+	int i;
+	int iridix_no;
+	int ret = 0;
+	int stream_on = 0;
+	acamera_context_t *ptr_tmp;
+	acamera_context_t *ptr = acamera_get_ctx_ptr(ctx_id);
+	isp_v4l2_dev_t *d = isp_v4l2_get_dev(ctx_id);
+	stream_on = atomic_read(&d->stream_on_cnt);
+	if (ptr->initialized == 1 && stream_on == 0) {
+		acamera_isp_top_bypass_iridix_write(ptr->settings.isp_base, 1);
+		acamera_isp_iridix_enable_write(ptr->settings.isp_base, 0);
+		mutex_lock(&ptr->p_gfw->ctx_chg_lock);
+		for (i = 0; i < HW_CONTEXT_NUMBER; i++) {
+			 if (!test_bit(i, &ptr->p_gfw->iridix_chn_bitmap))
+				 break;
+		 }
+		if (i < HW_CONTEXT_NUMBER) {
+			ptr->iridix_chn_idx = i;
+			pr_debug("ctx_id = %d, iridix_chn_idx =%d\n", ctx_id, ptr->iridix_chn_idx);
+			set_bit(i, &ptr->p_gfw->iridix_chn_bitmap);
+			acamera_isp_iridix_context_no_write(ptr->settings.isp_base, i);
+			acamera_isp_top_bypass_iridix_write(ptr->settings.isp_base, 0);
+			acamera_isp_iridix_enable_write(ptr->settings.isp_base, 1);
+		} else if (ctrl_val == WDR_MODE_NATIVE) {
+			for (i = FIRMWARE_CONTEXT_NUMBER - 1; i >= 0; i--) {
+				ptr_tmp = acamera_get_ctx_ptr(i);
+				if (ptr_tmp->initialized == 1 &&
+					ptr_tmp->isp_sensor_mode == WDR_MODE_LINEAR &&
+					ptr_tmp->iridix_chn_idx != -1) {
+					pr_debug("giver_id = %d, accpter_id = %d, iridix_no = %d\n",
+							i, ctx_id, ptr_tmp->iridix_chn_idx);
+					iridix_no = ptr_tmp->iridix_chn_idx;
+					// take iridix off linear ctx
+					ptr_tmp->iridix_chn_idx = -1;
+					acamera_isp_top_bypass_iridix_write(ptr_tmp->settings.isp_base, 1);
+					acamera_isp_iridix_enable_write(ptr_tmp->settings.isp_base, 0);
+					// give iridix to pwl ctx
+					ptr->iridix_chn_idx = iridix_no;
+					acamera_isp_iridix_context_no_write(ptr->settings.isp_base, iridix_no);
+					acamera_isp_top_bypass_iridix_write(ptr->settings.isp_base, 0);
+					acamera_isp_iridix_enable_write(ptr->settings.isp_base, 1);
+					break;
+				}
+			}
+		}
+		ptr->isp_sensor_mode = ctrl_val;
+		mutex_unlock(&ptr->p_gfw->ctx_chg_lock);
+	}
+    return ret;
+}
+

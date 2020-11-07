@@ -681,8 +681,8 @@ static int _isp_iridix_ctrl(void)
 
     p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[accepter_ctx_id];
     if (p_ctx->initialized == 0) {
-	pr_err(" acamera_context[%d] is not initialized.\n", accepter_ctx_id);
-	return -1;
+		pr_err(" acamera_context[%d] is not initialized.\n", accepter_ctx_id);
+		return -1;
     }
     val = acamera_isp_top_bypass_iridix_read(p_ctx->settings.isp_base);
     if (val == 0) {
@@ -692,24 +692,34 @@ static int _isp_iridix_ctrl(void)
 
     p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[giver_ctx_id];
     if (p_ctx && p_ctx->sw_reg_map.isp_sw_config_map != NULL) {
-        iridix_no = acamera_isp_iridix_context_no_read(p_ctx->settings.isp_base);
-        pr_debug("giver_ctx_id %d, iridix no %d\n", giver_ctx_id, iridix_no);
-        //1: turn over  2: share
-        if (GET_BYTE_V(g_firmware.iridix_ctrl_flag, 2) == 1) {
-            pr_debug("giver_ctx_id %d trun off iridix\n", giver_ctx_id);
-            acamera_isp_top_bypass_iridix_write(p_ctx->settings.isp_base, 1);
-            acamera_isp_iridix_enable_write(p_ctx->settings.isp_base, 0);
-        }
+		if (p_ctx->iridix_chn_idx != -1) {
+	        iridix_no =
+		acamera_isp_iridix_context_no_read(p_ctx->settings.isp_base);
+			if (p_ctx->iridix_chn_idx != iridix_no) {
+				pr_err("iridix_no may be error!\n");
+				goto out;
+			}
+	        pr_debug("giver_ctx_id %d, iridix no %d\n", giver_ctx_id, iridix_no);
+	        //1: turn over  2: share
+	        if (GET_BYTE_V(g_firmware.iridix_ctrl_flag, 2) == 1) {
+	            pr_debug("giver_ctx_id %d trun off iridix\n", giver_ctx_id);
+	            acamera_isp_top_bypass_iridix_write(p_ctx->settings.isp_base, 1);
+	            acamera_isp_iridix_enable_write(p_ctx->settings.isp_base, 0);
+				p_ctx->iridix_chn_idx = -1;
+	        }
+		} else {
+			pr_err("giver has no iridix\n");
+			goto out;
+		}
     }
-
     p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[accepter_ctx_id];
     if (iridix_no < HW_CONTEXT_NUMBER && p_ctx && p_ctx->sw_reg_map.isp_sw_config_map != NULL) {
         pr_debug("accepter_ctx_id %d trun on iridix\n", accepter_ctx_id);
         acamera_isp_iridix_context_no_write(p_ctx->settings.isp_base, iridix_no);
         acamera_isp_iridix_enable_write(p_ctx->settings.isp_base, 1);
         acamera_isp_top_bypass_iridix_write(p_ctx->settings.isp_base, 0);
+		p_ctx->iridix_chn_idx = iridix_no;
     }
-
 out:
     g_firmware.iridix_ctrl_flag = 0;
 

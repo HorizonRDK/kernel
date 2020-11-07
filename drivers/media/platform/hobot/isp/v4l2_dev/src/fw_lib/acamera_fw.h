@@ -197,6 +197,8 @@ struct _acamera_context_t {
 
     uint8_t content_side;
     int dma_chn_idx;
+	int iridix_chn_idx;
+	int isp_sensor_mode;
 
     semaphore_t sem_evt_avail;
     struct task_struct *evt_thread;
@@ -235,6 +237,7 @@ struct _acamera_firmware_t {
     volatile uint8_t *cache_area;
     volatile uint8_t *backup_context;
     unsigned long dma_chn_bitmap;
+	unsigned long iridix_chn_bitmap;
     struct mutex ctx_chg_lock;
 
     uint32_t sw_frame_counter;

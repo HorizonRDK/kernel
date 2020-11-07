@@ -58,6 +58,7 @@ typedef struct {
 
 extern int isp_v4l2_update_ctx(int ctx_id);
 extern void *acamera_get_ctx_ptr(uint32_t ctx_id);
+extern int isp_init_iridix(uint32_t ctx_id, uint32_t ctrl_val);
 
 void sensor_init_output( sensor_fsm_ptr_t p_fsm, int mode )
 {
@@ -168,6 +169,8 @@ void sensor_sw_init( sensor_fsm_ptr_t p_fsm )
     //acamera_isp_input_port_mode_request_write( p_fsm->cmn.isp_base, ACAMERA_ISP_INPUT_PORT_MODE_REQUEST_SAFE_START );
 
     sensor_update_black( p_fsm );
+
+	isp_init_iridix(p_fsm->cmn.ctx_id, param->modes_table[param->mode].wdr_mode);
 
     isp_v4l2_update_ctx(p_fsm->cmn.ctx_id);
 

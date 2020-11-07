@@ -620,6 +620,8 @@ int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settin
     p_ctx->context_ref = (uint32_t *)p_ctx;
     p_ctx->p_gfw = g_fw;
     p_ctx->dma_chn_idx = -1;
+	p_ctx->iridix_chn_idx = -1;
+	p_ctx->isp_sensor_mode = -1;
 
     pr_info("ctx_id %d +\n", p_ctx->context_id);
 
@@ -738,13 +740,6 @@ int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settin
         sched_setscheduler_nocheck(p_ctx->evt_thread, SCHED_FIFO, &param);
         // set_cpus_allowed_ptr(p_ctx->evt_thread, cpumask_of(p_ctx->context_id % 4));
 
-        if (p_ctx->dma_chn_idx >= 0 && p_ctx->dma_chn_idx < HW_CONTEXT_NUMBER) {
-            acamera_isp_iridix_context_no_write(p_ctx->settings.isp_base, p_ctx->dma_chn_idx);
-        } else {
-            acamera_isp_top_bypass_iridix_write(p_ctx->settings.isp_base, 1);
-            acamera_isp_iridix_enable_write(p_ctx->settings.isp_base, 0);
-        }
-
         //acamera_isp_input_port_mode_request_write( p_ctx->settings.isp_base, ACAMERA_ISP_INPUT_PORT_MODE_REQUEST_SAFE_START );
 
         p_ctx->initialized = 1;
@@ -777,6 +772,11 @@ void acamera_deinit_context( acamera_context_t *p_ctx )
     if (p_ctx->dma_chn_idx >= 0 && p_ctx->dma_chn_idx < HW_CONTEXT_NUMBER) {
         clear_bit(p_ctx->dma_chn_idx, &(p_ctx->p_gfw->dma_chn_bitmap));
         p_ctx->dma_chn_idx = -1;
+    }
+    if (p_ctx->iridix_chn_idx >= 0 &&
+	p_ctx->iridix_chn_idx < HW_CONTEXT_NUMBER) {
+        clear_bit(p_ctx->iridix_chn_idx, &(p_ctx->p_gfw->iridix_chn_bitmap));
+        p_ctx->iridix_chn_idx = -1;
     }
 
     acamera_fw_deinit( p_ctx );
