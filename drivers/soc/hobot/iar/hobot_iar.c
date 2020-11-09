@@ -3383,13 +3383,13 @@ static int hobot_iar_probe(struct platform_device *pdev)
 	ret = of_property_read_u32_array(pdev->dev.of_node,
 			"timing_720x1280_touch", timing, 7);
 	if (ret == 0) {
-		pixel_clk_video_720x1280 = timing[0];
-		video_720x1280.hbp = timing[1];
-		video_720x1280.hfp = timing[2];
-		video_720x1280.hs = timing[3];
-		video_720x1280.vbp = timing[4];
-		video_720x1280.vfp = timing[5];
-		video_720x1280.vs = timing[6];
+		pixel_clk_video_720x1280_touch = timing[0];
+		video_720x1280_touch.hbp = timing[1];
+		video_720x1280_touch.hfp = timing[2];
+		video_720x1280_touch.hs = timing[3];
+		video_720x1280_touch.vbp = timing[4];
+		video_720x1280_touch.vfp = timing[5];
+		video_720x1280_touch.vs = timing[6];
 	} else {
 		pixel_clk_video_720x1280_touch = 54000000;
 		pr_err("can't find timing for 720*1280 touch, use default!!\n");
