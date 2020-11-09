@@ -81,7 +81,7 @@
 			compatible = "hobot,laintpll-clk";
 			clocks = <&osc_clk>;
 			offset = <0x10 0x14 0x18>;
-			clk-flags = <CLK_IGNORE_UNUSED>;
+			clk-flags = <CLK_IS_CRITICAL>;
 		};
 
 		armpll2_clk: armpll2_clk {
@@ -173,6 +173,7 @@
 			offset = <0x204>;
 			bits = <8>;
 			field = <3>;
+			clk-flags = <CLK_IS_CRITICAL>;
 		};
 
 		sys_ap_div_aclk: sys_ap_div_aclk {
