@@ -169,7 +169,7 @@ void vio_get_sif_frame_info(u32 instance, struct vio_frame_id *frame_info);
 void vio_get_ipu_frame_info(u32 instance, struct vio_frame_id *frame_info);
 void vio_get_sif_frame_id(struct vio_group *group);
 void vio_get_ipu_frame_id(struct vio_group *group);
-int vio_check_sif_state(struct vio_group *group);
+int vio_check_all_online_state(struct vio_group *group);
 int vio_group_init_mp(u32 group_id);
 void vio_reset_module(u32 module);
 void vio_group_done(struct vio_group *group);

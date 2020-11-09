@@ -718,6 +718,7 @@ void ipu_frame_work(struct vio_group *group)
 
 		framemgr = &subdev->framemgr;
 		framemgr_e_barrier_irqs(framemgr, 0, flags);
+
 		if (group->leader && test_bit(IPU_OTF_INPUT, &ipu->state)
 				&& (prev_fs_has_no_fe == 1)) {
 			frame = peek_frame(framemgr, FS_PROCESS);
@@ -726,6 +727,16 @@ void ipu_frame_work(struct vio_group *group)
 				vio_dbg("adnormal fs meet, transform frmae process to request\n");
 			}
 		}
+
+		frame = peek_frame(framemgr, FS_PROCESS);
+		/*
+		 *only all online scene pro queue may have buf;
+		 *non all online scene if pro queue have member,
+		 *frame work may already called, so skip req->pro
+		 */
+		if (frame && !vio_check_all_online_state(group))
+			goto end_req_to_pro;
+
 		frame = peek_frame(framemgr, FS_REQUEST);
 		if (frame) {
 			switch (i) {
@@ -802,7 +813,7 @@ void ipu_frame_work(struct vio_group *group)
 			vio_dbg("[S%d][V%d] req have no member\n",
 				group->instance, subdev->id);
 		}
-
+end_req_to_pro:
 		vio_dbg("[S%d][V%d] work (%d %d %d %d %d)",
 			group->instance, subdev->id,
 			framemgr->queued_count[FS_FREE],
@@ -1962,7 +1973,6 @@ int ipu_video_streamon(struct ipu_video_ctx *ipu_ctx)
 	struct vio_group *group;
 	struct ipu_subdev *subdev;
 	struct vio_group_task *gtask;
-	int sif_state;
 
 	ipu = ipu_ctx->ipu_dev;
 	group = ipu_ctx->group;
@@ -1976,20 +1986,13 @@ int ipu_video_streamon(struct ipu_video_ctx *ipu_ctx)
 	}
 
 	subdev = ipu_ctx->subdev;
-	sif_state = vio_check_sif_state(group);
 	instance = group->instance;
 
 	/*
 	 *online scene q first work & up hw_resource
 	 *offline scecn q first work
 	 */
-	if (group->leader && test_bit(IPU_OTF_INPUT, &ipu->state)
-			/*
-			 *SIF->ddr->ISP->online-IPU scene:
-			 *if SIFOUT have non state, IPU maybe not a real leader
-			 *maybe IPU initializes first, SIF is not initialized yet
-			 */
-			&& sif_state) {
+	if (group->leader && test_bit(IPU_OTF_INPUT, &ipu->state)) {
 		if (atomic_inc_return(&group->work_insert) == 1) {
 			vio_group_insert_work(group,
 					&ipu->vwork[instance][0].work);

@@ -418,6 +418,16 @@ static void pym_frame_work(struct vio_group *group)
 
 	framemgr = &subdev->framemgr;
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
+
+	frame = peek_frame(framemgr, FS_PROCESS);
+	/*
+	 *only all online scene pro queue may have buf;
+	 *non all online scene if pro queue have member,
+	 *frame work may already called, so skip req->pro
+	 */
+	if (frame && !vio_check_all_online_state(group))
+		goto end_req_to_pro;
+
 	frame = peek_frame(framemgr, FS_REQUEST);
 	if (frame) {
 		pym_set_shd_rdy(pym->base_reg, shadow_index, 0);
@@ -455,7 +465,7 @@ static void pym_frame_work(struct vio_group *group)
 
 		trans_frame(framemgr, frame, FS_PROCESS);
 	}
-
+end_req_to_pro:
 	vio_dbg("[S%d] work (%d %d %d %d %d)",
 			group->instance,
 			framemgr->queued_count[FS_FREE],

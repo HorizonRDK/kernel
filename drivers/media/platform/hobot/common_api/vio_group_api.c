@@ -435,21 +435,24 @@ void vio_get_ipu_frame_id(struct vio_group *group)
 }
 EXPORT_SYMBOL(vio_get_ipu_frame_id);
 
-int vio_check_sif_state(struct vio_group *group)
+int vio_check_all_online_state(struct vio_group *group)
 {
 	struct vio_chain *ischain;
 	struct vio_group *sif_group;
+	struct vio_group *ipu_group;
 
 	ischain = group->chain;
 	sif_group = &ischain->group[GROUP_ID_SIF_OUT];
+	ipu_group = &ischain->group[GROUP_ID_IPU];
 
-	if (test_bit(VIO_GROUP_OTF_OUTPUT, &sif_group->state) ||
-			test_bit(VIO_GROUP_DMA_OUTPUT, &sif_group->state))
+	if (test_bit(VIO_GROUP_OTF_OUTPUT, &sif_group->state) &&
+			test_bit(VIO_GROUP_OTF_INPUT, &ipu_group->state) &&
+			test_bit(VIO_GROUP_OTF_INPUT, &group->state))
 		return 1;
 	else
 		return 0;
 }
-EXPORT_SYMBOL(vio_check_sif_state);
+EXPORT_SYMBOL(vio_check_all_online_state);
 
 void vio_reset_module(u32 module)
 {
