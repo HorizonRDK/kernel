@@ -60,6 +60,7 @@ extern struct ion_device *hb_ion_dev;
 static struct pm_qos_request ipu_pm_qos_req;
 
 static struct mutex ipu_mutex;
+static int prev_fs_has_no_fe = 0;
 
 static int x3_ipu_open(struct inode *inode, struct file *file)
 {
@@ -717,6 +718,14 @@ void ipu_frame_work(struct vio_group *group)
 
 		framemgr = &subdev->framemgr;
 		framemgr_e_barrier_irqs(framemgr, 0, flags);
+		if (group->leader && test_bit(IPU_OTF_INPUT, &ipu->state)
+				&& (prev_fs_has_no_fe == 1)) {
+			frame = peek_frame(framemgr, FS_PROCESS);
+			if (frame) {
+				trans_frame(framemgr, frame, FS_REQUEST);
+				vio_dbg("adnormal fs meet, transform frmae process to request\n");
+			}
+		}
 		frame = peek_frame(framemgr, FS_REQUEST);
 		if (frame) {
 			switch (i) {
@@ -3299,6 +3308,8 @@ static irqreturn_t ipu_isr(int irq, void *data)
 	}
 
 	if (status & (1 << INTR_IPU_FRAME_DONE)) {
+		group->abnormal_fs = 0;
+		prev_fs_has_no_fe = 0;
 		if (!group->leader) {
 			vio_dbg("[S%d]ipu not leader", instance);
 			vio_group_done(group);
@@ -3396,6 +3407,9 @@ static irqreturn_t ipu_isr(int irq, void *data)
 	}
 
 	if (status & (1 << INTR_IPU_FRAME_START)) {
+		if (group->abnormal_fs == 1)
+			prev_fs_has_no_fe = 1;
+		group->abnormal_fs = 1;
 		ipu->statistic.fs[instance]++;
 		ipu->statistic.tal_fs++;
 		ipu->statistic.grp_tsk_left[instance]

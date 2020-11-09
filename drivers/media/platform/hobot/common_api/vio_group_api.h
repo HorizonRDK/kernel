@@ -108,6 +108,8 @@ struct vio_group {
 	// check ipu/pym scenario, for frameid
 	int group_scenario;
 	atomic_t work_insert;
+
+	unsigned int abnormal_fs;
 };
 
 struct vio_work {
