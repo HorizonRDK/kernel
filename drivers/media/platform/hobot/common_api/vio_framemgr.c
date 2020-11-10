@@ -383,7 +383,7 @@ int frame_manager_open_mp(struct vio_framemgr *this, u32 buffers,
 {
 	u32 i, j;
 	unsigned long flag;
-	struct mp_vio_frame *frames;
+	struct mp_vio_frame *frames = NULL;
 	struct mp_vio_frame *frame;
 	u32 ind_fst;
 
@@ -432,19 +432,30 @@ int frame_manager_open_mp(struct vio_framemgr *this, u32 buffers,
 	for (i = 0; i < buffers; i++)
 		this->frames_mp[i + ind_fst] = &frames[i].common_frame;
 
+	// if framemgr not initialized
+	// init all the FS states queues
 	if (this->state != FRAMEMGR_INIT) {
 		for (i = 0; i < NR_FRAME_STATE; i++) {
 			this->queued_count[i] = 0;
 			INIT_LIST_HEAD(&this->queued_list[i]);
 		}
 	}
+
+	// all allocated frames push to FREE queue
+	// work->func will be frame_work_function, it will be
+	// changed to frame_work_function_mp in ipu_video_reqbufs again
 	for (i = ind_fst; i < (buffers + ind_fst); ++i) {
 		this->frames_mp[i]->index = i;
 		put_frame(this, this->frames_mp[i], FS_FREE);
 		kthread_init_work(&this->frames_mp[i]->work,
 			frame_work_function);
+
+		// frame index now is allocated and used
 		this->index_state[i] = FRAME_IND_USING;
 
+		// for multi process share
+		// frame will record the first_index and index range
+		// and ion addr now are not allocated, so set to 0
 		frame = (struct mp_vio_frame *)this->frames_mp[i];
 		frame->first_indx = ind_fst;
 		frame->ion_bufffer_num = buffers;
@@ -453,6 +464,8 @@ int frame_manager_open_mp(struct vio_framemgr *this, u32 buffers,
 		frame->ion_handle[1] = NULL;
 		frame->ion_handle[2] = NULL;
 	}
+
+	// first index will be out to caller
 	*index_start = ind_fst;
 	this->num_frames += buffers;
 	this->state = FRAMEMGR_INIT;
