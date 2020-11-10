@@ -645,6 +645,38 @@ int32_t iar_config_pixeladdr(void)
 	return 0;
 }
 
+int disp_set_interlace_mode(void)
+{
+	uint32_t value;
+	uint32_t height;
+
+	if (NULL == g_iar_dev) {
+		pr_err(KERN_ERR "IAR dev not inited!");
+		return -1;
+	}
+
+	value = readl(g_iar_dev->regaddr + REG_IAR_PANEL_SIZE);
+	if (value & 0x7ff == 0 || value & 0x7ff0000 == 0)
+		pr_err("%s: user not config output!!!\n", __func__);
+	height = (value & 0x7ff0000) >> 17;//>>16 /2
+	value = IAR_REG_SET_FILED(IAR_PANEL_HEIGHT, height, value);
+	writel(value, g_iar_dev->regaddr + REG_IAR_PANEL_SIZE);
+
+	writel(0, g_iar_dev->regaddr + REG_IAR_PARAMETER_VFP_CNT_FIELD12);
+	value = readl(g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
+	value = IAR_REG_SET_FILED(IAR_YCBCR_OUTPUT, 1, value);
+	value = IAR_REG_SET_FILED(IAR_INTERLACE_SEL, 1, value);
+	value = IAR_REG_SET_FILED(IAR_PANEL_COLOR_TYPE, 2, value);//yuv444
+	writel(value, g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
+
+	value = readl(g_iar_dev->regaddr + REG_IAR_DE_CONTROL_WO);
+	value = IAR_REG_SET_FILED(IAR_FIELD_ODD_CLEAR, 1, value);
+	writel(value, g_iar_dev->regaddr + REG_IAR_DE_CONTROL_WO);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(disp_set_interlace_mode);
+
 int disp_set_panel_timing(struct disp_timing *timing)
 {
 	uint32_t value;
@@ -669,13 +701,20 @@ int disp_set_panel_timing(struct disp_timing *timing)
 	value = IAR_REG_SET_FILED(IAR_DPI_VSW_FIELD, timing->vs, value);
 	writel(value, g_iar_dev->regaddr + REG_IAR_PARAMETER_VTIM_FIELD1);
 
-	value = readl(g_iar_dev->regaddr + REG_IAR_PARAMETER_VTIM_FIELD2);
-	value = IAR_REG_SET_FILED(IAR_DPI_VBP_FIELD2,
-			(timing->vbp) + 1, value);// for bt656 spec
-	value = IAR_REG_SET_FILED(IAR_DPI_VFP_FIELD2, timing->vfp, value);
-	value = IAR_REG_SET_FILED(IAR_DPI_VSW_FIELD2, timing->vs, value);
-	writel(value, g_iar_dev->regaddr + REG_IAR_PARAMETER_VTIM_FIELD2);
-
+	if (display_type == HDMI_TYPE) {
+		value = readl(g_iar_dev->regaddr + REG_IAR_PARAMETER_VTIM_FIELD2);
+		value = IAR_REG_SET_FILED(IAR_DPI_VBP_FIELD2, timing->vbp, value);
+		value = IAR_REG_SET_FILED(IAR_DPI_VFP_FIELD2, timing->vfp + 1, value);
+		value = IAR_REG_SET_FILED(IAR_DPI_VSW_FIELD2, timing->vs, value);
+		writel(value, g_iar_dev->regaddr + REG_IAR_PARAMETER_VTIM_FIELD2);
+	} else {
+		value = readl(g_iar_dev->regaddr + REG_IAR_PARAMETER_VTIM_FIELD2);
+		value = IAR_REG_SET_FILED(IAR_DPI_VBP_FIELD2,
+				(timing->vbp) + 1, value);// for bt656 spec
+		value = IAR_REG_SET_FILED(IAR_DPI_VFP_FIELD2, timing->vfp, value);
+		value = IAR_REG_SET_FILED(IAR_DPI_VSW_FIELD2, timing->vs, value);
+		writel(value, g_iar_dev->regaddr + REG_IAR_PARAMETER_VTIM_FIELD2);
+	}
 	writel(timing->vfp_cnt,
 		g_iar_dev->regaddr + REG_IAR_PARAMETER_VFP_CNT_FIELD12);
 	return 0;
@@ -945,7 +984,7 @@ int8_t disp_set_pixel_clk(uint64_t pixel_clk)
 	}
 #endif
 	pixel_rate = clk_get_rate(g_iar_dev->iar_pixel_clk);
-	pr_info("%s: iar pixel rate is %lld\n", __func__, pixel_rate);
+	pr_debug("%s: iar pixel rate is %lld\n", __func__, pixel_rate);
 	return 0;
 }
 EXPORT_SYMBOL_GPL(disp_set_pixel_clk);
@@ -985,20 +1024,20 @@ static int disp_clk_enable(void)
 		pixel_clock = pixel_clk_video_720x1280_touch;
 	else if (display_type == SIF_IPI)
 		pixel_clock = 54400000;
-	else if (display_type == HDMI_TYPE)
-		pixel_clock = pixel_clk_video_1920x1080;
 	else if (display_type == BT656_TYPE)
 		pixel_clock = pixel_clk_video_704x576;
 	else
 		pixel_clock = 163000000;
-	pixel_clock = clk_round_rate(g_iar_dev->iar_pixel_clk, pixel_clock);
-	ret = clk_set_rate(g_iar_dev->iar_pixel_clk, pixel_clock);
-	if (ret) {
-		pr_err("%s: err checkout iar pixel clock rate!!\n", __func__);
-		return -1;
+	if (display_type != HDMI_TYPE) {
+		pixel_clock = clk_round_rate(g_iar_dev->iar_pixel_clk, pixel_clock);
+		ret = clk_set_rate(g_iar_dev->iar_pixel_clk, pixel_clock);
+		if (ret) {
+			pr_err("%s: err checkout iar pixel clock rate!!\n", __func__);
+			return -1;
+		}
+		pixel_clock = clk_get_rate(g_iar_dev->iar_pixel_clk);
+		pr_err("%s: iar pixel rate is %lld\n", __func__, pixel_clock);
 	}
-	pixel_clock = clk_get_rate(g_iar_dev->iar_pixel_clk);
-	pr_debug("%s: iar pixel rate is %lld\n", __func__, pixel_clock);
 	return 0;
 }
 

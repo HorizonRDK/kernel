@@ -68,6 +68,8 @@
 #define IAR_GET_STOP_CNT       _IOR(IAR_CDEV_MAGIC, 0x43, unsigned int)
 #define HDMI_SHUT_DOWN       _IO(IAR_CDEV_MAGIC, 0x44)
 #define DISP_SET_VIDEO_PAUSE   _IOW(IAR_CDEV_MAGIC, 0x80, int)
+#define DISP_SET_INTERLACE_MODE   _IO(IAR_CDEV_MAGIC, 0x45)
+#define DISP_SET_PIXEL_CLK   _IOW(IAR_CDEV_MAGIC, 0x46, unsigned int)
 
 unsigned int iar_open_cnt = 0;
 unsigned int iar_start_cnt = 0;
@@ -250,11 +252,21 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 		break;
 	case HDMI_CONFIG:
 		 {
+			uint32_t vmode;
+
 			IAR_DEBUG_PRINT("HEMI_CONFIG \n");
-			if (config_hdmi != NULL)
-				ret = config_hdmi(9, 4, 2);
-			else
+			if (copy_from_user(&vmode, arg, sizeof(uint32_t)))
+				return -EFAULT;
+			if (config_hdmi != NULL) {
+				if (vmode == 0) {
+					ret = config_hdmi(9, 4, 2);
+				} else {
+					pr_debug("iar_cdev: vmode = %d\n", vmode);
+					ret = config_hdmi(vmode, 0, 2);//CEA-VIC
+				}
+			} else {
 				pr_err("no sii902x HDMI device!!\n");
+			}
 		}
 		break;
 	case HDMI_SHUT_DOWN:
@@ -429,6 +441,26 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 			if (ret)
 				pr_err("error user set video timing!\n");
 			iar_update();
+		}
+		break;
+	case DISP_SET_PIXEL_CLK:
+		 {
+			unsigned int pixel_clock;
+
+			pr_debug("iar_cdev: %s: user set video timing\n",
+					__func__);
+			if (copy_from_user(&pixel_clock, arg,
+						sizeof(unsigned int)))
+				return -EFAULT;
+			ret = disp_set_pixel_clk(pixel_clock);
+			if (ret)
+				pr_err("error user set pixel clk!\n");
+		}
+		break;
+	case DISP_SET_INTERLACE_MODE:
+		 {
+			IAR_DEBUG_PRINT("disp set interlace mode!\n");
+			ret = disp_set_interlace_mode();
 		}
 		break;
 	case SCREEN_BACKLIGHT_SET:

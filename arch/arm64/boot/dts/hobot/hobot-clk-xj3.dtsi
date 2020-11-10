@@ -675,6 +675,7 @@
 			offset = <0x240>;
 			bits = <31>;
 			field = <1>;
+			clk-mux-flags = <CLK_MUX_ROUND_CLOSEST>;
 		};
 
 		iar_pix_1stdiv_clk: iar_pix_1stdiv_clk {
@@ -684,6 +685,7 @@
 			offset = <0x240>;
 			bits = <16>;
 			field = <5>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		iar_pix_clk: iar_pix_clk {

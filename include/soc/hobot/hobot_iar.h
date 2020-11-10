@@ -853,6 +853,7 @@ int iar_output_buf_init(int layer_no, struct frame_info *frameinfo);
 int iar_output_reqbufs(int layer_no, unsigned int buffers);
 int iar_output_stream_on(int layer_no);
 int iar_output_stream_off(int layer_no);
+int disp_set_interlace_mode(void);
 
 // Supported rotation.
 enum RotationMode {
