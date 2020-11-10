@@ -672,6 +672,7 @@ void ipu_frame_work(struct vio_group *group)
 	if (instance < MAX_SHADOW_NUM)
 		shadow_index = instance;
 	vio_dbg("[S%d]%s start\n", instance, __func__);
+	ipu_get_ddr_addr_dump(ipu->base_reg);
 
 	if (group->leader && test_bit(IPU_OTF_INPUT, &ipu->state)) {
 		work_index = (work_index + 1) % 2;

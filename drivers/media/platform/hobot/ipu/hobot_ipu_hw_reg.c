@@ -963,3 +963,26 @@ void ipu_hw_dump(u32 __iomem *base_reg)
 {
 	vio_hw_dump_regs(base_reg, ipu_regs, NUM_OF_IPU_REG);
 }
+
+void ipu_get_ddr_addr_dump(u32 __iomem *base_reg)
+{
+	u32 reg_val_y, reg_val_uv;
+	reg_val_y = vio_hw_get_reg(base_reg, &ipu_regs[IPU_US_DDR_Y]);
+	reg_val_uv = vio_hw_get_reg(base_reg, &ipu_regs[IPU_US_DDR_UV]);
+	vio_dbg("US Y:0x%x,UV:0x%x\n", reg_val_y, reg_val_uv);
+	reg_val_y = vio_hw_get_reg(base_reg, &ipu_regs[IPU_DS_0_DDR_Y]);
+	reg_val_uv = vio_hw_get_reg(base_reg, &ipu_regs[IPU_DS_0_DDR_UV]);
+	vio_dbg("DS0 Y:0x%x,UV:0x%x\n", reg_val_y, reg_val_uv);
+	reg_val_y = vio_hw_get_reg(base_reg, &ipu_regs[IPU_DS_1_DDR_Y]);
+	reg_val_uv = vio_hw_get_reg(base_reg, &ipu_regs[IPU_DS_1_DDR_UV]);
+	vio_dbg("DS1 Y:0x%x,UV:0x%x\n", reg_val_y, reg_val_uv);
+	reg_val_y = vio_hw_get_reg(base_reg, &ipu_regs[IPU_DS_2_DDR_Y]);
+	reg_val_uv = vio_hw_get_reg(base_reg, &ipu_regs[IPU_DS_2_DDR_UV]);
+	vio_dbg("DS2 Y:0x%x,UV:0x%x\n", reg_val_y, reg_val_uv);
+	reg_val_y = vio_hw_get_reg(base_reg, &ipu_regs[IPU_DS_3_DDR_Y]);
+	reg_val_uv = vio_hw_get_reg(base_reg, &ipu_regs[IPU_DS_3_DDR_UV]);
+	vio_dbg("DS3 Y:0x%x,UV:0x%x\n", reg_val_y, reg_val_uv);
+	reg_val_y = vio_hw_get_reg(base_reg, &ipu_regs[IPU_DS_4_DDR_Y]);
+	reg_val_uv = vio_hw_get_reg(base_reg, &ipu_regs[IPU_DS_4_DDR_UV]);
+	vio_dbg("DS4 Y:0x%x,UV:0x%x\n", reg_val_y, reg_val_uv);
+}
