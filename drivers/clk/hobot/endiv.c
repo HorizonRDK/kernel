@@ -98,7 +98,7 @@ void endiv_clk_disable(struct clk_hw *hw)
 		}
 
 		if (0 == cnt)
-			pr_warn("%s: clk: 0x%lx disable failed\n",
+			pr_warn("%s: clk: 0x%p disable failed\n",
 					__func__, clk->gate_reg.clkoff_sta_reg);
 	}
 
@@ -176,7 +176,7 @@ static int endiv_clk_set_rate(struct clk_hw *hw, unsigned long rate,
 		}
 
 		if (0 == cnt)
-			pr_warn("%s: clk: 0x%lx disable failed\n",
+			pr_warn("%s: clk: 0x%p disable failed\n",
 					__func__, clk->gate_reg.clkoff_sta_reg);
 	}
 
