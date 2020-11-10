@@ -23,7 +23,7 @@ static SPINAND_OP_VARIANTS(read_cache_3a_variants,
 		SPINAND_PAGE_READ_FROM_CACHE_OP_3A(false, 0, 1, NULL, 0));
 
 static SPINAND_OP_VARIANTS(read_cache_variants,
-		//SPINAND_PAGE_READ_FROM_CACHE_QUADIO_OP(0, 2, NULL, 0),
+		SPINAND_PAGE_READ_FROM_CACHE_QUADIO_OP(0, 2, NULL, 0),
 		SPINAND_PAGE_READ_FROM_CACHE_X4_OP(0, 1, NULL, 0),
 		SPINAND_PAGE_READ_FROM_CACHE_DUALIO_OP(0, 1, NULL, 0),
 		SPINAND_PAGE_READ_FROM_CACHE_X2_OP(0, 1, NULL, 0),
@@ -139,6 +139,26 @@ static int gd5f1gq4u_ecc_get_status(struct spinand_device *spinand,
 	return -EINVAL;
 }
 
+static int gd5f_4bit_ecc_get_status(struct spinand_device *spinand,
+									u8 status)
+{
+	switch (status & STATUS_ECC_MASK) {
+	case STATUS_ECC_NO_BITFLIPS:
+		return 0;
+
+	case GIGADEVICE_STATUS_ECC_1TO7_BITFLIPS:
+		return 3;
+
+	case STATUS_ECC_UNCOR_ERROR:
+		return -EBADMSG;
+
+	default:
+		break;
+	}
+
+	return -EINVAL;
+}
+
 static const struct mtd_ooblayout_ops gd5fxgq4xa_ooblayout = {
 	.ecc = gd5fxgq4xa_ooblayout_ecc,
 	.free = gd5fxgq4xa_ooblayout_free,
@@ -160,6 +180,15 @@ static const struct spinand_info gigadevice_spinand_table[] = {
 		     SPINAND_HAS_QE_BIT,
 		     SPINAND_ECCINFO(&gd5f1gq4u_ooblayout,
 						gd5f1gq4u_ecc_get_status)),
+	SPINAND_INFO("GD5F1GQ5xExxG", 0x41,
+		     NAND_MEMORG(1, 2048, 64, 64, 1024, 20, 1, 1, 1),
+		     NAND_ECCREQ(4, 528),
+		     SPINAND_INFO_OP_VARIANTS(&read_cache_variants,
+									&write_cache_variants,
+									&update_cache_variants),
+		     SPINAND_HAS_QE_BIT,
+		     SPINAND_ECCINFO(&gd5f1gq4u_ooblayout,
+						gd5f_4bit_ecc_get_status)),
 	SPINAND_INFO("GD5F4GQ4UA", 0xF4,
 		     NAND_MEMORG(1, 2048, 64, 64, 4096, 20, 1, 1, 1),
 		     NAND_ECCREQ(8, 512),
@@ -174,14 +203,14 @@ static const struct spinand_info gigadevice_spinand_table[] = {
 static int gigadevice_spinand_detect(struct spinand_device *spinand)
 {
 	u8 *id = spinand->id.data;
-	int ret;
+	int ret, i = 0;
 
-	if (id[0] != SPINAND_MFR_GIGADEVICE)
+	if (id[i++] != SPINAND_MFR_GIGADEVICE && id[i++] != SPINAND_MFR_GIGADEVICE)
 		return 0;
 
 	ret = spinand_match_and_init(spinand, gigadevice_spinand_table,
 				     ARRAY_SIZE(gigadevice_spinand_table),
-				     id[1]);
+				     id[i]);
 	if (ret)
 		return ret;
 
